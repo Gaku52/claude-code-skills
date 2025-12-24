@@ -1,6 +1,7 @@
-# Claude Code Skills - iOS Development Framework
+# Claude Code Skills - Full-Stack Development Framework
 
-iOS開発における設計、製造、テスト、リリースまでの全ライフサイクルをカバーする包括的なSkills体系。
+ソフトウェア開発における設計・実装・テスト・デプロイまでの全ライフサイクルをカバーする包括的なSkills体系。
+iOS、Web、Backend、Script開発からDevOps・品質管理まで、プラットフォームを横断した開発知識を体系化。
 
 ## 🎯 目的
 
@@ -11,41 +12,43 @@ iOS開発における設計、製造、テスト、リリースまでの全ラ�
 
 ## 📊 進捗状況
 
-### 完成度：4% (1/25)
+### 完成度：54% (14/26)
 
 | # | Skill | 状態 | 説明 |
 |---|-------|------|------|
-| **企画・設計** ||||
-| 1 | `product-planning` | 📋 構造のみ | プロダクト企画・要件定義 |
-| 2 | `ux-design` | 📋 構造のみ | UX/UI設計 |
-| 3 | `system-architecture` | 📋 構造のみ | システムアーキテクチャ設計 |
-| 4 | `api-design` | 📋 構造のみ | API設計 |
-| 5 | `database-design` | 📋 構造のみ | データモデリング |
-| **iOS開発** ||||
-| 6 | `ios-project-setup` | 📋 構造のみ | プロジェクト初期設定 |
-| 7 | `ios-development` | 📋 構造のみ | iOS開発ベストプラクティス |
-| 8 | `swiftui-patterns` | 📋 構造のみ | SwiftUI開発パターン |
-| 9 | `networking-data` | 📋 構造のみ | ネットワーク・データ永続化 |
-| 10 | `ios-performance` | 📋 構造のみ | パフォーマンス最適化 |
-| 11 | `ios-security` | 📋 構造のみ | セキュリティ実装 |
-| **品質・テスト** ||||
-| 12 | `testing-strategy` | 📋 構造のみ | テスト戦略 |
-| 13 | `code-review` | 📋 構造のみ | コードレビュー |
-| 14 | `quality-assurance` | 📋 構造のみ | 品質保証・QA |
-| 15 | `accessibility` | 📋 構造のみ | アクセシビリティ |
-| **DevOps・CI/CD** ||||
-| 16 | `git-workflow` | ✅ **完成** | Git運用・ブランチ戦略 |
-| 17 | `ci-cd-automation` | 📋 構造のみ | CI/CD自動化 |
-| 18 | `code-signing` | 📋 構造のみ | 証明書・プロビジョニング管理 |
-| 19 | `dependency-management` | 📋 構造のみ | 依存関係管理 |
-| **リリース・運用** ||||
-| 20 | `release-process` | 📋 構造のみ | リリースプロセス |
-| 21 | `app-store-submission` | 📋 構造のみ | App Store申請 |
-| 22 | `monitoring-analytics` | 📋 構造のみ | 監視・分析・インシデント対応 |
-| **ナレッジ管理** ||||
-| 23 | `incident-logger` | 📋 構造のみ | 問題記録・インシデント管理 |
-| 24 | `lessons-learned` | 📋 構造のみ | 教訓データベース |
-| 25 | `documentation` | 📋 構造のみ | ドキュメンテーション |
+| **Web開発** (6/6) ||||
+| 1 | `documentation` | ✅ **完成** | 技術ドキュメント・README作成 |
+| 2 | `web-development` | ✅ **完成** | モダンWeb開発の基礎 |
+| 3 | `react-development` | ✅ **完成** | React開発ベストプラクティス |
+| 4 | `nextjs-development` | ✅ **完成** | Next.js App Router開発 |
+| 5 | `frontend-performance` | ✅ **完成** | フロントエンド最適化 |
+| 6 | `web-accessibility` | ✅ **完成** | アクセシビリティ対応 |
+| **バックエンド開発** (4/4) ||||
+| 7 | `backend-development` | ✅ **完成** | バックエンド開発基礎 |
+| 8 | `nodejs-development` | ✅ **完成** | Node.js開発ガイド |
+| 9 | `python-development` | ✅ **完成** | Python開発ガイド |
+| 10 | `database-design` | ✅ **完成** | データベース設計 |
+| **スクリプト・自動化** (3/3) ||||
+| 11 | `script-development` | ✅ **完成** | スクリプト開発ガイド |
+| 12 | `cli-development` | ✅ **完成** | CLIツール開発 |
+| 13 | `mcp-development` | ✅ **完成** | MCP Server開発 |
+| **iOS開発** (2/5) ||||
+| 14 | `ios-development` | ✅ **完成** | iOS開発ベストプラクティス |
+| 15 | `ios-project-setup` | ✅ **完成** | プロジェクト初期設定 |
+| 16 | `swiftui-patterns` | 📋 未作成 | SwiftUI開発パターン |
+| 17 | `networking-data` | 📋 未作成 | ネットワーク・データ永続化 |
+| 18 | `ios-security` | 📋 未作成 | セキュリティ実装 |
+| **品質・テスト** (2/3) ||||
+| 19 | `testing-strategy` | ✅ **完成** | テスト戦略 |
+| 20 | `code-review` | ✅ **完成** | コードレビュー |
+| 21 | `quality-assurance` | 📋 未作成 | 品質保証・QA |
+| **DevOps・CI/CD** (3/3) ||||
+| 22 | `git-workflow` | ✅ **完成** | Git運用・ブランチ戦略 |
+| 23 | `ci-cd-automation` | ✅ **完成** | CI/CD自動化 |
+| 24 | `dependency-management` | 📋 未作成 | 依存関係管理 |
+| **ナレッジ管理** (2/2) ||||
+| 25 | `incident-logger` | ✅ **完成** | 問題記録・インシデント管理 |
+| 26 | `lessons-learned` | ✅ **完成** | 教訓データベース |
 
 **凡例**:
 - ✅ 完成 - SKILL.md、ガイド、チェックリスト、テンプレート、リファレンス全て完成
@@ -135,66 +138,106 @@ Skillsにフィードバック
 
 ## 🔗 Skills間の連携
 
-Skills は独立していますが、相互に連携します：
+Skillsは独立していますが、開発フローに沿って連携します：
 
+### Web開発フロー
 ```
-product-planning → ux-design → system-architecture
+web-development → react-development / nextjs-development
                                       ↓
-                              ios-project-setup
+                          frontend-performance
                                       ↓
-                              ios-development
+                           web-accessibility
                                       ↓
-                            testing-strategy
+                              testing-strategy
                                       ↓
                               code-review
                                       ↓
                               ci-cd-automation
+```
+
+### バックエンド開発フロー
+```
+backend-development → nodejs-development / python-development
                                       ↓
-                              release-process
+                              database-design
                                       ↓
-                          app-store-submission
+                              testing-strategy
                                       ↓
-                          monitoring-analytics
+                              code-review
                                       ↓
-                          incident-logger (常時)
+                              ci-cd-automation
+```
+
+### iOS開発フロー
+```
+ios-project-setup → ios-development
                                       ↓
-                          lessons-learned (フィードバック)
+                              testing-strategy
+                                      ↓
+                              code-review
+                                      ↓
+                              ci-cd-automation
+```
+
+### スクリプト・自動化フロー
+```
+script-development / cli-development / mcp-development
+                                      ↓
+                              testing-strategy
+                                      ↓
+                              code-review
+```
+
+### 全プロジェクト共通
+```
+git-workflow (常時)
+     ↓
+documentation (必要に応じて)
+     ↓
+incident-logger (問題発生時)
+     ↓
+lessons-learned (フィードバック)
 ```
 
 ## 📝 開発ロードマップ
 
-### Phase 1: 基盤構築（完了）
-- [x] 25個のSkills骨格作成
-- [x] `git-workflow` 完全版作成（テンプレート）
-- [x] リポジトリ作成・初期コミット
+### Phase 1: Web開発基盤（完了✅）
+- [x] `web-development` - モダンWeb開発基礎
+- [x] `react-development` - React開発
+- [x] `nextjs-development` - Next.js開発
+- [x] `frontend-performance` - フロントエンド最適化
+- [x] `web-accessibility` - アクセシビリティ対応
+- [x] `documentation` - ドキュメンテーション
 
-### Phase 2: コアSkills（優先度：高）
-- [ ] `ios-development` - 毎日使う
-- [ ] `testing-strategy` - 品質の要
-- [ ] `code-review` - レビュー効率化
-- [ ] `ci-cd-automation` - 自動化の基盤
-- [ ] `incident-logger` - 失敗記録の要
-- [ ] `lessons-learned` - 学習システムの核
+### Phase 2: バックエンド基盤（完了✅）
+- [x] `backend-development` - バックエンド開発基礎
+- [x] `nodejs-development` - Node.js開発
+- [x] `python-development` - Python開発
+- [x] `database-design` - データベース設計
 
-### Phase 3: 開発サイクルSkills（優先度：中）
-- [ ] `ios-project-setup`
-- [ ] `swiftui-patterns`
-- [ ] `networking-data`
-- [ ] `release-process`
-- [ ] `app-store-submission`
+### Phase 3: スクリプト・自動化（完了✅）
+- [x] `script-development` - スクリプト開発
+- [x] `cli-development` - CLIツール開発
+- [x] `mcp-development` - MCP Server開発
 
-### Phase 4: 設計・最適化Skills（優先度：中）
-- [ ] `system-architecture`
-- [ ] `api-design`
-- [ ] `ios-performance`
-- [ ] `ios-security`
-- [ ] `accessibility`
+### Phase 4: DevOps・品質管理（完了✅）
+- [x] `git-workflow` - Git運用・ブランチ戦略
+- [x] `testing-strategy` - テスト戦略
+- [x] `code-review` - コードレビュー
+- [x] `ci-cd-automation` - CI/CD自動化
+- [x] `incident-logger` - 問題記録・インシデント管理
+- [x] `lessons-learned` - 教訓データベース
 
-### Phase 5: 企画・運用Skills（優先度：低）
-- [ ] `product-planning`
-- [ ] `ux-design`
-- [ ] `monitoring-analytics`
-- [ ] `documentation`
+### Phase 5: iOS開発（完了✅）
+- [x] `ios-development` - iOS開発ベストプラクティス
+- [x] `ios-project-setup` - プロジェクト初期設定
+
+### Phase 6: 残りのSkills（進行中）
+- [ ] `swiftui-patterns` - SwiftUI開発パターン
+- [ ] `networking-data` - ネットワーク・データ永続化
+- [ ] `ios-security` - セキュリティ実装
+- [ ] `quality-assurance` - 品質保証・QA
+- [ ] `dependency-management` - 依存関係管理
 
 ## 🤝 コントリビューション
 
@@ -227,5 +270,5 @@ Issue または Discussion で
 
 ---
 
-**最終更新**: 2024-12-24
-**バージョン**: 0.1.0 (Alpha)
+**最終更新**: 2025-12-24
+**バージョン**: 0.5.0 (Beta) - Full-Stack対応
