@@ -246,6 +246,58 @@ lessons-learned (フィードバック)
 フルスタック開発における全ライフサイクルをカバーする包括的なSkills体系が完成しました。
 iOS、Web、Backend、Script開発、DevOps、品質管理まで、プラットフォームを横断した開発知識を体系化。
 
+---
+
+## 🚀 Phase 2: Sub Agents（準備完了）
+
+**Phase 1（Skills）** = 知識ベース
+**Phase 2（Agents）** = 実行エージェント
+
+Skillsの知識を活用して、開発作業を自動化するAgentsを開発します。
+
+### 📚 Phase 2 ドキュメント
+
+Phase 2の詳細設計・実装ガイドは `docs/phase2/` に格納：
+
+- **[PHASE2_DESIGN.md](docs/phase2/PHASE2_DESIGN.md)** - 詳細設計・技術スタック・実装ガイド
+- **[QUICKSTART.md](docs/phase2/QUICKSTART.md)** - ステップバイステップの手順書
+- **[ROADMAP.md](docs/phase2/ROADMAP.md)** - Phase 1〜5 全体ロードマップ
+- **[MONOREPO_STRUCTURE.md](docs/phase2/MONOREPO_STRUCTURE.md)** - リポジトリ構成設計
+
+### 🎯 Phase 2で作成するAgents
+
+**Priority High（最初の1ヶ月）:**
+1. **code-reviewer-agent** - PRの自動レビュー
+2. **test-runner-agent** - テスト自動実行
+3. **git-automation-agent** - Git操作の自動化
+
+**Priority Medium（2ヶ月目）:**
+4. **deployment-agent** - デプロイ自動化
+5. **security-scanner-agent** - 脆弱性スキャン
+
+**Priority Low（3ヶ月目以降）:**
+6. **refactoring-agent** - コード自動リファクタリング
+7. **documentation-generator-agent** - ドキュメント自動生成
+8. **performance-analyzer-agent** - パフォーマンス分析
+9. **incident-responder-agent** - 障害対応自動化
+10. **dependency-updater-agent** - 依存関係自動更新
+
+### 💡 Skills × Agents の連携
+
+```
+ユーザー「PRをレビューして」
+         ↓
+code-reviewer-agent 起動
+         ↓
+code-review/SKILL.md の知識を参照
+         ↓
+チェック項目に基づいて自動レビュー実行
+         ↓
+結果をPRにコメント投稿
+```
+
+**Skillsが「知識」、Agentsが「実行者」として連携し、開発作業を自動化します。**
+
 ## 🤝 コントリビューション
 
 詳細は [CONTRIBUTING.md](CONTRIBUTING.md) を参照
