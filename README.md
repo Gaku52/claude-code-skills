@@ -338,15 +338,22 @@ vs
 3. ガイド・チェックリストを更新
 4. PRを作成
 
-## 📄 ライセンス
+## 📄 License
 
-Private（個人使用）
+MIT License - See [LICENSE](LICENSE) file for details
 
-将来的にMIT LicenseでOSS化も検討
+Feel free to use, modify, and distribute this knowledge base.
 
-## 📧 お問い合わせ
+## 🙏 Acknowledgments
 
-Issue または Discussion で
+- Created with [Claude Code](https://claude.com/claude-code)
+- Built over 300+ hours of software development research and practice
+
+## 📧 Contact
+
+For questions, suggestions, or collaboration:
+- Open an [Issue](https://github.com/Gaku52/claude-code-skills/issues)
+- Start a [Discussion](https://github.com/Gaku52/claude-code-skills/discussions)
 
 ---
 
