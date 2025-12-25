@@ -329,5 +329,5 @@ Issue または Discussion で
 
 ---
 
-**最終更新**: 2025-12-24
-**バージョン**: 1.0.0 (Stable) - Full-Stack Skills Complete 🎉
+**最終更新**: 2025-12-25
+**バージョン**: 1.0.1 (Stable) - Security & Environment Setup Enhanced 🔒
