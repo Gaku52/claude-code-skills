@@ -1,5 +1,10 @@
 # Claude Code Skills - Full-Stack Development Framework
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![GitHub Stars](https://img.shields.io/github/stars/Gaku52/claude-code-skills?style=social)](https://github.com/Gaku52/claude-code-skills/stargazers)
+[![GitHub Issues](https://img.shields.io/github/issues/Gaku52/claude-code-skills)](https://github.com/Gaku52/claude-code-skills/issues)
+[![GitHub Last Commit](https://img.shields.io/github/last-commit/Gaku52/claude-code-skills)](https://github.com/Gaku52/claude-code-skills/commits/main)
+
 > **Status:** ✅ Complete (Phase 1 Final) - No further development planned
 
 ソフトウェア開発における設計・実装・テスト・デプロイまでの全ライフサイクルをカバーする包括的なSkills体系。
@@ -13,6 +18,58 @@ iOS、Web、Backend、Script開発からDevOps・品質管理まで、プラッ�
 - **失敗の防止**: 過去の失敗事例を記録し、同じ過ちを繰り返さない
 - **Claude Code連携**: Claude Codeが開発時に自動参照
 - **ポートフォリオ**: 知識の体系化能力を証明
+
+## 🚀 Quick Start
+
+### Claude Codeでの使用（推奨）
+
+Claude Codeは `~/.claude/skills/` ディレクトリを自動的に参照します。
+
+```bash
+# 1. このリポジトリをClone
+git clone https://github.com/Gaku52/claude-code-skills.git ~/.claude/skills
+
+# 2. Claude Codeを起動
+# Skillsが自動的に参照されます
+```
+
+**使用例:**
+```
+あなた: 「新しいブランチを作りたい」
+Claude Code: git-workflow Skillを参照 → ブランチ命名規則を提案
+
+あなた: 「Next.jsプロジェクトを作って」
+Claude Code: nextjs-development Skillを参照 → ベストプラクティスに従って実装
+```
+
+### 手動での参照
+
+```bash
+# 特定のSkillを読む
+cat ~/.claude/skills/git-workflow/SKILL.md
+
+# コミットメッセージ規約を確認
+cat ~/.claude/skills/git-workflow/guides/05-commit-messages.md
+
+# チェックリストを表示
+cat ~/.claude/skills/code-review/checklists/review-checklist.md
+```
+
+### ディレクトリ構造
+
+各Skillは統一された構造を持ちます:
+
+```
+skill-name/
+├── SKILL.md              # 目次・概要
+├── README.md             # 使い方
+├── guides/               # 詳細ガイド
+├── checklists/           # チェックリスト
+├── templates/            # テンプレート
+├── references/           # リファレンス
+├── incidents/            # 過去の問題事例（使いながら蓄積）
+└── scripts/              # 自動化スクリプト
+```
 
 ## 📊 進捗状況
 
