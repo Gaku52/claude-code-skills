@@ -105,18 +105,25 @@ jobs:
 
           # Jestの分析
           if [ "${{ steps.version-check.outputs.jest_current }}" != "${{ steps.version-check.outputs.jest_latest }}" ]; then
+            # リリースノートをファイルに保存
+            cat > /tmp/jest_release.txt <<'RELEASE_EOF'
+          ${{ steps.release-notes.outputs.jest_release_body }}
+          RELEASE_EOF
+
+            # jqでJSON化してAPIリクエスト
+            PROMPT="以下はJestのリリースノートです。このアップデートを分析してください：\n\n$(cat /tmp/jest_release.txt)\n\n以下の形式で回答してください：\n1. 破壊的変更: あり/なし\n2. 重要度: 高/中/低\n3. 影響範囲: テストコード/設定ファイル/その他\n4. 推奨アクション: 具体的に何をすべきか\n5. 概要: 変更内容を3行で要約"
+
+            REQUEST_BODY=$(jq -n \
+              --arg model "claude-3-5-sonnet-20241022" \
+              --argjson max_tokens 2000 \
+              --arg content "$PROMPT" \
+              '{model: $model, max_tokens: $max_tokens, messages: [{role: "user", content: $content}]}')
+
             JEST_ANALYSIS=$(curl -s https://api.anthropic.com/v1/messages \
               -H "x-api-key: $ANTHROPIC_API_KEY" \
               -H "anthropic-version: 2023-06-01" \
               -H "content-type: application/json" \
-              -d '{
-                "model": "claude-3-5-sonnet-20241022",
-                "max_tokens": 2000,
-                "messages": [{
-                  "role": "user",
-                  "content": "以下はJestのリリースノートです。このアップデートを分析してください：\n\n${{ steps.release-notes.outputs.jest_release_body }}\n\n以下の形式で回答してください：\n1. 破壊的変更: あり/なし\n2. 重要度: 高/中/低\n3. 影響範囲: テストコード/設定ファイル/その他\n4. 推奨アクション: 具体的に何をすべきか\n5. 概要: 変更内容を3行で要約"
-                }]
-              }' | jq -r '.content[0].text')
+              -d "$REQUEST_BODY" | jq -r '.content[0].text')
 
             echo "jest_analysis<<EOF" >> $GITHUB_OUTPUT
             echo "$JEST_ANALYSIS" >> $GITHUB_OUTPUT
@@ -125,18 +132,25 @@ jobs:
 
           # Playwrightの分析
           if [ "${{ steps.version-check.outputs.playwright_current }}" != "${{ steps.version-check.outputs.playwright_latest }}" ]; then
+            # リリースノートをファイルに保存
+            cat > /tmp/playwright_release.txt <<'RELEASE_EOF'
+          ${{ steps.release-notes.outputs.playwright_release_body }}
+          RELEASE_EOF
+
+            # jqでJSON化してAPIリクエスト
+            PROMPT="以下はPlaywrightのリリースノートです。このアップデートを分析してください：\n\n$(cat /tmp/playwright_release.txt)\n\n以下の形式で回答してください：\n1. 破壊的変更: あり/なし\n2. 重要度: 高/中/低\n3. 影響範囲: テストコード/設定ファイル/その他\n4. 推奨アクション: 具体的に何をすべきか\n5. 概要: 変更内容を3行で要約"
+
+            REQUEST_BODY=$(jq -n \
+              --arg model "claude-3-5-sonnet-20241022" \
+              --argjson max_tokens 2000 \
+              --arg content "$PROMPT" \
+              '{model: $model, max_tokens: $max_tokens, messages: [{role: "user", content: $content}]}')
+
             PLAYWRIGHT_ANALYSIS=$(curl -s https://api.anthropic.com/v1/messages \
               -H "x-api-key: $ANTHROPIC_API_KEY" \
               -H "anthropic-version: 2023-06-01" \
               -H "content-type: application/json" \
-              -d '{
-                "model": "claude-3-5-sonnet-20241022",
-                "max_tokens": 2000,
-                "messages": [{
-                  "role": "user",
-                  "content": "以下はPlaywrightのリリースノートです。このアップデートを分析してください：\n\n${{ steps.release-notes.outputs.playwright_release_body }}\n\n以下の形式で回答してください：\n1. 破壊的変更: あり/なし\n2. 重要度: 高/中/低\n3. 影響範囲: テストコード/設定ファイル/その他\n4. 推奨アクション: 具体的に何をすべきか\n5. 概要: 変更内容を3行で要約"
-                }]
-              }' | jq -r '.content[0].text')
+              -d "$REQUEST_BODY" | jq -r '.content[0].text')
 
             echo "playwright_analysis<<EOF" >> $GITHUB_OUTPUT
             echo "$PLAYWRIGHT_ANALYSIS" >> $GITHUB_OUTPUT
