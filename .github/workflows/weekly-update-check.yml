@@ -2,8 +2,8 @@ name: Weekly Documentation Update Check
 
 on:
   schedule:
-    # 毎週日曜 深夜2:00 JST (土曜 17:00 UTC)
-    - cron: '0 17 * * 6'
+    # 毎週金曜 0:20 JST (木曜 15:20 UTC)
+    - cron: '20 15 * * 4'
   workflow_dispatch: # 手動実行も可能
 
 jobs:
