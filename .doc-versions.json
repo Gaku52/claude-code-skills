@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "description": "技術ドキュメントで使用しているパッケージ・ツールのバージョン管理",
+  "lastUpdated": "2025-01-27",
+  "packages": {
+    "jest": {
+      "version": "29.0.0",
+      "category": "testing",
+      "documentation": [
+        "testing-strategy/guides/unit/unit-testing-complete.md"
+      ]
+    },
+    "vitest": {
+      "version": "1.0.0",
+      "category": "testing",
+      "documentation": [
+        "testing-strategy/guides/unit/unit-testing-complete.md"
+      ]
+    },
+    "playwright": {
+      "version": "1.40.0",
+      "category": "testing",
+      "documentation": [
+        "testing-strategy/guides/e2e/e2e-testing-complete.md"
+      ]
+    },
+    "cypress": {
+      "version": "13.0.0",
+      "category": "testing",
+      "documentation": [
+        "testing-strategy/guides/e2e/e2e-testing-complete.md"
+      ]
+    },
+    "supertest": {
+      "version": "6.3.0",
+      "category": "testing",
+      "documentation": [
+        "testing-strategy/guides/integration/integration-testing-complete.md"
+      ]
+    },
+    "testcontainers": {
+      "version": "10.0.0",
+      "category": "testing",
+      "documentation": [
+        "testing-strategy/guides/integration/integration-testing-complete.md"
+      ]
+    },
+    "prisma": {
+      "version": "5.0.0",
+      "category": "database",
+      "documentation": [
+        "database-design/guides/schema/schema-design-complete.md",
+        "database-design/guides/optimization/query-optimization-complete.md",
+        "database-design/guides/migration/migration-complete.md"
+      ]
+    },
+    "typeorm": {
+      "version": "0.3.0",
+      "category": "database",
+      "documentation": [
+        "database-design/guides/migration/migration-complete.md"
+      ]
+    },
+    "knex": {
+      "version": "3.0.0",
+      "category": "database",
+      "documentation": [
+        "database-design/guides/migration/migration-complete.md"
+      ]
+    },
+    "express": {
+      "version": "4.18.0",
+      "category": "backend",
+      "documentation": [
+        "nodejs-development/guides/frameworks/express-complete.md",
+        "backend-development/guides/api/rest-api-complete.md"
+      ]
+    },
+    "fastify": {
+      "version": "4.24.0",
+      "category": "backend",
+      "documentation": [
+        "nodejs-development/guides/frameworks/fastify-complete.md"
+      ]
+    },
+    "nestjs": {
+      "version": "10.0.0",
+      "category": "backend",
+      "documentation": [
+        "nodejs-development/guides/frameworks/nestjs-complete.md"
+      ]
+    },
+    "typescript": {
+      "version": "5.0.0",
+      "category": "language",
+      "documentation": [
+        "nodejs-development/guides/typescript/typescript-best-practices.md",
+        "backend-development/guides/architecture/clean-architecture-complete.md"
+      ]
+    },
+    "node": {
+      "version": "20.0.0",
+      "category": "runtime",
+      "documentation": [
+        "nodejs-development/guides/performance/performance-optimization-complete.md"
+      ]
+    },
+    "postgresql": {
+      "version": "14.0",
+      "category": "database",
+      "documentation": [
+        "database-design/guides/schema/schema-design-complete.md",
+        "database-design/guides/optimization/query-optimization-complete.md"
+      ]
+    },
+    "mysql": {
+      "version": "8.0",
+      "category": "database",
+      "documentation": [
+        "database-design/guides/schema/schema-design-complete.md"
+      ]
+    }
+  },
+  "notes": {
+    "versionFormat": "メジャーバージョンのみ記載（例: 5.0.0 = 5.0以上）",
+    "updateFrequency": "週次自動チェック（毎週日曜）",
+    "updateWorkflow": ".github/workflows/weekly-update-check.yml"
+  }
+}

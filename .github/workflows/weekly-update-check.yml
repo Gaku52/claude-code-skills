@@ -1,0 +1,423 @@
+name: Weekly Documentation Update Check
+
+on:
+  schedule:
+    # 毎週日曜 深夜2:00 JST (土曜 17:00 UTC)
+    - cron: '0 17 * * 6'
+  workflow_dispatch: # 手動実行も可能
+
+jobs:
+  check-updates:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Check package versions
+        id: version-check
+        run: |
+          # .doc-versions.json から現在のバージョンを読み込み
+          CURRENT_JEST=$(jq -r '.packages.jest.version' .doc-versions.json)
+          CURRENT_PLAYWRIGHT=$(jq -r '.packages.playwright.version' .doc-versions.json)
+          CURRENT_TYPESCRIPT=$(jq -r '.packages.typescript.version' .doc-versions.json)
+          CURRENT_NEXTJS=$(jq -r '.packages.nextjs.version' .doc-versions.json)
+          CURRENT_REACT=$(jq -r '.packages.react.version' .doc-versions.json)
+          CURRENT_NODE=$(jq -r '.packages.nodejs.version' .doc-versions.json)
+
+          # 最新バージョンを取得
+          LATEST_JEST=$(npm view jest version)
+          LATEST_PLAYWRIGHT=$(npm view playwright version)
+          LATEST_TYPESCRIPT=$(npm view typescript version)
+          LATEST_NEXTJS=$(npm view next version)
+          LATEST_REACT=$(npm view react version)
+          LATEST_NODE=$(curl -s https://nodejs.org/dist/index.json | jq -r '.[0].version' | sed 's/v//')
+
+          # 出力
+          echo "jest_current=$CURRENT_JEST" >> $GITHUB_OUTPUT
+          echo "jest_latest=$LATEST_JEST" >> $GITHUB_OUTPUT
+          echo "playwright_current=$CURRENT_PLAYWRIGHT" >> $GITHUB_OUTPUT
+          echo "playwright_latest=$LATEST_PLAYWRIGHT" >> $GITHUB_OUTPUT
+          echo "typescript_current=$CURRENT_TYPESCRIPT" >> $GITHUB_OUTPUT
+          echo "typescript_latest=$LATEST_TYPESCRIPT" >> $GITHUB_OUTPUT
+          echo "nextjs_current=$CURRENT_NEXTJS" >> $GITHUB_OUTPUT
+          echo "nextjs_latest=$LATEST_NEXTJS" >> $GITHUB_OUTPUT
+          echo "react_current=$CURRENT_REACT" >> $GITHUB_OUTPUT
+          echo "react_latest=$LATEST_REACT" >> $GITHUB_OUTPUT
+          echo "node_current=$CURRENT_NODE" >> $GITHUB_OUTPUT
+          echo "node_latest=$LATEST_NODE" >> $GITHUB_OUTPUT
+
+          # 差分があるかチェック
+          HAS_UPDATES=false
+          if [ "$CURRENT_JEST" != "$LATEST_JEST" ]; then HAS_UPDATES=true; fi
+          if [ "$CURRENT_PLAYWRIGHT" != "$LATEST_PLAYWRIGHT" ]; then HAS_UPDATES=true; fi
+          if [ "$CURRENT_TYPESCRIPT" != "$LATEST_TYPESCRIPT" ]; then HAS_UPDATES=true; fi
+          if [ "$CURRENT_NEXTJS" != "$LATEST_NEXTJS" ]; then HAS_UPDATES=true; fi
+          if [ "$CURRENT_REACT" != "$LATEST_REACT" ]; then HAS_UPDATES=true; fi
+          if [ "$CURRENT_NODE" != "$LATEST_NODE" ]; then HAS_UPDATES=true; fi
+
+          echo "has_updates=$HAS_UPDATES" >> $GITHUB_OUTPUT
+
+      - name: Fetch release notes
+        if: steps.version-check.outputs.has_updates == 'true'
+        id: release-notes
+        run: |
+          # Jest
+          if [ "${{ steps.version-check.outputs.jest_current }}" != "${{ steps.version-check.outputs.jest_latest }}" ]; then
+            JEST_RELEASE=$(curl -s https://api.github.com/repos/jestjs/jest/releases/latest)
+            echo "jest_release_url=$(echo "$JEST_RELEASE" | jq -r '.html_url')" >> $GITHUB_OUTPUT
+            echo "jest_release_body<<EOF" >> $GITHUB_OUTPUT
+            echo "$JEST_RELEASE" | jq -r '.body' | head -20 >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+
+          # Playwright
+          if [ "${{ steps.version-check.outputs.playwright_current }}" != "${{ steps.version-check.outputs.playwright_latest }}" ]; then
+            PLAYWRIGHT_RELEASE=$(curl -s https://api.github.com/repos/microsoft/playwright/releases/latest)
+            echo "playwright_release_url=$(echo "$PLAYWRIGHT_RELEASE" | jq -r '.html_url')" >> $GITHUB_OUTPUT
+            echo "playwright_release_body<<EOF" >> $GITHUB_OUTPUT
+            echo "$PLAYWRIGHT_RELEASE" | jq -r '.body' | head -20 >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+
+          # TypeScript
+          if [ "${{ steps.version-check.outputs.typescript_current }}" != "${{ steps.version-check.outputs.typescript_latest }}" ]; then
+            TYPESCRIPT_RELEASE=$(curl -s https://api.github.com/repos/microsoft/TypeScript/releases/latest)
+            echo "typescript_release_url=$(echo "$TYPESCRIPT_RELEASE" | jq -r '.html_url')" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Analyze release notes with Claude API
+        if: steps.version-check.outputs.has_updates == 'true'
+        id: claude-analysis
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          # Claude APIでリリースノートを詳細分析
+
+          # Jestの分析
+          if [ "${{ steps.version-check.outputs.jest_current }}" != "${{ steps.version-check.outputs.jest_latest }}" ]; then
+            JEST_ANALYSIS=$(curl -s https://api.anthropic.com/v1/messages \
+              -H "x-api-key: $ANTHROPIC_API_KEY" \
+              -H "anthropic-version: 2023-06-01" \
+              -H "content-type: application/json" \
+              -d '{
+                "model": "claude-3-5-sonnet-20241022",
+                "max_tokens": 2000,
+                "messages": [{
+                  "role": "user",
+                  "content": "以下はJestのリリースノートです。このアップデートを分析してください：\n\n${{ steps.release-notes.outputs.jest_release_body }}\n\n以下の形式で回答してください：\n1. 破壊的変更: あり/なし\n2. 重要度: 高/中/低\n3. 影響範囲: テストコード/設定ファイル/その他\n4. 推奨アクション: 具体的に何をすべきか\n5. 概要: 変更内容を3行で要約"
+                }]
+              }' | jq -r '.content[0].text')
+
+            echo "jest_analysis<<EOF" >> $GITHUB_OUTPUT
+            echo "$JEST_ANALYSIS" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+
+          # Playwrightの分析
+          if [ "${{ steps.version-check.outputs.playwright_current }}" != "${{ steps.version-check.outputs.playwright_latest }}" ]; then
+            PLAYWRIGHT_ANALYSIS=$(curl -s https://api.anthropic.com/v1/messages \
+              -H "x-api-key: $ANTHROPIC_API_KEY" \
+              -H "anthropic-version: 2023-06-01" \
+              -H "content-type: application/json" \
+              -d '{
+                "model": "claude-3-5-sonnet-20241022",
+                "max_tokens": 2000,
+                "messages": [{
+                  "role": "user",
+                  "content": "以下はPlaywrightのリリースノートです。このアップデートを分析してください：\n\n${{ steps.release-notes.outputs.playwright_release_body }}\n\n以下の形式で回答してください：\n1. 破壊的変更: あり/なし\n2. 重要度: 高/中/低\n3. 影響範囲: テストコード/設定ファイル/その他\n4. 推奨アクション: 具体的に何をすべきか\n5. 概要: 変更内容を3行で要約"
+                }]
+              }' | jq -r '.content[0].text')
+
+            echo "playwright_analysis<<EOF" >> $GITHUB_OUTPUT
+            echo "$PLAYWRIGHT_ANALYSIS" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check for breaking changes
+        if: steps.version-check.outputs.has_updates == 'true'
+        id: breaking-check
+        run: |
+          # Claude分析結果から破壊的変更を検知
+          HAS_BREAKING=false
+
+          # Jest
+          if [ "${{ steps.version-check.outputs.jest_current }}" != "${{ steps.version-check.outputs.jest_latest }}" ]; then
+            # Claude分析結果をチェック
+            if echo "${{ steps.claude-analysis.outputs.jest_analysis }}" | grep -iE "破壊的変更.*あり" > /dev/null; then
+              HAS_BREAKING=true
+              echo "jest_breaking=true" >> $GITHUB_OUTPUT
+            # フォールバック: キーワードマッチング
+            elif echo "${{ steps.release-notes.outputs.jest_release_body }}" | grep -iE "(breaking|breaking change|migration)" > /dev/null; then
+              HAS_BREAKING=true
+              echo "jest_breaking=true" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+          # Playwright
+          if [ "${{ steps.version-check.outputs.playwright_current }}" != "${{ steps.version-check.outputs.playwright_latest }}" ]; then
+            # Claude分析結果をチェック
+            if echo "${{ steps.claude-analysis.outputs.playwright_analysis }}" | grep -iE "破壊的変更.*あり" > /dev/null; then
+              HAS_BREAKING=true
+              echo "playwright_breaking=true" >> $GITHUB_OUTPUT
+            # フォールバック: キーワードマッチング
+            elif echo "${{ steps.release-notes.outputs.playwright_release_body }}" | grep -iE "(breaking|breaking change|migration)" > /dev/null; then
+              HAS_BREAKING=true
+              echo "playwright_breaking=true" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+          echo "has_breaking=$HAS_BREAKING" >> $GITHUB_OUTPUT
+
+      - name: Update UPDATES.md
+        if: steps.version-check.outputs.has_updates == 'true'
+        run: |
+          DATE=$(date +%Y-%m-%d)
+
+          cat >> UPDATES.md <<EOF
+
+          ---
+
+          ## $DATE (自動検出)
+
+          ### 🔄 バージョン更新検知
+
+          EOF
+
+          # Jest
+          if [ "${{ steps.version-check.outputs.jest_current }}" != "${{ steps.version-check.outputs.jest_latest }}" ]; then
+            cat >> UPDATES.md <<EOF
+
+          #### Jest
+          - **現在のドキュメント:** ${{ steps.version-check.outputs.jest_current }}
+          - **最新バージョン:** ${{ steps.version-check.outputs.jest_latest }}
+          - **リリースノート:** ${{ steps.release-notes.outputs.jest_release_url }}
+          EOF
+            if [ "${{ steps.breaking-check.outputs.jest_breaking }}" == "true" ]; then
+              echo "- ⚠️ **破壊的変更の可能性あり**" >> UPDATES.md
+            fi
+            cat >> UPDATES.md <<EOF
+          - **影響範囲:**
+            - testing-strategy/guides/unit/unit-testing-complete.md
+            - ci-cd-automation/guides/quality/quality-automation-complete.md
+
+          **Claude分析結果:**
+          \`\`\`
+          ${{ steps.claude-analysis.outputs.jest_analysis }}
+          \`\`\`
+
+          EOF
+          fi
+
+          # Playwright
+          if [ "${{ steps.version-check.outputs.playwright_current }}" != "${{ steps.version-check.outputs.playwright_latest }}" ]; then
+            cat >> UPDATES.md <<EOF
+
+          #### Playwright
+          - **現在のドキュメント:** ${{ steps.version-check.outputs.playwright_current }}
+          - **最新バージョン:** ${{ steps.version-check.outputs.playwright_latest }}
+          - **リリースノート:** ${{ steps.release-notes.outputs.playwright_release_url }}
+          EOF
+            if [ "${{ steps.breaking-check.outputs.playwright_breaking }}" == "true" ]; then
+              echo "- ⚠️ **破壊的変更の可能性あり**" >> UPDATES.md
+            fi
+            cat >> UPDATES.md <<EOF
+          - **影響範囲:**
+            - testing-strategy/guides/e2e/e2e-testing-complete.md
+
+          **Claude分析結果:**
+          \`\`\`
+          ${{ steps.claude-analysis.outputs.playwright_analysis }}
+          \`\`\`
+
+          EOF
+          fi
+
+          # TypeScript
+          if [ "${{ steps.version-check.outputs.typescript_current }}" != "${{ steps.version-check.outputs.typescript_latest }}" ]; then
+            cat >> UPDATES.md <<EOF
+
+          #### TypeScript
+          - **現在のドキュメント:** ${{ steps.version-check.outputs.typescript_current }}
+          - **最新バージョン:** ${{ steps.version-check.outputs.typescript_latest }}
+          - **リリースノート:** ${{ steps.release-notes.outputs.typescript_release_url }}
+          - **影響範囲:**
+            - backend-development/guides/typescript/typescript-backend-complete.md
+            - nodejs-development/guides/typescript/typescript-patterns-complete.md
+
+          EOF
+          fi
+
+          # Next.js
+          if [ "${{ steps.version-check.outputs.nextjs_current }}" != "${{ steps.version-check.outputs.nextjs_latest }}" ]; then
+            cat >> UPDATES.md <<EOF
+
+          #### Next.js
+          - **現在のドキュメント:** ${{ steps.version-check.outputs.nextjs_current }}
+          - **最新バージョン:** ${{ steps.version-check.outputs.nextjs_latest }}
+          - **リリースノート:** https://github.com/vercel/next.js/releases
+          - **影響範囲:**
+            - nextjs-development/guides/* (全ファイル)
+
+          EOF
+          fi
+
+          # React
+          if [ "${{ steps.version-check.outputs.react_current }}" != "${{ steps.version-check.outputs.react_latest }}" ]; then
+            cat >> UPDATES.md <<EOF
+
+          #### React
+          - **現在のドキュメント:** ${{ steps.version-check.outputs.react_current }}
+          - **最新バージョン:** ${{ steps.version-check.outputs.react_latest }}
+          - **リリースノート:** https://github.com/facebook/react/releases
+          - **影響範囲:**
+            - react-development/guides/* (全ファイル)
+
+          EOF
+          fi
+
+          # Node.js
+          if [ "${{ steps.version-check.outputs.node_current }}" != "${{ steps.version-check.outputs.node_latest }}" ]; then
+            cat >> UPDATES.md <<EOF
+
+          #### Node.js
+          - **現在のドキュメント:** ${{ steps.version-check.outputs.node_current }}
+          - **最新バージョン:** ${{ steps.version-check.outputs.node_latest }}
+          - **リリースノート:** https://nodejs.org/en/blog/release/
+          - **影響範囲:**
+            - nodejs-development/guides/* (全ファイル)
+            - backend-development/guides/* (全ファイル)
+
+          EOF
+          fi
+
+          cat >> UPDATES.md <<EOF
+
+          ### 📋 推奨アクション
+          - [ ] 上記リリースノートを確認
+          - [ ] 影響範囲のファイルを更新
+          - [ ] .doc-versions.json を更新
+          - [ ] このPRをマージ
+
+          EOF
+
+      - name: Update .doc-versions.json
+        if: steps.version-check.outputs.has_updates == 'true'
+        run: |
+          # lastUpdatedを更新
+          jq '.lastUpdated = "'$(date +%Y-%m-%d)'"' .doc-versions.json > .doc-versions.json.tmp
+          mv .doc-versions.json.tmp .doc-versions.json
+
+          # 検出された更新をコメントとして追記（手動更新を促す）
+          DATE=$(date +%Y-%m-%d)
+          echo "" >> .doc-versions.json
+          echo "// [$DATE] 更新検知: Jest ${{ steps.version-check.outputs.jest_latest }}, Playwright ${{ steps.version-check.outputs.playwright_latest }}" >> .doc-versions.json
+          echo "// 上記バージョンに更新する場合は、該当行を手動で編集してください" >> .doc-versions.json
+
+      - name: Create Pull Request
+        if: steps.version-check.outputs.has_updates == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: |
+            📦 Weekly update check - ${{ github.run_number }}
+
+            Detected version updates. See UPDATES.md for details.
+          branch: docs/auto-update-${{ github.run_number }}
+          delete-branch: true
+          draft: true
+          title: '📦 Weekly Documentation Update Check - ${{ github.run_number }}'
+          body: |
+            ## 🤖 自動生成PR
+
+            週次バージョンチェックで更新を検知しました。
+
+            ### 検知された更新
+
+            ${{ steps.version-check.outputs.jest_current != steps.version-check.outputs.jest_latest && format('- **Jest:** {0} → {1}', steps.version-check.outputs.jest_current, steps.version-check.outputs.jest_latest) || '' }}
+            ${{ steps.version-check.outputs.playwright_current != steps.version-check.outputs.playwright_latest && format('- **Playwright:** {0} → {1}', steps.version-check.outputs.playwright_current, steps.version-check.outputs.playwright_latest) || '' }}
+            ${{ steps.version-check.outputs.typescript_current != steps.version-check.outputs.typescript_latest && format('- **TypeScript:** {0} → {1}', steps.version-check.outputs.typescript_current, steps.version-check.outputs.typescript_latest) || '' }}
+            ${{ steps.version-check.outputs.nextjs_current != steps.version-check.outputs.nextjs_latest && format('- **Next.js:** {0} → {1}', steps.version-check.outputs.nextjs_current, steps.version-check.outputs.nextjs_latest) || '' }}
+            ${{ steps.version-check.outputs.react_current != steps.version-check.outputs.react_latest && format('- **React:** {0} → {1}', steps.version-check.outputs.react_current, steps.version-check.outputs.react_latest) || '' }}
+            ${{ steps.version-check.outputs.node_current != steps.version-check.outputs.node_latest && format('- **Node.js:** {0} → {1}', steps.version-check.outputs.node_current, steps.version-check.outputs.node_latest) || '' }}
+
+            ### 次のステップ
+
+            1. `UPDATES.md` を確認
+            2. リリースノートを確認
+            3. 必要に応じてガイドを更新
+            4. `.doc-versions.json` のバージョンを手動更新
+            5. このPRをレビュー・マージ
+
+            詳細は `UPDATES.md` を参照してください。
+
+            ---
+            🤖 自動生成 by [weekly-update-check.yml](.github/workflows/weekly-update-check.yml)
+
+      - name: Create Issue for breaking changes
+        if: steps.breaking-check.outputs.has_breaking == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '⚠️ 破壊的変更の可能性 - 緊急確認',
+              body: `## ⚠️ 破壊的変更検知
+
+            週次チェックで破壊的変更の可能性がある更新を検知しました。
+
+            ### 該当パッケージ
+
+            ${{ steps.breaking-check.outputs.jest_breaking == 'true' && '- Jest' || '' }}
+            ${{ steps.breaking-check.outputs.playwright_breaking == 'true' && '- Playwright' || '' }}
+
+            ### 対応が必要な理由
+
+            破壊的変更はドキュメントのコード例が動かなくなる可能性があります。
+
+            ### 推奨アクション
+
+            1. リリースノートを詳細確認
+            2. 影響範囲のガイドを全て確認
+            3. コード例を修正
+            4. 変更履歴に記載
+
+            詳細は [UPDATES.md](./UPDATES.md) および関連PRを参照してください。
+
+            ---
+            🤖 自動生成 by weekly-update-check.yml`,
+              labels: ['documentation', 'urgent', 'breaking-change']
+            });
+
+      - name: Summary
+        if: steps.version-check.outputs.has_updates == 'true'
+        run: |
+          echo "### 📦 週次更新チェック完了" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**検知された更新:**" >> $GITHUB_STEP_SUMMARY
+          echo "- Jest: ${{ steps.version-check.outputs.jest_current }} → ${{ steps.version-check.outputs.jest_latest }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Playwright: ${{ steps.version-check.outputs.playwright_current }} → ${{ steps.version-check.outputs.playwright_latest }}" >> $GITHUB_STEP_SUMMARY
+          echo "- TypeScript: ${{ steps.version-check.outputs.typescript_current }} → ${{ steps.version-check.outputs.typescript_latest }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Draft PR作成:** 作成されたPRを確認してください" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.breaking-check.outputs.has_breaking }}" == "true" ]; then
+            echo "⚠️ **破壊的変更の可能性あり - Issueを作成しました**" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: No updates summary
+        if: steps.version-check.outputs.has_updates == 'false'
+        run: |
+          echo "### ✅ 全て最新" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "ドキュメントは全て最新の状態です。" >> $GITHUB_STEP_SUMMARY
