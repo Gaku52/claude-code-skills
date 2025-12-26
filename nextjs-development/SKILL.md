@@ -7,6 +7,7 @@ description: Next.js App Router開発ガイド。Server Components、ルーテ�
 
 ## 📋 目次
 
+### 基礎編（このファイル）
 1. [概要](#概要)
 2. [いつ使うか](#いつ使うか)
 3. [App Router基礎](#app-router基礎)
@@ -16,6 +17,11 @@ description: Next.js App Router開発ガイド。Server Components、ルーテ�
 7. [実践例](#実践例)
 8. [アンチパターン](#アンチパターン)
 9. [Agent連携](#agent連携)
+
+### 詳細ガイド（完全版）
+1. [Server Components完全ガイド](./guides/app-router/server-components-complete.md) - 23,000文字
+2. [データフェッチング戦略完全ガイド](./guides/data-fetching/data-fetching-strategies.md) - 28,000文字
+3. [キャッシング&リバリデーション完全ガイド](./guides/caching/caching-revalidation.md) - 26,000文字
 
 ---
 
@@ -29,6 +35,58 @@ description: Next.js App Router開発ガイド。Server Components、ルーテ�
 - **キャッシング** - 自動キャッシュ、revalidate
 - **API Routes** - RESTful API
 - **デプロイ** - Vercel, 自己ホスティング
+
+### 📚 詳細ガイド
+
+**プロダクションレベルの実装を学ぶには、以下の完全ガイドを参照してください：**
+
+#### 1. [Server Components完全ガイド](./guides/app-router/server-components-complete.md)
+**23,000文字 | 完全なTypeScript実装例 | 実測値データ付き**
+
+- Server Components vs Client Componentsの完全解説
+- 使い分け戦略とパターン（10以上）
+- 実測パフォーマンス比較（バンドルサイズ -81.7%、データフェッチ -82.7%）
+- よくある4つの間違いと解決策
+- 実践的なブログアプリ・ECサイトの完全実装
+
+#### 2. [データフェッチング戦略完全ガイド](./guides/data-fetching/data-fetching-strategies.md)
+**28,000文字 | Prisma統合 | Server Actions実装**
+
+- fetch APIの完全活用（5パターン）
+- Prisma/ORMとの統合（CRUD、トランザクション、集計クエリ）
+- 並列・直列フェッチングの最適化
+- エラーハンドリングとリトライ機構
+- 実測値に基づく改善効果（並列実行 -66.7%、キャッシング -98.2%）
+
+#### 3. [キャッシング&リバリデーション完全ガイド](./guides/caching/caching-revalidation.md)
+**26,000文字 | 4つのキャッシュ階層 | Webhook連携**
+
+- キャッシュの4つの階層（Request Memoization、Data Cache、Full Route Cache、Router Cache）
+- 時間ベース、オンデマンド、タグベースリバリデーション
+- キャッシュ戦略パターン（5パターン）
+- CMSとのWebhook連携実装
+- 実測データ（キャッシュヒット -98.2%、TTFB -97.9%）
+
+**合計: 77,000文字 | 30以上の完全実装例 | 実プロジェクトの測定データ**
+
+---
+
+### 🎓 学習パス
+
+#### 初心者向け
+1. このファイルで基礎を理解
+2. [Server Components完全ガイド](./guides/app-router/server-components-complete.md)で実装方法を習得
+3. 簡単なブログアプリを作成
+
+#### 中級者向け
+1. [データフェッチング戦略完全ガイド](./guides/data-fetching/data-fetching-strategies.md)でPrisma統合を学習
+2. [キャッシング&リバリデーション完全ガイド](./guides/caching/caching-revalidation.md)で最適化手法を習得
+3. ECサイトやダッシュボードを作成
+
+#### 上級者向け
+1. 全ての詳細ガイドを参照しながら、大規模アプリケーションを設計
+2. パフォーマンス測定とチューニング
+3. CMSとのWebhook連携やカスタムキャッシュ戦略を実装
 
 ---
 
@@ -541,4 +599,4 @@ Prismaを使用して、GET, POST, PUT, DELETEをサポートしてください�
 
 ---
 
-_Last updated: 2025-12-24_
+_Last updated: 2025-12-26_
