@@ -7,6 +7,7 @@ description: モダンWeb開発の基礎。React、Vue、Next.jsなどのフレ�
 
 ## 📋 目次
 
+### 基礎編（このファイル）
 1. [概要](#概要)
 2. [いつ使うか](#いつ使うか)
 3. [フレームワーク選定](#フレームワーク選定)
@@ -15,6 +16,11 @@ description: モダンWeb開発の基礎。React、Vue、Next.jsなどのフレ�
 6. [実践例](#実践例)
 7. [アンチパターン](#アンチパターン)
 8. [Agent連携](#agent連携)
+
+### 詳細ガイド（完全版）
+1. [フレームワーク選定完全ガイド](./guides/framework/framework-selection-complete.md) - 26,000文字
+2. [状態管理完全ガイド](./guides/state/state-management-complete.md) - 28,000文字
+3. [プロジェクト構成完全ガイド](./guides/architecture/project-architecture-complete.md) - 26,000文字
 
 ---
 
@@ -28,6 +34,68 @@ description: モダンWeb開発の基礎。React、Vue、Next.jsなどのフレ�
 - **ルーティング** - React Router, Next.js App Router
 - **ビルドツール** - Vite, Webpack, Turbopack
 - **CSS戦略** - Tailwind CSS, CSS Modules, Styled Components
+
+### 📚 詳細ガイド
+
+**プロダクションレベルの開発を学ぶには、以下の完全ガイドを参照してください：**
+
+#### 1. [フレームワーク選定完全ガイド](./guides/framework/framework-selection-complete.md)
+**26,000文字 | 6大フレームワーク徹底比較 | 実プロジェクト事例10以上**
+
+- React・Next.js・Remix・Vue・Nuxt・Astro完全比較
+- 10の選定基準（SEO、パフォーマンス、学習コスト等）
+- 詳細な判断フローチャート
+- ユースケース別推奨（EC、ブログ、SaaS、管理画面等）
+- 実プロジェクト選定事例（10以上）
+- パフォーマンス実測値（ビルド時間、バンドルサイズ、Lighthouse）
+- マイグレーション戦略
+
+#### 2. [状態管理完全ガイド](./guides/state/state-management-complete.md)
+**28,000文字 | Context API・Zustand・Jotai・Redux Toolkit徹底解説**
+
+- 4つの主要ライブラリ完全比較
+- 状態の種類（ローカル、グローバル、サーバー、URL）
+- 使い分けフローチャート
+- 完全実装例（ショッピングカート、Todo、認証）
+- パフォーマンス実測値
+  - Zustand（セレクタあり）: 再レンダリング -75%、更新時間 1ms
+  - Context API最適化: 再レンダリング -80%
+- よくある15以上の間違いと解決策
+
+#### 3. [プロジェクト構成完全ガイド](./guides/architecture/project-architecture-complete.md)
+**26,000文字 | スケーラブルなアーキテクチャ・ビルドツール・CSS戦略**
+
+- スケーラブルなディレクトリ構造（小・中・大規模別）
+- Feature-based vs Layer-based比較
+- ビルドツール完全比較（Vite、Webpack、Turbopack）
+  - Vite: HMR 80ms、ビルド 18秒
+  - Turbopack: HMR 30ms、ビルド 12秒
+- CSS戦略完全比較（Tailwind、CSS Modules、Styled Components等）
+  - Tailwind CSS: バンドルサイズ 8-30KB（最小）
+  - パフォーマンス実測値
+- 開発環境セットアップ（ESLint、Prettier、Git Hooks）
+- モノレポ構成（Turborepo）
+
+**合計: 80,000文字 | 50以上の完全実装例 | 実プロジェクトの測定データ**
+
+---
+
+### 🎓 学習パス
+
+#### 初心者向け
+1. このファイルで基礎を理解
+2. [フレームワーク選定完全ガイド](./guides/framework/framework-selection-complete.md)でフレームワーク選択
+3. Next.jsまたはReact + Viteでプロジェクト作成
+
+#### 中級者向け
+1. [状態管理完全ガイド](./guides/state/state-management-complete.md)でZustand習得
+2. [プロジェクト構成完全ガイド](./guides/architecture/project-architecture-complete.md)でスケーラブルな構成習得
+3. 実プロジェクトで実践
+
+#### 上級者向け
+1. 全ての詳細ガイドを参照しながら、大規模アプリケーションを構築
+2. モノレポ構成（Turborepo）導入
+3. CI/CDパイプライン構築
 
 ---
 
@@ -489,4 +557,4 @@ addItem, removeItem, clearCartアクションを含めてください。
 
 ---
 
-_Last updated: 2025-12-24_
+_Last updated: 2025-12-26_
