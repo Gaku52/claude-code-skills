@@ -1,0 +1,26 @@
+{
+  "name": "claude-code-skills",
+  "version": "1.0.0",
+  "description": "Comprehensive software development skills repository",
+  "scripts": {
+    "track": "node scripts/track-progress.js",
+    "track:watch": "nodemon scripts/track-progress.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Gaku52/claude-code-skills.git"
+  },
+  "keywords": [
+    "skills",
+    "development",
+    "react",
+    "nextjs",
+    "ios",
+    "backend"
+  ],
+  "author": "Gaku",
+  "license": "MIT",
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}

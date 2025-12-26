@@ -1,4 +1,11 @@
-# Claude Code Skills - Full-Stack Development Framework
+# Claude Code Skills
+
+<!-- PROGRESS_BADGES_START -->
+![Progress](https://img.shields.io/badge/Progress-15%25-yellow)
+![Skills](https://img.shields.io/badge/Skills-4%2F26-blue)
+![Characters](https://img.shields.io/badge/Characters-616K-informational)
+![Guides](https://img.shields.io/badge/Guides-12-success)
+<!-- PROGRESS_BADGES_END -->
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![GitHub Stars](https://img.shields.io/github/stars/Gaku52/claude-code-skills?style=social)](https://github.com/Gaku52/claude-code-skills/stargazers)
@@ -73,48 +80,58 @@ skill-name/
 
 ## 📊 進捗状況
 
-### Phase 1 完成度：100% (26/26) 🎉
+**現在の進捗**: 15% (4/26 スキル完成)
 
-| # | Skill | 状態 | 説明 |
-|---|-------|------|------|
-| **Web開発** (6/6) ||||
-| 1 | `documentation` | ✅ **完成** | 技術ドキュメント・README作成 |
-| 2 | `web-development` | ✅ **完成** | モダンWeb開発の基礎 |
-| 3 | `react-development` | ✅ **完成** | React開発ベストプラクティス |
-| 4 | `nextjs-development` | ✅ **完成** | Next.js App Router開発 |
-| 5 | `frontend-performance` | ✅ **完成** | フロントエンド最適化 |
-| 6 | `web-accessibility` | ✅ **完成** | アクセシビリティ対応 |
-| **バックエンド開発** (4/4) ||||
-| 7 | `backend-development` | ✅ **完成** | バックエンド開発基礎 |
-| 8 | `nodejs-development` | ✅ **完成** | Node.js開発ガイド |
-| 9 | `python-development` | ✅ **完成** | Python開発ガイド |
-| 10 | `database-design` | ✅ **完成** | データベース設計 |
-| **スクリプト・自動化** (3/3) ||||
-| 11 | `script-development` | ✅ **完成** | スクリプト開発ガイド |
-| 12 | `cli-development` | ✅ **完成** | CLIツール開発 |
-| 13 | `mcp-development` | ✅ **完成** | MCP Server開発 |
-| **iOS開発** (5/5) ||||
-| 14 | `ios-development` | ✅ **完成** | iOS開発ベストプラクティス |
-| 15 | `ios-project-setup` | ✅ **完成** | プロジェクト初期設定 |
-| 16 | `swiftui-patterns` | ✅ **完成** | SwiftUI開発パターン |
-| 17 | `networking-data` | ✅ **完成** | ネットワーク・データ永続化 |
-| 18 | `ios-security` | ✅ **完成** | セキュリティ実装 |
-| **品質・テスト** (3/3) ||||
-| 19 | `testing-strategy` | ✅ **完成** | テスト戦略 |
-| 20 | `code-review` | ✅ **完成** | コードレビュー |
-| 21 | `quality-assurance` | ✅ **完成** | 品質保証・QA |
-| **DevOps・CI/CD** (3/3) ||||
-| 22 | `git-workflow` | ✅ **完成** | Git運用・ブランチ戦略 |
-| 23 | `ci-cd-automation` | ✅ **完成** | CI/CD自動化 |
-| 24 | `dependency-management` | ✅ **完成** | 依存関係管理 |
-| **ナレッジ管理** (2/2) ||||
-| 25 | `incident-logger` | ✅ **完成** | 問題記録・インシデント管理 |
-| 26 | `lessons-learned` | ✅ **完成** | 教訓データベース |
+詳細な進捗状況は [PROGRESS.md](./PROGRESS.md) をご覧ください。
 
-**凡例**:
-- ✅ 完成 - SKILL.md、ガイド、チェックリスト、テンプレート、リファレンス全て完成
-- 🔨 作業中 - SKILL.mdは完成、詳細ドキュメント作成中
-- 📋 構造のみ - フォルダ構造のみ作成済み
+### 完了済みスキル ✅
+
+- ✅ **react-development** - React開発ベストプラクティス (107,513文字、3ガイド)
+- ✅ **nextjs-development** - Next.js App Router開発 (96,166文字、3ガイド)
+- ✅ **frontend-performance** - フロントエンド最適化 (82,662文字、3ガイド)
+- ✅ **web-development** - モダンWeb開発の基礎 (95,074文字、3ガイド)
+
+### 進行中の領域
+
+- 🔄 **WEB開発** (80%完成) - あと1スキル（web-accessibility）で完了
+- ⏳ **iOS開発** (0%完成) - 5スキル
+- ⏳ **Backend開発** (0%完成) - 3スキル
+- ⏳ **DevOps・品質** (0%完成) - 7スキル
+- ⏳ **その他** (0%完成) - 6スキル
+
+## 🔍 進捗トラッキング
+
+このリポジトリは自動的に進捗を測定し、レポートを生成します。
+
+### 自動測定機能
+
+- **文字数カウント**: 各スキルの総文字数を自動計測
+- **ガイド数カウント**: 詳細ガイド（20,000文字以上）の数を自動カウント
+- **完成度判定**: ガイド数に基づいて自動判定
+  - ✅ **Complete**: 3本以上のガイド
+  - 🔄 **In Progress**: 1-2本のガイド
+  - 📝 **Basic**: SKILL.mdのみ（5,000文字以上）
+  - ⬜ **Not Started**: 未着手
+
+### 手動更新
+
+```bash
+# 進捗レポートを手動生成
+npm run track
+
+# 生成されるファイル:
+# - PROGRESS.md: 詳細な進捗レポート
+# - README.md: バッジセクションが自動更新
+```
+
+### 自動更新（GitHub Actions）
+
+main ブランチへのpush時に自動的に進捗が更新されます：
+
+- `**/SKILL.md` または `**/guides/**/*.md` の変更を検知
+- 進捗レポートを自動生成・コミット
+
+---
 
 ## 🚀 使い方
 
@@ -135,6 +152,40 @@ Claude Codeは自動的にこれらのSkillsを参照します：
 ### 手動参照
 
 各SkillのSKILL.mdから詳細ドキュメントにアクセス：
+
+```bash
+# スキル一覧を表示
+ls -la
+
+# 特定のスキルを読む
+cat react-development/SKILL.md
+
+# 詳細ガイドを読む
+cat react-development/guides/hooks/hooks-mastery.md
+```
+
+---
+
+## 📚 スキル一覧
+
+全26スキルの詳細は [PROGRESS.md](./PROGRESS.md) をご覧ください。
+
+### 領域別スキル
+
+**WEB開発** (5スキル)
+- react-development, nextjs-development, frontend-performance, web-development, web-accessibility
+
+**iOS開発** (5スキル)
+- ios-development, swiftui-patterns, ios-security, ios-project-setup, networking-data
+
+**Backend開発** (3スキル)
+- backend-development, nodejs-development, database-design
+
+**DevOps・品質** (7スキル)
+- testing-strategy, ci-cd-automation, git-workflow, code-review, quality-assurance, incident-logger, lessons-learned
+
+**その他** (6スキル)
+- python-development, cli-development, script-development, mcp-development, documentation, dependency-management
 
 ```bash
 # 例: Git Workflowの詳細を見る
