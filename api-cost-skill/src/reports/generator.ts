@@ -56,6 +56,10 @@ export async function generateWeeklyReport(): Promise<Report> {
   const totalCost = await db.getTotalCostByDateRange(startDate, endDate);
   const modelBreakdown = await db.getUsageByModel(startDate, endDate);
 
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
+  const monthToDate = await db.getTotalCostByDateRange(monthStart, endDate);
+  const remainingBalance = config.creditBalance > 0 ? config.creditBalance - monthToDate : undefined;
+
   return {
     period: `週次レポート - ${startDate.toLocaleDateString('ja-JP')}の週`,
     startDate,
@@ -64,6 +68,7 @@ export async function generateWeeklyReport(): Promise<Report> {
     modelBreakdown,
     thresholdExceeded: totalCost > config.thresholds.weekly,
     threshold: config.thresholds.weekly,
+    remainingBalance,
   };
 }
 
@@ -75,6 +80,8 @@ export async function generateMonthlyReport(): Promise<Report> {
   const totalCost = await db.getTotalCostByDateRange(startDate, endDate);
   const modelBreakdown = await db.getUsageByModel(startDate, endDate);
 
+  const remainingBalance = config.creditBalance > 0 ? config.creditBalance - totalCost : undefined;
+
   return {
     period: `月次レポート - ${startDate.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long' })}`,
     startDate,
@@ -83,6 +90,7 @@ export async function generateMonthlyReport(): Promise<Report> {
     modelBreakdown,
     thresholdExceeded: totalCost > config.thresholds.monthly,
     threshold: config.thresholds.monthly,
+    remainingBalance,
   };
 }
 
