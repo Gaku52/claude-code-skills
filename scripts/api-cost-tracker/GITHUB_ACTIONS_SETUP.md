@@ -19,63 +19,39 @@ if: |
 
 ## GitHub Secrets の設定
 
-### 1. ローカルで .env ファイルを作成
-
-```bash
-cd scripts/api-cost-tracker
-cp .env.example .env
-nano .env  # または vim, VSCode等で編集
-```
-
-`.env` の内容（例）:
-
-```bash
-# Email Configuration
-EMAIL_PROVIDER=smtp
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=your-email@gmail.com
-SMTP_PASS=xxxx-xxxx-xxxx-xxxx  # Gmailアプリパスワード
-SMTP_FROM=your-email@gmail.com
-
-# Notification Recipient
-NOTIFY_EMAIL=your-email@gmail.com
-
-# Cost Thresholds (USD)
-COST_THRESHOLD_DAILY=10
-COST_THRESHOLD_WEEKLY=50
-COST_THRESHOLD_MONTHLY=200
-
-# Report Schedule
-DAILY_REPORT_TIME=09:00
-WEEKLY_REPORT_DAY=monday
-```
-
-### 2. Gmail アプリパスワードの取得
+### 1. Gmail アプリパスワードの取得
 
 1. https://myaccount.google.com/apppasswords にアクセス
 2. 「アプリパスワード」を生成
-3. 16桁のパスワードを `.env` の `SMTP_PASS` に設定
+3. 16桁のパスワードをメモ（次のステップで使用）
 
-### 3. GitHub に Secret を追加
+### 2. GitHub に個別Secretsを追加
 
 https://github.com/Gaku52/claude-code-skills/settings/secrets/actions
 
-「New repository secret」をクリック:
+「New repository secret」をクリックして、以下の**7つのSecrets**を登録:
 
-**Name**: `API_COST_TRACKER_ENV`
+#### 必須Secrets（7個）
 
-**Value**: `.env` ファイルの内容全体をコピー&ペースト
+| Secret Name | 値の例 | 説明 |
+|------------|--------|------|
+| `EMAIL_PROVIDER` | `smtp` | メールプロバイダー（固定値） |
+| `SMTP_HOST` | `smtp.gmail.com` | SMTPサーバー（Gmail使用時） |
+| `SMTP_PORT` | `587` | SMTPポート（固定値） |
+| `SMTP_USER` | `your-email@gmail.com` | 送信用Gmailアドレス |
+| `SMTP_PASS` | `xxxx-xxxx-xxxx-xxxx` | Gmailアプリパスワード（上記で取得） |
+| `SMTP_FROM` | `your-email@gmail.com` | 送信元（SMTP_USERと同じ） |
+| `NOTIFY_EMAIL` | `your-dedicated@gmail.com` | 通知先の専用メールアドレス |
 
-```bash
-# .env ファイルの内容をコピー
-cat scripts/api-cost-tracker/.env | pbcopy  # macOS
-cat scripts/api-cost-tracker/.env | xclip -selection clipboard  # Linux
-```
+#### 設定手順（7回繰り返し）
 
-または手動でコピーして貼り付け。
+各Secretごとに:
+1. 「New repository secret」をクリック
+2. **Name**に上記のSecret名を入力（例: `EMAIL_PROVIDER`）
+3. **Secret**に対応する値を入力（例: `smtp`）
+4. 「Add secret」をクリック
 
-**これだけ！** たった1つのSecretで完了です。
+**全部で7個のSecretsを登録してください。**
 
 ## ワークフローの実行
 
@@ -115,9 +91,10 @@ if: github.repository_owner == 'Gaku52' && github.actor == 'Gaku52'
 ### メール送信が失敗する
 
 **確認項目**:
-1. GitHub Secrets が正しく設定されているか
-2. Gmail アプリパスワードが正しいか
-3. ワークフローログでエラーを確認
+1. GitHub Secretsが全て（7個）正しく設定されているか
+2. Secret名が正確か（大文字小文字も含めて）
+3. Gmail アプリパスワードが正しいか
+4. ワークフローログでエラーを確認
 
 ### スケジュールが動かない
 
@@ -171,8 +148,19 @@ GitHub Actions は毎回クリーンな環境で実行されるため、デー�
 ## まとめ
 
 - ✅ あなた（Gaku52）だけが実行可能
-- ✅ GitHub Secrets で機密情報を管理
+- ✅ GitHub Secrets（7個）で機密情報を安全に管理
 - ✅ 毎日/毎週/毎月自動でレポート送信
 - ✅ 手動実行も可能
+- ✅ Weekly Documentation Update Check でも通知を受信
+
+### 設定するSecrets一覧（再掲）
+
+1. `EMAIL_PROVIDER` → `smtp`
+2. `SMTP_HOST` → `smtp.gmail.com`
+3. `SMTP_PORT` → `587`
+4. `SMTP_USER` → あなたの送信用Gmail
+5. `SMTP_PASS` → Gmailアプリパスワード
+6. `SMTP_FROM` → あなたの送信用Gmail（SMTP_USERと同じ）
+7. `NOTIFY_EMAIL` → 通知を受け取る専用メールアドレス
 
 データの永続化が必要な場合は、ローカル環境での実行を推奨します。

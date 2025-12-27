@@ -436,13 +436,21 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "ドキュメントは全て最新の状態です。" >> $GITHUB_STEP_SUMMARY
 
-      # メール通知（API Cost Trackerと同じ .env を使用）
+      # メール通知（個別Secretsから.envを生成）
       - name: Setup email notification
         if: always()
         working-directory: scripts/api-cost-tracker
         run: |
           npm ci
-          echo "${{ secrets.API_COST_TRACKER_ENV }}" > .env
+          cat << EOF > .env
+          EMAIL_PROVIDER=${{ secrets.EMAIL_PROVIDER }}
+          SMTP_HOST=${{ secrets.SMTP_HOST }}
+          SMTP_PORT=${{ secrets.SMTP_PORT }}
+          SMTP_USER=${{ secrets.SMTP_USER }}
+          SMTP_PASS=${{ secrets.SMTP_PASS }}
+          SMTP_FROM=${{ secrets.SMTP_FROM }}
+          NOTIFY_EMAIL=${{ secrets.NOTIFY_EMAIL }}
+          EOF
 
       - name: Send completion notification
         if: always()

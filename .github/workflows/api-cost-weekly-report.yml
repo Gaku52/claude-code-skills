@@ -40,7 +40,16 @@ jobs:
 
       - name: Create .env file
         working-directory: scripts/api-cost-tracker
-        run: echo "${{ secrets.API_COST_TRACKER_ENV }}" > .env
+        run: |
+          cat << EOF > .env
+          EMAIL_PROVIDER=${{ secrets.EMAIL_PROVIDER }}
+          SMTP_HOST=${{ secrets.SMTP_HOST }}
+          SMTP_PORT=${{ secrets.SMTP_PORT }}
+          SMTP_USER=${{ secrets.SMTP_USER }}
+          SMTP_PASS=${{ secrets.SMTP_PASS }}
+          SMTP_FROM=${{ secrets.SMTP_FROM }}
+          NOTIFY_EMAIL=${{ secrets.NOTIFY_EMAIL }}
+          EOF
 
       - name: Send weekly report
         working-directory: scripts/api-cost-tracker
