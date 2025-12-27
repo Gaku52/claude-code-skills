@@ -3,7 +3,7 @@ import { generateDailyReport, generateWeeklyReport, generateMonthlyReport, forma
 import { config } from './config';
 
 export async function sendDailyReport(): Promise<void> {
-  const report = generateDailyReport();
+  const report = await generateDailyReport();
 
   await emailSender.send({
     to: config.email.notifyEmail,
@@ -16,7 +16,7 @@ export async function sendDailyReport(): Promise<void> {
 }
 
 export async function sendWeeklyReport(): Promise<void> {
-  const report = generateWeeklyReport();
+  const report = await generateWeeklyReport();
 
   await emailSender.send({
     to: config.email.notifyEmail,
@@ -29,7 +29,7 @@ export async function sendWeeklyReport(): Promise<void> {
 }
 
 export async function sendMonthlyReport(): Promise<void> {
-  const report = generateMonthlyReport();
+  const report = await generateMonthlyReport();
 
   await emailSender.send({
     to: config.email.notifyEmail,

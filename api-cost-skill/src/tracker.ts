@@ -1,4 +1,4 @@
-import { db } from './database';
+import { db } from './database/supabase';
 import { PRICING, ModelId } from './config';
 
 export interface TrackUsageInput {
@@ -33,14 +33,14 @@ export function calculateCost(modelId: string, inputTokens: number, outputTokens
   };
 }
 
-export async function trackUsage(input: TrackUsageInput): Promise<number> {
+export async function trackUsage(input: TrackUsageInput): Promise<string> {
   const { inputCost, outputCost, totalCost } = calculateCost(
     input.modelId,
     input.inputTokens,
     input.outputTokens
   );
 
-  const recordId = db.insertUsage({
+  const recordId = await db.insertUsage({
     request_id: input.requestId,
     model_id: input.modelId,
     input_tokens: input.inputTokens,

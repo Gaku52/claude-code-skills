@@ -36,16 +36,12 @@ jobs:
         working-directory: api-cost-skill
         run: npm run build
 
-      - name: Initialize database
-        working-directory: api-cost-skill
-        run: |
-          mkdir -p data
-          npm run init-db
-
       - name: Create .env file
         working-directory: api-cost-skill
         run: |
           cat << EOF > .env
+          SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_SERVICE_KEY }}
           EMAIL_PROVIDER=${{ secrets.EMAIL_PROVIDER }}
           SMTP_HOST=${{ secrets.SMTP_HOST }}
           SMTP_PORT=${{ secrets.SMTP_PORT }}
@@ -53,6 +49,10 @@ jobs:
           SMTP_PASS=${{ secrets.SMTP_PASS }}
           SMTP_FROM=${{ secrets.SMTP_FROM }}
           NOTIFY_EMAIL=${{ secrets.NOTIFY_EMAIL }}
+          CREDIT_BALANCE=${{ secrets.CREDIT_BALANCE }}
+          DAILY_THRESHOLD=${{ secrets.DAILY_THRESHOLD }}
+          WEEKLY_THRESHOLD=${{ secrets.WEEKLY_THRESHOLD }}
+          MONTHLY_THRESHOLD=${{ secrets.MONTHLY_THRESHOLD }}
           EOF
 
       - name: Send daily report

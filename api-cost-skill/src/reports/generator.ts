@@ -1,4 +1,4 @@
-import { db } from '../database';
+import { db } from '../database/supabase';
 import { config } from '../config';
 
 export interface Report {
@@ -21,16 +21,16 @@ export interface Report {
   remainingBalance?: number;
 }
 
-export function generateDailyReport(): Report {
+export async function generateDailyReport(): Promise<Report> {
   const now = new Date();
   const startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
   const endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
 
-  const totalCost = db.getTotalCostByDateRange(startDate, endDate);
-  const modelBreakdown = db.getUsageByModel(startDate, endDate);
+  const totalCost = await db.getTotalCostByDateRange(startDate, endDate);
+  const modelBreakdown = await db.getUsageByModel(startDate, endDate);
 
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
-  const monthToDate = db.getTotalCostByDateRange(monthStart, endDate);
+  const monthToDate = await db.getTotalCostByDateRange(monthStart, endDate);
   const remainingBalance = config.creditBalance > 0 ? config.creditBalance - monthToDate : undefined;
 
   return {
@@ -46,15 +46,15 @@ export function generateDailyReport(): Report {
   };
 }
 
-export function generateWeeklyReport(): Report {
+export async function generateWeeklyReport(): Promise<Report> {
   const now = new Date();
   const dayOfWeek = now.getDay();
   const diff = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); // Adjust when day is Sunday
   const startDate = new Date(now.getFullYear(), now.getMonth(), diff, 0, 0, 0);
   const endDate = new Date(now.getFullYear(), now.getMonth(), diff + 6, 23, 59, 59);
 
-  const totalCost = db.getTotalCostByDateRange(startDate, endDate);
-  const modelBreakdown = db.getUsageByModel(startDate, endDate);
+  const totalCost = await db.getTotalCostByDateRange(startDate, endDate);
+  const modelBreakdown = await db.getUsageByModel(startDate, endDate);
 
   return {
     period: `週次レポート - ${startDate.toLocaleDateString('ja-JP')}の週`,
@@ -67,13 +67,13 @@ export function generateWeeklyReport(): Report {
   };
 }
 
-export function generateMonthlyReport(): Report {
+export async function generateMonthlyReport(): Promise<Report> {
   const now = new Date();
   const startDate = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
   const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
 
-  const totalCost = db.getTotalCostByDateRange(startDate, endDate);
-  const modelBreakdown = db.getUsageByModel(startDate, endDate);
+  const totalCost = await db.getTotalCostByDateRange(startDate, endDate);
+  const modelBreakdown = await db.getUsageByModel(startDate, endDate);
 
   return {
     period: `月次レポート - ${startDate.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long' })}`,
