@@ -13,7 +13,8 @@
     "report:daily": "node dist/reports/daily.js",
     "report:weekly": "node dist/reports/weekly.js",
     "report:monthly": "node dist/reports/monthly.js",
-    "test:email": "node dist/email/test.js"
+    "test:email": "node dist/email/test.js",
+    "notify:workflow": "tsx scripts/notify-workflow.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.29.0",

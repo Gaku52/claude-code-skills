@@ -435,3 +435,28 @@ jobs:
           echo "### ✅ 全て最新" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "ドキュメントは全て最新の状態です。" >> $GITHUB_STEP_SUMMARY
+
+      # メール通知（API Cost Trackerと同じ .env を使用）
+      - name: Setup email notification
+        if: always()
+        working-directory: scripts/api-cost-tracker
+        run: |
+          npm ci
+          echo "${{ secrets.API_COST_TRACKER_ENV }}" > .env
+
+      - name: Send completion notification
+        if: always()
+        working-directory: scripts/api-cost-tracker
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            DETAILS="週次ドキュメント更新チェックが完了しました。
+
+更新検知: ${{ steps.version-check.outputs.has_updates == 'true' && 'あり' || 'なし' }}
+${{ steps.version-check.outputs.has_updates == 'true' && format('- Jest: {0} → {1}', steps.version-check.outputs.jest_current, steps.version-check.outputs.jest_latest) || '' }}
+${{ steps.version-check.outputs.has_updates == 'true' && format('- Playwright: {0} → {1}', steps.version-check.outputs.playwright_current, steps.version-check.outputs.playwright_latest) || '' }}
+${{ steps.version-check.outputs.has_updates == 'true' && format('- TypeScript: {0} → {1}', steps.version-check.outputs.typescript_current, steps.version-check.outputs.typescript_latest) || '' }}
+${{ steps.breaking-check.outputs.has_breaking == 'true' && '⚠️ 破壊的変更の可能性あり' || '' }}"
+            npm run notify:workflow "Weekly Documentation Update Check" "success" "$DETAILS"
+          else
+            npm run notify:workflow "Weekly Documentation Update Check" "failure" "ワークフローが失敗しました。GitHub Actionsログを確認してください。"
+          fi
