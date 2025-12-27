@@ -38,18 +38,12 @@ jobs:
           mkdir -p data
           npm run init-db
 
+      - name: Create .env file
+        working-directory: scripts/api-cost-tracker
+        run: echo "${{ secrets.API_COST_TRACKER_ENV }}" > .env
+
       - name: Send monthly report
         working-directory: scripts/api-cost-tracker
-        env:
-          # GitHub Secrets から環境変数を読み込む
-          EMAIL_PROVIDER: ${{ secrets.API_COST_EMAIL_PROVIDER }}
-          SMTP_HOST: ${{ secrets.API_COST_SMTP_HOST }}
-          SMTP_PORT: ${{ secrets.API_COST_SMTP_PORT }}
-          SMTP_USER: ${{ secrets.API_COST_SMTP_USER }}
-          SMTP_PASS: ${{ secrets.API_COST_SMTP_PASS }}
-          SMTP_FROM: ${{ secrets.API_COST_SMTP_FROM }}
-          NOTIFY_EMAIL: ${{ secrets.API_COST_NOTIFY_EMAIL }}
-          COST_THRESHOLD_MONTHLY: ${{ secrets.API_COST_THRESHOLD_MONTHLY }}
         run: npm run report:monthly
 
       - name: Notify on failure

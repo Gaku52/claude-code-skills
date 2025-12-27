@@ -19,47 +19,63 @@ if: |
 
 ## GitHub Secrets の設定
 
-### 1. GitHub リポジトリで Secrets を追加
+### 1. ローカルで .env ファイルを作成
 
-https://github.com/Gaku52/claude-code-skills/settings/secrets/actions
+```bash
+cd scripts/api-cost-tracker
+cp .env.example .env
+nano .env  # または vim, VSCode等で編集
+```
 
-「New repository secret」をクリックして以下を追加:
+`.env` の内容（例）:
 
-#### 必須の Secrets
+```bash
+# Email Configuration
+EMAIL_PROVIDER=smtp
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=xxxx-xxxx-xxxx-xxxx  # Gmailアプリパスワード
+SMTP_FROM=your-email@gmail.com
 
-| Name | Value (例) | 説明 |
-|------|-----------|------|
-| `API_COST_EMAIL_PROVIDER` | `smtp` | メール送信方法 (smtp または aws-ses) |
-| `API_COST_SMTP_HOST` | `smtp.gmail.com` | SMTPサーバー |
-| `API_COST_SMTP_PORT` | `587` | SMTPポート |
-| `API_COST_SMTP_USER` | `your-email@gmail.com` | SMTPユーザー名 |
-| `API_COST_SMTP_PASS` | `xxxx-xxxx-xxxx-xxxx` | Gmailアプリパスワード |
-| `API_COST_SMTP_FROM` | `your-email@gmail.com` | 送信元メールアドレス |
-| `API_COST_NOTIFY_EMAIL` | `your-email@gmail.com` | 受信先メールアドレス |
+# Notification Recipient
+NOTIFY_EMAIL=your-email@gmail.com
 
-#### 閾値の Secrets
+# Cost Thresholds (USD)
+COST_THRESHOLD_DAILY=10
+COST_THRESHOLD_WEEKLY=50
+COST_THRESHOLD_MONTHLY=200
 
-| Name | Value (例) | 説明 |
-|------|-----------|------|
-| `API_COST_THRESHOLD_DAILY` | `10` | 日次閾値（ドル） |
-| `API_COST_THRESHOLD_WEEKLY` | `50` | 週次閾値（ドル） |
-| `API_COST_THRESHOLD_MONTHLY` | `200` | 月次閾値（ドル） |
-
-#### AWS SES を使う場合（オプション）
-
-| Name | Value | 説明 |
-|------|-------|------|
-| `API_COST_EMAIL_PROVIDER` | `aws-ses` | AWS SES を使用 |
-| `API_COST_AWS_REGION` | `us-east-1` | AWSリージョン |
-| `API_COST_AWS_ACCESS_KEY_ID` | `AKIA...` | AWS Access Key |
-| `API_COST_AWS_SECRET_ACCESS_KEY` | `xxxxx` | AWS Secret Key |
-| `API_COST_AWS_SES_FROM` | `noreply@yourdomain.com` | 送信元（認証済み） |
+# Report Schedule
+DAILY_REPORT_TIME=09:00
+WEEKLY_REPORT_DAY=monday
+```
 
 ### 2. Gmail アプリパスワードの取得
 
 1. https://myaccount.google.com/apppasswords にアクセス
 2. 「アプリパスワード」を生成
-3. 16桁のパスワード（例: `xxxx-xxxx-xxxx-xxxx`）を `API_COST_SMTP_PASS` に設定
+3. 16桁のパスワードを `.env` の `SMTP_PASS` に設定
+
+### 3. GitHub に Secret を追加
+
+https://github.com/Gaku52/claude-code-skills/settings/secrets/actions
+
+「New repository secret」をクリック:
+
+**Name**: `API_COST_TRACKER_ENV`
+
+**Value**: `.env` ファイルの内容全体をコピー&ペースト
+
+```bash
+# .env ファイルの内容をコピー
+cat scripts/api-cost-tracker/.env | pbcopy  # macOS
+cat scripts/api-cost-tracker/.env | xclip -selection clipboard  # Linux
+```
+
+または手動でコピーして貼り付け。
+
+**これだけ！** たった1つのSecretで完了です。
 
 ## ワークフローの実行
 
