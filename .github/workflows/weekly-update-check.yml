@@ -442,6 +442,7 @@ jobs:
         working-directory: scripts/api-cost-tracker
         run: |
           npm ci
+          npm run build
           cat << EOF > .env
           EMAIL_PROVIDER=${{ secrets.EMAIL_PROVIDER }}
           SMTP_HOST=${{ secrets.SMTP_HOST }}

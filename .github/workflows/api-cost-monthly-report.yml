@@ -32,6 +32,10 @@ jobs:
         working-directory: scripts/api-cost-tracker
         run: npm ci
 
+      - name: Build TypeScript
+        working-directory: scripts/api-cost-tracker
+        run: npm run build
+
       - name: Initialize database
         working-directory: scripts/api-cost-tracker
         run: |
