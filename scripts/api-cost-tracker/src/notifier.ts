@@ -7,7 +7,7 @@ export async function sendDailyReport(): Promise<void> {
 
   await emailSender.send({
     to: config.email.notifyEmail,
-    subject: `${report.thresholdExceeded ? '⚠️ ' : ''}Claude API Daily Report - ${new Date().toLocaleDateString()}`,
+    subject: `${report.thresholdExceeded ? '⚠️ ' : ''}Claude API 日次レポート - ${new Date().toLocaleDateString('ja-JP')}`,
     text: formatReportAsText(report),
     html: formatReportAsHTML(report),
   });
@@ -20,7 +20,7 @@ export async function sendWeeklyReport(): Promise<void> {
 
   await emailSender.send({
     to: config.email.notifyEmail,
-    subject: `Claude API Weekly Report - Week of ${report.startDate.toLocaleDateString()}`,
+    subject: `Claude API 週次レポート - ${report.startDate.toLocaleDateString('ja-JP')}の週`,
     text: formatReportAsText(report),
     html: formatReportAsHTML(report),
   });
@@ -33,7 +33,7 @@ export async function sendMonthlyReport(): Promise<void> {
 
   await emailSender.send({
     to: config.email.notifyEmail,
-    subject: `Claude API Monthly Report - ${report.startDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`,
+    subject: `Claude API 月次レポート - ${report.startDate.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long' })}`,
     text: formatReportAsText(report),
     html: formatReportAsHTML(report),
   });

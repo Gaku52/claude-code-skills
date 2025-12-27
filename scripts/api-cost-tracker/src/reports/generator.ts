@@ -28,7 +28,7 @@ export function generateDailyReport(): Report {
   const modelBreakdown = db.getUsageByModel(startDate, endDate);
 
   return {
-    period: `Daily Report - ${startDate.toLocaleDateString()}`,
+    period: `日次レポート - ${startDate.toLocaleDateString('ja-JP')}`,
     startDate,
     endDate,
     totalCost,
@@ -49,7 +49,7 @@ export function generateWeeklyReport(): Report {
   const modelBreakdown = db.getUsageByModel(startDate, endDate);
 
   return {
-    period: `Weekly Report - Week of ${startDate.toLocaleDateString()}`,
+    period: `週次レポート - ${startDate.toLocaleDateString('ja-JP')}の週`,
     startDate,
     endDate,
     totalCost,
@@ -68,7 +68,7 @@ export function generateMonthlyReport(): Report {
   const modelBreakdown = db.getUsageByModel(startDate, endDate);
 
   return {
-    period: `Monthly Report - ${startDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`,
+    period: `月次レポート - ${startDate.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long' })}`,
     startDate,
     endDate,
     totalCost,
@@ -80,38 +80,38 @@ export function generateMonthlyReport(): Report {
 
 export function formatReportAsText(report: Report): string {
   let text = `
-Claude API Usage Report
+Claude API 使用状況レポート
 ${report.period}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 `;
 
   if (Object.keys(report.modelBreakdown).length === 0) {
-    text += 'No API usage during this period.\n';
+    text += 'この期間中にAPIの使用はありませんでした。\n';
   } else {
     for (const [modelId, stats] of Object.entries(report.modelBreakdown)) {
       text += `
-Model: ${modelId}
-Requests: ${stats.requests.toLocaleString()}
+モデル: ${modelId}
+リクエスト数: ${stats.requests.toLocaleString()}
 
-Input Tokens:  ${stats.inputTokens.toLocaleString()}
-Output Tokens: ${stats.outputTokens.toLocaleString()}
-Cost:          $${stats.totalCost.toFixed(4)}
+入力トークン:  ${stats.inputTokens.toLocaleString()}
+出力トークン: ${stats.outputTokens.toLocaleString()}
+コスト:        $${stats.totalCost.toFixed(4)}
 
 `;
     }
   }
 
   text += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Total Cost: $${report.totalCost.toFixed(4)}
+合計コスト: $${report.totalCost.toFixed(4)}
 `;
 
   if (report.threshold) {
-    text += `Threshold:  $${report.threshold.toFixed(2)}
+    text += `閾値:       $${report.threshold.toFixed(2)}
 `;
     if (report.thresholdExceeded) {
       text += `
-⚠️  WARNING: Threshold exceeded by $${(report.totalCost - report.threshold).toFixed(4)}
+⚠️  警告: 閾値を $${(report.totalCost - report.threshold).toFixed(4)} 超過しています
 `;
     }
   }
@@ -126,7 +126,7 @@ export function formatReportAsHTML(report: Report): string {
   let modelRows = '';
 
   if (Object.keys(report.modelBreakdown).length === 0) {
-    modelRows = '<tr><td colspan="4">No API usage during this period.</td></tr>';
+    modelRows = '<tr><td colspan="4">この期間中にAPIの使用はありませんでした。</td></tr>';
   } else {
     for (const [modelId, stats] of Object.entries(report.modelBreakdown)) {
       modelRows += `
@@ -143,7 +143,7 @@ export function formatReportAsHTML(report: Report): string {
   const thresholdWarning = report.thresholdExceeded
     ? `
     <div style="background-color: #fff3cd; border: 1px solid #ffc107; padding: 15px; border-radius: 5px; margin-top: 20px;">
-      <strong>⚠️ Warning:</strong> Threshold exceeded by $${(report.totalCost - (report.threshold || 0)).toFixed(4)}
+      <strong>⚠️ 警告:</strong> 閾値を $${(report.totalCost - (report.threshold || 0)).toFixed(4)} 超過しています
     </div>
   `
     : '';
@@ -163,16 +163,16 @@ export function formatReportAsHTML(report: Report): string {
   </style>
 </head>
 <body>
-  <h1>Claude API Usage Report</h1>
+  <h1>Claude API 使用状況レポート</h1>
   <p><strong>${report.period}</strong></p>
 
   <table>
     <thead>
       <tr>
-        <th>Model</th>
-        <th>Requests</th>
-        <th>Input / Output Tokens</th>
-        <th>Cost</th>
+        <th>モデル</th>
+        <th>リクエスト数</th>
+        <th>入力 / 出力トークン</th>
+        <th>コスト</th>
       </tr>
     </thead>
     <tbody>
@@ -181,14 +181,14 @@ export function formatReportAsHTML(report: Report): string {
   </table>
 
   <div class="total">
-    Total Cost: $${report.totalCost.toFixed(4)}
-    ${report.threshold ? `<br>Threshold: $${report.threshold.toFixed(2)}` : ''}
+    合計コスト: $${report.totalCost.toFixed(4)}
+    ${report.threshold ? `<br>閾値: $${report.threshold.toFixed(2)}` : ''}
   </div>
 
   ${thresholdWarning}
 
   <p style="margin-top: 30px; color: #666; font-size: 14px;">
-    Generated at ${new Date().toLocaleString()}
+    生成日時: ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}
   </p>
 </body>
 </html>
