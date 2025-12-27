@@ -10,6 +10,105 @@ Claude Code Skills への貢献方法
 4. **実際の失敗事例の追加**
 5. **ドキュメントの改善**
 
+## 📦 標準Git ワークフロー（必須）
+
+**このプロジェクトでは、コンフリクトを防止するため、すべてのコミット&プッシュに `safe-commit-push.sh` の使用を規定としています。**
+
+### なぜこのワークフローが必要か
+
+```
+問題: 通常のgit pushでは、リモートに新しいコミットがあるとpushが失敗する
+  ↓
+手動でpull → コンフリクト解決 → 再度push → また失敗...
+  ↓
+時間の無駄 & ストレス & ミスの原因
+```
+
+**解決策: 自動化された安全なワークフロー**
+
+### 使い方
+
+```bash
+# 1. スクリプトを実行（コミットメッセージを引数として渡す）
+./scripts/safe-commit-push.sh "feat: add new iOS security guide"
+
+# これだけ！以下が自動的に実行されます:
+# ✅ 最新の変更を取得 (pull --rebase)
+# ✅ 全ての変更をステージング (git add -A)
+# ✅ コミット作成
+# ✅ プッシュ前に最終pull (コンフリクト防止)
+# ✅ リモートにpush
+```
+
+### スクリプトが実行する処理
+
+```bash
+#!/bin/bash
+# scripts/safe-commit-push.sh
+
+# Step 1: 最新の変更を取得
+git pull --rebase origin main
+
+# Step 2: 変更があるか確認
+if [[ -z $(git status -s) ]]; then
+    echo "変更なし"
+    exit 0
+fi
+
+# Step 3: すべての変更をステージング
+git add -A
+
+# Step 4: コミット作成
+git commit -m "$1"
+
+# Step 5: プッシュ前に最終pull（念のため）
+git pull --rebase origin main
+
+# Step 6: プッシュ
+git push origin main
+```
+
+### メリット
+
+✅ **コンフリクトゼロ**: 常に最新の状態でpush
+✅ **ミス防止**: 手動操作のミスを排除
+✅ **時間節約**: 5分 → 30秒
+✅ **シンプル**: コマンド1つだけ
+
+### NG例（使用禁止）
+
+```bash
+# ❌ 通常のgit pushは使用しない
+git add .
+git commit -m "update"
+git push  # ← コンフリクトのリスク
+
+# ✅ 必ずスクリプトを使用
+./scripts/safe-commit-push.sh "update"
+```
+
+### トラブルシューティング
+
+#### エラー: `permission denied`
+
+```bash
+# 実行権限を付与
+chmod +x scripts/safe-commit-push.sh
+```
+
+#### エラー: `Conflict detected`
+
+```bash
+# rebase中にコンフリクトが発生した場合
+# 1. コンフリクトを手動で解決
+# 2. 以下を実行:
+git add .
+git rebase --continue
+git push origin main
+```
+
+---
+
 ## 📝 新しいSkillの追加
 
 ### 1. Skillが必要か判断

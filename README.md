@@ -431,6 +431,22 @@ vs
 
 詳細は [CONTRIBUTING.md](CONTRIBUTING.md) を参照
 
+### 📦 標準Git ワークフロー（重要）
+
+**すべてのコミット&プッシュには `safe-commit-push.sh` スクリプトの使用が必須です。**
+
+```bash
+# 使い方（コミットメッセージを引数として渡す）
+./scripts/safe-commit-push.sh "feat: add new guide"
+
+# 自動的に実行される処理:
+# ✅ pull → stage → commit → pull → push
+# ✅ コンフリクトを自動防止
+# ✅ ミスを排除
+```
+
+詳細は [CONTRIBUTING.md](CONTRIBUTING.md#-標準git-ワークフロー必須) を参照
+
 ### 新しいSkillの追加
 
 1. テンプレートからコピー
