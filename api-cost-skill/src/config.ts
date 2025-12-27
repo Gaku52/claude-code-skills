@@ -22,9 +22,9 @@ export const config = {
     notifyEmail: process.env.NOTIFY_EMAIL || '',
   },
   thresholds: {
-    daily: parseFloat(process.env.COST_THRESHOLD_DAILY || '10'),
-    weekly: parseFloat(process.env.COST_THRESHOLD_WEEKLY || '50'),
-    monthly: parseFloat(process.env.COST_THRESHOLD_MONTHLY || '200'),
+    daily: parseFloat(process.env.DAILY_THRESHOLD || '10'),
+    weekly: parseFloat(process.env.WEEKLY_THRESHOLD || '50'),
+    monthly: parseFloat(process.env.MONTHLY_THRESHOLD || '200'),
   },
   schedule: {
     dailyReportTime: process.env.DAILY_REPORT_TIME || '09:00',
