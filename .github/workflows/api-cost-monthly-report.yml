@@ -1,0 +1,59 @@
+name: API Cost - Monthly Report
+
+on:
+  # 毎月1日 09:00 JST (00:00 UTC)
+  schedule:
+    - cron: '0 0 1 * *'
+
+  # 手動実行を許可（あなただけが実行可能）
+  workflow_dispatch:
+
+jobs:
+  send-report:
+    runs-on: ubuntu-latest
+
+    # ⭐ 重要: あなた（Gaku52）だけが実行できる制限
+    if: |
+      github.repository_owner == 'Gaku52' &&
+      (github.actor == 'Gaku52' || github.event_name == 'schedule')
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: scripts/api-cost-tracker/package.json
+
+      - name: Install dependencies
+        working-directory: scripts/api-cost-tracker
+        run: npm ci
+
+      - name: Initialize database
+        working-directory: scripts/api-cost-tracker
+        run: |
+          mkdir -p data
+          npm run init-db
+
+      - name: Send monthly report
+        working-directory: scripts/api-cost-tracker
+        env:
+          # GitHub Secrets から環境変数を読み込む
+          EMAIL_PROVIDER: ${{ secrets.API_COST_EMAIL_PROVIDER }}
+          SMTP_HOST: ${{ secrets.API_COST_SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.API_COST_SMTP_PORT }}
+          SMTP_USER: ${{ secrets.API_COST_SMTP_USER }}
+          SMTP_PASS: ${{ secrets.API_COST_SMTP_PASS }}
+          SMTP_FROM: ${{ secrets.API_COST_SMTP_FROM }}
+          NOTIFY_EMAIL: ${{ secrets.API_COST_NOTIFY_EMAIL }}
+          COST_THRESHOLD_MONTHLY: ${{ secrets.API_COST_THRESHOLD_MONTHLY }}
+        run: npm run report:monthly
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "⚠️ Monthly report failed"
+          echo "Check the logs for details"
