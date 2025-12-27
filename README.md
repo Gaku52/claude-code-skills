@@ -3,8 +3,8 @@
 <!-- PROGRESS_BADGES_START -->
 ![Progress](https://img.shields.io/badge/Progress-38%25-yellow)
 ![Skills](https://img.shields.io/badge/Skills-10%2F26-blue)
-![Characters](https://img.shields.io/badge/Characters-1565K-informational)
-![Guides](https://img.shields.io/badge/Guides-38-success)
+![Characters](https://img.shields.io/badge/Characters-1594K-informational)
+![Guides](https://img.shields.io/badge/Guides-39-success)
 <!-- PROGRESS_BADGES_END -->
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
