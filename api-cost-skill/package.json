@@ -1,7 +1,7 @@
 {
-  "name": "claude-api-cost-tracker",
+  "name": "api-cost-skill",
   "version": "1.0.0",
-  "description": "Claude API usage tracking and cost notification system",
+  "description": "Claude Code Skill: API usage tracking and cost notification system",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
