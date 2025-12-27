@@ -17,6 +17,8 @@ export interface Report {
   >;
   thresholdExceeded?: boolean;
   threshold?: number;
+  creditBalance?: number;
+  remainingBalance?: number;
 }
 
 export function generateDailyReport(): Report {
@@ -27,6 +29,10 @@ export function generateDailyReport(): Report {
   const totalCost = db.getTotalCostByDateRange(startDate, endDate);
   const modelBreakdown = db.getUsageByModel(startDate, endDate);
 
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
+  const monthToDate = db.getTotalCostByDateRange(monthStart, endDate);
+  const remainingBalance = config.creditBalance > 0 ? config.creditBalance - monthToDate : undefined;
+
   return {
     period: `日次レポート - ${startDate.toLocaleDateString('ja-JP')}`,
     startDate,
@@ -35,6 +41,8 @@ export function generateDailyReport(): Report {
     modelBreakdown,
     thresholdExceeded: totalCost > config.thresholds.daily,
     threshold: config.thresholds.daily,
+    creditBalance: config.creditBalance > 0 ? config.creditBalance : undefined,
+    remainingBalance,
   };
 }
 
@@ -183,6 +191,7 @@ export function formatReportAsHTML(report: Report): string {
   <div class="total">
     合計コスト: $${report.totalCost.toFixed(4)}
     ${report.threshold ? `<br>閾値: $${report.threshold.toFixed(2)}` : ''}
+    ${report.remainingBalance !== undefined ? `<br><br>残りクレジット: $${report.remainingBalance.toFixed(2)}` : ''}
   </div>
 
   ${thresholdWarning}

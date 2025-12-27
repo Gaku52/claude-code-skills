@@ -33,6 +33,7 @@ export const config = {
   database: {
     path: path.join(__dirname, '../data/usage.db'),
   },
+  creditBalance: parseFloat(process.env.CREDIT_BALANCE || '0'),
 };
 
 // Pricing (per 1M tokens)
