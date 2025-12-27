@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Build output
+dist/
+
+# Database
+data/
+*.db
+*.db-journal
+
+# Environment
+.env
+
+# Logs
+logs/
+*.log
+
+# OS
+.DS_Store
