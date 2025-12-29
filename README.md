@@ -3,7 +3,7 @@
 <!-- PROGRESS_BADGES_START -->
 ![Progress](https://img.shields.io/badge/Progress-42%25-yellow)
 ![Skills](https://img.shields.io/badge/Skills-11%2F26-blue)
-![Characters](https://img.shields.io/badge/Characters-1677K-informational)
+![Characters](https://img.shields.io/badge/Characters-1684K-informational)
 ![Guides](https://img.shields.io/badge/Guides-42-success)
 <!-- PROGRESS_BADGES_END -->
 
