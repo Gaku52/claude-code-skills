@@ -7,18 +7,18 @@
 
 | 項目 | 数値 |
 |------|------|
-| **完了スキル** | 19 / 26 (73.1%) |
+| **完了スキル** | 20 / 26 (76.9%) |
 | **進行中スキル** | 0 / 26 (0%) |
-| **未着手スキル** | 7 / 26 (26.9%) |
+| **未着手スキル** | 6 / 26 (23.1%) |
 | **必要なガイド総数** | 28本 |
 | **完了ガイド** | 3本 ✅ |
-| **残りガイド** | 22本 |
+| **残りガイド** | 19本 |
 | **現在の総文字数** | 1,482,332文字 |
 | **最終予測文字数** | 2,208,739文字 |
 
 ---
 
-## ✅ 完了済みスキル（19個）✨
+## ✅ 完了済みスキル（20個）✨
 
 ### WEB開発（5個）
 - [x] **react-development** - 5本 ✅
@@ -49,15 +49,18 @@
 ### ドキュメント（1個）
 - [x] **documentation** - 3本 ✅ - 2025-12-28完成
 
-### 依存関係管理（1個）✨ NEW
+### 依存関係管理（1個）
 - [x] **dependency-management** - 3本 ✅ - 2025-12-30完成
+
+### iOS開発パターン（1個）✨ NEW
+- [x] **swiftui-patterns** - 3本 ✅ - 2025-12-30完成
 
 ### その他（1個）
 - [x] **script-development** - 3本 ✅
 
 ---
 
-## 🚧 未完成スキル（7個） - 作業対象
+## 🚧 未完成スキル（6個） - 作業対象
 
 ### 優先度: High（実用性が高い）
 
@@ -65,15 +68,7 @@
 
 ### 優先度: iOS開発（iOS関連プロジェクト時に必要）
 
-#### 4. swiftui-patterns（0本 → 3本必要）
-- **現状:** SKILL.mdのみ（16,054文字）
-- **必要:** 3本
-- **推奨ガイド:**
-  - [ ] State Management（状態管理）
-  - [ ] Layout & Navigation（レイアウト・ナビゲーション）
-  - [ ] Performance & Best Practices（パフォーマンス最適化）
-
-#### 5. networking-data（0本 → 3本必要）
+#### 4. networking-data（0本 → 3本必要）
 - **現状:** SKILL.mdのみ（25,975文字）
 - **必要:** 3本
 - **推奨ガイド:**
@@ -175,17 +170,31 @@
   - メモ: セキュリティ管理、脆弱性スキャン、ライセンス互換性、自動化ツール、実践例まで完全網羅
 - [x] **dependency-management完成** ✅ (3本完了)
 
+- [x] ガイド1本目作成完了: **01-state-management.md** (約64,000文字)
+  - 作業時間: 約1時間
+  - 状態: 完了
+  - メモ: SwiftUI状態管理完全ガイド。@State/@Binding/@StateObject/@ObservedObject/@EnvironmentObject、MVVM、Redux-like パターン、パフォーマンス最適化まで網羅
+- [x] ガイド2本目作成完了: **02-layout-navigation.md** (約61,000文字)
+  - 作業時間: 約1時間
+  - 状態: 完了
+  - メモ: レイアウト・ナビゲーション完全ガイド。Stacks、GeometryReader、Custom Layout、NavigationStack、Modal、TabView、SplitViewまで完全網羅
+- [x] ガイド3本目作成完了: **03-performance-best-practices.md** (約69,000文字)
+  - 作業時間: 約1時間
+  - 状態: 完了
+  - メモ: パフォーマンス最適化・ベストプラクティス完全ガイド。再描画制御、LazyLoading、画像最適化、アニメーション、メモリ管理、非同期処理、アクセシビリティまで網羅
+- [x] **swiftui-patterns完成** ✅ (3本完了)
+
 ---
 
 ## 🎯 次のアクション
 
 ### 次回の予定
 
-1. **swiftui-patterns に着手**
-   - 1本目: State Management（状態管理）
-   - 2本目: Layout & Navigation（レイアウト・ナビゲーション）
-   - 3本目: Performance & Best Practices（パフォーマンス最適化）
-   - → swiftui-patterns完成予定 ✅
+1. **networking-data に着手**
+   - 1本目: Networking（API通信・URLSession）
+   - 2本目: Data Persistence（Core Data/Realm/UserDefaults）
+   - 3本目: Caching Strategy（キャッシュ戦略）
+   - → networking-data完成予定 ✅
 
 ### 今後の方針
 

@@ -1,7 +1,11 @@
 # 📊 Skills Progress Tracker
 
 > 自動生成されたファイルです。手動編集しないでください。
+<<<<<<< HEAD
 > Last updated: 2025/12/30 14:57:56
+=======
+> Last updated: 2025/12/30 23:58:11
+>>>>>>> 547393b (chore: update progress tracking)
 
 ## 全体進捗
 
