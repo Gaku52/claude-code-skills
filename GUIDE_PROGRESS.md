@@ -7,18 +7,18 @@
 
 | 項目 | 数値 |
 |------|------|
-| **完了スキル** | 20 / 26 (76.9%) |
+| **完了スキル** | 21 / 26 (80.8%) |
 | **進行中スキル** | 0 / 26 (0%) |
-| **未着手スキル** | 6 / 26 (23.1%) |
+| **未着手スキル** | 5 / 26 (19.2%) |
 | **必要なガイド総数** | 28本 |
 | **完了ガイド** | 3本 ✅ |
-| **残りガイド** | 19本 |
+| **残りガイド** | 16本 |
 | **現在の総文字数** | 1,482,332文字 |
 | **最終予測文字数** | 2,208,739文字 |
 
 ---
 
-## ✅ 完了済みスキル（20個）✨
+## ✅ 完了済みスキル（21個）✨
 
 ### WEB開発（5個）
 - [x] **react-development** - 5本 ✅
@@ -52,29 +52,20 @@
 ### 依存関係管理（1個）
 - [x] **dependency-management** - 3本 ✅ - 2025-12-30完成
 
-### iOS開発パターン（1個）✨ NEW
+### iOS開発パターン（1個）
 - [x] **swiftui-patterns** - 3本 ✅ - 2025-12-30完成
+
+### ネットワーク・データ（1個）✨ NEW
+- [x] **networking-data** - 3本 ✅ - 2025-12-31完成
 
 ### その他（1個）
 - [x] **script-development** - 3本 ✅
 
 ---
 
-## 🚧 未完成スキル（6個） - 作業対象
+## 🚧 未完成スキル（5個） - 作業対象
 
 ### 優先度: High（実用性が高い）
-
----
-
-### 優先度: iOS開発（iOS関連プロジェクト時に必要）
-
-#### 4. networking-data（0本 → 3本必要）
-- **現状:** SKILL.mdのみ（25,975文字）
-- **必要:** 3本
-- **推奨ガイド:**
-  - [ ] Networking（API通信・URLSession）
-  - [ ] Data Persistence（Core Data/Realm/UserDefaults）
-  - [ ] Caching Strategy（キャッシュ戦略）
 
 ---
 
@@ -184,17 +175,31 @@
   - メモ: パフォーマンス最適化・ベストプラクティス完全ガイド。再描画制御、LazyLoading、画像最適化、アニメーション、メモリ管理、非同期処理、アクセシビリティまで網羅
 - [x] **swiftui-patterns完成** ✅ (3本完了)
 
+- [x] ガイド1本目作成完了: **01-networking.md** (約61,000文字)
+  - 作業時間: 約1時間
+  - 状態: 完了
+  - メモ: iOS API通信完全ガイド。URLSession、Endpoint パターン、エラーハンドリング、認証、WebSocket、テスト戦略まで網羅
+- [x] ガイド2本目作成完了: **02-data-persistence.md** (約55,000文字)
+  - 作業時間: 約1時間
+  - 状態: 完了
+  - メモ: データ永続化完全ガイド。UserDefaults、FileManager、Keychain、Core Data、Realm、SQLite、マイグレーション戦略まで完全網羅
+- [x] ガイド3本目作成完了: **03-caching-strategy.md** (約55,000文字)
+  - 作業時間: 約1時間
+  - 状態: 完了
+  - メモ: キャッシュ戦略完全ガイド。メモリ・ディスク・HTTPキャッシュ、画像キャッシュ、無効化戦略、オフライン対応まで網羅
+- [x] **networking-data完成** ✅ (3本完了)
+
 ---
 
 ## 🎯 次のアクション
 
 ### 次回の予定
 
-1. **networking-data に着手**
-   - 1本目: Networking（API通信・URLSession）
-   - 2本目: Data Persistence（Core Data/Realm/UserDefaults）
-   - 3本目: Caching Strategy（キャッシュ戦略）
-   - → networking-data完成予定 ✅
+1. **incident-logger に着手**
+   - 1本目: Incident Recording（問題記録の実践）
+   - 2本目: Root Cause Analysis（根本原因分析）
+   - 3本目: Prevention Strategy（再発防止策）
+   - → incident-logger完成予定 ✅
 
 ### 今後の方針
 
