@@ -21,8 +21,8 @@
 ## ✅ 完了済みスキル（26個）🎉 全スキル完成！
 
 ### WEB開発（5個）
-- [x] **react-development** - 5本 ✅
-- [x] **nextjs-development** - 5本 ✅
+- [x] **react-development** - 3本 ✅
+- [x] **nextjs-development** - 3本 ✅
 - [x] **web-development** - 3本 ✅
 - [x] **frontend-performance** - 3本 ✅
 - [x] **web-accessibility** - 3本 ✅
@@ -233,18 +233,19 @@
 
 ### 達成した内容
 
-- ✅ WEB開発（5スキル、15本）
-- ✅ Backend開発（3スキル、9本）
-- ✅ iOS開発（5スキル、15本）
-- ✅ DevOps・品質（4スキル、12本）
-- ✅ Git・開発フロー（1スキル、3本）
-- ✅ ドキュメント（1スキル、3本）
-- ✅ 依存関係管理（1スキル、3本）
-- ✅ ネットワーク・データ（1スキル、3本）
-- ✅ インシデント管理（1スキル、3本）
-- ✅ 教訓管理（1スキル、3本）
-- ✅ 言語・ツール開発（3スキル、9本）
-- ✅ その他（1スキル、3本）
+- ✅ WEB開発（5スキル、15本） - react, nextjs, web, frontend-performance, web-accessibility
+- ✅ Backend開発（3スキル、9本） - backend, nodejs, database-design
+- ✅ iOS開発（3スキル、9本） - ios-development, ios-security, ios-project-setup
+- ✅ iOS UI（1スキル、3本） - swiftui-patterns
+- ✅ DevOps・品質（4スキル、12本） - testing-strategy, ci-cd, code-review, qa
+- ✅ Git・開発フロー（1スキル、3本） - git-workflow
+- ✅ ドキュメント（1スキル、3本） - documentation
+- ✅ 依存関係管理（1スキル、3本） - dependency-management
+- ✅ ネットワーク・データ（1スキル、3本） - networking-data
+- ✅ インシデント管理（1スキル、3本） - incident-logger
+- ✅ 教訓管理（1スキル、3本） - lessons-learned
+- ✅ 言語・ツール開発（3スキル、9本） - python, cli, mcp
+- ✅ その他（1スキル、3本） - script-development
 
 ### 今後の展開
 
