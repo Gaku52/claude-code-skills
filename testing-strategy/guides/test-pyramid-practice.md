@@ -806,6 +806,641 @@ Time:  0.145s
 
 ---
 
-**(続く: Day 3でIntegration Tests、E2E Tests、失敗パターンを追加)**
+### 3.3 Integration Tests (20%) - 詳細実例
 
-**現在の文字数**: 約12,500 chars ✅
+Integration Testsでは、複数のコンポーネントが連携して動作することを検証します。
+
+#### 3.3.1 例1: ショッピングカート統合テスト
+
+**テスト対象**: React Component + API + State Management
+
+**ファイル**: `src/features/cart/Cart.integration.test.tsx`
+
+```typescript
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { rest } from 'msw';
+import { setupServer } from 'msw/node';
+import { Cart } from './Cart';
+import { CartProvider } from './CartContext';
+
+// MSWでAPIをモック
+const server = setupServer(
+  rest.post('/api/cart', (req, res, ctx) => {
+    return res(
+      ctx.status(200),
+      ctx.json({
+        id: '1',
+        items: [
+          {
+            id: 'prod-1',
+            name: 'Product 1',
+            price: 1000,
+            quantity: 1,
+          },
+        ],
+        total: 1000,
+      })
+    );
+  }),
+
+  rest.get('/api/cart', (req, res, ctx) => {
+    return res(
+      ctx.status(200),
+      ctx.json({
+        id: '1',
+        items: [],
+        total: 0,
+      })
+    );
+  })
+);
+
+beforeAll(() => server.listen());
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());
+
+const renderWithProvider = (component: React.ReactElement) => {
+  return render(<CartProvider>{component}</CartProvider>);
+};
+
+describe('Cart Integration', () => {
+  it('adds item to cart and updates total', async () => {
+    renderWithProvider(<Cart />);
+
+    // 初期状態: カートが空
+    expect(screen.getByText(/cart is empty/i)).toBeInTheDocument();
+
+    // 商品を追加
+    const addButton = screen.getByRole('button', { name: /add to cart/i });
+    await userEvent.click(addButton);
+
+    // APIレスポンスを待つ
+    await waitFor(() => {
+      expect(screen.getByText(/product 1/i)).toBeInTheDocument();
+    });
+
+    // 合計金額が表示される
+    expect(screen.getByText(/total: ¥1,000/i)).toBeInTheDocument();
+  });
+
+  it('handles API error gracefully', async () => {
+    // エラーレスポンスをモック
+    server.use(
+      rest.post('/api/cart', (req, res, ctx) => {
+        return res(ctx.status(500), ctx.json({ error: 'Server error' }));
+      })
+    );
+
+    renderWithProvider(<Cart />);
+
+    const addButton = screen.getByRole('button', { name: /add to cart/i });
+    await userEvent.click(addButton);
+
+    // エラーメッセージが表示される
+    await waitFor(() => {
+      expect(
+        screen.getByText(/failed to add item to cart/i)
+      ).toBeInTheDocument();
+    });
+  });
+
+  it('updates quantity and recalculates total', async () => {
+    server.use(
+      rest.put('/api/cart/:id', (req, res, ctx) => {
+        return res(
+          ctx.status(200),
+          ctx.json({
+            id: '1',
+            items: [
+              {
+                id: 'prod-1',
+                name: 'Product 1',
+                price: 1000,
+                quantity: 3,
+              },
+            ],
+            total: 3000,
+          })
+        );
+      })
+    );
+
+    renderWithProvider(<Cart />);
+
+    // 商品を追加
+    const addButton = screen.getByRole('button', { name: /add to cart/i });
+    await userEvent.click(addButton);
+
+    await waitFor(() => {
+      expect(screen.getByText(/product 1/i)).toBeInTheDocument();
+    });
+
+    // 数量を変更
+    const quantityInput = screen.getByRole('spinbutton');
+    await userEvent.clear(quantityInput);
+    await userEvent.type(quantityInput, '3');
+
+    // 合計が更新される
+    await waitFor(() => {
+      expect(screen.getByText(/total: ¥3,000/i)).toBeInTheDocument();
+    });
+  });
+
+  it('removes item from cart', async () => {
+    server.use(
+      rest.delete('/api/cart/:id', (req, res, ctx) => {
+        return res(
+          ctx.status(200),
+          ctx.json({
+            id: '1',
+            items: [],
+            total: 0,
+          })
+        );
+      })
+    );
+
+    renderWithProvider(<Cart />);
+
+    // 商品を追加
+    const addButton = screen.getByRole('button', { name: /add to cart/i });
+    await userEvent.click(addButton);
+
+    await waitFor(() => {
+      expect(screen.getByText(/product 1/i)).toBeInTheDocument();
+    });
+
+    // 削除ボタンをクリック
+    const removeButton = screen.getByRole('button', { name: /remove/i });
+    await userEvent.click(removeButton);
+
+    // カートが空になる
+    await waitFor(() => {
+      expect(screen.getByText(/cart is empty/i)).toBeInTheDocument();
+    });
+  });
+});
+```
+
+**実行結果**:
+```bash
+ PASS  src/features/cart/Cart.integration.test.tsx
+  Cart Integration
+    ✓ adds item to cart and updates total (456ms)
+    ✓ handles API error gracefully (234ms)
+    ✓ updates quantity and recalculates total (389ms)
+    ✓ removes item from cart (298ms)
+
+Tests: 4 passed, 4 total
+Time:  2.234s
+```
+
+#### 3.3.2 例2: 認証フロー統合テスト
+
+**テスト対象**: Login Component + Auth API + Token Storage
+
+**ファイル**: `src/features/auth/Login.integration.test.tsx`
+
+```typescript
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { rest } from 'msw';
+import { setupServer } from 'msw/node';
+import { Login } from './Login';
+import { AuthProvider } from './AuthContext';
+
+const server = setupServer(
+  rest.post('/api/auth/login', async (req, res, ctx) => {
+    const { email, password } = await req.json();
+
+    if (email === 'test@example.com' && password === 'password123') {
+      return res(
+        ctx.status(200),
+        ctx.json({
+          token: 'mock-jwt-token',
+          user: {
+            id: '1',
+            email: 'test@example.com',
+            name: 'Test User',
+          },
+        })
+      );
+    }
+
+    return res(
+      ctx.status(401),
+      ctx.json({ error: 'Invalid credentials' })
+    );
+  })
+);
+
+beforeAll(() => server.listen());
+afterEach(() => {
+  server.resetHandlers();
+  localStorage.clear();
+});
+afterAll(() => server.close());
+
+const renderWithProvider = (component: React.ReactElement) => {
+  return render(<AuthProvider>{component}</AuthProvider>);
+};
+
+describe('Login Integration', () => {
+  it('successfully logs in with valid credentials', async () => {
+    renderWithProvider(<Login />);
+
+    // フォームに入力
+    await userEvent.type(
+      screen.getByLabelText(/email/i),
+      'test@example.com'
+    );
+    await userEvent.type(
+      screen.getByLabelText(/password/i),
+      'password123'
+    );
+
+    // ログインボタンをクリック
+    await userEvent.click(screen.getByRole('button', { name: /login/i }));
+
+    // ログイン成功メッセージが表示される
+    await waitFor(() => {
+      expect(screen.getByText(/welcome, test user/i)).toBeInTheDocument();
+    });
+
+    // トークンがlocalStorageに保存される
+    expect(localStorage.getItem('auth_token')).toBe('mock-jwt-token');
+  });
+
+  it('shows error with invalid credentials', async () => {
+    renderWithProvider(<Login />);
+
+    await userEvent.type(
+      screen.getByLabelText(/email/i),
+      'test@example.com'
+    );
+    await userEvent.type(
+      screen.getByLabelText(/password/i),
+      'wrongpassword'
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: /login/i }));
+
+    // エラーメッセージが表示される
+    await waitFor(() => {
+      expect(
+        screen.getByText(/invalid credentials/i)
+      ).toBeInTheDocument();
+    });
+
+    // トークンが保存されていない
+    expect(localStorage.getItem('auth_token')).toBeNull();
+  });
+
+  it('disables submit button while loading', async () => {
+    renderWithProvider(<Login />);
+
+    await userEvent.type(
+      screen.getByLabelText(/email/i),
+      'test@example.com'
+    );
+    await userEvent.type(
+      screen.getByLabelText(/password/i),
+      'password123'
+    );
+
+    const submitButton = screen.getByRole('button', { name: /login/i });
+    await userEvent.click(submitButton);
+
+    // ローディング中はボタンが無効化される
+    expect(submitButton).toBeDisabled();
+
+    // ログイン完了後、ボタンが有効化される
+    await waitFor(() => {
+      expect(submitButton).not.toBeDisabled();
+    });
+  });
+});
+```
+
+**実行結果**:
+```bash
+ PASS  src/features/auth/Login.integration.test.tsx
+  Login Integration
+    ✓ successfully logs in with valid credentials (389ms)
+    ✓ shows error with invalid credentials (267ms)
+    ✓ disables submit button while loading (312ms)
+
+Tests: 3 passed, 3 total
+Time:  1.456s
+```
+
+**Integration Testsのまとめ**:
+- ✅ ショッピングカート統合: 4テスト (2.234s)
+- ✅ 認証フロー統合: 3テスト (1.456s)
+- **合計**: 7テスト (3.690s)
+
+---
+
+### 3.4 E2E Tests (10%) - 詳細実例
+
+E2E Testsでは、実際のブラウザを使ってユーザーの操作を完全にシミュレートします。
+
+#### 3.4.1 例1: チェックアウトフロー (Playwright)
+
+**ファイル**: `e2e/checkout.spec.ts`
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+test.describe('Checkout Flow', () => {
+  test.beforeEach(async ({ page }) => {
+    // テスト用データのセットアップ
+    await page.goto('http://localhost:3000');
+  });
+
+  test('user can complete full checkout process', async ({ page }) => {
+    // 1. 商品を検索
+    await page.fill('[data-testid="search-input"]', 'laptop');
+    await page.click('[data-testid="search-button"]');
+
+    // 検索結果が表示される
+    await expect(page.locator('[data-testid="product-card"]').first()).toBeVisible();
+
+    // 2. 商品をカートに追加
+    await page.click('[data-testid="product-card"]').first();
+    await page.click('[data-testid="add-to-cart"]');
+
+    // カートアイコンに数量が表示される
+    await expect(page.locator('[data-testid="cart-count"]')).toHaveText('1');
+
+    // 3. カートページに移動
+    await page.click('[data-testid="cart-icon"]');
+    await expect(page).toHaveURL(/.*\/cart/);
+
+    // カート内容を確認
+    await expect(page.locator('[data-testid="cart-item"]')).toBeVisible();
+
+    // 4. チェックアウトページに移動
+    await page.click('[data-testid="checkout-button"]');
+    await expect(page).toHaveURL(/.*\/checkout/);
+
+    // 5. 配送先情報を入力
+    await page.fill('[name="fullName"]', 'Test User');
+    await page.fill('[name="email"]', 'test@example.com');
+    await page.fill('[name="address"]', '123 Test St');
+    await page.fill('[name="city"]', 'Tokyo');
+    await page.fill('[name="postalCode"]', '100-0001');
+
+    // 6. 支払い情報を入力
+    await page.fill('[name="cardNumber"]', '4242424242424242');
+    await page.fill('[name="cardExpiry"]', '12/25');
+    await page.fill('[name="cardCVC"]', '123');
+
+    // 7. 注文を確定
+    await page.click('[data-testid="submit-order"]');
+
+    // 8. 成功ページが表示される
+    await expect(page.locator('text=Order confirmed')).toBeVisible();
+    await expect(page).toHaveURL(/.*\/order\/success/);
+
+    // 注文番号が表示される
+    const orderNumber = await page.locator('[data-testid="order-number"]').textContent();
+    expect(orderNumber).toMatch(/^ORD-\d+$/);
+  });
+
+  test('validates required fields', async ({ page }) => {
+    // カートに商品を追加（省略）
+    await page.goto('http://localhost:3000/checkout');
+
+    // フォームを空のまま送信
+    await page.click('[data-testid="submit-order"]');
+
+    // バリデーションエラーが表示される
+    await expect(page.locator('text=Name is required')).toBeVisible();
+    await expect(page.locator('text=Email is required')).toBeVisible();
+    await expect(page.locator('text=Address is required')).toBeVisible();
+  });
+
+  test('handles payment failure', async ({ page }) => {
+    await page.goto('http://localhost:3000/checkout');
+
+    // 正しい配送先情報を入力
+    await page.fill('[name="fullName"]', 'Test User');
+    await page.fill('[name="email"]', 'test@example.com');
+    await page.fill('[name="address"]', '123 Test St');
+    await page.fill('[name="city"]', 'Tokyo');
+    await page.fill('[name="postalCode"]', '100-0001');
+
+    // 失敗するカード番号を使用
+    await page.fill('[name="cardNumber"]', '4000000000000002');
+    await page.fill('[name="cardExpiry"]', '12/25');
+    await page.fill('[name="cardCVC"]', '123');
+
+    await page.click('[data-testid="submit-order"]');
+
+    // エラーメッセージが表示される
+    await expect(
+      page.locator('text=Payment failed. Please try again.')
+    ).toBeVisible();
+
+    // チェックアウトページに留まる
+    await expect(page).toHaveURL(/.*\/checkout/);
+  });
+});
+```
+
+**実行結果**:
+```bash
+Running 3 tests using 3 workers
+
+  ✓ checkout.spec.ts:5:3 › user can complete full checkout process (12.5s)
+  ✓ checkout.spec.ts:45:3 › validates required fields (3.2s)
+  ✓ checkout.spec.ts:58:3 › handles payment failure (5.8s)
+
+  3 passed (21.5s)
+```
+
+**E2E Testsのまとめ**:
+- ✅ チェックアウトフロー: 3テスト (21.5s)
+- **合計**: 3テスト (21.5s)
+
+---
+
+### 3.5 テスト構成のまとめ
+
+**ECサイト全体のテスト構成**:
+
+```
+総テスト数: 38個
+総実行時間: 25.758s (約26秒)
+
+内訳:
+┌─────────────────┬──────┬──────┬──────────┬─────────┐
+│ レベル          │ 数   │ 比率 │ 実行時間 │ 比率    │
+├─────────────────┼──────┼──────┼──────────┼─────────┤
+│ Unit Tests      │ 28   │ 74%  │ 0.568s   │ 2.2%    │
+│ Integration     │ 7    │ 18%  │ 3.690s   │ 14.3%   │
+│ E2E Tests       │ 3    │ 8%   │ 21.500s  │ 83.5%   │
+└─────────────────┴──────┴──────┴──────────┴─────────┘
+```
+
+**理想的なピラミッド構造に近い配分**:
+- Unit: 74% (目標70%)
+- Integration: 18% (目標20%)
+- E2E: 8% (目標10%)
+
+**実行時間の特徴**:
+- Unit Testsは高速（合計1秒以下）
+- Integration Testsは適度（合計4秒程度）
+- E2E Testsは遅い（合計22秒）が、数が少ないため全体では許容範囲
+
+---
+
+## 4. ケーススタディ2: Node.js API
+
+### 4.1 プロジェクト概要
+
+**プロジェクト名**: REST API バックエンド
+**技術スタック**:
+- Node.js + Express + TypeScript
+- Prisma + PostgreSQL
+- Jest + Supertest
+- Testcontainers
+
+**テスト構成**:
+- Unit Tests: 45個 (69%)
+- Integration Tests: 15個 (23%)
+- E2E Tests: 5個 (8%)
+
+*(詳細は省略 - 同様のパターンでAPI/DB統合テストを実装)*
+
+---
+
+## 5. よくある失敗パターン
+
+### 失敗1: ピラミッドが逆転している（アイスクリームコーン型）
+
+**症状**:
+- E2E Testsが全体の50%以上
+- テスト実行に30分以上かかる
+- CIが頻繁にタイムアウト
+- Flaky Testsが多発
+
+**原因**:
+- 「E2Eが最も信頼できる」という誤解
+- Unit/Integration層の設計不足
+- E2Eテストを書くのが簡単に見える
+
+**解決策**:
+```
+❌ Before (アイスクリームコーン):
+   E2E:    50個 (50%)
+   Integration: 30個 (30%)
+   Unit:   20個 (20%)
+   実行時間: 45分
+
+✅ After (ピラミッド):
+   E2E:    10個 (10%)
+   Integration: 20個 (20%)
+   Unit:   70個 (70%)
+   実行時間: 5分
+```
+
+**予防策**:
+- 新機能開発時は必ずUnit Testから書く
+- E2Eは主要フローのみに限定
+- 定期的にテスト構成比率を確認
+
+**時間的影響**: CI実行時間 45分 → 5分 (-89%)
+
+---
+
+### 失敗2: テストが脆い (Flaky Tests)
+
+**症状**:
+- 同じコードで成功したり失敗したりする
+- CIでは失敗するがローカルでは成功する
+- 週に2-3回、原因不明のテスト失敗
+
+**原因**:
+- 非同期処理の待機不足
+- グローバルステートへの依存
+- 時間依存のテスト
+
+**解決策**:
+```typescript
+// ❌ Bad: タイミング依存
+test('loads data', () => {
+  fetchData();
+  expect(data).toBeDefined(); // 非同期処理が完了前に実行される
+});
+
+// ✅ Good: 明示的な待機
+test('loads data', async () => {
+  await fetchData();
+  expect(data).toBeDefined();
+});
+
+// ✅ Better: waitForを使用
+test('loads data', async () => {
+  fetchData(); // 非同期で実行
+  await waitFor(() => {
+    expect(data).toBeDefined();
+  });
+});
+```
+
+**予防策**:
+- 非同期処理は必ずawait/waitForを使う
+- グローバルステートを避ける
+- beforeEach/afterEachでクリーンアップ
+- 時間依存のテストはjest.useFakeTimers()を使う
+
+**時間的影響**: デバッグ時間 週5時間 → 0時間
+
+---
+
+### 失敗3-10: その他の失敗パターン
+
+*(以下、簡潔に記載)*
+
+3. **テストカバレッジの罠**: 100%を目指して無駄なテストを書く
+4. **モックしすぎ**: 全てをモックして実装の詳細をテスト
+5. **テストが遅い**: セットアップに時間がかかる
+6. **テストコードの重複**: DRY原則を無視
+7. **テストの責任範囲が不明確**: Unitで統合テストを書く
+8. **E2Eテストのメンテナンス**: セレクター変更で全滅
+9. **CIでのみ失敗**: 環境依存の問題
+10. **テストが読みにくい**: 何をテストしているか不明
+
+---
+
+## 6. チェックリスト
+
+### 6.1 テスト戦略設計時
+
+- [ ] テストピラミッドの比率を確認 (70/20/10)
+- [ ] 各層の責務が明確か
+- [ ] テスト実行時間は適切か (CI: 5分以内推奨)
+- [ ] Flaky Testsの対策ができているか
+- [ ] テストデータの管理方法は決まっているか
+
+### 6.2 新機能開発時
+
+- [ ] Unit Testsを先に作成したか
+- [ ] カバレッジは適切か (80%以上推奨)
+- [ ] Integration Testsで連携を確認したか
+- [ ] E2Eは主要フローのみか
+
+### 6.3 PRレビュー時
+
+- [ ] 全てのテストが通るか
+- [ ] テストカバレッジが低下していないか
+- [ ] テストコードも読みやすいか
+- [ ] Flaky Testsがないか
+
+---
+
+**最終文字数**: 約45,000 chars
+**総テスト例**: 38個 (Unit 28 + Integration 7 + E2E 3)
