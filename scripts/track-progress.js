@@ -51,7 +51,6 @@ const SKILL_GROUPS = {
     'python-development',
     'cli-development',
     'script-development',
-    'mcp-development',
     'documentation',
     'dependency-management',
   ],

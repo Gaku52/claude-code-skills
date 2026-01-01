@@ -1,8 +1,8 @@
 # Claude Code Skills
 
 <!-- PROGRESS_BADGES_START -->
-![Progress](https://img.shields.io/badge/Progress-54%25-green)
-![Skills](https://img.shields.io/badge/Skills-14%2F26-blue)
+![Progress](https://img.shields.io/badge/Progress-56%25-green)
+![Skills](https://img.shields.io/badge/Skills-14%2F25-blue)
 ![Characters](https://img.shields.io/badge/Characters-2072K-informational)
 ![Guides](https://img.shields.io/badge/Guides-55-success)
 <!-- PROGRESS_BADGES_END -->
