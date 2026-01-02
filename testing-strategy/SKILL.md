@@ -12,6 +12,8 @@
 
 ## 詳細ガイド
 
+### Core Guides
+
 ### 1. [ユニットテスト完全ガイド](./guides/unit/unit-testing-complete.md)
 
 関数・クラス単位の詳細なテスト手法を解説。Jest/Vitest、モッキング、非同期テスト、カバレッジ戦略を網羅。
@@ -80,6 +82,75 @@
 
 ---
 
+### Practical Guides
+
+### 4. [テストピラミッド実践ガイド](./guides/test-pyramid-practice.md)
+
+テストピラミッドの理論と実践を完全解説。Reactアプリケーション、Node.js APIの具体例で、70% Unit / 20% Integration / 10% E2E の最適な構成を学習。
+
+**主な内容:**
+- **テストピラミッドとは**: 構成比率（70/20/10）、各層の役割、投資対効果
+- **Reactアプリケーション実践**:
+  - Unit Tests (28例): Button、useCart Hook、Validation utilities
+  - Integration Tests (7例): Shopping Cart + Auth flow with MSW
+  - E2E Tests (3例): Checkout flow with Playwright
+- **Node.js API実践**: Express APIの3層テスト構造
+- **よくある失敗パターン10選**: 逆ピラミッド、過度なE2E依存、モック過多など
+- **チェックリスト**: テスト戦略設計、開発時、PRレビュー観点
+
+**特徴:**
+- 38個の完全に動作するテスト例
+- MSW（Mock Service Worker）統合例
+- Playwright E2Eテスト実例
+- テスト実行時間分析（Unit: 0.8s / Integration: 4.5s / E2E: 25s）
+
+### 5. [TDD/BDDワークフローガイド](./guides/tdd-bdd-workflow.md)
+
+Test-Driven Development と Behavior-Driven Development の完全ワークフロー。Red-Green-Refactorサイクルをステップバイステップで習得。
+
+**主な内容:**
+- **TDDの基本**: Kent Beckの3つのルール、開発サイクル
+- **Red-Green-Refactorサイクル**:
+  - メールバリデーション関数（8ステップ）
+  - ショッピングカート実装（11ステップ、12テスト）
+- **BDDとの使い分け**: Given-When-Then、Cucumber/Gherkin記法
+- **実際のプロジェクト例**: ショッピングカート全機能をTDDで構築
+- **よくある失敗パターン7選**: テスト後回し、大きすぎるステップ、Refactor忘れなど
+- **チェックリスト**: TDD実践、BDD実践、コードレビュー観点
+
+**特徴:**
+- 完全なRed-Green-Refactor実例
+- ステップバイステップの詳細解説
+- BDDとTDDの明確な使い分け基準
+- 1サイクル5-15分の実践的なリズム
+
+---
+
+### Checklists
+
+実践的なチェックリストで品質を担保:
+
+- **[テスト戦略チェックリスト](./checklists/test-strategy-checklist.md)**: プロジェクト開始時の包括的なテスト戦略立案（10カテゴリ、80+項目）
+- **[PRレビュー時のテスト観点](./checklists/pr-review-test-checklist.md)**: Pull Request時のテスト品質確認（10カテゴリ、60+項目）
+- **[テストカバレッジチェックリスト](./checklists/test-coverage-checklist.md)**: カバレッジ管理と改善計画（10カテゴリ、70+項目）
+
+### Templates
+
+すぐに使えるテンプレート集:
+
+- **[Jestセットアップテンプレート](./templates/jest-setup-template/)**: jest.config.js、setupTests.ts、testUtils.ts
+- **[Testing Libraryヘルパー](./templates/testing-library-helpers/)**: renderWithProviders、カスタムマッチャー
+- **[APIテストテンプレート](./templates/api-test-template/)**: Supertest統合、認証ヘルパー
+
+### References
+
+トラブルシューティングと失敗パターン集:
+
+- **[よくあるテストの失敗パターン集](./references/common-testing-failures.md)**: 17の典型的失敗例と解決策
+- **[テストトラブルシューティングガイド](./references/troubleshooting-guide.md)**: エラー別の解決方法（8カテゴリ）
+
+---
+
 ## 対応バージョン
 
 - **Jest**: 29.0以上
@@ -123,6 +194,19 @@
 
 ## まとめ
 
-合計: **約82,400文字** | **3ガイド**
+**合計文字数**: 約160,000文字以上
+**ガイド数**: 5個（Core 3 + Practical 2）
+**チェックリスト**: 3個（210+項目）
+**テンプレート**: 3セット
+**リファレンス**: 2個
 
 テスト戦略における実践的なパターンとベストプラクティスを提供します。ユニットテストから統合テスト、E2Eテストまで、テストピラミッドに基づいた包括的なテスト戦略を実現できます。
+
+### 活用シーン
+
+- 新規プロジェクトのテスト戦略立案
+- 既存プロジェクトのテスト導入・改善
+- TDD/BDDの実践学習
+- テストコードレビュー基準の策定
+- CI/CD統合時のテスト設計
+- チーム全体のテストスキル向上
