@@ -1,0 +1,111 @@
+#!/bin/sh
+# Pre-commit hook for code quality checks
+# Place this file in .git/hooks/pre-commit and make it executable:
+# chmod +x .git/hooks/pre-commit
+
+echo "🔍 Running pre-commit checks..."
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Function to print colored output
+print_error() {
+    echo "${RED}❌ $1${NC}"
+}
+
+print_success() {
+    echo "${GREEN}✅ $1${NC}"
+}
+
+print_warning() {
+    echo "${YELLOW}⚠️  $1${NC}"
+}
+
+# Check 1: No debug code
+echo "\n📝 Checking for debug code..."
+if git diff --cached --name-only | xargs grep -n "console.log\|debugger\|TODO\|FIXME" 2>/dev/null; then
+    print_warning "Debug code or TODO comments found"
+    read -p "Continue anyway? (y/n) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        print_error "Commit aborted. Please remove debug code."
+        exit 1
+    fi
+fi
+
+# Check 2: No large files
+echo "\n📦 Checking for large files..."
+LARGE_FILE_THRESHOLD=1048576  # 1MB
+for FILE in $(git diff --cached --name-only); do
+    if [ -f "$FILE" ]; then
+        FILE_SIZE=$(wc -c < "$FILE" 2>/dev/null || echo 0)
+        if [ "$FILE_SIZE" -gt "$LARGE_FILE_THRESHOLD" ]; then
+            print_error "Large file detected: $FILE ($(($FILE_SIZE / 1024))KB)"
+            print_error "Consider using Git LFS for large files"
+            exit 1
+        fi
+    fi
+done
+
+# Check 3: No secrets
+echo "\n🔐 Checking for potential secrets..."
+SECRETS_PATTERN="(api[_-]?key|password|secret|token|auth|private[_-]?key)"
+if git diff --cached | grep -iE "$SECRETS_PATTERN" | grep -v "# gitignore" 2>/dev/null; then
+    print_error "Potential secrets detected in staged changes"
+    print_error "Please review and ensure no sensitive data is committed"
+    exit 1
+fi
+
+# Check 4: Run linter (if available)
+echo "\n🎨 Running linter..."
+if command -v npm &> /dev/null && [ -f "package.json" ]; then
+    if npm run lint --if-present 2>/dev/null; then
+        print_success "Linting passed"
+    else
+        print_error "Linting failed"
+        print_error "Please fix linting errors before committing"
+        exit 1
+    fi
+elif command -v flake8 &> /dev/null; then
+    if flake8 . 2>/dev/null; then
+        print_success "Linting passed"
+    else
+        print_error "Linting failed"
+        exit 1
+    fi
+fi
+
+# Check 5: Run tests (optional, can be slow)
+# Uncomment if you want to run tests on every commit
+# echo "\n🧪 Running tests..."
+# if command -v npm &> /dev/null && [ -f "package.json" ]; then
+#     if npm test 2>/dev/null; then
+#         print_success "Tests passed"
+#     else
+#         print_error "Tests failed"
+#         exit 1
+#     fi
+# fi
+
+# Check 6: Ensure no .gitignore files are being added
+echo "\n🚫 Checking for ignored files..."
+if git diff --cached --name-only | grep "\.env$\|\.env\.local$\|secrets/" 2>/dev/null; then
+    print_error "Attempting to commit ignored files"
+    exit 1
+fi
+
+# Check 7: Prevent commits to main/master directly
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+if [ "$BRANCH" = "main" ] || [ "$BRANCH" = "master" ]; then
+    print_error "Direct commits to $BRANCH are not allowed"
+    print_error "Please create a feature branch and submit a PR"
+    exit 1
+fi
+
+print_success "All pre-commit checks passed!"
+echo "✨ Ready to commit\n"
+
+exit 0

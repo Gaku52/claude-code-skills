@@ -1,0 +1,99 @@
+#!/bin/sh
+# Pre-push hook for additional quality checks
+# Place this file in .git/hooks/pre-push and make it executable:
+# chmod +x .git/hooks/pre-push
+
+echo "🚀 Running pre-push checks..."
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0;m'
+
+print_error() {
+    echo "${RED}❌ $1${NC}"
+}
+
+print_success() {
+    echo "${GREEN}✅ $1${NC}"
+}
+
+print_warning() {
+    echo "${YELLOW}⚠️  $1${NC}"
+}
+
+# Check 1: Run tests
+echo "\n🧪 Running tests..."
+if command -v npm &> /dev/null && [ -f "package.json" ]; then
+    if npm test 2>/dev/null; then
+        print_success "Tests passed"
+    else
+        print_error "Tests failed"
+        print_error "Cannot push with failing tests"
+        exit 1
+    fi
+elif command -v pytest &> /dev/null; then
+    if pytest 2>/dev/null; then
+        print_success "Tests passed"
+    else
+        print_error "Tests failed"
+        exit 1
+    fi
+fi
+
+# Check 2: Run build (if applicable)
+echo "\n🔨 Running build..."
+if command -v npm &> /dev/null && [ -f "package.json" ]; then
+    if npm run build --if-present 2>/dev/null; then
+        print_success "Build succeeded"
+    else
+        print_error "Build failed"
+        exit 1
+    fi
+fi
+
+# Check 3: Check for merge conflicts markers
+echo "\n🔍 Checking for merge conflict markers..."
+if git diff --check HEAD 2>/dev/null; then
+    print_success "No conflict markers found"
+else
+    print_error "Merge conflict markers found in code"
+    print_error "Please resolve conflicts before pushing"
+    exit 1
+fi
+
+# Check 4: Verify commit messages
+echo "\n📝 Verifying commit messages..."
+# Check last 10 commits
+INVALID_COMMITS=$(git log --pretty=format:"%h %s" -10 | grep -vE "^[a-f0-9]+ (feat|fix|docs|style|refactor|perf|test|chore|ci|revert)(\(.+\))?: .+")
+if [ -n "$INVALID_COMMITS" ]; then
+    print_warning "Some recent commits don't follow Conventional Commits:"
+    echo "$INVALID_COMMITS"
+    print_warning "Consider rebasing and fixing commit messages"
+fi
+
+# Check 5: Ensure no debug code
+echo "\n🐛 Checking for debug code..."
+if git diff origin/$(git rev-parse --abbrev-ref HEAD) | grep -E "console.log|debugger|print\(" 2>/dev/null; then
+    print_warning "Debug code found in commits"
+    read -p "Continue push anyway? (y/n) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        print_error "Push aborted"
+        exit 1
+    fi
+fi
+
+# Check 6: Branch protection
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+if [ "$CURRENT_BRANCH" = "main" ] || [ "$CURRENT_BRANCH" = "master" ]; then
+    print_error "Direct push to $CURRENT_BRANCH is not allowed"
+    print_error "Please create a feature branch and submit a PR"
+    exit 1
+fi
+
+print_success "All pre-push checks passed!"
+echo "✨ Ready to push\n"
+
+exit 0

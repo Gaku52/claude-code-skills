@@ -392,55 +392,30 @@ gh run view <run-id> --log
 
 ### Guides（詳細ガイド）
 
-**パイプライン設計**
-1. [パイプライン設計基礎](guides/01-pipeline-design.md)
-2. [高度なパイプライン](guides/02-advanced-pipeline.md)
-
-**GitHub Actions**
-3. [GitHub Actions基礎](guides/03-github-actions-basics.md)
-4. [PRワークフロー](guides/04-pr-workflow.md)
-5. [デプロイワークフロー](guides/05-deploy-workflow.md)
-6. [リリースワークフロー](guides/06-release-workflow.md)
-
-**Fastlane**
-7. [Fastlaneセットアップ](guides/07-fastlane-setup.md)
-8. [Fastlane Lanes](guides/08-fastlane-lanes.md)
-9. [Fastlane Match](guides/09-fastlane-match.md)
-10. [Fastlane Plugins](guides/10-fastlane-plugins.md)
-
-**その他**
-11. [Bitrise活用](guides/11-bitrise.md)
-12. [Jenkins統合](guides/12-jenkins.md)
+**🎯 完全ガイド（実践的・網羅的）**
+1. [GitHub Actions 完全ガイド](guides/github-actions-complete.md) - 基礎から高度な活用まで
+2. [Fastlane 完全ガイド](guides/fastlane-complete.md) - iOS/Android自動化の全て
+3. [デプロイメント自動化 完全ガイド](guides/deployment-complete.md) - 環境管理とデプロイ戦略
+4. [パイプライン最適化ガイド](guides/pipeline-optimization-guide.md) - **NEW!** ビルド時間短縮・コスト削減
 
 ### Checklists（チェックリスト）
 
-- [CI/CD構築前](checklists/pre-setup.md)
-- [ワークフロー作成](checklists/workflow-creation.md)
-- [デプロイ前確認](checklists/pre-deploy.md)
+**構築時**
+- [パイプライン構築チェックリスト](checklists/pipeline-setup-checklist.md) - **NEW!** CI/CD構築の全手順
+
+**運用時**
+- [デプロイメントチェックリスト](checklists/deployment-checklist.md) - **NEW!** デプロイ前後の確認事項
 
 ### Templates（テンプレート）
 
-- [PR自動チェック](templates/workflows/pr-check.yml)
-- [TestFlight配布](templates/workflows/testflight-deploy.yml)
-- [App Storeリリース](templates/workflows/appstore-release.yml)
-- [定期ビルド](templates/workflows/scheduled-build.yml)
-- [Fastfile基本形](templates/Fastfile)
-- [Matchfile](templates/Matchfile)
+**GitHub Actions ワークフロー**
+- [完全版CI/CDワークフロー](templates/workflows/ci-complete.yml) - **NEW!** Next.js/React向け完全設定
+- [iOS Fastlaneワークフロー](templates/workflows/ios-fastlane.yml) - **NEW!** TestFlight/App Store自動配布
 
 ### References（リファレンス）
 
-- [ベストプラクティス集](references/best-practices.md)
-- [キャッシュ戦略](references/caching-strategy.md)
-- [シークレット管理](references/secrets-management.md)
-- [並列実行](references/parallel-execution.md)
-- [ビルド最適化](references/build-optimization.md)
-- [トラブルシューティング](references/troubleshooting.md)
-
-### Incidents（過去の問題事例）
-
-- [ビルド失敗事例](incidents/build-failures/)
-- [TestFlight失敗](incidents/testflight-failures/)
-- [コード署名エラー](incidents/code-signing-errors/)
+- [ベストプラクティス集](references/best-practices.md) - **NEW!** GitHub Actions、Fastlane、デプロイメントのベストプラクティス
+- [トラブルシューティング](references/troubleshooting.md) - **NEW!** よくある問題と解決方法
 
 ---
 

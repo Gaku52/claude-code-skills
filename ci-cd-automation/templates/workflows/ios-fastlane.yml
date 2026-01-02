@@ -1,0 +1,340 @@
+# iOS CI/CD with Fastlane
+# このファイルを .github/workflows/ios.yml にコピーして使用
+
+name: iOS CI/CD
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      lane:
+        description: 'Fastlane lane to run'
+        required: true
+        type: choice
+        options:
+          - test
+          - beta
+          - release
+
+env:
+  XCODE_VERSION: '15.2'
+  DEVELOPER_DIR: /Applications/Xcode_15.2.app/Contents/Developer
+
+jobs:
+  # ==================== Test ====================
+  test:
+    name: Run Tests
+    runs-on: macos-14
+    timeout-minutes: 30
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/develop'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: ${{ env.XCODE_VERSION }}
+
+      - name: Cache Ruby gems
+        uses: actions/cache@v4
+        with:
+          path: vendor/bundle
+          key: ${{ runner.os }}-gems-${{ hashFiles('**/Gemfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-gems-
+
+      - name: Install Ruby dependencies
+        run: |
+          bundle config path vendor/bundle
+          bundle install --jobs 4 --retry 3
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: Pods
+          key: ${{ runner.os }}-pods-${{ hashFiles('**/Podfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pods-
+
+      - name: Install CocoaPods
+        run: |
+          if [ -f "Podfile.lock" ]; then
+            bundle exec pod install
+          fi
+
+      - name: Cache DerivedData
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Developer/Xcode/DerivedData
+          key: ${{ runner.os }}-derived-data-${{ hashFiles('**/*.swift') }}
+          restore-keys: |
+            ${{ runner.os }}-derived-data-
+
+      - name: Run tests
+        run: bundle exec fastlane test
+        env:
+          SCAN_DEVICE: iPhone 15
+          SCAN_SCHEME: YourApp
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            fastlane/test_output/
+          retention-days: 7
+
+      - name: Upload code coverage
+        if: success()
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./fastlane/test_output/coverage.xml
+          flags: ios-tests
+
+  # ==================== Beta Deployment (TestFlight) ====================
+  beta:
+    name: Deploy to TestFlight
+    runs-on: macos-14
+    timeout-minutes: 60
+    if: github.ref == 'refs/heads/develop' || github.event.inputs.lane == 'beta'
+    environment:
+      name: testflight
+      url: https://appstoreconnect.apple.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: ${{ env.XCODE_VERSION }}
+
+      - name: Cache Ruby gems
+        uses: actions/cache@v4
+        with:
+          path: vendor/bundle
+          key: ${{ runner.os }}-gems-${{ hashFiles('**/Gemfile.lock') }}
+
+      - name: Install Ruby dependencies
+        run: |
+          bundle config path vendor/bundle
+          bundle install --jobs 4 --retry 3
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: Pods
+          key: ${{ runner.os }}-pods-${{ hashFiles('**/Podfile.lock') }}
+
+      - name: Install CocoaPods
+        run: bundle exec pod install
+
+      - name: Setup Match certificates
+        run: bundle exec fastlane match appstore --readonly
+        env:
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
+
+      - name: Increment build number
+        run: |
+          BUILD_NUMBER=$(( ${{ github.run_number }} + 1000 ))
+          agvtool new-version -all $BUILD_NUMBER
+
+      - name: Build and upload to TestFlight
+        run: bundle exec fastlane beta
+        env:
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD: ${{ secrets.FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD }}
+          APP_STORE_CONNECT_API_KEY_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_KEY_ID }}
+          APP_STORE_CONNECT_API_KEY_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY_KEY }}
+
+      - name: Upload build artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: |
+            *.ipa
+            *.dSYM.zip
+          retention-days: 30
+
+      - name: Notify Slack
+        if: always()
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+        run: |
+          STATUS="${{ job.status }}"
+          if [ "$STATUS" == "success" ]; then
+            EMOJI="✈️"
+            COLOR="good"
+            MESSAGE="TestFlight build uploaded successfully"
+          else
+            EMOJI="❌"
+            COLOR="danger"
+            MESSAGE="TestFlight build failed"
+          fi
+
+          curl -X POST $SLACK_WEBHOOK \
+            -H 'Content-Type: application/json' \
+            -d "{
+              \"text\": \"$EMOJI $MESSAGE\",
+              \"attachments\": [{
+                \"color\": \"$COLOR\",
+                \"fields\": [
+                  {\"title\": \"Build\", \"value\": \"#${{ github.run_number }}\", \"short\": true},
+                  {\"title\": \"Branch\", \"value\": \"${{ github.ref_name }}\", \"short\": true}
+                ]
+              }]
+            }"
+
+  # ==================== Production Release (App Store) ====================
+  release:
+    name: Release to App Store
+    runs-on: macos-14
+    timeout-minutes: 60
+    if: github.ref == 'refs/heads/main' || github.event.inputs.lane == 'release'
+    environment:
+      name: production
+      url: https://apps.apple.com/app/your-app
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: ${{ env.XCODE_VERSION }}
+
+      - name: Cache Ruby gems
+        uses: actions/cache@v4
+        with:
+          path: vendor/bundle
+          key: ${{ runner.os }}-gems-${{ hashFiles('**/Gemfile.lock') }}
+
+      - name: Install Ruby dependencies
+        run: |
+          bundle config path vendor/bundle
+          bundle install --jobs 4 --retry 3
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: Pods
+          key: ${{ runner.os }}-pods-${{ hashFiles('**/Podfile.lock') }}
+
+      - name: Install CocoaPods
+        run: bundle exec pod install
+
+      - name: Setup Match certificates
+        run: bundle exec fastlane match appstore --readonly
+        env:
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
+
+      - name: Increment version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          agvtool new-marketing-version $VERSION
+
+      - name: Build and release to App Store
+        run: bundle exec fastlane release
+        env:
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD: ${{ secrets.FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD }}
+          APP_STORE_CONNECT_API_KEY_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_KEY_ID }}
+          APP_STORE_CONNECT_API_KEY_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY_KEY }}
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const tagName = context.ref.replace('refs/tags/', '');
+            await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: tagName,
+              name: `iOS ${tagName}`,
+              generate_release_notes: true
+            });
+
+      - name: Notify Slack
+        if: always()
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+        run: |
+          STATUS="${{ job.status }}"
+          if [ "$STATUS" == "success" ]; then
+            EMOJI="🚀"
+            COLOR="good"
+            MESSAGE="App Store release submitted successfully"
+          else
+            EMOJI="💥"
+            COLOR="danger"
+            MESSAGE="App Store release failed"
+          fi
+
+          curl -X POST $SLACK_WEBHOOK \
+            -H 'Content-Type: application/json' \
+            -d "{
+              \"text\": \"$EMOJI $MESSAGE\",
+              \"attachments\": [{
+                \"color\": \"$COLOR\",
+                \"fields\": [
+                  {\"title\": \"Version\", \"value\": \"${{ github.ref_name }}\", \"short\": true},
+                  {\"title\": \"Commit\", \"value\": \"${{ github.sha }}\", \"short\": true}
+                ]
+              }]
+            }"
+
+  # ==================== SwiftLint ====================
+  swiftlint:
+    name: SwiftLint
+    runs-on: macos-14
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: SwiftLint
+        uses: norio-nomura/action-swiftlint@3.2.1
+        with:
+          args: --strict
+
+  # ==================== Danger ====================
+  danger:
+    name: Danger PR Check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+
+      - name: Install Danger
+        run: gem install danger
+
+      - name: Run Danger
+        env:
+          DANGER_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: danger

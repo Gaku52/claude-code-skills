@@ -1,0 +1,500 @@
+# 完全なCI/CDワークフロー - Next.js/React向け
+# このファイルを .github/workflows/ci.yml にコピーして使用
+
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
+  pull_request:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+    inputs:
+      skip_tests:
+        description: 'テストをスキップ'
+        type: boolean
+        default: false
+
+# 権限を最小限に設定
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+# 環境変数（グローバル）
+env:
+  NODE_VERSION: '20'
+  CACHE_NAME: ci-cache
+
+# 同じブランチで前回のワークフローをキャンセル
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ==================== セットアップ ====================
+  setup:
+    name: Setup Dependencies
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      cache-hit: ${{ steps.cache-modules.outputs.cache-hit }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Gitヒストリー全取得（変更検出用）
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Cache node_modules
+        id: cache-modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-modules-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-modules-
+
+      - name: Install dependencies
+        if: steps.cache-modules.outputs.cache-hit != 'true'
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Cache build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            .next/cache
+            node_modules/.cache
+          key: ${{ runner.os }}-build-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-build-
+
+  # ==================== Lint ====================
+  lint:
+    name: Lint Code
+    needs: setup
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Restore node_modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-modules-${{ hashFiles('package-lock.json') }}
+
+      - name: Run ESLint
+        run: npm run lint -- --max-warnings 0
+
+      - name: Run Prettier
+        run: npm run format:check
+
+      - name: Comment PR (on failure)
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '❌ Lint checks failed. Please run `npm run lint:fix` locally.'
+            })
+
+  # ==================== Type Check ====================
+  typecheck:
+    name: Type Check
+    needs: setup
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Restore node_modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-modules-${{ hashFiles('package-lock.json') }}
+
+      - name: Run TypeScript
+        run: npm run type-check
+
+  # ==================== Unit Tests ====================
+  test-unit:
+    name: Unit Tests
+    needs: setup
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: ${{ !inputs.skip_tests }}
+
+    strategy:
+      matrix:
+        shard: [1, 2]  # テストを2つに分割して並列実行
+      fail-fast: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Restore node_modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-modules-${{ hashFiles('package-lock.json') }}
+
+      - name: Run tests (shard ${{ matrix.shard }})
+        run: npx jest --shard=${{ matrix.shard }}/2 --coverage --maxWorkers=2
+        env:
+          NODE_ENV: test
+
+      - name: Upload coverage
+        if: matrix.shard == 1
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage/coverage-final.json
+          fail_ci_if_error: true
+          flags: unit-tests
+
+      - name: Archive test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-shard-${{ matrix.shard }}
+          path: |
+            coverage/
+            test-results/
+          retention-days: 7
+
+  # ==================== E2E Tests ====================
+  test-e2e:
+    name: E2E Tests
+    needs: setup
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: ${{ !inputs.skip_tests }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Restore node_modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-modules-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Build application
+        run: npm run build
+        env:
+          NODE_ENV: production
+
+      - name: Run E2E tests
+        run: npm run test:e2e
+        env:
+          CI: true
+
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
+  # ==================== Build ====================
+  build:
+    name: Build Application
+    needs: [lint, typecheck]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Restore node_modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-modules-${{ hashFiles('package-lock.json') }}
+
+      - name: Restore build cache
+        uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: ${{ runner.os }}-build-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-build-
+
+      - name: Build
+        run: npm run build
+        env:
+          NODE_ENV: production
+          NEXT_PUBLIC_API_URL: ${{ secrets.API_URL }}
+
+      - name: Check build size
+        run: |
+          SIZE=$(du -sh .next | cut -f1)
+          echo "Build size: $SIZE"
+
+          # 100MBを超えたら警告
+          SIZE_BYTES=$(du -s .next | cut -f1)
+          if [ $SIZE_BYTES -gt 102400 ]; then
+            echo "::warning::Build size exceeds 100MB: $SIZE"
+          fi
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output
+          path: |
+            .next/
+            public/
+          retention-days: 1
+
+  # ==================== Security Scan ====================
+  security:
+    name: Security Scan
+    needs: setup
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run npm audit
+        run: npm audit --production --audit-level=moderate
+        continue-on-error: true
+
+      - name: Run Trivy security scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  # ==================== Deploy Staging ====================
+  deploy-staging:
+    name: Deploy to Staging
+    needs: [build, test-unit, test-e2e]
+    if: github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: staging
+      url: https://staging.example.com
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-output
+
+      - name: Deploy to Vercel (Staging)
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          vercel-args: '--prod'
+          scope: ${{ secrets.VERCEL_ORG_ID }}
+
+      - name: Notify Slack
+        if: always()
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+        run: |
+          STATUS="${{ job.status }}"
+          if [ "$STATUS" == "success" ]; then
+            EMOJI="✅"
+            COLOR="good"
+          else
+            EMOJI="❌"
+            COLOR="danger"
+          fi
+
+          curl -X POST $SLACK_WEBHOOK \
+            -H 'Content-Type: application/json' \
+            -d "{
+              \"text\": \"$EMOJI Staging Deployment $STATUS\",
+              \"attachments\": [{
+                \"color\": \"$COLOR\",
+                \"fields\": [
+                  {\"title\": \"Branch\", \"value\": \"${{ github.ref_name }}\", \"short\": true},
+                  {\"title\": \"Commit\", \"value\": \"${{ github.sha }}\", \"short\": true}
+                ]
+              }]
+            }"
+
+  # ==================== Deploy Production ====================
+  deploy-production:
+    name: Deploy to Production
+    needs: [build, test-unit, test-e2e, security]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: production
+      url: https://example.com
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-output
+
+      - name: Deploy to Vercel (Production)
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          vercel-args: '--prod'
+          scope: ${{ secrets.VERCEL_ORG_ID }}
+          alias-domains: example.com
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const tagName = context.ref.replace('refs/tags/', '');
+            await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: tagName,
+              name: `Release ${tagName}`,
+              generate_release_notes: true
+            });
+
+      - name: Notify Slack (Production)
+        if: always()
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+        run: |
+          STATUS="${{ job.status }}"
+          if [ "$STATUS" == "success" ]; then
+            EMOJI="🚀"
+            COLOR="good"
+          else
+            EMOJI="💥"
+            COLOR="danger"
+          fi
+
+          curl -X POST $SLACK_WEBHOOK \
+            -H 'Content-Type: application/json' \
+            -d "{
+              \"text\": \"$EMOJI Production Deployment $STATUS\",
+              \"attachments\": [{
+                \"color\": \"$COLOR\",
+                \"fields\": [
+                  {\"title\": \"Version\", \"value\": \"${{ github.ref_name }}\", \"short\": true},
+                  {\"title\": \"URL\", \"value\": \"https://example.com\", \"short\": true}
+                ]
+              }]
+            }"
+
+  # ==================== Performance Budget ====================
+  lighthouse:
+    name: Lighthouse Performance
+    needs: deploy-staging
+    if: github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Lighthouse CI
+        uses: treosh/lighthouse-ci-action@v10
+        with:
+          urls: |
+            https://staging.example.com
+          budgetPath: ./lighthouse-budget.json
+          uploadArtifacts: true
+          temporaryPublicStorage: true
+
+  # ==================== Summary ====================
+  summary:
+    name: Workflow Summary
+    needs: [lint, typecheck, test-unit, test-e2e, build, security]
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Generate summary
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const results = {
+              lint: '${{ needs.lint.result }}',
+              typecheck: '${{ needs.typecheck.result }}',
+              test_unit: '${{ needs.test-unit.result }}',
+              test_e2e: '${{ needs.test-e2e.result }}',
+              build: '${{ needs.build.result }}',
+              security: '${{ needs.security.result }}'
+            };
+
+            let summary = '## CI/CD Results\n\n';
+            for (const [job, result] of Object.entries(results)) {
+              const emoji = result === 'success' ? '✅' : '❌';
+              summary += `- ${emoji} ${job}: ${result}\n`;
+            }
+
+            core.summary.addRaw(summary).write();
