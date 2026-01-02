@@ -1,10 +1,10 @@
 # Claude Code Skills
 
 <!-- PROGRESS_BADGES_START -->
-![Progress](https://img.shields.io/badge/Progress-72%25-green)
-![Skills](https://img.shields.io/badge/Skills-18%2F25-blue)
-![Characters](https://img.shields.io/badge/Characters-2344K-informational)
-![Guides](https://img.shields.io/badge/Guides-64-success)
+![Progress](https://img.shields.io/badge/Progress-80%25-green)
+![Skills](https://img.shields.io/badge/Skills-20%2F25-blue)
+![Characters](https://img.shields.io/badge/Characters-2521K-informational)
+![Guides](https://img.shields.io/badge/Guides-69-success)
 <!-- PROGRESS_BADGES_END -->
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
