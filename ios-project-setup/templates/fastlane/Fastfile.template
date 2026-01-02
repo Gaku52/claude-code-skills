@@ -1,0 +1,305 @@
+# Fastfile.template
+# iOS Fastlane Configuration Template
+
+default_platform(:ios)
+
+platform :ios do
+  # MARK: - Before All
+
+  before_all do |lane, options|
+    setup_ci if ENV['CI']
+
+    unless ENV['CI'] || lane == :test
+      ensure_git_status_clean
+    end
+  end
+
+  # MARK: - Development
+
+  desc "Build development version"
+  lane :dev do
+    build_app(
+      scheme: "MyApp (Development)",
+      configuration: "Debug",
+      export_method: "development",
+      output_directory: "./build",
+      output_name: "MyApp-Dev.ipa",
+      clean: true
+    )
+
+    notification(
+      subtitle: "Development Build",
+      message: "Successfully built development version"
+    )
+  end
+
+  # MARK: - Testing
+
+  desc "Run unit and UI tests"
+  lane :test do
+    scan(
+      scheme: "MyApp",
+      device: "iPhone 15 Pro",
+      code_coverage: true,
+      output_directory: "./test_output",
+      output_types: "html,junit",
+      fail_build: true,
+      clean: true
+    )
+  end
+
+  desc "Run only unit tests"
+  lane :unit_test do
+    scan(
+      scheme: "MyApp",
+      device: "iPhone 15 Pro",
+      skip_testing: ["MyAppUITests"],
+      code_coverage: true
+    )
+  end
+
+  desc "Run only UI tests"
+  lane :ui_test do
+    scan(
+      scheme: "MyApp",
+      device: "iPhone 15 Pro",
+      only_testing: ["MyAppUITests"]
+    )
+  end
+
+  # MARK: - Staging
+
+  desc "Build and deploy to TestFlight (Staging)"
+  lane :staging do
+    ensure_git_branch(branch: "develop")
+
+    # Sync certificates
+    match(
+      type: "appstore",
+      app_identifier: "com.company.myapp.staging",
+      readonly: is_ci
+    )
+
+    # Increment build number
+    increment_build_number(
+      build_number: latest_testflight_build_number + 1
+    )
+
+    # Build
+    build_app(
+      scheme: "MyApp (Staging)",
+      configuration: "Staging",
+      export_method: "app-store",
+      output_directory: "./build"
+    )
+
+    # Upload to TestFlight
+    upload_to_testflight(
+      skip_waiting_for_build_processing: true,
+      distribute_external: false,
+      groups: ["Internal Testers"],
+      changelog: changelog_from_commits
+    )
+
+    # Notify
+    slack_notify(
+      message: "Staging build uploaded to TestFlight",
+      success: true
+    )
+  end
+
+  # MARK: - Production
+
+  desc "Build and deploy to TestFlight (Production)"
+  lane :release do
+    ensure_git_branch(branch: "main")
+    ensure_git_status_clean
+
+    # Prompt for version
+    version = prompt(
+      text: "Enter version number (current: #{get_version_number}): ",
+      ci_input: get_version_number
+    )
+
+    if version != get_version_number
+      increment_version_number(version_number: version)
+    end
+
+    # Sync certificates
+    match(
+      type: "appstore",
+      app_identifier: "com.company.myapp",
+      readonly: is_ci
+    )
+
+    # Increment build number
+    increment_build_number(
+      build_number: latest_testflight_build_number + 1
+    )
+
+    # Build
+    build_app(
+      scheme: "MyApp (Production)",
+      configuration: "Release",
+      export_method: "app-store"
+    )
+
+    # Upload to TestFlight
+    upload_to_testflight(
+      skip_waiting_for_build_processing: false,
+      changelog: changelog_from_commits
+    )
+
+    # Create Git tag
+    version_string = "v#{version}_#{get_build_number}"
+    add_git_tag(tag: version_string)
+    push_git_tags
+
+    # Commit version bump
+    commit_version_bump(
+      message: "chore: bump version to #{version}",
+      xcodeproj: "./MyApp.xcodeproj"
+    )
+    push_to_git_remote
+
+    # Notify
+    slack_notify(
+      message: "Production version #{version} uploaded to TestFlight",
+      success: true
+    )
+  end
+
+  # MARK: - Certificates
+
+  desc "Sync code signing certificates and profiles"
+  lane :sync_certificates do |options|
+    type = options[:type] || "development"
+
+    match(
+      type: type,
+      readonly: false,
+      force_for_new_devices: true
+    )
+
+    UI.success("Certificates synced successfully")
+  end
+
+  desc "Register new device"
+  lane :register_device do |options|
+    device_name = options[:name]
+    device_udid = options[:udid]
+
+    unless device_name && device_udid
+      UI.user_error!("Please provide device name and UDID")
+    end
+
+    register_devices(
+      devices: {
+        device_name => device_udid
+      }
+    )
+
+    match(
+      type: "development",
+      force_for_new_devices: true
+    )
+
+    UI.success("Device registered: #{device_name}")
+  end
+
+  # MARK: - Screenshots
+
+  desc "Generate App Store screenshots"
+  lane :screenshots do
+    capture_screenshots(
+      scheme: "MyApp",
+      devices: [
+        "iPhone 15 Pro Max",
+        "iPhone 15 Pro",
+        "iPhone SE (3rd generation)",
+        "iPad Pro (12.9-inch) (6th generation)"
+      ],
+      languages: ["en-US", "ja"],
+      output_directory: "./screenshots",
+      clear_previous_screenshots: true,
+      override_status_bar: true,
+      number_of_retries: 3
+    )
+
+    frame_screenshots(
+      white: false,
+      path: "./screenshots"
+    )
+
+    UI.success("Screenshots generated")
+  end
+
+  # MARK: - Version Management
+
+  desc "Bump version number"
+  lane :bump_version do |options|
+    type = options[:type] || "patch"
+
+    current_version = get_version_number
+    UI.message("Current version: #{current_version}")
+
+    case type
+    when "major"
+      increment_version_number(bump_type: "major")
+    when "minor"
+      increment_version_number(bump_type: "minor")
+    when "patch"
+      increment_version_number(bump_type: "patch")
+    else
+      UI.user_error!("Invalid bump type: #{type}. Use: major, minor, or patch")
+    end
+
+    new_version = get_version_number
+    UI.success("Version bumped to: #{new_version}")
+
+    commit_version_bump(
+      message: "chore: bump version to #{new_version}",
+      xcodeproj: "./MyApp.xcodeproj"
+    )
+  end
+
+  # MARK: - Cleanup
+
+  desc "Clean build artifacts"
+  lane :clean do
+    clean_build_artifacts
+    clear_derived_data
+
+    UI.success("Build artifacts cleaned")
+  end
+
+  # MARK: - Error Handler
+
+  error do |lane, exception, options|
+    slack_notify(
+      message: "Error in lane #{lane}: #{exception.message}",
+      success: false
+    )
+  end
+
+  # MARK: - Private Lanes
+
+  private_lane :changelog_from_commits do
+    changelog_from_git_commits(
+      between: [last_git_tag, "HEAD"],
+      pretty: "- %s (%an)",
+      merge_commit_filtering: "exclude_merges"
+    )
+  end
+
+  private_lane :slack_notify do |options|
+    next unless ENV['SLACK_URL']
+
+    slack(
+      message: options[:message],
+      success: options[:success],
+      slack_url: ENV['SLACK_URL'],
+      default_payloads: [:git_branch, :git_author, :last_git_commit_message]
+    )
+  end
+end

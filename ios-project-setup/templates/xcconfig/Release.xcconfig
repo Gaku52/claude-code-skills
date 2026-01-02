@@ -1,0 +1,67 @@
+//
+// Release.xcconfig
+// Release ビルド設定（Production）
+//
+
+#include "Base.xcconfig"
+
+// MARK: - App Configuration
+
+APP_NAME = MyApp
+BUNDLE_ID_SUFFIX =
+APP_VERSION = 1.0.0
+BUILD_NUMBER = 1
+
+// MARK: - Server Configuration
+
+API_BASE_URL = https:/$()/api.example.com
+API_KEY = prod_api_key_here
+WEB_SOCKET_URL = wss:/$()/ws.example.com
+
+// MARK: - Feature Flags
+
+ENABLE_ANALYTICS = YES
+ENABLE_CRASH_REPORTING = YES
+ENABLE_DEBUG_MENU = NO
+
+// MARK: - Optimization
+
+SWIFT_OPTIMIZATION_LEVEL = -O
+GCC_OPTIMIZATION_LEVEL = s
+SWIFT_COMPILATION_MODE = wholemodule
+LLVM_LTO = YES_THIN
+
+// MARK: - Debug Settings
+
+ENABLE_TESTABILITY = NO
+DEBUG_INFORMATION_FORMAT = dwarf-with-dsym
+ONLY_ACTIVE_ARCH = NO
+ENABLE_NS_ASSERTIONS = NO
+
+// MARK: - Build Settings
+
+SWIFT_ACTIVE_COMPILATION_CONDITIONS = RELEASE
+GCC_PREPROCESSOR_DEFINITIONS =
+
+// MARK: - Code Signing
+
+CODE_SIGN_STYLE = Manual
+DEVELOPMENT_TEAM = ABCD123456
+CODE_SIGN_IDENTITY = Apple Distribution
+PROVISIONING_PROFILE_SPECIFIER = MyApp Production
+
+// MARK: - Dead Code Stripping
+
+DEAD_CODE_STRIPPING = YES
+PRESERVE_DEAD_CODE_INITS_AND_TERMS = NO
+
+// MARK: - Stripping
+
+COPY_PHASE_STRIP = YES
+STRIP_INSTALLED_PRODUCT = YES
+STRIP_SWIFT_SYMBOLS = YES
+
+// MARK: - Validation
+
+VALIDATE_PRODUCT = YES
+VALIDATE_WORKSPACE = YES

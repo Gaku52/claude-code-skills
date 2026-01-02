@@ -1,0 +1,60 @@
+//
+// Debug.xcconfig
+// Debug ビルド設定
+//
+
+#include "Base.xcconfig"
+
+// MARK: - App Configuration
+
+APP_NAME = MyApp Dev
+BUNDLE_ID_SUFFIX = .dev
+APP_VERSION = 1.0.0
+BUILD_NUMBER = 1
+
+// MARK: - Server Configuration
+
+API_BASE_URL = https:/$()/dev.api.example.com
+API_KEY = dev_api_key_here
+WEB_SOCKET_URL = wss:/$()/dev.ws.example.com
+
+// MARK: - Feature Flags
+
+ENABLE_ANALYTICS = NO
+ENABLE_CRASH_REPORTING = NO
+ENABLE_DEBUG_MENU = YES
+
+// MARK: - Optimization
+
+SWIFT_OPTIMIZATION_LEVEL = -Onone
+GCC_OPTIMIZATION_LEVEL = 0
+SWIFT_COMPILATION_MODE = singlefile
+
+// MARK: - Debug Settings
+
+ENABLE_TESTABILITY = YES
+DEBUG_INFORMATION_FORMAT = dwarf
+ONLY_ACTIVE_ARCH = YES
+ENABLE_NS_ASSERTIONS = YES
+ENABLE_STRICT_OBJC_MSGSEND = YES
+
+// MARK: - Build Settings
+
+SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG
+GCC_PREPROCESSOR_DEFINITIONS = DEBUG=1
+
+// MARK: - Code Signing
+
+CODE_SIGN_STYLE = Automatic
+DEVELOPMENT_TEAM = ABCD123456
+CODE_SIGN_IDENTITY = Apple Development
+
+// MARK: - Dead Code Stripping
+
+DEAD_CODE_STRIPPING = NO
+PRESERVE_DEAD_CODE_INITS_AND_TERMS = YES
+
+// MARK: - Debugging
+
+GCC_GENERATE_DEBUGGING_SYMBOLS = YES
+COPY_PHASE_STRIP = NO

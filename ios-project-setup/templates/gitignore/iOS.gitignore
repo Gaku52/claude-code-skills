@@ -1,0 +1,184 @@
+# iOS.gitignore - Comprehensive iOS .gitignore
+
+# MARK: - Xcode
+
+## Build generated
+build/
+DerivedData/
+
+## Various settings
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+xcuserdata/
+
+## Obj-C/Swift specific
+*.hmap
+
+## App packaging
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+## Playgrounds
+timeline.xctimeline
+playground.xcworkspace
+
+# Xcode Patch
+*.xcodeproj/*
+!*.xcodeproj/project.pbxproj
+!*.xcodeproj/xcshareddata/
+!*.xcworkspace/contents.xcworkspacedata
+!*.xcworkspace/xcshareddata/
+**/xcshareddata/WorkspaceSettings.xcsettings
+
+# MARK: - Swift Package Manager
+
+.swiftpm/
+.build/
+Packages/
+Package.resolved
+*.xcworkspace
+
+# MARK: - CocoaPods
+
+Pods/
+*.podspec
+
+# MARK: - Carthage
+
+Carthage/Build/
+Carthage/Checkouts/
+
+# MARK: - fastlane
+
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
+fastlane/test_output/**
+fastlane/.env
+fastlane/.env.*
+
+# MARK: - Code Injection
+
+iOSInjectionProject/
+
+# MARK: - Code coverage
+
+*.gcov
+*.gcda
+*.gcno
+coverage/
+*.profdata
+
+# MARK: - Environment
+
+.env
+.env.local
+.env.*.local
+secrets.plist
+Config/Secrets.xcconfig
+Config/Generated.xcconfig
+
+# Firebase
+GoogleService-Info.plist
+GoogleService-Info-*.plist
+
+# MARK: - macOS
+
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Icon must end with two \r
+Icon
+
+# Thumbnails
+._*
+
+# Files that might appear in the root of a volume
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Directories potentially created on remote AFP share
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# MARK: - IDEs
+
+## AppCode
+.idea/
+
+## VSCode
+.vscode/
+
+## Sublime Text
+*.sublime-workspace
+
+## Vim
+*.swp
+*.swo
+*~.nib
+
+# MARK: - Temporary files
+
+*.moved-aside
+*.lock
+*.orig
+*~
+
+# MARK: - Archives
+
+*.xcarchive
+
+# MARK: - SPM (Swift Package Manager) Artifacts
+
+.swiftpm/xcode
+
+# MARK: - Accio dependency management
+
+Dependencies/
+.accio/
+
+# MARK: - fastlane specific
+
+**/fastlane/README.md
+**/fastlane/Fastfile.lock
+
+# MARK: - Bundler
+
+.bundle/
+vendor/bundle
+
+# MARK: - Node (if using npm/yarn)
+
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# MARK: - Ruby (if using bundler)
+
+.ruby-version
+.ruby-gemset
+
+# MARK: - Homebrew
+
+Brewfile.lock.json
+
+# MARK: - Custom
+
+# プロジェクト固有の除外ファイルをここに追加

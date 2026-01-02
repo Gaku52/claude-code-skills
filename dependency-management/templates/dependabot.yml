@@ -1,0 +1,187 @@
+# Dependabot Configuration Template
+# Place this file at: .github/dependabot.yml
+
+version: 2
+updates:
+  # ===========================================
+  # npm/yarn/pnpm - JavaScript Dependencies
+  # ===========================================
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "daily"           # Options: daily, weekly, monthly
+      time: "03:00"               # Time of day (UTC)
+      timezone: "America/New_York"
+      day: "monday"               # For weekly: monday-sunday
+
+    # PR settings
+    open-pull-requests-limit: 10  # Max simultaneous PRs
+    pull-request-branch-name:
+      separator: "/"
+
+    # Reviewers and assignees
+    reviewers:
+      - "team-name"
+      - "username"
+    assignees:
+      - "tech-lead"
+
+    # Labels
+    labels:
+      - "dependencies"
+      - "automated"
+      - "npm"
+
+    # Commit message customization
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(dev-deps)"
+      include: "scope"
+
+    # Version update strategy
+    versioning-strategy: increase  # Options: increase, widen, increase-if-necessary
+
+    # Group updates
+    groups:
+      # Group React ecosystem
+      react-ecosystem:
+        patterns:
+          - "react*"
+          - "@types/react*"
+        update-types:
+          - "minor"
+          - "patch"
+
+      # Group testing libraries
+      testing:
+        patterns:
+          - "@testing-library/*"
+          - "jest"
+          - "vitest"
+
+      # Group build tools
+      build-tools:
+        patterns:
+          - "webpack*"
+          - "vite*"
+          - "@vitejs/*"
+          - "esbuild"
+
+    # Ignore specific dependencies
+    ignore:
+      - dependency-name: "lodash"
+        update-types: ["version-update:semver-major"]
+
+      - dependency-name: "typescript"
+        versions: ["5.x"]        # Ignore all 5.x versions
+
+    # Allow only specific dependency types
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "production"
+      # - dependency-type: "development"
+
+    # Milestone
+    milestone: 12
+
+    # Target branch
+    target-branch: "main"
+
+    # Rebase strategy
+    rebase-strategy: "auto"      # Options: auto, disabled
+
+  # ===========================================
+  # GitHub Actions
+  # ===========================================
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "ci"
+
+  # ===========================================
+  # Docker
+  # ===========================================
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "docker"
+    commit-message:
+      prefix: "chore(docker)"
+
+  # ===========================================
+  # Swift Package Manager (iOS)
+  # ===========================================
+  - package-ecosystem: "swift"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels:
+      - "dependencies"
+      - "ios"
+      - "swift"
+    commit-message:
+      prefix: "chore(deps)"
+
+  # ===========================================
+  # CocoaPods (iOS)
+  # ===========================================
+  - package-ecosystem: "cocoapods"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ios"
+      - "cocoapods"
+
+  # ===========================================
+  # pip (Python)
+  # ===========================================
+  - package-ecosystem: "pip"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "python"
+    commit-message:
+      prefix: "chore(deps)"
+
+  # ===========================================
+  # Terraform
+  # ===========================================
+  - package-ecosystem: "terraform"
+    directory: "/infrastructure"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "terraform"
+
+# ===========================================
+# Additional Configuration Notes
+# ===========================================
+#
+# Security-only updates:
+# To only receive security updates, use GitHub security alerts
+# Settings → Security → Dependabot → Enable Dependabot security updates
+#
+# Auto-merge:
+# Configure GitHub Actions workflow for auto-merge
+# See: templates/auto-merge-dependabot.yml
+#
+# Custom registries:
+# Configure in .npmrc, .yarnrc, or pip.conf
+#
+# Notification settings:
+# Settings → Notifications → Dependabot alerts

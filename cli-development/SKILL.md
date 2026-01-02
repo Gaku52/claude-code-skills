@@ -1,6 +1,6 @@
 ---
 name: cli-development
-description: CLIツール開発ガイド。Node.js（Commander、Inquirer）、Python（Click、Typer）、Go、引数パース、インタラクティブUI、配布方法など、プロフェッショナルなCLIツール開発のベストプラクティス。
+description: CLIツール開発ガイド。Node.js（Commander、Inquirer）、Python（Click、Typer）、Go（Cobra）、引数パース、インタラクティブUI、アーキテクチャ設計、テスト、配布方法など、プロフェッショナルなCLIツール開発のベストプラクティス。
 ---
 
 # CLI Development Skill
@@ -9,25 +9,30 @@ description: CLIツール開発ガイド。Node.js（Commander、Inquirer）、P
 
 1. [概要](#概要)
 2. [いつ使うか](#いつ使うか)
-3. [Node.js CLI](#nodejscli)
-4. [Python CLI](#pythoncli)
-5. [インタラクティブUI](#インタラクティブui)
-6. [配布方法](#配布方法)
-7. [実践例](#実践例)
-8. [Agent連携](#agent連携)
+3. [クイックスタート](#クイックスタート)
+4. [詳細ガイド](#詳細ガイド)
+5. [プロジェクトテンプレート](#プロジェクトテンプレート)
+6. [ベストプラクティス](#ベストプラクティス)
+7. [Agent連携](#agent連携)
 
 ---
 
 ## 概要
 
-このSkillは、CLIツール開発をカバーします：
+このSkillは、プロフェッショナルなCLIツール開発をカバーします：
 
-- **Node.js CLI** - Commander、Inquirer
-- **Python CLI** - Click、Typer
-- **引数パース** - オプション、サブコマンド
-- **インタラクティブUI** - プロンプト、選択肢
-- **カラー出力** - chalk、colorama
-- **配布** - npm、PyPI、Homebrew
+### フレームワーク
+- **Node.js** - Commander、Inquirer、chalk、ora
+- **Python** - Click、Typer、Rich
+- **Go** - Cobra、Viper
+
+### カバー範囲
+- **アーキテクチャ** - レイヤード、プラグイン
+- **引数パース** - オプション、サブコマンド、バリデーション
+- **出力** - カラー、テーブル、プログレスバー
+- **設定管理** - 設定ファイル、環境変数
+- **テスト** - ユニット、統合、E2E
+- **配布** - npm、PyPI、Homebrew、バイナリ
 
 ---
 
@@ -39,41 +44,28 @@ description: CLIツール開発ガイド。Node.js（Commander、Inquirer）、P
 - [ ] 自動化ツール作成時
 - [ ] データ処理ツール作成時
 - [ ] プロジェクトジェネレーター作成時
+- [ ] DevOps ツール作成時
+- [ ] CI/CD パイプライン作成時
 
 ---
 
-## Node.js CLI
+## クイックスタート
 
-### プロジェクトセットアップ
+### Node.js CLI（Commander）
 
 ```bash
-mkdir my-cli
-cd my-cli
-pnpm init
-pnpm add commander inquirer chalk ora
-pnpm add -D @types/node @types/inquirer typescript ts-node
+# プロジェクト作成
+mkdir my-cli && cd my-cli
+npm init -y
+
+# 依存関係インストール
+npm install commander inquirer chalk ora
+npm install -D typescript @types/node ts-node
 ```
 
-```json
-// package.json
-{
-  "name": "my-cli",
-  "version": "1.0.0",
-  "bin": {
-    "my-cli": "./dist/index.js"
-  },
-  "scripts": {
-    "build": "tsc",
-    "dev": "ts-node src/index.ts"
-  }
-}
-```
-
-### Commander（引数パース）
-
+**src/index.ts**:
 ```typescript
 #!/usr/bin/env node
-
 import { Command } from 'commander'
 
 const program = new Command()
@@ -83,479 +75,328 @@ program
   .description('A sample CLI tool')
   .version('1.0.0')
 
-// コマンド: my-cli create <name>
 program
   .command('create <name>')
   .description('Create a new project')
   .option('-t, --template <template>', 'Template to use', 'default')
-  .option('-d, --dir <directory>', 'Output directory', '.')
   .action((name, options) => {
     console.log(`Creating project: ${name}`)
     console.log(`Template: ${options.template}`)
-    console.log(`Directory: ${options.dir}`)
-  })
-
-// コマンド: my-cli list
-program
-  .command('list')
-  .description('List all projects')
-  .option('-a, --all', 'Show all projects')
-  .action((options) => {
-    console.log('Listing projects...')
-    if (options.all) {
-      console.log('Showing all projects')
-    }
   })
 
 program.parse()
 ```
 
-### Inquirer（インタラクティブプロンプト）
+### Python CLI（Typer）
 
-```typescript
-import inquirer from 'inquirer'
+```bash
+# 仮想環境作成
+python -m venv venv
+source venv/bin/activate
 
-async function createProject() {
-  const answers = await inquirer.prompt([
-    {
-      type: 'input',
-      name: 'projectName',
-      message: 'Project name:',
-      default: 'my-project',
-      validate: (input) => {
-        if (input.length === 0) {
-          return 'Project name is required'
-        }
-        return true
-      }
-    },
-    {
-      type: 'list',
-      name: 'template',
-      message: 'Select a template:',
-      choices: ['React', 'Vue', 'Next.js', 'Vite']
-    },
-    {
-      type: 'confirm',
-      name: 'useTypeScript',
-      message: 'Use TypeScript?',
-      default: true
-    },
-    {
-      type: 'checkbox',
-      name: 'features',
-      message: 'Select features:',
-      choices: ['ESLint', 'Prettier', 'Tailwind CSS', 'Vitest']
-    }
-  ])
-
-  console.log('Creating project with:')
-  console.log(answers)
-}
-
-createProject()
+# 依存関係インストール
+pip install "typer[all]" rich
 ```
 
-### Chalk（カラー出力）
-
-```typescript
-import chalk from 'chalk'
-
-console.log(chalk.green('✅ Success!'))
-console.log(chalk.red('❌ Error!'))
-console.log(chalk.yellow('⚠️  Warning'))
-console.log(chalk.blue('ℹ️  Info'))
-
-console.log(chalk.bold('Bold text'))
-console.log(chalk.italic('Italic text'))
-console.log(chalk.underline('Underlined text'))
-
-console.log(chalk.bgGreen.black(' SUCCESS '))
-```
-
-### Ora（スピナー）
-
-```typescript
-import ora from 'ora'
-
-async function install() {
-  const spinner = ora('Installing packages...').start()
-
-  // 非同期処理
-  await new Promise(resolve => setTimeout(resolve, 3000))
-
-  spinner.succeed('Packages installed!')
-}
-
-install()
-```
-
----
-
-## Python CLI
-
-### Click
-
+**main.py**:
 ```python
-# cli.py
-import click
-
-@click.group()
-@click.version_option()
-def cli():
-    """My CLI Tool"""
-    pass
-
-@cli.command()
-@click.argument('name')
-@click.option('--template', '-t', default='default', help='Template to use')
-@click.option('--dir', '-d', default='.', help='Output directory')
-def create(name, template, dir):
-    """Create a new project"""
-    click.echo(f'Creating project: {name}')
-    click.echo(f'Template: {template}')
-    click.echo(f'Directory: {dir}')
-
-@cli.command()
-@click.option('--all', '-a', is_flag=True, help='Show all projects')
-def list(all):
-    """List all projects"""
-    click.echo('Listing projects...')
-    if all:
-        click.echo('Showing all projects')
-
-if __name__ == '__main__':
-    cli()
-
-# 使用例:
-# python cli.py create my-project --template react
-# python cli.py list --all
-```
-
-### Typer（推奨）
-
-```python
-# cli.py
 import typer
-from typing import Optional
-from enum import Enum
+from rich.console import Console
 
 app = typer.Typer()
-
-class Template(str, Enum):
-    react = "react"
-    vue = "vue"
-    nextjs = "nextjs"
+console = Console()
 
 @app.command()
 def create(
     name: str,
-    template: Template = typer.Option(Template.react, help="Template to use"),
-    dir: str = typer.Option(".", help="Output directory")
+    template: str = typer.Option("default", help="Template to use")
 ):
     """Create a new project"""
-    typer.echo(f'Creating project: {name}')
-    typer.echo(f'Template: {template.value}')
-    typer.echo(f'Directory: {dir}')
+    console.print(f"[cyan]Creating project: {name}[/cyan]")
+    console.print(f"Template: [green]{template}[/green]")
 
-@app.command()
-def list(all: bool = typer.Option(False, "--all", "-a", help="Show all projects")):
-    """List all projects"""
-    typer.echo('Listing projects...')
-    if all:
-        typer.echo('Showing all projects')
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     app()
 ```
 
-### Rich（カラー・テーブル出力）
-
-```python
-from rich.console import Console
-from rich.table import Table
-from rich.progress import track
-import time
-
-console = Console()
-
-# カラー出力
-console.print('[green]✅ Success![/green]')
-console.print('[red]❌ Error![/red]')
-console.print('[yellow]⚠️  Warning[/yellow]')
-
-# テーブル
-table = Table(title="Users")
-table.add_column("ID", style="cyan")
-table.add_column("Name", style="magenta")
-table.add_column("Email", style="green")
-
-table.add_row("1", "John Doe", "john@example.com")
-table.add_row("2", "Jane Smith", "jane@example.com")
-
-console.print(table)
-
-# プログレスバー
-for i in track(range(100), description="Processing..."):
-    time.sleep(0.01)
-```
-
----
-
-## インタラクティブUI
-
-### Node.js（Inquirer）
-
-```typescript
-import inquirer from 'inquirer'
-import chalk from 'chalk'
-
-async function setupProject() {
-  console.log(chalk.bold.blue('\n🚀 Project Setup\n'))
-
-  const answers = await inquirer.prompt([
-    {
-      type: 'input',
-      name: 'name',
-      message: 'Project name:',
-      default: 'my-project'
-    },
-    {
-      type: 'list',
-      name: 'framework',
-      message: 'Select a framework:',
-      choices: ['React', 'Vue', 'Next.js', 'Vite']
-    },
-    {
-      type: 'confirm',
-      name: 'typescript',
-      message: 'Use TypeScript?',
-      default: true
-    },
-    {
-      type: 'checkbox',
-      name: 'tools',
-      message: 'Additional tools:',
-      choices: [
-        { name: 'ESLint', checked: true },
-        { name: 'Prettier', checked: true },
-        { name: 'Tailwind CSS', checked: false },
-        { name: 'Vitest', checked: false }
-      ]
-    }
-  ])
-
-  console.log(chalk.green('\n✅ Setup complete!\n'))
-  console.log(chalk.gray('Configuration:'))
-  console.log(answers)
-}
-
-setupProject()
-```
-
-### Python（InquirerPy）
-
-```python
-from InquirerPy import inquirer
-from InquirerPy.base.control import Choice
-
-def setup_project():
-    name = inquirer.text(
-        message="Project name:",
-        default="my-project"
-    ).execute()
-
-    framework = inquirer.select(
-        message="Select a framework:",
-        choices=["React", "Vue", "Next.js", "Vite"]
-    ).execute()
-
-    typescript = inquirer.confirm(
-        message="Use TypeScript?",
-        default=True
-    ).execute()
-
-    tools = inquirer.checkbox(
-        message="Additional tools:",
-        choices=[
-            Choice("ESLint", enabled=True),
-            Choice("Prettier", enabled=True),
-            Choice("Tailwind CSS"),
-            Choice("Vitest")
-        ]
-    ).execute()
-
-    print(f"\n✅ Creating {name} with {framework}")
-    print(f"TypeScript: {typescript}")
-    print(f"Tools: {', '.join(tools)}")
-
-setup_project()
-```
-
----
-
-## 配布方法
-
-### npm パッケージ（Node.js）
-
-```json
-// package.json
-{
-  "name": "my-cli-tool",
-  "version": "1.0.0",
-  "bin": {
-    "my-cli": "./dist/index.js"
-  },
-  "files": [
-    "dist"
-  ],
-  "scripts": {
-    "build": "tsc",
-    "prepublishOnly": "pnpm build"
-  }
-}
-```
+### Go CLI（Cobra）
 
 ```bash
-# ビルド
-pnpm build
+# プロジェクト作成
+mkdir my-cli && cd my-cli
+go mod init github.com/username/my-cli
 
-# npmに公開
-npm login
-npm publish
-
-# インストール
-npm install -g my-cli-tool
-
-# 実行
-my-cli --help
+# 依存関係インストール
+go get github.com/spf13/cobra@latest
 ```
 
-### PyPI パッケージ（Python）
+**main.go**:
+```go
+package main
 
-```python
-# setup.py
-from setuptools import setup, find_packages
-
-setup(
-    name='my-cli-tool',
-    version='1.0.0',
-    packages=find_packages(),
-    install_requires=[
-        'click>=8.0.0',
-        'rich>=13.0.0'
-    ],
-    entry_points={
-        'console_scripts': [
-            'my-cli=my_cli.cli:main'
-        ]
-    }
+import (
+    "fmt"
+    "github.com/spf13/cobra"
 )
+
+var rootCmd = &cobra.Command{
+    Use:   "my-cli",
+    Short: "A sample CLI tool",
+}
+
+var createCmd = &cobra.Command{
+    Use:   "create [name]",
+    Short: "Create a new project",
+    Args:  cobra.ExactArgs(1),
+    Run: func(cmd *cobra.Command, args []string) {
+        name := args[0]
+        template, _ := cmd.Flags().GetString("template")
+        fmt.Printf("Creating project: %s\n", name)
+        fmt.Printf("Template: %s\n", template)
+    },
+}
+
+func init() {
+    createCmd.Flags().StringP("template", "t", "default", "Template to use")
+    rootCmd.AddCommand(createCmd)
+}
+
+func main() {
+    if err := rootCmd.Execute(); err != nil {
+        fmt.Println(err)
+        os.Exit(1)
+    }
+}
 ```
 
+---
+
+## 詳細ガイド
+
+### 📚 包括的なガイド
+
+1. **[CLI設計原則ガイド](./guides/01-cli-design.md)**
+   - CLI設計哲学（UNIX哲学、ユーザビリティ）
+   - コマンド設計パターン
+   - 引数とオプションの設計
+   - 出力設計とエラーハンドリング
+
+2. **[Node.js CLI実装ガイド](./guides/02-nodejs-cli.md)**
+   - Commander による引数パース
+   - Inquirer によるインタラクティブUI
+   - chalk、ora による出力
+   - ファイル操作と実践例
+
+3. **[CLI配布・パッケージングガイド](./guides/03-distribution.md)**
+   - npm パッケージ配布
+   - Homebrew 配布
+   - バイナリ配布（pkg）
+   - GitHub Releases、自動更新
+
+4. **[CLIアーキテクチャ & デザインパターンガイド](./guides/04-cli-architecture.md)** 🆕
+   - レイヤードアーキテクチャ
+   - プラグインアーキテクチャ
+   - 引数パース戦略（Commander、Click、Typer、Cobra）
+   - 設定管理システム
+   - 出力フォーマッティング
+   - エラーハンドリング
+   - CLIテスト戦略
+
+5. **[Python CLI開発ガイド](./guides/05-python-cli.md)** 🆕
+   - Python CLIフレームワーク比較
+   - Click 完全ガイド
+   - Typer 完全ガイド（推奨）
+   - Rich による美しい出力
+   - 設定管理とプラグイン
+   - テストとデバッグ
+   - PyPI パッケージング
+
+---
+
+## プロジェクトテンプレート
+
+### 🚀 すぐに使えるテンプレート
+
+#### 1. [Python CLI Template (Typer)](./templates/python-typer/)
+- Typer + Rich
+- pytest によるテスト
+- TOML 設定ファイル
+- プラグインシステム
+- ロギング、エラーハンドリング
+
+#### 2. [Node.js CLI Template (Commander)](./templates/nodejs-commander/)
+- TypeScript サポート
+- Commander + Inquirer + chalk
+- Jest によるテスト
+- ESLint + Prettier
+
+#### 3. [Go CLI Template (Cobra)](./templates/go-cobra/)
+- Cobra + Viper
+- カラフルな出力
+- テスト
+- クロスコンパイル対応
+
+### テンプレート使用方法
+
+**Python Typer**:
 ```bash
-# ビルド
-python setup.py sdist bdist_wheel
+# テンプレートをコピー
+cp -r templates/python-typer my-cli
+cd my-cli
 
-# PyPIに公開
-pip install twine
-twine upload dist/*
+# 仮想環境作成
+python -m venv venv
+source venv/bin/activate
 
-# インストール
-pip install my-cli-tool
+# 依存関係インストール
+pip install -e ".[dev]"
 
-# 実行
-my-cli --help
+# CLI 実行
+mycli --help
 ```
+
+**Node.js Commander**:
+```bash
+# テンプレートをコピー
+cp -r templates/nodejs-commander my-cli
+cd my-cli
+
+# 依存関係インストール
+npm install
+
+# ビルド
+npm run build
+
+# CLI 実行
+npm start -- --help
+```
+
+**Go Cobra**:
+```bash
+# テンプレートをコピー
+cp -r templates/go-cobra my-cli
+cd my-cli
+
+# 依存関係インストール
+go mod download
+
+# ビルド
+go build -o mycli
+
+# CLI 実行
+./mycli --help
+```
+
+---
+
+## ベストプラクティス
+
+### 📋 チェックリスト
+
+**[CLI開発チェックリスト](./best-practices/CLI_CHECKLIST.md)** で品質を確保：
+
+- **設計段階**: コマンド設計、引数設計、出力設計
+- **実装段階**: アーキテクチャ、エラーハンドリング、設定管理
+- **テスト段階**: ユニット、統合、E2Eテスト
+- **配布段階**: パッケージング、ドキュメント、バージョン管理
+- **保守段階**: 更新機構、ログ、セキュリティ
+
+### 🧪 テスト
+
+**[テストガイド](./best-practices/TESTING_GUIDE.md)** で堅牢性を確保：
+
+- ユニットテスト（Jest、pytest、Go testing）
+- 統合テスト
+- E2Eテスト（インタラクティブプロンプト）
+- スナップショットテスト
+- カバレッジレポート
+
+### 📦 配布
+
+**[配布ガイド](./best-practices/DISTRIBUTION_GUIDE.md)** で幅広いユーザーに届ける：
+
+- npm / PyPI 公開
+- Homebrew Formula
+- バイナリ配布（pkg）
+- Docker 配布
+- GitHub Actions 自動化
+- 自動更新機構
 
 ---
 
 ## 実践例
 
-### Example 1: プロジェクトジェネレーター（Node.js）
+### Example 1: プロジェクトジェネレーター
 
-```typescript
-#!/usr/bin/env node
+**機能**:
+- インタラクティブプロンプトでプロジェクト設定
+- テンプレートからプロジェクト作成
+- 依存関係の自動インストール
+- Git 初期化
 
-import { Command } from 'commander'
-import inquirer from 'inquirer'
-import chalk from 'chalk'
-import ora from 'ora'
-import fs from 'fs/promises'
-import path from 'path'
+**実装**: `templates/nodejs-commander/` または `templates/python-typer/` を参照
 
-const program = new Command()
+### Example 2: データ処理CLI
 
-program
-  .name('create-app')
-  .description('Create a new app')
-  .version('1.0.0')
+**機能**:
+- CSV/JSON ファイルの読み込み
+- フィルタリング、変換
+- 複数形式での出力（CSV、JSON、YAML）
+- プログレスバー表示
 
-program
-  .argument('[name]', 'Project name')
-  .action(async (name) => {
-    let projectName = name
+**Python 実装例**:
+```python
+import typer
+from rich.console import Console
+from rich.table import Table
+import pandas as pd
 
-    if (!projectName) {
-      const answers = await inquirer.prompt([
-        {
-          type: 'input',
-          name: 'projectName',
-          message: 'Project name:',
-          default: 'my-app'
-        }
-      ])
-      projectName = answers.projectName
-    }
+app = typer.Typer()
+console = Console()
 
-    const config = await inquirer.prompt([
-      {
-        type: 'list',
-        name: 'template',
-        message: 'Select a template:',
-        choices: ['React', 'Vue', 'Next.js']
-      },
-      {
-        type: 'confirm',
-        name: 'typescript',
-        message: 'Use TypeScript?',
-        default: true
-      }
-    ])
+@app.command()
+def process(
+    input_file: str,
+    output: str = typer.Option(None, "--output", "-o"),
+    format: str = typer.Option("csv", help="Output format (csv, json, yaml)")
+):
+    """Process CSV file"""
+    # データ読み込み
+    df = pd.read_csv(input_file)
 
-    const spinner = ora('Creating project...').start()
+    # テーブル表示
+    table = Table(title="Data")
+    for col in df.columns:
+        table.add_column(col)
 
-    try {
-      // プロジェクトディレクトリ作成
-      const projectDir = path.join(process.cwd(), projectName)
-      await fs.mkdir(projectDir, { recursive: true })
+    for _, row in df.head().iterrows():
+        table.add_row(*[str(val) for val in row])
 
-      // package.json作成
-      const packageJson = {
-        name: projectName,
-        version: '0.1.0',
-        private: true
-      }
-      await fs.writeFile(
-        path.join(projectDir, 'package.json'),
-        JSON.stringify(packageJson, null, 2)
-      )
+    console.print(table)
 
-      spinner.succeed(chalk.green('Project created!'))
+    # 出力
+    if output:
+        if format == "json":
+            df.to_json(output, orient="records")
+        elif format == "yaml":
+            import yaml
+            with open(output, 'w') as f:
+                yaml.dump(df.to_dict(orient='records'), f)
+        else:
+            df.to_csv(output, index=False)
 
-      console.log(chalk.cyan('\nNext steps:'))
-      console.log(`  cd ${projectName}`)
-      console.log('  npm install')
-      console.log('  npm run dev')
-    } catch (error) {
-      spinner.fail(chalk.red('Failed to create project'))
-      console.error(error)
-      process.exit(1)
-    }
-  })
-
-program.parse()
+        console.print(f"[green]Saved to {output}[/green]")
 ```
+
+### Example 3: 開発ツールCLI
+
+**機能**:
+- プロジェクトのビルド、テスト、デプロイ
+- 設定ファイルの読み込み
+- 環境変数の管理
+- ログ出力
+
+**アーキテクチャ**: `guides/04-cli-architecture.md` のレイヤードアーキテクチャを参照
 
 ---
 
@@ -563,34 +404,83 @@ program.parse()
 
 ### 📖 Agentへの指示例
 
-**Node.js CLI作成**
+**基本的なCLI作成**:
 ```
-以下の機能を持つNode.js CLIツールを作成してください：
+Node.js CLIツールを作成してください：
 - create <name>コマンド（プロジェクト作成）
 - list コマンド（プロジェクト一覧）
-- インタラクティブプロンプト（Inquirer）
-- カラー出力（chalk）
+- delete <name>コマンド（プロジェクト削除）
+- Commanderで引数パース
+- Inquirerでインタラクティブプロンプト
+- chalkでカラー出力
+- Jestでテスト
 ```
 
-**Python CLI作成**
+**アーキテクチャ重視のCLI作成**:
 ```
-Typerを使って、以下のPython CLIツールを作成してください：
-- データ処理コマンド
-- CSVファイルを読み込み、フィルタリング
-- Richでテーブル出力
+Python CLIツールを作成してください：
+- Typer + Rich を使用
+- レイヤードアーキテクチャ（CLI / Core / Infrastructure）
+- 設定ファイルサポート（TOML）
+- プラグインシステム
+- 包括的なテスト（pytest）
+- PyPI パッケージング
 ```
+
+**データ処理CLI作成**:
+```
+CSV処理CLIツールを作成してください：
+- CSVファイルを読み込み
+- フィルタリング、ソート、集計
+- 複数形式での出力（CSV、JSON、YAML）
+- Richでテーブル表示
+- プログレスバー付き
+```
+
+### 🎯 推奨フレームワーク選択
+
+| 用途 | 推奨フレームワーク | 理由 |
+|------|------------------|------|
+| 小規模CLI | Typer (Python) | シンプル、型安全 |
+| 中規模CLI | Commander (Node.js) | 柔軟、エコシステム豊富 |
+| 大規模CLI | Cobra (Go) | 高速、バイナリ配布 |
+| データ処理 | Typer + Rich | 美しい出力、テーブル |
+| DevOps ツール | Cobra (Go) | クロスプラットフォーム |
 
 ---
 
 ## まとめ
 
-### CLI開発のベストプラクティス
+### CLI開発の成功要因
 
-1. **引数パース** - Commander（Node.js）、Typer（Python）
-2. **インタラクティブUI** - Inquirer、InquirerPy
-3. **カラー出力** - chalk、Rich
-4. **エラーハンドリング** - 適切なエラーメッセージ
+1. **優れた設計**
+   - UNIX哲学に従う
+   - ユーザビリティを重視
+   - 一貫性のあるコマンド構造
+
+2. **堅牢な実装**
+   - レイヤードアーキテクチャ
+   - 適切なエラーハンドリング
+   - 包括的なテスト
+
+3. **優れたUX**
+   - 美しい出力（カラー、テーブル）
+   - インタラクティブプロンプト
+   - 分かりやすいエラーメッセージ
+
+4. **適切な配布**
+   - npm / PyPI への公開
+   - バイナリ配布（必要に応じて）
+   - 自動更新機構
+
+### リソース
+
+- **ガイド**: `guides/` - 詳細な実装ガイド
+- **テンプレート**: `templates/` - すぐに使えるテンプレート
+- **ベストプラクティス**: `best-practices/` - チェックリスト、テスト、配布
 
 ---
 
-_Last updated: 2025-12-24_
+*プロフェッショナルなCLIツールで、開発者体験を向上させましょう。*
+
+_Last updated: 2026-01-03_

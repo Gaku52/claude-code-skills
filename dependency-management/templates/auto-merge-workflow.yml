@@ -1,0 +1,176 @@
+# Auto-Merge Dependabot/Renovate PRs
+# Place at: .github/workflows/auto-merge-dependencies.yml
+
+name: Auto-Merge Dependencies
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+
+jobs:
+  auto-merge:
+    name: Auto-Merge Dependency Updates
+    runs-on: ubuntu-latest
+
+    # Only run for Dependabot or Renovate PRs
+    if: |
+      github.actor == 'dependabot[bot]' ||
+      github.actor == 'renovate[bot]'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Get metadata about the PR
+      - name: Fetch Dependabot metadata
+        id: dependabot-metadata
+        if: github.actor == 'dependabot[bot]'
+        uses: dependabot/fetch-metadata@v1
+        with:
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+
+      # Parse Renovate PR title
+      - name: Parse Renovate metadata
+        id: renovate-metadata
+        if: github.actor == 'renovate[bot]'
+        run: |
+          PR_TITLE="${{ github.event.pull_request.title }}"
+
+          # Detect update type from title
+          if echo "$PR_TITLE" | grep -qi "major"; then
+            echo "update-type=major" >> $GITHUB_OUTPUT
+          elif echo "$PR_TITLE" | grep -qi "minor"; then
+            echo "update-type=minor" >> $GITHUB_OUTPUT
+          else
+            echo "update-type=patch" >> $GITHUB_OUTPUT
+          fi
+
+      # Wait for all required checks to pass
+      - name: Wait for CI checks
+        uses: lewagon/wait-on-check-action@v1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          check-regexp: '(build|test|lint).*'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          wait-interval: 10
+          running-workflow-name: 'Auto-Merge Dependency Updates'
+          allowed-conclusions: success
+
+      # Determine if auto-merge is allowed
+      - name: Check auto-merge eligibility
+        id: check-merge
+        run: |
+          UPDATE_TYPE="${{ steps.dependabot-metadata.outputs.update-type || steps.renovate-metadata.outputs.update-type }}"
+          DEPENDENCY_TYPE="${{ steps.dependabot-metadata.outputs.dependency-type || 'production' }}"
+
+          echo "Update type: $UPDATE_TYPE"
+          echo "Dependency type: $DEPENDENCY_TYPE"
+
+          # Auto-merge rules:
+          # 1. Patch updates: always auto-merge
+          # 2. Minor updates for dev dependencies: auto-merge
+          # 3. Minor updates for production: manual review
+          # 4. Major updates: manual review
+
+          if [ "$UPDATE_TYPE" = "version-update:semver-patch" ] || [ "$UPDATE_TYPE" = "patch" ]; then
+            echo "auto-merge=true" >> $GITHUB_OUTPUT
+            echo "reason=Patch update" >> $GITHUB_OUTPUT
+
+          elif [ "$UPDATE_TYPE" = "version-update:semver-minor" ] || [ "$UPDATE_TYPE" = "minor" ]; then
+            if [ "$DEPENDENCY_TYPE" = "development" ] || [ "$DEPENDENCY_TYPE" = "devDependencies" ]; then
+              echo "auto-merge=true" >> $GITHUB_OUTPUT
+              echo "reason=Minor dev dependency update" >> $GITHUB_OUTPUT
+            else
+              echo "auto-merge=false" >> $GITHUB_OUTPUT
+              echo "reason=Minor production dependency (needs review)" >> $GITHUB_OUTPUT
+            fi
+
+          else
+            echo "auto-merge=false" >> $GITHUB_OUTPUT
+            echo "reason=Major update (needs review)" >> $GITHUB_OUTPUT
+          fi
+
+      # Auto-approve eligible PRs
+      - name: Approve PR
+        if: steps.check-merge.outputs.auto-merge == 'true'
+        run: gh pr review --approve "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Auto-merge eligible PRs
+      - name: Enable auto-merge
+        if: steps.check-merge.outputs.auto-merge == 'true'
+        run: |
+          gh pr merge --auto --squash "$PR_URL"
+          gh pr comment "$PR_URL" --body "✅ Auto-merging: ${{ steps.check-merge.outputs.reason }}"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Comment on PRs that need manual review
+      - name: Request manual review
+        if: steps.check-merge.outputs.auto-merge == 'false'
+        run: |
+          gh pr comment "$PR_URL" --body "⚠️ Manual review required: ${{ steps.check-merge.outputs.reason }}"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Label PRs appropriately
+      - name: Add labels
+        run: |
+          UPDATE_TYPE="${{ steps.dependabot-metadata.outputs.update-type || steps.renovate-metadata.outputs.update-type }}"
+
+          if [ "${{ steps.check-merge.outputs.auto-merge }}" = "true" ]; then
+            gh pr edit "$PR_URL" --add-label "auto-merge"
+          fi
+
+          if echo "$UPDATE_TYPE" | grep -qi "major"; then
+            gh pr edit "$PR_URL" --add-label "major-update"
+          elif echo "$UPDATE_TYPE" | grep -qi "minor"; then
+            gh pr edit "$PR_URL" --add-label "minor-update"
+          else
+            gh pr edit "$PR_URL" --add-label "patch-update"
+          fi
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Optional: Notify team on Slack
+  notify-slack:
+    name: Notify Slack
+    runs-on: ubuntu-latest
+    needs: auto-merge
+    if: always() && github.actor == 'dependabot[bot]'
+
+    steps:
+      - name: Send Slack notification
+        uses: slackapi/slack-github-action@v1
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK }}
+          payload: |
+            {
+              "text": "Dependency Update PR",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Dependency Update*\n<${{ github.event.pull_request.html_url }}|${{ github.event.pull_request.title }}>"
+                  }
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "Status: ${{ job.status }}"
+                  }
+                }
+              ]
+            }
