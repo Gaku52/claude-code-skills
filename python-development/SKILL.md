@@ -1,6 +1,6 @@
 ---
 name: python-development
-description: Python開発ガイド。FastAPI、Django、Flask、型ヒント、非同期処理、データ処理など、Pythonアプリケーション開発のベストプラクティス。
+description: Python開発ガイド。FastAPI、Django、Flask、型ヒント、非同期処理、データ処理、パフォーマンス最適化など、Pythonアプリケーション開発のベストプラクティス。
 ---
 
 # Python Development Skill
@@ -9,25 +9,38 @@ description: Python開発ガイド。FastAPI、Django、Flask、型ヒント、�
 
 1. [概要](#概要)
 2. [いつ使うか](#いつ使うか)
-3. [FastAPI](#fastapi)
-4. [Django](#django)
-5. [型ヒント](#型ヒント)
-6. [非同期処理](#非同期処理)
-7. [実践例](#実践例)
-8. [Agent連携](#agent連携)
+3. [ガイド一覧](#ガイド一覧)
+4. [テンプレート](#テンプレート)
+5. [クイックスタート](#クイックスタート)
+6. [FastAPI](#fastapi)
+7. [Django](#django)
+8. [型ヒント](#型ヒント)
+9. [非同期処理](#非同期処理)
+10. [パフォーマンス最適化](#パフォーマンス最適化)
+11. [Agent連携](#agent連携)
 
 ---
 
 ## 概要
 
-このSkillは、Python開発をカバーします：
+このSkillは、Python開発の全領域をカバーします：
 
 - **FastAPI** - モダンAPI フレームワーク
 - **Django** - フルスタックWebフレームワーク
 - **型ヒント** - 型安全性向上
 - **非同期処理** - async/await
 - **データ処理** - Pandas, NumPy
+- **パフォーマンス最適化** - プロファイリング、最適化手法
 - **テスト** - Pytest
+- **ツール** - Ruff, mypy, pre-commit
+
+### スキルステータス
+
+**🟢 High (100% completion, 4/4 guides)**
+- ✅ 包括的なガイド 4本（105,000+ 文字）
+- ✅ プロジェクトテンプレート完備
+- ✅ ベストプラクティスチェックリスト
+- ✅ 実践的なコード例
 
 ---
 
@@ -39,6 +52,112 @@ description: Python開発ガイド。FastAPI、Django、Flask、型ヒント、�
 - [ ] API開発時（FastAPI）
 - [ ] Webアプリ開発時（Django）
 - [ ] データ処理スクリプト作成時
+- [ ] パフォーマンス問題の解決時
+
+---
+
+## ガイド一覧
+
+### 📚 詳細ガイド
+
+1. **[Python Best Practices](./guides/01-python-best-practices.md)** (8,790 chars)
+   - 型ヒント、コード品質、プロジェクト構成
+   - 仮想環境管理、テスト、パフォーマンス基礎
+
+2. **[FastAPI & Django 開発ガイド](./guides/02-fastapi-django.md)** (32,079 chars)
+   - FastAPI プロジェクトセットアップ
+   - SQLAlchemy、認証・認可
+   - Django REST Framework
+   - パフォーマンス最適化
+
+3. **[データ処理・自動化ガイド](./guides/03-data-processing.md)** (24,607 chars)
+   - CSV/JSON/Excel 処理
+   - pandas/NumPy データ分析
+   - Web スクレイピング
+   - 自動化、並列処理
+
+4. **[パフォーマンス最適化ガイド](./guides/04-performance-optimization.md)** (40,000+ chars)
+   - プロファイリング（cProfile, line_profiler, memory_profiler）
+   - データ構造の最適化
+   - NumPy/Pandas 最適化
+   - 並列処理・非同期処理
+   - キャッシング戦略
+   - Cython、JIT コンパイル
+   - 実践的な最適化事例
+
+### 📋 チェックリスト
+
+- **[CHECKLIST.md](./CHECKLIST.md)** - Python 開発ベストプラクティスチェックリスト
+
+---
+
+## テンプレート
+
+すぐに使えるプロジェクトテンプレートを提供：
+
+### プロジェクト設定
+- **[pyproject.toml](./templates/pyproject.toml)** - モダンな依存関係管理
+- **[.gitignore](./templates/.gitignore)** - Python プロジェクト用
+- **[.env.example](./templates/.env.example)** - 環境変数テンプレート
+
+### コード品質
+- **[.pre-commit-config.yaml](./templates/.pre-commit-config.yaml)** - Pre-commit フック設定
+- **[tox.ini](./templates/tox.ini)** - 複数環境でのテスト自動化
+
+### タスク自動化
+- **[Makefile](./templates/Makefile)** - タスク自動化
+
+### Docker
+- **[Dockerfile](./templates/Dockerfile)** - マルチステージビルド
+- **[docker-compose.yml](./templates/docker-compose.yml)** - 開発環境構築
+
+---
+
+## クイックスタート
+
+### 新規プロジェクト作成
+
+```bash
+# プロジェクトディレクトリ作成
+mkdir my-project && cd my-project
+
+# テンプレートをコピー
+cp /path/to/templates/pyproject.toml .
+cp /path/to/templates/.gitignore .
+cp /path/to/templates/.pre-commit-config.yaml .
+cp /path/to/templates/Makefile .
+
+# プロジェクト構造を作成
+mkdir -p src/my_project tests
+
+# 開発環境セットアップ
+make dev
+
+# テスト実行
+make test
+```
+
+### プロジェクト構造（推奨）
+
+```
+my-project/
+├── src/
+│   └── my_project/
+│       ├── __init__.py
+│       ├── main.py
+│       ├── api/
+│       ├── models/
+│       ├── schemas/
+│       └── services/
+├── tests/
+│   ├── __init__.py
+│   └── test_main.py
+├── pyproject.toml
+├── .gitignore
+├── .pre-commit-config.yaml
+├── Makefile
+└── README.md
+```
 
 ---
 
@@ -470,54 +589,49 @@ async def get_user(user_id: int):
 
 ---
 
-## 実践例
+## パフォーマンス最適化
 
-### Example 1: FastAPI CRUD
+### プロファイリング
 
 ```python
-# main.py
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from typing import Optional
+import cProfile
 
-app = FastAPI()
+# 関数をプロファイリング
+profiler = cProfile.Profile()
+profiler.enable()
 
-class User(BaseModel):
-    id: int
-    name: str
-    email: str
+# 重い処理
+result = expensive_function()
 
-class UserCreate(BaseModel):
-    name: str
-    email: str
-
-users_db: dict[int, User] = {}
-next_id = 1
-
-@app.get("/users/", response_model=list[User])
-async def get_users():
-    return list(users_db.values())
-
-@app.get("/users/{user_id}", response_model=User)
-async def get_user(user_id: int):
-    if user_id not in users_db:
-        raise HTTPException(status_code=404, detail="User not found")
-    return users_db[user_id]
-
-@app.post("/users/", response_model=User, status_code=201)
-async def create_user(user: UserCreate):
-    global next_id
-    new_user = User(id=next_id, **user.dict())
-    users_db[next_id] = new_user
-    next_id += 1
-    return new_user
-
-@app.delete("/users/{user_id}", status_code=204)
-async def delete_user(user_id: int):
-    if user_id not in users_db:
-        raise HTTPException(status_code=404, detail="User not found")
-    del users_db[user_id]
+profiler.disable()
+profiler.print_stats(sort='cumulative')
 ```
+
+### データ構造の選択
+
+```python
+# ❌ 遅い: リストで検索
+if item in my_list:  # O(n)
+    pass
+
+# ✅ 速い: セットで検索
+if item in my_set:  # O(1)
+    pass
+```
+
+### キャッシング
+
+```python
+from functools import lru_cache
+
+@lru_cache(maxsize=128)
+def fibonacci(n: int) -> int:
+    if n < 2:
+        return n
+    return fibonacci(n-1) + fibonacci(n-2)
+```
+
+詳細は **[パフォーマンス最適化ガイド](./guides/04-performance-optimization.md)** を参照。
 
 ---
 
@@ -539,6 +653,12 @@ Djangoで以下のモデルを作成してください：
 マイグレーションファイルも生成してください。
 ```
 
+**パフォーマンス最適化**
+```
+このPython関数をプロファイリングして、
+ボトルネックを特定し、最適化してください。
+```
+
 ---
 
 ## まとめ
@@ -549,7 +669,20 @@ Djangoで以下のモデルを作成してください：
 2. **FastAPI** - モダンAPI開発
 3. **非同期処理** - パフォーマンス向上
 4. **Pydantic** - データバリデーション
+5. **テスト** - pytest でテスト駆動開発
+6. **Linting** - Ruff で高速なコード品質チェック
+7. **プロファイリング** - cProfile, line_profiler で最適化
+
+### 開発フロー
+
+1. プロジェクトセットアップ（テンプレート使用）
+2. 型ヒント付きでコード作成
+3. テスト作成（TDD）
+4. Lint & 型チェック
+5. プロファイリング & 最適化
+6. ドキュメント作成
+7. CI/CD でデプロイ
 
 ---
 
-_Last updated: 2025-12-24_
+_Last updated: 2025-01-02_

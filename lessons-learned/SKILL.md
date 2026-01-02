@@ -459,20 +459,25 @@ ls lessons/best-practices/
 
 ### Guides（詳細ガイド）
 
-1. [Do's - すべきこと](guides/01-dos.md)
-2. [Don'ts - 避けるべきこと](guides/02-donts.md)
-3. [Patterns - 成功パターン](guides/03-patterns.md)
-4. [Optimizations - 最適化手法](guides/04-optimizations.md)
-5. [Tools - ツール・手法](guides/05-tools.md)
-6. [抽出プロセス](guides/06-extraction-process.md)
-7. [体系化・分類](guides/07-organization.md)
-8. [活用方法](guides/08-utilization.md)
+1. [Knowledge Base - 教訓データベース構築](guides/01-knowledge-base.md)
+2. [Team Learning - チーム学習プロセス](guides/02-team-learning.md)
+3. [Continuous Improvement - 継続的改善](guides/03-continuous-improvement.md)
+4. [Post-Mortem Process - ポストモーテム実施](guides/04-postmortem-process.md)
+5. [Knowledge Management - 知識管理と共有](guides/05-knowledge-management.md)
 
 ### Templates（テンプレート）
 
+#### 教訓関連
 - [教訓テンプレート](templates/lesson-template.md)
-- [月次レビュー](templates/monthly-review.md)
-- [四半期レビュー](templates/quarterly-review.md)
+
+#### ポストモーテム関連
+- [ポストモーテムテンプレート](templates/postmortem-template.md)
+- [5 Whys テンプレート](templates/5whys-template.md)
+- [RCA（根本原因分析）テンプレート](templates/rca-template.md)
+
+#### レトロスペクティブ関連
+- [レトロスペクティブテンプレート](templates/retrospective-template.md)
+- [アクションアイテム追跡テンプレート](templates/action-tracking-template.md)
 
 ### Scripts（自動化スクリプト）
 

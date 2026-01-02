@@ -1,0 +1,413 @@
+name: Complete Code Review Workflow
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+  statuses: write
+
+jobs:
+  # ========================================
+  # 1. 基本チェック
+  # ========================================
+  basic-checks:
+    name: Basic Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check PR size
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const changes = pr.additions + pr.deletions;
+
+            if (changes > 400) {
+              core.setFailed(`PR is too large (${changes} lines). Please split into smaller PRs.`);
+            } else if (changes > 200) {
+              core.warning(`PR is large (${changes} lines). Consider splitting.`);
+            }
+
+      - name: Check for debug code
+        run: |
+          if grep -r "console.log\|debugger" src/ --exclude-dir=node_modules; then
+            echo "::warning::Found debug code (console.log/debugger)"
+          fi
+
+      - name: Check for TODO comments
+        run: |
+          TODO_COUNT=$(grep -r "TODO\|FIXME" src/ --exclude-dir=node_modules | wc -l)
+          if [ $TODO_COUNT -gt 0 ]; then
+            echo "::warning::Found $TODO_COUNT TODO/FIXME comments"
+          fi
+
+  # ========================================
+  # 2. Linting & Formatting
+  # ========================================
+  lint:
+    name: Lint & Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Run Prettier Check
+        run: npm run format:check
+
+      - name: TypeScript Type Check
+        run: npm run type-check
+
+  # ========================================
+  # 3. Testing & Coverage
+  # ========================================
+  test:
+    name: Test & Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+
+      - name: Run tests with coverage
+        run: npm test -- --coverage
+
+      - name: Check coverage threshold
+        run: |
+          COVERAGE=$(cat coverage/coverage-summary.json | jq '.total.lines.pct')
+          THRESHOLD=80
+
+          echo "Coverage: ${COVERAGE}%"
+
+          if (( $(echo "$COVERAGE < $THRESHOLD" | bc -l) )); then
+            echo "::error::Coverage ${COVERAGE}% is below threshold ${THRESHOLD}%"
+            exit 1
+          fi
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage/lcov.info
+          flags: unittests
+          name: codecov-umbrella
+
+  # ========================================
+  # 4. Security Scanning
+  # ========================================
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run npm audit
+        run: npm audit --audit-level=high
+        continue-on-error: true
+
+      - name: Run Snyk
+        uses: snyk/actions/node@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high
+        continue-on-error: true
+
+      - name: Run CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript,typescript
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+
+  # ========================================
+  # 5. Dependency Analysis
+  # ========================================
+  dependencies:
+    name: Dependency Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Check for dependency updates
+        run: npx npm-check-updates
+
+      - name: Analyze bundle size
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const exec = require('child_process').execSync;
+
+            // Build the project
+            exec('npm ci && npm run build');
+
+            // Check bundle size
+            const stats = fs.statSync('dist/bundle.js');
+            const sizeInKB = stats.size / 1024;
+            const maxSizeKB = 500;
+
+            if (sizeInKB > maxSizeKB) {
+              core.setFailed(`Bundle size ${sizeInKB.toFixed(2)}KB exceeds limit ${maxSizeKB}KB`);
+            } else {
+              core.info(`Bundle size: ${sizeInKB.toFixed(2)}KB (limit: ${maxSizeKB}KB)`);
+            }
+
+  # ========================================
+  # 6. Code Quality Analysis
+  # ========================================
+  code-quality:
+    name: Code Quality Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+
+      - name: Check complexity
+        run: |
+          npx complexity-report src/ \
+            --maxComplexity 10 \
+            --format json \
+            --output complexity-report.json
+
+      - name: Upload complexity report
+        uses: actions/upload-artifact@v3
+        with:
+          name: complexity-report
+          path: complexity-report.json
+
+  # ========================================
+  # 7. Danger.js - Automated PR Review
+  # ========================================
+  danger:
+    name: Danger PR Review
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+
+      - name: Run Danger
+        uses: danger/danger-js@latest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ========================================
+  # 8. ReviewDog - Automated Linting Comments
+  # ========================================
+  reviewdog:
+    name: ReviewDog Linting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run ESLint with ReviewDog
+        uses: reviewdog/action-eslint@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          reporter: github-pr-review
+          eslint_flags: 'src/**/*.{ts,tsx,js,jsx}'
+          fail_on_error: true
+
+      - name: Run TSC with ReviewDog
+        uses: EPMatt/reviewdog-action-tsc@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          reporter: github-pr-review
+
+  # ========================================
+  # 9. Performance Testing
+  # ========================================
+  performance:
+    name: Performance Testing
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+
+      - name: Run performance benchmarks
+        run: npm run bench
+
+      - name: Compare with baseline
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            // Load current and baseline results
+            const current = JSON.parse(fs.readFileSync('benchmark-results.json'));
+            const baseline = JSON.parse(fs.readFileSync('benchmark-baseline.json'));
+
+            // Compare results
+            for (const test in current) {
+              const currentTime = current[test];
+              const baselineTime = baseline[test];
+              const degradation = ((currentTime - baselineTime) / baselineTime) * 100;
+
+              if (degradation > 10) {
+                core.warning(`Performance degradation in ${test}: ${degradation.toFixed(2)}%`);
+              }
+            }
+
+  # ========================================
+  # 10. Auto-Labeling
+  # ========================================
+  label:
+    name: Auto Label PR
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Label by size
+        uses: codelytv/pr-size-labeler@v1
+        with:
+          xs_label: 'size/XS'
+          xs_max_size: 10
+          s_label: 'size/S'
+          s_max_size: 100
+          m_label: 'size/M'
+          m_max_size: 500
+          l_label: 'size/L'
+          l_max_size: 1000
+          xl_label: 'size/XL'
+
+      - name: Label by files changed
+        uses: actions/labeler@v5
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+  # ========================================
+  # 11. Auto-Assign Reviewers
+  # ========================================
+  assign-reviewers:
+    name: Auto Assign Reviewers
+    runs-on: ubuntu-latest
+    steps:
+      - uses: kentaro-m/auto-assign-action@v1.2.5
+        with:
+          configuration-path: '.github/auto-assign.yml'
+
+  # ========================================
+  # 12. Metrics Collection
+  # ========================================
+  metrics:
+    name: Collect Review Metrics
+    runs-on: ubuntu-latest
+    needs: [basic-checks, lint, test, security]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+
+      - name: Collect metrics
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+
+            const metrics = {
+              pr_number: pr.number,
+              author: pr.user.login,
+              lines_changed: pr.additions + pr.deletions,
+              files_changed: pr.changed_files,
+              created_at: pr.created_at,
+            };
+
+            console.log('PR Metrics:', JSON.stringify(metrics, null, 2));
+
+            // Send to analytics service
+            // await sendMetrics(metrics);
+
+  # ========================================
+  # 13. Notification
+  # ========================================
+  notify:
+    name: Send Notifications
+    runs-on: ubuntu-latest
+    needs: [basic-checks, lint, test]
+    if: always()
+    steps:
+      - name: Send Slack notification
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "PR Review Status for ${{ github.event.pull_request.html_url }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*PR #${{ github.event.pull_request.number }}*: ${{ github.event.pull_request.title }}\n*Author*: ${{ github.event.pull_request.user.login }}\n*Status*: ${{ job.status }}"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # ========================================
+  # 14. Final Check
+  # ========================================
+  all-checks-passed:
+    name: All Checks Passed
+    runs-on: ubuntu-latest
+    needs:
+      - basic-checks
+      - lint
+      - test
+      - security
+      - code-quality
+      - danger
+    steps:
+      - name: All checks passed
+        run: echo "✅ All checks passed! PR is ready for review."

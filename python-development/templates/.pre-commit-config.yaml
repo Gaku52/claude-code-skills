@@ -1,0 +1,103 @@
+# Pre-commit Hooks Configuration Template
+# .pre-commit-config.yaml - コミット前の自動チェック
+
+# 使用方法:
+# 1. pip install pre-commit
+# 2. pre-commit install
+# 3. pre-commit run --all-files (手動実行)
+
+repos:
+  # Ruff - 高速な Linter & Formatter
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.1.9
+    hooks:
+      # Linter
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      # Formatter
+      - id: ruff-format
+
+  # mypy - 型チェック
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.8.0
+    hooks:
+      - id: mypy
+        additional_dependencies:
+          - pydantic>=2.5.0
+          - types-requests
+        args: [--strict, --ignore-missing-imports]
+
+  # 一般的なチェック
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      # ファイル末尾の空行を修正
+      - id: end-of-file-fixer
+      # 行末の空白を削除
+      - id: trailing-whitespace
+      # YAML ファイルをチェック
+      - id: check-yaml
+        args: [--safe]
+      # TOML ファイルをチェック
+      - id: check-toml
+      # JSON ファイルをチェック
+      - id: check-json
+      # マージコンフリクトをチェック
+      - id: check-merge-conflict
+      # デバッグ文をチェック
+      - id: debug-statements
+      # 大きなファイルの追加を防止
+      - id: check-added-large-files
+        args: [--maxkb=1000]
+      # Python の docstring を検証
+      - id: check-docstring-first
+      # 実行権限のないスクリプトをチェック
+      - id: check-executables-have-shebangs
+      # AST を検証
+      - id: check-ast
+      # requirements.txt をソート
+      - id: requirements-txt-fixer
+
+  # セキュリティチェック（オプション）
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.6
+    hooks:
+      - id: bandit
+        args: [-c, pyproject.toml]
+        additional_dependencies: ["bandit[toml]"]
+
+  # コミットメッセージの検証（オプション）
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v3.0.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+
+# グローバル除外設定
+exclude: |
+  (?x)(
+      ^\.venv/|
+      ^venv/|
+      ^\.git/|
+      ^build/|
+      ^dist/|
+      ^\.eggs/|
+      ^\.mypy_cache/|
+      ^\.pytest_cache/|
+      ^\.ruff_cache/|
+      ^htmlcov/|
+      \.pyc$
+  )
+
+# CI で実行する場合の設定
+ci:
+  autofix_commit_msg: |
+    [pre-commit.ci] auto fixes from pre-commit.com hooks
+
+    for more information, see https://pre-commit.ci
+  autofix_prs: true
+  autoupdate_branch: ''
+  autoupdate_commit_msg: '[pre-commit.ci] pre-commit autoupdate'
+  autoupdate_schedule: weekly
+  skip: []
+  submodules: false
