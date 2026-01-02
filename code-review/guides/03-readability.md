@@ -874,6 +874,208 @@ func Copy(dst Writer, src Reader) error {
 
 ---
 
+## 可読性向上のベストプラクティス
+
+### リファクタリングのタイミング
+
+可読性の低いコードを発見したら、以下のタイミングでリファクタリングを提案します：
+
+#### 即座にリファクタリングすべきケース
+
+- **マジックナンバー**: 定数化は5分で完了
+- **一文字変数**: 意味のある名前への変更は2分で完了
+- **過度なネスト**: Guard句やEarly returnで即改善
+
+#### PR内でリファクタリングを提案するケース
+
+- **長すぎる関数**: 責務分離が必要
+- **不明瞭な変数名**: より良い命名を提案
+- **重複コード**: DRY原則違反
+
+#### 別PRでリファクタリングすべきケース
+
+- **アーキテクチャレベルの変更**: スコープが大きすぎる
+- **広範囲な命名規則の変更**: 影響範囲が広い
+
+### コードレビューでの可読性コメント例
+
+#### 命名に関するコメント
+
+```
+[推奨] より明確な命名
+
+現在の `data` という変数名は汎用的すぎます。
+内容を表す名前にすると、コードの意図が明確になります。
+
+提案:
+- `userData` → ユーザー情報であることが明確
+- `userProfile` → プロフィール情報であることが明確
+- `authenticatedUser` → 認証済みユーザーであることが明確
+
+どのような情報を含んでいますか？それに応じて命名を変更することをお勧めします。
+```
+
+#### 複雑度に関するコメント
+
+```
+[推奨] 関数の分割
+
+この関数は80行あり、複数の責務を持っています。
+以下のように分割すると、可読性とテスタビリティが向上します：
+
+1. `validateInput()` - 入力値検証（10行）
+2. `fetchUserData()` - データ取得（15行）
+3. `transformData()` - データ変換（20行）
+4. `saveToDatabase()` - 保存処理（15行）
+5. `sendNotification()` - 通知送信（10行）
+
+メイン関数:
+```typescript
+async function processUser(userId: string) {
+  const input = await validateInput(userId);
+  const userData = await fetchUserData(input);
+  const transformed = transformData(userData);
+  await saveToDatabase(transformed);
+  await sendNotification(transformed);
+}
+```
+
+#### コメントに関するコメント
+
+```
+[必須] コメントの追加
+
+このアルゴリズムの意図が不明確です。
+以下の情報をコメントで説明してください：
+
+1. なぜこのアプローチを選んだのか
+2. 時間計算量（O(n log n) など）
+3. 特殊なエッジケース（あれば）
+
+例:
+```typescript
+// Kruskal's algorithm を使用して最小全域木を構築
+// 時間計算量: O(E log E) ここで E = エッジ数
+// 理由: 頂点数が多く、エッジが疎な場合に効率的
+function buildMinimumSpanningTree(edges: Edge[]): Tree {
+  // ...
+}
+```
+
+### 可読性メトリクス
+
+#### 測定可能な指標
+
+1. **循環的複雑度** (Cyclomatic Complexity)
+   - 目標: 10以下
+   - 許容: 15以下
+   - 警告: 20以上
+
+2. **関数の行数**
+   - 目標: 20行以下
+   - 許容: 50行以下
+   - 警告: 100行以上
+
+3. **ネストレベル**
+   - 目標: 2レベル以下
+   - 許容: 3レベル以下
+   - 警告: 4レベル以上
+
+4. **パラメータ数**
+   - 目標: 3個以下
+   - 許容: 5個以下
+   - 警告: 7個以上
+
+#### 自動測定ツール
+
+- **TypeScript**: ESLint (complexity, max-lines, max-depth)
+- **Python**: Radon, flake8, pylint
+- **Swift**: SwiftLint (cyclomatic_complexity, function_body_length)
+- **Go**: gocyclo, gocognit
+
+### 可読性の高いコードの例
+
+#### Before: 可読性の低いコード
+
+```typescript
+function p(d: any) {
+  if (d.t == 1) {
+    let r = d.a * d.b;
+    if (d.c) r = r * 0.9;
+    return r;
+  } else if (d.t == 2) {
+    let r = (d.a + d.b) * 2;
+    if (d.c) r = r * 0.9;
+    return r;
+  }
+  return 0;
+}
+```
+
+#### After: 可読性の高いコード
+
+```typescript
+enum ShapeType {
+  Rectangle = 1,
+  Parallelogram = 2,
+}
+
+interface ShapeData {
+  type: ShapeType;
+  width: number;
+  height: number;
+  hasDiscount: boolean;
+}
+
+const DISCOUNT_RATE = 0.9;
+
+function calculateShapePrice(shape: ShapeData): number {
+  const basePrice = calculateBasePrice(shape);
+  return applyDiscount(basePrice, shape.hasDiscount);
+}
+
+function calculateBasePrice(shape: ShapeData): number {
+  switch (shape.type) {
+    case ShapeType.Rectangle:
+      return shape.width * shape.height;
+
+    case ShapeType.Parallelogram:
+      return (shape.width + shape.height) * 2;
+
+    default:
+      throw new Error(`Unknown shape type: ${shape.type}`);
+  }
+}
+
+function applyDiscount(price: number, hasDiscount: boolean): number {
+  return hasDiscount ? price * DISCOUNT_RATE : price;
+}
+```
+
+### 言語別の可読性ポイント
+
+#### TypeScript
+- 型エイリアスで複雑な型をわかりやすく
+- Enumで定数をグルー プ化
+- Optional chainining (`?.`) で安全にアクセス
+
+#### Python
+- リスト内包表記は1行まで、複雑ならfor文
+- 型ヒントで関数の契約を明示
+- Dataclassで構造体を簡潔に
+
+#### Swift
+- Guard文でEarly returnを明確に
+- Computed propertyで意図を表現
+- Extensionで機能をグループ化
+
+#### Go
+- インターフェースで抽象化を最小限に
+- エラーは即座にチェック
+- 短い変数名は限定的なスコープでのみ
+
+---
+
 ## まとめ
 
 可読性の高いコードは、チームの生産性を大きく向上させます。
@@ -881,13 +1083,38 @@ func Copy(dst Writer, src Reader) error {
 ### 重要ポイント
 
 1. **意図が明確な命名**
+   - 変数・関数・クラスの名前から目的が分かる
+   - 省略形は避け、完全な単語を使用
+   - 文脈に応じた適切な抽象度
+
 2. **WHYを説明するコメント**
+   - WHATではなくWHYを説明
+   - 複雑なアルゴリズムには計算量を記載
+   - ハックやワークアラウンドには理由を記載
+
 3. **シンプルで短い関数**
+   - 1つの関数は1つの責務
+   - 20-30行を目安に分割
+   - ネストは2-3レベルまで
+
 4. **一貫したスタイル**
+   - プロジェクト全体で統一されたコーディング規約
+   - Linter/Formatterで自動化
+   - PRで指摘せず、ツールで自動修正
+
 5. **マジックナンバーの排除**
+   - 意味のある定数名で宣言
+   - Enumで関連する定数をグループ化
+   - 設定ファイルで外部化を検討
+
+### 可読性レビューのチェックリスト
+
+使用するツール:
+- [レビュー観点チェックリスト](../checklists/review-checklist.md)
+- [言語別チェックリスト](../checklists/language-specific-checklists.md)
 
 ### 次のステップ
 
-- [テストレビュー](04-testing.md)
-- [保守性レビュー](07-maintainability.md)
-- [自動化ガイド](12-automation.md)
+- [テストレビュー](04-testing.md) - テストの品質確認
+- [保守性レビュー](07-maintainability.md) - 長期的な保守性
+- [自動化ガイド](12-automation.md) - Linter/Formatter設定

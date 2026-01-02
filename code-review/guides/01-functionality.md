@@ -838,6 +838,219 @@ class ViewController: UIViewController {
 
 ---
 
+## 機能性レビューのケーススタディ
+
+### ケース1: ユーザー登録機能のレビュー
+
+#### 問題のあるコード
+
+```typescript
+async function registerUser(email: string, password: string) {
+  const user = await database.users.create({
+    email,
+    password, // パスワードが平文で保存されている！
+  });
+  return user;
+}
+```
+
+#### レビュー指摘事項
+
+1. **セキュリティ**: パスワードがハッシュ化されていない
+2. **バリデーション**: メールアドレスの形式チェックがない
+3. **エラーハンドリング**: 重複メールアドレスの処理がない
+4. **要件**: パスワード強度チェックがない
+
+#### 改善版
+
+```typescript
+async function registerUser(email: string, password: string) {
+  // 1. バリデーション
+  if (!isValidEmail(email)) {
+    throw new ValidationError('Invalid email format');
+  }
+
+  if (!isStrongPassword(password)) {
+    throw new ValidationError('Password must be at least 8 characters with uppercase, lowercase, and numbers');
+  }
+
+  // 2. 重複チェック
+  const existingUser = await database.users.findByEmail(email);
+  if (existingUser) {
+    throw new ConflictError('Email already registered');
+  }
+
+  // 3. パスワードハッシュ化
+  const hashedPassword = await bcrypt.hash(password, 10);
+
+  // 4. ユーザー作成
+  try {
+    const user = await database.users.create({
+      email,
+      password: hashedPassword,
+      createdAt: new Date(),
+    });
+
+    // 5. ウェルカムメール送信（エラーは握りつぶす）
+    await sendWelcomeEmail(email).catch(err =>
+      logger.error('Failed to send welcome email', err)
+    );
+
+    return user;
+  } catch (error) {
+    logger.error('User registration failed', error);
+    throw new DatabaseError('Failed to create user');
+  }
+}
+```
+
+### ケース2: 決済処理のレビュー
+
+#### 問題のあるコード
+
+```python
+def process_payment(user_id, amount):
+    user = get_user(user_id)
+    user.balance -= amount
+    save_user(user)
+    return True
+```
+
+#### レビュー指摘事項
+
+1. **エラーハンドリング**: 残高不足のチェックがない
+2. **データ整合性**: トランザクションがない
+3. **境界値**: 負の金額が処理できる
+4. **監査ログ**: 決済履歴が記録されない
+
+#### 改善版
+
+```python
+def process_payment(user_id: int, amount: Decimal) -> Payment:
+    # 1. バリデーション
+    if amount <= 0:
+        raise ValueError("Amount must be positive")
+
+    if amount > Decimal('1000000'):
+        raise ValueError("Amount exceeds maximum limit")
+
+    # 2. トランザクション開始
+    with database.transaction():
+        # 3. ロック付きでユーザー取得
+        user = get_user_for_update(user_id)
+
+        if user is None:
+            raise UserNotFoundError(f"User {user_id} not found")
+
+        # 4. 残高チェック
+        if user.balance < amount:
+            raise InsufficientBalanceError(
+                f"Balance {user.balance} is less than {amount}"
+            )
+
+        # 5. 残高更新
+        user.balance -= amount
+        save_user(user)
+
+        # 6. 決済履歴記録
+        payment = Payment.objects.create(
+            user_id=user_id,
+            amount=amount,
+            status='completed',
+            timestamp=timezone.now()
+        )
+
+        # 7. 監査ログ
+        audit_log.info(
+            'payment_processed',
+            user_id=user_id,
+            amount=amount,
+            new_balance=user.balance
+        )
+
+        return payment
+```
+
+### ケース3: データ取得APIのレビュー
+
+#### 問題のあるコード
+
+```swift
+func fetchUsers(page: Int) -> [User] {
+    let url = "https://api.example.com/users?page=\(page)"
+    let data = try! Data(contentsOf: URL(string: url)!)
+    let users = try! JSONDecoder().decode([User].self, from: data)
+    return users
+}
+```
+
+#### レビュー指摘事項
+
+1. **エラーハンドリング**: `try!`による強制アンラップでクラッシュの危険
+2. **同期処理**: メインスレッドでネットワークリクエスト
+3. **タイムアウト**: ネットワークタイムアウトの設定がない
+4. **ページネーション**: ページ番号のバリデーションがない
+
+#### 改善版
+
+```swift
+func fetchUsers(page: Int, completion: @escaping (Result<[User], Error>) -> Void) {
+    // 1. バリデーション
+    guard page > 0 else {
+        completion(.failure(ValidationError.invalidPage))
+        return
+    }
+
+    // 2. URL構築
+    guard let url = URL(string: "https://api.example.com/users?page=\(page)") else {
+        completion(.failure(NetworkError.invalidURL))
+        return
+    }
+
+    // 3. リクエスト設定（タイムアウト付き）
+    var request = URLRequest(url: url)
+    request.timeoutInterval = 30
+    request.httpMethod = "GET"
+    request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+    // 4. 非同期リクエスト
+    URLSession.shared.dataTask(with: request) { data, response, error in
+        // 5. エラーチェック
+        if let error = error {
+            completion(.failure(error))
+            return
+        }
+
+        // 6. レスポンスチェック
+        guard let httpResponse = response as? HTTPURLResponse else {
+            completion(.failure(NetworkError.invalidResponse))
+            return
+        }
+
+        guard (200...299).contains(httpResponse.statusCode) else {
+            completion(.failure(NetworkError.httpError(httpResponse.statusCode)))
+            return
+        }
+
+        // 7. データチェック
+        guard let data = data else {
+            completion(.failure(NetworkError.noData))
+            return
+        }
+
+        // 8. デコード
+        do {
+            let users = try JSONDecoder().decode([User].self, from: data)
+            completion(.success(users))
+        } catch {
+            completion(.failure(NetworkError.decodingError(error)))
+        }
+    }.resume()
+}
+```
+
+---
+
 ## まとめ
 
 機能性レビューは、コードが「正しく動く」ことを保証するための最も重要なレビュー観点です。
@@ -845,13 +1058,45 @@ class ViewController: UIViewController {
 ### 重要ポイント
 
 1. **要件を明確に理解する**
+   - PRの説明、仕様書、ユーザーストーリーを確認
+   - 不明点は必ず質問して明確化
+
 2. **エッジケースを徹底的に考える**
+   - 空配列、null/nil、境界値、異常系を必ずチェック
+   - 「こんなことは起きないだろう」という思い込みを捨てる
+
 3. **エラーハンドリングを適切に実装する**
+   - すべてのエラーケースを考慮
+   - ユーザーフレンドリーなエラーメッセージ
+   - 監査ログとエラーログの記録
+
 4. **境界値を必ずテストする**
+   - 0, 1, 最大値、最小値をテスト
+   - オフバイワンエラーに注意
+
 5. **言語固有の落とし穴を理解する**
+   - 各言語の危険な構文を把握
+   - ベストプラクティスに従う
+
+### レビュープロセス
+
+1. **要件の理解** (5分)
+2. **全体像の把握** (5-10分)
+3. **詳細レビュー** (20-30分)
+4. **テストコード確認** (10分)
+5. **コメント作成** (10分)
+
+### チェックリストの活用
+
+機能性レビューでは、以下のチェックリストを活用してください：
+
+- [セルフレビューチェックリスト](../checklists/self-review.md)
+- [レビュー観点チェックリスト](../checklists/review-checklist.md)
+- [セキュリティチェックリスト](../checklists/security-checklist.md)
 
 ### 次のステップ
 
 - [設計レビュー](02-design.md) - アーキテクチャと設計パターン
 - [可読性レビュー](03-readability.md) - 理解しやすいコード
 - [テストレビュー](04-testing.md) - テストの品質
+- [セキュリティレビュー](05-security.md) - 脆弱性の発見
