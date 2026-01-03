@@ -458,13 +458,28 @@ jobs:
         working-directory: scripts/api-cost-tracker
         run: |
           if [ "${{ job.status }}" == "success" ]; then
-            DETAILS="週次ドキュメント更新チェックが完了しました。
+            HAS_UPDATES="${{ steps.version-check.outputs.has_updates }}"
+            JEST_CURRENT="${{ steps.version-check.outputs.jest_current }}"
+            JEST_LATEST="${{ steps.version-check.outputs.jest_latest }}"
+            PLAYWRIGHT_CURRENT="${{ steps.version-check.outputs.playwright_current }}"
+            PLAYWRIGHT_LATEST="${{ steps.version-check.outputs.playwright_latest }}"
+            TYPESCRIPT_CURRENT="${{ steps.version-check.outputs.typescript_current }}"
+            TYPESCRIPT_LATEST="${{ steps.version-check.outputs.typescript_latest }}"
+            HAS_BREAKING="${{ steps.breaking-check.outputs.has_breaking }}"
 
-更新検知: ${{ steps.version-check.outputs.has_updates == 'true' && 'あり' || 'なし' }}
-${{ steps.version-check.outputs.has_updates == 'true' && format('- Jest: {0} → {1}', steps.version-check.outputs.jest_current, steps.version-check.outputs.jest_latest) || '' }}
-${{ steps.version-check.outputs.has_updates == 'true' && format('- Playwright: {0} → {1}', steps.version-check.outputs.playwright_current, steps.version-check.outputs.playwright_latest) || '' }}
-${{ steps.version-check.outputs.has_updates == 'true' && format('- TypeScript: {0} → {1}', steps.version-check.outputs.typescript_current, steps.version-check.outputs.typescript_latest) || '' }}
-${{ steps.breaking-check.outputs.has_breaking == 'true' && '⚠️ 破壊的変更の可能性あり' || '' }}"
+            DETAILS="週次ドキュメント更新チェックが完了しました。\n\n更新検知: "
+            if [ "$HAS_UPDATES" == "true" ]; then
+              DETAILS="${DETAILS}あり\n"
+              DETAILS="${DETAILS}- Jest: ${JEST_CURRENT} → ${JEST_LATEST}\n"
+              DETAILS="${DETAILS}- Playwright: ${PLAYWRIGHT_CURRENT} → ${PLAYWRIGHT_LATEST}\n"
+              DETAILS="${DETAILS}- TypeScript: ${TYPESCRIPT_CURRENT} → ${TYPESCRIPT_LATEST}\n"
+              if [ "$HAS_BREAKING" == "true" ]; then
+                DETAILS="${DETAILS}⚠️ 破壊的変更の可能性あり"
+              fi
+            else
+              DETAILS="${DETAILS}なし"
+            fi
+
             npm run notify:workflow "Weekly Documentation Update Check" "success" "$DETAILS"
           else
             npm run notify:workflow "Weekly Documentation Update Check" "failure" "ワークフローが失敗しました。GitHub Actionsログを確認してください。"
