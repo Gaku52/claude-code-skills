@@ -25,7 +25,7 @@
 
 - **[MySQL Documentation](https://dev.mysql.com/)** - 最も人気のあるオープンソースデータベース
   - [MySQL Manual](https://dev.mysql.com/)
-  - [MariaDB Documentation](https://mariadb.com/kb/en/documentation/)
+  - [MariaDB Documentation](https://mariadb.com/docs/)
 
 - **[MongoDB Manual](https://www.mongodb.com/docs/manual/)** - NoSQLドキュメント指向データベース
   - [Data Modeling](https://www.mongodb.com/docs/manual/core/data-modeling-introduction/)
