@@ -37,7 +37,7 @@ guides: 3
   - [CLI Commands](https://pnpm.io/cli/install)
 
 - **[Swift Package Manager Guide](https://www.swift.org/package-manager/)** - Swift公式パッケージマネージャー
-  - [Package Manifest](https://github.com/apple/swift-package-manager/blob/main/Documentation/PackageDescription.md)
+  - [Package Manifest](https://www.swift.org/package-manager/)
 
 - **[Dependabot Documentation](https://docs.github.com/en/code-security/dependabot)** - 自動依存関係更新
   - [Configuration](https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file)

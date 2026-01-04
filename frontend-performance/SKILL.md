@@ -60,7 +60,7 @@ description: フロントエンドパフォーマンス最適化ガイド。Core
 ### 関連リソース
 
 - **[Lighthouse](https://developer.chrome.com/docs/lighthouse/)** - 自動パフォーマンス監査
-- **[Bundle Analyzer](https://www.npmjs.com/package/webpack-bundle-analyzer)** - バンドル分析
+- **[Bundle Analyzer](https://github.com/webpack-contrib/webpack-bundle-analyzer)** - バンドル分析
 - **[Can I Use](https://caniuse.com/)** - ブラウザサポート確認
 
 ---

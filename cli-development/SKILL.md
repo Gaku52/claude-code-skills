@@ -48,13 +48,13 @@ description: CLIツール開発ガイド。Node.js（Commander、Inquirer）、P
   - [Quickstart](https://click.palletsprojects.com/en/8.1.x/quickstart/)
 
 - **[Cobra Documentation](https://cobra.dev/)** - Go CLIフレームワーク
-  - [User Guide](https://github.com/spf13/cobra/blob/main/user_guide.md)
+  - [User Guide](https://cobra.dev/)
 
 - **[Inquirer.js](https://github.com/SBoudrias/Inquirer.js)** - インタラクティブCLI
 
 ### 関連リソース
 
-- **[12 Factor CLI Apps](https://medium.com/@jdxcode/12-factor-cli-apps-dd3c227a0e46)** - CLIベストプラクティス
+- **[12 Factor CLI Apps](https://clig.dev/#guidelines)** - CLIベストプラクティス
 - **[CLI Guidelines](https://clig.dev/)** - コマンドライン設計ガイド
 - **[Typer Documentation](https://typer.tiangolo.com/)** - モダンPython CLI
 

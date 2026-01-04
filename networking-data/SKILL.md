@@ -55,7 +55,7 @@ iOS開発におけるネットワーク通信とデータ永続化の実践的�
 ### 関連リソース
 
 - **[Alamofire Documentation](https://github.com/Alamofire/Alamofire)** - 人気のSwiftネットワークライブラリ
-- **[Realm Documentation](https://www.mongodb.com/docs/realm/)** - モバイル向けデータベース
+- **[Realm Documentation](https://www.mongodb.com/docs/atlas/device-sdks/)** - モバイル向けデータベース
 - **[REST API Best Practices](https://restfulapi.net/)** - RESTful API設計ガイド
 
 ---

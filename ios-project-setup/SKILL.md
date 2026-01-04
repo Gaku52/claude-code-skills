@@ -29,7 +29,7 @@ iOS プロジェクトの初期設定に関する包括的なガイド。プロ�
 
 - **[Xcode Documentation](https://developer.apple.com/documentation/xcode)** - Apple公式開発環境
   - [Build Settings Reference](https://developer.apple.com/documentation/xcode/build-settings-reference)
-  - [Configuring Your Xcode Project](https://developer.apple.com/documentation/xcode/configuring-your-xcode-project)
+  - [Configuring Your Xcode Project](https://developer.apple.com/documentation/xcode)
 
 - **[Swift Package Manager](https://www.swift.org/package-manager/)** - Swift公式パッケージマネージャー
   - [Getting Started](https://www.swift.org/getting-started/)

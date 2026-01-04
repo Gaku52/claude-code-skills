@@ -48,7 +48,7 @@ SwiftUIアプリケーション開発における実践的なパターンとベ�
 - **[SwiftUI by Example](https://www.hackingwithswift.com/quick-start/swiftui)** - 実践的なSwiftUI学習リソース
 
 - **[Human Interface Guidelines](https://developer.apple.com/design/human-interface-guidelines/)** - iOSデザインガイドライン
-  - [iOS Design](https://developer.apple.com/design/human-interface-guidelines/ios)
+  - [iOS Design](https://developer.apple.com/design/human-interface-guidelines/)
 
 - **[Combine Framework](https://developer.apple.com/documentation/combine)** - リアクティブプログラミング
 

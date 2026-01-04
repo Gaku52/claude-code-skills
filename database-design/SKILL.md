@@ -23,17 +23,17 @@
   - [Indexes](https://www.postgresql.org/docs/current/indexes.html)
   - [Data Definition](https://www.postgresql.org/docs/current/ddl.html)
 
-- **[MySQL Documentation](https://dev.mysql.com/doc/)** - 最も人気のあるオープンソースデータベース
-  - [Optimization](https://dev.mysql.com/doc/refman/8.0/en/optimization.html)
-  - [Data Types](https://dev.mysql.com/doc/refman/8.0/en/data-types.html)
+- **[MySQL Documentation](https://dev.mysql.com/)** - 最も人気のあるオープンソースデータベース
+  - [Optimization](https://dev.mysql.com/refman/8.0/en/optimization.html)
+  - [Data Types](https://dev.mysql.com/refman/8.0/en/data-types.html)
 
 - **[MongoDB Manual](https://www.mongodb.com/docs/manual/)** - NoSQLドキュメント指向データベース
   - [Data Modeling](https://www.mongodb.com/docs/manual/core/data-modeling-introduction/)
   - [Indexing](https://www.mongodb.com/docs/manual/indexes/)
 
 - **[Prisma Documentation](https://www.prisma.io/docs)** - 次世代TypeScript ORM
-  - [Schema Reference](https://www.prisma.io/docs/reference/api-reference/prisma-schema-reference)
-  - [Performance Best Practices](https://www.prisma.io/docs/guides/performance-and-optimization)
+  - [Schema Reference](https://www.prisma.io/docs/reference/api-reference)
+  - [Performance Best Practices](https://www.prisma.io/docs)
 
 ### 関連リソース
 

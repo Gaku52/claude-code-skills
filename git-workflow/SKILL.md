@@ -48,7 +48,7 @@ description: Git運用・ブランチ戦略・コミット規約・PR管理の�
   - [Specification](https://www.conventionalcommits.org/en/v1.0.0/)
 
 - **[GitLab Documentation](https://docs.gitlab.com/)** - GitLab公式ドキュメント
-  - [Git Workflows](https://docs.gitlab.com/ee/topics/gitlab_flow.html)
+  - [Git Workflows](https://about.gitlab.com/topics/version-control/what-is-gitlab-flow/)
 
 ### 関連リソース
 
@@ -342,7 +342,6 @@ git push -u origin feature/PROJ-123-description
 
 - 📚 [Pro Git Book](https://git-scm.com/book/ja/v2)
 - 📖 [Conventional Commits](https://www.conventionalcommits.org/)
-- 🎥 [Git Flow vs GitHub Flow](https://www.youtube.com/...)
 
 ---
 

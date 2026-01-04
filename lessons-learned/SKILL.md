@@ -48,7 +48,7 @@ description: インシデントから抽出された教訓・ベストプラク�
 
 - **[NASA Lessons Learned](https://llis.nasa.gov/)** - NASA教訓データベース（参考実装）
 
-- **[Toyota Kata](https://www-personal.umich.edu/~mrother/Homepage.html)** - トヨタの改善カタ
+- **[Toyota Kata](https://en.wikipedia.org/wiki/Toyota_Kata)** - トヨタの改善カタ
 
 ### 関連リソース
 

@@ -449,7 +449,6 @@ gh run view <run-id> --log
 
 - 📚 [GitHub Actions Documentation](https://docs.github.com/en/actions)
 - 📖 [Fastlane Documentation](https://docs.fastlane.tools/)
-- 🎥 [CI/CD for iOS](https://www.youtube.com/...)
 - 📘 [Bitrise](https://www.bitrise.io/)
 
 ---

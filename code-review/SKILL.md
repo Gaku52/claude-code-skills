@@ -51,7 +51,7 @@ description: 効果的なコードレビューの実施方法、レビュー観�
 ### 関連リソース
 
 - **[Code Review Best Practices](https://smartbear.com/learn/code-review/best-practices-for-peer-code-review/)** - SmartBearガイド
-- **[The Art of Code Review](https://medium.com/@palantir/code-review-best-practices-19e02780015f)** - Palantirベストプラクティス
+- **[The Art of Code Review](https://google.github.io/eng-practices/review/)** - Palantirベストプラクティス
 - **[Conventional Comments](https://conventionalcomments.org/)** - レビューコメント規約
 
 ---
@@ -443,7 +443,6 @@ ViewModelに移動することで、テスタビリティが向上します。
 
 - 📚 [Google's Code Review Guidelines](https://google.github.io/eng-practices/review/)
 - 📖 [The Art of Readable Code](https://www.amazon.com/dp/0596802293)
-- 🎥 [Effective Code Reviews](https://www.youtube.com/...)
 - 📘 [SwiftLint Rules](https://realm.github.io/SwiftLint/rule-directory.html)
 
 ---

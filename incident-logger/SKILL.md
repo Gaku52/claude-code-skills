@@ -40,10 +40,10 @@ description: 開発中に発生した問題・エラー・失敗を即座に記�
 - **[ITIL Incident Management](https://www.axelos.com/certifications/itil-service-management)** - ITサービス管理のベストプラクティス
 
 - **[PagerDuty Incident Response](https://response.pagerduty.com/)** - インシデント対応ガイド
-  - [Best Practices](https://www.pagerduty.com/resources/learn/incident-response-best-practices/)
+  - [Best Practices](https://response.pagerduty.com/)
 
 - **[Atlassian Incident Management](https://www.atlassian.com/incident-management)** - インシデント管理フレームワーク
-  - [Playbooks](https://www.atlassian.com/incident-management/incident-response/playbooks)
+  - [Playbooks](https://www.atlassian.com/incident-management)
 
 - **[Google SRE Book - Incident Response](https://sre.google/sre-book/managing-incidents/)** - Googleのインシデント管理
 
@@ -51,7 +51,7 @@ description: 開発中に発生した問題・エラー・失敗を即座に記�
 
 - **[Incident.io Blog](https://incident.io/blog)** - インシデント管理のベストプラクティス
 - **[Post-Mortem Culture](https://landing.google.com/sre/sre-book/chapters/postmortem-culture/)** - ポストモーテム文化
-- **[Blameless Post-Mortems](https://codeascraft.com/2012/05/22/blameless-postmortems/)** - 非難のないポストモーテム
+- **[Blameless Post-Mortems](https://sre.google/sre-book/postmortem-culture/)** - 非難のないポストモーテム
 
 ---
 

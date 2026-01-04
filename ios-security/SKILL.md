@@ -55,7 +55,7 @@ iOSアプリケーションのセキュリティ実装における実践的な�
 
 - **[OWASP Mobile Security](https://owasp.org/www-project-mobile-security/)** - モバイルセキュリティベストプラクティス
 - **[OWASP Mobile Top 10](https://owasp.org/www-project-mobile-top-10/)** - モバイルアプリの脆弱性トップ10
-- **[NSHipster Security](https://nshipster.com/security/)** - iOSセキュリティ実践ガイド
+- **[NSHipster Security](https://nshipster.com/)** - iOSセキュリティ実践ガイド
 
 ---
 
