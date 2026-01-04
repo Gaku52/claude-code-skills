@@ -63,11 +63,11 @@
 
 ### Go - Cobra
 5. [Cobra Documentation](https://cobra.dev/)
-6. [User Guide](https://github.com/spf13/cobra/blob/main/user_guide.md)
+6. [User Guide](https://cobra.dev/)
 
 ### Related Resources
 7. [Inquirer.js](https://github.com/SBoudrias/Inquirer.js)
-8. [12 Factor CLI Apps](https://medium.com/@jdxcode/12-factor-cli-apps-dd3c227a0e46)
+8. [12 Factor CLI Apps](https://clig.dev/#guidelines)
 9. [CLI Guidelines](https://clig.dev/)
 10. [Typer Documentation](https://typer.tiangolo.com/)
 
@@ -88,7 +88,7 @@
 ### Related Resources
 7. [GitLab Code Review Guidelines](https://docs.gitlab.com/ee/development/code_review.html)
 8. [Code Review Best Practices](https://smartbear.com/learn/code-review/best-practices-for-peer-code-review/)
-9. [The Art of Code Review](https://medium.com/@palantir/code-review-best-practices-19e02780015f)
+9. [The Art of Code Review](https://google.github.io/eng-practices/review/)
 10. [Conventional Comments](https://conventionalcomments.org/)
 
 ---
@@ -102,9 +102,9 @@
 4. [Data Definition](https://www.postgresql.org/docs/current/ddl.html)
 
 ### MySQL
-5. [MySQL Documentation](https://dev.mysql.com/doc/)
-6. [Optimization](https://dev.mysql.com/doc/refman/8.0/en/optimization.html)
-7. [Data Types](https://dev.mysql.com/doc/refman/8.0/en/data-types.html)
+5. [MySQL Documentation](https://dev.mysql.com/)
+6. [Optimization](https://dev.mysql.com/)
+7. [Data Types](https://dev.mysql.com/)
 
 ### MongoDB
 8. [MongoDB Manual](https://www.mongodb.com/docs/manual/)
@@ -113,8 +113,8 @@
 
 ### Prisma
 11. [Prisma Documentation](https://www.prisma.io/docs)
-12. [Schema Reference](https://www.prisma.io/docs/reference/api-reference/prisma-schema-reference)
-13. [Performance Best Practices](https://www.prisma.io/docs/guides/performance-and-optimization)
+12. [Schema Reference](https://www.prisma.io/docs/reference/api-reference)
+13. [Performance Best Practices](https://www.prisma.io/docs)
 
 ### Related Resources
 14. [Database Normalization (Wikipedia)](https://en.wikipedia.org/wiki/Database_normalization)
@@ -137,7 +137,7 @@
 
 ### Swift Package Manager
 7. [Swift Package Manager Guide](https://www.swift.org/package-manager/)
-8. [Package Manifest](https://github.com/apple/swift-package-manager/blob/main/Documentation/PackageDescription.md)
+8. [Package Manifest](https://www.swift.org/package-manager/)
 
 ### Security Tools
 9. [Dependabot Documentation](https://docs.github.com/en/code-security/dependabot)
@@ -191,7 +191,7 @@
 9. [Performance Panel](https://developer.chrome.com/docs/devtools/performance/)
 10. [WebPageTest Documentation](https://docs.webpagetest.org/)
 11. [Lighthouse](https://developer.chrome.com/docs/lighthouse/)
-12. [Bundle Analyzer](https://www.npmjs.com/package/webpack-bundle-analyzer)
+12. [Bundle Analyzer](https://github.com/webpack-contrib/webpack-bundle-analyzer)
 13. [Can I Use](https://caniuse.com/)
 
 ### Internal Guides (MISSING FILES - 6 duplicate references)
@@ -219,7 +219,7 @@
 
 ### Related Resources
 9. [GitLab Documentation](https://docs.gitlab.com/)
-10. [Git Workflows](https://docs.gitlab.com/ee/topics/gitlab_flow.html)
+10. [Git Workflows](https://about.gitlab.com/topics/version-control/what-is-gitlab-flow/)
 11. [Atlassian Git Tutorials](https://www.atlassian.com/git/tutorials)
 12. [Oh Shit, Git!?!](https://ohshitgit.com/)
 13. [Git Flight Rules](https://github.com/k88hudson/git-flight-rules)
@@ -233,17 +233,17 @@
 
 ### PagerDuty
 2. [PagerDuty Incident Response](https://response.pagerduty.com/)
-3. [Best Practices](https://www.pagerduty.com/resources/learn/incident-response-best-practices/)
+3. [Best Practices](https://response.pagerduty.com/)
 
 ### Atlassian
 4. [Atlassian Incident Management](https://www.atlassian.com/incident-management)
-5. [Playbooks](https://www.atlassian.com/incident-management/incident-response/playbooks)
+5. [Playbooks](https://www.atlassian.com/incident-management)
 
 ### Related Resources
 6. [Google SRE Book - Incident Response](https://sre.google/sre-book/managing-incidents/)
 7. [Incident.io Blog](https://incident.io/blog)
 8. [Post-Mortem Culture](https://landing.google.com/sre/sre-book/chapters/postmortem-culture/)
-9. [Blameless Post-Mortems](https://codeascraft.com/2012/05/22/blameless-postmortems/)
+9. [Blameless Post-Mortems](https://sre.google/sre-book/postmortem-culture/)
 
 ---
 
@@ -280,7 +280,7 @@
 ### Xcode
 1. [Xcode Documentation](https://developer.apple.com/documentation/xcode)
 2. [Build Settings Reference](https://developer.apple.com/documentation/xcode/build-settings-reference)
-3. [Configuring Your Xcode Project](https://developer.apple.com/documentation/xcode/configuring-your-xcode-project)
+3. [Configuring Your Xcode Project](https://developer.apple.com/documentation/xcode)
 
 ### Swift Package Manager
 4. [Swift Package Manager](https://www.swift.org/package-manager/)
@@ -315,7 +315,7 @@
 9. [OWASP Mobile Top 10](https://owasp.org/www-project-mobile-top-10/)
 
 ### Community Resources
-10. [NSHipster Security](https://nshipster.com/security/)
+10. [NSHipster Security](https://nshipster.com/)
 
 ---
 
@@ -331,7 +331,7 @@
 
 ### Case Studies
 5. [NASA Lessons Learned](https://llis.nasa.gov/)
-6. [Toyota Kata](https://www-personal.umich.edu/~mrother/Homepage.html)
+6. [Toyota Kata](https://en.wikipedia.org/wiki/Toyota_Kata)
 
 ### Concepts
 7. [Continuous Improvement](https://en.wikipedia.org/wiki/Continual_improvement_process)
@@ -355,7 +355,7 @@
 7. [Combine Framework](https://developer.apple.com/documentation/combine)
 8. [Network Framework](https://developer.apple.com/documentation/network)
 9. [Alamofire Documentation](https://github.com/Alamofire/Alamofire)
-10. [Realm Documentation](https://www.mongodb.com/docs/realm/)
+10. [Realm Documentation](https://www.mongodb.com/docs/atlas/device-sdks/)
 
 ### Best Practices
 11. [REST API Best Practices](https://restfulapi.net/)
@@ -542,7 +542,7 @@
 
 ### Design Guidelines
 6. [Human Interface Guidelines](https://developer.apple.com/design/human-interface-guidelines/)
-7. [iOS Design](https://developer.apple.com/design/human-interface-guidelines/ios)
+7. [iOS Design](https://developer.apple.com/design/human-interface-guidelines/)
 
 ### Related Frameworks
 8. [Combine Framework](https://developer.apple.com/documentation/combine)

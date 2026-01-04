@@ -1517,7 +1517,7 @@ git push origin main --tags
 
 - [Git Flow](https://nvie.com/posts/a-successful-git-branching-model/)
 - [GitHub Flow](https://guides.github.com/introduction/flow/)
-- [GitLab Flow](https://docs.gitlab.com/ee/topics/gitlab_flow.html)
+- [GitLab Flow](https://about.gitlab.com/topics/version-control/what-is-gitlab-flow/)
 - [Trunk Based Development](https://trunkbaseddevelopment.com/)
 
 ### ツール
