@@ -1,0 +1,8 @@
+title: "Claude Code Skills: React Development Guide 2026 [Official]"
+summary: "実務で使えるReact開発の完全ガイド。Hooks、パフォーマンス最適化、実践パターンまで網羅した400万字の知識ベースから厳選した内容をお届けします。"
+topics: ["react", "javascript", "typescript", "frontend", "hooks"]
+published: true
+price: 1500 # 有料の場合200〜5000
+# 本に含めるチャプターを順番に並べましょう
+chapters:
+  - 00-introduction
