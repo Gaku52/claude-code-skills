@@ -450,6 +450,26 @@ MIT License - See [LICENSE](LICENSE) file for details.
 
 ---
 
+## 📄 License
+
+### Repository License (MIT)
+
+The main repository content (algorithm proofs, code, guides) is licensed under the [MIT License](LICENSE).
+
+### Zenn Books License (Copyright Protected)
+
+Content in the `books/` directory (Zenn Books) is **copyright protected** and **NOT** under MIT License.
+See [books/LICENSE.md](books/LICENSE.md) for details.
+
+**Prohibited:**
+- ❌ Commercial use or resale
+- ❌ Redistribution
+- ❌ Creation of derivative works
+
+**For official Zenn Books**, visit: [Zenn - @gaku52](https://zenn.dev/gaku52)
+
+---
+
 ## 🎯 Project Goals
 
 ### Current (Phase 4 Complete) ✅
