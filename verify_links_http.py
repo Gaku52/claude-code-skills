@@ -18,9 +18,11 @@ def extract_urls_from_file(filepath):
     try:
         with open(filepath, 'r', encoding='utf-8') as f:
             content = f.read()
-            # Find all https:// URLs
-            pattern = r'https://[^\s\)>\]"]+'
-            urls = re.findall(pattern, content)
+            # Find all https:// URLs (clean extraction without trailing punctuation)
+            pattern = r'https://[^\s\)>\]"\'`,]+'
+            raw_urls = re.findall(pattern, content)
+            # Further clean: remove trailing punctuation that might have been captured
+            urls = [url.rstrip('\'",`') for url in raw_urls]
     except Exception as e:
         print(f"Error reading {filepath}: {e}")
     return urls

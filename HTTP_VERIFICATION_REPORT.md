@@ -1,66 +1,36 @@
 # HTTP Link Verification Report
 
-**Date**: 2026-01-04 15:04:39
+**Date**: 2026-01-04 15:21:39
 
 ---
 
 ## Summary
 
-- **Total URLs tested**: 298
-- **✅ Success (2xx)**: 257
+- **Total URLs tested**: 289
+- **✅ Success (2xx)**: 264
 - **↪️ Redirects (3xx)**: 7
-- **❌ Client Errors (4xx)**: 22
+- **❌ Client Errors (4xx)**: 6
 - **❌ Server Errors (5xx)**: 0
 - **⏱️ Timeouts**: 12
 - **❌ Other Errors**: 0
-- **Success Rate**: 88.6%
+- **Success Rate**: 93.8%
 
 ## ❌ FAILED LINKS
 
 ### Client Errors (4xx)
 
-- **HTTP 403**: https://sre.google/sre-book/postmortem-culture/
-  - Used in: incident-logger/SKILL.md
 - **HTTP 403**: https://dev.mysql.com/
   - Used in: database-design/SKILL.md
-- **HTTP 403**: https://dev.mysql.com/
+- **HTTP 403**: https://dev.mysql.com/refman/8.0/en/data-types.html
   - Used in: database-design/SKILL.md
-- **HTTP 403**: https://dev.mysql.com/
+- **HTTP 403**: https://dev.mysql.com/refman/8.0/en/optimization.html
   - Used in: database-design/SKILL.md
-- **HTTP 404**: https://developer.apple.com/design/human-interface-guidelines/
-  - Used in: swiftui-patterns/SKILL.md
-- **HTTP 404**: https://developer.apple.com/documentation/xcode
-  - Used in: ios-project-setup/SKILL.md
-- **HTTP 403**: https://about.gitlab.com/topics/version-control/what-is-gitlab-flow/
-  - Used in: git-workflow/SKILL.md
-- **HTTP 404**: https://www.swift.org/package-manager/
-  - Used in: dependency-management/SKILL.md
-- **HTTP 404**: https://cobra.dev/
-  - Used in: cli-development/SKILL.md
 - **HTTP 404**: https://jsonplaceholder.typicode.com/posts',
   - Used in: nextjs-development/SKILL.md
+- **HTTP 404**: https://jsonplaceholder.typicode.com/posts/${id}`,
   - Used in: nextjs-development/SKILL.md
-- **HTTP 403**: https://clig.dev/#guidelines
-  - Used in: cli-development/SKILL.md
-- **HTTP 403**: https://google.github.io/eng-practices/review/
-  - Used in: code-review/SKILL.md
-- **HTTP 404**: https://nshipster.com/
-  - Used in: ios-security/SKILL.md
-- **HTTP 403**: https://en.wikipedia.org/wiki/Toyota_Kata
-  - Used in: lessons-learned/SKILL.md
-- **HTTP 404**: https://www.atlassian.com/incident-management
-  - Used in: incident-logger/SKILL.md
-- **HTTP 404**: https://www.mongodb.com/docs/atlas/device-sdks/
-  - Used in: networking-data/SKILL.md
-- **HTTP 403**: https://github.com/webpack-contrib/webpack-bundle-analyzer
-  - Used in: frontend-performance/SKILL.md
-- **HTTP 404**: https://response.pagerduty.com/
-  - Used in: incident-logger/SKILL.md
-- **HTTP 404**: https://www.prisma.io/docs
-  - Used in: database-design/SKILL.md
 - **HTTP 404**: https://www.prisma.io/docs/reference/api-reference
   - Used in: database-design/SKILL.md
-  - Used in: git-workflow/SKILL.md, code-review/SKILL.md, ci-cd-automation/SKILL.md
 
 ### Timeouts
 
