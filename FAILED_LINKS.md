@@ -1,42 +1,19 @@
 # Failed Links - Need Fixing
 
-**Date**: 2026-01-04 15:21:39
+**Date**: 2026-01-04 15:51:25
 
 ## https://dev.mysql.com/
 
 - **Status**: 403
 - **Used in**:
   - database-design/SKILL.md
-
-## https://dev.mysql.com/refman/8.0/en/data-types.html
-
-- **Status**: 403
-- **Used in**:
   - database-design/SKILL.md
 
-## https://dev.mysql.com/refman/8.0/en/optimization.html
-
-- **Status**: 403
-- **Used in**:
-  - database-design/SKILL.md
-
-## https://jsonplaceholder.typicode.com/posts',
+## https://jsonplaceholder.typicode.com/posts/${id}
 
 - **Status**: 404
 - **Used in**:
   - nextjs-development/SKILL.md
-
-## https://jsonplaceholder.typicode.com/posts/${id}`,
-
-- **Status**: 404
-- **Used in**:
-  - nextjs-development/SKILL.md
-
-## https://www.prisma.io/docs/reference/api-reference
-
-- **Status**: 404
-- **Used in**:
-  - database-design/SKILL.md
 
 ## https://api.example.com
 
@@ -56,22 +33,17 @@
 - **Used in**:
   - python-development/SKILL.md
 
-## https://api.example.com/data'
+## https://api.example.com/data
 
 - **Status**: TIMEOUT
 - **Used in**:
+  - nextjs-development/SKILL.md
+  - nextjs-development/SKILL.md
+  - nextjs-development/SKILL.md
   - nextjs-development/SKILL.md
   - frontend-performance/SKILL.md
 
-## https://api.example.com/data',
-
-- **Status**: TIMEOUT
-- **Used in**:
-  - nextjs-development/SKILL.md
-  - nextjs-development/SKILL.md
-  - nextjs-development/SKILL.md
-
-## https://api.example.com/posts',
+## https://api.example.com/posts
 
 - **Status**: TIMEOUT
 - **Used in**:
@@ -83,11 +55,6 @@
 - **Status**: TIMEOUT
 - **Used in**:
   - networking-data/SKILL.md
-
-## https://api.example.com/users',
-
-- **Status**: TIMEOUT
-- **Used in**:
   - script-development/SKILL.md
 
 ## https://api.example.com/users/\(id
@@ -114,4 +81,10 @@
 - **Used in**:
   - ios-security/SKILL.md
   - ios-security/SKILL.md
+
+## https://mariadb.com/kb/en/documentation/
+
+- **Status**: TIMEOUT
+- **Used in**:
+  - database-design/SKILL.md
 

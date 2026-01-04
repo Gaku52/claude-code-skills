@@ -1,36 +1,28 @@
 # HTTP Link Verification Report
 
-**Date**: 2026-01-04 15:21:39
+**Date**: 2026-01-04 15:51:25
 
 ---
 
 ## Summary
 
-- **Total URLs tested**: 289
-- **✅ Success (2xx)**: 264
+- **Total URLs tested**: 286
+- **✅ Success (2xx)**: 266
 - **↪️ Redirects (3xx)**: 7
-- **❌ Client Errors (4xx)**: 6
+- **❌ Client Errors (4xx)**: 2
 - **❌ Server Errors (5xx)**: 0
-- **⏱️ Timeouts**: 12
+- **⏱️ Timeouts**: 11
 - **❌ Other Errors**: 0
-- **Success Rate**: 93.8%
+- **Success Rate**: 95.5%
 
 ## ❌ FAILED LINKS
 
 ### Client Errors (4xx)
 
 - **HTTP 403**: https://dev.mysql.com/
-  - Used in: database-design/SKILL.md
-- **HTTP 403**: https://dev.mysql.com/refman/8.0/en/data-types.html
-  - Used in: database-design/SKILL.md
-- **HTTP 403**: https://dev.mysql.com/refman/8.0/en/optimization.html
-  - Used in: database-design/SKILL.md
-- **HTTP 404**: https://jsonplaceholder.typicode.com/posts',
+  - Used in: database-design/SKILL.md, database-design/SKILL.md
+- **HTTP 404**: https://jsonplaceholder.typicode.com/posts/${id}
   - Used in: nextjs-development/SKILL.md
-- **HTTP 404**: https://jsonplaceholder.typicode.com/posts/${id}`,
-  - Used in: nextjs-development/SKILL.md
-- **HTTP 404**: https://www.prisma.io/docs/reference/api-reference
-  - Used in: database-design/SKILL.md
 
 ### Timeouts
 
@@ -40,16 +32,12 @@
   - Used in: python-development/SKILL.md
 - https://api.example.com/2
   - Used in: python-development/SKILL.md
-- https://api.example.com/data'
-  - Used in: nextjs-development/SKILL.md, frontend-performance/SKILL.md
-- https://api.example.com/data',
-  - Used in: nextjs-development/SKILL.md, nextjs-development/SKILL.md, nextjs-development/SKILL.md
-- https://api.example.com/posts',
+- https://api.example.com/data
+  - Used in: nextjs-development/SKILL.md, nextjs-development/SKILL.md, nextjs-development/SKILL.md, nextjs-development/SKILL.md, frontend-performance/SKILL.md
+- https://api.example.com/posts
   - Used in: nextjs-development/SKILL.md, frontend-performance/SKILL.md
 - https://api.example.com/users
-  - Used in: networking-data/SKILL.md
-- https://api.example.com/users',
-  - Used in: script-development/SKILL.md
+  - Used in: networking-data/SKILL.md, script-development/SKILL.md
 - https://api.example.com/users/\(id
   - Used in: networking-data/SKILL.md
 - https://api.example.com/users/{user_id}
@@ -58,6 +46,8 @@
   - Used in: ios-security/SKILL.md
 - https://auth.example.com/oauth/token
   - Used in: ios-security/SKILL.md, ios-security/SKILL.md
+- https://mariadb.com/kb/en/documentation/
+  - Used in: database-design/SKILL.md
 
 ## ↪️ Redirects (Working but redirected)
 
