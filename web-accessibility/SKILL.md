@@ -32,6 +32,31 @@ description: Webアクセシビリティ対応ガイド。WCAG 2.1準拠、セ�
 - **カラーコントラスト** - 視認性確保
 - **フォーム** - アクセシブルなフォーム設計
 
+## 📚 公式ドキュメント・参考リソース
+
+**このガイドで学べること**: WCAG準拠方法、セマンティックHTML、ARIA属性、キーボード操作、アクセシビリティテスト
+**公式で確認すべきこと**: 最新のWCAG基準、ブラウザサポート、支援技術の動向
+
+### 主要な公式ドキュメント
+
+- **[WCAG 2.1 Guidelines](https://www.w3.org/WAI/WCAG21/quickref/)** - W3Cアクセシビリティガイドライン
+  - [Understanding WCAG 2.1](https://www.w3.org/WAI/WCAG21/Understanding/)
+  - [Techniques](https://www.w3.org/WAI/WCAG21/Techniques/)
+
+- **[WAI-ARIA Authoring Practices](https://www.w3.org/WAI/ARIA/apg/)** - ARIAパターンガイド
+  - [Patterns](https://www.w3.org/WAI/ARIA/apg/patterns/)
+
+- **[MDN Accessibility](https://developer.mozilla.org/en-US/docs/Web/Accessibility)** - MDNアクセシビリティガイド
+  - [ARIA](https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA)
+
+- **[Apple Accessibility](https://developer.apple.com/accessibility/)** - iOSアクセシビリティ
+
+### 関連リソース
+
+- **[a11y Project](https://www.a11yproject.com/)** - アクセシビリティチェックリスト
+- **[WebAIM](https://webaim.org/)** - アクセシビリティリソース
+- **[axe DevTools](https://www.deque.com/axe/)** - 自動アクセシビリティ検査
+
 ---
 
 ## 詳細ガイド

@@ -35,6 +35,42 @@ description: iOS開発のベストプラクティス、設計パターン、実�
 
 ---
 
+## 📚 公式ドキュメント・参考リソース
+
+**このガイドで学べること**: アーキテクチャパターン、設計原則、実装テクニック
+**公式で確認すべきこと**: 最新API、iOS 18の新機能、SwiftUI/UIKitリファレンス、App Store審査ガイドライン
+
+### 主要な公式ドキュメント
+
+- **[Apple Developer Documentation](https://developer.apple.com/documentation/)** - Apple公式ドキュメント
+  - [SwiftUI](https://developer.apple.com/documentation/swiftui/) - SwiftUI完全リファレンス
+  - [UIKit](https://developer.apple.com/documentation/uikit/) - UIKit完全リファレンス
+  - [Swift](https://developer.apple.com/documentation/swift/) - Swift言語リファレンス
+  - [Combine](https://developer.apple.com/documentation/combine/) - Reactive Programming
+  - [Core Data](https://developer.apple.com/documentation/coredata/) - データ永続化
+
+- **[Swift.org](https://www.swift.org/)** - Swift言語公式サイト
+  - [The Swift Programming Language](https://docs.swift.org/swift-book/) - 完全ガイド
+  - [Swift Evolution](https://apple.github.io/swift-evolution/) - 言語仕様の進化
+
+- **[Human Interface Guidelines](https://developer.apple.com/design/human-interface-guidelines/)** - UIデザインガイドライン
+  - iOS、iPadOS、watchOS、macOSのデザイン原則
+  - コンポーネント使用ガイド
+
+- **[App Store Review Guidelines](https://developer.apple.com/app-store/review/guidelines/)** - 審査ガイドライン
+  - 申請前の必読事項
+  - リジェクト回避のポイント
+
+### 関連リソース
+
+- **[WWDC Videos](https://developer.apple.com/videos/)** - 年次カンファレンス動画
+- **[Swift Forums](https://forums.swift.org/)** - Swift公式フォーラム
+- **[Hacking with Swift](https://www.hackingwithswift.com/)** - チュートリアル集
+- **[Ray Wenderlich](https://www.kodeco.com/)** - iOS開発教材
+- **[Swift by Sundell](https://www.swiftbysundell.com/)** - 実践的なTips
+
+---
+
 ## いつ使うか
 
 ### 自動的に参照されるケース

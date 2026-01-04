@@ -31,6 +31,29 @@ description: 効果的なコードレビューの実施方法、レビュー観�
 - ✅ よくある指摘事項パターン
 - ✅ レビュー効率化テクニック
 
+## 📚 公式ドキュメント・参考リソース
+
+**このガイドで学べること**: レビュープロセス設計、効果的なフィードバック方法、自動化ツール活用、チーム文化構築
+**公式で確認すべきこと**: 最新のレビューツール機能、GitHub/GitLab新機能、ベストプラクティス
+
+### 主要な公式ドキュメント
+
+- **[GitHub Pull Request Documentation](https://docs.github.com/en/pull-requests)** - PR運用ガイド
+  - [Reviewing Changes](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/reviewing-changes-in-pull-requests)
+  - [Code Review](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/reviewing-changes-in-pull-requests/about-pull-request-reviews)
+
+- **[Google Engineering Practices](https://google.github.io/eng-practices/review/)** - Googleコードレビューガイド
+  - [Reviewer Guide](https://google.github.io/eng-practices/review/reviewer/)
+  - [Author Guide](https://google.github.io/eng-practices/review/developer/)
+
+- **[GitLab Code Review Guidelines](https://docs.gitlab.com/ee/development/code_review.html)** - GitLabレビューガイド
+
+### 関連リソース
+
+- **[Code Review Best Practices](https://smartbear.com/learn/code-review/best-practices-for-peer-code-review/)** - SmartBearガイド
+- **[The Art of Code Review](https://medium.com/@palantir/code-review-best-practices-19e02780015f)** - Palantirベストプラクティス
+- **[Conventional Comments](https://conventionalcomments.org/)** - レビューコメント規約
+
 ---
 
 ## いつ使うか

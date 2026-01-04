@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Claude Code Skills - Interactive Demos</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            color: white;
+            padding: 60px 20px;
+        }
+
+        header h1 {
+            font-size: 3em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        header p {
+            font-size: 1.3em;
+            opacity: 0.95;
+            margin-bottom: 10px;
+        }
+
+        .badge {
+            display: inline-block;
+            background: rgba(255,255,255,0.2);
+            padding: 8px 20px;
+            border-radius: 30px;
+            margin: 5px;
+            font-weight: 600;
+        }
+
+        .demos {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin: 50px 0;
+        }
+
+        .demo-card {
+            background: white;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .demo-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+        }
+
+        .demo-icon {
+            font-size: 4em;
+            margin-bottom: 20px;
+        }
+
+        .demo-card h2 {
+            color: #667eea;
+            font-size: 1.8em;
+            margin-bottom: 15px;
+        }
+
+        .demo-card p {
+            color: #666;
+            margin-bottom: 25px;
+            line-height: 1.8;
+        }
+
+        .demo-link {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 40px;
+            border-radius: 30px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 1.1em;
+            transition: transform 0.2s;
+        }
+
+        .demo-link:hover {
+            transform: scale(1.05);
+        }
+
+        .features {
+            background: white;
+            border-radius: 15px;
+            padding: 40px;
+            margin: 30px 0;
+        }
+
+        .features h2 {
+            color: #667eea;
+            text-align: center;
+            font-size: 2em;
+            margin-bottom: 30px;
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .feature-item {
+            text-align: center;
+            padding: 20px;
+        }
+
+        .feature-item h3 {
+            color: #667eea;
+            margin: 10px 0;
+        }
+
+        .feature-item p {
+            color: #666;
+            font-size: 0.95em;
+        }
+
+        footer {
+            text-align: center;
+            color: white;
+            padding: 40px 20px;
+            margin-top: 50px;
+        }
+
+        footer a {
+            color: white;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        code {
+            background: rgba(255,255,255,0.2);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎓 Claude Code Skills</h1>
+            <p>MIT Master's Level Research Project</p>
+            <div>
+                <span class="badge">81/100 → 90/100</span>
+                <span class="badge">34 Proofs</span>
+                <span class="badge">255+ Papers</span>
+            </div>
+        </header>
+
+        <div class="demos">
+            <div class="demo-card">
+                <div class="demo-icon">📊</div>
+                <h2>Statistics Playground</h2>
+                <p>
+                    Interactive statistical analysis tool with t-tests, confidence intervals,
+                    and effect size calculations. MIT-level rigor in your browser.
+                </p>
+                <a href="stats-playground/" class="demo-link">Launch Demo →</a>
+            </div>
+
+            <div class="demo-card">
+                <div class="demo-icon">🔄</div>
+                <h2>CRDT Interactive Demo</h2>
+                <p>
+                    Experience conflict-free replicated data types with strong eventual consistency.
+                    See distributed systems mathematics in action.
+                </p>
+                <a href="crdt-demo/" class="demo-link">Launch Demo →</a>
+            </div>
+        </div>
+
+        <div class="features">
+            <h2>What You'll Learn</h2>
+            <div class="feature-grid">
+                <div class="feature-item">
+                    <div style="font-size: 2.5em;">📈</div>
+                    <h3>Statistical Testing</h3>
+                    <p>Paired t-tests, Cohen's d, confidence intervals</p>
+                </div>
+                <div class="feature-item">
+                    <div style="font-size: 2.5em;">🧮</div>
+                    <h3>Effect Sizes</h3>
+                    <p>Practical significance beyond p-values</p>
+                </div>
+                <div class="feature-item">
+                    <div style="font-size: 2.5em;">🌐</div>
+                    <h3>Distributed Systems</h3>
+                    <p>CRDTs, eventual consistency, convergence</p>
+                </div>
+                <div class="feature-item">
+                    <div style="font-size: 2.5em;">🔬</div>
+                    <h3>Mathematical Proofs</h3>
+                    <p>Semilattice properties, formal guarantees</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="features">
+            <h2>npm Packages</h2>
+            <p style="text-align: center; color: #666; margin-bottom: 20px;">
+                Production-ready libraries with complete documentation
+            </p>
+            <div style="background: #f8f9fa; padding: 20px; border-radius: 10px; font-family: 'Courier New', monospace;">
+                <p style="margin: 10px 0;">
+                    <strong style="color: #667eea;">@claude-code-skills/stats</strong><br>
+                    Statistical analysis library with MIT-level rigor
+                </p>
+                <p style="margin: 10px 0;">
+                    <strong style="color: #667eea;">@claude-code-skills/crdt</strong><br>
+                    Conflict-free replicated data types with proofs
+                </p>
+            </div>
+        </div>
+
+        <footer>
+            <p>
+                <strong>Repository:</strong>
+                <a href="https://github.com/Gaku52/claude-code-skills" target="_blank">
+                    github.com/Gaku52/claude-code-skills
+                </a>
+            </p>
+            <p style="margin-top: 20px; opacity: 0.8;">
+                © 2026 Gaku | MIT License
+            </p>
+        </footer>
+    </div>
+</body>
+</html>

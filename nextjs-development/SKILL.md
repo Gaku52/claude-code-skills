@@ -36,6 +36,35 @@ description: Next.js App Router開発ガイド。Server Components、ルーテ�
 - **API Routes** - RESTful API
 - **デプロイ** - Vercel, 自己ホスティング
 
+---
+
+## 📚 公式ドキュメント・参考リソース
+
+**このガイドで学べること**: App Routerパターン、Server Components設計、キャッシング戦略
+**公式で確認すべきこと**: 最新API、Next.js 15の新機能、デプロイオプション、マイグレーションガイド
+
+### 主要な公式ドキュメント
+
+- **[Next.js Documentation](https://nextjs.org/docs)** - Next.js公式ドキュメント
+  - [App Router Guide](https://nextjs.org/docs/app) - App Routerの完全ガイド
+  - [Data Fetching](https://nextjs.org/docs/app/building-your-application/data-fetching) - データフェッチング詳細
+  - [Caching](https://nextjs.org/docs/app/building-your-application/caching) - キャッシング機構の詳細
+  - [Server Actions](https://nextjs.org/docs/app/building-your-application/data-fetching/server-actions-and-mutations) - Server Actions完全ガイド
+  - [API Reference](https://nextjs.org/docs/app/api-reference) - 全APIリファレンス
+
+- **[Next.js Learn](https://nextjs.org/learn)** - 公式チュートリアル
+  - インタラクティブな学習コース
+  - ステップバイステップのプロジェクト構築
+
+### 関連リソース
+
+- **[Vercel Documentation](https://vercel.com/docs)** - デプロイプラットフォーム
+- **[Next.js Examples](https://github.com/vercel/next.js/tree/canary/examples)** - 100+の公式サンプル
+- **[Awesome Next.js](https://github.com/unicodeveloper/awesome-nextjs)** - ライブラリ・プラグイン一覧
+- **[Next.js Conf](https://nextjs.org/conf)** - 年次カンファレンス動画
+
+---
+
 ### 📚 詳細ガイド
 
 **プロダクションレベルの実装を学ぶには、以下の完全ガイドを参照してください：**

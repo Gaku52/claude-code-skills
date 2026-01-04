@@ -44,6 +44,33 @@ description: React開発の詳細ガイド。Hooks、コンポーネント設計
 
 ## 詳細ガイド
 
+### 📚 公式ドキュメント・参考リソース
+
+**このガイドで学べること**: Hooksパターン、コンポーネント設計原則、パフォーマンス最適化手法
+**公式で確認すべきこと**: 最新API、React 19の新機能、Server Components、マイグレーションガイド
+
+#### 主要な公式ドキュメント
+
+- **[React.dev](https://react.dev)** - React公式ドキュメント
+  - [Learn React](https://react.dev/learn) - チュートリアル形式の学習ガイド
+  - [API Reference](https://react.dev/reference/react) - 全APIの完全リファレンス
+  - [Hooks Reference](https://react.dev/reference/react/hooks) - 全Hooksの詳細仕様
+  - [React 19の新機能](https://react.dev/blog) - 最新リリースノート
+
+- **[React TypeScript Cheatsheets](https://react-typescript-cheatsheet.netlify.app/)** - TypeScript × React
+  - 型定義の実践的パターン
+  - よくある型エラーと解決策
+  - 高度な型テクニック
+
+#### 関連リソース
+
+- **[React DevTools](https://react.dev/learn/react-developer-tools)** - デバッグツール
+- **[React Testing Library](https://testing-library.com/react)** - テストベストプラクティス
+- **[React Patterns](https://reactpatterns.com/)** - デザインパターン集
+- **[Awesome React](https://github.com/enaqx/awesome-react)** - ライブラリ・ツール一覧
+
+---
+
 ### 📚 完全ガイドシリーズ
 
 React開発の深い知識を習得するための詳細ガイドを用意しています。

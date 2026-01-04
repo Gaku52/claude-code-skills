@@ -36,6 +36,35 @@ description: フロントエンドパフォーマンス最適化ガイド。Core
 - **キャッシング** - CDN, Service Worker
 - **計測** - Lighthouse, Web Vitals
 
+## 📚 公式ドキュメント・参考リソース
+
+**このガイドで学べること**: Core Web Vitals改善、バンドル最適化、レンダリング戦略、画像最適化、キャッシング戦略
+**公式で確認すべきこと**: 最新のパフォーマンス指標、ブラウザアップデート、フレームワーク最適化機能
+
+### 主要な公式ドキュメント
+
+- **[web.dev Performance](https://web.dev/performance/)** - Googleパフォーマンスガイド
+  - [Core Web Vitals](https://web.dev/vitals/)
+  - [Optimize LCP](https://web.dev/optimize-lcp/)
+  - [Optimize INP](https://web.dev/optimize-inp/)
+
+- **[Next.js Performance](https://nextjs.org/docs/app/building-your-application/optimizing)** - Next.js最適化ガイド
+  - [Images](https://nextjs.org/docs/app/building-your-application/optimizing/images)
+  - [Fonts](https://nextjs.org/docs/app/building-your-application/optimizing/fonts)
+
+- **[Chrome DevTools](https://developer.chrome.com/docs/devtools/)** - パフォーマンス分析ツール
+  - [Performance Panel](https://developer.chrome.com/docs/devtools/performance/)
+
+- **[WebPageTest Documentation](https://docs.webpagetest.org/)** - パフォーマンス測定
+
+### 関連リソース
+
+- **[Lighthouse](https://developer.chrome.com/docs/lighthouse/)** - 自動パフォーマンス監査
+- **[Bundle Analyzer](https://www.npmjs.com/package/webpack-bundle-analyzer)** - バンドル分析
+- **[Can I Use](https://caniuse.com/)** - ブラウザサポート確認
+
+---
+
 ### 📚 詳細ガイド
 
 **プロダクションレベルの最適化を学ぶには、以下の完全ガイドを参照してください：**

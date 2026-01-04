@@ -18,6 +18,31 @@ description: 品質保証・QAガイド。テスト計画、品質メトリク�
 - **探索的テスト**: セッションベース、ペルソナベーステスト
 - **ユーザビリティテスト**: SUS評価、アクセシビリティ、UXテスト
 
+## 📚 公式ドキュメント・参考リソース
+
+**このガイドで学べること**: QAプロセス構築、テスト計画策定、品質メトリクス設定、バグ管理、リリース判定基準
+**公式で確認すべきこと**: 最新のテストツール、品質標準、業界ベストプラクティス
+
+### 主要な公式ドキュメント
+
+- **[ISTQB Syllabus](https://www.istqb.org/certifications/certified-tester-foundation-level)** - ソフトウェアテストの国際標準
+  - [Foundation Level](https://www.istqb.org/certifications/certified-tester-foundation-level)
+  - [Test Automation](https://www.istqb.org/certifications/test-automation-engineer)
+
+- **[ISO/IEC 25010](https://www.iso.org/standard/35733.html)** - ソフトウェア品質モデル
+
+- **[WCAG 2.1 Guidelines](https://www.w3.org/WAI/WCAG21/quickref/)** - Webアクセシビリティガイドライン
+
+- **[XCTest Documentation](https://developer.apple.com/documentation/xctest)** - Apple公式テストフレームワーク
+
+### 関連リソース
+
+- **[Software Testing Help](https://www.softwaretestinghelp.com/)** - QA総合リソース
+- **[Ministry of Testing](https://www.ministryoftesting.com/)** - テスターコミュニティ
+- **[Google Testing Blog](https://testing.googleblog.com/)** - Googleのテスト手法
+
+---
+
 ## 詳細ガイド
 
 ### Core Guides

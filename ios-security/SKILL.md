@@ -33,6 +33,32 @@ iOSアプリケーションのセキュリティ実装における実践的な�
 - ネットワーク通信のセキュリティ確保
 - 脱獄・改ざん検知の実装
 
+## 📚 公式ドキュメント・参考リソース
+
+**このガイドで学べること**: iOS認証実装、データ暗号化、Keychain活用、ネットワークセキュリティ、脱獄検知
+**公式で確認すべきこと**: 最新のセキュリティアップデート、新しい暗号化アルゴリズム、プラットフォームセキュリティ機能
+
+### 主要な公式ドキュメント
+
+- **[Apple Security Documentation](https://developer.apple.com/documentation/security)** - Apple公式セキュリティフレームワーク
+  - [CryptoKit](https://developer.apple.com/documentation/cryptokit)
+  - [Keychain Services](https://developer.apple.com/documentation/security/keychain_services)
+  - [LocalAuthentication](https://developer.apple.com/documentation/localauthentication)
+
+- **[App Transport Security](https://developer.apple.com/documentation/security/preventing_insecure_network_connections)** - ネットワークセキュリティ
+
+- **[Secure Coding Guide](https://developer.apple.com/library/archive/documentation/Security/Conceptual/SecureCodingGuide/)** - セキュアコーディングガイド
+
+- **[OAuth 2.0 RFC](https://oauth.net/2/)** - OAuth 2.0認証標準
+
+### 関連リソース
+
+- **[OWASP Mobile Security](https://owasp.org/www-project-mobile-security/)** - モバイルセキュリティベストプラクティス
+- **[OWASP Mobile Top 10](https://owasp.org/www-project-mobile-top-10/)** - モバイルアプリの脆弱性トップ10
+- **[NSHipster Security](https://nshipster.com/security/)** - iOSセキュリティ実践ガイド
+
+---
+
 ## 認証・認可
 
 ### OAuth 2.0 / OpenID Connect

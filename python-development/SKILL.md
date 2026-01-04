@@ -34,6 +34,51 @@ description: Python開発ガイド。FastAPI、Django、Flask、型ヒント、�
 - **テスト** - Pytest
 - **ツール** - Ruff, mypy, pre-commit
 
+---
+
+## 📚 公式ドキュメント・参考リソース
+
+**このガイドで学べること**: フレームワークパターン、型安全設計、パフォーマンス最適化、データ処理パターン
+**公式で確認すべきこと**: 最新API、Python 3.13の新機能、ライブラリアップデート、セキュリティ情報
+
+### 主要な公式ドキュメント
+
+- **[Python Documentation](https://docs.python.org/3/)** - Python公式ドキュメント
+  - [Tutorial](https://docs.python.org/3/tutorial/) - 公式チュートリアル
+  - [Library Reference](https://docs.python.org/3/library/) - 標準ライブラリ完全リファレンス
+  - [Language Reference](https://docs.python.org/3/reference/) - 言語仕様
+  - [What's New](https://docs.python.org/3/whatsnew/) - 新機能一覧
+
+- **[FastAPI](https://fastapi.tiangolo.com/)** - FastAPI公式ドキュメント
+  - [Tutorial](https://fastapi.tiangolo.com/tutorial/) - ステップバイステップガイド
+  - [Advanced User Guide](https://fastapi.tiangolo.com/advanced/) - 高度な機能
+  - [Deployment](https://fastapi.tiangolo.com/deployment/) - プロダクションデプロイ
+
+- **[Django](https://docs.djangoproject.com/)** - Django公式ドキュメント
+  - [Getting Started](https://docs.djangoproject.com/en/stable/intro/) - スタートガイド
+  - [Topics](https://docs.djangoproject.com/en/stable/topics/) - 詳細トピック
+  - [REST Framework](https://www.django-rest-framework.org/) - DRF公式ドキュメント
+
+- **[pandas](https://pandas.pydata.org/docs/)** - pandas公式ドキュメント
+  - データ分析・操作の標準ライブラリ
+
+- **[NumPy](https://numpy.org/doc/)** - NumPy公式ドキュメント
+  - 数値計算の基礎ライブラリ
+
+### 開発ツール
+
+- **[mypy](https://mypy.readthedocs.io/)** - 静的型チェッカー
+- **[Ruff](https://docs.astral.sh/ruff/)** - 高速リンター・フォーマッター
+- **[pytest](https://docs.pytest.org/)** - テストフレームワーク
+
+### 関連リソース
+
+- **[Python Enhancement Proposals (PEPs)](https://peps.python.org/)** - Python仕様提案
+- **[Real Python](https://realpython.com/)** - チュートリアル集
+- **[PyPI](https://pypi.org/)** - Python Package Index
+
+---
+
 ### スキルステータス
 
 **🟢 High (100% completion, 4/4 guides)**

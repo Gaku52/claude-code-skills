@@ -1,0 +1,52 @@
+{
+  "name": "@claude-code-skills/stats",
+  "version": "1.0.0",
+  "description": "MIT-level statistical analysis library with t-tests, regression, and effect size calculations",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts --clean",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "test": "vitest",
+    "test:coverage": "vitest --coverage",
+    "lint": "tsc --noEmit",
+    "docs": "typedoc --out ../../docs/stats src/index.ts",
+    "clean": "rm -rf dist node_modules .turbo"
+  },
+  "keywords": [
+    "statistics",
+    "t-test",
+    "regression",
+    "cohen-d",
+    "effect-size",
+    "confidence-interval",
+    "hypothesis-testing",
+    "research",
+    "mit-level"
+  ],
+  "author": "Gaku",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Gaku52/claude-code-skills.git",
+    "directory": "packages/stats"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsup": "^8.3.5",
+    "typedoc": "^0.27.5",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

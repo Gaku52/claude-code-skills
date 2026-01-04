@@ -32,6 +32,34 @@ description: バックエンド開発の基礎。API設計、データベース�
 
 ---
 
+## 📚 公式ドキュメント・参考リソース
+
+**このガイドで学べること**: API設計パターン、セキュリティ原則、エラーハンドリング戦略
+**公式で確認すべきこと**: 最新セキュリティ脆弱性、OWASP Top 10、フレームワーク最新機能
+
+### 主要な公式ドキュメント
+
+- **[REST API Design](https://restfulapi.net/)** - RESTful API設計ガイド
+- **[GraphQL](https://graphql.org/learn/)** - GraphQL公式ドキュメント
+- **[OWASP](https://owasp.org/)** - Webセキュリティ標準
+  - [OWASP Top 10](https://owasp.org/www-project-top-ten/) - 主要脆弱性
+  - [OWASP Cheat Sheet Series](https://cheatsheetseries.owasp.org/) - セキュリティ対策集
+
+### フレームワーク
+
+- **[Express.js](https://expressjs.com/)** - Node.js Webフレームワーク
+- **[NestJS](https://docs.nestjs.com/)** - TypeScriptエンタープライズフレームワーク
+- **[FastAPI](https://fastapi.tiangolo.com/)** - Python高速APIフレームワーク
+- **[Django REST Framework](https://www.django-rest-framework.org/)** - Django API
+
+### 関連リソース
+
+- **[HTTP Status Codes](https://httpstatuses.com/)** - HTTPステータスコード一覧
+- **[JWT.io](https://jwt.io/)** - JWT仕様・デバッガー
+- **[API Security Checklist](https://github.com/shieldfy/API-Security-Checklist)** - セキュリティチェックリスト
+
+---
+
 ## 詳細ガイド
 
 以下の完全ガイドで、堅牢なバックエンド構築を学べます：

@@ -34,6 +34,31 @@ description: 技術ドキュメント、README、API仕様書、アーキテク�
 3. **必要最小限** - 過剰なドキュメントは逆効果
 4. **実例を示す** - コード例、スクリーンショット
 
+## 📚 公式ドキュメント・参考リソース
+
+**このガイドで学べること**: READMEの構造、API仕様書の書き方、ADRの作成方法、コメント規約
+**公式で確認すべきこと**: ドキュメント生成ツールの最新機能、Markdown仕様、ドキュメント標準
+
+### 主要な公式ドキュメント
+
+- **[Markdown Guide](https://www.markdownguide.org/)** - Markdown記法の包括的ガイド
+  - [Basic Syntax](https://www.markdownguide.org/basic-syntax/)
+  - [Extended Syntax](https://www.markdownguide.org/extended-syntax/)
+
+- **[OpenAPI Specification](https://swagger.io/specification/)** - API仕様書の標準フォーマット
+  - [Swagger Editor](https://editor.swagger.io/)
+
+- **[JSDoc Documentation](https://jsdoc.app/)** - JavaScriptドキュメントコメント
+  - [Getting Started](https://jsdoc.app/about-getting-started.html)
+
+- **[ADR (Architecture Decision Records)](https://adr.github.io/)** - アーキテクチャ決定記録
+
+### 関連リソース
+
+- **[Write the Docs](https://www.writethedocs.org/)** - ドキュメント作成者のコミュニティ
+- **[The Documentation System](https://documentation.divio.com/)** - ドキュメント体系化フレームワーク
+- **[readme.so](https://readme.so/)** - README生成ツール
+
 ---
 
 ## いつ使うか

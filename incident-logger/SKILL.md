@@ -30,6 +30,29 @@ description: 開発中に発生した問題・エラー・失敗を即座に記�
 - ✅ 再発防止策の体系化
 - ✅ チーム学習の促進
 
+## 📚 公式ドキュメント・参考リソース
+
+**このガイドで学べること**: インシデント記録方法、分類・タグ付け、検索・分析、再発防止策の策定
+**公式で確認すべきこと**: インシデント管理ツールの最新機能、業界標準のプロセス
+
+### 主要な公式ドキュメント
+
+- **[ITIL Incident Management](https://www.axelos.com/certifications/itil-service-management)** - ITサービス管理のベストプラクティス
+
+- **[PagerDuty Incident Response](https://response.pagerduty.com/)** - インシデント対応ガイド
+  - [Best Practices](https://www.pagerduty.com/resources/learn/incident-response-best-practices/)
+
+- **[Atlassian Incident Management](https://www.atlassian.com/incident-management)** - インシデント管理フレームワーク
+  - [Playbooks](https://www.atlassian.com/incident-management/incident-response/playbooks)
+
+- **[Google SRE Book - Incident Response](https://sre.google/sre-book/managing-incidents/)** - Googleのインシデント管理
+
+### 関連リソース
+
+- **[Incident.io Blog](https://incident.io/blog)** - インシデント管理のベストプラクティス
+- **[Post-Mortem Culture](https://landing.google.com/sre/sre-book/chapters/postmortem-culture/)** - ポストモーテム文化
+- **[Blameless Post-Mortems](https://codeascraft.com/2012/05/22/blameless-postmortems/)** - 非難のないポストモーテム
+
 ---
 
 ## いつ使うか

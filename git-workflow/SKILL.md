@@ -29,6 +29,33 @@ description: Git運用・ブランチ戦略・コミット規約・PR管理の�
 - ✅ リベース vs マージの判断基準
 - ✅ 過去の失敗パターンと対策
 
+## 📚 公式ドキュメント・参考リソース
+
+**このガイドで学べること**: ブランチ戦略の選択、コミット規約、PR運用、コンフリクト解決、Git hooks活用
+**公式で確認すべきこと**: 最新のGit機能、GitHub/GitLab新機能、セキュリティベストプラクティス
+
+### 主要な公式ドキュメント
+
+- **[Git Documentation](https://git-scm.com/doc)** - Git公式ドキュメント
+  - [Git Book](https://git-scm.com/book/en/v2)
+  - [Reference Manual](https://git-scm.com/docs)
+
+- **[GitHub Documentation](https://docs.github.com/)** - GitHub公式ガイド
+  - [Pull Requests](https://docs.github.com/en/pull-requests)
+  - [Actions](https://docs.github.com/en/actions)
+
+- **[Conventional Commits](https://www.conventionalcommits.org/)** - コミットメッセージ規約
+  - [Specification](https://www.conventionalcommits.org/en/v1.0.0/)
+
+- **[GitLab Documentation](https://docs.gitlab.com/)** - GitLab公式ドキュメント
+  - [Git Workflows](https://docs.gitlab.com/ee/topics/gitlab_flow.html)
+
+### 関連リソース
+
+- **[Atlassian Git Tutorials](https://www.atlassian.com/git/tutorials)** - Git学習リソース
+- **[Oh Shit, Git!?!](https://ohshitgit.com/)** - Git問題解決ガイド
+- **[Git Flight Rules](https://github.com/k88hudson/git-flight-rules)** - Git緊急対応ガイド
+
 ---
 
 ## いつ使うか

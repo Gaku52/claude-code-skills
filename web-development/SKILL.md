@@ -35,6 +35,38 @@ description: モダンWeb開発の基礎。React、Vue、Next.jsなどのフレ�
 - **ビルドツール** - Vite, Webpack, Turbopack
 - **CSS戦略** - Tailwind CSS, CSS Modules, Styled Components
 
+## 📚 公式ドキュメント・参考リソース
+
+**このガイドで学べること**: フレームワーク選定の判断基準、プロジェクト構成パターン、状態管理の実装方法、ビルドツールの使い方
+**公式で確認すべきこと**: 最新のフレームワークバージョン、新機能、パフォーマンス最適化、セキュリティアップデート
+
+### 主要な公式ドキュメント
+
+- **[MDN Web Docs](https://developer.mozilla.org/)** - Web技術の包括的なドキュメント
+  - [HTML](https://developer.mozilla.org/en-US/docs/Web/HTML)
+  - [CSS](https://developer.mozilla.org/en-US/docs/Web/CSS)
+  - [JavaScript](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
+
+- **[React Documentation](https://react.dev/)** - 最も人気のあるJavaScriptライブラリ
+  - [Learn React](https://react.dev/learn)
+  - [Reference](https://react.dev/reference/react)
+
+- **[Next.js Documentation](https://nextjs.org/docs)** - Reactベースのフルスタックフレームワーク
+  - [App Router](https://nextjs.org/docs/app)
+  - [Performance](https://nextjs.org/docs/app/building-your-application/optimizing)
+
+- **[Vue.js Documentation](https://vuejs.org/guide/)** - プログレッシブJavaScriptフレームワーク
+  - [Guide](https://vuejs.org/guide/introduction.html)
+  - [API Reference](https://vuejs.org/api/)
+
+### 関連リソース
+
+- **[web.dev](https://web.dev/)** - Googleによるモダンウェブ開発ガイド
+- **[JavaScript.info](https://javascript.info/)** - 現代のJavaScript総合チュートリアル
+- **[Can I Use](https://caniuse.com/)** - ブラウザサポート状況の確認
+
+---
+
 ### 📚 詳細ガイド
 
 **プロダクションレベルの開発を学ぶには、以下の完全ガイドを参照してください：**

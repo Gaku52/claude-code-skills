@@ -33,6 +33,33 @@ SwiftUIアプリケーション開発における実践的なパターンとベ�
 - パフォーマンスの高いUIの構築
 - 保守性の高いコードベースの維持
 
+## 📚 公式ドキュメント・参考リソース
+
+**このガイドで学べること**: SwiftUI状態管理、ナビゲーション設計、レイアウトシステム、パフォーマンス最適化
+**公式で確認すべきこと**: 最新のSwiftUIアップデート、新しいAPIとモディファイア、iOS新機能
+
+### 主要な公式ドキュメント
+
+- **[SwiftUI Documentation](https://developer.apple.com/documentation/swiftui)** - Apple公式SwiftUIドキュメント
+  - [Tutorials](https://developer.apple.com/tutorials/swiftui)
+  - [Views and Controls](https://developer.apple.com/documentation/swiftui/views-and-controls)
+  - [State and Data Flow](https://developer.apple.com/documentation/swiftui/state-and-data-flow)
+
+- **[SwiftUI by Example](https://www.hackingwithswift.com/quick-start/swiftui)** - 実践的なSwiftUI学習リソース
+
+- **[Human Interface Guidelines](https://developer.apple.com/design/human-interface-guidelines/)** - iOSデザインガイドライン
+  - [iOS Design](https://developer.apple.com/design/human-interface-guidelines/ios)
+
+- **[Combine Framework](https://developer.apple.com/documentation/combine)** - リアクティブプログラミング
+
+### 関連リソース
+
+- **[Swift by Sundell](https://www.swiftbysundell.com/)** - Swift/SwiftUIベストプラクティス
+- **[Point-Free](https://www.pointfree.co/)** - 高度なSwiftUI技法
+- **[SwiftUI Lab](https://swiftui-lab.com/)** - SwiftUI深掘り記事
+
+---
+
 ## 状態管理パターン
 
 ### @State - ローカル状態

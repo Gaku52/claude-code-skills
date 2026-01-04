@@ -21,6 +21,35 @@ guides: 3
 - セキュリティ脆弱性の70%: サードパーティ依存関係から発生
 - 適切な依存関係管理により、年間$500K-$5Mのコスト削減が可能
 
+## 📚 公式ドキュメント・参考リソース
+
+**このガイドで学べること**: パッケージマネージャーの選定、バージョン管理戦略、セキュリティ脆弱性対応、自動化設定
+**公式で確認すべきこと**: 最新のパッケージバージョン、セキュリティアップデート、新機能、非推奨機能
+
+### 主要な公式ドキュメント
+
+- **[npm Documentation](https://docs.npmjs.com/)** - Node.jsのデフォルトパッケージマネージャー
+  - [package.json](https://docs.npmjs.com/cli/v10/configuring-npm/package-json)
+  - [npm audit](https://docs.npmjs.com/cli/v10/commands/npm-audit)
+
+- **[pnpm Documentation](https://pnpm.io/)** - 高速で効率的なパッケージマネージャー
+  - [Workspaces](https://pnpm.io/workspaces)
+  - [CLI Commands](https://pnpm.io/cli/install)
+
+- **[Swift Package Manager Guide](https://www.swift.org/package-manager/)** - Swift公式パッケージマネージャー
+  - [Package Manifest](https://github.com/apple/swift-package-manager/blob/main/Documentation/PackageDescription.md)
+
+- **[Dependabot Documentation](https://docs.github.com/en/code-security/dependabot)** - 自動依存関係更新
+  - [Configuration](https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file)
+
+### 関連リソース
+
+- **[Snyk Learn](https://learn.snyk.io/)** - セキュリティ脆弱性対策
+- **[Renovate Documentation](https://docs.renovatebot.com/)** - 自動依存関係更新ツール
+- **[Semantic Versioning](https://semver.org/)** - バージョニング規約
+
+---
+
 ## What This Skill Covers
 
 ### 1. Comprehensive Dependency Management

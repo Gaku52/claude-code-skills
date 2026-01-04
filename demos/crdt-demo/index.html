@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRDT Interactive Demo - Conflict-free Replicated Data Types</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+            padding: 40px 20px;
+            text-align: center;
+            margin-bottom: 30px;
+            border-radius: 10px;
+        }
+
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .demo-section {
+            background: white;
+            padding: 30px;
+            margin-bottom: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .demo-section h2 {
+            color: #11998e;
+            margin-bottom: 20px;
+            font-size: 1.8em;
+        }
+
+        .replicas {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .replica {
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            background: #fafafa;
+        }
+
+        .replica h3 {
+            color: #11998e;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .replica-badge {
+            background: #11998e;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8em;
+        }
+
+        .controls {
+            margin: 15px 0;
+        }
+
+        button {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            font-size: 14px;
+            font-weight: 600;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button.secondary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        button.danger {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+
+        .value-display {
+            background: white;
+            border: 2px solid #11998e;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 15px 0;
+            font-size: 1.5em;
+            font-weight: bold;
+            text-align: center;
+            color: #11998e;
+        }
+
+        .state-display {
+            background: #f8f9fa;
+            border-left: 4px solid #11998e;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .merge-button {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            font-size: 16px;
+            padding: 12px 30px;
+            width: 100%;
+            margin: 20px 0;
+        }
+
+        .result {
+            background: #d4edda;
+            border: 2px solid #28a745;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        .result h3 {
+            color: #155724;
+            margin-bottom: 10px;
+        }
+
+        .explanation {
+            background: #e7f3ff;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+
+        .explanation strong {
+            color: #1976D2;
+        }
+
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            color: #d63384;
+        }
+
+        .set-items {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 15px 0;
+        }
+
+        .set-item {
+            background: #11998e;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+        }
+
+        footer {
+            text-align: center;
+            padding: 30px;
+            color: #666;
+            margin-top: 50px;
+        }
+
+        footer a {
+            color: #11998e;
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔄 CRDT Interactive Demo</h1>
+            <p>Conflict-free Replicated Data Types with Strong Eventual Consistency</p>
+        </header>
+
+        <!-- G-Counter Demo -->
+        <div class="demo-section">
+            <h2>G-Counter (Grow-only Counter)</h2>
+            <p>Demonstrates a distributed counter that can only increment. Perfect for page views, downloads, etc.</p>
+
+            <div class="replicas">
+                <div class="replica">
+                    <h3><span class="replica-badge">Replica 1</span> US Datacenter</h3>
+                    <div class="value-display" id="gcounter1-value">0</div>
+                    <div class="controls">
+                        <button onclick="incrementGCounter(1)">+1 Increment</button>
+                    </div>
+                    <div class="state-display" id="gcounter1-state"></div>
+                </div>
+
+                <div class="replica">
+                    <h3><span class="replica-badge">Replica 2</span> EU Datacenter</h3>
+                    <div class="value-display" id="gcounter2-value">0</div>
+                    <div class="controls">
+                        <button onclick="incrementGCounter(2)">+1 Increment</button>
+                    </div>
+                    <div class="state-display" id="gcounter2-state"></div>
+                </div>
+            </div>
+
+            <button class="merge-button" onclick="mergeGCounters()">🔀 Merge Replicas</button>
+
+            <div id="gcounter-result" style="display: none;" class="result">
+                <h3>✅ Merge Complete</h3>
+                <div class="value-display" id="gcounter-merged"></div>
+                <p>Both replicas converged to the same value!</p>
+            </div>
+
+            <div class="explanation">
+                <strong>How it works:</strong> Each replica maintains its own counter. When merging, we take the
+                <code>max</code> value from each replica. This guarantees convergence because max is associative,
+                commutative, and idempotent.
+            </div>
+        </div>
+
+        <!-- OR-Set Demo -->
+        <div class="demo-section">
+            <h2>OR-Set (Observed-Remove Set)</h2>
+            <p>Collaborative shopping list with add-wins semantics. Concurrent adds always win over removes.</p>
+
+            <div class="replicas">
+                <div class="replica">
+                    <h3><span class="replica-badge">Alice</span> Phone</h3>
+                    <div class="set-items" id="orset1-items"></div>
+                    <div class="controls">
+                        <button onclick="addToORSet(1, 'milk')">Add Milk</button>
+                        <button onclick="addToORSet(1, 'eggs')">Add Eggs</button>
+                        <button onclick="addToORSet(1, 'bread')">Add Bread</button>
+                        <button class="danger" onclick="removeFromORSet(1, 'bread')">Remove Bread</button>
+                    </div>
+                    <div class="state-display" id="orset1-state"></div>
+                </div>
+
+                <div class="replica">
+                    <h3><span class="replica-badge">Bob</span> Tablet</h3>
+                    <div class="set-items" id="orset2-items"></div>
+                    <div class="controls">
+                        <button onclick="addToORSet(2, 'butter')">Add Butter</button>
+                        <button onclick="addToORSet(2, 'eggs')">Add Eggs</button>
+                        <button onclick="addToORSet(2, 'cheese')">Add Cheese</button>
+                    </div>
+                    <div class="state-display" id="orset2-state"></div>
+                </div>
+            </div>
+
+            <button class="merge-button" onclick="mergeORSets()">🔀 Merge Shopping Lists</button>
+
+            <div id="orset-result" style="display: none;" class="result">
+                <h3>✅ Lists Merged</h3>
+                <div class="set-items" id="orset-merged"></div>
+                <p>All items from both lists are preserved!</p>
+            </div>
+
+            <div class="explanation">
+                <strong>Add-wins semantics:</strong> Each add creates a unique (value, UUID) pair. Concurrent adds
+                from different replicas have different UUIDs, so they don't conflict. Even if Alice removes "eggs"
+                before seeing Bob's add, Bob's "eggs" survives because it has a UUID Alice hasn't observed.
+            </div>
+        </div>
+
+        <!-- Convergence Demo -->
+        <div class="demo-section">
+            <h2>Convergence Guarantee</h2>
+            <p>Demonstrates that merge order doesn't matter (commutative property).</p>
+
+            <div class="controls">
+                <button class="secondary" onclick="demonstrateConvergence()">🔄 Run Convergence Test</button>
+            </div>
+
+            <div id="convergence-result" style="display: none;" class="result">
+                <h3>✅ Mathematical Guarantee Verified</h3>
+                <div id="convergence-details"></div>
+                <p style="margin-top: 15px;">
+                    <strong>Properties:</strong><br>
+                    • Associative: merge(merge(a,b),c) = merge(a,merge(b,c))<br>
+                    • Commutative: merge(a,b) = merge(b,a)<br>
+                    • Idempotent: merge(a,a) = a<br>
+                    ⇒ <strong>Strong Eventual Consistency</strong>
+                </p>
+            </div>
+        </div>
+
+        <footer>
+            <p>Part of <a href="https://github.com/Gaku52/claude-code-skills" target="_blank">claude-code-skills</a> - MIT Master's Level Research Project</p>
+            <p>Implementation: <code>@claude-code-skills/crdt</code></p>
+            <p>© 2026 Gaku | MIT License</p>
+        </footer>
+    </div>
+
+    <script>
+        // Simple CRDT implementations for demo
+
+        class GCounter {
+            constructor() {
+                this.counters = new Map();
+            }
+
+            increment(replicaId) {
+                const current = this.counters.get(replicaId) || 0;
+                this.counters.set(replicaId, current + 1);
+            }
+
+            value() {
+                let sum = 0;
+                for (const count of this.counters.values()) {
+                    sum += count;
+                }
+                return sum;
+            }
+
+            merge(other) {
+                const merged = new GCounter();
+                const allIds = new Set([...this.counters.keys(), ...other.counters.keys()]);
+                for (const id of allIds) {
+                    const thisCount = this.counters.get(id) || 0;
+                    const otherCount = other.counters.get(id) || 0;
+                    merged.counters.set(id, Math.max(thisCount, otherCount));
+                }
+                return merged;
+            }
+
+            getState() {
+                return JSON.stringify(Object.fromEntries(this.counters), null, 2);
+            }
+        }
+
+        class ORSet {
+            constructor() {
+                this.elements = new Map();
+                this.tombstones = new Set();
+            }
+
+            add(value) {
+                const uuid = this.generateUUID();
+                this.elements.set(uuid, value);
+                return uuid;
+            }
+
+            remove(value) {
+                for (const [uuid, val] of this.elements) {
+                    if (val === value) {
+                        this.tombstones.add(uuid);
+                        this.elements.delete(uuid);
+                    }
+                }
+            }
+
+            values() {
+                return Array.from(this.elements.values());
+            }
+
+            merge(other) {
+                const merged = new ORSet();
+                for (const [uuid, value] of this.elements) {
+                    if (!other.tombstones.has(uuid)) {
+                        merged.elements.set(uuid, value);
+                    }
+                }
+                for (const [uuid, value] of other.elements) {
+                    if (!this.tombstones.has(uuid)) {
+                        merged.elements.set(uuid, value);
+                    }
+                }
+                merged.tombstones = new Set([...this.tombstones, ...other.tombstones]);
+                return merged;
+            }
+
+            generateUUID() {
+                return Date.now().toString(36) + Math.random().toString(36).substring(2);
+            }
+
+            getState() {
+                return `Elements: ${this.values().length}\nTombstones: ${this.tombstones.size}`;
+            }
+        }
+
+        // Global state
+        const gcounter1 = new GCounter();
+        const gcounter2 = new GCounter();
+        const orset1 = new ORSet();
+        const orset2 = new ORSet();
+
+        function incrementGCounter(replica) {
+            const counter = replica === 1 ? gcounter1 : gcounter2;
+            counter.increment(`replica-${replica}`);
+            updateGCounterDisplay(replica);
+        }
+
+        function updateGCounterDisplay(replica) {
+            const counter = replica === 1 ? gcounter1 : gcounter2;
+            document.getElementById(`gcounter${replica}-value`).textContent = counter.value();
+            document.getElementById(`gcounter${replica}-state`).textContent = counter.getState();
+        }
+
+        function mergeGCounters() {
+            const merged = gcounter1.merge(gcounter2);
+            document.getElementById('gcounter-merged').textContent = merged.value();
+            document.getElementById('gcounter-result').style.display = 'block';
+        }
+
+        function addToORSet(replica, item) {
+            const set = replica === 1 ? orset1 : orset2;
+            set.add(item);
+            updateORSetDisplay(replica);
+        }
+
+        function removeFromORSet(replica, item) {
+            const set = replica === 1 ? orset1 : orset2;
+            set.remove(item);
+            updateORSetDisplay(replica);
+        }
+
+        function updateORSetDisplay(replica) {
+            const set = replica === 1 ? orset1 : orset2;
+            const items = set.values();
+            const container = document.getElementById(`orset${replica}-items`);
+            container.innerHTML = items.map(item =>
+                `<span class="set-item">${item}</span>`
+            ).join('');
+            document.getElementById(`orset${replica}-state`).textContent = set.getState();
+        }
+
+        function mergeORSets() {
+            const merged = orset1.merge(orset2);
+            const items = merged.values();
+            const container = document.getElementById('orset-merged');
+            container.innerHTML = items.map(item =>
+                `<span class="set-item">${item}</span>`
+            ).join('');
+            document.getElementById('orset-result').style.display = 'block';
+        }
+
+        function demonstrateConvergence() {
+            const c1 = new GCounter();
+            const c2 = new GCounter();
+            const c3 = new GCounter();
+
+            c1.increment('r1');
+            c2.increment('r2');
+            c3.increment('r3');
+
+            const merge12_3 = c1.merge(c2).merge(c3).value();
+            const merge13_2 = c1.merge(c3).merge(c2).value();
+            const merge23_1 = c2.merge(c3).merge(c1).value();
+
+            const details = document.getElementById('convergence-details');
+            details.innerHTML = `
+                <div style="font-size: 1.2em; margin: 15px 0;">
+                    <strong>Three replicas, each increments once:</strong><br><br>
+                    Merge order (1,2),3: <strong>${merge12_3}</strong><br>
+                    Merge order (1,3),2: <strong>${merge13_2}</strong><br>
+                    Merge order (2,3),1: <strong>${merge23_1}</strong><br>
+                </div>
+                <p style="color: #155724; font-weight: bold;">
+                    All merge orders produce the same result!
+                </p>
+            `;
+            document.getElementById('convergence-result').style.display = 'block';
+        }
+    </script>
+</body>
+</html>

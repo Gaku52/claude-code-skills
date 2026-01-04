@@ -1,26 +1,49 @@
 {
   "name": "claude-code-skills",
-  "version": "1.0.0",
-  "description": "Comprehensive software development skills repository",
+  "version": "4.0.0",
+  "description": "MIT Master's Level Research Project: Mathematical proofs, distributed systems theory, and formal verification",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "demos/*"
+  ],
   "scripts": {
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint",
+    "docs": "pnpm -r docs",
+    "clean": "pnpm -r clean && rm -rf node_modules",
+    "dev": "pnpm -r --parallel dev",
     "track": "node scripts/track-progress.js",
     "track:watch": "nodemon scripts/track-progress.js"
   },
+  "keywords": [
+    "algorithms",
+    "distributed-systems",
+    "consensus",
+    "raft",
+    "paxos",
+    "crdt",
+    "formal-verification",
+    "tla-plus",
+    "statistics",
+    "research"
+  ],
+  "author": "Gaku",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/Gaku52/claude-code-skills.git"
   },
-  "keywords": [
-    "skills",
-    "development",
-    "react",
-    "nextjs",
-    "ios",
-    "backend"
-  ],
-  "author": "Gaku",
-  "license": "MIT",
   "devDependencies": {
-    "nodemon": "^3.0.2"
+    "@types/node": "^22.0.0",
+    "nodemon": "^3.0.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8",
+    "typedoc": "^0.27.5"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
   }
 }

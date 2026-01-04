@@ -10,6 +10,35 @@
 - **統合テスト**: APIテスト、データベーステスト、サービス連携テスト
 - **E2Eテスト**: Playwright/Cypress、ユーザーフローテスト、Visual Regression
 
+## 📚 公式ドキュメント・参考リソース
+
+**このガイドで学べること**: テストピラミッド、各テストレベルの実装方法、モッキング戦略、カバレッジ管理
+**公式で確認すべきこと**: 最新のテストツール機能、フレームワークアップデート、ベストプラクティス
+
+### 主要な公式ドキュメント
+
+- **[Jest Documentation](https://jestjs.io/)** - JavaScript/TypeScriptテストフレームワーク
+  - [Getting Started](https://jestjs.io/docs/getting-started)
+  - [API Reference](https://jestjs.io/docs/api)
+
+- **[Vitest Documentation](https://vitest.dev/)** - Viteベースの高速テストフレームワーク
+  - [Guide](https://vitest.dev/guide/)
+  - [Config](https://vitest.dev/config/)
+
+- **[Playwright Documentation](https://playwright.dev/)** - モダンなE2Eテストツール
+  - [Getting Started](https://playwright.dev/docs/intro)
+  - [Best Practices](https://playwright.dev/docs/best-practices)
+
+- **[XCTest Documentation](https://developer.apple.com/documentation/xctest)** - iOS/macOSテストフレームワーク
+
+### 関連リソース
+
+- **[Testing Library](https://testing-library.com/)** - ユーザー中心のテストライブラリ
+- **[Test Pyramid](https://martinfowler.com/articles/practical-test-pyramid.html)** - テスト戦略の基礎
+- **[Kent C. Dodds Testing Blog](https://kentcdodds.com/blog/write-tests)** - テストのベストプラクティス
+
+---
+
 ## 詳細ガイド
 
 ### Core Guides

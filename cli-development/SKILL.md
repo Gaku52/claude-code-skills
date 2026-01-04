@@ -34,6 +34,30 @@ description: CLIツール開発ガイド。Node.js（Commander、Inquirer）、P
 - **テスト** - ユニット、統合、E2E
 - **配布** - npm、PyPI、Homebrew、バイナリ
 
+## 📚 公式ドキュメント・参考リソース
+
+**このガイドで学べること**: CLIアーキテクチャ設計、フレームワーク選定、引数パース、インタラクティブUI、配布方法
+**公式で確認すべきこと**: 最新のCLIフレームワーク機能、パッケージマネージャーアップデート、配布プラットフォーム変更
+
+### 主要な公式ドキュメント
+
+- **[Commander.js Documentation](https://github.com/tj/commander.js)** - Node.js CLIフレームワーク
+  - [Quick Start](https://github.com/tj/commander.js#quick-start)
+
+- **[Click Documentation](https://click.palletsprojects.com/)** - Python CLIフレームワーク
+  - [Quickstart](https://click.palletsprojects.com/en/8.1.x/quickstart/)
+
+- **[Cobra Documentation](https://cobra.dev/)** - Go CLIフレームワーク
+  - [User Guide](https://github.com/spf13/cobra/blob/main/user_guide.md)
+
+- **[Inquirer.js](https://github.com/SBoudrias/Inquirer.js)** - インタラクティブCLI
+
+### 関連リソース
+
+- **[12 Factor CLI Apps](https://medium.com/@jdxcode/12-factor-cli-apps-dd3c227a0e46)** - CLIベストプラクティス
+- **[CLI Guidelines](https://clig.dev/)** - コマンドライン設計ガイド
+- **[Typer Documentation](https://typer.tiangolo.com/)** - モダンPython CLI
+
 ---
 
 ## いつ使うか

@@ -20,6 +20,34 @@ description: 新規iOSプロジェクト作成時の初期設定、フォルダ�
 
 iOS プロジェクトの初期設定に関する包括的なガイド。プロジェクト作成から本番リリースまでの全プロセスをカバーします。
 
+## 📚 公式ドキュメント・参考リソース
+
+**このガイドで学べること**: Xcodeプロジェクト設定、ビルド設定最適化、CI/CD統合、Fastlaneセットアップ
+**公式で確認すべきこと**: 最新のXcodeバージョン、iOSリリースノート、App Store審査ガイドライン
+
+### 主要な公式ドキュメント
+
+- **[Xcode Documentation](https://developer.apple.com/documentation/xcode)** - Apple公式開発環境
+  - [Build Settings Reference](https://developer.apple.com/documentation/xcode/build-settings-reference)
+  - [Configuring Your Xcode Project](https://developer.apple.com/documentation/xcode/configuring-your-xcode-project)
+
+- **[Swift Package Manager](https://www.swift.org/package-manager/)** - Swift公式パッケージマネージャー
+  - [Getting Started](https://www.swift.org/getting-started/)
+
+- **[Fastlane Documentation](https://docs.fastlane.tools/)** - iOSデプロイ自動化ツール
+  - [Getting Started](https://docs.fastlane.tools/getting-started/ios/setup/)
+  - [Actions](https://docs.fastlane.tools/actions/)
+
+- **[SwiftLint Documentation](https://realm.github.io/SwiftLint/)** - Swiftコード品質ツール
+
+### 関連リソース
+
+- **[CocoaPods Guides](https://guides.cocoapods.org/)** - 依存関係管理
+- **[iOS App Dev Tutorials](https://developer.apple.com/tutorials/app-dev-training)** - Apple公式チュートリアル
+- **[App Store Review Guidelines](https://developer.apple.com/app-store/review/guidelines/)** - 審査ガイドライン
+
+---
+
 ### カバー範囲
 
 - ✅ Xcodeプロジェクト作成・初期設定

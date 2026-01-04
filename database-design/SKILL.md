@@ -11,6 +11,38 @@
 - **マイグレーション**: Alembic/Flyway/Liquibase/Prisma/TypeORM、ゼロダウンタイムデプロイ
 - **スキーマ進化**: バージョニング、Blue-Greenデプロイ、災害復旧計画
 
+## 📚 公式ドキュメント・参考リソース
+
+**このガイドで学べること**: データベース設計の基礎理論、正規化技法、インデックス戦略、SQL最適化、ORMの実践的な使用方法
+**公式で確認すべきこと**: 最新のデータベース機能、パフォーマンスチューニング、セキュリティベストプラクティス、バージョン固有の機能
+
+### 主要な公式ドキュメント
+
+- **[PostgreSQL Documentation](https://www.postgresql.org/docs/)** - 世界で最も高度なオープンソースデータベース
+  - [Performance Tips](https://www.postgresql.org/docs/current/performance-tips.html)
+  - [Indexes](https://www.postgresql.org/docs/current/indexes.html)
+  - [Data Definition](https://www.postgresql.org/docs/current/ddl.html)
+
+- **[MySQL Documentation](https://dev.mysql.com/doc/)** - 最も人気のあるオープンソースデータベース
+  - [Optimization](https://dev.mysql.com/doc/refman/8.0/en/optimization.html)
+  - [Data Types](https://dev.mysql.com/doc/refman/8.0/en/data-types.html)
+
+- **[MongoDB Manual](https://www.mongodb.com/docs/manual/)** - NoSQLドキュメント指向データベース
+  - [Data Modeling](https://www.mongodb.com/docs/manual/core/data-modeling-introduction/)
+  - [Indexing](https://www.mongodb.com/docs/manual/indexes/)
+
+- **[Prisma Documentation](https://www.prisma.io/docs)** - 次世代TypeScript ORM
+  - [Schema Reference](https://www.prisma.io/docs/reference/api-reference/prisma-schema-reference)
+  - [Performance Best Practices](https://www.prisma.io/docs/guides/performance-and-optimization)
+
+### 関連リソース
+
+- **[Database Normalization (Wikipedia)](https://en.wikipedia.org/wiki/Database_normalization)** - 正規化理論の包括的な解説
+- **[Use The Index, Luke](https://use-the-index-luke.com/)** - SQLインデックスのパフォーマンス最適化ガイド
+- **[DB-Engines Ranking](https://db-engines.com/en/ranking)** - データベース管理システムの人気度ランキング
+
+---
+
 ## 詳細ガイド
 
 ### 1. [データベーススキーマ設計完全ガイド](./guides/schema-design-complete.md)

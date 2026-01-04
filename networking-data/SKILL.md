@@ -33,6 +33,33 @@ iOS開発におけるネットワーク通信とデータ永続化の実践的�
 - オフライン対応アプリの開発
 - セキュアなデータ保存
 
+## 📚 公式ドキュメント・参考リソース
+
+**このガイドで学べること**: URLSession活用、API通信パターン、データ永続化戦略、キャッシュ実装、オフライン対応
+**公式で確認すべきこと**: 最新のネットワークAPI、Core Dataアップデート、パフォーマンス最適化
+
+### 主要な公式ドキュメント
+
+- **[URLSession Documentation](https://developer.apple.com/documentation/foundation/urlsession)** - ネットワーク通信の基盤
+  - [URLSessionTask](https://developer.apple.com/documentation/foundation/urlsessiontask)
+  - [URLSessionConfiguration](https://developer.apple.com/documentation/foundation/urlsessionconfiguration)
+
+- **[Core Data Documentation](https://developer.apple.com/documentation/coredata)** - Apple公式データ永続化フレームワーク
+  - [NSPersistentContainer](https://developer.apple.com/documentation/coredata/nspersistentcontainer)
+  - [Core Data Best Practices](https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/CoreData/index.html)
+
+- **[Combine Framework](https://developer.apple.com/documentation/combine)** - 非同期処理とデータストリーム
+
+- **[Network Framework](https://developer.apple.com/documentation/network)** - 低レベルネットワーク操作
+
+### 関連リソース
+
+- **[Alamofire Documentation](https://github.com/Alamofire/Alamofire)** - 人気のSwiftネットワークライブラリ
+- **[Realm Documentation](https://www.mongodb.com/docs/realm/)** - モバイル向けデータベース
+- **[REST API Best Practices](https://restfulapi.net/)** - RESTful API設計ガイド
+
+---
+
 ## ネットワーク通信
 
 ### URLSession基礎

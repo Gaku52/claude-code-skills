@@ -34,6 +34,28 @@ description: インシデントから抽出された教訓・ベストプラク�
 - `incident-logger`: **生のインシデント記録**（時系列、個別事例）
 - `lessons-learned`: **抽出された教訓**（体系化、一般化、再利用可能）
 
+## 📚 公式ドキュメント・参考リソース
+
+**このガイドで学べること**: 教訓抽出プロセス、ナレッジベース構築、レトロスペクティブ実施、継続的改善
+**公式で確認すべきこと**: 知識管理ツールの最新機能、組織学習のベストプラクティス
+
+### 主要な公式ドキュメント
+
+- **[Retrospective Handbook](https://retromat.org/)** - レトロスペクティブ手法集
+  - [Activities](https://retromat.org/en/)
+
+- **[Agile Retrospectives](https://www.amazon.com/Agile-Retrospectives-Making-Teams-Great/dp/0977616649)** - アジャイルレトロスペクティブガイド
+
+- **[NASA Lessons Learned](https://llis.nasa.gov/)** - NASA教訓データベース（参考実装）
+
+- **[Toyota Kata](https://www-personal.umich.edu/~mrother/Homepage.html)** - トヨタの改善カタ
+
+### 関連リソース
+
+- **[The Fifth Discipline](https://www.amazon.com/Fifth-Discipline-Practice-Learning-Organization/dp/0385517254)** - 学習する組織
+- **[Continuous Improvement](https://en.wikipedia.org/wiki/Continual_improvement_process)** - 継続的改善プロセス
+- **[Knowledge Management](https://en.wikipedia.org/wiki/Knowledge_management)** - 知識管理
+
 ---
 
 ## いつ使うか

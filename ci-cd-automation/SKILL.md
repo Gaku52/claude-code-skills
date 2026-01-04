@@ -32,6 +32,32 @@ description: GitHub Actions、Fastlane、Bitriseを活用したCI/CDパイプラ
 - ✅ パイプライン最適化
 - ✅ シークレット管理
 
+## 📚 公式ドキュメント・参考リソース
+
+**このガイドで学べること**: CI/CDパイプライン設計、GitHub Actions設定、Fastlane活用、自動デプロイ
+**公式で確認すべきこと**: 最新のCI/CD機能、セキュリティアップデート、パフォーマンス最適化
+
+### 主要な公式ドキュメント
+
+- **[GitHub Actions Documentation](https://docs.github.com/en/actions)** - GitHub公式CI/CD
+  - [Workflow Syntax](https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions)
+  - [Actions Marketplace](https://github.com/marketplace?type=actions)
+
+- **[Fastlane Documentation](https://docs.fastlane.tools/)** - iOS/Android自動化ツール
+  - [Getting Started](https://docs.fastlane.tools/getting-started/ios/setup/)
+  - [Actions](https://docs.fastlane.tools/actions/)
+
+- **[GitLab CI/CD](https://docs.gitlab.com/ee/ci/)** - GitLab統合CI/CD
+  - [Configuration](https://docs.gitlab.com/ee/ci/yaml/)
+
+- **[CircleCI Documentation](https://circleci.com/docs/)** - CI/CDプラットフォーム
+
+### 関連リソース
+
+- **[Continuous Integration by Martin Fowler](https://martinfowler.com/articles/continuousIntegration.html)** - CI/CD理論
+- **[The DevOps Handbook](https://itrevolution.com/product/the-devops-handbook/)** - DevOpsプラクティス
+- **[Bitrise Documentation](https://devcenter.bitrise.io/)** - モバイルCI/CD
+
 ---
 
 ## いつ使うか

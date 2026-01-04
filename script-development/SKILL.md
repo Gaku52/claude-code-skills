@@ -29,6 +29,33 @@ description: スクリプト開発ガイド。Shell、Python、Node.jsスクリ�
 - **エラーハンドリング** - 適切なエラー処理
 - **ログ出力** - 実行ログ記録
 
+## 📚 公式ドキュメント・参考リソース
+
+**このガイドで学べること**: Shell/Python/Node.jsスクリプトの基本文法、自動化パターン、環境変数管理、エラーハンドリング
+**公式で確認すべきこと**: 最新の言語機能、セキュリティベストプラクティス、パッケージのアップデート
+
+### 主要な公式ドキュメント
+
+- **[Bash Reference Manual](https://www.gnu.org/software/bash/manual/)** - Bash公式リファレンス
+  - [Shell Builtin Commands](https://www.gnu.org/software/bash/manual/html_node/Shell-Builtin-Commands.html)
+  - [Shell Parameters](https://www.gnu.org/software/bash/manual/html_node/Shell-Parameters.html)
+
+- **[Python Documentation](https://docs.python.org/3/)** - Python公式ドキュメント
+  - [argparse](https://docs.python.org/3/library/argparse.html)
+  - [pathlib](https://docs.python.org/3/library/pathlib.html)
+
+- **[Node.js Documentation](https://nodejs.org/docs/)** - Node.js公式ドキュメント
+  - [fs module](https://nodejs.org/api/fs.html)
+  - [process module](https://nodejs.org/api/process.html)
+
+- **[Commander.js](https://github.com/tj/commander.js)** - Node.js CLIフレームワーク
+
+### 関連リソース
+
+- **[ShellCheck](https://www.shellcheck.net/)** - Shellスクリプトの静的解析ツール
+- **[Python Click](https://click.palletsprojects.com/)** - Pythonコマンドラインインターフェース
+- **[Google Shell Style Guide](https://google.github.io/styleguide/shellguide.html)** - Shellスクリプトスタイルガイド
+
 ---
 
 ## いつ使うか

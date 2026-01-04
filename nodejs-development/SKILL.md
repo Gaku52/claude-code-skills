@@ -10,6 +10,43 @@ Node.js開発の実践的なガイド集。Express、NestJS、非同期パター
 - **非同期パターン**: Promise、async/await、Event Emitter、Streams、Worker Threads、Cluster
 - **パフォーマンス最適化**: メモリ管理、データベース最適化、キャッシング、負荷テスト
 
+---
+
+## 📚 公式ドキュメント・参考リソース
+
+**このガイドで学べること**: フレームワークパターン、非同期処理設計、パフォーマンス最適化戦略
+**公式で確認すべきこと**: 最新API、Node.js 22の新機能、セキュリティアップデート、ベストプラクティス
+
+### 主要な公式ドキュメント
+
+- **[Node.js Documentation](https://nodejs.org/docs/latest/api/)** - Node.js公式ドキュメント
+  - [API Reference](https://nodejs.org/docs/latest/api/) - 全モジュールの完全リファレンス
+  - [Guides](https://nodejs.org/en/learn/getting-started/introduction-to-nodejs) - 学習ガイド
+  - [About Node.js](https://nodejs.org/en/about) - アーキテクチャ、イベントループ解説
+
+- **[Express.js](https://expressjs.com/)** - Express公式サイト
+  - [Getting Started](https://expressjs.com/en/starter/installing.html) - クイックスタート
+  - [API Reference](https://expressjs.com/en/4x/api.html) - 完全APIリファレンス
+  - [Advanced Topics](https://expressjs.com/en/advanced/best-practice-security.html) - セキュリティ、パフォーマンス
+
+- **[NestJS](https://docs.nestjs.com/)** - NestJS公式ドキュメント
+  - [Overview](https://docs.nestjs.com/first-steps) - 基本概念
+  - [Fundamentals](https://docs.nestjs.com/fundamentals/dependency-injection) - DI、モジュール設計
+  - [Techniques](https://docs.nestjs.com/techniques/database) - データベース、バリデーション
+
+- **[Fastify](https://fastify.dev/)** - Fastify公式ドキュメント
+  - 高速軽量フレームワーク
+  - スキーマベースバリデーション
+
+### 関連リソース
+
+- **[Node.js Best Practices](https://github.com/goldbergyoni/nodebestpractices)** - ベストプラクティス集
+- **[npm Documentation](https://docs.npmjs.com/)** - パッケージ管理
+- **[TypeScript Handbook](https://www.typescriptlang.org/docs/)** - TypeScript公式ガイド
+- **[MDN Web Docs](https://developer.mozilla.org/en-US/docs/Web/JavaScript)** - JavaScript完全リファレンス
+
+---
+
 ## 詳細ガイド
 
 ### 1. [Express & NestJS完全ガイド](./guides/framework/express-nestjs-complete.md)

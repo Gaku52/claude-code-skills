@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Statistics Playground - MIT Level Statistical Analysis</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px 20px;
+            text-align: center;
+            margin-bottom: 30px;
+            border-radius: 10px;
+        }
+
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .card {
+            background: white;
+            padding: 30px;
+            margin-bottom: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .card h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 1.8em;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        textarea, input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 5px;
+            font-size: 14px;
+            font-family: 'Courier New', monospace;
+            transition: border-color 0.3s;
+        }
+
+        textarea:focus, input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .result {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 5px;
+            margin-top: 20px;
+            border-left: 4px solid #667eea;
+        }
+
+        .result h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+
+        .result-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .result-item:last-child {
+            border-bottom: none;
+        }
+
+        .result-label {
+            font-weight: 600;
+            color: #555;
+        }
+
+        .result-value {
+            font-family: 'Courier New', monospace;
+            color: #333;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+
+        .badge-success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .badge-warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .badge-info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .note {
+            background: #e7f3ff;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 5px;
+        }
+
+        .note strong {
+            color: #1976D2;
+        }
+
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            color: #d63384;
+        }
+
+        footer {
+            text-align: center;
+            padding: 30px;
+            color: #666;
+            margin-top: 50px;
+        }
+
+        footer a {
+            color: #667eea;
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📊 Statistics Playground</h1>
+            <p>MIT Master's Level Statistical Analysis Tool</p>
+        </header>
+
+        <div class="card">
+            <h2>Paired T-Test Calculator</h2>
+            <p>Analyze before-after experiments with rigorous statistical testing.</p>
+
+            <div class="grid">
+                <div class="input-group">
+                    <label for="before">Before measurements (comma-separated):</label>
+                    <textarea id="before" placeholder="12.5, 13.2, 11.8, 14.1, 12.9, 13.5...">12.5, 13.2, 11.8, 14.1, 12.9, 13.5, 12.1, 14.3, 13.0, 12.7, 13.8, 12.3, 14.0, 12.8, 13.1, 12.6, 13.9, 12.4, 13.3, 12.9, 13.6, 12.2, 14.2, 13.4, 12.5, 13.7, 12.0, 14.4, 13.2, 12.8</textarea>
+                </div>
+
+                <div class="input-group">
+                    <label for="after">After measurements (comma-separated):</label>
+                    <textarea id="after" placeholder="4.8, 5.2, 4.5, 5.5, 4.9, 5.1...">4.8, 5.2, 4.5, 5.5, 4.9, 5.1, 4.7, 5.3, 4.8, 5.0, 5.4, 4.6, 5.2, 4.9, 5.1, 4.8, 5.3, 4.7, 5.0, 4.9, 5.2, 4.6, 5.4, 5.1, 4.8, 5.3, 4.5, 5.5, 5.0, 4.9</textarea>
+                </div>
+            </div>
+
+            <button onclick="calculateTTest()">Run Paired T-Test</button>
+
+            <div id="ttestResult" class="result" style="display: none;">
+                <h3>Statistical Results</h3>
+                <div id="ttestContent"></div>
+            </div>
+
+            <div class="note">
+                <strong>Note:</strong> This calculator implements the same statistical methods used in the
+                <code>@claude-code-skills/stats</code> package. Recommended: n ≥ 30 for robust results.
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Sample Statistics Calculator</h2>
+            <p>Calculate mean, standard deviation, and 95% confidence interval.</p>
+
+            <div class="input-group">
+                <label for="sample">Sample data (comma-separated):</label>
+                <textarea id="sample" placeholder="1, 2, 3, 4, 5, 6, 7, 8, 9, 10">12.5, 13.2, 11.8, 14.1, 12.9, 13.5, 12.1, 14.3, 13.0, 12.7</textarea>
+            </div>
+
+            <button onclick="calculateStats()">Calculate Statistics</button>
+
+            <div id="statsResult" class="result" style="display: none;">
+                <h3>Descriptive Statistics</h3>
+                <div id="statsContent"></div>
+            </div>
+        </div>
+
+        <footer>
+            <p>Part of <a href="https://github.com/Gaku52/claude-code-skills" target="_blank">claude-code-skills</a> - MIT Master's Level Research Project</p>
+            <p>© 2026 Gaku | MIT License</p>
+        </footer>
+    </div>
+
+    <script>
+        // Simple statistical functions (client-side implementation)
+
+        function mean(arr) {
+            return arr.reduce((a, b) => a + b, 0) / arr.length;
+        }
+
+        function standardDeviation(arr) {
+            const m = mean(arr);
+            const variance = arr.reduce((sum, x) => sum + Math.pow(x - m, 2), 0) / (arr.length - 1);
+            return Math.sqrt(variance);
+        }
+
+        function tInv(alpha, df) {
+            // Simplified t-distribution critical value
+            // For df > 30, approximate with normal distribution
+            if (df > 30) {
+                return normalInv(alpha);
+            }
+            const z = normalInv(alpha);
+            return z * (1 + (z * z + 1) / (4 * df));
+        }
+
+        function normalInv(p) {
+            // Beasley-Springer-Moro algorithm (simplified)
+            if (p < 0.5) {
+                const q = Math.sqrt(-2 * Math.log(p));
+                return -(2.506628 + q * 0.3193815) / (1 + q * (0.3193815 + q * 0.001308));
+            } else {
+                const q = Math.sqrt(-2 * Math.log(1 - p));
+                return (2.506628 + q * 0.3193815) / (1 + q * (0.3193815 + q * 0.001308));
+            }
+        }
+
+        function parseNumbers(text) {
+            return text.split(',').map(x => parseFloat(x.trim())).filter(x => !isNaN(x));
+        }
+
+        function interpretCohenD(d) {
+            const abs = Math.abs(d);
+            if (abs < 0.2) return 'negligible effect';
+            if (abs < 0.5) return 'small effect';
+            if (abs < 0.8) return 'medium effect';
+            if (abs < 1.2) return 'large effect';
+            return 'very large effect';
+        }
+
+        function calculateTTest() {
+            const before = parseNumbers(document.getElementById('before').value);
+            const after = parseNumbers(document.getElementById('after').value);
+
+            if (before.length !== after.length) {
+                alert('Before and after arrays must have the same length!');
+                return;
+            }
+
+            if (before.length < 2) {
+                alert('Need at least 2 measurements!');
+                return;
+            }
+
+            // Calculate differences
+            const diff = before.map((b, i) => b - after[i]);
+            const n = diff.length;
+            const meanDiff = mean(diff);
+            const sd = standardDeviation(diff);
+
+            // T-statistic
+            const t = meanDiff / (sd / Math.sqrt(n));
+            const df = n - 1;
+
+            // 95% confidence interval
+            const tCrit = tInv(0.025, df);
+            const margin = tCrit * (sd / Math.sqrt(n));
+            const ciLower = meanDiff - margin;
+            const ciUpper = meanDiff + margin;
+
+            // Cohen's d
+            const d = meanDiff / sd;
+
+            // Improvement percentage
+            const beforeMean = mean(before);
+            const afterMean = mean(after);
+            const improvement = ((beforeMean - afterMean) / beforeMean) * 100;
+
+            // Display results
+            const resultDiv = document.getElementById('ttestResult');
+            const contentDiv = document.getElementById('ttestContent');
+
+            let significance = '';
+            if (Math.abs(t) > 3.5) {
+                significance = '<span class="badge badge-success">p < 0.001 (Very significant)</span>';
+            } else if (Math.abs(t) > 2.0) {
+                significance = '<span class="badge badge-warning">p < 0.05 (Significant)</span>';
+            } else {
+                significance = '<span class="badge badge-info">Not significant</span>';
+            }
+
+            contentDiv.innerHTML = `
+                <div class="result-item">
+                    <span class="result-label">Sample size:</span>
+                    <span class="result-value">n = ${n}</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">Mean difference:</span>
+                    <span class="result-value">${meanDiff.toFixed(3)}</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">t-statistic:</span>
+                    <span class="result-value">t(${df}) = ${t.toFixed(3)}</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">Significance:</span>
+                    <span class="result-value">${significance}</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">95% Confidence Interval:</span>
+                    <span class="result-value">[${ciLower.toFixed(3)}, ${ciUpper.toFixed(3)}]</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">Cohen's d (effect size):</span>
+                    <span class="result-value">${d.toFixed(3)} (${interpretCohenD(d)})</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">Improvement:</span>
+                    <span class="result-value">${improvement > 0 ? '-' : '+'}${Math.abs(improvement).toFixed(1)}%</span>
+                </div>
+            `;
+
+            resultDiv.style.display = 'block';
+        }
+
+        function calculateStats() {
+            const sample = parseNumbers(document.getElementById('sample').value);
+
+            if (sample.length < 2) {
+                alert('Need at least 2 values!');
+                return;
+            }
+
+            const m = mean(sample);
+            const sd = standardDeviation(sample);
+            const n = sample.length;
+            const tCrit = tInv(0.025, n - 1);
+            const margin = tCrit * (sd / Math.sqrt(n));
+
+            const resultDiv = document.getElementById('statsResult');
+            const contentDiv = document.getElementById('statsContent');
+
+            contentDiv.innerHTML = `
+                <div class="result-item">
+                    <span class="result-label">Sample size:</span>
+                    <span class="result-value">n = ${n}</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">Mean:</span>
+                    <span class="result-value">${m.toFixed(3)}</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">Standard Deviation:</span>
+                    <span class="result-value">SD = ${sd.toFixed(3)}</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">95% Confidence Interval:</span>
+                    <span class="result-value">[${(m - margin).toFixed(3)}, ${(m + margin).toFixed(3)}]</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">Minimum:</span>
+                    <span class="result-value">${Math.min(...sample).toFixed(3)}</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">Maximum:</span>
+                    <span class="result-value">${Math.max(...sample).toFixed(3)}</span>
+                </div>
+            `;
+
+            resultDiv.style.display = 'block';
+        }
+    </script>
+</body>
+</html>
