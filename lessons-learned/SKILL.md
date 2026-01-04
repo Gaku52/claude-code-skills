@@ -42,7 +42,7 @@ description: インシデントから抽出された教訓・ベストプラク�
 ### 主要な公式ドキュメント
 
 - **[Retrospective Handbook](https://retromat.org/)** - レトロスペクティブ手法集
-  - [Activities](https://retromat.org/en/)
+  - [Activities](https://retromat.org/)
 
 - **[Agile Retrospectives](https://www.amazon.com/Agile-Retrospectives-Making-Teams-Great/dp/0977616649)** - アジャイルレトロスペクティブガイド
 

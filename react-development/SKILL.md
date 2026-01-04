@@ -75,7 +75,7 @@ description: React開発の詳細ガイド。Hooks、コンポーネント設計
 
 React開発の深い知識を習得するための詳細ガイドを用意しています。
 
-#### 🎯 [React Hooks 完全マスターガイド](guides/hooks/hooks-mastery.md)
+#### 🎯 [React Hooks 完全マスターガイド](./guides/hooks/hooks-mastery.md)
 
 **40,000文字超の完全ガイド | TypeScript完全対応**
 
@@ -98,7 +98,7 @@ Reactの最重要概念であるHooksを完全にマスターするための実�
 
 ---
 
-#### 🎯 [React × TypeScript パターン完全ガイド](guides/typescript/typescript-patterns.md)
+#### 🎯 [React × TypeScript パターン完全ガイド](./guides/typescript/typescript-patterns.md)
 
 **33,000文字超の完全ガイド | 型安全な開発の決定版**
 
@@ -123,7 +123,7 @@ TypeScriptを使った型安全なReact開発のための実践的パターン�
 
 ---
 
-#### 🎯 [React パフォーマンス最適化 完全ガイド](guides/performance/optimization-complete.md)
+#### 🎯 [React パフォーマンス最適化 完全ガイド](./guides/performance/optimization-complete.md)
 
 **20,000文字超の完全ガイド | 実測データに基づく最適化手法**
 
@@ -157,13 +157,13 @@ TypeScriptを使った型安全なReact開発のための実践的パターン�
 
 **初心者の方:**
 1. まず下記の「Hooks活用（概要）」で基本を理解
-2. [Hooks 完全マスターガイド](guides/hooks/hooks-mastery.md)で深く学習
-3. [TypeScript パターンガイド](guides/typescript/typescript-patterns.md)で型安全性を習得
+2. [Hooks 完全マスターガイド](./guides/hooks/hooks-mastery.md)で深く学習
+3. [TypeScript パターンガイド](./guides/typescript/typescript-patterns.md)で型安全性を習得
 
 **経験者の方:**
 1. 必要な詳細ガイドを直接参照
-2. パフォーマンス問題があれば[最適化ガイド](guides/performance/optimization-complete.md)
-3. 型の問題があれば[TypeScript パターンガイド](guides/typescript/typescript-patterns.md)
+2. パフォーマンス問題があれば[最適化ガイド](./guides/performance/optimization-complete.md)
+3. 型の問題があれば[TypeScript パターンガイド](./guides/typescript/typescript-patterns.md)
 
 ---
 
@@ -368,7 +368,7 @@ function App() {
 
 ## コンポーネント設計（概要）
 
-> 📖 **詳細は [TypeScript パターン完全ガイド](guides/typescript/typescript-patterns.md) を参照してください**
+> 📖 **詳細は [TypeScript パターン完全ガイド](./guides/typescript/typescript-patterns.md) を参照してください**
 
 ### 再利用可能なボタン
 
@@ -495,7 +495,7 @@ Tabs.Panel = TabPanel
 
 ## パフォーマンス最適化（概要）
 
-> 📖 **詳細は [パフォーマンス最適化完全ガイド](guides/performance/optimization-complete.md) を参照してください**
+> 📖 **詳細は [パフォーマンス最適化完全ガイド](./guides/performance/optimization-complete.md) を参照してください**
 
 ### React.memo - 不要な再レンダリング防止
 
