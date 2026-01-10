@@ -129,6 +129,11 @@ claude-code-skills/
   - 全24スキルに公式ドキュメントリンク付き
   - アルゴリズムの公式実装例へのリンク
 
+- **[SKILLS-MAP.md](SKILLS-MAP.md)** - 🗺️ **Skills Relationship Map**
+  - 26個の実践スキルの関連図
+  - フロントエンド/バックエンド/モバイル/DevOpsの全体像
+  - 5つの学習パス（React/Backend/iOS/フルスタック/DevOps）
+
 - **[NAVIGATION.md](NAVIGATION.md)** - 🧭 **Quick navigation guide**
   - 作者向けファイル直接アクセス
   - 8つのシナリオ別ガイド
