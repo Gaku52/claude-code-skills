@@ -47,6 +47,69 @@ Node.js開発の実践的なガイド集。Express、NestJS、非同期パター
 
 ---
 
+## 学習の進め方
+
+### 完全初心者向け：基礎から学ぶNode.js開発
+
+**対象者**：プログラミング初心者、Node.js開発が初めての方
+
+**学習時間**：約6〜8時間
+
+Node.js開発の基礎を体系的に学べる6つのガイドを用意しました。順番に学習することで、実践的なWebサーバーを構築できるようになります。
+
+#### 📚 基礎ガイド（全6章）
+
+1. **[Node.jsとは](./guides/basics/01-what-is-nodejs.md)** (30〜40分)
+   - Node.jsの基本概念
+   - インストール方法
+   - 初めてのプログラム実行
+   - REPLの使い方
+
+2. **[JavaScript基礎](./guides/basics/02-javascript-basics.md)** (1〜1.5時間)
+   - JavaScript の基本文法
+   - 変数、関数、配列、オブジェクト
+   - ES6+ のモダンな機能
+   - Node.js で使う重要な概念
+
+3. **[NPMとパッケージ管理](./guides/basics/03-npm-basics.md)** (40〜50分)
+   - NPMの基本概念
+   - package.jsonの管理
+   - パッケージのインストールと削除
+   - NPMスクリプトの使い方
+
+4. **[Express基礎](./guides/basics/04-express-intro.md)** (1〜1.5時間)
+   - Expressフレームワークの基礎
+   - ルーティングの基本
+   - ミドルウェアの概念
+   - リクエスト/レスポンスの処理
+
+5. **[非同期プログラミング](./guides/basics/05-async-programming.md)** (1〜1.5時間)
+   - 同期と非同期の違い
+   - コールバック、Promise
+   - async/await の使い方
+   - エラーハンドリング
+
+6. **[初めてのサーバー構築](./guides/basics/06-first-server-tutorial.md)** (2〜3時間)
+   - 総合演習：タスク管理API
+   - Express での API 構築
+   - データの永続化
+   - CRUD操作の実装
+
+#### 🎯 学習の進め方
+
+```
+Week 1: 01→02→03（環境構築・JavaScript基礎）
+Week 2: 04→05（Express・非同期処理）
+Week 3: 06（実践・統合）
+```
+
+**学習後に作れるもの**：
+- ✅ REST API サーバー
+- ✅ タスク管理システム
+- ✅ データ永続化機能付きアプリ
+
+---
+
 ## 詳細ガイド
 
 ### 1. [Express & NestJS完全ガイド](./guides/framework/express-nestjs-complete.md)

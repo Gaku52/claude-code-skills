@@ -71,6 +71,75 @@ description: iOS開発のベストプラクティス、設計パターン、実�
 
 ---
 
+## 学習の進め方
+
+### 完全初心者向け：基礎から学ぶiOS開発
+
+**対象者**：プログラミング初心者、iOS開発が初めての方
+
+**学習時間**：約7〜9時間
+
+iOS開発の基礎を体系的に学べる7つのガイドを用意しました。順番に学習することで、実践的なiOSアプリを構築できるようになります。
+
+#### 📚 基礎ガイド（全7章）
+
+1. **[iOS開発とは](./guides/basics/01-what-is-ios-development.md)** (30〜40分)
+   - iOS開発の基本概念
+   - iOSアプリの特徴
+   - 開発に必要なもの
+   - 技術スタック
+
+2. **[Swift基礎](./guides/basics/02-swift-basics.md)** (1〜1.5時間)
+   - Swift言語の基本文法
+   - 変数、定数、データ型
+   - 制御構文
+   - 関数とオプショナル
+
+3. **[Xcode入門](./guides/basics/03-xcode-intro.md)** (40〜50分)
+   - Xcodeの基本操作
+   - プロジェクトの作成方法
+   - シミュレータの使い方
+   - 便利なショートカット
+
+4. **[SwiftUI基礎](./guides/basics/04-swiftui-basics.md)** (1〜1.5時間)
+   - SwiftUIの基本概念
+   - 基本的なViewコンポーネント
+   - レイアウトの作成方法
+   - 修飾子(Modifier)
+
+5. **[レイアウトとUI](./guides/basics/05-view-layout.md)** (1〜1.5時間)
+   - 高度なレイアウト技術
+   - Spacer、Divider、ScrollView
+   - カスタムコンポーネント
+   - レスポンシブデザイン
+
+6. **[状態管理](./guides/basics/06-state-management.md)** (1〜1.5時間)
+   - @State による状態管理
+   - @Binding による親子間のデータ共有
+   - @StateObject / @ObservedObject
+   - フォーム入力
+
+7. **[初めてのアプリ作成](./guides/basics/07-first-app-tutorial.md)** (2〜3時間)
+   - 総合演習：メモアプリ
+   - MVVMアーキテクチャ
+   - データの永続化
+   - CRUD操作の実装
+
+#### 🎯 学習の進め方
+
+```
+Week 1: 01→02→03（環境構築・Swift基礎）
+Week 2: 04→05（SwiftUI・レイアウト）
+Week 3: 06→07（状態管理・実践）
+```
+
+**学習後に作れるもの**：
+- ✅ メモアプリ
+- ✅ TODOリスト
+- ✅ カウンターアプリ
+
+---
+
 ## いつ使うか
 
 ### 自動的に参照されるケース

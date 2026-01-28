@@ -8,13 +8,14 @@ description: React開発の詳細ガイド。Hooks、コンポーネント設計
 ## 📋 目次
 
 1. [概要](#概要)
-2. [いつ使うか](#いつ使うか)
-3. [詳細ガイド](#詳細ガイド) 🔥 **NEW**
-4. [Hooks活用（概要）](#hooks活用概要)
-5. [コンポーネント設計（概要）](#コンポーネント設計概要)
-6. [パフォーマンス最適化（概要）](#パフォーマンス最適化概要)
-7. [アンチパターン](#アンチパターン)
-8. [Agent連携](#agent連携)
+2. [学習の進め方](#学習の進め方) 🆕 **NEW**
+3. [いつ使うか](#いつ使うか)
+4. [詳細ガイド](#詳細ガイド) 🔥 **NEW**
+5. [Hooks活用（概要）](#hooks活用概要)
+6. [コンポーネント設計（概要）](#コンポーネント設計概要)
+7. [パフォーマンス最適化（概要）](#パフォーマンス最適化概要)
+8. [アンチパターン](#アンチパターン)
+9. [Agent連携](#agent連携)
 
 ---
 
@@ -28,6 +29,71 @@ description: React開発の詳細ガイド。Hooks、コンポーネント設計
 - **状態管理** - Context API, 外部ライブラリ
 - **フォーム処理** - react-hook-form
 - **テスト** - React Testing Library
+
+---
+
+## 学習の進め方
+
+### 🆕 完全初心者の方
+
+**Reactを初めて学ぶ方、プログラミング初心者の方は、まず基礎ガイドから始めてください。**
+
+#### [📘 React基礎ガイド（7本のガイド）](./guides/basics/)
+
+1. **[Reactとは何か](./guides/basics/01-what-is-react.md)**
+   - Reactの基本概念と哲学
+   - なぜReactが広く使われているのか
+   - VanillaJavaScriptとの違い
+
+2. **[開発環境のセットアップ](./guides/basics/02-setup-environment.md)**
+   - Node.js、Viteのインストール
+   - 最初のReactプロジェクトを作成
+   - 開発サーバーの起動と動作確認
+
+3. **[JSX基礎](./guides/basics/03-jsx-fundamentals.md)**
+   - JSXの基本構文
+   - JavaScriptの埋め込み
+   - 条件分岐とリストのレンダリング
+
+4. **[コンポーネント入門](./guides/basics/04-components-intro.md)**
+   - コンポーネントの概念と作り方
+   - コンポーネントの分割と再利用
+   - インポート/エクスポート
+
+5. **[Props基礎](./guides/basics/05-props-basics.md)**
+   - Propsの基本概念
+   - TypeScriptでの型定義
+   - デフォルト値とchildrenプロップ
+
+6. **[State基礎](./guides/basics/06-state-basics.md)**
+   - 状態管理の基礎
+   - useStateフック
+   - 動的なUIの作成
+
+7. **[イベント処理とリスト表示](./guides/basics/07-events-lists.md)**
+   - イベントハンドリング
+   - フォームの扱い方
+   - リストの効率的なレンダリング
+
+**学習時間の目安：** 各ガイド1〜2時間、合計7〜14時間
+
+---
+
+### 🎯 初心者〜中級者の方
+
+基礎を理解している方は、以下の順番で学習を進めてください。
+
+1. **まず[Hooks 完全マスターガイド](./guides/hooks-mastery.md)で深く学習**
+   - useState、useEffect、カスタムフックの実践的な使い方
+   - 実際の失敗事例とその解決策
+
+2. **[TypeScript パターンガイド](./guides/typescript-patterns.md)で型安全性を習得**
+   - Reactコンポーネントの型定義パターン
+   - ジェネリクス、ユーティリティ型の活用
+
+3. **[パフォーマンス最適化ガイド](./guides/optimization-complete.md)でプロダクション品質へ**
+   - React.memo、useMemo、useCallbackの使い分け
+   - 大規模アプリのパフォーマンスチューニング
 
 ---
 
