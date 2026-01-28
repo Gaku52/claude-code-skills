@@ -3,8 +3,8 @@
 <!-- PROGRESS_BADGES_START -->
 ![Progress](https://img.shields.io/badge/Progress-100%25-green)
 ![Skills](https://img.shields.io/badge/Skills-25%2F25-blue)
-![Characters](https://img.shields.io/badge/Characters-3485K-informational)
-![Guides](https://img.shields.io/badge/Guides-86-success)
+![Characters](https://img.shields.io/badge/Characters-3780K-informational)
+![Guides](https://img.shields.io/badge/Guides-87-success)
 <!-- PROGRESS_BADGES_END -->
 
 [![MIT Master's Level](https://img.shields.io/badge/MIT%20Level-90%2F100-success)](https://github.com/Gaku52/claude-code-skills)
