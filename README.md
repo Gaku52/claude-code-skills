@@ -1,4 +1,11 @@
-# Claude Code Skills - Full-Stack Development Framework
+# Claude Code Skills
+
+<!-- PROGRESS_BADGES_START -->
+![Progress](https://img.shields.io/badge/Progress-0%25-yellow)
+![Skills](https://img.shields.io/badge/Skills-0%2F25-blue)
+![Characters](https://img.shields.io/badge/Characters-0K-informational)
+![Guides](https://img.shields.io/badge/Guides-0-success)
+<!-- PROGRESS_BADGES_END -->
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![GitHub Stars](https://img.shields.io/github/stars/Gaku52/claude-code-skills?style=social)](https://github.com/Gaku52/claude-code-skills/stargazers)
