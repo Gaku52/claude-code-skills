@@ -1,5 +1,11 @@
 # Claude Code Skills
 
+<!-- PROGRESS_BADGES_START -->
+![Skills](https://img.shields.io/badge/Skills-36-blue)
+![Guides](https://img.shields.io/badge/Guides-901-success)
+![Characters](https://img.shields.io/badge/Characters-8290K-informational)
+<!-- PROGRESS_BADGES_END -->
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ソフトウェア開発の全領域をカバーする体系的な知識ベース。
