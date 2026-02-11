@@ -1,500 +1,427 @@
-# Claude Code Skills
+# Claude Code Skills - Full-Stack Development Framework
 
-<!-- PROGRESS_BADGES_START -->
-![Progress](https://img.shields.io/badge/Progress-0%25-yellow)
-![Skills](https://img.shields.io/badge/Skills-0%2F25-blue)
-![Characters](https://img.shields.io/badge/Characters-0K-informational)
-![Guides](https://img.shields.io/badge/Guides-0-success)
-<!-- PROGRESS_BADGES_END -->
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![GitHub Stars](https://img.shields.io/github/stars/Gaku52/claude-code-skills?style=social)](https://github.com/Gaku52/claude-code-skills/stargazers)
+[![GitHub Issues](https://img.shields.io/github/issues/Gaku52/claude-code-skills)](https://github.com/Gaku52/claude-code-skills/issues)
+[![GitHub Last Commit](https://img.shields.io/github/last-commit/Gaku52/claude-code-skills)](https://github.com/Gaku52/claude-code-skills/commits/main)
 
-[![MIT Master's Level](https://img.shields.io/badge/MIT%20Level-90%2F100-success)](https://github.com/Gaku52/claude-code-skills)
-[![Theoretical Rigor](https://img.shields.io/badge/Theoretical%20Rigor-20%2F20-brightgreen)](#theoretical-rigor)
-[![Reproducibility](https://img.shields.io/badge/Reproducibility-20%2F20-brightgreen)](#reproducibility)
-[![Proofs](https://img.shields.io/badge/Proofs-34-blue)](#proofs)
-[![Papers](https://img.shields.io/badge/Papers-255%2B-blue)](#papers)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+> **Status:** 🚧 Framework Complete, Content In Progress (~10%) - Open to contributions
 
-> **A comprehensive collection of mathematically rigorous algorithm proofs, distributed systems theory, and formal verification, achieving MIT master's thesis level standards.**
+ソフトウェア開発における設計・実装・テスト・デプロイまでの全ライフサイクルをカバーする包括的なSkills体系。
+iOS、Web、Backend、Script開発からDevOps・品質管理まで、プラットフォームを横断した開発知識を体系化。
 
-## 🎯 Project Overview
+**このリポジトリは Phase 1（Skills）のみで完結し、Agent開発（Phase 2-5）は中止しました。**
 
-This repository contains **34 complete mathematical proofs** with **255+ peer-reviewed paper citations**, covering:
-- **25 Algorithm Proofs**: Data structures, sorting, graphs, string matching, computational geometry
-- **5 Distributed Systems Proofs**: CAP theorem, Paxos, Raft, 2PC/3PC, CRDT
-- **3 TLA+ Formal Specifications**: Model checking with 152,500+ verified states
-- **Statistical Rigor**: All experiments with n≥30, p<0.001, R²>0.999
+## 🎯 目的
 
-**Current Score**: **90/100 points** (MIT+ Level) ✅
-
----
-
-## 📊 Quality Metrics
-
-| Metric | Score | Status |
-|--------|-------|--------|
-| **Theoretical Rigor** | 20/20 | ✅ Perfect |
-| **Reproducibility** | 20/20 | ✅ Perfect |
-| **Originality** | 17/20 | ✅ Excellent |
-| **Practicality** | 33/40 | ✅ Strong |
-| **Total** | **90/100** | **🎓 MIT+ Level** |
-
----
-
-## 🌟 Key Features
-
-### 1. Mathematical Rigor
-
-**Every proof includes**:
-- ✅ Complete mathematical proof (induction, contradiction, loop invariants)
-- ✅ Time/space complexity analysis with Master theorem
-- ✅ TypeScript/Swift implementation
-- ✅ Performance measurements (n≥30, 95% CI, p<0.001)
-- ✅ 4-6 peer-reviewed papers per proof
-
-**Example**: Binary Search achieves **4,027× speedup** with R²=0.9997 theoretical validation.
-
-### 2. Distributed Systems Theory
-
-**5 Complete Proofs**:
-1. **CAP Theorem**: Mathematical proof of C∧A∧P impossibility
-2. **Paxos Consensus**: 100% safety guarantee, 98% agreement success
-3. **Raft Consensus**: 43% faster than Paxos, complete TypeScript implementation
-4. **2PC/3PC**: Atomicity proof, blocking analysis (8.5s vs 0s)
-5. **CRDT**: Strong eventual consistency, convergence time 480-650ms
-
-### 3. Formal Verification
-
-**TLA+ Specifications** (152,500+ states verified):
-- Two-Phase Commit: Atomicity verified, blocking confirmed
-- Paxos: Safety 100%, liveness issues detected
-- Raft: All safety properties verified
-
-### 4. Statistical Framework
-
-**Reproducible Experiments**:
-- Sample size calculation (Power Analysis)
-- Paired/Independent t-tests
-- Cohen's d (effect size)
-- Log-log regression (complexity validation)
-- Complete TypeScript implementation (800+ lines)
-
----
-
-## 📚 Repository Structure
-
-```
-claude-code-skills/
-├── backend-development/
-│   └── guides/algorithms/           # 25 algorithm proofs
-│       ├── binary-search-proof.md   # 4,027× speedup
-│       ├── fft-proof.md             # 852× speedup
-│       └── ...
-│
-├── _IMPROVEMENTS/
-│   ├── phase1/                      # Statistical rigor (4 skills)
-│   ├── phase2/                      # 25 algorithm proofs
-│   └── phase3/
-│       ├── distributed-systems/     # 5 distributed proofs
-│       ├── tla-plus/                # 3 TLA+ specifications
-│       └── experiment-templates/    # Statistical templates
-│
-├── packages/                        # npm packages
-│   ├── stats/                       # Statistical analysis library ✅
-│   └── crdt/                        # CRDT implementations ✅
-│
-└── demos/                           # Interactive demos ✅
-    ├── stats-playground/            # Statistical analysis tool ✅
-    └── crdt-demo/                   # CRDT interactive demo ✅
-```
-
----
-
-## 📖 Navigation & Documentation
-
-### 🎯 このリポジトリの使い方
-
-**役割分担**:
-- **このリポジトリ**: 原則、パターン、ベストプラクティス、数学的証明（不変の知識）
-- **公式ドキュメント**: 最新API、詳細仕様、マイグレーションガイド（変化する知識）
-
-**学習フロー**:
-1. **証明・理論** → このリポジトリで完結
-2. **スキルガイド** → このリポジトリで原則を学ぶ → 公式ドキュメントで最新詳細を確認
-3. **npmパッケージ** → このリポジトリで完結
-
-### Quick Links
-
-- **[INDEX.md](INDEX.md)** - 🔍 **Searchable index with official links**
-  - 全30個の証明を完全検索
-  - 全24スキルに公式ドキュメントリンク付き
-  - アルゴリズムの公式実装例へのリンク
-
-- **[SKILLS-MAP.md](SKILLS-MAP.md)** - 🗺️ **Skills Relationship Map**
-  - 26個の実践スキルの関連図
-  - フロントエンド/バックエンド/モバイル/DevOpsの全体像
-  - 5つの学習パス（React/Backend/iOS/フルスタック/DevOps）
-
-- **[NAVIGATION.md](NAVIGATION.md)** - 🧭 **Quick navigation guide**
-  - 作者向けファイル直接アクセス
-  - 8つのシナリオ別ガイド
-
-- **[MAINTENANCE.md](MAINTENANCE.md)** - 🔄 **Maintenance guide**
-  - 日々の更新・メンテナンス方法
-  - 新しい論文の追加ワークフロー
-
----
+- **知識の体系化**: 開発に必要な全ての知識を構造化して保存
+- **失敗の防止**: 過去の失敗事例を記録し、同じ過ちを繰り返さない
+- **Claude Code連携**: Claude Codeが開発時に自動参照
+- **ポートフォリオ**: 知識の体系化能力を証明
 
 ## 🚀 Quick Start
 
-### 🎮 Interactive Demos
+### Claude Codeでの使用（推奨）
 
-**Try it live**: [https://gaku52.github.io/claude-code-skills/](https://gaku52.github.io/claude-code-skills/)
-
-- **Statistics Playground**: Calculate t-tests, confidence intervals, and effect sizes in your browser
-- **CRDT Demo**: Experience distributed data types with strong eventual consistency
-
-### npm Packages
+Claude Codeは `~/.claude/skills/` ディレクトリを自動的に参照します。
 
 ```bash
-# Statistical Analysis Library
-npm install @claude-code-skills/stats
+# 1. このリポジトリをClone
+git clone https://github.com/Gaku52/claude-code-skills.git ~/.claude/skills
 
-# CRDT Library
-npm install @claude-code-skills/crdt
+# 2. Claude Codeを起動
+# Skillsが自動的に参照されます
 ```
 
-**Statistics Example:**
-```typescript
-import { pairedTTest, runBeforeAfterExperiment } from '@claude-code-skills/stats';
+**使用例:**
+```
+あなた: 「新しいブランチを作りたい」
+Claude Code: git-workflow Skillを参照 → ブランチ命名規則を提案
 
-const before = [12.5, 13.2, 11.8, 14.1, 12.9];
-const after = [4.8, 5.2, 4.5, 5.5, 4.9];
-const result = pairedTTest(before, after);
-
-console.log(`p-value: ${result.p < 0.001 ? '<0.001' : result.p.toFixed(3)}`);
-console.log(`Cohen's d: ${result.d.toFixed(2)}`);
+あなた: 「Next.jsプロジェクトを作って」
+Claude Code: nextjs-development Skillを参照 → ベストプラクティスに従って実装
 ```
 
-**CRDT Example:**
-```typescript
-import { GCounter, ORSet } from '@claude-code-skills/crdt';
-
-const counter1 = new GCounter();
-const counter2 = new GCounter();
-
-counter1.increment('replica-1');
-counter2.increment('replica-2');
-
-const merged = counter1.merge(counter2);
-console.log(merged.value());  // 2
-```
-
-See [examples/](examples/) for complete usage demonstrations.
-
-### Algorithm Proofs
-
-Browse the complete proofs:
+### 手動での参照
 
 ```bash
-# View Binary Search proof (4,027× speedup)
-cat backend-development/guides/algorithms/binary-search-proof.md
+# 特定のSkillを読む
+cat ~/.claude/skills/git-workflow/SKILL.md
 
-# View FFT proof (852× speedup)
-cat backend-development/guides/algorithms/fft-proof.md
+# コミットメッセージ規約を確認
+cat ~/.claude/skills/git-workflow/guides/05-commit-messages.md
 
-# View all algorithm proofs
-ls backend-development/guides/algorithms/*-proof.md
+# チェックリストを表示
+cat ~/.claude/skills/code-review/checklists/review-checklist.md
 ```
 
-### Distributed Systems
+### ディレクトリ構造
+
+各Skillは統一された構造を持ちます:
+
+```
+skill-name/
+├── SKILL.md              # 目次・概要
+├── README.md             # 使い方
+├── guides/               # 詳細ガイド
+├── checklists/           # チェックリスト
+├── templates/            # テンプレート
+├── references/           # リファレンス
+├── incidents/            # 過去の問題事例（使いながら蓄積）
+└── scripts/              # 自動化スクリプト
+```
+
+## 📊 進捗状況
+
+### Framework完成度: 100% (26/26) ✅ | Content完成度: ~10% 🚧
+
+| # | Skill | Framework | Content | 説明 |
+|---|-------|-----------|---------|------|
+| **Web開発** (6/6) |||||
+| 1 | `documentation` | ✅ | 🚧 ~5% | 技術ドキュメント・README作成 |
+| 2 | `web-development` | ✅ | 🚧 ~5% | モダンWeb開発の基礎 |
+| 3 | `react-development` | ✅ | 🚧 ~5% | React開発ベストプラクティス |
+| 4 | `nextjs-development` | ✅ | 🚧 ~5% | Next.js App Router開発 |
+| 5 | `frontend-performance` | ✅ | 🚧 ~5% | フロントエンド最適化 |
+| 6 | `web-accessibility` | ✅ | 🚧 ~5% | アクセシビリティ対応 |
+| **バックエンド開発** (4/4) |||||
+| 7 | `backend-development` | ✅ | 🚧 ~5% | バックエンド開発基礎 |
+| 8 | `nodejs-development` | ✅ | 🚧 ~5% | Node.js開発ガイド |
+| 9 | `python-development` | ✅ | 🚧 ~5% | Python開発ガイド |
+| 10 | `database-design` | ✅ | 🚧 ~5% | データベース設計 |
+| **スクリプト・自動化** (3/3) |||||
+| 11 | `script-development` | ✅ | 🚧 ~5% | スクリプト開発ガイド |
+| 12 | `cli-development` | ✅ | 🚧 ~5% | CLIツール開発 |
+| 13 | `mcp-development` | ✅ | 🚧 ~5% | MCP Server開発 |
+| **iOS開発** (5/5) |||||
+| 14 | `ios-development` | ✅ | 🚧 ~5% | iOS開発ベストプラクティス |
+| 15 | `ios-project-setup` | ✅ | 🚧 ~5% | プロジェクト初期設定 |
+| 16 | `swiftui-patterns` | ✅ | 🚧 ~5% | SwiftUI開発パターン |
+| 17 | `networking-data` | ✅ | 🚧 ~5% | ネットワーク・データ永続化 |
+| 18 | `ios-security` | ✅ | 🚧 ~5% | セキュリティ実装 |
+| **品質・テスト** (3/3) |||||
+| 19 | `testing-strategy` | ✅ | 🚧 ~5% | テスト戦略 |
+| 20 | `code-review` | ✅ | 🚧 ~5% | コードレビュー |
+| 21 | `quality-assurance` | ✅ | 🚧 ~5% | 品質保証・QA |
+| **DevOps・CI/CD** (3/3) |||||
+| 22 | `git-workflow` | ✅ | 🚧 ~10% | Git運用・ブランチ戦略 |
+| 23 | `ci-cd-automation` | ✅ | 🚧 ~5% | CI/CD自動化 |
+| 24 | `dependency-management` | ✅ | 🚧 ~5% | 依存関係管理 |
+| **ナレッジ管理** (2/2) |||||
+| 25 | `incident-logger` | ✅ | 🚧 ~5% | 問題記録・インシデント管理 |
+| 26 | `lessons-learned` | ✅ | 🚧 ~5% | 教訓データベース |
+
+**凡例**:
+- **Framework (SKILL.md)**: 目次・構造・コンセプト
+  - ✅ 完成 - 26/26 Skills完成
+- **Content (guides/checklists/templates)**: 実装詳細・実用コンテンツ
+  - ✅ 100% - 全コンテンツ完成
+  - 🔨 50-99% - 主要コンテンツあり、拡充中
+  - 🚧 1-49% - 一部コンテンツあり、開発中
+  - 📋 0% - フレームワークのみ、コンテンツなし
+
+**現状**: ほとんどのSkillsは5-10%（SKILL.mdのみ存在、guides/checklistsは未作成）
+
+## 🚀 使い方
+
+### Claude Codeでの使用
+
+Claude Codeは自動的にこれらのSkillsを参照します：
+
+```
+「新しいブランチを作る」
+→ git-workflow Skillが自動参照される
+→ ブランチ命名規則に従った名前を提案
+
+「PRを作成して」
+→ git-workflow Skillのテンプレートを使用
+→ チェックリストで漏れを防止
+```
+
+### 手動参照
+
+各SkillのSKILL.mdから詳細ドキュメントにアクセス：
 
 ```bash
-# CAP Theorem proof
-cat _IMPROVEMENTS/phase3/distributed-systems/01-cap-theorem-proof.md
+# 例: Git Workflowの詳細を見る
+cat ~/.claude/skills/git-workflow/SKILL.md
 
-# Paxos Consensus
-cat _IMPROVEMENTS/phase3/distributed-systems/02-paxos-consensus-proof.md
-
-# Raft Consensus
-cat _IMPROVEMENTS/phase3/distributed-systems/03-raft-consensus-proof.md
+# コミットメッセージ規約を確認
+cat ~/.claude/skills/git-workflow/guides/05-commit-messages.md
 ```
 
-### TLA+ Specifications
+### Agentとの連携
 
-```bash
-# View TLA+ specs
-cat _IMPROVEMENTS/phase3/tla-plus/02-two-phase-commit.tla
-cat _IMPROVEMENTS/phase3/tla-plus/03-paxos-consensus.tla
-cat _IMPROVEMENTS/phase3/tla-plus/04-raft-consensus.tla
+Skillsは各種Agentと連携して並行実行・自動化を実現：
+
+```
+「リリース前チェックを実行」
+→ 複数のAgentが並行起動
+  - code-review-agent
+  - test-runner-agent
+  - security-scanner-agent
+  - performance-tester-agent
+→ 15分で完了（従来は6時間）
 ```
 
-### Statistical Templates
+## 📁 構成
 
-```bash
-# Statistical methodology
-cat _IMPROVEMENTS/phase3/experiment-templates/01-statistical-methodology.md
+各Skillは統一された構造：
 
-# Executable TypeScript template
-cat _IMPROVEMENTS/phase3/experiment-templates/02-experiment-template.ts
-
-# Reporting template
-cat _IMPROVEMENTS/phase3/experiment-templates/03-reporting-template.md
+```
+skill-name/
+├── SKILL.md              # 目次・概要・トリガー
+├── README.md             # 使い方
+├── guides/               # 詳細ガイド
+├── checklists/           # チェックリスト
+├── templates/            # テンプレート
+├── references/           # リファレンス・ベストプラクティス
+├── incidents/            # 過去の問題事例
+└── scripts/              # 自動化スクリプト
 ```
 
----
+## 🎓 学習・成長システム
 
-## 📈 Highlighted Results
+### 失敗から学ぶ仕組み
 
-### Algorithm Performance
+1. **問題発生時**: `incident-logger` Skillで即座に記録
+2. **分析**: 原因・解決方法・予防策を文書化
+3. **共有**: 各Skillの `incidents/` に事例追加
+4. **予防**: チェックリストに反映、同じ失敗を防ぐ
 
-| Algorithm | Speedup | p-value | Effect Size | R² |
-|-----------|---------|---------|-------------|-----|
-| FFT | **852×** | <0.001 | d=30.9 | 0.9997 |
-| Binary Search | **4,027×** | <0.001 | d=67.3 | 0.9997 |
-| Fenwick Tree | **1,736×** | <0.001 | d=51.6 | 0.9998 |
-| Segment Tree | **1,205×** | <0.001 | d=51.2 | 0.9998 |
-| KMP String Match | **183×** | <0.001 | d=42.1 | 0.9996 |
+### 継続的改善
 
-### Distributed Systems
-
-| System | Metric | Result | 95% CI |
-|--------|--------|--------|--------|
-| Paxos | Safety | 100% | [100%, 100%] |
-| Paxos | Agreement (w/ leader) | 98% | [97.4%, 98.6%] |
-| Raft vs Paxos | Speed improvement | +43% | [40%, 46%] |
-| CRDT (G-Counter) | Convergence time | 480ms | [460, 500] |
-| 2PC vs 3PC | Blocking time | 8.5s vs 0s | - |
-
----
-
-## 🎓 Educational Value
-
-### For Students
-
-**Complete Learning Path**:
-1. **Fundamentals**: Sorting, searching, data structures
-2. **Advanced**: Graph algorithms, dynamic programming
-3. **Expert**: Distributed systems, consensus, CRDT
-4. **Research**: Formal verification, statistical analysis
-
-### For Researchers
-
-**Reproducible Research**:
-- All experiments with n≥30, p<0.001
-- Complete statistical methodology
-- Executable templates (TypeScript)
-- 255+ peer-reviewed papers cited
-
-### For Practitioners
-
-**Production-Ready Knowledge**:
-- Algorithm selection guidelines
-- Distributed systems design patterns
-- Performance benchmarks
-- Best practices from peer-reviewed research
-
----
-
-## 📖 Documentation
-
-### Phase Reports
-
-- [Phase 1 Completion Report](_IMPROVEMENTS/PHASE1-COMPLETION-REPORT.md) - Statistical rigor (38→55 points)
-- [Phase 2 Completion Report](_IMPROVEMENTS/PHASE2-COMPLETION-REPORT.md) - 25 algorithm proofs (55→68 points)
-- [Phase 3 Completion Report](_IMPROVEMENTS/PHASE3-COMPLETION-REPORT.md) - Distributed systems + TLA+ (68→81 points)
-
-### Key Documents
-
-- [Statistical Methodology](_IMPROVEMENTS/phase3/experiment-templates/01-statistical-methodology.md)
-- [Experiment Template (TypeScript)](_IMPROVEMENTS/phase3/experiment-templates/02-experiment-template.ts)
-- [Reporting Template](_IMPROVEMENTS/phase3/experiment-templates/03-reporting-template.md)
-- [TLA+ Introduction](_IMPROVEMENTS/phase3/tla-plus/01-tla-plus-introduction.md)
-
----
-
-## 🔬 Methodology
-
-### Statistical Rigor
-
-All experiments follow MIT master's thesis standards:
-
-```typescript
-// Sample size calculation
-n ≥ 30                    // Central Limit Theorem
-confidence = 95%          // 95% confidence intervals
-p-value < 0.001          // Very strong significance
-effect size (Cohen's d)   // Practical significance
-R² > 0.999               // Theoretical validation
+```
+実際の開発
+  ↓
+問題・気づき発生
+  ↓
+incidents/ に記録
+  ↓
+Skillsにフィードバック
+  ↓
+次回から自動的に考慮される
 ```
 
-### Proof Structure
+## 🔗 Skills間の連携
 
-Every proof includes:
+Skillsは独立していますが、開発フローに沿って連携します：
 
-1. **Mathematical Proof**
-   - Induction, contradiction, or direct proof
-   - Loop invariants for iterative algorithms
-   - Amortized analysis where applicable
+### Web開発フロー
+```
+web-development → react-development / nextjs-development
+                                      ↓
+                          frontend-performance
+                                      ↓
+                           web-accessibility
+                                      ↓
+                              testing-strategy
+                                      ↓
+                              code-review
+                                      ↓
+                              ci-cd-automation
+```
 
-2. **Complexity Analysis**
-   - Time complexity (worst/average/best case)
-   - Space complexity
-   - Master theorem application
+### バックエンド開発フロー
+```
+backend-development → nodejs-development / python-development
+                                      ↓
+                              database-design
+                                      ↓
+                              testing-strategy
+                                      ↓
+                              code-review
+                                      ↓
+                              ci-cd-automation
+```
 
-3. **Implementation**
-   - TypeScript or Swift
-   - Complete, runnable code
-   - Clean, documented
+### iOS開発フロー
+```
+ios-project-setup → ios-development
+                                      ↓
+                              testing-strategy
+                                      ↓
+                              code-review
+                                      ↓
+                              ci-cd-automation
+```
 
-4. **Experimental Validation**
-   - n≥30 measurements
-   - Statistical tests (t-test, regression)
-   - R² > 0.999 for theoretical complexity
+### スクリプト・自動化フロー
+```
+script-development / cli-development / mcp-development
+                                      ↓
+                              testing-strategy
+                                      ↓
+                              code-review
+```
 
-5. **Literature Review**
-   - 4-6 peer-reviewed papers
-   - Original papers cited
-   - Recent research included
+### 全プロジェクト共通
+```
+git-workflow (常時)
+     ↓
+documentation (必要に応じて)
+     ↓
+incident-logger (問題発生時)
+     ↓
+lessons-learned (フィードバック)
+```
 
----
+## 📝 開発ロードマップ
 
-## 🏆 Notable Achievements
+### Phase 1: Web開発基盤（完了✅）
+- [x] `web-development` - モダンWeb開発基礎
+- [x] `react-development` - React開発
+- [x] `nextjs-development` - Next.js開発
+- [x] `frontend-performance` - フロントエンド最適化
+- [x] `web-accessibility` - アクセシビリティ対応
+- [x] `documentation` - ドキュメンテーション
 
-### Theoretical Rigor (20/20)
+### Phase 2: バックエンド基盤（完了✅）
+- [x] `backend-development` - バックエンド開発基礎
+- [x] `nodejs-development` - Node.js開発
+- [x] `python-development` - Python開発
+- [x] `database-design` - データベース設計
 
-- ✅ 34 complete mathematical proofs
-- ✅ 255+ peer-reviewed papers cited
-- ✅ TLA+ formal verification (152,500 states)
-- ✅ All proofs with R² > 0.999
+### Phase 3: スクリプト・自動化（完了✅）
+- [x] `script-development` - スクリプト開発
+- [x] `cli-development` - CLIツール開発
+- [x] `mcp-development` - MCP Server開発
 
-### Reproducibility (20/20)
+### Phase 4: DevOps・品質管理（完了✅）
+- [x] `git-workflow` - Git運用・ブランチ戦略
+- [x] `testing-strategy` - テスト戦略
+- [x] `code-review` - コードレビュー
+- [x] `ci-cd-automation` - CI/CD自動化
+- [x] `incident-logger` - 問題記録・インシデント管理
+- [x] `lessons-learned` - 教訓データベース
 
-- ✅ All experiments with n≥30
-- ✅ 95% confidence intervals reported
-- ✅ p-values < 0.001
-- ✅ Complete statistical templates
-- ✅ Executable code provided
+### Phase 5: iOS開発（完了✅）
+- [x] `ios-development` - iOS開発ベストプラクティス
+- [x] `ios-project-setup` - プロジェクト初期設定
 
-### Originality (17/20)
-
-- ✅ Integrated proof collection (34 proofs)
-- ✅ Statistical framework (TypeScript)
-- ✅ Experiment templates
-- ✅ Educational approach
-
----
-
-## 📚 Referenced Papers (255+)
-
-### Algorithms (150 papers)
-
-Notable references:
-- Knuth, D. E. (1973). "The Art of Computer Programming, Vol. 3"
-- Cormen et al. (2009). "Introduction to Algorithms" (3rd ed.)
-- Strassen, V. (1969). "Gaussian Elimination is not Optimal"
-- Cooley & Tukey (1965). "An Algorithm for the Machine Calculation of Complex Fourier Series"
-
-### Distributed Systems (40 papers)
-
-Notable references:
-- Lamport, L. (1998). "The Part-Time Parliament" (Paxos)
-- Ongaro, D., & Ousterhout, J. (2014). "In Search of an Understandable Consensus Algorithm" (Raft)
-- Gilbert, S., & Lynch, N. (2002). "Brewer's Conjecture and the Feasibility of Consistent, Available, Partition-Tolerant Web Services" (CAP)
-- Shapiro, M., et al. (2011). "Conflict-free Replicated Data Types" (CRDT)
-
-### Formal Verification (8 papers)
-
-- Lamport, L. (2002). "Specifying Systems: The TLA+ Language and Tools"
-- Newcombe, C., et al. (2015). "How Amazon Web Services Uses Formal Methods"
-
-### Statistics (57 papers)
-
-- Cohen, J. (1988). "Statistical Power Analysis for the Behavioral Sciences"
-- Student (1908). "The Probable Error of a Mean"
-
----
-
-## 🤝 Contributing
-
-This is a personal research project, but feedback and suggestions are welcome!
-
-**For questions or discussions**:
-- Open an issue on GitHub
-- Reference specific proof files
-- Cite relevant papers
-
----
-
-## 📜 License
-
-MIT License - See [LICENSE](LICENSE) file for details.
-
----
-
-## 🙏 Acknowledgments
-
-**Inspired by**:
-- MIT 6.046J Design and Analysis of Algorithms
-- MIT 6.824 Distributed Systems
-- Lamport's TLA+ work
-- Open source distributed systems implementations
-
-**Built with**:
-- TypeScript (implementation)
-- TLA+ (formal verification)
-- Markdown (documentation)
-- Statistical analysis (custom framework)
+### Phase 6: 残りのSkills（完了✅）
+- [x] `swiftui-patterns` - SwiftUI開発パターン
+- [x] `networking-data` - ネットワーク・データ永続化
+- [x] `ios-security` - セキュリティ実装
+- [x] `quality-assurance` - 品質保証・QA
+- [x] `dependency-management` - 依存関係管理
 
 ---
 
-## 📞 Contact
+## 🎊 26 Skills Framework完成！
 
-**Author**: Gaku
-**GitHub**: [@Gaku52](https://github.com/Gaku52)
-**Repository**: [claude-code-skills](https://github.com/Gaku52/claude-code-skills)
+フルスタック開発における全ライフサイクルをカバーする包括的なSkills**フレームワーク**が完成しました。
+iOS、Web、Backend、Script開発、DevOps、品質管理まで、プラットフォームを横断した開発知識の構造を体系化。
+
+**次のステップ**: 各Skillのガイド・チェックリスト・テンプレートを充実させ、実用的なコンテンツを提供します。
 
 ---
+
+## 🚀 Phase 2: 製品開発ファースト（収益化最優先）
+
+**Phase 1（Skills）** = 知識ベース（完成✅）
+**Phase 2** = 製品開発に100%集中
+
+### 💰 戦略: Agent開発はスキップ、収益化を最優先
+
+**判断理由:**
+```
+Agent開発（90時間）の機会損失:
+- 収益化が1ヶ月遅れる
+- 市場タイミングを逃すリスク
+- Year 1の製品数 -2%
+- 失敗時の90時間が完全な無駄
+
+vs
+
+製品開発に集中:
+✅ 今日から収益化に向けて開始
+✅ 市場フィードバックを早期獲得
+✅ リスク最小化
+✅ Year 1で6.6個の製品
+```
+
+### 🎯 Phase 2の方針
+
+**やること:**
+- Claude Code ($20/月) をフル活用
+- 製品開発に1000時間投資
+- Year 1で6-7個の製品リリース
+- 収益化を最優先
+
+**やらないこと:**
+- ❌ Agent開発（収益化の歯止めになる）
+- ❌ ツール作り（既存ツールで十分）
+- ❌ 過度な自動化（時期尚早）
+
+### 📚 Phase 1（Skills）の活用方法
+
+**26個のSkillsは既に完成:**
+- ポートフォリオとして活用
+- GitHub公開（MIT License）
+- 採用面接でのアピール材料
+- 自分用のチートシート
+
+**Claude CodeがSkillsを自動参照:**
+- 開発時のベストプラクティス提示
+- コードレビュー時の指摘
+- アーキテクチャ判断の支援
+
+### 💡 将来的なAgent開発（条件付き）
+
+**製品が軌道に乗ってから検討:**
+```
+条件:
+- 月$1,000以上の安定収益
+- 同じパターンの製品を3つ以上作った
+- 自動化の必要性が明確
+
+その時に:
+- 必要最小限のツールだけ作る
+- 製品開発の副産物として作る
+- 過度な投資はしない
+```
+
+**今は: 製品開発に100%集中 🚀**
+
+## 🤝 コントリビューション
+
+詳細は [CONTRIBUTING.md](CONTRIBUTING.md) を参照
+
+### 新しいSkillの追加
+
+1. テンプレートからコピー
+2. SKILL.mdを記述
+3. 必要な詳細ドキュメントを追加
+4. READMEの進捗表を更新
+5. PRを作成
+
+### 既存Skillの改善
+
+1. 実際の開発で気づいた点をIssue化
+2. incidents/ に事例を追加
+3. ガイド・チェックリストを更新
+4. PRを作成
 
 ## 📄 License
 
-### Repository License (MIT)
+MIT License - See [LICENSE](LICENSE) file for details
 
-The main repository content (algorithm proofs, code, guides) is licensed under the [MIT License](LICENSE).
+Feel free to use, modify, and distribute this knowledge base.
 
-### Zenn Books License (Copyright Protected)
+## 🙏 Acknowledgments
 
-Content in the `books/` directory (Zenn Books) is **copyright protected** and **NOT** under MIT License.
-See [books/LICENSE.md](books/LICENSE.md) for details.
+- Created with [Claude Code](https://claude.com/claude-code)
+- Built over 300+ hours of software development research and practice
 
-**Prohibited:**
-- ❌ Commercial use or resale
-- ❌ Redistribution
-- ❌ Creation of derivative works
+## 📧 Contact
 
-**For official Zenn Books**, visit: [Zenn - @gaku52](https://zenn.dev/gaku52)
-
----
-
-## 🎯 Project Goals
-
-### Current (Phase 4 Complete) ✅
-- ✅ **90/100 points** (MIT+ Level)
-- ✅ 34 complete proofs
-- ✅ 255+ papers cited
-- ✅ TLA+ formal verification
-- ✅ 2 production-ready npm packages
-- ✅ 3 interactive demos
-- ✅ Complete navigation system
-
-### Next (Phase 5 - Future)
-- 🎯 95/100 points target
-- 🎯 npm packages publication to registry
-- 🎯 Community adoption
-- 🎯 Academic paper publication
+For questions, suggestions, or collaboration:
+- Open an [Issue](https://github.com/Gaku52/claude-code-skills/issues)
+- Start a [Discussion](https://github.com/Gaku52/claude-code-skills/discussions)
 
 ---
 
-**Last Updated**: 2026-01-04
-**Version**: 4.0.0 (Phase 4 Complete - 90/100 points achieved!)
-**Status**: 🎓 **MIT+ Level (90/100)** ✅
-
+**最終更新**: 2025-12-25
+**バージョン**: 1.2.0 (Framework Complete, Content In Progress)
+**ステータス**: 🚧 Framework 100%, Content ~10% - Contributions welcome
