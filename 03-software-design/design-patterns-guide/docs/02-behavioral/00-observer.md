@@ -1236,6 +1236,68 @@ console.log(emitter.listenerCount("message")); // 0
 
 **期待される出力**: 上記コメントの通り。
 
+<details>
+<summary>模範解答（クリックで展開）</summary>
+
+```typescript
+class TypedEventEmitter<T extends Record<string, any>> {
+  private listeners = new Map<keyof T, Set<Function>>();
+  private onceListeners = new Map<keyof T, Set<Function>>();
+
+  on<K extends keyof T>(event: K, handler: (data: T[K]) => void): () => void {
+    if (!this.listeners.has(event)) {
+      this.listeners.set(event, new Set());
+    }
+    this.listeners.get(event)!.add(handler);
+    return () => {
+      this.listeners.get(event)?.delete(handler);
+    };
+  }
+
+  once<K extends keyof T>(event: K, handler: (data: T[K]) => void): () => void {
+    if (!this.onceListeners.has(event)) {
+      this.onceListeners.set(event, new Set());
+    }
+    this.onceListeners.get(event)!.add(handler);
+    return () => {
+      this.onceListeners.get(event)?.delete(handler);
+    };
+  }
+
+  emit<K extends keyof T>(event: K, data: T[K]): void {
+    this.listeners.get(event)?.forEach(fn => fn(data));
+
+    const onceHandlers = this.onceListeners.get(event);
+    if (onceHandlers) {
+      onceHandlers.forEach(fn => fn(data));
+      onceHandlers.clear();
+    }
+  }
+
+  listenerCount<K extends keyof T>(event: K): number {
+    return (this.listeners.get(event)?.size ?? 0) +
+           (this.onceListeners.get(event)?.size ?? 0);
+  }
+
+  removeAllListeners<K extends keyof T>(event?: K): void {
+    if (event) {
+      this.listeners.delete(event);
+      this.onceListeners.delete(event);
+    } else {
+      this.listeners.clear();
+      this.onceListeners.clear();
+    }
+  }
+}
+```
+
+**設計ポイント:**
+- `on` と `once` を別の Map で管理し、`once` は emit 時に clear する
+- 各メソッドが unsubscribe 関数を返すことで、クリーンアップを容易にする
+- `listenerCount` は両方の Map のサイズを合算する
+
+</details>
+
 ---
 
 ### 演習 2: 応用 ── リアクティブ Store の実装
@@ -1285,6 +1347,63 @@ unsubCount();
 
 **期待される出力**: 上記コメントの通り。
 
+<details>
+<summary>模範解答（クリックで展開）</summary>
+
+```typescript
+type Reducer<S, A> = (state: S, action: A) => S;
+type Listener = () => void;
+type Selector<S, R> = (state: S) => R;
+
+class Store<S, A extends { type: string }> {
+  private state: S;
+  private listeners = new Set<Listener>();
+  private reducer: Reducer<S, A>;
+
+  constructor(reducer: Reducer<S, A>, initialState: S) {
+    this.reducer = reducer;
+    this.state = initialState;
+  }
+
+  getState(): S {
+    return this.state;
+  }
+
+  dispatch(action: A): void {
+    this.state = this.reducer(this.state, action);
+    this.listeners.forEach(listener => listener());
+  }
+
+  subscribe(listener: Listener): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  /**
+   * 状態の一部を監視し、変更時のみコールバックを呼ぶ
+   * 前回の選択結果と比較して変更があった場合のみ通知する
+   */
+  select<R>(selector: Selector<S, R>, callback: (value: R) => void): () => void {
+    let previousValue = selector(this.state);
+
+    return this.subscribe(() => {
+      const currentValue = selector(this.state);
+      if (currentValue !== previousValue) {
+        previousValue = currentValue;
+        callback(currentValue);
+      }
+    });
+  }
+}
+```
+
+**設計ポイント:**
+- `select` は内部で `subscribe` を利用し、セレクタの結果が変わった場合のみコールバックを呼ぶ
+- 前回値との比較には `!==`（参照等価性）を使い、プリミティブ値とオブジェクト参照の両方に対応
+- `dispatch` は Reducer で新しい状態を生成してから全 Observer に通知する
+
+</details>
+
 ---
 
 ### 演習 3: 発展 ── 非同期 Event Bus with Retry
@@ -1325,6 +1444,120 @@ console.log(bus.getDeadLetterQueue().length); // 0 (成功したため)
 ```
 
 **期待される出力**: 上記コメントの通り。
+
+<details>
+<summary>模範解答（クリックで展開）</summary>
+
+```typescript
+type AsyncHandler<T> = (data: T) => Promise<void> | void;
+
+interface RetryOptions {
+  maxAttempts: number;
+  backoffMs: number;
+}
+
+interface EmitOptions {
+  mode: 'parallel' | 'sequential';
+  retry?: RetryOptions;
+  timeoutMs?: number;
+}
+
+interface DeadLetterEntry {
+  event: string;
+  data: any;
+  error: Error;
+  timestamp: Date;
+  attempts: number;
+}
+
+class ResilientEventBus {
+  private listeners = new Map<string, Set<AsyncHandler<any>>>();
+  private deadLetterQueue: DeadLetterEntry[] = [];
+
+  on<T>(event: string, handler: AsyncHandler<T>): () => void {
+    if (!this.listeners.has(event)) {
+      this.listeners.set(event, new Set());
+    }
+    this.listeners.get(event)!.add(handler);
+    return () => this.listeners.get(event)?.delete(handler);
+  }
+
+  async emit<T>(event: string, data: T, options: EmitOptions): Promise<void> {
+    const handlers = this.listeners.get(event);
+    if (!handlers) return;
+
+    const wrappedHandlers = [...handlers].map(fn =>
+      () => this.executeWithRetry(fn, data, event, options)
+    );
+
+    if (options.mode === 'parallel') {
+      await Promise.allSettled(wrappedHandlers.map(fn => fn()));
+    } else {
+      for (const fn of wrappedHandlers) {
+        await fn();
+      }
+    }
+  }
+
+  private async executeWithRetry<T>(
+    handler: AsyncHandler<T>,
+    data: T,
+    event: string,
+    options: EmitOptions,
+  ): Promise<void> {
+    const maxAttempts = options.retry?.maxAttempts ?? 1;
+    const backoffMs = options.retry?.backoffMs ?? 100;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const promise = handler(data);
+        if (options.timeoutMs && promise instanceof Promise) {
+          await Promise.race([
+            promise,
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error('Handler timeout')), options.timeoutMs)
+            ),
+          ]);
+        } else {
+          await promise;
+        }
+        return; // 成功
+      } catch (error) {
+        if (attempt < maxAttempts) {
+          // 指数バックオフで待機
+          const delay = backoffMs * Math.pow(2, attempt - 1);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        } else {
+          // 全リトライ失敗 → Dead Letter Queue に記録
+          this.deadLetterQueue.push({
+            event,
+            data,
+            error: error as Error,
+            timestamp: new Date(),
+            attempts: maxAttempts,
+          });
+        }
+      }
+    }
+  }
+
+  getDeadLetterQueue(): DeadLetterEntry[] {
+    return [...this.deadLetterQueue];
+  }
+
+  clearDeadLetterQueue(): void {
+    this.deadLetterQueue = [];
+  }
+}
+```
+
+**設計ポイント:**
+- `executeWithRetry` で指数バックオフ（`backoffMs * 2^(attempt-1)`）を実装
+- タイムアウトは `Promise.race` でハンドラの Promise と競合させる
+- 全リトライが失敗したイベントは Dead Letter Queue に記録し、後から調査可能にする
+- `parallel` モードでは `Promise.allSettled` を使い、1つの失敗が他のハンドラに影響しないようにする
+
+</details>
 
 ---
 

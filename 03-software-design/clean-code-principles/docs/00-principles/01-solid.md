@@ -95,7 +95,7 @@ SOLID原則の各原則は、それぞれ異なる時代に異なる研究者に
   1988  Barbara Liskov  → LSP の原型論文
   1994  Liskov & Wing   → LSP の正式定義
   1996  Robert C. Martin → OCP, DIP を論文発表
-  1997  Bertrand Meyer  → OCP の先駆的記述（Object-Oriented Software Construction）
+  1988  Bertrand Meyer  → OCP の先駆的記述（Object-Oriented Software Construction 初版）
   2000  Robert C. Martin → SRP, ISP を体系化
   2004  Michael Feathers → 5原則を "SOLID" と命名
   2017  Robert C. Martin → Clean Architecture で SOLID を再定義
@@ -1207,12 +1207,12 @@ class NotificationService:
 
 ```python
 # 関数型でのOCP: 高階関数による拡張
-from typing import Callable
+from typing import Any, Callable
 
 # ソート戦略を関数として注入（OCP + DIP）
 def sort_users(
     users: list[dict],
-    key_fn: Callable[[dict], any] = lambda u: u['name']
+    key_fn: Callable[[dict], Any] = lambda u: u['name']
 ) -> list[dict]:
     return sorted(users, key=key_fn)
 

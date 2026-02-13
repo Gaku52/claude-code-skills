@@ -604,23 +604,29 @@ class ThunderingHerdProtection:
                                        fetch_func, beta: float = 1.0):
         """方式3: 確率的早期再計算 (Probabilistic Early Recomputation)
 
-        XFetch アルゴリズム:
+        XFetch アルゴリズム (Vattani et al. 2015):
         TTL残り時間が少なくなるにつれ、再計算確率が増加
         → 1リクエストだけが自然にDBアクセスし、スタンピード回避
 
+        判定式: -beta * compute_time * ln(random()) > remaining_ttl
+        → remaining_ttl が小さくなるほど再計算されやすくなる
+
         beta: 再計算の積極性（大きいほど早めに再計算）
         """
+        import math
+
         cached = self.cache.get(f"pxf:{key}")
         if cached:
             data = json.loads(cached)
             expiry = data["expiry"]
             remaining = expiry - time.time()
+            compute_time = data.get("compute_time", 1.0)
 
             if remaining > 0:
-                # XFetch確率判定: -beta * log(random) が残TTLを超えたら再計算
-                threshold = -beta * ttl * 0.1 * \
-                           (random.random() if random.random() > 0 else 0.001)
-                if remaining > threshold:
+                # XFetch確率判定（原論文準拠）:
+                # -beta * compute_time * ln(random()) が残TTLを超えたら再計算
+                xfetch_value = -beta * compute_time * math.log(random.random())
+                if xfetch_value <= remaining:
                     return data["value"]
                 # 確率的に再計算をトリガー
                 logger.debug(f"[XFETCH] Probabilistic recompute for {key}")
@@ -1013,6 +1019,49 @@ print(f"Stats: {repo.stats}")
 Stats: CacheStats(hits=90, misses=10, hit_rate=90.0%)
 ```
 
+<details>
+<summary>模範解答（クリックで展開）</summary>
+
+```python
+import random
+import redis
+import json
+
+class MockDB:
+    def __init__(self):
+        self.users = {f"user-{i}": {"id": f"user-{i}", "name": f"User {i}"}
+                     for i in range(10)}
+        self.call_count = 0
+
+    def find_user(self, user_id):
+        self.call_count += 1
+        return self.users.get(user_id)
+
+db = MockDB()
+r = redis.Redis()
+r.flushdb()
+
+repo = CacheAsideRepository(r, db, ttl=60, prefix="test:")
+
+# 100回ランダムアクセス
+for _ in range(100):
+    user_id = f"user-{random.randint(0, 9)}"
+    user = repo.get_user(user_id)
+    assert user is not None
+
+print(f"Stats: {repo.stats}")
+print(f"DB call count: {db.call_count}")
+# 初回アクセスで10ユーザー分のミスが発生し、残りの90回はキャッシュヒット
+# ヒット率は約90%になる
+```
+
+**ポイント:**
+- ユーザー10人に対して100回アクセスするため、初回の10回がミス、残り90回がヒット
+- ヒット率 = 90/100 = 90%
+- DB呼び出し回数はキャッシュミス回数と一致する（10回）
+
+</details>
+
 ### 演習2（応用）: キャッシュスタンピード対策の比較
 
 **課題**: ロック方式とソフトTTL方式の両方で、10スレッドが同時にキャッシュミスした場合のDB呼び出し回数を比較せよ。
@@ -1049,6 +1098,74 @@ for t in threads:
 print(f"ロック方式: DB呼び出し回数 = {db_call_count}")
 # 期待: 1-2回（ほとんどのスレッドがロック待ち）
 ```
+
+<details>
+<summary>模範解答（クリックで展開）</summary>
+
+```python
+import threading
+import time
+import redis
+import json
+
+db_call_count_lock = 0
+db_call_count_soft = 0
+count_lock = threading.Lock()
+
+def make_slow_fetch(counter_name):
+    def slow_db_fetch():
+        nonlocal db_call_count_lock, db_call_count_soft
+        with count_lock:
+            if counter_name == "lock":
+                db_call_count_lock += 1
+            else:
+                db_call_count_soft += 1
+        time.sleep(0.1)  # DB遅延をシミュレート
+        return {"data": "value"}
+    return slow_db_fetch
+
+r = redis.Redis()
+protection = ThunderingHerdProtection(r)
+
+# --- テスト1: ロック方式 ---
+r.flushdb()
+db_call_count_lock = 0
+threads = []
+for _ in range(10):
+    t = threading.Thread(
+        target=protection.get_with_lock,
+        args=("test-lock", 60, make_slow_fetch("lock"))
+    )
+    threads.append(t)
+    t.start()
+for t in threads:
+    t.join()
+print(f"ロック方式: DB呼び出し回数 = {db_call_count_lock}")
+# 期待: 1-2回
+
+# --- テスト2: ソフトTTL方式 ---
+r.flushdb()
+db_call_count_soft = 0
+threads = []
+for _ in range(10):
+    t = threading.Thread(
+        target=protection.get_with_early_expiry,
+        args=("test-soft", 60, 50, make_slow_fetch("soft"))
+    )
+    threads.append(t)
+    t.start()
+for t in threads:
+    t.join()
+print(f"ソフトTTL方式: DB呼び出し回数 = {db_call_count_soft}")
+# 期待: 初回キャッシュミスのため全スレッドが殺到する可能性あり
+# ソフトTTLは「期限前の先行更新」に強く、完全なコールドスタートには弱い
+```
+
+**ポイント:**
+- ロック方式: 最初のスレッドがロックを取得しDBアクセス。他のスレッドはロック待ち後にキャッシュから取得。DB呼び出しは1-2回
+- ソフトTTL方式: コールドスタート（完全な期限切れ）では全スレッドが同期的にDBアクセスする可能性がある。ソフトTTLは「期限前」の先行更新に効果的であり、完全な初回ミスにはロック方式が適している
+
+</details>
 
 ### 演習3（発展）: 多層キャッシュシステムの設計
 
@@ -1111,6 +1228,147 @@ class MultiLayerCache:
             self.stats["db_hits"] += 1
         return value
 ```
+
+<details>
+<summary>模範解答（クリックで展開）</summary>
+
+```python
+import time
+import json
+import random
+import redis
+from collections import OrderedDict
+from dataclasses import dataclass, field
+
+class LRUCache:
+    """インプロセスLRUキャッシュ（L1層）"""
+
+    def __init__(self, max_size: int = 100, ttl: int = 30):
+        self.cache: OrderedDict = OrderedDict()
+        self.max_size = max_size
+        self.ttl = ttl
+        self.expiry: dict[str, float] = {}
+
+    def get(self, key: str):
+        if key in self.cache:
+            # TTLチェック
+            if time.time() > self.expiry.get(key, 0):
+                del self.cache[key]
+                del self.expiry[key]
+                return None
+            self.cache.move_to_end(key)
+            return self.cache[key]
+        return None
+
+    def set(self, key: str, value):
+        self.cache[key] = value
+        self.expiry[key] = time.time() + self.ttl
+        self.cache.move_to_end(key)
+        if len(self.cache) > self.max_size:
+            oldest_key, _ = self.cache.popitem(last=False)
+            self.expiry.pop(oldest_key, None)
+
+
+class MockDB:
+    """テスト用インメモリDB"""
+
+    def __init__(self, latency: float = 0.01):
+        self.data = {f"item-{i}": {"id": f"item-{i}", "value": i * 100}
+                     for i in range(50)}
+        self.latency = latency
+
+    def find(self, key: str):
+        time.sleep(self.latency)  # DB遅延シミュレート
+        return self.data.get(key)
+
+
+class MultiLayerCache:
+    """3層キャッシュ: L1(Local) → L2(Redis) → L3(DB)"""
+
+    def __init__(self, local_cache: LRUCache,
+                 redis_client: redis.Redis, db_client,
+                 redis_ttl: int = 300):
+        self.local = local_cache
+        self.redis = redis_client
+        self.db = db_client
+        self.redis_ttl = redis_ttl
+        self.stats = {"l1_hits": 0, "l2_hits": 0, "db_hits": 0}
+        self.latencies: list[float] = []
+
+    def get(self, key: str):
+        start = time.time()
+
+        # Layer 1: ローカルキャッシュ
+        value = self.local.get(key)
+        if value is not None:
+            self.stats["l1_hits"] += 1
+            self.latencies.append(time.time() - start)
+            return value
+
+        # Layer 2: Redis
+        try:
+            cached = self.redis.get(f"ml:{key}")
+            if cached:
+                value = json.loads(cached)
+                self.local.set(key, value)
+                self.stats["l2_hits"] += 1
+                self.latencies.append(time.time() - start)
+                return value
+        except redis.RedisError:
+            pass
+
+        # Layer 3: DB
+        value = self.db.find(key)
+        if value:
+            try:
+                self.redis.setex(f"ml:{key}", self.redis_ttl, json.dumps(value))
+            except redis.RedisError:
+                pass
+            self.local.set(key, value)
+            self.stats["db_hits"] += 1
+        self.latencies.append(time.time() - start)
+        return value
+
+    def report(self) -> str:
+        total = sum(self.stats.values())
+        avg_latency = sum(self.latencies) / len(self.latencies) if self.latencies else 0
+        lines = [
+            f"Total requests: {total}",
+            f"L1 hits: {self.stats['l1_hits']} "
+            f"({self.stats['l1_hits']/total*100:.1f}%)" if total else "",
+            f"L2 hits: {self.stats['l2_hits']} "
+            f"({self.stats['l2_hits']/total*100:.1f}%)" if total else "",
+            f"DB hits: {self.stats['db_hits']} "
+            f"({self.stats['db_hits']/total*100:.1f}%)" if total else "",
+            f"Avg latency: {avg_latency*1000:.3f}ms",
+        ]
+        return "\n".join(lines)
+
+
+# === テスト実行 ===
+r = redis.Redis()
+r.flushdb()
+db = MockDB(latency=0.01)
+local = LRUCache(max_size=20, ttl=30)
+cache = MultiLayerCache(local, r, db, redis_ttl=300)
+
+# 500回のアクセス（10種類のキーにZipf風の偏りを持たせる）
+keys = [f"item-{i}" for i in range(10)]
+for _ in range(500):
+    # 人気キーほどアクセスされる
+    idx = min(int(random.paretovariate(1.5)), len(keys) - 1)
+    cache.get(keys[idx])
+
+print(cache.report())
+```
+
+**ポイント:**
+- L1（ローカル）のヒット率が最も高くなる（同一プロセス内のホットデータ）
+- L2（Redis）はL1ミスの受け皿で、別プロセスからのウォームアップ済みデータもヒットする
+- DB到達率は全体の数%以下に抑えられるのが理想
+- Zipf分布に近い偏りを持たせることで、実際のアクセスパターンをシミュレートする
+
+</details>
 
 ---
 

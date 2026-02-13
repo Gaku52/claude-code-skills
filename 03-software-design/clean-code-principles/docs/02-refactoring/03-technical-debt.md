@@ -672,9 +672,9 @@ def analyze_hotspots(
 
 
 def print_hotspot_report(hotspots: list[Hotspot]) -> None:
-    """ホットスポートレポートを表示"""
+    """ホットスポットレポートを表示"""
     print("=" * 80)
-    print("  ホットスポート分析レポート")
+    print("  ホットスポット分析レポート")
     print("=" * 80)
     print(f"  {'Rank':<5} {'File':<35} {'Changes':<8} {'CC':<6} {'Bugs':<5} {'Risk':<10}")
     print("-" * 80)
@@ -694,7 +694,7 @@ def print_hotspot_report(hotspots: list[Hotspot]) -> None:
 ```
 
 ```
-ホットスポート可視化 (変更頻度 vs 複雑度)
+ホットスポット可視化 (変更頻度 vs 複雑度)
 
   複雑度 (CC)
   高  |                                 [payment.py]  ← 最優先
@@ -1491,7 +1491,7 @@ A. 入力バリデーション省略
 7. 経営層への報告資料を作成
 
 評価基準:
-- ホットスポート分析の正確性
+- ホットスポット分析の正確性
 - 優先度付けの合理性
 - 計画の実現可能性
 - メトリクスの具体性
@@ -1647,7 +1647,7 @@ OK パターン:
 1. **Managing Technical Debt** -- Philippe Kruchten, Robert Nord, Ipek Ozkaya (Addison-Wesley, 2019) -- SEI/CMU による技術的負債の学術的・実践的フレームワーク。負債の分類・測定・管理のための体系的アプローチを提供
 2. **Refactoring: Improving the Design of Existing Code, 2nd Edition** -- Martin Fowler (Addison-Wesley, 2018) -- コード品質改善のためのリファクタリングカタログ。負債返済の具体的手法として必読
 3. **Technical Debt Quadrant** -- Martin Fowler (Blog, 2009) -- https://martinfowler.com/bliki/TechnicalDebtQuadrant.html -- 4象限モデルの原典
-4. **Software Design X-Rays** -- Adam Tornhill (Pragmatic Programmers, 2018) -- Git 履歴を使ったホットスポート分析（Code as a Crime Scene）の実践ガイド。変更頻度 x 複雑度によるリファクタリング優先順位付けの手法
+4. **Software Design X-Rays** -- Adam Tornhill (Pragmatic Programmers, 2018) -- Git 履歴を使ったホットスポット分析（Code as a Crime Scene）の実践ガイド。変更頻度 x 複雑度によるリファクタリング優先順位付けの手法
 5. **Accelerate: The Science of Lean Software and DevOps** -- Nicole Forsgren, Jez Humble, Gene Kim (IT Revolution, 2018) -- DORA メトリクスと組織パフォーマンスの研究結果。技術的負債の放置が開発速度に与える影響のエビデンス
 6. **A Mess is not a Technical Debt** -- Robert C. Martin (Blog, 2009) -- Uncle Bob による「乱雑なコード」と「技術的負債」の区別に関する重要な議論
 7. **The Financial Implications of Technical Debt** -- Steve McConnell (2007) -- 意図的/非意図的な負債の分類と、負債管理のビジネスフレームワーク
