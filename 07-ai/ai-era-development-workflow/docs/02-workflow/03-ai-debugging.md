@@ -321,6 +321,216 @@ ERROR_PATTERNS = {
 }
 ```
 
+### 2.4 言語別デバッグパターン集
+
+```python
+# 言語・フレームワーク固有のデバッグパターン
+
+LANGUAGE_DEBUG_PATTERNS = {
+    "python": {
+        "ImportError / ModuleNotFoundError": {
+            "diagnosis": """
+            1. パッケージがインストールされているか確認:
+               pip list | grep <package_name>
+            2. 仮想環境が正しく有効化されているか確認:
+               which python
+            3. PYTHONPATH にモジュールのディレクトリが含まれているか確認
+            4. パッケージ名とインポート名が異なるケース:
+               例: pip install Pillow → import PIL
+            """,
+            "ai_prompt": """
+            以下のImportErrorを解決してください。
+            エラー: {error_message}
+            Python バージョン: {python_version}
+            インストール済みパッケージ: {pip_list}
+            仮想環境: {venv_info}
+            """,
+        },
+        "asyncio.TimeoutError": {
+            "diagnosis": """
+            1. タイムアウト値が適切か確認
+            2. 対象サービスのレスポンスタイムを計測
+            3. ネットワーク遅延の有無を確認
+            4. コネクションプールの枯渇を確認
+            5. async/await の使い方が正しいか確認
+            """,
+            "common_fixes": [
+                "タイムアウト値の調整",
+                "リトライロジックの追加",
+                "コネクションプールサイズの拡大",
+                "Circuit Breaker パターンの導入",
+            ],
+        },
+        "SQLAlchemy DetachedInstanceError": {
+            "diagnosis": """
+            1. セッションのスコープを確認（リクエスト単位か）
+            2. Lazy Loading がセッション外で発生していないか
+            3. expire_on_commit=False の設定を確認
+            4. joinedload / selectinload でイーガーロードに変更
+            """,
+            "ai_prompt": """
+            SQLAlchemy の DetachedInstanceError が発生しています。
+            モデル定義: {model_code}
+            クエリコード: {query_code}
+            セッション設定: {session_config}
+            アクセスしようとしたリレーション: {relation_name}
+            """,
+        },
+    },
+    "javascript": {
+        "Unhandled Promise Rejection": {
+            "diagnosis": """
+            1. async関数内でtry-catchが適切にされているか
+            2. .catch()がPromiseチェーンに付いているか
+            3. Promise.allSettled vs Promise.all の使い分け
+            4. Node.js のバージョンによる挙動の違い
+            """,
+            "ai_prompt": """
+            Unhandled Promise Rejection が発生しています。
+            エラー: {error_message}
+            コード: {code}
+            Node.js バージョン: {node_version}
+            このPromiseがどこでrejectされたか追跡してください。
+            """,
+        },
+        "CORS Error": {
+            "diagnosis": """
+            1. サーバー側のAccess-Control-Allow-Originヘッダを確認
+            2. プリフライトリクエスト（OPTIONS）への応答を確認
+            3. クレデンシャル（Cookie）送信時のwithCredentials設定
+            4. プロキシ設定（開発時のvite.config.ts / next.config.js）
+            """,
+            "common_fixes": [
+                "cors ミドルウェアの設定追加",
+                "開発用プロキシの設定",
+                "API GatewayでのCORS設定",
+                "credentials: 'include' と対応するサーバー設定",
+            ],
+        },
+    },
+    "go": {
+        "panic: runtime error: invalid memory address": {
+            "diagnosis": """
+            1. nil ポインタのデリファレンスを確認
+            2. マップの初期化忘れ（var m map[string]int → make必要）
+            3. インターフェースの nil チェック漏れ
+            4. goroutine 間での共有データの競合
+            """,
+            "ai_prompt": """
+            Go の nil pointer dereference パニックが発生しています。
+            スタックトレース: {stacktrace}
+            関連コード: {code}
+            goroutine の使用有無: {uses_goroutines}
+            このパニックの原因と安全な修正方法を提案してください。
+            """,
+        },
+    },
+}
+```
+
+### 2.5 フロントエンド特有のデバッグ手法
+
+```typescript
+// ブラウザ環境のデバッグ情報収集
+
+interface BrowserDebugInfo {
+  url: string;
+  userAgent: string;
+  viewport: { width: number; height: number };
+  networkErrors: NetworkError[];
+  consoleErrors: ConsoleError[];
+  performanceMetrics: PerformanceMetrics;
+  reactComponentTree?: ComponentInfo[];
+}
+
+class FrontendDebugCollector {
+  /**
+   * ブラウザ環境のデバッグ情報を包括的に収集する
+   * AIデバッグに最適な形式で構造化
+   */
+
+  collectDebugInfo(): BrowserDebugInfo {
+    return {
+      url: window.location.href,
+      userAgent: navigator.userAgent,
+      viewport: {
+        width: window.innerWidth,
+        height: window.innerHeight,
+      },
+      networkErrors: this.getNetworkErrors(),
+      consoleErrors: this.getConsoleErrors(),
+      performanceMetrics: this.getPerformanceMetrics(),
+      reactComponentTree: this.getReactTree(),
+    };
+  }
+
+  private getNetworkErrors(): NetworkError[] {
+    // Performance API からネットワークエラーを抽出
+    const entries = performance.getEntriesByType("resource") as PerformanceResourceTiming[];
+    return entries
+      .filter((entry) => entry.responseStatus >= 400 || entry.responseStatus === 0)
+      .map((entry) => ({
+        url: entry.name,
+        status: entry.responseStatus,
+        duration: entry.duration,
+        initiatorType: entry.initiatorType,
+        timestamp: entry.startTime,
+      }));
+  }
+
+  private getConsoleErrors(): ConsoleError[] {
+    // 事前にオーバーライドされた console.error のログを取得
+    return (window as any).__debugConsoleErrors || [];
+  }
+
+  private getPerformanceMetrics(): PerformanceMetrics {
+    const navigation = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming;
+    const paint = performance.getEntriesByType("paint");
+
+    return {
+      domContentLoaded: navigation?.domContentLoadedEventEnd - navigation?.startTime,
+      loadComplete: navigation?.loadEventEnd - navigation?.startTime,
+      firstPaint: paint.find((p) => p.name === "first-paint")?.startTime,
+      firstContentfulPaint: paint.find((p) => p.name === "first-contentful-paint")?.startTime,
+      jsHeapSize: (performance as any).memory?.usedJSHeapSize,
+      jsHeapLimit: (performance as any).memory?.jsHeapSizeLimit,
+    };
+  }
+
+  /**
+   * 収集した情報をAIデバッグ用のプロンプトに変換
+   */
+  buildAIPrompt(info: BrowserDebugInfo, userDescription: string): string {
+    return `
+## フロントエンドバグレポート
+
+### ユーザー報告
+${userDescription}
+
+### 環境情報
+- URL: ${info.url}
+- ブラウザ: ${info.userAgent}
+- ビューポート: ${info.viewport.width}x${info.viewport.height}
+
+### ネットワークエラー
+${JSON.stringify(info.networkErrors, null, 2)}
+
+### コンソールエラー
+${JSON.stringify(info.consoleErrors, null, 2)}
+
+### パフォーマンスメトリクス
+${JSON.stringify(info.performanceMetrics, null, 2)}
+
+### 分析依頼
+1. エラーの根本原因を推定してください
+2. ネットワークエラーとコンソールエラーの関連性を分析してください
+3. パフォーマンスに問題がある場合、その原因を指摘してください
+4. 修正方法を具体的なコードで示してください
+`;
+  }
+}
+```
+
 ---
 
 ## 3. ログ分析と異常検知
@@ -523,6 +733,111 @@ class DistributedDebugger:
         }
 ```
 
+### 3.4 メトリクスベースの異常検知
+
+```python
+# アプリケーションメトリクスの異常をAIで検知・分析
+
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from statistics import mean, stdev
+from typing import Optional
+
+@dataclass
+class MetricPoint:
+    """メトリクスデータポイント"""
+    timestamp: datetime
+    value: float
+    labels: dict = field(default_factory=dict)
+
+@dataclass
+class AnomalyReport:
+    """異常検知レポート"""
+    metric_name: str
+    anomaly_type: str  # "spike", "drop", "trend_change", "pattern_break"
+    severity: str      # "critical", "warning", "info"
+    detected_at: datetime
+    current_value: float
+    expected_range: tuple[float, float]
+    context: dict = field(default_factory=dict)
+
+class MetricsAnomalyDetector:
+    """メトリクスの異常をAIで検知するシステム"""
+
+    def __init__(self, lookback_window: int = 60):
+        """
+        Args:
+            lookback_window: 異常検知の基準とする過去の分数
+        """
+        self.lookback_window = lookback_window
+        self.metrics_history: dict[str, list[MetricPoint]] = {}
+
+    def detect_anomalies(self, current_metrics: dict[str, float]) -> list[AnomalyReport]:
+        """現在のメトリクスから異常を検知"""
+        anomalies = []
+
+        for metric_name, current_value in current_metrics.items():
+            history = self.metrics_history.get(metric_name, [])
+            if len(history) < 10:
+                continue  # データ不足
+
+            historical_values = [p.value for p in history]
+            avg = mean(historical_values)
+            std = stdev(historical_values) if len(historical_values) > 1 else 0
+
+            # Z-score ベースの異常検知
+            z_score = (current_value - avg) / std if std > 0 else 0
+
+            if abs(z_score) > 3:
+                anomaly_type = "spike" if z_score > 0 else "drop"
+                severity = "critical" if abs(z_score) > 5 else "warning"
+
+                anomalies.append(AnomalyReport(
+                    metric_name=metric_name,
+                    anomaly_type=anomaly_type,
+                    severity=severity,
+                    detected_at=datetime.now(),
+                    current_value=current_value,
+                    expected_range=(avg - 2 * std, avg + 2 * std),
+                    context={
+                        "z_score": z_score,
+                        "historical_avg": avg,
+                        "historical_std": std,
+                        "data_points": len(historical_values),
+                    },
+                ))
+
+        return anomalies
+
+    def build_ai_analysis_prompt(self, anomalies: list[AnomalyReport]) -> str:
+        """異常検知結果をAI分析用プロンプトに変換"""
+        if not anomalies:
+            return "異常は検知されませんでした。"
+
+        anomaly_details = []
+        for a in anomalies:
+            anomaly_details.append(f"""
+- メトリクス: {a.metric_name}
+  種類: {a.anomaly_type} ({a.severity})
+  現在値: {a.current_value:.2f}
+  期待範囲: {a.expected_range[0]:.2f} - {a.expected_range[1]:.2f}
+  Z-score: {a.context['z_score']:.2f}
+""")
+
+        return f"""
+以下のメトリクス異常を分析し、原因と対策を提案してください。
+
+## 検知された異常（{len(anomalies)}件）
+{''.join(anomaly_details)}
+
+## 分析依頼
+1. 異常間の相関関係（複数の異常が同一原因に起因している可能性）
+2. 推定される根本原因（最も可能性が高い順に）
+3. 即座に確認すべき項目
+4. 緩和策と恒久対策
+"""
+```
+
 ---
 
 ## 4. 自動修正と提案
@@ -647,6 +962,88 @@ class DebugSessionRecorder:
         return sorted(results, key=lambda x: -x["similarity"])[:5]
 ```
 
+### 4.3 CI/CD パイプラインとの統合
+
+```python
+# GitHub Actions + AI デバッグの統合例
+
+class CIDebugIntegration:
+    """CI/CDパイプラインでのAIデバッグ自動化"""
+
+    def analyze_ci_failure(self, workflow_run: dict) -> dict:
+        """CIの失敗を自動分析してPRにコメント"""
+
+        # 失敗したジョブの情報収集
+        failed_jobs = [
+            job for job in workflow_run["jobs"]
+            if job["conclusion"] == "failure"
+        ]
+
+        analysis_results = []
+        for job in failed_jobs:
+            # ログの取得と解析
+            log_content = self._fetch_job_logs(job["id"])
+            error_sections = self._extract_error_sections(log_content)
+
+            # 変更されたファイルとの照合
+            changed_files = self._get_pr_changed_files(workflow_run["pr_number"])
+            related_changes = self._correlate_errors_with_changes(
+                error_sections, changed_files
+            )
+
+            analysis_results.append({
+                "job_name": job["name"],
+                "errors": error_sections,
+                "related_changes": related_changes,
+                "ai_prompt": self._build_ci_debug_prompt(
+                    job, error_sections, related_changes
+                ),
+            })
+
+        return {
+            "workflow_run_id": workflow_run["id"],
+            "analyses": analysis_results,
+            "pr_comment": self._format_pr_comment(analysis_results),
+        }
+
+    def _build_ci_debug_prompt(self, job: dict, errors: list,
+                                changes: list) -> str:
+        """CI失敗のAI分析用プロンプトを構築"""
+        return f"""
+以下のCIジョブの失敗を分析してください。
+
+## ジョブ情報
+- 名前: {job['name']}
+- ステップ: {job.get('failed_step', 'N/A')}
+
+## エラー内容
+{chr(10).join(errors[:5])}
+
+## PR で変更されたファイル
+{chr(10).join(f'- {c["filename"]} (+{c["additions"]} -{c["deletions"]})' for c in changes[:10])}
+
+## 分析依頼
+1. 失敗の原因（変更との関連）
+2. 修正方法
+3. ローカルでの再現手順
+"""
+
+    def _format_pr_comment(self, analyses: list) -> str:
+        """PRコメント用のフォーマット"""
+        comment = "## AI デバッグ分析結果\n\n"
+        for analysis in analyses:
+            comment += f"### {analysis['job_name']}\n"
+            comment += f"**検出されたエラー**: {len(analysis['errors'])}件\n"
+            if analysis['related_changes']:
+                comment += f"**関連する変更ファイル**: "
+                comment += ", ".join(
+                    f"`{c['filename']}`" for c in analysis['related_changes'][:3]
+                )
+                comment += "\n"
+            comment += "\n"
+        return comment
+```
+
 ---
 
 ## 5. 比較表
@@ -726,9 +1123,86 @@ GOOD:
   - 新メンバーのオンボーディングにデバッグ事例集を活用
 ```
 
+### アンチパターン 4: 機密情報の無配慮な共有
+
+```
+BAD:
+  本番環境のログをそのまま外部AIサービスに送信
+  → API キー、ユーザー個人情報、データベースの接続情報が漏洩
+  → コンプライアンス違反、セキュリティインシデント
+
+GOOD:
+  1. 送信前にセンシティブ情報をマスキング
+     - API キー: sk-****** → [REDACTED_API_KEY]
+     - メールアドレス: user@example.com → [EMAIL]
+     - IPアドレス: 192.168.1.1 → [IP_ADDRESS]
+  2. 社内ホスト型のLLMを使用（AWS Bedrock等）
+  3. データ処理規約を確認（GDPR、個人情報保護法）
+  4. 監査ログにAIへの送信内容を記録
+```
+
 ---
 
-## 7. FAQ
+## 7. 実践シナリオ: インシデント対応でのAI活用
+
+### 7.1 本番障害対応のタイムライン
+
+```
+時刻    イベント                            AI活用ポイント
+────────────────────────────────────────────────────────────
+00:00   アラート発報（エラーレート急上昇）     → AI: アラート内容の要約
+00:02   オンコールエンジニアが確認開始         → AI: 類似インシデントの検索
+00:05   ログ調査開始                          → AI: エラーログのパターン分析
+00:08   原因仮説の立案                        → AI: 仮説の検証ポイント提案
+00:12   原因特定（DB接続プール枯渇）          → AI: 緩和策のコード生成
+00:15   緩和策適用（コネクション上限引き上げ）  → AI: 影響範囲の評価
+00:20   正常性確認                            → AI: 確認すべきメトリクス一覧
+00:30   ポストモーテム作成開始                 → AI: タイムラインの整理
+01:00   ポストモーテム完了・根本対策策定       → AI: 再発防止策の提案
+```
+
+### 7.2 ポストモーテムのAI支援テンプレート
+
+```python
+# インシデント後のポストモーテム作成をAIで支援
+
+POSTMORTEM_AI_PROMPT = """
+以下のインシデント情報に基づいて、ポストモーテムのドラフトを作成してください。
+
+## インシデント概要
+- 発生日時: {incident_start}
+- 復旧日時: {incident_end}
+- 影響範囲: {impact}
+- 深刻度: {severity}
+
+## タイムライン
+{timeline}
+
+## 検知方法
+{detection}
+
+## 根本原因
+{root_cause}
+
+## 対応アクション
+{actions_taken}
+
+## テンプレート
+以下の形式でポストモーテムを出力してください:
+
+### 1. サマリー（3行以内）
+### 2. インパクト（定量的に）
+### 3. タイムライン（時系列）
+### 4. 根本原因分析（5 Whys）
+### 5. 修正内容
+### 6. 再発防止策（短期・中期・長期）
+### 7. 学んだこと（Good / Bad / Lucky）
+"""
+```
+
+---
+
+## 8. FAQ
 
 ### Q1. AI デバッグで最も効果が高いのはどのような場面か？
 
@@ -742,6 +1216,10 @@ GOOD:
 
 **A.** (1) **プロンプトテンプレートの標準化**: チーム共通のデバッグプロンプトテンプレートを作成し、必要な情報が漏れなく提供されるようにする。(2) **ナレッジベースの構築**: 過去のデバッグセッション（原因、調査過程、修正方法）を記録し、AI による類似検索を可能にする。(3) **ペアデバッグ**: AI との対話を画面共有しながらペアで行い、効果的なプロンプトの書き方を共有する。(4) **定期的な振り返り**: 月次でデバッグ効率のメトリクス（MTTR: 平均復旧時間）を計測し、改善点を議論する。
 
+### Q4. AIデバッグの精度を上げるためのコツは？
+
+**A.** (1) **段階的に情報を提供**: まずエラーメッセージとスタックトレースで初期分析、その結果に基づいて関連コードや設定を追加提供する。(2) **仮説を複数立てさせる**: 「原因を3つ挙げて、それぞれの確率と根拠を示して」と指示する。(3) **否定的な情報も提供**: 「DBは正常に動作している」「ネットワークに問題はない」など、排除できる原因を伝える。(4) **再現コードを添える**: 最小限の再現コードがあればAIの精度は大幅に向上する。
+
 ---
 
 ## まとめ
@@ -754,6 +1232,8 @@ GOOD:
 | 分散トレーシング | OpenTelemetry のトレースデータを AI で分析しボトルネック特定 |
 | 自動修正 | AI の提案は「仮説」。テストで検証してから適用 |
 | ナレッジ共有 | デバッグセッションを記録し、チームのナレッジベースを構築 |
+| インシデント対応 | タイムラインの整理からポストモーテム作成までAIが支援 |
+| セキュリティ | 機密情報のマスキング、社内LLMの活用、監査ログの記録 |
 
 ---
 

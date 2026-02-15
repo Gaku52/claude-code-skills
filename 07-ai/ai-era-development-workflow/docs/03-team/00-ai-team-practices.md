@@ -452,7 +452,625 @@ Week 4: チーム全体ワークショップ
 
 ---
 
-## 6. アンチパターン
+## 6. AIを活用した知識管理とナレッジベース
+
+### 6.1 チーム知識の構造化・形式知化
+
+```python
+# AIを活用したチーム知識管理システム
+
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum
+from pathlib import Path
+import json
+
+class KnowledgeType(Enum):
+    DECISION = "decision"           # 設計判断・意思決定
+    PATTERN = "pattern"             # コードパターン・慣習
+    TROUBLESHOOT = "troubleshoot"   # トラブルシューティング
+    DOMAIN = "domain"              # ドメイン知識
+    PROCESS = "process"            # プロセス・手順
+    TOOLING = "tooling"            # ツール使用法
+
+@dataclass
+class KnowledgeEntry:
+    """知識ベースのエントリ"""
+    id: str
+    title: str
+    knowledge_type: KnowledgeType
+    content: str
+    context: str                    # どのような状況で使うか
+    created_by: str
+    created_at: str = field(default_factory=lambda: datetime.now().isoformat())
+    tags: list[str] = field(default_factory=list)
+    related_files: list[str] = field(default_factory=list)
+    ai_generated: bool = False      # AIが生成した知識か
+    verified_by: str = ""           # 人間の検証者
+    usage_count: int = 0            # 参照回数
+
+@dataclass
+class TeamKnowledgeBase:
+    """チーム知識ベース管理"""
+    team_name: str
+    entries: list[KnowledgeEntry] = field(default_factory=list)
+    kb_dir: Path = field(default_factory=lambda: Path(".ai/knowledge"))
+
+    def add_from_code_review(
+        self,
+        pr_number: int,
+        reviewer: str,
+        learning: str,
+        related_code: str,
+    ) -> KnowledgeEntry:
+        """コードレビューから知識を抽出して登録"""
+        entry = KnowledgeEntry(
+            id=f"review-{pr_number}-{len(self.entries)}",
+            title=f"PR #{pr_number} からの学び",
+            knowledge_type=KnowledgeType.PATTERN,
+            content=learning,
+            context=f"PR #{pr_number} のレビュー中に発見",
+            created_by=reviewer,
+            related_files=[related_code],
+            tags=["code-review", f"pr-{pr_number}"],
+        )
+        self.entries.append(entry)
+        return entry
+
+    def add_from_incident(
+        self,
+        incident_id: str,
+        responder: str,
+        root_cause: str,
+        fix_description: str,
+        prevention: str,
+    ) -> KnowledgeEntry:
+        """インシデント対応から知識を抽出"""
+        content = f"""
+## 根本原因
+{root_cause}
+
+## 修正内容
+{fix_description}
+
+## 再発防止策
+{prevention}
+"""
+        entry = KnowledgeEntry(
+            id=f"incident-{incident_id}",
+            title=f"インシデント {incident_id} の教訓",
+            knowledge_type=KnowledgeType.TROUBLESHOOT,
+            content=content,
+            context=f"インシデント {incident_id} の事後分析",
+            created_by=responder,
+            tags=["incident", "postmortem"],
+        )
+        self.entries.append(entry)
+        return entry
+
+    def ai_generate_summary(self) -> str:
+        """AIに知識ベースの要約を生成させるためのプロンプト"""
+        entries_text = "\n".join(
+            f"- [{e.knowledge_type.value}] {e.title}: {e.content[:100]}..."
+            for e in self.entries[-20:]  # 直近20件
+        )
+
+        return f"""
+以下のチーム知識ベースの直近エントリを分析し、
+チームの技術的傾向と改善提案を生成してください。
+
+チーム: {self.team_name}
+エントリ数: {len(self.entries)}
+
+直近のエントリ:
+{entries_text}
+
+分析してほしい観点:
+1. 繰り返し発生している問題パターン
+2. チームの技術的強み・弱み
+3. 知識が不足している領域
+4. 推奨するアクション（研修、ツール導入等）
+"""
+
+    def search(self, query: str, top_k: int = 5) -> list[KnowledgeEntry]:
+        """知識ベースをキーワード検索"""
+        scored = []
+        query_lower = query.lower()
+        for entry in self.entries:
+            score = 0
+            if query_lower in entry.title.lower():
+                score += 10
+            if query_lower in entry.content.lower():
+                score += 5
+            for tag in entry.tags:
+                if query_lower in tag.lower():
+                    score += 3
+            if score > 0:
+                scored.append((score, entry))
+
+        scored.sort(key=lambda x: x[0], reverse=True)
+        return [entry for _, entry in scored[:top_k]]
+
+    def save(self) -> None:
+        """知識ベースをファイルに保存"""
+        self.kb_dir.mkdir(parents=True, exist_ok=True)
+        for entry in self.entries:
+            path = self.kb_dir / f"{entry.id}.json"
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump({
+                    "id": entry.id,
+                    "title": entry.title,
+                    "type": entry.knowledge_type.value,
+                    "content": entry.content,
+                    "context": entry.context,
+                    "created_by": entry.created_by,
+                    "created_at": entry.created_at,
+                    "tags": entry.tags,
+                    "related_files": entry.related_files,
+                    "ai_generated": entry.ai_generated,
+                    "verified_by": entry.verified_by,
+                    "usage_count": entry.usage_count,
+                }, f, indent=2, ensure_ascii=False)
+```
+
+### 6.2 ADR（Architecture Decision Record）のAI支援
+
+```python
+# AIを活用したADR（アーキテクチャ決定記録）管理
+
+from dataclasses import dataclass, field
+from datetime import date
+
+@dataclass
+class ADREntry:
+    """アーキテクチャ決定記録"""
+    number: int
+    title: str
+    status: str  # "proposed", "accepted", "deprecated", "superseded"
+    date: str
+    context: str
+    decision: str
+    consequences: str
+    alternatives_considered: list[str] = field(default_factory=list)
+    ai_analysis: str = ""  # AIによるトレードオフ分析
+
+class ADRManager:
+    """ADR管理ツール"""
+
+    def __init__(self, adr_dir: str = "docs/adr"):
+        self.adr_dir = Path(adr_dir)
+        self.adr_dir.mkdir(parents=True, exist_ok=True)
+
+    def create_adr_prompt(
+        self,
+        title: str,
+        context: str,
+        options: list[str],
+    ) -> str:
+        """ADR作成のためのAIプロンプトを生成"""
+        options_text = "\n".join(f"  {i+1}. {opt}" for i, opt in enumerate(options))
+
+        return f"""
+以下のアーキテクチャ決定について、ADRを作成してください。
+
+## タイトル
+{title}
+
+## コンテキスト
+{context}
+
+## 検討中の選択肢
+{options_text}
+
+以下の形式で出力してください:
+
+### 各選択肢のトレードオフ分析
+（メリット、デメリット、リスクを具体的に）
+
+### 推奨される決定
+（理由と共に）
+
+### 予測される影響
+（短期的・長期的な影響）
+
+### 将来の見直しトリガー
+（この決定を見直すべき条件）
+"""
+
+    def generate_adr_markdown(self, entry: ADREntry) -> str:
+        """ADRをMarkdown形式で生成"""
+        alternatives = "\n".join(
+            f"- {alt}" for alt in entry.alternatives_considered
+        )
+
+        return f"""# ADR-{entry.number:04d}: {entry.title}
+
+## ステータス
+{entry.status}
+
+## 日付
+{entry.date}
+
+## コンテキスト
+{entry.context}
+
+## 検討した代替案
+{alternatives}
+
+## 決定
+{entry.decision}
+
+## AIによるトレードオフ分析
+{entry.ai_analysis}
+
+## 結果
+{entry.consequences}
+"""
+
+    def save_adr(self, entry: ADREntry) -> Path:
+        """ADRをファイルとして保存"""
+        filename = f"{entry.number:04d}-{entry.title.replace(' ', '-').lower()}.md"
+        path = self.adr_dir / filename
+        content = self.generate_adr_markdown(entry)
+        path.write_text(content, encoding="utf-8")
+        return path
+```
+
+---
+
+## 7. AI時代のコミュニケーションプラクティス
+
+### 7.1 AI支援による非同期コミュニケーション
+
+```yaml
+# .ai/communication/templates.yaml
+# チームコミュニケーション用AIテンプレート
+
+templates:
+  # PRの説明文を自動生成
+  pr_description:
+    name: "PR説明文自動生成"
+    trigger: "PR作成時に自動実行"
+    prompt: |
+      以下のgit diffから、PR説明文を生成してください。
+
+      ## 形式
+      ### 変更概要
+      （1-2文で変更の目的を説明）
+
+      ### 変更内容
+      （箇条書きで具体的な変更を列挙）
+
+      ### テスト方法
+      （動作確認の手順）
+
+      ### 影響範囲
+      （この変更が影響するコンポーネント・機能）
+
+      ### レビュー観点
+      （レビュアーに特に見てほしいポイント）
+
+      ## diff
+      {{diff}}
+
+  # デイリースタンドアップのサマリー生成
+  standup_summary:
+    name: "スタンドアップサマリー"
+    trigger: "毎朝9:00に自動実行"
+    prompt: |
+      以下のチームメンバーのGitHub活動データから、
+      デイリースタンドアップ用のサマリーを生成してください。
+
+      ## データソース
+      - 昨日のコミット: {{commits}}
+      - オープンPR: {{open_prs}}
+      - マージされたPR: {{merged_prs}}
+      - 新規Issue: {{new_issues}}
+
+      ## 出力形式
+      各メンバーについて:
+      - 昨日やったこと
+      - 今日の予定（推測）
+      - ブロッカー（あれば）
+
+  # Slackでの技術質問への自動回答
+  tech_support:
+    name: "技術質問自動回答"
+    trigger: "#dev-support チャンネルへの投稿"
+    prompt: |
+      以下の技術質問に対して、チームの知識ベースと
+      プロジェクトのドキュメントを参照して回答してください。
+
+      質問: {{question}}
+
+      参考ドキュメント: {{relevant_docs}}
+      過去の類似質問: {{similar_questions}}
+
+      回答後に「この回答は正確ですか？」と確認を求めてください。
+```
+
+### 7.2 会議の効率化
+
+```python
+# AI支援による会議の効率化ツール
+
+from dataclasses import dataclass, field
+from datetime import datetime
+
+@dataclass
+class MeetingAgenda:
+    """AIが生成する会議アジェンダ"""
+    title: str
+    date: str
+    duration_minutes: int
+    participants: list[str]
+    topics: list[dict] = field(default_factory=list)
+
+@dataclass
+class MeetingFacilitator:
+    """AI会議ファシリテーター"""
+
+    def generate_sprint_review_agenda(
+        self,
+        sprint_number: int,
+        completed_stories: list[str],
+        incomplete_stories: list[str],
+        metrics: dict,
+    ) -> str:
+        """スプリントレビューのアジェンダを自動生成"""
+        completed_list = "\n".join(f"  - {s}" for s in completed_stories)
+        incomplete_list = "\n".join(f"  - {s}" for s in incomplete_stories)
+
+        return f"""
+# Sprint {sprint_number} レビュー アジェンダ
+
+## 1. スプリント概要（5分）
+- 期間: {metrics.get('start_date', 'N/A')} 〜 {metrics.get('end_date', 'N/A')}
+- 計画ポイント: {metrics.get('planned_points', 0)}
+- 完了ポイント: {metrics.get('completed_points', 0)}
+- 達成率: {metrics.get('completion_rate', 0):.0%}
+
+## 2. 完了ストーリーのデモ（20分）
+{completed_list}
+
+## 3. 未完了ストーリーの状況報告（10分）
+{incomplete_list}
+
+## 4. AI活用メトリクス（5分）
+- AIペアプロセッション数: {metrics.get('ai_sessions', 0)}
+- AI生成コード比率: {metrics.get('ai_code_ratio', 0):.0%}
+- AIレビュー指摘の採用率: {metrics.get('ai_review_acceptance', 0):.0%}
+
+## 5. 振り返り・改善提案（10分）
+- チームからのフィードバック
+- AI活用の改善ポイント
+
+## 6. 次スプリントの優先事項（10分）
+"""
+
+    def generate_retro_prompts(self, sprint_metrics: dict) -> str:
+        """レトロスペクティブのAI支援プロンプト"""
+        return f"""
+チームのスプリントメトリクスに基づいて、
+レトロスペクティブの議論のたたき台を生成してください。
+
+メトリクス:
+- ベロシティ: {sprint_metrics.get('velocity', 'N/A')}
+- テストカバレッジ: {sprint_metrics.get('coverage', 'N/A')}%
+- バグ発生率: {sprint_metrics.get('bug_rate', 'N/A')}件/スプリント
+- PRマージ平均時間: {sprint_metrics.get('pr_merge_time', 'N/A')}時間
+- AI活用度: {sprint_metrics.get('ai_usage', 'N/A')}%
+
+以下の形式で出力してください:
+
+### うまくいったこと（Keep）
+- メトリクスから読み取れるポジティブな傾向を3つ
+
+### 改善すべきこと（Problem）
+- メトリクスから読み取れる課題を3つ
+
+### 試したいこと（Try）
+- 具体的な改善アクションを3つ（AI活用の観点含む）
+"""
+```
+
+---
+
+## 8. チームのAIガバナンスフレームワーク
+
+### 8.1 AIガバナンスポリシーの策定
+
+```yaml
+# .ai/governance/ai-usage-policy.yaml
+# チームAI利用ポリシー
+
+policy:
+  version: "2.0"
+  last_updated: "2026-02-01"
+  approved_by: "Engineering Manager"
+
+  # データセキュリティ
+  data_security:
+    allowed_data_types:
+      - "オープンソースコード"
+      - "社内技術ドキュメント（機密以外）"
+      - "テストデータ（匿名化済み）"
+    prohibited_data_types:
+      - "顧客の個人情報（PII）"
+      - "認証情報（APIキー、パスワード、トークン）"
+      - "財務データ（未公開）"
+      - "医療データ"
+      - "契約書・法務文書"
+    encryption_requirement: "転送中のデータはTLS 1.3以上"
+
+  # AIツール使用ルール
+  tool_usage:
+    approved_tools:
+      - name: "Claude Code"
+        allowed_for: ["コード生成", "レビュー", "テスト", "ドキュメント"]
+        restrictions: "機密コードには使用禁止"
+      - name: "GitHub Copilot"
+        allowed_for: ["コード補完", "テスト生成"]
+        restrictions: "Telemetry無効化必須"
+    approval_required_for:
+      - "新しいAIツールの導入"
+      - "AIツールの本番環境への統合"
+      - "カスタムAIモデルのデプロイ"
+
+  # コード品質ルール
+  code_quality:
+    ai_generated_code_rules:
+      - "全てのAI生成コードは人間のレビューを通すこと"
+      - "セキュリティクリティカルなコードはシニアエンジニア以上がレビュー"
+      - "AI生成コードにはテストの追加が必須"
+      - "PRの説明にAI支援の範囲を記載"
+    minimum_test_coverage: 80
+    mandatory_security_scan: true
+
+  # 監査・記録
+  audit:
+    log_ai_usage: true
+    retention_period_days: 365
+    quarterly_review: true
+    metrics_tracking:
+      - "AI生成コード比率"
+      - "AI生成コードの欠陥密度"
+      - "AIレビュー指摘の精度"
+```
+
+### 8.2 コンプライアンスチェッカー
+
+```python
+# AIガバナンスポリシーの自動チェックツール
+
+import re
+from dataclasses import dataclass, field
+from pathlib import Path
+
+@dataclass
+class ComplianceIssue:
+    """コンプライアンス違反"""
+    severity: str  # "critical", "warning", "info"
+    category: str
+    message: str
+    file: str = ""
+    line: int = 0
+
+class AIGovernanceChecker:
+    """AIガバナンスポリシーのコンプライアンスチェック"""
+
+    # チェック対象パターン
+    SENSITIVE_PATTERNS = {
+        "pii_email": {
+            "pattern": r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}',
+            "message": "メールアドレスが検出されました",
+            "severity": "critical",
+            "exclude_files": ["*.test.*", "*.spec.*"],
+        },
+        "api_key": {
+            "pattern": r'(?:api[_-]?key|apikey)\s*[=:]\s*["\'][a-zA-Z0-9]{20,}',
+            "message": "APIキーのハードコードが検出されました",
+            "severity": "critical",
+        },
+        "password": {
+            "pattern": r'(?:password|passwd|pwd)\s*[=:]\s*["\'][^"\']{4,}',
+            "message": "パスワードのハードコードが検出されました",
+            "severity": "critical",
+        },
+        "private_key": {
+            "pattern": r'-----BEGIN (?:RSA |EC )?PRIVATE KEY-----',
+            "message": "秘密鍵が検出されました",
+            "severity": "critical",
+        },
+        "ip_address": {
+            "pattern": r'\b(?:10|172\.(?:1[6-9]|2\d|3[01])|192\.168)\.\d{1,3}\.\d{1,3}\b',
+            "message": "内部IPアドレスが検出されました",
+            "severity": "warning",
+        },
+    }
+
+    def __init__(self):
+        self.issues: list[ComplianceIssue] = []
+
+    def check_file(self, file_path: Path) -> list[ComplianceIssue]:
+        """ファイルのコンプライアンスチェック"""
+        issues = []
+        try:
+            content = file_path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, PermissionError):
+            return issues
+
+        for name, check in self.SENSITIVE_PATTERNS.items():
+            # 除外ファイルの確認
+            excludes = check.get("exclude_files", [])
+            if any(file_path.match(exc) for exc in excludes):
+                continue
+
+            for match in re.finditer(check["pattern"], content, re.IGNORECASE):
+                line_num = content[:match.start()].count("\n") + 1
+                issue = ComplianceIssue(
+                    severity=check["severity"],
+                    category="data_security",
+                    message=check["message"],
+                    file=str(file_path),
+                    line=line_num,
+                )
+                issues.append(issue)
+
+        self.issues.extend(issues)
+        return issues
+
+    def check_pr_description(self, description: str) -> list[ComplianceIssue]:
+        """PRの説明文にAI支援の記載があるかチェック"""
+        issues = []
+
+        # AI支援の記載確認
+        ai_keywords = ["AI", "Copilot", "Claude", "GPT", "AI支援", "AI生成"]
+        has_ai_mention = any(kw.lower() in description.lower() for kw in ai_keywords)
+
+        if not has_ai_mention:
+            issues.append(ComplianceIssue(
+                severity="warning",
+                category="transparency",
+                message="PR説明にAI支援の範囲が記載されていません。"
+                        "AIを使用した場合は記載してください。",
+            ))
+
+        self.issues.extend(issues)
+        return issues
+
+    def generate_report(self) -> str:
+        """コンプライアンスレポートを生成"""
+        critical = [i for i in self.issues if i.severity == "critical"]
+        warnings = [i for i in self.issues if i.severity == "warning"]
+        infos = [i for i in self.issues if i.severity == "info"]
+
+        lines = [
+            "# AIガバナンス コンプライアンスレポート\n",
+            f"チェック日時: {datetime.now().isoformat()}",
+            f"検出数: Critical {len(critical)}, Warning {len(warnings)}, Info {len(infos)}\n",
+        ]
+
+        if critical:
+            lines.append("## Critical Issues（即座に対応が必要）\n")
+            for issue in critical:
+                lines.append(f"- [{issue.category}] {issue.message}")
+                if issue.file:
+                    lines.append(f"  ファイル: {issue.file}:{issue.line}")
+
+        if warnings:
+            lines.append("\n## Warnings（確認推奨）\n")
+            for issue in warnings:
+                lines.append(f"- [{issue.category}] {issue.message}")
+                if issue.file:
+                    lines.append(f"  ファイル: {issue.file}:{issue.line}")
+
+        return "\n".join(lines)
+```
+
+---
+
+## 9. アンチパターン
 
 ### 6.1 アンチパターン：AI出力を無検証で採用
 

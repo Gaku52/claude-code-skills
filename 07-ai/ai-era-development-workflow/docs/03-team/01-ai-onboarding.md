@@ -584,7 +584,399 @@ week_4:
 
 ---
 
-## 7. アンチパターン
+## 7. オンボーディング効果の計測と改善
+
+### 7.1 オンボーディングメトリクス
+
+```python
+# オンボーディング効果を定量的に計測するシステム
+
+from dataclasses import dataclass, field
+from datetime import datetime, date, timedelta
+from enum import Enum
+
+class CompetencyLevel(Enum):
+    BEGINNER = 1      # 環境構築中
+    LEARNING = 2      # コード理解中
+    PRACTICING = 3    # AI活用実践中
+    INDEPENDENT = 4   # 独立開発可能
+    CONTRIBUTING = 5  # チームに貢献
+
+@dataclass
+class OnboardingMetrics:
+    """オンボーディング対象者のメトリクス"""
+    developer_name: str
+    start_date: str
+    current_level: CompetencyLevel
+    milestones: dict[str, str] = field(default_factory=dict)
+
+    # 開発活動メトリクス
+    first_commit_date: str = ""
+    first_pr_date: str = ""
+    first_pr_merged_date: str = ""
+    first_solo_task_date: str = ""
+    total_prs_merged: int = 0
+    total_commits: int = 0
+    code_review_given: int = 0
+
+    # AI活用メトリクス
+    ai_sessions_count: int = 0
+    ai_prompt_quality_avg: float = 0.0  # 1-5
+    ai_suggestion_acceptance_rate: float = 0.0
+    knowledge_base_contributions: int = 0
+
+    # メンタリングメトリクス
+    mentor_sessions_count: int = 0
+    questions_to_mentor: int = 0
+    questions_to_ai: int = 0
+
+    def days_to_first_pr(self) -> int | None:
+        """初PRまでの日数"""
+        if not self.first_pr_date:
+            return None
+        start = datetime.fromisoformat(self.start_date).date()
+        first_pr = datetime.fromisoformat(self.first_pr_date).date()
+        return (first_pr - start).days
+
+    def days_to_independence(self) -> int | None:
+        """独立開発までの日数"""
+        if not self.first_solo_task_date:
+            return None
+        start = datetime.fromisoformat(self.start_date).date()
+        solo = datetime.fromisoformat(self.first_solo_task_date).date()
+        return (solo - start).days
+
+    def ai_self_sufficiency_ratio(self) -> float:
+        """AI自己解決率（メンターへの質問 vs AIへの質問）"""
+        total = self.questions_to_mentor + self.questions_to_ai
+        if total == 0:
+            return 0.0
+        return self.questions_to_ai / total
+
+    def generate_progress_report(self) -> str:
+        """進捗レポートを生成"""
+        days_elapsed = (
+            datetime.now().date()
+            - datetime.fromisoformat(self.start_date).date()
+        ).days
+
+        lines = [
+            f"# オンボーディング進捗レポート: {self.developer_name}",
+            f"",
+            f"## 基本情報",
+            f"- 入社日: {self.start_date}",
+            f"- 経過日数: {days_elapsed}日",
+            f"- 現在レベル: {self.current_level.name} ({self.current_level.value}/5)",
+            f"",
+            f"## マイルストーン達成状況",
+        ]
+
+        milestone_order = [
+            ("環境構築完了", "env_setup"),
+            ("初コミット", "first_commit"),
+            ("初PR作成", "first_pr"),
+            ("初PRマージ", "first_pr_merged"),
+            ("初ソロタスク完了", "first_solo"),
+            ("AIプロンプト習得", "ai_proficient"),
+            ("ナレッジ貢献開始", "knowledge_contrib"),
+        ]
+        for label, key in milestone_order:
+            status = self.milestones.get(key, "未達成")
+            icon = "[x]" if status != "未達成" else "[ ]"
+            lines.append(f"  - {icon} {label}: {status}")
+
+        lines.extend([
+            f"",
+            f"## 活動メトリクス",
+            f"- コミット数: {self.total_commits}",
+            f"- マージ済みPR: {self.total_prs_merged}",
+            f"- コードレビュー: {self.code_review_given}件",
+            f"",
+            f"## AI活用メトリクス",
+            f"- AIセッション数: {self.ai_sessions_count}",
+            f"- プロンプト品質: {self.ai_prompt_quality_avg:.1f}/5.0",
+            f"- AI提案採用率: {self.ai_suggestion_acceptance_rate:.0%}",
+            f"- AI自己解決率: {self.ai_self_sufficiency_ratio():.0%}",
+            f"- ナレッジ貢献: {self.knowledge_base_contributions}件",
+        ])
+
+        first_pr_days = self.days_to_first_pr()
+        if first_pr_days is not None:
+            lines.append(f"")
+            lines.append(f"## 速度指標")
+            lines.append(f"- 初PRまで: {first_pr_days}日")
+
+        independence_days = self.days_to_independence()
+        if independence_days is not None:
+            lines.append(f"- 独立開発まで: {independence_days}日")
+
+        return "\n".join(lines)
+
+
+@dataclass
+class OnboardingBenchmark:
+    """オンボーディングのベンチマーク比較"""
+
+    historical_data: list[OnboardingMetrics] = field(default_factory=list)
+
+    def average_time_to_first_pr(self) -> float:
+        """過去の平均初PR日数"""
+        days = [m.days_to_first_pr() for m in self.historical_data
+                if m.days_to_first_pr() is not None]
+        return sum(days) / len(days) if days else 0
+
+    def average_time_to_independence(self) -> float:
+        """過去の平均独立開発日数"""
+        days = [m.days_to_independence() for m in self.historical_data
+                if m.days_to_independence() is not None]
+        return sum(days) / len(days) if days else 0
+
+    def ai_adoption_correlation(self) -> str:
+        """AI活用度と立ち上がり速度の相関分析"""
+        fast_starters = [
+            m for m in self.historical_data
+            if m.days_to_independence() is not None
+            and m.days_to_independence() < self.average_time_to_independence()
+        ]
+        slow_starters = [
+            m for m in self.historical_data
+            if m.days_to_independence() is not None
+            and m.days_to_independence() >= self.average_time_to_independence()
+        ]
+
+        if not fast_starters or not slow_starters:
+            return "データ不足"
+
+        fast_ai_rate = sum(m.ai_suggestion_acceptance_rate for m in fast_starters) / len(fast_starters)
+        slow_ai_rate = sum(m.ai_suggestion_acceptance_rate for m in slow_starters) / len(slow_starters)
+
+        return (
+            f"立ち上がりが早い人のAI採用率: {fast_ai_rate:.0%}\n"
+            f"立ち上がりが遅い人のAI採用率: {slow_ai_rate:.0%}\n"
+            f"差分: {abs(fast_ai_rate - slow_ai_rate):.0%}"
+        )
+
+    def generate_benchmark_report(self) -> str:
+        """ベンチマークレポートを生成"""
+        return f"""
+# オンボーディング ベンチマークレポート
+
+## 対象人数: {len(self.historical_data)}名
+
+## 速度ベンチマーク
+- 平均初PR日数: {self.average_time_to_first_pr():.1f}日
+- 平均独立開発日数: {self.average_time_to_independence():.1f}日
+
+## AI活用と立ち上がり速度の関係
+{self.ai_adoption_correlation()}
+
+## 推奨アクション
+- 初PRまで5日以上かかる場合 → メンターとの1on1を増やす
+- AI採用率が30%未満の場合 → AI研修を再実施
+- ナレッジ貢献が0の場合 → ナレッジ登録の習慣化を支援
+"""
+```
+
+### 7.2 オンボーディング改善サイクル
+
+```
+オンボーディング改善の継続的サイクル:
+
+┌──────────────────────────────────────────────────────┐
+│                                                      │
+│  ① 計測: 新メンバーのメトリクスを収集                 │
+│     │   ・初PRまでの日数                             │
+│     │   ・独立開発までの日数                          │
+│     │   ・AI活用度                                   │
+│     │   ・満足度アンケート                            │
+│     ▼                                               │
+│  ② 分析: ベンチマークと比較                           │
+│     │   ・過去の平均と比較                            │
+│     │   ・ボトルネックの特定                          │
+│     │   ・AI活用と立ち上がり速度の相関                 │
+│     ▼                                               │
+│  ③ 改善: プロセスの更新                              │
+│     │   ・カリキュラムの調整                          │
+│     │   ・AIツール設定の最適化                        │
+│     │   ・ナレッジベースの拡充                        │
+│     │   ・メンターへのフィードバック                   │
+│     ▼                                               │
+│  ④ 適用: 次の新メンバーに反映                        │
+│     │                                               │
+│     └──────────► ① に戻る                           │
+│                                                      │
+│  サイクル: 四半期ごとに振り返り                        │
+│  KPI: 独立開発までの日数、AI活用度、満足度             │
+└──────────────────────────────────────────────────────┘
+```
+
+---
+
+## 8. AI時代のオンボーディングチェックリスト
+
+### 8.1 包括的オンボーディングチェックリスト
+
+```yaml
+# .ai/onboarding/comprehensive-checklist.yaml
+# AI時代のオンボーディング完全チェックリスト
+
+phase_1_environment:
+  title: "Phase 1: 環境構築（Day 1-2）"
+  items:
+    development_setup:
+      - "開発マシンのOS確認・初期設定"
+      - "Git設定（ユーザー名、メール、SSH鍵）"
+      - "プログラミング言語ランタイムのインストール"
+      - "エディタ/IDEのインストールと設定"
+      - "プロジェクトのcloneとビルド確認"
+      - "ローカルでテスト実行を確認"
+
+    ai_tools_setup:
+      - "GitHub Copilotのインストールと有効化"
+      - "Claude Code CLIのインストールと認証"
+      - "チーム標準のAI設定ファイルの適用"
+      - "AIツールのセキュリティ設定確認（テレメトリ等）"
+      - "プロンプトライブラリへのアクセス確認"
+
+    access_and_accounts:
+      - "GitHub/GitLabのリポジトリアクセス"
+      - "CI/CDパイプラインへのアクセス"
+      - "Slackの関連チャンネル参加"
+      - "プロジェクト管理ツール（Jira/Linear等）のアカウント"
+      - "ナレッジベースへのアクセス確認"
+
+phase_2_understanding:
+  title: "Phase 2: コードベース理解（Day 3-5）"
+  items:
+    architecture:
+      - "AIにアーキテクチャの概要を質問した"
+      - "主要コンポーネントの責務を説明できる"
+      - "リクエストの流れを追跡できる"
+      - "データモデルの関係を理解した"
+
+    domain_knowledge:
+      - "プロダクトの概要と対象ユーザーを理解した"
+      - "主要なビジネスルールを3つ以上説明できる"
+      - "ドメイン用語集を確認した"
+      - "メンターとドメイン知識のQ&Aセッションを実施した"
+
+    development_flow:
+      - "ブランチ戦略を理解した"
+      - "PR作成からマージまでの手順を理解した"
+      - "CI/CDパイプラインの内容を把握した"
+      - "デプロイメントプロセスを理解した"
+
+phase_3_practice:
+  title: "Phase 3: AI活用実践（Week 2）"
+  items:
+    ai_coding:
+      - "AIペアプロで最初のコードを生成した"
+      - "AI生成コードのレビュー・修正を行った"
+      - "チームのプロンプトテンプレートを3つ以上使用した"
+      - "自分なりのプロンプトパターンを1つ開発した"
+
+    quality_assurance:
+      - "AIを使ってテストを生成した"
+      - "AIレビューのフィードバックに対応した"
+      - "PR説明文にAI支援の範囲を記載した"
+      - "AIの指摘が不適切だったケースを報告した"
+
+    first_contributions:
+      - "最初のPRを作成した"
+      - "PRがマージされた"
+      - "他メンバーのPRにレビューコメントした"
+      - "ナレッジベースに最初のエントリを登録した"
+
+phase_4_independence:
+  title: "Phase 4: 自律（Week 3-4）"
+  items:
+    independent_work:
+      - "メンターの常時支援なしでタスクを完了した"
+      - "AI活用の自分なりのワークフローを確立した"
+      - "AIの回答が不正確な場合に自力で修正できた"
+      - "技術的な意思決定を自律的に行った"
+
+    team_contribution:
+      - "ナレッジベースに3件以上貢献した"
+      - "チームのプロンプトテンプレートに改善提案した"
+      - "オンボーディングプロセスの改善提案を提出した"
+      - "新しい知見をチームに共有した"
+
+    assessment:
+      - "メンターによる最終評価を受けた"
+      - "自己評価レポートを作成した"
+      - "今後の成長目標を設定した"
+```
+
+### 8.2 卒業判定基準
+
+```python
+# オンボーディング卒業判定システム
+
+from dataclasses import dataclass
+
+@dataclass
+class GraduationCriteria:
+    """オンボーディング卒業判定基準"""
+
+    # 必須基準（全て満たす必要がある）
+    MANDATORY = {
+        "first_pr_merged": "PRが1件以上マージされている",
+        "ai_tool_setup": "AIツールが正しく設定されている",
+        "code_understanding": "メンターが理解度を承認",
+        "security_rules": "セキュリティルールを理解",
+    }
+
+    # 推奨基準（80%以上満たすことが望ましい）
+    RECOMMENDED = {
+        "solo_task_completed": "ソロタスクを1件以上完了",
+        "knowledge_contribution": "ナレッジベースに1件以上貢献",
+        "code_review_given": "他メンバーのPRをレビュー",
+        "ai_prompt_quality": "プロンプト品質スコア3.0以上",
+        "ai_acceptance_rate": "AI提案採用率40%以上",
+    }
+
+    def evaluate(self, metrics: OnboardingMetrics) -> dict:
+        """卒業判定を実行"""
+        mandatory_results = {}
+        mandatory_results["first_pr_merged"] = metrics.total_prs_merged >= 1
+        mandatory_results["ai_tool_setup"] = metrics.ai_sessions_count > 0
+        mandatory_results["code_understanding"] = metrics.current_level.value >= 3
+        mandatory_results["security_rules"] = "security" in metrics.milestones
+
+        recommended_results = {}
+        recommended_results["solo_task_completed"] = metrics.first_solo_task_date != ""
+        recommended_results["knowledge_contribution"] = metrics.knowledge_base_contributions >= 1
+        recommended_results["code_review_given"] = metrics.code_review_given >= 1
+        recommended_results["ai_prompt_quality"] = metrics.ai_prompt_quality_avg >= 3.0
+        recommended_results["ai_acceptance_rate"] = metrics.ai_suggestion_acceptance_rate >= 0.4
+
+        mandatory_pass = all(mandatory_results.values())
+        recommended_pass_rate = sum(recommended_results.values()) / len(recommended_results)
+
+        return {
+            "graduated": mandatory_pass and recommended_pass_rate >= 0.8,
+            "mandatory": mandatory_results,
+            "mandatory_all_pass": mandatory_pass,
+            "recommended": recommended_results,
+            "recommended_pass_rate": recommended_pass_rate,
+            "message": self._generate_message(mandatory_pass, recommended_pass_rate),
+        }
+
+    def _generate_message(self, mandatory_pass: bool, recommended_rate: float) -> str:
+        if mandatory_pass and recommended_rate >= 0.8:
+            return "卒業判定: 合格。通常のスプリントに参加可能です。"
+        elif mandatory_pass and recommended_rate >= 0.6:
+            return "卒業判定: 条件付き合格。一部の推奨基準を引き続き達成してください。"
+        elif mandatory_pass:
+            return "卒業判定: 保留。推奨基準の達成率が低いため、追加1週間のサポートを推奨します。"
+        else:
+            return "卒業判定: 未達。必須基準が未達成のため、メンターと追加計画を策定してください。"
+```
+
+---
+
+## 9. アンチパターン
 
 ### 7.1 アンチパターン：AIに依存しすぎるオンボーディング
 

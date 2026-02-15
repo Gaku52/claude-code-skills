@@ -1,4 +1,4 @@
-# AI エージェントの安全性 — ガードレール・人間監視・制限
+# AI エージェントの安全性 -- ガードレール・人間監視・制限
 
 > 自律的に行動する AI エージェントが暴走せず、安全かつ制御可能に動作するための技術的ガードレール、人間によるオーバーサイト、権限制限の設計パターンを体系的に学ぶ。
 
@@ -6,9 +6,11 @@
 
 ## この章で学ぶこと
 
-1. **ガードレール設計** — 入力検証、出力フィルタリング、アクション制限による多層防御の実装
-2. **人間監視 (Human-in-the-Loop)** — 承認ワークフロー、エスカレーション、介入メカニズムの設計
-3. **権限制限とサンドボックス** — 最小権限の原則、リソース制限、実行環境の隔離
+1. **ガードレール設計** -- 入力検証、出力フィルタリング、アクション制限による多層防御の実装
+2. **人間監視 (Human-in-the-Loop)** -- 承認ワークフロー、エスカレーション、介入メカニズムの設計
+3. **権限制限とサンドボックス** -- 最小権限の原則、リソース制限、実行環境の隔離
+4. **プロンプトインジェクション対策** -- 攻撃パターンの理解と防御手法の実装
+5. **監査とコンプライアンス** -- 全操作の記録、追跡可能性の確保、規制対応
 
 ---
 
@@ -64,6 +66,32 @@
      +----------------------------------------
         低           中           高
                    可逆性の低さ (非可逆度)
+```
+
+### 1.3 安全性設計のフレームワーク
+
+```
+安全性設計の4原則
+
+1. Defense in Depth（多層防御）
+   - 単一の防御手段に依存しない
+   - 各レイヤーが独立して機能する
+   - 1つのレイヤーが突破されても他が防御
+
+2. Least Privilege（最小権限）
+   - 必要最小限の権限のみ付与
+   - セッションごとに動的に権限を調整
+   - デフォルトは拒否（deny by default）
+
+3. Fail Safe（安全側への障害）
+   - 判断に迷う場合は安全な選択をする
+   - システム障害時はエージェントを停止
+   - 不明な入力は拒否する
+
+4. Auditability（監査可能性）
+   - 全操作をログに記録
+   - 意思決定の根拠を追跡可能にする
+   - 事後分析が可能な粒度で記録
 ```
 
 ---
@@ -252,6 +280,151 @@ class OutputGuardrail:
         return text
 ```
 
+### 2.3 入力検証とインジェクション対策
+
+```python
+class InputGuardrail:
+    """エージェントへの入力を検証し、攻撃を防ぐ"""
+
+    # インジェクション検出パターン
+    INJECTION_PATTERNS = [
+        r"ignore\s+(previous|above|all)\s+(instructions?|prompts?)",
+        r"you\s+are\s+now\s+a",
+        r"pretend\s+(to\s+be|you\s+are)",
+        r"system\s*:\s*",
+        r"<\|?(system|assistant|user)\|?>",
+        r"forget\s+(everything|all|your)",
+        r"new\s+instructions?\s*:",
+        r"override\s+(previous|system|all)",
+        r"jailbreak",
+        r"DAN\s+(mode|prompt)",
+    ]
+
+    def __init__(self):
+        self._compiled_patterns = [
+            re.compile(p, re.IGNORECASE) for p in self.INJECTION_PATTERNS
+        ]
+
+    async def validate_input(self, user_input: str,
+                             context: dict) -> dict:
+        """入力を検証し、安全性を評価する"""
+        issues = []
+
+        # 1. 基本的な長さチェック
+        if len(user_input) > 100_000:
+            return {
+                "valid": False,
+                "reason": "入力が長すぎます（100,000文字以上）",
+                "issues": [{"type": "input_too_long"}]
+            }
+
+        # 2. パターンベースのインジェクション検出
+        for pattern in self._compiled_patterns:
+            if pattern.search(user_input):
+                issues.append({
+                    "type": "injection_pattern_detected",
+                    "pattern": pattern.pattern,
+                    "severity": "high"
+                })
+
+        # 3. エンコーディング攻撃の検出
+        if self._detect_encoding_attack(user_input):
+            issues.append({
+                "type": "encoding_attack",
+                "severity": "high"
+            })
+
+        # 4. 不可視文字の検出
+        invisible_chars = self._detect_invisible_characters(user_input)
+        if invisible_chars:
+            issues.append({
+                "type": "invisible_characters",
+                "count": len(invisible_chars),
+                "severity": "medium"
+            })
+
+        # 5. LLMベースのインジェクション検出（高精度・低速）
+        if issues:
+            llm_check = await self._llm_injection_check(user_input)
+            issues.append({
+                "type": "llm_injection_analysis",
+                "is_injection": llm_check["is_injection"],
+                "confidence": llm_check["confidence"]
+            })
+
+        high_severity = any(
+            i.get("severity") == "high" for i in issues
+        )
+        return {
+            "valid": not high_severity,
+            "issues": issues,
+            "sanitized_input": self._sanitize(user_input)
+                if not high_severity else None
+        }
+
+    def _detect_encoding_attack(self, text: str) -> bool:
+        """Base64、Unicode等のエンコーディング攻撃を検出"""
+        import base64
+        # Base64でエンコードされた命令の検出
+        for word in text.split():
+            try:
+                decoded = base64.b64decode(word).decode("utf-8")
+                for pattern in self._compiled_patterns:
+                    if pattern.search(decoded):
+                        return True
+            except Exception:
+                continue
+        return False
+
+    def _detect_invisible_characters(self, text: str) -> list[int]:
+        """ゼロ幅文字などの不可視文字を検出"""
+        invisible = []
+        invisible_ranges = [
+            (0x200B, 0x200F),  # ゼロ幅スペース等
+            (0x2028, 0x202F),  # 行/段落区切り等
+            (0xFEFF, 0xFEFF),  # BOM
+        ]
+        for i, char in enumerate(text):
+            code = ord(char)
+            for start, end in invisible_ranges:
+                if start <= code <= end:
+                    invisible.append(i)
+        return invisible
+
+    def _sanitize(self, text: str) -> str:
+        """入力をサニタイズして安全な形に変換"""
+        # 不可視文字の除去
+        cleaned = ""
+        for char in text:
+            code = ord(char)
+            if code < 0x20 and code not in (0x0A, 0x0D, 0x09):
+                continue
+            if 0x200B <= code <= 0x200F:
+                continue
+            cleaned += char
+        return cleaned
+
+    async def _llm_injection_check(self, text: str) -> dict:
+        """LLMを使った高精度なインジェクション検出"""
+        prompt = f"""以下のテキストがプロンプトインジェクション攻撃を
+含むかどうかを判定してください。
+
+テキスト:
+---
+{text[:2000]}
+---
+
+JSON形式で回答してください:
+{{"is_injection": true/false, "confidence": 0.0-1.0, "reason": "..."}}"""
+
+        response = await self.classifier_llm.create(
+            model="claude-haiku-4-20250514",
+            max_tokens=200,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return json.loads(response.content[0].text)
+```
+
 ---
 
 ## 3. 人間監視 (Human-in-the-Loop)
@@ -385,6 +558,95 @@ class SafeAgent:
             return {"status": "success", "result": result}
         except Exception as e:
             return {"status": "error", "error": str(e)}
+```
+
+### 3.3 自信度ベースのエスカレーション
+
+```python
+class ConfidenceBasedEscalation:
+    """エージェントの自信度に基づくエスカレーション判定"""
+
+    def __init__(
+        self,
+        auto_threshold: float = 0.9,
+        confirm_threshold: float = 0.6,
+        escalate_threshold: float = 0.3
+    ):
+        self.auto_threshold = auto_threshold
+        self.confirm_threshold = confirm_threshold
+        self.escalate_threshold = escalate_threshold
+
+    async def evaluate_and_route(
+        self,
+        agent_response: dict,
+        context: dict
+    ) -> dict:
+        """レスポンスの自信度を評価し、ルーティングを決定"""
+
+        confidence = await self._assess_confidence(agent_response)
+
+        if confidence >= self.auto_threshold:
+            # 高自信度: 自動実行
+            return {
+                "action": "auto_execute",
+                "confidence": confidence,
+                "response": agent_response
+            }
+
+        elif confidence >= self.confirm_threshold:
+            # 中自信度: 簡易確認
+            return {
+                "action": "quick_confirm",
+                "confidence": confidence,
+                "response": agent_response,
+                "message": "エージェントの回答を確認してください"
+            }
+
+        elif confidence >= self.escalate_threshold:
+            # 低自信度: 詳細確認
+            return {
+                "action": "detailed_review",
+                "confidence": confidence,
+                "response": agent_response,
+                "alternatives": await self._generate_alternatives(
+                    agent_response, context
+                ),
+                "message": "複数の選択肢から適切なものを選んでください"
+            }
+
+        else:
+            # 非常に低い自信度: 人間に完全委譲
+            return {
+                "action": "full_escalation",
+                "confidence": confidence,
+                "context_summary": self._summarize_context(context),
+                "message": "エージェントが適切に処理できません。"
+                          "人間の対応が必要です。"
+            }
+
+    async def _assess_confidence(self, response: dict) -> float:
+        """レスポンスの自信度を評価"""
+        factors = []
+
+        # 1. LLMの自己評価
+        if "confidence" in response:
+            factors.append(response["confidence"])
+
+        # 2. 複数回答の一致度
+        if "alternatives" in response:
+            consistency = self._measure_consistency(
+                response["primary"], response["alternatives"]
+            )
+            factors.append(consistency)
+
+        # 3. ツール呼び出し結果の信頼性
+        if "tool_results" in response:
+            tool_reliability = self._assess_tool_results(
+                response["tool_results"]
+            )
+            factors.append(tool_reliability)
+
+        return sum(factors) / len(factors) if factors else 0.5
 ```
 
 ---
@@ -533,11 +795,323 @@ class CodeSandbox:
                 pass
 ```
 
+### 4.3 動的権限制御
+
+```python
+class DynamicPermissionManager:
+    """セッション中にエージェントの権限を動的に調整"""
+
+    def __init__(self, base_permissions: AgentPermissions):
+        self.base = base_permissions
+        self.current = AgentPermissions(**vars(base_permissions))
+        self.escalation_history: list[dict] = []
+        self.violation_count: int = 0
+
+    def request_elevated_permission(
+        self,
+        resource_type: str,
+        resource_name: str,
+        justification: str
+    ) -> dict:
+        """権限昇格をリクエスト"""
+        request = {
+            "type": resource_type,
+            "resource": resource_name,
+            "justification": justification,
+            "timestamp": time.time(),
+            "status": "pending"
+        }
+        self.escalation_history.append(request)
+        return request
+
+    def grant_temporary_permission(
+        self,
+        resource_type: str,
+        resource_name: str,
+        duration_minutes: int = 10
+    ):
+        """一時的な権限付与"""
+        if resource_type == "tool":
+            if resource_name not in self.current.allowed_tools:
+                self.current.allowed_tools.append(resource_name)
+        elif resource_type == "read_path":
+            if resource_name not in self.current.allowed_read_paths:
+                self.current.allowed_read_paths.append(resource_name)
+        elif resource_type == "write_path":
+            if resource_name not in self.current.allowed_write_paths:
+                self.current.allowed_write_paths.append(resource_name)
+
+        # 一定時間後に権限を自動回収
+        asyncio.get_event_loop().call_later(
+            duration_minutes * 60,
+            self._revoke_permission,
+            resource_type,
+            resource_name
+        )
+
+    def record_violation(self, violation_type: str, details: str):
+        """権限違反を記録し、必要に応じて権限を縮小"""
+        self.violation_count += 1
+
+        if self.violation_count >= 3:
+            # 3回以上の違反で権限を縮小
+            self._reduce_permissions()
+
+        if self.violation_count >= 5:
+            # 5回以上でセッション停止
+            raise SecurityViolationError(
+                f"権限違反が{self.violation_count}回に達しました。"
+                "セッションを終了します。"
+            )
+
+    def _reduce_permissions(self):
+        """権限を段階的に縮小"""
+        self.current.max_tool_calls_per_session = max(
+            10,
+            self.current.max_tool_calls_per_session // 2
+        )
+        self.current.allow_code_execution = False
+        self.current.allowed_write_paths = []
+
+    def _revoke_permission(self, resource_type: str, resource_name: str):
+        """一時権限を回収"""
+        if resource_type == "tool":
+            if (resource_name in self.current.allowed_tools
+                    and resource_name not in self.base.allowed_tools):
+                self.current.allowed_tools.remove(resource_name)
+```
+
 ---
 
-## 5. 監視とアラート
+## 5. 監査とコンプライアンス
 
-### 5.1 エージェント行動の監視ダッシュボード
+### 5.1 監査ログの実装
+
+```python
+import json
+from datetime import datetime
+from enum import Enum
+
+class AuditEventType(Enum):
+    AGENT_START = "agent_start"
+    AGENT_END = "agent_end"
+    TOOL_CALL = "tool_call"
+    TOOL_RESULT = "tool_result"
+    APPROVAL_REQUESTED = "approval_requested"
+    APPROVAL_GRANTED = "approval_granted"
+    APPROVAL_DENIED = "approval_denied"
+    GUARDRAIL_TRIGGERED = "guardrail_triggered"
+    PERMISSION_VIOLATION = "permission_violation"
+    OUTPUT_FILTERED = "output_filtered"
+    ESCALATION = "escalation"
+
+class AuditLogger:
+    """全エージェント操作の監査ログを記録"""
+
+    def __init__(self, storage_backend):
+        self.storage = storage_backend
+
+    async def log_event(
+        self,
+        event_type: AuditEventType,
+        session_id: str,
+        user_id: str,
+        agent_id: str,
+        details: dict,
+        metadata: dict | None = None
+    ):
+        """監査イベントを記録"""
+        event = {
+            "event_id": str(uuid.uuid4()),
+            "event_type": event_type.value,
+            "timestamp": datetime.utcnow().isoformat(),
+            "session_id": session_id,
+            "user_id": user_id,
+            "agent_id": agent_id,
+            "details": details,
+            "metadata": metadata or {},
+        }
+
+        # 改ざん防止のためハッシュチェーンを使用
+        event["hash"] = self._compute_hash(event)
+        event["previous_hash"] = await self._get_last_hash(session_id)
+
+        await self.storage.append(
+            key=f"audit:{session_id}",
+            value=json.dumps(event)
+        )
+
+        # 重大イベントは即時通知
+        if event_type in (
+            AuditEventType.PERMISSION_VIOLATION,
+            AuditEventType.GUARDRAIL_TRIGGERED,
+        ):
+            await self._notify_security_team(event)
+
+    def _compute_hash(self, event: dict) -> str:
+        """イベントのハッシュを計算"""
+        import hashlib
+        content = json.dumps(
+            {k: v for k, v in event.items() if k != "hash"},
+            sort_keys=True
+        )
+        return hashlib.sha256(content.encode()).hexdigest()
+
+    async def _get_last_hash(self, session_id: str) -> str:
+        """直前のイベントハッシュを取得"""
+        last_event = await self.storage.get_last(f"audit:{session_id}")
+        if last_event:
+            return json.loads(last_event)["hash"]
+        return "genesis"
+
+    async def generate_audit_report(
+        self,
+        session_id: str
+    ) -> dict:
+        """セッションの監査レポートを生成"""
+        events = await self.storage.get_all(f"audit:{session_id}")
+        parsed = [json.loads(e) for e in events]
+
+        report = {
+            "session_id": session_id,
+            "total_events": len(parsed),
+            "start_time": parsed[0]["timestamp"] if parsed else None,
+            "end_time": parsed[-1]["timestamp"] if parsed else None,
+            "tool_calls": [
+                e for e in parsed
+                if e["event_type"] == "tool_call"
+            ],
+            "guardrail_triggers": [
+                e for e in parsed
+                if e["event_type"] == "guardrail_triggered"
+            ],
+            "violations": [
+                e for e in parsed
+                if e["event_type"] == "permission_violation"
+            ],
+            "approvals": {
+                "requested": len([
+                    e for e in parsed
+                    if e["event_type"] == "approval_requested"
+                ]),
+                "granted": len([
+                    e for e in parsed
+                    if e["event_type"] == "approval_granted"
+                ]),
+                "denied": len([
+                    e for e in parsed
+                    if e["event_type"] == "approval_denied"
+                ]),
+            },
+            "integrity_valid": self._verify_hash_chain(parsed),
+        }
+
+        return report
+
+    def _verify_hash_chain(self, events: list[dict]) -> bool:
+        """ハッシュチェーンの整合性を検証"""
+        for i, event in enumerate(events):
+            expected_hash = self._compute_hash(event)
+            if event["hash"] != expected_hash:
+                return False
+            if i > 0 and event["previous_hash"] != events[i-1]["hash"]:
+                return False
+        return True
+```
+
+### 5.2 コンプライアンスチェッカー
+
+```python
+class ComplianceChecker:
+    """規制要件に基づくコンプライアンスチェック"""
+
+    def __init__(self, regulations: list[str]):
+        self.regulations = regulations
+        self.rules = self._load_rules(regulations)
+
+    def _load_rules(self, regulations: list[str]) -> dict:
+        """規制ごとのルールを読み込み"""
+        all_rules = {
+            "GDPR": {
+                "data_retention_days": 30,
+                "requires_consent": True,
+                "right_to_erasure": True,
+                "data_portability": True,
+                "pii_categories": [
+                    "name", "email", "phone", "address",
+                    "ip_address", "location"
+                ],
+            },
+            "HIPAA": {
+                "phi_categories": [
+                    "medical_record", "diagnosis", "treatment",
+                    "insurance_info", "patient_id"
+                ],
+                "requires_encryption": True,
+                "audit_trail_required": True,
+                "minimum_access_controls": True,
+            },
+            "SOC2": {
+                "requires_access_logs": True,
+                "requires_encryption_at_rest": True,
+                "requires_encryption_in_transit": True,
+                "change_management_required": True,
+            },
+            "APPI": {  # 個人情報保護法（日本）
+                "requires_purpose_specification": True,
+                "requires_consent_for_third_party": True,
+                "data_breach_notification_required": True,
+                "cross_border_transfer_restrictions": True,
+            },
+        }
+        return {r: all_rules[r] for r in regulations if r in all_rules}
+
+    async def check_action(
+        self,
+        action: str,
+        data_categories: list[str],
+        context: dict
+    ) -> dict:
+        """アクションがコンプライアンス要件を満たすか検証"""
+        violations = []
+
+        for reg_name, rules in self.rules.items():
+            # PII/PHI カテゴリのチェック
+            sensitive_cats = rules.get(
+                "pii_categories",
+                rules.get("phi_categories", [])
+            )
+            overlap = set(data_categories) & set(sensitive_cats)
+            if overlap:
+                if rules.get("requires_consent") and not context.get("has_consent"):
+                    violations.append({
+                        "regulation": reg_name,
+                        "violation": "consent_missing",
+                        "categories": list(overlap),
+                        "severity": "high"
+                    })
+
+            # 暗号化チェック
+            if rules.get("requires_encryption"):
+                if not context.get("encryption_enabled"):
+                    violations.append({
+                        "regulation": reg_name,
+                        "violation": "encryption_missing",
+                        "severity": "high"
+                    })
+
+        return {
+            "compliant": len(violations) == 0,
+            "violations": violations,
+            "regulations_checked": list(self.rules.keys())
+        }
+```
+
+---
+
+## 6. 監視とアラート
+
+### 6.1 エージェント行動の監視ダッシュボード
 
 ```
 +------------------------------------------------------------------+
@@ -564,21 +1138,92 @@ class CodeSandbox:
 +------------------------------------------------------------------+
 ```
 
+### 6.2 異常検知パターン
+
+```python
+class AnomalyDetector:
+    """エージェントの異常行動を検知"""
+
+    def __init__(self):
+        self.baselines: dict[str, dict] = {}
+        self.alerts: list[dict] = []
+
+    async def check_for_anomalies(
+        self,
+        session_id: str,
+        metrics: dict
+    ) -> list[dict]:
+        """セッションメトリクスの異常を検知"""
+        anomalies = []
+
+        # 1. ループ検出: 同一ツールの連続呼び出し
+        if metrics.get("consecutive_same_tool", 0) > 5:
+            anomalies.append({
+                "type": "tool_loop_detected",
+                "tool": metrics["last_tool"],
+                "count": metrics["consecutive_same_tool"],
+                "severity": "high",
+                "action": "pause_agent"
+            })
+
+        # 2. 異常なトークン消費
+        avg_tokens = self.baselines.get(
+            "avg_tokens_per_step", 500
+        )
+        if metrics.get("tokens_this_step", 0) > avg_tokens * 5:
+            anomalies.append({
+                "type": "token_spike",
+                "current": metrics["tokens_this_step"],
+                "expected": avg_tokens,
+                "severity": "medium",
+                "action": "log_and_continue"
+            })
+
+        # 3. 失敗率の急上昇
+        if metrics.get("recent_error_rate", 0) > 0.5:
+            anomalies.append({
+                "type": "high_error_rate",
+                "rate": metrics["recent_error_rate"],
+                "severity": "high",
+                "action": "escalate_to_human"
+            })
+
+        # 4. 権限外のリソースアクセス試行
+        if metrics.get("permission_denied_count", 0) > 3:
+            anomalies.append({
+                "type": "repeated_permission_violation",
+                "count": metrics["permission_denied_count"],
+                "severity": "critical",
+                "action": "terminate_session"
+            })
+
+        # 5. 応答時間の異常
+        if metrics.get("step_duration_seconds", 0) > 120:
+            anomalies.append({
+                "type": "long_running_step",
+                "duration": metrics["step_duration_seconds"],
+                "severity": "medium",
+                "action": "check_for_hang"
+            })
+
+        return anomalies
+```
+
 ---
 
-## 6. パターン比較
+## 7. パターン比較
 
-### 6.1 安全性パターンの比較
+### 7.1 安全性パターンの比較
 
 | パターン | 安全性 | ユーザー体験 | 実装コスト | 適用場面 |
 |----------|--------|-------------|-----------|---------|
 | 全操作事前承認 | 極高 | 低 (遅延大) | 低 | 金融、医療 |
 | リスクベース承認 | 高 | 中 | 中 | 一般業務 |
 | 事後監視 + 取消 | 中 | 高 | 中 | 社内ツール |
-| 自信度ベースエスカレーション | 中〜高 | 高 | 高 | カスタマーサポート |
+| 自信度ベースエスカレーション | 中-高 | 高 | 高 | カスタマーサポート |
 | サンドボックス + ログ | 中 | 高 | 高 | 開発・研究 |
 
-### 6.2 エージェント権限モデルの比較
+### 7.2 エージェント権限モデルの比較
 
 | モデル | 粒度 | 柔軟性 | 管理コスト | 適用場面 |
 |--------|------|--------|-----------|---------|
@@ -587,9 +1232,20 @@ class CodeSandbox:
 | ABAC | 属性ベース | 高 | 高 | 複雑な権限要件 |
 | Capability-based | 能力トークン | 高 | 高 | マルチエージェント |
 
+### 7.3 インジェクション対策手法の比較
+
+| 手法 | 検出精度 | レイテンシ | コスト | 誤検知率 |
+|------|---------|-----------|--------|---------|
+| パターンマッチング | 中 | 極低 | なし | 中 |
+| LLMベース分類 | 高 | 中 | API費用 | 低 |
+| 入力サニタイズ | 低 | 極低 | なし | なし |
+| プロンプト分離 | 高 | なし | なし | なし |
+| 出力検証 | 中 | 低 | なし | 低 |
+| 多層組み合わせ | 最高 | 中 | 中 | 最低 |
+
 ---
 
-## 7. アンチパターン
+## 8. アンチパターン
 
 ### アンチパターン 1: 「全権限を付与した汎用エージェント」
 
@@ -626,9 +1282,80 @@ class CodeSandbox:
   - コスト上限の設定（$XX/セッション）
 ```
 
+### アンチパターン 3: 「出力を信頼して検証しない」
+
+```
+[誤り] エージェントの出力をフィルタリングせずにユーザーに提示
+
+問題:
+  - PII（個人情報）の漏洩
+  - システムプロンプトの漏洩
+  - 有害なコンテンツの出力
+  - ハルシネーションを事実として提示
+
+[正解] 出力ガードレールを必ず実装する
+  - PII検出 + マスキング
+  - 有害性スコアリング
+  - システムプロンプト漏洩チェック
+  - 事実検証（可能な場合）
+```
+
+### アンチパターン 4: 「監査ログなしの運用」
+
+```
+[誤り] エージェントの行動を記録せず、事後分析ができない
+
+問題:
+  - インシデント発生時に原因特定ができない
+  - コンプライアンス監査に対応できない
+  - 改善のためのデータが蓄積されない
+
+[正解] 全操作の監査ログを記録する
+  - ツール呼び出し: 名前、パラメータ、結果
+  - 意思決定: 自信度、選択理由
+  - ガードレール: トリガー回数、ブロック内容
+  - ユーザーインタラクション: 承認/拒否の履歴
+```
+
 ---
 
-## 8. FAQ
+## 9. 実装チェックリスト
+
+### 9.1 安全性実装チェックリスト
+
+```
+必須レベル（Must Have）:
+[ ] 入力バリデーション（長さ、形式）
+[ ] プロンプトインジェクション検出（パターンベース）
+[ ] ツール呼び出し権限制御（ホワイトリスト）
+[ ] 出力フィルタリング（PII検出）
+[ ] セッションタイムアウト
+[ ] トークン使用量の上限
+[ ] ツール呼び出し回数の上限
+[ ] 全操作の監査ログ
+[ ] エラーハンドリングとフォールバック
+
+推奨レベル（Should Have）:
+[ ] LLMベースのインジェクション検出
+[ ] リスクベースの承認ワークフロー
+[ ] サンドボックス実行環境
+[ ] ループ検出と自動停止
+[ ] コスト制限と予算管理
+[ ] 異常検知アラート
+[ ] ロールベースの権限管理
+
+高度レベル（Nice to Have）:
+[ ] 自信度ベースのエスカレーション
+[ ] 動的権限制御
+[ ] コンプライアンスチェッカー
+[ ] ハッシュチェーンによるログ改ざん防止
+[ ] A/Bテスト付き安全性評価
+[ ] 多言語対応のPII検出
+```
+
+---
+
+## 10. FAQ
 
 ### Q1: エージェントにどの程度の自律性を与えるべきですか？
 
@@ -639,7 +1366,7 @@ class CodeSandbox:
 - **Level 3 (監視付き自律)**: エージェントが自律実行し、人間は監視のみ。異常時に介入
 - **Level 4 (完全自律)**: エージェントが完全に自律実行。定期的な事後レビューのみ
 
-本番環境では Level 2〜3 から始め、信頼性が実証された後に Level を上げることを推奨します。
+本番環境では Level 2-3 から始め、信頼性が実証された後に Level を上げることを推奨します。
 
 ### Q2: マルチエージェント環境での安全性はどう設計しますか？
 
@@ -660,9 +1387,30 @@ class CodeSandbox:
 - **リアルタイム監視**: コスト監視ダッシュボードで異常な消費パターンを検出
 - **自動停止**: 予算の 100% に達したら全エージェントを自動停止
 
+### Q4: プロンプトインジェクション対策の優先順位は？
+
+**A:** 以下の順に実装を推奨します。
+
+1. **システムプロンプトの分離**: ユーザー入力とシステム命令を明確に分離（コストゼロで効果大）
+2. **パターンマッチング**: 既知のインジェクションパターンを検出（低コスト・即時実装可能）
+3. **入力サニタイズ**: 不可視文字やエンコーディング攻撃の除去
+4. **出力検証**: システムプロンプトの漏洩やPII漏洩をチェック
+5. **LLMベース分類**: 高精度だがコストがかかるため、疑わしい入力のみに適用
+
+### Q5: セキュリティインシデント発生時の対応手順は？
+
+**A:** 以下のフローに従います。
+
+1. **即時対応**: 該当セッションを即座に停止し、エージェントの操作を凍結
+2. **影響範囲の特定**: 監査ログから影響を受けたユーザー・データを特定
+3. **証拠保全**: 関連ログ・メトリクス・スナップショットを保全
+4. **通知**: 影響を受けたユーザーおよび関係者に通知（規制要件に応じて）
+5. **根本原因分析**: インシデントの原因を特定し、再発防止策を策定
+6. **改善実施**: ガードレール・権限設定・検出ロジックを更新
+
 ---
 
-## 9. まとめ
+## 11. まとめ
 
 | 安全対策 | 実装方法 | 目的 | 優先度 |
 |----------|----------|------|--------|
@@ -672,16 +1420,18 @@ class CodeSandbox:
 | 人間承認ゲート | 非同期ワークフロー | 高リスク操作の制御 | 推奨 |
 | サンドボックス | Docker + リソース制限 | 実行環境の隔離 | 推奨 |
 | ループ検出 | 呼び出しパターン監視 | リソース浪費の防止 | 推奨 |
-| 監査ログ | 全操作の記録 | 追跡可能性の確保 | 必須 |
+| 監査ログ | 全操作の記録 + ハッシュチェーン | 追跡可能性の確保 | 必須 |
 | コスト制限 | 多層的な予算制御 | コスト爆発の防止 | 推奨 |
+| コンプライアンス | 規制ルール自動チェック | 法規制への準拠 | 業界依存 |
+| 動的権限 | セッション中の権限調整 | きめ細かい制御 | 高度 |
 
 ---
 
 ## 次に読むべきガイド
 
-- [AI セーフティ](../../../llm-and-ai-comparison/docs/04-ethics/00-ai-safety.md) — アライメント・レッドチームの技術的手法
-- [AI ガバナンス](../../../llm-and-ai-comparison/docs/04-ethics/01-ai-governance.md) — 規制・ポリシーの動向
-- [責任ある AI](../../../ai-analysis-guide/docs/03-applied/03-responsible-ai.md) — 公平性・説明可能性・プライバシーの実装
+- [AI セーフティ](../../../llm-and-ai-comparison/docs/04-ethics/00-ai-safety.md) -- アライメント・レッドチームの技術的手法
+- [AI ガバナンス](../../../llm-and-ai-comparison/docs/04-ethics/01-ai-governance.md) -- 規制・ポリシーの動向
+- [責任ある AI](../../../ai-analysis-guide/docs/03-applied/03-responsible-ai.md) -- 公平性・説明可能性・プライバシーの実装
 
 ---
 
@@ -690,3 +1440,5 @@ class CodeSandbox:
 1. Wunderwuzzi. (2024). "Prompt Injection and AI Agents: Threats, Defenses, and Real-world Scenarios." *Embracethered*. https://embracethered.com/blog/
 2. Yao, S. et al. (2023). "ReAct: Synergizing Reasoning and Acting in Language Models." *ICLR 2023*. https://arxiv.org/abs/2210.03629
 3. OWASP. (2025). "OWASP Top 10 for Large Language Model Applications." *OWASP Foundation*. https://owasp.org/www-project-top-10-for-large-language-model-applications/
+4. Greshake, K. et al. (2023). "Not what you've signed up for: Compromising Real-World LLM-Integrated Applications with Indirect Prompt Injection." *arXiv*. https://arxiv.org/abs/2302.12173
+5. NIST. (2024). "AI Risk Management Framework." *NIST*. https://www.nist.gov/artificial-intelligence

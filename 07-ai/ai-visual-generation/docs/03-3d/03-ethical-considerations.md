@@ -7,6 +7,8 @@
 1. **著作権と知的財産の論点** -- AI生成物の著作権帰属、学習データの権利処理、フェアユースの範囲と各国法制度の動向
 2. **ディープフェイクと肖像権** -- 顔画像合成の技術的検出手法、法規制、同意なき生成への対策フレームワーク
 3. **責任あるAI活用の実践** -- コンテンツ認証（C2PA）、透明性の確保、バイアス対策、組織ガイドライン策定
+4. **技術的セーフガード** -- 電子透かし、NSFWフィルタ、コンテンツモデレーション、監査ログの実装パターン
+5. **インシデント対応** -- 倫理的問題が発生した場合の対処フレームワーク、法的手続き、レピュテーション管理
 
 ---
 
@@ -42,20 +44,20 @@ AI 生成コンテンツの倫理的課題
        |
        | 学習データ収集
        v
-  [アーティスト / クリエイター] ←── 作品が無断学習に使われる懸念
+  [アーティスト / クリエイター] <── 作品が無断学習に使われる懸念
        |
        | AI ツール使用
        v
   [コンテンツ制作者] ──→ AI 生成物を公開
        |
        v
-  [消費者 / 一般市民] ←── 真偽の判断が困難
+  [消費者 / 一般市民] <── 真偽の判断が困難
        |
        v
-  [プラットフォーム] ←── モデレーション責任
+  [プラットフォーム] <── モデレーション責任
        |
        v
-  [規制当局] ←── 法整備・ガイドライン策定
+  [規制当局] <── 法整備・ガイドライン策定
 ```
 
 ### 1.3 リスクレベルマトリクス
@@ -73,6 +75,247 @@ AI 生成コンテンツの倫理的課題
        +-----------------------------------------------
        Low              Mid               High
                      発生頻度
+```
+
+### 1.4 倫理的リスク評価フレームワーク
+
+```python
+# 倫理的リスクの定量的評価フレームワーク
+
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Optional
+import json
+from datetime import datetime
+
+
+class RiskLevel(Enum):
+    CRITICAL = 4    # 即座に対応が必要（違法コンテンツ等）
+    HIGH = 3        # 24時間以内の対応が必要
+    MEDIUM = 2      # 1週間以内に対策を検討
+    LOW = 1         # モニタリング継続
+    NEGLIGIBLE = 0  # リスクなし
+
+
+class RiskCategory(Enum):
+    COPYRIGHT = "著作権侵害"
+    PORTRAIT_RIGHTS = "肖像権侵害"
+    DEEPFAKE = "ディープフェイク"
+    BIAS = "バイアス・差別"
+    MISINFORMATION = "誤情報"
+    CHILD_SAFETY = "児童安全"
+    PRIVACY = "プライバシー"
+    ENVIRONMENTAL = "環境負荷"
+    CULTURAL_APPROPRIATION = "文化的盗用"
+    TRADEMARK = "商標権侵害"
+
+
+@dataclass
+class EthicalRiskAssessment:
+    """AI 生成コンテンツの倫理的リスク評価"""
+
+    category: RiskCategory
+    severity: RiskLevel
+    likelihood: RiskLevel
+    description: str
+    affected_parties: list[str] = field(default_factory=list)
+    mitigations: list[str] = field(default_factory=list)
+    legal_references: list[str] = field(default_factory=list)
+    assessed_at: str = field(default_factory=lambda: datetime.now().isoformat())
+
+    @property
+    def risk_score(self) -> int:
+        """リスクスコア = 影響度 x 発生可能性"""
+        return self.severity.value * self.likelihood.value
+
+    @property
+    def priority(self) -> str:
+        score = self.risk_score
+        if score >= 12:
+            return "IMMEDIATE_ACTION"
+        elif score >= 6:
+            return "HIGH_PRIORITY"
+        elif score >= 3:
+            return "MONITOR"
+        else:
+            return "ACCEPTABLE"
+
+
+class EthicalRiskEvaluator:
+    """生成リクエストの倫理的リスクを包括的に評価"""
+
+    def __init__(self):
+        self.assessments: list[EthicalRiskAssessment] = []
+        self.thresholds = {
+            "block": 12,       # この値以上は生成をブロック
+            "review": 6,       # この値以上は人間レビューが必要
+            "flag": 3,         # この値以上はフラグを立てる
+        }
+
+    def evaluate_request(self, prompt: str, config: dict) -> dict:
+        """生成リクエストの包括的倫理評価"""
+        self.assessments = []
+
+        # 各カテゴリのリスクを評価
+        self._assess_copyright_risk(prompt, config)
+        self._assess_portrait_risk(prompt, config)
+        self._assess_deepfake_risk(prompt, config)
+        self._assess_bias_risk(prompt, config)
+        self._assess_child_safety(prompt, config)
+        self._assess_misinformation_risk(prompt, config)
+
+        # 総合判定
+        max_score = max(a.risk_score for a in self.assessments) if self.assessments else 0
+
+        return {
+            "overall_risk_score": max_score,
+            "decision": self._make_decision(max_score),
+            "assessments": [
+                {
+                    "category": a.category.value,
+                    "risk_score": a.risk_score,
+                    "priority": a.priority,
+                    "mitigations": a.mitigations,
+                }
+                for a in sorted(self.assessments, key=lambda x: x.risk_score, reverse=True)
+            ],
+            "requires_human_review": max_score >= self.thresholds["review"],
+        }
+
+    def _make_decision(self, max_score: int) -> str:
+        if max_score >= self.thresholds["block"]:
+            return "BLOCKED"
+        elif max_score >= self.thresholds["review"]:
+            return "REQUIRES_REVIEW"
+        elif max_score >= self.thresholds["flag"]:
+            return "FLAGGED"
+        return "APPROVED"
+
+    def _assess_copyright_risk(self, prompt: str, config: dict):
+        """著作権リスクの評価"""
+        # 特定アーティスト名の検出
+        artist_keywords = self._detect_artist_references(prompt)
+        severity = RiskLevel.HIGH if artist_keywords else RiskLevel.LOW
+        likelihood = RiskLevel.HIGH if artist_keywords else RiskLevel.LOW
+
+        self.assessments.append(EthicalRiskAssessment(
+            category=RiskCategory.COPYRIGHT,
+            severity=severity,
+            likelihood=likelihood,
+            description=f"アーティスト参照: {artist_keywords}" if artist_keywords else "特定アーティストへの参照なし",
+            mitigations=[
+                "特定アーティスト名をプロンプトから除去",
+                "ライセンス済みモデル（Adobe Firefly）の使用",
+                "類似度チェックの実施",
+            ] if artist_keywords else [],
+        ))
+
+    def _assess_portrait_risk(self, prompt: str, config: dict):
+        """肖像権リスクの評価"""
+        real_person_indicators = self._detect_real_person_references(prompt)
+        if real_person_indicators:
+            has_consent = config.get("consent_obtained", False)
+            severity = RiskLevel.CRITICAL if not has_consent else RiskLevel.LOW
+            self.assessments.append(EthicalRiskAssessment(
+                category=RiskCategory.PORTRAIT_RIGHTS,
+                severity=severity,
+                likelihood=RiskLevel.HIGH,
+                description=f"実在人物の参照検出: {real_person_indicators}",
+                affected_parties=real_person_indicators,
+                mitigations=[
+                    "本人からの書面同意の取得",
+                    "架空のキャラクターへの変更",
+                    "パブリシティ権ライセンス契約の締結",
+                ],
+            ))
+
+    def _assess_deepfake_risk(self, prompt: str, config: dict):
+        """ディープフェイクリスクの評価"""
+        face_swap_keywords = ["face swap", "顔入れ替え", "顔交換", "フェイススワップ"]
+        is_face_swap = any(kw in prompt.lower() for kw in face_swap_keywords)
+        if is_face_swap:
+            self.assessments.append(EthicalRiskAssessment(
+                category=RiskCategory.DEEPFAKE,
+                severity=RiskLevel.CRITICAL,
+                likelihood=RiskLevel.HIGH,
+                description="顔入れ替え関連のプロンプトを検出",
+                mitigations=["生成をブロック", "管理者通知"],
+            ))
+
+    def _assess_bias_risk(self, prompt: str, config: dict):
+        """バイアスリスクの評価"""
+        stereotype_patterns = self._detect_stereotype_patterns(prompt)
+        if stereotype_patterns:
+            self.assessments.append(EthicalRiskAssessment(
+                category=RiskCategory.BIAS,
+                severity=RiskLevel.MEDIUM,
+                likelihood=RiskLevel.HIGH,
+                description=f"ステレオタイプ的表現の検出: {stereotype_patterns}",
+                mitigations=[
+                    "多様性を明示的に指定するプロンプトの追加",
+                    "複数回生成して結果の多様性を確認",
+                ],
+            ))
+
+    def _assess_child_safety(self, prompt: str, config: dict):
+        """児童安全リスクの評価"""
+        child_risk_keywords = self._detect_child_risk(prompt)
+        if child_risk_keywords:
+            self.assessments.append(EthicalRiskAssessment(
+                category=RiskCategory.CHILD_SAFETY,
+                severity=RiskLevel.CRITICAL,
+                likelihood=RiskLevel.HIGH,
+                description="児童に関連するリスクコンテンツを検出",
+                mitigations=["即座にブロック", "ログ記録", "法的通報の検討"],
+            ))
+
+    def _assess_misinformation_risk(self, prompt: str, config: dict):
+        """誤情報リスクの評価"""
+        news_context = any(kw in prompt.lower() for kw in ["ニュース", "報道", "速報", "breaking"])
+        if news_context:
+            self.assessments.append(EthicalRiskAssessment(
+                category=RiskCategory.MISINFORMATION,
+                severity=RiskLevel.HIGH,
+                likelihood=RiskLevel.HIGH,
+                description="報道・ニュース文脈でのAI画像生成を検出",
+                mitigations=[
+                    "AI生成である旨の明示的ラベル付与",
+                    "C2PAメタデータの付与",
+                    "報道目的でのAI画像使用禁止の検討",
+                ],
+            ))
+
+    def _detect_artist_references(self, prompt: str) -> list[str]:
+        """プロンプトからアーティスト名参照を検出（簡易実装）"""
+        # 実運用ではアーティストデータベースとの照合が必要
+        known_artists = ["banksy", "warhol", "picasso", "monet", "ghibli",
+                        "宮崎駿", "鳥山明", "村上隆", "草間彌生"]
+        found = [a for a in known_artists if a.lower() in prompt.lower()]
+        return found
+
+    def _detect_real_person_references(self, prompt: str) -> list[str]:
+        """実在人物への参照を検出（簡易実装）"""
+        # 実運用では有名人データベースとNERモデルの併用が必要
+        return []  # 簡易実装のためスキップ
+
+    def _detect_stereotype_patterns(self, prompt: str) -> list[str]:
+        """ステレオタイプ的パターンの検出"""
+        patterns = []
+        role_gender_map = {
+            "看護師": "女性を想起",
+            "nurse": "女性を想起",
+            "CEO": "男性を想起",
+            "engineer": "男性を想起",
+            "secretary": "女性を想起",
+        }
+        for role, bias in role_gender_map.items():
+            if role.lower() in prompt.lower():
+                patterns.append(f"{role} → {bias}")
+        return patterns
+
+    def _detect_child_risk(self, prompt: str) -> list[str]:
+        """児童関連リスクの検出（詳細は省略）"""
+        return []  # セキュリティ上、具体的な検出ロジックは非公開
 ```
 
 ---
@@ -148,6 +391,24 @@ copyright_by_jurisdiction = {
         "key_cases": "EU AI Act (2024年施行)",
         "note": "生成AI にはサマリーの公開義務あり",
     },
+    "中国": {
+        "ai_output_copyright": "北京インターネット法院 (2023): AI生成物に著作権を認定",
+        "training_data": "生成AI管理暫定弁法 (2023) で規制",
+        "key_cases": "李某 vs AI画像生成プラットフォーム (2023)",
+        "note": "人間の知的投入が認められれば著作権を付与する方向",
+    },
+    "韓国": {
+        "ai_output_copyright": "AI基本法 (2024) で規制枠組みを整備",
+        "training_data": "著作権法改正の議論が進行中",
+        "key_cases": "韓国著作権委員会のAIガイドライン (2024)",
+        "note": "人間の創作的関与を要件とする方向で検討",
+    },
+    "英国": {
+        "ai_output_copyright": "CDPA 1988 s.9(3): コンピュータ生成著作物に著作権あり",
+        "training_data": "TDM例外の拡大が議論中",
+        "key_cases": "英国知的財産庁のAI著作権コンサルテーション (2022)",
+        "note": "「必要な取り決めをした者」が著作者とされる独自の法理",
+    },
 }
 ```
 
@@ -199,7 +460,139 @@ Disallow: /
 """
 ```
 
-### 2.3 商用利用の判断基準
+### 2.3 著作権類似度検査の実装
+
+```python
+# AI 生成画像と既存著作物の類似度検査
+
+import hashlib
+from pathlib import Path
+from typing import Optional
+
+
+class CopyrightSimilarityChecker:
+    """AI 生成画像の著作権侵害リスクを検査"""
+
+    def __init__(self, reference_db_path: str):
+        """
+        Args:
+            reference_db_path: 著作権保護作品の特徴量データベースパス
+        """
+        self.reference_db = self._load_reference_db(reference_db_path)
+        self.similarity_threshold = 0.85  # この値以上で類似と判定
+        self.warning_threshold = 0.70     # この値以上で警告
+
+    def check_image(self, generated_image_path: str) -> dict:
+        """生成画像の著作権類似度チェック"""
+
+        # 1. パーセプチュアルハッシュで高速スクリーニング
+        phash = self._compute_perceptual_hash(generated_image_path)
+        fast_matches = self._fast_lookup(phash)
+
+        # 2. 深層特徴量による詳細比較
+        features = self._extract_deep_features(generated_image_path)
+        detailed_matches = self._detailed_comparison(features)
+
+        # 3. スタイル類似度の評価
+        style_features = self._extract_style_features(generated_image_path)
+        style_matches = self._style_comparison(style_features)
+
+        # 4. 総合判定
+        all_matches = fast_matches + detailed_matches
+        max_similarity = max((m["similarity"] for m in all_matches), default=0)
+
+        return {
+            "status": self._determine_status(max_similarity),
+            "max_similarity": max_similarity,
+            "matches": sorted(all_matches, key=lambda x: x["similarity"], reverse=True)[:10],
+            "style_analysis": {
+                "similar_artists": style_matches[:5],
+                "note": "スタイルの類似は著作権侵害とは限らないが、"
+                        "特定アーティストの意図的な模倣はリスクあり",
+            },
+            "recommendations": self._generate_recommendations(max_similarity, style_matches),
+        }
+
+    def _determine_status(self, max_similarity: float) -> str:
+        if max_similarity >= self.similarity_threshold:
+            return "HIGH_RISK: 既存作品との高い類似度を検出"
+        elif max_similarity >= self.warning_threshold:
+            return "WARNING: 既存作品との類似点あり"
+        return "LOW_RISK: 著作権侵害の明確な兆候なし"
+
+    def _compute_perceptual_hash(self, image_path: str) -> str:
+        """パーセプチュアルハッシュの計算（pHash）"""
+        # 画像を縮小 → グレースケール → DCT → 上位ビットをハッシュ化
+        # 実運用では imagehash ライブラリを使用
+        pass
+
+    def _extract_deep_features(self, image_path: str) -> list[float]:
+        """深層学習モデルによる特徴量抽出"""
+        # CLIP, DINO 等の事前学習済みモデルで特徴ベクトルを抽出
+        pass
+
+    def _extract_style_features(self, image_path: str) -> list[float]:
+        """スタイル特徴量の抽出（Gram Matrix ベース）"""
+        # VGG の中間層出力から Gram Matrix を計算
+        pass
+
+    def _fast_lookup(self, phash: str) -> list[dict]:
+        """パーセプチュアルハッシュによる高速検索"""
+        pass
+
+    def _detailed_comparison(self, features: list[float]) -> list[dict]:
+        """深層特徴量による詳細比較"""
+        pass
+
+    def _style_comparison(self, style_features: list[float]) -> list[dict]:
+        """スタイル類似度の比較"""
+        pass
+
+    def _generate_recommendations(self, max_similarity: float,
+                                   style_matches: list) -> list[str]:
+        """リスクに応じた推奨事項"""
+        recs = []
+        if max_similarity >= self.similarity_threshold:
+            recs.extend([
+                "この画像の使用は強く非推奨",
+                "異なるプロンプト・シードで再生成を推奨",
+                "法務チームへの相談を推奨",
+            ])
+        elif max_similarity >= self.warning_threshold:
+            recs.extend([
+                "類似する既存作品の権利者を確認",
+                "画像の加工・修正で類似度を低減",
+                "リバース画像検索でさらなる確認を推奨",
+            ])
+        if style_matches and style_matches[0].get("similarity", 0) > 0.9:
+            recs.append("特定アーティストのスタイル模倣を避けるプロンプト修正を推奨")
+        return recs
+
+    def _load_reference_db(self, path: str) -> dict:
+        """著作権保護作品のデータベースをロード"""
+        return {}
+
+
+# 類似度チェックのバッチ実行
+def batch_copyright_check(image_dir: str, db_path: str) -> list[dict]:
+    """ディレクトリ内の全画像を著作権チェック"""
+    checker = CopyrightSimilarityChecker(db_path)
+    results = []
+
+    for image_path in Path(image_dir).glob("*.{png,jpg,jpeg,webp}"):
+        result = checker.check_image(str(image_path))
+        results.append({
+            "file": str(image_path),
+            "status": result["status"],
+            "max_similarity": result["max_similarity"],
+        })
+
+    # リスクの高い順にソート
+    results.sort(key=lambda x: x["max_similarity"], reverse=True)
+    return results
+```
+
+### 2.4 商用利用の判断基準
 
 ```
 商用利用可否の判断フロー
@@ -235,6 +628,77 @@ Disallow: /
      |
      v
   [商用利用OK]
+```
+
+### 2.5 主要訴訟・判例データベース
+
+```python
+# AI 著作権関連の主要訴訟・判例
+
+ai_copyright_cases = {
+    "米国": [
+        {
+            "case": "Thaler v. Perlmutter (2023)",
+            "court": "D.C. District Court",
+            "issue": "DABUS（AI）が生成した画像の著作権登録",
+            "ruling": "人間の著作者が存在しないAI生成物は著作権保護の対象外",
+            "significance": "AIは著作者になれないことを明確化",
+            "status": "確定（控訴なし）",
+        },
+        {
+            "case": "Andersen v. Stability AI et al. (2023)",
+            "court": "N.D. California",
+            "issue": "アーティストがStability AI, Midjourney, DeviantArtを提訴",
+            "ruling": "係争中（一部主張は棄却、一部は継続）",
+            "significance": "AI学習データの権利問題の先例となる可能性",
+            "status": "係争中",
+        },
+        {
+            "case": "Getty Images v. Stability AI (2023)",
+            "court": "D. Delaware",
+            "issue": "Getty Imagesの画像1,200万点以上の無断学習",
+            "ruling": "係争中",
+            "significance": "大規模データセットの権利問題",
+            "status": "係争中",
+        },
+        {
+            "case": "NYT v. OpenAI & Microsoft (2023)",
+            "court": "S.D. New York",
+            "issue": "NYT記事の無断学習と出力における再現",
+            "ruling": "係争中",
+            "significance": "テキストだが画像AIにも影響する判例となる可能性",
+            "status": "係争中",
+        },
+        {
+            "case": "Kris Kashtanova / Zarya of the Dawn (2023)",
+            "court": "US Copyright Office",
+            "issue": "Midjourney生成画像を含む漫画の著作権登録",
+            "ruling": "テキストとレイアウトは著作権保護、AI生成画像部分は保護対象外",
+            "significance": "AI支援作品の部分的著作権保護の先例",
+            "status": "確定",
+        },
+    ],
+    "日本": [
+        {
+            "case": "文化審議会 AI と著作権に関する考え方 (2024)",
+            "body": "文化庁文化審議会著作権分科会",
+            "issue": "AI学習と生成物の著作権整理",
+            "ruling": "学習段階は30条の4で原則適法、生成段階は個別判断",
+            "significance": "日本のAI著作権の基本方針を確立",
+            "status": "ガイドライン（法的拘束力なし）",
+        },
+    ],
+    "中国": [
+        {
+            "case": "李某 vs AI画像生成プラットフォーム (2023)",
+            "court": "北京インターネット法院",
+            "issue": "AI生成画像の著作権帰属",
+            "ruling": "利用者の知的投入が反映されたAI生成物に著作権を認定",
+            "significance": "AI生成物への著作権付与の世界初の判例の一つ",
+            "status": "確定",
+        },
+    ],
+}
 ```
 
 ---
@@ -297,7 +761,252 @@ class FrequencyAnalysisDetector:
         }
 ```
 
-### 3.2 コンテンツ認証 (C2PA)
+### 3.2 電子透かし（ウォーターマーキング）技術
+
+```python
+# AI 生成コンテンツへの電子透かし埋め込み
+
+import numpy as np
+from typing import Optional
+
+
+class InvisibleWatermark:
+    """不可視電子透かしの埋め込みと検出"""
+
+    def __init__(self, secret_key: str):
+        self.key = secret_key
+        self.bit_depth = 64  # 透かしのビット数
+
+    def embed(self, image: np.ndarray, message: str) -> np.ndarray:
+        """
+        画像に不可視の電子透かしを埋め込む
+
+        DCT（離散コサイン変換）ベースの手法:
+        1. 画像を8x8ブロックに分割
+        2. 各ブロックにDCTを適用
+        3. 中周波数帯の係数にメッセージビットを埋め込み
+        4. 逆DCTで画像を再構成
+
+        Args:
+            image: 入力画像 (H, W, 3)
+            message: 埋め込むメッセージ文字列
+
+        Returns:
+            透かし入り画像
+        """
+        # メッセージをビット列に変換
+        message_bits = self._string_to_bits(message)
+
+        # 暗号化キーでビット列をスクランブル
+        scrambled_bits = self._scramble_with_key(message_bits)
+
+        # YCbCr 色空間に変換（輝度チャンネルに埋め込み）
+        ycbcr = self._rgb_to_ycbcr(image)
+        y_channel = ycbcr[:, :, 0].astype(float)
+
+        # 8x8 ブロック単位でDCT変換・埋め込み
+        h, w = y_channel.shape
+        bit_idx = 0
+
+        for i in range(0, h - 7, 8):
+            for j in range(0, w - 7, 8):
+                if bit_idx >= len(scrambled_bits):
+                    break
+
+                block = y_channel[i:i+8, j:j+8]
+                dct_block = self._dct2d(block)
+
+                # 中周波数係数 (4,3) と (3,4) の関係を操作
+                if scrambled_bits[bit_idx] == 1:
+                    if dct_block[4, 3] <= dct_block[3, 4]:
+                        dct_block[4, 3], dct_block[3, 4] = \
+                            dct_block[3, 4] + 1, dct_block[4, 3] - 1
+                else:
+                    if dct_block[4, 3] > dct_block[3, 4]:
+                        dct_block[4, 3], dct_block[3, 4] = \
+                            dct_block[3, 4] - 1, dct_block[4, 3] + 1
+
+                y_channel[i:i+8, j:j+8] = self._idct2d(dct_block)
+                bit_idx += 1
+
+        ycbcr[:, :, 0] = np.clip(y_channel, 0, 255).astype(np.uint8)
+        return self._ycbcr_to_rgb(ycbcr)
+
+    def detect(self, watermarked_image: np.ndarray) -> Optional[str]:
+        """
+        画像から電子透かしを検出・抽出
+
+        Args:
+            watermarked_image: 透かし入り画像
+
+        Returns:
+            抽出されたメッセージ、検出できない場合はNone
+        """
+        ycbcr = self._rgb_to_ycbcr(watermarked_image)
+        y_channel = ycbcr[:, :, 0].astype(float)
+
+        extracted_bits = []
+        h, w = y_channel.shape
+
+        for i in range(0, h - 7, 8):
+            for j in range(0, w - 7, 8):
+                if len(extracted_bits) >= self.bit_depth:
+                    break
+
+                block = y_channel[i:i+8, j:j+8]
+                dct_block = self._dct2d(block)
+
+                if dct_block[4, 3] > dct_block[3, 4]:
+                    extracted_bits.append(1)
+                else:
+                    extracted_bits.append(0)
+
+        # デスクランブルしてメッセージを復元
+        descrambled = self._descramble_with_key(extracted_bits)
+        return self._bits_to_string(descrambled)
+
+    def _string_to_bits(self, s: str) -> list[int]:
+        """文字列をビット列に変換"""
+        bits = []
+        for byte in s.encode("utf-8"):
+            for i in range(7, -1, -1):
+                bits.append((byte >> i) & 1)
+        return bits
+
+    def _bits_to_string(self, bits: list[int]) -> str:
+        """ビット列を文字列に変換"""
+        bytes_list = []
+        for i in range(0, len(bits), 8):
+            byte = 0
+            for j in range(8):
+                if i + j < len(bits):
+                    byte = (byte << 1) | bits[i + j]
+            bytes_list.append(byte)
+        return bytes(bytes_list).decode("utf-8", errors="replace")
+
+    def _scramble_with_key(self, bits: list[int]) -> list[int]:
+        """暗号化キーでビット列をスクランブル"""
+        np.random.seed(int(hashlib.md5(self.key.encode()).hexdigest(), 16) % (2**32))
+        perm = np.random.permutation(len(bits))
+        return [bits[i] for i in perm]
+
+    def _descramble_with_key(self, bits: list[int]) -> list[int]:
+        """スクランブルを復元"""
+        np.random.seed(int(hashlib.md5(self.key.encode()).hexdigest(), 16) % (2**32))
+        perm = np.random.permutation(len(bits))
+        result = [0] * len(bits)
+        for i, p in enumerate(perm):
+            if i < len(bits):
+                result[p] = bits[i]
+        return result
+
+    def _dct2d(self, block: np.ndarray) -> np.ndarray:
+        """2次元DCT変換"""
+        from scipy.fftpack import dct
+        return dct(dct(block.T, norm='ortho').T, norm='ortho')
+
+    def _idct2d(self, block: np.ndarray) -> np.ndarray:
+        """2次元逆DCT変換"""
+        from scipy.fftpack import idct
+        return idct(idct(block.T, norm='ortho').T, norm='ortho')
+
+    def _rgb_to_ycbcr(self, rgb: np.ndarray) -> np.ndarray:
+        """RGB → YCbCr 変換"""
+        # ITU-R BT.601 変換行列
+        matrix = np.array([
+            [0.299, 0.587, 0.114],
+            [-0.169, -0.331, 0.500],
+            [0.500, -0.419, -0.081],
+        ])
+        ycbcr = np.dot(rgb, matrix.T)
+        ycbcr[:, :, 1:] += 128
+        return ycbcr
+
+    def _ycbcr_to_rgb(self, ycbcr: np.ndarray) -> np.ndarray:
+        """YCbCr → RGB 変換"""
+        ycbcr = ycbcr.copy()
+        ycbcr[:, :, 1:] -= 128
+        matrix_inv = np.array([
+            [1.0, 0.0, 1.403],
+            [1.0, -0.344, -0.714],
+            [1.0, 1.773, 0.0],
+        ])
+        rgb = np.dot(ycbcr, matrix_inv.T)
+        return np.clip(rgb, 0, 255).astype(np.uint8)
+
+
+# SynthID 風のスペクトル透かし概念
+class SpectralWatermark:
+    """
+    Google SynthID に類似したスペクトル領域の透かし手法
+
+    特徴:
+    - JPEG 圧縮、リサイズ、クロップに対して堅牢
+    - 人間の目には知覚不可能
+    - 確率的検出（閾値ベース）
+    """
+
+    def __init__(self, model_id: str):
+        self.model_id = model_id
+        self.watermark_strength = 0.03  # PSNR への影響を最小化
+
+    def embed_during_generation(self, latent_tensor: "torch.Tensor",
+                                 diffusion_step: int) -> "torch.Tensor":
+        """
+        拡散モデルの生成プロセス中に透かしを埋め込む
+
+        通常の後付け透かしと異なり、生成過程で直接埋め込むため:
+        - 画質への影響が最小
+        - 除去が極めて困難
+        - モデル固有の署名として機能
+
+        Args:
+            latent_tensor: 拡散モデルの潜在表現
+            diffusion_step: 現在の拡散ステップ
+
+        Returns:
+            透かし入りの潜在表現
+        """
+        # モデルID + ステップ数からユニークなパターンを生成
+        pattern = self._generate_spectral_pattern(
+            latent_tensor.shape, diffusion_step
+        )
+
+        # 潜在空間にパターンを加算（強度を制御）
+        watermarked = latent_tensor + self.watermark_strength * pattern
+        return watermarked
+
+    def detect(self, image: np.ndarray) -> dict:
+        """
+        画像からスペクトル透かしを検出
+
+        Returns:
+            検出結果（確率スコアと信頼度）
+        """
+        # フーリエ変換で周波数領域に変換
+        spectrum = np.fft.fft2(image.mean(axis=2))
+        spectrum_shifted = np.fft.fftshift(spectrum)
+
+        # 既知のパターンとの相関を計算
+        correlation = self._compute_pattern_correlation(spectrum_shifted)
+
+        return {
+            "watermark_detected": correlation > 0.5,
+            "confidence": min(correlation * 1.5, 1.0),
+            "model_id": self.model_id if correlation > 0.5 else None,
+            "note": "スペクトル領域での相関分析に基づく検出",
+        }
+
+    def _generate_spectral_pattern(self, shape: tuple, step: int) -> "torch.Tensor":
+        """モデル固有のスペクトルパターンを生成"""
+        pass
+
+    def _compute_pattern_correlation(self, spectrum: np.ndarray) -> float:
+        """既知パターンとの相関計算"""
+        pass
+```
+
+### 3.3 コンテンツ認証 (C2PA)
 
 ```python
 # C2PA (Coalition for Content Provenance and Authenticity)
@@ -346,6 +1055,56 @@ class C2PAManager:
         }
         return source_types.get(metadata.get("source_type", ""), "unknown")
 
+    def verify_content(self, content_path: str) -> dict:
+        """C2PA マニフェストの検証"""
+        manifest = self._extract_manifest(content_path)
+        if not manifest:
+            return {
+                "verified": False,
+                "reason": "C2PA マニフェストが見つかりません",
+                "recommendation": "コンテンツの来歴を確認できません。注意して取り扱ってください。",
+            }
+
+        # 署名検証
+        signature_valid = self._verify_signature(manifest)
+
+        # チェーン検証（編集履歴の整合性）
+        chain_valid = self._verify_chain(manifest)
+
+        return {
+            "verified": signature_valid and chain_valid,
+            "signature_valid": signature_valid,
+            "chain_valid": chain_valid,
+            "source_type": manifest.get("assertions", [{}])[0].get(
+                "data", {}).get("actions", [{}])[0].get("digitalSourceType", "unknown"),
+            "creation_tool": manifest.get("claim_generator", "unknown"),
+            "edit_history": self._extract_edit_history(manifest),
+        }
+
+    def _extract_manifest(self, content_path: str) -> Optional[dict]:
+        """コンテンツからC2PAマニフェストを抽出"""
+        pass
+
+    def _verify_signature(self, manifest: dict) -> bool:
+        """電子署名の検証"""
+        pass
+
+    def _verify_chain(self, manifest: dict) -> bool:
+        """編集履歴チェーンの整合性検証"""
+        pass
+
+    def _extract_edit_history(self, manifest: dict) -> list[dict]:
+        """編集履歴の抽出"""
+        pass
+
+    def _sign_with_certificate(self, manifest: dict) -> dict:
+        """証明書による署名"""
+        pass
+
+    def _embed_manifest(self, content_path: str, manifest: dict) -> str:
+        """マニフェストをコンテンツに埋め込み"""
+        pass
+
 
 # C2PA 対応状況 (2025年時点)
 c2pa_adoption = {
@@ -355,10 +1114,13 @@ c2pa_adoption = {
     "OpenAI": "DALL-E 3 で C2PA メタデータ付与",
     "Meta": "Stable Signatures で生成物にマーキング",
     "カメラメーカー": "Nikon, Sony, Leica が撮影時の C2PA 対応",
+    "Stability AI": "Stable Diffusion XL以降でメタデータ付与対応",
+    "TikTok": "AI生成コンテンツの自動ラベル付与",
+    "YouTube": "AI生成・加工コンテンツの開示義務化",
 }
 ```
 
-### 3.3 肖像権と同意管理
+### 3.4 肖像権と同意管理
 
 ```python
 # 肖像権に配慮した生成フロー
@@ -398,11 +1160,250 @@ class ConsentManager:
                 }
 
         return {"allowed": True, "conditions": checks}
+
+    def _contains_real_person(self, request: dict) -> bool:
+        """リクエストに実在人物への言及が含まれるか確認"""
+        pass
+
+    def _get_consent_level(self, request: dict) -> str:
+        """同意レベルの取得"""
+        return request.get("consent_level", "none")
+
+
+# 肖像権に関する各国法比較
+portrait_rights_comparison = {
+    "日本": {
+        "法的根拠": "判例法（民法709条・710条に基づく不法行為）",
+        "保護範囲": "みだりに自己の容ぼう・姿態を撮影・公表されない権利",
+        "パブリシティ権": "ピンク・レディー事件最高裁判決 (2012) で確立",
+        "AI固有の規制": "特別法なし（一般法で対応）",
+        "実務的注意": "商用利用は書面同意が事実上必須",
+    },
+    "米国": {
+        "法的根拠": "州法（Right of Publicity）",
+        "保護範囲": "州により異なる（カリフォルニア州が最も広範）",
+        "パブリシティ権": "州法で明文化（カリフォルニア民法典§3344等）",
+        "AI固有の規制": "カリフォルニア AB 602 (2024): デジタル複製への同意義務",
+        "実務的注意": "死後も保護される州が多い（カリフォルニア: 死後70年）",
+    },
+    "EU": {
+        "法的根拠": "GDPR + 各国法",
+        "保護範囲": "個人データとしての顔画像の保護",
+        "パブリシティ権": "各国法により異なる",
+        "AI固有の規制": "AI Act (2024): 高リスクAIシステムとしての規制",
+        "実務的注意": "GDPRの明示的同意要件が適用される",
+    },
+}
 ```
 
 ---
 
-## 4. バイアスと公平性
+## 4. コンテンツモデレーションパイプライン
+
+```python
+# AI 生成コンテンツのモデレーションシステム
+
+from enum import Enum
+from typing import Optional
+import logging
+
+
+class ContentCategory(Enum):
+    """コンテンツの分類カテゴリ"""
+    SAFE = "safe"
+    NSFW_MILD = "nsfw_mild"        # 軽度の不適切コンテンツ
+    NSFW_EXPLICIT = "nsfw_explicit"  # 明示的な不適切コンテンツ
+    VIOLENCE = "violence"
+    HATE_SPEECH = "hate_speech"
+    CHILD_EXPLOITATION = "child_exploitation"  # 即通報対象
+    POLITICAL_MISINFO = "political_misinfo"
+    SELF_HARM = "self_harm"
+
+
+class ModerationDecision(Enum):
+    ALLOW = "allow"
+    WARN = "warn"           # ユーザーに警告を表示
+    BLUR = "blur"           # ぼかし処理を適用
+    AGE_GATE = "age_gate"   # 年齢確認を要求
+    BLOCK = "block"         # 生成・表示をブロック
+    REPORT = "report"       # 法的通報
+
+
+class ContentModerationPipeline:
+    """生成前後のコンテンツモデレーション"""
+
+    def __init__(self):
+        self.logger = logging.getLogger("content_moderation")
+        self.pre_filters = [
+            PromptSafetyFilter(),
+            PersonIdentificationFilter(),
+            TrademarkFilter(),
+        ]
+        self.post_filters = [
+            NSFWClassifier(),
+            ViolenceDetector(),
+            ChildSafetyClassifier(),
+            DeepfakeIndicatorDetector(),
+        ]
+        self.policy = self._load_moderation_policy()
+
+    def pre_generation_check(self, prompt: str, config: dict) -> dict:
+        """
+        生成前のプロンプトチェック
+
+        生成リクエストが送信される前に実行され、
+        不適切なコンテンツの生成を事前に防止する。
+        """
+        results = []
+        for filter_instance in self.pre_filters:
+            result = filter_instance.check(prompt, config)
+            results.append(result)
+
+            if result["decision"] == ModerationDecision.BLOCK:
+                self.logger.warning(
+                    f"Pre-generation BLOCKED: {result['reason']} | "
+                    f"prompt={prompt[:100]}"
+                )
+                return {
+                    "allowed": False,
+                    "decision": ModerationDecision.BLOCK,
+                    "reason": result["reason"],
+                    "filter": result["filter_name"],
+                }
+
+        return {
+            "allowed": True,
+            "decision": ModerationDecision.ALLOW,
+            "warnings": [r for r in results if r["decision"] == ModerationDecision.WARN],
+        }
+
+    def post_generation_check(self, image_path: str, metadata: dict) -> dict:
+        """
+        生成後の画像チェック
+
+        生成された画像をユーザーに返す前に実行し、
+        不適切なコンテンツが出力されることを防止する。
+        """
+        results = []
+        for filter_instance in self.post_filters:
+            result = filter_instance.analyze(image_path)
+            results.append(result)
+
+        # 最も厳しい判定を採用
+        decisions = [r["decision"] for r in results]
+        if ModerationDecision.REPORT in decisions:
+            final_decision = ModerationDecision.REPORT
+            self._handle_report(image_path, metadata, results)
+        elif ModerationDecision.BLOCK in decisions:
+            final_decision = ModerationDecision.BLOCK
+        elif ModerationDecision.AGE_GATE in decisions:
+            final_decision = ModerationDecision.AGE_GATE
+        elif ModerationDecision.BLUR in decisions:
+            final_decision = ModerationDecision.BLUR
+        elif ModerationDecision.WARN in decisions:
+            final_decision = ModerationDecision.WARN
+        else:
+            final_decision = ModerationDecision.ALLOW
+
+        return {
+            "decision": final_decision,
+            "details": results,
+            "action_taken": self._apply_decision(final_decision, image_path),
+        }
+
+    def _handle_report(self, image_path: str, metadata: dict, results: list):
+        """法的通報が必要なケースの処理"""
+        self.logger.critical(
+            f"REPORT REQUIRED: {image_path} | "
+            f"Results: {results}"
+        )
+        # NCMEC (National Center for Missing & Exploited Children) 等への通報
+        # 証拠保全のためのログ記録
+        self._preserve_evidence(image_path, metadata, results)
+
+    def _apply_decision(self, decision: ModerationDecision, image_path: str) -> str:
+        """判定に基づくアクションの実行"""
+        actions = {
+            ModerationDecision.ALLOW: "コンテンツを通常表示",
+            ModerationDecision.WARN: "警告ラベルを付与して表示",
+            ModerationDecision.BLUR: "ぼかし処理を適用して表示",
+            ModerationDecision.AGE_GATE: "年齢確認ゲートを表示",
+            ModerationDecision.BLOCK: "コンテンツをブロック、代替画像を表示",
+            ModerationDecision.REPORT: "コンテンツをブロック、法的通報を実行",
+        }
+        return actions.get(decision, "不明なアクション")
+
+    def _preserve_evidence(self, image_path: str, metadata: dict, results: list):
+        """証拠保全"""
+        pass
+
+    def _load_moderation_policy(self) -> dict:
+        """モデレーションポリシーのロード"""
+        return {}
+
+
+class PromptSafetyFilter:
+    """プロンプトの安全性フィルタ"""
+
+    BLOCKED_PATTERNS = [
+        # セキュリティ上、具体的なパターンは非公開
+        # 実運用では定期的に更新されるパターンリストを使用
+    ]
+
+    def check(self, prompt: str, config: dict) -> dict:
+        """プロンプトの安全性チェック"""
+        # ブロックリストとのマッチング
+        for pattern in self.BLOCKED_PATTERNS:
+            if pattern in prompt.lower():
+                return {
+                    "filter_name": "PromptSafetyFilter",
+                    "decision": ModerationDecision.BLOCK,
+                    "reason": "禁止パターンに一致するプロンプトを検出",
+                }
+        return {
+            "filter_name": "PromptSafetyFilter",
+            "decision": ModerationDecision.ALLOW,
+            "reason": None,
+        }
+
+
+class NSFWClassifier:
+    """NSFW コンテンツの分類器"""
+
+    def analyze(self, image_path: str) -> dict:
+        """
+        画像のNSFW分類
+
+        CLIP ベースの分類モデルで画像のカテゴリを判定。
+        閾値は運用環境に応じて調整可能。
+        """
+        # 実運用では CLIP + fine-tuned classifier を使用
+        # score = self.model.predict(image_path)
+
+        return {
+            "filter_name": "NSFWClassifier",
+            "category": ContentCategory.SAFE,
+            "decision": ModerationDecision.ALLOW,
+            "confidence": 0.95,
+        }
+
+
+class ChildSafetyClassifier:
+    """児童安全分類器"""
+
+    def analyze(self, image_path: str) -> dict:
+        """児童に関連する不適切コンテンツの検出"""
+        # Microsoft PhotoDNA 等のハッシュマッチング
+        # + 年齢推定モデルによる分類
+        return {
+            "filter_name": "ChildSafetyClassifier",
+            "decision": ModerationDecision.ALLOW,
+        }
+```
+
+---
+
+## 5. バイアスと公平性
 
 ```python
 # AI 画像生成におけるバイアス検出と緩和
@@ -464,11 +1465,110 @@ class BiasAuditor:
                               "生成後のフィルタリング",
                 })
         return recommendations
+
+    def _check_gender_representation(self, images: list) -> dict:
+        """性別表現の偏りチェック"""
+        pass
+
+    def _check_racial_representation(self, images: list) -> dict:
+        """人種・民族表現の偏りチェック"""
+        pass
+
+    def _check_age_representation(self, images: list) -> dict:
+        """年齢表現の偏りチェック"""
+        pass
+
+    def _check_body_diversity(self, images: list) -> dict:
+        """体型の多様性チェック"""
+        pass
+
+    def _check_stereotypes(self, prompt: str, images: list) -> dict:
+        """ステレオタイプ的表現のチェック"""
+        pass
+
+
+# バイアス緩和のためのプロンプト改善ツール
+class InclusivePromptEnhancer:
+    """プロンプトの包括性を向上させるツール"""
+
+    DIVERSITY_TEMPLATES = {
+        "gender": [
+            "people of various genders",
+            "diverse group including men, women, and non-binary individuals",
+        ],
+        "ethnicity": [
+            "diverse ethnicities and backgrounds",
+            "people from various cultural backgrounds",
+        ],
+        "age": [
+            "people of different ages",
+            "intergenerational group",
+        ],
+        "ability": [
+            "people with diverse abilities",
+            "including people with visible and invisible disabilities",
+        ],
+        "body_type": [
+            "people with diverse body types",
+            "various body shapes and sizes",
+        ],
+    }
+
+    def enhance_prompt(self, original_prompt: str,
+                       diversity_dimensions: list[str] = None) -> str:
+        """
+        プロンプトに多様性の要素を追加
+
+        Args:
+            original_prompt: 元のプロンプト
+            diversity_dimensions: 強化する多様性の次元
+                                 (None の場合は全次元)
+
+        Returns:
+            包括性が向上したプロンプト
+        """
+        if diversity_dimensions is None:
+            diversity_dimensions = list(self.DIVERSITY_TEMPLATES.keys())
+
+        additions = []
+        for dim in diversity_dimensions:
+            if dim in self.DIVERSITY_TEMPLATES:
+                additions.append(self.DIVERSITY_TEMPLATES[dim][0])
+
+        enhanced = f"{original_prompt}, {', '.join(additions)}"
+        return enhanced
+
+    def audit_prompt(self, prompt: str) -> dict:
+        """プロンプトの包括性を監査"""
+        issues = []
+        suggestions = []
+
+        # 性別を前提とする職業名の検出
+        gendered_terms = {
+            "businessman": "business professional",
+            "chairman": "chairperson",
+            "fireman": "firefighter",
+            "policeman": "police officer",
+            "stewardess": "flight attendant",
+            "看護婦": "看護師",
+            "保母": "保育士",
+        }
+
+        for term, replacement in gendered_terms.items():
+            if term.lower() in prompt.lower():
+                issues.append(f"性別を前提とする表現 '{term}' を検出")
+                suggestions.append(f"'{term}' → '{replacement}' への置換を推奨")
+
+        return {
+            "issues": issues,
+            "suggestions": suggestions,
+            "inclusivity_score": 1.0 - (len(issues) * 0.2),
+        }
 ```
 
 ---
 
-## 5. 環境負荷
+## 6. 環境負荷
 
 ```
 AI 画像生成の環境負荷
@@ -497,9 +1597,292 @@ AI 画像生成の環境負荷
   4. キャッシュの活用（同一プロンプトの再生成を避ける）
 ```
 
+### 6.1 環境負荷計算ツール
+
+```python
+# AI 生成の環境負荷を定量化するツール
+
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+
+
+@dataclass
+class CarbonEstimate:
+    """CO2排出量の推定値"""
+    kwh: float
+    co2_grams: float
+    equivalent_km_driving: float
+    equivalent_smartphone_charges: float
+    equivalent_google_searches: int
+
+
+class EnvironmentalImpactCalculator:
+    """AI 画像/動画生成の環境負荷計算"""
+
+    # 各モデルの推定消費電力 (kWh/生成)
+    MODEL_POWER = {
+        "stable_diffusion_1.5": 0.015,
+        "stable_diffusion_xl": 0.030,
+        "sdxl_turbo": 0.005,         # 蒸留モデルは大幅に低減
+        "dall_e_3": 0.050,
+        "midjourney_v6": 0.025,
+        "imagen_3": 0.040,
+        "sora_5s": 0.500,            # 5秒動画
+        "sora_60s": 2.000,           # 60秒動画
+        "flux_1_schnell": 0.008,     # 軽量モデル
+        "flux_1_dev": 0.025,
+    }
+
+    # 地域別 CO2 排出係数 (g CO2/kWh)
+    GRID_CARBON_INTENSITY = {
+        "us_average": 390,
+        "us_california": 220,
+        "eu_average": 230,
+        "japan": 470,
+        "china": 550,
+        "norway": 20,               # 水力発電主体
+        "france": 60,               # 原子力発電主体
+        "india": 710,
+        "renewable_only": 0,
+    }
+
+    def estimate_single_generation(self, model: str,
+                                    region: str = "us_average") -> CarbonEstimate:
+        """1回の生成の環境負荷を推定"""
+        kwh = self.MODEL_POWER.get(model, 0.03)
+        co2_per_kwh = self.GRID_CARBON_INTENSITY.get(region, 390)
+        co2_grams = kwh * co2_per_kwh
+
+        return CarbonEstimate(
+            kwh=kwh,
+            co2_grams=co2_grams,
+            equivalent_km_driving=co2_grams / 120,      # 乗用車: ~120g/km
+            equivalent_smartphone_charges=kwh / 0.01,
+            equivalent_google_searches=int(kwh / 0.0003),
+        )
+
+    def estimate_project(self, model: str, num_generations: int,
+                          region: str = "us_average") -> dict:
+        """プロジェクト全体の環境負荷を推定"""
+        single = self.estimate_single_generation(model, region)
+
+        total_kwh = single.kwh * num_generations
+        total_co2 = single.co2_grams * num_generations
+
+        return {
+            "total_generations": num_generations,
+            "total_kwh": round(total_kwh, 3),
+            "total_co2_grams": round(total_co2, 1),
+            "total_co2_kg": round(total_co2 / 1000, 3),
+            "equivalent_driving_km": round(total_co2 / 120, 1),
+            "equivalent_tree_hours": round(total_co2 / 21.77, 1),  # 1本の木 ≈ 21.77g/h
+            "optimization_suggestions": self._suggest_optimizations(
+                model, num_generations, total_co2
+            ),
+        }
+
+    def compare_models(self, num_generations: int = 100,
+                        region: str = "us_average") -> list[dict]:
+        """モデル間の環境負荷比較"""
+        results = []
+        for model, kwh in sorted(self.MODEL_POWER.items(), key=lambda x: x[1]):
+            estimate = self.estimate_project(model, num_generations, region)
+            results.append({
+                "model": model,
+                "per_generation_kwh": kwh,
+                "total_co2_grams": estimate["total_co2_grams"],
+                "eco_rating": self._eco_rating(kwh),
+            })
+        return results
+
+    def _eco_rating(self, kwh_per_generation: float) -> str:
+        """エコレーティング（A-F）"""
+        if kwh_per_generation < 0.01:
+            return "A (極めて低負荷)"
+        elif kwh_per_generation < 0.03:
+            return "B (低負荷)"
+        elif kwh_per_generation < 0.05:
+            return "C (標準)"
+        elif kwh_per_generation < 0.1:
+            return "D (高負荷)"
+        elif kwh_per_generation < 0.5:
+            return "E (非常に高負荷)"
+        else:
+            return "F (極めて高負荷)"
+
+    def _suggest_optimizations(self, model: str, count: int, total_co2: float) -> list[str]:
+        """最適化の提案"""
+        suggestions = []
+        if "turbo" not in model and "schnell" not in model:
+            suggestions.append("蒸留モデル（Turbo/Schnell）への切替で最大80%削減可能")
+        if count > 100:
+            suggestions.append("プロンプトの事前テスト（少数生成→大量生成）で無駄を削減")
+        if total_co2 > 10000:
+            suggestions.append("カーボンオフセットの検討を推奨")
+        suggestions.append("キャッシュの活用で同一プロンプトの再生成を回避")
+        suggestions.append("再生可能エネルギー運用のクラウドリージョンの選択")
+        return suggestions
+```
+
 ---
 
-## 6. 組織ガイドライン策定
+## 7. 監査ログとコンプライアンス
+
+```python
+# AI 生成コンテンツの監査ログシステム
+
+import json
+import hashlib
+from datetime import datetime
+from pathlib import Path
+from typing import Optional
+
+
+class AuditLogger:
+    """AI 生成コンテンツの監査ログ"""
+
+    def __init__(self, log_dir: str, organization: str):
+        self.log_dir = Path(log_dir)
+        self.log_dir.mkdir(parents=True, exist_ok=True)
+        self.organization = organization
+
+    def log_generation(self, request: dict, result: dict,
+                       moderation_result: dict) -> str:
+        """生成イベントの監査ログを記録"""
+        log_entry = {
+            "event_id": self._generate_event_id(),
+            "timestamp": datetime.now().isoformat(),
+            "organization": self.organization,
+            "event_type": "content_generation",
+
+            # リクエスト情報
+            "request": {
+                "prompt": request.get("prompt", ""),
+                "model": request.get("model", "unknown"),
+                "parameters": {
+                    k: v for k, v in request.items()
+                    if k not in ["prompt", "model"]
+                },
+                "user_id": request.get("user_id", "anonymous"),
+                "purpose": request.get("purpose", "unspecified"),
+                "commercial_use": request.get("commercial_use", False),
+            },
+
+            # 結果情報
+            "result": {
+                "output_hash": self._hash_file(result.get("output_path", "")),
+                "output_format": result.get("format", "unknown"),
+                "output_dimensions": result.get("dimensions", {}),
+                "generation_time_ms": result.get("generation_time_ms", 0),
+            },
+
+            # モデレーション結果
+            "moderation": {
+                "pre_check": moderation_result.get("pre_check", {}),
+                "post_check": moderation_result.get("post_check", {}),
+                "decision": moderation_result.get("decision", "unknown"),
+            },
+
+            # コンプライアンス情報
+            "compliance": {
+                "copyright_check": moderation_result.get("copyright_check", {}),
+                "consent_verified": request.get("consent_verified", False),
+                "c2pa_attached": result.get("c2pa_attached", False),
+                "watermark_embedded": result.get("watermark_embedded", False),
+            },
+        }
+
+        # ログファイルに追記
+        log_file = self.log_dir / f"audit_{datetime.now().strftime('%Y-%m-%d')}.jsonl"
+        with open(log_file, "a", encoding="utf-8") as f:
+            f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
+
+        return log_entry["event_id"]
+
+    def generate_compliance_report(self, start_date: str,
+                                    end_date: str) -> dict:
+        """コンプライアンスレポートの生成"""
+        entries = self._load_entries(start_date, end_date)
+
+        total = len(entries)
+        if total == 0:
+            return {"period": f"{start_date} ~ {end_date}", "total_generations": 0}
+
+        blocked = sum(1 for e in entries if e["moderation"]["decision"] == "BLOCKED")
+        flagged = sum(1 for e in entries if e["moderation"]["decision"] == "FLAGGED")
+        with_consent = sum(1 for e in entries if e["compliance"]["consent_verified"])
+        with_c2pa = sum(1 for e in entries if e["compliance"]["c2pa_attached"])
+        with_watermark = sum(1 for e in entries if e["compliance"]["watermark_embedded"])
+
+        return {
+            "period": f"{start_date} ~ {end_date}",
+            "total_generations": total,
+            "moderation_summary": {
+                "blocked": blocked,
+                "blocked_rate": f"{blocked/total*100:.1f}%",
+                "flagged": flagged,
+                "flagged_rate": f"{flagged/total*100:.1f}%",
+                "approved": total - blocked - flagged,
+            },
+            "compliance_summary": {
+                "consent_verified_rate": f"{with_consent/total*100:.1f}%",
+                "c2pa_attached_rate": f"{with_c2pa/total*100:.1f}%",
+                "watermark_rate": f"{with_watermark/total*100:.1f}%",
+            },
+            "risk_areas": self._identify_risk_areas(entries),
+            "recommendations": self._generate_report_recommendations(entries),
+        }
+
+    def _generate_event_id(self) -> str:
+        """ユニークなイベントIDの生成"""
+        timestamp = datetime.now().isoformat()
+        return hashlib.sha256(
+            f"{timestamp}_{self.organization}".encode()
+        ).hexdigest()[:16]
+
+    def _hash_file(self, file_path: str) -> str:
+        """ファイルのSHA256ハッシュ"""
+        if not file_path or not Path(file_path).exists():
+            return ""
+        with open(file_path, "rb") as f:
+            return hashlib.sha256(f.read()).hexdigest()
+
+    def _load_entries(self, start_date: str, end_date: str) -> list[dict]:
+        """指定期間のログエントリをロード"""
+        entries = []
+        for log_file in self.log_dir.glob("audit_*.jsonl"):
+            with open(log_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    entry = json.loads(line)
+                    if start_date <= entry["timestamp"][:10] <= end_date:
+                        entries.append(entry)
+        return entries
+
+    def _identify_risk_areas(self, entries: list[dict]) -> list[str]:
+        """リスク領域の特定"""
+        risk_areas = []
+        blocked_reasons = [
+            e["moderation"].get("post_check", {}).get("reason", "")
+            for e in entries
+            if e["moderation"]["decision"] == "BLOCKED"
+        ]
+        if blocked_reasons:
+            risk_areas.append(f"ブロック事例: {len(blocked_reasons)}件")
+        return risk_areas
+
+    def _generate_report_recommendations(self, entries: list[dict]) -> list[str]:
+        """レポートの推奨事項"""
+        recs = []
+        total = len(entries)
+        with_c2pa = sum(1 for e in entries if e["compliance"]["c2pa_attached"])
+        if with_c2pa / total < 0.9:
+            recs.append("C2PA メタデータの付与率を90%以上に改善してください")
+        return recs
+```
+
+---
+
+## 8. 組織ガイドライン策定
 
 ```python
 # 組織向け AI 生成コンテンツ利用ガイドライン テンプレート
@@ -545,9 +1928,126 @@ ai_content_policy = {
 }
 ```
 
+### 8.1 インシデント対応フレームワーク
+
+```python
+# AI 生成コンテンツに関するインシデント対応
+
+class EthicalIncidentResponse:
+    """倫理的インシデント対応フレームワーク"""
+
+    SEVERITY_LEVELS = {
+        "P0_CRITICAL": {
+            "description": "違法コンテンツの生成・流出（CSAM、犯罪教唆等）",
+            "response_time": "即座（30分以内）",
+            "escalation": "CISO + 法務責任者 + CEO",
+            "actions": [
+                "即座にシステムを停止",
+                "証拠を保全（改ざん防止）",
+                "法執行機関への通報",
+                "影響範囲の特定",
+                "被害者への通知",
+            ],
+        },
+        "P1_HIGH": {
+            "description": "肖像権侵害、ディープフェイク流出、著作権侵害の訴訟",
+            "response_time": "4時間以内",
+            "escalation": "法務チーム + 経営層",
+            "actions": [
+                "該当コンテンツの即座の削除",
+                "関連ログの保全",
+                "法務チームへの報告",
+                "影響を受けた個人への連絡",
+                "再発防止策の策定",
+            ],
+        },
+        "P2_MEDIUM": {
+            "description": "バイアスのあるコンテンツの大量生成、誤情報の拡散",
+            "response_time": "24時間以内",
+            "escalation": "チームリーダー + コンプライアンス担当",
+            "actions": [
+                "該当コンテンツの確認と対処",
+                "フィルタの調整",
+                "影響範囲の評価",
+                "ユーザーへの通知",
+            ],
+        },
+        "P3_LOW": {
+            "description": "軽微なポリシー違反、開示義務の不備",
+            "response_time": "1週間以内",
+            "escalation": "直属マネージャー",
+            "actions": [
+                "ポリシー違反の是正",
+                "再発防止のための教育",
+                "プロセスの見直し",
+            ],
+        },
+    }
+
+    def handle_incident(self, incident_type: str, details: dict) -> dict:
+        """インシデント対応の実行"""
+        severity = self._classify_severity(incident_type, details)
+        response_plan = self.SEVERITY_LEVELS.get(severity, {})
+
+        return {
+            "severity": severity,
+            "response_plan": response_plan,
+            "incident_id": self._create_incident_record(
+                severity, incident_type, details
+            ),
+            "immediate_actions": response_plan.get("actions", [])[:3],
+            "escalation_contacts": response_plan.get("escalation", ""),
+        }
+
+    def _classify_severity(self, incident_type: str, details: dict) -> str:
+        """インシデントの重要度分類"""
+        if details.get("involves_minors"):
+            return "P0_CRITICAL"
+        if details.get("involves_real_person_without_consent"):
+            return "P1_HIGH"
+        if details.get("widespread_impact"):
+            return "P2_MEDIUM"
+        return "P3_LOW"
+
+    def _create_incident_record(self, severity: str, incident_type: str,
+                                 details: dict) -> str:
+        """インシデント記録の作成"""
+        record_id = hashlib.sha256(
+            f"{datetime.now().isoformat()}_{incident_type}".encode()
+        ).hexdigest()[:12]
+        return f"INC-{record_id}"
+
+
+# 倫理委員会の運営テンプレート
+ethics_committee_charter = {
+    "name": "AI 倫理委員会",
+    "purpose": "AI 生成コンテンツに関する倫理的意思決定と監督",
+
+    "composition": [
+        {"role": "委員長", "department": "法務/コンプライアンス"},
+        {"role": "技術委員", "department": "AI/ML エンジニアリング"},
+        {"role": "デザイン委員", "department": "クリエイティブ/デザイン"},
+        {"role": "外部委員", "department": "倫理学/社会学の専門家"},
+        {"role": "人権委員", "department": "人事/ダイバーシティ"},
+    ],
+
+    "responsibilities": [
+        "AI 利用ポリシーの策定と更新",
+        "倫理的インシデントの最終判断",
+        "新しいAIツール導入時の倫理レビュー",
+        "四半期ごとのバイアス監査レポートの確認",
+        "従業員向け倫理教育プログラムの監督",
+    ],
+
+    "meeting_frequency": "月次定例 + 緊急時は随時",
+    "decision_process": "多数決（ただし全員一致が望ましい）",
+    "reporting": "四半期ごとに取締役会へ報告",
+}
+```
+
 ---
 
-## 7. 比較表
+## 9. 比較表
 
 | 観点 | リスクレベル | 法的枠組み | 技術的対策 | 組織的対策 |
 |------|:----------:|:--------:|:--------:|:--------:|
@@ -566,9 +2066,18 @@ ai_content_policy = {
 | Stable Diffusion | 中 (LAION-5B) | ライセンス依存 | なし | なし |
 | Google Imagen | 中 | 限定的 | なし | SynthID |
 
+| 地域 | AI生成物の著作権 | 学習データ利用 | ディープフェイク規制 | 開示義務 |
+|------|:-------------:|:----------:|:--------------:|:------:|
+| 日本 | 条件付き保護 | 30条の4で原則適法 | 刑法改正 (2023) | ガイドライン |
+| 米国 | AI単独は不可 | フェアユース論 | 州法で対応 | プラットフォーム任せ |
+| EU | AI Act で規制 | DSM Directive | AI Act 高リスク分類 | 義務化 (AI Act) |
+| 中国 | 条件付き認定 | 暫定弁法で規制 | 生成AI管理暫定弁法 | 義務化 |
+| 英国 | s.9(3) で保護 | TDM例外検討中 | Online Safety Act | 検討中 |
+| 韓国 | 検討中 | 検討中 | AI基本法 (2024) | 検討中 |
+
 ---
 
-## 8. アンチパターン
+## 10. アンチパターン
 
 ### アンチパターン 1: 「AI だから著作権フリー」という誤解
 
@@ -620,9 +2129,59 @@ GOOD:
   - 社内ポリシーで実在人物の AI 生成を原則禁止
 ```
 
+### アンチパターン 4: モデレーションの欠如
+
+```
+BAD:
+  API を直接公開し、任意のプロンプトでの生成を許可
+  生成後のチェックなしにコンテンツを配信
+  NSFW フィルタを無効化してパフォーマンスを優先
+  → 有害コンテンツが大量に生成・拡散されるリスク
+
+GOOD:
+  - 生成前のプロンプトフィルタリング
+  - 生成後のコンテンツ分類・検査
+  - 段階的なモデレーション（自動 → 人間レビュー）
+  - レート制限とユーザー認証の実装
+  - 通報機能と迅速な対応フローの整備
+```
+
+### アンチパターン 5: 監査証跡なしの運用
+
+```
+BAD:
+  誰が何を生成したか記録していない
+  モデレーションの判定結果をログに残さない
+  インシデント発生時に遡及調査ができない
+  → コンプライアンス違反、法的リスクの増大
+
+GOOD:
+  - 全生成リクエストの監査ログを保持
+  - プロンプト、モデル、パラメータ、判定結果を記録
+  - 生成物のハッシュ値で追跡可能性を確保
+  - 定期的なコンプライアンスレポートの生成
+  - ログの改ざん防止措置（イミュータブルストレージ）
+```
+
+### アンチパターン 6: バイアスを無視した大量生成
+
+```
+BAD:
+  マーケティング素材を AI で大量生成し、多様性を確認しない
+  「デフォルト」の生成結果をそのまま使用
+  → 特定の人種・性別・年齢に偏った表現が公開される
+
+GOOD:
+  - 生成結果の多様性監査を定期実施
+  - プロンプトに明示的な多様性指定を含める
+  - 複数モデルの結果を比較
+  - 多様なバックグラウンドのレビュアーによる確認
+  - バイアス監査レポートの四半期報告
+```
+
 ---
 
-## 9. FAQ
+## 11. FAQ
 
 ### Q1. AI 生成画像を商用利用する場合、何を確認すべきか？
 
@@ -640,6 +2199,22 @@ GOOD:
 
 **A.** 日本の著作権法30条の4は、「著作物に表現された思想又は感情を自ら享受し又は他人に享受させることを目的としない場合」の利用を許容している。AI の機械学習はこれに該当するとされ、原則として権利者の許諾なく学習に利用できる。ただし (1) 著作権者の利益を不当に害する場合は例外、(2) 生成段階で特定の著作物に類似する出力を行う場合は侵害となりうる、(3) 2024年の文化審議会ガイドラインでは享受目的の学習は30条の4の対象外と整理されている。
 
+### Q5. C2PA メタデータを自社サービスに実装するには？
+
+**A.** (1) **C2PA Rust SDK** (c2pa-rs) を使用する方法が最もポピュラー。Python バインディング (c2pa-python) も利用可能。(2) 実装ステップとして、(a) X.509 証明書の取得（DigiCert 等の認証局から取得）、(b) マニフェスト定義（クリエイター情報、ツール情報、アクション履歴）、(c) コンテンツへのマニフェスト埋め込み、(d) 検証エンドポイントの実装。(3) 対応フォーマットは JPEG, PNG, WebP, AVIF, HEIF, MP4, MOV 等。(4) Adobe の Content Authenticity Initiative (CAI) が提供する Verify ツール (https://contentauthenticity.org/verify) で動作確認が可能。
+
+### Q6. 特定アーティストのスタイルを模倣するプロンプトは法的に問題か？
+
+**A.** 法的にはグレーゾーンだが、倫理的・実務的リスクがある。(1) **著作権法**: スタイルそのものは著作権の保護対象外（アイデア・表現二分法）。ただし、特定の作品に酷似する出力が生成された場合は侵害の可能性あり。(2) **不正競争防止法**: アーティスト名を使った商用コンテンツは「著名表示の冒用」に該当する可能性。(3) **倫理的問題**: アーティストの意に反するスタイル模倣はコミュニティの信頼を損なう。(4) **実務的対応**: 多くのプラットフォーム（Midjourney 等）は存命アーティスト名のプロンプトを制限する方向に移行中。スタイルの要素を抽象的に記述する（「印象派風」「サイバーパンク風」等）のが推奨される。
+
+### Q7. AI 生成コンテンツの利用に関する社内研修はどう設計するか？
+
+**A.** 以下の構成が推奨される。(1) **基礎編（全社員対象、1時間）**: AI 生成コンテンツの概要、社内ポリシーの説明、禁止事項の明確化、開示義務の理解。(2) **実務編（AI ツール利用者対象、2時間）**: 各ツールのライセンス条件、著作権・肖像権チェックの実務フロー、C2PA メタデータの付与方法、バイアス監査の手順。(3) **法務編（マネージャー・法務対象、2時間）**: 各国法制度の動向、判例分析、インシデント対応手順、コンプライアンスレポートの読み方。(4) **定期更新（四半期）**: 法改正・判例のアップデート、新ツール・新リスクの共有、インシデント事例の振り返り。
+
+### Q8. 環境負荷を考慮したAI画像生成の運用方針は？
+
+**A.** (1) **軽量モデルの優先利用**: SDXL Turbo, LCM (Latent Consistency Model), FLUX.1 Schnell 等の蒸留モデルは消費電力が50-80%少ない。(2) **段階的生成**: 低解像度・少ステップでプレビュー → 確定後に高品質生成。(3) **キャッシュ活用**: 同一・類似プロンプトの再生成を避け、結果をキャッシュ。(4) **リージョン選択**: 再生可能エネルギー比率の高いクラウドリージョンを選択（GCP: us-central1, AWS: eu-north-1 等）。(5) **カーボンオフセット**: 大量生成プロジェクトではカーボンオフセットの購入を検討。(6) **定量的モニタリング**: EnvironmentalImpactCalculator 等のツールで月次の環境負荷をトラッキング。
+
 ---
 
 ## まとめ
@@ -653,6 +2228,9 @@ GOOD:
 | バイアス | プロンプト設計と生成結果の監査で軽減。完全除去は困難 |
 | 組織ガイドライン | 許可/制限/禁止の3段階で明確なポリシーを策定 |
 | 開示義務 | AI 生成コンテンツには明示的なラベルと C2PA メタデータを付与 |
+| モデレーション | 生成前後の多層チェックで有害コンテンツを防止 |
+| 監査ログ | 全生成の追跡可能性を確保し、コンプライアンスを証明 |
+| インシデント対応 | 重大度に応じた段階的な対応フレームワークを整備 |
 
 ---
 
@@ -670,3 +2248,9 @@ GOOD:
 2. **文化審議会 AI と著作権に関する考え方** -- 文化庁 (2024) -- 日本の AI 著作権ガイドライン
 3. **EU AI Act** -- European Parliament (2024) -- EU の AI 規制法
 4. **The Ethics of Artificial Intelligence** -- Jobin et al. (Nature Machine Intelligence, 2019) -- AI 倫理の国際的調査
+5. **Generative AI and Copyright Law** -- Grimmelmann (Cornell Law Review, 2024) -- AI生成物と著作権の法理論
+6. **SynthID: Identifying AI-generated images** -- Pushkarna et al. (Google DeepMind, 2024) -- 電子透かし技術
+7. **Deepfakes and Disinformation** -- Chesney & Citron (California Law Review, 2019) -- ディープフェイクの法的分析
+8. **Content Authenticity Initiative** -- https://contentauthenticity.org/ -- コンテンツ認証のエコシステム
+9. **NIST AI Risk Management Framework** -- NIST AI 100-1 (2023) -- AIリスク管理の標準的フレームワーク
+10. **Responsible AI Practices** -- Google AI (2023) -- 責任あるAI開発のガイドライン

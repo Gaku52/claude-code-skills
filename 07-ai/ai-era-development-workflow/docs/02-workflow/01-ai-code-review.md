@@ -345,6 +345,543 @@ jobs:
 
 ---
 
+## 5. セキュリティレビューの自動化
+
+### 5.1 セキュリティ特化レビュー設定
+
+```python
+# セキュリティ観点でのAIレビューを自動化
+
+class SecurityReviewEngine:
+    """セキュリティ特化のAIコードレビューエンジン"""
+
+    SECURITY_PATTERNS = {
+        "sql_injection": {
+            "patterns": [
+                r"f\".*SELECT.*{.*}\"",
+                r"\.format\(.*\).*(?:SELECT|INSERT|UPDATE|DELETE)",
+                r"\+.*(?:SELECT|INSERT|UPDATE|DELETE)",
+            ],
+            "severity": "critical",
+            "message": "SQLインジェクションの可能性があります。パラメータ化クエリを使用してください。",
+            "fix_example": """
+# BAD
+query = f"SELECT * FROM users WHERE id = {user_id}"
+
+# GOOD
+query = "SELECT * FROM users WHERE id = :id"
+result = session.execute(text(query), {"id": user_id})
+""",
+        },
+        "xss": {
+            "patterns": [
+                r"dangerouslySetInnerHTML",
+                r"innerHTML\s*=",
+                r"document\.write\(",
+            ],
+            "severity": "critical",
+            "message": "XSS（クロスサイトスクリプティング）の可能性があります。",
+        },
+        "hardcoded_secret": {
+            "patterns": [
+                r"(?:password|secret|api_key|token)\s*=\s*['\"][^'\"]+['\"]",
+                r"(?:AWS_SECRET|PRIVATE_KEY)\s*=\s*['\"]",
+            ],
+            "severity": "critical",
+            "message": "ハードコードされた機密情報が含まれています。環境変数を使用してください。",
+        },
+        "insecure_random": {
+            "patterns": [
+                r"random\.random\(\)",
+                r"Math\.random\(\)",
+            ],
+            "severity": "major",
+            "message": "セキュリティ用途には暗号学的に安全な乱数生成器を使用してください。",
+            "fix_example": """
+# BAD
+import random
+token = random.randint(0, 999999)
+
+# GOOD
+import secrets
+token = secrets.token_urlsafe(32)
+""",
+        },
+        "path_traversal": {
+            "patterns": [
+                r"open\(.*\+.*\)",
+                r"os\.path\.join\(.*request",
+            ],
+            "severity": "critical",
+            "message": "パストラバーサルの可能性があります。入力パスを検証してください。",
+        },
+    }
+
+    def review_file(self, file_content: str, filename: str) -> list[dict]:
+        """ファイルをセキュリティ観点でレビュー"""
+        import re
+        findings = []
+
+        for vuln_type, config in self.SECURITY_PATTERNS.items():
+            for pattern in config["patterns"]:
+                for i, line in enumerate(file_content.split("\n"), 1):
+                    if re.search(pattern, line, re.IGNORECASE):
+                        findings.append({
+                            "type": vuln_type,
+                            "severity": config["severity"],
+                            "file": filename,
+                            "line": i,
+                            "code": line.strip(),
+                            "message": config["message"],
+                            "fix_example": config.get("fix_example", ""),
+                        })
+
+        return findings
+
+    def generate_security_report(self, findings: list[dict]) -> str:
+        """セキュリティレビュー結果のレポートを生成"""
+        if not findings:
+            return "セキュリティ上の問題は検出されませんでした。"
+
+        critical = [f for f in findings if f["severity"] == "critical"]
+        major = [f for f in findings if f["severity"] == "major"]
+
+        report = "## セキュリティレビュー結果\n\n"
+        report += f"検出された問題: {len(findings)}件 "
+        report += f"(Critical: {len(critical)}, Major: {len(major)})\n\n"
+
+        if critical:
+            report += "### Critical（即座に修正必要）\n\n"
+            for f in critical:
+                report += f"- **{f['type']}** - `{f['file']}:{f['line']}`\n"
+                report += f"  {f['message']}\n"
+                report += f"  ```\n  {f['code']}\n  ```\n"
+                if f.get("fix_example"):
+                    report += f"  修正例:\n  ```python\n{f['fix_example']}\n  ```\n"
+
+        if major:
+            report += "### Major（マージ前に修正推奨）\n\n"
+            for f in major:
+                report += f"- **{f['type']}** - `{f['file']}:{f['line']}`\n"
+                report += f"  {f['message']}\n"
+
+        return report
+```
+
+### 5.2 依存関係のセキュリティ監査
+
+```python
+# 依存パッケージの脆弱性チェックをAIレビューに統合
+
+class DependencyAuditor:
+    """依存関係のセキュリティ監査"""
+
+    def audit_npm_dependencies(self, package_json_path: str) -> dict:
+        """npm パッケージの脆弱性チェック"""
+        import subprocess
+        result = subprocess.run(
+            ["npm", "audit", "--json"],
+            capture_output=True, text=True,
+            cwd=str(Path(package_json_path).parent),
+        )
+
+        try:
+            audit_data = json.loads(result.stdout)
+        except json.JSONDecodeError:
+            return {"error": "npm audit の実行に失敗しました"}
+
+        vulnerabilities = audit_data.get("vulnerabilities", {})
+        summary = {
+            "total": len(vulnerabilities),
+            "critical": 0,
+            "high": 0,
+            "moderate": 0,
+            "low": 0,
+            "details": [],
+        }
+
+        for pkg_name, vuln_info in vulnerabilities.items():
+            severity = vuln_info.get("severity", "unknown")
+            if severity in summary:
+                summary[severity] += 1
+            summary["details"].append({
+                "package": pkg_name,
+                "severity": severity,
+                "title": vuln_info.get("title", ""),
+                "url": vuln_info.get("url", ""),
+                "fix_available": vuln_info.get("fixAvailable", False),
+            })
+
+        return summary
+
+    def generate_ai_review_comment(self, audit_result: dict) -> str:
+        """監査結果をPRコメント形式に変換"""
+        if audit_result.get("total", 0) == 0:
+            return "依存関係に既知の脆弱性は見つかりませんでした。"
+
+        comment = "## 依存関係セキュリティ監査\n\n"
+        comment += f"| 深刻度 | 件数 |\n|--------|------|\n"
+        comment += f"| Critical | {audit_result['critical']} |\n"
+        comment += f"| High | {audit_result['high']} |\n"
+        comment += f"| Moderate | {audit_result['moderate']} |\n"
+        comment += f"| Low | {audit_result['low']} |\n\n"
+
+        fixable = [d for d in audit_result["details"] if d["fix_available"]]
+        if fixable:
+            comment += "### 自動修正可能な脆弱性\n\n"
+            comment += "`npm audit fix` で以下の脆弱性を修正できます:\n\n"
+            for d in fixable:
+                comment += f"- **{d['package']}** ({d['severity']}): {d['title']}\n"
+
+        return comment
+```
+
+---
+
+## 6. レビュー品質メトリクスの可視化
+
+### 6.1 レビュー効率の測定
+
+```python
+# AIレビューの効果を定量的に測定するシステム
+
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from typing import Optional
+
+@dataclass
+class ReviewMetric:
+    """レビューメトリクスのデータポイント"""
+    pr_number: int
+    pr_size: int              # 変更行数
+    ai_review_time_sec: float  # AIレビュー所要時間
+    human_review_time_min: float  # 人間レビュー所要時間
+    ai_findings: int           # AIが検出した問題数
+    human_findings: int        # 人間が検出した問題数
+    ai_false_positives: int    # AI誤検出数
+    ai_true_positives: int     # AI正確検出数
+    time_to_merge_hours: float  # PR作成からマージまでの時間
+    post_merge_bugs: int = 0   # マージ後に発見されたバグ数
+
+@dataclass
+class ReviewDashboard:
+    """レビュー品質ダッシュボード"""
+    metrics: list[ReviewMetric] = field(default_factory=list)
+
+    @property
+    def ai_precision(self) -> float:
+        """AIレビューの精度（True Positive率）"""
+        total_findings = sum(m.ai_findings for m in self.metrics)
+        true_positives = sum(m.ai_true_positives for m in self.metrics)
+        return true_positives / total_findings if total_findings > 0 else 0
+
+    @property
+    def avg_time_to_merge(self) -> float:
+        """平均マージまでの時間（時間）"""
+        if not self.metrics:
+            return 0
+        return sum(m.time_to_merge_hours for m in self.metrics) / len(self.metrics)
+
+    @property
+    def avg_human_review_time(self) -> float:
+        """平均人間レビュー時間（分）"""
+        if not self.metrics:
+            return 0
+        return sum(m.human_review_time_min for m in self.metrics) / len(self.metrics)
+
+    @property
+    def bug_escape_rate(self) -> float:
+        """バグすり抜け率"""
+        total_prs = len(self.metrics)
+        if total_prs == 0:
+            return 0
+        prs_with_bugs = sum(1 for m in self.metrics if m.post_merge_bugs > 0)
+        return prs_with_bugs / total_prs
+
+    def generate_weekly_report(self) -> str:
+        """週次レビュー品質レポートを生成"""
+        return f"""
+## コードレビュー品質レポート
+
+### サマリー
+- 対象PR数: {len(self.metrics)}
+- AI精度: {self.ai_precision:.1%}
+- 平均マージ時間: {self.avg_time_to_merge:.1f}時間
+- 平均人間レビュー時間: {self.avg_human_review_time:.0f}分
+- バグすり抜け率: {self.bug_escape_rate:.1%}
+
+### AI検出内訳
+- 総検出数: {sum(m.ai_findings for m in self.metrics)}
+- 正確な検出: {sum(m.ai_true_positives for m in self.metrics)}
+- 誤検出: {sum(m.ai_false_positives for m in self.metrics)}
+- 人間のみが検出: {sum(m.human_findings for m in self.metrics)}
+
+### トレンド
+- 先週比マージ時間: {self._calc_trend('time_to_merge_hours')}
+- 先週比AI精度: {self._calc_trend('ai_precision')}
+"""
+
+    def _calc_trend(self, metric_name: str) -> str:
+        """トレンドを計算（簡易実装）"""
+        return "改善中" if len(self.metrics) > 0 else "データ不足"
+```
+
+### 6.2 レビューコメントの分類と分析
+
+```python
+# AIレビューコメントの品質を追跡・改善
+
+class ReviewCommentAnalyzer:
+    """レビューコメントを分析し、AI設定の改善に活用"""
+
+    def categorize_comments(self, comments: list[dict]) -> dict:
+        """コメントをカテゴリ別に分類"""
+        categories = {
+            "security": [],
+            "performance": [],
+            "maintainability": [],
+            "correctness": [],
+            "style": [],
+            "documentation": [],
+            "test": [],
+            "other": [],
+        }
+
+        category_keywords = {
+            "security": ["セキュリティ", "脆弱性", "認証", "認可",
+                         "injection", "XSS", "CSRF"],
+            "performance": ["パフォーマンス", "N+1", "メモリ", "キャッシュ",
+                           "インデックス", "計算量"],
+            "maintainability": ["保守", "リファクタ", "SOLID", "複雑度",
+                                "責務", "依存"],
+            "correctness": ["バグ", "エラー", "例外", "null",
+                           "境界", "競合"],
+            "style": ["命名", "フォーマット", "規約", "インデント"],
+            "documentation": ["ドキュメント", "コメント", "docstring",
+                              "README"],
+            "test": ["テスト", "カバレッジ", "アサーション", "モック"],
+        }
+
+        for comment in comments:
+            text = comment.get("body", "").lower()
+            categorized = False
+            for cat, keywords in category_keywords.items():
+                if any(kw.lower() in text for kw in keywords):
+                    categories[cat].append(comment)
+                    categorized = True
+                    break
+            if not categorized:
+                categories["other"].append(comment)
+
+        return categories
+
+    def analyze_acceptance_rate(self, comments: list[dict]) -> dict:
+        """コメントの受け入れ率を分析"""
+        total = len(comments)
+        accepted = sum(1 for c in comments if c.get("resolved", False))
+        dismissed = sum(1 for c in comments if c.get("dismissed", False))
+        pending = total - accepted - dismissed
+
+        return {
+            "total": total,
+            "accepted": accepted,
+            "dismissed": dismissed,
+            "pending": pending,
+            "acceptance_rate": accepted / total if total > 0 else 0,
+            "dismiss_rate": dismissed / total if total > 0 else 0,
+        }
+
+    def suggest_config_improvements(self, analysis: dict) -> list[str]:
+        """分析結果からAI設定の改善提案を生成"""
+        suggestions = []
+
+        if analysis.get("dismiss_rate", 0) > 0.4:
+            suggestions.append(
+                "誤検出率が高い（40%以上）。path_instructions を見直し、"
+                "プロジェクト固有のルールを追加してください。"
+            )
+
+        style_ratio = len(analysis.get("categories", {}).get("style", [])) / max(analysis.get("total", 1), 1)
+        if style_ratio > 0.5:
+            suggestions.append(
+                "スタイル関連のコメントが50%以上。Linter/Formatter で"
+                "自動修正し、AIレビューの範囲から除外してください。"
+            )
+
+        return suggestions
+```
+
+---
+
+## 7. 高度なレビュー手法
+
+### 7.1 アーキテクチャレベルのレビュー
+
+```python
+# 個々のファイルではなくアーキテクチャレベルでレビュー
+
+ARCHITECTURE_REVIEW_PROMPT = """
+以下のPRの変更をアーキテクチャの観点でレビューしてください。
+
+## 変更されたファイル
+{changed_files}
+
+## レビュー観点
+1. レイヤー間の依存関係は正しいか
+   - ドメイン層が外部に依存していないか
+   - プレゼンテーション層がインフラ層に直接依存していないか
+
+2. 境界の整合性
+   - マイクロサービス間のAPI契約は維持されているか
+   - 共有データベースへの新しい依存が追加されていないか
+
+3. 設計パターンの一貫性
+   - 既存のパターン（Repository、Service、Factory等）に従っているか
+   - 新しいパターンを導入する場合、その理由は妥当か
+
+4. 拡張性とテスタビリティ
+   - インターフェースが適切に定義されているか
+   - 依存性注入が使われているか
+   - モックしやすい設計になっているか
+
+## 差分
+{diff}
+
+## 出力形式
+アーキテクチャ上の問題を深刻度順にリストアップしてください。
+各問題に対して、具体的な改善案を示してください。
+"""
+
+class ArchitectureReviewer:
+    """アーキテクチャレベルのコードレビュー"""
+
+    def __init__(self, architecture_rules: dict):
+        self.rules = architecture_rules
+
+    def check_layer_violations(self, changed_files: list[str],
+                                imports: dict[str, list[str]]) -> list[dict]:
+        """レイヤー間の依存関係違反を検出"""
+        violations = []
+        layer_order = self.rules.get("layer_order", [
+            "domain", "usecase", "interface", "infrastructure"
+        ])
+
+        for file_path, file_imports in imports.items():
+            file_layer = self._detect_layer(file_path)
+            if not file_layer:
+                continue
+
+            file_layer_idx = layer_order.index(file_layer) if file_layer in layer_order else -1
+
+            for imp in file_imports:
+                imp_layer = self._detect_layer(imp)
+                if not imp_layer:
+                    continue
+
+                imp_layer_idx = layer_order.index(imp_layer) if imp_layer in layer_order else -1
+
+                # 内側のレイヤーが外側に依存している
+                if file_layer_idx < imp_layer_idx:
+                    violations.append({
+                        "type": "layer_violation",
+                        "severity": "major",
+                        "file": file_path,
+                        "import": imp,
+                        "message": (
+                            f"{file_layer}層が{imp_layer}層に依存しています。"
+                            f"依存性逆転の原則（DIP）を適用してください。"
+                        ),
+                    })
+
+        return violations
+
+    def _detect_layer(self, path: str) -> str:
+        """ファイルパスからレイヤーを推定"""
+        path_lower = path.lower()
+        if "domain" in path_lower or "entity" in path_lower:
+            return "domain"
+        elif "usecase" in path_lower or "service" in path_lower:
+            return "usecase"
+        elif "controller" in path_lower or "handler" in path_lower:
+            return "interface"
+        elif "repository" in path_lower or "adapter" in path_lower:
+            return "infrastructure"
+        return ""
+```
+
+### 7.2 パフォーマンスレビューの自動化
+
+```python
+# パフォーマンス観点の自動レビュー
+
+class PerformanceReviewer:
+    """パフォーマンス問題を自動検出するレビューエンジン"""
+
+    PERFORMANCE_PATTERNS = {
+        "n_plus_1": {
+            "description": "N+1クエリの可能性",
+            "patterns": [
+                # SQLAlchemy
+                r"for\s+\w+\s+in\s+\w+\.query\.",
+                r"for\s+\w+\s+in\s+\w+:\s*\n\s+\w+\.\w+\.",
+            ],
+            "severity": "major",
+            "fix": "joinedload() / selectinload() でイーガーロードに変更",
+        },
+        "unnecessary_serialization": {
+            "description": "不要なシリアライゼーション",
+            "patterns": [
+                r"json\.dumps\(.*json\.loads\(",
+                r"\.to_json\(\).*\.from_json\(",
+            ],
+            "severity": "minor",
+            "fix": "オブジェクトを直接渡し、不要な変換を排除",
+        },
+        "unbounded_query": {
+            "description": "LIMITなしのクエリ",
+            "patterns": [
+                r"\.all\(\)\s*$",
+                r"SELECT\s+\*\s+FROM\s+\w+\s*(?!.*LIMIT)",
+            ],
+            "severity": "major",
+            "fix": "ページネーション（LIMIT/OFFSET）を追加",
+        },
+        "sync_io_in_async": {
+            "description": "asyncコンテキストでの同期I/O",
+            "patterns": [
+                r"async\s+def\s+\w+.*:\s*\n(?:.*\n)*?.*\bopen\(",
+                r"async\s+def\s+\w+.*:\s*\n(?:.*\n)*?.*requests\.\w+\(",
+            ],
+            "severity": "major",
+            "fix": "aiofiles / httpx を使用して非同期I/Oに変更",
+        },
+    }
+
+    def review(self, file_content: str, filename: str) -> list[dict]:
+        """パフォーマンス問題を検出"""
+        import re
+        findings = []
+
+        for pattern_name, config in self.PERFORMANCE_PATTERNS.items():
+            for pattern in config["patterns"]:
+                matches = list(re.finditer(pattern, file_content, re.MULTILINE))
+                for match in matches:
+                    line_num = file_content[:match.start()].count("\n") + 1
+                    findings.append({
+                        "type": pattern_name,
+                        "severity": config["severity"],
+                        "file": filename,
+                        "line": line_num,
+                        "description": config["description"],
+                        "fix": config["fix"],
+                        "code": match.group(0)[:100],
+                    })
+
+        return findings
+```
+
+---
+
 ## アンチパターン
 
 ### アンチパターン 1: AIレビューの形骸化
@@ -391,6 +928,18 @@ jobs:
 ### Q3: AIレビューをチームに導入する際の抵抗をどう乗り越えるか？
 
 段階的導入が鍵。(1) まず1つのリポジトリでパイロット導入し、効果を数値で示す（レビュー時間の短縮、検出したバグ数等）。(2) レビュアーの負担軽減という「味方」のポジションで提案。(3) AIレビューは「最終判断」ではなく「ドラフトレビュー」であることを明確にし、人間の権限を脅かさないことを示す。
+
+### Q4: AIレビューの設定をプロジェクトに最適化する方法は？
+
+3段階のアプローチが効果的。(1) **初期設定（1週目）**: デフォルト設定で開始し、全てのコメントに対して「有用」「不要」のフィードバックを記録する。(2) **チューニング（2-4週目）**: フィードバックに基づいてpath_instructionsを調整し、誤検出が多いパターンを除外する。プロジェクト固有の規約（命名規則、アーキテクチャルール等）をカスタムルールとして追加する。(3) **最適化（5週目以降）**: 月次でAI精度を計測し、新しいルールの追加や不要ルールの削除を行う。チームの合意に基づいてseverityレベルを調整する。
+
+### Q5: レビューの自動化と人間レビューのバランスをどう取るか？
+
+基本方針は「AIが80%の機械的チェックを担当し、人間が20%の判断的チェックに集中する」こと。具体的には、(1) AI担当: コーディング規約、セキュリティパターン、パフォーマンスアンチパターン、テストカバレッジ、未使用コード、型安全性。(2) 人間担当: ビジネスロジックの正しさ、アーキテクチャの妥当性、ユーザー体験への影響、チーム内の暗黙知との整合性、新しい設計パターンの導入判断。AIレビューが完了した状態で人間レビューを開始することで、人間は高レベルの判断に集中できる。
+
+### Q6: マイクロサービス環境でのAIレビューの注意点は？
+
+マイクロサービスでは (1) サービス間のAPI契約変更を検出するルールを設定する（OpenAPI仕様の差分チェック）。(2) 共有ライブラリの変更が他サービスに影響しないかをAIに確認させる。(3) データベーススキーマの変更がマイグレーションを含んでいるかチェックする。(4) 分散トランザクションやイベント駆動の整合性に関する問題は、AIの検出精度が低いため人間が重点的にレビューする。
 
 ---
 

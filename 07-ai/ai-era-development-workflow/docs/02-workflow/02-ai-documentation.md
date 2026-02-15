@@ -793,6 +793,499 @@ GOOD:
 
 ---
 
+## 9. アーキテクチャドキュメントの自動生成
+
+### 9.1 コードベースからMermaidダイアグラムを生成
+
+```python
+# ソースコードを解析してアーキテクチャダイアグラムを自動生成
+
+import ast
+from pathlib import Path
+from typing import NamedTuple
+
+class DependencyInfo(NamedTuple):
+    source: str
+    target: str
+    relationship: str  # "imports", "inherits", "uses"
+
+class ArchitectureDiagramGenerator:
+    """コードベースからMermaidダイアグラムを自動生成"""
+
+    def __init__(self, project_root: str):
+        self.root = Path(project_root)
+        self.dependencies: list[DependencyInfo] = []
+        self.modules: dict[str, dict] = {}
+
+    def analyze_python_project(self) -> dict:
+        """Pythonプロジェクトの依存関係を解析"""
+        for py_file in self.root.rglob("*.py"):
+            if any(skip in str(py_file) for skip in [
+                "__pycache__", "node_modules", ".venv", "venv", "test"
+            ]):
+                continue
+
+            relative_path = py_file.relative_to(self.root)
+            module_name = str(relative_path).replace("/", ".").replace(".py", "")
+
+            try:
+                tree = ast.parse(py_file.read_text())
+                imports = self._extract_imports(tree)
+                classes = self._extract_classes(tree)
+                functions = self._extract_functions(tree)
+
+                self.modules[module_name] = {
+                    "path": str(relative_path),
+                    "imports": imports,
+                    "classes": classes,
+                    "functions": functions,
+                    "loc": len(py_file.read_text().splitlines()),
+                }
+
+                for imp in imports:
+                    self.dependencies.append(DependencyInfo(
+                        source=module_name,
+                        target=imp,
+                        relationship="imports",
+                    ))
+            except SyntaxError:
+                pass
+
+        return {
+            "modules": self.modules,
+            "dependencies": self.dependencies,
+        }
+
+    def generate_component_diagram(self) -> str:
+        """コンポーネント図をMermaid形式で生成"""
+        lines = ["graph TD"]
+
+        # モジュールをレイヤーでグループ化
+        layers = self._detect_layers()
+
+        for layer_name, modules in layers.items():
+            lines.append(f"    subgraph {layer_name}")
+            for mod in modules:
+                class_count = len(self.modules.get(mod, {}).get("classes", []))
+                func_count = len(self.modules.get(mod, {}).get("functions", []))
+                label = f"{mod.split('.')[-1]}\\n({class_count}classes, {func_count}funcs)"
+                lines.append(f'        {mod.replace(".", "_")}["{label}"]')
+            lines.append("    end")
+
+        # 依存関係の矢印
+        for dep in self.dependencies:
+            if dep.target in self.modules:
+                source_id = dep.source.replace(".", "_")
+                target_id = dep.target.replace(".", "_")
+                lines.append(f"    {source_id} --> {target_id}")
+
+        return "\n".join(lines)
+
+    def generate_class_diagram(self) -> str:
+        """クラス図をMermaid形式で生成"""
+        lines = ["classDiagram"]
+
+        for mod_name, mod_info in self.modules.items():
+            for cls in mod_info.get("classes", []):
+                cls_name = cls["name"]
+                lines.append(f"    class {cls_name} {{")
+                for method in cls.get("methods", []):
+                    visibility = "+" if not method.startswith("_") else "-"
+                    lines.append(f"        {visibility}{method}()")
+                lines.append("    }")
+
+                # 継承関係
+                for base in cls.get("bases", []):
+                    lines.append(f"    {base} <|-- {cls_name}")
+
+        return "\n".join(lines)
+
+    def generate_ai_prompt(self) -> str:
+        """AI にアーキテクチャ解説を依頼するプロンプトを生成"""
+        return f"""
+以下のプロジェクト構造を分析し、アーキテクチャドキュメントを作成してください。
+
+## モジュール一覧（{len(self.modules)}モジュール）
+{self._format_module_summary()}
+
+## 依存関係（{len(self.dependencies)}件）
+{self._format_dependency_summary()}
+
+## 出力形式
+1. アーキテクチャ概要（3-5文）
+2. レイヤー構成の説明
+3. 主要コンポーネントの責務
+4. データフローの説明
+5. 改善提案（あれば）
+"""
+
+    def _detect_layers(self) -> dict[str, list[str]]:
+        """モジュール名からレイヤーを自動検出"""
+        layer_keywords = {
+            "Presentation": ["controller", "handler", "view", "route", "api"],
+            "Application": ["service", "usecase", "command", "query"],
+            "Domain": ["model", "entity", "domain", "aggregate"],
+            "Infrastructure": ["repository", "adapter", "client", "db"],
+        }
+        layers: dict[str, list[str]] = {}
+        for mod_name in self.modules:
+            mod_lower = mod_name.lower()
+            placed = False
+            for layer, keywords in layer_keywords.items():
+                if any(kw in mod_lower for kw in keywords):
+                    layers.setdefault(layer, []).append(mod_name)
+                    placed = True
+                    break
+            if not placed:
+                layers.setdefault("Other", []).append(mod_name)
+        return layers
+
+    def _extract_imports(self, tree: ast.AST) -> list[str]:
+        imports = []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    imports.append(alias.name)
+            elif isinstance(node, ast.ImportFrom):
+                if node.module:
+                    imports.append(node.module)
+        return imports
+
+    def _extract_classes(self, tree: ast.AST) -> list[dict]:
+        classes = []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ClassDef):
+                methods = [
+                    n.name for n in node.body
+                    if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+                ]
+                bases = [ast.unparse(b) for b in node.bases]
+                classes.append({
+                    "name": node.name,
+                    "methods": methods,
+                    "bases": bases,
+                })
+        return classes
+
+    def _extract_functions(self, tree: ast.AST) -> list[str]:
+        return [
+            node.name for node in ast.iter_child_nodes(tree)
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        ]
+
+    def _format_module_summary(self) -> str:
+        return "\n".join(
+            f"- {name}: {info['loc']}行, "
+            f"クラス{len(info['classes'])}個, 関数{len(info['functions'])}個"
+            for name, info in sorted(self.modules.items())
+        )
+
+    def _format_dependency_summary(self) -> str:
+        return "\n".join(
+            f"- {d.source} → {d.target} ({d.relationship})"
+            for d in self.dependencies[:20]
+        )
+```
+
+### 9.2 ADR（Architecture Decision Records）の自動生成
+
+```python
+# AI で ADR のドラフトを自動生成
+
+ADR_TEMPLATE_PROMPT = """
+以下の設計判断について、ADR (Architecture Decision Record) を作成してください。
+
+## 設計判断の概要
+{decision_summary}
+
+## コンテキスト
+{context}
+
+## 検討した選択肢
+{options}
+
+## ADR テンプレート（以下の形式で出力）
+
+# ADR-{adr_number}: {title}
+
+## ステータス
+提案中 / 承認済み / 廃止
+
+## コンテキスト
+（この決定が必要になった背景・課題を記述）
+
+## 決定
+（採用した解決策を具体的に記述）
+
+## 検討した選択肢
+### 選択肢A: ...
+- 利点: ...
+- 欠点: ...
+
+### 選択肢B: ...
+- 利点: ...
+- 欠点: ...
+
+### 選択肢C: ...
+- 利点: ...
+- 欠点: ...
+
+## 決定の根拠
+（なぜこの選択肢を選んだかの理由を記述）
+
+## 影響
+- 良い影響: ...
+- リスク: ...
+- 移行計画: ...
+
+## 参考情報
+- 関連するADR: ...
+- 参考文献: ...
+"""
+
+class ADRGenerator:
+    """ADRの自動生成と管理"""
+
+    def __init__(self, adr_dir: str = "docs/adr"):
+        self.adr_dir = Path(adr_dir)
+        self.adr_dir.mkdir(parents=True, exist_ok=True)
+
+    def get_next_number(self) -> int:
+        """次のADR番号を取得"""
+        existing = list(self.adr_dir.glob("*.md"))
+        if not existing:
+            return 1
+        numbers = []
+        for f in existing:
+            try:
+                num = int(f.stem.split("-")[0])
+                numbers.append(num)
+            except (ValueError, IndexError):
+                pass
+        return max(numbers, default=0) + 1
+
+    def generate_adr(self, decision: dict, client) -> str:
+        """AIでADRのドラフトを生成"""
+        adr_number = self.get_next_number()
+        prompt = ADR_TEMPLATE_PROMPT.format(
+            adr_number=adr_number,
+            title=decision.get("title", ""),
+            decision_summary=decision.get("summary", ""),
+            context=decision.get("context", ""),
+            options=decision.get("options", ""),
+        )
+
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=4096,
+            messages=[{"role": "user", "content": prompt}],
+        )
+
+        adr_content = response.content[0].text
+        filename = f"{adr_number:04d}-{decision['title'].lower().replace(' ', '-')}.md"
+        filepath = self.adr_dir / filename
+        filepath.write_text(adr_content)
+
+        return str(filepath)
+```
+
+---
+
+## 10. ドキュメント鮮度モニタリング
+
+### 10.1 自動鮮度チェックシステム
+
+```python
+# ドキュメントの鮮度を自動的に監視し、陳腐化を防止する
+
+import subprocess
+from datetime import datetime, timedelta
+from dataclasses import dataclass, field
+
+@dataclass
+class DocFreshnessReport:
+    """ドキュメント鮮度レポート"""
+    file_path: str
+    last_modified: datetime
+    related_code_modified: datetime
+    days_stale: int
+    staleness_level: str  # "fresh", "aging", "stale", "critical"
+    related_changes: list[str] = field(default_factory=list)
+
+class DocFreshnessMonitor:
+    """ドキュメントの鮮度を監視するシステム"""
+
+    STALENESS_THRESHOLDS = {
+        "README.md": 30,           # 30日
+        "CONTRIBUTING.md": 90,     # 90日
+        "docs/api/": 14,           # 14日
+        "docs/architecture/": 60,  # 60日
+        "CHANGELOG.md": 7,         # 7日（リリースサイクルに依存）
+    }
+
+    def check_freshness(self, doc_path: str) -> DocFreshnessReport:
+        """ドキュメントの鮮度をチェック"""
+        # ドキュメントの最終更新日
+        doc_modified = self._get_last_modified(doc_path)
+
+        # 関連コードの最終更新日
+        related_code = self._find_related_code(doc_path)
+        code_modified = max(
+            (self._get_last_modified(f) for f in related_code),
+            default=doc_modified,
+        )
+
+        # 鮮度の計算
+        days_stale = (datetime.now() - doc_modified).days
+        code_days_ahead = (code_modified - doc_modified).days
+
+        # 鮮度レベルの判定
+        threshold = self._get_threshold(doc_path)
+        if code_days_ahead > threshold:
+            staleness_level = "critical"
+        elif code_days_ahead > threshold // 2:
+            staleness_level = "stale"
+        elif days_stale > threshold:
+            staleness_level = "aging"
+        else:
+            staleness_level = "fresh"
+
+        # 関連する変更の取得
+        related_changes = self._get_changes_since(doc_modified, related_code)
+
+        return DocFreshnessReport(
+            file_path=doc_path,
+            last_modified=doc_modified,
+            related_code_modified=code_modified,
+            days_stale=days_stale,
+            staleness_level=staleness_level,
+            related_changes=related_changes,
+        )
+
+    def generate_freshness_report(self, doc_paths: list[str]) -> str:
+        """ドキュメント鮮度の全体レポートを生成"""
+        reports = [self.check_freshness(path) for path in doc_paths]
+
+        critical = [r for r in reports if r.staleness_level == "critical"]
+        stale = [r for r in reports if r.staleness_level == "stale"]
+        aging = [r for r in reports if r.staleness_level == "aging"]
+        fresh = [r for r in reports if r.staleness_level == "fresh"]
+
+        output = "# ドキュメント鮮度レポート\n\n"
+        output += f"生成日時: {datetime.now().isoformat()}\n\n"
+        output += f"## サマリー\n"
+        output += f"- 最新: {len(fresh)}件\n"
+        output += f"- 経年: {len(aging)}件\n"
+        output += f"- 要更新: {len(stale)}件\n"
+        output += f"- 緊急: {len(critical)}件\n\n"
+
+        if critical:
+            output += "## 緊急対応が必要なドキュメント\n\n"
+            for r in critical:
+                output += f"- **{r.file_path}**: "
+                output += f"{r.days_stale}日前に更新、"
+                output += f"関連コードは{(r.related_code_modified - r.last_modified).days}日先行\n"
+                for change in r.related_changes[:3]:
+                    output += f"  - {change}\n"
+
+        return output
+
+    def _get_last_modified(self, file_path: str) -> datetime:
+        """Gitからファイルの最終更新日を取得"""
+        try:
+            result = subprocess.run(
+                ["git", "log", "-1", "--format=%aI", "--", file_path],
+                capture_output=True, text=True, timeout=5,
+            )
+            if result.stdout.strip():
+                return datetime.fromisoformat(result.stdout.strip())
+        except Exception:
+            pass
+        return datetime.now()
+
+    def _get_threshold(self, doc_path: str) -> int:
+        """ドキュメントパスに応じた閾値を返す"""
+        for pattern, threshold in self.STALENESS_THRESHOLDS.items():
+            if pattern in doc_path:
+                return threshold
+        return 30  # デフォルト30日
+
+    def _find_related_code(self, doc_path: str) -> list[str]:
+        """ドキュメントに関連するソースコードファイルを推定"""
+        related = []
+        # ドキュメント内のファイル参照を解析
+        # 例: README.md → src/ 配下のファイル
+        # 例: docs/api/users.md → src/controllers/users.ts
+        return related
+
+    def _get_changes_since(self, since: datetime,
+                           files: list[str]) -> list[str]:
+        """指定日時以降の変更を取得"""
+        changes = []
+        for f in files:
+            try:
+                result = subprocess.run(
+                    ["git", "log", "--oneline",
+                     f"--since={since.isoformat()}", "--", f],
+                    capture_output=True, text=True, timeout=5,
+                )
+                if result.stdout.strip():
+                    changes.extend(result.stdout.strip().split("\n"))
+            except Exception:
+                pass
+        return changes
+```
+
+### 10.2 Slack通知との統合
+
+```python
+# ドキュメント鮮度レポートをSlackに自動通知
+
+class DocFreshnessNotifier:
+    """ドキュメント鮮度をSlackに通知"""
+
+    def __init__(self, webhook_url: str):
+        self.webhook_url = webhook_url
+
+    def notify_stale_docs(self, reports: list[DocFreshnessReport]) -> None:
+        """陳腐化したドキュメントをSlackに通知"""
+        import requests
+
+        stale_docs = [r for r in reports if r.staleness_level in ("stale", "critical")]
+        if not stale_docs:
+            return
+
+        blocks = [
+            {
+                "type": "header",
+                "text": {
+                    "type": "plain_text",
+                    "text": f"ドキュメント鮮度アラート（{len(stale_docs)}件）",
+                }
+            },
+        ]
+
+        for doc in stale_docs[:5]:
+            emoji = "🔴" if doc.staleness_level == "critical" else "🟡"
+            blocks.append({
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": (
+                        f"{emoji} *{doc.file_path}*\n"
+                        f"最終更新: {doc.days_stale}日前 | "
+                        f"関連コードとの差: "
+                        f"{(doc.related_code_modified - doc.last_modified).days}日"
+                    ),
+                }
+            })
+
+        payload = {"blocks": blocks}
+        requests.post(self.webhook_url, json=payload)
+```
+
+---
+
 ## まとめ
 
 | 項目 | ポイント |
@@ -803,6 +1296,8 @@ GOOD:
 | CI/CD 統合 | ドキュメントカバレッジ、鮮度チェック、自動デプロイをパイプラインに組み込む |
 | 品質管理 | AI 生成は初稿。必ず人間がレビューし、サンプルコードは動作確認 |
 | 鮮度維持 | 自動チェック + PR テンプレート + 月次レポートで陳腐化を防止 |
+| アーキテクチャ図 | コードベース解析からMermaidダイアグラムを自動生成 |
+| ADR | AI でドラフトを生成し、設計判断の記録を効率化 |
 
 ---
 

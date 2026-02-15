@@ -63,6 +63,38 @@ print(f"猫-犬: {cosine_similarity(vec_cat, vec_dog):.4f}")   # → 0.9987 (高
 print(f"猫-経済: {cosine_similarity(vec_cat, vec_econ):.4f}") # → -0.2341 (低い)
 ```
 
+### 1.2 距離関数の使い分け
+
+```
+┌──────────────────────────────────────────────────────────┐
+│           距離関数の選択ガイド                              │
+├──────────────────────────────────────────────────────────┤
+│                                                          │
+│  コサイン類似度 (Cosine Similarity)                       │
+│  ├── 範囲: -1 ～ 1                                       │
+│  ├── ベクトルの方向のみを比較 (大きさは無視)              │
+│  ├── テキスト Embedding で最も一般的                       │
+│  └── 推奨: ほとんどの検索・類似度タスク                   │
+│                                                          │
+│  ユークリッド距離 (L2 Distance)                          │
+│  ├── 範囲: 0 ～ ∞                                        │
+│  ├── ベクトルの大きさも考慮                               │
+│  ├── クラスタリングで使用                                 │
+│  └── 推奨: 正規化されていないベクトル                     │
+│                                                          │
+│  内積 (Dot Product / Inner Product)                      │
+│  ├── 範囲: -∞ ～ ∞                                       │
+│  ├── 正規化済みベクトルではコサイン類似度と等価            │
+│  ├── 計算が最も高速                                       │
+│  └── 推奨: 正規化済みベクトル (多くの API がデフォルト)    │
+│                                                          │
+│  マンハッタン距離 (L1 Distance)                          │
+│  ├── 各次元の絶対差の合計                                 │
+│  ├── 外れ値に対してユークリッドより頑健                   │
+│  └── 推奨: スパースなベクトル                             │
+└──────────────────────────────────────────────────────────┘
+```
+
 ---
 
 ## 2. Embedding モデルの利用
@@ -143,6 +175,56 @@ doc_embeds = co.embed(
 ).embeddings
 ```
 
+### 2.4 Google Vertex AI Embedding
+
+```python
+from google.cloud import aiplatform
+from vertexai.language_models import TextEmbeddingModel
+
+# Google の多言語 Embedding モデル
+model = TextEmbeddingModel.from_pretrained("text-multilingual-embedding-002")
+
+embeddings = model.get_embeddings(
+    texts=["機械学習の基礎", "ディープラーニング入門"],
+    auto_truncate=True,
+)
+
+for emb in embeddings:
+    print(f"次元数: {len(emb.values)}")  # 768
+    print(f"統計: {emb.statistics}")
+```
+
+### 2.5 Embedding モデルのローカル実行
+
+```python
+# ONNX ランタイムで高速推論
+from optimum.onnxruntime import ORTModelForFeatureExtraction
+from transformers import AutoTokenizer
+import numpy as np
+
+# ONNX 最適化済みモデルをロード
+model = ORTModelForFeatureExtraction.from_pretrained(
+    "BAAI/bge-m3",
+    export=True,  # 初回は PyTorch → ONNX 変換
+)
+tokenizer = AutoTokenizer.from_pretrained("BAAI/bge-m3")
+
+# 推論
+inputs = tokenizer(
+    ["機械学習の基礎を学ぶ"],
+    padding=True,
+    truncation=True,
+    max_length=512,
+    return_tensors="np",
+)
+
+outputs = model(**inputs)
+# [CLS] トークンの出力を Embedding として使用
+embedding = outputs.last_hidden_state[:, 0, :]
+embedding = embedding / np.linalg.norm(embedding, axis=1, keepdims=True)
+print(f"形状: {embedding.shape}")  # (1, 1024)
+```
+
 ---
 
 ## 3. Embedding モデル比較
@@ -169,6 +251,39 @@ doc_embeds = co.embed(
 | 長文書対応 | Voyage-3 | 32K トークン対応 |
 | オンプレミス | BGE-M3 | OSS + 高性能 |
 | エッジデバイス | nomic-embed-text | 軽量 768次元 |
+
+### 3.3 Embedding モデル選定フローチャート
+
+```
+┌──────────────────────────────────────────────────────────┐
+│          Embedding モデル選定フロー                         │
+├──────────────────────────────────────────────────────────┤
+│                                                          │
+│  START: 要件確認                                         │
+│    │                                                     │
+│    ├── データをクラウドに送れない?                         │
+│    │   YES → OSS モデル                                  │
+│    │         ├── 多言語 → BGE-M3                         │
+│    │         ├── 軽量   → nomic-embed-text               │
+│    │         └── 日本語特化 → multilingual-e5-large       │
+│    │                                                     │
+│    NO ↓                                                  │
+│    ├── 長文書 (8K+ トークン) を扱う?                      │
+│    │   YES → Voyage-3 (32K 対応)                         │
+│    │                                                     │
+│    NO ↓                                                  │
+│    ├── コスト重視?                                       │
+│    │   YES → text-embedding-3-small ($0.02/1M)           │
+│    │                                                     │
+│    NO ↓                                                  │
+│    ├── 日本語重視?                                       │
+│    │   YES → Cohere embed-v3 / BGE-M3                    │
+│    │                                                     │
+│    NO ↓                                                  │
+│    └── 最高精度                                          │
+│         → text-embedding-3-large (dimensions=1024)       │
+└──────────────────────────────────────────────────────────┘
+```
 
 ---
 
@@ -219,7 +334,64 @@ for r in results:
     print(f"[{r['score']:.4f}] {r['text']}")
 ```
 
-### 4.2 クラスタリング
+### 4.2 ハイブリッド検索 (ベクトル + キーワード)
+
+```python
+import numpy as np
+from rank_bm25 import BM25Okapi
+import MeCab
+
+def hybrid_search(
+    query: str,
+    documents: list[str],
+    alpha: float = 0.5,  # 0=キーワードのみ, 1=ベクトルのみ
+    top_k: int = 5,
+) -> list[dict]:
+    """ハイブリッド検索: BM25 + Embedding"""
+
+    # 1. BM25 (キーワード検索)
+    mecab = MeCab.Tagger("-Owakati")
+    tokenized_docs = [mecab.parse(doc).strip().split() for doc in documents]
+    tokenized_query = mecab.parse(query).strip().split()
+
+    bm25 = BM25Okapi(tokenized_docs)
+    bm25_scores = bm25.get_scores(tokenized_query)
+    # 正規化 (0-1)
+    if bm25_scores.max() > 0:
+        bm25_scores = bm25_scores / bm25_scores.max()
+
+    # 2. Embedding (セマンティック検索)
+    all_texts = [query] + documents
+    response = client.embeddings.create(
+        model="text-embedding-3-small",
+        input=all_texts,
+    )
+    query_vec = np.array(response.data[0].embedding)
+    doc_vecs = np.array([d.embedding for d in response.data[1:]])
+
+    cosine_scores = np.dot(doc_vecs, query_vec) / (
+        np.linalg.norm(doc_vecs, axis=1) * np.linalg.norm(query_vec)
+    )
+    # 正規化 (0-1)
+    cosine_scores = (cosine_scores + 1) / 2
+
+    # 3. スコア統合
+    hybrid_scores = alpha * cosine_scores + (1 - alpha) * bm25_scores
+
+    # 上位 k 件を返す
+    top_indices = np.argsort(hybrid_scores)[::-1][:top_k]
+    return [
+        {
+            "text": documents[i],
+            "hybrid_score": float(hybrid_scores[i]),
+            "vector_score": float(cosine_scores[i]),
+            "bm25_score": float(bm25_scores[i]),
+        }
+        for i in top_indices
+    ]
+```
+
+### 4.3 クラスタリング
 
 ```python
 from sklearn.cluster import KMeans
@@ -260,7 +432,7 @@ for label, items in clusters.items():
         print(f"  - {item}")
 ```
 
-### 4.3 異常検知
+### 4.4 異常検知
 
 ```python
 import numpy as np
@@ -293,7 +465,7 @@ def detect_anomalies(
     return results
 ```
 
-### 4.4 テキスト分類 (ゼロショット)
+### 4.5 テキスト分類 (ゼロショット)
 
 ```python
 def zero_shot_classify(text: str, categories: list[str]) -> dict:
@@ -325,6 +497,114 @@ result = zero_shot_classify(
 # → {'テクノロジー': 0.89, 'スポーツ': 0.03, '政治': 0.04, 'エンタメ': 0.04}
 ```
 
+### 4.6 重複検出 (Deduplication)
+
+```python
+import numpy as np
+from itertools import combinations
+
+def find_near_duplicates(
+    texts: list[str],
+    threshold: float = 0.95,
+) -> list[tuple[int, int, float]]:
+    """Embedding ベースの重複検出"""
+
+    embeddings = np.array(get_embeddings(texts))
+    # 正規化
+    norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
+    normalized = embeddings / norms
+
+    # 類似度行列を計算
+    similarity_matrix = np.dot(normalized, normalized.T)
+
+    # 閾値以上のペアを抽出
+    duplicates = []
+    for i, j in combinations(range(len(texts)), 2):
+        sim = similarity_matrix[i, j]
+        if sim >= threshold:
+            duplicates.append((i, j, float(sim)))
+
+    return sorted(duplicates, key=lambda x: -x[2])
+
+# 使用例
+texts = [
+    "Pythonは人気のプログラミング言語です",
+    "Pythonは広く使われるプログラミング言語です",  # ほぼ重複
+    "JavaScriptはWebで使われる言語です",
+    "今日は天気が良いです",
+]
+
+duplicates = find_near_duplicates(texts, threshold=0.9)
+for i, j, sim in duplicates:
+    print(f"[{sim:.4f}] '{texts[i]}' ≈ '{texts[j]}'")
+```
+
+### 4.7 レコメンデーション
+
+```python
+import numpy as np
+
+class EmbeddingRecommender:
+    """Embedding ベースのレコメンデーションエンジン"""
+
+    def __init__(self):
+        self.items: list[dict] = []
+        self.embeddings: np.ndarray | None = None
+
+    def add_items(self, items: list[dict]):
+        """アイテムを追加 (title, description, metadata)"""
+        self.items = items
+        texts = [f"{item['title']}: {item['description']}" for item in items]
+        self.embeddings = np.array(get_embeddings(texts))
+        # 正規化
+        norms = np.linalg.norm(self.embeddings, axis=1, keepdims=True)
+        self.embeddings = self.embeddings / norms
+
+    def recommend_by_text(self, query: str, top_k: int = 5) -> list[dict]:
+        """テキストクエリに基づくレコメンド"""
+        query_emb = np.array(get_embeddings([query])[0])
+        query_emb = query_emb / np.linalg.norm(query_emb)
+
+        scores = np.dot(self.embeddings, query_emb)
+        top_indices = np.argsort(scores)[::-1][:top_k]
+
+        return [
+            {**self.items[i], "score": float(scores[i])}
+            for i in top_indices
+        ]
+
+    def recommend_similar(self, item_index: int, top_k: int = 5) -> list[dict]:
+        """類似アイテムのレコメンド"""
+        scores = np.dot(self.embeddings, self.embeddings[item_index])
+        top_indices = np.argsort(scores)[::-1][1:top_k+1]  # 自分自身を除外
+
+        return [
+            {**self.items[i], "score": float(scores[i])}
+            for i in top_indices
+        ]
+
+    def recommend_by_history(
+        self, viewed_indices: list[int], top_k: int = 5
+    ) -> list[dict]:
+        """閲覧履歴に基づくレコメンド"""
+        # 閲覧アイテムの平均ベクトル
+        viewed_embs = self.embeddings[viewed_indices]
+        profile = viewed_embs.mean(axis=0)
+        profile = profile / np.linalg.norm(profile)
+
+        scores = np.dot(self.embeddings, profile)
+
+        # 既に閲覧したアイテムを除外
+        for idx in viewed_indices:
+            scores[idx] = -1
+
+        top_indices = np.argsort(scores)[::-1][:top_k]
+        return [
+            {**self.items[i], "score": float(scores[i])}
+            for i in top_indices
+        ]
+```
+
 ---
 
 ## 5. 次元削減とパフォーマンス最適化
@@ -350,7 +630,38 @@ result = zero_shot_classify(
 └──────────────────────────────────────────────────────────┘
 ```
 
-### 5.1 バッチ処理と並列化
+### 5.1 Matryoshka Representation Learning (MRL)
+
+```python
+from openai import OpenAI
+
+client = OpenAI()
+
+# 同じテキストを異なる次元数で埋め込み
+text = "機械学習の基礎を学ぶ"
+
+for dim in [256, 512, 1024, 3072]:
+    response = client.embeddings.create(
+        model="text-embedding-3-large",
+        input=text,
+        dimensions=dim,
+    )
+    emb = response.data[0].embedding
+    print(f"次元数: {dim:4d}, メモリ: {dim * 4:>5d} bytes/vector")
+
+# 出力:
+# 次元数:  256, メモリ:  1024 bytes/vector
+# 次元数:  512, メモリ:  2048 bytes/vector
+# 次元数: 1024, メモリ:  4096 bytes/vector
+# 次元数: 3072, メモリ: 12288 bytes/vector
+
+# MRL の利点:
+# - 同一モデルで精度 vs コストを柔軟に調整
+# - 先頭の次元ほど重要な情報を保持
+# - 段階的な検索 (粗い→細かい) が可能
+```
+
+### 5.2 バッチ処理と並列化
 
 ```python
 import asyncio
@@ -383,9 +694,326 @@ async def batch_embed(texts: list[str], batch_size: int = 100) -> list:
     return all_embeddings
 ```
 
+### 5.3 Embedding のキャッシュ戦略
+
+```python
+import hashlib
+import json
+import sqlite3
+import numpy as np
+from typing import Optional
+
+class EmbeddingCache:
+    """SQLite ベースの Embedding キャッシュ"""
+
+    def __init__(self, db_path: str = "embedding_cache.db", model: str = "text-embedding-3-small"):
+        self.model = model
+        self.conn = sqlite3.connect(db_path)
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS embeddings (
+                text_hash TEXT PRIMARY KEY,
+                model TEXT,
+                embedding BLOB,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+    def _hash(self, text: str) -> str:
+        return hashlib.sha256(f"{self.model}:{text}".encode()).hexdigest()
+
+    def get(self, text: str) -> Optional[list[float]]:
+        """キャッシュから Embedding を取得"""
+        row = self.conn.execute(
+            "SELECT embedding FROM embeddings WHERE text_hash = ?",
+            (self._hash(text),),
+        ).fetchone()
+        if row:
+            return json.loads(row[0])
+        return None
+
+    def put(self, text: str, embedding: list[float]):
+        """Embedding をキャッシュに保存"""
+        self.conn.execute(
+            "INSERT OR REPLACE INTO embeddings (text_hash, model, embedding) VALUES (?, ?, ?)",
+            (self._hash(text), self.model, json.dumps(embedding)),
+        )
+        self.conn.commit()
+
+    def get_or_create(self, texts: list[str]) -> list[list[float]]:
+        """キャッシュミスのテキストのみ API を呼び出し"""
+        results = [None] * len(texts)
+        uncached_indices = []
+
+        for i, text in enumerate(texts):
+            cached = self.get(text)
+            if cached:
+                results[i] = cached
+            else:
+                uncached_indices.append(i)
+
+        if uncached_indices:
+            uncached_texts = [texts[i] for i in uncached_indices]
+            response = client.embeddings.create(
+                model=self.model, input=uncached_texts
+            )
+            for idx, emb_data in zip(uncached_indices, response.data):
+                results[idx] = emb_data.embedding
+                self.put(texts[idx], emb_data.embedding)
+
+        return results
+
+# 使用例
+cache = EmbeddingCache()
+embeddings = cache.get_or_create(["Hello", "World", "Hello"])  # "Hello" は1回だけAPI呼び出し
+```
+
 ---
 
-## 6. アンチパターン
+## 6. Embedding のファインチューニング
+
+### 6.1 Sentence Transformers でのファインチューニング
+
+```python
+from sentence_transformers import (
+    SentenceTransformer,
+    InputExample,
+    losses,
+)
+from torch.utils.data import DataLoader
+
+# ベースモデルをロード
+model = SentenceTransformer("BAAI/bge-m3")
+
+# 訓練データの準備 (正例ペア)
+train_examples = [
+    InputExample(texts=["Pythonの使い方", "Pythonプログラミング入門"], label=0.9),
+    InputExample(texts=["Pythonの使い方", "Java言語の基礎"], label=0.3),
+    InputExample(texts=["機械学習とは", "ディープラーニングの基礎"], label=0.8),
+    InputExample(texts=["機械学習とは", "今日の天気"], label=0.05),
+    # 1000+ ペアを推奨
+]
+
+train_dataloader = DataLoader(train_examples, shuffle=True, batch_size=16)
+
+# CosineSimilarity Loss (回帰型)
+train_loss = losses.CosineSimilarityLoss(model)
+
+# 訓練
+model.fit(
+    train_objectives=[(train_dataloader, train_loss)],
+    epochs=3,
+    warmup_steps=100,
+    output_path="./finetuned-embedding",
+)
+
+# ファインチューニング済みモデルの利用
+finetuned = SentenceTransformer("./finetuned-embedding")
+embeddings = finetuned.encode(["テスト文書"])
+```
+
+### 6.2 対比学習 (Contrastive Learning) によるファインチューニング
+
+```python
+from sentence_transformers import InputExample, losses
+from sentence_transformers.evaluation import InformationRetrievalEvaluator
+
+# Triplet Loss (アンカー, 正例, 負例)
+triplet_examples = [
+    InputExample(texts=[
+        "Pythonでのデータ分析",     # アンカー
+        "pandas を使ったデータ処理",  # 正例 (類似)
+        "JavaScriptフレームワーク",   # 負例 (非類似)
+    ]),
+    # ...
+]
+
+triplet_loader = DataLoader(triplet_examples, shuffle=True, batch_size=16)
+triplet_loss = losses.TripletLoss(model, distance_metric=losses.TripletDistanceMetric.COSINE)
+
+# Multiple Negatives Ranking Loss (大規模データに最適)
+mnrl_examples = [
+    InputExample(texts=["クエリ1", "関連文書1"]),
+    InputExample(texts=["クエリ2", "関連文書2"]),
+    # バッチ内の他ペアが自動的に負例になる
+]
+
+mnrl_loader = DataLoader(mnrl_examples, shuffle=True, batch_size=32)
+mnrl_loss = losses.MultipleNegativesRankingLoss(model)
+
+# 評価器の設定
+evaluator = InformationRetrievalEvaluator(
+    queries={"q1": "Python データ分析", "q2": "機械学習 入門"},
+    corpus={"d1": "pandasの使い方...", "d2": "scikit-learnチュートリアル..."},
+    relevant_docs={"q1": {"d1"}, "q2": {"d2"}},
+)
+
+model.fit(
+    train_objectives=[(mnrl_loader, mnrl_loss)],
+    evaluator=evaluator,
+    epochs=5,
+    evaluation_steps=500,
+    output_path="./finetuned-retrieval",
+)
+```
+
+---
+
+## 7. チャンク分割戦略
+
+```
+┌──────────────────────────────────────────────────────────┐
+│          テキストチャンク分割の戦略                         │
+├──────────────────────────────────────────────────────────┤
+│                                                          │
+│  1. 固定長分割 (Fixed Size)                              │
+│     ├── 実装が最も簡単                                    │
+│     ├── 文の途中で切れるリスク                            │
+│     └── 推奨チャンクサイズ: 256-512 トークン              │
+│                                                          │
+│  2. セマンティック分割 (Semantic Chunking)                │
+│     ├── 文/段落境界で分割                                 │
+│     ├── Embedding の類似度が急変する点で分割              │
+│     └── 意味の一貫性が高い                               │
+│                                                          │
+│  3. オーバーラップ分割 (Sliding Window)                   │
+│     ├── チャンク間に重複区間を設定                        │
+│     ├── 境界付近の情報損失を軽減                          │
+│     └── 推奨オーバーラップ: 50-100 トークン               │
+│                                                          │
+│  4. 再帰的分割 (Recursive)                               │
+│     ├── LangChain の RecursiveCharacterTextSplitter       │
+│     ├── 段落 → 文 → 単語の順で階層的に分割               │
+│     └── 最も汎用的で品質が良い                            │
+│                                                          │
+│  5. ドキュメント構造ベース                                │
+│     ├── Markdown: ヘッダーで分割                          │
+│     ├── HTML: タグ構造で分割                              │
+│     └── コード: 関数/クラス単位で分割                     │
+└──────────────────────────────────────────────────────────┘
+```
+
+```python
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+
+# 再帰的分割 (最も一般的)
+splitter = RecursiveCharacterTextSplitter(
+    chunk_size=500,        # トークン数ではなく文字数
+    chunk_overlap=50,      # オーバーラップ文字数
+    separators=["\n\n", "\n", "。", "、", " ", ""],  # 分割優先順
+    length_function=len,
+)
+
+chunks = splitter.split_text(long_document)
+
+# セマンティック分割 (Embedding 類似度ベース)
+from langchain_experimental.text_splitter import SemanticChunker
+from langchain_openai import OpenAIEmbeddings
+
+semantic_splitter = SemanticChunker(
+    OpenAIEmbeddings(model="text-embedding-3-small"),
+    breakpoint_threshold_type="percentile",
+    breakpoint_threshold_amount=90,  # 類似度の低い箇所で分割
+)
+
+semantic_chunks = semantic_splitter.split_text(long_document)
+```
+
+---
+
+## 8. トラブルシューティング
+
+### 8.1 よくある問題と解決策
+
+```
+┌──────────────────────────────────────────────────────────┐
+│          Embedding のトラブルシューティング                 │
+├──────────────────────────────────────────────────────────┤
+│                                                          │
+│  問題 1: 検索精度が低い                                   │
+│  ├── 原因 1: チャンクサイズが不適切                       │
+│  │   └── 解決: 256-512 トークンに調整                    │
+│  ├── 原因 2: クエリとドキュメントの形式が異なる           │
+│  │   └── 解決: e5系は "query:" "passage:" プレフィックス  │
+│  ├── 原因 3: モデルの言語対応が弱い                      │
+│  │   └── 解決: 多言語モデル (BGE-M3) に変更              │
+│  └── 原因 4: ドメイン特化用語が多い                      │
+│      └── 解決: ファインチューニングを検討                 │
+│                                                          │
+│  問題 2: 速度が遅い                                       │
+│  ├── 原因 1: 毎回 API を呼んでいる                       │
+│  │   └── 解決: キャッシュ層を追加                         │
+│  ├── 原因 2: バッチ処理していない                         │
+│  │   └── 解決: 100件/バッチで一括処理                    │
+│  └── 原因 3: 次元数が大きすぎる                           │
+│      └── 解決: 1024次元に削減                             │
+│                                                          │
+│  問題 3: コストが高い                                     │
+│  ├── 原因 1: 大きいモデルを使っている                    │
+│  │   └── 解決: text-embedding-3-small に変更              │
+│  ├── 原因 2: 重複テキストを再計算している                 │
+│  │   └── 解決: ハッシュベースのキャッシュ                 │
+│  └── 原因 3: 不必要に長いテキストを埋め込んでいる         │
+│      └── 解決: チャンク分割で最適長に                     │
+│                                                          │
+│  問題 4: 類似度スコアが直感と合わない                     │
+│  ├── 原因 1: 距離関数の選択ミス                          │
+│  │   └── 解決: コサイン類似度を使用                       │
+│  └── 原因 2: 正規化されていない                          │
+│      └── 解決: normalize_embeddings=True                 │
+└──────────────────────────────────────────────────────────┘
+```
+
+### 8.2 Embedding の品質検証
+
+```python
+import numpy as np
+from itertools import combinations
+
+def validate_embeddings(
+    test_pairs: list[tuple[str, str, float]],
+    model_name: str = "text-embedding-3-small",
+) -> dict:
+    """Embedding モデルの品質検証
+
+    test_pairs: [(text_a, text_b, expected_similarity), ...]
+    expected_similarity: 0.0 (無関係) ～ 1.0 (同義)
+    """
+    texts_a = [p[0] for p in test_pairs]
+    texts_b = [p[1] for p in test_pairs]
+    expected = [p[2] for p in test_pairs]
+
+    embs_a = np.array(get_embeddings(texts_a, model=model_name))
+    embs_b = np.array(get_embeddings(texts_b, model=model_name))
+
+    # コサイン類似度を計算
+    actual = []
+    for a, b in zip(embs_a, embs_b):
+        sim = np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
+        actual.append(float(sim))
+
+    # 相関係数 (期待値との相関)
+    from scipy.stats import spearmanr
+    correlation, p_value = spearmanr(expected, actual)
+
+    # 分類精度 (閾値0.5で正/負を判別)
+    correct = sum(
+        1 for e, a in zip(expected, actual)
+        if (e >= 0.5 and a >= 0.5) or (e < 0.5 and a < 0.5)
+    )
+    accuracy = correct / len(test_pairs)
+
+    return {
+        "model": model_name,
+        "spearman_correlation": correlation,
+        "p_value": p_value,
+        "classification_accuracy": accuracy,
+        "mean_actual_similarity": np.mean(actual),
+    }
+```
+
+---
+
+## 9. アンチパターン
 
 ### アンチパターン 1: Embedding モデルの混在
 
@@ -412,9 +1040,46 @@ chunk_embeddings = [embed(chunk) for chunk in chunks]
 # → 各チャンクの意味が保持される
 ```
 
+### アンチパターン 3: キャッシュなしの大量処理
+
+```python
+# NG: 同じテキストを何度も API に送信
+for query in user_queries:  # 多くは過去のクエリと同一
+    embedding = embed(query)  # 毎回 API 呼び出し → コスト膨大
+
+# OK: キャッシュを使用
+cache = EmbeddingCache()
+for query in user_queries:
+    embedding = cache.get_or_create([query])[0]
+```
+
+### アンチパターン 4: Embedding の可視化なしでの運用
+
+```python
+# NG: Embedding の分布を確認せずにデプロイ
+# → 想定外のクラスタリング結果やバイアスに気づかない
+
+# OK: 定期的に可視化して品質を確認
+from sklearn.manifold import TSNE
+import matplotlib.pyplot as plt
+
+def visualize_embeddings(embeddings, labels, title="Embedding Space"):
+    tsne = TSNE(n_components=2, random_state=42, perplexity=30)
+    reduced = tsne.fit_transform(np.array(embeddings))
+
+    plt.figure(figsize=(10, 8))
+    for label in set(labels):
+        mask = [l == label for l in labels]
+        points = reduced[mask]
+        plt.scatter(points[:, 0], points[:, 1], label=label, alpha=0.6)
+    plt.legend()
+    plt.title(title)
+    plt.savefig("embedding_visualization.png")
+```
+
 ---
 
-## 7. FAQ
+## 10. FAQ
 
 ### Q1: Embedding の次元数はどう選ぶべき?
 
@@ -435,6 +1100,19 @@ BGE-M3、Cohere embed-v3、multilingual-e5 は日本語で高性能。
 日本語特化モデル (intfloat/multilingual-e5-large 等) は JSTS/JSICK ベンチマークで評価する。
 「クエリ」と「ドキュメント」で異なるプレフィックスを付けるモデル (e5系) では、この使い分けが精度に大きく影響する。
 
+### Q4: Embedding モデルを変更する際の注意点は?
+
+モデル変更時は全ベクトルの再計算が必要。異なるモデルのベクトル空間は互換性がない。
+段階的な移行: 新旧モデルを並行稼働し、品質比較した上で切り替える。
+バージョン管理: モデル名とバージョンをメタデータに記録しておく。
+
+### Q5: Sparse Embedding と Dense Embedding の違いは?
+
+Dense Embedding (本章): 全次元に値が入る (1024次元に1024個の値)。意味的類似度に強い。
+Sparse Embedding (BM25, SPLADE等): ほとんどの次元が0。キーワード一致に強い。
+ハイブリッド検索: 両方を組み合わせると最高の検索精度が得られる。
+BGE-M3 は Dense + Sparse の両方を生成できる唯一のモデルの一つ。
+
 ---
 
 ## まとめ
@@ -447,6 +1125,8 @@ BGE-M3、Cohere embed-v3、multilingual-e5 は日本語で高性能。
 | 推奨次元数 | 1024 (バランス型) |
 | 距離関数 | コサイン類似度 (正規化済みなら内積と等価) |
 | バッチサイズ | 100-500 テキスト/リクエスト |
+| チャンクサイズ | 256-512 トークン (オーバーラップ 50-100) |
+| キャッシュ | 必須 (SQLite / Redis) |
 | 主要用途 | 検索、分類、クラスタリング、異常検知、RAG |
 
 ---
@@ -465,3 +1145,5 @@ BGE-M3、Cohere embed-v3、multilingual-e5 は日本語で高性能。
 2. OpenAI, "Embeddings Guide," https://platform.openai.com/docs/guides/embeddings
 3. Xiao et al., "C-Pack: Packaged Resources To Advance General Chinese Embedding," arXiv:2309.07597, 2023
 4. Sentence Transformers, "Documentation," https://www.sbert.net/
+5. Kusupati et al., "Matryoshka Representation Learning," NeurIPS 2022
+6. Karpukhin et al., "Dense Passage Retrieval for Open-Domain Question Answering," EMNLP 2020

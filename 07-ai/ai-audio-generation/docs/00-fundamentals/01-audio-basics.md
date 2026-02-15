@@ -500,3 +500,719 @@ def good_stft(signal, sr, analysis_type="speech"):
 2. Müller, M. (2015). "Fundamentals of Music Processing" — 音楽情報処理の基礎。STFT、クロマグラム、MFCCを詳細に解説
 3. Rabiner, L.R. & Schafer, R.W. (2010). "Theory and Applications of Digital Speech Processing" — 音声信号処理の古典的名著。サンプリングからLPC解析まで
 4. Stevens, S.S. & Volkmann, J. (1940). "The Relation of Pitch to Frequency" — メル尺度の原論文。人間の聴覚特性に基づく周波数知覚の研究
+
+---
+
+## 8. 高度な音声解析技術
+
+### 8.1 ピッチ検出アルゴリズム
+
+```python
+import numpy as np
+
+def autocorrelation_pitch(signal, sample_rate, fmin=80, fmax=400):
+    """
+    自己相関法によるピッチ（基本周波数 F0）検出
+    
+    Parameters:
+        signal: 入力信号（1フレーム分）
+        sample_rate: サンプルレート
+        fmin: 最小周波数 [Hz]（デフォルト: 80Hz = 男性の低い声）
+        fmax: 最大周波数 [Hz]（デフォルト: 400Hz = 女性の高い声）
+    
+    Returns:
+        f0: 推定基本周波数 [Hz]。有声音でない場合は0
+    """
+    # ラグの範囲をサンプル数に変換
+    lag_min = int(sample_rate / fmax)
+    lag_max = int(sample_rate / fmin)
+    
+    # 自己相関を計算
+    n = len(signal)
+    autocorr = np.correlate(signal, signal, mode='full')
+    autocorr = autocorr[n-1:]  # 正のラグのみ
+    
+    # 正規化
+    autocorr = autocorr / autocorr[0]
+    
+    # 指定範囲内でピークを探索
+    search_range = autocorr[lag_min:lag_max]
+    if len(search_range) == 0:
+        return 0.0
+    
+    peak_idx = np.argmax(search_range) + lag_min
+    peak_value = autocorr[peak_idx]
+    
+    # 有声/無声判定（閾値）
+    if peak_value < 0.3:
+        return 0.0  # 無声音
+    
+    f0 = sample_rate / peak_idx
+    return f0
+
+
+def yin_pitch_detection(signal, sample_rate, fmin=80, fmax=500, threshold=0.1):
+    """
+    YINアルゴリズムによるピッチ検出
+    - 自己相関法より精度が高い
+    - 2002年にCheveigne & Kawahara が提案
+    
+    特徴:
+    - 差分関数の累積平均正規化
+    - オクターブエラーが少ない
+    """
+    # Step 1: 差分関数
+    tau_min = int(sample_rate / fmax)
+    tau_max = int(sample_rate / fmin)
+    
+    n = len(signal)
+    diff = np.zeros(tau_max)
+    
+    for tau in range(1, tau_max):
+        diff[tau] = np.sum((signal[:n-tau] - signal[tau:n]) ** 2)
+    
+    # Step 2: 累積平均正規化差分関数（CMNDF）
+    cmndf = np.ones(tau_max)
+    running_sum = 0.0
+    for tau in range(1, tau_max):
+        running_sum += diff[tau]
+        cmndf[tau] = diff[tau] / (running_sum / tau) if running_sum > 0 else 1.0
+    
+    # Step 3: 閾値以下の最初のディップを探索
+    for tau in range(tau_min, tau_max):
+        if cmndf[tau] < threshold:
+            # パラボラ補間で精度向上
+            if tau > 0 and tau < tau_max - 1:
+                alpha = cmndf[tau - 1]
+                beta = cmndf[tau]
+                gamma = cmndf[tau + 1]
+                peak = tau + 0.5 * (alpha - gamma) / (alpha - 2 * beta + gamma)
+            else:
+                peak = tau
+            return sample_rate / peak
+    
+    return 0.0  # ピッチ検出失敗
+
+
+# ピッチ検出の応用例
+def analyze_voice_characteristics(audio, sr):
+    """音声の特性を分析（ピッチ、フォルマント、エネルギー）"""
+    frame_size = int(0.025 * sr)  # 25ms
+    hop_size = int(0.010 * sr)    # 10ms
+    
+    f0_values = []
+    energy_values = []
+    
+    for i in range(0, len(audio) - frame_size, hop_size):
+        frame = audio[i:i + frame_size]
+        
+        # ピッチ検出
+        f0 = yin_pitch_detection(frame, sr)
+        f0_values.append(f0)
+        
+        # エネルギー
+        energy = np.sqrt(np.mean(frame ** 2))
+        energy_values.append(energy)
+    
+    # 有声音フレームのみでF0統計を計算
+    voiced_f0 = [f for f in f0_values if f > 0]
+    
+    return {
+        "mean_f0": np.mean(voiced_f0) if voiced_f0 else 0,
+        "std_f0": np.std(voiced_f0) if voiced_f0 else 0,
+        "min_f0": np.min(voiced_f0) if voiced_f0 else 0,
+        "max_f0": np.max(voiced_f0) if voiced_f0 else 0,
+        "voicing_ratio": len(voiced_f0) / len(f0_values),
+        "mean_energy": np.mean(energy_values),
+    }
+```
+
+### 8.2 フォルマント分析
+
+```python
+import numpy as np
+from scipy.signal import lfilter, lpc
+
+def extract_formants(signal, sample_rate, n_formants=4, lpc_order=12):
+    """
+    LPC（線形予測符号化）によるフォルマント抽出
+    
+    フォルマント: 声道の共鳴周波数
+    - F1: 顎の開き（開口度）に関連 (~300-800Hz)
+    - F2: 舌の前後位置に関連 (~800-2500Hz)
+    - F3: 唇の丸めに関連 (~2500-3500Hz)
+    
+    Parameters:
+        signal: 音声信号（1フレーム分）
+        sample_rate: サンプルレート
+        n_formants: 抽出するフォルマント数
+        lpc_order: LPC次数（通常 2 + サンプルレート/1000）
+    """
+    # プリエンファシス（高域強調）
+    emphasized = np.append(signal[0], signal[1:] - 0.97 * signal[:-1])
+    
+    # ハミング窓適用
+    windowed = emphasized * np.hamming(len(emphasized))
+    
+    # LPC係数を計算
+    a = lpc(windowed, lpc_order)
+    
+    # LPC多項式の根を求める
+    roots = np.roots(a)
+    
+    # 正の虚部を持つ根のみを選択（共役のうち片方）
+    roots = roots[np.imag(roots) >= 0]
+    
+    # 角度から周波数に変換
+    angles = np.arctan2(np.imag(roots), np.real(roots))
+    frequencies = angles * (sample_rate / (2 * np.pi))
+    
+    # 帯域幅を計算
+    bandwidths = -0.5 * sample_rate * np.log(np.abs(roots)) / np.pi
+    
+    # 有効なフォルマントのフィルタリング
+    valid = (frequencies > 90) & (frequencies < sample_rate / 2 - 50) & (bandwidths < 400)
+    frequencies = frequencies[valid]
+    bandwidths = bandwidths[valid]
+    
+    # 周波数でソート
+    sorted_idx = np.argsort(frequencies)
+    frequencies = frequencies[sorted_idx][:n_formants]
+    bandwidths = bandwidths[sorted_idx][:n_formants]
+    
+    return frequencies, bandwidths
+
+# 日本語母音のフォルマント参考値
+japanese_vowel_formants = {
+    "あ (a)": {"F1": 800, "F2": 1200, "特徴": "最も開口度が大きい"},
+    "い (i)": {"F1": 300, "F2": 2300, "特徴": "F2が高い（舌が前方）"},
+    "う (u)": {"F1": 350, "F2": 1100, "特徴": "唇が丸まる"},
+    "え (e)": {"F1": 500, "F2": 1900, "特徴": "中程度の開口"},
+    "お (o)": {"F1": 500, "F2": 800,  "特徴": "F2が低い（舌が後方）"},
+}
+```
+
+### 8.3 音声品質指標
+
+```python
+# 音声品質を測定するための各種指標
+
+def compute_snr(clean_signal, noisy_signal):
+    """
+    SNR（信号対雑音比）を計算
+    
+    SNR = 10 * log10(signal_power / noise_power)
+    
+    高いほど良い。一般的な目安:
+    - > 40dB: 非常にクリーン
+    - 20-40dB: 良好
+    - 10-20dB: ノイズが気になる
+    - < 10dB: 品質が低い
+    """
+    noise = noisy_signal - clean_signal
+    signal_power = np.mean(clean_signal ** 2)
+    noise_power = np.mean(noise ** 2)
+    
+    if noise_power == 0:
+        return float('inf')
+    
+    return 10 * np.log10(signal_power / noise_power)
+
+
+def compute_pesq_wrapper(reference_path, degraded_path, sample_rate=16000):
+    """
+    PESQ（Perceptual Evaluation of Speech Quality）の計算
+    ITU-T P.862 に基づく客観的音声品質指標
+    
+    スコア範囲: -0.5 ~ 4.5
+    - 4.5: 劣化なし
+    - 3.8+: 非常に良い
+    - 3.0-3.8: 良い
+    - 2.0-3.0: 普通
+    - < 2.0: 悪い
+    """
+    from pesq import pesq
+    import soundfile as sf
+    
+    ref, sr_ref = sf.read(reference_path)
+    deg, sr_deg = sf.read(degraded_path)
+    
+    # リサンプリングが必要な場合
+    if sr_ref != sample_rate:
+        import librosa
+        ref = librosa.resample(ref, orig_sr=sr_ref, target_sr=sample_rate)
+    if sr_deg != sample_rate:
+        deg = librosa.resample(deg, orig_sr=sr_deg, target_sr=sample_rate)
+    
+    # 長さを合わせる
+    min_len = min(len(ref), len(deg))
+    ref = ref[:min_len]
+    deg = deg[:min_len]
+    
+    score = pesq(sample_rate, ref, deg, 'wb')  # 'wb'=広帯域, 'nb'=狭帯域
+    return score
+
+
+def compute_stoi(clean, degraded, sr=16000):
+    """
+    STOI（Short-Time Objective Intelligibility）
+    音声の明瞭度を評価する指標
+    
+    スコア範囲: 0 ~ 1
+    - > 0.9: 非常に明瞭
+    - 0.7-0.9: 明瞭
+    - 0.5-0.7: やや不明瞭
+    - < 0.5: 不明瞭
+    """
+    from pystoi import stoi
+    
+    min_len = min(len(clean), len(degraded))
+    return stoi(clean[:min_len], degraded[:min_len], sr, extended=True)
+
+
+# 包括的な音声品質評価
+def comprehensive_quality_assessment(reference_path, test_path, sr=16000):
+    """音声品質の包括的評価"""
+    import soundfile as sf
+    
+    ref, _ = sf.read(reference_path)
+    test, _ = sf.read(test_path)
+    
+    min_len = min(len(ref), len(test))
+    ref, test = ref[:min_len], test[:min_len]
+    
+    results = {
+        "SNR (dB)": compute_snr(ref, test),
+        "PESQ": "要pesqライブラリ",
+        "STOI": "要pystoiライブラリ",
+        "RMS差": float(np.sqrt(np.mean((ref - test) ** 2))),
+        "ピーク差": float(np.max(np.abs(ref)) - np.max(np.abs(test))),
+        "スペクトル歪み": "要計算",
+    }
+    
+    return results
+```
+
+---
+
+## 9. 実践的な音声処理パターン
+
+### 9.1 リアルタイム音声入力と処理
+
+```python
+import numpy as np
+import queue
+import threading
+
+class RealtimeAudioProcessor:
+    """リアルタイム音声入力処理の基本パターン"""
+    
+    def __init__(self, sample_rate=16000, chunk_duration_ms=100):
+        self.sample_rate = sample_rate
+        self.chunk_size = int(sample_rate * chunk_duration_ms / 1000)
+        self.audio_queue = queue.Queue()
+        self.is_running = False
+    
+    def start_recording(self):
+        """マイクからの音声入力を開始"""
+        import sounddevice as sd
+        
+        self.is_running = True
+        
+        def callback(indata, frames, time, status):
+            if status:
+                print(f"Audio callback status: {status}")
+            self.audio_queue.put(indata.copy().flatten())
+        
+        self.stream = sd.InputStream(
+            samplerate=self.sample_rate,
+            channels=1,
+            dtype='float32',
+            blocksize=self.chunk_size,
+            callback=callback,
+        )
+        self.stream.start()
+    
+    def stop_recording(self):
+        """録音停止"""
+        self.is_running = False
+        if hasattr(self, 'stream'):
+            self.stream.stop()
+            self.stream.close()
+    
+    def process_chunks(self, processor_func):
+        """チャンクごとにプロセッサ関数を適用"""
+        while self.is_running:
+            try:
+                chunk = self.audio_queue.get(timeout=1.0)
+                result = processor_func(chunk)
+                if result is not None:
+                    yield result
+            except queue.Empty:
+                continue
+
+
+class CircularAudioBuffer:
+    """リングバッファによる音声データ管理"""
+    
+    def __init__(self, duration_sec, sample_rate=16000):
+        self.buffer_size = int(duration_sec * sample_rate)
+        self.buffer = np.zeros(self.buffer_size, dtype=np.float32)
+        self.write_pos = 0
+        self.sample_rate = sample_rate
+    
+    def write(self, data):
+        """データをバッファに書き込み"""
+        n = len(data)
+        if n >= self.buffer_size:
+            self.buffer[:] = data[-self.buffer_size:]
+            self.write_pos = 0
+        else:
+            end_pos = self.write_pos + n
+            if end_pos <= self.buffer_size:
+                self.buffer[self.write_pos:end_pos] = data
+            else:
+                first_part = self.buffer_size - self.write_pos
+                self.buffer[self.write_pos:] = data[:first_part]
+                self.buffer[:n - first_part] = data[first_part:]
+            self.write_pos = end_pos % self.buffer_size
+    
+    def read_last(self, duration_sec):
+        """直近N秒のデータを取得"""
+        n_samples = int(duration_sec * self.sample_rate)
+        n_samples = min(n_samples, self.buffer_size)
+        
+        if self.write_pos >= n_samples:
+            return self.buffer[self.write_pos - n_samples:self.write_pos].copy()
+        else:
+            first_part = self.buffer[-(n_samples - self.write_pos):]
+            second_part = self.buffer[:self.write_pos]
+            return np.concatenate([first_part, second_part])
+```
+
+### 9.2 音声ファイルの効率的なバッチ処理
+
+```python
+import concurrent.futures
+from pathlib import Path
+from dataclasses import dataclass
+from typing import Callable, Optional
+
+@dataclass
+class BatchProcessResult:
+    """バッチ処理結果"""
+    file_path: str
+    success: bool
+    result: Optional[dict] = None
+    error: Optional[str] = None
+    processing_time: float = 0.0
+
+class AudioBatchProcessor:
+    """音声ファイルのバッチ処理エンジン"""
+    
+    def __init__(self, max_workers: int = 4):
+        self.max_workers = max_workers
+    
+    def process_directory(
+        self,
+        input_dir: str,
+        processor: Callable,
+        file_patterns: list = ["*.wav", "*.mp3", "*.flac"],
+        output_dir: Optional[str] = None,
+    ) -> list[BatchProcessResult]:
+        """ディレクトリ内の音声ファイルを並列処理"""
+        input_path = Path(input_dir)
+        files = []
+        for pattern in file_patterns:
+            files.extend(input_path.glob(pattern))
+        
+        if not files:
+            print(f"警告: {input_dir} に音声ファイルが見つかりません")
+            return []
+        
+        print(f"処理対象: {len(files)} ファイル")
+        
+        results = []
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=self.max_workers
+        ) as executor:
+            futures = {
+                executor.submit(self._process_single, f, processor, output_dir): f
+                for f in files
+            }
+            
+            for future in concurrent.futures.as_completed(futures):
+                result = future.result()
+                results.append(result)
+                status = "OK" if result.success else "NG"
+                print(f"  [{status}] {Path(result.file_path).name} "
+                      f"({result.processing_time:.2f}s)")
+        
+        # サマリー
+        success = sum(1 for r in results if r.success)
+        print(f"\n完了: {success}/{len(results)} 成功")
+        return results
+    
+    def _process_single(self, file_path, processor, output_dir):
+        """単一ファイルの処理"""
+        import time
+        start = time.time()
+        
+        try:
+            result = processor(str(file_path), output_dir)
+            return BatchProcessResult(
+                file_path=str(file_path),
+                success=True,
+                result=result,
+                processing_time=time.time() - start,
+            )
+        except Exception as e:
+            return BatchProcessResult(
+                file_path=str(file_path),
+                success=False,
+                error=str(e),
+                processing_time=time.time() - start,
+            )
+```
+
+---
+
+## 10. 音声データの可視化
+
+### 10.1 波形とスペクトログラムの可視化
+
+```python
+import numpy as np
+
+def create_visualization_data(audio, sr):
+    """
+    音声データの可視化用データを生成
+    （matplotlib不要の数値データとして出力）
+    """
+    # 波形データ（ダウンサンプリングして表示用に）
+    display_sr = 1000  # 1kHz に間引き
+    factor = sr // display_sr
+    waveform_display = audio[::factor]
+    
+    # スペクトログラム
+    n_fft = 2048
+    hop_length = 512
+    n_frames = (len(audio) - n_fft) // hop_length + 1
+    
+    spectrogram = np.zeros((n_fft // 2 + 1, n_frames))
+    window = np.hanning(n_fft)
+    
+    for i in range(n_frames):
+        start = i * hop_length
+        frame = audio[start:start + n_fft] * window
+        spectrogram[:, i] = np.abs(np.fft.rfft(frame))
+    
+    log_spec = 20 * np.log10(spectrogram + 1e-10)
+    
+    # 時間軸
+    time_axis = np.arange(n_frames) * hop_length / sr
+    # 周波数軸
+    freq_axis = np.fft.rfftfreq(n_fft, 1.0 / sr)
+    
+    return {
+        "waveform": waveform_display,
+        "waveform_time": np.arange(len(waveform_display)) / display_sr,
+        "spectrogram": log_spec,
+        "spec_time": time_axis,
+        "spec_freq": freq_axis,
+        "duration": len(audio) / sr,
+        "sample_rate": sr,
+    }
+
+# ASCII アートによる簡易スペクトログラム表示
+def ascii_spectrogram(audio, sr, n_rows=20, n_cols=80):
+    """ターミナルで表示可能なASCIIスペクトログラム"""
+    n_fft = 2048
+    hop_length = len(audio) // n_cols
+    
+    chars = " ░▒▓█"
+    
+    spec_data = np.zeros((n_fft // 2 + 1, n_cols))
+    window = np.hanning(n_fft)
+    
+    for i in range(n_cols):
+        start = i * hop_length
+        if start + n_fft > len(audio):
+            break
+        frame = audio[start:start + n_fft] * window
+        spec_data[:, i] = np.abs(np.fft.rfft(frame))
+    
+    log_spec = 20 * np.log10(spec_data + 1e-10)
+    
+    # n_rows にリサイズ（周波数軸を間引き）
+    freq_indices = np.linspace(0, spec_data.shape[0] - 1, n_rows, dtype=int)
+    display = log_spec[freq_indices]
+    
+    # 正規化
+    vmin, vmax = np.percentile(display, [5, 95])
+    display = np.clip((display - vmin) / (vmax - vmin + 1e-10), 0, 1)
+    
+    # ASCII文字に変換
+    lines = []
+    for row in reversed(range(n_rows)):
+        line = ""
+        for col in range(min(n_cols, display.shape[1])):
+            idx = int(display[row, col] * (len(chars) - 1))
+            line += chars[idx]
+        lines.append(line)
+    
+    return "\n".join(lines)
+```
+
+---
+
+## 11. デジタルフィルタの基礎
+
+### 11.1 FIRフィルタとIIRフィルタ
+
+```python
+import numpy as np
+from scipy.signal import firwin, butter, sosfilt, lfilter
+
+def apply_lowpass_fir(audio, sr, cutoff_hz, n_taps=101):
+    """
+    FIRローパスフィルタ
+    - 線形位相（位相歪みなし）
+    - 安定（常に安定）
+    - タップ数が多いと計算コストが高い
+    """
+    nyquist = sr / 2
+    normalized_cutoff = cutoff_hz / nyquist
+    coeffs = firwin(n_taps, normalized_cutoff)
+    return lfilter(coeffs, 1.0, audio)
+
+def apply_highpass_iir(audio, sr, cutoff_hz, order=4):
+    """
+    IIRハイパスフィルタ（Butterworth）
+    - 少ない次数で急峻なカットオフ
+    - 非線形位相
+    - 不安定になる可能性あり（高次数時）
+    """
+    nyquist = sr / 2
+    normalized_cutoff = cutoff_hz / nyquist
+    sos = butter(order, normalized_cutoff, btype='high', output='sos')
+    return sosfilt(sos, audio)
+
+def apply_bandpass(audio, sr, low_hz, high_hz, order=4):
+    """バンドパスフィルタ"""
+    nyquist = sr / 2
+    low = low_hz / nyquist
+    high = high_hz / nyquist
+    sos = butter(order, [low, high], btype='band', output='sos')
+    return sosfilt(sos, audio)
+
+# 用途別のフィルタ設定例
+filter_presets = {
+    "音声認識前処理": {
+        "type": "bandpass",
+        "low": 80,     # 80Hz以下をカット（ハム音、振動）
+        "high": 8000,  # 8kHz以上をカット（高周波ノイズ）
+        "説明": "音声に不要な帯域を除去してSTT精度を向上",
+    },
+    "ポッドキャスト": {
+        "type": "highpass",
+        "cutoff": 80,
+        "説明": "低域のランブルノイズを除去",
+    },
+    "電話音声（狭帯域）": {
+        "type": "bandpass",
+        "low": 300,
+        "high": 3400,
+        "説明": "電話帯域（G.711）に制限",
+    },
+    "サブベース除去": {
+        "type": "highpass",
+        "cutoff": 30,
+        "説明": "人間に聞こえない超低域を除去（DC成分含む）",
+    },
+}
+```
+
+### 11.2 ディジタルフィルタの周波数応答
+
+```python
+def analyze_filter_response(b, a, sr, n_points=1024):
+    """
+    フィルタの周波数応答を計算
+    
+    Parameters:
+        b, a: フィルタ係数
+        sr: サンプルレート
+        n_points: 計算ポイント数
+    
+    Returns:
+        freqs: 周波数軸 [Hz]
+        magnitude_db: 振幅応答 [dB]
+        phase_deg: 位相応答 [度]
+    """
+    w = np.linspace(0, np.pi, n_points)
+    
+    # 周波数応答 H(e^jw) を計算
+    h = np.zeros(n_points, dtype=complex)
+    for i, wi in enumerate(w):
+        # 分子
+        num = sum(b[k] * np.exp(-1j * k * wi) for k in range(len(b)))
+        # 分母
+        den = sum(a[k] * np.exp(-1j * k * wi) for k in range(len(a)))
+        h[i] = num / den
+    
+    freqs = w * sr / (2 * np.pi)
+    magnitude_db = 20 * np.log10(np.abs(h) + 1e-10)
+    phase_deg = np.degrees(np.angle(h))
+    
+    return freqs, magnitude_db, phase_deg
+```
+
+---
+
+## 12. 追加のFAQ
+
+### Q4: WAVファイルとFLACファイル、どちらを使うべきですか？
+
+WAVは非圧縮で読み書きが最も高速ですが、ファイルサイズが大きくなります。FLACはロスレス圧縮で元のデータと完全に同一の信号を復元でき、サイズは約50-60%に縮小されます。音声処理のパイプライン内部ではWAV（またはメモリ上の生配列）が効率的ですが、保存・転送にはFLACが適しています。AI APIへの入力としてはWAVが最も互換性が高いですが、多くのAPIはFLACやMP3も受け付けます。
+
+### Q5: 音声データの前処理で最も重要なステップは何ですか？
+
+最も重要なのはサンプルレートの統一（リサンプリング）です。多くのSTTモデルは16kHzを前提としており、不一致があると精度が大幅に低下します。次に重要なのは正規化（音量の統一）で、これにより入力レベルの違いによるモデル性能のバラつきを防ぎます。3番目にノイズ除去ですが、これは音声の品質に応じて適用の有無を判断してください。クリーンな環境で録音された音声にノイズ除去を適用すると、逆に品質が低下することがあります。
+
+### Q6: dBFS、dBSPL、LUFS の違いは何ですか？
+
+これらは異なる「音量」の尺度です。(1) dBFS (decibels Full Scale): デジタル音声での絶対的な音量。0 dBFS が最大値で、実際の値は常に負（例: -20 dBFS）。(2) dBSPL (decibels Sound Pressure Level): 物理的な音圧レベル。20μPaを基準とした人間の耳に届く音量。(3) LUFS (Loudness Units Full Scale): ITU-R BS.1770に基づく知覚的ラウドネス。人間の聴覚特性（K-weightフィルタ）を考慮した値で、配信プラットフォームの音量基準（Spotify: -14 LUFS等）に使われます。音声AIの開発では主にdBFSとLUFSを使います。
+
+---
+
+## まとめ（拡張版）
+
+| 項目 | 要点 |
+|------|------|
+| 音波 | 周波数（高さ）、振幅（大きさ）、波形（音色）の3要素 |
+| サンプリング | ナイキスト定理: fs >= 2 * fmax。音声認識は16kHzが標準 |
+| 量子化 | 16bit（CD）で十分。内部処理はfloat32推奨 |
+| フーリエ変換 | 時間領域→周波数領域の変換。FFTでO(NlogN)で計算 |
+| STFT | 短時間窓でFFT。時間-周波数の2D表現を生成 |
+| メル尺度 | 人間の聴覚特性を反映した周波数尺度 |
+| MFCC | メルスペクトログラム+DCTで得られるコンパクトな特徴量 |
+| ピッチ検出 | YINアルゴリズムが高精度。自己相関法は高速 |
+| フォルマント | LPC分析で声道共鳴を推定。母音識別に重要 |
+| フィルタ | FIR（安定・線形位相）vs IIR（低コスト・非線形位相） |
+| 品質指標 | SNR, PESQ, STOIが主要。用途に応じて選択 |
+
+## 次に読むべきガイド
+
+- [02-tts-technologies.md](./02-tts-technologies.md) — TTS技術の詳細
+- [03-stt-technologies.md](./03-stt-technologies.md) — STT技術の詳細
+- [../03-development/01-audio-processing.md](../03-development/01-audio-processing.md) — librosa/torchaudioによる実装
+
+## 参考文献
+
+1. Smith, S.W. "The Scientist and Engineer's Guide to Digital Signal Processing" — デジタル信号処理の定番テキスト。FFT、フィルタリングの基礎を網羅
+2. Müller, M. (2015). "Fundamentals of Music Processing" — 音楽情報処理の基礎。STFT、クロマグラム、MFCCを詳細に解説
+3. Rabiner, L.R. & Schafer, R.W. (2010). "Theory and Applications of Digital Speech Processing" — 音声信号処理の古典的名著。サンプリングからLPC解析まで
+4. Stevens, S.S. & Volkmann, J. (1940). "The Relation of Pitch to Frequency" — メル尺度の原論文。人間の聴覚特性に基づく周波数知覚の研究
+5. de Cheveigne, A. & Kawahara, H. (2002). "YIN, a fundamental frequency estimator for speech and music" — YINアルゴリズムの原論文。高精度ピッチ検出
+6. Rix, A.W., et al. (2001). "Perceptual evaluation of speech quality (PESQ)" — PESQ音声品質指標の原論文

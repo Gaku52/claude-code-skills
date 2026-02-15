@@ -59,6 +59,39 @@
 +-----------------------------------------------------------+
 ```
 
+### XR技術スタックの詳細レイヤー構成
+
+```
++-----------------------------------------------------------+
+|              XR 技術スタック                                 |
++-----------------------------------------------------------+
+|                                                           |
+|  L6: アプリケーション層                                    |
+|  +-- ゲーム、コラボレーション、教育、医療                  |
+|  +-- 3Dビューア、空間デザイン                              |
+|                                                           |
+|  L5: フレームワーク層                                      |
+|  +-- ARKit / ARCore / OpenXR                               |
+|  +-- RealityKit / SceneKit / WebXR                         |
+|                                                           |
+|  L4: レンダリングエンジン層                                |
+|  +-- Unity / Unreal Engine / RealityKit                    |
+|  +-- Vulkan / Metal / WebGL                                |
+|                                                           |
+|  L3: AI/ML処理層                                           |
+|  +-- Core ML / TFLite / ONNX Runtime                       |
+|  +-- 空間認識、ハンドトラッキング、アイトラッキング          |
+|                                                           |
+|  L2: OS/ランタイム層                                       |
+|  +-- visionOS / Android (Horizon OS) / SteamVR             |
+|  +-- デバイスドライバ、センサーフュージョン                 |
+|                                                           |
+|  L1: ハードウェア層                                        |
+|  +-- SoC (M2, XR2)、ディスプレイ、レンズ                   |
+|  +-- カメラ、LiDAR、IMU、バッテリー                        |
++-----------------------------------------------------------+
+```
+
 ---
 
 ## 2. 主要XRプラットフォーム比較
@@ -77,6 +110,16 @@
 | OS | visionOS | Android(Meta Horizon) | Android(Meta Horizon) | PS5専用 |
 | 重量 | 600-650g | 515g | 722g | 560g |
 | 主な用途 | 空間コンピューティング | ゲーム・MR | ビジネス | ゲーム |
+
+### 次世代デバイス動向（2025-2026年）
+
+| デバイス | メーカー | 特徴 | 予想価格帯 |
+|---------|---------|------|-----------|
+| Vision Pro 2 | Apple | M4チップ、軽量化、低価格化 | $2,499-2,999 |
+| Quest 4 | Meta | Snapdragon XR2+ Gen 3、8K表示 | $499-699 |
+| Project Moohan | Samsung | Android XR、Qualcomm XR2+ Gen 2 | $1,000-1,500 |
+| HoloLens 3 | Microsoft | 軍事/産業特化、広FoV | $3,000+ |
+| MagicLeap 3 | Magic Leap | 産業AR、軽量グラス型 | $2,500+ |
 
 ### ディスプレイ技術の進化
 
@@ -98,6 +141,16 @@
 |  解像度: 最高  コントラスト: 最高  輝度: 最高  消費電力: 低 |
 +-----------------------------------------------------------+
 ```
+
+### レンズ技術の比較
+
+| レンズ方式 | 厚さ | 重量 | 視野角(FoV) | 歪み | 採用例 |
+|-----------|------|------|------------|------|--------|
+| フレネルレンズ | 厚い | 重い | 100-110度 | 中 | Quest 2, Valve Index |
+| パンケーキレンズ | 薄い | 軽い | 90-110度 | 少 | Quest 3, Vision Pro |
+| 可変焦点(Varifocal) | 中 | 中 | 90-100度 | 極少 | Half Dome(試作) |
+| ホログラフィック | 極薄 | 極軽 | 40-60度 | 少 | HoloLens, MagicLeap |
+| メタサーフェスレンズ | 極薄 | 極軽 | 研究段階 | 極少 | 将来のARグラス |
 
 ---
 
@@ -130,6 +183,42 @@
 |  +-- フォービエイテッドレンダリング: 視線予測で描画最適化  |
 |  +-- モーション予測: 遅延を感じさせない動き補間            |
 |  +-- アダプティブ品質: 負荷予測による動的品質調整          |
++-----------------------------------------------------------+
+```
+
+### SLAM（Simultaneous Localization and Mapping）の仕組み
+
+```
++-----------------------------------------------------------+
+|  SLAM パイプライン詳細                                      |
++-----------------------------------------------------------+
+|                                                           |
+|  入力センサー                                              |
+|  ├── モノカメラ / ステレオカメラ                            |
+|  ├── IMU（加速度・ジャイロ）                                |
+|  ├── LiDAR / ToF センサー                                  |
+|  └── 深度センサー                                          |
+|       │                                                   |
+|       v                                                   |
+|  ┌──────────────────────────────────────┐                  |
+|  │  フロントエンド                       │                  |
+|  │  ├── 特徴点検出 (ORB, SIFT, SuperPoint)│                |
+|  │  ├── 特徴点マッチング                 │                  |
+|  │  ├── Visual Odometry (視覚オドメトリ) │                  |
+|  │  └── IMU プリインテグレーション       │                  |
+|  └──────────────────────────────────────┘                  |
+|       │                                                   |
+|       v                                                   |
+|  ┌──────────────────────────────────────┐                  |
+|  │  バックエンド                         │                  |
+|  │  ├── バンドル調整 (Bundle Adjustment) │                  |
+|  │  ├── ポーズグラフ最適化               │                  |
+|  │  ├── ループクロージャ検出             │                  |
+|  │  └── キーフレーム管理                 │                  |
+|  └──────────────────────────────────────┘                  |
+|       │                                                   |
+|       v                                                   |
+|  出力: 3Dマップ + カメラ姿勢の推定                         |
 +-----------------------------------------------------------+
 ```
 
@@ -266,6 +355,296 @@ class SpatialAIProcessor:
         }
 ```
 
+### コード例4: visionOS でのハンドトラッキングとジェスチャー認識
+
+```swift
+import SwiftUI
+import RealityKit
+import ARKit
+
+struct HandTrackingView: View {
+    @State private var handAnchorEntities: [UUID: AnchorEntity] = [:]
+
+    var body: some View {
+        RealityView { content in
+            // ハンドトラッキングの有効化
+            let session = ARKitSession()
+            let handTracking = HandTrackingProvider()
+
+            Task {
+                try await session.run([handTracking])
+
+                for await update in handTracking.anchorUpdates {
+                    let anchor = update.anchor
+
+                    switch update.event {
+                    case .added:
+                        // 手のジョイント位置を可視化
+                        let entity = createHandVisualization(from: anchor)
+                        content.add(entity)
+                        handAnchorEntities[anchor.id] = entity
+
+                    case .updated:
+                        updateHandVisualization(
+                            entity: handAnchorEntities[anchor.id],
+                            from: anchor
+                        )
+
+                        // ピンチジェスチャー検出
+                        if let thumbTip = anchor.handSkeleton?.joint(.thumbTip),
+                           let indexTip = anchor.handSkeleton?.joint(.indexFingerTip) {
+                            let distance = simd_distance(
+                                thumbTip.anchorFromJointTransform.columns.3,
+                                indexTip.anchorFromJointTransform.columns.3
+                            )
+                            if distance < 0.02 {
+                                handlePinchGesture(at: thumbTip.anchorFromJointTransform)
+                            }
+                        }
+
+                    case .removed:
+                        handAnchorEntities[anchor.id]?.removeFromParent()
+                    }
+                }
+            }
+        }
+    }
+
+    func createHandVisualization(from anchor: HandAnchor) -> AnchorEntity {
+        let entity = AnchorEntity()
+        // 各関節にスフィアを配置
+        if let skeleton = anchor.handSkeleton {
+            for joint in HandSkeleton.JointName.allCases {
+                let sphere = ModelEntity(
+                    mesh: .generateSphere(radius: 0.005),
+                    materials: [SimpleMaterial(color: .cyan, isMetallic: false)]
+                )
+                entity.addChild(sphere)
+            }
+        }
+        return entity
+    }
+
+    func updateHandVisualization(entity: AnchorEntity?, from anchor: HandAnchor) {
+        // 各ジョイントの位置更新
+        guard let entity = entity, let skeleton = anchor.handSkeleton else { return }
+        for (index, joint) in HandSkeleton.JointName.allCases.enumerated() {
+            if index < entity.children.count {
+                let transform = skeleton.joint(joint).anchorFromJointTransform
+                entity.children[index].transform = Transform(matrix: transform)
+            }
+        }
+    }
+
+    func handlePinchGesture(at transform: simd_float4x4) {
+        print("ピンチジェスチャー検出: \(transform.columns.3)")
+    }
+}
+```
+
+### コード例5: 空間アンカーの永続化と共有
+
+```swift
+import ARKit
+import RealityKit
+import MultipeerConnectivity
+
+class SpatialAnchorManager {
+    private var worldMap: ARWorldMap?
+    private var savedAnchors: [ARAnchor] = []
+    private let session: ARSession
+
+    init(session: ARSession) {
+        self.session = session
+    }
+
+    /// 現在のワールドマップを保存（空間アンカーの永続化）
+    func saveWorldMap() async throws -> Data {
+        let worldMap = try await session.currentWorldMap
+        self.worldMap = worldMap
+
+        // ワールドマップをシリアライズ
+        let data = try NSKeyedArchiver.archivedData(
+            withRootObject: worldMap,
+            requiringSecureCoding: true
+        )
+
+        // ファイルに保存
+        let url = getDocumentsDirectory().appendingPathComponent("worldmap.arexperience")
+        try data.write(to: url)
+
+        print("ワールドマップ保存完了: \(worldMap.anchors.count)個のアンカー")
+        return data
+    }
+
+    /// 保存されたワールドマップを復元
+    func loadWorldMap(from data: Data) throws {
+        guard let worldMap = try NSKeyedUnarchiver.unarchivedObject(
+            ofClass: ARWorldMap.self, from: data
+        ) else {
+            throw ARError(.invalidWorldMap)
+        }
+
+        let config = ARWorldTrackingConfiguration()
+        config.initialWorldMap = worldMap
+        config.planeDetection = [.horizontal, .vertical]
+        session.run(config, options: [.resetTracking, .removeExistingAnchors])
+    }
+
+    /// 空間アンカーを特定位置に追加
+    func addAnchor(at transform: simd_float4x4, name: String) -> ARAnchor {
+        let anchor = ARAnchor(name: name, transform: transform)
+        session.add(anchor: anchor)
+        savedAnchors.append(anchor)
+        return anchor
+    }
+
+    /// マルチユーザー共有用のアンカーデータ送信
+    func shareAnchors(via session: MCSession) throws {
+        guard let worldMap = self.worldMap else {
+            throw NSError(domain: "AR", code: -1, userInfo: [
+                NSLocalizedDescriptionKey: "ワールドマップが未保存です"
+            ])
+        }
+
+        let data = try NSKeyedArchiver.archivedData(
+            withRootObject: worldMap,
+            requiringSecureCoding: true
+        )
+
+        try session.send(data, toPeers: session.connectedPeers, with: .reliable)
+        print("アンカーデータを\(session.connectedPeers.count)台のデバイスに送信")
+    }
+
+    private func getDocumentsDirectory() -> URL {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+    }
+}
+```
+
+### コード例6: WebXR でのARアプリケーション
+
+```javascript
+// WebXR API を使ったブラウザベースのARアプリ
+class WebXRApp {
+    constructor() {
+        this.session = null;
+        this.gl = null;
+        this.referenceSpace = null;
+        this.hitTestSource = null;
+    }
+
+    async checkSupport() {
+        if (!navigator.xr) {
+            throw new Error('WebXR API がサポートされていません');
+        }
+        const isSupported = await navigator.xr.isSessionSupported('immersive-ar');
+        if (!isSupported) {
+            throw new Error('AR セッションがサポートされていません');
+        }
+        return true;
+    }
+
+    async startAR() {
+        // AR セッションの開始
+        this.session = await navigator.xr.requestSession('immersive-ar', {
+            requiredFeatures: ['hit-test', 'dom-overlay', 'anchors'],
+            optionalFeatures: ['plane-detection', 'depth-sensing'],
+            domOverlay: { root: document.getElementById('overlay') }
+        });
+
+        // WebGL コンテキストの設定
+        const canvas = document.createElement('canvas');
+        this.gl = canvas.getContext('webgl2', { xrCompatible: true });
+
+        await this.gl.makeXRCompatible();
+
+        // レンダリングレイヤーの設定
+        const layer = new XRWebGLLayer(this.session, this.gl);
+        await this.session.updateRenderState({ baseLayer: layer });
+
+        // 参照空間の取得
+        this.referenceSpace = await this.session.requestReferenceSpace('local');
+
+        // ヒットテストの開始
+        const viewerSpace = await this.session.requestReferenceSpace('viewer');
+        this.hitTestSource = await this.session.requestHitTestSource({
+            space: viewerSpace,
+        });
+
+        // フレームループの開始
+        this.session.requestAnimationFrame(this.onFrame.bind(this));
+    }
+
+    onFrame(time, frame) {
+        const session = frame.session;
+        session.requestAnimationFrame(this.onFrame.bind(this));
+
+        // ヒットテスト結果の取得
+        if (this.hitTestSource) {
+            const results = frame.getHitTestResults(this.hitTestSource);
+            if (results.length > 0) {
+                const hit = results[0];
+                const pose = hit.getPose(this.referenceSpace);
+                this.updateReticle(pose.transform);
+            }
+        }
+
+        // レンダリング
+        const glLayer = session.renderState.baseLayer;
+        this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, glLayer.framebuffer);
+
+        const pose = frame.getViewerPose(this.referenceSpace);
+        if (pose) {
+            for (const view of pose.views) {
+                const viewport = glLayer.getViewport(view);
+                this.gl.viewport(
+                    viewport.x, viewport.y,
+                    viewport.width, viewport.height
+                );
+                this.renderScene(view.projectionMatrix, view.transform);
+            }
+        }
+    }
+
+    async placeObject(frame) {
+        const results = frame.getHitTestResults(this.hitTestSource);
+        if (results.length > 0) {
+            const pose = results[0].getPose(this.referenceSpace);
+            // 空間アンカーを作成してオブジェクトを配置
+            const anchor = await frame.createAnchor(
+                pose.transform, this.referenceSpace
+            );
+            this.addVirtualObject(anchor);
+            console.log('3Dオブジェクトを配置しました');
+        }
+    }
+
+    updateReticle(transform) {
+        // ヒットポイントにレティクルを表示
+    }
+
+    renderScene(projectionMatrix, transform) {
+        // 3Dシーンのレンダリング
+    }
+
+    addVirtualObject(anchor) {
+        // アンカー位置に仮想オブジェクトを追加
+    }
+}
+
+// 使用例
+const app = new WebXRApp();
+document.getElementById('start-ar').addEventListener('click', async () => {
+    try {
+        await app.checkSupport();
+        await app.startAR();
+    } catch (e) {
+        console.error('AR起動エラー:', e.message);
+    }
+});
+```
+
 ---
 
 ## 4. フォービエイテッドレンダリング
@@ -299,6 +678,92 @@ class SpatialAIProcessor:
 +-----------------------------------------------------------+
 ```
 
+### フォービエイテッドレンダリングの実装パターン
+
+```python
+class FoveatedRenderer:
+    """AI視線予測によるフォービエイテッドレンダリング"""
+
+    def __init__(self, display_resolution=(3660, 3200)):
+        self.display_res = display_resolution
+        self.eye_tracker = EyeTracker()
+        self.gaze_predictor = GazePredictionModel()
+
+        # 解像度ゾーンの設定
+        self.zones = {
+            'foveal': {'radius': 0.1, 'scale': 1.0},    # 中心窩: 全解像度
+            'para_foveal': {'radius': 0.3, 'scale': 0.5}, # 傍中心窩: 50%
+            'peripheral': {'radius': 1.0, 'scale': 0.25}, # 周辺視: 25%
+        }
+
+    def get_render_targets(self, current_gaze, dt):
+        """
+        視線位置に基づいてレンダリングターゲットを生成
+
+        AIによる視線予測で20ms先の視線位置を推定し、
+        レンダリング遅延を補償する
+        """
+        # AIによる視線予測（20ms先を予測）
+        predicted_gaze = self.gaze_predictor.predict(
+            current_gaze=current_gaze,
+            prediction_horizon_ms=20,
+        )
+
+        targets = []
+        for zone_name, zone_config in self.zones.items():
+            target = RenderTarget(
+                center=predicted_gaze,
+                radius=zone_config['radius'],
+                resolution_scale=zone_config['scale'],
+                resolution=(
+                    int(self.display_res[0] * zone_config['scale']),
+                    int(self.display_res[1] * zone_config['scale']),
+                ),
+            )
+            targets.append(target)
+
+        return targets
+
+    def composite_frame(self, rendered_zones):
+        """各ゾーンのレンダリング結果を合成"""
+        final_frame = create_framebuffer(self.display_res)
+
+        for zone in reversed(rendered_zones):
+            # 低解像度から順に合成（上書き方式）
+            upscaled = bilinear_upscale(zone.image, self.display_res)
+            blend_to_framebuffer(final_frame, upscaled, zone.mask)
+
+        return final_frame
+```
+
+### Asynchronous Spacewarp (ASW) / Reprojection
+
+```
++-----------------------------------------------------------+
+|  フレーム補間技術                                           |
++-----------------------------------------------------------+
+|                                                           |
+|  問題: GPUがフレームレート(90fps)を維持できない             |
+|        → VR酔い、ちらつきの原因                            |
+|                                                           |
+|  解決策: ASW / Timewarp                                    |
+|                                                           |
+|  フレーム N    フレーム N+1    フレーム N+2                 |
+|  [実レンダ]   [AI補間生成]    [実レンダ]                   |
+|      |             |              |                        |
+|      v             v              v                        |
+|  GPU: 45fps → 表示: 90fps                                  |
+|                                                           |
+|  AI補間の仕組み:                                           |
+|  1. 前フレームの深度バッファを取得                          |
+|  2. 頭部の動き(IMU)から次フレームの視点を予測               |
+|  3. 深度ベースのリプロジェクションで画像を変形               |
+|  4. 穴(disocclusion)をAIで補填                             |
+|                                                           |
+|  結果: ユーザーには90fpsに見える                            |
++-----------------------------------------------------------+
+```
+
 ---
 
 ## 5. XR開発プラットフォーム比較表
@@ -313,9 +778,166 @@ class SpatialAIProcessor:
 | 3D物理演算 | PhysX | Chaos Physics | RealityKit Physics | Ammo.js |
 | ライセンス | 無料〜有料 | ロイヤリティ制 | 無料 | 無料 |
 
+### OpenXR 標準とその意義
+
+```
++-----------------------------------------------------------+
+|  OpenXR アーキテクチャ                                      |
++-----------------------------------------------------------+
+|                                                           |
+|  アプリケーション                                          |
+|  ├── Unity XR Plugin                                       |
+|  ├── Unreal OpenXR Plugin                                  |
+|  └── 独自エンジン                                          |
+|       │                                                   |
+|       v                                                   |
+|  ┌──────────────────────────────┐                          |
+|  │  OpenXR API (統一インターフェース)│                      |
+|  │  ・入力: アクション、ポーズ    │                          |
+|  │  ・描画: スワップチェーン      │                          |
+|  │  ・空間: 参照空間、アンカー    │                          |
+|  │  ・拡張: ハンドトラッキング等  │                          |
+|  └──────────────────────────────┘                          |
+|       │                                                   |
+|       v                                                   |
+|  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐    |
+|  │ SteamVR      │  │ Oculus       │  │ WMR          │    |
+|  │ ランタイム   │  │ ランタイム   │  │ ランタイム   │    |
+|  └──────────────┘  └──────────────┘  └──────────────┘    |
+|       │                 │                  │              |
+|       v                 v                  v              |
+|  [Valve Index]    [Quest 3]         [HP Reverb G2]       |
+|                                                           |
+|  メリット: 1つのコードベースで複数デバイス対応              |
++-----------------------------------------------------------+
+```
+
 ---
 
-## 6. アンチパターン
+## 6. XR ユースケースと産業応用
+
+### 産業別XR活用事例
+
+| 産業 | ユースケース | 使用技術 | 効果 |
+|------|------------|---------|------|
+| 医療 | 手術シミュレーション | VR + 触覚フィードバック | 手術成功率15%向上 |
+| 医療 | 解剖学教育 | AR + 3Dモデル | 学習効率40%向上 |
+| 製造 | リモート保守支援 | AR + AIアシスタント | ダウンタイム30%削減 |
+| 製造 | 組立作業指示 | AR + ステップバイステップ | エラー率60%削減 |
+| 建築 | 設計プレビュー | MR + BIMモデル | 設計変更50%削減 |
+| 教育 | 仮想フィールドトリップ | VR + 360度映像 | 学習定着率3倍 |
+| 小売 | バーチャル試着 | AR + 3Dボディスキャン | 返品率25%削減 |
+| 不動産 | VR内覧 | VR + 3Dスキャン | 成約率20%向上 |
+
+### コード例7: 産業AR保守支援システムの概念設計
+
+```python
+class IndustrialARSupport:
+    """産業向けAR保守支援システム"""
+
+    def __init__(self):
+        self.equipment_db = EquipmentDatabase()
+        self.ai_diagnostic = DiagnosticAI()
+        self.ar_overlay = AROverlayEngine()
+        self.remote_expert = RemoteExpertConnection()
+
+    async def identify_equipment(self, camera_frame):
+        """カメラ画像から設備を識別"""
+        # AI物体認識で設備を特定
+        detection = await self.ai_diagnostic.identify(camera_frame)
+        equipment = self.equipment_db.get_info(detection.equipment_id)
+
+        return {
+            'id': equipment.id,
+            'name': equipment.name,
+            'model': equipment.model,
+            'last_maintenance': equipment.last_maintenance,
+            'manual_url': equipment.manual_url,
+        }
+
+    async def diagnose_issue(self, equipment_id, sensor_data, visual_data):
+        """AIによる故障診断"""
+        diagnosis = await self.ai_diagnostic.analyze(
+            equipment_id=equipment_id,
+            sensor_readings=sensor_data,
+            visual_inspection=visual_data,
+        )
+
+        return {
+            'issue': diagnosis.description,
+            'severity': diagnosis.severity,  # 'low', 'medium', 'high', 'critical'
+            'confidence': diagnosis.confidence,
+            'recommended_actions': diagnosis.actions,
+            'estimated_repair_time': diagnosis.estimated_time,
+        }
+
+    def overlay_repair_instructions(self, equipment_id, step_number):
+        """AR上に修理手順をオーバーレイ表示"""
+        instructions = self.equipment_db.get_repair_steps(equipment_id)
+        step = instructions[step_number]
+
+        self.ar_overlay.show({
+            'type': 'step_instruction',
+            'text': step.description,
+            'highlight_parts': step.target_parts,  # 対象部品をハイライト
+            'arrows': step.directional_hints,       # 方向指示矢印
+            'safety_warnings': step.warnings,       # 安全注意表示
+            'video_guide': step.video_url,           # 参考動画
+        })
+
+    async def connect_remote_expert(self, issue_description):
+        """リモートエキスパートとのAR共有接続"""
+        session = await self.remote_expert.connect()
+        # エキスパートが現場のAR映像をリアルタイムで閲覧
+        # AR上にアノテーションを描画して指示
+        session.share_ar_view(
+            enable_annotation=True,
+            enable_voice=True,
+            enable_3d_pointer=True,
+        )
+        return session
+```
+
+---
+
+## 7. 3DGaussian Splatting と NeRF のXR応用
+
+### XRにおけるリアル空間の3D再構成
+
+```
++-----------------------------------------------------------+
+|  3D再構成技術のXR応用                                       |
++-----------------------------------------------------------+
+|                                                           |
+|  撮影 (スマホ/ドローン)                                    |
+|       │                                                   |
+|       v                                                   |
+|  ┌──────────────────┐                                      |
+|  │ SfM (COLMAP)     │  カメラ位置推定                      |
+|  └──────────────────┘                                      |
+|       │                                                   |
+|       v                                                   |
+|  ┌──────────────────┐  ┌──────────────────┐               |
+|  │ NeRF             │  │ 3D Gaussian      │               |
+|  │ (暗黙的表現)     │  │ Splatting        │               |
+|  │ 高品質だが遅い   │  │ (明示的表現)     │               |
+|  └──────────────────┘  │ リアルタイム描画  │               |
+|                        └──────────────────┘               |
+|       │                      │                            |
+|       v                      v                            |
+|  ┌──────────────────────────────────┐                      |
+|  │  XR体験                          │                      |
+|  │  ・仮想観光（遠隔地の3Dウォーク） │                      |
+|  │  ・不動産VR内覧                  │                      |
+|  │  ・文化財デジタルアーカイブ       │                      |
+|  │  ・リモートコラボ空間            │                      |
+|  └──────────────────────────────────┘                      |
++-----------------------------------------------------------+
+```
+
+---
+
+## 8. アンチパターン
 
 ### アンチパターン1: VR酔いを無視した設計
 
@@ -348,6 +970,128 @@ OK:
 - 暗い部屋や反射面など、喪失しやすい環境の事前検出
 ```
 
+### アンチパターン3: パフォーマンス検証なしでの没入体験設計
+
+```
+NG:
+- 開発用PCのスペックでのみテストし、実機で動作確認しない
+- 大量のリアルタイムライティングやパーティクルを使用
+- テクスチャサイズやポリゴン数の上限を設定しない
+- メモリ管理を無視してアセットをロードし続ける
+
+OK:
+- ターゲットデバイスでの定期的なパフォーマンステスト
+- フレームバジェットの設定
+  ├── Quest 3: 72Hz → 13.9ms/フレーム
+  ├── Quest 3: 90Hz → 11.1ms/フレーム
+  └── Vision Pro: 90Hz → 11.1ms/フレーム
+- LOD（Level of Detail）の適切な設定
+- テクスチャアトラスと圧縮フォーマットの活用
+- オクルージョンカリングの実装
+```
+
+### アンチパターン4: アクセシビリティの無視
+
+```
+NG:
+- 色だけで情報を区別（色覚多様性への未対応）
+- 音声のみのフィードバック（聴覚障害への未対応）
+- 細かすぎるジェスチャー要求（運動障害への未対応）
+- 立位前提の設計（車椅子ユーザーへの未対応）
+
+OK:
+- 色 + 形状 + テキストの組み合わせで情報を伝達
+- 視覚 + 触覚(コントローラ振動) + 音声の多重フィードバック
+- ジェスチャーの代替入力（音声、コントローラ、視線）を用意
+- 座位でも快適に使えるUIレイアウト
+- 酔いやすさの個人差に対応した快適設定オプション
+```
+
+---
+
+## 9. トラブルシューティング
+
+### よくある問題と解決策
+
+| 問題 | 原因 | 解決策 |
+|------|------|--------|
+| フレームレートが低い | GPU負荷が高すぎる | フォービエイテッドレンダリング導入、LOD設定、ドローコール削減 |
+| トラッキングが不安定 | 環境の照明/反射 | 照明条件を改善、テクスチャの少ない壁にマーカーを追加 |
+| パススルーの遅延 | カメラ→表示のパイプライン遅延 | ASW/Timewarpの有効化、レイテンシ最適化 |
+| ハンドトラッキングの精度不足 | 手が暗い場所にある/遮蔽 | 補助照明の追加、コントローラへのフォールバック |
+| アプリの起動が遅い | アセットの読み込み時間 | 非同期ロード、アセットストリーミング、圧縮テクスチャの使用 |
+| バッテリー消耗が早い | CPU/GPU使用率が高い | 描画品質の動的調整、アイドル時のフレームレート低下 |
+| 空間オーディオの定位がずれる | HRTF設定の不適切 | 個人化HRTF、頭部サイズの計測、リアルタイム更新 |
+
+### パフォーマンスプロファイリングの手順
+
+```
+1. フレーム時間の計測
+   ├── GPU時間: レンダリングにかかる時間
+   ├── CPU時間: ゲームロジック、物理演算
+   └── 合計がフレームバジェットを超えていないか確認
+
+2. ボトルネックの特定
+   ├── GPU bound → ドローコール削減、シェーダー最適化
+   ├── CPU bound → ロジック最適化、マルチスレッド化
+   └── メモリ bound → テクスチャ圧縮、メモリプール
+
+3. 最適化の優先順位
+   ├── 高: フレームレートの維持（VR酔い防止）
+   ├── 中: メモリ使用量の削減（バッテリー寿命）
+   └── 低: 起動時間の短縮（UX改善）
+
+4. ツール
+   ├── Meta Quest: OVR Metrics Tool, RenderDoc
+   ├── Vision Pro: Xcode Instruments, RealityKit Profiler
+   └── PC VR: NVIDIA Nsight, PIX for Windows
+```
+
+---
+
+## 10. ベストプラクティス
+
+### XRアプリ開発のベストプラクティス
+
+1. **パフォーマンスファースト**: 品質よりもフレームレートを優先。90fpsを維持できないなら機能を削る
+2. **ユーザー主導の移動**: カメラの強制移動は最小限に。テレポートやビネット効果を活用
+3. **快適な距離感**: UIは0.5m〜3mの距離に配置。近すぎると目の疲労、遠すぎると読みにくい
+4. **漸進的な没入**: いきなりフル没入ではなく、段階的に没入度を上げる
+5. **セーフティガード**: 物理的な障害物警告、バウンダリーシステムの実装
+6. **クロスプラットフォーム設計**: OpenXRベースで開発し、デバイス固有機能は抽象化
+7. **テスト多様性**: 様々な体格、部屋サイズ、照明条件でテスト
+
+### VRコンテンツのUIデザイン原則
+
+```
++-----------------------------------------------------------+
+|  空間UIデザインの推奨配置                                    |
++-----------------------------------------------------------+
+|                                                           |
+|  ユーザーの視界（水平120度 × 垂直100度）                   |
+|                                                           |
+|       ┌─────────── 快適ゾーン ──────────┐                  |
+|       │                                │                  |
+|       │    ┌─────────────────────┐     │                  |
+|       │    │  メインUI           │     │                  |
+|       │    │  距離: 1.5-2.0m     │     │                  |
+|       │    │  角度: 正面±30度    │     │                  |
+|       │    └─────────────────────┘     │                  |
+|       │                                │                  |
+|  ←────┼── サブUI ──── サブUI ──────────┼────→             |
+|       │  距離: 1.0m   距離: 1.0m       │                  |
+|       │  角度: ±45度  角度: ±45度      │                  |
+|       │                                │                  |
+|       └────────────────────────────────┘                  |
+|                                                           |
+|  推奨:                                                    |
+|  ・テキストサイズ: 最低1.5度の視角（約4cm @ 1.5m）         |
+|  ・ボタンサイズ: 最低5cm × 5cm（タッチ精度を考慮）        |
+|  ・重要情報: 正面の快適ゾーン内に配置                      |
+|  ・控えめな情報: 周辺部に配置（視線移動で確認）            |
++-----------------------------------------------------------+
+```
+
 ---
 
 ## FAQ
@@ -364,6 +1108,18 @@ OK:
 
 現時点で最も有望なのは、1) リモートコラボレーション（空間を共有した会議）、2) 空間デザイン（建築・インテリアの実寸プレビュー）、3) 教育・トレーニング（外科手術シミュレーション等）、4) エンターテインメント（空間を使った没入体験）。AIアシスタントとの空間的対話も今後の有力候補。
 
+### Q4. XR開発を始めるのに最適な学習パスは？
+
+ステップ1: UnityまたはUnreal Engineの基本を学ぶ（2D/3Dゲーム開発の基礎）。ステップ2: XR Interaction Toolkitを使った簡単なVRアプリを作成。ステップ3: Quest 3でテスト（最も入手しやすい開発デバイス）。ステップ4: ARKit/ARCoreでモバイルARを体験。ステップ5: 空間UI設計やAI統合など高度な技術に進む。
+
+### Q5. 企業がXRを導入する際の注意点は？
+
+ROIの明確化が最重要。「VRだから」ではなく「VRでなければ解決できない課題」を特定する。パイロットプロジェクトで効果を実証し、段階的に展開する。デバイスの管理・充電・衛生管理のオペレーションコストも見積もる。Wi-Fi環境やIT部門のサポート体制も事前に整備が必要。
+
+### Q6. 6DoFと3DoFの違いと選び方は？
+
+3DoF（3 Degrees of Freedom）は回転のみ（pitch、yaw、roll）を追跡し、位置の移動は追跡しない。360度動画の視聴など受動的な体験に適している。6DoF（6 Degrees of Freedom）は回転に加えて位置の移動（x、y、z）も追跡し、空間内を歩き回ったり、手を伸ばして物体をつかんだりできる。インタラクティブな体験には6DoFが必須。現行の主要デバイス（Quest 3、Vision Pro）はすべて6DoF対応。
+
 ---
 
 ## まとめ
@@ -378,6 +1134,9 @@ OK:
 | 空間UI | 3D空間に配置するユーザーインターフェース |
 | NeRF / 3D Gaussian Splatting | AIによる3Dシーン再構築 |
 | 6DoF | 位置(x,y,z) + 回転(pitch,yaw,roll) の6自由度トラッキング |
+| OpenXR | クロスプラットフォームXR開発の標準API |
+| ハンドトラッキング | コントローラ不要の自然な入力方式 |
+| ASW/Timewarp | フレーム補間によるVR酔い防止技術 |
 
 ---
 
@@ -395,3 +1154,6 @@ OK:
 2. **Meta Quest Developer Hub** https://developer.oculus.com/
 3. **WebXR Device API — W3C** https://www.w3.org/TR/webxr/
 4. **NeRF (Neural Radiance Fields) 原論文** https://www.matthewtancik.com/nerf
+5. **OpenXR Specification — Khronos Group** https://www.khronos.org/openxr/
+6. **ARKit Documentation — Apple** https://developer.apple.com/documentation/arkit
+7. **3D Gaussian Splatting 原論文** https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/
