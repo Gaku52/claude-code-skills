@@ -641,7 +641,879 @@ function logMemoryUsage(): void {
 
 ---
 
-## 6. アンチパターン
+## 6. 自動アップデート
+
+### 6.1 electron-updater による自動更新
+
+```typescript
+// src/main/updater.ts — 自動アップデート管理
+import { autoUpdater, UpdateCheckResult, UpdateInfo } from 'electron-updater'
+import { BrowserWindow, dialog, app } from 'electron'
+import { logger } from './logger'
+
+interface UpdateState {
+  checking: boolean
+  available: boolean
+  downloaded: boolean
+  progress: number
+  version: string | null
+  error: Error | null
+}
+
+class AppUpdater {
+  private state: UpdateState = {
+    checking: false,
+    available: false,
+    downloaded: false,
+    progress: 0,
+    version: null,
+    error: null,
+  }
+
+  private mainWindow: BrowserWindow | null = null
+
+  constructor() {
+    // ログの設定
+    autoUpdater.logger = logger
+
+    // 開発環境でもテスト可能にする
+    autoUpdater.forceDevUpdateConfig = false
+
+    // 自動ダウンロードを無効化（ユーザーの確認後にダウンロード）
+    autoUpdater.autoDownload = false
+
+    // プレリリースも含めるか
+    autoUpdater.allowPrerelease = false
+
+    // イベントハンドラの登録
+    this.setupEventHandlers()
+  }
+
+  private setupEventHandlers(): void {
+    autoUpdater.on('checking-for-update', () => {
+      this.state.checking = true
+      this.notifyRenderer('update:checking')
+      logger.info('アップデートを確認中...')
+    })
+
+    autoUpdater.on('update-available', (info: UpdateInfo) => {
+      this.state.checking = false
+      this.state.available = true
+      this.state.version = info.version
+      this.notifyRenderer('update:available', info)
+      logger.info(`アップデート利用可能: v${info.version}`)
+
+      // ユーザーに確認ダイアログを表示
+      this.promptUpdate(info)
+    })
+
+    autoUpdater.on('update-not-available', (info: UpdateInfo) => {
+      this.state.checking = false
+      this.state.available = false
+      this.notifyRenderer('update:not-available', info)
+      logger.info('最新バージョンです')
+    })
+
+    autoUpdater.on('download-progress', (progress) => {
+      this.state.progress = progress.percent
+      this.notifyRenderer('update:progress', {
+        percent: progress.percent,
+        bytesPerSecond: progress.bytesPerSecond,
+        total: progress.total,
+        transferred: progress.transferred,
+      })
+
+      // タスクバーのプログレス表示（Windows）
+      this.mainWindow?.setProgressBar(progress.percent / 100)
+    })
+
+    autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
+      this.state.downloaded = true
+      this.state.progress = 100
+      this.notifyRenderer('update:downloaded', info)
+      this.mainWindow?.setProgressBar(-1) // プログレスバーをリセット
+
+      logger.info(`アップデートダウンロード完了: v${info.version}`)
+
+      // 再起動の確認
+      this.promptRestart(info)
+    })
+
+    autoUpdater.on('error', (error: Error) => {
+      this.state.checking = false
+      this.state.error = error
+      this.notifyRenderer('update:error', error.message)
+      this.mainWindow?.setProgressBar(-1)
+      logger.error('アップデートエラー', error)
+    })
+  }
+
+  private async promptUpdate(info: UpdateInfo): Promise<void> {
+    if (!this.mainWindow) return
+
+    const result = await dialog.showMessageBox(this.mainWindow, {
+      type: 'info',
+      title: 'アップデート利用可能',
+      message: `新しいバージョン v${info.version} が利用可能です。`,
+      detail: `現在のバージョン: v${app.getVersion()}\n\nダウンロードしますか？`,
+      buttons: ['ダウンロード', '後で'],
+      defaultId: 0,
+      cancelId: 1,
+    })
+
+    if (result.response === 0) {
+      autoUpdater.downloadUpdate()
+    }
+  }
+
+  private async promptRestart(info: UpdateInfo): Promise<void> {
+    if (!this.mainWindow) return
+
+    const result = await dialog.showMessageBox(this.mainWindow, {
+      type: 'info',
+      title: 'アップデート準備完了',
+      message: `v${info.version} のインストール準備が完了しました。`,
+      detail: '今すぐ再起動してアップデートを適用しますか？',
+      buttons: ['今すぐ再起動', '後で再起動'],
+      defaultId: 0,
+      cancelId: 1,
+    })
+
+    if (result.response === 0) {
+      autoUpdater.quitAndInstall(false, true)
+    }
+  }
+
+  private notifyRenderer(channel: string, data?: unknown): void {
+    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+      this.mainWindow.webContents.send(channel, data)
+    }
+  }
+
+  setMainWindow(win: BrowserWindow): void {
+    this.mainWindow = win
+  }
+
+  async checkForUpdates(): Promise<UpdateCheckResult | null> {
+    return autoUpdater.checkForUpdates()
+  }
+
+  getState(): UpdateState {
+    return { ...this.state }
+  }
+}
+
+export const appUpdater = new AppUpdater()
+```
+
+### 6.2 更新配信サーバーの設定
+
+```typescript
+// electron-builder.yml での更新サーバー設定例
+
+// パターン 1: GitHub Releases を利用（最も簡単）
+// package.json の build セクション
+const githubConfig = {
+  publish: {
+    provider: 'github',
+    owner: 'your-org',
+    repo: 'your-app',
+    releaseType: 'release', // 'draft' | 'prerelease' | 'release'
+  },
+}
+
+// パターン 2: S3 互換ストレージ
+const s3Config = {
+  publish: {
+    provider: 's3',
+    bucket: 'your-update-bucket',
+    region: 'ap-northeast-1',
+    path: '/releases/',
+  },
+}
+
+// パターン 3: 汎用サーバー（社内配布向け）
+const genericConfig = {
+  publish: {
+    provider: 'generic',
+    url: 'https://updates.example.com/releases/',
+    channel: 'latest',
+  },
+}
+```
+
+---
+
+## 7. システムトレイとバックグラウンド動作
+
+### 7.1 トレイアイコンの実装
+
+```typescript
+// src/main/tray.ts — システムトレイの管理
+import { Tray, Menu, nativeImage, app, BrowserWindow } from 'electron'
+import { join } from 'path'
+import { windowManager } from './window-manager'
+
+class TrayManager {
+  private tray: Tray | null = null
+  private isQuitting = false
+
+  create(mainWindow: BrowserWindow): void {
+    // プラットフォーム別のアイコン
+    const iconPath = process.platform === 'win32'
+      ? join(__dirname, '../../resources/tray-icon.ico')    // Windows: ICO
+      : process.platform === 'darwin'
+      ? join(__dirname, '../../resources/tray-iconTemplate.png') // macOS: Template
+      : join(__dirname, '../../resources/tray-icon.png')    // Linux: PNG
+
+    const icon = nativeImage.createFromPath(iconPath)
+
+    // macOS のテンプレートイメージ設定
+    if (process.platform === 'darwin') {
+      icon.setTemplateImage(true)
+    }
+
+    this.tray = new Tray(icon)
+
+    // ツールチップ
+    this.tray.setToolTip(`${app.getName()} v${app.getVersion()}`)
+
+    // コンテキストメニューの構築
+    this.updateContextMenu(mainWindow)
+
+    // ダブルクリックでウィンドウを表示（Windows/Linux）
+    this.tray.on('double-click', () => {
+      if (mainWindow.isVisible()) {
+        mainWindow.focus()
+      } else {
+        mainWindow.show()
+      }
+    })
+
+    // ウィンドウの閉じるボタンでトレイに格納（終了ではなく最小化）
+    mainWindow.on('close', (event) => {
+      if (!this.isQuitting) {
+        event.preventDefault()
+        mainWindow.hide()
+
+        // Windows ではバルーン通知を表示
+        if (process.platform === 'win32' && this.tray) {
+          this.tray.displayBalloon({
+            title: app.getName(),
+            content: 'アプリはシステムトレイで実行中です',
+            iconType: 'info',
+          })
+        }
+      }
+    })
+
+    // app.quit() が呼ばれたら本当に終了
+    app.on('before-quit', () => {
+      this.isQuitting = true
+    })
+  }
+
+  private updateContextMenu(mainWindow: BrowserWindow): void {
+    const contextMenu = Menu.buildFromTemplate([
+      {
+        label: 'ウィンドウを表示',
+        click: () => {
+          mainWindow.show()
+          mainWindow.focus()
+        },
+      },
+      { type: 'separator' },
+      {
+        label: 'ステータス',
+        submenu: [
+          { label: 'オンライン', type: 'radio', checked: true },
+          { label: '取り込み中', type: 'radio' },
+          { label: 'オフライン', type: 'radio' },
+        ],
+      },
+      { type: 'separator' },
+      {
+        label: '設定',
+        click: () => {
+          windowManager.createWindow('settings', {
+            route: '/settings',
+            width: 600,
+            height: 500,
+            parent: mainWindow,
+            modal: true,
+          })
+        },
+      },
+      { type: 'separator' },
+      {
+        label: '終了',
+        click: () => {
+          this.isQuitting = true
+          app.quit()
+        },
+      },
+    ])
+
+    this.tray?.setContextMenu(contextMenu)
+  }
+
+  // バッジ数の更新（通知数など）
+  updateBadge(count: number): void {
+    if (process.platform === 'darwin') {
+      app.dock.setBadge(count > 0 ? String(count) : '')
+    }
+
+    // Windows: タスクバーのオーバーレイアイコン
+    if (process.platform === 'win32') {
+      const mainWindow = windowManager.getWindow('main')
+      if (mainWindow && count > 0) {
+        const badge = this.createBadgeImage(count)
+        mainWindow.setOverlayIcon(badge, `${count} 件の通知`)
+      } else if (mainWindow) {
+        mainWindow.setOverlayIcon(null, '')
+      }
+    }
+  }
+
+  private createBadgeImage(count: number): Electron.NativeImage {
+    // Canvas でバッジ画像を生成（16x16 px）
+    const size = 16
+    const canvas = new OffscreenCanvas(size, size)
+    const ctx = canvas.getContext('2d')!
+    ctx.fillStyle = '#e81123'
+    ctx.beginPath()
+    ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = '#ffffff'
+    ctx.font = 'bold 10px sans-serif'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(count > 99 ? '99+' : String(count), size / 2, size / 2)
+
+    const buffer = Buffer.from(canvas.transferToImageBitmap() as unknown as ArrayBuffer)
+    return nativeImage.createFromBuffer(buffer, { width: size, height: size })
+  }
+
+  destroy(): void {
+    this.tray?.destroy()
+    this.tray = null
+  }
+}
+
+export const trayManager = new TrayManager()
+```
+
+---
+
+## 8. ファイル関連付けとプロトコルハンドラ
+
+### 8.1 カスタムファイル拡張子の関連付け
+
+```typescript
+// electron-builder の設定でファイル関連付けを定義
+// package.json の build セクション
+const fileAssociations = {
+  build: {
+    fileAssociations: [
+      {
+        ext: 'myapp',             // 拡張子
+        name: 'My App Document',  // ファイルタイプの表示名
+        description: 'My App のドキュメントファイル',
+        mimeType: 'application/x-myapp',
+        icon: 'resources/file-icon', // .ico / .icns
+        role: 'Editor',           // macOS: Editor | Viewer | Shell | None
+      },
+      {
+        ext: ['json', 'yaml', 'yml'],
+        name: 'Configuration File',
+        role: 'Viewer',
+      },
+    ],
+  },
+}
+```
+
+```typescript
+// src/main/file-handler.ts — ファイルを開く処理
+import { app, ipcMain } from 'electron'
+import { windowManager } from './window-manager'
+import fs from 'fs'
+
+// macOS: ファイルをドロップまたはダブルクリックで開いた時
+app.on('open-file', (event, filePath) => {
+  event.preventDefault()
+
+  if (app.isReady()) {
+    handleFileOpen(filePath)
+  } else {
+    // アプリ起動前にファイルが渡された場合はキューに入れる
+    pendingFiles.push(filePath)
+  }
+})
+
+// Windows/Linux: コマンドライン引数からファイルパスを取得
+const pendingFiles: string[] = []
+
+function processCommandLineArgs(argv: string[]): void {
+  // 最初の引数はアプリのパスなのでスキップ
+  const filePaths = argv.slice(1).filter(arg => {
+    return !arg.startsWith('--') && fs.existsSync(arg)
+  })
+
+  for (const filePath of filePaths) {
+    handleFileOpen(filePath)
+  }
+}
+
+// 二重起動防止 + ファイルを既存インスタンスに渡す
+const gotTheLock = app.requestSingleInstanceLock()
+
+if (!gotTheLock) {
+  app.quit()
+} else {
+  app.on('second-instance', (_event, argv) => {
+    // 既存のインスタンスにフォーカスしてファイルを開く
+    const mainWindow = windowManager.getWindow('main')
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.focus()
+      processCommandLineArgs(argv)
+    }
+  })
+}
+
+async function handleFileOpen(filePath: string): Promise<void> {
+  try {
+    const content = await fs.promises.readFile(filePath, 'utf-8')
+    const mainWindow = windowManager.getWindow('main')
+
+    if (mainWindow) {
+      mainWindow.webContents.send('file:opened', {
+        path: filePath,
+        name: path.basename(filePath),
+        content,
+      })
+    }
+  } catch (error) {
+    logger.error(`ファイルを開けません: ${filePath}`, error as Error)
+  }
+}
+```
+
+### 8.2 カスタムプロトコルハンドラ
+
+```typescript
+// src/main/protocol.ts — カスタムプロトコル (myapp://) の登録
+import { app, protocol, net } from 'electron'
+import { join } from 'path'
+import { URL } from 'url'
+
+// カスタムプロトコルを登録（app.whenReady() の前に呼ぶ必要あり）
+if (process.defaultApp) {
+  // 開発環境: コマンドライン引数でプロトコルを登録
+  if (process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient('myapp', process.execPath, [
+      join(__dirname, '..'),
+    ])
+  }
+} else {
+  // 本番環境: そのまま登録
+  app.setAsDefaultProtocolClient('myapp')
+}
+
+// プロトコルリクエストのハンドリング
+app.whenReady().then(() => {
+  // myapp:// スキームの処理
+  protocol.handle('myapp', (request) => {
+    const url = new URL(request.url)
+
+    switch (url.hostname) {
+      case 'open':
+        // myapp://open?file=path/to/file
+        const filePath = url.searchParams.get('file')
+        if (filePath) handleFileOpen(filePath)
+        return new Response('OK')
+
+      case 'settings':
+        // myapp://settings
+        windowManager.createWindow('settings', { route: '/settings' })
+        return new Response('OK')
+
+      default:
+        return new Response('Not Found', { status: 404 })
+    }
+  })
+})
+
+// macOS: プロトコル URL でアプリが起動された時
+app.on('open-url', (event, url) => {
+  event.preventDefault()
+  handleProtocolUrl(url)
+})
+
+// Windows/Linux: 二重起動時にプロトコル URL を受け取る
+app.on('second-instance', (_event, argv) => {
+  const url = argv.find(arg => arg.startsWith('myapp://'))
+  if (url) handleProtocolUrl(url)
+})
+
+function handleProtocolUrl(url: string): void {
+  try {
+    const parsed = new URL(url)
+    logger.info(`プロトコル URL を処理: ${parsed.hostname}${parsed.pathname}`)
+    // URL に応じた処理を実行
+  } catch (error) {
+    logger.error('無効なプロトコル URL', error as Error)
+  }
+}
+```
+
+---
+
+## 9. ドラッグ＆ドロップとクリップボード
+
+### 9.1 ドラッグ＆ドロップの実装
+
+```tsx
+// src/renderer/src/components/DropZone.tsx — ファイルドロップ領域
+import { useState, useCallback, DragEvent } from 'react'
+
+interface DroppedFile {
+  name: string
+  path: string
+  size: number
+  type: string
+}
+
+export function DropZone(): JSX.Element {
+  const [isDragging, setIsDragging] = useState(false)
+  const [files, setFiles] = useState<DroppedFile[]>([])
+
+  const handleDragOver = useCallback((e: DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(true)
+  }, [])
+
+  const handleDragLeave = useCallback((e: DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+  }, [])
+
+  const handleDrop = useCallback(async (e: DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+
+    const droppedFiles: DroppedFile[] = []
+
+    for (const file of Array.from(e.dataTransfer.files)) {
+      droppedFiles.push({
+        name: file.name,
+        path: (file as File & { path: string }).path, // Electron 拡張
+        size: file.size,
+        type: file.type || 'application/octet-stream',
+      })
+    }
+
+    setFiles(prev => [...prev, ...droppedFiles])
+
+    // Main プロセスにファイルパスを送信して処理
+    for (const file of droppedFiles) {
+      await window.electronAPI.processDroppedFile(file.path)
+    }
+  }, [])
+
+  return (
+    <div
+      className={`drop-zone ${isDragging ? 'dragging' : ''}`}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {isDragging ? (
+        <p>ここにファイルをドロップ</p>
+      ) : (
+        <p>ファイルをドラッグ＆ドロップ</p>
+      )}
+      {files.length > 0 && (
+        <ul className="file-list">
+          {files.map((file, i) => (
+            <li key={i}>
+              <span>{file.name}</span>
+              <span>{(file.size / 1024).toFixed(1)} KB</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+```
+
+```css
+/* ドロップゾーンのスタイル */
+.drop-zone {
+  border: 2px dashed var(--border-color, #ccc);
+  border-radius: 8px;
+  padding: 40px;
+  text-align: center;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.drop-zone.dragging {
+  border-color: var(--accent-color, #0078d4);
+  background: rgba(0, 120, 212, 0.05);
+}
+```
+
+### 9.2 アプリからのドラッグアウト（ファイルのエクスポート）
+
+```typescript
+// Main プロセス: ドラッグアウトのハンドリング
+ipcMain.on('drag-out', (event, filePath: string) => {
+  // ファイルをアプリからデスクトップやエクスプローラーにドラッグ
+  event.sender.startDrag({
+    file: filePath,
+    icon: nativeImage.createFromPath(
+      join(__dirname, '../../resources/file-drag-icon.png')
+    ),
+  })
+})
+```
+
+```tsx
+// Renderer 側: ドラッグ開始のハンドリング
+function FileItem({ file }: { file: { name: string; path: string } }) {
+  const handleDragStart = (e: React.DragEvent) => {
+    e.preventDefault()
+    // Main プロセスにドラッグ開始を通知
+    window.electronAPI.startDrag(file.path)
+  }
+
+  return (
+    <div draggable onDragStart={handleDragStart}>
+      {file.name}
+    </div>
+  )
+}
+```
+
+### 9.3 クリップボード操作
+
+```typescript
+// src/main/clipboard-handler.ts — クリップボードの高度な操作
+import { clipboard, nativeImage, ipcMain } from 'electron'
+
+// テキストの読み書き
+ipcMain.handle('clipboard:readText', () => {
+  return clipboard.readText()
+})
+
+ipcMain.handle('clipboard:writeText', (_event, text: string) => {
+  clipboard.writeText(text)
+})
+
+// リッチテキスト（HTML）の読み書き
+ipcMain.handle('clipboard:readHTML', () => {
+  return clipboard.readHTML()
+})
+
+ipcMain.handle('clipboard:writeHTML', (_event, html: string) => {
+  clipboard.writeText(html.replace(/<[^>]*>/g, '')) // プレーンテキストも同時に設定
+  clipboard.writeHTML(html)
+})
+
+// 画像の読み書き
+ipcMain.handle('clipboard:readImage', () => {
+  const image = clipboard.readImage()
+  if (image.isEmpty()) return null
+  return image.toDataURL()
+})
+
+ipcMain.handle('clipboard:writeImage', (_event, dataUrl: string) => {
+  const image = nativeImage.createFromDataURL(dataUrl)
+  clipboard.writeImage(image)
+})
+
+// クリップボードの変更監視
+let previousContent = ''
+const CLIPBOARD_POLL_INTERVAL = 1000
+
+function startClipboardWatcher(callback: (content: string) => void): NodeJS.Timer {
+  return setInterval(() => {
+    const current = clipboard.readText()
+    if (current !== previousContent && current.length > 0) {
+      previousContent = current
+      callback(current)
+    }
+  }, CLIPBOARD_POLL_INTERVAL)
+}
+```
+
+---
+
+## 10. 通知とシステム連携
+
+### 10.1 ネイティブ通知
+
+```typescript
+// src/main/notifications.ts — 通知管理
+import { Notification, app, shell } from 'electron'
+
+interface AppNotification {
+  title: string
+  body: string
+  icon?: string
+  urgency?: 'normal' | 'critical' | 'low'
+  actions?: Array<{ type: 'button'; text: string }>
+  silent?: boolean
+  onClick?: () => void
+}
+
+class NotificationManager {
+  private enabled = true
+
+  async show(options: AppNotification): Promise<void> {
+    if (!this.enabled) return
+
+    // 通知がサポートされているか確認
+    if (!Notification.isSupported()) {
+      logger.warn('通知がサポートされていません')
+      return
+    }
+
+    const notification = new Notification({
+      title: options.title,
+      body: options.body,
+      icon: options.icon || join(__dirname, '../../resources/notification-icon.png'),
+      urgency: options.urgency || 'normal',
+      silent: options.silent || false,
+      actions: options.actions,
+    })
+
+    if (options.onClick) {
+      notification.on('click', options.onClick)
+    }
+
+    // アクションボタンのクリックハンドリング
+    notification.on('action', (_event, index) => {
+      logger.info(`通知アクション: インデックス ${index}`)
+    })
+
+    notification.show()
+  }
+
+  // 通知の有効/無効を切り替え
+  setEnabled(enabled: boolean): void {
+    this.enabled = enabled
+  }
+
+  // Windows: Focus Assist の状態を確認
+  isDoNotDisturbEnabled(): boolean {
+    // Windows 10+ の Focus Assist / Do Not Disturb の確認は
+    // ネイティブモジュールが必要（electron-windows-notifications 等）
+    return false
+  }
+}
+
+export const notificationManager = new NotificationManager()
+```
+
+### 10.2 電源状態の監視
+
+```typescript
+// src/main/power-monitor.ts — 電源管理
+import { powerMonitor, powerSaveBlocker, app } from 'electron'
+
+class PowerManager {
+  private saveBlockerId: number | null = null
+
+  setup(): void {
+    // スリープ/復帰の検知
+    powerMonitor.on('suspend', () => {
+      logger.info('システムがスリープします')
+      // 保存されていないデータの自動保存
+      this.autoSave()
+    })
+
+    powerMonitor.on('resume', () => {
+      logger.info('システムがスリープから復帰しました')
+      // ネットワーク接続の再確立
+      this.reconnect()
+    })
+
+    // ロック/アンロックの検知
+    powerMonitor.on('lock-screen', () => {
+      logger.info('画面がロックされました')
+    })
+
+    powerMonitor.on('unlock-screen', () => {
+      logger.info('画面がアンロックされました')
+    })
+
+    // AC/バッテリーの切り替え
+    powerMonitor.on('on-ac', () => {
+      logger.info('AC 電源に接続されました')
+    })
+
+    powerMonitor.on('on-battery', () => {
+      logger.info('バッテリー駆動に切り替わりました')
+      // バッテリー駆動時はバックグラウンド処理を制限
+    })
+
+    // シャットダウン検知
+    powerMonitor.on('shutdown', () => {
+      logger.info('システムがシャットダウンします')
+      this.emergencySave()
+    })
+  }
+
+  // スリープ防止（長時間処理の実行中に使用）
+  preventSleep(reason: string): void {
+    if (this.saveBlockerId !== null) return
+
+    this.saveBlockerId = powerSaveBlocker.start('prevent-display-sleep')
+    logger.info(`スリープ防止を開始: ${reason}`)
+  }
+
+  allowSleep(): void {
+    if (this.saveBlockerId !== null) {
+      powerSaveBlocker.stop(this.saveBlockerId)
+      this.saveBlockerId = null
+      logger.info('スリープ防止を解除')
+    }
+  }
+
+  // バッテリー残量の取得（Electron 30+ で利用可能）
+  getBatteryInfo(): { level: number; charging: boolean } {
+    return {
+      level: powerMonitor.isOnBatteryPower() ? -1 : 100,
+      charging: !powerMonitor.isOnBatteryPower(),
+    }
+  }
+
+  private autoSave(): void {
+    // 保存処理の実装
+  }
+
+  private reconnect(): void {
+    // 再接続処理の実装
+  }
+
+  private emergencySave(): void {
+    // 緊急保存処理の実装
+  }
+}
+
+export const powerManager = new PowerManager()
+```
+
+---
+
+## 11. アンチパターン
 
 ### アンチパターン 1: 重い処理を Main プロセスで同期実行する
 
@@ -746,7 +1618,7 @@ ipcMain.handle('fs:readFile', (_event, relativePath: string) => {
 
 ---
 
-## 7. FAQ
+## 12. FAQ
 
 ### Q1: Electron のバージョンを上げると better-sqlite3 が動かなくなる。どうすべきか？
 
@@ -762,7 +1634,21 @@ ipcMain.handle('fs:readFile', (_event, relativePath: string) => {
 
 ---
 
-## 8. まとめ
+### Q4: UtilityProcess と Worker Threads の使い分けはどうすべきか？
+
+**A:** `UtilityProcess` は Electron 独自の API で、完全に独立したプロセスとして動作する。Node.js の全 API が利用可能であり、クラッシュしてもメインプロセスに影響しない。一方、`Worker Threads` は Node.js 標準のスレッド機能で、メモリをメインプロセスと共有できる（SharedArrayBuffer）。CPU バウンドの重い計算には `UtilityProcess`、比較的軽い非同期タスクには `Worker Threads` が適している。
+
+### Q5: Electron アプリでのデータベースのバックアップ戦略は？
+
+**A:** SQLite の場合、以下の戦略を推奨する。(1) `VACUUM INTO` コマンドで定期的にバックアップファイルを作成する、(2) WAL モードを有効にして書き込み中でも安全にコピーできるようにする、(3) `app.getPath('userData')` 内にバックアップディレクトリを作り、世代管理する（最新5件など）、(4) ファイル名にタイムスタンプを含める（`backup-2024-01-15T10-30-00.db`）、(5) アプリ起動時に自動バックアップを実行する。
+
+### Q6: カスタムタイトルバーを実装するとアクセシビリティに影響はあるか？
+
+**A:** Windows の場合、`titleBarOverlay` オプションを使えばネイティブのウィンドウ操作ボタン（最小化、最大化、閉じる）が残るため、アクセシビリティへの影響は最小限である。ただし、カスタムメニュー領域にはキーボードナビゲーション（Tab/Enter/Escape）を適切に実装する必要がある。macOS ではネイティブの信号ボタン（赤黄緑）を `titleBarStyle: 'hidden'` で残すことが推奨される。完全なフレームレス（`frame: false`）は非推奨である。
+
+---
+
+## 13. まとめ
 
 | トピック | キーポイント |
 |---|---|
@@ -772,6 +1658,10 @@ ipcMain.handle('fs:readFile', (_event, relativePath: string) => {
 | SQLite | better-sqlite3 + drizzle-orm で型安全な DB 操作 |
 | 起動時間 | スプラッシュスクリーン + 遅延インポート + 並列初期化 |
 | メモリ最適化 | バックグラウンドスロットリング + UtilityProcess |
+| 自動更新 | electron-updater でダイアログ確認 + 差分ダウンロード |
+| システムトレイ | TrayManager でバックグラウンド常駐 + バッジ通知 |
+| ファイル関連付け | electron-builder 設定 + protocol.handle でカスタムスキーム |
+| ドラッグ＆ドロップ | Renderer のドロップ受信 + Main の startDrag でエクスポート |
 | セキュリティ | 全てのファイル操作は Main プロセス経由 + パス検証 |
 
 ---

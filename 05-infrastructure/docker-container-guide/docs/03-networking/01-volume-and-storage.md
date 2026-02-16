@@ -9,12 +9,36 @@
 1. **Named Volume / Bind Mount / tmpfs の違いと使い分け**を理解する
 2. **ボリュームのライフサイクル管理**（作成・バックアップ・移行・削除）を習得する
 3. **ストレージドライバーの仕組み**とパフォーマンス特性を把握する
+4. **本番環境でのストレージ設計パターン**を学ぶ
+5. **各種データベースに最適なボリューム設定**を実践する
 
 ---
 
 ## 1. なぜデータ永続化が必要か
 
 Dockerコンテナはイミュータブルに設計されている。コンテナの書き込み可能レイヤー（writable layer）はコンテナ削除と同時に消失する。データベースのデータ、アップロードされたファイル、設定ファイルなど、コンテナのライフサイクルを超えて保持すべきデータにはボリュームが必要。
+
+### コンテナのレイヤー構造
+
+```
+┌──────────────────────────────────────────────┐
+│         Container (書き込み可能レイヤー)        │
+│  ┌────────────────────────────────────────┐ │
+│  │  Thin R/W Layer (CoW: Copy-on-Write)  │ │ ← コンテナ削除で消失
+│  └────────────────────────────────────────┘ │
+├──────────────────────────────────────────────┤
+│         Image Layers (読み取り専用)            │
+│  ┌────────────────────────────────────────┐ │
+│  │  Layer 4: COPY app.js /app/           │ │
+│  ├────────────────────────────────────────┤ │
+│  │  Layer 3: RUN npm install             │ │
+│  ├────────────────────────────────────────┤ │
+│  │  Layer 2: RUN apt-get install nodejs  │ │
+│  ├────────────────────────────────────────┤ │
+│  │  Layer 1: Ubuntu 22.04 base           │ │
+│  └────────────────────────────────────────┘ │
+└──────────────────────────────────────────────┘
+```
 
 ### データ永続化の3方式
 
@@ -51,6 +75,8 @@ Dockerコンテナはイミュータブルに設計されている。コンテ�
 | パフォーマンス | ドライバー依存 | ネイティブ | 最高速 |
 | ホストOSへの依存 | 低い | 高い（パス依存） | 低い |
 | 本番推奨度 | 高い | 低い（開発向き） | 特殊用途 |
+| バックアップ | Docker CLI で可能 | ホストのツールで可能 | 不可 |
+| ドライバー変更 | 可能（NFS等） | 不可 | 不可 |
 
 ---
 
@@ -66,6 +92,10 @@ docker volume create my-data
 
 # ボリューム一覧
 docker volume ls
+
+# ボリュームのフィルタリング
+docker volume ls --filter "driver=local"
+docker volume ls --filter "dangling=true"   # 未使用ボリューム
 
 # ボリュームの詳細情報
 docker volume inspect my-data
@@ -89,20 +119,28 @@ docker run -d \
   -e POSTGRES_PASSWORD=secret \
   postgres:16-alpine
 
+# --mount 構文（推奨: より明示的）
+docker run -d \
+  --name postgres-db \
+  --mount type=volume,source=my-data,target=/var/lib/postgresql/data \
+  -e POSTGRES_PASSWORD=secret \
+  postgres:16-alpine
+
 # コンテナを削除してもボリュームは残る
 docker rm -f postgres-db
 docker volume ls  # my-data は健在
 
 # 未使用ボリュームの一括削除（注意して使用）
 docker volume prune
+
+# 全ての未使用ボリュームを強制削除
+docker volume prune -a -f
 ```
 
 ### コード例2: Docker Composeでのボリューム定義
 
 ```yaml
 # docker-compose.yml
-version: "3.9"
-
 services:
   postgres:
     image: postgres:16-alpine
@@ -134,8 +172,23 @@ volumes:
     driver: local
     labels:
       com.example.description: "PostgreSQLデータ"
+      com.example.environment: "production"
   redis-data:
     driver: local
+```
+
+### ボリュームのラベルとフィルタリング
+
+```bash
+# ラベル付きボリュームの作成
+docker volume create \
+  --label environment=production \
+  --label service=postgres \
+  prod-pgdata
+
+# ラベルでフィルタリング
+docker volume ls --filter "label=environment=production"
+docker volume ls --filter "label=service=postgres"
 ```
 
 ---
@@ -190,6 +243,50 @@ docker run -d \
 └────────────────────────────┘
 ```
 
+### Docker Compose での Bind Mount パターン
+
+```yaml
+services:
+  app:
+    build: .
+    volumes:
+      # ソースコード（読み書き）
+      - ./src:/app/src
+
+      # 設定ファイル（読み取り専用）
+      - ./config:/app/config:ro
+
+      # 単一ファイルのマウント
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+
+      # node_modules は Named Volume で分離
+      - node_modules:/app/node_modules
+
+      # 長文構文
+      - type: bind
+        source: ./data
+        target: /app/data
+        read_only: false
+
+volumes:
+  node_modules:
+```
+
+### Bind Mount の SELinux 対応 (RHEL/CentOS)
+
+```bash
+# SELinux が有効な環境でのBind Mount
+# :z  → 共有ラベルを設定（複数コンテナで共有可能）
+# :Z  → プライベートラベルを設定（単一コンテナ専用）
+docker run -d \
+  -v /data/app:/app:z \
+  my-app:latest
+
+# Docker Compose での指定
+# volumes:
+#   - ./data:/app/data:z
+```
+
 ---
 
 ## 4. tmpfs マウント
@@ -207,19 +304,41 @@ docker run -d \
   my-app
 
 # Docker Composeでの指定
-# docker-compose.yml
-# services:
-#   app:
-#     image: my-app
-#     tmpfs:
-#       - /tmp:size=100m
-#     volumes:
-#       - type: tmpfs
-#         target: /run/secrets
-#         tmpfs:
-#           size: 10485760  # 10MB
-#           mode: 0700
 ```
+
+```yaml
+# docker-compose.yml
+services:
+  app:
+    image: my-app
+    tmpfs:
+      - /tmp:size=100m,mode=1777
+    volumes:
+      - type: tmpfs
+        target: /run/secrets
+        tmpfs:
+          size: 10485760  # 10MB
+          mode: 0700
+
+  # テスト用DB（永続化不要 → tmpfsで高速化）
+  db-test:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: test
+    tmpfs:
+      - /var/lib/postgresql/data:size=512m
+    # → ディスクI/Oなしでテスト用DBが動作
+```
+
+### tmpfs の活用シーン
+
+| シーン | 理由 |
+|--------|------|
+| テスト用DB | 永続化不要。メモリ上で高速にテスト実行 |
+| セッションストア | 再起動時にリセットされても問題ない一時データ |
+| 一時ファイル処理 | 画像変換やPDF生成の中間ファイル |
+| シークレット保存 | ディスクに書き込まれないため安全 |
+| CI/CDパイプライン | テスト実行の高速化 |
 
 ### 用途別マウント方式の選定フロー
 
@@ -286,6 +405,80 @@ docker run --rm \
   sh -c "cp -av /from/. /to/"
 ```
 
+### コード例5b: 定期バックアップの自動化
+
+```yaml
+# docker-compose.yml - 定期バックアップ設定
+services:
+  postgres:
+    image: postgres:16-alpine
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    environment:
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+
+  # 定期バックアップコンテナ
+  backup:
+    image: postgres:16-alpine
+    volumes:
+      - ./backups:/backups
+    environment:
+      PGPASSWORD: ${DB_PASSWORD}
+    # 毎日3時にバックアップ（cron代替として entrypoint スクリプト）
+    entrypoint: >
+      sh -c "
+        while true; do
+          echo \"[$(date)] Starting backup...\"
+          pg_dump -h postgres -U postgres myapp | \
+            gzip > /backups/myapp-$(date +%Y%m%d-%H%M%S).sql.gz
+          echo \"[$(date)] Backup completed.\"
+          # 7日以上前のバックアップを削除
+          find /backups -name '*.sql.gz' -mtime +7 -delete
+          sleep 86400
+        done
+      "
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+```
+
+```bash
+#!/bin/bash
+# scripts/backup.sh - 手動バックアップスクリプト
+
+set -euo pipefail
+
+BACKUP_DIR="./backups"
+TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+
+mkdir -p "$BACKUP_DIR"
+
+echo "=== PostgreSQL Backup ==="
+docker compose exec -T postgres \
+  pg_dump -U postgres myapp | gzip > "${BACKUP_DIR}/postgres-${TIMESTAMP}.sql.gz"
+echo "  → ${BACKUP_DIR}/postgres-${TIMESTAMP}.sql.gz"
+
+echo "=== Volume Backup ==="
+docker run --rm \
+  -v myapp_pgdata:/source:ro \
+  -v "$(pwd)/backups":/backup \
+  alpine:3.19 \
+  tar czf "/backup/pgdata-${TIMESTAMP}.tar.gz" -C /source .
+echo "  → ${BACKUP_DIR}/pgdata-${TIMESTAMP}.tar.gz"
+
+echo "=== Redis Backup ==="
+docker compose exec redis redis-cli BGSAVE
+sleep 2
+docker compose cp redis:/data/dump.rdb "${BACKUP_DIR}/redis-${TIMESTAMP}.rdb"
+echo "  → ${BACKUP_DIR}/redis-${TIMESTAMP}.rdb"
+
+echo "=== Backup Complete ==="
+ls -lh "${BACKUP_DIR}/"*"${TIMESTAMP}"*
+```
+
 ### コード例6: NFSボリュームドライバー
 
 ```bash
@@ -296,16 +489,25 @@ docker volume create \
   --opt o=addr=192.168.1.100,rw,nfsvers=4 \
   --opt device=:/exports/data \
   nfs-data
+```
 
-# Docker Composeでの定義
-# docker-compose.yml
-# volumes:
-#   shared-data:
-#     driver: local
-#     driver_opts:
-#       type: nfs
-#       o: "addr=192.168.1.100,rw,nfsvers=4"
-#       device: ":/exports/data"
+```yaml
+# docker-compose.yml - NFS ボリューム
+volumes:
+  shared-data:
+    driver: local
+    driver_opts:
+      type: nfs
+      o: "addr=192.168.1.100,rw,nfsvers=4"
+      device: ":/exports/data"
+
+  # CIFS/SMB ボリューム（Windows ファイルサーバー）
+  smb-data:
+    driver: local
+    driver_opts:
+      type: cifs
+      o: "addr=192.168.1.200,username=user,password=pass,file_mode=0777,dir_mode=0777"
+      device: "//192.168.1.200/shared"
 ```
 
 ---
@@ -332,6 +534,23 @@ docker volume create \
 │  │  Layer 1: Ubuntu 22.04 base           │ │
 │  └────────────────────────────────────────┘ │
 └─────────────────────────────────────────────┘
+```
+
+### Copy-on-Write (CoW) の仕組み
+
+```
+読み取り時:
+  アプリが /app/config.json を読む
+    → R/W レイヤーにファイルがない
+    → 下位レイヤー (Layer 4) から読む
+    → ファイルが見つかった → 返す
+
+書き込み時 (Copy-on-Write):
+  アプリが /app/config.json を変更する
+    1. 下位レイヤーからファイルを R/W レイヤーにコピー
+    2. R/W レイヤー上のコピーを変更
+    3. 以降の読み取りは R/W レイヤーのコピーを返す
+    ※ 元のレイヤーのファイルは変更されない
 ```
 
 ### ストレージドライバーの比較表
@@ -368,32 +587,267 @@ docker system prune -a --volumes
 # WARNING: ボリュームも含めて全削除される
 ```
 
+### ストレージドライバーの変更
+
+```json
+// /etc/docker/daemon.json
+{
+  "storage-driver": "overlay2",
+  "storage-opts": [
+    "overlay2.override_kernel_check=true",
+    "overlay2.size=20G"
+  ]
+}
+```
+
+```bash
+# 設定変更後にDockerデーモンを再起動
+sudo systemctl restart docker
+
+# 変更の確認
+docker info | grep "Storage Driver"
+```
+
 ---
 
-## 7. パフォーマンス最適化
+## 7. 各種データベースのボリューム設定
+
+### PostgreSQL
+
+```yaml
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: myapp
+      # パフォーマンスチューニング
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # 初期化スクリプト
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+      # カスタム設定
+      - ./postgresql.conf:/etc/postgresql/postgresql.conf:ro
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+    shm_size: '256m'    # PostgreSQL は共有メモリを多用
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+volumes:
+  pgdata:
+```
+
+### MySQL / MariaDB
+
+```yaml
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: myapp
+      MYSQL_USER: app_user
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./my.cnf:/etc/mysql/conf.d/my.cnf:ro
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+volumes:
+  mysql-data:
+```
+
+### MongoDB
+
+```yaml
+services:
+  mongodb:
+    image: mongo:7
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
+    volumes:
+      - mongo-data:/data/db
+      - mongo-config:/data/configdb
+      # 初期化スクリプト
+      - ./mongo-init:/docker-entrypoint-initdb.d:ro
+    command: mongod --wiredTigerCacheSizeGB 0.5
+
+volumes:
+  mongo-data:
+  mongo-config:
+```
+
+### Elasticsearch
+
+```yaml
+services:
+  elasticsearch:
+    image: elasticsearch:8.12.0
+    environment:
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - xpack.security.enabled=false
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+
+volumes:
+  es-data:
+```
+
+---
+
+## 8. パフォーマンス最適化
 
 ### コード例8: macOSでのBind Mountパフォーマンス改善
 
 ```yaml
 # docker-compose.yml
 # macOSではBind Mountが遅い問題の対策
-version: "3.9"
-
 services:
   app:
     build: .
     volumes:
-      # :cached - ホスト側の変更がコンテナに反映されるまで遅延許容
-      - ./src:/app/src:cached
-
-      # :delegated - コンテナ側の変更がホストに反映されるまで遅延許容
-      - ./logs:/app/logs:delegated
+      # ソースコードはバインドマウント
+      - ./src:/app/src
 
       # node_modules はNamed Volumeで管理（Bind Mountより高速）
       - node_modules:/app/node_modules
 
+      # ビルド成果物も Volume で分離
+      - build_cache:/app/.next
+      - dist_cache:/app/dist
+
 volumes:
   node_modules:
+  build_cache:
+  dist_cache:
+```
+
+### パフォーマンスベンチマーク（macOS）
+
+```
+┌──────────────────────────────────────────────┐
+│    macOS でのファイルI/Oパフォーマンス比較      │
+├──────────────────────────────────────────────┤
+│                                              │
+│  操作                 │ Bind Mount │ Volume  │
+│  ─────────────────────┼────────────┼─────────│
+│  npm install (10000+) │ 120秒      │ 15秒    │
+│  tsc コンパイル       │ 30秒       │ 5秒     │
+│  Next.js ビルド       │ 90秒       │ 20秒    │
+│  ファイル読み取り     │ 遅い       │ 高速    │
+│  ファイル書き込み     │ 遅い       │ 高速    │
+│                                              │
+│  結論: 大量ファイルの操作は Volume が圧倒的   │
+│        ソースコードの同期は Bind Mount が必要  │
+│        → 「ソースは Bind、依存は Volume」     │
+└──────────────────────────────────────────────┘
+```
+
+### ボリュームのI/Oパフォーマンスチューニング
+
+```yaml
+# docker-compose.yml
+services:
+  db:
+    image: postgres:16-alpine
+    volumes:
+      # WALログ用の高速ストレージ
+      - pgdata:/var/lib/postgresql/data
+      - pg-wal:/var/lib/postgresql/data/pg_wal
+    # PostgreSQL のI/Oチューニング
+    command: >
+      postgres
+        -c shared_buffers=256MB
+        -c effective_cache_size=768MB
+        -c wal_buffers=8MB
+        -c checkpoint_completion_target=0.9
+        -c random_page_cost=1.1
+
+volumes:
+  pgdata:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /ssd/postgres/data    # SSD上のディレクトリ
+  pg-wal:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /nvme/postgres/wal    # NVMe上のディレクトリ
+```
+
+---
+
+## 9. ボリュームの監視とメンテナンス
+
+### ボリュームサイズの監視
+
+```bash
+# ボリュームごとのディスク使用量を確認
+docker system df -v
+
+# 特定ボリュームのサイズを確認
+docker run --rm -v myapp_pgdata:/data alpine du -sh /data
+
+# 全ボリュームのサイズを一覧表示
+for vol in $(docker volume ls -q); do
+  size=$(docker run --rm -v "${vol}":/data alpine du -sh /data 2>/dev/null | cut -f1)
+  echo "${vol}: ${size}"
+done
+```
+
+### 定期メンテナンススクリプト
+
+```bash
+#!/bin/bash
+# scripts/volume-maintenance.sh
+
+echo "=== Docker Volume Maintenance ==="
+echo "Date: $(date)"
+
+# 1. ディスク使用状況
+echo ""
+echo "--- Disk Usage ---"
+docker system df
+
+# 2. 未使用ボリューム
+echo ""
+echo "--- Dangling Volumes ---"
+docker volume ls --filter "dangling=true"
+
+# 3. 各ボリュームのサイズ
+echo ""
+echo "--- Volume Sizes ---"
+for vol in $(docker volume ls -q); do
+  size=$(docker run --rm -v "${vol}":/data alpine du -sh /data 2>/dev/null | cut -f1)
+  echo "  ${vol}: ${size}"
+done
+
+# 4. 未使用ボリュームのクリーンアップ（確認付き）
+echo ""
+read -p "Remove dangling volumes? (y/N): " confirm
+if [ "$confirm" = "y" ]; then
+  docker volume prune -f
+  echo "Dangling volumes removed."
+fi
 ```
 
 ---
@@ -439,6 +893,53 @@ volumes:
 
 **なぜ問題か**: Bind Mountはホストのディレクトリ構造に依存するため、異なるホストへの移行やスケールアウトが困難になる。Named Volumeはポータブルで、ボリュームドライバーを変更するだけでNFSやクラウドストレージに切り替えられる。
 
+### アンチパターン3: ボリュームの定期バックアップなし
+
+```yaml
+# NG: バックアップ未設定のDB
+services:
+  db:
+    image: postgres:16-alpine
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    # バックアップの仕組みがない → ディスク障害でデータ全喪失
+
+# OK: バックアップコンテナを併設
+services:
+  db:
+    image: postgres:16-alpine
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  backup:
+    image: postgres:16-alpine
+    volumes:
+      - ./backups:/backups
+    entrypoint: >
+      sh -c "while true; do
+        pg_dump -h db -U postgres myapp | gzip > /backups/daily-$$(date +%Y%m%d).sql.gz;
+        find /backups -mtime +30 -delete;
+        sleep 86400;
+      done"
+```
+
+**なぜ問題か**: ボリュームのデータもディスク障害やオペレーションミスで失われる可能性がある。定期的なバックアップと復元テストは必須。
+
+### アンチパターン4: docker volume prune の安易な実行
+
+```bash
+# NG: 確認なしで全未使用ボリュームを削除
+docker volume prune -f
+# → 停止中のコンテナのデータも含まれる可能性がある
+
+# OK: まず確認してから削除
+docker volume ls --filter "dangling=true"
+# 出力を確認してから:
+docker volume rm <特定のボリューム名>
+```
+
+**なぜ問題か**: `docker volume prune` は「どのコンテナにもマウントされていない」ボリュームを全て削除する。停止中のコンテナが使っていたボリュームも対象になるため、意図せず重要なデータを失う可能性がある。
+
 ---
 
 ## FAQ
@@ -479,6 +980,205 @@ VOLUME /app/data
 docker run --rm -v mydata:/data alpine chown -R 1000:1000 /data
 ```
 
+### Q4: Named Volume と外部ストレージ（S3等）を連携するには？
+
+Docker Volume Plugin を使用する。例えば `rexray/s3fs` プラグインでS3をボリュームとしてマウントできる。ただし、ブロックストレージ（EBS等）の方がパフォーマンスが良い場合が多い。
+
+```bash
+# S3 volume driver プラグインのインストール
+docker plugin install rexray/s3fs \
+  S3FS_ACCESSKEY=xxx \
+  S3FS_SECRETKEY=xxx
+
+# S3バックエンドのボリュームを作成
+docker volume create -d rexray/s3fs my-s3-data
+```
+
+### Q5: ボリュームの暗号化はどう実現する？
+
+Docker 自体にはボリューム暗号化機能がない。以下の方法で対応する:
+- ホストOS側でディスク暗号化 (LUKS, dm-crypt)
+- クラウドプロバイダーの暗号化ストレージ (AWS EBS暗号化, GCP Persistent Disk暗号化)
+- ボリュームプラグインの暗号化機能
+
+### Q6: コンテナ間でボリュームを共有する場合の注意点は？
+
+複数のコンテナが同一ボリュームを同時にマウントする場合、データの一貫性に注意が必要。
+
+```yaml
+# docker-compose.yml
+services:
+  writer:
+    image: my-writer-app:latest
+    volumes:
+      - shared-data:/data   # 書き込みあり
+
+  reader:
+    image: my-reader-app:latest
+    volumes:
+      - shared-data:/data:ro   # 読み取り専用
+
+  processor:
+    image: my-processor:latest
+    volumes:
+      - shared-data:/data:ro   # 読み取り専用
+
+volumes:
+  shared-data:
+```
+
+注意事項:
+- **ファイルロック**: 複数コンテナが同一ファイルに書き込む場合、アプリケーションレベルでロック機構を実装する
+- **読み取り専用**: 読み取りだけのコンテナは `:ro` で明示的にマウントする
+- **データベース**: データベースボリュームは原則として1コンテナからのみアクセスする。レプリケーションが必要なら、データベースのネイティブ機能（PostgreSQLストリーミングレプリケーション等）を使う
+- **NFS**: 複数ホスト間でファイル共有する場合は NFS ボリュームを使用する
+
+### Q7: ボリュームのクリーンアップ戦略は？
+
+未使用ボリュームが蓄積するとディスクを圧迫する。安全なクリーンアップ手順を確立しておく。
+
+```bash
+# 未使用ボリュームの確認（削除はしない）
+docker volume ls -f dangling=true
+
+# 未使用ボリュームの削除
+docker volume prune
+
+# 全未使用リソース（イメージ、コンテナ、ネットワーク、ボリューム）の削除
+docker system prune --volumes
+
+# ラベルベースのクリーンアップ（安全性向上）
+docker volume ls --filter "label=environment=development" -q | xargs docker volume rm
+```
+
+```bash
+#!/bin/bash
+# cleanup-volumes.sh - 安全なボリュームクリーンアップスクリプト
+
+set -euo pipefail
+
+echo "=== 現在のボリューム使用状況 ==="
+docker system df -v | head -20
+
+echo ""
+echo "=== 未使用ボリューム一覧 ==="
+DANGLING=$(docker volume ls -f dangling=true -q)
+
+if [ -z "$DANGLING" ]; then
+    echo "未使用ボリュームはありません。"
+    exit 0
+fi
+
+echo "$DANGLING"
+echo ""
+echo "合計: $(echo "$DANGLING" | wc -l) 個"
+echo ""
+
+# 保護対象ボリュームの確認（名前にprod/productionが含まれるものは除外）
+SAFE_TO_DELETE=$(echo "$DANGLING" | grep -v -E "(prod|production|backup)" || true)
+
+if [ -z "$SAFE_TO_DELETE" ]; then
+    echo "安全に削除可能なボリュームはありません。"
+    exit 0
+fi
+
+echo "以下のボリュームを削除します:"
+echo "$SAFE_TO_DELETE"
+echo ""
+read -p "実行しますか？ (y/N): " confirm
+
+if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
+    echo "$SAFE_TO_DELETE" | xargs docker volume rm
+    echo "削除完了。"
+else
+    echo "キャンセルしました。"
+fi
+```
+
+### Q8: Docker Composeでボリューム名を明示的に設定するには？
+
+デフォルトでは `<プロジェクト名>_<ボリューム名>` 形式になるが、`name` フィールドで明示的に設定できる。
+
+```yaml
+volumes:
+  pgdata:
+    name: my-app-pgdata   # 明示的な名前（プロジェクト名プレフィックスなし）
+    driver: local
+    labels:
+      com.example.project: "my-app"
+      com.example.type: "database"
+```
+
+### Q9: ボリュームデータの移行手順は？
+
+あるホストから別のホストへボリュームデータを移行する方法。
+
+```bash
+#!/bin/bash
+# migrate-volume.sh - ボリュームデータの移行
+
+SOURCE_VOLUME=$1
+TARGET_HOST=$2
+TARGET_VOLUME=$3
+
+# 1. ソースボリュームをtarにエクスポート
+echo "[1/3] ボリュームをエクスポート中..."
+docker run --rm \
+  -v ${SOURCE_VOLUME}:/source:ro \
+  -v $(pwd):/backup \
+  alpine tar czf /backup/volume-backup.tar.gz -C /source .
+
+# 2. tarファイルをリモートホストに転送
+echo "[2/3] リモートホストに転送中..."
+scp volume-backup.tar.gz ${TARGET_HOST}:/tmp/
+
+# 3. リモートホストでボリュームにインポート
+echo "[3/3] リモートホストでインポート中..."
+ssh ${TARGET_HOST} << 'EOF'
+docker volume create ${TARGET_VOLUME}
+docker run --rm \
+  -v ${TARGET_VOLUME}:/target \
+  -v /tmp:/backup:ro \
+  alpine sh -c "cd /target && tar xzf /backup/volume-backup.tar.gz"
+rm /tmp/volume-backup.tar.gz
+echo "移行完了。"
+EOF
+
+# ローカルのバックアップファイルを削除
+rm volume-backup.tar.gz
+echo "すべての処理が完了しました。"
+```
+
+### Q10: ボリュームのサイズ制限は設定できる？
+
+Dockerのデフォルトlocalドライバーでは直接的なサイズ制限機能はない。以下の方法で対応できる。
+
+1. **tmpfsの場合**: `size` オプションで制限可能
+
+```yaml
+services:
+  app:
+    tmpfs:
+      - /tmp:size=100m
+```
+
+2. **xfs + pquota**: ホストがxfsファイルシステムを使用している場合
+
+```bash
+# xfsでプロジェクトクォータを有効化
+docker daemon --storage-opt dm.basesize=20G
+```
+
+3. **ボリュームプラグイン**: 一部のプラグインはサイズ制限をサポート
+
+4. **監視ベース**: サイズ制限の代わりにモニタリングとアラートで対応
+
+```bash
+# ボリュームサイズの定期チェックスクリプト
+docker system df -v | grep "VOLUME" -A 100 | \
+  awk '$NF ~ /GB/ && $NF+0 > 10 {print "WARNING: " $1 " is " $NF}'
+```
+
 ---
 
 ## まとめ
@@ -490,8 +1190,10 @@ docker run --rm -v mydata:/data alpine chown -R 1000:1000 /data
 | tmpfs | メモリ上。機密データの一時保存に最適 |
 | ストレージドライバー | overlay2がデフォルト推奨。CoW方式で動作 |
 | バックアップ | tar + 別コンテナで実施。定期バックアップ必須 |
-| パフォーマンス | DBは必ずNamed Volume。macOSでは:cached活用 |
+| パフォーマンス | DBは必ずNamed Volume。macOSでは依存をVolume分離 |
 | 権限 | Dockerfile内でchown。非rootユーザー設定と組み合わせ |
+| NFS/外部ストレージ | driver_opts で設定。マルチホスト共有に活用 |
+| 監視 | `docker system df -v` で定期確認 |
 
 ---
 
@@ -508,5 +1210,7 @@ docker run --rm -v mydata:/data alpine chown -R 1000:1000 /data
 1. Docker公式ドキュメント "Manage data in Docker" -- https://docs.docker.com/storage/
 2. Docker公式ドキュメント "Use volumes" -- https://docs.docker.com/storage/volumes/
 3. Docker公式ドキュメント "Storage drivers" -- https://docs.docker.com/storage/storagedriver/
-4. Nigel Poulton (2023) *Docker Deep Dive*, Chapter 13: Volumes and Persistent Data
-5. Adrian Mouat (2023) *Using Docker*, Chapter 8: Managing Data with Volumes
+4. Docker公式ドキュメント "Bind mounts" -- https://docs.docker.com/storage/bind-mounts/
+5. Docker公式ドキュメント "tmpfs mounts" -- https://docs.docker.com/storage/tmpfs/
+6. Nigel Poulton (2023) *Docker Deep Dive*, Chapter 13: Volumes and Persistent Data
+7. Adrian Mouat (2023) *Using Docker*, Chapter 8: Managing Data with Volumes

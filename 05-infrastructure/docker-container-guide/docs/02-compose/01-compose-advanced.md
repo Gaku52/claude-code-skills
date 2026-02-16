@@ -7,12 +7,18 @@
 1. **プロファイルによるサービスの選択的起動** -- 開発・テスト・監視など、用途に応じたサービスのグルーピングと選択的起動を実装する
 2. **depends_on と healthcheck の高度な制御** -- サービス間の依存関係を精密に管理し、確実な起動順序を保証する
 3. **環境変数と設定の管理パターン** -- 複数環境での設定切り替え、シークレット管理、ファイルのオーバーライドを実践する
+4. **YAML アンカーと Extension Fields の活用** -- 設定の DRY 化と保守性の向上を実現する
+5. **リソース制限・ロギング・セキュリティ設定** -- プロダクション品質の Compose 構成を構築する
 
 ---
 
 ## 1. プロファイル (Profiles)
 
 ### 1.1 プロファイルの概要
+
+Docker Compose のプロファイル機能は、サービスを論理的にグルーピングし、必要に応じて選択的に起動する仕組みである。開発ツール、テストランナー、監視スタック、デバッグ用ツールなど、常時稼働が不要なサービスを管理するのに最適である。
+
+プロファイルが指定されていないサービスは「デフォルト」として常に起動される。プロファイルが指定されたサービスは、明示的にそのプロファイルを有効化しない限り起動されない。
 
 ```
 +------------------------------------------------------------------+
@@ -26,10 +32,13 @@
 |    pgadmin, redis-commander                                      |
 |                                                                  |
 |  [monitoring プロファイル] (--profile monitoring で起動)           |
-|    prometheus, grafana                                           |
+|    prometheus, grafana, alertmanager                              |
 |                                                                  |
 |  [test プロファイル] (--profile test で起動)                      |
-|    test-runner, db-test                                          |
+|    test-runner, db-test, test-mail                                |
+|                                                                  |
+|  [seed プロファイル] (--profile seed で起動)                      |
+|    db-seeder, sample-data-loader                                 |
 |                                                                  |
 +------------------------------------------------------------------+
 ```
@@ -96,6 +105,14 @@ services:
     volumes:
       - grafana_data:/var/lib/grafana
 
+  alertmanager:
+    image: prom/alertmanager:latest
+    profiles: ["monitoring"]
+    volumes:
+      - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+    ports:
+      - "9093:9093"
+
   # test プロファイル
   test-runner:
     build:
@@ -106,6 +123,19 @@ services:
       db:
         condition: service_healthy
     command: npm test
+
+  # seed プロファイル (初期データ投入)
+  db-seeder:
+    build:
+      context: .
+      dockerfile: Dockerfile.seed
+    profiles: ["seed"]
+    depends_on:
+      db:
+        condition: service_healthy
+    command: npx prisma db seed
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/myapp
 
 volumes:
   grafana_data:
@@ -128,6 +158,100 @@ docker compose --profile test run --rm test-runner
 
 # 環境変数で指定
 COMPOSE_PROFILES=debug,monitoring docker compose up -d
+
+# プロファイル指定のサービスのみ停止
+docker compose --profile debug stop
+
+# 特定プロファイルのサービス一覧を確認
+docker compose --profile test ps
+
+# 全プロファイルを含む全サービスの状態確認
+docker compose --profile "*" ps
+```
+
+### 1.4 プロファイルの実践的な活用パターン
+
+#### パターン A: 開発/ステージング/本番の切り替え
+
+```yaml
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+
+  # 開発専用のメールキャッチャー
+  mailhog:
+    image: mailhog/mailhog:latest
+    profiles: ["dev"]
+    ports:
+      - "1025:1025"
+      - "8025:8025"    # Web UI
+
+  # ステージング用の負荷テストツール
+  k6:
+    image: grafana/k6:latest
+    profiles: ["staging"]
+    volumes:
+      - ./tests/load:/scripts
+    command: run /scripts/load-test.js
+
+  # 本番用のログ収集
+  fluentd:
+    image: fluent/fluentd:v1.16
+    profiles: ["production"]
+    volumes:
+      - ./fluentd/conf:/fluentd/etc
+    ports:
+      - "24224:24224"
+```
+
+#### パターン B: データベースマイグレーション管理
+
+```yaml
+services:
+  db:
+    image: postgres:16-alpine
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # マイグレーション実行
+  migrate:
+    build: .
+    profiles: ["migrate"]
+    depends_on:
+      db:
+        condition: service_healthy
+    command: npx prisma migrate deploy
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/myapp
+
+  # マイグレーション生成（開発時のみ）
+  migrate-dev:
+    build: .
+    profiles: ["migrate-dev"]
+    depends_on:
+      db:
+        condition: service_healthy
+    command: npx prisma migrate dev
+    volumes:
+      - ./prisma:/app/prisma
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/myapp
+
+  # DB スキーマのリセット（危険操作）
+  db-reset:
+    build: .
+    profiles: ["db-reset"]
+    depends_on:
+      db:
+        condition: service_healthy
+    command: npx prisma migrate reset --force
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/myapp
 ```
 
 ---
@@ -135,6 +259,8 @@ COMPOSE_PROFILES=debug,monitoring docker compose up -d
 ## 2. depends_on と healthcheck
 
 ### 2.1 depends_on の 3 つの条件
+
+Docker Compose では、サービス間の依存関係を 3 つの条件で制御できる。これにより、単純な起動順序の制御から、ヘルスチェックの通過やワンショットタスクの完了待ちまで、柔軟な制御が可能になる。
 
 ```yaml
 services:
@@ -149,7 +275,17 @@ services:
         restart: true                 # 再起動時も待機
 ```
 
+各条件の詳細な動作は以下の通りである。
+
+| 条件 | 動作 | 典型的な用途 |
+|------|------|-------------|
+| `service_started` | コンテナのプロセスが起動したら即座に次へ進む | 起動が速いサービス（Redis 等） |
+| `service_healthy` | healthcheck が passing になるまで待機する | DB、Elasticsearch 等の初期化に時間がかかるサービス |
+| `service_completed_successfully` | コンテナが終了コード 0 で完了するまで待機する | マイグレーション、シード、初期化スクリプト |
+
 ### 2.2 healthcheck の詳細設定
+
+各種データストア・サービスに対する healthcheck の実装例を示す。ヘルスチェックは、サービスが「起動した」だけでなく「リクエストを受け付けられる状態になった」ことを確認するために不可欠である。
 
 ```yaml
 services:
@@ -173,6 +309,16 @@ services:
       retries: 5
       start_period: 30s
 
+  # MariaDB
+  mariadb:
+    image: mariadb:11
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
   # Redis
   redis:
     image: redis:7-alpine
@@ -182,11 +328,41 @@ services:
       timeout: 3s
       retries: 5
 
+  # Redis (パスワード付き)
+  redis-auth:
+    image: redis:7-alpine
+    command: redis-server --requirepass mypassword
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "mypassword", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # MongoDB
+  mongodb:
+    image: mongo:7
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
   # HTTP サービス
   api:
     build: .
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:3000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # HTTP サービス (wget を使う場合 - curl がないイメージ向け)
+  api-alpine:
+    build: .
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -201,6 +377,36 @@ services:
       timeout: 10s
       retries: 10
       start_period: 60s
+
+  # RabbitMQ
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # Kafka (KRaft mode)
+  kafka:
+    image: bitnami/kafka:3.7
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  # MinIO (S3互換ストレージ)
+  minio:
+    image: minio/minio:latest
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 ```
 
 ### 2.3 依存関係の可視化
@@ -222,11 +428,150 @@ services:
 +------------------------------------------------------------------+
 ```
 
+### 2.4 複雑な依存関係チェーンの実装
+
+実際のアプリケーションでは、DB 起動 → マイグレーション → シードデータ投入 → アプリ起動という一連の流れが必要になる。以下はその完全な実装例である。
+
+```yaml
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: myapp
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d myapp"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  # ステップ 1: マイグレーション実行
+  migration:
+    build:
+      context: .
+      target: migration
+    depends_on:
+      db:
+        condition: service_healthy
+    command: npx prisma migrate deploy
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/myapp
+
+  # ステップ 2: シードデータ投入 (マイグレーション完了後)
+  seed:
+    build:
+      context: .
+      target: seed
+    depends_on:
+      migration:
+        condition: service_completed_successfully
+    command: npx prisma db seed
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/myapp
+
+  # ステップ 3: アプリ起動 (シード完了後)
+  app:
+    build:
+      context: .
+      target: production
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/myapp
+      REDIS_URL: redis://redis:6379
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ワーカープロセス (アプリと同じ依存関係)
+  worker:
+    build:
+      context: .
+      target: production
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    command: node dist/worker.js
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/myapp
+      REDIS_URL: redis://redis:6379
+
+volumes:
+  pgdata:
+```
+
+### 2.5 ヘルスチェックのカスタムスクリプト
+
+複雑なヘルスチェックが必要な場合は、専用のスクリプトを用意してコンテナにコピーする。
+
+```bash
+#!/bin/bash
+# healthcheck.sh - 複合的なヘルスチェック
+
+# 1. HTTP エンドポイントの確認
+if ! curl -sf http://localhost:3000/health > /dev/null 2>&1; then
+    echo "HTTP health check failed"
+    exit 1
+fi
+
+# 2. DB 接続の確認
+if ! node -e "
+  const { PrismaClient } = require('@prisma/client');
+  const prisma = new PrismaClient();
+  prisma.\$queryRaw\`SELECT 1\`.then(() => process.exit(0)).catch(() => process.exit(1));
+" 2>/dev/null; then
+    echo "Database connection check failed"
+    exit 1
+fi
+
+# 3. Redis 接続の確認
+if ! node -e "
+  const Redis = require('ioredis');
+  const redis = new Redis(process.env.REDIS_URL);
+  redis.ping().then(() => process.exit(0)).catch(() => process.exit(1));
+" 2>/dev/null; then
+    echo "Redis connection check failed"
+    exit 1
+fi
+
+echo "All health checks passed"
+exit 0
+```
+
+```dockerfile
+# Dockerfile
+FROM node:20-alpine AS production
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+COPY healthcheck.sh /usr/local/bin/healthcheck.sh
+RUN chmod +x /usr/local/bin/healthcheck.sh
+HEALTHCHECK --interval=15s --timeout=10s --retries=3 --start-period=30s \
+    CMD /usr/local/bin/healthcheck.sh
+```
+
 ---
 
 ## 3. 環境変数の管理
 
 ### 3.1 環境変数の優先順位
+
+Docker Compose では、環境変数の値が複数のソースから供給される場合、明確な優先順位が定められている。
 
 ```
 +------------------------------------------------------------------+
@@ -250,17 +595,30 @@ services:
 COMPOSE_PROJECT_NAME=myapp
 POSTGRES_VERSION=16
 NODE_VERSION=20
+APP_PORT=3000
 
 # .env.development (アプリ用。env_file で明示的に読み込む)
 NODE_ENV=development
 DATABASE_URL=postgresql://postgres:postgres@db:5432/myapp_dev
 REDIS_URL=redis://redis:6379
 LOG_LEVEL=debug
+CORS_ORIGIN=http://localhost:3000
+SESSION_SECRET=dev-secret-key-not-for-production
+SMTP_HOST=mailhog
+SMTP_PORT=1025
+
+# .env.staging (ステージング用)
+NODE_ENV=staging
+DATABASE_URL=postgresql://staging_user:staging_pass@db:5432/myapp_staging
+REDIS_URL=redis://redis:6379
+LOG_LEVEL=info
+CORS_ORIGIN=https://staging.example.com
 
 # .env.production (本番用)
 NODE_ENV=production
 DATABASE_URL=postgresql://user:password@db-prod:5432/myapp
 LOG_LEVEL=warn
+CORS_ORIGIN=https://www.example.com
 ```
 
 ```yaml
@@ -278,7 +636,34 @@ services:
     image: postgres:${POSTGRES_VERSION}-alpine
 ```
 
-### 3.3 シークレット管理
+### 3.3 環境変数の展開構文
+
+```yaml
+services:
+  app:
+    environment:
+      # 基本形
+      DB_HOST: ${DB_HOST}
+
+      # デフォルト値 (未設定 or 空文字の場合)
+      DB_PORT: ${DB_PORT:-5432}
+
+      # デフォルト値 (未定義の場合のみ)
+      DB_NAME: ${DB_NAME-myapp}
+
+      # 未設定時にエラー
+      DB_PASSWORD: ${DB_PASSWORD:?Database password must be set}
+
+      # 設定済みの場合に代替値を使用
+      DB_SSL: ${DB_HOST:+true}
+
+      # ネストした変数展開（Compose V2.24+）
+      FULL_DB_URL: "postgresql://${DB_USER:-postgres}:${DB_PASSWORD}@${DB_HOST:-db}:${DB_PORT:-5432}/${DB_NAME:-myapp}"
+```
+
+### 3.4 シークレット管理
+
+Docker Compose のシークレット機能は、パスワードや API キーなどの機密情報を環境変数に直接書かずに管理する方法を提供する。
 
 ```yaml
 # docker-compose.yml
@@ -295,12 +680,68 @@ services:
     secrets:
       - db_password
       - api_key
+      - jwt_secret
+    environment:
+      # アプリケーション側でシークレットファイルを読む
+      DB_PASSWORD_FILE: /run/secrets/db_password
+      API_KEY_FILE: /run/secrets/api_key
+      JWT_SECRET_FILE: /run/secrets/jwt_secret
 
 secrets:
   db_password:
     file: ./secrets/db_password.txt     # ファイルから読み込み
   api_key:
     environment: API_KEY                 # 環境変数から (Compose V2.22+)
+  jwt_secret:
+    file: ./secrets/jwt_secret.txt
+```
+
+アプリケーション側でシークレットファイルを読む実装例（Node.js）:
+
+```javascript
+// config/secrets.js
+const fs = require('fs');
+const path = require('path');
+
+function readSecret(name) {
+  const filePath = process.env[`${name}_FILE`];
+  if (filePath && fs.existsSync(filePath)) {
+    return fs.readFileSync(filePath, 'utf8').trim();
+  }
+  // フォールバック: 環境変数から直接取得
+  return process.env[name];
+}
+
+module.exports = {
+  dbPassword: readSecret('DB_PASSWORD'),
+  apiKey: readSecret('API_KEY'),
+  jwtSecret: readSecret('JWT_SECRET'),
+};
+```
+
+### 3.5 .env ファイルの .gitignore 設定
+
+```gitignore
+# .gitignore
+.env
+.env.local
+.env.*.local
+.env.production
+.env.staging
+secrets/
+
+# テンプレートはコミットする
+!.env.example
+!.env.development.example
+```
+
+```bash
+# .env.example (テンプレートとしてコミット)
+COMPOSE_PROJECT_NAME=myapp
+POSTGRES_VERSION=16
+NODE_VERSION=20
+DB_PASSWORD=<SET_YOUR_PASSWORD>
+API_KEY=<SET_YOUR_API_KEY>
 ```
 
 ---
@@ -308,6 +749,8 @@ secrets:
 ## 4. 複数 Compose ファイルのマージ
 
 ### 4.1 オーバーライドパターン
+
+Docker Compose は複数の設定ファイルをマージして一つの構成を作成できる。これにより、ベース設定と環境固有の設定を分離し、DRY な構成管理を実現できる。
 
 ```yaml
 # docker-compose.yml (ベース設定)
@@ -321,6 +764,14 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+
+volumes:
+  pgdata:
 ```
 
 ```yaml
@@ -360,11 +811,44 @@ services:
         limits:
           cpus: '1.0'
           memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
     logging:
       driver: json-file
       options:
         max-size: "10m"
         max-file: "3"
+
+  db:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+
+  redis:
+    restart: always
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+```
+
+```yaml
+# docker-compose.ci.yml (CI 専用)
+services:
+  app:
+    build:
+      target: test
+    environment:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/myapp_test
+
+  db:
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: myapp_test
+    tmpfs:
+      - /var/lib/postgresql/data    # CI ではメモリ上で高速化
 ```
 
 ### 4.2 マージのコマンド
@@ -376,8 +860,47 @@ docker compose up -d
 # 本番 (override を除外し、prod を適用)
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
+# CI (override を除外し、ci を適用)
+docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d
+
 # 設定のマージ結果を確認
 docker compose -f docker-compose.yml -f docker-compose.prod.yml config
+
+# 特定のサービスのみマージ結果を確認
+docker compose -f docker-compose.yml -f docker-compose.prod.yml config --services
+
+# マージ結果をファイルに出力
+docker compose -f docker-compose.yml -f docker-compose.prod.yml config > docker-compose.resolved.yml
+```
+
+### 4.3 マージの規則詳細
+
+| 設定項目 | マージ動作 |
+|----------|-----------|
+| `image`, `command`, `entrypoint` | 後のファイルで上書き |
+| `environment` | マージ（キー単位で上書き） |
+| `volumes` | マージ（追加される） |
+| `ports` | マージ（追加される） |
+| `networks` | マージ（追加される） |
+| `labels` | マージ（キー単位で上書き） |
+| `deploy` | ディープマージ |
+| `build.args` | マージ（キー単位で上書き） |
+| `healthcheck` | 後のファイルで完全上書き |
+
+### 4.4 COMPOSE_FILE 環境変数による自動選択
+
+```bash
+# .env ファイルで読み込むファイルを指定
+# 開発環境
+COMPOSE_FILE=docker-compose.yml:docker-compose.override.yml
+
+# ステージング環境
+COMPOSE_FILE=docker-compose.yml:docker-compose.staging.yml
+
+# 本番環境
+COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml
+
+# 区切り文字はデフォルトで「:」(Linux/macOS) または「;」(Windows)
 ```
 
 ---
@@ -394,6 +917,7 @@ services:
         limits:
           cpus: '0.5'        # CPU 0.5 コア
           memory: 256M        # メモリ 256MB
+          pids: 100           # プロセス数上限
         reservations:
           cpus: '0.25'       # 最低保証 CPU
           memory: 128M        # 最低保証メモリ
@@ -407,9 +931,71 @@ services:
       nofile:
         soft: 65536
         hard: 65536
+      nproc:
+        soft: 4096
+        hard: 4096
+
+    # SHM サイズ制限 (共有メモリ)
+    shm_size: '256m'
+
+    # ストップシグナルとタイムアウト
+    stop_signal: SIGTERM
+    stop_grace_period: 30s
 ```
 
-### 5.2 ロギング設定
+### 5.2 各サービスの推奨リソース設定
+
+```yaml
+services:
+  # Node.js アプリ
+  app:
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+  # PostgreSQL
+  db:
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    shm_size: '256m'    # PostgreSQL は共有メモリを多用
+
+  # Redis
+  redis:
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+
+  # Elasticsearch
+  elasticsearch:
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+    environment:
+      ES_JAVA_OPTS: "-Xms512m -Xmx1g"   # JVM ヒープもメモリ制限に合わせる
+```
+
+### 5.3 ロギング設定
 
 ```yaml
 services:
@@ -421,6 +1007,7 @@ services:
         max-file: "3"        # ローテーション数
         compress: "true"     # 圧縮
         labels: "service"
+        tag: "{{.Name}}/{{.ID}}"  # ログタグのカスタマイズ
 
   # 全サービス共通のログ設定 (YAML アンカー)
   db:
@@ -434,9 +1021,41 @@ services:
     logging: *default-logging  # アンカーを参照
 ```
 
+### 5.4 外部ロギングドライバーの設定
+
+```yaml
+services:
+  # Fluentd ドライバー
+  app:
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: localhost:24224
+        tag: myapp.{{.Name}}
+        fluentd-async: "true"
+        fluentd-retry-wait: "1s"
+        fluentd-max-retries: "10"
+
+  # syslog ドライバー
+  api:
+    logging:
+      driver: syslog
+      options:
+        syslog-address: "tcp://logserver:514"
+        syslog-facility: "daemon"
+        tag: "{{.Name}}"
+
+  # ログを無効化 (出力が多すぎるサービス)
+  noisy-service:
+    logging:
+      driver: none
+```
+
 ---
 
 ## 6. YAML アンカーとエイリアス
+
+### 6.1 基本的なアンカーとエイリアス
 
 ```yaml
 # 共通設定をアンカーで定義
@@ -476,9 +1095,208 @@ services:
     logging: *default-logging
 ```
 
+### 6.2 Extension Fields (x- プレフィックス) の高度な活用
+
+Extension Fields は Compose が解釈しないカスタムフィールドで、アンカーの定義場所として使用する。サービス定義全体を共通化する場合に特に効果的である。
+
+```yaml
+# サービスのテンプレート
+x-app-base: &app-base
+  build:
+    context: .
+    dockerfile: Dockerfile
+  restart: always
+  networks:
+    - app-net
+  logging: &default-logging
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+  deploy:
+    resources:
+      limits:
+        cpus: '1.0'
+        memory: 512M
+      reservations:
+        cpus: '0.25'
+        memory: 128M
+  environment: &common-env
+    TZ: Asia/Tokyo
+    LANG: ja_JP.UTF-8
+    NODE_ENV: production
+    DATABASE_URL: postgresql://postgres:${DB_PASSWORD}@db:5432/myapp
+    REDIS_URL: redis://redis:6379
+
+x-db-healthcheck: &db-healthcheck
+  test: ["CMD-SHELL", "pg_isready -U postgres"]
+  interval: 5s
+  timeout: 5s
+  retries: 5
+  start_period: 30s
+
+services:
+  # テンプレートを継承してカスタマイズ
+  web:
+    <<: *app-base
+    ports:
+      - "3000:3000"
+    command: node dist/web.js
+    environment:
+      <<: *common-env
+      SERVER_TYPE: web
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  api:
+    <<: *app-base
+    ports:
+      - "8080:8080"
+    command: node dist/api.js
+    environment:
+      <<: *common-env
+      SERVER_TYPE: api
+
+  worker:
+    <<: *app-base
+    command: node dist/worker.js
+    environment:
+      <<: *common-env
+      SERVER_TYPE: worker
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G  # ワーカーはメモリを多く使う
+
+  scheduler:
+    <<: *app-base
+    command: node dist/scheduler.js
+    environment:
+      <<: *common-env
+      SERVER_TYPE: scheduler
+
+  db:
+    image: postgres:16-alpine
+    restart: always
+    healthcheck:
+      <<: *db-healthcheck
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - app-net
+    logging: *default-logging
+
+networks:
+  app-net:
+
+volumes:
+  pgdata:
+```
+
+### 6.3 条件分岐的な設定（アンカーとオーバーライドの組み合わせ）
+
+```yaml
+# docker-compose.yml
+x-app-volumes: &app-volumes
+  volumes:
+    - app-data:/data
+
+services:
+  app:
+    <<: *app-volumes
+    image: myapp:latest
+```
+
+```yaml
+# docker-compose.override.yml (開発環境で上書き)
+services:
+  app:
+    volumes:
+      - .:/app
+      - app-data:/data    # 元の Volume も維持
+```
+
 ---
 
-## 7. 高度な設定比較
+## 7. ネットワーク分離の高度な設定
+
+### 7.1 マルチネットワーク構成
+
+```yaml
+services:
+  # フロントエンド (public + app-tier のみ)
+  nginx:
+    image: nginx:alpine
+    networks:
+      - public
+      - app-tier
+    ports:
+      - "80:80"
+      - "443:443"
+
+  # アプリケーション (app-tier + data-tier)
+  app:
+    build: .
+    networks:
+      - app-tier
+      - data-tier
+      - cache-tier
+
+  # データベース (data-tier のみ / 外部アクセス不可)
+  db:
+    image: postgres:16-alpine
+    networks:
+      - data-tier
+
+  # Redis (cache-tier のみ)
+  redis:
+    image: redis:7-alpine
+    networks:
+      - cache-tier
+
+networks:
+  public:
+    driver: bridge
+  app-tier:
+    driver: bridge
+  data-tier:
+    driver: bridge
+    internal: true     # 外部アクセスを完全遮断
+  cache-tier:
+    driver: bridge
+    internal: true
+```
+
+### 7.2 IP アドレスの固定
+
+```yaml
+services:
+  app:
+    networks:
+      app-net:
+        ipv4_address: 172.28.0.10
+
+  db:
+    networks:
+      app-net:
+        ipv4_address: 172.28.0.20
+
+networks:
+  app-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24
+          gateway: 172.28.0.1
+```
+
+---
+
+## 8. 高度な設定比較
 
 | 機能 | 基本設定 | 応用設定 |
 |------|---------|---------|
@@ -489,6 +1307,63 @@ services:
 | リソース | 無制限 | `deploy.resources.limits` で CPU/メモリ制限 |
 | プロファイル | 全サービス起動 | `profiles` で用途別グルーピング |
 | 設定管理 | 単一ファイル | `override.yml` + `prod.yml` でレイヤー化 |
+| ヘルスチェック | なし | サービスごとの専用チェック + カスタムスクリプト |
+| シークレット | 環境変数に直接記載 | `secrets` + `*_FILE` パターン |
+| YAML 再利用 | コピー&ペースト | `x-` Extension Fields + アンカー |
+
+---
+
+## 9. Compose の便利なコマンド集
+
+### 9.1 日常操作
+
+```bash
+# サービスの状態確認
+docker compose ps
+docker compose ps -a    # 停止中のコンテナも表示
+
+# ログの確認
+docker compose logs -f              # 全サービスのログをフォロー
+docker compose logs -f app worker   # 特定サービスのみ
+docker compose logs --tail=50 app   # 最新50行
+docker compose logs --since=1h      # 直近1時間のログ
+
+# サービスの再起動
+docker compose restart app          # app のみ再起動
+docker compose up -d --force-recreate app   # 強制再作成
+
+# 設定の確認
+docker compose config               # マージ結果を表示
+docker compose config --services    # サービス一覧
+docker compose config --volumes     # ボリューム一覧
+
+# イメージのビルド
+docker compose build                # 全サービスビルド
+docker compose build --no-cache     # キャッシュなしでビルド
+docker compose build --parallel     # 並列ビルド
+docker compose build app worker     # 特定サービスのみ
+
+# コンテナ内でコマンド実行
+docker compose exec app sh                  # シェルに入る
+docker compose exec -T app npm run migrate  # TTY なし（スクリプト向け）
+docker compose run --rm app npm test         # ワンショット実行
+```
+
+### 9.2 クリーンアップ
+
+```bash
+# サービス停止
+docker compose stop                 # 停止のみ
+docker compose down                 # 停止 + コンテナ削除
+docker compose down -v              # 停止 + コンテナ + ボリューム削除
+docker compose down --remove-orphans # 孤立コンテナも削除
+docker compose down --rmi local     # ローカルイメージも削除
+docker compose down -v --rmi all    # 全て削除
+
+# 特定サービスのみ停止
+docker compose stop app
+docker compose rm -f app
+```
 
 ---
 
@@ -542,6 +1417,52 @@ services:
 
 **問題点**: Docker のデフォルトログドライバ (json-file) はサイズ無制限でログを蓄積する。長時間稼働するサービスではログファイルがディスクを圧迫し、最終的にホストマシンのディスクが枯渇してシステム全体が停止する。
 
+### アンチパターン 3: シークレットを環境変数に直接記載
+
+```yaml
+# NG: パスワードをファイルに直接記載
+services:
+  db:
+    environment:
+      POSTGRES_PASSWORD: my_super_secret_password  # Git にコミットされる
+
+# OK: .env ファイルまたは secrets を使用
+services:
+  db:
+    environment:
+      POSTGRES_PASSWORD: ${DB_PASSWORD}  # .env から取得
+    # または secrets を使用
+    secrets:
+      - db_password
+```
+
+**問題点**: `docker-compose.yml` にハードコードされたパスワードは Git リポジトリにコミットされ、漏洩リスクが極めて高い。`.env` ファイルを `.gitignore` に追加するか、Docker の `secrets` 機能を使用する。
+
+### アンチパターン 4: リソース制限なしの本番運用
+
+```yaml
+# NG: リソース制限なし → 1つのサービスがホストのリソースを食い尽くす
+services:
+  app:
+    image: myapp:latest
+    # deploy.resources 未設定
+
+# OK: 適切なリソース制限を設定
+services:
+  app:
+    image: myapp:latest
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+```
+
+**問題点**: メモリリークやCPU 暴走が発生した場合、制限がないとホスト全体のリソースが枯渇し、他のサービスや SSH 接続すらも影響を受ける。特に本番環境では必ず制限を設定する。
+
 ---
 
 ## FAQ
@@ -558,6 +1479,27 @@ services:
 
 **A**: `${VARIABLE}` が基本形。デフォルト値は `${VARIABLE:-default}` (未設定時) と `${VARIABLE-default}` (未定義時のみ)。エラーにする場合は `${VARIABLE:?error message}`。これらは `.env` ファイルまたはシェルの環境変数から値を取得する。Compose ファイル内の `environment:` セクションの値は展開されるが、コンテナ内での展開とは異なる点に注意。
 
+### Q4: depends_on の restart: true オプションは何ですか？
+
+**A**: Compose V2.20+ で追加された機能で、依存先のサービスが再起動された場合に、依存元のサービスも自動的に再起動させる。例えば、DB コンテナが再起動された場合に、自動的にアプリコンテナも再起動させたい場合に使用する。
+
+```yaml
+services:
+  app:
+    depends_on:
+      db:
+        condition: service_healthy
+        restart: true    # db が再起動されたら app も再起動
+```
+
+### Q5: healthcheck の start_period はどう設定すべきですか？
+
+**A**: `start_period` はサービスの初期化に必要な時間を見積もって設定する。この期間中のヘルスチェック失敗はリトライ回数にカウントされない。PostgreSQL なら 30 秒、Elasticsearch なら 60 秒程度が目安。テスト環境で `docker compose up` してから実際にサービスが応答するまでの時間を計測し、その値の 1.5〜2 倍を設定するのが安全である。
+
+### Q6: Compose V2 と V1 (docker-compose コマンド) の違いは？
+
+**A**: Compose V2 は `docker compose`（ハイフンなし）で呼び出す Go 言語で実装されたプラグインである。V1 は `docker-compose`（ハイフンあり）で呼び出す Python 実装で、2023 年に EOL となった。V2 では `version:` フィールドが不要になり、`profiles`、`watch`、`include` など多くの新機能が追加されている。新規プロジェクトでは必ず V2 を使用すべきである。
+
 ---
 
 ## まとめ
@@ -572,6 +1514,8 @@ services:
 | YAML アンカー | `x-` Extension Fields + アンカーで設定の DRY 化 |
 | リソース制限 | `deploy.resources.limits` で CPU/メモリを制限 |
 | ログ管理 | `max-size` + `max-file` でディスク枯渇を防止 |
+| ネットワーク分離 | `internal: true` + 複数ネットワークでセキュリティ強化 |
+| シークレット管理 | `secrets` + `*_FILE` パターンで安全に機密情報を管理 |
 
 ## 次に読むべきガイド
 
@@ -585,3 +1529,6 @@ services:
 2. **Compose Specification - Healthcheck** -- https://docs.docker.com/compose/compose-file/05-services/#healthcheck -- ヘルスチェック設定の詳細
 3. **Environment variables in Compose** -- https://docs.docker.com/compose/environment-variables/ -- 環境変数の優先順位と管理方法
 4. **Compose file merge** -- https://docs.docker.com/compose/multiple-compose-files/ -- 複数ファイルのマージ規則
+5. **Compose Specification - Extension Fields** -- https://docs.docker.com/compose/compose-file/11-extension/ -- Extension Fields の仕様
+6. **Compose Specification - Secrets** -- https://docs.docker.com/compose/use-secrets/ -- シークレット管理の公式ドキュメント
+7. **Docker Compose V2 Release Notes** -- https://docs.docker.com/compose/release-notes/ -- V2 の新機能と変更点
