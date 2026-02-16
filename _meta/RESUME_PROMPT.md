@@ -5,27 +5,31 @@
 ---
 
 ```
-Skills超大作の40KB+拡充を続きから再開してください。
+Skills超大作の40KB+拡充を続きから再開してください。RESUME_PROMPTを読んでから開始。
 
-## 現在の状態（2026-02-15時点）
+## 現在の状態（2026-02-16時点）
 - Phase 1 = 全901ファイルが40KB+で完成
-- 現在: 252/901（27%）コミット&プッシュ済み
+- 現在: 405/901（44%）コミット&プッシュ済み
+- 総文字数: 約2,188万字
 
 ### カテゴリ別進捗
 - 03-software-design: 58/58 完了
+- 05-infrastructure: 130/130 完了
 - 06-data-and-security: 63/63 完了
-- 07-ai: 120/125（残5ファイル）
-  - analysis-guide: 残1（03-python-ml-stack.md）
-  - audio-generation: 残1（03-midi-ai.md）
-  - automation: 残3（00-ai-saas, 01-ai-consulting, 02-content-creation）
-- 05-infrastructure: 8/130（残122ファイル）
+- 07-ai: 125/125 完了
+- 02-programming: 26/118（着手済み）
+  - async-and-error-handling: 14/18（残4）
+  - go-practical-guide: 12/18（残6）
+  - object-oriented-programming: 0/20
+  - regex-and-text-processing: 0/12
+  - rust-systems-programming: 0/25
+  - typescript-complete-guide: 0/25
 - 01-cs-fundamentals: 0/131
-- 02-programming: 0/118
 - 04-web-and-network: 0/75
-- 08-hobby: 0/201（一部4ファイル完了）
+- 08-hobby: 3/201
 
 ### 作業順序
-07-ai残り5 → 05-infra残り122 → 02-prog → 01-cs → 04-web → 08-hobby
+02-prog残り92 → 01-cs(131) → 04-web(75) → 08-hobby(201)
 
 ## 作業手順
 
@@ -38,9 +42,7 @@ for cat in /Users/gaku/.claude/skills/0*/; do
 done
 
 ### Step 2: 残りファイル特定
-# 現在作業中のカテゴリの残りファイルを確認
-find /Users/gaku/.claude/skills/07-ai/ -path "*/docs/*.md" -not -size +40000c | sort
-find /Users/gaku/.claude/skills/05-infrastructure/ -path "*/docs/*.md" -not -size +40000c | sort
+find /Users/gaku/.claude/skills/02-programming/ -path "*/docs/*.md" -not -size +40000c | sort
 
 ### Step 3: 並列エージェント起動
 - 1エージェントあたり5-6ファイル（10+はタイムアウトリスク高）
@@ -75,4 +77,5 @@ find <category> -path "*/docs/*.md" -not -size +40000c -exec sh -c \
 
 - 上記の ``` 内をコピペするだけで新セッションから完全再開可能
 - MEMORY.md（自動読み込み）にも進捗を記録済み
-- 前回コミット: 0dec9db → 397c443（2026-02-15）
+- 前回コミット: a8aabbb（2026-02-16）
+- Docker Desktop インストール済み（v4.60.1）
