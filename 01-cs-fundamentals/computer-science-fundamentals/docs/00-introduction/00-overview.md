@@ -7,6 +7,8 @@
 - [ ] コンピュータサイエンスの定義と主要分野を説明できる
 - [ ] CSの各分野がどう関連しているか理解する
 - [ ] 本Skill全体の構成と学習の進め方を把握する
+- [ ] 計算的思考（Computational Thinking）の4つの要素を実践できる
+- [ ] CSが他の学問分野とどう交差するか説明できる
 
 ## 前提知識
 
@@ -85,6 +87,96 @@ CSの研究対象は物理的なコンピュータに限定されない:
 - **アルゴリズム**: 紀元前からあるユークリッドの互除法もアルゴリズム
 - **情報理論**: 通信路の容量を扱う理論
 
+### 1.4 計算的思考（Computational Thinking）
+
+CSの本質的な価値は「計算的思考」と呼ばれる問題解決の方法論にある。ジャネット・ウィング（Jeannette Wing）が2006年に提唱した概念で、CS以外の分野にも広く応用できる:
+
+```
+計算的思考の4つの要素:
+
+┌─────────────────────────────────────────────────────────────┐
+│                  計算的思考 (Computational Thinking)          │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  1. 分解（Decomposition）                                   │
+│     複雑な問題を小さな部分問題に分ける                       │
+│     例: Webアプリ → フロントエンド + バックエンド + DB        │
+│                                                             │
+│  2. パターン認識（Pattern Recognition）                      │
+│     異なる問題の中に共通するパターンを見つける               │
+│     例: 最短経路もスケジュール最適化もグラフ問題              │
+│                                                             │
+│  3. 抽象化（Abstraction）                                   │
+│     本質的でない詳細を無視し、重要な側面に集中する           │
+│     例: TCP/IPの各層は下位層の詳細を隠蔽する                 │
+│                                                             │
+│  4. アルゴリズム的思考（Algorithmic Thinking）               │
+│     解決策を明確で再現可能な手順として表現する               │
+│     例: 料理のレシピ、ソフトウェアの仕様書                   │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**計算的思考の実務応用例**:
+
+```python
+# 計算的思考を適用したAPIパフォーマンス改善
+
+# 1. 分解: 遅いAPIエンドポイントをプロファイリングで分解
+# → DBクエリ: 800ms / ビジネスロジック: 50ms / シリアライズ: 150ms
+# → DBクエリがボトルネックと特定
+
+# 2. パターン認識: 同様の遅いAPIが他にもある
+# → 全てN+1クエリが原因というパターンを発見
+
+# 3. 抽象化: 個々のAPIの詳細ではなく、ORM使用パターンに着目
+# → prefetch_related / select_related の体系的な適用
+
+# 4. アルゴリズム的思考: 改善手順の明確化
+def optimize_api():
+    """API最適化の標準手順"""
+    # Step 1: プロファイリングでボトルネック特定
+    profile = measure_endpoint_performance()
+
+    # Step 2: N+1問題の自動検出
+    n_plus_one = detect_n_plus_one_queries(profile)
+
+    # Step 3: JOINまたはプリフェッチの適用
+    for query in n_plus_one:
+        apply_prefetch(query)
+
+    # Step 4: 効果測定
+    assert measure_improvement() > 0.5  # 50%以上改善
+```
+
+### 1.5 CSと隣接分野の関係
+
+CSは多くの分野と交差し、新しい学問領域を生み出している:
+
+```
+CSと隣接分野の交差:
+
+  数学 ────────────┬── 計算理論、暗号理論
+                   │
+  物理学 ──────────┤── 量子コンピューティング、シミュレーション
+                   │
+  生物学 ──────────┤── バイオインフォマティクス、計算生物学
+                   │
+  経済学 ──────────┤── アルゴリズム取引、計算経済学
+                   │
+  言語学 ──────────┤── 自然言語処理、計算言語学
+                   │
+  心理学 ──────────┤── HCI、認知科学
+                   │
+  医学 ────────────┤── 医療画像診断AI、電子カルテ
+                   │
+  芸術 ────────────┤── コンピュータグラフィックス、生成AI
+                   │
+  法学 ────────────┴── AIの法規制、データプライバシー
+```
+
+この学際性こそがCSの魅力であり、CSを学ぶことで他分野にも計算的手法を適用できるようになる。
+
 ---
 
 ## 2. CSの主要10分野
@@ -92,7 +184,7 @@ CSの研究対象は物理的なコンピュータに限定されない:
 CSは非常に広範な学問領域をカバーする。ACM Computing Classification Systemに基づき、主要10分野を概観する。
 
 ```
-┌──────────────────────────────── CS の学問体系マップ ────────────────────────────────┐
+┌──────────────────────────── CS の学問体系マップ ────────────────────────────────┐
 │                                                                                    │
 │                          ┌──────────────────────┐                                  │
 │                          │   計算理論 (Theory)   │ ← 数学的基盤                     │
@@ -142,6 +234,28 @@ CSは非常に広範な学問領域をカバーする。ACM Computing Classifica
 
 **実務への影響**: 正規表現が再帰パターンにマッチできない理由、完璧なバグ検出ツールが作れない理由を理解できる。
 
+**具体的な実務例**:
+
+```python
+# 正規表現の限界を理解する例
+import re
+
+# ✅ 正規言語: 正規表現で表現可能
+email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+re.match(email_pattern, 'user@example.com')  # マッチ
+
+# ❌ 文脈自由言語: 正規表現では本質的に不可能
+# 「対応する括弧のバランスチェック」
+# ((()))  → OK
+# (()     → NG
+# 正規表現では括弧のネストの深さを追跡できない
+# → パーサー（プッシュダウンオートマトン）が必要
+
+# ❌ 停止問題: アルゴリズムで判定不可能
+# 「任意のプログラムが無限ループするか判定する」ことは原理的に不可能
+# → 完璧な静的解析ツールは作れない（近似は可能）
+```
+
 ### 分野2: アルゴリズム（Algorithms）
 
 問題を効率的に解く方法の設計と解析。
@@ -153,6 +267,42 @@ CSは非常に広範な学問領域をカバーする。ACM Computing Classifica
 
 **実務への影響**: 100万件のデータ処理で O(n²)→O(n log n) に改善すると、11.5日→20秒に短縮。
 
+**アルゴリズムの実務適用例**:
+
+```python
+# ダイクストラのアルゴリズム — カーナビ、ネットワークルーティングの基盤
+import heapq
+
+def dijkstra(graph, start):
+    """最短経路を求める: O((V+E) log V)"""
+    distances = {node: float('inf') for node in graph}
+    distances[start] = 0
+    pq = [(0, start)]  # (距離, ノード) の優先度キュー
+
+    while pq:
+        current_dist, current = heapq.heappop(pq)
+        if current_dist > distances[current]:
+            continue
+
+        for neighbor, weight in graph[current].items():
+            distance = current_dist + weight
+            if distance < distances[neighbor]:
+                distances[neighbor] = distance
+                heapq.heappush(pq, (distance, neighbor))
+
+    return distances
+
+# 使用例: サーバー間の最短レイテンシ経路
+network = {
+    'tokyo': {'osaka': 5, 'singapore': 30},
+    'osaka': {'tokyo': 5, 'singapore': 25},
+    'singapore': {'tokyo': 30, 'osaka': 25, 'sydney': 40},
+    'sydney': {'singapore': 40}
+}
+print(dijkstra(network, 'tokyo'))
+# {'tokyo': 0, 'osaka': 5, 'singapore': 30, 'sydney': 70}
+```
+
 ### 分野3: データ構造（Data Structures）
 
 データの効率的な格納と操作の方法。
@@ -163,6 +313,49 @@ CSは非常に広範な学問領域をカバーする。ACM Computing Classifica
 - **グラフ**: 隣接行列、隣接リスト、Union-Find
 
 **実務への影響**: `Array.includes()` の O(n) を `Set.has()` の O(1) に変えるだけでAPIが100倍速くなる。
+
+**データ構造の使い分け実務ガイド**:
+
+```python
+# 場面別の最適なデータ構造選択
+
+# 場面1: ユーザーIDの存在確認（頻繁な検索）
+# → ハッシュセット O(1)
+active_users = set()
+active_users.add(user_id)
+if user_id in active_users:  # O(1)
+    pass
+
+# 場面2: ランキング表示（順序付き、範囲検索）
+# → ソート済みリスト or 平衡二分探索木
+import sortedcontainers
+ranking = sortedcontainers.SortedList(key=lambda x: -x['score'])
+ranking.add({'name': 'Alice', 'score': 950})
+top_10 = ranking[:10]  # 上位10件
+
+# 場面3: Undo/Redo機能
+# → スタック
+undo_stack = []
+redo_stack = []
+def execute_action(action):
+    undo_stack.append(action)
+    redo_stack.clear()
+    action.execute()
+
+# 場面4: タスクキュー（FIFO処理）
+# → キュー（deque）
+from collections import deque
+task_queue = deque()
+task_queue.append(task)      # エンキュー O(1)
+next_task = task_queue.popleft()  # デキュー O(1)
+
+# 場面5: 文字列のオートコンプリート
+# → トライ木（Prefix Tree）
+class TrieNode:
+    def __init__(self):
+        self.children = {}
+        self.is_end = False
+```
 
 ### 分野4: オペレーティングシステム（Operating Systems）
 
@@ -312,6 +505,80 @@ CS的思考:
 
 → 根本原因を理解しているから、同じ問題が二度と起きない。
 
+### 例4: キャッシュ戦略の設計
+
+プログラミング的思考: 「Redis入れれば速くなるでしょ」
+
+CS的思考:
+```python
+# キャッシュの設計をCSの原理から導く
+
+# 1. 局所性の原理（メモリ階層の知識）
+# → 時間的局所性: 最近アクセスしたデータは再アクセスされやすい
+# → LRU (Least Recently Used) キャッシュが有効
+
+from collections import OrderedDict
+
+class LRUCache:
+    """LRUキャッシュの実装 — OrderedDictを活用"""
+    def __init__(self, capacity: int):
+        self.cache = OrderedDict()
+        self.capacity = capacity
+
+    def get(self, key):
+        if key in self.cache:
+            self.cache.move_to_end(key)  # 最近使用に移動 O(1)
+            return self.cache[key]
+        return None
+
+    def put(self, key, value):
+        if key in self.cache:
+            self.cache.move_to_end(key)
+        self.cache[key] = value
+        if len(self.cache) > self.capacity:
+            self.cache.popitem(last=False)  # 最古を削除 O(1)
+
+# 2. キャッシュ一貫性（分散システムの知識）
+# → Write-Through: 書き込み時にキャッシュとDBの両方を更新
+# → Write-Back: キャッシュのみ更新し、後でDBに反映
+# → Cache-Aside: 読み込み時にキャッシュミスならDBから取得
+
+# 3. キャッシュ無効化（計算理論の知識）
+# → "There are only two hard things in CS:
+#    cache invalidation and naming things." — Phil Karlton
+# → TTL、イベント駆動無効化、バージョニングの使い分け
+```
+
+### 例5: 並行処理の正しい設計
+
+プログラミング的思考: 「マルチスレッドにすれば速くなるでしょ」
+
+CS的思考:
+```python
+# アムダールの法則: 並列化の限界を事前に計算
+
+def amdahl_speedup(parallel_fraction: float, num_processors: int) -> float:
+    """アムダールの法則による理論上の最大速度向上を計算
+
+    Args:
+        parallel_fraction: 並列化可能な割合 (0.0 - 1.0)
+        num_processors: プロセッサ数
+
+    Returns:
+        速度向上倍率
+    """
+    serial_fraction = 1 - parallel_fraction
+    return 1 / (serial_fraction + parallel_fraction / num_processors)
+
+# 例: プログラムの80%が並列化可能な場合
+print(f"2コア: {amdahl_speedup(0.8, 2):.2f}倍")    # 1.67倍
+print(f"4コア: {amdahl_speedup(0.8, 4):.2f}倍")    # 2.50倍
+print(f"8コア: {amdahl_speedup(0.8, 8):.2f}倍")    # 3.33倍
+print(f"∞コア: {amdahl_speedup(0.8, 10000):.2f}倍")  # 5.00倍（上限！）
+# → コアを無限に増やしても5倍が限界（20%の直列部分がボトルネック）
+# → 「並列化する前に直列部分を最適化せよ」がCSの教え
+```
+
 ---
 
 ## 4. CS学位カリキュラム概観
@@ -329,6 +596,16 @@ CS的思考:
 | **選択** | 多数の選択科目 | Track制 | 専門分野別 |
 | **特色** | 理論と実践のバランス | 起業・産業連携 | システム重視 |
 | **卒業要件** | 研究プロジェクト | 卒業論文 | 研究 or 産学連携 |
+
+### 日本の主要大学CS教育
+
+| 大学 | 特色 | 強い分野 | 入門科目 |
+|------|------|---------|---------|
+| 東京大学 | 理論と実践の両立 | 計算理論、AI | 情報科学入門 |
+| 京都大学 | 理論重視 | アルゴリズム、数理 | 計算機科学概論 |
+| 東京工業大学 | システム実装重視 | OS、ネットワーク | 計算機科学第一 |
+| 筑波大学 | 情報学群の広範なカバー | HCI、メディア | 情報科学概論 |
+| 会津大学 | 全授業英語 | 組込み、コンパイラ | Introduction to CS |
 
 ### 共通する必修分野
 
@@ -356,6 +633,36 @@ CS的思考:
 ### 場面1: APIレスポンスが遅い
 **CS知識**: 計算量解析 → ネストしたループ O(n²) を発見 → ハッシュマップで O(n) に改善
 
+**詳細な改善プロセス**:
+```python
+# Step 1: プロファイリングでボトルネック特定
+import cProfile
+
+def slow_endpoint():
+    users = get_all_users()          # 0.1s
+    orders = get_all_orders()        # 0.2s
+    # ↓ ここが99%の時間を消費
+    result = []
+    for user in users:               # 10,000ユーザー
+        user_orders = [o for o in orders if o['user_id'] == user['id']]
+        # ↑ orders(100,000件)を毎回全走査 → O(10,000 × 100,000) = O(10^9)
+        result.append({**user, 'orders': user_orders})
+    return result
+
+# Step 2: CS知識を適用
+def fast_endpoint():
+    users = get_all_users()
+    orders = get_all_orders()
+    # ハッシュマップでグルーピング: O(n)
+    orders_by_user = {}
+    for order in orders:
+        orders_by_user.setdefault(order['user_id'], []).append(order)
+    # 結合: O(m)
+    return [{**user, 'orders': orders_by_user.get(user['id'], [])}
+            for user in users]
+    # 合計: O(n + m) = O(110,000) — 9,000倍高速
+```
+
 ### 場面2: メモリ不足でアプリがクラッシュ
 **CS知識**: メモリ階層・GCの理解 → 不要な参照の保持を発見 → WeakRefで解決
 
@@ -364,6 +671,32 @@ CS的思考:
 
 ### 場面4: データベースクエリが激遅
 **CS知識**: B+木インデックスの仕組み → 複合インデックスの最適設計
+
+**詳細な改善プロセス**:
+```sql
+-- Before: フルテーブルスキャン 30秒
+SELECT * FROM orders
+WHERE user_id = 12345
+  AND status = 'completed'
+  AND created_at > '2025-01-01'
+ORDER BY created_at DESC
+LIMIT 20;
+
+-- CS知識: B+木の構造を理解する
+-- B+木は「ソート済み」のデータ構造
+-- → 複合インデックスの列順序が重要
+-- → 等値条件(=)の列を先に、範囲条件(>)の列を後に
+
+-- After: 複合インデックス追加 0.01秒
+CREATE INDEX idx_orders_user_status_created
+  ON orders(user_id, status, created_at DESC);
+
+-- なぜこの順序か:
+-- 1. user_id = 12345 → 等値条件で絞り込み
+-- 2. status = 'completed' → さらに等値条件で絞り込み
+-- 3. created_at DESC → 範囲条件 + ソート（インデックスの順序で取得）
+-- → Index Scan Only で完了（テーブルアクセス不要）
+```
 
 ### 場面5: マルチスレッドで謎のバグ
 **CS知識**: 競合条件・デッドロック → ロック順序の統一、CASの活用
@@ -385,7 +718,67 @@ CS的思考:
 
 ---
 
-## 6. 本Skillの構成と使い方
+## 6. CSの数学的基盤 — 必要な数学の全体像
+
+CSを深く理解するには一定の数学が必要だが、全てが最初から必要なわけではない:
+
+```
+CSに必要な数学（段階別）:
+
+  Stage 1 — CS基礎に必須（高校数学レベル）
+  ├── 論理学: AND, OR, NOT, 含意, 対偶
+  ├── 集合論: 和集合, 積集合, 部分集合
+  ├── 指数・対数: O(log n), O(2^n) の理解
+  └── 基礎的な確率: 期待値, 条件付き確率
+
+  Stage 2 — 中級CS（大学1-2年レベル）
+  ├── 離散数学: グラフ理論, 組み合わせ論, 帰納法
+  ├── 線形代数基礎: ベクトル, 行列の乗算
+  ├── 確率統計: 分布, 推定, 検定
+  └── 数論基礎: 素数, 合同式（暗号に必要）
+
+  Stage 3 — 上級CS（大学3-4年/院レベル）
+  ├── 情報理論: エントロピー, 相互情報量
+  ├── 最適化: 勾配降下法, 凸最適化
+  ├── 微積分: 偏微分（ML/AIに必要）
+  └── 抽象代数: 群論（暗号の理論的基盤）
+```
+
+```python
+# CSで使う数学の具体例
+
+import math
+
+# 対数（アルゴリズム解析の基本）
+# 二分探索で100万件を探索する回数
+n = 1_000_000
+steps = math.ceil(math.log2(n))  # 20回
+print(f"二分探索のステップ数: {steps}")
+
+# 組み合わせ論（パスワード強度の計算）
+# 英数字(62文字)の8文字パスワードの組み合わせ数
+chars = 62
+length = 8
+combinations = chars ** length  # 218兆
+time_to_crack = combinations / 10_000_000_000  # 1秒1億回の試行
+print(f"ブルートフォース所要時間: {time_to_crack / 3600:.0f}時間")
+
+# 確率（ハッシュ衝突の計算 — 誕生日のパラドックス）
+# n人中に同じ誕生日のペアがいる確率
+def birthday_collision_probability(n, d=365):
+    """n人がd種類のうち衝突する確率"""
+    prob_no_collision = 1.0
+    for i in range(n):
+        prob_no_collision *= (d - i) / d
+    return 1 - prob_no_collision
+
+print(f"23人で衝突確率: {birthday_collision_probability(23):.1%}")  # 50.7%
+# → ハッシュ空間が2^128でも、2^64個で50%の衝突確率
+```
+
+---
+
+## 7. 本Skillの構成と使い方
 
 ### セクション構成
 
@@ -406,6 +799,20 @@ computer-science-fundamentals/
 └── references/               ← 参考文献・リンク集
 ```
 
+### 各セクションの詳細内容
+
+| セクション | ファイル数 | 主要トピック | 推定学習時間 |
+|-----------|----------|-------------|------------|
+| 00-introduction | 4 | CS概要、歴史、学習動機、ロードマップ | 4-6時間 |
+| 01-hardware-basics | 4 | CPU、メモリ階層、ストレージ、GPU | 8-12時間 |
+| 02-data-representation | 5 | 2進数、整数、浮動小数点、文字コード | 10-15時間 |
+| 03-algorithms-basics | 8 | 計算量、ソート、探索、再帰、DP、グラフ | 20-30時間 |
+| 04-data-structures | 8 | 配列、リスト、木、ハッシュ、グラフ、ヒープ | 20-30時間 |
+| 05-computation-theory | 6 | オートマトン、形式言語、チューリングマシン | 15-20時間 |
+| 06-programming-paradigms | 5 | 命令型、OOP、関数型、論理型 | 10-15時間 |
+| 07-software-engineering | 5 | 開発手法、テスト、デバッグ、バージョン管理 | 10-15時間 |
+| 08-advanced-topics | 10 | 分散、並行、セキュリティ、AI/ML | 25-35時間 |
+
 ### 推奨学習順序
 
 ```
@@ -424,7 +831,7 @@ computer-science-fundamentals/
 
 ---
 
-## 7. 実践演習
+## 8. 実践演習
 
 ### 演習1: CS分野マッピング（基礎）
 
@@ -455,6 +862,58 @@ computer-science-fundamentals/
 3. `O(1)` — ハッシュテーブルの探索。衝突時は最悪 O(n) だが通常 O(1)。
 4. `O(n)` — フルテーブルスキャン。全行を走査。
 5. `O(log n)` — B+木インデックスによる探索。
+
+</details>
+
+### 演習3: 計算的思考の実践（応用）
+
+以下の日常的な問題に対して、計算的思考の4要素（分解、パターン認識、抽象化、アルゴリズム的思考）を適用せよ:
+
+1. 「100人のチームメンバーのスケジュール調整」
+2. 「Eコマースサイトの商品レコメンデーション」
+3. 「大量のログファイルからエラーの根本原因を特定」
+
+<details>
+<summary>解答例（問題1）</summary>
+
+**分解**: 候補日の列挙 / 各メンバーの空き確認 / 最適日の選定
+**パターン認識**: これは「制約充足問題」の一種 — 全員の制約を満たす解を探す
+**抽象化**: 個々人の具体的な予定は不要。「空き/埋まり」のビットマップに抽象化
+**アルゴリズム**: 全候補日について空き人数をカウントし、最大値を選択（貪欲法）
+
+```python
+def find_best_date(members, candidate_dates):
+    """最も多くのメンバーが参加可能な日を見つける"""
+    best_date = None
+    max_available = 0
+    for date in candidate_dates:
+        available = sum(1 for m in members if date in m.free_dates)
+        if available > max_available:
+            max_available = available
+            best_date = date
+    return best_date, max_available
+```
+
+</details>
+
+### 演習4: CSクロスワード（発展）
+
+以下の説明に該当するCS用語を答えよ:
+
+1. 計算量で「最悪の場合の上限」を表す記法 → ___
+2. 「プログラム（命令）とデータを同じメモリに格納する」方式 → ___
+3. 1965年にGordon Mooreが提唱した法則 → ___
+4. メモリ階層で「最近アクセスしたデータは再びアクセスされやすい」という性質 → ___
+5. 「一貫性、可用性、分断耐性の3つを同時に満たすことは不可能」という定理 → ___
+
+<details>
+<summary>解答</summary>
+
+1. Big-O記法（O記法）
+2. フォン・ノイマン・アーキテクチャ（プログラム内蔵方式）
+3. ムーアの法則
+4. 時間的局所性（Temporal Locality）
+5. CAP定理（Brewer's Theorem）
 
 </details>
 
@@ -498,6 +957,19 @@ CS基礎が無くてもコードは書けるが、**スケールしない**。�
 
 **A**: LeetCodeは「アルゴリズムのパターン練習」であり、CS基礎の一部しかカバーしない。パターン暗記に陥りやすいという問題もある。CS基礎を体系的に学んだ上でLeetCodeに取り組むと、「なぜこのアルゴリズムが正しいか」を理解した上で解けるため、効果が格段に上がる。
 
+### Q6: CSの学習は年齢に関係ありますか？
+
+**A**: 全く関係ない。CSの基礎概念は論理的思考力に依存し、年齢とは無関係である。むしろ実務経験があるほうが「なぜこの概念が重要か」を実感しながら学べるため、理解が深まりやすい。LinuxカーネルのリーダーであるLinus Torvaldsは50代でも最前線で活躍しており、CSの基礎知識はキャリア全体を通じて価値を持ち続ける。
+
+### Q7: CSの知識はAI時代にも必要ですか？
+
+**A**: AIが発展すればするほど、CSの基礎知識はより重要になる:
+
+1. **AIの出力を評価する力**: LLMが生成したコードの計算量が適切か、セキュリティ上の問題がないかを判断するにはCSの知識が必須
+2. **AIを正しく活用する力**: RAGの設計、エンベディングの選択、トークン制限の理解にはCSの知識が必要
+3. **AIでは置き換えられない力**: システム全体のアーキテクチャ設計、分散システムのトレードオフ判断は人間の仕事として残る
+4. **AIの限界を理解する力**: 停止問題の決定不能性を理解していれば、AIにも原理的な限界があることが分かる
+
 ---
 
 ## まとめ
@@ -507,7 +979,9 @@ CS基礎が無くてもコードは書けるが、**スケールしない**。�
 | CSの定義 | 「計算とは何か」を探求する学問。プログラミングはその一側面 |
 | 主要10分野 | 理論、アルゴリズム、データ構造、OS、ネット、DB、AI、SE、セキュリティ、HCI |
 | CSの価値 | フレームワークは変わるが、CS基礎は50年以上普遍 |
+| 計算的思考 | 分解、パターン認識、抽象化、アルゴリズム的思考の4要素 |
 | 学習方法 | 理論と実践を交互に、段階的に深める |
+| 数学的基盤 | 高校数学レベルから始められる。段階的に必要な数学を習得 |
 | 本Skillの範囲 | CS基礎の入口〜中級。発展は各専門Skillへ |
 
 ---
@@ -528,3 +1002,7 @@ CS基礎が無くてもコードは書けるが、**スケールしない**。�
 6. Wing, J. M. "Computational Thinking." Communications of the ACM, Vol. 49, No. 3, 2006.
 7. Denning, P. J. "The Profession of IT: Beyond Computational Thinking." Communications of the ACM, 2009.
 8. Knuth, D. E. "Computer Science and its Relation to Mathematics." The American Mathematical Monthly, 1974.
+9. Dijkstra, E. W. "On the cruelty of really teaching computing science." EWD1036, 1988.
+10. Patterson, D. A. & Hennessy, J. L. "Computer Organization and Design." 6th Edition, Morgan Kaufmann, 2020.
+11. Feynman, R. P. "Feynman Lectures on Computation." CRC Press, 1996.
+12. Sedgewick, R. & Wayne, K. "Algorithms." 4th Edition, Addison-Wesley, 2011.
