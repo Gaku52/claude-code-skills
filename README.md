@@ -3,7 +3,7 @@
 <!-- PROGRESS_BADGES_START -->
 ![Skills](https://img.shields.io/badge/Skills-36-blue)
 ![Guides](https://img.shields.io/badge/Guides-901-success)
-![Characters](https://img.shields.io/badge/Characters-28872K-informational)
+![Characters](https://img.shields.io/badge/Characters-29053K-informational)
 <!-- PROGRESS_BADGES_END -->
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
