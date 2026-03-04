@@ -1745,3 +1745,1219 @@ print(f"  search('(a|b)+c', 'xxxabcyyy') = '{found}'")
   - バランス重視 → DFA 遅延構築（RE2）
 ```
 
+---
+
+## 7. 実務応用とケーススタディ
+
+### 7.1 字句解析器（レクサー）の実装
+
+コンパイラやインタプリタの最初の段階である字句解析器は、DFA の直接的な応用である。以下は、簡易プログラミング言語のトークナイザーを DFA ベースで実装した例である。
+
+```python
+"""
+DFA ベースの字句解析器（レクサー / トークナイザー）
+
+簡易プログラミング言語のソースコードをトークン列に分解する。
+各トークンの認識は DFA の原理に基づいている。
+
+対応するトークン:
+  - キーワード: if, else, while, return, int, float
+  - 識別子: [a-zA-Z_][a-zA-Z0-9_]*
+  - 整数リテラル: [0-9]+
+  - 浮動小数点リテラル: [0-9]+\.[0-9]+
+  - 演算子: +, -, *, /, =, ==, !=, <, >, <=, >=
+  - 区切り文字: (, ), {, }, ;, ,
+  - 空白・コメントは読み飛ばす
+"""
+
+from dataclasses import dataclass
+from enum import Enum, auto
+from typing import List, Optional
+
+
+class TokenType(Enum):
+    """トークンの種類"""
+    # キーワード
+    KW_IF = auto()
+    KW_ELSE = auto()
+    KW_WHILE = auto()
+    KW_RETURN = auto()
+    KW_INT = auto()
+    KW_FLOAT = auto()
+    # リテラル
+    INT_LITERAL = auto()
+    FLOAT_LITERAL = auto()
+    # 識別子
+    IDENTIFIER = auto()
+    # 演算子
+    PLUS = auto()
+    MINUS = auto()
+    STAR = auto()
+    SLASH = auto()
+    ASSIGN = auto()
+    EQ = auto()
+    NEQ = auto()
+    LT = auto()
+    GT = auto()
+    LE = auto()
+    GE = auto()
+    # 区切り文字
+    LPAREN = auto()
+    RPAREN = auto()
+    LBRACE = auto()
+    RBRACE = auto()
+    SEMICOLON = auto()
+    COMMA = auto()
+    # 特殊
+    EOF = auto()
+    ERROR = auto()
+
+
+@dataclass
+class Token:
+    """トークン"""
+    type: TokenType
+    value: str
+    line: int
+    column: int
+
+    def __repr__(self) -> str:
+        return f"Token({self.type.name}, '{self.value}', L{self.line}:C{self.column})"
+
+
+# キーワードテーブル
+KEYWORDS = {
+    "if": TokenType.KW_IF,
+    "else": TokenType.KW_ELSE,
+    "while": TokenType.KW_WHILE,
+    "return": TokenType.KW_RETURN,
+    "int": TokenType.KW_INT,
+    "float": TokenType.KW_FLOAT,
+}
+
+# 単一文字トークン
+SINGLE_CHAR_TOKENS = {
+    "+": TokenType.PLUS,
+    "-": TokenType.MINUS,
+    "*": TokenType.STAR,
+    "/": TokenType.SLASH,
+    "(": TokenType.LPAREN,
+    ")": TokenType.RPAREN,
+    "{": TokenType.LBRACE,
+    "}": TokenType.RBRACE,
+    ";": TokenType.SEMICOLON,
+    ",": TokenType.COMMA,
+}
+
+
+class Lexer:
+    """DFA ベースの字句解析器"""
+
+    def __init__(self, source: str):
+        self.source = source
+        self.pos = 0
+        self.line = 1
+        self.column = 1
+
+    def _peek(self) -> Optional[str]:
+        """現在位置の文字を返す（消費しない）。"""
+        if self.pos < len(self.source):
+            return self.source[self.pos]
+        return None
+
+    def _advance(self) -> str:
+        """現在位置の文字を消費して返す。"""
+        ch = self.source[self.pos]
+        self.pos += 1
+        if ch == "\n":
+            self.line += 1
+            self.column = 1
+        else:
+            self.column += 1
+        return ch
+
+    def _skip_whitespace_and_comments(self) -> None:
+        """空白とコメントを読み飛ばす。"""
+        while self.pos < len(self.source):
+            ch = self._peek()
+            if ch in (" ", "\t", "\n", "\r"):
+                self._advance()
+            elif ch == "/" and self.pos + 1 < len(self.source):
+                if self.source[self.pos + 1] == "/":
+                    # 行コメント
+                    while self.pos < len(self.source) and self._peek() != "\n":
+                        self._advance()
+                else:
+                    break
+            else:
+                break
+
+    def _read_number(self) -> Token:
+        """
+        数値リテラルを読み取る DFA:
+
+        状態遷移:
+          START --[0-9]--> INTEGER --[0-9]--> INTEGER
+                                   --[.]--> DOT
+          DOT --[0-9]--> FLOAT --[0-9]--> FLOAT
+
+        受理状態: INTEGER, FLOAT
+        """
+        start_col = self.column
+        value = ""
+
+        # 状態: INTEGER（整数部分）
+        while self.pos < len(self.source) and self._peek().isdigit():
+            value += self._advance()
+
+        # 小数点チェック
+        if (self.pos < len(self.source)
+                and self._peek() == "."
+                and self.pos + 1 < len(self.source)
+                and self.source[self.pos + 1].isdigit()):
+            value += self._advance()  # '.'
+            # 状態: FLOAT（小数部分）
+            while self.pos < len(self.source) and self._peek().isdigit():
+                value += self._advance()
+            return Token(TokenType.FLOAT_LITERAL, value, self.line, start_col)
+
+        return Token(TokenType.INT_LITERAL, value, self.line, start_col)
+
+    def _read_identifier_or_keyword(self) -> Token:
+        """
+        識別子/キーワードを読み取る DFA:
+
+        状態遷移:
+          START --[a-zA-Z_]--> IDENT --[a-zA-Z0-9_]--> IDENT
+
+        受理状態: IDENT
+        受理後にキーワードテーブルを参照して種類を判定
+        """
+        start_col = self.column
+        value = ""
+
+        while (self.pos < len(self.source)
+               and (self._peek().isalnum() or self._peek() == "_")):
+            value += self._advance()
+
+        token_type = KEYWORDS.get(value, TokenType.IDENTIFIER)
+        return Token(token_type, value, self.line, start_col)
+
+    def next_token(self) -> Token:
+        """次のトークンを返す。"""
+        self._skip_whitespace_and_comments()
+
+        if self.pos >= len(self.source):
+            return Token(TokenType.EOF, "", self.line, self.column)
+
+        start_col = self.column
+        ch = self._peek()
+
+        # 数値リテラル
+        if ch.isdigit():
+            return self._read_number()
+
+        # 識別子またはキーワード
+        if ch.isalpha() or ch == "_":
+            return self._read_identifier_or_keyword()
+
+        # 2文字演算子の処理
+        if ch == "=" and self.pos + 1 < len(self.source) and self.source[self.pos + 1] == "=":
+            self._advance()
+            self._advance()
+            return Token(TokenType.EQ, "==", self.line, start_col)
+        if ch == "!" and self.pos + 1 < len(self.source) and self.source[self.pos + 1] == "=":
+            self._advance()
+            self._advance()
+            return Token(TokenType.NEQ, "!=", self.line, start_col)
+        if ch == "<" and self.pos + 1 < len(self.source) and self.source[self.pos + 1] == "=":
+            self._advance()
+            self._advance()
+            return Token(TokenType.LE, "<=", self.line, start_col)
+        if ch == ">" and self.pos + 1 < len(self.source) and self.source[self.pos + 1] == "=":
+            self._advance()
+            self._advance()
+            return Token(TokenType.GE, ">=", self.line, start_col)
+
+        # 単一文字演算子
+        if ch == "=":
+            self._advance()
+            return Token(TokenType.ASSIGN, "=", self.line, start_col)
+        if ch == "<":
+            self._advance()
+            return Token(TokenType.LT, "<", self.line, start_col)
+        if ch == ">":
+            self._advance()
+            return Token(TokenType.GT, ">", self.line, start_col)
+
+        # 単一文字トークン
+        if ch in SINGLE_CHAR_TOKENS:
+            self._advance()
+            return Token(SINGLE_CHAR_TOKENS[ch], ch, self.line, start_col)
+
+        # 不正な文字
+        self._advance()
+        return Token(TokenType.ERROR, ch, self.line, start_col)
+
+    def tokenize(self) -> List[Token]:
+        """ソースコード全体をトークン列に変換する。"""
+        tokens = []
+        while True:
+            token = self.next_token()
+            tokens.append(token)
+            if token.type == TokenType.EOF:
+                break
+        return tokens
+
+
+# --- 使用例 ---
+
+source_code = """
+// フィボナッチ数列
+int fib(int n) {
+    if (n <= 1) {
+        return n;
+    }
+    return fib(n - 1) + fib(n - 2);
+}
+"""
+
+lexer = Lexer(source_code)
+tokens = lexer.tokenize()
+
+print("=== 字句解析結果 ===")
+for token in tokens:
+    print(f"  {token}")
+
+# 出力:
+# === 字句解析結果 ===
+#   Token(KW_INT, 'int', L3:C1)
+#   Token(IDENTIFIER, 'fib', L3:C5)
+#   Token(LPAREN, '(', L3:C8)
+#   Token(KW_INT, 'int', L3:C9)
+#   Token(IDENTIFIER, 'n', L3:C13)
+#   Token(RPAREN, ')', L3:C14)
+#   Token(LBRACE, '{', L3:C16)
+#   Token(KW_IF, 'if', L4:C5)
+#   Token(LPAREN, '(', L4:C8)
+#   Token(IDENTIFIER, 'n', L4:C9)
+#   Token(LE, '<=', L4:C11)
+#   Token(INT_LITERAL, '1', L4:C14)
+#   Token(RPAREN, ')', L4:C15)
+#   Token(LBRACE, '{', L4:C17)
+#   Token(KW_RETURN, 'return', L5:C9)
+#   Token(IDENTIFIER, 'n', L5:C16)
+#   Token(SEMICOLON, ';', L5:C17)
+#   Token(RBRACE, '}', L6:C5)
+#   Token(KW_RETURN, 'return', L7:C5)
+#   Token(IDENTIFIER, 'fib', L7:C12)
+#   Token(LPAREN, '(', L7:C15)
+#   Token(IDENTIFIER, 'n', L7:C16)
+#   Token(MINUS, '-', L7:C18)
+#   Token(INT_LITERAL, '1', L7:C20)
+#   Token(RPAREN, ')', L7:C21)
+#   Token(PLUS, '+', L7:C23)
+#   Token(IDENTIFIER, 'fib', L7:C25)
+#   Token(LPAREN, '(', L7:C28)
+#   Token(IDENTIFIER, 'n', L7:C29)
+#   Token(MINUS, '-', L7:C31)
+#   Token(INT_LITERAL, '2', L7:C33)
+#   Token(RPAREN, ')', L7:C34)
+#   Token(SEMICOLON, ';', L7:C35)
+#   Token(RBRACE, '}', L8:C1)
+#   Token(EOF, '', L9:C1)
+```
+
+### 7.2 プロトコル検証への応用
+
+有限オートマトンは通信プロトコルの状態遷移をモデル化するのに適している。
+
+```
+TCP コネクション管理の状態遷移（簡略版）:
+
+  状態: {CLOSED, LISTEN, SYN_SENT, SYN_RCVD, ESTABLISHED,
+         FIN_WAIT_1, FIN_WAIT_2, CLOSE_WAIT, LAST_ACK, TIME_WAIT}
+
+  主要な遷移:
+
+    ┌─────────┐   passive open    ┌─────────┐
+    │ CLOSED  │──────────────────→│ LISTEN  │
+    └─────────┘                   └─────────┘
+         │ active open                │ recv SYN
+         │ send SYN                   │ send SYN+ACK
+         ▼                            ▼
+    ┌──────────┐                 ┌──────────┐
+    │ SYN_SENT │                 │ SYN_RCVD │
+    └──────────┘                 └──────────┘
+         │ recv SYN+ACK              │ recv ACK
+         │ send ACK                  │
+         ▼                           ▼
+    ┌──────────────────────────────────────┐
+    │          ESTABLISHED                  │
+    │    （データ通信が可能な状態）          │
+    └──────────────────────────────────────┘
+         │ close / send FIN          │ recv FIN
+         ▼                           │ send ACK
+    ┌────────────┐              ┌────────────┐
+    │ FIN_WAIT_1 │              │ CLOSE_WAIT │
+    └────────────┘              └────────────┘
+         │ recv ACK                  │ close
+         ▼                           │ send FIN
+    ┌────────────┐              ┌────────────┐
+    │ FIN_WAIT_2 │              │  LAST_ACK  │
+    └────────────┘              └────────────┘
+         │ recv FIN                  │ recv ACK
+         │ send ACK                  ▼
+         ▼                      ┌─────────┐
+    ┌────────────┐              │ CLOSED  │
+    │ TIME_WAIT  │──timeout──→  └─────────┘
+    └────────────┘
+
+  プロトコル検証でのオートマトンの活用:
+  - 到達不能状態の検出（デッドロックの発見）
+  - 安全性の検証（禁止状態に到達しないことの確認）
+  - 活性の検証（いずれ目的の状態に到達することの確認）
+  - モデル検査ツール（SPIN, NuSMV 等）はオートマトン理論に基づく
+```
+
+### 7.3 入力バリデーションへの応用
+
+```
+実務での入力バリデーション戦略:
+
+  バリデーション対象と適切な手法:
+
+  ┌──────────────────┬──────────────────┬───────────────────────────┐
+  │ 対象             │ 言語クラス       │ 適切な手法                │
+  ├──────────────────┼──────────────────┼───────────────────────────┤
+  │ メールアドレス   │ 正規（簡易版）   │ 正規表現                  │
+  │ (簡易チェック)   │                  │ ^[a-zA-Z0-9.]+@[a-zA-Z0-9.]+$│
+  ├──────────────────┼──────────────────┼───────────────────────────┤
+  │ 電話番号         │ 正規             │ 正規表現                  │
+  │                  │                  │ ^\d{2,4}-\d{2,4}-\d{4}$  │
+  ├──────────────────┼──────────────────┼───────────────────────────┤
+  │ IP アドレス      │ 正規             │ 正規表現 + 範囲チェック   │
+  ├──────────────────┼──────────────────┼───────────────────────────┤
+  │ JSON             │ 文脈自由         │ パーサー（再帰下降等）    │
+  │                  │                  │ 正規表現では不十分        │
+  ├──────────────────┼──────────────────┼───────────────────────────┤
+  │ XML/HTML         │ 文脈自由         │ パーサー                  │
+  │                  │                  │ 正規表現では不可能        │
+  ├──────────────────┼──────────────────┼───────────────────────────┤
+  │ プログラムコード │ 文脈依存         │ コンパイラフロントエンド   │
+  └──────────────────┴──────────────────┴───────────────────────────┘
+
+  重要な原則:
+    正規表現は正規言語のみを正しく処理できる。
+    入れ子構造（括弧の対応、タグの入れ子）は正規言語の範囲外。
+    HTML を正規表現でパースしようとする試みは理論的に不可能であり、
+    実務においても深刻なバグの原因となる。
+```
+
+---
+
+## 8. アンチパターンと落とし穴
+
+### 8.1 アンチパターン1: 正規表現で HTML をパースする
+
+```
+アンチパターン: 正規表現による HTML パース
+
+  誤ったアプローチ:
+    # HTML タグの中身を抽出しようとする正規表現
+    pattern = r"<div>(.*)</div>"
+
+  なぜ間違いか:
+    HTML は入れ子構造を持つ → 文脈自由言語
+    正規表現は正規言語しか処理できない
+    → 理論的に正規表現で HTML を正しくパースすることは不可能
+
+  具体的な問題例:
+
+    入力: "<div><div>内容</div></div>"
+
+    pattern = r"<div>(.*)</div>"  に対するマッチ結果:
+      貪欲マッチ: "<div>内容</div>" → 外側のdivの中身全体
+      実際に期待する結果: 入れ子構造を正しく認識したい
+      → 正規表現では入れ子の深さを追跡できない
+
+    さらに悪い例:
+      入力: "<div class='x'>内容</div>"
+      pattern = r"<div>(.*)</div>"  → マッチしない（属性がある）
+      pattern = r"<div[^>]*>(.*)</div>" → 入れ子で破綻
+
+  正しいアプローチ:
+    - HTML パーサーライブラリを使用する
+      Python: BeautifulSoup, lxml
+      JavaScript: DOMParser, cheerio
+    - 理論的根拠: HTML の構造は文脈自由言語以上の表現力が必要
+      → PDA 以上の計算能力を持つパーサーが必要
+
+  チョムスキー階層の観点:
+    正規表現（Type 3）で文脈自由言語（Type 2）の構造を処理しようとする
+    根本的な型の不一致（type mismatch）である。
+```
+
+### 8.2 アンチパターン2: 脆弱な正規表現パターン（ReDoS）
+
+```
+アンチパターン: ReDoS（Regular expression Denial of Service）を引き起こすパターン
+
+  危険なパターンの特徴:
+    量指定子（+, *）が入れ子になっている:
+      (a+)+      ← 指数的バックトラック
+      (a|aa)+    ← 曖昧な選択の繰り返し
+      (.*a){n}   ← .* と a の境界が曖昧
+
+  例: メールアドレスの検証
+
+    危険な正規表現:
+      ^([a-zA-Z0-9]+\.)+[a-zA-Z]{2,}$
+
+    攻撃入力:
+      "aaaaaaaaaaaaaaaaaaaaaaaa!"
+      → バックトラック方式のエンジンで指数的に処理時間が増大
+      → サーバーのCPUを100%消費 → サービス停止
+
+    攻撃のメカニズム:
+      1. ([a-zA-Z0-9]+\.)+ の部分で "aaa...a" をマッチさせようとする
+      2. 末尾の "!" でマッチ失敗
+      3. エンジンが a+ の境界を組み換えて再試行
+      4. 組み合わせ数が指数的に増大
+
+  対策:
+    1. 正規表現の複雑さを制限する
+       - 量指定子の入れ子を避ける
+       - アトミックグループ (?>...) や所有量指定子 a++ を使う
+
+    2. NFA ベースのエンジンを使用する
+       - Go の regexp パッケージ（RE2 ベース）
+       - Rust の regex クレート
+       - Google の RE2 ライブラリ
+       これらは O(n*m) を保証し、ReDoS が原理的に発生しない
+
+    3. タイムアウトを設定する
+       - Python: regex ライブラリのtimeout パラメータ
+       - .NET: RegexOptions.Timeout
+
+    4. 入力長を制限する
+
+    5. 静的解析ツールで検出する
+       - ESLint の no-misleading-character-class
+       - semgrep の ReDoS ルール
+```
+
+### 8.3 アンチパターン3: 不完全な DFA 設計
+
+```
+アンチパターン: エラー状態（デッドステート）を考慮しない DFA 設計
+
+  問題のある設計:
+    「"abc" を含む文字列を受理する DFA」を設計する際に、
+    マッチしなかった場合の遷移先を定義しない
+
+  例:
+    不完全な遷移表:
+    ┌────────┬────────┬──────────┐
+    │ 状態   │ a      │ b,c,...  │
+    ├────────┼────────┼──────────┤
+    │ →q0    │ q1     │ ???      │  ← 遷移先未定義
+    │  q1    │ ???    │ ???      │
+    └────────┴────────┴──────────┘
+
+  正しい設計:
+    - DFA の遷移関数は全域関数（すべての状態×記号の組に定義が必要）
+    - マッチしない遷移はデッドステート（trap state）へ
+    - デッドステートからはどの入力でもデッドステート自身に遷移
+
+    完全な遷移表:
+    ┌────────┬────────┬──────────┐
+    │ 状態   │ a      │ other    │
+    ├────────┼────────┼──────────┤
+    │ →q0    │ q1     │ q0      │  ← q0 でリセット
+    │  q1    │ q1     │ ...     │
+    │  dead  │ dead   │ dead    │  ← デッドステート
+    └────────┴────────┴──────────┘
+
+  実装上の教訓:
+    - DFA 実装時は必ず検証メソッドを用意し、全域性をチェック
+    - 上記の DFA クラスの _validate メソッドが良い例
+```
+
+---
+
+## 9. オートマトンの比較分析
+
+### 9.1 オートマトンの総合比較
+
+```
+オートマトンの総合比較表:
+
+  ┌────────────┬─────────────┬──────────────┬──────────────┬──────────────┐
+  │ 特性       │ DFA         │ NFA          │ PDA          │ TM           │
+  ├────────────┼─────────────┼──────────────┼──────────────┼──────────────┤
+  │ 記憶装置   │ なし        │ なし         │ スタック     │ テープ       │
+  │            │（状態のみ） │（状態のみ）  │（LIFO）      │（無限）      │
+  ├────────────┼─────────────┼──────────────┼──────────────┼──────────────┤
+  │ 非決定性   │ なし        │ あり         │ あり/なし    │ あり/なし    │
+  ├────────────┼─────────────┼──────────────┼──────────────┼──────────────┤
+  │ 言語クラス │ 正規        │ 正規         │ 文脈自由     │ 帰納的可算   │
+  ├────────────┼─────────────┼──────────────┼──────────────┼──────────────┤
+  │ 決定性と   │ 等価        │ 等価         │ DPDA < NPDA │ DTM = NTM    │
+  │ 非決定性   │ DFA = NFA   │              │ （異なる）   │ （等価）     │
+  ├────────────┼─────────────┼──────────────┼──────────────┼──────────────┤
+  │ 閉包性     │ 和,積,補,   │ 和,積,補,    │ 和,連結,     │ 和,積,       │
+  │            │ 連結,閉包   │ 連結,閉包    │ 閉包         │ 連結,閉包    │
+  │            │ すべて閉    │              │ 積,補は非閉  │ 補は非閉     │
+  ├────────────┼─────────────┼──────────────┼──────────────┼──────────────┤
+  │ 所属問題   │ O(n)        │ O(n*m)       │ O(n^3) CYK  │ 決定不能     │
+  ├────────────┼─────────────┼──────────────┼──────────────┼──────────────┤
+  │ 等価問題   │ 決定可能    │ 決定可能     │ 決定不能     │ 決定不能     │
+  ├────────────┼─────────────┼──────────────┼──────────────┼──────────────┤
+  │ 空問題     │ 決定可能    │ 決定可能     │ 決定可能     │ 決定不能     │
+  ├────────────┼─────────────┼──────────────┼──────────────┼──────────────┤
+  │ 実務用途   │ 正規表現    │ 正規表現     │ 構文解析     │ 汎用計算     │
+  │            │ 字句解析    │ エンジン     │ パーサー     │ プログラム   │
+  └────────────┴─────────────┴──────────────┴──────────────┴──────────────┘
+```
+
+### 9.2 言語クラスの判別フローチャート
+
+```
+与えられた言語がどのクラスに属するかを判別するフロー:
+
+  言語 L が与えられたとき:
+
+  L は有限集合か？
+    ├── Yes → 正規言語（有限言語はすべて正規）
+    └── No  ↓
+
+  L は正規表現で記述できるか？
+  またはDFA/NFAで認識できるか？
+    ├── Yes → 正規言語
+    └── No / 不明 ↓
+
+  正規言語のポンピング補題で否定できるか？
+    ├── Yes → 正規言語でない
+    └── No  ↓ （ポンピング補題は必要条件であり十分条件でない）
+
+  L は CFG で生成できるか？
+  または PDA で認識できるか？
+    ├── Yes → 文脈自由言語
+    └── No / 不明 ↓
+
+  CFL のポンピング補題で否定できるか？
+    ├── Yes → 文脈自由言語でない
+    └── No  ↓
+
+  L は文脈依存文法で生成できるか？
+    ├── Yes → 文脈依存言語
+    └── No  ↓
+
+  L は TM で認識できるか？
+    ├── Yes → 帰納的言語（決定可能）
+    └── No  ↓
+
+  L は TM で半決定可能か？
+    ├── Yes → 帰納的可算言語
+    └── No  → 帰納的可算ですらない言語
+
+  よく出る言語の分類:
+    {a^n | n は素数}               → 文脈自由でない、文脈依存
+    {ww | w は任意の文字列}       → 文脈自由でない、文脈依存
+    {w | w は整形式の括弧列}      → 文脈自由言語（正規でない）
+    {a^n b^n | n >= 0}            → 文脈自由言語（正規でない）
+    {a^n b^n c^n | n >= 0}        → 文脈自由でない、文脈依存
+    {a^n | n >= 0}                → 正規言語
+```
+
+### 9.3 パーサー手法の比較
+
+```
+構文解析手法の比較:
+
+  ┌──────────────┬───────────┬───────────┬──────────────────────────┐
+  │ 手法         │ 方向      │ 計算量    │ 特徴                     │
+  ├──────────────┼───────────┼───────────┼──────────────────────────┤
+  │ 再帰下降     │ トップダウン│ O(n)~    │ 手書きしやすい           │
+  │ (LL)         │ 左から右  │ O(n^3)   │ 左再帰に対応不可         │
+  ├──────────────┼───────────┼───────────┼──────────────────────────┤
+  │ LL(k)        │ トップダウン│ O(n)    │ k トークン先読み         │
+  │              │           │          │ ANTLR が代表的           │
+  ├──────────────┼───────────┼───────────┼──────────────────────────┤
+  │ LR(0)/SLR    │ ボトムアップ│ O(n)   │ シフト還元               │
+  │              │           │          │ 対応文法クラスが狭い     │
+  ├──────────────┼───────────┼───────────┼──────────────────────────┤
+  │ LALR(1)      │ ボトムアップ│ O(n)   │ yacc/bison が代表的      │
+  │              │           │          │ 実用上十分な表現力       │
+  ├──────────────┼───────────┼───────────┼──────────────────────────┤
+  │ LR(1)        │ ボトムアップ│ O(n)   │ LALR(1) より強力         │
+  │              │           │          │ テーブルが大きくなる     │
+  ├──────────────┼───────────┼───────────┼──────────────────────────┤
+  │ Earley       │ 汎用      │ O(n^3)  │ 任意の CFG に対応         │
+  │              │           │          │ 曖昧文法も処理可能       │
+  ├──────────────┼───────────┼───────────┼──────────────────────────┤
+  │ CYK          │ ボトムアップ│ O(n^3) │ CNF が必要               │
+  │              │           │          │ 理論的に重要             │
+  ├──────────────┼───────────┼───────────┼──────────────────────────┤
+  │ PEG          │ トップダウン│ O(n)   │ パックラットパーサー     │
+  │              │           │          │ 優先順位付き選択         │
+  │              │           │          │ 曖昧性が生じない         │
+  └──────────────┴───────────┴───────────┴──────────────────────────┘
+
+  実務での選択指針:
+  - 小規模な言語（設定ファイル等）→ 手書き再帰下降
+  - 汎用プログラミング言語 → LALR(1) or LR(1) パーサージェネレータ
+  - DSL や拡張が多い言語 → PEG パーサー or LL(k) (ANTLR)
+  - 自然言語処理 → Earley パーサー or GLR
+```
+
+---
+
+## 10. 実践演習
+
+### 演習1: DFA 設計と実装（基礎）
+
+```
+問題:
+  アルファベット Sigma = {0, 1} 上の文字列で、
+  "01" を部分文字列として含む文字列を受理する DFA を設計し、
+  Python で実装せよ。
+
+  受理される例: "01", "001", "010", "1101", "0100"
+  拒否される例: "", "0", "1", "00", "11", "10", "110"
+
+ヒント:
+  3つの状態を使う:
+    q0: まだ "0" を見ていない（初期状態）
+    q1: "0" を見たが、まだ "01" を完成していない
+    q2: "01" を見つけた（受理状態）
+
+解答:
+
+  状態遷移図:
+       ┌──1──┐          ┌──0──┐
+       │     │          │     │
+       ▼     │          ▼     │
+    →( q0 )──0──→( q1 )──1──→(( q2 ))
+                                ↑  │
+                                │  │
+                                └──┘
+                              0,1で自己ループ
+
+  遷移表:
+  ┌────────┬────────┬────────┐
+  │ 状態   │ 0      │ 1      │
+  ├────────┼────────┼────────┤
+  │ →q0    │ q1     │ q0     │
+  │  q1    │ q1     │ q2     │
+  │ *q2    │ q2     │ q2     │
+  └────────┴────────┴────────┘
+```
+
+```python
+"""演習1の解答: "01" を含む文字列を受理する DFA"""
+
+# 上記の DFA クラスを使用
+dfa_contains_01 = DFA(
+    states={"q0", "q1", "q2"},
+    alphabet={"0", "1"},
+    transition={
+        ("q0", "0"): "q1",
+        ("q0", "1"): "q0",
+        ("q1", "0"): "q1",
+        ("q1", "1"): "q2",
+        ("q2", "0"): "q2",
+        ("q2", "1"): "q2",
+    },
+    start_state="q0",
+    accept_states={"q2"},
+)
+
+# テスト
+accept_cases = ["01", "001", "010", "1101", "0100"]
+reject_cases = ["", "0", "1", "00", "11", "10", "110"]
+
+print("=== 受理されるべきケース ===")
+for tc in accept_cases:
+    result = dfa_contains_01.accepts(tc)
+    status = "OK" if result else "NG"
+    print(f"  [{status}] \"{tc}\": {result}")
+
+print("\n=== 拒否されるべきケース ===")
+for tc in reject_cases:
+    result = dfa_contains_01.accepts(tc)
+    status = "OK" if not result else "NG"
+    print(f"  [{status}] \"{tc}\": {result}")
+```
+
+### 演習2: NFA の設計と DFA 変換（応用）
+
+```
+問題:
+  正規表現 (a|b)*aba を NFA に変換し、
+  さらに部分集合構成法で DFA に変換せよ。
+  "ababa" が受理されるか、トレースで確認せよ。
+
+ヒント:
+  Thompson 構成法を使ってまず NFA を構築する。
+  (a|b)* の部分は、状態 q0 で a,b のどちらでも q0 に留まる
+  ように簡略化できる。
+
+解答:
+
+  簡略化した NFA:
+
+       ┌─a,b─┐
+       │     │
+       ▼     │
+    →( q0 )──a──→( q1 )──b──→( q2 )──a──→(( q3 ))
+
+  遷移表:
+  ┌────────┬────────────┬────────────┐
+  │ 状態   │ a          │ b          │
+  ├────────┼────────────┼────────────┤
+  │ →q0    │ {q0, q1}   │ {q0}       │
+  │  q1    │ (empty)    │ {q2}       │
+  │  q2    │ {q3}       │ (empty)    │
+  │ *q3    │ (empty)    │ (empty)    │
+  └────────┴────────────┴────────────┘
+
+  部分集合構成法:
+
+  DFA初期状態: {q0}
+
+  {q0} →a→ {q0,q1}    →b→ {q0}
+  {q0,q1} →a→ {q0,q1}  →b→ {q0,q2}
+  {q0,q2} →a→ {q0,q1,q3} →b→ {q0}
+  {q0,q1,q3} →a→ {q0,q1} →b→ {q0,q2}
+
+  状態の対応:
+    A = {q0}         B = {q0,q1}
+    C = {q0,q2}      D = {q0,q1,q3}  ← 受理状態
+
+  DFA 遷移表:
+  ┌────────┬────────┬────────┐
+  │ 状態   │ a      │ b      │
+  ├────────┼────────┼────────┤
+  │ →A     │ B      │ A      │
+  │  B     │ B      │ C      │
+  │  C     │ D      │ A      │
+  │ *D     │ B      │ C      │
+  └────────┴────────┴────────┘
+
+  トレース（入力 "ababa"）:
+    A →a→ B →b→ C →a→ D →b→ C →a→ D → 受理
+```
+
+### 演習3: CYK アルゴリズムの実装（発展）
+
+```
+問題:
+  以下の CNF 文法に対して CYK アルゴリズムを実装し、
+  文字列 "aabb" が生成可能かどうかを判定せよ。
+
+  文法 G（CNF）:
+    S → AB | BC
+    A → BA | a
+    B → CC | b
+    C → AB | a
+
+  ヒント:
+    CYK テーブル T[i][j] を下三角行列として構築する。
+    T[i][j] は部分文字列 w[i..j] を生成できる変数の集合。
+```
+
+```python
+"""
+演習3の解答: CYK アルゴリズムの実装
+
+CNF（チョムスキー標準形）の文法に対して、
+与えられた文字列が文法から生成可能かどうかを判定する。
+"""
+
+from typing import Dict, List, Set, Tuple
+
+
+def cyk_parse(
+    grammar: Dict[str, List[Tuple[str, ...]]],
+    start_symbol: str,
+    input_string: str,
+) -> bool:
+    """
+    CYK アルゴリズムで入力文字列の所属判定を行う。
+
+    Args:
+        grammar: CNF 文法の生成規則
+                 {変数: [(右辺のタプル), ...]}
+                 例: {"S": [("A", "B"), ("a",)]}
+        start_symbol: 開始記号
+        input_string: 判定する文字列
+
+    Returns:
+        input_string が文法から生成可能なら True
+    """
+    n = len(input_string)
+    if n == 0:
+        # 空文字列の場合、S → epsilon が存在するか確認
+        return ("",) in grammar.get(start_symbol, [])
+
+    # CYK テーブル: table[i][j] = w[i..j] を生成できる変数の集合
+    # i, j は 0-indexed
+    table: List[List[Set[str]]] = [
+        [set() for _ in range(n)] for _ in range(n)
+    ]
+
+    # 基底ケース: 長さ1の部分文字列
+    for i in range(n):
+        for var, productions in grammar.items():
+            for prod in productions:
+                if len(prod) == 1 and prod[0] == input_string[i]:
+                    table[i][i].add(var)
+
+    # 帰納ステップ: 長さ 2 以上の部分文字列
+    for length in range(2, n + 1):       # 部分文字列の長さ
+        for i in range(n - length + 1):  # 開始位置
+            j = i + length - 1           # 終了位置
+            for k in range(i, j):        # 分割点
+                for var, productions in grammar.items():
+                    for prod in productions:
+                        if (len(prod) == 2
+                                and prod[0] in table[i][k]
+                                and prod[1] in table[k + 1][j]):
+                            table[i][j].add(var)
+
+    # デバッグ出力: CYK テーブルの表示
+    print(f"\n=== CYK テーブル（入力: \"{input_string}\"） ===")
+    print(f"    ", end="")
+    for j in range(n):
+        print(f"  {input_string[j]}(j={j})  ", end="")
+    print()
+    for i in range(n):
+        print(f"  i={i}", end="")
+        for j in range(n):
+            if j < i:
+                print("          ", end="")
+            else:
+                cell = table[i][j]
+                cell_str = "{" + ",".join(sorted(cell)) + "}" if cell else "empty"
+                print(f"  {cell_str:8s}", end="")
+        print()
+
+    return start_symbol in table[0][n - 1]
+
+
+# --- 使用例 ---
+
+# CNF 文法の定義
+grammar = {
+    "S": [("A", "B"), ("B", "C")],
+    "A": [("B", "A"), ("a",)],
+    "B": [("C", "C"), ("b",)],
+    "C": [("A", "B"), ("a",)],
+}
+
+# テスト
+test_strings = ["aabb", "ab", "aab", "b", "aaaa"]
+for s in test_strings:
+    result = cyk_parse(grammar, "S", s)
+    print(f"  \"{s}\" in L(G)? -> {result}\n")
+```
+
+---
+
+## 11. FAQ（よくある質問と回答）
+
+### Q1: DFA と NFA は計算能力が同じなのに、なぜ NFA が必要なのか？
+
+```
+回答:
+
+  NFA が実用上重要な理由は主に3つある。
+
+  1. 記述の簡潔さ:
+     NFA は DFA よりも少ない状態数で同じ言語を表現できることが多い。
+     例えば、「末尾から k 番目の文字が a」という言語は:
+       NFA: O(k) 状態
+       DFA: O(2^k) 状態（最悪ケースで指数的に増大）
+
+  2. 構成の容易さ:
+     Thompson 構成法のように、正規表現から NFA を直接構築するのは
+     機械的で簡単だが、DFA を直接構築するのは難しい。
+     和集合、連結、クリーネ閉包の構成が NFA では自然に行える。
+
+  3. 理論的な道具:
+     NFA の非決定性は理論的な証明において強力な道具となる。
+     正規言語の閉包性の多くは NFA を使って簡潔に証明できる。
+
+  実務的には:
+  - NFA で設計 → 部分集合構成法で DFA に変換 → DFA で高速実行
+    という流れが一般的（コンパイラの字句解析器生成等）
+  - あるいは NFA をそのままシミュレートする方式もある
+    （RE2 の遅延 DFA 構築が代表例）
+```
+
+### Q2: 正規表現の後方参照はなぜ理論的な正規表現の能力を超えるのか？
+
+```
+回答:
+
+  理論的な正規表現（数学的定義）と実用的な正規表現（プログラミング言語の
+  正規表現エンジン）は異なる概念である。
+
+  理論的な正規表現:
+    連結、和集合（|）、クリーネ閉包（*）の3つの演算のみ
+    → 正規言語のみを表現できる
+
+  実用的な正規表現（Perl 互換正規表現等）の追加機能:
+    - 後方参照（backreference）: \1, \2, ...
+    - 先読み/後読み: (?=...), (?<=...)
+    - 条件付きパターン
+    等
+
+  後方参照が正規言語の範囲を超える理由:
+
+    例: パターン (.+)\1
+    これは「任意の文字列 w の後に同じ w」= {ww | w in Sigma+} にマッチ
+    → {ww | w in Sigma+} は正規言語でも文脈自由言語でもない
+      （文脈依存言語に属する）
+
+  結果:
+    後方参照付きの正規表現マッチングは NP 完全問題
+    → バックトラックによる指数時間が本質的に避けられない場合がある
+    → NFA ベースのエンジン（Go, Rust）は後方参照を意図的にサポートしない
+```
+
+### Q3: 文脈自由文法で記述できないプログラミング言語の構文要素はあるか？
+
+```
+回答:
+
+  現代のプログラミング言語の多くの構文は CFG で記述可能だが、
+  いくつかの要素は文脈自由言語の範囲を超える。
+
+  CFG で記述できない要素の例:
+
+  1. 変数の宣言と使用の対応:
+     「変数 x は使用前に宣言されていなければならない」
+     → これは {wcw | w は任意} 型の問題（c は区切り）
+     → 文脈依存
+
+  2. 関数の引数の数の一致:
+     「関数定義のパラメータ数と呼び出し時の引数の数が一致」
+     → {a^n b^n c^n | n >= 0} 型の問題に帰着可能
+     → 文脈依存
+
+  3. C 言語の typedef:
+     typedef によって識別子が型名として使えるようになる
+     → パース時に識別子か型名かを判断するには文脈が必要
+     → 「レクサーハック」という特殊処理で対応
+
+  実務での対処法:
+    コンパイラはこれらを2段階で処理する:
+    a. 構文解析（CFG ベース）: 構造だけを解析
+    b. 意味解析: 型チェック、スコープ解析、名前解決等
+       → CFG では表現できない制約をここで検証
+
+    つまり、チョムスキー階層の各レベルの能力を
+    コンパイラの各フェーズに適切に割り当てている。
+```
+
+### Q4: 有限オートマトンの状態数の下界はどう求めるか？
+
+```
+回答:
+
+  与えられた正規言語 L を受理する最小 DFA の状態数を求める
+  方法として、Myhill-Nerode の定理がある。
+
+  Myhill-Nerode の定理:
+    言語 L に対して、同値関係 ≡_L を定義する:
+      x ≡_L y ⟺ すべての z について (xz in L ⟺ yz in L)
+
+    定理:
+    1. L が正規言語 ⟺ ≡_L の同値類の数が有限
+    2. 最小 DFA の状態数 = ≡_L の同値類の数
+
+  例: L = {w in {a,b}* | w は偶数個の a を含む}
+
+    同値類を考える:
+      [epsilon] = {w | w は偶数個の a を含む}  （偶数個の a）
+      [a]       = {w | w は奇数個の a を含む}  （奇数個の a）
+
+    これ以上分割できない → 同値類は2つ
+    → 最小 DFA の状態数は 2
+
+  Myhill-Nerode の定理は以下の用途で有用:
+    - 最小 DFA の状態数の証明
+    - 言語が正規言語でないことの別証明法
+      （同値類が無限なら正規でない）
+    - DFA 最小化の理論的根拠
+```
+
+### Q5: オートマトン理論は機械学習とどう関係するか？
+
+```
+回答:
+
+  オートマトン理論と機械学習の接点は複数ある。
+
+  1. オートマトンの学習（文法推論）:
+     - 正の例と負の例からDFAを学習する問題
+     - RPNI（Regular Positive and Negative Inference）アルゴリズム
+     - L* アルゴリズム（Angluin, 1987）: 質問によるDFA学習
+     - 最小一致DFAの発見はNP完全
+
+  2. リカレントニューラルネットワーク（RNN）との関係:
+     - RNN は理論的に有限精度ではDFAに相当
+     - 無限精度ではチューリング完全
+     - RNN からDFA/NFA を抽出する研究が活発
+     - Transformer が正規言語・文脈自由言語をどこまで
+       学習できるかの理論的分析
+
+  3. 形式検証と機械学習の融合:
+     - 学習されたモデルの振る舞いをオートマトンで表現
+     - オートマトンの性質を利用して安全性を検証
+     - 敵対的入力の検出
+
+  4. 自然言語処理:
+     - 有限状態トランスデューサーによる形態素解析
+     - 重み付きオートマトンによる確率的言語モデル
+     - n-gram モデルの有限状態機械としての解釈
+```
+
+---
+
+## 12. まとめと学習ロードマップ
+
+### 12.1 章のまとめ
+
+```
+この章の重要ポイント:
+
+  1. 有限オートマトン（DFA/NFA）:
+     - DFA: 各状態から入力記号ごとに遷移先が一意
+     - NFA: 複数の遷移先やepsilon遷移が許される
+     - DFA と NFA の計算能力は等価（部分集合構成法で変換可能）
+     - ただし状態数は最悪で指数的に増大
+
+  2. 正規言語:
+     - DFA/NFA が受理する言語 = 正規表現で記述できる言語
+     - ポンピング補題で正規言語でないことを証明できる
+     - 多くの演算に対して閉じている（補集合、共通部分も含む）
+     - 実務では字句解析、パターンマッチ、入力検証に使用
+
+  3. 文脈自由文法と PDA:
+     - CFG: 左辺が単一変数の生成規則
+     - PDA: 有限オートマトン + スタック
+     - CFG と PDA は計算能力が等価
+     - プログラミング言語の構文定義に広く使用
+     - 正規言語より表現力が高い（括弧の対応等が可能）
+
+  4. チョムスキー階層:
+     - 4つのレベル: 正規 < 文脈自由 < 文脈依存 < 帰納的可算
+     - 各レベルは対応するオートマトン（計算モデル）を持つ
+     - コンパイラの各フェーズは異なるレベルの能力を活用
+
+  5. 実務応用:
+     - 正規表現エンジンの実装方式（NFA vs バックトラック）
+     - ReDoS のリスクと対策
+     - HTML パースに正規表現を使うべきでない理論的根拠
+     - プロトコル検証への有限オートマトンの応用
+```
+
+### 12.2 重要な定理・結果の一覧
+
+```
+  ┌────┬─────────────────────────────┬──────────────────────────────┐
+  │ No │ 定理・結果                  │ 意義                         │
+  ├────┼─────────────────────────────┼──────────────────────────────┤
+  │ 1  │ DFA = NFA（等価性）         │ 非決定性は有限オートマトンの  │
+  │    │                             │ 計算能力を増やさない          │
+  ├────┼─────────────────────────────┼──────────────────────────────┤
+  │ 2  │ Kleene の定理               │ DFA/NFA/正規表現は同じ言語   │
+  │    │                             │ クラスを定義する              │
+  ├────┼─────────────────────────────┼──────────────────────────────┤
+  │ 3  │ 正規言語のポンピング補題    │ 正規言語でないことの          │
+  │    │                             │ 証明ツール                    │
+  ├────┼─────────────────────────────┼──────────────────────────────┤
+  │ 4  │ Myhill-Nerode の定理        │ 最小DFAの一意性と             │
+  │    │                             │ 状態数の特徴付け              │
+  ├────┼─────────────────────────────┼──────────────────────────────┤
+  │ 5  │ CFG = PDA（等価性）         │ 文脈自由言語の2つの           │
+  │    │                             │ 特徴付けが等価                │
+  ├────┼─────────────────────────────┼──────────────────────────────┤
+  │ 6  │ CFL のポンピング補題        │ 文脈自由言語でないことの      │
+  │    │                             │ 証明ツール                    │
+  ├────┼─────────────────────────────┼──────────────────────────────┤
+  │ 7  │ DPDA < NPDA                │ PDA では決定性と非決定性で    │
+  │    │                             │ 計算能力が異なる              │
+  ├────┼─────────────────────────────┼──────────────────────────────┤
+  │ 8  │ CFG の曖昧性は決定不能     │ 文法設計の本質的な困難さ      │
+  ├────┼─────────────────────────────┼──────────────────────────────┤
+  │ 9  │ CFL の等価性は決定不能     │ 2つの CFG が同じ言語を        │
+  │    │                             │ 生成するかは判定できない      │
+  ├────┼─────────────────────────────┼──────────────────────────────┤
+  │ 10 │ チョムスキー階層            │ 言語の表現力の体系的分類      │
+  └────┴─────────────────────────────┴──────────────────────────────┘
+```
+
+### 12.3 学習ロードマップ
+
+```
+推奨される学習順序:
+
+  Level 1（基礎: 1-2週間）
+  ├── DFA の定義と例の理解
+  ├── 状態遷移図と遷移表の読み書き
+  ├── 簡単な DFA の設計（偶数個、部分文字列含む等）
+  └── 正規表現の基本構文
+
+  Level 2（応用: 2-3週間）
+  ├── NFA の定義と DFA との違い
+  ├── 部分集合構成法の理解と手計算
+  ├── Thompson 構成法（正規表現 → NFA）
+  ├── ポンピング補題の証明テクニック
+  └── DFA/NFA の Python 実装
+
+  Level 3（発展: 3-4週間）
+  ├── 文脈自由文法の定義と導出
+  ├── プッシュダウンオートマトン
+  ├── CFG から PDA への変換
+  ├── CNF への変換と CYK アルゴリズム
+  ├── チョムスキー階層の全体像
+  └── 各レベルの決定可能性
+
+  Level 4（実践: 継続的）
+  ├── 字句解析器の実装
+  ├── 正規表現エンジンの実装
+  ├── ReDoS の理解と安全な正規表現の設計
+  ├── パーサーコンビネータの実装
+  └── コンパイラフロントエンドの設計
+```
+
+---
+
+## 次に読むべきガイド
+
+- [[01-computability.md]] -- 計算可能性: チューリングマシン、停止問題、決定不能性
+- [[02-complexity.md]] -- 計算量理論: P vs NP、NP完全性、計算量クラス
+
+---
+
+## 参考文献
+
+1. Hopcroft, J. E., Motwani, R., Ullman, J. D. *Introduction to Automata Theory, Languages, and Computation.* 3rd Edition. Pearson, 2006. -- オートマトン理論の定番教科書。DFA/NFA の等価性、正規言語の性質、文脈自由文法、チョムスキー階層を体系的に扱う。数学的厳密性と実例のバランスが優れている。
+
+2. Sipser, M. *Introduction to the Theory of Computation.* 3rd Edition. Cengage Learning, 2012. -- 計算理論全般をカバーする教科書。オートマトン理論から計算可能性、計算量理論まで統一的に扱う。証明のスタイルが明快で読みやすい。演習問題が豊富。
+
+3. Aho, A. V., Lam, M. S., Sethi, R., Ullman, J. D. *Compilers: Principles, Techniques, and Tools.* 2nd Edition. Pearson, 2006. -- 通称「ドラゴンブック」。コンパイラ設計の古典的教科書。字句解析（DFA）、構文解析（CFG/PDA）の実践的な応用を詳細に解説。
+
+4. Cox, R. "Regular Expression Matching Can Be Simple And Fast." 2007. https://swtch.com/~rsc/regexp/regexp1.html -- NFA ベースの正規表現エンジンの実装について解説した記事。Thompson 構成法の実装、DFA 方式との比較、バックトラック方式の問題点（ReDoS）を実例とともに説明。Go の regexp パッケージや RE2 の設計思想の背景。
+
+5. Chomsky, N. "Three Models for the Description of Language." *IRE Transactions on Information Theory.* 2(3):113-124, 1956. -- チョムスキー階層の原論文。形式文法の4つのタイプを定義し、各タイプの表現力の違いを明確にした。計算機科学と言語学の両分野に多大な影響を与えた歴史的文献。
+
+6. Thompson, K. "Programming Techniques: Regular expression search algorithm." *Communications of the ACM.* 11(6):419-422, 1968. -- Thompson 構成法の原論文。正規表現から NFA を構築するアルゴリズムを提案。現代の正規表現エンジンの基盤となっている。
+
+7. Angluin, D. "Learning Regular Sets from Queries and Counterexamples." *Information and Computation.* 75(2):87-106, 1987. -- L* アルゴリズムの原論文。質問（所属質問と等価質問）を通じて未知の DFA を正確に学習するアルゴリズム。オートマトン学習・文法推論の基礎。
+
