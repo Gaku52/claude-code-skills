@@ -1758,7 +1758,398 @@ Pact などのツールが使われる。
 
 ---
 
-## 13. 演習問題
+## 13. テストフレームワークとツールの比較
+
+### 13.1 Python テストフレームワーク比較
+
+| フレームワーク | 特徴 | テスト記述スタイル | フィクスチャ | パラメータ化 | プラグイン |
+|---|---|---|---|---|---|
+| pytest | Python で最も広く使われるテストフレームワーク | 関数ベース + クラスベース | `@pytest.fixture`（強力で柔軟） | `@pytest.mark.parametrize` | 1000 以上のプラグイン |
+| unittest | Python 標準ライブラリ同梱 | クラスベース（`TestCase` 継承） | `setUp` / `tearDown` | `subTest` | 限定的 |
+| nose2 | unittest の拡張（nose の後継） | 関数ベース + クラスベース | プラグインベース | パラメータプラグイン | 中程度 |
+| doctest | ドキュメント文字列内にテストを記述 | docstring 内のインタラクティブ例 | なし | なし | なし |
+
+**推奨**: 新規プロジェクトでは **pytest** を第一選択とする。
+豊富なプラグインエコシステム、直感的なフィクスチャ機構、
+分かりやすいアサーションの失敗メッセージが強みである。
+
+### 13.2 主要言語のテストフレームワーク
+
+| 言語 | フレームワーク | 特徴 |
+|------|--------------|------|
+| Python | pytest | 関数ベース、強力なフィクスチャ、豊富なプラグイン |
+| JavaScript/TypeScript | Jest | Meta 製。スナップショットテスト、モック内蔵 |
+| JavaScript/TypeScript | Vitest | Vite ベース。ESM ネイティブ、Jest 互換 API |
+| Java | JUnit 5 | アノテーション駆動。パラメータ化テストが強力 |
+| Go | testing (標準) | 標準ライブラリで完結。`go test` コマンド |
+| Rust | cargo test (標準) | `#[test]` アトリビュート。ドキュメントテスト対応 |
+| C# | xUnit.net | .NET の標準的フレームワーク。`[Fact]`, `[Theory]` |
+| Ruby | RSpec | BDD スタイル。`describe`, `it` ブロック |
+
+### 13.3 テスト支援ツール
+
+#### モック/スタブ
+
+| ツール | 言語 | 特徴 |
+|--------|------|------|
+| unittest.mock | Python | 標準ライブラリ。`Mock`, `patch`, `MagicMock` |
+| pytest-mock | Python | unittest.mock の pytest ラッパー。`mocker` フィクスチャ |
+| responses | Python | requests ライブラリの HTTP モック |
+| Mockito | Java | Java の代表的モックライブラリ |
+| testdouble.js | JavaScript | JavaScript のテストダブルライブラリ |
+
+#### E2E / ブラウザ自動化
+
+| ツール | 対応ブラウザ | 特徴 |
+|--------|------------|------|
+| Playwright | Chromium, Firefox, WebKit | Microsoft 製。複数ブラウザ対応、自動待機 |
+| Cypress | Chromium ベース | JavaScript ネイティブ。タイムトラベルデバッグ |
+| Selenium | 全主要ブラウザ | 最も歴史が長い。WebDriver プロトコル |
+
+#### カバレッジ
+
+| ツール | 言語 | 出力形式 |
+|--------|------|---------|
+| pytest-cov (coverage.py) | Python | HTML, XML, JSON, ターミナル |
+| Istanbul (nyc) | JavaScript | HTML, lcov, text |
+| JaCoCo | Java | HTML, XML, CSV |
+| gcov / lcov | C/C++ | HTML, テキスト |
+
+#### プロパティベーステスト
+
+| ツール | 言語 | 特徴 |
+|--------|------|------|
+| Hypothesis | Python | 強力な shrinking、stateful テスト対応 |
+| QuickCheck | Haskell | プロパティベーステストの元祖 |
+| fast-check | JavaScript/TypeScript | JS/TS 向け。Hypothesis インスパイア |
+| PropTest | Rust | Rust 向けプロパティベーステスト |
+| jqwik | Java | JUnit 5 統合型プロパティベーステスト |
+
+#### ミューテーションテスト
+
+| ツール | 言語 | 特徴 |
+|--------|------|------|
+| mutmut | Python | シンプルで使いやすい |
+| cosmic-ray | Python | より多くのミュータントオペレータ |
+| Stryker | JS/TS, C# | 複数言語対応。リッチなレポート |
+| PIT (pitest) | Java | Java の代表的ミューテーションテストツール |
+
+### 13.4 テスト実行の最適化テクニック
+
+テストスイートが成長すると実行時間が問題になる。
+以下に主要な最適化テクニックを示す。
+
+```
+テスト実行の最適化戦略:
+
+  ┌─────────────────────────────────────────────────────┐
+  │              テスト実行の高速化                        │
+  ├─────────────────────────────────────────────────────┤
+  │                                                     │
+  │  1. 並列実行                                         │
+  │     pytest-xdist: pytest -n auto                    │
+  │     → CPU コア数に応じて自動並列化                     │
+  │                                                     │
+  │  2. 変更検知ベースの実行                               │
+  │     pytest --lf  (前回失敗したテストだけ再実行)         │
+  │     pytest --ff  (前回失敗したテストを優先的に実行)      │
+  │     pytest-testmon (変更されたコードに関連するテストのみ) │
+  │                                                     │
+  │  3. 層別実行                                         │
+  │     pytest -m "not slow"  (遅いテストをスキップ)       │
+  │     pytest -m "unit"      (ユニットテストだけ)          │
+  │     pytest -m "smoke"     (スモークテストだけ)          │
+  │                                                     │
+  │  4. フィクスチャの最適化                               │
+  │     scope="session" → テストセッション全体で1回だけ実行  │
+  │     scope="module"  → モジュールごとに1回               │
+  │     scope="class"   → クラスごとに1回                   │
+  │     scope="function"→ テスト関数ごとに1回（デフォルト）   │
+  │                                                     │
+  │  5. 不要なI/Oの削減                                   │
+  │     インメモリDB（SQLite :memory:）の活用              │
+  │     ファイルシステムの代わりに StringIO / BytesIO       │
+  │     HTTP 通信のモック化                                │
+  └─────────────────────────────────────────────────────┘
+```
+
+```python
+# pytest マーカーによる層別実行の例
+
+import pytest
+
+# テストにマーカーを付与
+@pytest.mark.unit
+def test_高速なユニットテスト():
+    assert 1 + 1 == 2
+
+@pytest.mark.integration
+def test_DB接続を伴うテスト():
+    # DB に接続するテスト
+    pass
+
+@pytest.mark.slow
+def test_時間のかかるテスト():
+    # 実行に数十秒かかるテスト
+    pass
+
+@pytest.mark.e2e
+def test_ブラウザ操作テスト():
+    # Playwright でブラウザを操作するテスト
+    pass
+
+# pyproject.toml での設定:
+# [tool.pytest.ini_options]
+# markers = [
+#     "unit: ユニットテスト",
+#     "integration: 統合テスト",
+#     "slow: 実行が遅いテスト",
+#     "e2e: E2E テスト",
+# ]
+
+# 実行例:
+# pytest -m unit           → ユニットテストだけ
+# pytest -m "not slow"     → 遅いテスト以外
+# pytest -m "unit or integration"  → ユニット + 統合
+```
+
+### 13.5 テストデータの管理
+
+テストデータの管理はテストの信頼性と保守性に直結する。
+
+#### ファクトリーパターン
+
+```python
+# テストデータのファクトリーパターン
+
+from dataclasses import dataclass, field
+import uuid
+
+
+@dataclass
+class UserFactory:
+    """テスト用のユーザーデータを生成するファクトリー。"""
+
+    name: str = "テスト太郎"
+    email: str = field(default_factory=lambda: f"test-{uuid.uuid4().hex[:8]}@example.com")
+    age: int = 30
+    is_active: bool = True
+
+    def build(self) -> dict:
+        """辞書形式でユーザーデータを返す。"""
+        return {
+            "name": self.name,
+            "email": self.email,
+            "age": self.age,
+            "is_active": self.is_active,
+        }
+
+    @classmethod
+    def admin(cls) -> "UserFactory":
+        """管理者ユーザーのプリセット。"""
+        return cls(name="管理者", age=40)
+
+    @classmethod
+    def child(cls) -> "UserFactory":
+        """子供ユーザーのプリセット。"""
+        return cls(name="テスト子供", age=10)
+
+
+# 使用例
+def test_デフォルトユーザーで登録できる():
+    user_data = UserFactory().build()
+    result = register_user(**user_data)
+    assert result.name == "テスト太郎"
+
+def test_管理者で登録できる():
+    user_data = UserFactory.admin().build()
+    result = register_user(**user_data)
+    assert result.name == "管理者"
+
+def test_カスタムデータで登録できる():
+    user_data = UserFactory(name="カスタム", age=25).build()
+    result = register_user(**user_data)
+    assert result.name == "カスタム"
+```
+
+#### ビルダーパターン
+
+```python
+# テストデータのビルダーパターン
+
+class OrderBuilder:
+    """テスト用の注文データをビルダーパターンで生成する。"""
+
+    def __init__(self):
+        self._customer_id = "C001"
+        self._items = []
+        self._discount = 0
+        self._shipping_address = "東京都千代田区"
+
+    def with_customer(self, customer_id: str) -> "OrderBuilder":
+        self._customer_id = customer_id
+        return self
+
+    def with_item(self, name: str, price: int, quantity: int = 1) -> "OrderBuilder":
+        self._items.append({"name": name, "price": price, "quantity": quantity})
+        return self
+
+    def with_discount(self, discount: int) -> "OrderBuilder":
+        self._discount = discount
+        return self
+
+    def with_shipping_address(self, address: str) -> "OrderBuilder":
+        self._shipping_address = address
+        return self
+
+    def build(self) -> dict:
+        return {
+            "customer_id": self._customer_id,
+            "items": self._items,
+            "discount": self._discount,
+            "shipping_address": self._shipping_address,
+        }
+
+
+# 使用例
+def test_複数商品の注文合計():
+    order = (
+        OrderBuilder()
+        .with_item("Python入門", 3000, quantity=2)
+        .with_item("Go実践", 3500)
+        .with_discount(500)
+        .build()
+    )
+    total = calculate_order_total(order)
+    assert total == 9000  # (3000*2 + 3500) - 500
+```
+
+---
+
+## 14. テストと設計の関係
+
+### 14.1 テスタビリティと設計品質
+
+テストのしやすさ（テスタビリティ）は、設計品質の優れた指標である。
+テストしにくいコードは、ほぼ確実に設計上の問題を抱えている。
+
+```
+テスタビリティと設計の関係:
+
+  テストしにくいコードの特徴        対応する設計上の問題
+  ──────────────────────        ──────────────────
+  ・new で直接依存を生成          → 密結合（Tight Coupling）
+  ・グローバル変数に依存          → 隠れた依存関係
+  ・static メソッドが多い         → テストダブルで置換不能
+  ・1メソッドが数百行             → 単一責任原則の違反
+  ・コンストラクタで副作用        → 生成と利用の混在
+  ・環境変数に直接アクセス        → 設定の暗黙的依存
+
+  テストしやすいコードの特徴        対応する設計原則
+  ──────────────────────        ──────────────────
+  ・依存はコンストラクタで注入     → 依存性逆転原則（DIP）
+  ・インターフェースに依存        → 開放閉鎖原則（OCP）
+  ・メソッドは短く単一目的        → 単一責任原則（SRP）
+  ・副作用が少ない純粋関数       → 関数型プログラミング
+  ・設定は引数で受け取る         → 明示的な依存関係
+```
+
+### 14.2 依存性注入とテスタビリティ
+
+```python
+# ===== コード例 6: 依存性注入によるテスタビリティの向上 =====
+
+# 悪い例: 直接依存を生成
+class NotificationService_Bad:
+    def notify(self, user_id: str, message: str) -> bool:
+        # テスト時にもメールが送信されてしまう
+        import smtplib
+        server = smtplib.SMTP("smtp.example.com")
+        server.sendmail("noreply@example.com", user_id, message)
+        return True
+
+
+# 良い例: 依存性注入
+from typing import Protocol
+
+class EmailSender(Protocol):
+    def send(self, to: str, subject: str, body: str) -> bool: ...
+
+class NotificationService_Good:
+    def __init__(self, email_sender: EmailSender):
+        self._email_sender = email_sender
+
+    def notify(self, user_id: str, message: str) -> bool:
+        return self._email_sender.send(
+            to=user_id,
+            subject="通知",
+            body=message,
+        )
+
+
+# テストコード
+class FakeEmailSender:
+    """テスト用のフェイク実装。"""
+    def __init__(self):
+        self.sent_emails = []
+
+    def send(self, to: str, subject: str, body: str) -> bool:
+        self.sent_emails.append({"to": to, "subject": subject, "body": body})
+        return True
+
+
+def test_通知が送信される():
+    fake_sender = FakeEmailSender()
+    service = NotificationService_Good(fake_sender)
+
+    result = service.notify("user@example.com", "テストメッセージ")
+
+    assert result is True
+    assert len(fake_sender.sent_emails) == 1
+    assert fake_sender.sent_emails[0]["to"] == "user@example.com"
+```
+
+### 14.3 Hexagonal Architecture とテスト
+
+Hexagonal Architecture（ポート&アダプターアーキテクチャ）は、
+テスタビリティに優れた設計パターンである。
+
+```
+Hexagonal Architecture とテスト戦略:
+
+                    ┌──────────────────────┐
+                    │    テスト戦略         │
+                    └──────────────────────┘
+
+  ┌─────────┐                               ┌─────────┐
+  │ アダプター│    ┌────────────────────┐     │ アダプター│
+  │ (入力)   │───>│   ポート（入力）     │     │ (出力)   │
+  │ HTTP API │    │                    │     │ DB      │
+  │ CLI      │    │  ┌──────────────┐  │     │ メール   │
+  │ メッセージ│    │  │ ドメイン      │  │───> │ 外部API  │
+  │          │    │  │ ロジック      │  │     │          │
+  │          │    │  └──────────────┘  │     │          │
+  └─────────┘    │   ポート（出力）     │     └─────────┘
+                  └────────────────────┘
+
+  テスト戦略:
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ユニットテスト → ドメインロジック
+    ・外部依存なし。純粋なビジネスルールを検証
+    ・ポートをモック/スタブで置換
+
+  統合テスト → アダプター
+    ・実際のDBやHTTPサーバーで接続を検証
+    ・ポートの実装が正しく動作するか
+
+  E2Eテスト → 入力アダプター → ドメイン → 出力アダプター
+    ・全レイヤーを貫通。主要フローのみ
+```
+
+---
+
+## 15. 演習問題
 
 ### 演習 1（初級）: ユニットテストの実装
 
@@ -1862,7 +2253,7 @@ def compact(lst: list) -> list:
 
 ---
 
-## 14. FAQ（よくある質問）
+## 16. FAQ（よくある質問）
 
 ### Q1: テストカバレッジは何パーセントを目標にすべきか？
 
@@ -1958,7 +2349,7 @@ API に対する統合テストは十分に安定しており、
 
 ---
 
-## 15. テスト戦略の実践的ガイドライン
+## 17. テスト戦略の実践的ガイドライン
 
 ### 15.1 テストを書く順序
 

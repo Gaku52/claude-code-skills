@@ -1632,3 +1632,1673 @@ int main(void) {
 | テスト | 関数単位のテストが容易 | 副作用のある関数のテストは難しい |
 | 並行性 | 逐次処理の表現が自然 | 共有状態の並行アクセスが問題になる |
 
+---
+
+## 7. 命令型と他のパラダイムの比較
+
+### 7.1 命令型 vs 関数型プログラミング
+
+命令型プログラミングと関数型プログラミング（Functional Programming）は、計算に対する根本的に異なるアプローチを取る。
+
+```
+命令型 vs 関数型の本質的な違い
+═══════════════════════════════════════════════
+
+  命令型: 「状態を変化させる命令の列」
+  ─────────────────────────────────────
+  プログラム = 状態機械（State Machine）
+
+  状態S0 → [命令1] → 状態S1 → [命令2] → 状態S2 → ...
+
+  → 「時間の経過」に沿ってプログラムが進む
+  → 同じ命令でも、実行時の状態によって結果が異なる
+
+  関数型: 「関数の合成による変換」
+  ─────────────────────────────────────
+  プログラム = 関数の合成（Function Composition）
+
+  入力 → f → g → h → 出力
+
+  → 「データの変換」としてプログラムを記述
+  → 同じ入力に対して常に同じ出力（参照透過性）
+```
+
+具体的なコードで比較する。リスト内の偶数を二乗して合計する処理を、命令型と関数型の両方で実装する。
+
+```python
+# === 命令型スタイル ===
+
+def sum_of_even_squares_imperative(numbers):
+    """
+    命令型: 状態変数 total を逐次更新する
+    """
+    total = 0                         # 状態の初期化
+    for num in numbers:               # 反復
+        if num % 2 == 0:              # 選択
+            total += num ** 2         # 状態の更新（代入）
+    return total
+
+
+# === 関数型スタイル ===
+
+def sum_of_even_squares_functional(numbers):
+    """
+    関数型: 関数の合成でデータを変換する
+    中間状態を持たない
+    """
+    from functools import reduce
+    return reduce(
+        lambda acc, x: acc + x,       # 集約関数
+        map(
+            lambda x: x ** 2,         # 変換関数
+            filter(
+                lambda x: x % 2 == 0, # フィルタ関数
+                numbers
+            )
+        ),
+        0                             # 初期値
+    )
+
+
+# === Python的な関数型スタイル（リスト内包表記） ===
+
+def sum_of_even_squares_pythonic(numbers):
+    """
+    Pythonらしい宣言的スタイル
+    """
+    return sum(x ** 2 for x in numbers if x % 2 == 0)
+
+
+# 実行例（いずれも同じ結果）
+data = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+print(sum_of_even_squares_imperative(data))    # 220
+print(sum_of_even_squares_functional(data))    # 220
+print(sum_of_even_squares_pythonic(data))      # 220
+
+# 2^2 + 4^2 + 6^2 + 8^2 + 10^2 = 4 + 16 + 36 + 64 + 100 = 220
+```
+
+| 比較項目 | 命令型 | 関数型 |
+|---------|--------|--------|
+| 中心概念 | 状態の変化 | 値の変換 |
+| 変数 | 可変（mutable） | 不変（immutable）が基本 |
+| ループ | for / while | 再帰 / 高階関数（map, filter, reduce） |
+| 副作用 | 一般的 | 避ける（純粋関数を志向） |
+| 並行処理 | ロック等による同期が必要 | 共有状態がないため安全 |
+| デバッグ | ステップ実行で追跡 | 各関数の入出力を検証 |
+| 計算モデル | チューリングマシン | ラムダ計算 |
+| 代表言語 | C, Pascal, Go | Haskell, Erlang, Clojure |
+
+### 7.2 命令型 vs オブジェクト指向プログラミング
+
+オブジェクト指向プログラミング（Object-Oriented Programming, OOP）は、命令型プログラミングの拡張として位置づけられることが多い。OOP はデータ（状態）とそれに対する操作（メソッド）をオブジェクトとしてまとめ、カプセル化する。
+
+**手続き型アプローチ（データと操作が分離）:**
+
+```python
+# 手続き型: データは辞書、操作は独立した関数
+
+def create_bank_account(owner, balance=0):
+    """口座データを作成する"""
+    return {"owner": owner, "balance": balance, "history": []}
+
+def deposit(account, amount):
+    """入金する"""
+    if amount <= 0:
+        print("入金額は正の数でなければならない")
+        return account
+    new_balance = account["balance"] + amount
+    new_history = list(account["history"])
+    new_history.append(f"入金: +{amount}")
+    return {
+        "owner": account["owner"],
+        "balance": new_balance,
+        "history": new_history,
+    }
+
+def withdraw(account, amount):
+    """出金する"""
+    if amount <= 0:
+        print("出金額は正の数でなければならない")
+        return account
+    if amount > account["balance"]:
+        print("残高不足")
+        return account
+    new_balance = account["balance"] - amount
+    new_history = list(account["history"])
+    new_history.append(f"出金: -{amount}")
+    return {
+        "owner": account["owner"],
+        "balance": new_balance,
+        "history": new_history,
+    }
+
+def get_balance_info(account):
+    """残高情報を取得する"""
+    return f"{account['owner']}の残高: {account['balance']}円"
+
+# 利用例
+acc = create_bank_account("佐藤太郎", 10000)
+acc = deposit(acc, 5000)
+acc = withdraw(acc, 3000)
+print(get_balance_info(acc))  # 佐藤太郎の残高: 12000円
+```
+
+**オブジェクト指向アプローチ（データと操作を統合）:**
+
+```python
+class BankAccount:
+    """
+    OOP: データ（残高、履歴）と操作（入出金）を
+    一つのクラスにカプセル化する
+    """
+
+    def __init__(self, owner, balance=0):
+        self._owner = owner         # プライベート属性
+        self._balance = balance
+        self._history = []
+
+    def deposit(self, amount):
+        """入金する"""
+        if amount <= 0:
+            raise ValueError("入金額は正の数でなければならない")
+        self._balance += amount
+        self._history.append(f"入金: +{amount}")
+
+    def withdraw(self, amount):
+        """出金する"""
+        if amount <= 0:
+            raise ValueError("出金額は正の数でなければならない")
+        if amount > self._balance:
+            raise ValueError("残高不足")
+        self._balance -= amount
+        self._history.append(f"出金: -{amount}")
+
+    @property
+    def balance(self):
+        return self._balance
+
+    def __str__(self):
+        return f"{self._owner}の残高: {self._balance}円"
+
+
+# 利用例
+acc = BankAccount("佐藤太郎", 10000)
+acc.deposit(5000)
+acc.withdraw(3000)
+print(acc)  # 佐藤太郎の残高: 12000円
+```
+
+| 比較項目 | 手続き型 | オブジェクト指向 |
+|---------|---------|--------------|
+| データと操作 | 分離している | 統合（カプセル化）されている |
+| 状態管理 | 関数外から直接アクセス可能 | アクセス制御により保護される |
+| 再利用 | 関数の再利用 | クラスの継承・委譲による再利用 |
+| 多態性 | 関数ポインタ等で実現 | 言語レベルでサポート |
+| 設計の単位 | 関数 | オブジェクト（クラス） |
+| 適する規模 | 小〜中規模 | 中〜大規模 |
+| 複雑性管理 | 関数の階層化 | オブジェクト間の関係設計 |
+
+### 7.3 パラダイム選択の指針
+
+```
+パラダイム選択のデシジョンツリー
+═══════════════════════════════════════════════════
+
+  問題の性質を分析
+      │
+      ├── ハードウェア制御・組み込み → 命令型（C）
+      │
+      ├── スクリプト・自動化 → 手続き型（Python, Shell）
+      │
+      ├── データ変換・並行処理 → 関数型（Haskell, Elixir）
+      │
+      ├── 複雑なドメインモデル → OOP（Java, C#）
+      │
+      ├── データ問い合わせ → 宣言型（SQL）
+      │
+      ├── 論理推論・制約充足 → 論理型（Prolog）
+      │
+      └── 複合的な要件 → マルチパラダイム（Python, Rust, TS）
+
+  現実のプロジェクトでは:
+  - 一つのパラダイムに固執するのではなく、
+    問題の各部分に最適なパラダイムを適用する
+  - ほとんどの現代言語はマルチパラダイムをサポートする
+```
+
+---
+
+## 8. 現代言語での命令型スタイル
+
+### 8.1 Python における命令型と宣言型の融合
+
+Python はマルチパラダイム言語の代表格であり、命令型スタイルと関数型・宣言型スタイルを自然に組み合わせることができる。
+
+```python
+"""
+現代的なPythonにおけるパラダイムの融合例:
+ログファイルを解析してエラー統計を生成する
+"""
+from collections import defaultdict
+from datetime import datetime
+
+
+# === 命令型スタイル ===
+
+def analyze_logs_imperative(log_lines):
+    """命令型: 明示的なループと状態管理"""
+    error_counts = {}
+    error_times = []
+
+    for line in log_lines:
+        # 各行を解析
+        parts = line.strip().split(" ", 3)
+        if len(parts) < 4:
+            continue
+
+        timestamp_str = parts[0] + " " + parts[1]
+        level = parts[2].strip("[]")
+        message = parts[3]
+
+        if level == "ERROR":
+            # エラーカウントの更新
+            if message in error_counts:
+                error_counts[message] += 1
+            else:
+                error_counts[message] = 1
+
+            # タイムスタンプの記録
+            try:
+                ts = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S")
+                error_times.append(ts)
+            except ValueError:
+                pass
+
+    # 最も多いエラーを見つける
+    most_common_error = None
+    max_count = 0
+    for error, count in error_counts.items():
+        if count > max_count:
+            max_count = count
+            most_common_error = error
+
+    return {
+        "total_errors": len(error_times),
+        "unique_errors": len(error_counts),
+        "most_common": most_common_error,
+        "most_common_count": max_count,
+        "error_counts": error_counts,
+    }
+
+
+# === 宣言型/関数型スタイル ===
+
+def analyze_logs_declarative(log_lines):
+    """宣言型: 高階関数とジェネレータの活用"""
+
+    def parse_line(line):
+        """行をパースして構造化データに変換"""
+        parts = line.strip().split(" ", 3)
+        if len(parts) < 4:
+            return None
+        return {
+            "timestamp": parts[0] + " " + parts[1],
+            "level": parts[2].strip("[]"),
+            "message": parts[3],
+        }
+
+    # データ変換パイプライン
+    parsed = (parse_line(line) for line in log_lines)           # 遅延評価
+    valid = (entry for entry in parsed if entry is not None)    # フィルタ
+    errors = [entry for entry in valid if entry["level"] == "ERROR"]
+
+    # 集計（defaultdictで簡潔に）
+    error_counts = defaultdict(int)
+    for error in errors:
+        error_counts[error["message"]] += 1
+
+    most_common = max(error_counts.items(), key=lambda x: x[1],
+                      default=(None, 0))
+
+    return {
+        "total_errors": len(errors),
+        "unique_errors": len(error_counts),
+        "most_common": most_common[0],
+        "most_common_count": most_common[1],
+        "error_counts": dict(error_counts),
+    }
+
+
+# テスト用データ
+sample_logs = [
+    "2024-01-15 10:23:45 [INFO] Application started",
+    "2024-01-15 10:24:01 [ERROR] Database connection failed",
+    "2024-01-15 10:24:15 [ERROR] Database connection failed",
+    "2024-01-15 10:25:30 [WARNING] High memory usage",
+    "2024-01-15 10:26:00 [ERROR] File not found: config.yml",
+    "2024-01-15 10:27:12 [INFO] Retry successful",
+    "2024-01-15 10:28:45 [ERROR] Database connection failed",
+    "2024-01-15 10:30:00 [ERROR] Timeout waiting for response",
+]
+
+# 両方のアプローチで同じ結果が得られる
+result1 = analyze_logs_imperative(sample_logs)
+result2 = analyze_logs_declarative(sample_logs)
+
+print(f"総エラー数: {result1['total_errors']}")        # 5
+print(f"一意のエラー数: {result1['unique_errors']}")     # 3
+print(f"最多エラー: {result1['most_common']}")           # Database connection failed
+print(f"最多エラー回数: {result1['most_common_count']}")  # 3
+```
+
+### 8.2 Rust における命令型と関数型の融合
+
+Rust は、命令型の制御フローと関数型のイテレータ・パターンマッチを高いレベルで融合した言語である。所有権システムにより、命令型プログラミングの最大の問題点である「可変状態の安全性」をコンパイル時に保証する。
+
+```rust
+// Rust における命令型スタイルと関数型スタイルの比較
+
+/// 命令型スタイル: 明示的なループと可変変数
+fn word_frequency_imperative(text: &str) -> Vec<(String, usize)> {
+    use std::collections::HashMap;
+
+    let mut counts: HashMap<String, usize> = HashMap::new();
+
+    // 命令型ループ
+    for word in text.split_whitespace() {
+        let word_lower = word.to_lowercase();
+        // パターンマッチで安全にカウントを更新
+        let count = counts.entry(word_lower).or_insert(0);
+        *count += 1;
+    }
+
+    // 結果をベクタに変換してソート
+    let mut result: Vec<(String, usize)> = counts.into_iter().collect();
+    result.sort_by(|a, b| b.1.cmp(&a.1));
+    result
+}
+
+/// 関数型スタイル: イテレータチェーン
+fn word_frequency_functional(text: &str) -> Vec<(String, usize)> {
+    use std::collections::HashMap;
+
+    let counts: HashMap<String, usize> = text
+        .split_whitespace()
+        .map(|w| w.to_lowercase())
+        .fold(HashMap::new(), |mut acc, word| {
+            *acc.entry(word).or_insert(0) += 1;
+            acc
+        });
+
+    let mut result: Vec<_> = counts.into_iter().collect();
+    result.sort_by(|a, b| b.1.cmp(&a.1));
+    result
+}
+
+fn main() {
+    let text = "the quick brown fox jumps over the lazy dog the fox";
+
+    let result = word_frequency_imperative(text);
+    for (word, count) in &result {
+        println!("{}: {}", word, count);
+    }
+    // the: 3
+    // fox: 2
+    // quick: 1
+    // brown: 1
+    // ...
+}
+```
+
+### 8.3 Go における命令型の徹底
+
+Go は意図的にシンプルな命令型スタイルを採用している言語である。ジェネリクス（Go 1.18 で追加）以前は、map, filter, reduce などの高階関数を言語レベルで提供しておらず、命令型ループを中心とした設計思想を貫いていた。
+
+```go
+package main
+
+import (
+    "fmt"
+    "math"
+    "sort"
+    "strings"
+)
+
+// Point は二次元平面上の点を表す
+type Point struct {
+    X, Y float64
+}
+
+// Distance は2点間のユークリッド距離を計算する
+func Distance(p1, p2 Point) float64 {
+    dx := p1.X - p2.X
+    dy := p1.Y - p2.Y
+    return math.Sqrt(dx*dx + dy*dy)
+}
+
+// FindClosestPair は点の集合から最も近い2点の組を見つける
+// 命令型スタイル: 明示的な二重ループ
+func FindClosestPair(points []Point) (Point, Point, float64) {
+    if len(points) < 2 {
+        return Point{}, Point{}, -1
+    }
+
+    minDist := math.Inf(1)
+    var closest1, closest2 Point
+
+    // 命令型の二重ループで全ての組み合わせを検査
+    for i := 0; i < len(points); i++ {
+        for j := i + 1; j < len(points); j++ {
+            dist := Distance(points[i], points[j])
+            if dist < minDist {
+                minDist = dist
+                closest1 = points[i]
+                closest2 = points[j]
+            }
+        }
+    }
+
+    return closest1, closest2, minDist
+}
+
+// GroupByQuadrant は点を象限ごとに分類する
+func GroupByQuadrant(points []Point) map[string][]Point {
+    groups := map[string][]Point{
+        "第1象限": {},
+        "第2象限": {},
+        "第3象限": {},
+        "第4象限": {},
+        "軸上":    {},
+    }
+
+    for _, p := range points {
+        switch {
+        case p.X > 0 && p.Y > 0:
+            groups["第1象限"] = append(groups["第1象限"], p)
+        case p.X < 0 && p.Y > 0:
+            groups["第2象限"] = append(groups["第2象限"], p)
+        case p.X < 0 && p.Y < 0:
+            groups["第3象限"] = append(groups["第3象限"], p)
+        case p.X > 0 && p.Y < 0:
+            groups["第4象限"] = append(groups["第4象限"], p)
+        default:
+            groups["軸上"] = append(groups["軸上"], p)
+        }
+    }
+
+    return groups
+}
+
+func main() {
+    points := []Point{
+        {1.0, 2.0}, {3.0, 4.0}, {1.5, 2.5},
+        {-1.0, 3.0}, {-2.0, -1.0}, {4.0, -2.0},
+        {0.0, 5.0},
+    }
+
+    // 最近点対の探索
+    p1, p2, dist := FindClosestPair(points)
+    fmt.Printf("最近点対: (%.1f, %.1f) と (%.1f, %.1f)\n", p1.X, p1.Y, p2.X, p2.Y)
+    fmt.Printf("距離: %.4f\n", dist)
+
+    // 象限ごとの分類
+    groups := GroupByQuadrant(points)
+    for quadrant, pts := range groups {
+        if len(pts) > 0 {
+            strs := make([]string, len(pts))
+            for i, p := range pts {
+                strs[i] = fmt.Sprintf("(%.1f, %.1f)", p.X, p.Y)
+            }
+            fmt.Printf("%s: %s\n", quadrant, strings.Join(strs, ", "))
+        }
+    }
+
+    // ソート（命令型: sort.Sliceで比較関数を指定）
+    sort.Slice(points, func(i, j int) bool {
+        d1 := Distance(points[i], Point{0, 0})
+        d2 := Distance(points[j], Point{0, 0})
+        return d1 < d2
+    })
+
+    fmt.Println("\n原点からの距離でソート:")
+    for _, p := range points {
+        d := Distance(p, Point{0, 0})
+        fmt.Printf("  (%.1f, %.1f) -> 距離 %.4f\n", p.X, p.Y, d)
+    }
+}
+```
+
+### 8.4 Java における命令型とストリーム API の対比
+
+Java 8 以降、ストリーム API の導入により、従来の命令型ループに代わる宣言型スタイルが利用可能になった。
+
+```java
+import java.util.*;
+import java.util.stream.*;
+
+public class ImperativeVsStreams {
+
+    record Employee(String name, String department, int salary) {}
+
+    /**
+     * 命令型スタイル: 部門ごとの平均給与を計算する
+     */
+    static Map<String, Double> avgSalaryImperative(List<Employee> employees) {
+        // 部門ごとの合計と人数を集計
+        Map<String, Integer> totalByDept = new HashMap<>();
+        Map<String, Integer> countByDept = new HashMap<>();
+
+        for (Employee emp : employees) {
+            String dept = emp.department();
+            // 合計の更新
+            if (totalByDept.containsKey(dept)) {
+                totalByDept.put(dept, totalByDept.get(dept) + emp.salary());
+            } else {
+                totalByDept.put(dept, emp.salary());
+            }
+            // 人数の更新
+            if (countByDept.containsKey(dept)) {
+                countByDept.put(dept, countByDept.get(dept) + 1);
+            } else {
+                countByDept.put(dept, 1);
+            }
+        }
+
+        // 平均の計算
+        Map<String, Double> result = new HashMap<>();
+        for (String dept : totalByDept.keySet()) {
+            double avg = (double) totalByDept.get(dept) / countByDept.get(dept);
+            result.put(dept, avg);
+        }
+        return result;
+    }
+
+    /**
+     * ストリームAPI（宣言型スタイル）: 同じ処理をパイプラインで記述
+     */
+    static Map<String, Double> avgSalaryStreams(List<Employee> employees) {
+        return employees.stream()
+            .collect(Collectors.groupingBy(
+                Employee::department,
+                Collectors.averagingInt(Employee::salary)
+            ));
+    }
+
+    public static void main(String[] args) {
+        List<Employee> employees = List.of(
+            new Employee("佐藤", "開発", 600000),
+            new Employee("鈴木", "開発", 550000),
+            new Employee("田中", "営業", 500000),
+            new Employee("高橋", "営業", 480000),
+            new Employee("伊藤", "人事", 520000),
+            new Employee("渡辺", "開発", 700000),
+            new Employee("山本", "営業", 530000)
+        );
+
+        // 命令型
+        Map<String, Double> result1 = avgSalaryImperative(employees);
+        System.out.println("命令型: " + result1);
+
+        // ストリームAPI
+        Map<String, Double> result2 = avgSalaryStreams(employees);
+        System.out.println("ストリーム: " + result2);
+
+        // どちらも同じ結果:
+        // {開発=616666.67, 営業=503333.33, 人事=520000.0}
+    }
+}
+```
+
+---
+
+## 9. アンチパターン
+
+### 9.1 アンチパターン1: グローバル状態の乱用
+
+グローバル変数に過度に依存したプログラムは、予測困難な振る舞いと保守の困難さをもたらす。
+
+```python
+# ===== アンチパターン: グローバル状態の乱用 =====
+
+# グローバル変数で全ての状態を管理
+current_user = None
+cart_items = []
+total_price = 0
+discount_rate = 0
+is_logged_in = False
+error_message = ""
+
+def login(username, password):
+    global current_user, is_logged_in, error_message
+    # 認証処理（省略）
+    current_user = username
+    is_logged_in = True
+    error_message = ""
+
+def add_to_cart(item, price):
+    global cart_items, total_price, error_message
+    if not is_logged_in:          # 別のグローバル変数に依存
+        error_message = "ログインしてください"
+        return
+    cart_items.append({"item": item, "price": price})
+    total_price += price          # グローバル変数を直接変更
+
+def apply_discount(rate):
+    global discount_rate, total_price
+    discount_rate = rate
+    total_price = total_price * (1 - rate)  # 適用済みかの判定がない
+
+def checkout():
+    global cart_items, total_price, error_message
+    if not is_logged_in:
+        error_message = "ログインしてください"
+        return
+    if total_price <= 0:
+        error_message = "カートが空です"
+        return
+    # 注文処理...
+    print(f"{current_user}の注文: {total_price}円")
+    cart_items = []
+    total_price = 0
+
+# 問題点:
+# 1. apply_discount() を2回呼ぶと割引が二重適用される
+# 2. どの関数がどのグローバル変数を変更するか追跡が困難
+# 3. テスト時にグローバル状態の初期化が必要
+# 4. 並行実行すると状態が競合する
+
+
+# ===== 改善版: 状態をオブジェクトに局所化 =====
+
+class ShoppingSession:
+    """状態をクラス内に閉じ込め、操作を制御する"""
+
+    def __init__(self):
+        self._user = None
+        self._cart = []
+        self._discount_applied = False
+
+    def login(self, username, password):
+        # 認証処理
+        self._user = username
+
+    @property
+    def is_logged_in(self):
+        return self._user is not None
+
+    def add_to_cart(self, item, price):
+        if not self.is_logged_in:
+            raise RuntimeError("ログインしてください")
+        self._cart.append({"item": item, "price": price})
+
+    def apply_discount(self, rate):
+        if self._discount_applied:
+            raise RuntimeError("割引は一度のみ適用可能です")
+        self._discount_applied = True
+        self._discount_rate = rate
+
+    @property
+    def total(self):
+        subtotal = sum(item["price"] for item in self._cart)
+        if self._discount_applied:
+            subtotal *= (1 - self._discount_rate)
+        return subtotal
+
+    def checkout(self):
+        if not self.is_logged_in:
+            raise RuntimeError("ログインしてください")
+        if not self._cart:
+            raise RuntimeError("カートが空です")
+        order_total = self.total
+        print(f"{self._user}の注文: {order_total}円")
+        self._cart = []
+        self._discount_applied = False
+        return order_total
+```
+
+### 9.2 アンチパターン2: スパゲッティコードと深いネスト
+
+複雑な条件分岐が深くネストすると、コードの可読性と保守性が著しく低下する。
+
+```python
+# ===== アンチパターン: 深いネストのスパゲッティコード =====
+
+def process_order_bad(order):
+    """深いネストの悪い例"""
+    if order is not None:
+        if order.get("status") == "pending":
+            if order.get("items"):
+                total = 0
+                for item in order["items"]:
+                    if item.get("price") is not None:
+                        if item["price"] > 0:
+                            if item.get("quantity", 0) > 0:
+                                subtotal = item["price"] * item["quantity"]
+                                if order.get("discount"):
+                                    if order["discount"] > 0:
+                                        if order["discount"] <= 0.5:
+                                            subtotal *= (1 - order["discount"])
+                                        else:
+                                            print("割引率が大きすぎる")
+                                            return None
+                                total += subtotal
+                            else:
+                                print("数量が不正")
+                                return None
+                        else:
+                            print("価格が不正")
+                            return None
+                    else:
+                        print("価格が未設定")
+                        return None
+                return total
+            else:
+                print("商品がない")
+                return None
+        else:
+            print("ステータスが不正")
+            return None
+    else:
+        print("注文がない")
+        return None
+
+
+# ===== 改善版: ガード節とヘルパー関数で平坦化 =====
+
+def validate_order(order):
+    """注文の基本検証"""
+    if order is None:
+        return False, "注文がない"
+    if order.get("status") != "pending":
+        return False, "ステータスが不正"
+    if not order.get("items"):
+        return False, "商品がない"
+    return True, ""
+
+
+def validate_item(item):
+    """商品アイテムの検証"""
+    if item.get("price") is None:
+        return False, "価格が未設定"
+    if item["price"] <= 0:
+        return False, "価格が不正"
+    if item.get("quantity", 0) <= 0:
+        return False, "数量が不正"
+    return True, ""
+
+
+def validate_discount(discount):
+    """割引率の検証"""
+    if discount is None or discount <= 0:
+        return 1.0  # 割引なし
+    if discount > 0.5:
+        raise ValueError("割引率が大きすぎる")
+    return 1.0 - discount
+
+
+def calculate_item_subtotal(item, discount_rate):
+    """アイテムの小計を計算する"""
+    return item["price"] * item["quantity"] * discount_rate
+
+
+def process_order_good(order):
+    """改善版: ガード節とヘルパー関数で平坦化"""
+    # ガード節: 異常ケースを早期に排除
+    is_valid, error = validate_order(order)
+    if not is_valid:
+        print(error)
+        return None
+
+    # 割引率の検証
+    try:
+        discount_multiplier = validate_discount(order.get("discount"))
+    except ValueError as e:
+        print(str(e))
+        return None
+
+    # メイン処理: 合計計算
+    total = 0
+    for item in order["items"]:
+        is_valid, error = validate_item(item)
+        if not is_valid:
+            print(error)
+            return None
+        total += calculate_item_subtotal(item, discount_multiplier)
+
+    return total
+```
+
+### 9.3 アンチパターン3: マジックナンバーとハードコーディング
+
+コード中に意味の不明な数値リテラルや文字列リテラルが散在するパターンである。
+
+```python
+# ===== アンチパターン: マジックナンバー =====
+
+def calculate_shipping_bad(weight, distance):
+    """マジックナンバーだらけの悪い例"""
+    if weight < 2.0:
+        base = 500
+    elif weight < 10.0:
+        base = 1200
+    elif weight < 30.0:
+        base = 2500
+    else:
+        base = 5000
+
+    if distance > 500:
+        base *= 1.5
+    if distance > 1000:
+        base *= 1.2
+
+    if base > 10000:
+        base = 10000
+
+    return int(base * 1.1)  # 何の1.1？
+
+
+# ===== 改善版: 定数に名前を付ける =====
+
+# 重量区分の閾値（kg）
+WEIGHT_LIGHT = 2.0
+WEIGHT_MEDIUM = 10.0
+WEIGHT_HEAVY = 30.0
+
+# 重量区分ごとの基本料金（円）
+BASE_RATE_LIGHT = 500
+BASE_RATE_MEDIUM = 1200
+BASE_RATE_HEAVY = 2500
+BASE_RATE_EXTRA_HEAVY = 5000
+
+# 距離加算の閾値（km）
+LONG_DISTANCE_THRESHOLD = 500
+VERY_LONG_DISTANCE_THRESHOLD = 1000
+
+# 距離加算の乗率
+LONG_DISTANCE_MULTIPLIER = 1.5
+VERY_LONG_DISTANCE_MULTIPLIER = 1.2
+
+# 送料上限（円）
+MAX_SHIPPING_COST = 10000
+
+# 消費税率
+TAX_RATE = 0.1
+
+def calculate_shipping_good(weight, distance):
+    """定数名で意味が明確な改善例"""
+    # 重量に基づく基本料金の決定
+    if weight < WEIGHT_LIGHT:
+        base = BASE_RATE_LIGHT
+    elif weight < WEIGHT_MEDIUM:
+        base = BASE_RATE_MEDIUM
+    elif weight < WEIGHT_HEAVY:
+        base = BASE_RATE_HEAVY
+    else:
+        base = BASE_RATE_EXTRA_HEAVY
+
+    # 距離による加算
+    if distance > VERY_LONG_DISTANCE_THRESHOLD:
+        base *= LONG_DISTANCE_MULTIPLIER * VERY_LONG_DISTANCE_MULTIPLIER
+    elif distance > LONG_DISTANCE_THRESHOLD:
+        base *= LONG_DISTANCE_MULTIPLIER
+
+    # 上限の適用
+    base = min(base, MAX_SHIPPING_COST)
+
+    # 税込み価格
+    return int(base * (1 + TAX_RATE))
+```
+
+### 9.4 アンチパターン4: 関数の肥大化と責務の混在
+
+一つの関数があまりにも多くのことを行い、数百行に膨れ上がるパターンである。単一責任の原則に違反し、テスト・保守・再利用が困難になる。
+
+```python
+# ===== アンチパターン: 全部入り関数 =====
+
+def process_everything(filepath):
+    """
+    一つの関数でファイル読み込み、バリデーション、
+    計算、整形、ファイル出力を全て行う。
+    テストも再利用も困難。
+    """
+    # ファイル読み込み（30行）
+    # バリデーション（40行）
+    # データ変換（50行）
+    # 計算処理（60行）
+    # 結果の整形（30行）
+    # ファイル出力（20行）
+    # 合計: 230行以上の巨大関数
+    pass
+
+
+# ===== 改善版: 責務ごとに分割 =====
+
+def read_data(filepath):
+    """ファイルからデータを読み込む"""
+    pass
+
+def validate_data(raw_data):
+    """データの妥当性を検証する"""
+    pass
+
+def transform_data(validated_data):
+    """データを処理用の形式に変換する"""
+    pass
+
+def calculate_results(transformed_data):
+    """計算処理を行う"""
+    pass
+
+def format_report(results):
+    """結果をレポート形式に整形する"""
+    pass
+
+def write_report(report, output_path):
+    """レポートをファイルに出力する"""
+    pass
+
+def process_pipeline(input_path, output_path):
+    """
+    パイプライン: 各関数を順に呼び出す。
+    各ステップは独立してテスト可能。
+    """
+    raw = read_data(input_path)
+    validated = validate_data(raw)
+    transformed = transform_data(validated)
+    results = calculate_results(transformed)
+    report = format_report(results)
+    write_report(report, output_path)
+```
+
+---
+
+## 10. 演習問題
+
+### 10.1 基礎演習
+
+**演習 1: 基本制御構造の練習**
+
+以下の仕様に従って、Python で関数を実装せよ。
+
+```
+仕様: FizzBuzz の拡張版
+=========================
+
+入力: 正の整数 n
+出力: 1 から n までの各数について以下のルールで文字列のリストを返す
+
+  - 3 の倍数 → "Fizz"
+  - 5 の倍数 → "Buzz"
+  - 7 の倍数 → "Whizz"
+  - 3 と 5 の倍数 → "FizzBuzz"
+  - 3 と 7 の倍数 → "FizzWhizz"
+  - 5 と 7 の倍数 → "BuzzWhizz"
+  - 3 と 5 と 7 の倍数 → "FizzBuzzWhizz"
+  - それ以外 → 数値の文字列表現
+
+使用する制御構造: for ループ、if-elif-else
+```
+
+**模範解答:**
+
+```python
+def fizzbuzz_extended(n):
+    """
+    FizzBuzz拡張版: 3, 5, 7 の倍数を判定する。
+    ビルダーパターンで文字列を組み立てる手法を用いる。
+    """
+    result = []
+
+    for i in range(1, n + 1):
+        output = ""
+
+        if i % 3 == 0:
+            output += "Fizz"
+        if i % 5 == 0:
+            output += "Buzz"
+        if i % 7 == 0:
+            output += "Whizz"
+
+        if output == "":
+            output = str(i)
+
+        result.append(output)
+
+    return result
+
+
+# テスト
+output = fizzbuzz_extended(105)
+for i, val in enumerate(output, 1):
+    if val != str(i):  # 数値でないもの（変換が起きたもの）のみ表示
+        print(f"{i:3d}: {val}")
+
+# 出力例:
+#   3: Fizz
+#   5: Buzz
+#   6: Fizz
+#   7: Whizz
+#   9: Fizz
+#  10: Buzz
+#  12: Fizz
+#  14: Whizz
+#  15: FizzBuzz
+#  21: FizzWhizz
+#  35: BuzzWhizz
+# 105: FizzBuzzWhizz
+```
+
+**演習 2: 配列操作の練習**
+
+以下の仕様に従って、C 言語で関数を実装せよ。
+
+```
+仕様: 配列の回転
+================
+
+入力: 整数配列 arr、配列の長さ n、回転数 k
+処理: 配列を右に k 回転させる
+  例: [1,2,3,4,5] を k=2 で回転 → [4,5,1,2,3]
+
+制約:
+  - 追加の配列を使用せず、O(1) の追加メモリで実装すること
+  - ヒント: 反転（reverse）操作を3回適用する
+```
+
+**模範解答:**
+
+```c
+#include <stdio.h>
+
+/*
+ * 配列の指定範囲を反転する補助関数
+ * 命令型の特徴: インデックス操作と値の交換
+ */
+void reverse(int arr[], int start, int end) {
+    while (start < end) {
+        int temp = arr[start];
+        arr[start] = arr[end];
+        arr[end] = temp;
+        start++;
+        end--;
+    }
+}
+
+/*
+ * 配列を右に k 回転させる
+ * アルゴリズム:
+ *   1. 全体を反転
+ *   2. 先頭 k 要素を反転
+ *   3. 残り n-k 要素を反転
+ *
+ * 例: [1,2,3,4,5], k=2
+ *   全体反転: [5,4,3,2,1]
+ *   先頭2反転: [4,5,3,2,1]
+ *   残り3反転: [4,5,1,2,3]
+ */
+void rotate_right(int arr[], int n, int k) {
+    if (n <= 1) return;
+
+    k = k % n;  /* k が n 以上の場合に対応 */
+    if (k == 0) return;
+
+    reverse(arr, 0, n - 1);      /* 全体を反転 */
+    reverse(arr, 0, k - 1);      /* 先頭 k 要素を反転 */
+    reverse(arr, k, n - 1);      /* 残りを反転 */
+}
+
+void print_array(int arr[], int n) {
+    printf("[");
+    for (int i = 0; i < n; i++) {
+        if (i > 0) printf(", ");
+        printf("%d", arr[i]);
+    }
+    printf("]\n");
+}
+
+int main(void) {
+    int arr[] = {1, 2, 3, 4, 5};
+    int n = 5;
+
+    printf("回転前: ");
+    print_array(arr, n);
+
+    rotate_right(arr, n, 2);
+
+    printf("回転後: ");
+    print_array(arr, n);
+
+    return 0;
+}
+/* 出力:
+ * 回転前: [1, 2, 3, 4, 5]
+ * 回転後: [4, 5, 1, 2, 3]
+ */
+```
+
+### 10.2 応用演習
+
+**演習 3: 状態機械（ステートマシン）の実装**
+
+以下の仕様に従って、文字列から数値を解析する有限状態機械を実装せよ。
+
+```
+仕様: 簡易数値パーサ
+=====================
+
+入力: 文字列（例: "  -123.456  "）
+出力: 解析結果（浮動小数点数または整数）
+
+状態遷移図:
+  [開始] --(空白)--> [開始]
+  [開始] --(+/-)--> [符号]
+  [開始] --(数字)--> [整数部]
+  [符号] --(数字)--> [整数部]
+  [整数部] --(数字)--> [整数部]
+  [整数部] --(.)--> [小数点]
+  [整数部] --(空白)--> [末尾空白]
+  [小数点] --(数字)--> [小数部]
+  [小数部] --(数字)--> [小数部]
+  [小数部] --(空白)--> [末尾空白]
+  [末尾空白] --(空白)--> [末尾空白]
+  上記以外の遷移 --> [エラー]
+```
+
+**模範解答:**
+
+```python
+def parse_number(text):
+    """
+    有限状態機械（FSM）による数値パーサ。
+
+    命令型プログラミングの典型的応用: 状態遷移を
+    変数と条件分岐で明示的に管理する。
+    """
+    # 状態の定義
+    STATE_START = "start"
+    STATE_SIGN = "sign"
+    STATE_INTEGER = "integer"
+    STATE_DOT = "dot"
+    STATE_DECIMAL = "decimal"
+    STATE_TRAILING = "trailing"
+    STATE_ERROR = "error"
+
+    state = STATE_START
+    result_str = ""
+
+    for ch in text:
+        if state == STATE_START:
+            if ch == ' ':
+                pass  # 先頭の空白をスキップ
+            elif ch in ('+', '-'):
+                result_str += ch
+                state = STATE_SIGN
+            elif ch.isdigit():
+                result_str += ch
+                state = STATE_INTEGER
+            else:
+                state = STATE_ERROR
+
+        elif state == STATE_SIGN:
+            if ch.isdigit():
+                result_str += ch
+                state = STATE_INTEGER
+            else:
+                state = STATE_ERROR
+
+        elif state == STATE_INTEGER:
+            if ch.isdigit():
+                result_str += ch
+            elif ch == '.':
+                result_str += ch
+                state = STATE_DOT
+            elif ch == ' ':
+                state = STATE_TRAILING
+            else:
+                state = STATE_ERROR
+
+        elif state == STATE_DOT:
+            if ch.isdigit():
+                result_str += ch
+                state = STATE_DECIMAL
+            else:
+                state = STATE_ERROR
+
+        elif state == STATE_DECIMAL:
+            if ch.isdigit():
+                result_str += ch
+            elif ch == ' ':
+                state = STATE_TRAILING
+            else:
+                state = STATE_ERROR
+
+        elif state == STATE_TRAILING:
+            if ch == ' ':
+                pass  # 末尾の空白をスキップ
+            else:
+                state = STATE_ERROR
+
+        if state == STATE_ERROR:
+            return None, f"不正な文字 '{ch}' を検出"
+
+    # 終了状態の検証
+    if state in (STATE_INTEGER, STATE_DECIMAL, STATE_TRAILING):
+        if '.' in result_str:
+            return float(result_str), "浮動小数点数"
+        else:
+            return int(result_str), "整数"
+    elif state == STATE_START:
+        return None, "空の入力"
+    else:
+        return None, f"不完全な入力（状態: {state}）"
+
+
+# テスト
+test_cases = [
+    "  42  ",
+    "  -123.456  ",
+    "+7.0",
+    "  100  ",
+    "  12.34.56  ",  # エラー
+    "  abc  ",       # エラー
+    "  ",            # エラー
+    "  +  ",         # エラー
+]
+
+for text in test_cases:
+    value, description = parse_number(text)
+    print(f"'{text}' -> {value} ({description})")
+
+# 出力:
+# '  42  ' -> 42 (整数)
+# '  -123.456  ' -> -123.456 (浮動小数点数)
+# '+7.0' -> 7.0 (浮動小数点数)
+# '  100  ' -> 100 (整数)
+# '  12.34.56  ' -> None (不正な文字 '.' を検出)
+# '  abc  ' -> None (不正な文字 'a' を検出)
+# '  ' -> None (空の入力)
+# '  +  ' -> None (不完全な入力（状態: sign）)
+```
+
+### 10.3 発展演習
+
+**演習 4: 命令型から関数型へのリファクタリング**
+
+以下の命令型コードを、関数型スタイル（map, filter, reduce / リスト内包表記）にリファクタリングせよ。振る舞いは完全に同一でなければならない。
+
+```python
+# ===== リファクタリング対象の命令型コード =====
+
+def analyze_text_imperative(text):
+    """テキストを解析して統計情報を返す（命令型）"""
+    words = text.lower().split()
+
+    # 1. ストップワードの除去
+    stop_words = {"the", "a", "an", "is", "are", "was", "were",
+                  "in", "on", "at", "to", "for", "of", "and",
+                  "or", "but", "not", "with", "by"}
+    filtered = []
+    for word in words:
+        clean = ""
+        for ch in word:
+            if ch.isalnum():
+                clean += ch
+        if clean and clean not in stop_words:
+            filtered.append(clean)
+
+    # 2. 単語の長さ別にグループ化
+    groups = {}
+    for word in filtered:
+        length = len(word)
+        if length not in groups:
+            groups[length] = []
+        groups[length].append(word)
+
+    # 3. 各グループの要約
+    summary = {}
+    for length, word_list in groups.items():
+        unique = []
+        seen = set()
+        for w in word_list:
+            if w not in seen:
+                unique.append(w)
+                seen.add(w)
+        summary[length] = {
+            "count": len(word_list),
+            "unique": len(unique),
+            "words": unique
+        }
+
+    return summary
+```
+
+**模範解答（関数型スタイル）:**
+
+```python
+from collections import Counter
+from itertools import groupby
+
+def analyze_text_functional(text):
+    """テキストを解析して統計情報を返す（関数型）"""
+    stop_words = frozenset({
+        "the", "a", "an", "is", "are", "was", "were",
+        "in", "on", "at", "to", "for", "of", "and",
+        "or", "but", "not", "with", "by"
+    })
+
+    # パイプライン: 分割 → クリーニング → フィルタ
+    clean_word = lambda w: "".join(ch for ch in w if ch.isalnum())
+    words = [
+        cleaned for w in text.lower().split()
+        if (cleaned := clean_word(w)) and cleaned not in stop_words
+    ]
+
+    # グループ化と要約を一度に生成
+    sorted_words = sorted(words, key=len)
+    summary = {
+        length: {
+            "count": len(group_words := list(group)),
+            "unique": len(unique := list(dict.fromkeys(group_words))),
+            "words": unique,
+        }
+        for length, group in groupby(sorted_words, key=len)
+    }
+
+    return summary
+
+
+# テスト: 両方の関数が同じ結果を返すことを確認
+sample = """
+The quick brown fox jumps over the lazy dog.
+A fox is not a dog, but the fox and the dog are friends.
+"""
+
+result_imp = analyze_text_imperative(sample)
+result_fun = analyze_text_functional(sample)
+
+for length in sorted(result_imp.keys()):
+    r = result_imp[length]
+    print(f"  長さ{length}: {r['count']}語 ({r['unique']}種類) {r['words']}")
+```
+
+---
+
+## 11. FAQ（よくある質問）
+
+### Q1. 命令型プログラミングは古いパラダイムで、今後は関数型に置き換えられるのか
+
+命令型プログラミングが関数型に完全に置き換えられるということは考えにくい。理由は以下の通りである。
+
+**命令型が今後も重要であり続ける理由:**
+
+1. **ハードウェアとの対応**: 現代のコンピュータはフォン・ノイマンアーキテクチャに基づいており、命令型プログラミングはこのアーキテクチャと直接対応する。OS、デバイスドライバ、組み込みシステムなどの低水準プログラミングでは命令型が不可欠である。
+
+2. **性能要件**: 性能が重要な場面では、メモリ配置やキャッシュの利用効率を明示的に制御する必要がある。これは命令型プログラミングの領域である。
+
+3. **直感性**: 初学者にとって「手順を順番に書く」という命令型の考え方は最も直感的であり、プログラミング教育の入り口として適している。
+
+**現実的なトレンド:**
+
+現代の主流言語（Python, JavaScript, Rust, Kotlin, Swift など）はマルチパラダイムであり、命令型と関数型の要素を融合している。「命令型か関数型か」という二者択一ではなく、問題に応じて適切なスタイルを選択する能力が重要となっている。
+
+### Q2. goto 文は絶対に使うべきではないのか
+
+ダイクストラの「goto 有害論」は「goto 文の無秩序な使用」を批判したものであり、「goto 文の全面禁止」を主張したものではない。現代のプログラミングにおいても、goto 文が合理的に使用されるケースがある。
+
+**goto 文が許容される場面:**
+
+1. **エラー処理のクリーンアップ（C 言語）**: C 言語には例外処理機構がないため、リソースの解放処理を共通化する目的で goto 文が使用される。Linux カーネルのコーディングスタイルガイドでもこの用法は推奨されている。
+
+```c
+int process_file(const char *filename) {
+    FILE *fp = NULL;
+    char *buffer = NULL;
+    int result = -1;
+
+    fp = fopen(filename, "r");
+    if (fp == NULL) goto cleanup;
+
+    buffer = malloc(1024);
+    if (buffer == NULL) goto cleanup;
+
+    /* 処理 ... */
+    result = 0;
+
+cleanup:
+    free(buffer);       /* NULLでもfreeは安全 */
+    if (fp) fclose(fp);
+    return result;
+}
+```
+
+2. **多重ループからの脱出**: 一部の言語では、ネストしたループを一度に抜けるために goto 文やラベル付き break が使用される。
+
+**多くの現代言語がgotoを排除した理由:**
+
+Python, Java, JavaScript, Ruby, Go（limited goto）など多くの現代言語は、例外処理（try-catch）、ラベル付き break/continue、defer 文などの構造化された代替手段を提供しており、goto 文の必要性を大幅に低減している。
+
+### Q3. 命令型プログラミングで並行処理を安全に行うにはどうすればよいか
+
+命令型プログラミングにおける並行処理の最大の課題は「共有可変状態（Shared Mutable State）」である。複数のスレッドやプロセスが同じ変数を同時に読み書きすると、データ競合（Race Condition）が発生する。
+
+**主な解決策:**
+
+1. **排他制御（Mutex / Lock）**: 共有リソースへのアクセスを逐次化する。
+2. **メッセージパッシング**: 共有状態を持たず、メッセージの送受信でデータをやりとりする（Go の goroutine + channel）。
+3. **不変データの活用**: 関数型プログラミングのアプローチを取り入れ、データを不変にする。
+4. **所有権システム**: Rust のように、コンパイル時にデータ競合を検出する。
+
+```python
+import threading
+
+# === 問題のあるコード: データ競合 ===
+
+counter = 0
+
+def increment_unsafe():
+    global counter
+    for _ in range(100000):
+        counter += 1  # この操作はアトミックではない
+        # 読み取り → 加算 → 書き込み の3ステップであり、
+        # 他のスレッドが途中で割り込む可能性がある
+
+# === 解決策: ロックによる排他制御 ===
+
+counter_safe = 0
+lock = threading.Lock()
+
+def increment_safe():
+    global counter_safe
+    for _ in range(100000):
+        with lock:                    # ロックを取得
+            counter_safe += 1         # この間、他のスレッドは待機
+                                      # ロックを自動解放
+
+# テスト
+threads = [threading.Thread(target=increment_safe) for _ in range(4)]
+for t in threads:
+    t.start()
+for t in threads:
+    t.join()
+
+print(f"期待値: 400000, 実際: {counter_safe}")
+# ロック使用: 常に 400000
+```
+
+### Q4. 命令型プログラミングにおける「良いコード」とは何か
+
+命令型プログラミングにおいて「良いコード」の基準は以下の通りである。
+
+1. **可読性**: コードを読む人が意図を理解できること。変数名・関数名が適切で、処理の流れが追えること。
+
+2. **予測可能性**: 関数の振る舞いが入力と名前から予測できること。副作用が最小限に抑えられていること。
+
+3. **テスト容易性**: 関数が独立しており、単体テストが書きやすいこと。外部依存が注入可能であること。
+
+4. **変更容易性**: 要件変更に対して、影響範囲が限定されること。モジュール間の結合が疎であること。
+
+5. **単純さ**: 必要以上に複雑な構造を避けること。「動くコード」と「美しいコード」のバランスを取ること。
+
+### Q5. 命令型プログラミングを学ぶ最適な順序は何か
+
+以下の順序で学ぶことを推奨する。
+
+```
+学習ロードマップ
+═══════════════════════════════════════
+
+  Phase 1: 基礎（1-2ヶ月）
+  ├── 変数と代入
+  ├── 基本データ型（整数、浮動小数点、文字列、真偽値）
+  ├── 順次・選択・反復の3制御構造
+  ├── 関数の定義と呼び出し
+  └── 推奨言語: Python
+
+  Phase 2: データ構造と中級制御（2-3ヶ月）
+  ├── 配列、リスト、辞書
+  ├── ネストした制御構造
+  ├── 再帰
+  ├── ファイル入出力
+  ├── エラー処理
+  └── 推奨言語: Python + C 入門
+
+  Phase 3: 設計原則（2-3ヶ月）
+  ├── 関数設計（単一責任、引数と返り値）
+  ├── モジュール化
+  ├── 状態管理のベストプラクティス
+  ├── テスト駆動開発の基礎
+  └── 推奨言語: Python
+
+  Phase 4: 他パラダイムとの融合（3ヶ月〜）
+  ├── オブジェクト指向プログラミング
+  ├── 関数型プログラミングの要素
+  ├── 並行プログラミング
+  ├── 低水準プログラミング（C/Rust）
+  └── 推奨: マルチパラダイム言語を深く学ぶ
+```
+
+### Q6. 命令型コードのデバッグで最も重要な技法は何か
+
+命令型コードのデバッグで最も有効な技法は「状態の追跡（State Tracking）」である。命令型プログラムは状態遷移の連鎖であるため、各時点の状態（変数の値の集合）を把握することが問題発見の鍵となる。
+
+**具体的な技法:**
+
+1. **ステップ実行（Step Execution）**: デバッガを使い、一文ずつ実行して変数の変化を観察する。
+2. **ウォッチポイント**: 特定の変数が変更された時点でプログラムを停止させる。
+3. **アサーション**: プログラム中に `assert` 文を埋め込み、前提条件の違反を早期に検出する。
+4. **ロギング**: 状態遷移の履歴をログに記録し、事後解析に利用する。
+5. **不変条件の検証**: ループの各反復で成立すべき条件（ループ不変条件）を明示し、検証する。
+
+```python
+def binary_search_debug(sorted_list, target):
+    """デバッグ技法を組み込んだ二分探索"""
+    low = 0
+    high = len(sorted_list) - 1
+    iteration = 0
+
+    while low <= high:
+        iteration += 1
+
+        # ループ不変条件の検証
+        assert 0 <= low <= high < len(sorted_list), \
+            f"不変条件違反: low={low}, high={high}, len={len(sorted_list)}"
+
+        mid = (low + high) // 2
+
+        # 状態のログ出力
+        print(f"  反復{iteration}: low={low}, mid={mid}, high={high}, "
+              f"arr[mid]={sorted_list[mid]}, target={target}")
+
+        if sorted_list[mid] == target:
+            print(f"  → 発見! インデックス={mid}")
+            return mid
+        elif sorted_list[mid] < target:
+            low = mid + 1
+            print(f"  → 右半分を探索 (low={low})")
+        else:
+            high = mid - 1
+            print(f"  → 左半分を探索 (high={high})")
+
+    print(f"  → 見つからなかった ({iteration}回の反復)")
+    return -1
+```
+
+---
+
+## 12. まとめ・参考文献
+
+### 12.1 まとめ
+
+本章で学んだ命令型プログラミングの重要概念を以下に整理する。
+
+| 概念 | ポイント |
+|------|---------|
+| 命令型の本質 | 「どうやるか（How）」を逐次的に指示する。状態・代入・制御フローが三本柱 |
+| フォン・ノイマン対応 | 変数=メモリ、代入=ストア命令、制御フロー=ジャンプ命令。ハードウェアと直接対応する |
+| 歴史的経緯 | 機械語→アセンブリ→FORTRAN→ALGOL→C。各段階で抽象度が向上した |
+| 制御構造 | 順次・選択・反復の三構造のみで任意のアルゴリズムを表現可能（構造化定理） |
+| 状態管理 | 可変状態は命令型の根幹であり、同時に複雑さの主要な源泉でもある |
+| 副作用 | グローバル変数の変更、I/O操作など。管理しないとバグの温床になる |
+| 構造化プログラミング | Dijkstraによるgoto排除。コードの可読性と保守性を劇的に向上させた |
+| 手続き型 | 関数によるモジュール化。単一責任・明示的入出力・適切な粒度が原則 |
+| パラダイム比較 | 命令型は状態変化、関数型は値変換、OOPはデータと操作の統合 |
+| 現代のトレンド | マルチパラダイム。命令型と関数型の融合が主流 |
+| アンチパターン | グローバル状態乱用、深いネスト、マジックナンバー、関数の肥大化 |
+
+```
+命令型プログラミングの位置づけ（最終整理）
+═══════════════════════════════════════════════════
+
+  プログラミングパラダイムの全体像:
+
+  ┌───────────────────────────────────────────┐
+  │           プログラミングパラダイム            │
+  │                                           │
+  │  ┌─────────────┐   ┌─────────────┐      │
+  │  │  命令型       │   │  宣言型       │      │
+  │  │  (How)       │   │  (What)      │      │
+  │  │              │   │              │      │
+  │  │ ・手続き型    │   │ ・関数型      │      │
+  │  │ ・OOP        │   │ ・論理型      │      │
+  │  │ ・構造化     │   │ ・データフロー  │      │
+  │  └─────────────┘   └─────────────┘      │
+  │                                           │
+  │  現代: マルチパラダイム                       │
+  │  Python, Rust, Kotlin, TypeScript ...      │
+  │  → 命令型と宣言型の要素を自在に組み合わせる    │
+  └───────────────────────────────────────────┘
+```
+
+### 12.2 参考文献
+
+1. Dijkstra, E. W. "Go To Statement Considered Harmful." *Communications of the ACM*, Vol. 11, No. 3, pp. 147-148, March 1968.
+   - 構造化プログラミングの出発点となった歴史的論文。goto 文の無秩序な使用がプログラムの品質を低下させることを指摘した。
+
+2. Bohm, C. & Jacopini, G. "Flow Diagrams, Turing Machines and Languages with Only Two Formation Rules." *Communications of the ACM*, Vol. 9, No. 5, pp. 366-371, May 1966.
+   - 構造化定理（任意のプログラムが順次・選択・反復の三構造で表現可能であること）を数学的に証明した論文。
+
+3. Wirth, N. "Program Development by Stepwise Refinement." *Communications of the ACM*, Vol. 14, No. 4, pp. 221-227, April 1971.
+   - 段階的詳細化（Stepwise Refinement）の概念を体系化した論文。トップダウン設計の基盤となった。
+
+4. Kernighan, B. W. & Ritchie, D. M. *The C Programming Language*, 2nd Edition. Prentice Hall, 1988.
+   - C 言語の標準的な教科書であり、命令型・手続き型プログラミングの模範的なスタイルを示している。通称 K&R。
+
+5. Knuth, D. E. "Structured Programming with go to Statements." *Computing Surveys*, Vol. 6, No. 4, pp. 261-301, December 1974.
+   - goto 有害論に対する均衡のとれた分析を提供し、goto 文の合理的な使用場面についても論じた。
+
+6. Abelson, H. & Sussman, G. J. *Structure and Interpretation of Computer Programs*, 2nd Edition. MIT Press, 1996.
+   - 命令型・関数型を含むプログラミングの基礎概念を深く掘り下げた MIT の名著。通称 SICP。
+
+7. Van Roy, P. & Haridi, S. *Concepts, Techniques, and Models of Computer Programming*. MIT Press, 2004.
+   - 命令型を含む複数のプログラミングパラダイムを統一的な枠組みで解説した包括的教科書。
+
+---
+
+## 次に読むべきガイド
+
+- [[01-object-oriented.md]] -- オブジェクト指向プログラミング（命令型の拡張としての OOP）
+- [[02-functional.md]] -- 関数型プログラミング（命令型と対照的なパラダイム）
+- [[03-declarative.md]] -- 宣言型プログラミング（SQL, HTML 等の「何を」記述するアプローチ）
+
