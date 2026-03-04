@@ -1788,7 +1788,384 @@ B-Tree インデックス（簡略化）
 
 ---
 
-## 第8部: アンチパターンと注意点
+## 第8部: 実務パターン集と性能チューニング
+
+---
+
+## 8.5 探索の実務パターン集
+
+### 8.5.1 Two-Sum 問題（ハッシュ探索の典型応用）
+
+配列の中から合計が target となる 2 つの要素のインデックスを見つける問題は、面接やコーディング試験で最も頻出する探索問題の一つである。
+
+```python
+def two_sum_brute_force(nums: list[int], target: int) -> list[int]:
+    """
+    ブルートフォース: 全ペアを試す。
+    計算量: O(n^2) 時間, O(1) 空間
+    """
+    n = len(nums)
+    for i in range(n):
+        for j in range(i + 1, n):
+            if nums[i] + nums[j] == target:
+                return [i, j]
+    return []
+
+
+def two_sum_hash(nums: list[int], target: int) -> list[int]:
+    """
+    ハッシュテーブルを活用: 1パスで解く。
+
+    アイデア: target - nums[i] が既にハッシュマップに存在すれば、
+    その要素とのペアが答えになる。
+
+    計算量: O(n) 時間, O(n) 空間
+    """
+    seen = {}  # 値 → インデックス のマッピング
+    for i, num in enumerate(nums):
+        complement = target - num
+        if complement in seen:
+            return [seen[complement], i]
+        seen[num] = i
+    return []
+
+
+def two_sum_sorted(nums: list[int], target: int) -> list[int]:
+    """
+    ソート済み配列の場合: 両端ポインタ法。
+
+    計算量: O(n) 時間, O(1) 空間
+    （ソート済みが前提。未ソートなら O(n log n) のソートが追加）
+    """
+    left, right = 0, len(nums) - 1
+    while left < right:
+        current_sum = nums[left] + nums[right]
+        if current_sum == target:
+            return [left, right]
+        elif current_sum < target:
+            left += 1
+        else:
+            right -= 1
+    return []
+
+
+# --- 比較 ---
+nums = [2, 7, 11, 15]
+target = 9
+print(two_sum_brute_force(nums, target))  # => [0, 1]
+print(two_sum_hash(nums, target))          # => [0, 1]
+print(two_sum_sorted(nums, target))        # => [0, 1]（ソート済み前提）
+```
+
+### 8.5.2 重複検出パターン
+
+```python
+def has_duplicate_linear(arr: list) -> bool:
+    """
+    線形探索で重複検出: O(n^2)
+    """
+    n = len(arr)
+    for i in range(n):
+        for j in range(i + 1, n):
+            if arr[i] == arr[j]:
+                return True
+    return False
+
+
+def has_duplicate_sort(arr: list) -> bool:
+    """
+    ソートして隣接比較: O(n log n)
+    元配列を変更するため、必要なら事前にコピーする。
+    """
+    sorted_arr = sorted(arr)
+    for i in range(len(sorted_arr) - 1):
+        if sorted_arr[i] == sorted_arr[i + 1]:
+            return True
+    return False
+
+
+def has_duplicate_hash(arr: list) -> bool:
+    """
+    ハッシュセットで重複検出: O(n)
+    """
+    seen = set()
+    for val in arr:
+        if val in seen:
+            return True
+        seen.add(val)
+    return False
+
+
+# --- 選択基準 ---
+# n < 50 で空間を節約したい → ソート方式
+# n が大きい → ハッシュ方式（最速）
+# メモリ制約が厳しい → ソート方式
+```
+
+### 8.5.3 区間探索パターン（イベントスケジューリング）
+
+```python
+import bisect
+
+
+def find_available_slots(events: list[tuple[int, int]],
+                         query_start: int,
+                         query_end: int) -> bool:
+    """
+    既存のイベントリスト（ソート済み）に新しいイベントを追加できるか判定する。
+
+    events: [(start1, end1), (start2, end2), ...] ソート済み
+    query_start, query_end: 追加したいイベントの時間帯
+
+    アプローチ: 二分探索で挿入位置を特定し、前後のイベントと重なるかをチェック。
+
+    計算量: O(log n) 時間
+    """
+    starts = [e[0] for e in events]
+
+    # query_start 以上の最小のイベントのインデックス
+    idx = bisect.bisect_left(starts, query_start)
+
+    # 右隣のイベントと重なるかチェック
+    if idx < len(events) and events[idx][0] < query_end:
+        return False
+
+    # 左隣のイベントと重なるかチェック
+    if idx > 0 and events[idx - 1][1] > query_start:
+        return False
+
+    return True
+
+
+# --- 使用例 ---
+events = [(1, 3), (5, 8), (10, 15), (18, 20)]
+print(find_available_slots(events, 3, 5))    # => True（空き）
+print(find_available_slots(events, 4, 6))    # => False（[5,8]と重なる）
+print(find_available_slots(events, 15, 18))  # => True（空き）
+```
+
+### 8.5.4 多次元探索（k-d Tree の概念）
+
+```
+k-d Tree: 多次元データの効率的な探索
+
+  2次元の例: 平面上の点集合から最近傍点を探索
+
+  通常の探索: O(n) — 全点との距離を計算
+  k-d Tree:   O(log n) 平均 — 空間を再帰的に分割
+
+  分割の仕組み:
+  深さ 0: x 座標で分割
+  深さ 1: y 座標で分割
+  深さ 2: x 座標で分割（交互に繰り返す）
+
+       (7, 2)          ← x=7 で分割
+      /      \
+   (5, 4)   (9, 6)     ← y=4, y=6 で分割
+   /   \      \
+ (2,3) (4,7) (8,1)
+
+  最近傍探索 "query=(6, 3)" の流れ:
+  1. ルート (7,2): x=6 < 7 → 左へ
+  2. (5,4): y=3 < 4 → 左へ
+  3. (2,3): 距離 = sqrt(16+0) = 4.0
+  4. バックトラックで他の候補も確認
+  5. (5,4): 距離 = sqrt(1+1) = 1.41 → 更新！
+  6. 結果: 最近傍は (5, 4), 距離 1.41
+
+  応用:
+  - 地図アプリ: 「最寄りのレストラン」検索
+  - 画像処理: 類似色のピクセル検索
+  - 機械学習: k-NN（k最近傍法）
+  - ゲーム: 衝突判定の高速化
+```
+
+### 8.5.5 ブルームフィルタ（確率的データ構造による探索）
+
+```python
+import hashlib
+from typing import Any
+
+
+class BloomFilter:
+    """
+    ブルームフィルタ: 集合に要素が「確実に含まれない」ことを
+    高速に判定する確率的データ構造。
+
+    特性:
+    - 偽陽性（False Positive）: あり得る
+    - 偽陰性（False Negative）: あり得ない
+    - 空間効率: ハッシュテーブルより遥かに小さい
+
+    用途:
+    - スペルチェッカ: 辞書に無い単語の高速判定
+    - キャッシュ: 存在しないキーへの不要な DB アクセスの回避
+    - ネットワーク: ルーティングテーブルのフィルタリング
+    """
+
+    def __init__(self, size: int = 1000, num_hashes: int = 3):
+        self._size = size
+        self._num_hashes = num_hashes
+        self._bit_array = [False] * size
+
+    def _hashes(self, item: Any) -> list[int]:
+        """item に対して複数のハッシュ値を生成する。"""
+        result = []
+        for i in range(self._num_hashes):
+            h = hashlib.sha256(f"{item}:{i}".encode()).hexdigest()
+            result.append(int(h, 16) % self._size)
+        return result
+
+    def add(self, item: Any) -> None:
+        """要素を追加する。"""
+        for idx in self._hashes(item):
+            self._bit_array[idx] = True
+
+    def might_contain(self, item: Any) -> bool:
+        """
+        要素が含まれる可能性があるかを判定する。
+
+        Returns:
+            True: 含まれる可能性がある（偽陽性の可能性あり）
+            False: 確実に含まれない（偽陰性なし）
+        """
+        return all(self._bit_array[idx] for idx in self._hashes(item))
+
+
+# --- 使用例: Webクローラのフィルタリング ---
+visited = BloomFilter(size=10000, num_hashes=5)
+
+urls = [
+    "https://example.com/page1",
+    "https://example.com/page2",
+    "https://example.com/page3",
+]
+
+for url in urls:
+    visited.add(url)
+
+# 判定
+print(visited.might_contain("https://example.com/page1"))  # => True
+print(visited.might_contain("https://example.com/page4"))  # => False（確実に未追加）
+```
+
+### 8.6 探索の性能チューニング
+
+#### 8.6.1 キャッシュ効率を考慮した探索
+
+```
+メモリ階層と探索の性能
+
+  L1 キャッシュ: ~1 ns     (64 KB 程度)
+  L2 キャッシュ: ~3 ns     (256 KB 程度)
+  L3 キャッシュ: ~10 ns    (数 MB 程度)
+  メインメモリ:  ~100 ns   (数 GB - 数十 GB)
+  SSD:          ~100 us    (数百 GB - 数 TB)
+  HDD:          ~10 ms     (数 TB)
+
+  影響:
+  1. 配列上の二分探索はキャッシュフレンドリー
+     → 連続メモリアクセスで L1/L2 キャッシュを活用
+  2. リンクリスト上の探索はキャッシュ非効率
+     → ランダムメモリアクセスでキャッシュミスが頻発
+  3. ハッシュテーブルはキャッシュミスが起きやすい
+     → バケットへのジャンプが不規則
+
+  実務的な指針:
+  - 小さいデータ（n < 数十）: 線形探索がキャッシュ効率で勝つことがある
+  - ソート済み配列 + 二分探索 > バランス二分探索木（キャッシュ効率）
+  - ハッシュテーブルはロードファクターを低めに保つとキャッシュ効率が改善
+```
+
+#### 8.6.2 Python における探索の最適化
+
+```python
+# --- Python 探索の最適化テクニック ---
+
+# 1. in 演算子の使い分け
+# my_list = [1, 2, 3, ..., 100000]  # リスト: in は O(n)
+# my_set = set(my_list)              # セット: in は O(1)
+
+# 大量の存在確認は set を使う
+# 5 in my_list   # O(n) — 遅い
+# 5 in my_set    # O(1) — 速い
+
+# 2. dict.get() vs try/except
+d = {"key": "value"}
+
+# get() は KeyError を出さない（探索のオーバーヘッドが小さい）
+result = d.get("missing_key", "default")
+
+# try/except は存在する場合は高速だが、存在しない場合は遅い
+# （例外処理のコストが高い）
+
+# 3. bisect は C 実装で高速
+import bisect
+# bisect.bisect_left() は C で実装されており、
+# Python で書いた二分探索より数倍高速
+
+# 4. collections.deque は BFS に最適
+from collections import deque
+# deque.popleft() は O(1)
+# list.pop(0) は O(n)（先頭削除で全要素をシフト）
+
+# 5. sorted() + bisect vs set
+# 範囲検索が必要 → sorted list + bisect
+# 存在確認のみ → set
+# 両方必要 → SortedList (sortedcontainers パッケージ)
+```
+
+#### 8.6.3 探索アルゴリズムの前処理と償却計算量
+
+```
+前処理コストと探索コストのトレードオフ
+
+┌──────────────────┬──────────────┬──────────────┬────────────────────┐
+│ 手法             │ 前処理コスト │ 1回の探索     │ m回の探索の総コスト │
+├──────────────────┼──────────────┼──────────────┼────────────────────┤
+│ 線形探索         │ O(1)         │ O(n)         │ O(mn)              │
+│ ソート+二分探索  │ O(n log n)   │ O(log n)     │ O(n log n + m log n)│
+│ ハッシュ構築     │ O(n)         │ O(1) 期待    │ O(n + m)           │
+│ B-Tree構築       │ O(n log n)   │ O(log n)     │ O(n log n + m log n)│
+│ 転置インデックス │ O(n * L)     │ O(1)~O(k)    │ O(nL + mk)         │
+└──────────────────┴──────────────┴──────────────┴────────────────────┘
+
+  n: データ数, m: 検索回数, L: 平均文書長, k: 結果数
+
+  損益分岐点:
+  - ソート + 二分探索: m > n / log(n) 回の検索で線形探索より有利
+    例: n=10000 → m > 769 回で有利
+  - ハッシュ構築: m > 1 回でも線形探索より総コストが低い場合がある
+    （構築 O(n) + m * O(1) vs m * O(n)）
+```
+
+---
+
+## 第8.5部: 探索アルゴリズムの歴史的背景
+
+---
+
+## 8.7 探索アルゴリズム小史
+
+探索アルゴリズムの発展は、コンピュータサイエンスの歴史そのものと重なる。
+
+| 年代 | 出来事 | 意義 |
+|------|--------|------|
+| 1946 | John Mauchly が二分探索の概念を発表 | 最初のプログラマブルコンピュータ ENIAC の時代 |
+| 1953 | Hans Peter Luhn がハッシュ法を IBM で開発 | 情報検索の基礎 |
+| 1956 | IBM 305 RAMAC — 最初のディスクドライブ | ランダムアクセスの誕生 |
+| 1968 | Hart, Nilsson, Raphael が A* を発表 | ヒューリスティック探索の理論的基盤 |
+| 1970 | Bayer & McCreight が B-Tree を発表 | データベースの探索基盤 |
+| 1972 | Tarjan が DFS の線形アルゴリズムを確立 | グラフ探索の計算量解析 |
+| 1979 | Comer が "The Ubiquitous B-Tree" を発表 | B-Tree の広範な応用を体系化 |
+| 1997 | Google の PageRank（グラフ探索の応用） | Web 検索の革命 |
+| 2004 | Elasticsearch の前身 Compass 登場 | 分散全文検索の時代 |
+
+この歴史から分かる通り、探索アルゴリズムの研究は常にハードウェアの進化と密接に結びついている。メインメモリへのランダムアクセスが可能になってハッシュテーブルが実用化し、ディスクストレージの普及で B-Tree が不可欠になり、インターネットの爆発的成長でグラフ探索と全文検索が重要性を増した。
+
+---
+
+## 第9部: アンチパターンと注意点
 
 ---
 
