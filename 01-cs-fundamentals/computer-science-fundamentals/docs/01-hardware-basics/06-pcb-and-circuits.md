@@ -1898,6 +1898,670 @@ A B C | Y
 
 ---
 
+## 補足A. コード例5: Python による論理ゲートシミュレータ
+
+ソフトウェアで論理回路のシミュレーションを構築することで、ハードウェアの動作原理をより深く理解できる。以下は、基本ゲートの定義から組み合わせ回路の構築・評価までを行う Python シミュレータである。
+
+```python
+"""
+logic_simulator.py — 論理回路シミュレータ
+基本ゲートを定義し、組み合わせてより複雑な回路を構築・評価する。
+NANDの万能性を実際に検証する教育用ツール。
+"""
+
+from __future__ import annotations
+from dataclasses import dataclass, field
+from typing import Callable
+from itertools import product
+
+
+# ============================================================
+# 基本ゲート定義
+# ============================================================
+
+def gate_not(a: int) -> int:
+    """NOTゲート: 入力を反転"""
+    return 1 - a
+
+def gate_and(a: int, b: int) -> int:
+    """ANDゲート: 両入力が1のとき1"""
+    return a & b
+
+def gate_or(a: int, b: int) -> int:
+    """ORゲート: いずれかの入力が1のとき1"""
+    return a | b
+
+def gate_nand(a: int, b: int) -> int:
+    """NANDゲート: AND の否定。万能ゲート。"""
+    return 1 - (a & b)
+
+def gate_nor(a: int, b: int) -> int:
+    """NORゲート: OR の否定。万能ゲート。"""
+    return 1 - (a | b)
+
+def gate_xor(a: int, b: int) -> int:
+    """XORゲート: 排他的論理和"""
+    return a ^ b
+
+def gate_xnor(a: int, b: int) -> int:
+    """XNORゲート: 排他的論理和の否定"""
+    return 1 - (a ^ b)
+
+
+# ============================================================
+# NANDゲートのみで他ゲートを構成（万能性の証明）
+# ============================================================
+
+def nand_not(a: int) -> int:
+    """NAND で NOT を構成: NOT(A) = NAND(A, A)"""
+    return gate_nand(a, a)
+
+def nand_and(a: int, b: int) -> int:
+    """NAND で AND を構成: AND(A,B) = NOT(NAND(A,B))"""
+    return nand_not(gate_nand(a, b))
+
+def nand_or(a: int, b: int) -> int:
+    """NAND で OR を構成: OR(A,B) = NAND(NOT(A), NOT(B))"""
+    return gate_nand(nand_not(a), nand_not(b))
+
+def nand_xor(a: int, b: int) -> int:
+    """NAND で XOR を構成（4個の NAND ゲート）"""
+    w = gate_nand(a, b)
+    return gate_nand(gate_nand(a, w), gate_nand(b, w))
+
+
+# ============================================================
+# 組み合わせ回路: 半加算器・全加算器・Nビット加算器
+# ============================================================
+
+@dataclass
+class AdderResult:
+    """加算器の出力"""
+    sum_bits: list[int]
+    carry_out: int
+
+    def to_int(self) -> int:
+        """ビットリストを整数に変換（LSBファースト）"""
+        result = 0
+        for i, bit in enumerate(self.sum_bits):
+            result |= (bit << i)
+        return result
+
+    def __repr__(self) -> str:
+        bits_str = ''.join(str(b) for b in reversed(self.sum_bits))
+        return f"AdderResult(bits={bits_str}, carry={self.carry_out}, value={self.to_int()})"
+
+
+def half_adder(a: int, b: int) -> tuple[int, int]:
+    """
+    半加算器: XOR で和、AND で繰り上がりを計算
+
+    >>> half_adder(0, 0)
+    (0, 0)
+    >>> half_adder(1, 1)
+    (0, 1)
+    """
+    return (gate_xor(a, b), gate_and(a, b))
+
+
+def full_adder(a: int, b: int, cin: int) -> tuple[int, int]:
+    """
+    全加算器: 半加算器2つ + OR で構成
+
+    >>> full_adder(1, 1, 1)
+    (1, 1)
+    """
+    s1, c1 = half_adder(a, b)
+    s2, c2 = half_adder(s1, cin)
+    return (s2, gate_or(c1, c2))
+
+
+def ripple_carry_adder(a_bits: list[int], b_bits: list[int],
+                        cin: int = 0) -> AdderResult:
+    """
+    Nビットリップルキャリー加算器
+
+    >>> r = ripple_carry_adder([1,0,1], [1,1,0])  # 5 + 6
+    >>> r.to_int()
+    11
+    >>> r.carry_out
+    0
+    """
+    n = len(a_bits)
+    assert len(b_bits) == n, "入力ビット数が一致しない"
+
+    sum_bits = []
+    carry = cin
+
+    for i in range(n):
+        s, carry = full_adder(a_bits[i], b_bits[i], carry)
+        sum_bits.append(s)
+
+    return AdderResult(sum_bits=sum_bits, carry_out=carry)
+
+
+# ============================================================
+# 回路グラフ表現（ネットリスト）
+# ============================================================
+
+@dataclass
+class Wire:
+    """配線（信号線）"""
+    name: str
+    value: int = 0
+
+
+@dataclass
+class Gate:
+    """論理ゲートのノード"""
+    name: str
+    gate_type: str
+    inputs: list[str]
+    output: str
+    func: Callable
+
+
+@dataclass
+class Circuit:
+    """論理回路のネットリスト表現"""
+    name: str
+    input_names: list[str]
+    output_names: list[str]
+    gates: list[Gate] = field(default_factory=list)
+
+    def add_gate(self, name: str, gate_type: str,
+                 inputs: list[str], output: str,
+                 func: Callable) -> None:
+        """ゲートを回路に追加"""
+        self.gates.append(Gate(name, gate_type, inputs, output, func))
+
+    def evaluate(self, input_values: dict[str, int]) -> dict[str, int]:
+        """
+        入力値を与えて回路を評価し、全信号値を返す。
+        トポロジカル順序で評価する簡易実装。
+        """
+        signals = dict(input_values)
+        evaluated = set(input_values.keys())
+        remaining = list(self.gates)
+
+        max_iterations = len(self.gates) * 2
+        iteration = 0
+
+        while remaining and iteration < max_iterations:
+            iteration += 1
+            progress = False
+            next_remaining = []
+
+            for gate in remaining:
+                if all(inp in evaluated for inp in gate.inputs):
+                    args = [signals[inp] for inp in gate.inputs]
+                    signals[gate.output] = gate.func(*args)
+                    evaluated.add(gate.output)
+                    progress = True
+                else:
+                    next_remaining.append(gate)
+
+            remaining = next_remaining
+            if not progress and remaining:
+                raise ValueError(
+                    f"回路にフィードバックループまたは未定義信号が存在: "
+                    f"{[g.name for g in remaining]}"
+                )
+
+        return {name: signals.get(name, 0) for name in self.output_names}
+
+    def truth_table(self) -> list[dict[str, int]]:
+        """全入力パターンの真理値表を生成"""
+        rows = []
+        for values in product([0, 1], repeat=len(self.input_names)):
+            inputs = dict(zip(self.input_names, values))
+            outputs = self.evaluate(inputs)
+            rows.append({**inputs, **outputs})
+        return rows
+
+    def print_truth_table(self) -> None:
+        """真理値表を整形して出力"""
+        table = self.truth_table()
+        headers = self.input_names + self.output_names
+        print(" | ".join(f"{h:>5}" for h in headers))
+        print("-" * (7 * len(headers)))
+        for row in table:
+            print(" | ".join(f"{row[h]:>5}" for h in headers))
+
+
+# ============================================================
+# 使用例: 2ビット加算器を回路グラフとして構築
+# ============================================================
+
+def build_2bit_adder() -> Circuit:
+    """2ビット加算器をゲートレベルで構築"""
+    circuit = Circuit(
+        name="2bit_adder",
+        input_names=["a0", "a1", "b0", "b1"],
+        output_names=["s0", "s1", "cout"]
+    )
+
+    # ビット0: 半加算器（Cin=0なので半加算器で十分）
+    circuit.add_gate("xor0", "XOR", ["a0", "b0"], "s0", gate_xor)
+    circuit.add_gate("and0", "AND", ["a0", "b0"], "c0", gate_and)
+
+    # ビット1: 全加算器
+    circuit.add_gate("xor1", "XOR", ["a1", "b1"], "p1", gate_xor)
+    circuit.add_gate("and1", "AND", ["a1", "b1"], "g1", gate_and)
+    circuit.add_gate("xor2", "XOR", ["p1", "c0"], "s1", gate_xor)
+    circuit.add_gate("and2", "AND", ["p1", "c0"], "pc1", gate_and)
+    circuit.add_gate("or1",  "OR",  ["g1", "pc1"], "cout", gate_or)
+
+    return circuit
+
+
+# ============================================================
+# 万能性検証
+# ============================================================
+
+def verify_nand_universality() -> None:
+    """NANDゲートの万能性を全入力パターンで検証"""
+    print("=== NANDゲートの万能性検証 ===\n")
+
+    # NOT の検証
+    print("NOT: nand_not(a) == gate_not(a)")
+    for a in [0, 1]:
+        assert nand_not(a) == gate_not(a), f"NOT不一致: a={a}"
+    print("  -> 全パターン一致\n")
+
+    # AND, OR, XOR の検証
+    for name, nand_fn, ref_fn in [
+        ("AND", nand_and, gate_and),
+        ("OR",  nand_or,  gate_or),
+        ("XOR", nand_xor, gate_xor),
+    ]:
+        print(f"{name}: nand_{name.lower()}(a,b) == gate_{name.lower()}(a,b)")
+        for a, b in product([0, 1], repeat=2):
+            result = nand_fn(a, b)
+            expected = ref_fn(a, b)
+            assert result == expected, \
+                f"{name}不一致: a={a}, b={b}, got={result}, expected={expected}"
+        print("  -> 全パターン一致\n")
+
+    print("全ゲートの万能性が検証された。\n")
+
+
+# ============================================================
+# メイン
+# ============================================================
+
+if __name__ == "__main__":
+    import doctest
+    doctest.testmod()
+
+    # 万能性検証
+    verify_nand_universality()
+
+    # 2ビット加算器の真理値表
+    print("=== 2ビット加算器 真理値表 ===\n")
+    adder = build_2bit_adder()
+    adder.print_truth_table()
+
+    # リップルキャリー加算器のテスト
+    print("\n=== 8ビットリップルキャリー加算器 ===\n")
+    test_pairs = [(100, 55), (200, 100), (255, 1), (0, 0), (127, 128)]
+    for a, b in test_pairs:
+        a_bits = [(a >> i) & 1 for i in range(8)]
+        b_bits = [(b >> i) & 1 for i in range(8)]
+        result = ripple_carry_adder(a_bits, b_bits)
+        print(f"  {a:3d} + {b:3d} = {result.to_int():3d} (carry={result.carry_out})")
+```
+
+---
+
+## 補足B. 消費電力の物理 — なぜ電力が問題になるのか
+
+デジタル回路の消費電力は、ソフトウェアのパフォーマンスに直結する問題である。CPU のクロック周波数が 2005年頃に約3〜4GHz で頭打ちになった「Power Wall」問題は、消費電力の物理的制約に起因する。
+
+### B.1 CMOS 消費電力の三要素
+
+```
+CMOS 回路の総消費電力:
+
+  P_total = P_dynamic + P_short + P_static
+
+  1. 動的消費電力 (P_dynamic):
+     P_dynamic = alpha * C_L * V_dd^2 * f
+
+     alpha: アクティビティファクタ（スイッチング率、0〜1）
+     C_L:   負荷容量（配線容量 + ゲート容量）
+     V_dd:  電源電圧
+     f:     動作周波数
+
+     → 電圧の2乗に比例 → 電圧を下げれば劇的に削減
+     → 周波数に比例 → クロックを上げると線形に増加
+     → 先端プロセスでは V_dd = 0.65〜0.8V 程度
+
+  2. 短絡電力 (P_short):
+     スイッチング遷移時にPMOS/NMOSが同時にONになる瞬間の貫通電流
+     → 動的消費電力の 10〜15% 程度
+     → 入力信号の遷移時間を短くすることで低減可能
+
+  3. 静的消費電力 (P_static):
+     P_static = I_leak * V_dd
+
+     I_leak: リーク電流（サブスレッショルドリーク + ゲートリーク）
+     → トランジスタが OFF でも量子力学的トンネリングにより微小電流が流れる
+     → 微細化するほどリーク電流が増大（ゲート酸化膜が薄くなるため）
+     → 先端プロセス（3nm以下）では全消費電力の 30〜50% を占める
+```
+
+### B.2 電力の壁（Power Wall）とその対策
+
+```
+Dennardスケーリング（1974年）の崩壊:
+
+  理想（Dennardスケーリング）:
+  ┌────────────────────────────────────┐
+  │ プロセス微細化 → トランジスタ縮小 │
+  │ → 電圧も同比率で低下              │
+  │ → 電力密度は一定に保たれる         │
+  │ → 周波数を上げても電力は増えない   │
+  └────────────────────────────────────┘
+
+  現実（2005年頃〜）:
+  ┌────────────────────────────────────┐
+  │ 電圧は閾値電圧の制約で下げ止まり  │
+  │ → リーク電流が指数的に増大         │
+  │ → 電力密度が上昇                   │
+  │ → 周波数を上げると発熱が限界を超過 │
+  │ → 「Power Wall」= 周波数の壁       │
+  └────────────────────────────────────┘
+
+  対策の進化:
+  年代        アプローチ              具体例
+  ─────────────────────────────────────────────────
+  2005〜      マルチコア化            Core 2 Duo
+  2007〜      動的電圧/周波数制御     Intel SpeedStep
+  2010〜      ヘテロジニアス設計      ARM big.LITTLE
+  2015〜      ドメイン特化加速器      GPU, TPU, NPU
+  2020〜      チップレット + DVFS     AMD Zen 3/4
+  2023〜      極低電圧動作 + 3D積層   Apple M3 (Efficiency Core)
+```
+
+### B.3 ソフトウェアエンジニアへの示唆
+
+消費電力の物理を理解することで、ソフトウェア最適化の方向性が見える:
+
+| 物理原理 | ソフトウェアでの対応 |
+|---------|---------------------|
+| アクティビティファクタの削減 | 不要な計算の排除、ゼロスキッピング |
+| データ移動は演算より高コスト | キャッシュ効率の最適化（データ局所性） |
+| SIMD はスカラより電力効率が良い | ベクトル化の活用 |
+| 特化ハードウェアは汎用より効率的 | GPU/TPU/NPU の適切な活用 |
+| クロック周波数が一定の前提 | 並行・並列プログラミングで性能向上 |
+| メモリアクセスは電力の支配的要因 | メモリアクセスパターンの最適化 |
+
+---
+
+## 補足C. デジタル設計のワークフロー — RTL から GDS II まで
+
+### C.1 ASIC 設計フロー
+
+```
+デジタル回路の設計フロー（ASIC向け）:
+
+  ┌───────────────────────────────────────────────────────┐
+  │ 1. 仕様策定                                           │
+  │    機能仕様書 → アーキテクチャ設計 → マイクロアーキ設計│
+  └───────────────────────┬───────────────────────────────┘
+                          ▼
+  ┌───────────────────────────────────────────────────────┐
+  │ 2. RTL設計（Register Transfer Level）                  │
+  │    Verilog / SystemVerilog / VHDL でコーディング       │
+  │    → 論理シミュレーション（機能検証）                  │
+  │    → 形式的検証（等価性チェック）                      │
+  │    → コードカバレッジ解析                              │
+  └───────────────────────┬───────────────────────────────┘
+                          ▼
+  ┌───────────────────────────────────────────────────────┐
+  │ 3. 論理合成（Synthesis）                               │
+  │    RTL → ゲートレベルネットリスト                      │
+  │    ツール: Synopsys Design Compiler, Cadence Genus     │
+  │    → タイミング制約（SDC）に基づく最適化               │
+  │    → 面積・電力・速度のトレードオフ調整                │
+  └───────────────────────┬───────────────────────────────┘
+                          ▼
+  ┌───────────────────────────────────────────────────────┐
+  │ 4. 配置配線（Place & Route）                           │
+  │    ゲートの物理配置 → 配線経路の決定                   │
+  │    ツール: Synopsys ICC2, Cadence Innovus              │
+  │    → タイミングクロージャ（全パスが制約を満たす）       │
+  │    → DRC（デザインルールチェック）                     │
+  │    → LVS（レイアウトvsスケマティック）                 │
+  └───────────────────────┬───────────────────────────────┘
+                          ▼
+  ┌───────────────────────────────────────────────────────┐
+  │ 5. サインオフ                                          │
+  │    STA（静的タイミング解析）: 全パスの遅延を検証       │
+  │    IR Drop解析: 電源電圧降下の検証                     │
+  │    EM解析: エレクトロマイグレーションの検証             │
+  │    → 全検証パス → GDSII ファイル出力                   │
+  └───────────────────────┬───────────────────────────────┘
+                          ▼
+  ┌───────────────────────────────────────────────────────┐
+  │ 6. ファブアウト                                        │
+  │    GDSII → マスク製造 → ウェハー製造 → テスト         │
+  │    → パッケージング → 最終テスト → 出荷               │
+  └───────────────────────────────────────────────────────┘
+
+  所要期間の目安:
+  ┌────────────────┬──────────────────┐
+  │ 工程           │ 期間             │
+  ├────────────────┼──────────────────┤
+  │ RTL設計・検証  │ 6〜18ヶ月        │
+  │ 論理合成       │ 2〜4週間         │
+  │ 配置配線       │ 4〜12週間        │
+  │ サインオフ     │ 2〜4週間         │
+  │ 製造          │ 2〜3ヶ月         │
+  │ テスト・量産   │ 1〜2ヶ月         │
+  ├────────────────┼──────────────────┤
+  │ 合計          │ 1〜2年           │
+  └────────────────┴──────────────────┘
+```
+
+### C.2 FPGA 設計フロー
+
+FPGA では ASIC の「製造」工程が「コンフィギュレーション（書き込み）」に置き換わるため、イテレーションが格段に速い。
+
+```
+FPGA 設計フロー:
+
+  RTL設計 → シミュレーション → 論理合成 → 配置配線
+  → タイミング解析 → ビットストリーム生成 → FPGA に書き込み
+
+  主要ツールチェーン:
+  ┌────────────────┬───────────────────────────┐
+  │ ベンダー       │ ツール                    │
+  ├────────────────┼───────────────────────────┤
+  │ AMD (Xilinx)  │ Vivado / Vitis            │
+  │ Intel (Altera)│ Quartus Prime             │
+  │ Lattice       │ Radiant / iCEcube2        │
+  │ Microchip     │ Libero SoC                │
+  │ オープンソース │ Yosys + nextpnr + icestorm│
+  └────────────────┴───────────────────────────┘
+
+  オープンソース FPGA ツールチェーン（iCE40 FPGA 向け）:
+  Verilog → [Yosys] → ネットリスト → [nextpnr] → ビットストリーム
+  → [iceprog] → FPGA に書き込み
+
+  → 商用ツールなしで FPGA 開発が可能
+  → 学習・教育・ホビー用途に最適
+```
+
+---
+
+## 補足D. PCB設計実践 — KiCad によるワークフロー
+
+### D.1 EDA ツールの比較
+
+| ツール | ライセンス | 特徴 | 適した用途 |
+|--------|-----------|------|-----------|
+| KiCad | オープンソース (GPL) | 無料、フル機能、活発な開発 | ホビー、教育、中小プロジェクト |
+| Altium Designer | 商用 (年間約100万円) | 業界標準、高機能、豊富なライブラリ | プロフェッショナル設計 |
+| Eagle (Fusion 360) | 商用/限定無料 | Autodesk エコシステム | ホビー、小規模プロジェクト |
+| OrCAD/Allegro | 商用 | 大規模設計向け、高速信号対応 | 高速/RF 設計 |
+| EasyEDA | ブラウザベース/無料 | JLCPCB と連携、簡単操作 | 初心者、プロトタイプ |
+
+### D.2 KiCad 設計フロー
+
+```
+KiCad による PCB 設計ワークフロー:
+
+  1. 回路図エディタ（Eeschema）
+     ├── シンボル（部品記号）の配置
+     ├── 配線（ネット接続）
+     ├── 電源/GND の接続
+     ├── ERC（電気規則チェック）
+     └── BOM（部品表）生成
+
+  2. フットプリント割り当て
+     ├── 各シンボルに対応する PCB フットプリントを指定
+     └── 0402, 0603, SOT-23, QFP, BGA 等
+
+  3. PCBエディタ（Pcbnew）
+     ├── 基板外形の定義
+     ├── 部品の配置（手動 + 自動配置）
+     ├── 配線ルールの設定
+     │   ├── 最小線幅/間隔
+     │   ├── インピーダンス制御（差動ペア等）
+     │   └── 電源/GND の太線化
+     ├── 配線（手動ルーティング / インタラクティブルータ）
+     ├── ベタ GND の注入（銅箔ベタ）
+     ├── DRC（デザインルールチェック）
+     └── 3Dビューアでの確認
+
+  4. 製造データ出力
+     ├── ガーバーファイル（各層のパターンデータ）
+     ├── ドリルファイル（穴位置データ）
+     ├── BOM + CPL（実装座標データ）
+     └── → PCB 製造業者に発注（JLCPCB, PCBWay, Elecrow 等）
+
+  コスト目安（2層基板、100mm x 100mm、5枚）:
+  JLCPCB: 約 $2〜$5 + 送料
+  → 個人開発者でも非常に低コストでプロトタイプ可能
+```
+
+---
+
+## 補足E. 歴史的視点 — 電子計算機の物理的進化
+
+```
+計算機の物理的実装の進化:
+
+  年代        技術              速度       消費電力    集積度
+  ────────────────────────────────────────────────────────
+  1940年代    真空管            kHz級      巨大       ENIAC: 17,468本
+              (電子スイッチ)               (174kW)
+
+  1950年代    トランジスタ      MHz級      中         個別部品
+              (点接触→接合型)              (数kW)
+
+  1960年代    SSI/MSI IC        数MHz      小         数十〜数百素子/チップ
+              (小/中規模集積)              (数W)
+
+  1970年代    LSI               MHz級      小         数千〜1万素子
+              (大規模集積)                            Intel 4004: 2,300
+
+  1980年代    VLSI              10MHz級    中         数万〜数十万素子
+              (超大規模集積)                          Intel 386: 275,000
+
+  1990年代    ULSI              100MHz級   中         数百万〜1千万素子
+                                                     Pentium: 3.1M
+
+  2000年代    SoC               GHz級      数十W      数億素子
+              (System on Chip)                        Core 2: 291M
+
+  2010年代    FinFET SoC        数GHz      数W〜      数十億〜百億素子
+                                          数百W      Apple A14: 11.8B
+
+  2020年代    GAA / チップレット  数GHz     数W〜       数百億〜千億素子
+                                          数百W      Apple M3 Max: 92B
+
+  → 80年間でスイッチング素子の数は10桁以上増加
+  → 消費電力は真空管時代の174kWから数Wまで激減
+     （1素子あたりの電力は約15桁改善）
+```
+
+---
+
+## 補足F. デバッグと検証の基礎
+
+### F.1 デジタル回路のデバッグ手法
+
+| 手法 | 概要 | 適用段階 |
+|------|------|---------|
+| 波形シミュレーション | シミュレータで全信号波形を確認 | RTL設計段階 |
+| アサーション | 設計意図を形式的に記述し自動検証 | RTL〜ゲートレベル |
+| 形式的検証 | 数学的証明による等価性・特性検証 | 合成後 |
+| FPGA プロトタイピング | 実チップ上での高速動作検証 | 量産前 |
+| ロジックアナライザ | 実基板上の複数信号を同時観測 | 基板デバッグ |
+| オシロスコープ | アナログ波形の観測（信号品質確認） | 基板デバッグ |
+| JTAG/バウンダリスキャン | IC端子の状態を外部から観測・制御 | 基板テスト |
+
+### F.2 テストベンチの設計原則
+
+```
+良いテストベンチの要件:
+
+  1. 自己検証（Self-checking）
+     → 期待値と実際の出力を自動比較
+     → 手動での波形目視確認に頼らない
+
+  2. 再現性（Reproducibility）
+     → 乱数シードを固定して再現可能にする
+     → 環境依存を排除
+
+  3. 網羅性（Coverage）
+     → 全入力パターンの網羅（小規模回路の場合）
+     → ランダムテスト + コーナーケース（大規模回路の場合）
+     → コードカバレッジ + 機能カバレッジの計測
+
+  4. 段階的テスト
+     → ユニットテスト（個別モジュール）
+     → 結合テスト（モジュール間インタフェース）
+     → システムテスト（全体動作）
+
+  5. 文書化
+     → テスト項目リスト
+     → カバレッジレポート
+     → 既知の制限事項の記録
+```
+
+---
+
+## 補足G. 用語集
+
+| 用語 | 英語 | 説明 |
+|------|------|------|
+| ASIC | Application-Specific Integrated Circuit | 特定用途向け集積回路。量産向きで最高性能 |
+| CMOS | Complementary MOS | NMOS と PMOS を組み合わせた低消費電力技術 |
+| CLB | Configurable Logic Block | FPGA の基本論理ブロック。LUT + FF で構成 |
+| DRC | Design Rule Check | PCB/IC レイアウトの設計規則違反チェック |
+| EDA | Electronic Design Automation | 電子回路設計自動化ツールの総称 |
+| EUV | Extreme Ultraviolet | 波長 13.5nm の極端紫外線リソグラフィ |
+| FinFET | Fin Field-Effect Transistor | 立体構造（Fin）を持つ FET。22nm〜3nm で使用 |
+| FPGA | Field-Programmable Gate Array | プログラマブル論理デバイス |
+| FSM | Finite State Machine | 有限状態マシン。制御回路の基本モデル |
+| GAA | Gate-All-Around | ゲートがチャネルを全面で囲む FET 構造 |
+| GDS II | Graphic Data System II | IC レイアウトの業界標準ファイル形式 |
+| HDL | Hardware Description Language | ハードウェア記述言語（Verilog, VHDL 等） |
+| HBM | High Bandwidth Memory | TSV 積層型高帯域メモリ |
+| LUT | Look-Up Table | FPGA 内の真理値表実装メモリ |
+| MOSFET | Metal-Oxide-Semiconductor FET | 金属酸化膜半導体電界効果トランジスタ |
+| PCB | Printed Circuit Board | プリント基板 |
+| RTL | Register Transfer Level | レジスタ転送レベル。HDL 記述の抽象度 |
+| SoC | System on Chip | 1チップにシステム全体を集積 |
+| STA | Static Timing Analysis | 静的タイミング解析 |
+| TSV | Through-Silicon Via | シリコン貫通電極（3D積層用） |
+
+---
+
 ## 次に読むべきガイド
 
 → [[07-capacity-limits.md]] — 性能限界とコンピューティングの未来
