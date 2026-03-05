@@ -1891,4 +1891,946 @@ Sagaパターン デモ: 配送失敗ケース
 | 隔離性 | 保証される | 保証されない（ダーティリードの可能性） |
 | 適用場面 | DB間トランザクション | マイクロサービス間の長いトランザクション |
 
-<!-- SPLIT_POINT_2: ここから第7章〜参考文献 -->
+---
+
+## 7. 時間と順序
+
+### 7.1 分散システムにおける「時間」の問題
+
+```
+なぜ時間の問題が重要か:
+
+  単一マシンでは:
+  → OSのクロックで全イベントに一意のタイムスタンプを付与
+  → イベントの順序は常に明確
+
+  分散システムでは:
+  → 各マシンのクロックがずれている（クロックスキュー）
+  → 時計の進み方が微妙に異なる（クロックドリフト）
+  → NTPの精度は数ms〜数十ms程度
+  → Googleの TrueTime APIでも誤差は数ms
+
+  物理時計だけでイベントの順序を決めるのが危険な例:
+
+  Node-A (時計が10ms進んでいる):
+    10:00:00.010 に write(x, 1) を実行
+
+  Node-B (時計が正確):
+    10:00:00.015 に write(x, 2) を実行
+
+  Node-C (時計が20ms遅れている):
+    09:59:59.995 に read(x) を実行（実際は10:00:00.015）
+
+  → Node-Cのread は実際にはNode-BのwriteよりHOT後だが
+    タイムスタンプ上は最も古い
+  → 物理時計ベースの順序付けでは因果関係が壊れる
+
+  → 解決策: 論理時計（物理時計に依存しない順序付け）
+```
+
+### 7.2 Lamport Clock（論理時計）
+
+```
+Lamport Clock（Leslie Lamport, 1978）:
+
+  各プロセスがスカラーのカウンタを保持する
+
+  ルール:
+  1. 内部イベント: カウンタを+1
+  2. メッセージ送信時: カウンタを+1し、メッセージにカウンタ値を付与
+  3. メッセージ受信時: max(自分のカウンタ, 受信したカウンタ) + 1
+
+  例:
+  Process A:  1 -----> 2 ----------> 5
+                       | send     ^ recv
+  Process B:       3 -----> 4 --->|
+                                  | send
+  Process C:           2 -----> 5 -----> 6
+
+  因果関係の保証:
+  → a が b の原因（a → b）ならば、L(a) < L(b)
+  → これは必ず成り立つ
+
+  限界:
+  → L(a) < L(b) であっても、a → b とは限らない
+  → 並行するイベントを区別できない
+  → 例: Process A の 1 と Process C の 2 は
+    L(A:1) < L(C:2) だが因果関係はない
+
+  なぜこの限界があるか:
+  → スカラー値1つでは「誰の操作か」の情報が失われるため
+  → これを解決するのがベクトル時計
+```
+
+### 7.3 ベクトル時計（Vector Clock）
+
+```
+ベクトル時計（Vector Clock）:
+
+  各プロセスが「全プロセス分のカウンタ」を保持する
+
+  ルール（N個のプロセスの場合）:
+  1. 内部イベント: 自分のカウンタを+1
+  2. 送信時: 自分のカウンタを+1し、ベクトル全体を送る
+  3. 受信時: 各要素ごとにmax を取り、自分のカウンタを+1
+
+  例（3プロセス [A, B, C]）:
+  Process A: [1,0,0] --> [2,0,0] -------> [3,2,0]
+                          | send        ^ recv
+  Process B:         [0,1,0] --> [0,2,0]--|
+                                          | send
+  Process C:              [0,0,1] --> [0,0,2] --> [2,2,3]
+
+  因果関係の判定:
+
+  V1 ≤ V2 とは: V1の全要素がV2の対応要素以下
+  V1 → V2（V1がV2の原因）: V1 ≤ V2 かつ V1 ≠ V2
+
+  並行の判定:
+  V1 || V2: V1 ≤ V2 でも V2 ≤ V1 でもない
+
+  具体例:
+  [1,0,0] と [0,1,0]:
+    → [1,0,0] の A=1 > [0,1,0] の A=0
+    → [0,1,0] の B=1 > [1,0,0] の B=0
+    → どちらも ≤ でない → 並行（因果関係なし）
+
+  [1,0,0] と [2,1,0]:
+    → 全要素で [1,0,0] ≤ [2,1,0]
+    → [1,0,0] が因果的に先行
+
+  用途: DynamoDBの競合検出、分散バージョン管理
+```
+
+### コード例5: ベクトル時計の実装
+
+```python
+"""
+ベクトル時計の実装と因果関係判定
+==========================================
+3プロセス間でのメッセージ送受信をシミュレートし、
+ベクトル時計で因果関係を正確に判定する。
+
+実行方法: python vector_clock.py
+依存: 標準ライブラリのみ
+"""
+
+from typing import Dict, List, Tuple, Optional
+from enum import Enum
+from copy import deepcopy
+
+
+class CausalRelation(Enum):
+    """2つのイベント間の因果関係。"""
+    BEFORE = "BEFORE"          # a → b（aがbの原因）
+    AFTER = "AFTER"            # b → a（bがaの原因）
+    CONCURRENT = "CONCURRENT"  # a || b（並行、因果関係なし）
+    EQUAL = "EQUAL"            # a = b（同一イベント）
+
+
+class VectorClock:
+    """ベクトル時計の実装。
+
+    なぜdictで実装するか:
+    → プロセス数が動的に変化する場合に対応できる
+    → 固定長配列だと、プロセス追加時に全ノードの
+      配列を拡張する必要がある
+    """
+
+    def __init__(self, process_id: str):
+        self.process_id = process_id
+        self.clock: Dict[str, int] = {process_id: 0}
+
+    def increment(self) -> "VectorClock":
+        """内部イベント発生時にカウンタをインクリメント。"""
+        self.clock[self.process_id] = (
+            self.clock.get(self.process_id, 0) + 1
+        )
+        return self
+
+    def send(self) -> Dict[str, int]:
+        """メッセージ送信時: インクリメントしてクロックを返す。
+
+        なぜ送信時にもインクリメントするか:
+        → 送信イベント自体が1つのイベントだから
+        → インクリメントしないと、内部イベントと送信の
+          順序が区別できなくなる
+        """
+        self.increment()
+        return deepcopy(self.clock)
+
+    def receive(self, other_clock: Dict[str, int]) -> "VectorClock":
+        """メッセージ受信時: 要素ごとのmaxを取る。
+
+        なぜmaxを取るか:
+        → 送信者が知っている全ての因果情報を取り込むため
+        → maxを取ることで「送信者が見た全てのイベント」が
+          受信者にも反映される
+        """
+        for pid, count in other_clock.items():
+            self.clock[pid] = max(
+                self.clock.get(pid, 0), count
+            )
+        self.clock[self.process_id] = (
+            self.clock.get(self.process_id, 0) + 1
+        )
+        return self
+
+    def snapshot(self) -> Dict[str, int]:
+        """現在のクロック状態のスナップショットを返す。"""
+        return deepcopy(self.clock)
+
+    @staticmethod
+    def compare(
+        vc1: Dict[str, int], vc2: Dict[str, int]
+    ) -> CausalRelation:
+        """2つのベクトル時計の因果関係を判定する。
+
+        判定ロジック:
+        - 全要素で vc1[i] <= vc2[i] かつ vc1 != vc2 → BEFORE
+        - 全要素で vc1[i] >= vc2[i] かつ vc1 != vc2 → AFTER
+        - 上記どちらでもない → CONCURRENT
+        """
+        all_keys = set(vc1.keys()) | set(vc2.keys())
+
+        leq = True   # vc1 <= vc2 ?
+        geq = True   # vc1 >= vc2 ?
+        equal = True  # vc1 == vc2 ?
+
+        for key in all_keys:
+            v1 = vc1.get(key, 0)
+            v2 = vc2.get(key, 0)
+            if v1 > v2:
+                leq = False
+                equal = False
+            if v1 < v2:
+                geq = False
+                equal = False
+
+        if equal:
+            return CausalRelation.EQUAL
+        if leq:
+            return CausalRelation.BEFORE
+        if geq:
+            return CausalRelation.AFTER
+        return CausalRelation.CONCURRENT
+
+    def __repr__(self) -> str:
+        items = sorted(self.clock.items())
+        return "[" + ", ".join(
+            f"{pid}:{count}" for pid, count in items
+        ) + "]"
+
+
+class DistributedSystem:
+    """ベクトル時計を使った分散システムのシミュレータ。"""
+
+    def __init__(self, process_ids: List[str]):
+        self.processes: Dict[str, VectorClock] = {
+            pid: VectorClock(pid) for pid in process_ids
+        }
+        self.events: List[Tuple[str, str, Dict[str, int]]] = []
+
+    def local_event(self, pid: str, description: str):
+        """ローカルイベントを発生させる。"""
+        vc = self.processes[pid]
+        vc.increment()
+        snapshot = vc.snapshot()
+        self.events.append((pid, description, snapshot))
+        print(f"  [{pid}] {description:30s} clock={vc}")
+
+    def send_message(
+        self, from_pid: str, to_pid: str, description: str
+    ):
+        """メッセージを送受信する。"""
+        sender = self.processes[from_pid]
+        receiver = self.processes[to_pid]
+
+        msg_clock = sender.send()
+        send_snapshot = sender.snapshot()
+        self.events.append(
+            (from_pid, f"send({description})", send_snapshot)
+        )
+        print(
+            f"  [{from_pid}] send({description:22s}) "
+            f"clock={sender}"
+        )
+
+        receiver.receive(msg_clock)
+        recv_snapshot = receiver.snapshot()
+        self.events.append(
+            (to_pid, f"recv({description})", recv_snapshot)
+        )
+        print(
+            f"  [{to_pid}] recv({description:22s}) "
+            f"clock={receiver}"
+        )
+
+    def analyze_causality(self):
+        """全イベント間の因果関係を分析する。"""
+        print("\n--- 因果関係分析 ---")
+        for i in range(len(self.events)):
+            for j in range(i + 1, len(self.events)):
+                pid_i, desc_i, vc_i = self.events[i]
+                pid_j, desc_j, vc_j = self.events[j]
+                relation = VectorClock.compare(vc_i, vc_j)
+                if relation != CausalRelation.EQUAL:
+                    symbol = {
+                        CausalRelation.BEFORE: "-->",
+                        CausalRelation.AFTER: "<--",
+                        CausalRelation.CONCURRENT: "|||",
+                    }[relation]
+                    print(
+                        f"  {pid_i}:{desc_i:20s} "
+                        f"{symbol} "
+                        f"{pid_j}:{desc_j:20s}"
+                    )
+
+
+def demo():
+    """ベクトル時計のデモ。"""
+    print("=" * 60)
+    print("ベクトル時計デモ")
+    print("=" * 60)
+    print()
+
+    sys = DistributedSystem(["A", "B", "C"])
+
+    # シナリオ: SNSの投稿とコメント
+    sys.local_event("A", "Aが投稿を作成")
+    sys.send_message("A", "B", "投稿を通知")
+    sys.local_event("C", "Cが別の投稿を作成")
+    sys.send_message("B", "C", "コメントを送信")
+    sys.local_event("A", "Aが投稿を編集")
+
+    sys.analyze_causality()
+
+    # 競合検出のデモ
+    print("\n" + "=" * 60)
+    print("競合検出デモ（同時編集）")
+    print("=" * 60)
+    print()
+
+    sys2 = DistributedSystem(["Editor-A", "Editor-B"])
+    sys2.local_event("Editor-A", "ドキュメントを編集")
+    sys2.local_event("Editor-B", "同じ箇所を編集")
+
+    vc_a = sys2.events[0][2]
+    vc_b = sys2.events[1][2]
+    relation = VectorClock.compare(vc_a, vc_b)
+    print(f"\n  判定: {relation.value}")
+    if relation == CausalRelation.CONCURRENT:
+        print("  → 競合が発生！マージまたはユーザーに選択を求める必要あり")
+
+
+if __name__ == "__main__":
+    demo()
+```
+
+---
+
+## 8. 分散アーキテクチャパターン
+
+### 8.1 マイクロサービス
+
+```
+マイクロサービスアーキテクチャ:
+  モノリスを独立したサービスに分割する
+
+  ┌──────────┐  ┌──────────┐  ┌──────────┐
+  │ User     │  │ Order    │  │ Payment  │
+  │ Service  │  │ Service  │  │ Service  │
+  │ (Go)     │  │ (Java)   │  │ (Python) │
+  └────┬─────┘  └────┬─────┘  └────┬─────┘
+       │              │              │
+  ┌────┴──────────────┴──────────────┴────┐
+  │         Message Bus (Kafka)            │
+  └───────────────────────────────────────┘
+
+  利点:
+  - 独立デプロイ: 各サービスを個別にリリース可能
+  - 技術選択の自由: サービスごとに最適な言語/FWを選べる
+  - 障害の局所化: 1サービスの障害が他に波及しにくい
+  - チームの自律性: サービス単位でチームを編成
+
+  課題:
+  - ネットワーク遅延: サービス間通信のオーバーヘッド
+  - データ整合性: 分散トランザクションの複雑さ
+  - 運用複雑性: 数百のサービスの監視・デプロイ
+  - デバッグ困難: リクエストが複数サービスを横断
+```
+
+### 8.2 イベント駆動アーキテクチャとCQRS
+
+```
+イベント駆動アーキテクチャ:
+  サービス間をイベントで疎結合にする
+
+  Producer --> Event Bus --> Consumer A
+                         --> Consumer B
+                         --> Consumer C
+
+  Event Sourcing:
+  状態を直接保存するのではなく、状態変化のイベントを記録する
+
+  従来: users テーブルに最新状態を保存
+    {name: "Alice", email: "alice@new.com"}
+
+  Event Sourcing:
+    [UserCreated {name: "Alice", email: "alice@old.com"}]
+    [EmailChanged {email: "alice@new.com"}]
+    [NameChanged {name: "Alice B."}]
+
+  なぜEvent Sourcingが有用か:
+  → 完全な監査証跡（いつ、何が、どう変わったか）
+  → 任意の時点の状態を再構築可能（タイムトラベル）
+  → イベントの再生で新しいビューを構築可能
+
+CQRS（Command Query Responsibility Segregation）:
+  書き込み（Command）と読み取り（Query）を分離する
+
+  Write Model          Read Model
+  ┌──────────┐        ┌──────────┐
+  │ Command  │--Event->│ Query    │
+  │ Store    │        │ Store    │
+  │ (正規化) │        │ (非正規化)│
+  └──────────┘        └──────────┘
+      ^ write              ^ read
+      |                    |
+  Commands             Queries
+
+  なぜ分離するか:
+  → 書き込みと読み取りで最適なデータモデルが異なる
+  → 書き込み: 正規化してデータの一貫性を保つ
+  → 読み取り: 非正規化してクエリ性能を最適化
+  → 独立にスケール可能（読み取りが多いなら読み取り側を増強）
+```
+
+---
+
+## 9. 障害とリカバリ
+
+### 9.1 障害の分類
+
+```
+障害の種類と対策:
+
+  1. クラッシュ障害（Crash Failure）:
+     ノードが完全に停止する
+     → 検出方法: ハートビート + タイムアウト
+     → 対策: レプリカへのフェイルオーバー
+     → 特徴: 検出が比較的容易
+
+  2. ネットワーク障害（Network Failure）:
+     通信が途絶する
+     → 検出方法: タイムアウト（クラッシュと区別困難）
+     → 対策: リトライ + 冪等性の保証
+     → 特徴: 「遅い」と「止まった」の区別ができない
+
+  3. ビザンチン障害（Byzantine Failure）:
+     悪意ある動作や、データ化けなど任意の障害
+     → 検出方法: 暗号学的証明（署名、ハッシュ）
+     → 対策: BFTアルゴリズム
+     → 条件: 悪意あるノードがN/3未満なら耐えられる
+     → 用途: ブロックチェーン、航空宇宙システム
+
+  4. 灰色障害（Gray Failure）:
+     部分的な障害。外から見ると正常に見えるが実は壊れている
+     → 例: レスポンスが極端に遅い、一部リクエストだけ失敗
+     → 最も検出が難しく、最も頻繁に発生する
+     → 対策: 詳細なメトリクス監視、異常検知
+```
+
+### 9.2 障害対策パターン
+
+```
+Circuit Breaker（遮断器パターン）:
+
+  なぜ必要か:
+  → 障害のあるサービスへのリクエストを繰り返すと、
+    呼び出し側のスレッド/コネクションが枯渇する
+  → 障害が連鎖的に波及する（カスケード障害）
+
+  ┌─────────┐     ┌──────────┐     ┌──────────┐
+  │ Closed  │--->│  Open    │--->│Half-Open │
+  │(正常通過)│ 失敗│(即座に   │ 一定│(テスト   │
+  │         │ 閾値│ エラー)  │ 時間│ リクエスト)│
+  └─────────┘ 超過└──────────┘ 経過└─────┬────┘
+       ^                              |
+       +--------- 成功 ---------------+
+
+  Closed: 全リクエストを通過させる
+  → 失敗率が閾値を超えたらOpenに遷移
+
+  Open: 全リクエストを即座にエラーにする
+  → 一定時間経過後にHalf-Openに遷移
+  → なぜ即座にエラーにするか: 障害サービスに負荷をかけず回復を待つ
+
+  Half-Open: テストリクエストを1つ通す
+  → 成功すればClosedに戻る
+  → 失敗すればOpenに戻る
+
+Bulkhead（隔壁パターン）:
+  障害の影響範囲を限定する
+  → 船の隔壁と同じ発想: 1区画が浸水しても船全体は沈まない
+  → サービスAの障害がサービスBに波及しない
+  → 実装: スレッドプール分離、コネクションプール分離
+
+Retry with Exponential Backoff:
+  1回目: 100ms後にリトライ
+  2回目: 200ms後にリトライ
+  3回目: 400ms後にリトライ
+  4回目: 800ms後にリトライ
+  ...上限まで
+
+  + ジッター（ランダムな揺らぎ）:
+    なぜジッターが必要か:
+    → 多数のクライアントが同時にリトライすると
+      サーバーに瞬間的な負荷集中が起きる（雷鳴問題）
+    → ジッターで各クライアントのリトライタイミングをずらす
+```
+
+---
+
+## 10. アンチパターン
+
+### アンチパターン1: 分散モノリス
+
+```
+分散モノリス（Distributed Monolith）:
+
+  症状:
+  マイクロサービスに分割したはずが、サービス間の結合が
+  強すぎて「モノリスの欠点 + 分散の複雑さ」の両方を背負う
+
+  ┌──────────────────────────────────────────┐
+  │  Service-A ---同期呼び出し---> Service-B  │
+  │       |                           |       │
+  │       +---同期呼び出し---> Service-C      │
+  │             |                     |       │
+  │             +---共有DB-----------+       │
+  │                                          │
+  │  → 1サービスの変更が他の全サービスに影響   │
+  │  → デプロイも全サービス同時に必要          │
+  │  → モノリスと変わらないのにネットワーク     │
+  │    遅延・障害のリスクが追加されている       │
+  └──────────────────────────────────────────┘
+
+  なぜ発生するか:
+  1. サービス境界の設計が不適切
+     → ドメイン駆動設計（DDD）の境界づけられた文脈を無視
+  2. 共有データベースの使用
+     → サービスの独立性が損なわれる
+  3. 同期通信への過度な依存
+     → 呼び出しチェーンが長くなり、1箇所の障害で全体停止
+
+  回避策:
+  - 各サービスは自分のDBを持つ（Database per Service）
+  - サービス間は非同期メッセージング（イベント駆動）
+  - 同期呼び出しが必要な場合もCircuit Breakerを適用
+  - Martin Fowlerの助言: まずモノリスで始め、境界が明確に
+    なってから分割する（MonolithFirst）
+```
+
+### アンチパターン2: 楽観的すぎるリトライ
+
+```
+楽観的すぎるリトライ（Aggressive Retry）:
+
+  症状:
+  障害発生時に即座に何度もリトライし、障害を悪化させる
+
+  ┌──────────────────────────────────────────┐
+  │  Client-1 --> Server (障害中)             │
+  │    即座にリトライ x 10                     │
+  │  Client-2 --> Server (障害中)             │
+  │    即座にリトライ x 10                     │
+  │  ... x 1000 clients                      │
+  │                                           │
+  │  → サーバーへの負荷: 通常の10000倍          │
+  │  → 障害が回復どころか悪化する               │
+  │  → 「リトライストーム」と呼ばれる           │
+  └──────────────────────────────────────────┘
+
+  なぜ発生するか:
+  1. リトライ間隔が固定かつ短い
+  2. リトライ回数の上限がない
+  3. ジッター（ランダムな揺らぎ）がない
+  4. Circuit Breakerが未実装
+
+  正しいリトライ戦略:
+  - Exponential Backoff: 間隔を指数的に増やす
+  - Jitter: ランダムな揺らぎを追加
+  - Max Retries: 上限を設定（通常3-5回）
+  - Circuit Breaker: 失敗が続いたらリトライ自体を停止
+  - 冪等性保証: リトライしても副作用が重複しないこと
+```
+
+---
+
+## 11. エッジケース分析
+
+### エッジケース1: スプリットブレイン
+
+```
+スプリットブレイン（Split Brain）:
+
+  状況:
+  ネットワーク分断により、クラスタが2つのグループに分かれ、
+  両方のグループが「自分がマスターだ」と認識する
+
+  ┌───────────────────────────────────────────┐
+  │  Partition A          × Partition B       │
+  │  ┌───────┐    分断    ┌───────┐           │
+  │  │Node-1 │  xxxxxxx  │Node-3 │           │
+  │  │Node-2 │           │Node-4 │           │
+  │  │       │           │Node-5 │           │
+  │  └───────┘           └───────┘           │
+  │  「Node-3,4,5が      「Node-1,2が         │
+  │   落ちた」と認識      落ちた」と認識       │
+  │  新Leader選出         新Leader選出         │
+  │                                           │
+  │  → 2人のLeaderが同時に存在！              │
+  │  → 両方が書き込みを受け付け               │
+  │  → 分断回復後にデータが衝突               │
+  └───────────────────────────────────────────┘
+
+  なぜ危険か:
+  → 両方のパーティションが独立に書き込みを進める
+  → 分断回復後にデータの不整合が発生
+  → 例: 同じ銀行口座に対して両方で引き出しが行われる
+
+  対策:
+  1. Quorum（過半数）ベースのLeader選出:
+     → 5ノード中3ノード以上の賛同がないとLeaderになれない
+     → Partition A（2ノード）はLeaderを選出できない
+     → Partition B（3ノード）のみがLeaderを持てる
+
+  2. Fencing Token:
+     → Leaderが操作時にモノトニック増加するトークンを発行
+     → 古いトークンでの操作はストレージ側で拒否
+     → 旧Leaderの書き込みが新Leaderの書き込みを上書きしない
+```
+
+### エッジケース2: 時計の巻き戻り
+
+```
+時計の巻き戻り（Clock Skew / Backward Clock Jump）:
+
+  状況:
+  NTP同期により、システムクロックが過去に巻き戻る
+
+  ┌───────────────────────────────────────────┐
+  │  10:00:00.000  イベントA発生 → timestamp=T1│
+  │  10:00:00.100  NTP同期実行                 │
+  │  09:59:59.900  時計が200ms戻る！           │
+  │  09:59:59.950  イベントB発生 → timestamp=T2│
+  │                                           │
+  │  T2 < T1 だが、実際はBはAの後に発生！      │
+  │                                           │
+  │  影響:                                     │
+  │  - タイムスタンプベースのソートが壊れる     │
+  │  - TTL（有効期限）の計算が狂う             │
+  │  - 分散ロックのリース期限が不正確になる     │
+  │  - ログの順序が前後する                     │
+  └───────────────────────────────────────────┘
+
+  なぜ発生するか:
+  → NTPは「正しい時刻」に合わせるために時計を調整する
+  → 時計が進みすぎていた場合、過去に戻す（ステップ調整）
+  → Linux のadjtime()は徐々に調整するが、大きなずれでは
+    ステップ調整が行われる
+
+  対策:
+  1. 物理時計に依存しない設計:
+     → Lamport Clock / Vector Clock を使う
+     → 物理時計はあくまで補助情報
+
+  2. モノトニッククロック（CLOCK_MONOTONIC）:
+     → NTP調整の影響を受けない
+     → 経過時間の測定に使う（絶対時刻には使えない）
+
+  3. Google TrueTime:
+     → GPSと原子時計を組み合わせた高精度クロック
+     → 誤差範囲を明示的に返す（区間 [earliest, latest]）
+     → Spannerは待機時間を入れて因果順序を保証
+```
+
+---
+
+## 12. 実践演習
+
+### 演習1: [基礎] CAP定理の適用
+
+```
+問題:
+以下のシステムでCP/APどちらを選ぶべきか、
+「一貫性が崩れた場合の最悪のシナリオ」を考え、理由とともに答えよ。
+
+1. オンライン銀行の残高照会
+2. Twitterのフォロワー数表示
+3. 航空券の座席予約
+4. ニュースサイトのコメント欄
+5. 分散ロック（リーダー選出）
+
+解答例:
+
+1. オンライン銀行の残高照会 → CP
+   最悪シナリオ: 残高0円の口座から引き出しが成功する
+   → 金銭的損失は取り返しがつかない
+   → エラーを返す方が二重引き出しより遥かに安全
+
+2. Twitterのフォロワー数表示 → AP
+   最悪シナリオ: フォロワー数が100人と表示されるが実際は101人
+   → ユーザー体験への影響は軽微
+   → 表示できないよりも少し古い値の方が良い
+
+3. 航空券の座席予約 → CP
+   最悪シナリオ: 同じ座席が2人に販売される
+   → 物理的に同じ座席に2人は座れない
+   → 「一時的に予約できない」の方が二重販売より安全
+
+4. ニュースサイトのコメント欄 → AP
+   最悪シナリオ: 新しいコメントが一時的に見えない
+   → 数秒後には表示される
+   → コメント欄が表示されない方がUX悪い
+
+5. 分散ロック（リーダー選出） → CP
+   最悪シナリオ: 2人のリーダーが同時に存在（スプリットブレイン）
+   → データ不整合、処理の重複
+   → ロック取得失敗の方が二重リーダーより安全
+```
+
+### 演習2: [応用] Raftのシミュレーション
+
+```
+問題:
+5ノードのRaftクラスタで以下の状況をシミュレートせよ。
+
+初期状態: Node-1がLeader (Term=3)
+1. Node-1にネットワーク障害が発生
+2. 残りのノードから新Leaderが選出される過程を追跡
+3. 旧Leader(Node-1)がネットワーク復帰した場合の動作
+
+各ステップで以下を書き出すこと:
+- 各ノードの状態（Leader/Follower/Candidate）
+- Term番号
+- 投票の流れ
+
+解答例:
+
+Step 0: 初期状態
+  Node-1: Leader    (Term=3) ← 定期的にハートビートを送信
+  Node-2: Follower  (Term=3)
+  Node-3: Follower  (Term=3)
+  Node-4: Follower  (Term=3)
+  Node-5: Follower  (Term=3)
+
+Step 1: Node-1のネットワーク障害
+  Node-1: Leader    (Term=3) ← ハートビートが届かなくなる
+  Node-2: Follower  (Term=3) ← タイムアウト待ち
+  Node-3: Follower  (Term=3) ← タイムアウト待ち
+  Node-4: Follower  (Term=3) ← タイムアウト待ち
+  Node-5: Follower  (Term=3) ← タイムアウト待ち
+
+Step 2: Node-3が最初にタイムアウト（ランダムタイムアウト最短）
+  Node-1: Leader    (Term=3) ← 分断されて孤立
+  Node-3: Candidate (Term=4) ← 自身に投票
+  → Node-2に投票リクエスト: 賛成（Term=4 > 3）
+  → Node-4に投票リクエスト: 賛成
+  → Node-5に投票リクエスト: 賛成
+  → 4票/5ノード → 過半数達成
+
+Step 3: 新Leader確定
+  Node-1: Leader    (Term=3) ← まだ自分がLeaderと思っている
+  Node-2: Follower  (Term=4, Leader=Node-3)
+  Node-3: Leader    (Term=4) ← 新Leader
+  Node-4: Follower  (Term=4, Leader=Node-3)
+  Node-5: Follower  (Term=4, Leader=Node-3)
+
+Step 4: Node-1のネットワーク復帰
+  Node-1が他ノードからTerm=4のハートビートを受信
+  → Term=4 > Term=3 なので、自動的にFollowerに降格
+  Node-1: Follower  (Term=4, Leader=Node-3) ← 降格完了
+  → Node-1の未コミットログはNode-3のログで上書きされる
+```
+
+### 演習3: [発展] 分散KVストアの設計
+
+```
+問題:
+以下の要件を満たす分散Key-Valueストアを設計せよ。
+
+要件:
+- 3ノード構成（レプリケーションファクター = 3）
+- GET/PUTの2操作
+- 結果整合性
+- ノード1台の障害に耐える
+
+設計項目:
+1. データの配置方式
+2. 書き込みのレプリケーション方式
+3. 読み取り時の整合性保証（Quorum: W + R > N）
+4. 障害検出と復旧の仕組み
+
+W=2, R=2, N=3 の場合の具体的シナリオを記述すること。
+
+解答の骨子:
+
+1. データ配置:
+   コンシステントハッシュリングを使用
+   仮想ノード数=150で均一分散を実現
+   各キーはリング上の3つのノードに複製
+
+2. 書き込み（W=2）:
+   Client → Coordinator Node → 3ノードに並行書き込み
+   2ノードからACK受信 → Clientに成功を返す
+   残り1ノードは非同期で追いつく（hinted handoff）
+
+3. 読み取り（R=2）:
+   Coordinator → 3ノードに並行読み取り
+   2ノードからの応答を待ち、最新バージョンを返す
+   バージョン不一致の場合 → Read Repairで古いノードを更新
+
+4. 障害検出と復旧:
+   - Gossipプロトコルで障害検出（全ノードが状態を伝播）
+   - Hinted Handoff: 障害ノード宛のデータを一時的に
+     別ノードが保管し、復旧後に転送
+   - Anti-Entropy: 定期的にMerkle Treeでデータ不一致を検出
+```
+
+---
+
+## 13. FAQ
+
+### Q1: マイクロサービスはいつ採用すべきか？
+
+最初からマイクロサービスにするのは**アンチパターン**である（Martin Fowler: "MonolithFirst"）。
+なぜかというと、サービス境界を最初から正しく引くのは困難であり、間違った境界で分割すると
+「分散モノリス」になるからである。
+
+以下の条件が揃ったら分割を検討する:
+- チームが10人以上でコードの競合が頻発している
+- 一部の機能だけ独立にスケールしたい（例: 画像処理だけGPUが必要）
+- 異なる技術スタックが必要な部分がある（例: MLはPython、APIはGo）
+- デプロイ頻度を独立させたい（例: 決済は月1回、UIは毎日）
+- 組織構造がサービス境界と一致している（Conway's Law）
+
+### Q2: 結果整合性はどれくらいの「遅延」があるのか？
+
+システムと設定によるが、以下が想定される範囲である:
+- **DynamoDB**: 通常1秒未満（ほぼ瞬時）
+- **Cassandra**: ミリ秒〜数秒
+- **DNS**: TTL依存（数分〜数時間）
+- **S3**: 2020年12月以降は即座に強い一貫性を提供
+
+重要なのは「遅延の長さ」ではなく「遅延がある前提でシステムを設計すること」である。
+なぜなら、「通常は数ミリ秒」であっても、ネットワーク障害時には数秒〜数分に
+延びる可能性があるからである。
+
+### Q3: CAP定理は古いのか？
+
+CAP定理は依然として有効だが、過度に単純化されている面がある。
+PACELC定理がより現実的な枠組みを提供する:
+- **分断時(P)**: AvailabilityかConsistencyを選択
+- **通常時(E)**: LatencyかConsistencyを選択
+
+実際のシステムは「CP or AP」の二択ではなく、**操作ごとに一貫性レベルを調整する**。
+例えばDynamoDBでは、同じテーブルに対して「強い一貫性読み取り」と
+「結果整合性読み取り」を操作単位で使い分けることができる。
+
+### Q4: コンセンサスアルゴリズムはいつ必要か？
+
+コンセンサスアルゴリズム（Raft/Paxos）が必要なのは、
+**複数ノードが1つの値に合意する必要がある場合**に限られる。
+
+具体的には:
+- リーダー選出（Kubernetesのetcd）
+- 分散ロック（ZooKeeper）
+- 分散設定管理（Consul）
+- ログの複製順序の合意
+
+逆に、以下の場合はコンセンサス不要で、より軽量な手法を使える:
+- 結果整合性で十分なデータ → ゴシッププロトコル
+- 読み取りが多い → リードレプリカ + 非同期レプリケーション
+- 順序が重要でない → CRDTs（Conflict-free Replicated Data Types）
+
+### Q5: 分散システムのテストはどうすればよいか？
+
+分散システムのテストは単体テストだけでは不十分である。
+なぜなら、障害やレイテンシは単体テストでは再現できないからである。
+
+推奨されるテスト手法:
+1. **Chaos Engineering**: 本番環境で意図的に障害を起こす（Netflix Chaos Monkey）
+2. **Jepsen**: 分散システムの線形化可能性をテストするフレームワーク
+3. **Fault Injection**: テスト環境でネットワーク遅延/パケットロスを注入
+4. **Property-based Testing**: ランダムな入力で不変条件をテスト
+5. **Simulation Testing**: FoundationDBが採用する決定的シミュレーション
+
+---
+
+## 14. まとめ
+
+| 概念 | ポイント | 学習の優先度 |
+|------|---------|------------|
+| CAP定理 | Pは必須。実質CP vs APの選択。PACELCがより実用的 | 最重要 |
+| コンセンサス | Paxos(理論), Raft(実用)。過半数の合意で決定 | 重要 |
+| レプリケーション | 同期(強一貫性) vs 非同期(高性能)。準同期がバランス型 | 重要 |
+| シャーディング | コンシステントハッシュで最小限の再配置。仮想ノードで均一化 | 重要 |
+| 分散トランザクション | 2PC(強いが遅い) vs Saga(柔軟だが複雑) | 中 |
+| 時間と順序 | 物理時計は信頼不可。論理時計/ベクトル時計で因果関係を追跡 | 中 |
+| 障害対策 | Circuit Breaker, Bulkhead, Exponential Backoff + Jitter | 重要 |
+| アーキテクチャ | MonolithFirstの原則。Event Sourcing, CQRS | 応用 |
+
+### 学習のロードマップ
+
+```
+Step 1（基礎）:
+  → CAP定理とCPvsAPの判断基準を理解
+  → 一貫性モデルの強弱を把握
+  → レプリケーションの3方式を理解
+
+Step 2（中級）:
+  → Raftの仕組みを論文または可視化ツールで学ぶ
+  → コンシステントハッシュを実装してみる
+  → 2PCとSagaのトレードオフを理解
+
+Step 3（上級）:
+  → 「Designing Data-Intensive Applications」を通読
+  → Jepsenのテスト結果を読み、実際のDBの挙動を知る
+  → 小規模な分散KVストアを自作する
+  → Chaos Engineeringを実践する
+```
+
+---
+
+## 次に読むべきガイド
+→ [[01-machine-learning-basics.md]] -- 機械学習入門
+
+---
+
+## 参考文献
+
+1. Kleppmann, M. *Designing Data-Intensive Applications*. O'Reilly, 2017.
+   分散システムの理論と実践を網羅した名著。本ガイドの多くのトピックはこの本に基づく。
+
+2. Lamport, L. "Time, Clocks, and the Ordering of Events in a Distributed System." *Communications of the ACM*, 1978.
+   論理時計の原論文。分散システム理論の基礎を確立した歴史的論文。
+
+3. Ongaro, D. & Ousterhout, J. "In Search of an Understandable Consensus Algorithm." *USENIX ATC*, 2014.
+   Raftの原論文。Paxosを理解しやすく再設計したコンセンサスアルゴリズム。
+
+4. Brewer, E. "CAP Twelve Years Later: How the 'Rules' Have Changed." *IEEE Computer*, 2012.
+   CAP定理の提唱者自身による再考と補足。
+
+5. Vogels, W. "Eventually Consistent." *Communications of the ACM*, 2009.
+   Amazon CTOによる結果整合性の解説。DynamoDBの設計思想を理解できる。
+
+6. Garcia-Molina, H. & Salem, K. "Sagas." *ACM SIGMOD*, 1987.
+   Sagaパターンの原論文。長時間トランザクションの補償ベースの手法。
+
+7. DeCandia, G. et al. "Dynamo: Amazon's Highly Available Key-value Store." *SOSP*, 2007.
+   Amazon Dynamoの論文。コンシステントハッシュ、クオラム、ベクトル時計の実践的な適用例。
+
+8. Deutsch, P. "The Eight Fallacies of Distributed Computing." 1994.
+   分散コンピューティングの8つの誤解。25年以上経った今でも完全に有効。
