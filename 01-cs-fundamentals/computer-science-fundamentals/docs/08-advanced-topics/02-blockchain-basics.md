@@ -1644,9 +1644,209 @@ print(f"改ざん後のチェーンは有効か: {bc.is_chain_valid()}")
               └─ No → コンソーシアムチェーン（Hyperledger 等）
 ```
 
+### 9.4 セキュリティベストプラクティス
+
+スマートコントラクト開発においてセキュリティを確保するための指針を整理する。
+
+```
+スマートコントラクト開発のセキュリティチェックリスト:
+─────────────────────────────────────────────────
+
+  設計段階:
+  □ Checks-Effects-Interactions パターンを徹底する
+  □ ReentrancyGuard（OpenZeppelin）を外部呼出しのある関数に適用
+  □ 最小権限の原則: 各関数に必要最小限の権限のみを付与
+  □ アクセス制御: onlyOwner, onlyRole 等の修飾子を適切に使用
+  □ 整数演算: Solidity 0.8+ の組み込みオーバーフロー検出を活用
+  □ Pull Payment パターン: 送金はユーザーが自ら引き出す設計にする
+
+  テスト段階:
+  □ 単体テスト: 全関数の正常系・異常系をカバー
+  □ ファジングテスト: Foundry の forge-std/Test を使用
+  □ 不変条件テスト: コントラクトの不変条件をアサーションで検証
+  □ フォークテスト: メインネットの状態をフォークして実環境に近いテスト
+
+  デプロイ前:
+  □ 外部監査: 専門のセキュリティ監査会社によるレビュー
+  □ バグバウンティ: 脆弱性報告に対する報奨金プログラムを設置
+  □ 形式検証: Certora, Halmos 等のツールで数学的に正しさを証明
+  □ テストネットでの長期運用テスト
+
+  デプロイ後:
+  □ 監視システム: 異常なトランザクションパターンを検知
+  □ 緊急停止機能（Circuit Breaker）: 問題発生時にコントラクト一時停止
+  □ タイムロック: 重要なパラメータ変更に遅延を設ける
+  □ マルチシグ: 管理者権限をマルチシグウォレットで管理
+```
+
+```python
+"""
+コード例 6: Checks-Effects-Interactions パターンのデモンストレーション
+再入攻撃に対する脆弱なコードと安全なコードの比較
+"""
+from typing import Dict
+
+
+class VulnerableVault:
+    """
+    脆弱な金庫コントラクトの模倣。
+    外部呼出しの後に状態を更新するため、再入攻撃に弱い。
+    """
+
+    def __init__(self):
+        self.balances: Dict[str, float] = {}
+
+    def deposit(self, user: str, amount: float) -> None:
+        self.balances[user] = self.balances.get(user, 0) + amount
+
+    def withdraw(self, user: str, amount: float, callback=None) -> None:
+        """脆弱な引き出し: 送金（callback）後に残高を更新する。"""
+        balance = self.balances.get(user, 0)
+        if balance < amount:
+            raise ValueError("残高不足")
+
+        # Interaction が Effects より先 → 再入攻撃に脆弱
+        if callback:
+            callback(amount)  # ← 攻撃者が再度 withdraw を呼べる
+
+        self.balances[user] = balance - amount  # ← まだ古い balance を参照
+
+
+class SecureVault:
+    """
+    安全な金庫コントラクトの模倣。
+    Checks-Effects-Interactions パターンを適用。
+    """
+
+    def __init__(self):
+        self.balances: Dict[str, float] = {}
+        self._locked = False  # ReentrancyGuard
+
+    def deposit(self, user: str, amount: float) -> None:
+        self.balances[user] = self.balances.get(user, 0) + amount
+
+    def withdraw(self, user: str, amount: float, callback=None) -> None:
+        """安全な引き出し: 状態更新後に外部呼出しを行う。"""
+        # ReentrancyGuard
+        if self._locked:
+            raise RuntimeError("再入攻撃を検出: 関数がロック中")
+        self._locked = True
+
+        try:
+            # Checks: 条件検証
+            balance = self.balances.get(user, 0)
+            if balance < amount:
+                raise ValueError("残高不足")
+
+            # Effects: 状態更新（外部呼出しの前に実行）
+            self.balances[user] = balance - amount
+
+            # Interactions: 外部呼出し
+            if callback:
+                callback(amount)
+        finally:
+            self._locked = False
+
+
+# --- 再入攻撃シミュレーション ---
+print("=== 再入攻撃シミュレーション ===\n")
+
+# 脆弱なコントラクト
+print("--- VulnerableVault（脆弱） ---")
+vault = VulnerableVault()
+vault.deposit("attacker", 10.0)
+stolen = [0.0]
+attack_count = [0]
+
+
+def malicious_callback(amount: float) -> None:
+    """攻撃者の receive 関数を模倣。"""
+    attack_count[0] += 1
+    stolen[0] += amount
+    if attack_count[0] < 3:
+        try:
+            vault.withdraw("attacker", amount, malicious_callback)
+        except (ValueError, RecursionError):
+            pass
+
+
+vault.withdraw("attacker", 10.0, malicious_callback)
+print(f"  盗まれた金額: {stolen[0]}  再入回数: {attack_count[0]}")
+
+# 安全なコントラクト
+print("\n--- SecureVault（安全） ---")
+secure = SecureVault()
+secure.deposit("attacker", 10.0)
+
+
+def malicious_callback_secure(amount: float) -> None:
+    try:
+        secure.withdraw("attacker", amount, malicious_callback_secure)
+    except RuntimeError as e:
+        print(f"  [防御成功] {e}")
+
+
+secure.withdraw("attacker", 10.0, malicious_callback_secure)
+print(f"  攻撃者の残高: {secure.balances.get('attacker', 0)}")
+```
+
 ---
 
-## 10. 実践演習
+## 10. ブロックチェーンの実世界応用
+
+### 10.1 主要なユースケース
+
+ブロックチェーン技術は金融以外にも多様な領域で応用が進んでいる。
+
+| 領域 | ユースケース | 具体例 | ブロックチェーンの利点 |
+|------|------------|--------|---------------------|
+| サプライチェーン | 製品追跡 | IBM Food Trust | 改ざん耐性のある履歴管理 |
+| 医療 | 電子カルテ共有 | MedRec（MIT） | 患者主導のデータ管理 |
+| 不動産 | 登記管理 | スウェーデン土地登記局 | 仲介コストの削減 |
+| 知的財産 | 著作権管理 | Ascribe | タイムスタンプによる先行権証明 |
+| 投票 | 電子投票 | Voatz | 透明性と改ざん耐性の両立 |
+| エネルギー | P2P 電力取引 | Power Ledger | 仲介者なしの電力売買 |
+| ゲーム | デジタル資産所有 | Axie Infinity | 真のデジタル所有権 |
+| 身分証明 | 分散型 ID（DID） | Microsoft ION | 自己主権型アイデンティティ |
+
+### 10.2 CBDC（中央銀行デジタル通貨）
+
+各国の中央銀行が分散台帳技術を応用した法定通貨のデジタル版を検討・開発している。中国のデジタル人民元（e-CNY）は大規模な実証実験が行われ、欧州中央銀行のデジタルユーロも開発が進行中である。CBDC は中央銀行が発行・管理する点で本質的に中央集権的であるが、分散台帳技術の一部の利点（プログラマビリティ、追跡可能性）を活用している。
+
+### 10.3 Web3 と分散型インターネットの展望
+
+Web3 はブロックチェーン技術を基盤として、ユーザーがデータの所有権を取り戻すことを目指すインターネットの新たなパラダイムである。
+
+```
+Web の進化:
+
+  Web 1.0（1990年代〜）: 読み取り専用
+    静的 HTML ページ、情報の一方向配信
+    例: 個人ホームページ、Yahoo! ディレクトリ
+
+  Web 2.0（2000年代〜）: 読み書き
+    ユーザー生成コンテンツ、SNS、クラウド
+    例: Facebook, YouTube, Twitter
+    課題: プラットフォームがデータを独占
+
+  Web 3.0（2020年代〜）: 読み書き + 所有
+    ブロックチェーンによるデータ主権
+    例: DeFi, NFT, DAO, 分散型 SNS
+    課題: UX, スケーラビリティ, 規制
+
+  ┌────────────┬──────────┬──────────┬──────────┐
+  │            │ Web 1.0  │ Web 2.0  │ Web 3.0  │
+  ├────────────┼──────────┼──────────┼──────────┤
+  │ データ管理  │ 分散     │ 中央集権 │ 分散     │
+  │ 認証       │ なし     │ OAuth等  │ ウォレット│
+  │ 支払い     │ クレカ   │ 電子決済 │ 暗号資産 │
+  │ ガバナンス │ なし     │ 企業     │ DAO      │
+  └────────────┴──────────┴──────────┴──────────┘
+```
+
+---
+
+## 11. 実践演習
 
 ### 演習 1:【基礎】ブロックチェーンの手動構築とハッシュチェーン検証
 
@@ -1761,7 +1961,7 @@ def mine_with_stats(data: str, prev_hash: str, difficulty: int) -> dict:
 
 ---
 
-## 11. FAQ
+## 12. FAQ
 
 ### Q1: ブロックチェーンはどのような問題に適しているのか？適していない場面は？
 
@@ -1825,7 +2025,7 @@ def mine_with_stats(data: str, prev_hash: str, difficulty: int) -> dict:
 
 ---
 
-## 12. 用語集
+## 13. 用語集
 
 | 用語 | 英語表記 | 定義 |
 |------|---------|------|
