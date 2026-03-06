@@ -1162,3 +1162,769 @@ async function staleWhileRevalidate(request) {
   return cached || fetchPromise;
 }
 ```
+
+### 6.4 キャッシュ戦略の比較表
+
+| 戦略 | 動作 | 最適な用途 | オフライン対応 | 鮮度 |
+|------|------|-----------|:-------------:|------|
+| Cache First | キャッシュ優先、なければネットワーク | 静的アセット (CSS, JS, 画像) | 高 | 低（手動更新が必要） |
+| Network First | ネットワーク優先、失敗時キャッシュ | API レスポンス、頻繁に更新されるデータ | 中 | 高 |
+| Stale While Revalidate | キャッシュを即時返却 + バックグラウンド更新 | ニュースフィード、SNS タイムライン | 中 | 中（次回アクセスで反映） |
+| Network Only | 常にネットワーク | 非冪等リクエスト (POST)、リアルタイムデータ | 不可 | 最高 |
+| Cache Only | 常にキャッシュ | プリキャッシュ済み静的リソース | 最高 | なし（ビルド時に固定） |
+
+### 6.5 Background Sync
+
+Service Worker のバックグラウンド同期機能を使うと、オフライン時の操作を保存しておき、ネットワーク復帰時に自動的にサーバーへ送信できる。
+
+```javascript
+// ===== app.js（メインスクリプト） =====
+
+async function sendMessage(message) {
+  // IndexedDB にメッセージを保存
+  await saveToOutbox(message);
+
+  // Background Sync の登録
+  const registration = await navigator.serviceWorker.ready;
+  try {
+    await registration.sync.register('outbox-sync');
+    console.log('Background Sync 登録完了');
+  } catch (err) {
+    console.error('Background Sync 未対応:', err);
+    // フォールバック: 即座に送信を試みる
+    await sendPendingMessages();
+  }
+}
+
+
+// ===== sw.js =====
+
+// sync イベントはネットワーク復帰時に自動発火
+self.addEventListener('sync', (event) => {
+  if (event.tag === 'outbox-sync') {
+    event.waitUntil(sendPendingMessages());
+  }
+});
+
+async function sendPendingMessages() {
+  const messages = await getFromOutbox(); // IndexedDB から取得
+
+  const results = await Promise.allSettled(
+    messages.map(async (msg) => {
+      const response = await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(msg)
+      });
+
+      if (response.ok) {
+        await removeFromOutbox(msg.id); // 送信成功したら削除
+        return { id: msg.id, status: 'sent' };
+      }
+      throw new Error(`送信失敗: ${response.status}`);
+    })
+  );
+
+  const failed = results.filter(r => r.status === 'rejected');
+  if (failed.length > 0) {
+    throw new Error(`${failed.length} 件の送信に失敗`);
+    // エラーを throw すると、ブラウザは後で再試行する
+  }
+}
+```
+
+### 6.6 Push 通知
+
+Service Worker は Push API と連携し、サーバーからのプッシュ通知を受信できる。ブラウザが閉じていても（バックグラウンドで）通知を表示可能。
+
+```javascript
+// ===== app.js =====
+
+async function subscribeToPush() {
+  const registration = await navigator.serviceWorker.ready;
+
+  // 通知の許可を取得
+  const permission = await Notification.requestPermission();
+  if (permission !== 'granted') {
+    console.log('通知が許可されていません');
+    return;
+  }
+
+  // Push サブスクリプションの作成
+  const subscription = await registration.pushManager.subscribe({
+    userVisibleOnly: true, // 可視通知のみ（Chrome の要件）
+    applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+  });
+
+  // サーバーにサブスクリプション情報を送信
+  await fetch('/api/push-subscribe', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(subscription)
+  });
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding)
+    .replace(/-/g, '+')
+    .replace(/_/g, '/');
+  const rawData = atob(base64);
+  return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
+}
+
+
+// ===== sw.js =====
+
+self.addEventListener('push', (event) => {
+  const data = event.data ? event.data.json() : {};
+
+  const options = {
+    body: data.body || 'お知らせがあります',
+    icon: '/images/notification-icon.png',
+    badge: '/images/badge.png',
+    vibrate: [200, 100, 200],
+    data: {
+      url: data.url || '/',
+      timestamp: Date.now()
+    },
+    actions: [
+      { action: 'open', title: '開く' },
+      { action: 'dismiss', title: '閉じる' }
+    ]
+  };
+
+  event.waitUntil(
+    self.registration.showNotification(data.title || '通知', options)
+  );
+});
+
+// 通知のクリックハンドリング
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+
+  if (event.action === 'dismiss') {
+    return;
+  }
+
+  const targetUrl = event.notification.data.url;
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true })
+      .then(clientList => {
+        // 既に開いているタブがあればフォーカス
+        for (const client of clientList) {
+          if (client.url === targetUrl && 'focus' in client) {
+            return client.focus();
+          }
+        }
+        // なければ新しいタブで開く
+        return clients.openWindow(targetUrl);
+      })
+  );
+});
+```
+
+---
+
+## 7. Worker 間通信と Channel Messaging
+
+### 7.1 MessageChannel による直接通信
+
+通常、Worker はメインスレッドを介してしか通信できない。しかし MessageChannel を使うと、2 つの Worker 間で直接通信するチャネルを作成できる。
+
+```javascript
+// ===== main.js =====
+
+const workerA = new Worker('workerA.js');
+const workerB = new Worker('workerB.js');
+
+// MessageChannel を作成
+const channel = new MessageChannel();
+
+// port1 を workerA に、port2 を workerB に Transfer
+workerA.postMessage({ type: 'setPort', port: channel.port1 }, [channel.port1]);
+workerB.postMessage({ type: 'setPort', port: channel.port2 }, [channel.port2]);
+
+// これ以降、workerA と workerB はメインスレッドを介さず直接通信可能
+// メインスレッドはボトルネックにならない
+
+
+// ===== workerA.js =====
+
+let directPort = null;
+
+self.onmessage = (event) => {
+  if (event.data.type === 'setPort') {
+    directPort = event.data.port;
+    directPort.onmessage = (e) => {
+      console.log('[WorkerA] WorkerB からの直接メッセージ:', e.data);
+    };
+    // WorkerB に直接メッセージを送信
+    directPort.postMessage({ from: 'A', message: '直接通信テスト' });
+  }
+};
+
+
+// ===== workerB.js =====
+
+let directPort = null;
+
+self.onmessage = (event) => {
+  if (event.data.type === 'setPort') {
+    directPort = event.data.port;
+    directPort.onmessage = (e) => {
+      console.log('[WorkerB] WorkerA からの直接メッセージ:', e.data);
+      // 返信
+      directPort.postMessage({
+        from: 'B',
+        message: '了解、直接通信成功'
+      });
+    };
+  }
+};
+```
+
+```
+MessageChannel による Worker 間直接通信:
+
+  通常の通信（メインスレッド経由）:
+  ┌──────────┐    ┌──────────┐    ┌──────────┐
+  │ Worker A │ →  │  Main    │ →  │ Worker B │
+  │          │ ←  │ Thread   │ ←  │          │
+  └──────────┘    └──────────┘    └──────────┘
+  メインスレッドがボトルネックになる可能性
+
+  MessageChannel（直接通信）:
+  ┌──────────┐                    ┌──────────┐
+  │ Worker A │ ←── port1──port2 ──→ │ Worker B │
+  │          │  MessageChannel     │          │
+  └──────────┘                    └──────────┘
+  メインスレッドを経由しない高速な通信
+```
+
+### 7.2 BroadcastChannel による多対多通信
+
+BroadcastChannel は同一オリジンの全コンテキスト（ページ、Worker、Service Worker）にメッセージをブロードキャストする仕組みである。
+
+```javascript
+// ===== 任意のコンテキスト（ページでも Worker でも可） =====
+
+// 同じチャネル名を指定すると自動的に接続される
+const channel = new BroadcastChannel('app-events');
+
+// メッセージの送信（全リスナーに配信される）
+channel.postMessage({
+  type: 'user-login',
+  userId: 'user123',
+  timestamp: Date.now()
+});
+
+// メッセージの受信
+channel.onmessage = (event) => {
+  const { type, userId } = event.data;
+  if (type === 'user-login') {
+    console.log(`ユーザー ${userId} がログインしました`);
+    updateUI();
+  }
+};
+
+// 不要になったら閉じる
+// channel.close();
+```
+
+```
+BroadcastChannel の通信モデル:
+
+  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────┐
+  │  Tab A   │  │  Tab B   │  │ Worker   │  │ Service Worker│
+  │          │  │          │  │          │  │              │
+  │ channel  │  │ channel  │  │ channel  │  │ channel      │
+  └────┬─────┘  └────┬─────┘  └────┬─────┘  └──────┬───────┘
+       │             │             │               │
+       └─────────────┴─────────────┴───────────────┘
+                           │
+                BroadcastChannel('app-events')
+                           │
+            送信者以外の全リスナーが受信
+```
+
+---
+
+## 8. Worklet
+
+### 8.1 Worklet と Worker の違い
+
+Worklet はレンダリングパイプラインに統合された軽量な Worker である。通常の Worker とは異なり、ブラウザの内部処理（描画、レイアウト、オーディオ処理）に直接介入できる。
+
+| 特性 | Worker | Worklet |
+|------|--------|---------|
+| スレッドモデル | 独立したバックグラウンドスレッド | レンダリングパイプライン統合 |
+| 生成コスト | 比較的高い | 軽量 |
+| グローバルスコープ | DedicatedWorkerGlobalScope | 各 Worklet 固有のスコープ |
+| postMessage | 可 | 不可（直接通信なし） |
+| DOM アクセス | 不可 | 不可 |
+| 目的 | 汎用計算のオフロード | パイプライン特化処理 |
+| 実行保証 | 明示的な起動・終了 | ブラウザが必要時に実行 |
+| モジュール | importScripts / ES Modules | ES Modules のみ |
+
+### 8.2 Paint Worklet（CSS Houdini）
+
+Paint Worklet は CSS の `background-image` をプログラマブルに描画する。Canvas API に似たインターフェースで自由な描画が可能。
+
+```javascript
+// ===== main.js =====
+
+if ('paintWorklet' in CSS) {
+  CSS.paintWorklet.addModule('paint-worklet.js');
+}
+
+
+// ===== paint-worklet.js =====
+
+class GradientBorderPainter {
+  // CSS カスタムプロパティへの依存宣言
+  static get inputProperties() {
+    return [
+      '--border-width',
+      '--gradient-start',
+      '--gradient-end'
+    ];
+  }
+
+  paint(ctx, size, properties) {
+    const borderWidth = parseInt(properties.get('--border-width')) || 4;
+    const startColor = properties.get('--gradient-start').toString().trim()
+      || '#ff6b6b';
+    const endColor = properties.get('--gradient-end').toString().trim()
+      || '#4ecdc4';
+
+    // グラデーションボーダーを描画
+    const gradient = ctx.createLinearGradient(0, 0, size.width, size.height);
+    gradient.addColorStop(0, startColor);
+    gradient.addColorStop(1, endColor);
+
+    ctx.strokeStyle = gradient;
+    ctx.lineWidth = borderWidth;
+    ctx.strokeRect(
+      borderWidth / 2,
+      borderWidth / 2,
+      size.width - borderWidth,
+      size.height - borderWidth
+    );
+  }
+}
+
+registerPaint('gradient-border', GradientBorderPainter);
+
+
+// ===== styles.css =====
+/*
+.card {
+  --border-width: 4;
+  --gradient-start: #ff6b6b;
+  --gradient-end: #4ecdc4;
+  background-image: paint(gradient-border);
+}
+*/
+```
+
+### 8.3 Audio Worklet
+
+Audio Worklet は Web Audio API の信号処理をリアルタイムで行う。以前の ScriptProcessorNode（メインスレッドで動作）に代わる、高パフォーマンスな代替手段である。
+
+```javascript
+// ===== main.js =====
+
+async function setupAudioWorklet() {
+  const audioContext = new AudioContext();
+
+  // Audio Worklet モジュールの登録
+  await audioContext.audioWorklet.addModule('audio-processor.js');
+
+  // カスタム AudioWorkletNode の生成
+  const gainNode = new AudioWorkletNode(audioContext, 'custom-gain');
+
+  // パラメータの制御
+  const gainParam = gainNode.parameters.get('gain');
+  gainParam.value = 0.5; // 音量を半分に
+
+  // 入力 → カスタム処理 → 出力
+  const source = audioContext.createMediaStreamSource(
+    await navigator.mediaDevices.getUserMedia({ audio: true })
+  );
+  source.connect(gainNode).connect(audioContext.destination);
+}
+
+
+// ===== audio-processor.js =====
+
+class CustomGainProcessor extends AudioWorkletProcessor {
+  static get parameterDescriptors() {
+    return [{
+      name: 'gain',
+      defaultValue: 1.0,
+      minValue: 0.0,
+      maxValue: 2.0,
+      automationRate: 'a-rate' // サンプル単位で変化可能
+    }];
+  }
+
+  process(inputs, outputs, parameters) {
+    const input = inputs[0];
+    const output = outputs[0];
+    const gain = parameters.gain;
+
+    for (let channel = 0; channel < input.length; channel++) {
+      const inputChannel = input[channel];
+      const outputChannel = output[channel];
+
+      for (let i = 0; i < inputChannel.length; i++) {
+        // gain パラメータが a-rate の場合、サンプルごとに異なる値を持つ
+        const g = gain.length > 1 ? gain[i] : gain[0];
+        outputChannel[i] = inputChannel[i] * g;
+      }
+    }
+
+    return true; // true を返すと処理を継続
+  }
+}
+
+registerProcessor('custom-gain', CustomGainProcessor);
+```
+
+---
+
+## 9. Worker の種類の総合比較
+
+### 9.1 機能比較表
+
+```
+┌────────────────────┬───────────────┬───────────────┬───────────────┬────────────────┐
+│                    │ Dedicated     │ Shared        │ Service       │ Worklet        │
+│                    │ Worker        │ Worker        │ Worker        │                │
+├────────────────────┼───────────────┼───────────────┼───────────────┼────────────────┤
+│ スコープ           │ 1 ページ      │ 同一オリジン  │ 同一オリジン  │ 特定処理       │
+│ 接続数             │ 1             │ 複数ページ    │ 全ページ      │ N/A            │
+│ DOM アクセス       │ 不可          │ 不可          │ 不可          │ 不可           │
+│ ライフサイクル     │ ページと同じ  │ 全接続終了まで│ 独立（永続）  │ ブラウザ管理   │
+│ オフライン対応     │ 不可          │ 不可          │ 可            │ 不可           │
+│ Push 通知          │ 不可          │ 不可          │ 可            │ 不可           │
+│ ネットワーク制御   │ 不可          │ 不可          │ 可            │ 不可           │
+│ fetch() 利用       │ 可            │ 可            │ 可            │ 不可           │
+│ IndexedDB 利用     │ 可            │ 可            │ 可            │ 不可           │
+│ postMessage        │ 可            │ 可 (port経由) │ 可            │ 不可           │
+│ ES Modules         │ 可            │ 可            │ 可            │ 必須           │
+│ HTTPS 必須         │ 不要          │ 不要          │ 必須          │ 不要           │
+│ DevTools 対応      │ 良好          │ 制限あり      │ 良好          │ 制限あり       │
+│ ブラウザ対応       │ 全モダン      │ 制限あり      │ 全モダン      │ 部分的         │
+├────────────────────┼───────────────┼───────────────┼───────────────┼────────────────┤
+│ 主な用途           │ 重い計算      │ 状態共有      │ キャッシュ    │ 描画拡張       │
+│                    │ データ加工    │ WebSocket共有 │ PWA           │ オーディオ処理 │
+│                    │ 画像/動画処理 │ DB 接続共有   │ Push / Sync   │ アニメーション │
+└────────────────────┴───────────────┴───────────────┴───────────────┴────────────────┘
+```
+
+### 9.2 ユースケース別の選択指針
+
+```
+どの Worker を使うべきか？ フローチャート:
+
+  ┌─────────────────────────────────────────┐
+  │  何をしたいのか？                         │
+  └───────────┬─────────────────────────────┘
+              │
+    ┌─────────┴──────────┐
+    │                    │
+  重い計算を          ネットワークを
+  オフロードしたい     制御したい
+    │                    │
+    │                    ▼
+    │              ┌──────────────┐
+    │              │ Service Worker│
+    │              │ キャッシュ     │
+    │              │ オフライン     │
+    │              │ Push 通知     │
+    │              └──────────────┘
+    │
+    ├── 1 ページでだけ使う？
+    │     │
+    │     ├── Yes → Dedicated Worker
+    │     │
+    │     └── No → 複数タブで共有したい？
+    │               │
+    │               ├── Yes → Shared Worker
+    │               │
+    │               └── No → Dedicated Worker
+    │                          (各ページに 1 つ)
+    │
+    └── レンダリングに関わる処理？
+          │
+          ├── 描画のカスタマイズ → Paint Worklet
+          ├── スムーズアニメーション → Animation Worklet
+          ├── リアルタイム音声処理 → Audio Worklet
+          └── カスタムレイアウト → Layout Worklet (実験的)
+```
+
+---
+
+## 10. アンチパターンと改善策
+
+### 10.1 アンチパターン 1: Worker の過剰生成
+
+```javascript
+// ===== BAD: タスクごとに Worker を生成・破棄 =====
+
+async function processItems(items) {
+  const results = [];
+  for (const item of items) {
+    // 毎回 Worker を生成（数 ms のオーバーヘッド x 1000回）
+    const worker = new Worker('process.js');
+
+    const result = await new Promise((resolve) => {
+      worker.onmessage = (e) => {
+        resolve(e.data);
+        worker.terminate();  // 毎回終了
+      };
+      worker.postMessage(item);
+    });
+
+    results.push(result);
+  }
+  return results;
+}
+// 問題: Worker の生成・破棄コストが大きい
+// 問題: 並列実行されない（逐次処理）
+// 問題: メモリリークの可能性
+
+
+// ===== GOOD: Worker プールで再利用 =====
+
+const pool = new WorkerPool('process.js', 4);
+
+async function processItems(items) {
+  // 全タスクを並列にキューイング（最大 4 並列）
+  const results = await Promise.all(
+    items.map(item => pool.exec(item))
+  );
+  return results;
+}
+// Worker を再利用するため生成コストは初期化時のみ
+// 最大並列数を制御可能
+// 明示的な terminate で確実にリソース解放
+```
+
+### 10.2 アンチパターン 2: 大量データの無駄なコピー
+
+```javascript
+// ===== BAD: 大きなバッファを毎回コピー =====
+
+function processVideoFrame(frameBuffer) {
+  // 100MB のバッファが毎フレームコピーされる
+  worker.postMessage({ frame: frameBuffer });
+  // frameBuffer はまだメインスレッドに残っている
+  // GC されるまでメモリを二重消費
+}
+
+worker.onmessage = (event) => {
+  // 結果もコピーで返される
+  const processedFrame = event.data.result;
+  renderFrame(processedFrame);
+};
+
+// 問題: 30fps で動画処理する場合、毎秒 6GB のメモリコピーが発生
+// 問題: GC 圧力が高くなり、パフォーマンスが不安定に
+
+
+// ===== GOOD: Transferable Objects で所有権を移転 =====
+
+function processVideoFrame(frameBuffer) {
+  // 所有権を Worker に移転（ゼロコピー）
+  worker.postMessage(
+    { frame: frameBuffer },
+    [frameBuffer]  // Transfer リストに含める
+  );
+  // frameBuffer.byteLength === 0（もう使えない）
+}
+
+worker.onmessage = (event) => {
+  // Worker からも Transfer で返送
+  const processedFrame = event.data.result;
+  renderFrame(processedFrame);
+  // 次のフレーム処理のために再び Worker に Transfer
+};
+
+// ゼロコピーなので 30fps でも問題なし
+// メモリ使用量も最小限
+
+
+// ===== BETTER: SharedArrayBuffer で共有メモリ（CORS 設定が必要） =====
+
+const frameBuffer = new SharedArrayBuffer(frameSize);
+const mainView = new Uint8Array(frameBuffer);
+const statusArray = new Int32Array(new SharedArrayBuffer(4));
+// statusArray[0]: 0 = idle, 1 = processing, 2 = done
+
+worker.postMessage({ frameBuffer, statusArray });
+
+function processVideoFrame(rawFrame) {
+  // 共有メモリに書き込み
+  mainView.set(rawFrame);
+  // Worker に処理開始を通知
+  Atomics.store(statusArray, 0, 1);
+  Atomics.notify(statusArray, 0);
+}
+
+// コピーもメモリ移転も発生しない
+```
+
+### 10.3 アンチパターン 3: エラーハンドリングの欠如
+
+```javascript
+// ===== BAD: エラーが無視される =====
+
+const worker = new Worker('worker.js');
+worker.postMessage(data);
+worker.onmessage = (e) => {
+  updateUI(e.data);
+};
+// Worker 内でエラーが発生しても何も起きない
+// Promise が永遠に resolve されない可能性
+
+
+// ===== GOOD: 包括的なエラーハンドリング =====
+
+const worker = new Worker('worker.js');
+
+// Worker 自体のエラー（構文エラー、未キャッチ例外）
+worker.onerror = (error) => {
+  console.error('[Worker Error]', error.message);
+  console.error('ファイル:', error.filename, '行:', error.lineno);
+  error.preventDefault(); // デフォルトのエラー報告を抑制
+  showErrorUI('ワーカーで予期しないエラーが発生しました');
+};
+
+// Worker 内で messageerror（デシリアライズ失敗等）
+worker.onmessageerror = (event) => {
+  console.error('[Message Error] メッセージの復元に失敗');
+};
+
+// タイムアウト付きのリクエスト
+function requestWithTimeout(worker, data, timeoutMs = 30000) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`Worker タイムアウト: ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    const handler = (event) => {
+      clearTimeout(timer);
+      worker.removeEventListener('message', handler);
+      if (event.data.error) {
+        reject(new Error(event.data.error));
+      } else {
+        resolve(event.data);
+      }
+    };
+
+    worker.addEventListener('message', handler);
+    worker.postMessage(data);
+  });
+}
+
+// 使用例
+try {
+  const result = await requestWithTimeout(worker, taskData, 10000);
+  updateUI(result);
+} catch (err) {
+  console.error('処理失敗:', err.message);
+  showErrorUI(err.message);
+}
+```
+
+---
+
+## 11. エッジケース分析
+
+### 11.1 エッジケース 1: Worker の同時生成数制限
+
+ブラウザには Worker の同時生成数に実質的な上限がある。仕様上の制限ではないが、OS スレッド数やメモリの制約から、大量の Worker を同時に生成するとパフォーマンスが低下したり、生成自体が失敗したりする。
+
+```javascript
+// ===== 問題: 大量の Worker 同時生成 =====
+
+// 100 個の Worker を一度に生成しようとする
+const workers = [];
+for (let i = 0; i < 100; i++) {
+  try {
+    workers.push(new Worker('heavy-task.js'));
+  } catch (e) {
+    console.error(`Worker ${i} の生成に失敗:`, e);
+    // ブラウザによっては 20〜50 個程度で制限に達する
+    break;
+  }
+}
+
+// 結果:
+// - Chrome: 概ね動作するが、スレッド数過多でコンテキストスイッチが増大
+// - Firefox: 一定数を超えるとキューイングされる
+// - Safari: より早い段階で制限に達する傾向
+// - 全ブラウザ: メモリ消費が急増（Worker 1 つあたり数 MB のスタック領域）
+
+
+// ===== 対策: Worker プール + キューイング =====
+
+// navigator.hardwareConcurrency で論理 CPU コア数を取得
+const optimalPoolSize = Math.max(1, navigator.hardwareConcurrency - 1);
+// メインスレッド用に 1 コア残すのが慣例
+console.log(`最適プールサイズ: ${optimalPoolSize}`);
+
+const pool = new WorkerPool('heavy-task.js', optimalPoolSize);
+// 100 個のタスクを適切な並列度で実行
+const results = await Promise.all(
+  tasks.map(task => pool.exec(task))
+);
+```
+
+### 11.2 エッジケース 2: Service Worker のスコープ制限
+
+Service Worker は登録時の `scope` パラメータ（またはスクリプトのディレクトリ）によって制御範囲が決まる。この制限を理解していないと、期待通りにリクエストをインターセプトできない。
+
+```javascript
+// ===== Service Worker のスコープに関するルール =====
+
+// 1. デフォルトスコープ = sw.js のディレクトリ
+//    sw.js が /scripts/sw.js にある場合
+//    → スコープは /scripts/ 以下のみ
+
+// /sw.js → スコープ: / (ルート以下すべて)
+navigator.serviceWorker.register('/sw.js');
+
+// /scripts/sw.js → スコープ: /scripts/ 以下のみ
+navigator.serviceWorker.register('/scripts/sw.js');
+// /index.html へのリクエストはインターセプトされない
+
+// 明示的にスコープを広げようとするとエラー
+navigator.serviceWorker.register('/scripts/sw.js', {
+  scope: '/'  // SecurityError: スクリプトのディレクトリより上位は指定不可
+});
+
+// 解決策 1: sw.js をルートに配置
+navigator.serviceWorker.register('/sw.js', { scope: '/' });
+
+// 解決策 2: Service-Worker-Allowed ヘッダーをサーバーで設定
+// HTTP レスポンスヘッダー: Service-Worker-Allowed: /
+// これにより /scripts/sw.js でもルートスコープを取得可能
+navigator.serviceWorker.register('/scripts/sw.js', { scope: '/' });
+
+
+// 2. 複数の Service Worker を異なるスコープで登録
+navigator.serviceWorker.register('/sw-main.js', { scope: '/' });
+navigator.serviceWorker.register('/blog/sw-blog.js', { scope: '/blog/' });
+// /blog/ 以下のリクエストは sw-blog.js が優先
+// それ以外のリクエストは sw-main.js が処理
+
+// 3. Service Worker の更新判定
+// ブラウザはバイト単位でスクリプトを比較し、1 バイトでも変わっていれば更新する
+// 24 時間に 1 回、自動的に更新チェックが行われる
+// registration.update() で手動チェックも可能
+```

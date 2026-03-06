@@ -1143,3 +1143,608 @@ CDN リクエスト処理フロー（詳細）:
 - **即時パージが必須**: Fastly（150ms以下のリアルタイムパージ）
 - **Next.js アプリケーション**: Vercel（ISR/SSR との統合が最も自然）
 - **エンタープライズ + グローバル**: Akamai（PoP数最大、SLAが厳格）
+
+---
+
+## 8. Edge Computing 実践パターン
+
+### 8.1 Edge Computing のユースケース分類
+
+Edge Computingは、従来オリジンサーバーで行っていた処理の一部をCDNエッジで実行する技術である。すべての処理がEdge向きというわけではなく、適切なユースケースの見極めが重要である。
+
+```
+Edge Computing 適性マトリックス:
+
+  ┌─────────────────────────────────────────────────────────┐
+  │               Edge に適するか？                          │
+  │                                                         │
+  │  高  │  A/Bテスト    │ パーソナライズ  │                  │
+  │  い  │  リダイレクト  │ 画像最適化      │                  │
+  │  ↑  │  ヘッダー操作  │ 認証・認可      │                  │
+  │  レ  ├───────────────┼────────────────┤                  │
+  │  イ  │  Bot検出      │ API集約        │                  │
+  │  テ  │  地理制限     │ SSR/ISR         │                  │
+  │  ン  │  レート制限    │ HTML変換       │                  │
+  │  シ  ├───────────────┼────────────────┤                  │
+  │  改  │  ログ収集     │ DB操作          │                  │
+  │  善  │              │ バッチ処理       │                  │
+  │  低  │              │ 長時間演算       │                  │
+  │  い  │              │                 │                  │
+  │      └──────────────┴─────────────────┘                  │
+  │        低い ←── 計算量 ──→ 高い                          │
+  │                                                         │
+  │  左上: Edge最適  右上: Edge適  左下: Edge可  右下: 不適   │
+  └─────────────────────────────────────────────────────────┘
+```
+
+### 8.2 CloudFront Functions vs Lambda@Edge
+
+AWS CloudFront には2種類のEdge Computing機能があり、使い分けが重要である。
+
+| 特性 | CloudFront Functions | Lambda@Edge |
+|------|---------------------|-------------|
+| 実行タイミング | Viewer Request / Response のみ | Viewer/Origin の Request/Response |
+| 実行環境 | JavaScript (ES 5.1 互換) | Node.js / Python |
+| 最大実行時間 | 1ms | 5秒 (Viewer) / 30秒 (Origin) |
+| メモリ | 2MB | 128MB〜10GB |
+| ネットワークアクセス | 不可 | 可 |
+| ファイルシステム | 不可 | /tmp (512MB) |
+| 料金 | $0.10 / 100万リクエスト | $0.60 / 100万リクエスト + 実行時間 |
+| デプロイ | 即時（全PoP） | 数分（レプリカ作成） |
+| 適用場面 | ヘッダー操作、URL書換、単純判定 | 外部API呼出、認証、画像変換 |
+
+```
+CloudFront Functions と Lambda@Edge の実行ポイント:
+
+  ブラウザ              CloudFront エッジ              オリジン
+    │                      │                            │
+    │   リクエスト          │                            │
+    ├─────────────────────►│                            │
+    │                      │                            │
+    │              ┌───────▼────────┐                   │
+    │              │ Viewer Request │ ← CF Functions    │
+    │              │  (URLリライト)  │   Lambda@Edge     │
+    │              └───────┬────────┘                   │
+    │                      │                            │
+    │              ┌───────▼────────┐                   │
+    │              │  キャッシュ確認  │                   │
+    │              └───────┬────────┘                   │
+    │                      │ (MISS時)                   │
+    │              ┌───────▼────────┐                   │
+    │              │ Origin Request │ ← Lambda@Edge     │
+    │              │ (ヘッダー追加)  │   のみ             │
+    │              └───────┬────────┘                   │
+    │                      ├──────────────────────────►│
+    │                      │                            │
+    │                      │◄──────────────────────────┤
+    │              ┌───────▼────────┐                   │
+    │              │Origin Response │ ← Lambda@Edge     │
+    │              │ (変換・加工)    │   のみ             │
+    │              └───────┬────────┘                   │
+    │              ┌───────▼────────┐                   │
+    │              │Viewer Response │ ← CF Functions    │
+    │              │(セキュリティHdr)│   Lambda@Edge     │
+    │              └───────┬────────┘                   │
+    │   レスポンス         │                            │
+    │◄─────────────────────┤                            │
+```
+
+### 8.3 コード例5: Lambda@Edge による画像最適化
+
+```javascript
+// lambda/image-optimizer.js
+// Lambda@Edge: Origin Response トリガーで画像フォーマットを最適化
+
+const AWS = require('aws-sdk');
+const sharp = require('sharp');
+const S3 = new AWS.S3({ region: 'ap-northeast-1' });
+
+const SUPPORTED_FORMATS = ['webp', 'avif', 'jpeg', 'png'];
+const MAX_WIDTH = 2048;
+const MAX_HEIGHT = 2048;
+const QUALITY_MAP = {
+  webp: 80,
+  avif: 65,
+  jpeg: 85,
+  png: 90,
+};
+
+exports.handler = async (event) => {
+  const response = event.Records[0].cf.response;
+  const request = event.Records[0].cf.request;
+
+  // 画像リクエスト以外はそのまま返す
+  if (!isImageRequest(request.uri)) {
+    return response;
+  }
+
+  // オリジンが200以外ならそのまま返す
+  if (response.status !== '200') {
+    return response;
+  }
+
+  try {
+    // クエリパラメータからリサイズ指定を取得
+    const params = parseQueryString(request.querystring);
+    const width = Math.min(parseInt(params.w) || 0, MAX_WIDTH) || undefined;
+    const height = Math.min(parseInt(params.h) || 0, MAX_HEIGHT) || undefined;
+
+    // Accept ヘッダーから最適なフォーマットを決定
+    const acceptHeader = request.headers['accept']
+      ? request.headers['accept'][0].value
+      : '';
+    const targetFormat = determineFormat(acceptHeader, request.uri);
+
+    // S3から元画像を取得
+    const s3Key = decodeURIComponent(request.uri.substring(1));
+    const s3Object = await S3.getObject({
+      Bucket: process.env.S3_BUCKET || 'my-images-bucket',
+      Key: s3Key,
+    }).promise();
+
+    // sharp で変換
+    let pipeline = sharp(s3Object.Body);
+
+    // リサイズ（指定がある場合）
+    if (width || height) {
+      pipeline = pipeline.resize(width, height, {
+        fit: 'inside',
+        withoutEnlargement: true,
+      });
+    }
+
+    // フォーマット変換
+    const quality = QUALITY_MAP[targetFormat] || 80;
+    pipeline = pipeline.toFormat(targetFormat, { quality });
+
+    const optimizedBuffer = await pipeline.toBuffer();
+
+    // 変換後のレスポンスを構築
+    const optimizedResponse = {
+      status: '200',
+      statusDescription: 'OK',
+      headers: {
+        'content-type': [
+          { key: 'Content-Type', value: `image/${targetFormat}` },
+        ],
+        'cache-control': [
+          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+        ],
+        'x-image-optimized': [
+          { key: 'X-Image-Optimized', value: `format=${targetFormat}, size=${optimizedBuffer.length}` },
+        ],
+        'vary': [
+          { key: 'Vary', value: 'Accept' },
+        ],
+      },
+      body: optimizedBuffer.toString('base64'),
+      bodyEncoding: 'base64',
+    };
+
+    return optimizedResponse;
+  } catch (error) {
+    console.error('Image optimization failed:', error);
+    // エラー時は元のレスポンスをそのまま返す
+    return response;
+  }
+};
+
+function isImageRequest(uri) {
+  return /\.(jpe?g|png|gif|webp|avif|svg)$/i.test(uri);
+}
+
+function parseQueryString(qs) {
+  if (!qs) return {};
+  return qs.split('&').reduce((acc, pair) => {
+    const [key, value] = pair.split('=');
+    acc[decodeURIComponent(key)] = decodeURIComponent(value || '');
+    return acc;
+  }, {});
+}
+
+function determineFormat(acceptHeader, uri) {
+  // AVIF 対応ブラウザ
+  if (acceptHeader.includes('image/avif')) return 'avif';
+  // WebP 対応ブラウザ
+  if (acceptHeader.includes('image/webp')) return 'webp';
+  // 元のフォーマットを維持
+  const ext = uri.split('.').pop().toLowerCase();
+  if (ext === 'jpg') return 'jpeg';
+  return ext;
+}
+```
+
+---
+
+## 9. CDN セキュリティ
+
+### 9.1 DDoS 防御
+
+CDNはその分散アーキテクチャにより、DDoS攻撃の吸収と緩和に優れている。
+
+```
+DDoS 防御の多層構造:
+
+  ┌──────────────────────────────────────────────────────────┐
+  │                                                          │
+  │  Layer 7 (Application):                                  │
+  │  ┌──────────────────────────────────────────────┐       │
+  │  │  WAF ルール                                   │       │
+  │  │  ・SQLインジェクション検出                      │       │
+  │  │  ・XSS パターンブロック                         │       │
+  │  │  ・レートリミッティング                         │       │
+  │  │  ・Bot検出 / CAPTCHA チャレンジ                │       │
+  │  └──────────────────────────────────────────────┘       │
+  │                                                          │
+  │  Layer 4 (Transport):                                    │
+  │  ┌──────────────────────────────────────────────┐       │
+  │  │  SYN Flood 防御                               │       │
+  │  │  ・SYN Cookie                                 │       │
+  │  │  ・接続レート制限                              │       │
+  │  │  ・GeoIP ブロック                              │       │
+  │  └──────────────────────────────────────────────┘       │
+  │                                                          │
+  │  Layer 3 (Network):                                      │
+  │  ┌──────────────────────────────────────────────┐       │
+  │  │  ボリューム型攻撃の吸収                        │       │
+  │  │  ・Anycast による分散                          │       │
+  │  │  ・ブラックホールルーティング                    │       │
+  │  │  ・帯域幅: Tbps 級の吸収能力                   │       │
+  │  └──────────────────────────────────────────────┘       │
+  │                                                          │
+  └──────────────────────────────────────────────────────────┘
+```
+
+### 9.2 オリジン保護
+
+CDN導入時にオリジンサーバーの直接アクセスを防がなければ、CDNをバイパスした攻撃が可能になる。
+
+**CloudFront + ALB のオリジン保護例:**
+
+```
+オリジン保護パターン:
+
+  方法1: カスタムヘッダーによる検証
+  ┌────────────────────────────────────────────────────┐
+  │  CloudFront → (X-Origin-Verify: secret123) → ALB  │
+  │  ALB の WAF ルールで X-Origin-Verify を検証         │
+  │  ヘッダーなし or 不一致 → 403 拒否                  │
+  └────────────────────────────────────────────────────┘
+
+  方法2: AWS マネージドプレフィックスリスト
+  ┌────────────────────────────────────────────────────┐
+  │  ALB のセキュリティグループで                        │
+  │  CloudFront の IP レンジのみ許可                     │
+  │  com.amazonaws.global.cloudfront.origin-facing      │
+  │  マネージドプレフィックスリストを参照                  │
+  └────────────────────────────────────────────────────┘
+
+  方法3: Cloudflare Authenticated Origin Pulls
+  ┌────────────────────────────────────────────────────┐
+  │  Cloudflare ⇔ オリジン間で相互TLS認証              │
+  │  Cloudflare の TLS クライアント証明書を検証          │
+  │  証明書なし → オリジンが接続拒否                     │
+  └────────────────────────────────────────────────────┘
+
+  方法4: Cloudflare Tunnel (推奨)
+  ┌────────────────────────────────────────────────────┐
+  │  オリジンがインバウンドポートを開放しない             │
+  │  cloudflared デーモンがアウトバウンド接続で           │
+  │  Cloudflare ネットワークにトンネルを張る             │
+  │  → オリジンのIPアドレスが完全に隠蔽される            │
+  └────────────────────────────────────────────────────┘
+```
+
+### 9.3 HTTPS / TLS 設定のベストプラクティス
+
+| 設定項目 | 推奨値 | 理由 |
+|---------|--------|------|
+| 最小TLSバージョン | TLS 1.2 | TLS 1.0/1.1 は既知の脆弱性あり |
+| HSTS | max-age=31536000; includeSubDomains; preload | ダウングレード攻撃防止 |
+| OCSP Stapling | 有効 | 証明書検証の高速化 |
+| CT ログ | 有効 | 不正証明書の検出 |
+| SSL Mode (Cloudflare) | Full (Strict) | オリジンとの通信も暗号化 + 証明書検証 |
+| Origin Protocol (CloudFront) | HTTPS Only | オリジンとの通信を暗号化 |
+
+---
+
+## 10. パフォーマンス最適化
+
+### 10.1 圧縮
+
+CDNは自動的にレスポンスを圧縮して帯域を節約できる。
+
+| 圧縮方式 | 圧縮率 | CPU負荷 | ブラウザ対応 | CDN対応 |
+|---------|--------|---------|-------------|---------|
+| gzip | 60-70% | 低 | ほぼ全て | 全CDN |
+| Brotli (br) | 70-80% | 中〜高 | モダンブラウザ | 主要CDN |
+| zstd | 70-80% | 低〜中 | 一部 | Cloudflare |
+
+**圧縮対象のContent-Type:**
+
+```
+圧縮すべきMIMEタイプ:
+  text/html
+  text/css
+  text/javascript / application/javascript
+  application/json
+  application/xml / text/xml
+  image/svg+xml
+  application/wasm
+  font/woff  (woff2は既に圧縮済み)
+
+圧縮してはいけないもの:
+  image/jpeg, image/png, image/webp  (既に圧縮済み)
+  video/*, audio/*  (既に圧縮済み)
+  font/woff2  (既に圧縮済み)
+  application/zip, application/gzip  (既に圧縮済み)
+```
+
+### 10.2 HTTP/2 と HTTP/3 の活用
+
+```
+プロトコル進化と CDN の対応:
+
+  HTTP/1.1:
+  ┌──────────────────────────────────────────────┐
+  │  1接続 = 1リクエスト（同時接続6本制限）        │
+  │  Head-of-Line Blocking あり                   │
+  │  ヘッダー圧縮なし                              │
+  │  → ドメインシャーディングが必要だった           │
+  └──────────────────────────────────────────────┘
+
+  HTTP/2:
+  ┌──────────────────────────────────────────────┐
+  │  1接続で多重リクエスト（ストリーム）            │
+  │  HPACKヘッダー圧縮                             │
+  │  サーバープッシュ（廃止傾向）                   │
+  │  TCP レベルの HoL Blocking は残存              │
+  │  → CDNはH2を標準サポート                       │
+  └──────────────────────────────────────────────┘
+
+  HTTP/3 (QUIC):
+  ┌──────────────────────────────────────────────┐
+  │  UDP ベース（TCP HoL Blocking を解消）         │
+  │  0-RTT ハンドシェイク（再接続時）               │
+  │  接続マイグレーション（Wi-Fi⇔モバイル切替）     │
+  │  QPACK ヘッダー圧縮                            │
+  │  → モバイルユーザーに特に効果大                 │
+  │  → CloudFront/Cloudflare は対応済み            │
+  └──────────────────────────────────────────────┘
+
+  CDN での推奨設定:
+  ・エッジ ⇔ ブラウザ: HTTP/3 有効化
+  ・エッジ ⇔ オリジン: HTTP/2 で十分（QUICのメリット小）
+```
+
+### 10.3 Origin Shield（キャッシュ階層化）
+
+Origin Shield は、エッジとオリジンの間に追加のキャッシュ層を配置し、オリジンへのリクエストを集約する機能である。
+
+```
+Origin Shield の効果:
+
+  Shield なし:
+  ┌──────────────────────────────────────┐
+  │  東京PoP ──(MISS)──► オリジン       │
+  │  大阪PoP ──(MISS)──► オリジン       │
+  │  福岡PoP ──(MISS)──► オリジン       │
+  │  ソウルPoP ──(MISS)──► オリジン     │
+  │  シンガポールPoP ──(MISS)──► オリジン │
+  │                                      │
+  │  → 5つのPoPそれぞれがオリジンに問合せ │
+  │  → オリジンへのリクエスト = 5         │
+  └──────────────────────────────────────┘
+
+  Shield あり（東京リージョン）:
+  ┌──────────────────────────────────────────────┐
+  │  東京PoP ──(MISS)──► Shield(東京) ──► オリジン│
+  │  大阪PoP ──(MISS)──► Shield(東京) ──(HIT)    │
+  │  福岡PoP ──(MISS)──► Shield(東京) ──(HIT)    │
+  │  ソウルPoP ──(MISS)──► Shield(東京) ──(HIT)  │
+  │  シンガポールPoP ──(MISS)──► Shield(東京)(HIT)│
+  │                                                │
+  │  → 全PoPがShield経由                            │
+  │  → オリジンへのリクエスト = 1                    │
+  │  → オリジン負荷を最大80%削減                     │
+  └──────────────────────────────────────────────┘
+```
+
+---
+
+## 11. アンチパターン
+
+### 11.1 アンチパターン1: Cache-Control ヘッダーの矛盾
+
+**問題:**
+
+```
+# 悪い例: 矛盾するキャッシュヘッダー
+Cache-Control: public, no-cache, max-age=3600
+```
+
+`no-cache` と `max-age=3600` は意味的に矛盾する。`no-cache` は「キャッシュしてよいが毎回オリジンに再検証せよ」という意味であり、`max-age=3600` は「3600秒間は再検証不要」という意味である。CDNによってどちらを優先するかの挙動が異なり、予期しないキャッシュ動作の原因になる。
+
+**正しい設定パターン:**
+
+```
+# パターンA: 短時間キャッシュ（CDNのみ）
+# 意図: CDNで5分キャッシュ、ブラウザは毎回再検証
+Cache-Control: public, s-maxage=300, max-age=0, must-revalidate
+
+# パターンB: キャッシュするが毎回再検証
+# 意図: キャッシュは保持するが、使用前にETag/Last-Modifiedで304確認
+Cache-Control: public, no-cache
+ETag: "v1.2.3"
+
+# パターンC: 完全にキャッシュしない
+# 意図: ユーザー固有データなどキャッシュ厳禁
+Cache-Control: private, no-store, max-age=0
+
+# パターンD: 長期キャッシュ（ハッシュ付きファイル）
+# 意図: 不変ファイルを最大限キャッシュ
+Cache-Control: public, max-age=31536000, immutable
+```
+
+**影響の重大さ:** キャッシュヘッダーの設定ミスは、古いコンテンツの配信（ユーザーに古いJSが残り続ける等）や、個人情報の漏洩（`public` が付いた認証付きレスポンスがCDNにキャッシュされる等）を引き起こす可能性がある。
+
+### 11.2 アンチパターン2: Vary ヘッダーの過剰設定
+
+**問題:**
+
+```
+# 悪い例: Vary に Cookie を含める
+Vary: Accept-Encoding, Cookie, User-Agent
+
+# 結果:
+# ユーザーAの Cookie: session=abc123
+# ユーザーBの Cookie: session=def456
+# → 全く同じコンテンツなのに異なるキャッシュエントリが作成される
+# → キャッシュヒット率が事実上 0% に近づく
+# → CDNが存在しないのと同等の状態
+```
+
+**正しいアプローチ:**
+
+```
+# 良い例1: 最小限の Vary
+Vary: Accept-Encoding
+# → gzip版とBrotli版のみを区別
+
+# 良い例2: コンテンツネゴシエーションが必要な場合
+Vary: Accept-Encoding, Accept-Language
+# → 言語別にキャッシュを分離（言語数は有限）
+
+# Cookie による分岐が必要な場合の代替策:
+# → Edge Computing で Cookie を解析し、
+#    キャッシュキーに国コードや会員種別のみ含める
+# → Vary: Cookie の代わりに Vary: X-User-Segment
+#    （Edge が Cookie を解析して X-User-Segment に変換）
+```
+
+### 11.3 アンチパターン3: TTL なしのキャッシュ設定
+
+**問題:**
+
+Cache-Control ヘッダーを一切設定しないままCDNを導入するケース。CDNごとにデフォルトの挙動が異なり、意図しないキャッシュ（POST レスポンスのキャッシュ等）や、全くキャッシュされない（オリジン負荷が減らない）状態を招く。
+
+```
+# 悪い例: ヘッダーなし
+HTTP/1.1 200 OK
+Content-Type: text/html
+# Cache-Control が存在しない
+
+# CDNごとのデフォルト動作:
+# CloudFront: Cache-Controlがなければデフォルトで24時間キャッシュ
+#             (Cache Policy の Default TTL による)
+# Cloudflare: Cache-Controlがなければオリジンの指示に従う
+#             (指示なし = キャッシュしない場合が多い)
+# → 同じコンテンツでもCDNによって動作が異なる
+```
+
+**解決策:** すべてのレスポンスに明示的な `Cache-Control` ヘッダーを設定する。オリジンのアプリケーションフレームワークのミドルウェアとして一元管理することを推奨する。
+
+---
+
+## 12. エッジケース分析
+
+### 12.1 エッジケース1: キャッシュスタンピード（Thunder Herd Problem）
+
+**現象:** 人気コンテンツのキャッシュTTLが同時に満了し、多数のエッジサーバーが一斉にオリジンへリクエストを送信する現象。オリジンが過負荷でダウンする可能性がある。
+
+```
+キャッシュスタンピード:
+
+  通常時:
+  PoP-A ──(HIT)──► キャッシュ応答
+  PoP-B ──(HIT)──► キャッシュ応答
+  PoP-C ──(HIT)──► キャッシュ応答
+  → オリジンへのリクエスト: 0
+
+  TTL満了の瞬間:
+  PoP-A ──(MISS)──► オリジン ←── 100 req/s
+  PoP-B ──(MISS)──► オリジン ←── 100 req/s  → 合計300 req/s
+  PoP-C ──(MISS)──► オリジン ←── 100 req/s     オリジン過負荷!
+
+  対策:
+  1. stale-while-revalidate
+     → TTL切れ直後も古いキャッシュを返しつつバックグラウンド更新
+     → Cache-Control: s-maxage=300, stale-while-revalidate=60
+
+  2. Request Coalescing (Fastly: Request Collapsing)
+     → 同時期の同一リクエストを1つにまとめてオリジンに転送
+     → 100リクエストが来ても、オリジンへは1リクエスト
+
+  3. Origin Shield
+     → 全PoPのMISSをShield層で集約
+     → Shieldがオリジンに1回だけ問い合わせ
+
+  4. TTLジッタリング
+     → TTLにランダムな揺らぎを加えて一斉満了を防ぐ
+     → 例: TTL = 300 + random(0, 60) 秒
+```
+
+### 12.2 エッジケース2: Set-Cookie とキャッシュの干渉
+
+**現象:** オリジンが `Set-Cookie` ヘッダー付きのレスポンスを返すと、それがCDNにキャッシュされ、全ユーザーに同じCookieが配信されるセキュリティインシデントが発生する。
+
+```
+Set-Cookie 問題:
+
+  1. ユーザーAがログイン
+  2. オリジンが応答:
+     HTTP/1.1 200 OK
+     Set-Cookie: session=USER_A_SESSION; Path=/
+     Cache-Control: public, max-age=300   ← 問題の根源
+     Content-Type: text/html
+
+  3. CDNがこのレスポンスをキャッシュ
+     （Set-Cookie ヘッダーごとキャッシュ）
+
+  4. ユーザーBが同じページにアクセス
+  5. CDNがキャッシュからSet-Cookie付きで応答
+     → ユーザーBにユーザーAのセッションCookieが設定される
+     → セッションハイジャックの発生
+
+  対策:
+  1. Set-Cookie を含むレスポンスは private, no-store にする
+  2. CDN設定でSet-Cookie付きレスポンスのキャッシュを禁止
+     CloudFront: Cache Policy で Cookie を「なし」に設定
+     Cloudflare: Page Rule で "Cache Level: Bypass"
+  3. Set-Cookie はAPI応答のみで返し、
+     HTML/JSとは分離する（フロントで Cookie 設定）
+```
+
+### 12.3 エッジケース3: CORS と CDN のキャッシュ
+
+**現象:** CDNが異なるOriginヘッダーのリクエストに対して同じキャッシュを返すことで、CORSエラーが発生する。
+
+```
+CORS + CDN の問題:
+
+  1. https://app-a.example.com から CDN 上の画像をリクエスト
+     Origin: https://app-a.example.com
+     → オリジンが応答:
+       Access-Control-Allow-Origin: https://app-a.example.com
+     → CDN がキャッシュ
+
+  2. https://app-b.example.com から同じ画像をリクエスト
+     Origin: https://app-b.example.com
+     → CDN がキャッシュから応答:
+       Access-Control-Allow-Origin: https://app-a.example.com  ← 不一致!
+     → ブラウザが CORS エラーを出す
+
+  対策:
+  1. Vary: Origin を設定
+     → Origin ヘッダーの値ごとに別キャッシュを保持
+     → ただしキャッシュ効率は若干低下
+
+  2. ワイルドカードを使用（公開リソースの場合）
+     Access-Control-Allow-Origin: *
+     → すべての Origin に対応
+     → ただし credentials: 'include' と併用不可
+
+  3. Edge Function で Origin を検証して動的にヘッダー付与
+     → キャッシュキーに Origin を含めなくてよい
+     → Edge で Allow-Origin を書き換え
+```

@@ -1321,3 +1321,678 @@ example.com {
   │    4. GOAWAY で定期的に接続をリフレッシュ        │
   └────────────────────────────────────────────────┘
 ```
+
+---
+
+## 10. 演習
+
+### 10.1 基礎演習: HTTP/2接続の確認と解析
+
+```
+目的:
+  HTTP/2接続の確立プロセスを理解し、実際の通信を観察する
+
+課題1: curl による HTTP/2 接続の確認
+  1. 以下のコマンドで HTTP/2 接続を確認せよ
+     $ curl -v --http2 https://www.google.com/ -o /dev/null 2>&1
+
+  確認ポイント:
+    a. ALPN ネゴシエーションで "h2" が選択されているか
+    b. レスポンスのプロトコルバージョンは何か
+    c. TLS のバージョンと暗号スイートは何か
+
+  2. HTTP/1.1 で強制接続して違いを比較せよ
+     $ curl -v --http1.1 https://www.google.com/ -o /dev/null 2>&1
+
+  確認ポイント:
+    a. 接続確立の手順に違いはあるか
+    b. ヘッダーの表示形式に違いはあるか
+    c. レスポンスのステータス行の形式の違いは何か
+
+課題2: nghttp による HTTP/2 フレーム解析
+  1. nghttp2 をインストールし、以下を実行せよ
+     # macOS
+     $ brew install nghttp2
+
+     # Ubuntu/Debian
+     $ sudo apt install nghttp2-client
+
+  2. フレームの詳細を確認せよ
+     $ nghttp -nv https://www.example.com/
+
+  確認ポイント:
+    a. SETTINGS フレームの内容は何か
+    b. MAX_CONCURRENT_STREAMS の値は何か
+    c. HEADERS フレームと DATA フレームの関係を図示せよ
+
+課題3: Chrome DevTools での確認
+  1. Chrome DevTools の Network タブを開く
+  2. Protocol 列を表示する
+  3. 以下のサイトにアクセスし、プロトコルを確認せよ
+     - https://www.google.com/
+     - https://www.cloudflare.com/
+     - https://www.facebook.com/
+  4. 各サイトの Connection ID を確認し、
+     1つの接続で複数リソースが取得されていることを確認せよ
+
+期待される成果物:
+  ・各コマンドの出力結果のキャプチャ
+  ・HTTP/1.1 と HTTP/2 の接続手順の違いをまとめた表
+  ・Chrome DevTools のスクリーンショットと解説
+```
+
+### 10.2 応用演習: HTTP/2サーバーの構築とベンチマーク
+
+```
+目的:
+  HTTP/2サーバーを構築し、HTTP/1.1との性能差を計測する
+
+課題1: Node.js HTTP/2 サーバーの構築
+  1. 自己署名証明書を作成せよ
+     $ openssl req -x509 -newkey rsa:2048 -keyout server.key \
+       -out server.crt -days 365 -nodes \
+       -subj "/CN=localhost"
+
+  2. 本ガイドのコード例5を参考にHTTP/2サーバーを実装せよ
+  3. 以下の機能を追加せよ:
+     a. /api/data エンドポイント（JSONレスポンス）
+     b. 静的ファイル配信（画像、CSS、JS）
+     c. レスポンスヘッダーにストリームIDを含める
+
+課題2: Nginx HTTP/2 サーバーの構築
+  1. Docker を使用して Nginx HTTP/2 サーバーを構築せよ
+     # Dockerfile
+     FROM nginx:latest
+     COPY nginx.conf /etc/nginx/conf.d/default.conf
+     COPY certs/ /etc/nginx/certs/
+     COPY html/ /var/www/html/
+
+  2. 本ガイドのコード例4を参考に nginx.conf を作成せよ
+  3. 100個の小さな画像ファイルを配置し、
+     一覧ページから全画像を読み込むHTMLを作成せよ
+
+課題3: ベンチマーク比較
+  1. h2load を使用してHTTP/2の性能を計測せよ
+     $ h2load -n 10000 -c 50 -m 10 https://localhost:8443/
+
+  2. HTTP/1.1 の性能を計測せよ
+     $ h2load -n 10000 -c 50 --h1 https://localhost:8443/
+
+  3. 以下の観点で比較せよ:
+     a. 秒間リクエスト数 (req/s)
+     b. 平均レスポンス時間
+     c. 接続確立時間
+     d. 同時接続数を変えた場合の変化（10, 50, 100, 500）
+
+  4. 結果をグラフ化し、考察をまとめよ
+
+期待される成果物:
+  ・動作するHTTP/2サーバーのソースコード
+  ・Nginx設定ファイル
+  ・ベンチマーク結果の比較表とグラフ
+  ・HTTP/1.1とHTTP/2の性能差に関する考察レポート
+```
+
+### 10.3 発展演習: HTTP/3（QUIC）の検証とプロトコル選択戦略
+
+```
+目的:
+  HTTP/3を実際に検証し、プロダクション環境でのプロトコル選択
+  戦略を策定する
+
+課題1: HTTP/3 サーバーの構築
+  1. Caddy を使用してHTTP/3サーバーを構築せよ
+     $ brew install caddy   # macOS
+     # または
+     $ sudo apt install caddy   # Ubuntu
+
+  2. 以下の Caddyfile を作成せよ
+     localhost {
+         root * /path/to/html
+         file_server
+         # CaddyはデフォルトでHTTP/3対応
+     }
+
+  3. サーバーを起動し、HTTP/3接続を確認せよ
+     $ caddy run --config Caddyfile
+
+  4. curl で HTTP/3 接続を確認せよ（curl 7.66+ が必要）
+     $ curl -v --http3-only https://localhost/
+     # もしくは
+     $ curl -v --http3 https://localhost/
+
+課題2: パケットロス環境でのプロトコル比較
+  1. tc（traffic control）を使用して擬似的なネットワーク劣化環境を
+     作成せよ（Linux環境が必要）
+     # 2% パケットロスの追加
+     $ sudo tc qdisc add dev lo root netem loss 2%
+
+  2. 以下の条件で各プロトコルの性能を計測せよ:
+     a. パケットロス 0%
+     b. パケットロス 1%
+     c. パケットロス 2%
+     d. パケットロス 5%
+
+  3. 計測方法:
+     $ h2load -n 1000 -c 10 --h1 https://localhost:8443/     # HTTP/1.1
+     $ h2load -n 1000 -c 10 https://localhost:8443/           # HTTP/2
+     $ h2load -n 1000 -c 10 --npn-list h3 https://localhost:8443/  # HTTP/3
+
+  4. パケットロス率ごとの性能推移をグラフ化せよ
+
+  テスト後の後片付け:
+     $ sudo tc qdisc del dev lo root
+
+課題3: プロトコル選択戦略の策定
+  以下のシナリオについて、最適なプロトコル構成を提案せよ。
+  各提案には根拠と設定例を含めること。
+
+  シナリオA: ECサイト（グローバル展開）
+    ・ユーザー: 全世界のブラウザユーザー
+    ・コンテンツ: 大量の商品画像、SPA
+    ・要件: 低レイテンシ、高可用性
+    ・制約: CDN使用、企業ネットワークからのアクセスあり
+
+  シナリオB: 社内マイクロサービス基盤
+    ・通信: サービス間のgRPC
+    ・環境: Kubernetes クラスタ内
+    ・要件: 高スループット、低レイテンシ
+    ・制約: ファイアウォール内、ネットワーク安定
+
+  シナリオC: モバイルゲームのリアルタイム通信
+    ・ユーザー: モバイルデバイス（4G/5G/Wi-Fi）
+    ・通信: API呼び出し + リアルタイムデータ
+    ・要件: 接続切断時の高速復帰
+    ・制約: モバイルネットワーク、ローミング
+
+期待される成果物:
+  ・HTTP/3サーバーの構築手順書
+  ・パケットロス環境での計測結果と分析レポート
+  ・各シナリオに対するプロトコル選択提案書
+    （プロトコル構成、設定例、フォールバック戦略を含む）
+```
+
+---
+
+## 11. 実践的なトラブルシューティング
+
+### 11.1 HTTP/2への移行時によくある問題
+
+```
+問題1: ALPN ネゴシエーション失敗
+  症状: HTTP/2対応を設定したのに HTTP/1.1 で通信されている
+  原因: TLS ライブラリが ALPN をサポートしていない
+
+  診断:
+    $ openssl s_client -alpn h2 -connect example.com:443
+
+  対策:
+    ・OpenSSL 1.0.2 以上にアップデート
+    ・Nginx の場合: OpenSSL 付きでビルドされているか確認
+      $ nginx -V 2>&1 | grep -o 'openssl-[^ ]*'
+
+問題2: HTTP/2 接続で大量の RST_STREAM
+  症状: Chrome DevTools で多数のリクエストが失敗
+  原因: MAX_CONCURRENT_STREAMS が小さすぎる
+
+  診断:
+    $ nghttp -nv https://example.com/ 2>&1 | grep SETTINGS
+
+  対策:
+    # Nginx
+    http2_max_concurrent_streams 256;
+
+問題3: HTTP/2 使用時にWAFが誤検知
+  症状: WAF（Web Application Firewall）が正常リクエストをブロック
+  原因: WAFがHTTP/2のバイナリフレームを正しく解析できていない
+
+  対策:
+    ・WAFのHTTP/2対応バージョンにアップデート
+    ・WAFをHTTP/2終端の後段に配置
+    ・CDN → WAF → オリジン の構成では
+      CDN-WAF間をHTTP/1.1にダウングレードする場合あり
+```
+
+### 11.2 HTTP/3導入時の確認事項チェックリスト
+
+```
+HTTP/3 導入チェックリスト:
+
+  サーバー側:
+    □ Nginx 1.25+ / Caddy 2.x / LiteSpeed がインストール済み
+    □ QUIC対応のTLSライブラリ（quictls, BoringSSL等）
+    □ UDP 443 ポートがファイアウォールで開放済み
+    □ Alt-Svc ヘッダーが正しく設定済み
+    □ HTTP/2 へのフォールバックが設定済み
+    □ TLS 1.3 の証明書設定が正しい
+    □ QUIC のバージョンネゴシエーション設定
+    □ 0-RTT の有効化とセキュリティリスクの検討
+
+  ネットワーク側:
+    □ ロードバランサーがUDP対応（L4 LBの場合）
+    □ CDNがHTTP/3対応（Cloudflare, Fastly, AWS CloudFront等）
+    □ UDPのレート制限が適切に設定
+    □ DDoS対策でUDPフラッディングを考慮
+
+  クライアント側:
+    □ 対象ブラウザのHTTP/3対応状況を確認
+    □ HTTP/3非対応クライアントへのフォールバック確認
+    □ モバイルアプリのHTTPライブラリがHTTP/3対応か確認
+    □ プロキシ経由の接続でHTTP/3が使えるか確認
+
+  監視:
+    □ HTTP/3 と HTTP/2 のトラフィック比率の監視
+    □ フォールバック率の監視
+    □ QUICの接続エラー率の監視
+    □ 0-RTT の利用率とリプレイ攻撃検知
+```
+
+---
+
+## 12. 103 Early Hints -- サーバープッシュの代替
+
+HTTP/2のサーバープッシュが非推奨となった後、代替として注目されているのが
+103 Early Hints（RFC 8297）である。
+
+```
+103 Early Hints の動作フロー:
+
+  Client                              Server
+    │                                   │
+    │──── GET /index.html ─────────────→│
+    │                                   │
+    │←── 103 Early Hints ──────────────│
+    │    Link: </style.css>; rel=preload; as=style
+    │    Link: </app.js>; rel=preload; as=script
+    │                                   │
+    │   （ブラウザが style.css と app.js の取得を開始）
+    │                                   │
+    │                                   │ (HTML生成処理中...)
+    │                                   │
+    │←── 200 OK ───────────────────────│
+    │    Content-Type: text/html        │
+    │    <html>...</html>               │
+    │                                   │
+
+  サーバープッシュとの違い:
+
+  ┌──────────────────┬──────────────────┬──────────────────┐
+  │                  │ Server Push      │ 103 Early Hints  │
+  ├──────────────────┼──────────────────┼──────────────────┤
+  │ リソース取得の    │ サーバー         │ ブラウザ          │
+  │ 判断主体          │ （強制的に送信） │ （ヒントを元に    │
+  │                  │                  │  自律的に判断）   │
+  ├──────────────────┼──────────────────┼──────────────────┤
+  │ キャッシュ考慮    │ なし（常に送信） │ あり（キャッシュ済│
+  │                  │ → 帯域浪費の恐れ │ なら取得しない）  │
+  ├──────────────────┼──────────────────┼──────────────────┤
+  │ CDN対応          │ 複雑             │ 容易              │
+  │                  │ （CDNの挙動依存）│ （CDNが転送可能） │
+  ├──────────────────┼──────────────────┼──────────────────┤
+  │ ブラウザ対応      │ Chrome 106で廃止│ 主要ブラウザ対応  │
+  ├──────────────────┼──────────────────┼──────────────────┤
+  │ HTTP/1.1対応      │ なし             │ あり              │
+  └──────────────────┴──────────────────┴──────────────────┘
+```
+
+### Nginx での 103 Early Hints 設定
+
+```nginx
+# 103 Early Hints を Nginx で設定する例
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name example.com;
+
+    # メインページで Early Hints を送信
+    location / {
+        # 103 レスポンスを先に送信
+        add_header Link "</style.css>; rel=preload; as=style" early;
+        add_header Link "</app.js>; rel=preload; as=script" early;
+        add_header Link "</fonts/main.woff2>; rel=preload; as=font; crossorigin" early;
+
+        try_files $uri $uri/ /index.html;
+    }
+}
+```
+
+---
+
+## 13. 採用状況と今後の展望
+
+```
+HTTP/2 と HTTP/3 の普及状況（2025年時点の推計）:
+
+  ┌──────────────────────────────────────────────────┐
+  │  Web全体のプロトコル分布                           │
+  │                                                    │
+  │  HTTP/1.1: ████████████████████  約 55%            │
+  │  HTTP/2:   ████████████          約 33%            │
+  │  HTTP/3:   ████                  約 12%            │
+  │                                                    │
+  │  主要サービスの対応状況:                             │
+  │    Google:     HTTP/3 全面展開                      │
+  │    Facebook:   HTTP/3 全面展開                      │
+  │    Cloudflare: HTTP/3 デフォルト有効                │
+  │    AWS:        CloudFront で HTTP/3 対応             │
+  │    Akamai:     HTTP/3 対応                          │
+  │    Fastly:     HTTP/3 対応                          │
+  │                                                    │
+  │  ブラウザ対応状況:                                  │
+  │    Chrome:    HTTP/3 対応（Chrome 87+）             │
+  │    Firefox:   HTTP/3 対応（Firefox 88+）            │
+  │    Safari:    HTTP/3 対応（Safari 14+）             │
+  │    Edge:      HTTP/3 対応（Chromiumベース）          │
+  └──────────────────────────────────────────────────┘
+
+  今後の展望:
+    1. HTTP/3 の普及加速
+       → CDNのデフォルト対応が進み、自動的にHTTP/3が使われる
+       → 管理者が意識しなくてもHTTP/3で通信されるケースが増加
+
+    2. QUIC v2 (RFC 9369)
+       → QUIC の改良版が標準化
+       → 暗号化の強化、パフォーマンス改善
+
+    3. WebTransport
+       → QUIC/HTTP/3 上の新しい双方向通信プロトコル
+       → WebSocket の後継として期待
+       → 低レイテンシのリアルタイム通信に最適化
+
+    4. Multipath QUIC
+       → 複数のネットワークパスを同時使用
+       → Wi-Fi + モバイルの同時利用で帯域倍増
+       → ネットワーク切り替え時のシームレスな移行
+```
+
+---
+
+## 14. FAQ
+
+### FAQ 1: HTTP/2とHTTP/3はどちらを優先すべきか
+
+```
+Q: 新規サービスを構築する場合、HTTP/2とHTTP/3のどちらを
+   優先的に導入すべきか?
+
+A: HTTP/2をまず確実に導入し、HTTP/3を追加のオプションとして
+   設定するのが最善のアプローチである。
+
+  理由:
+    1. HTTP/2 は事実上の標準
+       → ほぼ全てのブラウザ、サーバー、CDNが対応
+       → HTTP/1.1からの移行効果が最も大きい
+       → 多重化だけで大幅な性能向上が見込める
+
+    2. HTTP/3 はフォールバックが必要
+       → UDP がブロックされる環境が存在
+       → HTTP/3 のみでは一部クライアントが接続不可
+       → Alt-Svc による段階的アップグレードが標準手法
+
+    3. 導入の容易さ
+       → HTTP/2: Nginx の設定変更のみで有効化
+       → HTTP/3: UDPポート開放、対応サーバー、
+         ファイアウォール設定の変更が必要
+
+  推奨構成:
+    Phase 1: HTTP/2 を全面導入
+    Phase 2: CDN経由でHTTP/3を自動的に提供
+    Phase 3: オリジンサーバーでもHTTP/3を有効化
+```
+
+### FAQ 2: gRPC と HTTP/2 の関係は
+
+```
+Q: gRPC はなぜ HTTP/2 を採用しているのか?
+   HTTP/3 への移行は予定されているのか?
+
+A: gRPC が HTTP/2 を選択した理由と HTTP/3 移行の見通し
+
+  HTTP/2 を選択した理由:
+    1. 双方向ストリーミング
+       → HTTP/2 のストリームを活用
+       → クライアント → サーバー、サーバー → クライアントの
+         同時通信が可能
+
+    2. 多重化
+       → 1つの接続で多数のRPC呼び出しを同時実行
+       → マイクロサービス間の接続数を削減
+
+    3. ヘッダー圧縮
+       → gRPCメタデータの効率的な送受信
+       → HPACKで繰り返しメタデータを圧縮
+
+    4. フロー制御
+       → ストリーム単位のバックプレッシャー
+       → 受信側の処理能力に合わせた送信制御
+
+  HTTP/3 (gRPC over QUIC) の状況:
+    → gRPC の公式仕様では HTTP/3 対応が進行中
+    → Connect プロトコル（Buf社）は HTTP/3 対応
+    → データセンター内ではTCP HoL Blockingの影響が小さいため
+      HTTP/2 のままで十分なケースが多い
+    → インターネット越しの gRPC-Web では HTTP/3 の恩恵が大きい
+
+  現状の推奨:
+    データセンター内: HTTP/2 で十分
+    インターネット越し: HTTP/3 対応を検討
+```
+
+### FAQ 3: HTTP/2を使っているのにページが遅い原因は
+
+```
+Q: HTTP/2 に移行したのにページの読み込み速度が改善しない。
+   考えられる原因は何か?
+
+A: HTTP/2 だけではページ速度の全ての問題は解決しない。
+   以下の原因を調査する必要がある。
+
+  1. サーバー処理時間（TTFB）が遅い
+     → HTTP/2 は通信プロトコルの最適化
+     → サーバーサイドのDB クエリや処理遅延は改善しない
+     → 対策: APMツールでサーバー処理を計測・最適化
+
+  2. サードパーティリソースの遅延
+     → 外部ドメインの広告、アナリティクス、フォント等
+     → 各ドメインへの接続確立が別途必要
+     → 対策: dns-prefetch、preconnect の使用
+
+  3. レンダリングブロッキング
+     → 大きなCSSやJSがレンダリングを阻害
+     → HTTP/2 で高速に取得しても、解析・実行に時間がかかる
+     → 対策: Critical CSS、Code Splitting、defer/async
+
+  4. 画像の最適化不足
+     → 非圧縮の巨大画像はHTTP/2でも重い
+     → 対策: WebP/AVIF、適切なサイズ、lazy loading
+
+  5. HTTP/2 の優先度が効いていない
+     → ブラウザとサーバーで優先度の解釈が異なる場合がある
+     → 対策: fetchpriority 属性の使用
+       <img src="hero.jpg" fetchpriority="high">
+       <img src="below-fold.jpg" fetchpriority="low">
+
+  6. 過度なドメインシャーディングの残存
+     → アンチパターン1で説明した通り
+     → 対策: 可能な限りドメインを統合
+
+  診断手順:
+    1. Chrome DevTools → Performance タブで
+       Largest Contentful Paint (LCP) を確認
+    2. Network タブでウォーターフォールを確認
+    3. Lighthouse でボトルネックの指摘を確認
+    4. WebPageTest で詳細な分析を実行
+```
+
+### FAQ 4: HTTP/2のストリーム数の上限はいくつが適切か
+
+```
+Q: HTTP/2 の MAX_CONCURRENT_STREAMS は何に設定すべきか?
+
+A: ワークロードによって最適値が異なる。
+
+  一般的なWebサイト:
+    推奨値: 100-128
+    理由: 通常のページは100未満のリクエストで構成される
+    Nginx デフォルト: 128
+
+  SPA/重量級Webアプリ:
+    推奨値: 256
+    理由: API呼び出しとリソース取得を合わせると100を超えることがある
+
+  マイクロサービス間通信 (gRPC):
+    推奨値: 100-1000（負荷テストで決定）
+    理由: 多数のRPC呼び出しを同時実行する可能性がある
+    注意: 値を大きくしすぎるとメモリ消費が増大
+
+  CDN/リバースプロキシ:
+    推奨値: 100-256
+    理由: 多数のオリジンリクエストを並列処理
+    Cloudflare: 256
+    AWS ALB: 128
+
+  計算の目安:
+    想定ピーク同時リクエスト数 × 1.5 = 推奨値
+    例: ピーク時に150リクエスト → 225 → 切り上げて256
+```
+
+### FAQ 5: 0-RTT再接続にセキュリティリスクはあるか
+
+```
+Q: QUIC の 0-RTT 再接続は安全か? リプレイ攻撃のリスクは?
+
+A: 0-RTT にはリプレイ攻撃のリスクが存在する。
+   適切な対策を講じた上で使用する必要がある。
+
+  リプレイ攻撃のシナリオ:
+    1. クライアントが 0-RTT で GET /api/balance を送信
+    2. 攻撃者がそのパケットをキャプチャ
+    3. 攻撃者が同じパケットをサーバーに再送
+    4. サーバーは正規のリクエストとして処理してしまう
+
+  対策:
+    1. 冪等なリクエストのみ 0-RTT で許可
+       → GET は安全（副作用なし）
+       → POST、PUT、DELETE は 1-RTT を要求
+
+    2. サーバー側でリプレイ検知
+       → リプレイトークンの管理
+       → 同一トークンの二重処理を拒否
+
+    3. Anti-Replay メカニズム（RFC 8446 Section 8）
+       → タイムスタンプベースの検証
+       → 一定期間内の重複リクエストを拒否
+
+  Nginx での設定:
+    ssl_early_data on;      # 0-RTT を有効化
+
+    # アプリケーション側で Early-Data ヘッダーを確認
+    proxy_set_header Early-Data $ssl_early_data;
+    # $ssl_early_data が "1" の場合、0-RTT リクエスト
+    # → 副作用のある処理は 425 Too Early を返す
+
+  推奨:
+    ・静的コンテンツ: 0-RTT 有効（リスク低）
+    ・API（GET）: 0-RTT 有効（冪等性を確認）
+    ・API（POST等）: 0-RTT 無効（リプレイリスク）
+    ・決済処理: 0-RTT 無効（絶対にリプレイ不可）
+```
+
+---
+
+## 15. まとめ
+
+```
+HTTP プロトコルの進化と選択基準:
+
+  ┌─────────────────────────────────────────────────────┐
+  │                                                       │
+  │  HTTP/1.1 (1997)                                     │
+  │    ・テキストベース、シンプルで広く普及                 │
+  │    ・HoL Blocking、ヘッダー冗長性が問題               │
+  │    ・レガシーシステムでは依然として現役                 │
+  │                                                       │
+  │          ↓ 多重化、ヘッダー圧縮、バイナリ化            │
+  │                                                       │
+  │  HTTP/2 (2015)                                       │
+  │    ・1接続でのマルチプレキシング                       │
+  │    ・HPACK ヘッダー圧縮                               │
+  │    ・TCP層のHoL Blockingが残存                        │
+  │    ・現在のWeb標準として必須級                         │
+  │                                                       │
+  │          ↓ QUIC（UDP）、ストリーム独立、接続移行       │
+  │                                                       │
+  │  HTTP/3 (2022)                                       │
+  │    ・QUIC上で動作、HoL Blocking完全解消               │
+  │    ・1 RTT接続、0-RTT再接続                           │
+  │    ・接続移行（ネットワーク切り替え対応）               │
+  │    ・普及拡大中、CDN経由での利用が増加                 │
+  │                                                       │
+  └─────────────────────────────────────────────────────┘
+
+  プロトコル選択のフローチャート:
+
+    新規サービス構築?
+    ├── はい → HTTP/2 を基本構成として導入
+    │         ├── CDN使用? → CDN経由でHTTP/3も自動提供
+    │         └── モバイル重視? → HTTP/3のオリジン対応も検討
+    └── 既存サービス?
+        ├── HTTP/1.1のみ → HTTP/2への移行を優先
+        └── HTTP/2導入済み → HTTP/3の追加を検討
+            ├── CDN使用 → CDN側でHTTP/3を有効化
+            └── CDN未使用 → サーバーのHTTP/3対応を検討
+
+  覚えておくべきポイント:
+    1. HTTP/2 は現代のWeb開発において必須
+    2. HTTP/3 は追加のオプションとして段階的に導入
+    3. フォールバック構成（HTTP/3 → HTTP/2 → HTTP/1.1）が重要
+    4. ドメインシャーディング等のHTTP/1.1最適化はHTTP/2で不要
+    5. サーバープッシュは非推奨、103 Early Hints を使用
+    6. パケットロスの多い環境ではHTTP/3の優位性が顕著
+    7. 0-RTT は便利だがリプレイ攻撃リスクを理解して使用
+```
+
+---
+
+## 次に読むべきガイド
+-> [[02-rest-api.md]] -- REST API設計
+
+---
+
+## 参考文献
+
+1. RFC 9113. "HTTP/2." IETF, 2022.
+   https://www.rfc-editor.org/rfc/rfc9113
+   HTTP/2プロトコルの正式仕様。バイナリフレーミング、マルチプレキシング、
+   HPACK、サーバープッシュ、フロー制御、ストリーム優先度の全仕様を定義。
+
+2. RFC 9114. "HTTP/3." IETF, 2022.
+   https://www.rfc-editor.org/rfc/rfc9114
+   HTTP/3プロトコルの正式仕様。QUIC上でのHTTPセマンティクスの
+   マッピング、QPACK、ストリーム管理を定義。
+
+3. RFC 9000. "QUIC: A UDP-Based Multiplexed and Secure Transport." IETF, 2021.
+   https://www.rfc-editor.org/rfc/rfc9000
+   QUICトランスポートプロトコルの正式仕様。接続確立、ストリーム、
+   フロー制御、接続移行、パケット保護を定義。
+
+4. RFC 7541. "HPACK: Header Compression for HTTP/2." IETF, 2015.
+   https://www.rfc-editor.org/rfc/rfc7541
+   HTTP/2のヘッダー圧縮方式HPACKの仕様。静的テーブル、動的テーブル、
+   ハフマン符号の詳細を定義。
+
+5. RFC 9204. "QPACK: Field Compression for HTTP/3." IETF, 2022.
+   https://www.rfc-editor.org/rfc/rfc9204
+   HTTP/3のヘッダー圧縮方式QPACKの仕様。HPACKをQUICの
+   ストリーム独立性に適合させた設計。
+
+6. RFC 8297. "An HTTP Status Code for Indicating Hints." IETF, 2017.
+   https://www.rfc-editor.org/rfc/rfc8297
+   103 Early Hints ステータスコードの仕様。サーバープッシュの
+   代替として推奨される技術。
+
+7. RFC 9218. "Extensible Prioritization Scheme for HTTP." IETF, 2022.
+   https://www.rfc-editor.org/rfc/rfc9218
+   HTTP/2とHTTP/3共通の新しい優先度方式。urgencyとincrementalの
+   2パラメータによるシンプルな優先度制御を定義。

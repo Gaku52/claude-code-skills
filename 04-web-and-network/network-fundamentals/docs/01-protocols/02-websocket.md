@@ -1761,3 +1761,828 @@ function processJoinRoom(message: z.infer<typeof JoinRoomSchema>): void {
   // ルーム参加ロジック
 }
 ```
+
+---
+
+## 8. アンチパターン
+
+### 8.1 アンチパターン1: 無制限のブロードキャスト
+
+全クライアントに対して無差別にブロードキャストを行うと、接続数の増加に比例してサーバーの送信負荷が爆発的に増大する。これは「ブロードキャストストーム」と呼ばれ、本番環境で最も頻繁に見られる障害原因の一つである。
+
+```typescript
+// ダメな例: 全クライアントへの無制限ブロードキャスト
+// 1,000接続 × 1,000メッセージ/秒 = 1,000,000メッセージ/秒の送信負荷
+
+wss.on('connection', (ws) => {
+  ws.on('message', (data) => {
+    // 全クライアントに転送 → N^2問題が発生
+    wss.clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(data);  // 送信バッファが溢れる危険
+      }
+    });
+  });
+});
+
+// 改善例: ルームベースの配信 + レート制限
+wss.on('connection', (ws) => {
+  const clientRooms = new Set<string>();
+  const messageRateLimit = new RateLimiter(10, 1000);
+  const clientId = crypto.randomUUID();
+
+  ws.on('message', (raw) => {
+    // レート制限チェック
+    if (!messageRateLimit.isAllowed(clientId)) {
+      ws.send(JSON.stringify({ type: 'error', data: 'Rate limit exceeded' }));
+      return;
+    }
+
+    const message = JSON.parse(raw.toString());
+
+    // ルーム内のメンバーのみに送信
+    if (message.room && clientRooms.has(message.room)) {
+      const roomMembers = rooms.get(message.room);
+      if (roomMembers) {
+        const payload = JSON.stringify(message);
+        for (const memberId of roomMembers) {
+          if (memberId === clientId) continue;
+          const member = clients.get(memberId);
+          if (member && member.readyState === WebSocket.OPEN) {
+            // バッファリングされたメッセージ量をチェック
+            if (member.bufferedAmount < 1024 * 1024) {
+              member.send(payload);
+            }
+          }
+        }
+      }
+    }
+  });
+});
+```
+
+**問題点の整理:**
+- 接続数Nに対して、1メッセージの送信コストがO(N)になる
+- 全員がメッセージを送信すると、トータルのコストはO(N^2)
+- `bufferedAmount`の確認なしに送信すると、送信バッファのメモリが際限なく増大
+- サーバーのCPU使用率が100%に張り付き、新規接続を受け付けられなくなる
+
+**対策:**
+1. ルームベースの配信スコープ制限
+2. メッセージのレート制限（クライアント単位、ルーム単位）
+3. `bufferedAmount`の監視と閾値超過時のスキップ
+4. メッセージの集約（バッチ送信）
+
+### 8.2 アンチパターン2: 再接続戦略の欠如
+
+WebSocket接続は様々な理由で予期せず切断される。ネットワーク障害、サーバーの再起動、ロードバランサーのタイムアウトなどが代表的な原因である。再接続戦略を持たないクライアントは、ユーザー体験を著しく損なう。
+
+```typescript
+// ダメな例: 再接続ロジックがない
+const ws = new WebSocket('wss://api.example.com/ws');
+ws.onclose = () => {
+  console.log('Connection lost');  // ここで終わり。ユーザーは手動リロードが必要
+};
+
+// さらにダメな例: 固定間隔での即座再接続
+ws.onclose = () => {
+  setTimeout(() => {
+    new WebSocket('wss://api.example.com/ws');
+    // 問題1: サーバーダウン中に全クライアントが同時に再接続を試みる
+    // 問題2: 「サンダリングハード」問題 → サーバー復旧直後に接続殺到
+    // 問題3: 固定間隔のため負荷が分散されない
+  }, 1000);
+};
+
+// 改善例: 指数バックオフ + ジッター + 最大試行回数
+class ReconnectionStrategy {
+  private attempt = 0;
+  private maxAttempts = 10;
+  private baseDelay = 1000;    // 1秒
+  private maxDelay = 60000;    // 60秒
+  private timer: ReturnType<typeof setTimeout> | null = null;
+
+  reset(): void {
+    this.attempt = 0;
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.timer = null;
+    }
+  }
+
+  shouldRetry(): boolean {
+    return this.attempt < this.maxAttempts;
+  }
+
+  getNextDelay(): number {
+    // 指数バックオフ
+    const exponential = this.baseDelay * Math.pow(2, this.attempt);
+    // 最大値でキャップ
+    const capped = Math.min(exponential, this.maxDelay);
+    // フルジッター（0〜cappedの範囲でランダム）
+    // これにより、複数クライアントの再接続タイミングが分散される
+    const jittered = Math.random() * capped;
+
+    this.attempt++;
+    return Math.floor(jittered);
+  }
+
+  scheduleReconnect(callback: () => void): void {
+    if (!this.shouldRetry()) {
+      console.error('Max reconnection attempts reached');
+      return;
+    }
+    const delay = this.getNextDelay();
+    console.log(`Reconnecting in ${delay}ms (attempt ${this.attempt}/${this.maxAttempts})`);
+    this.timer = setTimeout(callback, delay);
+  }
+}
+```
+
+再接続戦略の比較:
+
+```
+  ┌─────────────────┬──────────────┬──────────────┬──────────────────┐
+  │ 戦略            │ 遅延パターン │ サーバー負荷 │ 回復速度         │
+  ├─────────────────┼──────────────┼──────────────┼──────────────────┤
+  │ 固定間隔        │ 1s,1s,1s,... │ 非常に高い   │ 速い（過負荷）   │
+  │ 指数バックオフ  │ 1s,2s,4s,8s  │ 中           │ 初回は速い       │
+  │ +ジッター       │ ランダム     │ 低           │ 平均的           │
+  │ +ジッター+上限  │ ランダム     │ 最低         │ 最適なバランス   │
+  └─────────────────┴──────────────┴──────────────┴──────────────────┘
+```
+
+### 8.3 アンチパターン3: メモリリークを伴うイベントリスナー管理
+
+WebSocket接続のライフサイクル管理を怠ると、イベントリスナーやタイマーのメモリリークが蓄積し、長期運用でサーバーが不安定になる。
+
+```typescript
+// ダメな例: クリーンアップが不十分
+wss.on('connection', (ws) => {
+  // タイマーを設定するが、切断時にクリアしない
+  setInterval(() => {
+    ws.ping();  // 切断後もタイマーが残り続ける
+  }, 30000);
+
+  // 外部イベントリスナーを追加するが、削除しない
+  eventEmitter.on('globalUpdate', (data) => {
+    ws.send(JSON.stringify(data));  // 切断後にエラーが発生
+  });
+});
+
+// 改善例: 完全なクリーンアップ
+wss.on('connection', (ws) => {
+  // タイマーの参照を保持
+  const heartbeat = setInterval(() => {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.ping();
+    }
+  }, 30000);
+
+  // イベントリスナーの参照を保持
+  const globalUpdateHandler = (data: unknown) => {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify(data));
+    }
+  };
+  eventEmitter.on('globalUpdate', globalUpdateHandler);
+
+  // 切断時に全リソースを解放
+  ws.on('close', () => {
+    clearInterval(heartbeat);
+    eventEmitter.off('globalUpdate', globalUpdateHandler);
+    // その他のクリーンアップ処理
+  });
+});
+```
+
+---
+
+## 9. エッジケース分析
+
+### 9.1 エッジケース1: 中間プロキシによる接続断
+
+企業ネットワークやモバイル通信では、透過プロキシやロードバランサーがWebSocket接続を予期せず切断する場合がある。特に問題となるのは以下のケースである。
+
+```
+中間プロキシによる接続断のパターン:
+
+  ケース1: アイドルタイムアウト
+  ┌─────────┐    ┌───────────┐    ┌─────────┐
+  │ Client  │────│ Proxy/LB  │────│ Server  │
+  │         │    │ (60秒で   │    │         │
+  │         │    │  切断)    │    │         │
+  └─────────┘    └───────────┘    └─────────┘
+
+  → プロキシが一定時間データ転送がない接続をクローズする
+  → 対策: 30秒間隔でPing/Pongを送信し、アイドル状態を防ぐ
+
+  ケース2: TLSインスペクション
+  → 企業のファイアウォールがWSS接続を解析しようとして失敗
+  → 対策: WSSを使用しつつ、フォールバックとしてHTTPSロングポーリングを用意
+
+  ケース3: プロキシのバッファリング
+  → 一部のプロキシがWebSocketフレームをバッファリングし、
+     リアルタイム性が失われる
+  → 対策: X-Accel-Buffering: no ヘッダーの設定、
+     またはプロキシのバッファリング無効化
+```
+
+```typescript
+// 中間プロキシ対策を組み込んだ堅牢な接続管理
+class ProxyAwareWebSocket {
+  private ws: WebSocket | null = null;
+  private pingTimer: ReturnType<typeof setInterval> | null = null;
+  private pongReceived = true;
+  private missedPongs = 0;
+  private readonly MAX_MISSED_PONGS = 2;
+
+  connect(url: string): void {
+    this.ws = new WebSocket(url);
+
+    this.ws.onopen = () => {
+      this.startPingPong();
+    };
+
+    this.ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === 'pong') {
+        this.pongReceived = true;
+        this.missedPongs = 0;
+        return;
+      }
+      // 通常のメッセージ処理
+    };
+
+    this.ws.onclose = () => {
+      this.stopPingPong();
+    };
+  }
+
+  private startPingPong(): void {
+    // 25秒間隔（多くのプロキシの60秒タイムアウトの半分以下）
+    this.pingTimer = setInterval(() => {
+      if (!this.pongReceived) {
+        this.missedPongs++;
+        if (this.missedPongs >= this.MAX_MISSED_PONGS) {
+          // プロキシが接続を静かに切断した可能性
+          console.warn('Connection appears dead, reconnecting...');
+          this.ws?.close(4000, 'Pong timeout');
+          return;
+        }
+      }
+      this.pongReceived = false;
+      this.ws?.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
+    }, 25000);
+  }
+
+  private stopPingPong(): void {
+    if (this.pingTimer) {
+      clearInterval(this.pingTimer);
+      this.pingTimer = null;
+    }
+  }
+}
+```
+
+### 9.2 エッジケース2: メッセージ順序の保証と欠落
+
+WebSocket over TCPは順序保証を持つが、アプリケーションレベルでは以下の場合にメッセージの順序問題や欠落が発生する。
+
+**発生パターン:**
+
+1. **再接続中のメッセージ欠落**: 切断から再接続完了までの間にサーバーが送信したメッセージは失われる
+2. **マルチサーバー環境での順序逆転**: Redis Pub/Subを経由するメッセージと直接送信のメッセージで到着順が変わる可能性がある
+3. **クライアント側のバッファオーバーフロー**: 処理速度を超えるメッセージが到着した場合、ブラウザのメモリが枯渇する
+
+```typescript
+// メッセージ順序保証と欠落検出の実装
+interface SequencedMessage {
+  seq: number;         // シーケンス番号
+  type: string;
+  data: unknown;
+  timestamp: number;
+}
+
+class OrderedMessageHandler {
+  private expectedSeq = 0;
+  private buffer: Map<number, SequencedMessage> = new Map();
+  private maxBufferSize = 1000;
+  private lastProcessedSeq = -1;
+
+  // メッセージ受信時の処理
+  receive(message: SequencedMessage): SequencedMessage[] {
+    const processed: SequencedMessage[] = [];
+
+    // 重複チェック
+    if (message.seq <= this.lastProcessedSeq) {
+      console.warn(`Duplicate message detected: seq=${message.seq}`);
+      return processed;
+    }
+
+    // 期待通りの順序であれば即座に処理
+    if (message.seq === this.expectedSeq) {
+      processed.push(message);
+      this.lastProcessedSeq = message.seq;
+      this.expectedSeq++;
+
+      // バッファ内の連続するメッセージも処理
+      while (this.buffer.has(this.expectedSeq)) {
+        const buffered = this.buffer.get(this.expectedSeq)!;
+        this.buffer.delete(this.expectedSeq);
+        processed.push(buffered);
+        this.lastProcessedSeq = this.expectedSeq;
+        this.expectedSeq++;
+      }
+    } else if (message.seq > this.expectedSeq) {
+      // 先行するメッセージが欠落 → バッファに保存
+      if (this.buffer.size < this.maxBufferSize) {
+        this.buffer.set(message.seq, message);
+      }
+      console.warn(
+        `Gap detected: expected=${this.expectedSeq}, received=${message.seq}, ` +
+        `missing ${message.seq - this.expectedSeq} message(s)`
+      );
+    }
+
+    return processed;
+  }
+
+  // 再接続時にサーバーに欠落範囲を通知
+  getMissingRange(): { from: number; to: number } | null {
+    if (this.buffer.size === 0) return null;
+    const minBuffered = Math.min(...this.buffer.keys());
+    return { from: this.expectedSeq, to: minBuffered - 1 };
+  }
+
+  // 再接続時のリセット（最後に処理したシーケンス番号は保持）
+  resetForReconnect(): number {
+    this.buffer.clear();
+    return this.lastProcessedSeq;
+  }
+}
+
+// サーバー側: 再接続時の欠落メッセージ再送
+class MessageHistory {
+  private history: SequencedMessage[] = [];
+  private maxHistory = 10000;
+
+  store(message: SequencedMessage): void {
+    this.history.push(message);
+    // 古いメッセージを削除
+    if (this.history.length > this.maxHistory) {
+      this.history = this.history.slice(-this.maxHistory);
+    }
+  }
+
+  getMessagesSince(seq: number): SequencedMessage[] {
+    return this.history.filter((msg) => msg.seq > seq);
+  }
+}
+```
+
+### 9.3 エッジケース3: ブラウザのバックグラウンドタブ制限
+
+モダンブラウザは、バックグラウンドタブのリソース消費を制限するために、タイマーのスロットリングや接続のサスペンドを行う場合がある。
+
+```typescript
+// バックグラウンドタブ対策
+class VisibilityAwareConnection {
+  private ws: WebSocket | null = null;
+  private isBackgrounded = false;
+  private lastServerMessage = Date.now();
+
+  constructor() {
+    // Page Visibility APIで状態を監視
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        this.onBackground();
+      } else {
+        this.onForeground();
+      }
+    });
+  }
+
+  private onBackground(): void {
+    this.isBackgrounded = true;
+    // バックグラウンドではPing間隔を延長し、不要なメッセージ受信を減らす
+    this.ws?.send(JSON.stringify({
+      type: 'presence',
+      status: 'background',
+    }));
+  }
+
+  private onForeground(): void {
+    this.isBackgrounded = false;
+    // フォアグラウンド復帰時に接続状態を確認
+    const timeSinceLastMessage = Date.now() - this.lastServerMessage;
+
+    if (timeSinceLastMessage > 60000) {
+      // 60秒以上メッセージがない場合、接続が死んでいる可能性
+      this.ws?.close(4001, 'Stale connection');
+      // 再接続ロジックが発動する
+    } else {
+      // 接続は生きている → 最新データを要求
+      this.ws?.send(JSON.stringify({
+        type: 'presence',
+        status: 'foreground',
+        lastSeq: this.getLastProcessedSeq(),
+      }));
+    }
+  }
+
+  private getLastProcessedSeq(): number {
+    // 最後に処理したシーケンス番号を返す
+    return 0; // 実装省略
+  }
+}
+```
+
+---
+
+## 10. パフォーマンス最適化
+
+### 10.1 メッセージ圧縮
+
+WebSocketにはpermessage-deflate拡張（RFC 7692）が定義されており、メッセージ単位でのzlib圧縮が可能である。
+
+```
+permessage-deflate の動作:
+
+  圧縮なし:
+    クライアント → [JSONテキスト 2KB] → サーバー
+
+  圧縮あり:
+    クライアント → [deflate圧縮 ~400B] → サーバー
+
+  圧縮率の目安（JSONデータの場合）:
+  ┌──────────────────┬───────────┬──────────┬───────────┐
+  │ データサイズ     │ 圧縮前    │ 圧縮後   │ 圧縮率    │
+  ├──────────────────┼───────────┼──────────┼───────────┤
+  │ 小さいJSON       │ 100 B     │ ~90 B    │ 10%       │
+  │ (圧縮非推奨)     │           │          │           │
+  ├──────────────────┼───────────┼──────────┼───────────┤
+  │ 中規模JSON       │ 1 KB      │ ~300 B   │ 70%       │
+  ├──────────────────┼───────────┼──────────┼───────────┤
+  │ 大規模JSON       │ 10 KB     │ ~2 KB    │ 80%       │
+  ├──────────────────┼───────────┼──────────┼───────────┤
+  │ 繰り返し構造     │ 50 KB     │ ~5 KB    │ 90%       │
+  └──────────────────┴───────────┴──────────┴───────────┘
+
+  注意: 小さなメッセージの圧縮はCPUオーバーヘッドが利点を上回る
+  → 一般的にはthreshold（1024バイト等）を設定し、それ以上のみ圧縮する
+```
+
+### 10.2 バイナリプロトコルの活用
+
+JSON over WebSocketは可読性に優れるが、高頻度通信ではオーバーヘッドが問題になる。Protocol BuffersやMessagePackなどのバイナリシリアライゼーションを活用することで、帯域幅とパース速度を大幅に改善できる。
+
+```typescript
+// MessagePack を使ったバイナリ通信の例
+import { encode, decode } from '@msgpack/msgpack';
+
+// JSON vs MessagePack のサイズ比較
+const chatMessage = {
+  type: 'chat',
+  room: 'general',
+  from: { id: 'user-123', name: 'Alice' },
+  text: 'Hello, World!',
+  timestamp: 1709712000000,
+};
+
+// JSON: 約120バイト
+const jsonSize = JSON.stringify(chatMessage).length;
+
+// MessagePack: 約80バイト（約33%削減）
+const msgpackData = encode(chatMessage);
+const msgpackSize = msgpackData.byteLength;
+
+// WebSocketでの使用
+function sendBinary(ws: WebSocket, data: object): void {
+  const encoded = encode(data);
+  ws.send(encoded); // バイナリフレーム（opcode 0x2）として送信
+}
+
+function receiveBinary(event: MessageEvent): object {
+  if (event.data instanceof ArrayBuffer) {
+    return decode(new Uint8Array(event.data)) as object;
+  }
+  return JSON.parse(event.data);
+}
+```
+
+---
+
+## 11. 演習問題
+
+### 11.1 基礎演習: エコーサーバーの実装
+
+**目標:** WebSocketの基本的な送受信を理解する
+
+```
+課題:
+  1. Node.js + ws ライブラリでWebSocketサーバーを作成する
+  2. クライアントから受信したメッセージをそのまま返す（エコー）
+  3. 接続時にウェルカムメッセージを送信する
+  4. 切断時にログを出力する
+  5. ブラウザのコンソールからWebSocket APIで接続テストを行う
+
+期待される動作:
+  クライアント → "Hello" → サーバー
+  クライアント ← "Echo: Hello" ← サーバー
+
+ヒント:
+  - WebSocketServer のインスタンスを作成する
+  - 'connection' イベントでクライアントを受け付ける
+  - 'message' イベントでメッセージを受信し、加工して返す
+  - ws.send() でメッセージを送信する
+
+拡張課題:
+  - メッセージに受信時刻のタイムスタンプを付与する
+  - 累計メッセージ数をカウントし、レスポンスに含める
+  - 接続中のクライアント数をウェルカムメッセージに含める
+```
+
+### 11.2 応用演習: チャットルームの実装
+
+**目標:** ルーム管理、ブロードキャスト、メッセージ形式の設計を実践する
+
+```
+課題:
+  1. 複数のチャットルームをサポートするWebSocketサーバーを実装する
+  2. 以下のメッセージタイプを実装する:
+     - join: ルームに参加
+     - leave: ルームから退出
+     - message: ルーム内にメッセージ送信
+     - list_rooms: 存在するルーム一覧を取得
+     - list_members: ルームのメンバー一覧を取得
+  3. メッセージはJSON形式とし、typeフィールドで種別を識別する
+  4. ルーム参加/退出時に、同じルームの他のメンバーに通知する
+  5. 30秒間隔のPing/Pongヘルスチェックを実装する
+
+メッセージプロトコル例:
+  送信: { "type": "join", "room": "general" }
+  受信: { "type": "joined", "room": "general", "members": 3 }
+
+  送信: { "type": "message", "room": "general", "text": "Hi!" }
+  受信: { "type": "message", "room": "general",
+          "from": "user-abc", "text": "Hi!",
+          "timestamp": 1709712000000 }
+
+拡張課題:
+  - ニックネーム機能の追加
+  - メッセージ履歴の保持（最新50件）
+  - タイピングインジケーターの実装
+  - ダイレクトメッセージ機能の追加
+```
+
+### 11.3 発展演習: リアルタイムコラボレーション
+
+**目標:** OT（Operational Transformation）やCRDTの基本概念を理解し、同時編集の課題に取り組む
+
+```
+課題:
+  1. 複数ユーザーが同時にテキストを編集できるリアルタイムエディタを実装する
+  2. 以下の要素を含むアーキテクチャを設計する:
+     - WebSocketサーバー（操作の中継と競合解決）
+     - クライアント（テキストエリアとWebSocket通信）
+     - 操作ログ（編集履歴の記録）
+  3. 操作は以下の形式で送受信する:
+     - insert: { type: "insert", pos: 5, text: "hello" }
+     - delete: { type: "delete", pos: 5, len: 3 }
+  4. 基本的な競合解決を実装する:
+     - 同じ位置への同時挿入 → クライアントIDで順序決定
+     - 削除範囲と挿入位置の重複 → 位置の調整
+  5. undo/redo機能を実装する
+
+アーキテクチャ:
+  ┌──────────┐      ┌──────────┐      ┌──────────┐
+  │ Editor A │ ←──→ │  Server  │ ←──→ │ Editor B │
+  │ (Browser)│      │ (Node.js)│      │ (Browser)│
+  └──────────┘      └────┬─────┘      └──────────┘
+                         │
+                    ┌────┴─────┐
+                    │ Document │
+                    │  State   │
+                    │ (In-mem) │
+                    └──────────┘
+
+  ヒント:
+  - 最初はシンプルな「最後の書き込みが勝つ」方式で実装する
+  - 次にシーケンス番号ベースの競合検出を追加する
+  - 最終的にOTアルゴリズムの基本形を実装する
+
+  参考アルゴリズム:
+  - OT (Operational Transformation): Google Docsで使用
+  - CRDT (Conflict-free Replicated Data Type): Figma、Notionで使用
+
+拡張課題:
+  - カーソル位置のリアルタイム共有
+  - ユーザーごとのカーソル色の割り当て
+  - オフライン編集とオンライン復帰時の同期
+  - 操作履歴の永続化（データベースへの保存）
+```
+
+---
+
+## 12. WebSocket と HTTP/2、HTTP/3 の関係
+
+### 12.1 HTTP/2 における WebSocket
+
+HTTP/2にはServer PushやストリームMultiplexingが組み込まれているが、これらはWebSocketの代替にはならない。HTTP/2のServer Pushはリソースの先読みを目的としたものであり、任意のタイミングでのデータ送信はできない。
+
+RFC 8441（Bootstrapping WebSockets with HTTP/2）により、HTTP/2接続上でWebSocketを確立する仕組みが標準化された。これにより、HTTP/2のマルチプレキシングの恩恵を受けつつWebSocket通信が可能になる。
+
+### 12.2 HTTP/3 (QUIC) と WebSocket
+
+HTTP/3はUDP上のQUICプロトコルをベースとしている。RFC 9220（Bootstrapping WebSockets with HTTP/3）によりHTTP/3上でのWebSocket接続も標準化されている。QUICのHead-of-line Blocking回避やコネクションマイグレーション（WiFi→モバイル回線の切り替え時に接続維持）は、WebSocket通信にも利点をもたらす。
+
+### 12.3 WebTransport
+
+WebTransportはHTTP/3上に構築された新しいAPIであり、WebSocketの代替候補として注目されている。
+
+```
+WebTransport と WebSocket の比較:
+  ┌──────────────────┬───────────────────┬────────────────────────┐
+  │ 特性             │ WebSocket         │ WebTransport           │
+  ├──────────────────┼───────────────────┼────────────────────────┤
+  │ トランスポート   │ TCP               │ QUIC (UDP)             │
+  ├──────────────────┼───────────────────┼────────────────────────┤
+  │ HOL Blocking     │ あり              │ なし                   │
+  ├──────────────────┼───────────────────┼────────────────────────┤
+  │ 信頼性           │ 完全保証          │ 信頼性あり/なし選択可  │
+  ├──────────────────┼───────────────────┼────────────────────────┤
+  │ 複数ストリーム   │ 1接続1ストリーム  │ 複数ストリーム対応     │
+  ├──────────────────┼───────────────────┼────────────────────────┤
+  │ コネクション     │ 不可              │ 対応                   │
+  │ マイグレーション │                   │ (QUIC機能)             │
+  ├──────────────────┼───────────────────┼────────────────────────┤
+  │ 0-RTT接続確立    │ 不可              │ 対応                   │
+  ├──────────────────┼───────────────────┼────────────────────────┤
+  │ ブラウザ対応     │ ほぼ全て          │ Chrome系のみ           │
+  │ (2025年時点)     │                   │ (拡大中)               │
+  ├──────────────────┼───────────────────┼────────────────────────┤
+  │ 成熟度           │ 高い              │ 発展中                 │
+  └──────────────────┴───────────────────┴────────────────────────┘
+```
+
+---
+
+## 13. テストとデバッグ
+
+### 13.1 WebSocketのテスト手法
+
+```typescript
+// Jest + ws を使ったWebSocketサーバーのテスト例
+import { WebSocketServer, WebSocket } from 'ws';
+
+describe('WebSocket Server', () => {
+  let wss: WebSocketServer;
+  let serverPort: number;
+
+  beforeAll((done) => {
+    wss = new WebSocketServer({ port: 0 }, () => {
+      serverPort = (wss.address() as any).port;
+      done();
+    });
+
+    wss.on('connection', (ws) => {
+      ws.on('message', (data) => {
+        const msg = JSON.parse(data.toString());
+        if (msg.type === 'echo') {
+          ws.send(JSON.stringify({
+            type: 'echo',
+            data: msg.data,
+            timestamp: Date.now(),
+          }));
+        }
+      });
+    });
+  });
+
+  afterAll((done) => {
+    wss.close(done);
+  });
+
+  test('should echo messages back', (done) => {
+    const client = new WebSocket(`ws://localhost:${serverPort}`);
+
+    client.on('open', () => {
+      client.send(JSON.stringify({ type: 'echo', data: 'hello' }));
+    });
+
+    client.on('message', (data) => {
+      const response = JSON.parse(data.toString());
+      expect(response.type).toBe('echo');
+      expect(response.data).toBe('hello');
+      expect(response.timestamp).toBeDefined();
+      client.close();
+      done();
+    });
+  });
+
+  test('should handle multiple concurrent connections', (done) => {
+    const clientCount = 10;
+    let completedCount = 0;
+
+    for (let i = 0; i < clientCount; i++) {
+      const client = new WebSocket(`ws://localhost:${serverPort}`);
+      client.on('open', () => {
+        client.send(JSON.stringify({ type: 'echo', data: `msg-${i}` }));
+      });
+      client.on('message', (data) => {
+        const response = JSON.parse(data.toString());
+        expect(response.data).toBe(`msg-${i}`);
+        client.close();
+        completedCount++;
+        if (completedCount === clientCount) {
+          done();
+        }
+      });
+    }
+  });
+});
+```
+
+### 13.2 デバッグツール
+
+WebSocket通信のデバッグには以下のツールが有用である。
+
+1. **Chrome DevTools**: Network タブ → WS フィルター → メッセージの送受信をリアルタイム確認
+2. **wscat**: コマンドラインからWebSocket接続をテストするツール
+3. **Postman**: WebSocketリクエストの送受信に対応
+4. **Wireshark**: WebSocketフレームをパケットレベルで解析
+
+```bash
+# wscat を使ったテスト
+# インストール
+npm install -g wscat
+
+# サーバーに接続
+wscat -c ws://localhost:8080
+
+# サブプロトコル指定で接続
+wscat -c ws://localhost:8080 -s chat
+
+# ヘッダー付きで接続
+wscat -c ws://localhost:8080 -H "Authorization: Bearer token123"
+```
+
+---
+
+## 14. FAQ
+
+### Q1: WebSocket接続は何本まで維持できるか？
+
+**A:** 単一サーバーにおける最大接続数は主にメモリとファイルディスクリプタの制限に依存する。Linuxの場合、デフォルトのファイルディスクリプタ上限は1024だが、`ulimit -n`で引き上げることができる。1接続あたりのメモリ消費はアイドル状態で約20〜50KBであり、4GBのメモリを持つサーバーであれば理論上10万接続以上を維持できる。ただし、メッセージ処理のCPU負荷やアプリケーション固有のメモリ使用量を加味すると、実用的な上限はそれより低くなる。C10K問題（1万同時接続）は現代のサーバーでは容易に解決可能であり、C100K（10万接続）やそれ以上も適切なチューニングとアーキテクチャ設計で達成できる。
+
+### Q2: WebSocketとSSE（Server-Sent Events）はどちらを選ぶべきか？
+
+**A:** 選択基準は通信の方向性と要件に依存する。サーバーからクライアントへの一方向通知（ニュースフィード、株価更新、進捗通知）であればSSEが適している。SSEはHTTP上で動作するため、既存のインフラとの互換性が高く、自動再接続やイベントID管理が組み込みで提供される。HTTP/2環境ではSSEのパフォーマンスも優れている。一方、クライアントからサーバーへのリアルタイム送信も必要な場合（チャット、ゲーム、共同編集）はWebSocketが適している。「サーバーからのプッシュ」だけが目的であれば、WebSocketの複雑さを引き受ける必要はなく、SSEを第一候補とすべきである。
+
+### Q3: WebSocket接続にCORS制限は適用されるか？
+
+**A:** WebSocket接続自体にはCORSポリシーは適用されない。ブラウザはWebSocket接続のプリフライトリクエスト（OPTIONS）を送信しない。ただし、ブラウザはハンドシェイクリクエストに`Origin`ヘッダーを自動的に付与するため、サーバー側で`Origin`ヘッダーを検証することでオリジンベースのアクセス制御を実装できる。wsライブラリでは`verifyClient`オプション、Socket.IOでは`cors`オプションで設定する。Originヘッダーはブラウザが自動設定するものであり、ブラウザ以外のクライアント（curlやNode.js）では任意の値を設定できるため、Origin検証だけでは完全なセキュリティは担保できない。トークンベースの認証と組み合わせることが推奨される。
+
+### Q4: WebSocketの通信をTLS（WSS）で保護すべきか？
+
+**A:** 本番環境では必ずWSS（WebSocket over TLS）を使用すべきである。理由は三つある。第一に、平文のWebSocket通信は中間者攻撃やパケットスニッフィングに脆弱である。第二に、多くの企業ネットワークやISPの透過プロキシは、暗号化されていないWebSocket接続を正しく処理できず、接続が失敗することがある。WSSを使用することで、プロキシを透過できる可能性が大幅に向上する。第三に、HTTP/2環境ではTLSが実質的に必須であり、WSS接続もHTTP/2のマルチプレキシングの恩恵を受けられる。パフォーマンスへの影響は、TLS 1.3のハンドシェイクが1-RTTで完了するため、初回接続時のわずかなオーバーヘッドを除いて無視できる水準である。
+
+### Q5: WebSocket接続が頻繁に切断される場合、どう対処すべきか？
+
+**A:** 頻繁な切断の原因は複数考えられる。(1) ロードバランサーやプロキシのアイドルタイムアウト: Ping/Pongフレームを定期的に送信してアイドル状態を防ぐ（推奨間隔は25〜30秒）。(2) ネットワークの不安定さ: 指数バックオフ付きの自動再接続を実装し、ジッターを加えてサーバーへの負荷集中を避ける。(3) サーバー側のリソース不足: メモリ使用量とファイルディスクリプタ数を監視し、適切なリソース制限を設定する。(4) クライアントのバックグラウンド化: Page Visibility APIを活用し、バックグラウンドタブでの通信頻度を下げる。また、切断イベントのcloseコードとreasonを分析することで、切断原因の特定に役立つ。
+
+---
+
+## まとめ
+
+| 概念 | ポイント |
+|------|---------|
+| WebSocket | HTTP上の双方向リアルタイム通信プロトコル（RFC 6455） |
+| ハンドシェイク | HTTP 101 Switching Protocols によるプロトコル切替 |
+| フレーム | 2〜14バイトのヘッダー、テキスト/バイナリ対応 |
+| マスキング | クライアント→サーバーは必須、XORベースの難読化 |
+| 接続管理 | Ping/Pong（30秒間隔）、指数バックオフ再接続 |
+| スケーリング | Sticky Session + Redis Pub/Sub による水平展開 |
+| Socket.IO | 自動再接続、ルーム、名前空間等の高レベル抽象化 |
+| セキュリティ | WSS必須、Origin検証、トークン認証、入力検証 |
+| 代替手段 | SSE（一方向通知）、WebTransport（次世代） |
+| アンチパターン | 無制限ブロードキャスト、再接続戦略欠如、メモリリーク |
+
+---
+
+## 次に読むべきガイド
+- [[03-grpc.md]] - gRPC
+- [[01-http.md]] - HTTP/HTTPS（WebSocketの基盤プロトコル）
+
+---
+
+## 参考文献
+
+1. Fette, I. and Melnikov, A. "The WebSocket Protocol." RFC 6455, IETF, December 2011. https://datatracker.ietf.org/doc/html/rfc6455
+2. Yoshino, T. "Compression Extensions for WebSocket." RFC 7692, IETF, December 2015. https://datatracker.ietf.org/doc/html/rfc7692
+3. McManus, P. "Bootstrapping WebSockets with HTTP/2." RFC 8441, IETF, September 2018. https://datatracker.ietf.org/doc/html/rfc8441
+4. Hamilton, R. "Bootstrapping WebSockets with HTTP/3." RFC 9220, IETF, June 2022. https://datatracker.ietf.org/doc/html/rfc9220
+5. Grigorik, I. "High Performance Browser Networking." O'Reilly Media, 2013. Chapter 17: WebSocket.
+6. Socket.IO Documentation. "Socket.IO Server API." https://socket.io/docs/v4/server-api/
+7. MDN Web Docs. "WebSocket API." Mozilla Developer Network. https://developer.mozilla.org/en-US/docs/Web/API/WebSocket

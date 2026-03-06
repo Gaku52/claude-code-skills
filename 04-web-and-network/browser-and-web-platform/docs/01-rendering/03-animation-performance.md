@@ -1832,3 +1832,832 @@ async function slideTransition(direction, updateFn) {
   from { transform: translateX(-30%); opacity: 0; }
 }
 ```
+
+---
+
+## 11. アンチパターンと回避策
+
+### 11.1 アンチパターン1: レイアウトスラッシング
+
+レイアウトスラッシング（Layout Thrashing）は、DOM読み取りとDOM書き込みを交互に繰り返すことで、ブラウザが各書き込みの度に強制的にレイアウト再計算を行ってしまう問題である。これはアニメーション中にフレームバジェットを大幅に超過させる最も一般的な原因の一つである。
+
+```javascript
+// ---- 悪い例: レイアウトスラッシング ----
+function badResizeItems(items) {
+  items.forEach((item) => {
+    // 読み取り → 強制レイアウト発生！
+    const height = item.offsetHeight;
+    // 書き込み → レイアウトを無効化
+    item.style.height = (height * 1.2) + 'px';
+    // 次のループの読み取りで再び強制レイアウト...
+  });
+  // N個の要素があれば N回の強制レイアウトが発生する
+}
+
+// ---- 良い例: 読み取りと書き込みを分離 ----
+function goodResizeItems(items) {
+  // Phase 1: 全ての読み取りをまとめて行う
+  const heights = items.map((item) => item.offsetHeight);
+
+  // Phase 2: 全ての書き込みをまとめて行う（レイアウトは1回のみ）
+  items.forEach((item, i) => {
+    item.style.height = (heights[i] * 1.2) + 'px';
+  });
+}
+```
+
+```
+レイアウトスラッシングの影響:
+
+  悪い例（交互に読み書き）:
+  ┌────┐┌────┐┌────┐┌────┐┌────┐┌────┐┌────┐┌────┐
+  │Read││Write│Read││Write│Read││Write│Read││Write│
+  │    ││+   ││    ││+   ││    ││+   ││    ││+   │
+  │    ││Lay ││    ││Lay ││    ││Lay ││    ││Lay │
+  └────┘└────┘└────┘└────┘└────┘└────┘└────┘└────┘
+  合計: 4回のレイアウト計算（各Write時に強制発生）
+
+  良い例（読み取りをバッチ処理）:
+  ┌────┐┌────┐┌────┐┌────┐┌────┐┌────┐┌────┐┌────────┐
+  │Read││Read││Read││Read││Write│Write│Write│Write│+Layout│
+  └────┘└────┘└────┘└────┘└────┘└────┘└────┘└────┘└──────┘
+  合計: 1回のレイアウト計算（フレーム描画時に1回のみ）
+```
+
+```javascript
+// fastdom ライブラリのようなパターンで読み書きを分離
+class DOMBatcher {
+  constructor() {
+    this.reads = [];
+    this.writes = [];
+    this.scheduled = false;
+  }
+
+  read(fn) {
+    this.reads.push(fn);
+    this.schedule();
+  }
+
+  write(fn) {
+    this.writes.push(fn);
+    this.schedule();
+  }
+
+  schedule() {
+    if (this.scheduled) return;
+    this.scheduled = true;
+
+    requestAnimationFrame(() => {
+      // まず全ての読み取りを実行
+      const readResults = this.reads.map((fn) => fn());
+      this.reads = [];
+
+      // 次に全ての書き込みを実行
+      this.writes.forEach((fn) => fn());
+      this.writes = [];
+
+      this.scheduled = false;
+    });
+  }
+}
+
+const batcher = new DOMBatcher();
+
+// 使用例: 読み取りと書き込みを安全に分離
+function animateCards(cards) {
+  cards.forEach((card) => {
+    batcher.read(() => {
+      const rect = card.getBoundingClientRect();
+      batcher.write(() => {
+        card.style.transform = `translateY(${rect.top * 0.1}px)`;
+      });
+    });
+  });
+}
+```
+
+### 11.2 アンチパターン2: will-change の乱用
+
+`will-change` を全要素に永続的に適用すると、GPUメモリを大量消費し、かえってパフォーマンスが低下する。
+
+```css
+/* ---- 悪い例: will-change を全要素に常時適用 ---- */
+* {
+  will-change: transform, opacity;
+  /* 全要素がGPUレイヤーに昇格 → メモリ枯渇 */
+}
+
+.every-list-item {
+  will-change: transform;
+  /* 1000個のリストアイテムそれぞれがレイヤーになる */
+}
+
+/* ---- 良い例: 必要な時に必要な要素にだけ適用 ---- */
+.card {
+  /* 通常時は will-change なし */
+}
+
+.card:hover {
+  will-change: transform;
+  /* ホバー時にのみ昇格 */
+}
+
+/* さらに良い例: JavaScript で動的に制御 */
+```
+
+```javascript
+// will-change の適切なライフサイクル管理
+class WillChangeManager {
+  constructor(element, properties) {
+    this.element = element;
+    this.properties = properties;
+    this.isActive = false;
+  }
+
+  // アニメーション開始の少し前に準備
+  prepare() {
+    if (this.isActive) return;
+    this.element.style.willChange = this.properties;
+    this.isActive = true;
+  }
+
+  // アニメーション完了後に解除
+  cleanup() {
+    if (!this.isActive) return;
+    this.element.style.willChange = 'auto';
+    this.isActive = false;
+  }
+
+  // transitionend と連動する自動管理
+  autoManage() {
+    this.element.addEventListener('mouseenter', () => this.prepare());
+    this.element.addEventListener('transitionend', () => this.cleanup());
+    this.element.addEventListener('mouseleave', () => {
+      // マウスが離れた後、遷移が終わればクリーンアップ
+      requestAnimationFrame(() => {
+        if (!this.element.matches(':hover')) {
+          this.cleanup();
+        }
+      });
+    });
+  }
+}
+```
+
+### 11.3 アンチパターン3: setInterval によるアニメーション
+
+```javascript
+// ---- 悪い例: setInterval でアニメーション ----
+let x = 0;
+const intervalId = setInterval(() => {
+  x += 2;
+  element.style.left = x + 'px'; // Layout を毎回トリガー
+  if (x >= 300) clearInterval(intervalId);
+}, 16); // 16msはフレームとずれる
+
+// 問題点:
+// 1. setInterval のタイミングはフレームと同期しない
+// 2. 非アクティブタブでも実行され続ける
+// 3. 処理が遅延した場合、コールバックが溜まる
+// 4. left プロパティは Layout を毎フレーム発生させる
+
+// ---- 良い例: rAF + transform ----
+let startTime = null;
+const duration = 2500;
+
+function animate(timestamp) {
+  if (startTime === null) startTime = timestamp;
+  const progress = Math.min((timestamp - startTime) / duration, 1);
+  const eased = Easing.easeOutCubic(progress);
+
+  element.style.transform = `translateX(${eased * 300}px)`;
+
+  if (progress < 1) {
+    requestAnimationFrame(animate);
+  }
+}
+
+requestAnimationFrame(animate);
+```
+
+---
+
+## 12. エッジケース分析
+
+### 12.1 エッジケース1: 高リフレッシュレートディスプレイ
+
+120Hzや144Hzのディスプレイでは、1フレームあたりの時間がそれぞれ8.3msや6.9msに短縮される。固定値ベースのアニメーション（フレームごとに一定量移動する方式）は、これらのディスプレイで予期せぬ速度変化を起こす。
+
+```javascript
+// ---- 悪い例: フレーム単位の固定値移動 ----
+function badAnimate() {
+  x += 5; // 60Hzでは300px/s、120Hzでは600px/s になってしまう
+  element.style.transform = `translateX(${x}px)`;
+  if (x < 300) requestAnimationFrame(badAnimate);
+}
+
+// ---- 良い例: 経過時間ベースの移動（デルタタイム） ----
+function goodAnimate(timestamp) {
+  if (!lastTimestamp) lastTimestamp = timestamp;
+  const deltaTime = timestamp - lastTimestamp;
+  lastTimestamp = timestamp;
+
+  // 速度: 300px/秒（ディスプレイリフレッシュレートに依存しない）
+  const speed = 300; // px per second
+  x += speed * (deltaTime / 1000);
+
+  element.style.transform = `translateX(${Math.min(x, 300)}px)`;
+  if (x < 300) requestAnimationFrame(goodAnimate);
+}
+
+// ---- 最良の例: duration ベースの正規化 ----
+function bestAnimate(timestamp) {
+  if (!startTime) startTime = timestamp;
+  const elapsed = timestamp - startTime;
+  const progress = Math.min(elapsed / 1000, 1); // 1秒間で完了
+  const eased = Easing.easeOutCubic(progress);
+
+  element.style.transform = `translateX(${eased * 300}px)`;
+  if (progress < 1) requestAnimationFrame(bestAnimate);
+}
+// この方式なら60Hz, 120Hz, 144Hz いずれでも同じ1秒で300px移動する
+```
+
+```
+リフレッシュレート別のフレームバジェット比較:
+
+  リフレッシュ  フレーム間隔   JS予算    フレーム/秒
+  レート                     (目安)
+  ───────────────────────────────────────────────
+  60Hz         16.67ms       10ms       60
+  90Hz         11.11ms       7ms        90
+  120Hz         8.33ms       5ms       120
+  144Hz         6.94ms       4ms       144
+  240Hz         4.17ms       2ms       240
+
+  重要: 高リフレッシュレートでは JS の処理時間の許容値が
+  大幅に狭まる。複雑な計算はWorkerに移すことを検討すべき。
+```
+
+### 12.2 エッジケース2: タブ非アクティブ時のアニメーション
+
+ブラウザはパフォーマンスとバッテリー消費を最適化するため、非アクティブタブでの `requestAnimationFrame` コールバックの頻度を大幅に制限する（通常1fps以下）。これにより、タブを切り替えて戻った際にアニメーションが急激にジャンプする可能性がある。
+
+```javascript
+// タブ切り替え時のアニメーション管理
+class VisibilityAwareAnimation {
+  constructor(animateFn) {
+    this.animateFn = animateFn;
+    this.isRunning = false;
+    this.lastTimestamp = null;
+    this.pausedAt = null;
+    this.totalPausedDuration = 0;
+
+    // Page Visibility API で監視
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        this.onHidden();
+      } else {
+        this.onVisible();
+      }
+    });
+  }
+
+  start() {
+    this.isRunning = true;
+    this.lastTimestamp = null;
+    this.totalPausedDuration = 0;
+    this.tick();
+  }
+
+  tick() {
+    if (!this.isRunning) return;
+
+    requestAnimationFrame((timestamp) => {
+      if (this.lastTimestamp === null) {
+        this.lastTimestamp = timestamp;
+      }
+
+      // 非アクティブ期間を除いた正味の経過時間を計算
+      const adjustedTime = timestamp - this.totalPausedDuration;
+      const shouldContinue = this.animateFn(adjustedTime);
+
+      if (shouldContinue && this.isRunning) {
+        this.lastTimestamp = timestamp;
+        this.tick();
+      }
+    });
+  }
+
+  onHidden() {
+    // タブが非アクティブになった時刻を記録
+    this.pausedAt = performance.now();
+  }
+
+  onVisible() {
+    // タブがアクティブに戻った時、非アクティブ期間を加算
+    if (this.pausedAt !== null) {
+      this.totalPausedDuration += performance.now() - this.pausedAt;
+      this.pausedAt = null;
+    }
+  }
+
+  stop() {
+    this.isRunning = false;
+  }
+}
+
+// 使用例
+const anim = new VisibilityAwareAnimation((adjustedTime) => {
+  const progress = Math.min(adjustedTime / 3000, 1);
+  element.style.transform = `translateX(${progress * 300}px)`;
+  return progress < 1;
+});
+anim.start();
+```
+
+### 12.3 エッジケース3: transform と子要素への影響
+
+`transform` プロパティは新しいスタッキングコンテキストとコンテインメントブロックを生成するため、子要素の `position: fixed` の基準が変わるなどの副作用がある。
+
+```css
+/* 問題: transform を持つ親の中で fixed が期待通り動かない */
+.parent {
+  transform: translateX(0); /* これだけで fixed の基準が変わる */
+}
+
+.parent .fixed-child {
+  position: fixed; /* ビューポート基準ではなく、.parent 基準になる */
+  top: 0;
+  left: 0;
+}
+
+/* 対策1: fixed要素をtransform要素の外に移動 */
+/* 対策2: ポータルパターンでDOMの別の場所にマウント */
+/* 対策3: fixedの代わりにstickyを使用（用途による） */
+```
+
+```
+transform が生成するコンテキスト:
+
+  transform なし:
+  ┌─ viewport ──────────────────────────┐
+  │  ┌─ parent ──────────┐              │
+  │  │  ┌─ child ──────┐ │              │
+  │  │  │ fixed: top 0  │ │   ← viewport基準 │
+  │  │  └──────────────┘ │              │
+  │  └───────────────────┘              │
+  └─────────────────────────────────────┘
+  child は viewport の top:0 に表示される
+
+  transform あり:
+  ┌─ viewport ──────────────────────────┐
+  │  ┌─ parent (transform) ──────────┐  │
+  │  │  ┌─ child ──────┐            │  │
+  │  │  │ fixed: top 0  │ ← parent基準 │  │
+  │  │  └──────────────┘            │  │
+  │  └──────────────────────────────┘  │
+  └─────────────────────────────────────┘
+  child は parent の top:0 に表示される（意図と異なる可能性）
+```
+
+---
+
+## 13. 比較表
+
+### 13.1 アニメーション手法の総合比較
+
+| 特性 | CSS Transition | CSS Animation | rAF | WAAPI | FLIP | View Transitions |
+|------|:---:|:---:|:---:|:---:|:---:|:---:|
+| 宣言的記述 | ✓ | ✓ | - | - | - | ✓ (CSS側) |
+| GPUアクセラレーション | ✓ | ✓ | △ | ✓ | ✓ | ✓ |
+| 動的キーフレーム | - | - | ✓ | ✓ | - | - |
+| 一時停止/再開 | - | ✓ (play-state) | 手動 | ✓ | - | - |
+| 完了検出 | イベント | イベント | 手動 | Promise | イベント | Promise |
+| 逆再生 | △ | ✓ (direction) | 手動 | ✓ | - | - |
+| 複雑なシーケンス | △ (delay) | ✓ | ✓ | ✓ | - | △ |
+| DOM変更連動 | - | - | ✓ | ✓ | ✓ | ✓ |
+| スクロール連動 | - | ✓ (scroll-timeline) | ✓ | ✓ | - | - |
+| メインスレッド負荷 | 低 | 低 | 高 | 低 | 中 | 低 |
+| 学習コスト | 低 | 低 | 中 | 中 | 高 | 中 |
+| ブラウザ対応 | 全ブラウザ | 全ブラウザ | 全ブラウザ | 広い | 全ブラウザ | Chrome/Edge主体 |
+
+### 13.2 イージング関数の推奨用途
+
+| 用途 | 推奨イージング | 推奨時間 | cubic-bezier 近似値 |
+|------|:---:|:---:|:---:|
+| ボタンホバー | ease-out | 100-150ms | (0, 0, 0.2, 1) |
+| ボタン押下 | ease-out | 50-100ms | (0, 0, 0.2, 1) |
+| 要素の入場 | ease-out (decelerate) | 200-350ms | (0.22, 1, 0.36, 1) |
+| 要素の退場 | ease-in (accelerate) | 150-250ms | (0.4, 0, 1, 1) |
+| 移動（入退場） | ease-in-out | 250-400ms | (0.4, 0, 0.2, 1) |
+| オーバーシュート | back(ease-out) | 300-500ms | (0.34, 1.56, 0.64, 1) |
+| 弾み | bounce | 500-800ms | JS実装推奨 |
+| スプリング | spring | 400-700ms | JS実装推奨 |
+| スクロール連動 | linear | - | (0, 0, 1, 1) |
+| ローディング回転 | linear | 600-1000ms | (0, 0, 1, 1) |
+| モーダル表示 | decelerate + overshoot | 250-350ms | (0.34, 1.56, 0.64, 1) |
+| モーダル非表示 | accelerate | 150-200ms | (0.4, 0, 1, 1) |
+
+---
+
+## 14. 演習
+
+### 14.1 演習1: 基礎 - CSS Transitionによるカードホバーエフェクト
+
+以下の要件を満たすカードコンポーネントのアニメーションを実装せよ。
+
+**要件:**
+- ホバー時にカードが4px上に移動し、影が深くなる
+- transform と box-shadow の両方をアニメーションする
+- ease-out イージングで200msかけて遷移する
+- `prefers-reduced-motion: reduce` の場合はアニメーションを無効にする
+- ホバー解除時は少し遅め（250ms）で元に戻る
+
+```css
+/* 解答例 */
+.card {
+  background: white;
+  border-radius: 8px;
+  padding: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  transition:
+    transform 250ms ease-out,
+    box-shadow 250ms ease-out;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+  transition-duration: 200ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card {
+    transition: none;
+  }
+  .card:hover {
+    transform: none;
+    /* 影の変化だけは残す（非モーション的な変更） */
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+}
+```
+
+**確認ポイント:**
+- Chrome DevTools の Rendering タブで "Paint flashing" を有効にし、ホバー時にカード全体ではなく影の部分のみがリペイントされることを確認する
+- Performance タブで録画し、Layout イベントが発生していないことを確認する
+
+### 14.2 演習2: 中級 - FLIP によるリスト並べ替えアニメーション
+
+以下の要件を満たすソート可能なリストを実装せよ。
+
+**要件:**
+- ボタンクリックでリスト項目を名前順/数値順に切り替える
+- FLIP技法を用いて、各項目が現在位置から新しい位置へ滑らかに移動する
+- アニメーション時間は300ms、ease-out イージングとする
+- 同時に複数のソートが要求された場合、前のアニメーションをキャンセルして新しいソートを開始する
+
+```javascript
+// 解答例
+class AnimatedSortableList {
+  constructor(container) {
+    this.container = container;
+    this.isAnimating = false;
+    this.pendingSort = null;
+  }
+
+  async sort(compareFn) {
+    if (this.isAnimating) {
+      // 前のアニメーション中なら、完了後に新しいソートを適用
+      this.pendingSort = compareFn;
+      return;
+    }
+
+    this.isAnimating = true;
+    const items = Array.from(this.container.children);
+
+    // First: 全要素の現在位置を記録
+    const firstPositions = new Map();
+    items.forEach(item => {
+      firstPositions.set(item, item.getBoundingClientRect());
+    });
+
+    // Last: ソートを適用
+    const sorted = [...items].sort(compareFn);
+    sorted.forEach(item => this.container.appendChild(item));
+
+    // Invert + Play
+    const animations = sorted.map(item => {
+      const first = firstPositions.get(item);
+      const last = item.getBoundingClientRect();
+      const deltaX = first.left - last.left;
+      const deltaY = first.top - last.top;
+
+      if (deltaX === 0 && deltaY === 0) return null;
+
+      return item.animate(
+        [
+          { transform: `translate(${deltaX}px, ${deltaY}px)` },
+          { transform: 'translate(0, 0)' }
+        ],
+        {
+          duration: 300,
+          easing: 'cubic-bezier(0.2, 0, 0.2, 1)'
+        }
+      );
+    }).filter(Boolean);
+
+    // 全アニメーション完了を待つ
+    await Promise.all(animations.map(a => a.finished));
+    this.isAnimating = false;
+
+    // 待機中のソートがあれば実行
+    if (this.pendingSort) {
+      const nextSort = this.pendingSort;
+      this.pendingSort = null;
+      this.sort(nextSort);
+    }
+  }
+}
+
+// 使用例
+const list = new AnimatedSortableList(document.querySelector('.list'));
+
+document.querySelector('#sort-name').addEventListener('click', () => {
+  list.sort((a, b) => a.textContent.localeCompare(b.textContent));
+});
+
+document.querySelector('#sort-value').addEventListener('click', () => {
+  list.sort((a, b) => {
+    return parseInt(a.dataset.value) - parseInt(b.dataset.value);
+  });
+});
+```
+
+### 14.3 演習3: 上級 - Web Animations API + View Transitions による画像ギャラリー
+
+以下の要件を満たす画像ギャラリーのトランジションシステムを実装せよ。
+
+**要件:**
+- サムネイルクリックでフルサイズ画像に遷移する
+- View Transitions API を使い、サムネイルからフルサイズへの滑らかな遷移を実現する
+- View Transitions 非対応ブラウザにはWAAPIによるフォールバックを提供する
+- 画像が読み込まれる前はスケルトンスクリーンを表示する
+- `prefers-reduced-motion` を尊重する
+
+```javascript
+// 解答例
+class GalleryTransition {
+  constructor() {
+    this.prefersReducedMotion = window.matchMedia(
+      '(prefers-reduced-motion: reduce)'
+    );
+  }
+
+  async openFullSize(thumbnail, fullSizeUrl) {
+    // スケルトンを表示
+    const skeleton = this.createSkeleton(thumbnail);
+    document.body.appendChild(skeleton);
+
+    // 画像のプリロード
+    const img = new Image();
+    const imageLoaded = new Promise((resolve) => {
+      img.onload = resolve;
+      img.src = fullSizeUrl;
+    });
+
+    if (document.startViewTransition && !this.prefersReducedMotion.matches) {
+      // View Transitions API が利用可能な場合
+      return this.openWithViewTransition(thumbnail, img, imageLoaded, skeleton);
+    } else {
+      // フォールバック: WAAPI を使用
+      return this.openWithWAAPI(thumbnail, img, imageLoaded, skeleton);
+    }
+  }
+
+  async openWithViewTransition(thumbnail, img, imageLoaded, skeleton) {
+    // サムネイルに view-transition-name を設定
+    thumbnail.style.viewTransitionName = 'gallery-image';
+
+    await imageLoaded;
+
+    const transition = document.startViewTransition(() => {
+      skeleton.remove();
+      thumbnail.style.viewTransitionName = '';
+
+      const fullView = this.createFullView(img);
+      fullView.style.viewTransitionName = 'gallery-image';
+      document.body.appendChild(fullView);
+    });
+
+    await transition.finished;
+  }
+
+  async openWithWAAPI(thumbnail, img, imageLoaded, skeleton) {
+    const thumbnailRect = thumbnail.getBoundingClientRect();
+
+    await imageLoaded;
+    skeleton.remove();
+
+    const fullView = this.createFullView(img);
+    document.body.appendChild(fullView);
+    const fullRect = fullView.getBoundingClientRect();
+
+    // スケール差を計算
+    const scaleX = thumbnailRect.width / fullRect.width;
+    const scaleY = thumbnailRect.height / fullRect.height;
+    const translateX = thumbnailRect.left - fullRect.left +
+      (thumbnailRect.width - fullRect.width) / 2;
+    const translateY = thumbnailRect.top - fullRect.top +
+      (thumbnailRect.height - fullRect.height) / 2;
+
+    if (this.prefersReducedMotion.matches) {
+      fullView.style.opacity = '1';
+      return;
+    }
+
+    await fullView.animate(
+      [
+        {
+          transform: `translate(${translateX}px, ${translateY}px) scale(${scaleX}, ${scaleY})`,
+          opacity: 0.8
+        },
+        {
+          transform: 'translate(0, 0) scale(1, 1)',
+          opacity: 1
+        }
+      ],
+      {
+        duration: 350,
+        easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+        fill: 'forwards'
+      }
+    ).finished;
+  }
+
+  createSkeleton(thumbnail) {
+    const rect = thumbnail.getBoundingClientRect();
+    const skeleton = document.createElement('div');
+    skeleton.className = 'skeleton gallery-skeleton';
+    skeleton.style.cssText = `
+      position: fixed;
+      top: ${rect.top}px; left: ${rect.left}px;
+      width: ${rect.width}px; height: ${rect.height}px;
+    `;
+    return skeleton;
+  }
+
+  createFullView(img) {
+    const container = document.createElement('div');
+    container.className = 'gallery-full-view';
+    container.appendChild(img);
+    return container;
+  }
+}
+```
+
+---
+
+## 15. FAQ
+
+### Q1: CSS Transition と CSS Animation はどう使い分けるべきか？
+
+**回答:** 基本原則は「2状態間の遷移ならTransition、それ以上ならAnimation」である。
+
+- **Transition の適用場面:** ホバーエフェクト、ボタンの状態変化、メニューの開閉、ツールチップの表示/非表示など、明確な開始状態と終了状態がある場合。トリガー（`:hover`, クラスの付与など）に対する自動的な反応として最適。
+- **Animation の適用場面:** ローディングスピナー、パルスエフェクト、複数の中間状態を経る入場アニメーション、無限ループのアニメーションなど。`@keyframes` で複数の状態を定義する必要がある場合。
+
+性能面では両者に大きな差はない。いずれも対象プロパティが `transform` / `opacity` であればCompositorスレッドで処理される。コードの可読性と保守性を基準に選択するのが良い。
+
+### Q2: requestAnimationFrame と Web Animations API のどちらを使うべきか？
+
+**回答:** 可能な限りWAAPIを使用することを推奨する。
+
+WAAPIはブラウザのアニメーションエンジンに直接処理を委譲するため、メインスレッドをブロックしない。一方、rAFのコールバック内で行うDOM操作はメインスレッドで実行されるため、他のJavaScript処理と競合する可能性がある。
+
+ただし、以下の場合はrAFが適している:
+- 物理シミュレーション（衝突判定やバネ物理など、各フレームで動的に計算が必要な場合）
+- Canvas / WebGL 描画
+- 外部データ（マウス座標、センサーデータ等）に応じたリアルタイム更新
+- 複雑な条件分岐を含むアニメーションロジック
+
+### Q3: アニメーション中にスクロールが発生するとパフォーマンスが低下するのはなぜか？
+
+**回答:** スクロール処理とアニメーション処理は同じメインスレッドで実行されるため、フレームバジェットを奪い合う形になる。特に以下の状況で問題が顕著になる:
+
+1. **スクロールイベントリスナー内でのDOM操作:** `scroll` イベントは高頻度で発火し、そのハンドラ内でレイアウトを変更すると強制リフローが多発する。
+2. **パッシブでないスクロールリスナー:** `passive: false` のスクロールリスナーは、ブラウザがスクロールをCompositorに委譲できなくなるため、メインスレッドでの処理を待つことになる。
+3. **固定位置要素のリペイント:** `position: fixed` の要素があると、スクロールのたびにリペイントが発生する場合がある。
+
+対策として、スクロール連動アニメーションにはCSS Scroll-driven Animationsの使用を検討すべきである。これはCompositorスレッドで動作するため、メインスレッドへの負荷がない。
+
+### Q4: FLIP技法でscaleを使うと子要素のテキストが歪むのを防ぐにはどうすればよいか？
+
+**回答:** FLIP技法で `scale()` を使用すると、その要素の子要素も同様にスケーリングされ、テキストやアイコンが歪んで見える場合がある。これを防ぐには、子要素に逆スケールを適用する「Counter-Scale」パターンを使用する。
+
+```javascript
+// Counter-Scaleパターン
+function flipWithCounterScale(parent, changeFn) {
+  const first = parent.getBoundingClientRect();
+  changeFn();
+  const last = parent.getBoundingClientRect();
+
+  const scaleX = first.width / last.width;
+  const scaleY = first.height / last.height;
+
+  parent.style.transform = `scale(${scaleX}, ${scaleY})`;
+
+  // 子要素に逆スケールを適用
+  const children = parent.querySelectorAll('.preserve-scale');
+  children.forEach(child => {
+    child.style.transform = `scale(${1/scaleX}, ${1/scaleY})`;
+  });
+
+  requestAnimationFrame(() => {
+    parent.style.transition = 'transform 300ms ease-out';
+    parent.style.transform = '';
+
+    children.forEach(child => {
+      child.style.transition = 'transform 300ms ease-out';
+      child.style.transform = '';
+    });
+  });
+}
+```
+
+### Q5: モバイルデバイスでアニメーションが滑らかにならない場合の対処法は？
+
+**回答:** モバイルデバイスのGPUやCPUはデスクトップに比べて性能が限定的である。以下の対策を段階的に適用することを推奨する。
+
+1. **transform / opacity のみ使用:** Layout や Paint をトリガーするプロパティを避ける。
+2. **要素数の削減:** 同時にアニメーションする要素数を最小限にする（理想は10要素以下）。
+3. **解像度の考慮:** 高解像度デバイスではピクセル数が多い分、描画負荷が高い。大きなアニメーション領域を避ける。
+4. **box-shadow / filter の回避:** これらはPaintが重い処理であり、アニメーション中のリペイントを増やす。
+5. **will-change の節度ある利用:** モバイルではGPUメモリが限られるため、必要な要素にだけ適用する。
+
+---
+
+## 16. まとめ
+
+### 60fpsアニメーション達成のチェックリスト
+
+| チェック項目 | 判定基準 |
+|------|------|
+| transform / opacity のみ使用 | Layout/Paint を発生させていないか |
+| rAFまたはWAAPIを使用 | setInterval/setTimeout を使っていないか |
+| タイムスタンプベースの計算 | フレーム単位の固定値移動をしていないか |
+| will-change の適切な管理 | 必要な時だけ、必要な要素にのみ適用しているか |
+| レイアウトスラッシング回避 | 読み取りと書き込みを分離しているか |
+| prefers-reduced-motion 対応 | モーション軽減設定を尊重しているか |
+| タブ非アクティブ時の対処 | Page Visibility API で制御しているか |
+| ロングタスクの排除 | メインスレッドを50ms以上占有していないか |
+| DevTools での検証 | Performance パネルでジャンクがないことを確認したか |
+
+### 技術選択のフローチャート
+
+```
+アニメーション手法の選択:
+
+  開始
+   │
+   ├── 2状態間の単純な遷移？
+   │    └── Yes → CSS Transition
+   │
+   ├── キーフレームが必要？
+   │    └── Yes → CSS Animation
+   │         └── スクロール連動？ → animation-timeline: scroll()/view()
+   │
+   ├── DOM変更に連動した位置移動？
+   │    ├── View Transitions API 対応ブラウザ？
+   │    │    └── Yes → View Transitions API
+   │    └── No → FLIP 技法
+   │
+   ├── JS制御が必要？（一時停止、逆再生、動的キーフレーム）
+   │    └── Yes → Web Animations API
+   │
+   ├── 物理シミュレーション / Canvas？
+   │    └── Yes → requestAnimationFrame
+   │
+   └── 上記いずれにも該当しない
+        └── CSS Transition（シンプルさ優先）
+```
+
+---
+
+## 次に読むべきガイド
+
+- [[../02-javascript-runtime/00-v8-engine.md]] - V8エンジンの内部動作
+- [[./04-compositing-layers.md]] - 合成レイヤーとGPU加速
+- [[./02-layout-reflow.md]] - レイアウトとリフローの最適化
+
+---
+
+## 参考文献
+
+1. Paul Lewis. "FLIP Your Animations." aerotwist.com, 2015. FLIPテクニックの提唱者による原典。アニメーションのパフォーマンスをtransformベースに変換する手法を解説。
+2. Google Developers. "Rendering Performance." web.dev, 2023. レンダリングパイプラインの各段階と、60fpsを達成するための最適化手法を体系的にまとめた公式ガイド。
+3. Jake Archibald. "View Transitions API." Chrome for Developers, 2023. View Transitions APIの仕様策定に関わったエンジニアによる詳細な解説。SPA・MPA両方のユースケースをカバー。
+4. MDN Web Docs. "Web Animations API." Mozilla, 2024. WAAPIの仕様、メソッド、プロパティの完全なリファレンス。各ブラウザの互換性情報も含む。
+5. CSS Working Group. "CSS Scroll-driven Animations." W3C, 2024. scroll()およびview()タイムラインの仕様書。animation-rangeの詳細な定義を含む。
+6. Steve Souders. "High Performance Web Sites." O'Reilly Media, 2007. Webパフォーマンス最適化の古典的名著。フロントエンドパフォーマンスの基本原則を確立した。

@@ -1150,3 +1150,591 @@ async function staleWhileRevalidate(request) {
   return cached || fetchPromise;
 }
 ```
+
+---
+
+## 7. アンチパターンとエッジケース
+
+### 7.1 アンチパターン1: max-age のみで immutable を忘れる
+
+```
+■ アンチパターン:
+  Cache-Control: public, max-age=31536000
+
+  問題:
+  - ブラウザが「条件付きリクエスト」を送信する場合がある
+  - ページ遷移やリロード時に 304 往復が発生
+  - 特に Safari は積極的に再検証を行う傾向がある
+
+  ┌─────────────────────────────────────────────────────┐
+  │  ブラウザ                        サーバー            │
+  │    │                               │               │
+  │    │── GET /app.a1b2.js ──────────▶│               │
+  │    │   If-None-Match: "xyz"        │               │
+  │    │                               │               │
+  │    │◀── 304 Not Modified ──────────│               │
+  │    │                               │               │
+  │    │  ★ この往復が無駄!             │               │
+  │    │  ファイル名にハッシュがあるので │               │
+  │    │  内容は絶対に変わらない         │               │
+  └─────────────────────────────────────────────────────┘
+
+■ 正しいパターン:
+  Cache-Control: public, max-age=31536000, immutable
+
+  → immutable を付けることで、ブラウザは期限内の
+    条件付きリクエストを送信しなくなる
+  → ページ遷移時のパフォーマンスが向上
+  → 特にモバイル環境（低帯域・高レイテンシ）で効果が大きい
+```
+
+**影響の程度**: 高トラフィックサイトでは、不要な304リクエストが毎秒数千〜数万回発生する可能性がある。各リクエストのRTTが50ms程度だとしても、ユーザー体験への累積的な影響は無視できない。
+
+### 7.2 アンチパターン2: Vary: * の使用
+
+```
+■ アンチパターン:
+  Vary: *
+
+  問題:
+  - すべてのリクエストが一意のキャッシュキーを持つことになる
+  - 事実上、キャッシュが完全に無効化される
+  - CDN/プロキシでのキャッシュヒット率が 0% になる
+  - 意図せずこうなるケースが多い（フレームワークのデフォルト設定等）
+
+■ よくある原因:
+  1. フレームワークが自動的に Vary: * を付与している
+  2. ミドルウェアが過剰な Vary ヘッダーを追加している
+  3. CORS ミドルウェアが Vary: Origin を追加し、
+     他のミドルウェアが Vary: Accept-Encoding を追加し、
+     最終的に結合されて Vary: * に変換されるケースがある
+
+■ 正しいパターン:
+  必要最小限のヘッダーのみを Vary に指定する
+  Vary: Accept-Encoding
+  Vary: Accept-Encoding, Accept-Language
+
+■ デバッグ方法:
+  curl -I https://example.com/api/data
+  → レスポンスの Vary ヘッダーを確認
+  → * が含まれていないか、過剰なヘッダーが含まれていないかチェック
+```
+
+### 7.3 アンチパターン3: Set-Cookie と Cache-Control の競合
+
+```
+■ アンチパターン:
+  HTTP/1.1 200 OK
+  Cache-Control: public, max-age=3600
+  Set-Cookie: session=abc123; HttpOnly; Secure
+
+  問題:
+  - Set-Cookie を含むレスポンスが CDN にキャッシュされる
+  - 他のユーザーに対してそのセッションCookieが配信される
+  - セッションハイジャック等の深刻なセキュリティ脆弱性
+
+■ 正しいパターン:
+  選択肢A: キャッシュ不可にする
+    Cache-Control: private, no-cache
+    Set-Cookie: session=abc123; HttpOnly; Secure
+
+  選択肢B: Set-Cookie を含まないようにする
+    Cache-Control: public, max-age=3600
+    (Set-Cookie なし — セッション管理は別のエンドポイントで)
+
+  選択肢C: CDN側で Set-Cookie を除去する設定
+    (CloudFront の Response Headers Policy 等)
+```
+
+### 7.4 エッジケース1: クロックスキューによるキャッシュ異常
+
+```
+■ 状況:
+  クライアントとサーバーの時計がずれている場合
+
+  サーバー時刻: 2025-01-15 10:00:00
+  クライアント時刻: 2025-01-15 09:55:00 (5分遅れ)
+
+  レスポンス:
+    Date: Wed, 15 Jan 2025 10:00:00 GMT
+    Cache-Control: max-age=300
+
+  クライアントの計算:
+    age = client_now - date = -300秒（負の値!）
+    → 実装によって挙動が異なる
+
+  ■ 発生しうる問題:
+    - キャッシュが期待より長く/短く有効になる
+    - Age ヘッダーが負の値になりパースエラーが発生する
+    - CDN間でキャッシュの鮮度判定が不整合になる
+
+  ■ 対策:
+    - サーバー側: NTP で時刻を正確に同期する
+    - アプリ側: Age ヘッダーも活用し、相対的な鮮度を計算する
+      response_age = max(0, age_header_value)
+      freshness_lifetime = max_age - response_age
+    - CDN側: 多くのCDNはAge ヘッダーを自動付与し、
+      クロックスキューの影響を軽減する
+```
+
+### 7.5 エッジケース2: POST/PUT/DELETE によるキャッシュの暗黙的無効化
+
+```
+■ HTTP仕様の規定（RFC 9111 Section 4.4）:
+
+  安全でないメソッド（POST, PUT, DELETE, PATCH）の
+  成功レスポンス（2xx）を受信したとき、キャッシュは
+  同一URIの保存済みレスポンスを無効化しなければならない（MUST）。
+
+  また、Content-Location または Location ヘッダーの
+  URIのキャッシュも無効化しなければならない。
+
+  ■ 例:
+    1. GET /api/users/42 → 200 (キャッシュに保存)
+    2. PUT /api/users/42 → 200 (成功)
+    3. /api/users/42 のキャッシュが自動的に無効化される
+    4. 次の GET /api/users/42 → サーバーに問い合わせ
+
+  ■ 注意点:
+    - この無効化はローカルキャッシュのみに適用される
+    - CDN のキャッシュは自動的には無効化されない
+    - CDN のキャッシュ無効化には明示的なパージが必要
+
+  ■ CDN でのベストプラクティス:
+    POST /api/users/42 の成功後に:
+    1. アプリケーションが CDN パージ API を呼ぶ
+    2. または、s-maxage を短く設定して自然な有効期限切れを待つ
+    3. または、CDN の「オリジンリクエスト時に更新」機能を使う
+```
+
+### 7.6 エッジケース3: Range リクエストとキャッシュ
+
+```
+■ 状況:
+  大きなファイル（動画等）の部分ダウンロード時
+
+  リクエスト:
+    GET /video/lecture.mp4 HTTP/1.1
+    Range: bytes=0-1048575
+
+  レスポンス:
+    HTTP/1.1 206 Partial Content
+    Content-Range: bytes 0-1048575/104857600
+    ETag: "abc123"
+    Cache-Control: public, max-age=3600
+
+  ■ キャッシュの課題:
+    - 部分レスポンス（206）もキャッシュ可能だが、
+      キャッシュの実装が複雑になる
+    - 同一URLに対して異なる Range のリクエストが来る
+    - 一部のCDN は 206 をキャッシュしない設定がデフォルト
+
+  ■ ベストプラクティス:
+    - CDN に全体のファイルをキャッシュさせ、
+      エッジで Range リクエストに対応させる
+    - 強い ETag を使用する（弱い ETag は Range 非対応）
+    - CloudFront: 自動的に Range をサポート
+    - Cloudflare: Enterprise プランで Range キャッシュ最適化
+```
+
+---
+
+## 8. キャッシュのモニタリングとデバッグ
+
+### 8.1 キャッシュヒット率の計測
+
+キャッシュの効果を定量的に把握するには、キャッシュヒット率の継続的な計測が不可欠である。
+
+```
+キャッシュヒット率の計算:
+
+  hit_rate = cache_hits / (cache_hits + cache_misses) * 100
+
+  目安:
+  ┌──────────────────┬────────────┬─────────────────────────────┐
+  │ ヒット率          │ 評価       │ 対応                        │
+  ├──────────────────┼────────────┼─────────────────────────────┤
+  │ 95%+             │ 優秀       │ 現状維持                    │
+  │ 80-95%           │ 良好       │ 微調整で改善可能            │
+  │ 50-80%           │ 改善必要   │ TTL、キャッシュキーを見直す  │
+  │ 50%未満          │ 要対応     │ 戦略の根本的な見直し        │
+  └──────────────────┴────────────┴─────────────────────────────┘
+```
+
+### 8.2 デバッグ用ヘッダーの活用
+
+```bash
+# curl でキャッシュヘッダーを確認
+curl -I https://example.com/assets/app.a1b2c3.js
+
+# 期待されるレスポンスヘッダー:
+# HTTP/2 200
+# cache-control: public, max-age=31536000, immutable
+# etag: "abc123"
+# x-cache: Hit from cloudfront           ← CloudFront のキャッシュ状態
+# age: 12345                             ← キャッシュに入ってからの経過秒数
+# cf-cache-status: HIT                   ← Cloudflare のキャッシュ状態
+# x-cache-status: HIT                    ← nginx のキャッシュ状態
+
+# CDN別のキャッシュ状態ヘッダー:
+#
+# CloudFront:
+#   X-Cache: Hit from cloudfront
+#   X-Cache: Miss from cloudfront
+#   X-Cache: RefreshHit from cloudfront  ← SWRで返却
+#
+# Cloudflare:
+#   CF-Cache-Status: HIT
+#   CF-Cache-Status: MISS
+#   CF-Cache-Status: EXPIRED
+#   CF-Cache-Status: STALE
+#   CF-Cache-Status: DYNAMIC             ← キャッシュ対象外
+#   CF-Cache-Status: BYPASS
+#
+# Fastly:
+#   X-Cache: HIT
+#   X-Cache: MISS
+#   X-Cache-Hits: 5                      ← ヒット回数
+#   X-Served-By: cache-tyo...            ← 応答したエッジサーバー
+```
+
+### 8.3 ブラウザDevToolsによるキャッシュ確認
+
+```
+Chrome DevTools での確認手順:
+
+  1. Network タブを開く
+  2. 「Disable cache」のチェックを外す（通常のキャッシュ動作を確認）
+  3. ページを読み込む
+  4. 各リソースの以下を確認:
+
+     Size 列:
+       - (disk cache) → ディスクキャッシュから取得
+       - (memory cache) → メモリキャッシュから取得
+       - (ServiceWorker) → Service Worker から取得
+       - 数値 → ネットワークから取得
+
+     Status 列:
+       - 200 → 新規取得 or キャッシュから復元
+       - 304 → サーバーで検証済み（変更なし）
+
+     Headers タブ:
+       - Response Headers の Cache-Control, ETag, Age を確認
+       - Request Headers の If-None-Match, If-Modified-Since を確認
+
+  5. 「Disable cache」にチェックを入れると:
+     → Cache-Control: no-cache がリクエストに追加される
+     → すべてのリソースがネットワークから取得される
+     → デバッグ時に有用
+```
+
+### 8.4 キャッシュ関連の主要メトリクス
+
+| メトリクス | 計測方法 | 目標値 | 意味 |
+|-----------|---------|--------|------|
+| CDN ヒット率 | CDNダッシュボード | 90%+ | CDNでの応答割合 |
+| 304 レスポンス率 | アクセスログ解析 | HTML: 60%+ | 帯域節約の効果 |
+| TTFB（Time To First Byte） | RUM / Synthetic | <200ms | 最初のバイトまでの時間 |
+| バイト節約量 | CDNダッシュボード | - | 転送量削減効果 |
+| パージ成功率 | CDN API ログ | 99.9%+ | パージの信頼性 |
+| stale 配信率 | カスタムヘッダー | <5% | 古いコンテンツ配信の割合 |
+
+---
+
+## 9. 高度なキャッシュパターン
+
+### 9.1 Surrogate Keys によるタグベースパージ
+
+従来のパスベースのパージでは、関連するすべてのURLを列挙する必要がある。Surrogate Keys（タグベースパージ）を使うと、リソースにタグを付与し、タグ単位でパージできる。
+
+```
+Surrogate Keys の仕組み（Fastly の例）:
+
+  ■ レスポンスにタグを付与:
+    GET /api/products/42
+
+    HTTP/1.1 200 OK
+    Surrogate-Key: product-42 category-electronics all-products
+    Cache-Control: public, s-maxage=3600
+
+    GET /api/categories/electronics
+
+    HTTP/1.1 200 OK
+    Surrogate-Key: category-electronics all-categories
+    Cache-Control: public, s-maxage=3600
+
+  ■ 商品42を更新した場合:
+    PURGE tag: product-42
+
+    → /api/products/42 がパージされる
+    → /api/products/42 を参照する他のURLもパージ可能
+
+  ■ 全商品を更新した場合:
+    PURGE tag: all-products
+
+    → all-products タグを持つ全URLが一括パージされる
+
+  利点:
+  - パージ対象のURL列挙が不要
+  - コンテンツの論理的な関係に基づいた無効化が可能
+  - 数千URLの一括パージも高速（Fastly: 150ms以内）
+```
+
+### 9.2 Edge Side Includes (ESI)
+
+ESI は、ページの一部を動的に組み立てるためのマークアップ言語である。CDNエッジで処理され、ページの各部分に異なるキャッシュポリシーを適用できる。
+
+```html
+<!-- ESI の例: ページ構成 -->
+<!-- ヘッダー: ユーザー固有、キャッシュ短め -->
+<esi:include src="/fragments/header"
+  onerror="continue"
+  maxwait="500" />
+
+<!-- メインコンテンツ: パブリック、キャッシュ長め -->
+<esi:include src="/fragments/product/42" />
+
+<!-- サイドバー: パブリック、中程度のキャッシュ -->
+<esi:include src="/fragments/sidebar/recommendations" />
+
+<!-- フッター: パブリック、長期キャッシュ -->
+<esi:include src="/fragments/footer" />
+
+<!--
+  /fragments/header       → Cache-Control: private, max-age=60
+  /fragments/product/42   → Cache-Control: public, s-maxage=3600
+  /fragments/sidebar/...  → Cache-Control: public, s-maxage=600
+  /fragments/footer       → Cache-Control: public, s-maxage=86400
+
+  → ページ全体をキャッシュ不可にする必要がない
+  → パブリックな部分は CDN にキャッシュされる
+  → ユーザー固有部分だけが毎回取得される
+-->
+```
+
+### 9.3 Cache Stampede（キャッシュスタンピード）対策
+
+```
+■ Cache Stampede とは:
+  キャッシュの有効期限が切れた瞬間に、多数のリクエストが
+  同時にオリジンサーバーに到達する現象。
+  「Thundering Herd」問題とも呼ばれる。
+
+  タイムライン:
+
+  ─────────────────────────────┬───────────────────────────
+  ◀── キャッシュ有効 ──────────│──── キャッシュ期限切れ ──▶
+                               │
+                    Request 1 ─┼──▶ Origin ──▶ 応答
+                    Request 2 ─┼──▶ Origin ──▶ 応答
+                    Request 3 ─┼──▶ Origin ──▶ 応答
+                    ...        │
+                    Request N ─┼──▶ Origin ──▶ 応答
+                               │
+                    ★ N個のリクエストが同時にオリジンに殺到
+                    ★ オリジンが過負荷になる可能性
+
+■ 対策1: Request Coalescing（リクエスト結合）
+  同一キーのリクエストを1つにまとめ、
+  結果を全リクエストに配信する。
+
+  ─────────────────────────────┬───────────────────────────
+                               │
+                    Request 1 ─┤
+                    Request 2 ─┼──▶ 1つだけ Origin へ
+                    Request 3 ─┤
+                               │
+                    全リクエストに同じ結果を返す
+
+  nginx: proxy_cache_lock on;
+  Varnish: coalescing はデフォルトで有効
+
+■ 対策2: Probabilistic Early Expiration
+  キャッシュの期限切れより少し前に、確率的に更新を開始する。
+
+  計算式:
+    should_refresh = (random() < beta * log(random()))
+                     && (now > expiry - delta)
+
+  → 期限切れ前に1つのリクエストだけが更新を実行
+  → 残りのリクエストは既存キャッシュを使い続ける
+
+■ 対策3: stale-while-revalidate
+  Cache-Control: max-age=60, stale-while-revalidate=300
+  → 期限切れ後も古いキャッシュを返しつつ、
+    バックグラウンドで1つだけ更新リクエストを送信
+```
+
+### 9.4 マルチテナント環境でのキャッシュ分離
+
+```
+■ 課題:
+  SaaS アプリケーションで、テナントごとに異なるコンテンツを
+  提供する場合、キャッシュキーにテナント識別子を含める必要がある。
+
+■ 方法1: サブドメインベース
+  tenant-a.app.example.com → キャッシュキーにホスト名を含む
+  tenant-b.app.example.com → 自然にテナント分離される
+
+■ 方法2: パスベース
+  app.example.com/tenant-a/api/data
+  app.example.com/tenant-b/api/data
+  → URLが異なるため自然に分離される
+
+■ 方法3: ヘッダーベース
+  app.example.com/api/data
+  X-Tenant-ID: tenant-a
+
+  Vary: X-Tenant-ID
+  → ヘッダー値ごとに別キャッシュエントリ
+
+  注意: CDN のキャッシュキーに X-Tenant-ID を含める設定が必要
+  CloudFront: Cache Policy の Headers に追加
+  Cloudflare: Cache Key の Custom Headers に追加
+
+■ セキュリティ上の注意:
+  - テナントAのキャッシュがテナントBに配信されないことを
+    厳密にテストする
+  - Vary ヘッダーの設定漏れは深刻なデータ漏洩になる
+  - CDN の設定とアプリケーションの設定を二重にチェックする
+```
+
+---
+
+## 10. HTTP/2 および HTTP/3 におけるキャッシュの考慮事項
+
+### 10.1 HTTP/2 Server Push とキャッシュ
+
+```
+■ HTTP/2 Server Push の基本:
+  サーバーがHTMLレスポンスと一緒に、必要になるであろう
+  リソース（CSS, JS等）を先行して送信する機能。
+
+  GET /index.html HTTP/2
+
+  レスポンス:
+    PUSH_PROMISE: /assets/style.a1b2.css
+    PUSH_PROMISE: /assets/app.c3d4.js
+
+    DATA: <html>...</html>
+    DATA: /* style.a1b2.css の内容 */
+    DATA: /* app.c3d4.js の内容 */
+
+■ キャッシュとの問題:
+  - ブラウザに既にキャッシュがあっても Push される
+  - 帯域の浪費になる
+  - Chrome 106 以降、Server Push のサポートが削除された
+
+■ 代替手段: 103 Early Hints
+  HTTP/1.1 103 Early Hints
+  Link: </assets/style.a1b2.css>; rel=preload; as=style
+  Link: </assets/app.c3d4.js>; rel=preload; as=script
+
+  HTTP/1.1 200 OK
+  Content-Type: text/html
+  ...
+
+  → ブラウザはキャッシュを確認してから取得を開始する
+  → 不要な転送を回避できる
+  → CloudFront, Cloudflare が対応済み
+```
+
+### 10.2 HTTP/3 (QUIC) とキャッシュ
+
+```
+■ HTTP/3 固有のキャッシュ考慮事項:
+
+  1. 接続の復元（0-RTT）:
+     QUIC の 0-RTT ハンドシェイクでは、前回の接続情報を
+     キャッシュして再利用する。
+     → 接続確立が高速化されるが、リプレイ攻撃のリスクがある
+     → 安全でないメソッド（POST等）は 0-RTT で送信すべきでない
+
+  2. サーバー証明書のキャッシュ:
+     QUIC は TLS 1.3 を使用し、セッションチケットを
+     キャッシュすることで再接続を高速化する
+
+  3. HTTPヘッダー圧縮（QPACK）:
+     HTTP/3 では QPACK によるヘッダー圧縮が行われる
+     Cache-Control 等の頻出ヘッダーは効率的に圧縮される
+     → キャッシュの動作自体は HTTP/2 と同じ
+
+  4. コネクションマイグレーション:
+     ネットワーク切り替え（Wi-Fi → モバイル）時にも
+     接続が維持されるため、キャッシュの一貫性が保たれる
+```
+
+---
+
+## 11. セキュリティとキャッシュ
+
+### 11.1 キャッシュポイズニング攻撃
+
+```
+■ Web Cache Poisoning:
+  攻撃者がキャッシュに悪意のあるレスポンスを格納させ、
+  他のユーザーにそれを配信させる攻撃。
+
+  攻撃手法:
+  1. キャッシュキーに含まれないヘッダー（Unkeyed Input）を発見
+  2. そのヘッダーがレスポンスに反映されることを確認
+  3. 悪意のある値を含むリクエストを送信
+  4. CDN がそのレスポンスをキャッシュ
+  5. 他のユーザーに悪意のあるレスポンスが配信される
+
+  例:
+    GET /page HTTP/1.1
+    Host: example.com
+    X-Forwarded-Host: evil.com     ← Unkeyed Input
+
+    レスポンス:
+    <link href="https://evil.com/style.css" rel="stylesheet">
+    → このレスポンスがキャッシュされると、
+      全ユーザーに evil.com の CSS が配信される
+
+■ 対策:
+  1. Unkeyed Input を排除する
+     → レスポンスに反映するヘッダーはすべて Vary に追加
+     → 不要なヘッダーの処理をアプリから除去
+
+  2. CDN のキャッシュキーを適切に設定する
+     → 必要なヘッダーをキャッシュキーに含める
+
+  3. レスポンスの入力検証を徹底する
+     → ヘッダー値を無条件にレスポンスに埋め込まない
+
+  4. Cache-Control: private をデフォルトにする
+     → 明示的に public にするリソースのみ CDN キャッシュ
+```
+
+### 11.2 Cache Deception 攻撃
+
+```
+■ Web Cache Deception:
+  攻撃者が被害者に特殊なURLにアクセスさせ、
+  被害者の個人データを CDN にキャッシュさせる攻撃。
+
+  攻撃手法:
+  1. 攻撃者が被害者に以下のURLを踏ませる:
+     https://example.com/api/me/profile/nonexistent.css
+
+  2. サーバーは /api/me/profile のレスポンスを返す
+     (パスの末尾を無視するフレームワークの場合)
+
+  3. CDN は .css 拡張子を見て静的ファイルとしてキャッシュ
+     Cache-Control: public, max-age=31536000
+
+  4. 攻撃者が同じURLにアクセスし、被害者のプロフィールを取得
+
+■ 対策:
+  1. パスの正規化を厳密に行う
+     → /api/me/profile/xxx.css は 404 を返す
+
+  2. コンテンツタイプに基づくキャッシュ制御
+     → application/json は CDN でキャッシュしない
+
+  3. 拡張子に基づくキャッシュルールを避ける
+     → パスパターンではなく、レスポンスヘッダーに基づいてキャッシュ
+
+  4. ユーザー固有レスポンスには必ず Cache-Control: private
+```

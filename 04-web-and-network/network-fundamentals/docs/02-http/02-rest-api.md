@@ -1419,3 +1419,727 @@ components:
 security:
   - BearerAuth: []
 ```
+
+---
+
+## 9. アンチパターン
+
+### 9.1 アンチパターン 1: 動詞ベースのエンドポイント設計
+
+REST APIの最も一般的なアンチパターンは、URIに動詞を含めてしまうことである。これはRPCスタイルの名残であり、HTTPメソッドの意味を無視した設計になる。
+
+```
+アンチパターン: 動詞ベースのURI
+
+  ✗ 悪い設計（RPC風）:
+  POST   /api/getUsers               ← GETで取得すべき
+  POST   /api/createUser              ← POST /users に統一
+  POST   /api/updateUser              ← PUT/PATCH /users/:id
+  POST   /api/deleteUser              ← DELETE /users/:id
+  GET    /api/getUserOrders?userId=1  ← GET /users/1/orders
+  POST   /api/searchUsers             ← GET /users?q=xxx
+
+  問題点:
+  → エンドポイント数が爆発する（リソース x 操作 の数だけ必要）
+  → HTTPメソッドの意味が失われる（すべてPOST）
+  → キャッシュが効かない（POSTはデフォルトでキャッシュされない）
+  → 統一的なインターフェースが崩壊する
+  → 新規開発者がAPIの構造を理解しにくい
+
+  ✓ 正しい設計（リソース指向）:
+  GET    /api/v1/users                ← コレクション取得
+  POST   /api/v1/users                ← リソース作成
+  GET    /api/v1/users/1              ← 個別リソース取得
+  PUT    /api/v1/users/1              ← 全体更新
+  PATCH  /api/v1/users/1              ← 部分更新
+  DELETE /api/v1/users/1              ← 削除
+  GET    /api/v1/users/1/orders       ← 関連リソース取得
+  GET    /api/v1/users?q=taro         ← 検索
+
+  例外（コントローラリソース）:
+  → CRUDに収まらないビジネス操作は動詞を含めてよい
+  POST   /api/v1/users/1/activate     ← アカウント有効化
+  POST   /api/v1/orders/5/cancel      ← 注文キャンセル
+  POST   /api/v1/carts/checkout       ← カート決済
+  → これらは「コントローラリソース」として例外的に許容される
+```
+
+### 9.2 アンチパターン 2: レスポンス構造の不統一
+
+```
+アンチパターン: エンドポイントごとにレスポンス形式がバラバラ
+
+  ✗ 一覧取得: 配列をそのまま返す
+  GET /api/users →
+  [
+    { "id": 1, "name": "Taro" },
+    { "id": 2, "name": "Hanako" }
+  ]
+  → メタ情報を追加できない（ページング情報等）
+  → 将来の拡張に対応できない
+
+  ✗ 詳細取得: オブジェクトをそのまま返す
+  GET /api/users/1 →
+  { "id": 1, "name": "Taro" }
+  → エンベロープがないため一覧と形式が異なる
+
+  ✗ エラー: エンドポイントごとに形式が違う
+  POST /api/users →
+  { "error": "validation failed" }          ← 文字列
+  DELETE /api/users/1 →
+  { "errors": [{ "code": 404 }] }          ← オブジェクト配列
+  PATCH /api/users/1 →
+  { "message": "not found", "code": 404 }  ← 別の形式
+
+  ✓ 正しい設計: 統一的なエンベロープ
+
+  成功レスポンス（常に data キーを使用）:
+  一覧: { "data": [...], "meta": {...}, "links": {...} }
+  詳細: { "data": {...}, "_links": {...} }
+  作成: { "data": {...} } + Location ヘッダー
+  削除: 204 No Content（ボディなし）
+
+  エラーレスポンス（常に RFC 7807 形式）:
+  {
+    "type": "https://...",
+    "title": "Error Title",
+    "status": 4xx,
+    "detail": "Human-readable description",
+    "errors": [...]  // バリデーション時のみ
+  }
+```
+
+### 9.3 アンチパターン 3: 過度なネスト
+
+```
+アンチパターン: 深すぎるURIネスト
+
+  ✗ 悪い設計:
+  GET /api/v1/companies/1/departments/5/teams/3/members/42/tasks/99
+
+  問題点:
+  → URIが長く読みにくい
+  → 各階層のIDがすべて必要（冗長）
+  → ルーティングの実装が複雑化
+  → task に一意なIDがあれば直接アクセス可能
+
+  ✓ 改善案:
+  GET /api/v1/tasks/99                  ← 一意のIDで直接取得
+  GET /api/v1/teams/3/members           ← 必要な関連のみネスト
+  GET /api/v1/members/42/tasks          ← 2階層までに収める
+
+  ガイドライン:
+  → ネストは2階層まで: /resource/{id}/sub-resource
+  → 3階層以上はフラットなエンドポイントに分割
+  → サブリソースに一意のIDがあればフラットアクセスを提供
+  → 両方のアクセスパスを提供するのがベストプラクティス
+```
+
+---
+
+## 10. エッジケース分析
+
+### 10.1 エッジケース 1: 同時更新の競合（楽観的ロック）
+
+複数のクライアントが同じリソースを同時に更新しようとした場合、後から更新したクライアントが先の変更を上書きしてしまう「ロストアップデート問題」が発生する。
+
+```
+問題シナリオ:
+
+  時刻 T1: クライアントA が GET /users/1 → { name: "Taro", role: "user" }
+  時刻 T2: クライアントB が GET /users/1 → { name: "Taro", role: "user" }
+  時刻 T3: クライアントA が PATCH /users/1 → { name: "TARO" }
+  時刻 T4: クライアントB が PATCH /users/1 → { role: "admin" }
+
+  → クライアントBはname="Taro"を前提に更新したが、
+    T3でname="TARO"に変わっていることを知らない
+  → PUT（全体置換）の場合はさらに深刻で、Bの更新でAの変更が消える
+
+解決策: ETagによる楽観的ロック
+
+  ┌──────────────┐                         ┌──────────────┐
+  │ クライアント   │                         │   サーバー    │
+  └──────┬───────┘                         └──────┬───────┘
+         │  GET /users/1                          │
+         │ ──────────────────────────────────────→ │
+         │  200 OK                                │
+         │  ETag: "abc123"                        │
+         │  { name: "Taro" }                      │
+         │ ←────────────────────────────────────── │
+         │                                        │
+         │  PUT /users/1                          │
+         │  If-Match: "abc123"                    │
+         │  { name: "TARO" }                      │
+         │ ──────────────────────────────────────→ │
+         │                                        │
+         │  ── ETagが一致 → 更新成功 ──            │
+         │  200 OK                                │
+         │  ETag: "def456"                        │
+         │ ←────────────────────────────────────── │
+         │                                        │
+         │  PUT /users/1                          │
+         │  If-Match: "abc123"  ← 古いETag        │
+         │  { role: "admin" }                     │
+         │ ──────────────────────────────────────→ │
+         │                                        │
+         │  ── ETag不一致 → 更新拒否 ──            │
+         │  412 Precondition Failed               │
+         │ ←────────────────────────────────────── │
+         │                                        │
+
+  実装のポイント:
+  → GETレスポンスにETagヘッダーを含める
+  → 更新リクエストにIf-Matchヘッダーを要求する
+  → ETag不一致時は 412 Precondition Failed を返す
+  → クライアントは最新データを再取得してリトライする
+```
+
+### 10.2 エッジケース 2: 大量データの一括操作（バルクAPI）
+
+標準的なREST APIは個別リソースの操作を前提としているが、数百件のリソースを一度に作成・更新・削除したい場合がある。
+
+```
+問題: 100件のユーザーを作成したい場合
+
+  ✗ 個別リクエスト:
+  POST /api/v1/users  → { name: "User 1" }
+  POST /api/v1/users  → { name: "User 2" }
+  ...（100回繰り返し）
+  → ネットワークオーバーヘッドが大きい
+  → トランザクション制御が困難
+
+解決策 1: バルクエンドポイント
+  POST /api/v1/users/bulk
+  Content-Type: application/json
+
+  {
+    "operations": [
+      { "method": "create", "body": { "name": "User 1", "email": "u1@example.com" } },
+      { "method": "create", "body": { "name": "User 2", "email": "u2@example.com" } },
+      { "method": "create", "body": { "name": "User 3", "email": "u3@example.com" } }
+    ]
+  }
+
+  レスポンス（207 Multi-Status）:
+  {
+    "results": [
+      { "status": 201, "data": { "id": "10", "name": "User 1" } },
+      { "status": 201, "data": { "id": "11", "name": "User 2" } },
+      { "status": 409, "error": { "detail": "Email already exists" } }
+    ],
+    "summary": {
+      "total": 3,
+      "succeeded": 2,
+      "failed": 1
+    }
+  }
+
+解決策 2: 非同期ジョブ
+  POST /api/v1/import-jobs
+  Content-Type: application/json
+
+  {
+    "type": "user_import",
+    "data": [...]
+  }
+
+  レスポンス:
+  HTTP/1.1 202 Accepted
+  Location: /api/v1/import-jobs/job-789
+
+  {
+    "data": {
+      "id": "job-789",
+      "status": "processing",
+      "progress": 0,
+      "_links": {
+        "self": { "href": "/api/v1/import-jobs/job-789" },
+        "cancel": { "href": "/api/v1/import-jobs/job-789/cancel", "method": "POST" }
+      }
+    }
+  }
+
+  → 大量データは非同期処理が適切
+  → ポーリングまたはWebhookで完了を通知
+  → 進捗状況をGETで確認可能にする
+```
+
+### 10.3 エッジケース 3: ソフトデリートとリソースの復元
+
+```
+問題: DELETE /users/1 でリソースを物理削除すると復元できない
+
+解決策: ソフトデリートパターン
+
+  DELETE /api/v1/users/1
+  → 内部的に deleted_at タイムスタンプを設定
+  → 通常のGETでは表示されなくなる
+
+  復元:
+  POST /api/v1/users/1/restore
+  → deleted_at を null に戻す
+
+  削除済みリソースの取得:
+  GET /api/v1/users?include_deleted=true
+  GET /api/v1/users/1?include_deleted=true
+
+  完全削除（パージ）:
+  DELETE /api/v1/users/1/permanently
+  → 本当に物理削除する（管理者のみ）
+
+  レスポンス例:
+  GET /api/v1/users/1 → 404 Not Found（ソフトデリート済み）
+  GET /api/v1/users/1?include_deleted=true → 200 OK
+  {
+    "data": {
+      "id": "1",
+      "name": "Taro",
+      "deleted_at": "2024-07-15T10:00:00Z",
+      "_links": {
+        "restore": { "href": "/api/v1/users/1/restore", "method": "POST" }
+      }
+    }
+  }
+```
+
+---
+
+## 11. リクエスト/レスポンスフローの全体像
+
+```
+REST API リクエスト/レスポンス フロー:
+
+  ┌──────────┐     ┌──────────┐     ┌──────────┐     ┌──────────┐
+  │クライアント│     │API Gateway│     │ アプリ    │     │ データ   │
+  │(Browser/ │     │/LB       │     │ サーバー  │     │ ストア   │
+  │ Mobile)  │     │          │     │          │     │(DB/Cache)│
+  └────┬─────┘     └────┬─────┘     └────┬─────┘     └────┬─────┘
+       │                │                │                │
+       │ 1. HTTPリクエスト│                │                │
+       │───────────────→│                │                │
+       │                │                │                │
+       │                │ 2. 認証チェック  │                │
+       │                │  (JWT検証)      │                │
+       │                │                │                │
+       │                │ 3. レート制限    │                │
+       │                │  チェック       │                │
+       │                │                │                │
+       │                │ 4. ルーティング  │                │
+       │                │───────────────→│                │
+       │                │                │                │
+       │                │                │ 5. バリデーション│
+       │                │                │                │
+       │                │                │ 6. ビジネス     │
+       │                │                │    ロジック     │
+       │                │                │                │
+       │                │                │ 7. DBクエリ     │
+       │                │                │───────────────→│
+       │                │                │                │
+       │                │                │ 8. データ取得   │
+       │                │                │←───────────────│
+       │                │                │                │
+       │                │                │ 9. レスポンス   │
+       │                │                │    シリアライズ  │
+       │                │                │                │
+       │                │ 10. レスポンス  │                │
+       │                │←───────────────│                │
+       │                │                │                │
+       │                │ 11. ヘッダー追加│                │
+       │                │  (RateLimit等)  │                │
+       │                │                │                │
+       │ 12. HTTPレスポンス                │                │
+       │←───────────────│                │                │
+       │                │                │                │
+```
+
+---
+
+## 12. 演習
+
+### 演習 1（基礎）: ブックストアAPIの設計
+
+以下の要件を満たすREST APIのエンドポイント一覧を設計せよ。
+
+```
+要件:
+  - 書籍（Book）のCRUD操作
+  - 著者（Author）のCRUD操作
+  - 書籍にはカテゴリ（Category）が紐づく
+  - 書籍のレビュー（Review）を投稿・取得できる
+  - 書籍の検索ができる（タイトル、著者名、ISBN）
+  - ページネーション、ソート、フィルタリングに対応する
+
+解答例:
+  # 書籍
+  GET    /api/v1/books                       書籍一覧（?page=1&per_page=20）
+  GET    /api/v1/books/:id                   書籍詳細
+  POST   /api/v1/books                       書籍作成
+  PUT    /api/v1/books/:id                   書籍全体更新
+  PATCH  /api/v1/books/:id                   書籍部分更新
+  DELETE /api/v1/books/:id                   書籍削除
+  GET    /api/v1/books?q=REST&sort=-rating   書籍検索
+
+  # 著者
+  GET    /api/v1/authors                     著者一覧
+  GET    /api/v1/authors/:id                 著者詳細
+  POST   /api/v1/authors                     著者作成
+  PATCH  /api/v1/authors/:id                 著者更新
+  DELETE /api/v1/authors/:id                 著者削除
+  GET    /api/v1/authors/:id/books           著者の書籍一覧
+
+  # カテゴリ
+  GET    /api/v1/categories                  カテゴリ一覧
+  GET    /api/v1/categories/:id              カテゴリ詳細
+  GET    /api/v1/categories/:id/books        カテゴリの書籍一覧
+
+  # レビュー
+  GET    /api/v1/books/:id/reviews           書籍のレビュー一覧
+  POST   /api/v1/books/:id/reviews           レビュー投稿
+  PATCH  /api/v1/reviews/:id                 レビュー編集
+  DELETE /api/v1/reviews/:id                 レビュー削除
+
+  設計ポイント:
+  → 書籍のレビューはサブリソースとしてネスト（POST, GET）
+  → レビューの編集・削除はフラットアクセス（一意IDがあるため）
+  → 著者の書籍一覧はサブリソース（2階層まで）
+```
+
+### 演習 2（応用）: エラーハンドリングの統一実装
+
+以下のシナリオに対して、RFC 7807準拠のエラーレスポンスを設計せよ。
+
+```
+シナリオ:
+  1. 存在しないユーザーIDへのアクセス
+  2. メールアドレスのフォーマットエラー + 名前の未入力
+  3. すでに存在するメールアドレスでのユーザー登録
+  4. 認証トークンの有効期限切れ
+  5. 管理者権限が必要なエンドポイントへの一般ユーザーのアクセス
+
+解答例:
+
+  1. 404 Not Found:
+  {
+    "type": "https://api.example.com/errors/not-found",
+    "title": "Resource Not Found",
+    "status": 404,
+    "detail": "User with ID '999' does not exist.",
+    "instance": "/api/v1/users/999"
+  }
+
+  2. 422 Unprocessable Entity（複数フィールドのバリデーション）:
+  {
+    "type": "https://api.example.com/errors/validation",
+    "title": "Validation Error",
+    "status": 422,
+    "detail": "Request body contains 2 validation errors.",
+    "instance": "/api/v1/users",
+    "errors": [
+      {
+        "field": "email",
+        "code": "invalid_format",
+        "message": "Email must be a valid email address.",
+        "rejected_value": "not-an-email"
+      },
+      {
+        "field": "name",
+        "code": "required",
+        "message": "Name is required and cannot be empty."
+      }
+    ]
+  }
+
+  3. 409 Conflict:
+  {
+    "type": "https://api.example.com/errors/conflict",
+    "title": "Resource Conflict",
+    "status": 409,
+    "detail": "A user with email 'taro@example.com' already exists.",
+    "instance": "/api/v1/users"
+  }
+
+  4. 401 Unauthorized:
+  {
+    "type": "https://api.example.com/errors/token-expired",
+    "title": "Token Expired",
+    "status": 401,
+    "detail": "The provided access token has expired. Please refresh your token."
+  }
+
+  5. 403 Forbidden:
+  {
+    "type": "https://api.example.com/errors/insufficient-permissions",
+    "title": "Forbidden",
+    "status": 403,
+    "detail": "This action requires 'admin' role. Your current role is 'user'.",
+    "instance": "/api/v1/admin/users"
+  }
+```
+
+### 演習 3（発展）: HATEOASを適用した注文管理APIの設計
+
+EC サイトの注文管理APIを設計せよ。注文には以下の状態遷移がある。注文の状態に応じてレスポンスに含むHATEOASリンクが動的に変わるように設計すること。
+
+```
+注文の状態遷移:
+
+  ┌────────┐   確認    ┌──────────┐  発送   ┌─────────┐  受取   ┌──────────┐
+  │ pending │ ───────→ │ confirmed │ ─────→ │ shipped │ ─────→ │ delivered│
+  └────┬───┘          └─────┬────┘         └────┬────┘        └──────────┘
+       │                    │                   │
+       │ キャンセル          │ キャンセル          │ 返品
+       ▼                    ▼                   ▼
+  ┌──────────┐        ┌──────────┐        ┌──────────┐
+  │ cancelled│        │ cancelled│        │ returned │
+  └──────────┘        └──────────┘        └──────────┘
+
+解答例:
+
+  GET /api/v1/orders/123 → status: "pending"
+  {
+    "data": {
+      "id": "123",
+      "status": "pending",
+      "total": 9800,
+      "items": [...]
+    },
+    "_links": {
+      "self":    { "href": "/api/v1/orders/123" },
+      "confirm": { "href": "/api/v1/orders/123/confirm", "method": "POST" },
+      "cancel":  { "href": "/api/v1/orders/123/cancel",  "method": "POST" },
+      "items":   { "href": "/api/v1/orders/123/items" }
+    }
+  }
+
+  GET /api/v1/orders/123 → status: "shipped"
+  {
+    "data": {
+      "id": "123",
+      "status": "shipped",
+      "tracking_number": "JP987654321",
+      "shipped_at": "2024-07-10T09:00:00Z"
+    },
+    "_links": {
+      "self":   { "href": "/api/v1/orders/123" },
+      "track":  { "href": "/api/v1/orders/123/tracking" },
+      "return": { "href": "/api/v1/orders/123/returns", "method": "POST" }
+    }
+  }
+  → "confirm" と "cancel" は消え、"track" と "return" が出現
+  → クライアントは _links の存在有無で利用可能なアクションを判断
+
+  GET /api/v1/orders/123 → status: "delivered"
+  {
+    "data": {
+      "id": "123",
+      "status": "delivered",
+      "delivered_at": "2024-07-12T14:30:00Z"
+    },
+    "_links": {
+      "self":   { "href": "/api/v1/orders/123" },
+      "return": { "href": "/api/v1/orders/123/returns", "method": "POST" },
+      "review": { "href": "/api/v1/orders/123/reviews", "method": "POST" }
+    }
+  }
+  → 配達完了後は "return"（返品）と "review"（レビュー）が可能
+
+  GET /api/v1/orders/123 → status: "cancelled"
+  {
+    "data": {
+      "id": "123",
+      "status": "cancelled",
+      "cancelled_at": "2024-07-05T16:00:00Z",
+      "cancellation_reason": "Customer requested"
+    },
+    "_links": {
+      "self": { "href": "/api/v1/orders/123" }
+    }
+  }
+  → キャンセル済みはself以外のアクションリンクなし
+```
+
+---
+
+## 13. API設計チェックリスト
+
+```
+REST API設計チェックリスト:
+
+  URI設計:
+  [ ] リソースは名詞・複数形で命名しているか
+  [ ] URIは小文字・ケバブケースか
+  [ ] ネストは2階層以内に収まっているか
+  [ ] バージョンプレフィックスがあるか（/api/v1/）
+  [ ] 末尾スラッシュは統一されているか
+
+  HTTPメソッド:
+  [ ] GET は安全（副作用なし）か
+  [ ] PUT/DELETE は冪等か
+  [ ] POST は適切な場面でのみ使用しているか
+  [ ] PATCH で部分更新をサポートしているか
+
+  レスポンス:
+  [ ] 成功/エラーレスポンスの構造は統一されているか
+  [ ] 適切なHTTPステータスコードを使用しているか
+  [ ] 一覧レスポンスにはメタ情報（total, page等）が含まれるか
+  [ ] 作成成功時にLocationヘッダーを返しているか
+  [ ] エラーレスポンスはRFC 7807に準拠しているか
+
+  ページネーション・フィルタリング:
+  [ ] ページネーション方式は決定しているか
+  [ ] per_page の上限値は設定されているか
+  [ ] ソートパラメータの形式は統一されているか
+
+  セキュリティ:
+  [ ] 認証方式は決定しているか
+  [ ] レート制限は設定されているか
+  [ ] CORS設定は適切か
+  [ ] 入力のバリデーションは行っているか
+
+  運用:
+  [ ] OpenAPI/Swagger 仕様書は作成されているか
+  [ ] APIのバージョニング戦略は決定しているか
+  [ ] 非推奨化（Deprecation）のポリシーはあるか
+  [ ] ログとモニタリングは設計されているか
+```
+
+---
+
+## まとめ
+
+```
+REST API設計の要点:
+
+  ┌─────────────────┬─────────────────────────────────────┐
+  │ 概念            │ ポイント                             │
+  ├─────────────────┼─────────────────────────────────────┤
+  │ RESTの原則      │ 6制約: ステートレス、統一IF、         │
+  │                 │ キャッシュ、階層化、C/S分離、CoD      │
+  ├─────────────────┼─────────────────────────────────────┤
+  │ 成熟度モデル     │ Level 2（HTTP活用）が現実的目標       │
+  │                 │ Level 3（HATEOAS）は理想             │
+  ├─────────────────┼─────────────────────────────────────┤
+  │ URI設計         │ 名詞・複数形、2階層まで、ケバブケース  │
+  ├─────────────────┼─────────────────────────────────────┤
+  │ ページネーション │ cursor方式が高速で安定               │
+  │                 │ offsetは小規模向き                   │
+  ├─────────────────┼─────────────────────────────────────┤
+  │ バージョニング   │ URIベース（/api/v1/）が最も一般的     │
+  │                 │ 破壊的変更のみバージョンアップ         │
+  ├─────────────────┼─────────────────────────────────────┤
+  │ エラー          │ RFC 7807 Problem Details形式         │
+  │                 │ 統一的な構造が重要                    │
+  ├─────────────────┼─────────────────────────────────────┤
+  │ HATEOAS         │ レスポンスにリンクを含め自己発見可能に  │
+  │                 │ 状態に応じたリンクの動的変更           │
+  ├─────────────────┼─────────────────────────────────────┤
+  │ 認証            │ 公開API: OAuth 2.0 + API Key         │
+  │                 │ 内部API: JWT Bearer Token             │
+  ├─────────────────┼─────────────────────────────────────┤
+  │ レート制限      │ ヘッダーで通知、429で拒否             │
+  │                 │ Token Bucketが一般的                  │
+  └─────────────────┴─────────────────────────────────────┘
+```
+
+---
+
+## FAQ
+
+### Q1: PUTとPATCHはどちらを使うべきか
+
+PUTはリソースの「全体置換」、PATCHは「部分更新」に使う。PUTではリクエストボディにリソースの全フィールドを含める必要があり、含まれていないフィールドはデフォルト値にリセットされる。PATCHではリクエストボディに変更したいフィールドのみを含める。
+
+一般的なWebアプリケーションでは、フォームの一部だけを更新することが多いため、PATCHの方が実用的である。PUTを提供する場合は、PATCHも併せて提供することを推奨する。
+
+```
+PUT /api/v1/users/1
+→ ボディに全フィールドが必要:
+  { "name": "Taro", "email": "taro@example.com", "role": "admin" }
+→ emailを省略すると、emailがnull/デフォルトにリセットされうる
+
+PATCH /api/v1/users/1
+→ 変更部分だけでよい:
+  { "role": "admin" }
+→ nameとemailは変更されない
+```
+
+### Q2: IDはUUIDと連番のどちらが良いか
+
+```
+┌────────────┬─────────────────┬─────────────────────┐
+│ 方式       │ メリット         │ デメリット           │
+├────────────┼─────────────────┼─────────────────────┤
+│ 連番(auto  │ 短くて読みやすい │ 推測されやすい       │
+│ increment) │ ソート順が明確   │ レコード数が推測可能 │
+│            │ インデックス効率 │ 分散環境で衝突       │
+├────────────┼─────────────────┼─────────────────────┤
+│ UUID v4    │ 推測不可能       │ 36文字と長い         │
+│            │ 分散環境で安全   │ インデックス効率低下 │
+│            │                 │ ソート順が不定       │
+├────────────┼─────────────────┼─────────────────────┤
+│ ULID       │ ソート可能       │ 26文字とやや長い     │
+│            │ 推測不可能       │ 普及度がUUIDより低い │
+│            │ 分散環境で安全   │                     │
+├────────────┼─────────────────┼─────────────────────┤
+│ nanoid     │ 短くカスタマイズ可│ 衝突確率の計算が必要 │
+│            │ URL-safe         │ 標準化されていない   │
+└────────────┴─────────────────┴─────────────────────┘
+
+推奨:
+→ 公開API: UUID v4 または ULID（セキュリティ上安全）
+→ 内部API: 連番でも可（ただしIDの連番推測に注意）
+→ URL短縮が必要: nanoid（21文字がデフォルト）
+```
+
+### Q3: ネストしたリソースの作成時、親リソースの存在チェックはどうするか
+
+ネストしたリソースを作成する際（例: POST /users/123/orders）、親リソース（user 123）が存在しない場合の挙動は以下のパターンがある。
+
+```
+パターン 1: 404 Not Found を返す（推奨）
+  POST /api/v1/users/999/orders
+  → 404 Not Found: "User with ID '999' was not found."
+  → 親リソースが存在しない場合、子の作成を拒否
+
+パターン 2: 422 Unprocessable Entity を返す
+  POST /api/v1/orders
+  { "user_id": "999", ... }
+  → 422: "Referenced user '999' does not exist."
+  → フラットエンドポイントでバリデーションエラーとして扱う
+
+推奨:
+→ ネストURLの場合は 404（パスの一部が存在しない）
+→ フラットURLでbodyにID指定の場合は 422（バリデーションエラー）
+→ いずれの場合も明確なエラーメッセージを提供する
+```
+
+### Q4: 日時のフォーマットはどうすべきか
+
+```
+推奨: ISO 8601（RFC 3339）形式
+
+  UTC表記:  "2024-07-15T10:30:00Z"
+  オフセット: "2024-07-15T19:30:00+09:00"
+
+  → サーバーはUTC（Z表記）で保存・返却
+  → クライアント側でローカルタイムゾーンに変換
+  → Unix Timestamp は人間が読みにくいため非推奨
+     （ただしレート制限ヘッダー等では慣例的に使用）
+```
+
+---
+
+## 次に読むべきガイド
+
+- [[03-caching.md]] -- HTTPキャッシュ
+- [[04-security.md]] -- Web セキュリティの基礎
+
+---
+
+## 参考文献
+
+1. Fielding, R. "Architectural Styles and the Design of Network-based Software Architectures." University of California, Irvine, 2000. -- RESTの原典。HTTPプロトコルの主要設計者による博士論文。
+2. RFC 7807. "Problem Details for HTTP APIs." Nottingham, M., Wilde, E., IETF, 2016. -- APIエラーレスポンスの標準フォーマット。後継のRFC 9457（2023年）も参照。
+3. Richardson, L., Amundsen, M., Ruby, S. "RESTful Web APIs." O'Reilly Media, 2013. -- Richardson成熟度モデルの提唱者による実践ガイド。HATEOASの詳細な解説を含む。
+4. OpenAPI Specification 3.1.0. OpenAPI Initiative, 2021. https://spec.openapis.org/oas/v3.1.0 -- REST APIの仕様記述標準。Swagger UIとの連携で対話的なドキュメントを生成可能。
+5. Masse, M. "REST API Design Rulebook." O'Reilly Media, 2011. -- URI設計、HTTPメソッドの使い方、エラーハンドリングに関するルール集。

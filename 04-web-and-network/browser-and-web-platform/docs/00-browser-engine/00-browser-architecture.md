@@ -916,3 +916,733 @@ class NavigationURLLoader {
 };
 ```
 
+---
+
+## 6. Site Isolation（サイト分離）
+
+### 6.1 Site Isolation の背景と目的
+
+2018年に発見された Spectre / Meltdown 脆弱性は、プロセスのメモリ空間を超えてデータを読み取ることが理論上可能であることを示した。これを受け、Chromium は Site Isolation を全面的に導入した。
+
+Site Isolation とは、異なるサイト（origin ではなく site 単位）のコンテンツを必ず別のプロセスで実行する仕組みである。これにより、たとえ Spectre 攻撃が成功しても、攻撃者のプロセスには自サイトのデータしか存在しないため、他サイトのデータは読み取れない。
+
+```
+Site Isolation の動作:
+
+  ┌──────────────────────────────────────────────────────────────┐
+  │ Site Isolation なし（旧来のモデル）                          │
+  │                                                              │
+  │  ┌──────────────────────────────────────────────────────┐   │
+  │  │ レンダラープロセス（1つのプロセス内）                 │   │
+  │  │                                                      │   │
+  │  │  ┌──────────────┐  ┌──────────────────────────────┐ │   │
+  │  │  │ example.com  │  │ <iframe src="evil.com">     │ │   │
+  │  │  │              │  │                              │ │   │
+  │  │  │ ユーザーの   │  │ Spectre 攻撃で              │ │   │
+  │  │  │ 個人情報     │  │ example.com のメモリを       │ │   │
+  │  │  │ Cookie等    │  │ 読み取り可能!               │ │   │
+  │  │  └──────────────┘  └──────────────────────────────┘ │   │
+  │  └──────────────────────────────────────────────────────┘   │
+  │                                                              │
+  │ Site Isolation あり（現在のモデル）                          │
+  │                                                              │
+  │  ┌────────────────────┐  ┌────────────────────────────┐    │
+  │  │ レンダラープロセス A│  │ レンダラープロセス B       │    │
+  │  │                    │  │                            │    │
+  │  │  ┌──────────────┐ │  │  ┌──────────────────────┐ │    │
+  │  │  │ example.com  │ │  │  │ evil.com (iframe)    │ │    │
+  │  │  │              │ │  │  │                      │ │    │
+  │  │  │ ユーザーの   │ │  │  │ 別プロセスなので     │ │    │
+  │  │  │ 個人情報     │ │  │  │ Spectre でも         │ │    │
+  │  │  │ Cookie等    │ │  │  │ 読み取り不可能       │ │    │
+  │  │  └──────────────┘ │  │  └──────────────────────┘ │    │
+  │  └────────────────────┘  └────────────────────────────┘    │
+  │                                                              │
+  │  プロセス境界 = セキュリティ境界                             │
+  └──────────────────────────────────────────────────────────────┘
+
+  Site と Origin の違い:
+  ┌───────────────────────────────────────────────────────┐
+  │ URL                         │ Site         │ Origin  │
+  ├────────────────────────────┼──────────────┼─────────┤
+  │ https://a.example.com:443  │ example.com  │ a.example.com:443 │
+  │ https://b.example.com:443  │ example.com  │ b.example.com:443 │
+  │ https://example.com:8080   │ example.com  │ example.com:8080  │
+  │ https://other.com          │ other.com    │ other.com:443     │
+  └───────────────────────────────────────────────────────┘
+
+  → a.example.com と b.example.com は同じ Site → 同一プロセス可
+  → example.com と other.com は異なる Site → 必ず別プロセス
+```
+
+### 6.2 Site Isolation のメモリコスト
+
+Site Isolation はセキュリティを大幅に向上させるが、プロセス数の増加によりメモリ消費が増大する。
+
+| シナリオ | Site Isolation なし | Site Isolation あり | 増加量 |
+|---------|-------------------|-------------------|--------|
+| タブ5個（全て同一サイト） | プロセス1個 | プロセス1個 | 増加なし |
+| タブ5個（全て異なるサイト） | プロセス1-5個 | プロセス5個 | 0-400% |
+| 1ページ内に異なるサイトのiframe 3個 | プロセス1個 | プロセス4個 | 300% |
+| 一般的なWeb閲覧 | --- | --- | 約10-15%増 |
+
+### 6.3 Cross-Origin Read Blocking (CORB) と CORP
+
+Site Isolation を補完するセキュリティ機構として、CORB と CORP がある。
+
+```javascript
+// CORB (Cross-Origin Read Blocking)
+// ブラウザが自動的にクロスオリジンの機密データを保護
+
+// 例: 攻撃者が <img> タグで JSON データを読み取ろうとする
+// <img src="https://bank.example/api/account"> ← CORB がブロック
+
+// CORB がブロックする Content-Type:
+// - text/html
+// - application/json
+// - text/xml / application/xml
+
+// CORP (Cross-Origin-Resource-Policy)
+// サーバー側でリソースの読み込みを制限するヘッダー
+
+// サーバー側の設定例
+// 同一オリジンからのみ読み込み可能
+// Cross-Origin-Resource-Policy: same-origin
+
+// 同一サイトからのみ読み込み可能
+// Cross-Origin-Resource-Policy: same-site
+
+// どのオリジンからも読み込み可能
+// Cross-Origin-Resource-Policy: cross-origin
+
+// --- 関連: COOP と COEP ---
+
+// COOP (Cross-Origin-Opener-Policy)
+// window.opener の参照をクロスオリジン間で遮断
+// Cross-Origin-Opener-Policy: same-origin
+
+// COEP (Cross-Origin-Embedder-Policy)
+// クロスオリジンリソースの読み込みに明示的な許可を要求
+// Cross-Origin-Embedder-Policy: require-corp
+
+// COOP + COEP の設定で SharedArrayBuffer が利用可能に
+// （Spectre 対策として、デフォルトでは無効化されている）
+
+// 確認方法
+if (crossOriginIsolated) {
+  // SharedArrayBuffer が利用可能
+  const sab = new SharedArrayBuffer(1024);
+  console.log('Cross-origin isolated:', crossOriginIsolated);
+} else {
+  console.log('SharedArrayBuffer は使用不可');
+  console.log('COOP と COEP ヘッダーを設定してください');
+}
+```
+
+---
+
+## 7. サンドボックスとセキュリティモデル
+
+### 7.1 レンダラーサンドボックス
+
+レンダラープロセスのサンドボックスは、Chromium のセキュリティの基盤である。たとえレンダラープロセスが悪意あるコードに侵害されても、サンドボックスにより OS レベルの操作が制限される。
+
+```
+サンドボックスの制限（OS 別）:
+
+  ┌───────────────────────────────────────────────────────────┐
+  │ レンダラーサンドボックスの制限                             │
+  │                                                           │
+  │ ┌─────────────────────────────────────────────────┐      │
+  │ │ 禁止される操作                                   │      │
+  │ │                                                   │      │
+  │ │ - ファイルシステムへの直接アクセス               │      │
+  │ │ - ネットワークソケットの直接作成                 │      │
+  │ │ - 他プロセスへの直接アクセス                     │      │
+  │ │ - デバイス（カメラ、マイク）への直接アクセス     │      │
+  │ │ - クリップボードへの直接アクセス                 │      │
+  │ │ - ディスプレイサーバーへの直接接続               │      │
+  │ └─────────────────────────────────────────────────┘      │
+  │                                                           │
+  │ ┌─────────────────────────────────────────────────┐      │
+  │ │ 許可される操作（IPC 経由で間接的に）             │      │
+  │ │                                                   │      │
+  │ │ + ブラウザプロセスへの IPC メッセージ送信        │      │
+  │ │ + GPU プロセスへの描画コマンド送信              │      │
+  │ │ + 共有メモリの読み書き（限定的）                │      │
+  │ │ + CPU 演算（V8 JIT コンパイル含む）             │      │
+  │ └─────────────────────────────────────────────────┘      │
+  │                                                           │
+  │ OS 固有の実装:                                            │
+  │                                                           │
+  │ Windows: Restricted Token + Job Object + Desktop Isolation│
+  │ macOS:   Seatbelt (sandbox-exec) プロファイル             │
+  │ Linux:   seccomp-bpf + Namespaces + AppArmor              │
+  │ Android: SELinux + seccomp-bpf (isolatedProcess)          │
+  │ ChromeOS: Minijail + seccomp-bpf + Namespaces            │
+  └───────────────────────────────────────────────────────────┘
+```
+
+### 7.2 ブラウザプロセスのセキュリティチェック
+
+ブラウザプロセスは「信頼されたプロセス」として、レンダラープロセスからのリクエストを検証する。
+
+```javascript
+// レンダラープロセスからの IPC メッセージの検証（概念的なコード）
+
+// ブラウザプロセス側での検証ロジック
+class SecurityChecker {
+
+  // ファイルアクセス要求の検証
+  validateFileAccess(rendererProcessId, filePath) {
+    // 1. レンダラーが要求したファイルパスの正規化
+    const normalizedPath = this.normalizePath(filePath);
+
+    // 2. パストラバーサル攻撃の検出
+    if (normalizedPath.includes('..') || normalizedPath.includes('~')) {
+      this.killRenderer(rendererProcessId, 'PATH_TRAVERSAL_ATTEMPT');
+      return false;
+    }
+
+    // 3. ダウンロードディレクトリ外へのアクセスを拒否
+    if (!normalizedPath.startsWith(this.allowedBasePath)) {
+      this.killRenderer(rendererProcessId, 'UNAUTHORIZED_FILE_ACCESS');
+      return false;
+    }
+
+    // 4. 機密ファイルへのアクセスを拒否
+    const sensitivePatterns = ['/etc/passwd', '/etc/shadow', '.ssh/'];
+    for (const pattern of sensitivePatterns) {
+      if (normalizedPath.includes(pattern)) {
+        this.killRenderer(rendererProcessId, 'SENSITIVE_FILE_ACCESS');
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  // ナビゲーション要求の検証
+  validateNavigation(rendererProcessId, sourceOrigin, targetURL) {
+    // レンダラーが自身のオリジンを詐称していないか確認
+    const expectedOrigin = this.getOriginForProcess(rendererProcessId);
+    if (sourceOrigin !== expectedOrigin) {
+      this.killRenderer(rendererProcessId, 'ORIGIN_SPOOFING');
+      return false;
+    }
+
+    // chrome:// や file:// への不正なナビゲーションを拒否
+    const scheme = new URL(targetURL).protocol;
+    if (['chrome:', 'file:', 'chrome-extension:'].includes(scheme)) {
+      if (!this.isSchemeAllowed(rendererProcessId, scheme)) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  // 不正なレンダラーを強制終了
+  killRenderer(processId, reason) {
+    console.error(`Killing renderer ${processId}: ${reason}`);
+    // chrome://kills で確認可能
+    process.kill(processId);
+    this.reportBadMessage(processId, reason);
+  }
+}
+```
+
+---
+
+## 8. GPU プロセスとハードウェアアクセラレーション
+
+### 8.1 GPU プロセスの役割
+
+GPUプロセスは全てのレンダラープロセスからの描画コマンドを受け取り、GPUハードウェアを使って画面を描画する。
+
+```
+GPU プロセスの構成:
+
+  レンダラープロセス群                  GPU プロセス
+  ┌──────────────┐                    ┌──────────────────────────┐
+  │ Renderer A   │                    │                          │
+  │ ┌──────────┐ │   コマンドバッファ   │  ┌────────────────────┐│
+  │ │Compositor│─│────────────────────│──│ コマンドデコーダ   ││
+  │ └──────────┘ │                    │  └────────┬───────────┘│
+  └──────────────┘                    │           │            │
+                                      │           ▼            │
+  ┌──────────────┐                    │  ┌────────────────────┐│
+  │ Renderer B   │                    │  │ Skia (GPU Backend) ││
+  │ ┌──────────┐ │   コマンドバッファ   │  │                    ││
+  │ │Compositor│─│────────────────────│──│ ┌───────┐ ┌──────┐││
+  │ └──────────┘ │                    │  │ │OpenGL │ │Vulkan│││
+  └──────────────┘                    │  │ └───────┘ └──────┘││
+                                      │  │ ┌───────┐ ┌──────┐││
+  ┌──────────────┐                    │  │ │Metal  │ │D3D12 │││
+  │ Renderer C   │                    │  │ │(macOS)│ │(Win) │││
+  │ ┌──────────┐ │   コマンドバッファ   │  │ └───────┘ └──────┘││
+  │ │Compositor│─│────────────────────│──│                    ││
+  │ └──────────┘ │                    │  └────────┬───────────┘│
+  └──────────────┘                    │           │            │
+                                      │           ▼            │
+                                      │  ┌────────────────────┐│
+                                      │  │ ディスプレイ出力   ││
+                                      │  │ (VSync 同期)       ││
+                                      │  └────────────────────┘│
+                                      └──────────────────────────┘
+
+  GPU プロセスを分離する理由:
+  (1) GPU ドライバのクラッシュがブラウザ全体に影響しない
+  (2) GPU リソースの一元管理（VRAM の効率的利用）
+  (3) サンドボックスの境界として機能
+  (4) GPUドライバは OS カーネルに近い特権的な操作が必要
+```
+
+### 8.2 ハードウェアアクセラレーション対象
+
+```
+ハードウェアアクセラレーションの対象と確認方法:
+
+  ┌───────────────────────────────────────────────────────────┐
+  │ 機能                     │ GPU 利用 │ 確認場所            │
+  ├──────────────────────────┼─────────┼────────────────────┤
+  │ ページ合成               │ Yes     │ chrome://gpu        │
+  │ CSS 3D Transform         │ Yes     │ chrome://gpu        │
+  │ CSS Animation            │ Yes     │ DevTools > Layers   │
+  │ WebGL / WebGL2           │ Yes     │ chrome://gpu        │
+  │ WebGPU                   │ Yes     │ chrome://flags      │
+  │ ビデオデコード           │ Yes     │ chrome://media-internals │
+  │ ビデオエンコード         │ Yes     │ chrome://gpu        │
+  │ Canvas 2D                │ 部分的  │ chrome://flags      │
+  │ SVG レンダリング         │ 部分的  │ ---                 │
+  │ テキストレンダリング     │ No      │ CPU で処理          │
+  │ JavaScript 実行          │ No      │ CPU で処理          │
+  │ DOM 操作                 │ No      │ CPU で処理          │
+  └───────────────────────────────────────────────────────────┘
+
+  chrome://gpu で確認できる情報:
+  ・Graphics Feature Status（各機能の有効/無効状態）
+  ・Driver Information（GPU ドライバ情報）
+  ・Compositor Information（コンポジター設定）
+  ・GpuMemoryBuffers Status（GPU メモリバッファ状態）
+```
+
+---
+
+## 9. DevTools によるプロセス・パフォーマンス分析
+
+### 9.1 Chrome タスクマネージャの活用
+
+```
+Chrome タスクマネージャの起動と読み方:
+
+  起動方法:
+  ・Windows / Linux: Shift + Esc
+  ・macOS: Window メニュー → Task Manager
+  ・全OS共通: More tools → Task Manager
+
+  ┌────────────────────────────────────────────────────────────┐
+  │ Chrome Task Manager                                        │
+  ├─────────────────────┬────────┬───────┬────────┬───────────┤
+  │ Task                │ Memory │ CPU   │ Network│ Process ID│
+  ├─────────────────────┼────────┼───────┼────────┼───────────┤
+  │ Browser             │ 180MB  │ 3.2%  │ 0      │ 12345     │
+  │ GPU Process         │ 250MB  │ 8.5%  │ 0      │ 12346     │
+  │ Network Service     │ 35MB   │ 0.5%  │ 45KB/s │ 12347     │
+  │ Audio Service       │ 15MB   │ 0.1%  │ 0      │ 12348     │
+  │ Tab: google.com     │ 95MB   │ 1.2%  │ 2KB/s  │ 12350     │
+  │ Tab: youtube.com    │ 320MB  │ 22.3% │ 500KB/s│ 12351     │
+  │ Tab: docs.google.com│ 150MB  │ 5.1%  │ 1KB/s  │ 12352     │
+  │ Subframe: ads.com   │ 45MB   │ 3.0%  │ 10KB/s │ 12353     │
+  │ Extension: uBlock   │ 28MB   │ 0.3%  │ 0      │ 12354     │
+  │ Service Worker: PWA │ 22MB   │ 0.0%  │ 0      │ 12355     │
+  └─────────────────────┴────────┴───────┴────────┴───────────┘
+
+  注目ポイント:
+  ・「Subframe: ads.com」→ Site Isolation により別プロセス化された iframe
+  ・YouTube の高いCPU使用率 → 動画デコード + JS処理
+  ・Memory が異常に高いタブ → メモリリークの可能性
+  ・右クリックで列を追加可能: JavaScript Memory, Image Cache 等
+```
+
+### 9.2 Performance パネルの活用
+
+**コード例 6: Performance API を使ったボトルネック特定**
+
+```javascript
+// パフォーマンス計測のユーティリティクラス
+class BrowserPerformanceAnalyzer {
+
+  constructor() {
+    this.marks = new Map();
+    this.measures = [];
+  }
+
+  // レンダリングパイプラインの各段階を計測
+  measureRenderingPipeline() {
+    // スタイル再計算のコスト測定
+    performance.mark('style-start');
+    // ... DOM操作やクラス変更 ...
+    requestAnimationFrame(() => {
+      performance.mark('style-end');
+      performance.measure('Style Recalculation', 'style-start', 'style-end');
+    });
+  }
+
+  // Layout Thrashing の検出
+  detectLayoutThrashing() {
+    const originalGetComputedStyle = window.getComputedStyle;
+    let readCount = 0;
+    let writeCount = 0;
+    let thrashingDetected = false;
+
+    // getComputedStyle の呼び出しを監視
+    window.getComputedStyle = function(...args) {
+      readCount++;
+      if (writeCount > 0 && readCount > 1) {
+        thrashingDetected = true;
+        console.warn(
+          `[Layout Thrashing] Read-Write-Read pattern detected. ` +
+          `Reads: ${readCount}, Writes: ${writeCount}`
+        );
+      }
+      return originalGetComputedStyle.apply(this, args);
+    };
+
+    // 一定時間後にリセット
+    requestAnimationFrame(() => {
+      window.getComputedStyle = originalGetComputedStyle;
+      readCount = 0;
+      writeCount = 0;
+    });
+
+    return { isThrashing: () => thrashingDetected };
+  }
+
+  // Navigation Timing の詳細分析
+  analyzeNavigationTiming() {
+    const timing = performance.getEntriesByType('navigation')[0];
+    if (!timing) return null;
+
+    return {
+      // DNS ルックアップ
+      dns: {
+        duration: timing.domainLookupEnd - timing.domainLookupStart,
+        label: 'DNS Lookup'
+      },
+      // TCP 接続（TLS 含む）
+      connection: {
+        duration: timing.connectEnd - timing.connectStart,
+        label: 'TCP + TLS'
+      },
+      // TTFB (Time to First Byte)
+      ttfb: {
+        duration: timing.responseStart - timing.requestStart,
+        label: 'TTFB'
+      },
+      // レスポンスダウンロード
+      download: {
+        duration: timing.responseEnd - timing.responseStart,
+        label: 'Download'
+      },
+      // DOM パース
+      domParse: {
+        duration: timing.domInteractive - timing.responseEnd,
+        label: 'DOM Parse'
+      },
+      // DOMContentLoaded
+      domContentLoaded: {
+        duration: timing.domContentLoadedEventEnd
+          - timing.domContentLoadedEventStart,
+        label: 'DOMContentLoaded handlers'
+      },
+      // 全体のロード時間
+      totalLoad: {
+        duration: timing.loadEventEnd - timing.navigationStart,
+        label: 'Total Load'
+      }
+    };
+  }
+
+  // Resource Timing の分析
+  analyzeResourceTiming() {
+    const resources = performance.getEntriesByType('resource');
+
+    const byType = {};
+    for (const resource of resources) {
+      const type = resource.initiatorType || 'other';
+      if (!byType[type]) {
+        byType[type] = { count: 0, totalSize: 0, totalDuration: 0 };
+      }
+      byType[type].count++;
+      byType[type].totalSize += resource.transferSize || 0;
+      byType[type].totalDuration += resource.duration;
+    }
+
+    return {
+      totalResources: resources.length,
+      byType,
+      slowest: resources
+        .sort((a, b) => b.duration - a.duration)
+        .slice(0, 5)
+        .map(r => ({
+          name: r.name.split('/').pop(),
+          duration: Math.round(r.duration),
+          size: r.transferSize
+        }))
+    };
+  }
+}
+
+// 使用例
+const analyzer = new BrowserPerformanceAnalyzer();
+
+// ページロード後に分析を実行
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    const navTiming = analyzer.analyzeNavigationTiming();
+    const resTiming = analyzer.analyzeResourceTiming();
+
+    console.table(
+      Object.entries(navTiming).map(([key, val]) => ({
+        Phase: val.label,
+        Duration: `${val.duration.toFixed(1)}ms`
+      }))
+    );
+
+    console.log('Resource Summary:', resTiming);
+  }, 100);
+});
+```
+
+### 9.3 chrome://tracing の活用
+
+```
+chrome://tracing（Perfetto UI）の使い方:
+
+  1. chrome://tracing にアクセス
+  2. 「Record」ボタンをクリック
+  3. カテゴリを選択:
+     ・blink    → レンダリングエンジンの内部
+     ・cc       → コンポジター
+     ・gpu      → GPU コマンド
+     ・v8       → JavaScript エンジン
+     ・netlog   → ネットワーク
+     ・loading  → リソースローディング
+
+  4. 操作を行い「Stop」で記録終了
+  5. タイムラインで各プロセス/スレッドの動作を確認
+
+  代替: Perfetto UI（https://ui.perfetto.dev/）
+  → より高機能な分析ツール
+  → SQL クエリでのデータ分析が可能
+  → chrome://tracing のデータをインポート可能
+
+  主要なトレースイベント:
+  ┌──────────────────────┬──────────────────────────────────┐
+  │ イベント名            │ 意味                             │
+  ├──────────────────────┼──────────────────────────────────┤
+  │ ParseHTML            │ HTML パース                       │
+  │ UpdateLayoutTree     │ スタイル計算                      │
+  │ Layout               │ レイアウト計算                    │
+  │ PrePaint             │ ペイント準備                      │
+  │ Paint                │ ペイント命令生成                  │
+  │ CompositeLayers      │ レイヤー合成                      │
+  │ V8.Execute           │ JavaScript 実行                   │
+  │ V8.GCScavenge        │ マイナー GC                       │
+  │ V8.GCMarkCompact     │ メジャー GC                       │
+  │ ResourceReceivedData │ ネットワークデータ受信            │
+  │ DecodeImage          │ 画像デコード                      │
+  │ Rasterize            │ ラスタライズ                      │
+  └──────────────────────┴──────────────────────────────────┘
+```
+
+---
+
+## 10. アンチパターンと回避策
+
+### 10.1 アンチパターン 1: Layout Thrashing（レイアウトスラッシング）
+
+Layout Thrashing とは、JavaScript でスタイルの読み取りと書き込みを交互に行うことで、ブラウザが毎回レイアウトを強制的に再計算する現象である。これはパフォーマンスを著しく低下させる。
+
+```javascript
+// ===== アンチパターン: Layout Thrashing =====
+
+// 悪い例: 読み取りと書き込みの交互実行
+function resizeAllBoxesBad(boxes) {
+  for (const box of boxes) {
+    // 読み取り → 強制レイアウト発生
+    const width = box.offsetWidth;
+
+    // 書き込み → レイアウトが無効化される
+    box.style.width = (width * 1.1) + 'px';
+
+    // 次のループで再び読み取り → 再度強制レイアウト!
+    // N個のボックスに対して N回のレイアウト計算 → O(N) 回のレイアウト
+  }
+  // 100個のボックスで約 100回のレイアウト再計算
+  // → 数十ms～数百ms のブロッキング
+}
+
+// ===== 推奨パターン: バッチ読み取り + バッチ書き込み =====
+
+// 良い例: 読み取りを先にまとめ、その後書き込みをまとめる
+function resizeAllBoxesGood(boxes) {
+  // Phase 1: 全ての読み取りをバッチ処理（レイアウト計算は1回だけ）
+  const widths = boxes.map(box => box.offsetWidth);
+
+  // Phase 2: 全ての書き込みをバッチ処理
+  boxes.forEach((box, i) => {
+    box.style.width = (widths[i] * 1.1) + 'px';
+  });
+  // レイアウト計算は最初の1回 + 書き込み後の1回 = 合計2回のみ
+}
+
+// さらに良い例: requestAnimationFrame を使用
+function resizeAllBoxesBest(boxes) {
+  // 読み取りは現在のフレームで実行
+  const widths = boxes.map(box => box.offsetWidth);
+
+  // 書き込みは次のフレームで実行
+  requestAnimationFrame(() => {
+    boxes.forEach((box, i) => {
+      box.style.width = (widths[i] * 1.1) + 'px';
+    });
+  });
+}
+
+// 強制レイアウト（Forced Synchronous Layout）を引き起こすプロパティ:
+// offsetTop, offsetLeft, offsetWidth, offsetHeight
+// scrollTop, scrollLeft, scrollWidth, scrollHeight
+// clientTop, clientLeft, clientWidth, clientHeight
+// getComputedStyle()
+// getBoundingClientRect()
+// innerText
+```
+
+### 10.2 アンチパターン 2: 過剰なレイヤー昇格
+
+```css
+/* ===== アンチパターン: 全要素に will-change を設定 ===== */
+
+/* 悪い例: 全要素をレイヤー昇格させる */
+* {
+  will-change: transform;
+  /* 全要素が独立レイヤーになる
+     → GPU メモリを大量消費
+     → レイヤー管理のオーバーヘッド増大
+     → 逆にパフォーマンス低下 */
+}
+
+/* 悪い例: 多数のリストアイテムに will-change */
+.list-item {
+  will-change: transform, opacity;
+  /* 1000個のリストアイテムがあれば1000レイヤー
+     → GPU メモリ枯渇 → ソフトウェアフォールバック */
+}
+```
+
+```css
+/* ===== 推奨パターン: 必要な要素にだけ、必要なタイミングで ===== */
+
+/* 良い例: hover 時のみ will-change を有効化 */
+.card {
+  transition: transform 0.3s ease;
+}
+.card:hover {
+  will-change: transform;
+}
+.card.animating {
+  transform: scale(1.05);
+}
+
+/* 良い例: JavaScript で動的に管理 */
+/*
+  element.addEventListener('mouseenter', () => {
+    element.style.willChange = 'transform';
+  });
+  element.addEventListener('transitionend', () => {
+    element.style.willChange = 'auto';
+  });
+*/
+
+/* 良い例: アニメーション対象の少数要素にだけ適用 */
+.modal-overlay {
+  will-change: opacity;
+}
+.slide-panel {
+  will-change: transform;
+}
+/* その他の要素には will-change を設定しない */
+```
+
+### 10.3 アンチパターン 3: メインスレッドの過負荷
+
+```javascript
+// ===== アンチパターン: メインスレッドで重い計算 =====
+
+// 悪い例: 大量データのソートをメインスレッドで実行
+function sortLargeDatasetBad(data) {
+  // 100万件のデータソート → メインスレッドが数秒間ブロック
+  // → スクロール不可、クリック不応答、アニメーション停止
+  return data.sort((a, b) => {
+    // 複雑な比較ロジック
+    return complexComparison(a, b);
+  });
+}
+
+// ===== 推奨パターン: Web Worker にオフロード =====
+
+// worker.js
+// self.addEventListener('message', (e) => {
+//   const { data, sortKey } = e.data;
+//   const sorted = data.sort((a, b) => a[sortKey] - b[sortKey]);
+//   self.postMessage({ sorted });
+// });
+
+// メインスレッド側
+function sortLargeDatasetGood(data, sortKey) {
+  return new Promise((resolve) => {
+    const worker = new Worker('worker.js');
+    worker.postMessage({ data, sortKey });
+    worker.addEventListener('message', (e) => {
+      resolve(e.data.sorted);
+      worker.terminate();
+    });
+  });
+}
+
+// ===== 推奨パターン: タスク分割 (Time Slicing) =====
+
+// チャンクに分割して処理し、メインスレッドに呼吸させる
+async function processInChunks(items, processFn, chunkSize = 100) {
+  const results = [];
+
+  for (let i = 0; i < items.length; i += chunkSize) {
+    const chunk = items.slice(i, i + chunkSize);
+    const chunkResults = chunk.map(processFn);
+    results.push(...chunkResults);
+
+    // 各チャンク後にメインスレッドに制御を戻す
+    // → レンダリングやイベント処理が割り込み可能
+    if (i + chunkSize < items.length) {
+      await new Promise(resolve => {
+        // scheduler.yield() が利用可能なら使用
+        if ('scheduler' in globalThis && 'yield' in scheduler) {
+          scheduler.yield().then(resolve);
+        } else {
+          setTimeout(resolve, 0);
+        }
+      });
+    }
+  }
+
+  return results;
+}
+
+// 使用例
+// const processed = await processInChunks(largeArray, item => {
+//   return expensiveTransform(item);
+// }, 50);
+```
+

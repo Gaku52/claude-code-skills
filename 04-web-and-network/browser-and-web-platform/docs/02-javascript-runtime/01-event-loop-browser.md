@@ -997,3 +997,853 @@ console.log('I');
 // 典型的な出力: A, I, F, G, H, D, E, B, C
 ```
 
+---
+
+## 9. コード例集
+
+### 9.1 コード例6: MessageChannel による即時タスクスケジューリング
+
+`MessageChannel` を使うと、`setTimeout` のネスト制限（4ms）を回避して、より高速にタスクをスケジュールできる。React のスケジューラ（Scheduler パッケージ）でもこの手法が使用されている。
+
+```javascript
+// MessageChannel を使った高速タスクスケジューリング
+function scheduleTask(callback) {
+  const channel = new MessageChannel();
+  channel.port1.onmessage = () => callback();
+  channel.port2.postMessage(null);
+}
+
+// 速度比較
+async function benchmark() {
+  const iterations = 100;
+
+  // setTimeout(fn, 0) の場合
+  const startTimeout = performance.now();
+  let countTimeout = 0;
+  await new Promise(resolve => {
+    function next() {
+      countTimeout++;
+      if (countTimeout < iterations) {
+        setTimeout(next, 0);
+      } else {
+        resolve();
+      }
+    }
+    setTimeout(next, 0);
+  });
+  const timeoutDuration = performance.now() - startTimeout;
+
+  // MessageChannel の場合
+  const startChannel = performance.now();
+  let countChannel = 0;
+  await new Promise(resolve => {
+    const channel = new MessageChannel();
+    channel.port1.onmessage = () => {
+      countChannel++;
+      if (countChannel < iterations) {
+        channel.port2.postMessage(null);
+      } else {
+        resolve();
+      }
+    };
+    channel.port2.postMessage(null);
+  });
+  const channelDuration = performance.now() - startChannel;
+
+  console.log(`setTimeout x${iterations}: ${timeoutDuration.toFixed(1)}ms`);
+  console.log(`MessageChannel x${iterations}: ${channelDuration.toFixed(1)}ms`);
+  // 典型的な結果（Chrome）:
+  // setTimeout x100: ~450ms（ネスト制限で各 4ms+ に）
+  // MessageChannel x100: ~15ms（ネスト制限なし）
+}
+```
+
+### 9.2 コード例7: イベントループを活用したプログレス表示
+
+```javascript
+// 重い処理の途中でプログレスバーを更新する
+async function processWithProgress(data, progressCallback) {
+  const total = data.length;
+  const chunkSize = 100;
+
+  for (let i = 0; i < total; i += chunkSize) {
+    const chunk = data.slice(i, i + chunkSize);
+
+    // チャンクを処理
+    for (const item of chunk) {
+      processItem(item);
+    }
+
+    // プログレスを更新（DOM 操作）
+    const progress = Math.min((i + chunkSize) / total, 1);
+    progressCallback(progress);
+
+    // メインスレッドに制御を返してレンダリングを許可
+    await new Promise(resolve => {
+      requestAnimationFrame(() => {
+        // rAF 内で resolve することで、レンダリング後に次のチャンクが実行される
+        resolve();
+      });
+    });
+  }
+
+  progressCallback(1);
+}
+
+// 使用例
+const progressBar = document.getElementById('progress-bar');
+const data = generateLargeDataset(10000);
+
+processWithProgress(data, (progress) => {
+  progressBar.style.width = `${progress * 100}%`;
+  progressBar.textContent = `${Math.round(progress * 100)}%`;
+});
+```
+
+### 9.3 コード例8: デバウンスとイベントループ
+
+```javascript
+// マイクロタスクベースのデバウンス（同一タスク内の複数呼び出しを統合）
+function microtaskDebounce(fn) {
+  let scheduled = false;
+  let latestArgs = null;
+
+  return function(...args) {
+    latestArgs = args;
+    if (!scheduled) {
+      scheduled = true;
+      queueMicrotask(() => {
+        scheduled = false;
+        fn.apply(this, latestArgs);
+      });
+    }
+  };
+}
+
+// rAF ベースのデバウンス（フレーム単位で統合）
+function rafDebounce(fn) {
+  let frameId = null;
+  let latestArgs = null;
+
+  return function(...args) {
+    latestArgs = args;
+    if (frameId === null) {
+      frameId = requestAnimationFrame(() => {
+        frameId = null;
+        fn.apply(this, latestArgs);
+      });
+    }
+  };
+}
+
+// タスクベースのデバウンス（従来型、ms 指定）
+function taskDebounce(fn, delay = 300) {
+  let timerId = null;
+
+  return function(...args) {
+    clearTimeout(timerId);
+    timerId = setTimeout(() => {
+      fn.apply(this, args);
+    }, delay);
+  };
+}
+
+// 使い分け:
+// microtaskDebounce: 同一同期コンテキスト内の重複排除
+// rafDebounce: スクロールやリサイズなどフレーム単位の処理
+// taskDebounce: ユーザー入力（検索ボックスなど）の待機
+```
+
+---
+
+## 10. アンチパターン
+
+### 10.1 アンチパターン1: マイクロタスクによるレンダリングブロック
+
+**問題**: マイクロタスクはチェックポイント内で全て実行されるため、大量のマイクロタスクはレンダリングを長時間ブロックする。
+
+```javascript
+// NG: マイクロタスクの大量キューイング
+function processAllWithMicrotasks(items) {
+  items.forEach((item, index) => {
+    // 10000個の Promise チェーンがマイクロタスクキューに積まれる
+    Promise.resolve().then(() => {
+      processItem(item);
+      if (index % 100 === 0) {
+        updateProgressUI(index / items.length);
+        // この UI 更新はレンダリングされない！
+        // 全てのマイクロタスクが完了するまでレンダリングはブロックされる
+      }
+    });
+  });
+}
+
+// OK: タスクに分割してレンダリング機会を確保
+async function processAllWithYield(items) {
+  const chunkSize = 50;
+  for (let i = 0; i < items.length; i += chunkSize) {
+    const chunk = items.slice(i, i + chunkSize);
+    chunk.forEach(item => processItem(item));
+
+    updateProgressUI(Math.min((i + chunkSize) / items.length, 1));
+
+    // setTimeout でメインスレッドに制御を返す
+    await new Promise(resolve => setTimeout(resolve, 0));
+  }
+}
+```
+
+**なぜ問題なのか**: マイクロタスクキューが空になるまでレンダリングパイプラインは開始されない。10000件のマイクロタスクが積まれると、全て実行されるまで画面は更新されず、ユーザーにはフリーズしたように見える。
+
+### 10.2 アンチパターン2: rAF 内での重い同期処理
+
+**問題**: rAF コールバック内で重い処理を行うと、フレーム予算を超過してフレームドロップが発生する。
+
+```javascript
+// NG: rAF 内での重い処理
+requestAnimationFrame(() => {
+  // 大量のデータをソート（数十ms かかる可能性）
+  const sorted = hugeArray.sort((a, b) => complexComparison(a, b));
+
+  // ソート結果を DOM に反映
+  sorted.forEach(item => {
+    const el = document.createElement('div');
+    el.textContent = item.name;
+    container.appendChild(el);  // DOM 操作も重い
+  });
+  // フレーム予算（16.67ms）を大幅に超過 → ジャンク発生
+});
+
+// OK: 計算は事前に行い、rAF では DOM 操作のみ
+const sorted = hugeArray.sort((a, b) => complexComparison(a, b));
+
+// DOM 更新は DocumentFragment を使ってバッチ処理
+requestAnimationFrame(() => {
+  const fragment = document.createDocumentFragment();
+  sorted.forEach(item => {
+    const el = document.createElement('div');
+    el.textContent = item.name;
+    fragment.appendChild(el);
+  });
+  container.appendChild(fragment);  // 1回の DOM 操作で済む
+});
+```
+
+**なぜ問題なのか**: rAF はレンダリングの直前に実行される。ここでフレーム予算を使い切ると、レンダリング自体が遅延し、ユーザーが認知できるレベルのカクつきが発生する。rAF 内では DOM の書き込みのみに集中し、計算処理は事前に完了させるべきである。
+
+### 10.3 アンチパターン3: setInterval の不適切な使用
+
+```javascript
+// NG: setInterval で正確なタイミングを期待
+let lastTime = performance.now();
+setInterval(() => {
+  const now = performance.now();
+  const drift = now - lastTime - 1000;
+  console.log(`Drift: ${drift.toFixed(1)}ms`);
+  lastTime = now;
+  // 長時間実行するとドリフトが蓄積する
+}, 1000);
+
+// OK: setTimeout の再帰呼び出しで自己補正
+function accurateInterval(callback, interval) {
+  let expected = performance.now() + interval;
+
+  function step() {
+    const now = performance.now();
+    const drift = now - expected;
+    callback(drift);
+
+    expected += interval;
+    // ドリフトを補正して次のタイマーを設定
+    setTimeout(step, Math.max(0, interval - drift));
+  }
+
+  setTimeout(step, interval);
+}
+
+accurateInterval((drift) => {
+  console.log(`Drift: ${drift.toFixed(1)}ms`);
+}, 1000);
+```
+
+---
+
+## 11. エッジケース分析
+
+### 11.1 エッジケース1: Promise コンストラクタ内の例外
+
+Promise コンストラクタの executor 内で同期的にスローされた例外は、Promise の reject として処理される。しかし、executor 内で非同期に（setTimeout 内で）スローされた例外は、catch できない未処理例外となる。
+
+```javascript
+// ケース A: executor 内の同期例外 → reject として捕捉可能
+const p1 = new Promise((resolve, reject) => {
+  throw new Error('sync error');
+});
+p1.catch(err => console.log('Caught:', err.message));
+// 出力: Caught: sync error
+
+// ケース B: executor 内の非同期例外 → 捕捉不可
+const p2 = new Promise((resolve, reject) => {
+  setTimeout(() => {
+    throw new Error('async error');
+    // この例外は Promise チェーンでは捕捉できない
+    // window.onerror または unhandledrejection で検出される
+  }, 0);
+});
+p2.catch(err => console.log('This will NOT be called'));
+
+// ケース C: resolve 後の例外は無視される
+const p3 = new Promise((resolve, reject) => {
+  resolve('done');
+  throw new Error('after resolve');
+  // resolve 後の throw は無視される（Promise の状態は不変）
+});
+p3.then(val => console.log('Value:', val));
+// 出力: Value: done
+```
+
+**イベントループとの関連**: ケース B では、`setTimeout` のコールバックは別のタスクとして実行される。そのタスク内での例外は、元の Promise チェーンとは完全に独立したコンテキストで発生するため、`.catch()` では捕捉できない。これはイベントループの「タスク境界」を跨ぐことによるものである。
+
+### 11.2 エッジケース2: ネストされた rAF の実行フレーム
+
+`requestAnimationFrame` 内で新たに `requestAnimationFrame` を呼ぶと、新しいコールバックは次のフレームで実行される。これはレイアウトの読み取り・書き込みパターンで活用できるが、注意が必要である。
+
+```javascript
+// 「次のフレームまで待つ」テクニック
+function afterNextPaint(callback) {
+  requestAnimationFrame(() => {
+    // この rAF は現在のフレームのレンダリング前に実行
+    requestAnimationFrame(() => {
+      // この rAF は次のフレームのレンダリング前に実行
+      // つまり、前のフレームのレンダリング（Paint）完了後
+      callback();
+    });
+  });
+}
+
+// 使用例: DOM 変更後に「描画完了」を検知
+element.style.display = 'block';
+afterNextPaint(() => {
+  // ここでは element が画面上に描画されていることが期待できる
+  const rect = element.getBoundingClientRect();
+  console.log('Element is now visible at:', rect);
+});
+```
+
+```
+ダブル rAF のタイムライン:
+
+ Frame N                          Frame N+1
+ ┌──────────────────────────────┐ ┌────────────────────────────┐
+ │ rAF-1 │ Style │Layout│Paint │ │ rAF-2  │ Style│Layout│Paint│
+ │(登録) │       │      │      │ │(実行)  │      │      │     │
+ └───┬──────────────────────────┘ └───┬────────────────────────┘
+     │                                │
+     └─ rAF-2 を登録                  └─ callback 実行
+                                         （Paint 後の状態が確定）
+```
+
+### 11.3 エッジケース3: async/await と実行コンテキストの保持
+
+```javascript
+// async 関数内での this の挙動
+class Timer {
+  name = 'MyTimer';
+
+  async start() {
+    console.log(this.name);    // 'MyTimer' （同期部分）
+
+    await Promise.resolve();
+    console.log(this.name);    // 'MyTimer' （this は保持される）
+
+    // しかし、コールバックとして渡した場合は異なる
+    setTimeout(function() {
+      // console.log(this.name); // undefined （this が失われる）
+    }, 0);
+
+    setTimeout(() => {
+      console.log(this.name);   // 'MyTimer' （arrow function で this 保持）
+    }, 0);
+  }
+}
+
+// await 前後でマイクロタスクの実行順序が変わるケース
+async function tricky() {
+  console.log('1');
+  await null;           // マイクロタスク境界
+  console.log('2');
+  await null;           // マイクロタスク境界
+  console.log('3');
+}
+
+console.log('A');
+tricky();
+console.log('B');
+Promise.resolve().then(() => console.log('C'));
+
+// 出力: A, 1, B, C, 2, 3
+// 解説:
+// 同期: A, 1（await null まで）, B
+// マイクロタスク: C（Promise.then）, 2（await null の継続）
+//   ※ await null の継続は Promise.resolve(null).then(() => ...) と等価
+//   C と 2 の順序は、C が先に登録されているため C が先
+// 次のマイクロタスク: 3（2の await null の継続）
+```
+
+---
+
+## 12. 段階別演習
+
+### 12.1 演習1（初級）: 実行順序の予測
+
+以下のコードの出力順序を予測せよ。予測後にブラウザの DevTools コンソールで検証すること。
+
+```javascript
+// 問題1
+console.log('start');
+
+setTimeout(() => console.log('timeout'), 0);
+
+Promise.resolve()
+  .then(() => console.log('promise 1'))
+  .then(() => console.log('promise 2'));
+
+queueMicrotask(() => console.log('microtask'));
+
+console.log('end');
+```
+
+<details>
+<summary>解答</summary>
+
+```
+start
+end
+promise 1
+microtask
+promise 2
+timeout
+```
+
+**解説**:
+1. 同期コード: `start`, `end`
+2. マイクロタスクチェックポイント:
+   - `promise 1`（最初の .then、Promise.resolve() で即座にキューイング）
+   - `microtask`（queueMicrotask で登録）
+   - `promise 2`（promise 1 の .then が解決した後にキューイング → 同チェックポイント内で実行）
+3. タスク: `timeout`
+
+`promise 1` と `microtask` の順序は、Promise.resolve().then() と queueMicrotask() の登録順に依存する。`promise 2` は `promise 1` の実行完了後にマイクロタスクキューに追加されるが、チェックポイント内なのでそのまま実行される。
+</details>
+
+### 12.2 演習2（中級）: rAF を使ったアニメーション実装
+
+以下の要件を満たすカウントダウンタイマーを rAF で実装せよ。
+
+- 10 から 0 までカウントダウンする
+- 各カウントの表示は正確に 1 秒間隔にする
+- カウント 0 で停止し、「Complete!」と表示する
+- `cancelAnimationFrame` で途中停止可能にする
+
+```javascript
+// 演習2のスケルトン
+function createCountdown(element, from, onComplete) {
+  let startTime = null;
+  let currentCount = from;
+  let animationId = null;
+
+  function tick(timestamp) {
+    // ここを実装せよ
+  }
+
+  animationId = requestAnimationFrame(tick);
+
+  // キャンセル関数を返す
+  return () => {
+    if (animationId !== null) {
+      cancelAnimationFrame(animationId);
+      animationId = null;
+    }
+  };
+}
+```
+
+<details>
+<summary>解答</summary>
+
+```javascript
+function createCountdown(element, from, onComplete) {
+  let startTime = null;
+  let currentCount = from;
+  let animationId = null;
+
+  element.textContent = String(currentCount);
+
+  function tick(timestamp) {
+    if (startTime === null) {
+      startTime = timestamp;
+    }
+
+    const elapsed = timestamp - startTime;
+    const newCount = from - Math.floor(elapsed / 1000);
+
+    if (newCount !== currentCount && newCount >= 0) {
+      currentCount = newCount;
+      element.textContent = String(currentCount);
+    }
+
+    if (currentCount > 0) {
+      animationId = requestAnimationFrame(tick);
+    } else {
+      element.textContent = 'Complete!';
+      animationId = null;
+      if (onComplete) onComplete();
+    }
+  }
+
+  animationId = requestAnimationFrame(tick);
+
+  return () => {
+    if (animationId !== null) {
+      cancelAnimationFrame(animationId);
+      animationId = null;
+    }
+  };
+}
+
+// 使用例
+const display = document.getElementById('countdown');
+const cancel = createCountdown(display, 10, () => {
+  console.log('Countdown finished!');
+});
+
+// 5秒後に途中停止する場合:
+// setTimeout(() => cancel(), 5000);
+```
+
+**ポイント**:
+- `startTime` を最初のフレームで記録し、経過時間ベースでカウントを計算する
+- `setInterval` ではなく rAF を使うことで、フレームに同期した滑らかな表示が可能
+- キャンセル関数を返すことで外部からの停止を可能にする
+</details>
+
+### 12.3 演習3（上級）: タスクスケジューラの実装
+
+以下の要件を満たすタスクスケジューラを実装せよ。
+
+- 優先度付きタスクキュー（high, normal, low の 3 段階）
+- 各タスクはフレーム予算（デフォルト 8ms）を超えない範囲で実行
+- 予算超過時は次のフレームに延期
+- タスクの追加・キャンセルが可能
+
+```javascript
+// 演習3のスケルトン
+class PriorityTaskScheduler {
+  #queues = { high: [], normal: [], low: [] };
+  #isRunning = false;
+  #frameBudget;
+
+  constructor(frameBudgetMs = 8) {
+    this.#frameBudget = frameBudgetMs;
+  }
+
+  schedule(task, priority = 'normal') {
+    // ここを実装せよ
+    // task は { id: string, run: () => void } の形式
+  }
+
+  cancel(taskId) {
+    // ここを実装せよ
+  }
+
+  #processQueue() {
+    // ここを実装せよ
+  }
+}
+```
+
+<details>
+<summary>解答</summary>
+
+```javascript
+class PriorityTaskScheduler {
+  #queues = { high: [], normal: [], low: [] };
+  #isRunning = false;
+  #frameBudget;
+  #frameId = null;
+
+  constructor(frameBudgetMs = 8) {
+    this.#frameBudget = frameBudgetMs;
+  }
+
+  schedule(task, priority = 'normal') {
+    if (!this.#queues[priority]) {
+      throw new Error(`Invalid priority: ${priority}`);
+    }
+    this.#queues[priority].push(task);
+    this.#ensureRunning();
+    return task.id;
+  }
+
+  cancel(taskId) {
+    for (const priority of ['high', 'normal', 'low']) {
+      const index = this.#queues[priority].findIndex(t => t.id === taskId);
+      if (index !== -1) {
+        this.#queues[priority].splice(index, 1);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  #ensureRunning() {
+    if (this.#isRunning) return;
+    this.#isRunning = true;
+    this.#frameId = requestAnimationFrame((ts) => this.#processQueue(ts));
+  }
+
+  #getNextTask() {
+    for (const priority of ['high', 'normal', 'low']) {
+      if (this.#queues[priority].length > 0) {
+        return this.#queues[priority].shift();
+      }
+    }
+    return null;
+  }
+
+  #hasRemainingTasks() {
+    return (
+      this.#queues.high.length > 0 ||
+      this.#queues.normal.length > 0 ||
+      this.#queues.low.length > 0
+    );
+  }
+
+  #processQueue(frameTimestamp) {
+    const deadline = performance.now() + this.#frameBudget;
+
+    while (performance.now() < deadline) {
+      const task = this.#getNextTask();
+      if (!task) break;
+
+      try {
+        task.run();
+      } catch (err) {
+        console.error(`Task ${task.id} failed:`, err);
+      }
+    }
+
+    if (this.#hasRemainingTasks()) {
+      this.#frameId = requestAnimationFrame((ts) => this.#processQueue(ts));
+    } else {
+      this.#isRunning = false;
+      this.#frameId = null;
+    }
+  }
+
+  destroy() {
+    if (this.#frameId !== null) {
+      cancelAnimationFrame(this.#frameId);
+    }
+    this.#queues = { high: [], normal: [], low: [] };
+    this.#isRunning = false;
+    this.#frameId = null;
+  }
+}
+
+// 使用例
+const scheduler = new PriorityTaskScheduler(8);
+
+scheduler.schedule({
+  id: 'analytics',
+  run: () => sendAnalytics(),
+}, 'low');
+
+scheduler.schedule({
+  id: 'render-update',
+  run: () => updateCriticalUI(),
+}, 'high');
+
+const taskId = scheduler.schedule({
+  id: 'prefetch',
+  run: () => prefetchNextPage(),
+}, 'normal');
+
+// 不要になったらキャンセル
+scheduler.cancel(taskId);
+```
+
+**設計ポイント**:
+- 優先度の高いキューから順にタスクを取得する（high → normal → low）
+- `performance.now()` でフレーム予算の残りを確認し、超過前にループを抜ける
+- rAF を使うことでフレーム単位の処理サイクルを実現する
+- `destroy()` メソッドでリソースを適切に解放する
+</details>
+
+---
+
+## 13. FAQ
+
+### Q1: `setTimeout(fn, 0)` と `queueMicrotask(fn)` はどちらを使うべきか？
+
+**回答**: 目的に応じて使い分ける。
+
+- **`queueMicrotask(fn)`** を使うべき場面: 現在のタスクの「論理的な延長」として、同期コードの完了直後に実行したい場合。たとえば、複数の同期呼び出しをバッチ処理にまとめたい場合。マイクロタスクはレンダリングをブロックするため、処理が軽いことが前提。
+
+- **`setTimeout(fn, 0)`** を使うべき場面: レンダリングの機会を挟みたい場合、または他のタスク（ユーザーイベントなど）に実行機会を与えたい場合。いわゆる「yield to main thread」のパターン。
+
+```javascript
+// queueMicrotask: バッチ処理（レンダリングを挟まない）
+let needsFlush = false;
+function scheduleFlush() {
+  if (!needsFlush) {
+    needsFlush = true;
+    queueMicrotask(() => {
+      needsFlush = false;
+      flushPendingUpdates();
+    });
+  }
+}
+
+// setTimeout: UI の応答性を保つ（レンダリングを挟む）
+async function longTask() {
+  for (let i = 0; i < 1000; i++) {
+    doWork(i);
+    if (i % 100 === 0) {
+      await new Promise(r => setTimeout(r, 0));  // yield
+    }
+  }
+}
+```
+
+### Q2: なぜ `requestAnimationFrame` 内で `requestAnimationFrame` を呼ぶと次のフレームになるのか？
+
+**回答**: WHATWG 仕様では、各レンダリング更新ステップで実行される rAF コールバックのリストは、そのステップの開始時点でスナップショットされる。つまり、rAF コールバックの実行中に新たに登録された rAF コールバックは、現在のフレームのリストには含まれず、次のフレームのリストに追加される。
+
+これは意図的な設計であり、以下の理由がある:
+1. rAF 内で無限に rAF を追加するとフレームが完了しなくなるのを防ぐ
+2. 「次のフレームで実行」という明確なセマンティクスを提供する
+3. 「ダブル rAF」パターン（Paint 完了後の処理）を可能にする
+
+### Q3: Web Worker にはイベントループがあるのか？
+
+**回答**: ある。Web Worker は独自のイベントループを持つ。ただし、Worker のイベントループには「レンダリング更新」ステップが存在しない（Worker は DOM にアクセスできないため）。Worker のイベントループは、タスクキューとマイクロタスクキューのみで構成される。
+
+```javascript
+// Worker 内のイベントループ
+// worker.js
+self.addEventListener('message', (event) => {
+  // これはタスクとして実行される
+  console.log('Task: message received');
+
+  Promise.resolve().then(() => {
+    // これはマイクロタスクとして実行される
+    console.log('Microtask in worker');
+  });
+
+  setTimeout(() => {
+    // これは次のタスクとして実行される
+    console.log('Next task in worker');
+  }, 0);
+});
+```
+
+Worker とメインスレッドの `postMessage` は、受信側のタスクキューにタスクとして追加される。そのため、メインスレッドから Worker へのメッセージ送信、またはその逆は、非同期的に処理される。
+
+### Q4: `Promise.resolve()` と `new Promise(resolve => resolve())` に違いはあるか？
+
+**回答**: 微妙な違いがある。`Promise.resolve(value)` は、value が Promise でない場合、即座に fulfilled 状態の Promise を返す。これは内部的にキャッシュされる場合がある。一方、`new Promise(resolve => resolve(value))` は常に新しい Promise オブジェクトを生成する。
+
+ただし、value が thenable（then メソッドを持つオブジェクト）の場合、動作が異なる:
+
+```javascript
+const thenable = {
+  then(resolve) {
+    console.log('thenable.then called');
+    resolve('from thenable');
+  }
+};
+
+// Promise.resolve(thenable): thenable を unwrap する
+Promise.resolve(thenable).then(v => console.log(v));
+
+// new Promise(resolve => resolve(thenable)): 同様に unwrap するが、
+// 追加のマイクロタスクが1つ発生する（仕様上の違い）
+new Promise(resolve => resolve(thenable)).then(v => console.log(v));
+```
+
+イベントループの観点では、この追加のマイクロタスクにより、実行順序がわずかに異なる場合がある。
+
+### Q5: ブラウザはレンダリング更新をスキップすることがあるのか？
+
+**回答**: ある。WHATWG 仕様では、レンダリング更新は「ブラウザが必要と判断した場合」にのみ行われると定められている。以下のような場合にスキップされる:
+
+1. **DOM に変更がない場合**: スタイルやレイアウトに影響する変更がなければ、レンダリングは不要
+2. **タブが非表示の場合**: `document.hidden === true` の場合、レンダリングは行われない
+3. **フレームレート制限**: ブラウザは通常 60fps（ディスプレイのリフレッシュレートに依存）で描画するが、バッテリー節約や負荷軽減のために意図的にフレームレートを落とすことがある
+4. **アニメーションフレームの合体**: 複数の rAF コールバックが短時間に登録された場合、ブラウザは1つのフレームにまとめることがある
+
+rAF コールバックはレンダリング更新が行われるフレームでのみ呼ばれるため、レンダリングがスキップされたフレームでは rAF も呼ばれない。
+
+---
+
+## 14. 用語集
+
+| 用語 | 英語 | 説明 |
+|------|------|------|
+| イベントループ | Event Loop | ブラウザがタスクを協調的に処理するための無限ループ機構 |
+| タスク | Task（Macrotask） | setTimeout、I/O、UI イベントなどにより生成される作業単位 |
+| マイクロタスク | Microtask | Promise.then や queueMicrotask で生成される高優先度の作業単位 |
+| タスクキュー | Task Queue | タスクが順番に格納される FIFO キュー |
+| マイクロタスクチェックポイント | Microtask Checkpoint | マイクロタスクキューを全て処理するポイント |
+| レンダリングパイプライン | Rendering Pipeline | Style → Layout → Paint → Composite の処理フロー |
+| フレーム予算 | Frame Budget | 1フレームに割り当てられる時間（60fps で約 16.67ms） |
+| 強制同期レイアウト | Forced Synchronous Layout | DOM 読み取り前に未処理のスタイル変更を強制的にレイアウト計算すること |
+| レイアウトスラッシング | Layout Thrashing | 読み取りと書き込みの交互実行による繰り返しレイアウト計算 |
+| ジャンク | Jank | フレームドロップによる画面のカクつき |
+| コールスタック | Call Stack | 関数呼び出しの履歴を管理するスタック構造 |
+| Run-to-completion | Run-to-completion | 1つのタスクが開始されたら完了するまで中断されない性質 |
+| Yield | Yield | メインスレッドに制御を返すこと |
+
+---
+
+## まとめ
+
+| 概念 | 実行タイミング | 用途 | 重要な注意点 |
+|------|-------------|------|-------------|
+| 同期コード | 即座（コールスタック上） | 即時実行が必要な処理 | 長時間実行は UI をブロック |
+| マイクロタスク | タスク完了直後、全て実行 | Promise, async/await, MutationObserver | 大量キューイングはレンダリングをブロック |
+| タスク（マクロタスク） | 1つずつ、レンダリング機会を挟む | setTimeout, I/O, UI イベント | ネスト制限（4ms）に注意 |
+| rAF | レンダリング直前 | アニメーション、DOM バッチ更新 | 内部で重い処理を避ける |
+| rIC | アイドル時間 | 低優先度処理 | DOM 操作は禁止、Safari 未サポート |
+| scheduler.postTask | 優先度に応じて | 優先度付きタスクスケジューリング | ブラウザサポートが限定的 |
+
+### 設計指針
+
+1. **フレーム予算を意識する**: 1フレーム 16.67ms の予算内で処理を完了する設計を心がける
+2. **適切な API を選択する**: 処理の優先度と性質に応じて、マイクロタスク・タスク・rAF・rIC を使い分ける
+3. **長時間タスクを分割する**: 50ms を超えるタスクは分割し、`yield to main thread` パターンを適用する
+4. **読み取りと書き込みを分離する**: DOM の読み取りと書き込みを交互に行わず、バッチ処理する
+5. **測定に基づく最適化**: Long Tasks API や Performance Observer を活用して、ボトルネックを特定する
+
+---
+
+## 次に読むべきガイド
+
+- [[02-web-workers.md]] -- Web Workers によるマルチスレッド処理
+- [[03-service-workers.md]] -- Service Worker のライフサイクルとイベントループ
+- [[04-rendering-pipeline.md]] -- ブラウザのレンダリングパイプライン詳細
+
+---
+
+## 参考文献
+
+1. WHATWG. "HTML Living Standard -- 8.1.7 Event loops." <https://html.spec.whatwg.org/multipage/webappapis.html#event-loops> (2024)
+2. Jake Archibald. "Tasks, microtasks, queues and schedules." <https://jakearchibald.com/2015/tasks-microtasks-queues-and-schedules/> (2015)
+3. Philip Roberts. "What the heck is the event loop anyway?" JSConf EU 2014. <https://www.youtube.com/watch?v=8aGhZQkoFbQ>
+4. MDN Web Docs. "The event loop." <https://developer.mozilla.org/en-US/docs/Web/JavaScript/Event_loop>
+5. MDN Web Docs. "requestAnimationFrame." <https://developer.mozilla.org/en-US/docs/Web/API/window/requestAnimationFrame>
+6. MDN Web Docs. "requestIdleCallback." <https://developer.mozilla.org/en-US/docs/Web/API/Window/requestIdleCallback>
+7. W3C. "Long Tasks API." <https://w3c.github.io/longtasks/>
+8. Google Developers. "Optimize long tasks." <https://web.dev/optimize-long-tasks/> (2023)
+

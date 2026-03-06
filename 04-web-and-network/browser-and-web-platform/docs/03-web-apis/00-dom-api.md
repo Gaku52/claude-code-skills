@@ -1487,3 +1487,782 @@ function idleRender(items) {
 }
 ```
 
+---
+
+## 12. エッジケース分析
+
+### 12.1 エッジケース1: disconnected な要素への操作
+
+DOM から取り外された要素（disconnected element）に対する操作は、エラーにはならないが意図しない結果を招くことがある。
+
+```javascript
+// ---- エッジケース: 取り外された要素への操作 ----
+
+const div = document.createElement('div');
+div.textContent = 'Hello';
+document.body.appendChild(div);
+
+// 参照を保持したまま DOM から削除
+div.remove();
+
+// 以下の操作はエラーにならないが、画面に反映されない
+div.textContent = 'Updated';           // 成功するが画面に見えない
+div.classList.add('active');           // 成功するが効果なし
+div.style.backgroundColor = 'red';   // 成功するが効果なし
+
+// offsetHeight 等のレイアウト情報は 0 を返す
+console.log(div.offsetHeight);  // 0（DOMツリーに属していないため）
+console.log(div.offsetWidth);   // 0
+
+// isConnected プロパティで確認可能
+console.log(div.isConnected);  // false
+
+// ---- 安全な実装パターン ----
+function updateElement(el, updates) {
+  if (!el.isConnected) {
+    console.warn('Element is not connected to the DOM');
+    return false;
+  }
+
+  if (updates.text !== undefined) {
+    el.textContent = updates.text;
+  }
+  if (updates.className !== undefined) {
+    el.className = updates.className;
+  }
+  return true;
+}
+
+// MutationObserver のコールバック内での注意点
+const observer = new MutationObserver((mutations) => {
+  for (const mutation of mutations) {
+    // removedNodes 内の要素は既に disconnected
+    mutation.removedNodes.forEach(node => {
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        // クリーンアップ処理（リスナー解除、タイマー停止など）
+        cleanupElement(node);
+      }
+    });
+  }
+});
+```
+
+### 12.2 エッジケース2: ライブコレクションの反復中の変更
+
+前述のライブ HTMLCollection の問題をさらに深掘りする。削除だけでなく、追加も危険である。
+
+```javascript
+// ---- エッジケース: ライブコレクションへの要素追加 ----
+
+const container = document.getElementById('container');
+const children = container.getElementsByTagName('div');
+
+// 反復中に新しい div を追加すると無限ループになる
+// 以下は意図的に示す危険なコードである（実行してはならない）
+/*
+for (let i = 0; i < children.length; i++) {
+  const newDiv = document.createElement('div');
+  newDiv.textContent = 'clone';
+  container.appendChild(newDiv);
+  // children.length が毎回増加 → 無限ループ
+}
+*/
+
+// ---- 安全策: スプレッド構文で静的配列に変換 ----
+const staticChildren = [...container.getElementsByTagName('div')];
+staticChildren.forEach(child => {
+  const clone = child.cloneNode(true);
+  container.appendChild(clone);  // 安全：staticChildren は変化しない
+});
+
+// ---- 安全策: querySelectorAll（静的 NodeList） ----
+container.querySelectorAll('div').forEach(child => {
+  const clone = child.cloneNode(true);
+  container.appendChild(clone);  // 安全
+});
+
+// ---- エッジケース: NodeList の forEach 可否 ----
+// querySelectorAll の NodeList → forEach あり
+// childNodes の NodeList → forEach あり（モダンブラウザ）
+// getElementsBy の HTMLCollection → forEach なし
+// 安全のため Array.from() を経由するのが確実
+Array.from(document.getElementsByClassName('item')).forEach(el => {
+  // 安全に処理
+});
+```
+
+### 12.3 エッジケース3: Shadow DOM 境界とイベント retargeting
+
+Shadow DOM 境界を越えるイベントでは、`event.target` がリターゲットされる。
+
+```javascript
+// Shadow DOM 内のボタンをクリックした場合
+class MyWidget extends HTMLElement {
+  constructor() {
+    super();
+    const shadow = this.attachShadow({ mode: 'open' });
+    shadow.innerHTML = '<button id="inner-btn">Click me</button>';
+  }
+}
+customElements.define('my-widget', MyWidget);
+
+// 外部からリスナーを登録
+document.addEventListener('click', (e) => {
+  // Shadow DOM 内のボタンがクリックされても
+  // event.target は <my-widget> ホスト要素になる（リターゲット）
+  console.log(e.target);       // <my-widget> （内部のボタンではない）
+  console.log(e.composedPath()); // [button#inner-btn, #shadow-root, my-widget, body, html, document, Window]
+});
+
+// composed: false のイベントは Shadow DOM 境界を越えない
+// composed: true のイベント（click, focus, input 等）は境界を越える
+
+// composedPath() で実際のイベント経路を確認できる
+document.addEventListener('click', (e) => {
+  const path = e.composedPath();
+  // path[0] が実際にクリックされた要素（Shadow DOM 内部含む）
+  console.log('実際のターゲット:', path[0]);
+});
+```
+
+---
+
+## 13. 演習問題
+
+### 演習1（初級）: TODO リストの CRUD 実装
+
+以下の仕様を満たす TODO リストを、フレームワークを使わず素の DOM API のみで実装せよ。
+
+**要件:**
+- テキスト入力欄と「追加」ボタンがある
+- Enter キーでも追加できる
+- 各 TODO に「完了」トグルボタンと「削除」ボタンがある
+- 完了した TODO には取り消し線が表示される
+- 空文字の TODO は追加できない（バリデーション）
+- イベント委任を使って `<ul>` に1つだけリスナーを登録する
+
+```javascript
+// ---- 演習1の解答例 ----
+
+function createTodoApp(rootSelector) {
+  const root = document.querySelector(rootSelector);
+
+  // DOM 構造の構築
+  root.innerHTML = '';
+  const form = document.createElement('form');
+  form.innerHTML = `
+    <input type="text" class="todo-input" placeholder="TODOを入力..." />
+    <button type="submit">追加</button>
+  `;
+
+  const list = document.createElement('ul');
+  list.className = 'todo-list';
+
+  const stats = document.createElement('div');
+  stats.className = 'todo-stats';
+
+  root.append(form, list, stats);
+
+  // 状態管理
+  let todos = [];
+  let nextId = 1;
+
+  function updateStats() {
+    const total = todos.length;
+    const completed = todos.filter(t => t.done).length;
+    stats.textContent = `全 ${total} 件 / 完了 ${completed} 件 / 残り ${total - completed} 件`;
+  }
+
+  function renderTodo(todo) {
+    const li = document.createElement('li');
+    li.dataset.id = todo.id;
+    li.className = todo.done ? 'todo-item completed' : 'todo-item';
+
+    li.innerHTML = `
+      <span class="todo-text">${escapeHtml(todo.text)}</span>
+      <button data-action="toggle">${todo.done ? '戻す' : '完了'}</button>
+      <button data-action="delete">削除</button>
+    `;
+
+    return li;
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  // フォーム送信
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const input = form.querySelector('.todo-input');
+    const text = input.value.trim();
+
+    if (!text) {
+      input.classList.add('error');
+      return;
+    }
+
+    input.classList.remove('error');
+    const todo = { id: nextId++, text, done: false };
+    todos.push(todo);
+
+    list.appendChild(renderTodo(todo));
+    updateStats();
+    input.value = '';
+    input.focus();
+  });
+
+  // イベント委任で TODO の操作を処理
+  list.addEventListener('click', (e) => {
+    const actionBtn = e.target.closest('[data-action]');
+    if (!actionBtn) return;
+
+    const li = actionBtn.closest('li[data-id]');
+    if (!li) return;
+
+    const id = Number(li.dataset.id);
+    const action = actionBtn.dataset.action;
+
+    if (action === 'toggle') {
+      const todo = todos.find(t => t.id === id);
+      if (todo) {
+        todo.done = !todo.done;
+        li.classList.toggle('completed');
+        li.querySelector('.todo-text').style.textDecoration =
+          todo.done ? 'line-through' : 'none';
+        actionBtn.textContent = todo.done ? '戻す' : '完了';
+        updateStats();
+      }
+    }
+
+    if (action === 'delete') {
+      todos = todos.filter(t => t.id !== id);
+      li.remove();
+      updateStats();
+    }
+  });
+
+  updateStats();
+}
+
+// 使用: createTodoApp('#app');
+```
+
+### 演習2（中級）: MutationObserver を使った DOM 変更ログ
+
+外部スクリプトが DOM を変更する状況をシミュレートし、MutationObserver で変更履歴を記録・表示する仕組みを実装せよ。
+
+**要件:**
+- 監視対象の要素と、変更ログの表示エリアがある
+- 子要素の追加・削除、属性の変更、テキストの変更を検知する
+- 各変更のタイプ、タイムスタンプ、詳細情報をログに表示する
+- 「監視開始」「監視停止」のトグルボタンがある
+- ログのクリアボタンがある
+
+```javascript
+// ---- 演習2の解答例 ----
+
+function createDOMMutationLogger(targetSelector, logSelector) {
+  const target = document.querySelector(targetSelector);
+  const logContainer = document.querySelector(logSelector);
+  let observer = null;
+  let isObserving = false;
+  let logEntries = [];
+
+  function formatTime() {
+    return new Date().toISOString().split('T')[1].split('.')[0];
+  }
+
+  function addLogEntry(type, detail) {
+    const entry = { time: formatTime(), type, detail };
+    logEntries.push(entry);
+
+    const div = document.createElement('div');
+    div.className = `log-entry log-${type}`;
+    div.innerHTML = `
+      <span class="log-time">[${entry.time}]</span>
+      <span class="log-type">${type}</span>
+      <span class="log-detail">${escapeHtml(detail)}</span>
+    `;
+    logContainer.appendChild(div);
+    logContainer.scrollTop = logContainer.scrollHeight;
+  }
+
+  function escapeHtml(str) {
+    const el = document.createElement('span');
+    el.textContent = str;
+    return el.innerHTML;
+  }
+
+  function startObserving() {
+    if (isObserving) return;
+
+    observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        switch (mutation.type) {
+          case 'childList':
+            mutation.addedNodes.forEach(node => {
+              if (node.nodeType === Node.ELEMENT_NODE) {
+                addLogEntry('childList',
+                  `追加: <${node.tagName.toLowerCase()}> → ${getPath(mutation.target)}`);
+              }
+            });
+            mutation.removedNodes.forEach(node => {
+              if (node.nodeType === Node.ELEMENT_NODE) {
+                addLogEntry('childList',
+                  `削除: <${node.tagName.toLowerCase()}> from ${getPath(mutation.target)}`);
+              }
+            });
+            break;
+          case 'attributes':
+            addLogEntry('attributes',
+              `属性変更: ${mutation.attributeName} on ${getPath(mutation.target)}`);
+            break;
+          case 'characterData':
+            addLogEntry('characterData',
+              `テキスト変更: "${mutation.oldValue?.substring(0, 30)}..." → "${mutation.target.textContent.substring(0, 30)}..."`);
+            break;
+        }
+      }
+    });
+
+    observer.observe(target, {
+      childList: true,
+      attributes: true,
+      characterData: true,
+      subtree: true,
+      attributeOldValue: true,
+      characterDataOldValue: true,
+    });
+
+    isObserving = true;
+    addLogEntry('system', '監視を開始しました');
+  }
+
+  function stopObserving() {
+    if (!isObserving || !observer) return;
+    observer.disconnect();
+    isObserving = false;
+    addLogEntry('system', '監視を停止しました');
+  }
+
+  function getPath(el) {
+    const parts = [];
+    while (el && el !== document.body) {
+      let selector = el.tagName.toLowerCase();
+      if (el.id) selector += `#${el.id}`;
+      parts.unshift(selector);
+      el = el.parentElement;
+    }
+    return parts.join(' > ');
+  }
+
+  function clearLog() {
+    logEntries = [];
+    logContainer.innerHTML = '';
+  }
+
+  return { startObserving, stopObserving, clearLog };
+}
+```
+
+### 演習3（上級）: Shadow DOM を使った再利用可能なモーダルコンポーネント
+
+Web Components と Shadow DOM を使い、以下の仕様を満たすモーダルダイアログを実装せよ。
+
+**要件:**
+- `<modal-dialog>` カスタム要素として登録する
+- `open` 属性でモーダルの表示/非表示を制御する
+- `title` スロットと `default` スロットでコンテンツを注入する
+- `footer` スロットにアクションボタンを配置できる
+- ESC キーで閉じる、背景クリックで閉じる
+- フォーカストラップ（Tab キーがモーダル外に出ない）
+- CSS カスタムプロパティでテーマカスタマイズ可能
+- `open` / `close` カスタムイベントを発火する
+
+```javascript
+// ---- 演習3の解答例 ----
+
+class ModalDialog extends HTMLElement {
+  static get observedAttributes() {
+    return ['open'];
+  }
+
+  constructor() {
+    super();
+    this._shadow = this.attachShadow({ mode: 'open' });
+    this._shadow.innerHTML = `
+      <style>
+        :host {
+          display: none;
+          position: fixed;
+          inset: 0;
+          z-index: var(--modal-z-index, 1000);
+        }
+
+        :host([open]) {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+        }
+
+        .backdrop {
+          position: fixed;
+          inset: 0;
+          background: var(--modal-backdrop-color, rgba(0, 0, 0, 0.5));
+          backdrop-filter: blur(var(--modal-backdrop-blur, 2px));
+        }
+
+        .dialog {
+          position: relative;
+          background: var(--modal-bg, #ffffff);
+          border-radius: var(--modal-radius, 12px);
+          box-shadow: var(--modal-shadow, 0 20px 60px rgba(0, 0, 0, 0.3));
+          max-width: var(--modal-max-width, 500px);
+          width: 90%;
+          max-height: 85vh;
+          overflow: auto;
+          animation: modal-enter 0.2s ease-out;
+        }
+
+        @keyframes modal-enter {
+          from {
+            opacity: 0;
+            transform: translateY(-20px) scale(0.95);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+
+        .header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 16px 20px;
+          border-bottom: 1px solid var(--modal-border-color, #e2e8f0);
+        }
+
+        .close-btn {
+          background: none;
+          border: none;
+          font-size: 1.5em;
+          cursor: pointer;
+          padding: 4px 8px;
+          border-radius: 4px;
+          color: var(--modal-close-color, #718096);
+        }
+
+        .close-btn:hover {
+          background: var(--modal-close-hover-bg, #f7fafc);
+        }
+
+        .body {
+          padding: 20px;
+        }
+
+        .footer {
+          padding: 12px 20px;
+          border-top: 1px solid var(--modal-border-color, #e2e8f0);
+          display: flex;
+          justify-content: flex-end;
+          gap: 8px;
+        }
+
+        .footer:empty {
+          display: none;
+        }
+      </style>
+
+      <div class="backdrop" part="backdrop"></div>
+      <div class="dialog" role="dialog" aria-modal="true" part="dialog">
+        <div class="header" part="header">
+          <slot name="title"><span>ダイアログ</span></slot>
+          <button class="close-btn" aria-label="閉じる" part="close-btn">&times;</button>
+        </div>
+        <div class="body" part="body">
+          <slot></slot>
+        </div>
+        <div class="footer" part="footer">
+          <slot name="footer"></slot>
+        </div>
+      </div>
+    `;
+
+    // イベントバインド
+    this._shadow.querySelector('.backdrop').addEventListener('click', () => {
+      this.close();
+    });
+
+    this._shadow.querySelector('.close-btn').addEventListener('click', () => {
+      this.close();
+    });
+
+    this._onKeyDown = this._handleKeyDown.bind(this);
+  }
+
+  connectedCallback() {
+    document.addEventListener('keydown', this._onKeyDown);
+  }
+
+  disconnectedCallback() {
+    document.removeEventListener('keydown', this._onKeyDown);
+  }
+
+  attributeChangedCallback(name, oldValue, newValue) {
+    if (name === 'open') {
+      if (newValue !== null) {
+        this._onOpen();
+      } else {
+        this._onClose();
+      }
+    }
+  }
+
+  open() {
+    this.setAttribute('open', '');
+  }
+
+  close() {
+    this.removeAttribute('open');
+  }
+
+  _onOpen() {
+    // フォーカスをダイアログ内に移動
+    const dialog = this._shadow.querySelector('.dialog');
+    const firstFocusable = dialog.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+    if (firstFocusable) {
+      requestAnimationFrame(() => firstFocusable.focus());
+    }
+
+    this.dispatchEvent(new CustomEvent('modal-open', { bubbles: true, composed: true }));
+  }
+
+  _onClose() {
+    this.dispatchEvent(new CustomEvent('modal-close', { bubbles: true, composed: true }));
+  }
+
+  _handleKeyDown(e) {
+    if (!this.hasAttribute('open')) return;
+
+    if (e.key === 'Escape') {
+      this.close();
+      return;
+    }
+
+    // フォーカストラップ
+    if (e.key === 'Tab') {
+      const dialog = this._shadow.querySelector('.dialog');
+      const focusables = [
+        ...dialog.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'),
+        ...this.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'),
+      ];
+
+      if (focusables.length === 0) return;
+
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  }
+}
+
+customElements.define('modal-dialog', ModalDialog);
+
+// HTML での使用:
+// <modal-dialog id="my-modal">
+//   <h2 slot="title">確認</h2>
+//   <p>この操作を実行しますか?</p>
+//   <div slot="footer">
+//     <button onclick="document.getElementById('my-modal').close()">キャンセル</button>
+//     <button onclick="confirm()">OK</button>
+//   </div>
+// </modal-dialog>
+```
+
+---
+
+## 14. DOM API のブラウザ間差異と Polyfill
+
+### 14.1 モダン API のブラウザサポート状況
+
+| API | Chrome | Firefox | Safari | Edge |
+|-----|--------|---------|--------|------|
+| `element.remove()` | 23+ | 23+ | 7+ | 12+ |
+| `element.closest()` | 41+ | 35+ | 6+ | 15+ |
+| `element.matches()` | 33+ | 34+ | 7+ | 15+ |
+| `element.toggleAttribute()` | 69+ | 63+ | 12+ | 79+ |
+| `element.append()/prepend()` | 54+ | 49+ | 10+ | 17+ |
+| `MutationObserver` | 26+ | 14+ | 7+ | 12+ |
+| `IntersectionObserver` | 51+ | 55+ | 12.1+ | 15+ |
+| `ResizeObserver` | 64+ | 69+ | 13.1+ | 79+ |
+| Shadow DOM v1 | 53+ | 63+ | 10+ | 79+ |
+| Declarative Shadow DOM | 111+ | 123+ | 16.4+ | 111+ |
+| `element.isConnected` | 51+ | 49+ | 10+ | 79+ |
+
+### 14.2 Safari 固有の注意点
+
+Safari は他のブラウザに比べ、一部の DOM API の実装が遅れることがある。特に以下の点に注意が必要である。
+
+- `adoptedStyleSheets` のサポートが遅れた（Safari 16.4+ で対応）
+- Form-associated custom elements の対応が遅い
+- Declarative Shadow DOM の `shadowrootmode` が Safari 16.4+ で対応
+- `:focus-visible` 疑似クラスの挙動が微妙に異なる場合がある
+
+---
+
+## 15. パフォーマンス計測
+
+### 15.1 DOM 操作のパフォーマンス計測手法
+
+```javascript
+// Performance API でDOM操作の所要時間を計測
+function measureDOMOperation(label, operation) {
+  performance.mark(`${label}-start`);
+
+  operation();
+
+  performance.mark(`${label}-end`);
+  performance.measure(label, `${label}-start`, `${label}-end`);
+
+  const measure = performance.getEntriesByName(label)[0];
+  console.log(`${label}: ${measure.duration.toFixed(2)}ms`);
+
+  // クリーンアップ
+  performance.clearMarks(`${label}-start`);
+  performance.clearMarks(`${label}-end`);
+  performance.clearMeasures(label);
+
+  return measure.duration;
+}
+
+// 使用例: innerHTML vs DocumentFragment の比較
+const container = document.getElementById('test');
+const items = Array.from({ length: 5000 }, (_, i) => `Item ${i}`);
+
+// innerHTML
+measureDOMOperation('innerHTML', () => {
+  container.innerHTML = items.map(item => `<div class="item">${item}</div>`).join('');
+});
+
+// DocumentFragment
+measureDOMOperation('DocumentFragment', () => {
+  container.innerHTML = '';
+  const fragment = document.createDocumentFragment();
+  items.forEach(item => {
+    const div = document.createElement('div');
+    div.className = 'item';
+    div.textContent = item;
+    fragment.appendChild(div);
+  });
+  container.appendChild(fragment);
+});
+
+// PerformanceObserver でレイアウトシフトを監視
+const layoutShiftObserver = new PerformanceObserver((list) => {
+  for (const entry of list.getEntries()) {
+    if (entry.entryType === 'layout-shift' && !entry.hadRecentInput) {
+      console.warn('Layout shift detected:', entry.value, entry.sources);
+    }
+  }
+});
+layoutShiftObserver.observe({ type: 'layout-shift', buffered: true });
+```
+
+---
+
+## 16. FAQ
+
+### Q1: querySelector と getElementById はどちらを使うべきか?
+
+**回答:** 一般的には `querySelector` / `querySelectorAll` を推奨する。CSS セレクタの柔軟性があり、静的な NodeList を返すためループ中の安全性が高い。ただし、ID による単一要素の取得で最高のパフォーマンスが求められる場面（例えばアニメーションフレーム内で毎フレーム呼ばれるなど）では `getElementById` がわずかに高速である。日常的な開発ではこの差は無視できるため、コードの一貫性を重視して `querySelector` 系に統一するチームが多い。
+
+### Q2: MutationObserver のコールバック内で DOM を変更するとどうなるか?
+
+**回答:** MutationObserver のコールバック内で DOM を変更すると、その変更は次のマイクロタスクキューで再度 MutationObserver に通知される。直接的な無限ループにはならない（同期的に再帰しないため）が、コールバック → DOM 変更 → コールバック → DOM 変更 ... という連鎖が起こりうる。これを防ぐには、コールバック内で変更を行う前に `observer.disconnect()` し、変更後に再度 `observer.observe()` するか、フラグ変数で再帰を防止する。
+
+```javascript
+let isUpdating = false;
+
+const observer = new MutationObserver((mutations) => {
+  if (isUpdating) return;  // 自身の変更による通知を無視
+
+  isUpdating = true;
+  // DOM 変更処理
+  element.setAttribute('data-count', String(mutations.length));
+  isUpdating = false;
+});
+```
+
+### Q3: Shadow DOM を使うと SEO に影響はあるか?
+
+**回答:** 検索エンジンのクローラ（特に Googlebot）は JavaScript を実行し、Shadow DOM のコンテンツもインデックスする能力を持つ。ただし、Light DOM のコンテンツ（スロットに挿入されるコンテンツ）の方が確実にインデックスされるため、SEO 上重要なテキストは Light DOM 側に配置し、Shadow DOM 内では構造とスタイリングのみを担当させるのが安全な設計である。Declarative Shadow DOM を使えば、HTML のソース上に Shadow DOM の構造が存在するため、JavaScript 実行を待たずにコンテンツが利用可能になり、SSR との組み合わせで SEO への影響を最小化できる。
+
+### Q4: Virtual DOM は本当に「速い」のか?
+
+**回答:** 正確には「手動の DOM 操作より速い」わけではなく、「最適化されていない DOM 操作より安全に速い」という表現が適切である。手動で最小限の DOM 操作を正確に行えるなら、それが最速である。しかし、複雑な UI の状態遷移において、開発者が毎回最小限の差分を計算して DOM 操作を行うのは困難であり、バグの温床になる。Virtual DOM は「宣言的に UI を記述でき、かつ十分に高速」という開発体験とパフォーマンスのバランスを実現する。Svelte のようなコンパイル時アプローチが Virtual DOM のオーバーヘッドを回避しつつ宣言的な開発体験を提供する点も、近年注目されている。
+
+### Q5: Web Components は React や Vue の代替になるか?
+
+**回答:** Web Components と React/Vue は競合ではなく、レイヤーが異なる。Web Components はブラウザネイティブのコンポーネント機構であり、フレームワーク非依存の再利用可能な UI パーツを作るのに適している。一方、React/Vue は状態管理、ルーティング、エコシステム全体を含む包括的なフレームワークである。デザインシステムの基盤を Web Components で構築し、アプリケーション層を React/Vue で構築するハイブリッドアプローチも有効である。Lit や Stencil など、Web Components の開発体験を向上させるライブラリも成熟してきている。
+
+---
+
+## 17. まとめ
+
+### 要点の整理
+
+| 概念 | 重要ポイント | 典型的な使用場面 |
+|------|-------------|----------------|
+| DOM ツリー構造 | ノード型の理解、Element 専用ナビゲーション | ツリー走査、構造分析 |
+| 要素の取得 | 静的 NodeList vs ライブ HTMLCollection の区別 | 要素検索、フィルタリング |
+| CRUD 操作 | DocumentFragment、insertAdjacentHTML | 大量挿入、部分更新 |
+| レンダリング | Layout Thrashing 回避、読み書き分離 | パフォーマンス最適化 |
+| イベントモデル | キャプチャ / バブリング / 委任 / passive | ユーザインタラクション |
+| MutationObserver | 非同期バッチ通知、attributeFilter | DOM 変更監視 |
+| Shadow DOM | スタイル隔離、スロット、ライフサイクル | Web Components |
+| Virtual DOM | diff/patch、宣言的 UI | React/Vue 等のSPA |
+| テンプレート | `<template>` 要素、Declarative Shadow DOM | 効率的な要素生成 |
+
+### チェックリスト
+
+- [ ] `querySelector` と `getElementsBy` の違い（静的 vs ライブ）を説明できる
+- [ ] DocumentFragment を使ったバッチ挿入を実装できる
+- [ ] Layout Thrashing とその回避策を説明できる
+- [ ] イベントキャプチャ / バブリング / 委任の使い分けができる
+- [ ] `passive` オプションの意義を説明できる
+- [ ] MutationObserver で DOM 変更を監視する処理を書ける
+- [ ] Shadow DOM の隔離境界とスタイルの挙動を説明できる
+- [ ] Virtual DOM と直接 DOM 操作の長所短所を比較できる
+- [ ] メモリリークの原因と AbortController による対策を実装できる
+- [ ] Web Components のライフサイクルコールバックを列挙できる
+
+---
+
+## 次に読むべきガイド
+
+- [[01-fetch-and-streams.md]] -- Fetch と Streams
+- [[02-web-storage.md]] -- Web Storage API
+- [[03-web-workers.md]] -- Web Workers と並行処理
+
+---
+
+## 参考文献
+
+1. WHATWG. "DOM Living Standard." https://dom.spec.whatwg.org/ , 2024.
+2. MDN Web Docs. "Document Object Model (DOM)." Mozilla, https://developer.mozilla.org/en-US/docs/Web/API/Document_Object_Model , 2024.
+3. Google Developers. "Rendering Performance." https://web.dev/rendering-performance/ , 2024.
+4. MDN Web Docs. "Web Components." Mozilla, https://developer.mozilla.org/en-US/docs/Web/API/Web_components , 2024.
+5. WHATWG. "HTML Living Standard - Shadow DOM." https://html.spec.whatwg.org/multipage/scripting.html , 2024.
+6. Wilcox, Jason. "Virtual DOM is pure overhead." Svelte Blog, https://svelte.dev/blog/virtual-dom-is-pure-overhead , 2018.
+

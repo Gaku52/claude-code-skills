@@ -910,3 +910,564 @@ if __name__ == '__main__':
   - 低遅延を優先する場合に使用する
 ```
 
+### 5.4 コード例3: ソケットオプションの確認と設定
+
+```python
+#!/usr/bin/env python3
+"""
+TCP ソケットオプションの確認と設定
+フロー制御・バッファサイズ関連のパラメータを操作する
+"""
+
+import socket
+import sys
+
+def inspect_tcp_socket_options():
+    """TCPソケットの主要オプションを確認する"""
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+    print("=" * 60)
+    print("TCP ソケットオプション一覧")
+    print("=" * 60)
+
+    # ── 汎用ソケットオプション ──
+    print("\n■ 汎用ソケットオプション (SOL_SOCKET)")
+    print(f"  SO_RCVBUF   (受信バッファサイズ): "
+          f"{sock.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF):,} bytes")
+    print(f"  SO_SNDBUF   (送信バッファサイズ): "
+          f"{sock.getsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF):,} bytes")
+    print(f"  SO_REUSEADDR(アドレス再利用)    : "
+          f"{sock.getsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR)}")
+    print(f"  SO_KEEPALIVE(キープアライブ)    : "
+          f"{sock.getsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE)}")
+
+    # ── TCP固有オプション ──
+    print("\n■ TCP固有オプション (IPPROTO_TCP)")
+    print(f"  TCP_NODELAY (Nagle無効化)       : "
+          f"{sock.getsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY)}")
+
+    # Linux固有オプション（macOSでは一部未対応）
+    if sys.platform == 'linux':
+        print(f"  TCP_MAXSEG  (MSS)               : "
+              f"{sock.getsockopt(socket.IPPROTO_TCP, socket.TCP_MAXSEG)}")
+        print(f"  TCP_WINDOW_CLAMP(最大ウィンドウ) : "
+              f"{sock.getsockopt(socket.IPPROTO_TCP, socket.TCP_WINDOW_CLAMP)}")
+
+    # ── バッファサイズの変更例 ──
+    print("\n■ バッファサイズ変更")
+    new_rcvbuf = 256 * 1024  # 256KB
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, new_rcvbuf)
+    actual = sock.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF)
+    print(f"  設定値: {new_rcvbuf:,} bytes → 実際の値: {actual:,} bytes")
+    print(f"  ※ カーネルが設定値を2倍にする実装がある (Linux)")
+
+    # ── Keep-Alive の詳細設定（Linux） ──
+    if sys.platform == 'linux':
+        print("\n■ TCP Keep-Alive 設定 (Linux)")
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+        # Keep-Aliveの開始までの時間（秒）
+        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 60)
+        # Keep-Aliveプローブの間隔（秒）
+        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 10)
+        # Keep-Aliveプローブの最大回数
+        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 5)
+        print(f"  TCP_KEEPIDLE  : 60秒（最初のプローブまでの待機時間）")
+        print(f"  TCP_KEEPINTVL : 10秒（プローブ間隔）")
+        print(f"  TCP_KEEPCNT   :  5回（最大プローブ回数）")
+        print(f"  → 60 + 10 × 5 = 110秒で接続断判定")
+
+    sock.close()
+
+if __name__ == '__main__':
+    inspect_tcp_socket_options()
+```
+
+---
+
+## 6. 輻輳制御（Congestion Control）の詳細
+
+### 6.1 輻輳制御の目的とフロー制御との違い
+
+```
+■ フロー制御 vs 輻輳制御
+
+  フロー制御（Flow Control）:
+  - 目的: 受信側のバッファオーバーフローを防ぐ
+  - 制御対象: エンドツーエンド（送信者 ←→ 受信者）
+  - 制御変数: rwnd（受信ウィンドウ）
+  - 通知方法: TCPヘッダーのウィンドウサイズフィールド
+  - 受信側が明示的に通知する
+
+  輻輳制御（Congestion Control）:
+  - 目的: ネットワーク全体の混雑を回避する
+  - 制御対象: ネットワーク全体（ルーター、スイッチの負荷）
+  - 制御変数: cwnd（輻輳ウィンドウ）
+  - 推測方法: パケットロス、RTTの変動から推測する
+  - 送信側が暗黙的に推測する
+
+  実際の送信ウィンドウ:
+  effective_window = min(rwnd, cwnd)
+  → フロー制御と輻輳制御の両方を満たす範囲でのみ送信する
+```
+
+### 6.2 輻輳制御の4フェーズ
+
+```
+■ 輻輳制御アルゴリズム（TCP Reno）の詳細
+
+[Phase 1] スロースタート（Slow Start）
+  目的: ネットワークの利用可能帯域を素早く見つける
+  動作:
+  - 初期値: cwnd = 1 MSS（または IW = 10 MSS: RFC 6928）
+  - ACKを受信するたびに cwnd += 1 MSS
+  - 1 RTT あたり cwnd が2倍になる（指数的増加）
+  - ssthresh（スロースタート閾値）に達したら Phase 2 へ
+  - パケットロスを検出したら Phase 3/4 へ
+
+  cwnd の変化（RTTごと）:
+    RTT 0:  cwnd = 1 MSS  → 1セグメント送信
+    RTT 1:  cwnd = 2 MSS  → 2セグメント送信
+    RTT 2:  cwnd = 4 MSS  → 4セグメント送信
+    RTT 3:  cwnd = 8 MSS  → 8セグメント送信
+    RTT 4:  cwnd = 16 MSS → 16セグメント送信
+    ...
+    → 約 log2(N) RTT で N MSS に到達する
+
+[Phase 2] 輻輳回避（Congestion Avoidance）
+  目的: 輻輳を起こさないよう慎重にレートを上げる
+  動作:
+  - cwnd >= ssthresh のとき適用
+  - ACKを受信するたびに cwnd += MSS × (MSS / cwnd)
+  - 1 RTT あたり cwnd が約1 MSS増える（線形増加: AIMD の AI 部分）
+
+[Phase 3] 高速再送（Fast Retransmit）
+  トリガー: 3つの重複ACK（Duplicate ACK）を受信
+  動作:
+  - タイムアウトを待たずに即座にロストセグメントを再送
+  - ssthresh = cwnd / 2 に設定
+
+[Phase 4] 高速回復（Fast Recovery）
+  目的: 輻輳後の回復を高速化する
+  動作（TCP Reno）:
+  - ssthresh = cwnd / 2
+  - cwnd = ssthresh + 3 MSS（3つのDupACK分）
+  - さらにDupACKを受信するたびに cwnd += 1 MSS
+  - 新しいACK（元のデータのACK）を受信したら cwnd = ssthresh
+  - 輻輳回避フェーズに移行
+
+  タイムアウト発生時（最も深刻な輻輳シグナル）:
+  - ssthresh = cwnd / 2
+  - cwnd = 1 MSS（スロースタートに戻る）
+  - Phase 1 から再開
+```
+
+### 6.3 輻輳制御アルゴリズムの推移図
+
+```
+cwnd の変化を時系列で表示:
+
+cwnd (MSS)
+  ^
+  |
+32|                          *
+  |                        * | パケットロス（DupACK×3）
+  |                      *   |
+  |                    *     | ssthresh = 32/2 = 16
+  |                  *       |
+  |               *          ↓
+16|─ ─ ─ ─ ─ ─*─ ─ ─ ─ ─ ─ ─ ─ ─ ─ * ─ ─ ─ ─ ─ ─ ─ ─ *
+  |           *  (1)スロースタート     *                   *
+  |         *    (指数増加)          *  (2)輻輳回避        *
+  |       *                        *    (線形増加)        *
+  |     *                        *                      *
+  |   *                        *                       *
+  |  *                       *                  タイムアウト!
+  | *                      *                     ↓ cwnd=1
+1 |*─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─*
+  |                                              | (1)再度
+  +──────────────────────────────────────────────→ 時間 (RTT)
+
+  凡例:
+  --- Phase 1: スロースタート（指数増加）
+  --- Phase 2: 輻輳回避（線形増加: AIMD）
+  ↓   Phase 3+4: 高速再送 + 高速回復（cwnd半減）
+  ↓↓  タイムアウト: cwnd = 1（スロースタートに戻る）
+
+  AIMD = Additive Increase, Multiplicative Decrease
+    Additive Increase:    1 RTTごとに cwnd += 1 MSS
+    Multiplicative Decrease: パケットロス時に cwnd = cwnd / 2
+    → ネットワーク公平性を確保するための重要な特性
+```
+
+### 6.4 主要な輻輳制御アルゴリズム比較
+
+| 特性 | TCP Reno | TCP CUBIC | BBR |
+|------|----------|-----------|-----|
+| 年代 | 1990年 | 2006年 | 2016年 |
+| RFC | RFC 5681 | RFC 9438 | 実験的 |
+| ロス検知方式 | パケットロスベース | パケットロスベース | 帯域×遅延モデル |
+| cwnd増加方式 | AIMD（線形） | 3次関数（BIC曲線） | BDP推定に基づく |
+| 高帯域×高遅延 | 性能低い | 性能良好 | 非常に良好 |
+| 公平性 | 基準 | Renoと概ね公平 | 異種アルゴリズムとの公平性に課題 |
+| OS採用 | BSD, 旧Linux | Linux標準（3.x〜） | Google内部, Linux 4.9+ |
+| 適用環境 | 低遅延LAN | 一般的なインターネット | 高BDP環境, 動画配信 |
+| バッファ溢れ耐性 | 弱い | 中程度 | 浅いバッファに適応 |
+
+### 6.5 CUBIC アルゴリズムの詳細
+
+```
+■ TCP CUBIC（RFC 9438）
+
+  Linuxのデフォルト輻輳制御アルゴリズム（カーネル 2.6.19 以降）
+
+  核心アイデア:
+  - cwndの増加を時間ベースの3次関数（cubic function）で制御する
+  - ロス発生前のcwndに素早く戻り、その付近で慎重に探索する
+
+  3次関数:
+    W(t) = C * (t - K)^3 + W_max
+
+    C:     定数（0.4）
+    t:     最後のパケットロスからの経過時間
+    K:     W(t) = W_max / 2 から W_max に到達する推定時間
+           K = (W_max * beta / C) ^ (1/3)
+    W_max: ロス発生前のcwnd
+    beta:  削減係数（0.7: Renoの0.5より緩やか）
+
+  cwnd の変化パターン:
+  cwnd
+   ^
+   |        W_max
+   |  ------*-----------------*---- <- ロス前のcwnd
+   |       /|*               *|
+   |      / |  *           *  |
+   |     /  |    *       *    |
+   |    /   |      * * *      |    <- 凸部: 慎重な探索
+   |   /    |    凹部: 急速回復|
+   |  /     |                 |
+   | /      |                 |
+   |/       |                 |
+   +--------+-----------------+---> 時間
+         ロス発生            新たなロス
+
+  CUBICの利点:
+  1. 高BDP（Bandwidth-Delay Product）環境に適応
+     - Renoは線形増加のため、高帯域リンクの活用に時間がかかる
+     - CUBICは3次関数で素早くW_maxに接近する
+  2. RTTに対する公平性
+     - Renoは短いRTTの接続が有利（ACKが速く返るため）
+     - CUBICは時間ベースのため、RTTの影響が小さい
+```
+
+### 6.6 BBR（Bottleneck Bandwidth and Round-trip propagation time）
+
+```
+■ BBR（Google, 2016年〜）
+
+  従来のアプローチ: パケットロスを輻輳のシグナルとして利用
+  BBRのアプローチ:  ネットワークの物理特性（帯域と遅延）を直接推定
+
+  2つの指標:
+    BtlBw:  ボトルネック帯域幅（最大スループット）
+    RTprop: 最小RTT（伝搬遅延のみ、キューイング遅延を除く）
+
+    最適動作点 = BtlBw * RTprop（BDP: Bandwidth-Delay Product）
+
+  状態マシン:
+  +-----------------------------------------------------+
+  |                                                     |
+  |  [STARTUP]                                          |
+  |    cwnd を指数的に増加                                 |
+  |    BtlBw が3RTT連続で増加しなくなるまで                |
+  |         |                                           |
+  |         v                                           |
+  |  [DRAIN]                                            |
+  |    過剰にバッファに溜めたデータを排出                  |
+  |    inflight を BDP まで減少させる                      |
+  |         |                                           |
+  |         v                                           |
+  |  [PROBE_BW]   <- 大部分の時間をここで過ごす            |
+  |    BtlBwを定期的に探索する                            |
+  |    8RTTサイクル: 1.25 -> 0.75 -> 1.0 x 6             |
+  |    （帯域増加を探索 -> 過剰分を排出 -> 安定運転）      |
+  |         |                                           |
+  |         v（200ms以上RTpropが更新されない場合）         |
+  |  [PROBE_RTT]                                        |
+  |    cwnd = 4 MSS に一時的に縮小                        |
+  |    キューを空にして最小RTTを再測定                      |
+  |    200ms後にPROBE_BWに戻る                           |
+  |                                                     |
+  +-----------------------------------------------------+
+
+  BBRの利点:
+  1. バッファ肥大化（Bufferbloat）を回避
+     - キューを溜めずに帯域を最大活用する
+  2. パケットロスに過剰反応しない
+     - ランダムロスでcwndを半減しない
+  3. 高BDP環境で優れた性能
+     - 大陸間通信やデータセンター間で効果的
+
+  BBRの課題:
+  1. 公平性問題
+     - CUBICとの共存時にBBRが帯域を過剰に占有する場合がある
+  2. 高パケットロス環境での性能
+     - ロスを輻輳シグナルと見なさないため、実際の輻輳を見逃す可能性
+  3. BBRv2 で改善中
+     - ECN（Explicit Congestion Notification）の活用
+     - パケットロスにも一定の反応を行う
+```
+
+### 6.7 コード例4: Linuxでの輻輳制御アルゴリズムの確認と変更
+
+```bash
+# ── 現在の輻輳制御アルゴリズムを確認 ──
+sysctl net.ipv4.tcp_congestion_control
+# 出力例: net.ipv4.tcp_congestion_control = cubic
+
+# ── 利用可能なアルゴリズム一覧 ──
+sysctl net.ipv4.tcp_available_congestion_control
+# 出力例: net.ipv4.tcp_available_congestion_control = reno cubic
+
+# ── BBR モジュールのロードと有効化 ──
+sudo modprobe tcp_bbr
+echo "tcp_bbr" | sudo tee -a /etc/modules-load.d/modules.conf
+
+# BBR を有効化
+sudo sysctl -w net.ipv4.tcp_congestion_control=bbr
+# 確認
+sysctl net.ipv4.tcp_congestion_control
+# 出力: net.ipv4.tcp_congestion_control = bbr
+
+# ── 永続化（/etc/sysctl.conf に追記） ──
+echo "net.ipv4.tcp_congestion_control=bbr" | sudo tee -a /etc/sysctl.conf
+echo "net.core.default_qdisc=fq" | sudo tee -a /etc/sysctl.conf
+# ※ BBRは fq (Fair Queue) qdisc との組み合わせが推奨される
+
+# ── TCP関連のカーネルパラメータ一覧 ──
+sysctl -a | grep "^net.ipv4.tcp"
+
+# 重要なパラメータ:
+# net.ipv4.tcp_rmem = 4096 131072 6291456
+#   → 受信バッファ: 最小 / デフォルト / 最大
+# net.ipv4.tcp_wmem = 4096 16384 4194304
+#   → 送信バッファ: 最小 / デフォルト / 最大
+# net.ipv4.tcp_window_scaling = 1
+#   → Window Scale オプションの有効/無効
+# net.ipv4.tcp_sack = 1
+#   → SACK の有効/無効
+# net.ipv4.tcp_timestamps = 1
+#   → Timestamp オプションの有効/無効
+# net.ipv4.tcp_max_syn_backlog = 4096
+#   → SYN キューの最大サイズ
+# net.ipv4.tcp_fin_timeout = 60
+#   → FIN_WAIT_2 状態のタイムアウト
+# net.ipv4.tcp_tw_reuse = 2
+#   → TIME_WAIT ソケットの再利用
+
+# ── 接続ごとに輻輳制御を指定する（Python） ──
+# import socket
+# sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+# sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_CONGESTION,
+#                 b'bbr')
+```
+
+### 6.8 ECN（Explicit Congestion Notification）
+
+```
+■ ECN（RFC 3168）
+
+  従来: パケットロスで輻輳を検知 → 遅い、データ損失を伴う
+  ECN:  ルーターが「輻輳しているよ」と明示的にマーク → ロス前に対処可能
+
+  仕組み:
+  1. 送信側と受信側がTCPハンドシェイクでECN対応を交渉
+     （SYNに ECE + CWR フラグを設定）
+  2. ルーターがキューが溢れそうになったら、
+     IPヘッダーのECNフィールド（2ビット）にCE（Congestion Experienced）をマーク
+  3. 受信側がCEマークを検出し、TCPのECEフラグで送信側に通知
+  4. 送信側がcwndを縮小し、CWRフラグで受信側に「対処した」と通知
+
+  IPヘッダーのECNフィールド:
+    00: Non ECN-Capable Transport (Not-ECT)
+    01: ECN Capable Transport (ECT(1))
+    10: ECN Capable Transport (ECT(0))
+    11: Congestion Experienced (CE)
+
+  利点:
+  - パケットを落とさずに輻輳を通知できる
+  - 特にショートフロー（Webリクエスト等）で効果的
+  - BBRv2 はECNを積極的に活用する
+
+  現状:
+  - 多くのOSで対応済み（デフォルト無効の場合が多い）
+  - Apple（iOS/macOS）は積極的に有効化
+  - 一部のミドルボックスがECNマークを除去する問題あり
+```
+
+---
+
+## 7. TCP接続の切断（4-way Handshake）
+
+### 7.1 正常な切断手順
+
+```
+TCP切断（4-way Handshake）:
+
+  クライアント                         サーバー
+  [ESTABLISHED]                       [ESTABLISHED]
+       |                                  |
+       |-- FIN (seq=1000) ------------>   |  (1) close() 呼び出し
+       |   [FIN_WAIT_1]                    |
+       |                                  |
+       |<----- ACK (ack=1001) ---------- |  (2) FINのACK
+       |   [FIN_WAIT_2]                    |  [CLOSE_WAIT]
+       |                                  |
+       |      （サーバーが残りのデータを送信）   |
+       |                                  |
+       |<----- FIN (seq=5000) ---------- |  (3) サーバーもclose()
+       |                                  |  [LAST_ACK]
+       |                                  |
+       |-- ACK (ack=5001) ------------>   |  (4) FINのACK
+       |   [TIME_WAIT]                     |  [CLOSED]
+       |                                  |
+       |   2MSL 待機                        |
+       |   (通常 60秒〜120秒)               |
+       |                                  |
+       |   [CLOSED]                        |
+       |                                  |
+
+  なぜ4-wayか（3-wayにしない理由）:
+  - 片方がFINを送っても、もう片方にはまだ送るデータがあるかもしれない
+  - ハーフクローズ（半二重クローズ）を実現するために、
+    各方向で独立にFIN-ACKが必要
+  - 接続の確立（SYN + SYN-ACK）と異なり、切断のFINとACKは
+    同時に送れない場合がある
+
+  同時クローズ（Simultaneous Close）:
+  - 双方が同時にFINを送信した場合の特殊なケース
+  - 双方がFIN_WAIT_1 → CLOSING → TIME_WAIT → CLOSED と遷移
+```
+
+### 7.2 TIME_WAITの詳細と問題
+
+```
+■ TIME_WAIT 状態
+
+  目的1: 最後のACKが失われた場合のリカバリ
+    - 相手のFINに対するACKが失われた場合、
+      相手はFINを再送する
+    - TIME_WAIT中であれば再度ACKを返せる
+
+  目的2: 古いセグメントの消滅を保証
+    - 同じ4-tuple（src IP, src port, dst IP, dst port）で
+      新しい接続を開始する前に、ネットワーク上の古いセグメントが
+      全て消滅するのを待つ
+    - MSL（Maximum Segment Lifetime）= パケットがネットワーク上で
+      生存できる最大時間
+
+  TIME_WAIT の待機時間:
+    2 * MSL = 2 * 60秒 = 120秒（Linux）
+    ※ MSLの値はOS実装により異なる
+
+  問題: 大量のTIME_WAIT蓄積
+  ─────────────────────────────────────────
+  原因:
+  - 高頻度の短寿命TCP接続（HTTPリクエスト等）
+  - 各接続が120秒間TIME_WAIT状態を維持
+  - 利用可能なエフェメラルポート（約16,000個）を圧迫
+
+  確認コマンド:
+  $ ss -tan state time-wait | wc -l
+  $ netstat -an | grep TIME_WAIT | wc -l
+
+  対策:
+  1. SO_REUSEADDR: TIME_WAIT状態のアドレスを再利用
+     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+  2. tcp_tw_reuse（Linux）: クライアント側でTIME_WAITを再利用
+     sysctl -w net.ipv4.tcp_tw_reuse=1
+
+  3. HTTP Keep-Alive: 接続を再利用して短寿命接続を削減
+     Connection: keep-alive
+
+  4. 接続プーリング: データベース接続等で接続を使い回す
+
+  5. エフェメラルポート範囲の拡大:
+     sysctl -w net.ipv4.ip_local_port_range="1024 65535"
+```
+
+---
+
+## 8. コード例5: Wiresharkによるパケット解析
+
+```
+■ Wireshark でTCP通信を解析する手順
+
+[Step 1] キャプチャの開始
+  - Wireshark を起動
+  - 適切なネットワークインターフェースを選択
+  - キャプチャフィルタを設定: "tcp port 443"
+
+[Step 2] フィルタ式の活用
+
+  表示フィルタ（Display Filter）:
+  ─────────────────────────────────────────────────────
+  目的                    フィルタ式
+  ─────────────────────────────────────────────────────
+  SYNパケットのみ          tcp.flags.syn == 1 && tcp.flags.ack == 0
+  SYN-ACKパケットのみ      tcp.flags.syn == 1 && tcp.flags.ack == 1
+  RSTパケットのみ          tcp.flags.reset == 1
+  FINパケットのみ          tcp.flags.fin == 1
+  再送パケット             tcp.analysis.retransmission
+  重複ACK                 tcp.analysis.duplicate_ack
+  ゼロウィンドウ           tcp.analysis.zero_window
+  ウィンドウ更新           tcp.analysis.window_update
+  特定のストリーム         tcp.stream eq 5
+  ペイロードあり           tcp.len > 0
+  特定ポート              tcp.port == 80
+  特定のフラグ組み合わせ    tcp.flags == 0x12  (SYN-ACK)
+  RTTが100ms以上          tcp.analysis.ack_rtt > 0.1
+  ─────────────────────────────────────────────────────
+
+[Step 3] TCP Stream の追跡
+  - パケットを右クリック → 「Follow → TCP Stream」
+  - クライアント→サーバーのデータが赤、逆が青で表示される
+  - HTTP通信の場合、リクエストとレスポンスが見える
+
+[Step 4] TCP統計情報の確認
+  - Statistics → TCP Stream Graphs → Time-Sequence (tcptrace)
+    → シーケンス番号の推移をグラフで表示
+    → 再送やスループットの変化を視覚的に確認
+  - Statistics → TCP Stream Graphs → Window Scaling
+    → ウィンドウサイズの変化を確認
+  - Statistics → TCP Stream Graphs → Round Trip Time
+    → RTTの変動を確認
+  - Statistics → Flow Graph
+    → シーケンス図（ラダーダイアグラム）を表示
+
+[Step 5] tshark（コマンドライン版Wireshark）でのフィルタリング
+
+  # 3-way handshake のみ抽出
+  tshark -r capture.pcap -Y "tcp.flags.syn == 1" \
+    -T fields -e frame.time -e ip.src -e ip.dst \
+    -e tcp.srcport -e tcp.dstport -e tcp.flags
+
+  # 再送パケットを抽出
+  tshark -r capture.pcap -Y "tcp.analysis.retransmission" \
+    -T fields -e frame.time -e ip.src -e tcp.seq -e tcp.len
+
+  # RTTの統計を取得
+  tshark -r capture.pcap -Y "tcp.analysis.ack_rtt" \
+    -T fields -e tcp.analysis.ack_rtt | \
+    awk '{ sum+=$1; count++; if($1>max)max=$1 }
+    END { print "Avg:", sum/count*1000, "ms",
+                "Max:", max*1000, "ms",
+                "Count:", count }'
+
+  # ウィンドウサイズの推移を CSV で出力
+  tshark -r capture.pcap \
+    -Y "tcp.stream eq 0" \
+    -T fields -e frame.time_relative -e tcp.window_size_value \
+    -E separator=, > window_size.csv
+```
+

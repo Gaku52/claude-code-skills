@@ -1182,3 +1182,580 @@ server {
     add_header Cross-Origin-Resource-Policy "same-origin" always;
 }
 ```
+
+---
+
+## 7. アンチパターン
+
+### 7.1 アンチパターン 1: CSP に `unsafe-inline` と `unsafe-eval` を安易に使用する
+
+**問題のあるコード:**
+
+```
+Content-Security-Policy:
+    default-src 'self';
+    script-src 'self' 'unsafe-inline' 'unsafe-eval';
+    style-src 'self' 'unsafe-inline';
+```
+
+**なぜ問題か:**
+
+`unsafe-inline` を `script-src` に指定すると、CSP による XSS 防御がほぼ無効化される。攻撃者が HTML インジェクションに成功した場合、`<script>alert(document.cookie)</script>` のようなインラインスクリプトがそのまま実行されてしまう。同様に `unsafe-eval` を指定すると、`eval()` や `Function()` コンストラクタ、`setTimeout('string')` といった文字列からコードを生成する API が許可され、攻撃面が大幅に広がる。
+
+CSP を導入する主目的は XSS の影響緩和であり、`unsafe-inline` と `unsafe-eval` の使用はその目的を損なう。特に `script-src` にこれらを指定することは、鍵のかからないドアに防犯カメラだけ設置するようなもので、根本的な防御にならない。
+
+**正しいアプローチ:**
+
+```
+Content-Security-Policy:
+    default-src 'self';
+    script-src 'self' 'nonce-{server-generated-random}' 'strict-dynamic';
+    style-src 'self' 'nonce-{server-generated-random}';
+```
+
+nonce ベースの CSP を使用し、サーバーサイドでリクエストごとにランダムな nonce を生成して、正規のスクリプト要素にのみ付与する。`strict-dynamic` を併用することで、信頼されたスクリプトが動的にロードするスクリプトも自動的に許可される。
+
+### 7.2 アンチパターン 2: CORS で `Access-Control-Allow-Origin: *` と `credentials: true` を併用しようとする
+
+**問題のあるコード:**
+
+```javascript
+// サーバー側
+app.use((req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    next();
+});
+
+// クライアント側
+fetch('https://api.example.com/user/profile', {
+    credentials: 'include'  // Cookie を含めたクロスオリジンリクエスト
+});
+```
+
+**なぜ問題か:**
+
+ブラウザは仕様上、`Access-Control-Allow-Origin: *` と `Access-Control-Allow-Credentials: true` の組み合わせを拒否する。`credentials: true` を使用する場合、`Access-Control-Allow-Origin` には具体的なオリジンを指定しなければならない。
+
+しかし、この制約を回避しようとして「リクエストの Origin ヘッダーをそのまま `Access-Control-Allow-Origin` にエコーバックする」というパターンが散見される。これは事実上すべてのオリジンを許可するのと同じであり、CSRF 攻撃に対して脆弱になる。
+
+**正しいアプローチ:**
+
+```javascript
+// サーバー側: 許可するオリジンをホワイトリストで管理
+const allowedOrigins = new Set([
+    'https://app.example.com',
+    'https://staging.example.com',
+    'https://admin.example.com'
+]);
+
+app.use((req, res, next) => {
+    const origin = req.headers.origin;
+
+    if (allowedOrigins.has(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+        res.setHeader('Vary', 'Origin');  // キャッシュの正確性のため必須
+    }
+
+    next();
+});
+```
+
+### 7.3 アンチパターン 3: postMessage で origin を検証しない
+
+**問題のあるコード:**
+
+```javascript
+// 受信側: origin の検証なし
+window.addEventListener('message', (event) => {
+    // 危険: 任意のオリジンからのメッセージを処理してしまう
+    const data = event.data;
+    document.getElementById('output').innerHTML = data.html;
+});
+```
+
+**なぜ問題か:**
+
+`postMessage` はクロスオリジン通信のための安全な API だが、受信側で `event.origin` を検証しないと、攻撃者のページから任意のメッセージを送信できてしまう。上記の例では、さらに受信したデータを `innerHTML` に直接代入しているため、DOM XSS の脆弱性も生じている。
+
+**正しいアプローチ:**
+
+```javascript
+// 受信側: origin の検証あり
+window.addEventListener('message', (event) => {
+    // 送信元オリジンの検証は必須
+    if (event.origin !== 'https://trusted-partner.com') {
+        console.warn('Message from untrusted origin rejected:', event.origin);
+        return;
+    }
+
+    // データの型と構造も検証
+    if (typeof event.data !== 'object' || event.data.type !== 'update') {
+        return;
+    }
+
+    // innerHTML ではなく textContent を使用（XSS 防止）
+    document.getElementById('output').textContent = event.data.text;
+});
+```
+
+---
+
+## 8. エッジケース分析
+
+### 8.1 エッジケース 1: `blob:` URL と `data:` URL のオリジン
+
+`blob:` URL と `data:` URL は通常の HTTP URL とは異なるオリジン判定ルールを持つ。
+
+```javascript
+// blob: URL のオリジン
+// → 作成元ドキュメントのオリジンを継承する
+
+const htmlContent = '<html><body><script>alert(document.domain)</script></body></html>';
+const blob = new Blob([htmlContent], { type: 'text/html' });
+const blobUrl = URL.createObjectURL(blob);
+// blobUrl = "blob:https://example.com/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+// → このblob URLのオリジンは https://example.com
+
+// data: URL のオリジン
+// → Opaque Origin（不透明なオリジン）として扱われる
+// → どのオリジンとも同一オリジンにならない
+
+const dataUrl = 'data:text/html,<script>alert(document.domain)</script>';
+// → data: URL で開いたページの document.domain は "" (空文字列)
+// → 同一オリジンポリシーの観点では、他のどのオリジンともマッチしない
+
+// セキュリティ上の注意点:
+// 1. CSP で data: を許可すると、data: URL からのリソース読み込みが可能になる
+//    → script-src に data: を指定するのは危険
+//       攻撃者が data:text/javascript,alert(1) を注入できる
+
+// 2. blob: URL はオリジンを継承するため、
+//    CSP の script-src 'self' で blob: からのスクリプト実行が許可される
+//    ブラウザによっては追加の制限あり
+
+// 3. iframe で data: URL を使用する場合
+const iframe = document.createElement('iframe');
+iframe.src = 'data:text/html,<h1>Hello</h1>';
+// → iframe 内は Opaque Origin
+// → 親ページからの DOM アクセスは SecurityError になる
+```
+
+### 8.2 エッジケース 2: Service Worker のスコープとセキュリティ境界
+
+Service Worker は強力な機能を持つが、そのスコープとセキュリティ境界には注意が必要である。
+
+```javascript
+// Service Worker のスコープ制限
+
+// Service Worker のスクリプトURLがそのスコープの上限を決定する
+// /sw.js でSWを登録 → スコープは / 以下全体
+// /app/sw.js でSWを登録 → スコープは /app/ 以下
+
+// ケース1: スコープの上限を超えようとする（エラー）
+navigator.serviceWorker.register('/app/sw.js', {
+    scope: '/'  // エラー: /app/sw.js のスコープは /app/ まで
+});
+
+// ケース2: Service-Worker-Allowed ヘッダーで上限を拡張
+// サーバーが SW スクリプトのレスポンスに以下を付与:
+// Service-Worker-Allowed: /
+// → これにより /app/sw.js のスコープを / まで拡張可能
+
+// セキュリティ上の注意点:
+
+// 1. Service Worker は HTTPS（または localhost）でのみ登録可能
+// 2. Service Worker はオリジン単位で隔離される
+// 3. importScripts() で読み込むスクリプトも同一オリジンが必要
+//    （CORS が設定された外部スクリプトは可）
+
+// 4. Service Worker がキャッシュしたレスポンスと CSP の関係
+self.addEventListener('fetch', (event) => {
+    event.respondWith(
+        caches.match(event.request).then((cachedResponse) => {
+            if (cachedResponse) {
+                // キャッシュからのレスポンスにも CSP は適用される
+                // ただし、CSP ヘッダーはキャッシュされたレスポンスの
+                // ヘッダーが使用される（元のサーバー応答時のもの）
+                return cachedResponse;
+            }
+            return fetch(event.request);
+        })
+    );
+});
+
+// 5. Navigation Preload と Service Worker
+// → Navigation Preload を使用すると、SW の起動と
+//    ネットワークリクエストが並行して実行される
+// → レスポンスのセキュリティヘッダーは
+//    ネットワークレスポンスのものが使用される
+```
+
+### 8.3 エッジケース 3: WebSocket と Same-Origin Policy
+
+```javascript
+// WebSocket は Same-Origin Policy の制約を受けない
+// → 任意のオリジンへの WebSocket 接続が可能
+
+// これは仕様上の設計判断であり、以下の理由による:
+// 1. WebSocket のハンドシェイクは HTTP で行われ、
+//    サーバー側で Origin ヘッダーを検証できる
+// 2. WebSocket はブラウザの自動的な Cookie 送信をサポートするため、
+//    サーバー側での認証チェックが可能
+
+// サーバー側での Origin 検証（必須）
+const WebSocket = require('ws');
+const wss = new WebSocket.Server({ port: 8080 });
+
+wss.on('connection', (ws, req) => {
+    const origin = req.headers.origin;
+    const allowedOrigins = ['https://app.example.com'];
+
+    if (!allowedOrigins.includes(origin)) {
+        ws.close(1008, 'Origin not allowed');
+        return;
+    }
+
+    // 接続を受け入れる
+    ws.on('message', (message) => {
+        // メッセージ処理
+    });
+});
+
+// CSP の connect-src は WebSocket にも適用される
+// Content-Security-Policy: connect-src 'self' wss://ws.example.com
+```
+
+---
+
+## 9. 演習
+
+### 9.1 演習 1: 基礎 — CSP ヘッダーの設計
+
+以下の要件を満たす CSP ヘッダーを設計せよ。
+
+**要件:**
+- 自社ドメイン `https://app.example.com` からのみスクリプトを読み込む
+- CDN `https://cdn.jsdelivr.net` からスタイルシートとフォントを読み込む
+- API サーバー `https://api.example.com` への fetch リクエストを許可する
+- 画像は自社ドメインと HTTPS の任意のソースから読み込む
+- iframe への埋め込みは一切禁止する
+- インラインスクリプトは nonce ベースで制御する
+- フォームの送信先は自社ドメインのみ
+
+**模範解答:**
+
+```
+Content-Security-Policy:
+    default-src 'none';
+    script-src 'self' 'nonce-{random}' 'strict-dynamic';
+    style-src 'self' https://cdn.jsdelivr.net 'nonce-{random}';
+    img-src 'self' https:;
+    font-src 'self' https://cdn.jsdelivr.net;
+    connect-src 'self' https://api.example.com;
+    frame-src 'none';
+    frame-ancestors 'none';
+    form-action 'self';
+    base-uri 'self';
+    upgrade-insecure-requests;
+```
+
+**解説:**
+- `default-src 'none'` で全リソースをデフォルトでブロックし、必要なものだけ個別に許可するホワイトリスト方式を採用
+- `script-src` には `'nonce-{random}'` を指定し、サーバーサイドでリクエストごとにランダムな nonce を生成
+- `'strict-dynamic'` により、nonce 付きスクリプトが動的にロードするスクリプトも許可
+- `frame-ancestors 'none'` でクリックジャッキングを防止（X-Frame-Options: DENY と同等）
+- `upgrade-insecure-requests` で HTTP リクエストを自動的に HTTPS に昇格
+
+### 9.2 演習 2: 中級 — CORS の設定とデバッグ
+
+以下のエラーメッセージが発生した場合の原因と対策を述べよ。
+
+**シナリオ:**
+`https://app.example.com` のフロントエンドから `https://api.example.com/users` に POST リクエストを送信したところ、以下のエラーが発生した。
+
+```
+Access to fetch at 'https://api.example.com/users' from origin
+'https://app.example.com' has been blocked by CORS policy:
+Response to preflight request doesn't pass access control check:
+No 'Access-Control-Allow-Origin' header is present on the requested resource.
+```
+
+**模範解答:**
+
+原因: `https://api.example.com` のサーバーが、プリフライトリクエスト（OPTIONS メソッド）に対して適切な CORS ヘッダーを返していない。POST リクエストで `Content-Type: application/json` や Authorization ヘッダーを使用している場合、単純リクエスト（Simple Request）の条件を満たさないため、ブラウザは本リクエストの前にプリフライトリクエストを送信する。
+
+対策:
+
+```javascript
+// サーバー側（Express）の修正
+app.options('/users', (req, res) => {
+    // プリフライトリクエストへの応答
+    res.setHeader('Access-Control-Allow-Origin', 'https://app.example.com');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
+    res.setHeader('Access-Control-Allow-Headers',
+        'Content-Type, Authorization');
+    res.setHeader('Access-Control-Max-Age', '86400');
+    res.status(204).end();
+});
+
+app.post('/users', (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', 'https://app.example.com');
+    // ... ビジネスロジック
+    res.json({ success: true });
+});
+```
+
+デバッグのポイント:
+1. ブラウザの DevTools の Network タブで OPTIONS リクエストの有無を確認
+2. OPTIONS レスポンスのステータスコードが 2xx であることを確認
+3. レスポンスヘッダーに必要な `Access-Control-Allow-*` が含まれていることを確認
+4. `Vary: Origin` ヘッダーが設定されていることを確認（CDN/プロキシのキャッシュ対策）
+
+### 9.3 演習 3: 上級 — セキュリティヘッダーの総合監査
+
+以下の HTTP レスポンスヘッダーを監査し、セキュリティ上の問題点をすべて指摘し、改善案を提示せよ。
+
+```
+HTTP/1.1 200 OK
+Content-Type: text/html
+Set-Cookie: session=abc123; Path=/
+X-Powered-By: Express 4.18.2
+Server: nginx/1.24.0
+```
+
+**模範解答:**
+
+| # | 問題点 | リスク | 改善案 |
+|---|--------|--------|--------|
+| 1 | CSP ヘッダーがない | XSS 攻撃の影響が最大化される | `Content-Security-Policy` を追加 |
+| 2 | HSTS ヘッダーがない | ダウングレード攻撃（HTTP接続）のリスク | `Strict-Transport-Security` を追加 |
+| 3 | Cookie に Secure 属性がない | HTTP 通信でセッション Cookie が平文送信される | `Secure` を追加 |
+| 4 | Cookie に HttpOnly 属性がない | XSS でセッション Cookie が窃取される | `HttpOnly` を追加 |
+| 5 | Cookie に SameSite 属性がない | CSRF 攻撃のリスク（ブラウザデフォルトは Lax だが明示推奨） | `SameSite=Lax` を追加 |
+| 6 | X-Powered-By ヘッダーが露出 | フレームワークのバージョン情報が攻撃者に漏洩 | `X-Powered-By` を削除 |
+| 7 | Server ヘッダーにバージョン情報 | サーバーソフトウェアの脆弱性を特定される | バージョン番号を非表示に |
+| 8 | X-Content-Type-Options がない | MIME スニッフィング攻撃のリスク | `X-Content-Type-Options: nosniff` を追加 |
+| 9 | X-Frame-Options がない | クリックジャッキング攻撃のリスク | `X-Frame-Options: DENY` を追加 |
+| 10 | Referrer-Policy がない | 機密パス情報がリファラーで漏洩する可能性 | `Referrer-Policy: strict-origin-when-cross-origin` を追加 |
+| 11 | Permissions-Policy がない | 不要なブラウザ機能が悪用される可能性 | `Permissions-Policy` で不要な機能を無効化 |
+| 12 | Cookie に __Host- プレフィックスがない | Cookie のスコープが広すぎる可能性 | `__Host-session` に変更 |
+
+改善後のレスポンスヘッダー:
+
+```
+HTTP/1.1 200 OK
+Content-Type: text/html; charset=utf-8
+Set-Cookie: __Host-session=abc123; Secure; HttpOnly; SameSite=Lax; Path=/; Max-Age=86400
+Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-xxx' 'strict-dynamic'; object-src 'none'; base-uri 'self'; frame-ancestors 'none';
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Referrer-Policy: strict-origin-when-cross-origin
+Permissions-Policy: camera=(), microphone=(), geolocation=(self)
+```
+
+---
+
+## 10. FAQ
+
+### Q1: CSP を導入したら既存のサイトが壊れてしまいます。段階的に導入するにはどうすればよいですか？
+
+CSP の段階的な導入には `Content-Security-Policy-Report-Only` ヘッダーを活用する。このヘッダーを使用すると、ポリシー違反はレポートされるがリソースのブロックは行われない。
+
+推奨される導入手順:
+
+1. **調査フェーズ**: `Content-Security-Policy-Report-Only` を緩めのポリシーで設定し、`report-uri` でレポートを収集する。これにより、サイトが読み込んでいるすべてのリソースの出所を把握できる。
+
+2. **分析フェーズ**: 収集したレポートを分析し、正規のリソースと不要なリソースを区別する。インラインスクリプトやインラインスタイルの使用箇所を特定し、nonce やハッシュへの移行計画を立てる。
+
+3. **段階的適用**: まず影響の少ないディレクティブ（`object-src 'none'`, `base-uri 'self'`）から本番の CSP ヘッダーに移行し、徐々にスコープを広げていく。
+
+4. **本番適用**: すべてのディレクティブを `Content-Security-Policy` ヘッダーに移行し、`Report-Only` は次のポリシー変更のテスト用に残しておく。
+
+### Q2: Same-Origin Policy があるのに、なぜ CSRF 攻撃が成立するのですか？
+
+Same-Origin Policy は「レスポンスの読み取り」を制限するが、「リクエストの送信」自体は制限しない。フォーム送信（`<form method="POST">`）やイメージタグ（`<img src="...">`）によるリクエストは、クロスオリジンであっても送信される。このとき、ブラウザはターゲットサイトの Cookie を自動的に付与する。
+
+攻撃者のページ:
+```html
+<!-- 攻撃者が evil.com に設置したページ -->
+<form id="csrf-form"
+      action="https://bank.example.com/transfer"
+      method="POST">
+    <input type="hidden" name="to" value="attacker-account">
+    <input type="hidden" name="amount" value="1000000">
+</form>
+<script>document.getElementById('csrf-form').submit();</script>
+```
+
+この場合:
+- ブラウザは `bank.example.com` への POST リクエストを送信する
+- ユーザーが `bank.example.com` にログイン中であれば、Cookie が自動的に付与される
+- サーバーは正規のリクエストと区別できない
+
+**対策:**
+- `SameSite=Lax` または `SameSite=Strict` の Cookie 属性
+- CSRF トークン（サーバーサイドで生成したランダムなトークンをフォームに埋め込む）
+- Origin ヘッダーの検証
+- カスタムヘッダーの要求（`X-Requested-With` 等。プリフライトが発生するため CSRF が困難になる）
+
+### Q3: Content-Security-Policy の `strict-dynamic` はどのように動作しますか？
+
+`strict-dynamic` は CSP Level 3 で導入されたソース式であり、nonce またはハッシュで信頼されたスクリプトが動的に生成・読み込みするスクリプトにも信頼を伝播させる仕組みである。
+
+```javascript
+// CSP ヘッダー:
+// Content-Security-Policy: script-src 'nonce-abc123' 'strict-dynamic'
+
+// 以下の nonce 付きスクリプトは実行される
+// <script nonce="abc123">
+//     // このスクリプト内で動的にロードするスクリプトも許可される
+//     const script = document.createElement('script');
+//     script.src = 'https://any-cdn.com/library.js';
+//     document.head.appendChild(script);
+//     // → 'strict-dynamic' により、このスクリプトは実行される
+//     //   （ホワイトリストに any-cdn.com がなくても）
+// </script>
+```
+
+`strict-dynamic` が有効な場合の動作:
+- nonce/ハッシュで直接信頼されたスクリプトから `createElement('script')` で追加されたスクリプトは自動的に許可される
+- `document.write()` で挿入されたスクリプトはブロックされる（パーサー挿入型は危険なため）
+- `https:` や `http:` 等の URL ベースのソース式は無視される（`strict-dynamic` が優先）
+- `'self'` や具体的なホスト名も無視される
+
+これにより、既存のスクリプトローダーやモジュールバンドラーとの互換性を維持しつつ、攻撃者が直接注入したインラインスクリプトはブロックされる。
+
+### Q4: なぜ `X-Frame-Options` と CSP の `frame-ancestors` を両方設定する必要がありますか？
+
+`X-Frame-Options` は古いヘッダーであり、`DENY` と `SAMEORIGIN` の2つの値のみサポートする。CSP の `frame-ancestors` はより柔軟であり、特定のオリジンを指定できる。両方を設定する理由は、古いブラウザが CSP の `frame-ancestors` をサポートしていない場合のフォールバックとしてである。
+
+ただし、両方が設定されている場合、CSP `frame-ancestors` が優先される（CSP 仕様による）。そのため、CSP をサポートするモダンブラウザでは `frame-ancestors` の値が使用され、CSP をサポートしないレガシーブラウザでは `X-Frame-Options` が使用される。
+
+### Q5: ブラウザのセキュリティモデルにおいて、拡張機能（Extension）はどのような位置づけですか？
+
+ブラウザ拡張機能は通常のWebページよりも高い権限を持ち、セキュリティモデルの特殊な位置にある。
+
+- 拡張機能は `manifest.json` で宣言した権限に基づいて動作する
+- `content_scripts` はWebページのDOMにアクセスできるが、独立した JavaScript 実行環境（isolated world）で動作する
+- `background` スクリプト（Service Worker）はブラウザAPIへの特権アクセスを持つ
+- CSP はWebページに対して適用されるが、拡張機能自体には拡張機能用の CSP が適用される
+- 拡張機能は `webRequest` API でネットワークリクエストを傍受・変更できる（Manifest V3 では `declarativeNetRequest` に移行）
+
+拡張機能のインストールはユーザーの明示的な操作が必要であり、ストアの審査プロセスを経るため、一定の信頼性が担保されている。しかし、悪意ある拡張機能はブラウザのセキュリティモデルを迂回できるため、インストールする拡張機能の選別は重要である。
+
+---
+
+## 11. ブラウザセキュリティの進化と将来展望
+
+### 11.1 Privacy Sandbox
+
+Google が推進する Privacy Sandbox は、サードパーティ Cookie に依存しないWeb エコシステムの構築を目指すイニシアチブである。以下の主要 API で構成される。
+
+| API 名 | 用途 | サードパーティ Cookie の代替 |
+|--------|------|---------------------------|
+| Topics API | 興味関心ベースの広告 | Cookie ベースのユーザープロファイリング |
+| Protected Audience (FLEDGE) | リターゲティング広告 | サードパーティ Cookie によるリターゲティング |
+| Attribution Reporting | コンバージョン計測 | Cookie ベースのアトリビューション |
+| Private State Tokens | 不正防止（Bot検知） | サードパーティ Cookie による信頼性判定 |
+| FedCM | 認証連携（SSO） | サードパーティ Cookie による SSO |
+| CHIPS | パーティション化 Cookie | 無制限のサードパーティ Cookie |
+| Fenced Frames | 広告表示の分離 | iframe + サードパーティ Cookie |
+| Shared Storage | 制限付きクロスサイトストレージ | サードパーティ Cookie による状態共有 |
+
+### 11.2 Speculation Rules API とセキュリティ
+
+Speculation Rules API は、ページのプリレンダリングやプリフェッチを宣言的に制御する仕組みである。セキュリティ面では以下の点に注意が必要である。
+
+```html
+<!-- Speculation Rules の記述例 -->
+<script type="speculationrules">
+{
+    "prerender": [
+        {
+            "where": {
+                "href_matches": "/products/*"
+            },
+            "eagerness": "moderate"
+        }
+    ],
+    "prefetch": [
+        {
+            "urls": ["/api/featured-products"],
+            "requires": ["anonymous-client-ip-when-cross-origin"]
+        }
+    ]
+}
+</script>
+
+<!--
+  セキュリティ上の考慮事項:
+  1. プリレンダリングされたページは、ユーザーが実際にナビゲーションする前に
+     副作用（API呼び出し、アナリティクス等）を発生させる可能性がある
+  2. クロスオリジンのプリフェッチでは、ユーザーのIPアドレスが
+     プリフェッチ先に漏洩する可能性がある
+     → "requires": ["anonymous-client-ip-when-cross-origin"] で対策
+  3. CSP はプリレンダリングされたページにも適用される
+-->
+```
+
+---
+
+## まとめ
+
+### セキュリティ機構の対応表
+
+| 概念 | 防御対象 | 設定場所 | ポイント |
+|------|---------|---------|---------|
+| サンドボックス | プロセス権限昇格 | OS/ブラウザ内部 | レンダラーの権限制限、OS隔離 |
+| Same-Origin Policy | クロスオリジンデータ窃取 | ブラウザ内部（自動） | スキーム+ホスト+ポートで判定 |
+| CSP | XSS の影響緩和 | HTTP ヘッダー | nonce + strict-dynamic を推奨 |
+| サイトアイソレーション | Spectre 等のサイドチャネル | ブラウザ内部（自動） | 異なるサイトを別プロセスで実行 |
+| Cookie セキュリティ | セッション窃取、CSRF | Set-Cookie ヘッダー | Secure + HttpOnly + SameSite=Lax |
+| SRI | CDN リソースの改ざん | HTML の integrity 属性 | sha384 以上のハッシュを推奨 |
+| CORS | 安全なクロスオリジン通信 | HTTP レスポンスヘッダー | ホワイトリスト + Vary: Origin |
+| Trusted Types | DOM XSS | CSP + JavaScript API | innerHTML 等への文字列代入を禁止 |
+| HSTS | ダウングレード攻撃 | HTTP レスポンスヘッダー | preload リストへの登録を推奨 |
+| Permissions Policy | 不要な機能の悪用 | HTTP ヘッダー / iframe 属性 | 使わない機能は明示的に無効化 |
+
+### セキュリティチェックリスト
+
+本番環境にデプロイする前に、以下の項目を確認することを推奨する。
+
+- [ ] HTTPS が有効であり、HTTP からのリダイレクトが設定されている
+- [ ] HSTS ヘッダーが設定されている（`max-age` は十分に長い値）
+- [ ] CSP ヘッダーが設定され、`unsafe-inline` / `unsafe-eval` を使用していない
+- [ ] Cookie に Secure, HttpOnly, SameSite 属性が設定されている
+- [ ] X-Content-Type-Options: nosniff が設定されている
+- [ ] X-Frame-Options または CSP frame-ancestors が設定されている
+- [ ] CDN のリソースに SRI（integrity 属性）が付与されている
+- [ ] CORS の設定がホワイトリスト方式になっている
+- [ ] Server / X-Powered-By ヘッダーのバージョン情報が非表示になっている
+- [ ] Referrer-Policy が適切に設定されている
+- [ ] Permissions-Policy で不要な機能が無効化されている
+
+---
+
+## 次に読むべきガイド
+
+- [[../01-rendering/00-rendering-pipeline.md]] — レンダリングパイプライン
+- [[./04-browser-storage.md]] — ブラウザストレージ（Cookie, localStorage, IndexedDB の詳細）
+- [[../../01-web-api/02-fetch-api.md]] — Fetch API と CORS の実践
+
+---
+
+## 参考文献
+
+1. Chromium Project. "Site Isolation Design Document." The Chromium Projects, 2018. https://www.chromium.org/Home/chromium-security/site-isolation/
+2. MDN Web Docs. "Content Security Policy (CSP)." Mozilla, 2024. https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP
+3. W3C. "Content Security Policy Level 3." W3C Working Draft, 2023. https://www.w3.org/TR/CSP3/
+4. Reis, C., Moshchuk, A., and Oskov, N. "Site Isolation: Process Separation for Web Sites within the Browser." USENIX Security Symposium, 2019.
+5. Kocher, P., Horn, J., Fogh, A. et al. "Spectre Attacks: Exploiting Speculative Execution." IEEE S&P, 2019.
+6. Google. "Privacy Sandbox." Web.dev, 2024. https://web.dev/privacy-sandbox/
+7. OWASP. "OWASP Secure Headers Project." OWASP Foundation, 2024. https://owasp.org/www-project-secure-headers/
+8. Barth, A. "The Web Origin Concept." RFC 6454, IETF, 2011.
+9. West, M. "Incrementally Better Cookies." RFC 6265bis, IETF, 2024.
+10. W3C. "Trusted Types." W3C Working Draft, 2023. https://www.w3.org/TR/trusted-types/
+```

@@ -1100,3 +1100,528 @@ processItem(new Item("B", 2));
 processItem(new Item("C", 3));
 // → 全て同じHidden Class → ICがmonomorphic → 最速
 ```
+
+### 9.4 delete 演算子の回避
+
+```javascript
+// アンチパターン: delete でプロパティを削除
+const obj = { x: 1, y: 2, z: 3 };
+delete obj.y;
+// → オブジェクトが「辞書モード（slow mode）」に切り替わる
+// → Hidden Class の最適化が完全に失われる
+// → 以降のプロパティアクセスが全て遅くなる
+
+// 推奨パターン: null や undefined を代入
+const obj2 = { x: 1, y: 2, z: 3 };
+obj2.y = undefined;
+// → Hidden Class は維持される
+// → プロパティアクセスの最適化は継続
+
+// 推奨パターン: 新しいオブジェクトを作成
+const { y, ...rest } = { x: 1, y: 2, z: 3 };
+// rest = { x: 1, z: 3 }
+// → 新しいオブジェクトは新しいHidden Classを持つが、
+//   辞書モードにはならない
+```
+
+### 9.5 数値の型に関する注意
+
+V8は数値を内部的に複数の表現で管理している。
+
+```javascript
+// SMI（Small Integer）: 最も効率的
+// → 31ビット符号付き整数（32ビットプラットフォーム）
+// → 32ビット符号付き整数（64ビットプラットフォーム）
+// → タグ付きポインタとして即値で格納（ヒープ割り当て不要）
+const smi = 42;
+
+// HeapNumber: ヒープに割り当てられる浮動小数点数
+// → SMIの範囲外の整数、または小数
+// → ヒープオブジェクトとしてのオーバーヘッドがある
+const heapNum = 3.14;
+const bigInt = 2147483648;  // SMI範囲外
+
+// 配列におけるSMI vs Doubleの影響
+const smiArr = [1, 2, 3];           // PACKED_SMI_ELEMENTS（最速）
+const doubleArr = [1, 2, 3.0];      // PACKED_DOUBLE_ELEMENTS
+// 3.0 が含まれるだけでDouble配列になる
+
+// 整数演算がオーバーフローすると型が変わる
+let counter = 0;
+for (let i = 0; i < 1000000; i++) {
+  counter += i;
+  // counter がSMIの範囲を超えた時点でHeapNumberに変更
+  // → ループ内の加算が急に遅くなる可能性
+}
+```
+
+---
+
+## 10. V8のデバッグとプロファイリング
+
+### 10.1 V8フラグ一覧
+
+Node.jsやChrome（DevTools Protocol経由）で使用できるV8のデバッグフラグを以下にまとめる。
+
+```bash
+# 最適化の追跡
+node --trace-opt script.js
+# → TurboFanが最適化した関数を表示
+
+# 脱最適化の追跡
+node --trace-deopt script.js
+# → 脱最適化が発生した箇所と理由を表示
+
+# バイトコードの出力
+node --print-bytecode script.js
+# → Ignitionが生成したバイトコードを表示
+
+# 特定の関数のバイトコードのみ出力
+node --print-bytecode --print-bytecode-filter="functionName" script.js
+
+# GCの追跡
+node --trace-gc script.js
+# → GCイベントの発生タイミングと所要時間を表示
+
+# 詳細なGC情報
+node --trace-gc-verbose script.js
+
+# Hidden Class（Map）の遷移を追跡
+node --trace-maps script.js
+
+# ICの状態を追跡
+node --trace-ic script.js
+
+# TurboFanの最適化グラフを出力（Turbolizer用）
+node --trace-turbo script.js
+# → turbo-*.json ファイルが生成される
+# → https://v8.github.io/tools/turbolizer/ で可視化
+```
+
+### 10.2 Chrome DevToolsでのV8分析
+
+```
+Chrome DevTools を使ったV8パフォーマンス分析:
+
+1. Performance タブ
+   → CPU Profile を記録
+   → 関数ごとの実行時間を確認
+   → ホットスポットの特定
+
+2. Memory タブ
+   → Heap Snapshot: ヒープの全オブジェクトを一覧
+   → Allocation Timeline: メモリ割り当ての時系列変化
+   → Allocation Sampling: 低オーバーヘッドなサンプリング
+
+3. Console での確認
+   → %HasFastProperties(obj)
+      オブジェクトが高速プロパティ（Hidden Class）モードかを確認
+      ※ --allow-natives-syntax フラグが必要
+
+   → %OptimizeFunctionOnNextCall(fn)
+      関数を次の呼び出し時に強制最適化
+      ※ テスト用途。本番環境では使用しないこと
+
+   → %GetOptimizationStatus(fn)
+      関数の最適化状態を数値で返す
+```
+
+### 10.3 最適化状態の確認方法
+
+```javascript
+// Node.jsで --allow-natives-syntax フラグを使用して確認
+// ※ このフラグはV8の内部APIを公開するため、開発・テスト目的のみで使用
+
+function testFunction(a, b) {
+  return a + b;
+}
+
+// ウォームアップ
+for (let i = 0; i < 100000; i++) {
+  testFunction(i, i + 1);
+}
+
+// 最適化状態を確認
+// %GetOptimizationStatus(testFunction) の返り値:
+// 1 = 関数は最適化可能
+// 2 = 関数は最適化されている
+// 3 = 関数は常に最適化される
+// 4 = 関数は最適化されていない
+// 6 = 関数はベースラインコードの可能性
+```
+
+---
+
+## 11. エッジケース分析
+
+### 11.1 エッジケース1: try-catch による最適化への影響
+
+以前のV8（Crankshaft時代）では、`try-catch` を含む関数は最適化対象から除外されていた。TurboFanではこの制限は大幅に緩和されたが、依然として注意が必要なケースが存在する。
+
+```javascript
+// かつてのアンチパターン（Crankshaft時代）
+// → try-catchがあるだけで関数全体が最適化されなかった
+function oldPattern() {
+  try {
+    // ホットなコード
+    for (let i = 0; i < 1000000; i++) {
+      // 重い処理
+    }
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+// TurboFan時代の現状:
+// → try-catch自体は最適化を阻害しない
+// → ただし、catch節内のコードは最適化されにくい
+//   （例外発生は稀であるべきという前提）
+
+// エッジケース: try-catch内での型の不安定さ
+function parseJSON(str) {
+  try {
+    return JSON.parse(str);
+    // 返り値の型がstring, number, object, array等、不定
+    // → 呼び出し側のICがpolymorphicになりやすい
+  } catch (e) {
+    return null;
+    // さらにnullも返り値に加わる
+    // → 呼び出し側のICがさらに複雑に
+  }
+}
+
+// 推奨: 返り値の型を統一する工夫
+function parseJSONSafe(str) {
+  try {
+    const result = JSON.parse(str);
+    return { success: true, data: result };
+  } catch (e) {
+    return { success: false, data: null };
+  }
+}
+// → 常に同じ形状のオブジェクトを返す → Hidden Classが安定
+```
+
+### 11.2 エッジケース2: arguments オブジェクトのリーク
+
+```javascript
+// arguments オブジェクトは特殊な振る舞いを持ち、
+// 最適化に悪影響を与える場合がある
+
+// アンチパターン: argumentsを他の関数に渡す（リーク）
+function leakyFunction() {
+  // arguments がクロージャに捕捉される → 最適化が困難
+  return Array.prototype.slice.call(arguments);
+}
+
+// アンチパターン: argumentsを外部変数に代入
+function badPattern() {
+  const args = arguments;  // argumentsオブジェクトが「リーク」
+  return function() {
+    return args[0];  // クロージャ内でargumentsを参照
+  };
+}
+
+// 推奨パターン: レストパラメータを使用
+function goodPattern(...args) {
+  // argsは通常の配列 → 最適化に問題なし
+  return args.slice();
+}
+
+// 推奨パターン: ES2015+ のデストラクチャリング
+function betterPattern(first, second, ...rest) {
+  return [first, second, ...rest];
+}
+```
+
+### 11.3 エッジケース3: with文とeval
+
+```javascript
+// with文は V8 の最適化を完全に阻害する
+// → スコープチェーンが動的になり、変数解決が静的にできない
+
+// アンチパターン: with文
+function withExample(obj) {
+  with (obj) {
+    // x が obj.x なのか外部スコープの x なのか
+    // コンパイル時に判断できない
+    return x + y;
+  }
+}
+// → 関数全体が最適化対象から除外される可能性
+// → strict mode では with文は構文エラー
+
+// eval も同様の問題を引き起こす
+function evalExample(code) {
+  eval(code);
+  // eval内で変数が宣言・変更される可能性
+  // → 関数のスコープ全体が動的に
+  // → Hidden Classやスコープの最適化が不可能
+}
+
+// 間接的なeval（グローバルスコープで実行）は影響が限定的
+const indirectEval = eval;
+indirectEval("console.log('hello')");
+// → 呼び出し元の関数スコープには影響しない
+```
+
+---
+
+## 12. 比較表
+
+### 12.1 V8 vs 他のJavaScriptエンジン
+
+| 特性 | V8 (Chrome/Node) | SpiderMonkey (Firefox) | JavaScriptCore (Safari) |
+|------|------------------|----------------------|------------------------|
+| 開発元 | Google | Mozilla | Apple |
+| インタプリタ | Ignition（レジスタベース） | Warp Baseline | LLInt（Low Level Interpreter） |
+| 最適化コンパイラ | TurboFan | Ion（Warp） | DFG + FTL（B3） |
+| JIT段階数 | 2段階（Ignition → TurboFan） | 3段階（Baseline → IC → Ion） | 4段階（LLInt → Baseline → DFG → FTL） |
+| GC方式 | 世代別 Mark-Sweep-Compact | 世代別 Incremental GC | 世代別 Mark-Sweep（Riptide） |
+| Hidden Class名称 | Map | Shape | Structure |
+| IC実装 | フィードバックベクタ | CacheIR | Polymorphic IC |
+| WebAssembly | Liftoff + TurboFan | Baseline + Ion | BBQ + OMG |
+| 使用ランタイム | Chrome, Node.js, Deno, Electron | Firefox, SpiderNode | Safari, Bun |
+
+### 12.2 最適化レベルごとの比較
+
+| 特性 | Ignition (バイトコード) | TurboFan (最適化済み) |
+|------|----------------------|---------------------|
+| 起動速度 | 高速（バイトコード生成は軽量） | 遅い（コンパイルに時間がかかる） |
+| 実行速度 | 中程度（インタプリタ実行） | 高速（ネイティブコード実行） |
+| メモリ使用量 | 小（バイトコードはコンパクト） | 大（マシンコードはサイズが大きい） |
+| コンパイル時間 | 短い | 長い（最適化パス多数） |
+| 型特殊化 | なし（汎用バイトコード） | あり（フィードバックベクタに基づく） |
+| 脱最適化 | 不要（汎用コード） | 必要な場合がある（型前提が崩れた時） |
+| 適用対象 | 全関数（初回実行） | ホットスポットのみ |
+| デバッグ容易性 | 高い（バイトコードと1:1対応） | 低い（インライン展開等で元コードと乖離） |
+
+---
+
+## 13. メモリリーク対策
+
+### 13.1 典型的なメモリリークパターン
+
+V8のGCは到達可能なオブジェクトを自動的に管理するが、プログラマの意図しない参照が残ることで「メモリリーク」が発生する。
+
+```javascript
+// パターン1: イベントリスナーの解除忘れ
+class Component {
+  constructor() {
+    this.data = new Array(10000).fill("large data");
+    // イベントリスナーを登録
+    window.addEventListener("resize", this.handleResize);
+  }
+
+  handleResize = () => {
+    console.log(this.data.length);
+  };
+
+  destroy() {
+    // リスナーを解除しないと、
+    // このComponentインスタンスはGCされない
+    // → this.data の巨大配列もリークする
+  }
+}
+
+// 修正版
+class ComponentFixed {
+  constructor() {
+    this.data = new Array(10000).fill("large data");
+    this.handleResize = this.handleResize.bind(this);
+    window.addEventListener("resize", this.handleResize);
+  }
+
+  handleResize() {
+    console.log(this.data.length);
+  }
+
+  destroy() {
+    window.removeEventListener("resize", this.handleResize);
+    this.data = null;  // 明示的に参照を切る
+  }
+}
+```
+
+```javascript
+// パターン2: クロージャによる意図しない参照保持
+function createProcessor() {
+  const hugeData = new Array(1000000).fill("x");  // 巨大なデータ
+
+  // この関数はhugeDataへの参照を保持し続ける
+  return function process(input) {
+    // hugeDataを直接使っていなくても、
+    // 同じスコープの変数なのでクロージャが参照を保持
+    return input.toUpperCase();
+  };
+}
+
+const processor = createProcessor();
+// → processor が存在する限り hugeData はGCされない
+
+// 修正版: スコープを分離
+function createProcessorFixed() {
+  const hugeData = new Array(1000000).fill("x");
+  const result = processHugeData(hugeData);
+
+  // hugeDataを使う処理を完了させてから
+  // クロージャを返す
+  return function process(input) {
+    return input.toUpperCase() + result;
+  };
+}
+```
+
+```javascript
+// パターン3: タイマーのクリア忘れ
+function startPolling() {
+  const data = { buffer: new ArrayBuffer(1024 * 1024) }; // 1MB
+
+  const intervalId = setInterval(() => {
+    // data への参照が維持される
+    console.log(data.buffer.byteLength);
+  }, 1000);
+
+  // intervalIdを返さないと、クリアする手段がない
+  // → data は永久にGCされない
+}
+
+// 修正版
+function startPollingFixed() {
+  const data = { buffer: new ArrayBuffer(1024 * 1024) };
+
+  const intervalId = setInterval(() => {
+    console.log(data.buffer.byteLength);
+  }, 1000);
+
+  // クリーンアップ関数を返す
+  return function stop() {
+    clearInterval(intervalId);
+    // intervalIdをクリアすれば、コールバックへの参照が消え、
+    // data もGC対象になる
+  };
+}
+```
+
+### 13.2 WeakRef と FinalizationRegistry
+
+ES2021で導入されたWeakRefとFinalizationRegistryは、メモリリーク対策の強力なツールである。
+
+```javascript
+// WeakRef: 弱参照（GCを阻害しない参照）
+class Cache {
+  constructor() {
+    this.cache = new Map();
+  }
+
+  set(key, value) {
+    // WeakRefで値を保持 → GCが必要なら回収可能
+    this.cache.set(key, new WeakRef(value));
+  }
+
+  get(key) {
+    const ref = this.cache.get(key);
+    if (ref) {
+      const value = ref.deref();  // 弱参照を解決
+      if (value !== undefined) {
+        return value;  // まだ生きている
+      }
+      // GCされていた → キャッシュエントリを削除
+      this.cache.delete(key);
+    }
+    return undefined;
+  }
+}
+
+// FinalizationRegistry: オブジェクトがGCされた時のコールバック
+const registry = new FinalizationRegistry((heldValue) => {
+  console.log(`Object with key "${heldValue}" was garbage collected`);
+  // クリーンアップ処理（外部リソースの解放など）
+});
+
+function createManagedObject(key) {
+  const obj = { data: new Array(10000) };
+  registry.register(obj, key);  // objがGCされたらkeyを引数にコールバック
+  return obj;
+}
+
+// WeakMap: キーが弱参照（キーオブジェクトがGCされるとエントリ自動削除）
+const metadata = new WeakMap();
+
+function attachMetadata(obj, meta) {
+  metadata.set(obj, meta);
+  // obj がどこからも参照されなくなれば、
+  // WeakMapのエントリも自動的に削除される
+}
+```
+
+---
+
+## 14. WebAssembly と V8
+
+### 14.1 V8のWebAssembly実行パイプライン
+
+V8はWebAssemblyも実行でき、専用のコンパイルパイプラインを持っている。
+
+```
+┌──────────────────────────────────────────────────────────┐
+│          V8 WebAssembly パイプライン                        │
+├──────────────────────────────────────────────────────────┤
+│                                                          │
+│  .wasm バイナリ                                           │
+│      │                                                   │
+│      ▼                                                   │
+│  ┌──────────────┐                                        │
+│  │  Validation   │  Wasmバイナリの検証                     │
+│  └──────┬───────┘                                        │
+│         │                                                │
+│         ├──────────────────┐                              │
+│         ▼                  ▼                              │
+│  ┌──────────────┐  ┌──────────────┐                      │
+│  │  Liftoff       │  │  TurboFan     │                      │
+│  │  (Baseline)    │  │  (Optimizing) │                      │
+│  │                │  │               │                      │
+│  │  高速コンパイル  │  │  高品質最適化   │                      │
+│  │  低品質コード   │  │  遅いコンパイル │                      │
+│  └──────┬───────┘  └──────┬───────┘                      │
+│         │                  │                              │
+│         ▼                  ▼                              │
+│  即座に実行開始      TurboFanの完了後に                      │
+│  （レイテンシ重視）    Liftoffコードを置換                     │
+│                     （スループット重視）                      │
+│                                                          │
+│  Lazy Compilation:                                       │
+│  → 関数が初めて呼ばれた時にコンパイル                       │
+│  → 未使用の関数はコンパイルしない                           │
+│  → 起動時間の短縮に貢献                                    │
+│                                                          │
+└──────────────────────────────────────────────────────────┘
+```
+
+### 14.2 JavaScript と WebAssembly の相互運用
+
+```javascript
+// WebAssemblyモジュールの読み込みと実行
+async function loadWasm() {
+  const response = await fetch("module.wasm");
+  const buffer = await response.arrayBuffer();
+  const module = await WebAssembly.compile(buffer);
+  const instance = await WebAssembly.instantiate(module, {
+    env: {
+      // JavaScriptからWasmに渡す関数
+      log: (value) => console.log(value),
+    },
+  });
+
+  // Wasmのエクスポート関数を呼び出す
+  const result = instance.exports.add(10, 20);
+  // → JavaScript と Wasm の呼び出しにはオーバーヘッドがある
+  // → 頻繁な小さな呼び出しは避け、まとまった処理を委譲する
+}
+
+// パフォーマンスの考慮点:
+// ・JS → Wasm 呼び出し: 約10-20ns のオーバーヘッド
+// ・Wasm → JS 呼び出し: より大きなオーバーヘッド（型変換等）
+// ・大きなデータ: SharedArrayBufferを使ったゼロコピー転送が理想
+// ・小さな関数の頻繁な呼び出しは JS 内で完結させた方が速い
+```
