@@ -1423,3 +1423,704 @@ impl Drop for RustCharDev {
 
 Android での Rust 採用も並行して進んでおり、Android 13以降では新規コードの約20%がRustで記述されている。メモリ安全性バグの報告数はRust導入以降、年々減少傾向にある。
 
+---
+
+## 9. CXL・Confidential Computing・将来展望
+
+### 9.1 CXL（Compute Express Link）
+
+CXLはPCIe物理層上で動作するオープンなインターコネクト規格であり、CPU・メモリ・アクセラレータ間のコヒーレントな接続を実現する。OSのメモリ管理に根本的な変化をもたらす可能性がある。
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                CXL メモリ階層の変化                           │
+│                                                              │
+│  従来のメモリ階層:                                           │
+│                                                              │
+│  CPU ─── DDR5 DRAM (Local Memory)                           │
+│           │                                                  │
+│           └── レイテンシ: ~100ns                             │
+│                                                              │
+│  ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─              │
+│                                                              │
+│  CXL導入後のメモリ階層:                                      │
+│                                                              │
+│  CPU ─── DDR5 DRAM (Tier 0: Local Memory)                   │
+│   │       │                                                  │
+│   │       └── レイテンシ: ~100ns                             │
+│   │                                                          │
+│   ├── CXL Memory Expander (Tier 1: Near Memory)             │
+│   │       │                                                  │
+│   │       └── レイテンシ: ~150-200ns                         │
+│   │                                                          │
+│   ├── CXL Memory Pool (Tier 2: Shared Memory)               │
+│   │       │                                                  │
+│   │       └── レイテンシ: ~200-400ns                         │
+│   │       └── 複数ホスト間でメモリを動的共有                 │
+│   │                                                          │
+│   └── CXL Switch Fabric (Tier 3: Far Memory)                │
+│           │                                                  │
+│           └── レイテンシ: ~400-800ns                         │
+│           └── ラック/ポッド間でメモリをプーリング            │
+│                                                              │
+│  OSへの影響:                                                 │
+│  ┌────────────────────────────────────────────┐             │
+│  │ 1. ティアードメモリ管理                    │             │
+│  │    - ホットページをTier 0に、コールドをTier 1+に │        │
+│  │    - NUMAポリシーの拡張が必要               │             │
+│  │                                             │             │
+│  │ 2. メモリプーリング                         │             │
+│  │    - ホスト間でメモリの動的割り当て/解放    │             │
+│  │    - 新しいメモリアロケータの必要性         │             │
+│  │                                             │             │
+│  │ 3. コヒーレンシプロトコル                   │             │
+│  │    - CXL.cache: デバイスがホストメモリを     │             │
+│  │      キャッシュコヒーレントにアクセス       │             │
+│  │    - CXL.mem: ホストがデバイスメモリを       │             │
+│  │      アドレス空間にマップ                   │             │
+│  └────────────────────────────────────────────┘             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 9.2 Confidential Computing（機密コンピューティング）
+
+Confidential Computingは、データを「使用中（処理中）」も暗号化された状態で保護する技術である。従来の暗号化が「保存時」と「転送時」を対象としていたのに対し、第三の保護層を追加する。
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│           データ保護の3つの状態                               │
+│                                                              │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
+│  │  Data at     │  │  Data in     │  │  Data in     │      │
+│  │  Rest        │  │  Transit     │  │  Use         │      │
+│  │  (保存時)    │  │  (転送時)    │  │  (使用時)    │      │
+│  ├──────────────┤  ├──────────────┤  ├──────────────┤      │
+│  │ AES-256      │  │ TLS 1.3     │  │ TEE          │      │
+│  │ dm-crypt     │  │ IPsec       │  │ (Trusted     │      │
+│  │ LUKS         │  │ WireGuard   │  │  Execution   │      │
+│  │ BitLocker    │  │             │  │  Environment)│      │
+│  └──────────────┘  └──────────────┘  └──────────────┘      │
+│  ← 従来の暗号化 →  ← 従来の暗号化 →  ← Confidential  →    │
+│                                          Computing          │
+│                                                              │
+│  主要な TEE 実装:                                            │
+│  ┌────────────────────────────────────────────┐             │
+│  │ ベンダー    │ 技術          │ 保護単位     │             │
+│  ├────────────────────────────────────────────┤             │
+│  │ Intel       │ TDX           │ VM全体       │             │
+│  │ Intel       │ SGX           │ エンクレーブ │             │
+│  │ AMD         │ SEV-SNP       │ VM全体       │             │
+│  │ ARM         │ CCA (Realms)  │ VM/コンテナ  │             │
+│  │ NVIDIA      │ H100 CC Mode  │ GPU計算      │             │
+│  └────────────────────────────────────────────┘             │
+│                                                              │
+│  クラウドサービス:                                           │
+│  - AWS Nitro Enclaves (分離された計算環境)                   │
+│  - Azure Confidential VMs (AMD SEV-SNP)                     │
+│  - GCP Confidential VMs (AMD SEV)                           │
+│  - GCP Confidential GKE Nodes                               │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**コード例7: Linux PREEMPT_RTの設定とリアルタイムスレッド**
+
+```c
+/* Linux PREEMPT_RT パッチを使ったリアルタイムアプリケーション
+ *
+ * PREEMPT_RT: Linuxをソフトリアルタイムシステムとして使う
+ * 通常のLinux: スループット重視 → PREEMPT_RT: レイテンシ重視
+ */
+
+#define _GNU_SOURCE
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <pthread.h>
+#include <sched.h>
+#include <time.h>
+#include <sys/mman.h>
+#include <unistd.h>
+#include <errno.h>
+
+#define NSEC_PER_SEC    1000000000L
+#define CYCLE_TIME_NS   1000000L   /* 1ms周期 */
+#define MAX_LATENCY_NS  50000L     /* 最大許容レイテンシ: 50us */
+
+/* 統計情報 */
+struct rt_stats {
+    long min_latency_ns;
+    long max_latency_ns;
+    long total_latency_ns;
+    long count;
+    long deadline_misses;
+};
+
+static volatile int running = 1;
+
+/* 時刻の加算ヘルパー */
+static void timespec_add_ns(struct timespec *ts, long ns)
+{
+    ts->tv_nsec += ns;
+    while (ts->tv_nsec >= NSEC_PER_SEC) {
+        ts->tv_nsec -= NSEC_PER_SEC;
+        ts->tv_sec++;
+    }
+}
+
+/* 時刻差分の計算（ナノ秒） */
+static long timespec_diff_ns(struct timespec *a, struct timespec *b)
+{
+    return (a->tv_sec - b->tv_sec) * NSEC_PER_SEC
+         + (a->tv_nsec - b->tv_nsec);
+}
+
+/*
+ * リアルタイムスレッド
+ * 1ms周期で制御ループを実行する。
+ */
+void *rt_thread(void *arg)
+{
+    struct rt_stats *stats = (struct rt_stats *)arg;
+    struct timespec next_period, now;
+    long latency;
+
+    stats->min_latency_ns = NSEC_PER_SEC; /* 初期値: 大 */
+    stats->max_latency_ns = 0;
+    stats->total_latency_ns = 0;
+    stats->count = 0;
+    stats->deadline_misses = 0;
+
+    /* 現在時刻を取得して開始時刻とする */
+    clock_gettime(CLOCK_MONOTONIC, &next_period);
+
+    while (running) {
+        /* 次の起床時刻を計算 */
+        timespec_add_ns(&next_period, CYCLE_TIME_NS);
+
+        /* 指定時刻まで絶対時間スリープ
+         * clock_nanosleep + TIMER_ABSTIME:
+         * - 相対スリープと違い、割り込みや処理遅延の影響を受けにくい
+         * - シグナルで起こされてもEINTRで再試行可能
+         */
+        while (clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME,
+                               &next_period, NULL) == EINTR)
+            ; /* シグナル割り込み時はリトライ */
+
+        /* 実際の起床時刻を取得 */
+        clock_gettime(CLOCK_MONOTONIC, &now);
+
+        /* レイテンシの計算 */
+        latency = timespec_diff_ns(&now, &next_period);
+
+        /* 統計の更新 */
+        if (latency < stats->min_latency_ns)
+            stats->min_latency_ns = latency;
+        if (latency > stats->max_latency_ns)
+            stats->max_latency_ns = latency;
+        stats->total_latency_ns += latency;
+        stats->count++;
+
+        if (latency > MAX_LATENCY_NS)
+            stats->deadline_misses++;
+
+        /* ===== ここに制御ロジックを実装 ===== */
+        /* 例: センサー読み取り → PID計算 → アクチュエータ出力 */
+    }
+
+    return NULL;
+}
+
+int main(int argc, char *argv[])
+{
+    pthread_t thread;
+    pthread_attr_t attr;
+    struct sched_param param;
+    struct rt_stats stats;
+    int ret;
+
+    printf("=== Linux PREEMPT_RT リアルタイムデモ ===\n");
+
+    /* 1. 全メモリページをロック（ページフォルト防止）
+     *    リアルタイムタスクではページフォルトは許容できない。
+     *    MCL_CURRENT: 現在マッピング済みの全ページをロック
+     *    MCL_FUTURE: 将来マッピングされるページもロック
+     */
+    if (mlockall(MCL_CURRENT | MCL_FUTURE) != 0) {
+        perror("mlockall failed (root権限が必要)");
+        return 1;
+    }
+
+    /* 2. スレッド属性の設定 */
+    pthread_attr_init(&attr);
+
+    /* SCHED_FIFO: リアルタイムスケジューリングポリシー
+     * - 優先度ベースのプリエンプティブスケジューリング
+     * - 同優先度内はFIFO（先着順）
+     * - SCHED_RR: 同優先度内でラウンドロビン（時分割）
+     */
+    pthread_attr_setschedpolicy(&attr, SCHED_FIFO);
+
+    /* 優先度の設定（1-99、高いほど優先）
+     * 推奨: 49以下（カーネルスレッドの邪魔を避ける）
+     */
+    param.sched_priority = 49;
+    pthread_attr_setschedparam(&attr, &param);
+
+    /* PTHREAD_EXPLICIT_SCHED: 親スレッドの属性を継承しない */
+    pthread_attr_setinheritsched(&attr, PTHREAD_EXPLICIT_SCHED);
+
+    /* 3. CPUアフィニティの設定（特定のCPUコアに固定） */
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(1, &cpuset); /* CPU 1 に固定 */
+    pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpuset);
+
+    /* 4. リアルタイムスレッドの起動 */
+    ret = pthread_create(&thread, &attr, rt_thread, &stats);
+    if (ret != 0) {
+        fprintf(stderr, "pthread_create failed: %s\n", strerror(ret));
+        fprintf(stderr, "ヒント: sudo で実行するか、\n");
+        fprintf(stderr, "  /etc/security/limits.conf に\n");
+        fprintf(stderr, "  'username - rtprio 99' を追加\n");
+        return 1;
+    }
+
+    /* 5. 10秒間実行 */
+    sleep(10);
+    running = 0;
+
+    pthread_join(thread, NULL);
+
+    /* 6. 結果の表示 */
+    printf("\n=== 結果 ===\n");
+    printf("サンプル数:       %ld\n", stats.count);
+    printf("最小レイテンシ:   %ld ns\n", stats.min_latency_ns);
+    printf("最大レイテンシ:   %ld ns\n", stats.max_latency_ns);
+    printf("平均レイテンシ:   %ld ns\n",
+           stats.total_latency_ns / stats.count);
+    printf("デッドライン超過: %ld 回\n", stats.deadline_misses);
+    printf("デッドライン:     %ld ns\n", MAX_LATENCY_NS);
+
+    munlockall();
+    pthread_attr_destroy(&attr);
+
+    return 0;
+}
+
+/*
+ * コンパイル & 実行:
+ * gcc -o rt_demo rt_demo.c -lpthread -lrt -O2
+ * sudo ./rt_demo
+ *
+ * PREEMPT_RT カーネルの確認:
+ * uname -a | grep -i preempt
+ * → "PREEMPT_RT" が含まれていれば対応カーネル
+ *
+ * カーネル設定 (menuconfig):
+ * General Setup → Preemption Model →
+ *   Fully Preemptible Kernel (Real-Time)
+ */
+```
+
+### 9.3 OS技術の将来展望
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│              OS技術 将来展望マップ (2025-2030)               │
+│                                                              │
+│  近い将来 (2025-2026)         中期 (2027-2028)              │
+│  ┌────────────────────┐      ┌────────────────────┐        │
+│  │ ・Rust in Kernel    │      │ ・CXL 3.0 メモリ   │        │
+│  │   本格的ドライバ採用│      │   プーリング普及   │        │
+│  │ ・eBPF の適用領域   │      │ ・Unikernel の      │        │
+│  │   さらに拡大        │      │   FaaS/エッジ採用  │        │
+│  │ ・WASM ランタイム   │      │ ・RISC-V 向けOS    │        │
+│  │   (WasmEdge等)の    │      │   エコシステム成熟 │        │
+│  │   エッジ/クラウド   │      │ ・AI駆動型OS       │        │
+│  │   での普及          │      │   リソース管理     │        │
+│  │ ・Confidential      │      │ ・ヘテロジニアス   │        │
+│  │   Computing一般化   │      │   コンピューティング│       │
+│  └────────────────────┘      │   のOS統合         │        │
+│                               └────────────────────┘        │
+│  遠い将来 (2029-2030+)                                      │
+│  ┌────────────────────────────────────────────┐            │
+│  │ ・量子コンピュータとクラシカルOSの統合      │            │
+│  │ ・ニューロモーフィックチップ向けOS          │            │
+│  │ ・自律的OS (AI が構成・最適化・修復を自動化)│            │
+│  │ ・フォトニクス接続によるメモリ/ストレージ    │            │
+│  │   の再定義                                   │            │
+│  │ ・Intent-based OS (意図駆動型インフラ管理)  │            │
+│  └────────────────────────────────────────────┘            │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 9.4 WebAssembly System Interface (WASI): ユニバーサルランタイム
+
+WASI（WebAssembly System Interface）は、WebAssemblyをブラウザ外で実行するための標準インターフェースである。「Write Once, Run Anywhere」をOS層で実現する可能性を持つ。
+
+| 観点 | コンテナ (Docker) | WASM/WASI |
+|------|------------------|-----------|
+| イメージサイズ | 数十MB〜数GB | 数KB〜数MB |
+| 起動時間 | 数百ms〜数秒 | 数ms以下 |
+| 隔離方式 | 名前空間+cgroups | サンドボックス（線形メモリ） |
+| ポータビリティ | OS/アーキテクチャ依存 | OS/アーキテクチャ非依存 |
+| ケーパビリティ | root権限リスクあり | ケーパビリティベース |
+| 言語サポート | 任意（OSレベル） | Rust, C/C++, Go, Python等 |
+| ランタイム例 | containerd, CRI-O | Wasmtime, WasmEdge, Wasmer |
+| Kubernetes統合 | 標準サポート | SpinKube, runwasi |
+
+---
+
+## 10. アンチパターン集
+
+### アンチパターン1: クラウド環境でのOS管理ミス
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  アンチパターン: ミュータブルインフラストラクチャ            │
+│                                                              │
+│  NG パターン: "Snowflake Server"（スノーフレークサーバー）   │
+│  ┌────────────────────────────────────────────────┐         │
+│  │                                                 │         │
+│  │  本番サーバー(EC2)に手動SSHしてパッチ適用       │         │
+│  │                                                 │         │
+│  │  $ ssh prod-server-01                           │         │
+│  │  $ sudo yum update -y                           │         │
+│  │  $ sudo vi /etc/nginx/nginx.conf   # 手動編集   │         │
+│  │  $ sudo systemctl restart nginx                 │         │
+│  │                                                 │         │
+│  │  問題:                                          │         │
+│  │  - 各サーバーが微妙に異なる状態に（構成ドリフト）│        │
+│  │  - 変更履歴が残らない                           │         │
+│  │  - 障害時に同じ環境を再現できない               │         │
+│  │  - 「あのサーバーだけ動く」という属人化         │         │
+│  │  - セキュリティパッチの適用漏れ                 │         │
+│  └────────────────────────────────────────────────┘         │
+│                                                              │
+│  OK パターン: "Immutable Infrastructure"                     │
+│  ┌────────────────────────────────────────────────┐         │
+│  │                                                 │         │
+│  │  1. AMI/コンテナイメージをCI/CDで構築           │         │
+│  │  2. Terraform/CloudFormationで宣言的デプロイ    │         │
+│  │  3. 変更 = 新イメージのデプロイ + 旧の破棄      │         │
+│  │  4. 全変更がGitで追跡可能                       │         │
+│  │                                                 │         │
+│  │  Terraform例:                                   │         │
+│  │  resource "aws_launch_template" "web" {         │         │
+│  │    image_id      = "ami-new-version"            │         │
+│  │    instance_type = "t3.medium"                  │         │
+│  │    user_data     = base64encode(                │         │
+│  │      file("cloud-init.yaml")                    │         │
+│  │    )                                            │         │
+│  │  }                                              │         │
+│  │  → git commit → CI/CD → Blue/Green Deploy       │         │
+│  └────────────────────────────────────────────────┘         │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### アンチパターン2: RTOSでの動的メモリ確保の乱用
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  アンチパターン: RTOSでのmalloc/free乱用                    │
+│                                                              │
+│  NG パターン:                                                │
+│  ┌────────────────────────────────────────────────┐         │
+│  │  void control_loop_task(void *params) {         │         │
+│  │      for (;;) {                                 │         │
+│  │          // 毎サイクルで動的メモリ確保 ← 危険！ │         │
+│  │          char *buf = malloc(1024);               │         │
+│  │          if (buf == NULL) {                      │         │
+│  │              // メモリ不足 → デッドライン違反    │         │
+│  │              handle_error();                     │         │
+│  │          }                                      │         │
+│  │          read_sensor(buf);                      │         │
+│  │          process_data(buf);                     │         │
+│  │          free(buf);                             │         │
+│  │          // フラグメンテーションが蓄積          │         │
+│  │          // → いずれmallocが失敗                 │         │
+│  │          // → 実行時間が不確定                   │         │
+│  │          vTaskDelay(pdMS_TO_TICKS(10));          │         │
+│  │      }                                          │         │
+│  │  }                                              │         │
+│  └────────────────────────────────────────────────┘         │
+│                                                              │
+│  問題:                                                       │
+│  1. malloc/freeの実行時間が不確定（WCET保証不可）           │
+│  2. ヒープのフラグメンテーションで将来の確保が失敗          │
+│  3. メモリリークが長期稼働で蓄積                            │
+│  4. デッドライン違反のリスクが時間とともに増大              │
+│                                                              │
+│  OK パターン:                                                │
+│  ┌────────────────────────────────────────────────┐         │
+│  │  // 静的バッファを事前確保                      │         │
+│  │  static char sensor_buf[1024];                  │         │
+│  │                                                 │         │
+│  │  // または、メモリプールを使用                   │         │
+│  │  static uint8_t pool_storage[POOL_SIZE];        │         │
+│  │  static StaticPool_t pool;                      │         │
+│  │                                                 │         │
+│  │  void init(void) {                              │         │
+│  │      // 起動時にプール初期化（1回だけ）         │         │
+│  │      pool = xPoolCreateStatic(                  │         │
+│  │          BLOCK_SIZE, BLOCK_COUNT,               │         │
+│  │          pool_storage);                         │         │
+│  │  }                                              │         │
+│  │                                                 │         │
+│  │  void control_loop_task(void *params) {         │         │
+│  │      for (;;) {                                 │         │
+│  │          // 静的バッファを使用 → 確定的         │         │
+│  │          read_sensor(sensor_buf);               │         │
+│  │          process_data(sensor_buf);              │         │
+│  │          vTaskDelay(pdMS_TO_TICKS(10));          │         │
+│  │      }                                          │         │
+│  │  }                                              │         │
+│  └────────────────────────────────────────────────┘         │
+│                                                              │
+│  FreeRTOS のメモリ管理スキーム:                              │
+│  heap_1: 確保のみ(解放不可) → 最も確定的                    │
+│  heap_2: 確保+解放(結合なし) → フラグメンテーションリスク   │
+│  heap_3: 標準malloc/freeのラッパー → 非確定的               │
+│  heap_4: 確保+解放+結合 → 推奨                              │
+│  heap_5: heap_4 + 非連続メモリ領域対応                      │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### アンチパターン3: コンテナのrootユーザー実行
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  アンチパターン: コンテナをrootで実行                        │
+│                                                              │
+│  NG: Dockerfileでrootのまま実行                              │
+│  ┌────────────────────────────────────────────────┐         │
+│  │  FROM ubuntu:22.04                              │         │
+│  │  RUN apt-get update && apt-get install -y nginx │         │
+│  │  COPY app /opt/app                              │         │
+│  │  CMD ["nginx", "-g", "daemon off;"]             │         │
+│  │  # → uid=0(root) で実行される                    │         │
+│  │  # → コンテナエスケープ時にホストのroot権限      │         │
+│  └────────────────────────────────────────────────┘         │
+│                                                              │
+│  OK: 非rootユーザーで実行                                    │
+│  ┌────────────────────────────────────────────────┐         │
+│  │  FROM ubuntu:22.04                              │         │
+│  │  RUN apt-get update && apt-get install -y nginx │         │
+│  │  RUN groupadd -r appuser && \                   │         │
+│  │      useradd -r -g appuser appuser              │         │
+│  │  COPY --chown=appuser:appuser app /opt/app      │         │
+│  │  USER appuser                                   │         │
+│  │  CMD ["nginx", "-g", "daemon off;"]             │         │
+│  └────────────────────────────────────────────────┘         │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 11. 段階別演習
+
+### 演習レベル1: 基礎（所要時間: 1〜2時間）
+
+**演習1-1: コンテナの名前空間を手動で構築する**
+
+Linux環境で `unshare` コマンドを使い、PID名前空間・ネットワーク名前空間・マウント名前空間を手動で作成せよ。各名前空間内で `ps aux` や `ip addr` を実行し、ホストと隔離されていることを確認せよ。
+
+手順:
+1. `sudo unshare --pid --fork --mount-proc bash` でPID名前空間を分離
+2. 名前空間内で `ps aux` を実行し、プロセスが最小限であることを確認
+3. `sudo ip netns add test-ns` でネットワーク名前空間を作成
+4. vethペアを作成してIPアドレスを設定し、疎通確認を行う
+5. 各操作をスクリプト化して再現可能にする
+
+**演習1-2: FreeRTOSのタスクスケジューリングを観察する**
+
+ESP32開発ボード（またはQEMUエミュレータ）でFreeRTOSプロジェクトを作成し、以下を実装せよ。
+1. 優先度の異なる3つのタスクを作成
+2. 各タスクにLEDの点滅パターンまたはシリアル出力を設定
+3. `vTaskDelay` と `vTaskDelayUntil` の動作の違いを観察
+4. タスクの優先度を変更した場合の挙動変化を記録
+
+### 演習レベル2: 応用（所要時間: 3〜5時間）
+
+**演習2-1: マイクロVMの起動と計測**
+
+Firecracker（またはCloud Hypervisor）を使い、マイクロVMを起動せよ。
+1. Firecrackerバイナリのダウンロードと環境セットアップ
+2. 最小構成のLinuxカーネルとrootfsでVMを起動
+3. 起動時間を計測し、通常のQEMU/KVM VMと比較
+4. メモリ使用量の差分を測定
+5. 同時に10台以上のマイクロVMを起動し、リソース消費を記録
+
+**演習2-2: eBPFプログラムの作成**
+
+bpftrace または libbpf を使い、以下のeBPFプログラムを作成せよ。
+1. syscallの呼び出し回数をプロセス別に集計
+2. TCP接続の確立/切断イベントをトレース
+3. ディスクI/Oのレイテンシヒストグラムを作成
+
+### 演習レベル3: 発展（所要時間: 1〜2日）
+
+**演習3-1: Unikernelアプリケーションの構築**
+
+Unikraft を使い、簡単なHTTPサーバーをUnikernelとしてビルドせよ。
+1. Unikraft/kraftツールチェーンのセットアップ
+2. nginx または自作HTTPサーバーをUnikernelとしてコンパイル
+3. QEMU上でUnikernelを起動し、HTTPリクエストに応答することを確認
+4. 通常のLinux VM + nginx との起動時間・メモリ消費・イメージサイズを比較
+5. 結果をレポートにまとめ、Unikernelの適用可能性を考察
+
+**演習3-2: RTOSベースのIoTシステム設計**
+
+FreeRTOS + ESP32 で以下の要件を満たすIoTセンサーノードを設計・実装せよ。
+1. 温湿度センサー（DHT22またはBME280）からのデータ読み取り（100ms周期）
+2. データの移動平均計算と閾値異常検出
+3. Wi-Fi経由でMQTTブローカーにデータ送信（1秒周期）
+4. OTAファームウェア更新機能
+5. ウォッチドッグタイマーによる死活監視
+6. 優先度設計書と最悪実行時間（WCET）の見積もりを文書化
+
+---
+
+## 12. FAQ
+
+### Q1: クラウド環境でOSの知識は本当に必要か？サーバーレスなら不要では？
+
+サーバーレスやマネージドサービスを使う場合でも、OS層の理解は以下の場面で不可欠である。
+
+- **パフォーマンスチューニング**: Cold Startの最適化にはOSの起動プロセスとメモリ管理の理解が必要
+- **トラブルシューティング**: コンテナ内で発生するファイルディスクリプタ枯渇、メモリOOM、CPUスロットリングなどの問題はOS概念の理解なしには診断できない
+- **セキュリティ**: コンテナエスケープの脆弱性（CVE-2024-21626 runcの脆弱性など）を理解するには名前空間とcgroupsの知識が必要
+- **コスト最適化**: CPUとメモリの割り当て最適化にはOSのリソース管理の知識が有用
+- **アーキテクチャ選定**: gVisor、Kata Containers、Firecrackerの適切な選択にはOS層の違いの理解が必須
+
+結論として、「OSを直接管理しない」ことと「OSの知識が不要」は全く異なる。抽象化が進むほど、問題発生時に深い理解が求められる。
+
+### Q2: FreeRTOSとLinux+PREEMPT_RTはどう使い分けるべきか？
+
+以下の基準で判断する。
+
+| 判断基準 | FreeRTOS推奨 | Linux+PREEMPT_RT推奨 |
+|---------|-------------|---------------------|
+| ハードウェア | MCU（数KB〜数百KB RAM） | MPU/SoC（数百MB以上RAM） |
+| リアルタイム要件 | ハードRT（マイクロ秒精度） | ソフトRT（ミリ秒精度で十分） |
+| ファイルシステム | 不要 or 最小限 | 複雑なファイル操作が必要 |
+| ネットワーク | MQTT/CoAP程度 | TCP/IP全機能、HTTP、WebSocket |
+| GUI | なし or 最小限 | 複雑なUI（Qt等） |
+| 開発コスト | 低い（シンプル） | 高い（Linux知識が必要） |
+| エコシステム | Arduino/ESP-IDF | apt/yum、豊富なライブラリ |
+
+ハイブリッドアプローチとして、Linux + FreeRTOSのデュアルOS構成（例: NXP i.MX 8M ではCortex-A53でLinux、Cortex-M4でFreeRTOSを同時動作）も選択肢となる。
+
+### Q3: Unikernelは本番環境で実用的なのか？
+
+2025年時点では、Unikernelは特定のユースケースで実用段階に入りつつある。
+
+**適している用途**:
+- 単一機能のネットワークアプリケーション（DNS、ロードバランサ）
+- エッジコンピューティングでの軽量実行環境
+- FaaS（Function as a Service）のバックエンド
+- セキュリティが極めて重要な孤立したサービス
+
+**適していない用途**:
+- 複数のサービスを同居させるワークロード
+- デバッグ環境が充実している必要がある開発段階
+- 動的にライブラリをロードする必要があるアプリケーション
+- シェルアクセスが必要な運用環境
+
+Unikraftプロジェクトは POSIX互換性を重視しており、既存のLinuxアプリケーションの移植が比較的容易になっている。NanoVMs（Ops）は既存のLinuxバイナリをそのままUnikernelとして実行できるため、移行コストが低い。
+
+### Q4: eBPFはiptablesやkprobesを完全に置き換えるのか？
+
+eBPFはiptablesの置き換え候補として有力だが、完全な置き換えにはまだ時間がかかる。
+
+Cilium（eBPFベースのKubernetesネットワーキング）はkube-proxyの代替として多くの本番環境で採用されている。しかし、iptablesは30年近い実績と広範なドキュメントがあり、当面は共存が続く。
+
+eBPFの真の価値はiptablesの置き換えだけでなく、「カーネルのプログラマビリティ」を安全に提供する汎用プラットフォームである点にある。ネットワーク、セキュリティ、オブザーバビリティ、スケジューリングの各領域で、従来はカーネルモジュールの開発が必要だった機能をeBPFプログラムとして実装できるようになった。
+
+### Q5: CXLが普及するとOSのメモリ管理はどう変わるか？
+
+CXLの普及によりOSは以下の変更に対応する必要がある。
+
+1. **多階層メモリ管理**: DRAM、CXLメモリ、永続メモリなど異なる特性を持つメモリを透過的に管理するページ配置ポリシー
+2. **動的メモリプーリング**: ホスト間でのメモリの動的な貸借。OSのメモリアロケータに「リモートメモリ」の概念を追加
+3. **NUMAポリシーの拡張**: 従来のNUMA（Non-Uniform Memory Access）よりも多段階のメモリ距離を扱う必要
+4. **フォールトトレランス**: CXL接続先のメモリデバイスの故障にOSが対応（ホットプラグ対応含む）
+
+Linux カーネルではCXL対応のためのドライバとメモリ管理の拡張が活発に開発されており、`drivers/cxl/` 以下にCXLサブシステムが実装されている。
+
+---
+
+## シリーズ完結
+
+このガイドで **オペレーティングシステムガイド** シリーズは完結である。
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│              学習パスの振り返り                               │
+│                                                              │
+│  00 OS入門                                                   │
+│   └→ OSとは何か、カーネルの役割、システムコール             │
+│                                                              │
+│  01 プロセス管理                                             │
+│   └→ プロセス/スレッド、スケジューリング、IPC              │
+│                                                              │
+│  02 メモリ管理                                               │
+│   └→ 仮想メモリ、ページング、TLB、メモリアロケータ        │
+│                                                              │
+│  03 ファイルシステム                                         │
+│   └→ VFS、ext4、ZFS、B-tree、ジャーナリング               │
+│                                                              │
+│  04 I/O管理                                                  │
+│   └→ デバイスドライバ、割り込み、DMA、ブロック/キャラクタ  │
+│                                                              │
+│  05 セキュリティ                                             │
+│   └→ アクセス制御、暗号化、SELinux、ケーパビリティ        │
+│                                                              │
+│  06 仮想化                                                   │
+│   └→ ハイパーバイザ、コンテナ、準仮想化                    │
+│                                                              │
+│  07 現代のOS（本章）                                         │
+│   └→ クラウドOS、RTOS、Unikernel、Rust in Kernel、CXL     │
+│                                                              │
+│  各章の知識は独立ではなく、相互に関連している。              │
+│  例: コンテナ(07) = 名前空間(01) + cgroups(02)              │
+│       + overlayfs(03) + veth(04) + seccomp(05) + KVM(06)    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+-> 次のステップ: [[../../linux-cli-mastery/SKILL.md]] --- Linux CLI実践
+
+---
+
+## 13. 参考文献
+
+### 書籍
+
+1. Tanenbaum, A. S. and Bos, H. "Modern Operating Systems." 5th Edition, Pearson, 2022. --- 現代OSの包括的教科書。仮想化、マルチプロセッサ、セキュリティの章が本ガイドの基盤となっている。
+
+2. Barry, R. "Mastering the FreeRTOS Real Time Kernel: A Hands-On Tutorial Guide." 2016. --- FreeRTOS公式チュートリアル。タスク管理、キュー、セマフォ、タイマーの実装詳細を網羅。無料PDFが公式サイトから入手可能。
+
+3. Love, R. "Linux Kernel Development." 3rd Edition, Addison-Wesley, 2010. --- Linuxカーネルの内部構造を解説。プロセススケジューラ、メモリ管理、VFSの設計が詳細に記載されている。
+
+### 論文・技術レポート
+
+4. Agache, A. et al. "Firecracker: Lightweight Virtualization for Serverless Applications." NSDI 2020. --- FirecrackerマイクロVMの設計と実装。AWS LambdaとFargateの基盤技術を解説した重要論文。
+
+5. Young, E. et al. "The Evolution of the Linux Kernel: PREEMPT_RT and Beyond." Proceedings of the Linux Plumbers Conference, 2023. --- Linux PREEMPT_RTパッチの進化と本線マージへの道のりを総括。
+
+6. Madhavapeddy, A. and Scott, D. J. "Unikernels: Rise of the Virtual Library Operating System." Communications of the ACM, Vol. 57, No. 1, 2014. --- MirageOSを例にUnikernelの概念と設計原則を解説した先駆的論文。
+
+### オンラインリソース
+
+7. The Linux Kernel Documentation - Rust. https://docs.kernel.org/rust/ --- Linux Kernel公式のRustサポートドキュメント。ビルド手順、API仕様、コーディング規約を収録。
+
+8. FreeRTOS公式ドキュメント. https://www.freertos.org/Documentation/ --- API リファレンス、移植ガイド、ベストプラクティスを含む公式資料。
+
+9. CXL Consortium. "Compute Express Link Specification." https://www.computeexpresslink.org/ --- CXL仕様の公式サイト。技術仕様書とホワイトペーパーを公開。
+
+10. eBPF.io. "What is eBPF?" https://ebpf.io/ --- eBPFの概要、チュートリアル、エコシステムのガイド。BPF Foundation運営。
+
+---
+
+> **本ガイドの位置づけ**: 本章はオペレーティングシステムガイドの最終章として、クラウドOS・RTOS・次世代OS技術を横断的にカバーした。OSの知識はクラウドネイティブ開発、IoT、エッジコンピューティング、セキュリティの各分野で基盤となる。技術の進化は速いが、プロセス管理・メモリ管理・I/O管理・セキュリティという基本概念は不変であり、新しい技術を学ぶ際の確固たる土台となる。
+

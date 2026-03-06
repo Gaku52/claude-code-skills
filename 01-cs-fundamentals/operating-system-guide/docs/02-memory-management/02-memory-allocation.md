@@ -1516,3 +1516,648 @@ func main() {
 // (pprof) list main     ← ソースコード注釈付き表示
 ```
 
+---
+
+## 9. 言語ランタイムとメモリモデル
+
+### 9.1 各言語のメモリ管理方式比較
+
+プログラミング言語ごとにメモリ管理のアプローチは大きく異なる。以下に主要言語の比較を示す。
+
+| 言語 | 管理方式 | ヒープ割り当て | 解放タイミング | スタック割り当て | 安全性保証 |
+|:---|:---|:---|:---|:---|:---|
+| C | 手動 (malloc/free) | 明示的 | 明示的 (free) | 自動 | なし |
+| C++ | 手動 + RAII | new/make_unique | デストラクタ | 自動 | RAII で部分的 |
+| Rust | 所有権 + 借用 | Box, Vec 等 | スコープ終了時 | 自動 | コンパイル時保証 |
+| Java | 世代別 GC | new | GC が回収 | JIT が最適化 | ランタイム保証 |
+| Go | 並行 GC | make, new | GC が回収 | エスケープ解析 | ランタイム保証 |
+| Python | 参照カウント + GC | 暗黙的 | 参照カウント=0 or GC | なし（全てヒープ） | ランタイム保証 |
+| JavaScript | 世代別 GC (V8) | 暗黙的 | GC が回収 | JIT が最適化 | ランタイム保証 |
+| Swift | ARC | 暗黙的 | 参照カウント=0 | 値型はスタック | コンパイル時 ARC |
+| Zig | 手動 + アロケータ抽象 | アロケータ経由 | 明示的 (defer) | 自動 | コンパイル時チェック |
+
+### 9.2 C++ の RAII とスマートポインタ
+
+C++ は RAII（Resource Acquisition Is Initialization）パターンにより、手動メモリ管理の安全性を向上させる。
+
+```cpp
+// コード例9: C++ スマートポインタによるメモリ管理
+#include <memory>
+#include <vector>
+#include <iostream>
+
+class Resource {
+public:
+    Resource(int id) : id_(id) {
+        std::cout << "Resource " << id_ << " acquired\n";
+    }
+    ~Resource() {
+        std::cout << "Resource " << id_ << " released\n";
+    }
+    void use() { std::cout << "Using Resource " << id_ << "\n"; }
+private:
+    int id_;
+};
+
+void demonstrate_smart_pointers() {
+    // --- unique_ptr: 排他的所有権（コピー不可、ムーブのみ） ---
+    {
+        auto r1 = std::make_unique<Resource>(1);
+        r1->use();
+        // スコープ終了時に自動解放
+        // auto r2 = r1;  // コンパイルエラー! コピー不可
+        auto r2 = std::move(r1);  // ムーブは可能
+        // r1 は nullptr になる
+    } // r2 のデストラクタが Resource を解放
+
+    // --- shared_ptr: 共有所有権（参照カウント） ---
+    {
+        auto r3 = std::make_shared<Resource>(3);
+        std::cout << "ref count: " << r3.use_count() << "\n"; // 1
+
+        {
+            auto r4 = r3;  // 共有
+            std::cout << "ref count: " << r3.use_count() << "\n"; // 2
+        } // r4 スコープ終了: カウント 2→1
+
+        std::cout << "ref count: " << r3.use_count() << "\n"; // 1
+    } // r3 スコープ終了: カウント 1→0 → 解放
+
+    // --- weak_ptr: 循環参照の防止 ---
+    {
+        auto parent = std::make_shared<Resource>(5);
+        std::weak_ptr<Resource> weak_ref = parent;
+
+        if (auto locked = weak_ref.lock()) {
+            locked->use();  // まだ有効
+        }
+
+        parent.reset();  // 解放
+
+        if (auto locked = weak_ref.lock()) {
+            locked->use();  // ここには到達しない
+        } else {
+            std::cout << "Resource already released\n";
+        }
+    }
+
+    // --- unique_ptr + カスタムデリータ ---
+    {
+        auto file_deleter = [](FILE* f) {
+            if (f) {
+                std::cout << "Closing file\n";
+                fclose(f);
+            }
+        };
+        std::unique_ptr<FILE, decltype(file_deleter)>
+            file(fopen("/tmp/test.txt", "w"), file_deleter);
+        if (file) {
+            fprintf(file.get(), "Hello RAII\n");
+        }
+    } // ファイルは自動でクローズされる
+}
+
+int main() {
+    demonstrate_smart_pointers();
+    return 0;
+}
+```
+
+### 9.3 Go のエスケープ解析
+
+Go コンパイラはエスケープ解析（Escape Analysis）により、変数をスタックに配置するかヒープに配置するかを自動的に決定する。
+
+```go
+// Go エスケープ解析の例
+package main
+
+import "fmt"
+
+// スタックに配置される（関数外に参照が漏れない）
+func stackAlloc() int {
+    x := 42
+    return x  // 値コピー → x はスタックに留まる
+}
+
+// ヒープに配置される（ポインタが関数外に漏れる = エスケープ）
+func heapAlloc() *int {
+    x := 42
+    return &x  // ポインタが外に漏れる → x はヒープに配置
+}
+
+// インタフェース経由でエスケープ
+func interfaceEscape() {
+    x := 42
+    fmt.Println(x)  // Println(interface{}) → x がエスケープ
+}
+
+// エスケープ解析の確認コマンド:
+// go build -gcflags="-m -m" main.go
+// ./main.go:13:2: x escapes to heap:
+// ./main.go:13:2:   flow: ~r0 = &x:
+// ./main.go:13:2:     from &x (address-of) at ./main.go:14:9
+```
+
+### 9.4 リアルタイムシステムにおけるメモリ割り当て
+
+リアルタイムシステムでは、メモリ割り当ての最悪実行時間（WCET: Worst-Case Execution Time）が保証されなければならない。
+
+| 要件 | 汎用システム | リアルタイムシステム |
+|:---|:---|:---|
+| 割り当て時間 | 平均的に高速であればよい | 最悪時間が保証されること |
+| GC ポーズ | 許容される | 許容されない |
+| メモリ断片化 | 徐々に増加しても再起動で対応 | 長時間運用で断片化ゼロが必要 |
+| 使用アロケータ | malloc, jemalloc 等 | メモリプール, TLSF |
+| 障害時の挙動 | OOM Killer 等 | フェイルセーフ動作が必須 |
+
+**TLSF（Two-Level Segregated Fit）:**
+
+リアルタイムシステム向けに設計されたアロケータで、割り当て・解放ともに O(1) が保証される。ビットマップとセグメントリストの2レベル索引により、フリーリスト探索を定数時間で実行する。航空宇宙、自動車、医療機器などのミッションクリティカルシステムで採用されている。
+
+---
+
+## 10. アンチパターンと設計原則
+
+### 10.1 アンチパターン1: 「malloc して忘れる」パターン
+
+**問題:** 関数内で動的にメモリを確保し、エラーパス等で解放を忘れる。
+
+```c
+/* アンチパターン: 複数リソースの獲得と不完全な解放 */
+int process_data_BAD(const char *filename) {
+    FILE *file = fopen(filename, "r");
+    if (!file) return -1;
+
+    char *buffer = (char *)malloc(4096);
+    if (!buffer) {
+        /* file のクローズを忘れている! */
+        return -1;
+    }
+
+    int *results = (int *)malloc(sizeof(int) * 1000);
+    if (!results) {
+        /* buffer の free を忘れている! */
+        /* file のクローズも忘れている! */
+        return -1;
+    }
+
+    /* ... 処理 ... */
+
+    free(results);
+    free(buffer);
+    fclose(file);
+    return 0;
+}
+
+/* 修正: goto による統一的なクリーンアップ（Linux カーネルスタイル） */
+int process_data_GOOD(const char *filename) {
+    int ret = -1;
+    FILE *file = NULL;
+    char *buffer = NULL;
+    int *results = NULL;
+
+    file = fopen(filename, "r");
+    if (!file) goto cleanup;
+
+    buffer = (char *)malloc(4096);
+    if (!buffer) goto cleanup;
+
+    results = (int *)malloc(sizeof(int) * 1000);
+    if (!results) goto cleanup;
+
+    /* ... 処理 ... */
+    ret = 0;
+
+cleanup:
+    free(results);   /* free(NULL) は安全 */
+    free(buffer);    /* free(NULL) は安全 */
+    if (file) fclose(file);
+    return ret;
+}
+```
+
+**教訓:**
+- C 言語では `goto cleanup` パターンが推奨される（Linux カーネルのコーディング規約でも採用）
+- C++ では RAII（スマートポインタ、ファイルストリーム）を使えば自動的に解決
+- `free(NULL)` は C 標準で安全と定義されているため、NULL チェック不要
+
+### 10.2 アンチパターン2: 「巨大な一時バッファを毎回 malloc」パターン
+
+**問題:** ループ内で毎回大きなバッファを malloc/free し、不要なオーバーヘッドを発生させる。
+
+```c
+/* アンチパターン: ループ内での繰り返し割り当て */
+void process_items_BAD(int *items, int count) {
+    for (int i = 0; i < count; i++) {
+        /* 毎回 4KB の一時バッファを確保・解放 */
+        char *tmp = (char *)malloc(4096);
+        snprintf(tmp, 4096, "Processing item %d", items[i]);
+        /* ... tmp を使った処理 ... */
+        free(tmp);
+        /* → count が 100万回なら、malloc/free が 100万回呼ばれる */
+    }
+}
+
+/* 修正1: ループ外で一度だけ確保 */
+void process_items_GOOD1(int *items, int count) {
+    char *tmp = (char *)malloc(4096);
+    if (!tmp) return;
+
+    for (int i = 0; i < count; i++) {
+        snprintf(tmp, 4096, "Processing item %d", items[i]);
+        /* ... tmp を使った処理 ... */
+    }
+    free(tmp);
+}
+
+/* 修正2: サイズが固定なら VLA またはスタックを使用 */
+void process_items_GOOD2(int *items, int count) {
+    char tmp[4096];  /* スタック上に確保（固定サイズ） */
+
+    for (int i = 0; i < count; i++) {
+        snprintf(tmp, sizeof(tmp), "Processing item %d", items[i]);
+        /* ... tmp を使った処理 ... */
+    }
+    /* 自動的に解放される */
+}
+```
+
+**教訓:**
+- ループ内の malloc/free は大きなオーバーヘッド（システムコール、ロック競合、断片化）
+- 可能ならバッファをループ外で一度だけ確保する
+- 固定サイズの小バッファ（~数 KB）はスタックに置く方が高速
+- 大きなバッファが必要な場合はメモリプールを検討する
+
+### 10.3 設計原則まとめ
+
+| 原則 | 説明 | 適用場面 |
+|:---|:---|:---|
+| RAII | リソース獲得をオブジェクト初期化に結びつける | C++, Rust |
+| 所有権の明確化 | メモリの所有者を1つに限定 | 全言語 |
+| バッファ再利用 | 頻繁な割り当てを避けてバッファを使い回す | ホットパス |
+| メモリプール | 同一サイズの割り当てを専用プールで管理 | ゲーム, サーバ |
+| アリーナアロケータ | フェーズ単位でまとめて確保・一括解放 | コンパイラ, パーサ |
+| コピーオンライト | 実際に変更が発生するまでメモリ共有 | fork, 文字列 |
+| ゼロコピー | データのコピーを避けて参照を渡す | ネットワーク, I/O |
+
+---
+
+## 11. 実践演習（3段階）
+
+### 演習1: [基礎] メモリレイアウトの確認
+
+**課題:** 以下の C プログラムの各変数がどのメモリセグメントに配置されるか答えよ。
+
+```c
+#include <stdlib.h>
+#include <string.h>
+
+int global_initialized = 42;        /* → ? */
+int global_uninitialized;           /* → ? */
+const char *literal = "hello";      /* → ? (ポインタ自体は?) */
+
+void function_example(int param) {  /* param → ? */
+    int local = 10;                 /* → ? */
+    static int persistent = 5;     /* → ? */
+    int *dynamic = malloc(100);    /* dynamic → ?, *dynamic → ? */
+    char buf[256];                 /* → ? */
+
+    free(dynamic);
+}
+```
+
+<details>
+<summary>解答を表示</summary>
+
+| 変数 | セグメント | 理由 |
+|:---|:---|:---|
+| `global_initialized` | データ | 初期化済みグローバル変数 |
+| `global_uninitialized` | BSS | 未初期化グローバル変数（ゼロ初期化） |
+| `literal` (ポインタ自体) | データ | 初期化済みグローバルポインタ |
+| `"hello"` (文字列本体) | テキスト(rodata) | 文字列リテラル（読み取り専用） |
+| `param` | スタック | 関数引数 |
+| `local` | スタック | ローカル変数 |
+| `persistent` | データ | static 変数（初期化済み） |
+| `dynamic` (ポインタ自体) | スタック | ローカル変数 |
+| `*dynamic` (指す先) | ヒープ | malloc で動的確保 |
+| `buf[256]` | スタック | ローカル配列 |
+
+</details>
+
+### 演習2: [応用] メモリリークの検出と修正
+
+**課題:** 以下のコードにはメモリリークが3箇所ある。全て特定し修正せよ。
+
+```c
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+
+typedef struct {
+    char *name;
+    int *scores;
+    int score_count;
+} Student;
+
+Student *create_student(const char *name, int count) {
+    Student *s = (Student *)malloc(sizeof(Student));
+    s->name = strdup(name);
+    s->scores = (int *)malloc(sizeof(int) * count);
+    s->score_count = count;
+    return s;
+}
+
+void process_students(void) {
+    Student *alice = create_student("Alice", 5);
+    Student *bob = create_student("Bob", 3);
+
+    /* Alice のスコアを設定 */
+    for (int i = 0; i < alice->score_count; i++) {
+        alice->scores[i] = 80 + i;
+    }
+
+    /* エラーが発生した場合の早期リターン */
+    if (alice->scores[0] < 50) {
+        free(alice);  /* リーク! name と scores を free していない */
+        return;       /* bob もリーク! */
+    }
+
+    /* Bob の名前を変更 */
+    bob->name = strdup("Robert");  /* リーク! 元の "Bob" が漏れる */
+
+    free(alice->scores);
+    free(alice->name);
+    free(alice);
+    free(bob->scores);
+    free(bob->name);
+    free(bob);
+}
+```
+
+<details>
+<summary>解答を表示</summary>
+
+**リーク箇所:**
+
+1. **早期リターン時に `alice->name` と `alice->scores` を free していない**
+2. **早期リターン時に `bob` 全体（name, scores, 本体）を free していない**
+3. **`bob->name = strdup("Robert")` で元の `"Bob"` の領域が漏れる**
+
+**修正版:**
+
+```c
+void destroy_student(Student *s) {
+    if (s) {
+        free(s->scores);
+        free(s->name);
+        free(s);
+    }
+}
+
+void process_students_fixed(void) {
+    Student *alice = create_student("Alice", 5);
+    Student *bob = create_student("Bob", 3);
+
+    for (int i = 0; i < alice->score_count; i++) {
+        alice->scores[i] = 80 + i;
+    }
+
+    if (alice->scores[0] < 50) {
+        destroy_student(alice);  /* 修正1: 完全に解放 */
+        destroy_student(bob);    /* 修正2: bob も解放 */
+        return;
+    }
+
+    /* 修正3: 元の name を先に free してから差し替え */
+    free(bob->name);
+    bob->name = strdup("Robert");
+
+    destroy_student(alice);
+    destroy_student(bob);
+}
+```
+
+</details>
+
+### 演習3: [発展] カスタムアロケータの設計
+
+**課題:** 以下の要件を満たすアリーナアロケータを設計・実装せよ。
+
+**要件:**
+1. 初期化時に大きなメモリブロック（アリーナ）を一括確保する
+2. `arena_alloc(size)` でアリーナからメモリを「バンプ」割り当てする（ポインタを進めるだけ）
+3. 個別の `free` は不要。`arena_reset()` で全体を一括リセットする
+4. `arena_destroy()` でアリーナ全体を解放する
+5. アラインメント（8バイト境界）を保証する
+
+**ヒント:** このパターンはコンパイラの AST 構築やリクエスト単位のサーバ処理で広く使用される。
+
+<details>
+<summary>解答例を表示</summary>
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <string.h>
+
+#define ARENA_ALIGN 8
+#define ALIGN_UP(x, a) (((x) + (a) - 1) & ~((a) - 1))
+
+typedef struct arena {
+    uint8_t *base;      /* アリーナの先頭 */
+    size_t size;        /* アリーナの総サイズ */
+    size_t offset;      /* 次の割り当て位置 */
+} arena_t;
+
+/* アリーナ初期化 */
+arena_t *arena_create(size_t size) {
+    arena_t *arena = (arena_t *)malloc(sizeof(arena_t));
+    if (!arena) return NULL;
+
+    arena->base = (uint8_t *)malloc(size);
+    if (!arena->base) {
+        free(arena);
+        return NULL;
+    }
+    arena->size = size;
+    arena->offset = 0;
+    return arena;
+}
+
+/* バンプ割り当て O(1) */
+void *arena_alloc(arena_t *arena, size_t size) {
+    size_t aligned_offset = ALIGN_UP(arena->offset, ARENA_ALIGN);
+    if (aligned_offset + size > arena->size) {
+        return NULL;  /* アリーナ枯渇 */
+    }
+    void *ptr = arena->base + aligned_offset;
+    arena->offset = aligned_offset + size;
+    return ptr;
+}
+
+/* 全体リセット O(1) — 個別 free は不要 */
+void arena_reset(arena_t *arena) {
+    arena->offset = 0;
+}
+
+/* アリーナ破棄 */
+void arena_destroy(arena_t *arena) {
+    if (arena) {
+        free(arena->base);
+        free(arena);
+    }
+}
+
+/* 使用例: コンパイラの AST 構築 */
+typedef struct ast_node {
+    int type;
+    struct ast_node *left;
+    struct ast_node *right;
+    int value;
+} ast_node_t;
+
+int main(void) {
+    arena_t *arena = arena_create(1024 * 1024); /* 1MB アリーナ */
+
+    /* AST ノードをアリーナから高速割り当て */
+    ast_node_t *root = (ast_node_t *)arena_alloc(arena, sizeof(ast_node_t));
+    root->type = 1;
+    root->value = 42;
+    root->left = (ast_node_t *)arena_alloc(arena, sizeof(ast_node_t));
+    root->right = (ast_node_t *)arena_alloc(arena, sizeof(ast_node_t));
+
+    printf("使用量: %zu / %zu bytes (%.1f%%)\n",
+           arena->offset, arena->size,
+           (double)arena->offset / arena->size * 100);
+
+    /* リクエスト処理完了 → 一括リセット（個別 free 不要!） */
+    arena_reset(arena);
+    printf("リセット後: %zu / %zu bytes\n", arena->offset, arena->size);
+
+    arena_destroy(arena);
+    return 0;
+}
+```
+
+**アリーナアロケータの利点:**
+- 割り当て: ポインタの加算のみ → O(1)、ロック不要
+- 解放: 一括リセットのみ → O(1)、個別 free 不要
+- 断片化: 発生しない（連続領域をシーケンシャルに使用）
+- キャッシュ効率: 極めて高い（連続メモリアクセス）
+
+</details>
+
+---
+
+## 12. FAQ
+
+### Q1: malloc はスレッドセーフか?
+
+glibc の ptmalloc2 はスレッドセーフである。内部でミューテックスを使用してアリーナ（メモリプール）を保護し、スレッドごとに異なるアリーナを割り当てることでロック競合を減らしている。ただし、高スレッド数環境ではアリーナの競合がボトルネックになることがある。jemalloc や tcmalloc はスレッドローカルキャッシュにより、大部分の割り当て操作をロック不要で実行でき、高い並行性を実現する。性能が問題になる場合は `LD_PRELOAD` でアロケータを差し替えることが可能である。
+
+```bash
+# jemalloc に差し替えて実行
+LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libjemalloc.so ./my_program
+
+# tcmalloc に差し替えて実行
+LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libtcmalloc.so ./my_program
+```
+
+### Q2: Rust の所有権でメモリリークは完全に防げるか?
+
+いいえ。Rust でもメモリリークは発生し得る。`Rc<T>` の循環参照、`std::mem::forget` による意図的なドロップ抑制、`Box::leak` による明示的なリーク、終了しないスレッドが保持するメモリなど、リークが起こるパターンは複数ある。ただし、Rust が保証するのは **メモリ安全性**（Use-After-Free、ダブルフリー、データ競合の防止）であり、メモリリークは安全性の問題ではないと位置づけられている。循環参照は `Weak<T>` を使って対策する。
+
+### Q3: GC のある言語で明示的にメモリを解放する方法はあるか?
+
+多くの GC 言語では、GC の実行をヒントとして要求することはできるが、即座の解放を保証することはできない。Java の `System.gc()` は「GC を実行してほしい」というヒントに過ぎず、JVM は無視する場合がある。Go の `runtime.GC()` は同期的に GC を実行するが、日常的に呼ぶべきではない。Python の `gc.collect()` は循環参照を回収するが、参照カウントが 0 のオブジェクトは `del` 時点で即座に回収される。実践的には、大きなオブジェクトへの参照を `null` / `None` / `nil` にセットし、GC が回収可能な状態にすることが推奨される。
+
+### Q4: mmap と brk/sbrk の使い分けの基準は何か?
+
+glibc の malloc はデフォルトで `MMAP_THRESHOLD`（128KB）を閾値として使い分ける。128KB 以下の割り当ては `sbrk` でヒープを拡張し、128KB を超える割り当ては `mmap(MAP_ANONYMOUS)` で独立した仮想メモリ領域を確保する。`mmap` の利点は、`munmap` で即座にカーネルへメモリを返却できることである。一方 `sbrk` で拡張されたヒープは、末尾の空きブロックからしか縮小できないため、途中のブロックが使用中だとメモリがカーネルに返却されない。この閾値は `mallopt(M_MMAP_THRESHOLD, size)` で変更可能である。
+
+### Q5: OOM Killer はどのプロセスを終了させるか?
+
+Linux の OOM Killer は `/proc/[pid]/oom_score` に基づいてプロセスを選択する。スコアが高いほど終了されやすい。スコアは主にプロセスのメモリ使用量に基づくが、`oom_score_adj`（-1000〜+1000）で調整可能である。重要なプロセス（データベース等）は `oom_score_adj = -1000` に設定して OOM Killer の対象外にすることができる。ただし、過度に多くのプロセスを保護すると、OOM 発生時に適切なプロセスを終了できず、システム全体がハングする可能性がある。
+
+```bash
+# 現在のプロセスの OOM スコアを確認
+cat /proc/self/oom_score
+
+# 重要なプロセスを OOM Killer から保護
+echo -1000 > /proc/$(pidof my_database)/oom_score_adj
+```
+
+---
+
+## 13. まとめ
+
+### 全体概要
+
+本章では、メモリ割り当て戦略をプロセスのメモリレイアウトから始まり、アルゴリズム、プロダクションレベルのアロケータ、カーネルの物理メモリ管理、ガベージコレクション、断片化対策、デバッグ手法、言語ランタイムごとの特徴まで包括的に解説した。
+
+### 重要概念の総整理
+
+| 概念 | 要点 |
+|:---|:---|
+| メモリレイアウト | テキスト, データ, BSS, ヒープ, mmap, スタックの6領域 |
+| スタック vs ヒープ | スタック: O(1) 割り当て, 自動解放 / ヒープ: 柔軟だが管理コスト大 |
+| 割り当てアルゴリズム | First Fit(高速), Best Fit(断片化少), Buddy(カーネル), Segregated(現代的) |
+| ptmalloc2 | Linux 標準。アリーナ + fastbin/smallbin/largebin の階層構造 |
+| jemalloc | 低断片化 + 充実した統計機能。Redis, Firefox が採用 |
+| tcmalloc | スレッドキャッシュで小オブジェクト割り当てが極めて高速。Chrome が採用 |
+| mimalloc | セグメントベース + フリーリストシャーディング。全体的に高性能 |
+| Buddy Allocator | 2のべき乗ブロック管理。Linux カーネルの物理ページ割り当て |
+| SLAB/SLUB | カーネル内小オブジェクト管理。オブジェクト型ごとにキャッシュ |
+| マーク & スイープ | ルートからの到達性でゴミ判定。基本だが STW が発生 |
+| 世代別 GC | 弱い世代仮説に基づく。Minor GC(高頻度) + Major GC(低頻度) |
+| 参照カウント | 即時回収可能だが循環参照に弱い。Python, Swift(ARC) が採用 |
+| 三色マーキング | 並行 GC の基盤。白/灰/黒でマーキング。Go が採用 |
+| Rust 所有権 | GC なし。コンパイル時にメモリ安全性を保証。ゼロコスト |
+| 外部断片化 | 空き合計は十分だが連続領域が不足。コンパクションで対策 |
+| 内部断片化 | 割り当てブロック内の無駄。サイズクラスの細分化で軽減 |
+| メモリプール | 固定サイズ割り当てを O(1) で実行。ゲーム、サーバ向け |
+| アリーナアロケータ | バンプ割り当て + 一括解放。コンパイラ、リクエスト処理向け |
+| RAII | リソースの獲得と解放をオブジェクトのライフタイムに結びつける |
+| Demand Paging | 実際のアクセス時まで物理ページ割り当てを遅延 |
+
+### 次のステップ
+
+メモリ割り当ての知識をさらに深めるために、以下のトピックに進むことを推奨する:
+
+- **仮想メモリとページング:** ページテーブル、TLB、ページ置換アルゴリズム
+- **メモリマップドI/O:** mmap によるファイルアクセスの高速化
+- **NUMA アーキテクチャ:** マルチソケットシステムでのメモリ配置最適化
+- **永続メモリ (PMEM):** Intel Optane 等の不揮発メモリプログラミング
+
+---
+
+## 次に読むべきガイド
+
+- [[../03-file-systems/00-fs-basics.md]] --- ファイルシステムの基礎
+- [[01-virtual-memory.md]] --- 仮想メモリとページング（本章の前提知識を深める）
+
+---
+
+## 14. 参考文献
+
+1. Silberschatz, A., Galvin, P. B., & Gagne, G. *Operating System Concepts*, 10th Edition, Chapter 9: Main Memory. Wiley, 2018. --- メモリ管理の教科書的な解説。連続割り当て、ページング、セグメンテーションを体系的にカバー。
+
+2. Tanenbaum, A. S., & Bos, H. *Modern Operating Systems*, 4th Edition, Chapter 3: Memory Management. Pearson, 2014. --- Buddy System、SLAB アロケータ、仮想メモリの詳細な解説。
+
+3. Evans, J. "A Scalable Concurrent malloc(3) Implementation for FreeBSD." BSDCan, 2006. --- jemalloc の設計思想と実装の詳細を解説した原論文。
+
+4. Ghemawat, S. & Menage, P. "TCMalloc: Thread-Caching Malloc." Google Performance Tools Documentation. --- tcmalloc のアーキテクチャ、スレッドキャッシュとページヒープの設計。
+
+5. Leijen, D., Zorn, B., & de Moura, L. "Mimalloc: Free List Sharding in Action." Microsoft Research, 2019. --- mimalloc の設計原理、フリーリストシャーディングの効果を示したベンチマーク。
+
+6. Bonwick, J. "The Slab Allocator: An Object-Caching Kernel Memory Allocator." USENIX Summer 1994 Technical Conference. --- SLAB アロケータの原論文。オブジェクトキャッシングの概念を提唱。
+
+7. Jones, R., Hosking, A., & Moss, E. *The Garbage Collection Handbook: The Art of Automatic Memory Management*. CRC Press, 2011. --- GC アルゴリズムの包括的な参考書。マーク&スイープ、世代別、並行GC を網羅。
+
+8. Klabnik, S. & Nichols, C. *The Rust Programming Language*. No Starch Press, 2019. Chapter 4: Understanding Ownership. --- Rust の所有権、借用、ライフタイムの公式解説。
+
+9. Love, R. *Linux Kernel Development*, 3rd Edition, Chapter 12: Memory Management. Addison-Wesley, 2010. --- Linux カーネルの Buddy Allocator、SLAB、vmalloc の解説。
+
+10. Masmano, M., Ripoll, I., Crespo, A., & Real, J. "TLSF: A New Dynamic Memory Allocator for Real-Time Systems." 16th Euromicro Conference on Real-Time Systems (ECRTS), 2004. --- TLSF アロケータの原論文。O(1) 保証の割り当てアルゴリズム。
+

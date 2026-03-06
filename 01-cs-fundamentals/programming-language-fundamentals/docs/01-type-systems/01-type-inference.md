@@ -1,262 +1,1490 @@
 # 型推論（Type Inference）
 
-> 型推論は「型を書かなくても、コンパイラが自動的に型を決定する」仕組み。静的型付けの安全性と動的型付けの簡潔さを両立する。
+> **型推論は「型を書かなくても、コンパイラが自動的に型を決定する」仕組みである。静的型付けの安全性と動的型付けの簡潔さを両立させる、プログラミング言語設計の中核技術の一つ。**
 
 ## この章で学ぶこと
 
-- [ ] 型推論の仕組みと限界を理解する
-- [ ] 各言語の型推論の範囲を把握する
-- [ ] 型推論と明示的型注釈の使い分けを判断できる
+- [ ] 型推論の数学的基盤と歴史的背景を理解する
+- [ ] Hindley-Milner 型推論アルゴリズムの動作原理を説明できる
+- [ ] 双方向型チェックの仕組みと利点を把握する
+- [ ] 主要言語（TypeScript, Rust, Go, Haskell, Kotlin, Scala）の型推論の範囲と特性を比較できる
+- [ ] 型推論と明示的型注釈の適切な使い分けを判断できる
+- [ ] 制約ベース型推論の手動実行ができる
+- [ ] 型推論が失敗するケースを予測し、適切に対処できる
 
 ---
 
-## 1. 型推論とは
+## 目次
+
+1. [型推論の基礎と歴史](#1-型推論の基礎と歴史)
+2. [型推論の分類体系](#2-型推論の分類体系)
+3. [Hindley-Milner 型推論アルゴリズム](#3-hindley-milner-型推論アルゴリズム)
+4. [双方向型チェック](#4-双方向型チェック)
+5. [言語別の型推論詳解](#5-言語別の型推論詳解)
+6. [型推論の限界と対処法](#6-型推論の限界と対処法)
+7. [アンチパターンとベストプラクティス](#7-アンチパターンとベストプラクティス)
+8. [実践演習（3段階）](#8-実践演習3段階)
+9. [FAQ（よくある質問）](#9-faqよくある質問)
+10. [まとめと次のステップ](#10-まとめと次のステップ)
+11. [参考文献](#11-参考文献)
+
+---
+
+## 1. 型推論の基礎と歴史
+
+### 1.1 型推論とは何か
+
+型推論（Type Inference）とは、プログラマが明示的に型注釈（type annotation）を記述しなくても、コンパイラやインタプリタが式や変数の型を自動的に決定する機構である。
 
 ```
-型注釈なし（型推論）:
+型注釈なし（型推論に委ねる）:
   let x = 42             // コンパイラが x: int と推論
 
-型注釈あり（明示的）:
+型注釈あり（明示的に指定）:
   let x: int = 42        // プログラマが型を指定
 
-推論の仕組み（簡略化）:
-  1. リテラルの型を確定     42 → int
-  2. 変数の型を推論         x = 42 → x: int
-  3. 式の型を推論           x + 1 → int + int → int
-  4. 関数の型を推論         f(x) = x + 1 → f: int → int
-  5. 制約の解決             未決定の型を制約から決定
+両方とも同じ結果を生む。型推論は「冗長な型注釈」を省略可能にする。
+```
+
+型推論の根本的な価値は、**型安全性を犠牲にせずにコードの可読性と簡潔さを向上させること**にある。動的型付け言語のような書きやすさを、静的型付けの安全保証のもとで実現する。
+
+### 1.2 歴史的背景
+
+型推論の歴史は、数理論理学と計算機科学の交差点に位置する。
+
+```
+型推論の歴史年表
+================================================================
+
+1958  Curry の型割り当て
+      └── コンビナトリ論理学における型の自動割り当て
+
+1969  Hindley の主型スキーム（Principal Type Scheme）
+      └── 「最も一般的な型」が一意に存在することの証明
+
+1978  Milner の Algorithm W
+      └── ML言語のための効率的な型推論アルゴリズム
+
+1982  Damas-Milner 型システム
+      └── let多相（let-polymorphism）の形式化
+
+1985  ML言語ファミリの確立
+      └── SML, OCaml の基盤
+
+1990  Haskell 1.0
+      └── Hindley-Milner の完全実装 + 型クラス
+
+2004  C# 3.0 の var キーワード
+      └── 主流言語への型推論の導入開始
+
+2012  TypeScript 0.8
+      └── JavaScript エコシステムへの型推論の導入
+
+2014  Swift 1.0
+      └── Apple エコシステムでの双方向型推論
+
+2015  Rust 1.0
+      └── 所有権システムと統合された型推論
+
+2016  Java の var（JEP 286 提案）
+      └── 2018年 Java 10 で正式導入
+
+2021  Go 1.18 ジェネリクス
+      └── 型パラメータ推論の追加
+
+================================================================
+```
+
+### 1.3 型推論の基本的な動作原理
+
+型推論は一般的に以下の5段階のプロセスで動作する。
+
+```
+型推論の基本プロセス
+================================================================
+
+Step 1: リテラルの型を確定
+  42        --> int
+  3.14      --> float
+  "hello"   --> string
+  true      --> bool
+
+Step 2: 変数の型を推論
+  x = 42    --> x: int （右辺の型から左辺を決定）
+
+Step 3: 式の型を推論
+  x + 1     --> int + int --> int（演算子の型規則を適用）
+
+Step 4: 関数の型を推論
+  f(x) = x + 1  --> f: int -> int（引数と戻り値の型を決定）
+
+Step 5: 制約の解決
+  未決定の型変数に対して、収集した制約を解いて型を決定
+
+================================================================
+
+具体例: let result = if condition then 42 else 0
+
+  1. condition: bool（if の条件は bool）
+  2. 42: int, 0: int（リテラルの型）
+  3. then節と else節の型が一致 → int
+  4. result: int（if式全体の型）
+```
+
+### 1.4 型推論が解決する問題
+
+型推論が存在しない世界では、プログラマは全ての式に型注釈を記述しなければならない。これは特にジェネリクスやコレクション操作において深刻な冗長性を生む。
+
+```typescript
+// 型推論がない場合（Java 5 スタイルの冗長な記述）
+Map<String, List<Pair<Integer, String>>> map =
+    new HashMap<String, List<Pair<Integer, String>>>();
+
+// 型推論がある場合（Java 10+ / TypeScript スタイル）
+const map = new HashMap<String, List<Pair<Integer, String>>>();
+// あるいは
+let map = new Map<string, [number, string][]>();
+```
+
+この差は、コードの行数が増えるほど、そしてジェネリック型がネストするほど顕著になる。
+
+---
+
+## 2. 型推論の分類体系
+
+### 2.1 推論の方向による分類
+
+型推論には、情報がどの方向に流れるかによって複数のアプローチが存在する。
+
+```
+型推論の方向分類
+================================================================
+
+[1] ボトムアップ推論（Bottom-up / Synthesis）
+    ─────────────────────────────────
+    葉（リテラル・変数）から根（式全体）へ型情報が伝播
+
+    let x = 42          42: int --> x: int
+    let y = x + 1       x: int, 1: int, (+): int->int->int --> y: int
+
+    特徴: 局所的な型情報だけで推論可能
+    採用: Go, C（一部）
+
+[2] トップダウン推論（Top-down / Checking）
+    ─────────────────────────────────
+    期待される型が上位のコンテキストから下位の式へ伝播
+
+    let x: number[] = [1, 2, 3]
+                       ↓ number[] を期待
+                       各要素が number であることをチェック
+
+    特徴: 文脈依存の推論が可能
+    採用: Haskell（一部）, Scala 3
+
+[3] 双方向推論（Bidirectional）
+    ─────────────────────────────────
+    ボトムアップとトップダウンを組み合わせ
+
+    const f: (x: number) => string = x => x.toString();
+         ↑ トップダウン: x: number        ↑ ボトムアップ: string
+
+    特徴: 最も柔軟で実用的
+    採用: TypeScript, Kotlin, Swift, Scala 3
+
+================================================================
+```
+
+### 2.2 推論の範囲による分類
+
+```
+推論スコープの分類と比較表
+================================================================
+
+スコープ         | 説明                    | 採用言語
+-----------------+-------------------------+------------------
+ローカル推論     | 関数本体内のみ          | Go, C++（auto）
+関数内推論       | 関数シグネチャを含む     | TypeScript, Kotlin
+モジュール推論   | モジュール全体           | Rust（一部）
+グローバル推論   | プログラム全体           | Haskell, ML, OCaml
+
+================================================================
+
+ローカル推論:
+  関数の境界（引数・戻り値）では型注釈が必須。
+  推論は各関数の本体内に閉じる。
+
+  例 (Rust):
+    fn add(a: i32, b: i32) -> i32 {  // 境界は明示
+        let sum = a + b;              // ローカルは推論
+        sum
+    }
+
+グローバル推論:
+  型注釈が一切なくても、プログラム全体から型を決定。
+  Hindley-Milner アルゴリズムがこれを可能にする。
+
+  例 (Haskell):
+    add x y = x + y
+    -- 推論: add :: Num a => a -> a -> a
+    -- 型注釈なしでも完全に型安全
+```
+
+### 2.3 推論の強さによる分類
+
+| レベル | 説明 | 具体例 | 言語 |
+|--------|------|--------|------|
+| Level 0 | 推論なし | 全て明示的型注釈 | C（伝統的）, Java（<10） |
+| Level 1 | 変数のみ | `var x = 42` | Go, Java 10+, C++ auto |
+| Level 2 | 変数 + 戻り値 | ローカル関数の戻り値推論 | TypeScript, Kotlin |
+| Level 3 | 変数 + 戻り値 + 文脈 | コールバック引数の推論 | TypeScript, Swift |
+| Level 4 | 全式（型クラス制約付き） | 完全な Hindley-Milner | Haskell, ML, OCaml |
+
+---
+
+## 3. Hindley-Milner 型推論アルゴリズム
+
+### 3.1 概要
+
+Hindley-Milner（HM）型推論は、最も有名かつ理論的に完成された型推論アルゴリズムである。1969年の Hindley の研究と1978年の Milner の Algorithm W を基盤とし、1982年の Damas-Milner 型システムとして形式化された。
+
+**HM型推論の3大特性:**
+
+1. **完全性（Completeness）**: 型が付く全てのプログラムに対して、必ず型を推論できる
+2. **主型性（Principal Type Property）**: 推論される型は常に「最も一般的な型」である
+3. **決定可能性（Decidability）**: 推論は常に有限時間で終了する
+
+### 3.2 Algorithm W の詳細
+
+Algorithm W は HM 型推論の標準的な実装アルゴリズムである。
+
+```
+Algorithm W の動作手順
+================================================================
+
+入力: 型環境 Γ, 式 e
+出力: 代入 S, 型 τ
+
+W(Γ, e) = case e of
+
+  [変数] x:
+    Γ(x) を参照し、型スキームをインスタンス化
+    → 新しい型変数で置換した単相型を返す
+
+  [適用] e1 e2:
+    (S1, τ1) = W(Γ, e1)
+    (S2, τ2) = W(S1(Γ), e2)
+    β = 新しい型変数
+    S3 = unify(S2(τ1), τ2 → β)
+    → (S3 ∘ S2 ∘ S1, S3(β))
+
+  [抽象] λx.e:
+    β = 新しい型変数
+    (S1, τ1) = W(Γ ∪ {x: β}, e)
+    → (S1, S1(β) → τ1)
+
+  [let] let x = e1 in e2:
+    (S1, τ1) = W(Γ, e1)
+    σ = generalize(S1(Γ), τ1)   ← ここで多相化
+    (S2, τ2) = W(S1(Γ) ∪ {x: σ}, e2)
+    → (S2 ∘ S1, τ2)
+
+================================================================
+```
+
+### 3.3 単一化（Unification）アルゴリズム
+
+単一化は、2つの型表現を等しくする代入（substitution）を見つけるアルゴリズムである。HM型推論の心臓部を成す。
+
+```
+単一化アルゴリズム: unify(τ1, τ2)
+================================================================
+
+unify(α, τ)           = { α := τ }     （α が τ に出現しない場合）
+unify(τ, α)           = { α := τ }     （α が τ に出現しない場合）
+unify(Int, Int)        = {}              （同じ基底型）
+unify(τ1→τ2, τ3→τ4)  = let S1 = unify(τ1, τ3)
+                              S2 = unify(S1(τ2), S1(τ4))
+                          in S2 ∘ S1
+unify(τ1, τ2)         = エラー          （単一化不可能）
+
+================================================================
+
+出現チェック（Occurs Check）:
+  unify(α, List<α>) は無限型を生むため失敗
+  α = List<α> = List<List<α>> = List<List<List<α>>> = ...
+
+  ※ 出現チェックを省略すると無限ループの原因になる
+```
+
+### 3.4 手動トレースの具体例
+
+以下の関数に対して、HM型推論を手動でトレースする。
+
+```
+対象関数: let compose f g x = f (g x)
+
+Step 1: 型変数の割り当て
+================================================================
+  f: α
+  g: β
+  x: γ
+  compose: δ
+
+Step 2: 式の解析と制約収集
+================================================================
+  式 (g x):
+    g は関数なので β = γ → ε  （ε は新しい型変数）
+    g x の型は ε
+
+  式 f (g x):
+    f は関数なので α = ε → ζ  （ζ は新しい型変数）
+    f (g x) の型は ζ
+
+  compose f g x の型は ζ
+
+Step 3: 制約の解決（単一化）
+================================================================
+  制約一覧:
+    β = γ → ε
+    α = ε → ζ
+
+  代入:
+    β ↦ γ → ε
+    α ↦ ε → ζ
+
+Step 4: 最終的な型の組み立て
+================================================================
+  compose: α → β → γ → ζ
+         = (ε → ζ) → (γ → ε) → γ → ζ
+
+  一般的な型変数名に置換:
+  compose :: (b -> c) -> (a -> b) -> a -> c
+
+  これは Haskell の (.) 演算子と同じ型である。
+================================================================
+```
+
+### 3.5 let多相（Let-Polymorphism）
+
+HM型推論の最も重要な特徴の一つが **let多相** である。これは `let` 束縛で定義された値に多相型（polymorphic type）を付与する機構である。
+
+```haskell
+-- let多相の例
+let id = \x -> x        -- id :: forall a. a -> a
+in (id 42, id "hello")  -- id を int と string の両方で使用可能
+
+-- lambda 内では多相化されない（単相制限）
+(\id -> (id 42, id "hello")) (\x -> x)
+-- ↑ これは型エラー！
+-- id が単相型に制限されるため、int と string の両方では使えない
+```
+
+```
+let多相と単相の違い
+================================================================
+
+let式:
+  let id = λx.x in ...
+  → id は多相型 ∀α. α → α を持つ
+  → id 42 と id "hello" が同時に使える
+
+lambda式:
+  (λid. ...) (λx.x)
+  → id は単相型 α → α を持つ
+  → α は一つの具体型に固定される
+
+この区別が HM 型推論の決定可能性を保証する鍵である。
+System F（ランク2以上の多相）では型推論が決定不能になる。
+
+================================================================
 ```
 
 ---
 
-## 2. 言語ごとの型推論
+## 4. 双方向型チェック（Bidirectional Type Checking）
 
-### TypeScript
+### 4.1 概要
+
+双方向型チェックは、HM型推論に代わる現代的な型推論手法である。TypeScript, Kotlin, Swift, Scala 3 などの実用言語で広く採用されている。
+
+**基本原理**: 型情報を2つの方向で伝播させる。
+
+```
+双方向型チェックの2つのモード
+================================================================
+
+[推論モード（Synthesis / Infer）]
+  式から型を合成する（ボトムアップ）
+
+  Γ ⊢ e ⇒ τ   「環境 Γ のもとで、式 e の型は τ と推論される」
+
+  例:
+    42 ⇒ number          リテラルの型を合成
+    x ⇒ Γ(x)            変数の型を環境から取得
+    f(e) ⇒ τ2           f: τ1→τ2 かつ e ⇐ τ1 のとき
+
+[チェックモード（Checking / Check）]
+  式が期待される型を持つか検証する（トップダウン）
+
+  Γ ⊢ e ⇐ τ   「環境 Γ のもとで、式 e は型 τ を持つ」
+
+  例:
+    λx.e ⇐ τ1→τ2       引数 x に τ1 を割り当て、e ⇐ τ2 をチェック
+    if c then e1 else e2 ⇐ τ   e1 ⇐ τ かつ e2 ⇐ τ をチェック
+
+================================================================
+```
+
+### 4.2 推論モードとチェックモードの切り替え
+
+```
+双方向型チェックの情報フロー図
+================================================================
+
+const handler: (event: MouseEvent) => void = (e) => {
+  console.log(e.clientX);
+};
+
+解析過程:
+
+  1. handler の型注釈を読み取る
+     期待型: (event: MouseEvent) => void
+            │
+  2. ────── チェックモード ──────────────────────
+            │
+            ▼
+     (e) => { console.log(e.clientX); }
+     ⇐ (event: MouseEvent) => void
+
+  3. e に MouseEvent を割り当て
+     e: MouseEvent
+            │
+  4. ────── 推論モード ──────────────────────────
+            │
+            ▼
+     e.clientX ⇒ number    （MouseEvent のプロパティ）
+     console.log(e.clientX) ⇒ void
+
+  5. 戻り値の型チェック
+     void ⇐ void  ✓ 成功
+
+================================================================
+```
+
+### 4.3 TypeScript における双方向型チェックの具体例
 
 ```typescript
-// ローカル変数: 推論される
-let x = 42;              // x: number
-let s = "hello";         // s: string
-let arr = [1, 2, 3];     // arr: number[]
-let obj = { name: "a" }; // obj: { name: string }
+// 【コード例1】コールバックの型推論
+// 配列のメソッドチェーンで双方向型チェックが動作する例
 
-// 関数の戻り値: 推論される
-function add(a: number, b: number) {
-    return a + b;         // 戻り値: number と推論
+interface User {
+    id: number;
+    name: string;
+    age: number;
+    active: boolean;
 }
 
-// 関数の引数: 推論されない（明示が必要）
-function add(a, b) {     // ❌ noImplicitAny エラー
-    return a + b;
-}
+const users: User[] = [
+    { id: 1, name: "Alice", age: 30, active: true },
+    { id: 2, name: "Bob", age: 25, active: false },
+    { id: 3, name: "Charlie", age: 35, active: true },
+];
 
-// コンテキストからの推論
-const names = ["Alice", "Bob"];
-names.map(name => name.toUpperCase());
-//         ↑ name: string と推論される（配列の型から）
+// 双方向型チェックの連鎖
+const result = users
+    .filter(u => u.active)       // u: User（users の要素型から推論）
+    .map(u => u.name)            // u: User, 戻り値: string
+    .map(name => name.length)    // name: string（前段の戻り値型から推論）
+    .reduce((sum, len) => sum + len, 0); // sum: number, len: number
 
-// 型の絞り込み（Type Narrowing）
-function process(value: string | number) {
+// result: number（全てのチェーンを通じて型推論が伝播）
+```
+
+### 4.4 HM型推論との比較
+
+```
+HM型推論 vs 双方向型チェック
+================================================================
+
+                    HM型推論          双方向型チェック
+------------------------------------------------------------
+推論の完全性        完全              部分的（注釈が必要な場合あり）
+主型性              あり              なし（注釈に依存）
+サブタイピング      困難              自然にサポート
+オーバーロード      困難              自然にサポート
+高階多相            let多相のみ       ランク1多相（注釈で拡張可）
+実装の複雑さ        中程度            低い
+エラーメッセージ    やや不明確        明確（方向が分かるため）
+採用言語            Haskell, ML       TypeScript, Kotlin, Swift
+
+================================================================
+
+HM型推論が優れている点:
+  - 型注釈が一切不要でも完全に推論できる
+  - 推論結果が常に「最も一般的な型」（主型）
+
+双方向型チェックが優れている点:
+  - サブタイピング（継承・共変反変）との相性が良い
+  - メソッドオーバーロードを自然に扱える
+  - 型エラーのメッセージが分かりやすい
+  - 実装がシンプルで段階的に拡張しやすい
+
+================================================================
+```
+
+### 4.5 フロー感応型（Flow-Sensitive Typing）
+
+双方向型チェックの発展形として、制御フローに基づく型の絞り込み（narrowing）がある。TypeScript はこの機能を強力にサポートしている。
+
+```typescript
+// 【コード例2】フロー感応型の詳細な動作
+
+function processValue(value: string | number | null | undefined) {
+    // この時点: value: string | number | null | undefined
+
+    if (value == null) {
+        // null チェック後: value: null | undefined
+        return "no value";
+    }
+    // ここでは: value: string | number（null と undefined が除外）
+
     if (typeof value === "string") {
-        // ここでは value: string と推論
+        // typeof ガード後: value: string
         return value.toUpperCase();
     }
-    // ここでは value: number と推論
+    // ここでは: value: number（string が除外）
+
     return value.toFixed(2);
 }
-```
 
-### Rust
+// 判別共用体（Discriminated Union）による絞り込み
+type Shape =
+    | { kind: "circle"; radius: number }
+    | { kind: "rectangle"; width: number; height: number }
+    | { kind: "triangle"; base: number; height: number };
 
-```rust
-// Rust: 強力なローカル型推論
-let x = 42;              // x: i32（デフォルト整数型）
-let y = 3.14;            // y: f64（デフォルト浮動小数点型）
-let v = vec![1, 2, 3];   // v: Vec<i32>
-
-// 文脈からの推論
-let v: Vec<i64> = vec![1, 2, 3];  // 型注釈で i64 に
-let n: u8 = 42;                    // 型注釈で u8 に
-
-// ターボフィッシュ（型パラメータの明示）
-let parsed = "42".parse::<i32>().unwrap();
-// parse() だけでは戻り値型が決まらないため、::<i32> で指定
-
-// クロージャの引数: 推論される
-let add = |a, b| a + b;
-let result: i32 = add(1, 2);  // a: i32, b: i32 と推論
-
-// 関数の引数と戻り値: 推論されない（明示が必要）
-fn add(a: i32, b: i32) -> i32 {
-    a + b  // 関数では常に型注釈が必要
+function area(shape: Shape): number {
+    switch (shape.kind) {
+        case "circle":
+            // shape: { kind: "circle"; radius: number }
+            return Math.PI * shape.radius ** 2;
+        case "rectangle":
+            // shape: { kind: "rectangle"; width: number; height: number }
+            return shape.width * shape.height;
+        case "triangle":
+            // shape: { kind: "triangle"; base: number; height: number }
+            return (shape.base * shape.height) / 2;
+    }
 }
 ```
 
-### Go
+```
+フロー感応型の型状態遷移図
+================================================================
+
+function example(x: A | B | C) {
+
+  x の型: A | B | C
+  │
+  ├─ if (isA(x)) ──────────► x: A ──► return
+  │
+  │  x の型: B | C   （A が除外された）
+  │
+  ├─ if (isB(x)) ──────────► x: B ──► return
+  │
+  │  x の型: C       （B も除外された）
+  │
+  └─ else ──────────────────► x: C ──► return
+
+  各分岐で型が段階的に絞り込まれる
+  （型の状態が制御フローに沿って変化する）
+
+================================================================
+```
+
+---
+
+## 5. 言語別の型推論詳解
+
+### 5.1 TypeScript
+
+TypeScript は JavaScript に型システムを追加した言語であり、双方向型チェックをベースとした実用的な型推論を提供する。
+
+```typescript
+// 【コード例3】TypeScript の型推論の全範囲
+
+// --- ローカル変数の推論 ---
+let x = 42;                    // x: number
+let s = "hello";               // s: string
+let b = true;                  // b: boolean
+let arr = [1, 2, 3];           // arr: number[]
+let obj = { name: "Alice" };   // obj: { name: string }
+let tuple = [1, "a"] as const; // tuple: readonly [1, "a"]
+
+// --- 関数の戻り値の推論 ---
+function add(a: number, b: number) {
+    return a + b;   // 戻り値: number と推論
+}
+
+function greet(name: string) {
+    return `Hello, ${name}!`;  // 戻り値: string と推論
+}
+
+// --- 関数の引数は推論されない（明示が必要）---
+// function add(a, b) { ... }  // noImplicitAny エラー
+
+// --- コンテキストからの推論（Contextual Typing）---
+const names = ["Alice", "Bob", "Charlie"];
+names.map(name => name.toUpperCase());
+//         ↑ name: string（配列の要素型から推論）
+
+// --- const アサーションと推論 ---
+const config = {
+    host: "localhost",
+    port: 3000,
+} as const;
+// config: { readonly host: "localhost"; readonly port: 3000 }
+// リテラル型として推論される
+
+// --- 条件型の推論 ---
+type Awaited<T> = T extends Promise<infer U> ? U : T;
+type Result = Awaited<Promise<string>>; // Result = string
+
+// --- テンプレートリテラル型の推論 ---
+type EventName = `on${Capitalize<"click" | "focus" | "blur">}`;
+// EventName = "onClick" | "onFocus" | "onBlur"
+
+// --- satisfies 演算子（TypeScript 4.9+）---
+const palette = {
+    red: [255, 0, 0],
+    green: "#00ff00",
+    blue: [0, 0, 255],
+} satisfies Record<string, string | number[]>;
+// 型チェックしつつ、推論された型を保持
+// palette.red は number[] として推論される（string | number[] ではなく）
+```
+
+**TypeScript の型推論の限界:**
+
+```typescript
+// 推論が失敗する / 不十分なケース
+
+// 1. 空の配列
+const arr = [];      // arr: any[] （型が決定できない）
+const arr: string[] = []; // 明示が必要
+
+// 2. 複数の型候補がある場合
+const x = Math.random() > 0.5 ? 42 : "hello";
+// x: string | number （ユニオン型に推論される）
+
+// 3. コールバックのオーバーロード
+declare function on(event: "click", handler: (e: MouseEvent) => void): void;
+declare function on(event: "focus", handler: (e: FocusEvent) => void): void;
+// オーバーロードの解決は型推論だけでは完全でない場合がある
+
+// 4. 再帰的な型
+type JSON = string | number | boolean | null | JSON[] | { [key: string]: JSON };
+// 推論コンテキストによっては明示的な型注釈が必要
+```
+
+### 5.2 Rust
+
+Rust はローカル型推論と所有権（ownership）システムを統合した独自の型推論を持つ。
+
+```rust
+// 【コード例4】Rust の型推論の特徴
+
+// --- 基本的なローカル推論 ---
+let x = 42;                    // x: i32（デフォルト整数型）
+let y = 3.14;                  // y: f64（デフォルト浮動小数点型）
+let s = String::from("hello"); // s: String
+let v = vec![1, 2, 3];         // v: Vec<i32>
+
+// --- 文脈からの推論（後方参照） ---
+let mut v = Vec::new();    // この時点では Vec<_>（型未定）
+v.push(42);                // push の引数から Vec<i32> と確定
+// Rust は「前方」だけでなく「後方」の使用箇所からも推論する
+
+// --- ターボフィッシュ構文（明示的型パラメータ） ---
+let parsed = "42".parse::<i32>().unwrap();
+// parse() の戻り値型が文脈から決まらないため、::<i32> で指定
+
+// --- クロージャの型推論 ---
+let add = |a, b| a + b;
+let result: i32 = add(1, 2);
+// クロージャの引数型は使用箇所から推論される
+
+// --- 所有権と型推論の相互作用 ---
+let s1 = String::from("hello");
+let s2 = s1;       // s1 から s2 へ所有権がムーブ
+// s1 はここで無効化される（型推論 + 所有権チェック）
+// println!("{}", s1); // コンパイルエラー: value used after move
+
+// --- ライフタイム省略規則と型推論 ---
+// ライフタイムもある意味での「型推論」
+fn first_word(s: &str) -> &str {
+    // ライフタイム省略規則により、
+    // fn first_word<'a>(s: &'a str) -> &'a str と推論
+    s.split_whitespace().next().unwrap_or("")
+}
+
+// --- 関数の引数・戻り値は推論されない ---
+fn add(a: i32, b: i32) -> i32 {
+    a + b   // 関数シグネチャでは常に型注釈が必要
+}
+
+// --- トレイト境界と型推論 ---
+fn print_all<T: std::fmt::Display>(items: &[T]) {
+    for item in items {
+        println!("{}", item); // T: Display であることが保証
+    }
+}
+// print_all(&[1, 2, 3]); // T = i32 と推論
+// print_all(&["a", "b"]); // T = &str と推論
+```
+
+### 5.3 Go
+
+Go は意図的にシンプルな型推論を採用している。これは Go の設計哲学「シンプルさ（simplicity）」を反映している。
 
 ```go
-// Go: シンプルな型推論（:= で推論）
+// Go の型推論: := 短縮変数宣言
+
+// --- 基本的な推論 ---
 x := 42              // x: int
 s := "hello"         // s: string
+f := 3.14            // f: float64
+b := true            // b: bool
 arr := []int{1,2,3}  // arr: []int
 
-// var 宣言: 型指定またはゼロ値
-var x int             // x = 0
-var x = 42            // 推論
+// --- var 宣言との比較 ---
+var x1 int            // ゼロ値初期化、型明示
+var x2 = 42           // 型推論
+x3 := 42              // 短縮宣言 + 型推論（最も簡潔）
 
-// 関数の引数・戻り値: 推論されない
+// --- 複数変数の同時推論 ---
+a, b, c := 1, "hello", true
+// a: int, b: string, c: bool
+
+// --- 関数の引数・戻り値は推論されない ---
 func add(a int, b int) int {
     return a + b
 }
 
-// Go の型推論は意図的にシンプル
-// → ジェネリクスの型推論は限定的
+// --- Go 1.18+ ジェネリクスの型パラメータ推論 ---
+func Map[T any, U any](s []T, f func(T) U) []U {
+    result := make([]U, len(s))
+    for i, v := range s {
+        result[i] = f(v)
+    }
+    return result
+}
+
+// 呼び出し時に型パラメータを省略可能
+nums := []int{1, 2, 3}
+strs := Map(nums, func(n int) string {  // T=int, U=string と推論
+    return fmt.Sprintf("%d", n)
+})
 ```
 
-### Haskell（最も強力な型推論）
+### 5.4 Haskell
+
+Haskell は HM 型推論を完全に実装しており、型注釈なしでも全てのプログラムに型が付く。
 
 ```haskell
--- Haskell: Hindley-Milner 型推論
--- 型注釈なしで全ての型が推論可能
+-- Haskell: 最も強力な型推論
 
--- 推論: add :: Num a => a -> a -> a
-add x y = x + y
+-- 推論: id :: a -> a
+id x = x
 
--- 推論: factorial :: (Eq a, Num a) => a -> a
-factorial 0 = 1
-factorial n = n * factorial (n - 1)
+-- 推論: const :: a -> b -> a
+const x _ = x
+
+-- 推論: flip :: (a -> b -> c) -> b -> a -> c
+flip f x y = f y x
 
 -- 推論: map :: (a -> b) -> [a] -> [b]
--- （標準ライブラリの定義そのもの）
+map _ []     = []
+map f (x:xs) = f x : map f xs
 
--- 推論: compose :: (b -> c) -> (a -> b) -> a -> c
-compose f g x = f (g x)
+-- 推論: foldr :: (a -> b -> b) -> b -> [a] -> b
+foldr _ z []     = z
+foldr f z (x:xs) = f x (foldr f z xs)
 
--- Haskell では型注釈はドキュメントとして書くが、技術的には不要
--- ただし、型推論の結果を確認するために書くことが推奨される
+-- 推論: (.) :: (b -> c) -> (a -> b) -> a -> c
+(.) f g x = f (g x)
+
+-- 型クラス制約の自動推論
+-- 推論: sort :: Ord a => [a] -> [a]
+sort []     = []
+sort (x:xs) = sort [y | y <- xs, y <= x]
+           ++ [x]
+           ++ sort [y | y <- xs, y > x]
+-- Ord 制約は (<=) と (>) の使用から自動的に推論される
+
+-- モナドの型推論
+-- 推論: readAndPrint :: IO ()
+readAndPrint = do
+    line <- getLine        -- line :: String
+    putStrLn (map toUpper line)  -- 全体 :: IO ()
+```
+
+### 5.5 Kotlin と Scala 3
+
+```kotlin
+// Kotlin: スマートキャストと型推論
+
+// 基本的な型推論
+val x = 42              // x: Int
+val s = "hello"         // s: String
+val list = listOf(1, 2) // list: List<Int>
+
+// スマートキャスト（フロー感応型の一種）
+fun process(obj: Any) {
+    if (obj is String) {
+        // obj は自動的に String にキャストされる
+        println(obj.length)  // キャスト不要
+    }
+    // when 式でも同様
+    when (obj) {
+        is Int -> println(obj + 1)      // obj: Int
+        is String -> println(obj.length) // obj: String
+        is List<*> -> println(obj.size)  // obj: List<*>
+    }
+}
+
+// ラムダの型推論
+val transform: (String) -> Int = { it.length }
+// it: String（期待型から推論）
+
+// ビルダーパターンでの推論
+val result = buildList {
+    add(1)       // Int を追加
+    add(2)       // 型が一致
+    addAll(listOf(3, 4))
+}
+// result: List<Int>
+```
+
+```scala
+// Scala 3: 高度な型推論
+
+// 基本的な推論
+val x = 42              // x: Int
+val s = "hello"         // s: String
+
+// コンテキスト関数の推論
+given ord: Ordering[Int] = Ordering.Int
+def sorted[T](list: List[T])(using Ordering[T]): List[T] =
+  list.sorted
+// using パラメータは given インスタンスから推論
+
+// マッチ型の推論
+type Elem[X] = X match
+  case String      => Char
+  case Array[t]    => t
+  case Iterable[t] => t
+
+// Elem[String] = Char, Elem[Array[Int]] = Int
+
+// ユニオン型とインターセクション型
+val x: String | Int = if true then "hello" else 42
+// 推論された型のユニオン
+
+// 拡張メソッドの推論
+extension (s: String)
+  def words: List[String] = s.split("\\s+").toList
+// "hello world".words の型: List[String]
+```
+
+### 5.6 言語間の型推論能力比較表
+
+```
+言語別の型推論能力比較
+================================================================
+
+機能                | TS    | Rust  | Go    | Haskell | Kotlin | Scala3
+--------------------+-------+-------+-------+---------+--------+-------
+ローカル変数推論    | ○     | ○     | ○     | ○       | ○      | ○
+関数戻り値推論      | ○     | ×     | ×     | ○       | △      | ○
+関数引数推論        | ×     | ×     | ×     | ○       | ×      | ×
+コールバック引数推論| ○     | ○     | △     | ○       | ○      | ○
+ジェネリクス推論    | ○     | ○     | △     | ○       | ○      | ○
+フロー感応型        | ○     | ×*    | ×     | ×       | ○      | △
+型クラス/制約推論   | ×     | ○     | ×     | ○       | ×      | ○
+ライフタイム推論    | N/A   | ○     | N/A   | N/A     | N/A    | N/A
+パターンマッチ推論  | △     | ○     | ×     | ○       | ○      | ○
+
+○: 完全サポート  △: 部分サポート  ×: 非サポート
+*: Rust は借用チェッカーが類似の機能を提供
+
+================================================================
 ```
 
 ---
 
-## 3. 型推論のアルゴリズム
+## 6. 型推論の限界と対処法
 
-### Hindley-Milner 型推論
-
-```
-最も有名な型推論アルゴリズム。Haskell, ML, Rust（の一部）で使用。
-
-手順:
-  1. 各式に未知の型変数を割り当て
-     let f x = x + 1
-     f: α → β,  x: α,  (+): γ → δ → ε,  1: Int
-
-  2. 制約を収集
-     α = γ     （xが+の第1引数）
-     Int = δ   （1が+の第2引数）
-     β = ε     （+の結果がfの戻り値）
-     γ = δ = ε = Int  （+はInt→Int→Int）
-
-  3. 単一化（Unification）で制約を解く
-     α = Int,  β = Int
-
-  4. 結果
-     f: Int → Int
-
-特徴:
-  - 決定的（常に最も一般的な型を推論）
-  - 効率的（ほぼ線形時間）
-  - 高階多相（let多相）をサポート
-```
-
-### 双方向型チェック（Bidirectional Type Checking）
+### 6.1 推論が失敗する5つの典型パターン
 
 ```
-TypeScript, Scala 3, Kotlin などで使用される現代的手法。
+型推論が失敗するパターン一覧
+================================================================
 
-推論（Inference）: 式から型を推論する（ボトムアップ）
-チェック（Checking）: 期待される型と照合する（トップダウン）
+パターン1: 空のコレクション
+------------------------------------------------------------
+  let arr = [];               // TypeScript: any[]
+  let v = Vec::new();         // Rust: Vec<_> 型未定
 
-例:
-  const f: (x: number) => string = x => x.toString();
-                                    ↑
-                          期待型 (number) => string から
-                          x: number と推論（チェック方向）
-                          x.toString(): string と推論（推論方向）
+  対処: 型注釈を追加
+  let arr: number[] = [];
+  let v: Vec<i32> = Vec::new();
+
+パターン2: 複数の型候補（オーバーロード）
+------------------------------------------------------------
+  // 複数の解釈が可能な場合
+  let result = parse(input);  // parse の戻り値型が複数ある
+
+  対処: 型注釈またはターボフィッシュ
+  let result: User = parse(input);
+  let result = input.parse::<i32>();
+
+パターン3: 再帰的データ構造
+------------------------------------------------------------
+  // 自己参照する型は推論が困難
+  type Tree = { value: number; children: Tree[] };
+  let tree = { value: 1, children: [] };
+  // children: never[]（Tree[] と推論されない）
+
+  対処: 明示的型注釈
+  let tree: Tree = { value: 1, children: [] };
+
+パターン4: 高階関数の部分適用
+------------------------------------------------------------
+  // 部分適用時に型が確定しない
+  const apply = (f: Function) => f; // 型情報が失われる
+
+  対処: ジェネリクスを使用
+  const apply = <T, U>(f: (x: T) => U) => f;
+
+パターン5: 異なるブランチの型不一致
+------------------------------------------------------------
+  // 条件分岐で異なる型を返す場合
+  function getValue(flag: boolean) {
+      if (flag) return 42;
+      else return "hello";
+  }
+  // 戻り値: number | string（意図しないユニオン型）
+
+  対処: 戻り値型を明示するか、設計を見直す
+
+================================================================
+```
+
+### 6.2 型注釈を書くべき場所・省略すべき場所
+
+```
+型注釈の判断基準マトリクス
+================================================================
+
+                            推論結果が     推論結果が
+                            明白           不明瞭
+                        ┌──────────────┬──────────────┐
+  公開API               │  書く(*)     │  必ず書く    │
+  （関数引数・戻り値）   │              │              │
+                        ├──────────────┼──────────────┤
+  内部実装               │  省略OK      │  書く        │
+  （ローカル変数等）     │              │              │
+                        └──────────────┴──────────────┘
+
+  (*) 公開APIは推論が明白でもドキュメントとして型注釈を書くべき
+
+================================================================
+
+具体的ガイドライン:
+
+  必ず書く:
+    [1] 関数の引数型（公開・非公開問わず）
+    [2] 公開関数の戻り値型
+    [3] 空のコレクションの初期化
+    [4] any / unknown 型が推論される場合
+    [5] 型キャスト（as / type assertion）の結果
+
+  省略してよい:
+    [1] リテラルからの代入（let x = 42）
+    [2] 明白な関数呼び出しの結果（let len = str.length）
+    [3] コールバック引数（names.map(n => ...)）
+    [4] 中間変数（パイプラインの途中結果）
+    [5] 構造分割代入（const { name, age } = user）
+
+================================================================
+```
+
+### 6.3 型推論のパフォーマンスへの影響
+
+型推論は一般的にコンパイル時間に影響を与える。特に大規模プロジェクトでは無視できないこともある。
+
+```
+型推論のコンパイル時間への影響
+================================================================
+
+言語        | 推論の計算量       | 大規模プロジェクトでの影響
+------------+-------------------+---------------------------
+Haskell     | ほぼ線形 O(n)     | 型クラス解決で遅くなる場合あり
+Rust        | ほぼ線形 O(n)     | トレイト解決 + 借用チェックが支配的
+TypeScript  | 最悪指数関数的     | 条件型のネストで遅くなる場合あり
+Go          | 線形 O(n)         | 影響は軽微
+Scala 3     | 最悪指数関数的     | 暗黙の解決（given/using）が重い場合あり
+
+================================================================
+
+TypeScript で型推論がコンパイルを遅くする例:
+  // 深いネストの条件型
+  type DeepPartial<T> = {
+    [P in keyof T]?: T[P] extends object
+      ? DeepPartial<T[P]>
+      : T[P];
+  };
+  // 大きなオブジェクト型に適用すると爆発的に遅くなる可能性
+
+  対策:
+  - 型の再帰深度を制限する
+  - 中間型に明示的な型注釈を付ける
+  - interface を type alias より優先する（構造比較のキャッシュが効く）
+
+================================================================
 ```
 
 ---
 
-## 4. 型推論の限界
+## 7. アンチパターンとベストプラクティス
+
+### 7.1 アンチパターン1: 過剰な型注釈（Annotation Overkill）
+
+型推論が正確に動作する場所に冗長な型注釈を追加すると、コードの可読性が低下し、保守性も悪化する。
+
+```typescript
+// *** アンチパターン: 過剰な型注釈 ***
+
+// BAD: 全てに型注釈を付ける（冗長）
+const name: string = "Alice";
+const age: number = 30;
+const active: boolean = true;
+const scores: number[] = [90, 85, 92];
+const user: { name: string; age: number } = { name: "Alice", age: 30 };
+const doubled: number[] = scores.map((s: number): number => s * 2);
+
+// GOOD: 推論に任せる（簡潔）
+const name = "Alice";
+const age = 30;
+const active = true;
+const scores = [90, 85, 92];
+const user = { name: "Alice", age: 30 };
+const doubled = scores.map(s => s * 2);
+```
 
 ```
-推論できない場面（明示的な型注釈が必要）:
+なぜ問題なのか:
+================================================================
 
-  1. 関数の公開API
-     → 引数・戻り値の型はドキュメントとして明示すべき
+1. 可読性の低下
+   - 型注釈がノイズになり、ロジックが見えにくくなる
+   - 情報の重複（右辺からも型は明らか）
 
-  2. 空のコレクション
-     let arr = [];        // 型が決定できない
-     let arr: number[] = [];  // 明示が必要
+2. 保守性の悪化
+   - 値を変更したとき、型注釈も同時に変更が必要
+   - 型注釈と実際の型が乖離するリスク
 
-  3. 複雑なジェネリクス
-     let result = parse(input);  // 戻り値型が不定
-     let result: User = parse(input);  // 明示で解決
+3. リファクタリングの困難化
+   - 冗長な型注釈があると、型の変更が広範囲に波及
 
-  4. 再帰的な型
-     // 自己参照する型は推論が困難な場合がある
+判断基準:
+  「この型注釈を消しても、読む人は型が分かるか？」
+  → Yes なら省略してよい
+  → No なら書くべき
 
-  5. オーバーロード
-     // 複数の型が候補になる場合
+================================================================
 ```
 
-### 型注釈のベストプラクティス
+### 7.2 アンチパターン2: any への逃避（Any Escape Hatch）
+
+型推論が困難な場面で安易に `any` 型を使用すると、型安全性が破壊される。
+
+```typescript
+// *** アンチパターン: any への逃避 ***
+
+// BAD: any で型チェックを無効化
+function processData(data: any): any {
+    return data.map((item: any) => item.name.toUpperCase());
+    // 全ての型情報が失われている
+    // data が配列でなくても、item.name が存在しなくてもコンパイルが通る
+}
+
+// GOOD: 適切な型を定義する
+interface DataItem {
+    name: string;
+    value: number;
+}
+
+function processData(data: DataItem[]): string[] {
+    return data.map(item => item.name.toUpperCase());
+    // 型安全: data が DataItem[] でなければコンパイルエラー
+}
+
+// BETTER: ジェネリクスで汎用化する
+function processData<T extends { name: string }>(data: T[]): string[] {
+    return data.map(item => item.name.toUpperCase());
+    // name プロパティを持つ任意の型の配列を受け付ける
+}
+
+// 段階的な改善: any → unknown → 具体型
+function safeProcess(data: unknown): string[] {
+    if (!Array.isArray(data)) {
+        throw new Error("Expected array");
+    }
+    return data.map(item => {
+        if (typeof item === "object" && item !== null && "name" in item) {
+            return String((item as { name: unknown }).name).toUpperCase();
+        }
+        throw new Error("Invalid item");
+    });
+}
+```
 
 ```
-書くべき場所:
-  ✓ 関数の引数と戻り値（公開API）
-  ✓ クラス/構造体のフィールド
-  ✓ 空のコレクション
-  ✓ 型推論の結果が明白でない場合
+any vs unknown vs never の使い分け
+================================================================
 
-省略してよい場所:
-  ✓ ローカル変数（let x = 42）
-  ✓ クロージャの引数（コンテキストから推論可能）
-  ✓ 一時的な中間変数
-  ✓ 推論結果が明白な場合
+型        | 安全性 | 用途
+----------+--------+------------------------------------------
+any       | ×      | 型チェックの完全な無効化（極力避ける）
+unknown   | ○      | 型が不明だが安全に扱いたい場合
+never     | ○      | 到達不能なコードの型（網羅性チェック）
+object    | △      | null でないオブジェクト全般
+
+any の正当な用途:
+  - 外部ライブラリの型定義がない場合の一時的な措置
+  - テストコードでのモック（型安全性より柔軟性を優先）
+  - 移行期間中の段階的な型付け
+
+================================================================
+```
+
+### 7.3 アンチパターン3: 不適切な型アサーション
+
+```typescript
+// *** アンチパターン: 型アサーションの乱用 ***
+
+// BAD: 根拠のない型アサーション
+const data = JSON.parse(response) as User;
+// JSON.parse は any を返す。User である保証はない。
+
+// BAD: ダブルアサーション（型安全性の完全な破壊）
+const x = ("hello" as unknown) as number;
+// string を number に強制変換（ランタイムエラーの温床）
+
+// GOOD: 型ガードで安全に絞り込む
+function isUser(obj: unknown): obj is User {
+    return (
+        typeof obj === "object" &&
+        obj !== null &&
+        "name" in obj &&
+        "age" in obj &&
+        typeof (obj as User).name === "string" &&
+        typeof (obj as User).age === "number"
+    );
+}
+
+const data: unknown = JSON.parse(response);
+if (isUser(data)) {
+    // ここでは data: User と推論される（型ガードによる絞り込み）
+    console.log(data.name);
+}
+
+// BETTER: zod 等のバリデーションライブラリを使用
+import { z } from "zod";
+const UserSchema = z.object({
+    name: z.string(),
+    age: z.number(),
+});
+type User = z.infer<typeof UserSchema>;
+
+const data = UserSchema.parse(JSON.parse(response));
+// data: User（バリデーション済み）
+```
+
+### 7.4 ベストプラクティスまとめ
+
+```
+型推論のベストプラクティス
+================================================================
+
+[1] 公開APIの境界では型注釈を必ず書く
+    → 関数の引数、戻り値、エクスポートされる型
+
+[2] ローカル変数は推論に任せる
+    → let x = 42; で十分。let x: number = 42; は冗長
+
+[3] 空のコレクションには型注釈を付ける
+    → const arr: string[] = [];
+
+[4] any を避け、unknown を使う
+    → 型が不明な場合は unknown + 型ガード
+
+[5] 型アサーション（as）より型ガードを優先する
+    → ランタイムの安全性を確保
+
+[6] 推論結果が不明確な場合は型注釈を追加する
+    → 読み手の理解を助ける
+
+[7] const アサーションを活用する
+    → as const でリテラル型を保持
+
+[8] IDE の型表示を活用して推論結果を確認する
+    → ホバーで推論された型を確認する習慣を付ける
+
+================================================================
 ```
 
 ---
 
-## 実践演習
+## 8. 実践演習（3段階）
 
-### 演習1: [基礎] — 型推論の確認
-TypeScript で型注釈を一切書かずに関数を定義し、IDE でホバーして推論結果を確認する。
+### 演習1: [基礎] 型推論の確認と理解
 
-### 演習2: [応用] — 推論の限界を体験
-型推論が失敗するケースを TypeScript と Rust で作成し、適切な型注釈で解決する。
+**目的**: 各言語の型推論がどこまで自動的に型を決定するかを体験する。
 
-### 演習3: [発展] — Hindley-Milner の手動実行
-簡単な関数に対して、手動で型変数の割り当て→制約収集→単一化のプロセスを実行する。
+**課題 1-1**: TypeScript で以下のコードを記述し、IDE のホバー機能で各変数の推論型を確認せよ。
 
----
+```typescript
+// 各変数の型を IDE で確認し、コメントに記入せよ
+const a = 42;                          // a: ???
+const b = [1, "hello", true];          // b: ???
+const c = { x: 1, y: "hello" };       // c: ???
+const d = new Map();                   // d: ???
+const e = Promise.resolve(42);         // e: ???
+const f = (x: number) => x > 0;       // f: ???
 
-## まとめ
+const g = [1, 2, 3].map(x => x * 2);            // g: ???
+const h = [1, 2, 3].filter(x => x > 1);         // h: ???
+const i = [1, 2, 3].reduce((acc, x) => acc + x); // i: ???
+```
 
-| 言語 | 推論範囲 | 特徴 |
-|------|---------|------|
-| Haskell | 全プログラム | Hindley-Milner。最も強力 |
-| Rust | ローカル | 関数境界では明示が必要 |
-| TypeScript | ローカル + コンテキスト | 双方向型チェック |
-| Go | 変数のみ | 意図的にシンプル |
-| Java | 限定的 | var（Java 10+）で改善 |
+**期待される回答:**
 
----
+```typescript
+const a = 42;                          // a: number
+const b = [1, "hello", true];          // b: (string | number | boolean)[]
+const c = { x: 1, y: "hello" };       // c: { x: number; y: string }
+const d = new Map();                   // d: Map<any, any>
+const e = Promise.resolve(42);         // e: Promise<number>
+const f = (x: number) => x > 0;       // f: (x: number) => boolean
 
-## 次に読むべきガイド
-→ [[02-generics-and-polymorphism.md]] — ジェネリクスと多態性
+const g = [1, 2, 3].map(x => x * 2);            // g: number[]
+const h = [1, 2, 3].filter(x => x > 1);         // h: number[]
+const i = [1, 2, 3].reduce((acc, x) => acc + x); // i: number
+```
 
----
+**課題 1-2**: Rust で以下のコードをコンパイルし、コンパイラの型推論を確認せよ。
 
-## 参考文献
-1. Pierce, B. "Types and Programming Languages." Ch.22, MIT Press, 2002.
-2. Hindley, R. "The Principal Type-Scheme of an Object in Combinatory Logic." 1969.
+```rust
+fn main() {
+    let a = 42;                    // 型は？
+    let b = vec![1, 2, 3];        // 型は？
+    let c = "hello".to_string();  // 型は？
+    let d = (1, "hello", true);   // 型は？
+
+    // 以下の行を追加して、型がどう変わるか確認
+    let e: u8 = a;  // これはコンパイルエラーになるか？
+    // ヒント: a のデフォルト型は i32 だが、
+    //         e の型注釈の影響を受けるか？
+}
+```
+
+### 演習2: [応用] 型推論の限界を体験し解決する
+
+**目的**: 型推論が失敗するケースを作成し、適切な型注釈で解決する方法を学ぶ。
+
+**課題 2-1**: TypeScript で型推論が失敗する5つのケースを作成し、それぞれ修正せよ。
+
+```typescript
+// ケース1: 空の配列
+const items = [];  // any[] になる → 修正せよ
+
+// ケース2: 条件式の型拡大
+const value = Math.random() > 0.5 ? 42 : "hello";
+// string | number になるが、number だけにしたい → 修正せよ
+
+// ケース3: オブジェクトリテラルの余剰プロパティ
+interface Config {
+    host: string;
+    port: number;
+}
+const config = { host: "localhost", port: 3000, debug: true };
+// Config として使いたいが debug が余剰 → 修正せよ
+
+// ケース4: Promise チェーンの型
+async function fetchData() {
+    const response = await fetch("/api/users");
+    const data = await response.json(); // data: any → 修正せよ
+    return data;
+}
+
+// ケース5: ジェネリクスの型パラメータが推論されない
+function identity(x) { return x; }  // 修正せよ
+```
+
+**模範解答:**
+
+```typescript
+// ケース1: 型注釈を追加
+const items: string[] = [];
+
+// ケース2: 条件式を修正、または型注釈
+const value: number = Math.random() > 0.5 ? 42 : 0;
+
+// ケース3: satisfies を使用
+const config = { host: "localhost", port: 3000, debug: true } satisfies Config;
+// または型注釈: const config: Config = { host: "localhost", port: 3000 };
+
+// ケース4: 型パラメータを指定
+interface User { id: number; name: string; }
+async function fetchData(): Promise<User[]> {
+    const response = await fetch("/api/users");
+    const data: User[] = await response.json();
+    return data;
+}
+
+// ケース5: ジェネリクスを使用
+function identity<T>(x: T): T { return x; }
+```
+
+**課題 2-2**: Rust で型推論が失敗するケースを3つ作成し、それぞれターボフィッシュまたは型注釈で解決せよ。
+
+```rust
+fn main() {
+    // ケース1: parse の戻り値型が不定
+    let n = "42".parse().unwrap(); // 修正せよ
+
+    // ケース2: collect の型が不定
+    let v = (0..10).collect(); // 修正せよ
+
+    // ケース3: Default トレイトの型が不定
+    let d = Default::default(); // 修正せよ
+}
+```
+
+**模範解答:**
+
+```rust
+fn main() {
+    // ケース1: ターボフィッシュで型を指定
+    let n = "42".parse::<i32>().unwrap();
+    // または型注釈: let n: i32 = "42".parse().unwrap();
+
+    // ケース2: ターボフィッシュまたは型注釈
+    let v: Vec<i32> = (0..10).collect();
+    // または: let v = (0..10).collect::<Vec<i32>>();
+
+    // ケース3: 型注釈
+    let d: i32 = Default::default();
+    // または: let d = i32::default();
+}
+```
+
+### 演習3: [発展] Hindley-Milner 型推論の手動実行
+
+**目的**: HM 型推論アルゴリズムを手動で実行し、型推論の内部動作を理解する。
+
+**課題 3-1**: 以下の関数に対して、HM 型推論を手動でトレースせよ。
+
+```
+対象関数: let apply f x = f x
+```
+
+**手動トレース手順:**
+
+```
+Step 1: 型変数の割り当て
+================================================================
+  apply: α
+  f: β
+  x: γ
+  式 (f x) の型: δ
+
+Step 2: 制約の収集
+================================================================
+  f は引数 x に適用されるので、f は関数型:
+    β = γ → δ
+
+  apply f x の結果は (f x) なので:
+    α = β → γ → δ
+
+Step 3: 単一化
+================================================================
+  β = γ → δ を α に代入:
+    α = (γ → δ) → γ → δ
+
+Step 4: 一般化
+================================================================
+  自由型変数 γ, δ を全称量化:
+    apply :: ∀ γ δ. (γ → δ) → γ → δ
+
+  標準的な変数名に置換:
+    apply :: (a -> b) -> a -> b
+
+  これは Haskell の ($) 演算子と同じ型である。
+================================================================
+```
+
+**課題 3-2**: 以下の関数に対して同様に手動トレースせよ。
+
+```
+対象関数: let twice f x = f (f x)
+```
+
+**ヒント:**
+
+```
+Step 1: f: α, x: β, 内側の (f x): γ, 外側の f γ: δ
+
+Step 2: 制約
+  内側の適用: α = β → γ
+  外側の適用: α = γ → δ
+
+Step 3: 単一化
+  β → γ = γ → δ
+  よって β = γ かつ γ = δ
+  つまり β = γ = δ
+
+Step 4: 結果
+  twice :: (a -> a) -> a -> a
+  f は同じ型を受け取って同じ型を返す関数でなければならない
+```
+
+**課題 3-3（挑戦）**: 以下の関数をトレースせよ。
+
+```
+対象関数: let fix f = f (fix f)
+```
+
+```
+これは不動点コンビネータである。
+
+Step 1: fix: α, f: β
+
+Step 2:
+  fix f の型を τ とする
+  f は (fix f) に適用されるので: β = τ → τ'
+  fix f の結果は f (fix f) なので: τ = τ'
+  よって β = τ → τ
+
+Step 3:
+  fix :: (τ → τ) → τ
+  標準変数名: fix :: (a -> a) -> a
+
+注意: 出現チェックの観点からは、fix の定義自体が
+      再帰的であり、通常の HM では型付けできない。
+      Haskell では再帰束縛の特別な規則で対処する。
+```
+
