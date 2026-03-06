@@ -1447,3 +1447,594 @@ Kubernetes ディストリビューションの比較:
   │  用途: 開発, テスト, 学習                                    │
   └─────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## 9. CI/CD パイプラインにおけるコンテナ活用
+
+### 9.1 コンテナベースの CI/CD アーキテクチャ
+
+```
+コンテナを活用した CI/CD パイプライン:
+
+  Developer
+      │
+      │ git push
+      ▼
+  ┌────────────────────────────────────────────────────────────┐
+  │ CI Pipeline (GitHub Actions / GitLab CI / Jenkins)         │
+  │                                                            │
+  │  Stage 1: Build                                            │
+  │  ┌──────────────────────────────────────────┐              │
+  │  │ docker build --target builder -t app:ci  │              │
+  │  │ → ソースのビルドとテスト実行              │              │
+  │  └──────────────────────────────────────────┘              │
+  │           │                                                │
+  │           ▼                                                │
+  │  Stage 2: Test                                             │
+  │  ┌──────────────────────────────────────────┐              │
+  │  │ docker compose -f docker-compose.test.yml│              │
+  │  │ → 統合テスト（DB, Redis 等と結合）        │              │
+  │  └──────────────────────────────────────────┘              │
+  │           │                                                │
+  │           ▼                                                │
+  │  Stage 3: Scan                                             │
+  │  ┌──────────────────────────────────────────┐              │
+  │  │ trivy image app:ci                       │              │
+  │  │ → 脆弱性スキャン (CRITICAL で失敗)        │              │
+  │  └──────────────────────────────────────────┘              │
+  │           │                                                │
+  │           ▼                                                │
+  │  Stage 4: Push                                             │
+  │  ┌──────────────────────────────────────────┐              │
+  │  │ docker push registry/app:v1.2.0          │              │
+  │  │ docker push registry/app:latest          │              │
+  │  └──────────────────────────────────────────┘              │
+  └────────────────────────────────────────────────────────────┘
+                    │
+                    ▼
+  ┌────────────────────────────────────────────────────────────┐
+  │ CD Pipeline                                                │
+  │                                                            │
+  │  ┌────────────────┐    ┌─────────────────────────────┐    │
+  │  │ GitOps (ArgoCD) │───►│ Kubernetes Cluster           │    │
+  │  │ マニフェスト同期 │    │ Rolling Update               │    │
+  │  └────────────────┘    │ → v1.1.0 → v1.2.0           │    │
+  │                        └─────────────────────────────┘    │
+  └────────────────────────────────────────────────────────────┘
+```
+
+### 9.2 GitHub Actions によるコンテナ CI/CD
+
+**コード例 7: GitHub Actions ワークフロー**
+
+```yaml
+# .github/workflows/ci-cd.yml
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build test image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          target: builder
+          load: true
+          tags: app:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run unit tests
+        run: docker run --rm app:test npm test
+
+      - name: Run integration tests
+        run: |
+          docker compose -f docker-compose.test.yml up -d
+          docker compose -f docker-compose.test.yml run --rm test
+          docker compose -f docker-compose.test.yml down -v
+
+  security-scan:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build production image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          load: true
+          tags: app:scan
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: app:scan
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+
+      - name: Upload scan results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+
+  publish:
+    needs: [build-and-test, security-scan]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64,linux/arm64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+```
+
+---
+
+## 10. アンチパターンと対策
+
+### 10.1 アンチパターン 1: 「Fat Container」（肥大化コンテナ）
+
+```
+問題:
+  1つのコンテナに複数のプロセスを詰め込む
+  「仮想マシンのようにコンテナを使う」
+
+  NG 例:
+  ┌──────────────────────────────────────┐
+  │ Fat Container                        │
+  │                                      │
+  │  ┌────────┐ ┌────────┐ ┌────────┐   │
+  │  │ nginx  │ │ Node.js│ │ cron   │   │
+  │  └────────┘ └────────┘ └────────┘   │
+  │  ┌────────┐ ┌────────┐              │
+  │  │ Redis  │ │ sshd   │              │
+  │  └────────┘ └────────┘              │
+  │                                      │
+  │  supervisord で全プロセスを管理       │
+  │  → イメージサイズ 2GB+               │
+  │  → ログ管理が複雑                    │
+  │  → 個別スケーリング不可              │
+  │  → 障害分離ができない                │
+  └──────────────────────────────────────┘
+
+  OK 例:
+  ┌──────────┐ ┌──────────┐ ┌──────────┐
+  │ nginx    │ │ Node.js  │ │ Redis    │
+  │ container│ │ container│ │ container│
+  │ 25MB     │ │ 180MB    │ │ 30MB     │
+  └──────────┘ └──────────┘ └──────────┘
+  各サービスが独立
+  → 個別スケーリング可能
+  → 障害分離が明確
+  → イメージの再利用性が高い
+  → ログは stdout/stderr へ
+
+対策:
+  - 1コンテナ = 1プロセスの原則
+  - サイドカーパターンで補助プロセスを分離
+  - Docker Compose / K8s で複数コンテナを連携
+  - 例外: 初期化スクリプト、シグナルハンドラは許容
+```
+
+### 10.2 アンチパターン 2: 「Latest タグ依存」
+
+```
+問題:
+  本番環境で :latest タグを使用する
+
+  NG 例:
+  # Dockerfile
+  FROM node:latest          # どのバージョンか不明
+  ...
+
+  # K8s Deployment
+  image: my-app:latest      # ロールバック不可能
+
+  なぜ危険か:
+  ┌──────────────────────────────────────────────────────────┐
+  │ Day 1: docker pull node:latest → Node.js 20.10.0        │
+  │ Day 2: docker pull node:latest → Node.js 20.11.0 (自動) │
+  │ Day 3: docker pull node:latest → Node.js 21.0.0 (破壊!) │
+  │                                                          │
+  │ → ビルドの再現性がない                                   │
+  │ → 本番と開発で異なるバージョンが動く                      │
+  │ → 障害時のロールバックが困難                              │
+  │ → K8s の imagePullPolicy: Always で毎回 pull             │
+  └──────────────────────────────────────────────────────────┘
+
+  OK 例:
+  # Dockerfile
+  FROM node:20.11.0-slim     # 完全なバージョン指定
+  ...
+
+  # さらに良い: ダイジェスト指定
+  FROM node:20.11.0-slim@sha256:abc123...
+
+  # K8s Deployment
+  image: registry.example.com/my-app:v1.2.0  # セマンティックバージョン
+
+対策:
+  - ベースイメージは必ずバージョンを固定
+  - 本番デプロイは必ずタグ（v1.2.0）またはダイジェストを使用
+  - CI/CD で自動的にバージョンタグを付与
+  - Dependabot / Renovate でベースイメージの更新を管理
+  - イメージの署名と検証（cosign / Notary）
+```
+
+### 10.3 アンチパターン 3: 「Docker ソケットマウント」
+
+```
+問題:
+  Docker ソケットをコンテナにマウントする
+
+  NG 例:
+  docker run -v /var/run/docker.sock:/var/run/docker.sock my-tool
+
+  なぜ危険か:
+  → コンテナから Docker デーモンを完全制御可能
+  → ホストの任意のファイルにアクセス可能（特権コンテナ作成）
+  → 事実上のホスト root 権限と同等
+
+  docker run -v /var/run/docker.sock:/var/run/docker.sock \
+    alpine sh -c "
+      # ホストの / をマウントしたコンテナを作成
+      docker run -v /:/host alpine cat /host/etc/shadow
+    "
+  → コンテナエスケープの典型的な手口
+
+対策:
+  - Docker ソケットのマウントは原則禁止
+  - CI/CD では Docker-in-Docker (DinD) や Kaniko を使用
+  - K8s では PodSecurityPolicy / PodSecurityStandard で制限
+  - 必要な場合は Docker Socket Proxy (Tecnativa) で API を制限
+```
+
+---
+
+## 11. 演習問題
+
+### 演習 1: 基礎レベル — Dockerfile の最適化
+
+```
+課題:
+  以下の非効率な Dockerfile を最適化せよ。
+
+  === 最適化前 ===
+  FROM ubuntu:latest
+  RUN apt-get update
+  RUN apt-get install -y nodejs npm python3 gcc make
+  COPY . /app
+  WORKDIR /app
+  RUN npm install
+  RUN npm run build
+  EXPOSE 3000
+  CMD ["node", "dist/server.js"]
+
+  最適化の観点:
+  1. ベースイメージの選択（サイズ削減）
+  2. レイヤーキャッシュの活用（ビルド高速化）
+  3. マルチステージビルド（最終イメージの軽量化）
+  4. セキュリティ（非 root 実行、不要ツール排除）
+  5. .dockerignore の作成
+
+  === 模範解答 ===
+  # ステージ 1: ビルド
+  FROM node:20-slim AS builder
+  WORKDIR /app
+  COPY package.json package-lock.json ./
+  RUN npm ci
+  COPY . .
+  RUN npm run build
+
+  # ステージ 2: 本番
+  FROM node:20-slim AS production
+  RUN groupadd -r appuser && useradd -r -g appuser appuser
+  WORKDIR /app
+  COPY --from=builder /app/package.json /app/package-lock.json ./
+  RUN npm ci --production && npm cache clean --force
+  COPY --from=builder /app/dist ./dist
+  USER appuser
+  EXPOSE 3000
+  HEALTHCHECK --interval=30s --timeout=5s \
+    CMD wget --spider -q http://localhost:3000/health || exit 1
+  CMD ["node", "dist/server.js"]
+
+  改善ポイント:
+  - ubuntu:latest → node:20-slim（サイズ削減、不要パッケージ排除）
+  - RUN 命令の統合はあえてしない（キャッシュの粒度を保持）
+  - package.json を先にコピー（依存関係キャッシュ活用）
+  - マルチステージで gcc/make 等のビルドツールを排除
+  - USER 命令で非 root 実行
+  - HEALTHCHECK の追加
+```
+
+### 演習 2: 中級レベル — Docker Compose によるマイクロサービス構築
+
+```
+課題:
+  以下の要件を満たす docker-compose.yml を作成せよ。
+
+  要件:
+  - フロントエンド: React アプリ (Nginx で配信)
+  - バックエンド: Node.js API (3 レプリカ)
+  - データベース: PostgreSQL (データ永続化)
+  - キャッシュ: Redis
+  - ネットワーク: フロント用とバック用を分離
+  - セキュリティ: DB/Redis は外部アクセス不可
+  - ヘルスチェック: 全サービスに設定
+
+  ヒント:
+  - networks の internal オプション
+  - depends_on の condition
+  - deploy.resources でリソース制限
+  - volumes の named volume
+
+  評価基準:
+  □ サービス間の依存関係が正しい
+  □ ネットワーク分離が適切
+  □ データが永続化されている
+  □ ヘルスチェックが全サービスに設定されている
+  □ リソース制限が設定されている
+  □ 環境変数で機密情報を外部化している
+```
+
+### 演習 3: 上級レベル — Kubernetes デプロイメント設計
+
+```
+課題:
+  以下のアプリケーションを Kubernetes にデプロイするマニフェストを設計せよ。
+
+  アプリケーション構成:
+  - Web API: 3 レプリカ、CPU/メモリの自動スケーリング
+  - ワーカー: 2 レプリカ、キュー処理
+  - PostgreSQL: StatefulSet、永続ボリューム
+  - Redis: Sentinel 構成
+
+  設計要件:
+  1. セキュリティ:
+     - Pod Security Standards: restricted
+     - NetworkPolicy でサービス間通信を制限
+     - Secret は外部シークレットストアから取得
+     - 全コンテナ non-root、read-only rootfs
+
+  2. 可用性:
+     - Pod Disruption Budget (PDB)
+     - Pod Topology Spread Constraints
+     - Rolling Update (maxUnavailable: 0)
+     - Liveness / Readiness / Startup Probe
+
+  3. 可観測性:
+     - Prometheus メトリクスエンドポイント
+     - 構造化ログ (JSON)
+     - 分散トレーシング (OpenTelemetry)
+
+  4. リソース管理:
+     - Resource Requests / Limits
+     - LimitRange / ResourceQuota
+     - HPA (CPU 70%, メモリ 80% で Scale-up)
+     - VPA (推奨値の自動調整)
+
+  評価基準:
+  □ YAML マニフェストが正しい構文である
+  □ セキュリティ要件を全て満たしている
+  □ 可用性要件を全て満たしている
+  □ Zero-downtime deployment が実現できる
+  □ コスト効率的なリソース設定である
+  □ 障害シナリオへの対策が考慮されている
+```
+
+---
+
+## 12. コンテナの将来と新潮流
+
+### 12.1 WebAssembly (Wasm) コンテナ
+
+```
+Wasm コンテナの位置づけ:
+
+  隔離レベルとオーバーヘッドの関係:
+
+  強  │ VM (KVM/Xen)
+  い  │   ● 数百MB, 数秒起動
+  隔  │
+  離  │ Kata Containers
+      │   ● 数十MB, 1秒以内
+      │
+      │ gVisor
+      │   ● 数十MB, 100ms
+      │
+      │ 従来のコンテナ (runc)
+      │   ● 数MB, 50ms
+      │
+      │ Wasm コンテナ
+  弱  │   ● 数KB〜MB, 1ms 以下
+  い  └──────────────────────────────►
+       小さい    オーバーヘッド    大きい
+
+  Wasm の利点:
+  - 起動時間: コールドスタート 1ms 以下
+  - メモリ: 数 KB〜数 MB
+  - セキュリティ: サンドボックスが言語レベルで保証
+  - ポータビリティ: CPU アーキテクチャ非依存
+  - 多言語: Rust, Go, C/C++, Python, JS, ...
+
+  制約:
+  - ファイルシステムアクセスが制限的 (WASI)
+  - ネットワーク機能が発展途上
+  - エコシステムがまだ成熟していない
+  - 全てのワークロードに適するわけではない
+```
+
+### 12.2 eBPF によるコンテナ可観測性
+
+```
+eBPF (extended Berkeley Packet Filter):
+
+  カーネル内でサンドボックス化されたプログラムを実行
+  → コンテナの可観測性とセキュリティを革新
+
+  従来の方法:
+  App → syscall → Kernel → (後から) ログ分析
+                              ↑ オーバーヘッド大
+
+  eBPF:
+  App → syscall → Kernel ← eBPF プログラム (in-kernel)
+                              ↑ リアルタイム、低オーバーヘッド
+
+  代表的なツール:
+  ┌─────────────────────────────────────────────────┐
+  │ Cilium        K8s ネットワーキング + セキュリティ  │
+  │               kube-proxy 代替、NetworkPolicy     │
+  │               L3/L4/L7 の可視化                   │
+  ├─────────────────────────────────────────────────┤
+  │ Tetragon      ランタイムセキュリティ               │
+  │               プロセス実行、ファイルアクセス監視     │
+  │               ネットワーク接続の追跡               │
+  ├─────────────────────────────────────────────────┤
+  │ Pixie         アプリケーション可観測性             │
+  │               コード変更なしで HTTP/gRPC/SQL 追跡 │
+  │               サービスマップの自動生成              │
+  ├─────────────────────────────────────────────────┤
+  │ Falco         ランタイム脅威検知                   │
+  │               不審なシステムコール検出              │
+  │               コンテナエスケープの検知              │
+  └─────────────────────────────────────────────────┘
+```
+
+---
+
+## 13. まとめ
+
+| 概念 | ポイント |
+|------|---------|
+| Namespace | PID, NET, MNT, UTS, IPC, User, Cgroup, Time の 8 種類でリソースの可視性を隔離 |
+| cgroups | CPU, メモリ, I/O, PID 数のリソース制限と監視。v2 で統合的な管理 |
+| Union FS | OverlayFS による CoW レイヤー構造。読み取り専用レイヤーの共有でディスク節約 |
+| seccomp | システムコールフィルタリング。約 300 の syscall から必要なもののみ許可 |
+| OCI | Runtime Spec, Image Spec, Distribution Spec の 3 仕様でコンテナを標準化 |
+| Docker | イメージビルド + 実行の事実上の標準。containerd + runc の上に構築 |
+| Podman | デーモンレス・ルートレスの代替。Docker CLI 互換 |
+| Kubernetes | コンテナオーケストレーション。Pod, Service, Deployment が基本概念 |
+| セキュリティ | 多層防御: 非 root, Capabilities 最小化, seccomp, read-only rootfs |
+| CI/CD | コンテナベースのパイプラインで再現性のあるビルド・テスト・デプロイ |
+| Wasm | 次世代のコンテナ代替候補。超軽量・高速起動だがエコシステムは発展途上 |
+
+---
+
+## 14. FAQ（よくある質問）
+
+### Q1: Docker と Podman はどちらを使うべきか？
+
+**A**: 用途によって異なる。開発環境では Docker Desktop の利便性が高く、エコシステムも充実している。しかし、セキュリティが重視される本番環境では Podman の「デーモンレス・ルートレス」アーキテクチャが有利である。また、Docker Desktop は商用利用でライセンス料が発生する場合がある（従業員 250 人以上または年間収益 1000 万ドル以上の企業）。Podman は完全に無償かつオープンソースである。多くの組織では開発に Docker、本番に containerd（K8s 経由）という構成を採用している。
+
+### Q2: コンテナは仮想マシンを完全に置き換えるのか？
+
+**A**: 置き換えない。両者は異なる用途に最適化されており、共存が続く。コンテナはマイクロサービス、CI/CD、ステートレスなワークロードに適している。一方、VM は異種 OS の混在（Linux と Windows の共存）、強固な隔離が必要なマルチテナント環境、レガシーアプリケーションの移行、カーネルモジュールのテストなどに引き続き必要である。Kata Containers のように、VM の隔離強度とコンテナの運用性を組み合わせるハイブリッドアプローチも存在する。
+
+### Q3: Kubernetes は小規模プロジェクトにも必要か？
+
+**A**: 多くの場合不要である。Kubernetes は学習コストと運用コストが高く、小規模プロジェクトではオーバーエンジニアリングになりやすい。代替手段として以下がある。
+
+- **Docker Compose**: 単一サーバーで十分な場合の最適解。設定がシンプルで学習コストが低い
+- **マネージドサービス**: AWS ECS/Fargate, Google Cloud Run, Azure Container Apps。K8s の複雑さなしにコンテナを実行
+- **K3s**: どうしても K8s の機能が必要な場合の軽量代替。512MB のメモリで動作
+
+K8s が適するのは、複数チームが数十以上のサービスを運用し、自動スケーリング、ゼロダウンタイムデプロイ、サービスメッシュ等の高度な機能が必要な場合である。
+
+### Q4: Alpine ベースイメージは常に最適か？
+
+**A**: 必ずしもそうではない。Alpine は musl libc を使用しており、glibc を前提としたアプリケーションで互換性問題が発生することがある。特に Python のネイティブ拡張や Node.js のネイティブアドオンで問題が報告されている。サイズが最小であることのメリットと、デバッグの困難さ（シェルの制約等）を天秤にかける必要がある。代替として Debian slim 系（`node:20-slim`, `python:3.12-slim`）が良いバランスを提供する。distroless イメージはさらに小さく、シェルすら含まないため攻撃対象面を最小化できるが、デバッグ時にエフェメラルコンテナ等の対策が必要になる。
+
+### Q5: コンテナ内でデータベースを動かすべきか？
+
+**A**: 開発・テスト環境では積極的に推奨する。本番環境では慎重な検討が必要である。コンテナ DB の課題として、データ永続化の設計（Volume 管理）、パフォーマンス（OverlayFS のオーバーヘッド）、バックアップ/リストアの運用、HA 構成の複雑さがある。多くの組織ではマネージド DB サービス（RDS, Cloud SQL 等）を選択する。ただし、Kubernetes の StatefulSet と Operator パターン（CloudNativePG, Crunchy Postgres Operator 等）の成熟により、本番でのコンテナ DB 運用も現実的になりつつある。
+
+---
+
+## 15. 用語集
+
+| 用語 | 説明 |
+|------|------|
+| OCI | Open Container Initiative。コンテナの標準仕様を策定する団体 |
+| CRI | Container Runtime Interface。K8s とコンテナランタイム間のインターフェース |
+| CNI | Container Network Interface。コンテナネットワーキングのプラグインインターフェース |
+| CSI | Container Storage Interface。コンテナストレージのプラグインインターフェース |
+| CoW | Copy-on-Write。書き込み時にのみデータをコピーする戦略 |
+| DinD | Docker-in-Docker。Docker コンテナ内で Docker を実行する手法 |
+| distroless | Google が提供するアプリケーション実行に最低限必要なファイルのみを含むベースイメージ |
+| etcd | K8s のクラスタ状態を保存する分散 Key-Value ストア |
+| HPA | Horizontal Pod Autoscaler。メトリクスに基づく Pod の水平スケーリング |
+| Init Container | Pod のメインコンテナの前に実行される初期化用コンテナ |
+| Sidecar | メインコンテナを補助する同一 Pod 内のコンテナ（ログ収集、プロキシ等） |
+| StatefulSet | ステートフルなアプリケーション（DB 等）のための K8s リソース |
+| Wasm | WebAssembly。ブラウザ外でも動作するポータブルなバイナリフォーマット |
+| WASI | WebAssembly System Interface。Wasm のシステムインターフェース仕様 |
+
+---
+
+## 次に読むべきガイド
+
+→ [[../07-modern-os/00-mobile-os.md]] — モバイルOS
+
+---
+
+## 参考文献
+
+1. Lukša, M. "Kubernetes in Action." 2nd Ed, Manning, 2022.
+2. Kane, S. et al. "Docker: Up & Running." 3rd Ed, O'Reilly, 2023.
+3. Rice, L. "Container Security: Fundamental Technology Concepts that Protect Containerized Applications." O'Reilly, 2020.
+4. Hausenblas, M. & Cindy Sridharan. "Cloud Native Infrastructure." O'Reilly, 2017.
+5. Burns, B. et al. "Kubernetes: Up and Running." 3rd Ed, O'Reilly, 2022.
+6. Linux man pages: namespaces(7), cgroups(7), capabilities(7), seccomp(2).
+7. Open Container Initiative Specifications. https://opencontainers.org/
+8. CNCF Cloud Native Landscape. https://landscape.cncf.io/
+9. NIST SP 800-190 "Application Container Security Guide." 2017.
+10. CIS Docker Benchmark. Center for Internet Security, 2023.

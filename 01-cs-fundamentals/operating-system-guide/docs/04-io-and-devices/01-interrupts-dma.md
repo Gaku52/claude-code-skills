@@ -1221,3 +1221,425 @@ start_device_dma(dev, dma_handle, len);
 - デバイスと同じNUMAノードのCPUにIRQアフィニティを設定する
 - アプリケーションも同じNUMAノードで実行する（`numactl --cpunodebind=0 --membind=0`）
 - `irqbalance` の `--banirq` オプションで特定IRQの自動移動を禁止する
+
+---
+
+## 9. 組み込みシステムにおける割り込みとDMA
+
+### 9.1 ARM アーキテクチャの割り込みコントローラ (GIC)
+
+ARMプロセッサでは、**GIC (Generic Interrupt Controller)** が割り込み管理を担う。GICv3/v4 はサーバ向けARMでも使用されており、仮想化対応の割り込み配送機能を持つ。
+
+```
+ARM GICv3 アーキテクチャ:
+
+  ┌─────────────────────────────────────────────────┐
+  │                    GIC                           │
+  │                                                 │
+  │  ┌──────────────┐   ┌───────────────────────┐  │
+  │  │ Distributor  │   │   Redistributor       │  │
+  │  │              │   │   (CPUインタフェース)  │  │
+  │  │ SPI管理      │   │   ┌──────┐ ┌──────┐   │  │
+  │  │ (共有割込)   │──→│   │CPU 0│ │CPU 1│   │  │
+  │  │              │   │   │Re-  │ │Re-  │   │  │
+  │  │ 優先度制御   │   │   │dist │ │dist │   │  │
+  │  │ アフィニティ │   │   └──┬───┘ └──┬───┘   │  │
+  │  └──────┬───────┘   └──────┼────────┼───────┘  │
+  │         │                  │        │          │
+  │         │           ┌─────┴──┐ ┌───┴────┐     │
+  │         │           │CPU Core│ │CPU Core│     │
+  │         │           │   0    │ │   1    │     │
+  │         │           └────────┘ └────────┘     │
+  └─────────┼─────────────────────────────────────┘
+            │
+  割り込みの種類:
+  ┌────────────────────────────────────────────┐
+  │ SGI (Software Generated Interrupt)         │
+  │   ID 0-15: CPU間通信 (IPI)                 │
+  │                                            │
+  │ PPI (Private Peripheral Interrupt)         │
+  │   ID 16-31: CPUローカルタイマー等          │
+  │                                            │
+  │ SPI (Shared Peripheral Interrupt)          │
+  │   ID 32-1019: 外部デバイス割り込み         │
+  │                                            │
+  │ LPI (Locality-specific Peripheral Int.)    │
+  │   ID 8192+: MSI/MSI-X相当 (GICv3以降)     │
+  └────────────────────────────────────────────┘
+```
+
+### 9.2 組み込みLinuxでのデバイスツリーによる割り込み定義
+
+組み込みLinuxでは、ハードウェア構成をデバイスツリー (Device Tree) で記述する。割り込みの接続関係もデバイスツリーで定義する。
+
+```dts
+/* デバイスツリーでの割り込み定義例 */
+/ {
+    interrupt-controller@f9010000 {
+        compatible = "arm,gic-400";
+        #interrupt-cells = <3>;
+        interrupt-controller;
+        reg = <0xf9010000 0x10000>,
+              <0xf9020000 0x20000>;
+    };
+
+    /* UARTデバイスの割り込み定義 */
+    uart0: serial@e0000000 {
+        compatible = "xlnx,xuartps";
+        reg = <0xe0000000 0x1000>;
+        /*
+         * interrupts = <type irq_num flags>;
+         *   type:  0 = SPI, 1 = PPI
+         *   flags: 1 = edge-rising, 4 = level-high
+         */
+        interrupts = <0 27 4>;  /* SPI #27, level-high */
+        interrupt-parent = <&intc>;
+        clocks = <&clkc 23>;
+    };
+
+    /* DMAコントローラの定義 */
+    dma0: dma@f8003000 {
+        compatible = "arm,pl330", "arm,primecell";
+        reg = <0xf8003000 0x1000>;
+        interrupts = <0 13 4>,   /* fault */
+                     <0 14 4>,   /* ch0 done */
+                     <0 15 4>,   /* ch1 done */
+                     <0 16 4>,   /* ch2 done */
+                     <0 17 4>;   /* ch3 done */
+        #dma-cells = <1>;
+    };
+
+    /* DMAを使用するデバイスの定義 */
+    spi0: spi@e0006000 {
+        compatible = "xlnx,zynq-spi-r1p6";
+        reg = <0xe0006000 0x1000>;
+        interrupts = <0 26 4>;
+        dmas = <&dma0 0>, <&dma0 1>;
+        dma-names = "tx", "rx";
+    };
+};
+```
+
+### 9.3 RTOS における割り込み処理
+
+リアルタイムOS (RTOS) では、割り込み応答時間の保証が最重要となる。Linuxの `PREEMPT_RT` パッチやFreeRTOSの割り込み管理は、異なるアプローチでリアルタイム性を実現する。
+
+| 特性 | 通常のLinux | PREEMPT_RT Linux | FreeRTOS |
+|------|-----------|-----------------|----------|
+| 割り込みレイテンシ | 数十 us | 数 us | 数百 ns - 数 us |
+| 割り込みハンドラ | ハードIRQ + softirq | ほぼ全てスレッド化 | ISR + 遅延処理タスク |
+| 優先度逆転防止 | なし (通常) | 優先度継承mutex | 優先度継承mutex |
+| spinlock | 割り込み禁止 | rt_mutex (プリエンプション可能) | クリティカルセクション |
+| 決定論的動作 | 保証なし | ほぼ保証 | 保証 |
+
+---
+
+## 10. 演習問題
+
+### 10.1 初級: 割り込み処理フローの理解
+
+**問題:** 以下のシナリオで、割り込み処理の各ステップを時系列順に並べよ。
+
+ユーザがキーボードの「A」キーを押した場合:
+
+```
+選択肢（順番を並べ替えよ）:
+(a) キーボードコントローラがIRQ 1を発行
+(b) CPUが現在実行中の命令を完了
+(c) IDT[33] からキーボード割り込みハンドラのアドレスを取得
+(d) RFLAGS, CS, RIP をカーネルスタックにプッシュ
+(e) I/O APIC がベクタ番号33をCPUに送信
+(f) キーボードハンドラがスキャンコードを読み取り
+(g) EOI (End of Interrupt) をLocal APICに送信
+(h) IRET命令で中断したプロセスに復帰
+(i) tasklet/workqueue でスキャンコードをキーコードに変換
+(j) 入力イベントをユーザ空間の入力サブシステムに配送
+```
+
+**解答例:**
+正しい順序: (a) → (e) → (b) → (d) → (c) → (f) → (i のスケジュール) → (g) → (h) → (i の実行) → (j)
+
+詳しい解説:
+1. **(a)** キーボードコントローラがスキャンコードを生成し、IRQ 1 を発行
+2. **(e)** I/O APIC がIRQ 1 をベクタ番号33に変換し、ターゲットCPUの Local APIC に配送
+3. **(b)** CPUが現在実行中の命令を完了（命令境界で割り込みを受け付け）
+4. **(d)** CPUがRFLAGS、CS、RIPを自動的にカーネルスタックにプッシュ（Ring 3→Ring 0 の場合はTSSからRSP0をロード）
+5. **(c)** IDT[33] を参照してハンドラアドレスを取得、IF フラグをクリア
+6. **(f)** トップハーフ: I/Oポート 0x60 からスキャンコードを読み取り、バッファに格納
+7. ボトムハーフ（tasklet）をスケジュール
+8. **(g)** Local APIC に EOI を書き込み、割り込み処理の完了を通知
+9. **(h)** IRET命令で RIP, CS, RFLAGS をポップし、中断したプロセスに復帰
+10. **(i)** softirq/tasklet が起動、スキャンコードをキーコードに変換
+11. **(j)** Linuxの入力サブシステム (evdev) を通じてユーザ空間に配送
+
+### 10.2 中級: DMAドライバの設計
+
+**問題:** 以下の要件を満たす簡易DMAドライバの擬似コードを設計せよ。
+
+要件:
+- PCIeデバイスからDMAで4KBのデータを受信する
+- ストリーミングDMAマッピングを使用する
+- threaded IRQ でDMA完了を処理する
+- エラーハンドリングを含める
+
+**設計のポイント:**
+
+```c
+/*
+ * 解答の骨格（設計の考え方を示す）
+ */
+
+/* 1. デバイス初期化 */
+static int my_probe(struct pci_dev *pdev, ...)
+{
+    /* (a) PCI デバイスの有効化 */
+    pci_enable_device(pdev);
+
+    /* (b) バスマスタを有効化（DMAに必須） */
+    pci_set_master(pdev);
+
+    /* (c) DMAマスクの設定 */
+    dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(64));
+
+    /* (d) 受信バッファの確保 */
+    buf = kmalloc(4096, GFP_KERNEL);
+
+    /* (e) threaded IRQ の登録 */
+    request_threaded_irq(pdev->irq, hard_isr, thread_fn,
+                         IRQF_ONESHOT, "my_dma", dev);
+}
+
+/* 2. DMA受信の開始 */
+static int start_receive(struct my_device *dev)
+{
+    /* (a) ストリーミングDMAマッピングの作成 */
+    dev->dma_addr = dma_map_single(&dev->pdev->dev,
+                                    dev->buf, 4096,
+                                    DMA_FROM_DEVICE);
+
+    /* (b) マッピングエラーの確認 — 必須! */
+    if (dma_mapping_error(&dev->pdev->dev, dev->dma_addr))
+        return -EIO;
+
+    /* (c) デバイスにDMAアドレスとサイズを設定 */
+    iowrite32(lower_32_bits(dev->dma_addr), dev->regs + DMA_ADDR_LO);
+    iowrite32(upper_32_bits(dev->dma_addr), dev->regs + DMA_ADDR_HI);
+    iowrite32(4096, dev->regs + DMA_SIZE);
+
+    /* (d) DMA開始 */
+    iowrite32(DMA_START_BIT, dev->regs + DMA_CTRL);
+    return 0;
+}
+
+/* 3. トップハーフ: ACKのみ */
+static irqreturn_t hard_isr(int irq, void *dev_id)
+{
+    u32 status = ioread32(dev->regs + IRQ_STATUS);
+    if (!(status & DMA_COMPLETE_BIT))
+        return IRQ_NONE;
+    iowrite32(status, dev->regs + IRQ_ACK);
+    return IRQ_WAKE_THREAD;
+}
+
+/* 4. ボトムハーフ: データ処理 */
+static irqreturn_t thread_fn(int irq, void *dev_id)
+{
+    /* (a) DMAマッピングの解除 → キャッシュ無効化 */
+    dma_unmap_single(&dev->pdev->dev,
+                      dev->dma_addr, 4096,
+                      DMA_FROM_DEVICE);
+
+    /* (b) データの処理（ここでスリープ可能） */
+    process_received_data(dev->buf, 4096);
+
+    /* (c) 次の受信を開始 */
+    start_receive(dev);
+
+    return IRQ_HANDLED;
+}
+```
+
+### 10.3 上級: 割り込み負荷の分析と最適化
+
+**問題:** 10Gbps NIC を搭載したサーバで、以下の `perf` 出力が得られた。問題を特定し、最適化戦略を提案せよ。
+
+```
+# perf top -C 0 の出力 (CPU 0 のみ)
+
+  45.3%  [kernel]  [k] native_queued_spin_lock_slowpath
+  12.8%  [kernel]  [k] _raw_spin_lock
+   8.2%  [kernel]  [k] net_rx_action
+   6.5%  [kernel]  [k] mlx5e_napi_poll
+   4.1%  [kernel]  [k] __netif_receive_skb_core
+   3.7%  [kernel]  [k] ip_rcv
+   2.9%  [kernel]  [k] tcp_v4_rcv
+
+# /proc/interrupts (抜粋)
+            CPU0       CPU1       CPU2       CPU3
+  98:  125847293          0          0          0  IR-PCI-MSI  mlx5_comp0
+  99:  118234567          0          0          0  IR-PCI-MSI  mlx5_comp1
+ 100:          0          0          0          0  IR-PCI-MSI  mlx5_comp2
+ 101:          0          0          0          0  IR-PCI-MSI  mlx5_comp3
+```
+
+**分析と解答の方向性:**
+
+1. **問題の特定:**
+   - CPU 0 に全ての NIC 割り込みが集中している（mlx5_comp0, comp1 が CPU 0 のみ）
+   - `native_queued_spin_lock_slowpath` が45.3% → 深刻なロック競合
+   - NIC の4キュー中2キューしかアクティブでなく、両方がCPU 0 に固定
+
+2. **最適化戦略:**
+   - **(a) IRQアフィニティの再配置:** 各キューの割り込みを異なるCPUに分散
+   - **(b) RPS (Receive Packet Steering) の有効化:** ソフトウェアレベルでパケット処理をCPU間に分散
+   - **(c) XPS (Transmit Packet Steering) の設定:** 送信側もCPUを分散
+   - **(d) NICのキュー数の確認:** `ethtool -l eth0` で利用可能なキュー数を確認し、4キュー全てを有効化
+   - **(e) NUMAアフィニティの確認:** NICが接続されたNUMAノードのCPUを使用しているか確認
+
+```bash
+# 最適化コマンド例
+# NICの全キューのIRQを各CPUに分散
+echo 1 > /proc/irq/98/smp_affinity   # CPU 0
+echo 2 > /proc/irq/99/smp_affinity   # CPU 1
+echo 4 > /proc/irq/100/smp_affinity  # CPU 2
+echo 8 > /proc/irq/101/smp_affinity  # CPU 3
+
+# RPSの有効化（CPU 0-3に分散）
+echo f > /sys/class/net/eth0/queues/rx-0/rps_cpus
+echo f > /sys/class/net/eth0/queues/rx-1/rps_cpus
+```
+
+---
+
+## 11. FAQ (よくある質問)
+
+### Q1: 割り込みハンドラ内で `printk()` を使ってもよいか？
+
+**A:** `printk()` 自体は割り込みコンテキストから呼び出し可能である。カーネル内部ではロックフリーのリングバッファに書き込むだけなので、スリープしない。ただし、以下の点に注意が必要である。
+
+- 高頻度の割り込みで `printk()` を呼ぶと、リングバッファの溢れやコンソール出力のオーバーヘッドで性能が大幅に低下する
+- デバッグ目的なら `printk_ratelimited()` や `dev_dbg_ratelimited()` を使い、出力頻度を制限する
+- 本番コードでは `printk()` をトップハーフから除去し、統計カウンタやtracepoint で代替する
+
+### Q2: `request_irq()` と `request_threaded_irq()` はどちらを使うべきか？
+
+**A:** 一般的なガイドラインは以下の通り。
+
+| ケース | 推奨API | 理由 |
+|--------|---------|------|
+| 処理が非常に短い（レジスタ読み書きのみ） | `request_irq()` | オーバーヘッドが最小 |
+| I2C/SPIなどスリープを伴うバス経由のデバイス | `request_threaded_irq()` | ハンドラ内でスリープが必要 |
+| 処理量が中程度 | `request_threaded_irq()` | 柔軟性と安全性のバランスが良い |
+| 高性能ネットワーク/ストレージ | `request_irq()` + NAPI/softirq | レイテンシ最小化が必要 |
+
+Linux 4.x以降では、新規ドライバには `request_threaded_irq()` の使用が推奨されている。これにより、RT (PREEMPT_RT) カーネルとの互換性も自動的に確保される。
+
+### Q3: DMAバッファのサイズに上限はあるか？
+
+**A:** 技術的にはアーキテクチャのアドレス空間がDMAの上限を決めるが、実用上は以下の制約がある。
+
+- **コヒーレントDMA (`dma_alloc_coherent()`):** カーネルの連続物理メモリ確保に依存するため、通常は数MBが上限。起動直後ならより大きなブロックを確保できるが、メモリフラグメンテーションが進むと失敗しやすい。CMA (Contiguous Memory Allocator) を使えば数百MBまで確保可能
+- **ストリーミングDMA (`dma_map_single()`):** 既に確保されたバッファをマッピングするだけなので、バッファ自体が確保できればサイズ制約は緩い
+- **スキャッタ/ギャザーDMA:** 不連続ページを使用できるため、物理的な連続メモリの制約を受けない。SGリストのエントリ数に応じた大容量転送が可能
+
+大容量DMAが必要な場合は、CMAの予約領域を増やすか、`dma_alloc_attrs()` で `DMA_ATTR_FORCE_CONTIGUOUS` を指定する方法がある。
+
+### Q4: 割り込みが失われる (lost interrupt) ことはあるか？
+
+**A:** エッジトリガ割り込みでは理論上発生しうる。
+
+- **エッジトリガ:** 信号の立ち上がり（Low→High）で割り込みを検出する。ハンドラ実行中に次の割り込みが発生し、ハンドラ完了前に信号がLowに戻ると、2回目の割り込みが失われる可能性がある
+- **レベルトリガ:** 信号がHighを維持している間、継続的に割り込みを通知する。デバイスが明示的にクリアするまで信号が維持されるため、割り込みの喪失は起こりにくい
+
+PCIeのMSI/MSI-Xはメモリ書き込みベースであり、バスの信頼性に依存する。通常は失われないが、IOMMU障害などの極端な状況では発生しうる。ドライバ側ではウォッチドッグタイマーで定期的にデバイス状態をポーリングするのが堅牢な設計である。
+
+### Q5: ユーザ空間から割り込みを処理できるか？
+
+**A:** Linux の **UIO (Userspace I/O)** フレームワークと **VFIO (Virtual Function I/O)** を使えば可能である。
+
+- **UIO:** `/dev/uioX` を `read()` / `select()` することで、割り込みの発生をユーザ空間で待ち受けできる。DPDKのような高性能パケット処理フレームワークはこの手法を使う
+- **VFIO:** IOMMUによるメモリ保護付きでデバイスをユーザ空間に公開する。仮想化環境でのデバイスパススルーにも使用される
+
+ただし、割り込みの「検知」はカーネル内で行われ、ユーザ空間にはイベント通知として伝達される。純粋にカーネルバイパスでハードウェア割り込みを処理するわけではない点に注意が必要である。
+
+---
+
+## 12. まとめ — 重要概念の整理
+
+### 技術要素の全体マップ
+
+| 概念 | 本質 | キーポイント |
+|------|------|-------------|
+| ハードウェア割り込み | デバイスからCPUへの非同期通知 | マスカブル/ノンマスカブルの区別、IDTによるディスパッチ |
+| ソフトウェア割り込み | プログラムからの意図的な割り込み | システムコール (syscall/int 0x80)、デバッグトラップ |
+| 例外 | CPU内部で発生するエラー | Fault (再実行可) / Trap (次命令) / Abort (復帰不可) |
+| トップハーフ | 割り込みの即座の処理 | 最小限の処理、スリープ禁止、高速 |
+| ボトムハーフ | 遅延された割り込み処理 | softirq / tasklet / workqueue / threaded IRQ |
+| DMA | CPUを介さないデータ転送 | コヒーレント / ストリーミング / スキャッタ・ギャザー |
+| IOMMU | DMAアドレスの仮想化・保護 | VT-d / AMD-Vi、仮想化パススルーの基盤 |
+| MSI/MSI-X | メモリ書き込みベースの割り込み | PCIeデバイスの標準、マルチキュー対応 |
+| NVMe | SSD専用高速I/Oプロトコル | 65Kキュー × 65Kエントリ、MSI-X連携 |
+| RDMA | ネットワーク越しの直接メモリアクセス | ゼロコピー、OSバイパス、HPC/AI向け |
+| NAPI | 割り込み+ポーリングのハイブリッド | 高速NICの割り込みストーム対策 |
+| IRQアフィニティ | 割り込みのCPU配送先制御 | NUMA対応、性能最適化の基本 |
+
+### 設計判断のフローチャート
+
+```
+デバイスドライバの割り込み処理方式を選択する:
+
+  割り込み処理に
+  スリープが必要？
+      │
+      ├── YES → request_threaded_irq()
+      │          IRQF_ONESHOT を使用
+      │
+      └── NO ──→ 処理は短時間？
+                     │
+                     ├── YES → request_irq() のみ
+                     │          (トップハーフで完結)
+                     │
+                     └── NO ──→ 高スループット
+                                  が必要？
+                                    │
+                                    ├── YES → request_irq()
+                                    │          + softirq/NAPI
+                                    │
+                                    └── NO ──→ request_irq()
+                                                + tasklet
+
+  DMAバッファの方式を選択する:
+
+  CPU・デバイスが
+  同時にアクセス？
+      │
+      ├── YES → dma_alloc_coherent()
+      │          (リングバッファ、ディスクリプタ)
+      │
+      └── NO ──→ メモリは連続？
+                     │
+                     ├── YES → dma_map_single()
+                     │          (ストリーミングDMA)
+                     │
+                     └── NO ──→ dma_map_sg()
+                                 (スキャッタ/ギャザー)
+```
+
+---
+
+## 次に読むべきガイド
+
+- [[02-block-devices.md]] — ブロックデバイスとI/Oスケジューラ
+- [[../05-security/00-access-control.md]] — アクセス制御
+
+---
+
+## 参考文献
+
+1. Corbet, J., Rubini, A., & Kroah-Hartman, G. *Linux Device Drivers*, 3rd Edition. O'Reilly Media, 2005. — Linuxデバイスドライバの標準的なリファレンス。割り込み処理 (Chapter 10) とDMA (Chapter 15) の解説が特に優れている
+2. Love, R. *Linux Kernel Development*, 3rd Edition. Addison-Wesley, 2010. — Chapter 7「Interrupts and Interrupt Handlers」で、トップハーフ/ボトムハーフの設計思想を詳述
+3. Bovet, D. P. & Cesati, M. *Understanding the Linux Kernel*, 3rd Edition. O'Reilly Media, 2005. — 割り込みディスクリプタテーブル(IDT)やAPICの内部構造を低レベルから解説
+4. Intel Corporation. *Intel 64 and IA-32 Architectures Software Developer's Manual*, Volume 3: System Programming Guide, Chapter 6 "Interrupt and Exception Handling". — x86/x86-64 の割り込みアーキテクチャの公式仕様書
+5. ARM Limited. *ARM Generic Interrupt Controller Architecture Specification (GICv3/GICv4)*. — ARM GICの公式仕様。組み込みLinux開発者向け
+6. NVM Express Workgroup. *NVM Express Base Specification*, Revision 2.0. — NVMeプロトコルの公式仕様。キュー構造と割り込み方式を定義
+7. Mellanox Technologies (NVIDIA). *RDMA Aware Networks Programming User Manual*. — RDMAプログラミングの実践的なガイド。InfiniBand/RoCEのVerbs APIを解説

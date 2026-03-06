@@ -1350,3 +1350,563 @@ static const struct dev_pm_ops mydev_pm_ops = {
   D3cold           ── 完全電源断（バス接続も切断）
 ```
 
+---
+
+## 9. sysfsとデバイス属性
+
+### 9.1 sysfsの役割
+
+sysfsは、カーネル内部のオブジェクト（デバイス、ドライバ、バス等）をファイルシステムツリーとして `/sys` にエクスポートする仮想ファイルシステムである。ドライバ開発者は、sysfs属性を通じてデバイスの設定値や状態をユーザ空間に公開できる。
+
+```bash
+# sysfsの構造を確認する例
+$ ls /sys/class/net/eth0/
+address  carrier  device  duplex  mtu  operstate  speed  statistics  ...
+
+$ cat /sys/class/net/eth0/mtu
+1500
+
+$ cat /sys/class/net/eth0/address
+00:1a:2b:3c:4d:5e
+
+# ブロックデバイスのI/Oスケジューラ確認・変更
+$ cat /sys/block/sda/queue/scheduler
+[mq-deadline] kyber bfq none
+
+$ echo "bfq" | sudo tee /sys/block/sda/queue/scheduler
+
+# デバイスの電源状態を確認
+$ cat /sys/devices/pci0000:00/0000:00:1f.0/power/runtime_status
+active
+```
+
+### 9.2 カスタムsysfs属性の実装
+
+ドライバ固有の設定や状態をsysfs経由で公開する方法を以下に示す。
+
+```c
+/*
+ * sysfs属性の実装例
+ * /sys/class/simple/simplechar/debug_level として公開
+ */
+
+static int debug_level = 0;
+
+/* read: cat /sys/.../debug_level */
+static ssize_t debug_level_show(struct device *dev,
+                                 struct device_attribute *attr,
+                                 char *buf)
+{
+    return sysfs_emit(buf, "%d\n", debug_level);
+}
+
+/* write: echo 3 > /sys/.../debug_level */
+static ssize_t debug_level_store(struct device *dev,
+                                  struct device_attribute *attr,
+                                  const char *buf, size_t count)
+{
+    int val;
+    int ret;
+
+    ret = kstrtoint(buf, 10, &val);
+    if (ret)
+        return ret;
+
+    if (val < 0 || val > 5)
+        return -EINVAL;
+
+    debug_level = val;
+    pr_info("debug_level set to %d\n", debug_level);
+
+    return count;
+}
+
+/* DEVICE_ATTR_RW マクロで show/store を登録 */
+static DEVICE_ATTR_RW(debug_level);
+
+/* 複数属性をグループ化 */
+static struct attribute *mydev_attrs[] = {
+    &dev_attr_debug_level.attr,
+    NULL,
+};
+ATTRIBUTE_GROUPS(mydev);
+
+/* probe() でデバイス作成時に属性グループを指定 */
+/* class->dev_groups = mydev_groups; */
+```
+
+---
+
+## 10. デバッグ技法
+
+### 10.1 カーネルデバッグの基本ツール
+
+| ツール | 用途 | 使用場面 |
+|:-------|:-----|:---------|
+| `printk` / `pr_info` | カーネルログ出力 | 基本的なトレース |
+| `dmesg` | カーネルリングバッファの表示 | ドライバメッセージ確認 |
+| `ftrace` | 関数トレース | 呼び出し経路の追跡 |
+| `perf` | パフォーマンスプロファイリング | ボトルネック特定 |
+| `crash` / `kdump` | カーネルクラッシュダンプ解析 | 事後解析 |
+| `/proc/interrupts` | 割り込み統計 | IRQ配分の確認 |
+| `/proc/iomem` | I/Oメモリマップ | アドレス空間の確認 |
+| `/proc/ioports` | I/Oポートマップ | ポートアドレスの確認 |
+| `strace` | システムコールトレース | ユーザ空間からの呼び出し追跡 |
+
+### 10.2 動的デバッグ（Dynamic Debug）
+
+Linuxカーネルのpr_debug()やdev_dbg()は、動的デバッグ機構を通じて実行時にON/OFF切り替えが可能である。
+
+```bash
+# 動的デバッグの有効化
+# 特定のファイル内の全デバッグメッセージを有効化
+$ echo "file mydriver.c +p" | sudo tee /sys/kernel/debug/dynamic_debug/control
+
+# 特定の関数のデバッグメッセージを有効化
+$ echo "func mydev_probe +p" | sudo tee /sys/kernel/debug/dynamic_debug/control
+
+# 特定モジュールの全デバッグメッセージを有効化
+$ echo "module mydriver +p" | sudo tee /sys/kernel/debug/dynamic_debug/control
+
+# 現在有効なデバッグポイントの確認
+$ cat /sys/kernel/debug/dynamic_debug/control | grep mydriver
+
+# ftraceによる関数トレース
+$ echo function > /sys/kernel/debug/tracing/current_tracer
+$ echo mydev_* > /sys/kernel/debug/tracing/set_ftrace_filter
+$ echo 1 > /sys/kernel/debug/tracing/tracing_on
+$ cat /sys/kernel/debug/tracing/trace
+```
+
+---
+
+## 11. アンチパターン集
+
+### 11.1 アンチパターン1: 割り込みハンドラ内でのスリープ
+
+**問題**: 割り込みコンテキスト（トップハーフ）でスリープ可能な関数を呼び出すと、カーネルが「BUG: scheduling while atomic」というエラーを発生させ、最悪の場合カーネルパニックに至る。
+
+```c
+/* NG: 割り込みハンドラ内でのスリープ（絶対にやってはいけない） */
+static irqreturn_t bad_irq_handler(int irq, void *dev_id)
+{
+    struct my_dev *dev = dev_id;
+    void *buf;
+
+    /*
+     * NG: GFP_KERNEL はスリープ可能な割り当て
+     * 割り込みコンテキストではスリープ不可のため、
+     * カーネルがBUGメッセージを出力しクラッシュする可能性がある
+     */
+    buf = kmalloc(4096, GFP_KERNEL);  /* NG! */
+
+    /*
+     * NG: mutex_lock はスリープ可能
+     * 別のコンテキストがロックを保持している場合、
+     * 割り込みハンドラがスリープしてデッドロックに至る
+     */
+    mutex_lock(&dev->lock);           /* NG! */
+
+    /* NG: copy_to_user はページフォルトを起こす可能性がある */
+    copy_to_user(ubuf, data, len);    /* NG! */
+
+    mutex_unlock(&dev->lock);
+    kfree(buf);
+    return IRQ_HANDLED;
+}
+
+/* OK: 正しい実装 — スレッド化割り込みまたはworkqueueを使用 */
+static irqreturn_t good_hard_irq(int irq, void *dev_id)
+{
+    struct my_dev *dev = dev_id;
+
+    /* 最小限の処理: ステータス読み取りと割り込みクリア */
+    dev->irq_status = readl(dev->regs + STATUS_REG);
+    writel(dev->irq_status, dev->regs + IRQ_ACK_REG);
+
+    return IRQ_WAKE_THREAD;  /* スレッドハンドラに委譲 */
+}
+
+static irqreturn_t good_thread_fn(int irq, void *dev_id)
+{
+    struct my_dev *dev = dev_id;
+    void *buf;
+
+    /* OK: プロセスコンテキストではGFP_KERNELが使える */
+    buf = kmalloc(4096, GFP_KERNEL);
+
+    /* OK: mutex_lockも使用可能 */
+    mutex_lock(&dev->lock);
+    /* データ処理 */
+    mutex_unlock(&dev->lock);
+
+    kfree(buf);
+    return IRQ_HANDLED;
+}
+```
+
+**教訓**: 割り込みコンテキストで安全に使える関数は限られている。メモリ割り当てには`GFP_ATOMIC`を使い、排他制御には`spin_lock_irqsave()`を使い、重い処理はボトムハーフに委譲する。最も推奨される方法は`request_threaded_irq()`によるスレッド化割り込みである。
+
+### 11.2 アンチパターン2: リソースリークのあるエラーハンドリング
+
+**問題**: ドライバの初期化関数で複数のリソースを獲得する際、途中のステップでエラーが発生した場合に、それまでに獲得したリソースを適切に解放しないとリソースリークが発生する。
+
+```c
+/* NG: リソースリークのあるエラーハンドリング */
+static int bad_probe(struct platform_device *pdev)
+{
+    struct my_dev *dev;
+    int ret;
+
+    dev = kzalloc(sizeof(*dev), GFP_KERNEL);
+    if (!dev)
+        return -ENOMEM;
+
+    dev->clk = clk_get(&pdev->dev, "main_clk");
+    if (IS_ERR(dev->clk))
+        return PTR_ERR(dev->clk);    /* NG: dev のメモリが解放されていない */
+
+    ret = clk_prepare_enable(dev->clk);
+    if (ret)
+        return ret;                   /* NG: clk と dev が解放されていない */
+
+    dev->regs = devm_ioremap_resource(&pdev->dev, res);
+    if (IS_ERR(dev->regs))
+        return PTR_ERR(dev->regs);    /* NG: clk が有効なまま、dev が未解放 */
+
+    /* ... */
+    return 0;
+}
+
+/* OK: 正しいエラーハンドリング — gotoチェーンパターン */
+static int good_probe(struct platform_device *pdev)
+{
+    struct my_dev *dev;
+    int ret;
+
+    dev = kzalloc(sizeof(*dev), GFP_KERNEL);
+    if (!dev)
+        return -ENOMEM;
+
+    dev->clk = clk_get(&pdev->dev, "main_clk");
+    if (IS_ERR(dev->clk)) {
+        ret = PTR_ERR(dev->clk);
+        goto err_free_dev;            /* dev を解放 */
+    }
+
+    ret = clk_prepare_enable(dev->clk);
+    if (ret)
+        goto err_put_clk;             /* clk を put し、dev を解放 */
+
+    dev->regs = devm_ioremap_resource(&pdev->dev, res);
+    if (IS_ERR(dev->regs)) {
+        ret = PTR_ERR(dev->regs);
+        goto err_disable_clk;         /* clk を disable/put し、dev を解放 */
+    }
+
+    return 0;
+
+err_disable_clk:
+    clk_disable_unprepare(dev->clk);
+err_put_clk:
+    clk_put(dev->clk);
+err_free_dev:
+    kfree(dev);
+    return ret;
+}
+
+/*
+ * さらに良い方法: devm_* (device-managed) APIを使用
+ * devm_ 系APIで確保したリソースはドライバのremove時に自動解放される
+ */
+static int best_probe(struct platform_device *pdev)
+{
+    struct my_dev *dev;
+
+    /* devm_kzalloc: デバイスのライフサイクルに紐付けたメモリ確保 */
+    dev = devm_kzalloc(&pdev->dev, sizeof(*dev), GFP_KERNEL);
+    if (!dev)
+        return -ENOMEM;
+
+    /* devm_clk_get: 自動解放されるクロック取得 */
+    dev->clk = devm_clk_get(&pdev->dev, "main_clk");
+    if (IS_ERR(dev->clk))
+        return PTR_ERR(dev->clk);  /* devm_kzalloc分は自動解放 */
+
+    /* devm_ioremap_resource: 自動解放されるI/Oメモリマッピング */
+    dev->regs = devm_ioremap_resource(&pdev->dev, res);
+    if (IS_ERR(dev->regs))
+        return PTR_ERR(dev->regs);  /* 上記リソースすべて自動解放 */
+
+    return 0;
+    /* remove時: devm_* で確保した全リソースが逆順に自動解放 */
+}
+```
+
+**教訓**: Linuxカーネルの `devm_*`（device-managed）APIを積極的に活用する。devm_ 系APIで確保したリソースは、ドライバのアンバインド時に自動的に解放されるため、エラーハンドリングのgotoチェーンを大幅に簡素化でき、リソースリークのリスクを根本的に排除できる。
+
+### 11.3 アンチパターン3: 不適切なロック粒度
+
+**問題**: 大域ロック（BKL: Big Kernel Lock）のようにドライバ全体を単一のロックで保護すると、並行性が著しく損なわれる。逆にロック粒度が細かすぎると、デッドロックやrace conditionのリスクが増大する。
+
+- 粒度が粗すぎる: 1つのmutexでドライバ全体を保護 → 全操作がシリアライズされ、マルチコアの性能を活かせない
+- 粒度が細かすぎる: データ構造のフィールドごとにロック → ロック順序の管理が困難になりデッドロックのリスク増大
+- 適切な粒度: デバイスインスタンスごとにロック、または論理的に独立したデータ構造ごとにロック
+
+---
+
+## 12. 実践演習
+
+### 演習1: [基礎] デバイスの観察と情報収集
+
+**目標**: Linuxシステム上のデバイスとドライバの関係を理解する。
+
+```bash
+# === Step 1: デバイスファイルの種類を確認 ===
+# 'b' = ブロック、'c' = キャラクタ
+ls -la /dev/sda /dev/null /dev/tty0 /dev/random 2>/dev/null
+
+# メジャー番号・マイナー番号の読み方
+# crw-rw-rw- 1 root root 1, 3 ... /dev/null
+#                         ^  ^
+#                    major=1 minor=3
+
+# === Step 2: ブロックデバイスの階層構造 ===
+lsblk -o NAME,TYPE,SIZE,FSTYPE,MOUNTPOINT,MODEL
+
+# === Step 3: PCIデバイスとドライバのマッピング ===
+lspci -v | head -40
+# "Kernel driver in use:" でどのドライバが使われているか確認
+
+# === Step 4: ロード済みカーネルモジュールの調査 ===
+lsmod | sort -k3 -rn | head -20
+# 3列目(Used by)でソート → 依存関係が多いモジュールが上位に
+
+# === Step 5: 割り込みの分布を確認 ===
+cat /proc/interrupts | head -20
+# 各CPU (CPU0, CPU1, ...) ごとの割り込み回数が表示される
+
+# === Step 6: カーネルメッセージからドライバの動作を追跡 ===
+dmesg | grep -i "driver\|probe\|loaded" | tail -20
+```
+
+**課題**: 上記コマンドの出力結果を基に、以下の表を埋めよ。
+
+| デバイス名 | デバイスタイプ | メジャー番号 | 使用ドライバ |
+|:-----------|:-------------|:------------|:------------|
+| /dev/sda | ブロック | ? | ? |
+| /dev/null | キャラクタ | ? | ? |
+| (NIC名) | ネットワーク | — | ? |
+
+### 演習2: [中級] カーネルモジュールのビルドとロード
+
+**目標**: 最小限のカーネルモジュールをビルドし、ロード・アンロードのライフサイクルを体験する。
+
+**前提条件**: Linux環境（仮想マシン推奨）、`build-essential`と`linux-headers-$(uname -r)`がインストール済みであること。
+
+```bash
+# === Step 1: ヘッダパッケージの確認 ===
+ls /lib/modules/$(uname -r)/build/
+# Makefile, include/ 等が存在すれば OK
+
+# === Step 2: モジュールソースの作成 ===
+mkdir -p ~/driver_lab && cd ~/driver_lab
+
+# hello_driver.c を作成（本章 2.2 のコードを使用）
+# Makefile を作成（本章 2.2 のMakefileを使用）
+
+# === Step 3: ビルド ===
+make
+# 成功すると hello_driver.ko が生成される
+
+# === Step 4: モジュール情報の確認 ===
+modinfo hello_driver.ko
+
+# === Step 5: ロードとログ確認 ===
+sudo insmod hello_driver.ko
+dmesg | tail -5
+lsmod | grep hello
+
+# === Step 6: アンロードとログ確認 ===
+sudo rmmod hello_driver
+dmesg | tail -5
+
+# === Step 7: パラメータ付きモジュールに拡張 ===
+# hello_driver.c に以下を追加してみよう:
+#   static int repeat = 1;
+#   module_param(repeat, int, 0644);
+#   MODULE_PARM_DESC(repeat, "Number of greeting repetitions");
+# init関数内で repeat 回ループして pr_info を出力する
+```
+
+**発展課題**: パラメータ`repeat`の値を`/sys/module/hello_driver/parameters/repeat`から読み取れることを確認し、実行時に値を変更して動作が変わることを検証せよ。
+
+### 演習3: [上級] キャラクタデバイスドライバの実装と検証
+
+**目標**: 本章 4.1 のsimplecharドライバをビルドし、ユーザ空間からの読み書きを検証する。
+
+```bash
+# === Step 1: ドライバのビルドとロード ===
+cd ~/driver_lab
+# simplechar.c を作成（本章 4.1 のコードを使用）
+# Makefile の obj-m 行を修正: obj-m += simplechar.o
+make
+sudo insmod simplechar.ko
+
+# === Step 2: デバイスノードの確認 ===
+ls -la /dev/simplechar
+# crw------- 1 root root 240, 0 ... /dev/simplechar
+# (メジャー番号は動的に割り当てられるため異なる場合がある)
+
+# パーミッション変更（テスト用）
+sudo chmod 666 /dev/simplechar
+
+# === Step 3: 書き込みテスト ===
+echo "Hello, kernel driver!" > /dev/simplechar
+dmesg | tail -3
+
+# === Step 4: 読み取りテスト ===
+cat /dev/simplechar
+# "Hello, kernel driver!" が表示されるはず
+
+# === Step 5: ddコマンドによるオフセット付き読み取り ===
+dd if=/dev/simplechar bs=1 skip=7 count=6 2>/dev/null
+# "kernel" が表示される
+
+# === Step 6: 複数プロセスからの同時アクセステスト ===
+# ターミナル1:
+while true; do echo "Writer1: $(date)" > /dev/simplechar; done &
+# ターミナル2:
+while true; do cat /dev/simplechar; done &
+# mutexによる排他制御が正しく機能していることを確認
+
+# === Step 7: クリーンアップ ===
+sudo rmmod simplechar
+dmesg | tail -5
+```
+
+**発展課題**:
+1. `unlocked_ioctl`を追加し、バッファのクリア機能（`ioctl(fd, SIMPLECHAR_CLEAR, 0)`）を実装せよ
+2. `poll`を追加し、データが書き込まれたときに`select()`/`poll()`で検出できるようにせよ
+3. `/sys/class/simple/simplechar/buffer_usage` 属性を追加し、現在のバッファ使用率をパーセントで表示せよ
+
+---
+
+## 13. OS別ドライバモデルの比較
+
+| 特性 | Linux | Windows (WDM/WDF) | macOS (IOKit/DriverKit) | FreeBSD |
+|:-----|:------|:-------------------|:------------------------|:--------|
+| ドライバ言語 | C（Rustも段階的に導入中） | C/C++ | C++/Swift（DriverKit） | C |
+| ロード単位 | カーネルモジュール (.ko) | ドライバパッケージ (.sys) | kext / dext | カーネルモジュール (.ko) |
+| デバイス記述 | デバイスツリー / ACPI | INFファイル | IOKitマッチング | hints / FDT |
+| ユーザ空間ドライバ | UIO / VFIO | UMDF | DriverKit (dext) | なし（標準） |
+| ドライバ署名 | 任意（Secure Boot時は必須） | 必須（WHQL推奨） | 必須（公証） | 任意 |
+| ホットプラグ | udev + uevent | PnPマネージャ | IOKit matching | devd |
+| 電源管理 | ランタイムPM + ACPI | WDF電源ポリシー | IOPMPowerState | ACPI |
+| デバッグ | printk, ftrace, kgdb | WinDbg, Driver Verifier | lldb, IOKitDebug | kgdb, DTrace |
+
+---
+
+## 14. よくある質問（FAQ）
+
+### Q1: カーネルモジュールとカーネル組み込みドライバの違いは何か？
+
+**A1**: 機能的には同等である。違いはロードのタイミングと方法にある。
+
+- **カーネル組み込み（built-in）**: カーネルイメージ（vmlinuz）自体にコンパイルされ、ブート時に自動的に利用可能になる。カーネルの `.config` で `CONFIG_XXX=y` と設定する。ルートファイルシステムのマウントに必要なドライバ（ストレージコントローラ、ファイルシステム）は通常組み込みにする必要がある（initramfsを使わない場合）。
+- **カーネルモジュール（loadable）**: `.ko` ファイルとして `/lib/modules/` 以下に配置され、`modprobe` や udev により動的にロードされる。`.config` で `CONFIG_XXX=m` と設定する。使わないデバイスのドライバはメモリを消費しないという利点がある。
+
+多くのディストリビューションでは、可能な限り多くのドライバをモジュールとしてビルドし、initramfs内にブートに必要な最小限のモジュールを含める方式を採用している。
+
+### Q2: デバイスドライバのバグでシステム全体がクラッシュするのはなぜか？
+
+**A2**: 従来のカーネルドライバは、カーネルと同じアドレス空間・同じ特権レベルで動作するため、メモリ保護の恩恵を受けられない。具体的には以下の理由による。
+
+- **NULLポインタ参照**: カーネル空間でのNULLポインタ参照はページフォルトを起こし、回復不能なoopsまたはカーネルパニックとなる
+- **バッファオーバーフロー**: カーネルの重要なデータ構造を破壊する可能性がある
+- **デッドロック**: カーネルスレッドや割り込みハンドラが永久にブロックされると、システム全体が応答不能になる
+- **不正なメモリ解放**: use-after-freeやdouble-freeはカーネルのメモリアロケータを破壊する
+
+この問題を軽減するため、以下のアプローチが採られている。
+1. ユーザ空間ドライバ（UIO, VFIO, DriverKit）による隔離
+2. eBPFによる安全なカーネル拡張
+3. Rustによるメモリ安全なドライバ実装（Linux 6.1以降）
+4. マイクロカーネルアーキテクチャ（MINIX 3, seL4）
+
+### Q3: 新しいハードウェアを接続してもドライバが見つからない場合の対処法は？
+
+**A3**: 以下の手順で調査と対処を行う。
+
+1. **デバイスの認識確認**: `lspci -nn`（PCI）や `lsusb -v`（USB）でベンダーID・プロダクトIDを確認する
+2. **カーネルログの確認**: `dmesg | tail -30` でエラーメッセージや未対応デバイスの警告を確認する
+3. **対応ドライバの検索**: ベンダーID:プロダクトID（例: `8086:1533`）でカーネルソースを検索し、対応するドライバモジュール名を特定する
+4. **モジュールの手動ロード**: `sudo modprobe <module_name>` を試みる
+5. **カーネルバージョンの確認**: 新しいデバイスは最新のカーネルでのみサポートされている場合がある。`uname -r` で確認し、必要なら新しいカーネルにアップデートする
+6. **OOT（Out-of-Tree）ドライバの導入**: ベンダー提供のドライバやDKMS経由のサードパーティドライバを検討する
+7. **ファームウェアの確認**: 一部のデバイスは `linux-firmware` パッケージに含まれるファームウェアバイナリが必要である。`/lib/firmware/` 以下にファームウェアが存在するか確認する
+
+### Q4: Linuxカーネルへのドライバ取り込み（メインライン化）のメリットは何か？
+
+**A4**: カーネルのメインラインツリーにドライバが取り込まれると、以下のメリットがある。
+
+- **継続的なメンテナンス**: カーネルのAPI変更に伴う修正がコミュニティによって行われる
+- **広範なテスト**: CI/CDシステムと多数のテスターによる品質保証
+- **ディストリビューション同梱**: 主要ディストリビューションのカーネルパッケージに含まれ、ユーザが手動でドライバをインストールする必要がなくなる
+- **セキュリティ修正**: 脆弱性が発見された場合、カーネルセキュリティチームが迅速に対応する
+
+### Q5: GPUドライバはなぜ特殊なのか？
+
+**A5**: GPUドライバは、他のデバイスドライバと比較して以下の点で特殊かつ複雑である。
+
+- **DRM/KMSサブシステム**: ディスプレイ出力の制御（モード設定、CRTC、エンコーダ、コネクタの管理）を担当するカーネル側フレームワーク
+- **ユーザ空間コンポーネント**: Mesa（OpenGL/Vulkan実装）やlibdrm等の巨大なユーザ空間ライブラリと密接に連携する
+- **メモリ管理の複雑さ**: VRAM（ビデオメモリ）の管理、GEM/TTMによるバッファオブジェクト管理、CPUとGPU間のメモリコヒーレンシ制御
+- **コマンド投入**: GPUのコマンドキューへのジョブ投入と完了待ちのスケジューリング
+- **ベンダー固有の複雑さ**: NVIDIA（プロプライエタリ + Nouveau）、AMD（amdgpu）、Intel（i915/xe）でアーキテクチャが大きく異なる
+
+---
+
+## まとめ
+
+| 概念 | ポイント |
+|:-----|:--------|
+| デバイスドライバの役割 | ハードウェア固有の操作をOS統一APIに変換する通訳者 |
+| キャラクタデバイス | バイトストリーム。file_operations経由で逐次アクセス |
+| ブロックデバイス | ブロック単位。I/Oスケジューラ、ページキャッシュ経由 |
+| ネットワークデバイス | パケット単位。ソケットAPI経由。/devに現れない |
+| カーネルモジュール | 動的ロード可能。module_init/module_exit |
+| ポーリング | CPU常時監視。単純だが非効率。組込み向き |
+| 割り込み駆動 | イベント通知。CPU効率が良い。一般的な方式 |
+| DMA | CPU不関与の直接メモリ転送。大量データに最適 |
+| トップハーフ/ボトムハーフ | 割り込み処理の分割。重い処理を遅延実行 |
+| threaded IRQ | 現代的推奨方式。プロセスコンテキストでスリープ可能 |
+| UIO/VFIO | ユーザ空間ドライバ。安全性・開発容易性の向上 |
+| devm_* API | デバイス管理リソース。自動解放でリーク防止 |
+| デバイスツリー | ハードウェア記述。ARM/RISC-Vで標準 |
+| ACPI | x86のハードウェア記述・電源管理標準規格 |
+| ランタイムPM | デバイス単位の動的電源管理 |
+
+---
+
+## 次に読むべきガイド
+
+- [[01-interrupts-dma.md]] — 割り込みとDMAの詳細
+- [[02-io-scheduling.md]] — I/Oスケジューリングアルゴリズム
+- [[03-storage-stack.md]] — ストレージスタックの全体像
+
+---
+
+## 参考文献
+
+1. Corbet, J., Rubini, A., Kroah-Hartman, G. "Linux Device Drivers." 3rd Edition, O'Reilly Media, 2005. — Linuxドライバ開発の定番書。カーネルAPIの変更により一部古くなっているが、設計思想と基本概念は今なお有効。オンライン版: https://lwn.net/Kernel/LDD3/
+
+2. Love, R. "Linux Kernel Development." 3rd Edition, Addison-Wesley, 2010. — カーネル内部の仕組みを包括的に解説。プロセス管理、メモリ管理、割り込み処理、同期機構などドライバ開発の前提知識が網羅されている。
+
+3. The Linux Kernel Documentation — "Driver Model." https://www.kernel.org/doc/html/latest/driver-api/index.html — カーネル公式のドライバAPI文書。最新のAPIリファレンスとして最も信頼性が高い。デバイスモデル、DMAマッピング、割り込み処理、電源管理等の公式ガイドラインを含む。
+
+4. Kroah-Hartman, G. "Linux Kernel in a Nutshell." O'Reilly Media, 2006. — カーネルの設定、ビルド、モジュール管理に焦点を当てた実践的ガイド。
+
+5. Venkateswaran, S. "Essential Linux Device Drivers." Prentice Hall, 2008. — キャラクタドライバ、ブロックドライバ、ネットワークドライバ、USBドライバ等の実装を体系的に解説。
+
+6. Mauerer, W. "Professional Linux Kernel Architecture." Wiley, 2008. — カーネルアーキテクチャの詳細な内部解説。仮想メモリ、プロセススケジューラ、VFS、ネットワークスタック等の実装を深く掘り下げている。
+
