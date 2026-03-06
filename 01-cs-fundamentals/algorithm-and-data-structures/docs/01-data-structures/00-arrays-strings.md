@@ -1821,3 +1821,749 @@ if __name__ == "__main__":
 
     print("全テスト通過")
 ```
+
+---
+
+## 9. 比較表と計算量チートシート
+
+### 表1: 配列操作の計算量比較
+
+| 操作 | 静的配列 (C) | 動的配列 (Python list) | 連結リスト | deque |
+|------|-------------|----------------------|-----------|-------|
+| アクセス `[i]` | O(1) | O(1) | O(n) | O(n) |
+| 先頭挿入 | O(n) | O(n) | O(1) | O(1) |
+| 末尾挿入 | 不可 | O(1) 償却 | O(1)* | O(1) |
+| 中間挿入 | O(n) | O(n) | O(1)** | O(n) |
+| 先頭削除 | O(n) | O(n) | O(1) | O(1) |
+| 末尾削除 | O(1) | O(1) | O(n)* | O(1) |
+| 中間削除 | O(n) | O(n) | O(1)** | O(n) |
+| 探索 (未ソート) | O(n) | O(n) | O(n) | O(n) |
+| 探索 (ソート済) | O(log n) | O(log n) | O(n) | O(n) |
+| メモリ効率 | 最良 | 良 (余剰容量あり) | 悪 (ポインタ分) | 良 |
+| キャッシュ効率 | 最良 | 良 | 悪 | 中 |
+
+`*` 末尾ポインタがある場合
+`**` 挿入/削除位置が既知の場合（位置の探索は O(n)）
+
+### 表2: 文字列操作の計算量（言語間比較）
+
+| 操作 | Python (str) | Java (String) | C++ (std::string) | Go (string) |
+|------|-------------|---------------|-------------------|-------------|
+| インデックス `s[i]` | O(1) | O(1) | O(1) | O(1)*** |
+| 連結 `s + t` | O(n+m) | O(n+m) | O(n+m) | O(n+m) |
+| 部分文字列 | O(k) コピー | O(k) コピー | O(k) コピー | O(k) コピー |
+| 検索 `find` | O(nm) 最悪 | O(nm) 最悪 | O(nm) 最悪 | O(nm) 最悪 |
+| 長さ取得 | O(1) | O(1) | O(1) | O(1) |
+| 比較 | O(n) | O(n) | O(n) | O(n) |
+| ハッシュ | O(n) 初回のみ | O(n) 初回のみ | O(n) | O(n) |
+| 不変性 | 不変 | 不変 | 可変 | 不変 |
+| 可変版 | `list` + `join` | `StringBuilder` | `std::string` 自体 | `[]byte` |
+
+`***` Go の string はバイト列のため、マルチバイト文字は `[]rune` への変換が必要
+
+### 表3: 配列の実装比較（メモリ特性）
+
+| 実装 | 要素格納 | オーバーヘッド | キャッシュライン効率 |
+|------|---------|--------------|-------------------|
+| C `int[]` | 値を直接格納 | なし | 最高 |
+| C++ `vector<int>` | 値を直接格納 | 24B (ptr+size+cap) | 最高 |
+| Java `int[]` | 値を直接格納 | 16B (ヘッダ) | 高い |
+| Java `ArrayList<Integer>` | ボクシング + ポインタ | 大きい | 低い |
+| Python `list` | ポインタの配列 | 56B + 8B/要素 | 低い |
+| NumPy `ndarray` | 値を直接格納 | 固定ヘッダ | 最高 |
+
+### 表4: アルゴリズムパターンの使い分け
+
+| パターン | 時間計算量 | 適用条件 | 代表問題 |
+|---------|-----------|---------|---------|
+| ブルートフォース | O(n^2) | 制約が小さい (n <= 1000) | 全ペア検査 |
+| ソート + Two Pointers | O(n log n) | ソート可能、ペア検索 | Two Sum, 3Sum |
+| ハッシュマップ | O(n) | 存在チェック、頻度カウント | アナグラム判定 |
+| 固定 Sliding Window | O(n) | 固定サイズの部分配列 | 最大和部分配列 |
+| 可変 Sliding Window | O(n) | 条件を満たす最短/最長部分配列 | 最短部分配列 |
+| 二分探索 | O(log n) | ソート済み配列 | 値の検索 |
+| Dutch National Flag | O(n) | 3値への分割 | Sort Colors |
+| Prefix Sum | O(n) 前処理 + O(1) クエリ | 範囲和のクエリ | Subarray Sum |
+
+---
+
+## 10. アンチパターンと正しい書き方
+
+### アンチパターン1: ループ内の文字列連結
+
+不変文字列の言語でループ内の `+=` を使うと O(n^2) になる。
+これは面接・コードレビューで最もよく指摘されるアンチパターンの1つである。
+
+```python
+"""
+アンチパターン1: ループ内の文字列連結
+"""
+
+
+def build_string_bad(words: list) -> str:
+    """BAD: O(n^2) — 毎回新しい文字列を生成してコピー"""
+    result = ""
+    for w in words:
+        result += w  # len(result) のコピーが毎回発生
+    return result
+    # n 個の長さ L の文字列の場合:
+    # コピー量 = L + 2L + 3L + ... + nL = L * n(n+1)/2 = O(n^2 * L)
+
+
+def build_string_good(words: list) -> str:
+    """GOOD: O(n) — join は内部で合計長を計算してから1回だけ確保"""
+    return "".join(words)
+    # 1. 合計長を計算: O(n)
+    # 2. 結果バッファを1回確保: O(合計長)
+    # 3. 各文字列をコピー: O(合計長)
+    # 合計: O(n + 合計長) = O(n)
+
+
+def build_string_also_good(words: list) -> str:
+    """ALSO GOOD: リストに蓄積してから join"""
+    parts = []
+    for w in words:
+        # 必要なら加工してから追加
+        parts.append(w.upper())
+    return " ".join(parts)
+```
+
+### アンチパターン2: 配列の先頭への頻繁な挿入/削除
+
+Python の `list` で先頭への `insert(0, x)` や `pop(0)` を繰り返すと、
+毎回全要素をシフトするため O(n) かかり、全体として O(n^2) になる。
+
+```python
+"""
+アンチパターン2: 配列の先頭への頻繁な操作
+"""
+from collections import deque
+
+
+def queue_bad(operations: list) -> list:
+    """BAD: list をキューとして使う — dequeue が O(n)"""
+    queue = []
+    results = []
+    for op, val in operations:
+        if op == "enqueue":
+            queue.append(val)       # O(1) — これは問題ない
+        elif op == "dequeue":
+            results.append(queue.pop(0))  # O(n) — 毎回全要素をシフト!
+    return results
+
+
+def queue_good(operations: list) -> list:
+    """GOOD: deque を使う — 両端 O(1)"""
+    queue = deque()
+    results = []
+    for op, val in operations:
+        if op == "enqueue":
+            queue.append(val)       # O(1)
+        elif op == "dequeue":
+            results.append(queue.popleft())  # O(1)
+    return results
+```
+
+### アンチパターン3: 不要な二次元配列のコピーの罠
+
+```python
+"""
+アンチパターン3: 二次元配列の浅いコピーの罠
+"""
+
+
+def create_matrix_bad(rows: int, cols: int) -> list:
+    """BAD: 全行が同じリストオブジェクトを参照する"""
+    return [[0] * cols] * rows
+    # matrix[0] is matrix[1] is ... → True
+    # matrix[0][0] = 1 とすると全行の [0] が 1 になる!
+
+
+def create_matrix_good(rows: int, cols: int) -> list:
+    """GOOD: 各行が独立したリストオブジェクト"""
+    return [[0] * cols for _ in range(rows)]
+    # matrix[0] is matrix[1] → False
+    # 各行は独立して変更可能
+
+
+# 実演
+if __name__ == "__main__":
+    bad = create_matrix_bad(3, 3)
+    bad[0][0] = 99
+    print(f"BAD:  {bad}")    # [[99, 0, 0], [99, 0, 0], [99, 0, 0]] ← 全行に影響!
+
+    good = create_matrix_good(3, 3)
+    good[0][0] = 99
+    print(f"GOOD: {good}")   # [[99, 0, 0], [0, 0, 0], [0, 0, 0]] ← 意図通り
+```
+
+### アンチパターン4: in 演算子の誤用
+
+```python
+"""
+アンチパターン4: list での in 演算子は O(n)
+"""
+
+
+def contains_bad(data: list, targets: list) -> list:
+    """BAD: list で in を使う — O(n) × m = O(nm)"""
+    return [t for t in targets if t in data]  # data が list だと O(n)
+
+
+def contains_good(data: list, targets: list) -> list:
+    """GOOD: set に変換してから in を使う — O(1) × m = O(n+m)"""
+    data_set = set(data)  # O(n) で変換
+    return [t for t in targets if t in data_set]  # O(1) のルックアップ
+```
+
+---
+
+## 11. 演習問題 — 基礎・応用・発展の3段階
+
+### 基礎レベル（配列と文字列の基本操作）
+
+**問題 B1: 配列の最大値と最小値を1パスで求める**
+
+配列から最大値と最小値を同時に見つける関数を実装せよ。
+ただしソートを使わず、1回の走査 O(n) で完了すること。
+
+```python
+def find_min_max(arr: list) -> tuple:
+    """
+    配列の最小値と最大値を1パスで求める
+    戻り値: (min_val, max_val)
+    制約: arr は空でない
+    """
+    # ここに実装を書く
+    pass
+
+
+# テストケース
+assert find_min_max([3, 1, 4, 1, 5, 9, 2, 6]) == (1, 9)
+assert find_min_max([42]) == (42, 42)
+assert find_min_max([-5, -1, -10, -3]) == (-10, -1)
+```
+
+<details>
+<summary>解答例（クリックで展開）</summary>
+
+```python
+def find_min_max(arr: list) -> tuple:
+    min_val = max_val = arr[0]
+    for x in arr[1:]:
+        if x < min_val:
+            min_val = x
+        elif x > max_val:
+            max_val = x
+    return (min_val, max_val)
+```
+
+</details>
+
+**問題 B2: 文字列内の文字出現頻度を集計する**
+
+文字列内の各文字の出現回数を辞書として返す関数を実装せよ。
+大文字・小文字は区別しない。空白と記号は除外すること。
+
+```python
+def char_frequency(s: str) -> dict:
+    """
+    文字列中の英数字の出現頻度を返す（小文字に統一）
+    """
+    # ここに実装を書く
+    pass
+
+
+# テストケース
+assert char_frequency("Hello, World!") == {
+    'h': 1, 'e': 1, 'l': 3, 'o': 2, 'w': 1, 'r': 1, 'd': 1
+}
+assert char_frequency("") == {}
+```
+
+<details>
+<summary>解答例（クリックで展開）</summary>
+
+```python
+def char_frequency(s: str) -> dict:
+    freq = {}
+    for c in s.lower():
+        if c.isalnum():
+            freq[c] = freq.get(c, 0) + 1
+    return freq
+```
+
+</details>
+
+**問題 B3: 2つの文字列が回転関係にあるか判定する**
+
+文字列 s を何回か左回転すると t になるかを判定せよ。
+ヒント: s+s の中に t が含まれるか？
+
+```python
+def is_rotation(s: str, t: str) -> bool:
+    """
+    t が s の回転で得られるか判定する
+    例: "waterbottle" は "erbottlewat" の回転 → True
+    """
+    # ここに実装を書く
+    pass
+
+
+# テストケース
+assert is_rotation("waterbottle", "erbottlewat") is True
+assert is_rotation("abc", "cab") is True
+assert is_rotation("abc", "acb") is False
+assert is_rotation("", "") is True
+```
+
+<details>
+<summary>解答例（クリックで展開）</summary>
+
+```python
+def is_rotation(s: str, t: str) -> bool:
+    if len(s) != len(t):
+        return False
+    if len(s) == 0:
+        return True
+    return t in (s + s)
+```
+
+</details>
+
+---
+
+### 応用レベル（アルゴリズムの組み合わせ）
+
+**問題 A1: 積の配列（自分以外の全要素の積）**
+
+配列 nums が与えられたとき、`result[i]` が `nums[i]` 以外の全要素の積になるような
+配列を返せ。除算を使わずに O(n) で解くこと。
+
+```python
+def product_except_self(nums: list) -> list:
+    """
+    LeetCode 238: Product of Array Except Self
+    除算なし、O(n) 時間、O(1) 空間（結果配列を除く）
+    """
+    # ここに実装を書く
+    pass
+
+
+# テストケース
+assert product_except_self([1, 2, 3, 4]) == [24, 12, 8, 6]
+assert product_except_self([-1, 1, 0, -3, 3]) == [0, 0, 9, 0, 0]
+```
+
+<details>
+<summary>解答例（クリックで展開）</summary>
+
+```python
+def product_except_self(nums: list) -> list:
+    n = len(nums)
+    result = [1] * n
+
+    # 左からの累積積
+    left_product = 1
+    for i in range(n):
+        result[i] = left_product
+        left_product *= nums[i]
+
+    # 右からの累積積を掛ける
+    right_product = 1
+    for i in range(n - 1, -1, -1):
+        result[i] *= right_product
+        right_product *= nums[i]
+
+    return result
+```
+
+</details>
+
+**問題 A2: 最大和の連続部分配列（Kadane's Algorithm）**
+
+配列の連続部分配列の中で和が最大のものを求めよ。
+
+```python
+def max_subarray_sum(nums: list) -> int:
+    """
+    LeetCode 53: Maximum Subarray
+    Kadane's Algorithm — O(n) 時間、O(1) 空間
+    """
+    # ここに実装を書く
+    pass
+
+
+# テストケース
+assert max_subarray_sum([-2, 1, -3, 4, -1, 2, 1, -5, 4]) == 6  # [4,-1,2,1]
+assert max_subarray_sum([1]) == 1
+assert max_subarray_sum([-1, -2, -3]) == -1
+```
+
+<details>
+<summary>解答例（クリックで展開）</summary>
+
+```python
+def max_subarray_sum(nums: list) -> int:
+    max_sum = current_sum = nums[0]
+    for x in nums[1:]:
+        current_sum = max(x, current_sum + x)
+        max_sum = max(max_sum, current_sum)
+    return max_sum
+```
+
+</details>
+
+**問題 A3: 最長回文部分文字列**
+
+文字列 s の中で最長の回文部分文字列を返せ。
+
+```python
+def longest_palindrome_substring(s: str) -> str:
+    """
+    LeetCode 5: Longest Palindromic Substring
+    中心拡張法 — O(n^2) 時間、O(1) 空間
+    """
+    # ここに実装を書く
+    pass
+
+
+# テストケース
+assert longest_palindrome_substring("babad") in ("bab", "aba")
+assert longest_palindrome_substring("cbbd") == "bb"
+assert longest_palindrome_substring("a") == "a"
+```
+
+<details>
+<summary>解答例（クリックで展開）</summary>
+
+```python
+def longest_palindrome_substring(s: str) -> str:
+    if len(s) < 2:
+        return s
+
+    start, max_len = 0, 1
+
+    def expand(left: int, right: int) -> None:
+        nonlocal start, max_len
+        while left >= 0 and right < len(s) and s[left] == s[right]:
+            if right - left + 1 > max_len:
+                start = left
+                max_len = right - left + 1
+            left -= 1
+            right += 1
+
+    for i in range(len(s)):
+        expand(i, i)      # 奇数長の回文
+        expand(i, i + 1)  # 偶数長の回文
+
+    return s[start:start + max_len]
+```
+
+</details>
+
+---
+
+### 発展レベル（高度なアルゴリズム設計）
+
+**問題 E1: 雨水トラップ問題**
+
+高さの配列が与えられたとき、雨が降った後にトラップできる水の総量を求めよ。
+
+```python
+def trap_rainwater(height: list) -> int:
+    """
+    LeetCode 42: Trapping Rain Water
+    Two Pointers — O(n) 時間、O(1) 空間
+    """
+    # ここに実装を書く
+    pass
+
+
+# テストケース
+assert trap_rainwater([0, 1, 0, 2, 1, 0, 1, 3, 2, 1, 2, 1]) == 6
+assert trap_rainwater([4, 2, 0, 3, 2, 5]) == 9
+assert trap_rainwater([]) == 0
+```
+
+<details>
+<summary>解答例（クリックで展開）</summary>
+
+```python
+def trap_rainwater(height: list) -> int:
+    if not height:
+        return 0
+
+    left, right = 0, len(height) - 1
+    left_max = right_max = 0
+    water = 0
+
+    while left < right:
+        if height[left] < height[right]:
+            if height[left] >= left_max:
+                left_max = height[left]
+            else:
+                water += left_max - height[left]
+            left += 1
+        else:
+            if height[right] >= right_max:
+                right_max = height[right]
+            else:
+                water += right_max - height[right]
+            right -= 1
+
+    return water
+```
+
+</details>
+
+**問題 E2: 最小ウィンドウ部分文字列**
+
+文字列 s と t が与えられたとき、t の全文字を含む s の最小部分文字列を返せ。
+
+```python
+def min_window(s: str, t: str) -> str:
+    """
+    LeetCode 76: Minimum Window Substring
+    Sliding Window — O(n + m) 時間
+    """
+    # ここに実装を書く
+    pass
+
+
+# テストケース
+assert min_window("ADOBECODEBANC", "ABC") == "BANC"
+assert min_window("a", "a") == "a"
+assert min_window("a", "aa") == ""
+```
+
+<details>
+<summary>解答例（クリックで展開）</summary>
+
+```python
+from collections import Counter
+
+def min_window(s: str, t: str) -> str:
+    if not s or not t or len(s) < len(t):
+        return ""
+
+    t_count = Counter(t)
+    required = len(t_count)       # t に含まれるユニーク文字数
+    formed = 0                     # 条件を満たした文字種数
+    window_counts = {}
+
+    ans = (float('inf'), 0, 0)     # (長さ, 左, 右)
+    left = 0
+
+    for right in range(len(s)):
+        char = s[right]
+        window_counts[char] = window_counts.get(char, 0) + 1
+
+        if char in t_count and window_counts[char] == t_count[char]:
+            formed += 1
+
+        while left <= right and formed == required:
+            if right - left + 1 < ans[0]:
+                ans = (right - left + 1, left, right)
+
+            left_char = s[left]
+            window_counts[left_char] -= 1
+            if left_char in t_count and window_counts[left_char] < t_count[left_char]:
+                formed -= 1
+            left += 1
+
+    return "" if ans[0] == float('inf') else s[ans[1]:ans[2] + 1]
+```
+
+</details>
+
+**問題 E3: 文字列の全順列（Permutation）**
+
+文字列の全ての順列を重複なく列挙せよ。
+
+```python
+def string_permutations(s: str) -> list:
+    """
+    文字列の全順列を辞書順でソートして返す
+    重複文字がある場合も重複なく列挙する
+    """
+    # ここに実装を書く
+    pass
+
+
+# テストケース
+assert string_permutations("abc") == ["abc", "acb", "bac", "bca", "cab", "cba"]
+assert string_permutations("aab") == ["aab", "aba", "baa"]
+assert string_permutations("a") == ["a"]
+```
+
+<details>
+<summary>解答例（クリックで展開）</summary>
+
+```python
+def string_permutations(s: str) -> list:
+    result = []
+    chars = sorted(s)
+
+    def backtrack(path: list, remaining: list) -> None:
+        if not remaining:
+            result.append("".join(path))
+            return
+        for i in range(len(remaining)):
+            # 重複スキップ
+            if i > 0 and remaining[i] == remaining[i - 1]:
+                continue
+            backtrack(
+                path + [remaining[i]],
+                remaining[:i] + remaining[i + 1:]
+            )
+
+    backtrack([], chars)
+    return result
+```
+
+</details>
+
+---
+
+## 12. FAQ — よくある質問と回答
+
+### Q1: Python の list はどの程度メモリを余分に使うのか？
+
+**A:** Python の `list` は要素のポインタ配列を内部に持つ。各要素は 8 バイトの
+ポインタとしてカウントされ、さらにリスト自体のヘッダが約 56 バイトある。
+成長率は約 1.125 倍（正確には `new_size = old_size + (old_size >> 3) + 6`）で、
+Java の `ArrayList` (1.5 倍) や C++ の `vector` (2 倍) より控えめである。
+
+容量 n の list のメモリ使用量は概算で `56 + 8n` バイト（ポインタの先の
+オブジェクト自体のサイズは含まない）。整数のリスト `[0, 1, ..., 99]` の場合、
+list 本体 = 56 + 800 = 856 バイト、int オブジェクト（各 28 バイト）=
+2800 バイト、合計約 3.6 KB になる。同じデータを `numpy.array` で格納すると
+100 * 8 + ヘッダ = 約 900 バイトとなり、約 4 倍のメモリ効率になる。
+
+### Q2: 文字列が immutable であることのメリットとデメリットは？
+
+**A:**
+
+**メリット:**
+1. **ハッシュ値のキャッシュ**: 文字列を辞書のキーとして使う際、ハッシュ値を
+   一度計算すれば再利用できる。Python の `dict` が文字列キーで高速なのはこのため。
+2. **スレッドセーフ**: 複数スレッドから同時に読み取っても安全。ロック不要。
+3. **文字列インターン**: 同一内容の文字列を自動的に共有してメモリを節約。
+   Python では短い文字列や識別子に使われる文字列が自動インターンされる。
+4. **関数の副作用の排除**: 文字列を関数に渡しても、元の文字列が変更されない保証。
+
+**デメリット:**
+1. **変更のたびに新しいオブジェクトが生成される**: 特にループ内の連結で顕著。
+2. **メモリの断片化**: 大量の短い文字列の生成・破棄で GC の負荷が増える。
+
+### Q3: numpy 配列と Python list の選択基準は？
+
+**A:** 以下の基準で使い分ける:
+
+| 基準 | Python list | numpy ndarray |
+|------|------------|---------------|
+| 要素の型 | 混在可能 | 単一型のみ |
+| サイズ変更 | append/pop が高速 | リサイズは苦手 |
+| 数値演算 | 遅い (ループ必要) | 高速 (ベクトル化) |
+| メモリ効率 | 低い (ポインタ配列) | 高い (値を直接格納) |
+| ブロードキャスト | なし | 強力なサポート |
+| スライス | コピーを返す | ビューを返す (メモリ共有) |
+
+**結論**: 数値の同型配列で算術演算が主なら numpy。異なる型が混在する、頻繁に
+サイズが変わる、または非数値データなら list を使う。
+
+### Q4: 配列のソートアルゴリズムの選択に配列のサイズは影響するか？
+
+**A:** 大きく影響する。Python の `sorted()` / `list.sort()` は Tim Sort を使い、
+n が小さい場合（通常 64 要素以下）は挿入ソートに切り替える。挿入ソートは
+O(n^2) だが、キャッシュ効率が良く、オーバーヘッドが小さいため、小規模データでは
+O(n log n) のアルゴリズムより高速になる。C++ の `std::sort` も同様に、
+小規模では挿入ソートにフォールバックする。
+
+### Q5: Two Pointers と Sliding Window の使い分けは？
+
+**A:**
+
+- **Two Pointers**: 主にソート済み配列で使用。2つのポインタが条件に応じて
+  独立に動く。典型例: ソート済み配列でのペア検索、回文判定。
+- **Sliding Window**: 連続した部分配列/部分文字列を対象とする。ウィンドウの
+  左右端が同じ方向に動く。典型例: 最大和部分配列、条件を満たす最長/最短部分文字列。
+
+判断基準:
+1. 問題が「連続した部分配列/部分文字列」に関するものなら → Sliding Window
+2. 問題が「2つの要素の組み合わせ」に関するものなら → Two Pointers
+3. 配列がソート済みでペアを探すなら → 対向 Two Pointers
+
+### Q6: 行列の走査問題で境界条件を間違えないコツは？
+
+**A:** 3つのテクニックがある:
+
+1. **境界変数を4つ明示的に管理する**: `top`, `bottom`, `left`, `right` を使い、
+   各辺の走査後に対応する境界を更新する。
+2. **走査の前に残り確認**: 下辺を走査する前に `top <= bottom` を、
+   左辺を走査する前に `left <= right` を確認する。これを忘れると
+   要素の二重カウントが発生する。
+3. **小さい例でトレース**: 1x1, 1xN, Nx1, 2x2 の行列で手動トレースして
+   境界条件が正しいか確認する。
+
+---
+
+## 13. まとめと次のステップ
+
+### この章で学んだこと
+
+| 項目 | ポイント |
+|------|---------|
+| 静的配列 | 連続メモリに格納、O(1) ランダムアクセス、固定サイズ |
+| 動的配列 | append は償却 O(1)、成長率で空間効率が変わる、縮小戦略も重要 |
+| 多次元配列 | 行優先/列優先でキャッシュ効率が異なる、走査順序を意識する |
+| 文字列 | immutable の言語が多い、連結は join を使う、エンコーディングに注意 |
+| Two Pointers | 対向・同方向・異速の3パターン、O(n^2) を O(n) に改善 |
+| Sliding Window | 固定サイズと可変サイズの2種類、連続部分配列の問題に適用 |
+| 二次元配列走査 | スパイラル・対角線・ジグザグ等、境界管理が鍵 |
+
+### 頻出 LeetCode 問題リスト
+
+| 難易度 | 番号 | 問題名 | パターン |
+|--------|------|--------|---------|
+| Easy | 1 | Two Sum | Hash Map |
+| Easy | 26 | Remove Duplicates | Two Pointers |
+| Easy | 14 | Longest Common Prefix | 縦スキャン |
+| Easy | 283 | Move Zeroes | Two Pointers |
+| Medium | 3 | Longest Substring Without Repeating | Sliding Window |
+| Medium | 15 | 3Sum | Sort + Two Pointers |
+| Medium | 48 | Rotate Image | 転置 + 反転 |
+| Medium | 54 | Spiral Matrix | 境界管理 |
+| Medium | 238 | Product of Array Except Self | Prefix/Suffix |
+| Medium | 438 | Find All Anagrams | Sliding Window |
+| Hard | 42 | Trapping Rain Water | Two Pointers |
+| Hard | 76 | Minimum Window Substring | Sliding Window |
+
+### 次に読むべきガイド
+
+- [連結リスト — 単方向/双方向とフロイドのアルゴリズム](./01-linked-lists.md)
+- [スタックとキュー — LIFO/FIFO と単調スタック](./02-stacks-queues.md)
+- [ハッシュテーブル — ハッシュ関数と衝突解決](./03-hash-tables.md)
+
+---
+
+## 14. 参考文献
+
+1. Cormen, T.H., Leiserson, C.E., Rivest, R.L. & Stein, C. (2022). *Introduction to Algorithms* (4th ed.). MIT Press. — 第2章「Getting Started」で配列のマージとソートの基礎、第17章「Amortized Analysis」で動的配列の償却解析を詳細に解説。
+
+2. Sedgewick, R. & Wayne, K. (2011). *Algorithms* (4th ed.). Addison-Wesley. — Java を使った配列とソートの実装詳細。Web サイト (algs4.cs.princeton.edu) に豊富なビジュアライゼーションがある。
+
+3. Skiena, S.S. (2020). *The Algorithm Design Manual* (3rd ed.). Springer. — 実践的な配列・文字列アルゴリズムの設計パターンと、面接対策に役立つ「War Stories」を収録。
+
+4. Python Software Foundation. "Time Complexity." Python Wiki. https://wiki.python.org/moin/TimeComplexity — Python の組み込みデータ構造の操作別計算量の公式リファレンス。
+
+5. Knuth, D.E. (1997). *The Art of Computer Programming, Volume 1: Fundamental Algorithms* (3rd ed.). Addison-Wesley. — 配列と線形リストの数学的基礎。
+
+6. CPython Source Code. `Objects/listobject.c`. https://github.com/python/cpython — Python list の動的配列実装の実際のソースコード。成長率の計算式 `new_allocated = (size_t)newsize + (newsize >> 3) + (newsize < 9 ? 3 : 6)` を確認できる。
+
+7. Bentley, J. (1986). *Programming Pearls*. Addison-Wesley. — 配列の回転アルゴリズム（反転による手法）の元となった名著。第2章「Aha! Algorithms」で紹介。
+
+---
+
+> **免責事項**: 本ガイドのコード例はすべて教育目的で作成されている。プロダクションコードでは、各言語の標準ライブラリが提供する最適化された実装を使用することを推奨する。

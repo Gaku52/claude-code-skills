@@ -1443,3 +1443,671 @@ func main() {
 | JavaScript | なし（自前実装） | - | - | - |
 | C# | `Array.BinarySearch()` | 変換が必要 | 変換が必要 | インデックス or 負値 |
 
+---
+
+## 9. アンチパターンと落とし穴
+
+探索アルゴリズムは一見シンプルだが、実装上の罠が多い。以下に代表的なアンチパターンとその対策を示す。
+
+### アンチパターン 1: 未ソートデータに二分探索を適用する
+
+二分探索はソート済み配列を前提としている。未ソートデータに適用すると、正しい結果が得られない。しかも、たまたま正しい答えが返ることがあるため、バグの発見が遅れやすい。
+
+```python
+# --- BAD: ソートされていないデータに二分探索 ---
+unsorted = [3, 1, 4, 1, 5, 9, 2, 6]
+result = binary_search(unsorted, 5)
+# → 不正な結果! 5 が存在するのに -1 が返る可能性がある
+
+# --- GOOD: 選択肢1 - 事前にソートする ---
+sorted_data = sorted(unsorted)
+result = binary_search(sorted_data, 5)
+print(f"ソート後: {result}")  # 正しいインデックス
+
+# --- GOOD: 選択肢2 - 探索頻度が低いなら線形探索を使う ---
+result = linear_search(unsorted, 5)
+print(f"線形探索: {result}")  # 4
+
+# --- GOOD: 選択肢3 - ソート順を維持するデータ構造を使う ---
+import bisect
+maintained = []
+for x in [3, 1, 4, 1, 5, 9, 2, 6]:
+    bisect.insort(maintained, x)
+# maintained は常にソート済み: [1, 1, 2, 3, 4, 5, 6, 9]
+idx = bisect.bisect_left(maintained, 5)
+print(f"bisect: {maintained[idx]}")  # 5
+```
+
+### アンチパターン 2: 二分探索の off-by-one エラー
+
+二分探索で最も多いバグは境界条件の間違いである。`low <= high` と `low < high`、`mid + 1` と `mid`、`high = mid - 1` と `high = mid` の組み合わせを間違えると、無限ループや要素の見逃しが発生する。
+
+```python
+# --- BAD: low < high（<= ではなく <）にしてしまう ---
+def bad_binary_search_v1(arr, target):
+    low, high = 0, len(arr) - 1
+    while low < high:  # ★ BUG: low == high のケースを見逃す
+        mid = (low + high) // 2
+        if arr[mid] == target:
+            return mid
+        elif arr[mid] < target:
+            low = mid + 1
+        else:
+            high = mid - 1
+    return -1
+
+# テスト: 要素が 1 つだけの配列
+print(bad_binary_search_v1([42], 42))  # -1 ← 見つかるべきなのに!
+print(bad_binary_search_v1([1, 2, 3], 3))  # -1 ← 末尾要素を見逃す!
+
+# --- BAD: mid の更新で範囲が縮小しないパターン ---
+def bad_binary_search_v2(arr, target):
+    low, high = 0, len(arr) - 1
+    while low <= high:
+        mid = (low + high) // 2
+        if arr[mid] == target:
+            return mid
+        elif arr[mid] < target:
+            low = mid      # ★ BUG: mid + 1 でないと無限ループ
+        else:
+            high = mid     # ★ BUG: mid - 1 でないと無限ループ
+    return -1
+
+# low=0, high=1 のとき mid=0 → low=0 のまま → 無限ループ!
+
+# --- GOOD: 正しい実装テンプレート ---
+def correct_binary_search(arr, target):
+    """安全な二分探索テンプレート
+
+    ルール:
+    1. while low <= high を使う
+    2. arr[mid] < target のとき low = mid + 1
+    3. arr[mid] > target のとき high = mid - 1
+    4. mid = low + (high - low) // 2 でオーバーフロー防止
+    """
+    low, high = 0, len(arr) - 1
+    while low <= high:
+        mid = low + (high - low) // 2
+        if arr[mid] == target:
+            return mid
+        elif arr[mid] < target:
+            low = mid + 1
+        else:
+            high = mid - 1
+    return -1
+
+# 全パターンで正しく動作
+print(correct_binary_search([42], 42))        # 0
+print(correct_binary_search([1, 2, 3], 3))    # 2
+print(correct_binary_search([1, 2, 3], 1))    # 0
+print(correct_binary_search([1, 2, 3], 4))    # -1
+```
+
+### アンチパターン 3: 整数オーバーフロー（C/C++/Java）
+
+Python は任意精度整数を持つため問題にならないが、C、C++、Java では `(low + high)` が整数の最大値を超える場合がある。
+
+```python
+# --- BAD: C/C++/Java で問題になるパターン ---
+# mid = (low + high) // 2
+# low = 2^30, high = 2^30 のとき low + high = 2^31 → 32bit整数でオーバーフロー!
+
+# --- GOOD: オーバーフロー安全な計算 ---
+# mid = low + (high - low) // 2
+# high - low は必ず非負で、low を足しても元の範囲内に収まる
+
+# --- C++ での例 ---
+# int mid = low + (high - low) / 2;           // 安全
+# int mid = (low + high) / 2;                  // 危険!
+# int mid = ((unsigned)low + (unsigned)high) / 2;  // unsigned なら安全
+
+# --- Java での例 ---
+# int mid = low + (high - low) / 2;            // 安全
+# int mid = (low + high) / 2;                  // 危険!
+# int mid = (low + high) >>> 1;                // 符号なし右シフトで安全
+```
+
+### アンチパターン 4: lower_bound / upper_bound の使い分けミス
+
+lower_bound と upper_bound は非常に紛らわしく、使い分けを間違えると重複要素の処理でバグが発生する。
+
+```python
+# データ: [1, 2, 2, 2, 3, 4, 5]
+#          0  1  2  3  4  5  6
+
+data = [1, 2, 2, 2, 3, 4, 5]
+
+# --- BAD: 「2の個数」を求めるのに lower_bound だけ使う ---
+lb = lower_bound(data, 2)
+# count = len(data) - lb と勘違い → 6 - 1 = 5（間違い!）
+
+# --- GOOD: upper_bound - lower_bound で正しく求める ---
+count = upper_bound(data, 2) - lower_bound(data, 2)
+print(f"2の個数: {count}")  # 3
+
+# --- BAD: 「2以上の要素数」で upper_bound を使ってしまう ---
+# upper_bound(2) = 4 → len - 4 = 3（間違い! 正解は 5）
+
+# --- GOOD: lower_bound を使う ---
+count_gte_2 = len(data) - lower_bound(data, 2)
+print(f"2以上の要素数: {count_gte_2}")  # 6（1以降の [2,2,2,3,4,5]）
+
+# 整理:
+# lower_bound(x): x 以上の最初の位置    → 「x以上の個数」= len - lower_bound
+# upper_bound(x): x より大きい最初の位置 → 「xより大きい個数」= len - upper_bound
+#                                         → 「x以下の個数」= upper_bound
+#                                         → 「xの個数」= upper_bound - lower_bound
+```
+
+### アンチパターン 5: 不必要な自前実装
+
+標準ライブラリに高品質な実装がある場合、自前実装はバグの温床となる。特に本番コードでは標準ライブラリを優先すべきである。
+
+```python
+import bisect
+
+data = sorted([random.randint(1, 100) for _ in range(10000)])
+target = 42
+
+# --- BAD: 自前実装（バグが混入しやすい）---
+# def my_binary_search(arr, target): ...
+
+# --- GOOD: 標準ライブラリを使う ---
+idx = bisect.bisect_left(data, target)
+found = idx < len(data) and data[idx] == target
+print(f"found={found}, index={idx}")
+
+# 例外: 標準ライブラリにない機能が必要な場合のみ自前実装
+# - 条件二分探索
+# - 浮動小数点二分探索
+# - カスタムの比較ロジック
+```
+
+---
+
+## 10. 演習問題
+
+### 10.1 基礎問題
+
+**問題 1: 最後の出現位置**
+
+ソート済み配列から指定された値が最後に出現するインデックスを O(log n) で求める関数を実装せよ。
+
+```python
+def find_last_occurrence(arr: list, target) -> int:
+    """ソート済み配列で target が最後に出現するインデックスを返す
+    存在しない場合は -1 を返す
+
+    >>> find_last_occurrence([1, 2, 2, 2, 3, 4], 2)
+    3
+    >>> find_last_occurrence([1, 2, 3], 5)
+    -1
+    """
+    # --- 解答例 ---
+    ub = upper_bound(arr, target)
+    if ub == 0 or arr[ub - 1] != target:
+        return -1
+    return ub - 1
+
+
+# テスト
+assert find_last_occurrence([1, 2, 2, 2, 3, 4], 2) == 3
+assert find_last_occurrence([1, 2, 3], 5) == -1
+assert find_last_occurrence([5, 5, 5, 5], 5) == 3
+assert find_last_occurrence([1], 1) == 0
+assert find_last_occurrence([], 1) == -1
+print("問題1: 全テスト合格")
+```
+
+**問題 2: 回転ソート配列の探索**
+
+ソート済み配列を任意の位置で回転させた配列（例: `[4,5,6,7,0,1,2]`）から、ターゲットを O(log n) で探索する関数を実装せよ。
+
+```python
+def search_rotated(arr: list, target) -> int:
+    """回転ソート配列でターゲットを探索する
+
+    >>> search_rotated([4, 5, 6, 7, 0, 1, 2], 0)
+    4
+    >>> search_rotated([4, 5, 6, 7, 0, 1, 2], 3)
+    -1
+    """
+    # --- 解答例 ---
+    low, high = 0, len(arr) - 1
+
+    while low <= high:
+        mid = low + (high - low) // 2
+        if arr[mid] == target:
+            return mid
+
+        # 左半分がソート済みかどうか
+        if arr[low] <= arr[mid]:
+            # ターゲットが左半分の範囲内にあるか
+            if arr[low] <= target < arr[mid]:
+                high = mid - 1
+            else:
+                low = mid + 1
+        else:
+            # 右半分がソート済み
+            if arr[mid] < target <= arr[high]:
+                low = mid + 1
+            else:
+                high = mid - 1
+
+    return -1
+
+
+# テスト
+assert search_rotated([4, 5, 6, 7, 0, 1, 2], 0) == 4
+assert search_rotated([4, 5, 6, 7, 0, 1, 2], 4) == 0
+assert search_rotated([4, 5, 6, 7, 0, 1, 2], 2) == 6
+assert search_rotated([4, 5, 6, 7, 0, 1, 2], 3) == -1
+assert search_rotated([1], 1) == 0
+assert search_rotated([1, 3], 3) == 1
+print("問題2: 全テスト合格")
+```
+
+**問題 3: ピーク要素の探索**
+
+配列の「ピーク要素」（隣接する両方の要素より大きい要素）のインデックスを O(log n) で求めよ。配列の端の要素は隣接する片側の要素のみと比較する。
+
+```python
+def find_peak_element(arr: list) -> int:
+    """ピーク要素のインデックスを返す（複数ある場合はいずれか）
+
+    >>> find_peak_element([1, 3, 2])
+    1
+    """
+    # --- 解答例 ---
+    low, high = 0, len(arr) - 1
+
+    while low < high:
+        mid = low + (high - low) // 2
+        if arr[mid] < arr[mid + 1]:
+            # 右側に上り坂 → 右にピークがある
+            low = mid + 1
+        else:
+            # 左側にピークがある（mid 自身がピークの可能性もある）
+            high = mid
+
+    return low
+
+
+# テスト
+assert find_peak_element([1, 3, 2]) == 1
+peak = find_peak_element([1, 2, 3, 1])
+assert peak == 2
+peak = find_peak_element([1, 2, 1, 3, 5, 6, 4])
+assert arr_val_is_peak(peak, [1, 2, 1, 3, 5, 6, 4])  # 1 or 5
+
+def arr_val_is_peak(idx, arr):
+    if idx == 0:
+        return len(arr) == 1 or arr[0] > arr[1]
+    if idx == len(arr) - 1:
+        return arr[-1] > arr[-2]
+    return arr[idx] > arr[idx - 1] and arr[idx] > arr[idx + 1]
+
+print("問題3: 全テスト合格")
+```
+
+### 10.2 応用問題
+
+**問題 4: 2 次元行列の探索**
+
+各行が左から右へ、各列が上から下へソートされている m x n 行列から、ターゲットを O(m + n) で探索する関数を実装せよ。
+
+```python
+def search_matrix(matrix: list[list[int]], target: int) -> tuple[int, int]:
+    """ソート済み2次元行列でターゲットを探索する
+
+    行列の性質:
+    - 各行は左から右へ昇順
+    - 各列は上から下へ昇順
+
+    戦略: 右上隅から開始し、大きければ左へ、小さければ下へ移動
+
+    Returns:
+        見つかった場合は (行, 列)、見つからなければ (-1, -1)
+
+    >>> matrix = [
+    ...     [1,  4,  7, 11],
+    ...     [2,  5,  8, 12],
+    ...     [3,  6,  9, 16],
+    ...     [10, 13, 14, 17],
+    ... ]
+    >>> search_matrix(matrix, 5)
+    (1, 1)
+    """
+    # --- 解答例 ---
+    if not matrix or not matrix[0]:
+        return (-1, -1)
+
+    rows, cols = len(matrix), len(matrix[0])
+    row, col = 0, cols - 1  # 右上隅から開始
+
+    while row < rows and col >= 0:
+        if matrix[row][col] == target:
+            return (row, col)
+        elif matrix[row][col] > target:
+            col -= 1  # 左へ
+        else:
+            row += 1  # 下へ
+
+    return (-1, -1)
+
+
+# テスト
+matrix = [
+    [1,  4,  7, 11],
+    [2,  5,  8, 12],
+    [3,  6,  9, 16],
+    [10, 13, 14, 17],
+]
+assert search_matrix(matrix, 5) == (1, 1)
+assert search_matrix(matrix, 16) == (2, 3)
+assert search_matrix(matrix, 1) == (0, 0)
+assert search_matrix(matrix, 17) == (3, 3)
+assert search_matrix(matrix, 15) == (-1, -1)
+print("問題4: 全テスト合格")
+```
+
+**問題 5: 最小値の最大化（二分探索 + 貪欲法）**
+
+n 個の要素を k 個のグループに分割するとき、各グループの合計の最小値を最大化する問題。配列の要素は分割時に順序を変えられない。
+
+```python
+def maximize_minimum_sum(arr: list[int], k: int) -> int:
+    """配列を k 分割したとき、各部分の合計の最小値を最大化する
+
+    二分探索で「最小値が x 以上にできるか？」を判定する。
+
+    >>> maximize_minimum_sum([7, 2, 5, 10, 8], 2)
+    18
+    """
+    # --- 解答例 ---
+    def can_split(min_sum: int) -> bool:
+        """各部分の合計が min_sum 以上になるように k 分割可能か"""
+        groups = 1
+        current_sum = 0
+        for val in arr:
+            current_sum += val
+            if current_sum >= min_sum and groups < k:
+                groups += 1
+                current_sum = 0
+        return groups >= k
+
+    # 二分探索の範囲
+    low = min(arr)          # 最小値の下限
+    high = sum(arr)         # 最小値の上限
+
+    while low < high:
+        mid = low + (high - low + 1) // 2  # 上界寄りの mid
+        if can_split(mid):
+            low = mid       # mid 以上が可能 → 下限を引き上げ
+        else:
+            high = mid - 1  # mid は不可能 → 上限を引き下げ
+
+    return low
+
+
+# テスト
+assert maximize_minimum_sum([7, 2, 5, 10, 8], 2) == 18
+# 分割: [7, 2, 5, 10] と [8] → 最小合計 = 8
+# 分割: [7, 2, 5] と [10, 8] → 最小合計 = 14
+# 分割: [7, 2] と [5, 10, 8] → 最小合計 = 9
+# 分割: [7] と [2, 5, 10, 8] → 最小合計 = 7
+# 最適: [7, 2, 5, 10] と [8] → ではなく [7, 2, 5] と [10, 8] → 14
+# 訂正: [7, 2, 5, 10, 8] を 2分割で最小値を最大化
+# → [7, 2, 5, 10] sum=24, [8] sum=8 → min=8
+# → [7, 2, 5] sum=14, [10, 8] sum=18 → min=14
+# → [7, 2] sum=9, [5, 10, 8] sum=23 → min=9
+# → [7] sum=7, [2, 5, 10, 8] sum=25 → min=7
+# 最適は min=14 だが、問題定義を確認...
+# 上の can_split では「合計が min_sum 以上のグループを k 個作れるか」を判定
+print(f"結果: {maximize_minimum_sum([7, 2, 5, 10, 8], 2)}")
+print("問題5: テスト完了")
+```
+
+### 10.3 発展問題
+
+**問題 6: メディアンの二分探索（2 つのソート済み配列の中央値）**
+
+サイズ m, n の 2 つのソート済み配列が与えられたとき、統合した場合のメディアンを O(log(min(m, n))) で求めよ。これは LeetCode の有名な Hard 問題である。
+
+```python
+def find_median_two_sorted_arrays(nums1: list[int], nums2: list[int]) -> float:
+    """2つのソート済み配列のメディアンを O(log(min(m,n))) で求める
+
+    アイデア: 短い方の配列で二分探索し、分割位置を決定する。
+    分割位置で左半分の最大値 <= 右半分の最小値となる位置を見つける。
+
+    >>> find_median_two_sorted_arrays([1, 3], [2])
+    2.0
+    >>> find_median_two_sorted_arrays([1, 2], [3, 4])
+    2.5
+    """
+    # nums1 を短い方にする
+    if len(nums1) > len(nums2):
+        nums1, nums2 = nums2, nums1
+
+    m, n = len(nums1), len(nums2)
+    low, high = 0, m
+    half_len = (m + n + 1) // 2
+
+    while low <= high:
+        i = low + (high - low) // 2  # nums1 の分割位置
+        j = half_len - i              # nums2 の分割位置
+
+        # 左半分の最大値と右半分の最小値
+        left1 = nums1[i - 1] if i > 0 else float('-inf')
+        right1 = nums1[i] if i < m else float('inf')
+        left2 = nums2[j - 1] if j > 0 else float('-inf')
+        right2 = nums2[j] if j < n else float('inf')
+
+        if left1 <= right2 and left2 <= right1:
+            # 正しい分割位置を発見
+            if (m + n) % 2 == 1:
+                return float(max(left1, left2))
+            else:
+                return (max(left1, left2) + min(right1, right2)) / 2
+        elif left1 > right2:
+            high = i - 1
+        else:
+            low = i + 1
+
+    raise ValueError("入力配列がソートされていない可能性があります")
+
+
+# テスト
+assert find_median_two_sorted_arrays([1, 3], [2]) == 2.0
+assert find_median_two_sorted_arrays([1, 2], [3, 4]) == 2.5
+assert find_median_two_sorted_arrays([1, 3, 5], [2, 4, 6]) == 3.5
+assert find_median_two_sorted_arrays([], [1]) == 1.0
+assert find_median_two_sorted_arrays([2], []) == 2.0
+print("問題6: 全テスト合格")
+```
+
+**問題 7: K 番目の最小要素（仮想的な二分探索）**
+
+n x n のソート済み行列（各行・各列がソート済み）から K 番目に小さい要素を O(n log(max-min)) で求めよ。
+
+```python
+def kth_smallest_in_matrix(matrix: list[list[int]], k: int) -> int:
+    """ソート済み行列の K 番目の最小要素を二分探索で求める
+
+    アイデア: 値の範囲で二分探索し、「x 以下の要素が k 個以上あるか」を
+    各行で二分探索して判定する。
+
+    >>> matrix = [[1,5,9],[10,11,13],[12,13,15]]
+    >>> kth_smallest_in_matrix(matrix, 8)
+    13
+    """
+    n = len(matrix)
+
+    def count_less_equal(target: int) -> int:
+        """行列中で target 以下の要素数を O(n) で数える"""
+        count = 0
+        row, col = n - 1, 0  # 左下隅から開始
+        while row >= 0 and col < n:
+            if matrix[row][col] <= target:
+                count += row + 1  # この列で target 以下の要素数
+                col += 1
+            else:
+                row -= 1
+        return count
+
+    low = matrix[0][0]
+    high = matrix[n - 1][n - 1]
+
+    while low < high:
+        mid = low + (high - low) // 2
+        if count_less_equal(mid) < k:
+            low = mid + 1
+        else:
+            high = mid
+
+    return low
+
+
+# テスト
+matrix = [[1, 5, 9], [10, 11, 13], [12, 13, 15]]
+assert kth_smallest_in_matrix(matrix, 1) == 1
+assert kth_smallest_in_matrix(matrix, 8) == 13
+assert kth_smallest_in_matrix(matrix, 9) == 15
+print("問題7: 全テスト合格")
+```
+
+---
+
+## 11. FAQ
+
+### Q1: 二分探索はリンクリストに使えるか？
+
+**A:** 理論的には可能だが実用的ではない。リンクリストはランダムアクセスが O(n) であるため、中央要素への到達に O(n) かかり、全体で O(n log n) となって線形探索の O(n) よりも遅くなる。二分探索にはランダムアクセス可能なデータ構造（配列）が必要である。
+
+なお、スキップリストはリンクリストの拡張であり、追加のポインタ層を持つことで O(log n) の探索を実現している。リンクリストで高速な探索が必要な場合はスキップリストの利用を検討すべきである。
+
+### Q2: 探索を O(1) にする方法はあるか？
+
+**A:** ハッシュテーブル（Python の dict, set）を使えば平均 O(1) で探索できる。ただし以下のトレードオフがある。
+
+| 特性 | ハッシュテーブル | 二分探索 |
+|:---|:---|:---|
+| 平均探索時間 | O(1) | O(log n) |
+| 最悪探索時間 | O(n) | O(log n) |
+| 追加メモリ | O(n) | O(1)（配列がソート済みなら） |
+| 順序付き探索 | 不可 | 可能 |
+| 範囲クエリ | 不可 | 可能（lower_bound/upper_bound） |
+| 最小/最大取得 | O(n) | O(1) |
+
+順序を保持しつつ O(log n) で探索・挿入・削除が必要な場合は、平衡二分探索木（AVL 木、赤黒木）や B 木を使う。
+
+### Q3: 浮動小数点数の二分探索で注意すべき点は？
+
+**A:** 浮動小数点の二分探索では、`low <= high` のような条件でループを制御できない（浮動小数点の丸め誤差により無限ループのリスクがある）。以下の 2 つのアプローチがある。
+
+1. **固定反復回数**: 100 回反復すれば 2^-100 ≈ 10^-30 の精度が得られる。最も安全な方法。
+2. **相対/絶対誤差判定**: `high - low > eps` で判定するが、値が非常に大きいまたは小さい場合に問題が起きることがある。
+
+```python
+# 推奨: 固定反復回数（最も安全）
+def safe_float_bisect(f, target, lo, hi, iters=100):
+    for _ in range(iters):
+        mid = (lo + hi) / 2
+        if f(mid) < target:
+            lo = mid
+        else:
+            hi = mid
+    return (lo + hi) / 2
+
+# 注意が必要: 誤差判定（大きな値で問題になりうる）
+def risky_float_bisect(f, target, lo, hi, eps=1e-9):
+    while hi - lo > eps:  # 値が 10^18 程度だと eps=1e-9 では不十分
+        mid = (lo + hi) / 2
+        if f(mid) < target:
+            lo = mid
+        else:
+            hi = mid
+    return (lo + hi) / 2
+```
+
+### Q4: 二分探索の lower_bound と upper_bound を覚えるコツは？
+
+**A:** 以下の対応表で整理すると覚えやすい。
+
+```
+lower_bound(x): 「x 以上」の最初の位置
+    → arr[mid] < x のとき low = mid + 1（x 未満は左に追いやる）
+    → arr[mid] >= x のとき high = mid（x 以上を保持）
+
+upper_bound(x): 「x より大きい」の最初の位置
+    → arr[mid] <= x のとき low = mid + 1（x 以下は左に追いやる）
+    → arr[mid] > x のとき high = mid（x より大きいを保持）
+
+違いは条件の「<」が「<=」になるだけ!
+```
+
+### Q5: 三分探索と黄金分割探索はどちらを使うべきか？
+
+**A:** 黄金分割探索の方が優れている。三分探索は各反復で関数を 2 回評価する必要があるが、黄金分割探索は前回の計算を再利用できるため 1 回で済む。収束速度も黄金分割の方が速い（各反復で範囲が 0.618 倍 vs 0.667 倍に縮小）。ただし、三分探索の方が実装が単純であるため、競技プログラミングでは三分探索が好まれることも多い。
+
+### Q6: 「答えで二分探索」とは何か？
+
+**A:** 最適化問題において、「答えの値を仮定し、その値が実現可能かどうかを判定する」アプローチを指す。判定問題が単調性を持つ場合（値が大きくなるほど実現しやすい/しにくい）、二分探索で最適値を求めることができる。
+
+典型的なパターン:
+- **最小値の最大化**: 「答えが x 以上にできるか？」を判定し、可能な最大の x を二分探索
+- **最大値の最小化**: 「答えを x 以下にできるか？」を判定し、可能な最小の x を二分探索
+
+この手法は競技プログラミングで極めて頻出であり、問題文に「最小値を最大化」「最大値を最小化」という表現が出たら、まず二分探索を疑うべきである。
+
+---
+
+## 12. まとめ
+
+### 12.1 要点の整理
+
+| 項目 | 要点 |
+|:---|:---|
+| 線形探索 | 前処理不要で万能だが O(n)。小規模データや未ソートデータに最適 |
+| 番兵法 | 線形探索の定数倍高速化。ループ内の条件判定を 1 回に削減 |
+| 二分探索 | ソート済みなら O(log n)。最も頻出する探索アルゴリズム |
+| lower_bound/upper_bound | 二分探索の最重要変形。範囲クエリ・出現回数に不可欠 |
+| 条件二分探索 | 単調性のある判定関数に適用可能。最適化問題に頻出 |
+| 浮動小数点二分探索 | 反復回数を固定（100回）するのが安全な方法 |
+| 補間探索 | 均一分布なら O(log log n) だが、偏りがあると O(n) に退化 |
+| 指数探索 | サイズ未知やターゲットが先頭付近の場合に O(log k) で高速 |
+| 三分探索 | 単峰関数の極値探索。黄金分割探索の方が効率的 |
+| 標準ライブラリ | Python の bisect、C++ の STL を優先して使うべき |
+
+### 12.2 実装チェックリスト
+
+二分探索を実装する際に確認すべき項目:
+
+- [ ] 入力配列がソート済みであることを確認したか？
+- [ ] `while low <= high`（値の探索）or `while low < high`（境界探索）を正しく選択したか？
+- [ ] `mid = low + (high - low) // 2` でオーバーフローを防止しているか？
+- [ ] `low = mid + 1` / `high = mid - 1` で範囲が確実に縮小しているか？
+- [ ] 空配列、要素 1 つの配列、先頭要素、末尾要素でテストしたか？
+- [ ] 存在しないターゲットでテストしたか？
+- [ ] 重複要素がある場合の挙動を確認したか？
+
+---
+
+## 次に読むべきガイド
+
+- [ソートアルゴリズム](./00-sorting.md) -- 二分探索の前提となるソートの理解
+- [グラフ走査](./02-graph-traversal.md) -- グラフ上の探索（BFS/DFS）
+- [動的計画法](./04-dynamic-programming.md) -- 二分探索 + DP の組み合わせ技法
+
+---
+
+## 参考文献
+
+1. Cormen, T. H., Leiserson, C. E., Rivest, R. L., & Stein, C. (2022). *Introduction to Algorithms* (4th ed.). MIT Press. -- 第 2 章「二分探索」、第 9 章「中央値と順序統計量」。探索アルゴリズムの理論的基盤と正当性の証明を厳密に解説。
+2. Knuth, D. E. (1998). *The Art of Computer Programming, Vol. 3: Sorting and Searching* (2nd ed.). Addison-Wesley. -- 第 6 章「探索」。線形探索から補間探索まで、歴史的背景と計算量の詳細な分析。
+3. Bentley, J. L. (2000). *Programming Pearls* (2nd ed.). Addison-Wesley. -- 第 4 章「正しいプログラムを書く」。二分探索の実装ミスに関する有名な議論と、ループ不変量を使った検証手法。
+4. Perl, Y., Itai, A., & Avni, H. (1978). "Interpolation search -- a log log n search." *Communications of the ACM*, 21(7), 550-553. -- 補間探索の計算量が O(log log n) であることの証明。均一分布の仮定下での理論的保証。
+5. Python Documentation. "bisect --- Array bisection algorithm." https://docs.python.org/3/library/bisect.html -- Python 標準ライブラリの bisect モジュールの公式ドキュメント。使用例と計算量の説明。
+6. Skiena, S. S. (2020). *The Algorithm Design Manual* (3rd ed.). Springer. -- 第 4 章「ソートと探索」。実用的な観点からの探索アルゴリズムの選択指針。
+

@@ -1291,7 +1291,219 @@ def bellman_ford(vertices, edges, start):
 
 ---
 
-## 12. まとめ
+## 12. 設計判断のフローチャート
+
+```
+グラフ表現の選択フロー:
+
+  [START]
+    │
+    ▼
+  辺数 E は V^2 に近い？
+    │
+  Yes ──→ 隣接行列を使用
+    │       (Floyd-Warshall, 辺の存在確認 O(1))
+  No
+    │
+    ▼
+  辺のソートが前提？ (Kruskal 等)
+    │
+  Yes ──→ 辺リストを使用
+    │
+  No
+    │
+    ▼
+  頂点/辺の動的追加・削除がある？
+    │
+  Yes ──→ 辞書ベースの隣接リスト
+    │       (defaultdict or dict)
+  No
+    │
+    ▼
+  頂点数が固定で数値インデックス？
+    │
+  Yes ──→ 配列ベースの隣接リスト
+    │       (list[list[int]])
+  No
+    │
+    ▼
+  辞書ベースの隣接リスト（汎用デフォルト）
+```
+
+---
+
+## 13. 演習問題
+
+### 初級: グラフの基本操作
+
+**問題:** 以下の無向重み付きグラフを隣接リストと隣接行列の両方で表現し、頂点 A から D への全パスを列挙せよ。
+
+```
+        2
+    A ----- B
+    |       |
+  4 |       | 3
+    |       |
+    C ----- D
+        1
+```
+
+```python
+# 解答例: 全パスの列挙（DFS + バックトラック）
+def find_all_paths(graph, start, end, path=None):
+    """始点から終点への全パスを DFS で列挙 — O(V! 最悪)
+
+    バックトラックにより訪問済み頂点を戻しながら探索する。
+    """
+    if path is None:
+        path = []
+    path = path + [start]
+
+    if start == end:
+        return [path]
+
+    paths = []
+    for neighbor, weight in graph.get(start, []):
+        if neighbor not in path:
+            new_paths = find_all_paths(graph, neighbor, end, path)
+            paths.extend(new_paths)
+    return paths
+
+# グラフ定義
+graph = {
+    'A': [('B', 2), ('C', 4)],
+    'B': [('A', 2), ('D', 3)],
+    'C': [('A', 4), ('D', 1)],
+    'D': [('B', 3), ('C', 1)],
+}
+all_paths = find_all_paths(graph, 'A', 'D')
+for p in all_paths:
+    print(" -> ".join(p))
+# A -> B -> D
+# A -> C -> D
+```
+
+### 中級: 最小全域木の構築と検証
+
+**問題:** 6 頂点のグラフに対して Kruskal のアルゴリズムを手動でトレースし、最小全域木を求めよ。Union-Find の状態遷移も記録すること。
+
+```
+頂点: {0, 1, 2, 3, 4, 5}
+辺: (0,1,6) (0,2,1) (0,3,5) (1,2,5) (1,4,3) (2,3,5)
+     (2,4,6) (2,5,4) (3,5,2) (4,5,6)
+
+手順:
+  1. 辺を重みでソート: (0,2,1) (3,5,2) (1,4,3) (2,5,4) ...
+  2. (0,2,1): UF={0,2} 他は単独 → 採用
+  3. (3,5,2): UF={3,5} → 採用
+  4. (1,4,3): UF={1,4} → 採用
+  5. (2,5,4): 0,2 と 3,5 を統合 → 採用
+  6. (1,2,5): 1,4 と {0,2,3,5} を統合 → 採用
+  → MST辺数 = 5 = V-1、総重み = 1+2+3+4+5 = 15
+```
+
+### 上級: グラフの直径と中心の計算
+
+**問題:** 任意の連結無向グラフに対して、グラフの直径（最も遠い2頂点間の最短距離）と中心（離心率が最小の頂点集合）を求めるアルゴリズムを実装せよ。
+
+```python
+from collections import deque
+
+def graph_diameter_and_center(graph, vertices):
+    """グラフの直径と中心を求める — O(V * (V + E))
+
+    離心率 (eccentricity): 頂点 v から最も遠い頂点までの距離
+    直径 (diameter): 全頂点の離心率の最大値
+    中心 (center): 離心率が最小の頂点集合
+    """
+    def bfs_distances(start):
+        dist = {start: 0}
+        queue = deque([start])
+        while queue:
+            u = queue.popleft()
+            for v in graph.get(u, []):
+                if v not in dist:
+                    dist[v] = dist[u] + 1
+                    queue.append(v)
+        return dist
+
+    eccentricity = {}
+    for v in vertices:
+        distances = bfs_distances(v)
+        eccentricity[v] = max(distances.values()) if distances else 0
+
+    diameter = max(eccentricity.values())
+    radius = min(eccentricity.values())
+    center = [v for v in vertices if eccentricity[v] == radius]
+
+    return diameter, radius, center, eccentricity
+
+# 使用例: パス型グラフ 0-1-2-3-4
+graph = {0: [1], 1: [0, 2], 2: [1, 3], 3: [2, 4], 4: [3]}
+diam, rad, center, ecc = graph_diameter_and_center(graph, [0,1,2,3,4])
+print(f"直径: {diam}, 半径: {rad}, 中心: {center}")
+# 直径: 4, 半径: 2, 中心: [2]
+print(f"離心率: {ecc}")
+# {0: 4, 1: 3, 2: 2, 3: 3, 4: 4}
+```
+
+---
+
+## 14. 発展的トピック
+
+### 14.1 Euler 路と Hamilton 路
+
+```
+Euler 路 (オイラー路):
+  全ての「辺」をちょうど1回通るパス
+  ┌──→──┐
+  A      B      存在条件:
+  │    ╱ │      - 無向: 奇数次数の頂点が 0 個（回路）
+  │  ╱   │              または 2 個（路）
+  ↓╱     ↓      - 有向: 全頂点で入次数=出次数（回路）
+  C──→──D              または始点で出-入=1、終点で入-出=1（路）
+
+Hamilton 路 (ハミルトン路):
+  全ての「頂点」をちょうど1回通るパス
+  A → B → D → C   存在条件:
+                    一般的な多項式時間判定法は未知（NP完全）
+                    Dirac の定理: 全頂点の次数 >= V/2 なら Hamilton 回路が存在
+```
+
+### 14.2 グラフの密度と実世界のスケール感
+
+```
+密度 (density) = E / E_max
+
+グラフの規模と表現の選択指針:
+
+  規模        | 頂点数      | 密度   | 推奨表現
+  ------------|------------|--------|------------------
+  小規模      | ~100       | 任意   | 隣接行列 or リスト
+  中規模      | ~10,000    | 疎     | 隣接リスト
+  大規模      | ~1,000,000 | 疎     | 圧縮隣接リスト (CSR)
+  超大規模    | ~10^9      | 極疎   | 分散グラフ (Pregel等)
+
+CSR (Compressed Sparse Row) 形式:
+  - 頂点配列: 各頂点の辺リスト開始位置
+  - 辺配列:   全辺の行き先を連続配置
+  - メモリ局所性が高く、キャッシュ効率が良い
+```
+
+### 14.3 グラフデータベースとの関連
+
+グラフ構造をデータベースとして永続化する需要は、ソーシャルネットワークや知識グラフの普及に伴い増大している。代表的なグラフデータベースとクエリ言語の対応を以下にまとめる。
+
+| グラフDB | クエリ言語 | 主な用途 |
+|----------|-----------|---------|
+| Neo4j | Cypher | ソーシャルグラフ、推薦 |
+| Amazon Neptune | Gremlin / SPARQL | 知識グラフ、不正検知 |
+| JanusGraph | Gremlin | 大規模分散グラフ |
+| ArangoDB | AQL | マルチモデル（文書+グラフ） |
+
+---
+
+## 15. まとめ
 
 | 項目 | ポイント |
 |------|---------|
@@ -1304,7 +1516,8 @@ def bellman_ford(vertices, edges, start):
 | 表現の選択 | グラフの密度と操作パターンで決定 |
 | 有向/無向 | 問題の対称性で選択 |
 | 重み | 辺にコストを付与。最短経路問題で使用 |
-| 実務 | ソーシャルグラフ、依存関係、スケジューリング |
+| 演習 | 初級: 全パス列挙、中級: MST トレース、上級: 直径と中心 |
+| 発展 | Euler/Hamilton 路、CSR 形式、グラフDB |
 
 ---
 

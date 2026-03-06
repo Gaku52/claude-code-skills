@@ -2081,3 +2081,769 @@ if __name__ == "__main__":
     # 出力: ソート後: 1 -> 2 -> 3 -> 4 -> 5 -> None
 ```
 
+---
+
+## 9. 比較表と計算量まとめ
+
+### 表1: リスト種別の詳細比較
+
+| 特性 | 単方向リスト | 双方向リスト | 循環リスト（単方向） | 循環リスト（双方向） |
+|------|-------------|-------------|---------------------|---------------------|
+| ノードあたりポインタ数 | 1 | 2 | 1 | 2 |
+| 前方走査 | O(1) / step | O(1) / step | O(1) / step | O(1) / step |
+| 後方走査 | O(n) | O(1) / step | O(n) | O(1) / step |
+| 先頭挿入 | O(1) | O(1) | O(1) | O(1) |
+| 末尾挿入 (tail なし) | O(n) | O(n) | O(1)* | O(1)* |
+| 末尾挿入 (tail あり) | O(1) | O(1) | O(1) | O(1) |
+| 先頭削除 | O(1) | O(1) | O(1) | O(1) |
+| 末尾削除 | O(n) | O(1) | O(n) | O(1) |
+| 任意ノード削除 (参照あり) | O(n)** | O(1) | O(n)** | O(1) |
+| 検索 | O(n) | O(n) | O(n) | O(n) |
+| メモリ効率 | 最良 | 中 | 良 | 中 |
+| null 参照の有無 | あり | あり | なし | なし |
+| 実装の複雑さ | 低 | 中 | 中 | 高 |
+| 代表的用途 | スタック, チェイン法 | LRU キャッシュ | ラウンドロビン | OS タスクスケジューラ |
+
+\* 循環リストでは tail ポインタから head (= tail.next) に O(1) でアクセス可能
+
+\** 前のノードの参照がないため、走査が必要
+
+### 表2: 配列 vs 連結リスト — 詳細比較
+
+| 観点 | 動的配列 (Python list) | 単方向連結リスト | 双方向連結リスト |
+|------|----------------------|-----------------|-----------------|
+| ランダムアクセス | O(1) | O(n) | O(n) |
+| 先頭挿入 | O(n) | O(1) | O(1) |
+| 末尾挿入 | O(1) 償却 | O(n) or O(1)* | O(1) |
+| 中間挿入 | O(n) | O(1)** | O(1)** |
+| 先頭削除 | O(n) | O(1) | O(1) |
+| 末尾削除 | O(1) | O(n) | O(1) |
+| 中間削除 | O(n) | O(1)** | O(1)** |
+| メモリ局所性 | 高い（キャッシュ効率良） | 低い | 低い |
+| メモリオーバーヘッド | 低い（余剰スロット分） | 中（next ポインタ） | 高（prev + next ポインタ） |
+| サイズ変更 | 自動リサイズ（コピー発生） | 不要 | 不要 |
+| メモリ断片化 | なし | あり | あり |
+| イテレーション速度 | 最速 | 遅い | 遅い |
+| 並行処理との相性 | ロック粒度が粗い | ノード単位ロック可能 | ノード単位ロック可能 |
+| 言語サポート | 広い | 手動実装が多い | 手動実装が多い |
+
+\* tail ポインタがある場合 O(1)
+\** 挿入・削除位置のノード参照が既に手元にある場合
+
+### 表3: 連結リスト関連アルゴリズムの計算量
+
+| アルゴリズム | 時間計算量 | 空間計算量 | 備考 |
+|-------------|-----------|-----------|------|
+| リスト反転（イテレーティブ） | O(n) | O(1) | 推奨 |
+| リスト反転（再帰） | O(n) | O(n) | スタックオーバーフロー注意 |
+| サイクル検出（フロイド） | O(n) | O(1) | 推奨 |
+| サイクル検出（ハッシュセット） | O(n) | O(n) | 実装は簡単 |
+| 2 リストマージ | O(n + m) | O(1) | ダミーヘッド使用 |
+| K リストマージ（ヒープ） | O(N log K) | O(K) | N = 全ノード数 |
+| 中間ノード取得 | O(n) | O(1) | slow/fast |
+| 末尾から K 番目削除 | O(n) | O(1) | 2 ポインタ |
+| 回文判定 | O(n) | O(1) | 後半反転 |
+| マージソート | O(n log n) | O(log n) | 再帰スタック |
+| ヨセフスの問題 | O(n * k) | O(n) | 循環リスト |
+| LRU キャッシュ get/put | O(1) | O(n) | DLL + HashMap |
+
+---
+
+## 10. アンチパターン集
+
+### アンチパターン 1: ダミーヘッドを使わない
+
+先頭ノードの削除や空リストの処理で、条件分岐が増えてバグの温床になる。
+
+```python
+# BAD: 先頭ノードを特別扱い → コードが複雑で間違えやすい
+def delete_bad(head, val):
+    if head and head.val == val:
+        return head.next
+    curr = head
+    while curr and curr.next:
+        if curr.next.val == val:
+            curr.next = curr.next.next
+            return head
+        curr = curr.next
+    return head
+
+# GOOD: ダミーヘッドで統一的に処理
+def delete_good(head, val):
+    dummy = ListNode(0, head)
+    prev = dummy
+    curr = head
+    while curr:
+        if curr.val == val:
+            prev.next = curr.next
+        else:
+            prev = curr
+        curr = curr.next
+    return dummy.next
+```
+
+**問題点**: `delete_bad` では先頭ノードの削除が特別ケースとなり、
+複数値の削除やリストが空のケースを正しく扱うのが困難になる。
+
+### アンチパターン 2: リストの長さを毎回走査して計算する
+
+```python
+# BAD: 操作のたびに O(n) で長さを数える
+class BadList:
+    def __init__(self):
+        self.head = None
+
+    def length(self):  # O(n) 毎回
+        count = 0
+        curr = self.head
+        while curr:
+            count += 1
+            curr = curr.next
+        return count
+
+    def insert_at(self, index, val):
+        if index > self.length():  # ここで O(n)
+            raise IndexError
+        # ... 挿入処理でさらに O(n)
+        # 合計 O(2n) = O(n) だが定数倍が無駄
+
+# GOOD: 長さをフィールドとして管理
+class GoodList:
+    def __init__(self):
+        self.head = None
+        self._size = 0
+
+    def length(self):  # O(1)
+        return self._size
+
+    def insert_at(self, index, val):
+        if index > self._size:
+            raise IndexError
+        # ... 挿入処理
+        self._size += 1
+```
+
+### アンチパターン 3: ノード削除時にメモリリークを見落とす
+
+Python のようなガベージコレクション言語では問題にならないが、
+C/C++ などの手動メモリ管理言語では深刻な問題になる。
+
+```python
+# BAD (C/C++ 的な思考): 削除したノードの参照を放置
+def delete_node_bad(prev_node):
+    # ノードを飛ばすだけで、メモリを解放しない
+    target = prev_node.next
+    prev_node.next = target.next
+    # target のメモリが解放されない → メモリリーク
+    # C では free(target) が必要
+
+# GOOD: Python では参照カウントにより自動解放されるが、
+# 循環参照がある場合は明示的に切断する
+def delete_node_good(prev_node):
+    target = prev_node.next
+    prev_node.next = target.next
+    target.next = None  # 参照を明示的に切断（グッドプラクティス）
+```
+
+### アンチパターン 4: 走査中にリストを変更する
+
+```python
+# BAD: イテレーション中にノードを削除 → 予期しない動作
+def delete_all_bad(head, val):
+    curr = head
+    while curr:
+        if curr.val == val:
+            # curr を削除したいが、prev の参照がない
+            # curr.next を直接操作すると構造が壊れる
+            pass
+        curr = curr.next
+
+# GOOD: prev ポインタを維持し、安全に削除
+def delete_all_good(head, val):
+    dummy = ListNode(0, head)
+    prev = dummy
+    curr = head
+    while curr:
+        if curr.val == val:
+            prev.next = curr.next  # ノードをスキップ
+            # prev は移動しない（次のノードも削除対象の可能性）
+        else:
+            prev = curr
+        curr = curr.next
+    return dummy.next
+```
+
+### アンチパターン 5: 値の比較とノードの同一性を混同する
+
+```python
+# BAD: == で値を比較してしまう（サイクル検出で致命的）
+def has_cycle_bad(head):
+    slow = fast = head
+    while fast and fast.next:
+        slow = slow.next
+        fast = fast.next.next
+        if slow == fast:       # 値の比較 → 異なるノードでも True になりうる
+            return True
+    return False
+
+# GOOD: is でノードの同一性（アイデンティティ）を比較
+def has_cycle_good(head):
+    slow = fast = head
+    while fast and fast.next:
+        slow = slow.next
+        fast = fast.next.next
+        if slow is fast:       # 同一オブジェクトかどうかを比較
+            return True
+    return False
+```
+
+---
+
+## 11. 演習問題 -- 基礎・応用・発展
+
+### 基礎問題
+
+#### 問題 B1: リストの要素数を数える
+
+連結リストの先頭ノードを受け取り、要素数を返す関数を実装せよ。
+
+```python
+def count_nodes(head: Optional[ListNode]) -> int:
+    """連結リストのノード数を返す。
+
+    Args:
+        head: リストの先頭ノード。
+
+    Returns:
+        ノード数。
+
+    Examples:
+        >>> count_nodes(build_list([1, 2, 3, 4, 5]))
+        5
+        >>> count_nodes(None)
+        0
+    """
+    # ここに実装を書く
+    pass
+```
+
+<details>
+<summary>解答を表示</summary>
+
+```python
+def count_nodes(head):
+    count = 0
+    current = head
+    while current:
+        count += 1
+        current = current.next
+    return count
+```
+</details>
+
+#### 問題 B2: リストの末尾ノードの値を返す
+
+```python
+def get_last(head: Optional[ListNode]):
+    """リストの末尾ノードの値を返す。空リストなら None。
+
+    Examples:
+        >>> get_last(build_list([10, 20, 30]))
+        30
+        >>> get_last(None)
+        None
+    """
+    pass
+```
+
+<details>
+<summary>解答を表示</summary>
+
+```python
+def get_last(head):
+    if not head:
+        return None
+    current = head
+    while current.next:
+        current = current.next
+    return current.val
+```
+</details>
+
+#### 問題 B3: リストから重複を除去する（ソート済み）
+
+ソート済みリストから重複する値を持つノードを除去せよ。
+
+```python
+def remove_duplicates_sorted(head: Optional[ListNode]) -> Optional[ListNode]:
+    """ソート済みリストから重複を除去する。
+
+    Examples:
+        >>> list_to_array(remove_duplicates_sorted(build_list([1, 1, 2, 3, 3, 3, 4])))
+        [1, 2, 3, 4]
+    """
+    pass
+```
+
+<details>
+<summary>解答を表示</summary>
+
+```python
+def remove_duplicates_sorted(head):
+    current = head
+    while current and current.next:
+        if current.val == current.next.val:
+            current.next = current.next.next
+        else:
+            current = current.next
+    return head
+```
+</details>
+
+### 応用問題
+
+#### 問題 A1: 2 つのリストの交差ノードを見つける
+
+2 つの連結リストが途中で合流している場合、合流点のノードを返せ。
+合流していなければ None を返せ。O(n + m) 時間、O(1) 空間で解くこと。
+
+```
+リスト A: [1] -> [2] ──┐
+                        ├──→ [8] -> [9] -> None
+リスト B: [3] -> [4] -> [5] ──┘
+```
+
+```python
+def get_intersection_node(headA: ListNode, headB: ListNode) -> Optional[ListNode]:
+    """2 つのリストの交差ノードを返す。
+
+    ヒント: ポインタ A がリスト A の末尾に達したらリスト B の先頭に移り、
+    ポインタ B がリスト B の末尾に達したらリスト A の先頭に移る。
+    """
+    pass
+```
+
+<details>
+<summary>解答を表示</summary>
+
+```python
+def get_intersection_node(headA, headB):
+    if not headA or not headB:
+        return None
+
+    pA, pB = headA, headB
+
+    # 各ポインタは最大 2 回のリスト走査で合流点に到達する
+    # lenA + lenB == lenB + lenA なので、同じ距離を歩く
+    while pA is not pB:
+        pA = pA.next if pA else headB
+        pB = pB.next if pB else headA
+
+    return pA  # 合流点、または None（交差なし）
+```
+
+**なぜこれで動くか**: ポインタ A は lenA + lenB 歩、ポインタ B は
+lenB + lenA 歩進む。交差がある場合、合流点から末尾までの共通部分の
+長さを c とすると、両ポインタは (lenA - c) + (lenB - c) + c 歩後に
+合流点で出会う。
+</details>
+
+#### 問題 A2: リストを奇数番目と偶数番目に分離する
+
+リストのノードを、奇数番目（1, 3, 5, ...）と偶数番目（2, 4, 6, ...）に分離し、
+奇数グループの後に偶数グループを連結せよ。
+
+```python
+def odd_even_list(head: Optional[ListNode]) -> Optional[ListNode]:
+    """奇数番目と偶数番目のノードを分離して連結する。
+
+    Examples:
+        >>> list_to_array(odd_even_list(build_list([1, 2, 3, 4, 5])))
+        [1, 3, 5, 2, 4]
+    """
+    pass
+```
+
+<details>
+<summary>解答を表示</summary>
+
+```python
+def odd_even_list(head):
+    if not head or not head.next:
+        return head
+
+    odd = head
+    even = head.next
+    even_head = even
+
+    while even and even.next:
+        odd.next = even.next
+        odd = odd.next
+        even.next = odd.next
+        even = even.next
+
+    odd.next = even_head  # 奇数リストの末尾に偶数リストを連結
+    return head
+```
+</details>
+
+#### 問題 A3: 連結リストを値 x を基準にパーティションする
+
+値 x 未満のノードを全て x 以上のノードの前に移動せよ。
+各パーティション内の相対順序は保持すること。
+
+```python
+def partition(head: Optional[ListNode], x: int) -> Optional[ListNode]:
+    """リストを x を基準にパーティションする。
+
+    Examples:
+        >>> list_to_array(partition(build_list([1, 4, 3, 2, 5, 2]), 3))
+        [1, 2, 2, 4, 3, 5]
+    """
+    pass
+```
+
+<details>
+<summary>解答を表示</summary>
+
+```python
+def partition(head, x):
+    before_dummy = ListNode(0)
+    after_dummy = ListNode(0)
+    before = before_dummy
+    after = after_dummy
+
+    current = head
+    while current:
+        if current.val < x:
+            before.next = current
+            before = before.next
+        else:
+            after.next = current
+            after = after.next
+        current = current.next
+
+    after.next = None          # 末尾を切断
+    before.next = after_dummy.next  # 2 つのリストを連結
+    return before_dummy.next
+```
+</details>
+
+### 発展問題
+
+#### 問題 E1: 任意のノードを O(1) で削除する
+
+次のノードがある（末尾ではない）ノードの参照だけが与えられた場合に、
+そのノードを O(1) で削除せよ。head は与えられない。
+
+```python
+def delete_node(node: ListNode) -> None:
+    """与えられたノードをリストから O(1) で削除する。
+
+    制約: node は末尾ノードではない。
+
+    ヒント: 値のコピーとポインタの付け替えを組み合わせる。
+    """
+    pass
+```
+
+<details>
+<summary>解答を表示</summary>
+
+```python
+def delete_node(node):
+    # 次のノードの値を自分にコピーし、次のノードを飛ばす
+    node.val = node.next.val
+    node.next = node.next.next
+```
+
+**注意**: この手法は「ノードの削除」ではなく「値のコピー」であり、
+外部から元のノードへの参照を持つコードには影響を与えない。
+また、末尾ノードには適用できない。
+</details>
+
+#### 問題 E2: K 個ごとにグループを反転する
+
+リストを K 個ずつのグループに分け、各グループ内を反転せよ。
+最後のグループが K 個未満の場合はそのまま残す。
+
+```python
+def reverse_k_group(head: Optional[ListNode], k: int) -> Optional[ListNode]:
+    """リストを K 個ごとに反転する。
+
+    Examples:
+        >>> list_to_array(reverse_k_group(build_list([1, 2, 3, 4, 5]), 3))
+        [3, 2, 1, 4, 5]
+    """
+    pass
+```
+
+<details>
+<summary>解答を表示</summary>
+
+```python
+def reverse_k_group(head, k):
+    # まず K 個あるか確認
+    count = 0
+    node = head
+    while node and count < k:
+        node = node.next
+        count += 1
+
+    if count < k:
+        return head  # K 個未満はそのまま
+
+    # K 個を反転
+    prev = None
+    curr = head
+    for _ in range(k):
+        next_node = curr.next
+        curr.next = prev
+        prev = curr
+        curr = next_node
+
+    # head は反転後の末尾。残りを再帰的に処理して接続
+    head.next = reverse_k_group(curr, k)
+    return prev  # 反転後の先頭
+```
+</details>
+
+#### 問題 E3: コピーリストの深いコピー（ランダムポインタ付き）
+
+各ノードが next ポインタに加えて random ポインタ（リスト内の任意ノードまたは None を指す）を持つ連結リストの深いコピーを作成せよ。
+
+```python
+class RandomNode:
+    def __init__(self, val=0, next=None, random=None):
+        self.val = val
+        self.next = next
+        self.random = random
+
+
+def copy_random_list(head: Optional[RandomNode]) -> Optional[RandomNode]:
+    """ランダムポインタ付きリストの深いコピーを作成する。
+
+    O(n) 時間、O(n) 空間で解くこと。
+    """
+    pass
+```
+
+<details>
+<summary>解答を表示</summary>
+
+```python
+def copy_random_list(head):
+    if not head:
+        return None
+
+    # Step 1: old -> new のマッピングを作成
+    old_to_new = {}
+    current = head
+    while current:
+        old_to_new[current] = RandomNode(current.val)
+        current = current.next
+
+    # Step 2: next と random をコピー
+    current = head
+    while current:
+        copy = old_to_new[current]
+        copy.next = old_to_new.get(current.next)
+        copy.random = old_to_new.get(current.random)
+        current = current.next
+
+    return old_to_new[head]
+```
+
+**発展**: O(1) 空間での解法も存在する（interleaving 手法）。
+元リストの各ノードの直後にコピーを挿入し、random を設定した後、
+元リストとコピーを分離する。
+</details>
+
+---
+
+## 12. FAQ -- よくある質問
+
+### Q1: 連結リストは実務でどこに使われるのか？
+
+**A**: 連結リストは以下の場面で広く使われている。
+
+- **OS のプロセス管理**: Linux カーネルはプロセスやスレッドの管理に
+  双方向循環リスト (`list_head`) を使用する。
+- **LRU キャッシュ**: 双方向リスト + ハッシュマップの組み合わせで
+  O(1) の get/put を実現する（本ガイド 5.2 節参照）。
+- **メモリアロケータ**: フリーリスト（空きメモリブロックのリスト）として
+  使用される。malloc/free の内部実装に関わる。
+- **ブラウザの履歴**: 「戻る/進む」機能は双方向リストでモデル化できる。
+- **音楽プレイヤーのプレイリスト**: 前の曲/次の曲、シャッフル再生。
+- **ブロックチェーン**: 各ブロックが前のブロックのハッシュを保持し、
+  連結リスト構造を形成する。
+- **Undo/Redo 機能**: テキストエディタやグラフィックツールのコマンド履歴。
+
+### Q2: Python には組み込みの連結リストはあるか？
+
+**A**: Python の標準ライブラリには純粋な連結リストのクラスは存在しない。
+ただし、`collections.deque` が内部的にブロック双方向連結リストで
+実装されており、両端からの O(1) 挿入・削除を提供する。
+
+```python
+from collections import deque
+
+# deque は連結リストの多くのユースケースをカバーする
+d = deque([1, 2, 3, 4, 5])
+d.appendleft(0)    # 先頭挿入 O(1)
+d.append(6)        # 末尾挿入 O(1)
+d.popleft()        # 先頭削除 O(1)
+d.pop()            # 末尾削除 O(1)
+d.rotate(2)        # 回転
+```
+
+コーディング面接では `ListNode` クラスを自前実装する前提が一般的である。
+
+### Q3: フロイドのアルゴリズムはなぜ O(1) 空間でサイクルを検出できるのか？
+
+**A**: フロイドのアルゴリズムは 2 つのポインタ（slow と fast）のみを使用する。
+slow は 1 歩ずつ、fast は 2 歩ずつ進むため、追加のメモリは定数（ポインタ 2 個分）
+のみで済む。
+
+対照的に、ハッシュセットを使う方法では訪問済みノードを全て記録するため
+O(n) の空間が必要になる。
+
+```python
+# O(n) 空間の方法（比較用）
+def has_cycle_hashset(head):
+    visited = set()
+    current = head
+    while current:
+        if id(current) in visited:  # ノードのアイデンティティで比較
+            return True
+        visited.add(id(current))
+        current = current.next
+    return False
+```
+
+フロイドのアルゴリズムが動作する直感的な説明:
+サイクル内に入ると、fast は slow に対して毎ステップ 1 ノード分ずつ接近する
+（相対速度 = 2 - 1 = 1）。サイクル長を lambda とすると、最大 lambda ステップで
+必ず同じノードに到達する。
+
+### Q4: 連結リストとスキップリストの違いは何か？
+
+**A**: 通常の連結リストは検索に O(n) かかるが、スキップリストは
+多段のインデックスレベルを持つことで O(log n) の検索を実現する
+確率的データ構造である。
+
+| 特性 | 連結リスト | スキップリスト |
+|------|-----------|--------------|
+| 検索 | O(n) | O(log n) 期待 |
+| 挿入 | O(1)* | O(log n) 期待 |
+| 削除 | O(1)* | O(log n) 期待 |
+| 空間 | O(n) | O(n) 期待 |
+| 実装の複雑さ | 低 | 中 |
+| 用途 | 汎用 | 順序付きコレクション |
+
+\* 位置が既知の場合
+
+Redis のソート済みセットはスキップリストで実装されており、
+平衡二分探索木の代替として使われている。
+
+### Q5: なぜ配列ではなく連結リストを使うべきか？
+
+**A**: 以下の条件に当てはまる場合は連結リストが適している。
+
+1. **頻繁な先頭挿入・削除**: 配列の O(n) に対し、連結リストは O(1)。
+2. **サイズが予測不可能**: 配列はリサイズ時にコピーが発生するが、
+   連結リストは動的にノードを追加できる。
+3. **メモリの断片的利用**: 大きな連続メモリブロックが確保できない場合。
+4. **他の構造の内部実装**: ハッシュテーブルのチェイン法、グラフの隣接リストなど。
+
+ただし、現代のハードウェアではキャッシュ局所性の高い配列の方が
+ほとんどの場面で高速であり、連結リストは上記の特定条件でのみ優位になる。
+
+### Q6: 連結リストの面接問題で最も重要なテクニックは何か？
+
+**A**: 以下の 5 つのテクニックを習得すれば、連結リストの面接問題の
+大部分をカバーできる。
+
+1. **ダミーヘッド（番兵ノード）**: エッジケースを排除する
+2. **slow/fast ポインタ**: 中間ノード取得、サイクル検出
+3. **反転**: イテレーティブ版を確実に書けること
+4. **マージ**: 2 リスト、K リストのマージ
+5. **再帰**: 再帰的な思考パターン（ただし空間計算量に注意）
+
+---
+
+## 13. まとめ
+
+### 学習の要点
+
+| 項目 | ポイント |
+|------|---------|
+| 単方向リスト | 最もシンプル。スタック実装に最適。各ノードはポインタ 1 つ |
+| 双方向リスト | O(1) 削除が可能。LRU キャッシュの中核データ構造 |
+| 循環リスト | ラウンドロビンや循環バッファに利用。終了条件に注意 |
+| ダミーヘッド | エッジケース（空リスト、先頭操作）を統一的に処理する最重要テクニック |
+| フロイドの検出 | O(1) 空間でサイクル検出・開始点特定・長さ計測を実現 |
+| slow/fast ポインタ | 中間点取得、回文判定、K 番目のノード検出にも応用可能 |
+| マージ操作 | ダミーヘッドと組み合わせて、2 リスト・K リストのマージを実現 |
+| メモリ効率 | `__slots__` の活用でノードあたりのメモリを大幅削減 |
+| LRU キャッシュ | 双方向リスト + ハッシュマップの組み合わせで O(1) の get/put |
+
+### 学習ロードマップ
+
+```
+連結リストの学習順序:
+
+  Level 1 (基礎):
+    単方向リストの構築 → 挿入・削除・検索 → 反転
+
+  Level 2 (中級):
+    ダミーヘッドパターン → slow/fast ポインタ → マージ
+
+  Level 3 (上級):
+    フロイドのアルゴリズム → 双方向リスト → LRU キャッシュ
+
+  Level 4 (発展):
+    K グループ反転 → ランダムポインタコピー → マージソート
+    → スキップリスト（概念理解）
+```
+
+### 次のステップ
+
+本ガイドの内容を習得した後は、以下のトピックに進むことを推奨する。
+
+1. **スタック/キュー**: 連結リストをベースとした実装
+2. **二分木**: ノードが左右の子を持つ木構造（連結リストの発展）
+3. **グラフ**: 隣接リスト表現で連結リストが活用される
+4. **ハッシュテーブル**: チェイン法で連結リストが衝突解決に使われる
+
+---
+
+## 次に読むべきガイド
+
+- [スタック/キュー -- 連結リストによる実装](./02-stacks-queues.md)
+- [グラフ -- 隣接リスト表現](./06-graphs.md)
+
+---
+
+## 14. 参考文献
+
+1. Cormen, T.H., Leiserson, C.E., Rivest, R.L., & Stein, C. (2022). *Introduction to Algorithms* (4th ed.). MIT Press. -- 第 10 章「Elementary Data Structures」において、連結リストの基本構造と操作が厳密に定義されている。
+
+2. Floyd, R.W. (1967). "Nondeterministic Algorithms." *Journal of the ACM*, 14(4), 636-644. -- サイクル検出アルゴリズムの原著論文。フロイドの亀と兎のアルゴリズムの数学的基盤を提供する。
+
+3. Skiena, S.S. (2020). *The Algorithm Design Manual* (3rd ed.). Springer. -- 連結リストの実践的なガイドと、面接問題への応用方法を解説している。
+
+4. Knuth, D.E. (1997). *The Art of Computer Programming, Volume 1: Fundamental Algorithms* (3rd ed.). Addison-Wesley. -- 2.2 節「Linear Lists」で連結リストの歴史的背景と詳細な分析を提供する。
+
+5. Sedgewick, R., & Wayne, K. (2011). *Algorithms* (4th ed.). Addison-Wesley. -- 連結リストを用いたスタック・キューの実装と、計算量解析を丁寧に解説している。
+
+6. Pugh, W. (1990). "Skip Lists: A Probabilistic Alternative to Balanced Trees." *Communications of the ACM*, 33(6), 668-676. -- スキップリストの原著論文。連結リストの発展形として重要な参考文献。
+
+7. MIT OpenCourseWare. (2020). "6.006 Introduction to Algorithms." Massachusetts Institute of Technology. https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/ -- MIT の公開講座で、連結リストを含むデータ構造の講義が無料で視聴可能。
+
+---
+
+> **本ガイドの全コード例は Python 3.10+ で動作確認を想定している。**
+> 型ヒントには `typing` モジュールを使用しているが、Python 3.10 以降では
+> `list[int]` のようなビルトイン型での記法も利用可能である。
+

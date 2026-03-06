@@ -1081,18 +1081,436 @@ dinic.add_edge(v, u, cap)
 
 ---
 
-## 13. まとめ
+## 13. Push-Relabel法（前置リレーベル法）
+
+Ford-Fulkerson系のアルゴリズムがグローバルな増加パスを探索するのに対し、Push-Relabel法はローカルな操作（push と relabel）を繰り返して最大流を求める。大規模グラフで高い性能を発揮する。
+
+### アルゴリズムの概要
+
+```
+Push-Relabel の基本概念:
+
+1. 高さラベル h(v): 各頂点にラベルを割り当てる
+   - h(s) = |V|, h(t) = 0
+   - 辺 (u,v) に残余容量がある → h(u) ≤ h(v) + 1
+
+2. 超過フロー e(v): 各頂点の流入量 - 流出量
+   - s, t 以外で e(v) > 0 の頂点が「アクティブ」
+
+3. Push 操作: アクティブ頂点 u から隣接頂点 v へフローを送る
+   条件: h(u) = h(v) + 1 かつ残余容量 > 0
+   送る量: min(e(u), 残余容量(u,v))
+
+4. Relabel 操作: Push できない場合にラベルを引き上げる
+   h(u) = min(h(v) + 1 | (u,v) に残余容量がある)
+
+処理の流れ:
+   s からすべての隣接辺を飽和させる（初期プッシュ）
+   → アクティブ頂点が存在する限り Push or Relabel を繰り返す
+   → 全頂点のラベルが安定したとき、e(t) が最大流
+
+計算量: O(V^2 E)  ※FIFO選択則で O(V^3)
+```
+
+### Push-Relabel法のイメージ図
+
+```
+  高さラベルのイメージ（水が高い所から低い所へ流れる）:
+
+  h=6(s)
+   |
+   | push
+   v
+  h=1(A) ──push──→ h=0(t)
+   |
+   | push
+   v
+  h=1(B) ──push──→ h=0(t)
+
+  Push できない頂点は Relabel で高さを上げる:
+
+  relabel前:          relabel後:
+  h=1(A)              h=2(A)  ← 引き上げ
+    ↓ push不可           ↓ push可能に
+  h=1(B)              h=1(B)
+    ↓                    ↓
+  h=0(t)              h=0(t)
+```
+
+```python
+class PushRelabel:
+    """Push-Relabel法（FIFO選択則） - O(V^3)"""
+
+    def __init__(self, n: int):
+        self.n = n
+        self.cap = [[0] * n for _ in range(n)]
+        self.flow = [[0] * n for _ in range(n)]
+
+    def add_edge(self, u: int, v: int, c: int):
+        self.cap[u][v] += c
+
+    def max_flow(self, s: int, t: int) -> int:
+        n = self.n
+        height = [0] * n
+        excess = [0] * n
+        height[s] = n
+
+        # 初期プッシュ: s から全隣接辺を飽和
+        for v in range(n):
+            if self.cap[s][v] > 0:
+                f = self.cap[s][v]
+                self.flow[s][v] = f
+                self.flow[v][s] = -f
+                excess[v] = f
+                excess[s] -= f
+
+        # アクティブ頂点のキュー（FIFO）
+        active = deque()
+        in_queue = [False] * n
+        for v in range(n):
+            if v != s and v != t and excess[v] > 0:
+                active.append(v)
+                in_queue[v] = True
+
+        while active:
+            u = active.popleft()
+            in_queue[u] = False
+            self._discharge(u, s, t, height, excess, active, in_queue)
+
+        return excess[t]
+
+    def _discharge(self, u, s, t, height, excess, active, in_queue):
+        n = self.n
+        while excess[u] > 0:
+            pushed = False
+            for v in range(n):
+                residual = self.cap[u][v] - self.flow[u][v]
+                if residual > 0 and height[u] == height[v] + 1:
+                    # Push
+                    d = min(excess[u], residual)
+                    self.flow[u][v] += d
+                    self.flow[v][u] -= d
+                    excess[u] -= d
+                    excess[v] += d
+                    if v != s and v != t and not in_queue[v] and excess[v] > 0:
+                        active.append(v)
+                        in_queue[v] = True
+                    pushed = True
+                    if excess[u] == 0:
+                        break
+            if not pushed:
+                # Relabel
+                min_height = float('inf')
+                for v in range(n):
+                    if self.cap[u][v] - self.flow[u][v] > 0:
+                        min_height = min(min_height, height[v])
+                height[u] = min_height + 1
+
+        if excess[u] > 0 and not in_queue[u]:
+            active.append(u)
+            in_queue[u] = True
+
+# 使用例
+pr = PushRelabel(6)
+pr.add_edge(0, 1, 10)
+pr.add_edge(0, 2, 10)
+pr.add_edge(1, 3, 4)
+pr.add_edge(1, 4, 8)
+pr.add_edge(2, 4, 9)
+pr.add_edge(3, 5, 10)
+pr.add_edge(4, 3, 6)
+pr.add_edge(4, 5, 10)
+print(pr.max_flow(0, 5))  # 19
+```
+
+### 各アルゴリズムの選択指針
+
+```
+使い分けの判断フロー:
+
+問題の種類は？
+├── 二部マッチング → Hopcroft-Karp  O(E sqrt(V))
+├── 最小費用流     → SPFA + Successive Shortest Paths
+├── 単純な最大流   → Dinic法  O(V^2 E)
+│    ├── 密グラフ（E ≈ V^2）→ Push-Relabel  O(V^3)
+│    └── 疎グラフ（E ≈ V）  → Dinic法
+└── 小規模（V < 100）→ どれでも可（Edmonds-Karp が最も実装簡単）
+```
+
+---
+
+## 14. 演習問題（3段階）
+
+### 初級: 基本的なフロー計算
+
+**問題 1:** 以下のグラフの最大流を手計算で求めよ。
+
+```
+         8         6
+    s ────→ A ────→ t
+    │               ↑
+    │3              │5
+    ↓               │
+    B ─────────────→ C
+           7
+```
+
+**ヒント:** 増加パスを1本ずつ見つけて残余グラフを更新する。
+
+**解答例:**
+
+```
+パス1: s → A → t  ボトルネック = min(8, 6) = 6
+  残余: s→A: 2, A→t: 0, t→A: 6
+
+パス2: s → B → C → t  ボトルネック = min(3, 7, 5) = 3
+  残余: s→B: 0, B→C: 4, C→t: 2
+
+パス3: 増加パスなし（s からの辺: s→A: 2 だが A→t: 0、A→... 到達不能）
+  → s → A → ... t に到達するパスを探す
+
+  残余グラフで確認:
+  s→A: 2, A→t: 0, t→A: 6
+  s→B: 0, B→C: 4, C→t: 2
+  （逆辺も含む）
+
+  実際は s→A (容量2) を使って... A からは直接 t に行けないが
+  逆辺等を考慮すると追加パスなし。
+
+最大流 = 6 + 3 = 9
+
+検証: 最小カットは {s→A: 8, s→B: 3} ではなく
+      {A→t: 6, C→t: 5} = 11 でもない。
+      実際の最小カット = {s→B: 3, A→t: 6} = 9  ← 一致
+```
+
+**問題 2:** Ford-Fulkerson法を使って、以下の 4 頂点グラフの最大流を計算するコードを書け。
+
+```
+s=0, A=1, B=2, t=3
+辺: s→A(容量10), s→B(容量5), A→B(容量15), A→t(容量10), B→t(容量10)
+```
+
+### 中級: 二部マッチングと最小カット
+
+**問題 3:** 5人の学生と5つの研究室がある。以下の志望リストから最大マッチングを求めよ。
+
+```
+学生0: 研究室 {0, 1, 3}
+学生1: 研究室 {1, 2}
+学生2: 研究室 {0, 3}
+学生3: 研究室 {2, 4}
+学生4: 研究室 {1, 3, 4}
+```
+
+**解答例:**
+
+```python
+adj = [
+    [0, 1, 3],   # 学生0
+    [1, 2],       # 学生1
+    [0, 3],       # 学生2
+    [2, 4],       # 学生3
+    [1, 3, 4],    # 学生4
+]
+count, match_l, match_r = hopcroft_karp(5, 5, adj)
+print(f"最大マッチング: {count}")  # 5（完全マッチング可能）
+# 例: 学生0→研究室0, 学生1→研究室2, 学生2→研究室3,
+#      学生3→研究室4, 学生4→研究室1
+```
+
+**問題 4:** ネットワークの最小カット辺を求め、最もボトルネックとなるリンクを特定せよ。
+
+```
+6頂点のネットワーク:
+s(0)→A(1): 16, s(0)→B(2): 13
+A(1)→B(2): 4,  A(1)→C(3): 12
+B(2)→A(1): 10, B(2)→D(4): 14
+C(3)→B(2): 9,  C(3)→t(5): 20
+D(4)→C(3): 7,  D(4)→t(5): 4
+```
+
+### 上級: 最小費用流と複合問題
+
+**問題 5:** 3つの工場と4つの店舗がある。各工場の供給量と各店舗の需要量、輸送コストが与えられている。総輸送コストを最小化する輸送計画を最小費用流で求めよ。
+
+```
+工場: F1(供給20), F2(供給30), F3(供給25)
+店舗: S1(需要15), S2(需要20), S3(需要25), S4(需要15)
+
+輸送コスト（単位あたり）:
+      S1  S2  S3  S4
+F1:    4   6   8   5
+F2:    6   3   5   7
+F3:    3   8   4   6
+```
+
+**ヒント:** 超過ソース s と超過シンク t を追加して、s→工場（容量=供給量, コスト=0）、店舗→t（容量=需要量, コスト=0）、工場→店舗（容量=十分大, コスト=輸送コスト）のネットワークを構築する。
+
+```python
+# 解法のスケルトン
+mcf = MinCostFlow(2 + 3 + 4)  # s, t, 3工場, 4店舗
+source, sink = 0, 1
+factories = [2, 3, 4]      # ノード番号
+stores = [5, 6, 7, 8]      # ノード番号
+supply = [20, 30, 25]
+demand = [15, 20, 25, 15]
+cost_matrix = [
+    [4, 6, 8, 5],
+    [6, 3, 5, 7],
+    [3, 8, 4, 6],
+]
+
+for i, f in enumerate(factories):
+    mcf.add_edge(source, f, supply[i], 0)
+
+for i, f in enumerate(factories):
+    for j, s in enumerate(stores):
+        mcf.add_edge(f, s, min(supply[i], demand[j]), cost_matrix[i][j])
+
+for j, s in enumerate(stores):
+    mcf.add_edge(s, sink, demand[j], 0)
+
+total_demand = sum(demand)  # 75
+flow, total_cost = mcf.min_cost_flow(source, sink, total_demand)
+print(f"総輸送量: {flow}, 総コスト: {total_cost}")
+```
+
+**問題 6:** 有向非巡回グラフ（DAG）上の最小パスカバーを求めよ。最小パスカバー = n - 最大マッチング であることを利用せよ。
+
+```
+DAG (6頂点):
+0 → 1, 0 → 2
+1 → 3
+2 → 3, 2 → 4
+4 → 5
+```
+
+---
+
+## 15. Push-Relabel vs Dinic: 性能比較
+
+| 観点 | Dinic法 | Push-Relabel法 |
+|:---|:---|:---|
+| 計算量（一般） | O(V^2 E) | O(V^2 E) / O(V^3) |
+| 計算量（単位容量） | O(E sqrt(V)) | O(E sqrt(V)) |
+| 実装の容易さ | 中程度 | やや複雑 |
+| 疎グラフでの性能 | 優れる | 標準的 |
+| 密グラフでの性能 | 標準的 | 優れる |
+| メモリ使用量 | 隣接リスト（軽量） | 隣接行列版は O(V^2) |
+| 競技プログラミング | 最もよく使われる | 稀に使用 |
+| 実務（大規模） | 適度 | 高い並列性で有利 |
+
+### 問題規模別の推奨アルゴリズム
+
+| グラフ規模 | 辺数 | 推奨アルゴリズム | 理由 |
+|:---|:---|:---|:---|
+| V < 100 | E < 1000 | Edmonds-Karp | 実装が最も簡単 |
+| V < 1000 | E < 10000 | Dinic | バランスの良い性能 |
+| V < 10000 | E < 100000 | Dinic | 疎グラフで高速 |
+| V > 10000 | E ~ V^2 | Push-Relabel | 密グラフに強い |
+| 二部グラフ | - | Hopcroft-Karp | O(E sqrt(V)) で最速 |
+| コスト付き | - | SPFA + SSP | 唯一の選択肢 |
+
+---
+
+## 16. 追加のアンチパターン
+
+### アンチパターン5: 最大流の値だけ求めて経路復元を忘れる
+
+```python
+# BAD: 最大流の値は求めたが、実際にどの辺にどれだけ流れたか不明
+flow_value = dinic.max_flow(s, t)
+# ここで「どの辺に何単位流れたか」を出力しようとしても
+# 残余グラフから逆算する必要がある
+
+# GOOD: フロー値と経路を同時に記録する設計
+class DinicWithFlowRecovery(Dinic):
+    def get_flow_on_edges(self):
+        """各辺の実際のフロー量を復元"""
+        result = []
+        for u in range(self.n):
+            for i, (v, cap, rev) in enumerate(self.graph[u]):
+                # 元の辺（逆辺でない）のフロー量
+                if i % 2 == 0:  # add_edge で追加された順辺
+                    original_cap = cap + self.graph[v][rev][1]
+                    flow = self.graph[v][rev][1]
+                    if flow > 0:
+                        result.append((u, v, flow, original_cap))
+        return result
+```
+
+### アンチパターン6: 多重辺の処理ミス
+
+```python
+# BAD: 隣接行列で多重辺を上書き
+cap[u][v] = 5   # 1本目
+cap[u][v] = 3   # 2本目 → 上書き! 合計8ではなく3になる
+
+# GOOD: 容量を加算する
+cap[u][v] += 5   # 1本目
+cap[u][v] += 3   # 2本目 → 合計8
+
+# Dinic の隣接リスト版では自動的に別の辺として追加されるので
+# この問題は発生しない（隣接行列版のみ注意）
+```
+
+---
+
+## 17. 追加 FAQ
+
+### Q7: フロー問題で負の容量はあり得るか？
+
+**A:** 標準的なフロー問題では容量は非負（c(u,v) >= 0）。ただし、下限付きフロー（lower bound flow）問題では各辺に最小フロー量が設定される。この場合、変数変換によって標準的な最大流問題に帰着できる。具体的には、下限 l(u,v) の辺を「容量 c(u,v) - l(u,v) の辺」に変換し、超過ソース・超過シンクを追加する。
+
+### Q8: 最大流問題は線形計画問題として定式化できるか？
+
+**A:** できる。最大流問題は以下の線形計画問題（LP）と等価である:
+
+```
+maximize  Σ f(s,v)  （s からの総流出量）
+subject to:
+  0 ≤ f(u,v) ≤ c(u,v)           （容量制約）
+  Σ f(u,v) = Σ f(v,w)  ∀v≠s,t  （フロー保存）
+```
+
+最大流最小カット定理は、この LP とその双対問題（最小カット）の強双対性から導かれる。整数容量の場合、LP 緩和の最適解が自動的に整数になる（完全単模行列性）。
+
+### Q9: 動的にグラフが変化する場合の最大流はどう求めるか？
+
+**A:** 辺の追加・削除が発生する動的フロー問題では、毎回ゼロから再計算するのは非効率である。辺追加の場合は、既存のフローを保持したまま追加辺を含む残余グラフで増加パスを探索すればよい（増分計算）。辺削除の場合は、削除辺にフローが流れていなければ何もしない。流れている場合は、そのフロー分を「取り消す」操作（逆方向に流す）が必要になり、やや複雑になる。
+
+---
+
+## 18. まとめ
 
 | 項目 | 要点 |
 |:---|:---|
 | 最大流問題 | 残余グラフ上の増加パスを繰り返し探索 |
 | Ford-Fulkerson | BFS版(Edmonds-Karp)で O(VE^2) |
 | Dinic法 | レベルグラフ + ブロッキングフローで O(V^2 E) |
+| Push-Relabel法 | ローカル操作（push/relabel）で O(V^3)、密グラフに強い |
 | 最大流最小カット | 最大流 = 最小カット（双対性） |
 | 二部マッチング | 最大流に帰着（容量1）or ハンガリアン法 |
 | Hopcroft-Karp | 二部マッチングを O(E sqrt(V)) で解く |
 | 最小費用流 | 費用付き辺でコスト最小化 |
-| 応用範囲 | 割り当て、被覆、独立集合、パス分離、画像処理 |
+| 応用範囲 | 割り当て、被覆、独立集合、パス分離、画像処理、輸送計画 |
+
+### 学習ロードマップ
+
+```
+Step 1: 基礎理解
+  フローの定義 → 残余グラフ → 増加パス → Ford-Fulkerson
+  ↓
+Step 2: 高速化
+  Edmonds-Karp → Dinic法 → Push-Relabel法
+  ↓
+Step 3: 応用
+  二部マッチング → 最小カット → 頂点分割 → 最小費用流
+  ↓
+Step 4: 発展
+  下限付きフロー → LP双対 → 動的フロー → 近似アルゴリズム
+```
 
 ---
 
@@ -1106,9 +1524,12 @@ dinic.add_edge(v, u, cap)
 
 ## 参考文献
 
-1. Cormen, T. H. et al. (2022). *Introduction to Algorithms* (4th ed.). MIT Press. -- 第24-26章
-2. Ford, L. R. & Fulkerson, D. R. (1956). "Maximal flow through a network." *Canadian Journal of Mathematics*.
-3. Dinic, E. A. (1970). "Algorithm for solution of a problem of maximum flow in networks with power estimation." *Soviet Mathematics Doklady*.
-4. Kleinberg, J. & Tardos, E. (2005). *Algorithm Design*. Pearson. -- Chapter 7: Network Flow
-5. Hopcroft, J. E. & Karp, R. M. (1973). "An n^{5/2} Algorithm for Maximum Matchings in Bipartite Graphs." *SIAM Journal on Computing*.
-6. Konig, D. (1931). "Grafok es matrixok." *Matematikai es Fizikai Lapok*.
+1. Cormen, T. H. et al. (2022). *Introduction to Algorithms* (4th ed.). MIT Press. -- 第24-26章: ネットワークフローの包括的解説
+2. Ford, L. R. & Fulkerson, D. R. (1956). "Maximal flow through a network." *Canadian Journal of Mathematics*. -- 最大流問題の原論文
+3. Dinic, E. A. (1970). "Algorithm for solution of a problem of maximum flow in networks with power estimation." *Soviet Mathematics Doklady*. -- Dinic法の原論文
+4. Kleinberg, J. & Tardos, E. (2005). *Algorithm Design*. Pearson. -- Chapter 7: Network Flow の応用を豊富に解説
+5. Hopcroft, J. E. & Karp, R. M. (1973). "An n^{5/2} Algorithm for Maximum Matchings in Bipartite Graphs." *SIAM Journal on Computing*. -- Hopcroft-Karp法の原論文
+6. Konig, D. (1931). "Grafok es matrixok." *Matematikai es Fizikai Lapok*. -- Konigの定理（最小頂点被覆 = 最大マッチング）
+7. Goldberg, A. V. & Tarjan, R. E. (1988). "A new approach to the maximum-flow problem." *Journal of the ACM*. -- Push-Relabel法の原論文
+8. Ahuja, R. K., Magnanti, T. L. & Orlin, J. B. (1993). *Network Flows: Theory, Algorithms, and Applications*. Prentice Hall. -- ネットワークフロー理論の決定版テキスト
+9. Schrijver, A. (2003). *Combinatorial Optimization: Polyhedra and Efficiency*. Springer. -- 最適化理論からの視点でフロー問題を解説
