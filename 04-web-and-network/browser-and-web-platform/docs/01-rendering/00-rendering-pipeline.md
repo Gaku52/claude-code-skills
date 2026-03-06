@@ -1,220 +1,1167 @@
 # レンダリングパイプライン
 
-> ブラウザのレンダリングパイプラインはDOMからピクセルへの変換プロセス。Style → Layout → Paint → Composite の各段階を理解し、パフォーマンスのボトルネックを特定・改善する力を身につける。
+> ブラウザがHTML/CSSを受け取ってから画面上のピクセルとして描画するまでの全工程を、DOM構築からComposite（合成）まで段階的に解説する。各段階の役割・コスト・最適化戦略を理解し、60fpsを安定して維持できるフロントエンドエンジニアを目指す。
+
+---
 
 ## この章で学ぶこと
 
-- [ ] レンダリングパイプラインの各段階を理解する
-- [ ] Reflow（Layout）と Repaint の違いを把握する
-- [ ] Composite のみで完結するアニメーションを学ぶ
+- [ ] レンダリングパイプライン全6段階（DOM → CSSOM → Render Tree → Layout → Paint → Composite）の役割と相互関係を説明できる
+- [ ] 各段階で発生するボトルネックを DevTools を使って特定できる
+- [ ] Layout Thrashing を検出し、修正できる
+- [ ] Composite のみで完結するアニメーションを設計できる
+- [ ] will-change / contain / content-visibility を適切に使い分けられる
+- [ ] 主要ブラウザエンジン（Blink, Gecko, WebKit）の差異を把握している
+
+---
+
+## 前提知識
+
+| 項目 | 推奨レベル |
+|------|-----------|
+| HTML/CSS 基礎 | セレクタ優先度、ボックスモデルを理解している |
+| JavaScript 基礎 | DOM 操作、イベントループの概念を理解している |
+| ブラウザ DevTools | Elements パネル、Performance パネルの基本操作ができる |
 
 ---
 
 ## 1. パイプラインの全体像
 
+### 1.1 6段階の概要
+
+ブラウザがネットワークからHTMLを受信してから画面にピクセルを描画するまでの工程は、大きく6つの段階に分けられる。
+
 ```
-レンダリングパイプライン:
+レンダリングパイプライン全体像:
 
-  DOM + CSSOM
-       ↓
-  ① Style（スタイル計算）
-       ↓ Computed Styles
-  ② Layout（レイアウト / Reflow）
-       ↓ Layout Tree + 座標情報
-  ③ Paint（ペイント / Repaint）
-       ↓ Paint Records（描画命令リスト）
-  ④ Composite（合成）
-       ↓ GPU でレイヤーを合成
-  画面表示
+  ネットワークから HTML/CSS/JS を受信
+       │
+       ▼
+  ┌─────────────────────────────────────────────────────────────┐
+  │  ① DOM 構築                                                 │
+  │  HTMLバイト列 → 文字列 → トークン → ノード → DOM ツリー       │
+  └─────────────────────┬───────────────────────────────────────┘
+                        │
+  ┌─────────────────────▼───────────────────────────────────────┐
+  │  ② CSSOM 構築                                               │
+  │  CSSバイト列 → 文字列 → トークン → ノード → CSSOM ツリー      │
+  └─────────────────────┬───────────────────────────────────────┘
+                        │
+                        │  DOM + CSSOM
+                        ▼
+  ┌─────────────────────────────────────────────────────────────┐
+  │  ③ Render Tree 構築                                         │
+  │  可視要素のみを対象に、DOMノードとスタイル情報を結合          │
+  │  display:none → 除外 / visibility:hidden → 含む              │
+  └─────────────────────┬───────────────────────────────────────┘
+                        │
+                        ▼
+  ┌─────────────────────────────────────────────────────────────┐
+  │  ④ Layout（Reflow）                                         │
+  │  各要素の正確な位置(x,y)とサイズ(width,height)を計算         │
+  │  ビューポートからの相対位置、ボックスモデル解決              │
+  └─────────────────────┬───────────────────────────────────────┘
+                        │
+                        ▼
+  ┌─────────────────────────────────────────────────────────────┐
+  │  ⑤ Paint（Repaint）                                         │
+  │  レイアウト情報を元にピクセルレベルの描画命令を生成          │
+  │  テキスト描画、色、影、ボーダー、画像の塗りつぶし            │
+  └─────────────────────┬───────────────────────────────────────┘
+                        │
+                        ▼
+  ┌─────────────────────────────────────────────────────────────┐
+  │  ⑥ Composite（合成）                                        │
+  │  複数のペイントレイヤーを GPU 上で重ね合わせて最終画像を生成 │
+  │  transform / opacity はこの段階のみで処理可能                │
+  └─────────────────────────────────────────────────────────────┘
+       │
+       ▼
+    画面表示（ディスプレイリフレッシュに同期）
+```
 
-  各段階のコスト:
-  ① Style:     低〜中（セレクタマッチング）
-  ② Layout:    高（座標計算、全体に影響しうる）
-  ③ Paint:     中（ピクセルの描画）
-  ④ Composite: 低（GPUでレイヤー合成）
+### 1.2 各段階のコスト比較表
 
-変更の種類と影響範囲:
-  ┌─────────────────┬───────┬────────┬───────┬──────────┐
-  │ CSSプロパティ    │ Style │ Layout │ Paint │ Composite│
-  ├─────────────────┼───────┼────────┼───────┼──────────┤
-  │ width, height   │ ✓     │ ✓      │ ✓     │ ✓        │
-  │ margin, padding │ ✓     │ ✓      │ ✓     │ ✓        │
-  │ top, left       │ ✓     │ ✓      │ ✓     │ ✓        │
-  │ color           │ ✓     │        │ ✓     │ ✓        │
-  │ background      │ ✓     │        │ ✓     │ ✓        │
-  │ box-shadow      │ ✓     │        │ ✓     │ ✓        │
-  │ transform       │ ✓     │        │       │ ✓ ←最速  │
-  │ opacity         │ ✓     │        │       │ ✓ ←最速  │
-  └─────────────────┴───────┴────────┴───────┴──────────┘
+| 段階 | 処理内容 | 典型的コスト | 実行スレッド | 影響範囲 |
+|------|---------|-------------|-------------|---------|
+| DOM 構築 | HTML パース → ツリー構築 | 中 | メインスレッド | - |
+| CSSOM 構築 | CSS パース → ツリー構築 | 低〜中 | メインスレッド | - |
+| Render Tree | DOM + CSSOM マージ | 低 | メインスレッド | - |
+| Layout | 座標・サイズ計算 | **高** | メインスレッド | 子孫要素に連鎖 |
+| Paint | ピクセル描画命令生成 | 中 | メインスレッド | レイヤー単位 |
+| Composite | GPU でレイヤー合成 | **低** | コンポジタースレッド/GPU | レイヤー単位 |
 
-  → transform と opacity は Layout/Paint をスキップ
-  → GPU のみで処理 → 最も高速なアニメーション
+### 1.3 CSS プロパティ変更と影響段階の対応表
+
+どの CSS プロパティを変更するかによって、パイプラインのどの段階から再実行が必要かが決まる。
+
+```
+CSS プロパティ変更時のパイプライン再実行マップ:
+
+  ┌─────────────────────┬────────┬────────┬───────┬───────────┐
+  │ CSS プロパティ       │ Style  │ Layout │ Paint │ Composite │
+  ├─────────────────────┼────────┼────────┼───────┼───────────┤
+  │ width / height      │   ✓    │   ✓    │   ✓   │     ✓     │
+  │ margin / padding    │   ✓    │   ✓    │   ✓   │     ✓     │
+  │ top / left / right  │   ✓    │   ✓    │   ✓   │     ✓     │
+  │ font-size           │   ✓    │   ✓    │   ✓   │     ✓     │
+  │ display             │   ✓    │   ✓    │   ✓   │     ✓     │
+  │ float / position    │   ✓    │   ✓    │   ✓   │     ✓     │
+  ├─────────────────────┼────────┼────────┼───────┼───────────┤
+  │ color               │   ✓    │        │   ✓   │     ✓     │
+  │ background-color    │   ✓    │        │   ✓   │     ✓     │
+  │ background-image    │   ✓    │        │   ✓   │     ✓     │
+  │ box-shadow          │   ✓    │        │   ✓   │     ✓     │
+  │ border-radius       │   ✓    │        │   ✓   │     ✓     │
+  │ outline             │   ✓    │        │   ✓   │     ✓     │
+  │ visibility          │   ✓    │        │   ✓   │     ✓     │
+  ├─────────────────────┼────────┼────────┼───────┼───────────┤
+  │ transform           │   ✓    │        │       │  ✓ ← 最速 │
+  │ opacity             │   ✓    │        │       │  ✓ ← 最速 │
+  │ filter (GPU対応)    │   ✓    │        │       │  ✓ ← 最速 │
+  └─────────────────────┴────────┴────────┴───────┴───────────┘
+
+  凡例: ✓ = その段階が再実行される
+  → transform / opacity / filter は Layout・Paint をスキップ
+  → GPU のみで処理されるため最も高速なアニメーション向きプロパティ
 ```
 
 ---
 
-## 2. Layout（Reflow）
+## 2. DOM 構築
+
+### 2.1 HTML パースの流れ
+
+ブラウザのHTMLパーサはネットワークから受信したバイトストリームを段階的に処理し、DOM ツリーを構築する。
 
 ```
-Layout = 要素の位置とサイズを計算
+HTML パース処理の流れ:
 
-  計算する情報:
-  → 各要素のx, y座標
-  → 幅と高さ
-  → マージン、パディング、ボーダー
+  バイト列          文字列            トークン           ノード           DOM ツリー
+  (Bytes)          (Characters)     (Tokens)          (Nodes)          (DOM Tree)
 
-  Layout が発生するケース:
-  → DOM要素の追加/削除
-  → 要素のサイズ変更（width, height, padding, margin）
-  → テキスト内容の変更
-  → フォントサイズの変更
-  → ウィンドウリサイズ
-  → スクロール（場合による）
+  3C 68 74   →    "<html>"    →    StartTag:html  →   HTMLElement  →      html
+  6D 6C 3E                                                               /    \
+  3C 68 65   →    "<head>"    →    StartTag:head  →   HTMLElement  →  head    body
+  61 64 3E                                                              |       |
+  ...        →    "<title>"   →    StartTag:title →   HTMLElement  → title    div
+             →    "Hello"     →    Character      →   TextNode    →  "Hello"  ...
 
-  Layout を強制する JS プロパティ（強制同期レイアウト）:
-  element.offsetWidth    → 読み取りのためにレイアウトを強制実行
-  element.offsetHeight
-  element.clientWidth
-  element.getBoundingClientRect()
-  window.getComputedStyle()
+  重要: パースは逐次的（インクリメンタル）に行われる
+  → ネットワークからデータを受信するたびに部分的に DOM を構築
+  → 全HTML の受信完了を待たない
+```
 
-  Layout Thrashing（レイアウトスラッシング）:
-  // 悪い例: 読み書きの交互 → 毎回レイアウト再計算
+### 2.2 パーサブロッキング
+
+`<script>` タグに遭遇すると、HTMLパーサは一時停止する。これはスクリプトがDOMを操作する可能性があるためである。
+
+```javascript
+// コード例1: script タグの配置によるパース影響
+
+// 悪い例: <head> 内に同期スクリプト
+// → DOM構築が完全にブロックされる
+`<head>
+  <script src="heavy-library.js"></script>  <!-- パーサがここで停止 -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- heavy-library.js の読み込み・実行が完了するまで DOM 構築されない -->
+  <div id="app">...</div>
+</body>`
+
+// 良い例: async/defer を活用
+`<head>
+  <script src="analytics.js" async></script>   <!-- DOMパースと並行 -->
+  <script src="app.js" defer></script>          <!-- DOM構築完了後に実行 -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">...</div>  <!-- すぐに DOM 構築される -->
+</body>`
+```
+
+**async と defer の違い:**
+
+| 属性 | ダウンロード | 実行タイミング | 実行順序 | 用途 |
+|------|------------|--------------|---------|------|
+| (なし) | パース停止 → ダウンロード | ダウンロード直後 | 記述順 | レガシー対応 |
+| `async` | パースと並行 | ダウンロード完了直後 | 不定 | 独立スクリプト（Analytics等） |
+| `defer` | パースと並行 | DOMContentLoaded 直前 | 記述順 | DOM依存スクリプト |
+
+### 2.3 Speculative Parsing（投機的パース）
+
+モダンブラウザは、メインパーサがスクリプトの実行を待っている間に、先読みスキャナ（Preload Scanner）を使って後続のリソース参照を検出し、事前にダウンロードを開始する。
+
+```javascript
+// コード例2: Preload Scanner が検出するリソース
+
+`<head>
+  <script src="app.js"></script>        <!-- メインパーサはここで停止 -->
+  <!-- ↓ Preload Scanner はここから先を走査し、以下を事前ダウンロード -->
+  <link rel="stylesheet" href="main.css">
+  <script src="utils.js" defer></script>
+  <link rel="preload" href="hero.webp" as="image">
+</head>
+<body>
+  <img src="logo.png" alt="Logo">      <!-- これも事前ダウンロード対象 -->
+</body>`
+
+// Preload Scanner を無効化してしまうアンチパターン:
+// → JS で動的に <script> や <link> を挿入すると、
+//   Preload Scanner は検出できない
+
+// 悪い例: 動的挿入
+const script = document.createElement('script');
+script.src = 'critical-module.js';      // Preload Scanner に見えない
+document.head.appendChild(script);
+
+// 改善: <link rel="preload"> を HTML に記述
+`<link rel="preload" href="critical-module.js" as="script">`
+```
+
+---
+
+## 3. CSSOM 構築
+
+### 3.1 CSS パースとツリー構築
+
+CSS ファイルもHTMLと同様にバイト列からパースされ、ツリー構造（CSSOM: CSS Object Model）に変換される。
+
+```
+CSSOM ツリー構築の概念図:
+
+  CSS ソース:
+  ┌────────────────────────────────┐
+  │ body { font-size: 16px; }      │
+  │ .container { width: 80%; }     │
+  │ .container p { color: #333; }  │
+  │ .container p .highlight {      │
+  │   background: yellow;          │
+  │ }                              │
+  └────────────────────────────────┘
+
+            ↓ パース & カスケード処理
+
+  CSSOM ツリー:
+                    [StyleSheet]
+                         │
+                     [body]
+                  font-size: 16px
+                         │
+                   [.container]
+                    width: 80%
+                   (font-size: 16px を継承)
+                         │
+                      [p]
+                   color: #333
+                  (font-size: 16px を継承)
+                         │
+                  [.highlight]
+                background: yellow
+                (color: #333 を継承)
+                (font-size: 16px を継承)
+
+  特徴:
+  → CSS はレンダーブロッキングリソース
+  → CSSOM が完成しないと Render Tree を構築できない
+  → カスケード（優先度解決）、継承、デフォルト値の適用が含まれる
+```
+
+### 3.2 CSS がレンダーブロッキングである理由
+
+CSS はレンダーブロッキングリソースとして扱われる。これは、CSSOMが不完全な状態でレンダリングを進めると、スタイルが適用されていない状態（FOUC: Flash of Unstyled Content）が発生するためである。
+
+```javascript
+// コード例3: Critical CSS のインライン化によるレンダーブロッキング緩和
+
+// 手順1: ファーストビューに必要なCSS（Critical CSS）をインライン化
+`<head>
+  <!-- Critical CSS: ファーストビューの描画に必要な最小限のスタイル -->
+  <style>
+    body { margin: 0; font-family: sans-serif; }
+    .hero { height: 100vh; display: flex; align-items: center; }
+    .hero h1 { font-size: 3rem; color: #1a1a1a; }
+    .nav { position: fixed; top: 0; width: 100%; background: #fff; }
+  </style>
+
+  <!-- 残りの CSS は非同期で読み込み -->
+  <link rel="preload" href="full-styles.css" as="style"
+        onload="this.onload=null;this.rel='stylesheet'">
+  <noscript>
+    <link rel="stylesheet" href="full-styles.css">
+  </noscript>
+</head>`
+
+// 手順2: Critical CSS の抽出は自動化ツールで行う
+// - critical (npm package)
+// - critters (webpack plugin)
+// - PurgeCSS + 手動選定
+```
+
+### 3.3 セレクタマッチングの方向
+
+ブラウザのセレクタマッチングは **右から左** に評価される。これはパフォーマンス上の理由による。
+
+```
+セレクタマッチング方向の理解:
+
+  CSS: .sidebar .menu li a { color: blue; }
+
+  マッチング順序（右から左）:
+  1. まず全ての <a> タグを収集
+  2. その中から親に <li> を持つものをフィルタ
+  3. さらに先祖に .menu を持つものをフィルタ
+  4. さらに先祖に .sidebar を持つものをフィルタ
+
+  なぜ右から左なのか:
+  → 左から右だと .sidebar から全子孫を走査する必要があり非効率
+  → 右から左なら、候補を早期に絞り込める
+
+  セレクタ効率の比較:
+  ┌────────────────────────────────┬──────────────┐
+  │ セレクタ                       │ 効率          │
+  ├────────────────────────────────┼──────────────┤
+  │ #main-title                    │ 最速（ID）    │
+  │ .btn-primary                   │ 速い（Class） │
+  │ button                         │ 普通（Tag）   │
+  │ div.wrapper > ul > li > a      │ 遅い（深い）  │
+  │ div * a                        │ 非常に遅い    │
+  │ [data-active="true"]           │ 遅い（属性）  │
+  └────────────────────────────────┴──────────────┘
+
+  ただし:
+  → モダンブラウザはセレクタマッチングを高度に最適化している
+  → 数千要素レベルでないと体感差は出にくい
+  → BEM 記法の .block__element--modifier は効率的
+```
+
+---
+
+## 4. Render Tree 構築
+
+### 4.1 DOM + CSSOM の結合
+
+Render Tree は DOM と CSSOM を結合して生成される。画面上に表示される要素のみが含まれる。
+
+```
+Render Tree 構築プロセス:
+
+  DOM ツリー:                    CSSOM ツリー:
+  html                           body { font: 16px; }
+  ├── head                       .visible { color: blue; }
+  │   ├── meta                   .hidden { display: none; }
+  │   └── title                  .invisible { visibility: hidden; }
+  └── body
+      ├── div.visible
+      │   └── "Hello"
+      ├── div.hidden
+      │   └── "Secret"
+      ├── div.invisible
+      │   └── "Ghost"
+      └── script
+
+                 ↓ 結合（Attachment）
+
+  Render Tree:
+  [RenderView] ─── ビューポート
+  └── [RenderBody] ─── font: 16px
+      ├── [RenderBlock: div.visible] ─── color: blue
+      │   └── [RenderText: "Hello"]
+      └── [RenderBlock: div.invisible] ─── visibility: hidden
+          └── [RenderText: "Ghost"]
+
+  除外されたもの:
+  ✗ <head> 配下（meta, title, script）→ 非表示要素
+  ✗ div.hidden → display: none は Render Tree に含まれない
+  ✗ <script> → 表示要素ではない
+
+  重要な違い:
+  → display: none → Render Tree から完全に除外（レイアウトスペースなし）
+  → visibility: hidden → Render Tree に含まれる（レイアウトスペースあり）
+  → opacity: 0 → Render Tree に含まれる（レイアウトスペースあり、イベント受付）
+```
+
+### 4.2 Render Tree と DOM の不一致
+
+Render Tree は DOM と1対1に対応しない場合がある。
+
+```
+DOM と Render Tree の不一致パターン:
+
+  1. display: none
+     DOM: <div style="display:none">text</div>
+     Render Tree: （存在しない）
+
+  2. ::before / ::after 疑似要素
+     DOM: <p class="note">本文</p>
+     CSS: .note::before { content: "注: "; }
+     Render Tree:
+       [RenderBlock: p.note]
+       ├── [RenderInline: ::before] → "注: "
+       └── [RenderText: "本文"]
+     → DOM には存在しないが Render Tree には存在する
+
+  3. Anonymous Box（匿名ボックス）
+     DOM: <div>テキスト <span>要素</span> テキスト</div>
+     Render Tree:
+       [RenderBlock: div]
+       ├── [RenderText: "テキスト "]        ← 匿名インラインボックス
+       ├── [RenderInline: span]
+       │   └── [RenderText: "要素"]
+       └── [RenderText: " テキスト"]        ← 匿名インラインボックス
+
+  4. float / position: absolute
+     → 通常のフローから外れるが Render Tree には存在する
+     → ただし、レイアウト計算では別系統で処理される
+```
+
+---
+
+## 5. Layout（Reflow）
+
+### 5.1 レイアウト計算の詳細
+
+Layout 段階では、Render Tree の各ノードに対して正確な幾何学情報（位置とサイズ）を計算する。この処理は「Reflow」とも呼ばれる。
+
+```
+Layout 計算で決定される情報:
+
+  各 Render Object に対して:
+  ┌──────────────────────────────────────────┐
+  │  x 座標     : ビューポート左端からの距離   │
+  │  y 座標     : ビューポート上端からの距離   │
+  │  width      : コンテンツ幅 + padding + border │
+  │  height     : コンテンツ高 + padding + border │
+  │  margin     : 外側の余白                   │
+  │  scrollWidth: スクロール可能な幅           │
+  │  scrollHeight: スクロール可能な高さ         │
+  └──────────────────────────────────────────┘
+
+  ボックスモデル:
+  ┌────────────────────────────────────────┐
+  │              margin-top                │
+  │  ┌──────────────────────────────────┐  │
+  │  │          border-top              │  │
+  │  │  ┌──────────────────────────┐    │  │
+  │  │  │      padding-top         │    │  │
+  │  │  │  ┌──────────────────┐    │    │  │
+  │  │  │  │                  │    │    │  │
+  │  │  │  │    content       │    │    │  │
+  │  │  │  │  (width x height)│    │    │  │
+  │  │  │  │                  │    │    │  │
+  │  │  │  └──────────────────┘    │    │  │
+  │  │  │      padding-bottom      │    │  │
+  │  │  └──────────────────────────┘    │  │
+  │  │          border-bottom           │  │
+  │  └──────────────────────────────────┘  │
+  │              margin-bottom             │
+  └────────────────────────────────────────┘
+
+  box-sizing による違い:
+  → content-box（デフォルト）: width = コンテンツ幅のみ
+  → border-box: width = コンテンツ + padding + border
+```
+
+### 5.2 Global Layout と Incremental Layout
+
+Layout には2つのモードがある。
+
+```
+Layout のモード:
+
+  1. Global Layout（グローバルレイアウト）
+     → ビューポート全体の再計算
+     → 発生条件:
+        ・初回レンダリング
+        ・ウィンドウリサイズ
+        ・フォントサイズの変更（html/body レベル）
+        ・メディアクエリのブレークポイント通過
+     → コスト: 高い（全要素を再計算）
+
+  2. Incremental Layout（インクリメンタルレイアウト）
+     → 変更された要素とその影響範囲のみ再計算
+     → 発生条件:
+        ・特定要素のサイズ/位置変更
+        ・DOM ノードの追加/削除
+        ・テキスト内容の変更
+     → コスト: 変更範囲に依存
+
+  影響の伝播パターン:
+  ┌──────────────────────────────────────────────────┐
+  │                                                  │
+  │   [parent]  ← width 変更                          │
+  │   ├── [child-1] ← width が % 指定なら再計算       │
+  │   │   └── [grandchild] ← 同様に連鎖              │
+  │   ├── [child-2] ← 同様                           │
+  │   └── [child-3] ← 同様                           │
+  │                                                  │
+  │   → 親の変更は子孫に連鎖的に伝播する              │
+  │   → 子の変更が親のサイズに影響することもある       │
+  │     （auto height の場合など）                     │
+  └──────────────────────────────────────────────────┘
+```
+
+### 5.3 Layout Thrashing（レイアウトスラッシング）
+
+Layout Thrashing は、JavaScriptがレイアウト情報の読み取りとDOM変更を交互に行うことで、ブラウザが毎回強制的に同期レイアウト（Forced Synchronous Layout）を実行してしまう現象である。
+
+```javascript
+// コード例4: Layout Thrashing の検出と修正
+
+// --- アンチパターン1: 読み書き交互（Layout Thrashing） ---
+function resizeAllBad(elements) {
   for (const el of elements) {
-    el.style.width = el.offsetWidth + 10 + 'px';  // 読み→書き→読み→書き...
+    // offsetWidth を読む → ブラウザは最新のレイアウトを計算（強制同期レイアウト）
+    const currentWidth = el.offsetWidth;
+    // width を書く → レイアウトを無効化
+    el.style.width = (currentWidth * 1.1) + 'px';
+    // 次のループで再び offsetWidth を読む → 再び強制同期レイアウト
+    // → N要素あれば N回の Layout が実行される
+  }
+}
+
+// --- 修正パターン: 読みをまとめてから書く（バッチ処理） ---
+function resizeAllGood(elements) {
+  // Phase 1: 全要素の幅を一括で読み取る（Layout は1回だけ）
+  const widths = [];
+  for (const el of elements) {
+    widths.push(el.offsetWidth);
   }
 
-  // 良い例: 読みをまとめてから書く
+  // Phase 2: 全要素の幅を一括で書き込む（Layout は次フレームまで遅延）
+  for (let i = 0; i < elements.length; i++) {
+    elements[i].style.width = (widths[i] * 1.1) + 'px';
+  }
+}
+
+// --- 修正パターン（応用）: requestAnimationFrame を使う ---
+function resizeAllRAF(elements) {
   const widths = elements.map(el => el.offsetWidth);
-  elements.forEach((el, i) => {
-    el.style.width = widths[i] + 10 + 'px';
+
+  requestAnimationFrame(() => {
+    elements.forEach((el, i) => {
+      el.style.width = (widths[i] * 1.1) + 'px';
+    });
   });
+}
+
+// --- 修正パターン（ライブラリ）: fastdom を使う ---
+// fastdom はDOM読み書きを自動的にバッチ化する
+// npm install fastdom
+import fastdom from 'fastdom';
+
+function resizeAllFastdom(elements) {
+  elements.forEach(el => {
+    fastdom.measure(() => {
+      const width = el.offsetWidth;
+      fastdom.mutate(() => {
+        el.style.width = (width * 1.1) + 'px';
+      });
+    });
+  });
+}
 ```
+
+### 5.4 強制同期レイアウトを引き起こす API
+
+以下のJavaScript API を呼び出すと、ブラウザは最新のレイアウト情報を返すために同期的にレイアウトを再計算する。
+
+| カテゴリ | プロパティ / メソッド |
+|---------|---------------------|
+| 要素の寸法 | `offsetWidth`, `offsetHeight`, `offsetTop`, `offsetLeft` |
+| クライアント領域 | `clientWidth`, `clientHeight`, `clientTop`, `clientLeft` |
+| スクロール | `scrollWidth`, `scrollHeight`, `scrollTop`, `scrollLeft` |
+| 矩形情報 | `getBoundingClientRect()`, `getClientRects()` |
+| ウィンドウ | `window.getComputedStyle()`, `window.scrollX`, `window.scrollY` |
+| フォーカス | `element.focus()` （一部ブラウザ） |
+| その他 | `window.innerHeight`, `window.innerWidth` |
 
 ---
 
-## 3. Paint
+## 6. Paint（ペイント）
+
+### 6.1 Paint の処理内容
+
+Paint 段階では、Layout で計算された幾何学情報を元に、実際のピクセルレベルの描画命令（Paint Records）を生成する。
 
 ```
-Paint = レイアウト情報をピクセルに変換
+Paint 段階の描画対象:
 
-  描画する内容:
-  → テキストの描画
-  → 背景色/画像
-  → ボーダー
-  → ボックスシャドウ
-  → border-radius
+  描画順序（Stacking Order に従う）:
+  ┌─────────────────────────────────────────────┐
+  │  1. 要素の background-color                  │
+  │  2. 要素の background-image                  │
+  │  3. 要素の border                            │
+  │  4. 子要素（再帰的に同じ順序で描画）          │
+  │  5. 要素の outline                           │
+  └─────────────────────────────────────────────┘
 
-  Paint Order（描画順序）:
-  1. background-color
-  2. background-image
-  3. border
-  4. children
-  5. outline
+  Stacking Context（スタッキングコンテキスト）:
+  → z-index を持つ positioned 要素
+  → opacity < 1 の要素
+  → transform を持つ要素
+  → filter を持つ要素
+  → will-change を持つ要素
+  → isolation: isolate の要素
 
-  Repaint が発生するケース:
+  Paint の影響範囲:
+  → 変更された要素が属するレイヤー全体が再描画
+  → レイヤーが分離されていれば、他のレイヤーは再描画不要
+```
+
+### 6.2 Repaint が発生する操作
+
+```
+Repaint のみが発生するケース（Layout は不要）:
+
   → color の変更
-  → background の変更
-  → visibility の変更
+  → background-color / background-image の変更
+  → visibility: visible ↔ hidden の切り替え
   → box-shadow の変更
+  → border-color の変更
   → border-radius の変更
-  → Layoutが変わらない見た目の変更
+  → outline の変更
+  → text-decoration の変更
 
-  Paint は Layout より軽いが、面積が大きいと重くなる
+  ポイント:
+  → 要素の幾何学的性質（位置・サイズ）が変わらない視覚変更
+  → Layout より軽いが、大きな領域の Repaint は依然として高コスト
+  → 特に複雑な box-shadow や gradient は Paint コストが高い
+```
+
+### 6.3 Paint の最適化: CSS contain プロパティ
+
+`contain` プロパティを使うと、要素のPaint（およびLayout）の影響範囲をブラウザに明示的に伝えることができる。
+
+```css
+/* コード例5: contain プロパティによる Paint 最適化 */
+
+/* layout: この要素の内部レイアウト変更は外部に影響しない */
+.card {
+  contain: layout;
+}
+
+/* paint: この要素の内部の Paint は要素の境界外にはみ出さない */
+.widget {
+  contain: paint;
+}
+
+/* size: この要素のサイズは子要素に依存しない（明示的に指定する） */
+.fixed-box {
+  contain: size;
+  width: 300px;
+  height: 200px;
+}
+
+/* strict: layout + paint + size の全てを含む（最も強力な封じ込め） */
+.isolated-component {
+  contain: strict;
+  width: 400px;
+  height: 300px;
+}
+
+/* content: layout + paint（size を含まない、より実用的） */
+.article-card {
+  contain: content;
+}
+
+/* content-visibility: 画面外の要素のレンダリングを完全にスキップ */
+.long-list-item {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 200px; /* レイアウト用の推定サイズ */
+}
+```
+
+```
+contain プロパティの効果まとめ:
+
+  ┌──────────────┬─────────────────────────────────────────────┐
+  │  値          │  効果                                        │
+  ├──────────────┼─────────────────────────────────────────────┤
+  │  layout      │  内部レイアウト変更が外部に波及しない         │
+  │  paint       │  内部描画が要素境界の外にクリップされる       │
+  │  size        │  要素サイズが子要素から独立（要 width/height）│
+  │  style       │  CSS カウンタ等のスタイルが外部に漏れない     │
+  │  content     │  layout + paint（推奨: 汎用的に使える）       │
+  │  strict      │  layout + paint + size（最大の封じ込め）      │
+  └──────────────┴─────────────────────────────────────────────┘
+
+  content-visibility: auto の効果:
+  → 画面外の要素は Layout / Paint / Composite 全てスキップ
+  → スクロールして画面内に入った時点でレンダリング開始
+  → 長いリストやフィード型UIで劇的な初期表示速度改善
+  → contain-intrinsic-size でスクロールバーの高さを安定化
 ```
 
 ---
 
-## 4. Composite（合成）
+## 7. Composite（合成）
+
+### 7.1 レイヤーの概念
+
+Composite 段階では、Paint で生成された描画結果を「レイヤー」として管理し、GPU 上で合成して最終的な画面を生成する。
 
 ```
-Composite = 複数のレイヤーをGPUで合成
+レイヤー合成の概念図:
 
-  レイヤー昇格の条件:
-  → transform: translate3d() / translateZ()
-  → will-change: transform / opacity
-  → position: fixed
-  → <video>, <canvas>, <iframe>
-  → CSS animation / transition（transform/opacity）
+  画面に表示される最終結果:
+  ┌─────────────────────────────────────┐
+  │                                     │
+  │   ┌───────────────────────┐         │
+  │   │  レイヤー3: モーダル   │←── z: 3 │
+  │   │  (transform 付き)      │         │
+  │   └───────────────────────┘         │
+  │                                     │
+  │   ┌─────────────────────────────┐   │
+  │   │  レイヤー2: ヘッダー        │←── z: 2 (position: fixed)
+  │   └─────────────────────────────┘   │
+  │                                     │
+  │   ┌─────────────────────────────┐   │
+  │   │  レイヤー1: メインコンテンツ │←── z: 1 │
+  │   │                             │   │
+  │   │  テキスト、画像、カード...   │   │
+  │   │                             │   │
+  │   └─────────────────────────────┘   │
+  │                                     │
+  │   レイヤー0: 背景                    │←── z: 0 │
+  └─────────────────────────────────────┘
 
-  レイヤーのメリット:
-  ✓ GPU で独立に合成 → メインスレッドをブロックしない
-  ✓ transform/opacity の変更はレイヤー単位
-  ✓ 60fps アニメーションの実現
+  GPU 合成の流れ:
+  1. 各レイヤーを個別にラスタライズ（ピクセル化）
+  2. レイヤーをテクスチャとして GPU にアップロード
+  3. z-order に従ってレイヤーを重ね合わせ
+  4. 最終画像をフレームバッファに出力
+  5. ディスプレイに表示
+```
 
-  レイヤーのデメリット:
-  ✗ メモリ消費（各レイヤーがGPUメモリを使用）
-  ✗ 大量のレイヤー → GPU メモリ不足
-  ✗ 不要なレイヤー昇格 → パフォーマンス低下
+### 7.2 レイヤー昇格（Layer Promotion）の条件
 
-  will-change の使い方:
-  .animated {
-    will-change: transform;  /* 事前にレイヤー昇格 */
+特定の条件を満たす要素は自動的に独立したコンポジットレイヤーに昇格する。
+
+```
+レイヤー昇格が発生する条件:
+
+  明示的な昇格:
+  ┌────────────────────────────────────────────────────┐
+  │ will-change: transform                              │
+  │ will-change: opacity                                │
+  │ will-change: filter                                 │
+  │ transform: translate3d(...) / translateZ(...)        │
+  │ backface-visibility: hidden                         │
+  └────────────────────────────────────────────────────┘
+
+  暗黙的な昇格:
+  ┌────────────────────────────────────────────────────┐
+  │ position: fixed の要素                              │
+  │ <video> / <canvas> / <iframe> 要素                  │
+  │ CSS animation / transition (transform/opacity)      │
+  │ z-index で上位レイヤーと重なる場合（暗黙的昇格）     │
+  │ filter プロパティを持つ要素                          │
+  │ mix-blend-mode を持つ要素                           │
+  │ isolation: isolate の要素                            │
+  │ clip-path / mask を持つ要素                          │
+  │ backdrop-filter を持つ要素                           │
+  └────────────────────────────────────────────────────┘
+
+  暗黙的昇格（Layer Squashing 関連）:
+  → あるレイヤーの上に重なる要素は、自動的にレイヤー昇格される
+  → これを「暗黙的コンポジット」と呼ぶ
+  → ブラウザは Layer Squashing で不要なレイヤーの統合を試みる
+```
+
+### 7.3 will-change の正しい使い方
+
+```javascript
+// コード例6: will-change のベストプラクティス
+
+// --- 正しい使い方: アニメーション直前に適用、終了後に解除 ---
+const card = document.querySelector('.card');
+
+card.addEventListener('mouseenter', () => {
+  // ホバー直前にレイヤーを準備
+  card.style.willChange = 'transform';
+});
+
+card.addEventListener('transitionend', () => {
+  // トランジション完了後にレイヤーを解放
+  card.style.willChange = 'auto';
+});
+
+// --- CSS で常時適用する場合（頻繁にアニメーションする要素のみ） ---
+/*
+.frequently-animated {
+  will-change: transform, opacity;
+}
+*/
+
+// --- アンチパターン: 全要素に will-change を適用 ---
+/*
+  決してやってはいけない:
+  * {
+    will-change: transform;
   }
 
-  注意:
-  → 必要な要素にのみ使用
-  → * { will-change: transform; } は絶対NG
-  → アニメーション完了後に解除するのが理想
+  理由:
+  → 全要素がレイヤー昇格 → GPU メモリの大量消費
+  → モバイルデバイスでメモリ不足によるクラッシュの原因
+  → ブラウザの最適化を妨害
+*/
 
-DevTools で確認:
-  → Chrome DevTools > Rendering > Layer borders
-  → 緑の枠 = Composite レイヤー
-  → Chrome DevTools > Layers パネル
+// --- will-change を CSS から適用する推奨パターン ---
+/*
+.card {
+  transition: transform 0.3s ease;
+}
+.card:hover {
+  will-change: transform;
+}
+.card:active {
+  transform: scale(1.05);
+}
+*/
+```
+
+### 7.4 Compositor Thread の役割
+
+Composite 処理はメインスレッドとは独立した Compositor Thread（合成スレッド）で実行される。
+
+```
+スレッドモデルの理解:
+
+  メインスレッド:
+  ┌──────────────────────────────────────────────┐
+  │  JavaScript → Style → Layout → Paint          │
+  │  （重い処理があるとフレーム落ちの原因になる）   │
+  └──────────────┬───────────────────────────────┘
+                 │ Paint Records + Layer情報
+                 ▼
+  コンポジタースレッド:
+  ┌──────────────────────────────────────────────┐
+  │  Composite（GPU 合成）                        │
+  │  → メインスレッドの負荷に影響されない          │
+  │  → transform / opacity の変更はここだけで処理  │
+  │  → スクロール処理もここで処理可能              │
+  └──────────────────────────────────────────────┘
+
+  これが意味すること:
+  → メインスレッドで重いJSが実行されていても
+    transform / opacity アニメーションは滑らかに動く
+  → スクロールもコンポジタースレッドで処理されるため
+    JS の実行がスクロールをブロックしにくい
+    （ただし scroll イベントハンドラがある場合は例外）
+
+  注意: scroll イベントハンドラと passive オプション
+  document.addEventListener('scroll', handler, { passive: true });
+  → passive: true を指定すると、ハンドラ内で preventDefault() を
+    呼ばないことをブラウザに保証 → スクロールがブロックされない
 ```
 
 ---
 
-## 5. 60fps を実現するためのルール
+## 8. 60fps を実現するためのルール
+
+### 8.1 フレームバジェット
 
 ```
-60fps = 1フレーム 16.67ms 以内に処理完了
+1フレームの時間配分（60fps の場合）:
 
-  1フレームの予算:
-  ┌──────────────────────────────────────┐
-  │ JS (< 10ms) │ Style │ Layout │ Paint │ Composite │
-  └──────────────────────────────────────┘
-  ← ────────── 16.67ms ────────────── →
+  1秒 / 60フレーム = 16.67ms / フレーム
 
-最適化のルール:
-  ① アニメーションは transform / opacity のみ
-     // 悪い: left を使う（Layout + Paint + Composite）
-     .box { left: 100px; }
+  理想的な時間配分:
+  ┌────────────────────────────────────────────────────────┐
+  │                    16.67ms                              │
+  ├──────────┬────────┬────────┬───────┬──────────┬────────┤
+  │ Input    │  JS    │ Style  │Layout │  Paint   │Composite│
+  │ handling │(<10ms) │        │       │          │        │
+  │  (~1ms)  │        │(~1ms)  │(~2ms) │ (~2ms)   │(~1ms)  │
+  ├──────────┴────────┴────────┴───────┴──────────┴────────┤
+  │ 合計: ~17ms → ギリギリ                                  │
+  │ JS が 10ms を超えると → フレーム落ち（ジャンク）         │
+  └────────────────────────────────────────────────────────┘
 
-     // 良い: transform を使う（Composite のみ）
-     .box { transform: translateX(100px); }
+  120Hz ディスプレイの場合:
+  → 1フレーム = 8.33ms → さらにシビアな予算
+  → JS は 5ms 以内に抑える必要がある
 
-  ② JS の実行を短くする（< 10ms/フレーム）
-     → 重い処理は requestIdleCallback / Web Worker へ
+  フレーム落ちの視覚的影響:
+  ┌──────────────────────────────────────────┐
+  │ 60fps: ●●●●●●●●●●●● 滑らか              │
+  │ 30fps: ●─●─●─●─●─●─ カクカク感じ始める   │
+  │ 15fps: ●───●───●───● 明らかにカクカク     │
+  │  5fps: ●─────────●── スライドショー状態    │
+  └──────────────────────────────────────────┘
+```
 
-  ③ 強制同期レイアウトを避ける
-     → offsetWidth 等の読み取りを最小限に
+### 8.2 アニメーション最適化の比較
 
-  ④ Paint 範囲を小さくする
-     → contain: layout paint; で影響範囲を制限
+```javascript
+// コード例7: アニメーション手法の比較
 
-  ⑤ レイヤー数を適切に管理
-     → 多すぎるレイヤーはGPUメモリを圧迫
+// --- 手法1: left/top を使うアニメーション（非推奨） ---
+// パイプライン: Style → Layout → Paint → Composite（全段階実行）
+function animateWithPosition(element) {
+  let pos = 0;
+  function frame() {
+    pos += 2;
+    element.style.left = pos + 'px';  // Layout + Paint + Composite
+    if (pos < 300) requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+
+// --- 手法2: transform を使うアニメーション（推奨） ---
+// パイプライン: Style → Composite（Layout と Paint をスキップ）
+function animateWithTransform(element) {
+  let pos = 0;
+  function frame() {
+    pos += 2;
+    element.style.transform = `translateX(${pos}px)`;  // Composite のみ
+    if (pos < 300) requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+
+// --- 手法3: CSS Animation（最も推奨） ---
+// ブラウザが最適化しやすい
+/*
+@keyframes slideRight {
+  from { transform: translateX(0); }
+  to   { transform: translateX(300px); }
+}
+
+.animated-element {
+  animation: slideRight 0.5s ease-out forwards;
+}
+*/
+
+// --- 手法4: Web Animations API（プログラマティックに制御） ---
+function animateWithWAAPI(element) {
+  const animation = element.animate([
+    { transform: 'translateX(0)' },
+    { transform: 'translateX(300px)' }
+  ], {
+    duration: 500,
+    easing: 'ease-out',
+    fill: 'forwards'
+  });
+
+  animation.onfinish = () => {
+    console.log('Animation completed');
+  };
+
+  return animation;  // pause(), cancel(), reverse() が可能
+}
+```
+
+### 8.3 アニメーション手法の比較表
+
+| 手法 | Pipeline 段階 | 滑らかさ | JS実行中の動作 | 制御性 | 推奨度 |
+|------|-------------|---------|--------------|--------|-------|
+| `left`/`top` 変更 | Style→Layout→Paint→Comp | 低 | カクつく | 高 | 非推奨 |
+| `transform` (JS) | Style→Comp | 高 | 滑らか | 高 | 推奨 |
+| CSS Animation | Style→Comp | 最高 | 滑らか | 低 | 最推奨 |
+| Web Animations API | Style→Comp | 最高 | 滑らか | 高 | 最推奨 |
+| `setTimeout`/`setInterval` | 全段階 | 最低 | 停止する | 高 | 非推奨 |
+
+### 8.4 重い JS 処理の分割
+
+```javascript
+// コード例8: 長時間実行タスクの分割手法
+
+// --- アンチパターン2: メインスレッドを長時間ブロック ---
+function processLargeArrayBad(items) {
+  // 10万件のデータを一度に処理 → メインスレッドが数百ms ブロック
+  // → アニメーション停止、入力無反応
+  for (const item of items) {
+    heavyComputation(item);
+  }
+}
+
+// --- 修正: チャンク分割 + requestIdleCallback ---
+function processLargeArrayGood(items) {
+  const CHUNK_SIZE = 100;
+  let index = 0;
+
+  function processChunk(deadline) {
+    // deadline.timeRemaining() でフレームの残り時間をチェック
+    while (index < items.length && deadline.timeRemaining() > 1) {
+      const end = Math.min(index + CHUNK_SIZE, items.length);
+      for (let i = index; i < end; i++) {
+        heavyComputation(items[i]);
+      }
+      index = end;
+    }
+
+    if (index < items.length) {
+      requestIdleCallback(processChunk);
+    }
+  }
+
+  requestIdleCallback(processChunk);
+}
+
+// --- 修正: Web Worker にオフロード ---
+// main.js
+const worker = new Worker('compute-worker.js');
+
+worker.postMessage({ items: largeArray });
+worker.onmessage = (event) => {
+  const results = event.data;
+  updateUI(results);  // 結果をUIに反映
+};
+
+// compute-worker.js
+self.onmessage = (event) => {
+  const { items } = event.data;
+  const results = items.map(item => heavyComputation(item));
+  self.postMessage(results);
+};
+
+// --- 修正: scheduler.yield()（新しいAPI） ---
+async function processWithYield(items) {
+  for (let i = 0; i < items.length; i++) {
+    heavyComputation(items[i]);
+
+    // 定期的にメインスレッドに制御を戻す
+    if (i % 100 === 0 && 'scheduler' in globalThis) {
+      await scheduler.yield();
+    }
+  }
+}
 ```
 
 ---
 
-## まとめ
+## 9. ブラウザエンジン別の差異
 
-| 段階 | 内容 | コスト |
-|------|------|--------|
-| Style | CSS計算 | 低〜中 |
-| Layout | 位置・サイズ計算 | 高 |
-| Paint | ピクセル描画 | 中 |
-| Composite | GPU合成 | 低 |
+### 9.1 主要エンジンの比較
+
+| 特性 | Blink (Chrome/Edge) | Gecko (Firefox) | WebKit (Safari) |
+|------|-------------------|-----------------|-----------------|
+| Layout エンジン | LayoutNG | Gecko Layout | WebCore Layout |
+| Paint 方式 | Skia (GPU加速) | WebRender (GPU) | CoreGraphics |
+| Compositor | cc (Chromium Compositor) | WebRender | CA (Core Animation) |
+| スレッドモデル | マルチプロセス・マルチスレッド | マルチプロセス | マルチプロセス（制限あり） |
+| Layer 管理 | 暗黙的昇格あり | 手動管理寄り | Core Animation 依存 |
+| will-change 対応 | 完全対応 | 完全対応 | 部分的（過去にバグあり） |
+| content-visibility | 対応 | 対応 | 部分対応 |
+| contain プロパティ | 完全対応 | 完全対応 | 完全対応 |
+
+### 9.2 Chrome DevTools でのパイプライン解析
+
+```
+Chrome DevTools を使ったレンダリングパイプライン分析手順:
+
+  1. Performance パネル:
+     → F12 → Performance タブ → Record
+     → 操作を実行 → Stop
+     → Main セクションで各フレームのタスクを確認
+     → 黄色 = JS / 紫色 = Layout / 緑色 = Paint
+
+  2. Rendering パネル（詳細設定）:
+     → F12 → Ctrl+Shift+P → "Show Rendering"
+     → Paint flashing: 再描画領域を緑でハイライト
+     → Layout Shift Regions: CLS の発生箇所を可視化
+     → Layer borders: コンポジットレイヤーの境界を表示
+     → FPS meter: リアルタイム FPS 表示
+
+  3. Layers パネル:
+     → F12 → Ctrl+Shift+P → "Show Layers"
+     → 3D ビューでレイヤーの重なりを確認
+     → 各レイヤーのメモリ使用量を確認
+     → レイヤー昇格の理由（Compositing Reasons）を確認
+
+  4. Performance Monitor:
+     → F12 → Ctrl+Shift+P → "Show Performance Monitor"
+     → リアルタイムで以下を監視:
+        ・CPU usage
+        ・JS heap size
+        ・DOM Nodes count
+        ・Layouts / sec
+        ・Style recalcs / sec
+```
 
 ---
 
-## 次に読むべきガイド
-→ [[01-css-layout-engine.md]] — CSSレイアウトエンジン
+## 10. 実践的な最適化テクニック
 
----
+### 10.1 CSS contain と content-visibility の活用
 
-## 参考文献
-1. Paul Lewis. "Rendering Performance." web.dev, 2015.
-2. CSS Triggers. "csstriggers.com." 2024.
+```css
+/* コード例9: 仮想リスト風の最適化 */
+
+/* 長いリストの各アイテムに content-visibility を適用 */
+.feed-item {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 120px;  /* 推定高さを指定 */
+}
+
+/* カードコンポーネントの封じ込め */
+.card {
+  contain: content;  /* layout + paint */
+  /* → カード内部の変更がカード外に波及しない */
+}
+
+/* サイドバーウィジェット */
+.sidebar-widget {
+  contain: strict;
+  width: 300px;
+  height: 250px;
+  /* → 完全に独立したレンダリングコンテキスト */
+}
+
+/* タブの非表示コンテンツ */
+.tab-panel[hidden] {
+  content-visibility: hidden;
+  /* display:none と違い、状態を保持したままレンダリングをスキップ */
+  /* → タブ切り替え時の再レンダリングコストが低い */
+}
+```
+
+### 10.2 DOM 操作のバッチ処理
+
+```javascript
+// コード例10: DocumentFragment を使ったバッチ DOM 操作
+
+// --- 悪い例: 1要素ずつ追加 ---
+function addItemsBad(container, items) {
+  items.forEach(item => {
+    const li = document.createElement('li');
+    li.textContent = item.name;
+    li.className = 'list-item';
+    container.appendChild(li);
+    // → 毎回 Layout が再計算される可能性
+  });
+}
+
+// --- 良い例: DocumentFragment でまとめて追加 ---
+function addItemsGood(container, items) {
+  const fragment = document.createDocumentFragment();
+
+  items.forEach(item => {
+    const li = document.createElement('li');
+    li.textContent = item.name;
+    li.className = 'list-item';
+    fragment.appendChild(li);  // オフスクリーンなのでLayoutなし
+  });
+
+  container.appendChild(fragment);  // 1回のDOM操作でまとめて追加
+}
+
+// --- 良い例: innerHTML を使う（大量要素の場合に最速） ---
+function addItemsFastest(container, items) {
+  const html = items.map(item =>
+    `<li class="list-item">${escapeHtml(item.name)}</li>`
+  ).join('');
+
+  container.insertAdjacentHTML('beforeend', html);
+}
+
+// HTML エスケープ関数（XSS 防止）
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.appendChild(document.createTextNode(str));
+  return div.innerHTML;
+}
+```
