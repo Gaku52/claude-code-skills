@@ -61,6 +61,54 @@
                     └─ 反例が見つかったら DP 確定
 ```
 
+### 1.1 交換論法（Exchange Argument）の詳細
+
+交換論法は貪欲法の正当性を証明するための最も一般的な技法である。基本的な考え方は「最適解が貪欲解と異なると仮定し、最適解の要素を貪欲解の要素に交換しても最適性が損なわれないことを示す」というものである。
+
+```
+┌──────────────────────────────────────────────────────┐
+│           交換論法の一般的な手順                        │
+├──────────────────────────────────────────────────────┤
+│                                                       │
+│  Step 1: OPT を任意の最適解、G を貪欲解とする          │
+│                                                       │
+│  Step 2: OPT と G の「最初の相違点」を特定する          │
+│          OPT = {o₁, o₂, ..., oₖ}                     │
+│          G   = {g₁, g₂, ..., gₘ}                     │
+│          oᵢ ≠ gᵢ となる最小の i を見つける              │
+│                                                       │
+│  Step 3: OPT の oᵢ を gᵢ に交換した解 OPT' を作る      │
+│          OPT' = {o₁, ..., oᵢ₋₁, gᵢ, oᵢ₊₁, ...}     │
+│                                                       │
+│  Step 4: OPT' が以下を満たすことを示す                 │
+│          (a) OPT' は有効な解である                     │
+│          (b) OPT' の目的関数値 ≥ OPT の目的関数値      │
+│                                                       │
+│  Step 5: 繰り返し適用して OPT を G に変換できることを示す│
+│          → |G| = |OPT| が成立 → G は最適              │
+│                                                       │
+└──────────────────────────────────────────────────────┘
+```
+
+### 1.2 貪欲法の一般テンプレート
+
+```python
+def greedy_template(problem_input):
+    """貪欲法の一般的なテンプレート"""
+    # Step 1: 入力を貪欲基準でソート
+    candidates = sort_by_greedy_criterion(problem_input)
+
+    solution = []
+
+    # Step 2: 各候補について判定
+    for candidate in candidates:
+        if is_feasible(solution, candidate):
+            # Step 3: 制約を満たすなら解に追加
+            solution.append(candidate)
+
+    return solution
+```
+
 ---
 
 ## 2. 活動選択問題（Activity Selection）
@@ -475,6 +523,76 @@ print(f"合計重み: {total}")  # 16
   どちらもカット性質に基づいて正しい。
 ```
 
+### 4.5 Boruvka のアルゴリズム
+
+Kruskal や Prim に加えて、もう一つの MST アルゴリズムとして Boruvka のアルゴリズムがある。これは並列処理に適した貪欲法である。
+
+```
+┌──────────────────────────────────────────────────────┐
+│          Boruvka のアルゴリズムの動作                   │
+├──────────────────────────────────────────────────────┤
+│                                                       │
+│  Phase 1: 各頂点は独立した連結成分                      │
+│    A(0)  B(0)  C(0)  D(0)  E(0)                      │
+│                                                       │
+│  Phase 2: 各連結成分から最小辺を選択（並列可能）        │
+│    A→B(4), B→C(2), C→B(2), D→C(3), E→C(7)          │
+│    追加: B-C(2), A-B(4), C-D(3), C-E(7)              │
+│                                                       │
+│  → 1フェーズで全頂点が接続 → 完了                      │
+│  合計: 2 + 3 + 4 + 7 = 16                             │
+│                                                       │
+│  特徴: 各フェーズで連結成分数が半分以下になる           │
+│  → O(E log V) フェーズ数は最大 O(log V)               │
+└──────────────────────────────────────────────────────┘
+```
+
+```python
+def boruvka(n: int, edges: list) -> tuple:
+    """Boruvka法 - O(E log V)
+    edges: [(u, v, weight), ...]
+    並列処理に適したMSTアルゴリズム
+    """
+    uf = UnionFind(n)
+    mst = []
+    total = 0
+    num_components = n
+
+    while num_components > 1:
+        # 各連結成分の最小辺を記録
+        cheapest = [None] * n  # cheapest[comp] = (weight, u, v)
+
+        for u, v, w in edges:
+            comp_u = uf.find(u)
+            comp_v = uf.find(v)
+
+            if comp_u == comp_v:
+                continue  # 同じ連結成分
+
+            if cheapest[comp_u] is None or w < cheapest[comp_u][0]:
+                cheapest[comp_u] = (w, u, v)
+            if cheapest[comp_v] is None or w < cheapest[comp_v][0]:
+                cheapest[comp_v] = (w, u, v)
+
+        # 各連結成分の最小辺を追加
+        for comp in range(n):
+            if cheapest[comp] is not None:
+                w, u, v = cheapest[comp]
+                if uf.find(u) != uf.find(v):
+                    uf.union(u, v)
+                    mst.append((u, v, w))
+                    total += w
+                    num_components -= 1
+
+    return mst, total
+
+# 使用例
+edges_b = [(0,1,4), (0,2,8), (1,2,2), (1,3,6), (2,3,3), (2,4,7), (3,4,9)]
+mst_b, total_b = boruvka(5, edges_b)
+print(f"Boruvka MST: {mst_b}")
+print(f"合計重み: {total_b}")  # 16
+```
+
 ---
 
 ## 5. その他の貪欲法の例
@@ -649,6 +767,89 @@ print(f"復号化: {run_length_decode(encoded)}")  # AAABBBCCDDDDEEFFFFF
 # 負辺があると成り立たない → Bellman-Ford（DPベース）が必要
 ```
 
+### 5.7 ガソリンスタンド問題（Gas Station Problem）
+
+旅行中にガソリンスタンドに立ち寄る回数を最小化する問題は、典型的な貪欲法で解ける。
+
+```python
+def min_gas_stops(stations: list, tank_capacity: int, total_distance: int) -> list:
+    """ガソリンスタンド問題 - O(n)
+    stations: ガソリンスタンドの位置（距離）のリスト（ソート済み）
+    tank_capacity: 満タンで走れる距離
+    total_distance: 目的地までの総距離
+
+    貪欲戦略: 現在の燃料で到達可能な最も遠いスタンドで給油する
+    """
+    stops = []
+    current_fuel = tank_capacity
+    current_pos = 0
+
+    # 目的地もリストに加える
+    all_points = stations + [total_distance]
+
+    for point in all_points:
+        distance = point - current_pos
+
+        if distance > tank_capacity:
+            return []  # 到達不可能
+
+        if current_fuel < distance:
+            # 燃料不足 → 直前のスタンドで給油が必要だった
+            # このアルゴリズムでは「行けるだけ行って給油」戦略
+            stops.append(current_pos)
+            current_fuel = tank_capacity
+
+        current_fuel -= distance
+        current_pos = point
+
+    return stops
+
+
+def min_gas_stops_greedy(stations: list, tank_capacity: int, total_distance: int) -> list:
+    """改良版: 行けるだけ行ってから給油する貪欲法 - O(n)"""
+    if not stations:
+        return [] if tank_capacity >= total_distance else [-1]
+
+    stops = []
+    current_fuel = tank_capacity
+    prev_pos = 0
+
+    for i, station_pos in enumerate(stations):
+        dist = station_pos - prev_pos
+
+        if dist > current_fuel:
+            # ここまで来られない → 直前のスタンドで給油すべきだった
+            # 直前のスタンドがないなら到達不可能
+            if not stops and prev_pos == 0:
+                return [-1]  # 到達不可能
+            current_fuel = tank_capacity
+            dist = station_pos - prev_pos
+            if dist > current_fuel:
+                return [-1]
+
+        current_fuel -= dist
+        prev_pos = station_pos
+
+        # 次のポイントまで行けるか確認
+        next_point = stations[i + 1] if i + 1 < len(stations) else total_distance
+        if current_fuel < next_point - station_pos:
+            stops.append(station_pos)
+            current_fuel = tank_capacity
+
+    # 最後の区間
+    if current_fuel < total_distance - prev_pos:
+        return [-1]
+
+    return stops
+
+# 使用例
+stations = [100, 200, 375, 550, 750]
+tank = 400
+distance = 900
+result = min_gas_stops_greedy(stations, tank, distance)
+print(f"給油地点: {result}")  # 到達可能な最小停車
+```
+
 ---
 
 ## 6. マトロイド理論と貪欲法
@@ -668,6 +869,73 @@ print(f"復号化: {run_length_decode(encoded)}")  # AAABBBCCDDDDEEFFFFF
 例:
   - グラフの辺集合 + 森（サイクルなし）の条件 → グラフ的マトロイド
   - → 最小全域木が貪欲法（Kruskal）で求まる理由
+```
+
+### 6.1 マトロイドの具体例
+
+```
+┌──────────────────────────────────────────────────────────┐
+│             代表的なマトロイドの種類                       │
+├──────────────────────────────────────────────────────────┤
+│                                                           │
+│  1. グラフ的マトロイド (Graphic Matroid)                   │
+│     S = グラフの辺集合                                    │
+│     I = 森（サイクルを含まない辺の部分集合）               │
+│     応用: 最小全域木 (Kruskal)                            │
+│                                                           │
+│  2. 一様マトロイド (Uniform Matroid)                       │
+│     S = n 個の要素                                        │
+│     I = 要素数が k 以下の部分集合                          │
+│     応用: 上位 k 個の選択                                 │
+│                                                           │
+│  3. 分割マトロイド (Partition Matroid)                     │
+│     S をグループに分割、各グループから最大 kᵢ 個選択       │
+│     応用: 各カテゴリから制限数を選ぶ問題                   │
+│                                                           │
+│  4. 線形マトロイド (Linear Matroid)                        │
+│     S = ベクトル集合                                      │
+│     I = 線形独立なベクトルの部分集合                       │
+│     応用: 線形代数における基底選択                         │
+│                                                           │
+│  5. 横断マトロイド (Transversal Matroid)                   │
+│     二部グラフのマッチングに基づく独立集合                 │
+│     応用: 割り当て問題の部分構造                           │
+│                                                           │
+└──────────────────────────────────────────────────────────┘
+```
+
+### 6.2 マトロイドと貪欲法の関係の検証
+
+```python
+def verify_matroid_greedy(elements: list, weights: dict,
+                          is_independent) -> list:
+    """マトロイド上の重み最大独立集合を貪欲法で求める
+    elements: 元の集合
+    weights: 各要素の重み
+    is_independent: 独立性を判定する関数
+    """
+    # 重みの降順にソート
+    sorted_elements = sorted(elements, key=lambda x: weights[x], reverse=True)
+
+    solution = []
+    for elem in sorted_elements:
+        candidate = solution + [elem]
+        if is_independent(candidate):
+            solution.append(elem)
+
+    return solution
+
+# 一様マトロイドの例: 上位k個の重み最大要素を選ぶ
+elements = ['a', 'b', 'c', 'd', 'e']
+weights = {'a': 10, 'b': 30, 'c': 20, 'd': 5, 'e': 25}
+k = 3
+
+def uniform_independent(subset):
+    return len(subset) <= k
+
+result = verify_matroid_greedy(elements, weights, uniform_independent)
+print(f"選択: {result}")  # ['b', 'e', 'c'] (重み: 30, 25, 20)
+print(f"合計重み: {sum(weights[x] for x in result)}")  # 75
 ```
 
 ---
@@ -842,6 +1110,100 @@ selected = greedy_set_cover(universe, subsets)
 print(f"選択された集合: {selected}")  # [1, 4] or similar
 ```
 
+### 8.5 貪欲法によるグラフ彩色（近似）
+
+グラフ彩色はNP困難であるが、貪欲法により効率的な近似解を得ることができる。
+
+```python
+def greedy_graph_coloring(graph: dict) -> dict:
+    """貪欲法によるグラフ彩色 - O(V + E)
+    graph: {node: [neighbors]}
+    最適解は保証しないが、最大次数+1色以内で彩色可能（Brook の定理）
+    """
+    colors = {}
+
+    for node in graph:
+        # 隣接頂点が使っている色を収集
+        used_colors = set()
+        for neighbor in graph[node]:
+            if neighbor in colors:
+                used_colors.add(colors[neighbor])
+
+        # 使われていない最小の色番号を割り当て
+        color = 0
+        while color in used_colors:
+            color += 1
+        colors[node] = color
+
+    return colors
+
+# 使用例: ペテルセングラフの一部
+graph = {
+    0: [1, 4, 5],
+    1: [0, 2, 6],
+    2: [1, 3, 7],
+    3: [2, 4, 8],
+    4: [3, 0, 9],
+    5: [0, 7, 8],
+    6: [1, 8, 9],
+    7: [2, 5, 9],
+    8: [3, 5, 6],
+    9: [4, 6, 7],
+}
+coloring = greedy_graph_coloring(graph)
+num_colors = len(set(coloring.values()))
+print(f"彩色結果: {coloring}")
+print(f"使用色数: {num_colors}")
+
+# 彩色の妥当性を検証
+valid = all(
+    coloring[u] != coloring[v]
+    for u in graph for v in graph[u]
+)
+print(f"彩色は有効: {valid}")  # True
+```
+
+### 8.6 最適マージパターン（ファイルマージ）
+
+複数のソート済みファイルを2つずつマージして1つにまとめる問題。ハフマン符号と同じ構造を持つ。
+
+```python
+import heapq
+
+def optimal_merge_pattern(file_sizes: list) -> tuple:
+    """最適マージパターン - O(n log n)
+    各ステップで最も小さい2つのファイルをマージする（ハフマンと同じ戦略）
+    返り値: (合計マージコスト, マージ順序)
+    """
+    heap = list(file_sizes)
+    heapq.heapify(heap)
+    total_cost = 0
+    merge_order = []
+
+    while len(heap) > 1:
+        first = heapq.heappop(heap)
+        second = heapq.heappop(heap)
+        merged = first + second
+        total_cost += merged
+        merge_order.append((first, second, merged))
+        heapq.heappush(heap, merged)
+
+    return total_cost, merge_order
+
+# 使用例
+sizes = [20, 30, 10, 5, 30]
+cost, order = optimal_merge_pattern(sizes)
+print(f"最小マージコスト: {cost}")
+for f1, f2, merged in order:
+    print(f"  {f1} + {f2} = {merged}")
+# 出力例:
+# 5 + 10 = 15
+# 15 + 20 = 35
+# 30 + 30 = 60
+# 35 + 60 = 95
+# 合計コスト = 15 + 35 + 60 + 95 = 205
+```
+
 ---
 
 ## 9. アンチパターン
@@ -913,6 +1275,86 @@ def good_activity_selection(activities):
 # 「貪欲法による近似解。最適解の ln(n)+1 倍以内を保証」
 ```
 
+### アンチパターン5: 局所最適の罠 — 巡回セールスマン問題
+
+```python
+# BAD: TSP に最近傍法（貪欲）を適用して「最適」と主張
+def bad_tsp_nearest_neighbor(dist_matrix: list, start: int = 0) -> tuple:
+    """最近傍法は貪欲ヒューリスティックであり、最適解を保証しない"""
+    n = len(dist_matrix)
+    visited = [False] * n
+    visited[start] = True
+    tour = [start]
+    total = 0
+    current = start
+
+    for _ in range(n - 1):
+        nearest = -1
+        nearest_dist = float('inf')
+        for j in range(n):
+            if not visited[j] and dist_matrix[current][j] < nearest_dist:
+                nearest = j
+                nearest_dist = dist_matrix[current][j]
+        visited[nearest] = True
+        tour.append(nearest)
+        total += nearest_dist
+        current = nearest
+
+    total += dist_matrix[current][start]
+    tour.append(start)
+    return total, tour
+
+# 反例を示す距離行列
+dist = [
+    [0, 1, 15, 6],
+    [1, 0, 7, 3],
+    [15, 7, 0, 1],
+    [6, 3, 1, 0],
+]
+greedy_cost, greedy_tour = bad_tsp_nearest_neighbor(dist, 0)
+print(f"最近傍法: コスト={greedy_cost}, 経路={greedy_tour}")
+# 最適経路は異なる場合がある
+
+# GOOD: TSP には厳密解法（分枝限定法など）か、
+# 2-opt 等の局所探索で改善する
+```
+
+### アンチパターン6: 負の重みを持つグラフへのDijkstra適用
+
+```python
+# BAD: 負辺のあるグラフに Dijkstra（貪欲法）を適用
+# → 負辺があると貪欲選択性質が崩壊する
+#
+# 例:  A --1--> B --(-3)--> C
+#      A --2--> C
+#
+# Dijkstra: A→B(1), A→C(2) → Cの距離=2
+# 正解: A→B→C = 1+(-3) = -2
+#
+# GOOD: 負辺がある場合は Bellman-Ford を使う
+
+def bellman_ford(n: int, edges: list, source: int) -> list:
+    """負辺を含むグラフの最短経路 - O(VE)"""
+    dist = [float('inf')] * n
+    dist[source] = 0
+
+    for _ in range(n - 1):
+        for u, v, w in edges:
+            if dist[u] != float('inf') and dist[u] + w < dist[v]:
+                dist[v] = dist[u] + w
+
+    # 負閉路の検出
+    for u, v, w in edges:
+        if dist[u] != float('inf') and dist[u] + w < dist[v]:
+            raise ValueError("負閉路が存在します")
+
+    return dist
+
+edges = [(0, 1, 1), (1, 2, -3), (0, 2, 2)]
+dist = bellman_ford(3, edges, 0)
+print(f"最短距離: {dist}")  # [0, 1, -2]
+```
+
 ---
 
 ## 10. コイン問題における貪欲法の成立条件
@@ -935,7 +1377,407 @@ def good_activity_selection(activities):
 
 ---
 
-## 11. FAQ
+## 11. 貪欲法の計算量分析パターン
+
+貪欲法アルゴリズムの計算量は、多くの場合ソートがボトルネックになる。
+
+```
+┌────────────────────────────────────────────────────────────┐
+│           貪欲法アルゴリズムの計算量パターン                 │
+├──────────────────┬─────────────────┬───────────────────────┤
+│ アルゴリズム       │ 時間計算量       │ ボトルネック           │
+├──────────────────┼─────────────────┼───────────────────────┤
+│ 活動選択          │ O(n log n)      │ ソート                 │
+│ 分数ナップサック   │ O(n log n)      │ ソート                 │
+│ ハフマン符号       │ O(n log n)      │ ヒープ操作             │
+│ Kruskal          │ O(E log E)      │ ソート + Union-Find    │
+│ Prim (ヒープ)     │ O((V+E) log V)  │ ヒープ操作             │
+│ Prim (配列)       │ O(V²)          │ 最小値探索             │
+│ Boruvka          │ O(E log V)      │ フェーズ反復           │
+│ Dijkstra (ヒープ) │ O((V+E) log V)  │ ヒープ操作             │
+│ 区間スケジューリング│ O(n log n)      │ ソート                 │
+│ ジョブスケジューリング│ O(n²)        │ スロット探索           │
+│ 集合被覆(近似)     │ O(|U| * |S|)   │ 集合走査               │
+│ グラフ彩色(近似)   │ O(V + E)       │ 隣接リスト走査         │
+└──────────────────┴─────────────────┴───────────────────────┘
+
+ポイント:
+  - ソート O(n log n) が支配的なパターンが最も多い
+  - ヒープを使うと、動的に最小/最大を取得する操作が O(log n)
+  - 貪欲法自体のループは O(n) であることが多い
+  - 前処理（ソートやヒープ構築）が全体の計算量を決定する
+```
+
+---
+
+## 12. 演習問題
+
+### 基礎レベル
+
+**問題 B1: お釣り問題**
+
+日本の硬貨 [500, 100, 50, 10, 5, 1] を使って、お釣りを最小枚数で支払うプログラムを作成せよ。この額面では貪欲法が最適であることを確認せよ。
+
+```python
+def min_coins_japan(amount: int) -> dict:
+    """日本の硬貨でお釣りを最小枚数にする"""
+    coins = [500, 100, 50, 10, 5, 1]
+    result = {}
+    remaining = amount
+
+    for coin in coins:
+        if remaining >= coin:
+            count = remaining // coin
+            result[coin] = count
+            remaining -= coin * count
+
+    return result
+
+# テスト
+change = min_coins_japan(1376)
+print(f"1376円のお釣り: {change}")
+# {500: 2, 100: 3, 50: 1, 10: 2, 5: 1, 1: 1}
+total_coins = sum(change.values())
+print(f"合計枚数: {total_coins}")  # 10
+```
+
+**問題 B2: 会議室割り当て**
+
+N 個の会議の開始・終了時間が与えられる。1つの会議室で最大何個の会議を開催できるか。
+
+```python
+def max_meetings(meetings: list) -> list:
+    """会議室割り当て問題（活動選択問題の応用）"""
+    indexed = [(end, start, i) for i, (start, end) in enumerate(meetings)]
+    indexed.sort()
+
+    selected = []
+    last_end = -1
+
+    for end, start, idx in indexed:
+        if start >= last_end:
+            selected.append((idx, start, end))
+            last_end = end
+
+    return selected
+
+meetings = [(0, 6), (1, 4), (3, 5), (5, 7), (5, 9), (8, 9)]
+result = max_meetings(meetings)
+print(f"開催可能な会議数: {len(result)}")
+for idx, s, e in result:
+    print(f"  会議{idx}: {s}-{e}")
+# 会議1: 1-4, 会議3: 5-7, 会議5: 8-9 → 3会議
+```
+
+**問題 B3: 最大配分問題**
+
+子供たちに飴を配る。各子供には満足度閾値があり、各飴にはサイズがある。1人に1個ずつ配り、満足する子供の数を最大化せよ。
+
+```python
+def assign_cookies(children: list, cookies: list) -> int:
+    """飴の配分問題 - O(n log n + m log m)
+    children: 各子供の満足度閾値
+    cookies: 各飴のサイズ
+    """
+    children_sorted = sorted(children)
+    cookies_sorted = sorted(cookies)
+
+    child_i = 0
+    cookie_i = 0
+
+    while child_i < len(children_sorted) and cookie_i < len(cookies_sorted):
+        if cookies_sorted[cookie_i] >= children_sorted[child_i]:
+            child_i += 1  # この子供は満足
+        cookie_i += 1  # 次の飴へ
+
+    return child_i
+
+children = [1, 2, 3]
+cookies = [1, 1]
+print(f"満足する子供の数: {assign_cookies(children, cookies)}")  # 1
+
+children = [1, 2]
+cookies = [1, 2, 3]
+print(f"満足する子供の数: {assign_cookies(children, cookies)}")  # 2
+```
+
+### 応用レベル
+
+**問題 A1: 最小プラットフォーム数**
+
+電車の到着・出発時刻が与えられる。同時に停車する電車を全て収容するために必要な最小プラットフォーム数を求めよ。
+
+```python
+def min_platforms(arrivals: list, departures: list) -> int:
+    """最小プラットフォーム数 - O(n log n)
+    イベントソートによる貪欲法
+    """
+    events = []
+    for a in arrivals:
+        events.append((a, 1))   # 到着: +1
+    for d in departures:
+        events.append((d, -1))  # 出発: -1
+
+    events.sort(key=lambda x: (x[0], x[1]))  # 同時刻なら出発を先に
+
+    current = 0
+    max_platforms = 0
+
+    for _, event_type in events:
+        current += event_type
+        max_platforms = max(max_platforms, current)
+
+    return max_platforms
+
+arrivals   = [900, 940, 950, 1100, 1500, 1800]
+departures = [910, 1200, 1120, 1130, 1900, 2000]
+print(f"最小プラットフォーム数: {min_platforms(arrivals, departures)}")  # 3
+```
+
+**問題 A2: 文字列の辞書順最小化**
+
+文字列 s が与えられる。s の各文字を先頭または末尾に追加して新しい文字列を構築するとき、辞書順最小の文字列を求めよ。
+
+```python
+def smallest_string_by_appending(s: str) -> str:
+    """辞書順最小の文字列を構築する貪欲法 - O(n²)
+    各文字を先頭か末尾に追加する
+    """
+    from collections import deque
+    result = deque()
+
+    for char in s:
+        if result and char < result[0]:
+            result.appendleft(char)
+        else:
+            result.append(char)
+
+    return ''.join(result)
+
+# より洗練された解法: 残りの文字列との比較
+def smallest_string_precise(s: str) -> str:
+    """辞書順最小の文字列を構築（正確版）- O(n²)"""
+    from collections import deque
+    result = deque()
+    n = len(s)
+    left = 0
+    right = n - 1
+
+    chars = list(s)
+
+    while left <= right:
+        if chars[left] < chars[right]:
+            result.append(chars[left])
+            left += 1
+        elif chars[left] > chars[right]:
+            result.append(chars[right])
+            right -= 1
+        else:
+            # 同じ場合は内側を比較して決定
+            l, r = left, right
+            while l < r and chars[l] == chars[r]:
+                l += 1
+                r -= 1
+            if l >= r or chars[l] < chars[r]:
+                result.append(chars[left])
+                left += 1
+            else:
+                result.append(chars[right])
+                right -= 1
+
+    return ''.join(result)
+
+print(smallest_string_by_appending("ACBDFE"))
+print(smallest_string_precise("CBABC"))  # "BAACC" ではなく正しい辞書順最小
+```
+
+**問題 A3: 区間の最小グループ分け**
+
+N 個の区間が与えられる。重なる区間は同じグループに入れられない制約で、最小グループ数に分割せよ（区間グラフの最小彩色数 = 最大重なり数）。
+
+```python
+def min_groups(intervals: list) -> int:
+    """区間の最小グループ分け - O(n log n)
+    最大同時重なり数を求める（= 最小グループ数 = 区間グラフの彩色数）
+    """
+    events = []
+    for start, end in intervals:
+        events.append((start, 1))
+        events.append((end, -1))
+
+    events.sort(key=lambda x: (x[0], x[1]))
+
+    current = 0
+    max_overlap = 0
+    for _, delta in events:
+        current += delta
+        max_overlap = max(max_overlap, current)
+
+    return max_overlap
+
+intervals = [(1, 5), (2, 6), (4, 7), (6, 8), (7, 10)]
+print(f"最小グループ数: {min_groups(intervals)}")  # 3
+```
+
+### 発展レベル
+
+**問題 E1: マトロイド交差（発展的課題）**
+
+2つのマトロイドの共通独立集合の最大サイズを求める問題を考察せよ。以下は二部グラフの最大マッチングをマトロイド交差として定式化する例である。
+
+```python
+def bipartite_matching_as_matroid_intersection(
+    left_nodes: list, right_nodes: list, edges: list
+) -> list:
+    """二部マッチング（マトロイド交差の具体例）
+    ここでは増加路法で実装（マトロイド交差の特殊ケース）
+    """
+    match_left = {}
+    match_right = {}
+
+    def augment(u, visited):
+        for v in adj[u]:
+            if v not in visited:
+                visited.add(v)
+                if v not in match_right or augment(match_right[v], visited):
+                    match_left[u] = v
+                    match_right[v] = u
+                    return True
+        return False
+
+    adj = {u: [] for u in left_nodes}
+    for u, v in edges:
+        adj[u].append(v)
+
+    for u in left_nodes:
+        augment(u, set())
+
+    return list(match_left.items())
+
+left = ['a', 'b', 'c']
+right = ['x', 'y', 'z']
+edges = [('a','x'), ('a','y'), ('b','x'), ('b','z'), ('c','y')]
+matching = bipartite_matching_as_matroid_intersection(left, right, edges)
+print(f"最大マッチング: {matching}")
+print(f"マッチングサイズ: {len(matching)}")
+# マトロイド交差の理論により、貪欲法の一般化で解ける
+```
+
+**問題 E2: オンライン貪欲法 — セクレタリー問題**
+
+n 人の候補者を順に面接し、各面接後に即座に採用/不採用を決定する。一度不採用にした候補者は呼び戻せない。最良の候補者を選ぶ確率を最大化する戦略を実装せよ。
+
+```python
+import random
+import math
+
+def secretary_problem_strategy(candidates: list) -> tuple:
+    """セクレタリー問題の最適戦略（1/e 戦略）
+    最初の n/e 人を観察のみ（基準値の設定）
+    以降、基準値を超えた最初の候補者を採用
+
+    最良の候補者を選ぶ確率は 1/e ≒ 36.8% に収束する
+    """
+    n = len(candidates)
+    # 最初の n/e 人を観察（探索フェーズ）
+    observe_count = max(1, int(n / math.e))
+
+    # 観察フェーズで最高スコアを記録
+    threshold = max(candidates[:observe_count])
+
+    # 決定フェーズ: 基準を超えた最初の候補者を採用
+    for i in range(observe_count, n):
+        if candidates[i] > threshold:
+            return candidates[i], i, True  # (スコア, インデックス, 採用した)
+
+    # 誰も基準を超えなければ最後の候補者を採用
+    return candidates[-1], n - 1, False
+
+# シミュレーション
+def simulate_secretary(n: int, trials: int = 10000) -> float:
+    """セクレタリー問題のシミュレーション"""
+    successes = 0
+
+    for _ in range(trials):
+        candidates = list(range(1, n + 1))
+        random.shuffle(candidates)
+        best = max(candidates)
+
+        chosen, _, _ = secretary_problem_strategy(candidates)
+        if chosen == best:
+            successes += 1
+
+    return successes / trials
+
+random.seed(42)
+for n in [10, 50, 100, 1000]:
+    success_rate = simulate_secretary(n)
+    print(f"n={n:4d}: 成功率 = {success_rate:.3f} (理論値 ≒ {1/math.e:.3f})")
+```
+
+**問題 E3: 貪欲法の競合比分析 — オンラインスキーレンタル問題**
+
+スキーをレンタル（1日r円）するか購入（p円）するか。何日滑るか事前に分からない場合のオンライン戦略を分析せよ。
+
+```python
+def ski_rental_deterministic(daily_rent: int, purchase_price: int,
+                              actual_days: int) -> dict:
+    """スキーレンタル問題の決定的戦略
+    break-even 日（p/r 日目）にレンタルから購入に切り替える
+    競合比: 2 - r/p（最悪ケースで最適解の2倍以内）
+    """
+    break_even = purchase_price // daily_rent
+
+    # 戦略: break_even 日目に購入
+    if actual_days <= break_even:
+        # 購入前に終了 → レンタルのみ
+        online_cost = actual_days * daily_rent
+    else:
+        # break_even 日レンタル + 購入
+        online_cost = break_even * daily_rent + purchase_price
+
+    # 最適解（事後的に判断）
+    optimal_cost = min(actual_days * daily_rent, purchase_price)
+
+    return {
+        'online_cost': online_cost,
+        'optimal_cost': optimal_cost,
+        'competitive_ratio': online_cost / optimal_cost if optimal_cost > 0 else float('inf'),
+        'strategy': f"{'レンタル' if actual_days <= break_even else f'{break_even}日目に購入'}"
+    }
+
+# 使用例
+rent = 100
+price = 1000
+
+for days in [5, 10, 15, 20, 50]:
+    result = ski_rental_deterministic(rent, price, days)
+    print(f"日数={days:2d}: オンライン={result['online_cost']:5d}, "
+          f"最適={result['optimal_cost']:5d}, "
+          f"競合比={result['competitive_ratio']:.2f}, "
+          f"戦略={result['strategy']}")
+```
+
+---
+
+## 13. 貪欲法の設計パターン分類
+
+貪欲法で登場する典型的な設計パターンを整理する。
+
+| パターン名 | 貪欲基準 | 代表的な問題 | 計算量 |
+|:---|:---|:---|:---|
+| 端点ソート | 終了時間/締切で整列 | 活動選択、EDF | O(n log n) |
+| 比率ソート | 価値/コストで整列 | 分数ナップサック | O(n log n) |
+| 最小統合 | 最小要素をペアで統合 | ハフマン符号、マージパターン | O(n log n) |
+| 最小辺選択 | グラフの最小辺 | Kruskal、Boruvka | O(E log E) |
+| 最近傍拡張 | 隣接する最小コスト | Prim、Dijkstra | O((V+E)log V) |
+| イベントスイープ | タイムラインを走査 | 最小プラットフォーム | O(n log n) |
+| Farthest-first | 最も遠い要素を選択 | k-center 近似 | O(nk) |
+| 最大マージン | 最も余裕のある選択 | セクレタリー問題 | O(n) |
+
+---
+
+## 14. FAQ
 
 ### Q1: 貪欲法の正当性はどう証明する？
 
@@ -961,9 +1803,38 @@ def good_activity_selection(activities):
 
 **A:** ビームサーチは貪欲法の拡張版。貪欲法が各ステップで1つの最良候補のみを保持するのに対し、ビームサーチは上位 k 個の候補を保持する。k=1 がまさに貪欲法。k を増やすと解の品質が向上するが、計算量も増える。自然言語処理のデコーディングなどで広く使われる。
 
+### Q7: 貪欲法はオンラインアルゴリズムとしても使えるか？
+
+**A:** 使える場合がある。オンラインアルゴリズムとは入力が逐次的に与えられ、各時点で取消不能な決定を下す手法である。貪欲法の「後戻りなし」という性質はオンラインアルゴリズムと親和性が高い。セクレタリー問題の 1/e 戦略、スキーレンタル問題の break-even 戦略などが代表的な例である。ただし、オンラインの場合は最適性ではなく「競合比」（最適解と比較した最悪ケースの倍率）で評価する。
+
+### Q8: 貪欲法のデバッグ手法は？
+
+**A:** 貪欲法のバグは「アルゴリズムは正しいが実装が間違っている」場合と「そもそも貪欲法が適用できない問題に使っている」場合に大別される。前者はソート基準やエッジケース（空入力、同値の処理）の確認で対処する。後者は小さなテストケースで全探索の結果と比較し、一致しない反例を見つけることで判別する。以下にデバッグ用のテストコードを示す。
+
+```python
+import itertools
+
+def verify_greedy(greedy_func, brute_force_func, test_cases):
+    """貪欲法の結果を全探索と比較して検証"""
+    for i, test_input in enumerate(test_cases):
+        greedy_result = greedy_func(test_input)
+        bf_result = brute_force_func(test_input)
+        if greedy_result != bf_result:
+            print(f"反例発見! テスト{i}: 入力={test_input}")
+            print(f"  貪欲: {greedy_result}")
+            print(f"  全探索: {bf_result}")
+            return False
+    print("全テスト合格")
+    return True
+```
+
+### Q9: 貪欲法は並列処理に向いているか？
+
+**A:** 問題による。Boruvka のアルゴリズムのように、各連結成分の処理が独立であれば高い並列性を持つ。一方、活動選択問題のように前の選択結果に依存する逐次的な貪欲法は並列化が困難である。MapReduce フレームワークで大規模グラフの MST を求める場合などは Boruvka が好まれる。
+
 ---
 
-## 12. まとめ
+## 15. まとめ
 
 | 項目 | 要点 |
 |:---|:---|
@@ -972,10 +1843,13 @@ def good_activity_selection(activities):
 | ハフマン符号 | 頻度最小のペアを統合。最適接頭辞符号 |
 | Kruskal | 辺を重み順に追加。Union-Find でサイクル判定 |
 | Prim | 頂点ベースで MST を構築。密グラフに有利 |
+| Boruvka | 並列処理に適した MST アルゴリズム |
 | 分数ナップサック | 単価順に選択。0/1 とは異なり貪欲で最適 |
 | マトロイド | 貪欲法の正当性を保証する理論的枠組み |
 | DP との使い分け | 貪欲で解けるなら貪欲（高速）、解けなければ DP |
 | 正当性の証明 | 交換論法またはマトロイド理論で証明が必須 |
+| 近似アルゴリズム | NP困難問題には貪欲法が有効な近似を与えることが多い |
+| オンライン設定 | 競合比分析により貪欲戦略の品質を保証可能 |
 
 ---
 
@@ -989,9 +1863,12 @@ def good_activity_selection(activities):
 
 ## 参考文献
 
-1. Cormen, T. H. et al. (2022). *Introduction to Algorithms* (4th ed.). MIT Press. -- 第15章
-2. Huffman, D. A. (1952). "A Method for the Construction of Minimum-Redundancy Codes." *Proceedings of the IRE*.
-3. Kruskal, J. B. (1956). "On the shortest spanning subtree of a graph." *Proceedings of the AMS*.
-4. Prim, R. C. (1957). "Shortest connection networks and some generalizations." *Bell System Technical Journal*.
+1. Cormen, T. H. et al. (2022). *Introduction to Algorithms* (4th ed.). MIT Press. -- 第15章: 貪欲アルゴリズム
+2. Huffman, D. A. (1952). "A Method for the Construction of Minimum-Redundancy Codes." *Proceedings of the IRE*, 40(9), 1098-1101.
+3. Kruskal, J. B. (1956). "On the shortest spanning subtree of a graph and the traveling salesman problem." *Proceedings of the AMS*, 7(1), 48-50.
+4. Prim, R. C. (1957). "Shortest connection networks and some generalizations." *Bell System Technical Journal*, 36(6), 1389-1401.
 5. Kleinberg, J. & Tardos, E. (2005). *Algorithm Design*. Pearson. -- Chapter 4: Greedy Algorithms
 6. Oxley, J. G. (2011). *Matroid Theory* (2nd ed.). Oxford University Press.
+7. Borodin, A. & El-Yaniv, R. (1998). *Online Computation and Competitive Analysis*. Cambridge University Press. -- オンライン貪欲法と競合比分析の理論
+8. Vazirani, V. V. (2001). *Approximation Algorithms*. Springer. -- 貪欲法による近似アルゴリズムの体系的解説
+9. Lawler, E. L. (1976). *Combinatorial Optimization: Networks and Matroids*. Holt, Rinehart and Winston. -- マトロイドと貪欲法の古典的参考書
