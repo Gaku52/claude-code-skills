@@ -1,61 +1,448 @@
 # APIテスト
 
-> APIテストは品質の最後の砦。統合テスト、コントラクトテスト、負荷テスト、E2Eテストまで、APIの正確性・信頼性・性能を保証するテスト戦略の全体像と実践パターンを習得する。
+> APIテストは品質の最後の砦。単体テスト、統合テスト、コントラクトテスト、負荷テスト、E2Eテストまで、APIの正確性・信頼性・性能を保証するテスト戦略の全体像と実践パターンを習得する。
 
 ## この章で学ぶこと
 
-- [ ] APIテストの種類と戦略を理解する
-- [ ] supertest / Pact によるテスト実装を把握する
-- [ ] 負荷テストとパフォーマンステストの方法を学ぶ
+- [ ] APIテストの種類と戦略（テストピラミッド）を理解する
+- [ ] supertest / Jest / Vitest による単体テスト・統合テストを実装できる
+- [ ] Pact によるコントラクトテストの原理と実装を把握する
+- [ ] k6 / Artillery による負荷テスト・パフォーマンステストを設計・実行できる
+- [ ] Postman / Newman を用いたテスト自動化の手法を身につける
+- [ ] E2Eテストと統合テストの境界を理解し、適切な粒度でテストを書ける
+- [ ] CI/CDパイプラインへのテスト組み込み手法を学ぶ
 
 ---
 
-## 1. APIテスト戦略
+## 1. APIテストの全体像
+
+### 1.1 テストピラミッドとAPIテストの位置づけ
+
+ソフトウェアテストにおいて、テストピラミッドは各レベルのテストの理想的な割合を示す概念モデルである。APIテストにおいても同様のピラミッド構造が適用され、下層ほど実行速度が速く、数が多く、上層ほど実行コストが高いが現実に近い検証が可能となる。
 
 ```
-テストピラミッド（API版）:
+テストピラミッド（API版）
 
-         /\
-        /  \     E2E テスト（少数）
-       /    \    → 本番に近い環境で全体フロー
-      /──────\
-     /        \  統合テスト（中程度）
-    /          \ → API エンドポイント単位
-   /────────────\
-  /              \ ユニットテスト（多数）
- /                \ → リゾルバー、バリデーション、ビジネスロジック
-
-テストの種類:
-  ① ユニットテスト:
-     → バリデーションロジック
-     → ビジネスルール
-     → データ変換
-
-  ② 統合テスト:
-     → エンドポイント単位のリクエスト/レスポンス
-     → DB + API の結合テスト
-     → 認証・認可のテスト
-
-  ③ コントラクトテスト:
-     → API の仕様（契約）通りにレスポンスが返るか
-     → Provider（API）と Consumer（クライアント）の合意
-     → Pact, Dredd
-
-  ④ E2E テスト:
-     → ユーザーシナリオの通しテスト
-     → 登録 → ログイン → 注文 → 支払い
-
-  ⑤ 負荷テスト:
-     → 性能要件の検証
-     → k6, Artillery, Locust
+                  /\
+                 /  \        E2E テスト（少数: 5-10%）
+                /    \       ・本番同等環境で全体フローを検証
+               /      \     ・ユーザーシナリオ単位（登録→購入→確認）
+              /--------\    ・実行時間: 数分〜数十分
+             /          \
+            /  統合テスト  \   統合テスト（中程度: 20-30%）
+           /   (API層)    \  ・エンドポイント単位のリクエスト/レスポンス
+          /                \ ・DB + API + 認証の結合検証
+         /------------------\・実行時間: 数秒〜数十秒
+        /                    \
+       / コントラクトテスト    \  コントラクトテスト（中程度: 10-15%）
+      /                        \ ・API仕様の合意検証
+     /--------------------------\・Consumer-Provider間の契約
+    /                            \
+   /    ユニットテスト（多数）     \  ユニットテスト（最多: 50-60%）
+  /    バリデーション/ビジネス      \ ・バリデーション、変換、計算ロジック
+ /    ロジック/データ変換            \・モック/スタブ活用、DB不要
+/------------------------------------\・実行時間: ミリ秒単位
 ```
+
+### 1.2 テスト種別の詳細分類
+
+APIテストは目的と粒度によって以下の6種類に大別される。
+
+```
+APIテスト種別マップ
+
++------------------------------------------------------------------+
+|                    APIテストの種類                                  |
++------------------------------------------------------------------+
+|                                                                    |
+|  [1] ユニットテスト        [2] 統合テスト                           |
+|  +-----------------------+ +--------------------------+           |
+|  | ・バリデーション関数   | | ・HTTP リクエスト/レスポンス|          |
+|  | ・ビジネスルール計算   | | ・DB 読み書き含む検証     |           |
+|  | ・データ変換・整形     | | ・認証/認可フロー         |           |
+|  | ・エラーハンドリング   | | ・ミドルウェア連携         |           |
+|  +-----------------------+ +--------------------------+           |
+|                                                                    |
+|  [3] コントラクトテスト    [4] E2Eテスト                            |
+|  +-----------------------+ +--------------------------+           |
+|  | ・スキーマ整合性       | | ・複数API横断シナリオ     |           |
+|  | ・Consumer-Provider   | | ・外部サービス連携        |           |
+|  | ・バージョン互換性     | | ・データ一貫性の検証      |           |
+|  +-----------------------+ +--------------------------+           |
+|                                                                    |
+|  [5] 負荷テスト            [6] セキュリティテスト                   |
+|  +-----------------------+ +--------------------------+           |
+|  | ・スループット測定     | | ・認証バイパス検証        |           |
+|  | ・レイテンシ分析       | | ・インジェクション検証    |           |
+|  | ・スケーラビリティ検証 | | ・レート制限検証          |           |
+|  | ・障害耐性テスト       | | ・入力バリデーション      |           |
+|  +-----------------------+ +--------------------------+           |
++------------------------------------------------------------------+
+```
+
+### 1.3 テスト戦略の設計原則
+
+APIテスト戦略を設計する際の基本原則は以下の通りである。
+
+**原則1: テストの独立性**
+各テストケースは他のテストに依存してはならない。テスト実行順序が変わっても結果が変わらないことが求められる。
+
+**原則2: テストデータの管理**
+テストごとにデータをセットアップし、終了時にクリーンアップする。共有状態を避けることで、テストの信頼性を確保する。
+
+**原則3: 適切な粒度の選択**
+テストピラミッドに従い、高速に実行できるユニットテストを最も多く、実行コストの高いE2Eテストを最小限にする。
+
+**原則4: 決定論的なテスト**
+日時やランダム値に依存するテストは、固定値を注入できる設計にする。flaky test（不安定なテスト）を生まないことが重要である。
+
+**原則5: 境界値とエッジケースの網羅**
+正常系だけでなく、空文字列、null値、巨大データ、特殊文字、同時アクセスなどのエッジケースを意識的にテストする。
 
 ---
 
-## 2. 統合テスト（supertest）
+## 2. ユニットテストの実践
+
+### 2.1 バリデーションロジックのテスト
+
+ユニットテストはAPIの最も基礎的なテスト層であり、DBやネットワークに依存しない純粋な関数やクラスのロジックを検証する。
 
 ```javascript
-// __tests__/api/users.test.js
+// src/validators/userValidator.js
+export class UserValidator {
+  static validateEmail(email) {
+    if (!email || typeof email !== 'string') {
+      return { valid: false, error: 'メールアドレスは必須です' };
+    }
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(email)) {
+      return { valid: false, error: 'メールアドレスの形式が不正です' };
+    }
+    if (email.length > 254) {
+      return { valid: false, error: 'メールアドレスが長すぎます（最大254文字）' };
+    }
+    return { valid: true, error: null };
+  }
+
+  static validateAge(age) {
+    if (age === undefined || age === null) {
+      return { valid: false, error: '年齢は必須です' };
+    }
+    if (!Number.isInteger(age)) {
+      return { valid: false, error: '年齢は整数で指定してください' };
+    }
+    if (age < 0 || age > 150) {
+      return { valid: false, error: '年齢は0〜150の範囲で指定してください' };
+    }
+    return { valid: true, error: null };
+  }
+
+  static validateCreateUserInput(input) {
+    const errors = [];
+    const emailResult = this.validateEmail(input.email);
+    if (!emailResult.valid) errors.push({ field: 'email', message: emailResult.error });
+
+    const ageResult = this.validateAge(input.age);
+    if (!ageResult.valid) errors.push({ field: 'age', message: ageResult.error });
+
+    if (!input.name || input.name.trim().length === 0) {
+      errors.push({ field: 'name', message: '名前は必須です' });
+    } else if (input.name.length > 100) {
+      errors.push({ field: 'name', message: '名前は100文字以内で指定してください' });
+    }
+
+    return { valid: errors.length === 0, errors };
+  }
+}
+```
+
+```javascript
+// __tests__/unit/userValidator.test.js
+import { describe, it, expect } from 'vitest';
+import { UserValidator } from '../../src/validators/userValidator';
+
+describe('UserValidator', () => {
+  // === メールアドレスバリデーション ===
+  describe('validateEmail', () => {
+    // 正常系
+    it('有効なメールアドレスを受け入れる', () => {
+      const testCases = [
+        'user@example.com',
+        'user.name@example.co.jp',
+        'user+tag@example.com',
+        'user123@sub.domain.example.com',
+      ];
+      testCases.forEach(email => {
+        const result = UserValidator.validateEmail(email);
+        expect(result.valid).toBe(true);
+        expect(result.error).toBeNull();
+      });
+    });
+
+    // 異常系
+    it('不正なメールアドレスを拒否する', () => {
+      const testCases = [
+        { input: '', expected: 'メールアドレスは必須です' },
+        { input: null, expected: 'メールアドレスは必須です' },
+        { input: undefined, expected: 'メールアドレスは必須です' },
+        { input: 'invalid', expected: 'メールアドレスの形式が不正です' },
+        { input: '@example.com', expected: 'メールアドレスの形式が不正です' },
+        { input: 'user@', expected: 'メールアドレスの形式が不正です' },
+        { input: 'user@.com', expected: 'メールアドレスの形式が不正です' },
+      ];
+      testCases.forEach(({ input, expected }) => {
+        const result = UserValidator.validateEmail(input);
+        expect(result.valid).toBe(false);
+        expect(result.error).toBe(expected);
+      });
+    });
+
+    // 境界値
+    it('254文字を超えるメールアドレスを拒否する', () => {
+      const longEmail = 'a'.repeat(243) + '@example.com'; // 255文字
+      const result = UserValidator.validateEmail(longEmail);
+      expect(result.valid).toBe(false);
+      expect(result.error).toBe('メールアドレスが長すぎます（最大254文字）');
+    });
+
+    it('254文字ちょうどのメールアドレスを受け入れる', () => {
+      const email = 'a'.repeat(242) + '@example.com'; // 254文字
+      const result = UserValidator.validateEmail(email);
+      expect(result.valid).toBe(true);
+    });
+  });
+
+  // === 年齢バリデーション ===
+  describe('validateAge', () => {
+    it('有効な年齢を受け入れる', () => {
+      [0, 1, 25, 100, 150].forEach(age => {
+        expect(UserValidator.validateAge(age).valid).toBe(true);
+      });
+    });
+
+    it('境界外の年齢を拒否する', () => {
+      expect(UserValidator.validateAge(-1).valid).toBe(false);
+      expect(UserValidator.validateAge(151).valid).toBe(false);
+    });
+
+    it('非整数を拒否する', () => {
+      expect(UserValidator.validateAge(25.5).valid).toBe(false);
+      expect(UserValidator.validateAge('25').valid).toBe(false);
+    });
+  });
+
+  // === 複合バリデーション ===
+  describe('validateCreateUserInput', () => {
+    it('全フィールドが有効な場合にtrueを返す', () => {
+      const result = UserValidator.validateCreateUserInput({
+        name: 'Taro Yamada',
+        email: 'taro@example.com',
+        age: 30,
+      });
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it('複数フィールドのエラーを同時に返す', () => {
+      const result = UserValidator.validateCreateUserInput({
+        name: '',
+        email: 'invalid',
+        age: -5,
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors).toHaveLength(3);
+      expect(result.errors.map(e => e.field)).toEqual(
+        expect.arrayContaining(['name', 'email', 'age'])
+      );
+    });
+  });
+});
+```
+
+### 2.2 ビジネスロジックのテスト
+
+```javascript
+// src/services/pricingService.js
+export class PricingService {
+  /**
+   * 商品の最終価格を計算する
+   * @param {number} basePrice - 基本価格
+   * @param {string} membershipTier - 会員ランク ('bronze'|'silver'|'gold'|'platinum')
+   * @param {number} quantity - 数量
+   * @param {string|null} couponCode - クーポンコード
+   * @returns {{ finalPrice: number, discount: number, breakdown: object }}
+   */
+  static calculatePrice(basePrice, membershipTier, quantity, couponCode = null) {
+    if (basePrice < 0) throw new Error('基本価格は0以上である必要があります');
+    if (quantity < 1) throw new Error('数量は1以上である必要があります');
+
+    // 会員割引率
+    const tierDiscounts = {
+      bronze: 0,
+      silver: 0.05,
+      gold: 0.10,
+      platinum: 0.15,
+    };
+
+    // 数量割引率
+    let quantityDiscount = 0;
+    if (quantity >= 100) quantityDiscount = 0.10;
+    else if (quantity >= 50) quantityDiscount = 0.07;
+    else if (quantity >= 10) quantityDiscount = 0.05;
+
+    // クーポン割引
+    const couponDiscounts = {
+      'SUMMER2024': 0.20,
+      'WELCOME10': 0.10,
+      'VIP30': 0.30,
+    };
+    const couponDiscount = couponCode ? (couponDiscounts[couponCode] || 0) : 0;
+
+    // 割引は加算ではなく、最大の割引を適用
+    const tierRate = tierDiscounts[membershipTier] || 0;
+    const maxDiscount = Math.max(tierRate, quantityDiscount, couponDiscount);
+
+    const subtotal = basePrice * quantity;
+    const discountAmount = Math.round(subtotal * maxDiscount);
+    const finalPrice = subtotal - discountAmount;
+
+    return {
+      finalPrice,
+      discount: discountAmount,
+      breakdown: {
+        basePrice,
+        quantity,
+        subtotal,
+        tierDiscount: tierRate,
+        quantityDiscount,
+        couponDiscount,
+        appliedDiscount: maxDiscount,
+      },
+    };
+  }
+}
+```
+
+```javascript
+// __tests__/unit/pricingService.test.js
+import { describe, it, expect } from 'vitest';
+import { PricingService } from '../../src/services/pricingService';
+
+describe('PricingService.calculatePrice', () => {
+  it('基本的な価格計算（割引なし）', () => {
+    const result = PricingService.calculatePrice(1000, 'bronze', 1);
+    expect(result.finalPrice).toBe(1000);
+    expect(result.discount).toBe(0);
+  });
+
+  it('会員割引の適用', () => {
+    const result = PricingService.calculatePrice(1000, 'gold', 1);
+    // gold: 10%割引 → 1000 - 100 = 900
+    expect(result.finalPrice).toBe(900);
+    expect(result.discount).toBe(100);
+    expect(result.breakdown.appliedDiscount).toBe(0.10);
+  });
+
+  it('数量割引の適用（10個以上）', () => {
+    const result = PricingService.calculatePrice(100, 'bronze', 10);
+    // 100 * 10 = 1000, 5%割引 → 1000 - 50 = 950
+    expect(result.finalPrice).toBe(950);
+  });
+
+  it('クーポン割引が会員割引より大きい場合はクーポンを適用', () => {
+    const result = PricingService.calculatePrice(1000, 'silver', 1, 'SUMMER2024');
+    // silver: 5%, クーポン: 20% → 最大の20%を適用
+    expect(result.finalPrice).toBe(800);
+    expect(result.breakdown.appliedDiscount).toBe(0.20);
+  });
+
+  it('無効なクーポンコードは無視される', () => {
+    const result = PricingService.calculatePrice(1000, 'bronze', 1, 'INVALID');
+    expect(result.finalPrice).toBe(1000);
+    expect(result.breakdown.couponDiscount).toBe(0);
+  });
+
+  it('負の価格でエラーを投げる', () => {
+    expect(() => PricingService.calculatePrice(-100, 'bronze', 1))
+      .toThrow('基本価格は0以上である必要があります');
+  });
+
+  it('数量0でエラーを投げる', () => {
+    expect(() => PricingService.calculatePrice(1000, 'bronze', 0))
+      .toThrow('数量は1以上である必要があります');
+  });
+});
+```
+
+---
+
+## 3. 統合テストの実践（supertest）
+
+### 3.1 テスト環境のセットアップ
+
+統合テストではHTTPリクエストを実際に送信し、エンドポイントの動作を検証する。supertestはNode.jsのHTTPサーバーに対してリクエストを送信するためのライブラリであり、Express / Koa / Fastify などのフレームワークと組み合わせて使用する。
+
+```javascript
+// __tests__/setup/testServer.js
+import { beforeAll, afterAll, beforeEach } from 'vitest';
+import { app } from '../../src/app';
+import { db } from '../../src/db';
+import { createTestUser, generateToken } from './helpers';
+
+// テスト用のサーバーとDB接続を管理
+export function setupTestServer() {
+  let server;
+  let authToken;
+  let adminToken;
+  let testUser;
+  let adminUser;
+
+  beforeAll(async () => {
+    // テスト用DBのマイグレーション実行
+    await db.migrate.latest();
+    // テスト用シードデータ投入
+    await db.seed.run();
+  });
+
+  beforeEach(async () => {
+    // 各テスト前にテーブルをクリーンアップ
+    await db.raw('TRUNCATE TABLE users, orders, products CASCADE');
+
+    // テスト用ユーザーとトークンを作成
+    testUser = await createTestUser(db, {
+      name: 'Test User',
+      email: 'test@example.com',
+      role: 'user',
+    });
+    adminUser = await createTestUser(db, {
+      name: 'Admin User',
+      email: 'admin@example.com',
+      role: 'admin',
+    });
+
+    authToken = generateToken(testUser);
+    adminToken = generateToken(adminUser);
+  });
+
+  afterAll(async () => {
+    await db.destroy();
+  });
+
+  return {
+    getApp: () => app,
+    getAuthToken: () => authToken,
+    getAdminToken: () => adminToken,
+    getTestUser: () => testUser,
+    getAdminUser: () => adminUser,
+    getDb: () => db,
+  };
+}
+```
+
+### 3.2 CRUDエンドポイントの統合テスト
+
+```javascript
+// __tests__/integration/users.test.js
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import supertest from 'supertest';
 import { app } from '../../src/app';
@@ -63,7 +450,7 @@ import { db } from '../../src/db';
 
 const request = supertest(app);
 
-describe('Users API', () => {
+describe('Users API - 統合テスト', () => {
   let authToken;
 
   beforeAll(async () => {
@@ -72,9 +459,11 @@ describe('Users API', () => {
 
   beforeEach(async () => {
     await db('users').truncate();
-    // テスト用ユーザーとトークンを作成
     const user = await db('users').insert({
-      id: 'user_test', name: 'Test', email: 'test@example.com', role: 'admin',
+      id: 'user_test',
+      name: 'Test Admin',
+      email: 'test@example.com',
+      role: 'admin',
     }).returning('*');
     authToken = generateToken(user[0]);
   });
@@ -83,9 +472,11 @@ describe('Users API', () => {
     await db.destroy();
   });
 
-  // --- GET /users ---
+  // ============================================
+  // GET /api/v1/users - ユーザー一覧取得
+  // ============================================
   describe('GET /api/v1/users', () => {
-    it('should return paginated users', async () => {
+    it('ページネーション付きのユーザー一覧を返す', async () => {
       // データ準備
       await db('users').insert([
         { id: 'u1', name: 'Alice', email: 'alice@example.com', role: 'user' },
@@ -99,9 +490,11 @@ describe('Users API', () => {
 
       expect(res.body.data).toHaveLength(3); // test user + 2
       expect(res.body.meta).toHaveProperty('hasNextPage');
+      expect(res.body.meta).toHaveProperty('total');
+      expect(res.body.meta.total).toBe(3);
     });
 
-    it('should filter by role', async () => {
+    it('ロールでフィルタリングできる', async () => {
       await db('users').insert([
         { id: 'u1', name: 'Alice', email: 'alice@example.com', role: 'user' },
         { id: 'u2', name: 'Bob', email: 'bob@example.com', role: 'admin' },
@@ -115,36 +508,57 @@ describe('Users API', () => {
       expect(res.body.data.every(u => u.role === 'admin')).toBe(true);
     });
 
-    it('should return 401 without auth', async () => {
+    it('認証なしで401を返す', async () => {
       await request
         .get('/api/v1/users')
         .expect(401);
     });
+
+    it('無効なトークンで401を返す', async () => {
+      await request
+        .get('/api/v1/users')
+        .set('Authorization', 'Bearer invalid-token-here')
+        .expect(401);
+    });
+
+    it('期限切れトークンで401を返す', async () => {
+      const expiredToken = generateToken(
+        { id: 'user_test', role: 'admin' },
+        { expiresIn: '-1h' }
+      );
+
+      await request
+        .get('/api/v1/users')
+        .set('Authorization', `Bearer ${expiredToken}`)
+        .expect(401);
+    });
   });
 
-  // --- POST /users ---
+  // ============================================
+  // POST /api/v1/users - ユーザー作成
+  // ============================================
   describe('POST /api/v1/users', () => {
-    it('should create a user', async () => {
+    it('ユーザーを作成して201を返す', async () => {
       const res = await request
         .post('/api/v1/users')
         .set('Authorization', `Bearer ${authToken}`)
-        .send({ name: 'New User', email: 'new@example.com' })
+        .send({ name: 'New User', email: 'new@example.com', age: 25 })
         .expect(201);
 
       expect(res.body.data).toMatchObject({
         name: 'New User',
         email: 'new@example.com',
-        role: 'user',
+        role: 'user', // デフォルトロール
       });
       expect(res.body.data.id).toBeDefined();
       expect(res.headers.location).toMatch(/\/api\/v1\/users\//);
     });
 
-    it('should return 422 for invalid email', async () => {
+    it('不正なメールアドレスで422を返す', async () => {
       const res = await request
         .post('/api/v1/users')
         .set('Authorization', `Bearer ${authToken}`)
-        .send({ name: 'Test', email: 'invalid' })
+        .send({ name: 'Test', email: 'invalid-email' })
         .expect(422);
 
       expect(res.body.errors).toContainEqual(
@@ -152,224 +566,1267 @@ describe('Users API', () => {
       );
     });
 
-    it('should return 409 for duplicate email', async () => {
+    it('重複メールアドレスで409を返す', async () => {
       await request
         .post('/api/v1/users')
         .set('Authorization', `Bearer ${authToken}`)
-        .send({ name: 'Test', email: 'dup@example.com' })
+        .send({ name: 'First', email: 'dup@example.com' })
         .expect(201);
+
+      const res = await request
+        .post('/api/v1/users')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ name: 'Second', email: 'dup@example.com' })
+        .expect(409);
+
+      expect(res.body.error.code).toBe('DUPLICATE_RESOURCE');
+    });
+
+    it('必須フィールド欠落で422を返す', async () => {
+      const res = await request
+        .post('/api/v1/users')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({}) // 空ボディ
+        .expect(422);
+
+      expect(res.body.errors.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('一般ユーザーがadminロールで作成しようとすると403を返す', async () => {
+      const userToken = generateToken({ id: 'u_normal', role: 'user' });
 
       await request
         .post('/api/v1/users')
+        .set('Authorization', `Bearer ${userToken}`)
+        .send({ name: 'Hacker', email: 'hack@example.com', role: 'admin' })
+        .expect(403);
+    });
+  });
+
+  // ============================================
+  // PUT /api/v1/users/:id - ユーザー更新
+  // ============================================
+  describe('PUT /api/v1/users/:id', () => {
+    it('ユーザー情報を更新する', async () => {
+      const res = await request
+        .put('/api/v1/users/user_test')
         .set('Authorization', `Bearer ${authToken}`)
-        .send({ name: 'Test2', email: 'dup@example.com' })
+        .send({ name: 'Updated Name' })
+        .expect(200);
+
+      expect(res.body.data.name).toBe('Updated Name');
+    });
+
+    it('存在しないユーザーIDで404を返す', async () => {
+      await request
+        .put('/api/v1/users/nonexistent_id')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ name: 'Ghost' })
+        .expect(404);
+    });
+
+    it('楽観的ロックによる競合検出', async () => {
+      // バージョン1で取得
+      const getRes = await request
+        .get('/api/v1/users/user_test')
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect(200);
+
+      const version = getRes.body.data.version;
+
+      // 1回目の更新（成功）
+      await request
+        .put('/api/v1/users/user_test')
+        .set('Authorization', `Bearer ${authToken}`)
+        .set('If-Match', `"${version}"`)
+        .send({ name: 'Update 1' })
+        .expect(200);
+
+      // 2回目の更新（古いバージョンで競合）
+      await request
+        .put('/api/v1/users/user_test')
+        .set('Authorization', `Bearer ${authToken}`)
+        .set('If-Match', `"${version}"`)
+        .send({ name: 'Update 2' })
         .expect(409);
+    });
+  });
+
+  // ============================================
+  // DELETE /api/v1/users/:id - ユーザー削除
+  // ============================================
+  describe('DELETE /api/v1/users/:id', () => {
+    it('ユーザーを削除して204を返す', async () => {
+      const created = await db('users').insert({
+        id: 'u_delete', name: 'To Delete', email: 'delete@example.com', role: 'user',
+      }).returning('*');
+
+      await request
+        .delete(`/api/v1/users/${created[0].id}`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect(204);
+
+      // 削除後に取得すると404
+      await request
+        .get(`/api/v1/users/${created[0].id}`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect(404);
+    });
+
+    it('冪等性: 同じリソースを2回削除しても安全', async () => {
+      await db('users').insert({
+        id: 'u_idem', name: 'Idempotent', email: 'idem@example.com', role: 'user',
+      });
+
+      await request
+        .delete('/api/v1/users/u_idem')
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect(204);
+
+      // 2回目の削除は404（既に存在しない）
+      await request
+        .delete('/api/v1/users/u_idem')
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect(404);
     });
   });
 });
 ```
 
----
+### 3.3 テストヘルパーとファクトリー
 
-## 3. コントラクトテスト（Pact）
+テストコードの重複を避けるため、テストヘルパーとファクトリーパターンを活用する。
 
 ```javascript
-// Consumer側（クライアント）のテスト
-import { PactV3 } from '@pact-foundation/pact';
+// __tests__/helpers/factories.js
+import { faker } from '@faker-js/faker';
+import { db } from '../../src/db';
+
+export class UserFactory {
+  static defaults() {
+    return {
+      id: faker.string.uuid(),
+      name: faker.person.fullName(),
+      email: faker.internet.email(),
+      role: 'user',
+      age: faker.number.int({ min: 18, max: 80 }),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+  }
+
+  static async create(overrides = {}) {
+    const data = { ...this.defaults(), ...overrides };
+    const [user] = await db('users').insert(data).returning('*');
+    return user;
+  }
+
+  static async createMany(count, overrides = {}) {
+    const users = Array.from({ length: count }, (_, i) => ({
+      ...this.defaults(),
+      email: `user${i}@example.com`,
+      ...overrides,
+    }));
+    return db('users').insert(users).returning('*');
+  }
+}
+
+export class OrderFactory {
+  static defaults(userId) {
+    return {
+      id: faker.string.uuid(),
+      userId,
+      status: 'pending',
+      totalAmount: faker.number.int({ min: 100, max: 100000 }),
+      items: JSON.stringify([
+        { productId: faker.string.uuid(), quantity: 1, price: 1000 },
+      ]),
+      createdAt: new Date(),
+    };
+  }
+
+  static async create(userId, overrides = {}) {
+    const data = { ...this.defaults(userId), ...overrides };
+    const [order] = await db('orders').insert(data).returning('*');
+    return order;
+  }
+}
+```
+
+---
+
+## 4. Postman / Newman によるAPIテスト自動化
+
+### 4.1 Postman コレクションの構造化
+
+Postmanは手動テストだけでなく、コレクションとして定義されたテストを自動実行する機能を提供する。CI/CDパイプラインではNewman（Postmanのコマンドラインランナー）を使用する。
+
+```
+Postman コレクション構成例
+
+Collection: "User Management API"
+  |
+  +-- Folder: "Authentication"
+  |     +-- POST /auth/login
+  |     +-- POST /auth/register
+  |     +-- POST /auth/refresh
+  |     +-- POST /auth/logout
+  |
+  +-- Folder: "Users (CRUD)"
+  |     +-- GET  /api/v1/users       (一覧取得)
+  |     +-- POST /api/v1/users       (作成)
+  |     +-- GET  /api/v1/users/:id   (個別取得)
+  |     +-- PUT  /api/v1/users/:id   (更新)
+  |     +-- DELETE /api/v1/users/:id (削除)
+  |
+  +-- Folder: "Error Cases"
+  |     +-- 認証エラー (401)
+  |     +-- 認可エラー (403)
+  |     +-- バリデーションエラー (422)
+  |     +-- リソース競合 (409)
+  |
+  +-- Folder: "Edge Cases"
+        +-- 空リクエスト
+        +-- 巨大ペイロード
+        +-- 特殊文字入力
+        +-- 同時リクエスト
+```
+
+### 4.2 Postman テストスクリプトの記述
+
+```javascript
+// Postman の Tests タブに記述するスクリプト例
+
+// === POST /auth/login のテストスクリプト ===
+// ステータスコードの検証
+pm.test("ステータスコード200を返す", function () {
+    pm.response.to.have.status(200);
+});
+
+// レスポンスボディの検証
+pm.test("アクセストークンを含むレスポンスを返す", function () {
+    const jsonData = pm.response.json();
+    pm.expect(jsonData).to.have.property('accessToken');
+    pm.expect(jsonData).to.have.property('refreshToken');
+    pm.expect(jsonData).to.have.property('expiresIn');
+    pm.expect(jsonData.expiresIn).to.be.a('number');
+});
+
+// トークンを環境変数に保存（後続リクエストで使用）
+pm.test("トークンを環境変数に保存する", function () {
+    const jsonData = pm.response.json();
+    pm.environment.set("accessToken", jsonData.accessToken);
+    pm.environment.set("refreshToken", jsonData.refreshToken);
+});
+
+// レスポンス時間の検証
+pm.test("レスポンスが500ms以内に返る", function () {
+    pm.expect(pm.response.responseTime).to.be.below(500);
+});
+
+// ヘッダーの検証
+pm.test("Content-Typeがapplication/jsonである", function () {
+    pm.response.to.have.header("Content-Type", "application/json; charset=utf-8");
+});
+
+// スキーマバリデーション
+const schema = {
+    type: "object",
+    required: ["accessToken", "refreshToken", "expiresIn", "user"],
+    properties: {
+        accessToken: { type: "string" },
+        refreshToken: { type: "string" },
+        expiresIn: { type: "number" },
+        user: {
+            type: "object",
+            required: ["id", "name", "email", "role"],
+            properties: {
+                id: { type: "string" },
+                name: { type: "string" },
+                email: { type: "string", format: "email" },
+                role: { type: "string", enum: ["user", "admin"] },
+            }
+        }
+    }
+};
+
+pm.test("レスポンスがスキーマに準拠している", function () {
+    pm.response.to.have.jsonSchema(schema);
+});
+```
+
+### 4.3 Newman によるCI/CD統合
+
+```bash
+# Newman のインストール
+npm install -g newman newman-reporter-htmlextra
+
+# コレクションの実行
+newman run ./postman/collection.json \
+  --environment ./postman/env-staging.json \
+  --reporters cli,htmlextra \
+  --reporter-htmlextra-export ./reports/api-test-report.html \
+  --iteration-count 3 \
+  --delay-request 100 \
+  --timeout-request 10000
+
+# GitHub Actions での実行例
+# .github/workflows/api-tests.yml
+# name: API Tests
+# on:
+#   push:
+#     branches: [main, develop]
+#   pull_request:
+#     branches: [main]
+#
+# jobs:
+#   api-tests:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - uses: actions/checkout@v4
+#       - uses: actions/setup-node@v4
+#         with:
+#           node-version: '20'
+#       - run: npm ci
+#       - run: npm run start:test &
+#       - run: npx newman run ./postman/collection.json \
+#              --environment ./postman/env-test.json \
+#              --reporters cli,junit \
+#              --reporter-junit-export ./reports/junit.xml
+#       - uses: actions/upload-artifact@v4
+#         with:
+#           name: test-reports
+#           path: ./reports/
+```
+
+---
+
+## 5. コントラクトテスト（Pact）
+
+### 5.1 コントラクトテストの概念
+
+コントラクトテストは、サービス間のAPI仕様（契約）が両者間で合意されていることを検証するテスト手法である。マイクロサービスアーキテクチャにおいて、Consumer（APIを呼び出す側）とProvider（APIを提供する側）が互いの期待に沿って動作していることを保証する。
+
+```
+コントラクトテスト フロー図
+
+  Consumer側                  Pact Broker                Provider側
+  (フロントエンド)             (契約管理)                 (APIサーバー)
+  +------------------+      +------------------+      +------------------+
+  |                  |      |                  |      |                  |
+  | 1. テスト実行    |      |                  |      |                  |
+  |    (Mockサーバー |----->| 2. コントラクト  |      |                  |
+  |     に対して)    |      |    (Pact JSON)を |      |                  |
+  |                  |      |    アップロード  |      |                  |
+  +------------------+      |                  |      |                  |
+                            |                  |----->| 3. コントラクトを|
+                            |                  |      |    ダウンロードし|
+                            |                  |      |    Providerに対し|
+                            |                  |<-----| 4. 検証結果を    |
+                            |                  |      |    報告          |
+                            +------------------+      +------------------+
+                                     |
+                                     v
+                            +------------------+
+                            | 5. CI/CDで       |
+                            | can-i-deploy を  |
+                            | チェックし、     |
+                            | デプロイ可否判定 |
+                            +------------------+
+```
+
+### 5.2 Consumer側テストの実装
+
+```javascript
+// __tests__/contract/userApiConsumer.pact.test.js
+import { PactV3, MatchersV3 } from '@pact-foundation/pact';
+import path from 'path';
+import { UserApiClient } from '../../src/clients/userApiClient';
+
+const { like, eachLike, regex, string, integer, boolean } = MatchersV3;
 
 const provider = new PactV3({
   consumer: 'FrontendApp',
   provider: 'UserAPI',
+  dir: path.resolve(process.cwd(), 'pacts'),
+  logLevel: 'warn',
 });
 
-describe('User API Contract', () => {
-  it('should get a user by ID', async () => {
-    // 期待するインタラクションを定義
-    provider
-      .given('a user with ID 123 exists')
-      .uponReceiving('a request to get user 123')
-      .withRequest({
-        method: 'GET',
-        path: '/api/v1/users/123',
-        headers: { Authorization: 'Bearer valid-token' },
-      })
-      .willRespondWith({
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-        body: {
-          data: {
-            id: '123',
-            name: like('Taro'),         // 型のみ検証
-            email: like('taro@example.com'),
-            role: term({ matcher: 'user|admin', generate: 'user' }),
+describe('User API Contract - Consumer側', () => {
+  // ユーザー一覧取得のコントラクト
+  describe('GET /api/v1/users', () => {
+    it('ページネーション付きのユーザー一覧を返すこと', async () => {
+      provider
+        .given('ユーザーが複数存在する')
+        .uponReceiving('ユーザー一覧取得リクエスト')
+        .withRequest({
+          method: 'GET',
+          path: '/api/v1/users',
+          query: { limit: '10', offset: '0' },
+          headers: {
+            Authorization: regex(/^Bearer .+$/, 'Bearer valid-token'),
+            Accept: 'application/json',
           },
-        },
-      });
+        })
+        .willRespondWith({
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8',
+          },
+          body: {
+            data: eachLike({
+              id: string('user_123'),
+              name: string('Taro Yamada'),
+              email: string('taro@example.com'),
+              role: regex(/^(user|admin)$/, 'user'),
+              createdAt: regex(
+                /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/,
+                '2024-01-15T09:00:00Z'
+              ),
+            }),
+            meta: {
+              total: integer(100),
+              limit: integer(10),
+              offset: integer(0),
+              hasNextPage: boolean(true),
+            },
+          },
+        });
 
-    // テスト実行
-    await provider.executeTest(async (mockServer) => {
-      const client = new UserClient({ baseUrl: mockServer.url });
-      const user = await client.getUser('123');
-      expect(user.id).toBe('123');
-      expect(user.name).toBeDefined();
+      await provider.executeTest(async (mockServer) => {
+        const client = new UserApiClient({
+          baseUrl: mockServer.url,
+          token: 'valid-token',
+        });
+
+        const result = await client.listUsers({ limit: 10, offset: 0 });
+
+        expect(result.data).toBeDefined();
+        expect(result.data.length).toBeGreaterThan(0);
+        expect(result.meta.total).toBeGreaterThanOrEqual(0);
+        expect(result.meta.hasNextPage).toBeDefined();
+      });
+    });
+  });
+
+  // ユーザー個別取得のコントラクト
+  describe('GET /api/v1/users/:id', () => {
+    it('指定IDのユーザーを返すこと', async () => {
+      provider
+        .given('ID 123 のユーザーが存在する')
+        .uponReceiving('ユーザー個別取得リクエスト')
+        .withRequest({
+          method: 'GET',
+          path: '/api/v1/users/123',
+          headers: {
+            Authorization: regex(/^Bearer .+$/, 'Bearer valid-token'),
+          },
+        })
+        .willRespondWith({
+          status: 200,
+          headers: { 'Content-Type': 'application/json; charset=utf-8' },
+          body: {
+            data: {
+              id: string('123'),
+              name: like('Taro Yamada'),
+              email: like('taro@example.com'),
+              role: regex(/^(user|admin)$/, 'user'),
+              profile: {
+                bio: like('ソフトウェアエンジニア'),
+                avatarUrl: like('https://example.com/avatar.png'),
+              },
+            },
+          },
+        });
+
+      await provider.executeTest(async (mockServer) => {
+        const client = new UserApiClient({
+          baseUrl: mockServer.url,
+          token: 'valid-token',
+        });
+
+        const user = await client.getUser('123');
+        expect(user.id).toBe('123');
+        expect(user.name).toBeDefined();
+        expect(user.email).toBeDefined();
+        expect(user.profile).toBeDefined();
+      });
+    });
+
+    it('存在しないIDで404を返すこと', async () => {
+      provider
+        .given('ID 999 のユーザーは存在しない')
+        .uponReceiving('存在しないユーザーの取得リクエスト')
+        .withRequest({
+          method: 'GET',
+          path: '/api/v1/users/999',
+          headers: {
+            Authorization: regex(/^Bearer .+$/, 'Bearer valid-token'),
+          },
+        })
+        .willRespondWith({
+          status: 404,
+          headers: { 'Content-Type': 'application/json; charset=utf-8' },
+          body: {
+            error: {
+              code: string('NOT_FOUND'),
+              message: like('指定されたユーザーは見つかりませんでした'),
+            },
+          },
+        });
+
+      await provider.executeTest(async (mockServer) => {
+        const client = new UserApiClient({
+          baseUrl: mockServer.url,
+          token: 'valid-token',
+        });
+
+        await expect(client.getUser('999')).rejects.toThrow(/not found/i);
+      });
+    });
+  });
+
+  // ユーザー作成のコントラクト
+  describe('POST /api/v1/users', () => {
+    it('新規ユーザーを作成して201を返すこと', async () => {
+      const newUser = {
+        name: 'Hanako Suzuki',
+        email: 'hanako@example.com',
+        age: 28,
+      };
+
+      provider
+        .given('ユーザー登録が可能な状態')
+        .uponReceiving('ユーザー作成リクエスト')
+        .withRequest({
+          method: 'POST',
+          path: '/api/v1/users',
+          headers: {
+            Authorization: regex(/^Bearer .+$/, 'Bearer valid-token'),
+            'Content-Type': 'application/json',
+          },
+          body: newUser,
+        })
+        .willRespondWith({
+          status: 201,
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8',
+            Location: regex(/^\/api\/v1\/users\//, '/api/v1/users/new_id'),
+          },
+          body: {
+            data: {
+              id: string('new_id'),
+              name: string('Hanako Suzuki'),
+              email: string('hanako@example.com'),
+              role: string('user'),
+              age: integer(28),
+            },
+          },
+        });
+
+      await provider.executeTest(async (mockServer) => {
+        const client = new UserApiClient({
+          baseUrl: mockServer.url,
+          token: 'valid-token',
+        });
+
+        const created = await client.createUser(newUser);
+        expect(created.name).toBe('Hanako Suzuki');
+        expect(created.email).toBe('hanako@example.com');
+        expect(created.id).toBeDefined();
+      });
     });
   });
 });
+```
 
-// Provider側（API）の検証
-// → Pact Broker からコントラクトを取得して検証
+### 5.3 Provider側の検証
+
+```javascript
+// __tests__/contract/userApiProvider.pact.test.js
+import { Verifier } from '@pact-foundation/pact';
+import { app } from '../../src/app';
+import { db } from '../../src/db';
+
+describe('User API Contract - Provider検証', () => {
+  let server;
+  const port = 4567;
+
+  beforeAll(async () => {
+    await db.migrate.latest();
+    server = app.listen(port);
+  });
+
+  afterAll(async () => {
+    server.close();
+    await db.destroy();
+  });
+
+  it('Consumer のコントラクトを満たすこと', async () => {
+    const opts = {
+      provider: 'UserAPI',
+      providerBaseUrl: `http://localhost:${port}`,
+
+      // Pact Brokerから取得する場合
+      pactBrokerUrl: process.env.PACT_BROKER_URL,
+      pactBrokerToken: process.env.PACT_BROKER_TOKEN,
+
+      // ローカルファイルから取得する場合
+      // pactUrls: ['./pacts/FrontendApp-UserAPI.json'],
+
+      publishVerificationResult: process.env.CI === 'true',
+      providerVersion: process.env.GIT_COMMIT_SHA,
+      providerVersionBranch: process.env.GIT_BRANCH,
+
+      // Provider Stateのハンドラー
+      stateHandlers: {
+        'ユーザーが複数存在する': async () => {
+          await db('users').truncate();
+          await db('users').insert([
+            { id: 'user_1', name: 'Taro', email: 'taro@example.com', role: 'user' },
+            { id: 'user_2', name: 'Hanako', email: 'hanako@example.com', role: 'admin' },
+          ]);
+        },
+        'ID 123 のユーザーが存在する': async () => {
+          await db('users').truncate();
+          await db('users').insert({
+            id: '123',
+            name: 'Taro Yamada',
+            email: 'taro@example.com',
+            role: 'user',
+            profile: JSON.stringify({
+              bio: 'ソフトウェアエンジニア',
+              avatarUrl: 'https://example.com/avatar.png',
+            }),
+          });
+        },
+        'ID 999 のユーザーは存在しない': async () => {
+          await db('users').where({ id: '999' }).delete();
+        },
+        'ユーザー登録が可能な状態': async () => {
+          await db('users').where({ email: 'hanako@example.com' }).delete();
+        },
+      },
+
+      // リクエストフィルター（認証トークンの注入など）
+      requestFilter: (req, res, next) => {
+        req.headers['authorization'] = 'Bearer test-provider-token';
+        next();
+      },
+    };
+
+    await new Verifier(opts).verifyProvider();
+  });
+});
+```
+
+### 5.4 Pact Broker とデプロイ安全性
+
+```bash
+# Pact Broker での can-i-deploy チェック
+# Consumer のデプロイ前に実行
+pact-broker can-i-deploy \
+  --pacticipant FrontendApp \
+  --version $(git rev-parse HEAD) \
+  --to-environment production
+
+# Provider のデプロイ前に実行
+pact-broker can-i-deploy \
+  --pacticipant UserAPI \
+  --version $(git rev-parse HEAD) \
+  --to-environment production
+
+# デプロイ成功の記録
+pact-broker record-deployment \
+  --pacticipant UserAPI \
+  --version $(git rev-parse HEAD) \
+  --environment production
 ```
 
 ---
 
-## 4. 負荷テスト（k6）
+## 6. 負荷テスト
+
+### 6.1 負荷テストの種類と目的
+
+負荷テストは、APIが一定の負荷条件下で正常に動作するかを検証するテストである。目的に応じて複数の種類が存在する。
+
+| テスト種類 | 目的 | VU数 | 期間 | 特徴 |
+|------------|------|------|------|------|
+| スモークテスト | 基本動作確認 | 1-5 | 1分 | デプロイ後の簡易確認 |
+| ロードテスト | 通常負荷検証 | 50-200 | 5-30分 | 平常時のパフォーマンス検証 |
+| ストレステスト | 限界点の特定 | 200-1000+ | 10-60分 | システムの破綻点を発見 |
+| スパイクテスト | 急激な負荷変動 | 0→500→0 | 5-10分 | 瞬間的な負荷への耐性 |
+| ソークテスト | 長時間安定性 | 50-100 | 1-24時間 | メモリリーク等の検出 |
+| ブレイクポイントテスト | 破綻点の特定 | 段階的に増加 | 可変 | 最大許容量の測定 |
+
+### 6.2 k6 による負荷テスト
 
 ```javascript
-// load-test.js（k6）
+// load-tests/scenarios/user-api-load.js（k6）
 import http from 'k6/http';
-import { check, sleep } from 'k6';
+import { check, sleep, group } from 'k6';
+import { Counter, Rate, Trend } from 'k6/metrics';
 
+// カスタムメトリクス定義
+const errorRate = new Rate('errors');
+const userCreated = new Counter('users_created');
+const listDuration = new Trend('list_duration', true);
+const createDuration = new Trend('create_duration', true);
+
+// テストシナリオ設定
 export const options = {
-  stages: [
-    { duration: '30s', target: 50 },   // ランプアップ
-    { duration: '1m', target: 50 },    // 定常状態
-    { duration: '30s', target: 100 },  // ピーク
-    { duration: '1m', target: 100 },   // ピーク維持
-    { duration: '30s', target: 0 },    // ランプダウン
-  ],
+  scenarios: {
+    // シナリオ1: 読み取り中心の通常負荷
+    read_load: {
+      executor: 'ramping-vus',
+      startVUs: 0,
+      stages: [
+        { duration: '30s', target: 30 },    // ウォームアップ
+        { duration: '2m',  target: 30 },    // 定常負荷
+        { duration: '30s', target: 0 },     // クールダウン
+      ],
+      gracefulRampDown: '10s',
+      exec: 'readScenario',
+      tags: { scenario: 'read' },
+    },
+    // シナリオ2: 書き込み中心の高負荷
+    write_load: {
+      executor: 'ramping-vus',
+      startVUs: 0,
+      stages: [
+        { duration: '30s', target: 10 },
+        { duration: '2m',  target: 10 },
+        { duration: '30s', target: 0 },
+      ],
+      gracefulRampDown: '10s',
+      exec: 'writeScenario',
+      startTime: '10s',  // 10秒遅れて開始
+      tags: { scenario: 'write' },
+    },
+    // シナリオ3: スパイクテスト
+    spike: {
+      executor: 'ramping-vus',
+      startVUs: 0,
+      stages: [
+        { duration: '10s', target: 5 },     // ベースライン
+        { duration: '5s',  target: 100 },   // 急激なスパイク
+        { duration: '30s', target: 100 },   // スパイク維持
+        { duration: '5s',  target: 5 },     // 急激な減少
+        { duration: '30s', target: 5 },     // 回復確認
+        { duration: '10s', target: 0 },     // 終了
+      ],
+      exec: 'readScenario',
+      startTime: '4m',  // 他のシナリオ後に実行
+      tags: { scenario: 'spike' },
+    },
+  },
   thresholds: {
-    http_req_duration: ['p(95)<500', 'p(99)<1000'], // 95%ile < 500ms
-    http_req_failed: ['rate<0.01'],                  // エラー率 < 1%
-    http_reqs: ['rate>100'],                         // 100 req/s以上
+    // グローバル閾値
+    http_req_duration: ['p(50)<200', 'p(95)<500', 'p(99)<1000'],
+    http_req_failed: ['rate<0.01'],
+    errors: ['rate<0.05'],
+
+    // シナリオ別の閾値
+    'http_req_duration{scenario:read}': ['p(95)<300'],
+    'http_req_duration{scenario:write}': ['p(95)<800'],
+    'http_req_duration{scenario:spike}': ['p(95)<2000'],
+
+    // カスタムメトリクスの閾値
+    list_duration: ['p(95)<400'],
+    create_duration: ['p(95)<700'],
   },
 };
 
-const BASE_URL = 'https://api.example.com/v1';
+const BASE_URL = __ENV.BASE_URL || 'https://api-staging.example.com/v1';
 const TOKEN = __ENV.API_TOKEN;
 
-export default function () {
-  // ユーザー一覧取得
-  const listRes = http.get(`${BASE_URL}/users?limit=20`, {
-    headers: { Authorization: `Bearer ${TOKEN}` },
+const headers = {
+  Authorization: `Bearer ${TOKEN}`,
+  'Content-Type': 'application/json',
+};
+
+// 読み取りシナリオ
+export function readScenario() {
+  group('ユーザー一覧取得', () => {
+    const startTime = Date.now();
+    const res = http.get(`${BASE_URL}/users?limit=20`, { headers });
+    listDuration.add(Date.now() - startTime);
+
+    const success = check(res, {
+      'ステータスが200': (r) => r.status === 200,
+      'レスポンスにdataが存在': (r) => {
+        try { return JSON.parse(r.body).data !== undefined; }
+        catch { return false; }
+      },
+      'レスポンスタイム < 500ms': (r) => r.timings.duration < 500,
+    });
+
+    errorRate.add(!success);
   });
 
-  check(listRes, {
-    'list status is 200': (r) => r.status === 200,
-    'list has data': (r) => JSON.parse(r.body).data.length > 0,
-    'list response time < 500ms': (r) => r.timings.duration < 500,
+  group('ユーザー個別取得', () => {
+    const userId = `user_${Math.floor(Math.random() * 100) + 1}`;
+    const res = http.get(`${BASE_URL}/users/${userId}`, { headers });
+
+    const success = check(res, {
+      'ステータスが200または404': (r) => [200, 404].includes(r.status),
+      'レスポンスタイム < 300ms': (r) => r.timings.duration < 300,
+    });
+
+    errorRate.add(!success);
   });
 
-  // ユーザー作成
-  const createRes = http.post(`${BASE_URL}/users`, JSON.stringify({
-    name: `User_${Date.now()}`,
-    email: `user_${Date.now()}@example.com`,
-  }), {
-    headers: {
-      Authorization: `Bearer ${TOKEN}`,
-      'Content-Type': 'application/json',
-    },
-  });
-
-  check(createRes, {
-    'create status is 201': (r) => r.status === 201,
-  });
-
-  sleep(1); // シンクタイム
+  sleep(Math.random() * 2 + 1); // 1〜3秒のランダムなシンクタイム
 }
 
-// 実行: k6 run --env API_TOKEN=xxx load-test.js
+// 書き込みシナリオ
+export function writeScenario() {
+  group('ユーザー作成', () => {
+    const startTime = Date.now();
+    const uniqueId = `${Date.now()}_${__VU}_${__ITER}`;
+    const payload = JSON.stringify({
+      name: `LoadTest User ${uniqueId}`,
+      email: `loadtest_${uniqueId}@example.com`,
+      age: Math.floor(Math.random() * 60) + 18,
+    });
+
+    const res = http.post(`${BASE_URL}/users`, payload, { headers });
+    createDuration.add(Date.now() - startTime);
+
+    const success = check(res, {
+      'ステータスが201': (r) => r.status === 201,
+      '作成されたユーザーIDが返る': (r) => {
+        try { return JSON.parse(r.body).data.id !== undefined; }
+        catch { return false; }
+      },
+      'レスポンスタイム < 1000ms': (r) => r.timings.duration < 1000,
+    });
+
+    if (success) userCreated.add(1);
+    errorRate.add(!success);
+  });
+
+  sleep(Math.random() * 3 + 2); // 2〜5秒のシンクタイム
+}
+
+// テスト結果のサマリー出力
+export function handleSummary(data) {
+  return {
+    'stdout': textSummary(data, { indent: ' ', enableColors: true }),
+    './reports/load-test-summary.json': JSON.stringify(data, null, 2),
+  };
+}
+```
+
+```bash
+# k6 実行コマンド
+k6 run load-tests/scenarios/user-api-load.js \
+  --env BASE_URL=https://api-staging.example.com/v1 \
+  --env API_TOKEN=sk_test_xxx \
+  --out json=./reports/k6-results.json
+
+# Grafana + InfluxDB への出力
+k6 run load-tests/scenarios/user-api-load.js \
+  --out influxdb=http://localhost:8086/k6
+```
+
+### 6.3 Artillery による負荷テスト
+
+```yaml
+# load-tests/artillery/user-api.yml
+config:
+  target: "https://api-staging.example.com"
+  phases:
+    - name: "ウォームアップ"
+      duration: 30
+      arrivalRate: 5
+    - name: "通常負荷"
+      duration: 120
+      arrivalRate: 20
+    - name: "ピーク負荷"
+      duration: 60
+      arrivalRate: 50
+    - name: "クールダウン"
+      duration: 30
+      arrivalRate: 5
+  defaults:
+    headers:
+      Authorization: "Bearer {{ $processEnvironment.API_TOKEN }}"
+      Content-Type: "application/json"
+  plugins:
+    expect: {}
+  ensure:
+    p95: 500
+    p99: 1000
+    maxErrorRate: 1
+
+scenarios:
+  - name: "ユーザー一覧取得"
+    weight: 60
+    flow:
+      - get:
+          url: "/api/v1/users?limit=20"
+          expect:
+            - statusCode: 200
+            - hasProperty: "data"
+            - contentType: "application/json"
+
+  - name: "ユーザー作成→取得→更新"
+    weight: 30
+    flow:
+      - post:
+          url: "/api/v1/users"
+          json:
+            name: "Artillery User {{ $randomString() }}"
+            email: "artillery_{{ $timestamp() }}@example.com"
+            age: "{{ $randomNumber(18, 80) }}"
+          capture:
+            - json: "$.data.id"
+              as: "userId"
+          expect:
+            - statusCode: 201
+      - think: 1
+      - get:
+          url: "/api/v1/users/{{ userId }}"
+          expect:
+            - statusCode: 200
+      - think: 1
+      - put:
+          url: "/api/v1/users/{{ userId }}"
+          json:
+            name: "Updated User {{ $randomString() }}"
+          expect:
+            - statusCode: 200
+
+  - name: "検索シナリオ"
+    weight: 10
+    flow:
+      - get:
+          url: "/api/v1/users?filter[role]=admin&sort=-createdAt&limit=5"
+          expect:
+            - statusCode: 200
+```
+
+```bash
+# Artillery 実行コマンド
+artillery run load-tests/artillery/user-api.yml \
+  --output ./reports/artillery-report.json
+
+# HTMLレポート生成
+artillery report ./reports/artillery-report.json \
+  --output ./reports/artillery-report.html
 ```
 
 ---
 
-## 5. OpenAPI仕様のテスト
+## 7. E2Eテスト
+
+### 7.1 E2Eテストの設計
+
+E2E（End-to-End）テストは、ユーザーの実際の利用シナリオを模擬し、複数のAPIを横断して全体的なフローが正しく動作することを検証する。テストピラミッドの最上位に位置し、数は少ないが高い信頼性を提供する。
+
+```
+E2Eテスト シナリオ例: ECサイト購入フロー
+
+  [1] 会員登録                [2] ログイン
+  POST /auth/register   -->  POST /auth/login
+  201 Created                 200 OK (token)
+       |                           |
+       v                           v
+  [3] 商品一覧取得            [4] 商品をカートに追加
+  GET /products          -->  POST /cart/items
+  200 OK                      201 Created
+       |                           |
+       v                           v
+  [5] カート確認              [6] 注文作成
+  GET /cart              -->  POST /orders
+  200 OK                      201 Created
+       |                           |
+       v                           v
+  [7] 決済実行                [8] 注文確認
+  POST /payments         -->  GET /orders/:id
+  200 OK                      200 OK (status: paid)
+       |
+       v
+  [9] メール送信確認（非同期）
+  → 注文確認メールが送信されたことをキューで検証
+```
+
+### 7.2 E2Eテストの実装
 
 ```javascript
-// Schemathesis: OpenAPI仕様ベースのファジングテスト
+// __tests__/e2e/purchaseFlow.test.js
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import supertest from 'supertest';
+import { app } from '../../src/app';
+import { db } from '../../src/db';
+import { seedProducts } from '../helpers/seedData';
 
-// CLI:
-// schemathesis run https://api.example.com/openapi.yaml \
-//   --auth "Bearer sk_test_xxx" \
-//   --stateful=links \
-//   --hypothesis-seed=42
+const request = supertest(app);
 
-// Python API:
-// import schemathesis
-// schema = schemathesis.from_url("https://api.example.com/openapi.yaml")
-// @schema.parametrize()
-// def test_api(case):
-//     case.call_and_validate()
+describe('E2E: 商品購入フロー', () => {
+  let accessToken;
+  let userId;
+  let productId;
+  let cartId;
+  let orderId;
 
-// OpenAPIスキーマとの整合性テスト（手動）
-import { describe, it, expect } from 'vitest';
+  beforeAll(async () => {
+    await db.migrate.latest();
+    await db.raw('TRUNCATE TABLE users, products, carts, orders, payments CASCADE');
+    // テスト用商品データを投入
+    const products = await seedProducts(db);
+    productId = products[0].id;
+  });
+
+  afterAll(async () => {
+    await db.destroy();
+  });
+
+  it('ステップ1: 会員登録', async () => {
+    const res = await request
+      .post('/auth/register')
+      .send({
+        name: 'E2E Test User',
+        email: 'e2e@example.com',
+        password: 'SecurePass123!',
+      })
+      .expect(201);
+
+    expect(res.body.data.id).toBeDefined();
+    userId = res.body.data.id;
+  });
+
+  it('ステップ2: ログイン', async () => {
+    const res = await request
+      .post('/auth/login')
+      .send({
+        email: 'e2e@example.com',
+        password: 'SecurePass123!',
+      })
+      .expect(200);
+
+    expect(res.body.accessToken).toBeDefined();
+    expect(res.body.refreshToken).toBeDefined();
+    accessToken = res.body.accessToken;
+  });
+
+  it('ステップ3: 商品一覧取得', async () => {
+    const res = await request
+      .get('/api/v1/products?limit=10')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(200);
+
+    expect(res.body.data.length).toBeGreaterThan(0);
+    expect(res.body.data[0]).toHaveProperty('id');
+    expect(res.body.data[0]).toHaveProperty('price');
+  });
+
+  it('ステップ4: 商品をカートに追加', async () => {
+    const res = await request
+      .post('/api/v1/cart/items')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({
+        productId,
+        quantity: 2,
+      })
+      .expect(201);
+
+    expect(res.body.data.items).toHaveLength(1);
+    expect(res.body.data.items[0].productId).toBe(productId);
+    cartId = res.body.data.id;
+  });
+
+  it('ステップ5: カート確認', async () => {
+    const res = await request
+      .get('/api/v1/cart')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(200);
+
+    expect(res.body.data.items).toHaveLength(1);
+    expect(res.body.data.totalAmount).toBeGreaterThan(0);
+  });
+
+  it('ステップ6: 注文作成', async () => {
+    const res = await request
+      .post('/api/v1/orders')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({
+        cartId,
+        shippingAddress: {
+          postalCode: '100-0001',
+          prefecture: '東京都',
+          city: '千代田区',
+          line1: '千代田1-1',
+        },
+      })
+      .expect(201);
+
+    expect(res.body.data.status).toBe('pending');
+    expect(res.body.data.totalAmount).toBeGreaterThan(0);
+    orderId = res.body.data.id;
+  });
+
+  it('ステップ7: 決済実行', async () => {
+    const res = await request
+      .post('/api/v1/payments')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({
+        orderId,
+        method: 'credit_card',
+        cardToken: 'tok_test_visa',
+      })
+      .expect(200);
+
+    expect(res.body.data.status).toBe('succeeded');
+    expect(res.body.data.orderId).toBe(orderId);
+  });
+
+  it('ステップ8: 注文ステータス確認', async () => {
+    const res = await request
+      .get(`/api/v1/orders/${orderId}`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(200);
+
+    expect(res.body.data.status).toBe('paid');
+    expect(res.body.data.payment).toBeDefined();
+    expect(res.body.data.payment.status).toBe('succeeded');
+  });
+});
+```
+
+---
+
+## 8. OpenAPI仕様ベースのテスト
+
+### 8.1 スキーマ検証テスト
+
+OpenAPI（旧Swagger）仕様書を基にしたテストは、APIレスポンスが定義されたスキーマに準拠していることを自動的に検証する。手動でテストケースを書く手間を削減し、仕様と実装の乖離を防ぐ。
+
+```javascript
+// __tests__/schema/openapi-validation.test.js
+import { describe, it, expect, beforeAll } from 'vitest';
+import supertest from 'supertest';
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 import yaml from 'js-yaml';
 import { readFileSync } from 'fs';
+import { app } from '../../src/app';
+import { resolveRefs } from '../helpers/schemaResolver';
 
-const spec = yaml.load(readFileSync('./openapi.yaml', 'utf-8'));
-const ajv = new Ajv({ allErrors: true });
-addFormats(ajv);
+const request = supertest(app);
 
-describe('API Response Schema Validation', () => {
-  it('GET /users response matches schema', async () => {
-    const res = await request.get('/api/v1/users')
-      .set('Authorization', `Bearer ${token}`);
+describe('OpenAPI スキーマ検証', () => {
+  let spec;
+  let ajv;
+  let token;
 
-    const schema = spec.paths['/users'].get.responses['200']
-      .content['application/json'].schema;
+  beforeAll(async () => {
+    // OpenAPI仕様を読み込み
+    spec = yaml.load(readFileSync('./openapi.yaml', 'utf-8'));
 
-    const validate = ajv.compile(resolveRefs(schema, spec));
-    const valid = validate(res.body);
-    expect(valid).toBe(true);
+    // JSONスキーマバリデーター設定
+    ajv = new Ajv({
+      allErrors: true,
+      strict: false,
+      validateFormats: true,
+    });
+    addFormats(ajv);
+
+    // テスト用トークン取得
+    const loginRes = await request
+      .post('/auth/login')
+      .send({ email: 'test@example.com', password: 'test123' });
+    token = loginRes.body.accessToken;
+  });
+
+  // OpenAPIの各パスに対して自動テスト生成
+  const endpoints = [
+    { method: 'get', path: '/api/v1/users', status: 200 },
+    { method: 'get', path: '/api/v1/users/test_id', status: 200 },
+    { method: 'get', path: '/api/v1/products', status: 200 },
+  ];
+
+  endpoints.forEach(({ method, path, status }) => {
+    it(`${method.toUpperCase()} ${path} のレスポンスがスキーマに準拠する`, async () => {
+      const res = await request[method](path)
+        .set('Authorization', `Bearer ${token}`);
+
+      // OpenAPIスキーマを取得
+      const specPath = path.replace(/\/test_id/, '/{id}')
+                           .replace('/api/v1', '');
+      const responseSchema = spec.paths[specPath]?.[method]
+        ?.responses?.[String(status)]
+        ?.content?.['application/json']?.schema;
+
+      if (!responseSchema) {
+        throw new Error(`スキーマが見つかりません: ${method.toUpperCase()} ${specPath} ${status}`);
+      }
+
+      // $ref を解決してバリデーション実行
+      const resolvedSchema = resolveRefs(responseSchema, spec);
+      const validate = ajv.compile(resolvedSchema);
+      const valid = validate(res.body);
+
+      if (!valid) {
+        console.error('バリデーションエラー:', JSON.stringify(validate.errors, null, 2));
+      }
+
+      expect(valid).toBe(true);
+    });
   });
 });
 ```
 
----
+### 8.2 Schemathesisによるファジングテスト
 
-## 6. テスト環境と戦略
+```python
+# fuzz-tests/test_api_fuzz.py
+# Schemathesis: OpenAPI仕様ベースの自動ファジングテスト
 
+import schemathesis
+import pytest
+
+# OpenAPI仕様を読み込み
+schema = schemathesis.from_url(
+    "https://api-staging.example.com/openapi.yaml",
+    base_url="https://api-staging.example.com",
+)
+
+@schema.parametrize()
+def test_api_conformance(case):
+    """
+    OpenAPI仕様に基づく自動テスト
+    - 全エンドポイントに対してランダムなリクエストを生成
+    - レスポンスがスキーマに準拠しているかを検証
+    - 5xx エラーが返らないことを確認
+    """
+    response = case.call_and_validate()
+
+    # 5xxエラーは許容しない
+    assert response.status_code < 500, \
+        f"サーバーエラー: {response.status_code} - {response.text}"
+
+# 状態遷移を考慮したテスト
+@schema.parametrize(method="POST")
+def test_create_operations(case):
+    """POST操作の検証: 作成後に取得できることを確認"""
+    response = case.call_and_validate()
+
+    if response.status_code == 201:
+        # Locationヘッダーからリソースを取得
+        location = response.headers.get("Location")
+        if location:
+            get_response = case.session.get(location)
+            assert get_response.status_code == 200
+
+# CLIでの実行例:
+# schemathesis run https://api-staging.example.com/openapi.yaml \
+#   --auth "Bearer sk_test_xxx" \
+#   --stateful=links \
+#   --hypothesis-seed=42 \
+#   --hypothesis-max-examples=100 \
+#   --checks all
 ```
-テスト環境:
-  ✓ テスト用DB（SQLite in-memory / Docker PostgreSQL）
-  ✓ テスト用の認証トークン
-  ✓ 外部サービスのモック（MSW, WireMock）
-  ✓ テストデータのシード/クリーンアップ
 
-テスト戦略チェックリスト:
-  □ 正常系: 期待通りのリクエスト → 期待通りのレスポンス
-  □ 異常系: 不正な入力 → 適切なエラー
-  □ 認証: トークンなし → 401
-  □ 認可: 権限なし → 403
-  □ ページネーション: cursor/limit の動作確認
-  □ フィルタリング: 各フィルタの動作確認
-  □ 冪等性: 同じリクエスト2回 → 同じ結果
-  □ 競合: 同時更新 → 409 Conflict
-  □ レート制限: 制限超過 → 429
-  □ 大量データ: 10万件でもパフォーマンス維持
-```
-
----
-
-## まとめ
-
-| テスト種類 | ツール | 目的 |
-|-----------|--------|------|
-| ユニット | Vitest, Jest | ロジックの検証 |
-| 統合 | supertest | エンドポイントの検証 |
-| コントラクト | Pact | API仕様の合意 |
-| 負荷 | k6, Artillery | パフォーマンスの検証 |
-| ファジング | Schemathesis | エッジケースの発見 |
-
----
-
-## 次に読むべきガイド
-→ [[01-monitoring-and-logging.md]] — 監視とロギング
-
----
-
-## 参考文献
-1. k6. "Load Testing for Engineering Teams." k6.io, 2024.
-2. Pact. "Contract Testing." pact.io, 2024.
-3. Schemathesis. "API Testing with OpenAPI." github.com/schemathesis, 2024.
