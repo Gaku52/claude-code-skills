@@ -1806,4 +1806,1025 @@ public async Task<string> GetDataAsync()
     return result;
 }
 ```
+
+---
+
+## 11. 設計パターンとベストプラクティス
+
+### 11.1 リトライパターン（Exponential Backoff）
+
+```javascript
+// ===== 指数バックオフ付きリトライ =====
+async function fetchWithRetry(url, options = {}) {
+    const {
+        maxRetries = 3,
+        baseDelay = 1000,    // 初回待機: 1秒
+        maxDelay = 30000,    // 最大待機: 30秒
+        backoffFactor = 2,   // 倍率
+        retryableStatuses = [408, 429, 500, 502, 503, 504],
+    } = options;
+
+    let lastError;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+            const response = await fetch(url);
+
+            if (response.ok) {
+                return await response.json();
+            }
+
+            if (!retryableStatuses.includes(response.status)) {
+                throw new Error(`Non-retryable HTTP ${response.status}`);
+            }
+
+            lastError = new Error(`HTTP ${response.status}`);
+        } catch (error) {
+            lastError = error;
+
+            if (error.name === 'AbortError') {
+                throw error; // キャンセルはリトライしない
+            }
+        }
+
+        if (attempt < maxRetries) {
+            // 指数バックオフ + ジッタ
+            const delay = Math.min(
+                baseDelay * Math.pow(backoffFactor, attempt),
+                maxDelay
+            );
+            const jitter = delay * (0.5 + Math.random() * 0.5);
+
+            console.log(
+                `Retry ${attempt + 1}/${maxRetries} after ${Math.round(jitter)}ms`
+            );
+            await new Promise(resolve => setTimeout(resolve, jitter));
+        }
+    }
+
+    throw lastError;
+}
+
+// 使用例
+const data = await fetchWithRetry('https://api.example.com/data', {
+    maxRetries: 5,
+    baseDelay: 500,
+});
+```
+
+```
+指数バックオフの可視化:
+
+リトライ回数   待機時間（ジッタなし）   待機時間（ジッタあり、概算）
+    0          リクエスト送信            リクエスト送信
+    ↓          失敗                      失敗
+    1          1,000ms                   500〜1,500ms
+    ↓          失敗                      失敗
+    2          2,000ms                   1,000〜3,000ms
+    ↓          失敗                      失敗
+    3          4,000ms                   2,000〜6,000ms
+    ↓          失敗                      失敗
+    4          8,000ms                   4,000〜12,000ms
+    ↓          失敗                      失敗
+    5          諦める                    諦める
+
+  ジッタ（Jitter）が重要な理由:
+    多数のクライアントが同時に失敗した場合、
+    全クライアントが同じタイミングでリトライすると
+    サーバーに「リトライストーム」が発生する。
+    ランダムなジッタを加えることで負荷を分散する。
+```
+
+### 11.2 サーキットブレーカーパターン
+
+```javascript
+// ===== サーキットブレーカー: 障害の連鎖を防ぐ =====
+class CircuitBreaker {
+    constructor(options = {}) {
+        this.failureThreshold = options.failureThreshold || 5;
+        this.resetTimeout = options.resetTimeout || 60000; // 60秒
+        this.state = 'CLOSED';  // CLOSED → OPEN → HALF_OPEN → CLOSED
+        this.failureCount = 0;
+        this.lastFailureTime = null;
+        this.successCount = 0;
+    }
+
+    async execute(asyncFn) {
+        if (this.state === 'OPEN') {
+            if (Date.now() - this.lastFailureTime > this.resetTimeout) {
+                this.state = 'HALF_OPEN';
+                this.successCount = 0;
+            } else {
+                throw new Error('Circuit breaker is OPEN');
+            }
+        }
+
+        try {
+            const result = await asyncFn();
+            this._onSuccess();
+            return result;
+        } catch (error) {
+            this._onFailure();
+            throw error;
+        }
+    }
+
+    _onSuccess() {
+        if (this.state === 'HALF_OPEN') {
+            this.successCount++;
+            if (this.successCount >= 3) {
+                this.state = 'CLOSED';
+                this.failureCount = 0;
+            }
+        } else {
+            this.failureCount = 0;
+        }
+    }
+
+    _onFailure() {
+        this.failureCount++;
+        this.lastFailureTime = Date.now();
+        if (this.failureCount >= this.failureThreshold) {
+            this.state = 'OPEN';
+        }
+    }
+}
+
+// 使用例
+const breaker = new CircuitBreaker({
+    failureThreshold: 5,
+    resetTimeout: 30000,
+});
+
+async function callExternalService() {
+    return breaker.execute(async () => {
+        const response = await fetch('https://external-api.example.com/data');
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.json();
+    });
+}
+```
+
+```
+サーキットブレーカーの状態遷移:
+
+  ┌──────────┐  失敗がしきい値超過   ┌──────────┐
+  │ CLOSED   │ ────────────────────> │  OPEN    │
+  │ (正常)   │                       │ (遮断)   │
+  │          │                       │          │
+  │ リクエスト│                       │ 即座に   │
+  │ を通す   │                       │ エラー返却│
+  └────▲─────┘                       └────┬─────┘
+       │                                  │
+       │ 連続成功で回復                     │ リセットタイムアウト経過
+       │                                  │
+  ┌────┴─────┐                       ┌────▼─────┐
+  │          │ <──────────────────── │ HALF_OPEN│
+  │          │  テスト成功            │ (半開)   │
+  │          │                       │          │
+  └──────────┘  テスト失敗 → OPEN    │ 限定的に │
+                に戻る               │ リクエスト│
+                                     │ を通す   │
+                                     └──────────┘
+```
+
+### 11.3 バルクヘッドパターン（セマフォによるリソース分離）
+
+```python
+import asyncio
+
+class BulkheadExecutor:
+    """
+    バルクヘッドパターン: サービスごとに同時実行数を分離し、
+    1つのサービス障害が他のサービスに波及するのを防ぐ
+    """
+
+    def __init__(self):
+        self.semaphores = {}
+
+    def register(self, service_name: str, max_concurrent: int):
+        """サービスごとの同時実行数上限を登録"""
+        self.semaphores[service_name] = asyncio.Semaphore(max_concurrent)
+
+    async def execute(self, service_name: str, coro):
+        """指定サービスのバルクヘッド内で非同期処理を実行"""
+        sem = self.semaphores.get(service_name)
+        if sem is None:
+            raise ValueError(f"Unknown service: {service_name}")
+
+        async with sem:
+            return await coro
+
+# 使用例
+bulkhead = BulkheadExecutor()
+bulkhead.register("user_service", max_concurrent=20)
+bulkhead.register("payment_service", max_concurrent=5)   # 少なめに制限
+bulkhead.register("notification_service", max_concurrent=50)
+
+async def handle_order(order_id: int):
+    user = await bulkhead.execute(
+        "user_service", fetch_user(order_id)
+    )
+    payment = await bulkhead.execute(
+        "payment_service", process_payment(order_id)
+    )
+    await bulkhead.execute(
+        "notification_service", send_notification(user, payment)
+    )
+```
+
+---
+
+## 12. 演習問題
+
+### 12.1 基礎演習（Beginner）
+
+**演習1: 非同期データ取得の基本**
+
+以下の仕様を満たす `fetchAllUsers` 関数を JavaScript で実装せよ。
+
+- 引数: ユーザーIDの配列 `userIds: number[]`
+- `/api/users/:id` からユーザー情報を並行取得する
+- 全てのユーザー情報を配列で返す
+- 1つでも失敗した場合はエラーをスローする
+
+```javascript
+// 解答テンプレート
+async function fetchAllUsers(userIds) {
+    // ここに実装
+}
+
+// テスト
+// const users = await fetchAllUsers([1, 2, 3, 4, 5]);
+// console.log(users); // [{id:1,name:"Alice"}, {id:2,...}, ...]
+```
+
+<details>
+<summary>解答例（クリックして展開）</summary>
+
+```javascript
+async function fetchAllUsers(userIds) {
+    const promises = userIds.map(id =>
+        fetch(`/api/users/${id}`).then(res => {
+            if (!res.ok) throw new Error(`User ${id}: HTTP ${res.status}`);
+            return res.json();
+        })
+    );
+
+    return Promise.all(promises);
+}
+
+// 改良版: 同時接続数を制限
+async function fetchAllUsersLimited(userIds, concurrency = 5) {
+    const results = [];
+    const executing = new Set();
+
+    for (const id of userIds) {
+        const promise = fetch(`/api/users/${id}`)
+            .then(res => res.json())
+            .then(user => {
+                executing.delete(promise);
+                return user;
+            });
+
+        executing.add(promise);
+        results.push(promise);
+
+        if (executing.size >= concurrency) {
+            await Promise.race(executing);
+        }
+    }
+
+    return Promise.all(results);
+}
+```
+
+</details>
+
+**演習2: Python でタイムアウト付きフェッチを実装**
+
+以下の仕様を満たす関数を Python で実装せよ。
+
+- 複数の URL を並行フェッチする
+- 各リクエストに個別のタイムアウト（デフォルト5秒）を設定する
+- タイムアウトした URL は結果から除外し、成功したもののみ返す
+- 全体のタイムアウト（デフォルト30秒）も設定可能
+
+```python
+# 解答テンプレート
+async def fetch_urls_with_timeout(
+    urls: list[str],
+    per_request_timeout: float = 5.0,
+    total_timeout: float = 30.0,
+) -> dict[str, str]:
+    """成功した URL と結果のマッピングを返す"""
+    # ここに実装
+    pass
+```
+
+<details>
+<summary>解答例（クリックして展開）</summary>
+
+```python
+import asyncio
+import aiohttp
+
+async def fetch_urls_with_timeout(
+    urls: list[str],
+    per_request_timeout: float = 5.0,
+    total_timeout: float = 30.0,
+) -> dict[str, str]:
+    results = {}
+
+    async def fetch_one(session: aiohttp.ClientSession, url: str):
+        try:
+            async with asyncio.timeout(per_request_timeout):
+                async with session.get(url) as resp:
+                    text = await resp.text()
+                    results[url] = text
+        except (TimeoutError, aiohttp.ClientError) as e:
+            print(f"Failed {url}: {e}")
+
+    async with asyncio.timeout(total_timeout):
+        async with aiohttp.ClientSession() as session:
+            await asyncio.gather(
+                *[fetch_one(session, url) for url in urls],
+                return_exceptions=True,
+            )
+
+    return results
+```
+
+</details>
+
+### 12.2 中級演習（Intermediate）
+
+**演習3: 非同期レートリミッター**
+
+以下の仕様を満たすレートリミッターを JavaScript で実装せよ。
+
+- トークンバケットアルゴリズムを使用
+- 1秒あたり最大 N リクエストに制限
+- 制限超過時はトークン補充まで自動待機
+- async/await で利用可能なインターフェース
+
+```javascript
+// 解答テンプレート
+class RateLimiter {
+    constructor(maxTokens, refillRate) {
+        // ここに実装
+    }
+
+    async acquire() {
+        // トークン取得（制限超過時は待機）
+    }
+}
+
+// 使用例
+// const limiter = new RateLimiter(10, 10); // 最大10トークン、毎秒10トークン補充
+// await limiter.acquire(); // トークン取得
+// await fetch('/api/data'); // リクエスト実行
+```
+
+<details>
+<summary>解答例（クリックして展開）</summary>
+
+```javascript
+class RateLimiter {
+    constructor(maxTokens, refillRatePerSecond) {
+        this.maxTokens = maxTokens;
+        this.tokens = maxTokens;
+        this.refillRate = refillRatePerSecond;
+        this.lastRefillTime = Date.now();
+        this.waitQueue = [];
+    }
+
+    _refill() {
+        const now = Date.now();
+        const elapsed = (now - this.lastRefillTime) / 1000;
+        this.tokens = Math.min(
+            this.maxTokens,
+            this.tokens + elapsed * this.refillRate
+        );
+        this.lastRefillTime = now;
+    }
+
+    async acquire() {
+        this._refill();
+
+        if (this.tokens >= 1) {
+            this.tokens -= 1;
+            return;
+        }
+
+        // トークン不足: 補充まで待機
+        const waitTime = ((1 - this.tokens) / this.refillRate) * 1000;
+
+        return new Promise(resolve => {
+            setTimeout(() => {
+                this._refill();
+                this.tokens -= 1;
+                resolve();
+                // キューに待機中のものがあれば処理
+                this._processQueue();
+            }, waitTime);
+        });
+    }
+
+    _processQueue() {
+        while (this.waitQueue.length > 0) {
+            this._refill();
+            if (this.tokens < 1) break;
+            this.tokens -= 1;
+            const resolve = this.waitQueue.shift();
+            resolve();
+        }
+    }
+}
+
+// 使用例: API呼び出しをレートリミット
+async function fetchWithRateLimit(urls) {
+    const limiter = new RateLimiter(10, 10);
+    const results = [];
+
+    for (const url of urls) {
+        await limiter.acquire();
+        results.push(fetch(url).then(r => r.json()));
+    }
+
+    return Promise.all(results);
+}
+```
+
+</details>
+
+### 12.3 上級演習（Advanced）
+
+**演習4: 非同期タスクスケジューラ**
+
+以下の仕様を満たすタスクスケジューラを実装せよ。言語は自由に選択可。
+
+要件:
+- 優先度付きタスクキュー（high / medium / low）
+- 同時実行数の上限を指定可能
+- タスクの依存関係を宣言可能（タスクAはタスクBの完了後に実行）
+- タイムアウト機能
+- キャンセル機能
+
+```javascript
+// インターフェース例
+class TaskScheduler {
+    constructor(maxConcurrent) { /* ... */ }
+
+    addTask(id, asyncFn, options) {
+        // options: { priority, dependsOn, timeout }
+    }
+
+    async run() {
+        // 全タスクを依存関係と優先度に従って実行
+    }
+
+    cancel(taskId) { /* ... */ }
+}
+```
+
+<details>
+<summary>解答例（クリックして展開）</summary>
+
+```javascript
+class TaskScheduler {
+    constructor(maxConcurrent = 5) {
+        this.maxConcurrent = maxConcurrent;
+        this.tasks = new Map();
+        this.results = new Map();
+        this.running = new Set();
+        this.completed = new Set();
+        this.cancelled = new Set();
+    }
+
+    addTask(id, asyncFn, options = {}) {
+        const { priority = 'medium', dependsOn = [], timeout = 0 } = options;
+        const priorityValue = { high: 0, medium: 1, low: 2 }[priority];
+
+        this.tasks.set(id, {
+            id,
+            fn: asyncFn,
+            priority: priorityValue,
+            dependsOn,
+            timeout,
+        });
+    }
+
+    cancel(taskId) {
+        this.cancelled.add(taskId);
+    }
+
+    _getReadyTasks() {
+        const ready = [];
+        for (const [id, task] of this.tasks) {
+            if (this.completed.has(id) || this.running.has(id) || this.cancelled.has(id)) {
+                continue;
+            }
+            const depsReady = task.dependsOn.every(dep => this.completed.has(dep));
+            if (depsReady) {
+                ready.push(task);
+            }
+        }
+        return ready.sort((a, b) => a.priority - b.priority);
+    }
+
+    async _executeTask(task) {
+        this.running.add(task.id);
+
+        try {
+            let result;
+            if (task.timeout > 0) {
+                result = await Promise.race([
+                    task.fn(this.results),
+                    new Promise((_, reject) =>
+                        setTimeout(() => reject(new Error(`Task ${task.id} timed out`)), task.timeout)
+                    ),
+                ]);
+            } else {
+                result = await task.fn(this.results);
+            }
+            this.results.set(task.id, { status: 'fulfilled', value: result });
+        } catch (error) {
+            this.results.set(task.id, { status: 'rejected', reason: error });
+        } finally {
+            this.running.delete(task.id);
+            this.completed.add(task.id);
+        }
+    }
+
+    async run() {
+        while (true) {
+            const allDone = [...this.tasks.keys()].every(
+                id => this.completed.has(id) || this.cancelled.has(id)
+            );
+            if (allDone) break;
+
+            const ready = this._getReadyTasks();
+            const slots = this.maxConcurrent - this.running.size;
+
+            if (ready.length === 0 && this.running.size === 0) {
+                // デッドロック検出: 実行可能なタスクも実行中タスクもない
+                const remaining = [...this.tasks.keys()].filter(
+                    id => !this.completed.has(id) && !this.cancelled.has(id)
+                );
+                throw new Error(`Deadlock detected. Blocked tasks: ${remaining.join(', ')}`);
+            }
+
+            const toRun = ready.slice(0, slots);
+            const promises = toRun.map(task => this._executeTask(task));
+
+            if (promises.length > 0) {
+                await Promise.race([...promises, ...Array.from(this.running)].filter(Boolean));
+            } else if (this.running.size > 0) {
+                await new Promise(resolve => setTimeout(resolve, 10));
+            }
+        }
+
+        return this.results;
+    }
+}
+
+// 使用例
+const scheduler = new TaskScheduler(3);
+
+scheduler.addTask('fetchUser', async () => {
+    return await fetch('/api/users/1').then(r => r.json());
+}, { priority: 'high' });
+
+scheduler.addTask('fetchPosts', async (results) => {
+    const user = results.get('fetchUser').value;
+    return await fetch(`/api/posts?userId=${user.id}`).then(r => r.json());
+}, { priority: 'medium', dependsOn: ['fetchUser'], timeout: 5000 });
+
+scheduler.addTask('fetchAnalytics', async () => {
+    return await fetch('/api/analytics').then(r => r.json());
+}, { priority: 'low' });
+
+const results = await scheduler.run();
+```
+
+</details>
+
+---
+
+## 13. FAQ（よくある質問）
+
+### Q1: async/await とマルチスレッドの違いは何か？
+
+**A1:** async/await は「並行性（Concurrency）」を提供し、マルチスレッドは「並列性（Parallelism）」を提供する。
+
+```
+並行性 (Concurrency):
+  1つの実行主体が複数タスクを切り替えながら処理する
+  → 1コアでも実現可能
+  → I/O 待ちの間に他の処理を進める
+
+  Thread-1: ─[Task-A]─[Task-B]─[Task-A]─[Task-C]─[Task-B]─
+
+並列性 (Parallelism):
+  複数の実行主体が同時に処理する
+  → 複数コアが必要
+  → CPU密集処理の高速化
+
+  Core-1: ─[Task-A]─[Task-A]─[Task-A]─
+  Core-2: ─[Task-B]─[Task-B]─[Task-B]─
+  Core-3: ─[Task-C]─[Task-C]─[Task-C]─
+
+async/await が有効な場面:
+  - ネットワーク I/O（HTTP, DB, WebSocket）
+  - ファイル I/O
+  - タイマー処理
+  → 待ち時間が多く、CPU はあまり使わない処理
+
+マルチスレッドが有効な場面:
+  - 画像処理・動画エンコード
+  - 科学計算・機械学習
+  - 暗号処理
+  → CPU をフルに使う計算処理
+```
+
+### Q2: JavaScript で await を忘れるとどうなるか？
+
+**A2:** Promise オブジェクトがそのまま返され、意図しない動作になる。
+
+```javascript
+// ===== await を忘れた場合の挙動 =====
+
+async function getUser(id) {
+    const response = fetch(`/api/users/${id}`);  // await がない!
+
+    // response は Response オブジェクトではなく Promise オブジェクト
+    console.log(response);          // Promise { <pending> }
+    console.log(response.status);   // undefined（Promise にはstatusプロパティがない）
+
+    // JSON パースも失敗する
+    // response.json() → TypeError: response.json is not a function
+}
+
+// ===== 正しい書き方 =====
+async function getUser(id) {
+    const response = await fetch(`/api/users/${id}`);  // await あり
+    console.log(response);          // Response {...}
+    console.log(response.status);   // 200
+    return await response.json();
+}
+
+// ===== ESLint で検出可能 =====
+// eslint ルール: "@typescript-eslint/no-floating-promises": "error"
+// → await されていない Promise を検出してエラーにする
+```
+
+### Q3: Python の asyncio はマルチコアを活用できるか？
+
+**A3:** asyncio 単体ではマルチコアを活用できない（GIL の制約）。CPU密集処理には `multiprocessing` や `ProcessPoolExecutor` を組み合わせる。
+
+```python
+import asyncio
+from concurrent.futures import ProcessPoolExecutor
+import multiprocessing
+
+# CPU密集処理
+def cpu_heavy_task(data):
+    """GIL の影響を受ける CPU 密集処理"""
+    return sum(x ** 2 for x in range(data))
+
+async def process_with_multiprocessing(items: list[int]) -> list[int]:
+    """asyncio + ProcessPoolExecutor で CPU 並列処理"""
+    loop = asyncio.get_event_loop()
+
+    with ProcessPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
+        # 各 CPU コアで並列実行
+        futures = [
+            loop.run_in_executor(executor, cpu_heavy_task, item)
+            for item in items
+        ]
+        results = await asyncio.gather(*futures)
+
+    return results
+
+# I/O と CPU のハイブリッド
+async def hybrid_pipeline(urls: list[str]) -> list:
+    # Phase 1: I/O 密集（asyncio で並行）
+    raw_data = await asyncio.gather(
+        *[fetch_data(url) for url in urls]
+    )
+
+    # Phase 2: CPU 密集（ProcessPoolExecutor で並列）
+    loop = asyncio.get_event_loop()
+    with ProcessPoolExecutor() as executor:
+        processed = await asyncio.gather(
+            *[loop.run_in_executor(executor, process, data) for data in raw_data]
+        )
+
+    return processed
+```
+
+### Q4: Rust で async fn の返り値の型が複雑になるのはなぜか？
+
+**A4:** Rust の Future は各 async fn ごとに固有の匿名型（ステートマシン）を生成するため、型を明示するのが困難である。
+
+```rust
+// async fn が生成する Future の型は匿名
+async fn fetch_data() -> String {
+    // コンパイラはこの関数を以下のようなステートマシンに変換:
+    // enum FetchDataFuture {
+    //     State0 { ... },  // await 前
+    //     State1 { ... },  // 最初の await 後
+    //     State2 { ... },  // 2番目の await 後
+    //     Done,
+    // }
+    let resp = reqwest::get("https://example.com").await.unwrap();
+    resp.text().await.unwrap()
+}
+
+// 関数ポインタとして保持する場合:
+// 方法1: impl Future（静的ディスパッチ、推奨）
+fn make_future() -> impl Future<Output = String> {
+    fetch_data()
+}
+
+// 方法2: Box<dyn Future>（動的ディスパッチ、ヒープ割り当て）
+fn make_boxed_future() -> Pin<Box<dyn Future<Output = String> + Send>> {
+    Box::pin(fetch_data())
+}
+
+// 方法3: トレイトオブジェクトとして保持（コレクションに格納する場合）
+async fn run_multiple() {
+    let futures: Vec<Pin<Box<dyn Future<Output = String>>>> = vec![
+        Box::pin(fetch_data()),
+        Box::pin(another_async_fn()),
+    ];
+
+    for future in futures {
+        let result = future.await;
+        println!("{}", result);
+    }
+}
+```
+
+### Q5: async/await を使うべきでない場面はあるか？
+
+**A5:** 以下の場合は async/await が不適切または不要である。
+
+```
+async/await が不適切なケース:
+
+1. CPU 密集処理のみの場合
+   → マルチスレッド/並列処理を使うべき
+   → async/await は I/O 待ちの効率化が目的
+
+2. 処理が全て同期的に完了する場合
+   → 不要なオーバーヘッドが発生
+   → 同期関数でそのまま書けばよい
+
+3. 共有状態が多い並行処理
+   → async/await + 共有状態 = データ競合のリスク
+   → Actor モデルや CSP（Go の channel）の方が安全
+
+4. 超低レイテンシが要求される場合
+   → イベントループのオーバーヘッドが問題になりうる
+   → io_uring（Linux）や直接的なシステムコールが有効
+
+5. 既存の同期APIを薄くラップするだけの場合
+   → async で包んでも内部が同期なら意味がない
+   → Python: asyncio.to_thread() で適切にオフロード
+```
+
+### Q6: なぜ Go は async/await を採用しなかったのか？
+
+**A6:** Go の設計哲学は「シンプルさ」を最優先する。goroutine + channel の CSP モデルにより、全ての関数が暗黙的に非同期対応となり、async/await のような構文的な区別が不要になる。
+
+```go
+// Go: 全ての関数が「同期に見える」
+func fetchUser(id int) (User, error) {
+    // 内部で I/O が発生しても、goroutine スケジューラが
+    // 自動的にコンテキストスイッチする
+    resp, err := http.Get(fmt.Sprintf("/api/users/%d", id))
+    if err != nil {
+        return User{}, err
+    }
+    defer resp.Body.Close()
+
+    var user User
+    err = json.NewDecoder(resp.Body).Decode(&user)
+    return user, err
+}
+
+// 並行実行も goroutine + channel で自然に書ける
+func main() {
+    ch := make(chan User, 3)
+    for i := 1; i <= 3; i++ {
+        go func(id int) {
+            user, _ := fetchUser(id)
+            ch <- user
+        }(i)
+    }
+
+    for i := 0; i < 3; i++ {
+        user := <-ch
+        fmt.Println(user)
+    }
+}
+```
+
+Go の利点: 関数のシグネチャに async が伝染しない（関数の色問題が存在しない）。
+Go の欠点: goroutine のリーク検出が難しい、明示的なキャンセルが必要（context パッケージ）。
+
+---
+
+## 14. 非同期処理のデバッグとテスト
+
+### 14.1 デバッグ手法
+
+```javascript
+// ===== 非同期処理のデバッグテクニック =====
+
+// 1. async スタックトレースの有効化
+// Node.js: --async-stack-traces フラグ（デフォルトで有効、v12+）
+
+// 2. Promise のラベリング
+async function fetchUser(id) {
+    const promise = fetch(`/api/users/${id}`)
+        .then(r => r.json());
+
+    // デバッグ用にラベルを付ける
+    promise._debugLabel = `fetchUser(${id})`;
+    return promise;
+}
+
+// 3. 未処理の Promise 拒否を検出
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection:', reason);
+    console.error('Promise:', promise._debugLabel || promise);
+    // 本番環境ではプロセスを安全に終了
+    process.exit(1);
+});
+
+// 4. 非同期タイミングの計測
+async function timedFetch(label, asyncFn) {
+    const start = performance.now();
+    try {
+        const result = await asyncFn();
+        const elapsed = performance.now() - start;
+        console.log(`[${label}] completed in ${elapsed.toFixed(1)}ms`);
+        return result;
+    } catch (error) {
+        const elapsed = performance.now() - start;
+        console.error(`[${label}] failed after ${elapsed.toFixed(1)}ms:`, error);
+        throw error;
+    }
+}
+
+// 使用例
+const user = await timedFetch('fetchUser', () => fetchUser(1));
+```
+
+### 14.2 テスト手法
+
+```javascript
+// ===== Jest/Vitest での非同期テスト =====
+
+// 基本: async テスト関数
+test('fetchUser returns user data', async () => {
+    const user = await fetchUser(1);
+    expect(user).toHaveProperty('name');
+    expect(user.id).toBe(1);
+});
+
+// モック: 外部APIのモック
+test('loadDashboard aggregates data', async () => {
+    // fetch をモック
+    global.fetch = jest.fn()
+        .mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({ id: 1, name: 'Alice' }),
+        })
+        .mockResolvedValueOnce({
+            ok: true,
+            json: async () => [{ id: 1, title: 'Post 1' }],
+        });
+
+    const dashboard = await loadDashboard(1);
+    expect(dashboard.user.name).toBe('Alice');
+    expect(dashboard.posts).toHaveLength(1);
+});
+
+// タイムアウトテスト: fake timers
+test('fetchWithTimeout throws on timeout', async () => {
+    jest.useFakeTimers();
+
+    const promise = fetchWithTimeout('/api/slow', 1000);
+
+    // 時間を進める
+    jest.advanceTimersByTime(1500);
+
+    await expect(promise).rejects.toThrow('Timeout');
+
+    jest.useRealTimers();
+});
+
+// エラーケース
+test('processOrder handles payment failure', async () => {
+    mockPaymentService.mockRejectedValue(new PaymentError('Declined'));
+
+    const result = await processOrder('order-123');
+
+    expect(result.success).toBe(false);
+    expect(result.reason).toBe('payment_failed');
+});
+```
+
+```python
+# ===== pytest-asyncio での非同期テスト（Python） =====
+import pytest
+import asyncio
+from unittest.mock import AsyncMock, patch
+
+@pytest.mark.asyncio
+async def test_fetch_user():
+    """非同期関数の基本テスト"""
+    user = await fetch_user(1)
+    assert user["name"] == "Alice"
+    assert user["id"] == 1
+
+@pytest.mark.asyncio
+async def test_load_dashboard_concurrent():
+    """並行実行のテスト"""
+    with patch("module.fetch_user", new_callable=AsyncMock) as mock_fetch:
+        mock_fetch.return_value = {"id": 1, "name": "Alice"}
+
+        dashboard = await load_dashboard(1)
+        assert dashboard.user["name"] == "Alice"
+
+@pytest.mark.asyncio
+async def test_timeout_behavior():
+    """タイムアウトのテスト"""
+    with pytest.raises(TimeoutError):
+        async with asyncio.timeout(0.1):
+            await asyncio.sleep(1.0)
+```
+
+---
+
+## 15. まとめ
+
+### 15.1 言語別非同期モデル総合比較
+
+| 言語 | 非同期構文 | ランタイム | 実行モデル | メモリ効率 | 学習曲線 | 適用領域 |
+|------|----------|----------|----------|----------|---------|---------|
+| JavaScript | async/await | イベントループ(libuv) | シングルスレッド | 中 | 低 | Web全般 |
+| Python | async/await | asyncio | シングルスレッド(GIL) | 中 | 中 | I/O密集型 |
+| Rust | async/await | tokio/async-std | マルチスレッド | 高(ゼロコスト) | 高 | システム/高性能 |
+| Go | goroutine+chan | ランタイム内蔵 | M:Nスケジューリング | 高 | 低 | サーバー/インフラ |
+| C# | async/await | TaskScheduler | スレッドプール | 中 | 中 | エンタープライズ |
+| Java | Virtual Threads | Loom | M:Nスケジューリング | 高 | 低 | エンタープライズ |
+
+### 15.2 重要原則のチェックリスト
+
+```
+非同期プログラミングの原則:
+
+[基本原則]
+  □ I/O バウンドな処理に async/await を使う
+  □ CPU バウンドな処理にはスレッド/プロセスプールを使う
+  □ 独立した非同期処理は並行実行する（Promise.all / gather / join!）
+  □ エラーハンドリングを必ず行う（未処理のPromise拒否を放置しない）
+
+[設計原則]
+  □ async は呼び出し元に伝染する（async all the way）
+  □ 同期コード内から async コードをブロッキング呼び出ししない
+  □ セマフォで同時実行数を制限する
+  □ タイムアウトを必ず設定する
+
+[運用原則]
+  □ サーキットブレーカーで障害の連鎖を防ぐ
+  □ リトライは指数バックオフ + ジッタで行う
+  □ キャンセル機構を提供する（AbortController / context / CancellationToken）
+  □ 非同期処理の監視（タイミング計測、エラーレート）を行う
+```
+
+---
+
+## 次に読むべきガイド
+
+- [[02-message-passing.md]] -- メッセージパッシングと CSP モデル
+- [[03-shared-memory.md]] -- 共有メモリと同期プリミティブ
+- [[04-parallel-computing.md]] -- 並列コンピューティング
+
+---
+
+## 参考文献
+
+1. Hoare, C.A.R. "Communicating Sequential Processes." *Communications of the ACM*, vol. 21, no. 8, 1978, pp. 666-677. CSP モデルの原論文。Go の goroutine + channel の理論的基盤。
+2. "Asynchronous Programming in Rust." The Rust Async Book, rust-lang.github.io/async-book/. Rust の非同期プログラミングの公式ガイド。Future トレイトとポーリングモデルの詳細な解説。
+3. "Node.js Event Loop, Timers, and process.nextTick()." Node.js Documentation, nodejs.org/en/guides/event-loop-timers-and-nexttick. Node.js のイベントループの公式解説。フェーズごとの動作を詳述。
+4. Python Software Foundation. "asyncio -- Asynchronous I/O." Python Documentation, docs.python.org/3/library/asyncio.html. Python asyncio の公式リファレンス。TaskGroup や timeout の使用方法を含む。
+5. Cleary, Stephen. "Async in C# 5.0." O'Reilly Media, 2012. C# における async/await のベストプラクティス。SynchronizationContext とデッドロック回避の解説。
+6. Go Authors. "Effective Go: Concurrency." go.dev/doc/effective_go#concurrency. Go の並行処理パターンの公式ガイド。goroutine と channel の設計思想。
+7. Goetz, Brian et al. "JEP 444: Virtual Threads." OpenJDK, openjdk.org/jeps/444. Java Virtual Threads の仕様。Project Loom による軽量スレッドの設計。
 ```

@@ -1709,3 +1709,626 @@ V8 Orinoco GC アーキテクチャ:
 | アリーナアロケーション | GC を回避し、リクエスト単位でまとめて解放 | Go arena (実験), Zig |
 
 ---
+
+## 第9章: 用途別の選択指針 ── 設計判断フレームワーク
+
+### 9.1 意思決定フロー
+
+メモリ管理方式を選択する際の判断フローを示す。
+
+```
+メモリ管理方式の選択フローチャート:
+
+  [スタート]
+     │
+     ▼
+  リアルタイム制約があるか?
+     │
+     ├── はい → 停止時間の許容範囲は?
+     │          │
+     │          ├── 0ms (ハードリアルタイム)
+     │          │   → 所有権ベース (Rust) or 手動管理 (C)
+     │          │
+     │          ├── <1ms (ソフトリアルタイム)
+     │          │   → ARC (Swift) or ZGC (Java)
+     │          │
+     │          └── <10ms (準リアルタイム)
+     │              → Go GC or Shenandoah (Java)
+     │
+     └── いいえ → スループットが重要か?
+                  │
+                  ├── はい → トレーシングGC (Java G1/Parallel)
+                  │
+                  └── いいえ → 開発速度が重要か?
+                               │
+                               ├── はい → ハイブリッド (Python, Ruby)
+                               │
+                               └── いいえ → メモリ効率が重要か?
+                                            │
+                                            ├── はい → 所有権 (Rust)
+                                            │
+                                            └── いいえ → 好みで選択
+```
+
+### 9.2 ドメイン別の推奨方式
+
+```
+┌───────────────────────────┬──────────────┬──────────────────────┐
+│ ドメイン                   │ 推奨方式      │ 代表的な言語/技術     │
+├───────────────────────────┼──────────────┼──────────────────────┤
+│ モバイルアプリ (iOS)       │ ARC          │ Swift                │
+│ モバイルアプリ (Android)   │ トレーシング  │ Kotlin/Java (ART)    │
+│ Web フロントエンド         │ トレーシング  │ JavaScript (V8)      │
+│ Web バックエンド           │ トレーシング  │ Java, Go, C#         │
+│ データサイエンス           │ ハイブリッド  │ Python               │
+│ ゲームエンジン             │ ARC/手動     │ Swift, C++, Rust     │
+│ OS / カーネル             │ 手動/所有権  │ C, Rust              │
+│ 組み込みシステム           │ 所有権/手動  │ Rust, C              │
+│ 分散システム              │ トレーシング  │ Go, Java, Erlang     │
+│ 機械学習推論              │ ハイブリッド  │ Python + C拡張       │
+│ ブロックチェーン           │ トレーシング  │ Go, Rust, Solidity   │
+│ CLI ツール                │ 所有権       │ Rust, Go             │
+│ デスクトップアプリ         │ トレーシング  │ C#(WPF), Java(Swing) │
+│ HPC (高性能計算)          │ 手動/所有権  │ C, C++, Rust, Fortran│
+│ マイクロサービス           │ トレーシング  │ Go, Java, C#         │
+└───────────────────────────┴──────────────┴──────────────────────┘
+```
+
+### 9.3 移行パスの考慮
+
+既存システムのメモリ管理方式を変更する場合の指針を示す。
+
+| 移行元 | 移行先 | 難易度 | 主な課題 |
+|--------|--------|--------|---------|
+| C (手動) | Rust (所有権) | 高 | 借用規則の学習、unsafe の適切な使用 |
+| Python (RC+GC) | Go (Tracing) | 中 | GC チューニング、ポインタ意識 |
+| Java (Tracing) | Go (Tracing) | 低 | GC パラメータ体系の違い |
+| Obj-C (MRC) | Swift (ARC) | 低 | 自動化による安心感、weak/unowned の正しい使用 |
+| C++ (手動+RAII) | Rust (所有権) | 中 | ライフタイム注釈、スマートポインタの対応関係 |
+| Ruby (Tracing) | Java (Tracing) | 低 | 型システムの違いが主な課題 |
+
+---
+
+## 第10章: 演習問題 ── 3段階の実践
+
+### 10.1 初級演習: 参照カウントの追跡
+
+**課題**: 以下の Python コードにおいて、各行の実行後のオブジェクト X の参照カウントを手動で追跡せよ。
+
+```python
+"""
+演習1: 参照カウントの手動追跡
+
+各行の実行後に、X オブジェクトの参照カウントを答えよ。
+sys.getrefcount() の「引数分の +1」は無視して純粋なカウントで回答すること。
+"""
+import sys
+
+class X:
+    pass
+
+# Line 1
+a = X()          # Q1: X の参照カウントは?
+
+# Line 2
+b = a            # Q2: X の参照カウントは?
+
+# Line 3
+c = [a, b, a]    # Q3: X の参照カウントは?
+
+# Line 4
+d = {"key": a}   # Q4: X の参照カウントは?
+
+# Line 5
+del c            # Q5: X の参照カウントは?
+
+# Line 6
+b = None         # Q6: X の参照カウントは?
+
+# Line 7
+d.clear()        # Q7: X の参照カウントは?
+
+# Line 8
+del a            # Q8: X の参照カウントは? X は解放されるか?
+```
+
+**解答**:
+```
+Q1: 1  (a のみ)
+Q2: 2  (a, b)
+Q3: 5  (a, b, c[0], c[1]=aの別名だがリスト要素として+1, c[2])
+         → 正確には a, b, c[0], c[2] = 4個の参照 + b の参照 = 5
+         ※ c = [a, b, a] では a が2回、b(=a)が1回リストに入る
+         → a=1, b=1, list[0]=a=1, list[1]=b=aなので+1, list[2]=a=1 → 合計5
+Q4: 6  (a, b, c[0], c[1], c[2], d["key"])
+Q5: 3  (a, b, d["key"])  ← リスト c の解放で3つ減少
+Q6: 2  (a, d["key"])
+Q7: 1  (a のみ)
+Q8: 0  → X は即座に解放される
+```
+
+### 10.2 中級演習: 循環参照の検出と解決
+
+**課題**: 以下のコードにはメモリリークがある。原因を特定し、2つの異なる方法で修正せよ。
+
+```python
+"""
+演習2: 循環参照のメモリリークを修正する
+
+以下の EventSystem クラスにはメモリリークがある。
+原因を特定し、(A) 弱参照、(B) 明示的切断 の2つの方法で修正せよ。
+"""
+import gc
+
+class EventEmitter:
+    def __init__(self, name: str):
+        self.name = name
+        self.listeners = []
+
+    def on(self, callback):
+        self.listeners.append(callback)
+
+    def emit(self, data):
+        for listener in self.listeners:
+            listener(data)
+
+    def __del__(self):
+        print(f"  EventEmitter '{self.name}' 解放")
+
+class Widget:
+    def __init__(self, widget_id: str):
+        self.widget_id = widget_id
+        self.emitter = EventEmitter(f"emitter-{widget_id}")
+        # 問題: self.handle_event は self への強参照を含むバウンドメソッド
+        self.emitter.on(self.handle_event)
+
+    def handle_event(self, data):
+        print(f"  Widget {self.widget_id} received: {data}")
+
+    def __del__(self):
+        print(f"  Widget '{self.widget_id}' 解放")
+
+# テスト
+gc.disable()
+w = Widget("btn-1")
+w.emitter.emit("click")
+del w
+print("  del w 後: Widget も EventEmitter も解放されない (リーク!)")
+gc.enable()
+gc.collect()
+print("  gc.collect() 後: GC が循環参照を回収")
+```
+
+**解答A: 弱参照を使った修正**:
+```python
+import weakref
+
+class WidgetFixA:
+    def __init__(self, widget_id: str):
+        self.widget_id = widget_id
+        self.emitter = EventEmitter(f"emitter-{widget_id}")
+        # WeakMethod で弱参照のバウンドメソッドを登録
+        weak_self = weakref.ref(self)
+        def weak_handler(data, _ref=weak_self):
+            obj = _ref()
+            if obj is not None:
+                obj.handle_event(data)
+        self.emitter.on(weak_handler)
+
+    def handle_event(self, data):
+        print(f"  Widget {self.widget_id} received: {data}")
+
+    def __del__(self):
+        print(f"  WidgetFixA '{self.widget_id}' 解放")
+```
+
+**解答B: 明示的切断を使った修正**:
+```python
+class WidgetFixB:
+    def __init__(self, widget_id: str):
+        self.widget_id = widget_id
+        self.emitter = EventEmitter(f"emitter-{widget_id}")
+        self.emitter.on(self.handle_event)
+
+    def handle_event(self, data):
+        print(f"  Widget {self.widget_id} received: {data}")
+
+    def destroy(self):
+        """明示的にリスナーを切断してから参照を解除"""
+        self.emitter.listeners.clear()
+        self.emitter = None
+
+    def __del__(self):
+        print(f"  WidgetFixB '{self.widget_id}' 解放")
+
+# 使い方:
+# w = WidgetFixB("btn-1")
+# w.destroy()  # 明示的切断
+# del w        # 参照カウントで即座に回収
+```
+
+### 10.3 上級演習: 簡易参照カウント GC の実装
+
+**課題**: Python で簡易的な参照カウント GC シミュレータを実装せよ。循環参照の検出機能も含めること。
+
+```python
+"""
+演習3: 簡易参照カウント GC シミュレータの実装
+
+以下のスケルトンを完成させよ。
+要件:
+  1. オブジェクトの生成と参照カウントの管理
+  2. 参照の追加と削除
+  3. 参照カウント == 0 での自動解放
+  4. 循環参照の検出（ボーナス）
+"""
+from __future__ import annotations
+from typing import Optional
+
+class ManagedObject:
+    """GC で管理されるオブジェクト"""
+    _next_id = 0
+
+    def __init__(self, name: str, gc: 'SimpleGC'):
+        ManagedObject._next_id += 1
+        self.id = ManagedObject._next_id
+        self.name = name
+        self.refcount = 0
+        self.references: list[ManagedObject] = []
+        self._gc = gc
+        self._alive = True
+
+    def add_reference(self, target: 'ManagedObject'):
+        """target への参照を追加"""
+        self.references.append(target)
+        target.refcount += 1
+        print(f"  {self.name} → {target.name}  "
+              f"({target.name}.refcount = {target.refcount})")
+
+    def remove_reference(self, target: 'ManagedObject'):
+        """target への参照を削除"""
+        if target in self.references:
+            self.references.remove(target)
+            target.refcount -= 1
+            print(f"  {self.name} -/→ {target.name}  "
+                  f"({target.name}.refcount = {target.refcount})")
+            if target.refcount == 0:
+                self._gc.free(target)
+
+    def __repr__(self):
+        refs = [r.name for r in self.references]
+        return (f"Obj({self.name}, rc={self.refcount}, "
+                f"refs={refs}, alive={self._alive})")
+
+
+class SimpleGC:
+    """簡易参照カウント GC"""
+
+    def __init__(self):
+        self.heap: list[ManagedObject] = []
+        self.roots: dict[str, ManagedObject] = {}
+
+    def allocate(self, name: str) -> ManagedObject:
+        """新しいオブジェクトを割り当て"""
+        obj = ManagedObject(name, self)
+        self.heap.append(obj)
+        print(f"  [ALLOC] {name} (heap size: {len(self.heap)})")
+        return obj
+
+    def add_root(self, var_name: str, obj: ManagedObject):
+        """ルート変数を追加（参照カウント +1）"""
+        if var_name in self.roots:
+            old = self.roots[var_name]
+            old.refcount -= 1
+            if old.refcount == 0:
+                self.free(old)
+        self.roots[var_name] = obj
+        obj.refcount += 1
+        print(f"  [ROOT] {var_name} = {obj.name}  "
+              f"({obj.name}.refcount = {obj.refcount})")
+
+    def remove_root(self, var_name: str):
+        """ルート変数を削除（参照カウント -1）"""
+        if var_name in self.roots:
+            obj = self.roots.pop(var_name)
+            obj.refcount -= 1
+            print(f"  [DEL]  {var_name}  "
+                  f"({obj.name}.refcount = {obj.refcount})")
+            if obj.refcount == 0:
+                self.free(obj)
+
+    def free(self, obj: ManagedObject):
+        """オブジェクトを解放（参照先のカウントも減算）"""
+        if not obj._alive:
+            return
+        obj._alive = False
+        print(f"  [FREE] {obj.name}")
+
+        # このオブジェクトが参照している先のカウントを減算
+        for ref in obj.references[:]:
+            ref.refcount -= 1
+            print(f"    cascade: {ref.name}.refcount = {ref.refcount}")
+            if ref.refcount == 0:
+                self.free(ref)
+
+        obj.references.clear()
+        self.heap.remove(obj)
+
+    def detect_cycles(self) -> list[set[str]]:
+        """循環参照を検出（到達不能なオブジェクト群を返す）"""
+        # ルートから到達可能なオブジェクトをマーク
+        reachable = set()
+
+        def mark(obj: ManagedObject):
+            if obj.id in reachable:
+                return
+            reachable.add(obj.id)
+            for ref in obj.references:
+                if ref._alive:
+                    mark(ref)
+
+        for obj in self.roots.values():
+            if obj._alive:
+                mark(obj)
+
+        # 到達不能なオブジェクトを検出
+        unreachable = [obj for obj in self.heap
+                       if obj.id not in reachable and obj._alive]
+
+        if unreachable:
+            names = {obj.name for obj in unreachable}
+            print(f"  [CYCLE] 到達不能オブジェクト検出: {names}")
+            return [names]
+        return []
+
+    def collect_cycles(self) -> int:
+        """循環参照を強制回収"""
+        cycles = self.detect_cycles()
+        count = 0
+        for cycle in cycles:
+            for obj in self.heap[:]:
+                if obj.name in cycle and obj._alive:
+                    self.free(obj)
+                    count += 1
+        return count
+
+    def status(self):
+        """現在の状態を表示"""
+        print(f"\n  --- GC Status ---")
+        print(f"  Roots: {list(self.roots.keys())}")
+        print(f"  Heap ({len(self.heap)} objects):")
+        for obj in self.heap:
+            print(f"    {obj}")
+        print()
+
+
+# === テスト実行 ===
+def test_simple_gc():
+    print("=== 簡易GCシミュレータ テスト ===\n")
+
+    gc = SimpleGC()
+
+    # 通常の参照カウント動作
+    print("--- 1. 基本的な割り当てと解放 ---")
+    a = gc.allocate("A")
+    b = gc.allocate("B")
+    gc.add_root("x", a)
+    gc.add_root("y", b)
+    a.add_reference(b)
+    gc.status()
+
+    gc.remove_root("x")  # A のカウントが 0 → A 解放 → B のカウント -1
+    gc.status()
+
+    gc.remove_root("y")  # B のカウントが 0 → B 解放
+    gc.status()
+
+    # 循環参照テスト
+    print("--- 2. 循環参照の検出 ---")
+    c = gc.allocate("C")
+    d = gc.allocate("D")
+    gc.add_root("z", c)
+    c.add_reference(d)
+    d.add_reference(c)  # 循環: C ↔ D
+    gc.status()
+
+    gc.remove_root("z")  # C.refcount=1 (D→C), D.refcount=1 (C→D) → リーク!
+    gc.status()
+
+    print("--- 3. 循環参照の回収 ---")
+    collected = gc.collect_cycles()
+    print(f"  回収数: {collected}")
+    gc.status()
+
+if __name__ == "__main__":
+    test_simple_gc()
+```
+
+---
+
+## 第11章: 総合比較表
+
+### 11.1 方式別の包括的比較
+
+```
+┌──────────────────────┬──────────────┬──────────────┬──────────────┬──────────────┐
+│ 評価項目              │ 参照カウント  │ トレーシングGC│ ハイブリッド  │ 所有権ベース  │
+├──────────────────────┼──────────────┼──────────────┼──────────────┼──────────────┤
+│ 回収タイミング         │ 即座(決定的)  │ 不定(非決定的)│ 即座+定期     │ スコープ終了  │
+│ 循環参照処理          │ 不可         │ 可能         │ 可能         │ Weak で回避  │
+│ 最大停止時間          │ 0ms          │ 数ms〜数百ms │ 短い         │ 0ms          │
+│ スループット          │ やや低い      │ 高い         │ 中〜高       │ 最高         │
+│ メモリ効率            │ 中           │ 低〜中       │ 中           │ 最高         │
+│ オブジェクト毎コスト   │ 8-16 bytes   │ 0-1 bit      │ 8-16 bytes   │ 0 bytes      │
+│ マルチスレッド性能     │ 低(atomic)   │ 高           │ 中           │ 高           │
+│ 実装複雑度            │ 低           │ 高           │ 高           │ 中(コンパイラ)│
+│ 学習コスト(開発者)     │ 低           │ 低           │ 低           │ 高           │
+│ デストラクタの確実性   │ 高           │ 低           │ 中           │ 高           │
+│ デバッグ容易性        │ 高           │ 低           │ 中           │ 中           │
+│ 代表言語             │ Swift,Python │ Java,Go,JS   │ Python,C#    │ Rust         │
+│ 適用領域             │ モバイル     │ サーバー     │ スクリプト   │ システム     │
+│                      │ デスクトップ  │ Web          │ データ分析   │ 組み込み     │
+└──────────────────────┴──────────────┴──────────────┴──────────────┴──────────────┘
+```
+
+### 11.2 言語別のメモリ管理実装詳細
+
+| 言語 | 主方式 | 補助方式 | GC アルゴリズム | 停止時間目安 | 特記事項 |
+|------|--------|---------|---------------|------------|---------|
+| Python | RC | 世代別GC | 試行的削除 | ~10ms | GIL による簡素化 |
+| Swift | ARC | なし | なし | 0ms | コンパイラ挿入 retain/release |
+| Java | Tracing | - | G1/ZGC/Shenandoah | <1ms (ZGC) | 最も成熟した GC エコシステム |
+| Go | Tracing | - | 並行 Mark-Sweep | <500us | 世代別なし（意図的） |
+| JavaScript (V8) | Tracing | - | 世代別+並行+インクリメンタル | ~1-2ms | Orinoco プロジェクト |
+| C# (.NET) | Tracing | IDisposable | 世代別+コンパクション | ~10ms | Server/Workstation モード |
+| Ruby | Tracing | - | 世代別 Mark-Sweep | ~10ms | Ruby 3.x で改善 |
+| Rust | 所有権 | Rc/Arc | なし | 0ms | コンパイル時検証 |
+| Erlang/Elixir | Tracing | - | プロセス別 GC | <1ms/proc | プロセス単位で独立した GC |
+| OCaml | Tracing | - | 世代別+インクリメンタル | 数ms | 関数型言語向けに最適化 |
+| Haskell | Tracing | - | 世代別 Copying GC | 可変 | 遅延評価との相互作用 |
+| PHP | RC | 循環検出 | Mark-Sweep (循環のみ) | ~1ms | リクエスト終了で全解放 |
+| Perl | RC | なし | なし | 0ms | 循環参照は手動管理 |
+| Lua | Tracing | - | インクリメンタル Mark-Sweep | 数ms | 軽量 GC |
+
+---
+
+## 第12章: FAQ（よくある質問）
+
+### Q1: 「参照カウントは遅い」という通説は正しいか?
+
+**回答**: 部分的に正しいが、単純化しすぎている。
+
+素朴な参照カウントは確かに毎回の参照操作にオーバーヘッドが生じる。特にマルチスレッド環境ではアトミック操作のコストが大きい。しかし、現代の最適化された参照カウント（Swift の ARC、遅延参照カウントなど）は、多くのユースケースでトレーシング GC と同等以上の性能を発揮する。
+
+ポイントは「何を測定するか」である。スループット（単位時間あたりの処理量）ではトレーシング GC が有利な傾向にあるが、レイテンシ（最大停止時間）では参照カウントが有利である。アプリケーションの要件に応じて「遅い」の意味が変わる。
+
+### Q2: Go はなぜ世代別GCを採用しないのか?
+
+**回答**: Go チームは意図的に世代別 GC を採用していない。理由は以下の通り:
+
+1. **値型の活用**: Go はスライス、マップのキー、構造体などを値型として扱うことが多く、ヒープアロケーションが他の言語より少ない。世代仮説（「ほとんどのオブジェクトは若くして死ぬ」）の前提が弱くなる。
+
+2. **ライトバリアのコスト**: 世代別 GC にはライトバリア（世代間参照の追跡）が必要だが、これは全ポインタ書き込みにオーバーヘッドを加える。Go はこのコストを避けたい。
+
+3. **シンプルさ**: Go の設計哲学は「シンプルさ」を重視する。世代別 GC はチューニングパラメータが増え、複雑さが増す。
+
+4. **十分な性能**: 並行 Mark-Sweep だけで 500μs 以下の停止時間を達成しており、多くのユースケースで十分である。
+
+ただし、Go 1.19 で導入された `GOMEMLIMIT` は、将来的な世代別 GC 導入への布石とも解釈できる。
+
+### Q3: Rust では GC が完全に不要なのか?
+
+**回答**: 厳密には「不要」ではなく「デフォルトでは不要」が正しい。
+
+Rust の所有権システムはコンパイル時にメモリの生存期間を決定するため、実行時の GC は不要である。しかし、以下の場合にはランタイムのメモリ管理が必要となる:
+
+- **共有所有権が必要な場合**: `Rc<T>`（単一スレッド）や `Arc<T>`（マルチスレッド）を使用。これは参照カウントである。
+- **循環構造が必要な場合**: `Weak<T>` と組み合わせるか、アリーナアロケータを使用。
+- **FFI でCライブラリと連携する場合**: C側のメモリ管理に合わせる必要がある。
+
+また、`rust-gc` クレートなどの外部ライブラリを使えば、Rust でもトレーシング GC を利用可能。ゲームエンジンや言語処理系の実装では有用な場合がある。
+
+### Q4: Python の GC を無効化するとどうなるか?
+
+**回答**: `gc.disable()` で世代別 GC を無効化できるが、参照カウントは引き続き動作する。
+
+- 循環参照を含まないオブジェクトは通常通り即座に回収される
+- 循環参照を含むオブジェクトはメモリリークとなる
+- Instagram は実際に本番環境で GC を無効化し、メモリ使用量を 10% 削減した（2017年の発表）。ただしこれは、循環参照が発生しないようにコードを厳密に管理した上での判断である
+
+### Q5: ファイナライザ（デストラクタ）に依存してよいのはどの言語か?
+
+**回答**: 言語のメモリ管理方式によって信頼性が異なる。
+
+| 言語 | ファイナライザ | 信頼性 | 推奨される代替手段 |
+|------|--------------|--------|------------------|
+| Rust | `Drop` trait | 確実（スコープ終了時） | 不要（Drop で十分） |
+| Swift | `deinit` | ほぼ確実（ARC） | weak/unowned の正しい使用 |
+| C++ | デストラクタ | 確実（RAII） | 不要（RAII で十分） |
+| Python | `__del__` | 不確実 | `with` 文 / `contextlib` |
+| Java | `finalize` (deprecated) | 非推奨 | `try-with-resources` / `Cleaner` |
+| C# | `~Finalizer` | 遅延実行 | `IDisposable` + `using` |
+| Go | `runtime.SetFinalizer` | 不確実 | `defer` / 明示的 `Close()` |
+
+---
+
+## 第13章: まとめ
+
+### 13.1 核心的な学び
+
+1. **参照カウントとトレーシング GC はトレードオフの関係** にある。前者は即時性と予測可能性に優れ、後者はスループットと循環参照処理に優れる。
+
+2. **現代の言語はほぼ全てがハイブリッド** である。純粋な参照カウントのみ、純粋なトレーシング GC のみの言語は少数派。多くの言語が複数の手法を組み合わせている。
+
+3. **所有権ベースのメモリ管理（Rust）は第三の道** を提示した。コンパイル時にメモリの生存期間を決定することで、実行時コストをゼロにする。ただし学習コストが高い。
+
+4. **GC 技術は急速に進化** している。Java の ZGC は 1ms 以下の停止時間を実現し、「トレーシング GC = 長い停止」という通説を覆しつつある。
+
+5. **最適な選択はドメインに依存** する。リアルタイム性が重要なら参照カウントか所有権、スループットが重要ならトレーシング GC、開発速度が重要ならハイブリッドが適する。
+
+### 13.2 方式別サマリー
+
+| 方式 | 回収タイミング | 循環参照 | 停止時間 | 代表言語 |
+|------|-------------|---------|---------|---------|
+| 参照カウント | 即座 | 不可 | なし | Swift, Python |
+| トレーシング | バッチ | 可能 | あり | Java, Go, JS |
+| ハイブリッド | 混合 | 可能 | 最小 | Python, C# |
+| 所有権 | スコープ終了 | N/A | なし | Rust |
+
+---
+
+## 次に読むべきガイド
+
+- [[../03-control-flow/00-branching-and-loops.md]] -- 制御構造
+- [[01-stack-vs-heap.md]] -- スタックとヒープの基礎
+- [[02-ownership-borrowing-lifetimes.md]] -- 所有権・借用・ライフタイム
+
+---
+
+## 用語集
+
+| 用語 | 英語 | 説明 |
+|------|------|------|
+| 参照カウント | Reference Counting (RC) | オブジェクトへの参照数を記録し、0 で回収する方式 |
+| トレーシングGC | Tracing GC | ルートから到達可能なオブジェクトを辿る方式 |
+| ARC | Automatic Reference Counting | コンパイラが retain/release を自動挿入する参照カウント |
+| STW | Stop-The-World | GC 実行中にアプリケーションが停止する現象 |
+| 世代仮説 | Generational Hypothesis | 大半のオブジェクトは短命であるという経験的観測 |
+| ライトバリア | Write Barrier | ポインタ書き込み時に GC に通知する機構 |
+| ロードバリア | Load Barrier | ポインタ読み取り時に GC の状態を検査する機構 |
+| コンパクション | Compaction | 生存オブジェクトをメモリの一方に寄せ断片化を解消する処理 |
+| 弱参照 | Weak Reference | 参照カウントを増加させない参照 |
+| ルート集合 | Root Set | GC の探索起点となる変数群（スタック、グローバル、レジスタ） |
+| カラーポインタ | Colored Pointer | ポインタのビットに GC メタデータを埋め込む技法（ZGC） |
+| フリーリスト | Free List | 解放済みメモリブロックの連結リスト |
+| バンプポインタ | Bump Pointer | ポインタを進めるだけで高速にメモリ確保する方式 |
+| アリーナ | Arena | 一括確保・一括解放するメモリ領域 |
+| RAII | Resource Acquisition Is Initialization | リソースの寿命をオブジェクトのスコープに紐づけるイディオム |
+
+---
+
+## 参考文献
+
+1. Jones, R., Hosking, A. & Moss, E. *The Garbage Collection Handbook: The Art of Automatic Memory Management.* 2nd Edition, CRC Press, 2023. -- GC の包括的な教科書。Mark-Sweep、Copying GC、世代別 GC、並行 GC の全てを詳細に解説。
+
+2. Bacon, D. F., Cheng, P. & Rajan, V. T. "A Unified Theory of Garbage Collection." *ACM SIGPLAN Notices*, Vol. 39, No. 10, pp. 50-68, 2004. (OOPSLA 2004) -- 参照カウントとトレーシング GC が数学的に双対であることを証明した画期的論文。
+
+3. Apple Inc. *Automatic Reference Counting (ARC) -- Swift Documentation.* 2024. https://docs.swift.org/swift-book/documentation/the-swift-programming-language/automaticreferencecounting/ -- Swift ARC の公式ドキュメント。weak, unowned, クロージャキャプチャリストの使い方。
+
+4. Klabnik, S. & Nichols, C. *The Rust Programming Language.* 2nd Edition, No Starch Press, 2023. -- 所有権システム、借用、ライフタイム、`Rc<T>` と `Arc<T>` の解説。
+
+5. Oracle. *Java Garbage Collection Tuning Guide -- Java SE 21.* 2024. https://docs.oracle.com/en/java/javase/21/gctuning/ -- Java の各 GC（Serial, Parallel, G1, ZGC, Shenandoah）のチューニングガイド。
+
+6. Prossimo, R. et al. "Trash Talk: A Deep Dive into V8's Garbage Collection." *V8 Blog*, 2019. https://v8.dev/blog/trash-talk -- V8 の Orinoco GC プロジェクトの詳細な解説。
+
+7. Go Team. *A Guide to the Go Garbage Collector.* 2022. https://tip.golang.org/doc/gc-guide -- Go GC の設計思想、GOGC パラメータ、GOMEMLIMIT の解説。
+
+8. Instagram Engineering. "Dismissing Python Garbage Collection at Instagram." *Instagram Engineering Blog*, 2017. -- Python の世代別 GC を無効化して性能改善した事例。
+
+9. Tene, G., Iyengar, B. & Wolf, M. "C4: The Continuously Concurrent Compacting Collector." *ACM ISMM*, 2011. -- Azul の C4 GC（ZGC の前身的アイデア）の論文。
+
+10. Collins, G. E. "A Method for Overlapping and Erasure of Lists." *Communications of the ACM*, Vol. 3, No. 12, pp. 655-657, 1960. -- 参照カウントの原論文。
+
+---
+
+*本ガイドは MIT レベルの CS 教育を目標とした包括的な資料である。基礎概念から最新の GC 技術まで体系的にカバーし、各言語の実装を横断的に比較することで、メモリ管理に対する深い理解を促すことを意図している。*

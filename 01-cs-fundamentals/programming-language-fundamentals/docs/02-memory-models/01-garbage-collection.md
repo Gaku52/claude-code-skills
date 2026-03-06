@@ -1558,3 +1558,795 @@ print("回収不能:", gc.garbage)
 └──────────┴────────────┴────────────┴──────────┴───────────────────┘
 ```
 
+---
+
+## 9. GC チューニング戦略
+
+### 9.1 チューニングの基本原則
+
+GC チューニングは「万能の設定」が存在しない領域である。アプリケーションの特性
+（レイテンシ重視 vs スループット重視 vs メモリ効率重視）に応じて戦略が変わる。
+
+```
+GC チューニングの三角形（トレードオフ）:
+
+              レイテンシ
+              （低停止時間）
+                 ╱╲
+                ╱  ╲
+               ╱    ╲
+              ╱  GC   ╲
+             ╱ チューニング╲
+            ╱   の三角形   ╲
+           ╱________________╲
+   スループット          メモリ効率
+  （高処理能力）        （低メモリ使用量）
+
+  全てを同時に最適化することは不可能:
+  - レイテンシ優先   → GC 頻度増 → スループット低下
+  - スループット優先 → GC 頻度減 → メモリ使用量増加
+  - メモリ効率優先   → ヒープを小さく → GC 頻度増 → レイテンシ悪化
+```
+
+### 9.2 Java GC チューニング実践
+
+```java
+// Java: GC チューニングの段階的アプローチ
+
+// === Step 1: GC ログの有効化 ===
+// JDK 9+ 統一ログ:
+// java -Xlog:gc*:file=gc.log:time,uptime,level,tags -jar app.jar
+
+// === Step 2: GC ログの分析 ===
+// GC ログの読み方:
+// [0.234s][info][gc] GC(0) Pause Young (Normal) (G1 Evacuation Pause)
+//                        12M->8M(256M) 3.456ms
+//                        ↑    ↑  ↑      ↑
+//                    GC前 GC後 ヒープ  停止時間
+
+// === Step 3: ヒープサイズの設定 ===
+// -Xms と -Xmx を同じ値にする（ヒープのリサイズを回避）
+// java -Xms4g -Xmx4g -jar app.jar
+
+// === Step 4: GC コレクタの選択 ===
+// レイテンシ重視:
+//   java -XX:+UseZGC -XX:+ZGenerational -jar app.jar
+// バランス型:
+//   java -XX:+UseG1GC -XX:MaxGCPauseMillis=100 -jar app.jar
+// スループット重視:
+//   java -XX:+UseParallelGC -jar app.jar
+
+// === Java Flight Recorder（JFR）による分析 ===
+// java -XX:StartFlightRecording=filename=recording.jfr,
+//       duration=60s,settings=profile -jar app.jar
+
+// === プログラムからの GC 情報取得 ===
+import java.lang.management.GarbageCollectorMXBean;
+import java.lang.management.ManagementFactory;
+import java.util.List;
+
+public class GCMonitor {
+    public static void printGCInfo() {
+        List<GarbageCollectorMXBean> gcBeans =
+            ManagementFactory.getGarbageCollectorMXBeans();
+
+        for (GarbageCollectorMXBean gcBean : gcBeans) {
+            System.out.printf("GC名: %s%n", gcBean.getName());
+            System.out.printf("  回数: %d%n", gcBean.getCollectionCount());
+            System.out.printf("  累積時間: %d ms%n", gcBean.getCollectionTime());
+        }
+    }
+
+    // Weak Reference を活用したキャッシュ
+    // GC がメモリ不足時に自動的に回収してくれる
+    private static final java.util.Map<String, java.lang.ref.WeakReference<byte[]>> cache
+        = new java.util.concurrent.ConcurrentHashMap<>();
+
+    public static void cacheData(String key, byte[] data) {
+        cache.put(key, new java.lang.ref.WeakReference<>(data));
+    }
+
+    public static byte[] getCachedData(String key) {
+        java.lang.ref.WeakReference<byte[]> ref = cache.get(key);
+        if (ref != null) {
+            byte[] data = ref.get();
+            if (data != null) return data;
+            cache.remove(key); // GC に回収された
+        }
+        return null;
+    }
+}
+```
+
+### 9.3 GC チューニングのチェックリスト
+
+```
+GC チューニング・チェックリスト:
+
+  □ 1. 目標の明確化
+     ├── 最大停止時間の目標は? （例: 100ms 以下）
+     ├── スループット目標は?   （例: GC に費やす時間 < 5%）
+     └── メモリ制約は?         （例: 最大 4GB）
+
+  □ 2. 現状の把握
+     ├── GC ログを有効化して分析
+     ├── GC 頻度、停止時間、ヒープ使用量の傾向を把握
+     └── メモリリークの有無を確認
+
+  □ 3. ヒープサイズの最適化
+     ├── -Xms = -Xmx（リサイズ回避）
+     ├── ヒープが小さすぎ → GC 頻発
+     └── ヒープが大きすぎ → GC 停止時間増加
+
+  □ 4. GC コレクタの選択
+     ├── G1: ほとんどのケースで適切（Java 9+ デフォルト）
+     ├── ZGC: 超低レイテンシが必要な場合
+     ├── Parallel: バッチ処理等スループット重視
+     └── Serial: 小規模アプリ / コンテナ
+
+  □ 5. 世代別サイズの調整
+     ├── Young 世代が小さい → Minor GC 頻発
+     ├── Young 世代が大きい → Minor GC の停止時間増
+     └── -XX:NewRatio, -XX:SurvivorRatio で調整
+
+  □ 6. 継続的モニタリング
+     ├── JFR / JMX でリアルタイム監視
+     ├── ダッシュボード（Grafana 等）でトレンド分析
+     └── アラート設定（GC 停止時間 > 閾値）
+```
+
+### 9.4 メモリ管理パターン: GC vs 手動管理 vs 所有権
+
+```
+3つのメモリ管理パラダイムの総合比較:
+
+  ┌──────────────┬──────────────┬──────────────┬──────────────┐
+  │ 観点          │ GC           │ 手動管理      │ 所有権(Rust)  │
+  ├──────────────┼──────────────┼──────────────┼──────────────┤
+  │ 安全性        │ 高い         │ 低い         │ 最も高い      │
+  │ メモリリーク  │ 論理的リーク可│ 頻発         │ 構造的に防止  │
+  │ ダングリング  │ 発生しない   │ 頻発         │ コンパイルエラー│
+  │ 二重解放      │ 発生しない   │ 頻発         │ コンパイルエラー│
+  │ 性能予測性    │ 低い(STW)    │ 高い         │ 高い          │
+  │ 開発効率      │ 高い         │ 低い         │ 中〜高        │
+  │ 実行時コスト  │ 5-20%        │ 0%           │ 0-3%          │
+  │ コンパイル時  │ なし         │ なし         │ 借用チェック  │
+  │ 学習曲線      │ 低い         │ 中程度       │ 急峻          │
+  │ リアルタイム  │ 困難         │ 可能         │ 可能          │
+  │ 大規模開発    │ 適している   │ 困難         │ 適している    │
+  │ 代表言語      │ Java,Go,     │ C,C++        │ Rust          │
+  │              │ Python,JS,C# │              │               │
+  └──────────────┴──────────────┴──────────────┴──────────────┘
+
+  選定ガイドライン:
+  - Web アプリ、ビジネスロジック → GC（Java, Go, C#）
+  - OS、組込み、ゲームエンジン  → 手動管理（C, C++）
+  - システムプログラミング       → 所有権（Rust）
+  - スクリプティング、データ分析 → GC（Python, JS）
+```
+
+---
+
+## 10. アンチパターンと回避策
+
+### 10.1 アンチパターン1: 隠れたメモリリーク（論理的リーク）
+
+GC 言語でも「論理的メモリリーク」は発生する。GC はルートから到達可能なオブジェクトを
+回収しないため、不要な参照を保持し続けるとメモリが際限なく増加する。
+
+```java
+// Java: 論理的メモリリークの典型例
+
+// === アンチパターン: 無制限のキャッシュ ===
+public class LeakyCache {
+    // 問題: 追加されたエントリは永遠に GC されない
+    private static final Map<String, byte[]> cache = new HashMap<>();
+
+    public static void addToCache(String key, byte[] data) {
+        cache.put(key, data);  // 無制限に蓄積 → メモリリーク
+    }
+
+    // 呼び出し側:
+    // for (Request req : requests) {
+    //     addToCache(req.getId(), req.getPayload());
+    //     // cache は永遠に成長し続ける → OOM
+    // }
+}
+
+// === 修正1: サイズ制限付きキャッシュ（LRU） ===
+public class BoundedCache {
+    private static final int MAX_SIZE = 1000;
+    private static final Map<String, byte[]> cache =
+        new LinkedHashMap<String, byte[]>(MAX_SIZE, 0.75f, true) {
+            @Override
+            protected boolean removeEldestEntry(Map.Entry<String, byte[]> eldest) {
+                return size() > MAX_SIZE;  // 最大サイズを超えたら最古を削除
+            }
+        };
+
+    public static void addToCache(String key, byte[] data) {
+        cache.put(key, data);
+    }
+}
+
+// === 修正2: WeakHashMap を使用 ===
+public class WeakCache {
+    // キーが他から参照されなくなったら自動的にエントリが削除される
+    private static final Map<Object, byte[]> cache = new WeakHashMap<>();
+
+    public static void addToCache(Object key, byte[] data) {
+        cache.put(key, data);
+    }
+}
+
+// === 修正3: Caffeine ライブラリ（推奨） ===
+// Caffeine: 高性能な Java キャッシュライブラリ
+//
+// Cache<String, byte[]> cache = Caffeine.newBuilder()
+//     .maximumSize(10_000)
+//     .expireAfterWrite(Duration.ofMinutes(5))
+//     .build();
+```
+
+### 10.2 アンチパターン2: ファイナライザの乱用
+
+```java
+// Java: ファイナライザのアンチパターンと正しい代替手段
+
+// === アンチパターン: finalize() によるリソース解放 ===
+public class BadResourceHandler {
+    private java.io.InputStream stream;
+
+    public BadResourceHandler(String path) throws Exception {
+        this.stream = new java.io.FileInputStream(path);
+    }
+
+    // 問題点:
+    // 1. finalize() の実行タイミングは不定
+    // 2. finalize() が実行される保証がない
+    // 3. finalize() の実行により GC が遅延する
+    // 4. finalize() 内の例外は無視される
+    // 5. Java 9+ で非推奨、Java 18+ で削除対象
+    @Override
+    protected void finalize() throws Throwable {
+        try {
+            if (stream != null) stream.close();
+        } finally {
+            super.finalize();
+        }
+    }
+}
+
+// === 修正: try-with-resources + AutoCloseable ===
+public class GoodResourceHandler implements AutoCloseable {
+    private final java.io.InputStream stream;
+
+    public GoodResourceHandler(String path) throws Exception {
+        this.stream = new java.io.FileInputStream(path);
+    }
+
+    @Override
+    public void close() throws Exception {
+        if (stream != null) stream.close();
+    }
+
+    // 使用例:
+    // try (GoodResourceHandler handler = new GoodResourceHandler("data.txt")) {
+    //     // handler を使用
+    // }  ← ブロック終了時に自動的に close() が呼ばれる
+}
+
+// === Java 9+: Cleaner API（finalize の代替） ===
+import java.lang.ref.Cleaner;
+
+public class ModernResourceHandler implements AutoCloseable {
+    private static final Cleaner cleaner = Cleaner.create();
+
+    private final Cleaner.Cleanable cleanable;
+    private final ResourceState state;
+
+    // 内部状態クラス（Runnable 実装）
+    // 重要: 外部クラスへの参照を持たないこと
+    private static class ResourceState implements Runnable {
+        private java.io.InputStream stream;
+
+        ResourceState(java.io.InputStream stream) {
+            this.stream = stream;
+        }
+
+        @Override
+        public void run() {
+            // GC 時のフォールバック清掃
+            try {
+                if (stream != null) stream.close();
+            } catch (Exception e) {
+                // ログ記録
+            }
+        }
+    }
+
+    public ModernResourceHandler(String path) throws Exception {
+        this.state = new ResourceState(new java.io.FileInputStream(path));
+        this.cleanable = cleaner.register(this, state);
+    }
+
+    @Override
+    public void close() {
+        cleanable.clean();  // 明示的に清掃
+    }
+}
+```
+
+### 10.3 アンチパターン3: 大量の短命オブジェクトの生成
+
+```
+大量の一時オブジェクト生成の問題:
+
+  問題のあるパターン:
+  ┌────────────────────────────────────────────────────────────┐
+  │  for (int i = 0; i < 1_000_000; i++) {                    │
+  │      String result = "prefix_" + i + "_suffix";  // ★     │
+  │      // 各イテレーションで複数の String オブジェクトが生成   │
+  │      // "prefix_" + i → 新 String                         │
+  │      // 新 String + "_suffix" → 別の新 String              │
+  │      process(result);                                      │
+  │  }                                                         │
+  │                                                            │
+  │  → 200万個以上の一時 String が生成 → GC 圧力が急増          │
+  └────────────────────────────────────────────────────────────┘
+
+  改善:
+  ┌────────────────────────────────────────────────────────────┐
+  │  StringBuilder sb = new StringBuilder(64);                 │
+  │  for (int i = 0; i < 1_000_000; i++) {                    │
+  │      sb.setLength(0);  // バッファをクリア（再利用）        │
+  │      sb.append("prefix_").append(i).append("_suffix");     │
+  │      process(sb.toString());                               │
+  │  }                                                         │
+  │                                                            │
+  │  → StringBuilder を再利用 → 一時オブジェクト大幅削減        │
+  └────────────────────────────────────────────────────────────┘
+```
+
+### 10.4 アンチパターン4: System.gc() の呼び出し
+
+```java
+// アンチパターン: System.gc() を明示的に呼ぶ
+
+// 問題のあるコード:
+public void processLargeData(byte[] data) {
+    // ... データ処理 ...
+    data = null;
+    System.gc();  // ★ GC を強制実行しようとしている
+}
+
+// なぜダメなのか:
+// 1. System.gc() は「ヒント」に過ぎず、GC の実行は保証されない
+// 2. Full GC が発生すると長い STW を引き起こす可能性がある
+// 3. GC のタイミング最適化（ペーシング）を妨害する
+// 4. 本番環境では -XX:+DisableExplicitGC で無効化されることが多い
+
+// 正しいアプローチ:
+// - JVM の GC に任せる
+// - 必要ならヒープサイズや GC パラメータを調整する
+// - 不要な参照を null にする（大きなオブジェクトの場合のみ有効）
+```
+
+---
+
+## 11. 演習問題（3段階）
+
+### Level 1: 基礎（GC アルゴリズムの理解）
+
+**問題 1-1: マーク&スイープの手動トレース**
+
+以下のオブジェクトグラフに対してマーク&スイープを実行し、
+回収されるオブジェクトを全て列挙せよ。
+
+```
+ルート: R1 → A, R2 → B
+
+A → C, A → D
+B → D
+C → E
+D → (なし)
+E → (なし)
+F → G
+G → F（循環参照）
+H → (なし)
+```
+
+<details>
+<summary>解答（クリックで展開）</summary>
+
+```
+マーキングフェーズ:
+  R1 → A(mark) → C(mark) → E(mark)
+                → D(mark)
+  R2 → B(mark) → D(既にmark)
+
+マークされたオブジェクト: A, B, C, D, E
+マークされていないオブジェクト: F, G, H
+
+回収対象: F, G, H
+
+注: F と G は循環参照しているが、ルートから到達不能なので回収される。
+これが参照カウント方式との大きな違い。参照カウントでは F, G は
+rc=1 のままで回収できない。
+```
+
+</details>
+
+**問題 1-2: 参照カウントの手動トレース**
+
+以下の Python コードの各行実行後の参照カウントを追跡せよ。
+
+```python
+a = [1, 2, 3]      # (1) a の参照カウントは?
+b = a               # (2) a の参照カウントは?
+c = [a, b]          # (3) a の参照カウントは?
+del b               # (4) a の参照カウントは?
+c.pop()             # (5) a の参照カウントは?
+c.pop()             # (6) a の参照カウントは?
+del a               # (7) リストオブジェクトはどうなる?
+```
+
+<details>
+<summary>解答（クリックで展開）</summary>
+
+```
+(1) a=[1,2,3] → リストの rc=1（a からの参照）
+(2) b=a       → リストの rc=2（a, b からの参照）
+(3) c=[a,b]   → リストの rc=4（a, b, c[0], c[1] からの参照）
+(4) del b     → リストの rc=3（a, c[0], c[1] からの参照）
+(5) c.pop()   → リストの rc=2（a, c[0] からの参照）
+               ※ c[1] が削除された
+(6) c.pop()   → リストの rc=1（a からの参照）
+               ※ c[0] が削除された
+(7) del a     → リストの rc=0 → 即座に解放!
+
+補足: sys.getrefcount(a) で確認すると +1 されるのは
+getrefcount の引数として一時的に参照が増えるため。
+```
+
+</details>
+
+### Level 2: 応用（GC チューニングと診断）
+
+**問題 2-1: GC ログの解析**
+
+以下の Java GC ログから問題を診断し、改善策を提案せよ。
+
+```
+[2.001s][info][gc] GC(0) Pause Young 128M->64M(512M) 5.2ms
+[2.503s][info][gc] GC(1) Pause Young 192M->72M(512M) 6.1ms
+[3.012s][info][gc] GC(2) Pause Young 200M->80M(512M) 7.3ms
+[3.498s][info][gc] GC(3) Pause Young 208M->96M(512M) 8.5ms
+[4.002s][info][gc] GC(4) Pause Young 224M->112M(512M) 10.2ms
+[4.503s][info][gc] GC(5) Pause Full 240M->48M(512M) 350.1ms  ★
+[5.001s][info][gc] GC(6) Pause Young 176M->64M(512M) 5.0ms
+...（以降繰り返し）
+```
+
+<details>
+<summary>解答（クリックで展開）</summary>
+
+```
+診断:
+1. Minor GC 後の生存量が単調増加: 64→72→80→96→112MB
+   → Old 世代への昇格が急速に増加している
+2. GC(5) で Full GC が発生: 350.1ms の STW
+   → Old 世代が満杯になった
+3. Full GC 後に 48MB に戻る
+   → 長期生存オブジェクトは少ない（一時的な昇格が多い）
+
+推定原因:
+- 中程度の寿命のオブジェクトが多い（Young で死なず Old に昇格するが
+  Old でもすぐ不要になる）
+- Young 世代のサイズが小さすぎる可能性
+
+改善策:
+1. Young 世代を拡大: -XX:NewRatio=1（Young:Old=1:1）
+   → オブジェクトが Young 内で死ぬ確率を上げる
+2. Survivor の調整: -XX:MaxTenuringThreshold=15
+   → 昇格までの閾値を上げる
+3. G1 GC の場合: -XX:MaxGCPauseMillis=100
+   → 目標停止時間を設定してFull GCを回避
+4. ZGC への切替を検討: -XX:+UseZGC
+   → Full GC による長い STW を根本的に解消
+```
+
+</details>
+
+**問題 2-2: メモリリークの特定**
+
+以下の Node.js コードにはメモリリークがある。原因を特定し修正せよ。
+
+```javascript
+const EventEmitter = require('events');
+
+class DataProcessor extends EventEmitter {
+    constructor() {
+        super();
+        this.cache = new Map();
+    }
+
+    process(data) {
+        const id = data.id;
+        const result = this.transform(data);
+        this.cache.set(id, result);
+
+        const handler = (event) => {
+            console.log(`Event for ${id}: ${event}`);
+            console.log(`Cache size: ${this.cache.size}`);
+        };
+        this.on('update', handler);
+
+        return result;
+    }
+
+    transform(data) {
+        return { ...data, processed: true, timestamp: Date.now() };
+    }
+}
+
+const processor = new DataProcessor();
+// 毎秒新しいデータを処理
+setInterval(() => {
+    const data = { id: Math.random().toString(36), payload: 'x'.repeat(1024) };
+    processor.process(data);
+}, 1000);
+```
+
+<details>
+<summary>解答（クリックで展開）</summary>
+
+```
+メモリリークの原因は2つ:
+
+1. cache が無制限に成長する
+   - process() で cache.set() しているが、削除する処理がない
+   - → Map のエントリが際限なく増加
+
+2. イベントリスナーが無制限に追加される
+   - process() の呼び出しごとに this.on('update', handler) で
+     新しいリスナーが追加される
+   - リスナーはクロージャで id, this.cache を参照し続ける
+   - → リスナー数が際限なく増加
+
+修正版:
+class DataProcessor extends EventEmitter {
+    constructor(maxCacheSize = 1000) {
+        super();
+        this.cache = new Map();
+        this.maxCacheSize = maxCacheSize;
+    }
+
+    process(data) {
+        const id = data.id;
+        const result = this.transform(data);
+
+        // 修正1: キャッシュサイズを制限
+        if (this.cache.size >= this.maxCacheSize) {
+            const oldestKey = this.cache.keys().next().value;
+            this.cache.delete(oldestKey);
+        }
+        this.cache.set(id, result);
+
+        // 修正2: リスナーは追加しない（別途管理する）
+        // または once() を使い1回だけ実行する
+
+        return result;
+    }
+}
+```
+
+</details>
+
+### Level 3: 発展（GC アルゴリズムの実装と分析）
+
+**問題 3-1: 世代別 GC シミュレータの設計**
+
+以下の仕様を満たす世代別 GC シミュレータを Python で設計せよ。
+（完全な実装は不要。クラス構造とメソッドのシグネチャ、主要な擬似コードを示すこと）
+
+要件:
+- Young 世代（Eden + Survivor x 2）と Old 世代を持つ
+- Minor GC: Eden の生存オブジェクトを Survivor にコピー
+- 昇格: 閾値回数 Minor GC を生き延びたオブジェクトを Old に移動
+- Major GC: Old 世代のマーク&スイープ
+- 書き込みバリア: Old → Young の参照を Remembered Set に記録
+
+<details>
+<summary>解答（クリックで展開）</summary>
+
+```python
+class GenerationalGC:
+    def __init__(self, eden_size, survivor_size, old_size,
+                 tenuring_threshold=15):
+        self.eden = Space("Eden", eden_size)
+        self.survivor_from = Space("S0", survivor_size)
+        self.survivor_to = Space("S1", survivor_size)
+        self.old = Space("Old", old_size)
+        self.tenuring_threshold = tenuring_threshold
+        self.remembered_set = set()  # Old → Young の参照を記録
+        self.roots = []
+
+    def allocate(self, size):
+        """Eden にオブジェクトを確保。満杯なら Minor GC"""
+        if not self.eden.can_allocate(size):
+            self.minor_gc()
+            if not self.eden.can_allocate(size):
+                self.major_gc()  # Old も満杯なら Major GC
+        obj = self.eden.allocate(size)
+        obj.age = 0
+        return obj
+
+    def minor_gc(self):
+        """Young 世代の GC（コピー GC）"""
+        # ルートの走査
+        # 1. スタック/グローバルルートから到達可能な Young オブジェクトをコピー
+        # 2. Remembered Set のエントリから到達可能な Young オブジェクトもコピー
+        # 3. age >= threshold なら Old に昇格
+        # 4. それ以外は survivor_to にコピー（age+1）
+        # 5. Eden と survivor_from をクリア
+        # 6. survivor_from と survivor_to を交換
+        for root in self.roots + list(self.remembered_set):
+            self._copy_reachable(root)
+        self.eden.clear()
+        self.survivor_from.clear()
+        self.survivor_from, self.survivor_to = (
+            self.survivor_to, self.survivor_from
+        )
+
+    def major_gc(self):
+        """Old 世代の GC（マーク&スイープ）"""
+        # 1. 全オブジェクトの mark ビットをリセット
+        # 2. ルートから到達可能なオブジェクトをマーク
+        # 3. マークされていない Old オブジェクトを解放
+        self._mark_all()
+        self._sweep_old()
+
+    def write_barrier(self, src, dst):
+        """Old → Young への参照を検出して記録"""
+        if self.old.contains(src) and not self.old.contains(dst):
+            self.remembered_set.add(src)
+```
+
+</details>
+
+---
+
+## 12. FAQ（よくある質問）
+
+### Q1: GC があればメモリリークは発生しないのか?
+
+**A:** いいえ。GC は「到達不能なオブジェクト」のみを回収する。到達可能だが不要なオブジェクト
+（論理的リーク）は回収されない。典型的な例として以下がある:
+
+- 無制限に成長するキャッシュ（HashMap 等）
+- 登録したまま解除しないイベントリスナー
+- スレッドローカル変数のクリア忘れ（スレッドプールでの使用時）
+- static フィールドに保持し続けるコレクション
+- クロージャが不要な変数をキャプチャし続けるケース
+
+対策としては、キャッシュのサイズ制限（LRU, TTL）、WeakReference の活用、
+メモリプロファイラ（VisualVM, Chrome DevTools, pprof 等）による定期的な検査が有効。
+
+### Q2: GC の停止時間をゼロにできるか?
+
+**A:** 完全にゼロにすることは理論的に困難だが、極めて短くすることは可能。
+
+- **Java ZGC**: STW < 1ms（ヒープサイズに依存しない）。カラーポインタと
+  ロードバリアにより、ほぼ全ての作業を並行で実行する。
+- **Go**: STW < 500μs を目標とし、実際には数十μs で完了することが多い。
+- **Azul C4 GC**（商用）: 「Pauseless GC」を謳い、STW なしで動作する。
+
+注意点として、「STW がない」と「レイテンシへの影響がない」は異なる。
+並行 GC はバックグラウンドで CPU を消費するため、アプリケーションの
+スループットやレイテンシに間接的な影響を及ぼす場合がある。
+
+### Q3: Rust に GC がないのに安全なのはなぜか?
+
+**A:** Rust は GC の代わりに「所有権システム」と「借用チェッカー」を用いて
+コンパイル時にメモリ安全性を保証する。
+
+- **所有権**: 各値には唯一のオーナーが存在し、オーナーがスコープを抜けると自動的に解放される。
+- **借用**: 値への参照（借用）は不変参照（複数可）か可変参照（1つのみ）のどちらかで、
+  コンパイラが静的に検証する。
+- **ライフタイム**: 参照の有効期間をコンパイラが追跡し、ダングリングポインタを構造的に防止する。
+
+GC と比較した場合のトレードオフ:
+- 利点: 実行時オーバーヘッドゼロ、STW なし、決定的なリソース解放
+- 欠点: 学習曲線が急峻、循環的なデータ構造の表現がやや煩雑（Rc/Arc + RefCell が必要）
+
+### Q4: どの言語を選ぶべきか（メモリ管理の観点から）?
+
+**A:** プロジェクトの要件に依存する。
+
+| 要件 | 推奨言語 | 理由 |
+|------|---------|------|
+| Web バックエンド | Java, Go, C# | GC が成熟、エコシステムが豊富 |
+| 低レイテンシ | Go, Java(ZGC), Rust | 短い STW、または STW なし |
+| 組込みシステム | C, Rust | GC オーバーヘッドが許容されない |
+| データサイエンス | Python | GC を意識せず開発可能 |
+| フロントエンド | JavaScript/TypeScript | V8 の GC が自動最適化 |
+| ゲームエンジン | C++, Rust | リアルタイム性が必須 |
+| モバイルアプリ | Swift(iOS), Kotlin(Android) | ARC/GC がプラットフォーム標準 |
+
+### Q5: GC のオーバーヘッドはどの程度か?
+
+**A:** ワークロードによって大きく異なるが、一般的な目安は以下の通り。
+
+- **CPU オーバーヘッド**: 全体の 2-10%（GC スレッドの実行コスト）
+- **メモリオーバーヘッド**: 20-50%（GC メタデータ + 遅延回収による余剰使用量）
+- **レイテンシ影響**: GC コレクタによる。ZGC なら < 1ms、G1 なら数百 ms の場合あり
+
+GC のオーバーヘッドを最小化するために:
+1. オブジェクトの確保率を下げる（オブジェクトプーリング、バッファの再利用）
+2. 長寿命オブジェクトの不要な参照を断つ
+3. 適切な GC コレクタとパラメータを選択する
+4. ヒープサイズを適切に設定する
+
+---
+
+## 13. まとめと次のステップ
+
+### GC アルゴリズムの全体マップ
+
+```
+GC アルゴリズムの分類体系:
+
+  ガベージコレクション
+  │
+  ├── トレーシング GC（到達可能性ベース）
+  │   ├── マーク&スイープ ─── 基本形。循環参照 OK、断片化問題
+  │   ├── マーク&コンパクト ── 断片化解消、コスト高
+  │   ├── コピー GC ────── コンパクション自動、メモリ 50% 消費
+  │   ├── 世代別 GC ────── 若いオブジェクトの高速回収
+  │   ├── インクリメンタル GC ─ STW を小分け
+  │   └── 並行 GC ─────── バックグラウンドで GC 実行
+  │
+  └── 参照カウント（カウントベース）
+      ├── 単純参照カウント ── 即時回収、循環参照不可
+      ├── 遅延参照カウント ── ルートの更新を遅延
+      └── ARC ───────── コンパイラが自動挿入（Swift）
+```
+
+### 要点のまとめ
+
+| アルゴリズム | 中核アイデア | 主な利点 | 主な欠点 | 使用例 |
+|------------|------------|---------|---------|-------|
+| マーク&スイープ | 到達可能性で判定 | 循環参照OK | STW、断片化 | 多くの言語の基盤 |
+| 参照カウント | 参照数で判定 | 即時回収 | 循環参照不可 | Python, Swift |
+| コピー GC | 生存オブジェクトをコピー | 断片化なし | メモリ2倍 | Young 世代 |
+| 世代別 GC | 世代別仮説で最適化 | 高速な Minor GC | 実装の複雑さ | Java, JS, C# |
+| 並行 GC | バックグラウンド実行 | STW 最小化 | 書き込みバリア必要 | Go, Java(ZGC) |
+
+---
+
+## 次に読むべきガイド
+
+- [[02-ownership-and-borrowing.md]] -- 所有権と借用（Rust のメモリ管理）
+- [[03-stack-and-heap.md]] -- スタックとヒープ（メモリ領域の基礎）
+
+---
+
+## 14. 参考文献
+
+1. Jones, R., Hosking, A. & Moss, E. *The Garbage Collection Handbook: The Art of Automatic Memory Management.* 2nd Edition, CRC Press, 2023. -- GC の理論と実装を包括的にカバーする決定版テキスト。マーク&スイープ、コピー GC、世代別 GC、並行 GC の全てを詳細に解説している。
+
+2. McCarthy, J. "Recursive Functions of Symbolic Expressions and Their Computation by Machine, Part I." *Communications of the ACM*, Vol.3, No.4, pp.184-195, 1960. -- Lisp と GC の原論文。マーク&スイープ方式の最初の提案を含む、プログラミング言語史上最も重要な論文の一つ。
+
+3. Dijkstra, E.W., Lamport, L., Martin, A.J., Scholten, C.S. & Steffens, E.F.M. "On-the-Fly Garbage Collection: An Exercise in Cooperation." *Communications of the ACM*, Vol.21, No.11, pp.966-975, 1978. -- 三色マーキングと並行 GC の理論的基盤を確立した古典的論文。
+
+4. Bacon, D.F., Cheng, P. & Rajan, V.T. "A Unified Theory of Garbage Collection." *Proceedings of the 19th ACM SIGPLAN Conference on Object-Oriented Programming, Systems, Languages, and Applications (OOPSLA)*, pp.50-68, 2004. -- トレーシング GC と参照カウントが数学的に双対であることを示した画期的論文。
+
+5. Oracle. *Java Platform, Standard Edition HotSpot Virtual Machine Garbage Collection Tuning Guide.* https://docs.oracle.com/en/java/javase/21/gctuning/ -- Java 21 LTS の公式 GC チューニングガイド。G1 GC、ZGC、Serial GC、Parallel GC の設定と最適化手法を解説。
+
+6. Go Team. *A Guide to the Go Garbage Collector.* https://tip.golang.org/doc/gc-guide -- Go 公式の GC ガイド。GOGC と GOMEMLIMIT の使い方、GC のペーシングアルゴリズムを解説。
+
+7. V8 Team. *Trash Talk: The Orinoco Garbage Collector.* https://v8.dev/blog/trash-talk -- V8 エンジンの GC（Orinoco）の設計と実装を解説する公式ブログ記事。Scavenger、並行マーキング、インクリメンタルマーキングの詳細を含む。
+
+8. Tene, G., Iyengar, B. & Wolf, M. "C4: The Continuously Concurrent Compacting Collector." *Proceedings of the International Symposium on Memory Management (ISMM)*, ACM, 2011. -- Azul Systems の Pauseless GC（C4）の設計を解説した論文。商用 GC の最前線。
+

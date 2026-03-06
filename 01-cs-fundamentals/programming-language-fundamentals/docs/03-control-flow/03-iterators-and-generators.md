@@ -1553,3 +1553,680 @@ with closing(file_lines("data.txt")) as lines:
 # with ブロックを抜けると close() が自動的に呼ばれる
 ```
 
+---
+
+## 9. パフォーマンス特性と最適化
+
+### 9.1 イテレータのゼロコスト抽象化（Rust）
+
+Rust のイテレータチェーンは、コンパイル時にインライン展開され、手書きのループと同等のマシンコードを生成する。これを「ゼロコスト抽象化（Zero-Cost Abstraction）」と呼ぶ。
+
+```rust
+// イテレータチェーン版
+let sum: i32 = (0..1000)
+    .filter(|n| n % 3 == 0 || n % 5 == 0)
+    .sum();
+
+// 手書きのループ版（同等のパフォーマンス）
+let mut sum = 0;
+for n in 0..1000 {
+    if n % 3 == 0 || n % 5 == 0 {
+        sum += n;
+    }
+}
+
+// コンパイラが生成するマシンコードはほぼ同一
+// イテレータ版はむしろ境界チェックの省略により高速な場合もある
+```
+
+```
++-------------------------------------------------------------+
+|  Rust イテレータのコンパイル過程                               |
++-------------------------------------------------------------+
+|                                                             |
+|  ソースコード                                                |
+|    (0..1000).filter(...).map(...).sum()                      |
+|         |                                                   |
+|    モノモーフィゼーション（型の具体化）                        |
+|         |                                                   |
+|    インライン展開（関数呼び出しを展開）                        |
+|         |                                                   |
+|    LLVM 最適化パス                                           |
+|         |                                                   |
+|    手書きループと同等のマシンコード                            |
+|         |                                                   |
+|  重要: 実行時のヒープ割り当ては一切発生しない                  |
+|  重要: 仮想関数呼び出し（vtable）も発生しない                  |
++-------------------------------------------------------------+
+```
+
+### 9.2 メモリ使用量の比較
+
+以下は、100万件のデータを処理する場合のメモリ使用量の比較を示す。
+
+| 処理方法 | メモリ使用量 | 説明 |
+|---------|------------|------|
+| 全要素をリストに保持 | O(N) -- 約 8MB | `list(range(1_000_000))` |
+| ジェネレータパイプライン | O(1) -- 約 200B | `(x for x in range(1_000_000))` |
+| `itertools` チェーン | O(1) -- 約 400B | `itertools.chain(...)` |
+| `map`/`filter` (Python 3) | O(1) -- 約 200B | `map(fn, range(1_000_000))` |
+| Rust イテレータ | O(1) -- スタック上 | `(0..1_000_000).filter(...)` |
+
+### 9.3 イテレータの計算複雑度
+
+```
++-------------------------------------------------------------+
+|  主要なイテレータ操作の計算複雑度                               |
++-------------------------------------------------------------+
+|                                                             |
+|  操作              | 時間複雑度  | 空間複雑度  | 備考          |
+|  -------------------|------------|------------|---------------|
+|  map                | O(1)/要素  | O(1)       | 遅延           |
+|  filter             | O(1)/要素  | O(1)       | 遅延           |
+|  take(n)            | O(1)/要素  | O(1)       | 遅延,短絡      |
+|  skip(n)            | O(n) 初回  | O(1)       | 遅延           |
+|  zip                | O(1)/要素  | O(1)       | 遅延           |
+|  chain              | O(1)/要素  | O(1)       | 遅延           |
+|  enumerate          | O(1)/要素  | O(1)       | 遅延           |
+|  collect            | O(N)       | O(N)       | 正格化         |
+|  sum                | O(N)       | O(1)       | 終端操作       |
+|  count              | O(N)       | O(1)       | 終端操作       |
+|  find               | O(N) 最悪  | O(1)       | 短絡可能       |
+|  any/all            | O(N) 最悪  | O(1)       | 短絡可能       |
+|  sort_by            | O(N log N) | O(N)       | 全要素必要     |
+|  group_by           | O(N)       | O(N)       | 全要素必要     |
+|  tee (Python)       | O(1)/要素  | O(N) 最悪  | 差分をバッファ |
++-------------------------------------------------------------+
+```
+
+### 9.4 パフォーマンス最適化のベストプラクティス
+
+```python
+# 最適化1: ジェネレータ式 vs リスト内包表記
+# 結果をすべて必要としない場合はジェネレータ式を使う
+
+# 悪い例（不要な中間リスト）
+has_error = any([line.startswith("ERROR") for line in open("log.txt")])
+# "ERROR" が見つかっても残り全行を処理してしまう
+
+# 良い例（ジェネレータ式 + 短絡評価）
+has_error = any(line.startswith("ERROR") for line in open("log.txt"))
+# "ERROR" が見つかった時点で停止
+
+# 最適化2: itertools は C 実装なので高速
+import itertools
+
+# 遅い（Python ループ）
+def my_chain(*iterables):
+    for it in iterables:
+        yield from it
+
+# 速い（C 実装）
+itertools.chain(*iterables)
+
+# 最適化3: 大量データには sorted() よりも heapq.nlargest()
+import heapq
+
+# 全件ソートは O(N log N)
+top_10 = sorted(huge_data, key=extract_key, reverse=True)[:10]
+
+# ヒープは O(N log K) で K が小さい場合に高速
+top_10 = heapq.nlargest(10, huge_data, key=extract_key)
+```
+
+```rust
+// Rust での最適化テクニック
+
+// 最適化1: collect のヒント
+// サイズが分かっている場合は、Vec の容量を事前確保
+let result: Vec<i32> = Vec::with_capacity(1000);
+let result: Vec<i32> = (0..1000).collect();  // size_hint を活用して自動確保
+
+// 最適化2: 不要なクローンを避ける
+// 悪い例
+let names: Vec<String> = people.iter()
+    .map(|p| p.name.clone())  // 毎回クローン
+    .collect();
+
+// 良い例（参照で十分な場合）
+let names: Vec<&str> = people.iter()
+    .map(|p| p.name.as_str())  // 参照のみ
+    .collect();
+
+// 最適化3: flat_map vs flatten
+// flat_map は map + flatten を1ステップで行い、中間イテレータを省略
+let result: Vec<i32> = data.iter()
+    .flat_map(|row| row.iter().copied())  // 効率的
+    .collect();
+```
+
+---
+
+## 10. 演習問題
+
+### 10.1 基礎レベル（Beginner）
+
+**演習 B-1: カスタムイテレータの実装**
+
+指定された範囲の偶数のみを生成するイテレータを実装せよ。
+
+```python
+class EvenRange:
+    """偶数のみを生成するイテレータ"""
+    def __init__(self, start, end):
+        # TODO: 実装
+        pass
+
+    def __iter__(self):
+        # TODO: 実装
+        pass
+
+    def __next__(self):
+        # TODO: 実装
+        pass
+
+# テスト
+assert list(EvenRange(1, 10)) == [2, 4, 6, 8]
+assert list(EvenRange(0, 6)) == [0, 2, 4]
+assert list(EvenRange(7, 8)) == [8]
+```
+
+<details>
+<summary>解答例（クリックで展開）</summary>
+
+```python
+class EvenRange:
+    def __init__(self, start, end):
+        # start を最初の偶数に調整
+        self.current = start if start % 2 == 0 else start + 1
+        self.end = end
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self.current >= self.end:
+            raise StopIteration
+        value = self.current
+        self.current += 2
+        return value
+
+# 別解: ジェネレータ関数（よりシンプル）
+def even_range(start, end):
+    n = start if start % 2 == 0 else start + 1
+    while n < end:
+        yield n
+        n += 2
+```
+
+</details>
+
+**演習 B-2: ジェネレータによる FizzBuzz**
+
+ジェネレータを使って FizzBuzz シーケンスを生成せよ。
+
+```python
+def fizzbuzz(n):
+    """1 から n までの FizzBuzz を生成するジェネレータ"""
+    # TODO: 実装
+    pass
+
+# テスト
+result = list(fizzbuzz(15))
+assert result == [
+    1, 2, "Fizz", 4, "Buzz", "Fizz", 7, 8, "Fizz", "Buzz",
+    11, "Fizz", 13, 14, "FizzBuzz"
+]
+```
+
+<details>
+<summary>解答例（クリックで展開）</summary>
+
+```python
+def fizzbuzz(n):
+    for i in range(1, n + 1):
+        if i % 15 == 0:
+            yield "FizzBuzz"
+        elif i % 3 == 0:
+            yield "Fizz"
+        elif i % 5 == 0:
+            yield "Buzz"
+        else:
+            yield i
+```
+
+</details>
+
+### 10.2 中級レベル（Intermediate）
+
+**演習 I-1: イテレータアダプタの自作**
+
+Python で Rust 風のイテレータアダプタを実装せよ。
+
+```python
+class LazyIter:
+    """遅延評価のイテレータラッパー"""
+
+    def __init__(self, iterable):
+        self._iter = iter(iterable)
+
+    def __iter__(self):
+        return self._iter
+
+    def __next__(self):
+        return next(self._iter)
+
+    def map(self, fn):
+        # TODO: 新しい LazyIter を返す
+        pass
+
+    def filter(self, pred):
+        # TODO: 新しい LazyIter を返す
+        pass
+
+    def take(self, n):
+        # TODO: 新しい LazyIter を返す
+        pass
+
+    def enumerate(self):
+        # TODO: 新しい LazyIter を返す
+        pass
+
+    def collect(self):
+        # TODO: リストに変換
+        pass
+
+    def sum(self):
+        # TODO: 合計を計算
+        pass
+
+    def any(self, pred):
+        # TODO: いずれかが条件を満たすか
+        pass
+
+# テスト
+result = (LazyIter(range(100))
+    .filter(lambda x: x % 3 == 0)
+    .map(lambda x: x * x)
+    .take(5)
+    .collect())
+
+assert result == [0, 9, 36, 81, 144]
+```
+
+<details>
+<summary>解答例（クリックで展開）</summary>
+
+```python
+class LazyIter:
+    def __init__(self, iterable):
+        self._iter = iter(iterable)
+
+    def __iter__(self):
+        return self._iter
+
+    def __next__(self):
+        return next(self._iter)
+
+    def map(self, fn):
+        def _map():
+            for item in self._iter:
+                yield fn(item)
+        return LazyIter(_map())
+
+    def filter(self, pred):
+        def _filter():
+            for item in self._iter:
+                if pred(item):
+                    yield item
+        return LazyIter(_filter())
+
+    def take(self, n):
+        def _take():
+            count = 0
+            for item in self._iter:
+                if count >= n:
+                    break
+                yield item
+                count += 1
+        return LazyIter(_take())
+
+    def enumerate(self):
+        def _enumerate():
+            for i, item in __builtins__['enumerate'](self._iter):
+                yield (i, item)
+        return LazyIter(_enumerate())
+
+    def collect(self):
+        return list(self._iter)
+
+    def sum(self):
+        return sum(self._iter)
+
+    def any(self, pred):
+        return any(pred(item) for item in self._iter)
+```
+
+</details>
+
+**演習 I-2: 無限シーケンスの合成**
+
+以下の無限シーケンスをジェネレータで実装せよ。
+
+```python
+def collatz(n):
+    """コラッツ数列を生成
+    n が偶数なら n/2、奇数なら 3n+1 を繰り返す。1 に到達したら終了。
+    """
+    # TODO: 実装
+    pass
+
+# テスト
+assert list(collatz(6)) == [6, 3, 10, 5, 16, 8, 4, 2, 1]
+assert list(collatz(1)) == [1]
+```
+
+<details>
+<summary>解答例（クリックで展開）</summary>
+
+```python
+def collatz(n):
+    yield n
+    while n != 1:
+        if n % 2 == 0:
+            n //= 2
+        else:
+            n = 3 * n + 1
+        yield n
+```
+
+</details>
+
+### 10.3 上級レベル（Advanced）
+
+**演習 A-1: 非同期パイプライン**
+
+非同期ジェネレータを使って、複数のデータソースからの入力を統合するパイプラインを構築せよ。
+
+```python
+import asyncio
+
+async def merge(*async_iterables):
+    """複数の非同期イテラブルをマージし、到着順に yield する"""
+    # TODO: 実装
+    # ヒント: asyncio.Queue と asyncio.create_task を使う
+    pass
+
+# テスト用の非同期ジェネレータ
+async def delayed_range(name, start, end, delay):
+    for i in range(start, end):
+        await asyncio.sleep(delay)
+        yield (name, i)
+
+# 使用例
+async def main():
+    async for source, value in merge(
+        delayed_range("A", 0, 5, 0.3),
+        delayed_range("B", 10, 15, 0.5),
+    ):
+        print(f"{source}: {value}")
+    # 到着順に出力される
+
+asyncio.run(main())
+```
+
+<details>
+<summary>解答例（クリックで展開）</summary>
+
+```python
+import asyncio
+
+async def merge(*async_iterables):
+    queue = asyncio.Queue()
+    sentinel = object()  # 終了マーカー
+    active = len(async_iterables)
+
+    async def producer(ait):
+        nonlocal active
+        async for item in ait:
+            await queue.put(item)
+        active -= 1
+        if active == 0:
+            await queue.put(sentinel)
+
+    # すべてのプロデューサーを起動
+    tasks = [asyncio.create_task(producer(ait)) for ait in async_iterables]
+
+    # キューから読み出し
+    while True:
+        item = await queue.get()
+        if item is sentinel:
+            break
+        yield item
+
+    # タスクの完了を待つ
+    await asyncio.gather(*tasks)
+```
+
+</details>
+
+---
+
+## 11. FAQ（よくある質問）
+
+### Q1: イテレータとジェネレータの違いは何か？
+
+**A:** イテレータは「要素を1つずつ取得するためのインターフェース/プロトコル」であり、ジェネレータはそのイテレータを簡単に作成するための「構文糖衣」である。
+
+- **イテレータ**: `__iter__` / `__next__`（Python）や `Iterator` トレイト（Rust）を明示的に実装したオブジェクト。状態管理を手動で行う必要がある。
+- **ジェネレータ**: `yield` キーワードを含む関数。呼び出すとイテレータオブジェクトが自動的に生成される。状態（ローカル変数や実行位置）はランタイムが管理する。
+
+```python
+# 同じ機能をイテレータとジェネレータで実装した比較
+# イテレータ版: 13行
+class RangeIterator:
+    def __init__(self, n):
+        self.n = n
+        self.current = 0
+    def __iter__(self):
+        return self
+    def __next__(self):
+        if self.current >= self.n:
+            raise StopIteration
+        value = self.current
+        self.current += 1
+        return value
+
+# ジェネレータ版: 3行
+def range_generator(n):
+    for i in range(n):
+        yield i
+```
+
+### Q2: ジェネレータはいつ使うべきか？
+
+**A:** 以下のケースでジェネレータが特に有用である。
+
+| ケース | 理由 |
+|--------|------|
+| 大量データの逐次処理 | メモリに全要素を保持しなくてよい |
+| 無限シーケンスの表現 | リストでは不可能 |
+| 複雑な走査ロジック | 状態機械の代わりにシンプルに書ける |
+| パイプライン処理 | 中間結果を蓄積せずに流せる |
+| コルーチン的な処理 | `send()` / `yield` による双方向通信 |
+
+逆に、以下の場合は通常のリストが適切である。
+
+- 要素に複数回アクセスする必要がある場合
+- ランダムアクセス（インデックス指定）が必要な場合
+- 要素数が少なく、メモリ消費が問題にならない場合
+- `len()` や `reversed()` などのシーケンス操作が必要な場合
+
+### Q3: Rust にはなぜ `yield` がないのか？
+
+**A:** 2024年時点で Rust にはネイティブのジェネレータ構文（`yield`）が安定版に存在しない。これにはいくつかの理由がある。
+
+1. **所有権と借用**: ジェネレータが `yield` で中断している間、ローカル変数の参照が有効であり続ける必要がある。これは Rust の借用チェッカーと複雑に相互作用する（自己参照構造体の問題）。
+2. **Pin と Unpin**: 中断中のジェネレータはメモリ上で移動できない（自己参照のため）。これは `Pin<T>` の概念が必要になり、`async/await` の実装でも同じ問題に直面した。
+3. **代替手段の存在**: Rust ではイテレータトレイトを直接実装するか、`async-stream` クレートなどで代用できる。
+
+```rust
+// Rust nightly では gen ブロックが実験的に使用可能
+#![feature(gen_blocks)]
+
+fn fibonacci() -> impl Iterator<Item = u64> {
+    gen {
+        let (mut a, mut b) = (0, 1);
+        loop {
+            yield a;
+            (a, b) = (b, a + b);
+        }
+    }
+}
+```
+
+### Q4: `itertools.tee()` はなぜメモリを消費するのか？
+
+**A:** `tee()` は元のイテレータから取得した値を内部バッファに保持する。2つの複製されたイテレータの消費ペースが異なると、先に進んだ方が取得した値を後発の方のためにバッファに蓄積する。
+
+```
+tee(iter, 2) -> (it1, it2)
+
+it1 が 1000 要素先に進み、it2 がまだ 0 要素の場合:
+-> 1000 要素分のバッファがメモリに保持される
+
+両方が同じペースで消費される場合:
+-> バッファは最小限で済む
+```
+
+大量データに対して `tee()` を使う場合は、2つのイテレータを「交互に」消費することを心がけるか、リストへの変換を検討すべきである。
+
+### Q5: for ループ内で yield するとどうなるか？
+
+**A:** `yield` を含む関数はジェネレータ関数になる。`for` ループ内で `yield` することで、ループの各反復で値を1つずつ返すジェネレータが作れる。これは非常に一般的なパターンである。
+
+```python
+def filtered_lines(filename, keyword):
+    """ファイルからキーワードを含む行だけを yield する"""
+    with open(filename) as f:
+        for line in f:        # for ループ
+            if keyword in line:
+                yield line    # 各反復で条件を満たす行を返す
+
+# 使う側
+for line in filtered_lines("access.log", "ERROR"):
+    print(line)
+```
+
+### Q6: JavaScript で同期的な sleep をジェネレータで実現できるか？
+
+**A:** ジェネレータ自体は同期的な sleep を実現するものではない。ただし、ジェネレータを使って非同期処理のフローを同期的に「見せる」ことは可能であり、これが `async/await` 以前のライブラリ（`co`, `bluebird` など）のアプローチであった。現在は `async/await` を使うべきである。
+
+---
+
+## 12. まとめ
+
+### 12.1 概念マップ
+
+```
++-------------------------------------------------------------+
+|  イテレータとジェネレータの概念マップ                           |
++-------------------------------------------------------------+
+|                                                             |
+|  データ構造                                                   |
+|    |                                                        |
+|    +-- Iterable（反復可能）                                  |
+|         |                                                   |
+|         +-- Iterator（イテレータ）                           |
+|         |    |                                               |
+|         |    +-- 外部（Pull型）: next() で取得               |
+|         |    |                                               |
+|         |    +-- 内部（Push型）: each/forEach                |
+|         |                                                   |
+|         +-- Generator（ジェネレータ）                        |
+|              |                                               |
+|              +-- yield で中断/再開                            |
+|              |                                               |
+|              +-- send() で双方向通信                          |
+|              |                                               |
+|              +-- yield from / yield* で委譲                  |
+|                                                             |
+|  評価戦略                                                     |
+|    |                                                        |
+|    +-- 正格（Eager）: 即座にすべて計算                        |
+|    |                                                        |
+|    +-- 遅延（Lazy）: 必要な時にだけ計算                       |
+|                                                             |
+|  アダプタ                                                     |
+|    |                                                        |
+|    +-- 変換: map, filter, take, skip, zip, chain, ...       |
+|    |                                                        |
+|    +-- 終端: collect, sum, count, any, all, find, fold      |
+|                                                             |
+|  非同期                                                       |
+|    |                                                        |
+|    +-- Async Iterator: await + next()                       |
+|    |                                                        |
+|    +-- Stream (Rust): poll_next() -> Poll<Option<T>>        |
+|    |                                                        |
+|    +-- for await...of / async for                           |
++-------------------------------------------------------------+
+```
+
+### 12.2 重要ポイントの整理
+
+| 概念 | 核心 | 典型的なユースケース | 代表言語 |
+|------|------|-------------------|---------|
+| イテレータ | 要素を1つずつ取得する統一インターフェース | コレクションの走査 | 全言語 |
+| アダプタ | 遅延変換のチェーン | データ処理パイプライン | Rust, Python, JS |
+| ジェネレータ | yield で中断・再開する関数 | 無限シーケンス、状態機械 | Python, JS |
+| 遅延評価 | 必要な時にだけ計算する | 大量データ処理、無限シーケンス | Haskell, Rust iter |
+| 非同期イテレータ | await + yield | ネットワークストリーム | Python, JS, Rust |
+| send/双方向 | 呼び出し元とジェネレータ間で値を交換 | コルーチン、状態制御 | Python, JS |
+
+### 12.3 言語選択ガイド
+
+| 目的 | 推奨言語/手段 | 理由 |
+|------|-------------|------|
+| 高パフォーマンスのイテレータ処理 | Rust | ゼロコスト抽象化 |
+| 手軽なジェネレータ | Python | 構文が最もシンプル |
+| 関数型イテレータ操作 | Haskell / Scala | 遅延評価がデフォルト |
+| フロントエンドのストリーム処理 | JavaScript | async generator + for await |
+| 大規模データパイプライン | Python + itertools | 豊富な組み合わせ関数 |
+| 型安全なストリーム処理 | Rust + tokio_stream | コンパイル時保証 |
+
+---
+
+## 次に読むべきガイド
+
+- [[../04-functions/00-first-class-functions.md]] -- 第一級関数
+- [[../03-control-flow/04-pattern-matching.md]] -- パターンマッチング
+- [[../../04-advanced-concepts/01-closures-and-higher-order-functions.md]] -- クロージャと高階関数
+
+---
+
+## 13. 参考文献
+
+### 書籍
+
+1. **Gamma, E., Helm, R., Johnson, R., & Vlissides, J.** "Design Patterns: Elements of Reusable Object-Oriented Software." Addison-Wesley, 1994. -- GoF デザインパターンにおけるイテレータパターンの原典。
+2. **Klabnik, S. & Nichols, C.** "The Rust Programming Language." No Starch Press, 2019. -- 第13章「関数型言語の機能: イテレータとクロージャ」でイテレータの詳細を解説。
+3. **Beazley, D. & Jones, B.K.** "Python Cookbook, 3rd Edition." O'Reilly Media, 2013. -- 第4章「イテレータとジェネレータ」で実践的なレシピを多数掲載。
+
+### 公式ドキュメント・仕様
+
+4. **"Iterator trait - Rust Standard Library Documentation."** doc.rust-lang.org. -- Rust のイテレータトレイトの公式リファレンス。75以上のメソッドが解説されている。
+5. **"PEP 255 -- Simple Generators."** python.org, 2001. -- Python にジェネレータを導入した提案書。設計の背景と根拠が記載されている。
+6. **"PEP 380 -- Syntax for Delegating to a Subgenerator."** python.org, 2009. -- `yield from` 構文を導入した提案書。
+7. **"PEP 525 -- Asynchronous Generators."** python.org, 2016. -- 非同期ジェネレータ（`async def` + `yield`）を導入した提案書。
+8. **"MDN Web Docs: Iterators and generators."** developer.mozilla.org. -- JavaScript のイテレータとジェネレータの包括的ガイド。
+
+### 論文・技術記事
+
+9. **Hutton, G.** "A Tutorial on the Universality and Expressiveness of Fold." Journal of Functional Programming, 1999. -- fold（畳み込み）の数学的基礎と表現力に関する古典的論文。
+10. **Kiselyov, O., Shan, C., Friedman, D., & Sabry, A.** "Backtracking, Interleaving, and Terminating Monad Transformers." ICFP, 2005. -- 遅延評価とストリーム処理の理論的基礎。
+
+---
+
+> **本章のキーメッセージ:** イテレータとジェネレータは「データの流れ」を抽象化する強力なツールである。遅延評価により、必要な分だけ計算し、メモリを節約し、無限のデータ構造も扱える。これらの概念を理解することで、宣言的で合成可能なデータ処理パイプラインを構築できるようになる。
+

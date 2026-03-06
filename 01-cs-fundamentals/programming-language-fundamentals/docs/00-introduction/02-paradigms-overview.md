@@ -1561,3 +1561,718 @@ Functional Core, Imperative Shell
   Shell のテスト: 統合テスト（限定的で良い）
 ============================================================
 ```
+
+---
+
+## 9. パラダイム選択の指針と設計判断
+
+### 9.1 問題領域とパラダイムの対応
+
+パラダイムの選択は「好み」ではなく、**問題の性質に基づく工学的判断** であるべきだ。
+以下の対応表は、問題の特性からパラダイムを選択するためのガイドラインである。
+
+```
+問題の特性とパラダイムの対応表
+============================================================
+
+問題の特性                    第一候補           第二候補
+────────────────────────────────────────────────────────
+状態を持つエンティティの管理   OOP               アクター
+データの変換・集計             関数型             手続き型
+手順が明確な逐次処理           手続き型           OOP
+非同期イベントの処理           リアクティブ       関数型
+ルールベースの推論             論理型             関数型
+高並行・分散システム           アクター           関数型
+UIの状態管理                   リアクティブ       OOP
+低レベルシステム制御           手続き型           (該当なし)
+構文解析・コンパイラ           関数型             論理型
+ビジネスルール・ワークフロー   OOP (DDD)          関数型
+数値計算・科学技術計算         手続き型           関数型
+設定・インフラ定義             宣言型             論理型
+============================================================
+```
+
+### 9.2 判断フローチャート
+
+パラダイム選択の思考プロセスを整理する。
+
+```
+パラダイム選択フローチャート
+============================================================
+
+問題を分析する
+     │
+     ├─ 主たる関心は何か？
+     │
+     ├─→ データの変換・計算が中心
+     │     │
+     │     ├─ 副作用は少ないか？ → YES → 関数型
+     │     └─ 副作用が多いか？   → YES → 手続き型 + 関数型要素
+     │
+     ├─→ エンティティの状態管理が中心
+     │     │
+     │     ├─ 並行アクセスがあるか？ → YES → アクターモデル
+     │     └─ 逐次アクセスか？       → YES → OOP
+     │
+     ├─→ イベント/ストリームの処理が中心
+     │     │
+     │     └─→ リアクティブ
+     │
+     ├─→ ルール/制約の表現が中心
+     │     │
+     │     └─→ 論理型 / 宣言型
+     │
+     └─→ ハードウェア制御/性能が最優先
+           │
+           └─→ 手続き型
+
+ ※ 現実には複数の関心が混在するため、マルチパラダイムが基本
+============================================================
+```
+
+### 9.3 コンテキスト別の推奨パターン
+
+**スタートアップ / プロトタイプ段階**
+
+速度とシンプルさが最優先。手続き型ベースでシンプルに始め、
+必要に応じて OOP や関数型の要素を取り入れる。
+過度な抽象化は避け、「動くもの」を最短で作る。
+
+**中規模チーム開発（5-20人）**
+
+OOP ベースのレイヤードアーキテクチャに、関数型のドメインロジックを組み合わせる。
+SOLID 原則と Functional Core / Imperative Shell パターンが有効。
+テスト容易性を重視し、純粋関数の割合を増やす。
+
+**大規模分散システム**
+
+アクターモデルまたはイベント駆動アーキテクチャが中心。
+各マイクロサービス内は状況に応じて最適なパラダイムを選択。
+不変メッセージングと結果整合性を前提とした設計。
+
+**データ集約型アプリケーション**
+
+関数型パイプライン（Map-Filter-Reduce）が中心。
+Spark, Flink 等のフレームワークは関数型 API を提供している。
+副作用はパイプラインの端に限定する。
+
+---
+
+## 10. アンチパターン集
+
+### 10.1 アンチパターン: God Object（神オブジェクト）
+
+**カテゴリ**: OOP のアンチパターン
+
+**症状**: 1つのクラスがシステムの大部分の責任を担い、
+あらゆるデータとロジックが集中している。
+
+```python
+# ===== アンチパターン: God Object =====
+# 1つのクラスに全責任が集中
+
+class ApplicationManager:
+    """やってはいけない: 全てを知り、全てを行うクラス"""
+
+    def __init__(self):
+        self.users = []
+        self.orders = []
+        self.products = []
+        self.email_config = {}
+        self.db_connection = None
+        self.cache = {}
+        self.logger = None
+
+    def create_user(self, name, email): ...
+    def delete_user(self, user_id): ...
+    def authenticate_user(self, email, password): ...
+    def create_order(self, user_id, items): ...
+    def cancel_order(self, order_id): ...
+    def calculate_total(self, order_id): ...
+    def apply_discount(self, order_id, code): ...
+    def add_product(self, name, price): ...
+    def update_inventory(self, product_id, qty): ...
+    def send_email(self, to, subject, body): ...
+    def send_sms(self, to, message): ...
+    def generate_report(self, report_type): ...
+    def backup_database(self): ...
+    def clear_cache(self): ...
+    # ... 数百行が続く ...
+```
+
+**問題点**:
+- 単一責任の原則（SRP）に違反
+- テストが極めて困難（全ての依存関係をモックする必要がある）
+- 変更の影響範囲が予測不能
+- 複数の開発者が同時に作業するとコンフリクトが頻発
+
+**改善方法**: 責任ごとにクラスを分離する。
+
+```python
+# ===== 改善: 責任の分離 =====
+
+class UserService:
+    """ユーザー管理に特化"""
+    def __init__(self, repo: UserRepository):
+        self._repo = repo
+
+    def create(self, name: str, email: str) -> User: ...
+    def authenticate(self, email: str, password: str) -> bool: ...
+
+class OrderService:
+    """注文管理に特化"""
+    def __init__(self, repo: OrderRepository, pricing: PricingEngine):
+        self._repo = repo
+        self._pricing = pricing
+
+    def create(self, user_id: str, items: list[OrderItem]) -> Order: ...
+    def cancel(self, order_id: str) -> None: ...
+
+class NotificationService:
+    """通知に特化"""
+    def __init__(self, email_client: EmailClient, sms_client: SmsClient):
+        self._email = email_client
+        self._sms = sms_client
+
+    def send_email(self, to: str, subject: str, body: str) -> None: ...
+    def send_sms(self, to: str, message: str) -> None: ...
+```
+
+### 10.2 アンチパターン: Callback Hell（コールバック地獄）
+
+**カテゴリ**: 手続き型/非同期プログラミングのアンチパターン
+
+**症状**: 非同期処理のネストが深くなり、コードの可読性と保守性が破壊される。
+
+```javascript
+// ===== アンチパターン: Callback Hell =====
+
+function processOrder(userId, callback) {
+    getUser(userId, function(err, user) {
+        if (err) return callback(err);
+        validateUser(user, function(err, validUser) {
+            if (err) return callback(err);
+            getCart(validUser.id, function(err, cart) {
+                if (err) return callback(err);
+                calculateTotal(cart, function(err, total) {
+                    if (err) return callback(err);
+                    applyDiscount(total, user.discountCode, function(err, finalTotal) {
+                        if (err) return callback(err);
+                        chargePayment(user.paymentMethod, finalTotal, function(err, payment) {
+                            if (err) return callback(err);
+                            createOrder(user, cart, payment, function(err, order) {
+                                if (err) return callback(err);
+                                sendConfirmation(user.email, order, function(err) {
+                                    if (err) return callback(err);
+                                    callback(null, order);
+                                    // ネストが8段。読めない。テストできない。
+                                });
+                            });
+                        });
+                    });
+                });
+            });
+        });
+    });
+}
+```
+
+**問題点**:
+- 可読性の壊滅（右に伸び続けるインデント）
+- エラーハンドリングの重複
+- テストの困難さ
+- リファクタリングの恐怖
+
+**改善方法**: async/await（手続き型的な記述）または関数合成を使う。
+
+```javascript
+// ===== 改善1: async/await（手続き型的記述） =====
+
+async function processOrder(userId) {
+    const user = await getUser(userId);
+    const validUser = await validateUser(user);
+    const cart = await getCart(validUser.id);
+    const total = await calculateTotal(cart);
+    const finalTotal = await applyDiscount(total, user.discountCode);
+    const payment = await chargePayment(user.paymentMethod, finalTotal);
+    const order = await createOrder(user, cart, payment);
+    await sendConfirmation(user.email, order);
+    return order;
+}
+
+// ===== 改善2: 関数合成（関数型的記述） =====
+
+const processOrder = pipe(
+    getUser,
+    validateUser,
+    enrichWithCart,
+    calculateAndDiscount,
+    processPayment,
+    createAndConfirmOrder
+);
+```
+
+### 10.3 アンチパターン: Inheritance Abuse（継承の乱用）
+
+**カテゴリ**: OOP のアンチパターン
+
+**症状**: あらゆるコード再利用を継承で解決しようとし、
+深い継承階層と脆いクラス構造が生まれる。
+
+```
+継承の乱用: 深すぎる継承階層
+============================================================
+
+  BaseEntity
+    └── User
+          └── PremiumUser
+                └── BusinessUser
+                      └── EnterpriseUser
+                            └── EnterpriseAdminUser
+                                  └── SuperAdminUser
+                                        └── ...
+
+  問題:
+  - BaseEntity の変更が全てのサブクラスに波及
+  - 中間クラスの不要なメソッドを全て継承
+  - "is-a" 関係が曖昧（SuperAdminUser "is-a" User？）
+  - テスト時に全ての親クラスの初期化が必要
+============================================================
+```
+
+**改善方法**: コンポジション（合成）とインターフェースを使う。
+
+```python
+# ===== 改善: コンポジション + インターフェース =====
+
+from dataclasses import dataclass
+from typing import Protocol
+
+class Billable(Protocol):
+    def calculate_bill(self) -> float: ...
+
+class Authenticatable(Protocol):
+    def authenticate(self, credentials: str) -> bool: ...
+
+@dataclass
+class User:
+    id: str
+    name: str
+    email: str
+
+@dataclass
+class Subscription:
+    plan: str
+    price: float
+
+    def calculate_bill(self) -> float:
+        return self.price
+
+@dataclass
+class AdminPrivileges:
+    level: int
+    permissions: list[str]
+
+# コンポジションで組み合わせる
+@dataclass
+class PremiumUser:
+    user: User                      # has-a User
+    subscription: Subscription      # has-a Subscription
+
+@dataclass
+class AdminUser:
+    user: User                      # has-a User
+    privileges: AdminPrivileges     # has-a AdminPrivileges
+```
+
+### 10.4 アンチパターン: Impure Everywhere（副作用の散乱）
+
+**カテゴリ**: 関数型プログラミングのアンチパターン
+
+**症状**: 関数型スタイルを標榜しながら、関数の内部で副作用を乱発する。
+
+```python
+# ===== アンチパターン: 副作用の散乱 =====
+
+def calculate_price(items):
+    """一見すると純粋関数だが、副作用だらけ"""
+    total = 0
+    for item in items:
+        price = get_price_from_db(item.id)    # 副作用: DB アクセス
+        logging.info(f"Price: {price}")       # 副作用: ログ出力
+        if price > 100:
+            send_alert(item.id)               # 副作用: 通知送信
+        total += price * item.quantity
+    cache.set(f"total_{hash(items)}", total)  # 副作用: キャッシュ書込
+    return total
+```
+
+**改善方法**: 純粋関数とIOを分離する。
+
+```python
+# ===== 改善: 純粋関数と IO の分離 =====
+
+# 純粋関数: 計算だけを行う
+def calculate_total(priced_items: list[tuple[Item, float]]) -> float:
+    """副作用なし。テストが容易。"""
+    return sum(price * item.quantity for item, price in priced_items)
+
+def find_expensive_items(
+    priced_items: list[tuple[Item, float]],
+    threshold: float = 100
+) -> list[Item]:
+    """副作用なし。条件に合う商品を抽出。"""
+    return [item for item, price in priced_items if price > threshold]
+
+# IO 層: 副作用はここに集約
+async def process_order(items: list[Item]) -> float:
+    prices = await fetch_prices(items)
+    priced_items = list(zip(items, prices))
+
+    total = calculate_total(priced_items)               # 純粋
+    expensive = find_expensive_items(priced_items)       # 純粋
+
+    logger.info(f"Total: {total}")
+    for item in expensive:
+        await send_alert(item.id)
+    await cache.set(f"total_{hash(items)}", total)
+
+    return total
+```
+
+---
+
+## 11. 演習問題（3段階）
+
+### 11.1 基礎演習（理解確認）
+
+**演習 1-1: パラダイム分類**
+
+以下のコード断片が「どのパラダイム」の特徴を最も強く示しているか答えよ。
+また、その判断理由を 1-2 文で説明せよ。
+
+```
+(a)  result = items.filter(x => x.active).map(x => x.value).reduce((a,b) => a+b, 0)
+
+(b)  for i in range(len(data)):
+         data[i] = data[i] * 2
+
+(c)  ancestor(X, Y) :- parent(X, Z), ancestor(Z, Y).
+
+(d)  class Cat extends Animal { meow() { ... } }
+
+(e)  fromEvent(input, 'click').pipe(debounceTime(300), switchMap(fetchData))
+```
+
+**演習 1-2: 用語の対応付け**
+
+以下の概念を正しいパラダイムに対応付けよ（複数選択可）。
+
+| 概念 | 手続き型 | OOP | 関数型 | 論理型 | リアクティブ |
+|------|---------|-----|--------|--------|-------------|
+| カプセル化 | | | | | |
+| 参照透過性 | | | | | |
+| 単一化 | | | | | |
+| Observable | | | | | |
+| for ループ | | | | | |
+| パターンマッチ | | | | | |
+| 継承 | | | | | |
+| カリー化 | | | | | |
+
+**演習 1-3: 比較論述**
+
+「手続き型」と「関数型」で同じ問題（リスト内の偶数だけを合計する）を
+解くコードをそれぞれ書き、両者の本質的な違いを 3 点挙げよ。
+
+### 11.2 応用演習（設計判断）
+
+**演習 2-1: パラダイム選択**
+
+以下のシステム要件に対して、主要パラダイムとその理由を述べよ。
+
+1. 証券取引所のリアルタイムマッチングエンジン
+2. ブログプラットフォームの CMS バックエンド
+3. 気象データの収集・分析パイプライン
+4. チャットアプリケーションのサーバー
+
+**演習 2-2: リファクタリング**
+
+以下の「God Object」を適切なクラス群に分割せよ。
+各クラスの責任を明確にし、クラス間の関係を図示すること。
+
+```python
+class ECommerceSystem:
+    def register_user(self, name, email, password): ...
+    def login(self, email, password): ...
+    def add_product(self, name, price, stock): ...
+    def search_products(self, query): ...
+    def add_to_cart(self, user_id, product_id, qty): ...
+    def checkout(self, user_id): ...
+    def process_payment(self, order_id, card_info): ...
+    def ship_order(self, order_id): ...
+    def send_receipt(self, order_id): ...
+    def generate_sales_report(self, start, end): ...
+```
+
+**演習 2-3: マルチパラダイム設計**
+
+TypeScript で「ユーザー登録 → メール検証 → プロフィール作成」の
+フローを実装せよ。以下の要件を満たすこと。
+
+- バリデーションロジックは純粋関数で実装
+- ユーザーエンティティは不変データとして定義
+- DB操作はリポジトリパターン（OOP）で抽象化
+- エラーは Result 型（関数型）で表現
+
+### 11.3 発展演習（研究課題）
+
+**演習 3-1: パラダイムの歴史研究**
+
+以下のテーマから1つを選び、2000字程度のレポートを作成せよ。
+
+- Smalltalk が OOP に与えた影響と、Java による OOP の変容
+- Haskell のモナドが現代言語の非同期処理に与えた影響
+- Erlang/OTP の "Let it crash" 哲学と、現代の分散システム設計
+
+**演習 3-2: 言語設計**
+
+独自のミニ言語（DSL）を設計せよ。以下を含むこと。
+
+- 対象ドメイン（何のための言語か）
+- 採用するパラダイム（なぜそのパラダイムか）
+- 構文の例（最低3つの操作）
+- 既存の汎用言語との違い
+
+**演習 3-3: パラダイムの限界分析**
+
+「オブジェクト指向は失敗だったのか？」という問いに対して、
+以下の観点を含む論証を展開せよ。
+
+- OOP が解決した問題と、新たに生んだ問題
+- "Composition over Inheritance" の背景
+- 関数型要素の取り込みによる OOP の進化
+- 2020年代における OOP の位置づけ
+
+---
+
+## 12. FAQ -- よくある質問
+
+### Q1: 関数型プログラミングは難しいと聞きますが、学ぶ価値はありますか？
+
+**A**: 学ぶ価値は非常に高い。確かに Haskell のモナドや型クラスの完全な
+理解には時間がかかるが、関数型の**基本概念**（純粋関数、不変性、
+高階関数、パイプライン）は Haskell を学ばなくても身につけられる。
+
+JavaScript, Python, TypeScript, Kotlin, Swift など、日常的に使う言語で
+すぐに実践できる。具体的には以下から始めるとよい。
+
+1. `map`, `filter`, `reduce` を使ったデータ変換
+2. 副作用のない純粋関数の作成
+3. `const` / `readonly` による不変性の確保
+4. 関数の引数として関数を渡す（高階関数）
+
+これだけでも、コードの品質とテスト容易性は大幅に向上する。
+
+### Q2: OOP と関数型は対立するものですか？どちらを学ぶべきですか？
+
+**A**: 対立するものではなく、**補完関係** にある。
+現代のベストプラクティスは両方を組み合わせることである。
+
+- **データの変換・計算ロジック** → 関数型（純粋関数、パイプライン）
+- **状態の管理・依存関係の注入** → OOP（クラス、インターフェース）
+- **副作用の実行** → 手続き型（逐次処理）
+
+「Functional Core, Imperative Shell」パターンがこの思想を最も明確に
+体現している。純粋なビジネスロジック（Core）は関数型で書き、
+DB アクセスや API コールなどの副作用（Shell）は OOP / 手続き型で管理する。
+
+両方を学ぶべきだが、順序としては OOP を先に理解してから関数型に
+進むのが一般的である。OOP の限界を体験することで、
+関数型の利点がより深く理解できるようになる。
+
+### Q3: Go 言語には OOP がないと聞きましたが、大規模開発に問題はないですか？
+
+**A**: Go にはクラスと継承がないが、OOP が不可能というわけではない。
+Go は**インターフェースとコンポジション** で OOP と同等の抽象化を実現している。
+
+```go
+// Go: インターフェース + コンポジション
+type Reader interface {
+    Read(p []byte) (n int, err error)
+}
+
+type Writer interface {
+    Write(p []byte) (n int, err error)
+}
+
+// インターフェースの合成
+type ReadWriter interface {
+    Reader
+    Writer
+}
+
+// 構造体の埋め込み（コンポジション）
+type BufferedWriter struct {
+    writer Writer    // has-a 関係
+    buffer []byte
+}
+```
+
+Go の設計哲学は「継承の複雑さを避け、シンプルなコンポジションで
+十分な抽象化を提供する」というものだ。Google, Docker, Kubernetes
+など多くの大規模プロジェクトが Go で成功裏に開発されており、
+OOP のクラス・継承がなくても大規模開発は可能であることが示されている。
+
+むしろ Go の制約が「過度な抽象化」を防ぎ、
+シンプルで読みやすいコードベースの維持に貢献しているという見方もある。
+
+### Q4: リアクティブプログラミングはどのような場面で使うべきですか？
+
+**A**: リアクティブプログラミングが特に有効なのは以下の場面である。
+
+1. **リアルタイムUI**: 検索のオートコンプリート、ライブダッシュボード、
+   フォームバリデーション（入力のたびに非同期検証が走る場合）
+2. **複数ストリームの合成**: 複数のデータソースからのイベントを
+   結合・変換・フィルタリングする必要がある場合
+3. **バックプレッシャー制御**: 生産者が消費者より速くデータを
+   生成する場合に流量を制御する必要がある場合
+
+逆に、単純なリクエスト-レスポンス型の処理（REST API のハンドラなど）では
+async/await で十分であり、RxJS 等のリアクティブライブラリを導入する
+メリットは薄い。過度なリアクティブ化はコードの複雑性を不必要に
+増加させるため、適用範囲を見極めることが重要である。
+
+### Q5: 新しい言語を学ぶとき、パラダイムの知識はどう活きますか？
+
+**A**: パラダイムの知識は「言語の骨格」を瞬時に把握する力を与える。
+新しい言語に出会ったとき、以下のチェックリストで分類できる。
+
+1. **状態管理**: 変数は再代入可能か？ デフォルトは可変か不変か？
+2. **関数**: 第一級関数か？ 高階関数はサポートされるか？
+3. **型システム**: 静的か動的か？ 代数的データ型はあるか？
+4. **並行処理**: どのモデルを採用しているか？（スレッド/goroutine/アクター）
+5. **抽象化**: クラス/トレイト/プロトコル/型クラスのどれを使うか？
+
+例えば Rust を初めて見たとき、「所有権システムを持つ手続き型 + 関数型で、
+クラスの代わりにトレイトを使い、パターンマッチと代数的データ型がある」
+と整理できれば、個々の文法を覚える前にコードの意図が読めるようになる。
+
+---
+
+## 13. まとめ
+
+### 13.1 パラダイム比較総合表
+
+| パラダイム | 中心概念 | 得意領域 | 代表言語 | 抽象化の単位 | 状態の扱い |
+|-----------|---------|---------|---------|-------------|-----------|
+| 手続き型 | 命令の順次実行 | スクリプト・システム | C, Go, Pascal | 手続き/関数 | 可変 |
+| OOP | オブジェクト | 大規模開発・GUI | Java, C#, Python | クラス/オブジェクト | カプセル化された可変 |
+| 関数型 | 純粋関数・不変性 | データ変換・並行 | Haskell, Elixir, Clojure | 関数/型 | 不変 |
+| 論理型 | 論理的関係 | AI・推論 | Prolog, Datalog | 述語/規則 | 宣言的 |
+| リアクティブ | データストリーム | UI・イベント処理 | RxJS, Reactor | Observable | ストリーム |
+| アクター | メッセージパッシング | 高並行・分散 | Erlang, Akka | アクター | 隔離された可変 |
+
+### 13.2 パラダイム選択の5原則
+
+```
+パラダイム選択の5原則
+============================================================
+
+原則1: パラダイムは道具であり、信仰ではない
+  → 1つのパラダイムに固執せず、問題に合わせて選択する
+
+原則2: 問題の性質がパラダイムを決定する
+  → 好みやトレンドではなく、問題の構造に基づいて判断する
+
+原則3: シンプルさを最優先する
+  → 手続き型で十分ならそれでよい。不必要な抽象化は避ける
+
+原則4: 純粋な部分を最大化する
+  → 副作用を端に押し出し、テスト可能な純粋関数の割合を増やす
+
+原則5: チームの力量を考慮する
+  → 理論的に最適なパラダイムでも、チームが使いこなせなければ
+     意味がない。教育コストと生産性のバランスを取る
+============================================================
+```
+
+### 13.3 学びのロードマップ
+
+```
+パラダイム学習のロードマップ
+============================================================
+
+Phase 1（入門）: 手続き型の確実な理解
+  - C または Python で基本的なアルゴリズムを実装
+  - 変数、制御構造、関数の概念を体得
+  - 推奨期間: 1-3ヶ月
+
+Phase 2（基盤）: OOP の習得
+  - Java, Python, TypeScript でクラス設計を学ぶ
+  - SOLID 原則、デザインパターンの基礎
+  - 推奨期間: 3-6ヶ月
+
+Phase 3（拡張）: 関数型の基礎
+  - JavaScript/TypeScript で関数型スタイルを実践
+  - map/filter/reduce、純粋関数、不変性
+  - 推奨期間: 2-4ヶ月
+
+Phase 4（深化）: 関数型の深い理解
+  - Haskell, Elixir, または Scala で本格的な FP を学ぶ
+  - モナド、型クラス、代数的データ型
+  - 推奨期間: 3-6ヶ月
+
+Phase 5（統合）: マルチパラダイム設計
+  - Functional Core / Imperative Shell の実践
+  - 問題に応じたパラダイム選択の経験を積む
+  - リアクティブ、アクターモデルの導入
+  - 推奨期間: 継続的
+============================================================
+```
+
+---
+
+## 次に読むべきガイド
+
+- [[03-choosing-a-language.md]] -- 言語の選び方: パラダイムの知識を踏まえた言語選択
+- [[01-what-is-programming-language.md]] -- プログラミング言語とは何か: 基礎に立ち返る
+
+---
+
+## 14. 参考文献
+
+### 書籍
+
+1. **Van Roy, P. & Haridi, S.** *Concepts, Techniques, and Models of Computer Programming.* MIT Press, 2004.
+   - パラダイムの網羅的教科書。マルチパラダイム言語 Oz を題材に、主要なプログラミングモデルを統一的に解説。本章で扱った全てのパラダイムの理論的基盤を提供する最も包括的な参考書である。
+
+2. **Abelson, H. & Sussman, G. J.** *Structure and Interpretation of Computer Programs (SICP).* 2nd Ed, MIT Press, 1996.
+   - MIT の伝説的教科書。Scheme を用いて手続き型、関数型、オブジェクト指向の本質を深く探究する。抽象化の段階的構築を通じて「プログラミングとは何か」を根本から問い直す名著。
+
+3. **Armstrong, J.** *Programming Erlang: Software for a Concurrent World.* 2nd Ed, Pragmatic Bookshelf, 2013.
+   - アクターモデルと "Let it crash" 哲学の創始者自身による解説。並行プログラミングの実践的なアプローチを学ぶ上で必読の書。
+
+4. **Martin, R. C.** *Clean Architecture: A Craftsman's Guide to Software Structure and Design.* Prentice Hall, 2017.
+   - パラダイムを横断するソフトウェア設計の原則を解説。SOLID 原則の提唱者による、アーキテクチャレベルでの設計判断の指針。
+
+5. **Hutton, G.** *Programming in Haskell.* 2nd Ed, Cambridge University Press, 2016.
+   - 純粋関数型プログラミングの入門書として最も評価が高い。モナド、型クラス、遅延評価を段階的に解説。
+
+### 論文・講演
+
+6. **Floyd, R. W.** "The Paradigms of Programming." *Communications of the ACM*, 22(8), 1979.
+   - 「プログラミングパラダイム」という概念を明確化したチューリング賞講演。パラダイムが単なるコーディングスタイルではなく、思考の枠組みであることを主張した歴史的文書。
+
+7. **Dijkstra, E. W.** "Go To Statement Considered Harmful." *Communications of the ACM*, 11(3), 1968.
+   - 構造化プログラミングの提唱。手続き型パラダイムの近代化に決定的な影響を与えた論文。
+
+8. **Parnas, D. L.** "On the Criteria To Be Used in Decomposing Systems into Modules." *Communications of the ACM*, 15(12), 1972.
+   - 情報隠蔽（カプセル化）の概念を確立した論文。OOP の理論的基盤の一つ。
+
+### オンラインリソース
+
+9. **Bernhardt, G.** "Boundaries." RubyConf 2012.
+   - "Functional Core, Imperative Shell" パターンの提唱。マルチパラダイム設計の実践的指針として広く参照されている。
+
+10. **Nystrom, R.** *Crafting Interpreters.* craftinginterpreters.com, 2021.
+    - プログラミング言語の実装を通じてパラダイムの本質を理解できるオンライン書籍。無料で全文公開されている。

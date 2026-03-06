@@ -1547,3 +1547,444 @@ let total = sum_all!(1, 2, 3, 4, 5);
 ```
 
 **教訓:** 「通常の関数・ジェネリクス・トレイトで解決できないか？」をまず検討する。マクロは最後の手段である。
+
+### 8.4 アンチパターン3: 「eval の濫用」
+
+```python
+# --- 悪い例: eval による動的コード実行 ---
+def calculate(expression: str) -> float:
+    return eval(expression)  # セキュリティリスク！
+
+# ユーザー入力をそのまま eval に渡すと、任意コード実行の脆弱性
+# calculate("__import__('os').system('rm -rf /')")
+
+# --- 良い例: パーサーを使う ---
+import ast
+import operator
+
+SAFE_OPERATORS = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.Div: operator.truediv,
+}
+
+def safe_calculate(expression: str) -> float:
+    """安全な数式評価"""
+    tree = ast.parse(expression, mode='eval')
+
+    def eval_node(node):
+        if isinstance(node, ast.Expression):
+            return eval_node(node.body)
+        elif isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+            return node.value
+        elif isinstance(node, ast.BinOp) and type(node.op) in SAFE_OPERATORS:
+            left = eval_node(node.left)
+            right = eval_node(node.right)
+            return SAFE_OPERATORS[type(node.op)](left, right)
+        else:
+            raise ValueError(f"安全でない式: {ast.dump(node)}")
+
+    return eval_node(tree)
+
+print(safe_calculate("(3 + 5) * 2"))  # 16.0
+```
+
+**教訓:** `eval` は本番コードでは原則使用しない。ユーザー入力を `eval` に渡すことは、任意コード実行の脆弱性に直結する。
+
+---
+
+## 9. TypeScript のメタプログラミング
+
+### 9.1 デコレータ（Experimental / Stage 3）
+
+TypeScript のデコレータは ES のデコレータ提案（Stage 3）に基づいている。
+
+```typescript
+// --- TypeScript のクラスデコレータ ---
+
+// メソッドデコレータ: ログ記録
+function Log(
+    target: any,
+    propertyKey: string,
+    descriptor: PropertyDescriptor
+): PropertyDescriptor {
+    const originalMethod = descriptor.value;
+
+    descriptor.value = function (...args: any[]) {
+        console.log(`[LOG] ${propertyKey} 呼び出し: 引数=${JSON.stringify(args)}`);
+        const result = originalMethod.apply(this, args);
+        console.log(`[LOG] ${propertyKey} 戻り値: ${JSON.stringify(result)}`);
+        return result;
+    };
+
+    return descriptor;
+}
+
+// メソッドデコレータ: パフォーマンス計測
+function Measure(
+    target: any,
+    propertyKey: string,
+    descriptor: PropertyDescriptor
+): PropertyDescriptor {
+    const originalMethod = descriptor.value;
+
+    descriptor.value = async function (...args: any[]) {
+        const start = performance.now();
+        const result = await originalMethod.apply(this, args);
+        const elapsed = performance.now() - start;
+        console.log(`[PERF] ${propertyKey}: ${elapsed.toFixed(2)}ms`);
+        return result;
+    };
+
+    return descriptor;
+}
+
+// プロパティデコレータ: バリデーション
+function MinLength(min: number) {
+    return function (target: any, propertyKey: string) {
+        let value: string;
+
+        Object.defineProperty(target, propertyKey, {
+            get: () => value,
+            set: (newValue: string) => {
+                if (newValue.length < min) {
+                    throw new Error(
+                        `${propertyKey} は ${min} 文字以上である必要があります`
+                    );
+                }
+                value = newValue;
+            },
+        });
+    };
+}
+
+// 使用例
+class UserService {
+    @MinLength(2)
+    username: string = "";
+
+    @Log
+    @Measure
+    async findUser(id: number): Promise<User | null> {
+        // DB検索のシミュレーション
+        return { id, name: "田中", email: "tanaka@example.com" };
+    }
+}
+```
+
+### 9.2 型レベルプログラミング
+
+TypeScript の型システムはチューリング完全であり、型レベルでのメタプログラミングが可能である。
+
+```typescript
+// --- TypeScript 型レベルプログラミング ---
+
+// 条件型（Conditional Types）
+type IsString<T> = T extends string ? true : false;
+
+type A = IsString<string>;  // true
+type B = IsString<number>;  // false
+
+// マップ型（Mapped Types）
+type Readonly<T> = { readonly [K in keyof T]: T[K] };
+type Optional<T> = { [K in keyof T]?: T[K] };
+type Required<T> = { [K in keyof T]-?: T[K] };
+
+// テンプレートリテラル型
+type HTTPMethod = "GET" | "POST" | "PUT" | "DELETE";
+type APIPath = `/api/${string}`;
+type Endpoint = `${HTTPMethod} ${APIPath}`;
+// "GET /api/users" | "POST /api/users" | ... は Endpoint 型
+
+// 再帰型（深いReadonly）
+type DeepReadonly<T> = {
+    readonly [K in keyof T]: T[K] extends object
+        ? DeepReadonly<T[K]>
+        : T[K];
+};
+
+// パス型の自動生成
+type PathParams<T extends string> =
+    T extends `${string}:${infer Param}/${infer Rest}`
+        ? { [K in Param | keyof PathParams<Rest>]: string }
+        : T extends `${string}:${infer Param}`
+            ? { [K in Param]: string }
+            : {};
+
+// "/users/:userId/posts/:postId" から { userId: string; postId: string } を抽出
+type UserPostParams = PathParams<"/users/:userId/posts/:postId">;
+
+// 型安全なAPIクライアント
+interface APIRoutes {
+    "GET /api/users": { response: User[]; params: {} };
+    "GET /api/users/:id": { response: User; params: { id: string } };
+    "POST /api/users": { response: User; params: {}; body: CreateUserDTO };
+}
+
+async function apiCall<T extends keyof APIRoutes>(
+    endpoint: T,
+    ...args: APIRoutes[T] extends { body: infer B }
+        ? [params: APIRoutes[T]["params"], body: B]
+        : [params: APIRoutes[T]["params"]]
+): Promise<APIRoutes[T]["response"]> {
+    // 実装
+    throw new Error("not implemented");
+}
+
+// 型安全な呼び出し
+// apiCall("GET /api/users", {});
+// apiCall("GET /api/users/:id", { id: "123" });
+// apiCall("POST /api/users", {}, { name: "田中", email: "..." });
+```
+
+---
+
+## 10. 演習問題
+
+### 10.1 初級：概念の理解
+
+**演習1:** 以下の各DSLが「外部DSL」と「内部DSL」のどちらに分類されるか答えよ。
+1. SQL
+2. SwiftUI
+3. Terraform HCL
+4. RSpec
+5. GraphQL
+6. Gradle Kotlin DSL
+7. Protocol Buffers
+
+**演習2:** 以下のメタプログラミング手法を、適用タイミング（コンパイル時・ビルド時・実行時）で分類せよ。
+1. Rust の `derive` マクロ
+2. Python のデコレータ
+3. Go の `go generate`
+4. Java のリフレクション
+5. Elixir のマクロ
+6. Protocol Buffers のコード生成
+
+**演習3:** 以下のコードが出力する結果を予測せよ。
+
+```python
+def trace(func):
+    def wrapper(*args):
+        print(f"呼び出し: {func.__name__}({args})")
+        result = func(*args)
+        print(f"戻り値: {result}")
+        return result
+    return wrapper
+
+@trace
+def add(a, b):
+    return a + b
+
+@trace
+def multiply(a, b):
+    return a * b
+
+result = multiply(add(2, 3), 4)
+```
+
+### 10.2 中級：実装
+
+**演習4:** 任意の言語で、以下の要件を満たす設定ファイルDSLを実装せよ。
+
+```
+要件:
+- ネストした設定構造を表現できる
+- 型安全である（文字列・数値・ブール値の型チェック）
+- 環境変数の参照をサポートする（${ENV_VAR} 記法）
+- バリデーション機能を持つ
+
+使用例:
+config {
+    server {
+        host = "localhost"
+        port = 8080
+        tls = true
+    }
+    database {
+        url = "${DATABASE_URL}"
+        pool_size = 10
+    }
+}
+```
+
+**演習5:** Rust の宣言的マクロ（`macro_rules!`）で、以下のJSONリテラルDSLを実装せよ。
+
+```rust
+let data = json!({
+    "name": "田中太郎",
+    "age": 30,
+    "hobbies": ["読書", "プログラミング"],
+    "address": {
+        "city": "東京",
+        "zip": "100-0001"
+    }
+});
+```
+
+### 10.3 上級：設計と分析
+
+**演習6:** 以下の3つのメタプログラミングアプローチを比較し、各アプローチが最適なユースケースを論じよ。
+
+1. Rust の手続き型マクロ
+2. Python のメタクラス
+3. TypeScript の型レベルプログラミング
+
+比較観点:
+- 型安全性
+- 実行時オーバーヘッド
+- デバッグのしやすさ
+- 表現力
+- 学習コスト
+
+**演習7:** 実際のプロジェクトで使用するドメインを1つ選び、そのドメインに特化したDSLを設計せよ（実装は不要）。
+
+提出物:
+- ドメインの説明
+- DSLの文法仕様（BNF記法）
+- 使用例（3つ以上）
+- 内部DSL/外部DSLの選択理由
+- 既存のDSL（SQL、GraphQL等）との比較
+
+---
+
+## 11. 高度なトピック
+
+### 11.1 効果システムとDSL
+
+効果システム（Effect System）は、関数の副作用を型で追跡する仕組みであり、次世代のDSL基盤技術として注目されている。
+
+```
+効果システムの概念:
+
+  従来の関数:
+    fn read_file(path: &str) -> String
+    // 副作用（I/O）があるかどうか型から分からない
+
+  効果システム付き:
+    fn read_file(path: &str) -> String / IO + Error
+    // 副作用が型に明示される
+
+  DSLへの応用:
+  ┌──────────────────────────────────────┐
+  │ 効果 = DSLの操作をファーストクラスに   │
+  │                                      │
+  │ database {                           │
+  │   let user = query(User, id: 1)      │
+  │   // ↑ Database 効果                 │
+  │   log("ユーザー取得: ${user.name}")    │
+  │   // ↑ Log 効果                      │
+  │ }                                    │
+  │ // database ブロック外では            │
+  │ // Database 効果は使用不可            │
+  └──────────────────────────────────────┘
+```
+
+### 11.2 言語ワークベンチ
+
+言語ワークベンチ（Language Workbench）は、DSLの定義・実装・IDE統合を統一的に行うための開発環境である。
+
+代表例:
+- **JetBrains MPS**: 射影編集（Projectional Editing）による DSL構築。テキストベースでないため構文の曖昧さが発生しない。
+- **Xtext**: Eclipse ベースの文法定義からパーサー・エディタ・コード生成を自動構築。
+- **Spoofax**: 言語定義フレームワーク。文法・型システム・変換規則を宣言的に記述。
+
+---
+
+## 12. まとめ
+
+### 12.1 手法比較の総合表
+
+| 手法 | タイミング | 代表言語 | 型安全性 | パフォーマンス | 用途 |
+|------|----------|---------|---------|-------------|------|
+| 宣言的マクロ | コンパイル時 | Rust, Elixir | 中 | 最適 | DSL、ボイラープレート削減 |
+| 手続き型マクロ | コンパイル時 | Rust, Scala 3 | 高 | 最適 | derive、属性マクロ |
+| デコレータ | 実行時 | Python, TS | 低 | 低い | AOP、ログ、認証 |
+| メタクラス | 実行時 | Python | 低 | 低い | ORM、バリデーション |
+| リフレクション | 実行時 | Java, Go, C# | 低 | 低い | シリアライズ、DI |
+| コード生成 | ビルド時 | Go, protobuf | 高 | 最適 | API定義、型生成 |
+| Result Builder | コンパイル時 | Swift | 高 | 最適 | SwiftUI、宣言的DSL |
+| 型レベル | コンパイル時 | TypeScript | 最高 | 最適 | 型安全API、パス推論 |
+
+### 12.2 意思決定フローチャート
+
+```
+メタプログラミング手法の選択:
+
+  「ボイラープレートを減らしたい」
+     │
+     ├─ コンパイル時に解決できる？
+     │    ├─ Yes → マクロ or derive (Rust)
+     │    │        Result Builder (Swift)
+     │    │        型レベル (TypeScript)
+     │    └─ No → 実行時手法へ
+     │
+     ├─ 複数言語間の共通定義が必要？
+     │    └─ Yes → コード生成 (protobuf, OpenAPI)
+     │
+     ├─ 横断的関心事（ログ、認証、計測）？
+     │    └─ Yes → デコレータ (Python, TS)
+     │            アスペクト (Java / Spring AOP)
+     │
+     └─ 構造の動的検査が必要？
+          └─ Yes → リフレクション (Java, Go, C#)
+```
+
+---
+
+## 13. FAQ（よくある質問）
+
+### Q1: 内部DSLと外部DSLのどちらを選ぶべきですか？
+
+**A:** プロジェクトの状況による。内部DSLは開発コストが低く、ホスト言語のツール（IDE、デバッガ、テストフレームワーク）をそのまま利用できるため、多くの場合これが第一選択になる。外部DSLは、非エンジニア（ドメインエキスパート）がDSLを直接記述する必要がある場合や、既存の標準的なDSL（SQL、GraphQL）が存在する場合に選択する。外部DSLはパーサー・エラーメッセージ・ツールの全てを自前で構築する必要があるため、開発・保守コストが高い。
+
+### Q2: メタプログラミングはどの程度の規模のプロジェクトから導入すべきですか？
+
+**A:** メタプログラミングの導入判断は規模よりも「同じパターンの繰り返し」の頻度で決める。同じボイラープレートが3箇所以上に出現し、今後も増える見込みがあれば、メタプログラミングの導入を検討する価値がある。ただし、チームメンバー全員がその手法を理解できることが前提条件である。「自分だけが理解できるマクロ」はチームにとって負債になる。
+
+### Q3: Rust のマクロと C のマクロは何が違うのですか？
+
+**A:** 本質的に異なる。C のマクロ（`#define`）はテキスト置換であり、型チェックの前に実行される。そのため型安全性がなく、名前衝突（変数名の意図しない置換）が発生し、デバッグが極めて困難である。一方、Rust のマクロは構文木（トークンストリーム）を操作する。衛生的マクロ（hygienic macro）により名前衝突が防止され、型チェックはマクロ展開後に行われるため型安全性が保たれる。さらに、手続き型マクロではコンパイラのエラーメッセージをカスタマイズすることもできる。
+
+### Q4: TypeScript の型レベルプログラミングはどこまで実用的ですか？
+
+**A:** ライブラリの型定義では非常に実用的であり、tRPC, Zod, Prisma などの現代的なTypeScriptライブラリは型レベルプログラミングを積極的に活用している。しかし、アプリケーションコードで複雑な型レベルプログラミングを多用すると、型エラーメッセージが難解になり、コンパイル速度が低下する。実用上は「ライブラリ作者は積極的に使い、ライブラリ利用者はその恩恵を透過的に受ける」という分担が望ましい。
+
+---
+
+## 次に読むべきガイド
+
+- [[01-modern-language-features.md]] - モダン言語の共通機能
+- [[03-future-of-languages.md]] - プログラミング言語の未来
+
+---
+
+## 参考文献
+
+1. Fowler, M. "Domain-Specific Languages." Addison-Wesley, 2010. - DSLの設計パターンを網羅的に解説した名著。内部DSL・外部DSLの分類とその実装手法を体系化。
+2. Rust Reference. "Macros." The Rust Programming Language. - Rustの宣言的マクロと手続き型マクロの公式リファレンス。マクロシステムの設計思想を理解するのに不可欠。
+3. Odersky, M. et al. "Scala 3 Reference: Metaprogramming." EPFL. - Scala 3 のインラインメタプログラミングとマクロシステムの解説。引用符（quote）と接合（splice）の概念を詳述。
+4. Van Rossum, G. "PEP 3119 -- Introducing Abstract Base Classes." Python Software Foundation. - Python のメタクラスプロトコルの設計根拠を説明。ABCメタクラスの導入に至る議論を記録。
+5. Thomas, D. "Metaprogramming Ruby." Pragmatic Bookshelf, 2nd Edition, 2014. - Ruby のメタプログラミング技法（method_missing, class_eval, define_method等）の実践ガイド。
+
+---
+
+## 用語集
+
+| 用語 | 説明 |
+|------|------|
+| DSL (Domain-Specific Language) | 特定の問題領域に特化した言語 |
+| GPL (General-Purpose Language) | 汎用プログラミング言語 |
+| 内部DSL (Internal/Embedded DSL) | ホスト言語の構文を活用して構築されたDSL |
+| 外部DSL (External DSL) | 独自のパーサーと構文を持つDSL |
+| メタプログラミング | プログラムを操作・生成するプログラムを書くこと |
+| マクロ (Macro) | コンパイル時にコードを生成・変換する仕組み |
+| 衛生的マクロ (Hygienic Macro) | 名前衝突を防止するマクロシステム |
+| リフレクション (Reflection) | 実行時に型情報を検査・操作する能力 |
+| デコレータ (Decorator) | 関数やクラスを変換するメタプログラミングパターン |
+| メタクラス (Metaclass) | クラスを生成するクラス |
+| Phantom Type | データ格納に使わない型パラメータで状態を追跡する手法 |
+| Result Builder | Swift の宣言的DSL構築機能 |
+| コード生成 (Code Generation) | スキーマやテンプレートからソースコードを自動生成すること |
+| AST (Abstract Syntax Tree) | ソースコードの構造を表現する木構造 |
+| 言語ワークベンチ | DSLの定義・実装・IDE統合を統一的に行う開発環境 |

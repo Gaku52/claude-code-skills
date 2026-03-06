@@ -1529,3 +1529,881 @@ Rust クロージャの格納方式の比較:
     - コレクションに格納 → Box<dyn Fn> or Vec<Box<dyn Fn>>
 ```
 
+---
+
+## 7. アンチパターンと落とし穴
+
+### 7.1 アンチパターン1: ループ変数の非意図的捕捉
+
+これは JavaScript, Python, Go など多くの言語で発生する古典的な罠である。ループ変数は各イテレーションで新しい変数が作られるのではなく、同一の変数が更新される（言語・バージョンによる）。
+
+```javascript
+// ❌ アンチパターン: var を使ったループでのクロージャ
+function createButtons() {
+    const buttons = [];
+    for (var i = 0; i < 5; i++) {
+        // var i はループ全体で1つの変数（関数スコープ）
+        buttons.push({
+            label: `Button ${i}`,
+            onClick: function() {
+                console.log(`Clicked button ${i}`);
+                // 全てのクロージャが同じ i を参照
+            }
+        });
+    }
+    return buttons;
+}
+
+const btns = createButtons();
+btns[0].onClick();  // "Clicked button 5" ← 期待は 0
+btns[1].onClick();  // "Clicked button 5" ← 期待は 1
+btns[4].onClick();  // "Clicked button 5" ← 期待は 4
+
+// ✅ 修正法1: let を使う（ES6+、最も推奨）
+function createButtonsFixed1() {
+    const buttons = [];
+    for (let i = 0; i < 5; i++) {
+        // let i は各イテレーションで新しい変数（ブロックスコープ）
+        buttons.push({
+            label: `Button ${i}`,
+            onClick: function() {
+                console.log(`Clicked button ${i}`);
+            }
+        });
+    }
+    return buttons;
+}
+
+// ✅ 修正法2: IIFE で新しいスコープを作る（ES5 時代の手法）
+function createButtonsFixed2() {
+    const buttons = [];
+    for (var i = 0; i < 5; i++) {
+        (function(index) {
+            buttons.push({
+                label: `Button ${index}`,
+                onClick: function() {
+                    console.log(`Clicked button ${index}`);
+                }
+            });
+        })(i);  // i の値をコピーして渡す
+    }
+    return buttons;
+}
+
+// ✅ 修正法3: forEach を使う
+function createButtonsFixed3() {
+    return Array.from({ length: 5 }, (_, i) => ({
+        label: `Button ${i}`,
+        onClick() {
+            console.log(`Clicked button ${i}`);
+        }
+    }));
+}
+```
+
+```
+ループ変数の罠のメカニズム:
+
+  var を使った場合:
+  ┌──────────────────────────────────────────┐
+  │  スコープ: createButtons 全体            │
+  │                                          │
+  │  var i;  ← 1つの変数                    │
+  │                                          │
+  │  i=0: クロージャ0 → i を参照 ─────┐     │
+  │  i=1: クロージャ1 → i を参照 ─────┤     │
+  │  i=2: クロージャ2 → i を参照 ─────┤     │
+  │  i=3: クロージャ3 → i を参照 ─────┤     │
+  │  i=4: クロージャ4 → i を参照 ─────┤     │
+  │  ループ終了: i=5                   │     │
+  │                                    ▼     │
+  │  全クロージャが参照する i の値 → 5       │
+  └──────────────────────────────────────────┘
+
+  let を使った場合:
+  ┌──────────────────────────────────────────┐
+  │  スコープ: createButtons 全体            │
+  │                                          │
+  │  { let i=0; クロージャ0 → i を参照 }    │
+  │  { let i=1; クロージャ1 → i を参照 }    │
+  │  { let i=2; クロージャ2 → i を参照 }    │
+  │  { let i=3; クロージャ3 → i を参照 }    │
+  │  { let i=4; クロージャ4 → i を参照 }    │
+  │                                          │
+  │  各クロージャが独自の i を参照            │
+  │  → 期待通りの動作                        │
+  └──────────────────────────────────────────┘
+```
+
+### 7.2 アンチパターン2: 過度なクロージャのネスト（コールバック地獄）
+
+```javascript
+// ❌ アンチパターン: クロージャの深いネスト
+function processOrder(orderId) {
+    fetchOrder(orderId, function(order) {
+        fetchUser(order.userId, function(user) {
+            fetchProducts(order.productIds, function(products) {
+                calculateShipping(user.address, products, function(shipping) {
+                    applyDiscount(user.membership, order.total, function(finalPrice) {
+                        createInvoice(order, user, products, shipping, finalPrice,
+                            function(invoice) {
+                                sendEmail(user.email, invoice, function(result) {
+                                    console.log("Done!", result);
+                                });
+                            }
+                        );
+                    });
+                });
+            });
+        });
+    });
+}
+
+// ✅ 修正: Promise チェーン
+function processOrderFixed(orderId) {
+    return fetchOrder(orderId)
+        .then(order => Promise.all([
+            order,
+            fetchUser(order.userId),
+            fetchProducts(order.productIds)
+        ]))
+        .then(([order, user, products]) => Promise.all([
+            order, user, products,
+            calculateShipping(user.address, products)
+        ]))
+        .then(([order, user, products, shipping]) => Promise.all([
+            order, user, products, shipping,
+            applyDiscount(user.membership, order.total)
+        ]))
+        .then(([order, user, products, shipping, finalPrice]) =>
+            createInvoice(order, user, products, shipping, finalPrice)
+        )
+        .then(invoice => sendEmail(invoice.user.email, invoice));
+}
+
+// ✅ さらに改善: async/await
+async function processOrderAsync(orderId) {
+    const order = await fetchOrder(orderId);
+    const [user, products] = await Promise.all([
+        fetchUser(order.userId),
+        fetchProducts(order.productIds)
+    ]);
+    const shipping = await calculateShipping(user.address, products);
+    const finalPrice = await applyDiscount(user.membership, order.total);
+    const invoice = await createInvoice(order, user, products, shipping, finalPrice);
+    return sendEmail(user.email, invoice);
+}
+```
+
+### 7.3 アンチパターン3: this の束縛ミス
+
+```javascript
+// ❌ アンチパターン: メソッド内のクロージャで this を見失う
+class Timer {
+    constructor() {
+        this.seconds = 0;
+    }
+
+    start() {
+        // function キーワードは独自の this を持つ
+        setInterval(function() {
+            this.seconds++;  // this は Timer ではなく global/undefined
+            console.log(this.seconds);  // NaN or エラー
+        }, 1000);
+    }
+}
+
+// ✅ 修正法1: アロー関数を使う（最も推奨）
+class TimerFixed1 {
+    constructor() {
+        this.seconds = 0;
+    }
+
+    start() {
+        // アロー関数は this を外側のスコープから継承
+        setInterval(() => {
+            this.seconds++;  // this は TimerFixed1 インスタンス
+            console.log(this.seconds);
+        }, 1000);
+    }
+}
+
+// ✅ 修正法2: self/that パターン（ES5 時代の手法）
+class TimerFixed2 {
+    constructor() {
+        this.seconds = 0;
+    }
+
+    start() {
+        const self = this;  // this をクロージャで捕捉
+        setInterval(function() {
+            self.seconds++;
+            console.log(self.seconds);
+        }, 1000);
+    }
+}
+
+// ✅ 修正法3: bind を使う
+class TimerFixed3 {
+    constructor() {
+        this.seconds = 0;
+    }
+
+    start() {
+        setInterval(function() {
+            this.seconds++;
+            console.log(this.seconds);
+        }.bind(this), 1000);  // this を明示的に束縛
+    }
+}
+```
+
+---
+
+## 8. パフォーマンス考察
+
+### 8.1 クロージャのオーバーヘッド
+
+```
+クロージャのコスト分析:
+
+  ┌─────────────────────────────────────────────────────────┐
+  │  コスト要因          │ 影響度 │ 説明                     │
+  ├─────────────────────────────────────────────────────────┤
+  │  環境オブジェクト生成 │ 小     │ ヒープ割り当て1回       │
+  │  変数アクセス         │ 微小   │ 間接参照1回追加         │
+  │  GC への負荷          │ 中     │ 参照追跡が増える        │
+  │  インライン化阻害     │ 中     │ 最適化が困難になる場合  │
+  │  メモリ使用量         │ 変動   │ 捕捉する変数量に依存   │
+  └─────────────────────────────────────────────────────────┘
+
+  一般的な指針:
+  - 通常のアプリケーションコード: パフォーマンス影響は無視できる
+  - ホットループ内（1秒間に数百万回実行）: クロージャ生成を避ける
+  - 大量のクロージャを配列に格納: メモリ使用量に注意
+```
+
+```javascript
+// パフォーマンスを意識したクロージャの使い方
+
+// ❌ ホットループ内でクロージャを毎回生成
+function processItemsBad(items, threshold) {
+    return items.map(item => {
+        // このクロージャは毎回新しい環境を生成する（が、実際は最適化される場合が多い）
+        const check = (val) => val > threshold;  // 不要なクロージャ
+        return check(item.value) ? item : null;
+    }).filter(Boolean);
+}
+
+// ✅ クロージャを一度だけ生成
+function processItemsGood(items, threshold) {
+    const check = (val) => val > threshold;  // 1回だけ生成
+    return items.map(item =>
+        check(item.value) ? item : null
+    ).filter(Boolean);
+}
+
+// ✅ さらに良い: そもそもクロージャが不要なら使わない
+function processItemsBest(items, threshold) {
+    return items.filter(item => item.value > threshold);
+}
+```
+
+### 8.2 V8 エンジンの最適化
+
+現代の JavaScript エンジン（V8、SpiderMonkey 等）は、クロージャに対して多くの最適化を行う。
+
+```
+V8 のクロージャ最適化:
+
+  1. コンテキスト最適化（Context Optimization）
+     - 使われない変数は捕捉しない
+     - 例: 10個の変数があるスコープで1個だけ使う場合、
+       その1個だけの環境が作られる
+
+  2. インライン化（Inlining）
+     - 小さなクロージャは呼び出し元に展開される
+     - 環境オブジェクトの生成自体が省略される
+
+  3. エスケープ解析（Escape Analysis）
+     - クロージャが関数の外に出ない場合、
+       ヒープ割り当てをスタック割り当てに変換
+
+  4. Hidden Class による最適化
+     - 同じ形状のクロージャオブジェクトは
+       同じ Hidden Class を共有
+
+  ※ ただし eval() や debugger 使用時はこれらの最適化が
+    無効化されることがある
+```
+
+---
+
+## 9. 演習問題
+
+### 演習1: 基礎レベル
+
+**問題1-1: カウンタの実装**
+
+以下の仕様を満たす `createCounter` 関数を JavaScript で実装せよ。
+
+```javascript
+// 仕様:
+// - createCounter(initial) は初期値 initial のカウンタを返す
+// - increment() は値を1増やして返す
+// - decrement() は値を1減らして返す
+// - reset() は初期値に戻して返す
+// - getCount() は現在の値を返す
+
+// 使用例:
+const c = createCounter(10);
+c.increment();  // 11
+c.increment();  // 12
+c.decrement();  // 11
+c.reset();      // 10
+c.getCount();   // 10
+```
+
+<details>
+<summary>解答例</summary>
+
+```javascript
+function createCounter(initial) {
+    let count = initial;
+    return {
+        increment() { return ++count; },
+        decrement() { return --count; },
+        reset() { count = initial; return count; },
+        getCount() { return count; }
+    };
+}
+```
+</details>
+
+**問題1-2: once 関数**
+
+一度だけ実行可能な関数を作る `once` 関数を実装せよ。
+
+```javascript
+// 仕様:
+// - once(fn) は fn を一度だけ実行する関数を返す
+// - 2回目以降の呼び出しは最初の結果を返す
+
+const expensiveCalc = once(() => {
+    console.log("Computing...");
+    return 42;
+});
+
+expensiveCalc();  // "Computing..." → 42
+expensiveCalc();  // 42（再計算なし、ログも出ない）
+```
+
+<details>
+<summary>解答例</summary>
+
+```javascript
+function once(fn) {
+    let called = false;
+    let result;
+    return function(...args) {
+        if (!called) {
+            result = fn.apply(this, args);
+            called = true;
+        }
+        return result;
+    };
+}
+```
+</details>
+
+### 演習2: 中級レベル
+
+**問題2-1: パイプライン関数**
+
+関数を左から右に合成する `pipe` と、右から左に合成する `compose` を実装せよ。
+
+```javascript
+// 仕様:
+// - pipe(f, g, h)(x) は h(g(f(x))) と同等
+// - compose(f, g, h)(x) は f(g(h(x))) と同等
+
+const double = x => x * 2;
+const addOne = x => x + 1;
+const square = x => x * x;
+
+pipe(double, addOne, square)(3);     // square(addOne(double(3))) = square(7) = 49
+compose(double, addOne, square)(3);  // double(addOne(square(3))) = double(10) = 20
+```
+
+<details>
+<summary>解答例</summary>
+
+```javascript
+function pipe(...fns) {
+    return function(x) {
+        return fns.reduce((acc, fn) => fn(acc), x);
+    };
+}
+
+function compose(...fns) {
+    return function(x) {
+        return fns.reduceRight((acc, fn) => fn(acc), x);
+    };
+}
+```
+</details>
+
+**問題2-2: LRU キャッシュ付きメモ化**
+
+最大 `capacity` 個のキャッシュエントリを保持するメモ化関数を実装せよ。キャッシュが満杯の場合、最も古い（Least Recently Used）エントリを削除する。
+
+```javascript
+// 仕様:
+// - memoizeLRU(fn, capacity) を実装
+// - キャッシュ容量を超えたら最も古いエントリを削除
+// - 既存エントリがアクセスされたら最新に更新
+
+const cachedFn = memoizeLRU((x) => x * x, 3);
+cachedFn(1);  // 計算: 1  → キャッシュ: [1]
+cachedFn(2);  // 計算: 4  → キャッシュ: [1, 2]
+cachedFn(3);  // 計算: 9  → キャッシュ: [1, 2, 3]
+cachedFn(1);  // キャッシュヒット → キャッシュ: [2, 3, 1]（1が最新に）
+cachedFn(4);  // 計算: 16 → キャッシュ: [3, 1, 4]（2が削除）
+cachedFn(2);  // 計算: 4  → キャッシュ: [1, 4, 2]（3が削除、2は再計算）
+```
+
+<details>
+<summary>解答例</summary>
+
+```javascript
+function memoizeLRU(fn, capacity) {
+    // Map は挿入順序を保持するため LRU に適している
+    const cache = new Map();
+
+    return function(...args) {
+        const key = JSON.stringify(args);
+
+        if (cache.has(key)) {
+            // アクセスされたエントリを最新に移動
+            const value = cache.get(key);
+            cache.delete(key);
+            cache.set(key, value);
+            return value;
+        }
+
+        const result = fn.apply(this, args);
+
+        if (cache.size >= capacity) {
+            // 最も古い（最初の）エントリを削除
+            const oldestKey = cache.keys().next().value;
+            cache.delete(oldestKey);
+        }
+
+        cache.set(key, result);
+        return result;
+    };
+}
+```
+</details>
+
+### 演習3: 上級レベル
+
+**問題3-1: Observable パターン**
+
+クロージャを使ってリアクティブなデータバインディングを実装せよ。
+
+```javascript
+// 仕様:
+// - observable(initialValue) は { get, set, subscribe } を返す
+// - subscribe(callback) は値が変更されるたびに callback を呼ぶ
+// - subscribe は unsubscribe 関数を返す
+// - computed(observables, computeFn) は派生値を作る
+
+const firstName = observable("John");
+const lastName = observable("Doe");
+const fullName = computed(
+    [firstName, lastName],
+    (first, last) => `${first} ${last}`
+);
+
+fullName.subscribe(name => console.log(`Name: ${name}`));
+
+firstName.set("Jane");  // "Name: Jane Doe"
+lastName.set("Smith");  // "Name: Jane Smith"
+```
+
+<details>
+<summary>解答例</summary>
+
+```javascript
+function observable(initialValue) {
+    let value = initialValue;
+    const subscribers = new Set();
+
+    return {
+        get() {
+            return value;
+        },
+        set(newValue) {
+            if (value !== newValue) {
+                value = newValue;
+                subscribers.forEach(cb => cb(value));
+            }
+        },
+        subscribe(callback) {
+            subscribers.add(callback);
+            // 登録時に現在の値を通知（オプション）
+            callback(value);
+            // unsubscribe 関数を返す
+            return () => subscribers.delete(callback);
+        }
+    };
+}
+
+function computed(observables, computeFn) {
+    const result = observable(
+        computeFn(...observables.map(o => o.get()))
+    );
+
+    // 依存する observable のいずれかが変更されたら再計算
+    observables.forEach(obs => {
+        obs.subscribe(() => {
+            const newValue = computeFn(...observables.map(o => o.get()));
+            result.set(newValue);
+        });
+    });
+
+    return result;
+}
+```
+</details>
+
+**問題3-2: Rust でのクロージャ型パズル**
+
+以下の Rust コードのコンパイルエラーを修正し、各クロージャが実装するトレイトを答えよ。
+
+```rust
+// このコードには複数のコンパイルエラーがある。修正せよ。
+fn main() {
+    let mut items = vec![1, 2, 3, 4, 5];
+
+    // (a) フィルタ
+    let threshold = 3;
+    let big_items: Vec<&i32> = items.iter().filter(|x| **x > threshold).collect();
+
+    // (b) 変換と蓄積
+    let mut sum = 0;
+    let doubled: Vec<i32> = items.iter().map(|x| {
+        sum += x;   // エラー箇所
+        x * 2
+    }).collect();
+
+    // (c) 所有権の移動
+    let data = String::from("hello");
+    let printer = || println!("{}", data);
+    printer();
+    println!("{}", data);  // エラー箇所の可能性
+
+    // (d) 関数から返す
+    fn make_greeter(name: String) -> impl Fn() {
+        || println!("Hello, {}!", name)  // エラー箇所
+    }
+}
+```
+
+<details>
+<summary>解答例</summary>
+
+```rust
+fn main() {
+    let items = vec![1, 2, 3, 4, 5];
+
+    // (a) Fn トレイト: threshold を不変借用
+    let threshold = 3;
+    let big_items: Vec<&i32> = items.iter().filter(|x| **x > threshold).collect();
+    println!("{:?}", big_items);  // [4, 5]
+
+    // (b) FnMut トレイト: sum を可変借用
+    let mut sum = 0;
+    let doubled: Vec<i32> = items.iter().map(|x| {
+        sum += x;  // sum を &mut で借用 → FnMut
+        x * 2
+    }).collect();
+    println!("{:?}, sum={}", doubled, sum);
+
+    // (c) Fn トレイト: data を不変借用（move なし）
+    let data = String::from("hello");
+    let printer = || println!("{}", data);  // &data を借用
+    printer();
+    println!("{}", data);  // data はまだ有効
+
+    // (d) move が必要: name の所有権をクロージャに移動
+    fn make_greeter(name: String) -> impl Fn() {
+        move || println!("Hello, {}!", name)
+        // move で name の所有権を移動
+        // println! は &name しか使わないので Fn を実装
+    }
+
+    let greet = make_greeter(String::from("World"));
+    greet();
+    greet();  // Fn なので何度でも呼べる
+}
+```
+</details>
+
+---
+
+## 10. FAQ（よくある質問）
+
+### Q1: クロージャとラムダ式は同じものですか？
+
+**A:** 厳密には異なる概念だが、実用上はほぼ同義で使われることが多い。
+
+- **ラムダ式（lambda expression）**: 無名関数を定義するための構文。`(x) => x * 2` や `lambda x: x * 2` など。
+- **クロージャ（closure）**: 自由変数を捕捉した関数。ラムダ式であるかどうかに関係ない。
+
+名前付き関数もクロージャになりうるし、ラムダ式でも自由変数を捕捉しなければクロージャではない。ただし、多くの言語でラムダ式はクロージャとして動作するため、混同されがちである。
+
+```javascript
+// ラムダ式だがクロージャではない（自由変数がない）
+const double = (x) => x * 2;
+
+// ラムダ式でありクロージャでもある（factor を捕捉）
+const factor = 3;
+const multiply = (x) => x * factor;
+
+// 名前付き関数だがクロージャである（count を捕捉）
+function makeCounter() {
+    let count = 0;
+    function increment() {  // 名前付き関数
+        return ++count;     // count を捕捉 → クロージャ
+    }
+    return increment;
+}
+```
+
+### Q2: クロージャを使うべき場面とクラスを使うべき場面の判断基準は？
+
+**A:** 以下の基準で判断するとよい。
+
+| 判断基準 | クロージャが適切 | クラスが適切 |
+|---------|----------------|-------------|
+| 操作の数 | 1-3個の操作 | 4個以上の操作 |
+| 状態の複雑さ | 単純（数個の変数） | 複雑（多数のフィールド） |
+| 継承の必要性 | 不要 | 必要 |
+| テストのしやすさ | 純粋関数的なら容易 | モック/スタブが必要 |
+| コールバック | 最適 | 過剰 |
+| 設定の注入 | 部分適用で十分 | DI コンテナが望ましい |
+| チームの慣習 | 関数型スタイル | OOP スタイル |
+
+```javascript
+// クロージャが適切: 単一のコールバック生成
+const createHandler = (eventType) => (event) => {
+    console.log(`${eventType}: ${event.target.id}`);
+};
+
+// クラスが適切: 複雑な状態と多数の操作
+class ShoppingCart {
+    #items = [];
+    #discountRate = 0;
+
+    addItem(item) { /* ... */ }
+    removeItem(id) { /* ... */ }
+    applyDiscount(rate) { /* ... */ }
+    calculateTotal() { /* ... */ }
+    checkout() { /* ... */ }
+    getItems() { /* ... */ }
+    toJSON() { /* ... */ }
+}
+```
+
+### Q3: クロージャはガベージコレクションにどう影響しますか？
+
+**A:** クロージャが生存している限り、捕捉した変数は GC の対象にならない。これは意図的な動作だが、注意しないとメモリリークの原因になる。
+
+主な対策:
+1. **必要な値だけを捕捉する**: 巨大なオブジェクトの一部だけが必要なら、事前に抽出する
+2. **不要になったクロージャへの参照を切る**: イベントリスナーの解除、タイマーのクリアなど
+3. **WeakRef / WeakMap を活用する**: 強い参照を避けたい場合に使う（JavaScript、Python の weakref）
+4. **スコープを最小化する**: クロージャの定義位置をできるだけ内側に移動し、捕捉される変数を減らす
+
+### Q4: async/await とクロージャの関係は？
+
+**A:** `async` 関数は内部的にクロージャとジェネレータ（またはステートマシン）の組み合わせで実現されている。`await` で中断・再開する際、ローカル変数の状態がクロージャのように保存される。
+
+```javascript
+// async/await は内部的にクロージャ的な仕組みで変数を保持
+async function fetchAndProcess(url) {
+    const response = await fetch(url);
+    // ↑ ここで中断される
+    // response はクロージャ的に保存される
+
+    const data = await response.json();
+    // ↑ ここでも中断される
+    // response と data の両方が保存されている
+
+    return processData(data);
+}
+```
+
+### Q5: Rust の move クロージャと通常のクロージャの使い分けは？
+
+**A:** `move` キーワードは、クロージャが捕捉する変数の所有権を強制的にクロージャ内に移動させる。以下の場合に `move` を使う。
+
+1. **クロージャが関数の戻り値になる場合**: ローカル変数への参照が無効になるのを防ぐ
+2. **クロージャを別スレッドに送る場合**: `'static` ライフタイムが要求されるため
+3. **所有権の明示的な移動が必要な場合**: 元のスコープで変数を使わないことを明示
+
+```rust
+use std::thread;
+
+// move が必要: 別スレッドにクロージャを送る
+fn spawn_worker(data: Vec<i32>) -> thread::JoinHandle<i32> {
+    thread::spawn(move || {
+        // move がないと data への参照が無効になる可能性
+        data.iter().sum()
+    })
+}
+```
+
+---
+
+## 11. クロージャの歴史と理論的背景
+
+### 11.1 歴史年表
+
+```
+クロージャの歴史:
+
+  1936  Alonzo Church がラムダ計算を発表
+        → 関数を値として扱う数学的基盤
+
+  1958  Lisp が誕生（John McCarthy）
+        → 最初の関数型プログラミング言語
+        → ただし初期 Lisp はダイナミックスコープ
+
+  1964  Peter Landin が SECD マシンを提案
+        → 「closure」という用語の初出
+        → 関数 + 環境の組み合わせを形式化
+
+  1970  Scheme が誕生（Guy Steele, Gerald Sussman）
+        → Lisp にレキシカルスコープを導入
+        → クロージャの実用化
+
+  1973  ML が誕生（Robin Milner）
+        → 型付きの関数型言語でクロージャを採用
+
+  1987  Haskell の設計開始
+        → 遅延評価とクロージャの組み合わせ
+
+  1995  JavaScript が誕生（Brendan Eich）
+        → Scheme の影響でクロージャを採用
+        → Web 開発でクロージャが広く普及
+
+  2004  Groovy（JVM 上のクロージャ）
+
+  2007  C# 3.0 にラムダ式追加
+
+  2010  Rust 開発開始（クロージャ + 所有権）
+
+  2011  C++11 にラムダ式追加
+
+  2014  Java 8 にラムダ式追加
+        Swift が誕生（クロージャを中核機能に）
+
+  2015  ES6（JavaScript）でアロー関数追加
+```
+
+### 11.2 ラムダ計算との関係
+
+クロージャの理論的基盤はラムダ計算（lambda calculus）にある。ラムダ計算では、すべての計算を「関数の定義」と「関数の適用」だけで表現する。
+
+```
+ラムダ計算の基本:
+
+  ラムダ抽象:  λx.M     （x を引数とする関数、本体は M）
+  関数適用:    (M N)     （M に N を適用）
+  変数:        x         （変数参照）
+
+  例: 加算関数
+    λx.λy.(x + y)        二引数関数
+    (λx.λy.(x + y)) 3    部分適用 → λy.(3 + y)
+    ((λx.λy.(x + y)) 3) 5  完全適用 → 8
+
+  クロージャとの対応:
+    λx.λy.(x + y)  →  const add = (x) => (y) => x + y;
+    部分適用       →  const add3 = add(3);  // y => 3 + y
+    完全適用       →  add3(5);              // 8
+```
+
+---
+
+## 12. まとめ
+
+### 12.1 総合比較表
+
+| 言語 | クロージャの捕捉 | 可変捕捉 | 特徴 | 主な用途 |
+|------|---------------|---------|------|---------|
+| JavaScript | 参照（自動） | 可能 | 最も自然に使える | コールバック、モジュール |
+| Python | 参照（自動） | nonlocal 必要 | ループ変数の罠 | デコレータ、高階関数 |
+| Rust | 借用/移動 | FnMut で可能 | 所有権と統合、最も安全 | イテレータ、並行処理 |
+| Go | 参照（自動） | 可能 | シンプル | goroutine、ミドルウェア |
+| Java | 値コピー | 不可（effectively final） | 制限的 | Stream API、コールバック |
+| C++ | 値 or 参照（指定） | mutable で可能 | 最も細かい制御 | STL アルゴリズム |
+| Swift | 参照（自動） | 可能 | ARC との統合 | 非同期処理、UIイベント |
+
+### 12.2 設計判断のフローチャート
+
+```
+クロージャの採用判断:
+
+  状態を持つ振る舞いが必要？
+    │
+    ├─ No → 通常の関数で十分
+    │
+    └─ Yes → 操作は何個？
+              │
+              ├─ 1-2個 → クロージャが最適
+              │           例: コールバック、フィルタ条件
+              │
+              ├─ 3-5個 → クロージャ or 小さなクラス
+              │           チームの慣習に合わせる
+              │
+              └─ 6個以上 → クラスが適切
+                            状態管理が複雑すぎる
+
+  追加の考慮事項:
+    - テスタビリティ: 純粋関数的に書けるならクロージャ
+    - 再利用性: 継承やインターフェースが必要ならクラス
+    - パフォーマンス: ホットパスでは不要なクロージャ生成を避ける
+    - チームのスキル: 関数型に慣れたチームならクロージャ寄り
+```
+
+### 12.3 重要ポイントの復習
+
+1. **クロージャ = 関数 + 環境**: 自由変数への束縛を関数と一緒に保持する仕組み
+2. **レキシカルスコープ**: クロージャは定義時のスコープを参照する（呼び出し時ではない）
+3. **言語ごとの違い**: 捕捉方式（参照 vs 値 vs 所有権）が言語によって大きく異なる
+4. **実践パターン**: メモ化、カリー化、モジュールパターン、デバウンス/スロットル
+5. **メモリへの影響**: 不要なクロージャへの参照を切ること、必要な値だけを捕捉すること
+6. **双対性**: クロージャとオブジェクトは本質的に同等の表現力を持つ
+
+---
+
+## 次に読むべきガイド
+
+- [[02-higher-order-functions.md]] -- 高階関数とクロージャの組み合わせ
+- [[03-recursion.md]] -- 再帰とクロージャによるメモ化の応用
+- [[04-lambda-calculus.md]] -- ラムダ計算の理論的基盤
+
+---
+
+## 参考文献
+
+1. Abelson, H. & Sussman, G. J. *Structure and Interpretation of Computer Programs (SICP)*. Ch.3 "Modularity, Objects, and State," MIT Press, 1996. -- クロージャによる状態管理の古典的解説。環境モデルの詳細な説明が含まれる。
+2. Klabnik, S. & Nichols, C. *The Rust Programming Language*. Ch.13 "Functional Language Features: Iterators and Closures," No Starch Press, 2023. -- Rust の Fn/FnMut/FnOnce トレイトと所有権システムの統合について。
+3. Crockford, D. *JavaScript: The Good Parts*. O'Reilly Media, 2008. -- JavaScript におけるクロージャとモジュールパターンの実践的解説。
+4. Landin, P. J. "The Mechanical Evaluation of Expressions." *The Computer Journal*, Vol.6, No.4, pp.308-320, 1964. -- 「closure」という用語が最初に使われた論文。SECD マシンの文脈で環境と関数の組み合わせを形式化。
+5. Sussman, G. J. & Steele, G. L. "Scheme: An Interpreter for Extended Lambda Calculus." *MIT AI Memo 349*, 1975. -- Lisp にレキシカルスコープを導入し、クロージャを実用化した画期的な論文。
+6. Friedman, D. P. & Wand, M. *Essentials of Programming Languages*. 3rd Edition, MIT Press, 2008. -- プログラミング言語の意味論におけるクロージャの位置づけ。環境渡しインタプリタの構築を通じた理解。
+

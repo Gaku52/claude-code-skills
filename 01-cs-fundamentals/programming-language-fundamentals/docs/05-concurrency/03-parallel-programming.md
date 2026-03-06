@@ -1602,3 +1602,786 @@ public class PaddedCounters {
     }
 }
 ```
+
+---
+
+## 8. 並列処理の比較表
+
+### 8.1 言語別並列処理機能の比較
+
+| 特性 | Rust (rayon) | Go (goroutine) | Python (multiprocessing) | Java (ForkJoinPool) | C++ (std::execution) |
+|------|-------------|----------------|-------------------------|--------------------|--------------------|
+| 並列の単位 | ワークスティーリング | goroutine + OS スレッド | OSプロセス | ForkJoinTask | OS スレッド |
+| データ並列API | `par_iter()` | 手動分割 | `Pool.map()` | `parallelStream()` | `std::execution::par` |
+| タスク並列API | `rayon::join` | `errgroup` | `ProcessPoolExecutor` | `CompletableFuture` | `std::async` |
+| メモリモデル | 所有権で安全保証 | CSPモデル | プロセス分離 | Java Memory Model | C++ Memory Model |
+| データ競合防止 | コンパイル時検出 | race detector | プロセス分離 | synchronized/volatile | 手動管理 |
+| GIL問題 | なし | なし | あり(CPUバウンド) | なし | なし |
+| オーバーヘッド | 低い | 低い | 高い(プロセス生成) | 中程度 | 低い |
+| 学習曲線 | 急(所有権) | 緩やか | 緩やか | 中程度 | 急(UB) |
+| 適用領域 | システム/HPC | ネットワーク/サーバー | データサイエンス | エンタープライズ | システム/HPC |
+
+### 8.2 並列パターンの使い分け
+
+| パターン | 適用条件 | 典型的なユースケース | スケーラビリティ | 実装の複雑さ |
+|---------|---------|-------------------|----------------|------------|
+| データ並列 | 同じ処理を大量データに適用 | 画像処理、行列演算、バッチ変換 | 非常に高い | 低い |
+| タスク並列 | 異なる独立した処理が存在 | ダッシュボード読込、マイクロサービス集約 | 中程度(タスク数依存) | 中程度 |
+| MapReduce | 大規模データの集計・変換 | ログ解析、単語カウント、分散集計 | 非常に高い | 中程度 |
+| Fork-Join | 再帰的に分割可能な問題 | マージソート、クイックソート、木の走査 | 高い | 中程度 |
+| Pipeline | 多段処理のスループット向上 | ETLパイプライン、ストリーム処理、動画エンコード | 高い(ステージ数依存) | 高い |
+| Producer-Consumer | 生成と消費の速度差を吸収 | ジョブキュー、イベント処理 | 中程度 | 中程度 |
+| Work Stealing | 動的な負荷分散 | 不均一なタスクの並列処理 | 非常に高い | 高い |
+
+### 8.3 並列化判断フローチャート
+
+```
+================================================================
+  並列化の判断フロー
+================================================================
+
+  処理が遅い
+    │
+    ├─ アルゴリズムは最適か？ ─→ No ─→ まずアルゴリズムを改善
+    │                                   （O(n^2) → O(n log n) など）
+    v Yes
+    │
+    ├─ I/Oバウンドか？ ─→ Yes ─→ 非同期I/O (async/await) を検討
+    │                            → 02-async-programming.md 参照
+    v No (CPUバウンド)
+    │
+    ├─ 並列化可能率は十分か？ ─→ No (<50%) ─→ 逐次部分の最適化を優先
+    │  (アムダールの法則)                       SIMD最適化を検討
+    v Yes (>75%)
+    │
+    ├─ データは独立に分割可能か？
+    │  │
+    │  ├─ Yes ─→ データ並列
+    │  │         ├─ Rust: rayon par_iter
+    │  │         ├─ Java: parallel stream
+    │  │         ├─ Python: multiprocessing.Pool
+    │  │         └─ C++: std::execution::par
+    │  │
+    │  └─ No ─→ タスク間に依存関係がある
+    │           │
+    │           ├─ 再帰的に分割可能？ ─→ Fork-Join
+    │           ├─ 多段処理？ ─→ Pipeline
+    │           └─ 独立タスクの集合？ ─→ タスク並列
+    │
+    v
+    性能を測定し、効率 E を確認
+    │
+    ├─ E > 0.7 ─→ 良好。運用開始
+    ├─ 0.5 < E < 0.7 ─→ 偽共有やロック競合を調査
+    └─ E < 0.5 ─→ 並列化のアプローチを再検討
+================================================================
+```
+
+---
+
+## 9. アンチパターン
+
+### 9.1 アンチパターン1: 過度な並列化（並列化のやりすぎ）
+
+```
+================================================================
+  ANTI-PATTERN: 小さすぎるタスクの並列化
+================================================================
+
+  問題:
+  並列化にはオーバーヘッドがある（スレッド生成、タスク分配、
+  同期、結果集約）。タスクが小さすぎると、オーバーヘッドが
+  実際の計算時間を上回り、逆に遅くなる。
+================================================================
+```
+
+```python
+# ================================================================
+# ANTI-PATTERN: 小さなタスクの過度な並列化
+# ================================================================
+
+from concurrent.futures import ProcessPoolExecutor
+import multiprocessing as mp
+
+# BAD: 1要素ずつプロセスに分配
+# プロセス生成コスト >> 計算コスト
+def bad_parallel():
+    with ProcessPoolExecutor(max_workers=4) as executor:
+        # 各要素をプロセス間通信で送受信 → 激遅
+        results = list(executor.map(
+            lambda x: x * 2,  # 極めて軽い計算
+            range(10000)
+        ))
+    return results
+
+# GOOD: チャンク単位で分配
+def good_parallel():
+    def process_chunk(chunk):
+        return [x * 2 for x in chunk]
+
+    data = list(range(10000))
+    n_workers = mp.cpu_count()
+    chunk_size = len(data) // n_workers
+    chunks = [data[i:i+chunk_size]
+              for i in range(0, len(data), chunk_size)]
+
+    with ProcessPoolExecutor(max_workers=n_workers) as executor:
+        results = list(executor.map(process_chunk, chunks))
+    return [x for chunk in results for x in chunk]
+
+# BEST: そもそも並列化しない（この規模なら逐次が最速）
+def best_sequential():
+    return [x * 2 for x in range(10000)]
+```
+
+```
+  並列化の経験則:
+  ┌──────────────────────────────────────────────────────┐
+  │ タスクの粒度    │ 推奨アプローチ                       │
+  ├──────────────────────────────────────────────────────┤
+  │ < 1us          │ 並列化しない（SIMD検討）              │
+  │ 1us - 100us    │ データ並列（大きなチャンクで分割）     │
+  │ 100us - 10ms   │ 並列化効果あり                        │
+  │ > 10ms         │ 積極的に並列化                        │
+  └──────────────────────────────────────────────────────┘
+```
+
+### 9.2 アンチパターン2: 共有可変状態への無防備なアクセス
+
+```
+================================================================
+  ANTI-PATTERN: 共有変数への非同期アクセス
+================================================================
+
+  問題:
+  複数のスレッドから共有変数にロックなしで読み書きすると、
+  データ競合（Data Race）が発生し、結果が不定になる。
+  さらに厄介なことに、テストでは再現しにくく、
+  本番環境で稀にしか発生しないことがある。
+================================================================
+```
+
+```go
+// ================================================================
+// ANTI-PATTERN: 共有可変状態への無防備なアクセス
+// ================================================================
+
+package main
+
+import (
+    "fmt"
+    "sync"
+    "sync/atomic"
+)
+
+// BAD: データ競合（go run -race で検出可能）
+func badSharedState() {
+    counter := 0
+    var wg sync.WaitGroup
+    for i := 0; i < 1000; i++ {
+        wg.Add(1)
+        go func() {
+            defer wg.Done()
+            counter++ // DATA RACE: 非原子的な read-modify-write
+        }()
+    }
+    wg.Wait()
+    // counter は 1000 にならない可能性がある
+    fmt.Println("BAD counter:", counter)
+}
+
+// GOOD: Mutex で保護
+func goodWithMutex() {
+    counter := 0
+    var mu sync.Mutex
+    var wg sync.WaitGroup
+    for i := 0; i < 1000; i++ {
+        wg.Add(1)
+        go func() {
+            defer wg.Done()
+            mu.Lock()
+            counter++
+            mu.Unlock()
+        }()
+    }
+    wg.Wait()
+    fmt.Println("GOOD counter (mutex):", counter) // 常に 1000
+}
+
+// BEST: アトミック操作（カウンタには最適）
+func bestWithAtomic() {
+    var counter atomic.Int64
+    var wg sync.WaitGroup
+    for i := 0; i < 1000; i++ {
+        wg.Add(1)
+        go func() {
+            defer wg.Done()
+            counter.Add(1)
+        }()
+    }
+    wg.Wait()
+    fmt.Println("BEST counter (atomic):", counter.Load()) // 常に 1000
+}
+
+// ALSO GOOD: チャネルで集約（Go のイディオム）
+func goodWithChannel() {
+    results := make(chan int, 1000)
+    var wg sync.WaitGroup
+    for i := 0; i < 1000; i++ {
+        wg.Add(1)
+        go func() {
+            defer wg.Done()
+            results <- 1
+        }()
+    }
+
+    go func() {
+        wg.Wait()
+        close(results)
+    }()
+
+    counter := 0
+    for v := range results {
+        counter += v
+    }
+    fmt.Println("GOOD counter (channel):", counter) // 常に 1000
+}
+```
+
+### 9.3 アンチパターン3: 不均一な負荷分散
+
+```
+================================================================
+  ANTI-PATTERN: 静的分割による負荷不均衡
+================================================================
+
+  問題:
+  データを均等に分割しても、各チャンクの処理時間が異なると
+  最も遅いワーカーが全体の完了時間を決定してしまう。
+
+  例: 画像の領域分割（空白領域は高速、複雑な領域は低速）
+
+  静的分割:
+  Core 0: [簡単] ■■░░░░░░  完了 → 待機...
+  Core 1: [普通] ■■■■░░░░  完了 → 待機...
+  Core 2: [複雑] ■■■■■■■░  完了 → 待機
+  Core 3: [超複雑] ■■■■■■■■■■■■  ← ボトルネック
+
+  動的分割（ワークスティーリング）:
+  Core 0: [簡単][追加1][追加2]  ■■■■■■■░
+  Core 1: [普通][追加3]         ■■■■■■░░
+  Core 2: [複雑]               ■■■■■■■░
+  Core 3: [超複雑の前半]        ■■■■■■■░
+
+  → 各コアがほぼ同時に完了
+================================================================
+```
+
+---
+
+## 10. 演習問題
+
+### 10.1 初級: 並列集計
+
+```
+================================================================
+  演習1（初級）: 並列による配列集計
+================================================================
+
+  課題:
+  100万個の整数配列に対して、以下を並列で計算せよ:
+  1. 合計値
+  2. 最大値
+  3. 最小値
+  4. 平均値
+
+  要件:
+  - 好きな言語を1つ選択する
+  - 逐次版と並列版の両方を実装する
+  - 並列版はデータ並列パターンを使用する
+
+  ヒント:
+  - Rust: rayon の par_iter() + reduce()
+  - Python: multiprocessing.Pool.map() でチャンク分割
+  - Go: goroutine + channel で部分結果を集約
+  - Java: parallelStream() + Collectors
+
+  検証ポイント:
+  - 逐次版と並列版で同じ結果が得られることを確認
+  - コア数を変えて速度を比較し、効率 E を算出
+================================================================
+```
+
+### 10.2 中級: パイプライン処理
+
+```
+================================================================
+  演習2（中級）: パイプラインによるログ解析
+================================================================
+
+  課題:
+  大量のログファイルを以下のパイプラインで処理せよ:
+
+  Stage 1: ファイル読み込み（行単位で出力）
+  Stage 2: パース（タイムスタンプ、レベル、メッセージに分割）
+  Stage 3: フィルタ（ERROR レベルのみ抽出）
+  Stage 4: 集計（エラーメッセージ別の件数を出力）
+
+  要件:
+  - 各ステージを独立したgoroutine/スレッドとして実装
+  - ステージ間はチャネル/キューで接続
+  - バックプレッシャー機構を実装（バッファ付きチャネル）
+  - キャンセル機構を実装（Context/CancellationToken）
+
+  発展:
+  - Stage 2 を Fan-Out で並列化（複数ワーカー）
+  - 処理件数のリアルタイム表示を追加
+  - タイムアウト付きの graceful shutdown を実装
+
+  評価基準:
+  - 各ステージが独立して動作すること
+  - メモリ使用量が一定に保たれること（ストリーム処理）
+  - エラーハンドリングが適切であること
+================================================================
+```
+
+### 10.3 上級: 並列マージソートの最適化
+
+```
+================================================================
+  演習3（上級）: 適応的な並列マージソート
+================================================================
+
+  課題:
+  Fork-Join パターンを用いた並列マージソートを実装し、
+  以下の最適化を施せ:
+
+  基本実装:
+  1. 配列を再帰的に半分に分割
+  2. サブ配列が閾値以下なら逐次ソート（insertion sort）
+  3. 分割されたタスクを並列実行（Fork）
+  4. ソート済みサブ配列をマージ（Join）
+
+  最適化要件:
+  A) 閾値の自動チューニング
+     - コア数とデータサイズから最適な閾値を決定
+     - 閾値が小さすぎる → タスク生成オーバーヘッド
+     - 閾値が大きすぎる → 並列度が不足
+
+  B) キャッシュ最適化
+     - マージ時のバッファ再利用（メモリアロケーション削減）
+     - キャッシュラインを意識したデータアクセス
+
+  C) 負荷分散
+     - 再帰の深さに応じて並列/逐次を切り替え
+     - ワークスティーリングの活用
+
+  評価基準:
+  - 1000万要素で、逐次版の 3倍以上の高速化（4コア以上）
+  - メモリ使用量が O(n) 以下
+  - 全てのコア数 (1,2,4,8) で正しい結果を出力
+  - 並列化効率 E > 0.6 を達成
+================================================================
+```
+
+---
+
+## 11. 並列デバッグとプロファイリング
+
+### 11.1 データ競合の検出
+
+```
+================================================================
+  データ競合の検出ツール
+================================================================
+
+  Go: Race Detector
+  ──────────────────
+  $ go run -race main.go
+  $ go test -race ./...
+
+  → 実行時にデータ競合を検出し、詳細なスタックトレースを表示
+  → CI/CD に組み込むのが標準的なプラクティス
+
+  Rust: コンパイル時検出
+  ──────────────────────
+  - 所有権システムがデータ競合をコンパイル時に防止
+  - Send/Sync トレイトで安全性を型レベルで保証
+  - unsafe を使わない限り、データ競合は原理的に発生しない
+
+  C/C++: ThreadSanitizer (TSan)
+  ─────────────────────────────
+  $ clang++ -fsanitize=thread -g program.cpp -o program
+  $ ./program
+
+  → LLVM ベースのデータ競合検出器
+  → 実行時オーバーヘッドは約 5-15x
+
+  Java: jcmd / JFR
+  ─────────────────
+  $ jcmd <pid> Thread.print    # スレッドダンプ
+  $ jcmd <pid> JFR.start       # Flight Recorder 開始
+
+  Python: 並列処理のデバッグ
+  ─────────────────────────
+  - multiprocessing はプロセス分離のため、データ競合は発生しにくい
+  - threading では GIL があるが、I/O操作中は競合の可能性あり
+  - cProfile / py-spy でプロファイリング
+================================================================
+```
+
+### 11.2 性能分析の手法
+
+```
+================================================================
+  並列処理の性能分析チェックリスト
+================================================================
+
+  1. 並列化前のベースライン測定
+     □ 逐次実行時間を計測
+     □ CPU使用率を確認（1コアのみ100%か）
+     □ メモリ使用量を確認
+
+  2. 並列化後の測定
+     □ 高速化率 = 逐次時間 / 並列時間
+     □ 効率 = 高速化率 / コア数
+     □ CPU使用率（全コアが使われているか）
+
+  3. ボトルネックの特定
+     □ ロック競合（mutex contention）
+     □ 偽共有（perf stat で L1 cache miss を確認）
+     □ メモリ帯域の飽和
+     □ タスクの不均衡（一部コアが遊んでいないか）
+     □ GCによる一時停止（Java, Go）
+
+  4. スケーリング測定
+     □ コア数 1, 2, 4, 8, 16 での性能をプロット
+     □ アムダールの法則の予測値と比較
+     □ 効率が急落するポイントを特定
+
+  推奨ツール:
+  ┌───────────────┬─────────────────────────────────┐
+  │ Linux         │ perf, htop, flamegraph          │
+  │ macOS         │ Instruments, Activity Monitor   │
+  │ Rust          │ criterion (ベンチマーク)          │
+  │ Go            │ pprof, trace                    │
+  │ Java          │ JFR, async-profiler             │
+  │ Python        │ cProfile, py-spy                │
+  │ C++           │ Valgrind (Helgrind), VTune      │
+  └───────────────┴─────────────────────────────────┘
+================================================================
+```
+
+---
+
+## 12. 実世界の適用事例
+
+### 12.1 画像処理の並列化
+
+```rust
+// ================================================================
+// Rust: 画像フィルタの並列適用
+// ================================================================
+
+use rayon::prelude::*;
+
+struct Image {
+    width: usize,
+    height: usize,
+    pixels: Vec<u8>,  // RGBA: 4 bytes per pixel
+}
+
+impl Image {
+    /// ガウシアンブラーを並列適用
+    fn parallel_blur(&self, radius: usize) -> Image {
+        let mut output = vec![0u8; self.pixels.len()];
+        let kernel = create_gaussian_kernel(radius);
+
+        // 行ごとに並列処理（データ並列）
+        output
+            .par_chunks_mut(self.width * 4)
+            .enumerate()
+            .for_each(|(y, row)| {
+                for x in 0..self.width {
+                    let (r, g, b, a) = apply_kernel(
+                        &self.pixels,
+                        self.width,
+                        self.height,
+                        x, y,
+                        &kernel,
+                        radius,
+                    );
+                    let idx = x * 4;
+                    row[idx] = r;
+                    row[idx + 1] = g;
+                    row[idx + 2] = b;
+                    row[idx + 3] = a;
+                }
+            });
+
+        Image {
+            width: self.width,
+            height: self.height,
+            pixels: output,
+        }
+    }
+
+    /// 複数のフィルタをパイプラインで適用
+    fn apply_filters(&self) -> Image {
+        // 各フィルタは前のフィルタの結果に依存するため
+        // フィルタ内をデータ並列化する
+        let blurred = self.parallel_blur(3);
+        let sharpened = blurred.parallel_sharpen();
+        let adjusted = sharpened.parallel_brightness(1.2);
+        adjusted
+    }
+}
+```
+
+### 12.2 Web サーバーでのバッチ処理
+
+```go
+// ================================================================
+// Go: API レスポンスの並列集約
+// ================================================================
+
+package main
+
+import (
+    "context"
+    "fmt"
+    "sync"
+    "time"
+)
+
+type Product struct {
+    ID          int
+    Name        string
+    Price       float64
+    Reviews     []Review
+    Inventory   int
+    Recommended []Product
+}
+
+// 並列度制限付きバッチ処理
+func enrichProducts(ctx context.Context,
+                    products []Product) ([]Product, error) {
+    const maxConcurrency = 20
+    sem := make(chan struct{}, maxConcurrency)
+
+    var (
+        mu       sync.Mutex
+        enriched = make([]Product, len(products))
+        errs     []error
+    )
+
+    var wg sync.WaitGroup
+    for i, p := range products {
+        i, p := i, p
+        wg.Add(1)
+
+        sem <- struct{}{} // セマフォ獲得
+
+        go func() {
+            defer wg.Done()
+            defer func() { <-sem }() // セマフォ解放
+
+            // 各商品に対して3つの外部呼び出しを並列実行
+            result, err := enrichSingleProduct(ctx, p)
+
+            mu.Lock()
+            if err != nil {
+                errs = append(errs, err)
+            } else {
+                enriched[i] = result
+            }
+            mu.Unlock()
+        }()
+    }
+
+    wg.Wait()
+
+    if len(errs) > 0 {
+        return nil, fmt.Errorf("%d errors occurred", len(errs))
+    }
+    return enriched, nil
+}
+
+func enrichSingleProduct(ctx context.Context,
+                         p Product) (Product, error) {
+    ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+    defer cancel()
+
+    type reviewResult struct {
+        reviews []Review
+        err     error
+    }
+    type inventoryResult struct {
+        count int
+        err   error
+    }
+    type recommendResult struct {
+        products []Product
+        err      error
+    }
+
+    reviewCh := make(chan reviewResult, 1)
+    inventoryCh := make(chan inventoryResult, 1)
+    recommendCh := make(chan recommendResult, 1)
+
+    go func() {
+        reviews, err := fetchReviews(ctx, p.ID)
+        reviewCh <- reviewResult{reviews, err}
+    }()
+    go func() {
+        count, err := checkInventory(ctx, p.ID)
+        inventoryCh <- inventoryResult{count, err}
+    }()
+    go func() {
+        recs, err := getRecommendations(ctx, p.ID)
+        recommendCh <- recommendResult{recs, err}
+    }()
+
+    rr := <-reviewCh
+    ir := <-inventoryCh
+    rcr := <-recommendCh
+
+    if rr.err != nil {
+        return p, rr.err
+    }
+
+    p.Reviews = rr.reviews
+    p.Inventory = ir.count
+    p.Recommended = rcr.products
+    return p, nil
+}
+```
+
+---
+
+## 13. FAQ（よくある質問）
+
+### Q1: 並列化はいつ検討すべきか?
+
+**A:** 以下の条件を全て満たす場合に並列化を検討する。
+
+1. **処理がCPUバウンド**: CPU使用率が高く、I/O待ちが少ない。I/Oバウンドなら非同期I/O（async/await）のほうが効果的である。
+2. **処理時間が十分長い**: 1回の処理が数百ミリ秒以上かかる。短い処理は並列化のオーバーヘッドで逆に遅くなる。
+3. **データまたはタスクが分割可能**: 処理を独立した部分に分けられる。依存関係が強い処理は並列化が困難である。
+4. **逐次最適化が済んでいる**: アルゴリズム改善やメモリ最適化など、シングルスレッドでの最適化を先に行うべきである。
+
+判断の目安として、アムダールの法則で並列化可能率を見積もり、75%以上あれば並列化の効果が期待できる。
+
+### Q2: スレッドプールのサイズはどう決めるべきか?
+
+**A:** タスクの特性によって異なる。
+
+- **CPUバウンドタスク**: `スレッド数 = 物理コア数`。ハイパースレッディングの効果はワークロードに依存する。論理コア数にしても改善は限定的な場合が多い。
+- **I/Oバウンドタスク**: `スレッド数 = コア数 * (1 + 待ち時間/処理時間)`。I/O待ちが長ければ多くのスレッドを使える。
+- **混在タスク**: CPUバウンド用とI/Oバウンド用で別々のスレッドプールを用意するのが推奨される。
+
+Java の `ForkJoinPool` や Rust の `rayon` はデフォルトで論理コア数のスレッドを作成するが、これは多くの場合において適切な値である。
+
+### Q3: Pythonで本当に並列処理は可能か?
+
+**A:** GIL（Global Interpreter Lock）の制約があるため、`threading` モジュールではCPUバウンドな真の並列実行はできない。しかし以下の方法で並列処理は実現可能である。
+
+1. **`multiprocessing`**: プロセスを分離することでGILを回避。各プロセスが独自のPythonインタープリタとメモリ空間を持つ。プロセス間通信のオーバーヘッドがある。
+2. **`concurrent.futures.ProcessPoolExecutor`**: `multiprocessing` の高水準ラッパー。使いやすいAPIを提供する。
+3. **NumPy/SciPy**: 内部はC/Fortranで実装されており、BLAS/LAPACK経由で自動的にマルチスレッド並列化される。GILはネイティブコード実行中に解放される。
+4. **Cython / C拡張**: GILを明示的に解放してネイティブスレッドで並列実行可能。
+5. **Python 3.13+ (Free-threaded CPython)**: GILを無効化するビルドオプションが実験的に導入されている。将来的にはスレッドベースの並列処理も可能になる見込みである。
+
+### Q4: ロックフリーデータ構造は常にロックベースより高速か?
+
+**A:** 必ずしもそうではない。ロックフリーの利点は「デッドロックの回避」と「高競合時のスケーラビリティ」であるが、以下の場合にはロックベースのほうが優れることがある。
+
+- **競合が少ない場合**: ロックの獲得/解放コストは非常に低い（数十ナノ秒）。競合が稀ならロックベースが単純で高速である。
+- **複雑な操作が必要な場合**: ロックフリーで実現可能な操作は限定的。複数の値を一貫して更新する場合はロックが必要である。
+- **CAS（Compare-And-Swap）のリトライが多い場合**: 高競合時にCASの失敗とリトライが頻発し、CPUサイクルを浪費する。
+
+一般的な指針として、単純なカウンタやフラグにはアトミック操作を使い、複雑なデータ構造にはロック（`Mutex` / `RwLock`）を使うのが推奨される。
+
+### Q5: GPUの並列処理との違いは何か?
+
+**A:** CPUとGPUは並列処理のアーキテクチャが根本的に異なる。
+
+| 特性 | CPU並列 | GPU並列 |
+|------|--------|--------|
+| コア数 | 4-128コア | 数千コア |
+| コアの能力 | 高性能（複雑な処理が可能） | 単純（同じ処理を大量に） |
+| メモリ | 大容量・低遅延 | 高帯域・高遅延 |
+| 分岐処理 | 高効率 | 低効率（ワープ分岐） |
+| 適用領域 | 汎用 | 行列演算、画像処理、ML |
+| プログラミング | 標準言語 | CUDA, OpenCL, Metal |
+
+GPUは「同じ簡単な処理を膨大なデータに適用する」場合（SIMT: Single Instruction, Multiple Threads）に最適であり、本章で扱うCPU並列は「複雑で多様な処理を少数のコアで高速に実行する」場合に最適である。
+
+---
+
+## 14. まとめ
+
+### 14.1 章全体の要点
+
+| パターン | 用途 | 代表技術 | スケーラビリティ |
+|---------|------|---------|----------------|
+| データ並列 | 同じ処理を大量データに | Rayon, NumPy, CUDA, parallel stream | 非常に高い |
+| タスク並列 | 異なる処理を同時に | goroutine, tokio::join!, std::async | タスク数に依存 |
+| MapReduce | 分散データ処理 | Hadoop, Spark, rayon fold+reduce | 非常に高い |
+| Fork-Join | 再帰的分割統治 | ForkJoinPool, rayon::join | 高い |
+| Pipeline | 多段処理のスループット向上 | Go channel, Unix pipe | ステージ数に依存 |
+| アトミック | ロックフリーカウンタ/フラグ | atomic, sync/atomic | 非常に高い |
+
+### 14.2 設計判断の指針
+
+```
+================================================================
+  並列プログラミングの原則
+================================================================
+
+  1. 計測してから最適化する
+     - 推測で並列化しない
+     - プロファイラでボトルネックを特定してから着手
+
+  2. 最も単純な方法を選ぶ
+     - まず逐次アルゴリズムを最適化
+     - 次にデータ並列（par_iter / parallel stream）
+     - ロックフリーは最後の手段
+
+  3. 共有状態を最小化する
+     - メッセージパッシングを優先
+     - 不変データを活用
+     - 所有権を明確にする
+
+  4. 粒度を適切に設定する
+     - タスクが小さすぎ → オーバーヘッドで遅くなる
+     - タスクが大きすぎ → 負荷が偏る
+     - ワークスティーリングで動的に調整
+
+  5. 正しさを最優先する
+     - 高速だが不正確なプログラムに価値はない
+     - データ競合検出ツールをCIに組み込む
+     - テストでは -race フラグを常に有効にする
+================================================================
+```
+
+---
+
+## 15. 次に読むべきガイド
+
+- [[01-threads-and-processes.md]] -- スレッドとプロセスの基礎
+- [[02-async-programming.md]] -- 非同期プログラミング（I/Oバウンド向け）
+- [[04-synchronization.md]] -- 同期プリミティブの詳細
+- [[../06-language-comparison/00-scripting-languages.md]] -- 言語比較
+
+---
+
+## 16. 参考文献
+
+1. Herlihy, M. & Shavit, N. "The Art of Multiprocessor Programming." 2nd Edition, Morgan Kaufmann, 2020. -- 並列プログラミングの理論と実践を包括的に解説する名著。ロックフリーデータ構造の理論的基盤を提供する。
+2. McCool, M., Reinders, J. & Robison, A. "Structured Parallel Programming: Patterns for Efficient Computation." Morgan Kaufmann, 2012. -- MapReduce, Fork-Join, Pipeline などの並列パターンを体系的に整理した教科書。Intel TBBの設計者による解説。
+3. Williams, A. "C++ Concurrency in Action." 2nd Edition, Manning, 2019. -- C++のメモリモデル、アトミック操作、並列アルゴリズムを詳細に解説。他言語にも応用可能な低レベルの知識を提供する。
+4. "Rayon: data-parallelism library for Rust." github.com/rayon-rs/rayon -- Rustのデータ並列ライブラリ。ワークスティーリングスケジューラの参考実装としても価値がある。
+5. Amdahl, G. M. "Validity of the Single Processor Approach to Achieving Large Scale Computing Capabilities." AFIPS Conference Proceedings, 1967. -- アムダールの法則の原論文。並列化の限界を数学的に定式化した歴史的文献。
+6. Gustafson, J. L. "Reevaluating Amdahl's Law." Communications of the ACM, 1988. -- グスタフソンの法則を提唱した論文。アムダールの法則の前提（固定問題サイズ）を再検討し、スケールアップの観点を導入した。
+7. Pike, R. "Concurrency is not Parallelism." Talk at Waza Conference, 2012. -- Goの設計者による、並行と並列の違いを明確に説明した講演。概念の理解に最適な入門資料。

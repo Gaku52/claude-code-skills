@@ -1488,3 +1488,439 @@ Step 3:
       Haskell では再帰束縛の特別な規則で対処する。
 ```
 
+---
+
+## 9. FAQ（よくある質問）
+
+### Q1: 型推論があるなら、なぜ全ての言語が Haskell のように型注釈を不要にしないのか？
+
+**A**: 3つの主要な理由がある。
+
+**理由1: サブタイピングとの非互換性**
+
+Hindley-Milner 型推論は、サブタイピング（継承やインターフェース実装による型の包含関係）がある型システムでは完全には動作しない。Java, TypeScript, Kotlin のようなオブジェクト指向言語では、`Dog extends Animal` のような関係があり、これが主型性を破壊する。
+
+```
+例: サブタイピングが主型性を壊す場面
+================================================================
+
+class Animal { move() { ... } }
+class Dog extends Animal { bark() { ... } }
+class Cat extends Animal { meow() { ... } }
+
+function example(x) {
+    x.move();  // x の型は？
+}
+
+候補:
+  - Animal（最も一般的）
+  - Dog（bark も使えるかもしれない）
+  - Cat（meow も使えるかもしれない）
+  - Animal & Serializable（他のインターフェースも？）
+
+HM推論では「最も一般的な型」が一意に決まるが、
+サブタイピングがあると「最も一般的」の定義が曖昧になる。
+
+================================================================
+```
+
+**理由2: 可読性とドキュメンテーション**
+
+公開APIの型注釈はドキュメントとしての役割を果たす。型注釈がなければ、関数のシグネチャを理解するために実装を読む必要がある。大規模プロジェクトでは、型注釈による明示性が保守性を大きく向上させる。
+
+**理由3: コンパイル時間**
+
+グローバルな型推論は、プログラム全体を解析する必要があるため、コンパイル時間が増大する。ローカル型推論（関数境界で型を明示）は、各関数を独立にコンパイルできるため、差分コンパイルが効率的になる。
+
+### Q2: TypeScript の `as const` と通常の型推論はどう違うのか？
+
+**A**: 通常の型推論は「型の拡大（widening）」を行うが、`as const` はリテラル型を保持する。
+
+```typescript
+// 通常の推論（型が拡大される）
+const config = {
+    method: "GET",        // method: string（リテラル型が string に拡大）
+    retries: 3,           // retries: number
+    endpoints: ["/a", "/b"] // endpoints: string[]
+};
+// config: { method: string; retries: number; endpoints: string[] }
+
+// as const（型が拡大されない）
+const config = {
+    method: "GET",        // method: "GET"（リテラル型を保持）
+    retries: 3,           // retries: 3
+    endpoints: ["/a", "/b"] // endpoints: readonly ["/a", "/b"]
+} as const;
+// config: {
+//   readonly method: "GET";
+//   readonly retries: 3;
+//   readonly endpoints: readonly ["/a", "/b"];
+// }
+
+// as const が有用な場面: 判別共用体のタグ
+const actions = {
+    increment: { type: "INCREMENT" as const, payload: 1 },
+    decrement: { type: "DECREMENT" as const, payload: 1 },
+};
+// type フィールドがリテラル型になり、判別共用体として使える
+```
+
+```
+型の拡大（Widening）と型の絞り込み（Narrowing）
+================================================================
+
+拡大（Widening）: リテラル → 一般型
+  42        --> number
+  "hello"   --> string
+  true      --> boolean
+  [1,2,3]   --> number[]
+
+  ※ let で宣言した場合に発生
+  ※ const で宣言するとリテラル型が保持される
+
+絞り込み（Narrowing）: 一般型 → 具体型
+  string | number  --> string  （typeof ガードで）
+  Animal           --> Dog     （instanceof ガードで）
+  Shape            --> Circle  （判別共用体で）
+
+  ※ 制御フロー分析により自動的に発生
+
+================================================================
+```
+
+### Q3: Rust の「ターボフィッシュ」構文 `::<Type>` はなぜ必要なのか？
+
+**A**: Rust のローカル型推論では、型情報が不足する場面が存在する。特に、ジェネリック関数の戻り値型が呼び出し文脈だけでは決定できない場合に、ターボフィッシュが必要になる。
+
+```rust
+// ターボフィッシュが必要なケース
+
+// 1. parse(): 戻り値型が複数の型を取りうる
+let n = "42".parse::<i32>().unwrap();    // i32 として解析
+let n = "42".parse::<f64>().unwrap();    // f64 として解析
+let n = "42".parse::<u8>().unwrap();     // u8 として解析
+
+// 2. collect(): イテレータからの変換先が複数ある
+let v = (0..10).collect::<Vec<i32>>();       // Vec に変換
+let s = (0..10).map(|i| format!("{}", i))
+               .collect::<String>();          // String に結合
+let hs = vec![1,2,3].into_iter()
+                     .collect::<HashSet<_>>(); // HashSet に変換
+
+// 3. Default::default(): 型によって異なるデフォルト値
+let x = i32::default();    // 0
+let s = String::default(); // ""
+let v = Vec::<i32>::default(); // []
+
+// ターボフィッシュの名前の由来:
+// ::<> の形が魚（特にターボスネイル）に見えることから
+//   ::<>  ← これが魚に見える？
+```
+
+### Q4: 型推論とジェネリクスはどのような関係にあるのか？
+
+**A**: 型推論はジェネリクスの型パラメータを自動的に決定する機構として密接に関係している。
+
+```typescript
+// ジェネリクスの型パラメータ推論
+
+// 明示的に型パラメータを指定
+const result1 = identity<number>(42);
+
+// 型パラメータを推論（引数から推論される）
+const result2 = identity(42);  // T = number と推論
+
+// 複数の型パラメータの推論
+function merge<A, B>(a: A, b: B): A & B {
+    return { ...a, ...b };
+}
+const merged = merge({ name: "Alice" }, { age: 30 });
+// A = { name: string }, B = { age: number } と推論
+// 戻り値: { name: string } & { age: number }
+
+// 制約付きジェネリクスの推論
+function getLength<T extends { length: number }>(item: T): number {
+    return item.length;
+}
+getLength("hello");     // T = string と推論（string は length を持つ）
+getLength([1, 2, 3]);   // T = number[] と推論
+// getLength(42);       // エラー: number は length を持たない
+```
+
+```
+ジェネリクス推論のフロー図
+================================================================
+
+function map<T, U>(arr: T[], fn: (item: T) => U): U[]
+
+呼び出し: map([1, 2, 3], x => x.toString())
+
+推論プロセス:
+  1. 第1引数 [1, 2, 3] から T = number を推論
+     arr: T[]  <-->  [1, 2, 3]: number[]
+          │
+          ▼
+     T = number
+
+  2. T = number をコールバックに伝播
+     fn: (item: T) => U  -->  fn: (item: number) => U
+                                    │
+                                    ▼
+     x => x.toString() の x: number
+
+  3. コールバックの戻り値から U を推論
+     x.toString(): string  -->  U = string
+
+  4. 最終結果
+     map<number, string>([1, 2, 3], x => x.toString()): string[]
+
+================================================================
+```
+
+### Q5: なぜ TypeScript では関数の引数型が推論されないのか？
+
+**A**: TypeScript が採用している双方向型チェックでは、関数宣言の引数型は「推論の起点」として使われるため、推論の対象にはならない。これは意図的な設計判断である。
+
+```
+関数引数が推論されない理由
+================================================================
+
+1. 関数は「型情報の提供者」
+   引数型は、関数本体内の式の型推論の起点となる。
+   起点自体が推論対象になると、循環依存が生じる。
+
+2. 公開APIの明確性
+   関数の引数型はAPIの契約を定義する。
+   推論に頼ると、実装の変更でAPIが変わってしまう。
+
+3. エラーメッセージの品質
+   引数型が明示されていれば、型エラーの位置が明確になる。
+   推論に頼ると「どこが間違っているか」の特定が困難になる。
+
+例外: コールバックの引数は推論される
+  names.map(name => name.toUpperCase())
+  //        ↑ name: string（配列の要素型から推論）
+
+  これは「コールバックの型」が上位コンテキストから
+  確定しているため、チェックモードで推論可能。
+
+================================================================
+```
+
+### Q6: 型推論のデバッグ方法は？
+
+**A**: 各言語とツールには、推論された型を確認するための方法が用意されている。
+
+```
+型推論のデバッグ手法一覧
+================================================================
+
+TypeScript:
+  - IDE のホバー表示（VSCode, WebStorm）
+  - tsc --noEmit --declaration で .d.ts 生成
+  - // @ts-expect-error で意図的にエラーを出し型を確認
+  - type Inspect<T> = T; で中間型を可視化
+
+Rust:
+  - コンパイラのエラーメッセージに推論された型が表示される
+  - let _: () = expr; で expr の型をエラーメッセージで確認
+  - rust-analyzer の inlay hints（IDE 内型表示）
+  - #[derive(Debug)] + println!("{:?}", x) で型をランタイム確認
+
+Haskell:
+  - :type 式  （GHCi で型を確認）
+  - :info 名前 （型情報を表示）
+  - -fwarn-missing-signatures でトップレベルの型警告
+  - _ を型注釈に使い、コンパイラに推論型を表示させる
+
+Go:
+  - IDE のホバー表示
+  - fmt.Printf("%T\n", x) で型を表示
+  - go vet による型チェック
+
+================================================================
+```
+
+### Q7: 依存型（Dependent Types）と型推論の関係は？
+
+**A**: 依存型は、値に依存する型を表現する。例えば「長さ n のベクトル」を型レベルで表現できる。依存型を持つ言語（Idris, Agda, Coq）でも型推論は提供されるが、完全ではない。依存型の型推論は一般に決定不能（undecidable）であるため、ユーザーによる型注釈やヒントが必要になる場面が増える。
+
+```
+型推論の決定可能性スペクトラム
+================================================================
+
+  完全に決定可能             部分的に決定可能        決定不能
+  ◄────────────────────────────────────────────────────────►
+  │                    │                    │
+  HM型推論             双方向型チェック        依存型
+  (Haskell, ML)        (TypeScript, Kotlin)   (Idris, Agda)
+  │                    │                    │
+  型注釈不要            一部型注釈が必要        多くの型注釈が必要
+
+  ※ 表現力と推論能力のトレードオフ
+  型システムが表現力を増すほど、自動推論は困難になる
+
+================================================================
+```
+
+---
+
+## 10. まとめと次のステップ
+
+### 10.1 型推論の全体像
+
+```
+型推論の全体マップ
+================================================================
+
+                      型推論（Type Inference）
+                              │
+              ┌───────────────┼───────────────┐
+              │               │               │
+         アルゴリズム     推論の範囲       言語の採用
+              │               │               │
+      ┌───────┼───────┐   ┌───┼───┐     ┌─────┼─────┐
+      │       │       │   │   │   │     │     │     │
+    HM型   双方向   制約   局所 関数 全域  TS   Rust  Haskell
+    推論   型チェック ベース        内          Go   Kotlin
+              │                              Scala  Swift
+              │
+      ┌───────┼───────┐
+      │               │
+   推論モード     チェックモード
+   (Synthesis)    (Checking)
+   ボトムアップ    トップダウン
+
+================================================================
+```
+
+### 10.2 言語別の型推論の総合比較
+
+| 特性 | Haskell | Rust | TypeScript | Go | Kotlin | Scala 3 |
+|------|---------|------|------------|-----|--------|---------|
+| 推論アルゴリズム | HM + 型クラス | ローカル HM変種 | 双方向 | ローカル | 双方向 | 双方向 + HM |
+| 推論範囲 | グローバル | ローカル | ローカル + 文脈 | 変数のみ | ローカル + 文脈 | ローカル + 文脈 |
+| 主型性 | あり | なし | なし | N/A | なし | 部分的 |
+| 型注釈の必要度 | 低（推奨） | 中（関数境界） | 中（引数） | 中（引数・戻り値） | 中（引数） | 低〜中 |
+| サブタイピング | なし | トレイト | 構造的 | インターフェース | 名前的 | 名前的 + 構造的 |
+| フロー感応型 | なし | 借用チェッカー | あり | なし | スマートキャスト | パターンマッチ |
+| 学習曲線 | 高 | 高 | 中 | 低 | 中 | 高 |
+
+### 10.3 型推論の判断フローチャート
+
+```
+型注釈を書くべきかの判断フローチャート
+================================================================
+
+  型を書くべきか？
+  │
+  ├─ 公開API（export / pub）か？
+  │   ├─ Yes → 書く（ドキュメント + 安定性）
+  │   └─ No ─┐
+  │           │
+  │   ├─ 推論結果は正しいか？
+  │   │   ├─ No → 書く（推論を上書き）
+  │   │   └─ Yes ─┐
+  │   │            │
+  │   │   ├─ 推論結果は明白か？（読んで分かるか？）
+  │   │   │   ├─ Yes → 省略（推論に任せる）
+  │   │   │   └─ No → 書く（可読性のため）
+  │   │   │
+  │   │   └─ 空のコレクションか？
+  │   │       ├─ Yes → 書く
+  │   │       └─ No → 省略
+
+================================================================
+```
+
+### 10.4 学習ロードマップ
+
+```
+型推論の学習ロードマップ
+================================================================
+
+Level 1（初級）: 型推論の基本を理解
+  □ let x = 42 が int と推論される理由を説明できる
+  □ IDE で推論された型を確認できる
+  □ 型推論が失敗するケースを3つ挙げられる
+  □ 型注釈を書くべき場所を判断できる
+
+Level 2（中級）: 言語固有の型推論を使いこなす
+  □ TypeScript の型の絞り込み（narrowing）を活用できる
+  □ Rust のターボフィッシュをいつ使うか判断できる
+  □ ジェネリクスの型パラメータ推論を理解している
+  □ コールバックの文脈的型付けを活用できる
+
+Level 3（上級）: 型推論の理論を理解
+  □ HM 型推論の手動トレースができる
+  □ 単一化アルゴリズムを説明できる
+  □ let多相と単相制限の違いを説明できる
+  □ 双方向型チェックの推論モード/チェックモードを説明できる
+  □ 型推論が決定不能になる条件を理解している
+
+Level 4（エキスパート）: 型システムを設計・拡張できる
+  □ 新しいプログラミング言語に型推論を実装できる
+  □ 型推論アルゴリズムの計算量を分析できる
+  □ 依存型と型推論のトレードオフを議論できる
+  □ ランク N 多相と型推論の関係を説明できる
+
+================================================================
+```
+
+---
+
+## 11. 参考文献
+
+### 基礎理論
+
+1. **Pierce, Benjamin C.** *Types and Programming Languages.* MIT Press, 2002.
+   - 型システムの包括的な教科書。第22章が型推論（型再構築）を詳細に解説。Hindley-Milner アルゴリズムの形式的な定義と正当性の証明を含む。型推論を理論的に学ぶための第一の参考書。
+
+2. **Hindley, J. Roger.** "The Principal Type-Scheme of an Object in Combinatory Logic." *Transactions of the American Mathematical Society*, vol. 146, 1969, pp. 29-60.
+   - 主型スキームの存在と一意性を証明した歴史的論文。コンビナトリ論理学の文脈で、型推論の数学的基盤を確立した。
+
+3. **Milner, Robin.** "A Theory of Type Polymorphism in Programming." *Journal of Computer and System Sciences*, vol. 17, no. 3, 1978, pp. 348-375.
+   - Algorithm W を提案した画期的な論文。ML 言語のための効率的な型推論アルゴリズムを定義し、その健全性と完全性を証明した。
+
+4. **Damas, Luis, and Robin Milner.** "Principal Type-Schemes for Functional Programs." *Proceedings of the 9th ACM SIGPLAN-SIGACT Symposium on Principles of Programming Languages (POPL)*, 1982, pp. 207-212.
+   - Damas-Milner 型システムの定義論文。let多相を含む型推論の完全な形式化を行った。
+
+### 双方向型チェック
+
+5. **Pierce, Benjamin C., and David N. Turner.** "Local Type Inference." *ACM Transactions on Programming Languages and Systems (TOPLAS)*, vol. 22, no. 1, 2000, pp. 1-44.
+   - 双方向型チェック（ローカル型推論）の基礎を築いた論文。推論モードとチェックモードの概念を導入し、サブタイピングと型推論の統合を実現した。
+
+6. **Dunfield, Jana, and Neelakantan R. Krishnaswami.** "Complete and Easy Bidirectional Typechecking for Higher-Rank Polymorphism." *Proceedings of the 18th ACM SIGPLAN International Conference on Functional Programming (ICFP)*, 2013, pp. 429-442.
+   - 双方向型チェックを高階ランク多相に拡張した論文。実装が比較的容易でありながら完全な型チェックを実現する手法を示した。
+
+### 言語固有の型推論
+
+7. **TypeScript Handbook.** "Type Inference." Microsoft, https://www.typescriptlang.org/docs/handbook/type-inference.html
+   - TypeScript における型推論の公式ドキュメント。Best Common Type、Contextual Typing、Type Guards の動作を解説。
+
+8. **The Rust Reference.** "Type Inference." Rust Team, https://doc.rust-lang.org/reference/type-system.html
+   - Rust における型推論とライフタイム省略規則の公式リファレンス。ターボフィッシュ構文やトレイト境界と型推論の関係を解説。
+
+9. **Haskell 2010 Language Report.** "Declarations and Bindings, Type Inference." https://www.haskell.org/onlinereport/haskell2010/
+   - Haskell における型推論の仕様。型クラス制約の推論、デフォルト規則、単相制限について規定。
+
+### 発展的トピック
+
+10. **Odersky, Martin, Christoph Zenger, and Matthias Zenger.** "Colored Local Type Inference." *Proceedings of the 28th ACM SIGPLAN-SIGACT Symposium on Principles of Programming Languages (POPL)*, 2001, pp. 14-26.
+    - Scala の型推論の理論的基盤。ローカル型推論をオブジェクト指向言語に適用する手法を提案。
+
+11. **Vytiniotis, Dimitrios, Simon Peyton Jones, Tom Schrijvers, and Martin Sulzmann.** "OutsideIn(X): Modular Type Inference with Local Assumptions." *Journal of Functional Programming*, vol. 21, no. 4-5, 2011, pp. 333-412.
+    - GHC（Haskell コンパイラ）の現代的な型推論アルゴリズム。型クラス、GADT、型族との統合を扱う。
+
+---
+
+## 次に読むべきガイド
+
+- [[02-generics-and-polymorphism.md]] --- ジェネリクスと多態性: 型パラメータと型推論の関係を深掘り
+- [[03-type-compatibility.md]] --- 型の互換性: 構造的型付けと名前的型付け、サブタイピングの詳細
+- [[04-advanced-types.md]] --- 高度な型: 交差型、ユニオン型、条件型、マップ型
+
+---
+
+*最終更新: 2026-03-06*
+

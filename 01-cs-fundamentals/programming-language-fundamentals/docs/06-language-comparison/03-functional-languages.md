@@ -1010,3 +1010,492 @@ let first_fibs n = fibs |> Seq.take n |> List.of_seq
 | ドキュメント | Haddock | ExDoc (優秀) | パッケージサイト | XML Doc | odoc |
 | デバッグ | GHCi, Debug.Trace | IEx.pry, Observer | Debug.log, elm reactor | VS debugger | ocamldebug |
 | プロパティテスト | QuickCheck (元祖) | StreamData | elm-test (組込み) | FsCheck | QCheck |
+
+---
+
+## 8. プロジェクト選定ガイド
+
+### 8.1 意思決定フローチャート
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│              関数型言語 選定フローチャート                        │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  Q1: 主な対象ドメインは？                                       │
+│  ┌──────┬──────────┬──────────┬──────────┬──────────┐           │
+│  │フロント│リアルタイム│.NET環境  │研究/金融 │高性能    │           │
+│  │エンド │Web/IoT   │         │コンパイラ│システム  │           │
+│  └──┬───┘└──┬───────┘└──┬──────┘└──┬──────┘└──┬──────┘           │
+│     │       │           │          │          │                 │
+│     ▼       ▼           ▼          ▼          ▼                 │
+│   Elm    Elixir        F#       Haskell    OCaml               │
+│     │       │           │          │          │                 │
+│     │   Q2: 同時接続数は？ │     Q3: 型の    Q4: コンパイル      │
+│     │   ┌───┴───┐       │     厳密性は？  速度は重要？         │
+│     │ 数千以下 数万以上  │     ┌──┴──┐    ┌──┴──┐              │
+│     │   │       │       │    中程度 最高  はい  いいえ          │
+│     │   │    Elixir     │     │     │     │     │              │
+│     │   │  (Phoenix)    │    F#  Haskell OCaml Haskell         │
+│     │   │               │                                       │
+│     │   └──→ F# or      │                                       │
+│     │       Haskellも可 │                                       │
+│     │                    │                                       │
+│  [判断補助]                                                     │
+│  ・チームが Ruby/Python 経験者中心 → Elixir                    │
+│  ・チームが C#/Java 経験者中心     → F#                        │
+│  ・チームが学術的背景あり          → Haskell or OCaml          │
+│  ・チームが JS/TS 経験者中心       → Elm                       │
+│  ・採用のしやすさを重視            → Elixir (コミュニティ大)   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 8.2 ユースケース別推奨言語
+
+| ユースケース | 第1推奨 | 第2推奨 | 理由 |
+|-------------|---------|---------|------|
+| リアルタイムチャット | Elixir | Haskell | BEAMの数百万プロセスが最適 |
+| 金融取引システム | OCaml | Haskell | 低レイテンシ + 型安全性 |
+| コンパイラ開発 | Haskell | OCaml | 代数的データ型 + パターンマッチ |
+| Web SPA フロントエンド | Elm | F# (Fable) | ランタイムエラーゼロ保証 |
+| データパイプライン | F# | Haskell | .NETエコシステム + 型推論 |
+| IoT デバイス管理 | Elixir | OCaml | Nerves (Elixir IoT FW) |
+| 学術研究・論文実装 | Haskell | OCaml | 理論と実装の一致度 |
+| マイクロサービス | Elixir | F# | OTP Supervisor + Phoenix |
+| CLIツール | OCaml | Haskell | 起動速度 + ネイティブバイナリ |
+| ゲームロジック | F# | Haskell | Unity連携 + 型安全性 |
+
+---
+
+## 9. アンチパターンと回避策
+
+### 9.1 アンチパターン1: 「モナド地獄」（Haskell）
+
+**問題**: モナド変換子（Monad Transformer）のスタックが深くなりすぎ、型シグネチャが読めなくなる。
+
+```haskell
+-- アンチパターン: モナド変換子の過剰なネスト
+-- 型シグネチャが爆発し、保守不能になる
+
+type AppStack a =
+  ExceptT AppError
+    (StateT AppState
+      (ReaderT AppConfig
+        (WriterT [LogEntry]
+          IO))) a
+
+-- 問題点:
+-- 1. 型シグネチャが巨大で読解困難
+-- 2. lift の連鎖が必要（lift . lift . lift ...）
+-- 3. スタックの順序変更が大規模リファクタリングを要求
+-- 4. パフォーマンスへの悪影響（各層のオーバーヘッド）
+```
+
+**回避策**: エフェクトシステムの採用、または ReaderT パターンの活用。
+
+```haskell
+-- 回避策1: ReaderT パターン（シンプルで実用的）
+-- 1つの ReaderT + IORef で多くのケースをカバー
+
+data AppEnv = AppEnv
+  { envConfig :: AppConfig
+  , envState  :: IORef AppState
+  , envLogger :: LogEntry -> IO ()
+  }
+
+type App a = ReaderT AppEnv IO a
+
+-- クリーンな型シグネチャ
+getConfig :: App AppConfig
+getConfig = asks envConfig
+
+modifyState :: (AppState -> AppState) -> App ()
+modifyState f = do
+  ref <- asks envState
+  liftIO $ modifyIORef ref f
+
+logMessage :: LogEntry -> App ()
+logMessage entry = do
+  logger <- asks envLogger
+  liftIO $ logger entry
+
+-- 回避策2: 型エイリアスで段階的に抽象化
+-- 必要な機能だけを制約として表現
+class Monad m => HasConfig m where
+  getAppConfig :: m AppConfig
+
+class Monad m => HasState m where
+  getAppState    :: m AppState
+  putAppState    :: AppState -> m ()
+```
+
+### 9.2 アンチパターン2: 「プロセスリーク」（Elixir）
+
+**問題**: GenServer や Task を起動したまま適切に終了しない。メモリリークやリソース枯渇を引き起こす。
+
+```elixir
+# アンチパターン: 管理されないプロセスの起動
+
+defmodule LeakyModule do
+  # 問題: spawn したプロセスが誰にも管理されない
+  def process_batch(items) do
+    Enum.each(items, fn item ->
+      spawn(fn ->
+        # 重い処理
+        result = heavy_computation(item)
+        # 結果を使いたいが、呼び出し元に返す手段がない
+        IO.puts("Done: #{result}")
+      end)
+    end)
+    # 問題点:
+    # 1. プロセスの完了を待てない
+    # 2. エラーが発生しても検知できない
+    # 3. プロセスが永遠に待機状態になる可能性
+    # 4. メモリが徐々に消費される
+  end
+end
+```
+
+**回避策**: Task.Supervisor を使った構造化された並行処理。
+
+```elixir
+# 回避策: Task.Supervisor + タイムアウト管理
+
+defmodule SafeModule do
+  # Supervisor 配下で Task を管理する
+  def process_batch(items) do
+    # Task.Supervisor は Application の Supervisor Tree に登録済みとする
+    tasks =
+      Enum.map(items, fn item ->
+        Task.Supervisor.async(
+          MyApp.TaskSupervisor,
+          fn -> heavy_computation(item) end,
+          shutdown: :brutal_kill  # タイムアウト時の強制終了
+        )
+      end)
+
+    # 全タスクの完了を待つ（タイムアウト付き）
+    results =
+      Task.yield_many(tasks, timeout: 30_000)  # 30秒タイムアウト
+      |> Enum.map(fn
+        {task, {:ok, result}} ->
+          {:ok, result}
+        {task, {:exit, reason}} ->
+          Task.shutdown(task)
+          {:error, reason}
+        {task, nil} ->
+          Task.shutdown(task)   # タイムアウトしたタスクを強制終了
+          {:error, :timeout}
+      end)
+
+    results
+  end
+end
+
+# Application の Supervisor Tree に TaskSupervisor を登録
+# defmodule MyApp.Application do
+#   def start(_type, _args) do
+#     children = [
+#       {Task.Supervisor, name: MyApp.TaskSupervisor}
+#     ]
+#     Supervisor.start_link(children, strategy: :one_for_one)
+#   end
+# end
+```
+
+### 9.3 アンチパターン3: 「過剰な型抽象化」（全言語共通）
+
+**問題**: 型レベルプログラミングに没頭し、ビジネスロジックよりも型の設計に時間を使いすぎる。
+
+```haskell
+-- アンチパターン: 過剰に抽象化された型
+
+-- 単純な設定値の取得に、過剰な型クラス階層を導入
+class (Monad m, MonadReader r m, HasConfig r,
+       MonadError AppError m, MonadLogger m,
+       MonadMetrics m, MonadCache m) =>
+  AppMonad r m | m -> r where
+    runApp :: m a -> IO (Either AppError a)
+
+-- 問題点:
+-- 1. 型エラーメッセージが数十行に及ぶ
+-- 2. 新しいチームメンバーが理解するのに数週間かかる
+-- 3. コンパイル時間が大幅に増加
+-- 4. 実際のビジネスロジックが型の複雑さに埋もれる
+```
+
+**回避策**: YAGNI（You Aren't Gonna Need It）原則の適用。まず具体的な型で書き、必要になってから抽象化する。
+
+---
+
+## 10. 演習問題
+
+### 10.1 初級: パターンマッチとデータ変換
+
+**課題**: 以下の仕様を、好きな関数型言語で実装せよ。
+
+1. `Shape` 型（`Circle`, `Rectangle`, `Triangle`）を定義する
+2. 各 Shape の面積を計算する `area` 関数を実装する
+3. Shape のリストを受け取り、面積の大きい順にソートして返す関数を実装する
+4. 面積が指定値以上の Shape だけをフィルタリングする関数を実装する
+
+**期待される学び**:
+- 代数的データ型の定義方法
+- パターンマッチの基本
+- 高階関数（map, filter, sort）の使い方
+
+**解答例（Haskell）**:
+
+```haskell
+data Shape
+  = Circle Double
+  | Rectangle Double Double
+  | Triangle Double Double
+  deriving (Show)
+
+area :: Shape -> Double
+area (Circle r)      = pi * r * r
+area (Rectangle w h) = w * h
+area (Triangle b h)  = 0.5 * b * h
+
+sortByAreaDesc :: [Shape] -> [Shape]
+sortByAreaDesc = sortBy (flip compare `on` area)
+
+filterByMinArea :: Double -> [Shape] -> [Shape]
+filterByMinArea minArea = filter (\s -> area s >= minArea)
+
+-- 使用例
+-- let shapes = [Circle 5, Rectangle 3 4, Triangle 6 8, Circle 2]
+-- sortByAreaDesc shapes
+-- → [Circle 5.0, Triangle 6.0 8.0, Rectangle 3.0 4.0, Circle 2.0]
+-- filterByMinArea 20.0 shapes
+-- → [Circle 5.0, Triangle 6.0 8.0]
+```
+
+### 10.2 中級: エラーハンドリングパイプライン
+
+**課題**: ユーザー登録処理を関数型的に実装せよ。
+
+1. 入力バリデーション（名前: 2〜50文字、メール: `@` を含む、年齢: 0〜150）
+2. 各バリデーションは失敗理由を含むエラーを返す
+3. 全バリデーションを通過した場合のみ `User` レコードを生成する
+4. パイプ演算子やモナディックなエラーチェインを使うこと
+
+**期待される学び**:
+- Result/Either 型によるエラーハンドリング
+- バリデーションの合成
+- Railway Oriented Programming の概念
+
+**解答例（F#）**:
+
+```fsharp
+type ValidationError =
+    | NameTooShort
+    | NameTooLong
+    | InvalidEmail
+    | InvalidAge of int
+
+type User = {
+    Name: string
+    Email: string
+    Age: int
+}
+
+let validateName name =
+    if String.length name < 2 then Error NameTooShort
+    elif String.length name > 50 then Error NameTooLong
+    else Ok name
+
+let validateEmail email =
+    if String.exists ((=) '@') email then Ok email
+    else Error InvalidEmail
+
+let validateAge age =
+    if age >= 0 && age <= 150 then Ok age
+    else Error (InvalidAge age)
+
+// Railway Oriented Programming: bind で連鎖
+let createUser name email age =
+    validateName name
+    |> Result.bind (fun validName ->
+        validateEmail email
+        |> Result.bind (fun validEmail ->
+            validateAge age
+            |> Result.map (fun validAge ->
+                { Name = validName
+                  Email = validEmail
+                  Age = validAge })))
+
+// createUser "Alice" "alice@example.com" 30 → Ok { Name="Alice"; ... }
+// createUser "A" "alice@example.com" 30     → Error NameTooShort
+// createUser "Alice" "invalid" 30           → Error InvalidEmail
+```
+
+### 10.3 上級: 並行データ処理システム
+
+**課題**: Web クローラーの並行処理部分を設計・実装せよ。
+
+1. URL のリストを受け取り、並行にフェッチする
+2. 各フェッチには 10 秒のタイムアウトを設定する
+3. 失敗した URL はリトライ（最大 3 回）する
+4. 結果を成功/失敗に分類して返す
+5. 同時実行数の上限（例: 10）を設けること
+
+**期待される学び**:
+- 言語固有の並行処理モデルの実践
+- タイムアウトとリトライのパターン
+- リソース管理とバックプレッシャー
+
+**ヒント**:
+- Haskell: `async` ライブラリ + `STM` でセマフォ実装
+- Elixir: `Task.Supervisor` + `Task.async_stream` (max_concurrency オプション)
+- F#: `Async.Parallel` + `SemaphoreSlim`
+- OCaml: `Lwt` / `Eio` + `Lwt_pool`
+
+---
+
+## 11. 関数型言語の現在と未来
+
+### 11.1 トレンド
+
+1. **マルチコア対応の強化**: OCaml 5.0 のドメインとエフェクトハンドラ、Haskell の改良された並行ランタイム
+2. **メインストリーム言語への影響**: Rust のパターンマッチ、Kotlin の data class、Swift の enum + 値型、TypeScript の discriminated unions
+3. **エフェクトシステムの台頭**: 代数的エフェクト（Algebraic Effects）が次世代の副作用管理として注目
+4. **依存型の実用化**: Idris, Agda で研究されてきた依存型が、Haskell の GHC 拡張を通じて徐々に実用言語に浸透
+5. **WebAssembly 対応**: OCaml (wasm_of_ocaml), Haskell (Asterius), F# (Bolero) による Wasm ターゲット
+
+### 11.2 各言語の今後の方向性
+
+| 言語 | 主な進化の方向 | 注目すべき動向 |
+|------|--------------|---------------|
+| Haskell | 依存型、リニア型 | GHC2021/2024 言語標準、Cabal 改善 |
+| Elixir | 型システム導入 | set-theoretic types (v1.17+)、LiveView Native |
+| Elm | 安定性重視 | 大きな変更より既存機能の成熟 |
+| F# | クロスプラットフォーム | .NET 8+、WASM (Bolero) |
+| OCaml | マルチコア、エフェクト | OCaml 5.x 系列、Eio ライブラリ |
+
+---
+
+## 12. FAQ（よくある質問）
+
+### Q1: 関数型言語は本当にプロダクションで使えるのか？
+
+**A**: 大規模な実績が複数ある。Discord は Elixir で 1100 万以上の同時接続を処理している。Jane Street は OCaml で毎日数兆ドル規模の金融取引を処理している。Meta（旧 Facebook）は Haskell で spam フィルタリングシステム（Sigma）を運用し、毎秒 100 万リクエスト以上を処理している。NoRedInk は Elm でフロントエンドを構築し、プロダクションでのランタイムエラーがゼロであると報告している。F# は Microsoft 内部で Azure や Bing の一部に使われている。関数型言語は「学術的な実験」の段階をとうに超えている。
+
+### Q2: 関数型言語の学習順序はどうすべきか？
+
+**A**: 学習者のバックグラウンドによる推奨順序は以下のとおり。
+
+- **JavaScript/TypeScript 経験者**: Elm → Elixir → Haskell
+  - Elm は JS のエコシステムに近く、TEA は React/Redux と類似。入門に最適。
+- **C#/Java 経験者**: F# → Haskell → OCaml
+  - F# は .NET の知識をそのまま活かせる。IDE サポートも充実。
+- **Python/Ruby 経験者**: Elixir → Elm → Haskell
+  - Elixir の文法は Ruby に近く、パイプ演算子は Python の連鎖メソッドに似る。
+- **C/C++ 経験者**: OCaml → Haskell → Elixir
+  - OCaml のネイティブコンパイルとパフォーマンス特性は低レベル経験者に馴染みやすい。
+
+共通するのは、Haskell を最後に学ぶという点である。Haskell の概念（モナド、型クラス、遅延評価）は、他の関数型言語の経験があると格段に理解しやすくなる。
+
+### Q3: 関数型言語と命令型言語をどう使い分けるべきか？
+
+**A**: 以下の判断基準が有効である。
+
+関数型言語が向いているケース:
+- データ変換パイプラインが中心（ETL、コンパイラ、パーサー）
+- 正しさが最優先（金融、医療、航空宇宙）
+- 並行・分散処理が必要（リアルタイムシステム、メッセージング）
+- ビジネスルールが複雑（状態遷移、バリデーション）
+
+命令型/OOP 言語が向いているケース:
+- GUI アプリケーション（状態変化が本質的に多い）
+- ゲームのフレーム更新ループ（ミュータブルな状態管理が効率的）
+- ハードウェア制御（低レベル操作が必要）
+- チームの大多数が命令型の経験のみ（教育コストの考慮）
+
+実際には、多くのモダン言語（Rust, Kotlin, Swift, TypeScript）は関数型の機能を取り込んでおり、パラダイムの境界は曖昧になっている。重要なのは、適材適所で関数型のテクニックを活用する判断力である。
+
+### Q4: モナドとは何か？簡潔に説明してほしい。
+
+**A**: モナドとは「計算のコンテキストを連鎖させるための設計パターン」である。技術的には、`return`（値をコンテキストに包む）と `>>=`（bind: コンテキスト付きの値に関数を適用する）の2つの操作を持つ型クラスである。
+
+身近な例で説明すると:
+- `Maybe` モナド: 「失敗するかもしれない」というコンテキスト
+- `List` モナド: 「複数の結果があり得る」というコンテキスト
+- `IO` モナド: 「外部世界と対話する」というコンテキスト
+- `Either` モナド: 「エラー情報付きで失敗するかもしれない」というコンテキスト
+
+モナドを使わない場合、毎回 `if result == null` のようなチェックを書く必要がある。モナドはこのボイラープレートを抽象化し、「正常系のロジック」だけを記述できるようにする。
+
+### Q5: Elixir と Erlang の違いは？なぜ Elixir を選ぶのか？
+
+**A**: Elixir は Erlang VM（BEAM）上で動作し、Erlang の全ライブラリを利用可能だが、以下の点で開発体験が向上している。
+
+1. **構文**: Ruby 風の親しみやすい構文（Erlang は Prolog 風で独特）
+2. **マクロ**: メタプログラミングが可能（Erlang にはない）
+3. **ツーリング**: mix（ビルドツール）, hex（パッケージ管理）, ExDoc が統合的
+4. **Phoenix フレームワーク**: Rails 級の生産性を持つ Web フレームワーク
+5. **LiveView**: サーバーサイドレンダリングでリアルタイム UI を構築可能
+
+Erlang の強みである OTP（耐障害性フレームワーク）、BEAM VM（軽量プロセス）、ホットコードスワップは Elixir でもそのまま利用できる。新規プロジェクトでは、開発効率とコミュニティの活発さから Elixir を選択するケースが多い。
+
+---
+
+## 13. まとめ
+
+### 13.1 言語別サマリー
+
+| 言語 | 一言で表すなら | 最適な場面 | 注意点 |
+|------|-------------|----------|--------|
+| Haskell | 純粋性の極致 | 研究, 金融, コンパイラ | 学習曲線が急、コンパイル遅い |
+| Elixir | 実用的FP+並行 | リアルタイムWeb, IoT | CPU密集処理は不得手 |
+| Elm | ランタイムエラーゼロ | 信頼性の高いUI | エコシステムが小さい |
+| F# | .NET上のFP | データ処理, バックエンド | C#ほどの求人市場がない |
+| OCaml | 実用的+高速 | コンパイラ, 金融, システム | ライブラリが少ない分野あり |
+
+### 13.2 関数型言語を学ぶことの価値
+
+関数型言語を学ぶ最大の価値は、「特定の言語を使えるようになること」ではなく、「プログラミングの考え方が変わること」にある。純粋関数、不変性、型による正しさの保証という概念は、どの言語で開発する場合でも応用できる。Rust の所有権システム、React の宣言的 UI、Kubernetes の宣言的設定は、すべて関数型の思想に根ざしている。
+
+---
+
+## 次に読むべきガイド
+
+- [[../07-language-evolution/00-history-of-languages.md]] -- 言語の歴史
+- [[../05-paradigm-comparison/01-oop-vs-fp.md]] -- OOP と FP の比較
+- [[../../05-type-systems/01-static-vs-dynamic.md]] -- 型システムの基礎
+
+---
+
+## 参考文献
+
+1. Lipovaca, M. "Learn You a Haskell for Great Good!" No Starch Press, 2011. -- Haskell 入門の定番書。モナドやファンクタの直感的な解説で知られる。
+2. Thomas, D. "Programming Elixir >= 1.6." Pragmatic Bookshelf, 2018. -- Elixir の包括的な入門書。OTP の実践的な活用法を詳述。
+3. Czaplicki, E. "Elm in Action." Manning Publications, 2020. -- Elm の設計哲学と TEA パターンの詳細な解説。
+4. Syme, D. et al. "Expert F# 4.0." Apress, 2015. -- F# の設計者自身による包括的なリファレンス。
+5. Minsky, Y., Madhavapeddy, A., Hickey, J. "Real World OCaml." O'Reilly Media, 2nd Edition, 2022. -- Jane Street エンジニアによる OCaml の実践ガイド。
+6. Bird, R. "Thinking Functionally with Haskell." Cambridge University Press, 2014. -- 関数型思考の本質に迫る教科書。
+7. Milewski, B. "Category Theory for Programmers." 2019. -- 圏論の概念をプログラマー向けに解説。モナドの数学的背景を理解するための参考。
+8. Peyton Jones, S. "Tackling the Awkward Squad: Monadic Input/Output, Concurrency, Exceptions, and Foreign-language Calls in Haskell." 2001. -- Haskell の IO モナドの設計根拠を示す重要論文。
+
+---
+
+## 用語集
+
+| 用語 | 英語 | 説明 |
+|------|------|------|
+| 純粋関数 | Pure Function | 同じ入力に対して常に同じ出力を返し、副作用を持たない関数 |
+| 参照透過性 | Referential Transparency | 式をその評価結果に置換してもプログラムの意味が変わらない性質 |
+| 代数的データ型 | Algebraic Data Type (ADT) | 直和型（Sum Type）と直積型（Product Type）を組み合わせたデータ型 |
+| パターンマッチ | Pattern Matching | データの構造に基づいて分岐処理を行う構文機能 |
+| 型推論 | Type Inference | 明示的な型注釈なしに、コンパイラが型を自動推論する機能 |
+| モナド | Monad | 計算のコンテキストを連鎖させるための抽象パターン |
+| 型クラス | Type Class | Haskell におけるアドホック多相性の仕組み。インタフェースに類似 |
+| ファンクタ | Functor (ML) | OCaml/SML におけるモジュールを引数に取るパラメータ化されたモジュール |
+| 遅延評価 | Lazy Evaluation | 値が実際に必要になるまで計算を遅延させる評価戦略 |
+| 正格評価 | Strict/Eager Evaluation | 式が束縛された時点で即座に評価する評価戦略 |
+| STM | Software Transactional Memory | トランザクションにより共有メモリへの並行アクセスを安全に行う手法 |
+| アクターモデル | Actor Model | 独立したプロセスがメッセージパッシングで通信する並行計算モデル |
+| 計算式 | Computation Expression | F# におけるモナディックな計算を記述するための構文糖衣 |
+| エフェクトハンドラ | Effect Handler | 代数的エフェクトを処理するための仕組み。OCaml 5.0+ で導入 |
+| カリー化 | Currying | 複数引数関数を、1引数関数の連鎖に変換すること |
