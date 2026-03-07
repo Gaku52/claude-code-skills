@@ -2287,3 +2287,1069 @@ export const config = {
   matcher: '/products/:path*',
 };
 ```
+
+---
+
+## 7. アンチパターンと注意点
+
+### 7.1 よくあるアンチパターン
+
+URL状態管理でよく見られるアンチパターンを理解し、回避することが重要である。
+
+```typescript
+// === アンチパターン集 ===
+
+// ❌ アンチパターン1: URLに機密情報を含める
+// URL: /dashboard?token=eyJhbGciOiJIUzI1NiJ9...
+// → URLはブラウザ履歴、サーバーログ、リファラーヘッダーに残る
+// → 認証情報は Cookie（HttpOnly）に保存すべき
+
+// ❌ アンチパターン2: URLに大量のデータを詰め込む
+// URL: /products?ids=1,2,3,4,5,...,1000
+// → URLは2048文字が実質上限（ブラウザ・サーバーによる）
+// → 大量のデータはサーバーサイドのセッションや localStorage に保存
+
+// ❌ アンチパターン3: デフォルト値をURLに含める
+// URL: /products?page=1&sort=newest&per_page=20&view=grid
+// → URLが冗長になる
+// → デフォルト値はコードで管理し、URLからは省略する
+
+// ❌ アンチパターン4: フィルタ変更時にページをリセットしない
+function BadFilterChange() {
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  function handleCategoryChange(category: string) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.set('category', category);
+      // ❌ page をリセットしていない！
+      // page=5 のまま category を変更すると、
+      // 新カテゴリで5ページ目が存在しない可能性がある
+      return next;
+    });
+  }
+}
+
+// ✅ 正しいパターン
+function GoodFilterChange() {
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  function handleCategoryChange(category: string) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.set('category', category);
+      next.delete('page'); // ✅ ページをリセット
+      return next;
+    });
+  }
+}
+
+// ❌ アンチパターン5: 型変換なしで使用
+function BadTypeHandling() {
+  const [searchParams] = useSearchParams();
+
+  // ❌ string のまま比較・演算
+  const page = searchParams.get('page'); // string | null
+  if (page > 1) { /* 文字列比較になる！ '9' > '10' は true */ }
+}
+
+// ✅ 正しいパターン
+function GoodTypeHandling() {
+  const [searchParams] = useSearchParams();
+
+  // ✅ 明示的な型変換
+  const page = Number(searchParams.get('page') ?? '1');
+  if (page > 1) { /* 数値比較 */ }
+}
+
+// ❌ アンチパターン6: 毎レンダリングで新しい URLSearchParams を生成
+function BadPerformance() {
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // ❌ レンダリングのたびに new URLSearchParams が実行される
+  // → 参照が毎回変わるため useEffect の無限ループを引き起こす可能性
+  const params = new URLSearchParams(searchParams);
+  const query = params.get('q');
+
+  useEffect(() => {
+    // params は毎回新しいオブジェクトなので無限ループ！
+    fetchProducts(params);
+  }, [params]); // ❌
+}
+
+// ✅ 正しいパターン
+function GoodPerformance() {
+  const [searchParams] = useSearchParams();
+
+  // ✅ プリミティブ値を依存配列に使用
+  const query = searchParams.get('q') ?? '';
+  const page = Number(searchParams.get('page') ?? '1');
+
+  useEffect(() => {
+    fetchProducts({ q: query, page });
+  }, [query, page]); // ✅ プリミティブ値なので安定
+}
+
+// ❌ アンチパターン7: URLパラメータの検証なし
+function BadValidation() {
+  const [searchParams] = useSearchParams();
+
+  // ❌ ユーザーが ?page=-5 や ?page=abc を入力する可能性がある
+  const page = Number(searchParams.get('page'));
+  // NaN や負の数になる可能性
+
+  // ❌ ソート値の検証なし
+  const sort = searchParams.get('sort');
+  // 任意の文字列が入る可能性（SQLインジェクションのリスク）
+}
+
+// ✅ 正しいパターン
+function GoodValidation() {
+  const [searchParams] = useSearchParams();
+
+  // ✅ バリデーション付き
+  const rawPage = Number(searchParams.get('page'));
+  const page = Number.isInteger(rawPage) && rawPage > 0 ? rawPage : 1;
+
+  // ✅ ホワイトリストで検証
+  const validSorts = ['newest', 'oldest', 'price-asc', 'price-desc'] as const;
+  const rawSort = searchParams.get('sort');
+  const sort = validSorts.includes(rawSort as any)
+    ? (rawSort as typeof validSorts[number])
+    : 'newest';
+}
+
+// ❌ アンチパターン8: 検索入力でデバウンスなし
+function BadSearchInput() {
+  const router = useRouter();
+  const pathname = usePathname();
+
+  return (
+    <input
+      onChange={(e) => {
+        // ❌ キー入力のたびにURLを更新
+        // → ブラウザ履歴が大量に作られる
+        // → 毎回ネットワークリクエストが発生
+        router.push(`${pathname}?q=${e.target.value}`);
+      }}
+    />
+  );
+}
+
+// ❌ アンチパターン9: searchParams を直接オブジェクトの比較に使う
+function BadComparison() {
+  const [searchParams] = useSearchParams();
+
+  // ❌ URLSearchParams はオブジェクトなので参照比較
+  useEffect(() => {
+    // searchParams はレンダリングごとに新しいインスタンス
+    // → 毎回実行される
+  }, [searchParams]);
+
+  // ✅ 文字列に変換して比較
+  const searchString = searchParams.toString();
+  useEffect(() => {
+    // 文字列比較なので内容が同じなら実行されない
+  }, [searchString]);
+}
+```
+
+### 7.2 URL状態管理のセキュリティ考慮事項
+
+```
+URL状態のセキュリティチェックリスト:
+
+□ URLパラメータに認証トークンを含めていないか
+  → Cookie (HttpOnly, Secure, SameSite) を使用する
+
+□ URLパラメータをSQLクエリに直接使用していないか
+  → パラメータ化クエリを使用する
+  → ホワイトリストでバリデーションする
+
+□ URLパラメータをHTMLに直接出力していないか
+  → React のテキストノードとして表示する（自動エスケープ）
+  → dangerouslySetInnerHTML は使用しない
+
+□ URLパラメータの長さを制限しているか
+  → DoS攻撃対策として最大長を設定する
+
+□ Open Redirect 脆弱性がないか
+  → redirect パラメータは内部URLのみ許可する
+  → 外部URLへのリダイレクトは禁止する
+
+□ URLパラメータでサーバーリソースを操作していないか
+  → 読み取り専用のパラメータのみURLに含める
+  → 副作用のある操作はPOSTリクエストで行う
+
+□ リファラーヘッダーに機密情報が漏れないか
+  → Referrer-Policy ヘッダーを適切に設定する
+  → meta tag: <meta name="referrer" content="origin">
+```
+
+```typescript
+// === Open Redirect 防止 ===
+
+// ❌ 危険: 外部URLにリダイレクトされる可能性
+function DangerousRedirect() {
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get('redirect');
+
+  // /login?redirect=https://evil.com にアクセスすると
+  // ログイン後に evil.com にリダイレクトされる
+  router.push(redirectTo!); // ❌
+}
+
+// ✅ 安全: 内部URLのみ許可
+function SafeRedirect() {
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get('redirect');
+
+  function isInternalUrl(url: string): boolean {
+    // スラッシュで始まるパスのみ許可
+    if (!url.startsWith('/')) return false;
+    // プロトコル相対URLを拒否
+    if (url.startsWith('//')) return false;
+    // バックスラッシュを拒否（IE対策）
+    if (url.includes('\\')) return false;
+    return true;
+  }
+
+  const safeRedirect = redirectTo && isInternalUrl(redirectTo)
+    ? redirectTo
+    : '/'; // デフォルトのリダイレクト先
+
+  router.push(safeRedirect); // ✅
+}
+```
+
+---
+
+## 8. テスト戦略
+
+### 8.1 URL状態のユニットテスト
+
+```typescript
+// === URL状態のテスト ===
+import { renderHook, act } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import { useProductFilters } from './useProductFilters';
+
+// React Router のテスト
+describe('useProductFilters', () => {
+  function wrapper({ children }: { children: React.ReactNode }) {
+    return (
+      <MemoryRouter initialEntries={['/products?q=laptop&page=2']}>
+        {children}
+      </MemoryRouter>
+    );
+  }
+
+  it('URLからフィルタ値を正しく取得する', () => {
+    const { result } = renderHook(() => useProductFilters(), { wrapper });
+
+    expect(result.current.filters.query).toBe('laptop');
+    expect(result.current.filters.page).toBe(2);
+    expect(result.current.filters.sort).toBe('newest'); // デフォルト値
+  });
+
+  it('フィルタ変更時にページがリセットされる', () => {
+    const { result } = renderHook(() => useProductFilters(), { wrapper });
+
+    act(() => {
+      result.current.setFilters({ category: 'electronics' });
+    });
+
+    expect(result.current.filters.category).toBe('electronics');
+    expect(result.current.filters.page).toBe(1); // リセットされた
+  });
+
+  it('不正な値の場合はデフォルト値が使われる', () => {
+    function invalidWrapper({ children }: { children: React.ReactNode }) {
+      return (
+        <MemoryRouter initialEntries={['/products?page=abc&sort=invalid']}>
+          {children}
+        </MemoryRouter>
+      );
+    }
+
+    const { result } = renderHook(
+      () => useProductFilters(),
+      { wrapper: invalidWrapper }
+    );
+
+    expect(result.current.filters.page).toBe(1); // NaN → デフォルト
+    expect(result.current.filters.sort).toBe('newest'); // 不正値 → デフォルト
+  });
+
+  it('リセットで全パラメータがクリアされる', () => {
+    const { result } = renderHook(() => useProductFilters(), { wrapper });
+
+    act(() => {
+      result.current.resetFilters();
+    });
+
+    expect(result.current.filters.query).toBe('');
+    expect(result.current.filters.page).toBe(1);
+    expect(result.current.isFiltered).toBe(false);
+  });
+});
+```
+
+### 8.2 E2Eテスト（Playwright）
+
+```typescript
+// === Playwright: URL状態のE2Eテスト ===
+import { test, expect } from '@playwright/test';
+
+test.describe('Product Filters - URL State', () => {
+  test('URLパラメータからフィルタが復元される', async ({ page }) => {
+    // 特定のURL状態で直接アクセス
+    await page.goto('/products?q=laptop&category=electronics&sort=price-asc');
+
+    // フィルタUIに値が反映されていることを確認
+    await expect(page.locator('input[type="search"]')).toHaveValue('laptop');
+    await expect(page.locator('select[name="category"]')).toHaveValue('electronics');
+    await expect(page.locator('select[name="sort"]')).toHaveValue('price-asc');
+  });
+
+  test('フィルタ変更でURLが更新される', async ({ page }) => {
+    await page.goto('/products');
+
+    // カテゴリを変更
+    await page.selectOption('select[name="category"]', 'electronics');
+
+    // URLが更新されたことを確認
+    await expect(page).toHaveURL(/category=electronics/);
+
+    // ページがリセットされたことを確認
+    await expect(page).not.toHaveURL(/page=/);
+  });
+
+  test('ブラウザバックでフィルタ状態が復元される', async ({ page }) => {
+    await page.goto('/products');
+
+    // フィルタを変更
+    await page.selectOption('select[name="category"]', 'electronics');
+    await expect(page).toHaveURL(/category=electronics/);
+
+    // さらにフィルタを変更
+    await page.selectOption('select[name="sort"]', 'price-asc');
+    await expect(page).toHaveURL(/sort=price-asc/);
+
+    // ブラウザバック
+    await page.goBack();
+
+    // 前のフィルタ状態に戻ることを確認
+    await expect(page).toHaveURL(/category=electronics/);
+    await expect(page).not.toHaveURL(/sort=price-asc/);
+  });
+
+  test('検索入力がデバウンスされる', async ({ page }) => {
+    await page.goto('/products');
+
+    // 素早く入力
+    await page.locator('input[type="search"]').fill('laptop');
+
+    // デバウンス期間を待つ
+    await page.waitForTimeout(500);
+
+    // URLが最終値のみ反映されていることを確認
+    await expect(page).toHaveURL(/q=laptop/);
+  });
+
+  test('共有URLで同じ状態が復元される', async ({ page, context }) => {
+    // ユーザーAがフィルタを設定
+    await page.goto('/products');
+    await page.selectOption('select[name="category"]', 'electronics');
+    await page.selectOption('select[name="sort"]', 'price-asc');
+
+    // URLを取得
+    const sharedUrl = page.url();
+
+    // ユーザーBが同じURLにアクセス（新しいタブ）
+    const newPage = await context.newPage();
+    await newPage.goto(sharedUrl);
+
+    // 同じフィルタ状態が復元されることを確認
+    await expect(newPage.locator('select[name="category"]')).toHaveValue('electronics');
+    await expect(newPage.locator('select[name="sort"]')).toHaveValue('price-asc');
+  });
+
+  test('不正なURLパラメータが安全に処理される', async ({ page }) => {
+    // 不正な値を含むURLにアクセス
+    await page.goto('/products?page=-1&sort=invalid&q=<script>alert(1)</script>');
+
+    // ページがクラッシュしないことを確認
+    await expect(page.locator('h1')).toBeVisible();
+
+    // 不正値がデフォルトに修正されていることを確認
+    // （実装による: リダイレクトまたはデフォルト値適用）
+  });
+});
+```
+
+### 8.3 URL状態のヘルパー関数テスト
+
+```typescript
+// === ヘルパー関数のテスト ===
+import { describe, it, expect } from 'vitest';
+import { normalizeSearchParams, searchParamsToObject } from './url-utils';
+
+describe('normalizeSearchParams', () => {
+  it('デフォルト値を除去する', () => {
+    const params = new URLSearchParams('page=1&sort=newest&q=laptop');
+    const normalized = normalizeSearchParams(params, {
+      page: '1',
+      sort: 'newest',
+    });
+
+    expect(normalized.toString()).toBe('q=laptop');
+  });
+
+  it('空の値を除去する', () => {
+    const params = new URLSearchParams('q=&category=&sort=price');
+    const normalized = normalizeSearchParams(params);
+
+    expect(normalized.toString()).toBe('sort=price');
+  });
+
+  it('キーをソートする', () => {
+    const params = new URLSearchParams('z=1&a=2&m=3');
+    const normalized = normalizeSearchParams(params);
+
+    expect(normalized.toString()).toBe('a=2&m=3&z=1');
+  });
+
+  it('空のパラメータを返す', () => {
+    const params = new URLSearchParams('page=1&sort=newest');
+    const normalized = normalizeSearchParams(params, {
+      page: '1',
+      sort: 'newest',
+    });
+
+    expect(normalized.toString()).toBe('');
+  });
+});
+
+describe('searchParamsToObject', () => {
+  it('単一値をstring として返す', () => {
+    const params = new URLSearchParams('q=laptop&page=2');
+    const obj = searchParamsToObject(params);
+
+    expect(obj).toEqual({ q: 'laptop', page: '2' });
+  });
+
+  it('複数値を配列として返す', () => {
+    const params = new URLSearchParams('tag=a&tag=b&tag=c');
+    const obj = searchParamsToObject(params);
+
+    expect(obj).toEqual({ tag: ['a', 'b', 'c'] });
+  });
+
+  it('混在する値を正しく処理する', () => {
+    const params = new URLSearchParams('q=laptop&tag=a&tag=b&page=1');
+    const obj = searchParamsToObject(params);
+
+    expect(obj).toEqual({
+      q: 'laptop',
+      tag: ['a', 'b'],
+      page: '1',
+    });
+  });
+});
+```
+
+---
+
+## 9. 実践的なケーススタディ
+
+### 9.1 ECサイトの商品検索ページ
+
+実際のECサイトを想定した、URL状態管理の完全な実装例を示す。
+
+```typescript
+// === 完全な実装例: ECサイト商品検索 ===
+
+// 1. 共有パーサー定義（searchParams.ts）
+import {
+  parseAsString,
+  parseAsInteger,
+  parseAsFloat,
+  parseAsBoolean,
+  parseAsStringEnum,
+  parseAsArrayOf,
+  createSearchParamsCache,
+} from 'nuqs';
+
+export const productSearchParsers = {
+  // 検索
+  q: parseAsString.withDefault(''),
+
+  // ページネーション
+  page: parseAsInteger.withDefault(1),
+  per_page: parseAsInteger.withDefault(24),
+
+  // ソート
+  sort: parseAsStringEnum([
+    'relevance',
+    'newest',
+    'price-asc',
+    'price-desc',
+    'rating',
+    'popular',
+  ]).withDefault('relevance'),
+
+  // フィルタ
+  category: parseAsString,
+  brand: parseAsString,
+  tags: parseAsArrayOf(parseAsString, ',').withDefault([]),
+  in_stock: parseAsBoolean.withDefault(false),
+  price_min: parseAsFloat,
+  price_max: parseAsFloat,
+  rating_min: parseAsInteger,
+
+  // 表示設定
+  view: parseAsStringEnum(['grid', 'list']).withDefault('grid'),
+};
+
+// Server Component 用キャッシュ
+export const productSearchParamsCache = createSearchParamsCache(
+  productSearchParsers
+);
+
+// 型定義
+export type ProductSearchParams = {
+  [K in keyof typeof productSearchParsers]: ReturnType<
+    (typeof productSearchParsers)[K]['parse']
+  >;
+};
+```
+
+```typescript
+// 2. Server Component（page.tsx）
+import { Suspense } from 'react';
+import { productSearchParamsCache } from './searchParams';
+
+export default async function ProductsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[]>>;
+}) {
+  const filters = await productSearchParamsCache.parse(await searchParams);
+
+  // サーバーサイドでデータフェッチ
+  const [products, categories, brands] = await Promise.all([
+    getProducts(filters),
+    getCategories(),
+    getBrands(filters.category),
+  ]);
+
+  return (
+    <div className="flex gap-6">
+      {/* サイドバー: フィルタ */}
+      <aside className="w-64 shrink-0">
+        <Suspense fallback={<FiltersSkeleton />}>
+          <ProductFiltersSidebar
+            categories={categories}
+            brands={brands}
+          />
+        </Suspense>
+      </aside>
+
+      {/* メインコンテンツ */}
+      <main className="flex-1">
+        {/* 検索バー & ソート */}
+        <Suspense fallback={<SearchBarSkeleton />}>
+          <SearchAndSort totalCount={products.meta.total} />
+        </Suspense>
+
+        {/* アクティブフィルタ表示 */}
+        <Suspense fallback={null}>
+          <ActiveFilters />
+        </Suspense>
+
+        {/* 商品グリッド */}
+        <ProductGrid
+          products={products.data}
+          view={filters.view ?? 'grid'}
+        />
+
+        {/* ページネーション */}
+        <ServerPagination
+          currentPage={filters.page}
+          totalPages={products.meta.totalPages}
+          searchParams={Object.fromEntries(
+            Object.entries(filters).filter(([_, v]) => v != null)
+          )}
+        />
+      </main>
+    </div>
+  );
+}
+```
+
+```typescript
+// 3. Client Component: アクティブフィルタ表示
+'use client';
+import { useQueryStates } from 'nuqs';
+import { productSearchParsers } from './searchParams';
+
+function ActiveFilters() {
+  const [filters, setFilters] = useQueryStates(productSearchParsers);
+
+  const activeFilters: { key: string; label: string; onRemove: () => void }[] = [];
+
+  if (filters.q) {
+    activeFilters.push({
+      key: 'q',
+      label: `Search: "${filters.q}"`,
+      onRemove: () => setFilters({ q: '', page: 1 }),
+    });
+  }
+
+  if (filters.category) {
+    activeFilters.push({
+      key: 'category',
+      label: `Category: ${filters.category}`,
+      onRemove: () => setFilters({ category: null, page: 1 }),
+    });
+  }
+
+  if (filters.brand) {
+    activeFilters.push({
+      key: 'brand',
+      label: `Brand: ${filters.brand}`,
+      onRemove: () => setFilters({ brand: null, page: 1 }),
+    });
+  }
+
+  filters.tags.forEach((tag, index) => {
+    activeFilters.push({
+      key: `tag-${index}`,
+      label: `Tag: ${tag}`,
+      onRemove: () => setFilters({
+        tags: filters.tags.filter((_, i) => i !== index),
+        page: 1,
+      }),
+    });
+  });
+
+  if (filters.in_stock) {
+    activeFilters.push({
+      key: 'in_stock',
+      label: 'In Stock Only',
+      onRemove: () => setFilters({ in_stock: false, page: 1 }),
+    });
+  }
+
+  if (filters.price_min !== null || filters.price_max !== null) {
+    const min = filters.price_min ?? 0;
+    const max = filters.price_max ?? 'unlimited';
+    activeFilters.push({
+      key: 'price',
+      label: `Price: $${min} - $${max}`,
+      onRemove: () => setFilters({
+        price_min: null,
+        price_max: null,
+        page: 1,
+      }),
+    });
+  }
+
+  if (activeFilters.length === 0) return null;
+
+  return (
+    <div className="flex flex-wrap gap-2 mb-4">
+      {activeFilters.map((filter) => (
+        <span
+          key={filter.key}
+          className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm"
+        >
+          {filter.label}
+          <button
+            onClick={filter.onRemove}
+            className="ml-1 hover:text-blue-600"
+            aria-label={`Remove filter: ${filter.label}`}
+          >
+            x
+          </button>
+        </span>
+      ))}
+
+      <button
+        onClick={() => setFilters({
+          q: '',
+          category: null,
+          brand: null,
+          tags: [],
+          in_stock: false,
+          price_min: null,
+          price_max: null,
+          rating_min: null,
+          page: 1,
+          sort: 'relevance',
+        })}
+        className="text-sm text-gray-500 hover:text-gray-700 underline"
+      >
+        Clear All
+      </button>
+    </div>
+  );
+}
+```
+
+### 9.2 ダッシュボードのフィルタパネル
+
+```typescript
+// === ダッシュボード: 日付範囲フィルタ ===
+'use client';
+import { useQueryStates, parseAsString, parseAsStringEnum } from 'nuqs';
+import { startOfDay, endOfDay, subDays, format } from 'date-fns';
+
+const dashboardParsers = {
+  from: parseAsString,
+  to: parseAsString,
+  preset: parseAsStringEnum([
+    'today',
+    '7d',
+    '30d',
+    '90d',
+    'year',
+    'custom',
+  ]).withDefault('30d'),
+  metric: parseAsStringEnum([
+    'revenue',
+    'orders',
+    'visitors',
+    'conversion',
+  ]).withDefault('revenue'),
+  granularity: parseAsStringEnum([
+    'hour',
+    'day',
+    'week',
+    'month',
+  ]).withDefault('day'),
+};
+
+function DashboardFilters() {
+  const [filters, setFilters] = useQueryStates(dashboardParsers);
+
+  // プリセットから日付範囲を計算
+  const dateRange = useMemo(() => {
+    const now = new Date();
+
+    switch (filters.preset) {
+      case 'today':
+        return { from: startOfDay(now), to: endOfDay(now) };
+      case '7d':
+        return { from: subDays(now, 7), to: now };
+      case '30d':
+        return { from: subDays(now, 30), to: now };
+      case '90d':
+        return { from: subDays(now, 90), to: now };
+      case 'year':
+        return { from: subDays(now, 365), to: now };
+      case 'custom':
+        return {
+          from: filters.from ? new Date(filters.from) : subDays(now, 30),
+          to: filters.to ? new Date(filters.to) : now,
+        };
+      default:
+        return { from: subDays(now, 30), to: now };
+    }
+  }, [filters.preset, filters.from, filters.to]);
+
+  function handlePresetChange(preset: string) {
+    if (preset === 'custom') {
+      setFilters({
+        preset: 'custom',
+        from: format(dateRange.from, 'yyyy-MM-dd'),
+        to: format(dateRange.to, 'yyyy-MM-dd'),
+      });
+    } else {
+      setFilters({
+        preset: preset as any,
+        from: null,
+        to: null,
+      });
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-4">
+      {/* プリセット選択 */}
+      <select
+        value={filters.preset}
+        onChange={(e) => handlePresetChange(e.target.value)}
+      >
+        <option value="today">Today</option>
+        <option value="7d">Last 7 Days</option>
+        <option value="30d">Last 30 Days</option>
+        <option value="90d">Last 90 Days</option>
+        <option value="year">Last Year</option>
+        <option value="custom">Custom Range</option>
+      </select>
+
+      {/* カスタム日付範囲（preset=custom の場合のみ表示） */}
+      {filters.preset === 'custom' && (
+        <>
+          <input
+            type="date"
+            value={filters.from ?? ''}
+            onChange={(e) => setFilters({ from: e.target.value || null })}
+          />
+          <span>to</span>
+          <input
+            type="date"
+            value={filters.to ?? ''}
+            onChange={(e) => setFilters({ to: e.target.value || null })}
+          />
+        </>
+      )}
+
+      {/* メトリクス選択 */}
+      <select
+        value={filters.metric}
+        onChange={(e) => setFilters({ metric: e.target.value as any })}
+      >
+        <option value="revenue">Revenue</option>
+        <option value="orders">Orders</option>
+        <option value="visitors">Visitors</option>
+        <option value="conversion">Conversion Rate</option>
+      </select>
+
+      {/* 粒度選択 */}
+      <select
+        value={filters.granularity}
+        onChange={(e) => setFilters({ granularity: e.target.value as any })}
+      >
+        <option value="hour">Hourly</option>
+        <option value="day">Daily</option>
+        <option value="week">Weekly</option>
+        <option value="month">Monthly</option>
+      </select>
+    </div>
+  );
+}
+```
+
+---
+
+## 10. URL状態管理ツール比較
+
+### 10.1 ツール選定ガイド
+
+| ツール | 型安全 | フレームワーク | バッチ更新 | SSR対応 | 学習コスト | 推奨場面 |
+|--------|--------|----------------|-----------|---------|----------|---------|
+| URLSearchParams | 低 | なし（Web標準） | 手動 | 可 | 低 | シンプルなケース |
+| useSearchParams (RR) | 低 | React Router | 手動 | なし | 低 | React Router プロジェクト |
+| useSearchParams (Next) | 低 | Next.js | 手動 | 可 | 低 | Next.js プロジェクト |
+| nuqs | 高 | Next/RR/Remix | 自動 | 可 | 中 | 型安全が必要な場合 |
+| qs ライブラリ | 低 | なし | 手動 | 可 | 低 | ネストオブジェクトのシリアライズ |
+| カスタムフック | 中 | 任意 | 手動 | 依存 | 高 | 特殊要件がある場合 |
+
+### 10.2 プロジェクト規模別の推奨
+
+```
+小規模プロジェクト（1-3ページのフィルタ）:
+  → useSearchParams + カスタムヘルパー関数
+  → 追加ライブラリ不要
+  → シンプルで理解しやすい
+
+中規模プロジェクト（5-10ページのフィルタ）:
+  → nuqs を導入
+  → 型安全性とバッチ更新の恩恵が大きい
+  → パーサー定義を共有して一貫性を保つ
+
+大規模プロジェクト（10+ページ、複雑なフィルタ）:
+  → nuqs + Zod バリデーション
+  → Server Component 統合（searchParamsCache）
+  → URL正規化ミドルウェア
+  → E2Eテストで URL状態の回帰テスト
+```
+
+---
+
+## 11. トラブルシューティング
+
+### 11.1 よくある問題と解決策
+
+```
+問題1: useSearchParams が Suspense boundary を要求する（Next.js）
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+原因: Next.js App Router では useSearchParams がクライアントのみの値
+解決: <Suspense> で囲む、または fallback を提供する
+  <Suspense fallback={<Loading />}>
+    <ComponentWithSearchParams />
+  </Suspense>
+
+問題2: URLパラメータが消える / リセットされる
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+原因: setSearchParams でオブジェクトを渡すと全パラメータが置換される
+解決: 関数型アップデートを使用する
+  setSearchParams(prev => {
+    const next = new URLSearchParams(prev);
+    next.set('key', 'value');
+    return next;
+  });
+
+問題3: useEffect の無限ループ
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+原因: searchParams オブジェクトが毎レンダリングで新規生成される
+解決: 依存配列にはプリミティブ値を使用する
+  const query = searchParams.get('q') ?? '';
+  useEffect(() => { ... }, [query]); // string
+
+問題4: ブラウザバックが効かない
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+原因: router.replace を使っている（履歴に追加されない）
+解決: フィルタ変更には router.push を使用する
+  replace → 検索入力中のリアルタイム更新のみ
+  push → フィルタ確定時
+
+問題5: 日本語が文字化けする
+━━━━━━━━━━━━━━━━━━━━━━━━━
+原因: 手動で encodeURIComponent / decodeURIComponent を使っている
+解決: URLSearchParams を使用する（自動エンコード/デコード）
+  params.set('q', '日本語'); // 自動エンコード
+  params.get('q'); // '日本語'（自動デコード）
+
+問題6: パラメータの順序が毎回変わる
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+原因: URLSearchParams は挿入順
+解決: params.sort() で辞書順にソートする
+  → キャッシュヒット率の向上にも効果的
+
+問題7: nuqs でURLが更新されない
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+原因: NuqsAdapter の設定漏れ
+解決: layout.tsx で NuqsAdapter を設定する
+  import { NuqsAdapter } from 'nuqs/adapters/next/app';
+
+問題8: Server Component で searchParams が undefined
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+原因: Next.js 15+ では searchParams が Promise に変更された
+解決: await で解決する
+  const params = await searchParams; // Next.js 15+
+
+問題9: 同じフィルタなのに毎回APIが呼ばれる
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+原因: queryKey にオブジェクト参照を使っている
+解決: プリミティブ値 or JSON.stringify を queryKey に使用
+  queryKey: ['products', query, page, sort] // OK
+  queryKey: ['products', JSON.stringify(filters)] // OK
+  queryKey: ['products', filtersObject] // NG（参照比較）
+
+問題10: iOS Safari でURLが更新されない
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+原因: iOS Safari の History API 制限（100回/30秒）
+解決: スロットルを入れてURL更新頻度を制限する
+  → 特にスライダーやリアルタイム入力で注意
+```
+
+### 11.2 デバッグテクニック
+
+```typescript
+// === URL状態のデバッグ ===
+
+// 1. 現在のURL状態をログ出力
+function useDebugSearchParams() {
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      console.group('URL State');
+      console.log('URL:', window.location.href);
+      console.log('Search:', searchParams.toString());
+      console.log('Params:', Object.fromEntries(searchParams.entries()));
+      console.groupEnd();
+    }
+  }, [searchParams]);
+}
+
+// 2. URL変更の追跡
+function useTrackURLChanges() {
+  const searchParams = useSearchParams();
+  const prevRef = useRef(searchParams.toString());
+
+  useEffect(() => {
+    const current = searchParams.toString();
+    if (prevRef.current !== current) {
+      console.log('URL changed:');
+      console.log('  Before:', prevRef.current);
+      console.log('  After:', current);
+      prevRef.current = current;
+    }
+  }, [searchParams]);
+}
+
+// 3. React DevTools で URL状態を確認
+// nuqs を使用している場合、React DevTools の
+// コンポーネントツリーで各パラメータの値が確認できる
+
+// 4. ブラウザの開発者ツールで History を確認
+// Performance タブ → Navigation タイミングを確認
+// Application タブ → History API の状態を確認
+```
+
+---
+
+## まとめ
+
+### URL状態管理の選択マトリクス
+
+| 判断基準 | URLSearchParams | useSearchParams | nuqs |
+|---------|----------------|----------------|------|
+| 型安全性が必要 | - | - | Best |
+| Next.js App Router | OK | OK | Best |
+| React Router | OK | Best | OK |
+| Server Component 統合 | 手動 | 手動 | Best |
+| 複雑なフィルタ（10+パラメータ） | 手動 | 手動 | Best |
+| 追加ライブラリを避けたい | Best | OK | - |
+| バッチ更新が必要 | 手動 | 手動 | Best |
+| カスタムパーサーが必要 | 手動 | 手動 | Best |
+
+### URL状態設計のチェックリスト
+
+```
+設計時:
+□ URLに含めるべき状態を特定した
+□ デフォルト値をURLから除外する設計にした
+□ 配列パラメータの形式を統一した
+□ パラメータ名の命名規則を決めた（snake_case / camelCase）
+□ URL長の上限を考慮した
+
+実装時:
+□ 型安全なパーサーを使用している（nuqs or Zod）
+□ フィルタ変更時にページをリセットしている
+□ 検索入力にデバウンスを適用している
+□ push / replace を適切に使い分けている
+□ XSSやOpen Redirectの対策をしている
+□ バリデーションを実装している
+
+テスト時:
+□ URLからの状態復元テスト
+□ ブラウザバック/フォワードテスト
+□ 不正なURLパラメータの処理テスト
+□ 共有URLの動作テスト
+□ E2Eテストでフィルタ操作を検証
+```
+
+---
+
+## 次に読むべきガイド
+→ [[00-client-side-routing.md]] -- クライアントルーティング
+→ [[01-component-state.md]] -- コンポーネント状態管理
+→ [[02-global-state.md]] -- グローバル状態管理
+
+---
+
+## 参考文献
+1. nuqs. "Type-safe search params state manager for Next.js." github.com/47ng/nuqs, 2024.
+2. Next.js. "useSearchParams." nextjs.org/docs/app/api-reference/functions/use-search-params, 2024.
+3. React Router. "useSearchParams." reactrouter.com/en/main/hooks/use-search-params, 2024.
+4. MDN Web Docs. "URLSearchParams." developer.mozilla.org/en-US/docs/Web/API/URLSearchParams, 2024.
+5. Lee Robinson. "Search Params in Next.js." leerob.io, 2024.
+6. Web.dev. "URL pattern API." web.dev/articles/urlpattern, 2024.
+7. OWASP. "Unvalidated Redirects and Forwards." owasp.org, 2024.
+8. Kent C. Dodds. "URL State Management in React." epicreact.dev, 2024.

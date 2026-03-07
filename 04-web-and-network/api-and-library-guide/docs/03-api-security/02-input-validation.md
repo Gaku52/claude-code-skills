@@ -1679,3 +1679,879 @@ function getLocaleFromRequest(req: Request): string {
 }
 ```
 
+---
+
+## 10. アンチパターン集
+
+### 10.1 アンチパターン1: クライアントサイドバリデーションのみに依存
+
+```
++================================================================+
+|  アンチパターン: クライアント側のみでバリデーション                  |
++================================================================+
+|                                                                |
+|  [誤った設計]                                                   |
+|                                                                |
+|  ブラウザ                          サーバー                      |
+|  +--------------------+           +--------------------+       |
+|  | フォームバリデーション |   ──>    | バリデーションなし    |       |
+|  | (JavaScript)       |           | 即座にDB保存         |       |
+|  +--------------------+           +--------------------+       |
+|                                                                |
+|  問題:                                                          |
+|  ・curl / Postman で直接リクエストを送信すればバイパス可能          |
+|  ・ブラウザの開発者ツールで JavaScript を無効化できる               |
+|  ・API は常にブラウザ経由でアクセスされるとは限らない                |
+|  ・モバイルアプリ、外部システム、bot からのアクセスもある            |
+|                                                                |
+|  ─────────────────────────────────────────────────             |
+|                                                                |
+|  [正しい設計]                                                   |
+|                                                                |
+|  ブラウザ                          サーバー                      |
+|  +--------------------+           +--------------------+       |
+|  | フォームバリデーション | ──>      | サーバーサイド        |       |
+|  | (UX向上が目的)      |           | バリデーション        |       |
+|  +--------------------+           | (セキュリティが目的)   |       |
+|                                   +--------------------+       |
+|                                                                |
+|  クライアント側: UX のためのフィードバック（必須ではない）           |
+|  サーバー側:   セキュリティのための検証（必須）                     |
+|                                                                |
++================================================================+
+```
+
+なぜ危険なのか:
+- 攻撃者は HTTP クライアント（curl、Burp Suite 等）を使って、クライアントサイドのバリデーションを完全にバイパスできる
+- JavaScript を無効化したブラウザからのアクセスではバリデーションが実行されない
+- クライアントサイドのコードは改ざん可能であり、信頼できない
+
+正しいアプローチ:
+- サーバーサイドでのバリデーションを「必須」とする
+- クライアントサイドのバリデーションは UX 改善のための「付加価値」として位置づける
+- 両方で同じバリデーションルールを適用する場合、Zod スキーマを共有する（monorepo での共有モジュール等）
+
+### 10.2 アンチパターン2: ブラックリストベースのバリデーション
+
+```typescript
+// NG: ブラックリスト（禁止パターンの列挙）
+function sanitizeInputBad(input: string): string {
+  // 既知の攻撃パターンを除去する方式
+  let sanitized = input;
+  sanitized = sanitized.replace(/<script>/gi, '');
+  sanitized = sanitized.replace(/<\/script>/gi, '');
+  sanitized = sanitized.replace(/javascript:/gi, '');
+  sanitized = sanitized.replace(/on\w+=/gi, '');     // onclick=, onerror= 等
+  sanitized = sanitized.replace(/eval\(/gi, '');
+  sanitized = sanitized.replace(/document\./gi, '');
+  return sanitized;
+}
+// 問題点:
+// 1. バイパス可能: <scr<script>ipt> -> <script> （除去後に攻撃文字列が復元）
+// 2. エンコーディングバイパス: &#60;script&#62; (HTML エンティティ)
+// 3. 大文字小文字の混在: <ScRiPt>
+// 4. Unicode バイパス: ＜script＞ (全角文字)
+// 5. 新しい攻撃ベクトルへの対応が遅れる
+
+// OK: ホワイトリスト（許可パターンの明示）
+const SafeUsernameSchema = z.string()
+  .min(3)
+  .max(30)
+  .regex(/^[a-zA-Z0-9_-]+$/, 'Username must contain only letters, numbers, _ and -');
+// 許可する文字を明示的に定義しているため、
+// どのような攻撃パターンも入力できない
+
+// OK: コンテキストに応じた出力エスケープ
+function renderUserName(name: string, context: 'html' | 'url' | 'json'): string {
+  switch (context) {
+    case 'html':
+      return escapeHtml(name);
+    case 'url':
+      return encodeURIComponent(name);
+    case 'json':
+      return JSON.stringify(name);
+    default:
+      return name;
+  }
+}
+```
+
+### 10.3 アンチパターン3: エラーメッセージでの情報漏洩
+
+```typescript
+// NG: 内部実装の詳細を露出するエラーメッセージ
+app.post('/api/login', async (req, res) => {
+  try {
+    const user = await db.query(
+      'SELECT * FROM users WHERE email = $1',
+      [req.body.email]
+    );
+
+    if (!user) {
+      // NG: メールアドレスの登録状況が判明する
+      return res.status(404).json({
+        error: 'User with this email does not exist',
+      });
+    }
+
+    const valid = await bcrypt.compare(req.body.password, user.password);
+    if (!valid) {
+      // NG: パスワードが間違っていることが判明する
+      return res.status(401).json({
+        error: 'Incorrect password',
+      });
+    }
+  } catch (err) {
+    // NG: スタックトレースを露出
+    return res.status(500).json({
+      error: err.message,
+      stack: err.stack,
+      query: 'SELECT * FROM users WHERE email = ...',
+    });
+  }
+});
+
+// OK: 安全なエラーメッセージ
+app.post('/api/login', async (req, res) => {
+  try {
+    const user = await db.query(
+      'SELECT * FROM users WHERE email = $1',
+      [req.body.email]
+    );
+
+    const valid = user && await bcrypt.compare(req.body.password, user.password);
+
+    if (!valid) {
+      // メールとパスワードのどちらが間違っているかを明かさない
+      return res.status(401).json({
+        type: 'https://api.example.com/errors/authentication',
+        title: 'Authentication Failed',
+        status: 401,
+        detail: 'Invalid email or password.',
+      });
+    }
+  } catch (err) {
+    // 内部エラーの詳細はログに記録し、クライアントには汎用メッセージを返す
+    logger.error('Login error', { error: err, email: req.body.email });
+    return res.status(500).json({
+      type: 'https://api.example.com/errors/internal',
+      title: 'Internal Server Error',
+      status: 500,
+      detail: 'An unexpected error occurred. Please try again later.',
+    });
+  }
+});
+```
+
+---
+
+## 11. エッジケース分析
+
+### 11.1 エッジケース1: Unicode の正規化と見た目が同じ文字
+
+```typescript
+// Unicode には「見た目は同じだが異なるコードポイント」の文字が多数存在する
+
+// 例1: 全角/半角の混在
+const inputs = [
+  'admin',          // 半角ラテン文字
+  'ａｄｍｉｎ',      // 全角ラテン文字 (U+FF41 等)
+  'аdmin',          // キリル文字の 'а' (U+0430) + ラテン文字 'dmin'
+];
+
+// これらは見た目がほぼ同じだが、バイト列は異なる
+// -> ユーザー名の一意性チェックをバイパスされる可能性がある
+
+// 対策: Unicode 正規化 + ASCII 変換
+function normalizeUsername(input: string): string {
+  // 1. NFKC 正規化（互換等価性による正規化）
+  //    全角英数字を半角に変換する
+  let normalized = input.normalize('NFKC');
+
+  // 2. 許可する文字範囲の限定
+  //    ASCII 英数字と一部記号のみ許可
+  if (!/^[a-zA-Z0-9_-]+$/.test(normalized)) {
+    throw new Error('Username contains invalid characters');
+  }
+
+  return normalized.toLowerCase();
+}
+
+// 例2: 結合文字と合成済み文字
+// 'e' + '◌́' (結合アキュートアクセント) = 'é' (NFD: 2コードポイント)
+// 'é' (U+00E9) (NFC: 1コードポイント)
+// これらは見た目が完全に同じだが、文字列比較で一致しない場合がある
+
+// 対策: 保存前に NFC 正規化を統一適用
+const NameSchema = z.string()
+  .min(1)
+  .max(100)
+  .transform(val => val.normalize('NFC').trim());
+
+// 例3: 不可視文字・ゼロ幅文字
+// U+200B Zero Width Space
+// U+200C Zero Width Non-Joiner
+// U+200D Zero Width Joiner
+// U+FEFF Byte Order Mark
+
+function removeInvisibleChars(str: string): string {
+  return str.replace(/[\u200B\u200C\u200D\uFEFF\u00AD\u2060\u180E]/g, '');
+}
+
+// Zod での包括的なユーザー名バリデーション
+const UsernameSchema = z.string()
+  .transform(val => val.normalize('NFKC'))
+  .transform(removeInvisibleChars)
+  .transform(val => val.trim().toLowerCase())
+  .pipe(
+    z.string()
+      .min(3, 'Username must be at least 3 characters')
+      .max(30, 'Username must be at most 30 characters')
+      .regex(/^[a-z0-9_-]+$/, 'Username must contain only lowercase letters, numbers, _ and -')
+  );
+```
+
+### 11.2 エッジケース2: 数値の精度とオーバーフロー
+
+```typescript
+// JavaScript/TypeScript の数値処理における罠
+
+// 問題1: IEEE 754 浮動小数点の精度限界
+console.log(0.1 + 0.2);           // 0.30000000000000004
+console.log(0.1 + 0.2 === 0.3);   // false
+
+// 問題2: 大きな整数の精度喪失
+console.log(9007199254740992 === 9007199254740993); // true (!)
+// Number.MAX_SAFE_INTEGER = 9007199254740991
+
+// 問題3: JSON パースでの精度喪失
+const json = '{"id": 9007199254740993}';
+console.log(JSON.parse(json).id); // 9007199254740992 (1 ずれる)
+
+// --- 対策 ---
+
+// ① 金額は整数（最小通貨単位）で扱う
+const MoneySchema = z.object({
+  // 金額は「銭」単位（1円 = 100銭）で保持
+  amountInMinorUnit: z.number()
+    .int('Amount must be an integer')
+    .min(0, 'Amount must be non-negative')
+    .max(999999999999, 'Amount exceeds maximum'),
+  currency: z.enum(['JPY', 'USD', 'EUR']),
+});
+
+// ② 大きなIDはstringで扱う
+const ResourceIdSchema = z.string()
+  .regex(/^\d{1,20}$/, 'Invalid resource ID')
+  .refine(
+    (val) => {
+      const num = BigInt(val);
+      return num > 0n;
+    },
+    'Resource ID must be positive'
+  );
+
+// ③ Decimal 型の使用（prisma）
+// schema.prisma:
+// model Product {
+//   price Decimal @db.Decimal(10, 2)
+// }
+
+// ④ JSON の大きな数値を文字列として受け取る
+const TransactionSchema = z.object({
+  // Twitter/Snowflake ID 等の大きな整数
+  transactionId: z.string()
+    .regex(/^\d{1,20}$/)
+    .describe('Transaction ID as string to prevent precision loss'),
+
+  amount: z.string()
+    .regex(/^\d+(\.\d{1,2})?$/, 'Invalid amount format')
+    .describe('Amount as string for decimal precision'),
+});
+
+// ⑤ 整数範囲の明示的チェック
+const SafeIntSchema = z.number()
+  .int()
+  .min(Number.MIN_SAFE_INTEGER)
+  .max(Number.MAX_SAFE_INTEGER);
+```
+
+### 11.3 エッジケース3: タイムゾーンと日時バリデーション
+
+```typescript
+// 日時バリデーションの落とし穴
+
+// 問題1: タイムゾーン情報の欠落
+// "2024-03-15T10:00:00" -> どのタイムゾーンの10時?
+// "2024-03-15T10:00:00Z" -> UTC の10時（明確）
+// "2024-03-15T10:00:00+09:00" -> JST の10時（明確）
+
+// 対策: ISO 8601 形式でタイムゾーンを必須化
+const DateTimeSchema = z.string()
+  .datetime({ message: 'Must be ISO 8601 format with timezone' });
+// "2024-03-15T10:00:00Z" -> OK
+// "2024-03-15T10:00:00+09:00" -> OK
+// "2024-03-15T10:00:00" -> NG
+
+// 問題2: うるう秒、夏時間の切り替え
+// 2024-03-10T02:30:00 America/New_York -> 存在しない（夏時間で2:00->3:00）
+// 2024-11-03T01:30:00 America/New_York -> 曖昧（01:30が2回発生）
+
+// 対策: UTC で保存し、表示時にタイムゾーン変換
+const EventSchema = z.object({
+  title: z.string().min(1).max(200),
+  // 常に UTC で受け取り、保存する
+  startAt: z.string().datetime(),
+  endAt: z.string().datetime(),
+  // 表示用のタイムゾーン情報は別フィールド
+  timezone: z.string()
+    .regex(/^[A-Za-z]+\/[A-Za-z_]+$/, 'Invalid timezone format')
+    .default('UTC'),
+}).refine(
+  (data) => new Date(data.startAt) < new Date(data.endAt),
+  { message: 'endAt must be after startAt', path: ['endAt'] }
+);
+```
+
+---
+
+## 12. 演習問題
+
+### 12.1 演習1（基礎）: ECサイトの商品登録スキーマ
+
+以下の要件を満たす Zod スキーマ `CreateProductSchema` を作成せよ。
+
+要件:
+- `name`: 必須、1-200文字、前後の空白を除去
+- `description`: 任意、最大5000文字、HTMLタグを無効化
+- `price`: 必須、0以上の整数、最大値 999,999,999
+- `currency`: 必須、'JPY', 'USD', 'EUR' のいずれか
+- `category`: 必須、'electronics', 'clothing', 'food', 'books', 'other' のいずれか
+- `tags`: 任意、文字列の配列、各タグ最大30文字、最大20個
+- `images`: 必須、1-10個のオブジェクト配列、各オブジェクトは `url`（URL形式）と `alt`（1-100文字）を持つ
+- `stock`: 必須、0以上の整数
+- `isPublished`: 任意、デフォルト false
+
+```typescript
+// 解答例:
+const CreateProductSchema = z.object({
+  name: z.string()
+    .min(1, 'Product name is required')
+    .max(200, 'Product name must be 200 characters or less')
+    .trim(),
+
+  description: z.string()
+    .max(5000, 'Description must be 5000 characters or less')
+    .transform(escapeHtml)
+    .optional(),
+
+  price: z.number()
+    .int('Price must be an integer')
+    .min(0, 'Price must be non-negative')
+    .max(999_999_999, 'Price exceeds maximum'),
+
+  currency: z.enum(['JPY', 'USD', 'EUR']),
+
+  category: z.enum(['electronics', 'clothing', 'food', 'books', 'other']),
+
+  tags: z.array(
+    z.string().max(30, 'Each tag must be 30 characters or less').trim()
+  ).max(20, 'Maximum 20 tags').default([]),
+
+  images: z.array(
+    z.object({
+      url: z.string().url('Invalid image URL'),
+      alt: z.string().min(1).max(100),
+    })
+  ).min(1, 'At least one image is required')
+   .max(10, 'Maximum 10 images'),
+
+  stock: z.number()
+    .int('Stock must be an integer')
+    .min(0, 'Stock must be non-negative'),
+
+  isPublished: z.boolean().default(false),
+});
+
+type CreateProductInput = z.infer<typeof CreateProductSchema>;
+```
+
+### 12.2 演習2（中級）: 汎用バリデーションミドルウェアの構築
+
+Express 用の汎用バリデーションミドルウェアを構築せよ。以下の要件を満たすこと。
+
+要件:
+- body, query, params, headers のすべてをバリデーション可能
+- エラーは RFC 7807 形式で返す
+- 全エラーを収集して一括返却する
+- requestId をエラーレスポンスに含める
+- ログ出力を含める
+
+```typescript
+// 解答例:
+import { z, ZodSchema } from 'zod';
+import { Request, Response, NextFunction } from 'express';
+import { randomUUID } from 'crypto';
+
+interface ValidationSchemas {
+  body?: ZodSchema;
+  query?: ZodSchema;
+  params?: ZodSchema;
+  headers?: ZodSchema;
+}
+
+interface ValidationError {
+  location: 'body' | 'query' | 'params' | 'headers';
+  field: string;
+  code: string;
+  message: string;
+}
+
+function createValidator(schemas: ValidationSchemas) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const requestId = (req.headers['x-request-id'] as string) || randomUUID();
+    const errors: ValidationError[] = [];
+
+    const targets: Array<{
+      key: keyof ValidationSchemas;
+      source: any;
+      assignTo?: string;
+    }> = [
+      { key: 'body', source: req.body },
+      { key: 'query', source: req.query, assignTo: 'validatedQuery' },
+      { key: 'params', source: req.params, assignTo: 'validatedParams' },
+      { key: 'headers', source: req.headers, assignTo: 'validatedHeaders' },
+    ];
+
+    for (const target of targets) {
+      const schema = schemas[target.key];
+      if (!schema) continue;
+
+      const result = schema.safeParse(target.source);
+      if (!result.success) {
+        result.error.issues.forEach(issue => {
+          errors.push({
+            location: target.key as ValidationError['location'],
+            field: issue.path.join('.'),
+            code: issue.code,
+            message: issue.message,
+          });
+        });
+      } else {
+        if (target.key === 'body') {
+          req.body = result.data;
+        } else if (target.assignTo) {
+          (req as any)[target.assignTo] = result.data;
+        }
+      }
+    }
+
+    if (errors.length > 0) {
+      console.warn(`[Validation] ${req.method} ${req.path} - ${errors.length} error(s)`, {
+        requestId,
+        errors,
+      });
+
+      return res.status(422).json({
+        type: 'https://api.example.com/errors/validation',
+        title: 'Validation Error',
+        status: 422,
+        detail: `The request contains ${errors.length} validation error(s).`,
+        instance: req.originalUrl,
+        errors,
+        requestId,
+      });
+    }
+
+    next();
+  };
+}
+
+// 使用例:
+app.post('/api/v1/products',
+  createValidator({
+    body: CreateProductSchema,
+    headers: z.object({
+      'content-type': z.literal('application/json'),
+    }).passthrough(),
+  }),
+  async (req, res) => {
+    const product = await productService.create(req.body);
+    res.status(201).json({ data: product });
+  }
+);
+```
+
+### 12.3 演習3（上級）: バリデーション + サニタイゼーション + セキュリティの統合
+
+ブログ投稿 API のエンドポイントを構築せよ。以下のセキュリティ要件をすべて満たすこと。
+
+要件:
+- Mass Assignment 防止（`.strict()` 使用）
+- XSS 防止（HTML サニタイゼーション）
+- SQL インジェクション防止（パラメタライズドクエリ）
+- ReDoS 防止（安全な正規表現 + 入力長制限）
+- パストラバーサル防止（ファイル名検証）
+- ペイロードサイズ制限
+- 適切なエラーレスポンス
+
+```typescript
+// 解答例:
+
+// ① スキーマ定義（Mass Assignment 防止）
+const CreateBlogPostSchema = z.object({
+  title: z.string()
+    .min(1, 'Title is required')
+    .max(200, 'Title must be 200 characters or less')
+    .trim()
+    .transform(removeControlChars),
+
+  // HTML を許可するが、安全なタグのみ
+  content: z.string()
+    .min(1, 'Content is required')
+    .max(100000, 'Content must be 100000 characters or less')
+    .transform(sanitizeHtml),
+
+  slug: z.string()
+    .min(1)
+    .max(200)
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Invalid slug format')
+    .transform(val => val.toLowerCase()),
+
+  tags: z.array(
+    z.string()
+      .max(30)
+      .regex(/^[a-zA-Z0-9\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF_-]+$/)
+  ).max(10).default([]),
+
+  coverImage: z.object({
+    filename: z.string()
+      .max(255)
+      .regex(/^[a-zA-Z0-9._-]+$/, 'Invalid filename')
+      .refine(name => !name.includes('..'), 'Path traversal detected'),
+    mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
+    size: z.number().max(5 * 1024 * 1024, 'Image must be under 5MB'),
+  }).optional(),
+
+  status: z.enum(['draft', 'published']).default('draft'),
+}).strict(); // 未定義フィールドを拒否
+
+// ② ルートハンドラ
+app.post('/api/v1/posts',
+  express.json({ limit: '2mb' }),   // ペイロードサイズ制限
+  authenticate,                      // 認証
+  createValidator({ body: CreateBlogPostSchema }),
+  async (req, res) => {
+    const { title, content, slug, tags, coverImage, status } = req.body;
+    const authorId = req.user.id;
+
+    // ③ パラメタライズドクエリで保存
+    const result = await pool.query(
+      `INSERT INTO posts (title, content, slug, tags, cover_image, status, author_id, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+       RETURNING id, title, slug, status, created_at`,
+      [title, content, slug, JSON.stringify(tags), JSON.stringify(coverImage), status, authorId]
+    );
+
+    res.status(201).json({
+      data: result.rows[0],
+    });
+  }
+);
+```
+
+---
+
+## 13. 環境変数のバリデーション
+
+起動時に環境変数を検証することで、設定ミスによる本番障害を防止できる。
+
+```typescript
+// ============================================================
+// コード例7: 環境変数のバリデーション（起動時チェック）
+// ============================================================
+
+const EnvSchema = z.object({
+  // サーバー設定
+  NODE_ENV: z.enum(['development', 'staging', 'production']),
+  PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+  HOST: z.string().default('0.0.0.0'),
+
+  // データベース
+  DATABASE_URL: z.string().url(),
+  DATABASE_POOL_SIZE: z.coerce.number().int().min(1).max(100).default(10),
+
+  // Redis
+  REDIS_URL: z.string().url(),
+
+  // 認証
+  JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
+  JWT_EXPIRY: z.string().default('15m'),
+
+  // 外部サービス
+  SMTP_HOST: z.string().min(1),
+  SMTP_PORT: z.coerce.number().int().default(587),
+  SMTP_USER: z.string().min(1),
+  SMTP_PASS: z.string().min(1),
+
+  // ログ
+  LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
+});
+
+type Env = z.infer<typeof EnvSchema>;
+
+// 起動時にバリデーション実行
+function loadEnv(): Env {
+  const result = EnvSchema.safeParse(process.env);
+
+  if (!result.success) {
+    console.error('Environment variable validation failed:');
+    result.error.issues.forEach(issue => {
+      console.error(`  ${issue.path.join('.')}: ${issue.message}`);
+    });
+    process.exit(1); // 環境変数が不正なら起動しない
+  }
+
+  return result.data;
+}
+
+// アプリケーション起動
+const env = loadEnv();
+console.log(`Starting server on ${env.HOST}:${env.PORT} in ${env.NODE_ENV} mode`);
+```
+
+---
+
+## 14. テスト戦略
+
+バリデーションロジックは単体テストとの相性が非常に良い。正常系・異常系・境界値をテストすることで、バリデーションの網羅性を確保できる。
+
+```typescript
+// ============================================================
+// コード例8: バリデーションスキーマのテスト
+// ============================================================
+import { describe, it, expect } from 'vitest';
+
+describe('CreateUserSchema', () => {
+  // --- 正常系 ---
+  it('should accept valid input with all required fields', () => {
+    const input = {
+      name: 'Tanaka Taro',
+      email: 'taro@example.com',
+    };
+    const result = CreateUserSchema.safeParse(input);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.name).toBe('Tanaka Taro');
+      expect(result.data.email).toBe('taro@example.com');
+      expect(result.data.role).toBe('user');  // デフォルト値
+      expect(result.data.tags).toEqual([]);   // デフォルト値
+    }
+  });
+
+  it('should trim whitespace from name', () => {
+    const input = { name: '  Taro  ', email: 'taro@example.com' };
+    const result = CreateUserSchema.safeParse(input);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.name).toBe('Taro');
+    }
+  });
+
+  it('should lowercase email', () => {
+    const input = { name: 'Taro', email: 'TARO@EXAMPLE.COM' };
+    const result = CreateUserSchema.safeParse(input);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.email).toBe('taro@example.com');
+    }
+  });
+
+  // --- 異常系 ---
+  it('should reject empty name', () => {
+    const input = { name: '', email: 'taro@example.com' };
+    const result = CreateUserSchema.safeParse(input);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0].path).toEqual(['name']);
+    }
+  });
+
+  it('should reject invalid email', () => {
+    const input = { name: 'Taro', email: 'not-an-email' };
+    const result = CreateUserSchema.safeParse(input);
+    expect(result.success).toBe(false);
+  });
+
+  it('should reject negative age', () => {
+    const input = { name: 'Taro', email: 'taro@example.com', age: -1 };
+    const result = CreateUserSchema.safeParse(input);
+    expect(result.success).toBe(false);
+  });
+
+  it('should reject invalid role', () => {
+    const input = { name: 'Taro', email: 'taro@example.com', role: 'superadmin' };
+    const result = CreateUserSchema.safeParse(input);
+    expect(result.success).toBe(false);
+  });
+
+  // --- 境界値テスト ---
+  it('should accept name with exactly 100 characters', () => {
+    const input = { name: 'a'.repeat(100), email: 'taro@example.com' };
+    const result = CreateUserSchema.safeParse(input);
+    expect(result.success).toBe(true);
+  });
+
+  it('should reject name with 101 characters', () => {
+    const input = { name: 'a'.repeat(101), email: 'taro@example.com' };
+    const result = CreateUserSchema.safeParse(input);
+    expect(result.success).toBe(false);
+  });
+
+  it('should accept exactly 10 tags', () => {
+    const input = {
+      name: 'Taro',
+      email: 'taro@example.com',
+      tags: Array.from({ length: 10 }, (_, i) => `tag${i}`),
+    };
+    const result = CreateUserSchema.safeParse(input);
+    expect(result.success).toBe(true);
+  });
+
+  it('should reject 11 tags', () => {
+    const input = {
+      name: 'Taro',
+      email: 'taro@example.com',
+      tags: Array.from({ length: 11 }, (_, i) => `tag${i}`),
+    };
+    const result = CreateUserSchema.safeParse(input);
+    expect(result.success).toBe(false);
+  });
+
+  // --- セキュリティテスト ---
+  it('should handle SQL injection attempt in email', () => {
+    const input = { name: 'Taro', email: "'; DROP TABLE users; --" };
+    const result = CreateUserSchema.safeParse(input);
+    expect(result.success).toBe(false); // email 形式に合致しない
+  });
+
+  it('should handle XSS attempt in name', () => {
+    const input = {
+      name: '<script>alert("xss")</script>',
+      email: 'taro@example.com',
+    };
+    // name フィールドにはHTMLエスケープの transform がないため、
+    // バリデーション自体は通る可能性があるが、出力時にエスケープされる
+    const result = CreateUserSchema.safeParse(input);
+    // 結果に関わらず、出力時のエスケープが重要
+  });
+});
+```
+
+---
+
+## 15. パフォーマンスに関する考慮事項
+
+### 15.1 バリデーションのパフォーマンス比較
+
+| ライブラリ | 1000回バリデーション（単純スキーマ） | 1000回バリデーション（複雑スキーマ） | 備考 |
+|-----------|----------------------------------|----------------------------------|------|
+| Zod | 約 2-5ms | 約 10-30ms | コンパイル済みスキーマは高速 |
+| Joi | 約 5-15ms | 約 30-80ms | 豊富な機能がオーバーヘッドに |
+| class-validator | 約 10-20ms | 約 40-100ms | リフレクション使用のため |
+| JSON Schema (ajv) | 約 0.5-2ms | 約 3-10ms | 事前コンパイルで最速 |
+
+※ 上記の数値は一般的な傾向を示すものであり、スキーマの構造やデータサイズによって大きく変動する。
+
+### 15.2 パフォーマンス最適化のヒント
+
+```typescript
+// ① スキーマのキャッシュ（毎回生成しない）
+// NG: リクエストごとにスキーマを生成
+app.post('/api/users', (req, res) => {
+  const schema = z.object({ /* ... */ }); // 毎回生成（無駄）
+  schema.parse(req.body);
+});
+
+// OK: モジュールレベルで一度だけ定義
+const UserSchema = z.object({ /* ... */ }); // 一度だけ生成
+app.post('/api/users', (req, res) => {
+  UserSchema.parse(req.body); // 再利用
+});
+
+// ② 不要な transform を避ける
+// バリデーション後の transform が重い場合、
+// バリデーションと変換を分離する
+
+// ③ 巨大な配列の要素バリデーションを最適化
+// 1000要素の配列に対して複雑なバリデーションを適用する場合、
+// まず配列サイズを制限してからバリデーションを実行する
+const LargeArraySchema = z.array(
+  z.object({ /* ... */ })
+).max(100); // まずサイズを制限
+```
+
+---
+
+## まとめ
+
+| 概念 | ポイント |
+|------|---------|
+| 信頼境界 | 外部入力は全て信頼しない。バリデーションは信頼境界で実施する |
+| Zod | TypeScript-first。z.infer による型推論が最大の強み。safeParse で安全に検証 |
+| Joi | 歴史が長く枯れたライブラリ。when による条件分岐が強力 |
+| class-validator | デコレータベース。NestJS のデフォルト。class-transformer と組み合わせて使用 |
+| サニタイゼーション | 入力時と出力時の両方で実施。コンテキストに応じたエスケープが重要 |
+| SQL インジェクション防御 | パラメタライズドクエリが絶対原則。文字列結合は厳禁 |
+| XSS 防御 | Content-Type 設定、CSP ヘッダー、出力時のHTMLエスケープ |
+| Mass Assignment 防御 | ホワイトリスト + strict() で許可フィールドのみ受け入れ |
+| ReDoS 防御 | 入力長制限 + 安全な正規表現パターン |
+| エラーレスポンス | RFC 7807 形式で全エラーをまとめて 422 で返す |
+| 環境変数 | 起動時にスキーマバリデーションを実行して不正な設定での起動を防止 |
+| テスト | 正常系・異常系・境界値・セキュリティの4観点でバリデーションをテスト |
+
+---
+
+## FAQ
+
+### Q1: バリデーションはどのレイヤーで行うべきか?
+
+バリデーションは「信頼境界を超える地点」で行うのが原則である。Web API の場合、コントローラー層（リクエストハンドラーの入口）で実施するのが一般的である。ビジネスルールの検証はサービス層で行い、DB の制約（UNIQUE、NOT NULL 等）はデータアクセス層の最終防衛線として機能する。多層的に検証することで、いずれかの層でバグがあっても他の層で防御できる。
+
+### Q2: parse と safeParse のどちらを使うべきか?
+
+原則として `safeParse` を使用すべきである。`parse` はバリデーション失敗時に例外をスローするため、try-catch が必要になり、制御フローが複雑になる。一方、`safeParse` は Result 型（success/error）を返すため、TypeScript の型ガードと組み合わせて安全にエラーハンドリングできる。ただし、環境変数のバリデーション等「失敗時にプロセスを終了すべき場面」では `parse` を使っても問題ない。
+
+### Q3: バリデーションライブラリを途中で変更できるか?
+
+可能だが、コストは高い。バリデーションスキーマを「ミドルウェア」としてルーティングから分離し、バリデーション結果のインターフェースを統一しておけば、内部のライブラリ変更は比較的容易になる。本章の `validateInput` 関数のように、ライブラリ固有の API を薄いラッパーで覆い、アプリケーションコードがライブラリに直接依存しない設計が望ましい。
+
+### Q4: JSON Schema とバリデーションライブラリの関係は?
+
+JSON Schema は「スキーマ定義の標準仕様」であり、OpenAPI（Swagger）仕様の一部として API ドキュメントにも使用される。ajv のような JSON Schema バリデータは高速だが、TypeScript の型推論やカスタムバリデーションの柔軟性では Zod 等に劣る。両者を組み合わせる戦略として、「Zod でスキーマを定義し、zod-to-json-schema で JSON Schema を自動生成して OpenAPI ドキュメントに使用する」というアプローチがある。
+
+### Q5: GraphQL の場合もバリデーションライブラリは必要か?
+
+GraphQL はスキーマ定義によって型レベルのバリデーションを自動的に行う。しかし、「文字列の最大長」「正規表現パターン」「ビジネスルール」といったフィールドレベルの詳細なバリデーションは GraphQL スキーマだけでは表現できない。そのため、リゾルバ内で Zod 等を使ったバリデーションを追加することが推奨される。
+
+---
+
+## 次に読むべきガイド
+
+- [[00-api-testing.md]] - APIテスト
+- [[01-authentication.md]] - 認証
+- [[03-rate-limiting.md]] - レート制限
+
+---
+
+## 参考文献
+
+1. Zod. "TypeScript-first schema validation with static type inference." github.com/colinhacks/zod, 2024.
+2. OWASP. "Input Validation Cheat Sheet." cheatsheetseries.owasp.org, 2024.
+3. OWASP. "API Security Top 10 - 2023." owasp.org/API-Security, 2023.
+4. OWASP. "SQL Injection Prevention Cheat Sheet." cheatsheetseries.owasp.org, 2024.
+5. Joi. "The most powerful schema description language and data validator for JavaScript." joi.dev, 2024.
+6. class-validator. "Decorator-based property validation for classes." github.com/typestack/class-validator, 2024.
+7. RFC 7807. "Problem Details for HTTP APIs." tools.ietf.org/html/rfc7807, 2016.
+8. DOMPurify. "DOMPurify - a DOM-only, super-fast, uber-tolerant XSS sanitizer." github.com/cure53/DOMPurify, 2024.
+

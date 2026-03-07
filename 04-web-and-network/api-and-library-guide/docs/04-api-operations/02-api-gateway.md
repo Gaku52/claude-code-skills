@@ -1748,3 +1748,834 @@ app.get('/metrics/circuit-breakers', (req, res) => {
   res.json(registry.getAllMetrics());
 });
 ```
+
+---
+
+## 9. サービスメッシュとの統合
+
+### 9.1 サービスメッシュの基本概念
+
+サービスメッシュは、マイクロサービス間の通信を管理するインフラストラクチャ層である。APIゲートウェイが「南北」（外部→内部）トラフィックを管理するのに対し、サービスメッシュは「東西」（内部サービス間）トラフィックを管理する。
+
+```
+┌───────────────────────────────────────────────────────────────────┐
+│ APIゲートウェイ vs サービスメッシュ                                    │
+│                                                                   │
+│  南北トラフィック（North-South）                                     │
+│  ─────────────────────────────                                    │
+│  外部クライアント → APIゲートウェイ → 内部サービス                       │
+│                                                                   │
+│  ・外部からのリクエストを処理                                         │
+│  ・認証、レート制限、TLS終端                                         │
+│  ・API管理、開発者ポータル                                           │
+│                                                                   │
+│  東西トラフィック（East-West）                                       │
+│  ─────────────────────────────                                    │
+│  内部サービス ↔ サイドカープロキシ ↔ 内部サービス                       │
+│                                                                   │
+│  ・サービス間通信の暗号化（mTLS）                                     │
+│  ・サービスディスカバリ                                               │
+│  ・負荷分散、リトライ、サーキットブレーカー                              │
+│  ・トラフィック制御（カナリア、A/Bテスト）                              │
+│  ・オブザーバビリティ（メトリクス、トレース、ログ）                       │
+└───────────────────────────────────────────────────────────────────┘
+```
+
+### 9.2 Istio + Envoy アーキテクチャ
+
+```
+┌───────────────────────────────────────────────────────────────────┐
+│ Istio アーキテクチャ                                                │
+│                                                                   │
+│  ┌─────────────────── Control Plane ──────────────────┐           │
+│  │                                                     │           │
+│  │   istiod (Pilot + Citadel + Galley 統合)            │           │
+│  │   ┌──────────┐ ┌──────────┐ ┌──────────────────┐   │           │
+│  │   │  Pilot   │ │ Citadel  │ │   Configuration  │   │           │
+│  │   │ (Config) │ │ (Cert)   │ │   (Validation)   │   │           │
+│  │   └────┬─────┘ └────┬─────┘ └────────┬─────────┘   │           │
+│  └────────┼─────────────┼───────────────┼─────────────┘           │
+│           │ xDS API     │ mTLS証明書     │ 設定配布                │
+│  ┌────────▼─────────────▼───────────────▼─────────────┐           │
+│  │                 Data Plane                          │           │
+│  │                                                     │           │
+│  │  ┌──────────────┐    ┌──────────────┐               │           │
+│  │  │  Pod A       │    │  Pod B       │               │           │
+│  │  │ ┌──────────┐ │    │ ┌──────────┐ │               │           │
+│  │  │ │ Service A│ │    │ │ Service B│ │               │           │
+│  │  │ └────┬─────┘ │    │ └────┬─────┘ │               │           │
+│  │  │      │       │    │      │       │               │           │
+│  │  │ ┌────▼─────┐ │    │ ┌────▼─────┐ │               │           │
+│  │  │ │  Envoy   │◄├────┤►│  Envoy   │ │               │           │
+│  │  │ │ (Sidecar)│ │mTLS│ │ (Sidecar)│ │               │           │
+│  │  │ └──────────┘ │    │ └──────────┘ │               │           │
+│  │  └──────────────┘    └──────────────┘               │           │
+│  └─────────────────────────────────────────────────────┘           │
+└───────────────────────────────────────────────────────────────────┘
+```
+
+### 9.3 Istio の設定例
+
+```yaml
+# VirtualService: トラフィックルーティング
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: user-service-vs
+  namespace: api
+spec:
+  hosts:
+    - user-service
+  http:
+    # カナリアリリース: 10%のトラフィックを v2 に振り分け
+    - match:
+        - headers:
+            x-canary:
+              exact: "true"
+      route:
+        - destination:
+            host: user-service
+            subset: v2
+          weight: 100
+    - route:
+        - destination:
+            host: user-service
+            subset: v1
+          weight: 90
+        - destination:
+            host: user-service
+            subset: v2
+          weight: 10
+      timeout: 10s
+      retries:
+        attempts: 3
+        perTryTimeout: 3s
+        retryOn: 5xx,reset,connect-failure,retriable-4xx
+      fault:
+        delay:
+          percentage:
+            value: 0.1
+          fixedDelay: 5s
+---
+# DestinationRule: サブセット定義とサーキットブレーカー
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: user-service-dr
+  namespace: api
+spec:
+  host: user-service
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 100
+        connectTimeout: 5s
+      http:
+        h2UpgradePolicy: DEFAULT
+        http1MaxPendingRequests: 100
+        http2MaxRequests: 1000
+        maxRequestsPerConnection: 10
+        maxRetries: 3
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 10s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+    loadBalancer:
+      simple: LEAST_REQUEST
+  subsets:
+    - name: v1
+      labels:
+        version: v1
+    - name: v2
+      labels:
+        version: v2
+---
+# PeerAuthentication: mTLS 設定
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: api
+spec:
+  mtls:
+    mode: STRICT
+---
+# AuthorizationPolicy: サービス間の認可
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: user-service-authz
+  namespace: api
+spec:
+  selector:
+    matchLabels:
+      app: user-service
+  rules:
+    - from:
+        - source:
+            principals:
+              - "cluster.local/ns/api/sa/order-service"
+              - "cluster.local/ns/api/sa/api-gateway"
+      to:
+        - operation:
+            methods: ["GET", "POST"]
+            paths: ["/users/*"]
+    - from:
+        - source:
+            principals:
+              - "cluster.local/ns/api/sa/api-gateway"
+      to:
+        - operation:
+            methods: ["DELETE"]
+            paths: ["/users/*"]
+---
+# RequestAuthentication: JWT認証（Istio Ingress Gateway）
+apiVersion: security.istio.io/v1beta1
+kind: RequestAuthentication
+metadata:
+  name: jwt-auth
+  namespace: istio-system
+spec:
+  selector:
+    matchLabels:
+      istio: ingressgateway
+  jwtRules:
+    - issuer: "https://auth.example.com/"
+      jwksUri: "https://auth.example.com/.well-known/jwks.json"
+      audiences:
+        - "https://api.example.com"
+      forwardOriginalToken: true
+      outputPayloadToHeader: "x-jwt-payload"
+```
+
+### 9.4 Istio Gateway + APIゲートウェイの2層構成
+
+```yaml
+# Istio Ingress Gateway（外部トラフィック受け口）
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: api-gateway
+  namespace: istio-system
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+    - port:
+        number: 443
+        name: https
+        protocol: HTTPS
+      tls:
+        mode: SIMPLE
+        credentialName: api-tls-credential
+      hosts:
+        - "api.example.com"
+---
+# VirtualService: Istio Ingress → Kong Gateway
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: api-routing
+  namespace: api
+spec:
+  hosts:
+    - "api.example.com"
+  gateways:
+    - istio-system/api-gateway
+  http:
+    - match:
+        - uri:
+            prefix: /api/
+      route:
+        - destination:
+            host: kong-proxy.kong-system.svc.cluster.local
+            port:
+              number: 80
+      corsPolicy:
+        allowOrigins:
+          - exact: "https://app.example.com"
+        allowMethods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+          - OPTIONS
+        allowHeaders:
+          - Authorization
+          - Content-Type
+          - X-Request-ID
+        maxAge: "86400s"
+```
+
+---
+
+## 10. BFF（Backend for Frontend）パターン詳細
+
+### 10.1 BFF の設計原則
+
+```
+BFF パターンの全体像:
+
+  ┌───────────────────────────────────────────────────────────────┐
+  │                                                               │
+  │  Web Browser ─── Web BFF ───┐                                 │
+  │                              │                                │
+  │  iOS App ────── Mobile BFF ──┼──→ User Service                │
+  │  Android App ──┘              │    Order Service               │
+  │                              │    Payment Service             │
+  │  Partner API ── Public GW ───┘    Notification Service        │
+  │                                                               │
+  └───────────────────────────────────────────────────────────────┘
+
+  各 BFF の責務:
+  ┌────────────────────────────────────────────────────────────┐
+  │ Web BFF:                                                   │
+  │  ├── フルフィーチャーのレスポンス                               │
+  │  ├── SSR 用のデータ集約                                      │
+  │  ├── Cookie ベース認証（HttpOnly, Secure, SameSite）          │
+  │  ├── CSRF 対策                                              │
+  │  ├── HTML メタデータ生成（OGP, SEO）                          │
+  │  └── WebSocket 接続管理                                      │
+  │                                                            │
+  │ Mobile BFF:                                                │
+  │  ├── 軽量レスポンス（フィールド選択、帯域節約）                   │
+  │  ├── プッシュ通知トークン管理                                  │
+  │  ├── Bearer Token 認証（OAuth 2.0）                          │
+  │  ├── オフラインサポート（差分同期API）                          │
+  │  ├── アプリバージョン別の互換性レイヤー                         │
+  │  └── デバイス情報ヘッダー処理                                  │
+  │                                                            │
+  │ Public API GW:                                             │
+  │  ├── REST + ページネーション（カーソルベース）                   │
+  │  ├── API Key 認証 + Usage Plan                              │
+  │  ├── 厳格なレート制限（プランごと）                             │
+  │  ├── OpenAPI 仕様書の自動生成                                 │
+  │  ├── Webhook 配信                                           │
+  │  └── API バージョニング（URL / Header）                       │
+  └────────────────────────────────────────────────────────────┘
+```
+
+### 10.2 BFF 実装例（Node.js / Express）
+
+```javascript
+// Web BFF - API Composition パターン
+const express = require('express');
+const axios = require('axios');
+
+const app = express();
+
+// サービスクライアント（サーキットブレーカー付き）
+const serviceClients = {
+  user: createServiceClient('http://user-service:3000', 'user-service'),
+  order: createServiceClient('http://order-service:3000', 'order-service'),
+  product: createServiceClient('http://product-service:3000', 'product-service'),
+};
+
+function createServiceClient(baseURL, name) {
+  const client = axios.create({
+    baseURL,
+    timeout: 5000,
+    headers: { 'Content-Type': 'application/json' },
+  });
+  const breaker = registry.get(name, {
+    failureThreshold: 5,
+    resetTimeout: 30000,
+  });
+
+  return {
+    async get(path, options = {}) {
+      return breaker.execute(
+        () => client.get(path, options).then(r => r.data),
+        () => options.fallback || null
+      );
+    },
+    async post(path, data, options = {}) {
+      return breaker.execute(
+        () => client.post(path, data, options).then(r => r.data),
+        () => options.fallback || null
+      );
+    },
+  };
+}
+
+// ダッシュボードAPI: 複数サービスからデータを集約
+app.get('/bff/dashboard', async (req, res) => {
+  const userId = req.headers['x-user-id'];
+
+  try {
+    // 並行リクエスト（Promise.allSettled で部分障害に対応）
+    const [userResult, ordersResult, recommendationsResult] = await Promise.allSettled([
+      serviceClients.user.get(`/users/${userId}`, {
+        fallback: { id: userId, name: 'User', _fallback: true },
+      }),
+      serviceClients.order.get(`/orders?userId=${userId}&limit=5`, {
+        fallback: { items: [], total: 0, _fallback: true },
+      }),
+      serviceClients.product.get(`/recommendations?userId=${userId}&limit=10`, {
+        fallback: { items: [], _fallback: true },
+      }),
+    ]);
+
+    // レスポンス集約
+    const dashboard = {
+      user: userResult.status === 'fulfilled' ? userResult.value : null,
+      recentOrders: ordersResult.status === 'fulfilled' ? ordersResult.value : { items: [] },
+      recommendations: recommendationsResult.status === 'fulfilled'
+        ? recommendationsResult.value
+        : { items: [] },
+      _metadata: {
+        timestamp: new Date().toISOString(),
+        partial: [userResult, ordersResult, recommendationsResult]
+          .some(r => r.status === 'rejected' || (r.value && r.value._fallback)),
+      },
+    };
+
+    // 部分障害の場合は 206 Partial Content
+    const statusCode = dashboard._metadata.partial ? 206 : 200;
+    res.status(statusCode).json(dashboard);
+  } catch (error) {
+    console.error('Dashboard aggregation error:', error);
+    res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+// Mobile BFF: 軽量レスポンス + フィールド選択
+app.get('/bff/mobile/feed', async (req, res) => {
+  const userId = req.headers['x-user-id'];
+  const fields = req.query.fields ? req.query.fields.split(',') : null;
+  const appVersion = req.headers['x-app-version'] || '1.0.0';
+
+  try {
+    const [orders, notifications] = await Promise.all([
+      serviceClients.order.get(`/orders?userId=${userId}&limit=20`),
+      serviceClients.user.get(`/users/${userId}/notifications?unread=true`),
+    ]);
+
+    let feed = {
+      orders: orders?.items || [],
+      unreadCount: notifications?.total || 0,
+      notifications: (notifications?.items || []).slice(0, 5),
+    };
+
+    // フィールド選択（帯域節約）
+    if (fields) {
+      const filteredFeed = {};
+      for (const field of fields) {
+        if (feed[field] !== undefined) {
+          filteredFeed[field] = feed[field];
+        }
+      }
+      feed = filteredFeed;
+    }
+
+    // アプリバージョン互換性
+    if (compareVersions(appVersion, '2.0.0') < 0) {
+      // v1 形式への変換
+      feed = transformToV1Format(feed);
+    }
+
+    res.json(feed);
+  } catch (error) {
+    console.error('Mobile feed error:', error);
+    res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+function compareVersions(a, b) {
+  const pa = a.split('.').map(Number);
+  const pb = b.split('.').map(Number);
+  for (let i = 0; i < 3; i++) {
+    if (pa[i] > pb[i]) return 1;
+    if (pa[i] < pb[i]) return -1;
+  }
+  return 0;
+}
+
+function transformToV1Format(feed) {
+  return {
+    data: feed.orders || [],
+    badge: feed.unreadCount || 0,
+  };
+}
+```
+
+---
+
+## 11. リトライ戦略とタイムアウト設計
+
+### 11.1 リトライパターンの比較
+
+| パターン | 説明 | 適用場面 | 注意点 |
+|---------|------|---------|--------|
+| Immediate Retry | 即座にリトライ | 一時的なネットワークエラー | サービスに負荷を与える |
+| Fixed Interval | 固定間隔でリトライ | 短時間の障害 | Thundering Herd 問題 |
+| Exponential Backoff | 指数関数的に間隔拡大 | 一般的なリトライ | 最大間隔の設定が必要 |
+| Exponential + Jitter | 指数 + ランダム揺らぎ | 分散システム推奨 | 標準的なベストプラクティス |
+| Circuit Breaker + Retry | CB内でリトライ | 障害検知と組み合わせ | 複雑だが最も堅牢 |
+
+### 11.2 Exponential Backoff with Jitter の実装
+
+```javascript
+// プロダクション品質のリトライユーティリティ
+class RetryPolicy {
+  constructor(options = {}) {
+    this.maxRetries = options.maxRetries || 3;
+    this.baseDelay = options.baseDelay || 1000;  // 1秒
+    this.maxDelay = options.maxDelay || 30000;    // 30秒
+    this.jitterFactor = options.jitterFactor || 0.5;
+    this.retryableErrors = options.retryableErrors || [
+      'ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'EPIPE',
+      'EAI_AGAIN', 'EHOSTUNREACH',
+    ];
+    this.retryableStatusCodes = options.retryableStatusCodes || [
+      408, 429, 500, 502, 503, 504,
+    ];
+  }
+
+  /**
+   * リトライ対象かどうかを判定
+   */
+  isRetryable(error) {
+    // ネットワークエラー
+    if (error.code && this.retryableErrors.includes(error.code)) {
+      return true;
+    }
+    // HTTP ステータスコード
+    if (error.response && this.retryableStatusCodes.includes(error.response.status)) {
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * 次のリトライまでの待機時間を計算
+   * Exponential Backoff with Full Jitter
+   */
+  calculateDelay(attempt) {
+    // 指数バックオフ
+    const exponentialDelay = Math.min(
+      this.maxDelay,
+      this.baseDelay * Math.pow(2, attempt)
+    );
+    // Full Jitter: [0, exponentialDelay] の範囲でランダム
+    const jitter = Math.random() * exponentialDelay * this.jitterFactor;
+    return Math.floor(exponentialDelay * (1 - this.jitterFactor) + jitter);
+  }
+
+  /**
+   * リトライ付きで関数を実行
+   */
+  async execute(fn, context = {}) {
+    let lastError;
+
+    for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
+      try {
+        const result = await fn(attempt);
+        return result;
+      } catch (error) {
+        lastError = error;
+
+        // 最終試行 or リトライ不可のエラー
+        if (attempt === this.maxRetries || !this.isRetryable(error)) {
+          throw error;
+        }
+
+        const delay = this.calculateDelay(attempt);
+
+        // 429 の場合は Retry-After ヘッダーを尊重
+        const retryAfterHeader = error.response?.headers?.['retry-after'];
+        const actualDelay = retryAfterHeader
+          ? Math.max(delay, parseInt(retryAfterHeader) * 1000)
+          : delay;
+
+        console.warn(
+          `[Retry] ${context.name || 'request'} attempt ${attempt + 1}/${this.maxRetries}`,
+          `delay=${actualDelay}ms`,
+          `error=${error.message}`
+        );
+
+        await new Promise(resolve => setTimeout(resolve, actualDelay));
+      }
+    }
+
+    throw lastError;
+  }
+}
+
+// タイムアウト階層の設計
+class TimeoutConfig {
+  /**
+   * タイムアウト階層:
+   *   クライアント > ゲートウェイ > サービス > DB/外部API
+   *
+   *   Client: 30s → Gateway: 25s → Service: 20s → DB: 5s
+   *   各層で余裕を持たせることで、適切なエラーレスポンスを返せる
+   */
+  static getConfig(tier) {
+    const configs = {
+      // 外部クライアントに面するゲートウェイ
+      gateway: {
+        connectTimeout: 5000,
+        readTimeout: 25000,
+        writeTimeout: 10000,
+        idleTimeout: 60000,
+      },
+      // 内部サービス間通信
+      service: {
+        connectTimeout: 3000,
+        readTimeout: 20000,
+        writeTimeout: 5000,
+        idleTimeout: 30000,
+      },
+      // データベース接続
+      database: {
+        connectTimeout: 2000,
+        queryTimeout: 5000,
+        poolTimeout: 10000,
+      },
+      // 外部API呼び出し
+      externalApi: {
+        connectTimeout: 5000,
+        readTimeout: 15000,
+        writeTimeout: 5000,
+      },
+    };
+    return configs[tier];
+  }
+}
+
+// 利用例: ゲートウェイでのサービス呼び出し
+const retryPolicy = new RetryPolicy({
+  maxRetries: 3,
+  baseDelay: 500,
+  maxDelay: 5000,
+});
+
+async function callUserService(userId) {
+  const timeouts = TimeoutConfig.getConfig('service');
+
+  return retryPolicy.execute(
+    async (attempt) => {
+      const response = await axios.get(
+        `http://user-service:3000/users/${userId}`,
+        {
+          timeout: timeouts.readTimeout,
+          headers: {
+            'X-Retry-Attempt': String(attempt),
+            'X-Request-Timeout': String(timeouts.readTimeout),
+          },
+        }
+      );
+      return response.data;
+    },
+    { name: `getUser(${userId})` }
+  );
+}
+```
+
+---
+
+## 12. モニタリングとオブザーバビリティ
+
+### 12.1 APIゲートウェイのメトリクス設計
+
+ゲートウェイで収集すべきメトリクスは RED メソッド（Rate, Error, Duration）を基本とする。
+
+```
+APIゲートウェイ メトリクス体系:
+
+  (1) Rate（リクエスト率）
+      ├── requests_total: リクエスト総数
+      ├── requests_per_second: RPS（秒間リクエスト数）
+      └── requests_by_route: ルート別リクエスト数
+
+  (2) Error（エラー率）
+      ├── errors_total: エラー総数
+      ├── error_rate: エラー率（4xx + 5xx）/ total
+      ├── errors_by_status: ステータスコード別エラー数
+      └── circuit_breaker_trips: サーキットブレーカー発動回数
+
+  (3) Duration（レイテンシ）
+      ├── request_duration_seconds: リクエスト処理時間
+      │   ├── P50（中央値）
+      │   ├── P95
+      │   ├── P99
+      │   └── P99.9
+      ├── upstream_response_time: アップストリーム応答時間
+      └── gateway_processing_time: ゲートウェイ自体の処理時間
+
+  (4) Saturation（飽和度）
+      ├── active_connections: アクティブ接続数
+      ├── connection_pool_usage: コネクションプール使用率
+      ├── rate_limit_remaining: レート制限残量
+      └── memory_usage: メモリ使用量
+```
+
+### 12.2 Prometheus メトリクス収集（Express ミドルウェア）
+
+```javascript
+// Prometheus メトリクス収集ミドルウェア
+const promClient = require('prom-client');
+
+// デフォルトメトリクス（CPU, メモリ, イベントループ）
+promClient.collectDefaultMetrics({
+  prefix: 'api_gateway_',
+  gcDurationBuckets: [0.001, 0.01, 0.1, 1, 2, 5],
+});
+
+// カスタムメトリクス
+const httpRequestDuration = new promClient.Histogram({
+  name: 'api_gateway_http_request_duration_seconds',
+  help: 'HTTP request duration in seconds',
+  labelNames: ['method', 'route', 'status_code', 'service'],
+  buckets: [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
+});
+
+const httpRequestTotal = new promClient.Counter({
+  name: 'api_gateway_http_requests_total',
+  help: 'Total number of HTTP requests',
+  labelNames: ['method', 'route', 'status_code', 'service'],
+});
+
+const activeConnections = new promClient.Gauge({
+  name: 'api_gateway_active_connections',
+  help: 'Number of active connections',
+});
+
+const circuitBreakerState = new promClient.Gauge({
+  name: 'api_gateway_circuit_breaker_state',
+  help: 'Circuit breaker state (0=closed, 1=half-open, 2=open)',
+  labelNames: ['service'],
+});
+
+const rateLimitHits = new promClient.Counter({
+  name: 'api_gateway_rate_limit_hits_total',
+  help: 'Total number of rate limit hits',
+  labelNames: ['identifier_type', 'endpoint'],
+});
+
+const upstreamResponseTime = new promClient.Histogram({
+  name: 'api_gateway_upstream_response_time_seconds',
+  help: 'Upstream service response time',
+  labelNames: ['service'],
+  buckets: [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30],
+});
+
+// メトリクス収集ミドルウェア
+function metricsMiddleware() {
+  return (req, res, next) => {
+    activeConnections.inc();
+    const startTime = process.hrtime.bigint();
+
+    // レスポンス完了時にメトリクス記録
+    res.on('finish', () => {
+      activeConnections.dec();
+      const duration = Number(process.hrtime.bigint() - startTime) / 1e9;
+      const route = req.route?.path || req.path;
+      const service = req.headers['x-target-service'] || 'unknown';
+
+      httpRequestDuration.observe(
+        { method: req.method, route, status_code: res.statusCode, service },
+        duration
+      );
+
+      httpRequestTotal.inc(
+        { method: req.method, route, status_code: res.statusCode, service }
+      );
+    });
+
+    next();
+  };
+}
+
+// メトリクスエンドポイント
+app.get('/metrics', async (req, res) => {
+  res.set('Content-Type', promClient.register.contentType);
+  res.send(await promClient.register.metrics());
+});
+
+// Grafana ダッシュボード用の PromQL クエリ例
+const grafanaQueries = {
+  // RPS（リクエスト/秒）
+  rps: 'rate(api_gateway_http_requests_total[5m])',
+
+  // エラー率（5xx）
+  errorRate: 'sum(rate(api_gateway_http_requests_total{status_code=~"5.."}[5m])) / sum(rate(api_gateway_http_requests_total[5m]))',
+
+  // P99 レイテンシ
+  p99Latency: 'histogram_quantile(0.99, sum(rate(api_gateway_http_request_duration_seconds_bucket[5m])) by (le, route))',
+
+  // サービス別アップストリーム応答時間
+  upstreamP95: 'histogram_quantile(0.95, sum(rate(api_gateway_upstream_response_time_seconds_bucket[5m])) by (le, service))',
+
+  // サーキットブレーカー状態
+  cbState: 'api_gateway_circuit_breaker_state',
+
+  // レート制限発動率
+  rateLimitRate: 'rate(api_gateway_rate_limit_hits_total[5m])',
+};
+```
+
+### 12.3 分散トレーシング統合
+
+```javascript
+// OpenTelemetry による分散トレーシング
+const { NodeSDK } = require('@opentelemetry/sdk-node');
+const { OTLPTraceExporter } = require('@opentelemetry/exporter-trace-otlp-grpc');
+const { HttpInstrumentation } = require('@opentelemetry/instrumentation-http');
+const { ExpressInstrumentation } = require('@opentelemetry/instrumentation-express');
+const { Resource } = require('@opentelemetry/resources');
+const {
+  SEMRESATTRS_SERVICE_NAME,
+  SEMRESATTRS_SERVICE_VERSION,
+  SEMRESATTRS_DEPLOYMENT_ENVIRONMENT,
+} = require('@opentelemetry/semantic-conventions');
+
+// SDK初期化
+const sdk = new NodeSDK({
+  resource: new Resource({
+    [SEMRESATTRS_SERVICE_NAME]: 'api-gateway',
+    [SEMRESATTRS_SERVICE_VERSION]: '1.0.0',
+    [SEMRESATTRS_DEPLOYMENT_ENVIRONMENT]: process.env.NODE_ENV || 'development',
+  }),
+  traceExporter: new OTLPTraceExporter({
+    url: process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'http://jaeger:4317',
+  }),
+  instrumentations: [
+    new HttpInstrumentation({
+      requestHook: (span, request) => {
+        span.setAttribute('http.route', request.path);
+        span.setAttribute('gateway.client_ip', request.headers['x-real-ip'] || request.ip);
+      },
+    }),
+    new ExpressInstrumentation(),
+  ],
+});
+
+sdk.start();
+
+// トレースコンテキスト伝播ミドルウェア
+function tracePropagation() {
+  return (req, res, next) => {
+    // W3C Trace Context ヘッダーを上流サービスに転送
+    const traceParent = req.headers['traceparent'];
+    const traceState = req.headers['tracestate'];
+
+    if (traceParent) {
+      req.traceContext = { traceParent, traceState };
+    }
+
+    // リクエストIDの設定（トレースIDと紐づけ）
+    const requestId = req.headers['x-request-id'] || generateRequestId();
+    req.headers['x-request-id'] = requestId;
+    res.set('X-Request-ID', requestId);
+
+    next();
+  };
+}
+
+function generateRequestId() {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 10)}`;
+}
+```

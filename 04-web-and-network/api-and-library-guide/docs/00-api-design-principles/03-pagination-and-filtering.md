@@ -1854,3 +1854,985 @@ LIMIT 20;
 -- Planning Time: 0.3ms
 -- Execution Time: 1.2ms  ← 高速
 ```
+
+---
+
+## 13. レートリミットとページネーションの関係
+
+ページネーションAPIはレートリミットと密接に関連する。
+大量ページの取得はバッチ的な処理と見なされ、通常の API 呼び出しとは
+異なるレートリミットポリシーを適用すべき場合がある。
+
+### 13.1 ページネーション API のレートリミット設計
+
+```
+レートリミット設計の考慮事項:
+
+  (1) 通常のレートリミット:
+      X-RateLimit-Limit: 1000        (1時間あたりの上限)
+      X-RateLimit-Remaining: 998     (残りリクエスト数)
+      X-RateLimit-Reset: 1719849600  (リセット時刻, Unix epoch)
+
+  (2) ページネーション専用の考慮:
+      - 1ページ取得 = 1リクエストとしてカウント
+      - limit が大きいリクエストはコスト加重を適用
+        例: limit=100 → 5リクエスト分としてカウント
+      - 自動バッチ取得（全ページ巡回）を検出したらスロットリング
+      - Retry-After ヘッダで待機時間を通知
+
+  (3) ページネーションのコスト加重の例:
+      ┌────────────┬───────────────┐
+      │ limit 値    │ コスト（リクエスト換算）│
+      ├────────────┼───────────────┤
+      │ 1〜20      │ 1              │
+      │ 21〜50     │ 2              │
+      │ 51〜100    │ 5              │
+      └────────────┴───────────────┘
+
+  (4) バルクエクスポートが必要な場合:
+      → 専用のエクスポートエンドポイントを用意
+      → 非同期ジョブとして処理
+      → WebhookかポーリングでCSV/JSONファイルのURLを返す
+
+      POST /api/v1/exports
+      {
+        "resource": "users",
+        "format": "csv",
+        "filters": { "status": "active" }
+      }
+
+      202 Accepted
+      {
+        "exportId": "exp_abc123",
+        "status": "processing",
+        "statusUrl": "/api/v1/exports/exp_abc123"
+      }
+```
+
+---
+
+## 14. キャッシュ戦略
+
+### 14.1 ページネーション API のキャッシュ
+
+```
+ページネーション結果のキャッシュ戦略:
+
+  ┌────────────────────────────────────────────────────────────┐
+  │                   キャッシュの判断基準                       │
+  ├──────────┬──────────────┬──────────────┬──────────────────┤
+  │ 方式      │ キャッシュ適性 │ キャッシュキー │ TTL の目安        │
+  ├──────────┼──────────────┼──────────────┼──────────────────┤
+  │ Offset   │ 高           │ page+filter  │ 30秒〜5分        │
+  │ Cursor   │ 低           │ cursor+limit │ 使い捨て         │
+  │ Keyset   │ 低           │ keys+limit   │ 使い捨て         │
+  └──────────┴──────────────┴──────────────┴──────────────────┘
+
+  Offset 方式はキャッシュしやすい:
+  → 同じ page=3&per_page=20 は同じ結果を返すことが期待される
+  → CDN やリバースプロキシでのキャッシュが効果的
+  → ただし、データの更新頻度に応じて TTL を調整
+
+  Cursor 方式はキャッシュしにくい:
+  → カーソルはユーザー固有のコンテキストを含む
+  → 同じカーソルでも取得タイミングでデータが異なる可能性
+  → キャッシュするなら、カーソル値をキーに短い TTL で
+
+  HTTP キャッシュヘッダの設定例:
+
+  // Offset 方式（キャッシュ可能）
+  Cache-Control: public, max-age=30, s-maxage=60
+  ETag: "users-page3-v1234"
+  Vary: Accept, Authorization
+
+  // Cursor 方式（キャッシュ非推奨）
+  Cache-Control: private, no-store
+  // または
+  Cache-Control: private, max-age=10
+```
+
+### 14.2 Conditional Request の活用
+
+```javascript
+// ETag を使った条件付きリクエスト
+
+// サーバー側
+router.get('/users', async (req, res) => {
+  const result = await listUsers(req.query);
+
+  // データのハッシュから ETag を生成
+  const etag = generateETag(result.data);
+
+  // If-None-Match ヘッダのチェック
+  if (req.headers['if-none-match'] === etag) {
+    return res.status(304).end(); // Not Modified
+  }
+
+  res.set('ETag', etag);
+  res.set('Cache-Control', 'private, max-age=30');
+  res.json(result);
+});
+
+function generateETag(data) {
+  const crypto = require('crypto');
+  const hash = crypto
+    .createHash('md5')
+    .update(JSON.stringify(data))
+    .digest('hex');
+  return `"${hash}"`;
+}
+```
+
+---
+
+## 15. ベストプラクティスまとめ
+
+### 15.1 設計原則
+
+```
+ページネーション設計の原則:
+
+  [必須]
+  (1) デフォルト値を必ず設定する
+      → limit のデフォルト: 20
+      → sort のデフォルト: -created_at
+      → page のデフォルト: 1
+
+  (2) 上限を設定する
+      → limit の最大: 100
+      → page の最大: 合理的な範囲
+      → ソートフィールド数の最大: 3
+
+  (3) 空のコレクションは 200 + 空配列を返す
+      → 404 ではない（コレクションは存在するが中身が空）
+      {
+        "data": [],
+        "meta": { "total": 0, "page": 1, "totalPages": 0 }
+      }
+
+  (4) フィルタ可能・ソート可能フィールドをドキュメントに明記する
+      → OpenAPI / Swagger で enum として定義
+      → API ドキュメントのパラメータ説明に列挙
+
+  [推奨]
+  (5) HATEOAS リンクを含める
+      → self, first, prev, next, last
+      → Link ヘッダ（RFC 8288）も併用
+
+  (6) メタデータを構造化する
+      → data / meta / links の3層構造
+      → meta に total, page, perPage, hasNextPage 等
+
+  (7) 一貫した命名規則を使う
+      → snake_case vs camelCase はプロジェクト全体で統一
+      → page / per_page / limit / offset の命名もAPIの全体で統一
+
+  (8) バージョニングとの関係
+      → ページネーションパラメータの変更は破壊的変更
+      → API バージョンを上げるか、後方互換性を維持する
+```
+
+### 15.2 パフォーマンスチェックリスト
+
+```
+パフォーマンス最適化チェックリスト:
+
+  [インデックス]
+  [ ] ソートフィールドにインデックスがあるか
+  [ ] フィルタ + ソートの複合インデックスがあるか
+  [ ] Cursor方式の場合、(sort_key, id) の複合インデックスがあるか
+  [ ] カバリングインデックスを検討したか
+
+  [クエリ]
+  [ ] SELECT * を避け、必要なカラムのみ取得しているか
+  [ ] COUNT(*) は必要な場合のみ実行しているか
+  [ ] EXPLAIN ANALYZE で実行計画を確認したか
+  [ ] N+1 問題が発生していないか
+
+  [アプリケーション]
+  [ ] limit の上限チェックがあるか
+  [ ] フィルタ/ソートフィールドのホワイトリストがあるか
+  [ ] カーソルのバリデーションがあるか
+  [ ] レスポンスの JSON シリアライゼーションが効率的か
+
+  [インフラ]
+  [ ] 適切なキャッシュ戦略があるか
+  [ ] レートリミットが設定されているか
+  [ ] データベースコネクションプールが適切か
+  [ ] タイムアウトが設定されているか
+```
+
+### 15.3 セキュリティチェックリスト
+
+```
+セキュリティ対策チェックリスト:
+
+  [入力検証]
+  [ ] フィルタフィールドのホワイトリスト検証
+  [ ] ソートフィールドのホワイトリスト検証
+  [ ] limit の範囲チェック（1〜100）
+  [ ] page の範囲チェック（1〜合理的上限）
+  [ ] カーソルのフォーマット検証
+  [ ] 検索クエリのサニタイゼーション
+  [ ] フィルタ値の型チェック
+
+  [出力制御]
+  [ ] 機密フィールドの除外（password, secret 等）
+  [ ] 権限に基づくフィールド制限
+  [ ] 他ユーザーのデータが漏洩しないフィルタ制限
+
+  [DoS 対策]
+  [ ] limit の上限チェック
+  [ ] 同時リクエスト数の制限
+  [ ] 複雑なフィルタの制限（演算子の数、ネストの深さ）
+  [ ] 全文検索クエリの長さ制限
+
+  [カーソルセキュリティ]
+  [ ] カーソルの署名または暗号化
+  [ ] カーソルの有効期限
+  [ ] 他ユーザーのカーソルの再利用防止
+```
+
+---
+
+## 16. 演習問題
+
+### 16.1 演習 Level 1: 基本的な Offset ページネーション
+
+```
+[課題]
+  以下の仕様を満たす Offset ページネーションAPIを設計せよ。
+
+  エンドポイント: GET /api/v1/products
+  パラメータ:
+    - page (デフォルト: 1)
+    - per_page (デフォルト: 20, 最大: 100)
+    - sort (デフォルト: -created_at)
+
+  レスポンスフォーマット:
+    - data: 商品の配列
+    - meta: total, page, perPage, totalPages, hasNextPage, hasPrevPage
+    - links: self, first, prev, next, last
+
+  テーブル定義:
+    products (
+      id          SERIAL PRIMARY KEY,
+      name        VARCHAR(200) NOT NULL,
+      price       DECIMAL(10,2) NOT NULL,
+      category    VARCHAR(50) NOT NULL,
+      status      VARCHAR(20) DEFAULT 'active',
+      created_at  TIMESTAMP DEFAULT NOW(),
+      updated_at  TIMESTAMP DEFAULT NOW()
+    )
+
+[期待される実装要素]
+  1. パラメータのバリデーション
+  2. ソートフィールドのホワイトリスト
+  3. limit のクランプ
+  4. links の動的生成
+  5. 適切な SQL（またはORM）クエリ
+```
+
+```javascript
+// 解答例
+router.get('/products', async (req, res) => {
+  // 1. パラメータの解析とバリデーション
+  const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+  const perPage = Math.min(
+    Math.max(parseInt(req.query.per_page, 10) || 20, 1),
+    100
+  );
+
+  // 2. ソートの解析
+  const SORT_FIELDS = ['created_at', 'name', 'price', 'updated_at'];
+  const orderBy = parseSort(req.query.sort || '-created_at', SORT_FIELDS);
+
+  // 3. データ取得（Promise.all で並列実行）
+  const skip = (page - 1) * perPage;
+  const [products, total] = await Promise.all([
+    prisma.product.findMany({
+      where: { status: 'active' },
+      orderBy,
+      skip,
+      take: perPage,
+    }),
+    prisma.product.count({ where: { status: 'active' } }),
+  ]);
+
+  // 4. メタデータとリンクの構築
+  const totalPages = Math.ceil(total / perPage);
+  const baseUrl = `${req.protocol}://${req.get('host')}/api/v1/products`;
+
+  res.json({
+    data: products,
+    meta: {
+      total,
+      page,
+      perPage,
+      totalPages,
+      hasNextPage: page < totalPages,
+      hasPrevPage: page > 1,
+    },
+    links: {
+      self:  `${baseUrl}?page=${page}&per_page=${perPage}`,
+      first: `${baseUrl}?page=1&per_page=${perPage}`,
+      prev:  page > 1 ? `${baseUrl}?page=${page - 1}&per_page=${perPage}` : null,
+      next:  page < totalPages ? `${baseUrl}?page=${page + 1}&per_page=${perPage}` : null,
+      last:  `${baseUrl}?page=${totalPages}&per_page=${perPage}`,
+    },
+  });
+});
+```
+
+### 16.2 演習 Level 2: Cursor ページネーション + フィルタリング
+
+```
+[課題]
+  以下の仕様を満たす Cursor ページネーション + フィルタリングAPIを実装せよ。
+
+  エンドポイント: GET /api/v1/orders
+  パラメータ:
+    - cursor (Base64url エンコード)
+    - limit (デフォルト: 20, 最大: 50)
+    - filter[status] (in: pending, processing, shipped, delivered, cancelled)
+    - filter[total][gte] (最低金額)
+    - filter[total][lte] (最高金額)
+    - filter[created_at][gte] (開始日)
+    - filter[created_at][lte] (終了日)
+    - sort (デフォルト: -created_at)
+
+  テーブル定義:
+    orders (
+      id          SERIAL PRIMARY KEY,
+      user_id     INTEGER NOT NULL REFERENCES users(id),
+      status      VARCHAR(20) NOT NULL,
+      total       DECIMAL(10,2) NOT NULL,
+      item_count  INTEGER NOT NULL,
+      created_at  TIMESTAMP DEFAULT NOW(),
+      updated_at  TIMESTAMP DEFAULT NOW()
+    )
+
+  要件:
+    - カーソルは署名付き（改ざん防止）
+    - フィルタフィールドはホワイトリスト方式
+    - ソートは複合ソート対応（例: -total,created_at）
+    - 空結果でも 200 + 空配列を返す
+```
+
+```javascript
+// 解答例（核となるロジック）
+const ORDER_FILTER_SCHEMA = {
+  status: {
+    type: 'enum',
+    values: ['pending', 'processing', 'shipped', 'delivered', 'cancelled'],
+  },
+  total: { type: 'decimal', min: 0, max: 99999999.99 },
+  createdAt: { type: 'datetime' },
+};
+
+const ORDER_SORT_FIELDS = ['created_at', 'total', 'item_count', 'updated_at'];
+
+router.get('/orders', authenticate, async (req, res) => {
+  const { cursor, limit: limitParam, sort: sortParam } = req.query;
+  const limit = Math.min(Math.max(parseInt(limitParam, 10) || 20, 1), 50);
+
+  // フィルタの解析
+  const filters = parseFilters(req.query, ORDER_FILTER_SCHEMA);
+  const where = filtersToPrismaWhere(filters);
+
+  // 認証ユーザーのデータのみに制限
+  where.userId = req.user.id;
+
+  // ソートの解析（安定ソート保証）
+  const orderBy = parseSort(sortParam || '-created_at', ORDER_SORT_FIELDS);
+
+  // カーソルの処理
+  if (cursor) {
+    const decoded = decodeSecureCursor(cursor);
+    const sortField = Object.keys(orderBy[0])[0];
+    const sortDir = Object.values(orderBy[0])[0];
+    const cursorWhere = buildCursorWhere(
+      [sortField, 'id'], decoded, [sortDir, sortDir]
+    );
+    where.AND = where.AND || [];
+    where.AND.push(cursorWhere);
+  }
+
+  // データ取得
+  const items = await prisma.order.findMany({
+    where,
+    orderBy,
+    take: limit + 1,
+    select: {
+      id: true, status: true, total: true,
+      itemCount: true, createdAt: true, updatedAt: true,
+    },
+  });
+
+  const hasNextPage = items.length > limit;
+  const data = hasNextPage ? items.slice(0, limit) : items;
+
+  const sortField = Object.keys(orderBy[0])[0];
+  res.json({
+    data,
+    meta: {
+      hasNextPage,
+      nextCursor: hasNextPage
+        ? encodeSecureCursor({
+            [sortField]: data[data.length - 1][sortField],
+            id: data[data.length - 1].id,
+          })
+        : null,
+      hasPrevPage: !!cursor,
+      limit,
+    },
+  });
+});
+```
+
+### 16.3 演習 Level 3: GraphQL Connection + ファセット検索
+
+```
+[課題]
+  GraphQL Relay Connection 仕様に準拠した商品検索APIを実装せよ。
+
+  スキーマ:
+    type Query {
+      searchProducts(
+        query: String
+        first: Int
+        after: String
+        last: Int
+        before: String
+        filter: ProductFilter
+        orderBy: ProductOrderBy
+      ): ProductSearchConnection!
+    }
+
+    type ProductSearchConnection {
+      edges: [ProductEdge!]!
+      pageInfo: PageInfo!
+      totalCount: Int!
+      facets: ProductFacets!
+    }
+
+    type ProductFacets {
+      categories: [FacetBucket!]!
+      priceRanges: [FacetBucket!]!
+      ratings: [FacetBucket!]!
+    }
+
+    type FacetBucket {
+      value: String!
+      count: Int!
+    }
+
+  要件:
+    1. first/after と last/before の双方向ページネーション
+    2. 全文検索（query パラメータ）
+    3. フィルタリング（category, priceRange, rating）
+    4. ファセット集計（フィルタ適用後の集計値）
+    5. ソート（relevance, price, rating, newest）
+    6. totalCount はフィルタ適用後の件数
+```
+
+```javascript
+// 解答例（GraphQL リゾルバ）
+const resolvers = {
+  Query: {
+    searchProducts: async (_, args, ctx) => {
+      const {
+        query, first, after, last, before,
+        filter, orderBy,
+      } = args;
+
+      // パラメータ検証
+      if (first != null && last != null) {
+        throw new UserInputError('first と last は同時に指定できません');
+      }
+      const limit = Math.min(first ?? last ?? 20, 100);
+
+      // 検索条件の構築
+      const where = {};
+      if (query) {
+        where.OR = [
+          { name: { contains: query, mode: 'insensitive' } },
+          { description: { contains: query, mode: 'insensitive' } },
+          { brand: { contains: query, mode: 'insensitive' } },
+        ];
+      }
+      if (filter?.category) where.category = { in: filter.category };
+      if (filter?.minPrice) where.price = { ...where.price, gte: filter.minPrice };
+      if (filter?.maxPrice) where.price = { ...where.price, lte: filter.maxPrice };
+      if (filter?.minRating) where.rating = { gte: filter.minRating };
+
+      // ソート
+      const sortMap = {
+        RELEVANCE: query ? undefined : [{ createdAt: 'desc' }],
+        PRICE_ASC: [{ price: 'asc' }, { id: 'asc' }],
+        PRICE_DESC: [{ price: 'desc' }, { id: 'desc' }],
+        RATING: [{ rating: 'desc' }, { id: 'desc' }],
+        NEWEST: [{ createdAt: 'desc' }, { id: 'desc' }],
+      };
+      const sort = sortMap[orderBy?.field || 'NEWEST'];
+
+      // カーソル処理
+      if (after) {
+        const cursor = decodeCursor(after);
+        const sortField = Object.keys(sort[0])[0];
+        const sortDir = Object.values(sort[0])[0];
+        where.AND = where.AND || [];
+        where.AND.push(
+          buildCursorWhere([sortField, 'id'], cursor, [sortDir, sortDir])
+        );
+      }
+      if (before) {
+        const cursor = decodeCursor(before);
+        const sortField = Object.keys(sort[0])[0];
+        const sortDir = Object.values(sort[0])[0] === 'desc' ? 'asc' : 'desc';
+        where.AND = where.AND || [];
+        where.AND.push(
+          buildCursorWhere([sortField, 'id'], cursor, [sortDir, sortDir])
+        );
+      }
+
+      // データ取得 + ファセット集計を並列実行
+      const [items, totalCount, categoryFacets, ratingFacets] = await Promise.all([
+        ctx.prisma.product.findMany({
+          where,
+          orderBy: last ? sort.map(s => {
+            const [k, v] = Object.entries(s)[0];
+            return { [k]: v === 'desc' ? 'asc' : 'desc' };
+          }) : sort,
+          take: limit + 1,
+        }),
+        ctx.prisma.product.count({ where }),
+        ctx.prisma.product.groupBy({
+          by: ['category'],
+          where,
+          _count: { category: true },
+          orderBy: { _count: { category: 'desc' } },
+        }),
+        ctx.prisma.product.groupBy({
+          by: ['rating'],
+          where,
+          _count: { rating: true },
+          orderBy: { rating: 'desc' },
+        }),
+      ]);
+
+      // last の場合は結果を反転
+      let nodes = last ? [...items].reverse() : items;
+      const hasMore = nodes.length > limit;
+      nodes = hasMore ? nodes.slice(0, limit) : nodes;
+
+      const sortField = Object.keys(sort[0])[0];
+      const edges = nodes.map(node => ({
+        cursor: encodeCursor({ [sortField]: node[sortField], id: node.id }),
+        node,
+      }));
+
+      return {
+        edges,
+        pageInfo: {
+          hasNextPage: first != null ? hasMore : !!before,
+          hasPreviousPage: last != null ? hasMore : !!after,
+          startCursor: edges[0]?.cursor ?? null,
+          endCursor: edges[edges.length - 1]?.cursor ?? null,
+        },
+        totalCount,
+        facets: {
+          categories: categoryFacets.map(f => ({
+            value: f.category,
+            count: f._count.category,
+          })),
+          priceRanges: buildPriceRangeFacets(nodes),
+          ratings: ratingFacets.map(f => ({
+            value: f.rating.toString(),
+            count: f._count.rating,
+          })),
+        },
+      };
+    },
+  },
+};
+
+function buildPriceRangeFacets(products) {
+  const ranges = [
+    { label: '0-1000', min: 0, max: 1000 },
+    { label: '1001-5000', min: 1001, max: 5000 },
+    { label: '5001-10000', min: 5001, max: 10000 },
+    { label: '10001+', min: 10001, max: Infinity },
+  ];
+  return ranges.map(range => ({
+    value: range.label,
+    count: products.filter(
+      p => p.price >= range.min && p.price <= range.max
+    ).length,
+  }));
+}
+```
+
+---
+
+## 17. 各種フレームワークでのページネーション実装パターン
+
+### 17.1 フレームワーク別の実装比較
+
+```
+主要フレームワークでのページネーション対応状況:
+
+┌───────────────┬──────────┬──────────┬─────────────────────────┐
+│ フレームワーク   │ Offset   │ Cursor   │ 備考                     │
+├───────────────┼──────────┼──────────┼─────────────────────────┤
+│ Django REST   │ 組み込み  │ 組み込み  │ PageNumberPagination     │
+│ Framework     │          │          │ CursorPagination         │
+├───────────────┼──────────┼──────────┼─────────────────────────┤
+│ Rails (Kaminari)│ 組み込み │ gem追加  │ kaminari + order_query   │
+├───────────────┼──────────┼──────────┼─────────────────────────┤
+│ Spring Data   │ 組み込み  │ 手動実装  │ Pageable + Slice         │
+├───────────────┼──────────┼──────────┼─────────────────────────┤
+│ FastAPI       │ 手動実装  │ 手動実装  │ fastapi-pagination       │
+├───────────────┼──────────┼──────────┼─────────────────────────┤
+│ Express.js    │ 手動実装  │ 手動実装  │ Prisma / TypeORM         │
+├───────────────┼──────────┼──────────┼─────────────────────────┤
+│ NestJS        │ 手動実装  │ 手動実装  │ nestjs-paginate          │
+├───────────────┼──────────┼──────────┼─────────────────────────┤
+│ Apollo Server │ 手動実装  │ 手動実装  │ Relay Connection 仕様    │
+│ (GraphQL)     │          │          │ graphql-relay             │
+├───────────────┼──────────┼──────────┼─────────────────────────┤
+│ Hasura        │ 組み込み  │ 組み込み  │ offset/limit + cursor    │
+│ (GraphQL)     │          │          │ 自動生成                 │
+└───────────────┴──────────┴──────────┴─────────────────────────┘
+```
+
+### 17.2 Python（FastAPI + SQLAlchemy）での実装例
+
+```python
+# FastAPI + SQLAlchemy でのカーソルページネーション
+
+from fastapi import FastAPI, Query, HTTPException
+from sqlalchemy import select, and_, or_, func
+from sqlalchemy.ext.asyncio import AsyncSession
+from pydantic import BaseModel
+from typing import Optional, List
+from base64 import urlsafe_b64encode, urlsafe_b64decode
+import json
+
+app = FastAPI()
+
+
+class UserResponse(BaseModel):
+    id: int
+    name: str
+    email: str
+    created_at: str
+
+
+class CursorMeta(BaseModel):
+    has_next_page: bool
+    next_cursor: Optional[str]
+    has_prev_page: bool
+    prev_cursor: Optional[str]
+    limit: int
+
+
+class PaginatedResponse(BaseModel):
+    data: List[UserResponse]
+    meta: CursorMeta
+
+
+def encode_cursor(data: dict) -> str:
+    return urlsafe_b64encode(
+        json.dumps(data).encode()
+    ).decode().rstrip("=")
+
+
+def decode_cursor(cursor: str) -> dict:
+    # パディング補完
+    padding = 4 - len(cursor) % 4
+    if padding != 4:
+        cursor += "=" * padding
+    try:
+        return json.loads(urlsafe_b64decode(cursor))
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid cursor")
+
+
+@app.get("/api/v1/users", response_model=PaginatedResponse)
+async def list_users(
+    cursor: Optional[str] = Query(None),
+    limit: int = Query(20, ge=1, le=100),
+    sort: str = Query("-created_at"),
+    status: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+):
+    # ソートの解析
+    desc = sort.startswith("-")
+    sort_field = sort.lstrip("-")
+    allowed = {"created_at", "name", "email"}
+    if sort_field not in allowed:
+        raise HTTPException(400, f"Invalid sort: {sort_field}")
+
+    column = getattr(User, sort_field)
+    order = column.desc() if desc else column.asc()
+    id_order = User.id.desc() if desc else User.id.asc()
+
+    # WHERE 条件
+    conditions = []
+    if status:
+        conditions.append(User.status == status)
+
+    if cursor:
+        cur = decode_cursor(cursor)
+        cur_val = cur.get(sort_field)
+        cur_id = cur.get("id")
+        if desc:
+            conditions.append(
+                or_(
+                    column < cur_val,
+                    and_(column == cur_val, User.id < cur_id),
+                )
+            )
+        else:
+            conditions.append(
+                or_(
+                    column > cur_val,
+                    and_(column == cur_val, User.id > cur_id),
+                )
+            )
+
+    # クエリ実行
+    query = (
+        select(User)
+        .where(and_(*conditions) if conditions else True)
+        .order_by(order, id_order)
+        .limit(limit + 1)
+    )
+    result = await db.execute(query)
+    items = result.scalars().all()
+
+    has_next = len(items) > limit
+    data = items[:limit] if has_next else items
+
+    return PaginatedResponse(
+        data=[UserResponse.from_orm(u) for u in data],
+        meta=CursorMeta(
+            has_next_page=has_next,
+            next_cursor=(
+                encode_cursor({
+                    sort_field: str(getattr(data[-1], sort_field)),
+                    "id": data[-1].id,
+                })
+                if has_next else None
+            ),
+            has_prev_page=cursor is not None,
+            prev_cursor=(
+                encode_cursor({
+                    sort_field: str(getattr(data[0], sort_field)),
+                    "id": data[0].id,
+                })
+                if data else None
+            ),
+            limit=limit,
+        ),
+    )
+```
+
+---
+
+## 18. FAQ（よくある質問）
+
+### Q1: Offset 方式と Cursor 方式のどちらをデフォルトにすべきか？
+
+```
+A: 新規 API であれば Cursor 方式を推奨する。
+   理由:
+   - パフォーマンスがデータ量に依存しない
+   - データの整合性が高い（位置ずれしない）
+   - モバイルアプリとの相性が良い
+   - 将来的なスケールに対応できる
+
+   ただし、以下の場合は Offset 方式が適切:
+   - 管理画面でページジャンプが必要
+   - 検索結果で「全 N 件中 X〜Y 件」の表示が必要
+   - データ量が少なく（<10万件）、パフォーマンス問題が予見されない
+
+   両方をサポートすることも可能:
+   - デフォルトは Cursor 方式
+   - page パラメータが指定された場合は Offset 方式にフォールバック
+```
+
+### Q2: カーソルに有効期限を設けるべきか？
+
+```
+A: 一般的にはカーソルに有効期限は設けない。
+   カーソルはソートキーの値を持つだけで、
+   サーバー側のステート（セッション等）を持たないため、
+   有効期限を管理する必要がない。
+
+   ただし、以下の場合は有効期限が有用:
+   - セキュリティ要件でカーソルの再利用を制限したい場合
+     → カーソルに発行時刻を含め、一定時間経過後は拒否
+   - データの一貫性を保証したい場合
+     → 古いカーソルで最新のデータを取得すると混乱する
+
+   実装する場合:
+   {
+     "createdAt": "2024-01-15",
+     "id": 100,
+     "issuedAt": 1705305600  // カーソル発行時刻
+   }
+
+   // デコード時に有効期限チェック
+   const MAX_CURSOR_AGE = 24 * 60 * 60; // 24時間
+   if (Date.now() / 1000 - decoded.issuedAt > MAX_CURSOR_AGE) {
+     throw new ApiError(400, 'Cursor has expired');
+   }
+```
+
+### Q3: GraphQL の Connection 仕様で totalCount を返すべきか？
+
+```
+A: totalCount は Relay の公式仕様には含まれないが、
+   多くの API が拡張フィールドとして提供している。
+
+   totalCount を返す場合の注意点:
+   - COUNT クエリのコストを認識する（大規模テーブルでは重い）
+   - フィールドレベルで遅延解決（resolve）する
+     → totalCount が SELECT されていない場合はクエリを実行しない
+
+   // リゾルバでの遅延解決
+   UserConnection: {
+     totalCount: async (parent, _, ctx) => {
+       // このフィールドが要求された場合のみ COUNT を実行
+       return ctx.prisma.user.count({ where: parent._where });
+     },
+   },
+
+   代替手段:
+   - estimatedTotalCount: 推定値を返す（高速）
+   - totalCount を非推奨（deprecated）にして hasNextPage のみ推奨
+   - totalCount をキャッシュ（30秒〜5分の TTL）
+```
+
+### Q4: 無限スクロールの実装でカーソルを使う場合、戻る操作はどう実装するか？
+
+```
+A: 無限スクロール UI では通常「戻る」操作は不要だが、
+   ブラウザの「戻る」ボタンでリストに戻った場合に
+   スクロール位置を復元する必要がある。
+
+   実装パターン:
+   (1) クライアント側でデータをキャッシュ
+       → React Query / SWR のキャッシュにデータを保持
+       → ページ遷移後に戻ってもキャッシュから復元
+
+   (2) URL にカーソルを含める
+       → /items?cursor=abc123
+       → ブラウザ履歴にカーソルが残り、戻った時に再取得可能
+
+   (3) sessionStorage にスクロール位置とデータを保存
+       → 画面離脱時に保存、復帰時に復元
+```
+
+### Q5: フィルタとソートをカーソルと組み合わせる場合、フィルタ変更時にカーソルはリセットすべきか？
+
+```
+A: フィルタまたはソート条件が変更された場合、
+   カーソルは必ずリセット（null に戻す）する必要がある。
+
+   理由:
+   - カーソルはソートキーの値を含むため、ソート順が変わると無効になる
+   - フィルタが変わると結果セットが異なるため、
+     以前のカーソル位置に意味がなくなる
+
+   クライアント側の実装:
+   // React の例
+   function useProductList() {
+     const [filters, setFilters] = useState({});
+     const [sort, setSort] = useState('-created_at');
+     const [cursor, setCursor] = useState(null);
+
+     // フィルタまたはソートが変わったらカーソルをリセット
+     useEffect(() => {
+       setCursor(null);
+     }, [filters, sort]);
+
+     // ...
+   }
+
+   サーバー側の防御:
+   - カーソルにフィルタ/ソートのハッシュを含め、
+     不一致の場合は 400 を返すことも有効
+   {
+     "createdAt": "2024-01-15",
+     "id": 100,
+     "contextHash": "a1b2c3"  // filter+sort のハッシュ
+   }
+```
+
+---
+
+## 19. 関連する RFC・仕様書
+
+ページネーションに関連する標準仕様と業界プラクティスを以下にまとめる。
+
+```
+関連仕様:
+
+  RFC 8288 - Web Linking
+    → Link ヘッダによるページネーションリンクの標準
+    → Link: <https://api.example.com/users?page=3>; rel="next"
+
+  RFC 7807 - Problem Details for HTTP APIs
+    → ページネーションエラー時のレスポンスフォーマット
+
+  JSON:API v1.1 - Pagination
+    → https://jsonapi.org/format/#fetching-pagination
+    → page[number] / page[size] パラメータの標準
+
+  GraphQL Relay Cursor Connections Specification
+    → https://relay.dev/graphql/connections.htm
+    → first/after/last/before + edges/pageInfo の標準
+
+  OData v4.0 - Query Options
+    → $top / $skip / $count / $filter / $orderby
+    → エンタープライズ API での標準クエリオプション
+```
+
+---
+
+## まとめ
+
+| 概念 | ポイント |
+|------|---------|
+| Offset 方式 | 直感的だが大規模でパフォーマンス劣化。管理画面・検索結果向け |
+| Cursor 方式 | 一定性能で位置ずれなし。SNS・モバイル・大規模データ向け |
+| Keyset 方式 | Cursor の変種。キー露出だがデバッグしやすい。バッチ処理向け |
+| GraphQL Connection | Relay 標準。edges/pageInfo/totalCount の構造化された仕様 |
+| フィルタリング | ホワイトリスト + 演算子パターン。セキュリティ最優先 |
+| ソート | -プレフィックスで降順。安定ソートのため必ず id を末尾に追加 |
+| 検索 | 簡易は GET ?q=、複雑は POST /search。ファセット検索は専用バックエンド |
+| インデックス | (filter_key, sort_key, id) の複合インデックスが基本 |
+| セキュリティ | limit 上限・ホワイトリスト・カーソル署名 |
+| キャッシュ | Offset はキャッシュ向き。Cursor は ETag / 条件付きリクエスト活用 |
+
+---
+
+## 次に読むべきガイド
+
+- [[00-rest-best-practices.md]] -- REST ベストプラクティス
+- [[01-error-handling.md]] -- エラーハンドリング設計
+- [[04-versioning.md]] -- API バージョニング戦略
+
+---
+
+## 参考文献
+
+1. Relay Team. "GraphQL Cursor Connections Specification." relay.dev/graphql/connections.htm, 2024. -- Connection 仕様の公式ドキュメント。edges, pageInfo, cursor の構造を定義している。
+2. Stripe. "Pagination - API Reference." stripe.com/docs/api/pagination, 2024. -- Cursor ベースページネーションの業界標準的な実装例。auto-pagination ヘルパーも提供。
+3. JSON:API. "Fetching Data - Pagination." jsonapi.org/format/#fetching-pagination, 2024. -- JSON:API 仕様におけるページネーションの標準的な設計。page[number] / page[size] パラメータの定義。
+4. Slack. "Pagination - Web API." api.slack.com/docs/pagination, 2024. -- Cursor ベースページネーションの移行事例。Offset から Cursor への段階的移行方法を解説。
+5. GitHub. "Using pagination in the REST API." docs.github.com/en/rest/using-the-rest-api/using-pagination-in-the-rest-api, 2024. -- Link ヘッダ（RFC 8288）を活用した実装例。per_page の上限設定など。
+6. Markus Winand. "No Offset: Keyset Pagination for SQL." use-the-index-luke.com/no-offset, 2024. -- OFFSET の問題点と Keyset ページネーションの利点を SQL レベルで詳細に解説。

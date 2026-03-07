@@ -1986,3 +1986,945 @@ volumes:
   postgres_data:
   redis_data:
 ```
+
+---
+
+## 7. Kubernetes での設定管理
+
+### 7.1 ConfigMap と Secret
+
+Kubernetes では、設定データを ConfigMap と Secret という2つのリソースで管理する。ConfigMap は非機密データ、Secret は機密データを格納するために使う。
+
+```yaml
+# ============================================
+# k8s/configmap.yaml - 非機密設定
+# ============================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: myapp-config
+  namespace: production
+  labels:
+    app: myapp
+    environment: production
+data:
+  # 個別のキーバリュー
+  NODE_ENV: "production"
+  LOG_LEVEL: "warn"
+  LOG_FORMAT: "json"
+  CACHE_TTL: "600"
+  ENABLE_ANALYTICS: "true"
+  ENABLE_RATE_LIMIT: "true"
+
+  # 設定ファイルとしてマウントすることも可能
+  app-config.json: |
+    {
+      "api": {
+        "baseUrl": "https://api.example.com",
+        "timeout": 10000,
+        "retryCount": 5
+      },
+      "cache": {
+        "ttl": 600,
+        "maxItems": 10000,
+        "strategy": "redis"
+      },
+      "security": {
+        "corsOrigins": [
+          "https://www.example.com",
+          "https://admin.example.com"
+        ],
+        "rateLimitMax": 50
+      }
+    }
+```
+
+```yaml
+# ============================================
+# k8s/secret.yaml - 機密設定
+# ============================================
+apiVersion: v1
+kind: Secret
+metadata:
+  name: myapp-secrets
+  namespace: production
+  labels:
+    app: myapp
+    environment: production
+type: Opaque
+# 値は Base64 エンコードが必要
+# echo -n 'value' | base64
+data:
+  DATABASE_URL: cG9zdGdyZXNxbDovL3VzZXI6cGFzc0Bob3N0OjU0MzIvbXlkYg==
+  JWT_SECRET: c3VwZXItc2VjcmV0LWtleS10aGF0LWlzLWF0LWxlYXN0LTMyLWNoYXJz
+  STRIPE_SECRET_KEY: c2tfdGVzdF94eHh4eHh4eHh4eHg=
+  REDIS_PASSWORD: cmVkaXMtcGFzc3dvcmQ=
+
+# stringData を使えば Base64 エンコード不要（推奨）
+# stringData:
+#   DATABASE_URL: "postgresql://user:pass@host:5432/mydb"
+#   JWT_SECRET: "super-secret-key-that-is-at-least-32-chars"
+```
+
+```yaml
+# ============================================
+# k8s/deployment.yaml - Pod での環境変数注入
+# ============================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myapp
+  namespace: production
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: myapp
+  template:
+    metadata:
+      labels:
+        app: myapp
+    spec:
+      containers:
+        - name: myapp
+          image: myapp:latest
+          ports:
+            - containerPort: 3000
+
+          # 方法1: ConfigMap から個別の環境変数を注入
+          env:
+            - name: NODE_ENV
+              valueFrom:
+                configMapKeyRef:
+                  name: myapp-config
+                  key: NODE_ENV
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: myapp-secrets
+                  key: DATABASE_URL
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: myapp-secrets
+                  key: JWT_SECRET
+
+          # 方法2: ConfigMap / Secret の全キーを一括注入
+          envFrom:
+            - configMapRef:
+                name: myapp-config
+            - secretRef:
+                name: myapp-secrets
+
+          # 方法3: 設定ファイルとしてマウント
+          volumeMounts:
+            - name: config-volume
+              mountPath: /app/config
+              readOnly: true
+
+      volumes:
+        - name: config-volume
+          configMap:
+            name: myapp-config
+            items:
+              - key: app-config.json
+                path: app-config.json
+```
+
+### 7.2 External Secrets Operator
+
+```yaml
+# ============================================
+# External Secrets Operator で AWS Secrets Manager と連携
+# ============================================
+
+# SecretStore: AWS Secrets Manager への接続設定
+apiVersion: external-secrets.io/v1beta1
+kind: SecretStore
+metadata:
+  name: aws-secret-store
+  namespace: production
+spec:
+  provider:
+    aws:
+      service: SecretsManager
+      region: ap-northeast-1
+      auth:
+        jwt:
+          serviceAccountRef:
+            name: myapp-sa
+
+---
+# ExternalSecret: AWS Secrets Manager から Kubernetes Secret を自動生成
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: myapp-external-secrets
+  namespace: production
+spec:
+  refreshInterval: 1h        # 1時間ごとに同期
+  secretStoreRef:
+    name: aws-secret-store
+    kind: SecretStore
+  target:
+    name: myapp-secrets       # 生成される Secret の名前
+    creationPolicy: Owner
+  data:
+    - secretKey: DATABASE_URL
+      remoteRef:
+        key: myapp/production/database
+        property: url
+    - secretKey: JWT_SECRET
+      remoteRef:
+        key: myapp/production/auth
+        property: jwt_secret
+    - secretKey: STRIPE_SECRET_KEY
+      remoteRef:
+        key: myapp/production/stripe
+        property: secret_key
+```
+
+### 7.3 Sealed Secrets（暗号化された Secret を Git 管理）
+
+```
+Sealed Secrets の仕組み:
+
+  開発者のマシン                    Kubernetes クラスタ
+  ┌─────────────────┐              ┌─────────────────────┐
+  │ kubeseal CLI    │              │ Sealed Secrets      │
+  │                 │              │ Controller          │
+  │ Secret          │   暗号化     │                     │
+  │ (平文)     ─────┼──────────>   │ SealedSecret        │
+  │                 │              │ (暗号化済み)    ─────┤
+  │                 │              │                     │ 復号化
+  │                 │              │ Secret              │
+  │                 │              │ (平文 - Pod に注入) │
+  └─────────────────┘              └─────────────────────┘
+
+  メリット:
+  - 暗号化された SealedSecret を Git にコミットできる
+  - GitOps ワークフローと相性が良い
+  - クラスタの公開鍵でのみ復号可能
+```
+
+```bash
+# Sealed Secrets の使い方
+
+# 1. 通常の Secret を作成（ファイルとして）
+kubectl create secret generic myapp-secrets \
+  --from-literal=DATABASE_URL='postgresql://user:pass@host:5432/mydb' \
+  --from-literal=JWT_SECRET='super-secret-key-that-is-at-least-32-chars' \
+  --dry-run=client -o yaml > secret.yaml
+
+# 2. kubeseal で暗号化
+kubeseal --format yaml < secret.yaml > sealed-secret.yaml
+
+# 3. 暗号化された SealedSecret を Git にコミット（安全）
+git add sealed-secret.yaml
+git commit -m "Add sealed secrets for production"
+
+# 4. クラスタにデプロイ（Controller が自動で復号して Secret を作成）
+kubectl apply -f sealed-secret.yaml
+```
+
+---
+
+## 8. 設定管理のアンチパターンと対策
+
+### 8.1 よくあるアンチパターン
+
+```
+アンチパターン一覧と対策:
+
+  ┌──────────────────────────────────┬──────────────────────────────────┐
+  │ アンチパターン                    │ 対策                             │
+  ├──────────────────────────────────┼──────────────────────────────────┤
+  │ シークレットのハードコード         │ 環境変数 or Secrets Manager      │
+  │ if (env === 'prod') 分岐         │ 環境別設定ファイルで分離           │
+  │ 環境変数の型変換忘れ              │ Zod でスキーマバリデーション       │
+  │ デフォルト値に本番値を使用         │ 安全なデフォルト値を設定           │
+  │ .env をコミット                  │ .gitignore + pre-commit hook     │
+  │ NEXT_PUBLIC_ に機密情報          │ プレフィックスの意味を理解する      │
+  │ 設定のグローバル変数管理           │ DI パターンまたはモジュール化      │
+  │ 環境変数の過剰な使用              │ 設定ファイルとの適切な使い分け      │
+  │ テスト環境で本番シークレットを使用  │ テスト用のモック/ダミー値を使用    │
+  │ 設定の変更ログを残さない           │ 設定変更の監査ログを実装           │
+  │ Feature Flag の放置              │ 定期的なクリーンアップを実施       │
+  │ 全環境で同一のシークレットを使用    │ 環境ごとにシークレットをローテート  │
+  └──────────────────────────────────┴──────────────────────────────────┘
+```
+
+### 8.2 条件分岐によるアンチパターンの詳細
+
+```typescript
+// ============================================
+// アンチパターン: コード内での環境分岐
+// ============================================
+
+// BAD: コードの中で環境を判定して分岐する
+function getApiUrlBad(): string {
+  if (process.env.NODE_ENV === 'production') {
+    return 'https://api.example.com';
+  } else if (process.env.NODE_ENV === 'staging') {
+    return 'https://staging-api.example.com';
+  } else {
+    return 'http://localhost:3001';
+  }
+}
+
+// BAD: 環境ごとに異なるサービスを直接切り替え
+function createEmailServiceBad() {
+  if (process.env.NODE_ENV === 'production') {
+    return new SendGridEmailService(process.env.SENDGRID_API_KEY!);
+  } else {
+    return new ConsoleEmailService(); // コンソールに出力するだけ
+  }
+}
+
+// GOOD: 環境変数から設定を読み取る
+function getApiUrlGood(): string {
+  const url = process.env.NEXT_PUBLIC_API_URL;
+  if (!url) {
+    throw new Error('NEXT_PUBLIC_API_URL is not defined');
+  }
+  return url;
+}
+
+// GOOD: DIパターンで環境に依存しない設計
+interface EmailService {
+  send(to: string, subject: string, body: string): Promise<void>;
+}
+
+function createEmailServiceGood(config: EmailConfig): EmailService {
+  switch (config.provider) {
+    case 'sendgrid':
+      return new SendGridEmailService(config.apiKey!);
+    case 'ses':
+      return new SESEmailService(config);
+    case 'smtp':
+      return new SMTPEmailService(config.smtp!);
+    default:
+      throw new Error(`Unknown email provider: ${config.provider}`);
+  }
+}
+```
+
+### 8.3 安全なデフォルト値の設計
+
+```typescript
+// ============================================
+// デフォルト値の設計原則
+// ============================================
+
+// BAD: 危険なデフォルト値
+const configBad = {
+  debugMode: true,              // 本番で有効になる危険
+  corsOrigin: '*',              // 全オリジン許可の危険
+  rateLimit: false,             // レート制限なしの危険
+  logLevel: 'debug',            // 本番で詳細ログが出る
+  sessionSecret: 'default',     // 既知のシークレット
+  ssl: false,                   // SSL なしの危険
+};
+
+// GOOD: 安全なデフォルト値（Secure by Default）
+const configGood = {
+  debugMode: false,             // デフォルトで無効
+  corsOrigin: undefined,        // 明示的な設定が必要
+  rateLimit: true,              // デフォルトで有効
+  logLevel: 'warn',             // 本番向けのレベル
+  sessionSecret: undefined,     // 必須（起動時エラー）
+  ssl: true,                    // デフォルトで有効
+};
+
+// GOOD: 環境に応じたデフォルト値
+function getDefaultConfig(env: string) {
+  const isProduction = env === 'production';
+
+  return {
+    debugMode: !isProduction,
+    logLevel: isProduction ? 'warn' : 'debug',
+    ssl: isProduction, // 本番では必ず SSL
+    cache: {
+      ttl: isProduction ? 600 : 0,
+      strategy: isProduction ? 'redis' : 'memory',
+    },
+  };
+}
+```
+
+---
+
+## 9. トラブルシューティング
+
+### 9.1 よくある問題と解決策
+
+```
+問題1: 環境変数が undefined になる
+
+  症状: process.env.MY_VAR が undefined
+  原因と対策:
+
+  チェックリスト:
+  □ .env ファイルに変数が定義されているか
+  □ .env ファイルの書式が正しいか（= の前後にスペースがないか）
+  □ .env ファイルの文字コードが UTF-8 か
+  □ 変数名にタイポがないか（大文字小文字の区別あり）
+  □ クライアントサイドでアクセスする場合 NEXT_PUBLIC_ プレフィックスがあるか
+  □ dotenv パッケージが正しく読み込まれているか
+  □ Docker 環境の場合 env_file が正しく指定されているか
+
+  デバッグコマンド:
+  $ node -e "console.log(process.env.MY_VAR)"
+  $ printenv | grep MY_VAR
+  $ docker exec container_name printenv | grep MY_VAR
+
+
+問題2: ビルド時と実行時で環境変数が異なる
+
+  症状: ビルドしたアプリケーションが意図しない API を呼ぶ
+  原因: NEXT_PUBLIC_ はビルド時にインライン化されるため、
+        実行時に環境変数を変更しても反映されない
+
+  対策:
+  (1) ビルド時に正しい環境変数を設定する
+     NEXT_PUBLIC_API_URL=https://api.example.com npm run build
+  (2) Runtime Configuration を使う（Next.js）
+     → serverRuntimeConfig / publicRuntimeConfig
+  (3) __NEXT_DATA__ を使ったランタイム環境変数注入
+     → getServerSideProps で環境変数を props として渡す
+
+
+問題3: Docker コンテナ内で .env が読まれない
+
+  症状: ローカルでは動くが Docker コンテナ内で環境変数が空
+  原因: .env ファイルが .dockerignore に含まれている
+
+  対策:
+  (1) docker-compose の env_file を使う
+  (2) docker run -e で個別に渡す
+  (3) docker run --env-file .env で一括渡し
+  (4) .env を .dockerignore に入れたまま、
+     外部から注入する（推奨）
+
+
+問題4: CI/CD で環境変数が設定されていない
+
+  症状: CI パイプラインでビルドが失敗する
+  原因: Repository secrets / Environment secrets が未設定
+
+  対策:
+  (1) GitHub Actions: Settings > Secrets に変数を追加
+  (2) secrets コンテキストが正しく参照されているか確認
+     ${{ secrets.MY_SECRET }}（$ を忘れがち）
+  (3) Environment protection rules が設定されていないか確認
+  (4) Organization secrets の場合はリポジトリへのアクセスを許可
+
+
+問題5: 環境変数の値に特殊文字が含まれる
+
+  症状: パスワードに ! や $ が含まれると正しく読み取れない
+  原因: シェルの文字列展開が干渉する
+
+  対策:
+  (1) .env ファイルではシングルクォートで囲む
+     DATABASE_PASSWORD='p@ss!w0rd$123'
+  (2) Docker では環境変数をシングルクォートで渡す
+     docker run -e "DATABASE_PASSWORD='p@ss!w0rd\$123'"
+  (3) Base64 エンコードして格納し、アプリ側でデコードする
+
+
+問題6: Feature Flag が反映されない
+
+  症状: 環境変数を変更したのに Feature Flag の状態が変わらない
+  原因:
+  (1) NEXT_PUBLIC_ の場合はビルドの再実行が必要
+  (2) サーバーサイドの場合はサーバーの再起動が必要
+  (3) CDN やブラウザのキャッシュが残っている
+
+  対策:
+  (1) サービスベースの Feature Flags を使う（再デプロイ不要）
+  (2) サーバーサイドのみの Feature Flags はランタイムで評価
+  (3) キャッシュのパージを実行
+```
+
+### 9.2 環境変数のデバッグツール
+
+```typescript
+// ============================================
+// lib/debug-env.ts
+// 環境変数のデバッグヘルパー（開発環境のみ使用）
+// ============================================
+
+export function debugEnv(): void {
+  if (process.env.NODE_ENV === 'production') {
+    console.warn('debugEnv() は本番環境では使用しないでください');
+    return;
+  }
+
+  console.log('\n========== 環境変数デバッグ情報 ==========');
+  console.log(`NODE_ENV: ${process.env.NODE_ENV}`);
+  console.log(`実行環境: ${typeof window === 'undefined' ? 'サーバー' : 'クライアント'}`);
+
+  // 設定されている NEXT_PUBLIC_ 変数の一覧
+  const publicVars = Object.entries(process.env)
+    .filter(([key]) => key.startsWith('NEXT_PUBLIC_'))
+    .map(([key, value]) => `  ${key}: ${value}`);
+
+  console.log(`\nNEXT_PUBLIC_ 変数 (${publicVars.length}個):`);
+  publicVars.forEach(v => console.log(v));
+
+  // サーバーサイドの場合は機密変数の存在チェック（値は表示しない）
+  if (typeof window === 'undefined') {
+    const serverVars = [
+      'DATABASE_URL',
+      'JWT_SECRET',
+      'STRIPE_SECRET_KEY',
+      'STRIPE_WEBHOOK_SECRET',
+      'SENDGRID_API_KEY',
+      'REDIS_URL',
+      'SENTRY_DSN',
+    ];
+
+    console.log('\nサーバー変数の設定状況:');
+    serverVars.forEach(key => {
+      const value = process.env[key];
+      const status = value
+        ? `設定済み (${value.length}文字)`
+        : '未設定';
+      console.log(`  ${key}: ${status}`);
+    });
+  }
+
+  console.log('==========================================\n');
+}
+
+// 使用方法（開発環境のみ）:
+// import { debugEnv } from '@/lib/debug-env';
+// if (process.env.NODE_ENV === 'development') debugEnv();
+```
+
+```typescript
+// ============================================
+// app/api/debug/env/route.ts
+// 環境変数のデバッグ API（開発環境のみ）
+// ============================================
+import { NextResponse } from 'next/server';
+
+export async function GET() {
+  // 本番環境では絶対にアクセスさせない
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json(
+      { error: 'Not available in production' },
+      { status: 403 }
+    );
+  }
+
+  // デバッグ用の情報を返す（値は隠す）
+  const envInfo = {
+    nodeEnv: process.env.NODE_ENV,
+    platform: process.platform,
+    nodeVersion: process.version,
+    variables: Object.keys(process.env)
+      .sort()
+      .reduce((acc, key) => {
+        // 値は長さのみ表示（セキュリティ）
+        const value = process.env[key] || '';
+        acc[key] = {
+          set: value.length > 0,
+          length: value.length,
+          // NEXT_PUBLIC_ は値も表示（クライアントに公開済みのため）
+          value: key.startsWith('NEXT_PUBLIC_') ? value : '[hidden]',
+        };
+        return acc;
+      }, {} as Record<string, any>),
+  };
+
+  return NextResponse.json(envInfo);
+}
+```
+
+### 9.3 ヘルスチェックエンドポイントでの設定確認
+
+```typescript
+// ============================================
+// app/api/health/route.ts
+// ヘルスチェック API（設定の検証含む）
+// ============================================
+import { NextResponse } from 'next/server';
+
+interface HealthStatus {
+  status: 'ok' | 'degraded' | 'error';
+  timestamp: string;
+  version: string;
+  environment: string;
+  checks: {
+    name: string;
+    status: 'pass' | 'fail' | 'warn';
+    message?: string;
+    duration?: number;
+  }[];
+}
+
+async function checkDatabase(): Promise<{
+  status: 'pass' | 'fail';
+  message: string;
+  duration: number;
+}> {
+  const start = Date.now();
+  try {
+    // Prisma の場合
+    // await prisma.$queryRaw`SELECT 1`;
+    // Drizzle の場合
+    // await db.execute(sql`SELECT 1`);
+    return {
+      status: 'pass',
+      message: 'Database connection OK',
+      duration: Date.now() - start,
+    };
+  } catch (error) {
+    return {
+      status: 'fail',
+      message: `Database connection failed: ${(error as Error).message}`,
+      duration: Date.now() - start,
+    };
+  }
+}
+
+async function checkRedis(): Promise<{
+  status: 'pass' | 'fail' | 'warn';
+  message: string;
+  duration: number;
+}> {
+  if (!process.env.REDIS_URL) {
+    return { status: 'warn', message: 'Redis not configured', duration: 0 };
+  }
+
+  const start = Date.now();
+  try {
+    // Redis クライアントの PING
+    // await redis.ping();
+    return {
+      status: 'pass',
+      message: 'Redis connection OK',
+      duration: Date.now() - start,
+    };
+  } catch (error) {
+    return {
+      status: 'fail',
+      message: `Redis connection failed: ${(error as Error).message}`,
+      duration: Date.now() - start,
+    };
+  }
+}
+
+function checkRequiredEnvVars(): {
+  status: 'pass' | 'fail';
+  message: string;
+} {
+  const required = ['DATABASE_URL', 'JWT_SECRET'];
+  const missing = required.filter(key => !process.env[key]);
+
+  if (missing.length > 0) {
+    return {
+      status: 'fail',
+      message: `Missing required env vars: ${missing.join(', ')}`,
+    };
+  }
+
+  return { status: 'pass', message: 'All required env vars are set' };
+}
+
+export async function GET() {
+  const [dbCheck, redisCheck] = await Promise.all([
+    checkDatabase(),
+    checkRedis(),
+  ]);
+  const envCheck = checkRequiredEnvVars();
+
+  const checks = [
+    { name: 'database', ...dbCheck },
+    { name: 'redis', ...redisCheck },
+    { name: 'env_vars', ...envCheck },
+  ];
+
+  const hasError = checks.some(c => c.status === 'fail');
+  const hasWarn = checks.some(c => c.status === 'warn');
+
+  const health: HealthStatus = {
+    status: hasError ? 'error' : hasWarn ? 'degraded' : 'ok',
+    timestamp: new Date().toISOString(),
+    version: process.env.NEXT_PUBLIC_APP_VERSION || '0.0.0',
+    environment: process.env.NODE_ENV || 'unknown',
+    checks,
+  };
+
+  return NextResponse.json(health, {
+    status: hasError ? 503 : 200,
+    headers: {
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+    },
+  });
+}
+```
+
+---
+
+## 10. 設定管理のベストプラクティスチェックリスト
+
+### 10.1 プロジェクト初期設定
+
+```
+プロジェクト立ち上げ時のチェックリスト:
+
+  □ .env.example を作成し、全環境変数を記載する
+  □ .gitignore に .env.local, .env.*.local を追加する
+  □ Zod による環境変数バリデーションを実装する
+  □ pre-commit hook でシークレット漏洩チェックを設定する
+  □ README.md に環境変数のセットアップ手順を記載する
+  □ 環境変数の命名規則をチーム内で合意する
+  □ Feature Flags の管理方針を決める
+  □ シークレットの管理方法（Secrets Manager / Vault）を決める
+  □ CI/CD パイプラインでの環境変数の設定方法を確認する
+  □ ヘルスチェックエンドポイントを実装する
+```
+
+### 10.2 コードレビュー時のチェックリスト
+
+```
+環境設定に関するコードレビュー観点:
+
+  □ 新しい環境変数が追加された場合:
+    ├── .env.example が更新されているか
+    ├── Zod スキーマが更新されているか
+    ├── 適切なデフォルト値が設定されているか
+    ├── NEXT_PUBLIC_ の要否が正しいか
+    └── CI/CD のシークレット設定手順が明記されているか
+
+  □ セキュリティ:
+    ├── 機密情報がクライアントに露出していないか
+    ├── ハードコードされたシークレットがないか
+    ├── ログ出力にシークレットが含まれていないか
+    └── エラーメッセージにシークレットが含まれていないか
+
+  □ 設定の分離:
+    ├── 環境固有の値がコードにハードコードされていないか
+    ├── if (env === 'production') のような分岐がないか
+    └── 設定の変更にコード変更が不要か
+
+  □ Feature Flags:
+    ├── 不要になったフラグの削除 PR が計画されているか
+    ├── デフォルト値が安全か（OFF がデフォルト）
+    └── フラグの説明がコードやドキュメントにあるか
+```
+
+### 10.3 環境設定に関するセキュリティポリシー
+
+```
+セキュリティポリシーテンプレート:
+
+  1. シークレットの分類と管理
+     - Level 1（最高機密）: データベースパスワード、暗号化キー
+       → AWS Secrets Manager / HashiCorp Vault で管理
+       → 90日ごとにローテーション
+     - Level 2（機密）: API キー、Webhook シークレット
+       → 環境変数として CI/CD シークレットに格納
+       → 180日ごとにローテーション
+     - Level 3（内部利用）: 内部サービスの URL、ポート番号
+       → ConfigMap / 環境変数で管理
+       → ローテーション不要
+
+  2. アクセス制御
+     - 本番環境のシークレットへのアクセスは、
+       SRE チームと Tech Lead のみに限定
+     - シークレットの変更は必ず2人以上の承認が必要
+     - アクセスログを定期的に監査する
+
+  3. インシデント対応
+     - シークレット漏洩が疑われる場合:
+       (1) 直ちに該当シークレットをローテーション
+       (2) 影響範囲の調査（アクセスログの確認）
+       (3) インシデントレポートの作成
+       (4) 再発防止策の策定と実施
+
+  4. 定期レビュー
+     - 四半期ごとに環境変数の棚卸しを実施
+     - 不要な環境変数の削除
+     - シークレットのローテーション状況の確認
+     - Feature Flags のクリーンアップ
+```
+
+### 10.4 シークレットローテーションの実装
+
+```typescript
+// ============================================
+// lib/secret-rotation.ts
+// シークレットのローテーション支援ツール
+// ============================================
+
+interface RotationPolicy {
+  secretName: string;
+  maxAgeDays: number;
+  lastRotated: Date;
+  owners: string[];
+}
+
+const rotationPolicies: RotationPolicy[] = [
+  {
+    secretName: 'DATABASE_PASSWORD',
+    maxAgeDays: 90,
+    lastRotated: new Date('2025-12-01'),
+    owners: ['sre-team@example.com'],
+  },
+  {
+    secretName: 'JWT_SECRET',
+    maxAgeDays: 90,
+    lastRotated: new Date('2025-11-15'),
+    owners: ['sre-team@example.com'],
+  },
+  {
+    secretName: 'STRIPE_SECRET_KEY',
+    maxAgeDays: 180,
+    lastRotated: new Date('2025-10-01'),
+    owners: ['payment-team@example.com'],
+  },
+  {
+    secretName: 'SENDGRID_API_KEY',
+    maxAgeDays: 180,
+    lastRotated: new Date('2025-09-01'),
+    owners: ['platform-team@example.com'],
+  },
+];
+
+interface RotationCheckResult {
+  secretName: string;
+  daysSinceRotation: number;
+  maxAgeDays: number;
+  status: 'ok' | 'warning' | 'expired';
+  owners: string[];
+  message: string;
+}
+
+export function checkRotationStatus(): RotationCheckResult[] {
+  const now = new Date();
+
+  return rotationPolicies.map(policy => {
+    const daysSince = Math.floor(
+      (now.getTime() - policy.lastRotated.getTime()) / (1000 * 60 * 60 * 24)
+    );
+
+    const warningThreshold = policy.maxAgeDays * 0.8; // 80% で警告
+
+    let status: 'ok' | 'warning' | 'expired';
+    let message: string;
+
+    if (daysSince > policy.maxAgeDays) {
+      status = 'expired';
+      message = `${daysSince - policy.maxAgeDays}日超過しています。直ちにローテーションしてください。`;
+    } else if (daysSince > warningThreshold) {
+      status = 'warning';
+      message = `残り${policy.maxAgeDays - daysSince}日でローテーション期限です。`;
+    } else {
+      status = 'ok';
+      message = `次のローテーションまで${policy.maxAgeDays - daysSince}日です。`;
+    }
+
+    return {
+      secretName: policy.secretName,
+      daysSinceRotation: daysSince,
+      maxAgeDays: policy.maxAgeDays,
+      status,
+      owners: policy.owners,
+      message,
+    };
+  });
+}
+
+// ローテーション状況のレポート出力
+export function printRotationReport(): void {
+  const results = checkRotationStatus();
+
+  console.log('\n===== シークレットローテーション状況 =====\n');
+
+  for (const result of results) {
+    const icon =
+      result.status === 'ok' ? '[OK]' :
+      result.status === 'warning' ? '[WARN]' : '[EXPIRED]';
+
+    console.log(`${icon} ${result.secretName}`);
+    console.log(`  最終ローテーション: ${result.daysSinceRotation}日前`);
+    console.log(`  有効期限: ${result.maxAgeDays}日`);
+    console.log(`  状態: ${result.message}`);
+    console.log(`  担当: ${result.owners.join(', ')}`);
+    console.log('');
+  }
+
+  const expired = results.filter(r => r.status === 'expired');
+  if (expired.length > 0) {
+    console.log(`\n[ALERT] ${expired.length}件のシークレットが期限切れです！`);
+  }
+}
+```
+
+---
+
+## まとめ
+
+| 概念 | ポイント | 推奨ツール |
+|------|---------|-----------|
+| 環境変数設計 | SCREAMING_SNAKE_CASE、プレフィックスで分類 | - |
+| 型安全性 | Zod で起動時バリデーション、フェイルファスト | Zod, @t3-oss/env-nextjs |
+| 環境分離 | 設定ファイルでオーバーライド、コードに環境分岐を書かない | dotenv, direnv |
+| Feature Flags | 段階的ロールアウト、A/B テスト、不要フラグの削除 | LaunchDarkly, Unleash |
+| シークレット管理 | .env.local は Git 管理外、Secrets Manager で暗号化保存 | AWS Secrets Manager, Vault |
+| CI/CD | GitHub Environments でスコープ分離、Secrets で機密管理 | GitHub Actions, Vercel |
+| Kubernetes | ConfigMap と Secret の分離、External Secrets Operator | Sealed Secrets, ESO |
+| セキュリティ | pre-commit hook、Secure by Default、定期ローテーション | husky, gitleaks |
+| デバッグ | ヘルスチェック API、環境変数チェックスクリプト | - |
+
+```
+設定管理の成熟度モデル:
+
+  Level 1（基本）:
+    ├── .env ファイルで管理
+    ├── .gitignore で機密ファイルを除外
+    └── .env.example の作成
+
+  Level 2（標準）:
+    ├── 環境変数のバリデーション（Zod）
+    ├── 環境別設定ファイル
+    ├── pre-commit hook でのシークレットチェック
+    └── CI/CD でのシークレット管理
+
+  Level 3（高度）:
+    ├── Secrets Manager / Vault の導入
+    ├── Feature Flags サービスの導入
+    ├── 自動ローテーション
+    ├── 監査ログの実装
+    └── Sealed Secrets / External Secrets Operator
+
+  Level 4（エンタープライズ）:
+    ├── ゼロトラストの設定管理
+    ├── HSM（ハードウェアセキュリティモジュール）
+    ├── コンプライアンス対応（SOC2, ISO27001）
+    ├── 自動化されたポリシーチェック
+    └── 設定の変更管理プロセス（ITIL ベース）
+```
+
+---
+
+## 次に読むべきガイド
+→ [[02-performance-optimization.md]] -- パフォーマンス最適化
+
+---
+
+## 参考文献
+1. The Twelve-Factor App. "III. Config - Store config in the environment." 12factor.net, 2017.
+2. Next.js. "Environment Variables." nextjs.org/docs, 2024.
+3. Vercel. "Environment Variables." vercel.com/docs, 2024.
+4. Vite. "Env Variables and Modes." vitejs.dev/guide, 2024.
+5. AWS. "AWS Secrets Manager User Guide." docs.aws.amazon.com, 2024.
+6. HashiCorp. "Vault Documentation." developer.hashicorp.com/vault, 2024.
+7. Bitnami. "Sealed Secrets." github.com/bitnami-labs/sealed-secrets, 2024.
+8. External Secrets Operator. "Getting Started." external-secrets.io, 2024.
+9. LaunchDarkly. "Feature Flags Best Practices." launchdarkly.com/blog, 2024.
+10. Martin Fowler. "Feature Toggles (aka Feature Flags)." martinfowler.com, 2023.

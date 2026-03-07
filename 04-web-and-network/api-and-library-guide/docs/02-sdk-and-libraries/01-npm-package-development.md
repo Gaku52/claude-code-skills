@@ -1938,3 +1938,756 @@ npm unpublish のルールと制約:
     # → 自動テスト用、毎日の自動ビルドに使用
 ```
 
+---
+
+## 14. 実践演習
+
+### 14.1 演習1（初級）: 基本的なnpmパッケージの作成
+
+シンプルなユーティリティパッケージを作成し、ローカルでビルド・テストする演習である。
+
+```
+演習の目標:
+  - package.json の基本フィールドを設定できる
+  - tsup でESM/CJSのデュアルビルドを実行できる
+  - vitest でテストを書いて実行できる
+
+手順:
+
+  1. プロジェクトの初期化
+     $ mkdir my-utils && cd my-utils
+     $ npm init -y
+     $ npm install -D typescript tsup vitest
+
+  2. package.json の編集（以下を参考に設定）
+```
+
+```json
+// 演習1: package.json
+{
+  "name": "@yourname/utils",
+  "version": "0.1.0",
+  "description": "A collection of utility functions",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "prepublishOnly": "npm run build && npm run test"
+  }
+}
+```
+
+```typescript
+// 演習1: src/index.ts
+/**
+ * 文字列の先頭を大文字にする。
+ * @param str - 変換する文字列
+ * @returns 先頭が大文字の文字列
+ */
+export function capitalize(str: string): string {
+  if (str.length === 0) return str;
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+/**
+ * 配列をチャンクに分割する。
+ * @param array - 分割する配列
+ * @param size - チャンクサイズ
+ * @returns チャンクの配列
+ */
+export function chunk<T>(array: T[], size: number): T[][] {
+  if (size <= 0) throw new Error('Chunk size must be greater than 0');
+  const result: T[][] = [];
+  for (let i = 0; i < array.length; i += size) {
+    result.push(array.slice(i, i + size));
+  }
+  return result;
+}
+
+/**
+ * オブジェクトから指定したキーのみを抽出する。
+ * @param obj - 元のオブジェクト
+ * @param keys - 抽出するキーの配列
+ * @returns 抽出されたオブジェクト
+ */
+export function pick<T extends Record<string, unknown>, K extends keyof T>(
+  obj: T,
+  keys: K[],
+): Pick<T, K> {
+  const result = {} as Pick<T, K>;
+  for (const key of keys) {
+    if (key in obj) {
+      result[key] = obj[key];
+    }
+  }
+  return result;
+}
+```
+
+```typescript
+// 演習1: src/index.test.ts
+import { describe, it, expect } from 'vitest';
+import { capitalize, chunk, pick } from './index';
+
+describe('capitalize', () => {
+  it('先頭を大文字にする', () => {
+    expect(capitalize('hello')).toBe('Hello');
+  });
+
+  it('空文字列を処理する', () => {
+    expect(capitalize('')).toBe('');
+  });
+
+  it('既に大文字の場合はそのまま', () => {
+    expect(capitalize('Hello')).toBe('Hello');
+  });
+});
+
+describe('chunk', () => {
+  it('配列をチャンクに分割する', () => {
+    expect(chunk([1, 2, 3, 4, 5], 2)).toEqual([[1, 2], [3, 4], [5]]);
+  });
+
+  it('チャンクサイズが配列長以上の場合', () => {
+    expect(chunk([1, 2], 5)).toEqual([[1, 2]]);
+  });
+
+  it('チャンクサイズが0以下でエラー', () => {
+    expect(() => chunk([1], 0)).toThrow('Chunk size must be greater than 0');
+  });
+});
+
+describe('pick', () => {
+  it('指定したキーのみを抽出する', () => {
+    const obj = { a: 1, b: 2, c: 3 };
+    expect(pick(obj, ['a', 'c'])).toEqual({ a: 1, c: 3 });
+  });
+
+  it('存在しないキーは無視する', () => {
+    const obj = { a: 1, b: 2 };
+    expect(pick(obj, ['a', 'c' as keyof typeof obj])).toEqual({ a: 1 });
+  });
+});
+```
+
+```
+演習1の確認ポイント:
+  [x] npm run build が成功する
+  [x] dist/ に .js, .cjs, .d.ts, .d.cts が生成される
+  [x] npm run test が全て通る
+  [x] npm pack --dry-run で含まれるファイルを確認
+```
+
+### 14.2 演習2（中級）: サブパスエクスポート付きSDKの構築
+
+APIクライアントSDKをサブパスエクスポートで設計し、Tree-shakingが効く構造を作る演習である。
+
+```
+演習の目標:
+  - サブパスエクスポートを正しく設定できる
+  - 内部モジュールの隠蔽ができる
+  - MSWを使ったテストが書ける
+
+ディレクトリ構成:
+
+  sdk-exercise/
+  ├── package.json
+  ├── tsup.config.ts
+  ├── tsconfig.json
+  ├── vitest.config.ts
+  └── src/
+      ├── index.ts           ← メインエントリ
+      ├── client.ts           ← HTTPクライアント
+      ├── types.ts            ← 共有型定義
+      ├── errors.ts           ← エラークラス
+      ├── users/
+      │   ├── index.ts        ← @example/sdk/users
+      │   ├── types.ts
+      │   └── __tests__/
+      │       └── users.test.ts
+      └── posts/
+          ├── index.ts        ← @example/sdk/posts
+          ├── types.ts
+          └── __tests__/
+              └── posts.test.ts
+```
+
+```typescript
+// 演習2: src/client.ts
+import type { ClientOptions } from './types';
+import { APIError, TimeoutError } from './errors';
+
+export class BaseClient {
+  protected readonly baseURL: string;
+  protected readonly apiKey: string;
+  protected readonly timeout: number;
+  protected readonly maxRetries: number;
+  private readonly fetchFn: typeof globalThis.fetch;
+
+  constructor(options: ClientOptions) {
+    this.apiKey = options.apiKey;
+    this.baseURL = options.baseURL ?? 'https://api.example.com/v1';
+    this.timeout = options.timeout ?? 30_000;
+    this.maxRetries = options.maxRetries ?? 3;
+    this.fetchFn = options.fetch ?? globalThis.fetch;
+  }
+
+  protected async request<T>(
+    method: string,
+    path: string,
+    options: {
+      body?: unknown;
+      params?: Record<string, string>;
+      headers?: Record<string, string>;
+    } = {},
+  ): Promise<T> {
+    const url = new URL(path, this.baseURL);
+    if (options.params) {
+      for (const [key, value] of Object.entries(options.params)) {
+        url.searchParams.set(key, value);
+      }
+    }
+
+    let lastError: Error | undefined;
+
+    for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(
+        () => controller.abort(),
+        this.timeout,
+      );
+
+      try {
+        const response = await this.fetchFn(url.toString(), {
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.apiKey}`,
+            ...options.headers,
+          },
+          body: options.body ? JSON.stringify(options.body) : undefined,
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          const errorBody = await response.json().catch(() => ({}));
+          const apiError = new APIError(
+            errorBody.message ?? 'Unknown error',
+            response.status,
+            errorBody.code,
+            errorBody.requestId,
+          );
+
+          // 5xx エラーはリトライ対象
+          if (response.status >= 500 && attempt < this.maxRetries) {
+            lastError = apiError;
+            const delay = 1000 * Math.pow(2, attempt);
+            await new Promise(r => setTimeout(r, delay));
+            continue;
+          }
+
+          throw apiError;
+        }
+
+        return (await response.json()) as T;
+      } catch (error) {
+        clearTimeout(timeoutId);
+
+        if (error instanceof APIError) throw error;
+
+        if ((error as Error).name === 'AbortError') {
+          throw new TimeoutError(
+            `Request timed out after ${this.timeout}ms`,
+          );
+        }
+
+        lastError = error as Error;
+        if (attempt < this.maxRetries) {
+          const delay = 1000 * Math.pow(2, attempt);
+          await new Promise(r => setTimeout(r, delay));
+          continue;
+        }
+      }
+    }
+
+    throw lastError ?? new Error('Request failed');
+  }
+}
+```
+
+```typescript
+// 演習2: src/errors.ts
+export class APIError extends Error {
+  readonly status: number;
+  readonly code?: string;
+  readonly requestId?: string;
+
+  constructor(
+    message: string,
+    status: number,
+    code?: string,
+    requestId?: string,
+  ) {
+    super(message);
+    this.name = 'APIError';
+    this.status = status;
+    this.code = code;
+    this.requestId = requestId;
+  }
+}
+
+export class TimeoutError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'TimeoutError';
+  }
+}
+
+export class ValidationError extends Error {
+  readonly field: string;
+
+  constructor(message: string, field: string) {
+    super(message);
+    this.name = 'ValidationError';
+    this.field = field;
+  }
+}
+```
+
+```
+演習2の確認ポイント:
+  [x] import { ExampleClient } from '@example/sdk' が動作する
+  [x] import { UsersResource } from '@example/sdk/users' が動作する
+  [x] import { something } from '@example/sdk/internal' がエラーになる
+  [x] MSW でモックしたテストが全て通る
+  [x] npm pack --dry-run で不要ファイルが含まれていない
+```
+
+### 14.3 演習3（上級）: モノレポでの複数パッケージ管理
+
+pnpm + Turborepo + Changesets でモノレポを構築し、複数パッケージの連携開発と自動リリースを実現する演習である。
+
+```
+演習の目標:
+  - pnpm workspace の設定ができる
+  - Turborepo でビルド順序を管理できる
+  - Changesets でバージョンとCHANGELOGを管理できる
+  - GitHub Actions で自動リリースパイプラインを構築できる
+
+手順:
+
+  1. モノレポの初期化
+     $ mkdir my-sdk-mono && cd my-sdk-mono
+     $ pnpm init
+     $ pnpm add -Dw turbo @changesets/cli
+     $ npx changeset init
+
+  2. ワークスペース定義
+     pnpm-workspace.yaml を作成
+
+  3. パッケージの作成
+     $ mkdir -p packages/core packages/react packages/cli
+     $ cd packages/core && pnpm init
+     $ cd packages/react && pnpm init
+     $ cd packages/cli && pnpm init
+
+  4. 依存関係の設定
+     packages/react/package.json:
+       "dependencies": { "@my-sdk/core": "workspace:*" }
+
+  5. ビルド・テストの実行
+     $ pnpm turbo build
+     $ pnpm turbo test
+
+  6. 変更の記録
+     $ pnpm changeset
+     → @my-sdk/core: minor
+     → "ユーザー一覧APIのサポートを追加"
+
+  7. バージョンアップ
+     $ pnpm changeset version
+     → @my-sdk/core: 0.1.0 → 0.2.0
+     → @my-sdk/react: 0.1.0 → 0.1.1（依存更新）
+
+  確認ポイント:
+  [x] pnpm turbo build が依存順序を正しく解決する
+  [x] packages/react から packages/core を参照できる
+  [x] changeset version で全パッケージのバージョンが正しく更新される
+  [x] CHANGELOG.md が各パッケージに自動生成される
+  [x] workspace:* が公開時に実際のバージョンに置換される
+```
+
+---
+
+## 15. パッケージメンテナンスのベストプラクティス
+
+### 15.1 CHANGELOG の書き方
+
+```markdown
+<!-- CHANGELOG.md の例 -->
+# @example/sdk
+
+## 2.0.0
+
+### Breaking Changes
+
+- `Client` コンストラクタのオプションから `apiUrl` を削除。
+  代わりに `baseURL` を使用してください。
+- 最小 Node.js バージョンを 18 に引き上げ。
+- `users.delete()` の戻り値を `void` から `{ deleted: boolean }` に変更。
+
+### Migration Guide
+
+  // Before (v1)
+  const client = new Client({ apiUrl: 'https://...' });
+
+  // After (v2)
+  const client = new Client({ baseURL: 'https://...' });
+
+## 1.3.0
+
+### Features
+
+- `users.list()` にフィルタオプションを追加。
+- `billing.invoices()` メソッドを新規追加。
+- レスポンスに `requestId` フィールドを追加。
+
+### Bug Fixes
+
+- リトライ時にタイムアウトがリセットされない問題を修正。
+- ページネーションの `cursor` が `null` の場合にエラーになる問題を修正。
+```
+
+### 15.2 非推奨化（Deprecation）の正しい手順
+
+```typescript
+// Step 1: JSDoc で @deprecated を付与（MINOR リリース）
+/**
+ * ユーザーを名前で検索する。
+ * @deprecated v1.3.0 で非推奨。代わりに `users.list({ filter: { name } })` を使用してください。
+ * v2.0.0 で削除予定。
+ */
+export function findUserByName(name: string): Promise<User> {
+  // 実行時の警告（Node.js環境）
+  if (typeof process !== 'undefined') {
+    process.emitWarning(
+      'findUserByName() is deprecated. Use users.list({ filter: { name } }) instead.',
+      'DeprecationWarning',
+    );
+  }
+  // 既存の実装をそのまま維持
+  return this.users.list({ filter: { name } }).then(res => res.data[0]);
+}
+
+// Step 2: README と CHANGELOG に非推奨を明記
+// Step 3: 1-2 MINOR バージョン後に MAJOR リリースで削除
+```
+
+### 15.3 依存の定期更新
+
+```json
+// renovate.json - Renovate Bot の設定
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":semanticCommits",
+    ":automergeMinor",
+    ":automergeDigest"
+  ],
+  "labels": ["dependencies"],
+  "packageRules": [
+    {
+      "matchUpdateTypes": ["minor", "patch"],
+      "matchCurrentVersion": "!/^0/",
+      "automerge": true
+    },
+    {
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "labels": ["dependencies", "breaking"]
+    },
+    {
+      "matchPackageNames": ["typescript"],
+      "automerge": false,
+      "labels": ["dependencies", "typescript"]
+    }
+  ],
+  "schedule": ["before 9am on monday"]
+}
+```
+
+---
+
+## 16. FAQ（よくある質問）
+
+### Q1: ESMのみで公開してよいか? CJSは必要か?
+
+```
+A: 2025年現在、CJSビルドを提供することが依然として強く推奨される。
+
+  ESMのみでよいケース:
+    - CLIツール（利用者がimportしない）
+    - 新しいフレームワーク専用のプラグイン
+    - 内部パッケージ（モノレポ内でのみ使用）
+    - ターゲットがブラウザのみ
+
+  CJSが必要なケース:
+    - 広く使われる汎用ライブラリ
+    - SDK / APIクライアント
+    - テストフレームワークから使われるもの
+    - Jest（ESM対応が不完全）を使うプロジェクト
+
+  判断基準:
+    - 利用者の10%以上がCJSを使う可能性 → デュアル提供
+    - tsup を使えば追加コストはほぼゼロ
+    → 迷ったらデュアル提供が安全
+```
+
+### Q2: dependencies と devDependencies の区別がわからない
+
+```
+A: パッケージが npm install された「後」に必要かどうかで判断する。
+
+  テスト:
+    npm install @example/sdk を実行した場合、
+    そのモジュールがなくても動作するか?
+
+    YES → devDependencies
+    NO  → dependencies
+
+  具体例:
+    tsup       → devDependencies（ビルド時のみ使用）
+    vitest     → devDependencies（テスト時のみ使用）
+    eslint     → devDependencies（lint時のみ使用）
+    typescript → devDependencies（コンパイル時のみ使用）
+    zod        → dependencies（ランタイムでバリデーションに使用）
+    jose       → dependencies（ランタイムでJWTを処理）
+
+  注意: tsup でバンドルする場合
+    → 依存のコードがdistに含まれる
+    → その場合 dependencies に入れる必要がない場合がある
+    → ただし利用者がTree-shakingする場合は dependencies が正しい
+
+  peerDependencies:
+    → 利用者のプロジェクトに同一インスタンスが必要な場合
+    → 例: react, vue, eslint
+```
+
+### Q3: パッケージ名に @scope を付けるべきか?
+
+```
+A: 組織やブランドに紐づくパッケージには @scope を付けることを強く推奨する。
+
+  @scope を付ける利点:
+    1. 名前の衝突を回避できる
+       → "utils" は既に存在するが "@yourorg/utils" は確保可能
+    2. パッケージの所有者が明確
+    3. 組織内の npm アクセス制御が容易
+    4. 関連パッケージのグルーピング
+       → @my-sdk/core, @my-sdk/react, @my-sdk/vue
+
+  @scope を付けない場合:
+    - 既に有名なパッケージ名を確保済み
+    - 個人の小さなユーティリティ
+    - 広く認知されたプロジェクト名
+
+  注意点:
+    - @scope 付きパッケージはデフォルトで private
+    - 公開するには npm publish --access public が必要
+    - publishConfig で設定することも可能:
+      "publishConfig": { "access": "public" }
+
+  npm org の作成:
+    $ npm org create my-org
+    → @my-org/* スコープが使用可能になる
+```
+
+### Q4: バージョン 0.x.x でいつまで開発してよいか?
+
+```
+A: 0.x.x は「初期開発段階」を意味し、API が不安定であることを宣言する。
+   利用者が増え、APIが安定したら速やかに 1.0.0 へ移行すべきである。
+
+  0.x.x の SemVer ルール:
+    - 0.x.x は破壊的変更をいつでも行える
+    - 0.MINOR.PATCH の MINOR が破壊的変更を含む場合がある
+    - 利用者は安定性を期待できない
+
+  1.0.0 へ移行するタイミング:
+    - 本番環境で使用されている
+    - 主要なAPIが確定している
+    - 週間ダウンロード数が一定以上
+    - ドキュメントが整備されている
+
+  移行しないリスク:
+    - 利用者が不安定と判断して採用を見送る
+    - ^ 付きバージョン指定で意図しない破壊的変更を受ける
+    - "dependencies": { "@example/sdk": "^0.5.0" }
+      → 0.6.0 で破壊的変更が入っても自動更新される
+```
+
+### Q5: パッケージの README に何を書くべきか?
+
+```
+A: README はパッケージの「顔」であり、利用者が最初に見るドキュメントである。
+   以下の構成を推奨する。
+
+  推奨する README 構成:
+    1. パッケージ名 + 一行説明
+    2. バッジ（npm version, CI status, coverage, license）
+    3. インストール方法
+    4. クイックスタート（最小限のコード例）
+    5. 主要な機能の紹介
+    6. APIリファレンスへのリンク
+    7. マイグレーションガイド（メジャーバージョンアップ時）
+    8. コントリビューティングガイドへのリンク
+    9. ライセンス
+
+  npm の README 表示:
+    - npmjs.com のパッケージページに表示される
+    - マークダウンがレンダリングされる
+    - 画像は絶対URLを使用すること
+    - HTMLタグは一部制限あり
+```
+
+---
+
+## 17. npm パッケージ品質チェックシート
+
+```
+パッケージ公開前の品質チェック（全項目クリアで公開可能）:
+
+  基本設定:
+    [ ] package.json の name が正しい
+    [ ] version が SemVer に準拠している
+    [ ] description が簡潔で明確
+    [ ] license フィールドが設定されている
+    [ ] engines で Node.js バージョンを指定
+    [ ] keywords が適切に設定されている
+    [ ] repository, homepage, bugs が設定されている
+
+  モジュール設定:
+    [ ] "type": "module" が設定されている
+    [ ] exports フィールドが正しく設定されている
+    [ ] main, module, types のフォールバックがある
+    [ ] サブパスエクスポートが意図通り動作する
+    [ ] 内部モジュールへの直接アクセスが防止されている
+
+  ビルド:
+    [ ] ESM と CJS の両方が出力される
+    [ ] 型定義ファイル(.d.ts, .d.cts)が生成される
+    [ ] ソースマップが生成される
+    [ ] ビルド成果物が dist/ に出力される
+    [ ] sideEffects: false が設定されている
+
+  テスト:
+    [ ] テストカバレッジが 80% 以上
+    [ ] エッジケースのテストがある
+    [ ] エラーケースのテストがある
+    [ ] 非同期処理のテストがある
+
+  公開設定:
+    [ ] files フィールドで公開ファイルを制限
+    [ ] npm pack --dry-run で内容を確認
+    [ ] .env やシークレットが含まれていない
+    [ ] 不要なテストファイルが含まれていない
+    [ ] 2FA が有効化されている
+    [ ] provenance が設定されている
+
+  ドキュメント:
+    [ ] README.md が最新
+    [ ] CHANGELOG.md が更新されている
+    [ ] 型定義に JSDoc コメントがある
+    [ ] コード例が動作する
+```
+
+---
+
+## まとめ
+
+| 概念 | ポイント |
+|------|---------|
+| package.json | exports で ESM/CJS 対応、types は各条件の先頭に配置 |
+| ビルド | tsup が SDK 開発に最適、環境別ビルドも対応可能 |
+| 型定義 | JSDoc コメント付きの丁寧な型がユーザー体験を向上させる |
+| 依存 | ゼロ依存を目指す、Node.js 組み込み API で代替 |
+| バージョン | SemVer + Changesets で体系的に管理 |
+| テスト | MSW で HTTP レベルのモック、カバレッジ 80% 以上 |
+| モノレポ | pnpm + Turborepo + Changesets が現代の標準構成 |
+| 公開 | GitHub Actions で自動化、provenance で信頼性を確保 |
+| セキュリティ | npm audit、2FA、provenance、サプライチェーン対策 |
+| メンテナンス | Renovate で依存更新、非推奨化は段階的に実施 |
+
+```
+npmパッケージ開発の成熟度モデル:
+
+  Level 1 - 基本:
+    [x] npm publish できる
+    [x] package.json の基本フィールドを設定
+    [x] ESM で動作する
+
+  Level 2 - 標準:
+    [x] ESM/CJS デュアルビルド
+    [x] TypeScript 型定義を提供
+    [x] テストカバレッジ 80% 以上
+    [x] CI/CD パイプライン構築
+    [x] SemVer に準拠したバージョニング
+
+  Level 3 - プロフェッショナル:
+    [x] サブパスエクスポートの設計
+    [x] Changesets による体系的リリース管理
+    [x] size-limit によるバンドルサイズ監視
+    [x] npm provenance の有効化
+    [x] 包括的なセキュリティ対策
+
+  Level 4 - エキスパート:
+    [x] モノレポでの複数パッケージ管理
+    [x] Dual Package Hazard への対策
+    [x] 全 moduleResolution への対応
+    [x] 自動依存更新（Renovate/Dependabot）
+    [x] 非推奨化の段階的プロセス
+    [x] コミュニティ貢献の受け入れ体制
+```
+
+---
+
+## 次に読むべきガイド
+-> [[02-api-documentation.md]] -- APIドキュメンテーション
+
+---
+
+## 参考文献
+
+1. npm. "package.json documentation." docs.npmjs.com, 2024. -- package.json の全フィールドに関する公式リファレンス。exports フィールドの詳細仕様や条件付きエクスポートの優先順位について、最も正確な情報源である。
+
+2. Node.js. "Modules: Packages." nodejs.org/api/packages.html, 2024. -- Node.js のモジュール解決アルゴリズムの公式仕様。ESM と CJS の相互運用、exports フィールドの解決順序、Dual Package Hazard の公式見解が記載されている。
+
+3. tsup. "Bundle your TypeScript library with no config." github.com/egoist/tsup, 2024. -- tsup の公式ドキュメント。ESM/CJS デュアルビルド、型定義生成、コード分割、環境別ビルド等の設定方法が網羅されている。
+
+4. Changesets. "A way to manage your versioning and changelogs." github.com/changesets/changesets, 2024. -- Changesets の公式リポジトリ。モノレポ対応のバージョン管理、CHANGELOG 自動生成、GitHub Actions との連携設定について詳述されている。
+
+5. Turborepo. "High-performance build system for JavaScript and TypeScript codebases." turbo.build, 2024. -- Turborepo の公式ドキュメント。モノレポのタスク実行、ビルドキャッシュ、依存関係グラフの自動検出について解説されている。
+
+6. Semver. "Semantic Versioning 2.0.0." semver.org, 2024. -- セマンティックバージョニングの公式仕様。MAJOR/MINOR/PATCH の定義、プレリリースバージョンの規則、バージョン比較のアルゴリズムが定義されている。
+
+7. npm. "npm provenance." docs.npmjs.com/generating-provenance-statements, 2024. -- npm provenance（出所証明）の公式ガイド。Sigstore を用いたパッケージの署名と検証、GitHub Actions での設定方法が解説されている。

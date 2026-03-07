@@ -2473,3 +2473,830 @@ const { Content } = await post.render();
   </article>
 </Layout>
 ```
+
+### 8.4 フレームワーク間の特殊ファイル比較
+
+| 機能 | Next.js App Router | SvelteKit | Nuxt.js 3 | Remix v2 |
+|------|-------------------|-----------|-----------|----------|
+| ページ | `page.tsx` | `+page.svelte` | `index.vue` / `name.vue` | `route.tsx` |
+| レイアウト | `layout.tsx` | `+layout.svelte` | `layouts/name.vue` | 親ルート + `<Outlet />` |
+| エラー | `error.tsx` | `+error.svelte` | `error.vue` | `ErrorBoundary` export |
+| ローディング | `loading.tsx` | N/A（手動 Suspense） | N/A（`<NuxtLoadingIndicator>`） | `useNavigation()` |
+| サーバーデータ | Server Component | `+page.server.ts` | `useFetch()` | `loader` |
+| フォーム処理 | Server Actions | `+page.server.ts` (actions) | `useFetch()` + API | `action` + `<Form>` |
+| 404 | `not-found.tsx` | `+error.svelte` (404) | `error.vue` (404) | `throw Response(404)` |
+| API Route | `route.ts` | `+server.ts` | `server/api/` | `resource route` |
+| ミドルウェア | `middleware.ts` | `hooks.server.ts` | `server/middleware/` | N/A |
+
+---
+
+## 9. 実践的なプロジェクトのディレクトリ設計
+
+### 9.1 SaaS アプリケーションの設計例
+
+実際の SaaS アプリケーションを想定したディレクトリ設計の完全な例を示す。
+
+```
+app/
+├── layout.tsx                           ← ルートレイアウト
+├── page.tsx                             ← ランディングページ (/)
+├── globals.css
+├── favicon.ico
+├── opengraph-image.png
+├── sitemap.ts
+├── robots.ts
+│
+├── (marketing)/                         ← マーケティングサイト
+│   ├── layout.tsx                       ← ヘッダー + フッター
+│   ├── about/page.tsx                   ← /about
+│   ├── pricing/page.tsx                 ← /pricing
+│   ├── blog/
+│   │   ├── page.tsx                     ← /blog（記事一覧）
+│   │   └── [slug]/page.tsx              ← /blog/:slug
+│   ├── changelog/page.tsx               ← /changelog
+│   ├── contact/page.tsx                 ← /contact
+│   ├── legal/
+│   │   ├── privacy/page.tsx             ← /legal/privacy
+│   │   └── terms/page.tsx               ← /legal/terms
+│   └── docs/
+│       ├── layout.tsx                   ← ドキュメント用サイドバー
+│       └── [[...slug]]/page.tsx         ← /docs/*
+│
+├── (auth)/                              ← 認証フロー
+│   ├── layout.tsx                       ← センタリングレイアウト
+│   ├── login/page.tsx                   ← /login
+│   ├── register/page.tsx                ← /register
+│   ├── forgot-password/page.tsx         ← /forgot-password
+│   ├── reset-password/page.tsx          ← /reset-password
+│   ├── verify-email/page.tsx            ← /verify-email
+│   └── sso/
+│       └── [provider]/page.tsx          ← /sso/:provider (google, github等)
+│
+├── (app)/                               ← アプリケーション本体
+│   ├── layout.tsx                       ← 認証チェック + サイドバー + ヘッダー
+│   ├── onboarding/
+│   │   ├── page.tsx                     ← /onboarding（初回セットアップ）
+│   │   └── [step]/page.tsx              ← /onboarding/:step
+│   ├── dashboard/
+│   │   ├── page.tsx                     ← /dashboard
+│   │   ├── loading.tsx                  ← ダッシュボードのローディング
+│   │   ├── error.tsx                    ← ダッシュボードのエラー
+│   │   ├── @analytics/
+│   │   │   ├── page.tsx
+│   │   │   ├── loading.tsx
+│   │   │   └── default.tsx
+│   │   └── @activity/
+│   │       ├── page.tsx
+│   │       ├── loading.tsx
+│   │       └── default.tsx
+│   ├── projects/
+│   │   ├── page.tsx                     ← /projects（一覧）
+│   │   ├── loading.tsx
+│   │   ├── new/page.tsx                 ← /projects/new（新規作成）
+│   │   └── [projectId]/
+│   │       ├── layout.tsx               ← プロジェクトコンテキスト
+│   │       ├── page.tsx                 ← /projects/:id（概要）
+│   │       ├── settings/page.tsx        ← /projects/:id/settings
+│   │       ├── members/page.tsx         ← /projects/:id/members
+│   │       ├── tasks/
+│   │       │   ├── page.tsx             ← /projects/:id/tasks
+│   │       │   └── [taskId]/page.tsx    ← /projects/:id/tasks/:taskId
+│   │       └── analytics/page.tsx       ← /projects/:id/analytics
+│   ├── settings/
+│   │   ├── layout.tsx                   ← 設定画面のサブナビ
+│   │   ├── page.tsx                     ← /settings（一般設定）
+│   │   ├── profile/page.tsx             ← /settings/profile
+│   │   ├── billing/page.tsx             ← /settings/billing
+│   │   ├── team/page.tsx                ← /settings/team
+│   │   ├── integrations/page.tsx        ← /settings/integrations
+│   │   ├── notifications/page.tsx       ← /settings/notifications
+│   │   ├── security/page.tsx            ← /settings/security
+│   │   └── api-keys/page.tsx            ← /settings/api-keys
+│   └── admin/                           ← 管理者専用
+│       ├── layout.tsx                   ← 管理者権限チェック
+│       ├── page.tsx                     ← /admin
+│       ├── users/
+│       │   ├── page.tsx                 ← /admin/users
+│       │   └── [id]/page.tsx            ← /admin/users/:id
+│       └── system/page.tsx              ← /admin/system
+│
+├── api/                                 ← API Routes
+│   ├── auth/
+│   │   ├── [...nextauth]/route.ts       ← NextAuth.js
+│   │   └── session/route.ts             ← セッション確認
+│   ├── users/
+│   │   ├── route.ts                     ← GET/POST /api/users
+│   │   └── [id]/route.ts               ← GET/PUT/DELETE /api/users/:id
+│   ├── projects/
+│   │   ├── route.ts                     ← GET/POST /api/projects
+│   │   └── [id]/
+│   │       ├── route.ts                 ← GET/PUT/DELETE /api/projects/:id
+│   │       └── tasks/route.ts           ← GET/POST /api/projects/:id/tasks
+│   ├── webhooks/
+│   │   ├── stripe/route.ts              ← Stripe Webhook
+│   │   └── github/route.ts              ← GitHub Webhook
+│   └── upload/route.ts                  ← ファイルアップロード
+│
+└── _components/                         ← ルートに含まれないコンポーネント
+    ├── providers.tsx                     ← グローバルプロバイダー
+    └── analytics.tsx                    ← アナリティクス
+```
+
+### 9.2 コロケーションパターン
+
+Next.js App Router では、`page.tsx` がないディレクトリはルートとして認識されないため、ページに関連するコンポーネントを同じディレクトリに配置できる（コロケーション）。
+
+```
+推奨: コロケーションパターン
+
+  app/projects/[projectId]/
+  ├── page.tsx                    ← ページコンポーネント
+  ├── loading.tsx                 ← ローディング
+  ├── error.tsx                   ← エラー
+  ├── _components/                ← ページ専用コンポーネント
+  │   ├── project-header.tsx
+  │   ├── project-stats.tsx
+  │   ├── project-timeline.tsx
+  │   └── project-members.tsx
+  ├── _hooks/                     ← ページ専用フック
+  │   ├── use-project.ts
+  │   └── use-project-tasks.ts
+  ├── _lib/                       ← ページ専用ユーティリティ
+  │   ├── queries.ts
+  │   └── actions.ts
+  └── _types/                     ← ページ専用型定義
+      └── index.ts
+
+注意:
+  - _（アンダースコア）プレフィックスは慣習であり、
+    Next.js のルーティングには影響しない
+  - page.tsx がないディレクトリはそもそもルートにならない
+  - ただし、ディレクトリ名が page, layout, loading, error,
+    not-found, route, template, default のいずれかの場合は
+    特殊ファイルとして認識される
+```
+
+```typescript
+// app/projects/[projectId]/page.tsx
+// コロケーションされたコンポーネントをインポート
+import { ProjectHeader } from './_components/project-header';
+import { ProjectStats } from './_components/project-stats';
+import { ProjectTimeline } from './_components/project-timeline';
+import { getProject } from './_lib/queries';
+
+export default async function ProjectPage({
+  params,
+}: {
+  params: Promise<{ projectId: string }>;
+}) {
+  const { projectId } = await params;
+  const project = await getProject(projectId);
+
+  if (!project) notFound();
+
+  return (
+    <div>
+      <ProjectHeader project={project} />
+      <ProjectStats project={project} />
+      <ProjectTimeline projectId={project.id} />
+    </div>
+  );
+}
+```
+
+### 9.3 Private Folders（プライベートフォルダ）
+
+Next.js ではアンダースコア `_` プレフィックスを付けたフォルダは、ルーティングの対象外となるプライベートフォルダとして扱える。
+
+```
+app/
+├── _components/            ← ルーティング対象外
+│   ├── header.tsx
+│   └── footer.tsx
+├── _lib/                   ← ルーティング対象外
+│   ├── db.ts
+│   └── auth.ts
+├── _utils/                 ← ルーティング対象外
+│   └── format.ts
+├── page.tsx
+└── dashboard/
+    ├── page.tsx
+    └── _components/        ← ルーティング対象外
+        └── chart.tsx
+```
+
+---
+
+## 10. Pages Router から App Router への移行
+
+### 10.1 移行戦略
+
+Next.js Pages Router（`pages/` ディレクトリ）から App Router（`app/` ディレクトリ）への移行は、段階的に行うことが推奨される。両方のルーターは共存できるため、ページ単位で移行を進められる。
+
+```
+段階的移行の手順:
+
+  1. app/ ディレクトリを作成し、layout.tsx を配置
+  2. ページを一つずつ pages/ から app/ に移動
+  3. 各ページで以下を変換:
+     - getServerSideProps → async Server Component
+     - getStaticProps → async Server Component + generateStaticParams
+     - getStaticPaths → generateStaticParams
+     - useRouter (next/router) → useRouter (next/navigation)
+     - Head → metadata export
+  4. _app.tsx のプロバイダーを app/layout.tsx に移行
+  5. _document.tsx の設定を app/layout.tsx に移行
+  6. API Routes はそのまま pages/api/ に残すか、app/api/ に移行
+```
+
+```typescript
+// ---- 移行前: pages/users/[id].tsx ----
+import { GetServerSideProps } from 'next';
+import Head from 'next/head';
+import { useRouter } from 'next/router';
+
+interface Props {
+  user: User;
+}
+
+export const getServerSideProps: GetServerSideProps<Props> = async (context) => {
+  const { id } = context.params!;
+  const user = await getUser(id as string);
+
+  if (!user) {
+    return { notFound: true };
+  }
+
+  return { props: { user } };
+};
+
+export default function UserPage({ user }: Props) {
+  const router = useRouter();
+
+  return (
+    <>
+      <Head>
+        <title>{user.name} | My App</title>
+        <meta name="description" content={`${user.name}'s profile`} />
+      </Head>
+      <div>
+        <h1>{user.name}</h1>
+        <button onClick={() => router.push('/users')}>
+          Back to Users
+        </button>
+      </div>
+    </>
+  );
+}
+
+// ---- 移行後: app/users/[id]/page.tsx ----
+import { notFound } from 'next/navigation';
+import type { Metadata } from 'next';
+
+interface UserPageProps {
+  params: Promise<{ id: string }>;
+}
+
+export async function generateMetadata({ params }: UserPageProps): Promise<Metadata> {
+  const { id } = await params;
+  const user = await getUser(id);
+  return {
+    title: user?.name ?? 'User Not Found',
+    description: user ? `${user.name}'s profile` : undefined,
+  };
+}
+
+export default async function UserPage({ params }: UserPageProps) {
+  const { id } = await params;
+  const user = await getUser(id);
+
+  if (!user) {
+    notFound();
+  }
+
+  return (
+    <div>
+      <h1>{user.name}</h1>
+      <BackButton />  {/* Client Component に分離 */}
+    </div>
+  );
+}
+
+// app/users/[id]/_components/back-button.tsx
+'use client';
+import { useRouter } from 'next/navigation';
+
+export function BackButton() {
+  const router = useRouter();
+  return (
+    <button onClick={() => router.push('/users')}>
+      Back to Users
+    </button>
+  );
+}
+```
+
+### 10.2 移行時の主な変更点
+
+| 項目 | Pages Router | App Router |
+|------|-------------|-----------|
+| データ取得 | `getServerSideProps` / `getStaticProps` | `async` Server Component |
+| 静的パス生成 | `getStaticPaths` | `generateStaticParams` |
+| メタデータ | `<Head>` コンポーネント | `metadata` export / `generateMetadata` |
+| ルーター | `useRouter` (next/router) | `useRouter` (next/navigation) |
+| リダイレクト | `getServerSideProps` で redirect | `redirect()` 関数 |
+| 404 | `{ notFound: true }` | `notFound()` 関数 |
+| レイアウト | `_app.tsx` + `_document.tsx` | `layout.tsx` |
+| API Route | `pages/api/route.ts` | `app/api/route/route.ts` |
+| クライアント状態 | デフォルト（Client Component） | `'use client'` 明示必要 |
+| ストリーミング | 不可 | `<Suspense>` / `loading.tsx` |
+
+---
+
+## 11. トラブルシューティング
+
+### 11.1 よくある問題と解決策
+
+```
+問題1: ルートが認識されない（404になる）
+  原因: page.tsx が配置されていない、またはファイル名が間違っている
+  解決策:
+    - ディレクトリ内に page.tsx（小文字）が存在するか確認
+    - Page.tsx や page.jsx ではないか確認
+    - TypeScript の場合は page.tsx、JavaScript の場合は page.jsx
+    - page.tsx が default export を持っているか確認
+
+問題2: layout.tsx のエラーがキャッチされない
+  原因: error.tsx は layout.tsx の子なので、layout のエラーをキャッチできない
+  解決策:
+    - 親セグメントに error.tsx を配置
+    - ルートレイアウトの場合は global-error.tsx を配置
+
+問題3: error.tsx が動作しない
+  原因: 'use client' ディレクティブがない
+  解決策:
+    - error.tsx の先頭に 'use client' を必ず追加
+    - global-error.tsx も同様
+
+問題4: loading.tsx が表示されない
+  原因: ページが Server Component でない、または async でない
+  解決策:
+    - page.tsx が async function であることを確認
+    - Client Component ('use client') の場合、loading.tsx は初回のみ動作
+    - Suspense を明示的に使用する
+
+問題5: パラレルルートで 404 が表示される
+  原因: サブナビゲーション時にスロットのURLがマッチしない
+  解決策:
+    - 各スロットに default.tsx を配置
+    - ソフトナビゲーション時は前の状態が保持されるが、
+      ハードナビゲーションでは default.tsx が必要
+
+問題6: route.ts と page.tsx が同じディレクトリにある
+  原因: 同じルートセグメントに page.tsx と route.ts は共存不可
+  解決策:
+    - API Route は api/ ディレクトリに移動
+    - または page.tsx を別のディレクトリに配置
+
+問題7: searchParams が undefined になる
+  原因: Next.js 15+ で searchParams が Promise になった
+  解決策:
+    - const { q } = await searchParams; のように await する
+    - TypeScript の型定義も Promise<...> に更新
+```
+
+### 11.2 デバッグ手法
+
+```typescript
+// ルーティングのデバッグ方法
+
+// 1. 現在のルート情報の確認（Client Component）
+'use client';
+import { usePathname, useSearchParams, useParams } from 'next/navigation';
+
+function DebugRouting() {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const params = useParams();
+
+  if (process.env.NODE_ENV !== 'development') return null;
+
+  return (
+    <div className="fixed bottom-4 right-4 p-4 bg-black text-green-400 font-mono text-xs rounded-lg max-w-md z-50">
+      <div>pathname: {pathname}</div>
+      <div>searchParams: {searchParams.toString()}</div>
+      <div>params: {JSON.stringify(params)}</div>
+    </div>
+  );
+}
+
+// 2. Server Component でのログ
+export default async function Page({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ q?: string }>;
+}) {
+  const resolvedParams = await params;
+  const resolvedSearch = await searchParams;
+
+  // サーバーログに出力される
+  console.log('[Page] params:', resolvedParams);
+  console.log('[Page] searchParams:', resolvedSearch);
+
+  // ...
+}
+
+// 3. Middleware でのログ
+export function middleware(request: NextRequest) {
+  console.log('[Middleware]', request.method, request.nextUrl.pathname);
+  return NextResponse.next();
+}
+```
+
+### 11.3 パフォーマンスの問題
+
+```
+問題: ページの初回ロードが遅い
+  確認事項:
+    1. データフェッチがウォーターフォールになっていないか
+       → Promise.all() で並列化、または Suspense で分割
+    2. 'use client' の範囲が広すぎないか
+       → Server Component を最大限活用し、Client Component を最小化
+    3. generateStaticParams を活用しているか
+       → 頻繁にアクセスされるページは事前生成
+    4. revalidate が適切に設定されているか
+       → 不要な再フェッチを避ける
+
+問題: ページ遷移が遅い
+  確認事項:
+    1. Link コンポーネントの prefetch が無効になっていないか
+       → prefetch={false} を不要に設定していないか確認
+    2. レイアウトで重い処理をしていないか
+       → layout.tsx は再レンダリングされないが、
+         template.tsx は毎回実行される
+    3. Suspense バウンダリが適切か
+       → 大きなコンポーネントを Suspense で分割
+```
+
+```typescript
+// パフォーマンス最適化: ウォーターフォールの回避
+
+// NG: ウォーターフォール（直列実行）
+export default async function DashboardPage() {
+  const user = await getUser();           // 1. まずユーザーを取得
+  const projects = await getProjects();   // 2. 次にプロジェクトを取得（待機）
+  const notifications = await getNotifs(); // 3. 最後に通知を取得（待機）
+
+  return (/* ... */);
+}
+
+// OK: 並列実行
+export default async function DashboardPage() {
+  const [user, projects, notifications] = await Promise.all([
+    getUser(),
+    getProjects(),
+    getNotifications(),
+  ]);
+
+  return (/* ... */);
+}
+
+// BEST: Suspense で段階的表示
+export default async function DashboardPage() {
+  const user = await getUser(); // 軽い処理はすぐに表示
+
+  return (
+    <div>
+      <UserHeader user={user} />
+
+      <Suspense fallback={<ProjectsSkeleton />}>
+        <ProjectsList />  {/* 独立してfetch */}
+      </Suspense>
+
+      <Suspense fallback={<NotificationsSkeleton />}>
+        <NotificationsFeed />  {/* 独立してfetch */}
+      </Suspense>
+    </div>
+  );
+}
+```
+
+---
+
+## 12. アンチパターンと回避策
+
+### 12.1 よくあるアンチパターン
+
+```typescript
+// ---- アンチパターン 1: page.tsx を不必要に Client Component にする ----
+
+// NG: ページ全体を Client Component に
+'use client';
+export default function UsersPage() {
+  const [users, setUsers] = useState([]);
+  useEffect(() => {
+    fetch('/api/users').then(r => r.json()).then(setUsers);
+  }, []);
+  return <UserList users={users} />;
+}
+
+// OK: Server Component + Client Component の分離
+// page.tsx（Server Component）
+export default async function UsersPage() {
+  const users = await getUsers(); // サーバーで直接取得
+  return <UserList users={users} />;
+}
+
+// _components/user-list.tsx（Client Component、インタラクティブ部分のみ）
+'use client';
+export function UserList({ users }: { users: User[] }) {
+  const [filter, setFilter] = useState('');
+  const filtered = users.filter(u => u.name.includes(filter));
+  return (
+    <div>
+      <input value={filter} onChange={e => setFilter(e.target.value)} />
+      {filtered.map(user => <UserCard key={user.id} user={user} />)}
+    </div>
+  );
+}
+```
+
+```typescript
+// ---- アンチパターン 2: layout.tsx でデータを props で渡そうとする ----
+
+// NG: layout.tsx から children にデータを渡すことはできない
+export default async function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const user = await getUser();
+  // children に user を渡す方法がない!
+  return (
+    <div>
+      <Sidebar user={user} />
+      {children}  {/* user を渡せない */}
+    </div>
+  );
+}
+
+// OK: 共有コンテキストまたは個別のデータフェッチ
+// 方法1: React Context + Client Component Provider
+// layout.tsx
+export default async function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const user = await getUser();
+  return (
+    <UserProvider initialUser={user}>
+      <Sidebar />
+      {children}
+    </UserProvider>
+  );
+}
+
+// 方法2: 各 page.tsx で個別にデータフェッチ（推奨）
+// Next.js はデフォルトで fetch を deduplicate するため、
+// 同じリクエストは1回しか実行されない
+```
+
+```typescript
+// ---- アンチパターン 3: 深すぎるディレクトリ構造 ----
+
+// NG: 深すぎるネスト
+// app/dashboard/settings/account/profile/edit/confirm/page.tsx
+// → /dashboard/settings/account/profile/edit/confirm
+
+// OK: ルートグループとフラットな構造を活用
+// app/(app)/settings/page.tsx         → /settings
+// app/(app)/settings/profile/page.tsx → /settings/profile
+// 深さは3-4レベルまでに抑える
+```
+
+```typescript
+// ---- アンチパターン 4: API Route の濫用 ----
+
+// NG: Server Component で直接取得できるのに API Route 経由
+// app/api/users/route.ts
+export async function GET() {
+  const users = await db.user.findMany();
+  return NextResponse.json(users);
+}
+
+// app/users/page.tsx
+export default async function UsersPage() {
+  // わざわざ API Route を呼ぶ必要はない
+  const res = await fetch('http://localhost:3000/api/users');
+  const users = await res.json();
+  return <UserList users={users} />;
+}
+
+// OK: Server Component でデータベースに直接アクセス
+export default async function UsersPage() {
+  const users = await db.user.findMany();
+  return <UserList users={users} />;
+}
+
+// API Route は以下の場合に使用:
+// - 外部サービスからの Webhook
+// - クライアントからの fetch（Client Component）
+// - 外部APIとしての公開
+// - Cron Job のエンドポイント
+```
+
+```typescript
+// ---- アンチパターン 5: generateStaticParams の不適切な使用 ----
+
+// NG: 全レコードを事前生成しようとする
+export async function generateStaticParams() {
+  // 100万件のユーザーを全て事前生成 → ビルド時間が膨大に
+  const users = await db.user.findMany();
+  return users.map(u => ({ id: u.id }));
+}
+
+// OK: アクセス頻度の高いページのみ事前生成
+export async function generateStaticParams() {
+  // 上位100件のみ事前生成、残りはオンデマンド
+  const topUsers = await db.user.findMany({
+    orderBy: { viewCount: 'desc' },
+    take: 100,
+    select: { id: true },
+  });
+  return topUsers.map(u => ({ id: u.id }));
+}
+
+// dynamicParams = true（デフォルト）により、
+// 事前生成されていないパラメータはオンデマンドで生成される
+```
+
+### 12.2 セキュリティ上の注意点
+
+```typescript
+// 1. 動的ルートパラメータのバリデーション
+// パラメータは常にユーザー入力として扱い、バリデーションする
+
+// NG: パラメータを信頼してそのまま使用
+export default async function UserPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  // SQL インジェクションのリスク（ORMを使わない場合）
+  const user = await sql`SELECT * FROM users WHERE id = ${id}`;
+  return <div>{user.name}</div>;
+}
+
+// OK: バリデーション + Parameterized Query
+export default async function UserPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+
+  // UUID バリデーション
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(id)) {
+    notFound();
+  }
+
+  // ORM の使用（パラメータ化されたクエリ）
+  const user = await db.user.findUnique({ where: { id } });
+  if (!user) notFound();
+
+  return <div>{user.name}</div>;
+}
+
+// 2. Server Component からの機密情報漏洩防止
+// Server Component のレンダリング結果はクライアントに送信されるため、
+// 機密情報をそのまま含めてはいけない
+
+// NG: 機密情報をクライアントに送信
+export default async function AdminPage() {
+  const config = await getSystemConfig();
+  return (
+    <div>
+      {/* DB接続文字列がクライアントに送信される！ */}
+      <pre>{JSON.stringify(config, null, 2)}</pre>
+    </div>
+  );
+}
+
+// OK: 必要な情報のみを選別
+export default async function AdminPage() {
+  const config = await getSystemConfig();
+  return (
+    <div>
+      <p>App Version: {config.version}</p>
+      <p>Environment: {config.environment}</p>
+      {/* DB接続文字列などの機密情報は含めない */}
+    </div>
+  );
+}
+
+// 3. middleware.ts での認証
+// Server Component での認証チェックだけでなく、
+// middleware.ts でも事前チェックを行う（二重チェック）
+```
+
+---
+
+## 13. ベストプラクティスチェックリスト
+
+### 13.1 ディレクトリ設計
+
+- [ ] ルートグループ `(name)` を使い、マーケティング・アプリ・認証でレイアウトを分離している
+- [ ] ディレクトリの深さは4レベル以内に抑えている
+- [ ] コロケーション（`_components/` 等）を活用し、関連ファイルを近くに配置している
+- [ ] `page.tsx` のない中間ディレクトリはレイアウト用途のみに使用している
+- [ ] Private Folders（`_` プレフィックス）で非ルーティングファイルを明示している
+
+### 13.2 レイアウト設計
+
+- [ ] ルートレイアウトに `<html>` と `<body>` タグを配置している
+- [ ] 共有プロバイダー（Theme、Auth、Query）はルートレイアウトに配置している
+- [ ] 認証チェックは対応するルートグループの layout.tsx で行っている
+- [ ] `template.tsx` は本当に必要な場合にのみ使用している
+- [ ] レイアウトでの重い処理を避け、パフォーマンスを維持している
+
+### 13.3 データフェッチ
+
+- [ ] Server Component でデータを直接取得し、API Route 経由を避けている
+- [ ] `Promise.all()` や `Suspense` でウォーターフォールを回避している
+- [ ] `generateStaticParams` で頻繁にアクセスされるページを事前生成している
+- [ ] `revalidate` を適切に設定し、不要な再フェッチを避けている
+- [ ] `dynamicParams` の設定を意図的に行っている
+
+### 13.4 エラーハンドリング
+
+- [ ] 各主要セクションに `error.tsx` を配置している
+- [ ] `error.tsx` に `'use client'` ディレクティブを付けている
+- [ ] `global-error.tsx` をルートに配置している
+- [ ] エラーの種類に応じた表示分岐を実装している
+- [ ] 本番環境ではエラーをモニタリングサービスに送信している
+- [ ] `not-found.tsx` をカスタマイズし、ユーザーフレンドリーな404を表示している
+
+### 13.5 パフォーマンス
+
+- [ ] `'use client'` の使用を最小限に抑え、Client Component のバウンダリを意識している
+- [ ] 重いコンポーネントは `<Suspense>` で分割し、ストリーミングを活用している
+- [ ] `loading.tsx` でスケルトンUIを実装し、CLS（Cumulative Layout Shift）を防いでいる
+- [ ] 静的メタデータは `metadata` オブジェクトで定義し、動的な場合のみ `generateMetadata` を使用している
+
+---
+
+## まとめ
+
+| 概念 | ポイント |
+|------|---------|
+| ファイル規約 | page, layout, loading, error, not-found, template, default, route |
+| ルートグループ | `(name)` でURLに含めずレイアウト分割 |
+| 動的ルート | `[id]`, `[...slug]`, `[[...slug]]` |
+| パラレルルート | `@slot` で並列表示、独立したローディング/エラー |
+| インターセプト | `(.)path` でモーダル表示、直接アクセスは全画面 |
+| コンポーネント階層 | Layout > Template > ErrorBoundary > Suspense > NotFound > Page |
+| Middleware | 認証・i18n・Rate Limiting・A/Bテスト |
+| Route Segment Config | `dynamic`, `revalidate`, `runtime`, `dynamicParams` |
+| コロケーション | `_components/` 等でページ専用ファイルを同居 |
+| 移行 | Pages Router から段階的に移行可能 |
+
+### フレームワーク選択の判断基準
+
+| 要件 | 推奨フレームワーク | 理由 |
+|------|------------------|------|
+| React + SSR/SSG | Next.js App Router | エコシステムが最も豊富 |
+| React + Web Standards | Remix / React Router v7 | progressive enhancement |
+| Vue.js | Nuxt.js 3 | Vue エコシステムとの統合 |
+| Svelte | SvelteKit | 軽量で高速 |
+| コンテンツサイト | Astro | Islands Architecture で最小 JS |
+| 型安全性重視 | SvelteKit / Next.js | 自動型生成が充実 |
+
+---
+
+## 次に読むべきガイド
+- [[02-navigation-patterns.md]] -- ナビゲーション設計（Link、useRouter、リダイレクト）
+- [[03-dynamic-routes-and-params.md]] -- 動的ルーティングの高度なパターン
+- [[04-middleware-and-guards.md]] -- ミドルウェアとルートガード
+
+---
+
+## 参考文献
+1. Next.js. "Routing Fundamentals." nextjs.org/docs/app/building-your-application/routing, 2025.
+2. Next.js. "File Conventions." nextjs.org/docs/app/api-reference/file-conventions, 2025.
+3. Next.js. "Parallel Routes." nextjs.org/docs/app/building-your-application/routing/parallel-routes, 2025.
+4. Next.js. "Intercepting Routes." nextjs.org/docs/app/building-your-application/routing/intercepting-routes, 2025.
+5. Next.js. "Route Handlers." nextjs.org/docs/app/building-your-application/routing/route-handlers, 2025.
+6. Next.js. "Middleware." nextjs.org/docs/app/building-your-application/routing/middleware, 2025.
+7. Remix. "Route File Naming v2." remix.run/docs/en/main/file-conventions/routes, 2025.
+8. Remix. "Route Module." remix.run/docs/en/main/route/component, 2025.
+9. SvelteKit. "Routing." kit.svelte.dev/docs/routing, 2025.
+10. Nuxt.js. "Pages Directory." nuxt.com/docs/guide/directory-structure/pages, 2025.
+11. Astro. "Routing." docs.astro.build/en/guides/routing, 2025.
+12. Vercel. "Understanding Next.js App Router." vercel.com/blog, 2025.
+13. Kent C. Dodds. "Full Stack Components." kentcdodds.com, 2024.
+14. Lee Robinson. "Next.js App Router: Routing Patterns." leerob.io, 2024.

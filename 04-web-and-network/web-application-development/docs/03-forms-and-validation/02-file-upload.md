@@ -3585,3 +3585,1051 @@ class ImageProcessor {
   }
 }
 ```
+
+---
+
+## 9. セキュリティ対策
+
+ファイルアップロードはWebアプリケーションの中でも最も攻撃されやすい機能の一つである。適切なセキュリティ対策を怠ると、リモートコード実行（RCE）、ディレクトリトラバーサル、クロスサイトスクリプティング（XSS）、サービス拒否（DoS）などの深刻な脆弱性につながる。
+
+### 9.1 脅威モデルと攻撃ベクトル
+
+```
+ファイルアップロードに対する主要な攻撃:
+
+  1. マルウェアアップロード
+     → ウイルス、トロイの木馬、ランサムウェアの配布
+     → 対策: ウイルススキャン、ファイルタイプ制限
+
+  2. Webシェル（リモートコード実行）
+     → .php, .jsp, .aspx ファイルをアップロードしてサーバーで実行
+     → 対策: 拡張子ホワイトリスト、実行権限の除去、別ドメインでの配信
+
+  3. ディレクトリトラバーサル
+     → ファイル名に "../" を含めて任意のパスに書き込み
+     → 対策: ファイル名のサニタイズ、UUIDによるリネーム
+
+  4. XSS（クロスサイトスクリプティング）
+     → SVG ファイルや HTML ファイルに悪意のあるスクリプトを埋め込み
+     → 対策: Content-Type の厳密な設定、CSP ヘッダー
+
+  5. DoS（サービス拒否）
+     → 巨大ファイルのアップロードでサーバーリソースを枯渇させる
+     → 対策: ファイルサイズ制限、レート制限、タイムアウト
+
+  6. MIME タイプ偽装
+     → .jpg 拡張子の実行ファイルなど
+     → 対策: マジックバイトによる実際のファイル内容検証
+
+  7. ZIP爆弾（Zip Bomb）
+     → 展開すると巨大になる圧縮ファイル
+     → 対策: 展開後サイズの制限、再帰展開の禁止
+
+  8. メタデータ攻撃
+     → EXIF データに悪意のあるペイロードを埋め込み
+     → 対策: メタデータの除去、再エンコード
+```
+
+### 9.2 サーバーサイドのセキュリティ実装
+
+```typescript
+// セキュアなファイルアップロードサービス
+import crypto from 'crypto';
+import path from 'path';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+
+const execFileAsync = promisify(execFile);
+
+class SecureFileUploadService {
+  private readonly allowedMimeTypes: Set<string>;
+  private readonly maxFileSize: number;
+  private readonly uploadDir: string;
+
+  constructor(config: {
+    allowedMimeTypes: string[];
+    maxFileSize: number;
+    uploadDir: string;
+  }) {
+    this.allowedMimeTypes = new Set(config.allowedMimeTypes);
+    this.maxFileSize = config.maxFileSize;
+    this.uploadDir = config.uploadDir;
+  }
+
+  // 総合的なファイル検証
+  async validateFile(buffer: Buffer, originalName: string): Promise<{
+    isValid: boolean;
+    errors: string[];
+    detectedMimeType: string | null;
+  }> {
+    const errors: string[] = [];
+
+    // 1. ファイルサイズチェック
+    if (buffer.length === 0) {
+      errors.push('ファイルが空です');
+    }
+    if (buffer.length > this.maxFileSize) {
+      errors.push(`ファイルサイズが上限（${formatFileSize(this.maxFileSize)}）を超えています`);
+    }
+
+    // 2. ファイル名のサニタイズチェック
+    const filenameErrors = this.validateFilename(originalName);
+    errors.push(...filenameErrors);
+
+    // 3. マジックバイトによるMIMEタイプ検証
+    const detectedMimeType = this.detectMimeTypeFromMagicBytes(buffer);
+    if (!detectedMimeType) {
+      errors.push('ファイル形式を判別できませんでした');
+    } else if (!this.allowedMimeTypes.has(detectedMimeType)) {
+      errors.push(`許可されていないファイル形式です: ${detectedMimeType}`);
+    }
+
+    // 4. 拡張子とMIMEタイプの整合性チェック
+    if (detectedMimeType) {
+      const ext = path.extname(originalName).toLowerCase();
+      const expectedExtensions = this.getExpectedExtensions(detectedMimeType);
+      if (!expectedExtensions.includes(ext)) {
+        errors.push(
+          `ファイルの拡張子（${ext}）と実際の内容（${detectedMimeType}）が一致しません`
+        );
+      }
+    }
+
+    // 5. 危険なコンテンツのスキャン
+    const dangerousContent = this.scanForDangerousContent(buffer);
+    if (dangerousContent.length > 0) {
+      errors.push(...dangerousContent);
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+      detectedMimeType,
+    };
+  }
+
+  // ファイル名のバリデーション
+  private validateFilename(filename: string): string[] {
+    const errors: string[] = [];
+
+    // パストラバーサル防止
+    if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+      errors.push('ファイル名に不正な文字列が含まれています');
+    }
+
+    // NULL バイト防止
+    if (filename.includes('\0')) {
+      errors.push('ファイル名にNULLバイトが含まれています');
+    }
+
+    // 長さチェック
+    if (filename.length > 255) {
+      errors.push('ファイル名が長すぎます（最大255文字）');
+    }
+
+    // 危険な拡張子チェック
+    const dangerousExtensions = [
+      '.php', '.php3', '.php4', '.php5', '.phtml',
+      '.jsp', '.jspx', '.jsw', '.jsv',
+      '.asp', '.aspx', '.cer', '.csr',
+      '.exe', '.dll', '.bat', '.cmd', '.com', '.msi',
+      '.ps1', '.vbs', '.js', '.wsh', '.wsf',
+      '.sh', '.bash', '.cgi', '.pl', '.py', '.rb',
+      '.htaccess', '.htpasswd',
+      '.svg', // XSS のリスクがある場合
+    ];
+
+    const ext = path.extname(filename).toLowerCase();
+    if (dangerousExtensions.includes(ext)) {
+      errors.push(`危険なファイル拡張子が検出されました: ${ext}`);
+    }
+
+    // 二重拡張子チェック（例: file.php.jpg）
+    const parts = filename.split('.');
+    if (parts.length > 2) {
+      for (let i = 0; i < parts.length - 1; i++) {
+        const checkExt = `.${parts[i]}`;
+        if (dangerousExtensions.includes(checkExt.toLowerCase())) {
+          errors.push(`二重拡張子が検出されました: ${filename}`);
+          break;
+        }
+      }
+    }
+
+    return errors;
+  }
+
+  // マジックバイトによるMIMEタイプ検出
+  private detectMimeTypeFromMagicBytes(buffer: Buffer): string | null {
+    const signatures: Array<{
+      bytes: number[];
+      offset: number;
+      mimeType: string;
+    }> = [
+      // JPEG
+      { bytes: [0xFF, 0xD8, 0xFF], offset: 0, mimeType: 'image/jpeg' },
+      // PNG
+      { bytes: [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A], offset: 0, mimeType: 'image/png' },
+      // GIF87a
+      { bytes: [0x47, 0x49, 0x46, 0x38, 0x37, 0x61], offset: 0, mimeType: 'image/gif' },
+      // GIF89a
+      { bytes: [0x47, 0x49, 0x46, 0x38, 0x39, 0x61], offset: 0, mimeType: 'image/gif' },
+      // PDF
+      { bytes: [0x25, 0x50, 0x44, 0x46], offset: 0, mimeType: 'application/pdf' },
+      // ZIP
+      { bytes: [0x50, 0x4B, 0x03, 0x04], offset: 0, mimeType: 'application/zip' },
+    ];
+
+    // WebP 特殊チェック（RIFF...WEBP）
+    if (
+      buffer.length >= 12 &&
+      buffer[0] === 0x52 && buffer[1] === 0x49 &&
+      buffer[2] === 0x46 && buffer[3] === 0x46 &&
+      buffer[8] === 0x57 && buffer[9] === 0x45 &&
+      buffer[10] === 0x42 && buffer[11] === 0x50
+    ) {
+      return 'image/webp';
+    }
+
+    for (const sig of signatures) {
+      if (buffer.length < sig.offset + sig.bytes.length) continue;
+
+      let match = true;
+      for (let i = 0; i < sig.bytes.length; i++) {
+        if (buffer[sig.offset + i] !== sig.bytes[i]) {
+          match = false;
+          break;
+        }
+      }
+
+      if (match) return sig.mimeType;
+    }
+
+    return null;
+  }
+
+  // 危険なコンテンツのスキャン
+  private scanForDangerousContent(buffer: Buffer): string[] {
+    const errors: string[] = [];
+    const content = buffer.toString('utf-8', 0, Math.min(buffer.length, 10240));
+
+    // スクリプトタグの検出
+    if (/<script[\s>]/i.test(content)) {
+      errors.push('ファイル内にスクリプトタグが検出されました');
+    }
+
+    // PHP タグの検出
+    if (/<\?php/i.test(content) || /<\?=/i.test(content)) {
+      errors.push('ファイル内にPHPコードが検出されました');
+    }
+
+    // イベントハンドラの検出（SVG/HTML）
+    if (/\bon\w+\s*=/i.test(content)) {
+      errors.push('ファイル内にイベントハンドラが検出されました');
+    }
+
+    return errors;
+  }
+
+  // 拡張子の期待値マッピング
+  private getExpectedExtensions(mimeType: string): string[] {
+    const map: Record<string, string[]> = {
+      'image/jpeg': ['.jpg', '.jpeg', '.jpe'],
+      'image/png': ['.png'],
+      'image/webp': ['.webp'],
+      'image/gif': ['.gif'],
+      'application/pdf': ['.pdf'],
+      'application/zip': ['.zip'],
+    };
+    return map[mimeType] || [];
+  }
+
+  // 安全なファイル名の生成
+  generateSafeFilename(mimeType: string): string {
+    const uuid = crypto.randomUUID();
+    const ext = this.getExpectedExtensions(mimeType)[0] || '.bin';
+    return `${uuid}${ext}`;
+  }
+
+  // ウイルススキャン（ClamAV連携）
+  async scanForVirus(filePath: string): Promise<{
+    isClean: boolean;
+    threat?: string;
+  }> {
+    try {
+      // ClamAV の clamscan コマンドを使用
+      const { stdout } = await execFileAsync('clamscan', [
+        '--no-summary',
+        '--infected',
+        filePath,
+      ]);
+
+      return { isClean: true };
+    } catch (error: any) {
+      // clamscan は感染ファイルを見つけた場合、終了コード 1 を返す
+      if (error.code === 1) {
+        return {
+          isClean: false,
+          threat: error.stdout?.trim() || 'マルウェアが検出されました',
+        };
+      }
+      // その他のエラー（ClamAVが利用不可など）
+      console.error('Virus scan error:', error);
+      throw new Error('ウイルススキャンに失敗しました');
+    }
+  }
+}
+```
+
+### 9.3 Content-Disposition とセキュリティヘッダー
+
+```typescript
+// ファイル配信時のセキュリティヘッダー設定
+function getSecureFileHeaders(
+  filename: string,
+  mimeType: string,
+  options: {
+    inline?: boolean;
+    noSniff?: boolean;
+    csp?: string;
+  } = {}
+): Record<string, string> {
+  const {
+    inline = false,
+    noSniff = true,
+    csp = "default-src 'none'; img-src 'self'; style-src 'none'; script-src 'none'",
+  } = options;
+
+  // RFC 5987 に準拠したファイル名エンコーディング
+  const encodedFilename = encodeURIComponent(filename)
+    .replace(/['()]/g, escape)
+    .replace(/\*/g, '%2A');
+
+  const headers: Record<string, string> = {
+    // Content-Disposition: ダウンロードかインライン表示かを制御
+    'Content-Disposition': inline
+      ? `inline; filename="${filename}"; filename*=UTF-8''${encodedFilename}`
+      : `attachment; filename="${filename}"; filename*=UTF-8''${encodedFilename}`,
+
+    // Content-Type: MIME タイプを明示的に設定
+    'Content-Type': mimeType,
+
+    // Cache-Control: プライベートなファイルの場合
+    'Cache-Control': 'private, max-age=31536000, immutable',
+  };
+
+  // X-Content-Type-Options: MIME スニッフィング防止
+  if (noSniff) {
+    headers['X-Content-Type-Options'] = 'nosniff';
+  }
+
+  // Content-Security-Policy: インライン表示時のXSS防止
+  if (inline && csp) {
+    headers['Content-Security-Policy'] = csp;
+  }
+
+  // X-Frame-Options: クリックジャッキング防止
+  headers['X-Frame-Options'] = 'DENY';
+
+  return headers;
+}
+
+// Express でのファイル配信
+app.get('/files/:id', async (req, res) => {
+  const fileRecord = await db.file.findUnique({
+    where: { id: req.params.id },
+  });
+
+  if (!fileRecord) {
+    return res.status(404).json({ error: 'ファイルが見つかりません' });
+  }
+
+  // アクセス権限チェック
+  if (!canAccessFile(req.user, fileRecord)) {
+    return res.status(403).json({ error: 'アクセス権限がありません' });
+  }
+
+  const headers = getSecureFileHeaders(
+    fileRecord.originalName,
+    fileRecord.mimeType,
+    {
+      // 画像はインライン表示を許可
+      inline: fileRecord.mimeType.startsWith('image/'),
+    }
+  );
+
+  Object.entries(headers).forEach(([key, value]) => {
+    res.setHeader(key, value);
+  });
+
+  res.sendFile(fileRecord.storedPath);
+});
+```
+
+### 9.4 レート制限とリソース保護
+
+```typescript
+// アップロードのレート制限
+import rateLimit from 'express-rate-limit';
+import slowDown from 'express-slow-down';
+
+// レート制限: 1ユーザーあたり1分に10回まで
+const uploadRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  message: {
+    error: 'アップロードが多すぎます。しばらくしてからお試しください。',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    return req.user?.id || req.ip;
+  },
+});
+
+// スローダウン: リクエストが多い場合にレスポンスを遅延
+const uploadSlowDown = slowDown({
+  windowMs: 60 * 1000,
+  delayAfter: 5,
+  delayMs: (hits) => hits * 200,
+});
+
+// ストレージ使用量の制限
+class StorageQuotaService {
+  private readonly quotaPerUser: number; // バイト
+
+  constructor(quotaGB: number = 5) {
+    this.quotaPerUser = quotaGB * 1024 * 1024 * 1024;
+  }
+
+  async checkQuota(userId: string, additionalBytes: number): Promise<{
+    allowed: boolean;
+    currentUsage: number;
+    quota: number;
+    remainingBytes: number;
+  }> {
+    // ユーザーの現在のストレージ使用量を取得
+    const currentUsage = await this.getUserStorageUsage(userId);
+    const remainingBytes = this.quotaPerUser - currentUsage;
+
+    return {
+      allowed: currentUsage + additionalBytes <= this.quotaPerUser,
+      currentUsage,
+      quota: this.quotaPerUser,
+      remainingBytes: Math.max(0, remainingBytes),
+    };
+  }
+
+  private async getUserStorageUsage(userId: string): Promise<number> {
+    // DB からユーザーの全ファイルサイズを合計
+    // const result = await db.file.aggregate({
+    //   _sum: { size: true },
+    //   where: { userId },
+    // });
+    // return result._sum.size || 0;
+    return 0; // プレースホルダー
+  }
+}
+
+// アップロードミドルウェアへの統合
+async function uploadMiddleware(req: any, res: any, next: any) {
+  const userId = req.user?.id;
+  if (!userId) {
+    return res.status(401).json({ error: '認証が必要です' });
+  }
+
+  // ストレージ容量チェック
+  const contentLength = parseInt(req.headers['content-length'] || '0', 10);
+  const quotaService = new StorageQuotaService();
+  const quotaCheck = await quotaService.checkQuota(userId, contentLength);
+
+  if (!quotaCheck.allowed) {
+    return res.status(413).json({
+      error: 'ストレージ容量が不足しています',
+      currentUsage: formatFileSize(quotaCheck.currentUsage),
+      quota: formatFileSize(quotaCheck.quota),
+      remaining: formatFileSize(quotaCheck.remainingBytes),
+    });
+  }
+
+  next();
+}
+```
+
+### 9.5 セキュリティチェックリスト
+
+| チェック項目 | 重要度 | 対策 |
+|-------------|--------|------|
+| ファイルサイズ制限 | 必須 | サーバー側で制限を強制 |
+| ファイルタイプ制限 | 必須 | ホワイトリスト方式で許可 |
+| マジックバイト検証 | 必須 | 拡張子だけでなくバイナリ内容を検証 |
+| ファイル名サニタイズ | 必須 | UUID でリネーム |
+| パストラバーサル防止 | 必須 | `..` `/` `\` の除去 |
+| NULLバイト除去 | 必須 | ファイル名から `\0` を除去 |
+| 実行権限の除去 | 必須 | 保存ファイルに実行権限を付与しない |
+| Content-Type 固定 | 必須 | サーバーが正しいMIMEタイプを設定 |
+| X-Content-Type-Options | 必須 | `nosniff` ヘッダーを付与 |
+| Content-Disposition | 推奨 | ダウンロード時に `attachment` を設定 |
+| 別ドメインでの配信 | 推奨 | CDN/別ドメインからファイルを配信 |
+| ウイルススキャン | 推奨 | ClamAV などでスキャン |
+| レート制限 | 推奨 | ユーザーごとのアップロード頻度制限 |
+| ストレージ容量制限 | 推奨 | ユーザーごとのストレージ上限 |
+| 二重拡張子チェック | 推奨 | `file.php.jpg` などの検出 |
+| EXIF データ除去 | 推奨 | プライバシー保護のため |
+| CSP ヘッダー | 推奨 | インライン表示時のXSS防止 |
+| 一時ファイルの自動削除 | 推奨 | TTL 付きで一時ファイルを管理 |
+
+---
+
+## 10. アップロードライブラリの比較
+
+### 10.1 フロントエンドライブラリ比較
+
+| ライブラリ | サイズ | 機能 | 特徴 |
+|-----------|--------|------|------|
+| react-dropzone | 8KB | D&D, バリデーション | シンプル、Reactフック |
+| Uppy | 45KB+ | フル機能 | プラグインアーキテクチャ |
+| Filepond | 36KB | 画像プレビュー, 変換 | 美しいUI |
+| Dropzone.js | 43KB | D&D, プレビュー | jQuery/バニラ両対応 |
+| Fine Uploader | 100KB+ | フル機能 | 企業向け |
+| tus-js-client | 12KB | レジュームアブル | tusプロトコル |
+
+### 10.2 バックエンドライブラリ比較
+
+| ライブラリ | 言語/FW | 機能 | 用途 |
+|-----------|---------|------|------|
+| Multer | Node/Express | multipart解析 | Express向けファイルアップロード |
+| Busboy | Node | ストリーミング解析 | 低レベルmultipart処理 |
+| Formidable | Node | ファイル解析, 進捗 | 汎用Node.jsアップロード |
+| Sharp | Node | 画像処理 | リサイズ/変換/最適化 |
+| @aws-sdk/client-s3 | Node | S3操作 | AWS S3連携 |
+| tusd | Go | tusサーバー | レジュームアブルアップロードサーバー |
+
+### 10.3 Uppy を使った高機能アップロードUI
+
+```typescript
+import Uppy from '@uppy/core';
+import Dashboard from '@uppy/dashboard';
+import XHRUpload from '@uppy/xhr-upload';
+import ImageEditor from '@uppy/image-editor';
+import Webcam from '@uppy/webcam';
+import '@uppy/core/dist/style.css';
+import '@uppy/dashboard/dist/style.css';
+import '@uppy/image-editor/dist/style.css';
+import '@uppy/webcam/dist/style.css';
+
+// Uppy の設定
+function createUppy(options: {
+  uploadEndpoint: string;
+  maxFiles: number;
+  maxFileSize: number;
+  allowedFileTypes: string[];
+  onComplete: (results: any[]) => void;
+}) {
+  const uppy = new Uppy({
+    id: 'file-uploader',
+    autoProceed: false,
+    restrictions: {
+      maxFileSize: options.maxFileSize,
+      maxNumberOfFiles: options.maxFiles,
+      allowedFileTypes: options.allowedFileTypes,
+    },
+    locale: {
+      strings: {
+        dropPasteFiles: 'ファイルをここにドラッグ&ドロップ、%{browseFiles}',
+        browseFiles: 'ファイルを選択',
+        uploadComplete: 'アップロード完了',
+        xFilesSelected: {
+          0: '%{smart_count}ファイルが選択されています',
+          1: '%{smart_count}ファイルが選択されています',
+        },
+      },
+    },
+  })
+    // ダッシュボードUI
+    .use(Dashboard, {
+      inline: true,
+      target: '#uppy-dashboard',
+      width: '100%',
+      height: 400,
+      showProgressDetails: true,
+      proudlyDisplayPoweredByUppy: false,
+      note: `最大${options.maxFiles}ファイル、各${formatFileSize(options.maxFileSize)}まで`,
+    })
+    // 画像エディター
+    .use(ImageEditor, {
+      target: Dashboard,
+      quality: 0.85,
+      cropperOptions: {
+        viewMode: 1,
+        background: false,
+        autoCropArea: 1,
+        responsive: true,
+      },
+    })
+    // Webカメラ
+    .use(Webcam, {
+      target: Dashboard,
+      modes: ['picture'],
+      mirror: true,
+    })
+    // XHRアップロード
+    .use(XHRUpload, {
+      endpoint: options.uploadEndpoint,
+      formData: true,
+      fieldName: 'file',
+      headers: {
+        Authorization: `Bearer ${getAuthToken()}`,
+      },
+    });
+
+  // イベントハンドリング
+  uppy.on('complete', (result) => {
+    const successful = result.successful?.map((file: any) => ({
+      name: file.name,
+      size: file.size,
+      url: file.response?.body?.url,
+    }));
+
+    options.onComplete(successful || []);
+  });
+
+  uppy.on('upload-error', (file, error) => {
+    console.error(`Upload error for ${file?.name}:`, error);
+  });
+
+  return uppy;
+}
+
+// React コンポーネントでの使用
+function UppyUploader() {
+  useEffect(() => {
+    const uppy = createUppy({
+      uploadEndpoint: '/api/upload',
+      maxFiles: 10,
+      maxFileSize: 10 * 1024 * 1024,
+      allowedFileTypes: ['image/*', '.pdf'],
+      onComplete: (results) => {
+        console.log('Uploaded files:', results);
+      },
+    });
+
+    return () => {
+      uppy.close();
+    };
+  }, []);
+
+  return <div id="uppy-dashboard" />;
+}
+```
+
+---
+
+## 11. トラブルシューティング
+
+### 11.1 よくある問題と解決策
+
+```
+問題1: Content-Type ヘッダーの設定ミス
+
+  症状: ファイルがサーバーで正しく受信されない
+  原因: fetch() に Content-Type: multipart/form-data を手動設定している
+
+  // NG: Content-Type を手動設定すると boundary が含まれない
+  fetch('/api/upload', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'multipart/form-data', // これが原因
+    },
+    body: formData,
+  });
+
+  // OK: Content-Type を設定しない（ブラウザが自動設定）
+  fetch('/api/upload', {
+    method: 'POST',
+    body: formData,  // Content-Type は自動で設定される
+  });
+
+---
+
+問題2: CORS エラー
+
+  症状: S3 直接アップロード時に CORS エラーが発生する
+  原因: S3 バケットの CORS 設定が不適切
+
+  確認事項:
+  - AllowedOrigins にフロントエンドのドメインが含まれているか
+  - AllowedMethods に PUT が含まれているか
+  - AllowedHeaders に Content-Type が含まれているか
+  - ブラウザの開発者ツールで実際のエラーメッセージを確認
+
+---
+
+問題3: 大きなファイルでタイムアウト
+
+  症状: 数MB以上のファイルでアップロードがタイムアウトする
+  原因: サーバーのボディサイズ制限、プロキシのタイムアウト設定
+
+  対策:
+  - Next.js: route の config で bodySize を設定
+    export const config = { api: { bodyParser: { sizeLimit: '50mb' } } };
+  - Nginx: client_max_body_size を設定
+    client_max_body_size 50M;
+    proxy_read_timeout 300s;
+  - チャンクアップロードの採用を検討
+
+---
+
+問題4: メモリリーク（Object URL）
+
+  症状: プレビュー画像が増えるとメモリ使用量が増加する
+  原因: URL.createObjectURL() で生成した URL を解放していない
+
+  対策: コンポーネントのアンマウント時やファイル削除時に
+  URL.revokeObjectURL(url) を呼び出す
+
+---
+
+問題5: iOS Safari での画像回転
+
+  症状: iOS Safari で撮影した画像が回転して表示される
+  原因: EXIF Orientation タグの処理が不足
+
+  対策:
+  - CSS の image-orientation: from-image; を使用
+  - アップロード前に Canvas で回転を修正
+  - サーバーサイドで Sharp の .rotate() を使用
+
+---
+
+問題6: ファイル入力のリセットがうまくいかない
+
+  症状: 同じファイルを連続で選択しても onChange が発火しない
+  原因: input 要素の value がクリアされていない
+
+  対策:
+  inputRef.current.value = ''; // 明示的にクリア
+  または React のキー属性を変更して input を再マウント
+
+---
+
+問題7: Multer で req.file が undefined
+
+  症状: Express + Multer でファイルが受信できない
+  原因: フィールド名の不一致、Content-Type の問題
+
+  確認事項:
+  - FormData の append キーと Multer の .single('キー名') が一致しているか
+  - Content-Type を手動設定していないか
+  - body-parser が multipart を処理しようとしていないか
+```
+
+### 11.2 ブラウザ互換性の注意点
+
+| 機能 | Chrome | Firefox | Safari | Edge | iOS Safari |
+|------|--------|---------|--------|------|-----------|
+| File API | 6+ | 3.6+ | 5.1+ | 12+ | 6+ |
+| FileReader | 6+ | 3.6+ | 6+ | 12+ | 7+ |
+| FormData | 7+ | 4+ | 5+ | 12+ | 5+ |
+| Drag & Drop | 4+ | 3.5+ | 3.1+ | 12+ | 11+ |
+| multiple 属性 | 5+ | 3.6+ | 4+ | 12+ | 5+ |
+| accept 属性 | 8+ | 4+ | 6+ | 12+ | 6+ |
+| capture 属性 | 25+ | - | 6+ | 12+ | 6+ |
+| webkitdirectory | 11+ | 50+ | 11.1+ | 13+ | 14+ |
+| Blob.slice | 13+ | 13+ | 7+ | 12+ | 7+ |
+| URL.createObjectURL | 8+ | 4+ | 6+ | 12+ | 6+ |
+| AbortController | 66+ | 57+ | 11.1+ | 16+ | 11.3+ |
+| ReadableStream | 43+ | 65+ | 10.1+ | 14+ | 10.3+ |
+
+### 11.3 パフォーマンス最適化のヒント
+
+```typescript
+// パフォーマンス最適化チェックリスト
+const performanceChecklist = {
+  // クライアントサイド
+  client: [
+    'Web Worker でのファイル処理（メインスレッドをブロックしない）',
+    'サムネイル生成時は低解像度で行う（例: Canvas 150x150）',
+    'Object URL は使い終わったら即座に revokeObjectURL する',
+    'FileReader は大きなファイルには使わない（createObjectURL を使う）',
+    'プレビュー画像は遅延ロードする',
+    'リサイズは OffscreenCanvas を使用する（対応ブラウザのみ）',
+  ],
+
+  // ネットワーク
+  network: [
+    'クライアントサイドで画像を圧縮してからアップロードする',
+    'チャンクアップロードで大ファイルを分割する',
+    '同時アップロード数を制限する（3〜5接続）',
+    'HTTP/2 を使用してヘッドオブラインブロッキングを回避',
+    'CDN にアップロードエンドポイントを配置する',
+    'S3 Transfer Acceleration を検討する',
+  ],
+
+  // サーバーサイド
+  server: [
+    'ストリーミング処理でメモリ使用量を抑える',
+    '画像処理は非同期ジョブキューに委譲する',
+    'シャーディングでファイル保存を分散する',
+    'Lambda/Cloud Functions で画像処理をスケール',
+    'CDN で静的ファイルをキャッシュする',
+    'オンデマンド画像変換（imgix, Cloudinary）を検討する',
+  ],
+};
+
+// Web Worker での画像リサイズ（メインスレッドをブロックしない）
+// worker.ts
+self.onmessage = async (event: MessageEvent) => {
+  const { imageData, maxWidth, maxHeight, quality, format } = event.data;
+
+  const canvas = new OffscreenCanvas(maxWidth, maxHeight);
+  const ctx = canvas.getContext('2d')!;
+
+  // ImageBitmap を使って描画
+  const bitmap = await createImageBitmap(imageData);
+  const { width, height } = calculateDimensions(
+    bitmap.width,
+    bitmap.height,
+    maxWidth,
+    maxHeight,
+    true
+  );
+
+  canvas.width = width;
+  canvas.height = height;
+  ctx.drawImage(bitmap, 0, 0, width, height);
+  bitmap.close();
+
+  const blob = await canvas.convertToBlob({ type: format, quality });
+  self.postMessage({ blob }, [await blob.arrayBuffer()]);
+};
+
+// メインスレッドからの使用
+function resizeInWorker(file: File, options: any): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker('/workers/image-resize.js');
+
+    worker.onmessage = (event) => {
+      resolve(event.data.blob);
+      worker.terminate();
+    };
+
+    worker.onerror = (error) => {
+      reject(error);
+      worker.terminate();
+    };
+
+    worker.postMessage({
+      imageData: file,
+      ...options,
+    });
+  });
+}
+```
+
+---
+
+## 12. アーキテクチャパターンと設計指針
+
+### 12.1 ファイルアップロードのアーキテクチャ選択
+
+```
+方式1: サーバー経由アップロード
+  クライアント → サーバー → ストレージ
+  メリット: シンプルな実装、サーバーでの処理が容易
+  デメリット: サーバーの帯域幅を消費、スケーラビリティに制限
+  用途: 小〜中規模アプリ、ファイルサイズ数MB以下
+
+方式2: S3 プリサインドURL直接アップロード
+  クライアント → S3 (プリサインドURL)
+  メリット: サーバー帯域を節約、S3のスケーラビリティを活用
+  デメリット: CORS設定が必要、クライアントサイド処理が複雑
+  用途: 中〜大規模アプリ、画像/動画アップロード
+
+方式3: チャンクアップロード
+  クライアント → サーバー (チャンク × N)
+  メリット: レジューム可能、大ファイルに対応
+  デメリット: 実装が複雑、サーバーサイドの状態管理が必要
+  用途: 大ファイル（100MB+）、動画アップロード
+
+方式4: CDN/エッジアップロード
+  クライアント → CDN Edge → Origin Storage
+  メリット: 地理的に近いエッジにアップロード、最高のパフォーマンス
+  デメリット: コストが高い、CDN プロバイダーへの依存
+  用途: グローバルサービス、リアルタイム処理
+```
+
+### 12.2 画像処理パイプラインの設計
+
+```
+推奨アーキテクチャ:
+
+  [アップロード]
+      ↓
+  [オリジナル保存] → S3 (originals/)
+      ↓
+  [イベント発火] → S3 Event / SQS
+      ↓
+  [Lambda 画像処理]
+      ├── リサイズ: thumbnail (150x150)
+      ├── リサイズ: small (320x320)
+      ├── リサイズ: medium (640x640)
+      ├── リサイズ: large (1280x1280)
+      ├── フォーマット変換: WebP
+      ├── フォーマット変換: AVIF
+      └── メタデータ除去: EXIF strip
+      ↓
+  [加工済み保存] → S3 (processed/)
+      ↓
+  [CDN配信] → CloudFront
+
+代替: オンデマンド変換
+  [リクエスト] → CDN → [Lambda@Edge / Cloudinary]
+                             ↓
+                    リアルタイム変換（キャッシュ）
+```
+
+### 12.3 データベースモデル設計
+
+```typescript
+// Prisma スキーマ: ファイル管理
+// prisma/schema.prisma
+
+/*
+model File {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+
+  // オリジナルファイル情報
+  originalName  String
+  storedName    String   @unique
+  mimeType      String
+  size          Int      // バイト数
+  hash          String   // SHA-256 ハッシュ（重複検出用）
+
+  // ストレージ情報
+  storageKey    String   @unique  // S3 キー
+  bucket        String
+  region        String
+
+  // メタデータ
+  width         Int?     // 画像の場合
+  height        Int?     // 画像の場合
+  duration      Float?   // 動画/音声の場合（秒）
+
+  // ステータス
+  status        FileStatus @default(PENDING)
+  scanResult    ScanResult?
+  scanDate      DateTime?
+
+  // バリアント（リサイズ版等）
+  variants      FileVariant[]
+  parentId      String?
+  parent        File?    @relation("FileVariants", fields: [parentId], references: [id])
+  children      File[]   @relation("FileVariants")
+
+  // タイムスタンプ
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  deletedAt     DateTime?
+
+  // インデックス
+  @@index([userId])
+  @@index([hash])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model FileVariant {
+  id         String @id @default(cuid())
+  fileId     String
+  file       File   @relation(fields: [fileId], references: [id])
+
+  name       String  // "thumbnail", "small", "medium", "large"
+  format     String  // "jpeg", "webp", "avif"
+  width      Int
+  height     Int
+  size       Int
+  storageKey String @unique
+  url        String
+
+  @@unique([fileId, name, format])
+}
+
+enum FileStatus {
+  PENDING      // アップロード直後
+  PROCESSING   // 画像処理中
+  ACTIVE       // 利用可能
+  QUARANTINED  // ウイルス検出
+  DELETED      // 論理削除
+}
+
+enum ScanResult {
+  CLEAN
+  INFECTED
+  ERROR
+}
+*/
+```
+
+---
+
+## まとめ
+
+### 実装パターン早見表
+
+| パターン | 用途 | 難易度 | 推奨場面 |
+|---------|------|--------|---------|
+| `<input type="file">` + FormData | 基本的なアップロード | 低 | 小規模フォーム |
+| react-dropzone | ドラッグ&ドロップ | 低〜中 | React アプリ全般 |
+| XMLHttpRequest + progress | プログレス表示 | 中 | UX重視のアプリ |
+| S3 Presigned URL | サーバー負荷軽減 | 中 | 中〜大規模アプリ |
+| Canvas API | クライアント側リサイズ | 中 | 画像アップロード |
+| チャンクアップロード | 大ファイル対応 | 高 | 動画・大容量ファイル |
+| tus プロトコル | レジュームアブル | 中 | 不安定なネットワーク |
+| Uppy | フル機能UI | 低 | 高機能アップロード |
+| Sharp | サーバー側画像処理 | 中 | 画像最適化 |
+| Lambda + S3 Event | 非同期画像処理 | 高 | 大規模サービス |
+
+### ベストプラクティスまとめ
+
+1. **クライアントサイド**: accept属性での入力制限、プレビュー表示、クライアントリサイズ
+2. **ネットワーク**: プログレス表示、キャンセル機能、リトライ機構
+3. **サーバーサイド**: マジックバイト検証、ファイル名サニタイズ、容量制限
+4. **セキュリティ**: MIME検証、ウイルススキャン、CSPヘッダー、別ドメイン配信
+5. **パフォーマンス**: CDN配信、オンデマンド変換、Web Worker活用
+
+### アンチパターン
+
+| アンチパターン | 問題点 | 正しい実装 |
+|---------------|--------|-----------|
+| Content-Type を手動設定 | boundary が欠落する | ブラウザに自動設定させる |
+| ファイル名をそのまま使用 | パストラバーサルリスク | UUID でリネーム |
+| 拡張子のみで検証 | MIME偽装が可能 | マジックバイトで実際の内容を検証 |
+| Object URL を解放しない | メモリリーク | revokeObjectURL() を確実に呼ぶ |
+| サーバー経由で大ファイル | サーバー帯域の浪費 | S3直接アップロードを使用 |
+| 同期的な画像処理 | サーバーのレスポンス遅延 | 非同期ジョブキューに委譲 |
+| エラーハンドリング不足 | ユーザーが原因不明の失敗に遭遇 | 詳細なエラーメッセージを表示 |
+| 無制限のアップロード | DoS攻撃のリスク | サイズ・回数・容量の制限 |
+
+---
+
+## 次に読むべきガイド
+→ [[03-complex-forms.md]] -- 複雑なフォーム
+
+---
+
+## 参考文献
+1. MDN Web Docs. "File API." developer.mozilla.org, 2024.
+2. MDN Web Docs. "Using FormData Objects." developer.mozilla.org, 2024.
+3. MDN Web Docs. "HTML Drag and Drop API." developer.mozilla.org, 2024.
+4. react-dropzone. "Simple HTML5 drag-drop zone." react-dropzone.js.org, 2024.
+5. AWS. "Presigned URLs." docs.aws.amazon.com, 2024.
+6. AWS. "Multipart Upload Overview." docs.aws.amazon.com, 2024.
+7. tus. "tus - resumable file uploads." tus.io, 2024.
+8. Sharp. "High performance Node.js image processing." sharp.pixelplumbing.com, 2024.
+9. Uppy. "The next open source file uploader for web browsers." uppy.io, 2024.
+10. OWASP. "File Upload Cheat Sheet." cheatsheetseries.owasp.org, 2024.
+11. Multer. "Node.js middleware for handling multipart/form-data." github.com/expressjs/multer, 2024.
+12. Cloudinary. "Image and Video Upload, Storage, Optimization and CDN." cloudinary.com, 2024.

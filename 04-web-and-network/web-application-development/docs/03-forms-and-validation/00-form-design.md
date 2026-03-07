@@ -2233,3 +2233,1118 @@ function FormSuccessMessage({ show }: { show: boolean }) {
   [x] ターゲットサイズが44x44px以上 (2.5.5)
   [x] テキストのコントラスト比が7:1以上 (1.4.6)
 ```
+
+---
+
+## 8. パフォーマンス最適化
+
+### 8.1 再レンダリングの最小化
+
+```typescript
+// パフォーマンス最適化パターン集
+
+// Pattern 1: useWatch でコンポーネントを分離
+// → 監視対象のフィールドが変更された時だけ該当コンポーネントが再レンダリング
+import { useWatch } from 'react-hook-form';
+
+// 悪い例: 親コンポーネント全体が再レンダリング
+function BadForm() {
+  const { register, watch, handleSubmit } = useForm();
+  const name = watch('name'); // 親全体が再レンダリング
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)}>
+      <input {...register('name')} />
+      <input {...register('email')} />    {/* name変更でこれも再レンダリング */}
+      <input {...register('phone')} />    {/* name変更でこれも再レンダリング */}
+      <input {...register('address')} />  {/* name変更でこれも再レンダリング */}
+      <p>プレビュー: {name}</p>
+    </form>
+  );
+}
+
+// 良い例: 子コンポーネントだけが再レンダリング
+function GoodForm() {
+  const { register, control, handleSubmit } = useForm();
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)}>
+      <input {...register('name')} />
+      <input {...register('email')} />    {/* name変更で再レンダリングされない */}
+      <input {...register('phone')} />    {/* name変更で再レンダリングされない */}
+      <input {...register('address')} />  {/* name変更で再レンダリングされない */}
+      <NamePreview control={control} />   {/* これだけが再レンダリング */}
+    </form>
+  );
+}
+
+function NamePreview({ control }: { control: Control }) {
+  const name = useWatch({ control, name: 'name' });
+  return <p>プレビュー: {name}</p>;
+}
+
+// Pattern 2: React.memo でフィールドコンポーネントをメモ化
+const MemoizedField = React.memo(function MemoizedField({
+  name,
+  register,
+  error,
+}: {
+  name: string;
+  register: UseFormRegister<any>;
+  error?: FieldError;
+}) {
+  console.log(`${name} rendered`); // デバッグ用
+
+  return (
+    <div>
+      <label htmlFor={name}>{name}</label>
+      <input id={name} {...register(name)} />
+      {error && <p className="error-message">{error.message}</p>}
+    </div>
+  );
+});
+
+// Pattern 3: useFormState で必要な状態だけを購読
+import { useFormState } from 'react-hook-form';
+
+function SubmitButtonOptimized({ control }: { control: Control }) {
+  // isSubmitting が変わった時だけ再レンダリング
+  const { isSubmitting, isDirty } = useFormState({
+    control,
+    name: ['isSubmitting', 'isDirty'], // 購読する状態を限定
+  });
+
+  return (
+    <button type="submit" disabled={isSubmitting || !isDirty}>
+      {isSubmitting ? '送信中...' : '送信'}
+    </button>
+  );
+}
+```
+
+### 8.2 大量フィールドの最適化
+
+```typescript
+// 大量のフィールドがある場合の最適化戦略
+
+// Strategy 1: 仮想化（Virtualization）
+// → 画面に表示されているフィールドだけをレンダリング
+import { useVirtualizer } from '@tanstack/react-virtual';
+
+function VirtualizedFieldList() {
+  const { register, control } = useForm();
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  const fieldNames = Array.from({ length: 1000 }, (_, i) => `field_${i}`);
+
+  const virtualizer = useVirtualizer({
+    count: fieldNames.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 60, // 各フィールドの推定高さ
+    overscan: 5, // 画面外に5フィールド分を先読み
+  });
+
+  return (
+    <div ref={parentRef} style={{ height: '600px', overflow: 'auto' }}>
+      <div style={{ height: `${virtualizer.getTotalSize()}px`, position: 'relative' }}>
+        {virtualizer.getVirtualItems().map((virtualItem) => {
+          const fieldName = fieldNames[virtualItem.index];
+          return (
+            <div
+              key={virtualItem.key}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: `${virtualItem.size}px`,
+                transform: `translateY(${virtualItem.start}px)`,
+              }}
+            >
+              <input {...register(fieldName)} placeholder={fieldName} />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Strategy 2: セクション分割と遅延ロード
+function SectionedForm() {
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(
+    new Set(['basic'])
+  );
+
+  const toggleSection = (id: string) => {
+    setExpandedSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  return (
+    <form>
+      {/* 各セクションは折りたたみ可能 */}
+      <details open={expandedSections.has('basic')}>
+        <summary onClick={() => toggleSection('basic')}>基本情報</summary>
+        <BasicInfoFields />
+      </details>
+
+      <details open={expandedSections.has('contact')}>
+        <summary onClick={() => toggleSection('contact')}>連絡先</summary>
+        {/* 展開時のみレンダリング */}
+        {expandedSections.has('contact') && <ContactFields />}
+      </details>
+
+      <details open={expandedSections.has('preferences')}>
+        <summary onClick={() => toggleSection('preferences')}>設定</summary>
+        {expandedSections.has('preferences') && <PreferenceFields />}
+      </details>
+    </form>
+  );
+}
+
+// Strategy 3: デバウンスバリデーション
+function DebouncedValidation() {
+  const { register, trigger } = useForm({
+    mode: 'onChange',
+  });
+
+  const debouncedValidate = useMemo(
+    () =>
+      debounce((fieldName: string) => {
+        trigger(fieldName);
+      }, 300),
+    [trigger]
+  );
+
+  return (
+    <input
+      {...register('search', {
+        onChange: (e) => {
+          debouncedValidate('search');
+        },
+      })}
+    />
+  );
+}
+```
+
+### 8.3 バンドルサイズの最適化
+
+```typescript
+// バンドルサイズ最適化
+
+// 1. 動的インポートでフォームを遅延ロード
+const EditProfileForm = lazy(() => import('./EditProfileForm'));
+
+function ProfilePage() {
+  const [isEditing, setIsEditing] = useState(false);
+
+  return (
+    <div>
+      {isEditing ? (
+        <Suspense fallback={<FormSkeleton />}>
+          <EditProfileForm onCancel={() => setIsEditing(false)} />
+        </Suspense>
+      ) : (
+        <ProfileDisplay onEdit={() => setIsEditing(true)} />
+      )}
+    </div>
+  );
+}
+
+// 2. Zodスキーマの分割
+// 大きなスキーマを分割してツリーシェイキングを効かせる
+// schema/user.ts
+export const userBasicSchema = z.object({
+  name: z.string().min(1),
+  email: z.string().email(),
+});
+
+// schema/user-extended.ts
+// 必要な時だけインポート
+export const userExtendedSchema = userBasicSchema.extend({
+  address: addressSchema,
+  preferences: preferencesSchema,
+});
+
+// 3. resolver の動的インポート
+async function loadResolver() {
+  const { zodResolver } = await import('@hookform/resolvers/zod');
+  return zodResolver;
+}
+```
+
+---
+
+## 9. テスト戦略
+
+### 9.1 React Testing Library でのフォームテスト
+
+```typescript
+// フォームのユニットテスト
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { CreateUserForm } from './CreateUserForm';
+
+describe('CreateUserForm', () => {
+  const user = userEvent.setup();
+
+  it('正常にフォームを送信できる', async () => {
+    const onSubmit = vi.fn();
+    render(<CreateUserForm onSubmit={onSubmit} />);
+
+    // フィールドに値を入力
+    await user.type(screen.getByLabelText('名前 *'), '山田太郎');
+    await user.type(screen.getByLabelText('メールアドレス *'), 'yamada@example.com');
+    await user.selectOptions(screen.getByLabelText('ロール *'), 'admin');
+    await user.click(screen.getByLabelText('利用規約に同意します *'));
+
+    // 送信
+    await user.click(screen.getByRole('button', { name: /ユーザーを作成/ }));
+
+    // onSubmit が正しい値で呼ばれたことを確認
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith({
+        name: '山田太郎',
+        email: 'yamada@example.com',
+        role: 'admin',
+        agreed: true,
+      });
+    });
+  });
+
+  it('必須フィールドが空の場合エラーが表示される', async () => {
+    render(<CreateUserForm />);
+
+    // 何も入力せずに送信
+    await user.click(screen.getByRole('button', { name: /ユーザーを作成/ }));
+
+    // エラーメッセージが表示されることを確認
+    await waitFor(() => {
+      expect(screen.getByText('名前は必須です')).toBeInTheDocument();
+      expect(screen.getByText('有効なメールアドレスを入力してください')).toBeInTheDocument();
+    });
+  });
+
+  it('メールアドレスが不正な場合エラーが表示される', async () => {
+    render(<CreateUserForm />);
+
+    await user.type(screen.getByLabelText('メールアドレス *'), 'invalid-email');
+    await user.tab(); // フォーカスを外す（onBlur バリデーション）
+
+    await waitFor(() => {
+      expect(screen.getByText('有効なメールアドレスを入力してください')).toBeInTheDocument();
+    });
+  });
+
+  it('送信中はボタンが無効になる', async () => {
+    const onSubmit = vi.fn(() => new Promise((resolve) => setTimeout(resolve, 1000)));
+    render(<CreateUserForm onSubmit={onSubmit} />);
+
+    // フォームを埋める
+    await user.type(screen.getByLabelText('名前 *'), '山田太郎');
+    await user.type(screen.getByLabelText('メールアドレス *'), 'yamada@example.com');
+    await user.click(screen.getByLabelText('利用規約に同意します *'));
+
+    // 送信
+    await user.click(screen.getByRole('button', { name: /ユーザーを作成/ }));
+
+    // ボタンが無効になっている
+    expect(screen.getByRole('button', { name: /作成中/ })).toBeDisabled();
+  });
+
+  it('エラー修正後にエラーメッセージが消える', async () => {
+    render(<CreateUserForm />);
+
+    // 不正なメールを入力して送信
+    await user.type(screen.getByLabelText('メールアドレス *'), 'invalid');
+    await user.click(screen.getByRole('button', { name: /ユーザーを作成/ }));
+
+    await waitFor(() => {
+      expect(screen.getByText('有効なメールアドレスを入力してください')).toBeInTheDocument();
+    });
+
+    // 正しいメールに修正
+    const emailInput = screen.getByLabelText('メールアドレス *');
+    await user.clear(emailInput);
+    await user.type(emailInput, 'valid@example.com');
+
+    // エラーメッセージが消える（reValidateMode: 'onChange'）
+    await waitFor(() => {
+      expect(screen.queryByText('有効なメールアドレスを入力してください')).not.toBeInTheDocument();
+    });
+  });
+});
+```
+
+### 9.2 アクセシビリティテスト
+
+```typescript
+// axe-core を使ったアクセシビリティテスト
+import { axe, toHaveNoViolations } from 'jest-axe';
+
+expect.extend(toHaveNoViolations);
+
+describe('CreateUserForm Accessibility', () => {
+  it('アクセシビリティ違反がない', async () => {
+    const { container } = render(<CreateUserForm />);
+    const results = await axe(container);
+    expect(results).toHaveNoViolations();
+  });
+
+  it('エラー状態でもアクセシビリティ違反がない', async () => {
+    const { container } = render(<CreateUserForm />);
+    const user = userEvent.setup();
+
+    // エラーを発生させる
+    await user.click(screen.getByRole('button', { name: /ユーザーを作成/ }));
+
+    await waitFor(async () => {
+      const results = await axe(container);
+      expect(results).toHaveNoViolations();
+    });
+  });
+
+  it('全フィールドにラベルが紐付いている', () => {
+    render(<CreateUserForm />);
+
+    // 全inputにラベルがあることを確認
+    const inputs = screen.getAllByRole('textbox');
+    inputs.forEach((input) => {
+      expect(input).toHaveAccessibleName();
+    });
+  });
+
+  it('キーボードでフォーカス移動できる', async () => {
+    render(<CreateUserForm />);
+    const user = userEvent.setup();
+
+    // Tab キーでフォーカス移動
+    await user.tab();
+    expect(screen.getByLabelText('名前 *')).toHaveFocus();
+
+    await user.tab();
+    expect(screen.getByLabelText('メールアドレス *')).toHaveFocus();
+
+    await user.tab();
+    expect(screen.getByLabelText('年齢')).toHaveFocus();
+  });
+
+  it('エラーメッセージが aria-describedby で紐付いている', async () => {
+    render(<CreateUserForm />);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: /ユーザーを作成/ }));
+
+    await waitFor(() => {
+      const nameInput = screen.getByLabelText('名前 *');
+      const errorId = nameInput.getAttribute('aria-describedby');
+      expect(errorId).toBeTruthy();
+
+      const errorElement = document.getElementById(errorId!);
+      expect(errorElement).toHaveTextContent('名前は必須です');
+    });
+  });
+});
+```
+
+### 9.3 E2E テスト（Playwright）
+
+```typescript
+// Playwright でのフォーム E2E テスト
+import { test, expect } from '@playwright/test';
+
+test.describe('ユーザー作成フォーム', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/users/new');
+  });
+
+  test('正常なフォーム送信', async ({ page }) => {
+    // フィールドに入力
+    await page.getByLabel('名前').fill('山田太郎');
+    await page.getByLabel('メールアドレス').fill('yamada@example.com');
+    await page.getByLabel('ロール').selectOption('admin');
+    await page.getByLabel('利用規約に同意します').check();
+
+    // API レスポンスを待機
+    const responsePromise = page.waitForResponse(
+      (response) => response.url().includes('/api/users') && response.status() === 201
+    );
+
+    // 送信
+    await page.getByRole('button', { name: 'ユーザーを作成' }).click();
+
+    // API レスポンスを確認
+    const response = await responsePromise;
+    expect(response.status()).toBe(201);
+
+    // 成功メッセージの確認
+    await expect(page.getByText('ユーザーを作成しました')).toBeVisible();
+
+    // フォームがリセットされていることを確認
+    await expect(page.getByLabel('名前')).toHaveValue('');
+  });
+
+  test('バリデーションエラーの表示と修正', async ({ page }) => {
+    // 空のまま送信
+    await page.getByRole('button', { name: 'ユーザーを作成' }).click();
+
+    // エラーメッセージの確認
+    await expect(page.getByText('名前は必須です')).toBeVisible();
+    await expect(page.getByText('有効なメールアドレスを入力してください')).toBeVisible();
+
+    // 最初のエラーフィールドにフォーカスが移動している
+    await expect(page.getByLabel('名前')).toBeFocused();
+
+    // エラーを修正
+    await page.getByLabel('名前').fill('山田太郎');
+
+    // エラーメッセージが消える
+    await expect(page.getByText('名前は必須です')).not.toBeVisible();
+  });
+
+  test('重複メールアドレスのサーバーエラー', async ({ page }) => {
+    // サーバーエラーをモック
+    await page.route('**/api/users', (route) => {
+      route.fulfill({
+        status: 409,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          errors: {
+            email: ['このメールアドレスは既に登録されています'],
+          },
+        }),
+      });
+    });
+
+    // フォームを入力して送信
+    await page.getByLabel('名前').fill('山田太郎');
+    await page.getByLabel('メールアドレス').fill('existing@example.com');
+    await page.getByLabel('利用規約に同意します').check();
+    await page.getByRole('button', { name: 'ユーザーを作成' }).click();
+
+    // サーバーエラーメッセージの表示
+    await expect(page.getByText('このメールアドレスは既に登録されています')).toBeVisible();
+  });
+
+  test('モバイルでのフォーム操作', async ({ page }) => {
+    // モバイルビューポートに変更
+    await page.setViewportSize({ width: 375, height: 812 });
+
+    // タッチ操作でフォームを入力
+    await page.getByLabel('名前').tap();
+    await page.getByLabel('名前').fill('山田太郎');
+
+    // 画面下部の送信ボタンまでスクロール
+    await page.getByRole('button', { name: 'ユーザーを作成' }).scrollIntoViewIfNeeded();
+    await page.getByRole('button', { name: 'ユーザーを作成' }).tap();
+  });
+});
+```
+
+---
+
+## 10. アンチパターンとトラブルシューティング
+
+### 10.1 よくあるアンチパターン
+
+```typescript
+// アンチパターン 1: register と state の二重管理
+// Bad: React Hook Form と useState で二重管理
+function BadDoubleState() {
+  const { register } = useForm();
+  const [name, setName] = useState(''); // 不要！
+
+  return (
+    <input
+      {...register('name')}
+      value={name}                       // register の値を上書きしてしまう
+      onChange={(e) => setName(e.target.value)} // register の onChange を上書き
+    />
+  );
+}
+
+// Good: React Hook Form に任せる
+function GoodSingleSource() {
+  const { register, watch } = useForm();
+  const name = watch('name'); // 必要な時だけ watch で値を取得
+
+  return <input {...register('name')} />;
+}
+
+
+// アンチパターン 2: useFieldArray で index を key に使用
+// Bad: index を key に使うと削除・並び替えでバグ
+function BadFieldArray() {
+  const { fields } = useFieldArray({ control, name: 'items' });
+
+  return fields.map((field, index) => (
+    <div key={index}>  {/* 削除時にフィールドの値がずれる */}
+      <input {...register(`items.${index}.name`)} />
+    </div>
+  ));
+}
+
+// Good: field.id を key に使う
+function GoodFieldArray() {
+  const { fields } = useFieldArray({ control, name: 'items' });
+
+  return fields.map((field, index) => (
+    <div key={field.id}>  {/* 安定したキー */}
+      <input {...register(`items.${index}.name`)} />
+    </div>
+  ));
+}
+
+
+// アンチパターン 3: defaultValues の参照が変わる
+// Bad: レンダリングごとに新しいオブジェクトが作られる
+function BadDefaultValues() {
+  const form = useForm({
+    defaultValues: {  // レンダリングごとに新しい参照
+      items: [],
+    },
+  });
+}
+
+// Good: コンポーネント外に定義するか useMemo を使う
+const defaultValues = { items: [] };
+
+function GoodDefaultValues() {
+  const form = useForm({ defaultValues });
+}
+
+
+// アンチパターン 4: バリデーションモードの選択ミス
+// Bad: mode: 'onChange' + 重い非同期バリデーション
+function BadValidationMode() {
+  const form = useForm({
+    mode: 'onChange', // キー入力ごとにAPIコール！
+  });
+
+  return (
+    <input
+      {...form.register('username', {
+        validate: async (value) => {
+          const exists = await checkUsername(value); // 毎キー入力で実行
+          return !exists || 'このユーザー名は使用されています';
+        },
+      })}
+    />
+  );
+}
+
+// Good: mode: 'onBlur' + デバウンス
+function GoodValidationMode() {
+  const form = useForm({
+    mode: 'onBlur', // フォーカスを外した時だけバリデーション
+  });
+
+  return (
+    <input
+      {...form.register('username', {
+        validate: async (value) => {
+          const exists = await checkUsername(value);
+          return !exists || 'このユーザー名は使用されています';
+        },
+      })}
+    />
+  );
+}
+
+
+// アンチパターン 5: エラー表示のタイミングミス
+// Bad: フォーム初期表示でエラーを出す
+function BadInitialErrors() {
+  const { register, formState: { errors } } = useForm({
+    mode: 'all',       // 全モードでバリデーション
+    defaultValues: {
+      name: '',        // 初期値が空 → 即座にエラー表示
+    },
+  });
+
+  return (
+    <div>
+      <input {...register('name', { required: '名前は必須です' })} />
+      {errors.name && <p>{errors.name.message}</p>} {/* 初回表示でエラー！ */}
+    </div>
+  );
+}
+
+// Good: touchedFields を考慮
+function GoodInitialDisplay() {
+  const { register, formState: { errors, touchedFields } } = useForm({
+    mode: 'onTouched',
+  });
+
+  return (
+    <div>
+      <input {...register('name', { required: '名前は必須です' })} />
+      {touchedFields.name && errors.name && (
+        <p>{errors.name.message}</p>
+      )}
+    </div>
+  );
+}
+```
+
+### 10.2 トラブルシューティングガイド
+
+```
+トラブルシューティング:
+
+Q: register した input の値が取得できない
+A: 考えられる原因:
+   1. defaultValues を設定していない
+      → useForm({ defaultValues: { fieldName: '' } })
+   2. Controller を使うべきカスタムコンポーネントに register を使用
+      → Controller に切り替える
+   3. コンポーネントのアンマウント/リマウント
+      → shouldUnregister: false を設定
+
+Q: バリデーションが実行されない
+A: 考えられる原因:
+   1. resolver のインポートが間違っている
+      → import { zodResolver } from '@hookform/resolvers/zod'
+   2. スキーマとフィールド名が一致していない
+      → register('name') なら schema に name プロパティが必要
+   3. mode の設定
+      → mode: 'onSubmit'（デフォルト）は送信時のみ実行
+
+Q: TypeScript の型エラー
+A: 考えられる原因:
+   1. z.infer の型とフォームの型が不一致
+      → type FormData = z.infer<typeof schema> を使用
+   2. register の名前がスキーマに存在しない
+      → スキーマのプロパティ名と一致させる
+   3. optional フィールドの型
+      → z.coerce.number().optional() で undefined を許容
+
+Q: useFieldArray で削除後に値がおかしくなる
+A: 考えられる原因:
+   1. key に index を使用している
+      → key={field.id} に変更
+   2. defaultValues にフィールドが含まれていない
+      → defaultValues: { items: [{ name: '' }] }
+
+Q: フォームリセット後も値が残る
+A: 考えられる原因:
+   1. reset() にオプションを渡していない
+      → reset({ name: '', email: '' }) で明示的にリセット
+   2. Controller のコンポーネントが内部状態を持っている
+      → key を変更して強制リマウント
+
+Q: Server Action で formData が空
+A: 考えられる原因:
+   1. input に name 属性がない
+      → register('name') は自動で name を設定するが、
+         handleSubmit を使う場合は FormData ではなく parsed data が渡される
+   2. action と onSubmit を同時に使っている
+      → どちらか一方に統一する
+
+Q: 大量のフィールドでパフォーマンスが悪い
+A: 対策:
+   1. watch の使用を最小限にする → useWatch で分離
+   2. mode: 'onChange' を避ける → mode: 'onBlur' に変更
+   3. 仮想スクロールを導入する → @tanstack/react-virtual
+   4. フォームをセクションに分割する
+   5. React.memo でフィールドコンポーネントをメモ化
+```
+
+### 10.3 エラーハンドリングの完全パターン
+
+```typescript
+// エラーハンドリングの包括的実装
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+
+// カスタムエラークラス
+class FormSubmitError extends Error {
+  constructor(
+    message: string,
+    public fieldErrors?: Record<string, string[]>,
+    public statusCode?: number,
+  ) {
+    super(message);
+    this.name = 'FormSubmitError';
+  }
+}
+
+// エラーハンドリング付きフォーム
+function RobustForm() {
+  const [globalError, setGlobalError] = useState<string | null>(null);
+
+  const form = useForm<UserFormData>({
+    resolver: zodResolver(userSchema),
+    defaultValues: { name: '', email: '' },
+  });
+
+  const onSubmit = async (data: UserFormData) => {
+    setGlobalError(null);
+
+    try {
+      const response = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => null);
+
+        switch (response.status) {
+          case 400:
+            // バリデーションエラー: フィールドごとにエラーを設定
+            if (errorBody?.fieldErrors) {
+              for (const [field, messages] of Object.entries(errorBody.fieldErrors)) {
+                form.setError(field as keyof UserFormData, {
+                  type: 'server',
+                  message: (messages as string[])[0],
+                });
+              }
+            }
+            break;
+
+          case 409:
+            // 重複エラー
+            form.setError('email', {
+              type: 'server',
+              message: 'このメールアドレスは既に使用されています',
+            });
+            break;
+
+          case 422:
+            // 処理不能エンティティ
+            setGlobalError('入力データの処理に失敗しました。内容を確認してください。');
+            break;
+
+          case 429:
+            // レート制限
+            setGlobalError('リクエストが多すぎます。しばらく待ってから再度お試しください。');
+            break;
+
+          case 500:
+            // サーバーエラー
+            setGlobalError('サーバーエラーが発生しました。時間をおいて再度お試しください。');
+            break;
+
+          default:
+            setGlobalError(`エラーが発生しました（${response.status}）`);
+        }
+        return;
+      }
+
+      // 成功
+      form.reset();
+      toast.success('ユーザーを作成しました');
+
+    } catch (error) {
+      if (error instanceof TypeError && error.message === 'Failed to fetch') {
+        // ネットワークエラー
+        setGlobalError('ネットワークエラー: インターネット接続を確認してください。');
+      } else if (error instanceof DOMException && error.name === 'AbortError') {
+        // リクエストタイムアウト
+        setGlobalError('リクエストがタイムアウトしました。再度お試しください。');
+      } else {
+        // 予期しないエラー
+        console.error('Unexpected error:', error);
+        setGlobalError('予期しないエラーが発生しました。');
+      }
+    }
+  };
+
+  return (
+    <form onSubmit={form.handleSubmit(onSubmit)}>
+      {/* グローバルエラー表示 */}
+      {globalError && (
+        <div className="global-error" role="alert" aria-live="assertive">
+          <p>{globalError}</p>
+          <button
+            type="button"
+            onClick={() => setGlobalError(null)}
+            aria-label="エラーメッセージを閉じる"
+          >
+            閉じる
+          </button>
+        </div>
+      )}
+
+      {/* エラーサマリー */}
+      {Object.keys(form.formState.errors).length > 0 && (
+        <ErrorSummary errors={form.formState.errors} />
+      )}
+
+      {/* フォームフィールド */}
+      <div>
+        <label htmlFor="name">名前 *</label>
+        <input id="name" {...form.register('name')} />
+        {form.formState.errors.name && (
+          <p className="error-message" role="alert">
+            {form.formState.errors.name.message}
+          </p>
+        )}
+      </div>
+
+      <div>
+        <label htmlFor="email">メールアドレス *</label>
+        <input id="email" type="email" {...form.register('email')} />
+        {form.formState.errors.email && (
+          <p className="error-message" role="alert">
+            {form.formState.errors.email.message}
+          </p>
+        )}
+      </div>
+
+      <button
+        type="submit"
+        disabled={form.formState.isSubmitting}
+        aria-busy={form.formState.isSubmitting}
+      >
+        {form.formState.isSubmitting ? '送信中...' : 'ユーザーを作成'}
+      </button>
+    </form>
+  );
+}
+```
+
+---
+
+## 11. 再利用可能なフォームコンポーネント設計
+
+### 11.1 汎用フォームフィールドコンポーネント
+
+```typescript
+// 再利用可能なフォームフィールドコンポーネント
+import { type FieldValues, type Path, type UseFormReturn } from 'react-hook-form';
+
+interface FormInputProps<T extends FieldValues> {
+  form: UseFormReturn<T>;
+  name: Path<T>;
+  label: string;
+  type?: string;
+  placeholder?: string;
+  required?: boolean;
+  hint?: string;
+  autoComplete?: string;
+  className?: string;
+}
+
+function FormInput<T extends FieldValues>({
+  form,
+  name,
+  label,
+  type = 'text',
+  placeholder,
+  required = false,
+  hint,
+  autoComplete,
+  className,
+}: FormInputProps<T>) {
+  const fieldId = `field-${String(name)}`;
+  const errorId = `${fieldId}-error`;
+  const hintId = `${fieldId}-hint`;
+  const error = form.formState.errors[name];
+
+  const describedBy = [
+    hint ? hintId : null,
+    error ? errorId : null,
+  ].filter(Boolean).join(' ') || undefined;
+
+  return (
+    <div className={cn('form-group', className)}>
+      <label htmlFor={fieldId}>
+        {label}
+        {required && <span aria-hidden="true"> *</span>}
+      </label>
+
+      {hint && (
+        <p id={hintId} className="hint-text">{hint}</p>
+      )}
+
+      <input
+        id={fieldId}
+        type={type}
+        placeholder={placeholder}
+        autoComplete={autoComplete}
+        aria-invalid={!!error}
+        aria-required={required}
+        aria-describedby={describedBy}
+        {...form.register(name)}
+      />
+
+      {error && (
+        <p id={errorId} className="error-message" role="alert">
+          {error.message as string}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// 使用例
+function UserForm() {
+  const form = useForm<UserFormData>({
+    resolver: zodResolver(userSchema),
+  });
+
+  return (
+    <form onSubmit={form.handleSubmit(onSubmit)}>
+      <FormInput
+        form={form}
+        name="name"
+        label="名前"
+        required
+        autoComplete="name"
+        placeholder="山田太郎"
+      />
+      <FormInput
+        form={form}
+        name="email"
+        label="メールアドレス"
+        type="email"
+        required
+        autoComplete="email"
+        placeholder="user@example.com"
+      />
+      <FormInput
+        form={form}
+        name="age"
+        label="年齢"
+        type="number"
+        hint="任意項目です"
+      />
+      <button type="submit">送信</button>
+    </form>
+  );
+}
+```
+
+### 11.2 フォームラッパーコンポーネント
+
+```typescript
+// 汎用フォームラッパー
+import { type FieldValues, type DefaultValues, FormProvider, useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { type ZodSchema } from 'zod';
+
+interface FormWrapperProps<T extends FieldValues> {
+  schema: ZodSchema<T>;
+  defaultValues: DefaultValues<T>;
+  onSubmit: (data: T) => Promise<void> | void;
+  children: React.ReactNode;
+  className?: string;
+  mode?: 'onSubmit' | 'onBlur' | 'onChange' | 'onTouched' | 'all';
+}
+
+function FormWrapper<T extends FieldValues>({
+  schema,
+  defaultValues,
+  onSubmit,
+  children,
+  className,
+  mode = 'onBlur',
+}: FormWrapperProps<T>) {
+  const methods = useForm<T>({
+    resolver: zodResolver(schema),
+    defaultValues,
+    mode,
+    reValidateMode: 'onChange',
+  });
+
+  const [globalError, setGlobalError] = useState<string | null>(null);
+
+  const handleSubmit = async (data: T) => {
+    setGlobalError(null);
+    try {
+      await onSubmit(data);
+    } catch (error) {
+      if (error instanceof Error) {
+        setGlobalError(error.message);
+      } else {
+        setGlobalError('予期しないエラーが発生しました');
+      }
+    }
+  };
+
+  return (
+    <FormProvider {...methods}>
+      <form
+        onSubmit={methods.handleSubmit(handleSubmit)}
+        className={className}
+        noValidate
+      >
+        {globalError && (
+          <div className="global-error" role="alert">
+            {globalError}
+          </div>
+        )}
+        {children}
+      </form>
+    </FormProvider>
+  );
+}
+
+// 使用例
+function CreateUserPage() {
+  return (
+    <FormWrapper
+      schema={userSchema}
+      defaultValues={{ name: '', email: '', role: 'user' }}
+      onSubmit={async (data) => {
+        await api.users.create(data);
+        router.push('/users');
+      }}
+    >
+      <FormInput name="name" label="名前" required />
+      <FormInput name="email" label="メールアドレス" type="email" required />
+      <SubmitButton label="ユーザーを作成" />
+    </FormWrapper>
+  );
+}
+```
+
+---
+
+## まとめ
+
+| 概念 | ポイント |
+|------|---------|
+| React Hook Form | register + zodResolver で型安全かつ高パフォーマンスなフォームを実現 |
+| 非制御コンポーネント | ネイティブHTML要素に使用、再レンダリングなしで最高パフォーマンス |
+| 制御コンポーネント | Controller を使ってカスタムUI/サードパーティコンポーネントと統合 |
+| useFieldArray | 動的フィールド配列を効率的に管理、key には必ず field.id を使用 |
+| マルチステップ | FormProvider + trigger で部分バリデーション、状態を一元管理 |
+| Server Actions | プログレッシブエンハンスメント対応、楽観的更新パターン |
+| UX | 送信後リアルタイム検証、ダブルサブミット防止、未保存警告 |
+| アクセシビリティ | ARIA属性、キーボードナビゲーション、スクリーンリーダー対応 |
+| パフォーマンス | useWatch で分離、React.memo、仮想化、デバウンス |
+| テスト | RTL でユーザー操作をテスト、axe で a11y テスト、Playwright で E2E |
+| エラーハンドリング | クライアント/サーバーエラーの統合、グローバルエラー表示 |
+| 再利用性 | ジェネリック型でフォームフィールドとラッパーを汎用化 |
+
+---
+
+## 次に読むべきガイド
+→ [[01-validation-patterns.md]] -- バリデーションパターンの詳細
+
+---
+
+## 参考文献
+1. React Hook Form. "Documentation." react-hook-form.com, 2024.
+2. shadcn/ui. "Form." ui.shadcn.com, 2024.
+3. web.dev. "Form Best Practices." web.dev, 2024.
+4. W3C. "WCAG 2.1 - Web Content Accessibility Guidelines." w3.org, 2018.
+5. MDN Web Docs. "Web forms - Working with user data." developer.mozilla.org, 2024.
+6. Zod. "TypeScript-first schema validation." zod.dev, 2024.
+7. React. "React 19 - useActionState, useOptimistic." react.dev, 2024.
+8. Testing Library. "React Testing Library." testing-library.com, 2024.
+9. Playwright. "End-to-end testing." playwright.dev, 2024.
+10. Deque Systems. "axe-core - Accessibility Testing." deque.com, 2024.

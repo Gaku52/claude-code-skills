@@ -1940,3 +1940,787 @@ describe("ExampleClient with MSW", () => {
 });
 ```
 
+---
+
+## 10. アンチパターン
+
+SDK設計で頻繁に見られるアンチパターンと、その改善方法を示す。
+
+### 10.1 アンチパターン: God Client
+
+すべてのメソッドを1つの巨大なクラスにまとめてしまうパターン。メソッド数が増大するとIDE補完が使いにくくなり、テスタビリティも低下する。
+
+```typescript
+// NG: God Client パターン
+class ApiClient {
+  async getUser(id: string): Promise<User> { /* ... */ }
+  async listUsers(): Promise<User[]> { /* ... */ }
+  async createUser(data: any): Promise<User> { /* ... */ }
+  async updateUser(id: string, data: any): Promise<User> { /* ... */ }
+  async deleteUser(id: string): Promise<void> { /* ... */ }
+  async getOrder(id: string): Promise<Order> { /* ... */ }
+  async listOrders(): Promise<Order[]> { /* ... */ }
+  async createOrder(data: any): Promise<Order> { /* ... */ }
+  async getProduct(id: string): Promise<Product> { /* ... */ }
+  async listProducts(): Promise<Product[]> { /* ... */ }
+  // ... 100+ メソッドが平坦に並ぶ
+  // IDE の補完リストが巨大になり、目的のメソッドが見つからない
+}
+
+// OK: Resource-based に分割
+class ApiClient {
+  readonly users: UsersResource;
+  readonly orders: OrdersResource;
+  readonly products: ProductsResource;
+  // client.users.get("123") のように名前空間で整理される
+  // IDE 補完も client.users. まで打てば候補が絞られる
+}
+```
+
+**なぜ問題か:**
+- メソッド数が多すぎてIDE補完が非実用的になる
+- リソース間で異なるテスト設定を行いにくい
+- 単一ファイルが肥大化し、コードレビューが困難になる
+- 新しいリソースの追加が既存コードに影響を与えるリスクがある
+
+### 10.2 アンチパターン: 生のHTTPレスポンスを露出
+
+SDK の内部実装詳細（HTTPレスポンス、ヘッダー、ステータスコード）をそのまま利用者に返してしまうパターン。
+
+```typescript
+// NG: 生のHTTPレスポンスを返す
+class UserService {
+  async getUser(id: string): Promise<Response> {
+    return fetch(`${this.baseUrl}/users/${id}`, {
+      headers: { Authorization: `Bearer ${this.token}` },
+    });
+  }
+}
+
+// 利用者が毎回以下のボイラープレートを書く必要がある
+const response = await service.getUser("123");
+if (!response.ok) {
+  if (response.status === 404) {
+    // ...
+  } else if (response.status === 429) {
+    const retryAfter = response.headers.get("Retry-After");
+    // ...
+  }
+  // エラーハンドリングが各呼び出し箇所に分散
+}
+const user = await response.json();
+// 型情報がない: user は any 型
+
+// OK: 型安全なレスポンスを返す
+class UsersResource {
+  async get(id: string): Promise<User> {
+    // HTTPの詳細はSDK内部で処理される
+    // エラーは型付きの例外として投げられる
+    return this.request<User>("GET", `/users/${id}`);
+  }
+}
+
+// 利用者のコードはシンプル
+const user = await client.users.get("123");
+// user は User 型、IDE 補完が効く
+console.log(user.name); // OK
+console.log(user.unknown); // TypeScript がコンパイルエラーを出す
+```
+
+**なぜ問題か:**
+- HTTPの実装詳細に利用者が依存してしまう
+- 型安全性が失われる
+- エラーハンドリングのボイラープレートが各呼び出し箇所に分散する
+- SDKの内部実装（fetchからaxiosへの変更など）が利用者コードに影響する
+
+### 10.3 アンチパターン: 暗黙のグローバル状態
+
+シングルトンやモジュールスコープの変数で状態を共有するパターン。テストの独立性が失われ、マルチテナント対応も困難になる。
+
+```typescript
+// NG: グローバル状態
+let globalApiKey: string;
+let globalBaseUrl: string = "https://api.example.com/v1";
+
+export function configure(apiKey: string, baseUrl?: string) {
+  globalApiKey = apiKey;
+  if (baseUrl) globalBaseUrl = baseUrl;
+}
+
+export async function getUser(id: string): Promise<User> {
+  // グローバル変数に依存
+  return fetch(`${globalBaseUrl}/users/${id}`, {
+    headers: { Authorization: `Bearer ${globalApiKey}` },
+  }).then(r => r.json());
+}
+
+// テストAで configure("key_a") を呼び、テストBでは configure("key_b") を呼ぶと
+// テストの実行順序によって結果が変わる（テストの独立性が破壊される）
+
+// OK: インスタンスベース
+const clientA = new ExampleClient({ apiKey: "key_a" });
+const clientB = new ExampleClient({ apiKey: "key_b" });
+// 互いに独立した状態を持つ
+```
+
+---
+
+## 11. エッジケース分析
+
+### 11.1 エッジケース: 同時リフレッシュ競合
+
+OAuth 2.0 トークンの有効期限切れが発生した際、同時に複数のリクエストが飛んでいると、すべてのリクエストがトークンリフレッシュを試みる。この競合を適切に処理しないと、リフレッシュトークンの無効化やレートリミットの超過が発生する。
+
+```typescript
+// 問題のあるコード: 各リクエストが独立にリフレッシュを実行
+class NaiveOAuth2Auth {
+  async getToken(): Promise<string> {
+    if (this.isExpired()) {
+      // 問題: 10リクエストが同時に期限切れを検出すると
+      // 10回のリフレッシュAPIコールが発生する
+      // リフレッシュトークンがローテーションされる場合、
+      // 最初の1回以外は古いトークンを使って失敗する
+      await this.refreshToken();
+    }
+    return this.accessToken;
+  }
+}
+
+// 解決策: リフレッシュのデデュプリケーション
+class SafeOAuth2Auth {
+  private refreshPromise: Promise<void> | null = null;
+  private refreshLock = false;
+
+  async getToken(): Promise<string> {
+    if (this.isExpired()) {
+      // 既にリフレッシュ中であれば、その結果を待つ
+      if (this.refreshPromise) {
+        await this.refreshPromise;
+      } else {
+        // 最初のリクエストだけがリフレッシュを実行
+        this.refreshPromise = this.doRefresh()
+          .finally(() => {
+            this.refreshPromise = null;
+          });
+        await this.refreshPromise;
+      }
+    }
+    return this.accessToken!;
+  }
+
+  private async doRefresh(): Promise<void> {
+    try {
+      const response = await fetch(this.tokenEndpoint, {
+        method: "POST",
+        body: new URLSearchParams({
+          grant_type: "refresh_token",
+          refresh_token: this.refreshToken,
+          client_id: this.clientId,
+          client_secret: this.clientSecret,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new AuthenticationError("Token refresh failed");
+      }
+
+      const data = await response.json();
+      this.accessToken = data.access_token;
+      this.expiresAt = Date.now() + data.expires_in * 1000;
+
+      if (data.refresh_token) {
+        this.refreshToken = data.refresh_token;
+      }
+    } catch (error) {
+      // リフレッシュ失敗時はトークンをクリア
+      this.accessToken = null;
+      this.expiresAt = 0;
+      throw error;
+    }
+  }
+}
+```
+
+**対処のポイント:**
+- Promise のデデュプリケーションにより、同時リフレッシュを1回に統合
+- リフレッシュ失敗時のクリーンアップを確実に実行
+- リフレッシュトークンのローテーション（新しいリフレッシュトークンの受領）に対応
+
+### 11.2 エッジケース: リクエスト中のクライアント破棄
+
+長時間かかるリクエストの途中でクライアントが破棄された場合（例: React コンポーネントのアンマウント、サーバーのシャットダウン）、リソースリークやメモリリークが発生する可能性がある。
+
+```typescript
+// AbortController を活用した安全なキャンセル
+
+class ExampleClient {
+  private abortController: AbortController;
+
+  constructor(config: ClientConfig) {
+    this.abortController = new AbortController();
+    // ...
+  }
+
+  /** クライアントの破棄: 進行中のリクエストをすべてキャンセル */
+  destroy(): void {
+    this.abortController.abort();
+  }
+
+  /** 個別リクエストのキャンセルサポート */
+  async request<T>(
+    method: string,
+    path: string,
+    options?: RequestOptions & { signal?: AbortSignal }
+  ): Promise<T> {
+    // クライアント全体のシグナルと個別のシグナルを合成
+    const signal = options?.signal
+      ? anySignal([this.abortController.signal, options.signal])
+      : this.abortController.signal;
+
+    try {
+      const response = await fetch(url, {
+        method,
+        headers: this.buildHeaders(),
+        body: options?.body ? JSON.stringify(options.body) : undefined,
+        signal,
+      });
+      // ...
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        throw new CancellationError(
+          "Request was cancelled. " +
+          (this.abortController.signal.aborted
+            ? "Client has been destroyed."
+            : "Request was explicitly cancelled.")
+        );
+      }
+      throw error;
+    }
+  }
+}
+
+// 複数のAbortSignalを合成するユーティリティ
+function anySignal(signals: AbortSignal[]): AbortSignal {
+  const controller = new AbortController();
+  for (const signal of signals) {
+    if (signal.aborted) {
+      controller.abort(signal.reason);
+      return controller.signal;
+    }
+    signal.addEventListener("abort", () => controller.abort(signal.reason), {
+      once: true,
+    });
+  }
+  return controller.signal;
+}
+
+// React での使用例
+function UserProfile({ userId }: { userId: string }) {
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    const abortController = new AbortController();
+
+    client.users.get(userId, { signal: abortController.signal })
+      .then(setUser)
+      .catch(error => {
+        if (!(error instanceof CancellationError)) {
+          console.error("Failed to fetch user:", error);
+        }
+      });
+
+    return () => {
+      abortController.abort(); // コンポーネントアンマウント時にキャンセル
+    };
+  }, [userId]);
+
+  // ...
+}
+```
+
+### 11.3 エッジケース: 巨大レスポンスとメモリ管理
+
+数千件のデータを一度に返すエンドポイントや、巨大なファイルのダウンロードでは、メモリ消費が問題になる。ストリーミング対応が必要である。
+
+```typescript
+// ストリーミングダウンロードの対応
+class FilesResource extends BaseResource {
+  /** ファイルをストリームとして取得 */
+  async download(fileId: string): Promise<ReadableStream<Uint8Array>> {
+    const response = await fetch(
+      `${this.httpClient.baseUrl}/files/${fileId}/content`,
+      {
+        headers: this.httpClient.buildHeaders(),
+      }
+    );
+
+    if (!response.ok) {
+      throw await this.httpClient.createError(response);
+    }
+
+    if (!response.body) {
+      throw new ExampleError({
+        status: 0,
+        code: "STREAM_ERROR",
+        message: "Response body is null",
+        retryable: false,
+        headers: {},
+      });
+    }
+
+    return response.body;
+  }
+
+  /** ファイルをディスクに保存（Node.js） */
+  async downloadToFile(fileId: string, destPath: string): Promise<void> {
+    const stream = await this.download(fileId);
+    const fileStream = fs.createWriteStream(destPath);
+
+    const reader = stream.getReader();
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        fileStream.write(value);
+      }
+    } finally {
+      reader.releaseLock();
+      fileStream.end();
+    }
+  }
+}
+```
+
+---
+
+## 12. 演習問題
+
+### 演習1: 初級 --- SDKクライアントの基本実装
+
+以下の仕様に基づいて、簡単なSDKクライアントを実装せよ。
+
+**仕様:**
+- APIベースURL: `https://api.todoapp.com/v1`
+- 認証: API Key（Authorizationヘッダー）
+- リソース: `todos`（CRUD対応）
+- 型定義: `id`, `title`, `completed`, `createdAt`
+
+**要件:**
+1. `TodoClient` クラスを作成し、API Key をコンストラクタで受け取る
+2. `todos` リソースに `get`, `list`, `create`, `update`, `delete` メソッドを実装
+3. TypeScript の型定義を適切に行う
+
+```typescript
+// 解答例の骨格
+
+interface Todo {
+  id: string;
+  title: string;
+  completed: boolean;
+  createdAt: string;
+}
+
+interface CreateTodoParams {
+  title: string;
+  completed?: boolean;
+}
+
+interface ListTodosParams {
+  completed?: boolean;
+  limit?: number;
+  cursor?: string;
+}
+
+class TodoClient {
+  readonly todos: TodosResource;
+
+  constructor(config: { apiKey: string; baseUrl?: string }) {
+    const resolvedConfig = {
+      apiKey: config.apiKey,
+      baseUrl: config.baseUrl ?? "https://api.todoapp.com/v1",
+      timeout: 30000,
+    };
+    // HttpClient を作成し、TodosResource に渡す
+    // ... 実装を完成させよ
+  }
+}
+
+class TodosResource {
+  async get(id: string): Promise<Todo> {
+    // GET /todos/:id を呼ぶ
+  }
+
+  async list(params?: ListTodosParams): Promise<PaginatedResponse<Todo>> {
+    // GET /todos を呼ぶ
+  }
+
+  async create(data: CreateTodoParams): Promise<Todo> {
+    // POST /todos を呼ぶ
+  }
+
+  async update(id: string, data: Partial<CreateTodoParams>): Promise<Todo> {
+    // PATCH /todos/:id を呼ぶ
+  }
+
+  async delete(id: string): Promise<void> {
+    // DELETE /todos/:id を呼ぶ
+  }
+}
+```
+
+**評価ポイント:**
+- 型安全性が確保されているか
+- コンフィグのバリデーションが実装されているか
+- メソッドシグネチャが直感的であるか
+
+### 演習2: 中級 --- リトライとエラーハンドリングの実装
+
+演習1で作成したクライアントに、以下の機能を追加せよ。
+
+**要件:**
+1. エクスポネンシャルバックオフ付きリトライ（最大3回）
+2. フルジッターの実装
+3. 429（Rate Limit）と 5xx（Server Error）のみリトライ
+4. カスタムエラークラス階層の実装
+   - `TodoApiError`（基底）
+   - `ValidationError`
+   - `NotFoundError`
+   - `RateLimitError`
+5. `Retry-After` ヘッダーへの対応
+
+```typescript
+// ヒント: リトライ判定関数
+function shouldRetry(error: TodoApiError, attempt: number): boolean {
+  if (attempt >= MAX_RETRIES) return false;
+  if (error.status === 429) return true;
+  if (error.status >= 500) return true;
+  return false;
+}
+
+// ヒント: 待機時間計算
+function getRetryDelay(attempt: number, error: TodoApiError): number {
+  // RateLimitError の場合は Retry-After を優先
+  // それ以外はフルジッター付きエクスポネンシャルバックオフ
+}
+```
+
+**評価ポイント:**
+- リトライ可能なエラーのみリトライしているか
+- ジッターが正しく実装されているか
+- `Retry-After` ヘッダーが考慮されているか
+- 非冪等リクエスト（POST）へのリトライが安全に処理されているか
+
+### 演習3: 上級 --- ミドルウェアパイプラインの設計
+
+以下の要件を満たすミドルウェアシステムを設計・実装せよ。
+
+**要件:**
+1. ミドルウェアインターフェースの定義
+2. 以下のミドルウェアを実装:
+   - 認証ミドルウェア（API Key / OAuth の切り替え対応）
+   - リトライミドルウェア（演習2の改良版）
+   - ロギングミドルウェア（リクエスト/レスポンスの記録）
+   - レートリミットミドルウェア（クライアント側のレート制限）
+   - キャッシュミドルウェア（GET リクエストの結果をTTL付きキャッシュ）
+3. ミドルウェアの実行順序を制御可能にする
+4. ミドルウェアの追加・削除が動的に行えるようにする
+
+```typescript
+// ヒント: キャッシュミドルウェアの実装スケルトン
+class CacheMiddleware {
+  private cache = new Map<string, { data: unknown; expiresAt: number }>();
+
+  constructor(private ttlMs: number = 60000) {}
+
+  async handle(
+    request: HttpRequestOptions,
+    next: NextFunction
+  ): Promise<HttpResponse<unknown>> {
+    // GET リクエストのみキャッシュ
+    if (request.method !== "GET") {
+      return next(request);
+    }
+
+    const cacheKey = this.buildCacheKey(request);
+    const cached = this.cache.get(cacheKey);
+
+    if (cached && Date.now() < cached.expiresAt) {
+      // キャッシュヒット
+      return { status: 200, data: cached.data, headers: {} };
+    }
+
+    // キャッシュミス: 実際のリクエストを実行
+    const response = await next(request);
+
+    // 成功レスポンスをキャッシュ
+    if (response.status >= 200 && response.status < 300) {
+      this.cache.set(cacheKey, {
+        data: response.data,
+        expiresAt: Date.now() + this.ttlMs,
+      });
+    }
+
+    return response;
+  }
+
+  private buildCacheKey(request: HttpRequestOptions): string {
+    return `${request.method}:${request.url}`;
+  }
+
+  /** キャッシュのクリア */
+  clear(): void {
+    this.cache.clear();
+  }
+
+  /** 特定キーのキャッシュ無効化 */
+  invalidate(pattern: string): void {
+    for (const key of this.cache.keys()) {
+      if (key.includes(pattern)) {
+        this.cache.delete(key);
+      }
+    }
+  }
+}
+
+// ヒント: クライアント側レートリミットミドルウェア
+class ClientRateLimitMiddleware {
+  private tokens: number;
+  private lastRefill: number;
+
+  constructor(
+    private maxTokens: number = 100,
+    private refillRate: number = 10, // 毎秒のリフィル数
+  ) {
+    this.tokens = maxTokens;
+    this.lastRefill = Date.now();
+  }
+
+  async handle(
+    request: HttpRequestOptions,
+    next: NextFunction
+  ): Promise<HttpResponse<unknown>> {
+    await this.waitForToken();
+    return next(request);
+  }
+
+  private async waitForToken(): Promise<void> {
+    this.refill();
+    while (this.tokens < 1) {
+      const waitMs = (1 / this.refillRate) * 1000;
+      await new Promise(resolve => setTimeout(resolve, waitMs));
+      this.refill();
+    }
+    this.tokens--;
+  }
+
+  private refill(): void {
+    const now = Date.now();
+    const elapsed = (now - this.lastRefill) / 1000;
+    this.tokens = Math.min(
+      this.maxTokens,
+      this.tokens + elapsed * this.refillRate
+    );
+    this.lastRefill = now;
+  }
+}
+```
+
+**評価ポイント:**
+- ミドルウェアのインターフェースが一貫しているか
+- パイプラインの実行順序が正しいか
+- ミドルウェア間の依存関係が適切に管理されているか
+- テスト容易性が確保されているか
+
+---
+
+## 13. コード生成によるSDK開発
+
+### 13.1 OpenAPI からのコード生成
+
+大規模なAPIでは、OpenAPI（Swagger）仕様からSDKを自動生成するアプローチが採用される。手書きのSDKと比べて、APIの変更に追従しやすく、多言語対応も容易になる。
+
+```
++------------------------------------------------------------------+
+|              OpenAPI ベースの SDK 生成パイプライン                    |
++------------------------------------------------------------------+
+|                                                                    |
+|  OpenAPI Spec       Code Generator        Generated SDK            |
+|  (YAML/JSON)   -->  (openapi-generator,  -->  TypeScript           |
+|                      orval, etc.)              Python               |
+|                                                Go                  |
+|                                                Java                |
+|                                                Ruby                |
+|                                                                    |
+|  +---------------+   +------------------+   +-----------------+    |
+|  | paths:        |   | テンプレート       |   | client.ts       |    |
+|  |   /users:     |-->| エンジン          |-->| types.ts        |    |
+|  |     get: ...  |   | (Mustache/EJS)   |   | resources/      |    |
+|  |     post: ... |   +------------------+   |   users.ts      |    |
+|  | schemas:      |                          |   orders.ts     |    |
+|  |   User: ...   |                          | errors.ts       |    |
+|  +---------------+                          +-----------------+    |
+|                                                                    |
++------------------------------------------------------------------+
+```
+
+### 13.2 コード生成のメリット・デメリット
+
+| 観点 | 手書きSDK | 自動生成SDK |
+|-----|----------|-----------|
+| API追従性 | 手動更新が必要 | 仕様更新で自動再生成 |
+| DX品質 | 高い（工夫可能） | ツール依存（改善の余地あり） |
+| 多言語対応 | 言語ごとに手書き | テンプレート追加で対応 |
+| メンテナンスコスト | 高い | 低い |
+| カスタマイズ性 | 自由 | テンプレートの制約あり |
+| エッジケース対応 | 柔軟 | 限定的 |
+
+### 13.3 ハイブリッドアプローチ（推奨）
+
+コア機能（認証、リトライ、エラーハンドリング）は手書きで品質を確保し、個別リソースのCRUDメソッドはOpenAPI仕様から自動生成するハイブリッドアプローチが推奨される。
+
+```typescript
+// 手書きのコア部分
+// src/core/client.ts - 認証、HTTP基盤、リトライ
+// src/core/errors.ts - エラー階層
+// src/core/middleware.ts - ミドルウェアパイプライン
+
+// 自動生成部分
+// src/generated/resources/users.ts - UsersResource
+// src/generated/resources/orders.ts - OrdersResource
+// src/generated/types/user.ts - User型定義
+// src/generated/types/order.ts - Order型定義
+
+// 自動生成部分を手書きコアと統合
+import { BaseResource } from "../core/base-resource";
+import { User, CreateUserParams, ListUsersParams } from "../generated/types";
+
+// 生成されたリソースクラスが BaseResource を継承
+class UsersResource extends BaseResource {
+  // 自動生成されたメソッド
+  async get(id: string): Promise<User> {
+    return this.request<User>("GET", `/users/${id}`);
+  }
+  // ...
+}
+```
+
+---
+
+## 14. SDK配布とパッケージング
+
+### 14.1 バンドル戦略
+
+```typescript
+// package.json の設定例
+{
+  "name": "example-sdk",
+  "version": "1.2.3",
+  "main": "./dist/cjs/index.js",       // CommonJS（Node.js）
+  "module": "./dist/esm/index.js",      // ES Modules（バンドラー）
+  "types": "./dist/types/index.d.ts",   // TypeScript型定義
+  "exports": {
+    ".": {
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js",
+      "types": "./dist/types/index.d.ts"
+    },
+    "./users": {
+      "import": "./dist/esm/resources/users.js",
+      "require": "./dist/cjs/resources/users.js",
+      "types": "./dist/types/resources/users.d.ts"
+    }
+  },
+  "sideEffects": false,                 // Tree shaking を有効化
+  "files": ["dist", "LICENSE", "README.md"],
+  "engines": {
+    "node": ">=18"
+  },
+  "peerDependencies": {},                // 外部依存を最小限に
+}
+```
+
+### 14.2 Tree Shaking 対応
+
+未使用のリソースやメソッドがバンドルに含まれないよう、Tree Shaking に対応する。
+
+```typescript
+// Named exports を使い、各リソースを個別にインポート可能にする
+
+// index.ts（エントリーポイント）
+export { ExampleClient } from "./client";
+export { UsersResource } from "./resources/users";
+export { OrdersResource } from "./resources/orders";
+export type { User, CreateUserParams, ListUsersParams } from "./types/user";
+export type { Order, CreateOrderParams } from "./types/order";
+export { ExampleError, ValidationError, NotFoundError } from "./errors";
+
+// 利用者が users だけを使う場合
+import { ExampleClient } from "example-sdk";
+// バンドラーが OrdersResource を Tree Shake で除外
+```
+
+---
+
+## 15. まとめ
+
+| 概念 | ポイント |
+|------|---------|
+| 設計原則 | 最小驚き、段階的開示、早期失敗、慣用句準拠、後方互換性 |
+| クライアントパターン | Resource-basedが最も直感的で広く採用されている |
+| HTTP基盤 | トランスポート抽象化 + ミドルウェアパイプライン |
+| リトライ | エクスポネンシャルバックオフ + フルジッター + 冪等性キー |
+| エラー設計 | 階層的エラークラス + actionable なメッセージ + requestId |
+| 認証 | Strategy パターンで複数方式対応、トークン自動リフレッシュ |
+| ページネーション | AsyncIterator で自動ページング、take/find/map 等のユーティリティ |
+| バージョニング | SemVer厳格適用、日付ベースAPIバージョン、deprecation警告 |
+| テスト | インターフェースモック + MSW による HTTP レベルテスト |
+| 配布 | ESM/CJS デュアルフォーマット、Tree Shaking 対応 |
+
+---
+
+## FAQ
+
+### Q1: SDKとAPIラッパーライブラリの違いは何か？
+
+APIラッパーはHTTP通信を薄くラップしたものであり、基本的にはリクエスト/レスポンスの変換のみを行う。一方SDKは、認証管理、リトライ、ページネーション、エラーハンドリング、型安全性、ロギングなどの横断的関心事を統合した包括的な開発キットである。SDKはAPIラッパーを含むがそれだけに留まらない。商用APIプロバイダー（Stripe、Twilio、AWS等）が提供する「SDK」は通常、単なるラッパーを超えた機能を備えている。
+
+### Q2: 手書きSDKとコード生成SDK、どちらを選ぶべきか？
+
+APIのエンドポイント数が少なく（20以下）、DXに強いこだわりがある場合は手書きが適する。エンドポイント数が多く（50以上）、多言語対応が必要な場合はコード生成が効率的である。理想的には、コア部分（認証、リトライ、エラー処理）を手書きし、リソース層をOpenAPI仕様から自動生成するハイブリッドアプローチが推奨される。Stripe はこのハイブリッドアプローチを採用しており、高い DX 品質と API 変更への迅速な追従を両立している。
+
+### Q3: SDKのバンドルサイズを小さくするにはどうすればよいか？
+
+以下の施策が効果的である: (1) 外部依存を最小限にする（理想は zero dependency）。(2) ES Modules 形式でエクスポートし、Tree Shaking を有効化する。(3) `sideEffects: false` を package.json に設定する。(4) Function-based パターン（AWS SDK v3方式）を採用し、未使用のコマンドがバンドルに含まれないようにする。(5) Node.js 専用機能（crypto、fs等）をオプショナルインポートにし、ブラウザ環境で不要なコードを除外する。具体的な目標値としては、minified + gzip で 50KB 以下を目指すとよい。
+
+### Q4: SDK内部で使うHTTPライブラリは何を選ぶべきか？
+
+2024年以降、ブラウザとNode.js（v18+）の両方でグローバル `fetch` が利用可能になったため、外部HTTP ライブラリへの依存なしにSDKを構築できるようになった。fetch をデフォルトのトランスポートとして使用し、高度な要件（HTTP/2多重化、keep-alive細かい制御等）が必要な場合にのみ、`undici` や `node:http2` への差し替えをサポートするのが推奨パターンである。axios は歴史的に広く使われてきたが、新規SDKでは fetch ベースが主流である。
+
+### Q5: レートリミットへの対応で注意すべき点は？
+
+SDK側でのレートリミット対応には2つのレイヤーがある。(1) サーバー側の429レスポンスへの対応: `Retry-After` ヘッダーに従ったバックオフリトライを実装する。(2) クライアント側の予防的レート制限: トークンバケットアルゴリズムでリクエスト頻度を制御し、そもそも429が返されないようにする。特に注意すべきは、429レスポンスの Retry-After が秒数の場合と日時（HTTP-date）の場合があること、複数クライアントインスタンスが同一APIキーを共有する場合のレート制限の分散、バーストリクエスト（短時間に大量のリクエスト）への対応、の3点である。
+
+---
+
+## 次に読むべきガイド
+
+- [[01-npm-package-development.md]] --- npmパッケージ開発
+- [[02-api-client-patterns.md]] --- APIクライアントパターン
+- [[03-sdk-testing-strategies.md]] --- SDKテスト戦略
+
+---
+
+## 参考文献
+
+1. Stripe. "Stripe API Reference - Client Libraries." stripe.com/docs/api, 2024. SDKの設計原則として広く参照される業界標準。Resource-basedパターン、型安全なエラー階層、自動ページネーションの実装例として特に優れている。
+
+2. Twilio. "SDK Design Principles and Best Practices." twilio.com/docs/libraries, 2024. 多言語SDK開発における慣用句準拠の設計原則と、開発者体験（DX）の定量評価手法を解説。
+
+3. AWS. "AWS SDK Design Guide - Middleware Architecture." docs.aws.amazon.com/sdk-for-javascript/v3/developer-guide/, 2024. Function-basedパターンとミドルウェアパイプラインの設計思想。Tree Shaking対応とバンドルサイズ最適化の手法を詳述。
+
+4. Google Cloud. "API Client Libraries Best Practices." cloud.google.com/apis/design, 2024. Builderパターンを活用したクライアント設計と、gRPC/REST デュアルプロトコル対応のアーキテクチャ。
+
+5. Marc Brooker. "Exponential Backoff and Jitter." aws.amazon.com/blogs/architecture, 2015. リトライ戦略におけるジッターの効果を数学的に分析した論文的ブログ記事。フルジッター、等間隔ジッター、装飾的ジッターの比較評価。
+
+6. Sentry. "SDK Development Guide." docs.sentry.io/development/sdk-dev/, 2024. クロスプラットフォームSDK開発のガイドライン。統一されたSDKアーキテクチャと各言語での慣用句準拠の実装例。
+

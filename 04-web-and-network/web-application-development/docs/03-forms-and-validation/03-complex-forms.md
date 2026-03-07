@@ -2324,3 +2324,1193 @@ function useNextNavigationGuard(isDirty: boolean) {
   return { isDirty };
 }
 ```
+
+---
+
+## 6. 複雑なフォームのパフォーマンス最適化
+
+### 6.1 再レンダリングの最小化
+
+複雑なフォームでは、フィールド数が増えるにつれてパフォーマンスが劣化しやすい。React Hook Form は非制御コンポーネントベースのため基本的にパフォーマンスが良いが、`watch` や `useWatch` の使い方を誤ると不要な再レンダリングが発生する。
+
+```typescript
+// アンチパターン: フォーム全体を watch
+function BadPerformanceForm() {
+  const form = useForm<LargeFormData>();
+
+  // フォーム全体の値が変わるたびに、このコンポーネント全体が再レンダリング
+  const allValues = form.watch(); // 非推奨
+
+  return (
+    <div>
+      {/* 100個のフィールド全てが不要に再レンダリングされる */}
+      {Array.from({ length: 100 }, (_, i) => (
+        <input key={i} {...form.register(`field_${i}`)} />
+      ))}
+      <pre>{JSON.stringify(allValues, null, 2)}</pre>
+    </div>
+  );
+}
+
+// 推奨パターン: 必要な値だけを個別に watch
+function GoodPerformanceForm() {
+  const form = useForm<LargeFormData>();
+
+  return (
+    <div>
+      {Array.from({ length: 100 }, (_, i) => (
+        <input key={i} {...form.register(`field_${i}`)} />
+      ))}
+      {/* 値の表示は別コンポーネントに分離 */}
+      <FormDebugger control={form.control} />
+    </div>
+  );
+}
+
+// 分離されたデバッガーコンポーネント
+function FormDebugger({ control }: { control: any }) {
+  // このコンポーネントだけが再レンダリングされる
+  const values = useWatch({ control });
+  return <pre className="text-xs">{JSON.stringify(values, null, 2)}</pre>;
+}
+```
+
+### 6.2 React.memo による最適化
+
+```typescript
+// 個別フィールドコンポーネントをメモ化
+const MemoizedField = React.memo(function MemoizedField({
+  name,
+  label,
+  register,
+  error,
+  type = 'text',
+}: {
+  name: string;
+  label: string;
+  register: any;
+  error?: string;
+  type?: string;
+}) {
+  return (
+    <div>
+      <label className="block text-sm font-medium mb-1">{label}</label>
+      <input
+        type={type}
+        {...register(name)}
+        className={`w-full border rounded px-3 py-2 ${error ? 'border-red-500' : ''}`}
+      />
+      {error && <p className="text-red-500 text-sm mt-1">{error}</p>}
+    </div>
+  );
+});
+
+// Controller を使った制御コンポーネントのメモ化
+const MemoizedSelect = React.memo(function MemoizedSelect({
+  name,
+  label,
+  control,
+  options,
+}: {
+  name: string;
+  label: string;
+  control: any;
+  options: { value: string; label: string }[];
+}) {
+  return (
+    <Controller
+      name={name}
+      control={control}
+      render={({ field, fieldState }) => (
+        <div>
+          <label className="block text-sm font-medium mb-1">{label}</label>
+          <select
+            {...field}
+            className={`w-full border rounded px-3 py-2
+              ${fieldState.error ? 'border-red-500' : ''}`}
+          >
+            <option value="">選択してください</option>
+            {options.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+          {fieldState.error && (
+            <p className="text-red-500 text-sm mt-1">{fieldState.error.message}</p>
+          )}
+        </div>
+      )}
+    />
+  );
+});
+```
+
+### 6.3 大量データの仮想化
+
+```typescript
+import { FixedSizeList as List } from 'react-window';
+
+// 大量の行を持つ動的フォームの仮想化
+function VirtualizedFieldArray() {
+  const form = useForm<{ items: Array<{ name: string; value: string }> }>({
+    defaultValues: {
+      items: Array.from({ length: 1000 }, (_, i) => ({
+        name: `Item ${i + 1}`,
+        value: '',
+      })),
+    },
+  });
+
+  const { fields } = useFieldArray({
+    control: form.control,
+    name: 'items',
+  });
+
+  const Row = useCallback(
+    ({ index, style }: { index: number; style: React.CSSProperties }) => (
+      <div style={style} className="flex gap-2 items-center px-2">
+        <span className="text-gray-400 w-12 text-right text-sm">{index + 1}.</span>
+        <input
+          {...form.register(`items.${index}.name`)}
+          className="flex-1 border rounded px-2 py-1 text-sm"
+        />
+        <input
+          {...form.register(`items.${index}.value`)}
+          className="flex-1 border rounded px-2 py-1 text-sm"
+        />
+      </div>
+    ),
+    [form.register]
+  );
+
+  return (
+    <form onSubmit={form.handleSubmit(onSubmit)}>
+      <div className="border rounded-lg overflow-hidden">
+        <div className="flex gap-2 px-2 py-2 bg-gray-100 text-sm font-medium">
+          <span className="w-12 text-right">#</span>
+          <span className="flex-1">名前</span>
+          <span className="flex-1">値</span>
+        </div>
+        <List
+          height={400}
+          itemCount={fields.length}
+          itemSize={40}
+          width="100%"
+        >
+          {Row}
+        </List>
+      </div>
+
+      <div className="mt-4 text-sm text-gray-500">
+        {fields.length}件のアイテム
+      </div>
+
+      <button type="submit" className="mt-4 px-4 py-2 bg-blue-600 text-white rounded">
+        保存
+      </button>
+    </form>
+  );
+}
+```
+
+### 6.4 パフォーマンス比較表
+
+| 手法 | 対象 | 効果 | 注意点 |
+|------|------|------|--------|
+| `useWatch` で個別監視 | 特定フィールドの値参照 | 再レンダリング範囲を限定 | フィールド名の指定が必要 |
+| `React.memo` | フィールドコンポーネント | 不要な再レンダリング防止 | props の比較コストに注意 |
+| `Controller` の分離 | 制御コンポーネント | レンダリング分離 | コンポーネント数が増える |
+| `react-window` | 大量フィールド（100+） | DOM ノード数の削減 | スクロール時の入力に注意 |
+| `shouldUnregister: false` | 条件表示フィールド | アンマウント時のデータ保持 | メモリ消費が増える |
+| `mode: 'onSubmit'` | バリデーション | 入力中のバリデーションコスト削減 | リアルタイムフィードバックなし |
+
+---
+
+## 7. アクセシビリティ対応
+
+### 7.1 フォームのアクセシビリティ基本原則
+
+複雑なフォームにおけるアクセシビリティは、特にスクリーンリーダーユーザーやキーボードナビゲーションユーザーにとって重要である。以下の原則を遵守する。
+
+**WCAG 2.1 AA準拠のチェックリスト:**
+- すべての入力フィールドに適切な `label` が関連付けられている
+- エラーメッセージが `aria-describedby` で関連付けられている
+- 必須フィールドが `aria-required` で示されている
+- フォーカス管理が適切に行われている
+- エラー発生時にフォーカスが最初のエラーフィールドに移動する
+- 色だけでなくテキストやアイコンでもエラー状態を表現する
+
+```tsx
+// アクセシブルなフォームフィールドコンポーネント
+function AccessibleField({
+  id,
+  label,
+  required = false,
+  error,
+  description,
+  children,
+}: {
+  id: string;
+  label: string;
+  required?: boolean;
+  error?: string;
+  description?: string;
+  children: (props: {
+    id: string;
+    'aria-invalid': boolean;
+    'aria-required': boolean;
+    'aria-describedby': string;
+  }) => React.ReactNode;
+}) {
+  const describedByIds = [
+    description ? `${id}-description` : null,
+    error ? `${id}-error` : null,
+  ].filter(Boolean).join(' ');
+
+  return (
+    <div className="space-y-1">
+      <label htmlFor={id} className="block text-sm font-medium">
+        {label}
+        {required && (
+          <span className="text-red-500 ml-1" aria-label="必須">
+            *
+          </span>
+        )}
+      </label>
+
+      {description && (
+        <p id={`${id}-description`} className="text-xs text-gray-500">
+          {description}
+        </p>
+      )}
+
+      {children({
+        id,
+        'aria-invalid': !!error,
+        'aria-required': required,
+        'aria-describedby': describedByIds,
+      })}
+
+      {error && (
+        <p
+          id={`${id}-error`}
+          className="text-sm text-red-500 flex items-center gap-1"
+          role="alert"
+          aria-live="polite"
+        >
+          <span aria-hidden="true">[!]</span>
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// 使用例
+function AccessibleForm() {
+  const form = useForm<FormData>({
+    resolver: zodResolver(schema),
+    mode: 'onTouched',
+  });
+
+  // エラー発生時に最初のエラーフィールドにフォーカス
+  useEffect(() => {
+    const errors = form.formState.errors;
+    const firstErrorKey = Object.keys(errors)[0];
+    if (firstErrorKey) {
+      const element = document.getElementById(firstErrorKey);
+      element?.focus();
+    }
+  }, [form.formState.errors]);
+
+  return (
+    <form
+      onSubmit={form.handleSubmit(onSubmit)}
+      noValidate // ブラウザのデフォルトバリデーションを無効化
+      aria-label="ユーザー登録フォーム"
+    >
+      <AccessibleField
+        id="name"
+        label="名前"
+        required
+        error={form.formState.errors.name?.message}
+      >
+        {(ariaProps) => (
+          <input
+            type="text"
+            {...form.register('name')}
+            {...ariaProps}
+            className="w-full border rounded px-3 py-2"
+            autoComplete="name"
+          />
+        )}
+      </AccessibleField>
+
+      <AccessibleField
+        id="email"
+        label="メールアドレス"
+        required
+        description="確認メールを送信します"
+        error={form.formState.errors.email?.message}
+      >
+        {(ariaProps) => (
+          <input
+            type="email"
+            {...form.register('email')}
+            {...ariaProps}
+            className="w-full border rounded px-3 py-2"
+            autoComplete="email"
+          />
+        )}
+      </AccessibleField>
+    </form>
+  );
+}
+```
+
+### 7.2 マルチステップフォームのアクセシビリティ
+
+```tsx
+// アクセシブルなステッパー
+function AccessibleStepper({
+  steps,
+  currentStep,
+  completedSteps,
+}: {
+  steps: StepConfig[];
+  currentStep: number;
+  completedSteps: Set<number>;
+}) {
+  return (
+    <nav aria-label="フォームの進捗">
+      <ol className="flex gap-2" role="list">
+        {steps.map((step, i) => {
+          const status = completedSteps.has(i)
+            ? 'completed'
+            : i === currentStep
+            ? 'current'
+            : 'upcoming';
+
+          return (
+            <li
+              key={i}
+              className="flex items-center gap-2"
+              aria-current={i === currentStep ? 'step' : undefined}
+            >
+              <span
+                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm
+                  ${status === 'current' ? 'bg-blue-600 text-white' : ''}
+                  ${status === 'completed' ? 'bg-green-600 text-white' : ''}
+                  ${status === 'upcoming' ? 'bg-gray-200 text-gray-500' : ''}
+                `}
+                aria-hidden="true"
+              >
+                {status === 'completed' ? '✓' : i + 1}
+              </span>
+              <span className="sr-only">
+                ステップ {i + 1}: {step.title}
+                {status === 'completed' && '（完了）'}
+                {status === 'current' && '（現在）'}
+              </span>
+              <span className="hidden sm:inline text-sm" aria-hidden="true">
+                {step.title}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+
+      {/* ライブリージョンでステップ変更を通知 */}
+      <div className="sr-only" aria-live="polite" aria-atomic="true">
+        ステップ {currentStep + 1} / {steps.length}: {steps[currentStep].title}
+      </div>
+    </nav>
+  );
+}
+```
+
+### 7.3 動的フィールドのアクセシビリティ
+
+```tsx
+// アクセシブルな動的フィールド
+function AccessibleFieldArray() {
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: 'items',
+  });
+
+  const [announcement, setAnnouncement] = useState('');
+
+  const handleAppend = () => {
+    append({ name: '', value: '' });
+    setAnnouncement(`アイテムを追加しました。合計 ${fields.length + 1} 件です。`);
+    // 新しいフィールドにフォーカス
+    setTimeout(() => {
+      const newField = document.getElementById(`items-${fields.length}-name`);
+      newField?.focus();
+    }, 100);
+  };
+
+  const handleRemove = (index: number) => {
+    const itemName = form.getValues(`items.${index}.name`) || `アイテム ${index + 1}`;
+    remove(index);
+    setAnnouncement(`${itemName} を削除しました。合計 ${fields.length - 1} 件です。`);
+  };
+
+  return (
+    <fieldset>
+      <legend className="text-lg font-medium mb-4">アイテムリスト</legend>
+
+      {/* ライブリージョン: 操作結果を通知 */}
+      <div className="sr-only" aria-live="assertive" aria-atomic="true">
+        {announcement}
+      </div>
+
+      <div role="list" aria-label="アイテム一覧">
+        {fields.map((field, index) => (
+          <div
+            key={field.id}
+            role="listitem"
+            className="flex gap-2 items-center mb-2"
+            aria-label={`アイテム ${index + 1}`}
+          >
+            <label htmlFor={`items-${index}-name`} className="sr-only">
+              アイテム {index + 1} の名前
+            </label>
+            <input
+              id={`items-${index}-name`}
+              {...form.register(`items.${index}.name`)}
+              className="flex-1 border rounded px-3 py-2"
+              placeholder={`アイテム ${index + 1}`}
+            />
+
+            <button
+              type="button"
+              onClick={() => handleRemove(index)}
+              aria-label={`アイテム ${index + 1} を削除`}
+              className="p-2 text-red-500 hover:bg-red-50 rounded"
+              disabled={fields.length <= 1}
+            >
+              削除
+            </button>
+          </div>
+        ))}
+      </div>
+
+      <button
+        type="button"
+        onClick={handleAppend}
+        className="mt-2 px-4 py-2 border-2 border-dashed rounded-lg w-full"
+        aria-label="新しいアイテムを追加"
+      >
+        + アイテムを追加
+      </button>
+    </fieldset>
+  );
+}
+```
+
+### 7.4 キーボードナビゲーション対応
+
+```typescript
+// キーボードショートカットの実装
+function useFormKeyboardShortcuts({
+  onSave,
+  onCancel,
+  onNextStep,
+  onPrevStep,
+}: {
+  onSave?: () => void;
+  onCancel?: () => void;
+  onNextStep?: () => void;
+  onPrevStep?: () => void;
+}) {
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl+S / Cmd+S: 保存
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        onSave?.();
+      }
+
+      // Escape: キャンセル
+      if (e.key === 'Escape') {
+        onCancel?.();
+      }
+
+      // Ctrl+ArrowRight / Cmd+ArrowRight: 次のステップ
+      if ((e.ctrlKey || e.metaKey) && e.key === 'ArrowRight') {
+        e.preventDefault();
+        onNextStep?.();
+      }
+
+      // Ctrl+ArrowLeft / Cmd+ArrowLeft: 前のステップ
+      if ((e.ctrlKey || e.metaKey) && e.key === 'ArrowLeft') {
+        e.preventDefault();
+        onPrevStep?.();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onSave, onCancel, onNextStep, onPrevStep]);
+}
+
+// フォーカストラップ（モーダルフォーム向け）
+function useFocusTrap(containerRef: React.RefObject<HTMLElement>) {
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const focusableElements = container.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    const firstElement = focusableElements[0];
+    const lastElement = focusableElements[focusableElements.length - 1];
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+
+      if (e.shiftKey) {
+        if (document.activeElement === firstElement) {
+          e.preventDefault();
+          lastElement.focus();
+        }
+      } else {
+        if (document.activeElement === lastElement) {
+          e.preventDefault();
+          firstElement.focus();
+        }
+      }
+    };
+
+    container.addEventListener('keydown', handleKeyDown);
+    firstElement?.focus();
+
+    return () => container.removeEventListener('keydown', handleKeyDown);
+  }, [containerRef]);
+}
+```
+
+---
+
+## 8. フォームのテスト戦略
+
+### 8.1 テストピラミッド
+
+複雑なフォームのテストは、以下のレイヤーに分けて実施する。
+
+| レイヤー | ツール | テスト対象 | 比率 |
+|---------|--------|----------|------|
+| Unit Test | Vitest / Jest | スキーマ、バリデーションロジック | 50% |
+| Integration Test | Testing Library | フォームコンポーネントの振る舞い | 35% |
+| E2E Test | Playwright / Cypress | ユーザーフロー全体 | 15% |
+
+### 8.2 スキーマのユニットテスト
+
+```typescript
+import { describe, it, expect } from 'vitest';
+
+describe('step1Schema', () => {
+  it('有効なデータを受け付ける', () => {
+    const validData = {
+      name: '山田太郎',
+      email: 'taro@example.com',
+      password: 'Password1',
+      confirmPassword: 'Password1',
+    };
+
+    const result = step1Schema.safeParse(validData);
+    expect(result.success).toBe(true);
+  });
+
+  it('名前が空の場合エラーになる', () => {
+    const data = {
+      name: '',
+      email: 'taro@example.com',
+      password: 'Password1',
+      confirmPassword: 'Password1',
+    };
+
+    const result = step1Schema.safeParse(data);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.errors[0].path).toContain('name');
+      expect(result.error.errors[0].message).toBe('名前は必須です');
+    }
+  });
+
+  it('パスワードが一致しない場合エラーになる', () => {
+    const data = {
+      name: '山田太郎',
+      email: 'taro@example.com',
+      password: 'Password1',
+      confirmPassword: 'Password2',
+    };
+
+    const result = step1Schema.safeParse(data);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.errors[0].message).toBe('パスワードが一致しません');
+    }
+  });
+
+  it('パスワードの強度要件を検証する', () => {
+    const weakPasswords = [
+      { pw: 'short', reason: '8文字未満' },
+      { pw: 'alllowercase1', reason: '大文字なし' },
+      { pw: 'ALLUPPERCASE1', reason: '小文字なし' },
+      { pw: 'NoDigitsHere', reason: '数字なし' },
+    ];
+
+    weakPasswords.forEach(({ pw, reason }) => {
+      const data = {
+        name: '山田太郎',
+        email: 'taro@example.com',
+        password: pw,
+        confirmPassword: pw,
+      };
+
+      const result = step1Schema.safeParse(data);
+      expect(result.success, `${reason}: "${pw}" は拒否されるべき`).toBe(false);
+    });
+  });
+
+  it('メールアドレスの形式を検証する', () => {
+    const invalidEmails = [
+      'not-an-email',
+      '@no-local.com',
+      'no-domain@',
+      'spaces in@email.com',
+    ];
+
+    invalidEmails.forEach((email) => {
+      const data = {
+        name: '山田太郎',
+        email,
+        password: 'Password1',
+        confirmPassword: 'Password1',
+      };
+
+      const result = step1Schema.safeParse(data);
+      expect(result.success, `"${email}" は拒否されるべき`).toBe(false);
+    });
+  });
+});
+
+describe('orderSchema', () => {
+  it('空の商品リストを拒否する', () => {
+    const data = {
+      customerName: 'テスト顧客',
+      customerEmail: 'test@example.com',
+      shippingAddress: '東京都',
+      items: [],
+    };
+
+    const result = orderSchema.safeParse(data);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.errors[0].message).toBe('1つ以上の商品を追加してください');
+    }
+  });
+
+  it('50商品を超える注文を拒否する', () => {
+    const items = Array.from({ length: 51 }, (_, i) => ({
+      productId: `prod_${i}`,
+      quantity: 1,
+      unitPrice: 100,
+    }));
+
+    const data = {
+      customerName: 'テスト顧客',
+      customerEmail: 'test@example.com',
+      shippingAddress: '東京都',
+      items,
+    };
+
+    const result = orderSchema.safeParse(data);
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('notificationSchema (discriminatedUnion)', () => {
+  it('email タイプの通知を受け付ける', () => {
+    const data = {
+      type: 'email' as const,
+      email: 'test@example.com',
+      frequency: 'daily' as const,
+      format: 'html' as const,
+      categories: ['news'],
+    };
+
+    const result = notificationSchema.safeParse(data);
+    expect(result.success).toBe(true);
+  });
+
+  it('webhook タイプで短いシークレットを拒否する', () => {
+    const data = {
+      type: 'webhook' as const,
+      url: 'https://example.com/webhook',
+      secret: 'short',
+      events: ['order.created'],
+    };
+
+    const result = notificationSchema.safeParse(data);
+    expect(result.success).toBe(false);
+  });
+
+  it('未知のタイプを拒否する', () => {
+    const data = {
+      type: 'unknown',
+      email: 'test@example.com',
+    };
+
+    const result = notificationSchema.safeParse(data);
+    expect(result.success).toBe(false);
+  });
+});
+```
+
+### 8.3 フォームコンポーネントの統合テスト
+
+```typescript
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+
+describe('MultiStepForm', () => {
+  it('ステップ1からステップ2に進める', async () => {
+    const user = userEvent.setup();
+    render(<MultiStepForm />);
+
+    // ステップ1のフィールドに入力
+    await user.type(screen.getByLabelText('名前'), '山田太郎');
+    await user.type(screen.getByLabelText('メールアドレス'), 'taro@example.com');
+    await user.type(screen.getByLabelText('パスワード'), 'Password1');
+    await user.type(screen.getByLabelText('パスワード確認'), 'Password1');
+
+    // 次へボタンをクリック
+    await user.click(screen.getByText('次へ'));
+
+    // ステップ2が表示される
+    await waitFor(() => {
+      expect(screen.getByLabelText('会社名')).toBeInTheDocument();
+    });
+  });
+
+  it('バリデーションエラーがあるとステップを進めない', async () => {
+    const user = userEvent.setup();
+    render(<MultiStepForm />);
+
+    // 何も入力せずに次へをクリック
+    await user.click(screen.getByText('次へ'));
+
+    // エラーメッセージが表示される
+    await waitFor(() => {
+      expect(screen.getByText('名前は必須です')).toBeInTheDocument();
+    });
+
+    // ステップ1のままである
+    expect(screen.getByLabelText('名前')).toBeInTheDocument();
+  });
+
+  it('戻るボタンで前のステップに戻れる', async () => {
+    const user = userEvent.setup();
+    render(<MultiStepForm />);
+
+    // ステップ1を入力して進む
+    await user.type(screen.getByLabelText('名前'), '山田太郎');
+    await user.type(screen.getByLabelText('メールアドレス'), 'taro@example.com');
+    await user.type(screen.getByLabelText('パスワード'), 'Password1');
+    await user.type(screen.getByLabelText('パスワード確認'), 'Password1');
+    await user.click(screen.getByText('次へ'));
+
+    // ステップ2に到達
+    await waitFor(() => {
+      expect(screen.getByLabelText('会社名')).toBeInTheDocument();
+    });
+
+    // 戻るボタンをクリック
+    await user.click(screen.getByText('戻る'));
+
+    // ステップ1に戻り、入力値が保持されている
+    await waitFor(() => {
+      expect(screen.getByLabelText('名前')).toHaveValue('山田太郎');
+    });
+  });
+});
+
+describe('OrderForm', () => {
+  const mockProducts: Product[] = [
+    { id: 'prod_1', name: 'Widget A', price: 1000, stock: 100, category: 'widget' },
+    { id: 'prod_2', name: 'Widget B', price: 2000, stock: 50, category: 'widget' },
+  ];
+
+  it('商品行を追加できる', async () => {
+    const user = userEvent.setup();
+    render(<OrderForm products={mockProducts} />);
+
+    // 追加ボタンをクリック
+    await user.click(screen.getByText('+ 商品を追加'));
+
+    // 2行に増える
+    const productSelects = screen.getAllByRole('combobox');
+    expect(productSelects.length).toBeGreaterThan(1);
+  });
+
+  it('商品行を削除できる', async () => {
+    const user = userEvent.setup();
+    render(<OrderForm products={mockProducts} />);
+
+    // 2行追加
+    await user.click(screen.getByText('+ 商品を追加'));
+
+    // 削除ボタンをクリック
+    const deleteButtons = screen.getAllByTitle('削除');
+    await user.click(deleteButtons[0]);
+
+    // 1行に戻る
+    await waitFor(() => {
+      expect(screen.queryAllByTitle('削除')).toHaveLength(0);
+    });
+  });
+
+  it('最後の1行は削除できない', () => {
+    render(<OrderForm products={mockProducts} />);
+
+    // 削除ボタンが表示されない
+    expect(screen.queryByTitle('削除')).not.toBeInTheDocument();
+  });
+});
+```
+
+### 8.4 E2E テスト
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+test.describe('ユーザー登録フロー', () => {
+  test('全ステップを完了して登録できる', async ({ page }) => {
+    await page.goto('/register');
+
+    // ステップ1: アカウント情報
+    await page.fill('[name="name"]', '山田太郎');
+    await page.fill('[name="email"]', 'taro@example.com');
+    await page.fill('[name="password"]', 'Password1');
+    await page.fill('[name="confirmPassword"]', 'Password1');
+    await page.click('button:text("次へ")');
+
+    // ステップ2: プロフィール
+    await expect(page.locator('[name="company"]')).toBeVisible();
+    await page.fill('[name="company"]', '株式会社テスト');
+    await page.selectOption('[name="role"]', 'developer');
+    await page.fill('[name="experience"]', '5');
+    await page.click('button:text("次へ")');
+
+    // ステップ3: プラン選択
+    await expect(page.locator('[name="plan"]')).toBeVisible();
+    await page.click('label:text("プロプラン")');
+    await page.check('[name="agreed"]');
+    await page.click('button:text("登録する")');
+
+    // 完了ページにリダイレクト
+    await expect(page).toHaveURL('/registration/complete');
+    await expect(page.locator('h1')).toContainText('登録完了');
+  });
+
+  test('バリデーションエラー時にエラーメッセージが表示される', async ({ page }) => {
+    await page.goto('/register');
+
+    // 何も入力せずに次へ
+    await page.click('button:text("次へ")');
+
+    // エラーメッセージが表示される
+    await expect(page.locator('text=名前は必須です')).toBeVisible();
+    await expect(page.locator('text=有効なメールアドレスを入力してください')).toBeVisible();
+  });
+
+  test('ページ離脱時に確認ダイアログが表示される', async ({ page }) => {
+    await page.goto('/register');
+
+    // フォームに入力
+    await page.fill('[name="name"]', '山田太郎');
+
+    // ページを離れようとする
+    page.on('dialog', async (dialog) => {
+      expect(dialog.type()).toBe('beforeunload');
+      await dialog.accept();
+    });
+
+    await page.goto('/');
+  });
+});
+```
+
+---
+
+## 9. トラブルシューティング
+
+### 9.1 よくある問題と解決策
+
+| 問題 | 原因 | 解決策 |
+|------|------|--------|
+| `watch` の値が undefined になる | `defaultValues` が設定されていない | `useForm` に `defaultValues` を必ず渡す |
+| `useFieldArray` の行が重複する | `key` に `index` を使用している | `field.id` を `key` に使用する |
+| 条件分岐フォームで古い値が残る | `shouldUnregister` の設定不備 | `shouldUnregister: true` を設定するか、タイプ変更時に `reset` する |
+| `resolver` の変更が反映されない | `resolver` がステップ変更時に再評価されない | ステップごとに `resolver` を動的に切り替える |
+| フォーム送信後にバリデーションが走らない | `mode` が `onSubmit` のまま | 送信後は `mode: 'onChange'` に切り替えるか、`trigger()` を手動呼出し |
+| 非制御コンポーネントで値が反映されない | `register` を使用していない | `Controller` を使用するか、`setValue` で手動設定 |
+| `defaultValues` の変更が反映されない | フォーム初期化後に `defaultValues` が変わった | `reset(newDefaultValues)` を呼ぶ |
+| 大量フィールドでフォームが遅い | 全フィールドが再レンダリング | `React.memo` と `useWatch` で最適化 |
+
+### 9.2 デバッグツール
+
+```typescript
+// フォーム状態のデバッグコンポーネント（開発時のみ使用）
+function FormDevTools<T extends Record<string, any>>({
+  form,
+}: {
+  form: ReturnType<typeof useForm<T>>;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const values = useWatch({ control: form.control });
+  const { errors, dirtyFields, touchedFields, isValid, isDirty, isSubmitting } =
+    form.formState;
+
+  if (process.env.NODE_ENV === 'production') return null;
+
+  return (
+    <div className="fixed bottom-4 right-4 z-50">
+      <button
+        onClick={() => setIsOpen(o => !o)}
+        className="bg-gray-900 text-white px-3 py-1 rounded-full text-xs"
+      >
+        {isOpen ? 'DevTools [x]' : 'DevTools [o]'}
+      </button>
+
+      {isOpen && (
+        <div className="absolute bottom-10 right-0 w-96 max-h-96 overflow-auto
+          bg-gray-900 text-green-400 rounded-lg p-4 text-xs font-mono shadow-xl">
+          <h4 className="text-white font-bold mb-2">Form State</h4>
+
+          <div className="space-y-2">
+            <div>
+              <span className="text-gray-400">isValid:</span>{' '}
+              <span className={isValid ? 'text-green-400' : 'text-red-400'}>
+                {String(isValid)}
+              </span>
+            </div>
+            <div>
+              <span className="text-gray-400">isDirty:</span>{' '}
+              {String(isDirty)}
+            </div>
+            <div>
+              <span className="text-gray-400">isSubmitting:</span>{' '}
+              {String(isSubmitting)}
+            </div>
+          </div>
+
+          <h4 className="text-white font-bold mt-4 mb-2">Values</h4>
+          <pre className="whitespace-pre-wrap">
+            {JSON.stringify(values, null, 2)}
+          </pre>
+
+          {Object.keys(errors).length > 0 && (
+            <>
+              <h4 className="text-red-400 font-bold mt-4 mb-2">Errors</h4>
+              <pre className="whitespace-pre-wrap text-red-400">
+                {JSON.stringify(
+                  Object.fromEntries(
+                    Object.entries(errors).map(([key, val]: [string, any]) => [
+                      key,
+                      val?.message ?? val,
+                    ])
+                  ),
+                  null,
+                  2
+                )}
+              </pre>
+            </>
+          )}
+
+          <h4 className="text-white font-bold mt-4 mb-2">Dirty Fields</h4>
+          <pre className="whitespace-pre-wrap text-yellow-400">
+            {JSON.stringify(dirtyFields, null, 2)}
+          </pre>
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+### 9.3 エラーハンドリングのベストプラクティス
+
+```typescript
+// グローバルエラーハンドリング
+function useFormErrorHandler() {
+  const handleFormError = useCallback((error: unknown) => {
+    // Zod バリデーションエラー
+    if (error instanceof z.ZodError) {
+      const messages = error.errors.map(e =>
+        `${e.path.join('.')}: ${e.message}`
+      );
+      toast.error(`バリデーションエラー:\n${messages.join('\n')}`);
+      return;
+    }
+
+    // API エラー
+    if (error instanceof ApiError) {
+      switch (error.status) {
+        case 400:
+          toast.error('入力内容に誤りがあります。確認してください。');
+          break;
+        case 409:
+          toast.error('このメールアドレスは既に登録されています。');
+          break;
+        case 422:
+          // サーバーサイドバリデーションエラー
+          if (error.fieldErrors) {
+            // フォームにエラーを反映
+            Object.entries(error.fieldErrors).forEach(([field, message]) => {
+              form.setError(field as any, {
+                type: 'server',
+                message: message as string,
+              });
+            });
+          }
+          break;
+        case 429:
+          toast.error('リクエストが多すぎます。しばらくしてから再試行してください。');
+          break;
+        case 500:
+          toast.error('サーバーエラーが発生しました。しばらくしてから再試行してください。');
+          break;
+        default:
+          toast.error('予期しないエラーが発生しました。');
+      }
+      return;
+    }
+
+    // ネットワークエラー
+    if (error instanceof TypeError && error.message === 'Failed to fetch') {
+      toast.error('ネットワークエラー: インターネット接続を確認してください。');
+      return;
+    }
+
+    // その他のエラー
+    console.error('Unhandled form error:', error);
+    toast.error('予期しないエラーが発生しました。');
+  }, []);
+
+  return { handleFormError };
+}
+
+// サーバーサイドバリデーションエラーの統合
+async function submitWithServerValidation<T>(
+  form: ReturnType<typeof useForm<T>>,
+  data: T,
+  submitFn: (data: T) => Promise<void>
+) {
+  try {
+    await submitFn(data);
+  } catch (error) {
+    if (error instanceof ApiError && error.fieldErrors) {
+      // サーバーからのフィールドエラーをフォームに反映
+      Object.entries(error.fieldErrors).forEach(([field, message]) => {
+        form.setError(field as any, {
+          type: 'server',
+          message: message as string,
+        });
+      });
+
+      // 最初のエラーフィールドにフォーカス
+      const firstErrorField = Object.keys(error.fieldErrors)[0];
+      const element = document.querySelector(`[name="${firstErrorField}"]`);
+      if (element instanceof HTMLElement) {
+        element.focus();
+      }
+    } else {
+      throw error;
+    }
+  }
+}
+```
+
+---
+
+## まとめ
+
+### 複雑フォームパターンの全体像
+
+| パターン | 用途 | 主要ツール | 難易度 |
+|---------|------|----------|--------|
+| マルチステップ | ウィザード形式の登録フロー | useForm + useState | 中 |
+| useFieldArray | 動的な配列フィールド | useFieldArray | 中 |
+| ネスト配列 | 請求書の明細行（セクション構造） | ネストした useFieldArray | 高 |
+| discriminatedUnion | 条件分岐バリデーション | Zod discriminatedUnion | 中 |
+| superRefine | 複雑な条件バリデーション | Zod superRefine | 高 |
+| カスケード選択 | 親子関係の連動セレクト | watch + useEffect | 中 |
+| 自動保存 | 下書き保存 | useWatch + debounce | 低〜中 |
+| ドラフト復元 | 途中離脱からの復帰 | localStorage / API | 中 |
+| 離脱防止 | 未保存データの保護 | beforeunload / useBlocker | 低 |
+| 仮想化 | 大量フィールドの最適化 | react-window | 高 |
+| ドラッグ&ドロップ | フィールドの並び替え | dnd-kit + useFieldArray.move | 高 |
+
+### 設計判断のフローチャート
+
+```
+フォームにどのパターンが必要か?
+
+1. フィールドが多い（10個以上）?
+   → YES: マルチステップフォームを検討
+   → NO: シングルページフォーム
+
+2. 動的にフィールドを追加/削除する?
+   → YES: useFieldArray を使用
+   → NO: 静的なフォーム
+
+3. 選択に応じてフィールドが変わる?
+   → YES: discriminatedUnion または superRefine
+   → NO: 固定フィールド
+
+4. 入力途中のデータを保護する必要がある?
+   → YES: 自動保存 + 離脱防止
+   → NO: 送信時のみ処理
+
+5. フィールド数が100を超える?
+   → YES: 仮想化（react-window）を検討
+   → NO: 通常のレンダリング
+```
+
+### ベストプラクティスチェックリスト
+
+- [ ] 全フィールドに `defaultValues` を設定している
+- [ ] `useFieldArray` で `field.id` を key に使用している
+- [ ] エラーメッセージが日本語で分かりやすく設定されている
+- [ ] 必須フィールドが視覚的に区別できる
+- [ ] フォーカス管理（エラー時の自動フォーカス）が実装されている
+- [ ] `aria-invalid` と `aria-describedby` が設定されている
+- [ ] 大量フィールドの場合、パフォーマンス最適化が行われている
+- [ ] マルチステップの場合、進捗インジケーターがある
+- [ ] 未保存データの離脱防止が実装されている
+- [ ] サーバーサイドバリデーションエラーがフォームに反映される
+- [ ] テスト（ユニット・統合・E2E）が適切に書かれている
+- [ ] TypeScript の型安全性が確保されている
+
+---
+
+## 次に読むべきガイド
+→ [[00-deployment-platforms.md]] -- デプロイ先
+
+---
+
+## 参考文献
+1. React Hook Form. "useFieldArray." react-hook-form.com, 2024.
+2. React Hook Form. "Performance Optimization." react-hook-form.com, 2024.
+3. Zod. "Discriminated Unions." zod.dev, 2024.
+4. Zod. "superRefine." zod.dev, 2024.
+5. W3C. "Web Content Accessibility Guidelines (WCAG) 2.1." w3.org, 2018.
+6. WAI-ARIA. "ARIA Authoring Practices Guide - Forms." w3.org, 2024.
+7. Testing Library. "React Testing Library - User Event." testing-library.com, 2024.
+8. Playwright. "Test Generator." playwright.dev, 2024.
+9. @dnd-kit. "Sortable." dndkit.com, 2024.
+10. react-window. "Windowed Rendering." react-window.vercel.app, 2024.

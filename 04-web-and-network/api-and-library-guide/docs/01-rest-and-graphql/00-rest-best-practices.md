@@ -1799,3 +1799,777 @@ router.get('/api/v1/products', async (req, res) => {
     GET /api/v1/orders/123/items                 注文の商品一覧
     GET /api/v1/users/456/notifications          ユーザーの通知一覧
 ```
+
+---
+
+## 15. エッジケース分析
+
+### 15.1 エッジケース1: 論理削除と物理削除の共存
+
+リソースの削除には「論理削除（ソフトデリート）」と「物理削除（ハードデリート）」がある。多くのプロダクション環境では論理削除が推奨されるが、GDPRなどの規制対応で物理削除が必要になる場合もある。
+
+```javascript
+// 論理削除と物理削除の共存設計
+
+// ── 標準の DELETE: 論理削除 ──
+// DELETE /api/v1/users/usr_abc123
+// → deleted_at を設定、データは残存
+router.delete('/api/v1/users/:id', authenticate, async (req, res) => {
+  const user = await User.findById(req.params.id);
+  if (!user) throw Errors.notFound('User', req.params.id);
+
+  // 既に論理削除済みの場合
+  if (user.deleted_at) {
+    return res.status(410).json({
+      type: 'https://api.example.com/errors/gone',
+      title: 'Resource Gone',
+      status: 410,
+      detail: 'This resource has already been deleted.',
+      deleted_at: user.deleted_at,
+    });
+  }
+
+  await User.findByIdAndUpdate(req.params.id, {
+    deleted_at: new Date(),
+    deleted_by: req.user.id,
+  });
+
+  res.status(204).end();
+});
+
+// ── 物理削除（GDPR対応）: 別エンドポイント ──
+// DELETE /api/v1/users/usr_abc123/permanent
+// → データを完全に抹消
+router.delete('/api/v1/users/:id/permanent',
+  authenticate,
+  authorize('admin'),
+  requireMfa,  // MFA必須
+  async (req, res) => {
+    const user = await User.findById(req.params.id);
+    if (!user) throw Errors.notFound('User', req.params.id);
+
+    // 監査ログに記録
+    await AuditLog.create({
+      action: 'PERMANENT_DELETE',
+      resource_type: 'User',
+      resource_id: req.params.id,
+      performed_by: req.user.id,
+      reason: req.body.reason, // 削除理由（必須）
+      timestamp: new Date(),
+    });
+
+    // 関連データの削除
+    await Promise.all([
+      Order.updateMany(
+        { user_id: req.params.id },
+        { $set: { user_id: null, user_name: '[deleted]' } }
+      ),
+      Review.deleteMany({ user_id: req.params.id }),
+      User.findByIdAndDelete(req.params.id),
+    ]);
+
+    res.status(204).end();
+  }
+);
+
+// ── 論理削除されたリソースの取得 ──
+// GET /api/v1/users?include_deleted=true (管理者のみ)
+router.get('/api/v1/users', authenticate, async (req, res) => {
+  const filters = {};
+
+  // 通常ユーザーは削除済みを見れない
+  if (req.query.include_deleted === 'true' && req.user.role === 'admin') {
+    // フィルタなし（削除済みも含む）
+  } else {
+    filters.deleted_at = null;
+  }
+
+  const users = await User.find(filters);
+  res.json({ data: users.map(serializeUser) });
+});
+
+// ── 論理削除の復元 ──
+// POST /api/v1/users/usr_abc123/restore
+router.post('/api/v1/users/:id/restore',
+  authenticate,
+  authorize('admin'),
+  async (req, res) => {
+    const user = await User.findById(req.params.id);
+    if (!user) throw Errors.notFound('User', req.params.id);
+
+    if (!user.deleted_at) {
+      return res.status(409).json({
+        type: 'https://api.example.com/errors/conflict',
+        title: 'Resource Not Deleted',
+        status: 409,
+        detail: 'This resource is not in a deleted state.',
+      });
+    }
+
+    await User.findByIdAndUpdate(req.params.id, {
+      $unset: { deleted_at: 1, deleted_by: 1 },
+    });
+
+    const restored = await User.findById(req.params.id);
+    res.status(200).json({ data: serializeUser(restored) });
+  }
+);
+```
+
+### 15.2 エッジケース2: 非同期操作とポーリング
+
+長時間かかる操作（大量データのインポート、レポート生成、画像処理など）を同期的に処理するとタイムアウトが発生する。非同期パターンで解決する。
+
+```javascript
+// 非同期操作のパターン
+
+// ── Step 1: ジョブの開始 ──
+// POST /api/v1/reports
+// → 202 Accepted を即座に返し、バックグラウンドで処理
+router.post('/api/v1/reports', authenticate, async (req, res) => {
+  const { type, date_range, format } = req.body;
+
+  // バリデーション
+  const { error } = reportRequestSchema.validate(req.body);
+  if (error) throw Errors.validation(error.details);
+
+  // ジョブを作成
+  const job = await Job.create({
+    id: generateId('job'),
+    type: 'report_generation',
+    status: 'queued',
+    params: { type, date_range, format },
+    created_by: req.user.id,
+    created_at: new Date(),
+    progress: 0,
+  });
+
+  // キューに追加（実際の処理はワーカーが行う）
+  await queue.add('generate-report', {
+    jobId: job.id,
+    ...req.body,
+  });
+
+  res.status(202)
+    .set('Location', `/api/v1/jobs/${job.id}`)
+    .json({
+      data: {
+        job_id: job.id,
+        status: 'queued',
+        message: 'Report generation has been queued.',
+      },
+      links: {
+        status: { href: `/api/v1/jobs/${job.id}`, method: 'GET' },
+        cancel: { href: `/api/v1/jobs/${job.id}/cancel`, method: 'POST' },
+      },
+    });
+});
+
+// ── Step 2: ジョブの進捗確認 ──
+// GET /api/v1/jobs/job_abc123
+router.get('/api/v1/jobs/:id', authenticate, async (req, res) => {
+  const job = await Job.findById(req.params.id);
+  if (!job) throw Errors.notFound('Job', req.params.id);
+
+  const response = {
+    data: {
+      id: job.id,
+      type: job.type,
+      status: job.status,   // queued | processing | completed | failed | cancelled
+      progress: job.progress, // 0-100
+      created_at: job.created_at,
+      updated_at: job.updated_at,
+    },
+    links: {
+      self: { href: `/api/v1/jobs/${job.id}` },
+    },
+  };
+
+  switch (job.status) {
+    case 'queued':
+    case 'processing':
+      // ポーリング間隔を Retry-After で指示
+      res.set('Retry-After', '5'); // 5秒後に再確認
+      response.links.cancel = { href: `/api/v1/jobs/${job.id}/cancel`, method: 'POST' };
+      break;
+
+    case 'completed':
+      response.data.result_url = job.result_url;
+      response.links.result = { href: job.result_url, method: 'GET' };
+      break;
+
+    case 'failed':
+      response.data.error = job.error_message;
+      response.links.retry = { href: `/api/v1/reports`, method: 'POST' };
+      break;
+  }
+
+  res.status(200).json(response);
+});
+
+// ── Step 3: ジョブのキャンセル ──
+// POST /api/v1/jobs/job_abc123/cancel
+router.post('/api/v1/jobs/:id/cancel', authenticate, async (req, res) => {
+  const job = await Job.findById(req.params.id);
+  if (!job) throw Errors.notFound('Job', req.params.id);
+
+  if (['completed', 'failed', 'cancelled'].includes(job.status)) {
+    return res.status(409).json({
+      type: 'https://api.example.com/errors/conflict',
+      title: 'Job Cannot Be Cancelled',
+      status: 409,
+      detail: `Job is already in '${job.status}' state.`,
+    });
+  }
+
+  await Job.findByIdAndUpdate(req.params.id, {
+    status: 'cancelled',
+    cancelled_at: new Date(),
+    cancelled_by: req.user.id,
+  });
+
+  res.status(200).json({
+    data: { id: job.id, status: 'cancelled' },
+  });
+});
+```
+
+```
+非同期操作のシーケンス図:
+
+  Client                    API Server              Worker (Queue)
+    │                          │                         │
+    │  POST /api/v1/reports    │                         │
+    │ ────────────────────────→│                         │
+    │                          │  Job 作成 & キュー追加   │
+    │                          │────────────────────────→│
+    │  202 Accepted            │                         │
+    │  Location: /jobs/abc     │                         │
+    │ ←────────────────────────│                         │
+    │                          │                         │
+    │  (5秒後)                 │                         │
+    │  GET /api/v1/jobs/abc    │         処理中...       │
+    │ ────────────────────────→│                         │
+    │  200 { status:processing │                         │
+    │       progress: 45 }     │                         │
+    │  Retry-After: 5          │                         │
+    │ ←────────────────────────│                         │
+    │                          │                         │
+    │  (5秒後)                 │                         │
+    │  GET /api/v1/jobs/abc    │    処理完了             │
+    │ ────────────────────────→│←────────────────────────│
+    │  200 { status:completed  │                         │
+    │       result_url: "..." }│                         │
+    │ ←────────────────────────│                         │
+    │                          │                         │
+    │  GET /results/abc.csv    │                         │
+    │ ────────────────────────→│                         │
+    │  200 (レポートファイル)   │                         │
+    │ ←────────────────────────│                         │
+```
+
+---
+
+## 16. レート制限
+
+### 16.1 レート制限の実装
+
+```javascript
+// トークンバケットアルゴリズムによるレート制限
+
+const Redis = require('ioredis');
+const redis = new Redis();
+
+async function rateLimitMiddleware(req, res, next) {
+  const identifier = req.user?.id || req.ip; // 認証済みならユーザーID、未認証ならIP
+  const key = `ratelimit:${identifier}`;
+
+  // 設定
+  const limit = req.user ? 1000 : 100;  // 認証済み: 1000/分, 未認証: 100/分
+  const window = 60; // 60秒
+
+  // Redisでカウント
+  const multi = redis.multi();
+  multi.incr(key);
+  multi.ttl(key);
+  const [[, count], [, ttl]] = await multi.exec();
+
+  // 初回アクセス時にTTLを設定
+  if (ttl === -1) {
+    await redis.expire(key, window);
+  }
+
+  const remaining = Math.max(0, limit - count);
+  const resetTime = new Date(Date.now() + (ttl > 0 ? ttl : window) * 1000);
+
+  // レート制限ヘッダーを設定（RFC 6585 / Draft RateLimit Header）
+  res.set({
+    'RateLimit-Limit': limit.toString(),
+    'RateLimit-Remaining': remaining.toString(),
+    'RateLimit-Reset': Math.ceil(resetTime.getTime() / 1000).toString(),
+    'RateLimit-Policy': `${limit};w=${window}`,
+  });
+
+  if (count > limit) {
+    const retryAfter = ttl > 0 ? ttl : window;
+    res.set('Retry-After', retryAfter.toString());
+
+    return res.status(429).json({
+      type: 'https://api.example.com/errors/rate-limit',
+      title: 'Rate Limit Exceeded',
+      status: 429,
+      detail: `You have exceeded the limit of ${limit} requests per ${window} seconds.`,
+      retry_after: retryAfter,
+      limit,
+      remaining: 0,
+      reset: resetTime.toISOString(),
+    });
+  }
+
+  next();
+}
+
+app.use('/api/', rateLimitMiddleware);
+```
+
+---
+
+## 17. APIバージョニング
+
+APIのバージョニングは、既存クライアントの互換性を維持しながらAPIを進化させるための仕組みである。
+
+```
+バージョニング戦略の比較:
+
+  ┌──────────────────┬──────────────────────────────────────────┐
+  │  方式            │  特徴                                     │
+  ├──────────────────┼──────────────────────────────────────────┤
+  │  URI パス         │  /api/v1/users, /api/v2/users            │
+  │                  │  最も一般的で分かりやすい                  │
+  │                  │  ルーティングが明確                        │
+  │                  │  キャッシュが効きやすい                    │
+  │                  │  (GitHub, Stripe, Google 等が採用)        │
+  ├──────────────────┼──────────────────────────────────────────┤
+  │  クエリパラメータ │  /api/users?version=2                    │
+  │                  │  既存URLへの影響が小さい                   │
+  │                  │  パラメータ省略時のデフォルト設定が必要     │
+  │                  │  (Google API の一部が採用)                │
+  ├──────────────────┼──────────────────────────────────────────┤
+  │  カスタムヘッダー │  X-API-Version: 2                        │
+  │                  │  URIがクリーン                             │
+  │                  │  ブラウザから直接テストしにくい             │
+  │                  │  (Azure API Management 等)               │
+  ├──────────────────┼──────────────────────────────────────────┤
+  │  Accept ヘッダー │  Accept: application/vnd.myapi.v2+json   │
+  │                  │  RESTの原則に最も忠実                      │
+  │                  │  実装と利用が複雑                          │
+  │                  │  (GitHub API v3 が採用)                   │
+  └──────────────────┴──────────────────────────────────────────┘
+
+  推奨:
+  → URI パスが最も実用的（/api/v1/...）
+  → 新バージョンは破壊的変更がある場合のみ作成
+  → マイナー変更は同一バージョン内で後方互換に追加
+```
+
+```javascript
+// バージョンルーティングの実装例
+
+const express = require('express');
+const app = express();
+
+// バージョンごとにルーターを分離
+const v1Router = require('./routes/v1');
+const v2Router = require('./routes/v2');
+
+app.use('/api/v1', v1Router);
+app.use('/api/v2', v2Router);
+
+// バージョン非指定時のリダイレクト
+app.use('/api/users', (req, res) => {
+  // 最新安定版にリダイレクト
+  res.redirect(307, `/api/v2${req.url}`);
+});
+
+// 非推奨バージョンの警告ヘッダー
+function deprecationWarning(sunsetDate) {
+  return (req, res, next) => {
+    res.set({
+      'Deprecation': 'true',
+      'Sunset': sunsetDate,
+      'Link': '</api/v2>; rel="successor-version"',
+    });
+    next();
+  };
+}
+
+// v1 全体に非推奨警告を付与
+v1Router.use(deprecationWarning('2025-12-31T23:59:59Z'));
+```
+
+---
+
+## 18. 演習問題
+
+### 18.1 演習1: 基礎（リソース設計）
+
+**課題**: 図書館管理システムのREST APIを設計せよ。
+
+以下の要件を満たすURIとHTTPメソッドの組み合わせを設計すること。
+
+```
+要件:
+  - 書籍の管理（CRUD）
+  - 著者の管理（CRUD）
+  - 書籍の貸出・返却
+  - 貸出履歴の照会
+  - 書籍の検索（タイトル、著者名、ISBN）
+  - 会員の管理（CRUD）
+  - 会員ごとの貸出中リスト
+  - 予約機能
+
+模範解答:
+
+  # 書籍
+  GET    /api/v1/books                        書籍一覧
+  GET    /api/v1/books?q=REST&author=fielding  書籍検索
+  GET    /api/v1/books/:id                    書籍詳細
+  POST   /api/v1/books                        書籍登録
+  PUT    /api/v1/books/:id                    書籍更新（全体）
+  PATCH  /api/v1/books/:id                    書籍更新（部分）
+  DELETE /api/v1/books/:id                    書籍削除
+
+  # 著者
+  GET    /api/v1/authors                      著者一覧
+  GET    /api/v1/authors/:id                  著者詳細
+  GET    /api/v1/authors/:id/books            著者の書籍一覧
+  POST   /api/v1/authors                      著者登録
+  PUT    /api/v1/authors/:id                  著者更新
+  DELETE /api/v1/authors/:id                  著者削除
+
+  # 貸出
+  POST   /api/v1/books/:id/checkout           書籍の貸出
+  POST   /api/v1/books/:id/return             書籍の返却
+
+  # 会員
+  GET    /api/v1/members                      会員一覧
+  GET    /api/v1/members/:id                  会員詳細
+  GET    /api/v1/members/:id/checkouts        会員の貸出中リスト
+  GET    /api/v1/members/:id/history          会員の貸出履歴
+  POST   /api/v1/members                      会員登録
+
+  # 予約
+  POST   /api/v1/books/:id/reservations       予約作成
+  DELETE /api/v1/books/:id/reservations/:rid   予約キャンセル
+  GET    /api/v1/members/:id/reservations      会員の予約一覧
+```
+
+### 18.2 演習2: 中級（エラーハンドリングとステータスコード）
+
+**課題**: 以下の各シナリオに対して、適切なHTTPステータスコードとRFC 9457準拠のエラーレスポンスボディを記述せよ。
+
+```
+シナリオ:
+
+  A) ユーザーが無効なJSONをリクエストボディに送信した
+  B) 認証トークンが期限切れ
+  C) 一般ユーザーが管理者専用エンドポイントにアクセス
+  D) 存在しないユーザーIDを指定してGETリクエスト
+  E) メールアドレスが既に登録済みのユーザーを作成しようとした
+  F) 注文の同時更新が発生した（楽観ロック競合）
+  G) レート制限を超過
+  H) 外部決済APIがタイムアウトした
+
+模範解答:
+
+  A) 400 Bad Request
+  {
+    "type": "https://api.example.com/errors/malformed-request",
+    "title": "Malformed Request Body",
+    "status": 400,
+    "detail": "The request body contains invalid JSON. Unexpected token at position 42."
+  }
+
+  B) 401 Unauthorized
+  {
+    "type": "https://api.example.com/errors/token-expired",
+    "title": "Authentication Token Expired",
+    "status": 401,
+    "detail": "Your authentication token has expired. Please re-authenticate."
+  }
+
+  C) 403 Forbidden
+  {
+    "type": "https://api.example.com/errors/insufficient-permissions",
+    "title": "Insufficient Permissions",
+    "status": 403,
+    "detail": "You need 'admin' role to access this resource."
+  }
+
+  D) 404 Not Found
+  {
+    "type": "https://api.example.com/errors/not-found",
+    "title": "User Not Found",
+    "status": 404,
+    "detail": "User with id 'usr_xyz789' does not exist."
+  }
+
+  E) 409 Conflict
+  {
+    "type": "https://api.example.com/errors/duplicate",
+    "title": "Resource Already Exists",
+    "status": 409,
+    "detail": "A user with email 'test@example.com' already exists.",
+    "conflicting_field": "email"
+  }
+
+  F) 412 Precondition Failed
+  {
+    "type": "https://api.example.com/errors/precondition-failed",
+    "title": "Precondition Failed",
+    "status": 412,
+    "detail": "The order has been modified by another client.",
+    "current_etag": "\"v8\"",
+    "your_etag": "\"v7\""
+  }
+
+  G) 429 Too Many Requests
+  {
+    "type": "https://api.example.com/errors/rate-limit",
+    "title": "Rate Limit Exceeded",
+    "status": 429,
+    "detail": "Rate limit of 100 requests per minute exceeded.",
+    "retry_after": 23
+  }
+
+  H) 502 Bad Gateway
+  {
+    "type": "https://api.example.com/errors/upstream-timeout",
+    "title": "Payment Service Timeout",
+    "status": 502,
+    "detail": "The payment service did not respond in time. Please retry."
+  }
+```
+
+### 18.3 演習3: 上級（完全なAPI設計）
+
+**課題**: タスク管理アプリケーションの REST API を設計せよ。以下の要件を全て満たすこと。
+
+```
+要件:
+  - タスクのCRUD
+  - タスクの状態遷移（todo → in_progress → review → done）
+  - タスクのアサイン（担当者の設定）
+  - プロジェクト単位のタスク管理
+  - タスクへのコメント機能
+  - タスクの一括ステータス変更
+  - HATEOAS対応（状態に応じたリンク）
+  - 楽観的ロック対応
+  - ページネーション対応
+  - 適切なエラーレスポンス
+
+設計すべき項目:
+  1. 全エンドポイントの一覧（URI + Method）
+  2. 代表的なレスポンスのJSON（HATEOAS付き）
+  3. 状態遷移図
+  4. エラーケースの列挙
+
+模範解答（抜粋）:
+
+  # エンドポイント一覧
+  GET    /api/v1/projects                          プロジェクト一覧
+  POST   /api/v1/projects                          プロジェクト作成
+  GET    /api/v1/projects/:pid                     プロジェクト詳細
+  GET    /api/v1/projects/:pid/tasks               プロジェクトのタスク一覧
+  POST   /api/v1/projects/:pid/tasks               タスク作成
+  GET    /api/v1/tasks/:id                         タスク詳細
+  PUT    /api/v1/tasks/:id                         タスク更新
+  PATCH  /api/v1/tasks/:id                         タスク部分更新
+  DELETE /api/v1/tasks/:id                         タスク削除
+  POST   /api/v1/tasks/:id/transition              状態遷移
+  PATCH  /api/v1/tasks/:id/assignee                アサイン変更
+  GET    /api/v1/tasks/:id/comments                コメント一覧
+  POST   /api/v1/tasks/:id/comments                コメント投稿
+  PATCH  /api/v1/tasks/batch                       一括ステータス変更
+
+  # 状態遷移図
+       ┌──────┐     start      ┌─────────────┐
+       │ todo │ ──────────────→│ in_progress │
+       └──────┘                └─────────────┘
+                                 │        │
+                          submit │        │ return
+                                 ▼        │
+                              ┌────────┐  │
+                              │ review │──┘
+                              └────────┘
+                                 │
+                          approve│
+                                 ▼
+                              ┌──────┐
+                              │ done │
+                              └──────┘
+
+  # タスク詳細のレスポンス（status = "in_progress"）
+  {
+    "data": {
+      "id": "task_abc123",
+      "title": "REST APIガイドの執筆",
+      "description": "...",
+      "status": "in_progress",
+      "assignee": {
+        "id": "usr_def456",
+        "name": "田中太郎"
+      },
+      "project_id": "proj_ghi789",
+      "version": 3,
+      "created_at": "2025-01-10T09:00:00Z",
+      "updated_at": "2025-01-12T14:30:00Z"
+    },
+    "links": {
+      "self":       { "href": "/api/v1/tasks/task_abc123", "method": "GET" },
+      "update":     { "href": "/api/v1/tasks/task_abc123", "method": "PUT" },
+      "submit":     { "href": "/api/v1/tasks/task_abc123/transition",
+                      "method": "POST", "body": { "to": "review" } },
+      "comments":   { "href": "/api/v1/tasks/task_abc123/comments", "method": "GET" },
+      "project":    { "href": "/api/v1/projects/proj_ghi789", "method": "GET" },
+      "assignee":   { "href": "/api/v1/users/usr_def456", "method": "GET" }
+    }
+  }
+```
+
+---
+
+## 19. FAQ
+
+### Q1: PUT と PATCH のどちらを使うべきか？
+
+**A**: 実務では PATCH（Merge Patch）を基本とし、設定系のリソースでのみ PUT を使うのが最も実用的である。
+
+理由は以下の通り:
+- PUT は全フィールドの送信が必要なため、クライアントの実装負荷が高い
+- フィールドの追加時に、PUT では全クライアントの更新が必要
+- PATCH（Merge Patch）は変更フィールドのみ送信するため、帯域幅の節約にもなる
+- ただし、設定ファイルのように「全体を一括で管理する」リソースでは PUT が適切
+
+```
+判断基準:
+  「このリソースは部分的に更新されるか？」
+    → Yes → PATCH（Merge Patch）
+    → No（常に全体を置換） → PUT
+```
+
+### Q2: ネストが深いリソースはどう設計するか？
+
+**A**: ネストは最大2段までとし、3段以上が必要な場合はクエリパラメータでフィルタリングする。
+
+```
+悪い例:  GET /companies/1/departments/2/teams/3/members
+良い例:  GET /members?team_id=3
+         GET /teams/3/members  （1段のネストは許容）
+```
+
+リソースが独立してアクセスされる場面があるなら、トップレベルのエンドポイントを提供すべきである。例えば、チームに属する「メンバー」は `/members/:id` でも直接アクセスできるようにする。
+
+### Q3: 認証にはどの方式を採用すべきか？
+
+**A**: マシン間通信（M2M）ではAPIキーまたはOAuth2 Client Credentials、ユーザー操作が伴う場合はOAuth2 Authorization Code + PKCE を推奨する。
+
+```
+用途別の推奨認証方式:
+
+  ┌──────────────────┬────────────────────────────────┐
+  │  用途            │  推奨方式                       │
+  ├──────────────────┼────────────────────────────────┤
+  │  SPA             │  OAuth2 Authorization Code     │
+  │                  │  + PKCE + Secure Cookie        │
+  ├──────────────────┼────────────────────────────────┤
+  │  モバイルアプリ   │  OAuth2 Authorization Code     │
+  │                  │  + PKCE                        │
+  ├──────────────────┼────────────────────────────────┤
+  │  サーバー間通信   │  OAuth2 Client Credentials     │
+  │                  │  or API Key + Secret           │
+  ├──────────────────┼────────────────────────────────┤
+  │  管理画面        │  OAuth2 + MFA                  │
+  ├──────────────────┼────────────────────────────────┤
+  │  Webhook         │  HMAC署名検証                  │
+  └──────────────────┴────────────────────────────────┘
+
+  非推奨:
+  → Basic認証（パスワードが毎回送信される）
+  → JWT をローカルストレージに保存（XSS脆弱性）
+  → APIキーのみ（ユーザー操作に使う場合）
+```
+
+### Q4: レスポンスのフィールド名はキャメルケースかスネークケースか？
+
+**A**: JSON APIではスネークケース（`snake_case`）が推奨される。JavaScript のプロパティ名の慣習はキャメルケースだが、APIレベルでは以下の理由でスネークケースが優勢である。
+
+- Google JSON Style Guide がスネークケースを推奨
+- Ruby, Python, Go など多くのバックエンド言語の慣習と一致
+- GitHub, Stripe, Twilio 等の主要APIがスネークケースを採用
+- ただし、組織内で統一されていることが最も重要
+
+### Q5: 空のレスポンスはどう返すべきか？
+
+**A**: 空のコレクションは200 OKで空配列を返す。リソースが見つからない場合は404を返す。DELETEの成功は204 No Contentでボディなしとする。
+
+```javascript
+// 空のコレクション: 200 + 空配列（404ではない）
+// GET /api/v1/users?status=vip （VIPユーザーがいない場合）
+{
+  "data": [],
+  "meta": { "page": 1, "limit": 20, "total": 0, "total_pages": 0 }
+}
+
+// リソースが見つからない: 404
+// GET /api/v1/users/nonexistent
+{
+  "type": "https://api.example.com/errors/not-found",
+  "title": "User Not Found",
+  "status": 404,
+  "detail": "User with id 'nonexistent' does not exist."
+}
+
+// DELETE成功: 204 No Content（ボディなし）
+// DELETE /api/v1/users/usr_abc123
+// → 204 (空レスポンス)
+```
+
+---
+
+## 20. まとめ
+
+| 概念 | ポイント |
+|------|---------|
+| リソース設計 | 名詞・複数形・ケバブケース、ネストは2段まで |
+| HTTPメソッド | GET=取得, POST=作成, PUT=完全置換, PATCH=部分更新, DELETE=削除 |
+| ステータスコード | 201=作成成功, 204=ボディなし成功, 422=バリデーション, 429=レート制限 |
+| エラーレスポンス | RFC 9457準拠: type, title, status, detail, instance |
+| HATEOAS | 状態に応じたリンクの動的変化、最低でもLevel 1を目指す |
+| 冪等性 | Idempotency-Keyで POST を冪等に、Stripe方式が業界標準 |
+| PATCH | Merge Patch（シンプル）vs JSON Patch（高機能） |
+| バルク操作 | 部分失敗を許容、207 Multi-Statusで個別結果を返す |
+| 楽観ロック | ETag / If-Match で同時更新検出、412で競合通知 |
+| ページネーション | 大量データにはカーソルベース、UI向けにはオフセットベース |
+| バージョニング | URIパス方式（/api/v1/...）が最も実用的 |
+| レート制限 | RateLimit-* ヘッダーで残数通知、429で制限超過 |
+
+---
+
+## 次に読むべきガイド
+
+- [[01-graphql-fundamentals.md]] -- GraphQL基礎: クエリ言語、スキーマ、リゾルバ
+- [[02-api-versioning.md]] -- APIバージョニング戦略の詳細
+- [[03-authentication.md]] -- API認証・認可の実装パターン
+
+---
+
+## 参考文献
+
+1. Fielding, R. "Architectural Styles and the Design of Network-based Software Architectures." Ph.D. Dissertation, University of California, Irvine, 2000. https://www.ics.uci.edu/~fielding/pubs/dissertation/top.htm
+2. RFC 9457. "Problem Details for HTTP APIs." IETF, 2023. https://datatracker.ietf.org/doc/html/rfc9457
+3. RFC 7396. "JSON Merge Patch." IETF, 2014. https://datatracker.ietf.org/doc/html/rfc7396
+4. RFC 6902. "JavaScript Object Notation (JSON) Patch." IETF, 2013. https://datatracker.ietf.org/doc/html/rfc6902
+5. RFC 9110. "HTTP Semantics." IETF, 2022. https://datatracker.ietf.org/doc/html/rfc9110
+6. Google. "Google JSON Style Guide." https://google.github.io/styleguide/jsoncstyleguide.xml
+7. Stripe. "Stripe API Reference - Idempotent Requests." https://docs.stripe.com/api/idempotent_requests

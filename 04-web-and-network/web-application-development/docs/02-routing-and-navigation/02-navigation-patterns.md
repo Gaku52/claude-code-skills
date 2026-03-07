@@ -2830,3 +2830,1027 @@ function AccessibleMegaMenu() {
   );
 }
 ```
+
+---
+
+## 9. レスポンシブナビゲーション戦略
+
+### 9.1 ブレークポイント別ナビゲーション切り替え
+
+異なるデバイスサイズに応じて最適なナビゲーションパターンを自動的に切り替える戦略を実装する。
+
+```
+レスポンシブナビゲーション戦略:
+
+  デスクトップ（≥ 1280px）:
+  ┌──────────┬──────────────────────────────────────┐
+  │          │                                      │
+  │ サイドバー │       メインコンテンツ                  │
+  │ (常時表示) │                                      │
+  │ 256px    │       ブレッドクラム                    │
+  │          │       タブナビゲーション                 │
+  │          │       コンテンツ                       │
+  │          │                                      │
+  └──────────┴──────────────────────────────────────┘
+
+  タブレット（768px - 1279px）:
+  ┌────┬────────────────────────────────────────────┐
+  │    │                                            │
+  │icons│       メインコンテンツ                       │
+  │64px │                                            │
+  │    │       ブレッドクラム                          │
+  │    │       タブナビゲーション                      │
+  │    │       コンテンツ                             │
+  │    │                                            │
+  └────┴────────────────────────────────────────────┘
+  → サイドバー折りたたみ（アイコンのみ）
+  → ホバーで一時的に展開
+
+  モバイル（< 768px）:
+  ┌──────────────────────────────────────────────────┐
+  │ [≡]  MyApp                          [通知] [人]  │
+  ├──────────────────────────────────────────────────┤
+  │                                                  │
+  │       メインコンテンツ                             │
+  │                                                  │
+  │       コンテンツ                                  │
+  │                                                  │
+  ├──────────────────────────────────────────────────┤
+  │  Home  Search Create Notif Profile               │
+  └──────────────────────────────────────────────────┘
+  → ハンバーガーメニュー + ドロワー
+  → ボトムナビゲーション
+  → スティッキーヘッダー
+```
+
+### 9.2 レスポンシブレイアウトの実装
+
+```typescript
+// レスポンシブナビゲーションレイアウト
+'use client';
+import { useState, useEffect, ReactNode } from 'react';
+import { cn } from '@/lib/utils';
+import { motion, AnimatePresence } from 'framer-motion';
+
+// ブレークポイントの定義
+const breakpoints = {
+  sm: 640,
+  md: 768,
+  lg: 1024,
+  xl: 1280,
+} as const;
+
+// 画面サイズ検出カスタムフック
+function useBreakpoint() {
+  const [breakpoint, setBreakpoint] = useState<'mobile' | 'tablet' | 'desktop'>('desktop');
+
+  useEffect(() => {
+    const checkBreakpoint = () => {
+      const width = window.innerWidth;
+      if (width < breakpoints.md) {
+        setBreakpoint('mobile');
+      } else if (width < breakpoints.xl) {
+        setBreakpoint('tablet');
+      } else {
+        setBreakpoint('desktop');
+      }
+    };
+
+    checkBreakpoint();
+    window.addEventListener('resize', checkBreakpoint);
+    return () => window.removeEventListener('resize', checkBreakpoint);
+  }, []);
+
+  return breakpoint;
+}
+
+// メディアクエリベースのカスタムフック（SSR対応）
+function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState(false);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(query);
+    setMatches(mediaQuery.matches);
+
+    const handler = (e: MediaQueryListEvent) => setMatches(e.matches);
+    mediaQuery.addEventListener('change', handler);
+    return () => mediaQuery.removeEventListener('change', handler);
+  }, [query]);
+
+  return matches;
+}
+
+// レスポンシブナビゲーションレイアウト
+function ResponsiveLayout({ children }: { children: ReactNode }) {
+  const breakpoint = useBreakpoint();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  // ブレークポイント変更時にモバイルメニューを閉じる
+  useEffect(() => {
+    if (breakpoint !== 'mobile') {
+      setMobileMenuOpen(false);
+    }
+    if (breakpoint === 'tablet') {
+      setSidebarCollapsed(true);
+    } else if (breakpoint === 'desktop') {
+      setSidebarCollapsed(false);
+    }
+  }, [breakpoint]);
+
+  return (
+    <div className="flex h-screen overflow-hidden">
+      {/* デスクトップ/タブレット: サイドバー */}
+      {breakpoint !== 'mobile' && (
+        <aside
+          className={cn(
+            'flex-shrink-0 bg-gray-900 text-white transition-all duration-300',
+            sidebarCollapsed ? 'w-16' : 'w-64'
+          )}
+        >
+          <Sidebar collapsed={sidebarCollapsed} />
+        </aside>
+      )}
+
+      {/* メインコンテンツエリア */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* モバイル: トップヘッダー */}
+        {breakpoint === 'mobile' && (
+          <header className="flex items-center justify-between h-14 px-4 bg-white border-b border-gray-200">
+            <button
+              onClick={() => setMobileMenuOpen(true)}
+              className="p-2 rounded-md hover:bg-gray-100"
+              aria-label="Open menu"
+            >
+              <MenuIcon className="w-5 h-5" />
+            </button>
+            <span className="text-lg font-bold">MyApp</span>
+            <div className="flex items-center gap-2">
+              <button className="p-2 rounded-md hover:bg-gray-100">
+                <BellIcon className="w-5 h-5" />
+              </button>
+            </div>
+          </header>
+        )}
+
+        {/* メインコンテンツ */}
+        <main className="flex-1 overflow-y-auto">
+          {children}
+        </main>
+
+        {/* モバイル: ボトムナビゲーション */}
+        {breakpoint === 'mobile' && <BottomNavigation />}
+      </div>
+
+      {/* モバイル: ドロワーメニュー */}
+      <AnimatePresence>
+        {mobileMenuOpen && breakpoint === 'mobile' && (
+          <>
+            {/* オーバーレイ */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 z-40"
+              onClick={() => setMobileMenuOpen(false)}
+            />
+            {/* ドロワー */}
+            <motion.aside
+              initial={{ x: -280 }}
+              animate={{ x: 0 }}
+              exit={{ x: -280 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="fixed top-0 left-0 bottom-0 w-[280px] bg-gray-900 text-white z-50 overflow-y-auto"
+            >
+              <div className="flex items-center justify-between p-4 border-b border-gray-800">
+                <span className="text-lg font-bold">MyApp</span>
+                <button
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="p-1 rounded-md hover:bg-gray-800"
+                  aria-label="Close menu"
+                >
+                  <XIcon className="w-5 h-5" />
+                </button>
+              </div>
+              <Sidebar collapsed={false} />
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+```
+
+### 9.3 モバイルドロワーナビゲーション（shadcn/ui Sheet）
+
+```typescript
+// shadcn/ui Sheet を使ったモバイルドロワー
+'use client';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+  SheetClose,
+} from '@/components/ui/sheet';
+import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
+
+function MobileDrawerNav() {
+  const [open, setOpen] = useState(false);
+  const pathname = usePathname();
+
+  // ページ遷移時にドロワーを閉じる
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
+  return (
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger asChild>
+        <button className="p-2 rounded-md hover:bg-gray-100 md:hidden">
+          <MenuIcon className="w-5 h-5" />
+        </button>
+      </SheetTrigger>
+      <SheetContent side="left" className="w-[280px] p-0 bg-gray-900">
+        <SheetHeader className="p-4 border-b border-gray-800">
+          <SheetTitle className="text-white text-lg">MyApp</SheetTitle>
+        </SheetHeader>
+        <nav className="p-3">
+          {navigation.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={() => setOpen(false)}
+              className={cn(
+                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                pathname.startsWith(item.href)
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-800'
+              )}
+            >
+              <item.icon className="w-5 h-5" />
+              {item.name}
+              {item.badge && (
+                <span className="ml-auto px-2 py-0.5 text-xs bg-red-500 text-white rounded-full">
+                  {item.badge}
+                </span>
+              )}
+            </Link>
+          ))}
+        </nav>
+      </SheetContent>
+    </Sheet>
+  );
+}
+```
+
+---
+
+## 10. ナビゲーションのアクセシビリティ
+
+### 10.1 WAI-ARIA によるナビゲーションマークアップ
+
+```
+ナビゲーションのアクセシビリティ要件:
+
+  1. ランドマーク
+     → <nav> 要素を使用する
+     → 複数の <nav> がある場合は aria-label で区別
+     → <nav aria-label="Main navigation">
+     → <nav aria-label="Breadcrumb">
+
+  2. 現在地の表示
+     → 現在のページに aria-current="page" を設定
+     → 現在のセクションに aria-current="true" を設定
+     → スクリーンリーダーが現在位置を読み上げ可能
+
+  3. キーボード操作
+     → Tab / Shift+Tab でフォーカス移動
+     → Enter / Space でリンク遷移・ボタン操作
+     → 矢印キーでメニュー内移動（メニューバーの場合）
+     → Escape でサブメニュー閉じる
+     → Home / End で最初/最後の項目に移動
+
+  4. フォーカス管理
+     → フォーカスリングを常に表示（:focus-visible）
+     → フォーカストラップ（モーダル/ドロワー内）
+     → フォーカス復元（メニュー閉じた後に元の要素に戻す）
+
+  5. スクリーンリーダー対応
+     → 装飾的アイコンに aria-hidden="true"
+     → アイコンのみのボタンに aria-label を設定
+     → メニュー展開状態に aria-expanded を設定
+     → サブメニューに aria-haspopup を設定
+
+  6. カラーコントラスト
+     → テキストと背景のコントラスト比 4.5:1 以上
+     → アクティブ状態の識別が色のみに依存しない
+     → フォーカスリングは十分に視認可能
+```
+
+### 10.2 フォーカストラップの実装
+
+```typescript
+// モーダル/ドロワー用フォーカストラップ
+import { useEffect, useRef, useCallback } from 'react';
+
+function useFocusTrap(isActive: boolean) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+
+  // フォーカス可能な要素を取得
+  const getFocusableElements = useCallback(() => {
+    if (!containerRef.current) return [];
+    const elements = containerRef.current.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), textarea:not([disabled]), ' +
+      'input:not([disabled]):not([type="hidden"]), select:not([disabled]), ' +
+      '[tabindex]:not([tabindex="-1"])'
+    );
+    return Array.from(elements);
+  }, []);
+
+  useEffect(() => {
+    if (!isActive) return;
+
+    // 現在のフォーカスを保存
+    previousFocusRef.current = document.activeElement as HTMLElement;
+
+    // コンテナ内の最初の要素にフォーカス
+    const focusableElements = getFocusableElements();
+    if (focusableElements.length > 0) {
+      focusableElements[0].focus();
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+
+      const focusable = getFocusableElements();
+      if (focusable.length === 0) return;
+
+      const firstElement = focusable[0];
+      const lastElement = focusable[focusable.length - 1];
+
+      if (e.shiftKey) {
+        // Shift+Tab: 最初の要素から最後にループ
+        if (document.activeElement === firstElement) {
+          e.preventDefault();
+          lastElement.focus();
+        }
+      } else {
+        // Tab: 最後の要素から最初にループ
+        if (document.activeElement === lastElement) {
+          e.preventDefault();
+          firstElement.focus();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      // フォーカスを復元
+      previousFocusRef.current?.focus();
+    };
+  }, [isActive, getFocusableElements]);
+
+  return containerRef;
+}
+
+// 使用例: ドロワーメニュー
+function AccessibleDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const containerRef = useFocusTrap(open);
+
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    if (open) {
+      document.addEventListener('keydown', handleEscape);
+      // スクロール禁止
+      document.body.style.overflow = 'hidden';
+    }
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+      document.body.style.overflow = '';
+    };
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  return (
+    <div
+      ref={containerRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Navigation menu"
+      className="fixed inset-0 z-50"
+    >
+      {/* オーバーレイ */}
+      <div
+        className="absolute inset-0 bg-black/50"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      {/* ドロワー内容 */}
+      <div className="absolute top-0 left-0 bottom-0 w-[280px] bg-white shadow-xl">
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 p-1 rounded-md hover:bg-gray-100"
+          aria-label="Close navigation menu"
+        >
+          <XIcon className="w-5 h-5" />
+        </button>
+        <nav aria-label="Main navigation" className="p-4 mt-12">
+          {/* ナビゲーション項目 */}
+        </nav>
+      </div>
+    </div>
+  );
+}
+```
+
+### 10.3 スキップリンクの実装
+
+```typescript
+// スキップリンク（ページの先頭に配置）
+function SkipLinks() {
+  return (
+    <div className="sr-only focus-within:not-sr-only">
+      <a
+        href="#main-content"
+        className="fixed top-2 left-2 z-[100] px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+      >
+        Skip to main content
+      </a>
+      <a
+        href="#main-navigation"
+        className="fixed top-2 left-48 z-[100] px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+      >
+        Skip to navigation
+      </a>
+    </div>
+  );
+}
+
+// レイアウトでの使用
+function RootLayout({ children }: { children: ReactNode }) {
+  return (
+    <html lang="ja">
+      <body>
+        <SkipLinks />
+        <nav id="main-navigation" aria-label="Main navigation">
+          <Sidebar />
+        </nav>
+        <main id="main-content">
+          {children}
+        </main>
+      </body>
+    </html>
+  );
+}
+```
+
+### 10.4 アクセシビリティチェックリスト
+
+```
+ナビゲーション アクセシビリティ チェックリスト:
+
+  構造:
+    [ ] <nav> 要素を使用している
+    [ ] 複数の <nav> に aria-label で区別している
+    [ ] リスト（<ul>/<ol>）でナビゲーション項目を構造化している
+    [ ] スキップリンクを実装している
+
+  状態:
+    [ ] aria-current="page" で現在のページを表示
+    [ ] aria-expanded で展開/折りたたみ状態を表示
+    [ ] aria-haspopup でサブメニューの存在を表示
+    [ ] aria-selected でタブの選択状態を表示
+
+  キーボード:
+    [ ] Tab で全ナビゲーション項目にアクセス可能
+    [ ] Enter / Space でアクション実行
+    [ ] Escape でサブメニュー/ドロワーを閉じる
+    [ ] フォーカスリングが常に表示される
+    [ ] フォーカストラップが適切に実装されている
+
+  視覚:
+    [ ] テキストのコントラスト比 4.5:1 以上
+    [ ] アクティブ状態が色以外でも識別可能
+    [ ] フォーカスリングのコントラスト比 3:1 以上
+    [ ] ターゲットサイズ 44x44px 以上（モバイル）
+
+  スクリーンリーダー:
+    [ ] 装飾的要素に aria-hidden="true"
+    [ ] アイコンボタンに aria-label
+    [ ] バッジ数にスクリーンリーダーテキスト
+    [ ] 動的コンテンツ変更を aria-live で通知
+```
+
+---
+
+## 11. パフォーマンス最適化
+
+### 11.1 ナビゲーションの再レンダリング最適化
+
+```typescript
+// React.memo によるナビゲーション項目の最適化
+import { memo, useMemo } from 'react';
+
+// ナビゲーション項目を memo 化
+const MemoizedNavItem = memo(function MemoizedNavItem({
+  item,
+  isActive,
+  isExpanded,
+  onToggle,
+}: {
+  item: NavItem;
+  isActive: boolean;
+  isExpanded: boolean;
+  onToggle: (href: string) => void;
+}) {
+  return (
+    <div>
+      <Link
+        href={item.href}
+        className={cn(
+          'flex items-center gap-3 px-3 py-2 rounded-lg text-sm',
+          isActive ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
+        )}
+        aria-current={isActive ? 'page' : undefined}
+      >
+        <item.icon className="w-5 h-5" />
+        <span>{item.name}</span>
+      </Link>
+    </div>
+  );
+});
+
+// サイドバー全体の最適化
+function OptimizedSidebar() {
+  const pathname = usePathname();
+
+  // ナビゲーション設定を memo 化
+  const navItems = useMemo(() => navigation, []);
+
+  // アクティブ状態の計算を memo 化
+  const activeStates = useMemo(() => {
+    return new Map(
+      navItems.map((item) => [item.href, pathname.startsWith(item.href)])
+    );
+  }, [navItems, pathname]);
+
+  return (
+    <nav>
+      {navItems.map((item) => (
+        <MemoizedNavItem
+          key={item.href}
+          item={item}
+          isActive={activeStates.get(item.href) || false}
+          isExpanded={false}
+          onToggle={() => {}}
+        />
+      ))}
+    </nav>
+  );
+}
+```
+
+### 11.2 ルートプリフェッチと遅延読み込み
+
+```typescript
+// Next.js のプリフェッチ最適化
+import Link from 'next/link';
+
+// デフォルト: ビューポート内のリンクを自動プリフェッチ
+function NavigationWithPrefetch() {
+  return (
+    <nav>
+      {/* 頻繁に使うページ: プリフェッチ有効（デフォルト） */}
+      <Link href="/dashboard" prefetch={true}>
+        Dashboard
+      </Link>
+
+      {/* まれに使うページ: プリフェッチ無効 */}
+      <Link href="/settings/api-keys" prefetch={false}>
+        API Keys
+      </Link>
+
+      {/* ホバー時にプリフェッチ（カスタム実装） */}
+      <HoverPrefetchLink href="/analytics">
+        Analytics
+      </HoverPrefetchLink>
+    </nav>
+  );
+}
+
+// ホバー時プリフェッチのカスタムリンク
+function HoverPrefetchLink({
+  href,
+  children,
+  ...props
+}: {
+  href: string;
+  children: ReactNode;
+}) {
+  const router = useRouter();
+  const [prefetched, setPrefetched] = useState(false);
+
+  const handleMouseEnter = useCallback(() => {
+    if (!prefetched) {
+      router.prefetch(href);
+      setPrefetched(true);
+    }
+  }, [href, prefetched, router]);
+
+  return (
+    <Link
+      href={href}
+      onMouseEnter={handleMouseEnter}
+      prefetch={false}
+      {...props}
+    >
+      {children}
+    </Link>
+  );
+}
+
+// ナビゲーションコンポーネントの遅延読み込み
+import dynamic from 'next/dynamic';
+
+const LazyCommandPalette = dynamic(() => import('@/components/CommandPalette'), {
+  ssr: false,
+  loading: () => null, // 非表示のため loading 不要
+});
+
+const LazyMegaMenu = dynamic(() => import('@/components/MegaMenu'), {
+  ssr: false,
+  loading: () => <div className="h-10 bg-gray-100 animate-pulse rounded" />,
+});
+```
+
+### 11.3 ナビゲーションのバンドルサイズ最適化
+
+```
+バンドルサイズ最適化のポイント:
+
+  1. アイコンのツリーシェイキング
+     → import { HomeIcon } from 'lucide-react'  (個別インポート ✅)
+     → import * as Icons from 'lucide-react'     (全インポート ❌)
+     → アイコンライブラリの選定（lucide-react は軽量）
+
+  2. コマンドパレットの遅延読み込み
+     → dynamic import で初期バンドルに含めない
+     → ユーザーが Cmd+K を押した時に読み込み
+     → ssr: false で SSR を無効化
+
+  3. アニメーションライブラリの選定
+     → framer-motion: 高機能だがバンドルサイズ大（約30KB gzipped）
+     → CSS transitions: ゼロコスト
+     → @formkit/auto-animate: 軽量（約2KB）
+     → 軽微なアニメーションは CSS で十分
+
+  4. ナビゲーション設定の分離
+     → ナビゲーション定義を別ファイルに分離
+     → 権限に基づくフィルタリングをサーバーサイドで実行
+     → 不要な項目をクライアントに送らない
+
+  5. 画像の最適化（メガメニュー）
+     → next/image で自動最適化
+     → lazy loading でビューポート外は遅延読み込み
+     → WebP/AVIF フォーマットの使用
+```
+
+---
+
+## 12. トラブルシューティング
+
+### 12.1 よくある問題と解決策
+
+```
+問題1: サイドバーのアクティブ状態が正しく反映されない
+
+  症状:
+    → /users/123/edit にいるのに Users がハイライトされない
+    → 複数の項目がアクティブになる
+
+  原因:
+    → パスの完全一致で判定している
+    → パスの前方一致が広すぎる（/ が全てにマッチ）
+
+  解決策:
+    // ❌ 完全一致のみ
+    const isActive = pathname === item.href;
+
+    // ❌ 広すぎる前方一致
+    const isActive = pathname.startsWith(item.href);
+
+    // ✅ 適切な判定
+    const isActive = pathname === item.href ||
+      (item.href !== '/' && pathname.startsWith(item.href + '/'));
+
+    // ✅ 子パスも考慮した判定
+    const isActive = item.children
+      ? item.children.some(child =>
+          pathname === child.href || pathname.startsWith(child.href + '/'))
+      : pathname === item.href || pathname.startsWith(item.href + '/');
+
+
+問題2: モバイルメニューがページ遷移後も開いたまま
+
+  症状:
+    → リンクをクリックしてもドロワーが閉じない
+    → Next.js のクライアントサイドナビゲーションで発生
+
+  原因:
+    → pathname の変更を監視していない
+    → Link コンポーネントの onClick で閉じていない
+
+  解決策:
+    // pathname 変更で自動的に閉じる
+    const pathname = usePathname();
+    useEffect(() => {
+      setMobileMenuOpen(false);
+    }, [pathname]);
+
+
+問題3: スクロール時にサイドバーがちらつく
+
+  症状:
+    → スクロールするたびにサイドバーが再レンダリングされる
+    → パフォーマンスが低下する
+
+  原因:
+    → サイドバーがメインコンテンツと同じスクロールコンテナにある
+    → スクロールイベントで不要な状態更新が発生
+
+  解決策:
+    // ✅ サイドバーを固定、コンテンツのみスクロール
+    <div className="flex h-screen overflow-hidden">
+      <aside className="w-64 h-screen overflow-y-auto flex-shrink-0">
+        <Sidebar />
+      </aside>
+      <main className="flex-1 overflow-y-auto">
+        {children}
+      </main>
+    </div>
+
+
+問題4: コマンドパレットが他の要素の下に表示される
+
+  症状:
+    → コマンドパレットがモーダルやドロワーの下に隠れる
+    → z-index の競合
+
+  原因:
+    → z-index の管理が不適切
+    → stacking context の理解不足
+
+  解決策:
+    // z-index の統一管理
+    // tailwind.config.js
+    module.exports = {
+      theme: {
+        extend: {
+          zIndex: {
+            'dropdown': '10',
+            'sticky': '20',
+            'fixed': '30',
+            'drawer-overlay': '40',
+            'drawer': '41',
+            'modal-overlay': '50',
+            'modal': '51',
+            'command-palette': '60',
+            'toast': '70',
+            'tooltip': '80',
+          },
+        },
+      },
+    };
+
+
+問題5: iOS Safari でボトムナビがホームインジケーターと重なる
+
+  症状:
+    → iPhone X以降のホームインジケーター領域にボトムナビが被る
+    → タップしにくい
+
+  原因:
+    → env(safe-area-inset-bottom) を使用していない
+    → viewport meta タグの設定不足
+
+  解決策:
+    <!-- viewport meta タグ -->
+    <meta name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover" />
+
+    /* CSS セーフエリア対応 */
+    .bottom-nav {
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+
+問題6: SSR/SSGでナビゲーションのアクティブ状態が一瞬ずれる
+
+  症状:
+    → ページ初期表示時にアクティブ状態がちらつく
+    → Hydration mismatch の警告が出る
+
+  原因:
+    → サーバーとクライアントでの pathname の不一致
+    → useState の初期値がサーバーとクライアントで異なる
+
+  解決策:
+    // 'use client' コンポーネントで usePathname を使用
+    // サーバーコンポーネントでは pathname を props で渡す
+
+    // Server Component
+    import { headers } from 'next/headers';
+
+    async function Layout({ children }) {
+      const headersList = headers();
+      const pathname = headersList.get('x-pathname') || '/';
+
+      return (
+        <div>
+          <Sidebar initialPathname={pathname} />
+          {children}
+        </div>
+      );
+    }
+```
+
+### 12.2 デバッグテクニック
+
+```typescript
+// ナビゲーション状態のデバッグコンポーネント
+function NavigationDebugger() {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const { state } = useNavigation();
+
+  if (process.env.NODE_ENV !== 'development') return null;
+
+  return (
+    <div className="fixed bottom-4 right-4 z-[999] p-4 bg-black/90 text-white text-xs rounded-lg max-w-sm font-mono">
+      <h3 className="font-bold mb-2 text-yellow-400">Nav Debug</h3>
+      <div className="space-y-1">
+        <div>
+          <span className="text-gray-400">pathname:</span> {pathname}
+        </div>
+        <div>
+          <span className="text-gray-400">params:</span>{' '}
+          {searchParams.toString() || '(none)'}
+        </div>
+        <div>
+          <span className="text-gray-400">sidebar:</span>{' '}
+          {state.sidebarOpen ? 'open' : 'closed'}
+          {state.sidebarCollapsed ? ' (collapsed)' : ''}
+        </div>
+        <div>
+          <span className="text-gray-400">mobile:</span>{' '}
+          {state.mobileMenuOpen ? 'open' : 'closed'}
+        </div>
+        <div>
+          <span className="text-gray-400">expanded:</span>{' '}
+          {Array.from(state.expandedItems).join(', ') || '(none)'}
+        </div>
+        <div>
+          <span className="text-gray-400">recent:</span>{' '}
+          {state.recentPages.slice(0, 3).join(', ') || '(none)'}
+        </div>
+      </div>
+    </div>
+  );
+}
+```
+
+---
+
+## 13. ナビゲーションパターンの比較とまとめ
+
+### 13.1 パターン別比較表
+
+| パターン | 用途 | 項目数 | モバイル対応 | アクセシビリティ | 実装難易度 |
+|---------|------|--------|------------|----------------|-----------|
+| サイドバー | 管理画面、SaaS | 5〜20+ | ドロワー切替 | 高 | 中〜高 |
+| トップナビ | マーケティング、LP | 3〜7 | ハンバーガー | 高 | 低〜中 |
+| ブレッドクラム | 階層の可視化 | 動的 | 省略表示 | 高 | 低 |
+| タブナビ | 設定、詳細ページ | 3〜8 | ドロップダウン | 中 | 低 |
+| コマンドパレット | パワーユーザー | 無制限 | 対応可能 | 中 | 高 |
+| ボトムナビ | モバイルアプリ | 3〜5 | ネイティブ | 中 | 低 |
+| メガメニュー | ECサイト、ポータル | 大量 | 別パターン | 中〜高 | 高 |
+
+### 13.2 組み合わせパターン
+
+```
+推奨される組み合わせ:
+
+  SaaS管理画面:
+    → サイドバー + ブレッドクラム + コマンドパレット + タブナビ
+    → モバイル: ドロワー + ボトムナビ
+
+  ECサイト:
+    → トップナビ + メガメニュー + ブレッドクラム
+    → モバイル: ハンバーガー + ボトムナビ
+
+  コーポレートサイト:
+    → トップナビ + ブレッドクラム
+    → モバイル: ハンバーガー
+
+  ブログ/メディア:
+    → トップナビ + サイドバー（カテゴリ）+ ブレッドクラム
+    → モバイル: ハンバーガー
+
+  開発者ツール:
+    → サイドバー + コマンドパレット + タブナビ
+    → モバイル: ドロワー
+```
+
+### 13.3 設計判断のフローチャート
+
+```
+ナビゲーションパターン選定フロー:
+
+  アプリの種類は？
+  ├── Webアプリケーション（SaaS/管理画面）
+  │   ├── ナビ項目 <= 7 → トップナビ + タブ
+  │   └── ナビ項目 > 7 → サイドバー + タブ
+  │       ├── パワーユーザー多い → + コマンドパレット
+  │       └── 階層が深い → + ブレッドクラム
+  │
+  ├── Webサイト（マーケティング/コーポレート）
+  │   ├── カテゴリ少ない → トップナビ
+  │   └── カテゴリ多い → トップナビ + メガメニュー
+  │
+  ├── ECサイト
+  │   └── メガメニュー + ブレッドクラム + (検索)
+  │
+  └── モバイルアプリ/PWA
+      ├── メイン機能 <= 5 → ボトムナビ
+      └── メイン機能 > 5 → ボトムナビ + ドロワー
+```
+
+### 13.4 ナビゲーション設計の原則（まとめ）
+
+```
+ナビゲーション設計で最も重要な7つの原則:
+
+  1. ユーザーは常に自分の位置を把握できること
+     → アクティブ状態のハイライト
+     → ブレッドクラムによる階層表示
+     → URL の意味のある構造
+
+  2. 最も重要な機能に最短でアクセスできること
+     → トップレベルに主要機能を配置
+     → ショートカットキーの提供
+     → コマンドパレットによる検索
+
+  3. 一貫性を保つこと
+     → 全ページでナビゲーション位置を統一
+     → スタイルとインタラクションの統一
+     → プラットフォーム慣習への準拠
+
+  4. デバイスに最適化すること
+     → レスポンシブ設計の徹底
+     → タッチ操作への対応
+     → セーフエリアへの配慮
+
+  5. アクセシビリティを確保すること
+     → キーボード操作の完全サポート
+     → スクリーンリーダー対応
+     → 十分なコントラスト比
+
+  6. パフォーマンスを維持すること
+     → 不要な再レンダリングの防止
+     → 遅延読み込みの活用
+     → バンドルサイズの最適化
+
+  7. スケーラビリティを考慮すること
+     → 機能追加に耐える構造
+     → グルーピングと整理の仕組み
+     → 設定の外部化
+```
+
+---
+
+## 次に読むべきガイド
+- [[03-auth-and-guards.md]] -- 認証ガード
+
+---
+
+## 参考文献
+1. shadcn/ui. "Sidebar." ui.shadcn.com, 2024.
+2. cmdk. "Command Menu." cmdk.paco.me, 2024.
+3. Nielsen Norman Group. "Navigation Design." nngroup.com, 2024.
+4. Material Design. "Navigation." material.io, 2024.
+5. WAI-ARIA Authoring Practices. "Menu and Menubar Pattern." w3.org, 2024.
+6. Web Content Accessibility Guidelines (WCAG) 2.2. w3.org, 2023.
+7. Apple Human Interface Guidelines. "Navigation." developer.apple.com, 2024.
+8. Radix UI. "Navigation Menu." radix-ui.com, 2024.
+9. Next.js Documentation. "Linking and Navigating." nextjs.org, 2024.
+10. Framer Motion. "Animation." framer.com/motion, 2024.

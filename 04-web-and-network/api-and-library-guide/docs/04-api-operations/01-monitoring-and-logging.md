@@ -1686,3 +1686,705 @@ LogQL 頻出クエリ集:
     [5m]
   ) by (path)
 ```
+
+---
+
+## 9. OpenTelemetry Collector の構成
+
+OpenTelemetry Collector は、テレメトリデータ（トレース、メトリクス、ログ）を受信、処理、エクスポートするエージェントである。アプリケーションとバックエンドの間に配置することで、ベンダー非依存のデータパイプラインを構築できる。
+
+```
+OpenTelemetry Collector アーキテクチャ:
+
+  +----------------+   +----------------+   +----------------+
+  |  API Server A  |   |  API Server B  |   |  API Server C  |
+  |  (OTLP gRPC)   |   |  (OTLP HTTP)   |   |  (OTLP gRPC)   |
+  +-------+--------+   +-------+--------+   +-------+--------+
+          |                     |                     |
+          +---------------------+---------------------+
+                                |
+                 +--------------v--------------+
+                 |    OTel Collector           |
+                 |  +-----------------------+  |
+                 |  | Receivers             |  |
+                 |  | - OTLP (gRPC/HTTP)    |  |
+                 |  | - Prometheus           |  |
+                 |  | - Jaeger               |  |
+                 |  +-----------+-----------+  |
+                 |              |               |
+                 |  +-----------v-----------+  |
+                 |  | Processors            |  |
+                 |  | - Batch               |  |
+                 |  | - Memory Limiter      |  |
+                 |  | - Attributes          |  |
+                 |  | - Filter              |  |
+                 |  | - Tail Sampling       |  |
+                 |  +-----------+-----------+  |
+                 |              |               |
+                 |  +-----------v-----------+  |
+                 |  | Exporters             |  |
+                 |  | - OTLP                |  |
+                 |  | - Prometheus          |  |
+                 |  | - Jaeger              |  |
+                 |  | - Loki                |  |
+                 |  +-----------------------+  |
+                 +-----------------------------+
+                                |
+              +-----------------+------------------+
+              |                 |                  |
+    +---------v------+  +------v-------+  +-------v------+
+    |  Prometheus    |  |   Jaeger     |  |    Loki      |
+    |  (Metrics)     |  |  (Traces)    |  |   (Logs)     |
+    +----------------+  +--------------+  +--------------+
+```
+
+```yaml
+# ===== otel-collector-config.yml =====
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: "0.0.0.0:4317"
+      http:
+        endpoint: "0.0.0.0:4318"
+
+  # Prometheus メトリクスも受信可能
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: 'otel-collector'
+          scrape_interval: 10s
+          static_configs:
+            - targets: ['0.0.0.0:8888']
+
+processors:
+  # バッチ処理（パフォーマンス最適化）
+  batch:
+    timeout: 5s
+    send_batch_size: 1024
+    send_batch_max_size: 2048
+
+  # メモリ制限
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+    spike_limit_mib: 128
+
+  # 属性の追加・変換
+  attributes:
+    actions:
+      - key: environment
+        value: production
+        action: upsert
+      - key: cluster
+        value: ap-northeast-1
+        action: upsert
+
+  # 不要なデータのフィルタリング
+  filter:
+    error_mode: ignore
+    traces:
+      span:
+        - 'attributes["http.target"] == "/health"'
+        - 'attributes["http.target"] == "/metrics"'
+
+  # テールベースサンプリング
+  tail_sampling:
+    decision_wait: 10s
+    num_traces: 100000
+    policies:
+      # エラーは全て収集
+      - name: errors
+        type: status_code
+        status_code:
+          status_codes: [ERROR]
+      # 遅いリクエストは全て収集
+      - name: slow-requests
+        type: latency
+        latency:
+          threshold_ms: 1000
+      # その他は 10% サンプリング
+      - name: probabilistic
+        type: probabilistic
+        probabilistic:
+          sampling_percentage: 10
+
+exporters:
+  # トレース -> Jaeger
+  otlp/jaeger:
+    endpoint: "jaeger:4317"
+    tls:
+      insecure: true
+
+  # メトリクス -> Prometheus
+  prometheusremotewrite:
+    endpoint: "http://prometheus:9090/api/v1/write"
+
+  # ログ -> Loki
+  loki:
+    endpoint: "http://loki:3100/loki/api/v1/push"
+
+  # デバッグ用ログ出力
+  logging:
+    loglevel: info
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch, filter, tail_sampling, attributes]
+      exporters: [otlp/jaeger, logging]
+    metrics:
+      receivers: [otlp, prometheus]
+      processors: [memory_limiter, batch, attributes]
+      exporters: [prometheusremotewrite]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch, attributes]
+      exporters: [loki]
+
+  telemetry:
+    logs:
+      level: info
+    metrics:
+      address: ":8888"
+```
+
+---
+
+## 10. アンチパターン
+
+### アンチパターン1: ログの過剰出力と高カーディナリティ
+
+**症状**: ログストレージが急速に肥大化し、検索パフォーマンスが劣化。メトリクスのラベル爆発によりPrometheusのメモリが枯渇する。
+
+```
+問題のあるログ出力:
+
+  // 全リクエストのボディをログに含める
+  logger.info({
+    event: 'request',
+    body: req.body,         // 大量のデータがログに流れる
+    headers: req.headers,   // 機密情報を含む可能性
+    query: req.query,
+  });
+
+  // デバッグログを本番で有効にしたまま
+  logger.debug({ cache: entireCacheContents }); // 巨大オブジェクト
+
+問題のあるメトリクスラベル:
+
+  // ユーザーIDをラベルに含める（高カーディナリティ）
+  httpRequestTotal.inc({
+    method: req.method,
+    path: req.originalUrl,  // クエリパラメータ込み -> 無限のラベル組合せ
+    userId: req.user.id,    // ユーザー数分のラベル値
+    requestId: req.id,      // リクエスト毎にユニーク -> 致命的
+  });
+
+  結果:
+    -> Prometheus のメモリ使用量が指数関数的に増大
+    -> クエリ速度が大幅に低下
+    -> カーディナリティ爆発（cardinality explosion）
+
+正しい設計:
+
+  // ログ: 必要最小限のフィールドに絞る
+  logger.info({
+    event: 'request_completed',
+    method: req.method,
+    path: req.route?.path,  // テンプレートパス（/users/:id）
+    statusCode: res.statusCode,
+    duration: durationMs,
+    userId: req.user?.id,   // ログには可（メトリクスには不可）
+  });
+
+  // メトリクス: 低カーディナリティのラベルのみ
+  httpRequestTotal.inc({
+    method: req.method,
+    path: req.route?.path || normalizePath(req.path),
+    status_code: res.statusCode,
+  });
+```
+
+### アンチパターン2: アラート設定の不備によるアラート疲れ
+
+**症状**: 大量の不要なアラートが発報し、オンコールエンジニアが疲弊。重要なアラートが他のノイズに埋もれて見逃される。
+
+```
+問題のあるアラート設定:
+
+  1. 閾値が厳しすぎる:
+     alert: HighLatency
+     expr: histogram_quantile(0.99, ...) > 0.1   # 100ms は厳しすぎ
+     for: 1m                                       # 1分で発報は早すぎ
+     -> 一時的なスパイクで頻繁に発報
+
+  2. アクション不明確:
+     annotations:
+       summary: "Something went wrong"   # 何が問題か不明
+       # runbook_url なし               # 対処方法が不明
+     -> 受け取っても何をすべきかわからない
+
+  3. 重複アラート:
+     DB接続エラー -> 以下が同時に発報:
+       - DBConnectionError
+       - HighErrorRate
+       - SlowQueries
+       - ServiceDegraded
+       - SLOViolation
+     -> 根本原因は1つなのに5つのアラート
+
+  4. 自動復旧する問題へのアラート:
+     一時的なネットワーク切断 -> 自動リトライで復旧
+     -> 不要なアラート発報
+
+正しいアラート設計:
+
+  1. 適切な閾値と持続時間:
+     alert: HighLatency
+     expr: histogram_quantile(0.99, ...) > 1     # 1秒は合理的
+     for: 10m                                      # 10分持続で確信
+
+  2. 明確なアノテーション:
+     annotations:
+       summary: "P99 latency exceeds 1s for 10 minutes"
+       description: "Current P99: {{ $value }}s. Check DB and cache."
+       runbook_url: "https://wiki.example.com/runbooks/high-latency"
+       dashboard_url: "https://grafana.example.com/d/api"
+
+  3. 抑制ルール（Inhibition）:
+     DBConnectionError が発報中 -> 派生アラートを抑制
+
+  4. アクション可能なもののみ:
+     自動復旧する問題 -> アラートではなくメトリクスで記録
+```
+
+---
+
+## 11. エッジケース分析
+
+### エッジケース1: メトリクス収集の時間ずれとサンプリングの落とし穴
+
+Prometheus は Pull 型でメトリクスを収集するため、スクレイプ間隔の間に発生した短時間のスパイクを捕捉できない場合がある。また、ヒストグラムのバケット設計が不適切だと、パーセンタイル値に大きな誤差が生じる。
+
+```
+問題: ヒストグラムバケットの設計不備
+
+  設定:
+    buckets: [0.1, 1, 10]  // 3バケットのみ
+
+  実際の分布:
+    0-50ms:   80% のリクエスト
+    50-100ms: 15% のリクエスト
+    100-200ms: 4% のリクエスト
+    200ms+:    1% のリクエスト
+
+  P99 の計算結果:
+    -> 0.1s (100ms) バケットに99%が収まるため
+    -> P99 = 約100ms と報告される
+    -> 実際の P99 は約180ms（大きな誤差）
+
+  対策:
+    buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10]
+    -> レイテンシ分布に合った細かいバケットを設計
+    -> デフォルトバケット（上記）は多くのAPI向けに適切
+
+問題: スクレイプ間隔とレートの誤差
+
+  スクレイプ間隔: 15秒
+  実際のリクエストパターン:
+    0-5s:  100 req/s（スパイク）
+    5-15s: 10 req/s（通常）
+
+  rate(http_requests_total[1m]) の結果:
+    -> 約 40 req/s（平均化されてしまう）
+    -> 100 req/s のスパイクは観測できない
+
+  対策:
+    -> irate() を使用して瞬間レートを計算
+    -> スクレイプ間隔を短くする（5秒等。ただしリソース消費増加）
+    -> アプリケーション側でもメトリクスを記録
+```
+
+### エッジケース2: 分散トレーシングにおけるコンテキスト消失
+
+非同期処理やメッセージキューを介した通信では、トレースコンテキストが消失しやすい。特にイベント駆動アーキテクチャでは、明示的なコンテキスト伝搬が必要になる。
+
+```
+問題: メッセージキュー経由のコンテキスト消失
+
+  [API Server] --HTTP--> [Order Service] --Kafka--> [Payment Service]
+       |                       |                          |
+    trace_id: abc123      trace_id: abc123           trace_id: ???
+    span_id:  001         span_id:  002              (コンテキスト消失)
+
+  原因:
+    -> Kafka メッセージにトレースコンテキストを含めていない
+    -> Consumer 側でコンテキストを復元していない
+
+  対策: メッセージヘッダーにコンテキストを埋め込む
+
+    // Producer 側
+    import { propagation, context } from '@opentelemetry/api';
+
+    async function publishToKafka(topic, message) {
+      return tracer.startActiveSpan('kafka.produce', async (span) => {
+        span.setAttribute('messaging.system', 'kafka');
+        span.setAttribute('messaging.destination', topic);
+
+        // 現在のコンテキストをヘッダーに注入
+        const headers = {};
+        propagation.inject(context.active(), headers);
+
+        await producer.send({
+          topic,
+          messages: [{
+            value: JSON.stringify(message),
+            headers,  // トレースコンテキストを含むヘッダー
+          }],
+        });
+
+        span.end();
+      });
+    }
+
+    // Consumer 側
+    async function consumeFromKafka(message) {
+      // ヘッダーからコンテキストを復元
+      const parentContext = propagation.extract(
+        context.active(),
+        message.headers
+      );
+
+      // 復元したコンテキストを親として新しいスパンを作成
+      return context.with(parentContext, () => {
+        return tracer.startActiveSpan('kafka.consume', async (span) => {
+          span.setAttribute('messaging.system', 'kafka');
+
+          // ビジネスロジック
+          await processPayment(JSON.parse(message.value));
+
+          span.end();
+        });
+      });
+    }
+
+問題: setTimeout / setInterval でのコンテキスト消失
+
+  対策:
+    import { context } from '@opentelemetry/api';
+
+    // コンテキストを明示的に伝搬
+    const currentContext = context.active();
+    setTimeout(() => {
+      context.with(currentContext, () => {
+        // ここではトレースコンテキストが保持される
+        doSomething();
+      });
+    }, 5000);
+```
+
+---
+
+## 12. 演習問題
+
+### 演習1: 基礎 -- 構造化ログの実装
+
+以下の要件を満たすログミドルウェアを Express.js で実装せよ。
+
+```
+要件:
+  1. JSON 形式の構造化ログを出力する
+  2. 各リクエストに一意の requestId を付与する
+  3. レスポンス完了時に以下の情報を記録する:
+     - method, path, statusCode, duration(ms)
+     - userId（認証済みの場合）
+  4. ステータスコードに応じてログレベルを変える:
+     - 5xx -> error
+     - 4xx -> warn
+     - それ以外 -> info
+  5. パスワードやトークンなどの機密情報をマスキングする
+
+ヒント:
+  - pino または winston を使用する
+  - res.on('finish', callback) でレスポンス完了を検知する
+  - pino の redact オプションで機密情報を除外する
+
+確認ポイント:
+  -> ログが JSON 形式で出力されているか
+  -> requestId が全ログに含まれているか
+  -> 機密情報がマスキングされているか
+  -> ログレベルが適切に設定されているか
+```
+
+### 演習2: 中級 -- Prometheus メトリクスとアラート設計
+
+以下の要件を満たす API モニタリング基盤を構築せよ。
+
+```
+要件:
+  1. prom-client で以下のメトリクスを計装する:
+     - http_requests_total (Counter)
+     - http_request_duration_seconds (Histogram)
+     - http_active_connections (Gauge)
+     - db_query_duration_seconds (Histogram)
+  2. /metrics エンドポイントを公開する
+  3. 以下のアラートルールを Prometheus に設定する:
+     - 5xx エラー率 > 5% が 5分間持続 -> Critical
+     - P99 レイテンシ > 2秒 が 10分間持続 -> Warning
+     - サービスダウン（up == 0）が 1分間持続 -> Critical
+  4. Grafana ダッシュボードで RPS、レイテンシ、エラー率を可視化する
+
+構成:
+  docker-compose.yml で以下を起動:
+    - API サーバー（Node.js）
+    - Prometheus
+    - Grafana
+    - Alertmanager
+
+確認ポイント:
+  -> curl http://localhost:3000/metrics でメトリクスが取得できるか
+  -> Prometheus の Targets で API サーバーが UP であるか
+  -> Grafana でダッシュボードが表示されるか
+  -> 意図的にエラーを発生させてアラートが発報するか
+```
+
+### 演習3: 上級 -- 分散トレーシングとオブザーバビリティ統合
+
+以下のマイクロサービス構成で、エンドツーエンドの分散トレーシングを実装せよ。
+
+```
+構成:
+  [Client] -> [API Gateway] -> [User Service] -> [PostgreSQL]
+                             -> [Order Service] -> [Redis]
+                                                -> [Payment API (外部)]
+
+要件:
+  1. OpenTelemetry SDK で各サービスを計装する
+  2. W3C Trace Context ヘッダーでコンテキストを伝搬する
+  3. カスタムスパンでビジネスロジックの処理時間を記録する
+  4. エラー発生時に span.recordException() でエラー情報を記録する
+  5. Jaeger でトレースを可視化する
+  6. Grafana でメトリクス、トレース、ログを相互リンクする
+
+追加課題:
+  - テールベースサンプリングを OTel Collector で設定する
+  - エラートレースと遅延トレースを 100% 収集する
+  - ログに trace_id と span_id を含めてトレースと紐付ける
+  - Grafana の Explore ビューでトレースからログへジャンプする
+
+確認ポイント:
+  -> Jaeger でサービス間のトレースが一貫して表示されるか
+  -> ボトルネックとなっているスパンを特定できるか
+  -> エラーが発生したスパンが正しくマークされているか
+  -> ログから対応するトレースへ遷移できるか
+  -> サンプリングポリシーが期待通りに動作しているか
+```
+
+---
+
+## 13. 本番環境でのベストプラクティス
+
+### 13.1 ログローテーションと保持ポリシー
+
+```
+ログ保持ポリシーの設計指針:
+
+  Tier 1 -- ホットストレージ（高速検索可能）:
+    期間:   7-14日
+    用途:   アクティブなデバッグ、インシデント対応
+    ストレージ: SSD / Elasticsearch Hot Node
+
+  Tier 2 -- ウォームストレージ（検索可能だがやや遅い）:
+    期間:   30-90日
+    用途:   トレンド分析、過去のインシデント調査
+    ストレージ: HDD / Elasticsearch Warm Node / S3
+
+  Tier 3 -- コールドストレージ（アーカイブ）:
+    期間:   1年以上（コンプライアンス要件による）
+    用途:   監査、法的要件
+    ストレージ: S3 Glacier / GCS Coldline
+
+  ログレベル別の保持期間:
+    ERROR/FATAL: 90日（ホット14日 + ウォーム76日）
+    WARN:        30日（ホット7日 + ウォーム23日）
+    INFO:        14日（全てホット）
+    DEBUG:       3日（開発環境のみ）
+```
+
+### 13.2 パフォーマンスへの影響を最小化する
+
+```
+モニタリングのオーバーヘッドを抑える原則:
+
+  1. 非同期ログ出力:
+     -> ログの書き込みをバッファリングし、非同期でフラッシュ
+     -> pino はデフォルトで非同期書き込みに対応
+     -> 同期書き込みはレイテンシに直接影響する
+
+  2. メトリクスのラベル数を制限:
+     -> ラベルの組合せ数（カーディナリティ）を 1,000 以下に
+     -> path ラベルはテンプレート（/users/:id）を使用
+     -> ユーザーIDやリクエストIDはラベルに含めない
+
+  3. トレースのサンプリング:
+     -> 本番環境では 1-10% のサンプリング
+     -> エラーと遅延リクエストは 100% 収集
+     -> テールベースサンプリングで重要なトレースを確保
+
+  4. ログのフィルタリング:
+     -> ヘルスチェックやメトリクスエンドポイントのログを除外
+     -> 本番では DEBUG/TRACE レベルを無効化
+     -> 動的ログレベル変更の仕組みを用意する
+
+  5. バッチ処理:
+     -> テレメトリデータのエクスポートをバッチ化
+     -> 個別送信ではなく、まとめて送信することでオーバーヘッド削減
+```
+
+### 13.3 障害時のモニタリング継続性
+
+```
+モニタリング基盤自体の可用性確保:
+
+  問題: 障害発生時こそモニタリングが重要だが、
+        障害がモニタリング基盤に波及する場合がある
+
+  対策:
+    1. モニタリング基盤を監視対象とは別のインフラに配置
+    2. Prometheus の Federation で階層化
+    3. Thanos/Cortex で長期保存と高可用性を実現
+    4. アラート通知経路を多重化（Slack + PagerDuty + Email）
+    5. Dead Man's Switch アラート（常時発報するアラートが
+       停止した場合にモニタリング基盤の障害を検出）
+
+  Dead Man's Switch の例:
+    - alert: PrometheusAlive
+      expr: vector(1)
+      labels:
+        severity: critical
+      annotations:
+        summary: "Dead man's switch - Prometheus is alive"
+    -> Alertmanager でこのアラートの受信を監視
+    -> 一定時間受信しなければ、外部監視から通知
+```
+
+---
+
+## 14. FAQ（よくある質問）
+
+### Q1: Prometheus と Datadog のどちらを選ぶべきか
+
+Prometheus はオープンソースで柔軟性が高く、ランニングコストを抑えられる反面、運用負荷が高い。Datadog は SaaS であり、運用負荷は低いが従量課金のコストが嵩む場合がある。選定の基準は以下の通りである。
+
+| 判断軸 | Prometheus 推奨 | Datadog 推奨 |
+|--------|----------------|-------------|
+| チームの運用力 | Kubernetes/インフラ運用に強い | アプリ開発に集中したい |
+| 予算 | インフラコストに余裕がある | 人件費 > SaaS費用の場合 |
+| スケール | 中規模（月間数十億データポイント） | 大規模・多拠点 |
+| カスタマイズ | 独自のメトリクス設計が必要 | 標準的な監視で十分 |
+| 統合 | Grafana エコシステムを活用 | APM + ログ + インフラを一元管理 |
+
+小〜中規模のチームではまず Prometheus + Grafana で始め、運用負荷が課題になった段階で SaaS への移行を検討するアプローチが合理的である。
+
+### Q2: ログとメトリクスの使い分けの基準は何か
+
+端的に言えば、「何が起きたか」を知りたい場合はログ、「どれくらい起きているか」を知りたい場合はメトリクスである。
+
+- メトリクス: 集約的な問いに答える。「エラー率は何%か」「P99レイテンシは何msか」「リクエスト数は増加傾向か」
+- ログ: 個別の問いに答える。「このリクエストはなぜ失敗したか」「ユーザーXの操作履歴は何か」「どのSQLクエリがエラーになったか」
+
+アラートはメトリクスベースで設定し、インシデント調査時にログを参照するというフローが一般的である。メトリクスで異常を検出し、ログで根本原因を特定する。
+
+### Q3: 分散トレーシングのサンプリング率はどの程度にすべきか
+
+サンプリング率はトラフィック量とストレージ容量に依存する。一般的な指針は以下の通りである。
+
+- 開発/ステージング環境: 100%（全トレース収集）
+- 低トラフィック（< 100 RPS）の本番環境: 50-100%
+- 中トラフィック（100-1000 RPS）: 10-50%
+- 高トラフィック（> 1000 RPS）: 1-10%
+
+ただし、テールベースサンプリングを導入すれば、エラーや高レイテンシのトレースは 100% 収集しつつ、正常なトレースのみサンプリング対象にできる。これにより、デバッグに最も価値のあるトレースを確実に保持できる。
+
+### Q4: OpenTelemetry とベンダー固有の SDK はどちらを使うべきか
+
+OpenTelemetry を推奨する。OpenTelemetry はベンダー非依存であるため、バックエンド（Jaeger, Zipkin, Datadog, New Relic 等）を後から変更できる。ベンダーロックインを避けることで、将来のコスト最適化や技術選択の自由度が確保される。主要な APM ベンダーも OpenTelemetry のネイティブサポートを進めており、互換性の問題は減少している。
+
+---
+
+## 15. モニタリング成熟度モデル
+
+組織のモニタリング成熟度を段階的に向上させるためのロードマップを以下に示す。
+
+```
+モニタリング成熟度レベル:
+
+  Level 0: 無監視
+    -> ログ出力は console.log のみ
+    -> 障害はユーザーからの報告で気付く
+    -> 対応: まずログ基盤とヘルスチェックを導入
+
+  Level 1: 基本監視
+    -> 構造化ログを導入
+    -> アップタイム監視（ping/healthcheck）
+    -> 基本的なメトリクス（CPU, メモリ, ディスク）
+    -> 対応: RED メトリクスの導入
+
+  Level 2: アプリケーション監視
+    -> RED メトリクス（Rate, Errors, Duration）
+    -> エンドポイント別のメトリクス
+    -> Grafana ダッシュボード
+    -> 基本的なアラート設定
+    -> 対応: SLI/SLO の定義と分散トレーシング
+
+  Level 3: オブザーバビリティ
+    -> SLI/SLO ベースのアラート
+    -> 分散トレーシング（OpenTelemetry）
+    -> ログ・メトリクス・トレースの相関付け
+    -> エラーバジェットによるリリース管理
+    -> 対応: 自動化とプロアクティブ監視
+
+  Level 4: プロアクティブ監視
+    -> 異常検知（ML ベース）
+    -> 自動スケーリングとの連携
+    -> カオスエンジニアリングとの統合
+    -> SLO ダッシュボードによるビジネス可視化
+    -> 継続的な改善サイクル
+```
+
+---
+
+## まとめ
+
+| 概念 | ポイント |
+|------|---------|
+| オブザーバビリティ | ログ・メトリクス・トレースの三本柱で構成 |
+| RED メソッド | Rate, Errors, Duration でAPIを監視 |
+| SLI/SLO | 可用性99.9%、P99 < 500ms、エラーバジェットで意思決定 |
+| 構造化ログ | JSON形式 + requestId + traceId で相関可能に |
+| 分散トレーシング | OpenTelemetry + W3C Trace Context で標準化 |
+| Prometheus | Pull型メトリクス収集、PromQLで柔軟なクエリ |
+| Grafana | 階層的ダッシュボード設計、メトリクス・ログ・トレースの統合 |
+| アラート設計 | SLOベース、アクション可能、重複排除 |
+| ログ集約 | Loki（低コスト）または ELK（全文検索）で集中管理 |
+| OTel Collector | ベンダー非依存のテレメトリパイプライン |
+
+---
+
+## 次に読むべきガイド
+
+-> [[02-api-gateway.md]] -- APIゲートウェイの設計とモニタリング統合
+-> [[03-rate-limiting.md]] -- レート制限とメトリクスの関連
+
+---
+
+## 参考文献
+
+1. Google. "Site Reliability Engineering: How Google Runs Production Systems." O'Reilly Media, 2016. https://sre.google/sre-book/table-of-contents/
+2. OpenTelemetry Authors. "OpenTelemetry Documentation." Cloud Native Computing Foundation, 2024. https://opentelemetry.io/docs/
+3. Prometheus Authors. "Prometheus: Monitoring and Alerting Toolkit." Cloud Native Computing Foundation, 2024. https://prometheus.io/docs/introduction/overview/
+4. Sridharan, Cindy. "Distributed Systems Observability." O'Reilly Media, 2018. https://www.oreilly.com/library/view/distributed-systems-observability/9781492033431/
+5. Grafana Labs. "Grafana Loki Documentation." Grafana Labs, 2024. https://grafana.com/docs/loki/latest/
+6. Beyer, Betsy et al. "The Site Reliability Workbook." O'Reilly Media, 2018. https://sre.google/workbook/table-of-contents/

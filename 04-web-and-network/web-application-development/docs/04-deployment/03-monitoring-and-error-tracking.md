@@ -2745,3 +2745,784 @@ export async function GET() {
   return NextResponse.json(health, { status: statusCode });
 }
 ```
+
+---
+
+## 8. カスタムメトリクスの設計と可視化
+
+### 8.1 ビジネスメトリクスの計測
+
+技術的なメトリクスだけでなく、ビジネスに直結するメトリクスを計測することで、サービスの健全性をより正確に把握できる。
+
+```typescript
+// lib/metrics.ts - カスタムメトリクスの収集
+
+interface MetricEvent {
+  name: string;
+  value: number;
+  unit: string;
+  tags: Record<string, string>;
+  timestamp: number;
+}
+
+class MetricsCollector {
+  private buffer: MetricEvent[] = [];
+  private readonly flushInterval = 30_000; // 30秒
+  private readonly maxBufferSize = 200;
+
+  constructor() {
+    if (typeof window !== 'undefined') {
+      setInterval(() => this.flush(), this.flushInterval);
+      window.addEventListener('beforeunload', () => this.flush());
+    }
+  }
+
+  // カウンター: 累積値（増加のみ）
+  increment(name: string, tags: Record<string, string> = {}, value: number = 1) {
+    this.record({
+      name,
+      value,
+      unit: 'count',
+      tags,
+      timestamp: Date.now(),
+    });
+  }
+
+  // ゲージ: 現在値（増減あり）
+  gauge(name: string, value: number, tags: Record<string, string> = {}) {
+    this.record({
+      name,
+      value,
+      unit: 'gauge',
+      tags,
+      timestamp: Date.now(),
+    });
+  }
+
+  // ヒストグラム: 分布（レイテンシなど）
+  histogram(name: string, value: number, unit: string, tags: Record<string, string> = {}) {
+    this.record({
+      name,
+      value,
+      unit,
+      tags,
+      timestamp: Date.now(),
+    });
+  }
+
+  // タイミング計測
+  startTimer(): () => number {
+    const start = performance.now();
+    return () => {
+      const duration = performance.now() - start;
+      return Math.round(duration);
+    };
+  }
+
+  private record(event: MetricEvent) {
+    this.buffer.push(event);
+    if (this.buffer.length >= this.maxBufferSize) {
+      this.flush();
+    }
+  }
+
+  async flush() {
+    if (this.buffer.length === 0) return;
+
+    const events = [...this.buffer];
+    this.buffer = [];
+
+    try {
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon('/api/metrics', JSON.stringify({ events }));
+      } else {
+        await fetch('/api/metrics', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ events }),
+          keepalive: true,
+        });
+      }
+    } catch (error) {
+      console.warn('Failed to send metrics:', error);
+    }
+  }
+}
+
+export const metrics = new MetricsCollector();
+
+// === ビジネスメトリクスの使用例 ===
+
+// ユーザー登録の計測
+function onUserRegistration(user: User) {
+  metrics.increment('user.registration', {
+    method: user.signupMethod,  // 'google', 'email', 'github'
+    plan: user.plan,            // 'free', 'pro', 'enterprise'
+    referrer: user.referrer || 'direct',
+  });
+}
+
+// 購入フローの計測
+function onPurchaseStart() {
+  const stopTimer = metrics.startTimer();
+  return {
+    complete: (order: Order) => {
+      const duration = stopTimer();
+      metrics.histogram('purchase.duration', duration, 'ms', {
+        paymentMethod: order.paymentMethod,
+      });
+      metrics.increment('purchase.completed', {
+        paymentMethod: order.paymentMethod,
+      });
+      metrics.histogram('purchase.amount', order.total, 'jpy', {
+        currency: 'JPY',
+      });
+    },
+    abandon: (step: string) => {
+      const duration = stopTimer();
+      metrics.increment('purchase.abandoned', { step });
+      metrics.histogram('purchase.abandon_duration', duration, 'ms', { step });
+    },
+  };
+}
+
+// 検索の計測
+function onSearch(query: string, resultCount: number, duration: number) {
+  metrics.histogram('search.duration', duration, 'ms');
+  metrics.histogram('search.result_count', resultCount, 'count');
+  metrics.increment('search.executed', {
+    hasResults: resultCount > 0 ? 'true' : 'false',
+  });
+}
+
+// フィーチャー利用の計測
+function onFeatureUsed(featureName: string, userId: string) {
+  metrics.increment('feature.used', {
+    feature: featureName,
+    userSegment: getUserSegment(userId),
+  });
+}
+```
+
+### 8.2 メトリクス収集 API エンドポイント
+
+```typescript
+// app/api/metrics/route.ts
+
+import { NextRequest, NextResponse } from 'next/server';
+
+interface MetricEvent {
+  name: string;
+  value: number;
+  unit: string;
+  tags: Record<string, string>;
+  timestamp: number;
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const { events } = await req.json();
+
+    if (!Array.isArray(events) || events.length === 0) {
+      return NextResponse.json({ error: 'Invalid events' }, { status: 400 });
+    }
+
+    // Datadog Custom Metrics に送信
+    if (process.env.DATADOG_API_KEY) {
+      await sendToDatadogMetrics(events);
+    }
+
+    // InfluxDB / TimescaleDB に送信
+    if (process.env.INFLUXDB_URL) {
+      await sendToInfluxDB(events);
+    }
+
+    return NextResponse.json({ status: 'ok', count: events.length });
+  } catch (error) {
+    console.error('Metrics ingestion failed:', error);
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+  }
+}
+
+async function sendToDatadogMetrics(events: MetricEvent[]) {
+  const series = events.map(event => ({
+    metric: `app.${event.name}`,
+    type: event.unit === 'gauge' ? 1 : event.unit === 'count' ? 3 : 0,
+    points: [[Math.floor(event.timestamp / 1000), event.value]],
+    tags: Object.entries(event.tags).map(([k, v]) => `${k}:${v}`),
+  }));
+
+  await fetch('https://api.datadoghq.com/api/v1/series', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'DD-API-KEY': process.env.DATADOG_API_KEY!,
+    },
+    body: JSON.stringify({ series }),
+  });
+}
+
+async function sendToInfluxDB(events: MetricEvent[]) {
+  // InfluxDB Line Protocol 形式に変換
+  const lines = events.map(event => {
+    const tags = Object.entries(event.tags)
+      .map(([k, v]) => `${k}=${v}`)
+      .join(',');
+    const tagStr = tags ? `,${tags}` : '';
+    const timestamp = event.timestamp * 1_000_000; // nanoseconds
+    return `${event.name}${tagStr} value=${event.value} ${timestamp}`;
+  });
+
+  await fetch(`${process.env.INFLUXDB_URL}/api/v2/write?org=${process.env.INFLUXDB_ORG}&bucket=${process.env.INFLUXDB_BUCKET}`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Token ${process.env.INFLUXDB_TOKEN}`,
+      'Content-Type': 'text/plain',
+    },
+    body: lines.join('\n'),
+  });
+}
+```
+
+### 8.3 ダッシュボードの設計原則
+
+```
+ダッシュボード設計のベストプラクティス:
+
+  ┌──────────────────────────────────────────────────────────────┐
+  │  レベル1: エグゼクティブダッシュボード                        │
+  │  対象: 経営陣、PM                                            │
+  │  ┌────────────────────────────────────────────────────────┐  │
+  │  │  - サービス稼働率（Uptime %）                          │  │
+  │  │  - アクティブユーザー数                                 │  │
+  │  │  - コンバージョン率                                     │  │
+  │  │  - 売上メトリクス                                       │  │
+  │  │  - エラー影響ユーザー数                                 │  │
+  │  │  更新頻度: リアルタイム ~ 1時間ごと                     │  │
+  │  └────────────────────────────────────────────────────────┘  │
+  │                                                               │
+  │  レベル2: エンジニアリングダッシュボード                      │
+  │  対象: エンジニアチーム                                      │
+  │  ┌────────────────────────────────────────────────────────┐  │
+  │  │  - エラー率とトレンド                                   │  │
+  │  │  - レスポンスタイム（P50, P75, P95, P99）               │  │
+  │  │  - Web Vitals スコア                                    │  │
+  │  │  - デプロイ頻度と成功率                                 │  │
+  │  │  - インフラメトリクス（CPU, メモリ, ディスク）          │  │
+  │  │  更新頻度: リアルタイム ~ 5分ごと                       │  │
+  │  └────────────────────────────────────────────────────────┘  │
+  │                                                               │
+  │  レベル3: オンコールダッシュボード                            │
+  │  対象: オンコールエンジニア                                  │
+  │  ┌────────────────────────────────────────────────────────┐  │
+  │  │  - アクティブアラート一覧                               │  │
+  │  │  - 直近のデプロイとロールバック状況                      │  │
+  │  │  - 外部サービスのステータス                              │  │
+  │  │  - エラーのリアルタイムフィード                          │  │
+  │  │  - Runbook へのリンク                                   │  │
+  │  │  更新頻度: リアルタイム                                  │  │
+  │  └────────────────────────────────────────────────────────┘  │
+  └──────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 9. モニタリングツール比較と選定
+
+### 9.1 ツールカテゴリ別比較表
+
+| カテゴリ | ツール | 特徴 | 料金目安（月額） | おすすめ度 |
+|---------|--------|------|----------------|-----------|
+| **エラートラッキング** | Sentry | OSS、ソースマップ対応、Session Replay | 無料~$26/月 | ★★★★★ |
+| | Bugsnag | モバイル強い、安定性モニタリング | $59~ | ★★★★ |
+| | LogRocket | セッションリプレイ特化 | $99~ | ★★★ |
+| | Rollbar | 自動グルーピング優秀 | $15~ | ★★★ |
+| **パフォーマンス** | Vercel Analytics | Web Vitals、Vercelユーザー向け | 無料~ | ★★★★★ |
+| | SpeedCurve | 合成+RUM、競合比較 | $10~ | ★★★★ |
+| | web-vitals | OSS、自前計測 | 無料 | ★★★★ |
+| | Calibre | パフォーマンス予算対応 | $29~ | ★★★ |
+| **ログ管理** | Datadog | フルスタック監視 | 従量制 | ★★★★★ |
+| | Axiom | コスト効率、Vercel連携 | 無料~$25/月 | ★★★★ |
+| | Grafana Loki | OSS、Grafana統合 | 無料（セルフホスト） | ★★★★ |
+| | LogDNA (Mezmo) | シンプルで使いやすい | $1.50/GB | ★★★ |
+| **Uptime 監視** | Better Uptime | 無料枠あり、ステータスページ付き | 無料~$25/月 | ★★★★★ |
+| | Checkly | Playwright ベースの合成監視 | 無料~$30/月 | ★★★★★ |
+| | Uptime Robot | シンプル、50モニター無料 | 無料~$7/月 | ★★★★ |
+| | Pingdom | 実績あり、SolarWinds傘下 | $10~ | ★★★ |
+| **APM** | Datadog APM | 分散トレーシング、豊富な統合 | 従量制 | ★★★★★ |
+| | New Relic | フルスタック、100GB/月無料 | 無料~従量制 | ★★★★ |
+| | Grafana Tempo | OSS、Grafana統合 | 無料（セルフホスト） | ★★★★ |
+| **ステータスページ** | Statuspage | Atlassian製、定番 | $29~ | ★★★★ |
+| | Instatus | モダンUI、軽量 | 無料~$20/月 | ★★★★ |
+| | Cachet | OSS、セルフホスト | 無料 | ★★★ |
+
+### 9.2 プロジェクト規模別の推奨構成
+
+```
+プロジェクト規模別の推奨監視スタック:
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │  個人プロジェクト / MVP                                      │
+  │  予算: 無料 ~ $20/月                                        │
+  │                                                              │
+  │  エラー:      Sentry (Free tier: 5,000 events/月)           │
+  │  パフォ:      web-vitals + Google Analytics 4               │
+  │  Uptime:      Uptime Robot (Free: 50 monitors)              │
+  │  ログ:        Vercel ログ or console.log                    │
+  │  ステータス:  なし or Instatus (Free)                        │
+  ├─────────────────────────────────────────────────────────────┤
+  │  スタートアップ / 中規模（~月間100万PV）                     │
+  │  予算: $50 ~ $200/月                                        │
+  │                                                              │
+  │  エラー:      Sentry Team ($26/月)                          │
+  │  パフォ:      Vercel Analytics + web-vitals                 │
+  │  Uptime:      Checkly or Better Uptime                      │
+  │  ログ:        Axiom ($25/月) or Datadog Free                │
+  │  アラート:    Sentry Alerts + Slack                         │
+  │  ステータス:  Instatus or Better Uptime                     │
+  ├─────────────────────────────────────────────────────────────┤
+  │  エンタープライズ / 大規模（月間1000万PV~）                  │
+  │  予算: $500 ~ $5,000+/月                                    │
+  │                                                              │
+  │  エラー:      Sentry Business ($80/月~)                     │
+  │  パフォ:      Sentry Performance + SpeedCurve               │
+  │  Uptime:      Checkly + Datadog Synthetics                  │
+  │  ログ:        Datadog Logs or Grafana Loki                  │
+  │  APM:         Datadog APM or New Relic                       │
+  │  アラート:    PagerDuty + Slack + Sentry                    │
+  │  ステータス:  Statuspage (Atlassian)                        │
+  │  ダッシュボード: Grafana or Datadog Dashboard               │
+  └─────────────────────────────────────────────────────────────┘
+```
+
+### 9.3 OpenTelemetry による標準化
+
+```typescript
+// lib/otel.ts - OpenTelemetry の導入
+
+/**
+ * OpenTelemetry は、テレメトリデータ（トレース、メトリクス、ログ）の
+ * 収集と送信を標準化するオープンソースプロジェクト。
+ *
+ * 利点:
+ * - ベンダーロックインの回避
+ * - 統一されたAPIでトレース・メトリクス・ログを扱える
+ * - 多数のバックエンド（Datadog, Grafana, Jaeger等）に送信可能
+ */
+
+import { NodeSDK } from '@opentelemetry/sdk-node';
+import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
+import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
+import { PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
+import { Resource } from '@opentelemetry/resources';
+import { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from '@opentelemetry/semantic-conventions';
+
+const sdk = new NodeSDK({
+  resource: new Resource({
+    [ATTR_SERVICE_NAME]: 'my-nextjs-app',
+    [ATTR_SERVICE_VERSION]: process.env.npm_package_version || '0.0.0',
+    'deployment.environment': process.env.NODE_ENV,
+  }),
+
+  // トレースのエクスポーター
+  traceExporter: new OTLPTraceExporter({
+    url: process.env.OTEL_EXPORTER_OTLP_ENDPOINT + '/v1/traces',
+    headers: {
+      'Authorization': `Bearer ${process.env.OTEL_AUTH_TOKEN}`,
+    },
+  }),
+
+  // メトリクスのエクスポーター
+  metricReader: new PeriodicExportingMetricReader({
+    exporter: new OTLPMetricExporter({
+      url: process.env.OTEL_EXPORTER_OTLP_ENDPOINT + '/v1/metrics',
+      headers: {
+        'Authorization': `Bearer ${process.env.OTEL_AUTH_TOKEN}`,
+      },
+    }),
+    exportIntervalMillis: 60_000, // 1分ごとにエクスポート
+  }),
+
+  // 自動インストルメンテーション
+  instrumentations: [
+    getNodeAutoInstrumentations({
+      // HTTP リクエストの自動トレース
+      '@opentelemetry/instrumentation-http': {
+        enabled: true,
+        ignoreIncomingPaths: ['/api/health', '/favicon.ico'],
+      },
+      // fetch の自動トレース
+      '@opentelemetry/instrumentation-fetch': {
+        enabled: true,
+      },
+    }),
+  ],
+});
+
+sdk.start();
+
+// グレースフルシャットダウン
+process.on('SIGTERM', () => {
+  sdk.shutdown()
+    .then(() => console.log('OpenTelemetry SDK shut down'))
+    .catch((error) => console.error('Error shutting down SDK', error))
+    .finally(() => process.exit(0));
+});
+
+export { sdk };
+```
+
+### 9.4 Next.js の instrumentation.ts での OpenTelemetry 設定
+
+```typescript
+// instrumentation.ts（Next.js のインストルメンテーションフック）
+
+export async function register() {
+  if (process.env.NEXT_RUNTIME === 'nodejs') {
+    // サーバーサイドの OpenTelemetry を初期化
+    await import('./lib/otel');
+  }
+}
+```
+
+---
+
+## 10. トラブルシューティングガイド
+
+### 10.1 よくある問題と解決策
+
+```typescript
+/**
+ * === Sentry 関連のトラブルシューティング ===
+ */
+
+// 問題1: ソースマップが正しくマッピングされない
+// 原因: ソースマップのアップロードに失敗している
+// 解決策:
+// 1. SENTRY_AUTH_TOKEN が正しいか確認
+// 2. release バージョンが一致しているか確認
+// 3. ソースマップのパスが正しいか確認
+//
+// デバッグコマンド:
+// $ npx @sentry/cli sourcemaps explain --org my-org --project my-project --release 1.0.0
+
+// 問題2: Sentry にイベントが送信されない
+// チェックリスト:
+// 1. DSN が正しく設定されているか
+//    console.log(process.env.NEXT_PUBLIC_SENTRY_DSN);
+// 2. beforeSend でフィルタされていないか
+// 3. ignoreErrors に該当していないか
+// 4. allowUrls / denyUrls の設定が正しいか
+// 5. ネットワーク上の問題（広告ブロッカー等）
+
+// 問題3: 広告ブロッカーが Sentry をブロックする
+// 解決策: tunnelRoute を設定
+// next.config.ts
+// export default withSentryConfig(nextConfig, {
+//   tunnelRoute: '/monitoring-tunnel',
+//   // -> /monitoring-tunnel を経由して Sentry に送信
+//   // -> 広告ブロッカーにブロックされない
+// });
+
+// 問題4: Sentry の初期化でビルドエラーが発生する
+// 原因: Edge Runtime で Node.js API を使用している
+// 解決策:
+// sentry.edge.config.ts でサーバー専用の設定を使わない
+// integrations から Node.js 固有のものを除外
+
+
+/**
+ * === Web Vitals 関連のトラブルシューティング ===
+ */
+
+// 問題5: LCP が遅い
+// 診断手順:
+// 1. Chrome DevTools > Performance > Record
+// 2. LCP 要素を特定（要素にマーカーが表示される）
+// 3. 原因の切り分け:
+//    - TTFB が遅い -> サーバーサイドの問題
+//    - リソースの読み込みが遅い -> 画像最適化、CDN
+//    - レンダリングブロック -> CSS/JS の最適化
+
+// 問題6: CLS が悪い（スコアが 0.1 を超える）
+// 診断手順:
+// 1. Chrome DevTools > Performance > Record
+// 2. Layout Shift をクリックして原因要素を特定
+// 3. よくある原因:
+//    - 画像にサイズ属性がない
+//    - Web フォントの読み込みでテキストがずれる
+//    - 動的コンテンツの挿入
+//    - 広告やiframeの遅延読み込み
+
+// 問題7: INP が悪い（200ms 以上）
+// 診断手順:
+// 1. Chrome DevTools > Performance > Record
+// 2. ユーザー操作の Interaction を確認
+// 3. Long Task がないか確認
+// 4. よくある原因:
+//    - メインスレッドの長時間ブロック
+//    - 大きなリストの再レンダリング
+//    - 同期的なstate更新
+
+
+/**
+ * === ロギング関連のトラブルシューティング ===
+ */
+
+// 問題8: ログが大量に発生してコストが増大
+// 解決策:
+// 1. ログレベルを適切に設定（本番は warn 以上）
+// 2. サンプリングを導入
+// 3. ログのローテーションと保持期間を設定
+// 4. 不要なログ（ヘルスチェック等）をフィルタリング
+
+// 問題9: ログからエラーの原因が特定できない
+// 解決策:
+// 1. 構造化ログを導入（JSON形式）
+// 2. リクエストIDを全ログに付与
+// 3. コンテキスト情報（userId, orderId等）を含める
+// 4. エラーにはスタックトレースを必ず含める
+
+
+/**
+ * === アラート関連のトラブルシューティング ===
+ */
+
+// 問題10: アラート疲れ（Alert Fatigue）
+// 症状: アラートが多すぎて重要なものが見落とされる
+// 解決策:
+// 1. アラートの優先度を見直す（P0~P3）
+// 2. 重複するアラートを統合
+// 3. 自動解決（Auto-resolve）を設定
+// 4. アラートのサイレント期間を設定
+// 5. 定期的にアラートルールをレビュー
+
+// 問題11: 誤検知（False Positive）が多い
+// 解決策:
+// 1. 閾値を調整（静的閾値 -> 動的閾値）
+// 2. 時間窓を広げる（1分 -> 5分）
+// 3. 連続N回超えた場合のみ発報
+// 4. 時間帯別の閾値設定（深夜はトラフィックが少ない）
+```
+
+### 10.2 監視の成熟度モデル
+
+```
+監視の成熟度モデル（Monitoring Maturity Model）:
+
+  Level 0: 監視なし
+  ┌─────────────────────────────────────────┐
+  │  - ユーザーからの報告で障害に気づく      │
+  │  - ログは console.log のみ               │
+  │  - 「動いてるからOK」の精神              │
+  └─────────────────────────────────────────┘
+      ↓ まずここから
+  Level 1: 基本的な監視
+  ┌─────────────────────────────────────────┐
+  │  - エラートラッキング導入（Sentry）      │
+  │  - Uptime 監視の導入                     │
+  │  - 基本的なアラート設定                   │
+  │  - エラー発生時のSlack通知               │
+  └─────────────────────────────────────────┘
+      ↓
+  Level 2: 構造化された監視
+  ┌─────────────────────────────────────────┐
+  │  - 構造化ログの導入                      │
+  │  - Web Vitals の計測                     │
+  │  - アラート優先度の定義                   │
+  │  - ダッシュボードの作成                   │
+  │  - オンコール体制の確立                   │
+  └─────────────────────────────────────────┘
+      ↓
+  Level 3: プロアクティブな監視
+  ┌─────────────────────────────────────────┐
+  │  - 合成監視の導入                        │
+  │  - カスタムメトリクスの計測               │
+  │  - 分散トレーシングの導入                 │
+  │  - Runbook の整備                        │
+  │  - Post-mortem の文化                    │
+  │  - SLO/SLI の定義                        │
+  └─────────────────────────────────────────┘
+      ↓
+  Level 4: オブザーバビリティの完成
+  ┌─────────────────────────────────────────┐
+  │  - OpenTelemetry による標準化            │
+  │  - 異常検知（Anomaly Detection）         │
+  │  - 自動修復（Self-healing）              │
+  │  - ビジネスメトリクスとの連携             │
+  │  - カオスエンジニアリングの実践           │
+  │  - フルスタックオブザーバビリティ         │
+  └─────────────────────────────────────────┘
+```
+
+---
+
+## 11. SLO/SLI の設計
+
+### 11.1 SLO/SLI/SLA の基本概念
+
+```
+SLA / SLO / SLI の関係:
+
+  SLI (Service Level Indicator):
+  -> サービスの品質を測定する指標
+  -> 例: 「リクエストの成功率」「レスポンスタイムの P99」
+
+  SLO (Service Level Objective):
+  -> SLI に対する目標値
+  -> 例: 「成功率 99.9%」「P99 < 500ms」
+
+  SLA (Service Level Agreement):
+  -> SLO に基づく顧客との契約
+  -> 例: 「月間稼働率 99.9%、違反時は10%のクレジット」
+
+  関係:
+  SLI（何を測るか） -> SLO（目標は何か） -> SLA（約束は何か）
+```
+
+### 11.2 SLO の設定例
+
+```typescript
+// lib/slo.ts - SLO の定義と計測
+
+interface SLO {
+  name: string;
+  description: string;
+  sli: string;
+  target: number;        // 例: 0.999 (99.9%)
+  window: '7d' | '28d' | '30d' | '90d';
+  errorBudget: number;   // 例: 0.001 (0.1%)
+}
+
+const SLO_DEFINITIONS: SLO[] = [
+  {
+    name: 'Availability',
+    description: 'サービスの可用性（5xx 以外のレスポンス率）',
+    sli: 'successful_requests / total_requests',
+    target: 0.999,       // 99.9%
+    window: '30d',
+    errorBudget: 0.001,  // 0.1%（月間約43分のダウンタイム許容）
+  },
+  {
+    name: 'Latency',
+    description: 'レスポンスタイムが500ms以内のリクエスト率',
+    sli: 'requests_under_500ms / total_requests',
+    target: 0.99,        // 99%
+    window: '30d',
+    errorBudget: 0.01,   // 1%
+  },
+  {
+    name: 'Error Rate',
+    description: 'エラーが発生しないリクエストの率',
+    sli: '1 - (error_requests / total_requests)',
+    target: 0.995,       // 99.5%
+    window: '7d',
+    errorBudget: 0.005,  // 0.5%
+  },
+];
+
+// エラーバジェットの計算
+function calculateErrorBudget(slo: SLO, currentSLI: number): {
+  budgetTotal: number;
+  budgetConsumed: number;
+  budgetRemaining: number;
+  isHealthy: boolean;
+} {
+  const budgetTotal = 1 - slo.target;   // 許容されるエラーの割合
+  const budgetConsumed = 1 - currentSLI; // 実際のエラーの割合
+  const budgetRemaining = budgetTotal - budgetConsumed;
+
+  return {
+    budgetTotal,
+    budgetConsumed,
+    budgetRemaining,
+    isHealthy: budgetRemaining > 0,
+  };
+}
+
+// 使用例
+const availabilitySLO = SLO_DEFINITIONS[0];
+const currentAvailability = 0.9985; // 99.85%
+
+const budget = calculateErrorBudget(availabilitySLO, currentAvailability);
+// budget = {
+//   budgetTotal: 0.001,      // 0.1% の余裕
+//   budgetConsumed: 0.0015,  // 0.15% 消費済み
+//   budgetRemaining: -0.0005, // 超過！
+//   isHealthy: false,         // SLO 違反
+// }
+
+// エラーバジェットが枯渇したら:
+// -> 新機能のリリースを停止
+// -> 信頼性向上の作業を優先
+// -> インシデントの根本原因を調査
+```
+
+---
+
+## まとめ
+
+| 監視項目 | ツール | 重要度 | 導入優先度 |
+|---------|--------|--------|-----------|
+| エラートラッキング | Sentry | 最重要 | 最優先 |
+| エラーバウンダリ | Next.js error.tsx | 最重要 | 最優先 |
+| Web Vitals (RUM) | web-vitals + Vercel Analytics | 重要 | 高 |
+| 構造化ログ | カスタムロガー + Datadog/Axiom | 重要 | 高 |
+| アラート | Sentry Alerts + Slack | 重要 | 高 |
+| Uptime 監視 | Checkly / Better Uptime | 重要 | 高 |
+| 合成監視 | Checkly (Playwright) | 中 | 中 |
+| カスタムメトリクス | Datadog / InfluxDB | 中 | 中 |
+| APM / トレーシング | Datadog APM / OpenTelemetry | 中 | 中 |
+| ステータスページ | Instatus / Statuspage | 低 | 低 |
+| SLO/SLI | カスタム実装 | 中 | 中 |
+
+### 監視導入のロードマップ
+
+```
+Week 1: 基盤構築
+  □ Sentry のセットアップ（クライアント + サーバー）
+  □ error.tsx / global-error.tsx の実装
+  □ ソースマップのアップロード設定
+  □ 基本的な Slack 通知の設定
+
+Week 2: パフォーマンス監視
+  □ Web Vitals の計測実装
+  □ Vercel Analytics の導入
+  □ LCP/INP/CLS の初期ベースラインを記録
+
+Week 3: ログ・アラート
+  □ 構造化ロガーの実装
+  □ アラート優先度の定義
+  □ Runbook のテンプレート作成
+  □ オンコール体制の確立
+
+Week 4: 応用
+  □ 合成監視の導入
+  □ カスタムメトリクスの計測
+  □ ダッシュボードの作成
+  □ SLO/SLI の定義
+
+継続的改善:
+  □ 定期的なアラートルールのレビュー
+  □ Post-mortem の実施と改善
+  □ 監視カバレッジの拡大
+  □ OpenTelemetry への移行検討
+```
+
+---
+
+## 参考文献
+
+1. Sentry. "Next.js SDK Documentation." docs.sentry.io, 2024.
+2. web.dev. "Measure and optimize performance with web-vitals." web.dev, 2024.
+3. Vercel. "Analytics - Web Vitals." vercel.com/docs/analytics, 2024.
+4. Google. "Core Web Vitals - Web Vitals." web.dev/articles/vitals, 2024.
+5. OpenTelemetry. "Getting Started with OpenTelemetry for JavaScript." opentelemetry.io/docs/languages/js, 2024.
+6. Charity Majors, Liz Fong-Jones, George Miranda. "Observability Engineering." O'Reilly Media, 2022.
+7. Betsy Beyer et al. "Site Reliability Engineering." O'Reilly Media, 2016.
+8. Datadog. "Monitoring 101: Collecting the right data." datadoghq.com/blog, 2024.
+9. Checkly. "Monitoring as Code." checklyhq.com/docs, 2024.
+10. Google. "Interaction to Next Paint (INP)." web.dev/articles/inp, 2024.
+11. Next.js. "Instrumentation." nextjs.org/docs/app/building-your-application/optimizing/instrumentation, 2024.
+12. Sentry. "Session Replay." docs.sentry.io/product/session-replay, 2024.

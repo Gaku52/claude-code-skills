@@ -2111,3 +2111,967 @@ const smartRetry = {
   },
 };
 ```
+
+---
+
+## 8. TanStack Query vs SWR 徹底比較
+
+### 8.1 機能比較表
+
+```
+TanStack Query vs SWR 詳細比較:
+
+┌──────────────────────────┬──────────────────┬──────────────────┐
+│ 機能                      │ TanStack Query   │ SWR              │
+├──────────────────────────┼──────────────────┼──────────────────┤
+│ 開発元                    │ TanStack         │ Vercel           │
+│ バンドルサイズ（gzip）     │ ~13KB            │ ~4KB             │
+│ TypeScript                │ 完全対応          │ 完全対応          │
+│ DevTools                  │ 優秀（専用GUI）   │ 限定的（SWR用）   │
+│ フレームワーク対応         │ React, Vue,      │ React のみ        │
+│                          │ Solid, Svelte,   │                  │
+│                          │ Angular          │                  │
+├──────────────────────────┼──────────────────┼──────────────────┤
+│ [データ取得]              │                  │                  │
+│ 基本クエリ                │ useQuery         │ useSWR           │
+│ 並列クエリ                │ useQueries       │ 個別hook併用      │
+│ 依存クエリ                │ enabled          │ 条件付きfetcher   │
+│ Suspense対応             │ useSuspenseQuery │ suspense: true   │
+│ プリフェッチ              │ prefetchQuery    │ preload          │
+│ 初期データ                │ initialData      │ fallbackData     │
+├──────────────────────────┼──────────────────┼──────────────────┤
+│ [データ更新]              │                  │                  │
+│ Mutation                 │ useMutation      │ useSWRMutation   │
+│ 楽観的更新                │ 組み込み          │ optimisticData   │
+│ キャッシュ無効化           │ invalidateQueries│ mutate           │
+│ キャッシュ直接更新         │ setQueryData     │ mutate(data)     │
+├──────────────────────────┼──────────────────┼──────────────────┤
+│ [ページネーション]         │                  │                  │
+│ 無限スクロール            │ useInfiniteQuery │ useSWRInfinite   │
+│ ページネーション           │ keepPreviousData │ keepPreviousData │
+├──────────────────────────┼──────────────────┼──────────────────┤
+│ [キャッシュ制御]           │                  │                  │
+│ staleTime                │ 柔軟に設定可能    │ dedupingInterval │
+│                          │                  │ で代替            │
+│ gcTime                   │ 設定可能          │ 限定的            │
+│ 構造共有                  │ あり             │ なし              │
+│ オフライン対応             │ 3モード          │ 限定的            │
+│ キャッシュ永続化           │ persistQueryClient│ カスタム実装      │
+├──────────────────────────┼──────────────────┼──────────────────┤
+│ [その他]                  │                  │                  │
+│ リトライ                  │ 詳細設定可能      │ 基本的な設定      │
+│ ポーリング                │ refetchInterval  │ refreshInterval  │
+│ ウィンドウフォーカス        │ あり             │ あり              │
+│ ネットワーク再接続         │ あり             │ あり              │
+│ SSR統合                  │ HydrationBoundary│ SWRConfig        │
+│ ミドルウェア              │ なし             │ あり              │
+│ 学習コスト                │ やや高い          │ 低い              │
+└──────────────────────────┴──────────────────┴──────────────────┘
+```
+
+### 8.2 SWR での実装例
+
+```typescript
+// SWR を使った基本的なデータ取得
+
+import useSWR from 'swr';
+
+// フェッチャー関数
+const fetcher = (url: string) =>
+  fetch(url).then(res => {
+    if (!res.ok) throw new Error('Failed to fetch');
+    return res.json();
+  });
+
+// 基本的な使用法
+function UserList() {
+  const { data, error, isLoading, isValidating, mutate } = useSWR(
+    '/api/users',
+    fetcher,
+    {
+      revalidateOnFocus: true,      // ウィンドウフォーカスで再取得
+      revalidateOnReconnect: true,  // ネットワーク再接続で再取得
+      refreshInterval: 0,           // ポーリング無効（0 = 無効）
+      dedupingInterval: 2000,       // 2秒間の重複リクエストを排除
+      errorRetryCount: 3,           // 3回リトライ
+    }
+  );
+
+  if (isLoading) return <Loading />;
+  if (error) return <Error message={error.message} />;
+
+  return (
+    <div>
+      {isValidating && <RefetchIndicator />}
+      <ul>
+        {data.map((user: User) => (
+          <li key={user.id}>{user.name}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+```
+
+```typescript
+// SWR: 条件付きフェッチ（依存クエリ）
+function useUserDetail(userId: string | null) {
+  return useSWR(
+    userId ? `/api/users/${userId}` : null, // nullでフェッチしない
+    fetcher,
+  );
+}
+
+// SWR: Mutationと楽観的更新
+function TodoList() {
+  const { data: todos, mutate } = useSWR('/api/todos', fetcher);
+
+  const toggleTodo = async (id: string, completed: boolean) => {
+    // 楽観的更新
+    const optimisticData = todos.map((todo: Todo) =>
+      todo.id === id ? { ...todo, completed } : todo
+    );
+
+    await mutate(
+      async () => {
+        await api.todos.update(id, { completed });
+        return await fetcher('/api/todos');
+      },
+      {
+        optimisticData,
+        rollbackOnError: true,
+        populateCache: true,
+        revalidate: false,
+      }
+    );
+  };
+
+  return (
+    <ul>
+      {todos?.map((todo: Todo) => (
+        <li key={todo.id}>
+          <input
+            type="checkbox"
+            checked={todo.completed}
+            onChange={(e) => toggleTodo(todo.id, e.target.checked)}
+          />
+          {todo.title}
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
+
+```typescript
+// SWR: 無限スクロール
+import useSWRInfinite from 'swr/infinite';
+
+function useInfiniteUsers() {
+  const getKey = (pageIndex: number, previousPageData: any) => {
+    if (previousPageData && !previousPageData.data.length) return null; // 最後のページ
+    return `/api/users?page=${pageIndex + 1}&limit=20`;
+  };
+
+  const { data, error, size, setSize, isLoading, isValidating } =
+    useSWRInfinite(getKey, fetcher);
+
+  const users = data ? data.flatMap(page => page.data) : [];
+  const isLoadingMore = isLoading || (size > 0 && data && typeof data[size - 1] === 'undefined');
+  const isEmpty = data?.[0]?.data?.length === 0;
+  const isReachingEnd = isEmpty || (data && data[data.length - 1]?.data?.length < 20);
+
+  return {
+    users,
+    isLoading,
+    isLoadingMore,
+    isReachingEnd,
+    loadMore: () => setSize(size + 1),
+    isValidating,
+    error,
+  };
+}
+```
+
+### 8.3 ライブラリ選定ガイドライン
+
+```
+ライブラリ選定の判断基準:
+
+  TanStack Query を選ぶべき場合:
+  ┌─────────────────────────────────────────────────────────┐
+  │ ・大規模なCRUDアプリケーション                              │
+  │ ・複雑なキャッシュ管理が必要（階層的な無効化が頻繁）          │
+  │ ・楽観的更新を多用する                                     │
+  │ ・DevToolsによるデバッグが重要                              │
+  │ ・オフライン対応が必要                                     │
+  │ ・React以外のフレームワークでも使いたい                      │
+  │ ・チームにサーバー状態管理の経験者がいる                      │
+  └─────────────────────────────────────────────────────────┘
+
+  SWR を選ぶべき場合:
+  ┌─────────────────────────────────────────────────────────┐
+  │ ・シンプルなデータ取得が主                                  │
+  │ ・バンドルサイズを最小限にしたい                             │
+  │ ・Next.js プロジェクト（Vercel製で親和性が高い）              │
+  │ ・学習コストを抑えたい                                     │
+  │ ・ミドルウェアパターンを使いたい                             │
+  │ ・すぐに使い始めたい（API がシンプル）                       │
+  └─────────────────────────────────────────────────────────┘
+
+  結論:
+  → 迷ったら TanStack Query を選択（機能が豊富で後から困りにくい）
+  → 小規模プロジェクトやプロトタイプなら SWR で十分
+  → どちらを選んでも stale-while-revalidate の恩恵は受けられる
+```
+
+---
+
+## 9. アンチパターンと落とし穴
+
+### 9.1 よくあるアンチパターン集
+
+```typescript
+// アンチパターン1: useEffect 内で queryClient を操作する
+// Bad
+function UserDetail({ userId }: { userId: string }) {
+  const queryClient = useQueryClient();
+  const { data } = useQuery({
+    queryKey: ['users', userId],
+    queryFn: () => api.users.get(userId),
+  });
+
+  // useEffect でキャッシュを操作すると無限ループの危険
+  useEffect(() => {
+    if (data) {
+      queryClient.setQueryData(['currentUser'], data);
+    }
+  }, [data, queryClient]);
+}
+
+// Good: select を使う
+function UserDetail({ userId }: { userId: string }) {
+  const { data } = useQuery({
+    queryKey: ['users', userId],
+    queryFn: () => api.users.get(userId),
+  });
+  // 必要なら別のクエリで同じデータを参照する
+}
+```
+
+```typescript
+// アンチパターン2: queryFn 内でステートを参照する
+// Bad
+function SearchResults() {
+  const [filter, setFilter] = useState('');
+
+  const { data } = useQuery({
+    queryKey: ['search'],        // queryKey にフィルターが含まれていない
+    queryFn: () => api.search(filter), // filter が変わってもクエリが再実行されない
+  });
+}
+
+// Good: queryKey にパラメータを含める
+function SearchResults() {
+  const [filter, setFilter] = useState('');
+
+  const { data } = useQuery({
+    queryKey: ['search', filter],      // filter を queryKey に含める
+    queryFn: () => api.search(filter), // filter が変わるとクエリが再実行される
+    enabled: filter.length >= 2,
+  });
+}
+```
+
+```typescript
+// アンチパターン3: コンポーネント内で QueryClient を生成
+// Bad
+function App() {
+  // 毎回レンダリングで新しい QueryClient が生成される
+  const queryClient = new QueryClient();
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <MyApp />
+    </QueryClientProvider>
+  );
+}
+
+// Good: useState で1回だけ生成する
+function App() {
+  const [queryClient] = useState(() => new QueryClient());
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <MyApp />
+    </QueryClientProvider>
+  );
+}
+```
+
+```typescript
+// アンチパターン4: mutate と mutateAsync の使い分けミス
+// Bad: mutate の返り値で何かしようとしている
+function CreateButton() {
+  const createUser = useCreateUser();
+
+  const handleClick = () => {
+    // mutate は void を返す → thenもcatchも動かない
+    const result = createUser.mutate(userData);
+    console.log(result); // undefined
+  };
+}
+
+// Good: 返り値が必要なら mutateAsync を使う
+function CreateButton() {
+  const createUser = useCreateUser();
+
+  const handleClick = async () => {
+    try {
+      const newUser = await createUser.mutateAsync(userData);
+      router.push(`/users/${newUser.id}`);
+    } catch (error) {
+      // エラーハンドリング
+    }
+  };
+}
+
+// Good: コールバックで処理するなら mutate でOK
+function CreateButton() {
+  const createUser = useCreateUser();
+
+  const handleClick = () => {
+    createUser.mutate(userData, {
+      onSuccess: (newUser) => {
+        router.push(`/users/${newUser.id}`);
+      },
+      onError: (error) => {
+        toast.error(error.message);
+      },
+    });
+  };
+}
+```
+
+```typescript
+// アンチパターン5: staleTime と gcTime の設定ミス
+// Bad: gcTime < staleTime はナンセンス
+const { data } = useQuery({
+  queryKey: ['users'],
+  queryFn: fetchUsers,
+  staleTime: 10 * 60 * 1000,    // 10分間fresh
+  gcTime: 1 * 60 * 1000,        // 1分でGC → freshのまま消える可能性
+});
+
+// Good: gcTime >= staleTime にする
+const { data } = useQuery({
+  queryKey: ['users'],
+  queryFn: fetchUsers,
+  staleTime: 10 * 60 * 1000,    // 10分間fresh
+  gcTime: 15 * 60 * 1000,       // 15分でGC（staleTimeより長い）
+});
+```
+
+```typescript
+// アンチパターン6: 楽観的更新でonSettledのinvalidateを忘れる
+// Bad
+const mutation = useMutation({
+  mutationFn: updateTodo,
+  onMutate: async (newData) => {
+    await queryClient.cancelQueries({ queryKey: ['todos'] });
+    const previous = queryClient.getQueryData(['todos']);
+    queryClient.setQueryData(['todos'], newData);
+    return { previous };
+  },
+  onError: (err, newData, context) => {
+    queryClient.setQueryData(['todos'], context?.previous);
+  },
+  // onSettled がない → サーバーの最新データと同期されない
+});
+
+// Good: onSettled で必ず再検証
+const mutation = useMutation({
+  mutationFn: updateTodo,
+  onMutate: async (newData) => {
+    await queryClient.cancelQueries({ queryKey: ['todos'] });
+    const previous = queryClient.getQueryData(['todos']);
+    queryClient.setQueryData(['todos'], newData);
+    return { previous };
+  },
+  onError: (err, newData, context) => {
+    queryClient.setQueryData(['todos'], context?.previous);
+  },
+  onSettled: () => {
+    queryClient.invalidateQueries({ queryKey: ['todos'] }); // 必ず再検証
+  },
+});
+```
+
+### 9.2 パフォーマンスの落とし穴
+
+```typescript
+// 落とし穴1: select で新しいオブジェクト参照を毎回作成
+// Bad: インラインselectが毎回新しい関数参照
+function ActiveUserCount() {
+  const { data: count } = useQuery({
+    queryKey: ['users'],
+    queryFn: () => api.users.list(),
+    // 毎回新しい関数参照 → structuralSharingが効かない場合がある
+    select: (data) => data.filter(u => u.active).length,
+  });
+  return <span>{count}</span>;
+}
+
+// Good: useCallbackで安定した参照を使う
+function ActiveUserCount() {
+  const selectCount = useCallback(
+    (data: User[]) => data.filter(u => u.active).length,
+    []
+  );
+
+  const { data: count } = useQuery({
+    queryKey: ['users'],
+    queryFn: () => api.users.list(),
+    select: selectCount,
+  });
+  return <span>{count}</span>;
+}
+```
+
+```typescript
+// 落とし穴2: 無限スクロールのメモリリーク
+// Bad: ページ数が際限なく増える
+function InfiniteList() {
+  const { data } = useInfiniteQuery({
+    queryKey: ['items'],
+    queryFn: fetchItems,
+    initialPageParam: 0,
+    getNextPageParam: (lastPage) => lastPage.nextCursor,
+    // maxPages がない → 長時間使用するとメモリが増大
+  });
+}
+
+// Good: maxPages を設定してメモリ使用量を制限
+function InfiniteList() {
+  const { data } = useInfiniteQuery({
+    queryKey: ['items'],
+    queryFn: fetchItems,
+    initialPageParam: 0,
+    getNextPageParam: (lastPage) => lastPage.nextCursor,
+    maxPages: 10, // 最大10ページまでキャッシュ
+  });
+}
+```
+
+---
+
+## 10. テスト戦略
+
+### 10.1 カスタムフックのテスト
+
+```typescript
+// src/hooks/__tests__/useUsers.test.tsx
+import { renderHook, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { http, HttpResponse } from 'msw';
+import { setupServer } from 'msw/node';
+
+// MSW サーバー設定
+const server = setupServer(
+  http.get('/api/users', () => {
+    return HttpResponse.json([
+      { id: '1', name: 'Alice', email: 'alice@example.com' },
+      { id: '2', name: 'Bob', email: 'bob@example.com' },
+    ]);
+  }),
+);
+
+beforeAll(() => server.listen());
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());
+
+// テスト用のラッパー
+function createWrapper() {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,     // テストではリトライしない
+        gcTime: Infinity, // テスト中にキャッシュが消えないように
+      },
+    },
+  });
+
+  return function Wrapper({ children }: { children: React.ReactNode }) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        {children}
+      </QueryClientProvider>
+    );
+  };
+}
+
+// テスト
+describe('useUsers', () => {
+  it('ユーザー一覧を取得できる', async () => {
+    const { result } = renderHook(() => useUsers(), {
+      wrapper: createWrapper(),
+    });
+
+    // 初期状態はローディング
+    expect(result.current.isLoading).toBe(true);
+
+    // データが取得されるまで待機
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    // データの検証
+    expect(result.current.data).toHaveLength(2);
+    expect(result.current.data?.[0].name).toBe('Alice');
+  });
+
+  it('エラー時にエラー状態になる', async () => {
+    // このテストだけエラーを返すように上書き
+    server.use(
+      http.get('/api/users', () => {
+        return HttpResponse.json(
+          { message: 'Internal Server Error' },
+          { status: 500 },
+        );
+      }),
+    );
+
+    const { result } = renderHook(() => useUsers(), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+
+    expect(result.current.error).toBeDefined();
+  });
+});
+```
+
+### 10.2 Mutation のテスト
+
+```typescript
+describe('useCreateUser', () => {
+  it('ユーザーを作成してキャッシュを更新する', async () => {
+    const newUser = { name: 'Charlie', email: 'charlie@example.com' };
+
+    server.use(
+      http.post('/api/users', async ({ request }) => {
+        const body = await request.json();
+        return HttpResponse.json({ id: '3', ...body as object });
+      }),
+    );
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    // 先にユーザー一覧をキャッシュに設定
+    queryClient.setQueryData(['users', 'list'], [
+      { id: '1', name: 'Alice' },
+    ]);
+
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={queryClient}>
+        {children}
+      </QueryClientProvider>
+    );
+
+    const { result } = renderHook(() => useCreateUser(), { wrapper });
+
+    // Mutation を実行
+    result.current.mutate(newUser);
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    // Mutation の結果
+    expect(result.current.data).toEqual({ id: '3', ...newUser });
+
+    // キャッシュが無効化されたか確認
+    const queryState = queryClient.getQueryState(['users', 'list']);
+    expect(queryState?.isInvalidated).toBe(true);
+  });
+});
+```
+
+### 10.3 楽観的更新のテスト
+
+```typescript
+describe('useUpdateTodo (楽観的更新)', () => {
+  it('即座にUIが更新され、エラー時にロールバックする', async () => {
+    // APIがエラーを返すように設定
+    server.use(
+      http.patch('/api/todos/:id', () => {
+        return HttpResponse.json(
+          { message: 'Server Error' },
+          { status: 500 },
+        );
+      }),
+    );
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+
+    const initialTodos = [
+      { id: '1', title: 'Buy milk', completed: false },
+      { id: '2', title: 'Walk dog', completed: false },
+    ];
+    queryClient.setQueryData(['todos'], initialTodos);
+
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={queryClient}>
+        {children}
+      </QueryClientProvider>
+    );
+
+    const { result } = renderHook(() => useUpdateTodo(), { wrapper });
+
+    // 楽観的更新を実行
+    result.current.mutate({ id: '1', data: { completed: true } });
+
+    // 即座にキャッシュが更新されていることを確認（楽観的更新）
+    await waitFor(() => {
+      const todos = queryClient.getQueryData<Todo[]>(['todos']);
+      expect(todos?.[0].completed).toBe(true);
+    });
+
+    // エラー後にロールバックされることを確認
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+
+    // キャッシュが元に戻っていることを確認
+    const todos = queryClient.getQueryData<Todo[]>(['todos']);
+    expect(todos?.[0].completed).toBe(false);
+  });
+});
+```
+
+---
+
+## 11. 高度なパターン
+
+### 11.1 useQueries による並列クエリ
+
+```typescript
+// 複数のクエリを並列実行
+
+import { useQueries } from '@tanstack/react-query';
+
+function DashboardStats({ userIds }: { userIds: string[] }) {
+  // 動的な数のクエリを並列実行
+  const userQueries = useQueries({
+    queries: userIds.map(id => ({
+      queryKey: userKeys.detail(id),
+      queryFn: () => api.users.get(id),
+      staleTime: 5 * 60 * 1000,
+    })),
+  });
+
+  const isLoading = userQueries.some(q => q.isLoading);
+  const isError = userQueries.some(q => q.isError);
+  const users = userQueries
+    .filter(q => q.isSuccess)
+    .map(q => q.data!);
+
+  if (isLoading) return <Spinner />;
+  if (isError) return <ErrorMessage />;
+
+  return (
+    <div className="grid grid-cols-3 gap-4">
+      {users.map(user => (
+        <UserStatCard key={user.id} user={user} />
+      ))}
+    </div>
+  );
+}
+```
+
+### 11.2 キャッシュの永続化
+
+```typescript
+// TanStack Query のキャッシュを永続化する
+// アプリ再起動時にキャッシュを復元できる
+
+import { persistQueryClient } from '@tanstack/react-query-persist-client';
+import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      gcTime: 1000 * 60 * 60 * 24, // 24時間（永続化のために長めに設定）
+    },
+  },
+});
+
+// localStorage を使った永続化
+const persister = createSyncStoragePersister({
+  storage: window.localStorage,
+  key: 'REACT_QUERY_OFFLINE_CACHE',
+  throttleTime: 1000, // 1秒に1回しか保存しない（パフォーマンス対策）
+  serialize: (data) => JSON.stringify(data),
+  deserialize: (data) => JSON.parse(data),
+});
+
+// 永続化の設定
+persistQueryClient({
+  queryClient,
+  persister,
+  maxAge: 1000 * 60 * 60 * 24, // 24時間で期限切れ
+  dehydrateOptions: {
+    shouldDehydrateQuery: (query) => {
+      // 特定のクエリのみ永続化
+      const queryKey = query.queryKey as string[];
+      return ['categories', 'config', 'user-preferences'].some(key =>
+        queryKey.includes(key)
+      );
+    },
+  },
+});
+```
+
+### 11.3 オフライン対応
+
+```typescript
+// オフラインファーストのアプリケーション
+
+import { onlineManager } from '@tanstack/react-query';
+
+// カスタムオンライン検知（navigator.onLine の代替）
+onlineManager.setEventListener((setOnline) => {
+  const onlineHandler = () => setOnline(true);
+  const offlineHandler = () => setOnline(false);
+
+  window.addEventListener('online', onlineHandler);
+  window.addEventListener('offline', offlineHandler);
+
+  return () => {
+    window.removeEventListener('online', onlineHandler);
+    window.removeEventListener('offline', offlineHandler);
+  };
+});
+
+// オフライン時のMutation キュー
+// networkMode: 'offlineFirst' を使用
+const mutation = useMutation({
+  mutationFn: api.todos.create,
+  networkMode: 'offlineFirst', // オフラインでもキューに入れて後で実行
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ['todos'] });
+  },
+});
+
+// オフライン状態のUI表示
+function OfflineIndicator() {
+  const isOnline = onlineManager.isOnline();
+
+  if (isOnline) return null;
+
+  return (
+    <div className="fixed bottom-4 right-4 bg-yellow-500 text-white px-4 py-2 rounded-lg shadow-lg">
+      オフラインです。変更はオンライン復帰後に同期されます。
+    </div>
+  );
+}
+```
+
+### 11.4 カスタムフックの設計原則
+
+```typescript
+// カスタムフックの設計原則
+
+// 原則1: クエリオプションを外部から注入可能にする
+function useUsers(options?: Partial<UseQueryOptions<User[]>>) {
+  return useQuery({
+    queryKey: userKeys.lists(),
+    queryFn: () => api.users.list(),
+    staleTime: 30 * 1000,
+    ...options, // 呼び出し側でオーバーライド可能
+  });
+}
+
+// 使用例
+const { data } = useUsers({
+  staleTime: Infinity,      // この画面では再取得不要
+  enabled: isAuthenticated, // 認証済みの場合のみ
+});
+
+// 原則2: 関連するQuery + Mutation をまとめる
+function useTodos() {
+  const queryClient = useQueryClient();
+
+  const todosQuery = useQuery({
+    queryKey: ['todos'],
+    queryFn: () => api.todos.list(),
+  });
+
+  const addMutation = useMutation({
+    mutationFn: api.todos.create,
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['todos'] }),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<Todo> }) =>
+      api.todos.update(id, data),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['todos'] }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: api.todos.delete,
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['todos'] }),
+  });
+
+  return {
+    todos: todosQuery.data ?? [],
+    isLoading: todosQuery.isLoading,
+    error: todosQuery.error,
+    addTodo: addMutation.mutate,
+    updateTodo: updateMutation.mutate,
+    deleteTodo: deleteMutation.mutate,
+    isAdding: addMutation.isPending,
+    isUpdating: updateMutation.isPending,
+    isDeleting: deleteMutation.isPending,
+  };
+}
+
+// 原則3: queryOptions ヘルパー関数で設定を共有する
+import { queryOptions } from '@tanstack/react-query';
+
+export function userListQueryOptions(filters?: UserFilters) {
+  return queryOptions({
+    queryKey: userKeys.list(filters ?? {}),
+    queryFn: () => api.users.list(filters),
+    staleTime: 30 * 1000,
+  });
+}
+
+// コンポーネントで使用
+function UserList() {
+  const { data } = useQuery(userListQueryOptions({ role: 'admin' }));
+}
+
+// ローダーで使用
+export async function loader({ params }: LoaderFunctionArgs) {
+  return queryClient.ensureQueryData(userListQueryOptions());
+}
+
+// プリフェッチで使用
+queryClient.prefetchQuery(userListQueryOptions());
+```
+
+---
+
+## まとめ
+
+### パターン早見表
+
+| パターン | 用途 | API |
+|---------|------|-----|
+| staleTime | データの鮮度期限の設定 | `useQuery({ staleTime })` |
+| gcTime | 非活性キャッシュの保持期間 | `useQuery({ gcTime })` |
+| invalidateQueries | Mutation後のキャッシュ無効化 | `queryClient.invalidateQueries()` |
+| setQueryData | キャッシュの直接更新 | `queryClient.setQueryData()` |
+| useInfiniteQuery | 無限スクロール | `useInfiniteQuery({ getNextPageParam })` |
+| prefetchQuery | ホバー/ルート遷移前のプリフェッチ | `queryClient.prefetchQuery()` |
+| placeholderData | ページ遷移時の前データ表示 | `useQuery({ placeholderData })` |
+| enabled | 条件付きクエリ実行 | `useQuery({ enabled })` |
+| select | キャッシュデータの変換・フィルタ | `useQuery({ select })` |
+| useSuspenseQuery | Suspense対応クエリ | `useSuspenseQuery()` |
+| refetchInterval | ポーリング（定期再取得） | `useQuery({ refetchInterval })` |
+| networkMode | オフライン対応 | `useQuery({ networkMode })` |
+
+### キャッシュ戦略チートシート
+
+```
+データの種類別キャッシュ戦略:
+
+┌──────────────────┬──────────┬──────────┬──────────────────────┐
+│ データ種別        │ staleTime│ gcTime   │ その他                │
+├──────────────────┼──────────┼──────────┼──────────────────────┤
+│ リアルタイム      │ 0        │ 5分      │ refetchInterval      │
+│ （通知、チャット）  │          │          │ WebSocket連携         │
+├──────────────────┼──────────┼──────────┼──────────────────────┤
+│ ユーザーデータ    │ 30秒〜2分│ 10分     │ invalidateQueries    │
+│ （一覧、詳細）     │          │          │ 楽観的更新            │
+├──────────────────┼──────────┼──────────┼──────────────────────┤
+│ マスタデータ      │ 1〜24時間│ Infinity │ 初回のみフェッチ       │
+│ （カテゴリ、設定） │          │          │ staleTime: Infinity  │
+├──────────────────┼──────────┼──────────┼──────────────────────┤
+│ 検索結果         │ 5分      │ 10分     │ keepPreviousData     │
+│                  │          │          │ デバウンス            │
+├──────────────────┼──────────┼──────────┼──────────────────────┤
+│ ページネーション  │ 30秒     │ 5分      │ keepPreviousData     │
+│                  │          │          │ 次ページプリフェッチ    │
+└──────────────────┴──────────┴──────────┴──────────────────────┘
+```
+
+### 実装チェックリスト
+
+```
+サーバー状態管理の実装チェックリスト:
+
+  セットアップ:
+  □ QueryClient のデフォルト設定を定義した
+  □ QueryClientProvider を配置した
+  □ DevTools を開発環境で有効にした
+  □ グローバルエラーハンドリング（QueryCache, MutationCache）を設定した
+
+  Query Key:
+  □ Query Key Factory パターンを導入した
+  □ queryFn で使用する全パラメータが queryKey に含まれている
+  □ 階層構造で設計し、部分的な無効化が可能になっている
+
+  キャッシュ戦略:
+  □ データ種別ごとに staleTime を設定した
+  □ gcTime が staleTime 以上であることを確認した
+  □ 適切な再取得トリガー（windowFocus, reconnect）を設定した
+
+  Mutation:
+  □ onSettled で関連キャッシュの invalidateQueries を呼んでいる
+  □ 楽観的更新が必要な箇所は onMutate + onError + onSettled を実装した
+  □ mutate と mutateAsync を適切に使い分けている
+
+  エラーハンドリング:
+  □ 認証エラー（401）のグローバルハンドリングを設定した
+  □ リトライ戦略を設定した（クライアントエラーはリトライしない）
+  □ Error Boundary で UI レベルのエラー表示を実装した
+
+  パフォーマンス:
+  □ 重要なページのプリフェッチを設定した
+  □ 無限スクロールで maxPages を設定した
+  □ select の参照安定性を確認した
+  □ 大量データ表示に仮想化を検討した
+
+  テスト:
+  □ MSW でAPIモックを設定した
+  □ カスタムフックのテストを書いた
+  □ 楽観的更新のロールバックをテストした
+```
+
+---
+
+## 次に読むべきガイド
+→ [[03-url-state.md]] -- URL状態管理
+
+---
+
+## 参考文献
+1. TkDodo. "Practical React Query." tkdodo.eu, 2024.
+2. TanStack. "TanStack Query Documentation v5." tanstack.com, 2024.
+3. SWR. "React Hooks for Data Fetching." swr.vercel.app, 2024.
+4. Kent C. Dodds. "Application State Management with React." kentcdodds.com, 2020.
+5. Jason Watmore. "React Query vs SWR - Feature Comparison." jasonwatmore.com, 2024.
+6. Web.dev. "stale-while-revalidate." web.dev, 2023.
+7. TkDodo. "React Query and React Router." tkdodo.eu, 2023.
+8. TanStack. "React Query DevTools." tanstack.com, 2024.
+9. Vercel. "SWR v2 Documentation." swr.vercel.app, 2024.
+10. MDN Web Docs. "Cache-Control: stale-while-revalidate." developer.mozilla.org, 2024.

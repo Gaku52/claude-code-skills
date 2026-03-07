@@ -2371,3 +2371,1416 @@ function UserProfile({ userId }) {
   );
 }
 ```
+
+---
+
+## 10. エラーハンドリング
+
+### 10.1 GraphQLのエラーモデル
+
+```
+GraphQLのエラー分類:
+
+  ┌──────────────────────────────────────────────────────────────┐
+  │                    GraphQL エラーの3層構造                     │
+  │                                                              │
+  │  Layer 1: ネットワークエラー                                   │
+  │    → HTTPレベルのエラー（接続タイムアウト、DNS解決失敗等）       │
+  │    → レスポンスのHTTPステータスが4xx/5xx                       │
+  │    → GraphQLサーバーに到達できていない状態                     │
+  │                                                              │
+  │  Layer 2: GraphQL実行エラー（errors配列）                     │
+  │    → パース失敗、バリデーション失敗、リゾルバー内例外           │
+  │    → HTTPステータスは200だがerrorsフィールドにエラー情報あり    │
+  │    → data は partial（一部null）になることがある               │
+  │                                                              │
+  │  Layer 3: ビジネスロジックエラー（Payloadのerrorsフィールド）  │
+  │    → アプリケーション固有のエラー（バリデーション、認可等）     │
+  │    → GraphQLとしては成功（errorsなし）                        │
+  │    → Payloadオブジェクト内のerrorsで表現                      │
+  │                                                              │
+  └──────────────────────────────────────────────────────────────┘
+```
+
+### 10.2 エラーレスポンスの形式
+
+```javascript
+// Layer 2: GraphQL実行エラーの例
+// リゾルバー内でthrowされたエラー
+{
+  "data": {
+    "user": null
+  },
+  "errors": [
+    {
+      "message": "認証が必要です",
+      "locations": [{ "line": 2, "column": 3 }],
+      "path": ["user"],
+      "extensions": {
+        "code": "UNAUTHENTICATED",
+        "http": { "status": 401 }
+      }
+    }
+  ]
+}
+
+// Layer 3: ビジネスロジックエラーの例
+// Payloadパターンによるエラー
+{
+  "data": {
+    "createUser": {
+      "user": null,
+      "errors": [
+        {
+          "field": "email",
+          "message": "既に登録済みのメールアドレスです",
+          "code": "ALREADY_EXISTS"
+        },
+        {
+          "field": "name",
+          "message": "名前は2文字以上で入力してください",
+          "code": "VALIDATION_ERROR"
+        }
+      ]
+    }
+  }
+}
+
+// Partial Data（部分的成功）の例
+// 一部のフィールドが失敗しても他のフィールドは返す
+{
+  "data": {
+    "user": {
+      "name": "Taro",
+      "email": "taro@example.com",
+      "orders": null  // ← このフィールドだけエラー
+    }
+  },
+  "errors": [
+    {
+      "message": "注文サービスに接続できません",
+      "path": ["user", "orders"],
+      "extensions": { "code": "SERVICE_UNAVAILABLE" }
+    }
+  ]
+}
+```
+
+### 10.3 エラー設計のベストプラクティス
+
+```
+エラー設計の指針:
+
+  1. 予期されるエラー → Payloadパターン（Layer 3）
+     - バリデーションエラー
+     - 重複登録
+     - 権限不足
+     → クライアントが型安全にハンドリング可能
+
+  2. 予期しないエラー → GraphQL errors（Layer 2）
+     - 認証期限切れ
+     - サーバー内部エラー
+     - リソース上限超過
+     → extensions.code で分類
+
+  3. エラーコードは必ず定義する
+     → 人間向けメッセージは変わりうるが、コードは安定
+     → クライアントのi18n対応にも有用
+
+  4. エラーにはfieldパスを含める
+     → フォームのどの項目でエラーが出たか特定できる
+     → UXの向上に直結
+```
+
+---
+
+## 11. テスト戦略
+
+### 11.1 リゾルバーの単体テスト
+
+```javascript
+// __tests__/resolvers/user.test.js
+import { resolvers } from '../../resolvers';
+
+describe('Query.user', () => {
+  const mockContext = {
+    user: { id: '1', role: 'ADMIN' },
+    dataSources: {
+      userAPI: {
+        getUser: jest.fn(),
+      },
+    },
+  };
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('IDでユーザーを取得できること', async () => {
+    const mockUser = {
+      id: '123',
+      name: 'Taro',
+      email: 'taro@example.com',
+      role: 'USER',
+    };
+    mockContext.dataSources.userAPI.getUser.mockResolvedValue(mockUser);
+
+    const result = await resolvers.Query.user(
+      null,
+      { id: '123' },
+      mockContext
+    );
+
+    expect(result).toEqual(mockUser);
+    expect(mockContext.dataSources.userAPI.getUser).toHaveBeenCalledWith('123');
+  });
+
+  it('存在しないIDの場合nullを返すこと', async () => {
+    mockContext.dataSources.userAPI.getUser.mockResolvedValue(null);
+
+    const result = await resolvers.Query.user(
+      null,
+      { id: 'nonexistent' },
+      mockContext
+    );
+
+    expect(result).toBeNull();
+  });
+});
+
+describe('Mutation.createUser', () => {
+  const mockContext = {
+    user: { id: '1', role: 'ADMIN' },
+    dataSources: {
+      userAPI: {
+        createUser: jest.fn(),
+      },
+    },
+  };
+
+  it('正常にユーザーを作成できること', async () => {
+    const input = { name: 'Taro', email: 'taro@example.com' };
+    const createdUser = { id: '456', ...input, role: 'USER' };
+    mockContext.dataSources.userAPI.createUser.mockResolvedValue(createdUser);
+
+    const result = await resolvers.Mutation.createUser(
+      null,
+      { input },
+      mockContext
+    );
+
+    expect(result.user).toEqual(createdUser);
+    expect(result.errors).toEqual([]);
+  });
+
+  it('重複メール時にエラーを返すこと', async () => {
+    const input = { name: 'Taro', email: 'existing@example.com' };
+    mockContext.dataSources.userAPI.createUser.mockRejectedValue({
+      code: 'DUPLICATE_EMAIL',
+      field: 'email',
+      message: '既に登録済みのメールアドレスです',
+    });
+
+    const result = await resolvers.Mutation.createUser(
+      null,
+      { input },
+      mockContext
+    );
+
+    expect(result.user).toBeNull();
+    expect(result.errors[0].code).toBe('ALREADY_EXISTS');
+  });
+});
+```
+
+### 11.2 統合テスト
+
+```javascript
+// __tests__/integration/server.test.js
+import { ApolloServer } from '@apollo/server';
+import { readFileSync } from 'fs';
+import assert from 'assert';
+
+const typeDefs = readFileSync('./schema.graphql', 'utf-8');
+
+describe('GraphQL Server統合テスト', () => {
+  let server;
+
+  beforeAll(() => {
+    server = new ApolloServer({ typeDefs, resolvers });
+  });
+
+  it('ユーザー取得クエリが正しく動作すること', async () => {
+    const response = await server.executeOperation(
+      {
+        query: `
+          query GetUser($id: ID!) {
+            user(id: $id) {
+              id
+              name
+              email
+            }
+          }
+        `,
+        variables: { id: '123' },
+      },
+      {
+        contextValue: {
+          user: { id: '1', role: 'ADMIN' },
+          dataSources: {
+            userAPI: {
+              getUser: async (id) => ({
+                id,
+                name: 'Test User',
+                email: 'test@example.com',
+              }),
+            },
+          },
+        },
+      }
+    );
+
+    assert.strictEqual(response.body.kind, 'single');
+    const { data, errors } = response.body.singleResult;
+    assert.strictEqual(errors, undefined);
+    assert.strictEqual(data.user.name, 'Test User');
+  });
+
+  it('認証なしのリクエストがエラーになること', async () => {
+    const response = await server.executeOperation(
+      {
+        query: `query { users(first: 10) { edges { node { id } } } }`,
+      },
+      {
+        contextValue: {
+          user: null, // 未認証
+          dataSources: {
+            userAPI: { listUsers: jest.fn() },
+          },
+        },
+      }
+    );
+
+    assert.strictEqual(response.body.kind, 'single');
+    const { errors } = response.body.singleResult;
+    assert(errors && errors.length > 0);
+  });
+});
+```
+
+---
+
+## 12. セキュリティ
+
+### 12.1 クエリ深度制限
+
+```javascript
+// セキュリティ: クエリの深度制限
+import depthLimit from 'graphql-depth-limit';
+
+const server = new ApolloServer({
+  typeDefs,
+  resolvers,
+  validationRules: [
+    depthLimit(10), // 最大深度10
+  ],
+});
+
+// 深度10を超えるクエリはバリデーションで拒否される
+// 悪意あるクエリ例:
+// query {
+//   user(id: "1") {       // 深度 1
+//     orders {             // 深度 2
+//       items {            // 深度 3
+//         product {        // 深度 4
+//           category {     // 深度 5
+//             parent {     // 深度 6 （再帰的）
+//               parent {   // 深度 7
+//                 ...      // 無限再帰の可能性
+//               }
+//             }
+//           }
+//         }
+//       }
+//     }
+//   }
+// }
+```
+
+### 12.2 クエリ複雑度制限
+
+```javascript
+// クエリの複雑度（コスト）制限
+import { createComplexityRule, simpleEstimator } from 'graphql-query-complexity';
+
+const server = new ApolloServer({
+  typeDefs,
+  resolvers,
+  validationRules: [
+    createComplexityRule({
+      maximumComplexity: 1000,
+      estimators: [
+        simpleEstimator({ defaultComplexity: 1 }),
+      ],
+      onComplete: (complexity) => {
+        console.log(`Query complexity: ${complexity}`);
+      },
+    }),
+  ],
+});
+
+// スキーマレベルでフィールドごとのコストを指定
+// type Query {
+//   users(first: Int): UserConnection! @complexity(value: 10, multipliers: ["first"])
+//   user(id: ID!): User @complexity(value: 1)
+// }
+//
+// users(first: 100) のコスト = 10 * 100 = 1000 → 上限に達する
+```
+
+### 12.3 レート制限とAPQ
+
+```javascript
+// Automatic Persisted Queries (APQ)
+// クエリ文字列のハッシュを送信し、サーバーにキャッシュされたクエリを実行
+// → クエリ文字列の転送量を削減し、任意クエリの実行を防止
+
+import {
+  ApolloClient,
+  InMemoryCache,
+  createHttpLink,
+} from '@apollo/client';
+import { createPersistedQueryLink } from '@apollo/client/link/persisted-queries';
+import { sha256 } from 'crypto-hash';
+
+const httpLink = createHttpLink({ uri: '/graphql' });
+
+const persistedQueriesLink = createPersistedQueryLink({
+  sha256,
+  useGETForHashedQueries: true, // GETリクエストでCDNキャッシュ活用
+});
+
+const client = new ApolloClient({
+  link: persistedQueriesLink.concat(httpLink),
+  cache: new InMemoryCache(),
+});
+
+// サーバー側: allowedOperationsのホワイトリスト（本番向け）
+// → 登録されたクエリのみ実行を許可
+// → GraphiQL等からの任意クエリ実行を防止
+```
+
+---
+
+## 13. アンチパターン
+
+### 13.1 アンチパターン1: 巨大な単一リゾルバー
+
+```javascript
+// ===== アンチパターン: 巨大な単一リゾルバー =====
+// すべてのロジックを1つのリゾルバーに詰め込む
+
+const badResolvers = {
+  Query: {
+    user: async (_, { id }, context) => {
+      // DBクエリ
+      const user = await db.query('SELECT * FROM users WHERE id = $1', [id]);
+
+      // 注文を取得（N+1問題を引き起こす）
+      const orders = await db.query(
+        'SELECT * FROM orders WHERE user_id = $1', [id]
+      );
+
+      // 各注文のアイテムを取得（さらにN+1）
+      for (const order of orders.rows) {
+        order.items = await db.query(
+          'SELECT * FROM order_items WHERE order_id = $1', [order.id]
+        );
+        // 各アイテムの商品を取得（さらにN+1）
+        for (const item of order.items.rows) {
+          item.product = await db.query(
+            'SELECT * FROM products WHERE id = $1', [item.product_id]
+          );
+        }
+      }
+
+      // バリデーション、変換、キャッシュすべてここに...
+      user.rows[0].orders = orders.rows;
+      return user.rows[0];
+    },
+  },
+};
+
+// 問題点:
+// 1. N+1問題（注文ごと、アイテムごとに個別クエリ）
+// 2. クライアントがordersを要求していなくても全データを取得
+// 3. テストが困難（モック対象が多い）
+// 4. 関心の分離ができていない
+
+// ===== 改善: フィールドリゾルバー + DataLoader =====
+const goodResolvers = {
+  Query: {
+    user: (_, { id }, { loaders }) => loaders.userLoader.load(id),
+  },
+  User: {
+    orders: (user, _, { loaders }) =>
+      loaders.ordersByUserIdLoader.load(user.id),
+  },
+  Order: {
+    items: (order, _, { loaders }) =>
+      loaders.orderItemsByOrderIdLoader.load(order.id),
+  },
+  OrderItem: {
+    product: (item, _, { loaders }) =>
+      loaders.productLoader.load(item.productId),
+  },
+};
+// → 各フィールドが独立、DataLoaderでバッチ化、必要なフィールドのみ解決
+```
+
+### 13.2 アンチパターン2: スキーマとビジネスロジックの密結合
+
+```javascript
+// ===== アンチパターン: リゾルバーにビジネスロジックを直接記述 =====
+
+const badMutationResolver = {
+  Mutation: {
+    createOrder: async (_, { input }, context) => {
+      // 在庫チェック（ビジネスロジック）
+      for (const item of input.items) {
+        const product = await db.query(
+          'SELECT stock FROM products WHERE id = $1', [item.productId]
+        );
+        if (product.rows[0].stock < item.quantity) {
+          return {
+            order: null,
+            errors: [{
+              field: 'items',
+              message: `${product.rows[0].name}の在庫が不足しています`,
+              code: 'VALIDATION_ERROR',
+            }],
+          };
+        }
+      }
+
+      // 金額計算（ビジネスロジック）
+      let total = 0;
+      for (const item of input.items) {
+        const product = await db.query(
+          'SELECT price FROM products WHERE id = $1', [item.productId]
+        );
+        total += product.rows[0].price * item.quantity;
+      }
+
+      // 割引適用（ビジネスロジック）
+      if (total > 10000) {
+        total = Math.floor(total * 0.9);
+      }
+
+      // DB書き込み、メール送信など全部ここに...
+      // → テスト困難、再利用不可、変更リスク高
+    },
+  },
+};
+
+// ===== 改善: サービス層に分離 =====
+
+// services/order-service.js
+class OrderService {
+  constructor(db, productService, notificationService) {
+    this.db = db;
+    this.productService = productService;
+    this.notificationService = notificationService;
+  }
+
+  async createOrder(input, userId) {
+    // バリデーション
+    const validationErrors = await this.validateOrderInput(input);
+    if (validationErrors.length > 0) {
+      return { order: null, errors: validationErrors };
+    }
+
+    // 金額計算
+    const total = await this.calculateTotal(input.items);
+
+    // 注文作成
+    const order = await this.db.createOrder({
+      userId,
+      items: input.items,
+      total,
+      status: 'PENDING',
+    });
+
+    // 通知
+    await this.notificationService.sendOrderConfirmation(order);
+
+    return { order, errors: [] };
+  }
+
+  async validateOrderInput(input) { /* ... */ }
+  async calculateTotal(items) { /* ... */ }
+}
+
+// リゾルバーは薄いレイヤーとして機能
+const goodMutationResolver = {
+  Mutation: {
+    createOrder: async (_, { input }, context) => {
+      return context.services.orderService.createOrder(input, context.user.id);
+    },
+  },
+};
+// → テスト容易、ロジック再利用可能、関心の分離
+```
+
+### 13.3 アンチパターン3: 過度なネスト許可
+
+```
+アンチパターン: 循環参照の放置
+
+  type User {
+    orders: [Order!]!
+  }
+  type Order {
+    user: User!       ← User → Order → User → Order → ... 無限ループ可能
+    items: [OrderItem!]!
+  }
+  type OrderItem {
+    order: Order!     ← OrderItem → Order → OrderItem → ... 循環
+  }
+
+  悪意あるクエリ:
+  query DeepNested {
+    user(id: "1") {
+      orders {
+        user {
+          orders {
+            user {
+              orders {
+                # ... 無限に続けられる
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  対策:
+  1. depthLimit による深度制限（セクション12.1参照）
+  2. 複雑度コスト制限（セクション12.2参照）
+  3. クエリタイムアウトの設定
+  4. 逆参照を慎重に設計（本当に必要な場合のみ追加）
+```
+
+---
+
+## 14. エッジケース分析
+
+### 14.1 エッジケース1: Nullableフィールドのチェーン
+
+```graphql
+# 問題: ネストされたnullableフィールドのアクセス
+
+type User {
+  id: ID!
+  name: String!
+  profile: UserProfile        # nullable
+}
+
+type UserProfile {
+  avatar: String              # nullable
+  address: Address            # nullable
+}
+
+type Address {
+  prefecture: String!
+  city: String!
+}
+
+# クエリ
+query GetUserAddress {
+  user(id: "1") {
+    name
+    profile {          # nullの可能性あり
+      address {        # nullの可能性あり
+        prefecture
+        city
+      }
+    }
+  }
+}
+
+# レスポンスパターン1: profileがnull
+# {
+#   "data": {
+#     "user": {
+#       "name": "Taro",
+#       "profile": null
+#     }
+#   }
+# }
+
+# レスポンスパターン2: profileはあるがaddressがnull
+# {
+#   "data": {
+#     "user": {
+#       "name": "Taro",
+#       "profile": {
+#         "address": null
+#       }
+#     }
+#   }
+# }
+
+# クライアント側の安全なアクセス:
+# const city = data?.user?.profile?.address?.city ?? 'N/A';
+```
+
+```
+エッジケースの図解:
+
+  Non-null伝播ルール:
+  ┌──────────────────────────────────────────────────────┐
+  │                                                      │
+  │  type Query {                                        │
+  │    user(id: ID!): User       # nullable              │
+  │  }                                                   │
+  │                                                      │
+  │  type User {                                         │
+  │    name: String!             # non-null               │
+  │    orders: [Order!]!         # non-null (配列と要素)   │
+  │  }                                                   │
+  │                                                      │
+  │  もし User.name のリゾルバーがnullを返したら:           │
+  │    → nameはnon-nullなのでUser全体がnullになる          │
+  │    → user フィールドがnullableなら user: null になる    │
+  │    → user フィールドがnon-null(User!)なら              │
+  │      さらに親に伝播し、最終的にdata全体がnullになる     │
+  │                                                      │
+  │  教訓:                                                │
+  │    non-null(!)は「このフィールドは必ず値がある」という  │
+  │    保証だが、リゾルバーがnullを返すとエラー伝播する     │
+  │    外部サービス依存のフィールドはnullableにすることで   │
+  │    部分的な成功（Partial Data）を可能にする            │
+  └──────────────────────────────────────────────────────┘
+```
+
+### 14.2 エッジケース2: 大量データの一括リクエスト
+
+```graphql
+# 問題: クライアントが大量データを一度に要求
+
+# 危険なクエリ例
+query GetAllUsers {
+  users(first: 10000) {           # 1万件要求
+    edges {
+      node {
+        id
+        name
+        orders(first: 100) {       # 各ユーザーの注文100件
+          edges {
+            node {
+              items {               # 各注文の全アイテム
+                product {
+                  name
+                  category {
+                    products {      # カテゴリの全商品
+                      name
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+# → 10000 * 100 * N * M = 数百万レコードのDB負荷が発生しうる
+```
+
+```
+対策の多層防御:
+
+  Layer 1: 引数の上限値
+    → first/last の最大値を制限（例: max 100）
+    → リゾルバー内で Math.min(args.first, MAX_PAGE_SIZE) を適用
+
+  Layer 2: クエリ深度制限
+    → depthLimit(7) で過度なネストを防止
+
+  Layer 3: クエリ複雑度制限
+    → 1リクエストあたりのコスト上限を設定
+
+  Layer 4: タイムアウト
+    → リゾルバー/DBクエリにタイムアウトを設定
+    → 一定時間で強制打ち切り
+
+  Layer 5: レート制限
+    → IPベース / ユーザーベースでリクエスト数を制限
+    → 時間窓内の最大リクエスト数を管理
+```
+
+```javascript
+// 実装例: 引数の上限値チェック
+const MAX_PAGE_SIZE = 100;
+
+const resolvers = {
+  Query: {
+    users: async (_, args, context) => {
+      const first = Math.min(args.first || 20, MAX_PAGE_SIZE);
+
+      if (args.first > MAX_PAGE_SIZE) {
+        console.warn(
+          `Requested page size ${args.first} exceeds max ${MAX_PAGE_SIZE}`
+        );
+      }
+
+      return context.dataSources.userAPI.listUsers({
+        ...args,
+        first,
+      });
+    },
+  },
+};
+```
+
+### 14.3 エッジケース3: 並行Mutationの競合
+
+```
+並行Mutation時のデータ競合:
+
+  Client A                          Client B
+    |                                 |
+    | updateUser(id:"1",             | updateUser(id:"1",
+    |   input: {name:"太郎"})         |   input: {email:"new@x.com"})
+    |                                 |
+    | --- (1) READ user --->         |
+    | <-- name:"Taro", email:"old"   |
+    |                                 | --- (2) READ user --->
+    |                                 | <-- name:"Taro", email:"old"
+    | --- (3) WRITE name:"太郎" -->  |
+    |                                 | --- (4) WRITE email:"new" -->
+    |                                 |
+    |  結果: name="太郎", email="new@x.com"
+    |  → この場合は問題なし（異なるフィールド）
+    |
+    |  問題のあるケース: 同一フィールドの更新
+    |  Client A: updateUser(input: {name:"太郎"})
+    |  Client B: updateUser(input: {name:"花子"})
+    |  → 最後の書き込みが勝つ（Last Write Wins）
+
+  対策:
+    1. 楽観的ロック: updatedAtをチェック
+       input UpdateUserInput {
+         name: String
+         expectedVersion: Int!  # 更新前のバージョン番号
+       }
+
+    2. フィールドレベルロック:
+       → 変更するフィールドのみを対象にUPDATE
+       → PATCH的な部分更新
+
+    3. イベントソーシング:
+       → 変更をイベントとして記録
+       → 競合検知と解決が容易
+```
+
+---
+
+## 15. パフォーマンス最適化
+
+### 15.1 クエリプランニング
+
+```
+パフォーマンス最適化の観点:
+
+  ┌────────────────────────────────────────────────────────────┐
+  │  GraphQL パフォーマンス最適化ピラミッド                      │
+  │                                                            │
+  │                    ┌───┐                                   │
+  │                   / CDN \                                  │
+  │                  /  Cache \                                │
+  │                 ┌─────────┐                                │
+  │                / Response  \                               │
+  │               /   Cache     \                              │
+  │              ┌───────────────┐                             │
+  │             / DataLoader      \                            │
+  │            /  (Request Cache)   \                          │
+  │           ┌─────────────────────┐                         │
+  │          / DB Query              \                         │
+  │         /  Optimization           \                        │
+  │        ┌───────────────────────────┐                      │
+  │       / Schema Design               \                     │
+  │      /  (Foundation)                  \                    │
+  │     └─────────────────────────────────┘                   │
+  │                                                            │
+  │  下層から順に最適化するのが効果的                             │
+  └────────────────────────────────────────────────────────────┘
+```
+
+### 15.2 応答キャッシュ
+
+```javascript
+// Apollo Server のレスポンスキャッシュ
+import responseCachePlugin from '@apollo/server-plugin-response-cache';
+
+const server = new ApolloServer({
+  typeDefs,
+  resolvers,
+  plugins: [
+    responseCachePlugin({
+      // ユーザーごとにキャッシュを分離
+      sessionId: (requestContext) =>
+        requestContext.contextValue.user?.id || 'anonymous',
+    }),
+  ],
+});
+
+// スキーマでキャッシュヒントを設定
+// type Query {
+//   publicPosts: [Post!]! @cacheControl(maxAge: 300)  # 5分キャッシュ
+//   me: User @cacheControl(maxAge: 0, scope: PRIVATE) # キャッシュなし
+// }
+//
+// type Post @cacheControl(maxAge: 60) {
+//   id: ID!
+//   title: String!
+//   author: User! @cacheControl(maxAge: 30)
+// }
+```
+
+---
+
+## 16. 演習問題
+
+### 演習1: 基礎（スキーマ定義）
+
+以下の要件を満たすGraphQLスキーマをSDLで定義せよ。
+
+```
+要件: ブログシステムのスキーマ
+
+エンティティ:
+  - Author: id, name, email, bio, createdAt
+  - Article: id, title, body, author, tags, status(DRAFT/PUBLISHED/ARCHIVED),
+             publishedAt, createdAt, updatedAt
+  - Comment: id, article, author, body, createdAt
+  - Tag: id, name, slug
+
+機能:
+  - 記事一覧（ページネーション、ステータスフィルタ、タグフィルタ）
+  - 記事詳細（コメント付き）
+  - 著者の記事一覧
+  - 記事作成/更新/削除（Mutation）
+  - コメント追加/削除（Mutation）
+
+条件:
+  - Relay Connection仕様のページネーション
+  - Payloadパターンのエラーハンドリング
+  - 適切なnull/non-null設定
+```
+
+```graphql
+# 解答例（一部）
+
+scalar DateTime
+
+enum ArticleStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+type Author {
+  id: ID!
+  name: String!
+  email: String!
+  bio: String
+  createdAt: DateTime!
+  articles(
+    first: Int
+    after: String
+    status: ArticleStatus
+  ): ArticleConnection!
+  articleCount: Int!
+}
+
+type Article {
+  id: ID!
+  title: String!
+  body: String!
+  author: Author!
+  tags: [Tag!]!
+  status: ArticleStatus!
+  publishedAt: DateTime       # DRAFTの場合null
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  comments(first: Int, after: String): CommentConnection!
+  commentCount: Int!
+}
+
+type Comment {
+  id: ID!
+  article: Article!
+  author: Author!
+  body: String!
+  createdAt: DateTime!
+}
+
+type Tag {
+  id: ID!
+  name: String!
+  slug: String!
+  articles(first: Int, after: String): ArticleConnection!
+}
+
+# Connection types...
+type ArticleEdge { node: Article!, cursor: String! }
+type ArticleConnection {
+  edges: [ArticleEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type CommentEdge { node: Comment!, cursor: String! }
+type CommentConnection {
+  edges: [CommentEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type PageInfo {
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  startCursor: String
+  endCursor: String
+}
+
+# Query
+type Query {
+  article(id: ID!): Article
+  articles(
+    first: Int
+    after: String
+    status: ArticleStatus
+    tagSlug: String
+    authorId: ID
+  ): ArticleConnection!
+  author(id: ID!): Author
+  tag(slug: String!): Tag
+  tags: [Tag!]!
+  me: Author
+}
+
+# Mutation
+input CreateArticleInput {
+  title: String!
+  body: String!
+  tagIds: [ID!]
+  status: ArticleStatus = DRAFT
+}
+
+input UpdateArticleInput {
+  title: String
+  body: String
+  tagIds: [ID!]
+  status: ArticleStatus
+}
+
+input AddCommentInput {
+  articleId: ID!
+  body: String!
+}
+
+type ArticlePayload {
+  article: Article
+  errors: [UserError!]!
+}
+
+type CommentPayload {
+  comment: Comment
+  errors: [UserError!]!
+}
+
+type DeletePayload {
+  deletedId: ID
+  errors: [UserError!]!
+}
+
+type UserError {
+  field: String
+  message: String!
+  code: String!
+}
+
+type Mutation {
+  createArticle(input: CreateArticleInput!): ArticlePayload!
+  updateArticle(id: ID!, input: UpdateArticleInput!): ArticlePayload!
+  deleteArticle(id: ID!): DeletePayload!
+  addComment(input: AddCommentInput!): CommentPayload!
+  deleteComment(id: ID!): DeletePayload!
+}
+```
+
+### 演習2: 中級（リゾルバーとDataLoader）
+
+上記のブログスキーマに対して、以下のリゾルバーを実装せよ。
+
+```
+要件:
+  1. Query.articles リゾルバー（カーソルページネーション付き）
+  2. Article.commentCount フィールドリゾルバー（DataLoader使用）
+  3. Mutation.createArticle リゾルバー（バリデーション付き）
+  4. 全てのリゾルバーで認証チェックを行うこと
+```
+
+```javascript
+// 解答例
+
+import DataLoader from 'dataloader';
+
+// DataLoaderの作成
+function createBlogLoaders(db) {
+  return {
+    commentCountLoader: new DataLoader(async (articleIds) => {
+      const result = await db.query(
+        `SELECT article_id, COUNT(*) as count
+         FROM comments
+         WHERE article_id = ANY($1)
+         GROUP BY article_id`,
+        [articleIds]
+      );
+
+      const countMap = new Map(
+        result.rows.map((r) => [r.article_id, parseInt(r.count, 10)])
+      );
+      return articleIds.map((id) => countMap.get(id) || 0);
+    }),
+
+    authorLoader: new DataLoader(async (authorIds) => {
+      const result = await db.query(
+        'SELECT * FROM authors WHERE id = ANY($1)',
+        [authorIds]
+      );
+      const map = new Map(result.rows.map((a) => [a.id, a]));
+      return authorIds.map((id) => map.get(id) || null);
+    }),
+  };
+}
+
+const blogResolvers = {
+  Query: {
+    articles: async (_, args, context) => {
+      if (!context.user) throw new Error('認証が必要です');
+
+      const { first = 20, after, status, tagSlug, authorId } = args;
+      const safeFirst = Math.min(first, 100);
+
+      let query = 'SELECT * FROM articles WHERE 1=1';
+      const params = [];
+      let idx = 1;
+
+      if (status) {
+        query += ` AND status = $${idx++}`;
+        params.push(status);
+      }
+      if (authorId) {
+        query += ` AND author_id = $${idx++}`;
+        params.push(authorId);
+      }
+      if (after) {
+        const cursor = Buffer.from(after, 'base64').toString().replace('cursor:', '');
+        query += ` AND id > $${idx++}`;
+        params.push(cursor);
+      }
+
+      query += ` ORDER BY created_at DESC LIMIT $${idx++}`;
+      params.push(safeFirst + 1);
+
+      const { rows } = await context.db.query(query, params);
+      const hasNextPage = rows.length > safeFirst;
+      const nodes = hasNextPage ? rows.slice(0, safeFirst) : rows;
+
+      const edges = nodes.map((node) => ({
+        node,
+        cursor: Buffer.from(`cursor:${node.id}`).toString('base64'),
+      }));
+
+      return {
+        edges,
+        pageInfo: {
+          hasNextPage,
+          hasPreviousPage: !!after,
+          startCursor: edges[0]?.cursor ?? null,
+          endCursor: edges[edges.length - 1]?.cursor ?? null,
+        },
+        totalCount: await countArticles(context.db, { status, authorId }),
+      };
+    },
+  },
+
+  Article: {
+    commentCount: (article, _, { loaders }) =>
+      loaders.commentCountLoader.load(article.id),
+
+    author: (article, _, { loaders }) =>
+      loaders.authorLoader.load(article.author_id),
+  },
+
+  Mutation: {
+    createArticle: async (_, { input }, context) => {
+      if (!context.user) {
+        return {
+          article: null,
+          errors: [{ field: null, message: '認証が必要です', code: 'UNAUTHENTICATED' }],
+        };
+      }
+
+      // バリデーション
+      const errors = [];
+      if (!input.title || input.title.trim().length < 3) {
+        errors.push({
+          field: 'title',
+          message: 'タイトルは3文字以上で入力してください',
+          code: 'VALIDATION_ERROR',
+        });
+      }
+      if (!input.body || input.body.trim().length < 10) {
+        errors.push({
+          field: 'body',
+          message: '本文は10文字以上で入力してください',
+          code: 'VALIDATION_ERROR',
+        });
+      }
+      if (errors.length > 0) {
+        return { article: null, errors };
+      }
+
+      const article = await context.db.query(
+        `INSERT INTO articles (title, body, author_id, status, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, NOW(), NOW()) RETURNING *`,
+        [input.title, input.body, context.user.id, input.status || 'DRAFT']
+      );
+
+      return { article: article.rows[0], errors: [] };
+    },
+  },
+};
+```
+
+### 演習3: 応用（Subscription + 統合テスト）
+
+以下の要件でリアルタイムコメント通知機能を実装せよ。
+
+```
+要件:
+  1. 記事にコメントが追加されたらSubscriptionで通知
+  2. 通知には記事ID、コメント内容、投稿者名を含める
+  3. 購読者は記事の著者のみ（認可チェック）
+  4. 統合テストも作成する
+```
+
+```javascript
+// 解答例
+
+// スキーマ追加
+// type Subscription {
+//   commentAdded(articleId: ID!): CommentAddedEvent!
+// }
+//
+// type CommentAddedEvent {
+//   articleId: ID!
+//   comment: Comment!
+// }
+
+import { PubSub, withFilter } from 'graphql-subscriptions';
+
+const pubsub = new PubSub();
+const COMMENT_ADDED = 'COMMENT_ADDED';
+
+const subscriptionResolvers = {
+  Subscription: {
+    commentAdded: {
+      subscribe: withFilter(
+        () => pubsub.asyncIterator(COMMENT_ADDED),
+        async (payload, variables, context) => {
+          // 記事IDのフィルタリング
+          if (payload.commentAdded.articleId !== variables.articleId) {
+            return false;
+          }
+
+          // 認可チェック: 記事の著者のみ購読可能
+          const article = await context.dataSources.articleAPI
+            .getArticle(variables.articleId);
+          return article?.authorId === context.user?.id;
+        }
+      ),
+    },
+  },
+
+  Mutation: {
+    addComment: async (_, { input }, context) => {
+      // ... コメント作成処理 ...
+      const comment = await context.db.query(
+        `INSERT INTO comments (article_id, author_id, body, created_at)
+         VALUES ($1, $2, $3, NOW()) RETURNING *`,
+        [input.articleId, context.user.id, input.body]
+      );
+
+      // Subscriptionにイベント発行
+      pubsub.publish(COMMENT_ADDED, {
+        commentAdded: {
+          articleId: input.articleId,
+          comment: comment.rows[0],
+        },
+      });
+
+      return { comment: comment.rows[0], errors: [] };
+    },
+  },
+};
+
+// 統合テスト
+// __tests__/subscription.test.js
+describe('Subscription: commentAdded', () => {
+  it('記事著者にコメント通知が届くこと', async () => {
+    // 1. Subscriptionを開始
+    const subscription = client.subscribe({
+      query: gql`
+        subscription OnCommentAdded($articleId: ID!) {
+          commentAdded(articleId: $articleId) {
+            articleId
+            comment {
+              body
+              author { name }
+            }
+          }
+        }
+      `,
+      variables: { articleId: 'article-1' },
+    });
+
+    // 2. 結果を収集するPromise
+    const resultPromise = new Promise((resolve) => {
+      subscription.subscribe({ next: resolve });
+    });
+
+    // 3. コメントを追加
+    await client.mutate({
+      mutation: gql`
+        mutation AddComment($input: AddCommentInput!) {
+          addComment(input: $input) {
+            comment { id }
+            errors { message }
+          }
+        }
+      `,
+      variables: {
+        input: { articleId: 'article-1', body: 'Great article!' },
+      },
+    });
+
+    // 4. Subscription結果の検証
+    const result = await resultPromise;
+    expect(result.data.commentAdded.articleId).toBe('article-1');
+    expect(result.data.commentAdded.comment.body).toBe('Great article!');
+  });
+});
+```
+
+---
+
+## 17. FAQ（よくある質問）
+
+### Q1: GraphQLはRESTを完全に置き換えるものか?
+
+GraphQLとRESTは異なるトレードオフを持つ技術であり、完全な置き換えではない。以下の観点で使い分けが推奨される。
+
+- **RESTが適する場面**: シンプルなCRUD API、ファイルのアップロード/ダウンロード、CDNキャッシュを最大限活用したいケース、外部公開APIで広い互換性が求められるケース
+- **GraphQLが適する場面**: 複雑なデータ要件を持つクライアント（ダッシュボード、モバイルアプリ）、複数マイクロサービスの集約、フロントエンドチームの自律性を高めたいケース
+- **併用パターン**: 外部向けはREST、内部BFFはGraphQLという組み合わせは実運用でよく見られる構成である
+
+### Q2: GraphQLのN+1問題はどう解決するのか?
+
+N+1問題はGraphQLで最も頻繁に遭遇するパフォーマンス課題である。解決手段は以下の通り。
+
+- **DataLoader（推奨）**: リクエストスコープでバッチ処理とキャッシュを行う。facebookが開発したライブラリで、GraphQLの公式推奨パターン（セクション8参照）
+- **JOINベースのリゾルバー**: infoパラメータからクエリされるフィールドを解析し、必要なJOINを事前に構築する方法。graphql-fieldsやgraphql-parse-resolve-infoライブラリが利用できる
+- **Lookahead**: 次に解決されるフィールドを先読みして、1回のクエリで必要なデータを全て取得する手法
+
+### Q3: GraphQLスキーマのバージョニングはどうするのか?
+
+GraphQLでは従来のURLバージョニング（/v1/, /v2/）は使用しない。代わりにスキーマ進化（Schema Evolution）のアプローチを取る。
+
+```graphql
+# ステップ1: 新しいフィールドを追加（後方互換）
+type User {
+  name: String!                          # 既存
+  displayName: String!                   # 新規追加
+  username: String @deprecated(reason: "Use 'name' instead. Removal: 2025-06-01")
+}
+
+# ステップ2: クライアントの移行期間を設ける
+#   → @deprecated で非推奨マークを付ける
+#   → GraphiQL/Playgroundで警告表示される
+#   → 移行期間中は両方のフィールドを維持
+
+# ステップ3: 利用状況を監視
+#   → Apollo Studio等でフィールドの使用状況を追跡
+#   → 全クライアントが移行完了したことを確認
+
+# ステップ4: 非推奨フィールドを削除（Breaking Change）
+#   → 全クライアントの移行を確認後に削除
+```
+
+### Q4: GraphQLでファイルアップロードはどう実装するのか?
+
+GraphQLの仕様自体にはファイルアップロードの機能は含まれていない。一般的なアプローチは以下の通り。
+
+1. **Signed URL方式（推奨）**: MutationでS3等のプリサインドURLを取得し、クライアントが直接アップロード。最もスケーラブル
+2. **graphql-upload**: multipart/form-dataでGraphQL Mutationと同時にファイルを送信するライブラリ。Apollo Server v4では公式サポート外
+3. **別エンドポイント**: ファイルアップロード専用のREST APIを用意し、返されたURLをGraphQL Mutationで参照
+
+### Q5: GraphQLのスキーマ設計で最初に決めるべきことは?
+
+スキーマ設計は「クライアントがどのようなデータを必要とするか」から始める（Schema-First Design）。
+
+1. **ドメインモデルの特定**: ビジネスドメインの主要なエンティティと関係を洗い出す
+2. **クエリパターンの列挙**: 画面設計やユースケースから、必要なクエリパターンを列挙する
+3. **Query型の設計**: エントリーポイント（トップレベルのフィールド）を定義する
+4. **Mutation型の設計**: 変更操作をPayloadパターンで定義する
+5. **ページネーション戦略の決定**: Cursor vs Offset、Connection仕様の採用可否を決める
+
+---
+
+## まとめ
+
+| 概念 | ポイント |
+|------|---------|
+| SDL | 型システムでスキーマを定義、APIの仕様書として機能 |
+| Query | クライアントが必要なデータを正確に指定、フラグメントで再利用 |
+| Mutation | Payloadパターンでエラーハンドリング、Input型で引数を構造化 |
+| Subscription | WebSocketベースのリアルタイム通知、PubSubパターンで実装 |
+| リゾルバー | 親→子の階層的なデータ取得、4引数（parent, args, context, info） |
+| DataLoader | N+1問題の解決、バッチ処理+リクエストスコープキャッシュ |
+| Apollo Server | Express統合、プラグイン機構、ディレクティブベースの認可 |
+| セキュリティ | 深度制限、複雑度制限、レート制限、APQの多層防御 |
+| エラー設計 | ネットワーク/GraphQL/ビジネスの3層モデル |
+| テスト | 単体（リゾルバー）+ 統合（executeOperation）+ E2E |
+
+---
+
+## 次に読むべきガイド
+→ [[02-graphql-advanced.md]] -- GraphQL応用（Federation, Schema Stitching, Caching戦略, CI/CD統合）
+
+---
+
+## 参考文献
+1. GraphQL Foundation. "GraphQL Specification (October 2021 Edition)." graphql.org, 2023.
+2. Apollo GraphQL. "Apollo Server v4 Documentation." apollographql.com/docs/apollo-server, 2024.
+3. Lee, B. "GraphQL in Action." Manning Publications, 2021.
+4. Banks, A. and Porcello, E. "Learning GraphQL: Declarative Data Fetching for Modern Web Apps." O'Reilly Media, 2018.
+5. Facebook Open Source. "DataLoader - Batching and Caching for GraphQL." github.com/graphql/dataloader, 2024.
+6. Relay Team. "Relay Connection Specification." relay.dev/graphql/connections.htm, 2024.

@@ -1172,3 +1172,827 @@ try {
 - [Webhook](/guides/webhooks) - リアルタイム通知の設定
 - [API リファレンス](/reference) - 全エンドポイントの詳細
 ```
+
+---
+
+## 6. Changelog と Migration Guide
+
+### 6.1 効果的な Changelog の構成
+
+Changelog は単なる変更履歴ではなく、開発者がバージョンアップの影響範囲と対応方法を判断するための重要文書である。Keep a Changelog フォーマットを基盤とし、API 固有の要素を追加する。
+
+```markdown
+# Changelog
+
+全ての注目すべき変更はこのファイルに記録されます。
+形式は [Keep a Changelog](https://keepachangelog.com/) に準拠しています。
+
+## [2.0.0] - 2024-07-01 — メジャーアップデート
+
+### 破壊的変更 (BREAKING CHANGES)
+
+#### メソッド名の変更
+リソースベースの命名規則に統一しました。
+
+| v1.x (旧) | v2.x (新) |
+|---|---|
+| `client.getUser(id)` | `client.users.get(id)` |
+| `client.listUsers(params)` | `client.users.list(params)` |
+| `client.createUser(data)` | `client.users.create(data)` |
+| `client.updateUser(id, data)` | `client.users.update(id, data)` |
+| `client.deleteUser(id)` | `client.users.delete(id)` |
+
+#### エラー型のリネーム
+- `ApiError` → `ExampleError`
+- `HttpError` → `ExampleHttpError`
+- `TimeoutError` → `ExampleTimeoutError`
+
+#### ランタイム要件
+- Node.js 16 のサポートを終了（Node.js 18+ が必要）
+- Python 3.8 のサポートを終了（Python 3.9+ が必要）
+
+### 追加 (Added)
+- `client.users.listAll()` で自動ページネーション（AsyncIterator）
+- リトライ設定のカスタマイズ（`maxRetries`, `retryDelay`）
+- Webhook 署名検証ヘルパー `client.webhooks.verify(payload, signature)`
+- TypeScript: 全レスポンス型のエクスポート
+
+### 変更 (Changed)
+- デフォルトタイムアウトを 10秒 → 30秒に変更
+- ページネーションのデフォルト件数を 10 → 20に変更
+
+### 修正 (Fixed)
+- タイムアウト時のメモリリーク (#234)
+- 大量の並行リクエスト時のコネクションプール枯渇 (#256)
+- 日本語文字列のエンコーディング問題 (#271)
+
+### 非推奨 (Deprecated)
+- `client.users.find(query)` は v3.0 で削除予定
+  → `client.users.list({ search: query })` を使用してください
+
+## [1.5.0] - 2024-04-15
+
+### 追加
+- `client.orders.refund(orderId, params)` メソッド
+- リクエストログのカスタムハンドラ設定
+```
+
+### 6.2 Migration Guide の設計
+
+バージョン間の移行ガイドは、機械的な差分だけでなく、移行戦略と検証手順を含めるべきである。
+
+```markdown
+# v1.x から v2.x への移行ガイド
+
+## 移行の概要
+
+| 項目 | 詳細 |
+|---|---|
+| 推定作業時間 | 小規模プロジェクト: 30分、大規模: 2時間 |
+| 破壊的変更の数 | 8 件 |
+| 自動移行ツール | あり（`npx @example/migrate v1-to-v2`） |
+| v1.x のサポート期限 | 2025-01-01（セキュリティパッチのみ） |
+
+## 自動移行ツール
+
+npx @example/migrate v1-to-v2 --dry-run  # プレビュー
+npx @example/migrate v1-to-v2            # 実行
+
+## 手動移行手順
+
+### ステップ 1: SDK のアップデート
+
+npm install @example/sdk@2
+
+### ステップ 2: メソッド呼び出しの更新
+
+// Before (v1.x)
+const user = await client.getUser('user_123');
+const users = await client.listUsers({ page: 1 });
+
+// After (v2.x)
+const user = await client.users.get('user_123');
+const users = await client.users.list({ cursor: null });
+
+### ステップ 3: エラーハンドリングの更新
+
+// Before (v1.x)
+import { ApiError } from '@example/sdk';
+try { ... } catch (e) {
+  if (e instanceof ApiError) { ... }
+}
+
+// After (v2.x)
+import { ExampleError } from '@example/sdk';
+try { ... } catch (e) {
+  if (e instanceof ExampleError) { ... }
+}
+
+### ステップ 4: ページネーションの更新
+
+// Before (v1.x) - オフセットベース
+const page1 = await client.listUsers({ page: 1, perPage: 20 });
+const page2 = await client.listUsers({ page: 2, perPage: 20 });
+
+// After (v2.x) - カーソルベース
+const page1 = await client.users.list({ limit: 20 });
+const page2 = await client.users.list({
+  limit: 20,
+  cursor: page1.meta.nextCursor,
+});
+
+// v2.x 推奨: 自動ページネーション
+for await (const user of client.users.listAll()) {
+  console.log(user.name);
+}
+
+## 検証チェックリスト
+- [ ] 全てのAPIコールが正常に動作する
+- [ ] エラーハンドリングが正しく機能する
+- [ ] ページネーションが期待通り動作する
+- [ ] Webhook の受信が正常に処理される
+- [ ] TypeScript の型エラーがない
+```
+
+---
+
+## 7. ドキュメント品質メトリクスと評価
+
+### 7.1 定量的品質指標
+
+ドキュメントの品質を主観的な評価に頼らず、定量的に計測するためのフレームワークを導入する。
+
+```
+ドキュメント品質スコアカード:
+
+  ┌─────────────────────────────────────────────────┐
+  │  カテゴリ A: 完全性（Completeness）  配点: 30   │
+  ├─────────────────────────────────────────────────┤
+  │  □ 全エンドポイントが文書化されている     (5)    │
+  │  □ 全パラメータに説明がある               (5)    │
+  │  □ 全レスポンスコードが説明されている      (5)    │
+  │  □ 認証方法が説明されている                (5)    │
+  │  □ エラーコード一覧がある                  (5)    │
+  │  □ Quick Start ガイドがある                (5)    │
+  ├─────────────────────────────────────────────────┤
+  │  カテゴリ B: 正確性（Accuracy）      配点: 25   │
+  ├─────────────────────────────────────────────────┤
+  │  □ コード例が実際に動作する               (10)    │
+  │  □ レスポンス例が実API出力と一致する       (5)    │
+  │  □ パラメータ制約が正確                    (5)    │
+  │  □ 最終更新日が6ヶ月以内                   (5)    │
+  ├─────────────────────────────────────────────────┤
+  │  カテゴリ C: 利便性（Usability）     配点: 25   │
+  ├─────────────────────────────────────────────────┤
+  │  □ 検索機能がある                          (5)    │
+  │  □ Try it out 機能がある                   (5)    │
+  │  □ 多言語コード例がある                    (5)    │
+  │  □ モバイル対応                            (5)    │
+  │  □ ダークモード対応                        (5)    │
+  ├─────────────────────────────────────────────────┤
+  │  カテゴリ D: 開発者体験（DX）        配点: 20   │
+  ├─────────────────────────────────────────────────┤
+  │  □ TTFC が 5分以内                         (5)    │
+  │  □ SDK のインストール手順がある             (5)    │
+  │  □ Changelog が維持されている               (5)    │
+  │  □ 移行ガイドがある                        (5)    │
+  └─────────────────────────────────────────────────┘
+
+  評価基準:
+    90-100: 優秀（Stripe, Twilio レベル）
+    70-89:  良好（多くの商用APIのレベル）
+    50-69:  改善必要
+    0-49:   重大な問題あり
+```
+
+### 7.2 ドキュメント品質チェックリスト
+
+```
+API ドキュメント出荷前チェックリスト:
+
+  === 必須要素 ===
+  □ Quick Start（5分以内に最初のAPIコール成功）
+  □ 認証方法の説明（APIキー取得方法を含む）
+  □ 全エンドポイントのリファレンス
+  □ 各エンドポイントのリクエスト/レスポンス例
+  □ エラーコードの一覧と対処法
+  □ レート制限の説明（プランごとの上限値）
+  □ SDK のインストールと初期化手順
+  □ ページネーションの使い方
+  □ Webhook の設定方法（該当する場合）
+  □ Changelog（Keep a Changelog 形式）
+
+  === 品質基準 ===
+  □ コード例がコピー&ペーストで動作する
+  □ 全てのパラメータに説明・型・制約がある
+  □ 成功/エラーの両方のレスポンス例がある
+  □ 複数言語のコード例（最低 curl + 1 SDK）
+  □ 検索機能がある
+  □ レスポンシブデザイン（モバイル対応）
+  □ ダークモード対応
+  □ 定期的に更新されている（最終更新日が明記）
+
+  === 高度な要素（推奨） ===
+  □ インタラクティブな Try it out 機能
+  □ サンドボックス環境の提供
+  □ OpenAPI 仕様ファイルのダウンロード
+  □ SDK の自動生成設定
+  □ Postman Collection の提供
+  □ GraphQL Playground（GraphQL の場合）
+  □ 変更通知の仕組み（RSS, メール等）
+```
+
+---
+
+## 8. インタラクティブドキュメントの実装
+
+### 8.1 Try it out 機能の設計
+
+インタラクティブドキュメントの核心は「Try it out」機能である。開発者がブラウザ上で直接APIを呼び出して動作を確認できるこの機能は、ドキュメントの理解を飛躍的に向上させる。
+
+```
+Try it out 機能のアーキテクチャ:
+
+  ┌──────────────────────────────────────────────────┐
+  │                   ブラウザ                        │
+  │                                                   │
+  │  ┌─────────────┐  ┌──────────────────────────┐   │
+  │  │ パラメータ    │  │  レスポンス表示           │   │
+  │  │ 入力フォーム  │  │  - ステータスコード       │   │
+  │  │              │  │  - ヘッダー              │   │
+  │  │  name: [...] │  │  - ボディ (JSON)         │   │
+  │  │  email:[...] │  │  - レスポンス時間         │   │
+  │  │              │  │                          │   │
+  │  │ [Execute]    │  │  200 OK  (142ms)         │   │
+  │  └──────┬───────┘  │  { "id": "user_123", ... │   │
+  │         │          │  }                        │   │
+  │         v          └──────────────────────────┘   │
+  │  ┌──────────────┐                                 │
+  │  │ CORS Proxy   │  ← 本番APIへの直接アクセスが     │
+  │  │ (必要に応じて) │    不可能な場合に必要            │
+  │  └──────┬───────┘                                 │
+  └─────────┼─────────────────────────────────────────┘
+            │
+            v
+  ┌──────────────────┐
+  │  API サーバー      │
+  │  (sandbox 環境)   │
+  │                   │
+  │  重要: Try it out │
+  │  は sandbox に    │
+  │  接続すること      │
+  └──────────────────┘
+```
+
+### 8.2 サンドボックス環境の設計
+
+Try it out 機能を安全に提供するには、本番環境とは分離されたサンドボックス環境が不可欠である。
+
+```typescript
+// サンドボックス環境のミドルウェア実装例
+import express from 'express';
+import rateLimit from 'express-rate-limit';
+
+const sandboxApp = express();
+
+// サンドボックス固有のミドルウェア
+sandboxApp.use((req, res, next) => {
+  // サンドボックスであることを明示するヘッダー
+  res.setHeader('X-Environment', 'sandbox');
+  res.setHeader('X-Sandbox-Warning',
+    'This is a test environment. Data is reset daily.');
+  next();
+});
+
+// サンドボックス用の厳格なレート制限
+const sandboxLimiter = rateLimit({
+  windowMs: 60 * 1000,    // 1分
+  max: 30,                  // 30リクエスト/分
+  message: {
+    error: {
+      code: 'SANDBOX_RATE_LIMIT',
+      message: 'サンドボックス環境のレート制限に達しました（30リクエスト/分）',
+      retryAfter: 60,
+    },
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+sandboxApp.use(sandboxLimiter);
+
+// サンドボックスデータの自動リセット（毎日 UTC 0:00）
+import cron from 'node-cron';
+
+cron.schedule('0 0 * * *', async () => {
+  console.log('Resetting sandbox data...');
+  await resetSandboxDatabase();
+  console.log('Sandbox data reset complete');
+});
+
+// テスト用APIキーの自動発行
+sandboxApp.post('/sandbox/api-keys', async (req, res) => {
+  const key = generateSandboxApiKey();
+  res.json({
+    apiKey: key,
+    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    limits: {
+      requestsPerMinute: 30,
+      dataRetention: '24 hours',
+    },
+    note: 'このキーはサンドボックス環境専用です。本番環境では使用できません。',
+  });
+});
+```
+
+### 8.3 Postman Collection の自動生成
+
+多くの開発者は Postman を日常的に使用しているため、Postman Collection の提供は有効である。
+
+```javascript
+// OpenAPI から Postman Collection を生成するスクリプト
+// scripts/generate-postman-collection.js
+import { readFileSync, writeFileSync } from 'fs';
+import Converter from 'openapi-to-postmanv2';
+
+const openapiSpec = readFileSync('./api/openapi.yaml', 'utf-8');
+
+const options = {
+  schemaFaker: true,
+  requestNameSource: 'Fallback',
+  indentCharacter: '  ',
+  folderStrategy: 'Tags',
+  includeAuthInfoInExample: true,
+  parametersResolution: 'Example',
+};
+
+Converter.convert(
+  { type: 'string', data: openapiSpec },
+  options,
+  (err, result) => {
+    if (err) {
+      console.error('Conversion failed:', err);
+      process.exit(1);
+    }
+
+    if (!result.result) {
+      console.error('Conversion failed:', result.reason);
+      process.exit(1);
+    }
+
+    const collection = result.output[0].data;
+
+    // 環境変数の追加
+    collection.variable = [
+      { key: 'baseUrl', value: 'https://sandbox.api.example.com/v2' },
+      { key: 'apiKey', value: 'sk_test_your_key_here' },
+    ];
+
+    writeFileSync(
+      './docs/example-api.postman_collection.json',
+      JSON.stringify(collection, null, 2)
+    );
+
+    console.log('Postman collection generated successfully');
+  }
+);
+```
+
+---
+
+## 9. エラードキュメンテーション
+
+### 9.1 エラーレスポンスの設計と文書化
+
+エラードキュメントは、開発者がトラブルシューティングを行う際の最重要リソースである。全てのエラーコードに対して、原因と対処法を明確に記載する。
+
+```yaml
+# components/schemas/ErrorResponse.yaml
+type: object
+title: ErrorResponse
+description: |
+  全ての API エラーは統一された形式で返されます。
+  `error.code` でエラーの種類を判別できます。
+required:
+  - error
+properties:
+  error:
+    type: object
+    required:
+      - code
+      - message
+    properties:
+      code:
+        type: string
+        description: |
+          機械可読なエラーコード。
+          アプリケーション内での分岐処理に使用してください。
+        enum:
+          - INVALID_PARAMETER
+          - VALIDATION_ERROR
+          - AUTHENTICATION_REQUIRED
+          - INSUFFICIENT_PERMISSIONS
+          - RESOURCE_NOT_FOUND
+          - DUPLICATE_RESOURCE
+          - RATE_LIMIT_EXCEEDED
+          - INTERNAL_ERROR
+          - SERVICE_UNAVAILABLE
+      message:
+        type: string
+        description: 人間可読なエラーメッセージ（日本語または英語）
+      details:
+        type: array
+        description: エラーの詳細情報（バリデーションエラー時に使用）
+        items:
+          type: object
+          properties:
+            field:
+              type: string
+              description: エラーが発生したフィールド名
+            code:
+              type: string
+              description: フィールド固有のエラーコード
+            message:
+              type: string
+              description: フィールド固有のエラーメッセージ
+      requestId:
+        type: string
+        description: |
+          リクエスト追跡用の一意識別子。
+          サポートへの問い合わせ時にこの ID を共有してください。
+        example: "req_a1b2c3d4e5f6"
+```
+
+### 9.2 エラーコード一覧と対処法
+
+```
+エラーコードリファレンス:
+
+  ┌────────────────────────────┬──────┬────────────────────────────┐
+  │ コード                      │ HTTP │ 対処法                      │
+  ├────────────────────────────┼──────┼────────────────────────────┤
+  │ INVALID_PARAMETER          │ 400  │ パラメータの値・型を確認     │
+  │ VALIDATION_ERROR           │ 422  │ details[] で各フィールド確認 │
+  │ AUTHENTICATION_REQUIRED    │ 401  │ Authorization ヘッダーを確認 │
+  │ INSUFFICIENT_PERMISSIONS   │ 403  │ API キーのスコープを確認     │
+  │ RESOURCE_NOT_FOUND         │ 404  │ リソース ID の存在を確認     │
+  │ DUPLICATE_RESOURCE         │ 409  │ 一意制約に違反するフィールド確認│
+  │ RATE_LIMIT_EXCEEDED        │ 429  │ Retry-After ヘッダーに従う   │
+  │ INTERNAL_ERROR             │ 500  │ リトライ、サポートに連絡      │
+  │ SERVICE_UNAVAILABLE        │ 503  │ ステータスページを確認        │
+  └────────────────────────────┴──────┴────────────────────────────┘
+```
+
+### 9.3 エラーハンドリングのベストプラクティス
+
+```typescript
+// 包括的なエラーハンドリング実装例
+import {
+  ExampleClient,
+  ExampleError,
+  ValidationError,
+  AuthenticationError,
+  RateLimitError,
+  NotFoundError,
+  InternalError,
+} from '@example/sdk';
+
+const client = new ExampleClient({
+  apiKey: process.env.EXAMPLE_API_KEY,
+  maxRetries: 3,
+  // リトライ可能なエラーの自動リトライ設定
+  retryOn: [429, 500, 503],
+  retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 30000),
+});
+
+async function robustApiCall<T>(
+  operation: () => Promise<T>,
+  context: string
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      // 422: 入力値の修正が必要
+      console.error(`[${context}] Validation errors:`);
+      for (const detail of error.errors) {
+        console.error(`  - ${detail.field}: ${detail.message}`);
+      }
+      throw error; // リトライ不要
+
+    } else if (error instanceof AuthenticationError) {
+      // 401: API キーの確認が必要
+      console.error(`[${context}] Authentication failed. Check your API key.`);
+      throw error; // リトライ不要
+
+    } else if (error instanceof RateLimitError) {
+      // 429: SDK の自動リトライに任せる（maxRetries 超過時のみここに到達）
+      console.error(
+        `[${context}] Rate limit exceeded after ${client.maxRetries} retries. ` +
+        `Retry after ${error.retryAfter}s`
+      );
+      throw error;
+
+    } else if (error instanceof NotFoundError) {
+      // 404: リソースが存在しない
+      console.warn(`[${context}] Resource not found: ${error.message}`);
+      return null as T; // アプリケーション要件に応じて null を返す
+
+    } else if (error instanceof InternalError) {
+      // 500: サーバー側の問題（SDK 自動リトライ超過時）
+      console.error(
+        `[${context}] Internal server error (requestId: ${error.requestId}). ` +
+        `Please contact support with this request ID.`
+      );
+      throw error;
+
+    } else if (error instanceof ExampleError) {
+      // その他の API エラー
+      console.error(
+        `[${context}] API Error [${error.code}]: ${error.message} ` +
+        `(requestId: ${error.requestId})`
+      );
+      throw error;
+
+    } else {
+      // ネットワークエラー等の非 API エラー
+      console.error(`[${context}] Unexpected error:`, error);
+      throw error;
+    }
+  }
+}
+
+// 使用例
+const user = await robustApiCall(
+  () => client.users.create({
+    name: 'Taro Yamada',
+    email: 'taro@example.com',
+  }),
+  'createUser'
+);
+```
+
+---
+
+## 10. ドキュメントのテスト自動化
+
+### 10.1 コード例の自動テスト
+
+ドキュメント内のコード例が実際に動作することを保証するために、自動テストを導入する。
+
+```typescript
+// tests/docs-examples.test.ts
+// ドキュメント内コード例の動作確認テスト
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { ExampleClient, ValidationError } from '@example/sdk';
+
+const client = new ExampleClient({
+  apiKey: process.env.EXAMPLE_TEST_API_KEY,
+  baseURL: 'https://sandbox.api.example.com/v2',
+});
+
+describe('Quick Start ガイドのコード例', () => {
+  let createdUserId: string;
+
+  it('ステップ 3: ユーザーの作成', async () => {
+    // ドキュメントのコード例と同一
+    const user = await client.users.create({
+      name: 'Taro Yamada',
+      email: `test-${Date.now()}@example.com`,
+    });
+
+    expect(user.id).toBeDefined();
+    expect(user.name).toBe('Taro Yamada');
+    createdUserId = user.id;
+  });
+
+  it('ステップ 3: ユーザーの取得', async () => {
+    const fetched = await client.users.get(createdUserId);
+    expect(fetched.name).toBe('Taro Yamada');
+  });
+
+  it('ステップ 3: ユーザー一覧の取得', async () => {
+    const { data: users } = await client.users.list({ limit: 10 });
+    expect(Array.isArray(users)).toBe(true);
+    expect(users.length).toBeLessThanOrEqual(10);
+  });
+
+  it('ステップ 4: バリデーションエラー', async () => {
+    try {
+      await client.users.create({ name: '', email: 'invalid' });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      expect(error).toBeInstanceOf(ValidationError);
+      expect((error as ValidationError).errors.length).toBeGreaterThan(0);
+    }
+  });
+
+  afterAll(async () => {
+    // テストデータのクリーンアップ
+    if (createdUserId) {
+      await client.users.delete(createdUserId);
+    }
+  });
+});
+
+describe('エラーハンドリングガイドのコード例', () => {
+  it('認証エラー', async () => {
+    const badClient = new ExampleClient({ apiKey: 'invalid_key' });
+    try {
+      await badClient.users.list();
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      expect(error).toBeInstanceOf(Error);
+    }
+  });
+
+  it('404 エラー', async () => {
+    try {
+      await client.users.get('nonexistent_id');
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      expect(error).toHaveProperty('code', 'RESOURCE_NOT_FOUND');
+    }
+  });
+});
+```
+
+### 10.2 OpenAPI 仕様の検証自動化
+
+```yaml
+# .github/workflows/api-docs-ci.yml
+# ドキュメント品質の CI チェック
+name: API Documentation CI
+on:
+  pull_request:
+    paths:
+      - 'api/**'
+      - 'docs/**'
+
+jobs:
+  lint-openapi:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint OpenAPI spec
+        run: |
+          npx @redocly/cli lint api/openapi.yaml \
+            --config api/.redocly.yaml
+
+      - name: Check for breaking changes
+        if: github.event_name == 'pull_request'
+        run: |
+          npx oasdiff breaking \
+            --base <(git show origin/main:api/openapi.yaml) \
+            --revision api/openapi.yaml \
+            --fail-on ERR
+
+  test-examples:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run documentation example tests
+        env:
+          EXAMPLE_TEST_API_KEY: ${{ secrets.SANDBOX_API_KEY }}
+        run: npx vitest run tests/docs-examples.test.ts
+
+  validate-links:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check documentation links
+        run: |
+          npx markdown-link-check docs/**/*.md \
+            --config .markdown-link-check.json
+
+  spell-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Spell check documentation
+        run: |
+          npx cspell "docs/**/*.md" --config .cspell.json
+```
+
+### 10.3 ドキュメントカバレッジの計測
+
+```typescript
+// scripts/check-doc-coverage.ts
+// OpenAPI 仕様のドキュメントカバレッジを計測
+import { readFileSync } from 'fs';
+import yaml from 'js-yaml';
+
+interface CoverageReport {
+  total: number;
+  documented: number;
+  missing: string[];
+  coverage: number;
+}
+
+function checkCoverage(spec: any): Record<string, CoverageReport> {
+  const reports: Record<string, CoverageReport> = {};
+
+  // エンドポイント記述のカバレッジ
+  const endpoints: CoverageReport = {
+    total: 0, documented: 0, missing: [], coverage: 0
+  };
+
+  for (const [path, methods] of Object.entries(spec.paths || {})) {
+    for (const [method, operation] of Object.entries(methods as any)) {
+      if (['get', 'post', 'put', 'patch', 'delete'].includes(method)) {
+        endpoints.total++;
+        const op = operation as any;
+        if (op.description && op.description.length > 20) {
+          endpoints.documented++;
+        } else {
+          endpoints.missing.push(`${method.toUpperCase()} ${path}`);
+        }
+      }
+    }
+  }
+  endpoints.coverage = Math.round(
+    (endpoints.documented / endpoints.total) * 100
+  );
+  reports['endpoints'] = endpoints;
+
+  // パラメータ記述のカバレッジ
+  const params: CoverageReport = {
+    total: 0, documented: 0, missing: [], coverage: 0
+  };
+
+  for (const [path, methods] of Object.entries(spec.paths || {})) {
+    for (const [method, operation] of Object.entries(methods as any)) {
+      const op = operation as any;
+      for (const param of op.parameters || []) {
+        params.total++;
+        if (param.description) {
+          params.documented++;
+        } else {
+          params.missing.push(
+            `${method.toUpperCase()} ${path} -> ${param.name}`
+          );
+        }
+      }
+    }
+  }
+  params.coverage = Math.round(
+    (params.documented / params.total) * 100
+  );
+  reports['parameters'] = params;
+
+  // レスポンス例のカバレッジ
+  const examples: CoverageReport = {
+    total: 0, documented: 0, missing: [], coverage: 0
+  };
+
+  for (const [path, methods] of Object.entries(spec.paths || {})) {
+    for (const [method, operation] of Object.entries(methods as any)) {
+      const op = operation as any;
+      for (const [code, response] of Object.entries(op.responses || {})) {
+        examples.total++;
+        const resp = response as any;
+        const hasExample = resp.content?.['application/json']?.example
+          || resp.content?.['application/json']?.examples;
+        if (hasExample) {
+          examples.documented++;
+        } else {
+          examples.missing.push(
+            `${method.toUpperCase()} ${path} -> ${code}`
+          );
+        }
+      }
+    }
+  }
+  examples.coverage = Math.round(
+    (examples.documented / examples.total) * 100
+  );
+  reports['examples'] = examples;
+
+  return reports;
+}
+
+// 実行
+const spec = yaml.load(readFileSync('./api/openapi.yaml', 'utf-8'));
+const reports = checkCoverage(spec);
+
+console.log('=== Documentation Coverage Report ===\n');
+for (const [category, report] of Object.entries(reports)) {
+  const status = report.coverage >= 90 ? 'PASS' : 'WARN';
+  console.log(`[${status}] ${category}: ${report.coverage}% ` +
+    `(${report.documented}/${report.total})`);
+  if (report.missing.length > 0) {
+    console.log(`  Missing:`);
+    report.missing.forEach(m => console.log(`    - ${m}`));
+  }
+}
+```

@@ -1712,3 +1712,959 @@ jobs:
           cluster: ${{ env.ECS_CLUSTER }}
           wait-for-service-stability: true
 ```
+
+---
+
+## 6. GCP Cloud Run
+
+### 6.1 概要とアーキテクチャ
+
+Google Cloud Run は、コンテナイメージをサーバーレスで実行するフルマネージドサービスである。Docker コンテナをデプロイするだけで、自動スケーリング（0 インスタンスまでスケールダウン可能）、HTTPS 終端、カスタムドメイン、ロードバランシングが自動で提供される。リクエストが来たときだけコンテナが起動するため、コスト効率に優れている。
+
+```
+Cloud Run アーキテクチャ:
+
+  ユーザーリクエスト
+      │
+      ▼
+  ┌──────────────────┐
+  │  Google Cloud    │
+  │  Load Balancer   │  ← グローバル HTTPS LB
+  └────────┬─────────┘
+           │
+           ▼
+  ┌──────────────────┐
+  │   Cloud Run      │  ← 自動スケーリング（0〜N）
+  │   Service        │
+  │  ┌─────────┐     │
+  │  │Container│ x N │  ← リクエスト駆動
+  │  └─────────┘     │
+  └────────┬─────────┘
+           │
+     ┌─────┼──────────┐
+     │     │          │
+     ▼     ▼          ▼
+  Cloud  Cloud     Firestore
+  SQL    Storage   / Datastore
+```
+
+### 6.2 Cloud Run デプロイ手順
+
+```bash
+# Google Cloud SDK のインストール後
+
+# プロジェクトの設定
+gcloud config set project my-project-id
+gcloud config set run/region asia-northeast1
+
+# Artifact Registry にリポジトリを作成
+gcloud artifacts repositories create my-repo \
+  --repository-format=docker \
+  --location=asia-northeast1
+
+# Docker イメージのビルドとプッシュ（Cloud Build 使用）
+gcloud builds submit --tag asia-northeast1-docker.pkg.dev/my-project-id/my-repo/my-app:latest
+
+# Cloud Run へのデプロイ
+gcloud run deploy my-app \
+  --image asia-northeast1-docker.pkg.dev/my-project-id/my-repo/my-app:latest \
+  --platform managed \
+  --region asia-northeast1 \
+  --allow-unauthenticated \
+  --port 3000 \
+  --memory 512Mi \
+  --cpu 1 \
+  --min-instances 0 \
+  --max-instances 10 \
+  --concurrency 80 \
+  --timeout 300 \
+  --set-env-vars "NODE_ENV=production" \
+  --set-secrets "DATABASE_URL=db-url:latest,SESSION_SECRET=session-secret:latest"
+
+# カスタムドメインの設定
+gcloud run domain-mappings create \
+  --service my-app \
+  --domain app.example.com \
+  --region asia-northeast1
+
+# トラフィック分割（カナリアデプロイ）
+gcloud run services update-traffic my-app \
+  --to-revisions my-app-00002-rev=10,my-app-00001-rev=90
+```
+
+### 6.3 Cloud Run の料金体系
+
+```
+Cloud Run 料金（2024年時点）:
+
+CPU:
+  ├─ リクエスト処理中: $0.00002400/vCPU 秒
+  ├─ 常時割り当て（always-on）: $0.00001800/vCPU 秒
+  └─ 無料枠: 180,000 vCPU 秒/月
+
+メモリ:
+  ├─ リクエスト処理中: $0.00000250/GiB 秒
+  ├─ 常時割り当て: $0.00000250/GiB 秒
+  └─ 無料枠: 360,000 GiB 秒/月
+
+リクエスト:
+  ├─ $0.40/100万リクエスト
+  └─ 無料枠: 200万リクエスト/月
+
+ネットワーク:
+  ├─ 北米宛: $0.12/GB
+  ├─ アジア太平洋宛: $0.12/GB
+  └─ 無料枠: 1GB/月
+
+コスト試算例（月間100万リクエスト、平均応答100ms、256MB メモリ）:
+  CPU: 1M × 0.1秒 × $0.000024 = $2.40
+  メモリ: 1M × 0.1秒 × 0.25GB × $0.0000025 = $0.0625
+  リクエスト: 1M × $0.40/1M = $0.40
+  合計: 約 $2.86/月
+```
+
+---
+
+## 7. Railway / Render / Fly.io
+
+### 7.1 Railway
+
+Railway はシンプルなインフラストラクチャプラットフォームで、GitHub リポジトリから直接デプロイできる。PostgreSQL、Redis、MongoDB などのデータベースをワンクリックで追加でき、開発者体験（DX）に優れている。
+
+```bash
+# Railway CLI のインストール
+npm install -g @railway/cli
+
+# ログイン
+railway login
+
+# プロジェクトの初期化
+railway init
+
+# ローカル開発（Railway の環境変数を使用）
+railway run npm run dev
+
+# デプロイ
+railway up
+
+# 環境変数の設定
+railway variables set DATABASE_URL="postgresql://..."
+railway variables set SESSION_SECRET="..."
+
+# PostgreSQL の追加
+railway add --plugin postgresql
+
+# Redis の追加
+railway add --plugin redis
+
+# ログの確認
+railway logs
+
+# ドメインの設定
+railway domain
+```
+
+```
+Railway の料金体系:
+
+Trial プラン（無料）:
+  ├─ $5 分のクレジット
+  ├─ 実行時間制限あり
+  └─ 1プロジェクト
+
+Hobby プラン（$5/月）:
+  ├─ $5 のクレジット含む
+  ├─ 超過分は従量課金
+  ├─ vCPU: $0.000463/分
+  ├─ メモリ: $0.000231/MB/分
+  ├─ ディスク: $0.000309/GB/分
+  └─ ネットワーク: $0.10/GB
+
+Pro プラン（$20/月/シート）:
+  ├─ チーム機能
+  ├─ 高度なネットワーク
+  ├─ SLA
+  └─ 優先サポート
+
+コスト試算例（常時稼働、1 vCPU、512MB メモリ）:
+  CPU: 43,200分 × $0.000463 = $20.00
+  メモリ: 43,200分 × 512MB × $0.000231 = $5.10（/1000で計算）
+  合計: 約 $7〜10/月（$5クレジットで相殺）
+```
+
+### 7.2 Fly.io
+
+Fly.io はアプリケーションをユーザーに近いリージョンで実行するプラットフォームである。Docker コンテナを世界中のエッジロケーションにデプロイでき、マルチリージョンデプロイが容易に実現できる。
+
+```bash
+# Fly CLI のインストール
+curl -L https://fly.io/install.sh | sh
+
+# ログイン
+fly auth login
+
+# アプリケーションの作成
+fly launch
+
+# デプロイ
+fly deploy
+
+# スケーリング
+fly scale count 3          # インスタンス数
+fly scale vm shared-cpu-2x  # マシンタイプ
+fly scale memory 512        # メモリ
+
+# リージョンの追加
+fly regions add nrt  # 東京
+fly regions add sjc  # サンノゼ
+fly regions add lhr  # ロンドン
+
+# PostgreSQL の作成
+fly postgres create
+
+# シークレットの設定
+fly secrets set DATABASE_URL="postgresql://..."
+fly secrets set SESSION_SECRET="..."
+
+# ログの確認
+fly logs
+
+# SSH 接続
+fly ssh console
+
+# ステータス確認
+fly status
+```
+
+```toml
+# fly.toml - Fly.io 設定ファイル
+app = "my-nextjs-app"
+primary_region = "nrt"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "3000"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [http_service.concurrency]
+    type = "requests"
+    hard_limit = 250
+    soft_limit = 200
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512
+
+# ヘルスチェック
+[[services.http_checks]]
+  interval = 10000
+  grace_period = "5s"
+  method = "get"
+  path = "/api/health"
+  protocol = "http"
+  timeout = 2000
+  tls_skip_verify = false
+
+# ボリューム（永続ストレージ）
+[mounts]
+  source = "data"
+  destination = "/data"
+```
+
+```
+Fly.io の料金体系:
+
+無料枠:
+  ├─ 3 shared-cpu-1x VMs（256MB メモリ）
+  ├─ 3GB 永続ストレージ
+  └─ 160GB 転送量/月
+
+従量課金:
+  shared-cpu-1x: $1.94/月
+  shared-cpu-2x: $3.88/月
+  performance-1x: $29.30/月
+  performance-2x: $58.59/月
+
+メモリ: $0.00000476/MB/秒（約 $3.43/GB/月）
+ストレージ: $0.15/GB/月
+帯域: $0.02/GB（北米以外）
+```
+
+### 7.3 Render
+
+```
+Render の特徴:
+  ├─ GitHub/GitLab からの自動デプロイ
+  ├─ 無料の SSL、CDN、DDoS 保護
+  ├─ マネージド PostgreSQL / Redis
+  ├─ Cron ジョブサポート
+  └─ Docker / ネイティブランタイム対応
+
+料金:
+  Free: 750時間/月、自動スリープあり
+  Starter: $7/月（常時稼働）
+  Standard: $25/月
+  Pro: $85/月
+
+向いているケース:
+  ├─ Heroku からの移行
+  ├─ バックエンド API + DB
+  ├─ 小〜中規模プロジェクト
+  └─ 学習用途
+```
+
+---
+
+## 8. デプロイ戦略とリリース管理
+
+### 8.1 デプロイ戦略の比較
+
+```
+                  ダウンタイム  リスク    ロールバック  コスト    複雑度
+──────────────────────────────────────────────────────────────
+ローリング更新     なし        低〜中    やや遅い      低        低
+ブルーグリーン     なし        低        即座          高(2倍)   中
+カナリアリリース   なし        最低      即座          やや高    高
+A/Bテスト         なし        低        即座          高        高
+再作成(Recreate)  あり        高        遅い          低        最低
+```
+
+### 8.2 ブルーグリーンデプロイの実装
+
+```
+ブルーグリーンデプロイの流れ:
+
+  Step 1: 現在の本番環境（Blue）が稼働中
+  ┌──────────┐     ┌──────────┐
+  │   LB     │ ──→ │  Blue    │  ← 100% トラフィック
+  └──────────┘     │  (v1.0)  │
+                   └──────────┘
+
+  Step 2: 新バージョン（Green）をデプロイ
+  ┌──────────┐     ┌──────────┐
+  │   LB     │ ──→ │  Blue    │  ← 100% トラフィック
+  └──────────┘     │  (v1.0)  │
+                   └──────────┘
+                   ┌──────────┐
+                   │  Green   │  ← テスト中
+                   │  (v2.0)  │
+                   └──────────┘
+
+  Step 3: Green のテスト完了後、トラフィックを切り替え
+  ┌──────────┐     ┌──────────┐
+  │   LB     │     │  Blue    │  ← スタンバイ
+  └──────────┘     │  (v1.0)  │
+       │           └──────────┘
+       │           ┌──────────┐
+       └─────────→ │  Green   │  ← 100% トラフィック
+                   │  (v2.0)  │
+                   └──────────┘
+
+  Step 4: 問題があれば Blue に即座にロールバック
+```
+
+```yaml
+# .github/workflows/blue-green-deploy.yml
+name: Blue-Green Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and push Docker image
+        run: |
+          docker build -t my-app:${{ github.sha }} .
+          docker push my-app:${{ github.sha }}
+
+      - name: Deploy Green environment
+        run: |
+          # 新しいタスク定義を登録（Green）
+          aws ecs register-task-definition \
+            --cli-input-json file://task-definition.json
+
+          # Green サービスを作成/更新
+          aws ecs update-service \
+            --cluster production \
+            --service my-app-green \
+            --task-definition my-app:latest \
+            --desired-count 2
+
+          # Green の安定化を待機
+          aws ecs wait services-stable \
+            --cluster production \
+            --services my-app-green
+
+      - name: Run smoke tests on Green
+        run: |
+          GREEN_URL=$(aws ecs describe-services --cluster production --services my-app-green --query 'services[0].loadBalancers[0].targetGroupArn' --output text)
+          curl -f https://green.example.com/api/health || exit 1
+          npm run test:e2e -- --base-url=https://green.example.com
+
+      - name: Switch traffic to Green
+        run: |
+          # ALB のターゲットグループを切り替え
+          aws elbv2 modify-listener \
+            --listener-arn $LISTENER_ARN \
+            --default-actions Type=forward,TargetGroupArn=$GREEN_TARGET_GROUP_ARN
+
+      - name: Verify production
+        run: |
+          sleep 30
+          curl -f https://example.com/api/health || exit 1
+
+      - name: Scale down Blue (optional)
+        if: success()
+        run: |
+          aws ecs update-service \
+            --cluster production \
+            --service my-app-blue \
+            --desired-count 0
+```
+
+### 8.3 カナリアリリースの実装
+
+```typescript
+// Vercel でのカナリアリリース（Edge Middleware）
+// middleware.ts
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+
+const CANARY_PERCENTAGE = 10; // 10% のユーザーにカナリア版を配信
+
+export function middleware(request: NextRequest) {
+  // カナリアフラグの確認
+  const canaryFlag = request.cookies.get('canary');
+
+  if (!canaryFlag) {
+    // 新規ユーザーにランダムで割り当て
+    const isCanary = Math.random() * 100 < CANARY_PERCENTAGE;
+    const response = NextResponse.next();
+    response.cookies.set('canary', isCanary ? 'true' : 'false', {
+      maxAge: 60 * 60 * 24, // 24時間
+      httpOnly: true,
+      sameSite: 'lax',
+    });
+
+    if (isCanary) {
+      // カナリア版の URL にリライト
+      return NextResponse.rewrite(
+        new URL(request.url.replace('example.com', 'canary.example.com'))
+      );
+    }
+    return response;
+  }
+
+  if (canaryFlag.value === 'true') {
+    return NextResponse.rewrite(
+      new URL(request.url.replace('example.com', 'canary.example.com'))
+    );
+  }
+
+  return NextResponse.next();
+}
+```
+
+### 8.4 ロールバック手順
+
+```bash
+# ---- Vercel のロールバック ----
+# デプロイメント一覧を確認
+vercel ls
+
+# 特定のデプロイメントを本番に昇格
+vercel promote <deployment-url>
+
+# ---- AWS ECS のロールバック ----
+# 前のタスク定義に戻す
+aws ecs update-service \
+  --cluster my-cluster \
+  --service my-service \
+  --task-definition my-app:PREVIOUS_REVISION \
+  --force-new-deployment
+
+# ---- Docker / VPS のロールバック ----
+# 前のイメージに戻す
+docker pull my-app:previous-tag
+docker stop my-app-current
+docker run -d --name my-app --restart always my-app:previous-tag
+
+# ---- Fly.io のロールバック ----
+# リリース一覧
+fly releases
+
+# 特定のリリースにロールバック
+fly deploy --image registry.fly.io/my-app:sha-xxxxxxx
+
+# ---- Railway のロールバック ----
+# ダッシュボードから Deployments → 前のデプロイを選択 → Rollback
+
+# ---- Cloud Run のロールバック ----
+# リビジョン一覧
+gcloud run revisions list --service my-app
+
+# 前のリビジョンにトラフィックを切り替え
+gcloud run services update-traffic my-app \
+  --to-revisions my-app-00001-rev=100
+```
+
+---
+
+## 9. トラブルシューティング
+
+### 9.1 デプロイ失敗の一般的な原因と対策
+
+```
+問題 1: ビルドエラー
+  症状: デプロイ時にビルドが失敗する
+  原因:
+    - Node.js バージョンの不一致
+    - 依存関係の解決エラー
+    - TypeScript の型エラー
+    - 環境変数の未設定
+  対策:
+    - .nvmrc / .node-version でバージョンを固定
+    - package-lock.json / pnpm-lock.yaml をコミット
+    - CI で事前にビルドテストを実行
+    - 環境変数のチェックリストを作成
+
+問題 2: デプロイ後の 500 エラー
+  症状: デプロイは成功するがアプリが動作しない
+  原因:
+    - 環境変数の不足（DATABASE_URL 等）
+    - データベース接続の失敗
+    - ポート設定の誤り
+    - メモリ不足
+  対策:
+    - ヘルスチェックエンドポイントの実装
+    - 構造化ログの導入
+    - 環境変数の検証ロジックをアプリ起動時に実行
+    - メモリ制限の適切な設定
+
+問題 3: パフォーマンス劣化
+  症状: デプロイ後にレスポンスタイムが悪化
+  原因:
+    - コールドスタート（サーバーレス）
+    - キャッシュのパージ
+    - データベースコネクションプールの設定不足
+    - リソース不足（CPU/メモリ）
+  対策:
+    - Provisioned Concurrency（Lambda）/ min-instances（Cloud Run）
+    - キャッシュのウォームアップ処理
+    - コネクションプールの適切なサイズ設定
+    - 水平スケーリングの設定
+
+問題 4: SSL/TLS 証明書のエラー
+  症状: HTTPS アクセスでエラーが発生
+  原因:
+    - DNS 設定の誤り
+    - 証明書の期限切れ
+    - 証明書の発行失敗
+  対策:
+    - DNS 設定の事前確認（dig / nslookup）
+    - 証明書の自動更新設定（certbot / ACM）
+    - DNS 伝播の待機（最大48時間）
+
+問題 5: CORS エラー
+  症状: フロントエンドからの API 呼び出しがブロックされる
+  原因:
+    - CORS ヘッダーの設定不足
+    - プレフライトリクエスト（OPTIONS）の未処理
+    - 本番環境と開発環境のドメイン差異
+  対策:
+    - Access-Control-Allow-Origin の適切な設定
+    - OPTIONS リクエストへの応答
+    - 環境ごとに許可オリジンを設定
+```
+
+### 9.2 プラットフォーム固有のトラブルシューティング
+
+```
+Vercel 固有:
+  ├─ "Function Timeout": maxDuration を vercel.json で拡張
+  ├─ "Deployment Failed": ビルドログを確認、キャッシュクリアを試行
+  ├─ "Edge Function Error": Edge Runtime で使えない Node.js API を確認
+  ├─ "Bandwidth Limit": Pro プランへのアップグレードを検討
+  └─ "Preview環境が壊れている": vercel redeploy で再デプロイ
+
+Cloudflare Workers 固有:
+  ├─ "CPU time limit exceeded": 処理の最適化、Unbound に切り替え
+  ├─ "Script too large": 不要な依存関係の削除、外部ストレージの活用
+  ├─ "Durable Object stub error": 正しい namespace binding を確認
+  ├─ "D1 query failed": SQLite の制約を確認、インデックスの追加
+  └─ "KV consistency issue": 結果整合性を理解し、D1 併用を検討
+
+AWS ECS 固有:
+  ├─ "Task failed to start": タスク定義のログ設定、イメージの確認
+  ├─ "Health check failed": ヘルスチェックパスとポートの確認
+  ├─ "Out of memory": タスク定義のメモリ制限を引き上げ
+  ├─ "Service unavailable": ALB のターゲットグループ設定を確認
+  └─ "ECR authentication failed": IAM ロールのポリシーを確認
+
+Docker セルフホスト固有:
+  ├─ "Container keeps restarting": ログを確認（docker logs）
+  ├─ "Disk full": 不要なイメージ/ボリュームの削除（docker system prune）
+  ├─ "Network issues": docker network の設定を確認
+  ├─ "Permission denied": ファイルの所有権とユーザー設定を確認
+  └─ "SSL certificate expired": certbot renew の実行確認
+```
+
+### 9.3 ヘルスチェックエンドポイントの実装例
+
+```typescript
+// app/api/health/route.ts - 包括的なヘルスチェック
+import { NextResponse } from 'next/server';
+
+interface HealthStatus {
+  status: 'healthy' | 'degraded' | 'unhealthy';
+  version: string;
+  uptime: number;
+  timestamp: string;
+  checks: {
+    database: CheckResult;
+    redis: CheckResult;
+    externalApi: CheckResult;
+  };
+}
+
+interface CheckResult {
+  status: 'pass' | 'fail';
+  responseTime: number;
+  message?: string;
+}
+
+const startTime = Date.now();
+
+export async function GET() {
+  const checks = await Promise.allSettled([
+    checkDatabase(),
+    checkRedis(),
+    checkExternalApi(),
+  ]);
+
+  const [dbResult, redisResult, apiResult] = checks;
+
+  const health: HealthStatus = {
+    status: 'healthy',
+    version: process.env.APP_VERSION || '1.0.0',
+    uptime: Math.floor((Date.now() - startTime) / 1000),
+    timestamp: new Date().toISOString(),
+    checks: {
+      database: dbResult.status === 'fulfilled'
+        ? dbResult.value
+        : { status: 'fail', responseTime: 0, message: 'Check failed' },
+      redis: redisResult.status === 'fulfilled'
+        ? redisResult.value
+        : { status: 'fail', responseTime: 0, message: 'Check failed' },
+      externalApi: apiResult.status === 'fulfilled'
+        ? apiResult.value
+        : { status: 'fail', responseTime: 0, message: 'Check failed' },
+    },
+  };
+
+  // 全体のステータス判定
+  const failedChecks = Object.values(health.checks).filter(c => c.status === 'fail');
+  if (failedChecks.length > 0) {
+    health.status = failedChecks.length === Object.keys(health.checks).length
+      ? 'unhealthy'
+      : 'degraded';
+  }
+
+  const statusCode = health.status === 'unhealthy' ? 503 : 200;
+  return NextResponse.json(health, { status: statusCode });
+}
+
+async function checkDatabase(): Promise<CheckResult> {
+  const start = Date.now();
+  try {
+    // Prisma / Drizzle などの ORM を使用
+    // await prisma.$queryRaw`SELECT 1`;
+    return {
+      status: 'pass',
+      responseTime: Date.now() - start,
+    };
+  } catch (error) {
+    return {
+      status: 'fail',
+      responseTime: Date.now() - start,
+      message: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+async function checkRedis(): Promise<CheckResult> {
+  const start = Date.now();
+  try {
+    // Redis クライアントで PING
+    // await redis.ping();
+    return {
+      status: 'pass',
+      responseTime: Date.now() - start,
+    };
+  } catch (error) {
+    return {
+      status: 'fail',
+      responseTime: Date.now() - start,
+      message: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+async function checkExternalApi(): Promise<CheckResult> {
+  const start = Date.now();
+  try {
+    const response = await fetch('https://api.example.com/health', {
+      signal: AbortSignal.timeout(5000),
+    });
+    return {
+      status: response.ok ? 'pass' : 'fail',
+      responseTime: Date.now() - start,
+    };
+  } catch (error) {
+    return {
+      status: 'fail',
+      responseTime: Date.now() - start,
+      message: error instanceof Error ? error.message : 'Timeout or network error',
+    };
+  }
+}
+```
+
+---
+
+## 10. 監視とオブザーバビリティ
+
+### 10.1 プラットフォーム別の監視ツール
+
+```
+                 組み込み監視    外部連携推奨             メトリクス
+──────────────────────────────────────────────────────────────
+Vercel           Analytics     Datadog, Sentry          Web Vitals, Function Duration
+Cloudflare       Analytics     Grafana, Sentry          Workers Analytics, D1 Metrics
+AWS              CloudWatch    Datadog, New Relic       ALB/ECS/Lambda メトリクス
+GCP              Cloud Monitor Datadog, Grafana         Cloud Run メトリクス
+Railway          基本ログ      Datadog, Sentry          CPU, Memory, Network
+Fly.io           Grafana       Prometheus, Datadog      VM メトリクス
+Docker/VPS       なし          Prometheus + Grafana      全て自前
+```
+
+### 10.2 監視すべき主要メトリクス
+
+```
+アプリケーション層:
+  ├─ レスポンスタイム（p50, p95, p99）
+  ├─ エラーレート（4xx, 5xx）
+  ├─ リクエストスループット（RPS）
+  ├─ アクティブコネクション数
+  └─ Web Vitals（LCP, FID, CLS, TTFB, INP）
+
+インフラ層:
+  ├─ CPU 使用率
+  ├─ メモリ使用率
+  ├─ ディスク I/O
+  ├─ ネットワーク帯域
+  └─ コンテナ/インスタンス数
+
+データベース層:
+  ├─ クエリレスポンスタイム
+  ├─ コネクションプール使用率
+  ├─ スロークエリ数
+  ├─ レプリケーション遅延
+  └─ ディスク使用量
+
+ビジネス層:
+  ├─ ユーザー登録数/アクティブユーザー数
+  ├─ コンバージョン率
+  ├─ ページビュー
+  └─ API 利用量
+```
+
+### 10.3 アラート設計
+
+```
+アラートの優先度設計:
+
+P1（即時対応）:
+  ├─ サービスダウン（ヘルスチェック失敗）
+  ├─ エラーレート > 5%
+  ├─ レスポンスタイム p99 > 10秒
+  └─ データベース接続不可
+  通知先: PagerDuty / 電話 / Slack（即時）
+
+P2（1時間以内に対応）:
+  ├─ エラーレート > 1%
+  ├─ レスポンスタイム p95 > 3秒
+  ├─ CPU > 80% が5分以上
+  └─ メモリ > 85%
+  通知先: Slack / メール
+
+P3（営業時間内に対応）:
+  ├─ ディスク使用率 > 70%
+  ├─ SSL 証明書期限 < 30日
+  ├─ 依存サービスの劣化
+  └─ 異常なトラフィックパターン
+  通知先: Slack（低優先度チャンネル）
+
+P4（週次レビュー）:
+  ├─ コスト異常（予算の80%超過）
+  ├─ パフォーマンストレンドの変化
+  ├─ セキュリティパッチの未適用
+  └─ ログボリュームの異常増加
+  通知先: 週次レポート
+```
+
+---
+
+## 11. コスト最適化
+
+### 11.1 プラットフォーム別のコスト削減テクニック
+
+```
+Vercel:
+  ├─ ISR の revalidate 値を適切に設定し、オリジンリクエストを削減
+  ├─ Edge Functions で軽量な処理をエッジに移動
+  ├─ 画像最適化の minimumCacheTTL を長く設定
+  ├─ 不要なプレビューデプロイメントの削除
+  └─ Analytics はサードパーティ（Plausible等）で代替
+
+Cloudflare:
+  ├─ Free プランの範囲で運用できるよう設計
+  ├─ KV よりも D1 を優先（読み取りコストが安い）
+  ├─ R2 で S3 代替（転送料金なし）
+  ├─ Bundled モードで CPU 時間制限内に収める
+  └─ Cache API でレスポンスをキャッシュ
+
+AWS:
+  ├─ Reserved Instances / Savings Plans で長期コスト削減
+  ├─ Spot Instances を非クリティカルなワークロードに活用
+  ├─ S3 Intelligent-Tiering でストレージコスト最適化
+  ├─ CloudFront キャッシュヒット率の改善
+  ├─ Lambda の Provisioned Concurrency を最小限に
+  └─ RDS の適切なインスタンスサイズ選定
+
+Docker / VPS:
+  ├─ Hetzner / Contabo など低価格 VPS プロバイダの活用
+  ├─ ARM ベースのインスタンスでコスト削減（Hetzner CAX）
+  ├─ 複数のアプリを1台のサーバーに集約
+  ├─ 不要なコンテナ/イメージの定期的なクリーンアップ
+  └─ CDN（Cloudflare無料プラン）をフロントに配置
+```
+
+### 11.2 コスト見積もりテンプレート
+
+```
+月間コスト見積もりシート:
+
+プロジェクト名: _________________
+想定トラフィック: ___________ PV/月
+想定 API コール: ___________ リクエスト/月
+データベースサイズ: ___________ GB
+ファイルストレージ: ___________ GB
+チームメンバー数: ___________
+
+┌─────────────────────────────────────────────────┐
+│ コスト項目          │ 月額     │ 年額        │
+├─────────────────────┼──────────┼─────────────┤
+│ コンピュート        │ $___     │ $___        │
+│ データベース        │ $___     │ $___        │
+│ ストレージ          │ $___     │ $___        │
+│ 帯域/転送           │ $___     │ $___        │
+│ SSL/ドメイン        │ $___     │ $___        │
+│ 監視/ログ           │ $___     │ $___        │
+│ CI/CD               │ $___     │ $___        │
+│ その他              │ $___     │ $___        │
+├─────────────────────┼──────────┼─────────────┤
+│ 合計                │ $___     │ $___        │
+└─────────────────────┴──────────┴─────────────┘
+```
+
+---
+
+## まとめ
+
+### プラットフォーム選定クイックリファレンス
+
+| プラットフォーム | 最適な用途 | コスト | 学習コスト | スケーリング |
+|--------------|---------|--------|---------|----------|
+| Vercel | Next.js、フロントエンド中心 | 中 | 最低 | 自動 |
+| Cloudflare | エッジ、低コスト、グローバル配信 | 安 | 低 | 自動 |
+| AWS Amplify | AWS 環境での Git ベースデプロイ | 中 | 低 | 自動 |
+| AWS ECS | コンテナベースのフルカスタム構成 | 高 | 高 | 自動/手動 |
+| GCP Cloud Run | コンテナのサーバーレス実行 | 安〜中 | 中 | 自動 |
+| Railway | 迅速なバックエンドデプロイ | 安 | 最低 | 自動 |
+| Fly.io | マルチリージョン、エッジ寄り | 中 | 低 | 自動 |
+| Render | Heroku 代替、シンプルなデプロイ | 安〜中 | 低 | 自動 |
+| Docker + VPS | 完全制御、低コスト | 最安 | 中 | 手動 |
+
+### プロジェクト規模別の推奨構成
+
+```
+個人プロジェクト / プロトタイプ:
+  推奨: Vercel Hobby + Cloudflare (CDN) + Supabase (DB)
+  コスト: 無料〜$5/月
+  理由: ゼロコンフィグ、高速イテレーション
+
+スタートアップ / 小規模チーム:
+  推奨: Vercel Pro + Railway (DB/Redis) or Supabase
+  コスト: $20〜$50/月
+  理由: 開発速度優先、運用負荷最小
+
+中規模サービス:
+  推奨: AWS ECS Fargate + RDS + CloudFront or GCP Cloud Run + Cloud SQL
+  コスト: $100〜$500/月
+  理由: カスタマイズ性、SLA、コンプライアンス
+
+大規模サービス:
+  推奨: AWS / GCP / Azure のフルマネージド構成 + Kubernetes
+  コスト: $500〜$5,000+/月
+  理由: マルチリージョン、高可用性、フルカスタム
+
+コスト最重視:
+  推奨: Cloudflare Pages + Workers + D1 or Hetzner VPS + Docker
+  コスト: $0〜$20/月
+  理由: 無料枠の最大活用、低価格 VPS
+```
+
+---
+
+## 次に読むべきガイド
+
+- [[01-environment-and-config.md]] - 環境設定と構成管理
+- [[02-ci-cd.md]] - CI/CD パイプラインの構築
+- [[03-monitoring.md]] - 監視とオブザーバビリティ
+
+---
+
+## 参考文献
+
+1. Vercel. "Documentation." vercel.com/docs, 2024.
+2. Cloudflare. "Workers Documentation." developers.cloudflare.com/workers, 2024.
+3. Cloudflare. "Pages Documentation." developers.cloudflare.com/pages, 2024.
+4. Cloudflare. "D1 Documentation." developers.cloudflare.com/d1, 2024.
+5. AWS. "Amplify Documentation." docs.aws.amazon.com/amplify, 2024.
+6. AWS. "ECS Documentation." docs.aws.amazon.com/ecs, 2024.
+7. AWS. "Lambda Documentation." docs.aws.amazon.com/lambda, 2024.
+8. Google Cloud. "Cloud Run Documentation." cloud.google.com/run/docs, 2024.
+9. Docker. "Dockerfile best practices." docs.docker.com, 2024.
+10. Fly.io. "Documentation." fly.io/docs, 2024.
+11. Railway. "Documentation." docs.railway.app, 2024.
+12. Render. "Documentation." render.com/docs, 2024.
+13. Next.js. "Deployment Documentation." nextjs.org/docs/deployment, 2024.
+14. Martin Fowler. "BlueGreenDeployment." martinfowler.com, 2010.
+15. Google. "Site Reliability Engineering." sre.google/sre-book, 2016.

@@ -1701,3 +1701,1238 @@ function Alert({
   <AlertDescription>データの保存に失敗しました。再試行してください。</AlertDescription>
 </Alert>
 ```
+
+---
+
+## 6. Server / Client コンポーネント境界
+
+### 6.1 Next.js App Router でのコンポーネント設計
+
+Next.js App Routerでは、Server ComponentとClient Componentという2種類のコンポーネントが存在する。この境界を適切に設計することが、パフォーマンスと開発体験の両方に大きく影響する。
+
+```
+基本ルール:
+  → デフォルトは Server Component
+  → 'use client' は必要最小限に
+  → Client の境界をなるべく葉（リーフ）に近づける
+  → Server Component から Client Component にはシリアライズ可能なpropsのみ渡せる
+```
+
+```typescript
+// ============================================
+// 良い例: Client境界が小さい
+// ============================================
+
+// page.tsx (Server Component)
+async function ProductPage({ params }: { params: { id: string } }) {
+  const product = await getProduct(params.id);
+  const reviews = await getReviews(params.id);
+
+  return (
+    <div className="max-w-4xl mx-auto py-8">
+      {/* Server Component: 静的な部分 */}
+      <h1 className="text-3xl font-bold">{product.name}</h1>
+      <p className="mt-2 text-gray-600">{product.description}</p>
+
+      {/* Server Component: 画像ギャラリー（静的） */}
+      <ProductImageGallery images={product.images} />
+
+      {/* Client Component: インタラクティブな部分のみ */}
+      <ProductPrice price={product.price} discount={product.discount} />
+      <AddToCartButton productId={product.id} />
+
+      {/* Server Component: レビュー一覧（静的） */}
+      <ReviewList reviews={reviews} />
+
+      {/* Client Component: レビュー投稿フォーム */}
+      <ReviewForm productId={product.id} />
+    </div>
+  );
+}
+
+// ============================================
+// 悪い例: ページ全体がClient
+// ============================================
+
+// 'use client';  ← ページ全体をClientにしてしまっている
+// function ProductPage({ params }) {
+//   const { data: product } = useQuery(...);
+//   // 全てがクライアントサイドで実行される
+//   // → バンドルサイズ増大、初期表示遅延
+// }
+```
+
+### 6.2 Server/Client コンポーネントの判断基準
+
+```
+Server Component を使う場面:
+  → データベースへの直接アクセス
+  → サーバーサイドのAPIキーやシークレットの使用
+  → 大きな依存パッケージ（マークダウンパーサー、syntax highlighter等）
+  → 機密情報の処理
+  → SEOが重要なコンテンツ
+  → 初期表示パフォーマンスが重要な部分
+
+Client Component を使う場面:
+  → useState, useEffect, useReducer などのReact Hooksが必要
+  → onClick, onChange 等のイベントハンドラが必要
+  → ブラウザAPI（localStorage, navigator, window等）へのアクセス
+  → サードパーティのクライアントサイドライブラリ
+  → Context Providerの利用
+  → アニメーションやトランジション
+```
+
+### 6.3 境界設計のパターン
+
+```typescript
+// ============================================
+// パターン1: インタラクティブな部分だけをClient化
+// ============================================
+
+// SearchableList.tsx (Server Component)
+async function SearchableList() {
+  // サーバーサイドで全データを取得
+  const items = await fetchAllItems();
+
+  return (
+    <div>
+      <h2>アイテム一覧</h2>
+      {/* 検索機能だけをClient化 */}
+      <SearchFilter items={items} />
+    </div>
+  );
+}
+
+// SearchFilter.tsx (Client Component)
+'use client';
+function SearchFilter({ items }: { items: Item[] }) {
+  const [query, setQuery] = useState('');
+  const filtered = items.filter(item =>
+    item.name.toLowerCase().includes(query.toLowerCase())
+  );
+
+  return (
+    <>
+      <input
+        type="search"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="検索..."
+      />
+      <ul>
+        {filtered.map(item => (
+          <li key={item.id}>{item.name}</li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
+// ============================================
+// パターン2: Provider のClient境界
+// ============================================
+
+// providers.tsx (Client Component)
+'use client';
+import { ThemeProvider } from 'next-themes';
+import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
+
+const queryClient = new QueryClient();
+
+export function Providers({ children }: { children: ReactNode }) {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider attribute="class" defaultTheme="system">
+        {children}
+      </ThemeProvider>
+    </QueryClientProvider>
+  );
+}
+
+// layout.tsx (Server Component)
+export default function RootLayout({ children }: { children: ReactNode }) {
+  return (
+    <html lang="ja">
+      <body>
+        <Providers>
+          {/* childrenはServer Componentのまま */}
+          {children}
+        </Providers>
+      </body>
+    </html>
+  );
+}
+
+// ============================================
+// パターン3: Server Component を Children として渡す
+// ============================================
+
+// ClientWrapper.tsx (Client Component)
+'use client';
+function Sidebar({ children }: { children: ReactNode }) {
+  const [isOpen, setIsOpen] = useState(true);
+
+  return (
+    <aside className={cn('transition-all', isOpen ? 'w-64' : 'w-16')}>
+      <button onClick={() => setIsOpen(!isOpen)}>
+        {isOpen ? '閉じる' : '開く'}
+      </button>
+      {isOpen && children}
+    </aside>
+  );
+}
+
+// page.tsx (Server Component)
+async function DashboardPage() {
+  const navItems = await getNavItems(); // サーバーサイドで取得
+
+  return (
+    <div className="flex">
+      <Sidebar>
+        {/* Server Componentのchildrenとして渡す */}
+        <NavigationMenu items={navItems} />
+      </Sidebar>
+      <main>
+        <DashboardContent />
+      </main>
+    </div>
+  );
+}
+```
+
+### 6.4 Server/Client 境界のアンチパターン
+
+```typescript
+// ============================================
+// アンチパターン1: 不要な 'use client'
+// ============================================
+
+// 悪い: 静的なコンポーネントにuse clientを付けている
+'use client'; // ← 不要！
+function Footer() {
+  return (
+    <footer>
+      <p>2024 My Company. All rights reserved.</p>
+    </footer>
+  );
+}
+
+// 良い: Server Componentとして維持
+function Footer() {
+  return (
+    <footer>
+      <p>2024 My Company. All rights reserved.</p>
+    </footer>
+  );
+}
+
+// ============================================
+// アンチパターン2: Server Component で関数をpropsに渡す
+// ============================================
+
+// 悪い: Server Componentから関数をClient Componentに渡そうとする
+async function Page() {
+  const handleClick = () => { // ← シリアライズ不可能！
+    console.log('clicked');
+  };
+
+  return <ClientButton onClick={handleClick} />; // エラー
+}
+
+// 良い: Server Actions を使う
+async function Page() {
+  async function handleSubmit(formData: FormData) {
+    'use server';
+    const name = formData.get('name');
+    await saveUser({ name });
+  }
+
+  return (
+    <form action={handleSubmit}>
+      <input name="name" />
+      <button type="submit">保存</button>
+    </form>
+  );
+}
+
+// ============================================
+// アンチパターン3: Client境界が高すぎる
+// ============================================
+
+// 悪い: レイアウト全体をClientにしてしまう
+'use client';
+function Layout({ children }) {
+  const [theme, setTheme] = useState('light');
+  return (
+    <div className={theme}>
+      <Header />     {/* Server Componentにできるのに */}
+      <Sidebar />    {/* Server Componentにできるのに */}
+      {children}
+      <Footer />     {/* Server Componentにできるのに */}
+    </div>
+  );
+}
+
+// 良い: テーマ切り替えのみをClientに
+function Layout({ children }) {
+  return (
+    <ThemeProvider> {/* ClientのProvider */}
+      <Header />     {/* Server Component */}
+      <Sidebar />    {/* Server Component */}
+      {children}
+      <Footer />     {/* Server Component */}
+    </ThemeProvider>
+  );
+}
+```
+
+---
+
+## 7. コンポーネントのパフォーマンス最適化
+
+### 7.1 React.memo による再レンダリング最適化
+
+```typescript
+// ============================================
+// React.memo の適切な使い方
+// ============================================
+
+// React.memo を使うべき場面
+// → 親が頻繁に再レンダリングされるが、子のpropsは変わらない
+// → レンダリングコストが高い（大きなリスト、複雑な計算等）
+
+// --- 例: 高コストのリストアイテム ---
+const UserRow = memo(function UserRow({ user, onEdit }: {
+  user: User;
+  onEdit: (user: User) => void;
+}) {
+  return (
+    <tr>
+      <td>
+        <div className="flex items-center gap-3">
+          <Avatar src={user.avatar} alt={user.name} />
+          <div>
+            <p className="font-medium">{user.name}</p>
+            <p className="text-sm text-gray-500">{user.email}</p>
+          </div>
+        </div>
+      </td>
+      <td>
+        <Badge variant={user.isActive ? 'success' : 'default'}>
+          {user.isActive ? 'アクティブ' : '非アクティブ'}
+        </Badge>
+      </td>
+      <td>
+        <Button variant="ghost" size="sm" onClick={() => onEdit(user)}>
+          編集
+        </Button>
+      </td>
+    </tr>
+  );
+});
+
+// 親コンポーネント: onEditをuseCallbackで安定化
+function UserTable({ users }: { users: User[] }) {
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+
+  // useCallbackで参照を安定化（React.memoの効果を最大化）
+  const handleEdit = useCallback((user: User) => {
+    setEditingUser(user);
+  }, []);
+
+  return (
+    <table>
+      <tbody>
+        {users.map(user => (
+          <UserRow key={user.id} user={user} onEdit={handleEdit} />
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+// ============================================
+// React.memo を使うべきでない場面
+// ============================================
+
+// 1. propsが毎回変わるコンポーネント
+//    → メモ化のオーバーヘッドが無駄
+// 2. レンダリングコストが低いコンポーネント
+//    → 比較コスト > レンダリングコスト
+// 3. childrenを受け取るコンポーネント
+//    → childrenは毎回新しいオブジェクト
+
+// 悪い例: 毎回propsが変わる
+const BadMemo = memo(function BadMemo({ items }: { items: Item[] }) {
+  return <ul>{items.map(i => <li key={i.id}>{i.name}</li>)}</ul>;
+});
+
+// 親: items を毎レンダリングで新しい配列を作成
+function Parent() {
+  const items = data.filter(d => d.active); // ← 毎回新しい配列
+  return <BadMemo items={items} />; // ← memo の効果なし
+}
+
+// 良い例: useMemo で配列を安定化
+function Parent() {
+  const items = useMemo(() => data.filter(d => d.active), [data]);
+  return <BadMemo items={items} />; // ← memo が効く
+}
+```
+
+### 7.2 useMemo と useCallback
+
+```typescript
+// ============================================
+// useMemo: 計算結果のメモ化
+// ============================================
+
+function ExpensiveComponent({ data, filters }: {
+  data: DataItem[];
+  filters: Filters;
+}) {
+  // 重い計算をメモ化
+  const processedData = useMemo(() => {
+    return data
+      .filter(item => matchesFilters(item, filters))
+      .map(item => transformItem(item))
+      .sort((a, b) => b.score - a.score);
+  }, [data, filters]);
+
+  // グラフ用の集計データ
+  const chartData = useMemo(() => {
+    return processedData.reduce((acc, item) => {
+      const month = item.date.substring(0, 7);
+      acc[month] = (acc[month] || 0) + item.value;
+      return acc;
+    }, {} as Record<string, number>);
+  }, [processedData]);
+
+  return (
+    <div>
+      <DataChart data={chartData} />
+      <DataTable data={processedData} />
+    </div>
+  );
+}
+
+// ============================================
+// useCallback: コールバック関数のメモ化
+// ============================================
+
+function ParentComponent() {
+  const [count, setCount] = useState(0);
+  const [items, setItems] = useState<Item[]>([]);
+
+  // setItemsは安定した参照なのでdeps不要
+  const handleAddItem = useCallback((item: Item) => {
+    setItems(prev => [...prev, item]);
+  }, []);
+
+  // 外部の値に依存する場合はdepsに含める
+  const handleSubmit = useCallback(async () => {
+    await submitItems(items, count);
+  }, [items, count]);
+
+  return (
+    <div>
+      <ItemList items={items} onAdd={handleAddItem} />
+      <SubmitButton onSubmit={handleSubmit} />
+      <Counter count={count} setCount={setCount} />
+    </div>
+  );
+}
+```
+
+### 7.3 コンポーネントの遅延読み込み
+
+```typescript
+// ============================================
+// React.lazy + Suspense による遅延読み込み
+// ============================================
+
+// 通常のimport（バンドルに含まれる）
+// import HeavyChart from './HeavyChart';
+
+// 遅延import（必要時にのみ読み込む）
+const HeavyChart = lazy(() => import('./HeavyChart'));
+const CodeEditor = lazy(() => import('./CodeEditor'));
+const MarkdownPreview = lazy(() => import('./MarkdownPreview'));
+
+function Dashboard() {
+  const [activeTab, setActiveTab] = useState('overview');
+
+  return (
+    <div>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList>
+          <TabsTrigger value="overview">概要</TabsTrigger>
+          <TabsTrigger value="analytics">分析</TabsTrigger>
+          <TabsTrigger value="editor">エディタ</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview">
+          <OverviewPanel /> {/* 通常読み込み */}
+        </TabsContent>
+
+        <TabsContent value="analytics">
+          <Suspense fallback={<ChartSkeleton />}>
+            <HeavyChart /> {/* 遅延読み込み */}
+          </Suspense>
+        </TabsContent>
+
+        <TabsContent value="editor">
+          <Suspense fallback={<EditorSkeleton />}>
+            <CodeEditor /> {/* 遅延読み込み */}
+          </Suspense>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+// ============================================
+// Next.js での dynamic import
+// ============================================
+import dynamic from 'next/dynamic';
+
+// SSRを無効化して遅延読み込み
+const MapComponent = dynamic(() => import('./Map'), {
+  ssr: false, // サーバーサイドではレンダリングしない
+  loading: () => <MapSkeleton />,
+});
+
+// 名前付きエクスポートの遅延読み込み
+const BarChart = dynamic(
+  () => import('./charts').then(mod => ({ default: mod.BarChart })),
+  { loading: () => <ChartSkeleton /> }
+);
+
+function LocationPage() {
+  return (
+    <div>
+      <h1>店舗検索</h1>
+      <MapComponent locations={locations} />
+      <BarChart data={chartData} />
+    </div>
+  );
+}
+```
+
+### 7.4 仮想化（Virtualization）
+
+```typescript
+// ============================================
+// 大量データの仮想スクロール
+// ============================================
+
+// @tanstack/react-virtual を使用
+import { useVirtualizer } from '@tanstack/react-virtual';
+
+function VirtualizedList({ items }: { items: Item[] }) {
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  const virtualizer = useVirtualizer({
+    count: items.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 60, // 各アイテムの推定高さ
+    overscan: 5, // 画面外に余分にレンダリングする数
+  });
+
+  return (
+    <div
+      ref={parentRef}
+      className="h-[600px] overflow-auto"
+    >
+      <div
+        style={{
+          height: `${virtualizer.getTotalSize()}px`,
+          width: '100%',
+          position: 'relative',
+        }}
+      >
+        {virtualizer.getVirtualItems().map(virtualRow => (
+          <div
+            key={virtualRow.key}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: `${virtualRow.size}px`,
+              transform: `translateY(${virtualRow.start}px)`,
+            }}
+          >
+            <ItemRow item={items[virtualRow.index]} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// 10,000件のアイテムでもスムーズに動作
+function LargeDataList() {
+  const { data: items } = useItems(); // 10,000件
+
+  return (
+    <div>
+      <p>{items?.length.toLocaleString()} 件のアイテム</p>
+      <VirtualizedList items={items ?? []} />
+    </div>
+  );
+}
+```
+
+---
+
+## 8. コンポーネントのテスト戦略
+
+### 8.1 テストの種類と使い分け
+
+```
+テストピラミッド:
+
+  ┌────────────────┐
+  │    E2E テスト    │  → 少数: ユーザーフロー全体
+  │   (Playwright)  │
+  ├────────────────┤
+  │  統合テスト      │  → 中程度: コンポーネント間の連携
+  │  (Testing Lib)  │
+  ├────────────────┤
+  │  単体テスト      │  → 多数: 個別コンポーネント
+  │  (Vitest)       │
+  └────────────────┘
+
+各テストの役割:
+  単体テスト:
+  → 個々のコンポーネントを独立してテスト
+  → propsを渡してレンダリング結果を検証
+  → イベントハンドラの動作を検証
+  → 高速、安定、保守容易
+
+  統合テスト:
+  → 複数コンポーネントの連携をテスト
+  → データ取得 → 表示 → インタラクション
+  → APIモック + コンポーネントレンダリング
+
+  E2Eテスト:
+  → 実際のブラウザで動作確認
+  → ユーザーの操作フロー全体
+  → CI/CDパイプラインで実行
+```
+
+### 8.2 コンポーネントの単体テスト
+
+```typescript
+// ============================================
+// Vitest + React Testing Library
+// ============================================
+
+import { render, screen, fireEvent, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { Button } from './Button';
+import { UserCard } from './UserCard';
+import { SearchForm } from './SearchForm';
+
+// --- Button コンポーネントのテスト ---
+describe('Button', () => {
+  it('デフォルトのvariantでレンダリングされる', () => {
+    render(<Button>クリック</Button>);
+    const button = screen.getByRole('button', { name: 'クリック' });
+    expect(button).toBeInTheDocument();
+    expect(button).toHaveClass('bg-primary');
+  });
+
+  it('destructive variantが適用される', () => {
+    render(<Button variant="destructive">削除</Button>);
+    const button = screen.getByRole('button', { name: '削除' });
+    expect(button).toHaveClass('bg-destructive');
+  });
+
+  it('isLoading時にSpinnerが表示される', () => {
+    render(<Button isLoading>保存</Button>);
+    const button = screen.getByRole('button');
+    expect(button).toBeDisabled();
+    expect(screen.getByTestId('spinner')).toBeInTheDocument();
+  });
+
+  it('クリックイベントが発火する', async () => {
+    const handleClick = vi.fn();
+    render(<Button onClick={handleClick}>クリック</Button>);
+
+    await userEvent.click(screen.getByRole('button'));
+    expect(handleClick).toHaveBeenCalledTimes(1);
+  });
+
+  it('disabled時にクリックが無効になる', async () => {
+    const handleClick = vi.fn();
+    render(<Button disabled onClick={handleClick}>クリック</Button>);
+
+    await userEvent.click(screen.getByRole('button'));
+    expect(handleClick).not.toHaveBeenCalled();
+  });
+});
+
+// --- UserCard コンポーネントのテスト ---
+describe('UserCard', () => {
+  const mockUser = {
+    id: '1',
+    name: 'テストユーザー',
+    email: 'test@example.com',
+    role: 'admin' as const,
+    isActive: true,
+    avatar: '/avatar.png',
+  };
+
+  it('ユーザー情報が正しく表示される', () => {
+    render(<UserCard user={mockUser} onEdit={vi.fn()} onDelete={vi.fn()} />);
+
+    expect(screen.getByText('テストユーザー')).toBeInTheDocument();
+    expect(screen.getByText('test@example.com')).toBeInTheDocument();
+    expect(screen.getByText('admin')).toBeInTheDocument();
+  });
+
+  it('アクティブステータスのバッジが表示される', () => {
+    render(<UserCard user={mockUser} onEdit={vi.fn()} onDelete={vi.fn()} />);
+    expect(screen.getByText('アクティブ')).toBeInTheDocument();
+  });
+
+  it('編集ボタンのクリックでonEditが呼ばれる', async () => {
+    const handleEdit = vi.fn();
+    render(<UserCard user={mockUser} onEdit={handleEdit} onDelete={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole('button', { name: '編集' }));
+    expect(handleEdit).toHaveBeenCalledWith(mockUser);
+  });
+});
+
+// --- SearchForm コンポーネントのテスト ---
+describe('SearchForm', () => {
+  it('検索クエリを入力して送信できる', async () => {
+    const handleSearch = vi.fn();
+    render(
+      <SearchForm
+        onSearch={handleSearch}
+        categories={[
+          { id: '1', name: 'カテゴリA' },
+          { id: '2', name: 'カテゴリB' },
+        ]}
+      />
+    );
+
+    // テキスト入力
+    const searchInput = screen.getByPlaceholderText('キーワードを入力...');
+    await userEvent.type(searchInput, 'テスト検索');
+
+    // フォーム送信
+    await userEvent.click(screen.getByRole('button', { name: '検索' }));
+
+    expect(handleSearch).toHaveBeenCalledWith(
+      'テスト検索',
+      expect.any(Object)
+    );
+  });
+});
+```
+
+### 8.3 Storybookによるコンポーネントドキュメント
+
+```typescript
+// ============================================
+// Storybook 7+ のCSF3形式
+// ============================================
+
+import type { Meta, StoryObj } from '@storybook/react';
+import { Button } from './Button';
+
+const meta: Meta<typeof Button> = {
+  title: 'UI/Button',
+  component: Button,
+  tags: ['autodocs'],
+  argTypes: {
+    variant: {
+      control: 'select',
+      options: ['default', 'destructive', 'outline', 'ghost', 'link'],
+      description: 'ボタンのスタイルバリアント',
+    },
+    size: {
+      control: 'radio',
+      options: ['sm', 'md', 'lg'],
+      description: 'ボタンのサイズ',
+    },
+    isLoading: {
+      control: 'boolean',
+      description: 'ローディング状態',
+    },
+    disabled: {
+      control: 'boolean',
+      description: '無効状態',
+    },
+  },
+};
+
+export default meta;
+type Story = StoryObj<typeof Button>;
+
+// デフォルトストーリー
+export const Default: Story = {
+  args: {
+    children: 'ボタン',
+  },
+};
+
+// バリアント一覧
+export const Variants: Story = {
+  render: () => (
+    <div className="flex gap-4 items-center">
+      <Button variant="default">Default</Button>
+      <Button variant="destructive">Destructive</Button>
+      <Button variant="outline">Outline</Button>
+      <Button variant="ghost">Ghost</Button>
+      <Button variant="link">Link</Button>
+    </div>
+  ),
+};
+
+// サイズ一覧
+export const Sizes: Story = {
+  render: () => (
+    <div className="flex gap-4 items-center">
+      <Button size="sm">Small</Button>
+      <Button size="md">Medium</Button>
+      <Button size="lg">Large</Button>
+    </div>
+  ),
+};
+
+// ローディング状態
+export const Loading: Story = {
+  args: {
+    isLoading: true,
+    children: '保存中...',
+  },
+};
+
+// アイコン付き
+export const WithIcon: Story = {
+  render: () => (
+    <div className="flex gap-4">
+      <Button leftIcon={<PlusIcon className="h-4 w-4" />}>
+        追加
+      </Button>
+      <Button rightIcon={<ArrowRightIcon className="h-4 w-4" />}>
+        次へ
+      </Button>
+      <Button variant="destructive" leftIcon={<TrashIcon className="h-4 w-4" />}>
+        削除
+      </Button>
+    </div>
+  ),
+};
+```
+
+---
+
+## 9. 大規模アプリケーションでのコンポーネント管理
+
+### 9.1 ディレクトリ構成のパターン
+
+```
+推奨ディレクトリ構成（Feature-based）:
+
+  src/
+  ├── app/                      # Next.js App Router ルーティング
+  │   ├── (auth)/               # 認証レイアウトグループ
+  │   │   ├── login/
+  │   │   └── register/
+  │   ├── (dashboard)/          # ダッシュボードレイアウトグループ
+  │   │   ├── users/
+  │   │   ├── products/
+  │   │   └── settings/
+  │   └── layout.tsx
+  ├── components/
+  │   ├── ui/                   # 汎用UIコンポーネント（shadcn/ui等）
+  │   │   ├── button.tsx
+  │   │   ├── dialog.tsx
+  │   │   ├── input.tsx
+  │   │   └── ...
+  │   ├── layout/               # レイアウトコンポーネント
+  │   │   ├── header.tsx
+  │   │   ├── sidebar.tsx
+  │   │   └── footer.tsx
+  │   └── shared/               # 共通ドメインコンポーネント
+  │       ├── data-table.tsx
+  │       ├── empty-state.tsx
+  │       └── page-header.tsx
+  ├── features/                 # 機能ごとのモジュール
+  │   ├── users/
+  │   │   ├── components/       # ユーザー機能のコンポーネント
+  │   │   │   ├── user-card.tsx
+  │   │   │   ├── user-form.tsx
+  │   │   │   └── user-table.tsx
+  │   │   ├── hooks/            # ユーザー機能のフック
+  │   │   │   ├── use-users.ts
+  │   │   │   └── use-user-form.ts
+  │   │   ├── api/              # ユーザーAPI
+  │   │   │   └── users.ts
+  │   │   ├── types/            # ユーザー型定義
+  │   │   │   └── user.ts
+  │   │   └── index.ts          # 公開API
+  │   ├── products/
+  │   │   ├── components/
+  │   │   ├── hooks/
+  │   │   ├── api/
+  │   │   └── index.ts
+  │   └── auth/
+  │       ├── components/
+  │       ├── hooks/
+  │       └── index.ts
+  ├── hooks/                    # グローバルフック
+  │   ├── use-debounce.ts
+  │   ├── use-media-query.ts
+  │   └── use-local-storage.ts
+  ├── lib/                      # ユーティリティ
+  │   ├── utils.ts
+  │   ├── api-client.ts
+  │   └── validations.ts
+  └── types/                    # グローバル型定義
+      └── global.d.ts
+```
+
+### 9.2 コンポーネントの命名規則
+
+```
+命名規則のベストプラクティス:
+
+  コンポーネント名:
+  → PascalCase を使用
+  → 具体的な名前にする（Button, UserCard, ProductList）
+  → 抽象的な名前を避ける（Wrapper, Container, Manager）
+  → ドメイン接頭辞で名前空間を表現（UserCard, UserForm, UserTable）
+
+  ファイル名:
+  → kebab-case を推奨（user-card.tsx, product-list.tsx）
+  → shadcn/ui スタイル: button.tsx, dialog.tsx
+  → 1ファイル1コンポーネントが基本
+  → 関連する小さなコンポーネントは同居可能
+
+  Props型名:
+  → コンポーネント名 + Props（ButtonProps, UserCardProps）
+  → interface を使用（typeでも可だが統一する）
+
+  フック名:
+  → use + 動詞/名詞（useUsers, useDebounce, useLocalStorage）
+  → カスタムフックは必ず use で始める
+
+  定数・バリアント:
+  → camelCase（buttonVariants, alertStyles）
+  → UPPER_SNAKE_CASE は設定値のみ（MAX_RETRY_COUNT）
+```
+
+### 9.3 コンポーネント設計チェックリスト
+
+```
+新しいコンポーネントを作成する際のチェックリスト:
+
+  設計:
+  □ 単一責任原則を満たしているか
+  □ 適切な粒度レベルか（プリミティブ/複合/ドメイン/ページ）
+  □ 既存コンポーネントで代替できないか
+  □ 再利用の可能性はあるか
+
+  Props設計:
+  □ HTML標準属性を拡張しているか
+  □ 必要最小限のpropsか
+  □ TypeScriptの型定義が適切か
+  □ デフォルト値が設定されているか
+  □ Discriminated Unionで型安全か
+
+  アクセシビリティ:
+  □ 適切なARIA属性が設定されているか
+  □ キーボードナビゲーションに対応しているか
+  □ フォーカス管理が適切か
+  □ スクリーンリーダーで正しく読み上げられるか
+  □ 色のコントラスト比が十分か
+
+  パフォーマンス:
+  □ 不要な再レンダリングがないか
+  □ React.memoが必要か検討したか
+  □ 大きな依存は遅延読み込みしているか
+  □ 大量データは仮想化しているか
+
+  テスト:
+  □ 単体テストが書かれているか
+  □ Storybookストーリーがあるか
+  □ エッジケース（空データ、エラー、ローディング）をテストしているか
+
+  Server/Client境界:
+  □ Server Componentで十分ではないか
+  □ Client境界は最小限か
+  □ propsはシリアライズ可能か
+```
+
+---
+
+## 10. トラブルシューティング
+
+### 10.1 よくある問題と解決策
+
+```typescript
+// ============================================
+// 問題1: propsバケツリレー（Prop Drilling）
+// ============================================
+
+// 問題: 深い階層にpropsを渡すために中間コンポーネントが不要なpropsを受け取る
+function App() {
+  const [theme, setTheme] = useState('light');
+  return <Layout theme={theme} setTheme={setTheme} />;
+}
+function Layout({ theme, setTheme }) {
+  return <Sidebar theme={theme} setTheme={setTheme} />;
+}
+function Sidebar({ theme, setTheme }) {
+  return <ThemeToggle theme={theme} setTheme={setTheme} />;
+}
+
+// 解決策1: Context API
+const ThemeContext = createContext<{
+  theme: string;
+  setTheme: (theme: string) => void;
+}>({ theme: 'light', setTheme: () => {} });
+
+function ThemeProvider({ children }: { children: ReactNode }) {
+  const [theme, setTheme] = useState('light');
+  return (
+    <ThemeContext.Provider value={{ theme, setTheme }}>
+      {children}
+    </ThemeContext.Provider>
+  );
+}
+
+// どの階層からでもアクセス可能
+function ThemeToggle() {
+  const { theme, setTheme } = useContext(ThemeContext);
+  return (
+    <button onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}>
+      {theme === 'light' ? 'ダークモード' : 'ライトモード'}
+    </button>
+  );
+}
+
+// 解決策2: コンポジション（childrenを活用）
+function Layout() {
+  return (
+    <div className="flex">
+      <Sidebar />
+      <main>{/* ... */}</main>
+    </div>
+  );
+}
+
+// ============================================
+// 問題2: 不要な再レンダリング
+// ============================================
+
+// 問題: Contextの値が変わると全ての消費者が再レンダリング
+function AppProvider({ children }) {
+  const [user, setUser] = useState(null);
+  const [theme, setTheme] = useState('light');
+  const [notifications, setNotifications] = useState([]);
+
+  // ← user, theme, notifications のどれが変わっても全消費者が再レンダリング
+  return (
+    <AppContext.Provider value={{ user, setUser, theme, setTheme, notifications, setNotifications }}>
+      {children}
+    </AppContext.Provider>
+  );
+}
+
+// 解決策: Contextを分割する
+function UserProvider({ children }) {
+  const [user, setUser] = useState(null);
+  return (
+    <UserContext.Provider value={{ user, setUser }}>
+      {children}
+    </UserContext.Provider>
+  );
+}
+
+function ThemeProvider({ children }) {
+  const [theme, setTheme] = useState('light');
+  return (
+    <ThemeContext.Provider value={{ theme, setTheme }}>
+      {children}
+    </ThemeContext.Provider>
+  );
+}
+
+// ============================================
+// 問題3: コンポーネントの循環依存
+// ============================================
+
+// 問題: A が B をimport し、B が A をimportする
+// ComponentA.tsx
+// import { ComponentB } from './ComponentB'; // ← 循環！
+// ComponentB.tsx
+// import { ComponentA } from './ComponentA'; // ← 循環！
+
+// 解決策: 共通部分を別ファイルに抽出
+// shared.tsx - 共通の型やユーティリティ
+export interface SharedProps { /* ... */ }
+
+// ComponentA.tsx
+import { SharedProps } from './shared';
+// ComponentAのみの実装
+
+// ComponentB.tsx
+import { SharedProps } from './shared';
+// ComponentBのみの実装
+```
+
+### 10.2 デバッグのテクニック
+
+```typescript
+// ============================================
+// React DevTools でのコンポーネントデバッグ
+// ============================================
+
+// 1. displayName の設定（React DevToolsで識別しやすくする）
+const MemoizedComponent = memo(function MyComponent(props) {
+  return <div>{/* ... */}</div>;
+});
+MemoizedComponent.displayName = 'MemoizedComponent';
+
+// forwardRef の場合
+const ForwardedInput = forwardRef<HTMLInputElement, InputProps>((props, ref) => {
+  return <input ref={ref} {...props} />;
+});
+ForwardedInput.displayName = 'ForwardedInput';
+
+// 2. useDebugValue でカスタムフックの値をDevToolsに表示
+function useOnlineStatus() {
+  const [isOnline, setIsOnline] = useState(true);
+
+  useDebugValue(isOnline ? 'オンライン' : 'オフライン');
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  return isOnline;
+}
+
+// 3. React Profiler で再レンダリングの原因を特定
+import { Profiler } from 'react';
+
+function onRender(
+  id: string,
+  phase: 'mount' | 'update',
+  actualDuration: number,
+  baseDuration: number,
+  startTime: number,
+  commitTime: number
+) {
+  console.log(`[${id}] ${phase}: ${actualDuration.toFixed(2)}ms`);
+}
+
+function App() {
+  return (
+    <Profiler id="UserList" onRender={onRender}>
+      <UserList />
+    </Profiler>
+  );
+}
+
+// 4. why-did-you-render ライブラリ
+// wdyr.ts
+import React from 'react';
+if (process.env.NODE_ENV === 'development') {
+  const whyDidYouRender = require('@welldone-software/why-did-you-render');
+  whyDidYouRender(React, {
+    trackAllPureComponents: true,
+    logOnDifferentValues: true,
+  });
+}
+
+// 特定のコンポーネントを追跡
+UserList.whyDidYouRender = true;
+```
+
+---
+
+## まとめ
+
+### コンポーネント設計パターンの全体マップ
+
+| パターン | 用途 | 適用場面 | 難易度 |
+|---------|------|---------|--------|
+| SRP分割 | 責任の分離 | 全プロジェクト | 低 |
+| Atomic Design | UIの階層化 | デザインシステム | 中 |
+| Container/Presentational | ロジックとUIの分離 | データ表示コンポーネント | 低 |
+| Custom Hooks | ロジックの再利用 | 共通処理の抽出 | 低 |
+| Compound Components | 関連UIの宣言的な組み合わせ | Tabs, Accordion等 | 中 |
+| Headless UI | ロジック提供、スタイルは自由 | カスタムUI構築 | 中 |
+| Variants（cva） | バリアント管理 | デザインシステム | 低 |
+| Render Props | 表示のカスタマイズ | 柔軟なUI | 中 |
+| Server/Client境界 | Client を最小限に | Next.js App Router | 中 |
+| React.memo | 再レンダリング最適化 | パフォーマンス改善 | 中 |
+| Virtualization | 大量データ表示 | リスト/テーブル | 高 |
+| Lazy Loading | バンドル最適化 | 大きなコンポーネント | 低 |
+
+### 設計判断のフローチャート
+
+```
+新しいUIを作る時の判断フロー:
+
+  1. 既存コンポーネントで代替可能？
+     → Yes: 既存を使う
+     → No: 次へ
+
+  2. UIライブラリ（shadcn/ui等）に同等品がある？
+     → Yes: ライブラリを使う
+     → No: 次へ
+
+  3. 複数箇所で再利用する？
+     → Yes: components/ui/ に汎用コンポーネントを作成
+     → No: features/xxx/components/ にドメインコンポーネントを作成
+
+  4. インタラクティブ要素がある？
+     → Yes: Client Component（'use client'）
+     → No: Server Component のまま
+
+  5. ロジックが複雑？
+     → Yes: カスタムフックに抽出
+     → No: コンポーネント内にロジックを保持
+
+  6. 大量データを表示する？
+     → Yes: 仮想化を検討
+     → No: 通常レンダリング
+```
+
+---
+
+## 次に読むべきガイド
+→ [[03-data-fetching-patterns.md]] -- データフェッチング
+
+---
+
+## 参考文献
+1. Radix. "Primitives." radix-ui.com, 2024.
+2. shadcn/ui. "Re-usable components." ui.shadcn.com, 2024.
+3. patterns.dev. "Component Patterns." patterns.dev, 2024.
+4. React. "Server Components." react.dev, 2024.
+5. Kent C. Dodds. "One React Component Pattern To Rule Them All." kentcdodds.com, 2024.
+6. Dan Abramov. "Presentational and Container Components." medium.com, 2015.
+7. TanStack. "React Virtual." tanstack.com, 2024.
+8. Storybook. "Component Story Format." storybook.js.org, 2024.
+9. Joe Bell. "Class Variance Authority." cva.style, 2024.
+10. Adobe. "React Aria." react-spectrum.adobe.com, 2024.
