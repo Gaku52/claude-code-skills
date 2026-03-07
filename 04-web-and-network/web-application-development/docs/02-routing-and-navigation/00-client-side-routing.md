@@ -1865,3 +1865,1295 @@ function InfiniteUserList() {
   );
 }
 ```
+
+---
+
+## 5. 認証・認可とルートガード
+
+### 5.1 認証パターンの実装
+
+ルーティングにおける認証は、アプリケーションのセキュリティを確保する上で最も重要な要素の一つである。クライアントサイドの認証ガードはあくまでUX向上のためのものであり、真のセキュリティはサーバーサイドで担保する必要がある点に注意が必要である。
+
+```typescript
+// === React Router での認証パターン ===
+
+// 方法1: Loader ベースの認証ガード（推奨）
+async function protectedLoader({ request }: LoaderFunctionArgs) {
+  const token = getAuthToken();
+
+  if (!token) {
+    const url = new URL(request.url);
+    return redirect(`/login?redirectTo=${encodeURIComponent(url.pathname + url.search)}`);
+  }
+
+  // トークンの有効性をサーバーに確認
+  try {
+    const response = await fetch('/api/auth/verify', {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: request.signal,
+    });
+
+    if (!response.ok) {
+      // トークン無効: ログインページにリダイレクト
+      clearAuthToken();
+      return redirect('/login?reason=session_expired');
+    }
+
+    const user = await response.json();
+    return { user };
+  } catch (error) {
+    throw new Response('Authentication service unavailable', { status: 503 });
+  }
+}
+
+// 方法2: レイアウトルートによる認証ガード
+const router = createBrowserRouter([
+  {
+    path: '/',
+    element: <PublicLayout />,
+    children: [
+      { index: true, element: <LandingPage /> },
+      { path: 'login', element: <LoginPage />, action: loginAction },
+      { path: 'register', element: <RegisterPage />, action: registerAction },
+    ],
+  },
+  {
+    path: '/app',
+    element: <AuthenticatedLayout />,
+    loader: protectedLoader,  // 全子ルートに認証を適用
+    errorElement: <AuthErrorBoundary />,
+    children: [
+      { index: true, element: <Dashboard /> },
+      { path: 'profile', element: <Profile /> },
+      {
+        path: 'admin',
+        loader: adminRoleLoader,  // 追加の権限チェック
+        element: <AdminPanel />,
+        children: [
+          { index: true, element: <AdminOverview /> },
+          { path: 'users', element: <AdminUsers /> },
+        ],
+      },
+    ],
+  },
+]);
+
+// ロールベースアクセス制御（RBAC）
+async function adminRoleLoader({ request }: LoaderFunctionArgs) {
+  const parentData = await protectedLoader({ request } as LoaderFunctionArgs);
+
+  if ('user' in parentData && parentData.user.role !== 'admin') {
+    throw new Response('Forbidden: Admin access required', { status: 403 });
+  }
+
+  return parentData;
+}
+
+// === ログインアクション ===
+async function loginAction({ request }: ActionFunctionArgs) {
+  const formData = await request.formData();
+  const email = formData.get('email') as string;
+  const password = formData.get('password') as string;
+
+  const errors: Record<string, string> = {};
+  if (!email) errors.email = 'メールアドレスを入力してください';
+  if (!password) errors.password = 'パスワードを入力してください';
+
+  if (Object.keys(errors).length > 0) {
+    return json({ errors }, { status: 400 });
+  }
+
+  try {
+    const response = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+
+    if (response.status === 401) {
+      return json({
+        errors: { form: 'メールアドレスまたはパスワードが正しくありません' },
+      }, { status: 401 });
+    }
+
+    if (!response.ok) {
+      return json({
+        errors: { form: 'ログインに失敗しました。しばらく経ってから再度お試しください' },
+      }, { status: 500 });
+    }
+
+    const { token } = await response.json();
+    setAuthToken(token);
+
+    // ログイン前のページにリダイレクト
+    const url = new URL(request.url);
+    const redirectTo = url.searchParams.get('redirectTo') ?? '/app';
+    return redirect(redirectTo);
+  } catch (error) {
+    return json({
+      errors: { form: 'ネットワークエラーが発生しました' },
+    }, { status: 500 });
+  }
+}
+```
+
+### 5.2 離脱防止（Unsaved Changes Guard）
+
+```typescript
+// === useBlocker を使った離脱防止 ===
+import { useBlocker } from 'react-router-dom';
+
+function EditForm() {
+  const [isDirty, setIsDirty] = useState(false);
+  const [formData, setFormData] = useState({ name: '', email: '' });
+
+  // フォームに変更がある場合にナビゲーションをブロック
+  const blocker = useBlocker(
+    ({ currentLocation, nextLocation }) =>
+      isDirty && currentLocation.pathname !== nextLocation.pathname
+  );
+
+  return (
+    <div>
+      <Form
+        method="post"
+        onChange={() => setIsDirty(true)}
+        onSubmit={() => setIsDirty(false)}
+      >
+        <input
+          name="name"
+          value={formData.name}
+          onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+        />
+        <input
+          name="email"
+          value={formData.email}
+          onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+        />
+        <button type="submit">保存</button>
+      </Form>
+
+      {/* ブロック時の確認ダイアログ */}
+      {blocker.state === 'blocked' && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <h2>変更が保存されていません</h2>
+            <p>このページを離れると、変更内容が失われます。</p>
+            <div className="modal-actions">
+              <button onClick={() => blocker.proceed()}>
+                変更を破棄して移動
+              </button>
+              <button onClick={() => blocker.reset()}>
+                このページに留まる
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// === beforeunload との組み合わせ（ブラウザタブを閉じる場合）===
+function useUnsavedChangesWarning(isDirty: boolean) {
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = ''; // ブラウザの標準ダイアログが表示される
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isDirty]);
+}
+
+function EditPage() {
+  const [isDirty, setIsDirty] = useState(false);
+
+  // ブラウザのタブを閉じる・リロード時の警告
+  useUnsavedChangesWarning(isDirty);
+
+  // React Router のナビゲーション時の警告
+  const blocker = useBlocker(isDirty);
+
+  return (
+    <div>
+      {/* フォーム内容 */}
+    </div>
+  );
+}
+```
+
+---
+
+## 6. ページ遷移アニメーション
+
+### 6.1 View Transitions API の活用
+
+```typescript
+// === View Transitions API（モダンブラウザ対応）===
+import { useNavigate } from 'react-router-dom';
+
+function AnimatedLink({ to, children }: { to: string; children: React.ReactNode }) {
+  const navigate = useNavigate();
+
+  const handleClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+
+    if (document.startViewTransition) {
+      // View Transitions API がサポートされている場合
+      document.startViewTransition(() => {
+        navigate(to);
+      });
+    } else {
+      // フォールバック：通常のナビゲーション
+      navigate(to);
+    }
+  };
+
+  return (
+    <a href={to} onClick={handleClick}>
+      {children}
+    </a>
+  );
+}
+
+// CSS で遷移アニメーションを定義
+// styles.css:
+// ::view-transition-old(root) {
+//   animation: fade-out 0.15s ease-in;
+// }
+// ::view-transition-new(root) {
+//   animation: fade-in 0.15s ease-out;
+// }
+// @keyframes fade-out {
+//   from { opacity: 1; }
+//   to { opacity: 0; }
+// }
+// @keyframes fade-in {
+//   from { opacity: 0; }
+//   to { opacity: 1; }
+// }
+
+// === framer-motion を使ったページ遷移 ===
+import { AnimatePresence, motion } from 'framer-motion';
+import { useLocation, Outlet } from 'react-router-dom';
+
+function AnimatedLayout() {
+  const location = useLocation();
+
+  return (
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={location.pathname}
+        initial={{ opacity: 0, x: 20 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: -20 }}
+        transition={{ duration: 0.2, ease: 'easeInOut' }}
+      >
+        <Outlet />
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
+// ルート定義でAnimatedLayoutを使用
+const router = createBrowserRouter([
+  {
+    path: '/',
+    element: <RootLayout />,
+    children: [
+      {
+        element: <AnimatedLayout />,
+        children: [
+          { index: true, element: <Home /> },
+          { path: 'about', element: <About /> },
+          { path: 'users', element: <Users /> },
+        ],
+      },
+    ],
+  },
+]);
+
+// === スライド方向を制御するアニメーション ===
+function DirectionalLayout() {
+  const location = useLocation();
+  const [direction, setDirection] = useState(1);
+  const previousPath = useRef(location.pathname);
+
+  // パスの深さに基づいてスライド方向を決定
+  useEffect(() => {
+    const prevDepth = previousPath.current.split('/').length;
+    const currentDepth = location.pathname.split('/').length;
+    setDirection(currentDepth >= prevDepth ? 1 : -1);
+    previousPath.current = location.pathname;
+  }, [location.pathname]);
+
+  const variants = {
+    enter: (dir: number) => ({
+      x: dir > 0 ? '100%' : '-100%',
+      opacity: 0,
+    }),
+    center: {
+      x: 0,
+      opacity: 1,
+    },
+    exit: (dir: number) => ({
+      x: dir > 0 ? '-100%' : '100%',
+      opacity: 0,
+    }),
+  };
+
+  return (
+    <AnimatePresence mode="wait" custom={direction}>
+      <motion.div
+        key={location.pathname}
+        custom={direction}
+        variants={variants}
+        initial="enter"
+        animate="center"
+        exit="exit"
+        transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+      >
+        <Outlet />
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+```
+
+---
+
+## 7. アンチパターンと注意点
+
+### 7.1 よくあるアンチパターン
+
+```typescript
+// === アンチパターン 1: useEffect 内でのナビゲーション（条件付きリダイレクト）===
+
+// NG: コンポーネントレベルでのリダイレクト
+function ProtectedPage() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
+  // 問題: コンポーネントがマウントされてからリダイレクトされるため、
+  // 一瞬だけ保護されたコンテンツが表示される（フラッシュ）
+  useEffect(() => {
+    if (!user) {
+      navigate('/login');
+    }
+  }, [user, navigate]);
+
+  if (!user) return null; // フラッシュ防止のため null を返すが不十分
+
+  return <div>Protected Content</div>;
+}
+
+// OK: Loader レベルでのリダイレクト
+async function protectedLoader({ request }: LoaderFunctionArgs) {
+  const user = await getUser();
+  if (!user) {
+    return redirect('/login');
+  }
+  return { user };
+}
+// コンポーネントがレンダリングされる前にリダイレクトされる
+
+
+// === アンチパターン 2: 状態管理とURLの不整合 ===
+
+// NG: フィルター状態を useState で管理
+function UserList() {
+  const [filter, setFilter] = useState('active');
+  const [page, setPage] = useState(1);
+  // 問題: URLを共有してもフィルター状態が復元されない
+  // ブラウザバックでも状態が復元されない
+  return <div>...</div>;
+}
+
+// OK: フィルター状態をURLパラメータで管理
+function UserList() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const filter = searchParams.get('filter') ?? 'active';
+  const page = Number(searchParams.get('page') ?? '1');
+  // URL: /users?filter=active&page=1
+  // URLを共有すれば同じ状態が復元される
+  // ブラウザバックでも正しく動作する
+  return <div>...</div>;
+}
+
+
+// === アンチパターン 3: ハードコードされたパス ===
+
+// NG: パスを文字列リテラルで散在させる
+function Navigation() {
+  return (
+    <nav>
+      <Link to="/users">Users</Link>
+      <Link to="/users/new">New User</Link>
+      <Link to="/settings/profile">Profile Settings</Link>
+    </nav>
+  );
+}
+
+// OK: ルートパスを定数化して一元管理
+const ROUTES = {
+  HOME: '/',
+  USERS: {
+    LIST: '/users',
+    NEW: '/users/new',
+    DETAIL: (id: string) => `/users/${id}`,
+    EDIT: (id: string) => `/users/${id}/edit`,
+  },
+  SETTINGS: {
+    ROOT: '/settings',
+    PROFILE: '/settings/profile',
+    NOTIFICATIONS: '/settings/notifications',
+  },
+  ADMIN: {
+    ROOT: '/admin',
+    USERS: '/admin/users',
+    ANALYTICS: '/admin/analytics',
+  },
+} as const;
+
+function Navigation() {
+  return (
+    <nav>
+      <Link to={ROUTES.USERS.LIST}>Users</Link>
+      <Link to={ROUTES.USERS.NEW}>New User</Link>
+      <Link to={ROUTES.SETTINGS.PROFILE}>Profile Settings</Link>
+    </nav>
+  );
+}
+
+// TanStack Router なら型安全にパスを指定できるため、この問題は発生しない
+
+
+// === アンチパターン 4: window.location での直接ナビゲーション ===
+
+// NG: window.location を使うとSPAの状態が全て失われる
+function LogoutButton() {
+  const handleLogout = () => {
+    clearToken();
+    window.location.href = '/login'; // フルページリロードが発生
+  };
+  return <button onClick={handleLogout}>ログアウト</button>;
+}
+
+// OK: ルーターのナビゲーション機能を使用
+function LogoutButton() {
+  const navigate = useNavigate();
+  const handleLogout = async () => {
+    await api.auth.logout();
+    clearToken();
+    navigate('/login', { replace: true }); // SPA内でナビゲーション
+  };
+  return <button onClick={handleLogout}>ログアウト</button>;
+}
+// 例外: 外部サイトへのリダイレクト（OAuth callback等）は window.location を使う
+
+
+// === アンチパターン 5: 過度にネストされたルート ===
+
+// NG: 不必要に深いネスト
+const router = createBrowserRouter([
+  {
+    path: '/',
+    element: <Layout1 />,
+    children: [{
+      element: <Layout2 />,
+      children: [{
+        element: <Layout3 />,
+        children: [{
+          path: 'users',
+          element: <Users />,
+          // 3段階の Outlet を経由する必要がある
+        }],
+      }],
+    }],
+  },
+]);
+
+// OK: フラットな構造で必要なレイアウトだけをネスト
+const router = createBrowserRouter([
+  {
+    path: '/',
+    element: <MainLayout />,
+    children: [
+      { index: true, element: <Home /> },
+      { path: 'users', element: <Users /> },
+      {
+        path: 'admin',
+        element: <AdminLayout />,
+        children: [
+          { index: true, element: <AdminDashboard /> },
+        ],
+      },
+    ],
+  },
+]);
+```
+
+### 7.2 セキュリティ上の注意点
+
+```
+クライアントサイドルーティングのセキュリティ:
+
+1. クライアントサイドの認証は信頼しない
+   - ルートガードはUX向上のためのもの
+   - 真のアクセス制御はAPIサーバー側で実装
+   - JWT の有効期限チェックはサーバーでも行う
+   - フロントエンドのロール判定は参考情報に過ぎない
+
+2. パスパラメータのインジェクション対策
+   - :userId に悪意のある値が入る可能性を考慮
+   - loader/action 内でパラメータをバリデーション
+   - API に渡す前にサニタイズ
+
+3. Open Redirect 防止
+   - redirectTo パラメータの検証
+   - 外部URLへのリダイレクトを禁止
+   - ホワイトリストによるリダイレクト先の制限
+
+4. 機密情報のURL露出防止
+   - パスパラメータにトークンや秘密情報を含めない
+   - search params に個人情報を含めない
+   - state を使って機密データを渡す（ただしブラウザ履歴に残る）
+
+5. CSRF 対策
+   - Action でのフォーム送信時にCSRFトークンを検証
+   - SameSite Cookie の設定
+```
+
+```typescript
+// === Open Redirect 防止の実装例 ===
+function safeRedirect(to: string, defaultRedirect: string = '/'): string {
+  // 安全なリダイレクト先かどうかを検証
+  if (
+    !to ||
+    !to.startsWith('/') ||    // 相対パスのみ許可
+    to.startsWith('//') ||    // プロトコル相対URLを拒否
+    to.includes('\\')         // バックスラッシュを拒否
+  ) {
+    return defaultRedirect;
+  }
+
+  // 許可されたパスのプレフィックスをチェック
+  const allowedPrefixes = ['/app', '/dashboard', '/settings', '/users'];
+  const isAllowed = allowedPrefixes.some((prefix) => to.startsWith(prefix));
+
+  return isAllowed ? to : defaultRedirect;
+}
+
+// 使用例
+async function loginAction({ request }: ActionFunctionArgs) {
+  // ... ログイン処理 ...
+
+  const url = new URL(request.url);
+  const redirectTo = safeRedirect(
+    url.searchParams.get('redirectTo') ?? '',
+    '/app'
+  );
+
+  return redirect(redirectTo);
+}
+
+// === パラメータバリデーション ===
+import { z } from 'zod';
+
+const userIdSchema = z.string().regex(/^\d+$/, 'User ID must be numeric');
+
+async function userLoader({ params }: LoaderFunctionArgs) {
+  const result = userIdSchema.safeParse(params.userId);
+
+  if (!result.success) {
+    throw new Response('Invalid user ID format', { status: 400 });
+  }
+
+  const response = await fetch(`/api/users/${result.data}`);
+  if (!response.ok) {
+    throw new Response('User not found', { status: 404 });
+  }
+
+  return response.json();
+}
+```
+
+---
+
+## 8. テスト戦略
+
+### 8.1 ルーティングのテスト
+
+```typescript
+// === React Router のテスト ===
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { createMemoryRouter, RouterProvider } from 'react-router-dom';
+
+// テスト用のルーターファクトリ
+function createTestRouter(initialEntries: string[] = ['/']) {
+  return createMemoryRouter(
+    [
+      {
+        path: '/',
+        element: <RootLayout />,
+        children: [
+          { index: true, element: <Home /> },
+          {
+            path: 'users',
+            element: <UserList />,
+            loader: () => [
+              { id: 1, name: 'Alice' },
+              { id: 2, name: 'Bob' },
+            ],
+          },
+          {
+            path: 'users/:userId',
+            element: <UserDetail />,
+            loader: ({ params }) => ({
+              id: params.userId,
+              name: `User ${params.userId}`,
+            }),
+          },
+          {
+            path: 'login',
+            element: <LoginPage />,
+            action: loginAction,
+          },
+        ],
+      },
+    ],
+    { initialEntries }
+  );
+}
+
+// テストケース
+describe('Routing', () => {
+  it('should render the home page at /', () => {
+    const router = createTestRouter(['/']);
+    render(<RouterProvider router={router} />);
+
+    expect(screen.getByText('ホームページ')).toBeInTheDocument();
+  });
+
+  it('should navigate to users page', async () => {
+    const router = createTestRouter(['/']);
+    render(<RouterProvider router={router} />);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('link', { name: 'Users' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Alice')).toBeInTheDocument();
+      expect(screen.getByText('Bob')).toBeInTheDocument();
+    });
+  });
+
+  it('should display user detail with correct params', async () => {
+    const router = createTestRouter(['/users/42']);
+    render(<RouterProvider router={router} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('User 42')).toBeInTheDocument();
+    });
+  });
+
+  it('should handle loader errors', async () => {
+    const failingRouter = createMemoryRouter(
+      [
+        {
+          path: '/',
+          element: <div />,
+          errorElement: <div>エラーが発生しました</div>,
+          loader: () => {
+            throw new Response('Not Found', { status: 404 });
+          },
+        },
+      ],
+      { initialEntries: ['/'] }
+    );
+
+    render(<RouterProvider router={failingRouter} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('エラーが発生しました')).toBeInTheDocument();
+    });
+  });
+
+  it('should handle form submission', async () => {
+    const router = createTestRouter(['/login']);
+    render(<RouterProvider router={router} />);
+
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText('メール'), 'test@example.com');
+    await user.type(screen.getByLabelText('パスワード'), 'password123');
+    await user.click(screen.getByRole('button', { name: 'ログイン' }));
+
+    await waitFor(() => {
+      // ログイン成功後のリダイレクトを確認
+      expect(screen.getByText('ホームページ')).toBeInTheDocument();
+    });
+  });
+});
+
+// === Loader/Action の単体テスト ===
+describe('usersLoader', () => {
+  it('should fetch users with pagination', async () => {
+    // API モック
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve([
+        { id: 1, name: 'Alice' },
+        { id: 2, name: 'Bob' },
+      ]),
+    });
+
+    const request = new Request('http://localhost/users?page=2&limit=10');
+    const result = await usersLoader({ request, params: {} } as LoaderFunctionArgs);
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('page=2'),
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    );
+    expect(result).toHaveLength(2);
+  });
+
+  it('should throw on API error', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      statusText: 'Internal Server Error',
+    });
+
+    const request = new Request('http://localhost/users');
+
+    await expect(
+      usersLoader({ request, params: {} } as LoaderFunctionArgs)
+    ).rejects.toBeInstanceOf(Response);
+  });
+});
+```
+
+---
+
+## 9. ルーティングライブラリ比較と選定ガイド
+
+### 9.1 詳細比較表
+
+| 項目 | React Router v6 | TanStack Router | Next.js App Router |
+|------|-----------------|-----------------|---------------------|
+| **型安全性** | 部分的（手動型付け） | 完全（自動推論） | 部分的 |
+| **Search Params** | 手動管理（useSearchParams） | 組み込みバリデーション | nuqs 推奨 |
+| **データ取得** | loader/action | loader/beforeLoad | Server Components |
+| **コード分割** | lazy() | lazy routes + 自動分割 | 自動（ファイルベース） |
+| **SSR対応** | Remix 経由 | SSR サポートあり | ファーストクラス |
+| **ファイルベース** | 非対応（手動定義） | プラグインで対応 | デフォルト |
+| **バンドルサイズ** | ~14KB (gzip) | ~12KB (gzip) | Next.js に含まれる |
+| **学習コスト** | 低〜中 | 中 | 中〜高 |
+| **エコシステム** | 最大（最も広く使用） | 成長中 | Next.js エコシステム |
+| **プリロード** | 手動実装 | 組み込み（intent/viewport） | 自動 |
+| **Devtools** | なし | 公式 Devtools あり | Next.js Devtools |
+| **ミドルウェア** | loader で実現 | beforeLoad | middleware.ts |
+| **エラー処理** | errorElement | errorComponent | error.tsx |
+| **Pending UI** | useNavigation | pendingComponent | loading.tsx |
+| **Optimistic UI** | useFetcher | 手動実装 | useOptimistic |
+| **初回リリース** | 2014年（v1） | 2022年 | 2023年（App Router） |
+
+### 9.2 選定フローチャート
+
+```
+ルーティングライブラリの選定:
+
+Q1: フルスタックフレームワークを使用する？
+  Yes → Q2: Next.js を選択？
+    Yes → Next.js App Router を使用
+    No  → Q3: Remix を選択？
+      Yes → React Router（Remix 内蔵）を使用
+      No  → 他のフレームワークのルーターを使用
+
+  No → Q4: 型安全性をどの程度重視する？
+    最重要 → TanStack Router
+      - search params の型安全バリデーションが必要
+      - パスパラメータの自動型推論が必要
+      - TypeScript を最大限活用したい
+
+    重要だが必須ではない → Q5: プロジェクトの規模は？
+      大規模・長期運用 → TanStack Router
+        - 型安全性の恩恵が大きい
+        - リファクタリング時の安全性
+        - 成長するコードベースへの対応
+
+      中小規模 → React Router v6
+        - 豊富なドキュメントとコミュニティ
+        - 学習コストが低い
+        - 多くのチュートリアルやサンプルが存在
+
+    重視しない → React Router v6
+      - 最も広く使われている標準
+      - チームの採用が容易
+```
+
+### 9.3 マイグレーション戦略
+
+```typescript
+// === React Router v5 → v6 マイグレーション ===
+
+// v5 の書き方
+import { Switch, Route, useHistory, useParams } from 'react-router-dom';
+
+function AppV5() {
+  return (
+    <Switch>
+      <Route exact path="/" component={Home} />
+      <Route path="/users/:userId" component={UserDetail} />
+      <Route component={NotFound} />  {/* 404 */}
+    </Switch>
+  );
+}
+
+function UserDetailV5() {
+  const { userId } = useParams<{ userId: string }>();
+  const history = useHistory();
+
+  const handleBack = () => history.push('/users');
+
+  return <div>User: {userId}</div>;
+}
+
+// v6 の書き方
+import { Routes, Route, useNavigate, useParams } from 'react-router-dom';
+
+function AppV6() {
+  return (
+    <Routes>
+      <Route path="/" element={<Home />} />
+      <Route path="/users/:userId" element={<UserDetail />} />
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
+}
+
+function UserDetailV6() {
+  const { userId } = useParams();
+  const navigate = useNavigate();
+
+  const handleBack = () => navigate('/users');
+
+  return <div>User: {userId}</div>;
+}
+
+// マイグレーションチェックリスト:
+// 1. Switch → Routes に変更
+// 2. component/render → element に変更（JSXで渡す）
+// 3. exact を削除（v6 はデフォルトで exact マッチ）
+// 4. useHistory → useNavigate に変更
+// 5. history.push() → navigate() に変更
+// 6. history.replace() → navigate(path, { replace: true }) に変更
+// 7. Redirect → Navigate コンポーネントに変更
+// 8. 入れ子ルートの構造を Outlet ベースに変更
+// 9. withRouter HOC を削除し、フックに置き換え
+// 10. activeClassName → className コールバックに変更（NavLink）
+```
+
+---
+
+## 10. トラブルシューティング
+
+### 10.1 よくある問題と解決策
+
+```
+問題1: ブラウザで直接URLにアクセスすると404が返る
+  原因: サーバーがSPA fallbackに対応していない
+  解決策:
+  - Nginx: try_files $uri $uri/ /index.html;
+  - Vercel: vercel.json に rewrites を追加
+  - Netlify: _redirects ファイルを public/ に配置
+  - Express: app.get('*', (req, res) => res.sendFile('index.html'));
+  - 開発環境: Vite は自動対応（historyApiFallback）
+
+問題2: ページ遷移後にスクロール位置がリセットされない
+  原因: ScrollRestoration が設定されていない
+  解決策:
+  - React Router: <ScrollRestoration /> コンポーネントを追加
+  - TanStack Router: scrollRestoration オプションを設定
+  - 手動: useEffect で window.scrollTo(0, 0) を実行
+
+問題3: ネストされたルートで Outlet が表示されない
+  原因: 親ルートに <Outlet /> コンポーネントが配置されていない
+  解決策:
+  - 親ルートのコンポーネントに <Outlet /> を追加
+  - レイアウトコンポーネントの構造を確認
+
+問題4: useLoaderData が undefined を返す
+  原因: ルート定義に loader が設定されていない、
+        または createBrowserRouter を使っていない
+  解決策:
+  - ルート定義に loader 関数を追加
+  - BrowserRouter → createBrowserRouter に移行
+  - データルーティングAPIを使用していることを確認
+
+問題5: NavLink の active スタイルが正しく適用されない
+  原因: パスのマッチング設定が不正
+  解決策:
+  - ルートパスの NavLink に end プロパティを追加
+    <NavLink to="/" end>Home</NavLink>
+  - className を関数形式で指定
+    <NavLink to="/users" className={({ isActive }) =>
+      isActive ? 'active' : ''
+    }>
+
+問題6: loader が何度も実行される
+  原因: React の Strict Mode による二重実行、
+        または search params の変更トリガー
+  解決策:
+  - Strict Mode は開発環境のみ（本番では1回）
+  - loader 内でキャッシュを活用（TanStack Query など）
+  - loaderDeps で依存値を明示（TanStack Router）
+
+問題7: lazy ルートのチャンクロードが失敗する
+  原因: デプロイ後に古いチャンクファイルが削除された
+  解決策:
+  - エラーバウンダリでリロードを提案
+  - Service Worker でキャッシュを管理
+  - チャンクファイルにハッシュを付与（Vite/Webpackのデフォルト）
+  - window.location.reload() でフルリロードを実行
+
+問題8: ブラウザバック時にフォームデータが消える
+  原因: ブラウザの bfcache からの復元時の状態不整合
+  解決策:
+  - フォームデータを sessionStorage に保存
+  - location.state を活用してデータを保持
+  - useBlocker で離脱確認を実装
+```
+
+```typescript
+// === チャンクロードエラーのリカバリ ===
+const router = createBrowserRouter([
+  {
+    path: '/settings',
+    lazy: async () => {
+      try {
+        const { Settings } = await import('./pages/Settings');
+        return { Component: Settings };
+      } catch (error) {
+        // チャンクロード失敗時のフォールバック
+        if (
+          error instanceof TypeError &&
+          error.message.includes('Failed to fetch dynamically imported module')
+        ) {
+          // 新しいバージョンがデプロイされた可能性
+          // ページをリロードして最新のマニフェストを取得
+          window.location.reload();
+          return { Component: () => <div>リロード中...</div> };
+        }
+        throw error;
+      }
+    },
+  },
+]);
+
+// === デバッグ用ルーティングログ ===
+function RouteLogger() {
+  const location = useLocation();
+  const navigation = useNavigation();
+
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      console.group(`[Router] Navigation to ${location.pathname}`);
+      console.log('Search:', location.search);
+      console.log('Hash:', location.hash);
+      console.log('State:', location.state);
+      console.log('Key:', location.key);
+      console.groupEnd();
+    }
+  }, [location]);
+
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development' && navigation.state !== 'idle') {
+      console.log(
+        `[Router] ${navigation.state}: ${navigation.location?.pathname ?? 'unknown'}`
+      );
+    }
+  }, [navigation]);
+
+  return null;
+}
+```
+
+---
+
+## 11. アクセシビリティとルーティング
+
+### 11.1 フォーカス管理
+
+クライアントサイドルーティングでは、ページ遷移時にブラウザのデフォルトのフォーカス管理が機能しないため、開発者が明示的にフォーカスを制御する必要がある。
+
+```typescript
+// === ページ遷移時のフォーカス管理 ===
+function useFocusOnNavigate() {
+  const location = useLocation();
+  const mainRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    // ページ遷移後にメインコンテンツにフォーカスを移動
+    if (mainRef.current) {
+      mainRef.current.focus();
+    }
+
+    // スクリーンリーダーにページ変更を通知
+    const pageTitle = document.title;
+    const announcement = document.getElementById('route-announcement');
+    if (announcement) {
+      announcement.textContent = `${pageTitle} ページに移動しました`;
+    }
+  }, [location.pathname]);
+
+  return mainRef;
+}
+
+function RootLayout() {
+  const mainRef = useFocusOnNavigate();
+
+  return (
+    <div>
+      {/* スキップリンク */}
+      <a href="#main-content" className="skip-link">
+        メインコンテンツにスキップ
+      </a>
+
+      {/* スクリーンリーダー用のライブリージョン */}
+      <div
+        id="route-announcement"
+        role="status"
+        aria-live="assertive"
+        aria-atomic="true"
+        className="sr-only"
+      />
+
+      <nav aria-label="メインナビゲーション">
+        <NavLink to="/">ホーム</NavLink>
+        <NavLink to="/users">ユーザー</NavLink>
+      </nav>
+
+      <main
+        id="main-content"
+        ref={mainRef}
+        tabIndex={-1}  // プログラマティックにフォーカス可能にする
+        style={{ outline: 'none' }}  // フォーカスリングを非表示
+      >
+        <Outlet />
+      </main>
+    </div>
+  );
+}
+
+// === CSS: スキップリンク ===
+// .skip-link {
+//   position: absolute;
+//   top: -40px;
+//   left: 0;
+//   background: #000;
+//   color: #fff;
+//   padding: 8px;
+//   z-index: 100;
+//   transition: top 0.2s;
+// }
+// .skip-link:focus {
+//   top: 0;
+// }
+// .sr-only {
+//   position: absolute;
+//   width: 1px;
+//   height: 1px;
+//   padding: 0;
+//   margin: -1px;
+//   overflow: hidden;
+//   clip: rect(0, 0, 0, 0);
+//   white-space: nowrap;
+//   border: 0;
+// }
+```
+
+### 11.2 アクセシブルなリンクとナビゲーション
+
+```typescript
+// === aria 属性を活用したナビゲーション ===
+function AccessibleNavigation() {
+  const location = useLocation();
+
+  return (
+    <nav aria-label="メインナビゲーション">
+      <ul role="menubar">
+        <li role="none">
+          <NavLink
+            to="/"
+            end
+            role="menuitem"
+            aria-current={location.pathname === '/' ? 'page' : undefined}
+          >
+            ホーム
+          </NavLink>
+        </li>
+        <li role="none">
+          <NavLink
+            to="/users"
+            role="menuitem"
+            aria-current={location.pathname.startsWith('/users') ? 'page' : undefined}
+          >
+            ユーザー
+          </NavLink>
+        </li>
+        <li role="none">
+          <NavLink
+            to="/settings"
+            role="menuitem"
+            aria-current={location.pathname.startsWith('/settings') ? 'page' : undefined}
+          >
+            設定
+          </NavLink>
+        </li>
+      </ul>
+    </nav>
+  );
+}
+
+// === パンくずリスト（Breadcrumbs）===
+import { useMatches, Link } from 'react-router-dom';
+
+function Breadcrumbs() {
+  const matches = useMatches();
+
+  // handle に breadcrumb 情報を持つルートのみフィルタリング
+  const crumbs = matches.filter((match) =>
+    (match.handle as any)?.breadcrumb
+  );
+
+  return (
+    <nav aria-label="パンくずリスト">
+      <ol className="breadcrumbs">
+        {crumbs.map((match, index) => {
+          const isLast = index === crumbs.length - 1;
+          const breadcrumb = (match.handle as any).breadcrumb(match.data);
+
+          return (
+            <li key={match.id}>
+              {isLast ? (
+                <span aria-current="page">{breadcrumb}</span>
+              ) : (
+                <Link to={match.pathname}>{breadcrumb}</Link>
+              )}
+              {!isLast && <span aria-hidden="true"> / </span>}
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
+  );
+}
+
+// ルート定義でパンくず情報を設定
+const router = createBrowserRouter([
+  {
+    path: '/',
+    element: <RootLayout />,
+    handle: { breadcrumb: () => 'ホーム' },
+    children: [
+      {
+        path: 'users',
+        element: <UsersLayout />,
+        handle: { breadcrumb: () => 'ユーザー' },
+        loader: usersLoader,
+        children: [
+          {
+            path: ':userId',
+            element: <UserDetail />,
+            handle: {
+              breadcrumb: (data: User) => data.name,
+            },
+            loader: userDetailLoader,
+          },
+        ],
+      },
+    ],
+  },
+]);
+```
+
+---
+
+## まとめ
+
+### ルーティングライブラリの選定早見表
+
+| ユースケース | 推奨ライブラリ | 理由 |
+|------------|--------------|------|
+| Vite + React（新規プロジェクト） | React Router v6 | 最も標準的、ドキュメント豊富 |
+| 型安全性を最重視 | TanStack Router | search params まで完全な型推論 |
+| フルスタック React | Next.js App Router | SSR/RSC のファーストクラスサポート |
+| Remix プロジェクト | React Router（内蔵） | Remix の標準ルーター |
+| 管理画面・ダッシュボード | React Router v6 (Hash) | サーバー設定不要 |
+| 大規模 TypeScript プロジェクト | TanStack Router | リファクタリング安全性、開発体験 |
+| SEO が重要なサイト | Next.js App Router | SSR/SSG の自動対応 |
+
+### 実装チェックリスト
+
+```
+ルーティング実装の確認事項:
+
+基本設定:
+  [ ] ルータータイプの選定（Browser / Hash / Memory）
+  [ ] SPA fallback のサーバー設定
+  [ ] 404 ページの実装
+  [ ] エラーバウンダリの設置
+
+データ取得:
+  [ ] loader でのデータフェッチ実装
+  [ ] request.signal によるキャンセル対応
+  [ ] defer による段階的データ取得
+  [ ] エラーハンドリング（ネットワークエラー、404等）
+
+認証・認可:
+  [ ] 認証ガード（loader ベース）
+  [ ] ロールベースアクセス制御
+  [ ] リダイレクトURLの安全性検証
+  [ ] ログインフローの実装
+
+パフォーマンス:
+  [ ] ルートベースのコード分割
+  [ ] プリロード戦略の設定
+  [ ] スクロール位置の復元
+  [ ] ローディングUI の実装
+
+アクセシビリティ:
+  [ ] フォーカス管理（ページ遷移時）
+  [ ] スキップリンクの実装
+  [ ] aria-current の設定（ナビゲーション）
+  [ ] スクリーンリーダーへのページ変更通知
+
+テスト:
+  [ ] ルーティングの統合テスト
+  [ ] loader/action の単体テスト
+  [ ] エラーパスのテスト
+  [ ] 認証フローのテスト
+```
+
+---
+
+## 次に読むべきガイド
+-> [[01-file-based-routing.md]] -- ファイルベースルーティング
+
+---
+
+## 参考文献
+1. React Router. "React Router v6 Documentation." reactrouter.com, 2024.
+2. TanStack. "TanStack Router Documentation." tanstack.com, 2024.
+3. MDN Web Docs. "History API." developer.mozilla.org, 2024.
+4. Web.dev. "View Transitions API." web.dev, 2024.
+5. Kent C. Dodds. "Client-side Routing in React Applications." kentcdodds.com, 2023.
+6. TkDodo. "Type-safe Search Params." tkdodo.eu, 2024.
+7. Ryan Florence. "Data Loading in React Router." remix.run/blog, 2023.
+8. W3C. "WAI-ARIA Authoring Practices - Navigation." w3.org/WAI, 2024.

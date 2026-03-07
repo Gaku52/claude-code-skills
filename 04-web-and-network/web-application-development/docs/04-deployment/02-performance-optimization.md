@@ -2188,3 +2188,890 @@ function LongList({ items }: { items: Item[] }) {
     ✓ レイアウトプロパティの変更を避ける
     ✓ requestAnimationFrame で描画タイミングに合わせる
 ```
+
+---
+
+## 9. パフォーマンス計測と監視
+
+### 9.1 web-vitals ライブラリによる計測
+
+```typescript
+// lib/web-vitals.ts
+import { onCLS, onINP, onLCP, onFCP, onTTFB } from 'web-vitals';
+import type { Metric } from 'web-vitals';
+
+// Analytics への送信
+function sendToAnalytics(metric: Metric) {
+  const body = JSON.stringify({
+    name: metric.name,
+    value: metric.value,
+    rating: metric.rating,    // 'good' | 'needs-improvement' | 'poor'
+    delta: metric.delta,      // 前回からの差分
+    id: metric.id,
+    navigationType: metric.navigationType,
+    // カスタムメタデータ
+    page: window.location.pathname,
+    userAgent: navigator.userAgent,
+    connectionType: (navigator as any).connection?.effectiveType || 'unknown',
+  });
+
+  // Beacon API でページ離脱時もデータを確実に送信
+  if (navigator.sendBeacon) {
+    navigator.sendBeacon('/api/analytics/vitals', body);
+  } else {
+    fetch('/api/analytics/vitals', {
+      body,
+      method: 'POST',
+      keepalive: true,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+// 各指標の計測を開始
+export function initWebVitals() {
+  onCLS(sendToAnalytics);
+  onINP(sendToAnalytics);
+  onLCP(sendToAnalytics);
+  onFCP(sendToAnalytics);
+  onTTFB(sendToAnalytics);
+}
+```
+
+```typescript
+// Next.js App Router での web-vitals 統合
+// app/components/WebVitals.tsx
+'use client';
+
+import { useReportWebVitals } from 'next/web-vitals';
+
+export function WebVitals() {
+  useReportWebVitals((metric) => {
+    // Google Analytics 4 に送信
+    if (typeof window.gtag === 'function') {
+      window.gtag('event', metric.name, {
+        event_category: 'Web Vitals',
+        event_label: metric.id,
+        value: Math.round(
+          metric.name === 'CLS' ? metric.value * 1000 : metric.value
+        ),
+        non_interaction: true,
+      });
+    }
+
+    // カスタムダッシュボード用
+    console.log(`[Web Vitals] ${metric.name}: ${metric.value} (${metric.rating})`);
+  });
+
+  return null;
+}
+
+// app/layout.tsx
+import { WebVitals } from './components/WebVitals';
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html>
+      <body>
+        <WebVitals />
+        {children}
+      </body>
+    </html>
+  );
+}
+```
+
+### 9.2 Performance API による詳細計測
+
+```typescript
+// カスタムパフォーマンスマーカー
+function measureComponentRender(componentName: string) {
+  const startMark = `${componentName}-start`;
+  const endMark = `${componentName}-end`;
+  const measureName = `${componentName}-render`;
+
+  return {
+    start: () => performance.mark(startMark),
+    end: () => {
+      performance.mark(endMark);
+      performance.measure(measureName, startMark, endMark);
+
+      const entries = performance.getEntriesByName(measureName);
+      const duration = entries[entries.length - 1]?.duration;
+      console.log(`[Perf] ${componentName}: ${duration?.toFixed(2)}ms`);
+
+      // クリーンアップ
+      performance.clearMarks(startMark);
+      performance.clearMarks(endMark);
+      performance.clearMeasures(measureName);
+
+      return duration;
+    },
+  };
+}
+
+// React Profiler での使用
+import { Profiler } from 'react';
+
+function onRender(
+  id: string,
+  phase: 'mount' | 'update',
+  actualDuration: number,
+  baseDuration: number,
+  startTime: number,
+  commitTime: number
+) {
+  // actualDuration: 実際のレンダリング時間
+  // baseDuration: メモ化なしでの推定時間
+  if (actualDuration > 16) { // 60fps の1フレーム = 16.67ms
+    console.warn(
+      `[Profiler] ${id} (${phase}): ${actualDuration.toFixed(2)}ms ` +
+      `(budget exceeded by ${(actualDuration - 16.67).toFixed(2)}ms)`
+    );
+  }
+}
+
+function App() {
+  return (
+    <Profiler id="ProductList" onRender={onRender}>
+      <ProductList />
+    </Profiler>
+  );
+}
+
+// Navigation Timing API でのページロード詳細
+function getPageLoadMetrics() {
+  const navigation = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
+
+  return {
+    // DNS解決
+    dnsLookup: navigation.domainLookupEnd - navigation.domainLookupStart,
+    // TCP接続
+    tcpConnection: navigation.connectEnd - navigation.connectStart,
+    // TLSハンドシェイク
+    tlsNegotiation: navigation.requestStart - navigation.secureConnectionStart,
+    // サーバー応答（TTFB相当）
+    serverResponse: navigation.responseStart - navigation.requestStart,
+    // コンテンツ転送
+    contentTransfer: navigation.responseEnd - navigation.responseStart,
+    // DOM処理
+    domProcessing: navigation.domComplete - navigation.responseEnd,
+    // ページ読み込み完了
+    pageLoad: navigation.loadEventEnd - navigation.fetchStart,
+  };
+}
+
+// Resource Timing API でのリソース別計測
+function getSlowResources(threshold = 1000) {
+  const resources = performance.getEntriesByType('resource') as PerformanceResourceTiming[];
+
+  return resources
+    .filter((r) => r.duration > threshold)
+    .map((r) => ({
+      name: r.name,
+      type: r.initiatorType,
+      duration: `${r.duration.toFixed(0)}ms`,
+      size: r.transferSize ? `${(r.transferSize / 1024).toFixed(1)}KB` : 'cached',
+      protocol: r.nextHopProtocol,
+    }))
+    .sort((a, b) => parseFloat(b.duration) - parseFloat(a.duration));
+}
+```
+
+### 9.3 Lighthouse CI による自動計測
+
+```yaml
+# .github/workflows/lighthouse.yml
+name: Lighthouse CI
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  lighthouse:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Run Lighthouse CI
+        uses: treosh/lighthouse-ci-action@v11
+        with:
+          configPath: ./lighthouserc.json
+          uploadArtifacts: true
+          temporaryPublicStorage: true
+```
+
+```javascript
+// lighthouserc.json
+{
+  "ci": {
+    "collect": {
+      "url": [
+        "http://localhost:3000/",
+        "http://localhost:3000/products",
+        "http://localhost:3000/blog"
+      ],
+      "startServerCommand": "npm run start",
+      "numberOfRuns": 3
+    },
+    "assert": {
+      "assertions": {
+        "categories:performance": ["error", { "minScore": 0.9 }],
+        "categories:accessibility": ["warn", { "minScore": 0.9 }],
+        "categories:best-practices": ["warn", { "minScore": 0.9 }],
+        "categories:seo": ["warn", { "minScore": 0.9 }],
+        "first-contentful-paint": ["error", { "maxNumericValue": 1800 }],
+        "largest-contentful-paint": ["error", { "maxNumericValue": 2500 }],
+        "cumulative-layout-shift": ["error", { "maxNumericValue": 0.1 }],
+        "total-blocking-time": ["error", { "maxNumericValue": 200 }],
+        "interactive": ["warn", { "maxNumericValue": 3800 }]
+      }
+    },
+    "upload": {
+      "target": "temporary-public-storage"
+    }
+  }
+}
+```
+
+### 9.4 パフォーマンスバジェット
+
+```json
+// performance-budget.json
+{
+  "budgets": [
+    {
+      "path": "/*",
+      "resourceSizes": [
+        { "resourceType": "script", "budget": 300 },
+        { "resourceType": "stylesheet", "budget": 100 },
+        { "resourceType": "image", "budget": 500 },
+        { "resourceType": "font", "budget": 200 },
+        { "resourceType": "total", "budget": 1500 }
+      ],
+      "resourceCounts": [
+        { "resourceType": "script", "budget": 15 },
+        { "resourceType": "stylesheet", "budget": 5 },
+        { "resourceType": "image", "budget": 30 },
+        { "resourceType": "third-party", "budget": 10 }
+      ],
+      "timings": [
+        { "metric": "first-contentful-paint", "budget": 1800 },
+        { "metric": "largest-contentful-paint", "budget": 2500 },
+        { "metric": "cumulative-layout-shift", "budget": 0.1 },
+        { "metric": "total-blocking-time", "budget": 200 }
+      ]
+    }
+  ]
+}
+```
+
+```typescript
+// webpack でのバンドルサイズバジェット
+// next.config.js
+module.exports = {
+  experimental: {
+    // ページごとのバンドルサイズ制限
+    largePageDataBytes: 128 * 1024, // 128KB
+  },
+
+  webpack(config) {
+    // バンドルサイズの警告・エラー設定
+    config.performance = {
+      hints: 'error',           // 'warning' | 'error' | false
+      maxAssetSize: 250 * 1024,  // 250KB
+      maxEntrypointSize: 400 * 1024, // 400KB
+      assetFilter: (assetFilename) => {
+        return assetFilename.endsWith('.js') || assetFilename.endsWith('.css');
+      },
+    };
+
+    return config;
+  },
+};
+```
+
+### 9.5 Real User Monitoring（RUM）
+
+```typescript
+// RUM データ収集の実装
+// lib/rum.ts
+interface RUMData {
+  sessionId: string;
+  timestamp: number;
+  url: string;
+  vitals: Record<string, number>;
+  resources: Array<{
+    name: string;
+    duration: number;
+    size: number;
+  }>;
+  connection: {
+    effectiveType: string;
+    downlink: number;
+    rtt: number;
+  };
+  device: {
+    memory: number;
+    hardwareConcurrency: number;
+    devicePixelRatio: number;
+  };
+}
+
+function collectRUMData(): RUMData {
+  const connection = (navigator as any).connection;
+
+  return {
+    sessionId: crypto.randomUUID(),
+    timestamp: Date.now(),
+    url: window.location.href,
+    vitals: {},
+    resources: performance
+      .getEntriesByType('resource')
+      .slice(-20) // 最新20件
+      .map((r: any) => ({
+        name: new URL(r.name).pathname,
+        duration: Math.round(r.duration),
+        size: r.transferSize || 0,
+      })),
+    connection: {
+      effectiveType: connection?.effectiveType || 'unknown',
+      downlink: connection?.downlink || 0,
+      rtt: connection?.rtt || 0,
+    },
+    device: {
+      memory: (navigator as any).deviceMemory || 0,
+      hardwareConcurrency: navigator.hardwareConcurrency || 0,
+      devicePixelRatio: window.devicePixelRatio || 1,
+    },
+  };
+}
+
+// ページ離脱時にデータ送信
+window.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') {
+    const data = collectRUMData();
+    navigator.sendBeacon('/api/rum', JSON.stringify(data));
+  }
+});
+```
+
+---
+
+## 10. サードパーティスクリプトの最適化
+
+### 10.1 サードパーティの影響
+
+サードパーティスクリプト（アナリティクス、広告、チャットウィジェットなど）は、パフォーマンスに多大な影響を与える。メインスレッドのブロック、ネットワーク帯域の消費、レイアウトシフトの原因となりうる。
+
+```typescript
+// ① Next.js Script コンポーネントによる読み込み戦略
+import Script from 'next/script';
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html>
+      <body>
+        {children}
+
+        {/* beforeInteractive: ページのハイドレーション前 */}
+        <Script
+          src="https://polyfill.io/v3/polyfill.min.js"
+          strategy="beforeInteractive"
+        />
+
+        {/* afterInteractive: ページのハイドレーション直後（デフォルト） */}
+        <Script
+          src="https://www.googletagmanager.com/gtag/js?id=G-XXXXX"
+          strategy="afterInteractive"
+        />
+
+        {/* lazyOnload: ブラウザがアイドル状態の時 */}
+        <Script
+          src="https://widget.intercom.io/widget/XXXXX"
+          strategy="lazyOnload"
+        />
+
+        {/* worker: Web Workerで実行（Partytown） */}
+        <Script
+          src="https://www.googletagmanager.com/gtag/js?id=G-XXXXX"
+          strategy="worker"
+        />
+      </body>
+    </html>
+  );
+}
+
+// ② Partytown によるメインスレッドオフロード
+// next.config.js
+const nextConfig = {
+  experimental: {
+    nextScriptWorkers: true,
+  },
+};
+
+// lib/gtag.ts
+// strategy="worker" で実行されるスクリプトは
+// Service Worker / Web Worker 内で動作し
+// メインスレッドをブロックしない
+```
+
+### 10.2 サードパーティ読み込みの最適化パターン
+
+```typescript
+// ① 条件付き読み込み（ユーザーアクション時）
+function ChatWidget() {
+  const [loaded, setLoaded] = useState(false);
+
+  const loadChat = () => {
+    if (!loaded) {
+      // ユーザーがクリックした時のみ読み込み
+      const script = document.createElement('script');
+      script.src = 'https://chat-widget.example.com/widget.js';
+      script.async = true;
+      document.body.appendChild(script);
+      setLoaded(true);
+    }
+  };
+
+  return (
+    <button onClick={loadChat}>
+      {loaded ? 'チャットを開く' : 'サポートに問い合わせ'}
+    </button>
+  );
+}
+
+// ② Intersection Observer による遅延読み込み
+function LazyAnalytics() {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          // ページ下部に到達したらアナリティクスを読み込み
+          loadAnalytics();
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '500px' }
+    );
+
+    if (ref.current) observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, []);
+
+  return <div ref={ref} />;
+}
+
+// ③ requestIdleCallback による読み込み
+function loadNonCriticalScripts() {
+  if ('requestIdleCallback' in window) {
+    requestIdleCallback(() => {
+      // ブラウザがアイドルの時に実行
+      loadSocialMediaWidgets();
+      loadAnalytics();
+      loadHotjar();
+    }, { timeout: 5000 }); // 最大5秒待機
+  } else {
+    // フォールバック
+    setTimeout(() => {
+      loadSocialMediaWidgets();
+      loadAnalytics();
+      loadHotjar();
+    }, 3000);
+  }
+}
+
+// ④ facade パターン（本物のウィジェットの代替表示）
+function YouTubeFacade({ videoId }: { videoId: string }) {
+  const [loaded, setLoaded] = useState(false);
+
+  if (loaded) {
+    return (
+      <iframe
+        src={`https://www.youtube.com/embed/${videoId}?autoplay=1`}
+        allow="autoplay; encrypted-media"
+        allowFullScreen
+        className="w-full aspect-video"
+      />
+    );
+  }
+
+  return (
+    <button
+      onClick={() => setLoaded(true)}
+      className="relative w-full aspect-video bg-black cursor-pointer group"
+    >
+      {/* サムネイル画像（軽量） */}
+      <img
+        src={`https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`}
+        alt="動画サムネイル"
+        loading="lazy"
+        className="w-full h-full object-cover"
+      />
+      {/* 再生ボタン */}
+      <div className="absolute inset-0 flex items-center justify-center">
+        <svg className="w-16 h-16 text-white opacity-80 group-hover:opacity-100"
+             viewBox="0 0 68 48">
+          <path d="M66.52 7.74c-.78-2.93-2.49-5.41-5.42-6.19C55.79.13 34 0 34 0S12.21.13 6.9 1.55C3.97 2.33 2.27 4.81 1.48 7.74.06 13.05 0 24 0 24s.06 10.95 1.48 16.26c.78 2.93 2.49 5.41 5.42 6.19C12.21 47.87 34 48 34 48s21.79-.13 27.1-1.55c2.93-.78 4.64-3.26 5.42-6.19C67.94 34.95 68 24 68 24s-.06-10.95-1.48-16.26z"
+                fill="red"/>
+          <path d="M45 24 27 14v20" fill="white"/>
+        </svg>
+      </div>
+    </button>
+  );
+}
+```
+
+### 10.3 サードパーティの影響度分析
+
+```
+サードパーティスクリプトの影響度チェック:
+
+  ┌────────────────────┬────────────┬───────────────┬──────────────┐
+  │ カテゴリ            │ 典型的なサイズ │ メインスレッド  │ 最適化戦略    │
+  │                    │ (gzip)      │ ブロック時間   │              │
+  ├────────────────────┼────────────┼───────────────┼──────────────┤
+  │ Google Analytics   │ 20KB       │ 50-100ms     │ worker       │
+  │ Google Tag Manager │ 35KB       │ 100-200ms    │ worker       │
+  │ Facebook Pixel     │ 30KB       │ 50-150ms     │ lazyOnload   │
+  │ Intercom           │ 200KB+     │ 200-500ms    │ lazyOnload   │
+  │ Hotjar             │ 50KB       │ 100-300ms    │ lazyOnload   │
+  │ Stripe.js          │ 30KB       │ 50-100ms     │ afterInteractive│
+  │ reCAPTCHA          │ 150KB+     │ 200-400ms    │ 条件付き     │
+  │ YouTube埋め込み     │ 500KB+     │ 300-800ms    │ facade       │
+  │ Google Maps        │ 200KB+     │ 200-500ms    │ facade       │
+  └────────────────────┴────────────┴───────────────┴──────────────┘
+
+  対策の優先順位:
+    1. 不要なスクリプトを削除（最も効果的）
+    2. facade パターンで遅延読み込み
+    3. Partytown（worker戦略）でオフロード
+    4. lazyOnload で後読み込み
+    5. preconnect でリソースヒント提供
+```
+
+---
+
+## 11. トラブルシューティング
+
+### 11.1 よくあるパフォーマンス問題と解決策
+
+```
+問題1: LCPが遅い（> 2.5秒）
+
+  原因の特定:
+    ① DevTools > Performance タブで LCP 要素を確認
+    ② Lighthouse の LCP 診断を確認
+    ③ TTFB が高い場合はサーバー側の問題
+
+  一般的な原因と解決策:
+    ┌─────────────────────────────┬──────────────────────────────────┐
+    │ 原因                         │ 解決策                            │
+    ├─────────────────────────────┼──────────────────────────────────┤
+    │ LCP画像が大きい              │ WebP/AVIF変換、適切なsizes指定    │
+    │ LCP画像にpreloadがない       │ priority属性 or <link preload>   │
+    │ render-blocking CSS/JS      │ Critical CSSインライン化          │
+    │ TTFB が遅い                 │ CDN、SSG/ISR、DB最適化           │
+    │ クライアントサイドレンダリング │ Server Component に移行          │
+    │ サードパーティの遅延          │ worker戦略、facade パターン       │
+    └─────────────────────────────┴──────────────────────────────────┘
+
+問題2: INPが遅い（> 200ms）
+
+  原因の特定:
+    ① DevTools > Performance で長いタスクを確認
+    ② Main Thread のブロッキング時間を計測
+    ③ 問題のあるイベントハンドラを特定
+
+  一般的な原因と解決策:
+    ┌─────────────────────────────┬──────────────────────────────────┐
+    │ 原因                         │ 解決策                            │
+    ├─────────────────────────────┼──────────────────────────────────┤
+    │ 重い計算処理                  │ Web Worker にオフロード           │
+    │ 大量のDOM更新                │ 仮想スクロール、useTransition     │
+    │ 同期的なレイアウト強制        │ requestAnimationFrame使用         │
+    │ 不要な再レンダリング          │ memo/useMemo/useCallback         │
+    │ サードパーティのブロック       │ Partytown / 遅延読み込み          │
+    └─────────────────────────────┴──────────────────────────────────┘
+
+問題3: CLSが高い（> 0.1）
+
+  原因の特定:
+    ① DevTools > Performance で Layout Shift を確認
+    ② Layout Shift Debugger を有効化
+    ③ 問題の要素を特定
+
+  一般的な原因と解決策:
+    ┌─────────────────────────────┬──────────────────────────────────┐
+    │ 原因                         │ 解決策                            │
+    ├─────────────────────────────┼──────────────────────────────────┤
+    │ 画像のサイズ未指定            │ width/height or aspect-ratio     │
+    │ フォントのFOUT               │ font-display: swap + size-adjust │
+    │ 動的コンテンツの挿入          │ min-height でスペース確保         │
+    │ 広告の後読み込み              │ スケルトン + 固定サイズ            │
+    │ レイアウトプロパティのアニメ   │ transform に変更                 │
+    └─────────────────────────────┴──────────────────────────────────┘
+```
+
+### 11.2 パフォーマンスデバッグのツールキット
+
+```typescript
+// DevTools での主要なデバッグ手法
+//
+// ① Performance タブ
+//    - CPU 4x/6x Slowdown でスロー環境シミュレーション
+//    - Network Throttling で低速ネットワークテスト
+//    - Main Thread のフレームチャートで処理のボトルネック特定
+//    - Layout Shift の可視化
+//
+// ② Network タブ
+//    - Waterfall チャートでリソース読み込み順序を確認
+//    - Initiator でリソースのリクエスト元を特定
+//    - Size でキャッシュ状態を確認
+//    - Disable cache でキャッシュなしテスト
+//
+// ③ Lighthouse タブ
+//    - パフォーマンススコアと改善提案
+//    - Mobile/Desktop 両方でテスト
+//    - Treemap でバンドルサイズ分析
+//
+// ④ Coverage タブ
+//    - 未使用CSS/JSの割合を表示
+//    - 赤（未使用）が多いファイルを特定
+
+// プログラムによるパフォーマンスデバッグ
+// Long Tasks の監視
+const observer = new PerformanceObserver((list) => {
+  for (const entry of list.getEntries()) {
+    if (entry.duration > 50) { // 50ms 以上のタスク
+      console.warn(`[Long Task] ${entry.duration.toFixed(0)}ms`, {
+        name: entry.name,
+        startTime: entry.startTime,
+        attribution: (entry as any).attribution,
+      });
+    }
+  }
+});
+observer.observe({ entryTypes: ['longtask'] });
+
+// Layout Shift の監視
+const clsObserver = new PerformanceObserver((list) => {
+  for (const entry of list.getEntries()) {
+    const layoutShiftEntry = entry as any;
+    if (!layoutShiftEntry.hadRecentInput) {
+      console.warn(`[Layout Shift] Score: ${layoutShiftEntry.value.toFixed(4)}`, {
+        sources: layoutShiftEntry.sources?.map((s: any) => ({
+          node: s.node?.nodeName,
+          previousRect: s.previousRect,
+          currentRect: s.currentRect,
+        })),
+      });
+    }
+  }
+});
+clsObserver.observe({ entryTypes: ['layout-shift'] });
+```
+
+### 11.3 パフォーマンスアンチパターン集
+
+```typescript
+// アンチパターン 1: 不要なクライアントコンポーネント
+// NG: 'use client' を不必要に使用
+'use client'; // これがなくても動作するのに追加してしまう
+export default function StaticContent() {
+  return <div>静的コンテンツ</div>; // Server Component で十分
+}
+
+// OK: 必要な場合のみ 'use client'
+// useState, useEffect, onClick 等を使う場合のみ
+
+// アンチパターン 2: useEffect でのデータフェッチ
+// NG: クライアントサイドでのウォーターフォール
+'use client';
+function ProductPage({ id }: { id: string }) {
+  const [product, setProduct] = useState(null);
+  const [reviews, setReviews] = useState([]);
+
+  useEffect(() => {
+    // ウォーターフォール: 1つ目のリクエスト完了後に2つ目
+    fetch(`/api/products/${id}`)
+      .then((r) => r.json())
+      .then((data) => {
+        setProduct(data);
+        return fetch(`/api/products/${id}/reviews`);
+      })
+      .then((r) => r.json())
+      .then(setReviews);
+  }, [id]);
+}
+
+// OK: Server Component で並列フェッチ
+async function ProductPage({ params }: { params: { id: string } }) {
+  // 並列フェッチ
+  const [product, reviews] = await Promise.all([
+    getProduct(params.id),
+    getReviews(params.id),
+  ]);
+
+  return (
+    <div>
+      <ProductDetail product={product} />
+      <ReviewList reviews={reviews} />
+    </div>
+  );
+}
+
+// アンチパターン 3: 無限ループ的な再レンダリング
+// NG: レンダリング内でオブジェクト生成
+function Component({ items }: { items: Item[] }) {
+  return (
+    <ChildComponent
+      // 毎回新しいオブジェクトが生成される → 毎回再レンダリング
+      config={{ theme: 'dark', size: 'large' }}
+      // 毎回新しい配列が生成される
+      data={items.filter((i) => i.active)}
+      // 毎回新しい関数が生成される
+      onClick={(id) => handleClick(id)}
+    />
+  );
+}
+
+// OK: メモ化で安定した参照を提供
+function Component({ items }: { items: Item[] }) {
+  const config = useMemo(() => ({ theme: 'dark', size: 'large' }), []);
+  const filteredData = useMemo(
+    () => items.filter((i) => i.active),
+    [items]
+  );
+  const handleClick = useCallback((id: string) => {
+    // handle click
+  }, []);
+
+  return (
+    <ChildComponent config={config} data={filteredData} onClick={handleClick} />
+  );
+}
+
+// アンチパターン 4: 巨大なコンテキスト
+// NG: 1つのコンテキストに全状態を詰め込む
+const AppContext = createContext({
+  user: null,
+  theme: 'light',
+  locale: 'ja',
+  cart: [],
+  notifications: [],
+  // ... 大量の状態
+});
+
+// OK: 関心ごとに分割
+const UserContext = createContext(null);
+const ThemeContext = createContext('light');
+const CartContext = createContext([]);
+// 変更頻度が異なる状態を分離することで不要な再レンダリングを防止
+```
+
+---
+
+## まとめ
+
+### パフォーマンス最適化の全体像
+
+| カテゴリ | 主要テクニック | 影響する指標 |
+|---------|-------------|-----------|
+| バンドル最適化 | dynamic import, tree shaking, 軽量ライブラリ | LCP, FCP, TTI |
+| 画像最適化 | next/image, WebP/AVIF, priority, lazy loading | LCP, CLS |
+| フォント最適化 | next/font, display: swap, サブセット化 | CLS, FCP |
+| CSS最適化 | Critical CSS, PurgeCSS, ゼロランタイムCSS-in-JS | FCP, LCP |
+| キャッシュ戦略 | Data Cache, HTTP Cache, Service Worker | TTFB, LCP |
+| Core Web Vitals | LCP < 2.5s, INP < 200ms, CLS < 0.1 | 全指標 |
+| ネットワーク | preconnect, Brotli, HTTP/2, CDN | TTFB, LCP |
+| レンダリング | memo, useTransition, 仮想スクロール | INP, TBT |
+| 計測・監視 | web-vitals, Lighthouse CI, RUM | 継続改善 |
+| サードパーティ | worker, facade, 条件付き読み込み | LCP, INP, CLS |
+
+### 最適化の優先順位
+
+```
+パフォーマンス最適化の優先順位ガイド:
+
+  最重要（即座に取り組むべき）:
+    1. LCP画像の最適化（priority, WebP/AVIF, sizes）
+    2. バンドルサイズの削減（code splitting, tree shaking）
+    3. サーバー応答の高速化（SSG/ISR, CDN）
+
+  重要（Core Web Vitals に直結）:
+    4. CLS の改善（画像サイズ、フォント、スケルトン）
+    5. INP の改善（useTransition, Web Worker, 仮想スクロール）
+    6. キャッシュ戦略の最適化
+
+  推奨（さらなる改善）:
+    7. サードパーティスクリプトの最適化
+    8. フォントの最適化（サブセット化、preload）
+    9. Critical CSS のインライン化
+    10. Service Worker / PWA の導入
+
+  継続的:
+    11. パフォーマンスバジェットの設定と監視
+    12. Lighthouse CI による回帰テスト
+    13. RUM による実ユーザーデータ分析
+```
+
+### DevTools クイックリファレンス
+
+```
+パフォーマンスデバッグの手順:
+
+  Step 1: Lighthouse でスコア確認
+    → Performance スコア 90+ を目標
+    → 各指標の問題点を特定
+
+  Step 2: Performance タブで詳細分析
+    → CPU Throttling 4x で低スペック端末シミュレーション
+    → Main Thread のボトルネック特定
+    → Long Task の特定
+
+  Step 3: Network タブでリソース確認
+    → Waterfall チャートで読み込み順序確認
+    → 不要なリクエストの特定
+    → キャッシュ効果の確認
+
+  Step 4: Coverage タブで未使用コード確認
+    → 未使用CSS/JSの割合を確認
+    → コード分割の候補を特定
+
+  Step 5: 改善 → 計測 → 改善のサイクル
+    → 1つずつ改善して効果を計測
+    → PRごとにLighthouse CIで回帰チェック
+```
+
+---
+
+## 次に読むべきガイド
+→ [[03-monitoring-and-error-tracking.md]] -- 監視とエラートラッキング
+
+---
+
+## 参考文献
+1. Next.js. "Optimizing." nextjs.org/docs, 2024.
+2. web.dev. "Core Web Vitals." web.dev, 2024.
+3. web.dev. "Performance." web.dev/performance, 2024.
+4. MDN Web Docs. "Web performance." developer.mozilla.org, 2024.
+5. Addy Osmani. "Image Optimization." web.dev/fast, 2024.
+6. Philip Walton. "Optimize Interaction to Next Paint." web.dev, 2024.
+7. Chrome DevTools. "Performance features reference." developer.chrome.com, 2024.
+8. Vercel. "Performance." vercel.com/docs, 2024.
+9. TanStack. "Virtual." tanstack.com/virtual, 2024.
+10. Workbox. "Service Worker Caching Strategies." developer.chrome.com/docs/workbox, 2024.
