@@ -1225,3 +1225,966 @@ module.exports = withPWA({
   // Next.js config
 });
 ```
+
+---
+
+## 6. Core Web Vitals 改善
+
+### 6.1 Core Web Vitals の概要
+
+Core Web Vitals は Google が定義するWebページのユーザー体験品質指標であり、2021年からランキング要因にもなっている。3つの主要指標（LCP, INP, CLS）を継続的に計測・改善することが、SEOとUXの両面で不可欠である。
+
+```
+Core Web Vitals の指標と閾値:
+
+  ┌────────┬──────────────────────────────┬──────────┬──────────┬───────────┐
+  │ 指標    │ 計測内容                      │ Good     │ Needs    │ Poor      │
+  │        │                              │          │ Improve  │           │
+  ├────────┼──────────────────────────────┼──────────┼──────────┼───────────┤
+  │ LCP    │ 最大コンテンツの描画時間       │ ≤ 2.5s  │ ≤ 4.0s  │ > 4.0s   │
+  ├────────┼──────────────────────────────┼──────────┼──────────┼───────────┤
+  │ INP    │ インタラクションの応答性       │ ≤ 200ms │ ≤ 500ms │ > 500ms  │
+  ├────────┼──────────────────────────────┼──────────┼──────────┼───────────┤
+  │ CLS    │ レイアウトの安定性            │ ≤ 0.1   │ ≤ 0.25  │ > 0.25   │
+  └────────┴──────────────────────────────┴──────────┴──────────┴───────────┘
+
+その他の重要指標:
+  ┌────────┬──────────────────────────────┬──────────┐
+  │ 指標    │ 計測内容                      │ 推奨値    │
+  ├────────┼──────────────────────────────┼──────────┤
+  │ FCP    │ 最初のコンテンツ描画           │ ≤ 1.8s  │
+  │ TTFB   │ サーバー応答時間               │ ≤ 0.8s  │
+  │ FID    │ 初回入力遅延（INPに置換済み）   │ ≤ 100ms │
+  │ TBT    │ メインスレッドのブロック時間     │ ≤ 200ms │
+  │ TTI    │ インタラクティブになるまでの時間  │ ≤ 3.8s  │
+  │ SI     │ コンテンツ表示速度             │ ≤ 3.4s  │
+  └────────┴──────────────────────────────┴──────────┘
+```
+
+### 6.2 LCP（Largest Contentful Paint）の最適化
+
+LCP は、ビューポート内で最も大きなコンテンツ要素が描画されるまでの時間である。通常、ヒーロー画像や大きなテキストブロックが LCP 要素となる。
+
+```typescript
+// LCP 要素の特定と最適化
+
+// ① LCP画像の最適化
+import Image from 'next/image';
+
+function HeroSection() {
+  return (
+    <section>
+      {/* LCP画像には必ず priority を設定 */}
+      <Image
+        src="/hero.jpg"
+        alt="ヒーロー画像"
+        width={1920}
+        height={1080}
+        priority           // preload を生成
+        quality={85}
+        sizes="100vw"
+        placeholder="blur"
+      />
+      {/* LCPテキストが最大要素の場合 */}
+      <h1 className="text-5xl font-bold">
+        最高のパフォーマンスを実現する
+      </h1>
+    </section>
+  );
+}
+
+// ② TTFB の改善（サーバー応答時間の短縮）
+// next.config.js
+module.exports = {
+  // 静的生成を活用して TTFB を最小化
+  // generateStaticParams でSSGを活用
+  output: 'standalone', // Docker向け最適化
+};
+
+// ③ レンダリングブロックリソースの削減
+// リソースヒントによる最適化
+function Head() {
+  return (
+    <>
+      {/* 重要なリソースを事前接続 */}
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link rel="preconnect" href="https://cdn.example.com" crossOrigin="anonymous" />
+
+      {/* DNSプリフェッチ */}
+      <link rel="dns-prefetch" href="https://api.example.com" />
+
+      {/* LCP画像のプリロード */}
+      <link
+        rel="preload"
+        as="image"
+        href="/hero.webp"
+        type="image/webp"
+        fetchPriority="high"
+      />
+    </>
+  );
+}
+
+// ④ Server Component を活用したストリーミングSSR
+// app/page.tsx
+import { Suspense } from 'react';
+
+export default async function Page() {
+  return (
+    <main>
+      {/* LCP要素は即座にレンダリング */}
+      <HeroSection />
+
+      {/* 重くないが重要度の低いセクションはSuspenseで囲む */}
+      <Suspense fallback={<ProductsSkeleton />}>
+        <ProductList />
+      </Suspense>
+
+      <Suspense fallback={<ReviewsSkeleton />}>
+        <Reviews />
+      </Suspense>
+    </main>
+  );
+}
+```
+
+**LCP改善チェックリスト:**
+
+```
+LCP 最適化チェックリスト:
+
+  サーバー応答:
+    □ TTFB < 800ms を確認
+    □ CDN を利用してエッジ配信
+    □ SSG / ISR を活用して静的化
+    □ データベースクエリの最適化
+
+  リソース配信:
+    □ LCP画像に priority（preload）を設定
+    □ 不要な render-blocking CSS/JS を排除
+    □ Critical CSS をインライン化
+    □ フォントの preload
+
+  レンダリング:
+    □ Server Component でサーバー側レンダリング
+    □ Streaming SSR でプログレッシブ表示
+    □ クライアントサイドレンダリングの最小化
+
+  画像:
+    □ 適切なフォーマット（WebP / AVIF）
+    □ 適切なサイズ（sizes属性の設定）
+    □ fetchpriority="high" の設定
+```
+
+### 6.3 INP（Interaction to Next Paint）の最適化
+
+INP は、ユーザーのインタラクション（クリック、タップ、キーボード入力）から次の視覚的な更新が描画されるまでの時間を計測する。FID の後継指標であり、ページの応答性全体を評価する。
+
+```typescript
+// ① useTransition による非緊急更新の遅延
+import { useTransition, useState } from 'react';
+
+function SearchPage() {
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<Item[]>([]);
+  const [isPending, startTransition] = useTransition();
+
+  const handleSearch = (value: string) => {
+    // 入力フィールドは即座に更新（緊急更新）
+    setQuery(value);
+
+    // 検索結果は非緊急更新としてマーク
+    startTransition(() => {
+      const filtered = filterItems(allItems, value);
+      setResults(filtered);
+    });
+  };
+
+  return (
+    <div>
+      <input
+        value={query}
+        onChange={(e) => handleSearch(e.target.value)}
+        placeholder="検索..."
+      />
+      {isPending && <Spinner />}
+      <ResultsList items={results} />
+    </div>
+  );
+}
+
+// ② useDeferredValue による値の遅延
+import { useDeferredValue, useMemo } from 'react';
+
+function ProductFilter({ products, filter }: {
+  products: Product[];
+  filter: string;
+}) {
+  // filter の更新は即座に反映
+  // deferredFilter は低優先度で更新
+  const deferredFilter = useDeferredValue(filter);
+  const isStale = filter !== deferredFilter;
+
+  const filteredProducts = useMemo(
+    () => products.filter((p) =>
+      p.name.toLowerCase().includes(deferredFilter.toLowerCase())
+    ),
+    [products, deferredFilter]
+  );
+
+  return (
+    <div style={{ opacity: isStale ? 0.7 : 1 }}>
+      {filteredProducts.map((product) => (
+        <ProductCard key={product.id} product={product} />
+      ))}
+    </div>
+  );
+}
+
+// ③ Web Worker でメインスレッドをオフロード
+// workers/heavy-computation.ts
+self.addEventListener('message', (event) => {
+  const { data, type } = event.data;
+
+  if (type === 'SORT_LARGE_DATASET') {
+    const sorted = data.sort((a: any, b: any) =>
+      a.name.localeCompare(b.name, 'ja')
+    );
+    self.postMessage({ type: 'SORT_COMPLETE', data: sorted });
+  }
+
+  if (type === 'PARSE_CSV') {
+    const rows = data.split('\n').map((row: string) => row.split(','));
+    self.postMessage({ type: 'PARSE_COMPLETE', data: rows });
+  }
+});
+
+// コンポーネントでの使用
+function DataTable({ rawData }: { rawData: string }) {
+  const [sortedData, setSortedData] = useState<any[]>([]);
+  const workerRef = useRef<Worker | null>(null);
+
+  useEffect(() => {
+    workerRef.current = new Worker(
+      new URL('../workers/heavy-computation.ts', import.meta.url)
+    );
+
+    workerRef.current.onmessage = (event) => {
+      if (event.data.type === 'SORT_COMPLETE') {
+        setSortedData(event.data.data);
+      }
+    };
+
+    return () => workerRef.current?.terminate();
+  }, []);
+
+  const handleSort = () => {
+    workerRef.current?.postMessage({
+      type: 'SORT_LARGE_DATASET',
+      data: rawData,
+    });
+  };
+
+  return (
+    <button onClick={handleSort}>ソート実行</button>
+  );
+}
+
+// ④ 仮想スクロール（大量リスト）
+import { useVirtualizer } from '@tanstack/react-virtual';
+
+function VirtualizedList({ items }: { items: Item[] }) {
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  const virtualizer = useVirtualizer({
+    count: items.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 60, // 各行の推定高さ
+    overscan: 5,            // 画面外に事前レンダリングする行数
+  });
+
+  return (
+    <div
+      ref={parentRef}
+      className="h-[600px] overflow-auto"
+    >
+      <div
+        style={{ height: `${virtualizer.getTotalSize()}px`, position: 'relative' }}
+      >
+        {virtualizer.getVirtualItems().map((virtualItem) => (
+          <div
+            key={virtualItem.key}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: `${virtualItem.size}px`,
+              transform: `translateY(${virtualItem.start}px)`,
+            }}
+          >
+            <ItemRow item={items[virtualItem.index]} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ⑤ メモ化によるリレンダリング最適化
+import { memo, useMemo, useCallback } from 'react';
+
+// コンポーネントのメモ化
+const ExpensiveComponent = memo(function ExpensiveComponent({
+  data,
+  onAction,
+}: {
+  data: ComplexData;
+  onAction: (id: string) => void;
+}) {
+  return (
+    <div>
+      {/* 重い描画処理 */}
+      {data.items.map((item) => (
+        <ComplexItem
+          key={item.id}
+          item={item}
+          onClick={() => onAction(item.id)}
+        />
+      ))}
+    </div>
+  );
+});
+
+function ParentComponent() {
+  const [count, setCount] = useState(0);
+  const [data] = useState<ComplexData>(initialData);
+
+  // コールバックのメモ化
+  const handleAction = useCallback((id: string) => {
+    console.log('Action:', id);
+  }, []);
+
+  // 計算結果のメモ化
+  const processedData = useMemo(
+    () => expensiveTransform(data),
+    [data]
+  );
+
+  return (
+    <div>
+      {/* count の変更では ExpensiveComponent は再レンダリングされない */}
+      <button onClick={() => setCount((c) => c + 1)}>
+        Count: {count}
+      </button>
+      <ExpensiveComponent data={processedData} onAction={handleAction} />
+    </div>
+  );
+}
+```
+
+### 6.4 CLS（Cumulative Layout Shift）の最適化
+
+CLS は、ページの視覚的安定性を計測する指標である。ユーザーが意図しないレイアウトのずれ（広告の後読み込み、画像のサイズ未指定など）を検出する。
+
+```typescript
+// ① 画像のサイズ指定
+// NG: サイズ未指定（CLSの原因）
+<img src="/photo.jpg" alt="写真" />
+
+// OK: サイズ明示
+<img src="/photo.jpg" alt="写真" width={800} height={600} />
+
+// OK: aspect-ratio で比率指定
+<div className="relative w-full" style={{ aspectRatio: '16/9' }}>
+  <Image src="/photo.jpg" alt="写真" fill className="object-cover" />
+</div>
+
+// ② 動的コンテンツの事前スペース確保
+function AdBanner() {
+  const [adLoaded, setAdLoaded] = useState(false);
+
+  return (
+    // 広告が読み込まれる前からスペースを確保
+    <div
+      className="w-full bg-gray-100"
+      style={{ minHeight: '250px' }} // 広告の想定サイズ
+    >
+      {adLoaded ? <Ad /> : <AdPlaceholder />}
+    </div>
+  );
+}
+
+// ③ フォントによるCLSの防止
+// font-display: swap + size-adjust
+const inter = Inter({
+  subsets: ['latin'],
+  display: 'swap',
+  adjustFontFallback: true, // Next.js がフォールバックのサイズを自動調整
+});
+
+// ④ 動的に挿入される要素のCLS防止
+function NotificationBar({ message }: { message: string | null }) {
+  return (
+    // message がある場合もない場合も同じスペースを占める
+    <div
+      className={`
+        h-12 transition-all duration-300
+        ${message ? 'opacity-100' : 'opacity-0 pointer-events-none'}
+      `}
+    >
+      {message && <p>{message}</p>}
+    </div>
+  );
+}
+
+// ⑤ CSS containment による影響範囲の制限
+// .card {
+//   contain: layout style paint;
+//   content-visibility: auto;
+//   contain-intrinsic-size: 0 500px;
+// }
+```
+
+```css
+/* content-visibility によるレンダリング最適化 */
+.long-article-section {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 500px; /* 推定サイズ */
+}
+
+/* アニメーションによるCLSを防止 */
+/* NG: top/left/width/height のアニメーション */
+.animate-bad {
+  transition: top 0.3s, left 0.3s;
+}
+
+/* OK: transform のアニメーション（レイアウトに影響しない） */
+.animate-good {
+  transition: transform 0.3s, opacity 0.3s;
+  will-change: transform;
+}
+```
+
+**CLS改善チェックリスト:**
+
+```
+CLS 最適化チェックリスト:
+
+  画像・動画:
+    □ すべての画像に width/height または aspect-ratio を指定
+    □ fill プロパティ使用時は親要素にサイズ指定
+    □ placeholder="blur" でブランクスペース防止
+
+  フォント:
+    □ font-display: swap を設定
+    □ adjustFontFallback を有効化
+    □ フォントのプリロード設定
+
+  動的コンテンツ:
+    □ 広告スペースの事前確保（min-height）
+    □ スケルトンスクリーンの使用
+    □ 挿入される要素の固定サイズ指定
+
+  アニメーション:
+    □ transform/opacity のみでアニメーション
+    □ レイアウトプロパティのアニメーション禁止
+    □ will-change の適切な使用
+```
+
+---
+
+## 7. ネットワーク最適化
+
+### 7.1 リソースヒント
+
+ブラウザにリソースの取得を事前に指示することで、後続のページ遷移やリソース読み込みを高速化できる。
+
+```html
+<!-- ① preconnect: DNS解決 + TCP接続 + TLSハンドシェイクを事前実行 -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://cdn.example.com" crossorigin />
+
+<!-- ② dns-prefetch: DNS解決のみ事前実行（preconnectより軽量） -->
+<link rel="dns-prefetch" href="https://analytics.example.com" />
+<link rel="dns-prefetch" href="https://api.third-party.com" />
+
+<!-- ③ preload: 現在のページで確実に必要なリソースを早期読み込み -->
+<link rel="preload" href="/fonts/Inter.woff2" as="font" type="font/woff2" crossorigin />
+<link rel="preload" href="/hero.webp" as="image" type="image/webp" />
+<link rel="preload" href="/critical.css" as="style" />
+
+<!-- ④ prefetch: 次のページで必要になるリソースをアイドル時に取得 -->
+<link rel="prefetch" href="/next-page.js" />
+<link rel="prefetch" href="/api/data.json" />
+
+<!-- ⑤ prerender: 次のページをバックグラウンドで完全にレンダリング -->
+<!-- Speculation Rules API（Chrome 121+） -->
+<script type="speculationrules">
+{
+  "prerender": [
+    {
+      "urls": ["/about", "/products"],
+      "eagerness": "moderate"
+    }
+  ],
+  "prefetch": [
+    {
+      "urls": ["/blog/*"],
+      "eagerness": "conservative"
+    }
+  ]
+}
+</script>
+```
+
+```typescript
+// Next.js でのリソースヒント設定
+// app/layout.tsx
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html>
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link
+          rel="preconnect"
+          href="https://fonts.gstatic.com"
+          crossOrigin="anonymous"
+        />
+        <link rel="dns-prefetch" href="https://api.example.com" />
+      </head>
+      <body>{children}</body>
+    </html>
+  );
+}
+
+// prefetch の制御（Next.js Link）
+import Link from 'next/link';
+
+function Navigation() {
+  return (
+    <nav>
+      {/* デフォルトで prefetch される */}
+      <Link href="/about">About</Link>
+
+      {/* prefetch を無効化 */}
+      <Link href="/admin" prefetch={false}>Admin</Link>
+    </nav>
+  );
+}
+```
+
+### 7.2 圧縮
+
+```
+圧縮アルゴリズムの比較:
+
+  ┌──────────┬──────────┬──────────┬──────────────┬────────────┐
+  │ 方式      │ 圧縮率    │ 速度     │ ブラウザ対応   │ 推奨用途    │
+  ├──────────┼──────────┼──────────┼──────────────┼────────────┤
+  │ gzip     │ 良い     │ 高速     │ 99%+         │ 汎用       │
+  │ Brotli   │ 非常に良い│ 中速     │ 97%+         │ 静的アセット │
+  │ zstd     │ 最も良い  │ 高速     │ 限定的       │ 将来的な選択│
+  └──────────┴──────────┴──────────┴──────────────┴────────────┘
+
+  一般的な圧縮効果（JavaScript）:
+    元サイズ: 1MB
+    gzip:   ~300KB（70%削減）
+    Brotli: ~250KB（75%削減）
+```
+
+```javascript
+// Vercel / Next.js では Brotli が自動的に適用される
+
+// カスタムサーバーでの Brotli 設定（Express）
+const express = require('express');
+const compression = require('compression');
+const shrinkRay = require('shrink-ray-current');
+
+const app = express();
+
+// shrink-ray は Brotli + gzip をサポート
+app.use(shrinkRay({
+  filter: (req, res) => {
+    if (req.headers['x-no-compression']) return false;
+    return shrinkRay.filter(req, res);
+  },
+  brotli: { quality: 4 }, // 動的コンテンツは低品質（速度重視）
+}));
+
+// 静的ファイルの事前圧縮
+// ビルド時に .br / .gz ファイルを生成
+// nginx が自動的に圧縮済みファイルを配信
+```
+
+```nginx
+# nginx での Brotli + gzip 設定
+server {
+    # gzip
+    gzip on;
+    gzip_vary on;
+    gzip_proxied any;
+    gzip_comp_level 6;
+    gzip_types text/plain text/css application/json
+               application/javascript text/xml application/xml
+               application/xml+rss text/javascript image/svg+xml;
+
+    # Brotli（ngx_brotli モジュール）
+    brotli on;
+    brotli_comp_level 6;
+    brotli_types text/plain text/css application/json
+                 application/javascript text/xml application/xml
+                 application/xml+rss text/javascript image/svg+xml;
+
+    # 事前圧縮ファイルの配信
+    brotli_static on;
+    gzip_static on;
+}
+```
+
+### 7.3 HTTP/2 と HTTP/3 の活用
+
+```
+HTTP/1.1 vs HTTP/2 vs HTTP/3:
+
+  ┌──────────────┬──────────────┬──────────────┬──────────────┐
+  │ 特徴          │ HTTP/1.1     │ HTTP/2       │ HTTP/3       │
+  ├──────────────┼──────────────┼──────────────┼──────────────┤
+  │ 多重化        │ ×（1接続1要求）│ ○（ストリーム）│ ○（UDPベース）│
+  │ ヘッダー圧縮  │ ×            │ ○（HPACK）   │ ○（QPACK）   │
+  │ Server Push  │ ×            │ ○            │ △（非推奨）   │
+  │ HOLブロック   │ あり         │ TCPレベルあり  │ なし         │
+  │ 接続確立      │ 1-3 RTT     │ 1-3 RTT     │ 0-1 RTT     │
+  │ プロトコル    │ TCP         │ TCP          │ QUIC/UDP    │
+  └──────────────┴──────────────┴──────────────┴──────────────┘
+
+HTTP/2 最適化のポイント:
+  ✓ ドメインシャーディングは不要（多重化により1接続で十分）
+  ✓ スプライトシートは不要（個別ファイルでOK）
+  ✓ CSSファイルの結合は不要（ただしHTTP/1.1フォールバック注意）
+  ✓ Server Push は慎重に使用（キャッシュとの競合に注意）
+```
+
+### 7.4 CDN の活用
+
+```typescript
+// Vercel Edge Config によるCDN最適化
+// next.config.js
+module.exports = {
+  // 画像の外部最適化
+  images: {
+    loader: 'custom',
+    loaderFile: './lib/image-loader.ts',
+  },
+};
+
+// lib/image-loader.ts
+export default function cloudinaryLoader({
+  src,
+  width,
+  quality,
+}: {
+  src: string;
+  width: number;
+  quality?: number;
+}) {
+  const params = [
+    `f_auto`,       // 自動フォーマット選択
+    `c_limit`,      // アスペクト比維持
+    `w_${width}`,   // 幅指定
+    `q_${quality || 'auto'}`, // 品質
+  ];
+  return `https://res.cloudinary.com/demo/image/upload/${params.join(',')}/${src}`;
+}
+
+// Edge Middleware でのジオロケーションベース最適化
+// middleware.ts
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+
+export function middleware(request: NextRequest) {
+  const country = request.geo?.country || 'JP';
+  const response = NextResponse.next();
+
+  // 地域に応じたCDNオリジンを選択
+  response.headers.set('x-user-country', country);
+
+  // 地域別コンテンツの出し分け
+  if (country === 'JP') {
+    response.headers.set('x-cdn-origin', 'tokyo');
+  } else if (country === 'US') {
+    response.headers.set('x-cdn-origin', 'us-east');
+  }
+
+  return response;
+}
+```
+
+---
+
+## 8. レンダリングパフォーマンス
+
+### 8.1 React のレンダリング最適化
+
+React のレンダリングパフォーマンスを向上させるためには、不要な再レンダリングの防止、計算コストの削減、適切な状態管理が重要である。
+
+```typescript
+// ① React.memo による再レンダリングスキップ
+const UserCard = memo(function UserCard({
+  user,
+  onSelect,
+}: {
+  user: User;
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <div onClick={() => onSelect(user.id)}>
+      <img src={user.avatar} alt={user.name} />
+      <h3>{user.name}</h3>
+      <p>{user.email}</p>
+    </div>
+  );
+}, (prevProps, nextProps) => {
+  // カスタム比較関数（省略可）
+  return prevProps.user.id === nextProps.user.id
+    && prevProps.user.name === nextProps.user.name;
+});
+
+// ② 状態のリフトダウン（コンポーネント分割）
+// NG: 親全体が再レンダリングされる
+function Page() {
+  const [count, setCount] = useState(0); // この状態変更で全体が再レンダリング
+  return (
+    <div>
+      <button onClick={() => setCount((c) => c + 1)}>+</button>
+      <span>{count}</span>
+      <ExpensiveList /> {/* 不要な再レンダリング */}
+    </div>
+  );
+}
+
+// OK: カウンター部分を分離
+function Page() {
+  return (
+    <div>
+      <Counter />         {/* 状態はここに閉じ込め */}
+      <ExpensiveList />   {/* 再レンダリングされない */}
+    </div>
+  );
+}
+
+function Counter() {
+  const [count, setCount] = useState(0);
+  return (
+    <>
+      <button onClick={() => setCount((c) => c + 1)}>+</button>
+      <span>{count}</span>
+    </>
+  );
+}
+
+// ③ children パターンによる最適化
+// NG:
+function Layout() {
+  const [theme, setTheme] = useState('light');
+  return (
+    <div className={theme}>
+      <Header />      {/* theme 変更で再レンダリング */}
+      <MainContent /> {/* theme 変更で再レンダリング */}
+      <Footer />      {/* theme 変更で再レンダリング */}
+    </div>
+  );
+}
+
+// OK: children は参照が変わらないので再レンダリングされない
+function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const [theme, setTheme] = useState('light');
+  return (
+    <div className={theme}>
+      <ThemeToggle onToggle={() => setTheme((t) => t === 'light' ? 'dark' : 'light')} />
+      {children} {/* 再レンダリングされない */}
+    </div>
+  );
+}
+
+// app.tsx
+<ThemeProvider>
+  <Header />
+  <MainContent />
+  <Footer />
+</ThemeProvider>
+```
+
+### 8.2 React Compiler（React 19+）
+
+```typescript
+// React Compiler は useMemo / useCallback / memo を自動的に適用する
+// react-compiler-runtime を導入するだけで最適化が自動化される
+
+// babel.config.js（React Compiler プラグイン）
+module.exports = {
+  plugins: [
+    ['babel-plugin-react-compiler', {
+      // 特定のコンポーネントを除外
+      // sources: (filename) => !filename.includes('legacy/'),
+    }],
+  ],
+};
+
+// next.config.js（Next.js での設定）
+module.exports = {
+  experimental: {
+    reactCompiler: true,
+  },
+};
+
+// React Compiler が最適化する前:
+function ProductList({ products, category }: Props) {
+  // Compiler が自動的に useMemo 相当の最適化を適用
+  const filtered = products.filter((p) => p.category === category);
+  const sorted = filtered.sort((a, b) => a.price - b.price);
+
+  return (
+    <ul>
+      {sorted.map((product) => (
+        // Compiler が自動的に memo 相当の最適化を適用
+        <ProductItem key={product.id} product={product} />
+      ))}
+    </ul>
+  );
+}
+```
+
+### 8.3 DOM 操作の最適化
+
+```typescript
+// ① requestAnimationFrame による描画最適化
+function useAnimatedScroll() {
+  const scrollRef = useRef(0);
+  const rafRef = useRef<number>();
+
+  useEffect(() => {
+    const handleScroll = () => {
+      // requestAnimationFrame で描画タイミングに合わせる
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+
+      rafRef.current = requestAnimationFrame(() => {
+        scrollRef.current = window.scrollY;
+        // スクロール位置に応じた処理
+        updateParallax(scrollRef.current);
+      });
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
+}
+
+// ② ResizeObserver でのレイアウト最適化
+function useElementSize(ref: RefObject<HTMLElement>) {
+  const [size, setSize] = useState({ width: 0, height: 0 });
+
+  useEffect(() => {
+    if (!ref.current) return;
+
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry) {
+        // contentBoxSize を使用（borderBoxSize も利用可能）
+        const { inlineSize, blockSize } = entry.contentBoxSize[0];
+        setSize({ width: inlineSize, height: blockSize });
+      }
+    });
+
+    observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, [ref]);
+
+  return size;
+}
+
+// ③ CSS containment によるレイアウト計算の最適化
+// 要素内の変更が外部に影響しないことをブラウザに伝える
+const containerStyle: React.CSSProperties = {
+  contain: 'layout style paint', // レイアウト・スタイル・ペイントを隔離
+  contentVisibility: 'auto',      // 画面外の要素のレンダリングをスキップ
+  containIntrinsicSize: '0 500px', // 推定サイズ（CLS防止）
+};
+
+function LongList({ items }: { items: Item[] }) {
+  return (
+    <div>
+      {items.map((item) => (
+        <div key={item.id} style={containerStyle}>
+          <ItemContent item={item} />
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+### 8.4 アニメーションパフォーマンス
+
+```css
+/* GPU アクセラレーションを利用したアニメーション */
+
+/* OK: transform と opacity のみ（コンポジットレイヤーで処理） */
+.animate-slide {
+  transition: transform 0.3s ease, opacity 0.3s ease;
+  will-change: transform;
+}
+.animate-slide.active {
+  transform: translateX(100px);
+  opacity: 1;
+}
+
+/* NG: レイアウトプロパティのアニメーション（リフロー発生） */
+.animate-bad {
+  transition: width 0.3s, height 0.3s, top 0.3s, left 0.3s;
+}
+
+/* レイヤー昇格のヒント */
+.fixed-header {
+  will-change: transform; /* 事前にGPUレイヤーを作成 */
+  /* 注意: 乱用するとメモリ消費が増える */
+}
+
+/* アニメーション完了後に will-change を解除 */
+.modal {
+  will-change: transform, opacity;
+  transition: transform 0.3s, opacity 0.3s;
+}
+.modal.closed {
+  will-change: auto; /* メモリ解放 */
+}
+```
+
+```
+レンダリングパイプラインとアニメーションのコスト:
+
+  ┌──────────┬──────────────────┬──────────────────────────────┐
+  │ 処理段階   │ トリガーされる     │ 対象プロパティ                 │
+  │          │ プロパティ変更     │                              │
+  ├──────────┼──────────────────┼──────────────────────────────┤
+  │ Layout   │ リフロー発生      │ width, height, top, left,    │
+  │ (高コスト) │ （最も重い）      │ margin, padding, position,   │
+  │          │                  │ font-size, display, float    │
+  ├──────────┼──────────────────┼──────────────────────────────┤
+  │ Paint    │ リペイント発生     │ color, background,           │
+  │ (中コスト) │                  │ border-color, box-shadow,    │
+  │          │                  │ visibility, outline          │
+  ├──────────┼──────────────────┼──────────────────────────────┤
+  │ Composite│ コンポジットのみ   │ transform, opacity,          │
+  │ (低コスト) │ （最も軽い）      │ filter, will-change          │
+  └──────────┴──────────────────┴──────────────────────────────┘
+
+  アニメーション最適化の原則:
+    ✓ transform / opacity のみでアニメーション
+    ✓ will-change で事前にレイヤー昇格
+    ✓ レイアウトプロパティの変更を避ける
+    ✓ requestAnimationFrame で描画タイミングに合わせる
+```
