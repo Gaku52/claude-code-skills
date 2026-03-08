@@ -12,6 +12,10 @@
 - モジュレーション（LFO、エンベロープ）
 - ジャンル別サウンド作成
 - プロのサウンドデザインワークフロー
+- エフェクトチェインの構築と最適化
+- リサンプリングによる音の進化
+- フォーリーサウンドとフィールドレコーディング
+- グラニュラーシンセシスの応用
 
 ---
 
@@ -90,6 +94,21 @@ Hip Hop:
 Trance:
 必須度: ★★★★☆（80%）
 理由: プラック、パッド、リードは独自性重要
+
+Drum & Bass:
+必須度: ★★★★☆（80%）
+理由: リースベース、ニューロベースはサウンドデザインの塊
+       ブレイクビーツの加工も重要なスキル
+
+Ambient / Experimental:
+必須度: ★★★★★（100%必須）
+理由: テクスチャ、ドローン、グラニュラーは全てデザイン
+       既存のプリセットでは表現不可能な音世界
+
+Future Bass / Colour Bass:
+必須度: ★★★★★（100%必須）
+理由: スーパーソウ、ボーカルチョップ、複雑なベースデザイン
+       このジャンルの核心がサウンドデザイン
 ```
 
 **サウンドデザインのレベル:**
@@ -118,6 +137,13 @@ Trance:
 - ジャンル特化音作り
 - オリジナルサンプル作成
 → 結果: 100%、完全オリジナル
+
+レベル5（マスター・数年以上）:
+- 独自の音作り哲学を確立
+- 新しいサウンドデザイン手法を開発
+- 他のアーティストに影響を与える
+- シグネチャーサウンドが業界標準になる
+→ 結果: 音楽史に残るサウンド
 ```
 
 ---
@@ -339,6 +365,145 @@ Trance:
 
 ---
 
+## 音の物理学 - サウンドデザインの科学的基盤
+
+サウンドデザインを深く理解するには、音の物理的な性質を知ることが不可欠です。
+
+### 音波の基本
+
+```
+音の構成要素:
+
+1. 周波数（Frequency）
+   - 単位: Hz（ヘルツ）= 1秒間の振動回数
+   - 人間の可聴範囲: 20 Hz - 20,000 Hz
+   - 低い周波数 = 低い音（ベース）
+   - 高い周波数 = 高い音（ハイハット）
+
+   実用的な周波数帯域:
+   Sub Bass:    20-60 Hz    → 体で感じる振動
+   Bass:        60-250 Hz   → 音楽の土台
+   Low Mid:     250-500 Hz  → 温かみ、こもり
+   Mid:         500-2000 Hz → ボーカル域、メロディ
+   Upper Mid:   2000-5000 Hz→ 存在感、アタック
+   Presence:    5000-10kHz  → 明瞭さ、エアー
+   Brilliance:  10k-20kHz   → 輝き、シズル感
+
+2. 振幅（Amplitude）
+   - 音の大きさ
+   - 単位: dB（デシベル）
+   - 0 dB = デジタルの上限
+   - -6 dB = 音量が半分
+
+3. 波形（Waveform）
+   - 振動のパターン
+   - 倍音構造を決定
+   - 音色の基本
+
+4. 位相（Phase）
+   - 波形の時間的位置
+   - 0-360度
+   - 位相キャンセル: 同じ音が逆位相で打ち消し
+```
+
+### 倍音と音色の関係
+
+```
+基本波形と倍音構造:
+
+Sine波（正弦波）:
+- 倍音: 基音のみ（第1倍音）
+- 音色: 純粋、クリーン
+- 用途: Sub Bass、テストトーン、純粋な低音
+- 特徴: 最もシンプル。自然界にはほとんど存在しない
+
+Saw波（ノコギリ波）:
+- 倍音: 全ての整数倍音（1, 2, 3, 4, 5...）
+- 各倍音の振幅: 1/n（nは倍音番号）
+- 音色: 明るい、豊か、ブラス的
+- 用途: ベースライン、リード、パッド、スーパーソウ
+- 特徴: 最も倍音が豊富で加工しやすい
+
+Square波（矩形波）:
+- 倍音: 奇数倍音のみ（1, 3, 5, 7, 9...）
+- 各倍音の振幅: 1/n
+- 音色: 中空、木管楽器的、レトロ
+- 用途: ベース、8ビットサウンド、チップチューン
+- 特徴: Pulse Width変調で多彩な音色変化
+
+Triangle波（三角波）:
+- 倍音: 奇数倍音のみ（Square波と同じ）
+- 各倍音の振幅: 1/n^2（Square波より早く減衰）
+- 音色: 柔らかい、フルート的
+- 用途: Sub Bass、柔らかいパッド、控えめなリード
+- 特徴: Sine波とSquare波の中間的な性質
+
+Noise（ノイズ）:
+- White Noise: 全周波数が均等 → ハイハット、ライザー
+- Pink Noise: 低域が強調 → 海の音、自然なノイズ
+- Brown Noise: さらに低域寄り → 深い環境音
+
+倍音の実践的理解:
+- Filter Cutoffを下げる = 高い倍音を削る = 音が暗くなる
+- Resonanceを上げる = Cutoff付近の倍音を強調 = 特定周波数が目立つ
+- Distortion/Saturation = 新しい倍音を追加 = 音が明るく/荒くなる
+```
+
+### フィルターの物理学
+
+```
+フィルタータイプの詳細:
+
+Low Pass Filter（ローパス）:
+- 動作: Cutoff以上の周波数を減衰
+- スロープ: -6 dB/oct, -12 dB/oct, -24 dB/oct, -48 dB/oct
+- 使用場面:
+  - ベースの高域カット（200-500 Hz Cutoff）
+  - パッドの柔らかさ作り（1-3 kHz Cutoff）
+  - フィルタースイープ（オートメーション）
+- スロープの違い:
+  -12 dB/oct: 緩やかなカット。自然な音質
+  -24 dB/oct: 急峻なカット。ダンスミュージック標準
+  -48 dB/oct: 超急峻。完全な分離が必要な時
+
+High Pass Filter（ハイパス）:
+- 動作: Cutoff以下の周波数を減衰
+- 使用場面:
+  - 不要な低域ノイズ除去（30-80 Hz）
+  - リードやパッドのスッキリ感（100-300 Hz）
+  - ブレイクダウンのビルドアップ効果
+
+Band Pass Filter（バンドパス）:
+- 動作: 特定の周波数帯域のみ通過
+- 使用場面:
+  - ラジオボイス効果（300-3000 Hz）
+  - 特定帯域の強調
+  - 電話音効果
+
+Notch Filter（ノッチ）:
+- 動作: 特定の周波数帯域のみ除去
+- 使用場面:
+  - 特定の問題周波数除去
+  - フェイザー効果の基礎
+  - ハウリング除去
+
+Comb Filter（コムフィルター）:
+- 動作: 等間隔の周波数を強調/減衰
+- 使用場面:
+  - フランジャー効果
+  - メタリックな音色
+  - 物理モデリング
+
+レゾナンスの詳細:
+- 0%: フィルター効果のみ
+- 20-40%: 軽い強調。一般的な使用範囲
+- 40-70%: 明確なピーク。アシッドサウンド
+- 70-90%: 強いピーク。自己発振に近い
+- 100%: 自己発振。フィルターが音源になる
+```
+
+---
+
 ## Ableton Live 12 でのサウンドデザイン
 
 ### 使用する主要楽器
@@ -358,6 +523,24 @@ Trance:
 - 初心者に優しい
 
 推奨プリセット改変率: 50-70%
+
+Wavetable詳細パラメータガイド:
+
+Oscillator セクション:
+- Wavetable Position: ウェーブテーブル内の読み取り位置
+  → これをLFOやEnvelopeで動かすと音色が時間変化する
+  → Basic Shapes: Position 0=Sine, 中間=様々, 最大=Noise
+- Wave: ウェーブテーブルカテゴリの選択
+  → Basic Shapes: 基本波形（初心者向け）
+  → Complex: 複雑な倍音構造
+  → FM: FM合成由来の波形
+  → Additive Resonant: 共鳴体由来
+  → User: 自分で読み込んだ波形
+
+Matrix セクション:
+- Mod Sources: LFO 1, LFO 2, Env 2, Env 3, MIDI Vel, Key
+- Mod Targets: 任意のパラメータにルーティング可能
+- Amount: モジュレーションの深さ（-100% ~ +100%）
 ```
 
 **2. Operator（使用頻度: 20%）**
@@ -375,6 +558,26 @@ Trance:
 - 複雑な倍音
 
 推奨プリセット改変率: 30-50%
+
+Operator 詳細パラメータガイド:
+
+Operator A-D:
+- Coarse: 周波数比率の整数部分（0.5, 1, 2, 3...）
+  → 整数比 = 調和的な倍音（楽器的）
+  → 非整数比 = 非調和的な倍音（金属的、ベル的）
+- Fine: 周波数比率の微調整（-100 ~ +100 cent）
+  → わずかなデチューンでうなりを作る
+- Level: オペレータの出力レベル
+  → Modulatorの場合: 高い = 倍音が多い = 明るい音
+  → Carrierの場合: 音量
+
+Algorithm 使い分けガイド:
+- Algorithm 1: シンプルなFM。ベース、パッド向き
+- Algorithm 2-3: 2段FM。より複雑な倍音
+- Algorithm 4-6: 並列+直列。リード、ブラス向き
+- Algorithm 7-8: 複数Carrierの並列。厚みのある音
+- Algorithm 9-10: 複雑なFMネットワーク
+- Algorithm 11: 全て並列。加算合成的。ベル音に最適
 ```
 
 **3. Sampler（使用頻度: 15%）**
@@ -424,6 +627,18 @@ Trance:
 - Warm音質
 
 推奨プリセット改変率: 50-70%
+
+Drift 詳細パラメータガイド:
+- Shape: 波形の形状変更。Sine→Saw→Square的な変化
+- Drift Amount: ピッチとパラメータのランダムな揺らぎ
+  → アナログシンセの不安定さを再現
+  → 0%: デジタル的に安定
+  → 30-50%: 温かみのある自然な揺らぎ
+  → 70-100%: 明確に不安定。実験的な用途
+- Voice Mode: Mono / Poly / Unison
+  → Mono: ベースに最適。Glide（ポルタメント）が使える
+  → Poly: コード演奏用
+  → Unison: 厚みのあるリードやパッド
 ```
 
 ### エフェクトチェイン構築
@@ -466,6 +681,103 @@ Wavetable → Auto Filter (LFO) → Erosion → Limiter
 
 Deep Houseパッド:
 Wavetable → Chorus → Reverb (Plate) → EQ Eight
+
+Trance Lead:
+Wavetable → Chorus → Reverb (Hall, 30%) → Delay (1/4 Dotted, 20%) → Limiter
+
+D&B Reese Bass:
+Wavetable (2 OSC Detuned Saws) → Phaser → Distortion → Auto Filter (LFO) → Limiter
+
+Ambient Texture:
+Sampler → Grain Delay → Reverb (100% Wet) → Delay (Ping Pong) → Auto Pan
+
+Lo-Fi Chords:
+Wavetable → Redux (Downsample) → Saturator (Soft) → Chorus → Reverb (Room)
+
+Acid Line:
+Wavetable (Saw) → Auto Filter (LP, High Reso, Env) → Saturator → Delay (1/8 Dotted)
+```
+
+**エフェクト順序の理論:**
+
+```
+なぜ順序が重要なのか:
+
+原則: 信号は上から下（左から右）へ流れる
+各エフェクトは「前のエフェクトの出力」を受け取る
+
+例1: Reverb → Distortion
+結果: リバーブの残響にもDistortionがかかる
+→ 荒い、実験的な音。Industrial系に使える
+
+例2: Distortion → Reverb
+結果: 歪んだ音にリバーブがかかる
+→ 一般的で自然な音。通常はこちらを使う
+
+実験のすすめ:
+- 同じエフェクトでも順序を入れ替えるだけで音が激変
+- Audio Effect Rackで並列処理も可能
+  → Dry/Wet 50%ではなく、ParallelチェインでBlend
+  → より細かいコントロールが可能
+```
+
+---
+
+## 音の物理学（続き）- エンベロープとダイナミクスの科学
+
+### ADSRエンベロープの深い理解
+
+```
+エンベロープの各段階の音楽的意味:
+
+Attack（アタック）:
+- 定義: キーを押してから最大値に達するまでの時間
+- 短い (0-10 ms): パーカッシブ、即座に発音
+  → ベース、プラック、ドラム
+- 中程度 (10-100 ms): 楽器的、自然なアタック
+  → ストリングス弓弾き、ピアノ
+- 長い (100-2000 ms): フェードイン、パッド的
+  → アンビエントパッド、ストリングスのスウェル
+
+  プロの技: Attackを5-15 msにすると
+  完全に即座ではないが「クリック」が出ない
+  → クリーンなベースやリードに有効
+
+Decay（ディケイ）:
+- 定義: 最大値からSustainレベルまで減衰する時間
+- 短い (0-50 ms): タイトなプラック
+  → Pluckリード、ハイハットのシンセ版
+- 中程度 (50-500 ms): ピアノ的、自然な減衰
+  → エレピ、コード系
+- 長い (500-5000 ms): ゆっくりと変化
+  → パッドのフィルター変化、スローモーション効果
+
+Sustain（サステイン）:
+- 定義: キーを押し続けている間のレベル（時間ではなくレベル）
+- 0%: 音が完全に消える。パーカッシブ
+- 50%: 中間レベルで保持
+- 100%: 減衰なし。オルガン的
+
+Release（リリース）:
+- 定義: キーを離してから音が消えるまでの時間
+- 短い (0-50 ms): タイトなカット
+  → ベースライン（音の間を開ける）
+- 中程度 (50-500 ms): 自然な減衰
+  → リード、コード
+- 長い (500-5000+ ms): 長い余韻
+  → パッド、アンビエント
+
+用途別ADSR設定早見表:
+
+Sub Bass:     A=0   D=50  S=100 R=10
+Pluck:        A=0   D=150 S=0   R=50
+Lead:         A=10  D=200 S=70  R=300
+Pad:          A=800 D=500 S=80  R=2000
+Brass:        A=50  D=300 S=60  R=200
+String:       A=300 D=800 S=70  R=1000
+Kick Synth:   A=0   D=80  S=0   R=10
+Hihat Synth:  A=0   D=50  S=0   R=30
+Riser:        A=4000 D=0  S=100 R=500
 ```
 
 ---
@@ -489,6 +801,13 @@ Wavetable → Chorus → Reverb (Plate) → EQ Eight
 4. 音の特徴は？
    - 太い、鋭い、柔らかい
    - 動きがある、静的
+
+5. 音の役割は？
+   - メインの主役（リード、ボーカル）
+   - サポート（パッド、コード）
+   - リズム（ベース、パーカッション）
+   - テクスチャ（環境音、アンビエンス）
+   - FX（ライザー、ダウンリフター、インパクト）
 ```
 
 ### フェーズ2: 音源選択（5分）
@@ -595,6 +914,93 @@ Macro 4: Drive
 
 ---
 
+## リサンプリング - 音を進化させる技術
+
+### リサンプリングとは
+
+```
+定義:
+シンセやエフェクトの出力をオーディオとして録音し、
+そのオーディオをさらに加工する技法
+
+なぜ重要か:
+1. リアルタイムでは不可能な複雑な加工ができる
+2. CPU負荷を軽減（シンセを止めてオーディオだけで作業）
+3. 偶発的な音の発見（Happy Accident）
+4. 元の音から想像できない音へ変化させられる
+
+基本手順:
+1. シンセで音を作る（フィルタースイープ等を含む）
+2. 新しいオーディオトラックを作成
+   Input: シンセのトラック
+   Monitor: Off
+3. 録音ボタンを押して、シンセを演奏
+4. 録音されたオーディオを確認
+5. オーディオに対してさらに加工
+```
+
+### リサンプリングの実践テクニック
+
+```
+テクニック1: フィルタースイープのリサンプリング
+
+手順:
+1. WavetableでSaw波のベースを作る
+2. Auto FilterをLFOで動かす（Rate=1/4, Depth=100%）
+3. Saturatorで歪みを追加
+4. この状態を2-4小節録音
+5. 録音されたオーディオから「美味しい瞬間」を切り出す
+6. その切り出した部分をSamplerに読み込む
+7. さらにエフェクトを追加
+
+結果: 元のシンセとは全く異なる複雑な音色が得られる
+
+テクニック2: ピッチシフトリサンプリング
+
+手順:
+1. リードサウンドを録音
+2. オーディオをWarpモードで極端にピッチダウン（-12 ~ -24 半音）
+3. またはピッチアップ（+12 ~ +24 半音）
+4. Complexモードで品質を維持（またはTextureモードで崩す）
+5. ピッチ変更後の音にエフェクトを追加
+6. 結果をさらにリサンプリング
+
+結果: ベースをリードに変換、リードをパッドに変換等が可能
+
+テクニック3: タイムストレッチリサンプリング
+
+手順:
+1. 短いサウンド（ドラムヒットやプラック）を録音
+2. Warpモードを変更:
+   - Beats: リズミックなアーティファクト
+   - Tones: ピッチを維持したストレッチ
+   - Texture: グラニュラー的な分解
+   - Re-Pitch: テープのような速度変化
+3. テンポを極端に遅くする（元の1/4~1/8）
+4. 引き伸ばされた音にReverb、Delayを追加
+5. 結果をSamplerにロード
+
+結果: パーカッシブな音からアンビエントパッドが作れる
+
+テクニック4: 多段リサンプリング
+
+手順:
+1. 第1世代: シンセ → 録音 → 加工
+2. 第2世代: 第1世代の結果 → 録音 → 加工
+3. 第3世代: 第2世代の結果 → 録音 → 加工
+4. 各世代で異なるエフェクト（Distortion、Granular等）
+5. 3-5世代で元の音とは全く別物になる
+
+結果: 完全にオリジナルな音色。誰にも再現できない
+
+プロの活用例:
+- Skrillex: ベースサウンドを何度もリサンプリングして独自のグロウルを生成
+- Noisia: ドラムサウンドを多段リサンプリングで超密度に
+- Amon Tobin: フィールドレコーディングを何度もリサンプリング
+```
+
+---
+
 ## 実践: 4つの必須サウンド作成
 
 ### プロジェクト1: Sub Bass（Techno、House）
@@ -641,6 +1047,13 @@ Macro 2: Saturator Drive (0-8 dB)
 - スペクトラム: 50-100 Hz が最大
 - 200 Hz 以上はほぼなし
 - クラブで腹に響く音
+
+Sub Bassの追加Tips:
+- モノラルにすること（Utility: Width 0%）
+- サイドチェインコンプで Kick との干渉を避ける
+- ベロシティ感度は低めに（安定した低音が重要）
+- スピーカーで確認: ヘッドフォンだけでは低域を正確に判断できない
+- リファレンストラックと比較: 同じ周波数帯域にエネルギーがあるか確認
 ```
 
 ### プロジェクト2: Techno Acid Bass（Techno）
@@ -696,6 +1109,16 @@ Macro 4: Delay Dry/Wet (0-30%)
 - Filter Cutoffをオートメーション
 - Resonanceで「ピコピコ」音
 - クラブで踊れるグルーヴ
+
+アシッドベースの追加Tips:
+- Glide/Portamentoを有効にする（20-50 ms）
+  → 音と音がスムーズに繋がる303的な動き
+- Accent（高ベロシティ）でFilter Envを大きく開く
+  → ベロシティ→Filter Env Amountのモジュレーションを設定
+- パターンに休符を入れる（タイの活用）
+  → 303の「スライド」と「アクセント」を再現
+- ディストーションは控えめに
+  → Saturator Warmが最適。過度な歪みは303らしさを失う
 ```
 
 ### プロジェクト3: Lead Synth（House、Trance）
@@ -835,6 +1258,405 @@ Macro 4: Attack Time (200-2000 ms)
 - 広がりがある（Stereo Width 100%）
 - 柔らかい音色
 - 空間を埋める
+```
+
+---
+
+## 追加プロジェクト: 応用サウンド作成
+
+### プロジェクト5: Dubstep Wobble Bass
+
+**目標**: LFOで動くグロウルベースを作る
+
+```
+使用楽器: Wavetable
+
+設定:
+OSC 1:
+- Wavetable: Complex > Metallic Harmonics
+- Octave: -1
+- Volume: 100%
+
+OSC 2:
+- Wavetable: Basic Shapes > Saw
+- Octave: 0
+- Volume: 60%
+
+Filter:
+- Type: Low Pass (24 dB)
+- Cutoff: 800 Hz
+- Resonance: 40%
+
+LFO 1 → Filter Cutoff:
+- Waveform: Square（ステップ的な変化）
+- Rate: 1/4（テンポ同期）
+- Depth: 80%
+
+LFO 2 → Wavetable Position OSC 1:
+- Waveform: Sine
+- Rate: 1/8
+- Depth: 50%
+
+Amp Envelope:
+- Attack: 0 ms
+- Decay: 0 ms
+- Sustain: 100%
+- Release: 50 ms
+
+エフェクト:
+- Erosion: Amount 30%, Frequency 2000 Hz
+- Saturator: Drive 8 dB, Curve Medium
+- OTT (Multiband Dynamics): Amount 50%
+- Limiter: Ceiling -0.3 dB
+
+Macro:
+Macro 1: LFO 1 Rate (1/8 - 1/1)
+Macro 2: Filter Cutoff (300-3000 Hz)
+Macro 3: Distortion Amount (0-12 dB)
+Macro 4: LFO 1 Depth (0-100%)
+
+テストMIDI:
+- Note: C1-G1（低音域のロングノート）
+- Velocity: 127
+- Length: 2-4拍
+
+完成基準:
+- LFOが明確に聞こえる「ワブワブ」
+- 歪みが適度にあるアグレッシブな音
+- Macro操作でリアルタイムに音色変化
+```
+
+### プロジェクト6: Trance Supersaw
+
+**目標**: 分厚いスーパーソウリードを作る
+
+```
+使用楽器: Wavetable
+
+設定:
+OSC 1:
+- Wavetable: Basic Shapes > Saw
+- Octave: 0
+- Volume: 100%
+
+OSC 2:
+- Wavetable: Basic Shapes > Saw
+- Octave: +1
+- Detune: +15 cent
+- Volume: 70%
+
+Unison:
+- Amount: 8 voices（最大）
+- Detune: 25%
+
+Sub:
+- Volume: 30%（低域の安定感）
+
+Filter:
+- Type: Low Pass (12 dB)
+- Cutoff: 3000 Hz
+- Resonance: 15%
+- Envelope Amount: +15
+
+Filter Envelope:
+- Attack: 20 ms
+- Decay: 800 ms
+- Sustain: 60%
+- Release: 500 ms
+
+Amp Envelope:
+- Attack: 5 ms
+- Decay: 300 ms
+- Sustain: 80%
+- Release: 500 ms
+
+LFO 1:
+- Destination: Pitch
+- Rate: 5.5 Hz
+- Depth: 3%（繊細なビブラート）
+
+エフェクト:
+- Chorus: Rate 0.3 Hz, Amount 35%
+- Reverb: Hall, Decay 3s, Dry/Wet 30%
+- Delay: 1/4 Dotted, Dry/Wet 15%, Feedback 25%
+- EQ Eight: High Pass 150 Hz, Shelf +2 dB at 8 kHz
+- Utility: Stereo Width 120%
+
+Macro:
+Macro 1: Unison Detune (10-40%)
+Macro 2: Filter Cutoff (1000-6000 Hz)
+Macro 3: Reverb Dry/Wet (10-50%)
+Macro 4: Stereo Width (80-140%)
+
+テストMIDI:
+- コード: Am (A3-C4-E4), F (F3-A3-C4)
+- Velocity: 100-120
+- Length: 2-4拍
+
+完成基準:
+- 圧倒的な広がりと厚み
+- ステレオフィールドを埋め尽くす
+- コードが明瞭に聞こえつつも壁のような音
+```
+
+### プロジェクト7: Riser / Build-Up FX
+
+**目標**: ドロップ前のテンションを作るライザーFX
+
+```
+使用楽器: Wavetable + リサンプリング
+
+設定:
+OSC 1:
+- Wavetable: Noise > White Noise
+- Volume: 100%
+
+OSC 2:
+- Wavetable: Basic Shapes > Saw
+- Octave: 0
+- Volume: 40%
+
+Filter:
+- Type: High Pass (24 dB)
+- Cutoff: 200 Hz → 15000 Hz（オートメーション）
+- Resonance: 50%
+
+Amp Envelope:
+- Attack: 0 ms
+- Sustain: 100%
+- Release: 200 ms
+
+オートメーション（8小節かけて）:
+- Filter Cutoff: 200 Hz → 15000 Hz（徐々に上昇）
+- Resonance: 30% → 70%（徐々に上昇）
+- Volume: -20 dB → 0 dB（徐々に上昇）
+- OSC 2 Pitch: 0 → +24 半音（徐々に上昇）
+
+エフェクト:
+- Reverb: Decay 2s → 6s（オートメーション）, Dry/Wet 30%
+- Delay: Ping Pong, 1/16, Feedback 40% → 70%
+- Auto Pan: Rate 1/4 → 1/16（加速）
+- Limiter: Ceiling -0.3 dB
+
+リサンプリング後の追加加工:
+1. 録音したRiserをReverse
+2. 逆再生Riserとオリジナルを重ねる
+3. 最後の1拍にImpact音を追加
+
+完成基準:
+- 8小節で自然にテンションが上がる
+- ドロップ直前で最高潮に達する
+- リスナーの期待感を煽る効果
+```
+
+---
+
+## グラニュラーシンセシスとテクスチャデザイン
+
+### グラニュラーシンセシスの基礎
+
+```
+グラニュラーシンセシスとは:
+
+音を極めて小さな断片（グレイン = 粒）に分割し、
+それらを再配置・変調して新しい音を作る合成方法
+
+グレインのパラメータ:
+- Size: 1-100 ms（グレインの長さ）
+  → 小さい(1-10 ms): ノイズ的、粒子的
+  → 中程度(10-50 ms): テクスチャ的
+  → 大きい(50-100 ms): 元の音に近い
+
+- Density: 1秒あたりのグレイン数
+  → 少ない(1-10): 間が空いた、リズミカル
+  → 中程度(10-50): テクスチャ的
+  → 多い(50-200): 密な、連続的
+
+- Position: サンプル内の読み取り位置
+  → 固定: 同じ部分を繰り返す
+  → ランダム: 予測不可能な変化
+  → スキャン: 順番にサンプルを走査
+
+- Pitch: 各グレインのピッチ
+  → 固定: 元のピッチを維持
+  → ランダム: 分散した音像
+  → パターン: メロディック
+
+Abletonでのグラニュラー:
+- Granulator II（Max for Liveデバイス）
+  → 最も本格的なグラニュラーシンセ
+  → 任意のサンプルを読み込み可能
+- Grain Delay（標準エフェクト）
+  → 簡易的だが効果的
+  → Frequency、Pitch、Spray パラメータ
+
+実践例: ボーカルからパッドを作る
+
+1. ボーカルサンプルをGranulator IIにロード
+2. Grain Size: 50 ms
+3. Density: 30
+4. Position: LFOでゆっくりスキャン (0.1 Hz)
+5. Pitch Randomization: 10%
+6. Reverb (60% Wet) を追加
+7. Filter LP 3000 Hz で高域を抑える
+結果: 人の声のニュアンスを残した幻想的なパッド
+```
+
+### フィールドレコーディングとフォーリー
+
+```
+フィールドレコーディングのサウンドデザイン活用:
+
+録音素材の例:
+- 金属を叩く音 → パーカッション、インダストリアルな音
+- 水の音 → テクスチャ、アンビエント素材
+- 街のノイズ → バックグラウンドテクスチャ
+- 工場の機械音 → リズムパターン、テクノ的サウンド
+- 動物の声 → 特殊なFX、リードサウンド
+- 楽器ではない物の音 → ユニークなワンショット
+
+録音のコツ:
+- 静かな環境で録音（S/N比を最大化）
+- 複数のマイクポジションで録音
+- 24bit/96kHz以上で録音（後の加工に有利）
+- 同じ素材を複数回録音（バリエーション確保）
+
+加工ワークフロー:
+1. 素材の選択とトリミング
+   - 使える部分を切り出す
+   - 無音部分を削除
+
+2. ピッチ変更
+   - 大幅なピッチダウンで全く別の音に
+   - ピッチアップで繊細なテクスチャに
+
+3. タイムストレッチ
+   - Textureモードで引き伸ばし
+   - グラニュラー的な効果
+
+4. エフェクト加工
+   - Reverb: 空間を与える
+   - Distortion: キャラクターを強調
+   - Filter: 不要な周波数を除去
+
+5. レイヤリング
+   - 複数の加工済み素材を重ねる
+   - 周波数帯域ごとに分担
+
+6. リサンプリング
+   - 加工結果をさらに録音
+   - 繰り返しで複雑化
+
+プロの実例:
+- Amon Tobin: 日常の音から全ての楽曲を構築
+- BT: 虫の音をグラニュラーで楽器化
+- Burial: ビニールのノイズを音楽的テクスチャに
+```
+
+---
+
+## モジュレーションの高度なテクニック
+
+### LFOの深い活用
+
+```
+LFO波形の選択ガイド:
+
+Sine（正弦波）:
+- 動き: 滑らかな往復
+- 用途: ビブラート、トレモロ、自然な揺れ
+- 設定例: Pitch +/- 5 cent at 5 Hz = クラシックなビブラート
+
+Triangle（三角波）:
+- 動き: 直線的な往復
+- 用途: フィルタースイープ、パンニング
+- Sineより少し角張った動き
+
+Saw Up（上昇ノコギリ波）:
+- 動き: ゆっくり上昇→急速に下降
+- 用途: フィルターの繰り返しスイープ
+- Acid Bassのフィルターに最適
+
+Saw Down（下降ノコギリ波）:
+- 動き: 急速に上昇→ゆっくり下降
+- 用途: 逆方向のスイープ
+
+Square（矩形波）:
+- 動き: 2つの値を即座に切り替え
+- 用途: トリルエフェクト、ゲート効果
+- Rate=1/16: 16分音符でオン/オフ
+
+Random / S&H（サンプル&ホールド）:
+- 動き: ランダムな値をステップ的に変化
+- 用途: グリッチ効果、実験的サウンド
+- Rate=1/8: 8分音符ごとにランダム変化
+
+LFOの同期設定:
+- Free Running: ノートに関係なく一定速度
+  → パッドやアンビエントに適切
+- Key Sync (Retrigger): ノートオンでLFOリセット
+  → ベースやリードに適切（毎回同じ動き）
+- テンポ同期: 1/4, 1/8, 1/16 等
+  → リズミカルな効果に必須
+
+LFOレート早見表（テンポ120 BPM基準）:
+- 0.1-0.5 Hz: 超スロー。パッドの微かな変化
+- 0.5-2 Hz: スロー。フィルターの自然なうねり
+- 2-5 Hz: 中速。ビブラート、トレモロ
+- 5-10 Hz: 速い。特殊効果、ウォブル
+- 10-20 Hz: 超高速。オーディオレートに近い。粗い質感
+- 20 Hz+: オーディオレート。FM合成的効果（OperatorのFMに近い）
+```
+
+### Macro Knobの高度な活用
+
+```
+Macro設計の原則:
+
+1つのMacroで複数のパラメータを同時に動かす
+→ 演奏性の向上
+→ 1つの操作で複雑な音色変化
+
+例: "Intensity" Macro
+- Macro値 0（穏やか）→ Macro値 127（激しい）
+
+パラメータマッピング:
+- Filter Cutoff: 500 Hz → 5000 Hz（正方向）
+- Resonance: 10% → 60%（正方向）
+- Distortion Drive: 0 dB → 8 dB（正方向）
+- Reverb Dry/Wet: 30% → 10%（逆方向）
+- LFO Rate: 0.5 Hz → 4 Hz（正方向）
+- LFO Depth: 10% → 80%（正方向）
+
+結果: 1つのノブを回すだけで
+穏やかな → フィルター開く → 歪む → リバーブ減る → LFO速まる
+→ 複雑な音色変化がリアルタイムで演奏可能
+
+プリセット用Macro 4つの推奨パターン:
+
+パターンA（汎用）:
+Macro 1: Brightness（Filter Cutoff + High Shelf）
+Macro 2: Movement（LFO Depth + Rate）
+Macro 3: Space（Reverb + Delay Wet）
+Macro 4: Character（Drive + Resonance）
+
+パターンB（ベース用）:
+Macro 1: Cutoff（Filter Cutoff）
+Macro 2: Growl（Distortion + Filter Env Amount）
+Macro 3: Sub Level（Sub Oscillator Volume）
+Macro 4: Punch（Attack Time + Compressor Ratio）
+
+パターンC（パッド用）:
+Macro 1: Warmth（Filter Cutoff + Saturation）
+Macro 2: Width（Stereo Width + Chorus）
+Macro 3: Depth（Reverb Size + Decay）
+Macro 4: Evolution（LFO Rate + WT Position）
+
+パターンD（リード用）:
+Macro 1: Bite（Filter Cutoff + Resonance）
+Macro 2: Vibrato（LFO Depth + Rate）
+Macro 3: Fatness（Unison Detune + Sub Level）
+Macro 4: Tail（Release + Reverb Wet）
 ```
 
 ---
@@ -999,6 +1821,342 @@ A: リファレンストラック + スペクトラム分析
    - 80%で十分プロレベル
 ```
 
+**Q7: CPU負荷が高くて作業できません**
+
+```
+A: 以下の対策を順番に試す
+
+即効性のある対策:
+1. オーディオバッファサイズを上げる
+   - Preferences > Audio > Buffer Size
+   - 128 → 512 or 1024
+   - レイテンシーは増えるがCPUは軽くなる
+
+2. 使っていないトラックをフリーズ
+   - トラックを右クリック → Freeze
+   - シンセがオーディオに変換される
+   - 編集時はUnfreezeで戻せる
+
+3. リサンプリングして元のシンセを止める
+   - オーディオとして書き出し
+   - 元のMIDIトラックをミュート
+   - CPU負荷がゼロになる
+
+4. Unisonの数を減らす
+   - 8 voices → 4 voices
+   - 音の厚みは少し減るが負荷激減
+
+5. エフェクトを見直す
+   - Reverb (特にConvolution) は重い
+   - → 軽いアルゴリズムリバーブに変更
+   - Oversampling が有効なら切る
+
+長期的な対策:
+- テンプレートでフリーズワークフローを組む
+- ミックスダウン段階で全てフリーズ
+- サウンドデザインとアレンジの段階を分離
+```
+
+**Q8: サードパーティシンセは必要ですか？**
+
+```
+A: 初心者は不要。中級者以降は用途次第
+
+Ableton標準で十分なケース:
+- Techno、House、Dubstep の基本的なサウンド
+- Sub Bass、リード、パッド
+- 基本的なFM合成
+
+サードパーティが有効なケース:
+- Serum: ウェーブテーブル編集の自由度が段違い
+  → Dubstep、Future Bass の複雑なベースに
+  → ビジュアルフィードバックが優秀
+
+- Vital: 無料でSerumに近い機能
+  → 予算が限られている場合の最良の選択
+  → Text-to-Wavetableが独自機能
+
+- Phase Plant: モジュラー型の自由なルーティング
+  → 複雑なサウンドデザインに最適
+  → Generator、Modulator、Effectを自由に組み合わせ
+
+- Pigments: 多彩な合成エンジン
+  → VA、Wavetable、Granular、Harmonicの4エンジン
+  → 美しいUIと直感的な操作
+
+推奨:
+1. まずAbleton標準を1年間使い倒す
+2. 具体的に不足を感じたらサードパーティを検討
+3. 最初の1つは Vital（無料版）がおすすめ
+```
+
+---
+
+## ジャンル別サウンドデザイン詳細ガイド
+
+### Technoサウンドデザイン
+
+```
+Technoの音の特徴:
+- ミニマルで繰り返しが基本
+- 工業的、機械的な音色
+- フィルターの動きが命
+- ダークでハイパーな雰囲気
+- 空間系エフェクトの活用
+
+必須サウンド5選:
+
+1. Kick Drum（自作）
+   構成: Sub Layer + Punch Layer + Click Layer
+
+   Sub Layer（Operator）:
+   - Sine波、Pitch Envelope: C4 → C1（10 ms）
+   - Amp Decay: 200 ms
+
+   Punch Layer（Operator）:
+   - Sine + Triangle、Pitch Envelope
+   - Amp Decay: 80 ms
+   - Distortion軽め
+
+   Click Layer（Sampler）:
+   - 短いノイズバースト（5 ms）
+   - High Pass 2000 Hz
+
+   3層をAudio Effect Rackで重ね、EQで各帯域を調整
+
+2. Hi-Hat（Operator）
+   - Noise Oscillator + FM
+   - Amp Decay: 30-100 ms
+   - High Pass 6000 Hz
+   - 微量のReverb
+
+3. Acid Bass（前述のプロジェクト2参照）
+
+4. Industrial Lead
+   - Operator: Algorithm 2
+   - Ratio: 1:3.14（非整数比 = 金属的）
+   - Filter LP + High Resonance
+   - Distortion: Medium
+   - Delay: Ping Pong 1/8
+
+5. Atmospheric Pad
+   - Wavetable: Dark/Metallic系のWavetable選択
+   - Long Attack (1-3 seconds)
+   - Reverb 50-70% Wet
+   - Auto Filter with slow LFO
+   - ダークなムードを作る背景音
+```
+
+### House サウンドデザイン
+
+```
+Houseの音の特徴:
+- グルーヴィーでソウルフル
+- 温かいアナログ的な音色
+- ボーカルサンプルの活用
+- 4つ打ちキックとオフビートハイハット
+- ディープな低域
+
+必須サウンド5選:
+
+1. Deep House Bass
+   - Wavetable or Analog
+   - Saw波 + Sub Sine レイヤー
+   - Filter LP 800 Hz, Resonance 20%
+   - Amp Envelope: A=5 D=200 S=60 R=100
+   - Saturator: Warm, Drive 3 dB
+   - サイドチェインコンプでキックとのかぶりを処理
+   - ゴーストノート（低ベロシティ）でグルーヴ感
+
+2. Pluck Chord
+   - Wavetable: 2 OSC Saw + Square
+   - Filter LP, Cutoff 2000 Hz
+   - Filter Envelope: A=0 D=150 S=0 R=50
+   - Amp Envelope: A=0 D=200 S=0 R=100
+   - Reverb 20%, Delay 1/8 10%
+   - コードボイシングが重要（テンションノート活用）
+
+3. Soulful Pad
+   - Wavetable or Analog
+   - Warm系Wavetable選択
+   - Long Attack (500 ms)
+   - Chorus + Reverb (Plate)
+   - LFO → Filter Cutoff（ゆっくり）
+   - ビンテージ感のある暖かい音色
+
+4. Vocal Chop
+   - ボーカルサンプルをSamplerにロード
+   - スライスしてキーマッピング
+   - Pitch Shift、Time Stretch で加工
+   - Reverb + Delay で空間処理
+   - Auto Tuneで音程補正（必要に応じて）
+
+5. Organ Stab
+   - Operator: 全オペレーター並列（Algorithm 11）
+   - 各オペレーターを異なるHarmonic（1, 2, 3, 4倍音）
+   - Amp Envelope: A=0 D=300 S=40 R=150
+   - Overdrive軽め
+   - レスリースピーカーを模した Auto Pan
+```
+
+### Drum & Bass サウンドデザイン
+
+```
+D&Bの音の特徴:
+- 高速BPM（170-180 BPM）
+- 複雑なブレイクビーツ
+- 重いベースライン（リースベース）
+- アグレッシブまたはリキッドな雰囲気
+- 繊細なアトモスフィア
+
+必須サウンド5選:
+
+1. Reese Bass
+   構成: 2つのデチューンされたSaw波
+   - Wavetable: OSC 1 = Saw, OSC 2 = Saw
+   - Detune: +15-30 cent（うなりを作る）
+   - Filter LP 500-1000 Hz
+   - LFO → Filter Cutoff（ゆっくり）
+   - Phaser（動きを追加）
+   - Distortion（軽めから激しめまで）
+
+   バリエーション:
+   - Clean Reese: Distortion なし、Filter 控えめ → Liquid D&B
+   - Dirty Reese: Distortion 強め、Filter 動かす → Neurofunk
+   - Talking Reese: フォルマントフィルター → 人の声的な質感
+
+2. Amen Break加工
+   - オリジナルのAmen Breakをロード
+   - スライスしてSamplerにマッピング
+   - 各スライスにピッチ、フィルター、ディストーション
+   - タイムストレッチで170 BPMに合わせる
+   - レイヤーとして新しいスネア、ハイハットを重ねる
+
+3. Neuro Bass（高度）
+   - Serum/Wavetableで複雑な波形
+   - FM合成 + ウェーブテーブル走査
+   - 多段リサンプリング（3-5世代）
+   - 各世代で異なるDistortion
+   - 最終的にSamplerにロードしてキーマッピング
+   - MIDIで「演奏」するベースライン
+
+4. Liquid Pad
+   - Wavetable: 柔らかいWavetable選択
+   - 6-8 voice Unison
+   - Long Attack, Long Release
+   - Chorus + Reverb (Hall, 40%)
+   - ピアノサンプルをレイヤー
+   - エモーショナルなコード進行に合わせる
+
+5. Snare Design
+   - Noise Layer: White Noise, BP Filter 500-2000 Hz
+   - Body Layer: Sine 200 Hz, Short Decay
+   - Snap Layer: Noise burst, HP 3000 Hz, 5 ms
+   - 3層をRackで重ねる
+   - Transient Shaperでアタック強調
+   - 圧縮してパンチを出す
+```
+
+---
+
+## サウンドデザインの整理と管理
+
+### サウンドライブラリの構築
+
+```
+フォルダ構成の推奨:
+
+My Sounds/
+├── Bass/
+│   ├── Sub/
+│   ├── Acid/
+│   ├── Reese/
+│   ├── Wobble/
+│   └── Other/
+├── Lead/
+│   ├── Pluck/
+│   ├── Supersaw/
+│   ├── FM/
+│   └── Other/
+├── Pad/
+│   ├── Ambient/
+│   ├── Warm/
+│   ├── Dark/
+│   └── Other/
+├── FX/
+│   ├── Riser/
+│   ├── Downlifter/
+│   ├── Impact/
+│   ├── Texture/
+│   └── Other/
+├── Drums/
+│   ├── Kick/
+│   ├── Snare/
+│   ├── HiHat/
+│   ├── Percussion/
+│   └── Loops/
+├── Vocals/
+│   ├── Chops/
+│   ├── One-Shots/
+│   └── Phrases/
+└── Templates/
+    ├── Bass_Template.adg
+    ├── Lead_Template.adg
+    └── Pad_Template.adg
+
+命名規則:
+[ジャンル]_[カテゴリ]_[特徴]_[バージョン]
+例: TECHNO_Bass_Acid_Screaming_v2
+例: HOUSE_Pad_Warm_Wide_v1
+例: DNB_Bass_Reese_Dark_v3
+
+プリセット保存のベストプラクティス:
+1. 必ずAudio Effect Rackで囲んで保存
+   → エフェクトチェインも一緒に保存される
+2. Macro設定を忘れずに
+   → 後から微調整しやすい
+3. タグ付け（Abletonのブラウザ機能）
+   → 素早い検索が可能
+4. 説明文を追加
+   → 「暗めのTechnoベース。Cutoffをオートメーションで動かす」等
+5. バージョン管理
+   → v1, v2, v3... で改良の過程を残す
+```
+
+### サウンドデザインセッションの効率化
+
+```
+効率的なサウンドデザインセッションの組み方:
+
+1. 専用セッションを設ける
+   - 楽曲制作とサウンドデザインを分離
+   - サウンドデザイン専用のAbletonプロジェクト
+   - 目標: 1セッション60分、3-5音色作成
+
+2. テンプレートプロジェクトを用意
+   - Track 1-4: Wavetable（Bass, Lead, Pad, FX用）
+   - Track 5-6: Operator（FM合成用）
+   - Track 7-8: Sampler（サンプル加工用）
+   - Master: Spectrum Analyzer（EQ Eight）
+   - リファレンス用Audio Track
+
+3. 参考音色を先に集める
+   - Spotify/YouTubeで参考音を選定
+   - 特徴をメモ:「明るいSaw Lead、Unison広め、Reverb大きめ」
+   - 周波数帯域を確認
+
+4. タイマーを使う
+   - 1音色 = 30分制限
+   - 30分経ったら次に進む
+   - 完璧を求めない
+
+5. 結果を記録
+   - 何を作ったか
+   - どのパラメータが鍵だったか
+   - 改善点
+   - ノートアプリやコメント機能を活用
+```
+
 ---
 
 ## まとめ
@@ -1014,6 +2172,9 @@ A: リファレンストラック + スペクトラム分析
 5. **リファレンス**: プロの音を徹底分析
 6. **毎日継続**: 30日で56音色作成チャレンジ
 7. **保存**: 自分のライブラリを構築
+8. **リサンプリング**: 音を多段階で進化させる
+9. **フィールドレコーディング**: 日常の音も素材になる
+10. **グラニュラー**: テクスチャの新しい可能性
 
 **学習順序:**
 1. synthesis-basics.md - シンセシス基礎理解
@@ -1023,6 +2184,33 @@ A: リファレンストラック + スペクトラム分析
 5. layering.md - レイヤリングで厚み
 6. modulation-techniques.md - 動きのある音
 7. genre-sounds.md - ジャンル特化サウンド
+
+**サウンドデザインの心構え:**
+
+```
+初心者が陥りがちな罠:
+1. 完璧主義 → 1つの音に何時間もかける
+   対策: 30分制限を設けて次に進む
+
+2. プリセット依存 → 自分で触ろうとしない
+   対策: まずCutoffとResonanceだけ動かす
+
+3. 比較して落ち込む → プロの音と比べて挫折
+   対策: プロも最初は初心者だった。継続が全て
+
+4. 情報過多 → チュートリアルばかり見る
+   対策: 1つ見たら即実践。手を動かす
+
+5. ツール依存 → 新しいプラグインを買い続ける
+   対策: 1つのシンセを使い倒す
+
+プロへの道のり:
+Month 1-3:   基礎固め。Wavetableの基本を完全理解
+Month 4-6:   応用開始。ジャンル別音作り
+Month 7-12:  個性確立。自分だけのサウンドパレット構築
+Year 2:      プロレベル。どんな音でも30分以内に作れる
+Year 3+:     マスター。新しい手法の開発
+```
 
 **次のステップ:** [Synthesis Basics（シンセシス基礎）](./synthesis-basics.md) へ進む
 
@@ -1038,4 +2226,4 @@ A: リファレンストラック + スペクトラム分析
 
 ---
 
-**サウンドデザインで、あなただけの音を作りましょう！** 🎹🔊
+**サウンドデザインで、あなただけの音を作りましょう！**
