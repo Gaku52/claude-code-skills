@@ -2059,6 +2059,717 @@ Operator: アクセント
 
 ---
 
+## 実践サウンドデザイン: キーサウンド（エレクトリックピアノ）
+
+### DX7スタイル Eピアノ
+
+```
+■ 設定
+
+Algorithm: 1（D→C→B→A 直列）
+
+OSC A (Carrier):
+  Waveform: Sine
+  Coarse: 1x
+  Level: 100%
+  Envelope: A=0, D=1500ms, S=30%, R=800ms
+
+OSC B (Modulator):
+  Waveform: Sine
+  Coarse: 1x（ユニゾン）
+  Level: 65%
+  Envelope: A=0, D=800ms, S=15%, R=400ms
+
+OSC C (Modulator):
+  Waveform: Sine
+  Coarse: 14x（高倍音 → アタックのきらめき）
+  Level: 20%
+  Envelope: A=0, D=50ms, S=0%, R=30ms
+
+OSC D:
+  Off
+
+Filter:
+  Type: LP 24dB
+  Cutoff: 4000Hz
+  Resonance: 0%
+
+Global:
+  Transpose: 0
+  Volume: -3 dB
+  Velocity Volume: 60%
+  Velocity Filter: 40%
+
+特徴:
+- OSC Cの超高倍音が短いアタックノイズを生成
+- DX7の「ティン」というアタック感を再現
+- ベロシティ感度で表情豊かな演奏が可能
+- Jazz、Neo-Soul、Lo-Fiに最適
+
+■ バリエーション
+- OSC C Level を上げる → よりアタッキー
+- OSC B Level を下げる → よりクリーン
+- OSC A Decay を長くする → ローズ風の余韻
+- Velocity Filter を上げる → よりダイナミック
+```
+
+### ウーリッツァー風FMピアノ
+
+```
+■ 設定
+
+Algorithm: 8（B→A, C→A）
+
+OSC A (Carrier):
+  Waveform: Sine
+  Coarse: 1x
+  Level: 100%
+  Envelope: A=0, D=1000ms, S=40%, R=500ms
+
+OSC B (Modulator):
+  Waveform: Sine
+  Coarse: 1x
+  Fine: +8 cent（デチューン）
+  Level: 45%
+  Envelope: A=0, D=600ms, S=20%, R=300ms
+
+OSC C (Modulator):
+  Waveform: Sine
+  Coarse: 3x
+  Level: 30%
+  Envelope: A=0, D=400ms, S=10%, R=200ms
+
+OSC D:
+  Off
+
+Filter:
+  Type: LP 12dB
+  Cutoff: 3000Hz
+  Resonance: 25%
+  Envelope: A=0, D=200ms, S=30%, R=100ms
+  Env Amount: +30%
+
+Global:
+  Transpose: 0
+  Tone: -10
+  Volume: -3 dB
+
+特徴:
+- デチューンで温かみ
+- フィルターレゾナンスで「ゴリっ」とした質感
+- オーバードライブを後段に追加するとさらに本格的
+```
+
+---
+
+## 実践サウンドデザイン: SFX作成
+
+### レーザー音
+
+```
+■ 設定
+
+Algorithm: 1（直列）
+
+OSC A (Carrier):
+  Waveform: Sine
+  Coarse: 4x
+  Fixed: On → 2000Hz
+  Level: 100%
+  Envelope: A=0, D=300ms, S=0%, R=100ms
+
+OSC B (Modulator):
+  Waveform: Sine
+  Coarse: 8x（2倍の比率）
+  Level: 90%
+  Envelope: A=0, D=200ms, S=0%, R=50ms
+
+OSC C, D:
+  Off
+
+Pitch Envelope:
+  初期ピッチ: +24（2オクターブ上）
+  Decay: 200ms
+  最終ピッチ: 0
+→ 高い音から急降下 = レーザー音
+
+特徴:
+- 固定周波数で鍵盤に依存しない
+- ピッチの急降下がレーザー感を生む
+- Decay時間を変えて様々なレーザー音
+```
+
+### ライザー（上昇SFX）
+
+```
+■ 設定
+
+Algorithm: 5（全並列）
+
+OSC A:
+  Waveform: Saw（ノコギリ波）
+  Coarse: 1x
+  Level: 60%
+  Envelope: A=8000ms, D=0, S=100%, R=500ms
+
+OSC B:
+  Waveform: Sine
+  Coarse: 2x
+  Level: 40%
+  Envelope: A=8000ms, D=0, S=100%, R=500ms
+
+OSC C:
+  Waveform: Noise
+  Level: 30%
+  Envelope: A=8000ms, D=0, S=100%, R=200ms
+
+OSC D:
+  Waveform: Sine
+  Coarse: 0.5x（サブ）
+  Level: 50%
+  Envelope: A=8000ms, D=0, S=100%, R=500ms
+
+Filter:
+  Type: LP 24dB
+  Cutoff: 200Hz（低い）
+  Resonance: 40%
+  Envelope: A=8000ms（長い）, S=100%
+  Env Amount: +80%
+
+LFO:
+  Wave: Saw Up
+  Rate: 開始0.5Hz → 終了20Hz（オートメーション）
+  Destination: Filter Cutoff
+  Amount: 30%
+
+特徴:
+- 8秒かけて全パラメーターが上昇
+- フィルターが閉じた状態から開く
+- ノイズ成分が徐々に加わる
+- LFO速度のオートメーションで緊張感
+- ドロップ前のビルドアップに最適
+```
+
+### アラーム/サイレン音
+
+```
+■ 設定
+
+Algorithm: 1
+
+OSC A (Carrier):
+  Waveform: Sine
+  Coarse: 1x
+  Fixed: On → 800Hz
+  Level: 100%
+  Envelope: A=0, D=0, S=100%, R=50ms
+
+OSC B (Modulator):
+  Waveform: Sine
+  Coarse: 2x
+  Level: 60%
+  Envelope: A=0, D=0, S=100%, R=50ms
+
+LFO:
+  Wave: Sine
+  Rate: 3Hz
+  Amount: 100%
+  Destination: OSC A Pitch（固定周波数モード時はFreq）
+
+効果:
+- サイレンの「ウーウーウー」音
+- LFO Rateで速さ調整
+- LFO Amount で音程幅調整
+
+バリエーション:
+- Rate: 1Hz → ゆっくりしたサイレン
+- Rate: 6Hz → 緊急アラーム
+- Wave: Square → 2音切り替えアラーム
+- Amount: 50% → 控えめな変化
+```
+
+---
+
+## アディティブ合成モード
+
+Algorithm 5（全並列）やAlgorithm 11（FB並列）を使用すると、Operatorをアディティブシンセサイザーとして使えます。
+
+### アディティブ合成の基本
+
+```
+■ アディティブ合成とは
+
+複数のサイン波（倍音）を重ねて音色を作る合成方式。
+FM合成の対極にある手法。
+
+FM合成: 少数のオシレーターで複雑な倍音を「自動生成」
+アディティブ: 各倍音を個別に「手動制御」
+
+Operatorでの実現:
+Algorithm 5 → 4つの独立サイン波
+Algorithm 11 → 4つの独立サイン波（+フィードバック）
+
+■ Algorithm 5 でのオルガンサウンド
+
+OSC A: 1x（基音 = 8' パイプ）Level: 100%
+OSC B: 2x（第2倍音 = 4' パイプ）Level: 60%
+OSC C: 3x（第3倍音 = 2-2/3' パイプ）Level: 40%
+OSC D: 4x（第4倍音 = 2' パイプ）Level: 30%
+
+全OSC Envelope:
+  A=30ms, D=0, S=100%, R=30ms
+→ オルガン的な即座のオン/オフ
+
+結果:
+パイプオルガン的な音色
+各OSCレベルでドローバーを模倣
+
+■ Algorithm 11 でのリッチオルガン
+
+OSC A: 1x, Feedback: 50% → サイン波 + 倍音
+OSC B: 2x, Feedback: 30% → 第2倍音 + 倍音
+OSC C: 4x, Feedback: 20% → 第4倍音 + 倍音
+OSC D: 8x, Feedback: 10% → 第8倍音 + 倍音
+
+フィードバックにより各オシレーターが自己変調
+→ アディティブだがFMの豊かさも加わる
+→ よりリアルなオルガンサウンド
+```
+
+---
+
+## 固定周波数モード
+
+### Fixedモードの活用
+
+```
+■ Fixedモードとは
+
+通常: 鍵盤のピッチに追従（Coarse比率で決定）
+Fixed: Hz単位の固定周波数（鍵盤に追従しない）
+
+切り替え: 各OSCの「Fixed」ボタンをオン
+
+■ Fixedモードが有効な場面
+
+1. ドラムサウンド
+   - キック: Carrier Fixed 60Hz + Modulator Fixed 120Hz
+     Pitch Envelope: -24st downward, Decay 100ms
+   - ハイハット: Carrier Fixed 8000Hz + Modulator Fixed 11314Hz（非整数）
+   - スネア: Carrier Fixed 200Hz + Noise Modulator
+
+2. SFX / 効果音
+   - 鍵盤に関係なく同じ音
+   - レーザー、爆発、環境音
+   - 固定の周波数帯域で設計
+
+3. ノイズテクスチャ
+   - 高い固定周波数 + 高い変調量
+   - ホワイトノイズ的なテクスチャ
+   - パーカッション的な使用
+
+■ Fixed周波数の参考値
+
+20-60Hz: サブベース領域
+60-200Hz: キック、ベースの基音
+200-500Hz: 中低域、ボディ
+500-2000Hz: 中域、メイン
+2000-5000Hz: プレゼンス
+5000-10000Hz: ハイハット的
+10000Hz以上: エア、シズル
+
+■ CarrierとModulatorでの使い分け
+
+Carrier Fixed + Modulator Fixed:
+→ 完全に鍵盤非追従
+→ ドラム、SFX向き
+
+Carrier Normal + Modulator Fixed:
+→ キャリアは鍵盤追従
+→ モジュレーターは固定の変調キャラクター
+→ どの音域でも同じ明るさの変調
+→ DX7のアルゴリズムでよく使われた手法
+
+Carrier Fixed + Modulator Normal:
+→ あまり使わない（特殊な効果）
+```
+
+---
+
+## 比率設定の詳細ガイド
+
+### Coarse（粗調整）の倍音関係
+
+```
+■ 整数比率と倍音の関係
+
+Coarse 0.5x: 1オクターブ下（サブオシレーター）
+Coarse 1x: 基音（ユニゾン）
+Coarse 2x: 1オクターブ上（第2倍音）
+Coarse 3x: 1オクターブ+完全5度上（第3倍音）
+Coarse 4x: 2オクターブ上（第4倍音）
+Coarse 5x: 2オクターブ+長3度上（第5倍音）
+Coarse 6x: 2オクターブ+完全5度上（第6倍音）
+Coarse 7x: 2オクターブ+短7度上（第7倍音）※少し低い
+Coarse 8x: 3オクターブ上（第8倍音）
+
+■ 非整数比率の特性
+
+1.41x (≈√2): 非常に不協和 → 金属的ベル
+1.5x: 完全5度 → まだ協和的
+2.5x: 不協和 → ガムラン的
+3.14x (≈π): 非常に不協和 → メタリック
+3.5x: 不協和 → 教会の鐘
+4.16x: 不協和 → クリスタルベル
+7.13x: 高い不協和 → ノイズ的打楽器
+
+■ 一般的な法則
+
+整数比（1, 2, 3, 4...）:
+→ 整数倍音 = 協和的 = 楽器的
+→ ブラス、ストリングス、オルガン
+
+非整数比（1.41, 2.5, 3.14...）:
+→ 非整数倍音 = 不協和 = 金属的
+→ ベル、ゴング、メタリックサウンド
+
+小さい比率（0.5, 1, 2）:
+→ 低い倍音 = 暗い、太い
+→ ベース、パッド
+
+大きい比率（4, 8, 12）:
+→ 高い倍音 = 明るい、薄い
+→ ベル、チャイム、アタック強調
+```
+
+---
+
+## モジュレーション活用テクニック
+
+### ベロシティモジュレーション
+
+```
+■ ベロシティをモジュレーターレベルに適用
+
+設定方法:
+1. OSC B（Modulator）を選択
+2. LevelのVelocity感度を上げる
+
+効果:
+- 強く弾く → 変調量増加 → 明るい音
+- 弱く弾く → 変調量低下 → 暗い音
+→ アコースティック楽器のような自然な反応
+
+推奨設定:
+エレピ: Velocity 60-80%（表現力重視）
+ベース: Velocity 30-50%（適度な変化）
+パッド: Velocity 10-20%（微妙な変化）
+ベル: Velocity 40-60%
+
+■ ベロシティを複数パラメーターに同時適用
+
+Volume Velocity: 50%（音量変化）
++ OSC B Level Velocity: 60%（倍音変化）
++ Filter Cutoff Velocity: 40%（明るさ変化）
++ Attack Time Velocity: -30%（強→速いアタック）
+
+→ 4次元の表現力を実現
+→ プロフェッショナルな演奏表現
+```
+
+### アフタータッチとMPE
+
+```
+■ Ableton Live 12でのMPE対応
+
+Operatorは MPE (MIDI Polyphonic Expression) に対応:
+- Per-note ピッチベンド
+- Per-note プレッシャー
+- Per-note スライド
+
+MPEコントローラー（Roli Seaboard、Linnstrument等）で:
+- 各ノートごとに独立した変調
+- 指の圧力で音色変化
+- スライドでフィルター変化
+
+設定:
+1. MIDIトラックにMPEコントローラーを接続
+2. Operatorのパラメーターにプレッシャーをマップ
+3. 推奨: Modulator Level にプレッシャーを割り当て
+→ 指の圧力でFM変調量が変化
+→ 非常に表現力豊かな演奏
+
+■ アフタータッチ（チャンネルプレッシャー）
+
+MPEでなくても使える標準的なアフタータッチ:
+- LFO Amount → ビブラートの深さ
+- Filter Cutoff → 音色変化
+- Modulator Level → 倍音変化
+
+設定方法:
+1. Operatorの目的のパラメーターを右クリック
+2. 「Assign to...」からAftertouchを選択
+3. 範囲を調整
+```
+
+---
+
+## プリセット分析と学習法
+
+### Operatorプリセットの分析手順
+
+```
+■ プリセット分析の5ステップ
+
+Step 1: まず聴く
+- プリセットを選択
+- 様々な音域で弾く（C2〜C6）
+- ベロシティを変えて弾く
+- 長いノートと短いノートで弾く
+→ 音色の全体像を把握
+
+Step 2: Algorithmを確認
+- どのアルゴリズムが使われているか
+- Carrier と Modulator の関係を理解
+→ 音色の「骨格」を把握
+
+Step 3: 各OSCの設定を確認
+- 使用中のOSCはどれか
+- 各OSCのCoarse値（倍音比率）
+- 各OSCのLevel値（変調量）
+- 波形は何か（Sine以外も確認）
+→ 音色の「材料」を把握
+
+Step 4: エンベロープを確認
+- 各OSCのADSR値
+- CarrierとModulatorのエンベロープの違い
+- どのように音色が時間変化するか
+→ 音色の「時間軸」を把握
+
+Step 5: フィルター・LFO・グローバルを確認
+- フィルターの有無とタイプ
+- LFOの設定と変調先
+- Spread、Tone、Glideの設定
+→ 音色の「仕上げ」を把握
+
+■ 分析記録テンプレート
+
+プリセット名: ___________
+Algorithm: ___
+OSC A: Wave=___ Coarse=___ Level=___% Env=A___/D___/S___/R___
+OSC B: Wave=___ Coarse=___ Level=___% Env=A___/D___/S___/R___
+OSC C: Wave=___ Coarse=___ Level=___% Env=A___/D___/S___/R___
+OSC D: Wave=___ Coarse=___ Level=___% Env=A___/D___/S___/R___
+Filter: Type=___ Cutoff=___ Res=___% Env=___
+LFO: Wave=___ Rate=___ Amount=___% Dest=___
+Global: Trans=___ Spread=___% Tone=___ Vol=___
+特徴メモ: ________________________________
+```
+
+### 推奨プリセットカテゴリ分析
+
+```
+■ Keys カテゴリ
+学べること: エレピのFM構造、ベロシティマッピング
+注目ポイント: OSC CやDの短いエンベロープ（アタックノイズ）
+
+■ Brass カテゴリ
+学べること: ブラスのAttack設計、複数Modulator活用
+注目ポイント: エンベロープのAttack時間の差異
+
+■ Bell カテゴリ
+学べること: 非整数倍音の使い方、長いDecay
+注目ポイント: Coarse値の非整数設定
+
+■ Bass カテゴリ
+学べること: FMベースの構造、フィルター活用
+注目ポイント: Modulatorレベルとフィルターの組み合わせ
+
+■ Pad カテゴリ
+学べること: アディティブ合成、長いAttack
+注目ポイント: Algorithm 5の使用頻度
+
+■ Percussion カテゴリ
+学べること: Fixed周波数、短いエンベロープ
+注目ポイント: Noise波形の活用
+```
+
+---
+
+## 実践レシピ集: ジャンル別Operator活用
+
+### テクノ向けサウンド
+
+```
+■ テクノFMスタブ
+
+Algorithm: 1
+OSC A: Sine, 1x, 100%, Env: A=0/D=150ms/S=0%/R=50ms
+OSC B: Sine, 2x, 80%, Env: A=0/D=100ms/S=0%/R=30ms
+Filter: LP24, 3000Hz, Res 30%
+→ 短くパンチのあるスタブ
+
+■ テクノFMパーカッション
+
+Algorithm: 9（クロスモジュレーション）
+OSC A: Sine, Fixed 400Hz, 100%, Env: A=0/D=80ms/S=0%/R=20ms
+OSC B: Sine, Fixed 565Hz(×1.41), 100%, Env: A=0/D=60ms/S=0%/R=15ms
+→ メタリックなクリック/ヒット
+
+■ テクノFMハイハット
+
+Algorithm: 1
+OSC A: Sine, Fixed 8000Hz, 100%, Env: A=0/D=200ms/S=0%/R=100ms
+OSC B: Noise, Level 80%, Env: A=0/D=150ms/S=0%/R=80ms
+Filter: HP12, 6000Hz
+→ クリスピーなFMハイハット
+```
+
+### ハウス向けサウンド
+
+```
+■ ハウスFMオルガン
+
+Algorithm: 5（全並列）
+OSC A: Sine, 1x, 100%, Env: A=5ms/D=0/S=100%/R=30ms
+OSC B: Sine, 2x, 70%, Env: A=5ms/D=0/S=100%/R=30ms
+OSC C: Sine, 3x, 40%, Env: A=5ms/D=0/S=90%/R=30ms
+OSC D: Sine, 4x, 25%, Env: A=5ms/D=0/S=80%/R=30ms
+LFO: Sine, 6Hz, 5%, → OSC C Level（Leslie効果）
+→ クラシックなハウスオルガン
+
+■ ハウスFMスタブ（ディスコ風）
+
+Algorithm: 8
+OSC A: Sine, 1x, 100%, Env: A=0/D=300ms/S=40%/R=100ms
+OSC B: Sine, 1x, +7cent, 50%, Env: A=0/D=200ms/S=20%/R=80ms
+OSC C: Sine, 3x, 35%, Env: A=0/D=100ms/S=0%/R=50ms
+Filter: LP24, 2500Hz, Res 20%, Env: D=150ms, Amt +40%
+→ ファンキーなFMスタブ
+```
+
+### アンビエント向けサウンド
+
+```
+■ アンビエントFMテクスチャ
+
+Algorithm: 3（B→A + D→C 並列）
+OSC A: Sine, 1x, 80%, Env: A=5000ms/D=3000ms/S=60%/R=8000ms
+OSC B: Sine, 3.14x, 25%, Env: A=8000ms/D=5000ms/S=10%/R=6000ms
+OSC C: Sine, 0.5x, 50%, Env: A=3000ms/D=0/S=100%/R=10000ms
+OSC D: Sine, 7.13x, 10%, Env: A=10000ms/D=8000ms/S=5%/R=8000ms
+LFO: Sine, 0.08Hz, 15%, → OSC B Level + OSC D Level
+Spread: 90%
+→ ゆっくり変化する金属的テクスチャ
+
+■ アンビエントFMドローン
+
+Algorithm: 11（FB並列）
+OSC A: Sine, 1x, FB=20%, 100%, Env: A=8000ms/S=100%/R=10000ms
+OSC B: Sine, 1.5x, FB=15%, 50%, Env: A=10000ms/S=80%/R=12000ms
+OSC C: Sine, 2x, FB=10%, 30%, Env: A=12000ms/S=60%/R=15000ms
+OSC D: Sine, 3x, FB=5%, 20%, Env: A=15000ms/S=40%/R=20000ms
+LFO: Triangle, 0.05Hz, 10%, → Global Pitch
+→ 倍音が徐々に加わる進化型ドローン
+```
+
+### ドラムンベース向けサウンド
+
+```
+■ リースベース（Reese Bass）FM版
+
+Algorithm: 8
+OSC A: Saw, 1x, 100%, Env: A=0/D=0/S=100%/R=80ms
+OSC B: Sine, 1x, +15cent, 60%, Env: A=0/D=0/S=100%/R=80ms
+OSC C: Sine, 1x, -15cent, 55%, Env: A=0/D=0/S=100%/R=80ms
+Filter: LP24, 1000Hz, Res 25%
+LFO: Sine, 1/8 Sync, 50%, → Filter Cutoff
+→ うねるリースベース
+
+■ ニューロベース
+
+Algorithm: 1
+OSC A: Sine, 1x, 100%, Env: A=0/D=0/S=100%/R=50ms
+OSC B: Sine, 1x, 100%(!), Env: A=0/D=0/S=100%/R=50ms
+LFO: S&H, 1/16 Sync, 80%, → OSC B Level
+Filter: LP24, 2000Hz, Res 40%
+→ 16分音符でランダムに変調量が変化
+→ グリッチ的なベースライン
+
+■ FMアーメンスネアレイヤー
+
+Algorithm: 1
+OSC A: Sine, Fixed 200Hz, 100%, Env: A=0/D=150ms/S=0%/R=80ms
+OSC B: Noise, Level 90%, Env: A=0/D=100ms/S=0%/R=50ms
+Pitch Env: 開始+12st, Decay 30ms
+→ FMスネアをブレイクビーツにレイヤー
+```
+
+---
+
+## Operator トラブルシューティング
+
+### よくある問題と解決策
+
+```
+■ 問題: 音が明るすぎる / 金属的すぎる
+
+原因: Modulatorのレベルが高すぎる
+解決:
+1. Modulator（B, C, D）のLevelを下げる
+2. 20-30%から始めて徐々に上げる
+3. フィルター（LP）を追加して高域カット
+4. Toneパラメーターを下げる
+
+■ 問題: 音が暗すぎる / つまらない
+
+原因: Modulatorのレベルが低すぎる or エンベロープが速すぎる
+解決:
+1. Modulatorのレベルを上げる（50-70%）
+2. ModulatorのDecayを長くする
+3. Coarse比率を変える（高い値を試す）
+4. フィルターを開く
+
+■ 問題: ノイズっぽい / 汚い音
+
+原因: 変調量が過剰 or 非常に高いCoarse比率
+解決:
+1. Modulatorレベルを大幅に下げる
+2. Coarse値を低い整数に変更
+3. フィルター（LP）でノイズ帯域カット
+4. Algorithm をよりシンプルなものに変更
+
+■ 問題: 音域によって音色が大きく変わる
+
+原因: FM合成の特性（比率は同じでも絶対周波数が変わる）
+解決:
+1. ModulatorをFixedモードにする
+   → どの音域でも同じ変調キャラクター
+2. Velocity でModulatorレベルを制御
+3. Key Tracking を調整
+4. 音域を限定して使用
+
+■ 問題: CPUが重い
+
+原因: 4オシレーター全てオン + フィルター + LFO
+解決:
+1. 使わないOSCをオフに
+2. Quality設定をEcoに（品質低下あり）
+3. フリーズ/フラット化
+4. サンプリングしてSimpler/Samplerに読み込む
+
+■ 問題: プリセットの音が楽曲に合わない
+
+解決:
+1. フィルターで帯域調整
+2. Toneで全体の明るさ調整
+3. Modulatorレベルで倍音量調整
+4. エンベロープのDecay/Releaseで余韻調整
+5. Transposeで音域変更
+```
+
+---
+
 ## まとめ
 
 ### Operator基礎

@@ -1642,4 +1642,540 @@ DJ 練習に最適な楽曲リストです。
 
 ---
 
+## DJ練習向けトラック - スキル別セレクション
+
+DJスキルの向上に特化したトラック選定。各スキルを効率的に習得するための楽曲をレベル別に紹介する。
+
+### ビートマッチング入門（BPM 120-128の安定した4つ打ち）
+
+以下のトラックは全て安定した4つ打ちビートを持ち、テンポの揺れがほとんどないため、ビートマッチングの基礎練習に最適である。
+
+| # | 曲名 | BPM | Key | ポイント |
+|---|------|-----|-----|---------|
+| 1 | Daft Punk - One More Time | 123 | 8A | シンプルなキック、明確な構造 |
+| 2 | Frankie Knuckles - Your Love | 120 | 6A | ハウスの基本形。安定したリズム |
+| 3 | Robin S - Show Me Love | 126 | 1B | 明確な8小節フレーズ |
+| 4 | Eric Prydz - Pjanoo | 128 | 5A | プログレッシブな展開で練習幅が広い |
+| 5 | Dennis Ferrer - Hey Hey | 123 | 8A | ディープハウスの基本グルーヴ |
+| 6 | Green Velvet - Flash | 128 | 4A | テックハウスの定番ビート |
+| 7 | Adam Beyer - Drum Machine | 130 | 8A | テクノの基本キック |
+| 8 | Robert Miles - Children | 138 | 6B | トランスのビートマッチ練習 |
+
+### EQミキシング練習
+
+EQを使ったスムーズなトランジションを学ぶためのペアリング例。各ペアは同じBPM帯・キーで構成されている。
+
+**ペア1: ディープハウス (122 BPM, 8A)**
+- Track A: Dennis Ferrer - Hey Hey
+- Track B: Kerri Chandler - Rain (123 BPM)
+- 練習内容: ベースの入れ替え。Track AのLowをカットしながらTrack BのLowをゆっくりフェードイン
+
+**ペア2: テクノ (130 BPM, 5A)**
+- Track A: Ben Klock - Subzero (2A)
+- Track B: Marcel Dettmann - Corebox (5A)
+- 練習内容: 3バンドEQを使ったフルEQミックス。Mid帯の入れ替えがポイント
+
+**ペア3: ハウス (124 BPM, 9A/9B)**
+- Track A: Maceo Plex - Solar Detroit (9B)
+- Track B: Guy J - Lamur (9A)
+- 練習内容: キーが隣接するためハーモニックブレンドが可能
+
+**ペア4: DnB (174 BPM, 8A)**
+- Track A: Chase & Status - Pieces
+- Track B: High Contrast - If We Ever (7B)
+- 練習内容: 高速BPMでのEQトランジション。ベース交換のタイミングが重要
+
+### フィルターミキシング練習
+
+フィルター（HPF/LPF）を活用したトランジション練習用トラック。
+
+1. **Richie Hawtin - Spastik** → **Robert Hood - Minimal Nation**
+   - LPFで前曲をフィルターアウトしながらHPFで後曲をフィルターイン
+   - 16小節かけてゆっくりクロス
+
+2. **Recondite - Placid** → **Stephan Bodzin - Powers of Ten**
+   - メロディックなテクノ同士。パッドの重なりを活かす
+   - HPFで後曲の高域から徐々に全域に開く
+
+3. **Lane 8 - Rise** → **Yotto - Nova**
+   - メロディックハウスのフィルタートランジション
+   - LPFとHPFの同時操作でスムーズなブレンド
+
+### ループ＆ホットキュー練習
+
+ループ機能とホットキューを使ったクリエイティブなミキシング練習用トラック。
+
+1. **Adam Beyer - Your Mind**
+   - ループポイント: イントロの4小節キックパターン
+   - ホットキュー: ブレイク開始点、ドロップ地点、アウトロ開始
+   - 練習: ループを使ったミックスインの延長
+
+2. **Charlotte de Witte - Doppler**
+   - ループポイント: アシッドラインの2小節パターン
+   - ホットキュー: アシッド導入点、ブレイク、クライマックス
+   - 練習: ループを使ったビルドアップの延長テクニック
+
+3. **Fisher - Losing It**
+   - ループポイント: メインボーカルフックの4小節
+   - ホットキュー: ボーカルドロップ、ベースドロップ、アウトロ
+   - 練習: ボーカルループを使ったDJエディット
+
+4. **Bicep - Glue**
+   - ループポイント: シンセアルペジオの8小節
+   - ホットキュー: メインリフ導入、ブレイク、最終ドロップ
+   - 練習: メロディックループのレイヤリング
+
+### スクラッチ練習（ターンテーブリスト向け）
+
+スクラッチテクニックの習得に適したトラック。明確なサンプルポイントを持つ曲を選定。
+
+1. **The Invisibl Skratch Piklz - Practice Yo' Cuts**
+   - 特徴: スクラッチ練習に特化して制作されたトラック
+   - 練習: ベイビースクラッチ、チャープ、フレア
+
+2. **Beastie Boys - Sure Shot**
+   - BPM: 98
+   - 特徴: 明確なブレイクポイントとスクラッチに適したサンプル
+   - 練習: トランスフォーマースクラッチ
+
+3. **Funkmaster Flex - 60 Minutes of Funk**
+   - 特徴: ターンテーブリズムの教科書的ミックス
+   - 練習: クイックミックスとスクラッチの複合技
+
+4. **Q-Bert - Wave Twisters**
+   - 特徴: ターンテーブリズムの芸術的到達点
+   - 練習: 高度なスクラッチパターンの研究
+
+---
+
+## ミキシング教材曲 - トランジションテクニック別
+
+各トランジションテクニックを実践で学ぶための具体的な楽曲ペアと手順を解説する。
+
+### テクニック1: ロングブレンド（32-64小節）
+
+**推奨ペア**: Recondite - Placid → Tale Of Us - Another Earth
+
+手順:
+1. Placidのアウトロが始まったら、Another Earthをフェーダー0でキューイン
+2. BPMを合わせ（122 BPM）、Another Earthのキック導入部分をループ
+3. 32小節かけてAnother EarthのEQ Lowを0から上げていく
+4. 同時にPlacidのEQ Lowを下げていく
+5. 中盤でMidとHighも徐々にクロス
+6. 最後の8小節でPlacidのフェーダーを0に
+
+**なぜこのペアか**: 両曲ともメロディックテクノで、BPMが近く（122 BPM）、キーの相性もよい。パッドの重なりが美しいハーモニーを生む。
+
+### テクニック2: カットミックス（瞬時切替）
+
+**推奨ペア**: Charlotte de Witte - Selected → Amelie Lens - Exhale
+
+手順:
+1. Selectedのブレイクダウンに入ったらExhaleをキューポイントに待機
+2. Selectedのドロップの瞬間（1拍目）でフェーダーをExhaleに一気に切替
+3. EQは事前にExhaleのLow/Mid/Highを次曲に合わせてプリセット
+4. カット後、必要に応じてEQを微調整
+
+**なぜこのペアか**: 両曲ともハードテクノで、ブレイクダウン→ドロップの構造が似ている。エネルギーレベルの維持が容易。
+
+### テクニック3: アカペラレイヤー
+
+**推奨ペア**: Robin S - Show Me Love (インスト) + CamelPhat & Elderbrook - Cola (アカペラ)
+
+手順:
+1. Show Me Loveのインストバージョンを再生
+2. Colaのアカペラをキーとテンポを合わせてレイヤー
+3. EQでShow Me Loveの中高域を少し下げてアカペラのスペースを作る
+4. 8-16小節アカペラをレイヤーした後、Colaのフルバージョンにスワップ
+
+### テクニック4: エコーアウト
+
+**推奨ペア**: Ben Klock - Subzero → DVS1 - Black Russian
+
+手順:
+1. Subzeroの最後のフレーズでエコー/ディレイエフェクトをオン
+2. フェーダーを下げながらエコーのフィードバックを上げる
+3. エコーが鳴っている間にBlack RussianのLow抜きでフェードイン
+4. エコーが消えるタイミングでBlack RussianのLowを入れる
+
+### テクニック5: バックスピン
+
+**推奨ペア**: Pendulum - Tarantula → Noisia - Could This Be
+
+手順:
+1. Tarantulaのブレイク部分でバックスピン
+2. バックスピンの音が鳴っている間にCould This Beをフェードイン
+3. DnBの高エネルギー曲間で効果的なドラマチックなトランジション
+
+---
+
+## プロデューサー分析向け - サウンドデザイン研究トラック
+
+音楽制作者がサウンドデザインやアレンジメントを学ぶための楽曲。各曲の注目すべきプロダクション要素を解説する。
+
+### キック＆ベースデザイン
+
+1. **Adam Beyer - Drum Machine**
+   - 注目要素: テクノキックの教科書。パンチのあるトランジェントとサブベースの分離
+   - 分析ポイント: キックのアタック成分（2-4kHz）とボディ（80-120Hz）のバランス
+   - 参考ツール: キックをスペクトラムアナライザーで分析
+
+2. **Noisia - Could This Be**
+   - 注目要素: ニューロファンクのベースデザイン。FM合成とウェーブテーブル
+   - 分析ポイント: ベースのモジュレーション、レゾナンスの使い方
+   - 参考ツール: Serum / Massive Xでの再現を試みる
+
+3. **Skrillex - Scary Monsters and Nice Sprites**
+   - 注目要素: グロウルベースのデザイン。ヘビーなディストーション
+   - 分析ポイント: ベースの周波数帯域ごとの処理（マルチバンドディストーション）
+   - 参考ツール: OTTコンプレッサーの使用法
+
+### アレンジメント構造
+
+4. **Eric Prydz - Pjanoo**
+   - 注目要素: プログレッシブなビルドアップの教科書
+   - 分析ポイント: 要素の追加/削除のタイミング、テンションの曲線
+   - アレンジ構成: Intro(32) → Build(16) → Drop(32) → Break(16) → Drop(32) → Outro(16)
+
+5. **Burial - Archangel**
+   - 注目要素: 従来のクラブトラックと異なる不規則な構造
+   - 分析ポイント: サンプルのレイヤリング、空間処理（リバーブ/ディレイ）
+   - ユニークな点: DAWではなくSoundForgeで制作されたと言われる
+
+6. **Jon Hopkins - Open Eye Signal**
+   - 注目要素: アンビエントからテクノへの段階的な変容
+   - 分析ポイント: 7分間のゆっくりとしたビルドアップ、テクスチャの変化
+   - マスタリング: ダイナミクスの変化幅が広い
+
+### ミキシング（音響処理）
+
+7. **Burial - Untrue (アルバム全体)**
+   - 注目要素: ローファイな質感の意図的な作り込み
+   - 分析ポイント: サンプルのビットクラッシュ、レイン/クラックルのレイヤー
+   - 空間処理: 独特のリバーブ使いと定位
+
+8. **Amon Tobin - ISAM (アルバム全体)**
+   - 注目要素: フィールドレコーディングの極限的な加工
+   - 分析ポイント: グラニュラーシンセシス、サンプルマニピュレーション
+   - テクスチャ: 有機的な素材からの電子音生成
+
+9. **Four Tet - New Energy (アルバム全体)**
+   - 注目要素: アコースティックサンプルとエレクトロニクスの融合
+   - 分析ポイント: サンプルの選択とタイミング、ハーモニックな重ね方
+   - ミックス: クリーンでありながら温かみのあるサウンド
+
+---
+
+## 年代別ランドマーク - エレクトロニックダンスミュージック史
+
+各年代を象徴する楽曲を時系列で並べ、エレクトロニックダンスミュージックの進化を辿る。
+
+### 1980年代: 誕生と萌芽
+
+| 年 | 曲名 | アーティスト | ジャンル | 歴史的意義 |
+|----|------|-------------|---------|-----------|
+| 1981 | Planet Rock | Afrika Bambaataa | エレクトロ | エレクトロニックダンスミュージックの原点 |
+| 1984 | No UFOs | Juan Atkins | テクノ | デトロイトテクノの誕生 |
+| 1986 | Your Love | Frankie Knuckles | ハウス | シカゴハウスの確立 |
+| 1987 | Acid Tracks | Phuture | アシッドハウス | TB-303を使用したアシッドハウスの誕生 |
+| 1988 | Big Fun | Inner City | テクノ | デトロイトテクノのポップ化 |
+| 1988 | Strings of Life | Rhythim Is Rhythim | テクノ | テクノのエモーショナルな側面を開拓 |
+| 1989 | Voodoo Ray | A Guy Called Gerald | アシッドハウス | UKアシッドハウスの代表作 |
+
+### 1990年代: 爆発的拡大
+
+| 年 | 曲名 | アーティスト | ジャンル | 歴史的意義 |
+|----|------|-------------|---------|-----------|
+| 1990 | LFO | LFO | テクノ/ベース | Warp Recordsの設立に貢献 |
+| 1991 | Energy Flash | Joey Beltram | アシッドテクノ | ハードテクノの原型 |
+| 1992 | Papua New Guinea | Future Sound of London | アンビエント | アンビエントブレイクビーツの傑作 |
+| 1993 | Inner City Life | Goldie | ジャングル/DnB | ジャングルの芸術的到達点 |
+| 1994 | Spastik | Plastikman | ミニマルテクノ | ミニマリズムの極致 |
+| 1995 | Born Slippy | Underworld | テクノ | 映画「トレインスポッティング」で世界的認知 |
+| 1996 | Children | Robert Miles | ドリームトランス | トランスのポップ化 |
+| 1997 | Block Rockin' Beats | Chemical Brothers | ビッグビート | ビッグビートのメインストリーム化 |
+| 1998 | Music Sounds Better with You | Stardust | フィルターハウス | フレンチハウスの黄金期 |
+| 1999 | Windowlicker | Aphex Twin | IDM | エレクトロニカの限界を押し広げた |
+
+### 2000年代: 細分化と再統合
+
+| 年 | 曲名 | アーティスト | ジャンル | 歴史的意義 |
+|----|------|-------------|---------|-----------|
+| 2000 | Pjanoo | Eric Prydz | プログレッシブハウス | プログレッシブハウスの再定義 |
+| 2001 | Dexter | Ricardo Villalobos | ミニマル | マイクロハウスの金字塔 |
+| 2003 | Anti War Dub | Digital Mystikz | ダブステップ | ダブステップの原点 |
+| 2004 | D.A.N.C.E. | Justice | フレンチエレクトロ | エレクトロリバイバルの象徴 |
+| 2005 | Midnight Request Line | Skream | ダブステップ | ダブステップのブレイクスルー |
+| 2006 | Archangel | Burial | ポストダブステップ | ダンスミュージックの内省化 |
+| 2007 | Rej | Âme | ディープハウス | Innervisions設立、ディープハウス復権 |
+| 2008 | For an Angel 2009 | Paul van Dyk | トランス | トランスリバイバルの始まり |
+| 2009 | Scary Monsters | Skrillex | ブロステップ | アメリカンEDMブームの予兆 |
+
+### 2010年代: メインストリーム化とアンダーグラウンドの抵抗
+
+| 年 | 曲名 | アーティスト | ジャンル | 歴史的意義 |
+|----|------|-------------|---------|-----------|
+| 2010 | Strobe | Deadmau5 | プログレッシブハウス | EDMのメインストリーム化 |
+| 2011 | Levels | Avicii | EDM | スウェディッシュハウスマフィアの時代 |
+| 2012 | Subzero | Ben Klock | テクノ | Berghainとベルリンテクノの世界化 |
+| 2013 | Latch | Disclosure | UKガレージ/ハウス | UKベースミュージックの再興 |
+| 2014 | Cola | CamelPhat | テックハウス | テックハウスのポップ化 |
+| 2015 | Opus | Eric Prydz | プログレッシブ | プログレッシブハウスの再評価 |
+| 2016 | Losing It | Fisher | テックハウス | SNS時代のダンスミュージック |
+| 2017 | Glue | Bicep | ブレイクビーツ/ハウス | ノスタルジーとモダンの融合 |
+| 2018 | Starry Night | Peggy Gou | ハウス | アジアDJの世界進出 |
+| 2019 | Doppler | Charlotte de Witte | テクノ | 女性テクノDJの台頭 |
+
+### 2020年代: ポストパンデミックとハイブリッド化
+
+| 年 | 曲名 | アーティスト | ジャンル | 歴史的意義 |
+|----|------|-------------|---------|-----------|
+| 2020 | Energy | Disclosure | UKダンス | パンデミック下でのリリース |
+| 2021 | Breathing | Ben Böhmer | メロディックテクノ | ストリーミング時代のダンスミュージック |
+| 2022 | Hallucination | Anyma | テクノ/Web3 | NFTとダンスミュージックの融合 |
+| 2023 | Various | Various | ハードテクノ | ハードテクノリバイバルの世界的拡大 |
+
+---
+
+## 日本のシーン必聴曲30選
+
+日本のエレクトロニックダンスミュージックシーンは独自の発展を遂げ、世界的にも高い評価を受けている。以下に日本シーンを理解するための必聴曲を紹介する。
+
+### テクノ/ハウスシーンの先駆者
+
+1. **Ken Ishii - Extra**
+   - BPM: 135
+   - Key: 4A (F# Minor)
+   - 特徴: 日本テクノの国際的な先駆者。R&Sレーベルからのリリース
+   - 歴史的意義: 日本のテクノを世界に知らしめた作品
+
+2. **Fumiya Tanaka - You Find the Way**
+   - BPM: 128
+   - Key: 8A (A Minor)
+   - 特徴: ミニマルテクノの巨匠。Perilonレーベル共同主宰
+   - 歴史的意義: ベルリンのミニマルシーンとの架け橋
+
+3. **DJ Nobu - Follakzoid IIII (Edit)**
+   - BPM: 130
+   - Key: 6A (Ab Minor)
+   - 特徴: Future Terrorの首謀者。アシッドテクノの達人
+   - 歴史的意義: 日本アンダーグラウンドテクノの象徴
+
+4. **Soichi Terada - Sunshower**
+   - BPM: 122
+   - Key: 9B (E Major)
+   - 特徴: 90年代に制作された日本産ディープハウス
+   - 歴史的意義: 2010年代にリイシューされ世界的に再評価
+
+5. **Shinichi Atobe - Butterfly Effect**
+   - BPM: 126
+   - Key: 11A (C Minor)
+   - 特徴: Chain Reaction（Basic Channel系列）からのリリース
+   - 歴史的意義: デトロイト/ベルリンのダブテクノと日本の美意識の融合
+
+6. **DJ Sodeyama - Convexity**
+   - BPM: 132
+   - Key: 3A (Eb Minor)
+   - 特徴: ベルリン在住の日本人テクノアーティスト
+   - 歴史的意義: 海外で活躍する日本人DJの代表格
+
+7. **Wata Igarashi - Agartha**
+   - BPM: 128
+   - Key: 5A (G Minor)
+   - 特徴: トリッピーでサイケデリックなテクノ
+   - 歴史的意義: Midgar Records主宰。世界ツアーを展開
+
+8. **Kuniyuki Takahashi - Earth Beats**
+   - BPM: 120
+   - Key: 7B (A Major)
+   - 特徴: 札幌出身。ジャズ/アフロとハウスの融合
+   - 歴史的意義: 日本のディープハウスの独自性を確立
+
+### エレクトロニカ/実験音楽
+
+9. **Cornelius - Star Fruits Surf Rider**
+   - BPM: 130
+   - Key: 10B (B Major)
+   - 特徴: 渋谷系の代表格。ポップとエレクトロニクスの融合
+   - 歴史的意義: 日本のエレクトロニックポップを世界に発信
+
+10. **Boredoms - Super Going**
+    - BPM: Variable
+    - Key: Various
+    - 特徴: 大阪の実験音楽バンド。ノイズとトランスの融合
+    - 歴史的意義: 日本のアヴァンギャルド電子音楽の代表
+
+11. **Susumu Yokota - Sakura**
+    - BPM: 120
+    - Key: 2B (Bb Major)
+    - 特徴: アンビエントハウスの傑作。桜をテーマにした日本的美学
+    - 歴史的意義: 日本の美意識をエレクトロニカで表現した先駆作
+
+12. **Ryuichi Sakamoto - Async**
+    - BPM: Free tempo
+    - Key: Various
+    - 特徴: 坂本龍一の晩年の傑作。病後の内省的電子音楽
+    - 歴史的意義: YMO以降の日本電子音楽の到達点
+
+13. **Merzbow - Pulse Demon**
+    - BPM: N/A
+    - Key: N/A
+    - 特徴: ノイズミュージックの極北
+    - 歴史的意義: 日本のノイズシーンの世界的評価
+
+14. **DJ Krush - Meiso**
+    - BPM: 90
+    - Key: 6A (Ab Minor)
+    - 特徴: 日本のターンテーブリストの先駆者。トリップホップとの親和性
+    - 歴史的意義: Mo' Waxからのリリースで世界進出
+
+### クラブシーン/ダンスミュージック
+
+15. **Takkyu Ishino - Berlin Trax**
+    - BPM: 130
+    - Key: 8A (A Minor)
+    - 特徴: 電気グルーヴのメンバー。ジャーマンテクノとの架け橋
+    - 歴史的意義: Love Paradeへの日本人DJ参加の先駆け
+
+16. **Denki Groove (電気グルーヴ) - Shangri-La**
+    - BPM: 135
+    - Key: 5B (G Major)
+    - 特徴: 日本のテクノポップの金字塔。キャッチーで実験的
+    - 歴史的意義: テクノをお茶の間に届けた功績
+
+17. **m-flo - Come Again**
+    - BPM: 128
+    - Key: 4B (F# Major)
+    - 特徴: 日本のR&B/エレクトロニックポップ
+    - 歴史的意義: J-POPとクラブミュージックの橋渡し
+
+18. **MONDO GROSSO - Life feat. bird**
+    - BPM: 120
+    - Key: 9A (E Minor)
+    - 特徴: 大沢伸一によるハウスプロジェクト
+    - 歴史的意義: 日本のクラブジャズ/ハウスの代表作
+
+19. **AOKI takamasa - Silicom**
+    - BPM: 125
+    - Key: 11A (C Minor)
+    - 特徴: グリッチ/ミニマルエレクトロニカ
+    - 歴史的意義: OP.disc / Raster-Notonからの世界リリース
+
+20. **Gonno - Acdise**
+    - BPM: 128
+    - Key: 7A (A Minor)
+    - 特徴: アシッドハウスの現代的解釈。Running Backからリリース
+    - 歴史的意義: ヨーロッパのクラブシーンで高い評価を獲得
+
+### 現代の日本シーン
+
+21. **Samo DJ & Gonno - Narashino Exit**
+    - BPM: 126
+    - Key: 3B (Eb Major)
+    - 特徴: イタリアのDJとの国際コラボレーション
+    - 歴史的意義: 国境を越えたコラボの好例
+
+22. **CYK (Collective)**
+    - BPM: Various
+    - Key: Various
+    - 特徴: 東京のDJコレクティブ。多様なサウンドの融合
+    - 歴史的意義: 日本の次世代クラブカルチャーを牽引
+
+23. **Mars89 - End of the Death**
+    - BPM: 140
+    - Key: 1A (Ab Minor)
+    - 特徴: ダーク/インダストリアルなベースミュージック
+    - 歴史的意義: 日本のヘビーベースミュージックの新鋭
+
+24. **Sapphire Slows - Behind Every Cloud**
+    - BPM: 120
+    - Key: 6B (Gb Major)
+    - 特徴: ドリームポップとエレクトロニカの融合
+    - 歴史的意義: Not Not Funからのリリースで海外認知
+
+25. **Chee Shimizu - 5years (Compilation)**
+    - BPM: Various
+    - Key: Various
+    - 特徴: Organic Music店主によるキュレーション
+    - 歴史的意義: 日本のディギング文化の象徴
+
+26. **Powder (DJ)**
+    - BPM: 120-130
+    - Key: Various
+    - 特徴: Boiler Room Tokyoで世界的注目を集めた女性DJ
+    - 歴史的意義: 日本の女性DJの国際的認知の拡大
+
+27. **XLII (DJ Masda)**
+    - BPM: 126
+    - Key: 10A (B Minor)
+    - 特徴: ベルリン在住。ディープハウス/テクノ
+    - 歴史的意義: Perlon周辺での活動
+
+28. **Dommuneプレゼンツ各種**
+    - BPM: Various
+    - Key: Various
+    - 特徴: 宇川直宏による配信プラットフォーム
+    - 歴史的意義: 日本のクラブカルチャーのオンライン化を先導
+
+29. **Foodman - Ez Minzoku**
+    - BPM: Variable
+    - Key: Various
+    - 特徴: 名古屋出身。デコンストラクテッドクラブ
+    - 歴史的意義: Hyperdubからのリリース。日本の実験的クラブミュージック
+
+30. **Visible Cloaks - Reassemblage**
+    - BPM: Various
+    - Key: Various
+    - 特徴: ポートランド拠点だが日本音楽に深く影響されたアンビエント
+    - 歴史的意義: 日本の環境音楽（細野晴臣など）の世界的再評価に貢献
+
+---
+
+## 重要レーベルガイド
+
+DJが知っておくべき重要レーベルとその代表曲。レーベルのサウンド傾向を理解することで、楽曲ディギングの効率が上がる。
+
+| レーベル | 国 | ジャンル | 代表曲 | Bandcamp/URL |
+|---------|-----|---------|--------|-------------|
+| Drumcode | スウェーデン | テクノ | Adam Beyer - Drum Machine | drumcode.se |
+| Kompakt | ドイツ | ミニマル/ポップ | Superpitcher - Happiness | kompakt.fm |
+| Ostgut Ton | ドイツ | テクノ | Ben Klock - Subzero | ostgut.de/ton |
+| Innervisions | ドイツ | ディープハウス | Âme - Rej | innervisions.de |
+| Afterlife | イタリア | メロディックテクノ | Tale Of Us - Another Earth | afterlifeofc.com |
+| Hospital Records | UK | リキッドDnB | High Contrast - If We Ever | hospitalrecords.com |
+| Metalheadz | UK | DnB | Goldie - Inner City Life | metalheadz.co.uk |
+| Hyperdub | UK | ベースミュージック | Burial - Archangel | hyperdub.net |
+| Anjunabeats | UK | トランス | Above & Beyond - Sun & Moon | anjunabeats.com |
+| Defected | UK | ハウス | Various | defected.com |
+| Dirtybird | US | テックハウス | Claude VonStroke | dirtybird.com |
+| Running Back | ドイツ | ディスコ/ハウス | Gerd Janson curated | runningback.com |
+| Perlon | ドイツ | ミニマル | Ricardo Villalobos | perlon.net |
+| Ed Banger | フランス | エレクトロ | Justice - D.A.N.C.E. | edbangerrecords.com |
+
+---
+
+## デジタルクレート掘りの方法
+
+推奨トラックを見つけるためのプラットフォームとテクニック。
+
+### 主要プラットフォーム
+
+1. **Beatport** - 最大のDJダウンロードストア。ジャンル/BPM/キーで検索可能
+2. **Bandcamp** - インディーレーベルの宝庫。アーティスト直接支援
+3. **Juno Download** - UK拠点の老舗。レアなUKベース系が充実
+4. **Traxsource** - ハウス系に特化。クオリティの高いキュレーション
+5. **SoundCloud** - 無料トラックやDJミックスの発見に
+6. **YouTube (DJ sets)** - Boiler Room、HOR Berlin、Cercleなど
+7. **Spotify/Apple Music** - プレイリストによるディスカバリー
+
+### 効率的なディギングのコツ
+
+- **レーベルフォロー**: 好みのレーベルの新譜を定期的にチェック
+- **チャートウォッチ**: Beatport/Traxsourceの各ジャンルチャートを週次確認
+- **DJ Mix分析**: 好きなDJのミックスをShazamやTrackIDで解析
+- **Related Artists**: Spotifyの「関連アーティスト」機能でディスカバリー
+- **Discogs**: レアなアナログ盤の情報源。レーベルの作品一覧が便利
+
+---
+
 **次**: [サンプルパック](./sample-packs.md)

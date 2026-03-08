@@ -2193,6 +2193,591 @@ Moog的
 
 ---
 
+## リードサウンドとプラックの作り方
+
+### リードシンセの音作り理論
+
+リードシンセは楽曲のメロディを担う最も目立つ要素です。Analogの温かみあるキャラクターは、ビンテージからモダンまで多彩なリードサウンドを実現します。
+
+```
+リードサウンドの設計原則:
+
+1. 明瞭なアタック:
+   Amp Env Attack: 0-10ms
+   → メロディの音程が即座に認識される
+   → 遅いアタックはパッドに近づく
+
+2. フィルターエンベロープで「噛みつき」:
+   Filter Env Amount: +40-70%
+   Filter Env Decay: 200-600ms
+   → アタック時に明るく、その後暗くなる
+   → Moogリード特有のキャラクター
+
+3. 適度なレゾナンス:
+   Resonance: 30-50%
+   → カットオフ周辺が強調されて存在感UP
+   → 高すぎるとキンキンして耳障り
+
+4. Unisonで厚みを出す:
+   2-4 Voices, Detune 15-30%
+   → 単音でも力強い存在感
+   → 多すぎるとリードの輪郭がぼやける
+
+5. ビブラートで生命感:
+   LFO → Pitch: Sine, 4-6Hz, Amount 3-8%
+   → 人の歌声に近い揺らぎ
+   → Mod Wheelで制御するとライブ感UP
+```
+
+```
+リードサウンドバリエーション:
+
+【ファットMoogリード】
+  OSC1: Saw, Level: 100%
+  OSC2: Saw, Detune: +8, Level: 90%
+  Sub: Triangle, -12, Level: 20%
+  Filter: 24dB LP, Cutoff: 2500Hz, Reso: 40%, Drive: 35%
+  Filter Env: A:5ms D:400ms S:40% R:300ms, Amount: +60%
+  Amp Env: A:3ms D:300ms S:75% R:200ms
+  Unison: 2 Voices, Detune: 12%
+  LFO → Pitch: Sine, 5Hz, Amount: 5%
+  → Minimoog的な太いリード
+  → ソロメロディに最適
+
+【シンセブラス】
+  OSC1: Saw, Level: 100%
+  OSC2: Square, Width: 40%, Semi: 0, Level: 75%
+  Filter: 24dB LP, Cutoff: 1800Hz, Reso: 25%, Drive: 20%
+  Filter Env: A:30ms D:300ms S:50% R:200ms, Amount: +50%
+  Amp Env: A:20ms D:200ms S:80% R:150ms
+  Unison: 4 Voices, Detune: 20%
+  → ホーンセクション的なサウンド
+  → コードスタブにも使える
+
+【ナスティリード（攻撃的）】
+  OSC1: Saw, Level: 100%
+  OSC2: Square, Width: 25%, Detune: +12, Level: 95%
+  Noise: White, 5%
+  Filter: 24dB LP, Cutoff: 3500Hz, Reso: 55%, Drive: 50%
+  Filter Env: A:0 D:500ms S:35% R:300ms, Amount: +70%
+  Amp Env: A:0 D:400ms S:70% R:250ms
+  Unison: 3 Voices, Detune: 20%
+  → 歪みと攻撃性のあるリード
+  → Techno/Industrial向け
+
+【メランコリックリード（哀愁系）】
+  OSC1: Triangle, Level: 100%
+  OSC2: Saw, Semi: +12, Detune: +5, Level: 50%
+  Filter: 24dB LP, Cutoff: 1500Hz, Reso: 20%, Drive: 10%
+  Filter Env: A:30ms D:800ms S:45% R:600ms, Amount: +30%
+  Amp Env: A:15ms D:500ms S:70% R:400ms
+  LFO → Pitch: Sine, 5Hz, Amount: 6%（遅延ビブラート推奨）
+  Unison: 2 Voices, Detune: 8%
+  → 柔らかく切ない音色
+  → メロディックテクノ、プログレッシブハウスに
+```
+
+### プラックサウンドの作り方
+
+プラック（Pluck）は短いDecayとゼロSustainで作る、弦を弾いたような鋭い音色です。アルペジオやシーケンスに欠かせません。
+
+```
+プラックサウンドの基本構造:
+
+重要ポイント:
+  Sustain = 0% が基本（Amp Env, Filter Env両方）
+  → キーを押し続けても音は減衰する
+  → 弦楽器の「弾く」動作を再現
+
+  Decayの長さがキャラクターを決定:
+    50-100ms: 極短プラック（チック音）
+    100-300ms: 標準プラック（ギター的）
+    300-600ms: ロングプラック（ハープ的）
+
+【ベーシックプラック】
+  OSC1: Saw, Level: 100%
+  OSC2: Triangle, Semi: +12, Level: 40%
+  Filter: 24dB LP, Cutoff: 800Hz, Reso: 20%
+  Filter Env: A:0 D:200ms S:0% R:150ms, Amount: +55%
+  Amp Env: A:0 D:250ms S:0% R:200ms
+  → クリーンで使いやすいプラック
+  → アルペジオの定番
+
+【メタリックプラック】
+  OSC1: Square, Width: 30%, Level: 100%
+  OSC2: Saw, Semi: +7, Level: 60%
+  Filter: 24dB LP, Cutoff: 1200Hz, Reso: 45%, Drive: 25%
+  Filter Env: A:0 D:150ms S:0% R:100ms, Amount: +65%
+  Amp Env: A:0 D:200ms S:0% R:150ms
+  → 金属的な響きのプラック
+  → テクノシーケンスに
+
+【ソフトプラック（マリンバ的）】
+  OSC1: Triangle, Level: 100%
+  OSC2: Triangle, Semi: +12, Level: 30%
+  Filter: 12dB LP, Cutoff: 2000Hz, Reso: 10%
+  Filter Env: A:0 D:300ms S:0% R:250ms, Amount: +25%
+  Amp Env: A:0 D:400ms S:0% R:350ms
+  → 柔らかい木琴的なプラック
+  → チルアウト、ローファイに
+
+【シャーププラック（DJ用）】
+  OSC1: Saw, Level: 100%
+  OSC2: Saw, Detune: +10, Level: 90%
+  Filter: 24dB LP, Cutoff: 1500Hz, Reso: 35%, Drive: 15%
+  Filter Env: A:0 D:120ms S:0% R:80ms, Amount: +70%
+  Amp Env: A:0 D:150ms S:0% R:100ms
+  Unison: 2 Voices, Detune: 15%
+  → 鋭くパンチのあるプラック
+  → ドロップのアクセントに
+```
+
+---
+
+## FXサウンドデザイン
+
+### Analogを使ったエフェクトサウンド
+
+Analogは楽音だけでなく、効果音やトランジションサウンドの制作にも活用できます。
+
+```
+FXサウンド レシピ集:
+
+【ライザー（上昇音）】
+  OSC1: Saw, Level: 100%
+  OSC2: Saw, Detune: +20, Level: 80%
+  Noise: White, 15%
+  Filter: 24dB LP, Cutoff: オートメーション（200Hz → 8000Hz）
+  Resonance: 45%
+  Amp Env: A:4000ms D:0 S:100% R:500ms
+  Unison: 6 Voices, Detune: 45%
+  使い方:
+    4-8小節かけてカットオフを上げる
+    Resoが高いほどドラマチック
+    ビルドアップの定番エフェクト
+
+【ダウンスイープ（下降音）】
+  OSC1: Saw, Level: 100%
+  Noise: White, 20%
+  Filter: 24dB LP, Cutoff: オートメーション（6000Hz → 200Hz）
+  Resonance: 50%
+  Drive: 30%
+  使い方:
+    ドロップ直後の1-2拍で急降下
+    インパクトの強調
+
+【ホワイトノイズスウィープ】
+  OSC1: Off
+  OSC2: Off
+  Noise: White, 100%
+  Filter: 24dB LP, Cutoff: オートメーション
+  Resonance: 30%
+  Amp Env: A:2000ms D:1000ms S:80% R:3000ms
+  使い方:
+    海の波のような効果
+    トランジション、フィルイン
+
+【レーザー効果音】
+  OSC1: Saw, Level: 100%
+  Filter: 24dB LP, Cutoff: 5000Hz, Reso: 80%
+  Filter Env: A:0 D:100ms S:0% R:50ms, Amount: +90%
+  Amp Env: A:0 D:150ms S:0% R:50ms
+  Pitch Env: 非常に速いDecay（+24 Semi → 0）
+  使い方:
+    短い単発のアクセント
+    SFX的な用途
+
+【サイレン】
+  OSC1: Saw, Level: 100%
+  Filter: 24dB LP, Cutoff: 3000Hz, Reso: 30%
+  LFO → Pitch: Sine, Rate: 2Hz, Amount: 50%
+  Amp Env: A:500ms D:0 S:100% R:500ms
+  使い方:
+    警告音的な効果
+    テクノのブレイクダウンに
+```
+
+---
+
+## レイヤリングテクニック
+
+### Analogを他のインストゥルメントと組み合わせる
+
+単体のAnalogでは得られない音の厚みや複雑さを、レイヤリング（複数の音源を重ねる）で実現します。
+
+```
+レイヤリングの基本原則:
+
+1. 各レイヤーの役割を明確にする:
+   Layer 1 (Body):  メインの音色、中域担当
+   Layer 2 (Top):   アタックや高域の明るさ
+   Layer 3 (Sub):   低域の土台
+   Layer 4 (Noise): 空気感、テクスチャ
+
+2. 周波数帯域の棲み分け:
+   各レイヤーが異なる帯域を担当
+   → EQで被りを処理
+   → フィルターのCutoffで住み分け
+
+3. 音量バランス:
+   メインレイヤー: 0 dB（基準）
+   サブレイヤー: -3 〜 -6 dB
+   テクスチャ: -6 〜 -12 dB
+
+実践的なレイヤリング例:
+
+【リッチなリードサウンド】
+  Layer 1 (Analog):
+    Saw + Saw, Unison 2, 中域担当
+    Filter: 24dB LP, Cutoff 2500Hz
+  Layer 2 (Wavetable):
+    デジタルな高域のきらめき
+    HighPass 2000Hz以上
+  Layer 3 (Analog):
+    Triangle -12 Semi, サブレイヤー
+    LowPass 500Hz以下
+
+【厚いパッドサウンド】
+  Layer 1 (Analog):
+    Warm Pad（メイン）
+    Cutoff: 1200Hz, Unison 6
+  Layer 2 (Analog):
+    PWM String Pad（高域）
+    Cutoff: 2500Hz, Unison 4
+  Layer 3 (Operator):
+    FM的なベル音（アクセント）
+    高域でキラキラ
+
+【パワフルなベースサウンド】
+  Layer 1 (Analog):
+    Saw + Square（メインベース）
+    Cutoff: 800Hz, Mono
+  Layer 2 (Analog):
+    Triangle -12 Semi（サブベース）
+    Cutoff: 200Hz, No Filter Env
+  処理:
+    Layer 2にサイドチェインコンプ
+    キックとの棲み分け
+```
+
+---
+
+## プリセット分析と改造テクニック
+
+### 既存プリセットから学ぶ
+
+Analogのファクトリープリセットは音作りの教科書です。プリセットのパラメータを分析することで、サウンドデザインの技法を学ぶことができます。
+
+```
+プリセット分析の手順:
+
+Step 1: プリセットをロード
+  → まず音を聴いて印象をメモ
+
+Step 2: オシレーターセクションを確認
+  → どの波形の組み合わせか
+  → DetuneやSemiの設定は
+  → Noiseの量は
+
+Step 3: フィルター設定を確認
+  → フィルタータイプは何か
+  → Cutoff、Resonance、Driveの値
+  → Keytrackingの設定
+
+Step 4: エンベロープを確認
+  → Filter EnvのADSRとAmount
+  → Amp EnvのADSR
+  → 全体的な時間軸の傾向
+
+Step 5: LFOとモジュレーションを確認
+  → LFOの行き先とAmount
+  → ベロシティのマッピング
+
+Step 6: パラメータを1つずつ変えてみる
+  → 各パラメータの効果を体感
+  → 極端に変えて影響を理解
+
+プリセット改造のコツ:
+  1. まずCutoffだけを動かす → 音色の明暗
+  2. Resonanceを上下 → キャラクター変化
+  3. Filter Env Amountを変更 → アタック感
+  4. Unison Voicesを変更 → 厚み
+  5. LFOのRateとAmount → 動きの変化
+  → 少しずつ変えて「自分の音」にする
+```
+
+---
+
+## パフォーマンスでのAnalog活用
+
+### ライブセットとDJパフォーマンス
+
+Analogはライブパフォーマンスにおいて、リアルタイムの音色操作で大きな効果を発揮します。
+
+```
+パフォーマンス向けパラメータマッピング:
+
+Push / Launchpad での推奨マッピング:
+
+  ノブ1: Filter Cutoff
+         最も効果的なリアルタイム操作
+         フィルタースイープの定番
+
+  ノブ2: Filter Resonance
+         カットオフと組み合わせて音色変化
+
+  ノブ3: LFO Rate
+         モジュレーション速度の変更
+         遅い → 速いで盛り上げ
+
+  ノブ4: LFO Amount
+         モジュレーション深さの変更
+         ドライ → ウェットへ
+
+  ノブ5: Filter Env Amount
+         アタック感の変化
+         暗い → 明るい
+
+  ノブ6: Unison Detune
+         厚み/コーラスの変化
+         タイト → ワイド
+
+  ノブ7: Drive
+         歪みの追加/除去
+         クリーン → ダーティ
+
+  ノブ8: Volume
+         全体音量
+
+パフォーマンス中のテクニック:
+
+  フィルタースイープ:
+    Cutoffを徐々に開閉
+    → ビルドアップ/ブレイクダウン
+    → 最も基本的かつ効果的
+
+  レゾナンスピーク:
+    Resoを急に上げてCutoffをスイープ
+    → ドラマチックな効果
+    → DJトランジションに
+
+  LFO Rate加速:
+    LFO Rateを遅い→速いへ
+    → テンション上昇
+    → ドロップ前のビルドに
+
+  キルスイッチ的使用:
+    Cutoffを急に閉じる → 開く
+    → ブレイクの演出
+    → オーディエンスの注意を引く
+```
+
+---
+
+## CPU最適化とプロジェクト管理
+
+### Analog使用時のパフォーマンス対策
+
+Analogは比較的CPU効率の良いインストゥルメントですが、Unison Voicesの多用やポリフォニー数によってはCPU負荷が上がります。
+
+```
+CPU負荷の要因と対策:
+
+負荷が高くなる要因:
+  1. Unison Voices数が多い（6-8）
+  2. ポリフォニー数が多い（コードを多重に）
+  3. 複数トラックでAnalogを使用
+  4. LFOの高速レート
+  5. Filter Driveの高い値
+
+最適化テクニック:
+
+  Freezeを活用:
+    完成したAnalogトラックはFreeze
+    → CPU負荷ゼロに
+    → 編集時のみUnfreeze
+
+  Unison Voicesを減らす:
+    パッド: 6→4でも十分な厚み
+    リード: 3→2で問題なし
+    ベース: 基本的にOff
+
+  ポリフォニーを制限:
+    Analog > Global > Voices
+    ベース: 1（モノフォニック）
+    リード: 4
+    パッド: 8
+    → 不必要に高いポリフォニーは避ける
+
+  バウンス（Flatten）:
+    Analogをオーディオに書き出し
+    → 最も確実なCPU削減
+    → ただし後から編集不可
+
+  リサンプリング:
+    Analogの出力を別トラックに録音
+    → オーディオとして扱える
+    → 元のAnalogはミュート/削除可能
+
+CPU負荷の目安:
+  Analog 1インスタンス（Unison Off）: 約1-2%
+  Analog 1インスタンス（Unison 4）:   約3-5%
+  Analog 1インスタンス（Unison 8）:   約5-8%
+  → 10トラック以上使う場合はFreeze推奨
+```
+
+---
+
+## 実践レシピ集: 10の定番サウンド
+
+### 音作りクイックリファレンス
+
+現場で即座に使える10の定番サウンドレシピをまとめます。各レシピは5分以内で作成可能です。
+
+```
+レシピ1: 【808風サブベース】
+  OSC1: Triangle, Level: 100%
+  OSC2: Off
+  Noise: Off
+  Filter: 24dB LP, Cutoff: 250Hz, Reso: 0%
+  Filter Env: Off（Amount: 0%）
+  Amp Env: A:0 D:1500ms S:0% R:200ms
+  Unison: Off, Mono
+  Glide: On, Time: 30ms
+  → 808キック的なロングサブベース
+  → トラップ、ヒップホップの定番
+
+レシピ2: 【Reese Bass（リースベース）】
+  OSC1: Saw, Level: 100%
+  OSC2: Saw, Detune: +25, Level: 100%
+  Filter: 24dB LP, Cutoff: 500Hz, Reso: 20%, Drive: 20%
+  LFO → Cutoff: Sine, Rate: 0.3Hz, Amount: 25%
+  Amp Env: A:0 D:0 S:100% R:100ms
+  Unison: Off, Mono
+  → ドラムンベース/ジャングルの定番ベース
+  → デチューンの「うねり」がポイント
+
+レシピ3: 【Hoover Sound（フーバー）】
+  OSC1: Saw, Level: 100%
+  OSC2: Saw, Semi: -12, Detune: +30, Level: 90%
+  Noise: White, 5%
+  Filter: 24dB LP, Cutoff: 1500Hz, Reso: 30%, Drive: 40%
+  LFO → Pitch: Sine, Rate: 3Hz, Amount: 15%
+  Amp Env: A:50ms D:0 S:100% R:300ms
+  Unison: 4 Voices, Detune: 50%
+  Glide: On, Time: 150ms
+  → 90年代レイブの象徴的サウンド
+  → 掃除機のような「ブーン」という音
+
+レシピ4: 【チップチューンリード】
+  OSC1: Square, Width: 50%, Level: 100%
+  OSC2: Square, Width: 25%, Semi: +12, Level: 50%
+  Filter: Off（全開）
+  Amp Env: A:0 D:0 S:100% R:30ms
+  Unison: Off
+  → 8bitゲーム風のリード
+  → ファミコン/ゲームボーイ的
+
+レシピ5: 【Acid 303ベース】
+  OSC1: Saw, Level: 100%
+  OSC2: Off
+  Filter: 24dB LP, Cutoff: 500Hz, Reso: 70%, Drive: 30%
+  Filter Env: A:0 D:200ms S:0% R:100ms, Amount: +80%
+  Amp Env: A:0 D:300ms S:0% R:50ms
+  Unison: Off, Mono
+  Glide: On, Time: 60ms
+  → TB-303的なアシッドベース
+  → スライドとアクセントで表現力UP
+
+レシピ6: 【Prophet-5風パッド】
+  OSC1: Saw, Level: 100%
+  OSC2: Square, Width: 50%, Semi: +12, Level: 70%
+  Noise: Pink, 5%
+  Filter: 24dB LP, Cutoff: 1500Hz, Reso: 15%, Drive: 10%
+  Filter Env: A:500ms D:1000ms S:50% R:1500ms, Amount: +25%
+  Amp Env: A:1000ms D:800ms S:75% R:2000ms
+  Unison: 4 Voices, Detune: 30%
+  → Sequential Prophet-5的な温かいパッド
+  → 70s/80sシンセサウンド
+
+レシピ7: 【ディープダブコード】
+  OSC1: Saw, Level: 90%
+  OSC2: Triangle, Semi: +12, Level: 50%
+  Noise: Pink, 8%
+  Filter: 24dB LP, Cutoff: 1000Hz, Reso: 25%, Drive: 15%
+  Filter Env: A:20ms D:500ms S:40% R:400ms, Amount: +35%
+  Amp Env: A:10ms D:400ms S:60% R:500ms
+  Unison: 4 Voices, Detune: 20%
+  → ディレイとリバーブを後段に追加
+  → ダブテクノの定番コードサウンド
+
+レシピ8: 【シンセストリングス】
+  OSC1: Square, Width: 50%, Level: 100%
+  OSC2: Square, Width: 30%, Semi: +12, Level: 60%
+  LFO → PW: Triangle, Rate: 0.8Hz, Amount: 35%
+  Filter: 12dB LP, Cutoff: 2500Hz, Reso: 10%
+  Amp Env: A:800ms D:500ms S:80% R:1000ms
+  Unison: 6 Voices, Detune: 30%
+  → Juno-60/Solina的なストリングス
+  → コーラスエフェクトを追加で完璧に
+
+レシピ9: 【パーカッシブシンセヒット】
+  OSC1: Saw, Level: 100%
+  OSC2: Square, Detune: +7, Level: 80%
+  Noise: White, 10%
+  Filter: 24dB LP, Cutoff: 2000Hz, Reso: 35%, Drive: 25%
+  Filter Env: A:0 D:80ms S:0% R:50ms, Amount: +75%
+  Amp Env: A:0 D:100ms S:0% R:50ms
+  Unison: 4 Voices, Detune: 25%
+  → 短くパンチのあるヒットサウンド
+  → ダウンビートのアクセントに
+
+レシピ10: 【アンビエントテクスチャ】
+  OSC1: Triangle, Level: 70%
+  OSC2: Saw, Semi: +19, Level: 30%
+  Noise: Pink, 20%
+  Filter: Band Pass, Cutoff: 1200Hz, Reso: 35%
+  LFO1 → Cutoff: Random, Rate: 1.5Hz, Amount: 25%
+  LFO2 → Pan: Sine, Rate: 0.2Hz, Amount: 50%
+  Amp Env: A:5000ms D:3000ms S:50% R:8000ms
+  Unison: 4 Voices, Detune: 40%
+  → 有機的で環境音楽的なテクスチャ
+  → Reverbを深くかけて使用
+```
+
+---
+
+## Glide（グライド/ポルタメント）の活用
+
+### 音程の滑らかな移動
+
+Glide（ポルタメント）は、ノート間の音程移動を滑らかにする機能です。ベースラインやリードに表現力を加えます。
+
+```
+Glideの設定パラメータ:
+
+Time（グライドタイム）:
+  0ms:     OFF（即座にピッチ変更）
+  10-30ms: 極短（微妙なスラー効果）
+  30-80ms: 短め（ベースラインに最適）
+  80-200ms: 中程度（リードのスライド）
+  200ms+:  長い（効果音的）
+
+Mode:
+  Always:   全てのノート間でグライド
+  Legato:   レガート（繋げて弾いた時だけ）
+            → 最も音楽的な設定
+            → スタッカートでは即座にピッチ変更
+
+推奨設定:
+  アシッドベース: Time 60ms, Legato
+  Moogリード: Time 100ms, Legato
+  エフェクト的: Time 300ms+, Always
+  DJ用ベース: Time 40ms, Legato
+```
+
+---
+
 ## まとめ
 
 ### Analog基礎
