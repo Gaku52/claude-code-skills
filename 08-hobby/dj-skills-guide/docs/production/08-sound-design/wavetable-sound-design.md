@@ -1703,3 +1703,977 @@ Wavetableは、Ableton Live 12で最も重要なシンセサイザーです。
 ---
 
 **Wavetableで、あなただけのサウンドを作りましょう！**
+
+---
+
+## 高度テクニック: カスタムウェーブテーブル作成
+
+### ウェーブテーブルの仕組みを深く理解する
+
+```
+ウェーブテーブルの基本構造:
+
+┌─────────────────────────────────────────────┐
+│  Frame 1   Frame 2   Frame 3  ...  Frame N  │
+│  ┌─────┐  ┌─────┐  ┌─────┐      ┌─────┐   │
+│  │ ∿∿∿ │  │ ∿∿∿ │  │ ∿∿∿ │      │ ∿∿∿ │   │
+│  └─────┘  └─────┘  └─────┘      └─────┘   │
+│     ↕         ↕         ↕            ↕      │
+│  Position 0%      Position 50%   Position 100% │
+└─────────────────────────────────────────────┘
+
+各フレームは1つの波形サイクル（2048サンプル）
+Positionノブでフレーム間を補間（モーフィング）
+
+1ウェーブテーブル = 複数フレームの集合体
+Ableton Wavetable: 最大256フレーム
+各フレーム: 2048サンプル（44.1kHz時）
+```
+
+### Ableton Live内でのカスタムウェーブテーブル
+
+```
+方法1: オーディオからウェーブテーブルを作成
+
+手順:
+1. オーディオサンプルを用意
+   - ボーカル一音
+   - 楽器の持続音
+   - 環境音
+   - 自分で録音した音
+
+2. Simpler/Samplerで読み込み
+   - Simpler → Classic Mode
+   - ループポイント設定
+   - 1サイクル分を選択
+
+3. Wavetableに変換
+   - オーディオをWavetableのOSCにドラッグ
+   - 自動的にウェーブテーブル化
+   - Position で異なるポイントを選択
+
+4. 微調整
+   - Frame数の確認
+   - Positionの最適値を探す
+   - LFOでPositionを動かす
+
+注意点:
+- 短いサンプル（1-5秒）が最適
+- 持続音が最も良い結果
+- ノイズが多いサンプルは避ける
+- サンプルレート44.1kHz推奨
+```
+
+```
+方法2: 倍音加算合成によるカスタム波形
+
+Additive合成の原理:
+基本波（1倍音）+ 上の倍音 = 複雑な波形
+
+倍音構成の例:
+
+Organ風波形:
+1倍音: 100%（基本）
+2倍音: 80%
+3倍音: 0%
+4倍音: 60%
+5倍音: 0%
+6倍音: 40%
+8倍音: 20%
+→ 偶数倍音のみ = 温かい、丸い音
+
+Brass風波形:
+1倍音: 100%
+2倍音: 70%
+3倍音: 50%
+4倍音: 35%
+5倍音: 25%
+6倍音: 18%
+7倍音: 12%
+8倍音: 8%
+→ 全倍音が徐々に減衰 = 明るい、金属的
+
+String風波形:
+1倍音: 100%
+2倍音: 45%
+3倍音: 60%
+4倍音: 20%
+5倍音: 40%
+6倍音: 10%
+7倍音: 25%
+→ 奇数倍音がやや強い = ザラついた質感
+
+実践:
+Wavetableの「User」カテゴリーで作成可能
+各フレームの倍音バランスを変える
+→ Position変化で音色が大きく変わる
+```
+
+```
+方法3: 外部ツールでウェーブテーブル作成
+
+推奨ツール:
+
+1. WaveEdit（無料）:
+   - VCV Rack開発のオープンソースツール
+   - 256フレーム対応
+   - グラフィカルなエディタ
+   - .wav書き出し
+
+2. Serum内蔵エディタ（Serum所有時）:
+   - 最も高機能
+   - 数式入力対応
+   - FFT編集
+   - .wav書き出し → Wavetableに読み込み
+
+3. Audacity（無料）:
+   - 波形を手動で描画
+   - 2048サンプル単位でカット
+   - 複数フレームを連結
+
+ワークフロー:
+外部ツール → .wav書き出し → Wavetable OSCにドラッグ
+フレーム数は自動検出（2048サンプル/フレーム）
+```
+
+---
+
+## ウェーブテーブル・モーフィング技法
+
+### Positionモーフィングの基礎
+
+```
+Positionパラメータの活用:
+
+静的設定:
+- Position固定 → 一定の音色
+- 用途: ベース、安定したリード
+
+動的設定（推奨）:
+- Envelope → Position: 時間変化
+- LFO → Position: 周期的変化
+- オートメーション → Position: 曲展開に合わせる
+
+Envelope → Position の設定例:
+
+パーカッシブモーフ:
+Envelope: A 0, D 200ms, S 0%, R 50ms
+Amount: 0% → 80%
+→ アタック時に明るく、すぐ暗くなる
+→ Pluck系サウンドに最適
+
+スウェルモーフ:
+Envelope: A 2000ms, D 500ms, S 60%, R 1000ms
+Amount: 0% → 100%
+→ ゆっくりと音色が変化
+→ Pad、Ambient系に最適
+```
+
+### LFOによるモーフィング
+
+```
+LFO → Position の設定パターン:
+
+パターン1: ゆっくりモーフ
+LFO Waveform: Sine
+Rate: 0.1 Hz（10秒/周期）
+Depth: 40%
+→ 10秒かけてゆっくり音色が変わる
+→ Ambient Pad に最適
+
+パターン2: リズミックモーフ
+LFO Waveform: Square
+Rate: 1/8（テンポ同期）
+Depth: 50%
+→ 1/8音符ごとに音色が切り替わる
+→ Techno、EDM のリードに最適
+
+パターン3: ランダムモーフ
+LFO Waveform: Sample & Hold（ランダム）
+Rate: 1/16
+Depth: 30%
+→ ランダムに音色変化
+→ Glitch、Experimental に最適
+
+パターン4: 非対称モーフ
+LFO Waveform: Saw（上昇）
+Rate: 1/4
+Depth: 60%
+→ 徐々に明るくなり、急に暗くなる
+→ Trance、Progressive に最適
+
+複数LFO組み合わせ:
+LFO 1 → OSC 1 Position（Rate: 0.2 Hz、Depth: 35%）
+LFO 2 → OSC 2 Position（Rate: 0.13 Hz、Depth: 45%）
+→ 2つのOSCが異なる速度でモーフ
+→ 非常に複雑で有機的な音色変化
+```
+
+### クロスフェード・モーフィング
+
+```
+OSC 1 と OSC 2 のクロスフェード:
+
+設定:
+OSC 1: Wavetable A（例: Basic Saw）
+OSC 2: Wavetable B（例: FM Complex）
+
+Macro でクロスフェード:
+Macro "Morph":
+  OSC 1 Volume: 100% → 0%
+  OSC 2 Volume: 0% → 100%
+
+効果:
+Macro 0% = 純粋なSaw波
+Macro 50% = 両方ミックス
+Macro 100% = 純粋なFM
+→ ライブ演奏で音色を劇的に変化
+
+応用:
+LFO → Macro割り当て
+→ 自動的にOSC間をクロスフェード
+
+オートメーション:
+曲のビルドアップで 0% → 100%
+→ ドロップで音色が完全に変わる
+```
+
+---
+
+## ジャンル別サウンドレシピ集
+
+### Deep House: Warm Chord Stab
+
+```
+コンセプト:
+温かい、柔らかいコードスタブ
+Deep Houseの定番サウンド
+
+OSC 1:
+Wavetable: Basic Shapes > Triangle
+Position: 15%
+Octave: 0
+Detune: 0
+
+OSC 2:
+Wavetable: Additive > Organ
+Position: 20%
+Octave: 0
+Detune: +6 cent
+Volume: 55%
+
+SUB: Volume 20%
+UNISON: 3 voices, Detune 8%
+
+Filter:
+Type: LP 12dB
+Cutoff: 1800 Hz
+Resonance: 15%
+Envelope Amount: +25
+
+Filter Envelope:
+A: 5ms, D: 350ms, S: 40%, R: 200ms
+
+Amp Envelope:
+A: 2ms, D: 400ms, S: 65%, R: 250ms
+
+エフェクト:
+1. EQ: HP 120Hz
+2. Saturator: Drive 4dB, Warm
+3. Chorus: Rate 0.5Hz, Amount 25%, Wet 30%
+4. Reverb: Plate, Decay 2.2s, Wet 28%
+5. Utility: Width 110%
+
+Macro設定:
+1. Cutoff (800-3000Hz)
+2. Resonance (5-35%)
+3. Space (Reverb 10-45%)
+4. Warmth (Saturator Drive 0-8dB)
+
+コード例: Cm7 → Fm7 → Gm7 → AbMaj7
+ベロシティ: 85-105（控えめに）
+```
+
+### Trance: Supersaw Lead
+
+```
+コンセプト:
+太く広がるスーパーソウ
+Tranceの象徴的サウンド
+
+OSC 1:
+Wavetable: Basic Shapes > Saw
+Position: 0%
+Octave: 0
+Detune: 0
+
+OSC 2:
+Wavetable: Basic Shapes > Saw
+Position: 0%
+Octave: +1
+Detune: +12 cent
+Volume: 70%
+
+SUB: Volume 25%
+UNISON: 8 voices, Detune 22%
+
+Filter:
+Type: LP 24dB
+Cutoff: 3500 Hz
+Resonance: 10%
+Envelope Amount: +30
+
+Filter Envelope:
+A: 10ms, D: 600ms, S: 50%, R: 400ms
+
+Amp Envelope:
+A: 5ms, D: 300ms, S: 80%, R: 500ms
+
+エフェクト:
+1. EQ: HP 200Hz, Peak 3kHz +2dB
+2. Chorus: Rate 0.6Hz, Amount 35%, Wet 25%
+3. Reverb: Hall, Decay 3.0s, Wet 30%
+4. Delay: 1/4 Dotted, FB 20%, Wet 18%
+5. Utility: Width 140%, Gain -2dB
+
+Macro設定:
+1. Cutoff (1500-6000Hz)
+2. Width (Unison Detune 5-35%)
+3. Space (Reverb 10-50%)
+4. Echo (Delay 0-30%)
+5. Brightness (EQ Peak 0-4dB)
+
+ポイント:
+- Unison 8 voicesが鍵
+- OctaveレイヤーでFullnessを確保
+- Sidechain Compressionでキックとの共存
+- ビルドアップでCutoffオートメーション
+```
+
+### Dubstep: Growl Bass
+
+```
+コンセプト:
+うなるような攻撃的ベース
+Dubstepのメインサウンド
+
+OSC 1:
+Wavetable: FM > Metallic
+Position: 60%（重要: ここが音色の核）
+Octave: -1
+Detune: 0
+
+OSC 2:
+Wavetable: Distortion > Harsh Digital
+Position: 40%
+Octave: 0
+Detune: +3 cent
+Volume: 80%
+
+SUB: Volume 35%
+UNISON: 2 voices, Detune 5%
+
+Filter:
+Type: LP 24dB
+Cutoff: 800 Hz
+Resonance: 55%
+Envelope Amount: +50
+Drive: 15%
+
+Filter Envelope:
+A: 0ms, D: 250ms, S: 25%, R: 80ms
+
+Amp Envelope:
+A: 0ms, D: 150ms, S: 90%, R: 30ms
+
+LFO設定（Growl効果の核心）:
+LFO 1 → OSC 1 Position:
+Waveform: Saw
+Rate: 1/8（テンポ同期）
+Depth: 70%
+
+LFO 2 → Filter Cutoff:
+Waveform: Square
+Rate: 1/16
+Depth: 45%
+
+エフェクト:
+1. EQ: HP 30Hz
+2. Overdrive: Drive 60%, Tone 45%
+3. OTT (Multiband Compression): Amount 40%
+4. EQ: Peak 200Hz +3dB, Peak 800Hz +2dB
+5. Utility: Width 0%（Mono、低域のため）
+
+Macro設定:
+1. Growl (LFO 1 Depth 20-90%)
+2. Cutoff (300-2000Hz)
+3. Aggression (Overdrive 20-80%)
+4. LFO Rate (1/16 - 1/4)
+5. Resonance (30-75%)
+
+ポイント:
+- LFO → Positionが「うなり」の正体
+- Overdriveで攻撃性を出す
+- OTTで音圧を稼ぐ
+- 低域はMonoで安定させる
+```
+
+### Lo-Fi Hip Hop: Mellow Keys
+
+```
+コンセプト:
+暖かくてノスタルジックな鍵盤サウンド
+Lo-Fi Hip Hopの定番
+
+OSC 1:
+Wavetable: Additive > Electric Piano
+Position: 35%
+Octave: 0
+Detune: +3 cent
+
+OSC 2:
+Wavetable: Basic Shapes > Triangle
+Position: 0%
+Octave: +1
+Detune: -5 cent
+Volume: 30%
+
+SUB: Volume 10%
+UNISON: 2 voices, Detune 12%
+
+Filter:
+Type: LP 12dB
+Cutoff: 2000 Hz
+Resonance: 12%
+Envelope Amount: +15
+
+Filter Envelope:
+A: 3ms, D: 500ms, S: 30%, R: 300ms
+
+Amp Envelope:
+A: 5ms, D: 600ms, S: 50%, R: 400ms
+
+エフェクト:
+1. EQ: HP 150Hz, LP 6000Hz（高域カットで「Lo-Fi」感）
+2. Saturator: Drive 5dB, Sinoid Fold
+3. Chorus: Rate 0.3Hz, Amount 20%, Wet 22%
+4. Vinyl Distortion: Tracing 40%, Pinch 15%
+5. Reverb: Room, Decay 1.5s, Wet 25%
+6. Auto Filter: LP, Cutoff 4kHz, LFO Rate 0.08Hz, Depth 15%
+
+Macro設定:
+1. Warmth (Saturator 0-10dB)
+2. Lo-Fi (LP Cutoff 3000-8000Hz)
+3. Vinyl (Tracing 0-60%)
+4. Space (Reverb 10-40%)
+
+ポイント:
+- LP EQでハイカットが「Lo-Fi」の鍵
+- Vinyl Distortionでレコード質感
+- コード進行: Dm7 → G7 → CMaj7 → Am7
+- ベロシティを不揃いにしてヒューマン感を出す
+- Swing 55-60%を適用
+```
+
+### Minimal Techno: Percussive Synth Hit
+
+```
+コンセプト:
+短くてパーカッシブなシンセヒット
+Minimal Technoのアクセント
+
+OSC 1:
+Wavetable: Modern Shapes > Resonant Comb
+Position: 55%
+Octave: 0
+Detune: 0
+
+OSC 2: Off
+
+SUB: Volume 0%
+UNISON: 1 voice
+
+Filter:
+Type: BP（Band Pass）12dB
+Cutoff: 1200 Hz
+Resonance: 45%
+Envelope Amount: +55
+Drive: 10%
+
+Filter Envelope:
+A: 0ms, D: 120ms, S: 0%, R: 30ms
+
+Amp Envelope:
+A: 0ms, D: 80ms, S: 0%, R: 20ms
+
+エフェクト:
+1. EQ: HP 80Hz
+2. Saturator: Drive 3dB
+3. Delay: 1/16, FB 35%, Wet 20%, Ping Pong
+4. Reverb: Small Room, Decay 0.8s, Wet 15%
+
+Macro設定:
+1. Tone (Filter Cutoff 400-3000Hz)
+2. Snap (Envelope D 40-300ms)
+3. Echo (Delay Wet 0-35%)
+
+ポイント:
+- Amp Envelope のDecayが非常に短い
+- Band Passフィルターで独特の鳴り
+- Ping Pong Delayでステレオ空間
+- ベロシティでアクセント表現
+```
+
+---
+
+## Wavetable vs Serum: 詳細比較
+
+### 機能比較
+
+```
+項目                    Wavetable           Serum
+──────────────────────────────────────────────────
+価格                    Abletonに付属       $189（単体購入）
+オシレーター数          2 + Sub             2 + Sub + Noise
+ウェーブテーブル数      内蔵約200種         内蔵約140種 + 無限カスタム
+カスタムWT作成          限定的              非常に強力
+フィルタータイプ        約10種              約50種以上
+内蔵エフェクト          なし（Rackで対応）  10種（Distortion、Reverb等）
+モジュレーション        3 Envelope + 3 LFO  3 Envelope + 4 LFO + Macro
+ビジュアル              2D波形表示          3Dウェーブテーブル表示
+CPU負荷                 軽い（★★☆☆☆）     やや重い（★★★★☆）
+学習曲線                緩やか              やや急
+Abletonとの統合         完全ネイティブ      VST/AU
+Macro                   8（Rack経由）       4（ネイティブ）
+ドラッグ&ドロップ       対応                対応
+リサイズ                不可                可能
+プリセット数            内蔵豊富            膨大（サードパーティ含む）
+コミュニティ            中規模              非常に大規模
+```
+
+### どちらを選ぶべきか
+
+```
+Wavetableを選ぶべき場面:
+✓ Ableton Live をメインDAWとして使用
+✓ CPU負荷を最小限にしたい
+✓ シンプルな操作で素早く音作りしたい
+✓ ベース、リード、パッドの基本音色で十分
+✓ プラグイン予算を節約したい
+✓ シンセサイザー初心者
+
+Serumを選ぶべき場面:
+✓ 複雑なサウンドデザインが必要
+✓ カスタムウェーブテーブルを頻繁に作成
+✓ Dubstep、Neurofunk等の攻撃的サウンド
+✓ 内蔵エフェクトで完結させたい
+✓ 3Dビジュアルで波形を確認したい
+✓ サードパーティプリセットを活用したい
+
+両方使い分ける（推奨）:
+- メインの作業: Wavetable（軽量、高速）
+- 特殊な音色: Serum（高機能）
+- ライブ演奏: Wavetable（CPU安定）
+- サウンドデザイン研究: Serum（教育的）
+
+移行パス:
+1年目: Wavetableで基礎固め
+2年目: Serum導入、両方併用
+3年目: 用途に応じて最適なツール選択
+```
+
+---
+
+## 実践演習: 総合課題
+
+### 演習1: 1曲分のサウンドセットを作る
+
+```
+課題:
+Techno 1トラック分のサウンドを全てWavetableで作成
+
+必要な音色:
+1. Kick Layer（キックの上レイヤー）
+2. Sub Bass
+3. Acid Bass（TB-303風）
+4. Percussive Hit
+5. Pad（ブレイクダウン用）
+6. Lead（ビルドアップ用）
+7. FX Rise（ライザー）
+8. FX Impact（インパクト）
+
+手順:
+Step 1: テンプレート作成（15分）
+- BPM 130
+- Key: Am
+- 8トラック用意
+- 各トラックにWavetable配置
+
+Step 2: 各音色作成（各15-30分）
+- このガイドのレシピを参考に
+- 各音色をプリセット保存
+
+Step 3: アレンジ（30分）
+- イントロ → ビルドアップ → ドロップ → ブレイク → ドロップ2 → アウトロ
+- 各セクションで使用する音色を配置
+
+Step 4: ミキシング（20分）
+- EQで住み分け
+- コンプレッサーで音圧
+- サイドチェイン設定
+
+完成目標: 4-6分のTechnoトラック
+所要時間: 3-4時間
+```
+
+### 演習2: モーフィングパッド作成チャレンジ
+
+```
+課題:
+16小節かけて音色が完全に変化するパッドを作成
+
+要件:
+- OSC 1 と OSC 2 で異なるウェーブテーブル使用
+- Position をオートメーションで動かす
+- Filter Cutoff も連動して変化
+- 最初は暗くシンプル → 最後は明るく複雑
+
+Step 1: OSC設定
+OSC 1: Basic > Sine（Position 0%スタート）
+OSC 2: FM > Complex（Position 0%スタート）
+
+Step 2: オートメーション作成
+Bar 1-4: OSC 1 Position 0→25%, OSC 2 Position 0→15%
+Bar 5-8: OSC 1 Position 25→50%, OSC 2 Position 15→40%
+Bar 9-12: OSC 1 Position 50→75%, OSC 2 Position 40→70%
+Bar 13-16: OSC 1 Position 75→100%, OSC 2 Position 70→100%
+
+Step 3: Filter オートメーション
+Bar 1: Cutoff 600 Hz
+Bar 8: Cutoff 1500 Hz
+Bar 16: Cutoff 4000 Hz
+
+Step 4: エフェクトオートメーション
+Reverb Wet: 20% → 55%（16小節かけて）
+Chorus Amount: 15% → 45%
+Width: 100% → 160%
+
+評価基準:
+□ 音色変化が滑らか
+□ 16小節で明確に音色が変わった
+□ フィルターと連動している
+□ 空間感も変化している
+□ ミックスに使えるクオリティ
+```
+
+### 演習3: リファレンス曲の音色再現
+
+```
+課題:
+好きな曲のシンセ音色をWavetableで再現する
+
+手順:
+
+Step 1: リファレンス選択（5分）
+- Shazam/SoundHound等で曲を特定
+- 再現したい音色を1つ選ぶ
+- その音色が鳴る箇所を繰り返し聴く
+
+Step 2: 音色分析（15分）
+チェックリスト:
+□ 波形の種類は?（Saw/Square/Sine/複雑）
+□ 明るさは?（Filter Cutoff推定）
+□ 太さは?（Unisonの有無）
+□ 時間変化は?（Envelope/LFO）
+□ 空間は?（Reverb/Delay量）
+□ 歪みは?（Saturation/Distortion）
+
+Step 3: 再現（30-60分）
+1. 波形選択から始める
+2. Filter Cutoff大まかに合わせる
+3. Envelopeで時間変化を再現
+4. Unison/Detuneで太さを調整
+5. エフェクトで空間を合わせる
+
+Step 4: A/B比較（10分）
+- リファレンスと交互に聴く
+- 差異をメモ
+- 微調整
+
+合格基準:
+80%の再現度で十分
+完全な再現は不要（学習が目的）
+
+推奨リファレンス曲:
+Techno: Amelie Lens - "Exhale"（Lead）
+House: Disclosure - "Latch"（Bass）
+Trance: Above & Beyond - "Sun & Moon"（Pad）
+Lo-Fi: Nujabes - "Aruarian Dance"（Keys）
+```
+
+---
+
+## トラブルシューティング
+
+### 音が出ない場合
+
+```
+チェックリスト:
+
+1. MIDIノート確認:
+   □ MIDIトラックにノートがある
+   □ ベロシティが0ではない
+   □ オクターブが適切（C-2等は聴こえない）
+   □ MIDIチャンネルが正しい
+
+2. Wavetable設定確認:
+   □ OSC 1 のVolumeが0でない
+   □ Filter Cutoffが極端に低くない（20Hz等）
+   □ Amp Envelope のSustainが0でない
+   □ Amp Envelope のAttackが極端に長くない
+
+3. トラック設定確認:
+   □ トラックがミュートされていない
+   □ トラックのVolumeが0でない
+   □ 出力がMasterに繋がっている
+   □ モニター設定が「Auto」
+
+4. オーディオ設定確認:
+   □ オーディオインターフェースが認識されている
+   □ サンプルレートが正しい
+   □ バッファサイズが適切（256-1024）
+   □ 出力チャンネルが正しい
+
+解決しない場合:
+- Wavetableを削除して再追加
+- 新規MIDIトラックに変更
+- Abletonを再起動
+- オーディオインターフェースを再接続
+```
+
+### 音が歪む/割れる場合
+
+```
+原因と対策:
+
+原因1: 音量オーバー
+対策: Utility で -3dB 〜 -6dB 下げる
+確認: Masterトラックのメーターが0dBを超えていないか
+
+原因2: Resonance過大
+対策: Resonance を50%以下に下げる
+注意: 70%以上で自己発振する場合がある
+
+原因3: Unison過多
+対策: Voices数を減らす（8→4）
+理由: 多すぎるVoicesは音量と位相で歪む
+
+原因4: Drive/Saturation過大
+対策: Drive値を下げる
+目安: Saturator Drive 6dB以下、Filter Drive 10%以下
+
+原因5: エフェクト過多
+対策: エフェクトを1つずつバイパスして原因特定
+方法: デバイスのON/OFFボタンを使用
+
+原因6: サンプルレート不一致
+対策: プロジェクトとインターフェースのSRを統一
+推奨: 44.1kHz または 48kHz
+```
+
+### CPU負荷が高い場合
+
+```
+対策（効果順）:
+
+1. Unison削減（効果: 大）
+   8 voices → 4 voices
+   CPU削減: 約40-50%
+
+2. バッファサイズ増加（効果: 大）
+   128 → 512 samples
+   レイテンシ増加するが安定
+
+3. Freeze Track（効果: 大）
+   右クリック → Freeze Track
+   完成したトラックから順に
+
+4. 不要エフェクト削除（効果: 中）
+   Chorusは特にCPU負荷が高い
+   Reverb: Convolutionは重い → Algorithmicに変更
+
+5. OSC 2をOff（効果: 中）
+   シンプルな音色ならOSC 1のみ
+
+6. LFO削減（効果: 小-中）
+   使用していないLFOをOff
+
+7. Resample（効果: 完全）
+   MIDI → オーディオに録音
+   CPU負荷: 0%
+
+CPU負荷の目安:
+制作時: 70%以下を維持
+ライブ: 50%以下を推奨
+録音時: 60%以下を推奨
+```
+
+### 音が薄い/迫力がない場合
+
+```
+改善策:
+
+1. レイヤリング:
+   OSC 2を追加
+   異なるWavetable + Detuneで厚み
+
+2. Unison追加:
+   Amount: 4-6 voices
+   Detune: 10-25%
+
+3. サチュレーション:
+   Saturator Drive: 3-6 dB
+   → 倍音が追加され存在感アップ
+
+4. EQブースト:
+   ベース: 80-120 Hz +2dB
+   リード: 2-4 kHz +2dB
+   パッド: 1-3 kHz +1.5dB
+
+5. コンプレッション:
+   Ratio: 3:1 - 4:1
+   Attack: 10-30ms
+   Release: Auto
+   → ダイナミクスを整えて音圧アップ
+
+6. ステレオ拡張:
+   Utility Width: 110-140%
+   Chorus追加
+   → 空間的な広がりで迫力
+
+7. Sub Oscillator:
+   Volume: 15-30%
+   → 低域の土台を補強
+
+順番:
+まずOSC/Unisonで基本を太くする
+→ 次にSaturation/EQで味付け
+→ 最後にCompression/Stereoで仕上げ
+```
+
+### Filter Envelopeが効かない場合
+
+```
+確認項目:
+
+1. Envelope Amount が 0 になっていないか
+   → Amount を +20 〜 +50 に設定
+
+2. Filter Cutoff が高すぎないか
+   → Cutoff を下げる（Envelopeで開く余地が必要）
+   例: Cutoff 500Hz + Amount +40 → 500-2000Hzの範囲で動く
+
+3. Decay が短すぎないか
+   → D: 200ms以上でまず試す
+   短すぎると変化が聴こえない
+
+4. ノートの長さが短すぎないか
+   → 長いノートで確認（2拍以上）
+
+5. Filter Type が正しいか
+   → LP（Low Pass）で確認
+   HP/BPでは効果が異なる
+
+デバッグ方法:
+1. Amount を最大 (+64) に設定
+2. Cutoff を低め (200Hz) に設定
+3. D を長め (1000ms) に設定
+4. 長いノートを演奏
+5. 効果を確認
+6. 各パラメータを徐々に調整
+```
+
+---
+
+## Wavetableサウンドデザイン用語集
+
+```
+用語                    説明
+──────────────────────────────────────────────────
+Wavetable               複数の波形フレームを格納したテーブル
+Frame                   ウェーブテーブル内の1つの波形サイクル
+Position                ウェーブテーブル内のフレーム位置（0-100%）
+Morphing                Position変化による波形間の滑らかな遷移
+Oscillator              音の波形を生成する部分
+Sub Oscillator          メインの1オクターブ下を生成する補助発振器
+Unison                  複数のVoiceを重ねて厚みを出す機能
+Detune                  微妙なピッチずれでコーラス効果を生む
+Voice                   Unisonの個々の音
+Filter                  特定の周波数帯域を通過/遮断する回路
+Cutoff                  フィルターが効き始める周波数
+Resonance               Cutoff付近を強調するパラメータ
+Drive                   信号に歪みを加えて倍音を増やす
+Envelope (ADSR)         Attack/Decay/Sustain/Releaseの時間変化
+Attack                  音が最大音量に達するまでの時間
+Decay                   最大音量からSustainレベルまでの時間
+Sustain                 鍵盤を押し続けている間の音量レベル
+Release                 鍵盤を離してから音が消えるまでの時間
+LFO                     低周波発振器、周期的な変調に使用
+Modulation              あるパラメータで別のパラメータを変化させること
+Macro                   複数パラメータを1つのノブで制御する機能
+Sidechain               外部信号で内部パラメータを制御する手法
+Saturation              軽い歪みを加えて倍音を豊かにする処理
+Additive Synthesis      倍音を足し合わせて波形を作る合成方式
+FM Synthesis            周波数変調による合成方式
+Wavetable Synthesis     ウェーブテーブルを使った合成方式
+Resampling              MIDIをオーディオに変換すること
+Freeze                  トラックを一時的にオーディオ化してCPU削減
+```
+
+---
+
+## 30日間マスタープラン
+
+```
+Week 1（基礎固め）:
+Day 1: Wavetableインターフェース全体の理解
+Day 2: Sub Bass作成（実践1完了）
+Day 3: Sub Bassバリエーション3種
+Day 4: Techno Bass作成開始（実践2前半）
+Day 5: Techno Bass完成（実践2後半）
+Day 6: Techno Bassバリエーション3種
+Day 7: 復習、プリセット整理
+
+Week 2（応用展開）:
+Day 8: Lead Synth作成開始（実践3前半）
+Day 9: Lead Synth完成（実践3後半）
+Day 10: Leadバリエーション（Trance Supersaw）
+Day 11: Ambient Pad作成開始（実践4前半）
+Day 12: Ambient Pad完成（実践4後半）
+Day 13: Padバリエーション（Lo-Fi Keys）
+Day 14: Week 1-2の全音色レビュー
+
+Week 3（ジャンル特化）:
+Day 15: Deep House Chord Stab
+Day 16: Dubstep Growl Bass
+Day 17: Minimal Techno Percussive Hit
+Day 18: カスタムウェーブテーブル実験
+Day 19: モーフィングPad作成
+Day 20: FXサウンド（Rise、Impact）
+Day 21: ジャンルMix用サウンドセット完成
+
+Week 4（実戦投入）:
+Day 22: 演習1（1曲分のサウンドセット）開始
+Day 23: 演習1続き、アレンジ開始
+Day 24: 演習1完成、ミキシング
+Day 25: 演習3（リファレンス再現）
+Day 26: 自分のオリジナル音色5種作成
+Day 27: ライブ演奏用Macro最適化
+Day 28: 全プリセットの最終整理
+Day 29: 完成曲のブラッシュアップ
+Day 30: ポートフォリオ完成、次ステップ計画
+
+1日の練習時間: 1-2時間
+合計: 30-60時間
+目標: 任意の音色を30分以内で作成可能
+```
