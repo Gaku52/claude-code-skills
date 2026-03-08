@@ -609,6 +609,422 @@ Cmd (Mac) / Ctrl (Win)
 
 ---
 
+## Audio設定の詳細
+
+### Audio Device設定
+
+**重要な項目:**
+
+```
+Preferences > Audio > Audio Device:
+
+Driver Type:
+Mac: CoreAudio (標準)
+Windows: ASIO (必須)
+
+Audio Device:
+Built-in Output (内蔵)
+オーディオインターフェイス名
+
+選択基準:
+
+内蔵:
+練習、確認用
+レイテンシー高い
+
+オーディオI/F:
+制作用 (推奨)
+低レイテンシー
+高音質
+
+人気モデル:
+Focusrite Scarlett
+Universal Audio Apollo
+RME Babyface
+```
+
+### Sample Rate
+
+```
+Sample Rate設定:
+
+44.1 kHz ← CD品質
+48 kHz ← 映像用
+88.2 kHz
+96 kHz ← ハイレゾ
+192 kHz
+
+推奨: 44.1 kHz
+
+理由:
+
+互換性:
+すべてのシステムで再生可能
+
+ファイルサイズ:
+適度
+
+CPU:
+負荷が少ない
+
+高いレートは:
+
+利点:
+わずかに音質向上 (体感困難)
+
+欠点:
+ファイル2倍サイズ
+CPU負荷2倍
+
+実用的:
+44.1 kHz で十分
+プロも標準で使用
+```
+
+### Input/Output Configuration
+
+```
+Preferences > Audio > Input/Output:
+
+Input:
+┌──────────────────┐
+│ 1/2 (Stereo) ☑   │ ← マイク入力
+│ 3/4 (Stereo) ☐   │
+└──────────────────┘
+
+Output:
+┌──────────────────┐
+│ 1/2 (Stereo) ☑   │ ← メイン出力
+│ 3/4 (Stereo) ☐   │
+└──────────────────┘
+
+有効化:
+使用するチャンネルのみ☑
+
+理由:
+不要なチャンネル = CPU無駄
+
+例:
+2in/2out I/F
+→ 1/2のみ有効
+
+8in/8out I/F
+→ 必要なペアのみ
+```
+
+### Output Latency
+
+```
+Latency表示:
+
+Overall Latency:
+Input: 5.8 ms
+Output: 11.6 ms
+
+低い (良い):
+0-10 ms
+リアルタイム演奏可能
+
+中程度:
+10-20 ms
+わずかに遅延感
+
+高い (悪い):
+20 ms以上
+演奏困難
+
+改善:
+Buffer Size 下げる
+→ Latency 下がる
+→ CPU負荷 上がる
+
+トレードオフ:
+レイテンシー vs CPU
+```
+
+### Test Tone
+
+```
+Test機能:
+
+Preferences > Audio > Test:
+
+Test Tone:
+クリックで音が鳴る
+
+確認:
+スピーカー接続
+出力設定
+
+トラブル時:
+音が出ない場合
+設定を再確認
+```
+
+---
+
+## MIDI設定の詳細
+
+### MIDI Ports
+
+**入出力設定:**
+
+```
+Preferences > MIDI:
+
+Input:
+┌──────────────────┬──────┬──────┬──────┐
+│ Device           │ Track│ Sync │Remote│
+├──────────────────┼──────┼──────┼──────┤
+│ MIDI Keyboard    │  ☑   │  ☐   │  ☐   │
+│ Controller       │  ☑   │  ☐   │  ☑   │
+└──────────────────┴──────┴──────┴──────┘
+
+Track:
+MIDI演奏入力
+☑ 必須
+
+Sync:
+外部機器と同期
+☑ シンセと同期時
+
+Remote:
+コントローラー操作
+☑ MIDI learn使用時
+
+Output:
+同様の設定
+```
+
+### MIDI Clock Sync
+
+```
+MIDI Clock設定:
+
+Sync Type:
+None (デフォルト)
+Song Position
+Pattern
+
+使用例:
+
+外部ドラムマシン:
+Song Position
+→ Liveと同期
+
+モジュラーシンセ:
+Pattern
+→ テンポ同期
+
+不要:
+MIDIキーボードのみ
+→ None
+```
+
+### Takeover Mode
+
+```
+Preferences > MIDI > Takeover Mode:
+
+コントローラーノブと
+Live内パラメータの
+値が違う時の動作
+
+None:
+すぐに反映
+→ 値が飛ぶ
+
+Pickup:
+物理ノブが追いつくまで待つ (推奨)
+→ スムーズ
+
+Value Scaling:
+相対的に変化
+
+推奨: Pickup
+理由:
+急な音量変化を防ぐ
+```
+
+### MIDI Remote Scripts
+
+```
+Control Surface:
+
+Preferences > MIDI > Control Surface:
+
+プリセット:
+Ableton Push 2
+Akai APC40
+Native Instruments Maschine
+Novation Launchpad
+...
+
+選択:
+持っているコントローラー選択
+→ 自動マッピング
+
+None:
+汎用MIDIコントローラー
+→ 手動MIDI Learn
+```
+
+---
+
+## Link/Tempo/MIDI設定
+
+### Ableton Link
+
+**デバイス同期:**
+
+```
+Preferences > Link Tempo MIDI:
+
+Ableton Link:
+☑ Enable Link
+
+機能:
+WiFi経由で
+複数デバイス同期
+
+使用例:
+
+Live + Live:
+2台のPC同期
+
+Live + iOS:
+iPhone/iPad アプリと同期
+
+アプリ例:
+Reason
+Beatmaker
+Launchpad
+
+利点:
+ケーブル不要
+即座に同期
+
+条件:
+同一WiFiネットワーク
+```
+
+### Tempo設定
+
+```
+Default Tempo:
+
+New Set Default Tempo:
+120 BPM (デフォルト)
+
+変更例:
+House: 125 BPM
+Techno: 130 BPM
+Dubstep: 140 BPM
+Hip-Hop: 90 BPM
+
+効果:
+新規プロジェクト作成時
+この値が初期BPM
+
+便利:
+よく作るジャンルの
+標準BPM設定
+```
+
+### Follow Song Tempo
+
+```
+External Sync:
+
+Sync:
+☐ Off (通常)
+☑ On (同期時)
+
+使用例:
+外部機器がマスター
+→ Liveがスレーブ
+
+通常:
+Off
+→ Live内部クロック使用
+```
+
+---
+
+## Library（ライブラリ管理）
+
+### Pack設定
+
+**パック管理:**
+
+```
+Preferences > Library:
+
+Install Packs:
+Abletonパックのインストール
+
+場所:
+~/Music/Ableton/Factory Packs/
+~/Music/Ableton/User Library/
+
+Installed Packs:
+一覧表示
+
+アンインストール:
+不要なパック削除
+→ 容量節約
+
+推奨:
+よく使うパックのみ保持
+```
+
+### User Library整理
+
+```
+User Library構造:
+
+User Library/
+├── Presets/
+│   ├── Instruments/
+│   └── Audio Effects/
+├── Samples/
+├── Clips/
+├── Grooves/
+└── Templates/
+
+管理:
+
+定期的に整理
+不要ファイル削除
+カテゴリ分け
+
+Tips:
+フォルダ名は英語
+検索しやすい名前
+```
+
+### サンプルスキャン
+
+```
+Sample Scan設定:
+
+Preferences > Library > Rescan:
+
+Use Cases:
+新しいサンプル追加後
+外部ドライブ接続後
+
+処理:
+全フォルダスキャン
+→ 時間かかる
+
+頻度:
+必要時のみ
+自動スキャンなし
+```
+
+---
+
 ## 実践: Preferences最適化
 
 **30分の設定:**
@@ -799,6 +1215,1486 @@ CPU:
 Preferences: Cmd+,
 Keyboard Map: Opt+Cmd+K
 ```
+
+---
+
+## パフォーマンス最適化の実践テクニック
+
+### CPU使用率モニタリング
+
+**リソース監視:**
+
+```
+CPU Meter:
+Ableton Live右上
+常時表示
+
+表示内容:
+┌──────────────┐
+│ CPU: 45%     │ ← 現在の使用率
+│ DISK: 0.2%   │ ← ディスク負荷
+└──────────────┘
+
+目安:
+
+緑 (0-60%):
+余裕あり
+快適
+
+黄 (60-80%):
+注意
+重い処理で不安定
+
+赤 (80-100%):
+危険
+音切れの可能性
+
+対策:
+
+Buffer Size上げる:
+256 → 512
+→ CPU負荷軽減
+
+Freeze Track:
+重いトラックを一時オーディオ化
+
+プラグイン削減:
+不要なエフェクト削除
+```
+
+### ディスク使用率の最適化
+
+```
+DISK Meter:
+
+表示:
+録音・再生時のディスク負荷
+
+高い場合 (>50%):
+
+原因:
+遅いHDD
+同時に多数のオーディオ再生
+
+対策:
+
+SSDに移行:
+HDD → SSD
+→ 劇的改善
+
+トラック数削減:
+使用していないトラック削除
+
+サンプルレート下げる:
+96kHz → 44.1kHz
+→ ファイルサイズ半分
+```
+
+### メモリ管理
+
+```
+RAM使用:
+
+Live 12推奨:
+最小: 8GB
+推奨: 16GB
+理想: 32GB以上
+
+確認:
+Activity Monitor (Mac)
+Task Manager (Win)
+
+節約:
+
+不要なアプリ終了:
+ブラウザ、Slack等
+
+サンプルの読み込み:
+必要な分だけ
+```
+
+---
+
+## 環境別最適設定
+
+### ノートPC設定（MacBook等）
+
+**モバイル制作環境:**
+
+```
+バッテリー駆動時:
+
+Buffer Size: 512
+→ CPU負荷軽減
+→ 電池長持ち
+
+Sample Rate: 44.1kHz
+→ 処理軽量化
+
+CPU Throttling:
+省電力モードOFF
+→ パフォーマンス優先
+
+電源接続時:
+
+Buffer Size: 256
+→ 低レイテンシー
+
+Multicore: On
+→ フルパワー
+
+冷却:
+ノートPC スタンド使用
+→ 熱対策
+```
+
+### デスクトップPC設定
+
+**本格制作環境:**
+
+```
+ハイスペックPC:
+
+Buffer Size: 128-256
+→ 最低レイテンシー
+
+Sample Rate: 44.1kHz
+(または48kHz)
+
+CPU:
+Multicore: On
+全コア活用
+
+複数モニター:
+メインモニター: Arrangement View
+サブモニター: Mixer、Browser
+
+推奨スペック:
+CPU: i7/i9、Ryzen 7/9
+RAM: 32GB以上
+SSD: 512GB以上
+```
+
+### スタジオ固定設置
+
+**プロ環境:**
+
+```
+専用オーディオI/F:
+
+高品質モデル:
+Universal Audio Apollo
+RME Fireface
+Apogee Symphony
+
+設定:
+Sample Rate: 44.1kHz
+Buffer Size: 256
+→ 安定性重視
+
+外部機器連携:
+
+MIDI Sync: On
+Ableton Link: On
+→ 全機器同期
+
+モニター環境:
+スタジオモニター
+ヘッドホンアンプ
+```
+
+---
+
+## トラブルシューティング
+
+### 音が出ない場合
+
+**チェックリスト:**
+
+```
+1. Audio Device確認:
+   Preferences > Audio
+   → 正しいデバイス選択
+
+2. Output有効化:
+   Preferences > Audio > Output
+   → チャンネル ☑
+
+3. Master Volume:
+   Mixerのマスタートラック
+   → 0dB付近
+
+4. Test Tone:
+   Preferences > Audio > Test
+   → クリックして音確認
+
+5. OS設定:
+   システム環境設定 > サウンド
+   → 出力デバイス確認
+
+6. ケーブル:
+   物理接続確認
+```
+
+### 音切れ・ノイズ
+
+**原因と対策:**
+
+```
+症状:
+プチプチ音
+音飛び
+
+原因1: Buffer Size小さい
+対策:
+256 → 512
+または 1024
+
+原因2: CPU過負荷
+対策:
+Freeze Track
+プラグイン削減
+
+原因3: ディスク遅い
+対策:
+SSDに移行
+外付けHDD → 内蔵SSD
+
+原因4: WiFi干渉
+対策:
+有線接続
+WiFi OFF
+
+原因5: バックグラウンドアプリ
+対策:
+不要アプリ終了
+```
+
+### レイテンシーが大きい
+
+**低レイテンシー化:**
+
+```
+現在: 20ms以上
+目標: 10ms以下
+
+手順:
+
+1. Buffer Size下げる:
+   512 → 256 → 128
+
+2. Sample Rate確認:
+   44.1kHz推奨
+   (高いとレイテンシー増)
+
+3. Reduce Latency: On
+   Preferences > Audio
+
+4. Direct Monitoring:
+   オーディオI/F側で
+   入力を直接モニター
+   → ゼロレイテンシー
+
+注意:
+Buffer下げすぎ → CPU過負荷
+バランス調整必要
+```
+
+### MIDI機器が認識されない
+
+**接続トラブル:**
+
+```
+確認手順:
+
+1. 物理接続:
+   USBケーブル再接続
+   MIDIケーブル確認
+
+2. デバイス電源:
+   MIDI機器の電源ON
+
+3. Live再起動:
+   Ableton終了 → 再起動
+
+4. MIDI設定:
+   Preferences > MIDI
+   → Track ☑
+
+5. OSレベル:
+   Audio MIDI Setup (Mac)
+   → デバイス表示確認
+
+6. ドライバ:
+   メーカーサイト
+   → 最新ドライバDL
+
+7. USB hub:
+   直接PC接続
+   (hub経由 → 不安定)
+```
+
+---
+
+## 高度な設定テクニック
+
+### プロジェクトテンプレート作成
+
+**効率化の極意:**
+
+```
+目的:
+毎回同じ設定
+→ 時間節約
+
+作成手順:
+
+1. 新規プロジェクト:
+   File > New Live Set
+
+2. 基本構成:
+   よく使うトラック配置
+   - Kick (Audio)
+   - Bass (MIDI)
+   - Lead (MIDI)
+   - Return Tracks (Reverb, Delay)
+
+3. デフォルトエフェクト:
+   各トラックにEQ、Compressor等
+   プリセット設定
+
+4. BPM設定:
+   よく作るジャンルの標準BPM
+
+5. 保存:
+   File > Save Live Set as Template
+   → Templates/MyTemplate.als
+
+使用:
+次回から
+File > New Live Set > MyTemplate
+```
+
+### カスタムキーマップ
+
+**ワークフロー加速:**
+
+```
+効率的なショートカット:
+
+再生/停止:
+Space (デフォルト)
+またはF5 (カスタム)
+
+録音:
+F9 (推奨そのまま)
+
+新規MIDIトラック:
+Cmd+Shift+T (Mac)
+Ctrl+Shift+T (Win)
+
+新規Audioトラック:
+Cmd+T
+Ctrl+T
+
+トラック削除:
+Cmd+Delete
+Ctrl+Delete
+
+カスタム例:
+
+F1: Metronome On/Off
+F2: Loop On/Off
+F3: Session View
+F4: Arrangement View
+F12: Export Audio
+
+設定:
+Preferences > MIDI
+→ Key Map Mode
+→ 割り当て
+```
+
+### マルチアウト設定
+
+**複数出力活用:**
+
+```
+用途:
+各トラックを別々の出力
+→ 外部ミキサーで処理
+
+設定手順:
+
+1. Audio I/F:
+   8out以上推奨
+
+2. Preferences > Audio:
+   Output 3/4, 5/6, 7/8 ☑
+
+3. トラック設定:
+   Audio To: External Out
+   → 3/4, 5/6等選択
+
+使用例:
+
+キック → Out 1/2
+ベース → Out 3/4
+リード → Out 5/6
+ドラム → Out 7/8
+
+メリット:
+外部ハードウェアEQ
+個別コンプレッサー
+アナログミキサー
+```
+
+---
+
+## バックアップとデータ管理
+
+### プロジェクトバックアップ
+
+**データ保護:**
+
+```
+重要度: 最高
+失うと: 作業すべて消失
+
+バックアップ方法:
+
+1. Collect All and Save:
+   File > Collect All and Save
+   → 全サンプル・プラグイン設定保存
+
+2. 自動バックアップ:
+   Time Machine (Mac)
+   File History (Win)
+   → 1時間ごと
+
+3. クラウド:
+   Dropbox、Google Drive
+   → プロジェクトフォルダ同期
+
+4. 外付けドライブ:
+   週1回手動バックアップ
+   → 完全コピー
+
+5. バージョン管理:
+   ProjectName_v1.als
+   ProjectName_v2.als
+   → 重要な段階で保存
+```
+
+### サンプルライブラリ整理
+
+**効率的な管理:**
+
+```
+フォルダ構造:
+
+~/Music/Samples/
+├── Kicks/
+│   ├── 808/
+│   ├── Acoustic/
+│   └── Electronic/
+├── Snares/
+├── Percussion/
+├── Vocals/
+│   ├── Phrases/
+│   └── Oneshots/
+├── FX/
+└── Loops/
+    ├── Drum Loops/
+    ├── Bass Loops/
+    └── Melodic Loops/
+
+命名規則:
+Genre_Type_Note_BPM.wav
+
+例:
+Techno_Kick_C_128.wav
+House_Bass_Am_124.wav
+
+メタデータ:
+BPM、Key情報
+→ Live内検索で便利
+```
+
+### プリセット管理
+
+**即座にアクセス:**
+
+```
+User Library活用:
+
+保存場所:
+~/Music/Ableton/User Library/Presets/
+
+分類:
+
+Instruments/
+├── My Bass Sounds/
+├── Lead Synths/
+├── Pads/
+└── Drums/
+
+Audio Effects/
+├── Vocal Chain/
+├── Mastering/
+└── Creative/
+
+使い方:
+
+1. 作成:
+   音作り完成
+   → Save Preset
+
+2. 名前:
+   わかりやすく
+   "Fat Techno Bass"
+   "Vocal Compression Chain"
+
+3. タグ:
+   検索用
+   "bass, techno, 303"
+
+4. 呼び出し:
+   Browser > User Library
+   → ドラッグ&ドロップ
+```
+
+---
+
+## セキュリティとライセンス管理
+
+### ライセンス保護
+
+**認証情報の管理:**
+
+```
+重要:
+シリアルナンバー保存
+
+保管場所:
+
+1. Abletonアカウント:
+   オンラインで確認可能
+
+2. メール:
+   購入時の確認メール保存
+
+3. 紙メモ:
+   物理的に保管
+   金庫等
+
+4. パスワードマネージャー:
+   1Password、LastPass
+
+認証台数:
+最大2台同時
+→ 3台目使用時は
+   1台をDeauthorize
+
+再インストール時:
+シリアル入力
+→ すぐ使用可能
+```
+
+### プラグインライセンス
+
+**サードパーティ管理:**
+
+```
+VST/AU プラグイン:
+
+iLok:
+多くのプロプラグイン
+物理キーまたはクラウド
+
+Waves Central:
+Wavesプラグイン専用
+
+Native Access:
+Native Instruments
+
+Plugin Alliance:
+Installation Manager
+
+重要:
+各アカウント情報保存
+シリアル番号記録
+
+ライセンス移行:
+古いPC → 新PC
+各ツールでDeactivate/Activate
+```
+
+---
+
+## まとめ
+
+### 必須設定チェックリスト
+
+```
+基本設定:
+□ Look/Feel: Dark
+□ Language: English (または日本語)
+□ HiDPI: On (Mac Retina)
+
+オーディオ:
+□ Audio Device: オーディオI/F選択
+□ Sample Rate: 44.1kHz
+□ Buffer Size: 256 (録音時128)
+□ Reduce Latency: On
+□ Input/Output: 使用チャンネルのみ☑
+
+MIDI:
+□ MIDI Ports: Track ☑
+□ Control Surface: コントローラー選択
+□ Takeover Mode: Pickup
+
+ファイル:
+□ Temporary Folder: 外付けSSD (推奨)
+□ User Library: 場所確認
+□ VST Sources: Use System Folders ☑
+
+制作環境:
+□ Count-In: 2 Bars
+□ Auto-Warp: On
+□ Launch Mode: Trigger
+□ Multicore: On
+□ Undo Steps: 64
+
+バックアップ:
+□ Time Machine/File History 有効
+□ Collect All and Save 定期実行
+□ シリアルナンバー保存
+```
+
+### 設定後のアクション
+
+```
+1. Ableton再起動:
+   設定を確実に反映
+
+2. テストプロジェクト:
+   音が出るか確認
+   レイテンシー確認
+   MIDI動作確認
+
+3. テンプレート作成:
+   基本トラック配置
+   Save as Template
+
+4. ショートカット習得:
+   Opt+Cmd+K で表示
+   よく使う機能を暗記
+
+5. バックアップ設定:
+   自動バックアップ確認
+   外付けドライブ準備
+```
+
+### パフォーマンス指標
+
+```
+目標値:
+
+CPU使用率: 60%以下
+レイテンシー: 10ms以下
+ディスク負荷: 30%以下
+
+達成できたら:
+快適な制作環境
+音切れなし
+リアルタイム演奏可能
+```
+
+---
+
+## ジャンル別推奨設定
+
+### Techno/House制作
+
+**ダンスミュージック最適化:**
+
+```
+BPM設定:
+Default Tempo: 125 BPM (House)
+または 130 BPM (Techno)
+
+Warp設定:
+Auto-Warp: On
+→ ループサンプル自動同期
+
+Launch Mode:
+Trigger
+→ ライブパフォーマンス向き
+
+Quantization:
+1 Bar
+→ きれいにループ
+
+Buffer Size:
+録音時: 128
+→ ドラムマシン入力
+ミックス時: 512
+→ 多数トラック処理
+
+推奨プラグイン:
+Wavetable (シンセ)
+Echo (ディレイ)
+Reverb (空間系)
+EQ Eight (イコライザー)
+Compressor (ダイナミクス)
+
+トラックテンプレート:
+- Kick (Audio)
+- Bass (MIDI - Wavetable)
+- Lead (MIDI - Wavetable)
+- Perc 1, 2, 3 (Audio)
+- FX (Audio)
+- Return A: Reverb
+- Return B: Delay
+```
+
+### Hip-Hop/Trap制作
+
+**ビートメイキング設定:**
+
+```
+BPM設定:
+Default Tempo: 90 BPM (Hip-Hop)
+または 140 BPM (Trap)
+
+Warp設定:
+Auto-Warp: On
+→ サンプルチョップ用
+
+Count-In:
+1 Bar
+→ 素早くビート録音
+
+Snap to Grid:
+1/16 Note
+→ 細かいハイハット配置
+
+Buffer Size:
+256 samples
+→ MPC風の打ち込み
+
+推奨プラグイン:
+Simpler (サンプラー)
+Drum Rack
+Saturator (歪み)
+EQ Eight
+Glue Compressor
+
+トラックテンプレート:
+- Kick
+- Snare
+- Hi-Hat
+- 808 Bass (MIDI)
+- Sample 1, 2, 3
+- Vocal
+- Return A: Reverb Short
+- Return B: Delay 1/4
+```
+
+### EDM/Pop制作
+
+**商業音楽設定:**
+
+```
+BPM設定:
+Default Tempo: 128 BPM (EDM)
+または 120 BPM (Pop)
+
+Sample Rate:
+48 kHz
+→ 映像同期用
+
+Warp設定:
+Auto-Warp: On
+→ ボーカル処理
+
+Buffer Size:
+256 samples
+→ バランス型
+
+推奨プラグイン:
+Wavetable
+Operator (FM)
+Auto Filter
+Vocoder
+Multiband Dynamics
+
+トラックテンプレート:
+- Kick
+- Snare/Clap
+- Bass (Sub + Mid)
+- Lead Synth
+- Pad
+- Vocal (複数)
+- FX/Riser
+- Return A: Reverb Large
+- Return B: Delay Sync
+- Return C: Chorus
+```
+
+### Ambient/Experimental
+
+**実験音楽設定:**
+
+```
+BPM設定:
+Default Tempo: 80 BPM
+または Free Tempo
+
+Warp設定:
+Auto-Warp: Off
+→ 自然な時間軸
+
+Quantization:
+None
+→ 自由配置
+
+Buffer Size:
+512-1024
+→ 重いエフェクト多用
+
+推奨プラグイン:
+Granulator
+Erosion
+Resonators
+Corpus
+Reverb (100% Wet)
+
+トラックテンプレート:
+- Texture 1, 2, 3
+- Field Recording
+- Drone
+- Processed Audio
+- Return A: Reverb Infinite
+- Return B: Grain Delay
+- Return C: Frequency Shifter
+```
+
+---
+
+## コラボレーション設定
+
+### 複数人での制作
+
+**プロジェクト共有:**
+
+```
+ファイル管理:
+
+Collect All and Save:
+必須
+→ 全サンプル同梱
+
+クラウド共有:
+Dropbox, Google Drive
+→ 自動同期
+
+バージョン管理:
+Track_v1_John.als
+Track_v2_Mike.als
+→ 誰が編集か明記
+
+プラグイン統一:
+使用プラグインリスト作成
+→ 全員が同じもの所有
+
+Sample Rate統一:
+44.1 kHz (推奨)
+→ 互換性最優先
+
+テンプレート共有:
+共通テンプレート使用
+→ トラック配置統一
+```
+
+### リモートコラボレーション
+
+**遠隔制作:**
+
+```
+Ableton Link:
+Enable Link ☑
+→ 同時演奏セッション
+
+オンライン通話:
+Zoom, Discord
+→ 音声共有
+
+画面共有:
+編集作業を共有
+→ リアルタイムフィードバック
+
+ファイル転送:
+WeTransfer (大容量)
+→ プロジェクトファイル送信
+
+Stems Export:
+個別トラック書き出し
+→ 別々にミックス可能
+
+コミュニケーション:
+定期的に進捗共有
+コメント機能活用
+```
+
+---
+
+## アップグレードとバージョン管理
+
+### Live 12の新機能活用
+
+**最新バージョン設定:**
+
+```
+Meld:
+新シンセサイザー
+Preferences > Plug-In Sources
+→ 自動認識
+
+Drift:
+アナログシンセ
+プリセットブラウザで検索
+
+MIDI Polyphonic Expression (MPE):
+Preferences > MIDI
+→ MPE対応コントローラー設定
+
+Spectral Resonator:
+CPU負荷高い
+→ Buffer Size 512推奨
+
+Hybrid Reverb:
+高品質リバーブ
+→ Returnトラックに配置
+
+Roar:
+ディストーション
+→ ドラムに最適
+```
+
+### 旧バージョンからの移行
+
+**アップグレード手順:**
+
+```
+Live 11 → Live 12:
+
+1. 現行プロジェクトバックアップ:
+   全プロジェクトコピー
+   → 外付けドライブ
+
+2. Live 12インストール:
+   Live 11と共存可能
+
+3. Preferences移行:
+   Live 11のPreferencesフォルダコピー
+   → Live 12フォルダに貼り付け
+
+4. ライセンス認証:
+   Ableton Account でログイン
+
+5. プラグイン再スキャン:
+   Preferences > Plug-In Sources
+   → Re-scan
+
+6. 互換性確認:
+   古いプロジェクト開く
+   → 動作チェック
+
+注意点:
+
+Max for Live:
+再インストール必要な場合あり
+
+サードパーティVST:
+最新版に更新推奨
+
+プリセット:
+User Libraryは自動移行
+```
+
+---
+
+## モバイル連携設定
+
+### iPad/iPhone連携
+
+**iOS デバイス活用:**
+
+```
+Ableton Note (iOS):
+アイデアスケッチアプリ
+
+連携:
+Ableton Cloudで同期
+→ iPad作成メロディを
+   Live で開く
+
+設定:
+Preferences > Account
+→ ログイン
+→ Cloud Sync ☑
+
+使い方:
+1. iPad で Note 起動
+2. メロディ/ビート作成
+3. Save to Cloud
+4. Live で Open from Cloud
+
+Ableton Link:
+同一WiFi
+→ Live + Note 同期演奏
+
+推奨:
+外出先でアイデア録り
+→ 帰宅後Live で本格制作
+```
+
+### タブレットコントロール
+
+**タッチスクリーン活用:**
+
+```
+TouchOSC (iOS/Android):
+カスタムMIDIコントローラー
+
+設定:
+
+1. TouchOSC アプリDL:
+   iOS App Store
+   または Google Play
+
+2. WiFi接続:
+   PC と同一ネットワーク
+
+3. Live 設定:
+   Preferences > MIDI
+   → TouchOSC (Network)
+   Track ☑, Remote ☑
+
+4. レイアウト作成:
+   TouchOSC Editor
+   → フェーダー、ボタン配置
+
+5. MIDI Learn:
+   Live で MIDI Map Mode
+   → TouchOSC 操作で割り当て
+
+使用例:
+ミキサーコントロール
+エフェクトパラメータ
+クリップ起動
+```
+
+---
+
+## プロフェッショナルワークフロー
+
+### スタジオ標準設定
+
+**プロ環境構築:**
+
+```
+オーディオI/F:
+Universal Audio Apollo
+RME Fireface UCX II
+Apogee Symphony
+
+設定:
+Sample Rate: 44.1kHz
+Buffer Size: 256 (録音128)
+Bit Depth: 24-bit
+
+モニタリング:
+メインモニター: Genelec, Focal
+サブウーファー: 低域確認
+ヘッドホン: 複数種類
+→ 異なる環境でチェック
+
+MIDI機器:
+MIDIキーボード: 88鍵
+パッドコントローラー: Push 2
+制御: MIDI Fighter Twister
+
+ルーム処理:
+吸音材設置
+バスストラップ
+モニター位置最適化
+```
+
+### マスタリングエンジニア納品設定
+
+**プロ納品準備:**
+
+```
+Export設定:
+
+Sample Rate:
+44.1kHz (CD)
+48kHz (映像)
+96kHz (ハイレゾ)
+
+Bit Depth:
+24-bit (マスタリング用)
+16-bit (CD最終)
+
+Format:
+WAV (推奨)
+AIFF (Mac互換)
+
+Dither:
+POW-r 3
+→ 24bit→16bit変換時
+
+Normalization:
+Off
+→ マスタリングで調整
+
+ファイル命名:
+ArtistName_TrackTitle_Master_24bit_44k.wav
+
+Stems Export:
+必要に応じて
+各トラックグループ別
+```
+
+---
+
+## 緊急トラブル対処法
+
+### クラッシュ復旧
+
+**データ救済:**
+
+```
+Live がクラッシュした:
+
+1. 再起動:
+   Live を再起動
+
+2. 自動回復:
+   File > Open Recent
+   → [Recovered] 付きファイル
+
+3. Tempフォルダ確認:
+   ~/Library/Application Support/Ableton/Live/Temp
+   → .als.tmp ファイル探す
+
+4. Time Machine:
+   1時間前の状態に復元
+
+5. 手動バックアップ:
+   外付けドライブから復元
+
+予防:
+5分ごとCmd+S
+定期的にバージョン保存
+```
+
+### 音が歪む・割れる
+
+**音質トラブル:**
+
+```
+症状:
+音が歪む、割れる
+
+原因と対策:
+
+1. クリッピング:
+   Master Meter 確認
+   → 赤点灯 = Over
+   対策: 全トラック音量下げ
+
+2. CPU過負荷:
+   Buffer Size上げる
+   Freeze Track
+
+3. プラグイン不具合:
+   1つずつバイパス
+   → 原因特定
+
+4. サンプルレート不一致:
+   全サンプル44.1kHzに統一
+
+5. オーディオI/F設定:
+   ドライバ最新版に更新
+   再起動
+```
+
+### ライセンス認証エラー
+
+**認証問題:**
+
+```
+エラーメッセージ:
+"Authorization failed"
+
+対処:
+
+1. インターネット接続確認:
+   WiFi/有線確認
+
+2. Abletonアカウント確認:
+   https://www.ableton.com
+   → ログイン
+   → ライセンス表示確認
+
+3. 認証台数確認:
+   2台以上で使用中?
+   → 1台Deauthorize
+
+4. オフライン認証:
+   Preferences > Licenses
+   → Authorize Offline
+   → 画面指示に従う
+
+5. サポート連絡:
+   https://www.ableton.com/support
+   → シリアル番号準備
+```
+
+---
+
+## 学習リソースと次のステップ
+
+### 公式リソース
+
+**Ableton提供:**
+
+```
+Ableton Manual:
+https://www.ableton.com/manual
+→ 全機能詳細解説
+
+Learning Music:
+https://learningmusic.ableton.com
+→ 音楽理論基礎
+
+Learning Synths:
+https://learningsynths.ableton.com
+→ シンセ基礎
+
+One Thing:
+YouTube Series
+→ 週1回のTips動画
+
+Certified Training:
+有料オンラインコース
+→ 体系的学習
+```
+
+### コミュニティ
+
+**ユーザー交流:**
+
+```
+Reddit:
+r/ableton
+→ 質問、Tips共有
+
+Facebook Groups:
+Ableton Live Users
+→ グローバルコミュニティ
+
+Discord:
+Ableton非公式サーバー
+→ リアルタイム交流
+
+フォーラム:
+https://forum.ableton.com
+→ 技術的質問
+
+YouTube:
+You Suck at Producing
+Seed to Stage
+→ 実践的チュートリアル
+```
+
+### スキルアップパス
+
+**段階的成長:**
+
+```
+初級 (0-3ヶ月):
+□ Preferencesマスター
+□ 基本操作習得
+□ 簡単なビート作成
+□ オーディオ録音
+
+中級 (3-12ヶ月):
+□ 複雑なアレンジ
+□ ミキシング基礎
+□ プラグイン活用
+□ サンプリング技術
+
+上級 (1-2年):
+□ マスタリング
+□ ライブパフォーマンス
+□ Max for Live
+□ プロレベル作品完成
+
+プロ (2年以上):
+□ ジャンル横断制作
+□ コラボレーション
+□ リリース経験
+□ 継続的スキル向上
+```
+
+---
+
+## 最終チェックリスト
+
+### 初回セットアップ完全版
+
+**全項目確認:**
+
+```
+□ 1. ソフトウェア:
+  □ Live 12 インストール
+  □ ライセンス認証完了
+  □ バージョン確認
+
+□ 2. Look/Feel:
+  □ Theme: Dark
+  □ Brightness: 調整
+  □ Language: 選択
+  □ HiDPI: On (Mac)
+
+□ 3. Audio:
+  □ Audio Device: 選択
+  □ Sample Rate: 44.1kHz
+  □ Buffer Size: 256
+  □ Reduce Latency: On
+  □ Input/Output: 有効化
+  □ Test Tone: 確認
+
+□ 4. MIDI:
+  □ Ports: Track ☑
+  □ Control Surface: 設定
+  □ Takeover Mode: Pickup
+  □ MIDI機器動作確認
+
+□ 5. File/Folder:
+  □ Temporary Folder: 設定
+  □ User Library: 確認
+  □ VST Sources: ☑
+  □ Re-scan実行
+
+□ 6. Record Warp Launch:
+  □ Count-In: 2 Bars
+  □ Metronome: On
+  □ Auto-Warp: On
+  □ Launch Mode: Trigger
+  □ Quantization: 1 Bar
+
+□ 7. CPU最適化:
+  □ Multicore: On
+  □ CPU Meter: 表示確認
+
+□ 8. Library:
+  □ Packs インストール
+  □ サンプル整理
+  □ プリセット確認
+
+□ 9. ショートカット:
+  □ Keyboard Map確認
+  □ カスタム設定
+  □ 主要操作暗記
+
+□ 10. バックアップ:
+  □ Time Machine/File History
+  □ クラウド同期
+  □ 外付けドライブ
+
+□ 11. テスト:
+  □ 新規プロジェクト作成
+  □ オーディオ録音
+  □ MIDI入力
+  □ 再生確認
+  □ Export確認
+
+□ 12. ドキュメント:
+  □ 設定メモ保存
+  □ シリアル番号記録
+  □ プラグインリスト作成
+```
+
+### 定期メンテナンス
+
+**月次チェック:**
+
+```
+□ ソフトウェア更新:
+  □ Live アップデート確認
+  □ プラグイン更新
+  □ OSアップデート (慎重に)
+
+□ バックアップ:
+  □ プロジェクトバックアップ
+  □ User Library バックアップ
+  □ Preferences バックアップ
+
+□ ライブラリ整理:
+  □ 不要ファイル削除
+  □ サンプル整理
+  □ プリセット整理
+
+□ パフォーマンス:
+  □ CPU使用率確認
+  □ ディスク空き容量確認
+  □ 動作速度確認
+
+□ ライセンス:
+  □ 認証状態確認
+  □ プラグインライセンス確認
+```
+
+---
+
+## 結論: 最適化された制作環境
+
+**成功への道:**
+
+```
+Preferences設定 = 基盤:
+
+正しい設定:
+効率的なワークフロー
+ストレスフリー制作
+プロ品質の作品
+
+時間投資:
+初回: 30分-1時間
+効果: 数百時間の節約
+
+継続的改善:
+使いながら調整
+自分に合った設定発見
+
+次のステップ:
+Audio/MIDI詳細設定
+プラグイン習得
+実際の制作開始
+
+重要:
+設定は手段
+目的は音楽創造
+```
+
+**これで準備完了。**
+**さあ、音楽を作りましょう。**
 
 ---
 
