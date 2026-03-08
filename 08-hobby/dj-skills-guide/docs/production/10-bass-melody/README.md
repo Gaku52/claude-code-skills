@@ -62,7 +62,7 @@
 - ミキシング: 4-5時間 (20-25%)
 - アレンジメント: 3-4時間 (15-20%)
 
-→ **ベース・メロディ合計で約40-45%**の時間を費やす
+> **ベース・メロディ合計で約40-45%**の時間を費やす
 
 ---
 
@@ -87,7 +87,7 @@ A Minor: A - B - C - D - E - F - G - A
 - F Major = D Minor
 - G Major = E Minor
 
-→ DJのハーモニックミキシングと同じ概念
+> DJのハーモニックミキシングと同じ概念
 
 ### 音程（Interval）
 
@@ -114,6 +114,245 @@ C Major 7: C - E - G - B
 C Minor 7: C - E♭ - G - B♭
 ```
 
+### 全12キーのメジャースケール一覧
+
+ベース・メロディ制作では、あらゆるキーで作業できる能力が求められます。以下に全12キーのメジャースケールを記載します。
+
+```
+C  Major: C  - D  - E  - F  - G  - A  - B  - C    (シャープ/フラット: なし)
+G  Major: G  - A  - B  - C  - D  - E  - F# - G    (シャープ1つ: F#)
+D  Major: D  - E  - F# - G  - A  - B  - C# - D    (シャープ2つ: F#, C#)
+A  Major: A  - B  - C# - D  - E  - F# - G# - A    (シャープ3つ: F#, C#, G#)
+E  Major: E  - F# - G# - A  - B  - C# - D# - E    (シャープ4つ: F#, C#, G#, D#)
+B  Major: B  - C# - D# - E  - F# - G# - A# - B    (シャープ5つ: F#, C#, G#, D#, A#)
+F# Major: F# - G# - A# - B  - C# - D# - E# - F#  (シャープ6つ: 全て)
+F  Major: F  - G  - A  - Bb - C  - D  - E  - F    (フラット1つ: Bb)
+Bb Major: Bb - C  - D  - Eb - F  - G  - A  - Bb   (フラット2つ: Bb, Eb)
+Eb Major: Eb - F  - G  - Ab - Bb - C  - D  - Eb   (フラット3つ: Bb, Eb, Ab)
+Ab Major: Ab - Bb - C  - Db - Eb - F  - G  - Ab   (フラット4つ: Bb, Eb, Ab, Db)
+Db Major: Db - Eb - F  - Gb - Ab - Bb - C  - Db   (フラット5つ: Bb, Eb, Ab, Db, Gb)
+```
+
+### 全12キーのナチュラルマイナースケール一覧
+
+```
+A  Minor: A  - B  - C  - D  - E  - F  - G  - A    (シャープ/フラット: なし)
+E  Minor: E  - F# - G  - A  - B  - C  - D  - E    (シャープ1つ: F#)
+B  Minor: B  - C# - D  - E  - F# - G  - A  - B    (シャープ2つ: F#, C#)
+F# Minor: F# - G# - A  - B  - C# - D  - E  - F#  (シャープ3つ: F#, C#, G#)
+C# Minor: C# - D# - E  - F# - G# - A  - B  - C#  (シャープ4つ: F#, C#, G#, D#)
+G# Minor: G# - A# - B  - C# - D# - E  - F# - G#  (シャープ5つ: F#, C#, G#, D#, A#)
+D  Minor: D  - E  - F  - G  - A  - Bb - C  - D    (フラット1つ: Bb)
+G  Minor: G  - A  - Bb - C  - D  - Eb - F  - G    (フラット2つ: Bb, Eb)
+C  Minor: C  - D  - Eb - F  - G  - Ab - Bb - C    (フラット3つ: Bb, Eb, Ab)
+F  Minor: F  - G  - Ab - Bb - C  - Db - Eb - F    (フラット4つ: Bb, Eb, Ab, Db)
+Bb Minor: Bb - C  - Db - Eb - F  - Gb - Ab - Bb   (フラット5つ: Bb, Eb, Ab, Db, Gb)
+Eb Minor: Eb - F  - Gb - Ab - Bb - Cb - Db - Eb   (フラット6つ: 全て)
+```
+
+### モード（教会旋法）の理解
+
+モードはスケールのバリエーションで、EDM制作でも頻繁に使用されます。各モードはCメジャースケールの音を出発点を変えて弾くことで得られます。
+
+```
+イオニアン (Ionian) = メジャースケール:
+C - D - E - F - G - A - B - C
+雰囲気: 明るい、ハッピー
+使用ジャンル: House、Progressive House
+
+ドリアン (Dorian):
+D - E - F - G - A - B - C - D
+雰囲気: マイナーだが明るめ、ファンキー
+使用ジャンル: Tech House、Funk、Deep House
+特徴: ナチュラルマイナーの6度が長6度
+
+フリジアン (Phrygian):
+E - F - G - A - B - C - D - E
+雰囲気: ダーク、エキゾチック、スパニッシュ
+使用ジャンル: Psytrance、Dark Techno
+特徴: 2度がフラット（半音の緊張感）
+
+リディアン (Lydian):
+F - G - A - B - C - D - E - F
+雰囲気: 浮遊感、ドリーミー、神秘的
+使用ジャンル: Ambient、Progressive Trance
+特徴: 4度がシャープ（#4）
+
+ミクソリディアン (Mixolydian):
+G - A - B - C - D - E - F - G
+雰囲気: メジャーだがブルージー
+使用ジャンル: Garage、UK Funky
+特徴: 7度がフラット（b7）
+
+エオリアン (Aeolian) = ナチュラルマイナースケール:
+A - B - C - D - E - F - G - A
+雰囲気: 悲しい、メランコリック
+使用ジャンル: Melodic Techno、Trance
+
+ロクリアン (Locrian):
+B - C - D - E - F - G - A - B
+雰囲気: 不安定、不気味
+使用ジャンル: Experimental、Industrial
+特徴: 5度がフラット（非常に不安定）
+```
+
+### モードのベースライン制作への応用
+
+```
+ドリアンモードのベースライン例（D Dorian）:
+|D2----|A1----|G1----|F1-B1-|
+→ 6度の音（B）がマイナーキーに明るさを加える
+→ Deep House、Tech Houseで頻繁に使用
+
+フリジアンモードのベースライン例（E Phrygian）:
+|E1----|F1----|E1----|F1-G1-|
+→ ルートと短2度（E-F）の半音の緊張感
+→ Dark Techno、Psytranceの定番
+
+ミクソリディアンモードのベースライン例（G Mixolydian）:
+|G1----|F1----|C2----|D2----|
+→ b7（F）がブルージーな雰囲気
+→ ファンキーなHouse、Garage向き
+```
+
+### ハーモニックマイナースケール
+
+ナチュラルマイナーの7度を半音上げたスケール。Tranceやメロディック系ジャンルで非常に重要です。
+
+```
+A ハーモニックマイナー:
+A - B - C - D - E - F - G# - A
+        全 半 全 全 半 増2 半
+
+特徴:
+- G → G# に変化（導音を作る）
+- F → G# 間が「増2度」（エキゾチックな響き）
+- V7コード（E7: E-G#-B-D）が使用可能に
+
+ベースライン応用:
+|Am----|E7----|Am----|Dm-E7-|
+→ クラシカルでドラマチックな響き
+→ Uplifting Trance、Euro Tranceの定番
+
+全キーのハーモニックマイナー:
+A HMin: A  - B  - C  - D  - E  - F  - G# - A
+E HMin: E  - F# - G  - A  - B  - C  - D# - E
+B HMin: B  - C# - D  - E  - F# - G  - A# - B
+D HMin: D  - E  - F  - G  - A  - Bb - C# - D
+G HMin: G  - A  - Bb - C  - D  - Eb - F# - G
+C HMin: C  - D  - Eb - F  - G  - Ab - B  - C
+```
+
+### メロディックマイナースケール
+
+上行時に6度と7度を半音上げるスケール。ジャズやフュージョン系EDMで使用されます。
+
+```
+A メロディックマイナー (上行):
+A - B - C - D - E - F# - G# - A
+→ 6度と7度がシャープ
+
+A メロディックマイナー (下行 = ナチュラルマイナー):
+A - G - F - E - D - C - B - A
+→ 下行時はナチュラルマイナーに戻す（クラシック理論）
+→ EDM制作では上行形のみを使うことが多い
+
+特徴:
+- ナチュラルマイナーより明るい
+- メジャーとマイナーの中間的な雰囲気
+- Melodic Techno、Progressive Houseで効果的
+```
+
+### 音程の完全ガイド
+
+ベースラインとメロディの両方で、音程の理解は不可欠です。
+
+```
+完全系:
+完全1度 (P1/Unison):  0半音  → 同じ音
+完全4度 (P4):          5半音  → 安定、浮遊感
+完全5度 (P5):          7半音  → 最も安定（パワーコード）
+完全8度 (P8/Octave):  12半音  → オクターブ
+
+長音程:
+長2度 (M2):  2半音  → 全音、メロディックな動き
+長3度 (M3):  4半音  → メジャー感、明るい
+長6度 (M6):  9半音  → 甘い、ロマンチック
+長7度 (M7): 11半音  → テンション、ジャズ的
+
+短音程:
+短2度 (m2):  1半音  → 緊張、不協和
+短3度 (m3):  3半音  → マイナー感、暗い
+短6度 (m6):  8半音  → ドラマチック
+短7度 (m7): 10半音  → ブルージー、ファンキー
+
+増減:
+増4度 (Aug4)/減5度 (Dim5): 6半音 → トライトーン（悪魔の音程）
+→ 最も不安定、テンションの源
+→ ドミナント7thコードに含まれる
+```
+
+### 音程のベースライン・メロディへの活用
+
+```
+ベースラインでよく使う音程:
+- 完全1度（ルート）: 安定感、繰り返し
+- 完全5度: パワフル、Rock/Metal/EDM全般
+- 完全8度（オクターブ）: エネルギー、Techno
+- 短3度/長3度: コード感、House/Garage
+- 短7度: ファンキー、Tech House
+
+メロディでよく使う音程:
+- 長2度（全音）: スムーズな上行/下行
+- 短2度（半音）: テンション、解決
+- 長3度: 跳躍、明るい
+- 完全4度: 力強い跳躍
+- 完全5度: ドラマチックな跳躍
+- 完全8度: クライマックス感
+```
+
+### ダイアトニックコード完全ガイド
+
+スケール上の各音をルートとして構築されるコード群が「ダイアトニックコード」です。
+
+```
+Cメジャースケールのダイアトニックコード:
+
+度数    コード名    構成音         機能          響き
+I       C Major    C - E - G      トニック      安定、始まり
+ii      D minor    D - F - A      サブドミナント 柔らかい、移行
+iii     E minor    E - G - B      トニック代理   繊細、内省的
+IV      F Major    F - A - C      サブドミナント 開放感、浮遊
+V       G Major    G - B - D      ドミナント    緊張、解決要求
+vi      A minor    A - C - E      トニック代理   哀愁、切ない
+vii°    B dim      B - D - F      ドミナント代理 不安定、テンション
+
+7thコードに拡張:
+I7      Cmaj7      C - E - G - B      ジャジー、洗練
+ii7     Dm7        D - F - A - C      ソウルフル
+iii7    Em7        E - G - B - D      浮遊感
+IV7     Fmaj7      F - A - C - E      ドリーミー
+V7      G7         G - B - D - F      強い解決要求
+vi7     Am7        A - C - E - G      メランコリック
+vii°7   Bm7b5      B - D - F - A      テンション
+```
+
+```
+Aマイナースケール（ナチュラル）のダイアトニックコード:
+
+度数    コード名    構成音         機能          響き
+i       A minor    A - C - E      トニック      暗い安定
+ii°     B dim      B - D - F      サブドミナント 不安定
+III     C Major    C - E - G      トニック代理   相対メジャー
+iv      D minor    D - F - A      サブドミナント 哀愁
+v       E minor    E - G - B      ドミナント    弱い解決
+VI      F Major    F - A - C      サブドミナント 明るさ
+VII     G Major    G - B - D      サブトニック   浮遊感
+
+※ ハーモニックマイナーではV = E Major (E-G#-B) となり
+   強いドミナント機能を持つ
+```
+
 ---
 
 ## 📊 ジャンル別の重要度
@@ -131,6 +370,18 @@ C Minor 7: C - E♭ - G - B♭
 
 **特徴**: サブベース + シンプルなベースラインが核
 
+**Technoサブジャンル別の詳細**:
+
+| サブジャンル | ベース特徴 | メロディ特徴 | BPM |
+|-------------|-----------|-------------|-----|
+| **Peak Time Techno** | 重厚なサブベース + ドライブ | ミニマル、テクスチャー的 | 130-140 |
+| **Melodic Techno** | 控えめだが深い | アルペジオ、パッドメロディ | 120-128 |
+| **Acid Techno** | TB-303的なレゾナンスベース | フィルターシーケンスが主役 | 130-145 |
+| **Minimal Techno** | シンプル、パルス的 | ほぼなし、テクスチャーのみ | 120-130 |
+| **Dub Techno** | ディープなサブ + ディレイ | コード感、リバーブ多用 | 118-126 |
+| **Industrial Techno** | ディストーション、ノイジー | ノイズベース、無調 | 135-150 |
+| **Hard Techno** | 高圧縮、歪み系 | スタブ、短いリフ | 140-160 |
+
 ### House
 
 ```
@@ -143,6 +394,17 @@ C Minor 7: C - E♭ - G - B♭
 ```
 
 **特徴**: コード進行 + ファンキーなベースライン
+
+**Houseサブジャンル別の詳細**:
+
+| サブジャンル | ベース特徴 | メロディ特徴 | BPM |
+|-------------|-----------|-------------|-----|
+| **Deep House** | ウォーム、ラウンド | ジャジー、ソウルフル | 118-125 |
+| **Tech House** | タイト、パンチー | ミニマル、ボーカルチョップ | 124-130 |
+| **Progressive House** | レイヤード、うねり | アルペジオ、長い展開 | 126-132 |
+| **Future House** | ワブル、バウンシー | キャッチー、ポップ的 | 126-130 |
+| **Afro House** | オーガニック、パーカッシブ | ワールド、民族的 | 120-128 |
+| **Organic House** | ナチュラル、アコースティック的 | 民族楽器、自然音 | 118-124 |
 
 ### Trance
 
@@ -182,6 +444,28 @@ C Minor 7: C - E♭ - G - B♭
 ```
 
 **特徴**: 808ベース + サンプルコード進行
+
+### Drum and Bass
+
+```
+サブベース:    ██████████ 100% (Reese Bass!)
+ベースライン:  ██████████ 100% (高速ベースライン)
+メロディ:      ██████░░░░ 60%
+コード進行:    ██████░░░░ 60%
+リードシンセ:  ██████░░░░ 60%
+パッド:        ████████░░ 80%
+```
+
+**特徴**: Reese Bass + 高速リズムとの同期が鍵
+
+**DnBサブジャンル別ベースの違い**:
+
+| サブジャンル | ベースの特徴 | 代表的な音色 |
+|-------------|-------------|-------------|
+| **Liquid DnB** | ウォーム、ローリング | ラウンドなサブ + メロディックベース |
+| **Neurofunk** | ハイテク、複雑なモジュレーション | Neuro Bass (FM + Distortion) |
+| **Jump-up** | バウンシー、パンチー | Foghorn、シンプルなReese |
+| **Jungle** | サンプルベース、チョップ | Amen Break + Sub |
 
 ---
 
@@ -224,6 +508,128 @@ B. Delay (1/8 Dotted)
 C. Chorus (Pads用)
 ```
 
+### Wavetableでのベース音色設計（詳細手順）
+
+Wavetableはベース制作の中核となる音源です。以下に各種ベースの作成手順を詳細に解説します。
+
+#### サブベース（Pure Sub）
+
+```
+Step 1: Oscillator 1 設定
+  - Wavetable: Basic Shapes
+  - Position: 0% (Pure Sine)
+  - Voices: 1 (Mono)
+  - Detune: 0%
+
+Step 2: Oscillator 2
+  - OFF（サブベースは単一オシレーター）
+
+Step 3: Filter
+  - Type: Low Pass 12dB (LP12)
+  - Cutoff: 80-120 Hz
+  - Resonance: 0%
+  - Drive: 0%
+
+Step 4: Amp Envelope
+  - Attack: 5-10 ms（クリックを避ける）
+  - Decay: 0 ms
+  - Sustain: 100%
+  - Release: 50-100 ms（テールを短めに）
+
+Step 5: Post-Processing
+  - Utility: Width 0%（完全Mono）
+  - Utility: Bass Mono ON (120 Hz)
+  - Saturator: OFF（クリーンなサブ）
+  - EQ: High Cut 100 Hz（余分な倍音を除去）
+
+注意点:
+- サブベースは必ずMonoにする
+- ステレオ情報があるとフェーズキャンセルが起きる
+- クラブのサブウーファーはモノ再生が多い
+```
+
+#### Technoベース（Driving Bass）
+
+```
+Step 1: Oscillator 1 設定
+  - Wavetable: Basic Shapes
+  - Position: 20-40% (Saw寄り)
+  - Voices: 1
+  - Detune: 0%
+
+Step 2: Oscillator 2
+  - Wavetable: Basic Shapes
+  - Position: 0% (Sine)
+  - Level: -6 dB（サブ補強用）
+  - Tune: -12 (1オクターブ下)
+
+Step 3: Filter
+  - Type: Low Pass 24dB (LP24)
+  - Cutoff: 200-500 Hz
+  - Resonance: 20-40%
+  - Drive: 10-30%
+  - Key Tracking: 50-70%
+
+Step 4: Filter Envelope
+  - Attack: 0 ms
+  - Decay: 200-500 ms
+  - Sustain: 20-40%
+  - Release: 100-200 ms
+  - Amount: +40-60%
+
+Step 5: LFO 1 → Filter Cutoff
+  - Shape: Sine or Triangle
+  - Rate: 1/4 or 1/8 (sync)
+  - Amount: 20-40%
+  - → フィルターが周期的に開閉 = 動きが生まれる
+
+Step 6: Post-Processing
+  - Saturator: Soft Clip, Drive 3-6 dB
+  - EQ Eight: Low Cut 30 Hz, High Cut 5 kHz
+  - Compressor: Ratio 4:1, Attack 10ms, Release 50ms
+  - Utility: Width 30-50%
+```
+
+#### Acid Bass（TB-303スタイル）
+
+```
+Step 1: Oscillator 1 設定
+  - Wavetable: Basic Shapes
+  - Position: 100% (Pure Saw)
+  - Voices: 1
+  - Detune: 0%
+
+Step 2: Filter（最重要）
+  - Type: Low Pass 24dB (LP24) ← 必ず24dB
+  - Cutoff: 300-800 Hz
+  - Resonance: 60-80% ← 高めのレゾナンス！
+  - Drive: 20-40%
+  - Key Tracking: 100%
+
+Step 3: Filter Envelope
+  - Attack: 0 ms
+  - Decay: 100-300 ms ← アクセントの鍵
+  - Sustain: 0-10%
+  - Release: 50-100 ms
+  - Amount: +70-100% ← 大きくかける
+
+Step 4: アクセントの再現
+  - ベロシティ → Filter Cutoff: 50-70%
+  - ベロシティ → Filter Envelope Amount: 30-50%
+  - → 強く弾いた音だけフィルターが大きく開く
+
+Step 5: スライド/グライドの再現
+  - Glide: ON
+  - Glide Time: 50-100 ms
+  - Glide Mode: Legato
+  - → 音と音がつながるようにMIDIノートを重ねる
+
+Step 6: Post-Processing
+  - Overdrive: Drive 30-50%
+  - Delay: 1/16 Dotted, Feedback 30-40%
+  - Reverb: Small Room, Dry/Wet 10-15%
+```
+
 ---
 
 ## 🗓️ 学習の順序（推奨10週間プラン）
@@ -244,7 +650,7 @@ C. Chorus (Pads用)
 
 **Week 3: ベース音色デザイン**
 - Wavetableでの多彩なベース
-- Operatorでの FMベース
+- OperatorでのFMベース
 - フィルターモジュレーション
 - Saturation/Distortion
 
@@ -539,7 +945,7 @@ C. Chorus (Pads用)
 - BPMとリズムは**ビートマッチング**で習得済み
 - 音楽構造は**選曲とセットリスト**で体感している
 
-→ DJスキルが音楽理論の土台になる！
+> DJスキルが音楽理論の土台になる！
 
 ---
 
