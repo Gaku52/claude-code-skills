@@ -1,12 +1,28 @@
-# Phase 1 レビュー計画
+# レビュー計画
 
-## 概要
+## Phase 2: 品質レビュー & 改善（2026-03-09〜）
+
+> 詳細計画: [phase-2-quality-review.md](plans/phase-2-quality-review.md)
+> 進捗: [PHASE2_PROGRESS.md](REVIEW_RESULTS/PHASE2_PROGRESS.md)
+
+### 自動監査ツール（Step 1 完了）
+- `_meta/scripts/quality-audit.js` — 構造・コンテンツチェック
+- `_meta/scripts/cross-reference-audit.js` — 相互参照チェック
+- `_meta/scripts/terminology-audit.js` — 用語一貫性チェック
+
+### 初回監査結果
+- **品質**: 1,315 ERROR / 4,125 WARNING / 6,693 INFO
+- **相互参照**: 1,831 壊れたリンク / 153 孤立ファイル
+- **用語**: 1,050 WARNING (表記ゆれ)
+
+---
+
+## 概要 (Phase 1 データ)
 
 | 指標 | 値 |
 |------|-----|
-| レビュー対象 | 36 Skills / 901 ガイドファイル |
-| 総容量 | 約12MB（約1,200万字） |
-| ファイルサイズ中央値 | 13KB |
+| レビュー対象 | 36 Skills / 952 ファイル |
+| 総容量 | 約40MB（約4,040万字）※Phase 1拡充後 |
 | 品質基準 | QUALITY_STANDARDS.md（80/100が合格ライン） |
 
 ## サイズ分布
