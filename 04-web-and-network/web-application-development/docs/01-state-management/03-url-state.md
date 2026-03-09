@@ -3311,6 +3311,19 @@ function useTrackURLChanges() {
 
 ---
 
+## FAQ
+
+### Q1: URL状態とReact状態はどう同期すべきか？
+URLをSingle Source of Truthとし、React状態はUI最適化のためのみに使う。検索入力のようなリアルタイム入力が必要な場合は、ローカルのuseStateで入力途中の値を管理し、デバウンス後にURLに反映する。ブラウザバック時はURLの変更を検知してローカル状態を同期する。nuqsライブラリを使用すると、この同期処理が自動化されて実装が大幅に簡潔になる。
+
+### Q2: 検索フィルタをどうURL永続化すべきか？
+単一値のフィルタは `?category=electronics` のように通常のクエリパラメータで表現し、デフォルト値はURLから除外してURLをすっきりさせる。複数値のフィルタ（ブランド選択等）はカンマ区切り `?brands=apple,samsung` で表現する。フィルタ変更時はページ番号を必ず1にリセットすること。URLの最大長（ブラウザ依存だが約2000文字）を考慮し、過度に多いパラメータはサーバーサイドセッションに保存することも検討する。
+
+### Q3: Next.js App RouterでURL状態をどう管理するか？
+Server Componentでは `searchParams` propsとしてURLパラメータを受け取り、データ取得に使用する。Client Componentでは `useSearchParams` や nuqs の `useQueryState` でURLを更新する。Server ComponentとClient Componentの役割分担を明確にし、Server Componentでデータ取得、Client ComponentでURLの更新操作を担当させることで、パフォーマンスとUXの両立を実現できる。
+
+---
+
 ## まとめ
 
 ### URL状態管理の選択マトリクス
@@ -3350,169 +3363,6 @@ function useTrackURLChanges() {
 □ 不正なURLパラメータの処理テスト
 □ 共有URLの動作テスト
 □ E2Eテストでフィルタ操作を検証
-```
-
----
-
-## FAQ
-
-### Q1: URL状態とReact状態はどう同期すべきか？
-
-**A:** URL を Single Source of Truth とし、React 状態は UI 最適化のためのみに使う:
-
-**基本パターン: URL が真実の源（推奨）**
-```typescript
-// URL → React 状態への一方向バインディング
-function SearchPage() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const query = searchParams.get('q') ?? '';
-
-  // ローカル状態は「入力途中の値」のみ
-  const [localQuery, setLocalQuery] = useState(query);
-
-  // デバウンス後にURLに反映
-  const debouncedUpdateURL = useDebouncedCallback((value: string) => {
-    setSearchParams({ q: value });
-  }, 500);
-
-  const handleChange = (value: string) => {
-    setLocalQuery(value); // 即座にUIに反映
-    debouncedUpdateURL(value); // URLは遅延更新
-  };
-
-  // URLが変わったら（ブラウザバック等）ローカル状態も同期
-  useEffect(() => {
-    setLocalQuery(query);
-  }, [query]);
-
-  return <input value={localQuery} onChange={(e) => handleChange(e.target.value)} />;
-}
-```
-
-**nuqs を使う場合（より簡潔）**
-```typescript
-import { useQueryState } from 'nuqs';
-
-function SearchPage() {
-  const [query, setQuery] = useQueryState('q', { defaultValue: '' });
-
-  // デバウンスは組み込み
-  return (
-    <input
-      value={query}
-      onChange={(e) => setQuery(e.target.value, { scroll: false })}
-    />
-  );
-}
-```
-
-### Q2: 検索フィルタをどうURL永続化すべきか？
-
-**A:** フィルタの種類に応じて適切な形式とデフォルト値の扱いを決める:
-
-**単一値のフィルタ:**
-```typescript
-// 例: カテゴリー選択
-// URL: ?category=electronics
-const [category, setCategory] = useQueryState('category', {
-  defaultValue: 'all',
-});
-
-// デフォルト値は URL から除外
-if (category === 'all') {
-  // URL: /products （すっきり）
-} else {
-  // URL: /products?category=electronics
-}
-```
-
-**複数値のフィルタ（配列）:**
-```typescript
-// 例: ブランドフィルタ（複数選択）
-// URL: ?brands=apple,samsung,sony
-const [brands, setBrands] = useQueryState('brands', {
-  defaultValue: [],
-  parse: (value) => value ? value.split(',') : [],
-  serialize: (value) => value.length > 0 ? value.join(',') : null,
-});
-
-// チェックボックスのハンドラ
-const toggleBrand = (brand: string) => {
-  setBrands((prev) =>
-    prev.includes(brand)
-      ? prev.filter((b) => b !== brand)
-      : [...prev, brand]
-  );
-};
-```
-
-**フィルタ変更時の注意:**
-```typescript
-// フィルタ変更時はページをリセット
-const updateFilter = (newCategory: string) => {
-  setSearchParams({
-    category: newCategory,
-    page: '1', // ページを先頭に戻す
-  });
-};
-```
-
-### Q3: Next.js App Router でURL状態をどう管理するか？
-
-**A:** Server Component と Client Component の役割分担を明確にする:
-
-**Server Component でパラメータを受け取る:**
-```typescript
-// app/products/page.tsx
-export default async function ProductsPage({
-  searchParams,
-}: {
-  searchParams: { q?: string; category?: string; page?: string };
-}) {
-  const query = searchParams.q ?? '';
-  const category = searchParams.category ?? 'all';
-  const page = parseInt(searchParams.page ?? '1', 10);
-
-  // Server Component でデータ取得
-  const products = await fetchProducts({ query, category, page });
-
-  return (
-    <div>
-      <ProductFilters />
-      <ProductList products={products} />
-    </div>
-  );
-}
-```
-
-**Client Component で URL 更新:**
-```typescript
-// components/ProductFilters.tsx
-'use client';
-
-import { useQueryState } from 'nuqs';
-
-export function ProductFilters() {
-  const [query, setQuery] = useQueryState('q', { defaultValue: '' });
-  const [category, setCategory] = useQueryState('category', { defaultValue: 'all' });
-
-  return (
-    <div>
-      <input
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder="検索..."
-      />
-      <select
-        value={category}
-        onChange={(e) => setCategory(e.target.value)}
-      >
-        <option value="all">すべて</option>
-        <option value="electronics">家電</option>
-      </select>
-    </div>
-  );
-}
 ```
 
 ---

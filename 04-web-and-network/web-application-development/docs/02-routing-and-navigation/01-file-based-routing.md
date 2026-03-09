@@ -13,6 +13,14 @@
 - [ ] 実践的なプロジェクトでのディレクトリ設計ができる
 - [ ] トラブルシューティングとアンチパターンの回避ができる
 
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- クライアントサイドルーティングの基本概念 — [クライアントルーティング](./00-client-side-routing.md)
+- Next.js の基本構造（App Router と Pages Router の違い、Server Components と Client Components の概念）
+- ファイルシステムの概念（ディレクトリ構造、相対パス・絶対パス、ファイル命名規則）
+
 ---
 
 ## 0. ファイルベースルーティングとは何か
@@ -3247,6 +3255,19 @@ export default async function AdminPage() {
 - [ ] 重いコンポーネントは `<Suspense>` で分割し、ストリーミングを活用している
 - [ ] `loading.tsx` でスケルトンUIを実装し、CLS（Cumulative Layout Shift）を防いでいる
 - [ ] 静的メタデータは `metadata` オブジェクトで定義し、動的な場合のみ `generateMetadata` を使用している
+
+---
+
+## FAQ
+
+### Q1: App Router と Pages Router の移行戦略は？
+段階的移行が推奨される。`app/` と `pages/` は共存可能なため、新規ページから App Router で実装し、既存ページは必要に応じて移行する。Phase 1で `app/layout.tsx` とルートレイアウトを作成して共存を開始し、Phase 2で既存ページを徐々に移行し、Phase 3で完全移行する。注意点として、同じパスで `pages/` と `app/` が競合する場合は `app/` が優先される。`getServerSideProps` は Server Component に、`getStaticProps` は `generateStaticParams` に置き換える。
+
+### Q2: 動的ルートと catch-all ルートの使い分けは？
+URL構造が事前に定義されている場合（`/users/123`, `/posts/abc`）は動的ルート `[id]` を使い、可変長のパス（`/docs/getting-started/installation`）が必要な場合は catch-all `[...slug]` を使用する。Optional catch-all `[[...slug]]` は、パスが省略可能な場合（`/blog` でも `/blog/2024/01/hello` でもマッチ）に使う。具体的には、ECサイトの商品詳細は `[id]`、ドキュメントサイトの階層構造は `[...slug]`、ブログの一覧/詳細の両方を1ファイルで処理するなら `[[...slug]]` が適切である。
+
+### Q3: ルートグループの活用法は？
+ルートグループ `(name)` はURLに影響を与えずにレイアウトやミドルウェアのスコープを分けるために使用する。主な活用パターンは4つ: (1) レイアウト分離（マーケティングサイトとアプリケーションで異なるレイアウト）、(2) 認証エリアの分離（`(auth)/` と `(protected)/` で認証チェックの有無を制御）、(3) 国際化対応（`[locale]/(shop)/` と `[locale]/(blog)/` でセクションごとにレイアウトを変更）、(4) A/Bテスト（`(variant-a)/` と `(variant-b)/` をMiddlewareで振り分け）。
 
 ---
 

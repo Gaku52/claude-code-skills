@@ -1258,6 +1258,316 @@ HTTP/3 と QUIC:
 
 ---
 
+## 14. mTLS（相互TLS認証）の実践
+
+```
+mTLS（mutual TLS）:
+  → 通常のTLSに加えて、クライアントも証明書で認証
+  → サーバー → クライアント認証 + クライアント → サーバー認証
+
+  通常のTLS:
+  クライアント ───────→ サーバー
+               ← サーバー証明書
+  「サーバーは本物か？」のみ検証
+
+  mTLS:
+  クライアント ───────→ サーバー
+               ← サーバー証明書
+               → クライアント証明書
+  「サーバーは本物か？」+ 「クライアントは本物か？」を相互検証
+
+  用途:
+  ① マイクロサービス間通信: サービス同士の認証
+  ② IoTデバイス認証: デバイス証明書による接続制御
+  ③ VPNの代替: BeyondCorp / ゼロトラスト
+  ④ 金融系API: 強固な認証が必要なケース
+```
+
+### 14.1 mTLS証明書の作成と設定
+
+```bash
+# プライベートCA（Root CA）の作成
+# 1. ルートCA秘密鍵の生成
+$ openssl ecparam -genkey -name prime256v1 -out root-ca.key
+
+# 2. ルートCA証明書の生成（10年間有効）
+$ openssl req -new -x509 -sha256 -key root-ca.key \
+  -out root-ca.crt -days 3650 \
+  -subj "/C=JP/O=MyOrg/CN=MyOrg Root CA"
+
+# サーバー証明書の作成
+# 3. サーバー秘密鍵
+$ openssl ecparam -genkey -name prime256v1 -out server.key
+
+# 4. CSR（証明書署名要求）の作成
+$ openssl req -new -sha256 -key server.key -out server.csr \
+  -subj "/C=JP/O=MyOrg/CN=api.example.com"
+
+# 5. サーバー証明書の署名（SANを含む）
+$ cat > server-ext.cnf << EOF
+authorityKeyIdentifier=keyid,issuer
+basicConstraints=CA:FALSE
+keyUsage = digitalSignature, nonRepudiation, keyEncipherment
+subjectAltName = @alt_names
+[alt_names]
+DNS.1 = api.example.com
+DNS.2 = *.api.example.com
+EOF
+
+$ openssl x509 -req -sha256 -in server.csr -CA root-ca.crt \
+  -CAkey root-ca.key -CAcreateserial -out server.crt \
+  -days 365 -extfile server-ext.cnf
+
+# クライアント証明書の作成
+# 6. クライアント秘密鍵
+$ openssl ecparam -genkey -name prime256v1 -out client.key
+
+# 7. クライアントCSR
+$ openssl req -new -sha256 -key client.key -out client.csr \
+  -subj "/C=JP/O=MyOrg/CN=service-a"
+
+# 8. クライアント証明書の署名
+$ cat > client-ext.cnf << EOF
+authorityKeyIdentifier=keyid,issuer
+basicConstraints=CA:FALSE
+keyUsage = digitalSignature
+extendedKeyUsage = clientAuth
+EOF
+
+$ openssl x509 -req -sha256 -in client.csr -CA root-ca.crt \
+  -CAkey root-ca.key -CAcreateserial -out client.crt \
+  -days 365 -extfile client-ext.cnf
+```
+
+### 14.2 Nginx での mTLS 設定
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name api.example.com;
+
+    # サーバー証明書
+    ssl_certificate     /etc/nginx/certs/server.crt;
+    ssl_certificate_key /etc/nginx/certs/server.key;
+
+    # mTLS設定
+    ssl_client_certificate /etc/nginx/certs/root-ca.crt;  # クライアント証明書のCA
+    ssl_verify_client on;           # クライアント証明書を必須化
+    ssl_verify_depth 2;             # 証明書チェーンの深さ
+
+    # クライアント証明書情報をバックエンドに転送
+    location / {
+        proxy_pass http://backend;
+        proxy_set_header X-Client-DN $ssl_client_s_dn;
+        proxy_set_header X-Client-Serial $ssl_client_serial;
+        proxy_set_header X-Client-Verify $ssl_client_verify;
+    }
+
+    # 証明書検証に失敗した場合
+    # ssl_verify_client on; の場合、Nginx が 400 Bad Request を返す
+    # ssl_verify_client optional; にすると検証はするが必須でない
+}
+```
+
+### 14.3 Node.js での mTLS 接続
+
+```javascript
+const https = require('https');
+const fs = require('fs');
+
+// mTLSサーバー
+const serverOptions = {
+  key: fs.readFileSync('/path/to/server.key'),
+  cert: fs.readFileSync('/path/to/server.crt'),
+  ca: fs.readFileSync('/path/to/root-ca.crt'),  // クライアント証明書のCA
+  requestCert: true,       // クライアント証明書を要求
+  rejectUnauthorized: true // 検証失敗時に拒否
+};
+
+const server = https.createServer(serverOptions, (req, res) => {
+  const clientCert = req.socket.getPeerCertificate();
+  console.log('Client CN:', clientCert.subject.CN);
+  console.log('Client Org:', clientCert.subject.O);
+  res.writeHead(200);
+  res.end(`Hello, ${clientCert.subject.CN}!`);
+});
+
+server.listen(443);
+
+// mTLSクライアント
+const clientOptions = {
+  hostname: 'api.example.com',
+  port: 443,
+  path: '/api/data',
+  method: 'GET',
+  key: fs.readFileSync('/path/to/client.key'),
+  cert: fs.readFileSync('/path/to/client.crt'),
+  ca: fs.readFileSync('/path/to/root-ca.crt')
+};
+
+const clientReq = https.request(clientOptions, (res) => {
+  let data = '';
+  res.on('data', chunk => data += chunk);
+  res.on('end', () => console.log('Response:', data));
+});
+
+clientReq.end();
+```
+
+---
+
+## 15. TLSセキュリティの監査とテスト
+
+### 15.1 自動セキュリティ監査ツール
+
+```bash
+# testssl.sh — 包括的なTLS設定テスト
+$ git clone --depth 1 https://github.com/drwetter/testssl.sh.git
+$ cd testssl.sh
+$ ./testssl.sh https://example.com
+
+# 出力例:
+#  Testing protocols via sockets
+#  SSLv2      not offered (OK)
+#  SSLv3      not offered (OK)
+#  TLS 1      not offered (OK)
+#  TLS 1.1    not offered (OK)
+#  TLS 1.2    offered (OK)
+#  TLS 1.3    offered (OK)
+#
+#  Testing vulnerabilities
+#  Heartbleed     not vulnerable (OK)
+#  CCS            not vulnerable (OK)
+#  Ticketbleed    not vulnerable (OK)
+#  ROBOT          not vulnerable (OK)
+#  CRIME          not vulnerable (OK)
+#  BREACH         potentially vulnerable (WARN)
+#  POODLE         not vulnerable (OK)
+#  DROWN          not vulnerable (OK)
+#  LOGJAM         not vulnerable (OK)
+#  BEAST          not vulnerable (OK)
+
+# sslyze — Python製のTLSスキャナー
+$ pip install sslyze
+$ sslyze example.com
+
+# SSL Labs API — Webベースの詳細スキャン
+$ curl "https://api.ssllabs.com/api/v3/analyze?host=example.com" | jq .
+
+# nmap — TLS暗号スイートの列挙
+$ nmap --script ssl-enum-ciphers -p 443 example.com
+```
+
+### 15.2 TLSセキュリティチェックリスト
+
+```
+TLS設定チェックリスト（2024年版）:
+
+プロトコル:
+  [x] TLS 1.3 を有効化
+  [x] TLS 1.2 を有効化（互換性のため）
+  [x] TLS 1.1 以下を無効化
+  [x] SSLv2, SSLv3 を無効化
+
+暗号スイート:
+  [x] AEADのみ許可（AES-GCM, ChaCha20-Poly1305）
+  [x] 前方秘匿性を提供する鍵交換のみ（ECDHE）
+  [x] RSA鍵交換を無効化
+  [x] 3DES, RC4, DES を無効化
+  [x] CBC モードを無効化（推奨）
+
+証明書:
+  [x] RSA 2048bit以上 or ECDSA P-256以上
+  [x] SHA-256以上の署名アルゴリズム
+  [x] 中間CA証明書を含むフルチェーン
+  [x] SANにワイルドカードでなく具体的なドメインを列挙（可能な場合）
+  [x] 自動更新の設定と監視
+  [x] Certificate Transparency の有効化
+
+セキュリティヘッダー:
+  [x] HSTS: max-age=31536000; includeSubDomains; preload
+  [x] HSTS Preload List への登録
+  [x] Expect-CT（レポートモード）
+
+パフォーマンス:
+  [x] OCSP Stapling の有効化
+  [x] TLSセッション再開（Session Ticket / Session ID）
+  [x] TLS 1.3の0-RTT（安全なリクエストのみ）
+  [x] 適切なTLSレコードサイズ
+
+運用:
+  [x] 秘密鍵の安全な保管（ファイルパーミッション 600）
+  [x] 証明書期限の監視とアラート
+  [x] 定期的なセキュリティスキャン（SSL Labs A+）
+  [x] インシデント時の証明書失効手順の整備
+```
+
+---
+
+## 16. ポスト量子暗号とTLSの未来
+
+```
+量子コンピュータの脅威:
+
+現在の公開鍵暗号:
+  RSA: 素因数分解問題に基づく → Shorのアルゴリズムで解読可能
+  ECDHE: 楕円曲線離散対数問題 → Shorのアルゴリズムで解読可能
+  → 十分な量子ビット数が実現された場合、現在のTLSは破綻
+
+タイムライン（推定）:
+  2024-2030: 量子コンピュータの発展期
+  2030-2040: 暗号関連の量子コンピュータが実用化の可能性
+  現在: "Harvest Now, Decrypt Later" 攻撃への対策が急務
+    → 現在暗号化された通信を保存し、将来量子コンピュータで解読
+
+NIST ポスト量子暗号標準（2024年策定）:
+
+① ML-KEM（Module-Lattice-Based Key Encapsulation）:
+  → 旧称: CRYSTALS-Kyber
+  → 鍵交換用（TLSのECDHEの代替）
+  → 格子問題に基づく → 量子コンピュータでも解読困難
+  → Chromeが実験的に ML-KEM-768 を実装済み
+
+② ML-DSA（Module-Lattice-Based Digital Signature）:
+  → 旧称: CRYSTALS-Dilithium
+  → デジタル署名用（証明書の署名の代替）
+
+③ SLH-DSA（Stateless Hash-Based Digital Signature）:
+  → 旧称: SPHINCS+
+  → ハッシュベースの署名（保守的な選択肢）
+
+ハイブリッド方式（移行期の推奨アプローチ）:
+  → 従来の暗号 + ポスト量子暗号を組み合わせ
+  → どちらか一方が破られても安全
+
+  TLS 1.3 での実装:
+  鍵交換: X25519 + ML-KEM-768（X25519MLKEM768）
+  → 両方の共有秘密を結合して最終鍵を導出
+  → 従来の安全性は維持しつつ量子耐性を追加
+
+  Chrome/Edge の対応状況（2024年〜）:
+  → X25519MLKEM768 をデフォルトで有効化
+  → ハンドシェイクサイズが約1KB増加
+  → 一部の古いミドルボックスで接続問題の報告あり
+
+実務での推奨対応:
+  今すぐ:
+  ✓ 暗号アジリティの確保（暗号スイートの変更が容易な設計）
+  ✓ TLS 1.3の完全移行
+  ✓ 長期保存データの暗号化レベルの見直し
+
+  2025-2030:
+  ✓ ハイブリッド方式のテスト導入
+  ✓ ライブラリ/フレームワークのPQC対応状況の監視
+  ✓ HSMのポスト量子対応の確認
+
+  2030以降:
+  ✓ 完全なポスト量子暗号への移行
+  ✓ 古い暗号スイートの廃止
+```
+
+---
+
 ## まとめ
 
 | 概念 | ポイント |

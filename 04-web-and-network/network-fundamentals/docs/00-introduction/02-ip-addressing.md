@@ -1251,6 +1251,100 @@ IPアドレスとプライバシー:
     → ログにIPアドレスを記録する際は適切な管理が必要
 ```
 
+### 9.3 IPアドレスベースのアクセス制御
+
+```
+IPベースのアクセス制御パターン:
+
+① ファイアウォールACL:
+  → ステートフルインスペクション
+  → ソース/宛先IPとポートの組み合わせで制御
+
+  iptables 設定例（Linux）:
+  # 特定IPからのSSHのみ許可
+  iptables -A INPUT -p tcp --dport 22 -s 203.0.113.10 -j ACCEPT
+  iptables -A INPUT -p tcp --dport 22 -j DROP
+
+  # 特定サブネットからのHTTPSを許可
+  iptables -A INPUT -p tcp --dport 443 -s 10.0.0.0/8 -j ACCEPT
+
+  nftables 設定例（新しいLinux）:
+  nft add rule inet filter input tcp dport 22 ip saddr 203.0.113.10 accept
+  nft add rule inet filter input tcp dport 22 drop
+
+② クラウドセキュリティグループ:
+  AWS Security Group:
+  → ステートフル（戻りトラフィックは自動許可）
+  → インバウンド/アウトバウンドルール
+
+  設定例:
+  ┌────────────────────────────────────────────────┐
+  │ Security Group: web-server-sg                  │
+  ├──────┬──────┬────────────────┬─────────────────┤
+  │ 方向  │ポート│ ソース         │ 説明            │
+  ├──────┼──────┼────────────────┼─────────────────┤
+  │ IN   │ 443  │ 0.0.0.0/0      │ HTTPS（全世界）  │
+  │ IN   │ 22   │ 10.0.0.0/16    │ SSH（VPC内のみ） │
+  │ OUT  │ 443  │ 0.0.0.0/0      │ 外部API呼び出し  │
+  │ OUT  │ 5432 │ sg-db-xxxx     │ RDS接続          │
+  └──────┴──────┴────────────────┴─────────────────┘
+
+③ GeoIPフィルタリング:
+  → IPアドレスから地理的位置を判定
+  → 特定国からのアクセスをブロック/許可
+
+  Nginx + GeoIP2:
+  geoip2 /etc/nginx/GeoLite2-Country.mmdb {
+    auto_reload 1h;
+    $geoip2_data_country_code country iso_code;
+  }
+
+  server {
+    if ($geoip2_data_country_code !~ ^(JP|US|GB)$) {
+      return 403;
+    }
+  }
+
+  注意点:
+  → VPN/プロキシ使用者には効果なし
+  → 正規ユーザーのブロックリスク
+  → CDNを介する場合はX-Forwarded-Forヘッダーを参照
+```
+
+### 9.4 IPv6セキュリティの考慮事項
+
+```
+IPv6特有のセキュリティ課題:
+
+① アドレス空間の広さによるスキャン耐性:
+  → /64サブネットには2^64個のアドレス
+  → 総当たりスキャンは事実上不可能
+  → ただし予測可能なアドレス（::1, ::dead:beef等）は狙われる
+
+② NDP（Neighbor Discovery Protocol）の脆弱性:
+  → IPv4のARPスプーフィングに相当する攻撃
+  → RA（Router Advertisement）スプーフィング
+  → 偽のルーターを広告してトラフィックを乗っ取り
+
+  対策:
+  → RA Guard: スイッチでRA送信を制限
+  → SEND（SEcure Neighbor Discovery）: NDPメッセージに署名
+
+③ デュアルスタック環境のリスク:
+  → IPv4ファイアウォールは設定済みだがIPv6は未設定
+  → IPv6経由でファイアウォールをバイパス
+  → 必ず両プロトコルのセキュリティ設定を統一する
+
+④ IPv6拡張ヘッダーの悪用:
+  → 多数の拡張ヘッダーでファイアウォールを回避
+  → フラグメンテーション攻撃
+  → 対策: 不要な拡張ヘッダーをフィルタリング
+
+⑤ トンネリングのリスク:
+  → 6to4, Teredo等のトンネルが意図しない経路を作成
+  → 対策: 不要なトンネリングプロトコルを無効化
+```
+
 ---
 
 ## 10. FAQ（よくある質問）
