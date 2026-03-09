@@ -2005,7 +2005,6 @@ src/features/user_management/   // snake_case は使わない
 src/app/[slug]/                 // 動的セグメント
 src/app/(marketing)/            // ルートグループ
 src/app/[...catchAll]/          // キャッチオールセグメント
-src/app/[[...optional]]/        // オプショナルキャッチオール
 src/app/@modal/                 // Parallel Routes（Named Slot）
 src/app/(.)photo/               // Intercepting Routes
 ```
@@ -2377,7 +2376,6 @@ src/
 ---
 
 ## 次に読むべきガイド
-→ [[02-component-architecture.md]] -- コンポーネント設計
 
 ---
 

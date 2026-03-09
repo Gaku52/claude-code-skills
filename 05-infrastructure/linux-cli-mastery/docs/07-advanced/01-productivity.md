@@ -11,6 +11,15 @@
 - [ ] CLI でのテキスト処理を高速に行える
 - [ ] ターミナルエミュレータの選択と設定ができる
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+- [ターミナルマルチプレクサ（tmux, screen）](./00-tmux-screen.md) の内容を理解していること
+
 ---
 
 ## 1. モダン CLI ツール
@@ -892,21 +901,21 @@ right_format = "$time"
 
 # ── キャラクター（プロンプト記号） ──
 [character]
-success_symbol = "[>](bold green)"
-error_symbol = "[>](bold red)"
-vimcmd_symbol = "[<](bold green)"
+success_symbol = ">"
+error_symbol = ">"
+vimcmd_symbol = "<"
 
 # ── ディレクトリ ──
 [directory]
 truncation_length = 3
 truncate_to_repo = true
 style = "bold cyan"
-format = "[$path]($style)[$read_only]($read_only_style) "
+format = "$path$read_only "
 read_only = " (RO)"
 
 # ── Git ブランチ ──
 [git_branch]
-format = "[$symbol$branch(:$remote_branch)]($style) "
+format = "$symbol$branch(:$remote_branch) "
 symbol = " "
 style = "bold purple"
 
@@ -927,64 +936,64 @@ style = "bold red"
 
 # ── 言語・ランタイム ──
 [nodejs]
-format = "[$symbol($version)]($style) "
+format = "$symbol($version) "
 symbol = " "
 detect_files = ["package.json", ".node-version"]
 
 [python]
-format = "[$symbol$pyenv_prefix($version)( \\($virtualenv\\))]($style) "
+format = "$symbol$pyenv_prefix($version)( \\($virtualenv\\)) "
 symbol = " "
 
 [rust]
-format = "[$symbol($version)]($style) "
+format = "$symbol($version) "
 symbol = " "
 
 [golang]
-format = "[$symbol($version)]($style) "
+format = "$symbol($version) "
 symbol = " "
 
 # ── Docker ──
 [docker_context]
-format = "[$symbol$context]($style) "
+format = "$symbol$context "
 symbol = " "
 only_with_files = true
 
 # ── Kubernetes ──
 [kubernetes]
 disabled = false
-format = "[$symbol$context(/$namespace)]($style) "
+format = "$symbol$context(/$namespace) "
 symbol = "K8s "
 style = "bold blue"
 
 # ── AWS ──
 [aws]
-format = "[$symbol($profile)(\\($region\\))]($style) "
+format = "$symbol($profile)(\\($region\\)) "
 symbol = " "
 style = "bold yellow"
 
 # ── コマンド実行時間 ──
 [cmd_duration]
 min_time = 3000
-format = "took [$duration]($style) "
+format = "took $duration "
 style = "bold yellow"
 
 # ── 時刻（右プロンプト） ──
 [time]
 disabled = false
-format = "[$time]($style)"
+format = "$time"
 time_format = "%H:%M"
 style = "dimmed white"
 
 # ── ホスト名（SSH接続時のみ表示） ──
 [hostname]
 ssh_only = true
-format = "[@$hostname]($style) "
+format = "@$hostname "
 style = "bold green"
 
 # ── ユーザー名（root時のみ表示） ──
 [username]
 show_always = false
-format = "[$user]($style) "
+format = "$user "
 style_root = "bold red"
 ```
 
@@ -1930,6 +1939,23 @@ parallel-ssh() {
 
 ---
 
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+
+---
+
 ## まとめ
 
 | ツール | 代替対象 | 改善点 |
@@ -1954,8 +1980,6 @@ parallel-ssh() {
 ---
 
 ## 次に読むべきガイド
-→ [[../05-shell-scripting/01-advanced-scripting.md]] -- 高度なシェルスクリプティング
-→ [[00-tmux-screen.md]] -- ターミナルマルチプレクサ
 
 ---
 

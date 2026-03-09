@@ -10,6 +10,14 @@
 4. **Cargo ツールチェーン** — clippy、rustfmt、cargo-deny、cargo-audit などの品質管理ツール
 5. **CI/CD 統合** — GitHub Actions 等での自動ビルド・テスト・公開パイプライン
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+
 ---
 
 ## 1. Cargo プロジェクト構造
@@ -285,12 +293,10 @@ include = ["src/**/*", "Cargo.toml", "LICENSE*", "README.md"]
 # exclude = ["tests/fixtures/**", ".github/**"]
 
 # バイナリ定義
-[[bin]]
 name = "my-tool"
 path = "src/bin/tool.rs"
 required-features = ["cli"]         # この feature が有効な時のみビルド
 
-[[bin]]
 name = "my-server"
 path = "src/bin/server.rs"
 required-features = ["server"]
@@ -1518,7 +1524,6 @@ deny = [
 ]
 copyleft = "warn"
 
-[[licenses.clarify]]
 name = "ring"
 expression = "MIT AND ISC AND OpenSSL"
 license-files = [{ path = "LICENSE", hash = 0xbd0eed23 }]

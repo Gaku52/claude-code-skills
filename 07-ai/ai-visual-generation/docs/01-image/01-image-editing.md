@@ -13,6 +13,15 @@
 5. **Instruct-Pix2Pix と自然言語編集** — テキスト指示による直感的な画像編集
 6. **商用ワークフロー** — バッチ処理、品質管理、本番環境向けパイプライン
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+- [画像生成 — Stable Diffusion、DALL-E、Midjourney](./00-image-generation.md) の内容を理解していること
+
 ---
 
 ## 1. インペインティング
@@ -272,9 +281,7 @@ class SAMAutoMasker:
 
     def __init__(self, model_type: str = "vit_h",
                   checkpoint: str = "sam_vit_h_4b8939.pth"):
-        self.sam = sam_model_registry[model_type](
-            checkpoint=checkpoint
-        )
+        self.sam = sam_model_registrymodel_type
         self.sam.to("cuda")
         self.predictor = SamPredictor(self.sam)
 
@@ -408,9 +415,7 @@ class TextGuidedMasker:
             "weights/groundingdino_swint_ogc.pth",
         )
         # SAM
-        sam = sam_model_registry["vit_h"](
-            checkpoint="weights/sam_vit_h_4b8939.pth"
-        )
+        sam = sam_model_registry"vit_h"
         sam.to("cuda")
         self.sam_predictor = SamPredictor(sam)
 
@@ -2033,6 +2038,23 @@ conditioning_scale を 1.5 や 2.0 に設定して
 5. **バッチサイズ=1:** 一度に1枚ずつ処理
 6. **xformers:** メモリ効率の良い attention 実装
 7. **torch.compile():** PyTorch 2.0+ のコンパイル最適化
+
+---
+
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
 
 ---
 

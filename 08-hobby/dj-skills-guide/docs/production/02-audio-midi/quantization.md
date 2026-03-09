@@ -12,6 +12,15 @@
 - ヒューマナイズテクニック
 - Audio Quantize
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+- [MIDI基礎](./midi-basics.md) の内容を理解していること
+
 ---
 
 ## なぜQuantizeが重要なのか
@@ -2856,3 +2865,16 @@ Swing の判断:
 ---
 
 **次は:** [録音テクニック](./recording-techniques.md) - Audio/MIDI完璧な録音
+
+---
+
+## 次に読むべきガイド
+
+- [録音テクニック](./recording-techniques.md) - 次のトピックへ進む
+
+---
+
+## 参考文献
+
+- [MDN Web Docs](https://developer.mozilla.org/) - Web技術のリファレンス
+- [Wikipedia](https://ja.wikipedia.org/) - 技術概念の概要

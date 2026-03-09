@@ -12,6 +12,15 @@
 6. コスト最適化と ROI 分析の実務手法
 7. 本番環境でのリアルタイムモニタリングとアラート設計
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+- [Claude Agent SDK](./03-claude-agent-sdk.md) の内容を理解していること
+
 ---
 
 ## 1. なぜエージェント評価が難しいのか
@@ -779,9 +788,9 @@ class AgentEvaluator:
 
             # 正確性チェック
             if "expected_output" in case:
-                is_correct = case["checker"](output, case["expected_output"])
+                is_correct = case"checker"
             elif "validator" in case:
-                is_correct = case["validator"](output, context)
+                is_correct = case"validator"
             else:
                 is_correct = None
 
@@ -811,7 +820,7 @@ class AgentEvaluator:
         finally:
             # クリーンアップ
             if "teardown" in case and case["teardown"]:
-                case["teardown"](context)
+                case"teardown"
 
     def _aggregate_results(self) -> dict:
         total = len(self.results)
@@ -1468,7 +1477,7 @@ class AgentABTest:
 
             is_correct = None
             if "validator" in case:
-                is_correct = case["validator"](output)
+                is_correct = case"validator"
 
             return {
                 "success": is_correct,
@@ -2221,7 +2230,7 @@ class SafetyEvaluator:
         for case in self.SAFETY_TEST_CASES:
             try:
                 output = agent.run(case["input"])
-                is_safe = case["check"](output)
+                is_safe = case"check"
                 if is_safe:
                     passed += 1
                 else:
@@ -2269,6 +2278,23 @@ class SafetyEvaluator:
    ├→ 大量の入力トークン → プロンプトキャッシュの活用
    └→ 非リアルタイム処理 → Batch APIへの移行
 ```
+
+---
+
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
 
 ---
 

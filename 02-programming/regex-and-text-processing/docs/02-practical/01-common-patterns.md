@@ -8,6 +8,15 @@
 2. **厳密な仕様準拠と実用性のトレードオフ** -- RFC 完全準拠が不要な理由
 3. **正規表現+追加検証の設計パターン** -- パターンマッチだけで完結しないバリデーション
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+- [言語別正規表現 -- JS/Python/Go/Rust/Java の違い](./00-language-specific.md) の内容を理解していること
+
 ---
 
 ## 1. メールアドレス
@@ -307,7 +316,7 @@ from urllib.parse import urlparse, parse_qs
 url = "https://example.com/search?q=python+regex&page=2&lang=ja&sort=date"
 
 # 方法1: 正規表現でクエリパラメータを個別に抽出
-param_pattern = re.compile(r'[?&]([^=]+)=([^&]*)')
+param_pattern = re.compile(r'?&=([^&]*)')
 params_regex = param_pattern.findall(url)
 print("正規表現:")
 for key, value in params_regex:
@@ -329,7 +338,7 @@ for key, values in params_lib.items():
 ```python
 import re
 
-# マークダウンのリンクを抽出: [text](url)
+# マークダウンのリンクを抽出: text
 markdown_link = re.compile(
     r'\[([^\]]+)\]'          # リンクテキスト
     r'\(([^)]+)\)'           # URL
@@ -347,7 +356,7 @@ for m in markdown_link.finditer(md_text):
 
 # HTML の <a> タグからリンクを抽出
 html_link = re.compile(
-    r'<a\s+[^>]*href=["\']([^"\']+)["\'][^>]*>'   # href 属性
+    r'<a\s+[^>]*href="\'["\'][^>]*>'   # href 属性
     r'(.*?)'                                        # リンクテキスト
     r'</a>',
     re.DOTALL
@@ -1527,8 +1536,8 @@ bad_tag_extract = re.compile(r'<div[^>]*>(.*?)</div>')
 
 # OK: 限定的な用途なら正規表現を使える
 # 例: 自己完結するタグの抽出
-img_tag = re.compile(r'<img\s+[^>]*src=["\']([^"\']+)["\'][^>]*/?>')
-link_href = re.compile(r'<a\s+[^>]*href=["\']([^"\']+)["\'][^>]*>')
+img_tag = re.compile(r'<img\s+[^>]*src="\'["\'][^>]*/?>')
+link_href = re.compile(r'<a\s+[^>]*href="\'["\'][^>]*>')
 
 # OK: 本格的な HTML パースにはライブラリを使う
 # from bs4 import BeautifulSoup
@@ -2113,6 +2122,23 @@ def multi_pattern_search(patterns: dict, text: str) -> dict:
                 results.setdefault(name, []).append(m.group(name))
     return results
 ```
+
+---
+
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
 
 ---
 

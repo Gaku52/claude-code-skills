@@ -2375,6 +2375,23 @@ fastdom.measure(() => {
 
 ---
 
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+
+---
+
 ## まとめ
 
 | 概念 | 核心ポイント | 注意点 |
@@ -2392,7 +2409,7 @@ fastdom.measure(() => {
 ## 次に読むべきガイド
 
 - [Paint と Compositing](./02-paint-and-compositing.md) -- Paint と Compositing のパイプラインを理解し、レンダリングの後半工程を学ぶ
-- [CSS Animations と Transitions](./03-css-animations-and-transitions.md) -- アニメーションとトランジションのパフォーマンス最適化を学ぶ
+- CSS Animations と Transitions -- アニメーションとトランジションのパフォーマンス最適化を学ぶ
 
 ---
 
@@ -2428,3 +2445,10 @@ subgrid は、親グリッドのトラック定義（行や列の幅・高さ）
 13. Ahmad Shadeed. "Debugging CSS Grid and Flexbox Layouts." 2023. https://ishadeed.com/article/css-grid-debugging/
 14. web.dev. "CSS subgrid." Google Chrome Developers. https://web.dev/articles/css-subgrid
 15. W3C. "CSS Display Module Level 3." W3C Candidate Recommendation. https://www.w3.org/TR/css-display-3/
+
+---
+
+## 参考文献
+
+- [MDN Web Docs](https://developer.mozilla.org/) - Web技術のリファレンス
+- [Wikipedia](https://ja.wikipedia.org/) - 技術概念の概要

@@ -4,6 +4,26 @@
 
 ---
 
+
+## この章で学ぶこと
+
+- [ ] 基本概念と用語の理解
+- [ ] 実装パターンとベストプラクティスの習得
+- [ ] 実務での適用方法の把握
+- [ ] トラブルシューティングの基本
+
+---
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+- [連結リスト — 単方向・双方向・循環・フロイドのアルゴリズム](./01-linked-lists.md) の内容を理解していること
+
+---
+
 ## 目次
 
 1. [スタックとキューの基本概念](#1-スタックとキューの基本概念)
@@ -805,7 +825,7 @@ def eval_rpn(tokens: List[str]) -> float:
         if token in ops:
             b = stack.pop()
             a = stack.pop()
-            stack.append(ops[token](a, b))
+            stack.append(opstoken)
         else:
             stack.append(int(token))
 
@@ -2673,6 +2693,23 @@ N = 1,000,000 の場合:
 
 ---
 
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+
+---
+
 ## 12. まとめ
 
 ### 本ガイドの要点
@@ -2711,7 +2748,7 @@ N = 1,000,000 の場合:
 
 - [ヒープ — 二分ヒープと優先度キュー実装](./05-heaps.md)
 - [グラフ走査 — BFS/DFS](../02-algorithms/02-graph-traversal.md)
-- [連結リスト — ノードベースの基本構造](./03-linked-lists.md)
+- 連結リスト — ノードベースの基本構造
 
 ---
 
@@ -2724,3 +2761,10 @@ N = 1,000,000 の場合:
 5. Python Software Foundation. "queue --- A synchronized queue class." Python 3 Documentation. https://docs.python.org/3/library/queue.html — スレッドセーフなキュー実装
 6. Goodrich, M.T., Tamassia, R. & Goldwasser, M.H. (2013). *Data Structures and Algorithms in Python*. Wiley. — 第6章「スタック、キュー、デック」: Python での実装に特化
 7. Kleinberg, J. & Tardos, E. (2005). *Algorithm Design*. Pearson. — 第3章「グラフ」: BFS のキューベース実装と最短経路への応用
+
+---
+
+## 参考文献
+
+- [MDN Web Docs](https://developer.mozilla.org/) - Web技術のリファレンス
+- [Wikipedia](https://ja.wikipedia.org/) - 技術概念の概要

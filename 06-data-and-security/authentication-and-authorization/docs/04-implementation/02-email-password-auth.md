@@ -4,8 +4,6 @@
 
 ## 前提知識
 
-- [[../../01-session-auth/00-cookie-and-session.md]] — Cookie とセッション管理
-- [[../../01-session-auth/01-session-store.md]] — セッションストア
 - HTTP の基礎（POST リクエスト、ステータスコード）
 - TypeScript / JavaScript の基礎
 - データベースの基本操作（Prisma）
@@ -1414,6 +1412,80 @@ model SecurityEvent {
 - ハッシュ関数の自動アップグレード
 ```
 
+
+---
+
+## トラブルシューティング
+
+### よくあるエラーと解決策
+
+| エラー | 原因 | 解決策 |
+|--------|------|--------|
+| 初期化エラー | 設定ファイルの不備 | 設定ファイルのパスと形式を確認 |
+| タイムアウト | ネットワーク遅延/リソース不足 | タイムアウト値の調整、リトライ処理の追加 |
+| メモリ不足 | データ量の増大 | バッチ処理の導入、ページネーションの実装 |
+| 権限エラー | アクセス権限の不足 | 実行ユーザーの権限確認、設定の見直し |
+| データ不整合 | 並行処理の競合 | ロック機構の導入、トランザクション管理 |
+
+### デバッグの手順
+
+1. **エラーメッセージの確認**: スタックトレースを読み、発生箇所を特定する
+2. **再現手順の確立**: 最小限のコードでエラーを再現する
+3. **仮説の立案**: 考えられる原因をリストアップする
+4. **段階的な検証**: ログ出力やデバッガを使って仮説を検証する
+5. **修正と回帰テスト**: 修正後、関連する箇所のテストも実行する
+
+```python
+# デバッグ用ユーティリティ
+import logging
+import traceback
+from functools import wraps
+
+# ロガーの設定
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+def debug_decorator(func):
+    """関数の入出力をログ出力するデコレータ"""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        logger.debug(f"呼び出し: {func.__name__}(args={args}, kwargs={kwargs})")
+        try:
+            result = func(*args, **kwargs)
+            logger.debug(f"戻り値: {func.__name__} -> {result}")
+            return result
+        except Exception as e:
+            logger.error(f"例外発生: {func.__name__}: {e}")
+            logger.error(traceback.format_exc())
+            raise
+    return wrapper
+
+@debug_decorator
+def process_data(items):
+    """データ処理（デバッグ対象）"""
+    if not items:
+        raise ValueError("空のデータ")
+    return [item * 2 for item in items]
+```
+
+### パフォーマンス問題の診断
+
+パフォーマンス問題が発生した場合の診断手順:
+
+1. **ボトルネックの特定**: プロファイリングツールで計測
+2. **メモリ使用量の確認**: メモリリークの有無をチェック
+3. **I/O待ちの確認**: ディスクやネットワークI/Oの状況を確認
+4. **同時接続数の確認**: コネクションプールの状態を確認
+
+| 問題の種類 | 診断ツール | 対策 |
+|-----------|-----------|------|
+| CPU負荷 | cProfile, py-spy | アルゴリズム改善、並列化 |
+| メモリリーク | tracemalloc, objgraph | 参照の適切な解放 |
+| I/Oボトルネック | strace, iostat | 非同期I/O、キャッシュ |
+| DB遅延 | EXPLAIN, slow query log | インデックス、クエリ最適化 |
 ---
 
 ## 12. FAQ・トラブルシューティング
@@ -1466,6 +1538,23 @@ model SecurityEvent {
 
 ---
 
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+
+---
+
 ## まとめ
 
 | フロー | セキュリティ要件 |
@@ -1481,7 +1570,6 @@ model SecurityEvent {
 ---
 
 ## 次に読むべきガイド
-→ [[03-sso-and-enterprise.md]] — SSO とエンタープライズ認証
 
 ---
 

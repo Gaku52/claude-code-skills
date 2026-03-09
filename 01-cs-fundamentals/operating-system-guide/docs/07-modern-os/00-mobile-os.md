@@ -18,6 +18,14 @@
 - [ ] Android の HAL / HIDL と iOS の IOKit ドライバモデルを比較できる
 - [ ] モバイルアプリのビルド・テスト・配布パイプラインを構築できる
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+
 ---
 
 ## 目次
@@ -324,7 +332,7 @@ struct SystemInfo {
         var size = 0
         // sysctl で XNU カーネルバージョンを取得
         sysctlbyname("kern.osrelease", nil, &size, nil, 0)
-        var version = [CChar](repeating: 0, count: size)
+        var version = CChar
         sysctlbyname("kern.osrelease", &version, &size, nil, 0)
         return String(cString: version)
     }
@@ -2320,6 +2328,23 @@ fun loadDataGood() {
 
 ---
 
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+
+---
+
 ## 13. まとめと次のステップ
 
 ### 13.1 総合比較表
@@ -2388,7 +2413,6 @@ fun loadDataGood() {
 
 ## 次に読むべきガイド
 
-- [[01-cloud-os.md]] -- クラウドとリアルタイムOS
 
 ---
 
@@ -2424,3 +2448,9 @@ fun loadDataGood() {
 
 12. Singh, A. *"Mac OS X Internals: A Systems Approach"*. Addison-Wesley, 2006. -- XNU カーネルの歴史的背景と設計原理を理解するための古典的参考書。Darwin の BSD/Mach 統合の経緯を詳述する。
 
+---
+
+## 参考文献
+
+- [MDN Web Docs](https://developer.mozilla.org/) - Web技術のリファレンス
+- [Wikipedia](https://ja.wikipedia.org/) - 技術概念の概要

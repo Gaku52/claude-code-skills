@@ -2944,8 +2944,8 @@ document.querySelector('.box').animate(
 ## 次に読むべきガイド
 
 - [V8エンジンの内部動作](../02-javascript-runtime/00-v8-engine.md)
-- [合成レイヤーとGPU加速](./04-compositing-layers.md)
-- [レイアウトとリフローの最適化](./02-layout-reflow.md)
+- 合成レイヤーとGPU加速
+- レイアウトとリフローの最適化
 
 ---
 

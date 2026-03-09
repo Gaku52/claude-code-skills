@@ -11,8 +11,8 @@
 | TypeScript / JavaScript | 中級（ジェネリクス、async/await、discriminated union） | [02-programming](../../../../02-programming/) |
 | リレーショナルDB の基礎 | 基礎（INSERT, SELECT, トランザクション） | [06-data-and-security](../../../../06-data-and-security/) |
 | Repository パターン | 基礎 | [01-repository-pattern.md](./01-repository-pattern.md) |
-| DDD の基礎概念 | 基礎（集約、ドメインイベント） | [../../clean-code-principles/](../../clean-code-principles/) |
-| メッセージキューの基礎 | 基礎（Pub/Sub モデル） | [../../system-design-guide/](../../system-design-guide/) |
+| DDD の基礎概念 | 基礎（集約、ドメインイベント） | ../../clean-code-principles/ |
+| メッセージキューの基礎 | 基礎（Pub/Sub モデル） | ../../system-design-guide/ |
 
 ---
 
@@ -1740,6 +1740,23 @@ describe("Order Aggregate", () => {
 
 ---
 
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+
+---
+
 ## 10. まとめ
 
 | 項目 | ポイント |
@@ -1759,8 +1776,8 @@ describe("Order Aggregate", () => {
 
 - [00-mvc-mvvm.md](./00-mvc-mvvm.md) — UI レイヤーのアーキテクチャパターン
 - [01-repository-pattern.md](./01-repository-pattern.md) — データアクセスの抽象化
-- [../../system-design-guide/](../../system-design-guide/) — メッセージキュー、分散システム設計
-- [../../clean-code-principles/](../../clean-code-principles/) — DDD、SOLID 原則
+- ../../system-design-guide/ — メッセージキュー、分散システム設計
+- ../../clean-code-principles/ — DDD、SOLID 原則
 - [../02-behavioral/](../02-behavioral/) — Observer パターン（イベント駆動の基盤）
 
 ---

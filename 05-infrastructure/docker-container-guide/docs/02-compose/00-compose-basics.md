@@ -8,6 +8,14 @@
 2. **サービス定義とコンテナのライフサイクル管理** -- イメージ指定、ビルド設定、ポート公開、環境変数など、サービス定義の主要オプションを習得する
 3. **ボリュームとネットワークによるデータ・通信の管理** -- コンテナ間のデータ永続化と内部通信の設計パターンを学ぶ
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+
 ---
 
 ## 1. Docker Compose とは
@@ -1535,7 +1543,7 @@ services:
 
 - [Compose 応用](./01-compose-advanced.md) -- プロファイル、depends_on、healthcheck、環境変数の高度な使い方
 - [Compose 開発ワークフロー](./02-development-workflow.md) -- ホットリロード、デバッグ、CI 統合
-- [ローカルサービスの Docker 化](../../development-environment-setup/docs/02-docker-dev/02-local-services.md) -- DB / Redis / MailHog の実践的な Compose 構成
+- ローカルサービスの Docker 化 -- DB / Redis / MailHog の実践的な Compose 構成
 
 ## 参考文献
 

@@ -3269,7 +3269,6 @@ const postRoute = createRoute({
 ---
 
 ## 次に読むべきガイド
--> [[01-file-based-routing.md]] -- ファイルベースルーティング
 
 ---
 

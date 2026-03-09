@@ -1920,7 +1920,6 @@ export default async function ProductPage({ params }: { params: { id: string } }
 
 ## 次に読むべきガイド
 
-→ [[01-project-structure.md]] -- プロジェクト構成
 
 ---
 

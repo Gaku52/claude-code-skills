@@ -11,6 +11,15 @@
 5. **外れ値処理** — 検出・除去・変換の実践手法
 6. **データ品質管理** — バリデーション、パイプライン構築、再現性の確保
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+- [AI解析概要 — データサイエンスとMLの全体像](./00-ai-analysis-overview.md) の内容を理解していること
+
 ---
 
 ## 1. 欠損値の分析と処理
@@ -742,7 +751,6 @@ df_freq = encoder.frequency_encode(df, "city")
 print("エンコード結果:")
 print(df_encoded.head())
 print(f"\n頻度エンコーディング:")
-print(df_freq[["city", "city_freq_enc"]].head())
 ```
 
 ---
@@ -1472,7 +1480,6 @@ pipeline = DataPreprocessingPipeline(
     numeric_features=["age", "income", "satisfaction"],
     categorical_features=["city"],
     ordinal_features=["education"],
-    ordinal_categories=[["high_school", "bachelor", "master", "phd"]],
     scaler_type="robust"
 )
 
@@ -1513,7 +1520,7 @@ class DataValidator:
         self.results = []
 
         for rule in self.rules:
-            passed, message = rule["check_fn"](df)
+            passed, message = rule"check_fn"
             self.results.append({
                 "ルール": rule["name"],
                 "重要度": rule["severity"],

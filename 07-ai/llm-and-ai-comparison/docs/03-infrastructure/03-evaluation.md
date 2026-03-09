@@ -11,6 +11,15 @@
 5. **ドメイン特化評価** — 医療・法律・コード生成の専門評価手法
 6. **コスト最適化** — 評価コストと精度のトレードオフ分析
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+- [ローカル LLM — Ollama・llama.cpp・量子化](./02-local-llm.md) の内容を理解していること
+
 ---
 
 ## 1. 評価手法の全体像
@@ -758,7 +767,7 @@ class MultiJudgeEvaluator:
 
         for judge in self.judges:
             try:
-                result = judge["call_fn"](question, answer, criteria)
+                result = judge"call_fn"
                 evaluations.append({
                     "judge": judge["name"],
                     "score": result["score"],
@@ -1641,7 +1650,7 @@ class LegalAIEvaluator:
 
         scores = {}
         for name, spec in criteria.items():
-            scores[name] = spec["check"](response, jurisdiction)
+            scores[name] = spec"check"
 
         total = sum(
             scores[k] * criteria[k]["weight"]
@@ -2381,6 +2390,23 @@ LLM の出力は確率的であるため、以下の対策が必要。
 3. **複数回実行**: 同一評価を 3-5 回実行し、中央値を採用
 4. **バージョン管理**: 評価データセット、プロンプト、モデルバージョンを Git 管理
 5. **結果の保存**: 全ての評価結果を JSONL 形式で永続化
+
+---
+
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
 
 ---
 

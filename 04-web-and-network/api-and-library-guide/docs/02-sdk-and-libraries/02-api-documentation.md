@@ -1176,10 +1176,10 @@ try {
 }
 
 ## 次のステップ
-- [認証ガイド](/guides/authentication) - OAuth 2.0 の設定
-- [ページネーション](/guides/pagination) - 大量データの取得
-- [Webhook](/guides/webhooks) - リアルタイム通知の設定
-- [API リファレンス](/reference) - 全エンドポイントの詳細
+- 認証ガイド - OAuth 2.0 の設定
+- ページネーション - 大量データの取得
+- Webhook - リアルタイム通知の設定
+- API リファレンス - 全エンドポイントの詳細
 ```
 
 ---

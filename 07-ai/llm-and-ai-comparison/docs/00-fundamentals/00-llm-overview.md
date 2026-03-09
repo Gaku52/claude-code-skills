@@ -11,6 +11,14 @@
 5. **Mixture of Experts (MoE)** アーキテクチャの仕組みと利点
 6. **推論最適化**の技術とデプロイ時の考慮事項
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+
 ---
 
 ## 1. Transformer アーキテクチャ
@@ -633,7 +641,7 @@ class MoELayer(nn.Module):
                 mask = (expert_indices == i)
                 if mask.any():
                     expert_input = x_flat[mask]
-                    expert_output = self.experts[i](expert_input)
+                    expert_output = self.expertsi
                     output[mask] += expert_weights[mask] * expert_output
 
         return output.view(batch_size, seq_len, d_model)

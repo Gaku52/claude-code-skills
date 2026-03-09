@@ -11,8 +11,8 @@
 | オブジェクト指向プログラミング | 基礎（クラス、インターフェース） | [02-programming](../../../../02-programming/) |
 | TypeScript / JavaScript 基礎 | 中級（型、非同期処理） | [02-programming](../../../../02-programming/) |
 | HTML / CSS / DOM の基本 | 基礎 | [04-web-and-network](../../../../04-web-and-network/) |
-| デザインパターンの基本概念 | 基礎（Observer、Strategy） | [../01-creational/](../01-creational/) |
-| クリーンコード原則 | 基礎（関心の分離、単一責任原則） | [../../clean-code-principles/](../../clean-code-principles/) |
+| デザインパターンの基本概念 | 基礎（Observer、Strategy） | ../01-creational/ |
+| クリーンコード原則 | 基礎（関心の分離、単一責任原則） | ../../clean-code-principles/ |
 
 ---
 
@@ -2189,6 +2189,23 @@ MVC/MVVM は **Presentation Layer のパターン**であり、Clean Architectur
 
 ---
 
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+
+---
+
 ## 10. まとめ
 
 | 項目 | ポイント |
@@ -2209,8 +2226,8 @@ MVC/MVVM は **Presentation Layer のパターン**であり、Clean Architectur
 - [01-repository-pattern.md](./01-repository-pattern.md) — データアクセス層の抽象化（MVVM の Model 層設計）
 - [02-event-sourcing-cqrs.md](./02-event-sourcing-cqrs.md) — イベント駆動アーキテクチャ（CQRS の Command/Query 分離）
 - [../02-behavioral/](../02-behavioral/) — Observer パターン（MVVM のデータバインディングの基盤）
-- [../../clean-code-principles/](../../clean-code-principles/) — 関心の分離、SOLID 原則
-- [../../system-design-guide/](../../system-design-guide/) — アーキテクチャ設計の全体像
+- ../../clean-code-principles/ — 関心の分離、SOLID 原則
+- ../../system-design-guide/ — アーキテクチャ設計の全体像
 
 ---
 

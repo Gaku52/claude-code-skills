@@ -11,6 +11,15 @@
 5. **SciPy** — 科学計算・統計検定・最適化
 6. **実務パターン** — プロジェクト構成、テスト、デプロイメント
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+- [機械学習基礎 — 教師あり/なし、評価指標](./02-ml-basics.md) の内容を理解していること
+
 ---
 
 ## 1. NumPy — 数値計算の基盤
@@ -1818,7 +1827,6 @@ y_grid = np.linspace(0, 4, 5)
 values = np.random.rand(5, 5)
 
 interpolator = RegularGridInterpolator((x_grid, y_grid), values)
-point = np.array([[2.1, 3.3]])
 result = interpolator(point)
 print(f"\n2次元補間 (2.1, 3.3): {result[0]:.4f}")
 ```

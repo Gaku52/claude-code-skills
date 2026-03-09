@@ -25,8 +25,8 @@
 | キャッシング戦略 | [キャッシング](../01-components/01-caching.md) |
 | ロードバランサーの仕組み | [ロードバランサー](../01-components/00-load-balancer.md) |
 | CDN の基礎 | [CDN](../01-components/03-cdn.md) |
-| API 設計のベストプラクティス | [API 設計](../../clean-code-principles/docs/03-practices-advanced/03-api-design.md) |
-| Proxy パターン | [Proxy パターン](../../design-patterns-guide/docs/01-structural/03-proxy.md) |
+| API 設計のベストプラクティス | API 設計 |
+| Proxy パターン | Proxy パターン |
 
 ---
 
@@ -1688,6 +1688,23 @@ class AdaptiveRateLimiter:
 
 ---
 
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+
+---
+
 ## 10. まとめ
 
 | 項目 | ポイント |
@@ -1746,9 +1763,9 @@ class AdaptiveRateLimiter:
 - [通知システム設計](./02-notification-system.md) — 通知のレート制限
 - [CDN](../01-components/03-cdn.md) — エッジ層でのレート制限
 - [ロードバランサー](../01-components/00-load-balancer.md) — L4/L7 でのレート制限
-- [API設計](../../clean-code-principles/docs/03-practices-advanced/03-api-design.md) — API のレスポンスヘッダー設計
-- [Proxy パターン](../../design-patterns-guide/docs/01-structural/03-proxy.md) — レートリミッターを Proxy として実装
-- [Strategy パターン](../../design-patterns-guide/docs/02-behavioral/01-strategy.md) — アルゴリズム切り替えの設計
+- API設計 — API のレスポンスヘッダー設計
+- Proxy パターン — レートリミッターを Proxy として実装
+- Strategy パターン — アルゴリズム切り替えの設計
 - [信頼性](../00-fundamentals/02-reliability.md) — フォールバック戦略の基礎
 
 ---

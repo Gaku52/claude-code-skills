@@ -2596,8 +2596,8 @@ SPA（Single Page Application）では画面遷移してもページがリロー
 ## 次に読むべきガイド
 
 - [DOM API](../03-web-apis/00-dom-api.md)
-- [イベントモデル](../03-web-apis/01-events.md)
-- [イベントループ](./02-event-loop.md)
+- イベントモデル
+- イベントループ
 
 ---
 

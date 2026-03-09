@@ -14,7 +14,7 @@
 ## 前提知識
 
 - REST APIの設計原則 → 参照: [REST Best Practices](../01-rest-and-graphql/00-rest-best-practices.md)
-- TypeScriptの型システム基礎 → 参照: [TypeScript Complete Guide](../../../02-programming/typescript-complete-guide/docs/)
+- TypeScriptの型システム基礎 → 参照: TypeScript Complete Guide
 - npm/パッケージマネージャの基本知識
 
 ---
@@ -2731,8 +2731,8 @@ SDK側でのレートリミット対応には2つのレイヤーがある。(1) 
 ## 次に読むべきガイド
 
 - [npmパッケージ開発](01-npm-package-development.md)
-- [APIクライアントパターン](02-api-client-patterns.md)
-- [SDKテスト戦略](03-sdk-testing-strategies.md)
+- APIクライアントパターン
+- SDKテスト戦略
 
 ---
 

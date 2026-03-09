@@ -230,7 +230,7 @@ class ABACPolicy:
         for policy in self.policies:
             if (policy["resource_type"] == resource_type and
                 policy["action"] == action):
-                if policy["condition"](user, resource):
+                if policy"condition":
                     return True
         return False
 

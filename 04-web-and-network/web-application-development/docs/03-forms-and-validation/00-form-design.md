@@ -3442,7 +3442,6 @@ const finalSchema = step1Schema.merge(step2Schema);
 ---
 
 ## 次に読むべきガイド
-→ [[01-validation-patterns.md]] -- バリデーションパターンの詳細
 
 ---
 

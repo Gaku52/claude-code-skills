@@ -23,6 +23,14 @@ Ableton Live付属の音源を完全マスター。Wavetable、Operator、Drum R
 - レイヤー・スタック技法
 - CPU管理とFreeze
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+
 ---
 
 ## なぜ音源が重要なのか
@@ -1996,3 +2004,731 @@ Phase 5: コンテキストチェック（2-3分）
 │ → Volume で優先順位を明確に    │
 └────────────────────────────────┘
 ```
+
+---
+
+## CPU管理とパフォーマンス最適化
+
+音源は CPU リソースを消費します。特に複雑なシンセサイザーや多数のトラックを使用する場合、CPU管理は制作の快適さを大きく左右します。
+
+### CPU負荷の理解
+
+```
+音源別の CPU 負荷比較（相対値）:
+
+Simpler (One-Shot): 1x（最小）
+Simpler (Classic):  1.5x
+Analog:             2x
+Operator:           2.5x
+Wavetable:          4x（デフォルト）
+Wavetable (Unison): 8-12x（ユニゾン使用時）
+Sampler:            可変（サンプルサイズ依存）
+Drum Rack:          可変（パッド数とエフェクト依存）
+
+CPU を消費する主な要因:
+
+1. ユニゾン（Unison）ボイス数
+   → Wavetable の Unison Voices を増やすと急増
+   → 2 Voices: 2倍
+   → 4 Voices: 4倍
+   → 8 Voices: 8倍
+   → 対策: 必要最小限のボイス数に
+
+2. ポリフォニー（同時発音数）
+   → 同時に鳴る音の数
+   → パッドは長いリリースで蓄積しやすい
+   → 対策: Voice数を制限（8-16が適切）
+
+3. オーバーサンプリング
+   → Wavetable の Hi-Quality モード
+   → 音質は向上するがCPU倍増
+   → 対策: ミックス時のみON、制作時はOFF
+
+4. エフェクトチェイン
+   → 音源内蔵エフェクト + ポストエフェクト
+   → Reverb と Convolution は特に重い
+   → 対策: Send/Return で共有
+
+5. モジュレーション数
+   → 複雑なモジュレーションルーティング
+   → LFO の Rate が高いと負荷増
+   → 対策: 聴こえない変化は削除
+```
+
+### Freeze と Flatten の活用
+
+```
+Freeze（フリーズ）:
+
+機能:
+→ MIDIトラックの音をオーディオとして一時レンダリング
+→ 音源の CPU 負荷がゼロになる
+→ MIDIは保持（Unfreeze で編集可能に戻る）
+
+使い方:
+1. トラックを右クリック
+2. 「Freeze Track」を選択
+3. → トラックが薄い青色に
+4. → CPU 負荷が解放される
+
+適切なタイミング:
+→ そのトラックの音作りが完了した時
+→ CPU メーターが 50% を超えた時
+→ リアルタイム再生がもたつく時
+→ 新しい音源を追加する前に
+
+注意点:
+→ Freeze中はMIDIの編集不可
+→ エフェクトパラメーターも変更不可
+→ 必要なら Unfreeze → 編集 → 再Freeze
+
+Flatten（フラットン）:
+
+機能:
+→ Freeze した内容を完全にオーディオ化
+→ MIDIと音源が完全に削除される
+→ 元に戻せない（要バックアップ）
+
+使い方:
+1. Freeze 済みのトラックを右クリック
+2. 「Flatten」を選択
+3. → オーディオトラックに変換
+
+適切なタイミング:
+→ 絶対にその音を変更しない確信がある時
+→ プロジェクトのアーカイブ時
+→ コラボレーターにオーディオで渡す時
+
+推奨ワークフロー:
+
+制作初期:
+→ 全てMIDI、Freeze なし
+→ 自由に音作りと編集
+
+制作中盤:
+→ 確定したトラックから順に Freeze
+→ CPU を新しいトラックに回す
+
+制作終盤:
+→ 未 Freeze のトラックも全て Freeze
+→ 最終ミックスを安定して行う
+
+アーカイブ:
+→ プロジェクトを別名保存
+→ 必要に応じて Flatten
+→ MIDIバージョンは別に保存しておく
+```
+
+### CPU最適化のベストプラクティス
+
+```
+即効性のある最適化:
+
+1. バッファサイズの調整
+   → Preferences > Audio
+   → 制作時: 256-512 samples（低レイテンシー）
+   → ミックス時: 1024-2048 samples（低CPU）
+   → パフォーマンス時: 128-256 samples
+
+2. サンプルレートの選択
+   → 44.1kHz: 標準、CPU負荷最小
+   → 48kHz: 映像向け
+   → 96kHz: 高品質だがCPU倍増
+   → 推奨: 44.1kHz で十分
+
+3. 不要なトラックの無効化
+   → 使っていないトラックは OFF に
+   → Solo で確認してからミュート
+   → 完全に不要なら削除
+
+4. Return トラックの活用
+   → Reverb と Delay は Return に1つずつ
+   → 各トラックから Send で共有
+   → 10個のトラックに個別 Reverb → CPU 10倍
+   → 1つの Return Reverb + Send → CPU 1倍 + α
+
+5. 音源の軽量化
+   → Wavetable の Quality を Standard に
+   → Unison Voices を必要最小限に
+   → 使わない Osc 2 は OFF に
+   → Filter 2 が不要なら OFF に
+
+プロジェクトテンプレートの推奨設定:
+
+Audio設定:
+  Sample Rate: 44100
+  Buffer Size: 512
+
+トラック構成:
+  Drum Rack: 1-2 トラック
+  Bass: 1-2 トラック (Wavetable)
+  Lead: 1-2 トラック (Wavetable/Operator)
+  Pad: 1-2 トラック (Analog推奨 = 軽い)
+  FX: 1-2 トラック (Simpler)
+
+Return:
+  Return A: Reverb (適度なサイズ)
+  Return B: Delay (テンポ同期)
+  Return C: Chorus/Phaser (必要時)
+
+合計: 8-12 トラック
+→ 一般的なPCで快適に動作
+```
+
+---
+
+## Instrument Rack の活用
+
+Instrument Rack はAbleton Liveの強力な機能で、複数の音源をグループ化し、レイヤーやスプリットを実現します。
+
+```
+Instrument Rack の基本構造:
+
+┌─────────────────────────────────────────┐
+│ Instrument Rack                          │
+│ ┌─────────────────────────────────────┐ │
+│ │ Chain 1: Wavetable (Sub Bass)       │ │
+│ │   → Key Zone: C0-B3                │ │
+│ │   → Velocity: 0-127                │ │
+│ ├─────────────────────────────────────┤ │
+│ │ Chain 2: Wavetable (Mid Bass)       │ │
+│ │   → Key Zone: C0-B3                │ │
+│ │   → Velocity: 0-127                │ │
+│ ├─────────────────────────────────────┤ │
+│ │ Chain 3: Operator (Harmonics)       │ │
+│ │   → Key Zone: C0-B3                │ │
+│ │   → Velocity: 64-127 (強く弾いた時)│ │
+│ └─────────────────────────────────────┘ │
+│                                          │
+│ Macro Controls:                          │
+│ [Macro 1: Filter] [Macro 2: Attack]     │
+│ [Macro 3: Decay]  [Macro 4: Mix]        │
+│ [Macro 5: FX Amt] [Macro 6: LFO Rate]  │
+│ [Macro 7: Drive]  [Macro 8: Spread]     │
+└─────────────────────────────────────────┘
+
+活用パターン:
+
+パターン 1: レイヤー（全チェイン同時に鳴る）
+→ 複数の音源を重ねて厚みを出す
+→ 各チェインが同じキーゾーンをカバー
+→ 音量バランスで各レイヤーの比率を調整
+
+パターン 2: スプリット（キーゾーンで分離）
+→ 鍵盤の範囲ごとに異なる音源
+→ 左手でベース、右手でリード
+→ ライブパフォーマンスで便利
+
+パターン 3: ベロシティスイッチ
+→ 弾く強さで異なる音源に切り替え
+→ 弱く: クリーンな音
+→ 強く: ディストーション付きの音
+→ ダイナミックな演奏表現
+
+パターン 4: Chain Selector
+→ マクロノブで音源を切り替え
+→ ノブを回すとAの音 → Bの音 → Cの音
+→ パフォーマンス中のリアルタイム切り替え
+
+Macro Controls の活用:
+
+マクロ = 8つの汎用ノブ
+→ 内部の任意のパラメーターにマッピング可能
+→ 1つのマクロで複数のパラメーターを同時制御
+→ Pushコントローラーとの連携に最適
+
+実用的なマクロ設定例:
+
+Macro 1: "Brightness"
+  → Chain 1 Filter Cutoff: 0-100%
+  → Chain 2 Filter Cutoff: 0-80%
+  → 1ノブで全レイヤーの明るさを制御
+
+Macro 2: "Width"
+  → Chain 1 Utility Width: 0-200%
+  → Chain 2 Pan: L50-R50
+  → モノラル ← → ワイドステレオ
+
+Macro 3: "Movement"
+  → Chain 1 LFO Amount: 0-50%
+  → Chain 2 LFO Rate: 0.1-8Hz
+  → 静的 ← → 動きのある音
+
+Macro 4: "Attack"
+  → 全 Chain の Amp Env Attack: 0-2000ms
+  → パーカッシブ ← → パッド的
+```
+
+---
+
+## トラブルシューティング
+
+### よくある問題と解決策
+
+```
+問題 1: 音が出ない
+
+チェックリスト:
+□ MIDIトラックに音源がロードされているか？
+□ MIDIチャンネルは正しいか？
+□ トラックのアーム（録音待機）はONか？
+□ 音量フェーダーは上がっているか？
+□ マスターアウトはミュートされていないか？
+□ MIDIキーボードは接続/認識されているか？
+□ Computer MIDI Keyboard (M キー) はONか？
+
+問題 2: 音が歪む/クリッピング
+
+原因と対策:
+→ 音量が大きすぎる
+  → 音源のGainを下げる（-6dB以上）
+→ フィルターのResonanceが高すぎる
+  → Resonance を下げる
+→ Saturator/Distortion の Drive が過剰
+  → Drive を下げるか Output Gain を調整
+→ 複数トラックのレベル合算
+  → 個々のトラック音量を下げる
+
+問題 3: CPU過負荷でプチプチノイズ
+
+対策（優先度順）:
+1. バッファサイズを上げる（512 → 1024）
+2. 確定したトラックを Freeze
+3. Wavetable の Unison を減らす
+4. Hi-Quality モードを OFF
+5. 使っていないエフェクトを削除
+6. 不要なトラックを無効化
+
+問題 4: レイテンシーが大きい
+
+対策:
+→ バッファサイズを下げる（1024 → 256）
+→ CPU負荷の高い音源を Freeze
+→ Plugin Delay Compensation を確認
+→ オーディオインターフェイスのドライバーを最新に
+
+問題 5: プリセットが見つからない
+
+確認事項:
+→ Live のバージョンは Standard 以上か？
+→ パック（Pack）がインストールされているか？
+→ Browser の検索機能を活用
+→ Preferences > Library でパスを確認
+
+問題 6: Wavetable の音が薄い
+
+改善方法:
+→ Unison を追加（2-4 Voices, Detune 15-25%）
+→ Osc 2 を追加（異なるウェーブテーブル）
+→ Sub Oscillator を ON
+→ Saturator でハーモニクスを追加
+→ Chorus/Ensemble エフェクトを追加
+→ EQ で 2-5kHz を少しブースト
+
+問題 7: ベースが聞こえない
+
+改善方法:
+→ モノラルにする（Utility > Mono）
+→ 不要な高域をカット（LPF 1-2kHz）
+→ Sub帯域（40-80Hz）が出ているか確認
+→ Saturator で倍音を追加（小さなスピーカーで聞こえるように）
+→ キックとの周波数被りをEQで解消
+→ サイドチェインコンプで住み分け
+```
+
+---
+
+## よくある質問
+
+### Q1: Wavetable vs Operator、どっち使う？
+
+**A:** 迷ったらWavetable
+
+```
+Wavetable優先:
+
+用途:
+ベース、リード、パッド
+全般的に使える
+
+理由:
+直感的
+モダンな音
+Techno/Houseに最適
+
+Operator使用:
+
+用途:
+ベル、ブラス
+金属的な音
+
+理由:
+Wavetableで作れない音色
+```
+
+### Q2: プリセット使うのは悪い？
+
+**A:** 全く問題なし
+
+```
+プロの実態:
+
+プリセット使用率:
+50-70%
+
+理由:
+時間節約
+高品質
+十分使える
+
+カスタマイズ:
+
+プリセット選択:
+70%完成
+
+微調整:
+Filter, Envelope
+20-30%変更
+
+完成:
+オリジナル音色
+
+推奨:
+
+初心者:
+プリセット100%でOK
+
+中級者:
+プリセット + 調整
+
+上級者:
+ゼロから作成 + プリセット併用
+```
+
+### Q3: 外部音源必要？
+
+**A:** 不要
+
+```
+Ableton付属で十分:
+
+Wavetable:
+非常に高品質
+
+Drum Rack:
+無限の可能性
+
+理由:
+
+プロ制作:
+付属音源70-80%
+
+外部音源:
+20-30%
+特殊な音色のみ
+
+推奨:
+
+最初の6ヶ月:
+付属音源のみ
+
+理由:
+使いこなすのに時間かかる
+
+6ヶ月後:
+
+物足りなければ:
+Serum, Massive X等検討
+```
+
+### Q4: 音源のCPU負荷が高すぎる場合は？
+
+**A:** Freeze機能を活用
+
+```
+対処法の優先順位:
+
+1. Freeze Track（最も簡単）
+   → 右クリック > Freeze Track
+   → CPU負荷が即座にゼロに
+   → いつでもUnfreeze可能
+
+2. Unison Voice数を減らす
+   → Wavetableで最も効果的
+   → 8 Voices → 4 Voices で負荷半減
+   → 2 Voices でも十分な場合が多い
+
+3. 不要な機能をOFF
+   → 使わないOsc 2をOFF
+   → 使わないFilter 2をOFF
+   → Hi-Qualityモードは最終ミックスのみ
+
+4. Analogに切り替え
+   → Wavetableの代わりにAnalogを使用
+   → パッド系は特にAnalogが軽い
+   → 温かみのある音色ならAnalogで十分
+
+5. バウンス（Resampling）
+   → MIDIをオーディオにレンダリング
+   → 完全に確定した音のみ
+   → 最もCPU効率が良い
+```
+
+### Q5: どの波形から始めるべき？
+
+**A:** サイン波から始めて理解を深める
+
+```
+学習の順序:
+
+Step 1: サイン波（Sine）
+→ 最もシンプルな波形
+→ 倍音なし、純音
+→ Sub Bassの基本
+→ 音の「高さ」だけを確認
+
+Step 2: ノコギリ波（Saw）
+→ 全倍音を含む
+→ ブラス、ストリングス的
+→ フィルターで削って音作り
+→ 最も汎用性が高い
+
+Step 3: 矩形波（Square/Pulse）
+→ 奇数倍音のみ
+→ 中空的な音
+→ パルス幅変調（PWM）
+→ レトロな質感
+
+Step 4: ウェーブテーブル
+→ 上記3つを理解した後
+→ 複雑な波形の変化
+→ Position による音色スイープ
+→ モダンなサウンドデザイン
+
+各波形の用途まとめ:
+
+Sine: Sub Bass, キック合成, 純音
+Saw: ベース全般, リード, パッド, スーパーソウ
+Square: レトロリード, ゲーム的サウンド, PWMパッド
+Triangle: Sub Bass（やや倍音あり）, フルート的
+Noise: パーカッション, ハイハット, テクスチャー
+Wavetable: モダンベース, エボルビングパッド, 全般
+```
+
+### Q6: Instrument RackとDrum Rackの違いは？
+
+**A:** 用途が異なる
+
+```
+Instrument Rack:
+→ メロディック楽器のレイヤー/スプリット用
+→ 複数のシンセを1つのMIDIトラックで管理
+→ キーゾーン、ベロシティゾーン対応
+→ マクロコントロールで統合操作
+→ 用途: ベース、リード、パッドのレイヤー
+
+Drum Rack:
+→ パーカッション専用のラック
+→ 各パッドが独立したMIDIノートに対応
+→ 各パッドに個別のSimpler/シンセ/エフェクト
+→ Choke Group機能
+→ 用途: ドラムキット、パーカッションセット
+
+使い分けのルール:
+→ ドラム/パーカッション → Drum Rack
+→ それ以外 → Instrument Rack
+→ 迷ったらDrum Rackはドラム専用と覚える
+```
+
+---
+
+## レイヤー・スタック技法の詳細
+
+音源を重ねる（レイヤー）技法は、プロフェッショナルな音作りの核心です。単体の音源では得られない厚みや複雑さを実現できます。
+
+```
+レイヤーの基本原則:
+
+原則 1: 各レイヤーに役割を持たせる
+→ Sub Layer: 低域の基礎（20-80Hz）
+→ Body Layer: 中低域の太さ（80-500Hz）
+→ Character Layer: 特徴的な音色（500Hz-5kHz）
+→ Air Layer: 高域のきらめき（5kHz+）
+
+原則 2: 周波数帯域を分ける
+→ 各レイヤーをEQで帯域制限
+→ 被りが多いとフェイズ問題（位相干渉）
+→ 必要な帯域だけを通す
+
+原則 3: 少ないレイヤーから始める
+→ 2-3レイヤーで十分な場合が多い
+→ 多すぎると濁る
+→ ソロで確認、ミックスで判断
+
+実践: テクノベースの3レイヤー構成
+
+Layer 1: Sub Bass (Wavetable)
+  Osc: Sine Wave
+  Filter: OFF (フィルター不要)
+  Amp Env: A:0 D:0 S:100% R:50ms
+  EQ: HPF 25Hz, LPF 80Hz
+  Utility: Mono
+  → 純粋な低域の土台
+
+Layer 2: Mid Bass (Wavetable)
+  Osc: "Aggressive" Wavetable, Position 40%
+  Filter: LPF 800Hz, Res 25%
+  Filter Env: A:0 D:200ms S:30%
+  Amp Env: A:0 D:0 S:100% R:100ms
+  EQ: HPF 80Hz, LPF 2kHz
+  → キャラクターと動きを担当
+
+Layer 3: Top/Harmonics (Operator)
+  Algorithm: 2
+  Carrier Ratio: 1.00
+  Mod Ratio: 2.00, Level 50%
+  Filter: HPF 500Hz
+  Amp Env: A:0 D:300ms S:20% R:100ms
+  → 倍音の成分を追加
+
+統合:
+→ Instrument Rack にまとめる
+→ Macro 1 → Layer 2 Filter Cutoff
+→ Macro 2 → Layer 3 Level
+→ → 1ノブで音色の明るさ、もう1ノブで倍音量を制御
+
+実践: アンビエントパッドの4レイヤー構成
+
+Layer 1: Foundation (Analog)
+  Osc: Saw × 2, Detune +10
+  Filter: LPF 600Hz
+  Amp Env: A:2000ms D:0 S:100% R:4000ms
+  → 温かみのある基盤
+
+Layer 2: Texture (Wavetable)
+  Osc: "Evolving" Wavetable
+  LFO → Wave Position: Rate 0.1Hz, Amount 30%
+  Filter: BPF 1kHz, Res 20%
+  Amp Env: A:3000ms D:0 S:80% R:5000ms
+  → 時間変化するテクスチャー
+
+Layer 3: Shimmer (Wavetable)
+  Osc: "Bright" Wavetable
+  Filter: HPF 2kHz
+  Amp Env: A:4000ms D:0 S:60% R:6000ms
+  Reverb: Size 100%, Decay 10s
+  → 高域のきらめき
+
+Layer 4: Breath (Simpler)
+  Sample: ノイズまたは環境音
+  Filter: BPF 1.5kHz, Res 10%
+  Amp Env: A:5000ms D:0 S:40% R:8000ms
+  → 有機的なブレス感
+
+統合:
+→ 全レイヤーで約15秒かけて音が完成
+→ 各レイヤーの Attack の違いで
+  時間とともに音色が変化する奥行き感
+```
+
+---
+
+## まとめ
+
+### 必須音源
+
+```
+□ Wavetable: 最重要、ベース・リード・パッド
+□ Drum Rack: 最重要、ドラム全般
+□ Operator: FMベル、ブラス
+□ Sampler: サンプル加工
+□ Analog: 温かみのあるパッド（CPU軽量）
+□ Simpler: ワンショット、Drum Rack内で活躍
+```
+
+### 学習優先順位
+
+```
+1. Wavetable (Week 1)
+   → 最も汎用的、これ1つで大半の音作りが可能
+2. Drum Rack (Week 2)
+   → リズムは楽曲の土台、キット構築を習得
+3. Operator (Week 3)
+   → FM音色でWavetableにない領域をカバー
+4. Analog (Week 3-4)
+   → 温かみのある音色、CPU効率が良い
+5. Sampler/Simpler (Week 4+)
+   → サンプリングとスライス技法
+6. Instrument Rack (Week 4+)
+   → レイヤーとマクロコントロール
+```
+
+### 重要ポイント
+
+```
+□ プリセット活用は推奨（プロでも50-70%使用）
+□ Wavetableだけで曲は作れる
+□ 外部音源は不要（最初の6ヶ月は付属音源のみ）
+□ 音作りは10-15分/音色が適切
+□ CPU管理にFreeze活用（50%超えたら検討）
+□ レイヤーは2-3層から始める
+□ エンベロープ（ADSR）の理解が音作りの鍵
+□ LFOで「動き」を加えると生きた音になる
+□ モジュレーションマトリクスで複雑な変化を実現
+□ ミックス内で音を確認する癖をつける
+```
+
+### 30日チャレンジ
+
+```
+音源マスタリング 30日プラン:
+
+Day 1-7: Wavetable 基礎
+→ 毎日1つの音色を作成
+→ プリセットを10個試す
+→ 7日目: ベース5種 + リード2種
+
+Day 8-14: Drum Rack 基礎
+→ 毎日キットに1つの要素を追加
+→ ドラムパターンを5つ作成
+→ 14日目: 完全なドラムキット完成
+
+Day 15-21: Operator + Analog
+→ FM音色を5つ作成
+→ Analogパッドを3つ作成
+→ 21日目: 3つの音源を使い分けられる
+
+Day 22-28: 統合とレイヤー
+→ Instrument Rack でレイヤー
+→ マクロコントロールの設定
+→ 28日目: レイヤードサウンド3つ完成
+
+Day 29-30: 実践制作
+→ 32小節のトラックを完成させる
+→ Drum Rack + Wavetable + Operator
+→ 全ての学びを統合
+
+完了時の到達レベル:
+→ 好みの音を自分で作れる
+→ プリセットを効果的にカスタマイズできる
+→ 音源の使い分けが自然にできる
+→ CPU管理を意識した制作ができる
+→ レイヤー技法で厚みのあるサウンドを作れる
+```
+
+---
+
+**次は:** [Wavetable](./wavetable.md) - Abletonの主力シンセを完全マスター
+
+---
+
+## 次に読むべきガイド
+
+- [Analog](./analog.md) - 次のトピックへ進む
+
+---
+
+## 参考文献
+
+- [MDN Web Docs](https://developer.mozilla.org/) - Web技術のリファレンス
+- [Wikipedia](https://ja.wikipedia.org/) - 技術概念の概要

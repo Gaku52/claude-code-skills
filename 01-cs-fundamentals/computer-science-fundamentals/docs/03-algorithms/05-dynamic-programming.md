@@ -13,8 +13,6 @@
 
 ## 前提知識
 
-- 再帰 → 参照: [[00-what-is-algorithm.md]]
-- 計算量解析 → 参照: [[01-complexity-analysis.md]]
 
 ---
 
@@ -1862,7 +1860,6 @@ LCSを使ったdiffツールを実装し、2つのテキストファイルの差
 ---
 
 ## 次に読むべきガイド
-→ [[06-greedy-and-backtracking.md]] -- 貪欲法とバックトラック
 
 ---
 

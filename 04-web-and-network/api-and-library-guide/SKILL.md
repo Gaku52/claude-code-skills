@@ -11,7 +11,7 @@
 ## 前提知識
 
 - HTTPの基本 → 参照: [ネットワーク基礎](../network-fundamentals/)
-- プログラミングの基本 → 参照: [プログラミング言語基礎](../../02-programming/programming-language-fundamentals/)
+- プログラミングの基本 → 参照: プログラミング言語基礎
 
 ## ガイド一覧
 

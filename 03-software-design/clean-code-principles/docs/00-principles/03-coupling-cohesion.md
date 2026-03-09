@@ -24,7 +24,7 @@
 | クリーンコードの概要 | 読了推奨 | [クリーンコード概論](./00-clean-code-overview.md) |
 | DRY/KISS/YAGNI | 基本を理解 | [DRY/KISS/YAGNI](./02-dry-kiss-yagni.md) |
 | オブジェクト指向の基本 | 実務経験あり | -- |
-| デザインパターンの基礎 | 概要を把握 | [デザインパターン概論](../../design-patterns-guide/docs/00-creational/00-overview.md) |
+| デザインパターンの基礎 | 概要を把握 | デザインパターン概論 |
 
 ---
 
@@ -1720,6 +1720,23 @@ class InventoryReport:
 
 ---
 
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+
+---
+
 ## まとめ
 
 | 指標 | 目標 | 達成手段 | 測定方法 | しきい値 |
@@ -1745,7 +1762,7 @@ class InventoryReport:
 - [SOLID原則](./01-solid.md) ── 特にSRPとDIPが結合度・凝集度に直結
 - [合成 vs 継承](../03-practices-advanced/01-composition-over-inheritance.md) ── 結合度に影響する設計判断
 - [コードスメル](../02-refactoring/00-code-smells.md) ── God Class、Shotgun Surgery の詳細
-- [リファクタリング技法](../02-refactoring/01-refactoring-catalog.md) ── Extract Class、Move Method の手順
+- リファクタリング技法 ── Extract Class、Move Method の手順
 
 ---
 

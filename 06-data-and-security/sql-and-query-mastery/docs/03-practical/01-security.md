@@ -21,8 +21,8 @@
 - [SQLの基礎](../00-basics/00-sql-overview.md) — SELECT/INSERT/UPDATE/DELETEの基本操作
 - [トランザクション](../01-advanced/02-transactions.md) — ACID特性とトランザクション分離レベル
 - [PostgreSQL機能](./00-postgresql-features.md) — JSONB、トリガー、PL/pgSQLの基本
-- [セキュリティ基礎](../../security-fundamentals/docs/00-basics/00-security-overview.md) — 情報セキュリティの基本概念
-- [暗号化基礎](../../security-fundamentals/docs/02-cryptography/00-crypto-basics.md) — ハッシュ、対称鍵暗号、公開鍵暗号の基礎
+- セキュリティ基礎 — 情報セキュリティの基本概念
+- 暗号化基礎 — ハッシュ、対称鍵暗号、公開鍵暗号の基礎
 
 ---
 
@@ -1485,12 +1485,12 @@ ORMではPrismaの `select` やSQLAlchemyの `defer` でカラムの遅延読み
 - [00-postgresql-features.md](./00-postgresql-features.md) — pgcrypto、pg_trgm等の活用
 - [02-performance-tuning.md](./02-performance-tuning.md) — セキュリティ設定とパフォーマンスの両立
 - [03-orm-comparison.md](./03-orm-comparison.md) — ORMのSQLインジェクション対策
-- [セキュリティ概要](../../security-fundamentals/docs/00-basics/00-security-overview.md) — 情報セキュリティの全体像
-- [OWASP Top 10](../../security-fundamentals/docs/01-web-security/00-owasp-top10.md) — Web脆弱性トップ10
-- [インジェクション](../../security-fundamentals/docs/01-web-security/03-injection.md) — SQLi以外のインジェクション攻撃
-- [TLS/証明書](../../security-fundamentals/docs/02-cryptography/01-tls-certificates.md) — TLSの仕組みと証明書管理
-- [パスワードセキュリティ](../../authentication-and-authorization/docs/00-fundamentals/01-password-security.md) — パスワードハッシュの詳細
-- [RBAC](../../authentication-and-authorization/docs/03-authorization/00-rbac.md) — ロールベースアクセス制御
+- セキュリティ概要 — 情報セキュリティの全体像
+- OWASP Top 10 — Web脆弱性トップ10
+- インジェクション — SQLi以外のインジェクション攻撃
+- TLS/証明書 — TLSの仕組みと証明書管理
+- パスワードセキュリティ — パスワードハッシュの詳細
+- RBAC — ロールベースアクセス制御
 
 ---
 

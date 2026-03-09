@@ -15,9 +15,9 @@
 
 ## 前提知識
 
-- HTTPヘッダーとステータスコードの理解 → 参照: [HTTPの基礎](../../network-fundamentals/docs/02-http/00-http-basics.md)
+- HTTPヘッダーとステータスコードの理解 → 参照: HTTPの基礎
 - REST APIの設計原則 → 参照: [REST Best Practices](../01-rest-and-graphql/00-rest-best-practices.md)
-- 暗号化の基礎知識(ハッシュ、公開鍵暗号) → 参照: [セキュリティ基礎](../../06-data-and-security/security-fundamentals/docs/)
+- 暗号化の基礎知識(ハッシュ、公開鍵暗号) → 参照: セキュリティ基礎
 
 ---
 

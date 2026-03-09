@@ -20,7 +20,7 @@
 | ネットワーク基礎 | TCP/IP、HTTP、ロードバランサーの基本概念 | [04-web-and-network](../../../../04-web-and-network/) |
 | データベース基礎 | RDBMS、インデックス、クエリ最適化 | [06-data-and-security](../../../../06-data-and-security/) |
 | クラウド基礎 | AWS/GCPの基本的なサービス（EC2、RDS等） | [05-infrastructure](../../../../05-infrastructure/) |
-| 設計原則 | SOLIDの原則、結合度と凝集度 | [clean-code-principles: 00-principles](../../clean-code-principles/docs/00-principles/) |
+| 設計原則 | SOLIDの原則、結合度と凝集度 | clean-code-principles: 00-principles |
 
 ---
 
@@ -1924,6 +1924,23 @@ for pct in [0.5, 0.75, 0.9, 0.95, 0.99]:
 
 ---
 
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+
+---
+
 ## 10. まとめ
 
 | 項目 | ポイント |
@@ -1954,12 +1971,12 @@ for pct in [0.5, 0.75, 0.9, 0.95, 0.99]:
 
 ### 関連する他のSkill
 
-- [clean-code-principles](../../clean-code-principles/) -- コードレベルの設計原則。スケーラブルなコードの書き方
-  - [結合度と凝集度](../../clean-code-principles/docs/00-principles/03-coupling-cohesion.md) -- サービス分割の基準
-- [design-patterns-guide](../../design-patterns-guide/) -- スケーラビリティに関連するパターン
-  - [Repository Pattern](../../design-patterns-guide/docs/04-architectural/01-repository-pattern.md) -- データアクセスの抽象化（DB移行を容易にする）
-  - [Event Sourcing / CQRS](../../design-patterns-guide/docs/04-architectural/02-event-sourcing-cqrs.md) -- 読み書き分離によるスケーリング
-  - [Observer Pattern](../../design-patterns-guide/docs/02-behavioral/00-observer.md) -- イベント駆動設計の基礎
+- clean-code-principles -- コードレベルの設計原則。スケーラブルなコードの書き方
+  - 結合度と凝集度 -- サービス分割の基準
+- design-patterns-guide -- スケーラビリティに関連するパターン
+  - Repository Pattern -- データアクセスの抽象化（DB移行を容易にする）
+  - Event Sourcing / CQRS -- 読み書き分離によるスケーリング
+  - Observer Pattern -- イベント駆動設計の基礎
 
 ---
 

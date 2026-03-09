@@ -11,6 +11,15 @@
 - [ ] ロックフリー・アトミック操作の原理と適用範囲を理解する
 - [ ] 並列プログラミング特有のバグ（データ競合、偽共有など）を回避できる
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+- [メッセージパッシング](./02-message-passing.md) の内容を理解していること
+
 ---
 
 ## 1. 並列処理の基礎概念
@@ -850,7 +859,7 @@ void parallel_algorithms_example() {
     std::transform(std::execution::par_unseq,
                    data.begin(), data.end(),
                    data.begin(),
-                   [](int x) { return x * 2; });
+                    { return x * 2; });
 
     // 並列リデュース
     long long sum = std::reduce(
@@ -861,7 +870,7 @@ void parallel_algorithms_example() {
     // 並列 for_each
     std::for_each(std::execution::par,
                   data.begin(), data.end(),
-                  [](int& x) { x += 1; });
+                   { x += 1; });
 }
 
 // --- std::async によるタスク並列 ---
@@ -890,7 +899,7 @@ AnalysisResult parallel_analysis(const std::vector<int>& data) {
             data.begin(), data.end(),
             0.0,
             std::plus<>{},
-            [mean](int x) {
+            mean {
                 return (x - mean) * (x - mean);
             });
         return sq_sum / data.size();
@@ -2319,6 +2328,23 @@ GPUは「同じ簡単な処理を膨大なデータに適用する」場合（SI
 
 ---
 
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+
+---
+
 ## 14. まとめ
 
 ### 14.1 章全体の要点
@@ -2369,10 +2395,6 @@ GPUは「同じ簡単な処理を膨大なデータに適用する」場合（SI
 
 ## 15. 次に読むべきガイド
 
-- [[01-threads-and-processes.md]] -- スレッドとプロセスの基礎
-- [[02-async-programming.md]] -- 非同期プログラミング（I/Oバウンド向け）
-- [[04-synchronization.md]] -- 同期プリミティブの詳細
-- [[../06-language-comparison/00-scripting-languages.md]] -- 言語比較
 
 ---
 
@@ -2385,3 +2407,16 @@ GPUは「同じ簡単な処理を膨大なデータに適用する」場合（SI
 5. Amdahl, G. M. "Validity of the Single Processor Approach to Achieving Large Scale Computing Capabilities." AFIPS Conference Proceedings, 1967. -- アムダールの法則の原論文。並列化の限界を数学的に定式化した歴史的文献。
 6. Gustafson, J. L. "Reevaluating Amdahl's Law." Communications of the ACM, 1988. -- グスタフソンの法則を提唱した論文。アムダールの法則の前提（固定問題サイズ）を再検討し、スケールアップの観点を導入した。
 7. Pike, R. "Concurrency is not Parallelism." Talk at Waza Conference, 2012. -- Goの設計者による、並行と並列の違いを明確に説明した講演。概念の理解に最適な入門資料。
+
+---
+
+## 次に読むべきガイド
+
+- 同カテゴリの他のガイドを参照してください
+
+---
+
+## 参考文献
+
+- [MDN Web Docs](https://developer.mozilla.org/) - Web技術のリファレンス
+- [Wikipedia](https://ja.wikipedia.org/) - 技術概念の概要

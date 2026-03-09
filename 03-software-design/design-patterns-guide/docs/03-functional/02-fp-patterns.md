@@ -20,7 +20,7 @@
 |---|---|
 | TypeScript の基本（ジェネリクス、型推論） | [02-programming カテゴリ](../../../../02-programming/) |
 | 高階関数の概念（map, filter, reduce） | JavaScript/TypeScript の基本 |
-| 不変性（Immutability）の基本概念 | [クリーンコードの原則](../../clean-code-principles/) |
+| 不変性（Immutability）の基本概念 | クリーンコードの原則 |
 | ファンクタとモナドの基礎 | [ファンクタ・アプリカティブ](./01-functor-applicative.md)、[モナド](./00-monad.md) |
 
 ---
@@ -1631,7 +1631,7 @@ const result2 = processOrder({
 
 - [モナド](./00-monad.md) — 関数合成のより高度な抽象化
 - [ファンクタ・アプリカティブ](./01-functor-applicative.md) — map と ap の理論的基盤
-- [クリーンコードの原則](../../clean-code-principles/docs/00-principles/) — 読みやすいコードの基本
+- クリーンコードの原則 — 読みやすいコードの基本
 - [ビヘイビアパターン](../02-behavioral/) — OOP パターンとの比較
 - [アーキテクチャパターン](../04-architectural/) — 大規模設計での関数型アプローチ
 

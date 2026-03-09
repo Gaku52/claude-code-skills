@@ -4,7 +4,7 @@
 
 ## 前提知識
 
-- SELECT / WHERE / GROUP BY の基本構文（[01-select.md](../00-basics/01-select.md)）
+- SELECT / WHERE / GROUP BY の基本構文（01-select.md）
 - 集約関数（COUNT, SUM, AVG）の動作（[03-aggregation.md](../00-basics/03-aggregation.md)）
 - ORDER BY とソート処理の理解
 

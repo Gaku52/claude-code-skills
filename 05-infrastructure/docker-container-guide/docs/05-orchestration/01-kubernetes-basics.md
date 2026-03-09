@@ -12,6 +12,15 @@
 4. **ConfigMap / Secret / PersistentVolume** などの関連リソースを理解する
 5. **Ingress / HPA / RBAC** の基礎概念を把握する
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+- [オーケストレーション概要](./00-orchestration-overview.md) の内容を理解していること
+
 ---
 
 ## 1. Kubernetesアーキテクチャ

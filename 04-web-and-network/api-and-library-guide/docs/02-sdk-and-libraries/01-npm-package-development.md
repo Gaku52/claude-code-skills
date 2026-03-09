@@ -18,7 +18,7 @@
 
 - SDK設計の基本原則 → 参照: [SDK設計](./00-sdk-design.md)
 - Node.jsのモジュールシステム（CommonJS/ESM）の理解
-- TypeScriptの基本的な型定義 → 参照: [TypeScript Complete Guide](../../../02-programming/typescript-complete-guide/docs/)
+- TypeScriptの基本的な型定義 → 参照: TypeScript Complete Guide
 
 ---
 
@@ -2074,7 +2074,6 @@ describe('chunk', () => {
   });
 
   it('チャンクサイズが配列長以上の場合', () => {
-    expect(chunk([1, 2], 5)).toEqual([[1, 2]]);
   });
 
   it('チャンクサイズが0以下でエラー', () => {

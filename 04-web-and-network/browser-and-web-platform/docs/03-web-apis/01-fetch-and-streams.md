@@ -16,7 +16,7 @@
 
 本章を学習する前に、以下の知識を習得しておくことを推奨する。
 
-- **HTTPの基礎**: HTTPリクエスト/レスポンスの構造、ステータスコード、ヘッダー、メソッド（GET, POST, PUT, DELETE等）の意味を理解していることが前提となる。詳細は [../../network-fundamentals/docs/02-http/00-http-basics.md](../../network-fundamentals/docs/02-http/00-http-basics.md) を参照。
+- **HTTPの基礎**: HTTPリクエスト/レスポンスの構造、ステータスコード、ヘッダー、メソッド（GET, POST, PUT, DELETE等）の意味を理解していることが前提となる。詳細は [../../../network-fundamentals/docs/02-http/00-http-basics.md](../../../network-fundamentals/docs/02-http/00-http-basics.md) を参照。
 
 - **PromiseとAsync/Await**: Fetch APIはPromiseベースであり、`async`/`await` 構文を使った非同期処理の記述が中心となる。Promiseのチェーン、エラーハンドリング（`.catch()`, `try/catch`）、並行処理（`Promise.all()`, `Promise.race()`）を理解していることが重要である。
 

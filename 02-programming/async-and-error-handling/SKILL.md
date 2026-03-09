@@ -11,7 +11,6 @@
 ## 前提知識
 
 - プログラミングの基本（関数、制御構文）
-- 参照: [[programming-language-fundamentals]]
 
 ## ガイド一覧
 
@@ -63,6 +62,3 @@
 
 ## 関連Skills
 
-- [[programming-language-fundamentals]] — 言語の基礎概念
-- [[nodejs-development]] — Node.js開発
-- [[backend-development]] — バックエンド開発

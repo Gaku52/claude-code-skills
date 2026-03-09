@@ -4,7 +4,7 @@
 
 ## 前提知識
 
-- SELECT / WHERE / FROM の基本構文（[01-select.md](./01-select.md)）
+- SELECT / WHERE / FROM の基本構文（01-select.md）
 - データ型（数値型、文字列型、日付型）の基礎知識
 - NULL の概念と三値論理の理解
 

@@ -12,6 +12,15 @@
 4. **Union-Find** — 素集合データ構造
 5. **実務応用** — ソーシャルグラフ、依存関係解決、経路探索
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+- [ヒープ — 二分ヒープ・ヒープソート・優先度キュー実装](./05-heaps.md) の内容を理解していること
+
 ---
 
 ## 1. グラフの基本概念
@@ -1252,6 +1261,200 @@ def bellman_ford(vertices, edges, start):
     return dist
 ```
 
+
+---
+
+## トラブルシューティング
+
+### よくあるエラーと解決策
+
+| エラー | 原因 | 解決策 |
+|--------|------|--------|
+| 初期化エラー | 設定ファイルの不備 | 設定ファイルのパスと形式を確認 |
+| タイムアウト | ネットワーク遅延/リソース不足 | タイムアウト値の調整、リトライ処理の追加 |
+| メモリ不足 | データ量の増大 | バッチ処理の導入、ページネーションの実装 |
+| 権限エラー | アクセス権限の不足 | 実行ユーザーの権限確認、設定の見直し |
+| データ不整合 | 並行処理の競合 | ロック機構の導入、トランザクション管理 |
+
+### デバッグの手順
+
+1. **エラーメッセージの確認**: スタックトレースを読み、発生箇所を特定する
+2. **再現手順の確立**: 最小限のコードでエラーを再現する
+3. **仮説の立案**: 考えられる原因をリストアップする
+4. **段階的な検証**: ログ出力やデバッガを使って仮説を検証する
+5. **修正と回帰テスト**: 修正後、関連する箇所のテストも実行する
+
+```python
+# デバッグ用ユーティリティ
+import logging
+import traceback
+from functools import wraps
+
+# ロガーの設定
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+def debug_decorator(func):
+    """関数の入出力をログ出力するデコレータ"""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        logger.debug(f"呼び出し: {func.__name__}(args={args}, kwargs={kwargs})")
+        try:
+            result = func(*args, **kwargs)
+            logger.debug(f"戻り値: {func.__name__} -> {result}")
+            return result
+        except Exception as e:
+            logger.error(f"例外発生: {func.__name__}: {e}")
+            logger.error(traceback.format_exc())
+            raise
+    return wrapper
+
+@debug_decorator
+def process_data(items):
+    """データ処理（デバッグ対象）"""
+    if not items:
+        raise ValueError("空のデータ")
+    return [item * 2 for item in items]
+```
+
+### パフォーマンス問題の診断
+
+パフォーマンス問題が発生した場合の診断手順:
+
+1. **ボトルネックの特定**: プロファイリングツールで計測
+2. **メモリ使用量の確認**: メモリリークの有無をチェック
+3. **I/O待ちの確認**: ディスクやネットワークI/Oの状況を確認
+4. **同時接続数の確認**: コネクションプールの状態を確認
+
+| 問題の種類 | 診断ツール | 対策 |
+|-----------|-----------|------|
+| CPU負荷 | cProfile, py-spy | アルゴリズム改善、並列化 |
+| メモリリーク | tracemalloc, objgraph | 参照の適切な解放 |
+| I/Oボトルネック | strace, iostat | 非同期I/O、キャッシュ |
+| DB遅延 | EXPLAIN, slow query log | インデックス、クエリ最適化 |
+
+---
+
+## チーム開発での活用
+
+### コードレビューのチェックリスト
+
+このトピックに関連するコードレビューで確認すべきポイント:
+
+- [ ] 命名規則が一貫しているか
+- [ ] エラーハンドリングが適切か
+- [ ] テストカバレッジは十分か
+- [ ] パフォーマンスへの影響はないか
+- [ ] セキュリティ上の問題はないか
+- [ ] ドキュメントは更新されているか
+
+### ナレッジ共有のベストプラクティス
+
+| 方法 | 頻度 | 対象 | 効果 |
+|------|------|------|------|
+| ペアプログラミング | 随時 | 複雑なタスク | 即時のフィードバック |
+| テックトーク | 週1回 | チーム全体 | 知識の水平展開 |
+| ADR (設計記録) | 都度 | 将来のメンバー | 意思決定の透明性 |
+| 振り返り | 2週間ごと | チーム全体 | 継続的改善 |
+| モブプログラミング | 月1回 | 重要な設計 | 合意形成 |
+
+### 技術的負債の管理
+
+```
+優先度マトリクス:
+
+        影響度 高
+          │
+    ┌─────┼─────┐
+    │ 計画 │ 即座 │
+    │ 的に │ に   │
+    │ 対応 │ 対応 │
+    ├─────┼─────┤
+    │ 記録 │ 次の │
+    │ のみ │ Sprint│
+    │     │ で   │
+    └─────┼─────┘
+          │
+        影響度 低
+    発生頻度 低  発生頻度 高
+```
+
+---
+
+## セキュリティの考慮事項
+
+### 一般的な脆弱性と対策
+
+| 脆弱性 | リスクレベル | 対策 | 検出方法 |
+|--------|------------|------|---------|
+| インジェクション攻撃 | 高 | 入力値のバリデーション・パラメータ化クエリ | SAST/DAST |
+| 認証の不備 | 高 | 多要素認証・セッション管理の強化 | ペネトレーションテスト |
+| 機密データの露出 | 高 | 暗号化・アクセス制御 | セキュリティ監査 |
+| 設定の不備 | 中 | セキュリティヘッダー・最小権限の原則 | 構成スキャン |
+| ログの不足 | 中 | 構造化ログ・監査証跡 | ログ分析 |
+
+### セキュアコーディングのベストプラクティス
+
+```python
+# セキュアコーディング例
+import hashlib
+import secrets
+import hmac
+from typing import Optional
+
+class SecurityUtils:
+    """セキュリティユーティリティ"""
+
+    @staticmethod
+    def generate_token(length: int = 32) -> str:
+        """暗号学的に安全なトークン生成"""
+        return secrets.token_urlsafe(length)
+
+    @staticmethod
+    def hash_password(password: str, salt: Optional[str] = None) -> tuple:
+        """パスワードのハッシュ化"""
+        if salt is None:
+            salt = secrets.token_hex(16)
+        hashed = hashlib.pbkdf2_hmac(
+            'sha256',
+            password.encode('utf-8'),
+            salt.encode('utf-8'),
+            iterations=100000
+        )
+        return hashed.hex(), salt
+
+    @staticmethod
+    def verify_password(password: str, hashed: str, salt: str) -> bool:
+        """パスワードの検証"""
+        new_hash, _ = SecurityUtils.hash_password(password, salt)
+        return hmac.compare_digest(new_hash, hashed)
+
+    @staticmethod
+    def sanitize_input(value: str) -> str:
+        """入力値のサニタイズ"""
+        dangerous_chars = ['<', '>', '"', "'", '&', '\\']
+        result = value
+        for char in dangerous_chars:
+            result = result.replace(char, '')
+        return result.strip()
+
+# 使用例
+token = SecurityUtils.generate_token()
+hashed, salt = SecurityUtils.hash_password("my_password")
+is_valid = SecurityUtils.verify_password("my_password", hashed, salt)
+```
+
+### セキュリティチェックリスト
+
+- [ ] 全ての入力値がバリデーションされている
+- [ ] 機密情報がログに出力されていない
+- [ ] HTTPS が強制されている
+- [ ] CORS ポリシーが適切に設定されている
+- [ ] 依存パッケージの脆弱性スキャンが実施されている
+- [ ] エラーメッセージに内部情報が含まれていない
 ---
 
 ## 11. FAQ
@@ -1500,6 +1703,23 @@ CSR (Compressed Sparse Row) 形式:
 | Amazon Neptune | Gremlin / SPARQL | 知識グラフ、不正検知 |
 | JanusGraph | Gremlin | 大規模分散グラフ |
 | ArangoDB | AQL | マルチモデル（文書+グラフ） |
+
+---
+
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
 
 ---
 

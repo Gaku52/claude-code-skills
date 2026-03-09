@@ -13,6 +13,15 @@
 - Wavetableでの実践
 - 基本パッチ10個の作成
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+- [Sampling Techniques（サンプリング技術）](./sampling-techniques.md) の内容を理解していること
+
 ---
 
 ## なぜSynthesis Basicsが重要なのか
@@ -3004,3 +3013,16 @@ DAW内蔵シンセ（追加費用なし）:
 ---
 
 **シンセシスの基礎をマスターして、自分だけの音を作りましょう！** 🎹
+
+---
+
+## 次に読むべきガイド
+
+- [Wavetable Sound Design（Wavetableサウンドデザイン）](./wavetable-sound-design.md) - 次のトピックへ進む
+
+---
+
+## 参考文献
+
+- [MDN Web Docs](https://developer.mozilla.org/) - Web技術のリファレンス
+- [Wikipedia](https://ja.wikipedia.org/) - 技術概念の概要

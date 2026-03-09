@@ -16,8 +16,8 @@
 ## 前提知識
 
 - API First設計の基本概念 → 参照: [API First設計](./00-api-first-design.md)
-- HTTP メソッド（GET/POST/PUT/DELETE）の理解 → 参照: [HTTPの基礎](../../network-fundamentals/docs/02-http/00-http-basics.md)
-- REST APIの基本原則 → 参照: [REST API](../../network-fundamentals/docs/02-http/02-rest-api.md)
+- HTTP メソッド（GET/POST/PUT/DELETE）の理解 → 参照: HTTPの基礎
+- REST APIの基本原則 → 参照: REST API
 
 ---
 

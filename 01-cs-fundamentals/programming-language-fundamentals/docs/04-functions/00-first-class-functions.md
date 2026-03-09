@@ -14,6 +14,14 @@
 - [ ] ディスパッチテーブルやストラテジーパターンを実装できる
 - [ ] アンチパターンを識別し、適切に回避できる
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+
 ---
 
 ## 1. 第一級関数とは何か
@@ -373,7 +381,7 @@ class Calculator:
     def calculate(self, a, op, b):
         if op not in self.operations:
             raise ValueError(f"未対応の演算子: {op}")
-        result = self.operations[op](a, b)
+        result = self.operationsop
         self.history.append(f"{a} {op} {b} = {result}")
         return result
 
@@ -2183,6 +2191,23 @@ console.log(result);
 
 ---
 
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+
+---
+
 ## 12. まとめ
 
 ### 12.1 概念の整理
@@ -2239,9 +2264,6 @@ console.log(result);
 
 ## 13. 次に読むべきガイド
 
-- [[01-closures.md]] -- クロージャ: 第一級関数が環境をキャプチャする仕組みを深掘りする
-- [[02-higher-order-functions.md]] -- 高階関数: map/filter/reduce 等の体系的理解
-- [[03-recursion.md]] -- 再帰: 関数が自分自身を呼ぶパターンとその最適化
 
 ---
 
@@ -2258,3 +2280,16 @@ console.log(result);
 5. Kleppmann, M. *Designing Data-Intensive Applications*, O'Reilly Media, 2017. -- 分散システムにおける関数型パターン（イミュータブルデータ、純粋関数）の重要性を実システムの文脈で論じている。
 
 6. Gamma, E., Helm, R., Johnson, R. & Vlissides, J. *Design Patterns: Elements of Reusable Object-Oriented Software*, Addison-Wesley, 1994. -- ストラテジーパターン、コマンドパターン等、第一級関数で簡潔に表現できるGoFパターンの原典。OOPとFPの対比を理解する上で有用。
+
+---
+
+## 次に読むべきガイド
+
+- [クロージャ（Closures）](./01-closures.md) - 次のトピックへ進む
+
+---
+
+## 参考文献
+
+- [MDN Web Docs](https://developer.mozilla.org/) - Web技術のリファレンス
+- [Wikipedia](https://ja.wikipedia.org/) - 技術概念の概要

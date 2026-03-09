@@ -8,11 +8,11 @@
 
 | トピック | 内容 | 参照先 |
 |---------|------|--------|
-| クリーンコードの基本原則 | 命名規則・関数設計・コメントの書き方 | [00-naming-conventions.md](../00-principles/00-naming-conventions.md) |
-| SOLID原則 | 単一責任、開放閉鎖、依存性逆転 | [04-solid-principles.md](../00-principles/04-solid-principles.md) |
+| クリーンコードの基本原則 | 命名規則・関数設計・コメントの書き方 | 00-naming-conventions.md |
+| SOLID原則 | 単一責任、開放閉鎖、依存性逆転 | 04-solid-principles.md |
 | テスト原則 | ユニットテストの基本・テストピラミッド | [04-testing-principles.md](../01-practices/04-testing-principles.md) |
 | イミュータビリティ | 不変データ構造と値オブジェクト | [00-immutability.md](./00-immutability.md) |
-| Strategyパターン | 振る舞いの差し替え | [../../design-patterns-guide/docs/02-behavioral/00-strategy.md](../../design-patterns-guide/docs/02-behavioral/00-strategy.md) |
+| Strategyパターン | 振る舞いの差し替え | [../../../design-patterns-guide/docs/02-behavioral/01-strategy.md](../../../design-patterns-guide/docs/02-behavioral/01-strategy.md) |
 
 ---
 
@@ -2098,7 +2098,24 @@ state = reduce(apply_event, events, initial_state)
 状態:    Order(items=2, discount=10%, status=confirmed)
 ```
 
-イベントは不変（過去のイベントは変更しない）、apply_event は純粋関数（同じイベント列からは常に同じ状態が再現される）。これにより完全な監査ログ、時点復元、デバッグが容易になる。詳細は [../../system-design-guide/docs/02-architecture/](../../system-design-guide/docs/02-architecture/) を参照。
+イベントは不変（過去のイベントは変更しない）、apply_event は純粋関数（同じイベント列からは常に同じ状態が再現される）。これにより完全な監査ログ、時点復元、デバッグが容易になる。詳細は ../../system-design-guide/docs/02-architecture/ を参照。
+
+---
+
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
 
 ---
 
@@ -2140,9 +2157,9 @@ state = reduce(apply_event, events, initial_state)
 - [01-composition-over-inheritance.md](./01-composition-over-inheritance.md) — 継承より合成の原則（Strategy, Decorator との連携）
 - [03-api-design.md](./03-api-design.md) — API設計（関数型エラーハンドリングのAPI適用）
 - [../01-practices/04-testing-principles.md](../01-practices/04-testing-principles.md) — テスト原則（純粋関数のテスト戦略）
-- [../../design-patterns-guide/docs/03-functional/](../../design-patterns-guide/docs/03-functional/) — 関数型デザインパターン（Monad, Functor）
-- [../../design-patterns-guide/docs/02-behavioral/00-strategy.md](../../design-patterns-guide/docs/02-behavioral/00-strategy.md) — Strategyパターン（高階関数との対比）
-- [../../system-design-guide/docs/00-fundamentals/](../../system-design-guide/docs/00-fundamentals/) — システム設計の基礎（関数型アーキテクチャの全体像）
+- ../../design-patterns-guide/docs/03-functional/ — 関数型デザインパターン（Monad, Functor）
+- [../../../design-patterns-guide/docs/02-behavioral/01-strategy.md](../../../design-patterns-guide/docs/02-behavioral/01-strategy.md) — Strategyパターン（高階関数との対比）
+- ../../system-design-guide/docs/00-fundamentals/ — システム設計の基礎（関数型アーキテクチャの全体像）
 
 ---
 

@@ -21,8 +21,8 @@
 | コンピュータネットワーク基礎 | TCP/IP、HTTP、DNS の基本 | [04-web-and-network](../../../../04-web-and-network/) |
 | データベース基礎 | RDBMS、SQL、インデックスの基本概念 | [06-data-and-security](../../../../06-data-and-security/) |
 | プログラミング基礎 | Python または任意の言語でコードが読めること | [02-programming](../../../../02-programming/) |
-| ソフトウェア設計原則 | SOLID、結合度・凝集度の基礎 | [clean-code-principles: 00-principles](../../clean-code-principles/docs/00-principles/) |
-| アーキテクチャパターン基礎 | MVC/MVVMなどの基礎概念 | [design-patterns-guide: 04-architectural](../../design-patterns-guide/docs/04-architectural/) |
+| ソフトウェア設計原則 | SOLID、結合度・凝集度の基礎 | clean-code-principles: 00-principles |
+| アーキテクチャパターン基礎 | MVC/MVVMなどの基礎概念 | design-patterns-guide: 04-architectural |
 
 ---
 
@@ -1917,6 +1917,23 @@ CAP定理は「分散システムにおいてConsistency（一貫性）、Availa
 
 ---
 
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+
+---
+
 ## 12. まとめ
 
 | 項目 | ポイント |
@@ -1946,10 +1963,10 @@ CAP定理は「分散システムにおいてConsistency（一貫性）、Availa
 
 ### 関連する他のSkill
 
-- [clean-code-principles](../../clean-code-principles/) -- コードレベルの設計原則（SOLID、結合度/凝集度）
-- [design-patterns-guide](../../design-patterns-guide/) -- GoFデザインパターンとアーキテクチャパターン
-  - [Repository Pattern](../../design-patterns-guide/docs/04-architectural/01-repository-pattern.md) -- データアクセスの抽象化
-  - [Event Sourcing / CQRS](../../design-patterns-guide/docs/04-architectural/02-event-sourcing-cqrs.md) -- イベント駆動設計の応用
+- clean-code-principles -- コードレベルの設計原則（SOLID、結合度/凝集度）
+- design-patterns-guide -- GoFデザインパターンとアーキテクチャパターン
+  - Repository Pattern -- データアクセスの抽象化
+  - Event Sourcing / CQRS -- イベント駆動設計の応用
 
 ---
 

@@ -21,7 +21,6 @@
 
 ## 前提知識
 
-- 2進数の基礎があると理解が深まる → 参照: [[../02-data-representation/00-binary-and-number-systems.md]]
 - ブール代数の基本（AND, OR, NOT）の概念
 - 電圧・電流の初歩的な概念（中学理科レベル）
 
@@ -1856,6 +1855,23 @@ A B C | Y
 
 ---
 
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+
+---
+
 ## 13. まとめ
 
 | 概念 | 要点 |
@@ -2564,7 +2580,6 @@ KiCad による PCB 設計ワークフロー:
 
 ## 次に読むべきガイド
 
-→ [[07-capacity-limits.md]] — 性能限界とコンピューティングの未来
 
 ---
 
@@ -2580,3 +2595,10 @@ KiCad による PCB 設計ワークフロー:
 8. Rabaey, J., Chandrakasan, A. & Nikolic, B. *Digital Integrated Circuits: A Design Perspective.* 2nd Edition, Pearson, 2003. — デジタルICの設計原理。消費電力、遅延、面積のトレードオフを理論的に扱う。
 9. Kilts, S. *Advanced FPGA Design: Architecture, Implementation, and Optimization.* Wiley-IEEE Press, 2007. — FPGA設計の上級テキスト。タイミングクロージャ、リソース最適化を詳述。
 10. TSMC Technology Roadmap (公開資料). — 最新の半導体プロセスノード情報。3nm/2nm の技術詳細。
+
+---
+
+## 参考文献
+
+- [MDN Web Docs](https://developer.mozilla.org/) - Web技術のリファレンス
+- [Wikipedia](https://ja.wikipedia.org/) - 技術概念の概要

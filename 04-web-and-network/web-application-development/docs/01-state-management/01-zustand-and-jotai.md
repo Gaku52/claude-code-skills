@@ -6,7 +6,6 @@
 
 この章を効果的に学習するために、以下の知識を事前に習得しておくことを推奨する:
 
-- **状態管理の概要** → [[./00-state-management-overview.md]]
   - 状態の4カテゴリ（ローカル、グローバル、サーバー、URL）の理解
   - グローバル状態を使うべき場面の判断基準
   - 状態の最小化と Single Source of Truth の原則
@@ -2437,8 +2436,6 @@ function App() {
 ---
 
 ## 次に読むべきガイド
-→ [[02-server-state.md]] — TanStack Query によるサーバー状態管理
-→ [[03-url-state.md]] — URL状態管理
 
 ---
 

@@ -14,7 +14,7 @@
 ## 前提知識
 
 - REST APIの基本概念 → 参照: [REST Best Practices](./00-rest-best-practices.md)
-- HTTPリクエスト/レスポンスの仕組み → 参照: [HTTPの基礎](../../network-fundamentals/docs/02-http/00-http-basics.md)
+- HTTPリクエスト/レスポンスの仕組み → 参照: HTTPの基礎
 - JSONデータ構造の理解
 - 型システムの基礎知識（TypeScriptやJavaの型概念があると望ましい）
 

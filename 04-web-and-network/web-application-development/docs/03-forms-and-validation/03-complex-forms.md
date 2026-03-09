@@ -3900,7 +3900,6 @@ export default function UserForm() {
 ---
 
 ## 次に読むべきガイド
-→ [[00-deployment-platforms.md]] -- デプロイ先
 
 ---
 

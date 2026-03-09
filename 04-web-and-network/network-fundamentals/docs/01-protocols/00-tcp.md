@@ -7,8 +7,6 @@
 このガイドを最大限に活用するには、以下の知識が必要です。
 
 **必須**
-- [[../00-introduction/01-osi-and-tcpip-model.md]] — OSI参照モデルとTCP/IPモデルの基礎（特にトランスポート層の役割）
-- [[../00-introduction/02-ip-addressing.md]] — IPアドレスの基礎とパケット配送の仕組み
 
 **推奨**
 - ネットワークインターフェース（Ethernet、Wi-Fi）の基本的な理解
@@ -1645,14 +1643,8 @@ CUBICはパケットロスを輻輳シグナルとして利用する損失ベー
 ## 次に読むべきガイド
 
 **プロトコルの理解を深める**
-- [[./01-udp.md]] — UDP: TCPと対比して学ぶ「速さ優先」のプロトコル
-- [[../02-http/00-http-basics.md]] — HTTP: TCPを基盤とするアプリケーション層プロトコル
-- [[../02-http/01-http2-and-http3.md]] — HTTP/2とHTTP/3: TCPの限界とQUICへの移行
 
 **実践的なスキル**
-- [[../03-tools/00-tcpdump.md]] — tcpdump: TCPパケットキャプチャの実践
-- [[../03-tools/01-wireshark.md]] — Wireshark: GUIベースのパケット解析
-- [[../04-security/00-tls.md]] — TLS: TCPの上に構築される暗号化レイヤー
 
 ---
 

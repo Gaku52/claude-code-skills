@@ -35,35 +35,32 @@ const CATEGORY_DIRS = [
   '08-hobby',
 ];
 
-// スキップ対象のファイル名
-const SKIP_FILES = new Set(['SKILL.md', 'README.md']);
+// スキップ対象のファイル名（SKILL.mdのみ。README.mdはdocs内なら処理対象）
+const SKIP_FILES = new Set(['SKILL.md']);
 
 // セクション検出パターン（各セクションの既知バリエーション）
+// quality-audit.js と整合性を保つこと
 const SECTION_PATTERNS = {
+  learningObjectives: [
+    /^##\s*(?:\d+[\.\s]+)?(?:この章で学ぶこと|学ぶこと|学習目標|概要と学習目標)/m,
+  ],
   prerequisites: [
-    /^## 前提知識/m,
+    /^##\s*(?:\d+[\.\s]+)?前提知識/m,
     /^## 必要な前提知識/m,
     /^### 前提知識/m,
   ],
   faq: [
-    /^## FAQ/m,
-    /^## よくある質問（FAQ）/m,
-    /^## よくある質問\s*$/m,
-    /^## よくある質問\（FAQ\）/m,
+    /^##\s*(?:\d+[\.\s]+)?FAQ/mi,
+    /^##\s*(?:\d+[\.\s]+)?よくある質問/m,
   ],
   summary: [
-    /^##\s+まとめ\s*$/m,
-    /^##\s+まとめと次のステップ/m,
-    /^##\s+\d+\.\s*まとめ/m,
+    /^##\s*(?:\d+[\.\s]+)?(?:まとめ|総まとめ|おわりに|結論)/m,
   ],
   nextGuide: [
-    /^## 次に読むべきガイド/m,
-    /^## 関連ガイド/m,
-    /^## 次のステップ/m,
+    /^##\s*(?:\d+[\.\s]+)?(?:次に読むべきガイド|関連ガイド|関連リソース|次のステップ|次章)/m,
   ],
   references: [
-    /^## 参考文献/m,
-    /^## 参考リンク/m,
+    /^##\s*(?:\d+[\.\s]+)?(?:参考文献|参考資料|参考リンク)/m,
     /^## 参考資料/m,
   ],
 };
@@ -199,6 +196,15 @@ function getNextFile(filePath) {
 // セクションテンプレート生成
 // =============================================================================
 
+function generateLearningObjectives() {
+  return `## この章で学ぶこと
+
+- [ ] 基本概念と用語の理解
+- [ ] 実装パターンとベストプラクティスの習得
+- [ ] 実務での適用方法の把握
+- [ ] トラブルシューティングの基本`;
+}
+
 function generatePrerequisites(filePath) {
   const prev = getPrevFile(filePath);
   let content = `## 前提知識
@@ -272,6 +278,29 @@ function generateReferences() {
 function fixSections(filePath, content) {
   const changes = [];
   let lines = content.split('\n');
+
+  // --- 0. この章で学ぶことの挿入 ---
+  if (!hasSection(content, 'learningObjectives')) {
+    const sectionText = generateLearningObjectives();
+    const h1Idx = findH1Index(lines);
+    if (h1Idx !== -1) {
+      // H1の次の空行やブロック引用、---を飛ばした位置に挿入
+      let insertIdx = h1Idx + 1;
+      while (insertIdx < lines.length) {
+        const line = lines[insertIdx];
+        if (line.startsWith('>') || line.trim() === '' || /^---\s*$/.test(line)) {
+          insertIdx++;
+        } else {
+          break;
+        }
+      }
+      const insertLines = ['', ...sectionText.split('\n'), '', '---', ''];
+      lines.splice(insertIdx, 0, ...insertLines);
+      changes.push('この章で学ぶこと: H1直後に追加');
+    }
+    content = lines.join('\n');
+    lines = content.split('\n');
+  }
 
   // --- 1. 前提知識の挿入 ---
   if (!hasSection(content, 'prerequisites')) {

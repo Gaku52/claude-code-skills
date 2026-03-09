@@ -4618,8 +4618,6 @@ export default async function DashboardPage() {
 ---
 
 ## 次に読むべきガイド
-- [[../03-data-fetching-and-state/00-data-fetching-patterns.md]] -- データフェッチング
-- [[../04-forms-and-validation/00-form-design.md]] -- フォーム設計
 
 ---
 

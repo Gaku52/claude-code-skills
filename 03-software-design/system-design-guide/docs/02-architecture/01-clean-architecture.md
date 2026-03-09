@@ -20,10 +20,10 @@
 
 | トピック | 内容 | 参照リンク |
 |---------|------|-----------|
-| SOLID 原則 | 特に依存性逆転の原則 (DIP)、単一責任の原則 (SRP) | [SOLID 原則](../../clean-code-principles/docs/00-principles/01-solid.md) |
-| デザインパターン基礎 | Strategy、Observer、Repository パターン | [デザインパターン](../../design-patterns-guide/docs/00-creational/) |
+| SOLID 原則 | 特に依存性逆転の原則 (DIP)、単一責任の原則 (SRP) | SOLID 原則 |
+| デザインパターン基礎 | Strategy、Observer、Repository パターン | デザインパターン |
 | Python 基礎 | dataclass、Protocol、型ヒントの理解 | - |
-| テストの基礎 | ユニットテスト、モック/スタブの概念 | [テスト原則](../../clean-code-principles/docs/01-practices/04-testing-principles.md) |
+| テストの基礎 | ユニットテスト、モック/スタブの概念 | テスト原則 |
 
 ---
 
@@ -2495,6 +2495,23 @@ Step 4: Controller を UseCase 経由に変更
 
 ---
 
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+
+---
+
 ## 11. まとめ
 
 | 項目 | ポイント |
@@ -2516,9 +2533,9 @@ Step 4: Controller を UseCase 経由に変更
 
 - [DDD（ドメイン駆動設計）](./02-ddd.md) — 集約と境界づけられたコンテキストによるドメインモデリング。クリーンアーキテクチャの Entities 層の設計手法
 - [イベント駆動アーキテクチャ](./03-event-driven.md) — Pub/Sub による疎結合な連携。マイクロサービスでの適用
-- [テスト原則](../../clean-code-principles/docs/01-practices/04-testing-principles.md) — AAA・FIRST によるテスト設計。クリーンアーキテクチャのテスト戦略の基礎
-- [SOLID 原則](../../clean-code-principles/docs/00-principles/01-solid.md) — 依存性逆転の原則（DIP）の詳細。クリーンアーキテクチャの理論的基盤
-- [Repository パターン](../../design-patterns-guide/docs/04-architectural/) — Port/Adapter の具体的な実装パターン
+- テスト原則 — AAA・FIRST によるテスト設計。クリーンアーキテクチャのテスト戦略の基礎
+- SOLID 原則 — 依存性逆転の原則（DIP）の詳細。クリーンアーキテクチャの理論的基盤
+- Repository パターン — Port/Adapter の具体的な実装パターン
 - [システム設計の基礎](../00-fundamentals/) — スケーラビリティ、可用性など非機能要件の基礎
 
 ---

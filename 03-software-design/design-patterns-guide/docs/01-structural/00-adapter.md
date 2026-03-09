@@ -8,10 +8,10 @@
 
 | トピック | 必要レベル | 参照先 |
 |---------|-----------|--------|
-| オブジェクト指向プログラミング | 基礎 | [OOP基礎](../../../02-programming/oop-guide/docs/) |
-| インタフェースと抽象クラス | 基礎 | [インタフェース設計](../../../02-programming/oop-guide/docs/) |
-| 委譲（Delegation）と継承 | 理解 | [合成優先の原則](../../../03-software-design/clean-code-principles/docs/) |
-| SOLID 原則（特に DIP, ISP） | 基礎 | [SOLID](../../../03-software-design/clean-code-principles/docs/) |
+| オブジェクト指向プログラミング | 基礎 | OOP基礎 |
+| インタフェースと抽象クラス | 基礎 | インタフェース設計 |
+| 委譲（Delegation）と継承 | 理解 | 合成優先の原則 |
+| SOLID 原則（特に DIP, ISP） | 基礎 | SOLID |
 | TypeScript / Python の型システム | 基礎 | 各言語ガイド |
 
 ---
@@ -1725,7 +1725,7 @@ function createMapper<Source, Target>(
     map(source: Source): Target {
       const result = {} as Target;
       for (const key of Object.keys(config) as Array<keyof Target>) {
-        result[key] = config[key](source);
+        result[key] = configkey;
       }
       return result;
     },
@@ -1879,6 +1879,23 @@ Service A                    ACL                    Service B
 
 ---
 
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+
+---
+
 ## まとめ
 
 | 項目 | ポイント |
@@ -1900,7 +1917,7 @@ Service A                    ACL                    Service B
 - [Proxy パターン](./03-proxy.md) — アクセス制御（Adapter と構造が似ている）
 - [Strategy パターン](../02-behavioral/01-strategy.md) — アルゴリズムの交換（Adapter と組み合わせて使う）
 - [Factory パターン](../00-creational/01-factory.md) — 適切な Adapter の選択に使う
-- [Bridge パターン](./04-bridge.md) — 抽象と実装の分離（Adapter と目的が異なる）
+- Bridge パターン — 抽象と実装の分離（Adapter と目的が異なる）
 
 ---
 

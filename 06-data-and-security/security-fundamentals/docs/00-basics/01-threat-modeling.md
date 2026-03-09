@@ -13,7 +13,7 @@
 
 - [00-security-overview.md](./00-security-overview.md) -- CIA三原則とリスク評価の基礎
 - ソフトウェアアーキテクチャの基本（クライアント・サーバー構成、API設計の概要）
-- [../../authentication-and-authorization/docs/00-fundamentals/](../../authentication-and-authorization/docs/00-fundamentals/) -- 認証・認可の基本概念
+- [../../../authentication-and-authorization/docs/00-fundamentals/](../../../authentication-and-authorization/docs/00-fundamentals/) -- 認証・認可の基本概念
 
 ---
 
@@ -1309,7 +1309,7 @@ class ContinuousThreatModeling:
 - [02-security-principles.md](./02-security-principles.md) -- 脅威への対策としての設計原則
 - [../01-web-security/00-owasp-top10.md](../01-web-security/00-owasp-top10.md) -- 具体的なWeb脆弱性のSTRIDE分類
 - [../01-web-security/03-injection.md](../01-web-security/03-injection.md) -- インジェクション攻撃の詳細（STRIDE-T）
-- [../../sql-and-query-mastery/docs/03-practical/](../../sql-and-query-mastery/docs/03-practical/) -- SQLインジェクション対策の実装
+- ../../sql-and-query-mastery/docs/03-practical/ -- SQLインジェクション対策の実装
 
 ---
 

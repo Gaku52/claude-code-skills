@@ -12,7 +12,6 @@
 
 - プログラミングの基本（変数、関数、制御構文）
 - 1つ以上のプログラミング言語の経験
-- 参照: [[programming-language-fundamentals]]
 
 ## ガイド一覧
 
@@ -66,7 +65,3 @@
 
 ## 関連Skills
 
-- [[programming-language-fundamentals]] — 言語の基礎概念
-- [[computer-science-fundamentals]] — CS基礎
-- [[design-patterns-guide]] — デザインパターン詳細（予定）
-- [[clean-code-principles]] — クリーンコード（予定）

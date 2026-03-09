@@ -2113,10 +2113,10 @@ worker.onmessage = (e) => {
 - [メモリ管理](./03-memory-management.md)
   Worker で扱う大きなバッファのメモリリークを防ぐためのベストプラクティスと、SharedArrayBuffer のメモリモデルを学ぶ。
 
-- [非同期処理パターン](./04-async-patterns.md)
+- 非同期処理パターン
   Worker への非同期リクエストを Promise でラップする方法や、複数 Worker の結果を `Promise.all` で集約するパターンを習得する。
 
-- [パフォーマンス最適化](../05-performance/01-rendering-optimization.md)
+- パフォーマンス最適化
   Worker のオフロード効果を Performance API と Chrome DevTools で定量評価し、ボトルネックを特定する手法を学ぶ。
 
 ---

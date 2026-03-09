@@ -16,7 +16,7 @@
 ## 前提知識
 
 - APIテストの基本 → 参照: [APIテスト](./00-api-testing.md)
-- HTTPステータスコードの理解 → 参照: [HTTPの基礎](../../network-fundamentals/docs/02-http/00-http-basics.md)
+- HTTPステータスコードの理解 → 参照: HTTPの基礎
 - ログの基本概念（構造化ログ、ログレベル）
 
 ---

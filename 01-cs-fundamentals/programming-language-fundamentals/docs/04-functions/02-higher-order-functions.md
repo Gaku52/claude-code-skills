@@ -11,6 +11,15 @@
 - [ ] 関数合成による宣言的プログラミングを習得する
 - [ ] 各言語での高階関数の実装パターンを横断的に理解する
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+- [クロージャ（Closures）](./01-closures.md) の内容を理解していること
+
 ---
 
 ## 1. 高階関数の基礎概念
@@ -283,7 +292,7 @@ import (
 // 自前で実装する
 
 // Map: スライスの各要素に関数を適用
-func Map[T, U any](slice []T, f func(T) U) []U {
+func MapT, U any U) []U {
     result := make([]U, len(slice))
     for i, v := range slice {
         result[i] = f(v)
@@ -292,7 +301,7 @@ func Map[T, U any](slice []T, f func(T) U) []U {
 }
 
 // Filter: 述語を満たす要素のみ返す
-func Filter[T any](slice []T, pred func(T) bool) []T {
+func FilterT any bool) []T {
     result := make([]T, 0)
     for _, v := range slice {
         if pred(v) {
@@ -303,7 +312,7 @@ func Filter[T any](slice []T, pred func(T) bool) []T {
 }
 
 // Reduce: スライスを単一の値に集約
-func Reduce[T, U any](slice []T, init U, f func(U, T) U) U {
+func ReduceT, U any U) U {
     acc := init
     for _, v := range slice {
         acc = f(acc, v)
@@ -312,14 +321,14 @@ func Reduce[T, U any](slice []T, init U, f func(U, T) U) U {
 }
 
 // ForEach: 各要素に対して副作用を実行
-func ForEach[T any](slice []T, f func(T)) {
+func ForEachT any) {
     for _, v := range slice {
         f(v)
     }
 }
 
 // Any: いずれかの要素が条件を満たすか
-func Any[T any](slice []T, pred func(T) bool) bool {
+func AnyT any bool) bool {
     for _, v := range slice {
         if pred(v) {
             return true
@@ -329,7 +338,7 @@ func Any[T any](slice []T, pred func(T) bool) bool {
 }
 
 // All: すべての要素が条件を満たすか
-func All[T any](slice []T, pred func(T) bool) bool {
+func AllT any bool) bool {
     for _, v := range slice {
         if !pred(v) {
             return false
@@ -1307,7 +1316,6 @@ const memberDepts = departments.flatMap(d =>
 // ]
 
 // ネストした配列の完全な平坦化
-const deepNested = [[[1, 2], [3]], [[4, 5]], [[6]]];
 const fullyFlat = deepNested.flat(Infinity); // [1, 2, 3, 4, 5, 6]
 // または再帰的 flatMap
 function deepFlatten<T>(arr: (T | T[])[]): T[] {
@@ -1969,7 +1977,7 @@ const area = (shape: Shape): number => {
         rectangle: (s) => s.width * s.height,
         triangle: (s) => 0.5 * s.base * s.height,
     };
-    return handlers[shape.type](shape);
+    return handlersshape.type;
 };
 ```
 
@@ -2028,7 +2036,7 @@ function combineReducers<S extends Record<string, any>>(
         let hasChanged = false;
         for (const key in reducers) {
             const prevStateForKey = state[key];
-            nextState[key] = reducers[key](prevStateForKey, action);
+            nextState[key] = reducerskey;
             if (nextState[key] !== prevStateForKey) {
                 hasChanged = true;
             }
@@ -2185,6 +2193,23 @@ const result4 = arr1
 
 ---
 
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+
+---
+
 ## まとめ
 
 | 高階関数 | 型シグネチャ | 用途 |
@@ -2209,7 +2234,6 @@ const result4 = arr1
 ---
 
 ## 次に読むべきガイド
--> [[03-recursion.md]] -- 再帰
 
 ---
 

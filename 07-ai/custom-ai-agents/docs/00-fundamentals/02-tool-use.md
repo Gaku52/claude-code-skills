@@ -10,6 +10,15 @@
 4. 高度なツール連携パターンと実践的なトラブルシューティング
 5. プロダクション環境でのツール運用とモニタリング
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+- [エージェントフレームワーク](./01-agent-frameworks.md) の内容を理解していること
+
 ---
 
 ## 1. ツール使用の全体像
@@ -1077,7 +1086,7 @@ class ToolChain:
                 tool_input = step["input"]
 
             # ツール実行
-            result = self.tools[tool_name](**tool_input)
+            result = self.toolstool_name
             context[step["output_key"]] = result
 
         return context
@@ -1508,12 +1517,12 @@ def select_tools(task_type: str) -> list:
 ```python
 # NG: ツール実行結果をそのまま返す
 def call_tool(name, args):
-    return tools[name](**args)  # 例外時にクラッシュ
+    return toolsname  # 例外時にクラッシュ
 
 # OK: 構造化されたエラーレスポンス
 def call_tool(name, args):
     try:
-        result = tools[name](**args)
+        result = toolsname
         return {"status": "success", "data": result}
     except KeyError:
         return {"status": "error", "message": f"ツール '{name}' は存在しません"}
@@ -1976,6 +1985,23 @@ async def test_invalid_sql(mcp_client):
     data = json.loads(result.content[0].text)
     assert "error" in data
 ```
+
+---
+
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
 
 ---
 

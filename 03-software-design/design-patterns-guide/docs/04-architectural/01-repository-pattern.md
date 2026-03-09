@@ -11,7 +11,7 @@
 | オブジェクト指向プログラミング | 中級（インターフェース、抽象クラス、DI） | [02-programming](../../../../02-programming/) |
 | TypeScript / Python 基礎 | 中級（ジェネリクス、async/await） | [02-programming](../../../../02-programming/) |
 | SQL の基礎 | 基礎（SELECT, INSERT, JOIN） | [06-data-and-security](../../../../06-data-and-security/) |
-| SOLID 原則 | 基礎（依存性逆転原則 DIP） | [../../clean-code-principles/](../../clean-code-principles/) |
+| SOLID 原則 | 基礎（依存性逆転原則 DIP） | ../../clean-code-principles/ |
 | MVC / MVVM の基礎 | 基礎 | [00-mvc-mvvm.md](./00-mvc-mvvm.md) |
 
 ---
@@ -1581,6 +1581,23 @@ container.register<UserRepository>("UserRepository", { useValue: cachedRepo });
 
 ---
 
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+
+---
+
 ## 10. まとめ
 
 | 項目 | ポイント |
@@ -1600,9 +1617,9 @@ container.register<UserRepository>("UserRepository", { useValue: cachedRepo });
 
 - [00-mvc-mvvm.md](./00-mvc-mvvm.md) — UI 層のアーキテクチャパターン（Repository を使う側の設計）
 - [02-event-sourcing-cqrs.md](./02-event-sourcing-cqrs.md) — イベント駆動とコマンド/クエリ分離（CQRS での Repository）
-- [../../clean-code-principles/](../../clean-code-principles/) — SOLID 原則、依存性逆転原則の詳細
+- ../../clean-code-principles/ — SOLID 原則、依存性逆転原則の詳細
 - [../02-behavioral/](../02-behavioral/) — Strategy パターン（Repository の実装切り替え）
-- [../../system-design-guide/](../../system-design-guide/) — データベーススケーリングとキャッシュ戦略
+- ../../system-design-guide/ — データベーススケーリングとキャッシュ戦略
 
 ---
 

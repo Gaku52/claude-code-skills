@@ -11,6 +11,15 @@
 5. **構造化データの専用パーサー** -- JSON, HTML, XML, YAML 等の実務的な処理手法
 6. **tree-sitter の活用** -- インクリメンタルパーサーの実践的な利用法
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+- [テキスト処理 -- sed/awk/grep、ログ解析、CSV](./02-text-processing.md) の内容を理解していること
+
 ---
 
 ## 1. 正規表現の限界
@@ -936,8 +945,7 @@ func parseConfig(input string) (*Config, error) {
         {Name: "comment", Pattern: `#[^\n]*`},
     })
 
-    parser := participle.MustBuild[Config](
-        participle.Lexer(configLexer),
+    parser := participle.MustBuildConfig,
     )
 
     config := &Config{}
@@ -1772,7 +1780,7 @@ async function initParser() {
 
 ## 次に読むべきガイド
 
-- [正規表現基礎](../01-basics/00-regex-syntax.md) -- 正規表現が適切な場面での活用法
+- 正規表現基礎 -- 正規表現が適切な場面での活用法
 - [テキスト処理実践](../02-practical/02-text-processing.md) -- sed/awk/grep による実務でのテキスト処理パターン
 
 ## 参考文献

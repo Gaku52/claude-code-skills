@@ -10,6 +10,15 @@
 4. **高度なパターン** — flatten、untagged enum、Visitor パターン、serde_with
 5. **パフォーマンス** — ゼロコピー、simd-json、バイナリフォーマット
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+- [テスト — proptest、criterion](./01-testing.md) の内容を理解していること
+
 ---
 
 ## 1. Serde アーキテクチャ
@@ -1030,7 +1039,6 @@ fn save_config(path: &Path, config: &AppConfig) -> anyhow::Result<()> {
 // level = "debug"
 // file = "app.log"
 //
-// [[plugins]]
 // name = "metrics"
 // enabled = true
 //

@@ -6,7 +6,6 @@
 
 このガイドを最大限に活用するために、以下の知識を事前に習得しておくことを推奨します。
 
-- **デプロイプラットフォーム**: Vercel、Cloudflare、AWS等の基本概念 → [[./00-deployment-platforms.md]]
 - **環境変数の概念**: OSレベルの環境変数とプロセスへの注入方法
 - **12-Factor Appの原則**: 特に第3の要素「設定」の理解
 
@@ -3087,7 +3086,6 @@ DATABASE_URL=postgresql://...
 ---
 
 ## 次に読むべきガイド
-→ [[02-performance-optimization.md]] -- パフォーマンス最適化
 
 ---
 

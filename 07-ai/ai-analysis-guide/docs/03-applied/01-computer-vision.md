@@ -8,6 +8,15 @@
 2. **物体検出** — YOLO、DETR の仕組みとリアルタイム検出
 3. **セグメンテーション** — セマンティック/インスタンスセグメンテーション、SAM
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+- [NLP — テキスト分類、固有表現抽出、感情分析](./00-nlp.md) の内容を理解していること
+
 ---
 
 ## 1. 画像分類の基礎
@@ -638,7 +647,7 @@ class OpenVocabularyDetector:
 from segment_anything import SamPredictor, sam_model_registry
 
 # モデルのロード
-sam = sam_model_registry["vit_h"](checkpoint="sam_vit_h.pth")
+sam = sam_model_registry"vit_h"
 sam.to(device="cuda")
 predictor = SamPredictor(sam)
 
@@ -648,7 +657,6 @@ image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 predictor.set_image(image_rgb)
 
 # ポイントプロンプトでセグメンテーション
-input_point = np.array([[500, 375]])  # クリック位置
 input_label = np.array([1])  # 1=前景, 0=背景
 
 masks, scores, logits = predictor.predict(
@@ -688,7 +696,6 @@ class VideoSegmentationPipeline:
         Parameters:
             video_path: 入力動画のパス
             initial_prompts: 初期フレームのプロンプト
-                {"points": [[x, y]], "labels": [1], "frame_idx": 0}
             output_path: 出力動画のパス
         """
         import cv2
@@ -845,7 +852,7 @@ class UNet(nn.Module):
 
         # デコーダ
         for idx in range(0, len(self.ups), 2):
-            x = self.ups[idx](x)  # TransposedConv
+            x = self.upsidx  # TransposedConv
             skip = skip_connections[idx // 2]
 
             # サイズが一致しない場合のパディング
@@ -856,7 +863,7 @@ class UNet(nn.Module):
                 ])
 
             x = torch.cat([skip, x], dim=1)  # スキップ接続
-            x = self.ups[idx + 1](x)  # DoubleConv
+            x = self.upsidx + 1  # DoubleConv
 
         return self.final_conv(x)
 

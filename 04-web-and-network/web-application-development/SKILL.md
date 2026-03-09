@@ -11,7 +11,7 @@
 ## 前提知識
 
 - HTML/CSS/JavaScript の基本
-- Reactの基本 → 参照: [プログラミング言語基礎](../../02-programming/programming-language-fundamentals/)
+- Reactの基本 → 参照: プログラミング言語基礎
 
 ## ガイド一覧
 

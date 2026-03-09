@@ -8,7 +8,6 @@
 
 - **パフォーマンス最適化の概念**: バンドルサイズ、CDN、キャッシュ戦略の基礎
 - **CI/CDの基礎**: 継続的インテグレーション/デプロイメントの概念とワークフロー
-- **Dockerの基本**: コンテナ化の概念、Dockerfile、イメージ管理 → [[../../05-infrastructure/docker-container-guide/docs/]]
 
 ## この章で学ぶこと
 
@@ -705,19 +704,16 @@ compatibility_flags = ["nodejs_compat"]
 ENVIRONMENT = "production"
 
 # KV Namespace
-[[kv_namespaces]]
 binding = "MY_KV"
 id = "xxxxxxxxxxxxxxxxxxxx"
 preview_id = "yyyyyyyyyyyyyyyyyyyy"
 
 # D1 Database
-[[d1_databases]]
 binding = "MY_DB"
 database_name = "my-database"
 database_id = "zzzzzzzzzzzzzzzzzzzz"
 
 # R2 Bucket
-[[r2_buckets]]
 binding = "MY_BUCKET"
 bucket_name = "my-bucket"
 
@@ -726,17 +722,14 @@ bucket_name = "my-bucket"
 crons = ["0 0 * * *", "*/30 * * * *"]
 
 # Queue
-[[queues.producers]]
 queue = "my-queue"
 binding = "MY_QUEUE"
 
-[[queues.consumers]]
 queue = "my-queue"
 max_batch_size = 10
 max_batch_timeout = 30
 
 # ルーティング
-[[routes]]
 pattern = "api.example.com/*"
 zone_name = "example.com"
 
@@ -747,7 +740,6 @@ name = "my-worker-staging"
 ENVIRONMENT = "staging"
 
 # D1 のマイグレーション
-[[migrations]]
 tag = "v1"
 new_classes = ["UserDurableObject"]
 ```
@@ -1969,13 +1961,11 @@ primary_region = "nrt"
     hard_limit = 250
     soft_limit = 200
 
-[[vm]]
   cpu_kind = "shared"
   cpus = 1
   memory_mb = 512
 
 # ヘルスチェック
-[[services.http_checks]]
   interval = 10000
   grace_period = "5s"
   method = "get"
@@ -2726,9 +2716,6 @@ API・バックエンド: Railway（Node.js + PostgreSQL）
 
 ## 次に読むべきガイド
 
-- [[01-environment-and-config.md]] - 環境設定と構成管理
-- [[02-ci-cd.md]] - CI/CD パイプラインの構築
-- [[03-monitoring.md]] - 監視とオブザーバビリティ
 
 ---
 

@@ -21,45 +21,26 @@
 
 | # | ファイル | 内容 |
 |---|---------|------|
-| 00 | [[docs/00-fundamentals/00-authentication-vs-authorization.md]] | 認証と認可の違い、脅威モデル、セキュリティ原則 |
-| 01 | [[docs/00-fundamentals/01-password-security.md]] | パスワードハッシュ（bcrypt/Argon2）、ポリシー、漏洩検知 |
-| 02 | [[docs/00-fundamentals/02-multi-factor-authentication.md]] | TOTP、WebAuthn/Passkeys、SMS、リカバリーコード |
-| 03 | [[docs/00-fundamentals/03-session-vs-token.md]] | セッション方式 vs トークン方式の比較と選定基準 |
 
 ### 01-session-auth — セッションベース認証
 
 | # | ファイル | 内容 |
 |---|---------|------|
-| 00 | [[docs/01-session-auth/00-cookie-and-session.md]] | Cookie属性、セッション管理、HttpOnly/Secure/SameSite |
-| 01 | [[docs/01-session-auth/01-session-store.md]] | メモリ/Redis/DB セッションストア、スケーリング戦略 |
-| 02 | [[docs/01-session-auth/02-csrf-protection.md]] | CSRF攻撃と防御（Synchronizer Token、Double Submit Cookie、SameSite） |
 
 ### 02-token-auth — トークンベース認証
 
 | # | ファイル | 内容 |
 |---|---------|------|
-| 00 | [[docs/02-token-auth/00-jwt-deep-dive.md]] | JWT構造、署名アルゴリズム、クレーム設計、検証フロー |
-| 01 | [[docs/02-token-auth/01-oauth2-flows.md]] | OAuth 2.0 全フロー（Authorization Code、PKCE、Client Credentials、Device Code） |
-| 02 | [[docs/02-token-auth/02-openid-connect.md]] | OIDC プロトコル、ID Token、UserInfo、Discovery |
-| 03 | [[docs/02-token-auth/03-token-management.md]] | Access/Refresh Token、ローテーション、失効、ストレージ戦略 |
 
 ### 03-authorization — 認可設計
 
 | # | ファイル | 内容 |
 |---|---------|------|
-| 00 | [[docs/03-authorization/00-rbac.md]] | ロールベースアクセス制御、権限モデル、階層ロール |
-| 01 | [[docs/03-authorization/01-abac-and-policies.md]] | 属性ベースアクセス制御、ポリシーエンジン、CASL |
-| 02 | [[docs/03-authorization/02-api-authorization.md]] | スコープ設計、API キー管理、リソースベース認可 |
-| 03 | [[docs/03-authorization/03-frontend-authorization.md]] | フロントエンド権限制御、ルートガード、UIの条件表示 |
 
 ### 04-implementation — 実装パターン
 
 | # | ファイル | 内容 |
 |---|---------|------|
-| 00 | [[docs/04-implementation/00-nextauth-setup.md]] | NextAuth.js (Auth.js) セットアップと基本設定 |
-| 01 | [[docs/04-implementation/01-social-login.md]] | ソーシャルログイン（Google、GitHub、Apple）実装 |
-| 02 | [[docs/04-implementation/02-email-password-auth.md]] | メール・パスワード認証（登録、ログイン、パスワードリセット） |
-| 03 | [[docs/04-implementation/03-sso-and-enterprise.md]] | SSO（SAML、OIDC）、エンタープライズ認証、ディレクトリ連携 |
 
 ## クイックリファレンス
 

@@ -8,11 +8,11 @@
 
 | トピック | 必要レベル | 参照先 |
 |---------|-----------|--------|
-| オブジェクト指向プログラミング | 基礎 | [OOP基礎](../../../02-programming/oop-guide/docs/) |
-| インタフェースと抽象クラス | 基礎 | [インタフェース設計](../../../02-programming/oop-guide/docs/) |
+| オブジェクト指向プログラミング | 基礎 | OOP基礎 |
+| インタフェースと抽象クラス | 基礎 | インタフェース設計 |
 | 参照型とプリミティブ型の違い | 理解 | 各言語リファレンス |
-| Generics（ジェネリクス） | 基礎 | [TypeScript Generics](../../../02-programming/typescript-guide/docs/) |
-| メモリモデル（スタック・ヒープ） | 理解 | [CS基礎](../../../01-cs-fundamentals/) |
+| Generics（ジェネリクス） | 基礎 | TypeScript Generics |
+| メモリモデル（スタック・ヒープ） | 理解 | CS基礎 |
 
 ---
 
@@ -1349,7 +1349,6 @@ const obj = {
   error: new Error("test"),    // ✅ コピー可能
   date: new Date(),            // ✅ コピー可能
   regex: /test/gi,             // ✅ コピー可能
-  map: new Map([["a", 1]]),    // ✅ コピー可能
   set: new Set([1, 2, 3]),     // ✅ コピー可能
   arrayBuffer: new ArrayBuffer(8), // ✅ コピー可能
 };
@@ -1439,7 +1438,6 @@ const original = {
   nan: NaN,                              // → null になる
   infinity: Infinity,                    // → null になる
   regex: /test/g,                        // → {} になる
-  map: new Map([["a", 1]]),              // → {} になる
   set: new Set([1, 2]),                  // → {} になる
   fn: () => "hello",                     // → 消える
   symbol: Symbol("id"),                  // → 消える
@@ -1776,7 +1774,6 @@ const original = {
   bool: true,
   date: new Date("2024-01-01"),
   regex: /test/gi,
-  map: new Map([["a", { nested: true }]]),
   set: new Set([1, 2, { x: 3 }]),
   arr: [1, [2, [3]]],
   circular: null as any,
@@ -1912,7 +1909,6 @@ const original = {
   bool: true,
   date: new Date("2024-01-01"),
   regex: /test/gi,
-  map: new Map([["a", { nested: true }]]),
   set: new Set([1, 2, { x: 3 }]),
   arr: [1, [2, [3]]],
   circular: null as any,
@@ -2007,6 +2003,23 @@ test("user with notifications off", () => {
 
 ---
 
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+
+---
+
 ## まとめ
 
 | 項目 | ポイント |
@@ -2031,8 +2044,8 @@ test("user with notifications off", () => {
 - [Factory パターン](./01-factory.md) — オブジェクト生成の抽象化（Prototype と併用可能）
 - [Builder パターン](./02-builder.md) — 複雑なオブジェクトの段階的構築
 - [Decorator パターン](../01-structural/01-decorator.md) — 動的な機能追加
-- [Memento パターン](../02-behavioral/05-memento.md) — 状態の保存と復元（Prototype と関連）
-- [不変性](../../../03-software-design/clean-code-principles/docs/03-practices-advanced/00-immutability.md) — イミュータブルデータ構造
+- Memento パターン — 状態の保存と復元（Prototype と関連）
+- 不変性 — イミュータブルデータ構造
 
 ---
 

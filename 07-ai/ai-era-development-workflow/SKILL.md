@@ -20,35 +20,21 @@
 
 | # | ファイル | 内容 |
 |---|---------|------|
-| 00 | [[docs/00-fundamentals/00-ai-dev-landscape.md]] | AI 開発ツールの全体像、カテゴリ、トレンド |
-| 01 | [[docs/00-fundamentals/01-ai-dev-mindset.md]] | AI 時代のエンジニアマインドセット、スキルシフト |
-| 02 | [[docs/00-fundamentals/02-prompt-driven-development.md]] | プロンプト駆動開発、仕様記述、コード生成 |
 
 ### 01-ai-coding — AI コーディング
 
 | # | ファイル | 内容 |
 |---|---------|------|
-| 00 | [[docs/01-ai-coding/00-github-copilot.md]] | GitHub Copilot、補完、チャット、エディタ統合 |
-| 01 | [[docs/01-ai-coding/01-claude-code.md]] | Claude Code、CLI、MCP、自律的タスク実行 |
-| 02 | [[docs/01-ai-coding/02-cursor-and-windsurf.md]] | Cursor、Windsurf、AI IDE、コード理解 |
-| 03 | [[docs/01-ai-coding/03-ai-coding-best-practices.md]] | AI コーディングのベストプラクティス、品質担保 |
 
 ### 02-workflow — AI ワークフロー
 
 | # | ファイル | 内容 |
 |---|---------|------|
-| 00 | [[docs/02-workflow/00-ai-testing.md]] | AI テスト生成、テストケース自動作成、カバレッジ改善 |
-| 01 | [[docs/02-workflow/01-ai-code-review.md]] | AI コードレビュー、PR 自動レビュー、品質チェック |
-| 02 | [[docs/02-workflow/02-ai-documentation.md]] | AI ドキュメント生成、API 仕様、README、変更履歴 |
-| 03 | [[docs/02-workflow/03-ai-debugging.md]] | AI デバッグ、エラー分析、ログ解析、根本原因特定 |
 
 ### 03-team — AI チーム開発
 
 | # | ファイル | 内容 |
 |---|---------|------|
-| 00 | [[docs/03-team/00-ai-team-practices.md]] | AI 活用のチームプラクティス、ガイドライン策定 |
-| 01 | [[docs/03-team/01-ai-onboarding.md]] | AI ツール導入、チームオンボーディング、測定 |
-| 02 | [[docs/03-team/02-future-of-development.md]] | ソフトウェア開発の未来、AI ネイティブ開発 |
 
 ## クイックリファレンス
 

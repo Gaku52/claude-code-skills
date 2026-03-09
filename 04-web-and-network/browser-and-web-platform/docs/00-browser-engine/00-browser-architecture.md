@@ -15,9 +15,9 @@
 
 ## 前提知識
 
-- HTTPプロトコルの基礎 → 参照: [HTTPの基礎](../../network-fundamentals/docs/02-http/00-http-basics.md)
+- HTTPプロトコルの基礎 → 参照: HTTPの基礎
 - HTML/CSSの基本的な構造の理解
-- プロセスとスレッドの概念 → 参照: [OS基礎](../../../01-cs-fundamentals/operating-system-guide/docs/)
+- プロセスとスレッドの概念 → 参照: OS基礎
 
 ---
 
@@ -1740,8 +1740,8 @@ async function processInChunks(items, processFn, chunkSize = 100) {
   - Critical Rendering Pathの最適化手法
 
 その他の関連ガイド:
-- **[レンダリングエンジン詳説](./02-rendering-engine.md)**: Blink/Geckoの内部実装とレンダリング最適化
-- **[JavaScriptエンジン](./03-javascript-engine.md)**: V8/SpiderMonkeyの仕組みとパフォーマンスチューニング
+- **レンダリングエンジン詳説**: Blink/Geckoの内部実装とレンダリング最適化
+- **JavaScriptエンジン**: V8/SpiderMonkeyの仕組みとパフォーマンスチューニング
 
 ---
 

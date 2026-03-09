@@ -9,6 +9,15 @@
 3. **ロールバック戦略と障害復旧** -- 更新失敗時のフォールバック設計により、ユーザー体験を損なわない堅牢な更新パイプラインを構築する
 4. **CI/CD パイプラインとの統合** -- GitHub Actions を活用し、ビルドから署名、配信までを完全自動化するワークフローを構築する
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+- [パッケージングと署名](./00-packaging-and-signing.md) の内容を理解していること
+
 ---
 
 ## 1. 自動更新の全体アーキテクチャ
@@ -702,7 +711,6 @@ router.get('/check', async (req, res) => {
 
   const latest = await db.releases.findOne({
     where: { platform, arch, channel: 'stable' },
-    order: [['releaseDate', 'DESC']],
   });
 
   if (!latest || !semver.gt(latest.version, version as string)) {
@@ -731,7 +739,6 @@ router.get('/check/canary', async (req, res) => {
   const { platform, arch, version, userId } = req.query;
   const latest = await db.releases.findOne({
     where: { platform, arch, channel: 'canary' },
-    order: [['releaseDate', 'DESC']],
   });
 
   if (!latest) return res.status(204).end();
@@ -769,7 +776,6 @@ router.get('/:target/:arch/:current_version', async (req, res) => {
 
   const latest = await db.releases.findOne({
     where: { channel: 'stable' },
-    order: [['releaseDate', 'DESC']],
   });
 
   if (!latest || !semver.gt(latest.version, current_version)) {

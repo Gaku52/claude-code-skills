@@ -8,7 +8,7 @@
 
 - **JavaScriptの基本的な実行モデル** --- 変数、関数、クロージャ、プロトタイプチェーンの理解
 - **コンパイラとインタプリタの違い** --- ソースコードから実行可能コードへの変換過程
-  - 参照: [CS基礎 - コンパイラ原理](../../../01-cs-fundamentals/computer-science-fundamentals/docs/)
+  - 参照: CS基礎 - コンパイラ原理
 - **ブラウザのアーキテクチャ** --- レンダリングエンジン、JavaScriptエンジン、イベントループの関係性
   - 参照: [ブラウザアーキテクチャ](../00-browser-engine/00-browser-architecture.md)
 - **メモリ管理の基礎** --- スタック、ヒープ、ガベージコレクションの概念
@@ -2150,17 +2150,17 @@ V8エンジンの理解を深めたら、次は実行環境でのイベント駆
    - マクロタスク、マイクロタスク、レンダリングのタイミング
    - requestAnimationFrame、setTimeout、Promiseの実行順序
 
-2. **[イベントループ（Node.js）](./02-event-loop-nodejs.md)**
+2. **イベントループ（Node.js）**
    - libuv統合によるNode.js固有のイベントループ
    - フェーズごとの処理（timers、I/O callbacks、poll等）
    - process.nextTick vs setImmediate
 
-3. **[WebWorker](./03-web-worker.md)**
+3. **WebWorker**
    - 別スレッドでのV8インスタンス実行
    - メインスレッドとの通信（postMessage）
    - SharedArrayBufferによる共有メモリ
 
-4. **[メモリ管理とパフォーマンス](./04-memory-performance.md)**
+4. **メモリ管理とパフォーマンス**
    - V8のGC詳細とチューニング
    - メモリリークの検出と修正
    - Chrome DevToolsを使った実践的プロファイリング
@@ -2168,8 +2168,8 @@ V8エンジンの理解を深めたら、次は実行環境でのイベント駆
 ### 関連ガイド
 
 - **[Chromeブラウザアーキテクチャ](../00-browser-engine/00-browser-architecture.md)** --- V8がどのようにレンダリングエンジンと連携するか
-- **[JavaScriptコア仕様](../../01-ecmascript-core/)** --- V8が実装するECMAScript仕様の詳細
-- **[TypeScript型システム](../../../02-programming/typescript/)** --- 型安定性を静的に保証する方法
+- **JavaScriptコア仕様** --- V8が実装するECMAScript仕様の詳細
+- **TypeScript型システム** --- 型安定性を静的に保証する方法
 
 ---
 

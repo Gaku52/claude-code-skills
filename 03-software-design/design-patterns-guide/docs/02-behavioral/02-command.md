@@ -18,11 +18,11 @@
 
 | トピック | 必要な理解 | 参照リンク |
 |---------|-----------|-----------|
-| TypeScript の interface と class | インターフェースの定義と実装、ジェネリクスの基本 | [02-programming](../../02-programming/) |
-| SOLID 原則（特に SRP・OCP） | 単一責任と開放閉鎖原則の理解 | [clean-code-principles](../../03-software-design/clean-code-principles/) |
+| TypeScript の interface と class | インターフェースの定義と実装、ジェネリクスの基本 | 02-programming |
+| SOLID 原則（特に SRP・OCP） | 単一責任と開放閉鎖原則の理解 | clean-code-principles |
 | Observer パターン | イベント駆動の基本概念 | [00-observer.md](./00-observer.md) |
 | Strategy パターン | アルゴリズムの切り替え | [01-strategy.md](./01-strategy.md) |
-| Promise / async-await | 非同期処理の基本 | [02-programming](../../02-programming/) |
+| Promise / async-await | 非同期処理の基本 | 02-programming |
 
 ---
 
@@ -1848,6 +1848,23 @@ Redux の `dispatch(action)` も Command パターンそのものです。Action
 
 ---
 
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+
+---
+
 ## まとめ
 
 | 項目 | 要点 |
@@ -1870,7 +1887,7 @@ Redux の `dispatch(action)` も Command パターンそのものです。Action
 - [04-iterator.md](./04-iterator.md) -- Iterator パターンとジェネレータ（Command 履歴の走査に応用）
 - [00-observer.md](./00-observer.md) -- Observer パターン（Command 実行をイベントとして通知）
 - [../03-functional/00-monad.md](../03-functional/00-monad.md) -- モナドパターン（Either で Command の成功/失敗を型安全に）
-- [Event Sourcing / CQRS](../../03-software-design/system-design-guide/) -- Command パターンの大規模アーキテクチャへの発展
+- Event Sourcing / CQRS -- Command パターンの大規模アーキテクチャへの発展
 
 ---
 

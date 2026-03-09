@@ -6,7 +6,6 @@
 
 この章を効果的に学習するために、以下の知識を事前に習得しておくことを推奨する:
 
-- **状態管理の概要** → [[./00-state-management-overview.md]]
   - 状態の4カテゴリとサーバー状態の特性
   - サーバー状態とクライアント状態の本質的な違い
   - Single Source of Truth の原則
@@ -14,7 +13,6 @@
   - `fetch()` の基本的な使い方とエラーハンドリング
   - `async/await` による非同期処理の記述
   - Promise の理解（then, catch, finally）
-- **キャッシュの概念** → [[../../network-fundamentals/docs/02-http/03-caching.md]]
   - HTTP キャッシュの基本（Cache-Control, ETag）
   - ブラウザキャッシュとアプリケーションキャッシュの違い
   - stale-while-revalidate パターンの考え方
@@ -3090,7 +3088,6 @@ queryClient.prefetchQuery(userListQueryOptions());
 ---
 
 ## 次に読むべきガイド
-→ [[03-url-state.md]] -- URL状態管理
 
 ---
 

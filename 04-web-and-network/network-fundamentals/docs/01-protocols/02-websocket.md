@@ -7,13 +7,10 @@
 このガイドを最大限に活用するには、以下の知識が必要です。
 
 **必須**
-- [[./00-tcp.md]] — TCP: WebSocketはTCP上で動作するプロトコル
-- [[../02-http/00-http-basics.md]] — HTTP基礎: WebSocketハンドシェイクはHTTPで行われる
 
 **推奨**
 - JavaScriptの基礎知識（ブラウザAPI、非同期処理）
 - Node.jsの基本（サーバーサイド実装で必要）
-- [[../04-security/00-tls.md]] — TLS: WSS（WebSocket Secure）の理解に必要
 
 ---
 
@@ -2890,8 +2887,6 @@ Sticky Session（セッションアフィニティ）とメッセージブロー
 ---
 
 ## 次に読むべきガイド
-- [[03-grpc.md]] - gRPC
-- [[01-http.md]] - HTTP/HTTPS（WebSocketの基盤プロトコル）
 
 ---
 

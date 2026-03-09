@@ -12,8 +12,6 @@
 
 ## 前提知識
 
-- CPUの基礎 → 参照: [[../01-hardware-basics/00-cpu-architecture.md]]
-- メモリの基礎 → 参照: [[../01-hardware-basics/01-memory-hierarchy.md]]
 
 ---
 
@@ -1281,6 +1279,187 @@ AGI（Artificial General Intelligence）:
 2. 脳の報酬系 vs 強化学習のTD誤差
 3. 脳の予測符号化 vs Transformerの自己回帰生成
 
+
+---
+
+## トラブルシューティング
+
+### よくあるエラーと解決策
+
+| エラー | 原因 | 解決策 |
+|--------|------|--------|
+| 初期化エラー | 設定ファイルの不備 | 設定ファイルのパスと形式を確認 |
+| タイムアウト | ネットワーク遅延/リソース不足 | タイムアウト値の調整、リトライ処理の追加 |
+| メモリ不足 | データ量の増大 | バッチ処理の導入、ページネーションの実装 |
+| 権限エラー | アクセス権限の不足 | 実行ユーザーの権限確認、設定の見直し |
+| データ不整合 | 並行処理の競合 | ロック機構の導入、トランザクション管理 |
+
+### デバッグの手順
+
+1. **エラーメッセージの確認**: スタックトレースを読み、発生箇所を特定する
+2. **再現手順の確立**: 最小限のコードでエラーを再現する
+3. **仮説の立案**: 考えられる原因をリストアップする
+4. **段階的な検証**: ログ出力やデバッガを使って仮説を検証する
+5. **修正と回帰テスト**: 修正後、関連する箇所のテストも実行する
+
+```python
+# デバッグ用ユーティリティ
+import logging
+import traceback
+from functools import wraps
+
+# ロガーの設定
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+def debug_decorator(func):
+    """関数の入出力をログ出力するデコレータ"""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        logger.debug(f"呼び出し: {func.__name__}(args={args}, kwargs={kwargs})")
+        try:
+            result = func(*args, **kwargs)
+            logger.debug(f"戻り値: {func.__name__} -> {result}")
+            return result
+        except Exception as e:
+            logger.error(f"例外発生: {func.__name__}: {e}")
+            logger.error(traceback.format_exc())
+            raise
+    return wrapper
+
+@debug_decorator
+def process_data(items):
+    """データ処理（デバッグ対象）"""
+    if not items:
+        raise ValueError("空のデータ")
+    return [item * 2 for item in items]
+```
+
+### パフォーマンス問題の診断
+
+パフォーマンス問題が発生した場合の診断手順:
+
+1. **ボトルネックの特定**: プロファイリングツールで計測
+2. **メモリ使用量の確認**: メモリリークの有無をチェック
+3. **I/O待ちの確認**: ディスクやネットワークI/Oの状況を確認
+4. **同時接続数の確認**: コネクションプールの状態を確認
+
+| 問題の種類 | 診断ツール | 対策 |
+|-----------|-----------|------|
+| CPU負荷 | cProfile, py-spy | アルゴリズム改善、並列化 |
+| メモリリーク | tracemalloc, objgraph | 参照の適切な解放 |
+| I/Oボトルネック | strace, iostat | 非同期I/O、キャッシュ |
+| DB遅延 | EXPLAIN, slow query log | インデックス、クエリ最適化 |
+
+---
+
+## 設計判断ガイド
+
+### 選択基準マトリクス
+
+技術選択を行う際の判断基準を以下にまとめます。
+
+| 判断基準 | 重視する場合 | 妥協できる場合 |
+|---------|------------|-------------|
+| パフォーマンス | リアルタイム処理、大規模データ | 管理画面、バッチ処理 |
+| 保守性 | 長期運用、チーム開発 | プロトタイプ、短期プロジェクト |
+| スケーラビリティ | 成長が見込まれるサービス | 社内ツール、固定ユーザー |
+| セキュリティ | 個人情報、金融データ | 公開データ、社内利用 |
+| 開発速度 | MVP、市場投入スピード | 品質重視、ミッションクリティカル |
+
+### アーキテクチャパターンの選択
+
+```
+┌─────────────────────────────────────────────────┐
+│              アーキテクチャ選択フロー              │
+├─────────────────────────────────────────────────┤
+│                                                 │
+│  ① チーム規模は？                                │
+│    ├─ 小規模（1-5人）→ モノリス                   │
+│    └─ 大規模（10人+）→ ②へ                       │
+│                                                 │
+│  ② デプロイ頻度は？                               │
+│    ├─ 週1回以下 → モノリス + モジュール分割         │
+│    └─ 毎日/複数回 → ③へ                          │
+│                                                 │
+│  ③ チーム間の独立性は？                            │
+│    ├─ 高い → マイクロサービス                      │
+│    └─ 中程度 → モジュラーモノリス                   │
+│                                                 │
+└─────────────────────────────────────────────────┘
+```
+
+### トレードオフの分析
+
+技術的な判断には必ずトレードオフが伴います。以下の観点で分析を行いましょう:
+
+**1. 短期 vs 長期のコスト**
+- 短期的に速い方法が長期的には技術的負債になることがある
+- 逆に、過剰な設計は短期的なコストが高く、プロジェクトの遅延を招く
+
+**2. 一貫性 vs 柔軟性**
+- 統一された技術スタックは学習コストが低い
+- 多様な技術の採用は適材適所が可能だが、運用コストが増加
+
+**3. 抽象化のレベル**
+- 高い抽象化は再利用性が高いが、デバッグが困難になる場合がある
+- 低い抽象化は直感的だが、コードの重複が発生しやすい
+
+```python
+# 設計判断の記録テンプレート
+class ArchitectureDecisionRecord:
+    """ADR (Architecture Decision Record) の作成"""
+
+    def __init__(self, title: str):
+        self.title = title
+        self.context = ""
+        self.decision = ""
+        self.consequences = []
+        self.alternatives = []
+
+    def set_context(self, context: str):
+        """背景と課題の記述"""
+        self.context = context
+        return self
+
+    def set_decision(self, decision: str):
+        """決定内容の記述"""
+        self.decision = decision
+        return self
+
+    def add_consequence(self, consequence: str, positive: bool = True):
+        """結果の追加"""
+        self.consequences.append({
+            'description': consequence,
+            'type': 'positive' if positive else 'negative'
+        })
+        return self
+
+    def add_alternative(self, name: str, reason_rejected: str):
+        """却下した代替案の追加"""
+        self.alternatives.append({
+            'name': name,
+            'reason_rejected': reason_rejected
+        })
+        return self
+
+    def to_markdown(self) -> str:
+        """Markdown形式で出力"""
+        md = f"# ADR: {self.title}\n\n"
+        md += f"## 背景\n{self.context}\n\n"
+        md += f"## 決定\n{self.decision}\n\n"
+        md += "## 結果\n"
+        for c in self.consequences:
+            icon = "✅" if c['type'] == 'positive' else "⚠️"
+            md += f"- {icon} {c['description']}\n"
+        md += "\n## 却下した代替案\n"
+        for a in self.alternatives:
+            md += f"- **{a['name']}**: {a['reason_rejected']}\n"
+        return md
+```
 ---
 
 ## FAQ
@@ -1322,7 +1501,6 @@ AGI（Artificial General Intelligence）:
 ---
 
 ## 次に読むべきガイド
-→ [[../03-algorithms/00-what-is-algorithm.md]] — アルゴリズムとは何か
 
 ---
 

@@ -19,8 +19,8 @@
 | メッセージキュー基礎 | Kafka / RabbitMQ の概念を理解 | [メッセージキュー](../01-components/02-message-queue.md) |
 | ドメインモデリング | エンティティ・集約・ドメインイベントの基礎 | [DDD](./02-ddd.md) |
 | クリーンアーキテクチャ | レイヤー構成と依存方向の理解 | [クリーンアーキテクチャ](./01-clean-architecture.md) |
-| データベース基礎 | RDB / NoSQL の読み書き特性 | [データベース](../01-components/01-database.md) |
-| Python 中級 | dataclass, Protocol, async/await | [Python ガイド](../../../02-programming/python-guide/docs/00-basics/00-introduction.md) |
+| データベース基礎 | RDB / NoSQL の読み書き特性 | データベース |
+| Python 中級 | dataclass, Protocol, async/await | Python ガイド |
 
 ---
 
@@ -2602,6 +2602,23 @@ class TestKafkaIntegration:
         publisher = KafkaEventPublisher(self.bootstrap_servers)
         # ... 統合テスト
 ```
+
+---
+
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
 
 ---
 

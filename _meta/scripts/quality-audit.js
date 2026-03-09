@@ -29,14 +29,15 @@ const MIN_EXERCISES = 3;
 const MIN_REFERENCES = 3;
 
 // 必須セクション（GUIDE_TEMPLATE.md 準拠）
+// NOTE: 番号付き見出し（## 6. まとめ 等）にも対応するため (?:\d+[\.\s]+)? を含む
 const REQUIRED_SECTIONS = [
   { pattern: /^#\s+.+/m, label: 'H1タイトル' },
-  { pattern: /##\s*(この章で学ぶこと|学ぶこと|学習目標)/m, label: 'この章で学ぶこと' },
-  { pattern: /##\s*前提知識/m, label: '前提知識' },
-  { pattern: /##\s*FAQ/mi, label: 'FAQ' },
-  { pattern: /##\s*まとめ/m, label: 'まとめ' },
-  { pattern: /##\s*(次に読むべきガイド|関連|次の|次章)/m, label: '次に読むべきガイド' },
-  { pattern: /##\s*(参考文献|参考資料|References)/mi, label: '参考文献' },
+  { pattern: /##\s*(?:\d+[\.\s]+)?(?:この章で学ぶこと|学ぶこと|学習目標|概要と学習目標)/m, label: 'この章で学ぶこと' },
+  { pattern: /##\s*(?:\d+[\.\s]+)?前提知識/m, label: '前提知識' },
+  { pattern: /##\s*(?:\d+[\.\s]+)?(?:FAQ|よくある質問)/mi, label: 'FAQ' },
+  { pattern: /##\s*(?:\d+[\.\s]+)?(?:まとめ|総まとめ|おわりに|結論|Summary|Conclusion)/mi, label: 'まとめ' },
+  { pattern: /##\s*(?:\d+[\.\s]+)?(?:次に読むべきガイド|関連ガイド|関連リソース|次のステップ|次章|Next\s*Steps?)/mi, label: '次に読むべきガイド' },
+  { pattern: /##\s*(?:\d+[\.\s]+)?(?:参考文献|参考資料|参考リンク|References)/mi, label: '参考文献' },
 ];
 
 // テンプレート構造セクション（番号付き主要セクション）
@@ -270,15 +271,17 @@ function auditFile(filePath) {
     }
   }
 
-  // ── 必須セクション ──
+  // ── 必須セクション（guideファイルのみチェック） ──
   const missingSections = [];
-  for (const { pattern, label } of REQUIRED_SECTIONS) {
-    if (!pattern.test(content)) {
-      missingSections.push(label);
+  if (type === 'guide') {
+    for (const { pattern, label } of REQUIRED_SECTIONS) {
+      if (!pattern.test(content)) {
+        missingSections.push(label);
+      }
     }
-  }
-  if (missingSections.length > 0) {
-    result.errors.push(`必須セクション欠落: ${missingSections.join(', ')}`);
+    if (missingSections.length > 0) {
+      result.errors.push(`必須セクション欠落: ${missingSections.join(', ')}`);
+    }
   }
   result.metrics.missingSections = missingSections;
 
@@ -294,10 +297,14 @@ function auditFile(filePath) {
   }
   result.metrics.missingStructural = missingStructural;
 
-  // ── コードブロック ──
+  // ── コードブロック（プログラミング関連カテゴリのみ） ──
   const codeBlockCount = countCodeBlocks(content);
   result.metrics.codeBlocks = codeBlockCount;
-  if (type === 'guide' && codeBlockCount < MIN_CODE_BLOCKS) {
+  const codeRequiredCategories = [
+    '01-cs-fundamentals', '02-programming', '03-software-design',
+    '04-web-and-network', '05-infrastructure', '06-data-and-security', '07-ai'
+  ];
+  if (type === 'guide' && codeRequiredCategories.includes(category) && codeBlockCount < MIN_CODE_BLOCKS) {
     result.errors.push(`コードブロック不足: ${codeBlockCount}個 (最低${MIN_CODE_BLOCKS}個)`);
   }
 

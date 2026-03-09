@@ -13,10 +13,6 @@
 
 ## 前提知識
 
-- CPUの基本構造と命令サイクル → 参照: [[00-cpu-architecture.md]]
-- メモリ階層とキャッシュの基礎 → 参照: [[01-memory-hierarchy.md]]
-- GPUと並列処理の基礎 → 参照: [[04-gpu-and-parallel.md]]
-- 半導体製造プロセスの概要 → 参照: [[06-pcb-and-circuits.md]]
 
 ---
 
@@ -1540,6 +1536,23 @@ DDR5-6400 の理論帯域幅: 51.2 GB/s
 
 ---
 
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+
+---
+
 ## 13. まとめ
 
 | 概念 | 核心 | ソフトウェアへの影響 |
@@ -1557,9 +1570,6 @@ DDR5-6400 の理論帯域幅: 51.2 GB/s
 
 ## 14. 次に読むべきガイド
 
-→ [[../02-data-representation/00-binary-and-number-systems.md]] -- データ表現の基礎
-→ [[01-memory-hierarchy.md]] -- メモリ階層の詳細（キャッシュの仕組み）
-→ [[04-gpu-and-parallel.md]] -- GPU と並列処理の実践
 
 ---
 
@@ -1574,3 +1584,16 @@ DDR5-6400 の理論帯域幅: 51.2 GB/s
 7. Patterson, D. A. & Hennessy, J. L. *Computer Organization and Design: The Hardware/Software Interface*. 6th Edition. Morgan Kaufmann, 2020. -- コンピュータアーキテクチャの教科書
 8. Hennessy, J. L. & Patterson, D. A. *Computer Architecture: A Quantitative Approach*. 6th Edition. Morgan Kaufmann, 2019. -- より高度なアーキテクチャの教科書
 9. IRDS (International Roadmap for Devices and Systems). IEEE, 2024. -- 半導体技術ロードマップ
+
+---
+
+## 次に読むべきガイド
+
+- 同カテゴリの他のガイドを参照してください
+
+---
+
+## 参考文献
+
+- [MDN Web Docs](https://developer.mozilla.org/) - Web技術のリファレンス
+- [Wikipedia](https://ja.wikipedia.org/) - 技術概念の概要

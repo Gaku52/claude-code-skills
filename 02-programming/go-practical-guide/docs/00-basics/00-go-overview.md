@@ -14,6 +14,14 @@
 6. **エコシステム** -- ツールチェイン・パッケージ管理・CI/CD統合
 7. **歴史と進化** -- Go 1.0 から最新バージョンまでの変遷
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+
 ---
 
 ## 1. Goの設計哲学
@@ -462,14 +470,14 @@ import (
 )
 
 // 型パラメータを持つ関数
-func Min[T constraints.Ordered](a, b T) T {
+func MinT constraints.Ordered T {
     if a < b {
         return a
     }
     return b
 }
 
-func Max[T constraints.Ordered](a, b T) T {
+func MaxT constraints.Ordered T {
     if a > b {
         return a
     }
@@ -477,7 +485,7 @@ func Max[T constraints.Ordered](a, b T) T {
 }
 
 // ジェネリックなスライス操作
-func Filter[T any](slice []T, predicate func(T) bool) []T {
+func FilterT any bool) []T {
     var result []T
     for _, v := range slice {
         if predicate(v) {
@@ -487,7 +495,7 @@ func Filter[T any](slice []T, predicate func(T) bool) []T {
     return result
 }
 
-func Map[T any, U any](slice []T, transform func(T) U) []U {
+func MapT any, U any U) []U {
     result := make([]U, len(slice))
     for i, v := range slice {
         result[i] = transform(v)
@@ -495,7 +503,7 @@ func Map[T any, U any](slice []T, transform func(T) U) []U {
     return result
 }
 
-func Reduce[T any, U any](slice []T, initial U, reducer func(U, T) U) U {
+func ReduceT any, U any U) U {
     result := initial
     for _, v := range slice {
         result = reducer(result, v)
@@ -509,7 +517,7 @@ type Number interface {
         ~float32 | ~float64
 }
 
-func Sum[T Number](numbers []T) T {
+func SumT Number T {
     var total T
     for _, n := range numbers {
         total += n
@@ -1306,6 +1314,189 @@ go tool pprof cpu.prof      # CPUプロファイル解析
 go tool trace trace.out     # トレース解析
 ```
 
+
+---
+
+## 実践演習
+
+### 演習1: 基本的な実装
+
+以下の要件を満たすコードを実装してください。
+
+**要件:**
+- 入力データの検証を行うこと
+- エラーハンドリングを適切に実装すること
+- テストコードも作成すること
+
+```python
+# 演習1: 基本実装のテンプレート
+class Exercise1:
+    """基本的な実装パターンの演習"""
+
+    def __init__(self):
+        self.data = []
+
+    def validate_input(self, value):
+        """入力値の検証"""
+        if value is None:
+            raise ValueError("入力値がNoneです")
+        return True
+
+    def process(self, value):
+        """データ処理のメインロジック"""
+        self.validate_input(value)
+        self.data.append(value)
+        return self.data
+
+    def get_results(self):
+        """処理結果の取得"""
+        return {
+            'count': len(self.data),
+            'data': self.data
+        }
+
+# テスト
+def test_exercise1():
+    ex = Exercise1()
+    assert ex.process(1) == [1]
+    assert ex.process(2) == [1, 2]
+    assert ex.get_results()['count'] == 2
+
+    try:
+        ex.process(None)
+        assert False, "例外が発生するべき"
+    except ValueError:
+        pass
+
+    print("全テスト合格!")
+
+test_exercise1()
+```
+
+### 演習2: 応用パターン
+
+基本実装を拡張して、以下の機能を追加してください。
+
+```python
+# 演習2: 応用パターン
+from typing import List, Dict, Optional
+from datetime import datetime
+
+class AdvancedExercise:
+    """応用パターンの演習"""
+
+    def __init__(self, max_size: int = 100):
+        self._items: List[Dict] = []
+        self._max_size = max_size
+        self._created_at = datetime.now()
+
+    def add(self, key: str, value: any) -> bool:
+        """アイテムの追加（サイズ制限付き）"""
+        if len(self._items) >= self._max_size:
+            return False
+        self._items.append({
+            'key': key,
+            'value': value,
+            'timestamp': datetime.now().isoformat()
+        })
+        return True
+
+    def find(self, key: str) -> Optional[Dict]:
+        """キーによる検索"""
+        for item in reversed(self._items):
+            if item['key'] == key:
+                return item
+        return None
+
+    def remove(self, key: str) -> bool:
+        """キーによる削除"""
+        for i, item in enumerate(self._items):
+            if item['key'] == key:
+                self._items.pop(i)
+                return True
+        return False
+
+    def stats(self) -> Dict:
+        """統計情報"""
+        return {
+            'total_items': len(self._items),
+            'max_size': self._max_size,
+            'usage_percent': len(self._items) / self._max_size * 100,
+            'uptime': str(datetime.now() - self._created_at)
+        }
+
+# テスト
+def test_advanced():
+    ex = AdvancedExercise(max_size=3)
+    assert ex.add("a", 1) == True
+    assert ex.add("b", 2) == True
+    assert ex.add("c", 3) == True
+    assert ex.add("d", 4) == False  # サイズ制限
+    assert ex.find("b")['value'] == 2
+    assert ex.remove("b") == True
+    assert ex.find("b") is None
+    stats = ex.stats()
+    assert stats['total_items'] == 2
+    print("応用テスト全合格!")
+
+test_advanced()
+```
+
+### 演習3: パフォーマンス最適化
+
+以下のコードのパフォーマンスを改善してください。
+
+```python
+# 演習3: パフォーマンス最適化
+import time
+from functools import lru_cache
+
+# 最適化前（O(n^2)）
+def slow_search(data: list, target: int) -> int:
+    """非効率な検索"""
+    for i in range(len(data)):
+        for j in range(i + 1, len(data)):
+            if data[i] + data[j] == target:
+                return (i, j)
+    return (-1, -1)
+
+# 最適化後（O(n)）
+def fast_search(data: list, target: int) -> tuple:
+    """ハッシュマップを使った効率的な検索"""
+    seen = {}
+    for i, num in enumerate(data):
+        complement = target - num
+        if complement in seen:
+            return (seen[complement], i)
+        seen[num] = i
+    return (-1, -1)
+
+# ベンチマーク
+def benchmark():
+    import random
+    data = list(range(5000))
+    random.shuffle(data)
+    target = data[100] + data[4000]
+
+    start = time.time()
+    result1 = slow_search(data, target)
+    slow_time = time.time() - start
+
+    start = time.time()
+    result2 = fast_search(data, target)
+    fast_time = time.time() - start
+
+    print(f"非効率版: {slow_time:.4f}秒")
+    print(f"効率版:   {fast_time:.6f}秒")
+    print(f"高速化率: {slow_time/fast_time:.0f}倍")
+
+benchmark()
+```
+
+**ポイント:**
+- アルゴリズムの計算量を意識する
+- 適切なデータ構造を選択する
+- ベンチマークで効果を測定する
 ---
 
 ## 8. FAQ
@@ -1425,7 +1616,7 @@ func main() {
 冗長さを軽減するテクニック:
 ```go
 // ヘルパー関数でまとめる
-func must[T any](v T, err error) T {
+func mustT any T {
     if err != nil {
         panic(err)
     }
@@ -1445,6 +1636,23 @@ func (ew *errWriter) write(buf []byte) {
     _, ew.err = ew.w.Write(buf)
 }
 ```
+
+---
+
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
 
 ---
 

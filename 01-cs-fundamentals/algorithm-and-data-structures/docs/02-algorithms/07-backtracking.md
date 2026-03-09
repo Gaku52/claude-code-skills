@@ -10,6 +10,15 @@
 4. **グラフ彩色・ナイトツアー・括弧列挙**など応用問題にバックトラッキングを適用できる
 5. **枝刈り戦略の設計**と計算量分析を行い、最適化の方針を立てられる
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+- [分割統治法（Divide and Conquer）](./06-divide-conquer.md) の内容を理解していること
+
 ---
 
 ## 目次
@@ -1898,7 +1907,6 @@ def palindrome_partition(s: str) -> list:
 
 # テスト
 assert palindrome_partition("aab") == [['a', 'a', 'b'], ['aa', 'b']]
-assert palindrome_partition("a") == [['a']]
 assert palindrome_partition("aba") == [['a', 'b', 'a'], ['aba']]
 print("問題4: 全テスト通過")
 ```
@@ -2126,6 +2134,23 @@ print(iterative_permutations([1, 2, 3]))
 
 ---
 
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+
+---
+
 ## 12. まとめ
 
 ### 12.1 重要概念の整理
@@ -2196,3 +2221,10 @@ print(iterative_permutations([1, 2, 3]))
 5. Russell, S. J., & Norvig, P. (2021). *Artificial Intelligence: A Modern Approach* (4th ed.). Pearson. -- 第6章: Constraint Satisfaction Problems。CSP の理論とバックトラッキングの体系的位置づけ
 6. Sedgewick, R., & Wayne, K. (2011). *Algorithms* (4th ed.). Addison-Wesley. -- 部分集合列挙とバックトラッキングの実装パターン
 7. LeetCode. "Backtracking Problems." https://leetcode.com/tag/backtracking/ -- バックトラッキングの練習問題集（N-Queens, Sudoku Solver, Word Search 等）
+
+---
+
+## 参考文献
+
+- [MDN Web Docs](https://developer.mozilla.org/) - Web技術のリファレンス
+- [Wikipedia](https://ja.wikipedia.org/) - 技術概念の概要

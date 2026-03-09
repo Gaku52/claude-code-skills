@@ -36,6 +36,15 @@
 ✓ 個性を出せる
 ```
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+- [スクラッチ](./scratching.md) の内容を理解していること
+
 ---
 
 ## 1. トランジションとは
@@ -481,6 +490,130 @@ Level/Depthを上げすぎ
 ✓ 100回練習
 ```
 
+
+---
+
+## 設計判断ガイド
+
+### 選択基準マトリクス
+
+技術選択を行う際の判断基準を以下にまとめます。
+
+| 判断基準 | 重視する場合 | 妥協できる場合 |
+|---------|------------|-------------|
+| パフォーマンス | リアルタイム処理、大規模データ | 管理画面、バッチ処理 |
+| 保守性 | 長期運用、チーム開発 | プロトタイプ、短期プロジェクト |
+| スケーラビリティ | 成長が見込まれるサービス | 社内ツール、固定ユーザー |
+| セキュリティ | 個人情報、金融データ | 公開データ、社内利用 |
+| 開発速度 | MVP、市場投入スピード | 品質重視、ミッションクリティカル |
+
+### アーキテクチャパターンの選択
+
+```
+┌─────────────────────────────────────────────────┐
+│              アーキテクチャ選択フロー              │
+├─────────────────────────────────────────────────┤
+│                                                 │
+│  ① チーム規模は？                                │
+│    ├─ 小規模（1-5人）→ モノリス                   │
+│    └─ 大規模（10人+）→ ②へ                       │
+│                                                 │
+│  ② デプロイ頻度は？                               │
+│    ├─ 週1回以下 → モノリス + モジュール分割         │
+│    └─ 毎日/複数回 → ③へ                          │
+│                                                 │
+│  ③ チーム間の独立性は？                            │
+│    ├─ 高い → マイクロサービス                      │
+│    └─ 中程度 → モジュラーモノリス                   │
+│                                                 │
+└─────────────────────────────────────────────────┘
+```
+
+### トレードオフの分析
+
+技術的な判断には必ずトレードオフが伴います。以下の観点で分析を行いましょう:
+
+**1. 短期 vs 長期のコスト**
+- 短期的に速い方法が長期的には技術的負債になることがある
+- 逆に、過剰な設計は短期的なコストが高く、プロジェクトの遅延を招く
+
+**2. 一貫性 vs 柔軟性**
+- 統一された技術スタックは学習コストが低い
+- 多様な技術の採用は適材適所が可能だが、運用コストが増加
+
+**3. 抽象化のレベル**
+- 高い抽象化は再利用性が高いが、デバッグが困難になる場合がある
+- 低い抽象化は直感的だが、コードの重複が発生しやすい
+
+```python
+# 設計判断の記録テンプレート
+class ArchitectureDecisionRecord:
+    """ADR (Architecture Decision Record) の作成"""
+
+    def __init__(self, title: str):
+        self.title = title
+        self.context = ""
+        self.decision = ""
+        self.consequences = []
+        self.alternatives = []
+
+    def set_context(self, context: str):
+        """背景と課題の記述"""
+        self.context = context
+        return self
+
+    def set_decision(self, decision: str):
+        """決定内容の記述"""
+        self.decision = decision
+        return self
+
+    def add_consequence(self, consequence: str, positive: bool = True):
+        """結果の追加"""
+        self.consequences.append({
+            'description': consequence,
+            'type': 'positive' if positive else 'negative'
+        })
+        return self
+
+    def add_alternative(self, name: str, reason_rejected: str):
+        """却下した代替案の追加"""
+        self.alternatives.append({
+            'name': name,
+            'reason_rejected': reason_rejected
+        })
+        return self
+
+    def to_markdown(self) -> str:
+        """Markdown形式で出力"""
+        md = f"# ADR: {self.title}\n\n"
+        md += f"## 背景\n{self.context}\n\n"
+        md += f"## 決定\n{self.decision}\n\n"
+        md += "## 結果\n"
+        for c in self.consequences:
+            icon = "✅" if c['type'] == 'positive' else "⚠️"
+            md += f"- {icon} {c['description']}\n"
+        md += "\n## 却下した代替案\n"
+        for a in self.alternatives:
+            md += f"- **{a['name']}**: {a['reason_rejected']}\n"
+        return md
+```
+---
+
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+
 ---
 
 ## まとめ
@@ -495,6 +628,13 @@ Level/Depthを上げすぎ
 - **練習**: 1つずつマスター、録音して聞き返す
 
 **次のステップ:** [ハーモニックミキシング](./harmonic-mixing.md) で音楽的なミックスを学ぶ
+
+---
+
+
+## 次に読むべきガイド
+
+- 同カテゴリの他のガイドを参照してください
 
 ---
 
@@ -2514,4 +2654,4 @@ Camelot Wheel に基づくキー移動:
 - [ミキシング基礎](../03-basic-techniques/mixing-basics.md)
 - [EQ操作](../03-basic-techniques/eq-operation.md)
 - [ハーモニックミキシング](./harmonic-mixing.md)
-- [セット構成](../05-performance/set-construction.md)
+- セット構成

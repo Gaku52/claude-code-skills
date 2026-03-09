@@ -49,7 +49,6 @@ docs/
 ```
 
 ## Prerequisites
-- [[computer-science-fundamentals]] — CS基礎知識
 
 ## Learning Path
 1. 導入 → 型システム → メモリモデル（基礎理解）

@@ -20,38 +20,21 @@
 
 | # | ファイル | 内容 |
 |---|---------|------|
-| 00 | [[docs/00-devops-basics/00-devops-culture.md]] | DevOps 文化、CI/CD の概念、DORA メトリクス |
-| 01 | [[docs/00-devops-basics/01-ci-cd-fundamentals.md]] | CI/CD パイプライン設計、ブランチ戦略連携、品質ゲート |
-| 02 | [[docs/00-devops-basics/02-infrastructure-as-code.md]] | IaC 概念、Terraform 基礎、CDK、Pulumi |
-| 03 | [[docs/00-devops-basics/03-gitops.md]] | GitOps 原則、ArgoCD、Flux、環境管理 |
 
 ### 01-github-actions — GitHub Actions
 
 | # | ファイル | 内容 |
 |---|---------|------|
-| 00 | [[docs/01-github-actions/00-actions-basics.md]] | ワークフロー構文、トリガー、ジョブ、ステップ、ランナー |
-| 01 | [[docs/01-github-actions/01-actions-advanced.md]] | マトリクスビルド、キャッシュ、Artifacts、環境、シークレット |
-| 02 | [[docs/01-github-actions/02-reusable-workflows.md]] | 再利用可能ワークフロー、Composite Actions、カスタムアクション |
-| 03 | [[docs/01-github-actions/03-security-and-optimization.md]] | OIDC 認証、Dependabot、セキュリティベストプラクティス、コスト最適化 |
-| 04 | [[docs/01-github-actions/04-ci-recipes.md]] | Node.js/Python/Go/Rust/Docker のCIレシピ集 |
 
 ### 02-deployment — デプロイメント
 
 | # | ファイル | 内容 |
 |---|---------|------|
-| 00 | [[docs/02-deployment/00-deployment-strategies.md]] | Blue-Green、Canary、Rolling、Feature Flag |
-| 01 | [[docs/02-deployment/01-container-deployment.md]] | ECS/EKS デプロイ、Fargate、Helm Chart |
-| 02 | [[docs/02-deployment/02-serverless-deployment.md]] | Lambda デプロイ、Vercel/Netlify、SST/Serverless Framework |
-| 03 | [[docs/02-deployment/03-database-migrations.md]] | DBマイグレーション戦略、ゼロダウンタイム、Prisma migrate |
 
 ### 03-monitoring — 監視とオブザーバビリティ
 
 | # | ファイル | 内容 |
 |---|---------|------|
-| 00 | [[docs/03-monitoring/00-observability-basics.md]] | オブザーバビリティの3本柱（ログ・メトリクス・トレース） |
-| 01 | [[docs/03-monitoring/01-logging.md]] | 構造化ログ、ログ集約、Datadog/CloudWatch Logs |
-| 02 | [[docs/03-monitoring/02-metrics-and-alerting.md]] | SLI/SLO/SLA、Prometheus、Grafana、PagerDuty |
-| 03 | [[docs/03-monitoring/03-distributed-tracing.md]] | OpenTelemetry、Jaeger、X-Ray、トレース設計 |
 
 ## クイックリファレンス
 

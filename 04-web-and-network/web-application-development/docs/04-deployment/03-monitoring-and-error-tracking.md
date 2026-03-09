@@ -6,8 +6,6 @@
 
 このガイドを最大限に活用するために、以下の知識を事前に習得しておくことを推奨します。
 
-- **パフォーマンス最適化**: Core Web Vitals、バンドル最適化の基礎 → [[./02-performance-optimization.md]]
-- **ブラウザのPerformance API**: Performance Observer、Navigation Timing API → [[../../browser-and-web-platform/docs/04-storage-and-caching/02-performance-api.md]]
 
 ## この章で学ぶこと
 
@@ -215,7 +213,6 @@ Sentry.init({
 
     // HTTP クライアントエラーのキャプチャ
     Sentry.httpClientIntegration({
-      failedRequestStatusCodes: [[400, 599]], // 4xx-5xx をキャプチャ
       failedRequestTargets: [/^https:\/\/api\.example\.com/],
     }),
   ],
@@ -2955,7 +2952,6 @@ async function sendToDatadogMetrics(events: MetricEvent[]) {
   const series = events.map(event => ({
     metric: `app.${event.name}`,
     type: event.unit === 'gauge' ? 1 : event.unit === 'count' ? 3 : 0,
-    points: [[Math.floor(event.timestamp / 1000), event.value]],
     tags: Object.entries(event.tags).map(([k, v]) => `${k}:${v}`),
   }));
 
@@ -3838,8 +3834,6 @@ Synthetic Monitoringを優先すべきケース:
 
 ## 次に読むべきガイド
 
-- [[../../api-and-library-guide/docs/]] - APIガイド（バックエンド監視への応用）
-- [[../../05-infrastructure/]] - インフラガイド（サーバーレベルの監視）
 
 ---
 

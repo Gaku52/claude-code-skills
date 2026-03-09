@@ -14,6 +14,15 @@
 8. **ライブラリ作者向けベストプラクティス** -- 型定義のパッケージング、バージョニング、メンテナンス
 9. **トラブルシューティング** -- 型が見つからない、型の競合、パフォーマンス問題の解決法
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+- [型チャレンジ](./03-type-challenges.md) の内容を理解していること
+
 ---
 
 ## 目次
@@ -3410,9 +3419,9 @@ npx api-extractor run
 
 ## 次に読むべきガイド
 
-- [01-conditional-types.md](./01-conditional-types.md) -- 条件型とテンプレートリテラル型
-- [02-mapped-types.md](./02-mapped-types.md) -- マップ型と変換パターン
-- [03-type-inference.md](./03-type-inference.md) -- 型推論の仕組みとテクニック
+- 01-conditional-types.md -- 条件型とテンプレートリテラル型
+- 02-mapped-types.md -- マップ型と変換パターン
+- 03-type-inference.md -- 型推論の仕組みとテクニック
 - [../02-patterns/00-error-handling.md](../02-patterns/00-error-handling.md) -- エラーハンドリングパターン
 - [../03-tooling/00-tsconfig.md](../03-tooling/00-tsconfig.md) -- tsconfig.json 完全ガイド
 

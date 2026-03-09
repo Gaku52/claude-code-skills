@@ -10,6 +10,14 @@
 4. クラウド導入の段階的アプローチと移行戦略を理解できる
 5. クラウドネイティブアーキテクチャの基本原則を実践できる
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+
 ---
 
 ## 1. クラウドコンピューティングとは
@@ -904,7 +912,7 @@ def get_storage_provider(cloud: str, **kwargs) -> CloudStorageProvider:
     }
     if cloud not in providers:
         raise ValueError(f"Unsupported cloud: {cloud}")
-    return providers[cloud](**kwargs)
+    return providerscloud
 
 # 使用例
 provider = get_storage_provider('aws', region='ap-northeast-1')
@@ -1826,6 +1834,23 @@ AWS認定資格ロードマップ:
 ├── Machine Learning Specialty
 └── Data Analytics Specialty
 ```
+
+---
+
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
 
 ---
 

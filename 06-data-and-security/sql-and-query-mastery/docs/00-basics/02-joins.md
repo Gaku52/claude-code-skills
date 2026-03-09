@@ -4,7 +4,7 @@
 
 ## 前提知識
 
-- [01-select.md](./01-select.md) — SELECT文の基本構文
+- 01-select.md — SELECT文の基本構文
 - [00-sql-overview.md](./00-sql-overview.md) — SQL全体像の理解
 - テーブル設計の基礎（PRIMARY KEY, FOREIGN KEY）
 
@@ -1413,6 +1413,113 @@ ORDER BY m2.name, m1.name, e.name;
 
 </details>
 
+
+---
+
+## 設計判断ガイド
+
+### 選択基準マトリクス
+
+技術選択を行う際の判断基準を以下にまとめます。
+
+| 判断基準 | 重視する場合 | 妥協できる場合 |
+|---------|------------|-------------|
+| パフォーマンス | リアルタイム処理、大規模データ | 管理画面、バッチ処理 |
+| 保守性 | 長期運用、チーム開発 | プロトタイプ、短期プロジェクト |
+| スケーラビリティ | 成長が見込まれるサービス | 社内ツール、固定ユーザー |
+| セキュリティ | 個人情報、金融データ | 公開データ、社内利用 |
+| 開発速度 | MVP、市場投入スピード | 品質重視、ミッションクリティカル |
+
+### アーキテクチャパターンの選択
+
+```
+┌─────────────────────────────────────────────────┐
+│              アーキテクチャ選択フロー              │
+├─────────────────────────────────────────────────┤
+│                                                 │
+│  ① チーム規模は？                                │
+│    ├─ 小規模（1-5人）→ モノリス                   │
+│    └─ 大規模（10人+）→ ②へ                       │
+│                                                 │
+│  ② デプロイ頻度は？                               │
+│    ├─ 週1回以下 → モノリス + モジュール分割         │
+│    └─ 毎日/複数回 → ③へ                          │
+│                                                 │
+│  ③ チーム間の独立性は？                            │
+│    ├─ 高い → マイクロサービス                      │
+│    └─ 中程度 → モジュラーモノリス                   │
+│                                                 │
+└─────────────────────────────────────────────────┘
+```
+
+### トレードオフの分析
+
+技術的な判断には必ずトレードオフが伴います。以下の観点で分析を行いましょう:
+
+**1. 短期 vs 長期のコスト**
+- 短期的に速い方法が長期的には技術的負債になることがある
+- 逆に、過剰な設計は短期的なコストが高く、プロジェクトの遅延を招く
+
+**2. 一貫性 vs 柔軟性**
+- 統一された技術スタックは学習コストが低い
+- 多様な技術の採用は適材適所が可能だが、運用コストが増加
+
+**3. 抽象化のレベル**
+- 高い抽象化は再利用性が高いが、デバッグが困難になる場合がある
+- 低い抽象化は直感的だが、コードの重複が発生しやすい
+
+```python
+# 設計判断の記録テンプレート
+class ArchitectureDecisionRecord:
+    """ADR (Architecture Decision Record) の作成"""
+
+    def __init__(self, title: str):
+        self.title = title
+        self.context = ""
+        self.decision = ""
+        self.consequences = []
+        self.alternatives = []
+
+    def set_context(self, context: str):
+        """背景と課題の記述"""
+        self.context = context
+        return self
+
+    def set_decision(self, decision: str):
+        """決定内容の記述"""
+        self.decision = decision
+        return self
+
+    def add_consequence(self, consequence: str, positive: bool = True):
+        """結果の追加"""
+        self.consequences.append({
+            'description': consequence,
+            'type': 'positive' if positive else 'negative'
+        })
+        return self
+
+    def add_alternative(self, name: str, reason_rejected: str):
+        """却下した代替案の追加"""
+        self.alternatives.append({
+            'name': name,
+            'reason_rejected': reason_rejected
+        })
+        return self
+
+    def to_markdown(self) -> str:
+        """Markdown形式で出力"""
+        md = f"# ADR: {self.title}\n\n"
+        md += f"## 背景\n{self.context}\n\n"
+        md += f"## 決定\n{self.decision}\n\n"
+        md += "## 結果\n"
+        for c in self.consequences:
+            icon = "✅" if c['type'] == 'positive' else "⚠️"
+            md += f"- {icon} {c['description']}\n"
+        md += "\n## 却下した代替案\n"
+        for a in self.alternatives:
+            md += f"- **{a['name']}**: {a['reason_rejected']}\n"
+        return md
+```
 ---
 
 ## FAQ

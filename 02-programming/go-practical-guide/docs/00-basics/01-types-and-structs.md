@@ -12,6 +12,15 @@
 4. **ジェネリクスと型制約** -- Go 1.18+ の型パラメータ
 5. **実践的なデータモデリング** -- ドメインモデルの設計手法
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+- [Go言語概要 -- 設計哲学とエコシステム](./00-go-overview.md) の内容を理解していること
+
 ---
 
 ## 1. 基本型
@@ -1094,7 +1103,7 @@ type Pair[T, U any] struct {
     Second U
 }
 
-func NewPair[T, U any](first T, second U) Pair[T, U] {
+func NewPairT, U any Pair[T, U] {
     return Pair[T, U]{First: first, Second: second}
 }
 
@@ -1108,7 +1117,7 @@ type Optional[T any] struct {
     present bool
 }
 
-func Some[T any](value T) Optional[T] {
+func SomeT any Optional[T] {
     return Optional[T]{value: value, present: true}
 }
 
@@ -1139,7 +1148,7 @@ type Set[T comparable] struct {
     items map[T]struct{}
 }
 
-func NewSet[T comparable](items ...T) *Set[T] {
+func NewSetT comparable *Set[T] {
     s := &Set[T]{items: make(map[T]struct{})}
     for _, item := range items {
         s.Add(item)
@@ -1186,7 +1195,7 @@ func (s *Set[T]) Intersection(other *Set[T]) *Set[T] {
 }
 
 // cmp.Ordered を使ったジェネリック関数（Go 1.21+）
-func Clamp[T cmp.Ordered](value, min, max T) T {
+func ClampT cmp.Ordered T {
     if value < min {
         return min
     }
@@ -1787,6 +1796,23 @@ type GoodLayout struct {
 `comparable` に含まれる型: bool, 整数型, 浮動小数点型, complex, string, pointer, channel, array (要素がcomparable), struct (全フィールドがcomparable)
 
 `comparable` に含まれない型: slice, map, function
+
+---
+
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
 
 ---
 

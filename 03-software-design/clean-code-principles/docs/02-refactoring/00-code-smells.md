@@ -9,7 +9,7 @@
 | 前提 | 参照先 |
 |------|--------|
 | クリーンコードの基本原則 | [00-principles/](../00-principles/) |
-| 命名と関数設計 | [01-practices/01-naming.md](../01-practices/01-naming.md), [01-practices/02-functions.md](../01-practices/02-functions.md) |
+| 命名と関数設計 | 01-practices/01-naming.md, 01-practices/02-functions.md |
 | テストの基礎 | [01-practices/04-testing-principles.md](../01-practices/04-testing-principles.md) |
 | オブジェクト指向の基本（クラス、継承、ポリモーフィズム） | ― |
 
@@ -1866,11 +1866,11 @@ radon cc src/ -a -nc --min C
 
 | スメル | 対応するパターン | 参照 |
 |--------|---------------|------|
-| Switch Statements | Strategy, State, Factory Method | [design-patterns-guide/00-creational/](../../design-patterns-guide/docs/00-creational/) |
-| Feature Envy | Mediator, Facade | [design-patterns-guide/02-behavioral/](../../design-patterns-guide/docs/02-behavioral/) |
-| Parallel Hierarchy | Bridge, Abstract Factory | [design-patterns-guide/01-structural/](../../design-patterns-guide/docs/01-structural/) |
-| God Class | Facade + 複数の小さなクラスに分割 | [design-patterns-guide/01-structural/](../../design-patterns-guide/docs/01-structural/) |
-| Message Chains | Facade, Mediator | [design-patterns-guide/02-behavioral/](../../design-patterns-guide/docs/02-behavioral/) |
+| Switch Statements | Strategy, State, Factory Method | design-patterns-guide/00-creational/ |
+| Feature Envy | Mediator, Facade | design-patterns-guide/02-behavioral/ |
+| Parallel Hierarchy | Bridge, Abstract Factory | design-patterns-guide/01-structural/ |
+| God Class | Facade + 複数の小さなクラスに分割 | design-patterns-guide/01-structural/ |
+| Message Chains | Facade, Mediator | design-patterns-guide/02-behavioral/ |
 
 ### Q6: テストコードにもスメルはあるか？
 
@@ -1885,6 +1885,23 @@ radon cc src/ -a -nc --min C
 | Slow Tests | テストの実行が遅い | テストダブルの活用、DB の in-memory 化 |
 
 詳細は [テスト原則](../01-practices/04-testing-principles.md) を参照。
+
+---
+
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
 
 ---
 
@@ -1919,9 +1936,9 @@ radon cc src/ -a -nc --min C
 - [レガシーコード](./02-legacy-code.md) ── スメルだらけのコードとの向き合い方（Seam, Characterization Test）
 - [技術的負債](./03-technical-debt.md) ── スメルの放置がもたらす負債とその返済戦略
 - [テスト原則](../01-practices/04-testing-principles.md) ── リファクタリングの安全網としてのテスト設計
-- [命名](../01-practices/01-naming.md) ── 名前の改善によるスメルの予防
-- [デザインパターン概要](../../design-patterns-guide/docs/00-creational/) ── スメルの構造的な解決策としてのパターン
-- [システム設計の基礎](../../system-design-guide/docs/00-fundamentals/) ── アーキテクチャレベルのスメル対策
+- 命名 ── 名前の改善によるスメルの予防
+- デザインパターン概要 ── スメルの構造的な解決策としてのパターン
+- システム設計の基礎 ── アーキテクチャレベルのスメル対策
 
 ---
 

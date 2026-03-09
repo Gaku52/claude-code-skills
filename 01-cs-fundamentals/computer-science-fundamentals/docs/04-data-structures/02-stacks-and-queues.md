@@ -17,9 +17,7 @@
 
 ## 前提知識
 
-- 配列の基本操作（インデックスアクセス、挿入、削除） → 参照: [[00-arrays-and-strings.md]]
 - ポインタ・参照の基本概念
-- 計算量表記（ビッグO）の読み方 → 参照: [[../03-algorithms/00-big-o-notation.md]]
 
 ---
 
@@ -2260,6 +2258,23 @@ print("MinStack tests passed!")
 
 ---
 
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+
+---
+
 ## 15. まとめ
 
 ### 主要データ構造の一覧
@@ -2311,7 +2326,6 @@ print("MinStack tests passed!")
 
 ## 16. 次に読むべきガイド
 
-→ [[03-hash-tables.md]] — ハッシュテーブル
 
 ---
 
@@ -2341,3 +2355,16 @@ print("MinStack tests passed!")
    - [84. Largest Rectangle in Histogram](https://leetcode.com/problems/largest-rectangle-in-histogram/) — 単調スタック
    - [295. Find Median from Data Stream](https://leetcode.com/problems/find-median-from-data-stream/) — 2つのヒープ
    - [155. Min Stack](https://leetcode.com/problems/min-stack/) — 最小値取得 O(1) のスタック
+
+---
+
+## 次に読むべきガイド
+
+- [ハッシュテーブル](./03-hash-tables.md) - 次のトピックへ進む
+
+---
+
+## 参考文献
+
+- [MDN Web Docs](https://developer.mozilla.org/) - Web技術のリファレンス
+- [Wikipedia](https://ja.wikipedia.org/) - 技術概念の概要

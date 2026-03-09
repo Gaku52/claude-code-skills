@@ -24,8 +24,8 @@
 | メッセージキューの仕組み | [メッセージキュー](../01-components/02-message-queue.md) |
 | キャッシュ戦略 | [キャッシング](../01-components/01-caching.md) |
 | イベント駆動アーキテクチャ | [イベント駆動設計](../02-architecture/03-event-driven.md) |
-| Observer パターン | [Observer パターン](../../design-patterns-guide/docs/02-behavioral/00-observer.md) |
-| API 設計のベストプラクティス | [API 設計](../../clean-code-principles/docs/03-practices-advanced/03-api-design.md) |
+| Observer パターン | Observer パターン |
+| API 設計のベストプラクティス | API 設計 |
 
 ---
 
@@ -2443,6 +2443,23 @@ class BroadcastService:
 
 ---
 
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+
+---
+
 ## 11. まとめ
 
 | 設計要素 | 選択 | 理由 |
@@ -2502,9 +2519,9 @@ class BroadcastService:
 - [レートリミッター設計](./03-rate-limiter.md) — 通知レート制限の詳細アルゴリズム
 - [メッセージキュー](../01-components/02-message-queue.md) — Kafka / RabbitMQ の詳細
 - [イベント駆動アーキテクチャ](../02-architecture/03-event-driven.md) — イベント駆動設計の原則
-- [Observer パターン](../../design-patterns-guide/docs/02-behavioral/00-observer.md) — Pub/Sub パターンの基礎
-- [Strategy パターン](../../design-patterns-guide/docs/02-behavioral/01-strategy.md) — チャネルアダプタの設計パターン
-- [API 設計](../../clean-code-principles/docs/03-practices-advanced/03-api-design.md) — 通知 API のベストプラクティス
+- Observer パターン — Pub/Sub パターンの基礎
+- Strategy パターン — チャネルアダプタの設計パターン
+- API 設計 — 通知 API のベストプラクティス
 
 ---
 

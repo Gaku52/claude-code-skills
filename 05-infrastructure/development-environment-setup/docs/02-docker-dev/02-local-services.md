@@ -8,6 +8,15 @@
 2. **キャッシュ・メール・ストレージの Docker 化** -- Redis、MailHog、MinIO を組み合わせた開発インフラの構成を学ぶ
 3. **Docker Compose による統合管理とデータ永続化** -- 複数サービスの依存関係管理、Volume 設計、ヘルスチェックを実践する
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+- [Dev Container](./01-devcontainer.md) の内容を理解していること
+
 ---
 
 ## 1. 全体アーキテクチャ
@@ -1708,7 +1717,7 @@ services:
 ## 次に読むべきガイド
 
 - [Dev Container](./01-devcontainer.md) -- Docker 開発環境を VS Code / Codespaces と統合
-- [Docker Compose 基礎](../../docker-container-guide/docs/02-compose/00-compose-basics.md) -- Compose ファイルの構文と設計パターン
+- Docker Compose 基礎 -- Compose ファイルの構文と設計パターン
 - [プロジェクト標準](../03-team-setup/00-project-standards.md) -- チーム共通の設定ファイル管理
 
 ## 参考文献

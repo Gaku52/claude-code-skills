@@ -15,6 +15,15 @@
 - [ ] 複数マシン間で設定を同期する方法を知る
 - [ ] トラブルシューティングの手法を習得する
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+- [ターミナルとシェルの基礎](./00-terminal-basics.md) の内容を理解していること
+
 ---
 
 ## 1. 設定ファイルの読み込み順序
@@ -999,13 +1008,13 @@ $character"""
 truncation_length = 5
 truncate_to_repo = true
 style = "bold blue"
-format = "[$path]($style)[$read_only]($read_only_style) "
+format = "$path$read_only "
 
 # Git ブランチ
 [git_branch]
 symbol = " "
 style = "bold purple"
-format = "on [$symbol$branch]($style) "
+format = "on $symbol$branch "
 
 # Git ステータス
 [git_status]
@@ -1019,12 +1028,12 @@ modified = "!${count}"
 staged = "+${count}"
 renamed = "»${count}"
 deleted = "✘${count}"
-format = '([$all_status$ahead_behind]($style) )'
+format = '($all_status$ahead_behind )'
 
 # プロンプトのキャラクター
 [character]
-success_symbol = "[❯](bold green)"
-error_symbol = "[❯](bold red)"
+success_symbol = "❯"
+error_symbol = "❯"
 
 # Python
 [python]
@@ -1034,28 +1043,28 @@ format = 'via [${symbol}${pyenv_prefix}(${version} )(\($virtualenv\) )]($style)'
 # Node.js
 [nodejs]
 symbol = " "
-format = "via [$symbol($version )]($style)"
+format = "via $symbol($version )"
 
 # Docker
 [docker_context]
 symbol = " "
-format = "via [$symbol$context]($style) "
+format = "via $symbol$context "
 
 # Kubernetes
 [kubernetes]
 disabled = false
 symbol = "☸ "
-format = '[$symbol$context( \($namespace\))]($style) '
+format = '$symbol$context( \($namespace\)) '
 
 # AWS
 [aws]
 symbol = " "
-format = '[$symbol($profile )(\($region\) )]($style)'
+format = '$symbol($profile )(\($region\) )'
 
 # 実行時間
 [cmd_duration]
 min_time = 2_000          # 2秒以上のコマンドで表示
-format = "took [$duration]($style) "
+format = "took $duration "
 ```
 
 ### 5.4 Oh My Zsh
@@ -2034,6 +2043,23 @@ chmod +x ~/setup.sh
 
 ---
 
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+
+---
+
 ## まとめ
 
 | 設定 | ファイル | 用途 |
@@ -2061,7 +2087,6 @@ chmod +x ~/setup.sh
 ---
 
 ## 次に読むべきガイド
-→ [[02-man-and-help.md]] — マニュアルとヘルプ
 
 ---
 

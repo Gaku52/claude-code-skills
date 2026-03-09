@@ -20,8 +20,8 @@
 
 | 前提知識 | 参照先 |
 |---------|-------|
-| 変数、参照、値渡し/参照渡しの基礎 | [01-practices/00-naming-conventions.md](../01-practices/00-naming-conventions.md) |
-| オブジェクト指向の基本（クラス、インスタンス） | [00-principles/02-solid.md](../00-principles/02-solid.md) |
+| 変数、参照、値渡し/参照渡しの基礎 | 01-practices/00-naming-conventions.md |
+| オブジェクト指向の基本（クラス、インスタンス） | 00-principles/02-solid.md |
 | 基本的なデータ構造（配列、辞書、ツリー） | `01-cs-fundamentals/data-structures-algorithms` |
 | 関数型プログラミングの基礎概念 | [02-functional-principles.md](./02-functional-principles.md) |
 | マルチスレッドの基本概念（スレッド、ロック） | `01-cs-fundamentals/operating-systems` |
@@ -2140,6 +2140,23 @@ print("全テスト通過！")
 
 ---
 
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+
+---
+
 ## 10. まとめ
 
 | カテゴリ | ポイント |
@@ -2170,7 +2187,7 @@ print("全テスト通過！")
 - [01-composition-over-inheritance.md](./01-composition-over-inheritance.md) -- 継承より合成の原則
 - [02-functional-principles.md](./02-functional-principles.md) -- 関数型プログラミングの原則（純粋関数と不変性の深い関係）
 - [03-api-design.md](./03-api-design.md) -- API設計（不変なリクエスト/レスポンスモデル）
-- [00-principles/02-solid.md](../00-principles/02-solid.md) -- SOLID原則（特にOCPと不変性の関係）
+- 00-principles/02-solid.md -- SOLID原則（特にOCPと不変性の関係）
 - [02-refactoring/00-code-smells.md](../02-refactoring/00-code-smells.md) -- コードの臭い（可変状態の乱用パターン）
 - `design-patterns-guide/docs/03-functional/` -- 関数型デザインパターン
 - `system-design-guide/docs/02-architecture/` -- アーキテクチャパターン（イベントソーシング・CQRS）

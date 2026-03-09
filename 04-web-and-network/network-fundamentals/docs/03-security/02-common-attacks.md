@@ -1877,7 +1877,6 @@ XSS（Cross-Site Scripting）はブラウザ上で悪意あるスクリプトを
 ---
 
 ## 次に読むべきガイド
-→ [[../04-advanced/00-load-balancing.md]] — ロードバランシング
 
 ---
 

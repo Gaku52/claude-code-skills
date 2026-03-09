@@ -4,7 +4,6 @@
 
 ## 前提知識
 
-- [[./00-http-basics.md]] — HTTP基礎（リクエスト/レスポンス、ヘッダー、ステータスコードの仕組み）
 - HTTPヘッダーの理解 — Cache-Control、ETag、Last-Modified、Vary、Ageなどのキャッシュ関連ヘッダー
 
 HTTPキャッシュはHTTPヘッダーによって制御される。特にCache-Controlディレクティブ、条件付きリクエスト（If-None-Match、If-Modified-Since）、Varyヘッダーの意味を理解していることが、キャッシュ戦略を正しく設計する上で不可欠である。
@@ -1947,7 +1946,6 @@ Cloudflareの例:
 
 ## 次に読むべきガイド
 
-- [[./04-cors.md]] — CORS（Cross-Origin Resource Sharing）
 
 ---
 

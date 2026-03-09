@@ -10,7 +10,7 @@
 |---------|-----------|--------|
 | クラスとインタフェース | 基本 | TypeScript / Java / Python の OOP |
 | 依存性注入 (DI) | 基本 | [DI パターン](../../../system-design-guide/docs/02-architecture/01-clean-architecture.md) |
-| 単一責任原則 (SRP) | 基本 | [SOLID 原則](../../solid-guide/docs/00-srp.md) |
+| 単一責任原則 (SRP) | 基本 | SOLID 原則 |
 | モジュール設計 | 基本 | ES Modules / Python packages |
 | async/await | 基本 | JavaScript / Python の非同期処理 |
 
@@ -843,7 +843,7 @@ func (m *Middleware) Use(mw func(http.Handler) http.Handler) {
 
 func (m *Middleware) Apply(handler http.Handler) http.Handler {
     for i := len(m.handlers) - 1; i >= 0; i-- {
-        handler = m.handlers[i](handler)
+        handler = m.handlersi
     }
     return handler
 }
@@ -2772,6 +2772,23 @@ Mobile App
   User Product Order Payment
   Service Service Service Service
 ```
+
+---
+
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
 
 ---
 

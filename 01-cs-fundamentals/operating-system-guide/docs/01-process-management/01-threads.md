@@ -12,6 +12,15 @@
 - [ ] スレッドプールの設計原理とサイジングの考え方を説明できる
 - [ ] 現代の並行性モデル（async/await, アクターモデル, CSP）との関係を理解する
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+- [プロセスの概念と管理](./00-processes.md) の内容を理解していること
+
 ---
 
 ## 1. スレッドの基本概念
@@ -2066,6 +2075,23 @@ CPython（Python の標準実装）には、同時に1つのスレッドしか P
 
 ---
 
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+
+---
+
 ## 14. まとめ
 
 | 概念 | ポイント |
@@ -2083,9 +2109,6 @@ CPython（Python の標準実装）には、同時に1つのスレッドしか P
 
 ## 15. 次に読むべきガイド
 
-- [[02-scheduling.md]] -- CPU スケジューリング（スレッドがどのようにCPU時間を割り当てられるか）
-- [[03-ipc.md]] -- プロセス間通信（スレッド間通信との比較）
-- [[04-synchronization.md]] -- 同期の詳細（バリア、リーダライタ問題、哲学者の食事問題）
 
 ---
 
@@ -2098,3 +2121,16 @@ CPython（Python の標準実装）には、同時に1つのスレッドしか P
 5. Drepper, U. (2003). "The Native POSIX Thread Library for Linux." Red Hat Technical Report. -- Linux NPTL の設計と、1:1 モデルを選択した根拠を記した歴史的文書。
 6. Pike, R. (2012). "Go Concurrency Patterns." Google I/O Talk. -- Go の goroutine と channel を使った CSP パターンの実践的な解説。
 7. Lea, D. (2005). *Concurrent Programming in Java: Design Principles and Patterns* (3rd ed.). Addison-Wesley. -- Java の java.util.concurrent パッケージの設計者による解説。
+
+---
+
+## 次に読むべきガイド
+
+- [CPUスケジューリング](./02-scheduling.md) - 次のトピックへ進む
+
+---
+
+## 参考文献
+
+- [MDN Web Docs](https://developer.mozilla.org/) - Web技術のリファレンス
+- [Wikipedia](https://ja.wikipedia.org/) - 技術概念の概要

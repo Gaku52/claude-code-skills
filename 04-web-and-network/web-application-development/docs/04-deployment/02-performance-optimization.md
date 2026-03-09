@@ -6,9 +6,6 @@
 
 このガイドを最大限に活用するために、以下の知識を事前に習得しておくことを推奨します。
 
-- **環境設定**: デプロイプラットフォームと環境変数の管理 → [[./01-environment-and-config.md]]
-- **ブラウザのレンダリング**: レンダリングパイプライン、Reflow、Repaint → [[../../browser-and-web-platform/docs/01-rendering/00-rendering-pipeline.md]]
-- **HTTPキャッシュ**: Cache-Control、ETag、ブラウザキャッシュの仕組み → [[../../network-fundamentals/docs/02-http/03-caching.md]]
 
 ## この章で学ぶこと
 
@@ -3329,7 +3326,6 @@ const optimized = `${imageUrl}/format=auto,quality=80`;
 ---
 
 ## 次に読むべきガイド
-→ [[03-monitoring-and-error-tracking.md]] -- 監視とエラートラッキング
 
 ---
 

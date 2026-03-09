@@ -20,11 +20,11 @@
 
 | 前提知識 | 参照先 |
 |---------|-------|
-| オブジェクト指向の基本（クラス、継承、ポリモーフィズム） | [00-principles/02-solid.md](../00-principles/02-solid.md) |
-| SOLID原則（特にLSP、OCP、DIP） | [00-principles/02-solid.md](../00-principles/02-solid.md) |
+| オブジェクト指向の基本（クラス、継承、ポリモーフィズム） | 00-principles/02-solid.md |
+| SOLID原則（特にLSP、OCP、DIP） | 00-principles/02-solid.md |
 | インターフェースと抽象クラスの違い | `02-programming/` |
 | デザインパターンの基本概念 | `design-patterns-guide/docs/00-creational/` |
-| 依存性注入（DI）の基礎 | [01-practices/03-dependency-injection.md](../01-practices/03-dependency-injection.md) |
+| 依存性注入（DI）の基礎 | 01-practices/03-dependency-injection.md |
 
 ---
 
@@ -1846,6 +1846,23 @@ print("\n全テスト通過！")
 
 ---
 
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+
+---
+
 ## 9. まとめ
 
 | カテゴリ | ポイント |
@@ -1876,8 +1893,8 @@ print("\n全テスト通過！")
 - [00-immutability.md](./00-immutability.md) -- イミュータビリティの原則（合成と不変データの組み合わせ）
 - [02-functional-principles.md](./02-functional-principles.md) -- 関数型プログラミングの原則（関数の合成）
 - [03-api-design.md](./03-api-design.md) -- API設計（合成的なミドルウェア設計）
-- [00-principles/02-solid.md](../00-principles/02-solid.md) -- SOLID原則（LSP、OCP、DIPと合成の関係）
-- [02-refactoring/01-refactoring-catalog.md](../02-refactoring/01-refactoring-catalog.md) -- リファクタリングカタログ
+- 00-principles/02-solid.md -- SOLID原則（LSP、OCP、DIPと合成の関係）
+- 02-refactoring/01-refactoring-catalog.md -- リファクタリングカタログ
 - `design-patterns-guide/docs/01-structural/` -- 構造パターン（Decorator、Bridge、Composite等）
 - `design-patterns-guide/docs/02-behavioral/` -- 振る舞いパターン（Strategy、State、Observer等）
 

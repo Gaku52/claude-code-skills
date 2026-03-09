@@ -20,45 +20,26 @@
 
 | # | ファイル | 内容 |
 |---|---------|------|
-| 00 | [[docs/00-fundamentals/00-agent-overview.md]] | AI エージェントの定義、歴史、現在のアーキテクチャ |
-| 01 | [[docs/00-fundamentals/01-reasoning-patterns.md]] | ReAct、CoT、Tree of Thought、Plan-and-Execute |
-| 02 | [[docs/00-fundamentals/02-memory-systems.md]] | 短期/長期メモリ、ベクトル DB、会話履歴管理 |
-| 03 | [[docs/00-fundamentals/03-tool-use.md]] | Tool Use、Function Calling、ツール設計原則 |
 
 ### 01-architecture — アーキテクチャ
 
 | # | ファイル | 内容 |
 |---|---------|------|
-| 00 | [[docs/01-architecture/00-single-agent.md]] | シングルエージェント設計、ループ構造、エラー処理 |
-| 01 | [[docs/01-architecture/01-multi-agent.md]] | マルチエージェント、オーケストレーション、協調パターン |
-| 02 | [[docs/01-architecture/02-workflow-agents.md]] | ワークフローエージェント、条件分岐、並列実行 |
-| 03 | [[docs/01-architecture/03-human-in-the-loop.md]] | Human-in-the-Loop、承認フロー、フィードバックループ |
 
 ### 02-tools — ツールとフレームワーク
 
 | # | ファイル | 内容 |
 |---|---------|------|
-| 00 | [[docs/02-tools/00-langchain.md]] | LangChain（Agent/Chain/Tool/Memory）、LangGraph |
-| 01 | [[docs/02-tools/01-anthropic-sdk.md]] | Anthropic SDK、Claude Agent SDK、Tool Use 実装 |
-| 02 | [[docs/02-tools/02-mcp-protocol.md]] | MCP（Model Context Protocol）、サーバー/クライアント |
-| 03 | [[docs/02-tools/03-other-frameworks.md]] | CrewAI、AutoGen、Semantic Kernel、Vercel AI SDK |
 
 ### 03-advanced — 高度なトピック
 
 | # | ファイル | 内容 |
 |---|---------|------|
-| 00 | [[docs/03-advanced/00-rag-agents.md]] | RAG エージェント、動的検索、自己反省型 RAG |
-| 01 | [[docs/03-advanced/01-code-agents.md]] | コード生成エージェント、サンドボックス、テスト実行 |
-| 02 | [[docs/03-advanced/02-browser-agents.md]] | ブラウザ操作エージェント、Playwright、スクレイピング |
-| 03 | [[docs/03-advanced/03-safety-and-guardrails.md]] | エージェント安全性、権限制御、コスト制限、監査 |
 
 ### 04-deployment — デプロイと運用
 
 | # | ファイル | 内容 |
 |---|---------|------|
-| 00 | [[docs/04-deployment/00-production-architecture.md]] | プロダクションアーキテクチャ、スケーリング、キュー |
-| 01 | [[docs/04-deployment/01-evaluation.md]] | エージェント評価、テスト、ベンチマーク、A/B テスト |
-| 02 | [[docs/04-deployment/02-monitoring.md]] | エージェント監視、コスト追跡、LangSmith、Helicone |
 
 ## クイックリファレンス
 

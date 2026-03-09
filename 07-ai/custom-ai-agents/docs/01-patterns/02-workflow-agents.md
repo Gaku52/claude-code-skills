@@ -11,6 +11,15 @@
 5. エラーハンドリング・チェックポイント・リトライ戦略
 6. 本番運用のためのモニタリング・コスト最適化・テスト手法
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+- [マルチエージェント](./01-multi-agent.md) の内容を理解していること
+
 ---
 
 ## 1. ワークフローエージェントとは
@@ -1291,9 +1300,7 @@ class ResilientWorkflowEngine(WorkflowEngine):
 
                 # ノード固有のエラーハンドラー
                 if node.name in self.error_handlers:
-                    should_retry = self.error_handlers[node.name](
-                        error, self.state
-                    )
+                    should_retry = self.error_handlersnode.name
                     if not should_retry:
                         break
 
@@ -1308,7 +1315,7 @@ class ResilientWorkflowEngine(WorkflowEngine):
         # 全リトライ失敗 → フォールバック
         if node.name in self.fallback_handlers:
             logger.info(f"フォールバック実行: {node.name}")
-            return self.fallback_handlers[node.name](self.state)
+            return self.fallback_handlersnode.name
 
         raise RuntimeError(
             f"ノード '{node.name}' が {node.retry_count + 1}回の試行後に失敗"
@@ -2535,6 +2542,23 @@ def generate_detailed_report(state):
 ### Q6: ワークフローエージェントとマイクロサービスの関係は？
 
 ワークフローの各ノードは独立したマイクロサービスとして実装可能。ただし、LLMコールを含むノードはステートレスに設計し、状態は外部ストア（Redis/PostgreSQL）で管理するのがベストプラクティス。Kubernetes上ではArgo Workflowsと組み合わせることも有効。
+
+---
+
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
 
 ---
 

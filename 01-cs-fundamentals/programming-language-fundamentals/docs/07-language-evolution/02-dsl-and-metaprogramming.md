@@ -11,6 +11,15 @@
 - [ ] メタプログラミングの適切な適用範囲と危険性を判断できる
 - [ ] 型安全な DSL の設計パターン（Builder, Phantom Type）を活用できる
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+- [モダン言語の共通機能](./01-modern-language-features.md) の内容を理解していること
+
 ---
 
 ## 1. DSL の基礎理論
@@ -1581,7 +1590,7 @@ def safe_calculate(expression: str) -> float:
         elif isinstance(node, ast.BinOp) and type(node.op) in SAFE_OPERATORS:
             left = eval_node(node.left)
             right = eval_node(node.right)
-            return SAFE_OPERATORS[type(node.op)](left, right)
+            return SAFE_OPERATORStype(node.op)
         else:
             raise ValueError(f"安全でない式: {ast.dump(node)}")
 
@@ -1891,6 +1900,23 @@ let data = json!({
 
 ---
 
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+
+---
+
 ## 12. まとめ
 
 ### 12.1 手法比較の総合表
@@ -1954,8 +1980,6 @@ let data = json!({
 
 ## 次に読むべきガイド
 
-- [[01-modern-language-features.md]] - モダン言語の共通機能
-- [[03-future-of-languages.md]] - プログラミング言語の未来
 
 ---
 

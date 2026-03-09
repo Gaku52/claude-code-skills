@@ -11,6 +11,15 @@
 5. **シークレットスキャン** — ソースコードに埋め込まれた秘密情報の検出
 6. **運用ベストプラクティス** — トリアージ、チューニング、組織的導入戦略
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+- [コンテナセキュリティ](./02-container-security.md) の内容を理解していること
+
 ---
 
 ## 1. SAST と DAST の全体像
@@ -1386,7 +1395,6 @@ paths = [
 regexTarget = "match"
 
 # AWS Access Key
-[[rules]]
 id = "aws-access-key"
 description = "AWS Access Key ID"
 regex = '''AKIA[0-9A-Z]{16}'''
@@ -1394,56 +1402,49 @@ tags = ["aws", "credentials"]
 entropy = 3.5
 
 # AWS Secret Key
-[[rules]]
 id = "aws-secret-key"
 description = "AWS Secret Access Key"
 regex = '''(?i)aws_secret_access_key\s*[:=]\s*['"]?([A-Za-z0-9/+=]{40})['"]?'''
 tags = ["aws", "credentials"]
 
 # Generic API Key
-[[rules]]
 id = "generic-api-key"
 description = "Generic API Key"
 regex = '''(?i)(api[_-]?key|apikey)\s*[:=]\s*['"][a-zA-Z0-9]{20,}['"]'''
 tags = ["api", "generic"]
 
 # GitHub Token
-[[rules]]
 id = "github-token"
 description = "GitHub Personal Access Token"
 regex = '''ghp_[a-zA-Z0-9]{36}'''
 tags = ["github", "token"]
 
 # Slack Webhook
-[[rules]]
 id = "slack-webhook"
 description = "Slack Webhook URL"
 regex = '''https://hooks\.slack\.com/services/T[a-zA-Z0-9]{8}/B[a-zA-Z0-9]{8}/[a-zA-Z0-9]{24}'''
 tags = ["slack", "webhook"]
 
 # Private Key
-[[rules]]
 id = "private-key"
 description = "Private Key"
 regex = '''-----BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----'''
 tags = ["key", "private"]
 
 # JWT
-[[rules]]
 id = "jwt-token"
 description = "JSON Web Token"
 regex = '''eyJ[A-Za-z0-9-_]+\.eyJ[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+'''
 tags = ["jwt", "token"]
 
 # ルール固有の allowlist
-[[rules]]
 id = "generic-password"
 description = "Generic Password"
 regex = '''(?i)(password|passwd|pwd)\s*[:=]\s*['"][^'"]{8,}['"]'''
 tags = ["password"]
 [rules.allowlist]
 regexes = [
-    '''(?i)password\s*[:=]\s*['"](placeholder|example|changeme|xxx|test)['"]''',
+    '''(?i)password\s*[:=]\s*'"['"]''',
 ]
 ```
 
@@ -1933,6 +1934,23 @@ API 間通信 → Contract Testing + DAST
 | HIPAA | 推奨 | 推奨 | 推奨 |
 | ISO 27001 | 推奨 | 推奨 | 推奨 |
 | NIST SP 800-53 | 必須 (SA-11) | 必須 (SA-11) | 必須 (CA-8) |
+
+---
+
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
 
 ---
 

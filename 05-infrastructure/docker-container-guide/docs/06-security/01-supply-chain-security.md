@@ -10,6 +10,15 @@
 4. **VEX (Vulnerability Exploitability eXchange)** -- 脆弱性の影響度判断を SBOM と連携して管理する
 5. **依存関係の安全管理** -- パッケージの改ざん防止、typosquatting 対策、lockfile の重要性
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+- [コンテナセキュリティ (Container Security)](./00-container-security.md) の内容を理解していること
+
 ---
 
 ## 1. サプライチェーンセキュリティの全体像

@@ -40,15 +40,36 @@ function getAllMarkdownFiles(dir) {
   return results;
 }
 
+// ─── コードブロック範囲を取得 ──────────────────────────
+function getCodeBlockRanges(content) {
+  const ranges = [];
+  const pattern = /```[\s\S]*?```/g;
+  let m;
+  while ((m = pattern.exec(content)) !== null) {
+    ranges.push({ start: m.index, end: m.index + m[0].length });
+  }
+  return ranges;
+}
+
+function isInCodeBlock(index, codeRanges) {
+  for (const { start, end } of codeRanges) {
+    if (index >= start && index <= end) return true;
+  }
+  return false;
+}
+
 // ─── リンク抽出 ──────────────────────────────────
 function extractLinks(content, filePath) {
   const links = [];
   const fileDir = path.dirname(filePath);
+  const codeRanges = getCodeBlockRanges(content);
 
   // 1. Markdownリンク: [text](path)
   const mdLinkPattern = /\[([^\]]*)\]\(([^)]+)\)/g;
   let match;
   while ((match = mdLinkPattern.exec(content)) !== null) {
+    // コードブロック内はスキップ
+    if (isInCodeBlock(match.index, codeRanges)) continue;
     const [, text, href] = match;
     // HTTP/HTTPS URLはスキップ
     if (href.match(/^https?:\/\//)) continue;
@@ -56,6 +77,8 @@ function extractLinks(content, filePath) {
     if (href.startsWith('#')) continue;
     // メールリンクはスキップ
     if (href.startsWith('mailto:')) continue;
+    // コード内容っぽいリンクをスキップ（カンマ、スペース、=等を含むhref）
+    if (href.match(/[,=\s]/) && !href.match(/\.md/)) continue;
 
     const cleanPath = href.split('#')[0]; // フラグメント除去
     if (!cleanPath) continue;
@@ -79,7 +102,12 @@ function extractLinks(content, filePath) {
   // 2. Skill間参照: [[skill-name/path]] or [[skill-name/path|display]]
   const skillRefPattern = /\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g;
   while ((match = skillRefPattern.exec(content)) !== null) {
+    if (isInCodeBlock(match.index, codeRanges)) continue;
     const refPath = match[1].trim();
+    // bashの条件式 [[ ... ]] やコード内パターンを除外
+    if (refPath.match(/[\s$"'!<>]/) || refPath.startsWith('-')) continue;
+    // パスらしくない参照を除外（/も.mdも含まない短い文字列）
+    if (!refPath.includes('/') && !refPath.endsWith('.md') && refPath.length < 20) continue;
     const absPath = path.join(SKILLS_ROOT, refPath);
 
     links.push({

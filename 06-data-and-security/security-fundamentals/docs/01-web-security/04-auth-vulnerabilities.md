@@ -14,7 +14,7 @@
 
 - [セキュリティ概要](../00-basics/00-security-overview.md) -- CIA三要素と基本的なセキュリティ概念
 - [脅威モデリング](../00-basics/01-threat-modeling.md) -- 攻撃者の動機とリスク評価手法
-- [認証と認可の違い](../../authentication-and-authorization/docs/00-fundamentals/00-authentication-vs-authorization.md) -- 認証(AuthN)と認可(AuthZ)の基本
+- 認証と認可の違い -- 認証(AuthN)と認可(AuthZ)の基本
 - [暗号基礎](../02-cryptography/00-crypto-basics.md) -- ハッシュ関数と暗号化の基礎
 - HTTP の基本（Cookie、ヘッダ、ステータスコード）を理解していること
 
@@ -1702,10 +1702,10 @@ print(f"新トークンも無効: {result2}")  # None
 - [暗号基礎](../02-cryptography/00-crypto-basics.md) -- ハッシュ関数と暗号化アルゴリズムの詳細
 - [APIセキュリティ](../03-network-security/02-api-security.md) -- OAuth 2.0/JWT を使った API 認証の詳細
 - [セキュアコーディング](../04-application-security/00-secure-coding.md) -- セキュアコーディング全般
-- [パスワードセキュリティ](../../authentication-and-authorization/docs/00-fundamentals/01-password-security.md) -- パスワード管理のさらなる深掘り
-- [多要素認証](../../authentication-and-authorization/docs/00-fundamentals/02-multi-factor-authentication.md) -- MFA 実装の詳細ガイド
-- [セッション vs トークン](../../authentication-and-authorization/docs/00-fundamentals/03-session-vs-token.md) -- セッションとトークンの比較
-- [JWT Deep Dive](../../authentication-and-authorization/docs/02-token-auth/00-jwt-deep-dive.md) -- JWT の詳細な仕組みと攻撃手法
+- パスワードセキュリティ -- パスワード管理のさらなる深掘り
+- 多要素認証 -- MFA 実装の詳細ガイド
+- セッション vs トークン -- セッションとトークンの比較
+- JWT Deep Dive -- JWT の詳細な仕組みと攻撃手法
 
 ---
 

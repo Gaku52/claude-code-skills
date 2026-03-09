@@ -18,8 +18,8 @@
 ## 前提知識
 
 - ブラウザのアーキテクチャ → 参照: [ブラウザアーキテクチャ](./00-browser-architecture.md)
-- DNS解決とHTTP通信の仕組み → 参照: [DNS](../../network-fundamentals/docs/00-introduction/03-dns.md)
-- TCP/TLSハンドシェイク → 参照: [TCP](../../network-fundamentals/docs/01-protocols/00-tcp.md)
+- DNS解決とHTTP通信の仕組み → 参照: DNS
+- TCP/TLSハンドシェイク → 参照: TCP
 
 ---
 

@@ -12,11 +12,11 @@
 
 ## 前提知識
 
-- JWT の構造と署名検証の基本 → [02-token-auth/00-jwt-basics.md](./00-jwt-basics.md)
-- JWT の署名アルゴリズム（HS256/RS256/ES256）→ [02-token-auth/01-jwt-signing.md](./01-jwt-signing.md)
+- JWT の構造と署名検証の基本 → 02-token-auth/00-jwt-basics.md
+- JWT の署名アルゴリズム（HS256/RS256/ES256）→ 02-token-auth/01-jwt-signing.md
 - セッション認証との違い → [01-session-auth/](../01-session-auth/)
 - 認証の基礎概念 → [00-fundamentals/](../00-fundamentals/)
-- セキュリティの基礎知識 → [security-fundamentals: 00-basics/](../../security-fundamentals/docs/00-basics/)
+- セキュリティの基礎知識 → security-fundamentals: 00-basics/
 
 ---
 
@@ -1946,7 +1946,7 @@ RT はサーバー側で必ず DB を参照して検証するため、JWT の「
 
 - [RBAC（ロールベースアクセス制御）](../03-authorization/00-rbac.md) - トークンに含めるロール情報の設計
 - [API 認可](../03-authorization/02-api-authorization.md) - トークンを使った API アクセス制御
-- [セキュリティの基礎](../../security-fundamentals/docs/00-basics/) - 暗号化とハッシュの基礎
+- セキュリティの基礎 - 暗号化とハッシュの基礎
 
 ---
 

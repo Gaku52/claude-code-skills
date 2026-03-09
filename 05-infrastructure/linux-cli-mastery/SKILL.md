@@ -59,12 +59,8 @@ docs/
 ```
 
 ## 前提Skill
-- [[operating-system-guide]] — OS基礎（プロセス、ファイルシステムの概念）
 
 ## 次のステップ
-- [[docker-container-guide]] — Docker・コンテナ
-- [[devops-and-github-actions]] — DevOps
-- [[script-development]] — スクリプト開発
 
 ## 参考文献
 1. Shotts, W. "The Linux Command Line." 2nd Ed, No Starch Press, 2019.

@@ -10,6 +10,15 @@
 4. **テスト設計パターン** — モック、スタブ、フィクスチャ、テスタブルアーキテクチャ
 5. **テスト自動化** — カバレッジ計測、CI 統合、ミューテーションテスト
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+- [Cargo/ワークスペース — features、publish](./00-cargo-workspace.md) の内容を理解していること
+
 ---
 
 ## 1. テスト体系の全体像
@@ -1087,7 +1096,6 @@ criterion_group!(benches, bench_fibonacci, bench_sorting);
 criterion_main!(benches);
 
 // Cargo.toml:
-// [[bench]]
 // name = "sorting_bench"
 // harness = false
 //
@@ -1239,7 +1247,6 @@ criterion_main!(benches);
 ```rust
 // benches/divan_bench.rs
 // Cargo.toml:
-// [[bench]]
 // name = "divan_bench"
 // harness = false
 //
@@ -1722,7 +1729,6 @@ slow-timeout = { period = "120s", terminate-after = 3 }
 [test-groups.serial-db]
 max-threads = 1
 
-[[profile.default.overrides]]
 filter = "test(/db_/)"
 test-group = "serial-db"
 ```

@@ -3893,7 +3893,6 @@ function NavigationDebugger() {
 ---
 
 ## 次に読むべきガイド
-- [[03-auth-and-guards.md]] -- 認証ガード
 
 ---
 

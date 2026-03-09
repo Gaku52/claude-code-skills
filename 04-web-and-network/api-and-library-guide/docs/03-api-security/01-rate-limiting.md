@@ -16,7 +16,7 @@
 ## 前提知識
 
 - API認証パターンの理解 → 参照: [認証パターン](./00-authentication-patterns.md)
-- HTTPステータスコード（429 Too Many Requests等） → 参照: [HTTPの基礎](../../04-web-and-network/network-fundamentals/docs/02-http/00-http-basics.md)
+- HTTPステータスコード（429 Too Many Requests等） → 参照: HTTPの基礎
 - 分散システムの基本概念（複数サーバー環境でのレート制限）
 
 ---

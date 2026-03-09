@@ -16,6 +16,15 @@
 - [ ] カーネルレベルのメモリ管理（sbrk, mmap, SLAB アロケータ）と連携を説明できる
 - [ ] リアルタイムシステムや組み込み環境でのメモリ割り当て制約を理解する
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+- [ページング ── 仮想メモリ・ページテーブル・TLB・ページ置換・スワッピング](./01-paging.md) の内容を理解していること
+
 ---
 
 ## 目次
@@ -1603,7 +1612,7 @@ void demonstrate_smart_pointers() {
 
     // --- unique_ptr + カスタムデリータ ---
     {
-        auto file_deleter = [](FILE* f) {
+        auto file_deleter =  {
             if (f) {
                 std::cout << "Closing file\n";
                 fclose(f);
@@ -2090,6 +2099,23 @@ echo -1000 > /proc/$(pidof my_database)/oom_score_adj
 
 ---
 
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+
+---
+
 ## 13. まとめ
 
 ### 全体概要
@@ -2134,8 +2160,6 @@ echo -1000 > /proc/$(pidof my_database)/oom_score_adj
 
 ## 次に読むべきガイド
 
-- [[../03-file-systems/00-fs-basics.md]] --- ファイルシステムの基礎
-- [[01-virtual-memory.md]] --- 仮想メモリとページング（本章の前提知識を深める）
 
 ---
 
@@ -2161,3 +2185,9 @@ echo -1000 > /proc/$(pidof my_database)/oom_score_adj
 
 10. Masmano, M., Ripoll, I., Crespo, A., & Real, J. "TLSF: A New Dynamic Memory Allocator for Real-Time Systems." 16th Euromicro Conference on Real-Time Systems (ECRTS), 2004. --- TLSF アロケータの原論文。O(1) 保証の割り当てアルゴリズム。
 
+---
+
+## 参考文献
+
+- [MDN Web Docs](https://developer.mozilla.org/) - Web技術のリファレンス
+- [Wikipedia](https://ja.wikipedia.org/) - 技術概念の概要

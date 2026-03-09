@@ -11,6 +11,15 @@
 5. **実務での設計パターン** -- ステートマシン、APIレスポンス、ドメインモデリングへの応用
 6. **パフォーマンスと最適化** -- 判別共用体のランタイム特性とメモリ効率
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+- [TypeScript ビルダーパターン](./01-builder-pattern.md) の内容を理解していること
+
 ---
 
 ## 1. 判別共用体の基礎
@@ -260,7 +269,7 @@ const areaCalculators = {
 } satisfies Record<Shape["type"], (s: any) => number>;
 
 function area(shape: Shape): number {
-  return areaCalculators[shape.type](shape as any);
+  return areaCalculatorsshape.type;
 }
 
 // Pentagon を追加すると、satisfies で
@@ -1427,7 +1436,7 @@ const areaMap: Record<Shape["type"], (s: any) => number> = {
   triangle: (s: Triangle) => (s.base * s.height) / 2,
 };
 function areaMapLookup(shape: Shape): number {
-  return areaMap[shape.type](shape);
+  return areaMapshape.type;
 }
 
 // 結論:
@@ -1883,6 +1892,18 @@ type Shape = Circle | Rect;
 | Visitor パターン | 再帰的な構造の処理を型安全に実装 |
 | イベント駆動 | イベントのペイロードを判別子で型安全に処理 |
 | 型レベル操作 | Extract/Exclude で判別共用体のサブセットを取得 |
+
+---
+
+
+## まとめ
+
+このガイドでは以下の重要なポイントを学びました:
+
+- 基本概念と原則の理解
+- 実践的な実装パターン
+- ベストプラクティスと注意点
+- 実務での活用方法
 
 ---
 

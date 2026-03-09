@@ -15,8 +15,8 @@
 
 ## 前提知識
 
-- HTTP メソッドとステータスコードの基本 → 参照: [HTTPの基礎](../../network-fundamentals/docs/02-http/00-http-basics.md)
-- REST APIの概念 → 参照: [REST API](../../network-fundamentals/docs/02-http/02-rest-api.md)
+- HTTP メソッドとステータスコードの基本 → 参照: HTTPの基礎
+- REST APIの概念 → 参照: REST API
 - JSONフォーマットの基本的な読み書き
 
 ---

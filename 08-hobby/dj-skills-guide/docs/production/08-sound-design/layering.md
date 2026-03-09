@@ -12,6 +12,15 @@
 - EQ戦略とバランス調整
 - 実践的な練習方法
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+- [Genre Sounds（ジャンル別サウンド）](./genre-sounds.md) の内容を理解していること
+
 ---
 
 ## なぜLayeringが重要なのか
@@ -3437,3 +3446,16 @@ Level 4: マスター（3ヶ月以上）
 ```
 
 **次のステップ:** [Modulation Techniques（モジュレーション技術）](./modulation-techniques.md) へ進む
+
+---
+
+## 次に読むべきガイド
+
+- [Modulation Techniques（モジュレーション技術）](./modulation-techniques.md) - 次のトピックへ進む
+
+---
+
+## 参考文献
+
+- [MDN Web Docs](https://developer.mozilla.org/) - Web技術のリファレンス
+- [Wikipedia](https://ja.wikipedia.org/) - 技術概念の概要

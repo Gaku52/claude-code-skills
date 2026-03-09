@@ -12,7 +12,6 @@
 
 ### 前提知識
 
-- HTTP Cookie の基本（→ [[00-session-mechanism.md]]）
 - Node.js / TypeScript の非同期処理
 - Redis の基本操作（GET / SET / DEL / EXPIRE）
 
@@ -1895,6 +1894,23 @@ export const { handlers, auth } = NextAuth({
 
 ---
 
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+
+---
+
 ## まとめ
 
 | 項目 | 推奨 |
@@ -1910,9 +1926,6 @@ export const { handlers, auth } = NextAuth({
 
 ## 次に読むべきガイド
 
-- [[02-csrf-protection.md]] — CSRF 防御
-- [[00-session-mechanism.md]] — セッションの仕組み
-- [[../04-implementation/00-nextauth-setup.md]] — NextAuth.js セットアップ
 
 ---
 

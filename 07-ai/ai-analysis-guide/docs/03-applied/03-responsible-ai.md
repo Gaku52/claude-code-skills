@@ -12,6 +12,15 @@
 4. **AI ガバナンス** — 組織的なポリシー策定、監査、モデルカードによる透明性確保
 5. **安全性 (Safety)** — 有害出力の防止、敵対的攻撃への耐性、ガードレールの実装
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+- [MLOps — 機械学習の本番運用基盤](./02-mlops.md) の内容を理解していること
+
 ---
 
 ## 1. 責任ある AI の全体フレームワーク
@@ -290,7 +299,6 @@ dataset = BinaryLabelDataset(
     df=df,
     label_names=["label"],
     protected_attribute_names=["gender"],
-    privileged_protected_attributes=[[1]],
 )
 
 # データセットレベルのバイアス測定
@@ -421,7 +429,6 @@ def generate_explanation(shap_values, feature_names, sample_idx,
     return explanation
 
 # 使用例
-pred = model.predict(X_test.iloc[[0]])[0]
 explanation = generate_explanation(
     shap_values, X_test.columns.tolist(), 0, pred
 )
@@ -509,7 +516,6 @@ exp = Dice(d, m)
 
 # 「ローン不承認」の顧客に対して
 # 「何を変えれば承認されるか」を生成
-query_instance = df_test.iloc[[rejected_sample_idx]].drop("approved", axis=1)
 
 counterfactuals = exp.generate_counterfactuals(
     query_instance,
@@ -1336,6 +1342,23 @@ print(f"フィルタ後: {result['filtered_text']}")
 3. **第3段階（1ヶ月）**: Fairlearn でグループ別メトリクスを計測
 4. **第4段階（2ヶ月）**: CI/CD に公平性テストを組み込み
 5. **第5段階（3ヶ月）**: 本番でのバイアス監視を開始
+
+---
+
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
 
 ---
 

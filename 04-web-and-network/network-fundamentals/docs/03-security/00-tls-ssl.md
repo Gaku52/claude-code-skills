@@ -5,9 +5,7 @@
 ## 前提知識
 
 このガイドを理解するには以下の知識が必要です:
-- [[../01-protocols/00-tcp.md]] — TCPの3-wayハンドシェイクとコネクション管理
 - 公開鍵暗号の基礎 — RSA/ECDSA等の非対称暗号の仕組み
-- [[../02-http/00-http-basics.md]] — HTTPプロトコルの基本とリクエスト/レスポンス構造
 
 ---
 
@@ -1870,7 +1868,6 @@ $ curl http://example.com/.well-known/acme-challenge/test
 ---
 
 ## 次に読むべきガイド
-→ [[01-authentication.md]] — 認証方式
 
 ---
 

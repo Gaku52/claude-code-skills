@@ -11,6 +11,15 @@
 5. MIDIデータの前処理・後処理テクニック
 6. 実務で使えるAI作曲パイプラインの構築
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+- [音声エフェクト — AI EQ、ノイズ除去、マスタリング](./02-audio-effects.md) の内容を理解していること
+
 ---
 
 ## 1. MIDIの基礎
@@ -744,11 +753,11 @@ class MusicTransformerV2(nn.Module):
 
         for layer in self.layers:
             # Self-Attention with relative position
-            h_norm = layer['norm1'](h)
-            h = h + layer['attention'](h_norm, mask=mask)
+            h_norm = layer'norm1'
+            h = h + layer'attention'
             # Feed-Forward
-            h_norm = layer['norm2'](h)
-            h = h + layer['ffn'](h_norm)
+            h_norm = layer'norm2'
+            h = h + layer'ffn'
 
         return self.output_proj(h)
 ```
@@ -2220,6 +2229,23 @@ MIDI前処理の重要ポイントは以下の通りです。(1) 分解能の統
 ### Q6: 学習データに適したMIDIデータセットはどこで入手できますか？
 
 主要なMIDIデータセットは以下の通りです。(1) Lakh MIDI Dataset: 約17万曲の大規模データセット。ジャンルが多様で研究用途に最適。(2) MAESTRO: Google Magentaが公開するピアノ演奏データセット。高品質なパフォーマンスMIDI。(3) GiantMIDI-Piano: 約1万曲のクラシックピアノ曲。(4) ADL Piano MIDI: 約11,000曲のポップス/ロックのピアノMIDI。(5) MusicNet: アノテーション付きの音楽データセット。ライセンスは各データセットごとに異なるため、商用利用時は必ず確認してください。
+
+---
+
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
 
 ---
 

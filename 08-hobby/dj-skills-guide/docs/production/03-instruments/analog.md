@@ -13,6 +13,14 @@
 - アナログパッドの作り方
 - ビンテージリードの作り方
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+
 ---
 
 ## なぜAnalogが重要なのか
@@ -2816,3 +2824,16 @@ Saw + Square, Cutoff 800 Hz, Unison Off
 ---
 
 **次は:** [Sampler](./sampler.md) - サンプルを自在に操る
+
+---
+
+## 次に読むべきガイド
+
+- [Drum Rack](./drum-rack.md) - 次のトピックへ進む
+
+---
+
+## 参考文献
+
+- [MDN Web Docs](https://developer.mozilla.org/) - Web技術のリファレンス
+- [Wikipedia](https://ja.wikipedia.org/) - 技術概念の概要

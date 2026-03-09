@@ -11,6 +11,15 @@
 5. **GCP Cloud Run / Firebase Hosting** — Google Cloud のマネージドサービスを利用した効率的なデプロイ
 6. **マルチクラウド戦略** — 複数のクラウドプロバイダを組み合わせた最適なアーキテクチャ設計
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+- [デプロイ戦略](./00-deployment-strategies.md) の内容を理解していること
+
 ---
 
 ## 1. クラウドデプロイの全体像
@@ -1094,16 +1103,13 @@ compatibility_date = "2024-09-25"
 [placement]
 mode = "smart"  # スマート配置でレイテンシ最適化
 
-[[kv_namespaces]]
 binding = "KV_STORE"
 id = "abc123"
 
-[[d1_databases]]
 binding = "DB"
 database_name = "my-app-db"
 database_id = "def456"
 
-[[r2_buckets]]
 binding = "R2_BUCKET"
 bucket_name = "my-assets"
 
@@ -1264,7 +1270,6 @@ async function handleCounter(
 ### 6.5 Cloudflare Pages + Functions
 
 ```typescript
-// functions/api/[[route]].ts — Cloudflare Pages Functions
 import { Hono } from 'hono';
 
 type Bindings = {
@@ -2264,6 +2269,23 @@ EKS が適している:
   - 高度なトラフィック制御（Service Mesh）が必要
   - チームに Kubernetes の知見がある
 ```
+
+---
+
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
 
 ---
 

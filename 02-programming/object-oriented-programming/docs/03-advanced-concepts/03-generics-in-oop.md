@@ -10,6 +10,15 @@
 - [ ] 高度なジェネリクスパターン（高カインド型、型レベルプログラミング）を知る
 - [ ] 実務でジェネリクスを適切に活用する設計判断ができるようになる
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+- [ミックスインと多重継承](./02-mixins-and-multiple-inheritance.md) の内容を理解していること
+
 ---
 
 ## 1. ジェネリクスの基本
@@ -225,7 +234,7 @@ class Pair[T, U]:
         self.first = first
         self.second = second
 
-    def map_first[V](self, f: Callable[[T], V]) -> 'Pair[V, U]':
+    def map_firstV -> 'Pair[V, U]':
         return Pair(f(self.first), self.second)
 
 # 型ヒントによる静的チェック（mypyなど）
@@ -978,8 +987,8 @@ public:
         data[size_++] = value;
     }
 
-    T& operator[](size_t index) { return data[index]; }
-    const T& operator[](size_t index) const { return data[index]; }
+    T& operator { return data[index]; }
+    const T& operator const { return data[index]; }
     size_t size() const { return size_; }
 
     ~Vector() { delete[] data; }
@@ -1755,6 +1764,23 @@ function process<T extends HasGetUsers>(service: T): void {
 
 ---
 
+
+## FAQ
+
+### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+
+実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+
+### Q2: 初心者がよく陥る間違いは何ですか？
+
+基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+
+### Q3: 実務ではどのように活用されていますか？
+
+このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+
+---
+
 ## まとめ
 
 | 概念 | ポイント |
@@ -1785,7 +1811,6 @@ function process<T extends HasGetUsers>(service: T): void {
 ---
 
 ## 次に読むべきガイド
-→ [[../04-practical-patterns/00-creational-patterns.md]] — 生成パターン
 
 ---
 

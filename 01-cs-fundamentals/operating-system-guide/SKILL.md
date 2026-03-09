@@ -57,12 +57,8 @@ docs/
 ```
 
 ## 前提Skill
-- [[computer-science-fundamentals]] — CS基礎（ハードウェア、データ表現）
 
 ## 次のステップ
-- [[linux-cli-mastery]] — Linux CLI実践
-- [[docker-container-guide]] — Docker・コンテナ
-- [[security-fundamentals]] — セキュリティ基礎
 
 ## 参考文献
 1. Silberschatz, A. et al. "Operating System Concepts." 10th Ed, Wiley, 2018.

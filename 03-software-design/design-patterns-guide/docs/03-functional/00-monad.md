@@ -949,7 +949,6 @@ console.log(`(1,1) から3手で到達可能: ${knightReachableIn3([1, 1]).lengt
 // Python:  [(x, y) for x in range(1,4) for y in range(1,4) if x != y]
 const pairs = [1, 2, 3]
   .flatMap(x => [1, 2, 3]
-    .flatMap(y => x !== y ? [[x, y]] : [])
   );
 console.log(pairs); // [[1,2],[1,3],[2,1],[2,3],[3,1],[3,2]]
 

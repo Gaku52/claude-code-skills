@@ -18,7 +18,7 @@
 
 - GraphQLの基礎（Query, Mutation, Schema） → 参照: [GraphQL基礎](./01-graphql-fundamentals.md)
 - REST APIの設計原則 → 参照: [REST Best Practices](./00-rest-best-practices.md)
-- TypeScriptの型システム → 参照: [TypeScript Complete Guide](../../../02-programming/typescript-complete-guide/docs/)
+- TypeScriptの型システム → 参照: TypeScript Complete Guide
 
 ---
 

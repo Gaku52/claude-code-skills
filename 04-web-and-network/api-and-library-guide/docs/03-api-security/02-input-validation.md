@@ -17,7 +17,7 @@
 
 - API認証パターンの理解 → 参照: [認証パターン](./00-authentication-patterns.md)
 - レート制限の概念 → 参照: [レート制限](./01-rate-limiting.md)
-- SQLインジェクション・XSSなどのセキュリティ脅威 → 参照: [セキュリティ基礎](../../06-data-and-security/security-fundamentals/docs/)
+- SQLインジェクション・XSSなどのセキュリティ脅威 → 参照: セキュリティ基礎
 
 ---
 
@@ -2546,7 +2546,7 @@ GraphQL はスキーマ定義によって型レベルのバリデーションを
 
 ## 次に読むべきガイド
 
-- [APIテスト](../../02-api-basics/00-api-testing.md)
+- APIテスト
 - [認証](./00-authentication-patterns.md)
 - [レート制限](./01-rate-limiting.md)
 

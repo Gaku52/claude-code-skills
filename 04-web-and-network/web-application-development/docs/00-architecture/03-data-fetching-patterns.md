@@ -3179,9 +3179,6 @@ Next.js App Routerを使用する場合、Server Componentsでの直接データ
 ---
 
 ## 次に読むべきガイド
-- [[00-state-management-overview.md]] -- 状態管理概論
-- [[01-rendering-patterns.md]] -- レンダリングパターン（SSR/SSG/ISR）
-- [[02-component-architecture.md]] -- コンポーネントアーキテクチャ
 
 ---
 

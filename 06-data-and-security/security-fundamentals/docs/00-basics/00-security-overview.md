@@ -14,7 +14,7 @@
 - プログラミングの基礎（Python の基本構文が読めること）
 - ネットワークの基礎（HTTP、TCP/IP の概要）
 - [../01-web-security/00-owasp-top10.md](../01-web-security/00-owasp-top10.md) -- OWASP Top 10（本章を読了後に推奨）
-- [../../authentication-and-authorization/docs/00-fundamentals/](../../authentication-and-authorization/docs/00-fundamentals/) -- 認証・認可の基礎（関連知識）
+- [../../../authentication-and-authorization/docs/00-fundamentals/](../../../authentication-and-authorization/docs/00-fundamentals/) -- 認証・認可の基礎（関連知識）
 
 ---
 
@@ -1546,7 +1546,7 @@ ALE = SLE(単一損失予測額) x ARO(年間発生率)
 - [01-threat-modeling.md](./01-threat-modeling.md) -- STRIDE、DREAD、アタックツリーを用いた脅威モデリングの詳細
 - [02-security-principles.md](./02-security-principles.md) -- 最小権限、ゼロトラスト、セキュアバイデフォルト等の設計原則
 - [../01-web-security/00-owasp-top10.md](../01-web-security/00-owasp-top10.md) -- Webセキュリティの具体的な脆弱性と対策
-- [../../authentication-and-authorization/docs/00-fundamentals/](../../authentication-and-authorization/docs/00-fundamentals/) -- 認証・認可の基礎（CIA三原則の機密性に直結）
+- [../../../authentication-and-authorization/docs/00-fundamentals/](../../../authentication-and-authorization/docs/00-fundamentals/) -- 認証・認可の基礎（CIA三原則の機密性に直結）
 - [../02-cryptography/](../02-cryptography/) -- 暗号技術の詳細（CIA三原則の機密性・完全性の実装手段）
 
 ---

@@ -11,6 +11,15 @@
 - フォルダ構造の最適化
 - バックアップ戦略
 
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+- [環境設定（Preferences）](./preferences-settings.md) の内容を理解していること
+
 ---
 
 ## なぜプロジェクト設定が重要なのか
@@ -3082,3 +3091,16 @@ Ableton Live内で動作するカスタムデバイス
 ---
 
 **次は:** [環境設定](./preferences-settings.md) - Preferences完全ガイド
+
+---
+
+## 次に読むべきガイド
+
+- [Session View vs Arrangement View](./session-vs-arrangement.md) - 次のトピックへ進む
+
+---
+
+## 参考文献
+
+- [MDN Web Docs](https://developer.mozilla.org/) - Web技術のリファレンス
+- [Wikipedia](https://ja.wikipedia.org/) - 技術概念の概要
