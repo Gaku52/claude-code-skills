@@ -1753,12 +1753,12 @@ CORS + CDN の問題:
 
 ## 前提知識
 
-本ガイドを読む前に、以下の知識があると理解がスムーズになる。
+このガイドを読む前に、以下の知識があると理解が深まります:
 
-- **ロードバランシングの基礎**: L4/L7 ロードバランサーの動作原理、分散アルゴリズム、ヘルスチェックの設計を理解していること。詳細は [ロードバランシング](./00-load-balancing.md) を参照
-- **HTTP キャッシング**: `Cache-Control`, `ETag`, `Last-Modified` などのキャッシュ関連ヘッダーの役割と挙動を理解していること。詳細は [HTTP キャッシング](../02-http/03-caching.md) を参照
-- **DNS の仕組み**: DNS ベースルーティング、Anycast、CNAME の概念を把握していること。詳細は [DNS](../00-introduction/03-dns.md) を参照
-- **JavaScript の基本**: Edge Computing のコード例を理解するために、非同期処理（async/await）、Promise、Fetch API の知識があると望ましい
+- [ロードバランシング](./00-load-balancing.md) — L4/L7ロードバランサーの動作原理、分散アルゴリズム、ヘルスチェックの設計
+- [HTTPキャッシング](../02-http/03-caching.md) — Cache-Control、ETag、Last-Modifiedなどのキャッシュ関連ヘッダーの役割と挙動
+- [DNS](../00-introduction/03-dns.md) — DNSベースルーティング、Anycast、CNAMEの概念
+- [TLS/SSL](../03-security/00-tls-ssl.md) — TLS終端、証明書管理、HTTPS通信の基礎
 
 ---
 

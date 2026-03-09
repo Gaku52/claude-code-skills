@@ -4,8 +4,11 @@
 
 ## 前提知識
 
-- [[./00-http-basics.md]] — HTTP基礎（リクエスト/レスポンス、ヘッダー、ステータスコードの仕組み）
-- [[../../browser-and-web-platform/docs/00-browser-engine/03-browser-security-model.md]] — ブラウザのセキュリティモデル（Same-Origin Policy、サンドボックス、セキュリティ境界）
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- [HTTP基礎](./00-http-basics.md) — リクエスト/レスポンス、ヘッダー、ステータスコードの仕組み
+- [ブラウザのセキュリティモデル](../../browser-and-web-platform/docs/00-browser-engine/03-browser-security-model.md) — Same-Origin Policy、サンドボックス、セキュリティ境界
+- [TLS/SSL](../03-security/00-tls-ssl.md) — HTTPS通信の暗号化と証明書の基礎
 
 CORSは同一オリジンポリシー（Same-Origin Policy）という根本的なWebセキュリティ機構を理解していないと本質を掴めない。ブラウザがなぜクロスオリジンリクエストを制限するのか、どのような攻撃を防いでいるのかを知ることで、CORSの設計意図と正しい設定方法が明確になる。
 
@@ -1690,8 +1693,9 @@ Cookieの設定（クロスオリジンで送信する場合）:
 
 ## 次に読むべきガイド
 
-- [[../03-security/00-tls-ssl.md]] — TLS/SSL（HTTPS、証明書、暗号化）
-- [[../03-security/01-web-security-fundamentals.md]] — Webセキュリティの基礎（XSS、CSRF、CSP）
+- [TLS/SSL](../03-security/00-tls-ssl.md) - HTTPS通信の暗号化、証明書、暗号スイートの仕組みを学ぶ
+- [認証方式](../03-security/01-authentication.md) - OAuth 2.0、JWT、セッション管理などCredentials付きCORSに必要な認証の基礎を学ぶ
+- [ネットワーク攻撃と対策](../03-security/02-common-attacks.md) - CORS設定の不備を悪用する攻撃パターンと防御策を学ぶ
 
 ---
 

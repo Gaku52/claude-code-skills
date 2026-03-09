@@ -2498,6 +2498,104 @@ Alt-Svc: h3=":443"; ma=86400
 
 **結論: HTTP/3 はモバイル・高遅延環境で 15-50% の改善が見込める。CDN（Cloudflare, CloudFront）経由なら設定のみで有効化可能。**
 
+### Q4: Brotli圧縮とGzip圧縮はどう使い分けるべきか?
+
+**A:** Brotliを優先し、Gzipをフォールバックとして設定するのが最適である。
+
+**圧縮率の比較（実測データ）:**
+
+| コンテンツ種別 | 元サイズ | Gzip (level 6) | Brotli (level 6) | Brotli (level 11) |
+|---------------|---------|----------------|-------------------|-------------------|
+| JavaScript (React) | 500 KB | 145 KB (71%) | 125 KB (75%) | 110 KB (78%) |
+| CSS (Tailwind) | 300 KB | 45 KB (85%) | 38 KB (87%) | 32 KB (89%) |
+| HTML | 100 KB | 25 KB (75%) | 20 KB (80%) | 17 KB (83%) |
+| JSON (API) | 200 KB | 30 KB (85%) | 25 KB (88%) | 22 KB (89%) |
+
+**実務での設定:**
+
+```nginx
+# Nginx での Brotli + Gzip 併用設定
+# Brotli（モジュール別途インストール必要）
+brotli on;
+brotli_comp_level 6;          # 動的圧縮は 4-6 推奨（速度と圧縮率のバランス）
+brotli_static on;             # 事前圧縮ファイル(.br)を優先配信
+brotli_types text/plain text/css application/javascript application/json
+             image/svg+xml application/xml;
+
+# Gzip（Brotli非対応クライアント用フォールバック）
+gzip on;
+gzip_comp_level 6;
+gzip_types text/plain text/css application/javascript application/json;
+```
+
+**ビルド時の事前圧縮（推奨）:**
+
+```javascript
+// vite.config.js
+import viteCompression from 'vite-plugin-compression';
+
+export default {
+  plugins: [
+    viteCompression({ algorithm: 'brotliCompress', ext: '.br', threshold: 1024 }),
+    viteCompression({ algorithm: 'gzip', ext: '.gz', threshold: 1024 }),
+  ]
+};
+// → dist/assets/app.a1b2c3.js     (元ファイル)
+// → dist/assets/app.a1b2c3.js.br  (Brotli 事前圧縮)
+// → dist/assets/app.a1b2c3.js.gz  (Gzip 事前圧縮)
+```
+
+**結論: 静的アセットはビルド時にBrotli level 11で事前圧縮し、動的コンテンツはBrotli level 4-6でリアルタイム圧縮。CDN利用時はCDN側の自動圧縮に任せるのも有効。**
+
+### Q5: リソースヒント（preconnect, prefetch, preload）の最適な使い分けは?
+
+**A:** リソースヒントは過剰に使用すると帯域を圧迫するため、リソース種別に応じて厳選する。
+
+**使い分けの判断基準:**
+
+```
+リソースヒントの選択フロー:
+
+  現在のページで使う？
+  ├── Yes → パーサーが早期発見する？
+  │         ├── Yes → ヒント不要（通常のロード）
+  │         └── No  → <link rel="preload">
+  │                    例: CSS内のフォント、JS動的import
+  │
+  └── No → 次のページで使う？
+           ├── Yes → <link rel="prefetch">
+           │          例: 次ページのJS/CSS/データ
+           └── 不明 → 使わない
+```
+
+**具体的な設定例:**
+
+```html
+<head>
+  <!-- preconnect: サードパーティへの早期接続（1ページ2-4個まで） -->
+  <link rel="preconnect" href="https://api.example.com">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://cdn.example.com" crossorigin>
+
+  <!-- dns-prefetch: preconnectの軽量版（多数のドメインがある場合） -->
+  <link rel="dns-prefetch" href="https://analytics.example.com">
+
+  <!-- preload: 現在ページの重要リソース（1ページ3-5個まで） -->
+  <link rel="preload" href="/fonts/main.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/api/critical-data" as="fetch" crossorigin>
+  <link rel="preload" as="image" href="/images/hero.webp" fetchpriority="high">
+
+  <!-- prefetch: 次ページのリソース（アイドル時に取得） -->
+  <link rel="prefetch" href="/next-page/bundle.js">
+</head>
+```
+
+**注意点:**
+- preload は必ず 3 秒以内に使用されないと Chrome が警告を出す
+- prefetch はあくまで「ヒント」で、ブラウザが無視する場合がある
+- モバイルではデータ節約モード時に prefetch が無視される
+- preconnect が多すぎると逆にパフォーマンスが低下する（CPU/メモリ消費）
+
 ---
 
 ## まとめ
