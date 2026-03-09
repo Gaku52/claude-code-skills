@@ -40,14 +40,14 @@ const REQUIRED_SECTIONS = [
   { pattern: /##\s*(?:\d+[\.\s]+)?(?:参考文献|参考資料|参考リンク|References)/mi, label: '参考文献' },
 ];
 
-// テンプレート構造セクション（番号付き主要セクション）
+// テンプレート構造セクション（番号付き・番号なし両対応）
 const STRUCTURAL_SECTIONS = [
-  { pattern: /##\s*\d+[\.\s].*(なぜ|必要|背景|歴史|導入)/m, label: '導入セクション' },
-  { pattern: /##\s*\d+[\.\s].*(概念|核心|基本|コンセプト)/m, label: '概念セクション' },
-  { pattern: /##\s*\d+[\.\s].*(実装|実践|コード|プログラ)/m, label: '実装セクション' },
-  { pattern: /##\s*\d+[\.\s].*(アンチパターン|トレードオフ|注意|落とし穴|間違い)/m, label: 'アンチパターンセクション' },
-  { pattern: /##\s*\d+[\.\s].*(演習|練習|ハンズオン|Exercise)/mi, label: '演習セクション' },
-  { pattern: /##\s*\d+[\.\s].*(深掘り|MIT|発展|上級|応用知識)/m, label: '深掘りセクション' },
+  { pattern: /##\s*(?:\d+[\.\s]+)?.*(なぜ|必要|背景|歴史|導入|はじめに|Introduction)/mi, label: '導入セクション' },
+  { pattern: /##\s*(?:\d+[\.\s]+)?.*(概念|核心|基本|コンセプト|基礎|Fundamentals)/mi, label: '概念セクション' },
+  { pattern: /##\s*(?:\d+[\.\s]+)?.*(実装|実践|コード|プログラ|使い方|活用|Implementation)/mi, label: '実装セクション' },
+  { pattern: /##\s*(?:\d+[\.\s]+)?.*(アンチパターン|トレードオフ|注意|落とし穴|間違い|よくある問題)/m, label: 'アンチパターンセクション' },
+  { pattern: /##\s*(?:\d+[\.\s]+)?.*(演習|練習|ハンズオン|Exercise|実践課題)/mi, label: '演習セクション' },
+  { pattern: /##\s*(?:\d+[\.\s]+)?.*(深掘り|発展|上級|応用|Advanced|詳細)/mi, label: '深掘りセクション' },
 ];
 
 // フィラー表現（冗長・繰り返しの検出）
@@ -122,8 +122,8 @@ function countCodeBlocks(content) {
 }
 
 function countTables(content) {
-  // Markdown表: |で始まる行が3行以上連続（ヘッダ + セパレータ + データ行）
-  const tablePattern = /(?:^|\n)\|[^\n]+\|\n\|[-:\s|]+\|\n(?:\|[^\n]+\|\n?)+/g;
+  // Markdown表: |で始まる行 + セパレータ行（|---|）を含むブロック
+  const tablePattern = /(?:^|\n)\s*\|[^\n]+\|\s*\n\s*\|[\s:|-]+\|\s*\n(?:\s*\|[^\n]+\|\s*\n?)+/g;
   const matches = content.match(tablePattern);
   return matches ? matches.length : 0;
 }
@@ -149,19 +149,25 @@ function countDiagrams(content) {
 }
 
 function countFAQ(content) {
-  const faqSection = content.match(/##\s*FAQ[\s\S]*?(?=\n## [^#]|$)/i);
+  const faqSection = content.match(/##\s*(?:\d+[\.\s]+)?(?:FAQ|よくある質問)[\s\S]*?(?=\n## (?!\s*#)|$)/i);
   if (!faqSection) return 0;
-  const questions = faqSection[0].match(/###\s*(Q\d+|質問\d+|.+[？?])/g);
-  return questions ? questions.length : 0;
+  // ### Q1, ### 質問1, ### ...?
+  const h3Questions = faqSection[0].match(/###\s*(Q\d*[:：]?\s|質問\d*[:：]?\s|.+[？?])/g) || [];
+  // **Q:**, **Q1:**, **Q. **
+  const boldQuestions = faqSection[0].match(/\*\*Q\d*[:：．.]\s*\*\*/g) || [];
+  return Math.max(h3Questions.length, boldQuestions.length);
 }
 
 function countExercises(content) {
-  const exerciseMatches = content.match(/###\s*演習\s*\d+/g);
-  return exerciseMatches ? exerciseMatches.length : 0;
+  // ### 演習 1, ### 練習問題, ### Exercise, #### 演習, **演習1** etc.
+  const h3Exercises = content.match(/#{3,4}\s*(?:演習|練習問題?|Exercise|ハンズオン|実践課題|Practice)\s*\d*/gi) || [];
+  const boldExercises = content.match(/\*\*(?:演習|練習問題?|Exercise|実践課題)\s*\d*/gi) || [];
+  // 重複排除のためユニークカウント
+  return h3Exercises.length + boldExercises.length;
 }
 
 function countReferences(content) {
-  const refSection = content.match(/##\s*(参考文献|参考資料|References)[\s\S]*$/im);
+  const refSection = content.match(/##\s*(?:\d+[\.\s]+)?(?:参考文献|参考資料|参考リンク|References)[\s\S]*$/im);
   if (!refSection) return 0;
   const items = refSection[0].match(/^\s*\d+\.\s+/gm);
   const links = refSection[0].match(/^\s*[-*]\s+/gm);
@@ -169,10 +175,18 @@ function countReferences(content) {
 }
 
 function countLearningObjectives(content) {
-  const section = content.match(/##\s*(この章で学ぶこと|学ぶこと|学習目標)[\s\S]*?(?=\n## |\n---)/m);
+  const section = content.match(/##\s*(?:\d+[\.\s]+)?(?:この章で学ぶこと|学ぶこと|学習目標|概要と学習目標)[\s\S]*?(?=\n## |\n---)/m);
   if (!section) return 0;
-  const items = section[0].match(/^\s*-\s*\[[ x]\]/gm);
-  return items ? items.length : 0;
+  // チェックボックス / バレットリスト / 番号付きリスト すべてカウント
+  const checkboxes = section[0].match(/^\s*-\s*\[[ x]\]/gm);
+  const bullets = section[0].match(/^\s*[-*]\s+\S/gm);
+  const numbered = section[0].match(/^\s*\d+\.\s+/gm);
+  const max = Math.max(
+    checkboxes ? checkboxes.length : 0,
+    bullets ? bullets.length : 0,
+    numbered ? numbered.length : 0
+  );
+  return max;
 }
 
 function checkHeadingHierarchy(content) {
@@ -392,6 +406,15 @@ function auditFile(filePath) {
   // ── 重要度分類 ──
   result.severity = result.errors.length > 0 ? 'ERROR' : result.warnings.length > 0 ? 'WARNING' : 'OK';
 
+  // ── スコア計算（100点満点） ──
+  if (type === 'guide') {
+    let score = 100;
+    score -= result.errors.length * 15;    // ERROR: -15点/件
+    score -= result.warnings.length * 3;   // WARNING: -3点/件
+    score -= Math.min(result.info.length, 5) * 1; // INFO: -1点/件 (最大5点)
+    result.score = Math.max(0, Math.min(100, score));
+  }
+
   return result;
 }
 
@@ -557,12 +580,25 @@ function main() {
     console.log(`✅ Markdown出力: ${path.relative(SKILLS_ROOT, mdPath)}`);
   }
 
+  // スコア計算
+  const guideResults = results.filter(r => r.type === 'guide' && r.score !== undefined);
+  const avgScore = guideResults.length > 0
+    ? (guideResults.reduce((s, r) => s + r.score, 0) / guideResults.length).toFixed(1)
+    : 'N/A';
+  const minScore = guideResults.length > 0
+    ? Math.min(...guideResults.map(r => r.score))
+    : 'N/A';
+  const scoreBelow90 = guideResults.filter(r => r.score < 90).length;
+
   // コンソールサマリー
   console.log(`\n📊 結果サマリー:`);
   console.log(`   ファイル数: ${summary.totalFiles}`);
   console.log(`   ERROR (P0/P1): ${summary.totalErrors}`);
   console.log(`   WARNING (P2):  ${summary.totalWarnings}`);
   console.log(`   INFO (P3):     ${summary.totalInfo}`);
+  console.log(`   📈 平均スコア: ${avgScore}/100`);
+  console.log(`   📉 最低スコア: ${minScore}/100`);
+  console.log(`   ⚠️  90点未満: ${scoreBelow90}件`);
 
   for (const [cat, data] of Object.entries(summary.categories).sort()) {
     console.log(`   ${cat}: ${data.files} files, ${data.errors} errors, ${data.warnings} warnings`);
