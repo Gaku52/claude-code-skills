@@ -14,6 +14,14 @@
 
 ---
 
+## 前提知識
+
+- V8エンジンの内部構造 → 参照: [V8エンジン](./00-v8-engine.md)
+- Web Workers → 参照: [Web Workers](./02-web-workers.md)
+- ガベージコレクションの基本概念
+
+---
+
 ## 1. JavaScriptのメモリモデル
 
 ### 1.1 スタックとヒープの二層構造
@@ -2019,6 +2027,409 @@ worker.postMessage({ type: "process", buffer: buffer }, [buffer]);
 // → メモリの複製が発生しない
 ```
 
+### Q6: メモリリークを検出する方法は？（Chrome DevTools）
+
+Chrome DevTools の Memory パネルを使った体系的なメモリリーク検出手順:
+
+**ステップ1: ベースラインの取得**
+1. ページをリロードして初期状態にする
+2. Memory パネル → Heap snapshot を撮影 (Snapshot 1)
+
+**ステップ2: 操作の実行**
+3. リークが疑われる操作を実行（例: モーダルを開いて閉じる、ページ遷移、データ読み込み）
+4. 操作を繰り返す（5〜10回程度）
+
+**ステップ3: 比較分析**
+5. もう一度 Heap snapshot を撮影 (Snapshot 2)
+6. Snapshot 2 を選択し、表示モードを "Comparison" に変更
+7. "Objects allocated between Snapshot 1 and Snapshot 2" を確認
+
+**ステップ4: リークの特定**
+```
+Comparison ビューの見方:
+- New: 新しく作成されたオブジェクト数
+- Deleted: 削除されたオブジェクト数
+- Delta: New - Deleted (正の値が大きいとリークの可能性)
+- Size Delta: メモリ増加量
+```
+
+リークの典型的な兆候:
+- Delta が大きく正の値のまま推移する
+- Detached HTMLDivElement などの DOM ノードが残存
+- Array や Object が際限なく増加している
+
+**ステップ5: Retainers パスの分析**
+8. 増加しているオブジェクトを選択
+9. "Retainers" パネルで、GC ルートからの参照チェーンを確認
+10. 意図しない参照を特定して修正
+
+```javascript
+// 検出例: イベントリスナーの解除忘れ
+class ComponentWithLeak {
+  constructor() {
+    this.data = new Array(10000).fill(0);
+    // 問題: removeEventListener していない
+    window.addEventListener('resize', this.handleResize.bind(this));
+  }
+  handleResize() { /* ... */ }
+}
+
+// Heap Snapshot の Retainers:
+// GC root → Window → listeners → resize → Function → ComponentWithLeak → data
+//                                                       ^^^^^^^^^^^^^^^^
+//                                                       ここでリークが発生
+```
+
+### Q7: クロージャによるメモリリークを防ぐには？
+
+クロージャは便利だが、不要な外部変数をキャプチャし続けるとメモリリークの原因になる。
+
+**問題パターン1: 大きなオブジェクトを不要にキャプチャ**
+```javascript
+function createProcessor() {
+  const hugeData = new Array(1000000).fill(Math.random()); // 8MB
+  const metadata = { size: hugeData.length, created: Date.now() };
+
+  // 問題: metadata だけ使いたいのに、hugeData も一緒にキャプチャされる
+  return function() {
+    console.log(`Processed ${metadata.size} items`);
+  };
+}
+
+const process = createProcessor();
+// → hugeData は関数スコープ内で定義されているため、
+//   返された関数がクロージャとしてキャプチャし続ける
+//   (process が生きている限り 8MB が解放されない)
+```
+
+**解決策1: 必要な値だけを抽出**
+```javascript
+function createProcessor() {
+  const hugeData = new Array(1000000).fill(Math.random());
+  const size = hugeData.length; // プリミティブ値を抽出
+  const created = Date.now();
+
+  // hugeData はここでスコープを抜けるので GC 対象になる
+
+  return function() {
+    console.log(`Processed ${size} items at ${created}`);
+  };
+  // → クロージャは size と created だけをキャプチャ (16バイト程度)
+}
+```
+
+**問題パターン2: イベントハンドラでの this キャプチャ**
+```javascript
+class DataGrid {
+  constructor(data) {
+    this.data = data; // 大量のデータ
+    this.renderCache = new Map();
+
+    // 問題: アロー関数で this を暗黙的にキャプチャ
+    document.getElementById('refresh-btn').addEventListener('click', () => {
+      this.refresh(); // this.data も一緒にキャプチャされる
+    });
+  }
+
+  refresh() {
+    this.renderCache.clear();
+    // ... 再描画処理
+  }
+
+  destroy() {
+    // 問題: イベントリスナーが解除されていない
+    // → this (と this.data) が解放されない
+  }
+}
+```
+
+**解決策2: 明示的なクリーンアップ**
+```javascript
+class DataGrid {
+  constructor(data) {
+    this.data = data;
+    this.renderCache = new Map();
+
+    // 解決策: ハンドラへの参照を保持
+    this.handleRefresh = () => this.refresh();
+    this.refreshBtn = document.getElementById('refresh-btn');
+    this.refreshBtn.addEventListener('click', this.handleRefresh);
+  }
+
+  refresh() {
+    this.renderCache.clear();
+  }
+
+  destroy() {
+    // 正しくリスナーを解除
+    this.refreshBtn.removeEventListener('click', this.handleRefresh);
+    this.handleRefresh = null; // 参照も切断
+    this.data = null; // 大きなデータも明示的に解放
+    this.renderCache.clear();
+  }
+}
+```
+
+**問題パターン3: タイマーコールバックでのキャプチャ**
+```javascript
+function startPolling(url) {
+  const history = []; // 結果の履歴
+
+  const intervalId = setInterval(async () => {
+    const result = await fetch(url).then(r => r.json());
+    history.push(result); // 無制限に蓄積
+    processResult(result);
+  }, 5000);
+
+  return () => clearInterval(intervalId);
+  // 問題: history は clearInterval しても残り続ける
+}
+```
+
+**解決策3: リングバッファで上限を設ける**
+```javascript
+function startPolling(url, maxHistory = 10) {
+  const history = [];
+
+  const intervalId = setInterval(async () => {
+    const result = await fetch(url).then(r => r.json());
+
+    // 上限を超えたら古いものを削除
+    if (history.length >= maxHistory) {
+      history.shift();
+    }
+    history.push(result);
+
+    processResult(result);
+  }, 5000);
+
+  return () => {
+    clearInterval(intervalId);
+    history.length = 0; // 配列もクリア
+  };
+}
+```
+
+**ベストプラクティス:**
+1. クロージャがキャプチャする変数を意識する（DevTools の Scope パネルで確認可能）
+2. 大きなデータは必要な値だけ抽出してから関数を返す
+3. イベントリスナーやタイマーのクリーンアップを必ず実装
+4. 無制限に成長する配列/Map には上限を設ける
+
+### Q8: 大規模SPAでのメモリ管理戦略は？
+
+シングルページアプリケーション (SPA) は長時間稼働するため、メモリ管理が特に重要。
+
+**戦略1: ページ遷移時のクリーンアップ**
+```javascript
+// React の例
+function UserProfile({ userId }) {
+  useEffect(() => {
+    // データ購読の開始
+    const subscription = userService.subscribe(userId, handleUpdate);
+    const timerId = setInterval(refreshData, 30000);
+
+    // クリーンアップ関数: コンポーネントのアンマウント時に実行
+    return () => {
+      subscription.unsubscribe(); // 購読解除
+      clearInterval(timerId);     // タイマー解除
+      userService.clearCache(userId); // キャッシュクリア
+    };
+  }, [userId]);
+
+  // ... コンポーネント本体
+}
+```
+
+**戦略2: 仮想化 (Virtualization) で大量データを扱う**
+```javascript
+// 問題: 10万件のリストを全てDOMレンダリング
+function HugeList({ items }) {
+  return (
+    <div>
+      {items.map(item => <ListItem key={item.id} {...item} />)}
+      {/* 10万個のDOMノード → メモリ膨張 */}
+    </div>
+  );
+}
+
+// 解決策: react-window による仮想化
+import { FixedSizeList } from 'react-window';
+
+function VirtualizedList({ items }) {
+  return (
+    <FixedSizeList
+      height={600}
+      itemCount={items.length}
+      itemSize={50}
+      width="100%"
+    >
+      {({ index, style }) => (
+        <div style={style}>
+          <ListItem {...items[index]} />
+        </div>
+      )}
+    </FixedSizeList>
+    // 画面に表示される分だけレンダリング (例: 15個)
+    // → メモリ使用量が数千分の一に削減
+  );
+}
+```
+
+**戦略3: メモリ予算の設定と監視**
+```javascript
+class MemoryBudgetMonitor {
+  constructor(budgetMB = 150) {
+    this.budgetBytes = budgetMB * 1024 * 1024;
+    this.warningThreshold = this.budgetBytes * 0.8;
+    this.startMonitoring();
+  }
+
+  async checkMemory() {
+    if ('memory' in performance) {
+      const { usedJSHeapSize, jsHeapSizeLimit } = performance.memory;
+
+      if (usedJSHeapSize > this.budgetBytes) {
+        console.error(`Memory budget exceeded: ${(usedJSHeapSize / 1024 / 1024).toFixed(1)} MB`);
+        this.triggerEmergencyCleanup();
+      } else if (usedJSHeapSize > this.warningThreshold) {
+        console.warn(`Memory warning: ${(usedJSHeapSize / 1024 / 1024).toFixed(1)} MB`);
+        this.triggerSoftCleanup();
+      }
+    }
+  }
+
+  triggerSoftCleanup() {
+    // 優先度の低いキャッシュをクリア
+    imageCache.evictOldest(50);
+    dataCache.trim(100);
+  }
+
+  triggerEmergencyCleanup() {
+    // 全てのキャッシュをクリア
+    imageCache.clear();
+    dataCache.clear();
+
+    // ユーザーに通知
+    showNotification("メモリ不足のため、一部のデータをクリアしました");
+  }
+
+  startMonitoring() {
+    setInterval(() => this.checkMemory(), 30000); // 30秒ごと
+  }
+}
+
+const monitor = new MemoryBudgetMonitor(150); // 予算 150MB
+```
+
+**戦略4: キャッシュの有効期限と上限**
+```javascript
+class BoundedCache {
+  constructor(maxSize = 100, maxAge = 5 * 60 * 1000) { // 5分
+    this.cache = new Map();
+    this.maxSize = maxSize;
+    this.maxAge = maxAge;
+  }
+
+  set(key, value) {
+    // 上限チェック: LRU削除
+    if (this.cache.size >= this.maxSize) {
+      const firstKey = this.cache.keys().next().value;
+      this.cache.delete(firstKey);
+    }
+
+    this.cache.set(key, {
+      value,
+      timestamp: Date.now()
+    });
+  }
+
+  get(key) {
+    const entry = this.cache.get(key);
+    if (!entry) return undefined;
+
+    // 期限チェック
+    if (Date.now() - entry.timestamp > this.maxAge) {
+      this.cache.delete(key);
+      return undefined;
+    }
+
+    return entry.value;
+  }
+
+  prune() {
+    const now = Date.now();
+    for (const [key, entry] of this.cache.entries()) {
+      if (now - entry.timestamp > this.maxAge) {
+        this.cache.delete(key);
+      }
+    }
+  }
+}
+```
+
+**戦略5: Service Worker によるオフロード**
+```javascript
+// メインスレッド
+const worker = new Worker('heavy-processor.js');
+
+worker.postMessage({
+  type: 'processLargeDataset',
+  data: hugeDataset
+}, [hugeDataset.buffer]); // Transferable で所有権移転
+
+worker.onmessage = (e) => {
+  const result = e.data;
+  updateUI(result); // 結果だけ受け取る
+};
+
+// heavy-processor.js (Worker)
+self.onmessage = (e) => {
+  const { type, data } = e.data;
+
+  if (type === 'processLargeDataset') {
+    const result = processData(data); // 重い処理
+    self.postMessage(result);
+    // Worker のヒープで処理されるため、メインスレッドに影響しない
+  }
+};
+```
+
+**戦略6: 定期的なページリロード（最終手段）**
+```javascript
+// 長時間稼働するダッシュボードなど
+class AutoReloadManager {
+  constructor(maxUptimeHours = 8) {
+    this.maxUptime = maxUptimeHours * 60 * 60 * 1000;
+    this.startTime = Date.now();
+    this.checkInterval = setInterval(() => this.checkUptime(), 60000); // 1分ごと
+  }
+
+  checkUptime() {
+    const uptime = Date.now() - this.startTime;
+
+    if (uptime > this.maxUptime) {
+      // ユーザーに通知してリロード
+      if (confirm("アプリケーションを最新の状態に更新します。よろしいですか？")) {
+        location.reload();
+      }
+    }
+  }
+}
+
+// 8時間で自動リロード提案
+const reloadManager = new AutoReloadManager(8);
+```
+
+**チェックリスト:**
+- [ ] コンポーネントのクリーンアップ関数を実装
+- [ ] 大量データは仮想化 (react-window, virtual-scroller など)
+- [ ] メモリ予算を設定し、超過時にアラートを発火
+- [ ] キャッシュに上限と有効期限を設ける
+- [ ] 重い処理は Web Worker でオフロード
+- [ ] E2Eテストでメモリリークテストを自動化
+- [ ] 長時間稼働アプリでは定期リロードを検討
+
 ---
 
 ## 12. アンチパターン集
@@ -2155,6 +2566,19 @@ function useObserveDOMChanges(ref, callback) {
 
 ---
 
+## FAQ
+
+### Q1: メモリリークが疑われるとき、最初に確認すべきことは何ですか?
+Chrome DevTools の Performance Monitor パネルで「JS Heap Size」の推移を監視することから始めます。特定の操作（ページ遷移、モーダルの開閉、リスト操作など）を繰り返した際にヒープサイズが単調増加していればメモリリークの可能性が高いです。次に Memory パネルで操作前後の Heap Snapshot を取得し、Comparison ビューで増加したオブジェクトを特定します。Detached DOM ノード、未解除のイベントリスナー、クロージャによる意図しない参照保持が主要な原因です。
+
+### Q2: WeakMapとMapの使い分けの判断基準は何ですか?
+キーとなるオブジェクトのライフサイクルに依存するメタデータを格納する場合は WeakMap を使います。例えば、DOM要素に関連するキャッシュデータや、オブジェクトごとのプライベートデータの格納に適しています。WeakMap のキーはGCに回収されうるため、キーの列挙や `.size` プロパティは利用できません。一方、キーを列挙する必要がある場合や、プリミティブ値をキーにしたい場合、キーの生存をMap側で保証したい場合は通常の Map を使用します。
+
+### Q3: SPAでメモリ使用量が増え続ける場合の一般的な対処法は?
+SPA（Single Page Application）では画面遷移してもページがリロードされないため、メモリが蓄積しやすい構造です。対処法として、(1) コンポーネントのアンマウント時にタイマー（setInterval）、WebSocket接続、イベントリスナーを確実にクリーンアップする、(2) AbortController を使ってfetchリクエストやイベントリスナーを一括解除する、(3) 大量のデータを保持するキャッシュには LRU（Least Recently Used）方式の上限を設ける、(4) `performance.measureUserAgentSpecificMemory()` を使って本番環境でもメモリ使用量を定期的に監視する、といった施策が有効です。
+
+---
+
 ## まとめ
 
 | 概念 | ポイント |
@@ -2171,9 +2595,9 @@ function useObserveDOMChanges(ref, callback) {
 
 ## 次に読むべきガイド
 
-- [[../03-web-apis/00-dom-api.md]] -- DOM API
-- [[../03-web-apis/01-events.md]] -- イベントモデル
-- [[./02-event-loop.md]] -- イベントループ
+- [DOM API](../03-web-apis/00-dom-api.md)
+- [イベントモデル](../03-web-apis/01-events.md)
+- [イベントループ](./02-event-loop.md)
 
 ---
 

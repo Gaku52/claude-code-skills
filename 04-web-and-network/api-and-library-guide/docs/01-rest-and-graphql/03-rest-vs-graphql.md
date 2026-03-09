@@ -12,6 +12,12 @@
 - [ ] 移行戦略と段階的導入の手法を理解する
 - [ ] アンチパターンとエッジケースへの対処法を身につける
 
+## 前提知識
+
+- REST APIの設計原則とベストプラクティス → 参照: [REST Best Practices](./00-rest-best-practices.md)
+- GraphQLの基礎概念（Schema, Query, Mutation） → 参照: [GraphQL基礎](./01-graphql-fundamentals.md)
+- GraphQLの高度な機能（Subscription, Federation） → 参照: [GraphQL応用](./02-graphql-advanced.md)
+
 ---
 
 ## 1. アーキテクチャ思想の根本的な違い
@@ -2214,9 +2220,9 @@ REST の進化方向:
 
 ## 次に読むべきガイド
 
-- [[00-sdk-design.md]] -- SDK設計の基礎
-- [[01-rest-api-design.md]] -- RESTful API 設計の詳細
-- [[02-graphql-schema.md]] -- GraphQL スキーマ設計の実践
+- [SDK設計の基礎](../02-sdk-and-wrapper/00-sdk-design.md)
+- [RESTful API 設計の詳細](./00-rest-best-practices.md)
+- [GraphQL スキーマ設計の実践](./01-graphql-fundamentals.md)
 
 ---
 

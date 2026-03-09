@@ -13,6 +13,14 @@
 - [ ] パフォーマンス最適化のためのコンポーネント設計を把握する
 - [ ] 大規模アプリケーションにおけるコンポーネント管理手法を学ぶ
 
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- プロジェクト構成とFeature-based設計 — [プロジェクト構成](./01-project-structure.md)
+- React の基本（JSX、Props、State、Hooks）
+- TypeScript の型システム（interface、type、Generics の基礎）
+
 ---
 
 ## 1. コンポーネント分割の原則
@@ -2869,6 +2877,19 @@ UserList.whyDidYouRender = true;
 
 ---
 
+## FAQ
+
+### Q1: Atomic DesignとFeature-based構成はどう共存させるか？
+Atomic Designはコンポーネントの粒度（Atoms/Molecules/Organisms/Templates/Pages）を定義するための設計思想であり、Feature-basedはプロジェクトのディレクトリ構成のアプローチである。両者は共存可能で、実務では `shared/components/ui/` にAtoms/Molecules相当の汎用UIコンポーネント（Button, Input, Card等）を配置し、`features/xxx/components/` にOrganism相当のドメイン固有コンポーネントを配置するパターンが多い。Atomic Designの5階層を厳密に守る必要はなく、「汎用UI」と「ドメインUI」の2層に簡略化するのが実践的である。
+
+### Q2: Server ComponentとClient Componentの境界はどう決めるか？
+基本原則は「Client Componentを可能な限り小さく、末端に配置する」である。データ取得やレンダリングのみのコンポーネントはServer Component、useState/useEffectやイベントハンドラを使うコンポーネントはClient Componentにする。具体的には、ページ全体をServer Componentで構築し、検索入力、モーダル、フォームなどインタラクティブな部分のみを `'use client'` で囲む。こうすることでJavaScriptバンドルサイズが最小化され、初期ロードが高速になる。
+
+### Q3: コンポーネントライブラリ（shadcn/ui等）はカスタマイズすべきか？
+shadcn/uiはコピー&ペースト型のUIライブラリであり、プロジェクトに直接コードを取り込むため自由にカスタマイズできる。推奨アプローチは、まずshadcn/uiのデフォルトスタイルをそのまま使い、デザイン要件に合わせて段階的にカスタマイズすることである。Tailwind CSSの設定（`tailwind.config.ts`）でブランドカラーやフォントを調整し、個別コンポーネントのvariantsをcva（class-variance-authority）で管理すると一貫性を保ちやすい。ゼロからUIを構築するよりも、既存ライブラリをベースにカスタマイズする方が圧倒的に効率的である。
+
+---
+
 ## まとめ
 
 ### コンポーネント設計パターンの全体マップ
@@ -2917,6 +2938,182 @@ UserList.whyDidYouRender = true;
      → Yes: 仮想化を検討
      → No: 通常レンダリング
 ```
+
+---
+
+## FAQ（よくある質問）
+
+### Q1: Presentational/Container パターンは今でも有効か？
+
+**A:** 部分的に有効ですが、カスタムフックの登場で重要性は低下しています。
+
+**歴史的背景:**
+- 2015年、Dan Abramov が提唱
+- Class Components 時代のロジック再利用パターン
+- Container = ロジック、Presentational = UI という明確な分離
+
+**現代における状況:**
+
+| 観点 | 2015年（Class Components） | 2024年（Function Components + Hooks） |
+|------|-------------------------|----------------------------------|
+| ロジック抽出 | Container Component で | カスタムフック（useUsers等）で |
+| テスト | Container と Presentational を分けてテスト | フックとコンポーネントを独立してテスト |
+| 再利用 | Container を複数の Presentational で使い回す | フックを複数コンポーネントで使い回す |
+
+**推奨アプローチ（2024年現在）:**
+
+```typescript
+// ❌ 古い: Container/Presentational 分離
+// UserListContainer.tsx
+function UserListContainer() {
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => { /* fetch */ }, []);
+
+  return <UserListPresentation users={users} loading={loading} />;
+}
+
+// ✅ 現代的: カスタムフックでロジック抽出
+// hooks/useUsers.ts
+export function useUsers() {
+  const { data, isLoading } = useQuery({
+    queryKey: ['users'],
+    queryFn: fetchUsers,
+  });
+  return { users: data, isLoading };
+}
+
+// components/UserList.tsx（ロジックとUIが同居）
+export function UserList() {
+  const { users, isLoading } = useUsers();
+
+  if (isLoading) return <Skeleton />;
+
+  return (
+    <ul>
+      {users?.map(user => <UserCard key={user.id} user={user} />)}
+    </ul>
+  );
+}
+```
+
+**パターンが有効なケース:**
+- Storybook で UI のバリエーションを網羅的にテストしたい場合
+- デザインシステムで、ロジックを持たないプレゼンテーション専用コンポーネントを作る場合
+
+**結論:** カスタムフックで十分なので、無理に Container/Presentational を分ける必要はありません。
+
+### Q2: コンポーネント設計にSOLID原則は適用できるか？
+
+**A:** 一部の原則は有効ですが、Reactに特化した解釈が必要です。
+
+**SOLID原則のReactへの適用:**
+
+| 原則 | OOP | React Component | 適用度 |
+|------|-----|-----------------|--------|
+| **S**ingle Responsibility | 1クラス1責任 | 1コンポーネント1責任 | ◎ 最重要 |
+| **O**pen/Closed | 継承で拡張 | Props/Composition で拡張 | ○ 有効 |
+| **L**iskov Substitution | 派生クラスは基底クラスを代替可能 | 型互換性（Props） | △ 限定的 |
+| **I**nterface Segregation | インターフェースを細分化 | Propsを細分化 | ○ 有効 |
+| **D**ependency Inversion | 抽象に依存 | Propsで依存を注入 | ○ 有効 |
+
+**実践例:**
+
+```typescript
+// S: Single Responsibility（単一責任）
+// ❌ 複数の責任を持つコンポーネント
+function UserDashboard() {
+  // データ取得、表示、編集、削除が全部入り
+}
+
+// ✅ 責任を分離
+function UserDashboard() {
+  return (
+    <>
+      <UserList />        {/* 表示専用 */}
+      <UserEditForm />    {/* 編集専用 */}
+    </>
+  );
+}
+
+// O: Open/Closed（拡張に開放、修正に閉鎖）
+// ✅ Composition で拡張
+function Dialog({ children, title }: DialogProps) {
+  return (
+    <div>
+      <h2>{title}</h2>
+      {children} {/* 内容は外部から注入 */}
+    </div>
+  );
+}
+
+// I: Interface Segregation（インターフェース分離）
+// ❌ 巨大なProps
+type UserCardProps = {
+  user: User;
+  onEdit: () => void;
+  onDelete: () => void;
+  showAdmin: boolean;
+  showStats: boolean;
+  // ... 20個のプロパティ
+};
+
+// ✅ 小さなProps + Composition
+type UserCardProps = Pick<User, 'id' | 'name' | 'avatar'>;
+
+function UserCard({ user }: UserCardProps) {
+  return <>{/* シンプルなUI */}</>;
+}
+
+// D: Dependency Inversion（依存性逆転）
+// ✅ 抽象（Props）に依存
+function UserList({ fetchUsers }: { fetchUsers: () => Promise<User[]> }) {
+  // 具体的なAPI実装に依存せず、関数を注入される
+}
+```
+
+**結論:** SRP（単一責任原則）は最も重要。他はPropsとCompositionで自然に適用されます。
+
+### Q3: Atomic Designの実践的な問題点は？
+
+**A:** 理論は美しいが、実務では以下の課題があります。
+
+**Atomic Designの課題:**
+
+| 課題 | 説明 | 現実 |
+|------|------|------|
+| Molecules/Organismsの境界が曖昧 | どちらに分類すべきか議論が紛糾 | チームごとに解釈が異なる |
+| Pages が肥大化 | ビジネスロジックが集中しがち | 実質的なContainer化 |
+| Templates の存在意義が不明 | Pages との違いが分からない | 使われないことが多い |
+| 過度な抽象化 | ボタン1つに5階層の継承 | メンテナンスコストが増大 |
+
+**実践的な代替アプローチ:**
+
+```
+シンプルな3層分類（推奨）:
+
+  1. Primitives（基本要素）
+     ├─ Button, Input, Text, Icon
+     ├─ 単一の責任、高度に再利用可能
+     └─ デザイントークンに準拠
+
+  2. Components（組み合わせ）
+     ├─ Card, Modal, Dropdown, Tabs
+     ├─ Primitives を組み合わせたUI
+     └─ ビジネスロジックを持たない
+
+  3. Features（機能コンポーネント）
+     ├─ UserList, ProductCard, OrderSummary
+     ├─ ビジネスロジックを含む
+     └─ features/ ディレクトリに配置
+```
+
+**Atomic Design が有効なケース:**
+- デザインシステムを構築する場合（Figma と対応させる）
+- 大規模組織でデザイナーとエンジニアが分業
+
+**結論:** 小〜中規模プロジェクトでは、Atoms/Molecules/Organismsの3層は不要。Primitives/Components/Featuresの3層で十分です。
 
 ---
 

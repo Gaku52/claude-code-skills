@@ -13,6 +13,14 @@
 
 ---
 
+## 前提知識
+
+- HTTPヘッダーとステータスコードの理解 → 参照: [HTTPの基礎](../../network-fundamentals/docs/02-http/00-http-basics.md)
+- REST APIの設計原則 → 参照: [REST Best Practices](../01-rest-and-graphql/00-rest-best-practices.md)
+- 暗号化の基礎知識(ハッシュ、公開鍵暗号) → 参照: [セキュリティ基礎](../../06-data-and-security/security-fundamentals/docs/)
+
+---
+
 ## 1. 認証と認可の基礎概念
 
 認証（Authentication）と認可（Authorization）は混同されやすいが、明確に異なる概念である。
@@ -2270,7 +2278,7 @@ stateパラメータはCSRF（Cross-Site Request Forgery）攻撃を防ぐため
 ---
 
 ## 次に読むべきガイド
-→ [[01-rate-limiting.md]] -- レート制限
+→ [レート制限](01-rate-limiting.md)
 
 ---
 

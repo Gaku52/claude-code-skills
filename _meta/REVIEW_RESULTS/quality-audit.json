@@ -4760,178 +4760,26 @@
       },
       "04-web-and-network": {
         "files": 79,
-        "errors": 85,
-        "warnings": 265,
-        "info": 243,
+        "errors": 19,
+        "warnings": 186,
+        "info": 255,
         "errorFiles": [
           {
             "file": "04-web-and-network/api-and-library-guide/SKILL.md",
             "errors": [
-              "必須セクション欠落: この章で学ぶこと, FAQ, まとめ, 参考文献"
-            ]
-          },
-          {
-            "file": "04-web-and-network/api-and-library-guide/docs/00-api-design-principles/00-api-first-design.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ"
-            ]
-          },
-          {
-            "file": "04-web-and-network/api-and-library-guide/docs/00-api-design-principles/01-naming-and-conventions.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ"
-            ]
-          },
-          {
-            "file": "04-web-and-network/api-and-library-guide/docs/00-api-design-principles/02-versioning-strategy.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, まとめ"
-            ]
-          },
-          {
-            "file": "04-web-and-network/api-and-library-guide/docs/00-api-design-principles/03-pagination-and-filtering.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ"
-            ]
-          },
-          {
-            "file": "04-web-and-network/api-and-library-guide/docs/01-rest-and-graphql/00-rest-best-practices.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ, まとめ"
-            ]
-          },
-          {
-            "file": "04-web-and-network/api-and-library-guide/docs/01-rest-and-graphql/01-graphql-fundamentals.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ"
-            ]
-          },
-          {
-            "file": "04-web-and-network/api-and-library-guide/docs/01-rest-and-graphql/02-graphql-advanced.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ"
-            ]
-          },
-          {
-            "file": "04-web-and-network/api-and-library-guide/docs/01-rest-and-graphql/03-rest-vs-graphql.md",
-            "errors": [
-              "必須セクション欠落: 前提知識"
-            ]
-          },
-          {
-            "file": "04-web-and-network/api-and-library-guide/docs/02-sdk-and-libraries/00-sdk-design.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, まとめ"
-            ]
-          },
-          {
-            "file": "04-web-and-network/api-and-library-guide/docs/02-sdk-and-libraries/01-npm-package-development.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ"
-            ]
-          },
-          {
-            "file": "04-web-and-network/api-and-library-guide/docs/02-sdk-and-libraries/02-api-documentation.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ, まとめ, 参考文献"
-            ]
-          },
-          {
-            "file": "04-web-and-network/api-and-library-guide/docs/03-api-security/00-authentication-patterns.md",
-            "errors": [
-              "必須セクション欠落: 前提知識"
-            ]
-          },
-          {
-            "file": "04-web-and-network/api-and-library-guide/docs/03-api-security/01-rate-limiting.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ"
-            ]
-          },
-          {
-            "file": "04-web-and-network/api-and-library-guide/docs/03-api-security/02-input-validation.md",
-            "errors": [
-              "必須セクション欠落: 前提知識"
-            ]
-          },
-          {
-            "file": "04-web-and-network/api-and-library-guide/docs/04-api-operations/00-api-testing.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ, まとめ"
-            ]
-          },
-          {
-            "file": "04-web-and-network/api-and-library-guide/docs/04-api-operations/01-monitoring-and-logging.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ"
-            ]
-          },
-          {
-            "file": "04-web-and-network/api-and-library-guide/docs/04-api-operations/02-api-gateway.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ, まとめ, 次に読むべきガイド, 参考文献"
+              "必須セクション欠落: この章で学ぶこと"
             ]
           },
           {
             "file": "04-web-and-network/browser-and-web-platform/SKILL.md",
             "errors": [
-              "必須セクション欠落: この章で学ぶこと, FAQ, まとめ, 参考文献"
-            ]
-          },
-          {
-            "file": "04-web-and-network/browser-and-web-platform/docs/00-browser-engine/00-browser-architecture.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ, まとめ, 次に読むべきガイド, 参考文献"
-            ]
-          },
-          {
-            "file": "04-web-and-network/browser-and-web-platform/docs/00-browser-engine/01-navigation-and-loading.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ"
-            ]
-          },
-          {
-            "file": "04-web-and-network/browser-and-web-platform/docs/00-browser-engine/02-parsing-html-css.md",
-            "errors": [
-              "必須セクション欠落: 前提知識"
-            ]
-          },
-          {
-            "file": "04-web-and-network/browser-and-web-platform/docs/00-browser-engine/03-browser-security-model.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ"
-            ]
-          },
-          {
-            "file": "04-web-and-network/browser-and-web-platform/docs/01-rendering/00-rendering-pipeline.md",
-            "errors": [
-              "サイズ不足: 31,942字 (最低40,000字)",
-              "必須セクション欠落: FAQ, まとめ, 次に読むべきガイド, 参考文献"
+              "必須セクション欠落: この章で学ぶこと"
             ]
           },
           {
             "file": "04-web-and-network/browser-and-web-platform/docs/01-rendering/01-css-layout-engine.md",
             "errors": [
-              "必須セクション欠落: 前提知識, FAQ, 参考文献"
-            ]
-          },
-          {
-            "file": "04-web-and-network/browser-and-web-platform/docs/01-rendering/02-paint-and-compositing.md",
-            "errors": [
-              "サイズ不足: 36,929字 (最低40,000字)",
-              "必須セクション欠落: 前提知識, FAQ, まとめ, 次に読むべきガイド, 参考文献"
-            ]
-          },
-          {
-            "file": "04-web-and-network/browser-and-web-platform/docs/01-rendering/03-animation-performance.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ, まとめ"
-            ]
-          },
-          {
-            "file": "04-web-and-network/browser-and-web-platform/docs/02-javascript-runtime/00-v8-engine.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ, まとめ, 次に読むべきガイド, 参考文献"
+              "必須セクション欠落: FAQ, 参考文献"
             ]
           },
           {
@@ -4941,307 +4789,88 @@
             ]
           },
           {
-            "file": "04-web-and-network/browser-and-web-platform/docs/02-javascript-runtime/02-web-workers.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ, まとめ, 次に読むべきガイド, 参考文献"
-            ]
-          },
-          {
-            "file": "04-web-and-network/browser-and-web-platform/docs/02-javascript-runtime/03-memory-management.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ"
-            ]
-          },
-          {
-            "file": "04-web-and-network/browser-and-web-platform/docs/03-web-apis/00-dom-api.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ, まとめ"
-            ]
-          },
-          {
-            "file": "04-web-and-network/browser-and-web-platform/docs/03-web-apis/01-fetch-and-streams.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ"
-            ]
-          },
-          {
-            "file": "04-web-and-network/browser-and-web-platform/docs/03-web-apis/02-intersection-resize-observer.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ"
-            ]
-          },
-          {
-            "file": "04-web-and-network/browser-and-web-platform/docs/04-storage-and-caching/00-web-storage.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ"
-            ]
-          },
-          {
-            "file": "04-web-and-network/browser-and-web-platform/docs/04-storage-and-caching/01-service-worker-cache.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ, まとめ, 次に読むべきガイド, 参考文献"
-            ]
-          },
-          {
             "file": "04-web-and-network/browser-and-web-platform/docs/04-storage-and-caching/02-performance-api.md",
             "errors": [
-              "必須セクション欠落: 前提知識, FAQ, 次に読むべきガイド, 参考文献"
+              "必須セクション欠落: FAQ, 参考文献"
             ]
           },
           {
             "file": "04-web-and-network/network-fundamentals/SKILL.md",
             "errors": [
-              "必須セクション欠落: この章で学ぶこと, FAQ, まとめ, 参考文献"
-            ]
-          },
-          {
-            "file": "04-web-and-network/network-fundamentals/docs/00-introduction/00-how-internet-works.md",
-            "errors": [
-              "必須セクション欠落: まとめ"
-            ]
-          },
-          {
-            "file": "04-web-and-network/network-fundamentals/docs/00-introduction/01-osi-and-tcpip-model.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ"
+              "必須セクション欠落: この章で学ぶこと"
             ]
           },
           {
             "file": "04-web-and-network/network-fundamentals/docs/00-introduction/02-ip-addressing.md",
             "errors": [
-              "サイズ不足: 35,211字 (最低40,000字)",
-              "必須セクション欠落: 前提知識, FAQ"
-            ]
-          },
-          {
-            "file": "04-web-and-network/network-fundamentals/docs/00-introduction/03-dns.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, まとめ"
-            ]
-          },
-          {
-            "file": "04-web-and-network/network-fundamentals/docs/01-protocols/00-tcp.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ, まとめ, 次に読むべきガイド, 参考文献"
-            ]
-          },
-          {
-            "file": "04-web-and-network/network-fundamentals/docs/01-protocols/01-udp.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ, まとめ"
-            ]
-          },
-          {
-            "file": "04-web-and-network/network-fundamentals/docs/01-protocols/02-websocket.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ"
-            ]
-          },
-          {
-            "file": "04-web-and-network/network-fundamentals/docs/01-protocols/03-grpc.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ"
-            ]
-          },
-          {
-            "file": "04-web-and-network/network-fundamentals/docs/02-http/00-http-basics.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ"
-            ]
-          },
-          {
-            "file": "04-web-and-network/network-fundamentals/docs/02-http/01-http2-and-http3.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, まとめ"
-            ]
-          },
-          {
-            "file": "04-web-and-network/network-fundamentals/docs/02-http/02-rest-api.md",
-            "errors": [
-              "必須セクション欠落: 前提知識"
-            ]
-          },
-          {
-            "file": "04-web-and-network/network-fundamentals/docs/02-http/03-caching.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ, まとめ, 次に読むべきガイド, 参考文献"
-            ]
-          },
-          {
-            "file": "04-web-and-network/network-fundamentals/docs/02-http/04-cors.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ, まとめ, 次に読むべきガイド, 参考文献"
+              "サイズ不足: 38,963字 (最低40,000字)"
             ]
           },
           {
             "file": "04-web-and-network/network-fundamentals/docs/03-security/00-tls-ssl.md",
             "errors": [
-              "サイズ不足: 27,548字 (最低40,000字)",
-              "必須セクション欠落: 前提知識, FAQ"
+              "サイズ不足: 33,800字 (最低40,000字)"
             ]
           },
           {
             "file": "04-web-and-network/network-fundamentals/docs/03-security/01-authentication.md",
             "errors": [
-              "サイズ不足: 30,047字 (最低40,000字)",
-              "必須セクション欠落: 前提知識, FAQ"
-            ]
-          },
-          {
-            "file": "04-web-and-network/network-fundamentals/docs/03-security/02-common-attacks.md",
-            "errors": [
-              "サイズ不足: 30,913字 (最低40,000字)",
-              "必須セクション欠落: 前提知識, FAQ"
-            ]
-          },
-          {
-            "file": "04-web-and-network/network-fundamentals/docs/04-advanced/00-load-balancing.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ, まとめ, 次に読むべきガイド, 参考文献"
-            ]
-          },
-          {
-            "file": "04-web-and-network/network-fundamentals/docs/04-advanced/01-cdn.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ, まとめ, 次に読むべきガイド, 参考文献"
-            ]
-          },
-          {
-            "file": "04-web-and-network/network-fundamentals/docs/04-advanced/02-network-debugging.md",
-            "errors": [
-              "必須セクション欠落: FAQ, まとめ, 次に読むべきガイド, 参考文献"
-            ]
-          },
-          {
-            "file": "04-web-and-network/network-fundamentals/docs/04-advanced/03-performance.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ, 次に読むべきガイド"
+              "サイズ不足: 30,217字 (最低40,000字)",
+              "必須セクション欠落: FAQ"
             ]
           },
           {
             "file": "04-web-and-network/web-application-development/SKILL.md",
             "errors": [
-              "必須セクション欠落: この章で学ぶこと, FAQ, まとめ, 参考文献"
-            ]
-          },
-          {
-            "file": "04-web-and-network/web-application-development/docs/00-architecture/00-spa-mpa-ssr.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ"
-            ]
-          },
-          {
-            "file": "04-web-and-network/web-application-development/docs/00-architecture/01-project-structure.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ"
-            ]
-          },
-          {
-            "file": "04-web-and-network/web-application-development/docs/00-architecture/02-component-architecture.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ"
-            ]
-          },
-          {
-            "file": "04-web-and-network/web-application-development/docs/00-architecture/03-data-fetching-patterns.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ"
-            ]
-          },
-          {
-            "file": "04-web-and-network/web-application-development/docs/01-state-management/00-state-management-overview.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ"
-            ]
-          },
-          {
-            "file": "04-web-and-network/web-application-development/docs/01-state-management/01-zustand-and-jotai.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ"
-            ]
-          },
-          {
-            "file": "04-web-and-network/web-application-development/docs/01-state-management/02-server-state.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ"
-            ]
-          },
-          {
-            "file": "04-web-and-network/web-application-development/docs/01-state-management/03-url-state.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ"
-            ]
-          },
-          {
-            "file": "04-web-and-network/web-application-development/docs/02-routing-and-navigation/00-client-side-routing.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ"
-            ]
-          },
-          {
-            "file": "04-web-and-network/web-application-development/docs/02-routing-and-navigation/01-file-based-routing.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ"
-            ]
-          },
-          {
-            "file": "04-web-and-network/web-application-development/docs/02-routing-and-navigation/02-navigation-patterns.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ, まとめ"
-            ]
-          },
-          {
-            "file": "04-web-and-network/web-application-development/docs/02-routing-and-navigation/03-auth-and-guards.md",
-            "errors": [
-              "必須セクション欠落: 前提知識, FAQ"
+              "必須セクション欠落: この章で学ぶこと"
             ]
           },
           {
             "file": "04-web-and-network/web-application-development/docs/03-forms-and-validation/00-form-design.md",
             "errors": [
-              "必須セクション欠落: 前提知識, FAQ"
+              "必須セクション欠落: FAQ"
             ]
           },
           {
             "file": "04-web-and-network/web-application-development/docs/03-forms-and-validation/01-validation-patterns.md",
             "errors": [
-              "必須セクション欠落: 前提知識, FAQ"
+              "必須セクション欠落: FAQ"
             ]
           },
           {
             "file": "04-web-and-network/web-application-development/docs/03-forms-and-validation/02-file-upload.md",
             "errors": [
-              "必須セクション欠落: 前提知識, FAQ"
+              "必須セクション欠落: FAQ"
             ]
           },
           {
             "file": "04-web-and-network/web-application-development/docs/03-forms-and-validation/03-complex-forms.md",
             "errors": [
-              "必須セクション欠落: 前提知識, FAQ"
+              "必須セクション欠落: FAQ"
             ]
           },
           {
             "file": "04-web-and-network/web-application-development/docs/04-deployment/00-deployment-platforms.md",
             "errors": [
-              "必須セクション欠落: 前提知識, FAQ"
+              "必須セクション欠落: FAQ"
             ]
           },
           {
             "file": "04-web-and-network/web-application-development/docs/04-deployment/01-environment-and-config.md",
             "errors": [
-              "必須セクション欠落: 前提知識, FAQ"
+              "必須セクション欠落: FAQ"
             ]
           },
           {
             "file": "04-web-and-network/web-application-development/docs/04-deployment/02-performance-optimization.md",
             "errors": [
-              "必須セクション欠落: 前提知識, FAQ"
+              "必須セクション欠落: FAQ"
             ]
           },
           {
             "file": "04-web-and-network/web-application-development/docs/04-deployment/03-monitoring-and-error-tracking.md",
             "errors": [
-              "必須セクション欠落: 前提知識, FAQ, 次に読むべきガイド"
+              "必須セクション欠落: FAQ"
             ]
           }
         ],
@@ -5251,17 +4880,15 @@
             "warnings": [
               "推奨構造セクション欠落: アンチパターンセクション, 深掘りセクション",
               "比較表不足: 1個 (推奨2個以上)",
-              "FAQ不足: 0個 (最低3個)",
               "演習不足: 2個 (最低3個)"
             ]
           },
           {
             "file": "04-web-and-network/api-and-library-guide/docs/00-api-design-principles/01-naming-and-conventions.md",
             "warnings": [
-              "目標未達: 44,814字 (目標50,000字)",
+              "目標未達: 47,281字 (目標50,000字)",
               "推奨構造セクション欠落: 導入セクション, 深掘りセクション",
-              "比較表不足: 1個 (推奨2個以上)",
-              "FAQ不足: 0個 (最低3個)"
+              "比較表不足: 1個 (推奨2個以上)"
             ]
           },
           {
@@ -5274,7 +4901,6 @@
             "file": "04-web-and-network/api-and-library-guide/docs/00-api-design-principles/03-pagination-and-filtering.md",
             "warnings": [
               "推奨構造セクション欠落: 導入セクション, 深掘りセクション",
-              "FAQ不足: 0個 (最低3個)",
               "演習不足: 0個 (最低3個)"
             ]
           },
@@ -5282,23 +4908,19 @@
             "file": "04-web-and-network/api-and-library-guide/docs/01-rest-and-graphql/00-rest-best-practices.md",
             "warnings": [
               "推奨構造セクション欠落: 導入セクション",
-              "FAQ不足: 0個 (最低3個)",
               "演習不足: 0個 (最低3個)"
             ]
           },
           {
             "file": "04-web-and-network/api-and-library-guide/docs/01-rest-and-graphql/01-graphql-fundamentals.md",
             "warnings": [
-              "推奨構造セクション欠落: 深掘りセクション",
-              "FAQ不足: 0個 (最低3個)"
+              "推奨構造セクション欠落: 深掘りセクション"
             ]
           },
           {
             "file": "04-web-and-network/api-and-library-guide/docs/01-rest-and-graphql/02-graphql-advanced.md",
             "warnings": [
               "推奨構造セクション欠落: 導入セクション, アンチパターンセクション, 演習セクション, 深掘りセクション",
-              "比較表不足: 1個 (推奨2個以上)",
-              "FAQ不足: 0個 (最低3個)",
               "演習不足: 0個 (最低3個)"
             ]
           },
@@ -5317,7 +4939,6 @@
           {
             "file": "04-web-and-network/api-and-library-guide/docs/02-sdk-and-libraries/01-npm-package-development.md",
             "warnings": [
-              "FAQ不足: 0個 (最低3個)",
               "演習不足: 0個 (最低3個)",
               "Node.js古いバージョン: Node.js 12., Node.js 8 , Node.js 12 , Node.js 14 , Node.js 16 "
             ]
@@ -5326,9 +4947,7 @@
             "file": "04-web-and-network/api-and-library-guide/docs/02-sdk-and-libraries/02-api-documentation.md",
             "warnings": [
               "推奨構造セクション欠落: 概念セクション, アンチパターンセクション, 演習セクション, 深掘りセクション",
-              "FAQ不足: 0個 (最低3個)",
               "演習不足: 0個 (最低3個)",
-              "参考文献不足: 0個 (最低3個)",
               "Node.js古いバージョン: Node.js 16 ",
               "Python古いバージョン: Python 3.8 "
             ]
@@ -5346,7 +4965,6 @@
             "warnings": [
               "推奨構造セクション欠落: アンチパターンセクション, 演習セクション, 深掘りセクション",
               "比較表不足: 1個 (推奨2個以上)",
-              "FAQ不足: 0個 (最低3個)",
               "演習不足: 0個 (最低3個)"
             ]
           },
@@ -5361,41 +4979,33 @@
             "file": "04-web-and-network/api-and-library-guide/docs/04-api-operations/00-api-testing.md",
             "warnings": [
               "推奨構造セクション欠落: 導入セクション",
-              "FAQ不足: 0個 (最低3個)",
               "演習不足: 0個 (最低3個)"
             ]
           },
           {
             "file": "04-web-and-network/api-and-library-guide/docs/04-api-operations/01-monitoring-and-logging.md",
             "warnings": [
-              "推奨構造セクション欠落: 深掘りセクション",
-              "FAQ不足: 0個 (最低3個)"
+              "推奨構造セクション欠落: 深掘りセクション"
             ]
           },
           {
             "file": "04-web-and-network/api-and-library-guide/docs/04-api-operations/02-api-gateway.md",
             "warnings": [
               "推奨構造セクション欠落: アンチパターンセクション, 演習セクション, 深掘りセクション",
-              "FAQ不足: 0個 (最低3個)",
-              "演習不足: 0個 (最低3個)",
-              "参考文献不足: 0個 (最低3個)"
+              "演習不足: 0個 (最低3個)"
             ]
           },
           {
             "file": "04-web-and-network/browser-and-web-platform/docs/00-browser-engine/00-browser-architecture.md",
             "warnings": [
               "推奨構造セクション欠落: 概念セクション, 演習セクション, 深掘りセクション",
-              "FAQ不足: 0個 (最低3個)",
-              "演習不足: 0個 (最低3個)",
-              "参考文献不足: 0個 (最低3個)"
+              "演習不足: 0個 (最低3個)"
             ]
           },
           {
             "file": "04-web-and-network/browser-and-web-platform/docs/00-browser-engine/01-navigation-and-loading.md",
             "warnings": [
               "推奨構造セクション欠落: 導入セクション, アンチパターンセクション, 演習セクション, 深掘りセクション",
-              "比較表不足: 1個 (推奨2個以上)",
-              "FAQ不足: 0個 (最低3個)",
               "演習不足: 0個 (最低3個)"
             ]
           },
@@ -5409,18 +5019,15 @@
           {
             "file": "04-web-and-network/browser-and-web-platform/docs/00-browser-engine/03-browser-security-model.md",
             "warnings": [
-              "FAQ不足: 0個 (最低3個)",
               "演習不足: 0個 (最低3個)"
             ]
           },
           {
             "file": "04-web-and-network/browser-and-web-platform/docs/01-rendering/00-rendering-pipeline.md",
             "warnings": [
-              "目標未達: 31,942字 (目標50,000字)",
+              "目標未達: 43,722字 (目標50,000字)",
               "推奨構造セクション欠落: 導入セクション, アンチパターンセクション, 演習セクション, 深掘りセクション",
-              "FAQ不足: 0個 (最低3個)",
-              "演習不足: 0個 (最低3個)",
-              "参考文献不足: 0個 (最低3個)"
+              "演習不足: 0個 (最低3個)"
             ]
           },
           {
@@ -5435,67 +5042,56 @@
           {
             "file": "04-web-and-network/browser-and-web-platform/docs/01-rendering/02-paint-and-compositing.md",
             "warnings": [
-              "目標未達: 36,929字 (目標50,000字)",
+              "目標未達: 43,166字 (目標50,000字)",
               "推奨構造セクション欠落: 導入セクション, 演習セクション",
-              "FAQ不足: 0個 (最低3個)",
-              "演習不足: 0個 (最低3個)",
-              "参考文献不足: 0個 (最低3個)"
+              "演習不足: 0個 (最低3個)"
             ]
           },
           {
             "file": "04-web-and-network/browser-and-web-platform/docs/01-rendering/03-animation-performance.md",
             "warnings": [
-              "FAQ不足: 0個 (最低3個)",
               "演習不足: 0個 (最低3個)"
             ]
           },
           {
             "file": "04-web-and-network/browser-and-web-platform/docs/02-javascript-runtime/00-v8-engine.md",
             "warnings": [
-              "目標未達: 45,724字 (目標50,000字)",
               "推奨構造セクション欠落: 演習セクション, 深掘りセクション",
-              "FAQ不足: 0個 (最低3個)",
-              "演習不足: 0個 (最低3個)",
-              "参考文献不足: 0個 (最低3個)"
+              "演習不足: 0個 (最低3個)"
             ]
           },
           {
             "file": "04-web-and-network/browser-and-web-platform/docs/02-javascript-runtime/01-event-loop-browser.md",
             "warnings": [
-              "目標未達: 48,845字 (目標50,000字)",
               "推奨構造セクション欠落: 導入セクション",
               "FAQ不足: 0個 (最低3個)",
-              "演習不足: 0個 (最低3個)"
+              "演習不足: 0個 (最低3個)",
+              "Node.js古いバージョン: Node.js v11 "
             ]
           },
           {
             "file": "04-web-and-network/browser-and-web-platform/docs/02-javascript-runtime/02-web-workers.md",
             "warnings": [
               "推奨構造セクション欠落: 導入セクション, 演習セクション, 深掘りセクション",
-              "FAQ不足: 0個 (最低3個)",
-              "演習不足: 0個 (最低3個)",
-              "参考文献不足: 0個 (最低3個)"
+              "演習不足: 0個 (最低3個)"
             ]
           },
           {
             "file": "04-web-and-network/browser-and-web-platform/docs/02-javascript-runtime/03-memory-management.md",
             "warnings": [
-              "推奨構造セクション欠落: 導入セクション, 深掘りセクション",
-              "FAQ不足: 0個 (最低3個)"
+              "推奨構造セクション欠落: 導入セクション, 深掘りセクション"
             ]
           },
           {
             "file": "04-web-and-network/browser-and-web-platform/docs/03-web-apis/00-dom-api.md",
             "warnings": [
-              "推奨構造セクション欠落: 導入セクション, 深掘りセクション",
-              "FAQ不足: 0個 (最低3個)"
+              "推奨構造セクション欠落: 導入セクション, 深掘りセクション"
             ]
           },
           {
             "file": "04-web-and-network/browser-and-web-platform/docs/03-web-apis/01-fetch-and-streams.md",
             "warnings": [
               "推奨構造セクション欠落: 導入セクション, 演習セクション, 深掘りセクション",
-              "FAQ不足: 0個 (最低3個)",
               "演習不足: 0個 (最低3個)"
             ]
           },
@@ -5504,7 +5100,6 @@
             "warnings": [
               "推奨構造セクション欠落: 導入セクション, 実装セクション, 演習セクション, 深掘りセクション",
               "比較表不足: 1個 (推奨2個以上)",
-              "FAQ不足: 0個 (最低3個)",
               "演習不足: 0個 (最低3個)"
             ]
           },
@@ -5512,18 +5107,14 @@
             "file": "04-web-and-network/browser-and-web-platform/docs/04-storage-and-caching/00-web-storage.md",
             "warnings": [
               "推奨構造セクション欠落: 実装セクション",
-              "FAQ不足: 0個 (最低3個)",
               "演習不足: 0個 (最低3個)"
             ]
           },
           {
             "file": "04-web-and-network/browser-and-web-platform/docs/04-storage-and-caching/01-service-worker-cache.md",
             "warnings": [
-              "目標未達: 47,759字 (目標50,000字)",
               "推奨構造セクション欠落: 演習セクション, 深掘りセクション",
-              "FAQ不足: 0個 (最低3個)",
-              "演習不足: 0個 (最低3個)",
-              "参考文献不足: 0個 (最低3個)"
+              "演習不足: 0個 (最低3個)"
             ]
           },
           {
@@ -5545,16 +5136,16 @@
           {
             "file": "04-web-and-network/network-fundamentals/docs/00-introduction/01-osi-and-tcpip-model.md",
             "warnings": [
-              "目標未達: 41,779字 (目標50,000字)",
+              "目標未達: 44,352字 (目標50,000字)",
               "推奨構造セクション欠落: アンチパターンセクション, 演習セクション, 深掘りセクション",
-              "FAQ不足: 0個 (最低3個)",
+              "FAQ不足: 1個 (最低3個)",
               "演習不足: 0個 (最低3個)"
             ]
           },
           {
             "file": "04-web-and-network/network-fundamentals/docs/00-introduction/02-ip-addressing.md",
             "warnings": [
-              "目標未達: 35,211字 (目標50,000字)",
+              "目標未達: 38,963字 (目標50,000字)",
               "推奨構造セクション欠落: アンチパターンセクション, 演習セクション, 深掘りセクション",
               "比較表不足: 1個 (推奨2個以上)",
               "FAQ不足: 0個 (最低3個)",
@@ -5564,24 +5155,19 @@
           {
             "file": "04-web-and-network/network-fundamentals/docs/00-introduction/03-dns.md",
             "warnings": [
-              "目標未達: 49,805字 (目標50,000字)",
               "演習不足: 0個 (最低3個)"
             ]
           },
           {
             "file": "04-web-and-network/network-fundamentals/docs/01-protocols/00-tcp.md",
             "warnings": [
-              "目標未達: 43,546字 (目標50,000字)",
               "推奨構造セクション欠落: アンチパターンセクション, 演習セクション, 深掘りセクション",
-              "FAQ不足: 0個 (最低3個)",
-              "演習不足: 0個 (最低3個)",
-              "参考文献不足: 0個 (最低3個)"
+              "演習不足: 0個 (最低3個)"
             ]
           },
           {
             "file": "04-web-and-network/network-fundamentals/docs/01-protocols/01-udp.md",
             "warnings": [
-              "FAQ不足: 0個 (最低3個)",
               "演習不足: 0個 (最低3個)"
             ]
           },
@@ -5589,8 +5175,6 @@
             "file": "04-web-and-network/network-fundamentals/docs/01-protocols/02-websocket.md",
             "warnings": [
               "推奨構造セクション欠落: 概念セクション",
-              "比較表不足: 1個 (推奨2個以上)",
-              "FAQ不足: 0個 (最低3個)",
               "演習不足: 0個 (最低3個)"
             ]
           },
@@ -5598,18 +5182,15 @@
             "file": "04-web-and-network/network-fundamentals/docs/01-protocols/03-grpc.md",
             "warnings": [
               "推奨構造セクション欠落: 導入セクション, アンチパターンセクション, 演習セクション, 深掘りセクション",
-              "比較表不足: 1個 (推奨2個以上)",
-              "FAQ不足: 0個 (最低3個)",
               "演習不足: 0個 (最低3個)"
             ]
           },
           {
             "file": "04-web-and-network/network-fundamentals/docs/02-http/00-http-basics.md",
             "warnings": [
-              "目標未達: 43,962字 (目標50,000字)",
+              "目標未達: 47,195字 (目標50,000字)",
               "推奨構造セクション欠落: 導入セクション, アンチパターンセクション, 演習セクション, 深掘りセクション",
               "比較表不足: 1個 (推奨2個以上)",
-              "FAQ不足: 0個 (最低3個)",
               "演習不足: 0個 (最低3個)"
             ]
           },
@@ -5617,7 +5198,7 @@
             "file": "04-web-and-network/network-fundamentals/docs/02-http/01-http2-and-http3.md",
             "warnings": [
               "推奨構造セクション欠落: 概念セクション",
-              "比較表不足: 0個 (推奨2個以上)",
+              "比較表不足: 1個 (推奨2個以上)",
               "FAQ不足: 0個 (最低3個)",
               "演習不足: 0個 (最低3個)"
             ]
@@ -5633,36 +5214,30 @@
             "file": "04-web-and-network/network-fundamentals/docs/02-http/03-caching.md",
             "warnings": [
               "推奨構造セクション欠落: 演習セクション, 深掘りセクション",
-              "FAQ不足: 0個 (最低3個)",
-              "演習不足: 0個 (最低3個)",
-              "参考文献不足: 0個 (最低3個)"
+              "演習不足: 0個 (最低3個)"
             ]
           },
           {
             "file": "04-web-and-network/network-fundamentals/docs/02-http/04-cors.md",
             "warnings": [
-              "目標未達: 43,369字 (目標50,000字)",
               "推奨構造セクション欠落: 概念セクション, 実装セクション, 演習セクション, 深掘りセクション",
-              "比較表不足: 0個 (推奨2個以上)",
-              "FAQ不足: 0個 (最低3個)",
-              "演習不足: 0個 (最低3個)",
-              "参考文献不足: 0個 (最低3個)"
+              "比較表不足: 1個 (推奨2個以上)",
+              "演習不足: 0個 (最低3個)"
             ]
           },
           {
             "file": "04-web-and-network/network-fundamentals/docs/03-security/00-tls-ssl.md",
             "warnings": [
-              "目標未達: 27,548字 (目標50,000字)",
+              "目標未達: 33,800字 (目標50,000字)",
               "推奨構造セクション欠落: 実装セクション, アンチパターンセクション, 演習セクション, 深掘りセクション",
               "比較表不足: 1個 (推奨2個以上)",
-              "FAQ不足: 0個 (最低3個)",
               "演習不足: 0個 (最低3個)"
             ]
           },
           {
             "file": "04-web-and-network/network-fundamentals/docs/03-security/01-authentication.md",
             "warnings": [
-              "目標未達: 30,047字 (目標50,000字)",
+              "目標未達: 30,217字 (目標50,000字)",
               "推奨構造セクション欠落: 導入セクション, 概念セクション, 実装セクション, 演習セクション, 深掘りセクション",
               "比較表不足: 1個 (推奨2個以上)",
               "FAQ不足: 0個 (最低3個)",
@@ -5672,59 +5247,47 @@
           {
             "file": "04-web-and-network/network-fundamentals/docs/03-security/02-common-attacks.md",
             "warnings": [
-              "目標未達: 30,913字 (目標50,000字)",
-              "推奨構造セクション欠落: 導入セクション, 概念セクション, アンチパターンセクション, 演習セクション",
+              "目標未達: 45,627字 (目標50,000字)",
+              "推奨構造セクション欠落: 導入セクション, アンチパターンセクション, 演習セクション",
               "比較表不足: 1個 (推奨2個以上)",
-              "FAQ不足: 0個 (最低3個)",
               "演習不足: 0個 (最低3個)"
             ]
           },
           {
             "file": "04-web-and-network/network-fundamentals/docs/04-advanced/00-load-balancing.md",
             "warnings": [
-              "目標未達: 44,761字 (目標50,000字)",
+              "目標未達: 49,455字 (目標50,000字)",
               "推奨構造セクション欠落: アンチパターンセクション, 演習セクション, 深掘りセクション",
-              "比較表不足: 0個 (推奨2個以上)",
-              "FAQ不足: 0個 (最低3個)",
-              "演習不足: 0個 (最低3個)",
-              "参考文献不足: 0個 (最低3個)"
+              "演習不足: 0個 (最低3個)"
             ]
           },
           {
             "file": "04-web-and-network/network-fundamentals/docs/04-advanced/01-cdn.md",
             "warnings": [
               "推奨構造セクション欠落: 導入セクション, 演習セクション, 深掘りセクション",
-              "FAQ不足: 0個 (最低3個)",
-              "演習不足: 0個 (最低3個)",
-              "参考文献不足: 0個 (最低3個)"
+              "演習不足: 0個 (最低3個)"
             ]
           },
           {
             "file": "04-web-and-network/network-fundamentals/docs/04-advanced/02-network-debugging.md",
             "warnings": [
-              "目標未達: 41,969字 (目標50,000字)",
+              "目標未達: 49,075字 (目標50,000字)",
               "推奨構造セクション欠落: 導入セクション, 演習セクション, 深掘りセクション",
-              "FAQ不足: 0個 (最低3個)",
-              "演習不足: 0個 (最低3個)",
-              "参考文献不足: 0個 (最低3個)"
+              "演習不足: 0個 (最低3個)"
             ]
           },
           {
             "file": "04-web-and-network/network-fundamentals/docs/04-advanced/03-performance.md",
             "warnings": [
               "推奨構造セクション欠落: 導入セクション, アンチパターンセクション, 演習セクション, 深掘りセクション",
-              "比較表不足: 1個 (推奨2個以上)",
-              "FAQ不足: 0個 (最低3個)",
               "演習不足: 0個 (最低3個)"
             ]
           },
           {
             "file": "04-web-and-network/web-application-development/docs/00-architecture/00-spa-mpa-ssr.md",
             "warnings": [
-              "目標未達: 40,103字 (目標50,000字)",
+              "目標未達: 45,578字 (目標50,000字)",
               "推奨構造セクション欠落: アンチパターンセクション, 演習セクション, 深掘りセクション",
-              "比較表不足: 1個 (推奨2個以上)",
-              "FAQ不足: 0個 (最低3個)",
               "演習不足: 0個 (最低3個)"
             ]
           },
@@ -5732,7 +5295,6 @@
             "file": "04-web-and-network/web-application-development/docs/00-architecture/01-project-structure.md",
             "warnings": [
               "推奨構造セクション欠落: 演習セクション, 深掘りセクション",
-              "FAQ不足: 0個 (最低3個)",
               "演習不足: 0個 (最低3個)"
             ]
           },
@@ -5740,7 +5302,6 @@
             "file": "04-web-and-network/web-application-development/docs/00-architecture/02-component-architecture.md",
             "warnings": [
               "推奨構造セクション欠落: 導入セクション, 演習セクション, 深掘りセクション",
-              "FAQ不足: 0個 (最低3個)",
               "演習不足: 0個 (最低3個)"
             ]
           },
@@ -5748,7 +5309,6 @@
             "file": "04-web-and-network/web-application-development/docs/00-architecture/03-data-fetching-patterns.md",
             "warnings": [
               "推奨構造セクション欠落: 演習セクション, 深掘りセクション",
-              "FAQ不足: 0個 (最低3個)",
               "演習不足: 0個 (最低3個)"
             ]
           },
@@ -5757,7 +5317,6 @@
             "warnings": [
               "推奨構造セクション欠落: 概念セクション, 演習セクション, 深掘りセクション",
               "比較表不足: 1個 (推奨2個以上)",
-              "FAQ不足: 0個 (最低3個)",
               "演習不足: 0個 (最低3個)"
             ]
           },
@@ -5766,7 +5325,6 @@
             "warnings": [
               "推奨構造セクション欠落: 導入セクション, アンチパターンセクション, 演習セクション, 深掘りセクション",
               "比較表不足: 1個 (推奨2個以上)",
-              "FAQ不足: 0個 (最低3個)",
               "演習不足: 0個 (最低3個)"
             ]
           },
@@ -5775,7 +5333,6 @@
             "warnings": [
               "推奨構造セクション欠落: 演習セクション, 深掘りセクション",
               "比較表不足: 1個 (推奨2個以上)",
-              "FAQ不足: 0個 (最低3個)",
               "演習不足: 0個 (最低3個)"
             ]
           },
@@ -5783,7 +5340,6 @@
             "file": "04-web-and-network/web-application-development/docs/01-state-management/03-url-state.md",
             "warnings": [
               "推奨構造セクション欠落: 演習セクション, 深掘りセクション",
-              "FAQ不足: 0個 (最低3個)",
               "演習不足: 0個 (最低3個)"
             ]
           },
@@ -5791,7 +5347,6 @@
             "file": "04-web-and-network/web-application-development/docs/02-routing-and-navigation/00-client-side-routing.md",
             "warnings": [
               "推奨構造セクション欠落: 導入セクション, 演習セクション, 深掘りセクション",
-              "FAQ不足: 0個 (最低3個)",
               "演習不足: 0個 (最低3個)"
             ]
           },
@@ -5799,7 +5354,6 @@
             "file": "04-web-and-network/web-application-development/docs/02-routing-and-navigation/01-file-based-routing.md",
             "warnings": [
               "推奨構造セクション欠落: 演習セクション, 深掘りセクション",
-              "FAQ不足: 0個 (最低3個)",
               "演習不足: 0個 (最低3個)"
             ]
           },
@@ -5807,8 +5361,6 @@
             "file": "04-web-and-network/web-application-development/docs/02-routing-and-navigation/02-navigation-patterns.md",
             "warnings": [
               "推奨構造セクション欠落: 導入セクション, 演習セクション, 深掘りセクション",
-              "比較表不足: 1個 (推奨2個以上)",
-              "FAQ不足: 0個 (最低3個)",
               "演習不足: 0個 (最低3個)"
             ]
           },
@@ -5816,7 +5368,6 @@
             "file": "04-web-and-network/web-application-development/docs/02-routing-and-navigation/03-auth-and-guards.md",
             "warnings": [
               "推奨構造セクション欠落: 導入セクション, 演習セクション, 深掘りセクション",
-              "FAQ不足: 0個 (最低3個)",
               "演習不足: 0個 (最低3個)"
             ]
           },
@@ -5865,7 +5416,6 @@
             "file": "04-web-and-network/web-application-development/docs/04-deployment/01-environment-and-config.md",
             "warnings": [
               "推奨構造セクション欠落: 演習セクション, 深掘りセクション",
-              "比較表不足: 1個 (推奨2個以上)",
               "FAQ不足: 0個 (最低3個)",
               "演習不足: 0個 (最低3個)"
             ]
@@ -14726,9 +14276,9 @@
       }
     },
     "totalFiles": 952,
-    "totalErrors": 1315,
-    "totalWarnings": 4125,
-    "totalInfo": 6693
+    "totalErrors": 1249,
+    "totalWarnings": 4046,
+    "totalInfo": 6705
   },
   "results": [
     {
@@ -30704,9 +30254,9 @@
       "category": "04-web-and-network",
       "skill": "api-and-library-guide",
       "type": "readme",
-      "charCount": 3118,
+      "charCount": 4468,
       "errors": [
-        "必須セクション欠落: この章で学ぶこと, FAQ, まとめ, 参考文献"
+        "必須セクション欠落: この章で学ぶこと"
       ],
       "warnings": [],
       "info": [
@@ -30714,10 +30264,7 @@
       ],
       "metrics": {
         "missingSections": [
-          "この章で学ぶこと",
-          "FAQ",
-          "まとめ",
-          "参考文献"
+          "この章で学ぶこと"
         ],
         "missingStructural": [
           "導入セクション",
@@ -30730,9 +30277,9 @@
         "codeBlocks": 1,
         "tables": 5,
         "diagrams": 0,
-        "faq": 0,
+        "faq": 3,
         "exercises": 0,
-        "references": 0,
+        "references": 3,
         "learningObjectives": 0,
         "headingIssues": 0,
         "fillers": [],
@@ -30747,14 +30294,11 @@
       "category": "04-web-and-network",
       "skill": "api-and-library-guide",
       "type": "guide",
-      "charCount": 83158,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ"
-      ],
+      "charCount": 84180,
+      "errors": [],
       "warnings": [
         "推奨構造セクション欠落: アンチパターンセクション, 深掘りセクション",
         "比較表不足: 1個 (推奨2個以上)",
-        "FAQ不足: 0個 (最低3個)",
         "演習不足: 2個 (最低3個)"
       ],
       "info": [
@@ -30775,10 +30319,7 @@
         "繰り返しフレーズ 10件: \"type: string\"(93回), \"properties:\"(51回), \"type: object\"(50回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "アンチパターンセクション",
           "深掘りセクション"
@@ -30786,7 +30327,7 @@
         "codeBlocks": 61,
         "tables": 1,
         "diagrams": 13,
-        "faq": 0,
+        "faq": 3,
         "exercises": 2,
         "references": 10,
         "learningObjectives": 8,
@@ -30796,60 +30337,53 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/api-and-library-guide/docs/00-api-design-principles/01-naming-and-conventions.md",
       "category": "04-web-and-network",
       "skill": "api-and-library-guide",
       "type": "guide",
-      "charCount": 44814,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ"
-      ],
+      "charCount": 47281,
+      "errors": [],
       "warnings": [
-        "目標未達: 44,814字 (目標50,000字)",
+        "目標未達: 47,281字 (目標50,000字)",
         "推奨構造セクション欠落: 導入セクション, 深掘りセクション",
-        "比較表不足: 1個 (推奨2個以上)",
-        "FAQ不足: 0個 (最低3個)"
+        "比較表不足: 1個 (推奨2個以上)"
       ],
       "info": [
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 7.2 Spectralでの命名規則チェック\")",
-        "繰り返しフレーズ 10件: \"type: string\"(36回), \"─────────────────────────\"(17回), \"─────────────────────────────\"(16回)"
+        "見出し: 見出しレベルのスキップ: H1 → H3 (\"### Q2: URLパスの命名で単数形と複数形のどちらを使うべき？\")",
+        "繰り返しフレーズ 10件: \"type: string\"(38回), \"─────────────────────────\"(17回), \"─────────────────────────────\"(16回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "導入セクション",
           "深掘りセクション"
         ],
-        "codeBlocks": 30,
+        "codeBlocks": 35,
         "tables": 1,
-        "diagrams": 11,
-        "faq": 0,
+        "diagrams": 12,
+        "faq": 3,
         "exercises": 3,
         "references": 10,
         "learningObjectives": 8,
-        "headingIssues": 1,
+        "headingIssues": 2,
         "fillers": [],
         "outdatedYears": [],
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/api-and-library-guide/docs/00-api-design-principles/02-versioning-strategy.md",
       "category": "04-web-and-network",
       "skill": "api-and-library-guide",
       "type": "guide",
-      "charCount": 62295,
-      "errors": [
-        "必須セクション欠落: 前提知識, まとめ"
-      ],
+      "charCount": 63064,
+      "errors": [],
       "warnings": [
         "演習不足: 0個 (最低3個)"
       ],
@@ -30864,13 +30398,10 @@
         "繰り返しフレーズ 10件: \"│                                                 \"(6回), \"data = json.loads(response.data)\"(5回), \"app = Flask(__name__)\"(4回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "まとめ"
-        ],
+        "missingSections": [],
         "missingStructural": [],
         "codeBlocks": 40,
-        "tables": 6,
+        "tables": 7,
         "diagrams": 19,
         "faq": 4,
         "exercises": 0,
@@ -30882,39 +30413,33 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/api-and-library-guide/docs/00-api-design-principles/03-pagination-and-filtering.md",
       "category": "04-web-and-network",
       "skill": "api-and-library-guide",
       "type": "guide",
-      "charCount": 69053,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ"
-      ],
+      "charCount": 72924,
+      "errors": [],
       "warnings": [
         "推奨構造セクション欠落: 導入セクション, 深掘りセクション",
-        "FAQ不足: 0個 (最低3個)",
         "演習不足: 0個 (最低3個)"
       ],
       "info": [
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 3.3 Connection リゾルバの実装\")",
-        "繰り返しフレーズ 10件: \"```javascript\"(12回), \"├───────────────┼──────────┼──────────┼───────────\"(8回), \"├──────────────┼────────────┼───────────┼─────────\"(6回)"
+        "繰り返しフレーズ 10件: \"```javascript\"(12回), \"├───────────────┼──────────┼──────────┼───────────\"(8回), \"ORDER BY created_at DESC, id DESC\"(6回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "導入セクション",
           "深掘りセクション"
         ],
-        "codeBlocks": 53,
+        "codeBlocks": 56,
         "tables": 3,
-        "diagrams": 19,
-        "faq": 0,
+        "diagrams": 20,
+        "faq": 3,
         "exercises": 0,
         "references": 6,
         "learningObjectives": 6,
@@ -30924,38 +30449,31 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/api-and-library-guide/docs/01-rest-and-graphql/00-rest-best-practices.md",
       "category": "04-web-and-network",
       "skill": "api-and-library-guide",
       "type": "guide",
-      "charCount": 74375,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ, まとめ"
-      ],
+      "charCount": 78145,
+      "errors": [],
       "warnings": [
         "推奨構造セクション欠落: 導入セクション",
-        "FAQ不足: 0個 (最低3個)",
         "演習不足: 0個 (最低3個)"
       ],
       "info": [
-        "繰り返しフレーズ 10件: \"```javascript\"(19回), \"│                                                 \"(8回), \"├─────────┼───────────────────────────────────────\"(7回)"
+        "繰り返しフレーズ 10件: \"```javascript\"(20回), \"│                                                 \"(8回), \"├─────────┼───────────────────────────────────────\"(7回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ",
-          "まとめ"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "導入セクション"
         ],
-        "codeBlocks": 44,
+        "codeBlocks": 47,
         "tables": 6,
         "diagrams": 23,
-        "faq": 0,
+        "faq": 3,
         "exercises": 0,
         "references": 7,
         "learningObjectives": 8,
@@ -30965,20 +30483,17 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/api-and-library-guide/docs/01-rest-and-graphql/01-graphql-fundamentals.md",
       "category": "04-web-and-network",
       "skill": "api-and-library-guide",
       "type": "guide",
-      "charCount": 87204,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ"
-      ],
+      "charCount": 88274,
+      "errors": [],
       "warnings": [
-        "推奨構造セクション欠落: 深掘りセクション",
-        "FAQ不足: 0個 (最低3個)"
+        "推奨構造セクション欠落: 深掘りセクション"
       ],
       "info": [
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 2.2 オブジェクト型と型修飾子\")",
@@ -30995,45 +30510,37 @@
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 14.2 エッジケース2: 大量データの一括リクエスト\")",
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 14.3 エッジケース3: 並行Mutationの競合\")",
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 演習2: 中級（リゾルバーとDataLoader）\")",
-        "見出し: 見出しレベルのスキップ: H1 → H3 (\"### Q4: GraphQLでファイルアップロードはどう実装するのか?\")",
         "繰り返しフレーズ 10件: \"```javascript\"(22回), \"```graphql\"(19回), \"name: String!\"(11回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "深掘りセクション"
         ],
         "codeBlocks": 60,
         "tables": 4,
         "diagrams": 16,
-        "faq": 0,
+        "faq": 3,
         "exercises": 3,
         "references": 6,
         "learningObjectives": 6,
-        "headingIssues": 15,
+        "headingIssues": 14,
         "fillers": [],
         "outdatedYears": [],
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/api-and-library-guide/docs/01-rest-and-graphql/02-graphql-advanced.md",
       "category": "04-web-and-network",
       "skill": "api-and-library-guide",
       "type": "guide",
-      "charCount": 88545,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ"
-      ],
+      "charCount": 93120,
+      "errors": [],
       "warnings": [
         "推奨構造セクション欠落: 導入セクション, アンチパターンセクション, 演習セクション, 深掘りセクション",
-        "比較表不足: 1個 (推奨2個以上)",
-        "FAQ不足: 0個 (最低3個)",
         "演習不足: 0個 (最低3個)"
       ],
       "info": [
@@ -31044,43 +30551,39 @@
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 6.3 ディレクティブの活用\")",
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 6.4 Input型とMutation設計パターン\")",
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 7.3 Gatewayの設定\")",
-        "繰り返しフレーズ 10件: \"```javascript\"(23回), \"```graphql\"(10回), \"const resolvers = {\"(10回)"
+        "見出し: 見出しレベルのスキップ: H1 → H3 (\"### Q3: GraphQLのキャッシュ戦略はRESTと比べてどう異なるか？\")",
+        "繰り返しフレーズ 10件: \"```javascript\"(26回), \"```graphql\"(12回), \"name: String!\"(11回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "導入セクション",
           "アンチパターンセクション",
           "演習セクション",
           "深掘りセクション"
         ],
-        "codeBlocks": 40,
-        "tables": 1,
-        "diagrams": 11,
-        "faq": 0,
+        "codeBlocks": 47,
+        "tables": 2,
+        "diagrams": 12,
+        "faq": 3,
         "exercises": 0,
         "references": 8,
         "learningObjectives": 9,
-        "headingIssues": 7,
+        "headingIssues": 8,
         "fillers": [],
         "outdatedYears": [],
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/api-and-library-guide/docs/01-rest-and-graphql/03-rest-vs-graphql.md",
       "category": "04-web-and-network",
       "skill": "api-and-library-guide",
       "type": "guide",
-      "charCount": 59139,
-      "errors": [
-        "必須セクション欠落: 前提知識"
-      ],
+      "charCount": 59430,
+      "errors": [],
       "warnings": [
         "推奨構造セクション欠落: 導入セクション, 深掘りセクション"
       ],
@@ -31088,9 +30591,7 @@
         "繰り返しフレーズ 10件: \"// ===============================================\"(18回), \"```typescript\"(11回), \"│                                                 \"(9回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "導入セクション",
           "深掘りセクション"
@@ -31108,17 +30609,15 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/api-and-library-guide/docs/02-sdk-and-libraries/00-sdk-design.md",
       "category": "04-web-and-network",
       "skill": "api-and-library-guide",
       "type": "guide",
-      "charCount": 73712,
-      "errors": [
-        "必須セクション欠落: 前提知識, まとめ"
-      ],
+      "charCount": 74855,
+      "errors": [],
       "warnings": [
         "推奨構造セクション欠落: 導入セクション, 概念セクション, 深掘りセクション"
       ],
@@ -31126,10 +30625,7 @@
         "繰り返しフレーズ 10件: \"```typescript\"(36回), \"+-------------------------------------------------\"(12回), \"return this;\"(10回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "まとめ"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "導入セクション",
           "概念セクション",
@@ -31148,19 +30644,16 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/api-and-library-guide/docs/02-sdk-and-libraries/01-npm-package-development.md",
       "category": "04-web-and-network",
       "skill": "api-and-library-guide",
       "type": "guide",
-      "charCount": 60232,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ"
-      ],
+      "charCount": 64865,
+      "errors": [],
       "warnings": [
-        "FAQ不足: 0個 (最低3個)",
         "演習不足: 0個 (最低3個)",
         "Node.js古いバージョン: Node.js 12., Node.js 8 , Node.js 12 , Node.js 14 , Node.js 16 "
       ],
@@ -31169,18 +30662,15 @@
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 9.4 モノレポ内パッケージの相互参照\")",
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 10.3 Tree-shakingの最適化\")",
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 11.2 セキュリティチェックリスト\")",
-        "繰り返しフレーズ 10件: \"```typescript\"(14回), \"\"import\": {\"(6回), \"\"types\": \"./dist/index.d.ts\",\"(6回)"
+        "繰り返しフレーズ 10件: \"```typescript\"(14回), \"\"types\": \"./dist/index.d.ts\",\"(7回), \"\"import\": {\"(6回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ"
-        ],
+        "missingSections": [],
         "missingStructural": [],
-        "codeBlocks": 68,
+        "codeBlocks": 71,
         "tables": 6,
         "diagrams": 21,
-        "faq": 0,
+        "faq": 3,
         "exercises": 0,
         "references": 7,
         "learningObjectives": 7,
@@ -31202,22 +30692,18 @@
         ],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/api-and-library-guide/docs/02-sdk-and-libraries/02-api-documentation.md",
       "category": "04-web-and-network",
       "skill": "api-and-library-guide",
       "type": "guide",
-      "charCount": 51871,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ, まとめ, 参考文献"
-      ],
+      "charCount": 58367,
+      "errors": [],
       "warnings": [
         "推奨構造セクション欠落: 概念セクション, アンチパターンセクション, 演習セクション, 深掘りセクション",
-        "FAQ不足: 0個 (最低3個)",
         "演習不足: 0個 (最低3個)",
-        "参考文献不足: 0個 (最低3個)",
         "Node.js古いバージョン: Node.js 16 ",
         "Python古いバージョン: Python 3.8 "
       ],
@@ -31229,24 +30715,19 @@
         "繰り返しフレーズ 10件: \"type: string\"(19回), \"description: |\"(14回), \"├─────────────────────────────────────────────────\"(10回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ",
-          "まとめ",
-          "参考文献"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "概念セクション",
           "アンチパターンセクション",
           "演習セクション",
           "深掘りセクション"
         ],
-        "codeBlocks": 29,
-        "tables": 5,
-        "diagrams": 12,
-        "faq": 0,
+        "codeBlocks": 30,
+        "tables": 6,
+        "diagrams": 13,
+        "faq": 3,
         "exercises": 0,
-        "references": 0,
+        "references": 10,
         "learningObjectives": 6,
         "headingIssues": 4,
         "fillers": [],
@@ -31269,17 +30750,15 @@
         ],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/api-and-library-guide/docs/03-api-security/00-authentication-patterns.md",
       "category": "04-web-and-network",
       "skill": "api-and-library-guide",
       "type": "guide",
-      "charCount": 71223,
-      "errors": [
-        "必須セクション欠落: 前提知識"
-      ],
+      "charCount": 71522,
+      "errors": [],
       "warnings": [
         "推奨構造セクション欠落: 導入セクション",
         "比較表不足: 1個 (推奨2個以上)",
@@ -31290,9 +30769,7 @@
         "繰り返しフレーズ 10件: \"```javascript\"(17回), \"│                                                 \"(14回), \"│           │               │                 │\"(11回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "導入セクション"
         ],
@@ -31309,43 +30786,37 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/api-and-library-guide/docs/03-api-security/01-rate-limiting.md",
       "category": "04-web-and-network",
       "skill": "api-and-library-guide",
       "type": "guide",
-      "charCount": 75672,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ"
-      ],
+      "charCount": 81877,
+      "errors": [],
       "warnings": [
         "推奨構造セクション欠落: アンチパターンセクション, 演習セクション, 深掘りセクション",
         "比較表不足: 1個 (推奨2個以上)",
-        "FAQ不足: 0個 (最低3個)",
         "演習不足: 0個 (最低3個)"
       ],
       "info": [
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 8.2 AWS API Gateway のレート制限\")",
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 8.3 Kong でのレート制限プラグイン\")",
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 9.3 モニタリングとアラート\")",
-        "繰り返しフレーズ 10件: \"```javascript\"(22回), \"const now = Date.now();\"(8回), \"allowed: true,\"(7回)"
+        "繰り返しフレーズ 10件: \"```javascript\"(27回), \"const now = Date.now();\"(9回), \"if (!result.allowed) {\"(8回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "アンチパターンセクション",
           "演習セクション",
           "深掘りセクション"
         ],
-        "codeBlocks": 46,
+        "codeBlocks": 54,
         "tables": 1,
-        "diagrams": 12,
-        "faq": 0,
+        "diagrams": 13,
+        "faq": 3,
         "exercises": 0,
         "references": 7,
         "learningObjectives": 6,
@@ -31355,17 +30826,15 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/api-and-library-guide/docs/03-api-security/02-input-validation.md",
       "category": "04-web-and-network",
       "skill": "api-and-library-guide",
       "type": "guide",
-      "charCount": 73866,
-      "errors": [
-        "必須セクション欠落: 前提知識"
-      ],
+      "charCount": 74118,
+      "errors": [],
       "warnings": [
         "推奨構造セクション欠落: 導入セクション",
         "演習不足: 0個 (最低3個)"
@@ -31374,9 +30843,7 @@
         "繰り返しフレーズ 10件: \"```typescript\"(29回), \"|                                                 \"(19回), \"// ===============================================\"(16回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "導入セクション"
         ],
@@ -31393,20 +30860,17 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/api-and-library-guide/docs/04-api-operations/00-api-testing.md",
       "category": "04-web-and-network",
       "skill": "api-and-library-guide",
       "type": "guide",
-      "charCount": 75642,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ, まとめ"
-      ],
+      "charCount": 81898,
+      "errors": [],
       "warnings": [
         "推奨構造セクション欠落: 導入セクション",
-        "FAQ不足: 0個 (最低3個)",
         "演習不足: 0個 (最低3個)"
       ],
       "info": [
@@ -31414,18 +30878,14 @@
         "繰り返しフレーズ 10件: \"```javascript\"(24回), \".set('Authorization', `Bearer ${authToken}`)\"(23回), \"const res = await request\"(18回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ",
-          "まとめ"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "導入セクション"
         ],
-        "codeBlocks": 39,
-        "tables": 5,
+        "codeBlocks": 41,
+        "tables": 7,
         "diagrams": 11,
-        "faq": 0,
+        "faq": 3,
         "exercises": 0,
         "references": 7,
         "learningObjectives": 7,
@@ -31435,20 +30895,17 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/api-and-library-guide/docs/04-api-operations/01-monitoring-and-logging.md",
       "category": "04-web-and-network",
       "skill": "api-and-library-guide",
       "type": "guide",
-      "charCount": 65252,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ"
-      ],
+      "charCount": 68113,
+      "errors": [],
       "warnings": [
-        "推奨構造セクション欠落: 深掘りセクション",
-        "FAQ不足: 0個 (最低3個)"
+        "推奨構造セクション欠落: 深掘りセクション"
       ],
       "info": [
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 3.5 ログのセキュリティとプライバシー\")",
@@ -31457,17 +30914,14 @@
         "繰り返しフレーズ 10件: \"annotations:\"(10回), \"registers: [registry],\"(9回), \"+=================================================\"(9回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "深掘りセクション"
         ],
         "codeBlocks": 37,
-        "tables": 10,
+        "tables": 12,
         "diagrams": 16,
-        "faq": 0,
+        "faq": 3,
         "exercises": 3,
         "references": 6,
         "learningObjectives": 6,
@@ -31477,22 +30931,18 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/api-and-library-guide/docs/04-api-operations/02-api-gateway.md",
       "category": "04-web-and-network",
       "skill": "api-and-library-guide",
       "type": "guide",
-      "charCount": 75076,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ, まとめ, 次に読むべきガイド, 参考文献"
-      ],
+      "charCount": 82029,
+      "errors": [],
       "warnings": [
         "推奨構造セクション欠落: アンチパターンセクション, 演習セクション, 深掘りセクション",
-        "FAQ不足: 0個 (最低3個)",
-        "演習不足: 0個 (最低3個)",
-        "参考文献不足: 0個 (最低3個)"
+        "演習不足: 0個 (最低3個)"
       ],
       "info": [
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 3.3 カスタムドメインとステージ管理\")",
@@ -31502,24 +30952,18 @@
         "繰り返しフレーズ 10件: \"Properties:\"(13回), \"namespace: api\"(9回), \"│                                                 \"(9回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ",
-          "まとめ",
-          "次に読むべきガイド",
-          "参考文献"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "アンチパターンセクション",
           "演習セクション",
           "深掘りセクション"
         ],
-        "codeBlocks": 29,
-        "tables": 4,
-        "diagrams": 13,
-        "faq": 0,
+        "codeBlocks": 33,
+        "tables": 7,
+        "diagrams": 14,
+        "faq": 3,
         "exercises": 0,
-        "references": 0,
+        "references": 7,
         "learningObjectives": 8,
         "headingIssues": 4,
         "fillers": [],
@@ -31527,16 +30971,16 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/browser-and-web-platform/SKILL.md",
       "category": "04-web-and-network",
       "skill": "browser-and-web-platform",
       "type": "readme",
-      "charCount": 3245,
+      "charCount": 4786,
       "errors": [
-        "必須セクション欠落: この章で学ぶこと, FAQ, まとめ, 参考文献"
+        "必須セクション欠落: この章で学ぶこと"
       ],
       "warnings": [],
       "info": [
@@ -31544,10 +30988,7 @@
       ],
       "metrics": {
         "missingSections": [
-          "この章で学ぶこと",
-          "FAQ",
-          "まとめ",
-          "参考文献"
+          "この章で学ぶこと"
         ],
         "missingStructural": [
           "導入セクション",
@@ -31560,9 +31001,9 @@
         "codeBlocks": 1,
         "tables": 5,
         "diagrams": 0,
-        "faq": 0,
+        "faq": 3,
         "exercises": 0,
-        "references": 0,
+        "references": 5,
         "learningObjectives": 0,
         "headingIssues": 0,
         "fillers": [],
@@ -31577,38 +31018,28 @@
       "category": "04-web-and-network",
       "skill": "browser-and-web-platform",
       "type": "guide",
-      "charCount": 55291,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ, まとめ, 次に読むべきガイド, 参考文献"
-      ],
+      "charCount": 60024,
+      "errors": [],
       "warnings": [
         "推奨構造セクション欠落: 概念セクション, 演習セクション, 深掘りセクション",
-        "FAQ不足: 0個 (最低3個)",
-        "演習不足: 0個 (最低3個)",
-        "参考文献不足: 0個 (最低3個)"
+        "演習不足: 0個 (最低3個)"
       ],
       "info": [
         "繰り返しフレーズ 10件: \"│              │                │               │ \"(12回), \"```javascript\"(8回), \"┌─────────────────────────────────────────────────\"(8回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ",
-          "まとめ",
-          "次に読むべきガイド",
-          "参考文献"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "概念セクション",
           "演習セクション",
           "深掘りセクション"
         ],
         "codeBlocks": 28,
-        "tables": 5,
+        "tables": 6,
         "diagrams": 14,
-        "faq": 0,
+        "faq": 3,
         "exercises": 0,
-        "references": 0,
+        "references": 7,
         "learningObjectives": 8,
         "headingIssues": 0,
         "fillers": [],
@@ -31616,41 +31047,34 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/browser-and-web-platform/docs/00-browser-engine/01-navigation-and-loading.md",
       "category": "04-web-and-network",
       "skill": "browser-and-web-platform",
       "type": "guide",
-      "charCount": 69046,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ"
-      ],
+      "charCount": 76071,
+      "errors": [],
       "warnings": [
         "推奨構造セクション欠落: 導入セクション, アンチパターンセクション, 演習セクション, 深掘りセクション",
-        "比較表不足: 1個 (推奨2個以上)",
-        "FAQ不足: 0個 (最低3個)",
         "演習不足: 0個 (最低3個)"
       ],
       "info": [
-        "繰り返しフレーズ 10件: \"```javascript\"(20回), \"│                              │\"(14回), \"│  ↓           │            │                  │  \"(5回)"
+        "繰り返しフレーズ 10件: \"```javascript\"(27回), \"│                              │\"(14回), \"self.addEventListener('fetch', (event) => {\"(6回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "導入セクション",
           "アンチパターンセクション",
           "演習セクション",
           "深掘りセクション"
         ],
-        "codeBlocks": 53,
-        "tables": 1,
-        "diagrams": 17,
-        "faq": 0,
+        "codeBlocks": 69,
+        "tables": 3,
+        "diagrams": 19,
+        "faq": 3,
         "exercises": 0,
         "references": 10,
         "learningObjectives": 8,
@@ -31660,17 +31084,15 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/browser-and-web-platform/docs/00-browser-engine/02-parsing-html-css.md",
       "category": "04-web-and-network",
       "skill": "browser-and-web-platform",
       "type": "guide",
-      "charCount": 63823,
-      "errors": [
-        "必須セクション欠落: 前提知識"
-      ],
+      "charCount": 63936,
+      "errors": [],
       "warnings": [
         "推奨構造セクション欠落: 導入セクション, 概念セクション, 実装セクション, 深掘りセクション",
         "比較表不足: 1個 (推奨2個以上)"
@@ -31679,9 +31101,7 @@
         "繰り返しフレーズ 10件: \"<whitespace-token>\"(15回), \"├─────────────────────────────────────────────┤\"(12回), \"├────────────────────┼──────────────────────┼─────\"(9回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "導入セクション",
           "概念セクション",
@@ -31701,19 +31121,16 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/browser-and-web-platform/docs/00-browser-engine/03-browser-security-model.md",
       "category": "04-web-and-network",
       "skill": "browser-and-web-platform",
       "type": "guide",
-      "charCount": 60956,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ"
-      ],
+      "charCount": 64375,
+      "errors": [],
       "warnings": [
-        "FAQ不足: 0個 (最低3個)",
         "演習不足: 0個 (最低3個)"
       ],
       "info": [
@@ -31722,15 +31139,12 @@
         "繰り返しフレーズ 10件: \"```javascript\"(17回), \"|  ┌──────────────────────────────────────────────\"(6回), \"|  └──────────────────────────────────────────────\"(6回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ"
-        ],
+        "missingSections": [],
         "missingStructural": [],
-        "codeBlocks": 47,
+        "codeBlocks": 50,
         "tables": 10,
         "diagrams": 11,
-        "faq": 0,
+        "faq": 3,
         "exercises": 0,
         "references": 10,
         "learningObjectives": 7,
@@ -31740,64 +31154,54 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/browser-and-web-platform/docs/01-rendering/00-rendering-pipeline.md",
       "category": "04-web-and-network",
       "skill": "browser-and-web-platform",
       "type": "guide",
-      "charCount": 31942,
-      "errors": [
-        "サイズ不足: 31,942字 (最低40,000字)",
-        "必須セクション欠落: FAQ, まとめ, 次に読むべきガイド, 参考文献"
-      ],
+      "charCount": 43722,
+      "errors": [],
       "warnings": [
-        "目標未達: 31,942字 (目標50,000字)",
+        "目標未達: 43,722字 (目標50,000字)",
         "推奨構造セクション欠落: 導入セクション, アンチパターンセクション, 演習セクション, 深掘りセクション",
-        "FAQ不足: 0個 (最低3個)",
-        "演習不足: 0個 (最低3個)",
-        "参考文献不足: 0個 (最低3個)"
+        "演習不足: 0個 (最低3個)"
       ],
       "info": [
-        "繰り返しフレーズ 7件: \"```javascript\"(8回), \"┌─────────────────────────────────────────────────\"(5回), \"└─────────────────────┬───────────────────────────\"(5回)"
+        "繰り返しフレーズ 9件: \"```javascript\"(12回), \"┌─────────────────────────────────────────────────\"(5回), \"└─────────────────────┬───────────────────────────\"(5回)"
       ],
       "metrics": {
-        "missingSections": [
-          "FAQ",
-          "まとめ",
-          "次に読むべきガイド",
-          "参考文献"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "導入セクション",
           "アンチパターンセクション",
           "演習セクション",
           "深掘りセクション"
         ],
-        "codeBlocks": 27,
-        "tables": 6,
-        "diagrams": 12,
-        "faq": 0,
+        "codeBlocks": 38,
+        "tables": 7,
+        "diagrams": 13,
+        "faq": 3,
         "exercises": 0,
-        "references": 0,
+        "references": 12,
         "learningObjectives": 6,
         "headingIssues": 0,
         "fillers": [],
         "outdatedYears": [],
         "outdatedVersions": [],
-        "repeatedPhrases": 7
+        "repeatedPhrases": 9
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/browser-and-web-platform/docs/01-rendering/01-css-layout-engine.md",
       "category": "04-web-and-network",
       "skill": "browser-and-web-platform",
       "type": "guide",
-      "charCount": 53152,
+      "charCount": 59091,
       "errors": [
-        "必須セクション欠落: 前提知識, FAQ, 参考文献"
+        "必須セクション欠落: FAQ, 参考文献"
       ],
       "warnings": [
         "推奨構造セクション欠落: 導入セクション",
@@ -31806,18 +31210,17 @@
         "参考文献不足: 0個 (最低3個)"
       ],
       "info": [
-        "繰り返しフレーズ 10件: \"display: flex;\"(20回), \"display: grid;\"(17回), \"min-height: 100vh;\"(9回)"
+        "繰り返しフレーズ 10件: \"display: flex;\"(21回), \"display: grid;\"(18回), \".container {\"(14回)"
       ],
       "metrics": {
         "missingSections": [
-          "前提知識",
           "FAQ",
           "参考文献"
         ],
         "missingStructural": [
           "導入セクション"
         ],
-        "codeBlocks": 68,
+        "codeBlocks": 76,
         "tables": 7,
         "diagrams": 19,
         "faq": 0,
@@ -31837,39 +31240,28 @@
       "category": "04-web-and-network",
       "skill": "browser-and-web-platform",
       "type": "guide",
-      "charCount": 36929,
-      "errors": [
-        "サイズ不足: 36,929字 (最低40,000字)",
-        "必須セクション欠落: 前提知識, FAQ, まとめ, 次に読むべきガイド, 参考文献"
-      ],
+      "charCount": 43166,
+      "errors": [],
       "warnings": [
-        "目標未達: 36,929字 (目標50,000字)",
+        "目標未達: 43,166字 (目標50,000字)",
         "推奨構造セクション欠落: 導入セクション, 演習セクション",
-        "FAQ不足: 0個 (最低3個)",
-        "演習不足: 0個 (最低3個)",
-        "参考文献不足: 0個 (最低3個)"
+        "演習不足: 0個 (最低3個)"
       ],
       "info": [
         "繰り返しフレーズ 10件: \"==================================================\"(22回), \"```javascript\"(10回), \"│                                                 \"(7回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ",
-          "まとめ",
-          "次に読むべきガイド",
-          "参考文献"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "導入セクション",
           "演習セクション"
         ],
         "codeBlocks": 34,
-        "tables": 2,
+        "tables": 3,
         "diagrams": 10,
-        "faq": 0,
+        "faq": 3,
         "exercises": 0,
-        "references": 0,
+        "references": 5,
         "learningObjectives": 8,
         "headingIssues": 0,
         "fillers": [],
@@ -31877,35 +31269,28 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/browser-and-web-platform/docs/01-rendering/03-animation-performance.md",
       "category": "04-web-and-network",
       "skill": "browser-and-web-platform",
       "type": "guide",
-      "charCount": 66912,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ, まとめ"
-      ],
+      "charCount": 74947,
+      "errors": [],
       "warnings": [
-        "FAQ不足: 0個 (最低3個)",
         "演習不足: 0個 (最低3個)"
       ],
       "info": [
-        "繰り返しフレーズ 10件: \"```javascript\"(26回), \"requestAnimationFrame(animate);\"(8回), \"this.isRunning = false;\"(7回)"
+        "繰り返しフレーズ 10件: \"```javascript\"(29回), \"│                                                 \"(9回), \"requestAnimationFrame(animate);\"(9回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ",
-          "まとめ"
-        ],
+        "missingSections": [],
         "missingStructural": [],
-        "codeBlocks": 58,
-        "tables": 3,
-        "diagrams": 17,
-        "faq": 0,
+        "codeBlocks": 65,
+        "tables": 7,
+        "diagrams": 22,
+        "faq": 3,
         "exercises": 0,
         "references": 6,
         "learningObjectives": 8,
@@ -31915,47 +31300,36 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/browser-and-web-platform/docs/02-javascript-runtime/00-v8-engine.md",
       "category": "04-web-and-network",
       "skill": "browser-and-web-platform",
       "type": "guide",
-      "charCount": 45724,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ, まとめ, 次に読むべきガイド, 参考文献"
-      ],
+      "charCount": 59732,
+      "errors": [],
       "warnings": [
-        "目標未達: 45,724字 (目標50,000字)",
         "推奨構造セクション欠落: 演習セクション, 深掘りセクション",
-        "FAQ不足: 0個 (最低3個)",
-        "演習不足: 0個 (最低3個)",
-        "参考文献不足: 0個 (最低3個)"
+        "演習不足: 0個 (最低3個)"
       ],
       "info": [
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 3.3 レジスタベースとスタックベースの比較\")",
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 10.2 Chrome DevToolsでのV8分析\")",
-        "繰り返しフレーズ 10件: \"```javascript\"(35回), \"│                                                 \"(8回), \"│                                                 \"(6回)"
+        "繰り返しフレーズ 10件: \"```javascript\"(55回), \"│                                                 \"(8回), \"**推奨パターン:**\"(7回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ",
-          "まとめ",
-          "次に読むべきガイド",
-          "参考文献"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "演習セクション",
           "深掘りセクション"
         ],
-        "codeBlocks": 50,
-        "tables": 5,
-        "diagrams": 13,
-        "faq": 0,
+        "codeBlocks": 71,
+        "tables": 10,
+        "diagrams": 19,
+        "faq": 3,
         "exercises": 0,
-        "references": 0,
+        "references": 14,
         "learningObjectives": 8,
         "headingIssues": 2,
         "fillers": [],
@@ -31963,25 +31337,25 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/browser-and-web-platform/docs/02-javascript-runtime/01-event-loop-browser.md",
       "category": "04-web-and-network",
       "skill": "browser-and-web-platform",
       "type": "guide",
-      "charCount": 48845,
+      "charCount": 51465,
       "errors": [
         "必須セクション欠落: FAQ"
       ],
       "warnings": [
-        "目標未達: 48,845字 (目標50,000字)",
         "推奨構造セクション欠落: 導入セクション",
         "FAQ不足: 0個 (最低3個)",
-        "演習不足: 0個 (最低3個)"
+        "演習不足: 0個 (最低3個)",
+        "Node.js古いバージョン: Node.js v11 "
       ],
       "info": [
-        "繰り返しフレーズ 10件: \"```javascript\"(37回), \"requestAnimationFrame(() => {\"(10回), \"setTimeout(() => {\"(8回)"
+        "繰り返しフレーズ 10件: \"```javascript\"(42回), \"requestAnimationFrame(() => {\"(10回), \"setTimeout(() => {\"(8回)"
       ],
       "metrics": {
         "missingSections": [
@@ -31990,7 +31364,7 @@
         "missingStructural": [
           "導入セクション"
         ],
-        "codeBlocks": 46,
+        "codeBlocks": 51,
         "tables": 9,
         "diagrams": 11,
         "faq": 0,
@@ -32000,7 +31374,15 @@
         "headingIssues": 0,
         "fillers": [],
         "outdatedYears": [],
-        "outdatedVersions": [],
+        "outdatedVersions": [
+          {
+            "label": "Node.js古いバージョン",
+            "matches": [
+              "Node.js v11 "
+            ],
+            "count": 1
+          }
+        ],
         "repeatedPhrases": 10
       },
       "severity": "ERROR"
@@ -32010,38 +31392,28 @@
       "category": "04-web-and-network",
       "skill": "browser-and-web-platform",
       "type": "guide",
-      "charCount": 51130,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ, まとめ, 次に読むべきガイド, 参考文献"
-      ],
+      "charCount": 57809,
+      "errors": [],
       "warnings": [
         "推奨構造セクション欠落: 導入セクション, 演習セクション, 深掘りセクション",
-        "FAQ不足: 0個 (最低3個)",
-        "演習不足: 0個 (最低3個)",
-        "参考文献不足: 0個 (最低3個)"
+        "演習不足: 0個 (最低3個)"
       ],
       "info": [
-        "繰り返しフレーズ 10件: \"```javascript\"(22回), \"self.onmessage = (event) => {\"(8回), \"// ===== main.js =====\"(7回)"
+        "繰り返しフレーズ 10件: \"```javascript\"(26回), \"self.onmessage = (event) => {\"(8回), \"// ===== main.js =====\"(7回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ",
-          "まとめ",
-          "次に読むべきガイド",
-          "参考文献"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "導入セクション",
           "演習セクション",
           "深掘りセクション"
         ],
-        "codeBlocks": 34,
-        "tables": 5,
+        "codeBlocks": 38,
+        "tables": 7,
         "diagrams": 13,
-        "faq": 0,
+        "faq": 3,
         "exercises": 0,
-        "references": 0,
+        "references": 5,
         "learningObjectives": 7,
         "headingIssues": 0,
         "fillers": [],
@@ -32049,38 +31421,32 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/browser-and-web-platform/docs/02-javascript-runtime/03-memory-management.md",
       "category": "04-web-and-network",
       "skill": "browser-and-web-platform",
       "type": "guide",
-      "charCount": 58317,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ"
-      ],
+      "charCount": 68489,
+      "errors": [],
       "warnings": [
-        "推奨構造セクション欠落: 導入セクション, 深掘りセクション",
-        "FAQ不足: 0個 (最低3個)"
+        "推奨構造セクション欠落: 導入セクション, 深掘りセクション"
       ],
       "info": [
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 7.2 process.memoryUsage() による監視\")",
-        "繰り返しフレーズ 10件: \"```javascript\"(29回), \"constructor() {\"(9回), \"return result;\"(7回)"
+        "繰り返しフレーズ 10件: \"```javascript\"(42回), \"constructor() {\"(10回), \"destroy() {\"(9回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "導入セクション",
           "深掘りセクション"
         ],
-        "codeBlocks": 40,
+        "codeBlocks": 54,
         "tables": 15,
-        "diagrams": 11,
-        "faq": 0,
+        "diagrams": 12,
+        "faq": 3,
         "exercises": 3,
         "references": 6,
         "learningObjectives": 7,
@@ -32090,30 +31456,23 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/browser-and-web-platform/docs/03-web-apis/00-dom-api.md",
       "category": "04-web-and-network",
       "skill": "browser-and-web-platform",
       "type": "guide",
-      "charCount": 60912,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ, まとめ"
-      ],
+      "charCount": 64945,
+      "errors": [],
       "warnings": [
-        "推奨構造セクション欠落: 導入セクション, 深掘りセクション",
-        "FAQ不足: 0個 (最低3個)"
+        "推奨構造セクション欠落: 導入セクション, 深掘りセクション"
       ],
       "info": [
         "繰り返しフレーズ 10件: \"```javascript\"(36回), \"const div = document.createElement('div');\"(9回), \"const fragment = document.createDocumentFragment()\"(7回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ",
-          "まとめ"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "導入セクション",
           "深掘りセクション"
@@ -32121,7 +31480,7 @@
         "codeBlocks": 45,
         "tables": 7,
         "diagrams": 7,
-        "faq": 0,
+        "faq": 3,
         "exercises": 3,
         "references": 6,
         "learningObjectives": 7,
@@ -32131,39 +31490,33 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/browser-and-web-platform/docs/03-web-apis/01-fetch-and-streams.md",
       "category": "04-web-and-network",
       "skill": "browser-and-web-platform",
       "type": "guide",
-      "charCount": 79105,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ"
-      ],
+      "charCount": 82156,
+      "errors": [],
       "warnings": [
         "推奨構造セクション欠落: 導入セクション, 演習セクション, 深掘りセクション",
-        "FAQ不足: 0個 (最低3個)",
         "演習不足: 0個 (最低3個)"
       ],
       "info": [
-        "繰り返しフレーズ 10件: \"```javascript\"(29回), \"} catch (err) {\"(19回), \"```typescript\"(14回)"
+        "繰り返しフレーズ 10件: \"```javascript\"(30回), \"} catch (err) {\"(19回), \"```typescript\"(14回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "導入セクション",
           "演習セクション",
           "深掘りセクション"
         ],
-        "codeBlocks": 43,
+        "codeBlocks": 44,
         "tables": 2,
         "diagrams": 14,
-        "faq": 0,
+        "faq": 3,
         "exercises": 0,
         "references": 10,
         "learningObjectives": 7,
@@ -32173,41 +31526,35 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/browser-and-web-platform/docs/03-web-apis/02-intersection-resize-observer.md",
       "category": "04-web-and-network",
       "skill": "browser-and-web-platform",
       "type": "guide",
-      "charCount": 56243,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ"
-      ],
+      "charCount": 59717,
+      "errors": [],
       "warnings": [
         "推奨構造セクション欠落: 導入セクション, 実装セクション, 演習セクション, 深掘りセクション",
         "比較表不足: 1個 (推奨2個以上)",
-        "FAQ不足: 0個 (最低3個)",
         "演習不足: 0個 (最低3個)"
       ],
       "info": [
-        "繰り返しフレーズ 10件: \"```javascript\"(26回), \"destroy() {\"(15回), \"this.observer.disconnect();\"(15回)"
+        "繰り返しフレーズ 10件: \"```javascript\"(29回), \"destroy() {\"(15回), \"this.observer.disconnect();\"(15回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "導入セクション",
           "実装セクション",
           "演習セクション",
           "深掘りセクション"
         ],
-        "codeBlocks": 30,
+        "codeBlocks": 33,
         "tables": 1,
         "diagrams": 6,
-        "faq": 0,
+        "faq": 3,
         "exercises": 0,
         "references": 10,
         "learningObjectives": 6,
@@ -32217,37 +31564,31 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/browser-and-web-platform/docs/04-storage-and-caching/00-web-storage.md",
       "category": "04-web-and-network",
       "skill": "browser-and-web-platform",
       "type": "guide",
-      "charCount": 69569,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ"
-      ],
+      "charCount": 73459,
+      "errors": [],
       "warnings": [
         "推奨構造セクション欠落: 実装セクション",
-        "FAQ不足: 0個 (最低3個)",
         "演習不足: 0個 (最低3個)"
       ],
       "info": [
-        "繰り返しフレーズ 10件: \"```javascript\"(25回), \"const db = await this.dbPromise;\"(13回), \"│                                                 \"(10回)"
+        "繰り返しフレーズ 10件: \"```javascript\"(29回), \"const db = await this.dbPromise;\"(13回), \"│                                                 \"(10回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "実装セクション"
         ],
-        "codeBlocks": 36,
-        "tables": 4,
-        "diagrams": 15,
-        "faq": 0,
+        "codeBlocks": 42,
+        "tables": 3,
+        "diagrams": 16,
+        "faq": 3,
         "exercises": 0,
         "references": 8,
         "learningObjectives": 6,
@@ -32257,45 +31598,34 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/browser-and-web-platform/docs/04-storage-and-caching/01-service-worker-cache.md",
       "category": "04-web-and-network",
       "skill": "browser-and-web-platform",
       "type": "guide",
-      "charCount": 47759,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ, まとめ, 次に読むべきガイド, 参考文献"
-      ],
+      "charCount": 54357,
+      "errors": [],
       "warnings": [
-        "目標未達: 47,759字 (目標50,000字)",
         "推奨構造セクション欠落: 演習セクション, 深掘りセクション",
-        "FAQ不足: 0個 (最低3個)",
-        "演習不足: 0個 (最低3個)",
-        "参考文献不足: 0個 (最低3個)"
+        "演習不足: 0個 (最低3個)"
       ],
       "info": [
-        "繰り返しフレーズ 10件: \"```javascript\"(22回), \"// ==========================================\"(22回), \"+-------------------------------------------------\"(9回)"
+        "繰り返しフレーズ 10件: \"```javascript\"(26回), \"// ==========================================\"(22回), \"+-------------------------------------------------\"(9回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ",
-          "まとめ",
-          "次に読むべきガイド",
-          "参考文献"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "演習セクション",
           "深掘りセクション"
         ],
-        "codeBlocks": 31,
-        "tables": 8,
+        "codeBlocks": 36,
+        "tables": 10,
         "diagrams": 7,
-        "faq": 0,
+        "faq": 3,
         "exercises": 0,
-        "references": 0,
+        "references": 9,
         "learningObjectives": 7,
         "headingIssues": 0,
         "fillers": [],
@@ -32303,16 +31633,16 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/browser-and-web-platform/docs/04-storage-and-caching/02-performance-api.md",
       "category": "04-web-and-network",
       "skill": "browser-and-web-platform",
       "type": "guide",
-      "charCount": 81014,
+      "charCount": 87128,
       "errors": [
-        "必須セクション欠落: 前提知識, FAQ, 次に読むべきガイド, 参考文献"
+        "必須セクション欠落: FAQ, 参考文献"
       ],
       "warnings": [
         "推奨構造セクション欠落: 導入セクション",
@@ -32322,20 +31652,18 @@
       ],
       "info": [
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 7.4 Lighthouse のプログラマティック実行\")",
-        "繰り返しフレーズ 10件: \"// ===============================================\"(32回), \"```javascript\"(30回), \"for (const entry of list.getEntries()) {\"(10回)"
+        "繰り返しフレーズ 10件: \"// ===============================================\"(32回), \"```javascript\"(31回), \"for (const entry of list.getEntries()) {\"(10回)"
       ],
       "metrics": {
         "missingSections": [
-          "前提知識",
           "FAQ",
-          "次に読むべきガイド",
           "参考文献"
         ],
         "missingStructural": [
           "導入セクション"
         ],
-        "codeBlocks": 39,
-        "tables": 9,
+        "codeBlocks": 40,
+        "tables": 11,
         "diagrams": 10,
         "faq": 0,
         "exercises": 0,
@@ -32354,9 +31682,9 @@
       "category": "04-web-and-network",
       "skill": "network-fundamentals",
       "type": "readme",
-      "charCount": 2822,
+      "charCount": 4571,
       "errors": [
-        "必須セクション欠落: この章で学ぶこと, FAQ, まとめ, 参考文献"
+        "必須セクション欠落: この章で学ぶこと"
       ],
       "warnings": [],
       "info": [
@@ -32364,10 +31692,7 @@
       ],
       "metrics": {
         "missingSections": [
-          "この章で学ぶこと",
-          "FAQ",
-          "まとめ",
-          "参考文献"
+          "この章で学ぶこと"
         ],
         "missingStructural": [
           "導入セクション",
@@ -32380,9 +31705,9 @@
         "codeBlocks": 1,
         "tables": 5,
         "diagrams": 0,
-        "faq": 0,
+        "faq": 3,
         "exercises": 0,
-        "references": 0,
+        "references": 5,
         "learningObjectives": 0,
         "headingIssues": 0,
         "fillers": [],
@@ -32397,10 +31722,8 @@
       "category": "04-web-and-network",
       "skill": "network-fundamentals",
       "type": "guide",
-      "charCount": 50190,
-      "errors": [
-        "必須セクション欠落: まとめ"
-      ],
+      "charCount": 50529,
+      "errors": [],
       "warnings": [
         "推奨構造セクション欠落: 概念セクション",
         "演習不足: 0個 (最低3個)"
@@ -32414,9 +31737,7 @@
         "繰り返しフレーズ 4件: \"│                                               │\"(6回), \"# RTT を記録: _____ ms\"(3回), \"# ホップ数を記録: _____ ホップ\"(3回)"
       ],
       "metrics": {
-        "missingSections": [
-          "まとめ"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "概念セクション"
         ],
@@ -32433,21 +31754,19 @@
         "outdatedVersions": [],
         "repeatedPhrases": 4
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/network-fundamentals/docs/00-introduction/01-osi-and-tcpip-model.md",
       "category": "04-web-and-network",
       "skill": "network-fundamentals",
       "type": "guide",
-      "charCount": 41779,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ"
-      ],
+      "charCount": 44352,
+      "errors": [],
       "warnings": [
-        "目標未達: 41,779字 (目標50,000字)",
+        "目標未達: 44,352字 (目標50,000字)",
         "推奨構造セクション欠落: アンチパターンセクション, 演習セクション, 深掘りセクション",
-        "FAQ不足: 0個 (最低3個)",
+        "FAQ不足: 1個 (最低3個)",
         "演習不足: 0個 (最低3個)"
       ],
       "info": [
@@ -32455,19 +31774,16 @@
         "繰り返しフレーズ 10件: \"├──────────────────────────────────┼──────┼───────\"(10回), \"├─────┼──────────────────┼────────────────────────\"(7回), \"├──────────────────┼───────────────┼──────────────\"(5回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "アンチパターンセクション",
           "演習セクション",
           "深掘りセクション"
         ],
-        "codeBlocks": 39,
+        "codeBlocks": 42,
         "tables": 2,
-        "diagrams": 20,
-        "faq": 0,
+        "diagrams": 21,
+        "faq": 1,
         "exercises": 0,
         "references": 8,
         "learningObjectives": 8,
@@ -32477,20 +31793,19 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/network-fundamentals/docs/00-introduction/02-ip-addressing.md",
       "category": "04-web-and-network",
       "skill": "network-fundamentals",
       "type": "guide",
-      "charCount": 35211,
+      "charCount": 38963,
       "errors": [
-        "サイズ不足: 35,211字 (最低40,000字)",
-        "必須セクション欠落: 前提知識, FAQ"
+        "サイズ不足: 38,963字 (最低40,000字)"
       ],
       "warnings": [
-        "目標未達: 35,211字 (目標50,000字)",
+        "目標未達: 38,963字 (目標50,000字)",
         "推奨構造セクション欠落: アンチパターンセクション, 演習セクション, 深掘りセクション",
         "比較表不足: 1個 (推奨2個以上)",
         "FAQ不足: 0個 (最低3個)",
@@ -32500,16 +31815,13 @@
         "繰り返しフレーズ 7件: \"├────────────────────┼────────────────┼───────────\"(7回), \"├──────────────────────┼──────────────────────────\"(6回), \"│                                                 \"(6回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "アンチパターンセクション",
           "演習セクション",
           "深掘りセクション"
         ],
-        "codeBlocks": 33,
+        "codeBlocks": 36,
         "tables": 1,
         "diagrams": 15,
         "faq": 0,
@@ -32529,12 +31841,9 @@
       "category": "04-web-and-network",
       "skill": "network-fundamentals",
       "type": "guide",
-      "charCount": 49805,
-      "errors": [
-        "必須セクション欠落: 前提知識, まとめ"
-      ],
+      "charCount": 50473,
+      "errors": [],
       "warnings": [
-        "目標未達: 49,805字 (目標50,000字)",
         "演習不足: 0個 (最低3個)"
       ],
       "info": [
@@ -32545,10 +31854,7 @@
         "繰り返しフレーズ 10件: \"|              |             |              |     \"(10回), \"# ================================================\"(10回), \"──────────────────────────────────────────\"(10回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "まとめ"
-        ],
+        "missingSections": [],
         "missingStructural": [],
         "codeBlocks": 42,
         "tables": 5,
@@ -32563,89 +31869,38 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/network-fundamentals/docs/01-protocols/00-tcp.md",
       "category": "04-web-and-network",
       "skill": "network-fundamentals",
       "type": "guide",
-      "charCount": 43546,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ, まとめ, 次に読むべきガイド, 参考文献"
-      ],
+      "charCount": 50245,
+      "errors": [],
       "warnings": [
-        "目標未達: 43,546字 (目標50,000字)",
         "推奨構造セクション欠落: アンチパターンセクション, 演習セクション, 深掘りセクション",
-        "FAQ不足: 0個 (最低3個)",
-        "演習不足: 0個 (最低3個)",
-        "参考文献不足: 0個 (最低3個)"
+        "演習不足: 0個 (最低3個)"
       ],
       "info": [
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 3.5 TCP状態遷移図\")",
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 6.8 ECN（Explicit Congestion Notifica\")",
+        "見出し: 見出しレベルのスキップ: H1 → H3 (\"### Q3: TCPのウィンドウサイズはどう調整すべきか？\")",
         "繰り返しフレーズ 10件: \"│                                    │\"(12回), \"|                                  |\"(8回), \"│            ─────────────────────────────────────\"(6回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ",
-          "まとめ",
-          "次に読むべきガイド",
-          "参考文献"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "アンチパターンセクション",
           "演習セクション",
           "深掘りセクション"
         ],
-        "codeBlocks": 27,
-        "tables": 3,
+        "codeBlocks": 35,
+        "tables": 5,
         "diagrams": 17,
-        "faq": 0,
+        "faq": 3,
         "exercises": 0,
-        "references": 0,
-        "learningObjectives": 7,
-        "headingIssues": 2,
-        "fillers": [],
-        "outdatedYears": [],
-        "outdatedVersions": [],
-        "repeatedPhrases": 10
-      },
-      "severity": "ERROR"
-    },
-    {
-      "file": "04-web-and-network/network-fundamentals/docs/01-protocols/01-udp.md",
-      "category": "04-web-and-network",
-      "skill": "network-fundamentals",
-      "type": "guide",
-      "charCount": 61096,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ, まとめ"
-      ],
-      "warnings": [
-        "FAQ不足: 0個 (最低3個)",
-        "演習不足: 0個 (最低3個)"
-      ],
-      "info": [
-        "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 5.2 C言語によるUDPソケット\")",
-        "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 5.4 マルチキャストの実装\")",
-        "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 12.2 ソケットオプションの最適化\")",
-        "繰り返しフレーズ 10件: \"│                                      │\"(7回), \"│                                                 \"(7回), \"│                                                 \"(7回)"
-      ],
-      "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ",
-          "まとめ"
-        ],
-        "missingStructural": [],
-        "codeBlocks": 38,
-        "tables": 4,
-        "diagrams": 27,
-        "faq": 0,
-        "exercises": 0,
-        "references": 16,
+        "references": 12,
         "learningObjectives": 7,
         "headingIssues": 3,
         "fillers": [],
@@ -32653,21 +31908,52 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
+    },
+    {
+      "file": "04-web-and-network/network-fundamentals/docs/01-protocols/01-udp.md",
+      "category": "04-web-and-network",
+      "skill": "network-fundamentals",
+      "type": "guide",
+      "charCount": 66845,
+      "errors": [],
+      "warnings": [
+        "演習不足: 0個 (最低3個)"
+      ],
+      "info": [
+        "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 5.2 C言語によるUDPソケット\")",
+        "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 5.4 マルチキャストの実装\")",
+        "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 12.2 ソケットオプションの最適化\")",
+        "見出し: 見出しレベルのスキップ: H1 → H3 (\"### Q8: QUICプロトコルとUDPの関係は？\")",
+        "繰り返しフレーズ 10件: \"│                                      │\"(7回), \"│                                                 \"(7回), \"│                                                 \"(7回)"
+      ],
+      "metrics": {
+        "missingSections": [],
+        "missingStructural": [],
+        "codeBlocks": 45,
+        "tables": 5,
+        "diagrams": 30,
+        "faq": 3,
+        "exercises": 0,
+        "references": 16,
+        "learningObjectives": 7,
+        "headingIssues": 4,
+        "fillers": [],
+        "outdatedYears": [],
+        "outdatedVersions": [],
+        "repeatedPhrases": 10
+      },
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/network-fundamentals/docs/01-protocols/02-websocket.md",
       "category": "04-web-and-network",
       "skill": "network-fundamentals",
       "type": "guide",
-      "charCount": 77164,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ"
-      ],
+      "charCount": 85001,
+      "errors": [],
       "warnings": [
         "推奨構造セクション欠落: 概念セクション",
-        "比較表不足: 1個 (推奨2個以上)",
-        "FAQ不足: 0個 (最低3個)",
         "演習不足: 0個 (最低3個)"
       ],
       "info": [
@@ -32675,17 +31961,14 @@
         "繰り返しフレーズ 10件: \"// -----------------------------------------------\"(26回), \"```typescript\"(16回), \"// -----------------------------------------------\"(16回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "概念セクション"
         ],
-        "codeBlocks": 36,
-        "tables": 1,
+        "codeBlocks": 48,
+        "tables": 2,
         "diagrams": 16,
-        "faq": 0,
+        "faq": 3,
         "exercises": 0,
         "references": 7,
         "learningObjectives": 7,
@@ -32695,86 +31978,74 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/network-fundamentals/docs/01-protocols/03-grpc.md",
       "category": "04-web-and-network",
       "skill": "network-fundamentals",
       "type": "guide",
-      "charCount": 60033,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ"
-      ],
+      "charCount": 68393,
+      "errors": [],
       "warnings": [
         "推奨構造セクション欠落: 導入セクション, アンチパターンセクション, 演習セクション, 深掘りセクション",
-        "比較表不足: 1個 (推奨2個以上)",
-        "FAQ不足: 0個 (最低3個)",
         "演習不足: 0個 (最低3個)"
       ],
       "info": [
-        "繰り返しフレーズ 10件: \"if err != nil {\"(17回), \"callback({\"(6回), \"ctx context.Context,\"(6回)"
+        "見出し: 見出しレベルのスキップ: H1 → H3 (\"### Q3: gRPCのストリーミング4パターンはどう使い分けるか？\")",
+        "繰り返しフレーズ 10件: \"if err != nil {\"(17回), \"```protobuf\"(7回), \"if err == io.EOF {\"(7回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "導入セクション",
           "アンチパターンセクション",
           "演習セクション",
           "深掘りセクション"
         ],
-        "codeBlocks": 29,
-        "tables": 1,
-        "diagrams": 18,
-        "faq": 0,
+        "codeBlocks": 45,
+        "tables": 3,
+        "diagrams": 20,
+        "faq": 3,
         "exercises": 0,
         "references": 8,
         "learningObjectives": 7,
-        "headingIssues": 0,
+        "headingIssues": 1,
         "fillers": [],
         "outdatedYears": [],
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/network-fundamentals/docs/02-http/00-http-basics.md",
       "category": "04-web-and-network",
       "skill": "network-fundamentals",
       "type": "guide",
-      "charCount": 43962,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ"
-      ],
+      "charCount": 47195,
+      "errors": [],
       "warnings": [
-        "目標未達: 43,962字 (目標50,000字)",
+        "目標未達: 47,195字 (目標50,000字)",
         "推奨構造セクション欠落: 導入セクション, アンチパターンセクション, 演習セクション, 深掘りセクション",
         "比較表不足: 1個 (推奨2個以上)",
-        "FAQ不足: 0個 (最低3個)",
         "演習不足: 0個 (最低3個)"
       ],
       "info": [
         "繰り返しフレーズ 10件: \"headers: {\"(8回), \"} catch (error) {\"(8回), \"'Authorization': `Bearer ${token}`,\"(7回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "導入セクション",
           "アンチパターンセクション",
           "演習セクション",
           "深掘りセクション"
         ],
-        "codeBlocks": 18,
+        "codeBlocks": 21,
         "tables": 1,
-        "diagrams": 15,
-        "faq": 0,
+        "diagrams": 16,
+        "faq": 3,
         "exercises": 0,
         "references": 8,
         "learningObjectives": 7,
@@ -32784,20 +32055,18 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/network-fundamentals/docs/02-http/01-http2-and-http3.md",
       "category": "04-web-and-network",
       "skill": "network-fundamentals",
       "type": "guide",
-      "charCount": 56298,
-      "errors": [
-        "必須セクション欠落: 前提知識, まとめ"
-      ],
+      "charCount": 57441,
+      "errors": [],
       "warnings": [
         "推奨構造セクション欠落: 概念セクション",
-        "比較表不足: 0個 (推奨2個以上)",
+        "比較表不足: 1個 (推奨2個以上)",
         "FAQ不足: 0個 (最低3個)",
         "演習不足: 0個 (最低3個)"
       ],
@@ -32808,19 +32077,16 @@
         "繰り返しフレーズ 10件: \"│                                                 \"(17回), \"│                                   │\"(12回), \"├──────────────────────┼────────────┼────────────┼\"(10回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "まとめ"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "概念セクション"
         ],
         "codeBlocks": 46,
-        "tables": 0,
+        "tables": 1,
         "diagrams": 24,
         "faq": 0,
         "exercises": 0,
-        "references": 7,
+        "references": 10,
         "learningObjectives": 6,
         "headingIssues": 3,
         "fillers": [],
@@ -32828,17 +32094,15 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/network-fundamentals/docs/02-http/02-rest-api.md",
       "category": "04-web-and-network",
       "skill": "network-fundamentals",
       "type": "guide",
-      "charCount": 58212,
-      "errors": [
-        "必須セクション欠落: 前提知識"
-      ],
+      "charCount": 58521,
+      "errors": [],
       "warnings": [
         "推奨構造セクション欠落: 導入セクション, 概念セクション, 深掘りセクション",
         "比較表不足: 0個 (推奨2個以上)"
@@ -32849,9 +32113,7 @@
         "繰り返しフレーズ 10件: \"type: string\"(21回), \"│                │                │               \"(13回), \"\"_links\": {\"(9回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "導入セクション",
           "概念セクション",
@@ -32870,22 +32132,18 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/network-fundamentals/docs/02-http/03-caching.md",
       "category": "04-web-and-network",
       "skill": "network-fundamentals",
       "type": "guide",
-      "charCount": 54369,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ, まとめ, 次に読むべきガイド, 参考文献"
-      ],
+      "charCount": 61753,
+      "errors": [],
       "warnings": [
         "推奨構造セクション欠落: 演習セクション, 深掘りセクション",
-        "FAQ不足: 0個 (最低3個)",
-        "演習不足: 0個 (最低3個)",
-        "参考文献不足: 0個 (最低3個)"
+        "演習不足: 0個 (最低3個)"
       ],
       "info": [
         "見出し: 見出しレベルのスキップ: H1 → H4 (\"#### パターン2: HTMLドキュメント\")",
@@ -32900,23 +32158,17 @@
         "繰り返しフレーズ 10件: \"│                                                 \"(14回), \"│    │                         │                  \"(11回), \"│                                                 \"(8回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ",
-          "まとめ",
-          "次に読むべきガイド",
-          "参考文献"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "演習セクション",
           "深掘りセクション"
         ],
-        "codeBlocks": 40,
-        "tables": 9,
-        "diagrams": 11,
-        "faq": 0,
+        "codeBlocks": 43,
+        "tables": 10,
+        "diagrams": 14,
+        "faq": 3,
         "exercises": 0,
-        "references": 0,
+        "references": 6,
         "learningObjectives": 6,
         "headingIssues": 9,
         "fillers": [],
@@ -32924,24 +32176,19 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/network-fundamentals/docs/02-http/04-cors.md",
       "category": "04-web-and-network",
       "skill": "network-fundamentals",
       "type": "guide",
-      "charCount": 43369,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ, まとめ, 次に読むべきガイド, 参考文献"
-      ],
+      "charCount": 52431,
+      "errors": [],
       "warnings": [
-        "目標未達: 43,369字 (目標50,000字)",
         "推奨構造セクション欠落: 概念セクション, 実装セクション, 演習セクション, 深掘りセクション",
-        "比較表不足: 0個 (推奨2個以上)",
-        "FAQ不足: 0個 (最低3個)",
-        "演習不足: 0個 (最低3個)",
-        "参考文献不足: 0個 (最低3個)"
+        "比較表不足: 1個 (推奨2個以上)",
+        "演習不足: 0個 (最低3個)"
       ],
       "info": [
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 4.3 fetch API によるクロスオリジンリクエスト\")",
@@ -32949,25 +32196,19 @@
         "繰り返しフレーズ 10件: \"│                                     │\"(17回), \"// ===============================================\"(16回), \"├────────────────┼──────────────────────┼─────────\"(9回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ",
-          "まとめ",
-          "次に読むべきガイド",
-          "参考文献"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "概念セクション",
           "実装セクション",
           "演習セクション",
           "深掘りセクション"
         ],
-        "codeBlocks": 30,
-        "tables": 0,
-        "diagrams": 15,
-        "faq": 0,
+        "codeBlocks": 33,
+        "tables": 1,
+        "diagrams": 16,
+        "faq": 3,
         "exercises": 0,
-        "references": 0,
+        "references": 6,
         "learningObjectives": 7,
         "headingIssues": 2,
         "fillers": [],
@@ -32975,54 +32216,50 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/network-fundamentals/docs/03-security/00-tls-ssl.md",
       "category": "04-web-and-network",
       "skill": "network-fundamentals",
       "type": "guide",
-      "charCount": 27548,
+      "charCount": 33800,
       "errors": [
-        "サイズ不足: 27,548字 (最低40,000字)",
-        "必須セクション欠落: 前提知識, FAQ"
+        "サイズ不足: 33,800字 (最低40,000字)"
       ],
       "warnings": [
-        "目標未達: 27,548字 (目標50,000字)",
+        "目標未達: 33,800字 (目標50,000字)",
         "推奨構造セクション欠落: 実装セクション, アンチパターンセクション, 演習セクション, 深掘りセクション",
         "比較表不足: 1個 (推奨2個以上)",
-        "FAQ不足: 0個 (最低3個)",
         "演習不足: 0個 (最低3個)"
       ],
       "info": [
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 6.2 Let's Encrypt自動化\")",
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 6.3 内部通信のTLS（mTLS）\")",
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 9.1 証明書管理の自動化スクリプト\")",
-        "繰り返しフレーズ 3件: \"│                              │\"(16回), \"────────────────────────────────\"(3回), \"$ echo | openssl s_client -connect example.com:443\"(3回)"
+        "見出し: 見出しレベルのスキップ: H1 → H3 (\"### Q3: Let's Encryptの仕組みと実務での使い方を教えてくださ\")",
+        "繰り返しフレーズ 5件: \"│                              │\"(16回), \"┌───────▼────────┐\"(4回), \"server_name example.com;\"(4回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "実装セクション",
           "アンチパターンセクション",
           "演習セクション",
           "深掘りセクション"
         ],
-        "codeBlocks": 31,
+        "codeBlocks": 40,
         "tables": 1,
-        "diagrams": 12,
-        "faq": 0,
+        "diagrams": 13,
+        "faq": 3,
         "exercises": 0,
         "references": 10,
         "learningObjectives": 5,
-        "headingIssues": 3,
+        "headingIssues": 4,
         "fillers": [],
         "outdatedYears": [],
         "outdatedVersions": [],
-        "repeatedPhrases": 3
+        "repeatedPhrases": 5
       },
       "severity": "ERROR"
     },
@@ -33031,13 +32268,13 @@
       "category": "04-web-and-network",
       "skill": "network-fundamentals",
       "type": "guide",
-      "charCount": 30047,
+      "charCount": 30217,
       "errors": [
-        "サイズ不足: 30,047字 (最低40,000字)",
-        "必須セクション欠落: 前提知識, FAQ"
+        "サイズ不足: 30,217字 (最低40,000字)",
+        "必須セクション欠落: FAQ"
       ],
       "warnings": [
-        "目標未達: 30,047字 (目標50,000字)",
+        "目標未達: 30,217字 (目標50,000字)",
         "推奨構造セクション欠落: 導入セクション, 概念セクション, 実装セクション, 演習セクション, 深掘りセクション",
         "比較表不足: 1個 (推奨2個以上)",
         "FAQ不足: 0個 (最低3個)",
@@ -33048,7 +32285,6 @@
       ],
       "metrics": {
         "missingSections": [
-          "前提知識",
           "FAQ"
         ],
         "missingStructural": [
@@ -33078,38 +32314,30 @@
       "category": "04-web-and-network",
       "skill": "network-fundamentals",
       "type": "guide",
-      "charCount": 30913,
-      "errors": [
-        "サイズ不足: 30,913字 (最低40,000字)",
-        "必須セクション欠落: 前提知識, FAQ"
-      ],
+      "charCount": 45627,
+      "errors": [],
       "warnings": [
-        "目標未達: 30,913字 (目標50,000字)",
-        "推奨構造セクション欠落: 導入セクション, 概念セクション, アンチパターンセクション, 演習セクション",
+        "目標未達: 45,627字 (目標50,000字)",
+        "推奨構造セクション欠落: 導入セクション, アンチパターンセクション, 演習セクション",
         "比較表不足: 1個 (推奨2個以上)",
-        "FAQ不足: 0個 (最低3個)",
         "演習不足: 0個 (最低3個)"
       ],
       "info": [
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 4.3 SQLインジェクション\")",
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 4.4 SSRF（Server-Side Request Forgery\")",
-        "繰り返しフレーズ 3件: \"return False\"(6回), \"├─────────────────────────────────────────┤\"(4回), \"app = FastAPI()\"(3回)"
+        "繰り返しフレーズ 5件: \"return False\"(6回), \"│    │                                          │\"(5回), \"├─────────────────────────────────────────┤\"(4回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "導入セクション",
-          "概念セクション",
           "アンチパターンセクション",
           "演習セクション"
         ],
-        "codeBlocks": 27,
+        "codeBlocks": 36,
         "tables": 1,
-        "diagrams": 11,
-        "faq": 0,
+        "diagrams": 15,
+        "faq": 5,
         "exercises": 0,
         "references": 10,
         "learningObjectives": 5,
@@ -33117,26 +32345,21 @@
         "fillers": [],
         "outdatedYears": [],
         "outdatedVersions": [],
-        "repeatedPhrases": 3
+        "repeatedPhrases": 5
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/network-fundamentals/docs/04-advanced/00-load-balancing.md",
       "category": "04-web-and-network",
       "skill": "network-fundamentals",
       "type": "guide",
-      "charCount": 44761,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ, まとめ, 次に読むべきガイド, 参考文献"
-      ],
+      "charCount": 49455,
+      "errors": [],
       "warnings": [
-        "目標未達: 44,761字 (目標50,000字)",
+        "目標未達: 49,455字 (目標50,000字)",
         "推奨構造セクション欠落: アンチパターンセクション, 演習セクション, 深掘りセクション",
-        "比較表不足: 0個 (推奨2個以上)",
-        "FAQ不足: 0個 (最低3個)",
-        "演習不足: 0個 (最低3個)",
-        "参考文献不足: 0個 (最低3個)"
+        "演習不足: 0個 (最低3個)"
       ],
       "info": [
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 4.2 高度な Nginx 設定（加重・ヘルスチェック・SSL 終端）\")",
@@ -33146,24 +32369,18 @@
         "繰り返しフレーズ 10件: \"#-------------------------------------------------\"(20回), \"│                                                 \"(9回), \"│                                                 \"(6回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ",
-          "まとめ",
-          "次に読むべきガイド",
-          "参考文献"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "アンチパターンセクション",
           "演習セクション",
           "深掘りセクション"
         ],
-        "codeBlocks": 31,
-        "tables": 0,
+        "codeBlocks": 34,
+        "tables": 2,
         "diagrams": 20,
-        "faq": 0,
+        "faq": 3,
         "exercises": 0,
-        "references": 0,
+        "references": 6,
         "learningObjectives": 7,
         "headingIssues": 4,
         "fillers": [],
@@ -33171,73 +32388,60 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/network-fundamentals/docs/04-advanced/01-cdn.md",
       "category": "04-web-and-network",
       "skill": "network-fundamentals",
       "type": "guide",
-      "charCount": 54221,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ, まとめ, 次に読むべきガイド, 参考文献"
-      ],
+      "charCount": 60846,
+      "errors": [],
       "warnings": [
         "推奨構造セクション欠落: 導入セクション, 演習セクション, 深掘りセクション",
-        "FAQ不足: 0個 (最低3個)",
-        "演習不足: 0個 (最低3個)",
-        "参考文献不足: 0個 (最低3個)"
+        "演習不足: 0個 (最低3個)"
       ],
       "info": [
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 2.4 キャッシュキーの設計\")",
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 3.3 CloudFront Functions によるURLリライト\")",
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 11.2 アンチパターン2: Vary ヘッダーの過剰設定\")",
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 11.3 アンチパターン3: TTL なしのキャッシュ設定\")",
+        "見出し: 見出しレベルのスキップ: H1 → H3 (\"### Q3: 動的コンテンツは CDN で配信できるか？\")",
         "繰り返しフレーズ 10件: \"return response;\"(6回), \"│                                                 \"(5回), \"│              ┌───────▼────────┐                 \"(5回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ",
-          "まとめ",
-          "次に読むべきガイド",
-          "参考文献"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "導入セクション",
           "演習セクション",
           "深掘りセクション"
         ],
-        "codeBlocks": 31,
-        "tables": 9,
+        "codeBlocks": 39,
+        "tables": 11,
         "diagrams": 15,
-        "faq": 0,
+        "faq": 3,
         "exercises": 0,
-        "references": 0,
+        "references": 6,
         "learningObjectives": 6,
-        "headingIssues": 4,
+        "headingIssues": 5,
         "fillers": [],
         "outdatedYears": [],
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/network-fundamentals/docs/04-advanced/02-network-debugging.md",
       "category": "04-web-and-network",
       "skill": "network-fundamentals",
       "type": "guide",
-      "charCount": 41969,
-      "errors": [
-        "必須セクション欠落: FAQ, まとめ, 次に読むべきガイド, 参考文献"
-      ],
+      "charCount": 49075,
+      "errors": [],
       "warnings": [
-        "目標未達: 41,969字 (目標50,000字)",
+        "目標未達: 49,075字 (目標50,000字)",
         "推奨構造セクション欠落: 導入セクション, 演習セクション, 深掘りセクション",
-        "FAQ不足: 0個 (最低3個)",
-        "演習不足: 0個 (最低3個)",
-        "参考文献不足: 0個 (最低3個)"
+        "演習不足: 0個 (最低3個)"
       ],
       "info": [
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 2.2 タイミング計測（コード例1）\")",
@@ -33257,91 +32461,81 @@
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 9.3 よくある問題と対処法\")",
         "見出し: 見出しレベルのスキップ: H1 → H4 (\"#### 問題2: TIME_WAIT の大量蓄積\")",
         "見出し: 見出しレベルのスキップ: H1 → H4 (\"#### 問題3: CORS エラー\")",
+        "見出し: 見出しレベルのスキップ: H1 → H3 (\"### Q3: ネットワークレイテンシの問題はどう特定するか？\")",
         "繰り返しフレーズ 10件: \"# ============================================\"(28回), \"+=================================================\"(9回), \"+-------------------------------------------------\"(9回)"
       ],
       "metrics": {
-        "missingSections": [
-          "FAQ",
-          "まとめ",
-          "次に読むべきガイド",
-          "参考文献"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "導入セクション",
           "演習セクション",
           "深掘りセクション"
         ],
-        "codeBlocks": 34,
-        "tables": 7,
+        "codeBlocks": 44,
+        "tables": 10,
         "diagrams": 9,
-        "faq": 0,
+        "faq": 3,
         "exercises": 0,
-        "references": 0,
+        "references": 6,
         "learningObjectives": 6,
-        "headingIssues": 17,
+        "headingIssues": 18,
         "fillers": [],
         "outdatedYears": [],
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/network-fundamentals/docs/04-advanced/03-performance.md",
       "category": "04-web-and-network",
       "skill": "network-fundamentals",
       "type": "guide",
-      "charCount": 54964,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ, 次に読むべきガイド"
-      ],
+      "charCount": 62048,
+      "errors": [],
       "warnings": [
         "推奨構造セクション欠落: 導入セクション, アンチパターンセクション, 演習セクション, 深掘りセクション",
-        "比較表不足: 1個 (推奨2個以上)",
-        "FAQ不足: 0個 (最低3個)",
         "演習不足: 0個 (最低3個)"
       ],
       "info": [
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 2.3 接続の事前確立\")",
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 2.5 接続の再利用と接続プーリング\")",
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 3.2 画像最適化\")",
-        "繰り返しフレーズ 10件: \"```typescript\"(17回), \"sizes=\"100vw\"\"(5回), \"plugins: [\"(4回)"
+        "見出し: 見出しレベルのスキップ: H1 → H3 (\"### Q2: TCP 最適化のためのカーネルパラメータは？\")",
+        "見出し: 見出しレベルのスキップ: H1 → H3 (\"### Q3: HTTP/3 によるパフォーマンス改善はどの程度か？\")",
+        "繰り返しフレーズ 10件: \"```typescript\"(17回), \"# ============================================\"(14回), \"sizes=\"100vw\"\"(5回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ",
-          "次に読むべきガイド"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "導入セクション",
           "アンチパターンセクション",
           "演習セクション",
           "深掘りセクション"
         ],
-        "codeBlocks": 48,
-        "tables": 1,
-        "diagrams": 21,
-        "faq": 0,
+        "codeBlocks": 55,
+        "tables": 4,
+        "diagrams": 23,
+        "faq": 3,
         "exercises": 0,
         "references": 10,
         "learningObjectives": 7,
-        "headingIssues": 3,
+        "headingIssues": 5,
         "fillers": [],
         "outdatedYears": [],
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/web-application-development/SKILL.md",
       "category": "04-web-and-network",
       "skill": "web-application-development",
       "type": "readme",
-      "charCount": 3459,
+      "charCount": 4947,
       "errors": [
-        "必須セクション欠落: この章で学ぶこと, FAQ, まとめ, 参考文献"
+        "必須セクション欠落: この章で学ぶこと"
       ],
       "warnings": [],
       "info": [
@@ -33349,10 +32543,7 @@
       ],
       "metrics": {
         "missingSections": [
-          "この章で学ぶこと",
-          "FAQ",
-          "まとめ",
-          "参考文献"
+          "この章で学ぶこと"
         ],
         "missingStructural": [
           "導入セクション",
@@ -33365,9 +32556,9 @@
         "codeBlocks": 1,
         "tables": 5,
         "diagrams": 0,
-        "faq": 0,
+        "faq": 3,
         "exercises": 0,
-        "references": 0,
+        "references": 8,
         "learningObjectives": 0,
         "headingIssues": 0,
         "fillers": [],
@@ -33382,34 +32573,27 @@
       "category": "04-web-and-network",
       "skill": "web-application-development",
       "type": "guide",
-      "charCount": 40103,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ"
-      ],
+      "charCount": 45578,
+      "errors": [],
       "warnings": [
-        "目標未達: 40,103字 (目標50,000字)",
+        "目標未達: 45,578字 (目標50,000字)",
         "推奨構造セクション欠落: アンチパターンセクション, 演習セクション, 深掘りセクション",
-        "比較表不足: 1個 (推奨2個以上)",
-        "FAQ不足: 0個 (最低3個)",
         "演習不足: 0個 (最低3個)"
       ],
       "info": [
-        "繰り返しフレーズ 8件: \"```typescript\"(15回), \"</Suspense>\"(7回), \"orderBy: { createdAt: 'desc' },\"(5回)"
+        "繰り返しフレーズ 10件: \"```typescript\"(18回), \"</Suspense>\"(7回), \"orderBy: { createdAt: 'desc' },\"(5回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "アンチパターンセクション",
           "演習セクション",
           "深掘りセクション"
         ],
-        "codeBlocks": 38,
-        "tables": 1,
-        "diagrams": 11,
-        "faq": 0,
+        "codeBlocks": 41,
+        "tables": 3,
+        "diagrams": 13,
+        "faq": 3,
         "exercises": 0,
         "references": 10,
         "learningObjectives": 6,
@@ -33417,22 +32601,19 @@
         "fillers": [],
         "outdatedYears": [],
         "outdatedVersions": [],
-        "repeatedPhrases": 8
+        "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/web-application-development/docs/00-architecture/01-project-structure.md",
       "category": "04-web-and-network",
       "skill": "web-application-development",
       "type": "guide",
-      "charCount": 56257,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ"
-      ],
+      "charCount": 59147,
+      "errors": [],
       "warnings": [
         "推奨構造セクション欠落: 演習セクション, 深掘りセクション",
-        "FAQ不足: 0個 (最低3個)",
         "演習不足: 0個 (最低3個)"
       ],
       "info": [
@@ -33440,18 +32621,15 @@
         "繰り返しフレーズ 10件: \"```typescript\"(17回), \"│   │   └── package.json\"(9回), \"│   │   ├── src/\"(8回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "演習セクション",
           "深掘りセクション"
         ],
-        "codeBlocks": 44,
-        "tables": 3,
-        "diagrams": 13,
-        "faq": 0,
+        "codeBlocks": 47,
+        "tables": 6,
+        "diagrams": 14,
+        "faq": 3,
         "exercises": 0,
         "references": 10,
         "learningObjectives": 6,
@@ -33461,39 +32639,33 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/web-application-development/docs/00-architecture/02-component-architecture.md",
       "category": "04-web-and-network",
       "skill": "web-application-development",
       "type": "guide",
-      "charCount": 74952,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ"
-      ],
+      "charCount": 80227,
+      "errors": [],
       "warnings": [
         "推奨構造セクション欠落: 導入セクション, 演習セクション, 深掘りセクション",
-        "FAQ不足: 0個 (最低3個)",
         "演習不足: 0個 (最低3個)"
       ],
       "info": [
-        "繰り返しフレーズ 10件: \"// ============================================\"(80回), \"```typescript\"(23回), \"{children}\"(19回)"
+        "繰り返しフレーズ 10件: \"// ============================================\"(80回), \"```typescript\"(25回), \"{children}\"(19回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "導入セクション",
           "演習セクション",
           "深掘りセクション"
         ],
-        "codeBlocks": 37,
-        "tables": 4,
-        "diagrams": 10,
-        "faq": 0,
+        "codeBlocks": 40,
+        "tables": 7,
+        "diagrams": 9,
+        "faq": 3,
         "exercises": 0,
         "references": 10,
         "learningObjectives": 8,
@@ -33503,38 +32675,32 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/web-application-development/docs/00-architecture/03-data-fetching-patterns.md",
       "category": "04-web-and-network",
       "skill": "web-application-development",
       "type": "guide",
-      "charCount": 79623,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ"
-      ],
+      "charCount": 80834,
+      "errors": [],
       "warnings": [
         "推奨構造セクション欠落: 演習セクション, 深掘りセクション",
-        "FAQ不足: 0個 (最低3個)",
         "演習不足: 0個 (最低3個)"
       ],
       "info": [
         "繰り返しフレーズ 10件: \"// ===========================\"(56回), \"```typescript\"(33回), \"return useQuery({\"(11回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "演習セクション",
           "深掘りセクション"
         ],
         "codeBlocks": 46,
         "tables": 3,
-        "diagrams": 11,
-        "faq": 0,
+        "diagrams": 10,
+        "faq": 3,
         "exercises": 0,
         "references": 10,
         "learningObjectives": 6,
@@ -33544,31 +32710,25 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/web-application-development/docs/01-state-management/00-state-management-overview.md",
       "category": "04-web-and-network",
       "skill": "web-application-development",
       "type": "guide",
-      "charCount": 55248,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ"
-      ],
+      "charCount": 57117,
+      "errors": [],
       "warnings": [
         "推奨構造セクション欠落: 概念セクション, 演習セクション, 深掘りセクション",
         "比較表不足: 1個 (推奨2個以上)",
-        "FAQ不足: 0個 (最低3個)",
         "演習不足: 0個 (最低3個)"
       ],
       "info": [
         "繰り返しフレーズ 10件: \"```typescript\"(25回), \"useEffect(() => {\"(6回), \"user: User | null;\"(4回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "概念セクション",
           "演習セクション",
@@ -33577,7 +32737,7 @@
         "codeBlocks": 38,
         "tables": 1,
         "diagrams": 8,
-        "faq": 0,
+        "faq": 3,
         "exercises": 0,
         "references": 10,
         "learningObjectives": 6,
@@ -33587,41 +32747,35 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/web-application-development/docs/01-state-management/01-zustand-and-jotai.md",
       "category": "04-web-and-network",
       "skill": "web-application-development",
       "type": "guide",
-      "charCount": 54377,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ"
-      ],
+      "charCount": 57689,
+      "errors": [],
       "warnings": [
         "推奨構造セクション欠落: 導入セクション, アンチパターンセクション, 演習セクション, 深掘りセクション",
         "比較表不足: 1個 (推奨2個以上)",
-        "FAQ不足: 0個 (最低3個)",
         "演習不足: 0個 (最低3個)"
       ],
       "info": [
-        "繰り返しフレーズ 10件: \"```typescript\"(25回), \"set((state) => ({\"(7回), \"set((state) => {\"(7回)"
+        "繰り返しフレーズ 10件: \"```typescript\"(30回), \"set((state) => ({\"(7回), \"set((state) => {\"(7回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "導入セクション",
           "アンチパターンセクション",
           "演習セクション",
           "深掘りセクション"
         ],
-        "codeBlocks": 29,
+        "codeBlocks": 34,
         "tables": 1,
-        "diagrams": 9,
-        "faq": 0,
+        "diagrams": 10,
+        "faq": 3,
         "exercises": 0,
         "references": 10,
         "learningObjectives": 6,
@@ -33631,39 +32785,33 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/web-application-development/docs/01-state-management/02-server-state.md",
       "category": "04-web-and-network",
       "skill": "web-application-development",
       "type": "guide",
-      "charCount": 79747,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ"
-      ],
+      "charCount": 83195,
+      "errors": [],
       "warnings": [
         "推奨構造セクション欠落: 演習セクション, 深掘りセクション",
         "比較表不足: 1個 (推奨2個以上)",
-        "FAQ不足: 0個 (最低3個)",
         "演習不足: 0個 (最低3個)"
       ],
       "info": [
-        "繰り返しフレーズ 10件: \"```typescript\"(57回), \"const queryClient = useQueryClient();\"(15回), \"const { data } = useQuery({\"(12回)"
+        "繰り返しフレーズ 10件: \"```typescript\"(60回), \"const { data } = useQuery({\"(16回), \"const queryClient = useQueryClient();\"(15回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "演習セクション",
           "深掘りセクション"
         ],
-        "codeBlocks": 66,
+        "codeBlocks": 69,
         "tables": 1,
         "diagrams": 14,
-        "faq": 0,
+        "faq": 3,
         "exercises": 0,
         "references": 10,
         "learningObjectives": 8,
@@ -33673,39 +32821,33 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/web-application-development/docs/01-state-management/03-url-state.md",
       "category": "04-web-and-network",
       "skill": "web-application-development",
       "type": "guide",
-      "charCount": 82756,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ"
-      ],
+      "charCount": 86727,
+      "errors": [],
       "warnings": [
         "推奨構造セクション欠落: 演習セクション, 深掘りセクション",
-        "FAQ不足: 0個 (最低3個)",
         "演習不足: 0個 (最低3個)"
       ],
       "info": [
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 3.3 基本的な使い方\")",
-        "繰り返しフレーズ 10件: \"```typescript\"(39回), \"const searchParams = useSearchParams();\"(12回), \"</Suspense>\"(12回)"
+        "繰り返しフレーズ 10件: \"```typescript\"(46回), \"useEffect(() => {\"(13回), \"const searchParams = useSearchParams();\"(12回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "演習セクション",
           "深掘りセクション"
         ],
-        "codeBlocks": 51,
+        "codeBlocks": 58,
         "tables": 2,
-        "diagrams": 11,
-        "faq": 0,
+        "diagrams": 12,
+        "faq": 3,
         "exercises": 0,
         "references": 8,
         "learningObjectives": 8,
@@ -33715,39 +32857,33 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/web-application-development/docs/02-routing-and-navigation/00-client-side-routing.md",
       "category": "04-web-and-network",
       "skill": "web-application-development",
       "type": "guide",
-      "charCount": 76449,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ"
-      ],
+      "charCount": 79459,
+      "errors": [],
       "warnings": [
         "推奨構造セクション欠落: 導入セクション, 演習セクション, 深掘りセクション",
-        "FAQ不足: 0個 (最低3個)",
         "演習不足: 0個 (最低3個)"
       ],
       "info": [
-        "繰り返しフレーズ 10件: \"```typescript\"(25回), \"children: [\"(19回), \"path: '/',\"(13回)"
+        "繰り返しフレーズ 10件: \"```typescript\"(26回), \"children: [\"(19回), \"path: '/',\"(13回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "導入セクション",
           "演習セクション",
           "深掘りセクション"
         ],
-        "codeBlocks": 32,
+        "codeBlocks": 35,
         "tables": 2,
         "diagrams": 11,
-        "faq": 0,
+        "faq": 3,
         "exercises": 0,
         "references": 8,
         "learningObjectives": 6,
@@ -33757,38 +32893,32 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/web-application-development/docs/02-routing-and-navigation/01-file-based-routing.md",
       "category": "04-web-and-network",
       "skill": "web-application-development",
       "type": "guide",
-      "charCount": 88565,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ"
-      ],
+      "charCount": 92518,
+      "errors": [],
       "warnings": [
         "推奨構造セクション欠落: 演習セクション, 深掘りセクション",
-        "FAQ不足: 0個 (最低3個)",
         "演習不足: 0個 (最低3個)"
       ],
       "info": [
-        "繰り返しフレーズ 10件: \"```typescript\"(41回), \"const { id } = await params;\"(12回), \"'use client';\"(11回)"
+        "繰り返しフレーズ 10件: \"```typescript\"(42回), \"const { id } = await params;\"(12回), \"'use client';\"(11回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "演習セクション",
           "深掘りセクション"
         ],
-        "codeBlocks": 64,
+        "codeBlocks": 67,
         "tables": 9,
-        "diagrams": 14,
-        "faq": 0,
+        "diagrams": 15,
+        "faq": 3,
         "exercises": 0,
         "references": 14,
         "learningObjectives": 8,
@@ -33798,41 +32928,33 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/web-application-development/docs/02-routing-and-navigation/02-navigation-patterns.md",
       "category": "04-web-and-network",
       "skill": "web-application-development",
       "type": "guide",
-      "charCount": 109103,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ, まとめ"
-      ],
+      "charCount": 114793,
+      "errors": [],
       "warnings": [
         "推奨構造セクション欠落: 導入セクション, 演習セクション, 深掘りセクション",
-        "比較表不足: 1個 (推奨2個以上)",
-        "FAQ不足: 0個 (最低3個)",
         "演習不足: 0個 (最低3個)"
       ],
       "info": [
-        "繰り返しフレーズ 10件: \"```typescript\"(25回), \"className={cn(\"(21回), \"useEffect(() => {\"(20回)"
+        "繰り返しフレーズ 10件: \"```typescript\"(27回), \"useEffect(() => {\"(22回), \"className={cn(\"(21回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ",
-          "まとめ"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "導入セクション",
           "演習セクション",
           "深掘りセクション"
         ],
-        "codeBlocks": 41,
-        "tables": 1,
-        "diagrams": 10,
-        "faq": 0,
+        "codeBlocks": 44,
+        "tables": 2,
+        "diagrams": 11,
+        "faq": 3,
         "exercises": 0,
         "references": 10,
         "learningObjectives": 7,
@@ -33842,39 +32964,33 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/web-application-development/docs/02-routing-and-navigation/03-auth-and-guards.md",
       "category": "04-web-and-network",
       "skill": "web-application-development",
       "type": "guide",
-      "charCount": 108877,
-      "errors": [
-        "必須セクション欠落: 前提知識, FAQ"
-      ],
+      "charCount": 116236,
+      "errors": [],
       "warnings": [
         "推奨構造セクション欠落: 導入セクション, 演習セクション, 深掘りセクション",
-        "FAQ不足: 0個 (最低3個)",
         "演習不足: 0個 (最低3個)"
       ],
       "info": [
-        "繰り返しフレーズ 10件: \"// ============================================\"(56回), \"```typescript\"(30回), \"const session = await getSession();\"(19回)"
+        "繰り返しフレーズ 10件: \"// ============================================\"(56回), \"```typescript\"(33回), \"// =========================================\"(22回)"
       ],
       "metrics": {
-        "missingSections": [
-          "前提知識",
-          "FAQ"
-        ],
+        "missingSections": [],
         "missingStructural": [
           "導入セクション",
           "演習セクション",
           "深掘りセクション"
         ],
-        "codeBlocks": 38,
+        "codeBlocks": 41,
         "tables": 6,
         "diagrams": 13,
-        "faq": 0,
+        "faq": 3,
         "exercises": 0,
         "references": 12,
         "learningObjectives": 10,
@@ -33884,16 +33000,16 @@
         "outdatedVersions": [],
         "repeatedPhrases": 10
       },
-      "severity": "ERROR"
+      "severity": "WARNING"
     },
     {
       "file": "04-web-and-network/web-application-development/docs/03-forms-and-validation/00-form-design.md",
       "category": "04-web-and-network",
       "skill": "web-application-development",
       "type": "guide",
-      "charCount": 82559,
+      "charCount": 85346,
       "errors": [
-        "必須セクション欠落: 前提知識, FAQ"
+        "必須セクション欠落: FAQ"
       ],
       "warnings": [
         "推奨構造セクション欠落: 演習セクション, 深掘りセクション",
@@ -33902,19 +33018,18 @@
       ],
       "info": [
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 2.2 基本的なフォーム実装\")",
-        "繰り返しフレーズ 10件: \"```typescript\"(32回), \"<p className=\"error-message\" role=\"alert\">\"(17回), \"defaultValues: {\"(9回)"
+        "繰り返しフレーズ 10件: \"```typescript\"(35回), \"<p className=\"error-message\" role=\"alert\">\"(17回), \"defaultValues: {\"(9回)"
       ],
       "metrics": {
         "missingSections": [
-          "前提知識",
           "FAQ"
         ],
         "missingStructural": [
           "演習セクション",
           "深掘りセクション"
         ],
-        "codeBlocks": 42,
-        "tables": 2,
+        "codeBlocks": 45,
+        "tables": 3,
         "diagrams": 9,
         "faq": 0,
         "exercises": 0,
@@ -33933,9 +33048,9 @@
       "category": "04-web-and-network",
       "skill": "web-application-development",
       "type": "guide",
-      "charCount": 121762,
+      "charCount": 127064,
       "errors": [
-        "必須セクション欠落: 前提知識, FAQ"
+        "必須セクション欠落: FAQ"
       ],
       "warnings": [
         "推奨構造セクション欠落: 演習セクション, 深掘りセクション",
@@ -33943,20 +33058,19 @@
         "演習不足: 0個 (最低3個)"
       ],
       "info": [
-        "繰り返しフレーズ 10件: \"```typescript\"(48回), \"// ===============================================\"(38回), \"const schema = z.object({\"(14回)"
+        "繰り返しフレーズ 10件: \"```typescript\"(55回), \"// ===============================================\"(38回), \"const schema = z.object({\"(16回)"
       ],
       "metrics": {
         "missingSections": [
-          "前提知識",
           "FAQ"
         ],
         "missingStructural": [
           "演習セクション",
           "深掘りセクション"
         ],
-        "codeBlocks": 51,
-        "tables": 4,
-        "diagrams": 10,
+        "codeBlocks": 58,
+        "tables": 5,
+        "diagrams": 12,
         "faq": 0,
         "exercises": 0,
         "references": 8,
@@ -33974,9 +33088,9 @@
       "category": "04-web-and-network",
       "skill": "web-application-development",
       "type": "guide",
-      "charCount": 123198,
+      "charCount": 133223,
       "errors": [
-        "必須セクション欠落: 前提知識, FAQ"
+        "必須セクション欠落: FAQ"
       ],
       "warnings": [
         "推奨構造セクション欠落: 導入セクション, 演習セクション, 深掘りセクション",
@@ -33984,11 +33098,10 @@
         "演習不足: 0個 (最低3個)"
       ],
       "info": [
-        "繰り返しフレーズ 10件: \"```typescript\"(32回), \"method: 'POST',\"(12回), \"e.stopPropagation();\"(11回)"
+        "繰り返しフレーズ 10件: \"```typescript\"(41回), \"method: 'POST',\"(15回), \"e.stopPropagation();\"(15回)"
       ],
       "metrics": {
         "missingSections": [
-          "前提知識",
           "FAQ"
         ],
         "missingStructural": [
@@ -33996,7 +33109,7 @@
           "演習セクション",
           "深掘りセクション"
         ],
-        "codeBlocks": 40,
+        "codeBlocks": 49,
         "tables": 8,
         "diagrams": 10,
         "faq": 0,
@@ -34016,9 +33129,9 @@
       "category": "04-web-and-network",
       "skill": "web-application-development",
       "type": "guide",
-      "charCount": 94468,
+      "charCount": 103567,
       "errors": [
-        "必須セクション欠落: 前提知識, FAQ"
+        "必須セクション欠落: FAQ"
       ],
       "warnings": [
         "推奨構造セクション欠落: 導入セクション, 演習セクション, 深掘りセクション",
@@ -34026,11 +33139,10 @@
         "演習不足: 0個 (最低3個)"
       ],
       "info": [
-        "繰り返しフレーズ 10件: \"```typescript\"(24回), \"type=\"button\"\"(16回), \"useEffect(() => {\"(13回)"
+        "繰り返しフレーズ 10件: \"```typescript\"(35回), \"type=\"button\"\"(16回), \"useEffect(() => {\"(13回)"
       ],
       "metrics": {
         "missingSections": [
-          "前提知識",
           "FAQ"
         ],
         "missingStructural": [
@@ -34038,7 +33150,7 @@
           "演習セクション",
           "深掘りセクション"
         ],
-        "codeBlocks": 33,
+        "codeBlocks": 44,
         "tables": 8,
         "diagrams": 4,
         "faq": 0,
@@ -34058,9 +33170,9 @@
       "category": "04-web-and-network",
       "skill": "web-application-development",
       "type": "guide",
-      "charCount": 63041,
+      "charCount": 65005,
       "errors": [
-        "必須セクション欠落: 前提知識, FAQ"
+        "必須セクション欠落: FAQ"
       ],
       "warnings": [
         "推奨構造セクション欠落: 導入セクション, 概念セクション, 演習セクション, 深掘りセクション",
@@ -34089,7 +33201,6 @@
       ],
       "metrics": {
         "missingSections": [
-          "前提知識",
           "FAQ"
         ],
         "missingStructural": [
@@ -34098,9 +33209,9 @@
           "演習セクション",
           "深掘りセクション"
         ],
-        "codeBlocks": 60,
+        "codeBlocks": 62,
         "tables": 1,
-        "diagrams": 14,
+        "diagrams": 15,
         "faq": 0,
         "exercises": 0,
         "references": 15,
@@ -34118,13 +33229,12 @@
       "category": "04-web-and-network",
       "skill": "web-application-development",
       "type": "guide",
-      "charCount": 75895,
+      "charCount": 79458,
       "errors": [
-        "必須セクション欠落: 前提知識, FAQ"
+        "必須セクション欠落: FAQ"
       ],
       "warnings": [
         "推奨構造セクション欠落: 演習セクション, 深掘りセクション",
-        "比較表不足: 1個 (推奨2個以上)",
         "FAQ不足: 0個 (最低3個)",
         "演習不足: 0個 (最低3個)"
       ],
@@ -34133,25 +33243,26 @@
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 6.2 Vercel での環境変数設定\")",
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 7.2 External Secrets Operator\")",
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 7.3 Sealed Secrets（暗号化された Secret を G\")",
-        "繰り返しフレーズ 10件: \"// ============================================\"(42回), \"```typescript\"(18回), \"# ============================================\"(16回)"
+        "見出し: 見出しレベルのスキップ: H1 → H3 (\"### Q2: .envファイルの管理とgitignoreのベストプラクティスは\")",
+        "見出し: 見出しレベルのスキップ: H1 → H3 (\"### Q3: ビルド時変数と実行時変数の違いは？\")",
+        "繰り返しフレーズ 10件: \"// ============================================\"(42回), \"```typescript\"(19回), \"# ============================================\"(16回)"
       ],
       "metrics": {
         "missingSections": [
-          "前提知識",
           "FAQ"
         ],
         "missingStructural": [
           "演習セクション",
           "深掘りセクション"
         ],
-        "codeBlocks": 44,
-        "tables": 1,
-        "diagrams": 12,
+        "codeBlocks": 53,
+        "tables": 2,
+        "diagrams": 13,
         "faq": 0,
         "exercises": 0,
         "references": 10,
         "learningObjectives": 8,
-        "headingIssues": 4,
+        "headingIssues": 6,
         "fillers": [],
         "outdatedYears": [],
         "outdatedVersions": [],
@@ -34164,9 +33275,9 @@
       "category": "04-web-and-network",
       "skill": "web-application-development",
       "type": "guide",
-      "charCount": 75972,
+      "charCount": 81330,
       "errors": [
-        "必須セクション欠落: 前提知識, FAQ"
+        "必須セクション欠落: FAQ"
       ],
       "warnings": [
         "推奨構造セクション欠落: 導入セクション, 概念セクション, 演習セクション, 深掘りセクション",
@@ -34178,11 +33289,11 @@
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 3.5 Tailwind CSS でのフォント設定\")",
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 7.3 HTTP/2 と HTTP/3 の活用\")",
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 9.4 パフォーマンスバジェット\")",
-        "繰り返しフレーズ 10件: \"```typescript\"(34回), \"module.exports = {\"(13回), \"// next.config.js\"(9回)"
+        "見出し: 見出しレベルのスキップ: H1 → H3 (\"### Q3: 画像最適化のベストプラクティスは？\")",
+        "繰り返しフレーズ 10件: \"```typescript\"(37回), \"module.exports = {\"(15回), \"// next.config.js\"(10回)"
       ],
       "metrics": {
         "missingSections": [
-          "前提知識",
           "FAQ"
         ],
         "missingStructural": [
@@ -34191,14 +33302,14 @@
           "演習セクション",
           "深掘りセクション"
         ],
-        "codeBlocks": 67,
-        "tables": 3,
-        "diagrams": 11,
+        "codeBlocks": 78,
+        "tables": 4,
+        "diagrams": 12,
         "faq": 0,
         "exercises": 0,
         "references": 10,
         "learningObjectives": 7,
-        "headingIssues": 4,
+        "headingIssues": 5,
         "fillers": [],
         "outdatedYears": [],
         "outdatedVersions": [],
@@ -34211,9 +33322,9 @@
       "category": "04-web-and-network",
       "skill": "web-application-development",
       "type": "guide",
-      "charCount": 95210,
+      "charCount": 102601,
       "errors": [
-        "必須セクション欠落: 前提知識, FAQ, 次に読むべきガイド"
+        "必須セクション欠落: FAQ"
       ],
       "warnings": [
         "推奨構造セクション欠落: 導入セクション, 演習セクション, 深掘りセクション",
@@ -34222,22 +33333,20 @@
       ],
       "info": [
         "見出し: 見出しレベルのスキップ: H1 → H3 (\"### 2.3 next.config.ts の Sentry 設定\")",
-        "繰り返しフレーズ 10件: \"```typescript\"(30回), \"} catch (error) {\"(14回), \"│                                                 \"(9回)"
+        "繰り返しフレーズ 10件: \"```typescript\"(35回), \"} catch (error) {\"(14回), \"import * as Sentry from '@sentry/nextjs';\"(12回)"
       ],
       "metrics": {
         "missingSections": [
-          "前提知識",
-          "FAQ",
-          "次に読むべきガイド"
+          "FAQ"
         ],
         "missingStructural": [
           "導入セクション",
           "演習セクション",
           "深掘りセクション"
         ],
-        "codeBlocks": 44,
-        "tables": 3,
-        "diagrams": 13,
+        "codeBlocks": 53,
+        "tables": 5,
+        "diagrams": 15,
         "faq": 0,
         "exercises": 0,
         "references": 12,

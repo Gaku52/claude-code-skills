@@ -2,6 +2,15 @@
 
 > HTTPはWebの基盤プロトコル。リクエスト/レスポンスモデル、メソッド、ステータスコード、ヘッダーの仕組みを理解し、Web開発に必須の知識を固める。
 
+## 前提知識
+
+- [[../01-protocols/00-tcp.md]] — TCP/IPプロトコルの基礎（3-wayハンドシェイク、接続管理、信頼性保証）
+- [[../00-introduction/03-dns.md]] — DNSの仕組み（ドメイン名解決、レコードタイプ、キャッシュ）
+
+HTTPはTCP（またはHTTP/3ではQUIC）の上で動作し、ホスト名の解決にはDNSを使用する。これらの基礎知識があることで、HTTPの動作をより深く理解できる。
+
+---
+
 ## この章で学ぶこと
 
 - [ ] HTTPのリクエスト/レスポンス構造を理解する
@@ -1536,6 +1545,132 @@ async function fetchWithRetry(
 
   throw lastError || new Error('All retries failed');
 }
+```
+
+---
+
+## FAQ（よくある質問）
+
+### Q1: HTTPメソッドの冪等性とは何か、なぜ重要なのか
+
+```
+冪等性（Idempotent）:
+  → 同じリクエストを何度送っても結果（副作用）が同じになる性質
+  → 1回目と2回目以降で状態変化が起きないこと
+
+冪等なメソッド:
+  GET    — 何度読んでも状態は変わらない
+  PUT    — 同じデータで何度更新しても同じ状態
+  DELETE — 既に削除済みでも冪等（404ではなく204を返す実装が多い）
+  HEAD   — GET同様、状態を変更しない
+
+非冪等なメソッド:
+  POST   — 毎回新しいリソースが作成される
+  PATCH  — 相対的な変更（+1等）の場合、繰り返すと累積する
+
+実務的な重要性:
+  1. ネットワークエラー時のリトライ戦略
+     → 冪等なメソッドは安全にリトライできる
+     → 非冪等なメソッドは Idempotency-Key で対応
+
+  2. ブラウザの「戻る」ボタン
+     → GETは安全に再送、POSTは警告表示
+
+  3. プロキシ・CDNのキャッシュ
+     → 冪等なメソッドのみキャッシュ可能
+
+冪等性を保証する実装例:
+  POST /api/payments
+  Idempotency-Key: unique-key-12345
+  → 同じキーでの再送は二重決済を防止
+```
+
+### Q2: HTTPヘッダーの役割と主要なヘッダーは何か
+
+```
+HTTPヘッダーの役割:
+  ① メタデータの伝達
+     → Content-Type（データ形式）、Content-Length（サイズ）
+  ② コンテンツネゴシエーション
+     → Accept（希望形式）、Accept-Language（希望言語）
+  ③ 認証・認可
+     → Authorization（認証情報）、Cookie（セッション）
+  ④ キャッシュ制御
+     → Cache-Control、ETag、Last-Modified
+  ⑤ セキュリティ
+     → HSTS、CSP、X-Content-Type-Options
+  ⑥ デバッグ・トレース
+     → X-Request-Id（リクエスト追跡）
+
+主要なリクエストヘッダー:
+  ┌─────────────────────┬───────────────────────────────┐
+  │ Host                │ 接続先ホスト（HTTP/1.1必須）   │
+  │ Accept              │ 受け入れ可能なメディアタイプ   │
+  │ Authorization       │ 認証情報（Bearer token等）     │
+  │ Content-Type        │ ボディのメディアタイプ         │
+  │ User-Agent          │ クライアント情報               │
+  │ Origin              │ CORS用オリジン情報             │
+  │ If-None-Match       │ 条件付きリクエスト（ETag）     │
+  └─────────────────────┴───────────────────────────────┘
+
+主要なレスポンスヘッダー:
+  ┌─────────────────────┬───────────────────────────────┐
+  │ Content-Type        │ ボディのメディアタイプ         │
+  │ Cache-Control       │ キャッシュ制御                 │
+  │ ETag                │ リソースのバージョン識別子     │
+  │ Location            │ リダイレクト先/作成先URI       │
+  │ Set-Cookie          │ Cookieの設定                   │
+  │ Access-Control-*    │ CORSヘッダー群                 │
+  │ Strict-Transport-   │ HTTPS強制（HSTS）              │
+  │   Security          │                                │
+  └─────────────────────┴───────────────────────────────┘
+```
+
+### Q3: HTTP/1.1のKeep-Aliveの仕組みと利点は何か
+
+```
+Keep-Alive（持続的接続）:
+  → 1つのTCP接続で複数のHTTPリクエストを送信する仕組み
+  → HTTP/1.1ではデフォルトで有効（Connection: keep-alive）
+
+HTTP/1.0（Keep-Alive なし）:
+  接続 ── GET /page.html ── レスポンス ── 切断
+  接続 ── GET /style.css ── レスポンス ── 切断
+  接続 ── GET /app.js    ── レスポンス ── 切断
+
+  → 毎回TCP 3-wayハンドシェイク + TLSハンドシェイクが必要
+  → RTT × 3 の無駄（TCP + TLS + HTTP）
+
+HTTP/1.1（Keep-Alive あり）:
+  接続 ── GET /page.html ── レスポンス
+       ── GET /style.css ── レスポンス
+       ── GET /app.js    ── レスポンス ── 切断（タイムアウト後）
+
+  → 最初のハンドシェイクのみ、以降はリクエストを連続送信
+
+Keep-Aliveの設定（サーバー側）:
+  レスポンスヘッダー:
+  Connection: keep-alive
+  Keep-Alive: timeout=65, max=100
+
+  → timeout: アイドル時間の上限（秒）
+  → max: 1接続で処理する最大リクエスト数
+
+  Nginxの設定例:
+  keepalive_timeout 65;    # 65秒
+  keepalive_requests 100;  # 最大100リクエスト
+
+利点:
+  ① レイテンシ削減
+     → ハンドシェイクの繰り返しを排除
+  ② サーバーリソース削減
+     → ソケット生成/破棄のオーバーヘッド削減
+  ③ 輻輳制御の効率化
+     → TCPの輻輳ウィンドウが成長した状態を維持
+
+注意点:
+  → タイムアウト設定が長すぎるとサーバーのソケット枯渇
+  → HTTP/2ではさらに進化（多重化により複数ストリームを並列処理）
 ```
 
 ---

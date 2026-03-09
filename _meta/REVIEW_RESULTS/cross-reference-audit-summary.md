@@ -1,17 +1,17 @@
 # 相互参照監査レポート
 
-> 実行日時: 2026-03-09 00:37:39
+> 実行日時: 2026-03-09 02:13:03
 
 ## 全体サマリー
 
 | 項目 | 数値 |
 |------|------|
 | チェックファイル数 | 952 |
-| 総リンク数 | 4313 |
-| 壊れたリンク数 | 1831 |
-| 壊れたリンクを含むファイル数 | 468 |
+| 総リンク数 | 4429 |
+| 壊れたリンク数 | 1832 |
+| 壊れたリンクを含むファイル数 | 469 |
 | 孤立ファイル数 | 153 |
-| 双方向参照欠如ペア数 | 1216 |
+| 双方向参照欠如ペア数 | 1257 |
 
 ---
 
@@ -1348,163 +1348,157 @@
 
 ### 04-web-and-network
 
-**04-web-and-network/api-and-library-guide/SKILL.md** (6件):
-- L13: `[[network-fundamentals]]` → ファイル未存在
-- L14: `[[programming-language-fundamentals]]` → ファイル未存在
-- L66: `[[network-fundamentals]]` → ファイル未存在
-- L67: `[[backend-development]]` → ファイル未存在
-- L68: `[[testing-strategy]]` → ファイル未存在
-- L69: `[[security-fundamentals]]` → ファイル未存在
+**04-web-and-network/api-and-library-guide/SKILL.md** (1件):
+- L14: `../../02-programming/programming-language-fundamentals/` → ファイル未存在
 
-**04-web-and-network/api-and-library-guide/docs/00-api-design-principles/00-api-first-design.md** (3件):
-- L3496: `[[01-naming-and-conventions.md]]` → ファイル未存在
-- L3497: `[[02-versioning-strategy.md]]` → ファイル未存在
-- L3498: `[[03-pagination-and-filtering.md]]` → ファイル未存在
+**04-web-and-network/api-and-library-guide/docs/00-api-design-principles/00-api-first-design.md** (2件):
+- L18: `../../network-fundamentals/docs/02-http/00-http-basics.md` → ファイル未存在
+- L19: `../../network-fundamentals/docs/02-http/02-rest-api.md` → ファイル未存在
 
 **04-web-and-network/api-and-library-guide/docs/00-api-design-principles/01-naming-and-conventions.md** (2件):
-- L2089: `[[02-versioning-strategy.md]]` → ファイル未存在
-- L2090: `[[03-pagination-and-filtering.md]]` → ファイル未存在
+- L19: `../../network-fundamentals/docs/02-http/00-http-basics.md` → ファイル未存在
+- L20: `../../network-fundamentals/docs/02-http/02-rest-api.md` → ファイル未存在
 
-**04-web-and-network/api-and-library-guide/docs/00-api-design-principles/02-versioning-strategy.md** (2件):
-- L700: `./migration/v1-to-v2.md` → ファイル未存在
-- L2278: `[[03-pagination-and-filtering.md]]` → ファイル未存在
+**04-web-and-network/api-and-library-guide/docs/00-api-design-principles/02-versioning-strategy.md** (1件):
+- L706: `./migration/v1-to-v2.md` → ファイル未存在
 
 **04-web-and-network/api-and-library-guide/docs/00-api-design-principles/03-pagination-and-filtering.md** (4件):
-- L923: `?:\[(\w+` → ファイル未存在
-- L2825: `[[00-rest-best-practices.md]]` → ファイル未存在
-- L2826: `[[01-error-handling.md]]` → ファイル未存在
-- L2827: `[[04-versioning.md]]` → ファイル未存在
+- L17: `../../network-fundamentals/docs/02-http/00-http-basics.md` → ファイル未存在
+- L929: `?:\[(\w+` → ファイル未存在
+- L2993: `./02-error-handling.md` → ファイル未存在
+- L2994: `./04-versioning.md` → ファイル未存在
 
 **04-web-and-network/api-and-library-guide/docs/01-rest-and-graphql/00-rest-best-practices.md** (3件):
-- L2561: `[[01-graphql-fundamentals.md]]` → ファイル未存在
-- L2562: `[[02-api-versioning.md]]` → ファイル未存在
-- L2563: `[[03-authentication.md]]` → ファイル未存在
+- L18: `../../network-fundamentals/docs/02-http/00-http-basics.md` → ファイル未存在
+- L2668: `02-api-versioning.md` → ファイル未存在
+- L2669: `03-authentication.md` → ファイル未存在
 
 **04-web-and-network/api-and-library-guide/docs/01-rest-and-graphql/01-graphql-fundamentals.md** (1件):
-- L3776: `[[02-graphql-advanced.md]]` → ファイル未存在
+- L17: `../../network-fundamentals/docs/02-http/00-http-basics.md` → ファイル未存在
 
 **04-web-and-network/api-and-library-guide/docs/01-rest-and-graphql/02-graphql-advanced.md** (1件):
-- L3652: `[[03-rest-vs-graphql.md]]` → ファイル未存在
+- L21: `../../../02-programming/typescript-complete-guide/docs/` → ファイル未存在
 
-**04-web-and-network/api-and-library-guide/docs/01-rest-and-graphql/03-rest-vs-graphql.md** (3件):
-- L2217: `[[00-sdk-design.md]]` → ファイル未存在
-- L2218: `[[01-rest-api-design.md]]` → ファイル未存在
-- L2219: `[[02-graphql-schema.md]]` → ファイル未存在
+**04-web-and-network/api-and-library-guide/docs/01-rest-and-graphql/03-rest-vs-graphql.md** (1件):
+- L2223: `../02-sdk-and-wrapper/00-sdk-design.md` → ファイル未存在
 
 **04-web-and-network/api-and-library-guide/docs/02-sdk-and-libraries/00-sdk-design.md** (3件):
-- L2707: `[[01-npm-package-development.md]]` → ファイル未存在
-- L2708: `[[02-api-client-patterns.md]]` → ファイル未存在
-- L2709: `[[03-sdk-testing-strategies.md]]` → ファイル未存在
+- L17: `../../../02-programming/typescript-complete-guide/docs/` → ファイル未存在
+- L2722: `02-api-client-patterns.md` → ファイル未存在
+- L2723: `03-sdk-testing-strategies.md` → ファイル未存在
 
 **04-web-and-network/api-and-library-guide/docs/02-sdk-and-libraries/01-npm-package-development.md** (2件):
-- L2069: `[[1, 2]]` → ファイル未存在
-- L2675: `[[02-api-documentation.md]]` → ファイル未存在
+- L21: `../../../02-programming/typescript-complete-guide/docs/` → ファイル未存在
+- L2077: `[[1, 2]]` → ファイル未存在
 
 **04-web-and-network/api-and-library-guide/docs/02-sdk-and-libraries/02-api-documentation.md** (4件):
-- L1170: `/guides/authentication` → ファイル未存在
-- L1171: `/guides/pagination` → ファイル未存在
-- L1172: `/guides/webhooks` → ファイル未存在
-- L1173: `/reference` → ファイル未存在
+- L1179: `/guides/authentication` → ファイル未存在
+- L1180: `/guides/pagination` → ファイル未存在
+- L1181: `/guides/webhooks` → ファイル未存在
+- L1182: `/reference` → ファイル未存在
 
-**04-web-and-network/api-and-library-guide/docs/03-api-security/00-authentication-patterns.md** (1件):
-- L2273: `[[01-rate-limiting.md]]` → ファイル未存在
+**04-web-and-network/api-and-library-guide/docs/03-api-security/00-authentication-patterns.md** (2件):
+- L18: `../../network-fundamentals/docs/02-http/00-http-basics.md` → ファイル未存在
+- L20: `../../06-data-and-security/security-fundamentals/docs/` → ファイル未存在
 
 **04-web-and-network/api-and-library-guide/docs/03-api-security/01-rate-limiting.md** (1件):
-- L2941: `[[02-input-validation.md]]` → ファイル未存在
+- L19: `../../04-web-and-network/network-fundamentals/docs/02-http/00-http-basics.md` → ファイル未存在
 
-**04-web-and-network/api-and-library-guide/docs/03-api-security/02-input-validation.md** (3件):
-- L2541: `[[00-api-testing.md]]` → ファイル未存在
-- L2542: `[[01-authentication.md]]` → ファイル未存在
-- L2543: `[[03-rate-limiting.md]]` → ファイル未存在
+**04-web-and-network/api-and-library-guide/docs/03-api-security/02-input-validation.md** (2件):
+- L20: `../../06-data-and-security/security-fundamentals/docs/` → ファイル未存在
+- L2549: `../../02-api-basics/00-api-testing.md` → ファイル未存在
 
 **04-web-and-network/api-and-library-guide/docs/04-api-operations/00-api-testing.md** (2件):
-- L1753: `path` → ファイル未存在
-- L2682: `[[01-monitoring-and-logging.md]]` → ファイル未存在
+- L1763: `path` → ファイル未存在
+- L2857: `../02-authentication-and-authorization/00-oauth2-openid.md` → ファイル未存在
 
-**04-web-and-network/api-and-library-guide/docs/04-api-operations/01-monitoring-and-logging.md** (2件):
-- L2378: `[[02-api-gateway.md]]` → ファイル未存在
-- L2379: `[[03-rate-limiting.md]]` → ファイル未存在
+**04-web-and-network/api-and-library-guide/docs/04-api-operations/01-monitoring-and-logging.md** (1件):
+- L19: `../../network-fundamentals/docs/02-http/00-http-basics.md` → ファイル未存在
 
-**04-web-and-network/browser-and-web-platform/SKILL.md** (5件):
-- L14: `[[network-fundamentals]]` → ファイル未存在
-- L66: `[[network-fundamentals]]` → ファイル未存在
-- L67: `[[frontend-performance]]` → ファイル未存在
-- L68: `[[web-development]]` → ファイル未存在
-- L69: `[[react-development]]` → ファイル未存在
+**04-web-and-network/browser-and-web-platform/docs/00-browser-engine/00-browser-architecture.md** (4件):
+- L18: `../../network-fundamentals/docs/02-http/00-http-basics.md` → ファイル未存在
+- L20: `../../../01-cs-fundamentals/operating-system-guide/docs/` → ファイル未存在
+- L1743: `./02-rendering-engine.md` → ファイル未存在
+- L1744: `./03-javascript-engine.md` → ファイル未存在
 
-**04-web-and-network/browser-and-web-platform/docs/00-browser-engine/01-navigation-and-loading.md** (1件):
-- L2709: `[[02-parsing-html-css.md]]` → ファイル未存在
-
-**04-web-and-network/browser-and-web-platform/docs/00-browser-engine/02-parsing-html-css.md** (1件):
-- L2257: `[[03-browser-security-model.md]]` → ファイル未存在
+**04-web-and-network/browser-and-web-platform/docs/00-browser-engine/01-navigation-and-loading.md** (2件):
+- L21: `../../network-fundamentals/docs/00-introduction/03-dns.md` → ファイル未存在
+- L22: `../../network-fundamentals/docs/01-protocols/00-tcp.md` → ファイル未存在
 
 **04-web-and-network/browser-and-web-platform/docs/00-browser-engine/03-browser-security-model.md** (3件):
-- L1743: `[[../01-rendering/00-rendering-pipeline.md]]` → ファイル未存在
-- L1744: `[[./04-browser-storage.md]]` → ファイル未存在
-- L1745: `[[../../01-web-api/02-fetch-api.md]]` → ファイル未存在
+- L19: `../../../06-data-and-security/security-fundamentals/docs/` → ファイル未存在
+- L1824: `./04-browser-storage.md` → ファイル未存在
+- L1825: `../../01-web-api/02-fetch-api.md` → ファイル未存在
 
-**04-web-and-network/browser-and-web-platform/docs/01-rendering/01-css-layout-engine.md** (2件):
-- L2200: `[[02-paint-and-compositing.md]]` → ファイル未存在
-- L2201: `[[03-css-animations-and-transitions.md]]` → ファイル未存在
+**04-web-and-network/browser-and-web-platform/docs/01-rendering/01-css-layout-engine.md** (1件):
+- L2395: `./03-css-animations-and-transitions.md` → ファイル未存在
 
-**04-web-and-network/browser-and-web-platform/docs/01-rendering/03-animation-performance.md** (3件):
-- L2650: `[[../02-javascript-runtime/00-v8-engine.md]]` → ファイル未存在
-- L2651: `[[./04-compositing-layers.md]]` → ファイル未存在
-- L2652: `[[./02-layout-reflow.md]]` → ファイル未存在
+**04-web-and-network/browser-and-web-platform/docs/01-rendering/03-animation-performance.md** (2件):
+- L2947: `./04-compositing-layers.md` → ファイル未存在
+- L2948: `./02-layout-reflow.md` → ファイル未存在
 
-**04-web-and-network/browser-and-web-platform/docs/02-javascript-runtime/01-event-loop-browser.md** (3件):
-- L1833: `[[02-web-workers.md]]` → ファイル未存在
-- L1834: `[[03-service-workers.md]]` → ファイル未存在
-- L1835: `[[04-rendering-pipeline.md]]` → ファイル未存在
+**04-web-and-network/browser-and-web-platform/docs/02-javascript-runtime/00-v8-engine.md** (6件):
+- L11: `../../../01-cs-fundamentals/computer-science-fundamentals/docs/` → ファイル未存在
+- L2153: `./02-event-loop-nodejs.md` → ファイル未存在
+- L2158: `./03-web-worker.md` → ファイル未存在
+- L2163: `./04-memory-performance.md` → ファイル未存在
+- L2171: `../../01-ecmascript-core/` → ファイル未存在
+- L2172: `../../../02-programming/typescript/` → ファイル未存在
 
-**04-web-and-network/browser-and-web-platform/docs/02-javascript-runtime/03-memory-management.md** (3件):
-- L2174: `[[../03-web-apis/00-dom-api.md]]` → ファイル未存在
-- L2175: `[[../03-web-apis/01-events.md]]` → ファイル未存在
-- L2176: `[[./02-event-loop.md]]` → ファイル未存在
+**04-web-and-network/browser-and-web-platform/docs/02-javascript-runtime/01-event-loop-browser.md** (2件):
+- L1949: `03-service-workers.md` → ファイル未存在
+- L1950: `04-rendering-pipeline.md` → ファイル未存在
 
-**04-web-and-network/browser-and-web-platform/docs/03-web-apis/00-dom-api.md** (3件):
-- L2254: `[[01-fetch-and-streams.md]]` → ファイル未存在
-- L2255: `[[02-web-storage.md]]` → ファイル未存在
-- L2256: `[[03-web-workers.md]]` → ファイル未存在
+**04-web-and-network/browser-and-web-platform/docs/02-javascript-runtime/02-web-workers.md** (2件):
+- L2116: `./04-async-patterns.md` → ファイル未存在
+- L2119: `../05-performance/01-rendering-optimization.md` → ファイル未存在
 
-**04-web-and-network/browser-and-web-platform/docs/03-web-apis/01-fetch-and-streams.md** (3件):
-- L3175: `[[02-intersection-resize-observer.md]]` → ファイル未存在
-- L3176: `[[../04-storage-and-caching/00-web-storage.md]]` → ファイル未存在
-- L3177: `[[../04-storage-and-caching/01-service-worker-cache.md]]` → ファイル未存在
+**04-web-and-network/browser-and-web-platform/docs/02-javascript-runtime/03-memory-management.md** (2件):
+- L2586: `../03-web-apis/01-events.md` → ファイル未存在
+- L2587: `./02-event-loop.md` → ファイル未存在
+
+**04-web-and-network/browser-and-web-platform/docs/03-web-apis/01-fetch-and-streams.md** (1件):
+- L19: `../../network-fundamentals/docs/02-http/00-http-basics.md` → ファイル未存在
 
 **04-web-and-network/browser-and-web-platform/docs/03-web-apis/02-intersection-resize-observer.md** (3件):
-- L2167: `[[../04-storage-and-caching/00-web-storage.md]]` → ファイル未存在
-- L2168: `[[../04-storage-and-caching/02-performance-api.md]]` → ファイル未存在
-- L2169: `[[01-fetch-and-streams.md]]` → ファイル未存在
+- L2274: `[[../04-storage-and-caching/00-web-storage.md]]` → ファイル未存在
+- L2275: `[[../04-storage-and-caching/02-performance-api.md]]` → ファイル未存在
+- L2276: `[[01-fetch-and-streams.md]]` → ファイル未存在
 
 **04-web-and-network/browser-and-web-platform/docs/04-storage-and-caching/00-web-storage.md** (1件):
-- L2508: `[[01-service-worker-cache.md]]` → ファイル未存在
+- L2520: `[[01-service-worker-cache.md]]` → ファイル未存在
 
-**04-web-and-network/network-fundamentals/SKILL.md** (4件):
-- L14: `[[computer-science-fundamentals]]` → ファイル未存在
-- L69: `[[computer-science-fundamentals]]` → ファイル未存在
-- L70: `[[browser-and-web-platform]]` → ファイル未存在
-- L71: `[[security-fundamentals]]` → ファイル未存在
+**04-web-and-network/browser-and-web-platform/docs/04-storage-and-caching/02-performance-api.md** (2件):
+- L2867: `../../network-fundamentals/docs/` → ファイル未存在
+- L2870: `../../web-application-development/docs/` → ファイル未存在
 
 **04-web-and-network/network-fundamentals/docs/00-introduction/00-how-internet-works.md** (4件):
-- L1820: `[[01-osi-and-tcpip-model.md]]` → ファイル未存在
-- L1821: `[[02-ip-addressing.md]]` → ファイル未存在
-- L1822: `[[03-tcp-udp.md]]` → ファイル未存在
-- L1823: `[[04-dns-deep-dive.md]]` → ファイル未存在
+- L1818: `[[01-osi-and-tcpip-model.md]]` → ファイル未存在
+- L1819: `[[02-ip-addressing.md]]` → ファイル未存在
+- L1820: `[[03-tcp-udp.md]]` → ファイル未存在
+- L1821: `[[04-dns-deep-dive.md]]` → ファイル未存在
 
 **04-web-and-network/network-fundamentals/docs/00-introduction/01-osi-and-tcpip-model.md** (1件):
-- L1668: `[[02-ip-addressing.md]]` → ファイル未存在
+- L1793: `[[02-ip-addressing.md]]` → ファイル未存在
 
 **04-web-and-network/network-fundamentals/docs/00-introduction/02-ip-addressing.md** (1件):
-- L1266: `[[03-dns.md]]` → ファイル未存在
+- L1451: `[[03-dns.md]]` → ファイル未存在
 
-**04-web-and-network/network-fundamentals/docs/00-introduction/03-dns.md** (3件):
-- L1680: `[[01-protocols/00-tcp.md]]` → ファイル未存在
-- L1681: `[[01-protocols/01-tls.md]]` → ファイル未存在
-- L1682: `[[01-protocols/02-http.md]]` → ファイル未存在
+**04-web-and-network/network-fundamentals/docs/01-protocols/00-tcp.md** (8件):
+- L10: `[[../00-introduction/01-osi-and-tcpip-model.md]]` → ファイル未存在
+- L11: `[[../00-introduction/02-ip-addressing.md]]` → ファイル未存在
+- L1635: `[[./01-udp.md]]` → ファイル未存在
+- L1636: `[[../02-http/00-http-basics.md]]` → ファイル未存在
+- L1637: `[[../02-http/01-http2-and-http3.md]]` → ファイル未存在
+- L1640: `[[../03-tools/00-tcpdump.md]]` → ファイル未存在
+- L1641: `[[../03-tools/01-wireshark.md]]` → ファイル未存在
+- L1642: `[[../04-security/00-tls.md]]` → ファイル未存在
 
-**04-web-and-network/network-fundamentals/docs/01-protocols/01-udp.md** (1件):
-- L1957: `[[02-websocket.md]]` → ファイル未存在
+**04-web-and-network/network-fundamentals/docs/01-protocols/01-udp.md** (4件):
+- L10: `[[./00-tcp.md]]` → ファイル未存在
+- L11: `[[../00-introduction/01-osi-and-tcpip-model.md]]` → ファイル未存在
+- L14: `[[../00-introduction/02-ip-addressing.md]]` → ファイル未存在
+- L2118: `[[02-websocket.md]]` → ファイル未存在
 
 **04-web-and-network/network-fundamentals/docs/01-protocols/02-websocket.md** (2件):
 - L2575: `[[03-grpc.md]]` → ファイル未存在
@@ -1513,21 +1507,35 @@
 **04-web-and-network/network-fundamentals/docs/01-protocols/03-grpc.md** (1件):
 - L2600: `[[../02-http/00-http-basics.md]]` → ファイル未存在
 
-**04-web-and-network/network-fundamentals/docs/02-http/00-http-basics.md** (1件):
-- L1560: `[[01-http2-and-http3.md]]` → ファイル未存在
+**04-web-and-network/network-fundamentals/docs/02-http/00-http-basics.md** (3件):
+- L7: `[[../01-protocols/00-tcp.md]]` → ファイル未存在
+- L8: `[[../00-introduction/03-dns.md]]` → ファイル未存在
+- L1695: `[[01-http2-and-http3.md]]` → ファイル未存在
 
-**04-web-and-network/network-fundamentals/docs/02-http/01-http2-and-http3.md** (1件):
-- L1959: `[[02-rest-api.md]]` → ファイル未存在
+**04-web-and-network/network-fundamentals/docs/02-http/01-http2-and-http3.md** (4件):
+- L7: `[[./00-http-basics.md]]` → ファイル未存在
+- L8: `[[../01-protocols/00-tcp.md]]` → ファイル未存在
+- L9: `[[../03-security/00-tls-ssl.md]]` → ファイル未存在
+- L1969: `[[02-rest-api.md]]` → ファイル未存在
 
-**04-web-and-network/network-fundamentals/docs/02-http/02-rest-api.md** (2件):
-- L2134: `[[03-caching.md]]` → ファイル未存在
-- L2135: `[[04-security.md]]` → ファイル未存在
+**04-web-and-network/network-fundamentals/docs/02-http/02-rest-api.md** (4件):
+- L7: `[[./00-http-basics.md]]` → ファイル未存在
+- L8: `[[./01-http2-and-http3.md]]` → ファイル未存在
+- L2144: `[[03-caching.md]]` → ファイル未存在
+- L2145: `[[04-security.md]]` → ファイル未存在
 
-**04-web-and-network/network-fundamentals/docs/03-security/00-tls-ssl.md** (1件):
-- L1271: `[[01-authentication.md]]` → ファイル未存在
+**04-web-and-network/network-fundamentals/docs/02-http/03-caching.md** (1件):
+- L7: `[[./00-http-basics.md]]` → ファイル未存在
 
-**04-web-and-network/network-fundamentals/docs/03-security/01-authentication.md** (1件):
-- L1259: `[[02-common-attacks.md]]` → ファイル未存在
+**04-web-and-network/network-fundamentals/docs/03-security/00-tls-ssl.md** (3件):
+- L8: `[[../01-protocols/00-tcp.md]]` → ファイル未存在
+- L10: `[[../02-http/00-http-basics.md]]` → ファイル未存在
+- L1563: `[[01-authentication.md]]` → ファイル未存在
+
+**04-web-and-network/network-fundamentals/docs/03-security/01-authentication.md** (3件):
+- L8: `[[./00-tls-ssl.md]]` → ファイル未存在
+- L9: `[[../02-http/00-http-basics.md]]` → ファイル未存在
+- L1268: `[[02-common-attacks.md]]` → ファイル未存在
 
 **04-web-and-network/network-fundamentals/docs/03-security/02-common-attacks.md** (1件):
 - L1288: `[[../04-advanced/00-load-balancing.md]]` → ファイル未存在
@@ -1535,21 +1543,15 @@
 **04-web-and-network/network-fundamentals/docs/04-advanced/01-cdn.md** (1件):
 - L974: `[[kv_namespaces]]` → ファイル未存在
 
-**04-web-and-network/web-application-development/SKILL.md** (7件):
-- L13: `[[web-development]]` → ファイル未存在
-- L14: `[[react-development]]` → ファイル未存在
-- L70: `[[web-development]]` → ファイル未存在
-- L71: `[[react-development]]` → ファイル未存在
-- L72: `[[nextjs-development]]` → ファイル未存在
-- L73: `[[frontend-performance]]` → ファイル未存在
-- L74: `[[api-and-library-guide]]` → ファイル未存在
+**04-web-and-network/web-application-development/SKILL.md** (1件):
+- L14: `../../02-programming/programming-language-fundamentals/` → ファイル未存在
 
 **04-web-and-network/web-application-development/docs/00-architecture/00-spa-mpa-ssr.md** (1件):
-- L1719: `[[01-project-structure.md]]` → ファイル未存在
+- L1923: `[[01-project-structure.md]]` → ファイル未存在
 
 **04-web-and-network/web-application-development/docs/00-architecture/01-project-structure.md** (2件):
-- L1988: `[[...optional]]` → ファイル未存在
-- L2243: `[[02-component-architecture.md]]` → ファイル未存在
+- L2008: `[[...optional]]` → ファイル未存在
+- L2263: `[[02-component-architecture.md]]` → ファイル未存在
 
 **04-web-and-network/web-application-development/docs/00-architecture/02-component-architecture.md** (1件):
 - L2924: `[[03-data-fetching-patterns.md]]` → ファイル未存在
@@ -1560,13 +1562,13 @@
 - L3163: `[[02-component-architecture.md]]` → ファイル未存在
 
 **04-web-and-network/web-application-development/docs/01-state-management/00-state-management-overview.md** (3件):
-- L2406: `[[01-zustand-and-jotai.md]]` → ファイル未存在
-- L2407: `[[02-server-state.md]]` → ファイル未存在
-- L2408: `[[03-url-state.md]]` → ファイル未存在
+- L2467: `[[01-zustand-and-jotai.md]]` → ファイル未存在
+- L2468: `[[02-server-state.md]]` → ファイル未存在
+- L2469: `[[03-url-state.md]]` → ファイル未存在
 
 **04-web-and-network/web-application-development/docs/01-state-management/01-zustand-and-jotai.md** (2件):
-- L2290: `[[02-server-state.md]]` → ファイル未存在
-- L2291: `[[03-url-state.md]]` → ファイル未存在
+- L2298: `[[02-server-state.md]]` → ファイル未存在
+- L2299: `[[03-url-state.md]]` → ファイル未存在
 
 **04-web-and-network/web-application-development/docs/01-state-management/02-server-state.md** (1件):
 - L3063: `[[03-url-state.md]]` → ファイル未存在
@@ -1577,7 +1579,7 @@
 - L3343: `[[02-global-state.md]]` → ファイル未存在
 
 **04-web-and-network/web-application-development/docs/02-routing-and-navigation/00-client-side-routing.md** (1件):
-- L3147: `[[01-file-based-routing.md]]` → ファイル未存在
+- L3272: `[[01-file-based-routing.md]]` → ファイル未存在
 
 **04-web-and-network/web-application-development/docs/02-routing-and-navigation/01-file-based-routing.md** (9件):
 - L928: `[[...slug]]` → ファイル未存在
@@ -1599,10 +1601,10 @@
 - L4322: `[[02-dynamic-routing.md]]` → ファイル未存在
 
 **04-web-and-network/web-application-development/docs/03-forms-and-validation/00-form-design.md** (1件):
-- L3336: `[[01-validation-patterns.md]]` → ファイル未存在
+- L3445: `[[01-validation-patterns.md]]` → ファイル未存在
 
 **04-web-and-network/web-application-development/docs/03-forms-and-validation/01-validation-patterns.md** (1件):
-- L4485: `[[02-file-upload.md]]` → ファイル未存在
+- L4495: `[[02-file-upload.md]]` → ファイル未存在
 
 **04-web-and-network/web-application-development/docs/03-forms-and-validation/02-file-upload.md** (1件):
 - L4619: `[[03-complex-forms.md]]` → ファイル未存在
@@ -1610,19 +1612,20 @@
 **04-web-and-network/web-application-development/docs/03-forms-and-validation/03-complex-forms.md** (1件):
 - L3502: `[[00-deployment-platforms.md]]` → ファイル未存在
 
-**04-web-and-network/web-application-development/docs/04-deployment/00-deployment-platforms.md** (12件):
-- L700: `[[kv_namespaces]]` → ファイル未存在
-- L706: `[[d1_databases]]` → ファイル未存在
-- L712: `[[r2_buckets]]` → ファイル未存在
-- L721: `[[queues.producers]]` → ファイル未存在
-- L725: `[[queues.consumers]]` → ファイル未存在
-- L731: `[[routes]]` → ファイル未存在
-- L742: `[[migrations]]` → ファイル未存在
-- L1964: `[[vm]]` → ファイル未存在
-- L1970: `[[services.http_checks]]` → ファイル未存在
-- L2648: `[[01-environment-and-config.md]]` → ファイル未存在
-- L2649: `[[02-ci-cd.md]]` → ファイル未存在
-- L2650: `[[03-monitoring.md]]` → ファイル未存在
+**04-web-and-network/web-application-development/docs/04-deployment/00-deployment-platforms.md** (13件):
+- L11: `[[../../05-infrastructure/docker-container-guide/docs/]]` → ファイル未存在
+- L708: `[[kv_namespaces]]` → ファイル未存在
+- L714: `[[d1_databases]]` → ファイル未存在
+- L720: `[[r2_buckets]]` → ファイル未存在
+- L729: `[[queues.producers]]` → ファイル未存在
+- L733: `[[queues.consumers]]` → ファイル未存在
+- L739: `[[routes]]` → ファイル未存在
+- L750: `[[migrations]]` → ファイル未存在
+- L1972: `[[vm]]` → ファイル未存在
+- L1978: `[[services.http_checks]]` → ファイル未存在
+- L2656: `[[01-environment-and-config.md]]` → ファイル未存在
+- L2657: `[[02-ci-cd.md]]` → ファイル未存在
+- L2658: `[[03-monitoring.md]]` → ファイル未存在
 
 **04-web-and-network/web-application-development/docs/04-deployment/01-environment-and-config.md** (1件):
 - L2916: `[[02-performance-optimization.md]]` → ファイル未存在
@@ -3012,7 +3015,7 @@ sudo-command-line() {
 
 ## 双方向参照の欠如
 
-1216ペアで片方向のみの参照を検出:
+1257ペアで片方向のみの参照を検出:
 
 - 01-cs-fundamentals/algorithm-and-data-structures/docs/00-complexity/00-big-o-notation.md → 01-cs-fundamentals/algorithm-and-data-structures/docs/00-complexity/01-complexity-analysis.md （逆方向なし）
 - 01-cs-fundamentals/algorithm-and-data-structures/docs/00-complexity/00-big-o-notation.md → 01-cs-fundamentals/algorithm-and-data-structures/docs/00-complexity/02-space-time-tradeoff.md （逆方向なし）
@@ -3115,4 +3118,4 @@ sudo-command-line() {
 - 02-programming/rust-systems-programming/docs/00-basics/01-ownership-borrowing.md → 02-programming/rust-systems-programming/docs/01-advanced/00-lifetimes.md （逆方向なし）
 - 02-programming/rust-systems-programming/docs/00-basics/01-ownership-borrowing.md → 02-programming/rust-systems-programming/docs/01-advanced/01-smart-pointers.md （逆方向なし）
 
-... 他1116ペア
+... 他1157ペア

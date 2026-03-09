@@ -13,6 +13,12 @@
 - [ ] 国際化対応の命名パターンを理解する
 - [ ] OpenAPI仕様での命名規則の実装方法を把握する
 
+## 前提知識
+
+- API First設計の基本概念 → 参照: [API First設計](./00-api-first-design.md)
+- HTTP メソッド（GET/POST/PUT/DELETE）の理解 → 参照: [HTTPの基礎](../../network-fundamentals/docs/02-http/00-http-basics.md)
+- REST APIの基本原則 → 参照: [REST API](../../network-fundamentals/docs/02-http/02-rest-api.md)
+
 ---
 
 ## 1. エンドポイント命名
@@ -2068,6 +2074,110 @@ rules:
 
 ---
 
+## FAQ
+
+### Q1: キャメルケースとスネークケース、API設計ではどちらが推奨？
+
+**A**: 両方とも広く使われており、絶対的な正解はありませんが、以下の傾向があります。
+
+- **camelCase推奨**: JSON APIでは主流。JavaScript/TypeScript環境と親和性が高い（例: GitHub API, Stripe API）
+- **snake_case推奨**: Python/Ruby環境、データベースカラム名との一貫性を重視する場合（例: Slack API, Twitter API v1）
+
+**重要なのは一貫性**: プロジェクト内で統一し、ドキュメント化してください。
+OpenAPI仕様でスキーマを定義し、Spectralルールで自動チェックすることで、命名の一貫性を保証できます。
+
+```yaml
+# Spectral ルール例
+rules:
+  field-names-camel-case:
+    description: フィールド名は camelCase で記述する
+    given: $.paths..*.responses..content..schema..properties[*]~
+    then:
+      function: pattern
+      functionOptions:
+        match: "^[a-z][a-zA-Z0-9]*$"
+```
+
+### Q2: URLパスの命名で単数形と複数形のどちらを使うべき？
+
+**A**: **複数形が推奨**されます。
+
+理由:
+- コレクションを表現する場合に自然（`GET /users` でユーザー一覧を取得）
+- 単一リソースも同じパスで表現可能（`GET /users/{id}` で特定ユーザーを取得）
+- 業界標準（Google API Design Guide, Microsoft REST API Guidelines）
+
+```
+推奨:
+  GET    /users          ← 複数形
+  GET    /users/{id}
+  POST   /users
+  DELETE /users/{id}
+
+非推奨:
+  GET    /user           ← 単数形
+  GET    /user/{id}
+```
+
+**例外**: リソースが単一の場合（シングルトン）は単数形を使用
+```
+GET /auth/session       ← 現在のセッション（1つしか存在しない）
+GET /user/profile       ← 現在のユーザーのプロフィール
+```
+
+### Q3: APIの命名規則をチーム内で統一するための方法は？
+
+**A**: 以下の3段階アプローチが効果的です。
+
+**1. スタイルガイドの策定**
+- API設計の命名規則を文書化（例: この章の内容をベースに）
+- フィールド、エンドポイント、エラーコード、日時形式などを明記
+- チームレビューを経て正式採用
+
+**2. OpenAPI仕様での実装**
+```yaml
+# openapi.yaml でスキーマを定義
+components:
+  schemas:
+    User:
+      type: object
+      properties:
+        userId:          # camelCase 統一
+          type: string
+          format: uuid
+        createdAt:       # 日時は ISO 8601
+          type: string
+          format: date-time
+        isActive:        # 真偽値は is プレフィックス
+          type: boolean
+```
+
+**3. Spectralによる自動チェック**
+```yaml
+# .spectral.yaml
+extends: spectral:oas
+rules:
+  path-params-kebab-case:
+    description: パスはケバブケースで記述
+    given: $.paths[*]~
+    then:
+      function: pattern
+      functionOptions:
+        match: "^/[a-z0-9-/{}]*$"
+
+  response-property-camelcase:
+    description: レスポンスフィールドは camelCase
+    given: $.paths..responses..content..schema..properties[*]~
+    then:
+      function: casing
+      functionOptions:
+        type: camel
+```
+
+CI/CDパイプラインに組み込むことで、PR時に自動チェックが走り、命名規則違反を防げます。
+
+---
+
 ## まとめ
 
 | 概念 | ポイント |
@@ -2086,8 +2196,8 @@ rules:
 ---
 
 ## 次に読むべきガイド
--> [[02-versioning-strategy.md]] -- バージョニング戦略
--> [[03-pagination-and-filtering.md]] -- ページネーションとフィルタリング
+- [バージョニング戦略](./02-versioning-strategy.md)
+- [ページネーションとフィルタリング](./03-pagination-and-filtering.md)
 
 ---
 

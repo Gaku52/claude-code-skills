@@ -14,6 +14,12 @@
 - [ ] パフォーマンスの計測と最適化手法を把握する
 - [ ] テスト戦略とモニタリングを実践できる
 
+## 前提知識
+
+- GraphQLの基礎（Query, Mutation, Schema） → 参照: [GraphQL基礎](./01-graphql-fundamentals.md)
+- REST APIの設計原則 → 参照: [REST Best Practices](./00-rest-best-practices.md)
+- TypeScriptの型システム → 参照: [TypeScript Complete Guide](../../../02-programming/typescript-complete-guide/docs/)
+
 ---
 
 ## 1. Subscription（リアルタイム通信）
@@ -3631,6 +3637,217 @@ const resolvers = {
 
 ---
 
+## FAQ
+
+### Q1: GraphQL Subscriptionとポーリングの使い分けは？
+
+**A:** リアルタイム性の要件とコスト、実装複雑度のバランスで判断する。
+
+**Subscriptionを選ぶべきケース:**
+- チャットアプリ、コラボレーションツールなど、低レイテンシーが必須
+- サーバー側でイベント駆動の更新が多い（1秒間に複数回の更新）
+- 多数のクライアントが同じデータを購読している（PubSubで効率的に配信可能）
+- WebSocketインフラが整備されている
+
+**ポーリングを選ぶべきケース:**
+- 更新頻度が低い（数分〜数十分に1回程度）
+- 既存のHTTP/RESTインフラを活用したい
+- WebSocket接続の維持コストを避けたい（モバイルアプリのバッテリー消費など）
+- ファイアウォール環境でWebSocketが使えない
+
+**ハイブリッド戦略:**
+```javascript
+// 優先度の高い更新はSubscription、それ以外はポーリング
+const CRITICAL_SUBSCRIPTIONS = ['newMessage', 'orderStatusUpdate'];
+const POLLING_QUERIES = ['unreadCount', 'notifications'];
+
+// Subscription（リアルタイム）
+useSubscription(NEW_MESSAGE_SUBSCRIPTION, {
+  onData: ({ data }) => updateUI(data),
+});
+
+// ポーリング（30秒ごと）
+useQuery(UNREAD_COUNT_QUERY, {
+  pollInterval: 30000,
+});
+```
+
+### Q2: GraphQLのスキーマ設計でRelay仕様に準拠すべきか？
+
+**A:** プロジェクトの規模と将来の拡張性を考慮して判断する。
+
+**Relay仕様に準拠すべきケース:**
+- 大規模なアプリケーション（数百以上のエンティティ）
+- ページネーションを多用する
+- クライアント側で正規化キャッシュを活用したい（Apollo Client、Relay）
+- スキーマの一貫性を保ちたい
+
+**Relay準拠のメリット:**
+```graphql
+# Relay Connection仕様
+type UserConnection {
+  edges: [UserEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type UserEdge {
+  node: User!
+  cursor: String!
+}
+
+type PageInfo {
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  startCursor: String
+  endCursor: String
+}
+
+# Node Interface（グローバルID）
+interface Node {
+  id: ID!  # グローバルに一意なID（例: "VXNlcjox"）
+}
+
+type User implements Node {
+  id: ID!
+  name: String!
+}
+```
+
+**Relay準拠のデメリット:**
+- 初期実装コストが高い
+- シンプルなケースでも冗長なスキーマになる
+- カーソルベースのページネーションが不要な場合はオーバーエンジニアリング
+
+**代替案:**
+```graphql
+# シンプルなページネーション（小規模アプリ向け）
+type UserPage {
+  users: [User!]!
+  total: Int!
+  hasMore: Boolean!
+}
+
+type Query {
+  users(page: Int!, limit: Int!): UserPage!
+}
+```
+
+**推奨アプローチ:**
+- 新規プロジェクト（中規模以上）: Relay仕様を採用（将来の拡張性を確保）
+- 既存プロジェクトの小規模な機能追加: 既存のパターンを踏襲
+- プロトタイプ/MVP: シンプルなページネーションで開始、必要になったら移行
+
+### Q3: GraphQLのキャッシュ戦略はRESTと比べてどう異なるか？
+
+**A:** GraphQLは正規化キャッシュを活用し、エンティティレベルでキャッシュ管理を行う点がRESTと大きく異なる。
+
+**RESTのキャッシュ戦略:**
+```
+エンドポイント単位のキャッシュ:
+  GET /api/users/123        → Cache-Control: max-age=3600
+  GET /api/users/123/posts  → Cache-Control: max-age=1800
+
+問題点:
+  - 同じユーザーデータが複数エンドポイントで重複してキャッシュされる
+  - 部分的な更新が困難（user.name だけ変更されても全体を再取得）
+  - キャッシュ無効化が粗い（user が更新されたら全エンドポイントを invalidate）
+```
+
+**GraphQLのキャッシュ戦略:**
+```javascript
+// 正規化キャッシュ（Apollo Client）
+const cache = new InMemoryCache({
+  typePolicies: {
+    User: {
+      keyFields: ['id'],  // キャッシュキー
+      fields: {
+        posts: {
+          merge(existing = [], incoming) {
+            return [...existing, ...incoming];
+          },
+        },
+      },
+    },
+  },
+});
+
+// クエリ1
+query GetUser {
+  user(id: "123") {
+    id
+    name
+    email
+  }
+}
+
+// クエリ2
+query GetUserPosts {
+  user(id: "123") {
+    id
+    name  # キャッシュから取得（リクエストしない）
+    posts { title }
+  }
+}
+
+// Mutation後の自動キャッシュ更新
+mutation UpdateUserName {
+  updateUser(id: "123", name: "New Name") {
+    id
+    name  # キャッシュ内の user:123 の name が自動更新される
+  }
+}
+```
+
+**GraphQL特有のキャッシュレイヤー:**
+```
+┌─────────────────────────────────────┐
+│ 1. クライアント正規化キャッシュ       │  Apollo Client InMemoryCache
+│    (User:123, Post:456)             │  → エンティティ単位でキャッシュ
+└─────────────────────────────────────┘
+           ↓
+┌─────────────────────────────────────┐
+│ 2. Persisted Queries                │  クエリハッシュでキャッシュ
+│    (sha256: abc123 → クエリ文字列)   │  → CDN/サーバーで活用
+└─────────────────────────────────────┘
+           ↓
+┌─────────────────────────────────────┐
+│ 3. サーバーサイドキャッシュ (Redis)  │  リゾルバー結果のキャッシュ
+│    user:123 → { id, name, email }   │  → DataLoader + Redis
+└─────────────────────────────────────┘
+           ↓
+┌─────────────────────────────────────┐
+│ 4. データベースクエリキャッシュ       │  DB層のキャッシュ
+└─────────────────────────────────────┘
+```
+
+**キャッシュ無効化の違い:**
+```javascript
+// REST: エンドポイント単位で無効化
+cache.invalidate('/api/users/123');
+cache.invalidate('/api/users/123/posts');
+
+// GraphQL: エンティティ単位で無効化
+cache.evict({ id: 'User:123' });  // User:123に関連する全クエリが無効化
+cache.gc();  // 孤立したキャッシュエントリを削除
+
+// または refetchQueries で特定クエリを再取得
+await updateUser({
+  refetchQueries: [{ query: GET_USER, variables: { id: '123' } }],
+});
+```
+
+**まとめ:**
+| 項目 | REST | GraphQL |
+|------|------|---------|
+| キャッシュ単位 | エンドポイント | エンティティ（型+ID） |
+| 重複データ | 多い | 正規化により最小化 |
+| 部分更新 | 困難 | 自動的にキャッシュマージ |
+| 無効化の粒度 | 粗い | 細かい（フィールド単位も可能） |
+| CDN活用 | 容易 | Persisted Queriesで可能 |
+
+---
+
 ## まとめ
 
 | 概念 | ポイント |
@@ -3649,7 +3866,7 @@ const resolvers = {
 ---
 
 ## 次に読むべきガイド
--> [[03-rest-vs-graphql.md]] -- REST vs GraphQL
+- [REST vs GraphQL](./03-rest-vs-graphql.md) -- REST vs GraphQL
 
 ---
 

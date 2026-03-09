@@ -36,6 +36,14 @@
 
 ---
 
+## 前提知識
+
+- レンダリングパイプラインの全体像 → 参照: [レンダリングパイプライン](./00-rendering-pipeline.md)
+- CSSのボックスモデルとレイアウトモード（Flexbox, Grid）
+- DOM/CSSOMツリーの構築 → 参照: [HTML/CSSパース](../00-browser-engine/02-parsing-html-css.md)
+
+---
+
 ## 1. Box Model の詳細
 
 ### 1.1 CSS Box Model の構造
@@ -2154,6 +2162,192 @@ createPortal(<Modal />, document.body);
 
 subgrid がない場合は、入れ子のグリッドが親のトラック定義を参照できないため、ピクセル値の一致やカスタムプロパティの共有で回避する必要があった。subgrid により、カードリストのヘッダーや本文の位置を行をまたいで正確に揃えるといった表現が可能になる。
 
+### Q6: Flexbox と Grid の使い分けの基準は何か
+
+**A:** Flexbox と Grid の選択は、レイアウトの次元性と柔軟性の要求で決まる。
+
+**Flexbox を選択すべき場合:**
+- **1次元レイアウト**: 単一の行または列に沿ってアイテムを配置する場合（ナビゲーションバー、ツールバー、カードの内部レイアウト）
+- **コンテンツ主導のサイズ**: アイテムのサイズがコンテンツ量に応じて自動調整されるべき場合
+- **動的な並び**: アイテム数が動的に変化し、自動的に折り返したい場合（タグリスト、ボタングループ）
+
+**Grid を選択すべき場合:**
+- **2次元レイアウト**: 行と列の両方を同時に制御する必要がある場合（ページ全体のレイアウト、複雑なカードグリッド）
+- **厳密な配置**: アイテムを特定のグリッドライン上に配置する必要がある場合
+- **行をまたいだ整列**: 異なる行の要素を列方向で正確に揃える必要がある場合
+
+**両方を組み合わせる場合:**
+多くの実践的なレイアウトでは、Grid で大枠のレイアウトを定義し、各グリッドセル内部で Flexbox を使用するのが最も効果的である。
+
+```css
+/* Grid でページ全体の構造を定義 */
+.page-layout {
+  display: grid;
+  grid-template-areas:
+    "header header"
+    "sidebar main"
+    "footer footer";
+  grid-template-columns: 250px 1fr;
+  gap: 20px;
+}
+
+/* Flexbox でヘッダー内部のナビゲーションを配置 */
+.header-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+```
+
+### Q7: レイアウトスラッシングの検出と対策方法は何か
+
+**A:** レイアウトスラッシング（Layout Thrashing）は、JavaScriptによるDOMの読み取りと書き込みが交互に実行されることで、ブラウザが強制的に何度もレイアウト計算をやり直す現象である。
+
+**検出方法:**
+
+1. **Chrome DevTools Performance タブ**: 紫色の「Recalculate Style」と「Layout」のブロックが頻繁に出現する
+2. **警告メッセージ**: "Forced reflow is a likely performance bottleneck" が Console に表示される
+3. **パフォーマンス計測**: 同じ操作が他のブラウザやデバイスと比較して異常に遅い
+
+**典型的なアンチパターン:**
+
+```javascript
+// ❌ レイアウトスラッシングを引き起こす
+for (let i = 0; i < elements.length; i++) {
+  const height = elements[i].offsetHeight; // 読み取り → Layout 発生
+  elements[i].style.marginTop = height + 10 + 'px'; // 書き込み → 次の読み取りで再計算
+}
+```
+
+**対策:**
+
+1. **読み取りと書き込みを分離する:**
+
+```javascript
+// ✅ 読み取りをまとめて実行
+const heights = elements.map(el => el.offsetHeight);
+
+// ✅ 書き込みをまとめて実行
+elements.forEach((el, i) => {
+  el.style.marginTop = heights[i] + 10 + 'px';
+});
+```
+
+2. **requestAnimationFrame を使用する:**
+
+```javascript
+// ✅ 読み取りと書き込みをフレームで分離
+requestAnimationFrame(() => {
+  const height = element.offsetHeight;
+  requestAnimationFrame(() => {
+    element.style.marginTop = height + 10 + 'px';
+  });
+});
+```
+
+3. **FastDOM などのライブラリを使用する:**
+
+```javascript
+// ✅ FastDOM がバッチ処理を自動化
+fastdom.measure(() => {
+  const height = element.offsetHeight;
+  fastdom.mutate(() => {
+    element.style.marginTop = height + 10 + 'px';
+  });
+});
+```
+
+4. **CSS で解決できる場合は CSS を優先する:**
+
+```css
+/* ✅ JavaScript を使わずに CSS で解決 */
+.element {
+  margin-top: calc(var(--element-height) + 10px);
+}
+```
+
+### Q8: CSS Containment（contain プロパティ）の効果と使い方は何か
+
+**A:** CSS Containment は、要素が文書の他の部分に与える影響を制限することで、ブラウザがレイアウト計算やペイント処理を最適化できるようにする機能である。
+
+**contain プロパティの値:**
+
+```css
+/* レイアウトの影響範囲を限定 */
+.container {
+  contain: layout;
+  /* この要素内のレイアウト変更は、外部に影響しない */
+  /* ブラウザは外部の再計算をスキップできる */
+}
+
+/* ペイントの影響範囲を限定 */
+.container {
+  contain: paint;
+  /* 子要素は親のボックス外に描画されない */
+  /* overflow: hidden に似ているが、より効率的 */
+}
+
+/* サイズ計算を独立させる */
+.container {
+  contain: size;
+  /* 子要素のサイズが親のサイズに影響しない */
+  /* 明示的な width/height が必要 */
+}
+
+/* スタイル計算を限定（カウンターなど） */
+.container {
+  contain: style;
+  /* CSS カウンターが外部に影響しない */
+}
+
+/* すべての containment を適用 */
+.container {
+  contain: strict; /* size layout paint style と同等 */
+}
+
+/* size 以外のすべてを適用（最も実用的） */
+.container {
+  contain: content; /* layout paint style と同等 */
+}
+```
+
+**実用的な使用例:**
+
+```css
+/* 1. 大量のカードリスト（仮想スクロール） */
+.card-item {
+  contain: content;
+  /* 各カードの変更が他のカードに影響しない */
+  /* スクロールパフォーマンスが大幅に向上 */
+}
+
+/* 2. 独立したウィジェット */
+.widget {
+  contain: layout style paint;
+  /* ウィジェット内部の変更が外部に影響しない */
+}
+
+/* 3. オフスクリーンレンダリングの最適化 */
+.offscreen-content {
+  content-visibility: auto;
+  contain-intrinsic-size: 500px; /* 推定サイズ */
+  /* 画面外のコンテンツはレンダリングされない */
+}
+```
+
+**効果:**
+
+- **レイアウト計算の削減**: 変更の影響範囲が限定されるため、ブラウザは不要な再計算をスキップできる
+- **ペイント処理の最適化**: 描画領域が明確になるため、レイヤー分割が効率化される
+- **メモリ使用量の削減**: 画面外のコンテンツをスキップできる（content-visibility と組み合わせた場合）
+
+**注意点:**
+
+- `contain: size` を使用する場合は、明示的な寸法指定が必須である
+- 過度な使用は逆効果になる場合がある。パフォーマンス計測を行って効果を確認する
+- `content-visibility: auto` と組み合わせることで、さらに大きな効果が得られる
+
 ---
 
 ## 14. 用語集
@@ -2197,8 +2391,8 @@ subgrid がない場合は、入れ子のグリッドが親のトラック定義
 
 ## 次に読むべきガイド
 
-- [[02-paint-and-compositing.md]] -- Paint と Compositing のパイプラインを理解し、レンダリングの後半工程を学ぶ
-- [[03-css-animations-and-transitions.md]] -- アニメーションとトランジションのパフォーマンス最適化を学ぶ
+- [Paint と Compositing](./02-paint-and-compositing.md) -- Paint と Compositing のパイプラインを理解し、レンダリングの後半工程を学ぶ
+- [CSS Animations と Transitions](./03-css-animations-and-transitions.md) -- アニメーションとトランジションのパフォーマンス最適化を学ぶ
 
 ---
 
@@ -2207,8 +2401,30 @@ subgrid がない場合は、入れ子のグリッドが親のトラック定義
 1. W3C. "CSS Box Model Module Level 3." W3C Working Draft. https://www.w3.org/TR/css-box-3/
 2. W3C. "CSS Flexible Box Layout Module Level 1." W3C Candidate Recommendation. https://www.w3.org/TR/css-flexbox-1/
 3. W3C. "CSS Grid Layout Module Level 2." W3C Candidate Recommendation. https://www.w3.org/TR/css-grid-2/
-4. MDN Web Docs. "CSS Layout." Mozilla Developer Network. https://developer.mozilla.org/en-US/docs/Learn/CSS/CSS_layout
-5. Jen Simmons. "Designing Intrinsic Layouts." 2018. https://www.youtube.com/watch?v=AMPKmh98XLY
-6. Rachel Andrew. "The New CSS Layout." A Book Apart, 2017.
-7. W3C. "CSS Containment Module Level 2." W3C Working Draft. https://www.w3.org/TR/css-contain-2/
+4. W3C. "CSS Containment Module Level 2." W3C Working Draft. https://www.w3.org/TR/css-contain-2/
+5. W3C. "CSS Positioned Layout Module Level 3." W3C Working Draft. https://www.w3.org/TR/css-position-3/
+6. MDN Web Docs. "CSS Layout." Mozilla Developer Network. https://developer.mozilla.org/en-US/docs/Learn/CSS/CSS_layout
+7. Chromium Blog. "The Chromium Chronicle: Layout Performance." Google Chromium Team. https://developer.chrome.com/blog/
+8. web.dev. "Avoid Large, Complex Layouts and Layout Thrashing." Google Chrome Developers. https://web.dev/avoid-large-complex-layouts-and-layout-thrashing/
+9. Jen Simmons. "Designing Intrinsic Layouts." 2018. https://www.youtube.com/watch?v=AMPKmh98XLY
+10. Rachel Andrew. "The New CSS Layout." A Book Apart, 2017.
+11. Paul Irish. "What Forces Layout / Reflow." GitHub Gist. https://gist.github.com/paulirish/5d52fb081b3570c81e3a
+12. web.dev. "content-visibility: the new CSS property that boosts your rendering performance." Google Chrome Developers. https://web.dev/content-visibility/
 8. Google Developers. "Rendering Performance." Web Fundamentals. https://web.dev/rendering-performance/
+
+### 追加 FAQ
+
+### Q4: Flexbox と Grid を同一コンポーネント内で併用してもよいですか?
+はい、Flexbox と Grid の併用は一般的なパターンです。例えば、ページ全体のレイアウト（ヘッダー・サイドバー・メイン・フッター）には Grid を使い、ナビゲーションバーやカードの内部レイアウトには Flexbox を使うのが典型的です。Grid は2次元配置、Flexbox は1次元配置に強いため、それぞれの特性を活かした使い分けが推奨されます。ネストしても性能上の問題はほとんどありません。
+
+### Q5: position: sticky が効かない場合のよくある原因は何ですか?
+最も多い原因は、sticky要素の祖先に `overflow: hidden`、`overflow: auto`、または `overflow: scroll` が設定されている場合です。sticky はスクロールコンテナを基準に動作するため、意図しない祖先がスクロールコンテナになっていると正しく機能しません。また、sticky 要素に `top`、`bottom`、`left`、`right` のいずれかの閾値が指定されていない場合も動作しません。DevTools の Computed パネルで `position` が `sticky` であることを確認し、祖先要素の `overflow` 値をチェックしてください。
+
+### Q6: CSS Grid の subgrid はどのような場面で有効ですか?
+subgrid は、親グリッドのトラック定義（行や列の幅・高さ）を子グリッドが継承できる機能です。カードリストで各カードのヘッダー・本文・フッターの高さを全カード間で揃えたい場合に特に有効です。subgrid がない場合は固定高さを指定するか JavaScript で高さを同期する必要がありましたが、subgrid により純粋な CSS で実現できます。2024年時点で主要ブラウザ（Chrome、Firefox、Safari）で対応済みです。
+
+### 追加参考文献
+
+13. Ahmad Shadeed. "Debugging CSS Grid and Flexbox Layouts." 2023. https://ishadeed.com/article/css-grid-debugging/
+14. web.dev. "CSS subgrid." Google Chrome Developers. https://web.dev/articles/css-subgrid
+15. W3C. "CSS Display Module Level 3." W3C Candidate Recommendation. https://www.w3.org/TR/css-display-3/

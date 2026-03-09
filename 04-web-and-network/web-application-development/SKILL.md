@@ -10,8 +10,8 @@
 
 ## 前提知識
 
-- HTML/CSS/JavaScript の基本 → 参照: [[web-development]]
-- React の基本 → 参照: [[react-development]]
+- HTML/CSS/JavaScript の基本
+- Reactの基本 → 参照: [プログラミング言語基礎](../../02-programming/programming-language-fundamentals/)
 
 ## ガイド一覧
 
@@ -65,10 +65,38 @@
 デプロイ:        04-deployment
 ```
 
+## FAQ
+
+### Q1: フレームワークはNext.js一択か？他の選択肢はあるか？
+Next.jsは最も人気のあるReactフレームワークだが、唯一の選択肢ではない。Remixはweb標準に近いアプローチを採り、progressive enhancementを重視するプロジェクトに向いている。Astroはコンテンツ中心のサイトに最適で、Islands Architectureにより最小限のJavaScriptで高速なページを構築できる。Vue.jsエコシステムではNuxt.js、SvelteではSvelteKitが対応するフレームワークである。プロジェクトの要件（SSR/SSGの必要性、SEO要件、チームのスキルセット）に応じて選定すべきである。
+
+### Q2: 小規模プロジェクトでもFeature-based構成を採用すべきか？
+ファイル数が50未満の小規模プロジェクトでは、型ベース（Technical-based）構成でも問題ない。しかし、プロジェクトの成長が見込まれる場合は、初期段階からFeature-based構成を採用することを推奨する。後からの移行はimportパスの変更やテストの修正が必要となり、コストが大きくなるためである。最初は`features/`と`shared/`の2階層から始め、必要に応じてfeatureを追加していくアプローチが現実的である。
+
+### Q3: 状態管理ライブラリはどう選定すべきか？
+まず「本当にグローバル状態管理が必要か」を問うべきである。多くの場合、サーバー状態はTanStack QueryやSWRで管理し、URL状態はuseSearchParamsで管理すれば、グローバル状態管理ライブラリが不要になる。それでもグローバル状態が必要な場合、シンプルさを重視するならZustand、細かい再レンダリング制御が必要ならJotaiを選ぶ。Reduxは大規模チームでの実績があるが、ボイラープレートが多いため新規プロジェクトでの採用は減少傾向にある。
+
+## まとめ
+
+このガイドでは以下を学びました:
+
+- SPA/MPA/SSRなどレンダリング方式の特徴と選定基準
+- Feature-basedなプロジェクト構成とコンポーネント設計パターン
+- Zustand/Jotaiによるクライアント状態管理とTanStack Queryによるサーバー状態管理
+- Next.js App Routerを中心としたファイルベースルーティングとナビゲーション設計
+- React Hook FormとZodを活用したフォーム設計・バリデーションパターン
+- Vercel/Cloudflare/AWSへのデプロイ戦略とパフォーマンス最適化
+
+## 参考文献
+
+1. Next.js. "Documentation." nextjs.org/docs, 2024.
+2. React. "React Documentation." react.dev, 2024.
+3. TanStack. "TanStack Query Documentation." tanstack.com, 2024.
+4. Zustand. "Bear necessities for state management." github.com/pmndrs/zustand, 2024.
+5. Vercel. "Deployment Documentation." vercel.com/docs, 2024.
+
 ## 関連Skills
 
-- [[web-development]] — モダンWeb開発基礎
-- [[react-development]] — React開発
-- [[nextjs-development]] — Next.js開発
-- [[frontend-performance]] — フロントエンドパフォーマンス
-- [[api-and-library-guide]] — API設計
+- [ブラウザとWebプラットフォーム](../browser-and-web-platform/) — ブラウザとWebプラットフォーム
+- [ネットワーク基礎](../network-fundamentals/) — ネットワーク基礎
+- [APIガイド](../api-and-library-guide/) — API・ライブラリ設計

@@ -1,15 +1,15 @@
 # 品質監査レポート
 
-> 実行日時: 2026-03-09 00:37:33
+> 実行日時: 2026-03-09 02:21:58
 
 ## 全体サマリー
 
 | 項目 | 数値 |
 |------|------|
 | チェックファイル数 | 952 |
-| ERROR (P0/P1) | 1315 |
-| WARNING (P2) | 4125 |
-| INFO (P3) | 6693 |
+| ERROR (P0/P1) | 1249 |
+| WARNING (P2) | 4046 |
+| INFO (P3) | 6705 |
 
 ---
 
@@ -21,7 +21,7 @@
 | 01-cs-fundamentals | 135 | 158 | 459 | 1172 |
 | 02-programming | 124 | 172 | 518 | 648 |
 | 03-software-design | 61 | 71 | 207 | 384 |
-| 04-web-and-network | 79 | 85 | 265 | 243 |
+| 04-web-and-network | 79 | 19 | 186 | 255 |
 | 05-infrastructure | 137 | 199 | 599 | 2294 |
 | 06-data-and-security | 66 | 60 | 207 | 308 |
 | 07-ai | 133 | 178 | 530 | 1344 |
@@ -493,35 +493,10 @@
 - **ERROR**: サイズ不足: 39,794字 (最低40,000字)
 - **ERROR**: 必須セクション欠落: FAQ
 
-### 04-web-and-network/browser-and-web-platform/docs/01-rendering/00-rendering-pipeline.md
-
-- **ERROR**: サイズ不足: 31,942字 (最低40,000字)
-- **ERROR**: 必須セクション欠落: FAQ, まとめ, 次に読むべきガイド, 参考文献
-
-### 04-web-and-network/browser-and-web-platform/docs/01-rendering/02-paint-and-compositing.md
-
-- **ERROR**: サイズ不足: 36,929字 (最低40,000字)
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ, まとめ, 次に読むべきガイド, 参考文献
-
-### 04-web-and-network/network-fundamentals/docs/00-introduction/02-ip-addressing.md
-
-- **ERROR**: サイズ不足: 35,211字 (最低40,000字)
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ
-
-### 04-web-and-network/network-fundamentals/docs/03-security/00-tls-ssl.md
-
-- **ERROR**: サイズ不足: 27,548字 (最低40,000字)
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ
-
 ### 04-web-and-network/network-fundamentals/docs/03-security/01-authentication.md
 
-- **ERROR**: サイズ不足: 30,047字 (最低40,000字)
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ
-
-### 04-web-and-network/network-fundamentals/docs/03-security/02-common-attacks.md
-
-- **ERROR**: サイズ不足: 30,913字 (最低40,000字)
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ
+- **ERROR**: サイズ不足: 30,217字 (最低40,000字)
+- **ERROR**: 必須セクション欠落: FAQ
 
 ### 05-infrastructure/aws-cloud-guide/docs/01-compute/01-ec2-advanced.md
 
@@ -2841,295 +2816,71 @@
 
 ### 04-web-and-network/api-and-library-guide/SKILL.md
 
-- **ERROR**: 必須セクション欠落: この章で学ぶこと, FAQ, まとめ, 参考文献
-
-### 04-web-and-network/api-and-library-guide/docs/00-api-design-principles/00-api-first-design.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ
-
-### 04-web-and-network/api-and-library-guide/docs/00-api-design-principles/01-naming-and-conventions.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ
-
-### 04-web-and-network/api-and-library-guide/docs/00-api-design-principles/02-versioning-strategy.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, まとめ
-
-### 04-web-and-network/api-and-library-guide/docs/00-api-design-principles/03-pagination-and-filtering.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ
-
-### 04-web-and-network/api-and-library-guide/docs/01-rest-and-graphql/00-rest-best-practices.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ, まとめ
-
-### 04-web-and-network/api-and-library-guide/docs/01-rest-and-graphql/01-graphql-fundamentals.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ
-
-### 04-web-and-network/api-and-library-guide/docs/01-rest-and-graphql/02-graphql-advanced.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ
-
-### 04-web-and-network/api-and-library-guide/docs/01-rest-and-graphql/03-rest-vs-graphql.md
-
-- **ERROR**: 必須セクション欠落: 前提知識
-
-### 04-web-and-network/api-and-library-guide/docs/02-sdk-and-libraries/00-sdk-design.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, まとめ
-
-### 04-web-and-network/api-and-library-guide/docs/02-sdk-and-libraries/01-npm-package-development.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ
-
-### 04-web-and-network/api-and-library-guide/docs/02-sdk-and-libraries/02-api-documentation.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ, まとめ, 参考文献
-
-### 04-web-and-network/api-and-library-guide/docs/03-api-security/00-authentication-patterns.md
-
-- **ERROR**: 必須セクション欠落: 前提知識
-
-### 04-web-and-network/api-and-library-guide/docs/03-api-security/01-rate-limiting.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ
-
-### 04-web-and-network/api-and-library-guide/docs/03-api-security/02-input-validation.md
-
-- **ERROR**: 必須セクション欠落: 前提知識
-
-### 04-web-and-network/api-and-library-guide/docs/04-api-operations/00-api-testing.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ, まとめ
-
-### 04-web-and-network/api-and-library-guide/docs/04-api-operations/01-monitoring-and-logging.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ
-
-### 04-web-and-network/api-and-library-guide/docs/04-api-operations/02-api-gateway.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ, まとめ, 次に読むべきガイド, 参考文献
+- **ERROR**: 必須セクション欠落: この章で学ぶこと
 
 ### 04-web-and-network/browser-and-web-platform/SKILL.md
 
-- **ERROR**: 必須セクション欠落: この章で学ぶこと, FAQ, まとめ, 参考文献
-
-### 04-web-and-network/browser-and-web-platform/docs/00-browser-engine/00-browser-architecture.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ, まとめ, 次に読むべきガイド, 参考文献
-
-### 04-web-and-network/browser-and-web-platform/docs/00-browser-engine/01-navigation-and-loading.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ
-
-### 04-web-and-network/browser-and-web-platform/docs/00-browser-engine/02-parsing-html-css.md
-
-- **ERROR**: 必須セクション欠落: 前提知識
-
-### 04-web-and-network/browser-and-web-platform/docs/00-browser-engine/03-browser-security-model.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ
+- **ERROR**: 必須セクション欠落: この章で学ぶこと
 
 ### 04-web-and-network/browser-and-web-platform/docs/01-rendering/01-css-layout-engine.md
 
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ, 参考文献
-
-### 04-web-and-network/browser-and-web-platform/docs/01-rendering/03-animation-performance.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ, まとめ
-
-### 04-web-and-network/browser-and-web-platform/docs/02-javascript-runtime/00-v8-engine.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ, まとめ, 次に読むべきガイド, 参考文献
+- **ERROR**: 必須セクション欠落: FAQ, 参考文献
 
 ### 04-web-and-network/browser-and-web-platform/docs/02-javascript-runtime/01-event-loop-browser.md
 
 - **ERROR**: 必須セクション欠落: FAQ
 
-### 04-web-and-network/browser-and-web-platform/docs/02-javascript-runtime/02-web-workers.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ, まとめ, 次に読むべきガイド, 参考文献
-
-### 04-web-and-network/browser-and-web-platform/docs/02-javascript-runtime/03-memory-management.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ
-
-### 04-web-and-network/browser-and-web-platform/docs/03-web-apis/00-dom-api.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ, まとめ
-
-### 04-web-and-network/browser-and-web-platform/docs/03-web-apis/01-fetch-and-streams.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ
-
-### 04-web-and-network/browser-and-web-platform/docs/03-web-apis/02-intersection-resize-observer.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ
-
-### 04-web-and-network/browser-and-web-platform/docs/04-storage-and-caching/00-web-storage.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ
-
-### 04-web-and-network/browser-and-web-platform/docs/04-storage-and-caching/01-service-worker-cache.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ, まとめ, 次に読むべきガイド, 参考文献
-
 ### 04-web-and-network/browser-and-web-platform/docs/04-storage-and-caching/02-performance-api.md
 
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ, 次に読むべきガイド, 参考文献
+- **ERROR**: 必須セクション欠落: FAQ, 参考文献
 
 ### 04-web-and-network/network-fundamentals/SKILL.md
 
-- **ERROR**: 必須セクション欠落: この章で学ぶこと, FAQ, まとめ, 参考文献
+- **ERROR**: 必須セクション欠落: この章で学ぶこと
 
-### 04-web-and-network/network-fundamentals/docs/00-introduction/00-how-internet-works.md
+### 04-web-and-network/network-fundamentals/docs/00-introduction/02-ip-addressing.md
 
-- **ERROR**: 必須セクション欠落: まとめ
+- **ERROR**: サイズ不足: 38,963字 (最低40,000字)
 
-### 04-web-and-network/network-fundamentals/docs/00-introduction/01-osi-and-tcpip-model.md
+### 04-web-and-network/network-fundamentals/docs/03-security/00-tls-ssl.md
 
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ
-
-### 04-web-and-network/network-fundamentals/docs/00-introduction/03-dns.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, まとめ
-
-### 04-web-and-network/network-fundamentals/docs/01-protocols/00-tcp.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ, まとめ, 次に読むべきガイド, 参考文献
-
-### 04-web-and-network/network-fundamentals/docs/01-protocols/01-udp.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ, まとめ
-
-### 04-web-and-network/network-fundamentals/docs/01-protocols/02-websocket.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ
-
-### 04-web-and-network/network-fundamentals/docs/01-protocols/03-grpc.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ
-
-### 04-web-and-network/network-fundamentals/docs/02-http/00-http-basics.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ
-
-### 04-web-and-network/network-fundamentals/docs/02-http/01-http2-and-http3.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, まとめ
-
-### 04-web-and-network/network-fundamentals/docs/02-http/02-rest-api.md
-
-- **ERROR**: 必須セクション欠落: 前提知識
-
-### 04-web-and-network/network-fundamentals/docs/02-http/03-caching.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ, まとめ, 次に読むべきガイド, 参考文献
-
-### 04-web-and-network/network-fundamentals/docs/02-http/04-cors.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ, まとめ, 次に読むべきガイド, 参考文献
-
-### 04-web-and-network/network-fundamentals/docs/04-advanced/00-load-balancing.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ, まとめ, 次に読むべきガイド, 参考文献
-
-### 04-web-and-network/network-fundamentals/docs/04-advanced/01-cdn.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ, まとめ, 次に読むべきガイド, 参考文献
-
-### 04-web-and-network/network-fundamentals/docs/04-advanced/02-network-debugging.md
-
-- **ERROR**: 必須セクション欠落: FAQ, まとめ, 次に読むべきガイド, 参考文献
-
-### 04-web-and-network/network-fundamentals/docs/04-advanced/03-performance.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ, 次に読むべきガイド
+- **ERROR**: サイズ不足: 33,800字 (最低40,000字)
 
 ### 04-web-and-network/web-application-development/SKILL.md
 
-- **ERROR**: 必須セクション欠落: この章で学ぶこと, FAQ, まとめ, 参考文献
-
-### 04-web-and-network/web-application-development/docs/00-architecture/00-spa-mpa-ssr.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ
-
-### 04-web-and-network/web-application-development/docs/00-architecture/01-project-structure.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ
-
-### 04-web-and-network/web-application-development/docs/00-architecture/02-component-architecture.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ
-
-### 04-web-and-network/web-application-development/docs/00-architecture/03-data-fetching-patterns.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ
-
-### 04-web-and-network/web-application-development/docs/01-state-management/00-state-management-overview.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ
-
-### 04-web-and-network/web-application-development/docs/01-state-management/01-zustand-and-jotai.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ
-
-### 04-web-and-network/web-application-development/docs/01-state-management/02-server-state.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ
-
-### 04-web-and-network/web-application-development/docs/01-state-management/03-url-state.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ
-
-### 04-web-and-network/web-application-development/docs/02-routing-and-navigation/00-client-side-routing.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ
-
-### 04-web-and-network/web-application-development/docs/02-routing-and-navigation/01-file-based-routing.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ
-
-### 04-web-and-network/web-application-development/docs/02-routing-and-navigation/02-navigation-patterns.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ, まとめ
-
-### 04-web-and-network/web-application-development/docs/02-routing-and-navigation/03-auth-and-guards.md
-
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ
+- **ERROR**: 必須セクション欠落: この章で学ぶこと
 
 ### 04-web-and-network/web-application-development/docs/03-forms-and-validation/00-form-design.md
 
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ
+- **ERROR**: 必須セクション欠落: FAQ
 
 ### 04-web-and-network/web-application-development/docs/03-forms-and-validation/01-validation-patterns.md
 
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ
+- **ERROR**: 必須セクション欠落: FAQ
 
 ### 04-web-and-network/web-application-development/docs/03-forms-and-validation/02-file-upload.md
 
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ
+- **ERROR**: 必須セクション欠落: FAQ
 
 ### 04-web-and-network/web-application-development/docs/03-forms-and-validation/03-complex-forms.md
 
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ
+- **ERROR**: 必須セクション欠落: FAQ
 
 ### 04-web-and-network/web-application-development/docs/04-deployment/00-deployment-platforms.md
 
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ
+- **ERROR**: 必須セクション欠落: FAQ
 
 ### 04-web-and-network/web-application-development/docs/04-deployment/01-environment-and-config.md
 
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ
+- **ERROR**: 必須セクション欠落: FAQ
 
 ### 04-web-and-network/web-application-development/docs/04-deployment/02-performance-optimization.md
 
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ
+- **ERROR**: 必須セクション欠落: FAQ
 
 ### 04-web-and-network/web-application-development/docs/04-deployment/03-monitoring-and-error-tracking.md
 
-- **ERROR**: 必須セクション欠落: 前提知識, FAQ, 次に読むべきガイド
+- **ERROR**: 必須セクション欠落: FAQ
 
 ### 05-infrastructure/aws-cloud-guide/SKILL.md
 
@@ -5966,155 +5717,25 @@
 
 ### 04-web-and-network
 
-**04-web-and-network/api-and-library-guide/docs/02-sdk-and-libraries/02-api-documentation.md**
-- 推奨構造セクション欠落: 概念セクション, アンチパターンセクション, 演習セクション, 深掘りセクション
-- FAQ不足: 0個 (最低3個)
-- 演習不足: 0個 (最低3個)
-- 参考文献不足: 0個 (最低3個)
-- Node.js古いバージョン: Node.js 16 
-- Python古いバージョン: Python 3.8 
-
-**04-web-and-network/network-fundamentals/docs/02-http/04-cors.md**
-- 目標未達: 43,369字 (目標50,000字)
-- 推奨構造セクション欠落: 概念セクション, 実装セクション, 演習セクション, 深掘りセクション
-- 比較表不足: 0個 (推奨2個以上)
-- FAQ不足: 0個 (最低3個)
-- 演習不足: 0個 (最低3個)
-- 参考文献不足: 0個 (最低3個)
-
-**04-web-and-network/network-fundamentals/docs/04-advanced/00-load-balancing.md**
-- 目標未達: 44,761字 (目標50,000字)
-- 推奨構造セクション欠落: アンチパターンセクション, 演習セクション, 深掘りセクション
-- 比較表不足: 0個 (推奨2個以上)
-- FAQ不足: 0個 (最低3個)
-- 演習不足: 0個 (最低3個)
-- 参考文献不足: 0個 (最低3個)
-
-**04-web-and-network/browser-and-web-platform/docs/01-rendering/00-rendering-pipeline.md**
-- 目標未達: 31,942字 (目標50,000字)
-- 推奨構造セクション欠落: 導入セクション, アンチパターンセクション, 演習セクション, 深掘りセクション
-- FAQ不足: 0個 (最低3個)
-- 演習不足: 0個 (最低3個)
-- 参考文献不足: 0個 (最低3個)
-
-**04-web-and-network/browser-and-web-platform/docs/01-rendering/02-paint-and-compositing.md**
-- 目標未達: 36,929字 (目標50,000字)
-- 推奨構造セクション欠落: 導入セクション, 演習セクション
-- FAQ不足: 0個 (最低3個)
-- 演習不足: 0個 (最低3個)
-- 参考文献不足: 0個 (最低3個)
-
-**04-web-and-network/browser-and-web-platform/docs/02-javascript-runtime/00-v8-engine.md**
-- 目標未達: 45,724字 (目標50,000字)
-- 推奨構造セクション欠落: 演習セクション, 深掘りセクション
-- FAQ不足: 0個 (最低3個)
-- 演習不足: 0個 (最低3個)
-- 参考文献不足: 0個 (最低3個)
-
-**04-web-and-network/browser-and-web-platform/docs/04-storage-and-caching/01-service-worker-cache.md**
-- 目標未達: 47,759字 (目標50,000字)
-- 推奨構造セクション欠落: 演習セクション, 深掘りセクション
-- FAQ不足: 0個 (最低3個)
-- 演習不足: 0個 (最低3個)
-- 参考文献不足: 0個 (最低3個)
-
 **04-web-and-network/network-fundamentals/docs/00-introduction/02-ip-addressing.md**
-- 目標未達: 35,211字 (目標50,000字)
+- 目標未達: 38,963字 (目標50,000字)
 - 推奨構造セクション欠落: アンチパターンセクション, 演習セクション, 深掘りセクション
-- 比較表不足: 1個 (推奨2個以上)
-- FAQ不足: 0個 (最低3個)
-- 演習不足: 0個 (最低3個)
-
-**04-web-and-network/network-fundamentals/docs/01-protocols/00-tcp.md**
-- 目標未達: 43,546字 (目標50,000字)
-- 推奨構造セクション欠落: アンチパターンセクション, 演習セクション, 深掘りセクション
-- FAQ不足: 0個 (最低3個)
-- 演習不足: 0個 (最低3個)
-- 参考文献不足: 0個 (最低3個)
-
-**04-web-and-network/network-fundamentals/docs/02-http/00-http-basics.md**
-- 目標未達: 43,962字 (目標50,000字)
-- 推奨構造セクション欠落: 導入セクション, アンチパターンセクション, 演習セクション, 深掘りセクション
-- 比較表不足: 1個 (推奨2個以上)
-- FAQ不足: 0個 (最低3個)
-- 演習不足: 0個 (最低3個)
-
-**04-web-and-network/network-fundamentals/docs/03-security/00-tls-ssl.md**
-- 目標未達: 27,548字 (目標50,000字)
-- 推奨構造セクション欠落: 実装セクション, アンチパターンセクション, 演習セクション, 深掘りセクション
 - 比較表不足: 1個 (推奨2個以上)
 - FAQ不足: 0個 (最低3個)
 - 演習不足: 0個 (最低3個)
 
 **04-web-and-network/network-fundamentals/docs/03-security/01-authentication.md**
-- 目標未達: 30,047字 (目標50,000字)
+- 目標未達: 30,217字 (目標50,000字)
 - 推奨構造セクション欠落: 導入セクション, 概念セクション, 実装セクション, 演習セクション, 深掘りセクション
 - 比較表不足: 1個 (推奨2個以上)
 - FAQ不足: 0個 (最低3個)
 - 演習不足: 0個 (最低3個)
 
-**04-web-and-network/network-fundamentals/docs/03-security/02-common-attacks.md**
-- 目標未達: 30,913字 (目標50,000字)
-- 推奨構造セクション欠落: 導入セクション, 概念セクション, アンチパターンセクション, 演習セクション
-- 比較表不足: 1個 (推奨2個以上)
-- FAQ不足: 0個 (最低3個)
+**04-web-and-network/api-and-library-guide/docs/02-sdk-and-libraries/02-api-documentation.md**
+- 推奨構造セクション欠落: 概念セクション, アンチパターンセクション, 演習セクション, 深掘りセクション
 - 演習不足: 0個 (最低3個)
-
-**04-web-and-network/network-fundamentals/docs/04-advanced/02-network-debugging.md**
-- 目標未達: 41,969字 (目標50,000字)
-- 推奨構造セクション欠落: 導入セクション, 演習セクション, 深掘りセクション
-- FAQ不足: 0個 (最低3個)
-- 演習不足: 0個 (最低3個)
-- 参考文献不足: 0個 (最低3個)
-
-**04-web-and-network/web-application-development/docs/00-architecture/00-spa-mpa-ssr.md**
-- 目標未達: 40,103字 (目標50,000字)
-- 推奨構造セクション欠落: アンチパターンセクション, 演習セクション, 深掘りセクション
-- 比較表不足: 1個 (推奨2個以上)
-- FAQ不足: 0個 (最低3個)
-- 演習不足: 0個 (最低3個)
-
-**04-web-and-network/api-and-library-guide/docs/00-api-design-principles/00-api-first-design.md**
-- 推奨構造セクション欠落: アンチパターンセクション, 深掘りセクション
-- 比較表不足: 1個 (推奨2個以上)
-- FAQ不足: 0個 (最低3個)
-- 演習不足: 2個 (最低3個)
-
-**04-web-and-network/api-and-library-guide/docs/00-api-design-principles/01-naming-and-conventions.md**
-- 目標未達: 44,814字 (目標50,000字)
-- 推奨構造セクション欠落: 導入セクション, 深掘りセクション
-- 比較表不足: 1個 (推奨2個以上)
-- FAQ不足: 0個 (最低3個)
-
-**04-web-and-network/api-and-library-guide/docs/01-rest-and-graphql/02-graphql-advanced.md**
-- 推奨構造セクション欠落: 導入セクション, アンチパターンセクション, 演習セクション, 深掘りセクション
-- 比較表不足: 1個 (推奨2個以上)
-- FAQ不足: 0個 (最低3個)
-- 演習不足: 0個 (最低3個)
-
-**04-web-and-network/api-and-library-guide/docs/03-api-security/01-rate-limiting.md**
-- 推奨構造セクション欠落: アンチパターンセクション, 演習セクション, 深掘りセクション
-- 比較表不足: 1個 (推奨2個以上)
-- FAQ不足: 0個 (最低3個)
-- 演習不足: 0個 (最低3個)
-
-**04-web-and-network/api-and-library-guide/docs/04-api-operations/02-api-gateway.md**
-- 推奨構造セクション欠落: アンチパターンセクション, 演習セクション, 深掘りセクション
-- FAQ不足: 0個 (最低3個)
-- 演習不足: 0個 (最低3個)
-- 参考文献不足: 0個 (最低3個)
-
-**04-web-and-network/browser-and-web-platform/docs/00-browser-engine/00-browser-architecture.md**
-- 推奨構造セクション欠落: 概念セクション, 演習セクション, 深掘りセクション
-- FAQ不足: 0個 (最低3個)
-- 演習不足: 0個 (最低3個)
-- 参考文献不足: 0個 (最低3個)
-
-**04-web-and-network/browser-and-web-platform/docs/00-browser-engine/01-navigation-and-loading.md**
-- 推奨構造セクション欠落: 導入セクション, アンチパターンセクション, 演習セクション, 深掘りセクション
-- 比較表不足: 1個 (推奨2個以上)
-- FAQ不足: 0個 (最低3個)
-- 演習不足: 0個 (最低3個)
+- Node.js古いバージョン: Node.js 16 
+- Python古いバージョン: Python 3.8 
 
 **04-web-and-network/browser-and-web-platform/docs/01-rendering/01-css-layout-engine.md**
 - 推奨構造セクション欠落: 導入セクション
@@ -6123,22 +5744,10 @@
 - 参考文献不足: 0個 (最低3個)
 
 **04-web-and-network/browser-and-web-platform/docs/02-javascript-runtime/01-event-loop-browser.md**
-- 目標未達: 48,845字 (目標50,000字)
 - 推奨構造セクション欠落: 導入セクション
 - FAQ不足: 0個 (最低3個)
 - 演習不足: 0個 (最低3個)
-
-**04-web-and-network/browser-and-web-platform/docs/02-javascript-runtime/02-web-workers.md**
-- 推奨構造セクション欠落: 導入セクション, 演習セクション, 深掘りセクション
-- FAQ不足: 0個 (最低3個)
-- 演習不足: 0個 (最低3個)
-- 参考文献不足: 0個 (最低3個)
-
-**04-web-and-network/browser-and-web-platform/docs/03-web-apis/02-intersection-resize-observer.md**
-- 推奨構造セクション欠落: 導入セクション, 実装セクション, 演習セクション, 深掘りセクション
-- 比較表不足: 1個 (推奨2個以上)
-- FAQ不足: 0個 (最低3個)
-- 演習不足: 0個 (最低3個)
+- Node.js古いバージョン: Node.js v11 
 
 **04-web-and-network/browser-and-web-platform/docs/04-storage-and-caching/02-performance-api.md**
 - 推奨構造セクション欠落: 導入セクション
@@ -6147,69 +5756,33 @@
 - 参考文献不足: 0個 (最低3個)
 
 **04-web-and-network/network-fundamentals/docs/00-introduction/01-osi-and-tcpip-model.md**
-- 目標未達: 41,779字 (目標50,000字)
+- 目標未達: 44,352字 (目標50,000字)
 - 推奨構造セクション欠落: アンチパターンセクション, 演習セクション, 深掘りセクション
-- FAQ不足: 0個 (最低3個)
+- FAQ不足: 1個 (最低3個)
 - 演習不足: 0個 (最低3個)
 
-**04-web-and-network/network-fundamentals/docs/01-protocols/02-websocket.md**
-- 推奨構造セクション欠落: 概念セクション
-- 比較表不足: 1個 (推奨2個以上)
-- FAQ不足: 0個 (最低3個)
-- 演習不足: 0個 (最低3個)
-
-**04-web-and-network/network-fundamentals/docs/01-protocols/03-grpc.md**
+**04-web-and-network/network-fundamentals/docs/02-http/00-http-basics.md**
+- 目標未達: 47,195字 (目標50,000字)
 - 推奨構造セクション欠落: 導入セクション, アンチパターンセクション, 演習セクション, 深掘りセクション
 - 比較表不足: 1個 (推奨2個以上)
-- FAQ不足: 0個 (最低3個)
 - 演習不足: 0個 (最低3個)
 
 **04-web-and-network/network-fundamentals/docs/02-http/01-http2-and-http3.md**
 - 推奨構造セクション欠落: 概念セクション
-- 比較表不足: 0個 (推奨2個以上)
-- FAQ不足: 0個 (最低3個)
-- 演習不足: 0個 (最低3個)
-
-**04-web-and-network/network-fundamentals/docs/02-http/03-caching.md**
-- 推奨構造セクション欠落: 演習セクション, 深掘りセクション
-- FAQ不足: 0個 (最低3個)
-- 演習不足: 0個 (最低3個)
-- 参考文献不足: 0個 (最低3個)
-
-**04-web-and-network/network-fundamentals/docs/04-advanced/01-cdn.md**
-- 推奨構造セクション欠落: 導入セクション, 演習セクション, 深掘りセクション
-- FAQ不足: 0個 (最低3個)
-- 演習不足: 0個 (最低3個)
-- 参考文献不足: 0個 (最低3個)
-
-**04-web-and-network/network-fundamentals/docs/04-advanced/03-performance.md**
-- 推奨構造セクション欠落: 導入セクション, アンチパターンセクション, 演習セクション, 深掘りセクション
 - 比較表不足: 1個 (推奨2個以上)
 - FAQ不足: 0個 (最低3個)
 - 演習不足: 0個 (最低3個)
 
-**04-web-and-network/web-application-development/docs/01-state-management/00-state-management-overview.md**
-- 推奨構造セクション欠落: 概念セクション, 演習セクション, 深掘りセクション
+**04-web-and-network/network-fundamentals/docs/03-security/00-tls-ssl.md**
+- 目標未達: 33,800字 (目標50,000字)
+- 推奨構造セクション欠落: 実装セクション, アンチパターンセクション, 演習セクション, 深掘りセクション
 - 比較表不足: 1個 (推奨2個以上)
-- FAQ不足: 0個 (最低3個)
 - 演習不足: 0個 (最低3個)
 
-**04-web-and-network/web-application-development/docs/01-state-management/01-zustand-and-jotai.md**
-- 推奨構造セクション欠落: 導入セクション, アンチパターンセクション, 演習セクション, 深掘りセクション
+**04-web-and-network/network-fundamentals/docs/03-security/02-common-attacks.md**
+- 目標未達: 45,627字 (目標50,000字)
+- 推奨構造セクション欠落: 導入セクション, アンチパターンセクション, 演習セクション
 - 比較表不足: 1個 (推奨2個以上)
-- FAQ不足: 0個 (最低3個)
-- 演習不足: 0個 (最低3個)
-
-**04-web-and-network/web-application-development/docs/01-state-management/02-server-state.md**
-- 推奨構造セクション欠落: 演習セクション, 深掘りセクション
-- 比較表不足: 1個 (推奨2個以上)
-- FAQ不足: 0個 (最低3個)
-- 演習不足: 0個 (最低3個)
-
-**04-web-and-network/web-application-development/docs/02-routing-and-navigation/02-navigation-patterns.md**
-- 推奨構造セクション欠落: 導入セクション, 演習セクション, 深掘りセクション
-- 比較表不足: 1個 (推奨2個以上)
-- FAQ不足: 0個 (最低3個)
 - 演習不足: 0個 (最低3個)
 
 **04-web-and-network/web-application-development/docs/04-deployment/00-deployment-platforms.md**
@@ -6218,80 +5791,74 @@
 - FAQ不足: 0個 (最低3個)
 - 演習不足: 0個 (最低3個)
 
-**04-web-and-network/web-application-development/docs/04-deployment/01-environment-and-config.md**
-- 推奨構造セクション欠落: 演習セクション, 深掘りセクション
+**04-web-and-network/api-and-library-guide/docs/00-api-design-principles/00-api-first-design.md**
+- 推奨構造セクション欠落: アンチパターンセクション, 深掘りセクション
 - 比較表不足: 1個 (推奨2個以上)
-- FAQ不足: 0個 (最低3個)
-- 演習不足: 0個 (最低3個)
+- 演習不足: 2個 (最低3個)
 
-**04-web-and-network/api-and-library-guide/docs/00-api-design-principles/03-pagination-and-filtering.md**
+**04-web-and-network/api-and-library-guide/docs/00-api-design-principles/01-naming-and-conventions.md**
+- 目標未達: 47,281字 (目標50,000字)
 - 推奨構造セクション欠落: 導入セクション, 深掘りセクション
-- FAQ不足: 0個 (最低3個)
-- 演習不足: 0個 (最低3個)
-
-**04-web-and-network/api-and-library-guide/docs/01-rest-and-graphql/00-rest-best-practices.md**
-- 推奨構造セクション欠落: 導入セクション
-- FAQ不足: 0個 (最低3個)
-- 演習不足: 0個 (最低3個)
-
-**04-web-and-network/api-and-library-guide/docs/02-sdk-and-libraries/01-npm-package-development.md**
-- FAQ不足: 0個 (最低3個)
-- 演習不足: 0個 (最低3個)
-- Node.js古いバージョン: Node.js 12., Node.js 8 , Node.js 12 , Node.js 14 , Node.js 16 
+- 比較表不足: 1個 (推奨2個以上)
 
 **04-web-and-network/api-and-library-guide/docs/03-api-security/00-authentication-patterns.md**
 - 推奨構造セクション欠落: 導入セクション
 - 比較表不足: 1個 (推奨2個以上)
 - 演習不足: 0個 (最低3個)
 
-**04-web-and-network/api-and-library-guide/docs/04-api-operations/00-api-testing.md**
-- 推奨構造セクション欠落: 導入セクション
-- FAQ不足: 0個 (最低3個)
+**04-web-and-network/api-and-library-guide/docs/03-api-security/01-rate-limiting.md**
+- 推奨構造セクション欠落: アンチパターンセクション, 演習セクション, 深掘りセクション
+- 比較表不足: 1個 (推奨2個以上)
 - 演習不足: 0個 (最低3個)
 
-**04-web-and-network/browser-and-web-platform/docs/03-web-apis/01-fetch-and-streams.md**
+**04-web-and-network/browser-and-web-platform/docs/01-rendering/00-rendering-pipeline.md**
+- 目標未達: 43,722字 (目標50,000字)
+- 推奨構造セクション欠落: 導入セクション, アンチパターンセクション, 演習セクション, 深掘りセクション
+- 演習不足: 0個 (最低3個)
+
+**04-web-and-network/browser-and-web-platform/docs/01-rendering/02-paint-and-compositing.md**
+- 目標未達: 43,166字 (目標50,000字)
+- 推奨構造セクション欠落: 導入セクション, 演習セクション
+- 演習不足: 0個 (最低3個)
+
+**04-web-and-network/browser-and-web-platform/docs/03-web-apis/02-intersection-resize-observer.md**
+- 推奨構造セクション欠落: 導入セクション, 実装セクション, 演習セクション, 深掘りセクション
+- 比較表不足: 1個 (推奨2個以上)
+- 演習不足: 0個 (最低3個)
+
+**04-web-and-network/network-fundamentals/docs/02-http/04-cors.md**
+- 推奨構造セクション欠落: 概念セクション, 実装セクション, 演習セクション, 深掘りセクション
+- 比較表不足: 1個 (推奨2個以上)
+- 演習不足: 0個 (最低3個)
+
+**04-web-and-network/network-fundamentals/docs/04-advanced/00-load-balancing.md**
+- 目標未達: 49,455字 (目標50,000字)
+- 推奨構造セクション欠落: アンチパターンセクション, 演習セクション, 深掘りセクション
+- 演習不足: 0個 (最低3個)
+
+**04-web-and-network/network-fundamentals/docs/04-advanced/02-network-debugging.md**
+- 目標未達: 49,075字 (目標50,000字)
 - 推奨構造セクション欠落: 導入セクション, 演習セクション, 深掘りセクション
-- FAQ不足: 0個 (最低3個)
 - 演習不足: 0個 (最低3個)
 
-**04-web-and-network/browser-and-web-platform/docs/04-storage-and-caching/00-web-storage.md**
-- 推奨構造セクション欠落: 実装セクション
-- FAQ不足: 0個 (最低3個)
+**04-web-and-network/web-application-development/docs/00-architecture/00-spa-mpa-ssr.md**
+- 目標未達: 45,578字 (目標50,000字)
+- 推奨構造セクション欠落: アンチパターンセクション, 演習セクション, 深掘りセクション
 - 演習不足: 0個 (最低3個)
 
-**04-web-and-network/web-application-development/docs/00-architecture/01-project-structure.md**
+**04-web-and-network/web-application-development/docs/01-state-management/00-state-management-overview.md**
+- 推奨構造セクション欠落: 概念セクション, 演習セクション, 深掘りセクション
+- 比較表不足: 1個 (推奨2個以上)
+- 演習不足: 0個 (最低3個)
+
+**04-web-and-network/web-application-development/docs/01-state-management/01-zustand-and-jotai.md**
+- 推奨構造セクション欠落: 導入セクション, アンチパターンセクション, 演習セクション, 深掘りセクション
+- 比較表不足: 1個 (推奨2個以上)
+- 演習不足: 0個 (最低3個)
+
+**04-web-and-network/web-application-development/docs/01-state-management/02-server-state.md**
 - 推奨構造セクション欠落: 演習セクション, 深掘りセクション
-- FAQ不足: 0個 (最低3個)
-- 演習不足: 0個 (最低3個)
-
-**04-web-and-network/web-application-development/docs/00-architecture/02-component-architecture.md**
-- 推奨構造セクション欠落: 導入セクション, 演習セクション, 深掘りセクション
-- FAQ不足: 0個 (最低3個)
-- 演習不足: 0個 (最低3個)
-
-**04-web-and-network/web-application-development/docs/00-architecture/03-data-fetching-patterns.md**
-- 推奨構造セクション欠落: 演習セクション, 深掘りセクション
-- FAQ不足: 0個 (最低3個)
-- 演習不足: 0個 (最低3個)
-
-**04-web-and-network/web-application-development/docs/01-state-management/03-url-state.md**
-- 推奨構造セクション欠落: 演習セクション, 深掘りセクション
-- FAQ不足: 0個 (最低3個)
-- 演習不足: 0個 (最低3個)
-
-**04-web-and-network/web-application-development/docs/02-routing-and-navigation/00-client-side-routing.md**
-- 推奨構造セクション欠落: 導入セクション, 演習セクション, 深掘りセクション
-- FAQ不足: 0個 (最低3個)
-- 演習不足: 0個 (最低3個)
-
-**04-web-and-network/web-application-development/docs/02-routing-and-navigation/01-file-based-routing.md**
-- 推奨構造セクション欠落: 演習セクション, 深掘りセクション
-- FAQ不足: 0個 (最低3個)
-- 演習不足: 0個 (最低3個)
-
-**04-web-and-network/web-application-development/docs/02-routing-and-navigation/03-auth-and-guards.md**
-- 推奨構造セクション欠落: 導入セクション, 演習セクション, 深掘りセクション
-- FAQ不足: 0個 (最低3個)
+- 比較表不足: 1個 (推奨2個以上)
 - 演習不足: 0個 (最低3個)
 
 **04-web-and-network/web-application-development/docs/03-forms-and-validation/00-form-design.md**
@@ -6314,6 +5881,11 @@
 - FAQ不足: 0個 (最低3個)
 - 演習不足: 0個 (最低3個)
 
+**04-web-and-network/web-application-development/docs/04-deployment/01-environment-and-config.md**
+- 推奨構造セクション欠落: 演習セクション, 深掘りセクション
+- FAQ不足: 0個 (最低3個)
+- 演習不足: 0個 (最低3個)
+
 **04-web-and-network/web-application-development/docs/04-deployment/02-performance-optimization.md**
 - 推奨構造セクション欠落: 導入セクション, 概念セクション, 演習セクション, 深掘りセクション
 - FAQ不足: 0個 (最低3個)
@@ -6324,62 +5896,162 @@
 - FAQ不足: 0個 (最低3個)
 - 演習不足: 0個 (最低3個)
 
-**04-web-and-network/api-and-library-guide/docs/01-rest-and-graphql/01-graphql-fundamentals.md**
-- 推奨構造セクション欠落: 深掘りセクション
-- FAQ不足: 0個 (最低3個)
+**04-web-and-network/api-and-library-guide/docs/00-api-design-principles/03-pagination-and-filtering.md**
+- 推奨構造セクション欠落: 導入セクション, 深掘りセクション
+- 演習不足: 0個 (最低3個)
+
+**04-web-and-network/api-and-library-guide/docs/01-rest-and-graphql/00-rest-best-practices.md**
+- 推奨構造セクション欠落: 導入セクション
+- 演習不足: 0個 (最低3個)
+
+**04-web-and-network/api-and-library-guide/docs/01-rest-and-graphql/02-graphql-advanced.md**
+- 推奨構造セクション欠落: 導入セクション, アンチパターンセクション, 演習セクション, 深掘りセクション
+- 演習不足: 0個 (最低3個)
+
+**04-web-and-network/api-and-library-guide/docs/02-sdk-and-libraries/01-npm-package-development.md**
+- 演習不足: 0個 (最低3個)
+- Node.js古いバージョン: Node.js 12., Node.js 8 , Node.js 12 , Node.js 14 , Node.js 16 
 
 **04-web-and-network/api-and-library-guide/docs/03-api-security/02-input-validation.md**
 - 推奨構造セクション欠落: 導入セクション
 - 演習不足: 0個 (最低3個)
 
-**04-web-and-network/api-and-library-guide/docs/04-api-operations/01-monitoring-and-logging.md**
-- 推奨構造セクション欠落: 深掘りセクション
-- FAQ不足: 0個 (最低3個)
+**04-web-and-network/api-and-library-guide/docs/04-api-operations/00-api-testing.md**
+- 推奨構造セクション欠落: 導入セクション
+- 演習不足: 0個 (最低3個)
+
+**04-web-and-network/api-and-library-guide/docs/04-api-operations/02-api-gateway.md**
+- 推奨構造セクション欠落: アンチパターンセクション, 演習セクション, 深掘りセクション
+- 演習不足: 0個 (最低3個)
+
+**04-web-and-network/browser-and-web-platform/docs/00-browser-engine/00-browser-architecture.md**
+- 推奨構造セクション欠落: 概念セクション, 演習セクション, 深掘りセクション
+- 演習不足: 0個 (最低3個)
+
+**04-web-and-network/browser-and-web-platform/docs/00-browser-engine/01-navigation-and-loading.md**
+- 推奨構造セクション欠落: 導入セクション, アンチパターンセクション, 演習セクション, 深掘りセクション
+- 演習不足: 0個 (最低3個)
 
 **04-web-and-network/browser-and-web-platform/docs/00-browser-engine/02-parsing-html-css.md**
 - 推奨構造セクション欠落: 導入セクション, 概念セクション, 実装セクション, 深掘りセクション
 - 比較表不足: 1個 (推奨2個以上)
 
-**04-web-and-network/browser-and-web-platform/docs/00-browser-engine/03-browser-security-model.md**
-- FAQ不足: 0個 (最低3個)
+**04-web-and-network/browser-and-web-platform/docs/02-javascript-runtime/00-v8-engine.md**
+- 推奨構造セクション欠落: 演習セクション, 深掘りセクション
 - 演習不足: 0個 (最低3個)
 
-**04-web-and-network/browser-and-web-platform/docs/01-rendering/03-animation-performance.md**
-- FAQ不足: 0個 (最低3個)
+**04-web-and-network/browser-and-web-platform/docs/02-javascript-runtime/02-web-workers.md**
+- 推奨構造セクション欠落: 導入セクション, 演習セクション, 深掘りセクション
 - 演習不足: 0個 (最低3個)
 
-**04-web-and-network/browser-and-web-platform/docs/02-javascript-runtime/03-memory-management.md**
-- 推奨構造セクション欠落: 導入セクション, 深掘りセクション
-- FAQ不足: 0個 (最低3個)
+**04-web-and-network/browser-and-web-platform/docs/03-web-apis/01-fetch-and-streams.md**
+- 推奨構造セクション欠落: 導入セクション, 演習セクション, 深掘りセクション
+- 演習不足: 0個 (最低3個)
 
-**04-web-and-network/browser-and-web-platform/docs/03-web-apis/00-dom-api.md**
-- 推奨構造セクション欠落: 導入セクション, 深掘りセクション
-- FAQ不足: 0個 (最低3個)
+**04-web-and-network/browser-and-web-platform/docs/04-storage-and-caching/00-web-storage.md**
+- 推奨構造セクション欠落: 実装セクション
+- 演習不足: 0個 (最低3個)
+
+**04-web-and-network/browser-and-web-platform/docs/04-storage-and-caching/01-service-worker-cache.md**
+- 推奨構造セクション欠落: 演習セクション, 深掘りセクション
+- 演習不足: 0個 (最低3個)
 
 **04-web-and-network/network-fundamentals/docs/00-introduction/00-how-internet-works.md**
 - 推奨構造セクション欠落: 概念セクション
 - 演習不足: 0個 (最低3個)
 
-**04-web-and-network/network-fundamentals/docs/00-introduction/03-dns.md**
-- 目標未達: 49,805字 (目標50,000字)
+**04-web-and-network/network-fundamentals/docs/01-protocols/00-tcp.md**
+- 推奨構造セクション欠落: アンチパターンセクション, 演習セクション, 深掘りセクション
 - 演習不足: 0個 (最低3個)
 
-**04-web-and-network/network-fundamentals/docs/01-protocols/01-udp.md**
-- FAQ不足: 0個 (最低3個)
+**04-web-and-network/network-fundamentals/docs/01-protocols/02-websocket.md**
+- 推奨構造セクション欠落: 概念セクション
+- 演習不足: 0個 (最低3個)
+
+**04-web-and-network/network-fundamentals/docs/01-protocols/03-grpc.md**
+- 推奨構造セクション欠落: 導入セクション, アンチパターンセクション, 演習セクション, 深掘りセクション
 - 演習不足: 0個 (最低3個)
 
 **04-web-and-network/network-fundamentals/docs/02-http/02-rest-api.md**
 - 推奨構造セクション欠落: 導入セクション, 概念セクション, 深掘りセクション
 - 比較表不足: 0個 (推奨2個以上)
 
+**04-web-and-network/network-fundamentals/docs/02-http/03-caching.md**
+- 推奨構造セクション欠落: 演習セクション, 深掘りセクション
+- 演習不足: 0個 (最低3個)
+
+**04-web-and-network/network-fundamentals/docs/04-advanced/01-cdn.md**
+- 推奨構造セクション欠落: 導入セクション, 演習セクション, 深掘りセクション
+- 演習不足: 0個 (最低3個)
+
+**04-web-and-network/network-fundamentals/docs/04-advanced/03-performance.md**
+- 推奨構造セクション欠落: 導入セクション, アンチパターンセクション, 演習セクション, 深掘りセクション
+- 演習不足: 0個 (最低3個)
+
+**04-web-and-network/web-application-development/docs/00-architecture/01-project-structure.md**
+- 推奨構造セクション欠落: 演習セクション, 深掘りセクション
+- 演習不足: 0個 (最低3個)
+
+**04-web-and-network/web-application-development/docs/00-architecture/02-component-architecture.md**
+- 推奨構造セクション欠落: 導入セクション, 演習セクション, 深掘りセクション
+- 演習不足: 0個 (最低3個)
+
+**04-web-and-network/web-application-development/docs/00-architecture/03-data-fetching-patterns.md**
+- 推奨構造セクション欠落: 演習セクション, 深掘りセクション
+- 演習不足: 0個 (最低3個)
+
+**04-web-and-network/web-application-development/docs/01-state-management/03-url-state.md**
+- 推奨構造セクション欠落: 演習セクション, 深掘りセクション
+- 演習不足: 0個 (最低3個)
+
+**04-web-and-network/web-application-development/docs/02-routing-and-navigation/00-client-side-routing.md**
+- 推奨構造セクション欠落: 導入セクション, 演習セクション, 深掘りセクション
+- 演習不足: 0個 (最低3個)
+
+**04-web-and-network/web-application-development/docs/02-routing-and-navigation/01-file-based-routing.md**
+- 推奨構造セクション欠落: 演習セクション, 深掘りセクション
+- 演習不足: 0個 (最低3個)
+
+**04-web-and-network/web-application-development/docs/02-routing-and-navigation/02-navigation-patterns.md**
+- 推奨構造セクション欠落: 導入セクション, 演習セクション, 深掘りセクション
+- 演習不足: 0個 (最低3個)
+
+**04-web-and-network/web-application-development/docs/02-routing-and-navigation/03-auth-and-guards.md**
+- 推奨構造セクション欠落: 導入セクション, 演習セクション, 深掘りセクション
+- 演習不足: 0個 (最低3個)
+
 **04-web-and-network/api-and-library-guide/docs/00-api-design-principles/02-versioning-strategy.md**
 - 演習不足: 0個 (最低3個)
+
+**04-web-and-network/api-and-library-guide/docs/01-rest-and-graphql/01-graphql-fundamentals.md**
+- 推奨構造セクション欠落: 深掘りセクション
 
 **04-web-and-network/api-and-library-guide/docs/01-rest-and-graphql/03-rest-vs-graphql.md**
 - 推奨構造セクション欠落: 導入セクション, 深掘りセクション
 
 **04-web-and-network/api-and-library-guide/docs/02-sdk-and-libraries/00-sdk-design.md**
 - 推奨構造セクション欠落: 導入セクション, 概念セクション, 深掘りセクション
+
+**04-web-and-network/api-and-library-guide/docs/04-api-operations/01-monitoring-and-logging.md**
+- 推奨構造セクション欠落: 深掘りセクション
+
+**04-web-and-network/browser-and-web-platform/docs/00-browser-engine/03-browser-security-model.md**
+- 演習不足: 0個 (最低3個)
+
+**04-web-and-network/browser-and-web-platform/docs/01-rendering/03-animation-performance.md**
+- 演習不足: 0個 (最低3個)
+
+**04-web-and-network/browser-and-web-platform/docs/02-javascript-runtime/03-memory-management.md**
+- 推奨構造セクション欠落: 導入セクション, 深掘りセクション
+
+**04-web-and-network/browser-and-web-platform/docs/03-web-apis/00-dom-api.md**
+- 推奨構造セクション欠落: 導入セクション, 深掘りセクション
+
+**04-web-and-network/network-fundamentals/docs/00-introduction/03-dns.md**
+- 演習不足: 0個 (最低3個)
+
+**04-web-and-network/network-fundamentals/docs/01-protocols/01-udp.md**
+- 演習不足: 0個 (最低3個)
 
 ### 05-infrastructure
 
@@ -10112,6 +9784,6 @@
 
 | メトリクス | 平均 | 最小 | 最大 |
 |----------|------|------|------|
-| 文字数 | 44,769 | 14,466 | 123,198 |
-| コードブロック | 42.8 | 0 | 157 |
+| 文字数 | 45,166 | 14,466 | 133,223 |
+| コードブロック | 43.2 | 0 | 157 |
 | 表 | 4.4 | 0 | 62 |

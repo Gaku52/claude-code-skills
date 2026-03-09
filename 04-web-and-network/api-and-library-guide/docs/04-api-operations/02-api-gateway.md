@@ -17,6 +17,14 @@
 
 ---
 
+## 前提知識
+
+- APIモニタリングとロギング → 参照: [モニタリングとロギング](./01-monitoring-and-logging.md)
+- レート制限の概念 → 参照: [レート制限](../03-api-security/01-rate-limiting.md)
+- API認証パターン → 参照: [認証パターン](../03-api-security/00-authentication-patterns.md)
+
+---
+
 ## 1. APIゲートウェイの役割とアーキテクチャ
 
 ### 1.1 なぜAPIゲートウェイが必要か
@@ -2579,3 +2587,194 @@ function generateRequestId() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 10)}`;
 }
 ```
+
+---
+
+## FAQ（よくある質問）
+
+### Q1: API Gateway の必要性の判断基準は何か
+
+API Gateway の導入は、以下の状況において特に有効である。
+
+| 状況 | Gateway 不要 | Gateway 推奨 |
+|------|------------|------------|
+| サービス数 | モノリス、1-2サービス | 3サービス以上のマイクロサービス |
+| クライアント種別 | 単一のWebアプリのみ | Web、Mobile、サードパーティAPI等の複数クライアント |
+| 認証要件 | サービス毎に異なる認証方式 | 統一的な認証・認可が必要 |
+| レート制限 | 不要、または各サービスで実装済み | グローバルなレート制限が必要 |
+| TLS終端 | 各サービスが直接TLS対応 | TLS終端を一箇所に集約したい |
+| 運用負荷 | サービス毎の設定変更が許容できる | 統一的な設定管理・監視が必要 |
+
+**Gateway 不要な典型例**:
+- シンプルなモノリシックアプリケーション
+- 内部の管理画面のみのシステム
+- サービス数が少なく、今後も増える予定がない
+
+**Gateway 必須な典型例**:
+- 10個以上のマイクロサービスを持つシステム
+- BFF（Backend for Frontend）パターンが必要なマルチデバイス対応
+- サードパーティに API を提供するプラットフォームビジネス
+- レガシーシステムのモダナイゼーションの過渡期（Strangler Fig Pattern）
+
+最小構成であれば Nginx をリバースプロキシとして使い始め、認証統合やレート制限が必要になった段階で Kong や AWS API Gateway へ移行するアプローチも現実的である。
+
+### Q2: Kong vs AWS API Gateway 等のツール比較はどうすべきか
+
+主要な API Gateway 製品の比較を以下に示す。
+
+| 製品 | タイプ | 主な特徴 | 適用シーン |
+|------|--------|---------|----------|
+| **Kong Gateway** | OSS + Enterprise | - プラグインエコシステムが豊富<br>- Kubernetes Native（Ingress Controller）<br>- 高性能（C + Lua）<br>- セルフホスト or Kong Konnect（SaaS） | 中〜大規模、Kubernetes環境、カスタマイズ性重視 |
+| **AWS API Gateway** | Managed（SaaS） | - AWS サービスとの統合が容易<br>- サーバーレス（Lambda 統合）<br>- スケーラビリティが自動<br>- 従量課金モデル | AWS環境、サーバーレス中心、運用負荷を最小化したい |
+| **Nginx / Nginx Plus** | OSS + Commercial | - 高性能・低レイテンシ<br>- リバースプロキシとして実績<br>- 設定ファイルベース<br>- Plus版で動的設定・ヘルスチェック | レガシー環境との互換性、シンプルなルーティング |
+| **Envoy Proxy** | OSS（CNCF） | - サービスメッシュの標準プロキシ<br>- xDS プロトコルで動的設定<br>- Istio のデータプレーン<br>- 高度なトラフィック制御 | Kubernetes + サービスメッシュ環境、マイクロサービスの高度な制御 |
+| **Azure API Management** | Managed（SaaS） | - Azure 統合<br>- 開発者ポータル標準装備<br>- API バージョニング・変換 | Azure環境、API プロダクト管理重視 |
+| **Tyk** | OSS + Enterprise | - GraphQL 対応<br>- API アナリティクス<br>- 開発者ポータル | API-as-a-Product、開発者エコシステム構築 |
+
+**選定フローチャート**:
+
+```
+環境はAWS中心?
+  → Yes → サーバーレス中心?
+           → Yes → AWS API Gateway
+           → No → Kong on EKS or ALB + Lambda Authorizer
+  → No → Kubernetes環境?
+          → Yes → サービスメッシュ（Istio）必要?
+                   → Yes → Envoy (Istio)
+                   → No → Kong Ingress Controller
+          → No → 既存のNginx資産がある?
+                  → Yes → Nginx Plus
+                  → No → Kong (Docker Compose / VM)
+```
+
+**コスト比較の目安**（月間1億リクエスト想定）:
+- AWS API Gateway: $350-500（REST API）、$100-150（HTTP API）
+- Kong（セルフホスト）: $100-200（インフラコスト）+ 運用コスト
+- Kong Konnect（SaaS）: $1500-3000/月（Enterprise）
+- Nginx Plus: $2500/年/インスタンス
+
+### Q3: マイクロサービス環境での Gateway パターンは何か
+
+マイクロサービスアーキテクチャにおける API Gateway の配置パターンは以下の3つが代表的である。
+
+#### パターン1: 単一 API Gateway（シンプル構成）
+
+```
+         ┌─────────────────┐
+Internet─┤  API Gateway    ├─── User Service
+         │  (Kong / AWS)   ├─── Order Service
+         └─────────────────┘└─── Payment Service
+
+メリット:
+  - 構成がシンプル
+  - 運用コストが低い
+  - 統一的なポリシー適用が容易
+
+デメリット:
+  - Gateway が SPOF（単一障害点）になる
+  - スケールの限界
+  - 全チームが同じGatewayを共有するため、変更の調整が必要
+```
+
+#### パターン2: BFF（Backend for Frontend）パターン
+
+```
+         ┌──────────────┐
+Web App ─┤ Web BFF      ├─┐
+         └──────────────┘ │
+         ┌──────────────┐ │  ┌────────────┐
+Mobile ──┤ Mobile BFF   ├─┼──┤ User Svc   │
+         └──────────────┘ │  ├────────────┤
+         ┌──────────────┐ │  │ Order Svc  │
+Partner ─┤ Partner API  ├─┘  ├────────────┤
+         └──────────────┘    │ Payment    │
+                             └────────────┘
+
+メリット:
+  - クライアント特性に最適化されたAPI設計
+  - チーム毎に独立してGatewayを管理可能
+  - 障害の影響範囲が限定される
+
+デメリット:
+  - Gateway の数が増え、運用コストが増加
+  - 共通機能（認証、ログ等）の重複実装リスク
+  - サービス間の共通ポリシー適用が複雑
+```
+
+#### パターン3: 階層型 Gateway（大規模構成）
+
+```
+                    ┌──────────────────┐
+Internet ───────────┤ Edge Gateway     ├── DDoS対策、TLS終端、WAF
+                    │ (Cloudflare/CDN) │
+                    └─────────┬────────┘
+                              │
+              ┌───────────────┼───────────────┐
+              │               │               │
+         ┌────v─────┐   ┌────v─────┐   ┌────v─────┐
+         │ Web BFF  │   │Mobile BFF│   │ API GW   │
+         └────┬─────┘   └────┬─────┘   └────┬─────┘
+              │               │               │
+         ┌────v──────────────v───────────────v────┐
+         │         Service Mesh (Istio/Envoy)     │
+         │  ┌────────┐ ┌────────┐ ┌────────┐     │
+         │  │User Svc│ │Order   │ │Payment │     │
+         │  └────────┘ └────────┘ └────────┘     │
+         └──────────────────────────────────────┘
+
+メリット:
+  - 役割分離による高いスケーラビリティ
+  - セキュリティ層（Edge）とビジネスロジック層（BFF）の分離
+  - サービスメッシュによるマイクロサービス間通信の高度な制御
+
+デメリット:
+  - アーキテクチャが複雑
+  - 運用に高度なスキルが必要
+  - レイテンシのオーバーヘッド（複数のプロキシ層）
+```
+
+**推奨アプローチ**:
+- スタートアップ、小規模: パターン1（単一Gateway）で開始
+- クライアント種別が多い（Web/Mobile/Partner）: パターン2（BFF）
+- エンタープライズ、大規模トラフィック: パターン3（階層型 + Service Mesh）
+
+---
+
+## まとめ
+
+| 概念 | ポイント |
+|------|---------|
+| API Gateway の役割 | ルーティング、認証、レート制限、TLS終端を一元化する「正面玄関」 |
+| 主要機能 | (1) ルーティング、(2) 認証・認可、(3) レート制限、(4) リクエスト変換、(5) ロードバランシング、(6) キャッシュ、(7) ロギング、(8) サーキットブレーカー |
+| Kong Gateway | Lua プラグインエコシステム、Kubernetes Ingress Controller、高性能 |
+| AWS API Gateway | マネージドサービス、Lambda 統合、従量課金、運用負荷最小 |
+| Nginx | 高性能リバースプロキシ、設定ファイルベース、レガシー環境に強い |
+| Envoy Proxy | サービスメッシュのデータプレーン、xDS 動的設定、Istio 標準 |
+| BFF パターン | クライアント種別毎に専用の Gateway を配置、最適化された API 提供 |
+| レート制限 | Token Bucket（バースト許容）、Sliding Window（厳密な制限） |
+| サーキットブレーカー | 上流サービスの障害を検知して自動的に遮断、フェイルファスト |
+| サービスメッシュ連携 | Istio + Envoy で East-West トラフィック制御、Gateway は North-South を担当 |
+
+**重要なポイント**:
+1. **API Gateway は「必須」ではない**: モノリスや小規模システムでは過剰。サービス数が3つ以上、複数クライアント対応が必要になった段階で導入を検討する
+2. **段階的な導入**: まず Nginx でリバースプロキシ、次に Kong で認証・レート制限、最終的にサービスメッシュへ移行するアプローチが現実的
+3. **監視は Gateway 導入と同時に整備**: メトリクス、ログ、トレーシングを初期段階から組み込むことで、トラブルシューティングが容易になる
+
+---
+
+## 次に読むべきガイド
+
+→ [SDK設計](../02-sdk-and-libraries/00-sdk-design.md) — API利用者向けSDKの設計
+→ [認証パターン](../03-api-security/00-authentication-patterns.md) — GatewayでのAPI認証
+
+---
+
+## 参考文献
+
+1. Kong Inc. "Kong Gateway Documentation." Kong Inc., 2024. https://docs.konghq.com/gateway/latest/
+2. Amazon Web Services. "Amazon API Gateway Developer Guide." AWS, 2024. https://docs.aws.amazon.com/apigateway/latest/developerguide/welcome.html
+3. Nginx Inc. "NGINX Reverse Proxy." Nginx Inc., 2024. https://docs.nginx.com/nginx/admin-guide/web-server/reverse-proxy/
+4. Envoy Proxy Authors. "Envoy Proxy Documentation." Cloud Native Computing Foundation, 2024. https://www.envoyproxy.io/docs/envoy/latest/
+5. Richardson, Chris. "Microservices Patterns: With Examples in Java." Manning Publications, 2018. https://www.manning.com/books/microservices-patterns
+6. Newman, Sam. "Building Microservices: Designing Fine-Grained Systems, 2nd Edition." O'Reilly Media, 2021. https://www.oreilly.com/library/view/building-microservices-2nd/9781492034018/
+7. Microsoft. "API Gateway pattern." Microsoft Azure Architecture Center, 2024. https://learn.microsoft.com/en-us/azure/architecture/microservices/design/gateway

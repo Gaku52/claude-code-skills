@@ -2,6 +2,16 @@
 
 > Webアプリのレンダリング方式は性能とUXを決定づける。SPA、MPA、SSR、SSG、ISR、Streaming SSR、React Server Componentsの特徴と選定基準を理解し、プロジェクト要件に最適なアーキテクチャを選択する。
 
+## 前提知識
+
+この章を学ぶ前に、以下の知識を習得しておくことを推奨する。
+
+- HTTPの基礎（リクエスト/レスポンス、ステータスコード、キャッシュヘッダー）
+  - 参照: `../../network-fundamentals/docs/02-http/00-http-basics.md`
+- ブラウザのレンダリングパイプライン（DOM構築、CSSOM、レイアウト、ペイント）
+  - 参照: `../../browser-and-web-platform/docs/01-rendering/00-rendering-pipeline.md`
+- HTML/CSS/JavaScriptの基礎（DOM操作、イベント処理、非同期処理）
+
 ## この章で学ぶこと
 
 - [ ] 各レンダリング方式の仕組みと特徴を理解する
@@ -10,6 +20,16 @@
 - [ ] Hydration の仕組みと最適化手法を理解する
 - [ ] React Server Components とStreaming SSR の実践を学ぶ
 - [ ] Islands Architecture とPartial Hydrationを把握する
+
+## 前提知識
+
+この章を学習する前に、以下の知識を習得しておくことを推奨します。
+
+- **HTTPの基礎**: リクエスト/レスポンスモデル、ステータスコード、ヘッダーの理解
+  → 参照: `../../network-fundamentals/docs/02-http/00-http-basics.md`
+- **ブラウザのレンダリング**: Critical Rendering Path、Paint、Layout の仕組み
+  → 参照: `../../browser-and-web-platform/docs/01-rendering/00-rendering-pipeline.md`
+- **HTML/CSS/JavaScriptの基礎**: DOM操作、イベント処理、非同期処理（Promise/async-await）の理解
 
 ---
 
@@ -1711,6 +1731,190 @@ SEO が必要？
 | RSC | 速 | 良 | 小 | ハイブリッド（Next.js） |
 | Islands | 速 | 良 | 最小 | コンテンツサイト（Astro） |
 | Qwik | 最速 | 良 | 極小 | パフォーマンス最優先 |
+
+---
+
+## FAQ
+
+### Q1. SPA、MPA、SSRのどれを選ぶべきか？プロジェクトの選択基準は？
+
+**A.** プロジェクトの要件に応じて以下の基準で判断する。
+
+**SPA（CSR）を選ぶべき場合:**
+- 管理画面やダッシュボード（SEO不要）
+- ログイン後のアプリケーション（認証が前提）
+- 高度なインタラクティブ性が必要（リアルタイム編集、複雑なUI）
+- 例: Notion、Figma、Gmail
+
+**MPA（従来型）を選ぶべき場合:**
+- SEOが最優先でJavaScript依存を最小化したい
+- 静的コンテンツが中心（ブログ、ドキュメント）
+- htmxなど軽量なインタラクティブ性で十分
+- 例: 企業サイト、ブログ（htmx + Go/Rails）
+
+**SSR（Next.js App Router等）を選ぶべき場合:**
+- SEOとインタラクティブ性の両立が必要
+- ユーザーごとに異なるコンテンツを表示（パーソナライズ）
+- ECサイト、SNS、ニュースサイト
+- 例: Vercel公式サイト、ECサイト
+
+**SSG（Next.js / Astro）を選ぶべき場合:**
+- 更新頻度が低い静的コンテンツ
+- 最速の初期表示が必要
+- ドキュメント、ブログ、ランディングページ
+- 例: 技術ブログ（Astro）、ドキュメントサイト（VitePress）
+
+**ハイブリッド（SSR + SSG + CSR混在）を選ぶべき場合:**
+- 大規模アプリケーションで複数の要件が混在
+- Next.js App Router で1つのアプリ内でページごとに最適化
+- 例: ECサイト（トップページ=SSG、商品ページ=ISR、カート=CSR、検索=SSR）
+
+### Q2. Next.js の App Router と Pages Router の違いは？どちらを使うべきか？
+
+**A.** **2024年以降の新規プロジェクトでは App Router を推奨する。** ただし、既存プロジェクトの移行は段階的に行う。
+
+**App Router の利点:**
+- React Server Components（RSC）によるバンドルサイズ削減
+- Streaming SSR によるTTFB改善
+- レイアウト共有機能（layout.tsx）の標準化
+- Server Actions によるフォーム処理の簡略化
+- Parallel Routes / Intercepting Routes などの高度なルーティング
+
+**Pages Router の利点:**
+- 安定性（枯れた技術、豊富な事例）
+- 学習コストが低い（従来のReact開発者に馴染みやすい）
+- 一部のライブラリがまだ App Router 未対応
+
+**移行判断基準:**
+- 新規プロジェクト → App Router
+- 既存プロジェクト（小〜中規模） → 段階的に App Router へ移行
+- 既存プロジェクト（大規模、安定運用中） → Pages Router のまま維持も選択肢
+
+### Q3. SSG と ISR の使い分けは？どちらを選ぶべきか？
+
+**A.** データの更新頻度とビルド時間のトレードオフで判断する。
+
+**SSG（Static Site Generation）を選ぶべき場合:**
+- データの更新頻度が非常に低い（月1回以下）
+- ページ数が少ない（100ページ未満）
+- ビルド時間が許容範囲内（数分以内）
+- 例: 企業サイト、ドキュメント、小規模ブログ
+
+**ISR（Incremental Static Regeneration）を選ぶべき場合:**
+- データが定期的に更新される（数分〜数時間ごと）
+- ページ数が多い（数千〜数万ページ）
+- ビルド時間を短縮したい
+- 例: 大規模ECサイトの商品ページ、ニュースサイト
+
+**Next.js での実装例:**
+
+```typescript
+// SSG: ビルド時に全ページを生成
+export async function generateStaticParams() {
+  const posts = await getAllPosts();
+  return posts.map(post => ({ slug: post.slug }));
+}
+
+// ISR: 60秒ごとに再生成 + On-demand Revalidation
+export const revalidate = 60;
+
+export default async function Page({ params }: { params: { slug: string } }) {
+  const post = await getPost(params.slug);
+  return <Article post={post} />;
+}
+
+// On-demand Revalidation（CMS Webhookから呼び出し）
+// app/api/revalidate/route.ts
+import { revalidatePath } from 'next/cache';
+
+export async function POST(request: Request) {
+  const { path } = await request.json();
+  revalidatePath(path);
+  return Response.json({ revalidated: true });
+}
+```
+
+**ISR の注意点:**
+- 初回リクエストはビルド済みページを返す（Stale）
+- バックグラウンドで再生成
+- 再生成失敗時は古いページを返し続ける（安全性）
+
+---
+
+## FAQ（よくある質問）
+
+### Q1: SPA、MPA、SSRの選択基準は？
+
+**A:** プロジェクト要件に応じて以下の基準で選択します。
+
+| 要件 | 推奨方式 | 理由 |
+|------|---------|------|
+| SEOが最重要（ブログ、ECサイト） | SSG / ISR | 静的HTMLでクローラー最適化、LCP最速 |
+| SEO必要 + 動的コンテンツ（SNS、ニュース） | SSR / RSC | サーバーレンダリングで初期HTML生成 |
+| SEO不要 + 高インタラクティブ性（管理画面） | SPA (CSR) | クライアント側で高速なページ遷移 |
+| コンテンツサイト（ドキュメント、マーケティング） | Islands (Astro) | 最小JSでパフォーマンス最大化 |
+| ハイブリッド要件（ECサイト全体） | Next.js App Router | ページ単位でSSG/ISR/SSR/CSRを使い分け |
+
+実際には、Next.js App Router のようなフレームワークで、ルート単位で最適な方式を組み合わせる **ハイブリッドアプローチ** が現代的です。
+
+### Q2: Next.js の App Router と Pages Router の違いは？
+
+**A:** App Router（Next.js 13+）は React Server Components をベースにした新しいアーキテクチャです。
+
+| 観点 | App Router | Pages Router |
+|------|-----------|--------------|
+| レンダリング | デフォルトでServer Components | デフォルトでClient Components |
+| レイアウト | layout.tsx で階層的に定義 | _app.tsx で全ページ共通 |
+| データフェッチ | async/await 直接記述 | getServerSideProps / getStaticProps |
+| ルーティング | ディレクトリベース（app/） | ファイルベース（pages/） |
+| Streaming | ネイティブサポート（Suspense） | 手動実装 |
+| バンドルサイズ | Server Componentsで大幅削減可能 | すべてクライアントバンドルに含まれる |
+
+**推奨:** 新規プロジェクトはApp Routerを採用し、Server Componentsの恩恵を最大限活用すべきです。Pages Routerは既存プロジェクトのメンテナンスモードです。
+
+### Q3: SSG と ISR の使い分けは？
+
+**A:** データの更新頻度とページ数で判断します。
+
+**SSG（Static Site Generation）が適している場合:**
+- ビルド時に全ページを事前生成できる（ページ数が限定的）
+- コンテンツがほぼ静的（ブログ記事、ドキュメント、ランディングページ）
+- 更新は再デプロイで対応可能
+- 例: 個人ブログ（50記事）、企業サイト（20ページ）
+
+```typescript
+// app/blog/[slug]/page.tsx (Next.js App Router)
+export async function generateStaticParams() {
+  const posts = await getAllPosts();
+  return posts.map(post => ({ slug: post.slug }));
+}
+
+export default async function BlogPost({ params }: { params: { slug: string } }) {
+  const post = await getPost(params.slug);
+  return <Article post={post} />;
+}
+```
+
+**ISR（Incremental Static Regeneration）が適している場合:**
+- ページ数が膨大（数千〜数万ページ）
+- 定期的にコンテンツが更新される（商品情報、記事）
+- On-demand Revalidation でCMS更新と連携したい
+- 例: ECサイト商品ページ（10万点）、メディアサイト（1万記事）
+
+```typescript
+// app/products/[id]/page.tsx
+export const revalidate = 3600; // 1時間ごとに再生成
+
+export default async function ProductPage({ params }: { params: { id: string } }) {
+  const product = await getProduct(params.id);
+  return <ProductDetail product={product} />;
+}
+```
+
+**ハイブリッド戦略:**
+- 人気商品上位100点 → SSG（ビルド時生成）
+- その他の商品 → ISR（初回アクセス時に生成、1時間ごと再検証）
+- CMS更新時 → On-demand Revalidation（Webhookで即時反映）
 
 ---
 

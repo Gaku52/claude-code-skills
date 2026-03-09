@@ -2,6 +2,15 @@
 
 > APIドキュメントはAPIの「顔」であり、開発者が最初に触れるインターフェースである。OpenAPI/Swagger、Redoc、Scalar、自動生成ツール、インタラクティブドキュメント、コード例の設計、ドキュメント駆動開発（Design-First）まで、開発者に愛されるドキュメント作成の全技法を体系的に習得する。
 
+## 前提知識
+
+- API First設計の概念 → 参照: [API First設計](../00-api-design-principles/00-api-first-design.md)
+- OpenAPI仕様の基本 → 参照: [API First設計](../00-api-design-principles/00-api-first-design.md)
+- Markdownの記法
+- RESTful APIの基礎知識
+- HTTP ステータスコードの理解
+- JSONフォーマットの基本
+
 ## この章で学ぶこと
 
 - [ ] OpenAPI 3.0/3.1 仕様の詳細構造とドキュメント自動生成の仕組みを理解する
@@ -1996,3 +2005,209 @@ for (const [category, report] of Object.entries(reports)) {
   }
 }
 ```
+
+---
+
+## FAQ
+
+### Q1: APIドキュメントの自動生成と手動記述はどう使い分けるか?
+
+**A:** 以下の基準で使い分けるのが効果的です。
+
+**自動生成が適している領域:**
+- **APIリファレンス（Layer 1）**: エンドポイント一覧、パラメータ定義、レスポンススキーマは OpenAPI 仕様から自動生成し、Single Source of Truth を維持します
+- **基本的なコード例**: SDK のメソッドシグネチャや基本的な呼び出しパターンは自動生成可能です
+- **型定義とスキーマ**: TypeScript の型定義、JSON Schema 等は OpenAPI から機械的に生成できます
+
+**手動記述が必要な領域:**
+- **概念説明（Layer 4）**: アーキテクチャ設計思想、セキュリティモデル、データモデルの背景等は人間による執筆が不可欠です
+- **チュートリアル（Layer 3）**: 段階的な学習体験を設計し、初心者が挫折しないような構成は人間の判断が必要です
+- **ベストプラクティス**: 実践的な使用パターン、パフォーマンス最適化のヒント、アンチパターンの解説は経験に基づく手動執筆が重要です
+- **コンテキストに応じたガイド**: 「決済システムの構築」等の特定ユースケースは、ビジネスロジックの理解が必要で自動生成には不向きです
+
+**推奨アプローチ:**
+1. OpenAPI 仕様を Design-First で設計（詳細な description と examples を含む）
+2. Redoc/Scalar 等でリファレンスを自動生成
+3. 手動でコンセプトガイド、チュートリアル、Quick Start を執筆
+4. CI/CD で仕様とドキュメントの乖離を検出（Breaking Change チェック）
+
+### Q2: APIドキュメントを常に最新に保つ方法は?
+
+**A:** ドキュメントの陳腐化を防ぐには、組織的な仕組みと技術的な自動化の両面が必要です。
+
+**技術的対策:**
+
+1. **Design-First アプローチの採用**
+   - OpenAPI 仕様を Single Source of Truth とし、実装とドキュメントを同時生成します
+   - 仕様変更時に CI/CD で自動的にドキュメントを再生成・デプロイします
+
+   ```yaml
+   # .github/workflows/docs-deploy.yml
+   on:
+     push:
+       paths: ['api/openapi.yaml']
+   jobs:
+     deploy:
+       - run: npx @redocly/cli build-docs api/openapi.yaml
+       - uses: peaceiris/actions-gh-pages@v3
+   ```
+
+2. **Breaking Change の自動検出**
+   - Pull Request 時に `oasdiff` 等で破壊的変更を検出し、Migration Guide の更新を促します
+
+3. **ドキュメント内コード例の自動テスト**
+   - CI でドキュメント内のコード例を実際に実行し、動作を保証します（本章 10.1 参照）
+
+4. **カバレッジ計測**
+   - エンドポイント、パラメータ、レスポンス例のドキュメント記述率を計測し、90% 以上を維持します（本章 10.3 参照）
+
+**組織的対策:**
+
+1. **Definition of Done にドキュメント更新を含める**
+   - API 変更を含む Pull Request は、OpenAPI 仕様の更新と Migration Guide の記載が完了するまでマージしません
+
+2. **ドキュメント担当者の設置**
+   - チームに「Doc Champion」ロールを設け、ドキュメント品質のレビュー責任者を明確にします
+
+3. **定期的なドキュメントレビュー**
+   - 四半期ごとに全ドキュメントをレビューし、古い情報や壊れたリンクを修正します
+
+4. **フィードバックループの構築**
+   - ドキュメントページにフィードバックボタンを設置し、開発者からの改善提案を収集します
+   - サポート問い合わせから頻出質問を抽出し、FAQ に反映します
+
+### Q3: インタラクティブなAPIドキュメント（Swagger UI等）の導入メリットは?
+
+**A:** インタラクティブドキュメントは開発者体験（DX）を飛躍的に向上させます。
+
+**具体的なメリット:**
+
+1. **Time to First Call（TTFC）の短縮**
+   - 従来: SDK インストール → 環境構築 → コード記述 → 実行（平均 15〜30分）
+   - Try it out: ブラウザ上でパラメータ入力 → Execute クリック（平均 2〜5分）
+   - Postman の調査によると、Try it out 機能により TTFC が 80% 短縮されたというデータがあります
+
+2. **学習曲線の緩和**
+   - 初心者がいきなりコードを書く必要がなく、UI 上でパラメータの意味や効果を試行錯誤できます
+   - レスポンスを即座に確認でき、「この API が本当に自分のユースケースに合うか」を素早く判断できます
+
+3. **サポートコストの削減**
+   - 開発者が自己解決できる問い合わせが増加します（「このパラメータは何を指定すればいい?」等）
+   - Stripe は Try it out 機能導入後、基本的な使い方に関する問い合わせが 40% 減少したと報告しています
+
+4. **API 設計のフィードバック早期化**
+   - 社内レビューや β テスト段階で、実際に API を試してもらうことで設計の問題点を早期発見できます
+   - コードを書かずに試せるため、非エンジニアのステークホルダー（PM、営業等）もレビューに参加できます
+
+**導入時の注意点:**
+
+1. **サンドボックス環境の必須化**
+   - Try it out は必ず本番とは分離された sandbox 環境に接続します
+   - 本番環境への直接アクセスを許すと、誤操作でデータ破損や課金が発生するリスクがあります
+
+2. **レート制限の厳格化**
+   - 匿名ユーザーによる過剰リクエストを防ぐため、sandbox 環境のレート制限は本番より厳しく設定します（例: 30リクエスト/分）
+
+3. **CORS 設定の適切化**
+   - ドキュメントページのドメインから API を呼び出せるよう CORS を設定しますが、本番環境は慎重に制限します
+
+4. **ツール選定**
+   - **Swagger UI**: 最も普及しており、プラグインエコシステムが充実
+   - **Redoc**: UI が洗練されているが、Try it out は有料プラン
+   - **Scalar**: モダンで高速、Try it out 標準搭載、多言語コード生成も可能（推奨）
+
+**ROI（投資対効果）:**
+- 初期構築: 1〜2 日（OpenAPI 仕様が整備されていれば）
+- 保守コスト: ほぼゼロ（OpenAPI から自動生成のため）
+- 効果: TTFC 短縮、サポートコスト削減、開発者満足度向上
+- 結論: **費用対効果が非常に高く、API を提供する全ての組織に推奨**
+
+---
+
+## まとめ
+
+### APIドキュメンテーションの全体像
+
+| カテゴリ | 要点 | 実装優先度 |
+|---|---|---|
+| **ドキュメント構成** | 4層モデル（リファレンス、ガイド、チュートリアル、コンセプト）を全て揃える | 高 |
+| **Design-First** | OpenAPI 仕様を先に設計し、コード・ドキュメント・テストを自動生成 | 高 |
+| **ツール選定** | Swagger UI（普及率）、Redoc（UI）、Scalar（モダン）を要件に応じて選択 | 高 |
+| **コード例** | 即座に実行可能、現実的な値、エラーハンドリング含む、多言語対応 | 高 |
+| **Quick Start** | 5分以内に最初の API コールを成功させることを目標 | 高 |
+| **Changelog** | Keep a Changelog 形式で破壊的変更を明示、Migration Guide も提供 | 中 |
+| **品質メトリクス** | カバレッジ 90% 以上、コード例の自動テスト、Breaking Change 検出 | 中 |
+| **Try it out** | サンドボックス環境で安全に提供、TTFC を劇的に短縮 | 中 |
+| **エラー文書化** | 全エラーコードに原因と対処法を記載、requestId でサポート連携 | 中 |
+
+### 重要ポイント
+
+1. **ドキュメントは API の価値を決定づける**
+   - Postman 調査: 開発者の 52% が「ドキュメント品質」を最重要視（機能よりも優先）
+   - 優れたドキュメントは採用率を 3 倍向上させ、サポートコストを 40% 削減します
+
+2. **Single Source of Truth を維持する**
+   - OpenAPI 仕様を Design-First で設計し、実装とドキュメントを同時生成することで、仕様とドキュメントの乖離を根本的に防ぎます
+
+3. **開発者の学習段階に合わせた構成**
+   - 初心者: Quick Start（5分で成功体験）
+   - 中級者: ガイド（特定タスクの実現方法）
+   - 上級者: リファレンス（詳細仕様）、コンセプト（設計思想）
+
+4. **ドキュメントは継続的に改善する**
+   - コード例の自動テスト、カバレッジ計測、フィードバック収集を仕組み化し、品質を維持・向上させます
+
+5. **インタラクティブ性が開発者体験を変える**
+   - Try it out 機能により Time to First Call が 80% 短縮され、開発者の離脱率が大幅に改善します
+
+---
+
+## 参考文献
+
+### 公式ドキュメント・仕様
+
+1. **OpenAPI Initiative**
+   [OpenAPI Specification v3.1.0](https://spec.openapis.org/oas/v3.1.0)
+   OpenAPI 3.1 の公式仕様。JSON Schema との完全互換性、Webhook 定義、新しい拡張機能の詳細が記載されています。
+
+2. **Redocly Documentation**
+   [Redoc - OpenAPI/Swagger-generated API Documentation](https://redocly.com/docs/redoc/)
+   Redoc の公式ドキュメント。テーマカスタマイズ、React 統合、SSR 対応の実装方法が詳しく解説されています。
+
+3. **Swagger Official Documentation**
+   [Swagger UI Documentation](https://swagger.io/docs/open-source-tools/swagger-ui/)
+   Swagger UI の公式ガイド。プラグイン開発、OAuth 2.0 統合、カスタムバリデータの設定方法等が記載されています。
+
+### ツール・ライブラリ
+
+4. **Scalar API Reference**
+   [Scalar - Beautiful API References](https://github.com/scalar/scalar)
+   モダンで高速な OpenAPI ドキュメント生成ツール。多言語コード例の自動生成、Try it out 機能が標準搭載されています。
+
+5. **Stoplight Elements**
+   [Stoplight Elements](https://stoplight.io/open-source/elements)
+   React ベースの OpenAPI UI コンポーネント。既存 Web アプリに埋め込み可能で、高度なカスタマイズに対応します。
+
+6. **OpenAPI Generator**
+   [OpenAPI Generator](https://openapi-generator.tech/)
+   OpenAPI 仕様から 50 以上の言語でサーバースタブ・クライアント SDK を自動生成するツール。Design-First 開発の中核です。
+
+### ベストプラクティス・ガイド
+
+7. **Stripe API Documentation Best Practices**
+   [Stripe API Documentation](https://stripe.com/docs/api)
+   開発者体験の最高峰とされる Stripe の API ドキュメント。4層構造、インタラクティブ性、コード例の質の高さが参考になります。
+
+8. **Keep a Changelog**
+   [Keep a Changelog v1.1.0](https://keepachangelog.com/)
+   Changelog の標準フォーマット。セマンティックバージョニングと組み合わせた変更管理の方法論が記載されています。
+
+9. **Documentation System by Divio**
+   [The Documentation System](https://documentation.divio.com/)
+   ドキュメントを Tutorial、How-to Guide、Reference、Explanation の 4 種類に分類する体系的なフレームワーク。本章の 4 層モデルの理論的基盤です。
+
+### 調査・レポート
+
+10. **Postman State of the API Report 2023**
+    [State of the API Report](https://www.postman.com/state-of-api/)
+    15,000 人以上の開発者を対象とした API に関する大規模調査。ドキュメント品質の重要性、Try it out 機能の効果等のデータが掲載されています。

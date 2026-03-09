@@ -15,6 +15,14 @@
 
 ---
 
+## 前提知識
+
+- ブラウザのアーキテクチャ → 参照: [ブラウザアーキテクチャ](./00-browser-architecture.md)
+- DNS解決とHTTP通信の仕組み → 参照: [DNS](../../network-fundamentals/docs/00-introduction/03-dns.md)
+- TCP/TLSハンドシェイク → 参照: [TCP](../../network-fundamentals/docs/01-protocols/00-tcp.md)
+
+---
+
 ## 1. ナビゲーションの全体像
 
 ### 1.1 URL入力からページ表示までの全プロセス
@@ -2686,6 +2694,308 @@ await loadImage('/images/background-pattern.webp', 'low');
 
 ---
 
+## FAQ
+
+### Q1. プリロード（preload）とプリフェッチ（prefetch）の使い分けは？
+
+**A:** リソースの**使用タイミング**で判断します。
+
+| 手法 | 用途 | タイミング | 優先度 | 使用例 |
+|------|------|-----------|--------|--------|
+| **preload** | 現在のページで**確実に使う**リソース | すぐに取得 | 高 | 現在ページのCritical CSS/フォント |
+| **prefetch** | **次のページ**で使う可能性があるリソース | アイドル時に取得 | 低 | 次のページのJS/画像 |
+
+```html
+<!-- ❌ 間違い: 次のページのリソースをpreload -->
+<link rel="preload" href="/next-page.css" as="style">
+
+<!-- ✅ 正解: 現在ページのCritical CSS をpreload -->
+<link rel="preload" href="/critical.css" as="style">
+
+<!-- ✅ 正解: 次のページのリソースをprefetch -->
+<link rel="prefetch" href="/next-page.css" as="style">
+```
+
+**判断フロー:**
+```
+このリソースは現在のページで使う？
+├─ YES → preload（高優先度で即取得）
+└─ NO → 次のページで使う？
+         ├─ YES → prefetch（低優先度でアイドル時取得）
+         └─ NO → 何もしない
+```
+
+**よくある間違い:**
+- すべてのリソースをpreloadして逆に遅くなる（帯域を奪い合う）
+- Critical でないリソースをpreloadして本当に必要なリソースが遅延
+- ユーザーが次のページに行かないのにprefetchして無駄
+
+**ベストプラクティス:**
+```html
+<!-- 1. Critical CSS/フォントのみpreload -->
+<link rel="preload" href="/critical.css" as="style">
+<link rel="preload" href="/font.woff2" as="font" type="font/woff2" crossorigin>
+
+<!-- 2. 高確率で次に遷移するページをprefetch -->
+<link rel="prefetch" href="/likely-next-page.html">
+
+<!-- 3. Speculation Rules API で事前レンダリング -->
+<script type="speculationrules">
+{
+  "prerender": [
+    {"source": "list", "urls": ["/dashboard"]}
+  ]
+}
+</script>
+```
+
+---
+
+### Q2. Critical Rendering Path（クリティカルレンダリングパス）を最適化するには？
+
+**A:** **レンダーブロックリソースを最小化**し、**Above-the-Fold コンテンツを優先**します。
+
+#### Critical Rendering Path（CRP）とは
+
+```
+HTML → DOM
+CSS  → CSSOM  } → Render Tree → Layout → Paint
+JS   → 実行
+```
+
+**ボトルネック:**
+- CSS: すべてのCSSが読み込まれるまでレンダリングがブロックされる
+- JavaScript: `<script>`がHTMLパースをブロック
+- 大きなHTML/CSS: パース時間が増加
+
+#### 最適化戦略（優先度順）
+
+**1. CSS最適化（最重要）**
+```html
+<!-- ❌ 悪い例: 全CSSがレンダーブロック -->
+<link rel="stylesheet" href="/all-styles.css">
+
+<!-- ✅ 良い例: Critical CSS をインライン化 -->
+<style>
+/* Above-the-Fold の最小限のスタイルのみ */
+.hero { display: flex; ... }
+.nav { position: sticky; ... }
+</style>
+
+<!-- 残りのCSSは非同期読み込み -->
+<link rel="preload" href="/non-critical.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link rel="stylesheet" href="/non-critical.css"></noscript>
+
+<!-- メディアクエリで条件付き読み込み -->
+<link rel="stylesheet" href="/print.css" media="print">
+```
+
+**2. JavaScript最適化**
+```html
+<!-- ❌ 悪い例: パーサーブロック -->
+<script src="/app.js"></script>
+
+<!-- ✅ 良い例: defer/async を使う -->
+<script src="/app.js" defer></script>
+<script src="/analytics.js" async></script>
+
+<!-- ✅ モジュールはデフォルトで defer -->
+<script type="module" src="/app.js"></script>
+```
+
+**3. リソースヒントで事前接続**
+```html
+<!-- DNS解決 + TCP接続 + TLS を事前実行 -->
+<link rel="preconnect" href="https://cdn.example.com">
+<link rel="dns-prefetch" href="https://analytics.example.com">
+```
+
+**4. 画像の遅延読み込み**
+```html
+<!-- Above-the-Fold の画像のみ即読み込み -->
+<img src="/hero.webp" fetchpriority="high" alt="Hero">
+
+<!-- Below-the-Fold の画像は lazy loading -->
+<img src="/gallery-1.webp" loading="lazy" alt="Gallery">
+```
+
+#### 計測と検証
+
+```javascript
+// Critical Rendering Path の計測
+const perfData = performance.getEntriesByType('navigation')[0];
+
+console.log({
+  // HTML読み込み完了（DOM構築開始可能）
+  domInteractive: perfData.domInteractive,
+
+  // CSS/JS読み込み完了（レンダリング可能）
+  domContentLoaded: perfData.domContentLoadedEventEnd,
+
+  // すべてのリソース読み込み完了
+  loadComplete: perfData.loadEventEnd,
+
+  // 最初のペイント
+  firstPaint: performance.getEntriesByName('first-paint')[0]?.startTime,
+
+  // LCP（最大コンテンツの描画）
+  lcp: '(PerformanceObserver で計測)'
+});
+```
+
+**Lighthouse での検証項目:**
+- Eliminate render-blocking resources
+- Reduce unused CSS
+- Minify CSS/JS
+- Remove unused JavaScript
+- Defer offscreen images
+
+---
+
+### Q3. Service Worker がナビゲーションに与える影響は？
+
+**A:** Service Worker は**ネットワークリクエストを横取り**し、キャッシュ戦略を実装できます。
+
+#### Service Worker のライフサイクルとナビゲーション
+
+```
+ナビゲーション開始
+  ↓
+Service Worker が登録されている？
+  ├─ NO → 通常のネットワークリクエスト
+  └─ YES → Service Worker の fetch イベント
+            ↓
+         fetch ハンドラが実装されている？
+            ├─ NO → ネットワークリクエスト（フォールバック）
+            └─ YES → キャッシュ戦略を実行
+                      ↓
+                   - Cache First（キャッシュ優先）
+                   - Network First（ネットワーク優先）
+                   - Stale While Revalidate（キャッシュ返却 + バックグラウンド更新）
+                   - Cache Only / Network Only
+```
+
+#### キャッシュ戦略による影響
+
+**1. Cache First（最速、オフライン対応）**
+```javascript
+// sw.js
+self.addEventListener('fetch', (event) => {
+  event.respondWith(
+    caches.match(event.request)
+      .then(response => response || fetch(event.request))
+  );
+});
+```
+
+**影響:**
+- ✅ TTFB が **1ms未満**（キャッシュヒット時）
+- ✅ オフライン動作可能
+- ⚠️ 古いコンテンツを表示する可能性
+
+**2. Network First（最新データ優先）**
+```javascript
+self.addEventListener('fetch', (event) => {
+  event.respondWith(
+    fetch(event.request)
+      .catch(() => caches.match(event.request))
+  );
+});
+```
+
+**影響:**
+- ✅ 常に最新コンテンツ
+- ⚠️ オンライン時の速度向上は限定的
+- ✅ オフライン時のフォールバック
+
+**3. Stale While Revalidate（バランス型）**
+```javascript
+self.addEventListener('fetch', (event) => {
+  event.respondWith(
+    caches.open('my-cache').then(cache => {
+      return cache.match(event.request).then(response => {
+        const fetchPromise = fetch(event.request).then(networkResponse => {
+          cache.put(event.request, networkResponse.clone());
+          return networkResponse;
+        });
+        return response || fetchPromise;
+      });
+    })
+  );
+});
+```
+
+**影響:**
+- ✅ 即座にキャッシュを返却（高速）
+- ✅ バックグラウンドで更新（次回アクセス時に最新）
+- ✅ Core Web Vitals（LCP）の改善
+
+#### ナビゲーションへの影響（数値例）
+
+| 戦略 | TTFB | LCP | オフライン | 最新性 |
+|------|------|-----|-----------|--------|
+| Service Worker なし | 300ms | 2.5s | ❌ | ✅ |
+| Cache First | **5ms** | **0.8s** | ✅ | ⚠️ |
+| Network First | 300ms | 2.5s | 一部✅ | ✅ |
+| Stale While Revalidate | **5ms** | **0.8s** | ✅ | ✅(次回) |
+
+#### 注意点
+
+**1. Service Worker のインストール遅延**
+```javascript
+// 初回訪問時は Service Worker が未登録
+// → 2回目以降の訪問から効果が出る
+
+// 登録
+navigator.serviceWorker.register('/sw.js');
+
+// アクティベーション待ち
+self.addEventListener('install', (event) => {
+  self.skipWaiting(); // すぐにアクティベーション
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(clients.claim()); // 既存ページも制御
+});
+```
+
+**2. キャッシュの無効化**
+```javascript
+// バージョン管理でキャッシュをクリア
+const CACHE_VERSION = 'v2';
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then(cacheNames => {
+      return Promise.all(
+        cacheNames
+          .filter(name => name !== CACHE_VERSION)
+          .map(name => caches.delete(name))
+      );
+    })
+  );
+});
+```
+
+**3. Navigation Preload（Chrome 59+）**
+```javascript
+// Service Worker 起動と並行してネットワークリクエストを開始
+self.addEventListener('activate', (event) => {
+  event.waitUntil(self.registration.navigationPreload.enable());
+});
+
+self.addEventListener('fetch', (event) => {
+  event.respondWith(
+    event.preloadResponse // Navigation Preload の結果
+      .then(response => response || fetch(event.request))
+  );
+});
+```
+
+**影響:** Service Worker 起動の遅延（50-100ms）を吸収
+
+---
+
 ## まとめ
 
 | 概念 | ポイント |
@@ -2706,7 +3016,7 @@ await loadImage('/images/background-pattern.webp', 'low');
 ---
 
 ## 次に読むべきガイド
-→ [[02-parsing-html-css.md]] -- HTML/CSSパーシング
+→ [HTML/CSSパーシング](./02-parsing-html-css.md)
 
 ---
 

@@ -10,8 +10,8 @@
 
 ## 前提知識
 
-- HTTPの基本 → 参照: [[network-fundamentals]]
-- プログラミングの基本 → 参照: [[programming-language-fundamentals]]
+- HTTPの基本 → 参照: [ネットワーク基礎](../network-fundamentals/)
+- プログラミングの基本 → 参照: [プログラミング言語基礎](../../02-programming/programming-language-fundamentals/)
 
 ## ガイド一覧
 
@@ -61,9 +61,35 @@
 運用:    04-api-operations
 ```
 
+## FAQ
+
+### Q1: REST APIとGraphQLのどちらを採用すべきか?
+REST APIはリソースベースのCRUD操作に適しており、キャッシュ戦略が確立されている点が強みである。GraphQLは複雑なデータ取得やフロントエンド主導の開発に適しており、オーバーフェッチ・アンダーフェッチの問題を解消する。公開API（外部パートナー向け）にはREST、社内のBFF（Backend for Frontend）にはGraphQLを採用するハイブリッドアプローチが多くのプロジェクトで有効である。
+
+### Q2: APIのバージョニングはいつから設計すべきか?
+APIの初回設計段階から計画すべきである。バージョニング戦略を後付けで導入するのは既存クライアントへの影響が大きく困難を伴う。URIパス方式（/api/v1/）が最もシンプルで広く採用されている。バージョンアップ時には最低12ヶ月の並行運用期間を設け、非推奨化（Deprecation）通知を計画的に行うことが重要である。
+
+### Q3: SDK開発で最も重視すべき点は何か?
+開発者体験（DX）を最優先に設計すべきである。具体的には、型安全性の確保（TypeScript型定義の提供）、直感的なAPIインターフェース（Resource-basedパターン）、充実したエラーメッセージ（次に何をすべきかを示すactionableな情報）、そして完全なドキュメント（コード例付き）の4点が重要である。StripeやTwilioのSDKが設計の良い参考例となる。
+
+## まとめ
+
+このガイドでは以下を学びました:
+
+- API First設計の哲学と、OpenAPI仕様を活用した契約先行開発の手法
+- REST APIのベストプラクティス（HATEOAS、冪等性、エラーハンドリング）とGraphQLの基礎から応用
+- SDK・ライブラリの設計原則（DX重視、型安全性、リトライ戦略）とnpmパッケージの公開ワークフロー
+- APIセキュリティの実装パターン（OAuth 2.0、レート制限、入力バリデーション）
+- API運用のためのテスト戦略、監視・ロギング、APIゲートウェイの活用方法
+
 ## 関連Skills
 
-- [[network-fundamentals]] — ネットワーク基礎
-- [[backend-development]] — バックエンド開発
-- [[testing-strategy]] — テスト戦略
-- [[security-fundamentals]] — セキュリティ基礎
+- [ネットワーク基礎](../network-fundamentals/) — ネットワーク基礎
+- [セキュリティ基礎](../../06-data-and-security/security-fundamentals/) — セキュリティ基礎
+- [Webアプリケーション開発](../web-application-development/) — Webアプリケーション開発
+
+## 参考文献
+
+- [OpenAPI Specification](https://spec.openapis.org/oas/latest.html) - API仕様記述の業界標準。契約先行開発とコード生成の基盤となる仕様書
+- [Stripe API Reference](https://docs.stripe.com/api) - REST API設計とSDK設計の業界標準として広く参照される優れた実装例
+- [Google API Design Guide](https://cloud.google.com/apis/design) - Googleの大規模APIエコシステムから得られた設計原則とベストプラクティスの集大成

@@ -2,6 +2,15 @@
 
 > CORSはブラウザのセキュリティ機構「同一オリジンポリシー」を安全に緩和する仕組み。プリフライトリクエスト、許可ヘッダー、Credentialsの設定を理解し、正しくCORSを構成する。
 
+## 前提知識
+
+- [[./00-http-basics.md]] — HTTP基礎（リクエスト/レスポンス、ヘッダー、ステータスコードの仕組み）
+- [[../../browser-and-web-platform/docs/00-browser-engine/03-browser-security-model.md]] — ブラウザのセキュリティモデル（Same-Origin Policy、サンドボックス、セキュリティ境界）
+
+CORSは同一オリジンポリシー（Same-Origin Policy）という根本的なWebセキュリティ機構を理解していないと本質を掴めない。ブラウザがなぜクロスオリジンリクエストを制限するのか、どのような攻撃を防いでいるのかを知ることで、CORSの設計意図と正しい設定方法が明確になる。
+
+---
+
 ## この章で学ぶこと
 
 - [ ] 同一オリジンポリシーの起源と目的を理解する
@@ -1417,4 +1426,304 @@ null オリジンの注意点:
     res.setHeader('Access-Control-Allow-Origin', origin);
   }
 ```
+
+---
+
+## FAQ（よくある質問）
+
+### Q1: CORSエラーの一般的な解決方法 — エラーメッセージから原因を特定する
+
+```
+■ 代表的なCORSエラーと解決策:
+
+エラー1: "has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header"
+
+  原因: サーバーがAccess-Control-Allow-Originヘッダーを返していない
+
+  解決策:
+  // Express.js
+  app.use((req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin', 'https://app.example.com');
+    next();
+  });
+
+  // nginx
+  add_header Access-Control-Allow-Origin https://app.example.com;
+
+  // 開発環境のみ（本番環境では禁止）
+  res.setHeader('Access-Control-Allow-Origin', '*');
+
+エラー2: "The value of the 'Access-Control-Allow-Origin' header must not be '*' when credentials mode is 'include'"
+
+  原因: credentials: 'include'（Cookie送信）を使用している場合、
+        ワイルドカード（*）は使用不可
+
+  解決策:
+  // 特定のオリジンを明示
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  }
+
+エラー3: "has been blocked by CORS policy: Method POST is not allowed by Access-Control-Allow-Methods"
+
+  原因: プリフライトリクエストで許可メソッドが返されていない
+
+  解決策:
+  app.options('/api/*', (req, res) => {
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('Access-Control-Allow-Origin', req.headers.origin);
+    res.status(204).send();
+  });
+
+エラー4: "Request header field authorization is not allowed by Access-Control-Allow-Headers"
+
+  原因: カスタムヘッダー（Authorization等）が許可されていない
+
+  解決策:
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Request-Id');
+
+エラー5: "CORS policy: Response to preflight request doesn't pass access control check: status is 401"
+
+  原因: プリフライトリクエスト（OPTIONS）に認証を要求している
+
+  解決策:
+  // OPTIONSリクエストは認証不要にする
+  app.options('/api/*', (req, res) => {
+    // 認証チェックをスキップ
+    res.setHeader('Access-Control-Allow-Origin', req.headers.origin);
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.status(204).send();
+  });
+
+デバッグ手順:
+  1. ブラウザのDevToolsでNetworkタブを開く
+  2. プリフライト（OPTIONS）が成功しているか確認
+  3. レスポンスヘッダーを確認:
+     ・Access-Control-Allow-Origin が正しいか
+     ・Access-Control-Allow-Methods が含まれているか
+     ・Access-Control-Allow-Headers が含まれているか
+  4. curlで直接確認:
+     curl -I -X OPTIONS https://api.example.com/users \
+       -H "Origin: https://app.example.com" \
+       -H "Access-Control-Request-Method: POST"
+```
+
+### Q2: プリフライトリクエストの発生条件 — いつOPTIONSが送られるのか
+
+```
+■ シンプルリクエスト vs プリフライトリクエスト:
+
+シンプルリクエスト（プリフライトなし）:
+  以下の条件を全て満たす場合、プリフライトは発生しない
+
+  ① メソッドが以下のいずれか:
+     GET, HEAD, POST
+
+  ② 自動設定されるヘッダー以外に、以下のヘッダーのみを使用:
+     Accept
+     Accept-Language
+     Content-Language
+     Content-Type（下記の値のみ）
+       ・application/x-www-form-urlencoded
+       ・multipart/form-data
+       ・text/plain
+
+  ③ リクエストにReadableStreamを使用していない
+
+  ④ XMLHttpRequestでevent listenerを登録していない
+
+プリフライトが発生するケース:
+
+  ✓ カスタムヘッダーを使用（Authorization, X-Request-Id等）
+  fetch('https://api.example.com/users', {
+    headers: {
+      'Authorization': 'Bearer token',  // ← プリフライト発生
+    },
+  });
+
+  ✓ Content-Typeがapplication/json
+  fetch('https://api.example.com/users', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',  // ← プリフライト発生
+    },
+    body: JSON.stringify({ name: 'Taro' }),
+  });
+
+  ✓ PUT, DELETE, PATCHメソッド
+  fetch('https://api.example.com/users/123', {
+    method: 'DELETE',  // ← プリフライト発生
+  });
+
+プリフライトの流れ:
+
+  1. ブラウザがOPTIONSリクエストを送信:
+     OPTIONS /api/users HTTP/1.1
+     Origin: https://app.example.com
+     Access-Control-Request-Method: POST
+     Access-Control-Request-Headers: content-type, authorization
+
+  2. サーバーが許可情報を返す:
+     HTTP/1.1 204 No Content
+     Access-Control-Allow-Origin: https://app.example.com
+     Access-Control-Allow-Methods: GET, POST, PUT, DELETE
+     Access-Control-Allow-Headers: content-type, authorization
+     Access-Control-Max-Age: 86400
+
+  3. ブラウザが実際のPOSTリクエストを送信
+     POST /api/users HTTP/1.1
+     Content-Type: application/json
+     Authorization: Bearer token
+
+プリフライトのキャッシュ:
+  Access-Control-Max-Age: 86400（秒）
+  → 24時間はプリフライトをスキップして直接リクエスト送信
+  → ブラウザによって上限あり（Chromeは2時間）
+```
+
+### Q3: credentialsモードの設定 — CookieやAuthorizationヘッダーを送る方法
+
+```
+■ credentials モードの種類:
+
+┌─────────────┬────────────────────────────────────────┐
+│ モード      │ 挙動                                    │
+├─────────────┼────────────────────────────────────────┤
+│ omit        │ 認証情報を送信しない（デフォルト）      │
+│             │ → Cookieなし、Authorizationなし         │
+│             │                                        │
+│ same-origin │ 同一オリジンの場合のみ送信              │
+│             │ → クロスオリジンでは送信しない          │
+│             │                                        │
+│ include     │ 常に送信（クロスオリジンでも）          │
+│             │ → CookieとAuthorizationを送信           │
+│             │ → サーバー側で特別な設定が必要          │
+└─────────────┴────────────────────────────────────────┘
+
+クライアント側の設定:
+
+  fetch('https://api.example.com/users', {
+    credentials: 'include',  // ← Cookie/Authorizationを送信
+    headers: {
+      'Authorization': 'Bearer token',
+    },
+  });
+
+サーバー側の必須設定（credentials: 'include'の場合）:
+
+  ✓ Access-Control-Allow-Origin に具体的なオリジンを指定（*は不可）
+  res.setHeader('Access-Control-Allow-Origin', 'https://app.example.com');
+
+  ✓ Access-Control-Allow-Credentials: true を返す
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+
+  ✗ 間違った例（エラーになる）:
+  res.setHeader('Access-Control-Allow-Origin', '*');  // ← 不可
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  // エラー: "The value of the 'Access-Control-Allow-Origin' header
+  //         must not be '*' when credentials mode is 'include'"
+
+動的にオリジンを返す実装:
+
+  // Express.js
+  const allowedOrigins = [
+    'https://app.example.com',
+    'https://admin.example.com',
+  ];
+
+  app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    if (allowedOrigins.includes(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+    }
+    next();
+  });
+
+Cookieの設定（クロスオリジンで送信する場合）:
+
+  Set-Cookie: session_id=abc123;
+    SameSite=None;   ← クロスサイトで送信を許可
+    Secure;          ← HTTPS必須
+    HttpOnly;        ← XSS対策
+    Path=/;
+    Domain=.example.com
+
+  注意:
+  → SameSite=None を使用する場合、Secure属性が必須
+  → HTTP接続ではSameSite=Noneが機能しない
+  → Chromeは2020年からSameSite=Laxがデフォルト
+
+セキュリティ上の注意:
+  → credentials: 'include' は CSRF攻撃のリスクを高める
+  → CSRF対策（CSRFトークン）を必ず実装
+  → 信頼できるオリジンのみを許可
+  → Cookieには SameSite=Lax or Strict を推奨（可能な限り）
+```
+
+---
+
+## まとめ
+
+| 概念 | キーポイント |
+|------|-------------|
+| **同一オリジンポリシー** | スキーム + ホスト + ポート が全て一致する場合のみ同一オリジン |
+| **CORS** | クロスオリジンリクエストを安全に許可する仕組み（サーバー側で制御） |
+| **シンプルリクエスト** | GET/HEAD/POST + 限定ヘッダー → プリフライトなし |
+| **プリフライトリクエスト** | OPTIONS → 許可確認 → 実際のリクエスト（カスタムヘッダー、PUT/DELETE等） |
+| **Credentials** | credentials: 'include' + Allow-Origin（*不可）+ Allow-Credentials: true |
+| **セキュリティ** | ワイルドカード（*）は最小限に、null オリジン拒否、Vary: Originで検証 |
+
+### キーポイント
+
+1. **CORSはサーバー側で制御**: ブラウザはクロスオリジンリクエストを自動的にブロックし、サーバーが明示的に許可した場合のみ通す。クライアント側（JavaScript）だけでCORSエラーは解決できない。
+
+2. **プリフライトリクエスト（OPTIONS）の理解が鍵**: カスタムヘッダー（Authorization等）やapplication/jsonを使う場合、ブラウザは実際のリクエスト前にOPTIONSリクエストを送信。サーバーは認証不要で204を返し、Access-Control-Allow-*ヘッダーで許可情報を通知する必要がある。
+
+3. **credentials: 'include'は慎重に**: Cookie/Authorizationを送る場合、Allow-Originにワイルドカード（*）は使用不可。具体的なオリジンを動的に返す実装にし、CSRF対策（CSRFトークン）を必ず組み合わせる。
+
+---
+
+## 次に読むべきガイド
+
+- [[../03-security/00-tls-ssl.md]] — TLS/SSL（HTTPS、証明書、暗号化）
+- [[../03-security/01-web-security-fundamentals.md]] — Webセキュリティの基礎（XSS、CSRF、CSP）
+
+---
+
+## 参考文献
+
+1. Fetch Living Standard. "CORS Protocol." WHATWG, 2024.
+   https://fetch.spec.whatwg.org/#http-cors-protocol
+   CORSの正式仕様。Same-Origin Policy、プリフライトリクエスト、
+   Credentialsモードの詳細を定義。
+
+2. MDN Web Docs. "Cross-Origin Resource Sharing (CORS)." Mozilla, 2024.
+   https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS
+   CORSの実践的ガイド。エラーメッセージの意味、設定例、
+   デバッグ方法を詳細に解説。
+
+3. web.dev. "Cross-Origin Resource Sharing (CORS)." Google, 2024.
+   https://web.dev/cross-origin-resource-sharing/
+   Googleのベストプラクティス。セキュアなCORS設定、
+   パフォーマンス最適化（プリフライトキャッシュ）。
+
+4. OWASP. "CORS Security Cheat Sheet." OWASP, 2024.
+   https://cheatsheetseries.owasp.org/cheatsheets/CORS_Security_Cheat_Sheet.html
+   セキュリティ観点でのCORS設定。一般的な脆弱性、
+   安全な実装パターン、攻撃シナリオ。
+
+5. RFC 6454. "The Web Origin Concept." IETF, 2011.
+   https://www.rfc-editor.org/rfc/rfc6454
+   オリジンの定義、Same-Origin Policyの正式仕様。
+   セキュリティ境界の概念を定義。
+
+6. "Understanding CORS and Dealing with CORS Errors in Angular." Bitovi, 2023.
+   https://www.bitovi.com/blog/understanding-cors-and-dealing-with-cors-errors-in-angular
+   実装例とトラブルシューティング。Angular/React/Vue.jsでの
+   CORS対応パターン。
 

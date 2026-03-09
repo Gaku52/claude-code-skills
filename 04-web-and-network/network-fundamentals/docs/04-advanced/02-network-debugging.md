@@ -1344,3 +1344,261 @@ $ curl -v -X OPTIONS https://api.example.com/data \
   |    - 解析後は速やかに削除                                  |
   +---------------------------------------------------------+
 ```
+
+---
+
+## FAQ（よくある質問）
+
+### Q1: tcpdump と Wireshark はどのように使い分けるべきか？
+
+**A:** 使用環境と目的に応じて使い分ける。
+
+**tcpdump を使うべきケース:**
+- **サーバー上でのキャプチャ**: SSH 経由でリモートサーバーにアクセスし、その場でパケットをキャプチャする場合（GUI 不要）
+- **自動化・スクリプト化**: cron や監視スクリプトからパケットキャプチャを定期実行する場合
+- **リアルタイム監視**: ログをリアルタイムで流し見する場合（`tcpdump -A port 80 | grep "GET"`）
+- **軽量な環境**: メモリやディスク容量が限られたサーバー、組み込み機器
+- **フィルタリング重視**: BPF フィルタで高速にパケットを絞り込む場合
+
+**Wireshark を使うべきケース:**
+- **詳細なプロトコル解析**: HTTP/2, TLS, DNS, TCP の詳細なフィールドを確認する場合
+- **視覚的な分析**: ストリーム追跡、フローグラフ、I/O グラフなどの可視化機能を使う場合
+- **エキスパート情報の活用**: 再送、ゼロウィンドウ、重複 ACK などの問題を自動検出する場合
+- **pcap ファイルの解析**: tcpdump で取得した pcap ファイルを後からじっくり解析する場合
+- **初学者向け**: CLI に慣れていない場合、GUI の方が直感的
+
+**推奨ワークフロー:**
+1. **サーバー上で tcpdump でキャプチャ**: `sudo tcpdump -w capture.pcap -c 1000 port 443`
+2. **ローカルに pcap ファイルを転送**: `scp server:/tmp/capture.pcap .`
+3. **Wireshark で詳細解析**: GUI で Follow TCP Stream, Expert Information を活用
+
+**tshark（Wireshark の CLI 版）という選択肢:**
+- Wireshark の表示フィルタを CLI で使える
+- サーバー上でも Wireshark の高度な解析機能を利用可能
+- 例: `tshark -r capture.pcap -Y "http.response.code == 500"`
+
+### Q2: DNS のトラブルシューティング手順は？
+
+**A:** DNS 問題は以下のフローで体系的に切り分ける。
+
+**Step 1: 名前解決が可能か確認**
+
+```bash
+# 基本的な名前解決テスト
+$ dig +short example.com
+203.0.113.10
+```
+
+**結果が返らない場合:**
+
+```bash
+# Step 1-1: 別の DNS サーバーで試す
+$ dig @8.8.8.8 +short example.com       # Google Public DNS
+$ dig @1.1.1.1 +short example.com       # Cloudflare DNS
+$ dig @208.67.222.222 +short example.com # OpenDNS
+
+# 返る場合 → ローカル DNS サーバーの問題
+#   - /etc/resolv.conf の nameserver 設定を確認
+#   - 社内 DNS サーバーの障害を確認
+#   - DNS キャッシュをクリア: sudo systemd-resolve --flush-caches
+
+# 返らない場合 → ドメイン自体の問題
+#   - ドメインの登録状況を確認: whois example.com
+#   - 権威 DNS サーバーを確認: dig +trace example.com
+```
+
+**Step 2: 返ってきた IP は正しいか確認**
+
+```bash
+# 期待する IP と実際の IP を比較
+$ dig +short example.com
+192.0.2.1  # これは期待通りか？
+
+# 別の DNS サーバーとも比較
+$ dig @8.8.8.8 +short example.com
+203.0.113.10  # ローカル DNS と値が異なる！
+
+# → DNS キャッシュポイズニング or 古いキャッシュの可能性
+```
+
+**Step 3: DNS 解決時間が遅い場合**
+
+```bash
+# DNS 解決時間を計測
+$ dig example.com | grep "Query time"
+;; Query time: 523 msec  # 500ms 以上は遅い
+
+# 原因の切り分け:
+# 1. DNS サーバーが遠い → 近いパブリック DNS に変更
+# 2. DNS サーバーが過負荷 → 別の DNS サーバーを試す
+# 3. DNS リゾルバの障害 → systemd-resolved / dnsmasq の再起動
+
+# traceroute で DNS サーバーまでの経路確認
+$ traceroute 8.8.8.8
+```
+
+**Step 4: /etc/hosts による上書き確認**
+
+```bash
+# /etc/hosts でローカルオーバーライドされていないか確認
+$ grep example.com /etc/hosts
+127.0.0.1  example.com  # ← これが原因でローカルホストに接続していた!
+
+# /etc/hosts は DNS より優先されるため、意図しない設定が残っている場合がある
+```
+
+**Step 5: DNS の伝播待ち（DNS 変更直後の場合）**
+
+```bash
+# 権威 DNS サーバーに直接問い合わせ
+$ dig @ns1.example-dns.com example.com
+
+# 権威サーバーでは新しい IP、キャッシュサーバーでは古い IP が返る場合:
+# → TTL が経過するまで待つ（通常 300-3600 秒）
+
+# 複数地域の DNS サーバーで確認
+# - https://www.whatsmydns.net/ で全世界の DNS 伝播状況を確認可能
+```
+
+**よくある DNS 問題と対処:**
+
+| 症状 | 原因 | 対処 |
+|------|------|------|
+| `NXDOMAIN` | ドメインが存在しない | ドメイン名のタイポ確認、whois で登録状況確認 |
+| `SERVFAIL` | DNS サーバーの障害 | 別の DNS サーバーを試す（8.8.8.8 等） |
+| `connection timed out` | DNS サーバーに到達不能 | ファイアウォール、ルーティング確認 |
+| 古い IP が返る | DNS キャッシュ | キャッシュクリア、TTL 経過待ち |
+| 名前解決が遅い | 遠隔 DNS サーバー | ローカル DNS キャッシュサーバー導入 |
+
+### Q3: ネットワークレイテンシの問題はどう特定するか？
+
+**A:** レイテンシ問題は以下の手順で切り分ける。
+
+**Step 1: 全体のレイテンシを計測**
+
+```bash
+# curl でフェーズごとの時間を計測
+$ curl -o /dev/null -s -w "\
+  DNS:      %{time_namelookup}s\n\
+  Connect:  %{time_connect}s\n\
+  TLS:      %{time_appconnect}s\n\
+  TTFB:     %{time_starttransfer}s\n\
+  Total:    %{time_total}s\n" \
+  https://api.example.com/data
+
+# 出力例:
+# DNS:      0.015s  ← DNS 解決は高速
+# Connect:  0.045s  ← TCP 接続は正常
+# TLS:      0.089s  ← TLS ハンドシェイクは正常
+# TTFB:     1.234s  ← サーバー処理が遅い！
+# Total:    1.456s
+```
+
+**各フェーズの判断基準:**
+
+| フェーズ | 正常範囲 | 遅い場合の原因 | 対処 |
+|---------|---------|--------------|------|
+| DNS | < 50ms | DNS サーバーが遅い、遠い | 近いパブリック DNS、DNS プリフェッチ |
+| Connect | < 100ms | ネットワーク遅延が大きい | CDN 導入、サーバーの地理的分散 |
+| TLS | < 150ms | 証明書チェーンが長い、OCSP 遅い | OCSP Stapling、証明書チェーン最適化 |
+| TTFB | < 500ms | サーバー処理が遅い | DB 最適化、キャッシュ導入、インデックス追加 |
+| Download | 帯域依存 | 大きなレスポンス、狭い帯域 | gzip/Brotli 圧縮、レスポンスサイズ削減 |
+
+**Step 2: ネットワーク経路の遅延を特定**
+
+```bash
+# mtr でリアルタイム経路監視
+$ mtr --report -c 100 api.example.com
+
+# 出力例:
+# HOST: myhost                Loss%   Snt   Last   Avg  Best  Wrst StDev
+#   1. gateway                 0.0%   100    1.2   1.3   1.0   2.5   0.2
+#   2. isp-router              0.0%   100   15.2  16.1  14.5  25.3   2.1
+#   3. isp-core                2.0%   100   45.3  46.8  44.2  78.5   5.3  ← パケットロス!
+#   4. peering-point           0.0%   100   48.1  49.2  47.5  55.1   1.8
+#   5. api.example.com         0.0%   100   50.2  51.3  49.8  58.2   2.0
+
+# ホップ 3 でパケットロス 2% → この区間に問題がある
+# → ISP に問い合わせ or 別経路（VPN 等）を検討
+```
+
+**Step 3: サーバー処理時間の内訳を特定**
+
+```bash
+# Chrome DevTools の Network タブで確認:
+# - Waiting (TTFB) が長い → サーバー側の問題
+#   - DB クエリが遅い → EXPLAIN ANALYZE で実行計画確認
+#   - 外部 API 呼び出しが遅い → タイムアウト設定、キャッシュ導入
+#   - CPU 使用率が高い → プロファイリング（pprof, py-spy 等）
+
+# サーバーログで処理時間を記録
+# Nginx の例:
+log_format timed_combined '$remote_addr - $remote_user [$time_local] '
+                          '"$request" $status $body_bytes_sent '
+                          '"$http_referer" "$http_user_agent" '
+                          'rt=$request_time uct=$upstream_connect_time '
+                          'uht=$upstream_header_time urt=$upstream_response_time';
+
+# request_time が大きい → アプリケーション処理が遅い
+# upstream_*_time が大きい → バックエンドサーバーが遅い
+```
+
+**Step 4: 間欠的な遅延の場合**
+
+```bash
+# 連続計測して統計を取る
+$ for i in {1..100}; do
+    curl -o /dev/null -s -w "%{time_total}\n" https://api.example.com/data
+  done | awk '{sum+=$1; if($1>max) max=$1; if(NR==1 || $1<min) min=$1} END {print "Avg:", sum/NR, "Min:", min, "Max:", max}'
+
+# 出力例:
+# Avg: 0.234s  Min: 0.189s  Max: 2.345s
+# → Max が異常に大きい = 間欠的な遅延が発生
+
+# 原因:
+# - GC（ガベージコレクション）による一時停止
+# - DB コネクションプールの枯渇
+# - キャッシュミス時のスロークエリ
+# - サーバーのスワップ発生
+```
+
+**結論: レイテンシ問題は curl の時間計測 → mtr で経路確認 → サーバーログ/APM で内訳特定、の順で切り分ける。**
+
+---
+
+## まとめ
+
+| 概念 | ポイント |
+|------|---------|
+| デバッグフロー | 症状整理 → レイヤー特定（OSI モデル）→ 仮説立案 → 検証 → 修正 → 文書化 |
+| curl | HTTP デバッグの万能ツール、`-w` でタイミング計測、`-v` で詳細表示 |
+| DNS | dig が最も詳細、+trace で全経路追跡、@8.8.8.8 で代替 DNS 確認 |
+| 疎通確認 | ping → traceroute/mtr → nc でポート確認の順 |
+| ソケット | ss（推奨）or netstat、CLOSE_WAIT/TIME_WAIT の蓄積に注意 |
+| パケットキャプチャ | tcpdump（サーバー）+ Wireshark（詳細解析）の組み合わせ |
+| TLS | openssl s_client で証明書確認、-showcerts でチェーン表示 |
+| ブラウザ | Chrome DevTools の Network タブ、Timing/Waterfall/HAR エクスポート |
+| トラブルシューティング | レイヤー別に上から順に確認、ログは再起動前に必ず保存 |
+
+---
+
+## 次に読むべきガイド
+
+ネットワークデバッグの手法を習得したら、次は以下のトピックに進むことを推奨する。
+
+- **[パフォーマンス最適化](./03-performance.md)**: デバッグで特定したボトルネックを解消するための総合的なネットワークパフォーマンスチューニング手法を学ぶ
+- **[HTTP の詳細](../02-http/)**: HTTP プロトコルの仕様、キャッシュ制御、セキュリティヘッダーを深く理解してデバッグ精度を向上させる
+- **[TCP/IP プロトコル](../01-protocols/)**: パケットレベルのデバッグをより深く行うために、TCP の再送制御、フロー制御、輻輳制御を学ぶ
+
+---
+
+## 参考文献
+
+1. Stevens, W. R. "TCP/IP Illustrated, Volume 1: The Protocols." Addison-Wesley, 2011.
+2. tcpdump.org. "tcpdump Manual." tcpdump.org, 2024.
+3. Wireshark Foundation. "Wireshark User's Guide." wireshark.org, 2024.
+4. Mozilla Developer Network. "Chrome DevTools Network Reference." developer.mozilla.org, 2024.
+5. RFC 1035. "Domain Names - Implementation and Specification." IETF, 1987.
+6. Grigorik, I. "High Performance Browser Networking." O'Reilly, 2013.
+
+

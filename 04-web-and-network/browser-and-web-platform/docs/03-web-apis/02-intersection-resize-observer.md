@@ -2,6 +2,18 @@
 
 > IntersectionObserver、ResizeObserver、MutationObserver、PerformanceObserverは、要素の可視性・サイズ変更・DOM変更・パフォーマンスイベントを効率的に監視するブラウザネイティブAPI群。従来のscrollイベントやsetIntervalによるポーリングに比べて大幅にパフォーマンスが優れており、遅延読み込み、無限スクロール、レスポンシブコンポーネント、Web Vitals計測など幅広い実務シーンで不可欠な技術である。
 
+## 前提知識
+
+この章を理解するために、以下の知識を事前に習得しておくことを推奨する。
+
+- **DOM API** ([./00-dom-api.md](./00-dom-api.md)): Observer APIはDOM要素を監視対象とするため、DOM操作の基礎（querySelector、イベントリスナー、要素の参照管理など）を理解していることが前提となる。
+- **レンダリングパイプライン** ([../01-rendering/00-rendering-pipeline.md](../01-rendering/00-rendering-pipeline.md)): IntersectionObserverやResizeObserverがなぜパフォーマンスに優れているかを理解するには、ブラウザのレンダリングプロセス（Layout、Paint、Compositeの各フェーズ）とリフロー（Forced Reflow）の概念を把握しておく必要がある。
+- **スクロールイベントの基本**: 従来のscrollイベントとgetBoundingClientRect()を使った可視性判定の仕組みを知っていると、Observer APIの優位性とユースケースがより明確になる。特にイベントのthrottle/debounceパターンと、そのパフォーマンス上の課題を理解しておくとよい。
+
+これらの基礎知識があることで、Observer APIの設計思想と実務での効果的な活用法をより深く理解できる。
+
+---
+
 ## この章で学ぶこと
 
 - [ ] IntersectionObserverの仕組みと活用パターンを理解する
@@ -2142,6 +2154,101 @@ if ('ResizeObserver' in window) {
 
 ---
 
+## FAQ
+
+### Q1: IntersectionObserverを使って無限スクロールを実装する際の注意点は？
+
+IntersectionObserverによる無限スクロール実装では、以下の点に注意する必要がある。
+
+1. **番兵要素（Sentinel）の配置**: スクロールコンテナの最後に空のdiv要素を配置し、これを監視する。この要素が表示されたら次のデータを読み込む。
+2. **ローディングフラグの管理**: 読み込み中に再度コールバックが発火しないよう、`loading`フラグで制御する。非同期処理が完了するまで新たなリクエストを抑制することが重要。
+3. **rootMarginによる先読み**: `rootMargin: '200px 0px'`のように設定することで、ユーザーがスクロールする前にデータを先読みでき、スムーズなUXを実現できる。
+4. **終端の検出**: サーバーから返されるデータが空、またはhasMoreフラグがfalseになったら、observerをdisconnect()して監視を停止する。
+5. **エラーハンドリング**: ネットワークエラー時にリトライ可能なUIを提供する。番兵要素をクリック可能にしてユーザーが手動で再試行できるようにするとよい。
+
+```javascript
+const { ref, isIntersecting } = useIntersectionObserver({
+  rootMargin: '300px', // 300px手前から読み込み開始
+});
+
+useEffect(() => {
+  if (!isIntersecting || !hasMore || loading) return;
+
+  setLoading(true);
+  fetchItems(page + 1)
+    .then(result => {
+      setItems(prev => [...prev, ...result.items]);
+      setHasMore(result.hasMore);
+      setPage(p => p + 1);
+    })
+    .catch(handleError)
+    .finally(() => setLoading(false));
+}, [isIntersecting, hasMore, loading]);
+```
+
+### Q2: ResizeObserverとwindow.resizeイベントの違いと使い分けは？
+
+ResizeObserverとwindow.resizeイベントは目的が異なる。
+
+**window.resizeイベント**:
+- ブラウザウィンドウのサイズ変更のみを検出
+- 高頻度で発火するため、throttle/debounceが必須
+- グローバルなレイアウト調整（ヘッダーの固定解除、モバイルメニューの切り替えなど）に適している
+
+**ResizeObserver**:
+- 特定のDOM要素のサイズ変更を検出（CSSアニメーション、フレックスボックス、グリッドレイアウトによる変更も含む）
+- ブラウザが最適なタイミングで通知（throttle不要）
+- 個別コンポーネントの内部調整（チャートのリサイズ、テキストの自動縮小、仮想スクロールの再計算など）に適している
+
+使い分けの指針:
+- **ビューポート全体のサイズに依存する処理** → window.resize + matchMedia()
+- **特定要素のコンテンツサイズに依存する処理** → ResizeObserver
+- **コンテナクエリのような振る舞い** → ResizeObserver（またはネイティブの@container）
+
+ResizeObserverは要素ごとに独立して動作するため、コンポーネント指向の設計に適している。一方、window.resizeはアプリケーション全体のブレークポイント管理に使うとよい。
+
+### Q3: Observer APIを使うことでパフォーマンスがどれだけ改善されるのか？
+
+Observer APIの最大の利点は、**レイアウトスラッシング（Layout Thrashing）の回避**である。
+
+**従来のscrollイベント + getBoundingClientRect()**:
+```javascript
+window.addEventListener('scroll', () => {
+  elements.forEach(el => {
+    const rect = el.getBoundingClientRect(); // 強制リフロー発生
+    if (rect.top < window.innerHeight) {
+      el.classList.add('visible');
+    }
+  });
+});
+```
+- scrollイベントは1秒間に60回以上発火する可能性がある
+- getBoundingClientRect()は現在のレイアウトを強制的に計算させる（Forced Reflow）
+- 要素が100個あれば、1秒間に6000回のレイアウト計算が発生する可能性がある
+
+**IntersectionObserver**:
+```javascript
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+    }
+  });
+});
+elements.forEach(el => observer.observe(el));
+```
+- ブラウザが内部で最適化されたタイミングで通知
+- レイアウト計算をメインスレッドでブロックしない
+- 非アクティブタブでは自動的に停止
+
+実測例（Chrome DevTools Performance測定）:
+- scrollイベント版: 1回のスクロールで30-50msのScripting時間（jank発生）
+- IntersectionObserver版: 1回のスクロールで1-3msのScripting時間（スムーズ）
+
+特に要素数が多い場合やモバイルデバイスでは、体感できるほどの差が出る。Core Web VitalsのINP（Interaction to Next Paint）指標の改善にも直結する。
+
+---
+
 ## まとめ
 
 | Observer | 監視対象 | 主な用途 | パフォーマンス |
@@ -2164,9 +2271,9 @@ if ('ResizeObserver' in window) {
 
 ## 次に読むべきガイド
 
-- [[../04-storage-and-caching/00-web-storage.md]] -- Webストレージ（localStorage, sessionStorage, IndexedDB）
-- [[../04-storage-and-caching/02-performance-api.md]] -- Performance API 詳解
-- [[01-fetch-and-streams.md]] -- Fetch と Streams API
+- [Webストレージ（localStorage, sessionStorage, IndexedDB）](../04-storage-and-caching/00-web-storage.md)
+- [Performance API 詳解](../04-storage-and-caching/02-performance-api.md)
+- [Fetch と Streams API](./01-fetch-and-streams.md)
 
 ---
 

@@ -13,6 +13,12 @@
 - [ ] Contract Testing の実践方法を学ぶ
 - [ ] Design-First ワークフローの組織的展開を理解する
 
+## 前提知識
+
+- HTTP メソッドとステータスコードの基本 → 参照: [HTTPの基礎](../../network-fundamentals/docs/02-http/00-http-basics.md)
+- REST APIの概念 → 参照: [REST API](../../network-fundamentals/docs/02-http/02-rest-api.md)
+- JSONフォーマットの基本的な読み書き
+
 ---
 
 ## 1. API First とは
@@ -3475,6 +3481,22 @@ components:
 
 ---
 
+## FAQ
+
+### Q1: API First設計とCode First設計のどちらを選ぶべきか？
+
+プロジェクトの規模と特性によって選択すべきです。フロントエンド・バックエンドが異なるチームで並行開発する場合、複数サービス間の連携がある場合、長期運用が見込まれる場合はAPI Firstが有効です。一方、小規模なプロトタイプや単一チームでのスピード重視の開発ではCode Firstでも問題ありません。ただし、API Firstは初期投資が必要ですが、後のリファクタリングコストを大幅に削減できるため、中長期的には効率的です。
+
+### Q2: OpenAPI仕様のバージョン（2.0 vs 3.0 vs 3.1）の違いは？
+
+OpenAPI 2.0（旧Swagger）は2014年のレガシー仕様であり、現在は非推奨です。OpenAPI 3.0（2017年）はコンポーネント再利用性の向上、複数サーバー対応、リクエストボディの強化などが追加されました。OpenAPI 3.1（2021年）はJSON Schema 2020-12との完全互換性を実現し、webhooksサポート、より柔軟なスキーマ定義が可能になりました。新規プロジェクトでは3.1を選択し、既存プロジェクトも段階的に移行することを推奨します。
+
+### Q3: 小規模プロジェクトでもAPI First設計は有効か？
+
+小規模プロジェクトでも十分に有効です。OpenAPI仕様を書く初期コストは数時間程度ですが、型安全なコード生成・自動テスト・ドキュメント自動生成によって開発速度が向上します。特にフロントエンド・バックエンド間の認識齟齬を防ぎ、手戻りを削減できる点は小規模でも大きなメリットです。Stoplight StudioやSwagger Editorなどのツールを使えば、GUIで仕様を作成できるため学習コストも低く抑えられます。
+
+---
+
 ## まとめ
 
 | 概念 | ポイント |
@@ -3493,9 +3515,9 @@ components:
 ---
 
 ## 次に読むべきガイド
--> [[01-naming-and-conventions.md]] -- 命名規則と慣例
--> [[02-versioning-strategy.md]] -- バージョニング戦略
--> [[03-pagination-and-filtering.md]] -- ページネーションとフィルタリング
+→ [命名規則と慣例](./01-naming-and-conventions.md)
+→ [バージョニング戦略](./02-versioning-strategy.md)
+→ [ページネーションとフィルタリング](./03-pagination-and-filtering.md)
 
 ---
 

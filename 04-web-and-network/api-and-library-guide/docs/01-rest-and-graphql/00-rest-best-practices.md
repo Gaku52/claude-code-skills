@@ -13,6 +13,12 @@
 - [ ] PATCH（部分更新）とバルク操作の設計を学ぶ
 - [ ] アンチパターンを識別し回避する力を養う
 
+## 前提知識
+
+- HTTPメソッドとステータスコード → 参照: [HTTPの基礎](../../network-fundamentals/docs/02-http/00-http-basics.md)
+- API設計の基本原則 → 参照: [API First設計](../00-api-design-principles/00-api-first-design.md)
+- API命名規則 → 参照: [命名規則と慣例](../00-api-design-principles/01-naming-and-conventions.md)
+
 ---
 
 ## 1. REST の6原則（復習と深掘り）
@@ -2441,7 +2447,101 @@ v1Router.use(deprecationWarning('2025-12-31T23:59:59Z'));
 
 ## 19. FAQ
 
-### Q1: PUT と PATCH のどちらを使うべきか？
+### Q1: RESTful APIで適切なHTTPステータスコードの選び方は？
+
+**A**: ステータスコードは「何が起きたか」を明確に伝えるために選択する。以下の基準で判断する。
+
+```
+成功系:
+  200 OK           → GET/PATCH成功（レスポンスボディあり）
+  201 Created      → POST成功（新規リソース作成）
+  204 No Content   → DELETE/PUT成功（レスポンスボディなし）
+
+クライアントエラー系:
+  400 Bad Request      → リクエスト構文エラー（JSON不正など）
+  401 Unauthorized     → 認証が必要
+  403 Forbidden        → 認証済みだが権限不足
+  404 Not Found        → リソースが存在しない
+  422 Unprocessable Entity → バリデーションエラー
+
+サーバーエラー系:
+  500 Internal Server Error → サーバー内部エラー
+  503 Service Unavailable   → 一時的な過負荷
+```
+
+特に、バリデーションエラーには422を使い、400はリクエスト形式そのものの問題（JSONパースエラー等）に限定することで、クライアント側のエラー処理が明確になる。
+
+### Q2: HATEOASは実際のプロジェクトで採用すべきか？
+
+**A**: 完全なHATEOAS（Level 3）は実装コストが高いため、以下の段階的アプローチを推奨する。
+
+```
+Level 0（最低限）:
+  → URIハードコードを避け、APIドキュメントで関連リソースのパスを明示
+
+Level 1（推奨）:
+  → レスポンスに関連リソースのURIを含める
+  {
+    "id": "usr_123",
+    "name": "Alice",
+    "orders_url": "/api/v1/users/usr_123/orders"
+  }
+
+Level 2（状態遷移が重要な場合）:
+  → 実行可能なアクションのみをリンクとして返す
+  {
+    "id": "ord_456",
+    "status": "pending",
+    "links": {
+      "cancel": { "href": "/api/v1/orders/ord_456/cancel", "method": "POST" },
+      "pay": { "href": "/api/v1/orders/ord_456/payment", "method": "POST" }
+    }
+  }
+
+Level 3（完全なHATEOAS）:
+  → すべての状態遷移をハイパーメディアで表現
+  → 大規模な公開APIや複雑なワークフローのみで採用
+```
+
+多くのプロジェクトではLevel 1で十分な価値が得られる。Level 3は、Stripe APIのような複雑な状態管理が必要な場合に限定すべきである。
+
+### Q3: REST APIでのエラーレスポンスのベストプラクティスは？
+
+**A**: RFC 9457（Problem Details for HTTP APIs）に準拠した構造を使うことが現代の標準である。
+
+```javascript
+// RFC 9457準拠のエラーレスポンス
+{
+  "type": "https://api.example.com/errors/validation-error",
+  "title": "Validation Error",
+  "status": 422,
+  "detail": "The email field must be a valid email address.",
+  "instance": "/api/v1/users",
+  "errors": [
+    {
+      "field": "email",
+      "code": "invalid_format",
+      "message": "Must be a valid email address"
+    }
+  ],
+  "trace_id": "abc123def456"  // デバッグ用の追跡ID
+}
+```
+
+必須フィールド:
+- `type`: エラー種別を示すURI（ドキュメントへのリンク）
+- `title`: 人間が読める短いエラータイトル
+- `status`: HTTPステータスコード
+- `detail`: 具体的なエラー詳細
+- `instance`: エラーが発生したリクエストパス
+
+拡張フィールド:
+- `errors`: バリデーションエラーの詳細（配列）
+- `trace_id`: サーバーログとの紐付け用ID
+
+このフォーマットにより、クライアント側で一貫したエラーハンドリングが可能になる。
+
+### Q4: PUT と PATCH のどちらを使うべきか？
 
 **A**: 実務では PATCH（Merge Patch）を基本とし、設定系のリソースでのみ PUT を使うのが最も実用的である。
 
@@ -2458,7 +2558,7 @@ v1Router.use(deprecationWarning('2025-12-31T23:59:59Z'));
     → No（常に全体を置換） → PUT
 ```
 
-### Q2: ネストが深いリソースはどう設計するか？
+### Q5: ネストが深いリソースはどう設計するか？
 
 **A**: ネストは最大2段までとし、3段以上が必要な場合はクエリパラメータでフィルタリングする。
 
@@ -2470,7 +2570,7 @@ v1Router.use(deprecationWarning('2025-12-31T23:59:59Z'));
 
 リソースが独立してアクセスされる場面があるなら、トップレベルのエンドポイントを提供すべきである。例えば、チームに属する「メンバー」は `/members/:id` でも直接アクセスできるようにする。
 
-### Q3: 認証にはどの方式を採用すべきか？
+### Q6: 認証にはどの方式を採用すべきか？
 
 **A**: マシン間通信（M2M）ではAPIキーまたはOAuth2 Client Credentials、ユーザー操作が伴う場合はOAuth2 Authorization Code + PKCE を推奨する。
 
@@ -2500,7 +2600,7 @@ v1Router.use(deprecationWarning('2025-12-31T23:59:59Z'));
   → APIキーのみ（ユーザー操作に使う場合）
 ```
 
-### Q4: レスポンスのフィールド名はキャメルケースかスネークケースか？
+### Q7: レスポンスのフィールド名はキャメルケースかスネークケースか？
 
 **A**: JSON APIではスネークケース（`snake_case`）が推奨される。JavaScript のプロパティ名の慣習はキャメルケースだが、APIレベルでは以下の理由でスネークケースが優勢である。
 
@@ -2509,7 +2609,7 @@ v1Router.use(deprecationWarning('2025-12-31T23:59:59Z'));
 - GitHub, Stripe, Twilio 等の主要APIがスネークケースを採用
 - ただし、組織内で統一されていることが最も重要
 
-### Q5: 空のレスポンスはどう返すべきか？
+### Q8: 空のレスポンスはどう返すべきか？
 
 **A**: 空のコレクションは200 OKで空配列を返す。リソースが見つからない場合は404を返す。DELETEの成功は204 No Contentでボディなしとする。
 
@@ -2554,13 +2654,42 @@ v1Router.use(deprecationWarning('2025-12-31T23:59:59Z'));
 | バージョニング | URIパス方式（/api/v1/...）が最も実用的 |
 | レート制限 | RateLimit-* ヘッダーで残数通知、429で制限超過 |
 
+**キーポイント**:
+
+1. **リソース指向設計**: URIは「動詞」ではなく「名詞」で表現し、HTTPメソッドで操作を示す。`POST /users` は OK、`POST /createUser` は NG。
+2. **エラーレスポンスの標準化**: RFC 9457準拠のProblem Detailsフォーマットを採用することで、クライアント側のエラーハンドリングが一貫し、デバッグ効率が向上する。
+3. **冪等性の保証**: 重要な操作（決済、リソース作成）には Idempotency-Key を導入し、ネットワークリトライによる重複実行を防止する。
+
+---
+
+## FAQ
+
+### Q1: PATCHリクエストでJSON Merge PatchとJSON Patchのどちらを採用すべきか?
+JSON Merge Patch（RFC 7396）はシンプルで直感的であり、一般的なフィールド更新に適している。JSONオブジェクトの部分更新をそのまま送信するだけでよく、学習コストが低い。一方、JSON Patch（RFC 6902）は配列操作（要素の追加・削除・移動）やフィールド名の変更など、より複雑な操作に対応できる。多くの場合はJSON Merge Patchで十分であり、配列の部分更新が頻繁に必要な場合にのみJSON Patchを検討するとよい。
+
+### Q2: バルク操作のAPIでトランザクション保証は必要か?
+基本的には部分失敗を許容する設計（207 Multi-Status）を推奨する。全件成功または全件失敗のトランザクション保証は、大量データ処理時にパフォーマンスのボトルネックとなり、分散システムでは実装が複雑になる。ただし、金融取引のように一貫性が必須のドメインでは、トランザクション保証が必要な場合もある。その場合は、バッチサイズに上限（例: 100件）を設け、処理時間の予測可能性を確保することが重要である。
+
+### Q3: APIレスポンスでnullと未定義（フィールド省略）をどう使い分けるべきか?
+明確なルールを決めてドキュメントに記載することが最も重要である。推奨アプローチとしては、nullは「値が明示的に空である」ことを意味し、フィールド省略は「そのリソースにはこの属性が存在しない」または「リクエストで指定されなかった」ことを意味すると定義する。PATCH操作ではこの区別が特に重要で、nullの送信は「値をクリアする」、フィールド省略は「変更しない」と解釈するのが一般的なパターンである。
+
+## まとめ
+
+このガイドでは以下を学びました:
+
+- RESTの6原則に基づくリソース指向設計と、名詞・複数形・ケバブケースによるURI命名規則
+- HTTPメソッド・ステータスコードの正しい使い方と、RFC 9457準拠のエラーレスポンス設計
+- HATEOASによる状態遷移の表現と、Idempotency-Keyを用いた冪等性の保証
+- 部分更新（PATCH）、バルク操作、楽観的ロック（ETag/If-Match）の実装パターン
+- ページネーション設計、レート制限、バージョニングなどの運用に不可欠なAPI設計要素
+
 ---
 
 ## 次に読むべきガイド
 
-- [[01-graphql-fundamentals.md]] -- GraphQL基礎: クエリ言語、スキーマ、リゾルバ
-- [[02-api-versioning.md]] -- APIバージョニング戦略の詳細
-- [[03-authentication.md]] -- API認証・認可の実装パターン
+- [GraphQL基礎](01-graphql-fundamentals.md) -- クエリ言語、スキーマ、リゾルバ
+- [APIバージョニング戦略](02-api-versioning.md) -- バージョニング戦略の詳細
+- [API認証・認可](03-authentication.md) -- 認証・認可の実装パターン
 
 ---
 

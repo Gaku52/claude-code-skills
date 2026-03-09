@@ -2,6 +2,16 @@
 
 > Paint はレイアウト情報をピクセルへ変換し、Compositing は GPU でレイヤーを合成して最終画像を生成する。レイヤー昇格、will-change、GPU アクセラレーション、合成戦略の仕組みを理解することは、スムーズな UI を実現するうえで不可欠である。本ガイドでは、ブラウザのレンダリングパイプライン後半を構成する Paint フェーズと Compositing フェーズについて、その内部動作からパフォーマンス最適化手法まで体系的に解説する。
 
+## 前提知識
+
+本ガイドを最大限活用するため、以下のトピックについて事前に理解しておくことを推奨する。
+
+- **レンダリングパイプラインの全体像** - ブラウザが HTML/CSS をどのように解析し、画面に表示するかの全体フローを理解していることが前提となる。DOM 構築、CSSOM 構築、スタイル計算、レイアウト計算の各フェーズについて基本的な知識があれば、Paint と Compositing の位置づけがより明確になる。参照: [レンダリングパイプライン](./00-rendering-pipeline.md)
+
+- **CSS レイアウトエンジンの仕組み** - Layout フェーズで計算された要素の位置・サイズ情報が、Paint フェーズでどのように活用されるかを理解するため、レイアウトエンジンの基本動作を把握しておくことが望ましい。特に Stacking Context（スタッキングコンテキスト）の概念は、レイヤー昇格の理解に直結する。参照: [CSS レイアウトエンジン](./01-css-layout-engine.md)
+
+- **GPU アクセラレーションの基本概念** - GPU（Graphics Processing Unit）が CPU と異なりどのような処理を得意とするのか、また GPU メモリ（VRAM）と CPU メモリの違いについて基本的な知識があると、レイヤー昇格のコストやメリットを理解しやすくなる。
+
 ## この章で学ぶこと
 
 - [ ] Paint と Composite の役割の違いを説明できる
@@ -1398,3 +1408,107 @@ const list = new VirtualizedList(
   }
 );
 ```
+
+---
+
+## FAQ
+
+### Q1. コンポジットレイヤーが多すぎる場合、どのような問題が発生しますか？
+
+コンポジットレイヤーが過剰に生成されると、以下の深刻なパフォーマンス問題が発生する。
+
+**GPU メモリ枯渇**: 各レイヤーは GPU メモリ上にテクスチャとして保持されるため、レイヤー数が増えるほど VRAM 消費量が増大する。特にモバイルデバイスでは GPU メモリが限られているため、レイヤーが数百個に達すると GPU メモリが枯渇し、ブラウザがテクスチャを破棄して再生成する「スラッシング」が発生する。これにより、スムーズであるべきアニメーションがカクついたり、最悪の場合ページがクラッシュする。
+
+**合成オーバーヘッドの増大**: Compositor Thread は毎フレーム、全レイヤーの Draw Quads を生成し GPU に送信する必要がある。レイヤー数が多いほどこの処理コストが増加し、Composite 処理自体がボトルネックとなる。特に複雑な z-index 構造を持つページでは、レイヤーの重なり順序の計算コストも増大する。
+
+**初期レンダリングの遅延**: ページロード時に大量のレイヤーが昇格すると、各レイヤーのテクスチャを GPU メモリに転送する時間が増え、初期表示が遅延する。特に低速なネットワークやデバイスでは、ユーザーが空白画面を見る時間が長くなり UX を著しく損なう。
+
+**対策**: DevTools の Layers パネルで定期的にレイヤー数とメモリ消費量を確認し、不要な `will-change` や暗黙的レイヤー昇格を排除する。理想的なレイヤー数は数十個以内であり、100 個を超える場合は設計を見直すべきである。
+
+### Q2. will-change プロパティの正しい使い方は？常に設定しておいてはいけないのですか？
+
+`will-change` は「近い将来変更されるプロパティ」をブラウザに事前通知するためのヒントであり、**常時設定すべきではない**。常時設定するとメモリを無駄に消費し、逆にパフォーマンスが悪化する。
+
+**正しい使い方**:
+- **イベント駆動で動的に設定・解除**: ホバー時やフォーカス時など、ユーザーインタラクションの直前に `will-change` を設定し、アニメーション完了後（`transitionend` イベント）に `will-change: auto` で解除する。
+- **Intersection Observer と連携**: ビューポートに要素が近づいた時点で `will-change` を設定し、ビューポートから離れた後に解除する。
+- **常時アニメーションする要素にのみ CSS で設定**: ローディングスピナーや常に動いているアニメーション要素など、設定と解除のタイミングが明確でない場合にのみ CSS で設定する。
+
+**避けるべきパターン**:
+- `*` セレクタや全要素への適用
+- 数十個以上の要素に常時設定
+- 使わないプロパティまで列挙（例: `will-change: transform, opacity, color, background-color`）
+
+具体的なコード例は「6.3 will-change のベストプラクティス」セクションを参照のこと。
+
+### Q3. ペイントとコンポジットのパフォーマンスを計測するには？
+
+ブラウザのパフォーマンスを正確に計測するには、Chrome DevTools の複数のツールを組み合わせて使用する。
+
+**Performance パネルでのプロファイリング**:
+1. DevTools > Performance タブを開く
+2. 「Record」ボタン（⚫︎）を押してアニメーションやスクロールを実行
+3. 「Stop」で記録を停止
+4. Frames セクションで各フレームの長さを確認（16.67ms を超えるフレームを探す）
+5. Main セクションで Paint や Composite Layers の処理時間を確認
+6. Raster セクションでラスタライズの並列度を確認
+
+**Rendering タブでのリアルタイム可視化**:
+- DevTools > More tools > Rendering を開く
+- 「Paint flashing」を有効化 → 再 Paint された領域が緑色でハイライトされる
+- 「Layer borders」を有効化 → レイヤー境界がオレンジ色の線で表示される
+- 「Frame Rendering Stats」を有効化 → FPS メーターと GPU メモリ使用量がリアルタイム表示される
+
+**Layers パネルでのレイヤー分析**:
+- DevTools > More tools > Layers を開く
+- 3D ビューで全レイヤーを可視化
+- 各レイヤーの「Compositing Reasons」で昇格理由を確認
+- メモリサイズと Paint Count を確認
+
+**Web Vitals の測定**:
+Lighthouse（DevTools > Lighthouse タブ）で CLS（Cumulative Layout Shift）や FID（First Input Delay）を測定し、レンダリングパフォーマンスが UX に与える影響を定量的に評価する。
+
+詳細な使い方は「9. DevTools によるペイントとコンポジティングの分析」セクションを参照のこと。
+
+---
+
+## まとめ
+
+本ガイドでは、ブラウザのレンダリングパイプライン後半を構成する Paint と Compositing の仕組みを詳細に解説した。以下の表で、各フェーズの主要な特徴を整理する。
+
+| フェーズ | 主な処理内容 | 実行スレッド | GPU 利用 | パフォーマンスへの影響 |
+|:---|:---|:---|:---:|:---|
+| **Paint** | Layout 情報を Paint Records に変換 → ラスタライズでピクセル化 | メインスレッド（Paint Records 生成）<br>ラスタースレッド（ラスタライズ） | GPU または CPU | 中程度。color や background-color の変更で再 Paint が発生。Layout 変更よりは軽量だが、頻繁な Repaint は避けるべき。 |
+| **Compositing** | 複数の合成レイヤーを GPU で重ね合わせ、最終画面を生成 | Compositor Thread | GPU（必須） | 低い。transform や opacity の変更は Composite のみで完結し、非常に高速。ただしレイヤー数が過剰だと合成オーバーヘッドが増大。 |
+
+### 本ガイドの重要なポイント
+
+1. **Compositor-Only プロパティの活用**: `transform` と `opacity` はメインスレッドを経由せず、Compositor Thread と GPU のみで処理される。これにより、JavaScript がメインスレッドをブロックしていても、スムーズなアニメーションが実現できる。60fps を維持するアニメーションを実装する際は、必ず `transform` と `opacity` を使用し、`left`/`top` や `width`/`height` の変更を避ける。
+
+2. **レイヤー昇格の適切な管理**: レイヤー昇格は GPU メモリを消費するため、無計画に行うとパフォーマンスが悪化する。`will-change` はイベント駆動で動的に設定・解除し、常時設定を避ける。DevTools の Layers パネルで定期的にレイヤー数とメモリ消費量を確認し、暗黙的レイヤー昇格によるレイヤー爆発を防ぐ。
+
+3. **DevTools によるプロファイリングの習慣化**: パフォーマンス問題は主観的な感覚ではなく、Performance パネルや Rendering タブで定量的に測定すべきである。特に「Paint flashing」と「Layer borders」は、不要な Repaint やレイヤー構造の問題を即座に発見できる強力なツールである。開発中はこれらのツールを常に有効化し、問題を早期に発見する習慣をつけることが重要である。
+
+---
+
+## 次に読むべきガイド
+
+Paint と Compositing の仕組みを理解したら、次は実際のアニメーション実装におけるパフォーマンス最適化手法を学ぶことを推奨する。
+
+- **[アニメーションパフォーマンス](./03-animation-performance.md)** - 本ガイドで学んだ Compositor-Only プロパティ、レイヤー昇格、GPU アクセラレーションの知識を実践的なアニメーション実装に応用する方法を解説する。CSS Animations、CSS Transitions、Web Animations API の使い分け、requestAnimationFrame の最適な使い方、FLIP テクニック、スクロール連動アニメーションのパフォーマンス改善など、実務で即戦力となる技術を体系的に習得できる。
+
+---
+
+## 参考文献
+
+本ガイドの執筆にあたり、以下の資料を参考にした。より深い理解を得たい場合は、これらの資料を直接参照することを推奨する。
+
+- **Chromium Design Documents: GPU Accelerated Compositing** - Chromium プロジェクトの公式設計ドキュメント。Compositor Thread の内部動作、レイヤー昇格の詳細なメカニズム、GPU プロセスとの通信方式が解説されている。ブラウザエンジンの実装レベルの知識を得たい場合に必読。[https://www.chromium.org/developers/design-documents/gpu-accelerated-compositing-in-chrome](https://www.chromium.org/developers/design-documents/gpu-accelerated-compositing-in-chrome)
+
+- **Inside look at modern web browser (part 3) - What happens in a renderer process?** - Google Chrome Developers による、レンダラープロセス内部の詳細な解説記事。Paint Records の生成、ラスタライズ、Compositing の各フェーズがイラスト付きでわかりやすく説明されている。特にタイルベースラスタライズの仕組みが視覚的に理解できる。[https://developer.chrome.com/blog/inside-browser-part3](https://developer.chrome.com/blog/inside-browser-part3)
+
+- **Stick to Compositor-Only Properties and Manage Layer Count** - Web Fundamentals（現 web.dev）の高パフォーマンスアニメーションに関するガイド。Compositor-Only プロパティの選択基準、レイヤー数の管理方法、DevTools を使った計測手法が実践的に解説されている。[https://web.dev/articles/stick-to-compositor-only-properties-and-manage-layer-count](https://web.dev/articles/stick-to-compositor-only-properties-and-manage-layer-count)
+
+- **CSS Containment Module Level 2 (W3C Specification)** - `contain` プロパティの公式仕様。各値（layout, paint, size, style）の正確な動作定義と、ブラウザ最適化への影響が詳述されている。仕様レベルの厳密な理解が必要な場合に参照すべき。[https://www.w3.org/TR/css-contain-2/](https://www.w3.org/TR/css-contain-2/)
+
+- **content-visibility: the new CSS property that boosts your rendering performance** - `content-visibility` プロパティの実践的な活用方法と効果測定の事例。特に長いページにおける初期レンダリング時間の劇的な改善効果が、実データとともに示されている。[https://web.dev/articles/content-visibility](https://web.dev/articles/content-visibility)

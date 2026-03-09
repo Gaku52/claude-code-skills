@@ -15,6 +15,16 @@
 
 ---
 
+## 前提知識
+
+この章を最大限活用するために、以下の知識を事前に習得しておくことを推奨する:
+
+- **フォーム設計**: `./00-form-design.md` で学ぶ、React Hook Formの基本パターンと制御/非制御コンポーネントの概念を理解していること
+- **TypeScriptの型システム**: ジェネリクス、ユニオン型、インターセクション型、型推論といったTypeScriptの中級レベルの型システムを把握していること
+- **Zodスキーマの基礎**: Zodの基本的なスキーマ定義（`z.string()`, `z.number()`, `z.object()` など）と `.parse()` / `.safeParse()` の使い方を理解していること
+
+---
+
 ## 1. バリデーションの基本概念と設計思想
 
 ### 1.1 なぜバリデーションが重要なのか
@@ -4478,6 +4488,227 @@ function ShippingForm() {
 4. **アクセシビリティファースト**: WAI-ARIA属性を正しく使い、キーボード操作とスクリーンリーダーに対応する
 5. **防御的プログラミング**: クライアントバリデーションはUXのため、サーバーバリデーションはセキュリティのため
 6. **テスト駆動**: スキーマの境界値テスト、フォームの統合テスト、E2Eテストを段階的に整備する
+
+---
+
+## よくある質問（FAQ）
+
+### Q1. クライアント側とサーバー側のバリデーション、どう使い分けるべきですか？
+
+**A:** **両方必須** というのが大原則である。それぞれの役割は以下の通り:
+
+**クライアント側バリデーション（JavaScript/Zod）:**
+
+- **役割**: UX向上のため
+- **目的**: ユーザーに即座にフィードバックを提供し、無駄なサーバーリクエストを防ぐ
+- **信頼性**: **信頼してはならない**（ブラウザの開発者ツールで簡単にバイパス可能）
+
+実装例:
+
+```typescript
+// クライアント側（React Hook Form + Zod）
+const schema = z.object({
+  email: z.string().email('有効なメールアドレスを入力してください'),
+  age: z.number().min(18, '18歳以上である必要があります'),
+});
+
+const form = useForm({ resolver: zodResolver(schema) });
+```
+
+**サーバー側バリデーション（API/バックエンド）:**
+
+- **役割**: セキュリティとデータ整合性の保証
+- **目的**: 悪意のあるリクエストや不正なデータからシステムを守る
+- **信頼性**: **唯一信頼できるバリデーション**
+
+実装例:
+
+```typescript
+// サーバー側（Next.js Server Action）
+'use server';
+
+export async function createUser(formData: FormData) {
+  // サーバー側で必ず再バリデーション
+  const result = schema.safeParse({
+    email: formData.get('email'),
+    age: Number(formData.get('age')),
+  });
+
+  if (!result.success) {
+    return { errors: result.error.flatten() };
+  }
+
+  // データベースに保存前に追加のビジネスルール検証
+  const emailExists = await db.user.findUnique({ where: { email: result.data.email } });
+  if (emailExists) {
+    return { errors: { email: 'このメールアドレスは既に使用されています' } };
+  }
+
+  // 保存処理
+  await db.user.create({ data: result.data });
+}
+```
+
+**ベストプラクティス:**
+
+1. **スキーマを共有**: クライアントとサーバーで同じZodスキーマを使う（モノレポやパッケージ共有）
+2. **段階的なバリデーション**:
+   - クライアント: フォーマット検証（メール形式、必須フィールド等）
+   - サーバー: フォーマット再検証 + ビジネスルール（重複チェック、権限チェック等）
+3. **エラーメッセージの統一**: クライアントとサーバーで同じメッセージを返す
+
+### Q2. Zod と yup、どちらを選ぶべきですか？
+
+**A:** 現在のプロジェクトでは **Zod を強く推奨** する:
+
+| 項目 | Zod | yup |
+|------|-----|-----|
+| TypeScript対応 | TypeScript-first、型推論が完璧 | JavaScriptベース、型定義は後付け |
+| バンドルサイズ | 8KB（gzip） | 13KB（gzip） |
+| パフォーマンス | 高速 | やや遅い |
+| エラーメッセージ | カスタマイズ容易 | カスタマイズやや複雑 |
+| エコシステム | Next.js、tRPC、Prismaなど最新ツールと統合 | Formikとの統合が強い |
+| メンテナンス | 活発 | 活発だが成長鈍化 |
+
+**Zodが優れている点:**
+
+```typescript
+// 型推論が完璧
+const userSchema = z.object({
+  name: z.string(),
+  age: z.number(),
+});
+
+type User = z.infer<typeof userSchema>;
+// → { name: string; age: number } が自動推論される
+```
+
+**yupが優れている点:**
+
+- Formikとの統合が歴史的に強い（Formik公式ドキュメントでyupを推奨）
+- 学習リソースが豊富（歴史が長い）
+
+**移行は簡単か？**
+
+Zod と yup は API が似ているため、移行は比較的容易:
+
+```typescript
+// yup
+const schema = yup.object({
+  email: yup.string().email().required(),
+});
+
+// Zod
+const schema = z.object({
+  email: z.string().email(),
+});
+```
+
+### Q3. 非同期バリデーション（重複チェック等）はどう実装すべきですか？
+
+**A:** 非同期バリデーションは **API呼び出しが必要な検証**（メールアドレス重複チェック、ユーザー名使用可否チェック等）で使用する。
+
+**パターン1: Zod の `.refine()` で非同期チェック**
+
+```typescript
+const emailSchema = z.string().email().refine(
+  async (email) => {
+    // APIで重複チェック
+    const response = await fetch(`/api/check-email?email=${email}`);
+    const { available } = await response.json();
+    return available;
+  },
+  { message: 'このメールアドレスは既に使用されています' }
+);
+```
+
+**パターン2: React Hook Form の `validate` オプション**
+
+```typescript
+const form = useForm();
+
+<input
+  {...form.register('email', {
+    validate: async (value) => {
+      const response = await fetch(`/api/check-email?email=${value}`);
+      const { available } = await response.json();
+      return available || 'このメールアドレスは既に使用されています';
+    }
+  })}
+/>
+```
+
+**パターン3: カスタムフックで防御的に実装（推奨）**
+
+```typescript
+function useEmailValidation() {
+  const [isChecking, setIsChecking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const timeoutRef = useRef<NodeJS.Timeout>();
+
+  const validateEmail = useCallback(async (email: string) => {
+    // デバウンス: 連続入力中はAPIを叩かない
+    clearTimeout(timeoutRef.current);
+
+    return new Promise<boolean>((resolve) => {
+      timeoutRef.current = setTimeout(async () => {
+        setIsChecking(true);
+        try {
+          const response = await fetch(`/api/check-email?email=${email}`);
+          const { available } = await response.json();
+
+          if (!available) {
+            setError('このメールアドレスは既に使用されています');
+            resolve(false);
+          } else {
+            setError(null);
+            resolve(true);
+          }
+        } catch (err) {
+          setError('確認中にエラーが発生しました');
+          resolve(false);
+        } finally {
+          setIsChecking(false);
+        }
+      }, 500); // 500msデバウンス
+    });
+  }, []);
+
+  return { validateEmail, isChecking, error };
+}
+
+// 使用例
+function EmailField() {
+  const form = useForm();
+  const { validateEmail, isChecking, error } = useEmailValidation();
+
+  return (
+    <div>
+      <input
+        {...form.register('email', {
+          validate: validateEmail,
+        })}
+      />
+      {isChecking && <span>確認中...</span>}
+      {error && <span>{error}</span>}
+    </div>
+  );
+}
+```
+
+**ベストプラクティス:**
+
+1. **デバウンスを必ず実装**: 連続入力中は不要なAPIリクエストを避ける（500ms推奨）
+2. **ローディング状態を表示**: `isChecking` フラグでユーザーに処理中であることを伝える
+3. **エラーハンドリング**: ネットワークエラーやタイムアウトに対処
+4. **キャッシュを活用**: 同じ入力値を何度もチェックしない（React QueryやSWRの活用）
+5. **サーバー側で最終検証**: クライアント側の非同期チェックはUXのため、サーバー側で必ず再検証
+
+**注意点:**
+
+- onBlur（フォーカスアウト時）にトリガーするか、onChange（入力中）にトリガーするかを慎重に選ぶ
+- onChangeで実装する場合、デバウンスは必須（でないとAPIが大量に叩かれる）
+- フォーム送信時にサーバー側で再度検証することを忘れずに
 
 ---
 

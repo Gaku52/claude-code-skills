@@ -2,6 +2,13 @@
 
 > 本番環境の監視はサービス品質の生命線。Sentry、Web Vitals計測、ロギング、アラート設計まで、本番環境のWebアプリケーションを安定運用するための監視体制を構築する。障害を「検知→通知→診断→復旧」の一連のサイクルで回すために必要な知識と実装パターンを網羅的に解説する。
 
+## 前提知識
+
+このガイドを最大限に活用するために、以下の知識を事前に習得しておくことを推奨します。
+
+- **パフォーマンス最適化**: Core Web Vitals、バンドル最適化の基礎 → [[./02-performance-optimization.md]]
+- **ブラウザのPerformance API**: Performance Observer、Navigation Timing API → [[../../browser-and-web-platform/docs/04-storage-and-caching/02-performance-api.md]]
+
 ## この章で学ぶこと
 
 - [ ] Sentryによるエラートラッキングの設定と運用を理解する
@@ -3509,6 +3516,330 @@ Week 4: 応用
   □ 監視カバレッジの拡大
   □ OpenTelemetry への移行検討
 ```
+
+---
+
+## よくある質問（FAQ）
+
+### Q1: Sentry vs Datadogの比較は？どちらを選ぶべきですか？
+
+**比較表:**
+
+| 項目 | Sentry | Datadog |
+|------|--------|---------|
+| **主な用途** | エラートラッキング特化 | 総合APM・インフラ監視 |
+| **価格** | $26/月〜（5k errors） | $15/月〜（APM） + インフラ |
+| **エラー管理** | ◎ 最高レベル | ○ 十分 |
+| **パフォーマンス監視** | △ 基本的なトレーシング | ◎ 詳細なAPM |
+| **インフラ監視** | × なし | ◎ CPU/メモリ/ネットワーク |
+| **Session Replay** | ◎ 高機能 | ○ RUM として提供 |
+| **ログ管理** | × なし（別サービス必要） | ◎ Log Management搭載 |
+| **セットアップ** | 簡単（SDK追加のみ） | やや複雑（Agent必要） |
+| **学習コスト** | 低 | 中〜高 |
+
+**選定基準:**
+
+```
+Sentryを選ぶべきケース:
+  □ エラートラッキングとSession Replayが最優先
+  □ フロントエンド中心のアプリケーション
+  □ 低予算でスタート（無料枠が寛容）
+  □ すぐに導入したい（SDK追加だけ）
+
+  推奨構成:
+  - Sentry（エラー + Session Replay）
+  - Vercel Analytics（Web Vitals）
+  - Axiom/Better Stack（ログ）
+
+Datadogを選ぶべきケース:
+  □ バックエンド含む全体の可観測性が必要
+  □ インフラレベルの監視も一元管理したい
+  □ カスタムメトリクス・ダッシュボードを多用
+  □ エンタープライズレベルのSLA・サポート
+
+  推奨構成:
+  - Datadog（APM + Infrastructure + Logs + RUM）
+  - 全てを一つのプラットフォームで統合
+```
+
+**併用パターン:**
+
+```typescript
+// SentryとDatadogの併用例
+// Sentry: エラートラッキング
+import * as Sentry from '@sentry/nextjs';
+Sentry.init({
+  dsn: process.env.SENTRY_DSN,
+  tracesSampleRate: 0.1,  // パフォーマンストレース10%
+});
+
+// Datadog: APM・メトリクス
+import { datadogRum } from '@datadog/browser-rum';
+datadogRum.init({
+  applicationId: process.env.DD_APP_ID,
+  clientToken: process.env.DD_CLIENT_TOKEN,
+  site: 'datadoghq.com',
+  service: 'my-app',
+  env: process.env.NODE_ENV,
+  trackUserInteractions: true,
+  trackResources: true,
+  trackLongTasks: true,
+});
+
+// 役割分担: Sentryでエラー詳細、Datadogで全体パフォーマンス
+```
+
+### Q2: エラーバウンダリの設計はどうすべきですか？
+
+**階層的なエラーバウンダリ設計:**
+
+```
+app/
+├── global-error.tsx          # 最上位（アプリ全体のクラッシュ）
+├── error.tsx                 # ルート直下（予期しないエラー）
+├── (dashboard)/
+│   ├── error.tsx             # ダッシュボード全体
+│   └── analytics/
+│       └── error.tsx         # 分析画面固有のエラー
+└── (auth)/
+    ├── error.tsx             # 認証関連エラー
+    └── login/
+        └── error.tsx         # ログイン固有のエラー
+```
+
+**実装例（Next.js App Router）:**
+
+```typescript
+// app/error.tsx - 標準的なエラーバウンダリ
+'use client';
+
+import { useEffect } from 'react';
+import * as Sentry from '@sentry/nextjs';
+
+export default function Error({
+  error,
+  reset,
+}: {
+  error: Error & { digest?: string };
+  reset: () => void;
+}) {
+  useEffect(() => {
+    // Sentryにエラーを送信
+    Sentry.captureException(error, {
+      tags: {
+        boundary: 'root-error',
+      },
+      contexts: {
+        react: {
+          componentStack: error.stack,
+        },
+      },
+    });
+  }, [error]);
+
+  return (
+    <div className="error-container">
+      <h2>問題が発生しました</h2>
+      <p>エラーが記録されました。しばらく待ってからもう一度お試しください。</p>
+      <button onClick={reset}>再試行</button>
+      {process.env.NODE_ENV === 'development' && (
+        <details>
+          <summary>エラー詳細（開発環境のみ）</summary>
+          <pre>{error.message}</pre>
+          <pre>{error.stack}</pre>
+        </details>
+      )}
+    </div>
+  );
+}
+```
+
+**コンポーネントレベルのエラーバウンダリ:**
+
+```typescript
+// components/ErrorBoundary.tsx - 再利用可能なエラーバウンダリ
+import { Component, ReactNode } from 'react';
+import * as Sentry from '@sentry/nextjs';
+
+interface Props {
+  children: ReactNode;
+  fallback?: ReactNode;
+  onError?: (error: Error) => void;
+}
+
+interface State {
+  hasError: boolean;
+  error: Error | null;
+}
+
+export class ErrorBoundary extends Component<Props, State> {
+  constructor(props: Props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): State {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    Sentry.captureException(error, {
+      contexts: { react: { componentStack: errorInfo.componentStack } },
+    });
+    this.props.onError?.(error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback || (
+        <div className="error-fallback">
+          <p>このコンポーネントの読み込みに失敗しました。</p>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+// 使い方
+<ErrorBoundary fallback={<ChartErrorFallback />}>
+  <HeavyChart data={data} />
+</ErrorBoundary>
+```
+
+**エラーバウンダリのベストプラクティス:**
+
+```
+1. 粒度を適切に設計する
+   ✓ ページレベル: ページ全体のクラッシュを防ぐ
+   ✓ セクションレベル: 重要でない部分の障害を局所化
+   ✗ 全コンポーネント: 過剰な粒度は管理が複雑
+
+2. ユーザー体験を優先する
+   ✓ わかりやすいエラーメッセージ
+   ✓ 「再試行」ボタンの提供
+   ✓ 代替コンテンツの表示（Graceful Degradation）
+
+3. エラー情報を確実に収集する
+   ✓ Sentryにコンテキスト情報を送信
+   ✓ ユーザーID、ページURL、エラー発生時刻を記録
+   ✓ 本番環境ではスタックトレースを表示しない
+```
+
+### Q3: RUM（Real User Monitoring）とSynthetic Monitoring（合成監視）の使い分けは？
+
+**2つの監視手法の違い:**
+
+| 項目 | RUM（リアルユーザー監視） | Synthetic Monitoring（合成監視） |
+|------|--------------------------|-------------------------------|
+| **データソース** | 実際のユーザーアクセス | 定期的な自動テスト |
+| **メリット** | 実環境の正確なデータ | 障害の早期検知、安定したデータ |
+| **デメリット** | トラフィック依存、バイアスあり | 実ユーザーの体験と乖離の可能性 |
+| **主な用途** | パフォーマンス最適化、A/Bテスト | アラート、SLA監視、リグレッション検知 |
+| **ツール例** | Vercel Analytics, Datadog RUM | Checkly, Pingdom, UptimeRobot |
+
+**RUM（Real User Monitoring）の実装:**
+
+```typescript
+// app/layout.tsx
+import { Analytics } from '@vercel/analytics/react';
+import { SpeedInsights } from '@vercel/speed-insights/next';
+
+export default function RootLayout({ children }) {
+  return (
+    <html>
+      <body>
+        {children}
+        <Analytics />        {/* ページビュー、イベント */}
+        <SpeedInsights />    {/* Core Web Vitals */}
+      </body>
+    </html>
+  );
+}
+
+// カスタムイベントの計測
+import { track } from '@vercel/analytics';
+
+function handleCheckout() {
+  track('checkout', {
+    amount: cart.total,
+    items: cart.items.length
+  });
+  // ...
+}
+```
+
+**Synthetic Monitoringの実装（Checkly）:**
+
+```typescript
+// __checks__/home.check.ts
+import { test, expect } from '@playwright/test';
+
+test('Homepage loads successfully', async ({ page }) => {
+  const response = await page.goto('https://example.com');
+  expect(response?.status()).toBe(200);
+
+  // Core Web Vitalsをチェック
+  const metrics = await page.evaluate(() => {
+    return new Promise((resolve) => {
+      new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) {
+          if (entry.name === 'LCP') {
+            resolve({ lcp: entry.startTime });
+          }
+        }
+      }).observe({ type: 'largest-contentful-paint', buffered: true });
+    });
+  });
+
+  expect(metrics.lcp).toBeLessThan(2500); // LCP < 2.5s
+});
+
+// 重要なユーザーフローの監視
+test('User can complete checkout', async ({ page }) => {
+  await page.goto('https://example.com/products');
+  await page.click('[data-testid="add-to-cart"]');
+  await page.click('[data-testid="checkout-button"]');
+  await expect(page).toHaveURL(/.*checkout/);
+});
+```
+
+**使い分けの指針:**
+
+```
+RUMを優先すべきケース:
+  □ パフォーマンス最適化の効果を検証したい
+  □ 地域別・デバイス別の実データが必要
+  □ A/Bテストの影響を分析したい
+  □ 実際のユーザー体験を把握したい
+
+  実装: Vercel Analytics + web-vitals ライブラリ
+
+Synthetic Monitoringを優先すべきケース:
+  □ サービスの死活監視（Uptime）
+  □ デプロイ後のリグレッション検知
+  □ API・バックエンドの監視
+  □ SLA準拠の証明が必要
+
+  実装: Checkly + Playwright or Pingdom
+
+理想的な構成（両方を組み合わせる）:
+  RUM: ユーザー体験の最適化
+    → Vercel Analytics（Core Web Vitals）
+    → Datadog RUM（詳細分析）
+
+  Synthetic: 障害の早期検知
+    → Checkly（重要なユーザーフロー監視）
+    → Better Uptime（死活監視・ステータスページ）
+```
+
+---
+
+## 次に読むべきガイド
+
+- [[../../api-and-library-guide/docs/]] - APIガイド（バックエンド監視への応用）
+- [[../../05-infrastructure/]] - インフラガイド（サーバーレベルの監視）
 
 ---
 

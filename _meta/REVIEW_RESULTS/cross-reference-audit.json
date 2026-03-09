@@ -1,11 +1,11 @@
 {
   "summary": {
     "totalFiles": 952,
-    "totalLinks": 4313,
-    "brokenLinks": 1831,
-    "filesWithBrokenLinks": 468,
+    "totalLinks": 4429,
+    "brokenLinks": 1832,
+    "filesWithBrokenLinks": 469,
     "orphanFiles": 153,
-    "missingBidirectional": 1216
+    "missingBidirectional": 1257
   },
   "brokenLinks": [
     {
@@ -7836,590 +7836,541 @@
     },
     {
       "file": "04-web-and-network/api-and-library-guide/SKILL.md",
-      "totalLinks": 23,
-      "validLinks": 17,
+      "totalLinks": 22,
+      "validLinks": 21,
       "brokenLinks": [
         {
-          "type": "skill-ref",
-          "text": "network-fundamentals",
-          "href": "[[network-fundamentals]]",
-          "absPath": "network-fundamentals",
-          "line": 13
-        },
-        {
-          "type": "skill-ref",
-          "text": "programming-language-fundamentals",
-          "href": "[[programming-language-fundamentals]]",
-          "absPath": "programming-language-fundamentals",
+          "type": "markdown",
+          "text": "プログラミング言語基礎",
+          "href": "../../02-programming/programming-language-fundamentals/",
+          "absPath": "02-programming/programming-language-fundamentals",
           "line": 14
-        },
-        {
-          "type": "skill-ref",
-          "text": "network-fundamentals",
-          "href": "[[network-fundamentals]]",
-          "absPath": "network-fundamentals",
-          "line": 66
-        },
-        {
-          "type": "skill-ref",
-          "text": "backend-development",
-          "href": "[[backend-development]]",
-          "absPath": "backend-development",
-          "line": 67
-        },
-        {
-          "type": "skill-ref",
-          "text": "testing-strategy",
-          "href": "[[testing-strategy]]",
-          "absPath": "testing-strategy",
-          "line": 68
-        },
-        {
-          "type": "skill-ref",
-          "text": "security-fundamentals",
-          "href": "[[security-fundamentals]]",
-          "absPath": "security-fundamentals",
-          "line": 69
         }
       ],
       "hasBrokenLinks": true
     },
     {
       "file": "04-web-and-network/api-and-library-guide/docs/00-api-design-principles/00-api-first-design.md",
-      "totalLinks": 3,
-      "validLinks": 0,
+      "totalLinks": 5,
+      "validLinks": 3,
       "brokenLinks": [
         {
-          "type": "skill-ref",
-          "text": "01-naming-and-conventions.md",
-          "href": "[[01-naming-and-conventions.md]]",
-          "absPath": "01-naming-and-conventions.md",
-          "line": 3496
+          "type": "markdown",
+          "text": "HTTPの基礎",
+          "href": "../../network-fundamentals/docs/02-http/00-http-basics.md",
+          "absPath": "04-web-and-network/api-and-library-guide/network-fundamentals/docs/02-http/00-http-basics.md",
+          "line": 18
         },
         {
-          "type": "skill-ref",
-          "text": "02-versioning-strategy.md",
-          "href": "[[02-versioning-strategy.md]]",
-          "absPath": "02-versioning-strategy.md",
-          "line": 3497
-        },
-        {
-          "type": "skill-ref",
-          "text": "03-pagination-and-filtering.md",
-          "href": "[[03-pagination-and-filtering.md]]",
-          "absPath": "03-pagination-and-filtering.md",
-          "line": 3498
+          "type": "markdown",
+          "text": "REST API",
+          "href": "../../network-fundamentals/docs/02-http/02-rest-api.md",
+          "absPath": "04-web-and-network/api-and-library-guide/network-fundamentals/docs/02-http/02-rest-api.md",
+          "line": 19
         }
       ],
       "hasBrokenLinks": true
     },
     {
       "file": "04-web-and-network/api-and-library-guide/docs/00-api-design-principles/01-naming-and-conventions.md",
-      "totalLinks": 2,
-      "validLinks": 0,
+      "totalLinks": 5,
+      "validLinks": 3,
       "brokenLinks": [
         {
-          "type": "skill-ref",
-          "text": "02-versioning-strategy.md",
-          "href": "[[02-versioning-strategy.md]]",
-          "absPath": "02-versioning-strategy.md",
-          "line": 2089
+          "type": "markdown",
+          "text": "HTTPの基礎",
+          "href": "../../network-fundamentals/docs/02-http/00-http-basics.md",
+          "absPath": "04-web-and-network/api-and-library-guide/network-fundamentals/docs/02-http/00-http-basics.md",
+          "line": 19
         },
         {
-          "type": "skill-ref",
-          "text": "03-pagination-and-filtering.md",
-          "href": "[[03-pagination-and-filtering.md]]",
-          "absPath": "03-pagination-and-filtering.md",
-          "line": 2090
+          "type": "markdown",
+          "text": "REST API",
+          "href": "../../network-fundamentals/docs/02-http/02-rest-api.md",
+          "absPath": "04-web-and-network/api-and-library-guide/network-fundamentals/docs/02-http/02-rest-api.md",
+          "line": 20
         }
       ],
       "hasBrokenLinks": true
     },
     {
       "file": "04-web-and-network/api-and-library-guide/docs/00-api-design-principles/02-versioning-strategy.md",
-      "totalLinks": 2,
-      "validLinks": 0,
+      "totalLinks": 4,
+      "validLinks": 3,
       "brokenLinks": [
         {
           "type": "markdown",
           "text": "v1→v2 移行ガイド",
           "href": "./migration/v1-to-v2.md",
           "absPath": "04-web-and-network/api-and-library-guide/docs/00-api-design-principles/migration/v1-to-v2.md",
-          "line": 700
-        },
-        {
-          "type": "skill-ref",
-          "text": "03-pagination-and-filtering.md",
-          "href": "[[03-pagination-and-filtering.md]]",
-          "absPath": "03-pagination-and-filtering.md",
-          "line": 2278
+          "line": 706
         }
       ],
       "hasBrokenLinks": true
     },
     {
       "file": "04-web-and-network/api-and-library-guide/docs/00-api-design-principles/03-pagination-and-filtering.md",
-      "totalLinks": 4,
-      "validLinks": 0,
+      "totalLinks": 7,
+      "validLinks": 3,
       "brokenLinks": [
+        {
+          "type": "markdown",
+          "text": "HTTPの基礎",
+          "href": "../../network-fundamentals/docs/02-http/00-http-basics.md",
+          "absPath": "04-web-and-network/api-and-library-guide/network-fundamentals/docs/02-http/00-http-basics.md",
+          "line": 17
+        },
         {
           "type": "markdown",
           "text": "(\\w+)\\",
           "href": "?:\\[(\\w+",
           "absPath": "04-web-and-network/api-and-library-guide/docs/00-api-design-principles/?:\\[(\\w+",
-          "line": 923
+          "line": 929
         },
         {
-          "type": "skill-ref",
-          "text": "00-rest-best-practices.md",
-          "href": "[[00-rest-best-practices.md]]",
-          "absPath": "00-rest-best-practices.md",
-          "line": 2825
+          "type": "markdown",
+          "text": "エラーハンドリング設計",
+          "href": "./02-error-handling.md",
+          "absPath": "04-web-and-network/api-and-library-guide/docs/00-api-design-principles/02-error-handling.md",
+          "line": 2993
         },
         {
-          "type": "skill-ref",
-          "text": "01-error-handling.md",
-          "href": "[[01-error-handling.md]]",
-          "absPath": "01-error-handling.md",
-          "line": 2826
-        },
-        {
-          "type": "skill-ref",
-          "text": "04-versioning.md",
-          "href": "[[04-versioning.md]]",
-          "absPath": "04-versioning.md",
-          "line": 2827
+          "type": "markdown",
+          "text": "API バージョニング戦略",
+          "href": "./04-versioning.md",
+          "absPath": "04-web-and-network/api-and-library-guide/docs/00-api-design-principles/04-versioning.md",
+          "line": 2994
         }
       ],
       "hasBrokenLinks": true
     },
     {
       "file": "04-web-and-network/api-and-library-guide/docs/01-rest-and-graphql/00-rest-best-practices.md",
-      "totalLinks": 3,
-      "validLinks": 0,
+      "totalLinks": 6,
+      "validLinks": 3,
       "brokenLinks": [
         {
-          "type": "skill-ref",
-          "text": "01-graphql-fundamentals.md",
-          "href": "[[01-graphql-fundamentals.md]]",
-          "absPath": "01-graphql-fundamentals.md",
-          "line": 2561
+          "type": "markdown",
+          "text": "HTTPの基礎",
+          "href": "../../network-fundamentals/docs/02-http/00-http-basics.md",
+          "absPath": "04-web-and-network/api-and-library-guide/network-fundamentals/docs/02-http/00-http-basics.md",
+          "line": 18
         },
         {
-          "type": "skill-ref",
-          "text": "02-api-versioning.md",
-          "href": "[[02-api-versioning.md]]",
-          "absPath": "02-api-versioning.md",
-          "line": 2562
+          "type": "markdown",
+          "text": "APIバージョニング戦略",
+          "href": "02-api-versioning.md",
+          "absPath": "04-web-and-network/api-and-library-guide/docs/01-rest-and-graphql/02-api-versioning.md",
+          "line": 2668
         },
         {
-          "type": "skill-ref",
-          "text": "03-authentication.md",
-          "href": "[[03-authentication.md]]",
-          "absPath": "03-authentication.md",
-          "line": 2563
+          "type": "markdown",
+          "text": "API認証・認可",
+          "href": "03-authentication.md",
+          "absPath": "04-web-and-network/api-and-library-guide/docs/01-rest-and-graphql/03-authentication.md",
+          "line": 2669
         }
       ],
       "hasBrokenLinks": true
     },
     {
       "file": "04-web-and-network/api-and-library-guide/docs/01-rest-and-graphql/01-graphql-fundamentals.md",
-      "totalLinks": 1,
-      "validLinks": 0,
+      "totalLinks": 3,
+      "validLinks": 2,
       "brokenLinks": [
         {
-          "type": "skill-ref",
-          "text": "02-graphql-advanced.md",
-          "href": "[[02-graphql-advanced.md]]",
-          "absPath": "02-graphql-advanced.md",
-          "line": 3776
+          "type": "markdown",
+          "text": "HTTPの基礎",
+          "href": "../../network-fundamentals/docs/02-http/00-http-basics.md",
+          "absPath": "04-web-and-network/api-and-library-guide/network-fundamentals/docs/02-http/00-http-basics.md",
+          "line": 17
         }
       ],
       "hasBrokenLinks": true
     },
     {
       "file": "04-web-and-network/api-and-library-guide/docs/01-rest-and-graphql/02-graphql-advanced.md",
-      "totalLinks": 1,
-      "validLinks": 0,
+      "totalLinks": 4,
+      "validLinks": 3,
       "brokenLinks": [
         {
-          "type": "skill-ref",
-          "text": "03-rest-vs-graphql.md",
-          "href": "[[03-rest-vs-graphql.md]]",
-          "absPath": "03-rest-vs-graphql.md",
-          "line": 3652
+          "type": "markdown",
+          "text": "TypeScript Complete Guide",
+          "href": "../../../02-programming/typescript-complete-guide/docs/",
+          "absPath": "04-web-and-network/02-programming/typescript-complete-guide/docs",
+          "line": 21
         }
       ],
       "hasBrokenLinks": true
     },
     {
       "file": "04-web-and-network/api-and-library-guide/docs/01-rest-and-graphql/03-rest-vs-graphql.md",
-      "totalLinks": 3,
-      "validLinks": 0,
+      "totalLinks": 6,
+      "validLinks": 5,
       "brokenLinks": [
         {
-          "type": "skill-ref",
-          "text": "00-sdk-design.md",
-          "href": "[[00-sdk-design.md]]",
-          "absPath": "00-sdk-design.md",
-          "line": 2217
-        },
-        {
-          "type": "skill-ref",
-          "text": "01-rest-api-design.md",
-          "href": "[[01-rest-api-design.md]]",
-          "absPath": "01-rest-api-design.md",
-          "line": 2218
-        },
-        {
-          "type": "skill-ref",
-          "text": "02-graphql-schema.md",
-          "href": "[[02-graphql-schema.md]]",
-          "absPath": "02-graphql-schema.md",
-          "line": 2219
+          "type": "markdown",
+          "text": "SDK設計の基礎",
+          "href": "../02-sdk-and-wrapper/00-sdk-design.md",
+          "absPath": "04-web-and-network/api-and-library-guide/docs/02-sdk-and-wrapper/00-sdk-design.md",
+          "line": 2223
         }
       ],
       "hasBrokenLinks": true
     },
     {
       "file": "04-web-and-network/api-and-library-guide/docs/02-sdk-and-libraries/00-sdk-design.md",
-      "totalLinks": 3,
-      "validLinks": 0,
+      "totalLinks": 5,
+      "validLinks": 2,
       "brokenLinks": [
         {
-          "type": "skill-ref",
-          "text": "01-npm-package-development.md",
-          "href": "[[01-npm-package-development.md]]",
-          "absPath": "01-npm-package-development.md",
-          "line": 2707
+          "type": "markdown",
+          "text": "TypeScript Complete Guide",
+          "href": "../../../02-programming/typescript-complete-guide/docs/",
+          "absPath": "04-web-and-network/02-programming/typescript-complete-guide/docs",
+          "line": 17
         },
         {
-          "type": "skill-ref",
-          "text": "02-api-client-patterns.md",
-          "href": "[[02-api-client-patterns.md]]",
-          "absPath": "02-api-client-patterns.md",
-          "line": 2708
+          "type": "markdown",
+          "text": "APIクライアントパターン",
+          "href": "02-api-client-patterns.md",
+          "absPath": "04-web-and-network/api-and-library-guide/docs/02-sdk-and-libraries/02-api-client-patterns.md",
+          "line": 2722
         },
         {
-          "type": "skill-ref",
-          "text": "03-sdk-testing-strategies.md",
-          "href": "[[03-sdk-testing-strategies.md]]",
-          "absPath": "03-sdk-testing-strategies.md",
-          "line": 2709
+          "type": "markdown",
+          "text": "SDKテスト戦略",
+          "href": "03-sdk-testing-strategies.md",
+          "absPath": "04-web-and-network/api-and-library-guide/docs/02-sdk-and-libraries/03-sdk-testing-strategies.md",
+          "line": 2723
         }
       ],
       "hasBrokenLinks": true
     },
     {
       "file": "04-web-and-network/api-and-library-guide/docs/02-sdk-and-libraries/01-npm-package-development.md",
-      "totalLinks": 2,
-      "validLinks": 0,
+      "totalLinks": 4,
+      "validLinks": 2,
       "brokenLinks": [
+        {
+          "type": "markdown",
+          "text": "TypeScript Complete Guide",
+          "href": "../../../02-programming/typescript-complete-guide/docs/",
+          "absPath": "04-web-and-network/02-programming/typescript-complete-guide/docs",
+          "line": 21
+        },
         {
           "type": "skill-ref",
           "text": "1, 2",
           "href": "[[1, 2]]",
           "absPath": "1, 2",
-          "line": 2069
-        },
-        {
-          "type": "skill-ref",
-          "text": "02-api-documentation.md",
-          "href": "[[02-api-documentation.md]]",
-          "absPath": "02-api-documentation.md",
-          "line": 2675
+          "line": 2077
         }
       ],
       "hasBrokenLinks": true
     },
     {
       "file": "04-web-and-network/api-and-library-guide/docs/02-sdk-and-libraries/02-api-documentation.md",
-      "totalLinks": 4,
-      "validLinks": 0,
+      "totalLinks": 6,
+      "validLinks": 2,
       "brokenLinks": [
         {
           "type": "markdown",
           "text": "認証ガイド",
           "href": "/guides/authentication",
           "absPath": "../../../../guides/authentication",
-          "line": 1170
+          "line": 1179
         },
         {
           "type": "markdown",
           "text": "ページネーション",
           "href": "/guides/pagination",
           "absPath": "../../../../guides/pagination",
-          "line": 1171
+          "line": 1180
         },
         {
           "type": "markdown",
           "text": "Webhook",
           "href": "/guides/webhooks",
           "absPath": "../../../../guides/webhooks",
-          "line": 1172
+          "line": 1181
         },
         {
           "type": "markdown",
           "text": "API リファレンス",
           "href": "/reference",
           "absPath": "../../../../reference",
-          "line": 1173
+          "line": 1182
         }
       ],
       "hasBrokenLinks": true
     },
     {
       "file": "04-web-and-network/api-and-library-guide/docs/03-api-security/00-authentication-patterns.md",
-      "totalLinks": 1,
-      "validLinks": 0,
+      "totalLinks": 4,
+      "validLinks": 2,
       "brokenLinks": [
         {
-          "type": "skill-ref",
-          "text": "01-rate-limiting.md",
-          "href": "[[01-rate-limiting.md]]",
-          "absPath": "01-rate-limiting.md",
-          "line": 2273
+          "type": "markdown",
+          "text": "HTTPの基礎",
+          "href": "../../network-fundamentals/docs/02-http/00-http-basics.md",
+          "absPath": "04-web-and-network/api-and-library-guide/network-fundamentals/docs/02-http/00-http-basics.md",
+          "line": 18
+        },
+        {
+          "type": "markdown",
+          "text": "セキュリティ基礎",
+          "href": "../../06-data-and-security/security-fundamentals/docs/",
+          "absPath": "04-web-and-network/api-and-library-guide/06-data-and-security/security-fundamentals/docs",
+          "line": 20
         }
       ],
       "hasBrokenLinks": true
     },
     {
       "file": "04-web-and-network/api-and-library-guide/docs/03-api-security/01-rate-limiting.md",
-      "totalLinks": 1,
-      "validLinks": 0,
+      "totalLinks": 3,
+      "validLinks": 2,
       "brokenLinks": [
         {
-          "type": "skill-ref",
-          "text": "02-input-validation.md",
-          "href": "[[02-input-validation.md]]",
-          "absPath": "02-input-validation.md",
-          "line": 2941
+          "type": "markdown",
+          "text": "HTTPの基礎",
+          "href": "../../04-web-and-network/network-fundamentals/docs/02-http/00-http-basics.md",
+          "absPath": "04-web-and-network/api-and-library-guide/04-web-and-network/network-fundamentals/docs/02-http/00-http-basics.md",
+          "line": 19
         }
       ],
       "hasBrokenLinks": true
     },
     {
       "file": "04-web-and-network/api-and-library-guide/docs/03-api-security/02-input-validation.md",
-      "totalLinks": 3,
-      "validLinks": 0,
+      "totalLinks": 6,
+      "validLinks": 4,
       "brokenLinks": [
         {
-          "type": "skill-ref",
-          "text": "00-api-testing.md",
-          "href": "[[00-api-testing.md]]",
-          "absPath": "00-api-testing.md",
-          "line": 2541
+          "type": "markdown",
+          "text": "セキュリティ基礎",
+          "href": "../../06-data-and-security/security-fundamentals/docs/",
+          "absPath": "04-web-and-network/api-and-library-guide/06-data-and-security/security-fundamentals/docs",
+          "line": 20
         },
         {
-          "type": "skill-ref",
-          "text": "01-authentication.md",
-          "href": "[[01-authentication.md]]",
-          "absPath": "01-authentication.md",
-          "line": 2542
-        },
-        {
-          "type": "skill-ref",
-          "text": "03-rate-limiting.md",
-          "href": "[[03-rate-limiting.md]]",
-          "absPath": "03-rate-limiting.md",
-          "line": 2543
+          "type": "markdown",
+          "text": "APIテスト",
+          "href": "../../02-api-basics/00-api-testing.md",
+          "absPath": "04-web-and-network/api-and-library-guide/02-api-basics/00-api-testing.md",
+          "line": 2549
         }
       ],
       "hasBrokenLinks": true
     },
     {
       "file": "04-web-and-network/api-and-library-guide/docs/04-api-operations/00-api-testing.md",
-      "totalLinks": 2,
-      "validLinks": 0,
+      "totalLinks": 5,
+      "validLinks": 3,
       "brokenLinks": [
         {
           "type": "markdown",
           "text": "method",
           "href": "path",
           "absPath": "04-web-and-network/api-and-library-guide/docs/04-api-operations/path",
-          "line": 1753
+          "line": 1763
         },
         {
-          "type": "skill-ref",
-          "text": "01-monitoring-and-logging.md",
-          "href": "[[01-monitoring-and-logging.md]]",
-          "absPath": "01-monitoring-and-logging.md",
-          "line": 2682
+          "type": "markdown",
+          "text": "認証と認可",
+          "href": "../02-authentication-and-authorization/00-oauth2-openid.md",
+          "absPath": "04-web-and-network/api-and-library-guide/docs/02-authentication-and-authorization/00-oauth2-openid.md",
+          "line": 2857
         }
       ],
       "hasBrokenLinks": true
     },
     {
       "file": "04-web-and-network/api-and-library-guide/docs/04-api-operations/01-monitoring-and-logging.md",
-      "totalLinks": 2,
-      "validLinks": 0,
+      "totalLinks": 4,
+      "validLinks": 3,
       "brokenLinks": [
         {
-          "type": "skill-ref",
-          "text": "02-api-gateway.md",
-          "href": "[[02-api-gateway.md]]",
-          "absPath": "02-api-gateway.md",
-          "line": 2378
-        },
-        {
-          "type": "skill-ref",
-          "text": "03-rate-limiting.md",
-          "href": "[[03-rate-limiting.md]]",
-          "absPath": "03-rate-limiting.md",
-          "line": 2379
+          "type": "markdown",
+          "text": "HTTPの基礎",
+          "href": "../../network-fundamentals/docs/02-http/00-http-basics.md",
+          "absPath": "04-web-and-network/api-and-library-guide/network-fundamentals/docs/02-http/00-http-basics.md",
+          "line": 19
         }
       ],
       "hasBrokenLinks": true
     },
     {
-      "file": "04-web-and-network/browser-and-web-platform/SKILL.md",
-      "totalLinks": 23,
-      "validLinks": 18,
+      "file": "04-web-and-network/browser-and-web-platform/docs/00-browser-engine/00-browser-architecture.md",
+      "totalLinks": 5,
+      "validLinks": 1,
       "brokenLinks": [
         {
-          "type": "skill-ref",
-          "text": "network-fundamentals",
-          "href": "[[network-fundamentals]]",
-          "absPath": "network-fundamentals",
-          "line": 14
+          "type": "markdown",
+          "text": "HTTPの基礎",
+          "href": "../../network-fundamentals/docs/02-http/00-http-basics.md",
+          "absPath": "04-web-and-network/browser-and-web-platform/network-fundamentals/docs/02-http/00-http-basics.md",
+          "line": 18
         },
         {
-          "type": "skill-ref",
-          "text": "network-fundamentals",
-          "href": "[[network-fundamentals]]",
-          "absPath": "network-fundamentals",
-          "line": 66
+          "type": "markdown",
+          "text": "OS基礎",
+          "href": "../../../01-cs-fundamentals/operating-system-guide/docs/",
+          "absPath": "04-web-and-network/01-cs-fundamentals/operating-system-guide/docs",
+          "line": 20
         },
         {
-          "type": "skill-ref",
-          "text": "frontend-performance",
-          "href": "[[frontend-performance]]",
-          "absPath": "frontend-performance",
-          "line": 67
+          "type": "markdown",
+          "text": "レンダリングエンジン詳説",
+          "href": "./02-rendering-engine.md",
+          "absPath": "04-web-and-network/browser-and-web-platform/docs/00-browser-engine/02-rendering-engine.md",
+          "line": 1743
         },
         {
-          "type": "skill-ref",
-          "text": "web-development",
-          "href": "[[web-development]]",
-          "absPath": "web-development",
-          "line": 68
-        },
-        {
-          "type": "skill-ref",
-          "text": "react-development",
-          "href": "[[react-development]]",
-          "absPath": "react-development",
-          "line": 69
+          "type": "markdown",
+          "text": "JavaScriptエンジン",
+          "href": "./03-javascript-engine.md",
+          "absPath": "04-web-and-network/browser-and-web-platform/docs/00-browser-engine/03-javascript-engine.md",
+          "line": 1744
         }
       ],
       "hasBrokenLinks": true
     },
     {
       "file": "04-web-and-network/browser-and-web-platform/docs/00-browser-engine/01-navigation-and-loading.md",
-      "totalLinks": 1,
-      "validLinks": 0,
+      "totalLinks": 4,
+      "validLinks": 2,
       "brokenLinks": [
         {
-          "type": "skill-ref",
-          "text": "02-parsing-html-css.md",
-          "href": "[[02-parsing-html-css.md]]",
-          "absPath": "02-parsing-html-css.md",
-          "line": 2709
-        }
-      ],
-      "hasBrokenLinks": true
-    },
-    {
-      "file": "04-web-and-network/browser-and-web-platform/docs/00-browser-engine/02-parsing-html-css.md",
-      "totalLinks": 1,
-      "validLinks": 0,
-      "brokenLinks": [
+          "type": "markdown",
+          "text": "DNS",
+          "href": "../../network-fundamentals/docs/00-introduction/03-dns.md",
+          "absPath": "04-web-and-network/browser-and-web-platform/network-fundamentals/docs/00-introduction/03-dns.md",
+          "line": 21
+        },
         {
-          "type": "skill-ref",
-          "text": "03-browser-security-model.md",
-          "href": "[[03-browser-security-model.md]]",
-          "absPath": "03-browser-security-model.md",
-          "line": 2257
+          "type": "markdown",
+          "text": "TCP",
+          "href": "../../network-fundamentals/docs/01-protocols/00-tcp.md",
+          "absPath": "04-web-and-network/browser-and-web-platform/network-fundamentals/docs/01-protocols/00-tcp.md",
+          "line": 22
         }
       ],
       "hasBrokenLinks": true
     },
     {
       "file": "04-web-and-network/browser-and-web-platform/docs/00-browser-engine/03-browser-security-model.md",
-      "totalLinks": 3,
-      "validLinks": 0,
+      "totalLinks": 6,
+      "validLinks": 3,
       "brokenLinks": [
         {
-          "type": "skill-ref",
-          "text": "../01-rendering/00-rendering-pipeline.md",
-          "href": "[[../01-rendering/00-rendering-pipeline.md]]",
-          "absPath": "../01-rendering/00-rendering-pipeline.md",
-          "line": 1743
+          "type": "markdown",
+          "text": "セキュリティ基礎",
+          "href": "../../../06-data-and-security/security-fundamentals/docs/",
+          "absPath": "04-web-and-network/06-data-and-security/security-fundamentals/docs",
+          "line": 19
         },
         {
-          "type": "skill-ref",
-          "text": "./04-browser-storage.md",
-          "href": "[[./04-browser-storage.md]]",
-          "absPath": "04-browser-storage.md",
-          "line": 1744
+          "type": "markdown",
+          "text": "ブラウザストレージ（Cookie, localStorage, IndexedDB の詳細）",
+          "href": "./04-browser-storage.md",
+          "absPath": "04-web-and-network/browser-and-web-platform/docs/00-browser-engine/04-browser-storage.md",
+          "line": 1824
         },
         {
-          "type": "skill-ref",
-          "text": "../../01-web-api/02-fetch-api.md",
-          "href": "[[../../01-web-api/02-fetch-api.md]]",
-          "absPath": "../../01-web-api/02-fetch-api.md",
-          "line": 1745
+          "type": "markdown",
+          "text": "Fetch API と CORS の実践",
+          "href": "../../01-web-api/02-fetch-api.md",
+          "absPath": "04-web-and-network/browser-and-web-platform/01-web-api/02-fetch-api.md",
+          "line": 1825
         }
       ],
       "hasBrokenLinks": true
     },
     {
       "file": "04-web-and-network/browser-and-web-platform/docs/01-rendering/01-css-layout-engine.md",
-      "totalLinks": 2,
-      "validLinks": 0,
+      "totalLinks": 4,
+      "validLinks": 3,
       "brokenLinks": [
         {
-          "type": "skill-ref",
-          "text": "02-paint-and-compositing.md",
-          "href": "[[02-paint-and-compositing.md]]",
-          "absPath": "02-paint-and-compositing.md",
-          "line": 2200
-        },
-        {
-          "type": "skill-ref",
-          "text": "03-css-animations-and-transitions.md",
-          "href": "[[03-css-animations-and-transitions.md]]",
-          "absPath": "03-css-animations-and-transitions.md",
-          "line": 2201
+          "type": "markdown",
+          "text": "CSS Animations と Transitions",
+          "href": "./03-css-animations-and-transitions.md",
+          "absPath": "04-web-and-network/browser-and-web-platform/docs/01-rendering/03-css-animations-and-transitions.md",
+          "line": 2395
         }
       ],
       "hasBrokenLinks": true
     },
     {
       "file": "04-web-and-network/browser-and-web-platform/docs/01-rendering/03-animation-performance.md",
-      "totalLinks": 3,
-      "validLinks": 0,
+      "totalLinks": 4,
+      "validLinks": 2,
       "brokenLinks": [
         {
-          "type": "skill-ref",
-          "text": "../02-javascript-runtime/00-v8-engine.md",
-          "href": "[[../02-javascript-runtime/00-v8-engine.md]]",
-          "absPath": "../02-javascript-runtime/00-v8-engine.md",
-          "line": 2650
+          "type": "markdown",
+          "text": "合成レイヤーとGPU加速",
+          "href": "./04-compositing-layers.md",
+          "absPath": "04-web-and-network/browser-and-web-platform/docs/01-rendering/04-compositing-layers.md",
+          "line": 2947
         },
         {
-          "type": "skill-ref",
-          "text": "./04-compositing-layers.md",
-          "href": "[[./04-compositing-layers.md]]",
-          "absPath": "04-compositing-layers.md",
-          "line": 2651
+          "type": "markdown",
+          "text": "レイアウトとリフローの最適化",
+          "href": "./02-layout-reflow.md",
+          "absPath": "04-web-and-network/browser-and-web-platform/docs/01-rendering/02-layout-reflow.md",
+          "line": 2948
+        }
+      ],
+      "hasBrokenLinks": true
+    },
+    {
+      "file": "04-web-and-network/browser-and-web-platform/docs/02-javascript-runtime/00-v8-engine.md",
+      "totalLinks": 9,
+      "validLinks": 3,
+      "brokenLinks": [
+        {
+          "type": "markdown",
+          "text": "CS基礎 - コンパイラ原理",
+          "href": "../../../01-cs-fundamentals/computer-science-fundamentals/docs/",
+          "absPath": "04-web-and-network/01-cs-fundamentals/computer-science-fundamentals/docs",
+          "line": 11
         },
         {
-          "type": "skill-ref",
-          "text": "./02-layout-reflow.md",
-          "href": "[[./02-layout-reflow.md]]",
-          "absPath": "02-layout-reflow.md",
-          "line": 2652
+          "type": "markdown",
+          "text": "イベントループ（Node.js）",
+          "href": "./02-event-loop-nodejs.md",
+          "absPath": "04-web-and-network/browser-and-web-platform/docs/02-javascript-runtime/02-event-loop-nodejs.md",
+          "line": 2153
+        },
+        {
+          "type": "markdown",
+          "text": "WebWorker",
+          "href": "./03-web-worker.md",
+          "absPath": "04-web-and-network/browser-and-web-platform/docs/02-javascript-runtime/03-web-worker.md",
+          "line": 2158
+        },
+        {
+          "type": "markdown",
+          "text": "メモリ管理とパフォーマンス",
+          "href": "./04-memory-performance.md",
+          "absPath": "04-web-and-network/browser-and-web-platform/docs/02-javascript-runtime/04-memory-performance.md",
+          "line": 2163
+        },
+        {
+          "type": "markdown",
+          "text": "JavaScriptコア仕様",
+          "href": "../../01-ecmascript-core/",
+          "absPath": "04-web-and-network/browser-and-web-platform/01-ecmascript-core",
+          "line": 2171
+        },
+        {
+          "type": "markdown",
+          "text": "TypeScript型システム",
+          "href": "../../../02-programming/typescript/",
+          "absPath": "04-web-and-network/02-programming/typescript",
+          "line": 2172
         }
       ],
       "hasBrokenLinks": true
@@ -8427,195 +8378,146 @@
     {
       "file": "04-web-and-network/browser-and-web-platform/docs/02-javascript-runtime/01-event-loop-browser.md",
       "totalLinks": 3,
-      "validLinks": 0,
+      "validLinks": 1,
       "brokenLinks": [
         {
-          "type": "skill-ref",
-          "text": "02-web-workers.md",
-          "href": "[[02-web-workers.md]]",
-          "absPath": "02-web-workers.md",
-          "line": 1833
+          "type": "markdown",
+          "text": "Service Worker のライフサイクルとイベントループ",
+          "href": "03-service-workers.md",
+          "absPath": "04-web-and-network/browser-and-web-platform/docs/02-javascript-runtime/03-service-workers.md",
+          "line": 1949
         },
         {
-          "type": "skill-ref",
-          "text": "03-service-workers.md",
-          "href": "[[03-service-workers.md]]",
-          "absPath": "03-service-workers.md",
-          "line": 1834
+          "type": "markdown",
+          "text": "ブラウザのレンダリングパイプライン詳細",
+          "href": "04-rendering-pipeline.md",
+          "absPath": "04-web-and-network/browser-and-web-platform/docs/02-javascript-runtime/04-rendering-pipeline.md",
+          "line": 1950
+        }
+      ],
+      "hasBrokenLinks": true
+    },
+    {
+      "file": "04-web-and-network/browser-and-web-platform/docs/02-javascript-runtime/02-web-workers.md",
+      "totalLinks": 5,
+      "validLinks": 3,
+      "brokenLinks": [
+        {
+          "type": "markdown",
+          "text": "非同期処理パターン",
+          "href": "./04-async-patterns.md",
+          "absPath": "04-web-and-network/browser-and-web-platform/docs/02-javascript-runtime/04-async-patterns.md",
+          "line": 2116
         },
         {
-          "type": "skill-ref",
-          "text": "04-rendering-pipeline.md",
-          "href": "[[04-rendering-pipeline.md]]",
-          "absPath": "04-rendering-pipeline.md",
-          "line": 1835
+          "type": "markdown",
+          "text": "パフォーマンス最適化",
+          "href": "../05-performance/01-rendering-optimization.md",
+          "absPath": "04-web-and-network/browser-and-web-platform/docs/05-performance/01-rendering-optimization.md",
+          "line": 2119
         }
       ],
       "hasBrokenLinks": true
     },
     {
       "file": "04-web-and-network/browser-and-web-platform/docs/02-javascript-runtime/03-memory-management.md",
-      "totalLinks": 3,
-      "validLinks": 0,
+      "totalLinks": 5,
+      "validLinks": 3,
       "brokenLinks": [
         {
-          "type": "skill-ref",
-          "text": "../03-web-apis/00-dom-api.md",
-          "href": "[[../03-web-apis/00-dom-api.md]]",
-          "absPath": "../03-web-apis/00-dom-api.md",
-          "line": 2174
+          "type": "markdown",
+          "text": "イベントモデル",
+          "href": "../03-web-apis/01-events.md",
+          "absPath": "04-web-and-network/browser-and-web-platform/docs/03-web-apis/01-events.md",
+          "line": 2586
         },
         {
-          "type": "skill-ref",
-          "text": "../03-web-apis/01-events.md",
-          "href": "[[../03-web-apis/01-events.md]]",
-          "absPath": "../03-web-apis/01-events.md",
-          "line": 2175
-        },
-        {
-          "type": "skill-ref",
-          "text": "./02-event-loop.md",
-          "href": "[[./02-event-loop.md]]",
-          "absPath": "02-event-loop.md",
-          "line": 2176
-        }
-      ],
-      "hasBrokenLinks": true
-    },
-    {
-      "file": "04-web-and-network/browser-and-web-platform/docs/03-web-apis/00-dom-api.md",
-      "totalLinks": 3,
-      "validLinks": 0,
-      "brokenLinks": [
-        {
-          "type": "skill-ref",
-          "text": "01-fetch-and-streams.md",
-          "href": "[[01-fetch-and-streams.md]]",
-          "absPath": "01-fetch-and-streams.md",
-          "line": 2254
-        },
-        {
-          "type": "skill-ref",
-          "text": "02-web-storage.md",
-          "href": "[[02-web-storage.md]]",
-          "absPath": "02-web-storage.md",
-          "line": 2255
-        },
-        {
-          "type": "skill-ref",
-          "text": "03-web-workers.md",
-          "href": "[[03-web-workers.md]]",
-          "absPath": "03-web-workers.md",
-          "line": 2256
+          "type": "markdown",
+          "text": "イベントループ",
+          "href": "./02-event-loop.md",
+          "absPath": "04-web-and-network/browser-and-web-platform/docs/02-javascript-runtime/02-event-loop.md",
+          "line": 2587
         }
       ],
       "hasBrokenLinks": true
     },
     {
       "file": "04-web-and-network/browser-and-web-platform/docs/03-web-apis/01-fetch-and-streams.md",
-      "totalLinks": 3,
-      "validLinks": 0,
+      "totalLinks": 5,
+      "validLinks": 4,
       "brokenLinks": [
         {
-          "type": "skill-ref",
-          "text": "02-intersection-resize-observer.md",
-          "href": "[[02-intersection-resize-observer.md]]",
-          "absPath": "02-intersection-resize-observer.md",
-          "line": 3175
-        },
-        {
-          "type": "skill-ref",
-          "text": "../04-storage-and-caching/00-web-storage.md",
-          "href": "[[../04-storage-and-caching/00-web-storage.md]]",
-          "absPath": "../04-storage-and-caching/00-web-storage.md",
-          "line": 3176
-        },
-        {
-          "type": "skill-ref",
-          "text": "../04-storage-and-caching/01-service-worker-cache.md",
-          "href": "[[../04-storage-and-caching/01-service-worker-cache.md]]",
-          "absPath": "../04-storage-and-caching/01-service-worker-cache.md",
-          "line": 3177
+          "type": "markdown",
+          "text": "../../network-fundamentals/docs/02-http/00-http-ba",
+          "href": "../../network-fundamentals/docs/02-http/00-http-basics.md",
+          "absPath": "04-web-and-network/browser-and-web-platform/network-fundamentals/docs/02-http/00-http-basics.md",
+          "line": 19
         }
       ],
       "hasBrokenLinks": true
     },
     {
       "file": "04-web-and-network/browser-and-web-platform/docs/03-web-apis/02-intersection-resize-observer.md",
-      "totalLinks": 3,
-      "validLinks": 0,
+      "totalLinks": 5,
+      "validLinks": 2,
       "brokenLinks": [
         {
           "type": "skill-ref",
           "text": "../04-storage-and-caching/00-web-storage.md",
           "href": "[[../04-storage-and-caching/00-web-storage.md]]",
           "absPath": "../04-storage-and-caching/00-web-storage.md",
-          "line": 2167
+          "line": 2274
         },
         {
           "type": "skill-ref",
           "text": "../04-storage-and-caching/02-performance-api.md",
           "href": "[[../04-storage-and-caching/02-performance-api.md]]",
           "absPath": "../04-storage-and-caching/02-performance-api.md",
-          "line": 2168
+          "line": 2275
         },
         {
           "type": "skill-ref",
           "text": "01-fetch-and-streams.md",
           "href": "[[01-fetch-and-streams.md]]",
           "absPath": "01-fetch-and-streams.md",
-          "line": 2169
+          "line": 2276
         }
       ],
       "hasBrokenLinks": true
     },
     {
       "file": "04-web-and-network/browser-and-web-platform/docs/04-storage-and-caching/00-web-storage.md",
-      "totalLinks": 1,
-      "validLinks": 0,
+      "totalLinks": 2,
+      "validLinks": 1,
       "brokenLinks": [
         {
           "type": "skill-ref",
           "text": "01-service-worker-cache.md",
           "href": "[[01-service-worker-cache.md]]",
           "absPath": "01-service-worker-cache.md",
-          "line": 2508
+          "line": 2520
         }
       ],
       "hasBrokenLinks": true
     },
     {
-      "file": "04-web-and-network/network-fundamentals/SKILL.md",
-      "totalLinks": 24,
-      "validLinks": 20,
+      "file": "04-web-and-network/browser-and-web-platform/docs/04-storage-and-caching/02-performance-api.md",
+      "totalLinks": 4,
+      "validLinks": 2,
       "brokenLinks": [
         {
-          "type": "skill-ref",
-          "text": "computer-science-fundamentals",
-          "href": "[[computer-science-fundamentals]]",
-          "absPath": "computer-science-fundamentals",
-          "line": 14
+          "type": "markdown",
+          "text": "ネットワーク基礎",
+          "href": "../../network-fundamentals/docs/",
+          "absPath": "04-web-and-network/browser-and-web-platform/network-fundamentals/docs",
+          "line": 2867
         },
         {
-          "type": "skill-ref",
-          "text": "computer-science-fundamentals",
-          "href": "[[computer-science-fundamentals]]",
-          "absPath": "computer-science-fundamentals",
-          "line": 69
-        },
-        {
-          "type": "skill-ref",
-          "text": "browser-and-web-platform",
-          "href": "[[browser-and-web-platform]]",
-          "absPath": "browser-and-web-platform",
-          "line": 70
-        },
-        {
-          "type": "skill-ref",
-          "text": "security-fundamentals",
-          "href": "[[security-fundamentals]]",
-          "absPath": "security-fundamentals",
-          "line": 71
+          "type": "markdown",
+          "text": "Web アプリケーション開発",
+          "href": "../../web-application-development/docs/",
+          "absPath": "04-web-and-network/browser-and-web-platform/web-application-development/docs",
+          "line": 2870
         }
       ],
       "hasBrokenLinks": true
@@ -8630,28 +8532,28 @@
           "text": "01-osi-and-tcpip-model.md",
           "href": "[[01-osi-and-tcpip-model.md]]",
           "absPath": "01-osi-and-tcpip-model.md",
-          "line": 1820
+          "line": 1818
         },
         {
           "type": "skill-ref",
           "text": "02-ip-addressing.md",
           "href": "[[02-ip-addressing.md]]",
           "absPath": "02-ip-addressing.md",
-          "line": 1821
+          "line": 1819
         },
         {
           "type": "skill-ref",
           "text": "03-tcp-udp.md",
           "href": "[[03-tcp-udp.md]]",
           "absPath": "03-tcp-udp.md",
-          "line": 1822
+          "line": 1820
         },
         {
           "type": "skill-ref",
           "text": "04-dns-deep-dive.md",
           "href": "[[04-dns-deep-dive.md]]",
           "absPath": "04-dns-deep-dive.md",
-          "line": 1823
+          "line": 1821
         }
       ],
       "hasBrokenLinks": true
@@ -8666,7 +8568,7 @@
           "text": "02-ip-addressing.md",
           "href": "[[02-ip-addressing.md]]",
           "absPath": "02-ip-addressing.md",
-          "line": 1668
+          "line": 1793
         }
       ],
       "hasBrokenLinks": true
@@ -8681,51 +8583,107 @@
           "text": "03-dns.md",
           "href": "[[03-dns.md]]",
           "absPath": "03-dns.md",
-          "line": 1266
+          "line": 1451
         }
       ],
       "hasBrokenLinks": true
     },
     {
-      "file": "04-web-and-network/network-fundamentals/docs/00-introduction/03-dns.md",
-      "totalLinks": 3,
+      "file": "04-web-and-network/network-fundamentals/docs/01-protocols/00-tcp.md",
+      "totalLinks": 8,
       "validLinks": 0,
       "brokenLinks": [
         {
           "type": "skill-ref",
-          "text": "01-protocols/00-tcp.md",
-          "href": "[[01-protocols/00-tcp.md]]",
-          "absPath": "01-protocols/00-tcp.md",
-          "line": 1680
+          "text": "../00-introduction/01-osi-and-tcpip-model.md",
+          "href": "[[../00-introduction/01-osi-and-tcpip-model.md]]",
+          "absPath": "../00-introduction/01-osi-and-tcpip-model.md",
+          "line": 10
         },
         {
           "type": "skill-ref",
-          "text": "01-protocols/01-tls.md",
-          "href": "[[01-protocols/01-tls.md]]",
-          "absPath": "01-protocols/01-tls.md",
-          "line": 1681
+          "text": "../00-introduction/02-ip-addressing.md",
+          "href": "[[../00-introduction/02-ip-addressing.md]]",
+          "absPath": "../00-introduction/02-ip-addressing.md",
+          "line": 11
         },
         {
           "type": "skill-ref",
-          "text": "01-protocols/02-http.md",
-          "href": "[[01-protocols/02-http.md]]",
-          "absPath": "01-protocols/02-http.md",
-          "line": 1682
+          "text": "./01-udp.md",
+          "href": "[[./01-udp.md]]",
+          "absPath": "01-udp.md",
+          "line": 1635
+        },
+        {
+          "type": "skill-ref",
+          "text": "../02-http/00-http-basics.md",
+          "href": "[[../02-http/00-http-basics.md]]",
+          "absPath": "../02-http/00-http-basics.md",
+          "line": 1636
+        },
+        {
+          "type": "skill-ref",
+          "text": "../02-http/01-http2-and-http3.md",
+          "href": "[[../02-http/01-http2-and-http3.md]]",
+          "absPath": "../02-http/01-http2-and-http3.md",
+          "line": 1637
+        },
+        {
+          "type": "skill-ref",
+          "text": "../03-tools/00-tcpdump.md",
+          "href": "[[../03-tools/00-tcpdump.md]]",
+          "absPath": "../03-tools/00-tcpdump.md",
+          "line": 1640
+        },
+        {
+          "type": "skill-ref",
+          "text": "../03-tools/01-wireshark.md",
+          "href": "[[../03-tools/01-wireshark.md]]",
+          "absPath": "../03-tools/01-wireshark.md",
+          "line": 1641
+        },
+        {
+          "type": "skill-ref",
+          "text": "../04-security/00-tls.md",
+          "href": "[[../04-security/00-tls.md]]",
+          "absPath": "../04-security/00-tls.md",
+          "line": 1642
         }
       ],
       "hasBrokenLinks": true
     },
     {
       "file": "04-web-and-network/network-fundamentals/docs/01-protocols/01-udp.md",
-      "totalLinks": 1,
+      "totalLinks": 4,
       "validLinks": 0,
       "brokenLinks": [
+        {
+          "type": "skill-ref",
+          "text": "./00-tcp.md",
+          "href": "[[./00-tcp.md]]",
+          "absPath": "00-tcp.md",
+          "line": 10
+        },
+        {
+          "type": "skill-ref",
+          "text": "../00-introduction/01-osi-and-tcpip-model.md",
+          "href": "[[../00-introduction/01-osi-and-tcpip-model.md]]",
+          "absPath": "../00-introduction/01-osi-and-tcpip-model.md",
+          "line": 11
+        },
+        {
+          "type": "skill-ref",
+          "text": "../00-introduction/02-ip-addressing.md",
+          "href": "[[../00-introduction/02-ip-addressing.md]]",
+          "absPath": "../00-introduction/02-ip-addressing.md",
+          "line": 14
+        },
         {
           "type": "skill-ref",
           "text": "02-websocket.md",
           "href": "[[02-websocket.md]]",
           "absPath": "02-websocket.md",
-          "line": 1957
+          "line": 2118
         }
       ],
       "hasBrokenLinks": true
@@ -8769,82 +8727,174 @@
     },
     {
       "file": "04-web-and-network/network-fundamentals/docs/02-http/00-http-basics.md",
-      "totalLinks": 1,
+      "totalLinks": 3,
       "validLinks": 0,
       "brokenLinks": [
+        {
+          "type": "skill-ref",
+          "text": "../01-protocols/00-tcp.md",
+          "href": "[[../01-protocols/00-tcp.md]]",
+          "absPath": "../01-protocols/00-tcp.md",
+          "line": 7
+        },
+        {
+          "type": "skill-ref",
+          "text": "../00-introduction/03-dns.md",
+          "href": "[[../00-introduction/03-dns.md]]",
+          "absPath": "../00-introduction/03-dns.md",
+          "line": 8
+        },
         {
           "type": "skill-ref",
           "text": "01-http2-and-http3.md",
           "href": "[[01-http2-and-http3.md]]",
           "absPath": "01-http2-and-http3.md",
-          "line": 1560
+          "line": 1695
         }
       ],
       "hasBrokenLinks": true
     },
     {
       "file": "04-web-and-network/network-fundamentals/docs/02-http/01-http2-and-http3.md",
-      "totalLinks": 1,
+      "totalLinks": 4,
       "validLinks": 0,
       "brokenLinks": [
+        {
+          "type": "skill-ref",
+          "text": "./00-http-basics.md",
+          "href": "[[./00-http-basics.md]]",
+          "absPath": "00-http-basics.md",
+          "line": 7
+        },
+        {
+          "type": "skill-ref",
+          "text": "../01-protocols/00-tcp.md",
+          "href": "[[../01-protocols/00-tcp.md]]",
+          "absPath": "../01-protocols/00-tcp.md",
+          "line": 8
+        },
+        {
+          "type": "skill-ref",
+          "text": "../03-security/00-tls-ssl.md",
+          "href": "[[../03-security/00-tls-ssl.md]]",
+          "absPath": "../03-security/00-tls-ssl.md",
+          "line": 9
+        },
         {
           "type": "skill-ref",
           "text": "02-rest-api.md",
           "href": "[[02-rest-api.md]]",
           "absPath": "02-rest-api.md",
-          "line": 1959
+          "line": 1969
         }
       ],
       "hasBrokenLinks": true
     },
     {
       "file": "04-web-and-network/network-fundamentals/docs/02-http/02-rest-api.md",
-      "totalLinks": 2,
+      "totalLinks": 4,
       "validLinks": 0,
       "brokenLinks": [
+        {
+          "type": "skill-ref",
+          "text": "./00-http-basics.md",
+          "href": "[[./00-http-basics.md]]",
+          "absPath": "00-http-basics.md",
+          "line": 7
+        },
+        {
+          "type": "skill-ref",
+          "text": "./01-http2-and-http3.md",
+          "href": "[[./01-http2-and-http3.md]]",
+          "absPath": "01-http2-and-http3.md",
+          "line": 8
+        },
         {
           "type": "skill-ref",
           "text": "03-caching.md",
           "href": "[[03-caching.md]]",
           "absPath": "03-caching.md",
-          "line": 2134
+          "line": 2144
         },
         {
           "type": "skill-ref",
           "text": "04-security.md",
           "href": "[[04-security.md]]",
           "absPath": "04-security.md",
-          "line": 2135
+          "line": 2145
+        }
+      ],
+      "hasBrokenLinks": true
+    },
+    {
+      "file": "04-web-and-network/network-fundamentals/docs/02-http/03-caching.md",
+      "totalLinks": 1,
+      "validLinks": 0,
+      "brokenLinks": [
+        {
+          "type": "skill-ref",
+          "text": "./00-http-basics.md",
+          "href": "[[./00-http-basics.md]]",
+          "absPath": "00-http-basics.md",
+          "line": 7
         }
       ],
       "hasBrokenLinks": true
     },
     {
       "file": "04-web-and-network/network-fundamentals/docs/03-security/00-tls-ssl.md",
-      "totalLinks": 1,
+      "totalLinks": 3,
       "validLinks": 0,
       "brokenLinks": [
+        {
+          "type": "skill-ref",
+          "text": "../01-protocols/00-tcp.md",
+          "href": "[[../01-protocols/00-tcp.md]]",
+          "absPath": "../01-protocols/00-tcp.md",
+          "line": 8
+        },
+        {
+          "type": "skill-ref",
+          "text": "../02-http/00-http-basics.md",
+          "href": "[[../02-http/00-http-basics.md]]",
+          "absPath": "../02-http/00-http-basics.md",
+          "line": 10
+        },
         {
           "type": "skill-ref",
           "text": "01-authentication.md",
           "href": "[[01-authentication.md]]",
           "absPath": "01-authentication.md",
-          "line": 1271
+          "line": 1563
         }
       ],
       "hasBrokenLinks": true
     },
     {
       "file": "04-web-and-network/network-fundamentals/docs/03-security/01-authentication.md",
-      "totalLinks": 1,
+      "totalLinks": 3,
       "validLinks": 0,
       "brokenLinks": [
+        {
+          "type": "skill-ref",
+          "text": "./00-tls-ssl.md",
+          "href": "[[./00-tls-ssl.md]]",
+          "absPath": "00-tls-ssl.md",
+          "line": 8
+        },
+        {
+          "type": "skill-ref",
+          "text": "../02-http/00-http-basics.md",
+          "href": "[[../02-http/00-http-basics.md]]",
+          "absPath": "../02-http/00-http-basics.md",
+          "line": 9
+        },
         {
           "type": "skill-ref",
           "text": "02-common-attacks.md",
           "href": "[[02-common-attacks.md]]",
           "absPath": "02-common-attacks.md",
-          "line": 1259
+          "line": 1268
         }
       ],
       "hasBrokenLinks": true
@@ -8881,57 +8931,15 @@
     },
     {
       "file": "04-web-and-network/web-application-development/SKILL.md",
-      "totalLinks": 27,
-      "validLinks": 20,
+      "totalLinks": 24,
+      "validLinks": 23,
       "brokenLinks": [
         {
-          "type": "skill-ref",
-          "text": "web-development",
-          "href": "[[web-development]]",
-          "absPath": "web-development",
-          "line": 13
-        },
-        {
-          "type": "skill-ref",
-          "text": "react-development",
-          "href": "[[react-development]]",
-          "absPath": "react-development",
+          "type": "markdown",
+          "text": "プログラミング言語基礎",
+          "href": "../../02-programming/programming-language-fundamentals/",
+          "absPath": "02-programming/programming-language-fundamentals",
           "line": 14
-        },
-        {
-          "type": "skill-ref",
-          "text": "web-development",
-          "href": "[[web-development]]",
-          "absPath": "web-development",
-          "line": 70
-        },
-        {
-          "type": "skill-ref",
-          "text": "react-development",
-          "href": "[[react-development]]",
-          "absPath": "react-development",
-          "line": 71
-        },
-        {
-          "type": "skill-ref",
-          "text": "nextjs-development",
-          "href": "[[nextjs-development]]",
-          "absPath": "nextjs-development",
-          "line": 72
-        },
-        {
-          "type": "skill-ref",
-          "text": "frontend-performance",
-          "href": "[[frontend-performance]]",
-          "absPath": "frontend-performance",
-          "line": 73
-        },
-        {
-          "type": "skill-ref",
-          "text": "api-and-library-guide",
-          "href": "[[api-and-library-guide]]",
-          "absPath": "api-and-library-guide",
-          "line": 74
         }
       ],
       "hasBrokenLinks": true
@@ -8946,7 +8954,7 @@
           "text": "01-project-structure.md",
           "href": "[[01-project-structure.md]]",
           "absPath": "01-project-structure.md",
-          "line": 1719
+          "line": 1923
         }
       ],
       "hasBrokenLinks": true
@@ -8961,14 +8969,14 @@
           "text": "...optional",
           "href": "[[...optional]]",
           "absPath": "...optional",
-          "line": 1988
+          "line": 2008
         },
         {
           "type": "skill-ref",
           "text": "02-component-architecture.md",
           "href": "[[02-component-architecture.md]]",
           "absPath": "02-component-architecture.md",
-          "line": 2243
+          "line": 2263
         }
       ],
       "hasBrokenLinks": true
@@ -9027,21 +9035,21 @@
           "text": "01-zustand-and-jotai.md",
           "href": "[[01-zustand-and-jotai.md]]",
           "absPath": "01-zustand-and-jotai.md",
-          "line": 2406
+          "line": 2467
         },
         {
           "type": "skill-ref",
           "text": "02-server-state.md",
           "href": "[[02-server-state.md]]",
           "absPath": "02-server-state.md",
-          "line": 2407
+          "line": 2468
         },
         {
           "type": "skill-ref",
           "text": "03-url-state.md",
           "href": "[[03-url-state.md]]",
           "absPath": "03-url-state.md",
-          "line": 2408
+          "line": 2469
         }
       ],
       "hasBrokenLinks": true
@@ -9056,14 +9064,14 @@
           "text": "02-server-state.md",
           "href": "[[02-server-state.md]]",
           "absPath": "02-server-state.md",
-          "line": 2290
+          "line": 2298
         },
         {
           "type": "skill-ref",
           "text": "03-url-state.md",
           "href": "[[03-url-state.md]]",
           "absPath": "03-url-state.md",
-          "line": 2291
+          "line": 2299
         }
       ],
       "hasBrokenLinks": true
@@ -9122,7 +9130,7 @@
           "text": "01-file-based-routing.md",
           "href": "[[01-file-based-routing.md]]",
           "absPath": "01-file-based-routing.md",
-          "line": 3147
+          "line": 3272
         }
       ],
       "hasBrokenLinks": true
@@ -9252,7 +9260,7 @@
           "text": "01-validation-patterns.md",
           "href": "[[01-validation-patterns.md]]",
           "absPath": "01-validation-patterns.md",
-          "line": 3336
+          "line": 3445
         }
       ],
       "hasBrokenLinks": true
@@ -9267,7 +9275,7 @@
           "text": "02-file-upload.md",
           "href": "[[02-file-upload.md]]",
           "absPath": "02-file-upload.md",
-          "line": 4485
+          "line": 4495
         }
       ],
       "hasBrokenLinks": true
@@ -9304,92 +9312,99 @@
     },
     {
       "file": "04-web-and-network/web-application-development/docs/04-deployment/00-deployment-platforms.md",
-      "totalLinks": 12,
+      "totalLinks": 13,
       "validLinks": 0,
       "brokenLinks": [
+        {
+          "type": "skill-ref",
+          "text": "../../05-infrastructure/docker-container-guide/docs/",
+          "href": "[[../../05-infrastructure/docker-container-guide/docs/]]",
+          "absPath": "../../05-infrastructure/docker-container-guide/docs",
+          "line": 11
+        },
         {
           "type": "skill-ref",
           "text": "kv_namespaces",
           "href": "[[kv_namespaces]]",
           "absPath": "kv_namespaces",
-          "line": 700
+          "line": 708
         },
         {
           "type": "skill-ref",
           "text": "d1_databases",
           "href": "[[d1_databases]]",
           "absPath": "d1_databases",
-          "line": 706
+          "line": 714
         },
         {
           "type": "skill-ref",
           "text": "r2_buckets",
           "href": "[[r2_buckets]]",
           "absPath": "r2_buckets",
-          "line": 712
+          "line": 720
         },
         {
           "type": "skill-ref",
           "text": "queues.producers",
           "href": "[[queues.producers]]",
           "absPath": "queues.producers",
-          "line": 721
+          "line": 729
         },
         {
           "type": "skill-ref",
           "text": "queues.consumers",
           "href": "[[queues.consumers]]",
           "absPath": "queues.consumers",
-          "line": 725
+          "line": 733
         },
         {
           "type": "skill-ref",
           "text": "routes",
           "href": "[[routes]]",
           "absPath": "routes",
-          "line": 731
+          "line": 739
         },
         {
           "type": "skill-ref",
           "text": "migrations",
           "href": "[[migrations]]",
           "absPath": "migrations",
-          "line": 742
+          "line": 750
         },
         {
           "type": "skill-ref",
           "text": "vm",
           "href": "[[vm]]",
           "absPath": "vm",
-          "line": 1964
+          "line": 1972
         },
         {
           "type": "skill-ref",
           "text": "services.http_checks",
           "href": "[[services.http_checks]]",
           "absPath": "services.http_checks",
-          "line": 1970
+          "line": 1978
         },
         {
           "type": "skill-ref",
           "text": "01-environment-and-config.md",
           "href": "[[01-environment-and-config.md]]",
           "absPath": "01-environment-and-config.md",
-          "line": 2648
+          "line": 2656
         },
         {
           "type": "skill-ref",
           "text": "02-ci-cd.md",
           "href": "[[02-ci-cd.md]]",
           "absPath": "02-ci-cd.md",
-          "line": 2649
+          "line": 2657
         },
         {
           "type": "skill-ref",
           "text": "03-monitoring.md",
           "href": "[[03-monitoring.md]]",
           "absPath": "03-monitoring.md",
-          "line": 2650
+          "line": 2658
         }
       ],
       "hasBrokenLinks": true

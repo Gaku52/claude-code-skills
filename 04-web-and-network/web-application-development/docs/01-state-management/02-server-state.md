@@ -2,6 +2,23 @@
 
 > サーバー状態はクライアント状態とは根本的に異なる。TanStack QueryとSWRのキャッシュ戦略、stale-while-revalidateパターン、無限スクロール、ポーリング、プリフェッチまで、サーバーデータ管理の全技法を習得する。
 
+## 前提知識
+
+この章を効果的に学習するために、以下の知識を事前に習得しておくことを推奨する:
+
+- **状態管理の概要** → [[./00-state-management-overview.md]]
+  - 状態の4カテゴリとサーバー状態の特性
+  - サーバー状態とクライアント状態の本質的な違い
+  - Single Source of Truth の原則
+- **Fetch API / 非同期処理**
+  - `fetch()` の基本的な使い方とエラーハンドリング
+  - `async/await` による非同期処理の記述
+  - Promise の理解（then, catch, finally）
+- **キャッシュの概念** → [[../../network-fundamentals/docs/02-http/03-caching.md]]
+  - HTTP キャッシュの基本（Cache-Control, ETag）
+  - ブラウザキャッシュとアプリケーションキャッシュの違い
+  - stale-while-revalidate パターンの考え方
+
 ## この章で学ぶこと
 
 - [ ] サーバー状態の特性とクライアント状態との本質的な違いを理解する
@@ -2967,6 +2984,19 @@ export async function loader({ params }: LoaderFunctionArgs) {
 // プリフェッチで使用
 queryClient.prefetchQuery(userListQueryOptions());
 ```
+
+---
+
+## FAQ
+
+### Q1: TanStack Query のキャッシュ戦略をどう設定すべきか？
+データの特性に応じて `staleTime` と `gcTime` を調整する。リアルタイムデータ（株価、チャット）は `staleTime: 0` で常に再取得し、頻繁に変わるデータ（通知、ダッシュボード）は30秒〜1分、まあまあ変わるデータ（ユーザー一覧）は5〜10分、ほとんど変わらないデータ（設定、マスタデータ）は30分〜1時間、不変データは `Infinity` を設定する。`gcTime` はデフォルト5分で、`staleTime` より長めに設定する。
+
+### Q2: 楽観的更新（Optimistic Updates）はいつ実装すべきか？
+高頻度の操作（いいね、お気に入り、チェックボックス）、即座のフィードバックが重要な場面（コメント投稿、Todoの追加）、失敗率が低くロールバックが容易な場合に実装する。一方、決済・課金処理、複雑なサーバーサイドバリデーションが必要な場合、メール送信などの副作用が大きい場合は避けるべきである。実装時は `onMutate` で楽観的更新、`onError` でロールバック、`onSettled` で再取得を必ずセットで実装する。
+
+### Q3: staleTime と gcTime の違いは？
+`staleTime` はデータが「新鮮（fresh）」とみなされる時間で、fresh な間はキャッシュから即座に返し再取得しない。デフォルトは0（即座にstaleになる）。`gcTime` はキャッシュがメモリから破棄されるまでの時間で、最後のコンポーネントがアンマウントされてからカウントが始まる。デフォルトは5分。`staleTime < gcTime` にするのが鉄則で、staleTimeを長めにすると再取得頻度が下がりパフォーマンスが向上し、gcTimeを長めにするとページ間移動が高速化する。
 
 ---
 

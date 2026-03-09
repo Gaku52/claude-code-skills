@@ -16,6 +16,16 @@
 
 ---
 
+## 前提知識
+
+この章を最大限活用するために、以下の知識を事前に習得しておくことを推奨する:
+
+- **ファイルアップロード**: `./02-file-upload.md` で学ぶ、ファイルのバリデーション、プレビュー表示、アップロード処理の実装パターンを理解していること
+- **状態管理**: `../01-state-management/00-state-management-overview.md` で学ぶ、React Context、Zustand、またはReduxによるグローバル状態管理の基礎を把握していること
+- **フォームバリデーション**: `./01-validation-patterns.md` で学ぶ、Zodスキーマ設計、条件付きバリデーション、エラーハンドリングのパターンを理解していること
+
+---
+
 ## 1. マルチステップフォーム
 
 ### 1.1 設計原則
@@ -3495,6 +3505,397 @@ async function submitWithServerValidation<T>(
 - [ ] サーバーサイドバリデーションエラーがフォームに反映される
 - [ ] テスト（ユニット・統合・E2E）が適切に書かれている
 - [ ] TypeScript の型安全性が確保されている
+
+---
+
+## よくある質問（FAQ）
+
+### Q1. 動的フィールドの追加・削除はどう実装すべきですか？
+
+**A:** React Hook Form の **`useFieldArray`** を使うのが最も堅牢である。手動で配列を管理すると、キー管理やバリデーションの同期が複雑になる。
+
+**基本パターン:**
+
+```typescript
+import { useForm, useFieldArray } from 'react-hook-form';
+import { z } from 'zod';
+import { zodResolver } from '@hookform/resolvers/zod';
+
+const schema = z.object({
+  members: z.array(
+    z.object({
+      name: z.string().min(1, '名前は必須です'),
+      email: z.string().email('有効なメールアドレスを入力してください'),
+    })
+  ).min(1, '少なくとも1人のメンバーが必要です'),
+});
+
+type FormData = z.infer<typeof schema>;
+
+function DynamicFieldForm() {
+  const form = useForm<FormData>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      members: [{ name: '', email: '' }],
+    },
+  });
+
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: 'members',
+  });
+
+  return (
+    <form onSubmit={form.handleSubmit((data) => console.log(data))}>
+      {fields.map((field, index) => (
+        <div key={field.id}>
+          <input {...form.register(`members.${index}.name`)} placeholder="名前" />
+          <input {...form.register(`members.${index}.email`)} placeholder="メール" />
+          <button type="button" onClick={() => remove(index)}>削除</button>
+        </div>
+      ))}
+
+      <button type="button" onClick={() => append({ name: '', email: '' })}>
+        メンバーを追加
+      </button>
+
+      <button type="submit">送信</button>
+    </form>
+  );
+}
+```
+
+**重要なポイント:**
+
+1. **`field.id` をキーに使う**: `fields.map((field, index) => <div key={field.id}>)` とすること。`index` をキーにすると、削除時に誤ったフィールドがバリデーションされる
+2. **デフォルト値を設定**: `defaultValues` で初期配列を指定する
+3. **Zodスキーマで最小・最大数を制御**: `.min(1)` や `.max(10)` で配列の長さを検証
+4. **削除前に確認**: ユーザーが誤って削除しないよう、確認ダイアログを表示する
+
+**複雑なケース: ネストした動的フィールド**
+
+```typescript
+const schema = z.object({
+  teams: z.array(
+    z.object({
+      teamName: z.string(),
+      members: z.array(
+        z.object({
+          name: z.string(),
+          role: z.string(),
+        })
+      ),
+    })
+  ),
+});
+
+function NestedDynamicFields() {
+  const form = useForm<FormData>({ resolver: zodResolver(schema) });
+  const { fields: teamFields, append: appendTeam } = useFieldArray({
+    control: form.control,
+    name: 'teams',
+  });
+
+  return (
+    <form>
+      {teamFields.map((team, teamIndex) => (
+        <div key={team.id}>
+          <input {...form.register(`teams.${teamIndex}.teamName`)} />
+
+          <NestedMembers teamIndex={teamIndex} control={form.control} />
+
+          <button type="button" onClick={() => appendTeam({ teamName: '', members: [] })}>
+            チームを追加
+          </button>
+        </div>
+      ))}
+    </form>
+  );
+}
+
+function NestedMembers({ teamIndex, control }) {
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: `teams.${teamIndex}.members`,
+  });
+
+  return (
+    <>
+      {fields.map((member, memberIndex) => (
+        <div key={member.id}>
+          <input {...form.register(`teams.${teamIndex}.members.${memberIndex}.name`)} />
+          <button onClick={() => remove(memberIndex)}>削除</button>
+        </div>
+      ))}
+      <button onClick={() => append({ name: '', role: '' })}>メンバー追加</button>
+    </>
+  );
+}
+```
+
+### Q2. フォームのパフォーマンス最適化はどうすべきですか？
+
+**A:** 大規模フォーム（50フィールド以上）では、以下の最適化が必須:
+
+**1. React Hook Form の mode 設定**
+
+```typescript
+const form = useForm({
+  mode: 'onBlur', // デフォルトは 'onChange'（入力中に毎回バリデーション）
+  // onBlur: フォーカスアウト時にバリデーション（推奨）
+  // onSubmit: 送信時のみバリデーション（最もパフォーマンス良好）
+});
+```
+
+**2. 不要な再レンダリングを防ぐ**
+
+```typescript
+// ❌ 悪い例: フォーム全体が再レンダリングされる
+const { watch } = useForm();
+const allValues = watch(); // 全フィールドを監視
+
+// ✅ 良い例: 必要なフィールドだけ監視
+const email = watch('email');
+```
+
+**3. コンポーネント分割**
+
+```typescript
+// ❌ 悪い例: 1つの巨大なコンポーネント
+function MassiveForm() {
+  const form = useForm();
+  return (
+    <form>
+      {/* 100個のinputが全て再レンダリング */}
+      <input {...form.register('field1')} />
+      <input {...form.register('field2')} />
+      {/* ... */}
+    </form>
+  );
+}
+
+// ✅ 良い例: セクションごとに分割
+function OptimizedForm() {
+  const form = useForm();
+  return (
+    <FormProvider {...form}>
+      <PersonalInfoSection />
+      <AddressSection />
+      <PaymentSection />
+    </FormProvider>
+  );
+}
+
+function PersonalInfoSection() {
+  const { register } = useFormContext();
+  return (
+    <div>
+      <input {...register('name')} />
+      <input {...register('email')} />
+    </div>
+  );
+}
+```
+
+**4. React.memo で不要な再レンダリングを防止**
+
+```typescript
+const FormField = React.memo(({ name, label }: { name: string; label: string }) => {
+  const { register } = useFormContext();
+  return (
+    <div>
+      <label>{label}</label>
+      <input {...register(name)} />
+    </div>
+  );
+});
+```
+
+**5. useFieldArray のパフォーマンス最適化**
+
+```typescript
+// 大量の動的フィールド（100個以上）がある場合
+const { fields } = useFieldArray({ name: 'items' });
+
+// react-window で仮想スクロール
+import { FixedSizeList } from 'react-window';
+
+<FixedSizeList
+  height={600}
+  itemCount={fields.length}
+  itemSize={50}
+>
+  {({ index, style }) => (
+    <div style={style}>
+      <input {...register(`items.${index}.name`)} />
+    </div>
+  )}
+</FixedSizeList>
+```
+
+**6. Zod スキーマの最適化**
+
+```typescript
+// ❌ 悪い例: 複雑な正規表現やカスタムバリデーション
+const schema = z.object({
+  email: z.string().refine(async (val) => {
+    // 非同期バリデーションが毎回走る
+    const exists = await checkEmailExists(val);
+    return !exists;
+  }),
+});
+
+// ✅ 良い例: 基本的なバリデーションはZod、非同期はonBlurで
+const schema = z.object({
+  email: z.string().email(), // シンプルなバリデーション
+});
+
+<input
+  {...form.register('email', {
+    onBlur: async (e) => {
+      // フォーカスアウト時のみ非同期チェック
+      const exists = await checkEmailExists(e.target.value);
+      if (exists) form.setError('email', { message: '既に使用されています' });
+    },
+  })}
+/>
+```
+
+### Q3. Server Actions でのフォーム処理はどうすべきですか？
+
+**A:** Next.js 14以降では **Server Actions** がフォーム送信の標準パターンである:
+
+**基本パターン:**
+
+```typescript
+// app/actions/user.ts
+'use server';
+
+import { z } from 'zod';
+
+const userSchema = z.object({
+  name: z.string().min(1),
+  email: z.string().email(),
+});
+
+export async function createUser(formData: FormData) {
+  const rawData = {
+    name: formData.get('name'),
+    email: formData.get('email'),
+  };
+
+  // バリデーション
+  const result = userSchema.safeParse(rawData);
+  if (!result.success) {
+    return { errors: result.error.flatten() };
+  }
+
+  // データベース保存
+  await db.user.create({ data: result.data });
+
+  return { success: true };
+}
+
+// app/page.tsx
+import { createUser } from './actions/user';
+
+export default function Page() {
+  return (
+    <form action={createUser}>
+      <input name="name" />
+      <input name="email" />
+      <button type="submit">送信</button>
+    </form>
+  );
+}
+```
+
+**React Hook Form + Server Actions の統合（推奨）:**
+
+```typescript
+'use client';
+
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { createUser } from './actions/user';
+import { z } from 'zod';
+
+const schema = z.object({
+  name: z.string().min(1),
+  email: z.string().email(),
+});
+
+type FormData = z.infer<typeof schema>;
+
+export default function UserForm() {
+  const form = useForm<FormData>({
+    resolver: zodResolver(schema),
+  });
+
+  const onSubmit = async (data: FormData) => {
+    const formData = new FormData();
+    formData.append('name', data.name);
+    formData.append('email', data.email);
+
+    const result = await createUser(formData);
+
+    if (result.errors) {
+      // サーバー側のバリデーションエラーをフォームに反映
+      Object.entries(result.errors.fieldErrors).forEach(([field, errors]) => {
+        form.setError(field as keyof FormData, {
+          message: errors?.[0],
+        });
+      });
+    }
+  };
+
+  return (
+    <form onSubmit={form.handleSubmit(onSubmit)}>
+      <input {...form.register('name')} />
+      {form.formState.errors.name && <p>{form.formState.errors.name.message}</p>}
+
+      <input {...form.register('email')} />
+      {form.formState.errors.email && <p>{form.formState.errors.email.message}</p>}
+
+      <button type="submit">送信</button>
+    </form>
+  );
+}
+```
+
+**useActionState を使った楽観的更新:**
+
+```typescript
+'use client';
+
+import { useActionState } from 'react';
+import { createUser } from './actions/user';
+
+export default function UserForm() {
+  const [state, formAction, isPending] = useActionState(createUser, null);
+
+  return (
+    <form action={formAction}>
+      <input name="name" />
+      {state?.errors?.name && <p>{state.errors.name[0]}</p>}
+
+      <input name="email" />
+      {state?.errors?.email && <p>{state.errors.email[0]}</p>}
+
+      <button type="submit" disabled={isPending}>
+        {isPending ? '送信中...' : '送信'}
+      </button>
+    </form>
+  );
+}
+```
+
+**ベストプラクティス:**
+
+1. **クライアント・サーバー二重バリデーション**: クライアントはUX向上、サーバーはセキュリティ保証
+2. **同じZodスキーマを共有**: モノレポやパッケージ共有でスキーマを一元管理
+3. **楽観的更新**: `useOptimistic` でUI即座に更新、エラー時にロールバック
+4. **revalidatePath**: Server Actionsでデータ更新後、キャッシュを無効化
 
 ---
 

@@ -2,6 +2,18 @@
 
 > ネットワーク上の主要な攻撃手法と防御策を理解する。MITM、DNS汚染、DDoS、セッションハイジャック、SQLインジェクション等を学び、安全なシステム設計の基盤を固める。
 
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- [TLS/SSL](./00-tls-ssl.md) — TLSハンドシェイク、証明書チェーン、暗号スイートの基礎
+- [認証方式](./01-authentication.md) — OAuth 2.0、JWT、セッション管理の仕組み
+- [HTTP基礎](../02-http/00-http-basics.md) — HTTPリクエスト/レスポンス、ヘッダー、ステータスコード
+- [DNS](../00-introduction/03-dns.md) — DNS名前解決の流れ、レコードタイプ、キャッシュの仕組み
+- [TCP](../01-protocols/00-tcp.md) — TCP 3ウェイハンドシェイク、ポート番号、コネクション管理
+
+---
+
 ## この章で学ぶこと
 
 - [ ] 主要なネットワーク攻撃の仕組みを理解する
@@ -1264,6 +1276,586 @@ OWASP Top 10 Web Application Security Risks（2021）:
     → 内部リソースへの不正アクセス
     → 対策: URLバリデーション、ネットワーク制限
 ```
+
+---
+
+## 11. APIセキュリティの実践
+
+### 11.1 API認証・認可の攻撃と防御
+
+```
+API特有の攻撃パターン:
+
+① Broken Object Level Authorization（BOLA / IDOR）:
+  → 他ユーザーのリソースに直接アクセス
+
+  攻撃例:
+  GET /api/users/123/orders   ← 正規ユーザー（ID: 123）
+  GET /api/users/124/orders   ← IDを変更するだけで他人の注文を閲覧
+
+  防御:
+  // ミドルウェアでオブジェクトレベルの認可チェック
+  async function authorizeResourceAccess(req, res, next) {
+    const requestedUserId = parseInt(req.params.userId);
+    const authenticatedUserId = req.user.id;
+
+    if (requestedUserId !== authenticatedUserId) {
+      // 管理者権限チェック
+      if (!req.user.roles.includes('admin')) {
+        return res.status(403).json({
+          error: 'Forbidden',
+          message: 'You do not have access to this resource'
+        });
+      }
+    }
+    next();
+  }
+
+  // ルートに適用
+  app.get('/api/users/:userId/orders',
+    authenticate,
+    authorizeResourceAccess,
+    getOrders
+  );
+
+② Broken Function Level Authorization（BFLA）:
+  → 管理者APIに一般ユーザーがアクセス
+
+  攻撃例:
+  POST /api/admin/users/delete   ← 管理者エンドポイントを直接呼び出し
+  PUT /api/users/123/role        ← 自分のロールを昇格
+
+  防御:
+  // ロールベースのアクセス制御ミドルウェア
+  function requireRole(...roles) {
+    return (req, res, next) => {
+      if (!roles.some(role => req.user.roles.includes(role))) {
+        logger.warn('Unauthorized role access attempt', {
+          userId: req.user.id,
+          requiredRoles: roles,
+          userRoles: req.user.roles,
+          path: req.path,
+          ip: req.ip
+        });
+        return res.status(403).json({ error: 'Insufficient permissions' });
+      }
+      next();
+    };
+  }
+
+  app.delete('/api/admin/users/:id',
+    authenticate,
+    requireRole('admin', 'super_admin'),
+    deleteUser
+  );
+
+③ Mass Assignment（一括代入攻撃）:
+  → リクエストボディに意図しないフィールドを含める
+
+  攻撃例:
+  PUT /api/users/123
+  {
+    "name": "Taro",
+    "email": "taro@example.com",
+    "role": "admin",           ← 追加フィールド
+    "is_verified": true         ← 追加フィールド
+  }
+
+  防御:
+  // ホワイトリスト方式でフィールドを制限
+  const allowedFields = ['name', 'email', 'avatar_url'];
+
+  function sanitizeInput(body, allowedFields) {
+    const sanitized = {};
+    for (const field of allowedFields) {
+      if (body[field] !== undefined) {
+        sanitized[field] = body[field];
+      }
+    }
+    return sanitized;
+  }
+
+  app.put('/api/users/:id', authenticate, async (req, res) => {
+    const sanitizedData = sanitizeInput(req.body, allowedFields);
+    await User.update(req.params.id, sanitizedData);
+    res.json({ message: 'Updated successfully' });
+  });
+```
+
+### 11.2 レート制限の実装パターン
+
+```
+レート制限の階層設計:
+
+① グローバルレート制限:
+  → 全エンドポイントに適用
+  → 1000 req/min per IP
+
+② エンドポイント別レート制限:
+  → 認証エンドポイント: 5 req/min
+  → 検索API: 30 req/min
+  → 一般API: 100 req/min
+
+③ ユーザー別レート制限:
+  → 無料プラン: 100 req/hour
+  → 有料プラン: 10,000 req/hour
+  → エンタープライズ: 100,000 req/hour
+```
+
+```javascript
+// Token Bucket アルゴリズムによるレート制限（Redis使用）
+const Redis = require('ioredis');
+const redis = new Redis();
+
+async function tokenBucketRateLimit(key, maxTokens, refillRate, refillInterval) {
+  const now = Date.now();
+  const bucketKey = `ratelimit:${key}`;
+
+  // Luaスクリプトでアトミックに処理
+  const luaScript = `
+    local bucket = redis.call('HMGET', KEYS[1], 'tokens', 'last_refill')
+    local tokens = tonumber(bucket[1]) or tonumber(ARGV[1])
+    local last_refill = tonumber(bucket[2]) or tonumber(ARGV[4])
+
+    -- トークン補充
+    local elapsed = tonumber(ARGV[4]) - last_refill
+    local refill_count = math.floor(elapsed / tonumber(ARGV[3])) * tonumber(ARGV[2])
+    tokens = math.min(tonumber(ARGV[1]), tokens + refill_count)
+
+    -- トークン消費
+    if tokens > 0 then
+      tokens = tokens - 1
+      redis.call('HMSET', KEYS[1], 'tokens', tokens, 'last_refill', ARGV[4])
+      redis.call('EXPIRE', KEYS[1], 3600)
+      return {1, tokens}
+    else
+      return {0, 0}
+    end
+  `;
+
+  const [allowed, remaining] = await redis.eval(
+    luaScript, 1, bucketKey,
+    maxTokens, refillRate, refillInterval, now
+  );
+
+  return {
+    allowed: allowed === 1,
+    remaining: remaining,
+    retryAfter: allowed === 0 ? Math.ceil(refillInterval / 1000) : 0
+  };
+}
+
+// ミドルウェアとして使用
+async function rateLimitMiddleware(req, res, next) {
+  const key = req.user ? `user:${req.user.id}` : `ip:${req.ip}`;
+  const result = await tokenBucketRateLimit(key, 100, 10, 60000);
+
+  res.set({
+    'X-RateLimit-Limit': '100',
+    'X-RateLimit-Remaining': result.remaining.toString(),
+    'X-RateLimit-Reset': new Date(Date.now() + 60000).toISOString()
+  });
+
+  if (!result.allowed) {
+    res.set('Retry-After', result.retryAfter.toString());
+    return res.status(429).json({
+      error: 'Too Many Requests',
+      retryAfter: result.retryAfter
+    });
+  }
+
+  next();
+}
+```
+
+### 11.3 APIキーの安全な管理
+
+```
+APIキー管理のベストプラクティス:
+
+① キーの生成:
+  → 最低256ビットのエントロピー
+  → プレフィックスで種類を識別
+
+  // Node.js
+  const crypto = require('crypto');
+  function generateApiKey(prefix = 'sk') {
+    const key = crypto.randomBytes(32).toString('hex');
+    return `${prefix}_${key}`;
+    // 例: sk_a1b2c3d4e5f6...（68文字）
+  }
+
+② キーの保存:
+  → ハッシュ化して保存（SHA-256）
+  → 生のキーは生成時のみ表示
+  → プレフィックス + 末尾4文字のみ表示: sk_****...abcd
+
+③ キーのローテーション:
+  → 定期的なローテーション（90日推奨）
+  → 旧キーの猶予期間（72時間）
+  → CI/CDでの自動ローテーション
+
+④ キーの権限制限:
+  → スコープ（read, write, admin）
+  → IPアドレス制限
+  → 有効期限の設定
+  → リファラー制限（フロントエンド用）
+```
+
+---
+
+## 12. コンテナ・クラウド環境のセキュリティ
+
+### 12.1 コンテナセキュリティ
+
+```
+コンテナ特有の攻撃ベクトル:
+
+① コンテナエスケープ:
+  → コンテナからホストOSにアクセス
+  → 脆弱なカーネルバージョン、特権コンテナが原因
+
+  防御:
+  # Dockerfileのセキュリティベストプラクティス
+  FROM node:20-alpine AS builder
+  WORKDIR /app
+  COPY package*.json ./
+  RUN npm ci --only=production
+
+  FROM node:20-alpine
+  # 非rootユーザーで実行
+  RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+  WORKDIR /app
+  COPY --from=builder /app/node_modules ./node_modules
+  COPY . .
+
+  # ファイルシステムを読み取り専用に
+  RUN chmod -R 555 /app
+
+  USER appuser
+
+  # セキュリティ設定
+  # --read-only: ファイルシステムの変更を防止
+  # --no-new-privileges: 権限昇格を防止
+  # --cap-drop=ALL: 全Capabilityを削除
+
+② イメージの脆弱性:
+  → ベースイメージに既知の脆弱性
+  → 不要なパッケージの含有
+
+  防御:
+  # イメージスキャン
+  $ docker scout cves my-app:latest
+  $ trivy image my-app:latest
+  $ grype my-app:latest
+
+  # Alpine / Distrolessベースイメージの使用
+  FROM gcr.io/distroless/nodejs20-debian12
+  # → シェルすら含まない最小イメージ
+
+③ シークレットの漏洩:
+  → Dockerイメージにシークレットがベイク
+  → docker history で閲覧可能
+
+  防御:
+  # NG: 環境変数にシークレット
+  ENV DATABASE_URL=postgres://user:pass@host/db
+
+  # OK: ランタイムで注入
+  # docker run -e DATABASE_URL=... my-app
+  # または Kubernetes Secrets / AWS Secrets Manager
+```
+
+### 12.2 Kubernetes セキュリティ
+
+```
+Kubernetes 固有の攻撃と対策:
+
+① RBAC設定不備:
+  → デフォルトのServiceAccountが過剰な権限を持つ
+  → クラスタ全体の管理者権限が不要なPodに付与
+
+  防御:
+  # 最小権限のServiceAccount
+  apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    name: my-app-sa
+    namespace: production
+  automountServiceAccountToken: false  # 不要なら無効化
+
+  # 必要最小限のRBACルール
+  apiVersion: rbac.authorization.k8s.io/v1
+  kind: Role
+  metadata:
+    name: my-app-role
+    namespace: production
+  rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list"]  # 読み取りのみ
+
+② ネットワークポリシーの未設定:
+  → Pod間の通信が無制限
+  → 侵害されたPodから横方向移動（Lateral Movement）
+
+  防御:
+  # デフォルト拒否 + 明示的許可
+  apiVersion: networking.k8s.io/v1
+  kind: NetworkPolicy
+  metadata:
+    name: default-deny-all
+    namespace: production
+  spec:
+    podSelector: {}  # 全Pod対象
+    policyTypes:
+    - Ingress
+    - Egress
+
+  # 特定のPod間のみ通信許可
+  apiVersion: networking.k8s.io/v1
+  kind: NetworkPolicy
+  metadata:
+    name: allow-frontend-to-api
+    namespace: production
+  spec:
+    podSelector:
+      matchLabels:
+        app: api-server
+    ingress:
+    - from:
+      - podSelector:
+          matchLabels:
+            app: frontend
+      ports:
+      - protocol: TCP
+        port: 8080
+
+③ Pod Security Standards:
+  # Restricted レベル（最も厳格）
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: secure-pod
+  spec:
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      fsGroup: 1000
+      seccompProfile:
+        type: RuntimeDefault
+    containers:
+    - name: app
+      image: my-app:latest
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: ["ALL"]
+      resources:
+        limits:
+          memory: "256Mi"
+          cpu: "500m"
+        requests:
+          memory: "128Mi"
+          cpu: "250m"
+```
+
+---
+
+## 13. ゼロトラストセキュリティ
+
+```
+ゼロトラストアーキテクチャの原則:
+
+従来モデル（境界型セキュリティ）:
+  インターネット → ファイアウォール → 社内ネットワーク（信頼）
+  → 一度内部に入れば全リソースにアクセス可能
+  → 内部犯行や横方向移動に脆弱
+
+ゼロトラストモデル:
+  「Never Trust, Always Verify（決して信頼せず、常に検証）」
+
+  原則:
+  ① 明示的な検証: 全アクセスを認証・認可
+  ② 最小権限アクセス: 必要最小限の権限のみ付与
+  ③ 侵害を前提とした設計: 侵害されても被害を最小化
+
+  アーキテクチャ:
+  ┌──────────────────────────────────────────────┐
+  │  ユーザー/デバイス                              │
+  │    │                                          │
+  │    ▼                                          │
+  │  Policy Enforcement Point (PEP)               │
+  │    │ ← 全リクエストを検証                       │
+  │    │                                          │
+  │    ├── デバイス健全性チェック                     │
+  │    │   → OS バージョン、パッチ状況               │
+  │    │   → ディスク暗号化、アンチウイルス           │
+  │    │                                          │
+  │    ├── ユーザー認証                              │
+  │    │   → MFA必須                               │
+  │    │   → コンテキスト認証（場所、時間、行動）      │
+  │    │                                          │
+  │    ├── 認可チェック                              │
+  │    │   → ABAC（属性ベース）                      │
+  │    │   → リクエストごとにポリシー評価             │
+  │    │                                          │
+  │    ▼                                          │
+  │  リソース（マイクロセグメンテーション）            │
+  │    → 各リソースは独立したセキュリティ境界          │
+  │    → E2E暗号化（mTLS）                          │
+  │    → 全通信をログ記録                            │
+  └──────────────────────────────────────────────┘
+
+  実装要素:
+  ① アイデンティティプロバイダー（IdP）:
+    → Okta, Azure AD, Google Workspace
+    → SSO + MFA + デバイストラスト
+
+  ② ネットワークアクセス制御:
+    → BeyondCorp（Google）
+    → Cloudflare Access / Zscaler
+    → VPNレス: アプリケーション単位でアクセス制御
+
+  ③ マイクロセグメンテーション:
+    → Kubernetes NetworkPolicy
+    → AWS Security Groups / Azure NSG
+    → サービスメッシュ（Istio / Linkerd）
+
+  ④ 継続的な監視と分析:
+    → SIEM（Splunk, Elastic Security）
+    → UEBA（User and Entity Behavior Analytics）
+    → 異常検知による自動ブロック
+```
+
+---
+
+## 14. セキュリティテストの実践
+
+### 14.1 SAST / DAST / SCA
+
+```
+セキュリティテストの種類:
+
+① SAST（Static Application Security Testing）:
+  → ソースコードの静的解析
+  → 開発段階で脆弱性を検出
+
+  ツール:
+  - Semgrep: カスタムルール対応、OSS
+  - SonarQube: 多言語対応、CI/CD統合
+  - CodeQL (GitHub): GitHub Advanced Security
+
+  CI/CD統合例（GitHub Actions）:
+  - name: Run Semgrep
+    uses: returntocorp/semgrep-action@v1
+    with:
+      config: >-
+        p/owasp-top-ten
+        p/javascript
+        p/typescript
+
+② DAST（Dynamic Application Security Testing）:
+  → 実行中のアプリケーションに対するテスト
+  → 実際の攻撃をシミュレート
+
+  ツール:
+  - OWASP ZAP: 無料、プロキシ型
+  - Burp Suite: 商用、高機能
+  - Nuclei: テンプレートベース、高速
+
+  ZAPの自動スキャン:
+  $ docker run -t owasp/zap2docker-stable zap-baseline.py \
+    -t https://app.example.com \
+    -r report.html
+
+③ SCA（Software Composition Analysis）:
+  → 依存ライブラリの脆弱性検出
+
+  ツール:
+  - npm audit / yarn audit
+  - Snyk: 商用、修正PR自動作成
+  - Dependabot: GitHub統合
+  - Trivy: コンテナイメージ + ファイルシステム
+
+  自動化:
+  $ npm audit --audit-level=high
+  $ trivy fs --severity HIGH,CRITICAL .
+```
+
+### 14.2 ペネトレーションテストの基本
+
+```
+ペネトレーションテストの流れ:
+
+  1. スコープ定義:
+     → テスト対象のシステム/ネットワーク範囲
+     → テスト方法（ブラックボックス/ホワイトボックス）
+     → テスト期間と制約条件
+
+  2. 情報収集（Reconnaissance）:
+     → パッシブ: OSINT、DNS列挙、WHOIS
+     → アクティブ: ポートスキャン、サービス列挙
+
+     $ nmap -sV -sC -p- target.example.com
+     $ subfinder -d example.com | httpx -probe
+
+  3. 脆弱性識別:
+     → 自動スキャン + 手動検証
+     → 認証バイパス、インジェクション、設定不備
+
+  4. 脆弱性悪用（Exploitation）:
+     → 発見した脆弱性の実証
+     → 影響範囲の確認
+     → 横方向移動の試行
+
+  5. レポート作成:
+     → 発見事項の優先度分類（Critical/High/Medium/Low）
+     → 再現手順の詳細記録
+     → 修正推奨事項の提示
+
+  報告テンプレート:
+  ┌──────────────────────────────────────────┐
+  │ 脆弱性ID: VULN-2024-001                   │
+  │ タイトル: SQLインジェクション（認証バイパス）│
+  │ 深刻度: Critical (CVSS 9.8)               │
+  │ 影響: データベース全データの窃取が可能       │
+  │ 再現手順:                                  │
+  │   1. /login エンドポイントにアクセス         │
+  │   2. username: ' OR 1=1-- を入力           │
+  │   3. パスワード: 任意                       │
+  │   4. 管理者としてログイン成功               │
+  │ 修正推奨:                                  │
+  │   - Prepared Statementの使用               │
+  │   - 入力バリデーションの追加                │
+  │   - WAFルールの追加（暫定対策）             │
+  └──────────────────────────────────────────┘
+```
+
+---
+
+## FAQ
+
+### Q1: セキュリティヘッダーの最小構成として何を設定すべきか?
+
+最低限設定すべきセキュリティヘッダーは以下の5つです。(1) `Strict-Transport-Security: max-age=31536000; includeSubDomains; preload` でHTTPS強制。(2) `Content-Security-Policy: default-src 'self'; script-src 'self'` でXSS防止。(3) `X-Content-Type-Options: nosniff` でMIMEタイプのスニッフィング防止。(4) `X-Frame-Options: DENY` でクリックジャッキング防止。(5) `Referrer-Policy: strict-origin-when-cross-origin` でリファラー情報の漏洩防止。これらを全ページに適用することで、一般的なWebアプリケーション攻撃の大半を防御できます。Nginxの場合は`add_header`ディレクティブ、Express.jsの場合は`helmet`ミドルウェアで一括設定が可能です。
+
+### Q2: DDoS攻撃を受けた場合、最初に何をすべきか?
+
+DDoS攻撃を検知した場合の初動対応は以下の手順です。(1) まず攻撃の種類を特定します（L3/L4のボリューメトリック攻撃か、L7のアプリケーション攻撃か）。ネットワーク帯域が飽和しているならボリューメトリック攻撃、サーバーCPU/メモリが逼迫しているならアプリケーション攻撃です。(2) CDN/WAFプロバイダー（Cloudflare, AWS Shieldなど）の「Under Attack」モードを有効化します。(3) 攻撃元IPの特徴を分析し、特定の国やASNからの攻撃であればGeo-blockingやASNブロックを実施します。(4) アプリケーションレベルではレート制限を厳格化し、CAPTCHAチャレンジを導入します。(5) 攻撃のログを保全し、ISPやクラウドプロバイダーのセキュリティチームに連絡します。
+
+### Q3: SQLインジェクションはORMを使っていれば完全に防げるか?
+
+ORMを使用していても、SQLインジェクションのリスクは完全にはなくなりません。ORMのクエリビルダーが自動的にパラメータ化する標準的なCRUD操作は安全ですが、以下のケースでは依然として脆弱です。(1) ORMの`raw`メソッドやカスタムSQL文を文字列結合で構築する場合。(2) ORMのバグや特定のオペレーターが意図せずインジェクション可能な場合（例: MongoDBの`$where`演算子）。(3) ストアドプロシージャ内で動的SQLを使用する場合。対策として、ORMを使用する場合でも、ユーザー入力は必ずバリデーションし、`raw`クエリを使用する場合はプレースホルダを活用してください。
+
+### Q4: XSSとCSRFの違いは何か? 両方の対策が必要な理由は?
+
+XSS（Cross-Site Scripting）はブラウザ上で悪意あるスクリプトを実行させる攻撃で、CSRF（Cross-Site Request Forgery）は認証済みユーザーに意図しないリクエストを送信させる攻撃です。XSSは「攻撃者のコードがユーザーのブラウザで実行される」のに対し、CSRFは「ユーザー自身のブラウザが正規のリクエストを送信する」という点が根本的に異なります。XSSが成功するとCSRFトークンも窃取できるため、XSS対策はCSRF対策の前提条件です。両方の対策が必要な理由は、CSRFトークンだけではXSSを防げず、CSPだけではCSRFを防げないためです。多層防御（Defense in Depth）の原則に従い、CSP+エスケープ（XSS対策）とCSRFトークン+SameSite Cookie（CSRF対策）を組み合わせることが必須です。
+
+### Q5: ゼロデイ脆弱性に対してどのような備えが可能か?
+
+ゼロデイ脆弱性（パッチ未提供の脆弱性）に対する完全な防御は不可能ですが、被害を最小化する備えは可能です。(1) WAF（Web Application Firewall）で一般的な攻撃パターンをブロックし、仮想パッチを適用できる体制を整えます。(2) ネットワークセグメンテーションとマイクロセグメンテーションで、侵害されたコンポーネントからの横方向移動を制限します。(3) RASP（Runtime Application Self-Protection）で、アプリケーション内部から異常な動作をリアルタイム検知します。(4) 最小権限の原則を徹底し、各コンポーネントが必要最小限のリソースにのみアクセスできるようにします。(5) インシデント対応計画を事前に策定し、脆弱性公開から24時間以内にパッチ適用できるCI/CDパイプラインを構築しておきます。
 
 ---
 

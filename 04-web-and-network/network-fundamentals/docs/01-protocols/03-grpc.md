@@ -2,6 +2,21 @@
 
 > gRPCはGoogleが開発した高性能RPCフレームワーク。Protocol Buffersによる型安全な通信、HTTP/2ベースの多重化、4種類のストリーミングパターンで、マイクロサービス間通信の標準的選択肢。
 
+## 前提知識
+
+このガイドを最大限に活用するには、以下の知識が必要です。
+
+**必須**
+- [[../02-http/01-http2-and-http3.md]] — HTTP/2: gRPCはHTTP/2上で動作するプロトコル
+- Protocol Buffersの基礎: データシリアライゼーション形式の理解
+
+**推奨**
+- [[./00-tcp.md]] — TCP: HTTP/2の基盤となるトランスポート層
+- [[../04-security/00-tls.md]] — TLS: gRPCのセキュリティ実装に必要
+- RESTful APIの設計経験: gRPCとの違いを理解するため
+
+---
+
 ## この章で学ぶこと
 
 - [ ] gRPCの基本概念とRESTとの違いを理解する
@@ -2579,6 +2594,335 @@ buf push
 
 ---
 
+## 19. FAQ（よくある質問）
+
+### Q1: gRPCとREST APIはどう使い分けるべきか？
+
+**比較表**
+
+| 観点 | gRPC | REST API |
+|------|------|----------|
+| **シリアライゼーション** | Protocol Buffers（バイナリ） | JSON（テキスト） |
+| **パフォーマンス** | 高速（バイナリ、HTTP/2） | 低速（テキスト、HTTP/1.1） |
+| **スキーマ定義** | .protoファイル（必須） | OpenAPI（任意） |
+| **ストリーミング** | 4種類のネイティブサポート | 限定的（SSE、chunked transfer） |
+| **ブラウザサポート** | gRPC-Web必要 | ネイティブサポート |
+| **人間可読性** | バイナリのため不可 | JSONのため容易 |
+| **エコシステム** | Go、Java中心 | ほぼ全言語 |
+| **学習曲線** | 急（Protobuf、HTTP/2理解必要） | 緩やか |
+| **キャッシング** | 複雑（HTTP/2の制約） | HTTPキャッシュ機構が使える |
+
+**使い分けの判断基準**
+
+**gRPCを選ぶべきケース**
+```
+✅ マイクロサービス間通信（内部API）
+   - 低レイテンシが重要
+   - 型安全性を厳格に保ちたい
+   - 多言語対応が必要（コード生成で統一）
+
+✅ 双方向ストリーミングが必要
+   - チャット、リアルタイムデータ配信
+   - IoTデバイスとの双方向通信
+
+✅ 高頻度・大量の通信
+   - HTTP/2の多重化で効率的
+   - バイナリ形式でペイロードサイズ削減
+
+例: Kubernetes API Server、Netflix内部API、Uber内部サービス
+```
+
+**RESTを選ぶべきケース**
+```
+✅ パブリックAPI（外部公開）
+   - ブラウザから直接呼び出したい
+   - curlでのテストが容易
+   - エコシステムが広い（API Gateway、CDN）
+
+✅ シンプルなCRUD操作
+   - HTTPメソッド（GET, POST, PUT, DELETE）で十分
+   - HTTPステータスコードが直感的
+
+✅ キャッシュ戦略が重要
+   - CDN、ブラウザキャッシュの活用
+   - ETag、Cache-Controlヘッダー
+
+例: GitHub API、Stripe API、Twilio API
+```
+
+**ハイブリッドアプローチ**
+```
+内部通信: gRPC（マイクロサービス間）
+外部公開: REST（クライアント向け）
+変換層: Envoy、gRPC-Gateway で相互変換
+```
+
+### Q2: gRPCのブラウザ対応（gRPC-Web）はどうなっている？
+
+**問題: ブラウザはgRPCをネイティブサポートしていない**
+
+ブラウザの制約:
+- HTTP/2のフルコントロール不可（Fetch APIはHTTP/1.1相当）
+- Trailerヘッダーの送信ができない
+- カスタムフレームタイプ（gRPC固有）が使えない
+
+**解決策1: gRPC-Web（公式プロトコル）**
+
+```
+ブラウザ ──→ gRPC-Web ──→ Envoy Proxy ──→ gRPCサーバー
+             (HTTP/1.1)     (変換)        (HTTP/2)
+```
+
+**実装例**
+
+```javascript
+// クライアント（ブラウザ）
+import { UserServiceClient } from './gen/user_grpc_web_pb';
+
+const client = new UserServiceClient('https://api.example.com');
+
+const request = new GetUserRequest();
+request.setUserId('123');
+
+client.getUser(request, {}, (err, response) => {
+  if (err) {
+    console.error('Error:', err.message);
+  } else {
+    console.log('User:', response.toObject());
+  }
+});
+```
+
+```yaml
+# Envoy設定（gRPC-Web → gRPCの変換）
+static_resources:
+  listeners:
+    - address:
+        socket_address:
+          address: 0.0.0.0
+          port_value: 8080
+      filter_chains:
+        - filters:
+            - name: envoy.filters.network.http_connection_manager
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                codec_type: AUTO
+                http_filters:
+                  - name: envoy.filters.http.grpc_web  # gRPC-Web変換
+                  - name: envoy.filters.http.cors
+                  - name: envoy.filters.http.router
+                route_config:
+                  virtual_hosts:
+                    - domains: ["*"]
+                      routes:
+                        - match: { prefix: "/" }
+                          route:
+                            cluster: grpc_backend
+                            timeout: 30s
+  clusters:
+    - name: grpc_backend
+      type: LOGICAL_DNS
+      http2_protocol_options: {}  # HTTP/2有効化
+      load_assignment:
+        cluster_name: grpc_backend
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: grpc-server
+                      port_value: 50051
+```
+
+**解決策2: Connect（より新しいアプローチ）**
+
+```javascript
+// Connect: gRPC-Webより軽量、Envoy不要
+import { createPromiseClient } from "@connectrpc/connect";
+import { createConnectTransport } from "@connectrpc/connect-web";
+import { UserService } from "./gen/user_connect";
+
+const transport = createConnectTransport({
+  baseUrl: "https://api.example.com",
+});
+
+const client = createPromiseClient(UserService, transport);
+
+const response = await client.getUser({ userId: "123" });
+console.log(response);
+```
+
+**gRPC-Web vs Connect**
+
+| 特性 | gRPC-Web | Connect |
+|------|----------|---------|
+| Proxy必要性 | **Envoy必須** | 不要（サーバー直接対応） |
+| プロトコル | 独自（application/grpc-web） | HTTP/JSON互換 |
+| ストリーミング | Server-side のみ | Unary + Server-side |
+| ブラウザ互換性 | 全モダンブラウザ | 全モダンブラウザ |
+| エコシステム | 成熟（2018年〜） | 新しい（2022年〜） |
+
+### Q3: gRPCのストリーミング4パターンはどう使い分けるか？
+
+**1. Unary RPC（リクエスト1つ → レスポンス1つ）**
+
+```protobuf
+rpc GetUser(GetUserRequest) returns (GetUserResponse);
+```
+
+**用途**: 通常のRPC呼び出し（REST GETに相当）
+
+```go
+// サーバー実装
+func (s *server) GetUser(ctx context.Context, req *pb.GetUserRequest) (*pb.GetUserResponse, error) {
+    user := s.db.FindUserByID(req.UserId)
+    return &pb.GetUserResponse{User: user}, nil
+}
+```
+
+**2. Server Streaming RPC（リクエスト1つ → レスポンス複数）**
+
+```protobuf
+rpc ListUsers(ListUsersRequest) returns (stream User);
+```
+
+**用途**: 大量データの分割配信、リアルタイム通知
+
+```go
+// サーバー実装
+func (s *server) ListUsers(req *pb.ListUsersRequest, stream pb.UserService_ListUsersServer) error {
+    users := s.db.GetAllUsers()
+    for _, user := range users {
+        if err := stream.Send(user); err != nil {
+            return err
+        }
+    }
+    return nil
+}
+
+// クライアント実装
+stream, err := client.ListUsers(ctx, &pb.ListUsersRequest{})
+for {
+    user, err := stream.Recv()
+    if err == io.EOF {
+        break
+    }
+    fmt.Println(user)
+}
+```
+
+**実用例**:
+- ファイルダウンロード（チャンク分割）
+- ログストリーミング
+- 株価・為替レートのリアルタイム配信
+
+**3. Client Streaming RPC（リクエスト複数 → レスポンス1つ）**
+
+```protobuf
+rpc UploadFile(stream FileChunk) returns (UploadResponse);
+```
+
+**用途**: 大容量データのアップロード、バッチ処理
+
+```go
+// クライアント実装
+stream, err := client.UploadFile(ctx)
+file, _ := os.Open("large-file.dat")
+buf := make([]byte, 1024*64) // 64KB chunk
+
+for {
+    n, err := file.Read(buf)
+    if err == io.EOF {
+        break
+    }
+    stream.Send(&pb.FileChunk{Data: buf[:n]})
+}
+
+response, err := stream.CloseAndRecv()
+fmt.Println("Upload complete:", response.FileId)
+```
+
+**実用例**:
+- ファイルアップロード
+- メトリクス集約（複数データポイント → 集計結果）
+- バルクインサート
+
+**4. Bidirectional Streaming RPC（リクエスト複数 ↔ レスポンス複数）**
+
+```protobuf
+rpc Chat(stream ChatMessage) returns (stream ChatMessage);
+```
+
+**用途**: 双方向リアルタイム通信
+
+```go
+// サーバー実装
+func (s *server) Chat(stream pb.ChatService_ChatServer) error {
+    for {
+        msg, err := stream.Recv()
+        if err == io.EOF {
+            return nil
+        }
+        // 全接続中のクライアントにブロードキャスト
+        s.broadcast(msg)
+    }
+}
+
+// クライアント実装
+stream, err := client.Chat(ctx)
+
+// 送信ゴルーチン
+go func() {
+    for msg := range msgChan {
+        stream.Send(msg)
+    }
+}()
+
+// 受信ゴルーチン
+for {
+    msg, err := stream.Recv()
+    if err == io.EOF {
+        break
+    }
+    fmt.Println("Received:", msg)
+}
+```
+
+**実用例**:
+- チャットアプリケーション
+- ゲームのリアルタイム通信
+- 音声/ビデオ通話のシグナリング
+
+**選択フローチャート**
+```
+質問: データは1回のやり取りで完結する?
+  Yes → Unary RPC
+
+  No → サーバーからのデータ配信が主?
+    Yes → Server Streaming RPC
+
+    No → クライアントからのデータ送信が主?
+      Yes → Client Streaming RPC
+
+      No → 双方向の同時通信が必要?
+        Yes → Bidirectional Streaming RPC
+```
+
+---
+
+## FAQ
+
+### Q1: gRPCとREST APIはどう使い分けるべき?
+マイクロサービス間の内部通信にはgRPCが最適です。Protocol Buffersによる型安全性、HTTP/2の多重化による高スループット、ストリーミング対応、自動コード生成が大きなメリットです。一方、外部公開APIやブラウザからの直接アクセスにはRESTが適しています。gRPCはブラウザネイティブサポートがなく、gRPC-WebやConnect RPCなどのプロキシが必要です。実務ではAPIゲートウェイでREST↔gRPC変換を行い、外部はREST、内部はgRPCという構成が一般的です。
+
+### Q2: Protocol Buffersのスキーマ変更で後方互換性を保つには?
+Protocol Buffersにはフィールド番号によるバージョニングが組み込まれています。後方互換性を保つルールは3つです。(1) 既存フィールドの番号や型を変更しない。(2) 新フィールドは新しい番号で追加する（古いクライアントは未知のフィールドを無視する）。(3) フィールドを削除する場合は `reserved` で番号を予約し、将来の再利用を防ぐ。Bufツールの `buf breaking` コマンドで破壊的変更をCI/CDパイプラインで自動検出できます。
+
+### Q3: gRPCの4つのストリーミングパターンはどう使い分ける?
+Unary RPC（1:1）は通常のリクエスト/レスポンスで最も多用されます。Server Streaming（1:N）はサーバーからの連続データ配信（ログストリーミング、検索結果の逐次返却等）に使います。Client Streaming（N:1）はクライアントからの大量データ送信（ファイルアップロード、センサーデータ収集等）に適しています。Bidirectional Streaming（N:N）はチャット、リアルタイム同期、インタラクティブな処理パイプラインに使用します。まずUnaryで始め、要件に応じて適切なパターンに拡張するのが推奨アプローチです。
+
+---
+
 ## まとめ
 
 | 概念 | ポイント |
@@ -2597,7 +2941,19 @@ buf push
 ---
 
 ## 次に読むべきガイド
-→ [[../02-http/00-http-basics.md]] — HTTP基礎
+
+**プロトコルの深掘り**
+- [[../02-http/01-http2-and-http3.md]] — HTTP/2とHTTP/3: gRPCの基盤となるプロトコル
+- [[../02-http/00-http-basics.md]] — HTTP基礎: gRPC-WebとRESTの比較理解に必要
+- [[./02-websocket.md]] — WebSocket: リアルタイム通信の別アプローチ
+
+**実装とセキュリティ**
+- [[../04-security/00-tls.md]] — TLS: gRPCのmTLS実装の理解に必要
+- [[../05-load-balancing/00-load-balancing-basics.md]] — ロードバランシング: gRPCサービスのスケーリング
+
+**運用と監視**
+- [[../06-observability/00-logging.md]] — ロギング: gRPCインターセプターでのログ実装
+- [[../06-observability/01-tracing.md]] — 分散トレーシング: マイクロサービス間のリクエスト追跡
 
 ---
 

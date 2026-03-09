@@ -17,6 +17,16 @@
 
 ---
 
+## 前提知識
+
+この章を最大限活用するために、以下の知識を事前に習得しておくことを推奨する:
+
+- **バリデーションパターン**: `./01-validation-patterns.md` で学ぶ、Zodスキーマによるバリデーション設計とエラーハンドリングのパターンを理解していること
+- **Fetch API と multipart/form-data**: HTTPリクエストの基礎、特に `FormData` を用いたファイル送信とContent-Typeヘッダーの役割を把握していること
+- **ブラウザのFile API**: `File`, `Blob`, `FileReader`, `URL.createObjectURL()` といったブラウザネイティブAPIの基本的な使い方を理解していること
+
+---
+
 ## 1. HTML5 File API の基礎
 
 ### 1.1 `<input type="file">` の基本
@@ -4612,6 +4622,394 @@ enum ScanResult {
 | 同期的な画像処理 | サーバーのレスポンス遅延 | 非同期ジョブキューに委譲 |
 | エラーハンドリング不足 | ユーザーが原因不明の失敗に遭遇 | 詳細なエラーメッセージを表示 |
 | 無制限のアップロード | DoS攻撃のリスク | サイズ・回数・容量の制限 |
+
+---
+
+## よくある質問（FAQ）
+
+### Q1. 大容量ファイルのチャンクアップロードはどう実装すべきですか？
+
+**A:** 大容量ファイル（100MB以上）をアップロードする場合、**チャンクアップロード（分割アップロード）** が必須である。これにより以下のメリットがある:
+
+- **ネットワーク障害に強い**: 途中で切断されても、失敗したチャンクだけ再送できる
+- **プログレス表示が正確**: チャンク単位で進捗を把握できる
+- **タイムアウト回避**: 1つのリクエストが長時間にならない
+
+**基本実装パターン:**
+
+```typescript
+interface UploadChunkParams {
+  file: File;
+  chunkSize: number; // 5MB推奨
+  onProgress: (progress: number) => void;
+}
+
+async function uploadFileInChunks({ file, chunkSize, onProgress }: UploadChunkParams) {
+  const totalChunks = Math.ceil(file.size / chunkSize);
+  const uploadId = crypto.randomUUID(); // アップロードセッションID
+
+  for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+    const start = chunkIndex * chunkSize;
+    const end = Math.min(start + chunkSize, file.size);
+    const chunk = file.slice(start, end);
+
+    const formData = new FormData();
+    formData.append('chunk', chunk);
+    formData.append('chunkIndex', String(chunkIndex));
+    formData.append('totalChunks', String(totalChunks));
+    formData.append('uploadId', uploadId);
+    formData.append('fileName', file.name);
+
+    const response = await fetch('/api/upload-chunk', {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Chunk ${chunkIndex} upload failed`);
+    }
+
+    onProgress(Math.round(((chunkIndex + 1) / totalChunks) * 100));
+  }
+
+  // 全チャンク完了後、サーバー側でファイルを結合
+  await fetch('/api/finalize-upload', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ uploadId, fileName: file.name }),
+  });
+}
+```
+
+**サーバー側実装（Next.js App Router）:**
+
+```typescript
+// app/api/upload-chunk/route.ts
+import { NextRequest } from 'next/server';
+import fs from 'fs/promises';
+import path from 'path';
+
+export async function POST(request: NextRequest) {
+  const formData = await request.formData();
+  const chunk = formData.get('chunk') as File;
+  const chunkIndex = Number(formData.get('chunkIndex'));
+  const uploadId = formData.get('uploadId') as string;
+
+  const uploadDir = path.join(process.cwd(), 'uploads', 'temp', uploadId);
+  await fs.mkdir(uploadDir, { recursive: true });
+
+  const chunkPath = path.join(uploadDir, `chunk-${chunkIndex}`);
+  const buffer = Buffer.from(await chunk.arrayBuffer());
+  await fs.writeFile(chunkPath, buffer);
+
+  return Response.json({ success: true });
+}
+
+// app/api/finalize-upload/route.ts
+export async function POST(request: NextRequest) {
+  const { uploadId, fileName } = await request.json();
+
+  const uploadDir = path.join(process.cwd(), 'uploads', 'temp', uploadId);
+  const files = await fs.readdir(uploadDir);
+  const sortedFiles = files.sort((a, b) => {
+    const aIndex = Number(a.split('-')[1]);
+    const bIndex = Number(b.split('-')[1]);
+    return aIndex - bIndex;
+  });
+
+  const finalPath = path.join(process.cwd(), 'uploads', fileName);
+  const writeStream = createWriteStream(finalPath);
+
+  for (const file of sortedFiles) {
+    const chunkPath = path.join(uploadDir, file);
+    const chunkData = await fs.readFile(chunkPath);
+    writeStream.write(chunkData);
+  }
+
+  writeStream.end();
+
+  // 一時ファイルを削除
+  await fs.rm(uploadDir, { recursive: true });
+
+  return Response.json({ success: true, filePath: finalPath });
+}
+```
+
+**AWS S3でのチャンクアップロード（推奨）:**
+
+S3の **Multipart Upload API** を使うと、サーバー側の実装が不要になる:
+
+```typescript
+import { S3Client, CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand } from '@aws-sdk/client-s3';
+
+const s3Client = new S3Client({ region: 'us-east-1' });
+
+async function uploadToS3InChunks(file: File) {
+  const chunkSize = 5 * 1024 * 1024; // 5MB
+  const totalChunks = Math.ceil(file.size / chunkSize);
+
+  // 1. Multipart Uploadの開始
+  const { UploadId } = await s3Client.send(
+    new CreateMultipartUploadCommand({
+      Bucket: 'my-bucket',
+      Key: file.name,
+    })
+  );
+
+  const uploadedParts = [];
+
+  // 2. 各チャンクをアップロード
+  for (let i = 0; i < totalChunks; i++) {
+    const start = i * chunkSize;
+    const end = Math.min(start + chunkSize, file.size);
+    const chunk = file.slice(start, end);
+
+    const { ETag } = await s3Client.send(
+      new UploadPartCommand({
+        Bucket: 'my-bucket',
+        Key: file.name,
+        UploadId,
+        PartNumber: i + 1,
+        Body: await chunk.arrayBuffer(),
+      })
+    );
+
+    uploadedParts.push({ ETag, PartNumber: i + 1 });
+  }
+
+  // 3. アップロード完了
+  await s3Client.send(
+    new CompleteMultipartUploadCommand({
+      Bucket: 'my-bucket',
+      Key: file.name,
+      UploadId,
+      MultipartUpload: { Parts: uploadedParts },
+    })
+  );
+}
+```
+
+### Q2. ドラッグ&ドロップアップロードはどう実装すべきですか？
+
+**A:** ドラッグ&ドロップは以下の3つのイベントを組み合わせて実装する:
+
+**基本実装:**
+
+```typescript
+function FileDropZone() {
+  const [isDragging, setIsDragging] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const droppedFiles = Array.from(e.dataTransfer.files);
+    setFiles(droppedFiles);
+  };
+
+  return (
+    <div
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+      className={isDragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}
+    >
+      {files.length > 0 ? (
+        <ul>
+          {files.map((file, i) => (
+            <li key={i}>{file.name}</li>
+          ))}
+        </ul>
+      ) : (
+        <p>ファイルをドラッグ&ドロップ</p>
+      )}
+    </div>
+  );
+}
+```
+
+**react-dropzoneを使った実装（推奨）:**
+
+```typescript
+import { useDropzone } from 'react-dropzone';
+
+function FileDropZone() {
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    accept: {
+      'image/*': ['.png', '.jpg', '.jpeg', '.webp'],
+    },
+    maxFiles: 5,
+    maxSize: 10 * 1024 * 1024, // 10MB
+    onDrop: (acceptedFiles) => {
+      console.log(acceptedFiles);
+    },
+  });
+
+  return (
+    <div {...getRootProps()}>
+      <input {...getInputProps()} />
+      {isDragActive ? (
+        <p>ファイルをドロップしてください</p>
+      ) : (
+        <p>ファイルをドラッグ&ドロップ、またはクリックして選択</p>
+      )}
+    </div>
+  );
+}
+```
+
+**ディレクトリのドロップ対応:**
+
+```typescript
+const handleDrop = async (e: React.DragEvent) => {
+  e.preventDefault();
+
+  const items = Array.from(e.dataTransfer.items);
+  const files: File[] = [];
+
+  for (const item of items) {
+    if (item.kind === 'file') {
+      const entry = item.webkitGetAsEntry();
+      if (entry?.isDirectory) {
+        await readDirectory(entry as FileSystemDirectoryEntry, files);
+      } else {
+        const file = item.getAsFile();
+        if (file) files.push(file);
+      }
+    }
+  }
+
+  setFiles(files);
+};
+
+async function readDirectory(directory: FileSystemDirectoryEntry, files: File[]) {
+  const reader = directory.createReader();
+  const entries = await new Promise<FileSystemEntry[]>((resolve) => {
+    reader.readEntries(resolve);
+  });
+
+  for (const entry of entries) {
+    if (entry.isFile) {
+      const file = await new Promise<File>((resolve) => {
+        (entry as FileSystemFileEntry).file(resolve);
+      });
+      files.push(file);
+    } else if (entry.isDirectory) {
+      await readDirectory(entry as FileSystemDirectoryEntry, files);
+    }
+  }
+}
+```
+
+### Q3. プログレスバーの表示はどう実装すべきですか？
+
+**A:** プログレスバーは `XMLHttpRequest` の `upload.onprogress` イベントで実装する（Fetch APIは現状プログレスイベント非対応）:
+
+**XMLHttpRequest版:**
+
+```typescript
+function uploadWithProgress(file: File, onProgress: (progress: number) => void) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) {
+        const progress = Math.round((event.loaded / event.total) * 100);
+        onProgress(progress);
+      }
+    };
+
+    xhr.onload = () => {
+      if (xhr.status === 200) {
+        resolve(JSON.parse(xhr.responseText));
+      } else {
+        reject(new Error(`Upload failed: ${xhr.status}`));
+      }
+    };
+
+    xhr.onerror = () => reject(new Error('Network error'));
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    xhr.open('POST', '/api/upload');
+    xhr.send(formData);
+  });
+}
+
+// 使用例
+function FileUploader() {
+  const [progress, setProgress] = useState(0);
+
+  const handleUpload = async (file: File) => {
+    await uploadWithProgress(file, setProgress);
+  };
+
+  return (
+    <div>
+      <input type="file" onChange={(e) => handleUpload(e.target.files![0])} />
+      {progress > 0 && <progress value={progress} max={100} />}
+    </div>
+  );
+}
+```
+
+**Fetch API で擬似的にプログレス表示（チャンクアップロード利用）:**
+
+```typescript
+async function uploadWithChunkProgress(file: File, onProgress: (progress: number) => void) {
+  const chunkSize = 1024 * 1024; // 1MB
+  const totalChunks = Math.ceil(file.size / chunkSize);
+
+  for (let i = 0; i < totalChunks; i++) {
+    const chunk = file.slice(i * chunkSize, (i + 1) * chunkSize);
+
+    await fetch('/api/upload-chunk', {
+      method: 'POST',
+      body: chunk,
+    });
+
+    onProgress(Math.round(((i + 1) / totalChunks) * 100));
+  }
+}
+```
+
+**shadcn/ui の Progress コンポーネント:**
+
+```typescript
+import { Progress } from '@/components/ui/progress';
+
+function FileUploader() {
+  const [progress, setProgress] = useState(0);
+
+  return (
+    <div>
+      <Progress value={progress} className="w-full" />
+      <p>{progress}%</p>
+    </div>
+  );
+}
+```
 
 ---
 

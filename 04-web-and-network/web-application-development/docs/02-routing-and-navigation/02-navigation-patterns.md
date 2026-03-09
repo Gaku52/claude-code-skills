@@ -3838,6 +3838,265 @@ function NavigationDebugger() {
 
 ---
 
+## 前提知識
+
+この章を最大限に活用するために、以下の知識を事前に習得しておくことを推奨する。
+
+- **ファイルベースルーティング**: Next.js App Router のファイル規約とルート構造 → `./01-file-based-routing.md`
+- **ブラウザのナビゲーション**: ブラウザがページ遷移をどのように処理するか → `../../browser-and-web-platform/docs/00-browser-engine/01-navigation-and-loading.md`
+- **React の基本**: コンポーネント設計、状態管理、フックの使い方
+
+これらの概念を理解することで、効果的なナビゲーションUIを設計・実装できる。
+
+---
+
+## FAQ
+
+### Q1: プリフェッチの最適化戦略は?
+
+**A:** プリフェッチは帯域幅とメモリを消費するため、ユーザーの行動パターンとデバイスの状態に応じて最適化する。
+
+```typescript
+// =========================================
+// Next.js のプリフェッチ制御
+// =========================================
+
+// デフォルト: ビューポート内の Link は自動プリフェッチ
+<Link href="/dashboard">Dashboard</Link>
+
+// プリフェッチを無効化
+<Link href="/settings" prefetch={false}>Settings</Link>
+
+// 動的にプリフェッチ
+import { useRouter } from 'next/navigation';
+
+function Navigation() {
+  const router = useRouter();
+
+  return (
+    <nav
+      onMouseEnter={() => {
+        // ホバー時にプリフェッチ
+        router.prefetch('/dashboard');
+      }}
+    >
+      <a href="/dashboard">Dashboard</a>
+    </nav>
+  );
+}
+
+// =========================================
+// 条件付きプリフェッチ
+// =========================================
+
+function SmartLink({ href, children }: { href: string; children: React.ReactNode }) {
+  const [shouldPrefetch, setShouldPrefetch] = useState(false);
+
+  useEffect(() => {
+    // ネットワーク状態を確認
+    const connection = (navigator as any).connection;
+    if (connection) {
+      // Wi-Fi または高速接続時のみプリフェッチ
+      const isFastConnection =
+        connection.effectiveType === '4g' ||
+        connection.type === 'wifi';
+      setShouldPrefetch(isFastConnection);
+    }
+  }, []);
+
+  return (
+    <Link href={href} prefetch={shouldPrefetch}>
+      {children}
+    </Link>
+  );
+}
+
+// =========================================
+// 優先度付きプリフェッチ
+// =========================================
+
+function PriorityNavigation() {
+  const router = useRouter();
+
+  useEffect(() => {
+    // 最優先: ユーザーが頻繁にアクセスするページ
+    router.prefetch('/dashboard');
+
+    // 低優先: アクセス頻度が低いページは遅延
+    setTimeout(() => {
+      router.prefetch('/settings');
+      router.prefetch('/profile');
+    }, 3000);
+  }, [router]);
+
+  return <nav>{/* ... */}</nav>;
+}
+```
+
+**推奨事項**:
+- モバイル・低速回線では prefetch を制限
+- ログイン後の最初のページのみ積極的にプリフェッチ
+- Intersection Observer でビューポート近くの Link のみプリフェッチ
+
+### Q2: ナビゲーション中のローディングUI実装は?
+
+**A:** Next.js App Router では `loading.tsx` と `useTransition` を組み合わせて、段階的なローディング体験を提供する。
+
+```typescript
+// =========================================
+// 1. Route レベルのローディング
+// =========================================
+// app/dashboard/loading.tsx
+export default function DashboardLoading() {
+  return <DashboardSkeleton />;
+}
+
+// app/dashboard/page.tsx
+export default async function DashboardPage() {
+  const data = await fetchDashboardData(); // 自動的に Suspense でラップ
+  return <Dashboard data={data} />;
+}
+
+// =========================================
+// 2. コンポーネントレベルのローディング
+// =========================================
+import { Suspense } from 'react';
+
+export default function DashboardPage() {
+  return (
+    <div>
+      <h1>Dashboard</h1>
+      <Suspense fallback={<ChartSkeleton />}>
+        <Chart />
+      </Suspense>
+      <Suspense fallback={<TableSkeleton />}>
+        <DataTable />
+      </Suspense>
+    </div>
+  );
+}
+
+// =========================================
+// 3. Navigation ローディング（useTransition）
+// =========================================
+'use client';
+
+import { useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+
+function Navigation() {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+
+  const navigate = (path: string) => {
+    startTransition(() => {
+      router.push(path);
+    });
+  };
+
+  return (
+    <nav>
+      {isPending && <LoadingSpinner />}
+      <button onClick={() => navigate('/dashboard')}>
+        Dashboard
+      </button>
+    </nav>
+  );
+}
+```
+
+### Q3: Parallel Routes と Intercepting Routes の使い分けは?
+
+**A:** Parallel Routes は同一ページ内で複数の独立したコンテンツを並列表示する場合、Intercepting Routes はモーダル表示など、ナビゲーションの「横取り」をする場合に使用する。
+
+```
+Parallel Routes (@slot):
+
+app/
+├── layout.tsx
+├── @main/
+│   └── page.tsx         # メインコンテンツ
+└── @sidebar/
+    └── page.tsx         # サイドバー
+
+// layout.tsx
+export default function Layout({
+  main,
+  sidebar,
+}: {
+  main: React.ReactNode;
+  sidebar: React.ReactNode;
+}) {
+  return (
+    <div className="flex">
+      <aside>{sidebar}</aside>
+      <main>{main}</main>
+    </div>
+  );
+}
+
+ユースケース:
+  - ダッシュボード（メイン + サイドバー + 通知パネル）
+  - 分割ビュー（リスト + 詳細）
+  - 各スロットで独立した loading.tsx / error.tsx
+
+Intercepting Routes ((.)path):
+
+app/
+├── photos/
+│   ├── page.tsx              # 写真一覧
+│   ├── [id]/
+│   │   └── page.tsx          # 写真詳細（全画面）
+│   └── (.)[id]/
+│       └── page.tsx          # モーダル表示
+
+使い方:
+  - 一覧から写真クリック → モーダルで開く（(.)[id]/page.tsx）
+  - URL直接アクセス → 全画面表示（[id]/page.tsx）
+  - 戻るボタン → 一覧に戻る（モーダルを閉じる）
+
+インターセプトパターン:
+  (.)  → 同じディレクトリ
+  (..) → 1つ上のディレクトリ
+  (..)(..) → 2つ上
+  (...) → app/ ルート
+```
+
+---
+
+## まとめ
+
+### ナビゲーションパターンの比較表
+
+| パターン | 用途 | 実装コスト | アクセシビリティ | パフォーマンス |
+|---------|------|-----------|----------------|--------------|
+| サイドバー | 管理画面・ダッシュボード | 中 | 高（aria 対応必須） | 高 |
+| トップナビ | Webサイト・LP | 低 | 高（自然な構造） | 高 |
+| ブレッドクラム | 階層的コンテンツ | 低 | 高（aria-label 必須） | 高 |
+| タブ | セクション切り替え | 低 | 中（キーボード対応） | 高 |
+| コマンドパレット | パワーユーザー向け | 高 | 中（発見性低い） | 中 |
+| ボトムナビ | モバイルアプリ・PWA | 中 | 高（タッチ最適化） | 高 |
+| メガメニュー | ECサイト・大規模サイト | 高 | 低（複雑な構造） | 中 |
+
+### ナビゲーション設計の3つのキーポイント
+
+1. **ユーザーの位置を常に明示する**
+   - アクティブ状態のハイライト（`aria-current="page"`）
+   - ブレッドクラムによる階層表示
+   - 意味のある URL 構造
+
+2. **デバイスに最適化する**
+   - デスクトップ: サイドバー or トップナビ
+   - モバイル: ボトムナビ + ハンバーガーメニュー
+   - タブレット: レスポンシブな折りたたみサイドバー
+
+3. **パフォーマンスとアクセシビリティを両立する**
+   - プリフェッチの最適化（ネットワーク状態を考慮）
+   - キーボードナビゲーションの完全サポート
+   - スクリーンリーダー対応（ARIA 属性の適切な使用）
+
+---
+
 ## 次に読むべきガイド
 - [[03-auth-and-guards.md]] -- 認証ガード
 

@@ -2,6 +2,14 @@
 
 > パフォーマンスはユーザー体験の根幹。バンドルサイズ削減、画像最適化、コード分割、キャッシュ戦略、Core Web Vitals改善まで、本番環境で高速なWebアプリを実現する最適化テクニックを習得する。
 
+## 前提知識
+
+このガイドを最大限に活用するために、以下の知識を事前に習得しておくことを推奨します。
+
+- **環境設定**: デプロイプラットフォームと環境変数の管理 → [[./01-environment-and-config.md]]
+- **ブラウザのレンダリング**: レンダリングパイプライン、Reflow、Repaint → [[../../browser-and-web-platform/docs/01-rendering/00-rendering-pipeline.md]]
+- **HTTPキャッシュ**: Cache-Control、ETag、ブラウザキャッシュの仕組み → [[../../network-fundamentals/docs/02-http/03-caching.md]]
+
 ## この章で学ぶこと
 
 - [ ] バンドルサイズの分析と最適化を理解する
@@ -3056,6 +3064,267 @@ const CartContext = createContext([]);
     → 1つずつ改善して効果を計測
     → PRごとにLighthouse CIで回帰チェック
 ```
+
+---
+
+## よくある質問（FAQ）
+
+### Q1: Core Web Vitalsの改善戦略は？
+
+**Core Web Vitalsの3つの指標と目標値:**
+
+| 指標 | 目標値 | 測定対象 |
+|------|--------|---------|
+| LCP (Largest Contentful Paint) | < 2.5秒 | 最大コンテンツの表示速度 |
+| INP (Interaction to Next Paint) | < 200ms | インタラクション応答性 |
+| CLS (Cumulative Layout Shift) | < 0.1 | レイアウトの安定性 |
+
+**LCP改善の優先順位:**
+
+```
+1. 画像最適化（最重要）
+   □ priority属性でATF画像をプリロード
+   □ WebP/AVIF形式に変換
+   □ sizes属性で適切なサイズ指定
+   □ CDN経由で配信
+
+2. サーバー応答の高速化
+   □ SSG/ISRでHTMLを事前生成
+   □ Edgeでキャッシュ
+   □ TTFB < 600msを目指す
+
+3. リソースのブロッキング削減
+   □ Critical CSSのインライン化
+   □ 非同期スクリプト読み込み（defer/async）
+   □ フォントのpreload
+
+実装例:
+// LCP画像の最適化
+<Image
+  src="/hero.jpg"
+  alt="Hero"
+  width={1200}
+  height={600}
+  priority  // ← LCP画像には必須
+  sizes="100vw"
+/>
+```
+
+**INP改善の戦略:**
+
+```typescript
+// 1. 重い処理をWeb Workerに移譲
+const worker = new Worker('/worker.js');
+worker.postMessage({ data: heavyData });
+
+// 2. useTransition で優先度を下げる
+import { useTransition } from 'react';
+const [isPending, startTransition] = useTransition();
+
+function handleClick() {
+  startTransition(() => {
+    // 重い状態更新を低優先度に
+    setSearchResults(filterLargeDataset(query));
+  });
+}
+
+// 3. 仮想スクロール（大量データの場合）
+import { useVirtualizer } from '@tanstack/react-virtual';
+
+// 4. デバウンス/スロットル
+import { debounce } from 'lodash-es';
+const debouncedSearch = debounce(search, 300);
+```
+
+**CLS改善のチェックリスト:**
+
+```
+□ すべての画像にwidth/heightを指定
+  <img src="/img.jpg" width="800" height="600" />
+
+□ フォント読み込み中もレイアウトが崩れないように
+  font-display: swap; + fallbackフォント指定
+
+□ 動的コンテンツには領域を事前確保
+  <div style={{ minHeight: '200px' }}>{dynamicContent}</div>
+
+□ 広告・埋め込みコンテンツには固定サイズ指定
+  <div className="ad-container" style={{ width: 300, height: 250 }} />
+
+□ アニメーションはtransform/opacityのみ使用
+  ✓ transform: translateY(10px);
+  ✗ margin-top: 10px; ← Reflow発生
+```
+
+### Q2: バンドルサイズの最適化方法は？
+
+**分析ツールで現状把握:**
+
+```bash
+# Next.jsのビルド分析
+ANALYZE=true npm run build
+
+# バンドルサイズの内訳を確認
+npx source-map-explorer 'build/static/js/*.js'
+```
+
+**最適化の優先順位:**
+
+```
+1. 不要な依存関係の削除（最も効果大）
+   # パッケージサイズを確認
+   npx bundlephobia <package-name>
+
+   # 例: moment.js (289KB) → date-fns (13KB) or dayjs (2KB)
+   - import moment from 'moment';
+   + import { format } from 'date-fns';
+
+2. Tree Shakingを活用
+   # ✗ 悪い例: デフォルトインポート
+   import _ from 'lodash';  // 全体が読み込まれる
+
+   # ✓ 良い例: 名前付きインポート
+   import { debounce, throttle } from 'lodash-es';
+
+3. Dynamic Import でコード分割
+   // ✗ 悪い例: 全部を最初に読み込み
+   import HeavyChart from './HeavyChart';
+
+   // ✓ 良い例: 必要になったら読み込み
+   const HeavyChart = lazy(() => import('./HeavyChart'));
+
+4. 本番ビルドの最適化
+   // next.config.js
+   module.exports = {
+     compiler: {
+       removeConsole: process.env.NODE_ENV === 'production',
+     },
+     experimental: {
+       optimizePackageImports: ['lodash-es', 'date-fns'],
+     },
+   };
+```
+
+**バンドルサイズのベンチマーク:**
+
+```
+Next.js アプリの目標値:
+
+Initial Load (First Load JS):
+  ✓ Excellent: < 100KB
+  △ Good:      100-200KB
+  ✗ Poor:      > 200KB
+
+Per-page JavaScript:
+  ✓ Excellent: < 50KB
+  △ Good:      50-100KB
+  ✗ Poor:      > 100KB
+```
+
+### Q3: 画像最適化のベストプラクティスは？
+
+**Next.js Image コンポーネントの完全活用:**
+
+```typescript
+import Image from 'next/image';
+
+// 1. ATF（Above The Fold）画像 - 最優先
+<Image
+  src="/hero.jpg"
+  alt="Hero image"
+  width={1200}
+  height={600}
+  priority              // ← プリロード
+  quality={90}          // デフォルト75、ヒーロー画像は高品質
+  sizes="100vw"         // レスポンシブ対応
+/>
+
+// 2. BTF（Below The Fold）画像 - 遅延読み込み
+<Image
+  src="/content.jpg"
+  alt="Content"
+  width={800}
+  height={400}
+  loading="lazy"        // デフォルトで有効
+  quality={75}          // 標準品質
+  sizes="(max-width: 768px) 100vw, 800px"
+  placeholder="blur"    // ぼかしプレースホルダー
+  blurDataURL="data:image/jpeg;base64,..." // LQIP
+/>
+
+// 3. 外部画像
+<Image
+  src="https://example.com/image.jpg"
+  alt="External image"
+  width={600}
+  height={400}
+  unoptimized={false}   // Vercel Image Optimizationを利用
+/>
+```
+
+**next.config.js での最適化設定:**
+
+```javascript
+module.exports = {
+  images: {
+    formats: ['image/avif', 'image/webp'], // 最新フォーマットを優先
+    deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
+    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
+    minimumCacheTTL: 31536000, // 1年間キャッシュ
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'images.example.com',
+      },
+    ],
+  },
+};
+```
+
+**フォーマット選択の指針:**
+
+```
+シナリオ別の推奨フォーマット:
+
+写真・グラデーション:
+  1st: AVIF (最高圧縮、Safari 16.4+)
+  2nd: WebP (広範サポート、IE以外)
+  3rd: JPEG (フォールバック)
+
+イラスト・ロゴ・アイコン:
+  1st: SVG (ベクター、スケーラブル)
+  2nd: WebP (透過対応)
+  3rd: PNG (フォールバック)
+
+アニメーション:
+  1st: WebP animated (GIFより圧縮率高い)
+  2nd: MP4/WebM (動画として扱う、さらに軽量)
+  3rd: GIF (フォールバック)
+```
+
+**パフォーマンス検証:**
+
+```bash
+# Lighthouse で画像最適化を確認
+npx lighthouse https://example.com --only-categories=performance
+
+# 各画像のサイズを確認
+# Chrome DevTools > Network > Img フィルター
+# サイズが大きい画像を特定して最適化
+```
+
+**CDN経由での配信:**
+
+```typescript
+// Cloudflare Images経由
+const imageUrl = `https://imagedelivery.net/${ACCOUNT_HASH}/${IMAGE_ID}/public`;
+
+// 動的リサイズ
+const thumbnail = `${imageUrl}/width=400,height=300`;
+const optimized = `${imageUrl}/format=auto,quality=80`;
+```
+
+これらの最適化を実施することで、LCPを劇的に改善できます。
 
 ---
 

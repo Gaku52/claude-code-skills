@@ -4316,10 +4316,310 @@ function PermissionDebugger() {
 
 ---
 
+## 前提知識
+
+この章を最大限に活用するために、以下の知識を事前に習得しておくことを推奨する。
+
+- **ナビゲーションパターン**: ルーティングとナビゲーションの基本設計 → `./02-navigation-patterns.md`
+- **認証の基礎**: 認証と認可の違い、JWT・セッションベース認証 → `../../network-fundamentals/docs/03-security/01-authentication.md`
+- **ミドルウェアの概念**: リクエスト処理の中間層としてのミドルウェアの役割
+
+これらの概念を理解することで、セキュアで使いやすい認証ガードを実装できる。
+
+---
+
+## FAQ
+
+### Q1: Middleware での認証チェック実装のベストプラクティスは?
+
+**A:** Middleware では軽量なトークン検証のみ行い、詳細な権限チェックは Layout または API Route で実施する。
+
+```typescript
+// =========================================
+// middleware.ts（推奨実装）
+// =========================================
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { verifyJWT } from '@/lib/auth';
+
+export async function middleware(request: NextRequest) {
+  const token = request.cookies.get('auth-token')?.value;
+
+  // 1. 公開パスはスキップ
+  const publicPaths = ['/login', '/signup', '/forgot-password', '/api/health'];
+  if (publicPaths.some(path => request.nextUrl.pathname.startsWith(path))) {
+    return NextResponse.next();
+  }
+
+  // 2. トークンの存在チェック
+  if (!token) {
+    return NextResponse.redirect(new URL('/login', request.url));
+  }
+
+  // 3. トークンの検証（軽量な検証のみ）
+  try {
+    const payload = await verifyJWT(token);
+
+    // リクエストヘッダーに userId を追加（後続処理で利用）
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set('x-user-id', payload.userId);
+
+    return NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      },
+    });
+  } catch (error) {
+    // トークンが無効 → ログインページへ
+    const response = NextResponse.redirect(new URL('/login', request.url));
+    response.cookies.delete('auth-token'); // 無効なトークンを削除
+    return response;
+  }
+}
+
+// Middleware を適用するパスを指定
+export const config = {
+  matcher: [
+    // 認証が必要なパス
+    '/dashboard/:path*',
+    '/admin/:path*',
+    '/api/protected/:path*',
+    // 除外: 静的ファイル、Next.js 内部パス
+    '/((?!_next/static|_next/image|favicon.ico).*)',
+  ],
+};
+
+// =========================================
+// layout.tsx（詳細な権限チェック）
+// =========================================
+import { getServerSession } from 'next-auth';
+import { redirect } from 'next/navigation';
+
+export default async function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const session = await getServerSession();
+
+  if (!session) {
+    redirect('/login');
+  }
+
+  // 詳細な権限チェック
+  if (!session.user.roles.includes('admin')) {
+    redirect('/forbidden');
+  }
+
+  return <div>{children}</div>;
+}
+```
+
+**重要なポイント**:
+- Middleware は Edge Runtime で動作するため、データベースアクセスを避ける
+- セッション検証はサーバーコンポーネントで行う
+- トークンのリフレッシュは API Route で実施
+
+### Q2: RBAC（Role-Based Access Control）の実装方法は?
+
+**A:** ユーザーにロールを割り当て、ロールごとに権限セットを定義する。コンポーネント・API・データベースの各レイヤーで権限チェックを実施する。
+
+```typescript
+// =========================================
+// 型定義
+// =========================================
+type Role = 'admin' | 'editor' | 'viewer';
+type Permission =
+  | 'users:read'
+  | 'users:write'
+  | 'posts:read'
+  | 'posts:write'
+  | 'posts:delete';
+
+const rolePermissions: Record<Role, Permission[]> = {
+  admin: ['users:read', 'users:write', 'posts:read', 'posts:write', 'posts:delete'],
+  editor: ['users:read', 'posts:read', 'posts:write'],
+  viewer: ['posts:read'],
+};
+
+// =========================================
+// 権限チェック関数
+// =========================================
+function hasPermission(userRoles: Role[], permission: Permission): boolean {
+  return userRoles.some(role =>
+    rolePermissions[role]?.includes(permission)
+  );
+}
+
+// =========================================
+// Server Component での使用
+// =========================================
+import { getServerSession } from 'next-auth';
+
+export default async function AdminPage() {
+  const session = await getServerSession();
+
+  if (!session || !hasPermission(session.user.roles, 'users:write')) {
+    return <Forbidden message="You don't have permission to manage users" />;
+  }
+
+  return <UserManagement />;
+}
+
+// =========================================
+// Client Component での使用
+// =========================================
+'use client';
+
+import { useSession } from 'next-auth/react';
+
+function DeleteButton({ postId }: { postId: string }) {
+  const { data: session } = useSession();
+
+  if (!session || !hasPermission(session.user.roles, 'posts:delete')) {
+    return null; // ボタンを非表示
+  }
+
+  return (
+    <button onClick={() => deletePost(postId)}>
+      Delete
+    </button>
+  );
+}
+
+// =========================================
+// API Route での使用
+// =========================================
+import { getServerSession } from 'next-auth';
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  const session = await getServerSession();
+
+  if (!session) {
+    return new Response('Unauthorized', { status: 401 });
+  }
+
+  if (!hasPermission(session.user.roles, 'posts:delete')) {
+    return new Response('Forbidden', { status: 403 });
+  }
+
+  await deletePost(params.id);
+  return new Response('Deleted', { status: 200 });
+}
+```
+
+### Q3: 認証状態の SSR 対応は?
+
+**A:** サーバーコンポーネントでセッションを取得し、クライアントコンポーネントには Context 経由で渡す。初回レンダリング時の認証状態とクライアント側の状態を一致させる。
+
+```typescript
+// =========================================
+// app/layout.tsx（Server Component）
+// =========================================
+import { getServerSession } from 'next-auth';
+import { SessionProvider } from '@/components/session-provider';
+
+export default async function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  // サーバー側でセッション取得
+  const session = await getServerSession();
+
+  return (
+    <html>
+      <body>
+        {/* クライアント側に渡す */}
+        <SessionProvider session={session}>
+          {children}
+        </SessionProvider>
+      </body>
+    </html>
+  );
+}
+
+// =========================================
+// components/session-provider.tsx（Client Component）
+// =========================================
+'use client';
+
+import { SessionProvider as NextAuthSessionProvider } from 'next-auth/react';
+
+export function SessionProvider({
+  children,
+  session,
+}: {
+  children: React.ReactNode;
+  session: any;
+}) {
+  return (
+    <NextAuthSessionProvider session={session}>
+      {children}
+    </NextAuthSessionProvider>
+  );
+}
+
+// =========================================
+// components/user-menu.tsx（Client Component）
+// =========================================
+'use client';
+
+import { useSession } from 'next-auth/react';
+
+export function UserMenu() {
+  const { data: session, status } = useSession();
+
+  // 初回レンダリング時もサーバーから受け取ったセッションが使える
+  if (status === 'loading') {
+    return <UserMenuSkeleton />;
+  }
+
+  if (!session) {
+    return <LoginButton />;
+  }
+
+  return (
+    <div>
+      <p>Welcome, {session.user.name}</p>
+      <LogoutButton />
+    </div>
+  );
+}
+
+// =========================================
+// app/dashboard/page.tsx（Server Component）
+// =========================================
+import { getServerSession } from 'next-auth';
+import { redirect } from 'next/navigation';
+
+export default async function DashboardPage() {
+  const session = await getServerSession();
+
+  if (!session) {
+    redirect('/login');
+  }
+
+  // サーバー側で認証済みデータをフェッチ
+  const userData = await fetchUserData(session.user.id);
+
+  return <Dashboard data={userData} />;
+}
+```
+
+**重要なポイント**:
+- Server Component で取得したセッションをクライアントに渡すことで、初回レンダリング時の Hydration エラーを防ぐ
+- 機密性の高いデータは Server Component でフェッチし、クライアントに送らない
+- `useSession` は認証状態の変更を監視し、リアルタイムで UI を更新
+
+---
+
 ## 次に読むべきガイド
-- [[00-form-design.md]] -- フォーム設計
-- [[01-route-design.md]] -- ルート設計の基本
-- [[02-dynamic-routing.md]] -- 動的ルーティング
+- [[../03-data-fetching-and-state/00-data-fetching-patterns.md]] -- データフェッチング
+- [[../04-forms-and-validation/00-form-design.md]] -- フォーム設計
 
 ---
 

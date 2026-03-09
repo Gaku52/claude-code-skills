@@ -2,6 +2,23 @@
 
 > Zustandはストアベースの軽量状態管理、Jotaiはアトムベースのボトムアップ状態管理。それぞれのメンタルモデル、実装パターン、使い分けの基準を理解し、プロジェクトに最適なツールを選択する。
 
+## 前提知識
+
+この章を効果的に学習するために、以下の知識を事前に習得しておくことを推奨する:
+
+- **状態管理の概要** → [[./00-state-management-overview.md]]
+  - 状態の4カテゴリ（ローカル、グローバル、サーバー、URL）の理解
+  - グローバル状態を使うべき場面の判断基準
+  - 状態の最小化と Single Source of Truth の原則
+- **React Hooksの基礎**
+  - `useState`, `useReducer`, `useContext` の使い方
+  - `useMemo`, `useCallback` による最適化の基本
+  - カスタムフックの作成方法
+- **immutable更新パターン**
+  - オブジェクトのスプレッド構文（`{ ...obj, key: value }`）
+  - 配列の非破壊的更新（map, filter, slice）
+  - Immer ライブラリの概念（mutable な書き方で immutable な更新）
+
 ## この章で学ぶこと
 
 - [ ] Zustandのストア設計とミドルウェアを理解する
@@ -2264,6 +2281,139 @@ Jotai ベストプラクティス:
   4. テストを書く（ストア/アトムのロジックは純粋関数として）
   5. パフォーマンス計測してから最適化する（premature optimization を避ける）
 ```
+
+---
+
+## FAQ
+
+### Q1: Zustand と Jotai はどう使い分けるべきか？
+
+**A:** メンタルモデルと技術的要件で判断する:
+
+**Zustand を選ぶ場面:**
+- 明確な「ストア」の概念が欲しい（Redux 経験者にとって直感的）
+- React 外からも状態にアクセスしたい（API インターセプター、WebSocket ハンドラ等）
+- ミドルウェア（persist, devtools, immer）を活用したい
+- シンプルで学習コストが低いライブラリが欲しい
+- **例:** 認証状態、カート、UI設定（サイドバー、テーマ）
+
+**Jotai を選ぶ場面:**
+- コンポーネント単位の細かい再レンダリング制御が必要
+- 派生状態（computed values）が多い
+- 状態が動的に増減する（atomFamily）
+- Suspense / Concurrent React との統合を重視
+- ボトムアップで状態を組み立てたい
+- **例:** 複雑なフィルタリング、フォーム（各フィールドを独立管理）、動的テーブル
+
+**両方使う（実務で最も多いパターン）:**
+```typescript
+// Zustand: グローバルな静的状態
+const useAuthStore = create(/* 認証 */);
+const useUIStore = create(/* テーマ、サイドバー */);
+
+// Jotai: 動的・派生状態が多い部分
+const searchQueryAtom = atom('');
+const filtersAtom = atom([]);
+const filteredResultsAtom = atom((get) => /* 派生 */);
+```
+
+### Q2: ストアの分割戦略は？
+
+**A:** 関心事の分離（Separation of Concerns）に基づいて分割する:
+
+**アンチパターン: 巨大な単一ストア**
+```typescript
+// NG: 何でも1つのストアに詰め込む
+const useMegaStore = create({
+  user, theme, cart, notifications, sidebar, modal, ...
+  // → 50以上のプロパティ、肥大化、テストしづらい
+});
+```
+
+**ベストプラクティス: ドメインごとに分割**
+```typescript
+// OK: 関心事ごとにストアを分ける
+const useAuthStore = create(/* 認証関連 */);
+const useCartStore = create(/* カート関連 */);
+const useUIStore = create(/* UI状態 */);
+const useNotificationStore = create(/* 通知 */);
+
+// 大規模な場合: スライスパターン
+const useAppStore = create((...a) => ({
+  ...createAuthSlice(...a),
+  ...createCartSlice(...a),
+  ...createUISlice(...a),
+}));
+```
+
+**分割の判断基準:**
+- **ドメイン境界:** 認証、カート、通知など、ビジネスロジックで明確に区別できる
+- **更新頻度:** 頻繁に更新される状態は分離（再レンダリングの最小化）
+- **ライフサイクル:** 永続化の有無、リセットタイミングが異なるものは分離
+- **テスト容易性:** 独立してテストできる単位で分割
+
+### Q3: DevTools でストアをデバッグするには？
+
+**A:** Zustand と Jotai それぞれの DevTools 活用法:
+
+**Zustand: Redux DevTools**
+```typescript
+import { devtools } from 'zustand/middleware';
+
+const useStore = create<Store>()(
+  devtools(
+    (set) => ({
+      count: 0,
+      increment: () =>
+        set(
+          (state) => ({ count: state.count + 1 }),
+          false,
+          'increment' // ← アクション名（DevTools に表示）
+        ),
+    }),
+    {
+      name: 'MyStore', // ← ストア名
+      enabled: process.env.NODE_ENV === 'development',
+    }
+  )
+);
+
+// Redux DevTools で:
+// - 状態のスナップショット確認
+// - タイムトラベルデバッグ（過去の状態に戻る）
+// - アクション履歴の確認
+// - 差分（diff）の確認
+```
+
+**Jotai: jotai-devtools**
+```typescript
+import { DevTools } from 'jotai-devtools';
+import 'jotai-devtools/styles.css';
+
+// アトムにラベルを付ける
+const countAtom = atom(0);
+countAtom.debugLabel = 'countAtom';
+
+// DevTools コンポーネントを配置
+function App() {
+  return (
+    <Provider>
+      <DevTools />
+      <MainApp />
+    </Provider>
+  );
+}
+
+// DevTools で:
+// - 各アトムの現在値を確認
+// - アトム間の依存関係を可視化
+// - 値の変更をリアルタイム監視
+```
+
+**デバッグのコツ:**
+- **Zustand:** アクション名を意味のある名前にする（`'increment'` より `'cart/addItem'`）
+- **Jotai:** debugLabel を必ず設定（設定しないと `atom1`, `atom2` のような自動生成名）
+- **本番環境:** devtools を無効化（`enabled: process.env.NODE_ENV === 'development'`）
 
 ---
 

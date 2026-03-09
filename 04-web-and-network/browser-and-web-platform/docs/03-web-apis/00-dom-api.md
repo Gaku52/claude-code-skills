@@ -12,6 +12,16 @@
 - [ ] Shadow DOM によるスタイル・DOM の隔離を体験する
 - [ ] Virtual DOM との設計思想の違いを比較し、選択基準を持つ
 
+## 前提知識
+
+本章を学習する前に、以下の知識を習得しておくことを推奨する。
+
+- **ブラウザのHTML/CSSパース**: ブラウザがHTMLとCSSをどのように解析し、DOMツリーとCSSOMツリーを構築するかを理解することで、DOM APIの操作がレンダリングにどう影響するかを把握できる。詳細は [../00-browser-engine/02-parsing-html-css.md](../00-browser-engine/02-parsing-html-css.md) を参照。
+
+- **JavaScriptの基本構文**: 変数、関数、オブジェクト、配列などの基本的な構文に加え、`const`/`let`のスコープ、アロー関数、テンプレートリテラルなどのES2015以降の機能を理解していることが前提となる。
+
+- **イベント駆動プログラミングの概念**: DOMはイベント駆動モデルを採用しており、ユーザーのインタラクション（クリック、キー入力など）やブラウザの状態変化（DOM読み込み完了、リサイズなど）に応じて処理を実行する。コールバック関数、非同期処理の基礎を理解しておくと、イベントリスナーの実装がスムーズになる。
+
 ---
 
 ## 1. DOMツリーの基礎構造
@@ -2216,6 +2226,18 @@ const observer = new MutationObserver((mutations) => {
 
 **回答:** Web Components と React/Vue は競合ではなく、レイヤーが異なる。Web Components はブラウザネイティブのコンポーネント機構であり、フレームワーク非依存の再利用可能な UI パーツを作るのに適している。一方、React/Vue は状態管理、ルーティング、エコシステム全体を含む包括的なフレームワークである。デザインシステムの基盤を Web Components で構築し、アプリケーション層を React/Vue で構築するハイブリッドアプローチも有効である。Lit や Stencil など、Web Components の開発体験を向上させるライブラリも成熟してきている。
 
+### Q6: innerHTML と textContent の使い分けは?
+
+**回答:** `innerHTML` はHTML文字列をパースして要素として挿入するため、タグを含むコンテンツを設定する場合に使用する。一方、`textContent` は文字列をそのままテキストノードとして挿入するため、HTMLタグはエスケープされて表示される。**セキュリティ上の理由から、ユーザー入力をそのまま表示する場合は必ず `textContent` を使用する。** `innerHTML` でユーザー入力を扱うとXSS（クロスサイトスクリプティング）攻撃のリスクがある。また、`textContent` は単純なテキスト挿入のため、`innerHTML` より高速である。HTML構造を動的に生成する必要がある場合は `createElement` + `appendChild` または `insertAdjacentHTML` を検討する。パフォーマンス面では、大量のテキストを設定する際は `textContent` が最も効率的である。
+
+### Q7: 仮想DOMとリアルDOMの違いとは?
+
+**回答:** リアルDOM（Real DOM）はブラウザが実際にメモリ上に保持する文書構造であり、DOM APIを通じて直接操作する。仮想DOM（Virtual DOM）はReactやVueなどのフレームワークが採用するメモリ上のJavaScriptオブジェクトで、リアルDOMの軽量な表現である。仮想DOMのメリットは、宣言的なUI記述と効率的な差分更新（diff/patch）の両立にある。開発者は「最終的なUIの状態」だけを記述し、フレームワークが前回の仮想DOMと比較して最小限のリアルDOM操作を自動生成する。これにより、手動で差分計算を行う複雑さから解放され、バグを減らしつつパフォーマンスを維持できる。ただし、仮想DOMの比較処理自体にもコストがあるため、極めて単純なDOM操作では直接操作の方が高速な場合もある。Svelteのようなコンパイル時アプローチは、仮想DOMのオーバーヘッドを回避しつつ宣言的な開発体験を提供する。
+
+### Q8: DOM操作のパフォーマンス最適化のポイントは?
+
+**回答:** DOM操作の最適化には以下のポイントがある。**(1) Layout Thrashingの回避**: 読み取り（offsetHeight等）と書き込み（style変更等）を交互に行うと、ブラウザが毎回レイアウト再計算を強制される。`fastdom` ライブラリや手動でのバッチ処理により、読み取りをまとめて行い、その後書き込みをまとめて行う。**(2) DocumentFragmentの活用**: 複数要素を挿入する際は、DocumentFragmentに一度追加してから一括挿入することで、レンダリング回数を削減できる。**(3) `requestAnimationFrame` の使用**: アニメーションやスクロール連動処理では、ブラウザの再描画タイミングに合わせて処理を実行することで、滑らかな描画を実現できる。**(4) イベント委任**: 多数の子要素にイベントリスナーを個別に設定せず、親要素で一括処理することでメモリ使用量とイベント登録コストを削減できる。**(5) `will-change` CSSプロパティ**: 頻繁に変更されるプロパティを事前にブラウザに通知することで、最適化のヒントを与えられる（ただし過度な使用はメモリを圧迫する）。
+
 ---
 
 ## 17. まとめ
@@ -2234,6 +2256,14 @@ const observer = new MutationObserver((mutations) => {
 | Virtual DOM | diff/patch、宣言的 UI | React/Vue 等のSPA |
 | テンプレート | `<template>` 要素、Declarative Shadow DOM | 効率的な要素生成 |
 
+### キーポイント
+
+1. **DOM操作はレンダリングパフォーマンスに直結する**: Layout Thrashingを避けるため、読み取り操作と書き込み操作を分離し、DocumentFragmentやrequestAnimationFrameを活用してバッチ処理を行う。直接DOM操作が最速だが、複雑なUIでは仮想DOMによる宣言的アプローチが開発効率とパフォーマンスのバランスを取る。
+
+2. **イベント処理の効率化が重要**: イベント委任により親要素で一括処理することでメモリとCPUコストを削減し、`passive: true` オプションでスクロールパフォーマンスを向上させる。MutationObserverを使えばDOM変更を非同期バッチで監視でき、ポーリングによるCPU浪費を避けられる。
+
+3. **Shadow DOMとWeb Componentsでカプセル化を実現**: Shadow DOMによりスタイルとDOMを隔離し、グローバルCSSの競合を防ぐ。スロット機構でコンテンツ投影を行い、Custom ElementsとShadow DOMを組み合わせることでフレームワーク非依存の再利用可能なコンポーネントを構築できる。
+
 ### チェックリスト
 
 - [ ] `querySelector` と `getElementsBy` の違い（静的 vs ライブ）を説明できる
@@ -2249,11 +2279,36 @@ const observer = new MutationObserver((mutations) => {
 
 ---
 
+## FAQ
+
+### Q1: innerHTMLとtextContentとinnerTextの違いは何ですか?
+`innerHTML` はHTML文字列としてノードの内容を取得・設定します。HTMLタグが解釈されるため、XSS脆弱性の原因になりえます。`textContent` はノードとその子孫の全テキストコンテンツを取得・設定し、HTMLタグは純粋なテキストとして扱われます。非表示要素（`display: none`）のテキストも含まれ、レイアウトの再計算を引き起こしません。`innerText` は「表示されているテキスト」を返し、CSSを考慮してレンダリング結果に基づくテキストを取得するため、`display: none` の要素は除外され、レイアウト再計算が発生します。パフォーマンスを重視する場合は `textContent` を使用してください。
+
+### Q2: addEventListener の第三引数にはどのような値を指定できますか?
+第三引数には真偽値（キャプチャフェーズで処理するか）またはオプションオブジェクトを指定できます。オプションオブジェクトでは `capture`（キャプチャフェーズで処理）、`once`（一度だけ実行して自動解除）、`passive`（preventDefault()を呼ばないことを宣言しスクロールパフォーマンスを向上）、`signal`（AbortSignal でリスナーを一括解除）を指定できます。特に `passive: true` はタッチイベントやスクロールイベントで重要で、ブラウザはスクロールの阻止がないことを前提に最適化を行えます。
+
+### Q3: Virtual DOMと直接DOM操作のどちらを選ぶべきですか?
+UIの複雑さとチームの規模によって判断します。状態変化に応じてUIの多くの部分が連動して更新されるアプリケーション（ダッシュボード、チャット、フォームウィザードなど）では、Virtual DOM を採用するフレームワーク（React、Vue）が開発効率とバグの少なさの面で優れます。一方、軽量なウィジェット、パフォーマンスが極めて重要な部分、フレームワーク非依存のライブラリでは、直接DOM操作の方がオーバーヘッドが少なく高速です。両者は排他的ではなく、React内でも `ref` を使って直接DOM操作を行う場面があります。
+
+---
+
+## まとめ
+
+このガイドでは以下を学びました:
+
+- DOMツリーの構造とノード型の分類、及びDOMとCSSOMの関係
+- 要素の取得・作成・挿入・削除の効率的なパターンとDocumentFragmentによるバッチ処理
+- Layout Thrashingの原因と回避策（読み書き分離、requestAnimationFrameの活用）
+- イベントモデル（キャプチャ/バブリング/委任）とpassiveオプションによるパフォーマンス最適化
+- Shadow DOMによるスタイル・DOMの隔離とWeb Componentsの設計パターン
+
+---
+
 ## 次に読むべきガイド
 
-- [[01-fetch-and-streams.md]] -- Fetch と Streams
-- [[02-web-storage.md]] -- Web Storage API
-- [[03-web-workers.md]] -- Web Workers と並行処理
+- [01-fetch-and-streams.md](./01-fetch-and-streams.md) -- Fetch と Streams
+- [02-intersection-resize-observer.md](./02-intersection-resize-observer.md) -- Observer API (Intersection, Resize, Mutation)
+- [../04-storage-and-caching/00-web-storage.md](../04-storage-and-caching/00-web-storage.md) -- Web Storage API
 
 ---
 

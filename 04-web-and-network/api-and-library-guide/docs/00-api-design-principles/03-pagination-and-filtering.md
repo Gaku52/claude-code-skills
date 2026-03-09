@@ -11,6 +11,12 @@
 - [ ] ページネーションに関するパフォーマンス最適化を習得する
 - [ ] 各方式のエッジケースとアンチパターンを理解する
 
+## 前提知識
+
+- REST APIの基本原則 → 参照: [REST Best Practices](../01-rest-and-graphql/00-rest-best-practices.md)
+- HTTPクエリパラメータの仕組み → 参照: [HTTPの基礎](../../network-fundamentals/docs/02-http/00-http-basics.md)
+- API設計の命名規則 → 参照: [命名規則と慣例](./01-naming-and-conventions.md)
+
 ---
 
 ## 1. ページネーション方式の全体像
@@ -2803,6 +2809,167 @@ A: フィルタまたはソート条件が変更された場合、
 
 ---
 
+## FAQ
+
+### Q1: Offset方式とCursor方式のページネーション、どちらを選ぶべきか？
+
+```
+A: データの特性と用途に応じて選択する。
+
+Offset方式を選ぶべきケース:
+  - 管理画面やダッシュボードなど、ページジャンプ機能が必須
+  - データセットが比較的小規模（数千件程度）
+  - データの更新頻度が低い（位置ずれの影響が小さい）
+  - ユーザーが「3ページ目」「最後のページ」など直接アクセスしたい
+  - キャッシュを活用しやすい環境
+
+  例: 社内の従業員一覧、商品カタログの管理画面
+
+Cursor方式を選ぶべきケース:
+  - SNSフィードやタイムラインなど、無限スクロールUI
+  - 大規模データセット（数万件以上）
+  - データの更新頻度が高い（リアルタイム性が重要）
+  - モバイルアプリなど、パフォーマンスが重要
+  - ページジャンプ機能が不要
+
+  例: Twitter/Instagram風のフィード、チャットメッセージ履歴
+
+ハイブリッドアプローチ:
+  - 初回読み込みはCursor方式で高速化
+  - 検索結果など一部の画面ではOffset方式も提供
+  - APIドキュメントで両方式の使い分けを明記
+```
+
+### Q2: フィルタリングのパラメータが多くなりすぎた場合の対処法は？
+
+```
+A: 複雑なフィルタは POST /search エンドポイントに移行する。
+
+GET での限界:
+  - URLの最大長は2048文字が一般的
+  - 10個以上のフィルタパラメータは可読性が低下
+  - ネストした条件（AND/OR の組み合わせ）は表現困難
+
+  悪い例:
+  GET /api/products?
+    category=electronics&
+    price_min=100&price_max=500&
+    brand[]=Sony&brand[]=Panasonic&
+    rating_gte=4&
+    in_stock=true&
+    tags[]=wifi&tags[]=bluetooth&
+    created_after=2024-01-01&
+    created_before=2024-12-31
+
+POST /search への移行:
+  POST /api/products/search
+  {
+    "filters": {
+      "category": "electronics",
+      "price": { "min": 100, "max": 500 },
+      "brand": { "in": ["Sony", "Panasonic"] },
+      "rating": { "gte": 4 },
+      "in_stock": true,
+      "tags": { "all": ["wifi", "bluetooth"] },
+      "created_at": {
+        "after": "2024-01-01",
+        "before": "2024-12-31"
+      }
+    },
+    "sort": ["-rating", "price"],
+    "limit": 20,
+    "cursor": "abc123"
+  }
+
+利点:
+  - JSON形式で複雑な条件を表現可能
+  - ネストした AND/OR 条件も記述可能
+  - URLの長さ制限を回避
+  - スキーマ検証が容易（JSON Schema等）
+  - 検索条件の保存・共有が容易（リクエストボディを保存）
+
+注意点:
+  - POSTだがべき等（副作用なし）であることを明記
+  - キャッシュが効きにくいため、検索結果のキャッシュ戦略が必要
+  - 簡易検索はGET、高度な検索はPOSTと使い分ける
+```
+
+### Q3: 大規模データセットでのページネーションのパフォーマンス対策は？
+
+```
+A: インデックス最適化、クエリチューニング、キャッシュ戦略の組み合わせ。
+
+1. インデックス戦略:
+   - カバリングインデックスの活用
+   CREATE INDEX idx_products_pagination
+     ON products (category, created_at DESC, id)
+     INCLUDE (name, price);
+
+   -- SELECT * ではなく必要カラムのみ取得してインデックスオンリースキャン
+   SELECT id, name, price, category, created_at
+   FROM products
+   WHERE category = 'electronics'
+     AND (created_at, id) < ('2024-01-15', 100)
+   ORDER BY created_at DESC, id DESC
+   LIMIT 20;
+
+2. パーティショニング:
+   - 時系列データは月次/年次でパーティション分割
+   CREATE TABLE products_2024_01 PARTITION OF products
+     FOR VALUES FROM ('2024-01-01') TO ('2024-02-01');
+
+   -- 最新データのパーティションのみスキャン
+   -- 古いデータへのアクセスはアーカイブから取得
+
+3. マテリアライズドビュー:
+   - よく使われるフィルタ条件を事前計算
+   CREATE MATERIALIZED VIEW products_electronics AS
+   SELECT * FROM products WHERE category = 'electronics'
+   ORDER BY created_at DESC;
+
+   REFRESH MATERIALIZED VIEW CONCURRENTLY products_electronics;
+
+4. アプリケーションレベルキャッシュ:
+   - 初回ページ（cursor=null）はCDN/Redisでキャッシュ
+   - TTLは短め（1-5分）で鮮度を保つ
+   // Redis での実装例
+   const cacheKey = `products:${category}:first_page`;
+   let result = await redis.get(cacheKey);
+   if (!result) {
+     result = await db.query(...);
+     await redis.setex(cacheKey, 300, JSON.stringify(result));
+   }
+
+5. 非同期カウント:
+   - totalCount の取得は重いため、別リクエストまたは概算値で対応
+   // 概算カウント（PostgreSQL）
+   SELECT reltuples::bigint AS estimate
+   FROM pg_class
+   WHERE relname = 'products';
+
+   // または totalCount を別エンドポイントに分離
+   GET /api/products/count?category=electronics
+
+6. 段階的データロード:
+   - 初回は20件のみ、スクロール時に追加ロード
+   - 「全件表示」は避け、上限を設ける（例: 最大1000件）
+   {
+     "data": [...],
+     "pageInfo": {
+       "hasNextPage": true,
+       "endCursor": "abc123",
+       "remainingEstimate": 500  // 残り件数の概算
+     }
+   }
+
+パフォーマンス指標:
+  - P95レスポンスタイム < 200ms を目標
+  - データベーススロークエリログの監視
+  - EXPLAIN ANALYZE で実行計画を定期チェック
+```
+
+---
+
 ## まとめ
 
 | 概念 | ポイント |
@@ -2822,9 +2989,9 @@ A: フィルタまたはソート条件が変更された場合、
 
 ## 次に読むべきガイド
 
-- [[00-rest-best-practices.md]] -- REST ベストプラクティス
-- [[01-error-handling.md]] -- エラーハンドリング設計
-- [[04-versioning.md]] -- API バージョニング戦略
+- [REST ベストプラクティス](../01-rest-and-graphql/00-rest-best-practices.md) -- REST API設計の基本原則と実装パターン
+- [エラーハンドリング設計](./02-error-handling.md) -- APIエラーレスポンスの標準化とクライアント対応
+- [API バージョニング戦略](./04-versioning.md) -- 破壊的変更の管理と互換性維持の手法
 
 ---
 

@@ -14,6 +14,16 @@
 
 ---
 
+## 前提知識
+
+この章を最大限活用するために、以下の知識を事前に習得しておくことを推奨する:
+
+- **コンポーネントアーキテクチャ**: `../00-architecture/02-component-architecture.md` で学ぶ、Reactコンポーネントの設計原則と再利用可能なコンポーネントの構築方法を理解していること
+- **React Hooksの基礎**: `useState`, `useRef`, `useEffect` などの基本的なHooksの使い方と、カスタムフックの設計パターンを把握していること
+- **HTMLフォーム要素**: `<form>`, `<input>`, `<select>`, `<textarea>` といったネイティブHTML要素の動作、属性、イベントハンドリングの基礎知識を持っていること
+
+---
+
 ## 1. フォーム設計の基本原則
 
 フォーム設計において最も重要なのは、ユーザーが目的を最小限の摩擦で達成できるようにすることである。技術的な実装の前に、設計原則を理解しておく必要がある。
@@ -3329,6 +3339,105 @@ function CreateUserPage() {
 | テスト | RTL でユーザー操作をテスト、axe で a11y テスト、Playwright で E2E |
 | エラーハンドリング | クライアント/サーバーエラーの統合、グローバルエラー表示 |
 | 再利用性 | ジェネリック型でフォームフィールドとラッパーを汎用化 |
+
+---
+
+## よくある質問（FAQ）
+
+### Q1. Controlled Components と Uncontrolled Components はどう使い分けるべきですか？
+
+**A:** 基本的には **Controlled Components を優先** する。理由は以下の通り:
+
+- **即座のバリデーション**: 入力値の変化をリアルタイムで検証できる
+- **条件付きUI**: 入力内容に応じて動的にフォームを変更できる
+- **デバッグのしやすさ**: 状態がReactの管理下にあるため、開発ツールでの追跡が容易
+
+ただし、以下の場合は **Uncontrolled Components の方が適している**:
+
+- **大量のフォームフィールド**: 数百個のフィールドがあり、パフォーマンスが懸念される場合
+- **レガシーコードとの統合**: 既存の非Reactコードとの互換性が必要な場合
+- **ファイル入力**: `<input type="file">` は常にUncontrolledである必要がある
+
+React Hook Form は内部的にUncontrolledな仕組みを使いつつ、Controlledライクなインターフェースを提供しているため、パフォーマンスとDXを両立できる。
+
+### Q2. React Hook Form と Formik、どちらを選ぶべきですか？
+
+**A:** 現在のプロジェクトでは **React Hook Form を推奨** する:
+
+| 項目 | React Hook Form | Formik |
+|------|----------------|---------|
+| パフォーマンス | 優秀（Uncontrolled方式で再レンダリング最小） | 可（Controlled方式で再レンダリング多） |
+| バンドルサイズ | 8.5KB（gzip） | 15KB（gzip） |
+| TypeScript対応 | 完全対応、型推論が強力 | 対応しているが弱め |
+| エコシステム | Zod/Yup統合が簡単 | Yup推奨 |
+| 学習曲線 | やや急（useForm APIに慣れが必要） | 緩やか（Formikコンポーネントが直感的） |
+| メンテナンス | 活発 | やや減速傾向 |
+
+Formikが優れている点:
+
+- **直感的なAPI**: `<Formik>`, `<Field>` コンポーネントでReactらしく書ける
+- **ドキュメントが豊富**: 歴史が長く、学習リソースが充実
+
+React Hook Formが優れている点:
+
+- **パフォーマンス**: 大規模フォームでも高速
+- **TypeScript統合**: Zodスキーマから型を自動推論
+- **最新のReact哲学**: HooksベースでモダンなReact開発に適合
+
+### Q3. マルチステップフォームはどのように設計すべきですか？
+
+**A:** マルチステップフォームの設計では、以下の4つのアプローチがある:
+
+**1. ステップごとに独立したフォーム（推奨）**
+
+```typescript
+// 各ステップで独自のuseFormを持つ
+const Step1 = () => {
+  const { register, handleSubmit } = useForm<Step1Data>();
+  const onSubmit = (data) => saveToContext(data);
+  // ...
+};
+```
+
+利点: 各ステップが独立、バリデーションが分離、戻るボタンの実装が簡単
+欠点: ステップ間のデータ共有に Context か状態管理ライブラリが必要
+
+**2. 単一フォームで条件付き表示**
+
+```typescript
+const MultiStepForm = () => {
+  const { register, handleSubmit } = useForm<AllStepsData>();
+  const [currentStep, setCurrentStep] = useState(1);
+  // 全フィールドを保持しつつ、表示だけ切り替え
+};
+```
+
+利点: 実装がシンプル、全データが1つのフォームに統合
+欠点: 大規模になると管理が複雑、バリデーションの制御が難しい
+
+**3. ステップごとのスキーマ + マージ戦略**
+
+```typescript
+const step1Schema = z.object({ name: z.string() });
+const step2Schema = z.object({ email: z.string().email() });
+const finalSchema = step1Schema.merge(step2Schema);
+```
+
+利点: Zodの型推論を活用、各ステップで段階的にバリデーション
+欠点: スキーママージの複雑さ
+
+**推奨する設計パターン:**
+
+- ステップが3〜5個程度: **ステップごとに独立したフォーム + Contextで状態共有**
+- ステップが2個: **単一フォームで条件付き表示**
+- ステップが6個以上: **フォームビルダーライブラリ**（react-multi-step-form）の導入を検討
+
+**UXの考慮事項:**
+
+- プログレスバーを常に表示
+- 前のステップに戻れること
+- 各ステップ完了時にlocalStorageに保存（離脱対策）
+- 最終確認画面で全入力内容を表示
 
 ---
 

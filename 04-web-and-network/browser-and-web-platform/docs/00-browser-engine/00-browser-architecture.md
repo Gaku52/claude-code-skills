@@ -13,6 +13,12 @@
 - [ ] レンダリングパイプラインの各段階を詳細に理解する
 - [ ] パフォーマンス最適化のための設計原則を習得する
 
+## 前提知識
+
+- HTTPプロトコルの基礎 → 参照: [HTTPの基礎](../../network-fundamentals/docs/02-http/00-http-basics.md)
+- HTML/CSSの基本的な構造の理解
+- プロセスとスレッドの概念 → 参照: [OS基礎](../../../01-cs-fundamentals/operating-system-guide/docs/)
+
 ---
 
 ## 1. マルチプロセスアーキテクチャの全体像
@@ -1645,4 +1651,120 @@ async function processInChunks(items, processFn, chunkSize = 100) {
 //   return expensiveTransform(item);
 // }, 50);
 ```
+
+---
+
+## FAQ
+
+### Q1: マルチプロセスアーキテクチャのメリットは何ですか？
+
+**A:** マルチプロセスアーキテクチャには3つの主要なメリットがあります。
+
+1. **安定性（Stability）**: 1つのタブやプラグインがクラッシュしても、他のタブやブラウザ本体には影響しません。レンダラープロセスが異常終了しても、ブラウザプロセスが生きているため「タブがクラッシュしました」と表示してリロードを促すことができます。
+
+2. **セキュリティ（Security）**: 各レンダラープロセスはサンドボックス内で実行されるため、悪意のあるWebサイトがファイルシステムやネットワークに直接アクセスすることを防げます。特権操作はブラウザプロセスを経由する必要があり、権限チェックが行われます。
+
+3. **パフォーマンス（Performance）**: マルチコアCPUを活用して複数のタブを並列処理できます。また、タブごとにプロセスを分離することで、メモリリークが発生してもタブを閉じればプロセスごとメモリが解放されます。
+
+ただし、プロセス数が増えるとメモリオーバーヘッドも増大するため、Chromeは適宜プロセスを統合する最適化も行っています（プロセスモデルの項を参照）。
+
+### Q2: ChromeとFirefoxのアーキテクチャの違いは何ですか？
+
+**A:** 主な違いは以下の通りです。
+
+**Chrome（Chromium）**:
+- **タブごとにレンダラープロセス**を分離するマルチプロセスモデル（ただし、同一サイトは統合される場合もある）
+- **Site Isolation**: セキュリティを強化するため、クロスサイトiframeも別プロセスで実行（Spectre攻撃対策）
+- **GPU プロセス**: 全タブで共有する単一のGPUプロセス
+- **Blink レンダリングエンジン** + **V8 JavaScript エンジン**
+
+**Firefox**:
+- **Quantum（Electrolysis/e10s）**: タブごとにコンテンツプロセスを分離（Chrome類似）
+- **Fission**: Site Isolation相当の機能（iframe分離）を段階的に導入中
+- **GPUプロセス**: Chromeと同様に単一のGPUプロセス
+- **Gecko レンダリングエンジン** + **SpiderMonkey JavaScript エンジン**
+
+アーキテクチャの基本思想は収束していますが、エンジンの実装や最適化戦略には違いがあります。例えば、Firefoxは「WebRender」という新しいGPU駆動のレンダリングエンジンを採用しており、Chromeとは異なるアプローチでパフォーマンスを追求しています。
+
+### Q3: Site Isolationの仕組みを教えてください
+
+**A:** Site Isolation は、クロスサイト攻撃（特にSpectre攻撃）からユーザーを守るためのセキュリティ機能です。
+
+**基本原理**:
+- 異なるオリジン（スキーム + ドメイン + ポート）のコンテンツは**別のレンダラープロセス**で実行される
+- 例: `https://example.com` のメインフレームと `https://ad.example.net` のiframeは別プロセス
+
+**なぜ必要か**:
+- Spectre攻撃は、同一プロセス内のメモリを読み取る脆弱性です
+- Site Isolationにより、悪意のあるiframeが親フレームのメモリ（パスワードやトークンなど）を読み取ることを防ぎます
+
+**実装の詳細**:
+1. **OOPIF（Out-of-Process iframes）**: クロスサイトiframeは別プロセスのレンダラーで描画され、メインフレームとはIPCで通信
+2. **CORB（Cross-Origin Read Blocking）**: レンダラープロセスが不正なクロスオリジンリソース（HTML/JSON/XML）を読み込むのをブロック
+3. **メモリオーバーヘッド**: プロセス数が増えるためメモリ使用量は10-20%増加しますが、セキュリティ上の利点が上回ると判断されています
+
+**有効化状況**:
+- Chrome 67以降、デスクトップ版ではデフォルトで有効
+- Androidでは一部のハイエンドデバイスのみ有効（メモリ制約のため）
+
+詳細は [Site Isolation Design Document](https://www.chromium.org/Home/chromium-security/site-isolation/) を参照してください。
+
+---
+
+## まとめ
+
+| 項目 | 内容 |
+|------|------|
+| **マルチプロセスアーキテクチャ** | ブラウザプロセス、レンダラープロセス、GPUプロセス等に分離。安定性・セキュリティ・パフォーマンスを向上 |
+| **主要プロセス** | ブラウザ（UI・ネットワーク・ストレージ管理）、レンダラー（HTML/CSS/JSレンダリング、サンドボックス化）、GPU（描画アクセラレーション） |
+| **IPC（プロセス間通信）** | Mojoフレームワークでプロセス間メッセージング。型安全・非同期通信を実現 |
+| **Site Isolation** | クロスサイトiframeを別プロセスで実行し、Spectre攻撃から保護。OOPIF・CORBと組み合わせてセキュリティ強化 |
+| **レンダリングパイプライン** | HTML → DOM、CSS → CSSOM → Render Tree → Layout → Paint → Composite（GPU駆動）の7段階 |
+| **最適化戦略** | Layerの最小化、will-change の適切な使用、Web Workerへのオフロード、Time Slicingによるメインスレッド負荷軽減 |
+
+**キーポイント**:
+
+1. **プロセス分離がセキュリティの鍵**: サンドボックスとSite Isolationにより、悪意のあるコンテンツがシステムや他のタブに影響を与えることを防ぐ
+2. **レンダリングパイプラインの理解が最適化の第一歩**: Layout・Paint・Compositeの各段階を意識し、不要な再計算を避ける設計が重要
+3. **モダンブラウザはGPU駆動**: Compositingレイヤーを活用し、transform/opacityのアニメーションをGPUで処理することで60fpsを実現
+
+---
+
+## 次に読むべきガイド
+
+ブラウザアーキテクチャの全体像を理解したら、次は実際のWebページの読み込みプロセスを深掘りしましょう。
+
+- **[ナビゲーションとローディング](./01-navigation-and-loading.md)**: URLを入力してからページが表示されるまでの詳細なフローを解説
+  - DNS解決、TCP/TLS接続、HTTPリクエスト/レスポンス
+  - ナビゲーションタイミングAPI
+  - Critical Rendering Pathの最適化手法
+
+その他の関連ガイド:
+- **[レンダリングエンジン詳説](./02-rendering-engine.md)**: Blink/Geckoの内部実装とレンダリング最適化
+- **[JavaScriptエンジン](./03-javascript-engine.md)**: V8/SpiderMonkeyの仕組みとパフォーマンスチューニング
+
+---
+
+## 参考文献
+
+1. **[Inside look at modern web browser (Google Developers)](https://developers.google.com/web/updates/2018/09/inside-browser-part1)**
+   Google Chrome チームによるブラウザアーキテクチャの公式解説。4部構成で、マルチプロセスモデルからレンダリングパイプラインまで詳細に説明。
+
+2. **[The Chromium Projects - Multi-process Architecture](https://www.chromium.org/developers/design-documents/multi-process-architecture/)**
+   Chromiumの設計ドキュメント。プロセスモデルの設計思想と実装の詳細を記載。
+
+3. **[Life of a Pixel (Chromium)](https://docs.google.com/presentation/d/1boPxbgNrTU0ddsc144rcXayGA_WF53k96imRH8Mp34Y/edit)**
+   Chromiumチームの内部プレゼンテーション。ピクセルがどのように画面に描画されるかを詳細に解説。
+
+4. **[Site Isolation Design Document](https://www.chromium.org/Home/chromium-security/site-isolation/)**
+   Site Isolationの設計文書。OOPIF、CORB、セキュリティモデルの詳細。
+
+5. **[Mojo Documentation (Chromium)](https://chromium.googlesource.com/chromium/src/+/master/mojo/README.md)**
+   MojoフレームワークのREADME。IPC（プロセス間通信）の実装とAPI。
+
+6. **[MDN Web Docs - How browsers work](https://developer.mozilla.org/en-US/docs/Web/Performance/How_browsers_work)**
+   Mozilla Developer Networkによるブラウザの仕組み解説。初学者にも分かりやすい。
+
+7. **[Rendering Performance (Web Fundamentals)](https://developers.google.com/web/fundamentals/performance/rendering/)**
+   Google Developersのパフォーマンスガイド。60fpsを達成するための実践的なテクニック。
 

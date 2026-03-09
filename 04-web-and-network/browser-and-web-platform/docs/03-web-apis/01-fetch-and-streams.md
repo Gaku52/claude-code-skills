@@ -12,6 +12,16 @@
 - [ ] Server-Sent Events / NDJSON / チャンク転送のストリーム処理を理解する
 - [ ] テスト戦略とモック手法を把握する
 
+## 前提知識
+
+本章を学習する前に、以下の知識を習得しておくことを推奨する。
+
+- **HTTPの基礎**: HTTPリクエスト/レスポンスの構造、ステータスコード、ヘッダー、メソッド（GET, POST, PUT, DELETE等）の意味を理解していることが前提となる。詳細は [../../network-fundamentals/docs/02-http/00-http-basics.md](../../network-fundamentals/docs/02-http/00-http-basics.md) を参照。
+
+- **PromiseとAsync/Await**: Fetch APIはPromiseベースであり、`async`/`await` 構文を使った非同期処理の記述が中心となる。Promiseのチェーン、エラーハンドリング（`.catch()`, `try/catch`）、並行処理（`Promise.all()`, `Promise.race()`）を理解していることが重要である。
+
+- **DOM API**: Fetch APIで取得したデータをDOMに反映する場面が多いため、基本的なDOM操作（要素の取得、作成、挿入）を理解しておく。詳細は [./00-dom-api.md](./00-dom-api.md) を参照。
+
 ---
 
 ## 1. Fetch APIの基礎
@@ -3151,6 +3161,66 @@ self.addEventListener('fetch', (event) => {
 
 ---
 
+## FAQ
+
+### Q1: fetchとXMLHttpRequestの違いは?
+
+**回答:** FetchとXMLHttpRequest（XHR）の主な違いは以下の通り。**(1) APIの設計思想**: FetchはPromiseベースでモダンな非同期パターン（`async`/`await`）を採用し、XHRはコールバックベース。**(2) ストリーミング対応**: FetchはStreams APIと統合されており、レスポンスボディを段階的に読み取れるが、XHRは全体をメモリに読み込む。**(3) リクエストのキャンセル**: FetchはAbortControllerによる標準的なキャンセル機構を持ち、XHRは`xhr.abort()`を使用。**(4) CORSとクレデンシャル**: Fetchは`mode`と`credentials`オプションで明示的に制御でき、XHRは`withCredentials`プロパティを使用。**(5) プログレスイベント**: XHRは`progress`イベントで進捗を取得しやすいが、FetchではStreams APIのReaderで手動実装が必要。総じて、新規開発ではFetchを使い、レガシーコードの保守やプログレス表示が重要な場面でのみXHRを検討する。
+
+### Q2: Streams APIの実用的なユースケースは?
+
+**回答:** Streams APIは以下のような実用的なユースケースで威力を発揮する。**(1) 大容量ファイルのダウンロード**: 数百MB〜数GBのファイルをメモリに一度に読み込まず、チャンク単位で処理しながらディスクに書き込むことで、メモリ使用量を抑えられる。進捗表示も容易に実装できる。**(2) リアルタイムデータストリーム**: Server-Sent EventsやNDJSON形式のストリーミングレスポンスを段階的にパースし、到着したデータから順次UIを更新する。チャットアプリやダッシュボードに最適。**(3) データの変換パイプライン**: TransformStreamを使い、ダウンロード → 解凍 → パース → 表示というパイプラインを構築し、バックプレッシャー制御により効率的に処理できる。**(4) CSV/JSONLの段階的パース**: 数百万行のCSVやJSON Linesファイルを一度にメモリに読み込まず、行単位で処理することで、ブラウザのメモリ制限を回避できる。**(5) 動画/音声のストリーミング再生**: メディアストリームとして段階的にデコードし、再生開始までの待ち時間を最小化する（Media Source Extensions との組み合わせ）。
+
+### Q3: fetch中断（AbortController）の使い方は?
+
+**回答:** AbortControllerは以下のパターンで使用する。
+
+```javascript
+// 基本パターン: 手動キャンセル
+const controller = new AbortController();
+const signal = controller.signal;
+
+fetch('/api/data', { signal })
+  .then(response => response.json())
+  .catch(err => {
+    if (err.name === 'AbortError') {
+      console.log('リクエストがキャンセルされました');
+    } else {
+      throw err;
+    }
+  });
+
+// ユーザー操作でキャンセル
+cancelButton.addEventListener('click', () => {
+  controller.abort(); // fetchを即座に中断
+});
+
+// タイムアウト設定（モダンブラウザ）
+const signal = AbortSignal.timeout(5000); // 5秒でタイムアウト
+fetch('/api/slow', { signal });
+
+// 複数条件の組み合わせ（ユーザーキャンセル OR タイムアウト）
+const userController = new AbortController();
+const combinedSignal = AbortSignal.any([
+  userController.signal,
+  AbortSignal.timeout(10000)
+]);
+fetch('/api/data', { signal: combinedSignal });
+
+// React等での自動クリーンアップ
+useEffect(() => {
+  const controller = new AbortController();
+  fetch('/api/data', { signal: controller.signal })
+    .then(/* ... */);
+
+  return () => controller.abort(); // コンポーネントアンマウント時に自動中断
+}, []);
+```
+
+**注意点**: `abort()`後のfetchはすぐに`AbortError`で拒否されるが、サーバー側の処理は継続される（HTTPリクエスト自体はキャンセルできない）。クライアント側でレスポンスを無視するだけである。
+
+---
+
 ## まとめ
 
 | 概念 | ポイント |
@@ -3172,9 +3242,9 @@ self.addEventListener('fetch', (event) => {
 
 ## 次に読むべきガイド
 
-- [[02-intersection-resize-observer.md]] -- Observer API（IntersectionObserver, ResizeObserver, MutationObserver）
-- [[../04-storage-and-caching/00-web-storage.md]] -- Web Storage API（localStorage, sessionStorage, IndexedDB）
-- [[../04-storage-and-caching/01-service-worker-cache.md]] -- Service Worker と Cache API
+- [02-intersection-resize-observer.md](./02-intersection-resize-observer.md) -- Observer API（IntersectionObserver, ResizeObserver, MutationObserver）
+- [../04-storage-and-caching/00-web-storage.md](../04-storage-and-caching/00-web-storage.md) -- Web Storage API（localStorage, sessionStorage, IndexedDB）
+- [../04-storage-and-caching/01-service-worker-cache.md](../04-storage-and-caching/01-service-worker-cache.md) -- Service Worker と Cache API
 
 ---
 

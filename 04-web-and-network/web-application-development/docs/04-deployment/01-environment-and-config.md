@@ -2,6 +2,14 @@
 
 > 環境設定はアプリケーションの安全な運用の基盤。環境変数の管理、Feature Flags、設定の階層化、シークレット管理まで、本番環境で安全に設定を管理するベストプラクティスを習得する。
 
+## 前提知識
+
+このガイドを最大限に活用するために、以下の知識を事前に習得しておくことを推奨します。
+
+- **デプロイプラットフォーム**: Vercel、Cloudflare、AWS等の基本概念 → [[./00-deployment-platforms.md]]
+- **環境変数の概念**: OSレベルの環境変数とプロセスへの注入方法
+- **12-Factor Appの原則**: 特に第3の要素「設定」の理解
+
 ## この章で学ぶこと
 
 - [ ] 環境変数の設計と安全な管理を理解する
@@ -2908,6 +2916,172 @@ export function printRotationReport(): void {
     ├── コンプライアンス対応（SOC2, ISO27001）
     ├── 自動化されたポリシーチェック
     └── 設定の変更管理プロセス（ITIL ベース）
+```
+
+---
+
+## よくある質問（FAQ）
+
+### Q1: 環境変数の安全な管理方法は？
+
+**基本原則:**
+
+1. **絶対にコミットしない**: `.env`、`.env.local`、`.env.production` などの実際の値を持つファイルは必ず `.gitignore` に追加
+2. **テンプレートは共有する**: `.env.example` には変数名とダミー値を記載してチームで共有
+3. **階層化して管理**: 開発環境とは別に本番環境用のシークレット管理システムを導入
+
+**推奨ツール:**
+
+```bash
+# ローカル開発
+.env.local         # gitignore対象、ローカル固有の値
+.env.example       # Git管理、変数名とダミー値のみ
+
+# 本番環境
+AWS Secrets Manager    # AWS環境
+Vercel Environment Variables  # Vercel
+GitHub Secrets        # GitHub Actions
+HashiCorp Vault       # オンプレミス/マルチクラウド
+```
+
+**実装例:**
+
+```typescript
+// env.ts - 起動時バリデーション
+import { z } from 'zod';
+
+const envSchema = z.object({
+  DATABASE_URL: z.string().url(),
+  API_KEY: z.string().min(32),
+  NODE_ENV: z.enum(['development', 'production', 'test']),
+});
+
+// 起動時にバリデーション、失敗したら即座にエラー
+export const env = envSchema.parse(process.env);
+```
+
+### Q2: .envファイルの管理とgitignoreのベストプラクティスは？
+
+**ファイル構成の推奨パターン:**
+
+```
+プロジェクトルート/
+├── .env.example          # ✓ Git管理する（変数名のみ）
+├── .env                  # ✗ gitignore（共通のデフォルト値）
+├── .env.local            # ✗ gitignore（ローカル固有の値）
+├── .env.development      # ✗ gitignore（開発環境用）
+├── .env.production       # ✗ gitignore（本番環境用、通常は使わない）
+└── .gitignore
+```
+
+**.gitignore の設定:**
+
+```gitignore
+# Environment variables
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+.env.test
+
+# ただし .env.example は除外しない（!で例外指定）
+!.env.example
+```
+
+**.env.example の書き方:**
+
+```bash
+# .env.example - チームで共有するテンプレート
+# データベース
+DATABASE_URL=postgresql://user:password@localhost:5432/dbname
+
+# 外部API
+STRIPE_SECRET_KEY=sk_test_xxxxx
+STRIPE_PUBLIC_KEY=pk_test_xxxxx
+
+# サービス設定
+NEXT_PUBLIC_API_URL=http://localhost:3000/api
+NODE_ENV=development
+
+# 認証
+NEXTAUTH_SECRET=<generate-with-openssl-rand-base64-32>
+NEXTAUTH_URL=http://localhost:3000
+```
+
+**セキュリティチェック:**
+
+```bash
+# pre-commit hookで機密情報の混入を防ぐ
+npm install --save-dev husky @commitlint/cli
+npx husky add .husky/pre-commit "npx gitleaks protect --staged"
+
+# gitleaksで過去のコミット履歴もスキャン
+docker run -v $(pwd):/path zricethezav/gitleaks:latest detect --source="/path" -v
+```
+
+### Q3: ビルド時変数と実行時変数の違いは？
+
+**ビルド時変数（Build-time Variables）:**
+
+```javascript
+// Next.js の例
+// next.config.js
+module.exports = {
+  env: {
+    BUILD_TIME: new Date().toISOString(),
+    COMMIT_SHA: process.env.VERCEL_GIT_COMMIT_SHA,
+  },
+};
+
+// コンポーネントで使用
+export default function Footer() {
+  return <p>Built at: {process.env.BUILD_TIME}</p>;
+  // ビルド時に値が埋め込まれ、クライアント側でも利用可能
+}
+```
+
+**特徴:**
+- ビルド時に値が確定し、バンドルに埋め込まれる
+- 変更するには再ビルドが必要
+- クライアント側でも利用可能（公開される）
+- `NEXT_PUBLIC_*` プレフィックスが付く変数
+
+**実行時変数（Runtime Variables）:**
+
+```javascript
+// サーバーサイドでのみ利用（Server Components / API Routes）
+export async function GET() {
+  const dbUrl = process.env.DATABASE_URL; // 実行時に読み込まれる
+  const client = new PrismaClient({ datasources: { db: { url: dbUrl } } });
+  // ...
+}
+```
+
+**特徴:**
+- サーバー起動時/リクエスト時に読み込まれる
+- 環境変数を変更したらアプリ再起動が必要（ビルドは不要）
+- サーバーサイドのみで利用可能（クライアントに公開されない）
+- シークレット情報はこちらで管理
+
+**使い分け:**
+
+| 用途 | 種類 | 例 |
+|------|------|-----|
+| APIのベースURL | ビルド時 | `NEXT_PUBLIC_API_URL` |
+| Google Analytics ID | ビルド時 | `NEXT_PUBLIC_GA_ID` |
+| データベース接続文字列 | 実行時 | `DATABASE_URL` |
+| APIシークレットキー | 実行時 | `STRIPE_SECRET_KEY` |
+| ビルドバージョン情報 | ビルド時 | `BUILD_ID`, `COMMIT_SHA` |
+
+**Vercel環境での挙動:**
+
+```bash
+# ビルド時変数: Vercel UI で「Exposed to Client」をチェック
+NEXT_PUBLIC_API_URL=https://api.example.com
+
+# 実行時変数: デフォルト（チェックなし）
+DATABASE_URL=postgresql://...
 ```
 
 ---

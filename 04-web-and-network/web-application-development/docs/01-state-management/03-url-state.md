@@ -2,6 +2,23 @@
 
 > URL状態はWebアプリの「共有可能な状態」。検索クエリ、フィルタ、ページ番号、ソート順をURLに反映することで、ブックマーク・共有・ブラウザバックが自然に動作するUXを実現する。URL は単なるリソースの識別子ではなく、アプリケーションの状態を永続化するための強力なメカニズムである。
 
+## 前提知識
+
+この章を効果的に学習するために、以下の知識を事前に習得しておくことを推奨する:
+
+- **サーバー状態管理** → [[./02-server-state.md]]
+  - TanStack Query の基本的な使い方
+  - キャッシュの概念と stale-while-revalidate パターン
+  - queryKey によるデータ識別の仕組み
+- **クライアントサイドルーティングの概念**
+  - React Router または Next.js App Router の基本
+  - ブラウザ履歴 API（pushState, replaceState）の理解
+  - 宣言的ナビゲーションと命令的ナビゲーションの違い
+- **URL のクエリパラメータ**
+  - URLSearchParams API の基本的な使い方
+  - クエリ文字列のエンコード/デコード
+  - URL の構造（pathname, search, hash）の理解
+
 ## この章で学ぶこと
 
 - [ ] URL状態の重要性と設計原則を理解する
@@ -3337,10 +3354,172 @@ function useTrackURLChanges() {
 
 ---
 
+## FAQ
+
+### Q1: URL状態とReact状態はどう同期すべきか？
+
+**A:** URL を Single Source of Truth とし、React 状態は UI 最適化のためのみに使う:
+
+**基本パターン: URL が真実の源（推奨）**
+```typescript
+// URL → React 状態への一方向バインディング
+function SearchPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const query = searchParams.get('q') ?? '';
+
+  // ローカル状態は「入力途中の値」のみ
+  const [localQuery, setLocalQuery] = useState(query);
+
+  // デバウンス後にURLに反映
+  const debouncedUpdateURL = useDebouncedCallback((value: string) => {
+    setSearchParams({ q: value });
+  }, 500);
+
+  const handleChange = (value: string) => {
+    setLocalQuery(value); // 即座にUIに反映
+    debouncedUpdateURL(value); // URLは遅延更新
+  };
+
+  // URLが変わったら（ブラウザバック等）ローカル状態も同期
+  useEffect(() => {
+    setLocalQuery(query);
+  }, [query]);
+
+  return <input value={localQuery} onChange={(e) => handleChange(e.target.value)} />;
+}
+```
+
+**nuqs を使う場合（より簡潔）**
+```typescript
+import { useQueryState } from 'nuqs';
+
+function SearchPage() {
+  const [query, setQuery] = useQueryState('q', { defaultValue: '' });
+
+  // デバウンスは組み込み
+  return (
+    <input
+      value={query}
+      onChange={(e) => setQuery(e.target.value, { scroll: false })}
+    />
+  );
+}
+```
+
+### Q2: 検索フィルタをどうURL永続化すべきか？
+
+**A:** フィルタの種類に応じて適切な形式とデフォルト値の扱いを決める:
+
+**単一値のフィルタ:**
+```typescript
+// 例: カテゴリー選択
+// URL: ?category=electronics
+const [category, setCategory] = useQueryState('category', {
+  defaultValue: 'all',
+});
+
+// デフォルト値は URL から除外
+if (category === 'all') {
+  // URL: /products （すっきり）
+} else {
+  // URL: /products?category=electronics
+}
+```
+
+**複数値のフィルタ（配列）:**
+```typescript
+// 例: ブランドフィルタ（複数選択）
+// URL: ?brands=apple,samsung,sony
+const [brands, setBrands] = useQueryState('brands', {
+  defaultValue: [],
+  parse: (value) => value ? value.split(',') : [],
+  serialize: (value) => value.length > 0 ? value.join(',') : null,
+});
+
+// チェックボックスのハンドラ
+const toggleBrand = (brand: string) => {
+  setBrands((prev) =>
+    prev.includes(brand)
+      ? prev.filter((b) => b !== brand)
+      : [...prev, brand]
+  );
+};
+```
+
+**フィルタ変更時の注意:**
+```typescript
+// フィルタ変更時はページをリセット
+const updateFilter = (newCategory: string) => {
+  setSearchParams({
+    category: newCategory,
+    page: '1', // ページを先頭に戻す
+  });
+};
+```
+
+### Q3: Next.js App Router でURL状態をどう管理するか？
+
+**A:** Server Component と Client Component の役割分担を明確にする:
+
+**Server Component でパラメータを受け取る:**
+```typescript
+// app/products/page.tsx
+export default async function ProductsPage({
+  searchParams,
+}: {
+  searchParams: { q?: string; category?: string; page?: string };
+}) {
+  const query = searchParams.q ?? '';
+  const category = searchParams.category ?? 'all';
+  const page = parseInt(searchParams.page ?? '1', 10);
+
+  // Server Component でデータ取得
+  const products = await fetchProducts({ query, category, page });
+
+  return (
+    <div>
+      <ProductFilters />
+      <ProductList products={products} />
+    </div>
+  );
+}
+```
+
+**Client Component で URL 更新:**
+```typescript
+// components/ProductFilters.tsx
+'use client';
+
+import { useQueryState } from 'nuqs';
+
+export function ProductFilters() {
+  const [query, setQuery] = useQueryState('q', { defaultValue: '' });
+  const [category, setCategory] = useQueryState('category', { defaultValue: 'all' });
+
+  return (
+    <div>
+      <input
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="検索..."
+      />
+      <select
+        value={category}
+        onChange={(e) => setCategory(e.target.value)}
+      >
+        <option value="all">すべて</option>
+        <option value="electronics">家電</option>
+      </select>
+    </div>
+  );
+}
+```
+
+---
+
 ## 次に読むべきガイド
-→ [[00-client-side-routing.md]] -- クライアントルーティング
-→ [[01-component-state.md]] -- コンポーネント状態管理
-→ [[02-global-state.md]] -- グローバル状態管理
+→ [[../00-architecture/01-client-side-routing.md]] -- クライアントルーティング
+→ [[00-state-management-overview.md]] -- 状態管理の全体像
 
 ---
 

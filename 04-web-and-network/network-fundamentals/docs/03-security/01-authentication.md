@@ -2,6 +2,15 @@
 
 > Web APIの認証方式を体系的に理解する。Basic認証、Bearer Token、OAuth 2.0、JWTの仕組みと使い分けを学び、安全な認証システムを設計する。
 
+## 前提知識
+
+このガイドを理解するには以下の知識が必要です:
+- [[./00-tls-ssl.md]] — TLS/SSLの仕組みと証明書の基礎
+- [[../02-http/00-http-basics.md]] — HTTPプロトコルとヘッダーの理解
+- ハッシュ関数の基礎 — SHA-256等の一方向性関数の役割
+
+---
+
 ## この章で学ぶこと
 
 - [ ] 主要な認証方式の仕組みと違いを理解する
@@ -1235,6 +1244,393 @@ if needs_rehash(hashed):
     new_hash = hash_password("my-secure-password")
     # DBを更新
 ```
+
+---
+
+## 12. トークンセキュリティの実践
+
+### 12.1 JWTセキュリティの深掘り
+
+```
+JWTに関する攻撃と防御:
+
+① Algorithm Confusion攻撃:
+  → ヘッダーのalgを改ざんし、検証を回避
+
+  攻撃例:
+  元のJWT:
+    ヘッダー: {"alg": "RS256", "typ": "JWT"}
+    → RSA公開鍵で検証
+
+  改ざんJWT:
+    ヘッダー: {"alg": "HS256", "typ": "JWT"}
+    → RSA公開鍵をHMACの秘密鍵として署名
+    → サーバーが公開鍵でHMAC検証 → 成功してしまう
+
+  防御:
+  // algを明示的に指定して検証（必須）
+  const jwt = require('jsonwebtoken');
+  const decoded = jwt.verify(token, publicKey, {
+    algorithms: ['RS256'],    // ← 許可アルゴリズムを明示
+    issuer: 'https://auth.example.com',
+    audience: 'my-api'
+  });
+
+  // NG: アルゴリズムを指定しない検証
+  const decoded = jwt.verify(token, key); // ← 危険
+
+② JWTの無効化（ログアウト問題）:
+  → JWTはステートレスなので、発行後に無効化できない
+  → ログアウトしてもトークンが有効なまま
+
+  解決策:
+  ┌────────────────────────────────────────────┐
+  │ 方式          │ 特徴                         │
+  ├───────────────┼──────────────────────────────┤
+  │ 短い有効期限   │ 5-15分、Refresh Tokenで更新  │
+  │ ブラックリスト │ Redis等に無効化トークンを保存 │
+  │ Token Version │ ユーザーにバージョン番号を持  │
+  │               │ たせ、変更時に全トークン無効化│
+  │ Token Binding │ デバイスに紐づけ              │
+  └────────────────────────────────────────────┘
+```
+
+```javascript
+// Token Blacklist の実装例（Redis使用）
+const Redis = require('ioredis');
+const redis = new Redis();
+
+// ログアウト時: トークンをブラックリストに追加
+async function logout(req, res) {
+  const token = req.headers.authorization?.split(' ')[1];
+  const decoded = jwt.decode(token);
+
+  // トークンの残り有効期限をTTLとして設定
+  const ttl = decoded.exp - Math.floor(Date.now() / 1000);
+  if (ttl > 0) {
+    await redis.setex(`blacklist:${token}`, ttl, '1');
+  }
+
+  res.json({ message: 'Logged out successfully' });
+}
+
+// 認証ミドルウェア: ブラックリストチェック
+async function authenticate(req, res, next) {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) {
+    return res.status(401).json({ error: 'Token required' });
+  }
+
+  // ブラックリストチェック
+  const isBlacklisted = await redis.get(`blacklist:${token}`);
+  if (isBlacklisted) {
+    return res.status(401).json({ error: 'Token has been revoked' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, publicKey, {
+      algorithms: ['RS256'],
+      issuer: 'https://auth.example.com'
+    });
+    req.user = decoded;
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+}
+```
+
+### 12.2 Refresh Token Rotation
+
+```
+Refresh Token Rotation:
+  → Refresh Token使用時に新しいRefresh Tokenを発行
+  → 古いRefresh Tokenは即座に無効化
+  → 窃取されたRefresh Tokenの使用を検知
+
+  フロー:
+  1. クライアント → Access Token (5分) + Refresh Token A
+  2. Access Token期限切れ
+  3. クライアント → Refresh Token Aで更新
+  4. サーバー → 新Access Token + 新Refresh Token B
+     → Refresh Token Aは無効化
+  5. もし攻撃者がRefresh Token Aを使用:
+     → サーバーが使用済みトークンを検知
+     → Token Family全体を無効化
+     → 正規ユーザーも再ログインが必要（安全側に倒す）
+```
+
+```javascript
+// Refresh Token Rotationの実装
+async function refreshToken(req, res) {
+  const { refresh_token } = req.body;
+
+  // Refresh Tokenの検証
+  const tokenRecord = await db.refreshTokens.findOne({
+    token: hashToken(refresh_token),
+    revoked: false
+  });
+
+  if (!tokenRecord) {
+    // トークンが見つからない → 窃取の可能性
+    // Token Family全体を無効化
+    const familyId = await findTokenFamily(refresh_token);
+    if (familyId) {
+      await db.refreshTokens.updateMany(
+        { family: familyId },
+        { revoked: true, revokedReason: 'reuse_detected' }
+      );
+      logger.security('Refresh token reuse detected', {
+        family: familyId,
+        ip: req.ip
+      });
+    }
+    return res.status(401).json({ error: 'Invalid refresh token' });
+  }
+
+  // 有効期限チェック
+  if (tokenRecord.expiresAt < new Date()) {
+    return res.status(401).json({ error: 'Refresh token expired' });
+  }
+
+  // 古いトークンを無効化
+  await db.refreshTokens.updateOne(
+    { _id: tokenRecord._id },
+    { revoked: true, revokedReason: 'rotation' }
+  );
+
+  // 新しいトークンペアを生成
+  const newAccessToken = generateAccessToken(tokenRecord.userId);
+  const newRefreshToken = generateRefreshToken();
+
+  // 新しいRefresh Tokenを保存（同じFamily）
+  await db.refreshTokens.insertOne({
+    token: hashToken(newRefreshToken),
+    userId: tokenRecord.userId,
+    family: tokenRecord.family,
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    revoked: false
+  });
+
+  res.json({
+    access_token: newAccessToken,
+    refresh_token: newRefreshToken,
+    expires_in: 300
+  });
+}
+```
+
+---
+
+## 13. 認証のモニタリングと異常検知
+
+```
+認証イベントのモニタリング:
+
+① 監視すべきイベント:
+  → ログイン成功/失敗（ユーザー別、IP別、地域別）
+  → パスワードリセット要求
+  → MFA登録/変更/無効化
+  → トークン更新/無効化
+  → 権限変更
+  → 新規デバイスからのアクセス
+
+② 異常検知パターン:
+  ┌──────────────────────────────────────────────┐
+  │ パターン              │ 検知条件              │
+  ├───────────────────────┼───────────────────────┤
+  │ ブルートフォース       │ 同一IPから5回/分の     │
+  │                       │ ログイン失敗           │
+  ├───────────────────────┼───────────────────────┤
+  │ クレデンシャル         │ 異なるユーザーIDで     │
+  │ スタッフィング         │ 大量のログイン試行     │
+  ├───────────────────────┼───────────────────────┤
+  │ アカウント乗っ取り     │ パスワード変更後の     │
+  │                       │ 即座のメール変更       │
+  ├───────────────────────┼───────────────────────┤
+  │ Impossible Travel     │ 短時間での異なる       │
+  │                       │ 地域からのアクセス     │
+  ├───────────────────────┼───────────────────────┤
+  │ セッション固定         │ 認証前後で同じ         │
+  │                       │ セッションID           │
+  └──────────────────────────────────────────────┘
+
+③ 対応アクション:
+  → 自動ブロック: IPベースのレート制限
+  → CAPTCHA: 閾値超過時にチャレンジ表示
+  → アカウントロック: 連続失敗時の一時ロック
+  → 通知: 管理者/ユーザーへの異常通知
+  → 強制再認証: 疑わしいアクセス時のMFA要求
+```
+
+```javascript
+// 認証イベントのログ記録と異常検知
+class AuthMonitor {
+  constructor(redis, logger) {
+    this.redis = redis;
+    this.logger = logger;
+  }
+
+  async recordLoginAttempt(userId, ip, success, metadata = {}) {
+    const event = {
+      userId,
+      ip,
+      success,
+      timestamp: new Date().toISOString(),
+      userAgent: metadata.userAgent,
+      geoLocation: metadata.geoLocation,
+      deviceId: metadata.deviceId
+    };
+
+    // ログ記録
+    this.logger.info('auth_event', event);
+
+    if (!success) {
+      // 失敗カウントの更新
+      const ipKey = `auth:fail:ip:${ip}`;
+      const userKey = `auth:fail:user:${userId}`;
+
+      const [ipCount, userCount] = await Promise.all([
+        this.redis.incr(ipKey),
+        this.redis.incr(userKey)
+      ]);
+
+      // TTL設定（初回のみ）
+      if (ipCount === 1) await this.redis.expire(ipKey, 300);
+      if (userCount === 1) await this.redis.expire(userKey, 300);
+
+      // ブルートフォース検知
+      if (ipCount >= 10) {
+        this.logger.warn('brute_force_detected', { ip, count: ipCount });
+        await this.blockIP(ip, 3600); // 1時間ブロック
+      }
+
+      // アカウントロック
+      if (userCount >= 5) {
+        this.logger.warn('account_locked', { userId, count: userCount });
+        await this.lockAccount(userId, 900); // 15分ロック
+      }
+    } else {
+      // 成功時: Impossible Travel検知
+      await this.checkImpossibleTravel(userId, metadata.geoLocation);
+    }
+  }
+
+  async checkImpossibleTravel(userId, currentLocation) {
+    const lastLoginKey = `auth:lastlogin:${userId}`;
+    const lastLogin = await this.redis.get(lastLoginKey);
+
+    if (lastLogin) {
+      const last = JSON.parse(lastLogin);
+      const timeDiffHours = (Date.now() - new Date(last.timestamp)) / 3600000;
+      const distanceKm = this.calculateDistance(
+        last.lat, last.lon,
+        currentLocation.lat, currentLocation.lon
+      );
+
+      // 移動速度が時速1000km以上は物理的に不可能
+      if (distanceKm / timeDiffHours > 1000) {
+        this.logger.alert('impossible_travel_detected', {
+          userId,
+          from: last,
+          to: currentLocation,
+          timeDiffHours,
+          distanceKm
+        });
+      }
+    }
+
+    await this.redis.setex(lastLoginKey, 86400, JSON.stringify({
+      ...currentLocation,
+      timestamp: new Date().toISOString()
+    }));
+  }
+}
+```
+
+---
+
+## 14. 認証サービスの比較と選定
+
+```
+認証サービス/ライブラリの比較（2024年時点）:
+
+┌──────────────────┬──────────────┬──────────────┬──────────────┐
+│ サービス          │ 種類          │ 特徴         │ 適用場面      │
+├──────────────────┼──────────────┼──────────────┼──────────────┤
+│ Auth0            │ IDaaS        │ 高機能、     │ エンタープ    │
+│                  │ (SaaS)       │ カスタマイズ  │ ライズ        │
+│                  │              │ 性高い       │              │
+├──────────────────┼──────────────┼──────────────┼──────────────┤
+│ Firebase Auth    │ BaaS         │ Google統合、  │ モバイル     │
+│                  │              │ 簡易な設定   │ アプリ        │
+├──────────────────┼──────────────┼──────────────┼──────────────┤
+│ Supabase Auth    │ OSS/BaaS     │ PostgreSQL   │ フルスタック  │
+│                  │              │ 統合、Row    │ アプリ        │
+│                  │              │ Level Security│             │
+├──────────────────┼──────────────┼──────────────┼──────────────┤
+│ Clerk            │ IDaaS        │ React/Next   │ SPA/SSR      │
+│                  │              │ 統合が秀逸   │ アプリ        │
+├──────────────────┼──────────────┼──────────────┼──────────────┤
+│ Keycloak         │ OSS          │ セルフホスト  │ オンプレミス  │
+│                  │              │ OIDC/SAML   │ エンタープ    │
+│                  │              │ 対応         │ ライズ        │
+├──────────────────┼──────────────┼──────────────┼──────────────┤
+│ NextAuth.js      │ OSS          │ Next.js特化  │ Next.js      │
+│ (Auth.js)        │ ライブラリ    │ 複数プロバイダ│ プロジェクト  │
+├──────────────────┼──────────────┼──────────────┼──────────────┤
+│ Lucia Auth       │ OSS          │ 軽量、       │ 学習目的     │
+│                  │ ライブラリ    │ DB直接操作   │ 小規模PJ     │
+├──────────────────┼──────────────┼──────────────┼──────────────┤
+│ AWS Cognito      │ マネージド    │ AWS統合、    │ AWSベースの  │
+│                  │ サービス      │ Federation   │ システム      │
+└──────────────────┴──────────────┴──────────────┴──────────────┘
+
+選定フロー:
+  1. セルフホストが必要か？
+     → Yes: Keycloak, Lucia
+     → No: 次へ
+
+  2. 対象プラットフォームは？
+     → Next.js: Clerk, Auth.js, Supabase
+     → React SPA: Auth0, Firebase
+     → モバイル: Firebase, Auth0
+     → マルチプラットフォーム: Auth0, Keycloak
+
+  3. 予算制約は？
+     → 無料/低コスト: Firebase, Supabase, OSS
+     → 有料可: Auth0, Clerk
+     → AWS課金内: Cognito
+
+  4. エンタープライズ要件は？
+     → SAML/LDAP: Keycloak, Auth0, Cognito
+     → SOC2対応: Auth0, Clerk
+     → カスタムドメイン: Auth0, Clerk
+```
+
+---
+
+## FAQ
+
+### Q1: Access TokenとRefresh Tokenの有効期限はどのくらいに設定すべきか?
+
+Access Tokenは5〜15分程度の短い有効期限が推奨されます。これにより、トークンが漏洩した場合の被害期間を最小化できます。Refresh Tokenは7〜30日程度で設定しますが、必ずRefresh Token Rotationを実装し、使用するたびに新しいRefresh Tokenを発行してください。金融系など高セキュリティが必要なアプリケーションでは、Access Tokenを5分、Refresh Tokenを24時間に設定し、非アクティブ時のセッションタイムアウトも併用します。重要なのは、Refresh Tokenは安全なストレージ（HttpOnly Cookie、または Secure Enclave）に保存し、フロントエンドのJavaScriptからアクセスできないようにすることです。
+
+### Q2: パスキー（Passkeys）はパスワードを完全に置き換えられるか?
+
+パスキーは技術的にはパスワードを完全に置き換え可能ですが、2024年時点では移行期間として共存が現実的です。パスキーの利点は、フィッシング耐性（オリジンにバインド）、記憶不要、リプレイ攻撃耐性があることです。しかし課題として、(1)全デバイスでのパスキー同期（Apple/Google/Microsoftで仕組みが異なる）、(2)共有デバイスでの利用、(3)アカウント復旧手段の確保、(4)レガシーブラウザ非対応、があります。推奨戦略は、パスキーを第一の認証手段として提供しつつ、パスワード+MFAをフォールバックとして残し、段階的にパスキーのみに移行することです。
+
+### Q3: OAuth 2.0のImplicit Flowはなぜ非推奨になったのか?
+
+Implicit Flowはトークンをフラグメント（#）経由でブラウザに返すため、以下のセキュリティリスクがあります。(1)アクセストークンがブラウザ履歴に残る。(2)HTTPリファラーでトークンが漏洩する可能性がある。(3)トークン置換攻撃（Token Substitution）に脆弱。(4)Refresh Tokenが使用できないためトークン更新のたびにユーザー操作が必要。代替として、Authorization Code Flow + PKCE（Proof Key for Code Exchange）が推奨されています。PKCEにより、認可コードの横取り攻撃を防止しつつ、パブリッククライアント（SPA、モバイルアプリ）でも安全にトークンを取得できます。
+
+### Q4: マイクロサービス間の認証にはどの方式が最適か?
+
+マイクロサービス間の認証は、通信パターンに応じて使い分けます。(1)同期通信（HTTP/gRPC）: mTLS（相互TLS認証）が最も推奨されます。Istio/Linkerdなどのサービスメッシュを使えば、アプリケーションコードの変更なく自動的にmTLSが適用されます。(2)イベント駆動（メッセージキュー）: メッセージに署名を付与し、コンシューマー側で検証します。(3)内部API呼び出し: JWTのToken Exchange（RFC 8693）を使い、サービスAのトークンをサービスB用のスコープに変換します。最小権限の原則に従い、各サービスが必要な権限だけを持つトークンを使用することが重要です。
+
+### Q5: セッションストレージとしてRedisとデータベース（PostgreSQL等）のどちらを選ぶべきか?
+
+Redisが推奨される場面は、大量の同時セッション（数十万以上）、高速なセッション検索（サブミリ秒）、自動的な期限切れ（TTL）が必要な場合です。PostgreSQLが適する場面は、セッションデータの永続性が重要な場合、既存のDB基盤を活用したい場合、セッションデータに対する複雑なクエリ（監査目的等）が必要な場合です。実務では、Redisをプライマリストレージとして使いつつ、監査ログとしてPostgreSQLにもイベントを記録するハイブリッド構成が最も一般的です。Redis障害時のフォールバックとしてDBを使う設計も重要です。
 
 ---
 

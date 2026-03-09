@@ -14,6 +14,19 @@
 
 ---
 
+## 前提知識
+
+- **ブラウザのイベントループ** → 参照: [イベントループ](./01-event-loop-browser.md)
+  Web Worker がメインスレッドとどのように協調動作するかを理解するために、イベントループの仕組み（タスクキュー、マイクロタスク、レンダリングタイミング）を事前に把握しておく必要がある。
+
+- **V8 エンジンの仕組み** → 参照: [V8 エンジン](./00-v8-engine.md)
+  Worker スレッドも V8 エンジンで実行されるため、JIT コンパイル、ガベージコレクション、ヒープ管理の基礎知識があると、Worker のパフォーマンスチューニングがしやすくなる。
+
+- **マルチスレッドプログラミングの概念**
+  Worker によるメッセージパッシング、Shared Worker での状態共有、SharedArrayBuffer での同期処理を理解するには、スレッド間通信、競合状態（Race Condition）、Atomics による排他制御の基本概念が必要である。
+
+---
+
 ## 1. ブラウザのスレッドモデルと Web Worker の位置づけ
 
 ### 1.1 シングルスレッドの限界
@@ -1928,3 +1941,204 @@ navigator.serviceWorker.register('/blog/sw-blog.js', { scope: '/blog/' });
 // 24 時間に 1 回、自動的に更新チェックが行われる
 // registration.update() で手動チェックも可能
 ```
+
+---
+
+## FAQ
+
+### Q1: Web Worker、Shared Worker、Service Worker の違いは何か？
+
+**A:** 3 種類の Worker は用途と寿命が異なる。
+
+| Worker の種類 | 用途 | 寿命 | 共有範囲 |
+|--------------|------|------|----------|
+| **Dedicated Worker** | 単一ページでの並列計算 | ページが閉じるまで | 生成元のページのみ |
+| **Shared Worker** | 複数タブ間の状態共有 | 全タブが閉じるまで | 同一オリジンの全タブ |
+| **Service Worker** | オフライン対応・プッシュ通知 | ブラウザが管理（idle 時に停止） | 同一スコープの全ページ |
+
+```javascript
+// Dedicated Worker: 画像処理など、単一ページの重い計算に使用
+const worker = new Worker('image-processor.js');
+worker.postMessage(imageData);
+
+// Shared Worker: WebSocket 接続を複数タブで共有
+const sharedWorker = new SharedWorker('websocket-manager.js');
+sharedWorker.port.start();
+sharedWorker.port.postMessage({ type: 'subscribe', channel: 'chat' });
+
+// Service Worker: API レスポンスをキャッシュしてオフライン対応
+navigator.serviceWorker.register('/sw.js').then(registration => {
+  console.log('Service Worker registered with scope:', registration.scope);
+});
+```
+
+**選択基準:**
+- **計算処理のみ** → Dedicated Worker
+- **タブ間でリアルタイム同期** → Shared Worker
+- **ネットワークリクエストの制御** → Service Worker
+
+---
+
+### Q2: Worker で大きなデータを転送する際の Transferable Objects とは何か？
+
+**A:** Transferable Objects は、データをコピーせずに所有権を転送する仕組みである。大きな ArrayBuffer を Worker とやり取りする際、構造化複製アルゴリズムによる深いコピーは数百 ms かかることがあるが、転送なら 1ms 未満で完了する。
+
+```javascript
+// ===== 通常のコピー（遅い）=====
+const largeBuffer = new ArrayBuffer(100 * 1024 * 1024); // 100MB
+console.time('Copy');
+worker.postMessage({ buffer: largeBuffer }); // 深いコピー発生（数百 ms）
+console.timeEnd('Copy');
+// メインスレッドでも largeBuffer は引き続き使用可能
+
+// ===== Transferable Objects（速い）=====
+const largeBuffer2 = new ArrayBuffer(100 * 1024 * 1024);
+console.time('Transfer');
+worker.postMessage(
+  { buffer: largeBuffer2 },
+  [largeBuffer2] // 第2引数で転送対象を指定
+);
+console.timeEnd('Transfer'); // 1ms 未満
+// この後、メインスレッドで largeBuffer2 にアクセスすると TypeError
+// console.log(largeBuffer2.byteLength); // Error: Detached ArrayBuffer
+```
+
+**転送可能なオブジェクト:**
+- `ArrayBuffer`
+- `MessagePort`
+- `ImageBitmap`
+- `OffscreenCanvas`
+- `ReadableStream`、`WritableStream`、`TransformStream`
+
+**注意点:**
+- 転送後、元のスレッドからはアクセス不可（Detached 状態）
+- 双方向転送が必要な場合、Worker から返すときも転送を指定する
+
+```javascript
+// Worker 側で処理後に返送
+self.onmessage = (e) => {
+  const buffer = e.data.buffer;
+  // 処理実行
+  processBuffer(buffer);
+
+  // 処理済みバッファを転送で返す
+  self.postMessage({ result: buffer }, [buffer]);
+};
+```
+
+---
+
+### Q3: Worker のデバッグ方法は？
+
+**A:** Chrome DevTools と Firefox Developer Tools は Worker 専用のデバッグ機能を提供している。
+
+**Chrome DevTools での Worker デバッグ:**
+
+1. **Worker の一覧表示**
+   `Sources` タブ → 左ペインの `Threads` セクション → 起動中の Worker が表示される
+
+2. **ブレークポイント設定**
+   Worker のスクリプトを開き、通常の JavaScript と同様にブレークポイントを設置
+
+3. **コンソールへのアクセス**
+   `Console` タブで `top` のドロップダウン → Worker を選択 → Worker のコンテキストで `console.log` を確認
+
+4. **postMessage の追跡**
+   `Performance` タブで記録 → `Main` と `Worker` のタイムラインを並べて確認 → メッセージのやり取りを可視化
+
+**Firefox での Worker デバッグ:**
+
+1. `about:debugging` → `This Firefox` → 対象の Worker を確認
+2. `Inspect` ボタンで専用の DevTools を起動
+3. `Console`、`Debugger`、`Network` タブで通常通りデバッグ
+
+**ログ出力のベストプラクティス:**
+
+```javascript
+// Worker 側でログにタイムスタンプと Worker ID を付ける
+const workerId = Math.random().toString(36).slice(2, 9);
+
+self.onmessage = (e) => {
+  console.log(`[Worker ${workerId}] ${Date.now()} - Received:`, e.data);
+  const result = heavyComputation(e.data);
+  console.log(`[Worker ${workerId}] ${Date.now()} - Sending result:`, result);
+  self.postMessage(result);
+};
+
+// メインスレッド側でも対応するログ
+worker.postMessage(data);
+console.log(`[Main] ${Date.now()} - Sent to worker:`, data);
+
+worker.onmessage = (e) => {
+  console.log(`[Main] ${Date.now()} - Received from worker:`, e.data);
+};
+```
+
+**Service Worker のデバッグ:**
+
+- Chrome: `chrome://serviceworker-internals/` → 登録済み SW の一覧、強制更新、Unregister
+- Firefox: `about:debugging` → `Service Workers` セクション
+- Application タブ → Service Workers → `Update on reload` をチェックして開発中の再読み込みを容易化
+
+---
+
+## まとめ
+
+### Web Worker の特性比較
+
+| 項目 | Dedicated Worker | Shared Worker | Service Worker |
+|------|------------------|---------------|----------------|
+| **生成方法** | `new Worker(url)` | `new SharedWorker(url)` | `navigator.serviceWorker.register(url)` |
+| **通信手段** | `postMessage` / `onmessage` | `port.postMessage` / `port.onmessage` | `postMessage` + `fetch` イベント |
+| **DOM アクセス** | 不可 | 不可 | 不可 |
+| **複数タブ共有** | 不可 | 可能 | 可能 |
+| **永続性** | ページが閉じると終了 | 全タブが閉じると終了 | ブラウザが自動管理（idle で停止） |
+| **主な用途** | 画像処理、暗号化、大量計算 | WebSocket 共有、状態同期 | オフライン対応、プッシュ通知 |
+
+### キーポイント
+
+1. **メインスレッドのブロッキングを避ける**
+   16.67ms（60fps）を超える処理は Worker にオフロードする。構造化複製のコストを考慮し、大きなデータには Transferable Objects を使用する。
+
+2. **Worker プールで並列度を制御する**
+   `navigator.hardwareConcurrency` で CPU コア数を取得し、適切なプールサイズを決定する。無制限に Worker を生成すると、コンテキストスイッチとメモリ消費でパフォーマンスが悪化する。
+
+3. **Service Worker はネットワーク層を制御する特殊な Worker**
+   キャッシュ戦略（Cache First、Network First、Stale While Revalidate）を設計し、オフライン対応と高速化を両立する。ライフサイクル（installing → waiting → activated）を理解し、適切なタイミングで `skipWaiting()` と `clients.claim()` を実行する。
+
+---
+
+## 次に読むべきガイド
+
+- [メモリ管理](./03-memory-management.md)
+  Worker で扱う大きなバッファのメモリリークを防ぐためのベストプラクティスと、SharedArrayBuffer のメモリモデルを学ぶ。
+
+- [非同期処理パターン](./04-async-patterns.md)
+  Worker への非同期リクエストを Promise でラップする方法や、複数 Worker の結果を `Promise.all` で集約するパターンを習得する。
+
+- [パフォーマンス最適化](../05-performance/01-rendering-optimization.md)
+  Worker のオフロード効果を Performance API と Chrome DevTools で定量評価し、ボトルネックを特定する手法を学ぶ。
+
+---
+
+## 参考文献
+
+1. **MDN Web Docs - Web Workers API**
+   https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API
+   Web Worker、Shared Worker、Service Worker の仕様と API リファレンス。構造化複製アルゴリズムと Transferable Objects の詳細。
+
+2. **Google Developers - Service Worker Lifecycle**
+   https://web.dev/service-worker-lifecycle/
+   Service Worker のライフサイクル（installing → waiting → activated）と、`skipWaiting()`、`clients.claim()` のタイミングをダイアグラムで解説。
+
+3. **HTML Living Standard - Web Workers**
+   https://html.spec.whatwg.org/multipage/workers.html
+   Worker の仕様定義。スレッドモデル、メッセージパッシング、エラーハンドリングの標準動作を確認できる。
+
+4. **Jake Archibald - The Offline Cookbook**
+   https://jakearchibald.com/2014/offline-cookbook/
+   Service Worker によるキャッシュ戦略（Cache First、Network First、Stale While Revalidate など）の実装パターン集。
+
+5. **Surma - Is postMessage slow?**
+   https://surma.dev/things/is-postmessage-slow/
+   `postMessage` の構造化複製アルゴリズムのパフォーマンス測定と、Transferable Objects との比較実験。ArrayBuffer の転送で 100 倍以上の高速化を実証。

@@ -2,6 +2,12 @@
 
 > 60fpsのスムーズなアニメーションを実現するための手法を体系的に学ぶ。CSS Transitions/Animations、requestAnimationFrame、Web Animations API、FLIP技法、View Transitions APIを深く理解し、パフォーマンス計測と最適化の全体像を把握する。
 
+## 前提知識
+
+- ペイントとコンポジティングの仕組み → 参照: [ペイントとコンポジティング](./02-paint-and-compositing.md)
+- CSSアニメーション/トランジションの基本構文
+- requestAnimationFrameの概念
+
 ## この章で学ぶこと
 
 - [ ] 60fpsアニメーションの原理とフレームバジェットを理解する
@@ -2645,11 +2651,301 @@ function flipWithCounterScale(parent, changeFn) {
 
 ---
 
+## FAQ
+
+### Q1: CSS AnimationsとWeb Animations APIはどう使い分けるべきか？
+
+**A:** 使い分けの基準は「動的制御の必要性」と「複雑さ」である。
+
+```
+選定フローチャート:
+
+  アニメーションの要件
+   │
+   ├─ 静的なホバーエフェクトや入退場アニメーション
+   │   └→ CSS Animations/Transitions
+   │      理由: 宣言的でシンプル、will-changeによる自動最適化
+   │
+   ├─ 途中で速度変更・一時停止・逆再生が必要
+   │   └→ Web Animations API
+   │      理由: .playbackRate、.pause()、.reverse() が使える
+   │
+   ├─ タイムライン全体の進捗を外部から制御したい
+   │   └→ Web Animations API
+   │      理由: .currentTime で直接シーク可能
+   │
+   └─ 物理演算・衝突判定など複雑なロジック
+       └→ requestAnimationFrame + 自前の計算
+          理由: フレームごとの完全な制御が可能
+```
+
+**具体例:**
+
+| ユースケース | 推奨手法 | 理由 |
+|---|---|---|
+| ボタンホバー時の色変化 | CSS Transition | 最もシンプル、パフォーマンス最適 |
+| ローディングスピナー | CSS Animation | ループアニメーション、宣言的 |
+| モーダルの開閉 | WAAPI | 開閉状態の動的制御が必要 |
+| スクロール連動視差効果 | Scroll-driven Animations | 専用API、最適化済み |
+| ゲームキャラクターの動き | rAF + Canvas | 物理演算が必要 |
+
+**併用パターン:**
+```javascript
+// CSS Animationsを定義しておき、WA APIで制御する
+const elem = document.querySelector('.box');
+const animation = elem.getAnimations()[0]; // CSSアニメーションを取得
+
+// JavaScriptから動的に制御
+animation.playbackRate = 2.0; // 2倍速
+animation.currentTime = 500;  // 500ms地点にシーク
+```
+
+---
+
+### Q2: 60fpsを達成するための具体的なチェックリストは？
+
+**A:** 以下の7つのステップを順に確認する。
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│          60fps達成のための7ステップチェックリスト             │
+├─────────────────────────────────────────────────────────────┤
+│ ✅ Step 1: アニメーション対象プロパティの確認                 │
+│    → transform / opacity のみを使用しているか？              │
+│    → width/height/top/left をアニメーションしていないか？    │
+│                                                              │
+│ ✅ Step 2: will-change の適切な設定                          │
+│    → アニメーション前に will-change を設定済みか？           │
+│    → アニメーション終了後に will-change を削除しているか？   │
+│                                                              │
+│ ✅ Step 3: レイヤー化の確認                                  │
+│    → DevTools > Layers パネルで独立レイヤーになっているか？  │
+│    → 不要なレイヤーが大量に作られていないか？                │
+│                                                              │
+│ ✅ Step 4: JavaScriptの処理時間                              │
+│    → rAFコールバック内の処理が10ms以内か？                   │
+│    → 強制同期レイアウト(FSL)を引き起こしていないか？          │
+│                                                              │
+│ ✅ Step 5: ペイント範囲の最小化                              │
+│    → DevTools > Rendering > Paint flashing で確認            │
+│    → 必要以上に広範囲を再描画していないか？                  │
+│                                                              │
+│ ✅ Step 6: ガベージコレクションの回避                        │
+│    → アニメーション中にオブジェクト生成していないか？        │
+│    → 配列のプッシュ/スプライスを繰り返していないか？         │
+│                                                              │
+│ ✅ Step 7: パフォーマンス計測                                │
+│    → DevTools > Performance でフレームドロップを確認          │
+│    → FPS Meter で実測値をモニタリング                        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**デバッグワークフロー:**
+
+```javascript
+// 1. Performance APIで実測
+const observer = new PerformanceObserver((list) => {
+  for (const entry of list.getEntries()) {
+    if (entry.duration > 16.67) {
+      console.warn(`⚠️ Long frame: ${entry.duration.toFixed(2)}ms`);
+      console.log('Start time:', entry.startTime);
+      console.log('Entry type:', entry.entryType);
+    }
+  }
+});
+observer.observe({ entryTypes: ['measure', 'longtask'] });
+
+// 2. rAF内で処理時間を計測
+function animate() {
+  const start = performance.now();
+
+  // アニメーション処理
+  updatePositions();
+
+  const duration = performance.now() - start;
+  if (duration > 10) {
+    console.warn(`⚠️ JS処理が長い: ${duration.toFixed(2)}ms`);
+  }
+
+  requestAnimationFrame(animate);
+}
+
+// 3. Chrome DevTools のタイムライン分析
+// Performance > Record > アニメーション実行 > 停止
+// フレームバーが赤色 = フレームドロップ発生
+// Summary でどの処理が重いかを特定
+```
+
+**よくある落とし穴:**
+
+| 問題 | 症状 | 解決策 |
+|---|---|---|
+| 強制同期レイアウト | offsetWidth読み取り直後にスタイル変更 | バッチ処理（読み取り→書き込み） |
+| メモリリーク | 長時間実行でカクつき悪化 | removeEventListener、WeakMap使用 |
+| 過剰なレイヤー化 | メモリ使用量増加 | will-changeを必要最小限に |
+| Paint範囲が広い | 全画面再描画 | contain: layout paint を使用 |
+
+---
+
+### Q3: JavaScriptアニメーションライブラリはどう選ぶべきか？
+
+**A:** ユースケースとバンドルサイズのトレードオフで判断する。
+
+```
+ライブラリ選定マトリクス:
+
+                     複雑さ
+                       ↑
+                       │
+  GSAP (TweenMax)      │  Mo.js
+  ~30KB (gzip)         │  ~20KB
+  ┌──────────┐        │  ┌──────────┐
+  │フル機能   │        │  │モーション │
+  │タイムライン│        │  │グラフィクス│
+  └──────────┘        │  └──────────┘
+                       │
+  ─────────────────────┼─────────────────────→
+                       │              バンドルサイズ
+  Anime.js             │  Popmotion
+  ~9KB                 │  ~5KB (tree-shakable)
+  ┌──────────┐        │  ┌──────────┐
+  │軽量バランス│        │  │最軽量     │
+  │型          │        │  │関数型     │
+  └──────────┘        │  └──────────┘
+                       │
+                       ↓
+                    シンプル
+```
+
+**選定フローチャート:**
+
+```
+  要件の確認
+   │
+   ├─ SVGモーフィングやパス描画が必要
+   │   └→ GSAP (DrawSVG, MorphSVG) or Mo.js
+   │
+   ├─ 複雑なタイムライン制御・シーケンス
+   │   └→ GSAP (Timeline API が最強)
+   │
+   ├─ 物理演算ベースの自然な動き（慣性・バネ）
+   │   └→ Popmotion (spring, inertia)
+   │
+   ├─ 軽量でモダンなAPI、TypeScript対応
+   │   └→ Motion One (~5KB, WAAPI wrapper)
+   │
+   └─ バンドルサイズを最小化したい
+       └→ CSS Animations + WAAPI (ライブラリ不要)
+```
+
+**ベンチマーク比較 (2024年基準):**
+
+| ライブラリ | バンドルサイズ | パフォーマンス | 学習コスト | 推奨ケース |
+|---|---|---|---|---|
+| **GSAP** | ~30KB (gzip) | ★★★★★ | 中 | エンタープライズ、複雑なアニメーション |
+| **Anime.js** | ~9KB | ★★★★☆ | 低 | 汎用的な用途、バランス重視 |
+| **Popmotion** | ~5KB | ★★★★★ | 中 | 物理演算、インタラクティブUI |
+| **Motion One** | ~5KB | ★★★★★ | 低 | 最新プロジェクト、WAAPI活用 |
+| **Velocity.js** | ~15KB | ★★★☆☆ | 低 | jQueryからの移行 (非推奨) |
+| **Framer Motion** | ~60KB | ★★★★☆ | 中 | React専用、宣言的API |
+
+**実装例の比較:**
+
+```javascript
+// 1. GSAP (最も直感的、機能豊富)
+gsap.to('.box', {
+  x: 100,
+  rotation: 360,
+  duration: 1,
+  ease: 'elastic.out(1, 0.3)',
+  onComplete: () => console.log('done')
+});
+
+// 2. Anime.js (シンプル、軽量)
+anime({
+  targets: '.box',
+  translateX: 100,
+  rotate: 360,
+  duration: 1000,
+  easing: 'easeOutElastic(1, .3)',
+  complete: () => console.log('done')
+});
+
+// 3. Popmotion (物理演算特化)
+import { animate, spring } from 'popmotion';
+animate({
+  from: 0,
+  to: 100,
+  type: spring({ stiffness: 100, damping: 10 }),
+  onUpdate: (x) => {
+    box.style.transform = `translateX(${x}px)`;
+  }
+});
+
+// 4. Motion One (WAAPI wrapper、最軽量)
+import { animate } from 'motion';
+animate('.box',
+  { x: 100, rotate: 360 },
+  { duration: 1, easing: 'ease-out' }
+);
+
+// 5. Web Animations API (ライブラリ不要)
+document.querySelector('.box').animate(
+  [
+    { transform: 'translateX(0) rotate(0deg)' },
+    { transform: 'translateX(100px) rotate(360deg)' }
+  ],
+  { duration: 1000, easing: 'ease-out' }
+);
+```
+
+**2026年の推奨:**
+- **新規プロジェクト**: Motion One または WAAPI直接利用（バンドルサイズ最小）
+- **複雑なアニメーション**: GSAP（実績とエコシステム）
+- **React**: Framer Motion（宣言的API）
+- **Vue**: @vueuse/motion（Composition API対応）
+
+---
+
+## まとめ
+
+### アニメーションパフォーマンス最適化の全体像
+
+| カテゴリ | 重要ポイント | 推奨手法 |
+|---|---|---|
+| **基本原則** | 60fps = 16.67ms/frame、JS処理は10ms以内に収める | transform/opacityのみアニメーション |
+| **CSS手法** | Transitions/Animations/Scroll-driven | 静的アニメーションはCSSで宣言的に |
+| **JavaScript手法** | rAF/WAAPI/FLIP技法 | 動的制御が必要な場合のみJSを使用 |
+| **レイヤー最適化** | will-change、contain、合成レイヤー | 事前レイヤー化でペイント回避 |
+| **計測とデバッグ** | DevTools Performance/Rendering、FPS Meter | フレームドロップの早期発見 |
+| **アクセシビリティ** | prefers-reduced-motion、代替UI | 視覚過敏ユーザーへの配慮 |
+| **最新API** | View Transitions、Scroll-driven | ネイティブ機能で高パフォーマンス |
+
+### キーポイント
+
+1. **transformとopacityを最優先する**
+   - GPU合成のみで完結し、Layout/Paintをスキップ
+   - will-change で事前にレイヤー化することで初回フレームも最適化
+   - width/height/top/left は避け、scaleX/scaleY/translateで代替
+
+2. **FLIP技法でレイアウト変更を吸収する**
+   - First/Last/Invert/Play の4ステップで、高コストなレイアウト変更を低コストなtransformに変換
+   - 要素の追加・削除・並び替えなど、DOMの構造変更を伴うアニメーションに有効
+   - View Transitions API登場後はそちらを優先（よりシンプルな実装）
+
+3. **計測なしに最適化せず、ボトルネックを特定してから改善する**
+   - DevTools Performanceで「どの処理が重いか」を可視化
+   - FPS Meterで実測値をモニタリング
+   - Long Tasks APIで16.67msを超える処理を検出
+   - パフォーマンスは環境依存が大きいため、ターゲットデバイスで必ず計測すること
+
+---
+
 ## 次に読むべきガイド
 
-- [[../02-javascript-runtime/00-v8-engine.md]] - V8エンジンの内部動作
-- [[./04-compositing-layers.md]] - 合成レイヤーとGPU加速
-- [[./02-layout-reflow.md]] - レイアウトとリフローの最適化
+- [V8エンジンの内部動作](../02-javascript-runtime/00-v8-engine.md)
+- [合成レイヤーとGPU加速](./04-compositing-layers.md)
+- [レイアウトとリフローの最適化](./02-layout-reflow.md)
 
 ---
 

@@ -11,7 +11,7 @@
 ## 前提知識
 
 - コンピュータの基本（ビット、バイト、2進数）
-- 参照: [[computer-science-fundamentals]]
+- 参照: [CS基礎](../../01-cs-fundamentals/computer-science-fundamentals/)
 
 ## ガイド一覧
 
@@ -64,8 +64,37 @@ Web:      02-http → 01-protocols/02-03
 運用:     04-advanced
 ```
 
+## FAQ
+
+### Q1: ネットワークの学習はどの順番で進めるべき?
+まず00-introduction（インターネットの仕組み、OSI/TCP/IPモデル、IPアドレッシング、DNS）で基礎を固め、次に01-protocols（TCP、UDP）でトランスポート層を理解してください。その上で02-http（HTTP基礎、HTTP/2・3、REST API、キャッシュ、CORS）を学び、03-security（TLS、認証、攻撃手法）で安全性を、04-advanced（ロードバランシング、CDN、デバッグ、パフォーマンス）で運用力を身につけるのが効率的です。
+
+### Q2: Web開発者にネットワークの深い知識は本当に必要?
+はい、確実に必要です。パフォーマンス問題の大半はネットワークに起因します。例えばHTTPキャッシュの誤設定、CORSエラー、TLSハンドシェイクの遅延、DNS解決の遅さなど、ネットワークの基礎を理解していないと原因特定すらできません。また、マイクロサービスアーキテクチャではgRPCやWebSocketの選択・設計判断にもネットワーク知識が不可欠です。
+
+### Q3: このSkillと「ブラウザとWebプラットフォーム」Skillの違いは?
+本Skillはプロトコルやインフラ側の知識（TCP/IP、HTTP、DNS、TLS、ルーティング等）に焦点を当てています。一方「ブラウザとWebプラットフォーム」はブラウザのレンダリングエンジン、DOM、Web API、ServiceWorker等のクライアント側技術を扱います。両者は補完関係にあり、Webの全体像を理解するには両方の学習が推奨されます。
+
+## まとめ
+
+このSkillでは以下を体系的に学べます:
+
+- インターネットの物理構造からアプリケーション層までの全レイヤーの仕組み（OSIモデル、TCP/IP、ルーティング、DNS）
+- TCP、UDP、WebSocket、gRPCなど主要プロトコルの設計思想・内部動作・使い分け
+- HTTP/1.1からHTTP/3までの進化、REST API設計、キャッシュ戦略、CORS
+- TLS/SSL、認証方式、ネットワーク攻撃と対策などのセキュリティ知識
+- ロードバランシング、CDN、ネットワークデバッグ、パフォーマンス最適化の実践スキル
+
 ## 関連Skills
 
-- [[computer-science-fundamentals]] — CS基礎
-- [[browser-and-web-platform]] — ブラウザとWeb（予定）
-- [[security-fundamentals]] — セキュリティ基礎（予定）
+- [CS基礎](../../01-cs-fundamentals/computer-science-fundamentals/) — コンピュータサイエンス基礎
+- [ブラウザとWebプラットフォーム](../browser-and-web-platform/) — ブラウザとWebプラットフォーム
+- [セキュリティ基礎](../../06-data-and-security/security-fundamentals/) — セキュリティ基礎
+
+## 参考文献
+
+- [Computer Networking: A Top-Down Approach](https://gaia.cs.umass.edu/kurose_ross/index.php) - Kurose & Ross著、ネットワーク工学の定番教科書。トップダウンアプローチで各層を体系的に解説
+- [MDN Web Docs - HTTP](https://developer.mozilla.org/en-US/docs/Web/HTTP) - Mozilla による HTTP の包括的リファレンス。ヘッダー、ステータスコード、キャッシュ等を網羅
+- [RFC Editor](https://www.rfc-editor.org/) - インターネット標準（RFC）の公式リポジトリ。TCP、UDP、HTTP、TLS等すべてのプロトコル仕様の原典
+- [High Performance Browser Networking](https://hpbn.co/) - Ilya Grigorik著、ブラウザネットワーキングの実践ガイド。TCP、TLS、HTTP/2、WebSocket等を詳解
+- [Cloudflare Learning Center](https://www.cloudflare.com/learning/) - DNS、CDN、DDoS、TLS等のネットワーク技術をわかりやすく解説する学習リソース

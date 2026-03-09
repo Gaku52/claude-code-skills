@@ -1165,3 +1165,410 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 ```
+
+---
+
+## FAQ
+
+### Q1. レンダリングパイプラインのボトルネックを特定するにはどうすればいいですか？
+
+**A.** Chrome DevTools の Performance パネルを使います。
+
+```
+手順:
+1. F12 → Performance タブ → Record（または Ctrl+E）
+2. ページ操作を実行（スクロール、アニメーション、インタラクション）
+3. Stop → Main セクションでフレームを確認
+
+読み方:
+→ 黄色（JavaScript）が長い → JS処理が重い（チャンク分割 / Web Worker 検討）
+→ 紫色（Layout）が長い → Reflow が頻発（Layout Thrashing の可能性）
+→ 緑色（Paint）が長い → 複雑な描画（box-shadow、gradient、大きな領域）
+→ 赤い三角マーク → フレーム落ち（16.67ms 超過）
+
+具体的な診断:
+・Layout が 5ms 以上 → contain プロパティで封じ込め
+・Paint が連続発生 → will-change / transform アニメーション化
+・Script が 50ms 以上 → requestIdleCallback / Web Worker にオフロード
+・Recalculate Style が頻発 → CSS セレクタの深さを減らす
+
+補助ツール:
+・Rendering パネル → Paint flashing で再描画領域を可視化
+・Layers パネル → レイヤー構成とメモリ使用量を確認
+・Performance Monitor → リアルタイムで Layouts/sec を監視
+```
+
+### Q2. 仮想DOM（React/Vue）とレンダリングパイプラインの関係を教えてください
+
+**A.** 仮想DOMは「DOM操作の最適化レイヤー」であり、ブラウザのレンダリングパイプラインとは別階層です。
+
+```
+関係性の整理:
+
+  [React/Vue Component] ← アプリケーション層
+       ↓ state変更
+  [Virtual DOM diff] ← 仮想DOM層
+       ↓ 差分検出
+  [最小限のDOM操作] ← DOM API呼び出し
+       ↓
+  [レンダリングパイプライン] ← ブラウザ層
+   Style → Layout → Paint → Composite
+
+仮想DOMが解決する問題:
+→ 開発者が無駄な DOM 操作を書いてしまうのを防ぐ
+→ 大量の state 変更を1つのバッチ更新にまとめる
+→ React 18 の Concurrent Mode では優先度制御も可能
+
+仮想DOMが解決しない問題:
+→ Layout Thrashing（読み書き分離は開発者の責任）
+→ 重い Paint（CSS プロパティの選択は開発者の責任）
+→ 不要なレイヤー昇格（will-change の乱用）
+
+パフォーマンスの鍵:
+→ 仮想DOM は DOM 操作の回数を減らすが、各操作のコストは変わらない
+→ Layout / Paint のコストが高い場合、仮想DOMだけでは不十分
+→ 結論: 仮想DOM + contain + transform/opacity アニメーション が理想
+```
+
+### Q3. 60fps を維持するための最も重要な最適化ポイントは何ですか？
+
+**A.** **アニメーションは transform / opacity のみで実装する** ことです。
+
+```
+理由:
+→ transform / opacity は Composite 段階のみで処理される
+→ Layout と Paint をスキップするため、16.67ms のフレーム予算を大幅に節約
+→ Compositor Thread で処理されるため、重いJS実行中も滑らか
+
+具体的なルール:
+┌──────────────────────────────────────────────────────────┐
+│ DO（推奨）                                                │
+├──────────────────────────────────────────────────────────┤
+│ ✓ transform: translateX/Y/Z, scale, rotate, skew         │
+│ ✓ opacity                                                 │
+│ ✓ filter（一部GPU対応のもの: blur, brightness など）      │
+│ ✓ will-change: transform, opacity（直前に適用）           │
+│ ✓ CSS Animation / Transition                             │
+│ ✓ Web Animations API                                     │
+└──────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────┐
+│ DON'T（非推奨）                                           │
+├──────────────────────────────────────────────────────────┤
+│ ✗ left / top / right / bottom                            │
+│ ✗ width / height（アニメーションでの変更）                │
+│ ✗ margin / padding（アニメーションでの変更）              │
+│ ✗ setTimeout / setInterval                               │
+│ ✗ jQuery.animate()（内部で left/top を使用）             │
+└──────────────────────────────────────────────────────────┘
+
+例: 要素を右に 300px 移動する
+  悪い: element.style.left = '300px'; → Layout + Paint + Composite
+  良い: element.style.transform = 'translateX(300px)'; → Composite のみ
+
+追加の最適化:
+→ content-visibility: auto で画面外要素をスキップ
+→ contain: content で内部変更を封じ込め
+→ 重い処理は Web Worker にオフロード
+→ requestIdleCallback で低優先度タスクを処理
+```
+
+---
+
+## まとめ
+
+### レンダリングパイプライン全体のキーポイント
+
+| 段階 | 役割 | 発生条件 | コスト | 最適化手法 |
+|------|------|---------|-------|----------|
+| **DOM構築** | HTMLパース | HTML受信時 | 中 | async/defer、Preload Scanner 活用 |
+| **CSSOM構築** | CSSパース | CSS受信時 | 低〜中 | Critical CSS インライン化、メディアクエリ活用 |
+| **Render Tree** | DOM+CSSOMマージ | 両方完成時 | 低 | display:none で不要要素を除外 |
+| **Layout** | 座標・サイズ計算 | 幾何学的変更 | **高** | contain で封じ込め、読み書き分離 |
+| **Paint** | ピクセル描画命令 | 視覚的変更 | 中 | レイヤー分離、box-shadow 削減 |
+| **Composite** | GPU レイヤー合成 | 常時実行 | **低** | transform/opacity アニメーション |
+
+### 3つの最重要原則
+
+1. **アニメーションは transform / opacity のみで実装する**
+   - Layout と Paint をスキップし、Composite のみで処理
+   - メインスレッドの負荷に影響されず、常に60fps維持が可能
+   - will-change を直前に適用してレイヤー昇格を準備
+
+2. **Layout Thrashing を絶対に発生させない**
+   - DOM の読み取り（offsetWidth 等）と書き込み（style変更）を分離
+   - fastdom ライブラリで自動的にバッチ処理
+   - requestAnimationFrame で書き込みタイミングを制御
+
+3. **contain / content-visibility で影響範囲を限定する**
+   - コンポーネント単位で `contain: content` を適用
+   - 長いリストは `content-visibility: auto` で画面外をスキップ
+   - ブラウザの最適化を助け、数千要素でも滑らかに
+
+---
+
+## パフォーマンス最適化の実践
+
+### 実践1: Critical Rendering Path の最適化
+
+Critical Rendering Path（クリティカルレンダリングパス）とは、ブラウザが最初のピクセルを画面に描画するまでに必要な最短経路のことである。この経路を最適化することで、First Contentful Paint（FCP）や Largest Contentful Paint（LCP）を大幅に改善できる。
+
+**Critical CSS のインライン化:**
+
+ファーストビューに必要な CSS のみを `<style>` タグで HTML 内にインライン化し、残りの CSS は非同期で読み込む。これにより、外部 CSS ファイルのダウンロード完了を待たずにレンダリングを開始できる。
+
+```html
+<head>
+  <!-- ファーストビューに必要な CSS をインライン化 -->
+  <style>
+    /* Critical CSS: ヘッダー、ヒーロー、ナビゲーション */
+    .header { display: flex; align-items: center; height: 64px; }
+    .hero { min-height: 400px; background: #f0f0f0; }
+    .nav { display: flex; gap: 16px; }
+  </style>
+
+  <!-- 残りの CSS を非同期読み込み -->
+  <link rel="preload" href="/styles/main.css" as="style"
+        onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="/styles/main.css"></noscript>
+</head>
+```
+
+**リソースヒントの活用:**
+
+```html
+<!-- DNS 事前解決 -->
+<link rel="dns-prefetch" href="https://api.example.com">
+
+<!-- TCP 接続の事前確立 -->
+<link rel="preconnect" href="https://cdn.example.com" crossorigin>
+
+<!-- 重要リソースの事前読み込み -->
+<link rel="preload" href="/fonts/main.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/images/hero.webp" as="image">
+
+<!-- 次のページの事前取得 -->
+<link rel="prefetch" href="/about.html">
+```
+
+### 実践2: レイアウトシフトの防止
+
+Cumulative Layout Shift（CLS）はユーザー体験を大きく損なう指標であり、レンダリングパイプラインの Layout 段階と密接に関連する。レイアウトシフトを防止するには、要素のサイズを事前に確保することが最も効果的である。
+
+```html
+<!-- 画像: width/height 属性で aspect-ratio を確保 -->
+<img src="photo.jpg" width="800" height="600" alt="説明"
+     style="max-width: 100%; height: auto;">
+
+<!-- 動的コンテンツ: min-height で領域を確保 -->
+<div class="ad-slot" style="min-height: 250px;">
+  <!-- 広告がロードされるまでスペースを確保 -->
+</div>
+
+<!-- Web フォント: size-adjust で代替フォントとのサイズ差を軽減 -->
+<style>
+@font-face {
+  font-family: 'CustomFont';
+  src: url('/fonts/custom.woff2') format('woff2');
+  font-display: swap;
+  size-adjust: 105%;
+  ascent-override: 90%;
+  descent-override: 20%;
+}
+</style>
+```
+
+**レイアウトシフトのデバッグ:**
+
+```javascript
+// PerformanceObserver でレイアウトシフトを検出
+const observer = new PerformanceObserver((list) => {
+  for (const entry of list.getEntries()) {
+    if (!entry.hadRecentInput) {
+      console.log('Layout shift detected:', {
+        value: entry.value,
+        sources: entry.sources?.map(s => ({
+          node: s.node,
+          previousRect: s.previousRect,
+          currentRect: s.currentRect,
+        })),
+      });
+    }
+  }
+});
+observer.observe({ type: 'layout-shift', buffered: true });
+```
+
+### 実践3: 大量要素のレンダリング最適化
+
+数千〜数万の要素を持つリスト（テーブル、フィード、チャットログなど）では、全要素を同時にレンダリングするとLayout・Paint のコストが爆発的に増加する。以下の3つの手法を状況に応じて使い分ける。
+
+**手法1: content-visibility による遅延レンダリング**
+
+```css
+.list-item {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 80px; /* 推定高さを指定 */
+}
+```
+
+`content-visibility: auto` は画面外の要素のレンダリング（Style/Layout/Paint）を完全にスキップし、要素がビューポートに近づいた時点で初めてレンダリングを実行する。`contain-intrinsic-size` で推定サイズを指定することで、スクロールバーの位置計算が正確になる。10,000件のリストで、初回レンダリングが最大7倍高速化される事例が報告されている。
+
+**手法2: 仮想スクロール（Virtual Scrolling）**
+
+仮想スクロールは、ビューポートに表示される範囲の要素のみをDOMに存在させる手法である。スクロール位置に応じてDOM要素を動的に生成・破棄し、数十万件のデータでもDOMノード数を数十個に抑える。
+
+```javascript
+class VirtualList {
+  constructor(container, items, itemHeight) {
+    this.container = container;
+    this.items = items;
+    this.itemHeight = itemHeight;
+    this.visibleCount = Math.ceil(container.clientHeight / itemHeight) + 2;
+
+    // スクロール領域の全体高さを設定
+    this.spacer = document.createElement('div');
+    this.spacer.style.height = `${items.length * itemHeight}px`;
+    container.appendChild(this.spacer);
+
+    container.addEventListener('scroll', () => this.render(), { passive: true });
+    this.render();
+  }
+
+  render() {
+    const scrollTop = this.container.scrollTop;
+    const startIndex = Math.floor(scrollTop / this.itemHeight);
+    const endIndex = Math.min(startIndex + this.visibleCount, this.items.length);
+
+    // 既存のアイテムをクリアして再描画
+    const fragment = document.createDocumentFragment();
+    for (let i = startIndex; i < endIndex; i++) {
+      const el = document.createElement('div');
+      el.className = 'virtual-item';
+      el.style.position = 'absolute';
+      el.style.top = `${i * this.itemHeight}px`;
+      el.style.height = `${this.itemHeight}px`;
+      el.textContent = this.items[i];
+      fragment.appendChild(el);
+    }
+
+    // バッチ更新
+    requestAnimationFrame(() => {
+      this.spacer.querySelectorAll('.virtual-item').forEach(el => el.remove());
+      this.spacer.appendChild(fragment);
+    });
+  }
+}
+```
+
+**手法3: Intersection Observer による遅延初期化**
+
+画面外の要素は軽量なプレースホルダーとして描画し、ビューポートに入った時点で実際のコンテンツを初期化する。
+
+```javascript
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      const el = entry.target;
+      // 重いコンポーネントの初期化
+      initializeComponent(el);
+      observer.unobserve(el);
+    }
+  });
+}, {
+  rootMargin: '200px', // 200px 手前から初期化開始
+});
+
+document.querySelectorAll('.lazy-component').forEach(el => {
+  observer.observe(el);
+});
+```
+
+### 実践4: DevTools によるパフォーマンス分析ワークフロー
+
+実際の開発でレンダリングパフォーマンスを分析する際の推奨ワークフローを示す。
+
+1. **計測環境の準備**: シークレットウィンドウで拡張機能の影響を排除し、CPU スロットリング（4x slowdown）を有効にして低スペック端末を模倣する
+
+2. **Performance パネルで記録**: 問題のある操作（スクロール、アニメーション、画面遷移）を実行しながらプロファイルを記録する
+
+3. **フレームチャートの分析**: 16.67ms を超えるフレーム（赤色バー）を特定し、その中の Layout/Paint/Composite の内訳を確認する
+
+4. **ボトルネックの特定**: Layout が支配的であれば Layout Thrashing を疑い、Paint が支配的であれば box-shadow や filter の過剰使用を確認する
+
+5. **改善と再計測**: 修正後に同じ操作でプロファイルを取り、フレーム時間の改善を定量的に確認する
+
+```javascript
+// プログラムからのパフォーマンス計測
+performance.mark('animation-start');
+
+// アニメーション処理
+requestAnimationFrame(() => {
+  // DOM更新処理
+  updateAnimatedElements();
+
+  performance.mark('animation-end');
+  performance.measure('animation-duration', 'animation-start', 'animation-end');
+
+  const measure = performance.getEntriesByName('animation-duration')[0];
+  if (measure.duration > 16.67) {
+    console.warn(`フレーム予算超過: ${measure.duration.toFixed(2)}ms`);
+  }
+});
+```
+
+---
+
+## 次に読むべきガイド
+
+→ [CSSレイアウトエンジン](./01-css-layout-engine.md) — レイアウト計算の詳細
+
+→ [ペイントとコンポジティング](./02-paint-and-compositing.md) — 描画プロセスの詳細
+
+---
+
+## 参考文献
+
+### 公式ドキュメント・仕様
+
+- [HTML Standard - 8.2 Parsing HTML documents](https://html.spec.whatwg.org/multipage/parsing.html)
+  HTML パーサの動作仕様
+
+- [CSS Containment Module Level 2](https://www.w3.org/TR/css-contain-2/)
+  contain プロパティと content-visibility の仕様
+
+- [Chromium Design Docs - How Blink Works](https://docs.google.com/document/d/1aitSOucL0VHZa9Z2vbRJSyAIsAz24kX8LFByQ5xQnUg/edit)
+  Blink レンダリングエンジンの内部設計
+
+### パフォーマンス最適化ガイド
+
+- [Chrome Developers - Rendering Performance](https://developer.chrome.com/docs/lighthouse/performance/rendering/)
+  レンダリングパフォーマンスの総合ガイド
+
+- [web.dev - Optimize Cumulative Layout Shift](https://web.dev/articles/optimize-cls)
+  Layout Shift の検出と修正方法
+
+- [web.dev - content-visibility: the new CSS property](https://web.dev/articles/content-visibility)
+  content-visibility の実践的な活用法
+
+### DevTools 活用リソース
+
+- [Chrome DevTools - Performance features reference](https://developer.chrome.com/docs/devtools/performance/reference/)
+  Performance パネルの詳細な使い方
+
+- [Firefox Developer Tools - Performance](https://firefox-source-docs.mozilla.org/devtools-user/performance/)
+  Firefox DevTools のパフォーマンス解析
+
+- [Chromium Blog - Inside look at modern web browser (part 3)](https://developer.chrome.com/blog/inside-browser-part3/)
+  レンダリングパイプラインの詳細解説（図解付き）
+
+### その他の重要リソース
+
+- [Paul Irish - What Forces Layout / Reflow](https://gist.github.com/paulirish/5d52fb081b3570c81e3a)
+  強制同期レイアウトを引き起こすプロパティの完全リスト
+
+- [CSS Triggers](https://csstriggers.com/)
+  各CSSプロパティがパイプラインのどの段階に影響するかの一覧表
+
+- [Compositor Thread Architecture](https://blog.chromium.org/2014/05/a-faster-smoother-web.html)
+  Chromium のコンポジタースレッドアーキテクチャ

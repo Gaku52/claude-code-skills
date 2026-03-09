@@ -2,6 +2,19 @@
 
 > Webアプリケーションのネットワークパフォーマンスを最適化する。レイテンシ削減、帯域最適化、接続管理、圧縮、プリロード等の手法を体系的に学び、高速なユーザー体験を実現する。
 
+---
+
+## 前提知識
+
+本ガイドを読む前に、以下の知識があると理解がスムーズになる。
+
+- **ネットワークデバッグの基礎**: curl、Chrome DevTools、tcpdump などのツールを使ってネットワーク通信を観察・計測できること。詳細は [ネットワークデバッグ](./02-network-debugging.md) を参照
+- **TCP/IP の基本**: TCP の 3 ウェイハンドシェイク、ウィンドウサイズ、再送制御の仕組みを理解していること。詳細は [TCP プロトコル](../01-protocols/00-tcp.md) を参照
+- **CDN の仕組み**: CDN のキャッシュ戦略、エッジサーバー、Origin Shield の概念を把握していること。詳細は [CDN](./01-cdn.md) を参照
+- **HTTP の基礎**: HTTP/1.1, HTTP/2, HTTP/3 の違い、キャッシュヘッダー、リクエスト/レスポンスの流れを知っていること
+
+---
+
 ## この章で学ぶこと
 
 - [ ] ネットワークパフォーマンスのボトルネックを理解する
@@ -2247,6 +2260,246 @@ function useSaveData() {
 
 ---
 
+## FAQ（よくある質問）
+
+### Q1: ネットワークパフォーマンス計測に最適なツールは？
+
+**A:** 計測の目的とフェーズに応じてツールを使い分ける。
+
+**開発中のローカル計測:**
+
+| ツール | 用途 | 利点 | 欠点 |
+|--------|------|------|------|
+| **Chrome DevTools** | フロントエンドの詳細分析 | リアルタイム、視覚的、Waterfall 表示 | ブラウザ依存、自動化困難 |
+| **Lighthouse** | 総合的なパフォーマンス評価 | Core Web Vitals, Best Practices, SEO も評価 | シミュレーション（実ユーザー環境と乖離） |
+| **WebPageTest** | 多様な環境でのテスト | 実機テスト、動画記録、比較機能 | 無料版は実行回数制限あり |
+| **curl** | API/バックエンドの計測 | スクリプト化可能、TTFB 計測に最適 | ブラウザの挙動を再現できない |
+
+**CI/CD パイプラインでの自動計測:**
+
+```bash
+# Lighthouse CI の例
+npm install -g @lhci/cli
+
+# lighthouserc.js
+module.exports = {
+  ci: {
+    collect: {
+      url: ['https://staging.example.com'],
+      numberOfRuns: 5,
+    },
+    assert: {
+      assertions: {
+        'categories:performance': ['error', {minScore: 0.9}],
+        'first-contentful-paint': ['error', {maxNumericValue: 1800}],
+        'largest-contentful-paint': ['error', {maxNumericValue: 2500}],
+        'cumulative-layout-shift': ['error', {maxNumericValue: 0.1}],
+      },
+    },
+  },
+};
+
+# CI で実行
+lhci autorun
+```
+
+**本番環境のリアルユーザーモニタリング（RUM）:**
+
+| ツール | 特徴 | コスト |
+|--------|------|--------|
+| **Google Analytics 4** | Core Web Vitals 自動収集、無料 | 無料 |
+| **New Relic Browser** | 詳細な分析、エラー追跡 | 有料（$99/月〜） |
+| **Datadog RUM** | インフラ監視と統合、セッションリプレイ | 有料（$1.50/1000セッション） |
+| **Sentry Performance** | エラー監視と統合、トランザクション追跡 | 無料枠あり |
+
+**推奨アプローチ:**
+1. **開発時**: Chrome DevTools + Lighthouse
+2. **CI/CD**: Lighthouse CI で自動チェック
+3. **本番環境**: RUM（GA4 or 有料サービス）で継続監視
+4. **API**: curl スクリプト + Grafana/Prometheus でメトリクス可視化
+
+### Q2: TCP 最適化のためのカーネルパラメータは？
+
+**A:** Linux カーネルの TCP パラメータを調整することで、高スループット・低レイテンシを実現できる。
+
+**基本的な TCP パラメータ（`/etc/sysctl.conf`）:**
+
+```bash
+# ============================================
+# TCP ウィンドウサイズの最適化
+# ============================================
+# TCP 受信バッファのサイズ（min, default, max）
+net.ipv4.tcp_rmem = 4096 87380 67108864      # 最大 64MB
+# TCP 送信バッファのサイズ（min, default, max）
+net.ipv4.tcp_wmem = 4096 65536 67108864      # 最大 64MB
+# ソケットバッファの最大サイズ
+net.core.rmem_max = 67108864
+net.core.wmem_max = 67108864
+
+# ============================================
+# TCP BBR 輻輳制御アルゴリズム（推奨）
+# ============================================
+net.core.default_qdisc = fq
+net.ipv4.tcp_congestion_control = bbr
+# BBR は Google が開発した最新の輻輳制御アルゴリズム
+# 従来の CUBIC より高速・安定（特に高遅延・パケットロス環境）
+
+# ============================================
+# TCP Fast Open（3 ウェイハンドシェイクの短縮）
+# ============================================
+net.ipv4.tcp_fastopen = 3
+# 3 = クライアントとサーバー両方で有効化
+# 初回接続時に SYN に HTTP リクエストを含める → 1 RTT 削減
+
+# ============================================
+# TIME_WAIT 対策
+# ============================================
+net.ipv4.tcp_tw_reuse = 1
+# TIME_WAIT 状態のソケットを新しい接続で再利用
+# 注意: NAT 環境では慎重に使用（パケット混乱の可能性）
+
+net.ipv4.ip_local_port_range = 1024 65535
+# エフェメラルポートの範囲を拡大（デフォルト 32768-60999）
+# TIME_WAIT 蓄積によるポート枯渇を緩和
+
+# ============================================
+# Keep-Alive 設定
+# ============================================
+net.ipv4.tcp_keepalive_time = 600      # 600 秒（10 分）後に Keep-Alive 開始
+net.ipv4.tcp_keepalive_intvl = 60      # 60 秒間隔で Keep-Alive プローブ送信
+net.ipv4.tcp_keepalive_probes = 3      # 3 回失敗で接続切断
+
+# ============================================
+# 接続数の上限
+# ============================================
+net.core.somaxconn = 65535             # listen() のバックログキューサイズ
+net.core.netdev_max_backlog = 5000     # ネットワークデバイスのバックログ
+
+# ============================================
+# その他の最適化
+# ============================================
+net.ipv4.tcp_slow_start_after_idle = 0
+# アイドル後のスロースタートを無効化（Keep-Alive 接続の高速化）
+
+net.ipv4.tcp_mtu_probing = 1
+# Path MTU Discovery の有効化（最適な MTU を自動検出）
+```
+
+**設定の適用:**
+
+```bash
+# 設定を即座に反映
+$ sudo sysctl -p
+
+# 設定の確認
+$ sysctl net.ipv4.tcp_congestion_control
+net.ipv4.tcp_congestion_control = bbr
+
+# 現在の TCP 統計
+$ ss -s
+Total: 342
+TCP:   120 (estab 45, closed 20, orphaned 3, timewait 15)
+```
+
+**注意事項:**
+- **本番適用前に必ずステージング環境でテスト**
+- `tcp_tw_reuse` は NAT 環境では慎重に（タイムスタンプの問題）
+- `tcp_tw_recycle` は **絶対に使わない**（Linux 4.12 で削除済み）
+- BBR はカーネル 4.9 以降で使用可能
+
+**効果の計測:**
+
+```bash
+# BBR 有効化前後での帯域幅計測
+$ iperf3 -c target.example.com -t 30
+
+# 結果例:
+# CUBIC:  850 Mbps  （従来の輻輳制御）
+# BBR:   1,100 Mbps  （30% 向上）
+```
+
+### Q3: HTTP/3 によるパフォーマンス改善はどの程度か？
+
+**A:** HTTP/3（QUIC）は特定の環境で大きな改善をもたらすが、すべてのケースで有効というわけではない。
+
+**HTTP/3 の主な改善点:**
+
+| 改善項目 | HTTP/2 の課題 | HTTP/3 の解決策 | 改善効果 |
+|---------|--------------|----------------|---------|
+| **Head-of-Line Blocking** | TCP レベルでパケットロスがあると全ストリームが停止 | QUIC は UDP ベースで独立ストリーム | パケットロス時 +30-50% 高速 |
+| **接続確立** | TCP (1.5 RTT) + TLS (1-2 RTT) = 2.5-3.5 RTT | QUIC で統合 (0-1 RTT) | 初回接続 -40%、再接続 -70% 高速化 |
+| **接続マイグレーション** | IP 変更で接続切断（Wi-Fi ⇔ モバイル切替時） | Connection ID で継続 | モバイルユーザーの体験向上 |
+| **輻輳制御** | OS カーネル依存 | QUIC 独自の輻輳制御 | 最適化の柔軟性向上 |
+
+**実測データ（Google の事例）:**
+
+```
+環境別の改善率:
+
+  ┌─────────────────────────┬────────────┬────────────┐
+  │ 環境                     │ レイテンシ  │ ページロード時間 │
+  ├─────────────────────────┼────────────┼────────────┤
+  │ 有線・低遅延（< 10ms）    │ +5%        │ +2-3%       │
+  │ Wi-Fi・中遅延（10-50ms） │ +10-15%    │ +8-12%      │
+  │ モバイル・高遅延（50-200ms）│ +20-30%  │ +15-25%     │
+  │ 高パケットロス（1-5%）    │ +40-60%    │ +30-50%     │
+  └─────────────────────────┴────────────┴────────────┘
+
+  結論: モバイル・高遅延・パケットロス環境で効果大
+```
+
+**HTTP/3 の有効化（Nginx の例）:**
+
+```nginx
+# Nginx 1.25.0 以降で HTTP/3 サポート
+server {
+    listen 443 ssl;
+    listen 443 quic reuseport;  # HTTP/3 (QUIC) のリスニング
+
+    ssl_certificate     /etc/ssl/certs/example.com.crt;
+    ssl_certificate_key /etc/ssl/private/example.com.key;
+
+    # HTTP/3 を Alt-Svc ヘッダーでアドバタイズ
+    add_header Alt-Svc 'h3=":443"; ma=86400';
+
+    # QUIC 用のパラメータ
+    quic_retry on;
+    ssl_early_data on;
+
+    location / {
+        # 通常の設定
+    }
+}
+```
+
+**HTTP/3 の有効化確認:**
+
+```bash
+# curl で HTTP/3 接続テスト（curl 7.66 以降）
+$ curl --http3 -I https://example.com
+
+# レスポンスヘッダーに Alt-Svc があるか確認
+Alt-Svc: h3=":443"; ma=86400
+
+# Chrome DevTools の Protocol 列で "h3" を確認
+# または chrome://net-internals/#http3 で QUIC セッション確認
+```
+
+**HTTP/3 を導入すべきケース:**
+- ✅ モバイルユーザーが多い
+- ✅ グローバル展開（高遅延環境のユーザーがいる）
+- ✅ リアルタイム性が重要（動画ストリーミング、ゲーム）
+- ✅ パケットロスが発生しやすい環境
+
+**HTTP/3 が不要なケース:**
+- ❌ イントラネット・ローカルネットワークのみ
+- ❌ サーバー間通信（API 間通信等）
+- ❌ レガシーシステム（対応コストが高い）
+
+**結論: HTTP/3 はモバイル・高遅延環境で 15-50% の改善が見込める。CDN（Cloudflare, CloudFront）経由なら設定のみで有効化可能。**
+
+---
+
 ## まとめ
 
 | 概念 | ポイント |
@@ -2258,6 +2511,16 @@ function useSaveData() {
 | 計測 | Core Web Vitals + Lighthouse + RUM + CI/CD自動チェック |
 | レジリエンス | リトライ + サーキットブレーカー + ネットワーク状態検出 |
 | エッジ | Edge Functions + KV Store + エッジDB |
+
+---
+
+## 次に読むべきガイド
+
+ネットワークパフォーマンス最適化の手法を習得したら、次は以下のトピックに進むことを推奨する。
+
+- **[ブラウザとWebプラットフォーム](../../browser-and-web-platform/docs/)**: Service Worker、キャッシュ API、Web Workers を活用したフロントエンド最適化を深掘りする
+- **[Webアプリケーション開発](../../web-application-development/docs/)**: React/Next.js でのコード分割、SSR/ISR、画像最適化など、フレームワーク固有の最適化手法を学ぶ
+- **[インフラストラクチャ](../../../05-infrastructure/)**: サーバーサイドのパフォーマンスチューニング（DB 最適化、キャッシュ戦略、水平スケール）を習得する
 
 ---
 

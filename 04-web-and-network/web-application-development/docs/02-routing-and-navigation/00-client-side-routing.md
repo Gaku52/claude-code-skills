@@ -3143,6 +3143,131 @@ const router = createBrowserRouter([
 
 ---
 
+## 前提知識
+
+この章を最大限に活用するために、以下の知識を事前に習得しておくことを推奨する。
+
+- **URL状態管理**: URL をアプリケーション状態の一部として扱う設計パターン → `../01-state-management/03-url-state.md`
+- **ブラウザの History API**: `pushState`, `replaceState`, `popstate` イベントの仕組みと使い方
+- **SPA/MPA/SSR の概念**: アーキテクチャの違いと、それぞれのルーティング要件 → `../00-architecture/00-spa-mpa-ssr.md`
+
+これらの概念を理解することで、クライアントサイドルーティングの設計判断をより適切に行うことができる。
+
+---
+
+## FAQ
+
+### Q1: Hash routing と History routing の違いは何ですか?
+
+**A:** Hash routing は URL のフラグメント（`#` 以降）を利用するため、サーバー設定が不要で古いブラウザでも動作する。一方、History routing は History API を用いてクリーンな URL を実現するが、サーバー側で SPA フォールバック設定が必要となる。
+
+```
+Hash Routing:
+  URL: https://example.com/#/users/123
+  メリット:
+    - サーバー設定不要（# 以降はサーバーに送信されない）
+    - 古いブラウザ対応
+    - GitHub Pages 等の静的ホスティングでそのまま動作
+  デメリット:
+    - SEO に不利（クローラーが # 以降を無視する場合がある）
+    - URLが美しくない
+
+History Routing:
+  URL: https://example.com/users/123
+  メリット:
+    - クリーンで SEO フレンドリーな URL
+    - ユーザー体験が向上
+  デメリット:
+    - サーバーで SPA フォールバック設定が必要
+      (例: すべてのパスで index.html を返す)
+```
+
+**推奨**: 新規プロジェクトでは History routing を採用し、サーバー設定で対応する。Hash routing は静的ホスティング環境でのみ使用する。
+
+### Q2: ルーティングライブラリの選択基準は何ですか?
+
+**A:** プロジェクトの規模、型安全性の要求、チームの習熟度、フレームワークとの統合度で判断する。
+
+```
+選択基準マトリクス:
+
+1. プロジェクト規模
+   小〜中規模（〜50ルート） → React Router v6（シンプル、学習コスト低）
+   大規模（50ルート以上） → TanStack Router（型安全、リファクタ容易）
+
+2. 型安全性
+   TypeScript + 型安全重視 → TanStack Router（search params まで型推論）
+   JavaScript or 型は緩く → React Router v6
+
+3. フレームワーク統合
+   Next.js → App Router（ファイルベース）
+   Remix → React Router（内蔵）
+   Vite + React → React Router v6 or TanStack Router
+
+4. チーム習熟度
+   React Router 経験者多 → React Router v6（移行容易）
+   新規チーム → TanStack Router（最新パターン）
+```
+
+### Q3: 動的ルーティングの実装方法と注意点は?
+
+**A:** パスパラメータを URL セグメントとして定義し、コンポーネント内で取得する。バリデーションとエラーハンドリングを必ず実装すること。
+
+```typescript
+// React Router v6 の例
+// ルート定義
+<Route path="/users/:userId/posts/:postId" element={<PostDetail />} />
+
+// コンポーネント内で取得
+import { useParams } from 'react-router-dom';
+
+function PostDetail() {
+  const { userId, postId } = useParams<{ userId: string; postId: string }>();
+
+  // 🚨 注意: useParams は常に string | undefined を返す
+  // 数値として扱う場合は変換とバリデーションが必要
+
+  const userIdNum = Number(userId);
+  const postIdNum = Number(postId);
+
+  if (isNaN(userIdNum) || isNaN(postIdNum)) {
+    // エラーハンドリング
+    return <NotFound />;
+  }
+
+  // データ取得
+  const { data } = useQuery({
+    queryKey: ['post', userIdNum, postIdNum],
+    queryFn: () => fetchPost(userIdNum, postIdNum),
+  });
+
+  return <div>{/* ... */}</div>;
+}
+
+// TanStack Router の例（型安全）
+const postRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/users/$userId/posts/$postId',
+  // パラメータのバリデーション + パース
+  parseParams: (params) => ({
+    userId: z.number().parse(Number(params.userId)),
+    postId: z.number().parse(Number(params.postId)),
+  }),
+  // loader で型推論が効く
+  loader: async ({ params }) => {
+    // params.userId, params.postId は number 型
+    return fetchPost(params.userId, params.postId);
+  },
+});
+```
+
+**注意点**:
+- パラメータは常に文字列で取得されるため、数値・日付等への変換処理を忘れない
+- 不正な値（`userId: "abc"`）に対するエラーハンドリングを実装
+- SEO が重要な場合、動的ルートのメタデータも動的に生成する
+
+---
+
 ## 次に読むべきガイド
 -> [[01-file-based-routing.md]] -- ファイルベースルーティング
 

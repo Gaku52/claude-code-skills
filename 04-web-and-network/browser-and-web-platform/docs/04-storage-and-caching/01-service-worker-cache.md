@@ -1700,3 +1700,177 @@ self.addEventListener('fetch', (event) => {
     );
   }
 });
+```
+
+---
+
+## 前提知識
+
+本章を最大限に活用するため、以下の前提知識を習得しておくことを推奨する。
+
+- **Web Storage の基礎**: localStorage および sessionStorage の使い方、ストレージの制約とセキュリティモデルについて理解していることが望ましい。詳細は [Web Storage と Cookie](./00-web-storage.md) を参照のこと。
+- **Fetch API の理解**: Service Worker のネットワークインターセプトの基盤となる Fetch API の基本操作（Request/Response オブジェクトの取り扱い、CORS、opaque レスポンス）を理解していることが必要である。詳細は [Fetch API とストリーム処理](../03-web-apis/01-fetch-and-streams.md) を参照のこと。
+- **Promise ベースの非同期プログラミング**: Service Worker の API は全て Promise ベースであり、async/await、Promise.all、Promise.race などの非同期制御パターンを使いこなせることが前提となる。
+
+これらの知識がない場合でも本章を読み進めることは可能だが、上記のガイドを先に参照することで理解が深まる。
+
+---
+
+## FAQ
+
+### Q1: Service Worker のライフサイクル管理において、skipWaiting() と clients.claim() を使うべきタイミングは？
+
+**A**: `skipWaiting()` と `clients.claim()` は以下の条件下で使用する。
+
+- **skipWaiting() を使うべき場合**:
+  - アプリケーションの全ての版が相互に互換性を持つ場合（キャッシュキーやデータ構造が変わらない）
+  - 緊急のバグ修正や重要なセキュリティパッチを即座に適用したい場合
+  - プロトタイプや開発環境で高速な反復開発を行いたい場合
+
+- **skipWaiting() を使わない方が良い場合**:
+  - 新旧の Service Worker がキャッシュスキーマやデータ構造を変更する場合（古い SW で制御されているタブが壊れる可能性）
+  - 複数タブを開いているユーザーが多い環境で、一貫性を保ちたい場合
+
+- **clients.claim() を使うべき場合**:
+  - Service Worker が初回インストールされた際に、既に開いているページを即座に制御下に置きたい場合
+  - `skipWaiting()` と組み合わせて、新しい SW が即座に全タブを制御するようにしたい場合
+
+実務では、ユーザーに「更新が利用可能です」というバナーを表示し、ユーザーが明示的に承認した場合のみ `skipWaiting()` を呼ぶ実装が推奨される。
+
+### Q2: キャッシュ戦略（Cache First vs Network First 等）の選択基準は？
+
+**A**: リソースの特性に応じて以下の基準で選択する。
+
+| リソース種別 | 推奨戦略 | 理由 |
+|------------|---------|------|
+| ビルドハッシュ付き JS/CSS | Cache First | ハッシュによりバージョン管理されているため、一度キャッシュすれば永続的に使える |
+| Web フォント | Cache First | 変更頻度が極めて低く、長期キャッシュが有効 |
+| ロゴ・アイコン画像 | Cache First | ブランドアセットは変更されにくく、高速表示が求められる |
+| API レスポンス | Network First | 常に最新のデータを優先し、オフライン時のみキャッシュから返す |
+| HTML ページ | Network First または Stale-While-Revalidate | 最新コンテンツを優先しつつ、オフライン時にはキャッシュでフォールバック |
+| ユーザーアバター画像 | Stale-While-Revalidate | 即座に表示しつつ、バックグラウンドで最新版を取得する |
+| ニュースフィード | Stale-While-Revalidate または Network First | 鮮度が重要だが、即座の表示も求められる |
+| 認証 API・決済処理 | Network Only | セキュリティとデータ整合性のため、キャッシュを使わない |
+| プリキャッシュされた静的リソース | Cache Only | install イベントで明示的にキャッシュしたものに限定 |
+
+戦略選択の際は、ユーザー体験（速度 vs 鮮度）とオフライン対応の必要性をトレードオフとして検討する。
+
+### Q3: Service Worker の更新とバージョニングの最良の実践方法は？
+
+**A**: 以下のアプローチを組み合わせることで、安全かつ効率的な更新管理が可能となる。
+
+**1. キャッシュ名にバージョン番号またはビルドハッシュを含める**
+
+```javascript
+const CACHE_VERSION = 'v3';
+const STATIC_CACHE = `static-${CACHE_VERSION}`;
+const API_CACHE = `api-${CACHE_VERSION}`;
+```
+
+または、ビルドツールから注入されたハッシュを使用する。
+
+```javascript
+const BUILD_HASH = '__BUILD_HASH__'; // Webpack/Vite で置換
+const STATIC_CACHE = `static-${BUILD_HASH}`;
+```
+
+**2. activate イベントで古いキャッシュを削除する**
+
+```javascript
+self.addEventListener('activate', (event) => {
+  const validCaches = [STATIC_CACHE, API_CACHE];
+  event.waitUntil(
+    caches.keys().then((keys) => {
+      return Promise.all(
+        keys.filter((key) => !validCaches.includes(key))
+           .map((key) => caches.delete(key))
+      );
+    }).then(() => self.clients.claim())
+  );
+});
+```
+
+**3. ユーザーに更新を通知し、明示的な承認を得る**
+
+```javascript
+// ページ側
+navigator.serviceWorker.addEventListener('controllerchange', () => {
+  window.location.reload();
+});
+
+const registration = await navigator.serviceWorker.getRegistration();
+registration.addEventListener('updatefound', () => {
+  const newWorker = registration.installing;
+  newWorker.addEventListener('statechange', () => {
+    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+      // ユーザーに「更新が利用可能」と通知
+      showUpdateBanner(() => {
+        newWorker.postMessage({ type: 'SKIP_WAITING' });
+      });
+    }
+  });
+});
+
+// SW 側
+self.addEventListener('message', (event) => {
+  if (event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+```
+
+**4. Workbox や VitePWA 等のツールを活用する**
+
+Workbox の `precacheAndRoute(__WB_MANIFEST)` を使うことで、ビルド時に生成されたマニフェストが自動的にバージョン管理される。
+
+**5. CI/CD パイプラインで Service Worker のバージョンを検証する**
+
+デプロイ時に Service Worker ファイルのハッシュを記録し、変更があった場合のみ新しいバージョンとして扱うことで、不要な更新を防ぐ。
+
+---
+
+## まとめ
+
+Service Worker とキャッシュ戦略は、モダンな Web アプリケーションにおけるオフライン対応とパフォーマンス最適化の中核技術である。本章の内容を以下の表に整理する。
+
+| カテゴリ | 主要技術・戦略 | 用途 |
+|---------|--------------|------|
+| ライフサイクル管理 | register, install, activate, skipWaiting, clients.claim | Service Worker の登録・更新・アクティベーション制御 |
+| キャッシュ操作 | Cache API (open, put, match, delete, keys) | HTTP リクエスト/レスポンスのキャッシング |
+| キャッシュ戦略 | Cache First, Network First, Stale-While-Revalidate, Cache Only, Network Only | リソースの特性に応じた最適な配信方法の選択 |
+| 統合開発 | Workbox（precaching, routing, strategies, expiration, backgroundSync） | 効率的な Service Worker 開発と保守性の向上 |
+| PWA 構築 | Web App Manifest, beforeinstallprompt, installability | インストール可能な Web アプリの実現 |
+| バージョニング | キャッシュ名管理、activate イベントでの古いキャッシュ削除 | 安全な更新とストレージの適正化 |
+| 高度なパターン | Navigation Preload, Range Request 対応, キャッシュサイズ管理 | パフォーマンス最適化と大容量ファイルへの対応 |
+
+### キーポイント
+
+1. **Service Worker はライフサイクルが複雑である**: install, waiting, activate の各フェーズを正確に理解し、`skipWaiting()` や `clients.claim()` の影響を把握することが重要である。不適切な使用は、複数タブ間でのアプリケーション状態の不整合を引き起こす。
+
+2. **キャッシュ戦略は「一つ」ではなく「組み合わせ」である**: 静的アセットには Cache First、API には Network First、ユーザーアバターには Stale-While-Revalidate というように、リソースの性質に応じて戦略を使い分けることで、速度と鮮度の最適なバランスを実現できる。
+
+3. **Workbox によって実装の複雑さは大幅に軽減される**: 手動で fetch イベントハンドラーを実装することも可能だが、Workbox を使うことでプリキャッシュマニフェストの自動生成、有効期限管理、バックグラウンド同期などの高度な機能を簡潔に実装できる。特に大規模なプロジェクトでは、Workbox の導入が強く推奨される。
+
+Service Worker とキャッシュ戦略をマスターすることで、ネットワーク状況に左右されない堅牢でレスポンシブな Web アプリケーションを構築できる。
+
+---
+
+## 次に読むべきガイド
+
+Service Worker の基盤を理解した後は、パフォーマンス計測とユーザー体験の最適化に進むことを推奨する。
+
+- **[Performance API](./02-performance-api.md)**: Navigation Timing、Resource Timing、Core Web Vitals（LCP/INP/CLS）の計測方法と、Lighthouse を用いたパフォーマンス監査の実践を学ぶ。Service Worker によるキャッシュがパフォーマンス指標に与える影響を定量的に評価できるようになる。
+
+---
+
+## 参考文献
+
+1. Google Developers. "Service Worker API." MDN Web Docs, 2024. https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API
+2. Google. "Service Workers: an Introduction." web.dev, 2024. https://web.dev/articles/service-workers-introduction
+3. Google. "The Service Worker Lifecycle." web.dev, 2024. https://web.dev/articles/service-worker-lifecycle
+4. Google. "Workbox: JavaScript Libraries for adding offline support to web apps." GitHub, 2024. https://github.com/GoogleChrome/workbox
+5. Google. "The Offline Cookbook." web.dev, 2024. https://web.dev/articles/offline-cookbook
+6. Jake Archibald. "The Service Worker Lifecycle." 2016. https://jakearchibald.com/2016/service-worker-lifecycle/
+7. W3C. "Service Workers Nightly." W3C Editor's Draft, 2024. https://w3c.github.io/ServiceWorker/
+8. Google. "Progressive Web Apps." web.dev, 2024. https://web.dev/explore/progressive-web-apps
+9. Google. "Web App Manifest." MDN Web Docs, 2024. https://developer.mozilla.org/en-US/docs/Web/Manifest

@@ -1748,3 +1748,246 @@ CORS + CDN の問題:
      → キャッシュキーに Origin を含めなくてよい
      → Edge で Allow-Origin を書き換え
 ```
+
+---
+
+## 前提知識
+
+本ガイドを読む前に、以下の知識があると理解がスムーズになる。
+
+- **ロードバランシングの基礎**: L4/L7 ロードバランサーの動作原理、分散アルゴリズム、ヘルスチェックの設計を理解していること。詳細は [ロードバランシング](./00-load-balancing.md) を参照
+- **HTTP キャッシング**: `Cache-Control`, `ETag`, `Last-Modified` などのキャッシュ関連ヘッダーの役割と挙動を理解していること。詳細は [HTTP キャッシング](../02-http/03-caching.md) を参照
+- **DNS の仕組み**: DNS ベースルーティング、Anycast、CNAME の概念を把握していること。詳細は [DNS](../00-introduction/03-dns.md) を参照
+- **JavaScript の基本**: Edge Computing のコード例を理解するために、非同期処理（async/await）、Promise、Fetch API の知識があると望ましい
+
+---
+
+## FAQ（よくある質問）
+
+### Q1: CDN プロバイダはどのように選定すべきか？
+
+**A:** 以下の観点で総合的に判断する。
+
+**技術的観点:**
+
+| 項目 | CloudFront | Cloudflare | Fastly | 選定のポイント |
+|------|-----------|-----------|--------|--------------|
+| **PoP 数** | 600+ | 300+ | 90+ | グローバル展開なら CloudFront/Cloudflare、特定地域集中なら PoP の場所を確認 |
+| **即時パージ** | 数分 | 数秒 | <150ms | 頻繁な更新が必要なら Fastly/Cloudflare |
+| **Edge Computing** | CF Functions + Lambda@Edge | Workers | Compute@Edge | 複雑な処理なら Lambda@Edge、軽量なら CF Functions/Workers |
+| **HTTP/3 対応** | 対応 | 対応 | 対応 | 現代的なプロトコルサポートは全社対応 |
+| **無料枠** | 1TB/月 | 無制限帯域 | なし | スタートアップなら Cloudflare が魅力的 |
+
+**ビジネス的観点:**
+- **AWS エコシステムとの統合**: CloudFront（S3, ALB, Lambda との親和性が最高）
+- **コスト最小化 + セキュリティ**: Cloudflare（無料プランでも DDoS 防御が充実）
+- **Next.js/React アプリケーション**: Vercel（ISR/SSR との統合が最も自然、ただしコストは高め）
+- **エンタープライズ + グローバル**: Akamai（PoP 数最大、SLA が厳格、金融・メディア業界で実績）
+- **即時パージが必須**: Fastly（150ms 以下のリアルタイムパージ、ニュースサイト等で必須）
+
+**実例ベースの選定:**
+- **SPA（React/Vue/Angular）**: CloudFront + S3 or Vercel（デプロイの簡便性）
+- **API バックエンド**: Cloudflare（DDoS 防御が標準、API Shield 機能）
+- **動画配信**: CloudFront（HLS/DASH 対応、AWS MediaConvert との統合）
+- **ニュースサイト**: Fastly（即時パージ、エッジでの A/B テスト）
+
+### Q2: CDN のキャッシュパージはどのように実施すべきか？
+
+**A:** キャッシュパージの戦略は、更新頻度とコンテンツ種別で使い分ける。
+
+**戦略 1: バージョニング（パージ不要設計）— 最も推奨**
+
+```
+ビルド時にファイル名にコンテンツハッシュを付与:
+
+  src/app.js      → dist/app.a1b2c3d4.js
+  src/style.css   → dist/style.e5f6g7h8.css
+
+  Cache-Control: public, max-age=31536000, immutable
+
+  利点:
+  ✓ パージ操作が不要 → オペレーションミスのリスクゼロ
+  ✓ ロールバックが容易 → 旧 index.html に戻すだけ
+  ✓ キャッシュ期間を最大化 → CDN ヒット率最大
+  ✓ 新旧バージョンの並存が可能 → 段階的ロールアウト
+
+  適用対象: JS, CSS, 画像, フォント等の静的アセット
+```
+
+**戦略 2: パス指定パージ（個別ファイル更新時）**
+
+```bash
+# CloudFront の場合
+aws cloudfront create-invalidation \
+  --distribution-id E1234567890ABC \
+  --paths "/index.html" "/api/data.json" "/sw.js"
+
+# Cloudflare の場合
+curl -X POST "https://api.cloudflare.com/client/v4/zones/ZONE_ID/purge_cache" \
+  -H "Authorization: Bearer TOKEN" \
+  -H "Content-Type: application/json" \
+  --data '{"files":["https://example.com/index.html"]}'
+
+適用対象: HTML ファイル、API レスポンス、Service Worker
+コスト: CloudFront は月 1,000 パス無料、以降 $0.005/パス
+```
+
+**戦略 3: タグベースパージ（コンテンツ種別ごとの一括更新）**
+
+```bash
+# Fastly の場合（Surrogate-Key ヘッダーを使用）
+# オリジンのレスポンスに以下を付与:
+Surrogate-Key: product-123 category-shoes homepage
+
+# パージ時:
+curl -X PURGE "https://api.fastly.com/service/SERVICE_ID/purge/product-123" \
+  -H "Fastly-Key: TOKEN"
+
+適用対象: 特定商品の全ページ、特定カテゴリの全ページ
+利点: 関連するすべてのページを一括で即時パージ可能
+```
+
+**戦略 4: 全パージ（緊急時のみ）**
+
+```bash
+# CloudFront
+aws cloudfront create-invalidation \
+  --distribution-id E1234567890ABC \
+  --paths "/*"
+
+# Cloudflare
+curl -X POST "https://api.cloudflare.com/client/v4/zones/ZONE_ID/purge_cache" \
+  -H "Authorization: Bearer TOKEN" \
+  -H "Content-Type: application/json" \
+  --data '{"purge_everything":true}'
+
+注意: CDN ヒット率が 0% になり、オリジンに大量リクエストが集中
+使用場面: 緊急のセキュリティパッチ、重大なバグ修正のみ
+```
+
+**推奨フロー:**
+1. 静的アセット → バージョニング（パージ不要）
+2. HTML → デプロイ後に個別パス指定パージ
+3. API → TTL を短く設定（30-300秒）+ 必要に応じてパージ
+4. 緊急時 → 全パージ（ただし Origin Shield を併用して負荷軽減）
+
+### Q3: 動的コンテンツは CDN で配信できるか？
+
+**A:** 従来は「静的コンテンツのみ」が CDN の役割だったが、現代の CDN は動的コンテンツにも対応している。
+
+**手法 1: 短い TTL でのキャッシュ**
+
+```nginx
+# API レスポンスを 30 秒キャッシュ
+Cache-Control: public, s-maxage=30, max-age=0
+
+# 適用例:
+# - 商品一覧 API（在庫数は若干の遅延許容）
+# - ニュースフィード（数十秒の遅延は問題なし）
+# - ダッシュボード統計（リアルタイムでなくても可）
+
+利点: API への負荷を大幅削減（30 秒間は 1 リクエストのみ）
+欠点: 最大 30 秒の古いデータが配信される可能性
+```
+
+**手法 2: Edge Computing による動的生成**
+
+```javascript
+// Cloudflare Workers の例: パーソナライズされたコンテンツを Edge で生成
+export default {
+  async fetch(request, env) {
+    const url = new URL(request.url);
+    const userId = request.headers.get('X-User-ID');
+
+    // ユーザー情報を KV から取得（エッジストレージ）
+    const userData = await env.KV_STORE.get(`user:${userId}`, 'json');
+
+    // パーソナライズされたコンテンツを生成
+    const response = await fetch(url);
+    const html = await response.text();
+    const personalizedHtml = html.replace(
+      '{{USERNAME}}',
+      userData.name || 'Guest'
+    );
+
+    return new Response(personalizedHtml, {
+      headers: { 'Content-Type': 'text/html; charset=utf-8' }
+    });
+  }
+};
+
+適用例:
+- ユーザー名の表示
+- 地域別コンテンツの出し分け
+- A/B テストのバリアント振り分け
+- 認証ステータスに応じた UI 変更
+```
+
+**手法 3: Vary ヘッダーによるキャッシュ分割**
+
+```nginx
+# 言語ごとにキャッシュを分離
+Vary: Accept-Language
+Cache-Control: public, max-age=3600
+
+# クライアント:
+Accept-Language: ja → /api/products?lang=ja のキャッシュ
+Accept-Language: en → /api/products?lang=en のキャッシュ
+
+注意: Vary: Cookie は事実上キャッシュ無効化と同義（ユーザーごとに Cookie が異なる）
+```
+
+**手法 4: オリジンでの動的処理 + stale-while-revalidate**
+
+```nginx
+# 5 分間キャッシュ、期限切れ後も古いキャッシュを返しつつバックグラウンド更新
+Cache-Control: public, max-age=300, stale-while-revalidate=60
+
+フロー:
+1. リクエスト時点でキャッシュが有効（300 秒以内）→ キャッシュから即座に応答
+2. キャッシュが期限切れ（300-360 秒）→ 古いキャッシュを返しつつオリジンに再取得リクエスト
+3. 360 秒超過 → オリジンから取得（通常のキャッシュミス）
+
+適用例: 頻繁に更新されるが、数秒の遅延は許容できるコンテンツ
+```
+
+**結論: 動的コンテンツも CDN 配信可能。ただし戦略的なキャッシュ設計が必須。**
+
+---
+
+## まとめ
+
+| 概念 | ポイント |
+|------|---------|
+| アーキテクチャ | Origin → Regional Shield → Edge PoP → User の 3 層構造 |
+| ルーティング | DNS ベース（一般的）、Anycast（Cloudflare）、HTTP リダイレクト |
+| キャッシュ制御 | Cache-Control が最重要、s-maxage で CDN と Browser を分離 |
+| キャッシュキー | Host + Path + 必要最小限のクエリ、Vary は慎重に使う |
+| パージ戦略 | バージョニング（最推奨）> パス指定 > タグベース > 全パージ |
+| CloudFront | AWS 統合、Origin Shield、Lambda@Edge、価格は従量課金 |
+| Cloudflare | Anycast、Workers、無料枠が充実、DDoS 防御標準搭載 |
+| Edge Computing | 軽量処理（リダイレクト、ヘッダー操作）から複雑処理（認証、API 集約）まで |
+| セキュリティ | オリジン保護（カスタムヘッダー、IP 制限、Tunnel）、TLS 終端、WAF |
+
+---
+
+## 次に読むべきガイド
+
+CDN を理解したら、次は以下のトピックに進むことを推奨する。
+
+- **[ネットワークデバッグ](./02-network-debugging.md)**: CDN やオリジンの問題を切り分けるためのデバッグツール（curl, tcpdump, Chrome DevTools）とトラブルシューティング手法を習得する
+- **[パフォーマンス最適化](./03-performance.md)**: CDN 設計を踏まえた総合的なネットワークパフォーマンスチューニング（HTTP/2, HTTP/3, 圧縮、Core Web Vitals）を実践する
+- **[ブラウザとWebプラットフォーム](../../browser-and-web-platform/docs/)**: CDN と連携する Service Worker、キャッシュ戦略、オフライン対応の実装を深掘りする
+
+---
+
+## 参考文献
+
+1. Cloudflare. "How Cloudflare Works." cloudflare.com, 2024.
+2. AWS. "Amazon CloudFront Developer Guide." docs.aws.amazon.com, 2024.
+3. Fastly. "Fastly Developer Hub." developer.fastly.com, 2024.
+4. RFC 7234. "Hypertext Transfer Protocol (HTTP/1.1): Caching." IETF, 2014.
+5. Grigorik, I. "High Performance Browser Networking." O'Reilly, 2013.
+6. web.dev. "Web Fundamentals: Performance." Google, 2024.
+
+

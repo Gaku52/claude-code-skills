@@ -2,6 +2,20 @@
 
 > TCPは信頼性のある通信を実現するプロトコル。3-wayハンドシェイク、シーケンス番号、フロー制御、輻輳制御の仕組みを理解し、なぜWebの通信基盤なのかを学ぶ。本ガイドでは、RFC 9293 に基づく最新のTCP仕様を網羅的に解説し、tcpdump・Wireshark・ソケットプログラミングを用いた実践的な分析手法を身につける。
 
+## 前提知識
+
+このガイドを最大限に活用するには、以下の知識が必要です。
+
+**必須**
+- [[../00-introduction/01-osi-and-tcpip-model.md]] — OSI参照モデルとTCP/IPモデルの基礎（特にトランスポート層の役割）
+- [[../00-introduction/02-ip-addressing.md]] — IPアドレスの基礎とパケット配送の仕組み
+
+**推奨**
+- ネットワークインターフェース（Ethernet、Wi-Fi）の基本的な理解
+- コマンドライン操作の基礎知識（tcpdump、Wireshark等のツールを使用）
+
+---
+
 ## この章で学ぶこと
 
 - [ ] TCPの3-wayハンドシェイクの各ステップと状態遷移を理解する
@@ -1470,4 +1484,226 @@ TCP切断（4-way Handshake）:
     -T fields -e frame.time_relative -e tcp.window_size_value \
     -E separator=, > window_size.csv
 ```
+
+---
+
+## 9. FAQ（よくある質問）
+
+### Q1: TCP と UDP、どちらを選ぶべきか？
+
+**判断基準**
+
+| 要件 | 選択 | 理由 |
+|------|------|------|
+| データの完全性が最重要 | **TCP** | 再送・順序保証により、データ欠損・破損を防ぐ |
+| リアルタイム性が最重要 | **UDP** | 接続確立・再送待ちがなく、遅延を最小化できる |
+| 小さなリクエスト・レスポンス | **UDP** | DNS、NTPのように1往復で完結する通信に適する |
+| 長時間のストリーミング | **TCP** | HTTP/2、WebSocketで安定した配信が可能 |
+| パケットロスが多い環境 | **TCP** | 自動再送により、ロス耐性が高い |
+| ブロードキャスト・マルチキャスト | **UDP** | TCPは1対1通信のみ対応 |
+
+**ハイブリッドアプローチ**
+- QUIC（HTTP/3の基盤）: UDP上に独自の再送・輻輳制御を実装
+- WebRTC: 映像（UDP）と制御信号（TCP/WebSocket）を併用
+
+### Q2: TIME_WAIT問題をどう対処すべきか？
+
+**問題の本質**
+```bash
+# TIME_WAIT 状態のソケット数を確認
+$ ss -tan state time-wait | wc -l
+12845  # 大量のTIME_WAITソケットが蓄積
+```
+
+**対策の優先順位**
+
+**1. 接続の再利用（最も推奨）**
+```python
+# HTTP Keep-Alive: 同じTCPコネクションで複数リクエストを送信
+import requests
+
+session = requests.Session()
+session.get('http://example.com/api/1')  # 接続確立
+session.get('http://example.com/api/2')  # 同じ接続を再利用
+session.get('http://example.com/api/3')  # 同じ接続を再利用
+```
+
+**2. SO_REUSEADDR オプションの活用**
+```python
+import socket
+
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+# TIME_WAIT状態のアドレスを即座に再バインド可能にする
+```
+
+**3. tcp_tw_reuse の有効化（Linuxクライアント側のみ）**
+```bash
+# TIME_WAITソケットを新しい接続に再利用
+sudo sysctl -w net.ipv4.tcp_tw_reuse=1
+```
+
+**4. エフェメラルポート範囲の拡大**
+```bash
+# デフォルト: 32768〜60999（約28,000ポート）
+# 拡大: 1024〜65535（約64,000ポート）
+sudo sysctl -w net.ipv4.ip_local_port_range="1024 65535"
+```
+
+**やってはいけない対策**
+- ❌ `tcp_tw_recycle=1`: RFC違反で接続失敗の原因になる（カーネル4.12で削除済み）
+- ❌ `tcp_fin_timeout` の過度な短縮: 古いパケットの誤配送リスクが高まる
+
+### Q3: TCPのウィンドウサイズはどう調整すべきか？
+
+**BDP（Bandwidth-Delay Product）の計算**
+```
+最適バッファサイズ = 帯域幅 × RTT
+
+例1: 東京 ↔ 大阪（100Mbps、5ms RTT）
+  BDP = 100Mbps × 5ms = 500Kb ÷ 8 = 62.5KB
+
+例2: 東京 ↔ US西海岸（1Gbps、100ms RTT）
+  BDP = 1Gbps × 100ms = 100Mb ÷ 8 = 12.5MB
+```
+
+**Linuxでの設定**
+```bash
+# 受信バッファ: 最小 / デフォルト / 最大
+sudo sysctl -w net.ipv4.tcp_rmem="4096 131072 16777216"
+
+# 送信バッファ: 最小 / デフォルト / 最大
+sudo sysctl -w net.ipv4.tcp_wmem="4096 65536 16777216"
+
+# 自動チューニングを有効化（推奨）
+sudo sysctl -w net.ipv4.tcp_window_scaling=1
+sudo sysctl -w net.ipv4.tcp_moderate_rcvbuf=1
+```
+
+**アプリケーション側での設定**
+```python
+import socket
+
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+# 受信バッファを 1MB に設定
+sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024 * 1024)
+```
+
+**注意点**
+- カーネルの自動チューニングに任せるのが基本的に最適
+- 手動設定は計測結果に基づいて慎重に行う
+- バッファを大きくしすぎると Bufferbloat（遅延増大）を引き起こす
+
+---
+
+## FAQ
+
+### Q1: TCPとUDPはどう使い分けるべき?
+信頼性が必要な通信（Webブラウジング、ファイル転送、メール、データベース接続等）にはTCPを使います。一方、リアルタイム性が最優先で多少のパケットロスが許容される用途（ゲーム、音声・映像ストリーミング、DNS問い合わせ等）にはUDPが適しています。HTTP/3はQUIC（UDP上に構築）を採用しており、TCPのHead-of-Line Blocking問題を回避しつつ信頼性も確保しています。
+
+### Q2: TIME_WAIT状態のコネクションが大量に発生するのはなぜ?
+TIME_WAITはTCPの正常な動作です。接続を能動的に閉じた側が2MSL（通常60秒〜120秒）の間この状態を維持し、遅延パケットが新しいコネクションに混入することを防いでいます。高トラフィック環境ではTIME_WAIT状態のコネクションが蓄積しポート枯渇を起こすことがあります。対策としては `SO_REUSEADDR` の設定、コネクションプーリングの活用、Keep-Aliveによる接続再利用が有効です。
+
+### Q3: BBRとCUBICの違いは何? どちらを選ぶべき?
+CUBICはパケットロスを輻輳シグナルとして利用する損失ベースのアルゴリズムで、Linux標準として広く使われています。BBR（Bottleneck Bandwidth and Round-trip propagation time）はGoogleが開発した帯域×遅延モデルに基づくアルゴリズムで、パケットロスに依存せずに最適な送信レートを推定します。BBRはバッファの大きいネットワーク（Bufferbloat環境）で高い性能を発揮しますが、フェアネスの問題も指摘されています。サーバーのカーネルバージョンと用途に応じて選択してください。
+
+---
+
+## まとめ
+
+### TCP の核心理解
+
+| 要素 | 内容 | 重要度 |
+|------|------|--------|
+| **信頼性保証** | シーケンス番号・ACK・再送により、データの到達・順序を保証する | ★★★ |
+| **3-wayハンドシェイク** | SYN → SYN-ACK → ACK で接続を確立（1.5 RTT） | ★★★ |
+| **フロー制御** | スライディングウィンドウ（rwnd）で受信側のバッファ溢れを防ぐ | ★★★ |
+| **輻輳制御** | cwnd を動的調整してネットワーク全体の安定性に貢献（Reno, CUBIC, BBR） | ★★★ |
+| **4-wayハンドシェイク** | FIN → ACK → FIN → ACK で接続を終了、TIME_WAIT で古いパケットを排除 | ★★☆ |
+| **HoL Blocking** | 1つのパケットロストが全体をブロックする問題（QUIC/HTTP/3 で解決） | ★★☆ |
+
+### キーポイント
+
+1. **TCP = 信頼性と引き換えに遅延を許容するプロトコル**
+   - 接続確立に 1.5 RTT、TLS併用で最大 3 RTT
+   - パケットロス時の再送待ちで遅延が増大
+   - HTTP/3（QUIC）はこれらの課題を UDP ベースで解決
+
+2. **フロー制御と輻輳制御は別物**
+   - フロー制御（rwnd）: 受信側の処理能力に合わせる（エンドツーエンド）
+   - 輻輳制御（cwnd）: ネットワークの混雑状況を推測する（送信側が自律的に実施）
+   - 実効ウィンドウ = min(rwnd, cwnd)
+
+3. **TCP は進化し続けている**
+   - RFC 9293（2022年）: 最新の TCP 仕様
+   - CUBIC（2006年〜）: Linux 標準の輻輳制御アルゴリズム
+   - BBR（2016年〜）: Google が推進する帯域×遅延モデル
+   - ECN（Explicit Congestion Notification）: ルーターからの明示的な輻輳通知
+
+---
+
+## 次に読むべきガイド
+
+**プロトコルの理解を深める**
+- [[./01-udp.md]] — UDP: TCPと対比して学ぶ「速さ優先」のプロトコル
+- [[../02-http/00-http-basics.md]] — HTTP: TCPを基盤とするアプリケーション層プロトコル
+- [[../02-http/01-http2-and-http3.md]] — HTTP/2とHTTP/3: TCPの限界とQUICへの移行
+
+**実践的なスキル**
+- [[../03-tools/00-tcpdump.md]] — tcpdump: TCPパケットキャプチャの実践
+- [[../03-tools/01-wireshark.md]] — Wireshark: GUIベースのパケット解析
+- [[../04-security/00-tls.md]] — TLS: TCPの上に構築される暗号化レイヤー
+
+---
+
+## 参考文献
+
+### RFC（標準仕様）
+
+1. **RFC 9293 - Transmission Control Protocol (TCP)**
+   https://www.rfc-editor.org/rfc/rfc9293.html
+   2022年8月発行。TCPの最新の標準仕様。RFC 793（1981年）の後継で、40年分の更新を統合。
+
+2. **RFC 5681 - TCP Congestion Control**
+   https://www.rfc-editor.org/rfc/rfc5681.html
+   スロースタート、輻輳回避、高速再送・高速回復を規定。TCP Renoの基盤。
+
+3. **RFC 7413 - TCP Fast Open**
+   https://www.rfc-editor.org/rfc/rfc7413.html
+   SYNパケットにデータを含めることで接続確立を1 RTTに短縮する仕組み。
+
+4. **RFC 6298 - Computing TCP's Retransmission Timer**
+   https://www.rfc-editor.org/rfc/rfc6298.html
+   RTO（再送タイムアウト）の計算方法を規定。Karn's Algorithm、Jacobson's Algorithm を含む。
+
+5. **RFC 3168 - The Addition of Explicit Congestion Notification (ECN) to IP**
+   https://www.rfc-editor.org/rfc/rfc3168.html
+   パケットロスなしに輻輳を通知する仕組み。BBRv2で活用される。
+
+6. **RFC 9438 - CUBIC for Fast Long-Distance Networks**
+   https://www.rfc-editor.org/rfc/rfc9438.html
+   2023年8月発行。Linux標準の輻輳制御アルゴリズムCUBICの仕様。
+
+### 書籍
+
+7. **Stevens, W. Richard. "TCP/IP Illustrated, Volume 1: The Protocols, 2nd Edition." Addison-Wesley, 2011.**
+   TCPの動作を詳細に解説した定番書。パケットキャプチャと図解で理解が深まる。
+
+8. **Fall, Kevin R. and Stevens, W. Richard. "TCP/IP Illustrated, Volume 2: The Implementation." Addison-Wesley, 1995.**
+   BSD TCPの実装を詳細に解説。カーネルレベルの理解に最適。
+
+9. **Grigorik, Ilya. "High Performance Browser Networking." O'Reilly Media, 2013.**
+   Chapter 2: Building Blocks of TCP でTCPの性能最適化を実践的に解説。無料公開版: https://hpbn.co/
+
+### 論文・技術記事
+
+10. **Cardwell, Neal et al. "BBR: Congestion-Based Congestion Control." ACM Queue, Vol. 14 No. 5, 2016.**
+    https://queue.acm.org/detail.cfm?id=3022184
+    Google開発のBBRアルゴリズムの設計思想と評価。
+
+11. **Ha, Sangtae et al. "CUBIC: A New TCP-Friendly High-Speed TCP Variant." ACM SIGOPS Operating Systems Review, 2008.**
+    CUBICの原論文。高BDP環境での性能向上を実証。
+
+12. **Jacobson, Van. "Congestion Avoidance and Control." ACM SIGCOMM, 1988.**
+    TCP輻輳制御の基礎を築いた歴史的論文。スロースタート、輻輳回避の原典。
 

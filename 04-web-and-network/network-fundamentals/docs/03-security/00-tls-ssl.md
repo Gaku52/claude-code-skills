@@ -2,6 +2,15 @@
 
 > TLSはインターネット通信の暗号化を担うプロトコル。ハンドシェイク、証明書、暗号スイートの仕組みを理解し、安全な通信の基盤を学ぶ。
 
+## 前提知識
+
+このガイドを理解するには以下の知識が必要です:
+- [[../01-protocols/00-tcp.md]] — TCPの3-wayハンドシェイクとコネクション管理
+- 公開鍵暗号の基礎 — RSA/ECDSA等の非対称暗号の仕組み
+- [[../02-http/00-http-basics.md]] — HTTPプロトコルの基本とリクエスト/レスポンス構造
+
+---
+
 ## この章で学ぶこと
 
 - [ ] TLSハンドシェイクの流れを理解する
@@ -1264,6 +1273,289 @@ HTTP/3 と QUIC:
 | CT | 証明書発行の透明性、不正発行の検知 |
 | HTTP/3 | QUIC上でTLS 1.3組み込み、1-RTT |
 | ポスト量子 | ML-KEM/ML-DSA、ハイブリッド方式で先行対応 |
+
+---
+
+## FAQ
+
+### Q1: TLS 1.2とTLS 1.3の主な違いは何ですか？
+
+**A1: パフォーマンス、セキュリティ、シンプルさが大幅に改善されています。**
+
+主要な違い:
+
+1. **ハンドシェイクの高速化**:
+   - TLS 1.2: 2 RTT（往復通信が2回必要）
+   - TLS 1.3: 1 RTT（往復通信が1回）
+   - TLS 1.3（再接続）: 0-RTT（データと同時送信可能）
+   - 実測: TLS 1.2で200ms → TLS 1.3で100ms（東京-US間）
+
+2. **暗号化範囲の拡大**:
+   - TLS 1.2: アプリケーションデータのみ暗号化
+   - TLS 1.3: ハンドシェイクの大部分も暗号化（証明書が見えない）
+   - プライバシー向上: 接続先サーバーの証明書が傍受者に見えない
+
+3. **脆弱な暗号の廃止**:
+   - RSA鍵交換（前方秘匿性なし）→ 廃止
+   - CBC モード（パディングオラクル攻撃）→ 廃止
+   - 圧縮（CRIME攻撃）→ 廃止
+   - 再ネゴシエーション → 廃止
+   - → 常にECDHEによる前方秘匿性、AEADによる認証付き暗号
+
+4. **鍵導出の改善**:
+   - TLS 1.2: PRF（Pseudo-Random Function）
+   - TLS 1.3: HKDF（HMAC-based KDF）— より明確で安全な設計
+   - 段階的鍵導出: 0-RTT鍵、ハンドシェイク鍵、アプリケーション鍵が分離
+
+5. **選択肢の削減によるセキュリティ向上**:
+   - TLS 1.2: 約40種類の暗号スイート
+   - TLS 1.3: 5種類のみ（TLS_AES_128_GCM_SHA256等）
+   - → 設定ミスのリスク低減、監査が容易
+
+**実務での推奨**: TLS 1.3をメインに、互換性のためTLS 1.2も許可。TLS 1.0/1.1は無効化。
+
+---
+
+### Q2: 証明書チェーンの仕組みと、なぜ中間CA証明書が必要なのですか？
+
+**A2: 信頼の連鎖を構築しつつ、ルートCAの秘密鍵を安全に保つための設計です。**
+
+証明書チェーンの構造:
+```
+┌────────────────┐
+│ ルートCA証明書  │ ← OS/ブラウザに内蔵（約150-200個）
+│ (自己署名)      │    秘密鍵はオフライン保管（HSM内、物理的隔離）
+└───────┬────────┘    侵害されると全インターネットが影響
+        │ 署名
+┌───────▼────────┐
+│ 中間CA証明書    │ ← ルートCAが署名
+│               │    秘密鍵はオンライン（証明書発行に使用）
+└───────┬────────┘    侵害されてもルート失効で対処可能
+        │ 署名
+┌───────▼────────┐
+│ サーバー証明書   │ ← 中間CAが署名（Let's Encrypt等）
+│ example.com    │    有効期限: DV証明書は通常90日
+└────────────────┘
+```
+
+中間CAが必要な理由:
+
+1. **ルートCAの保護**:
+   - ルートCAの秘密鍵は厳重に隔離（エアギャップ環境）
+   - 証明書発行の度にルートCAにアクセスするのは非現実的
+   - 中間CAがオンラインで発行処理を担当
+
+2. **リスクの分散**:
+   - 中間CAが侵害されても、その中間CAのみ失効すればよい
+   - ルートCAが侵害されると、全ての派生証明書が無効に
+   - 実例: 2011年のDigiNotar侵害 → ルートCA失効 → ブラウザから削除
+
+3. **柔軟な運用**:
+   - 用途別・地域別に複数の中間CAを使い分け
+   - DV専用、EV専用の中間CAで分離
+   - 中間CAの有効期限更新が容易
+
+検証プロセス（ブラウザ側）:
+```
+1. サーバー証明書の署名を中間CAの公開鍵で検証
+2. 中間CA証明書の署名をルートCAの公開鍵で検証
+3. ルートCA証明書がOS/ブラウザの信頼ストアに存在するか確認
+4. 各証明書の有効期限を確認
+5. ドメイン名（SAN）の一致を確認
+6. 失効確認（OCSP Stapling / CRL / CRLite）
+7. Certificate Transparencyログの確認
+```
+
+よくある問題と対処法:
+
+**問題1: 中間CA証明書の送信漏れ**
+```bash
+# 症状: "信頼されていない証明書" エラー
+# 原因: サーバーがサーバー証明書のみ送信、中間CAを含まない
+# 確認:
+$ openssl s_client -connect example.com:443 -showcerts
+
+# 対処: fullchain.pem を使用（サーバー証明書+中間CA証明書）
+ssl_certificate /etc/letsencrypt/live/example.com/fullchain.pem;
+# cert.pemではなくfullchain.pemを指定
+```
+
+**問題2: 証明書の順序が逆**
+```
+正しい順序: サーバー証明書 → 中間CA証明書 → ルートCA証明書（省略可）
+誤った順序: 中間CA → サーバー証明書 → エラー
+```
+
+**クロスサイン**:
+新しいルートCAの普及期に、古いルートCAにも署名してもらうテクニック。
+- Let's Encrypt: ISRG Root X1（新）+ DST Root CA X3（旧）でクロスサイン
+- 古いAndroidデバイスでもDST経由で信頼チェーン成立
+- 2024年現在はISRG Root X1がほぼ全デバイスで信頼済み
+
+---
+
+### Q3: Let's Encryptの仕組みと実務での使い方を教えてください。
+
+**A3: ACMEプロトコルによる自動化されたドメイン検証で、無料のDV証明書を90日間発行します。**
+
+Let's Encryptの特徴:
+- **完全無料**: DV（ドメイン検証）証明書
+- **自動化**: certbotで取得・更新を自動化
+- **有効期限**: 90日（意図的に短く設定 → 自動更新の促進）
+- **信頼**: ISRG（Internet Security Research Group）運営、主要ブラウザで信頼済み
+- **制限**: ワイルドカード証明書はDNSチャレンジのみ、レート制限あり
+
+ACMEプロトコルのフロー:
+
+```
+1. アカウント登録
+   クライアント → Let's Encrypt: 公開鍵を送信
+   → アカウントURLを取得
+
+2. 証明書リクエスト
+   クライアント → Let's Encrypt: example.comの証明書をリクエスト
+
+3. チャレンジ提示
+   Let's Encrypt → クライアント: 以下のいずれかで認証せよ
+
+   ① HTTP-01チャレンジ:
+      http://example.com/.well-known/acme-challenge/<TOKEN>
+      に特定の内容を配置
+      → Let's Encryptがアクセスして確認
+      → ポート80が必要、ワイルドカード不可
+
+   ② DNS-01チャレンジ:
+      _acme-challenge.example.com TXT "<TOKEN>"
+      にDNSレコードを設定
+      → Let's EncryptがDNS問い合わせで確認
+      → ワイルドカード証明書可能、ポート80不要
+      → DNSプロバイダーのAPI必要（自動化のため）
+
+   ③ TLS-ALPN-01チャレンジ:
+      TLSハンドシェイク中にトークンを含む証明書を提示
+      → HTTP-01の代替、ポート443のみ使用
+
+4. チャレンジ応答
+   クライアント: トークンを配置 → Let's Encryptに通知
+
+5. 検証
+   Let's Encrypt: トークンを確認 → 成功
+
+6. 証明書発行
+   クライアント: CSR（Certificate Signing Request）を送信
+   Let's Encrypt: 署名済み証明書を返却
+```
+
+実務での設定例:
+
+```bash
+# certbotインストール（Ubuntu）
+$ sudo apt update
+$ sudo apt install certbot python3-certbot-nginx
+
+# Nginx用の証明書取得（自動設定）
+$ sudo certbot --nginx -d example.com -d www.example.com
+# → Nginxの設定ファイルを自動編集
+# → 証明書を/etc/letsencrypt/live/example.com/に配置
+
+# 証明書のみ取得（手動設定）
+$ sudo certbot certonly --webroot -w /var/www/html \
+  -d example.com -d www.example.com
+
+# ワイルドカード証明書（DNSチャレンジ必須）
+$ sudo certbot certonly --manual --preferred-challenges dns \
+  -d '*.example.com' -d example.com
+# → DNSレコード設定を指示される:
+#   _acme-challenge.example.com TXT "abc123..."
+# → 設定後にEnterで検証
+
+# 自動更新の設定（systemd timer、Ubuntuでは自動設定済み）
+$ systemctl list-timers | grep certbot
+# または cron
+$ sudo crontab -e
+0 0,12 * * * certbot renew --quiet --post-hook "systemctl reload nginx"
+# → 1日2回チェック、期限30日以内なら更新
+
+# 更新のテスト（実際には更新しない）
+$ sudo certbot renew --dry-run
+
+# 証明書の確認
+$ sudo certbot certificates
+Found the following certs:
+  Certificate Name: example.com
+    Domains: example.com www.example.com
+    Expiry Date: 2024-03-31 12:00:00+00:00 (VALID: 89 days)
+    Certificate Path: /etc/letsencrypt/live/example.com/fullchain.pem
+    Private Key Path: /etc/letsencrypt/live/example.com/privkey.pem
+```
+
+Nginx設定（手動の場合）:
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name example.com;
+
+    # Let's Encrypt証明書
+    ssl_certificate     /etc/letsencrypt/live/example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/example.com/privkey.pem;
+
+    # ACME チャレンジパス（更新時に必要）
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+        allow all;
+    }
+}
+
+# HTTPからHTTPSへリダイレクト
+server {
+    listen 80;
+    server_name example.com;
+
+    # ACMEチャレンジのみ許可
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+        allow all;
+    }
+
+    # それ以外はHTTPSへ
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+```
+
+レート制限（2024年時点）:
+- 登録ドメイン/週: 50証明書
+- 重複証明書/週: 5証明書
+- アカウント登録: 10アカウント/3時間/IP
+- → 本番前にステージング環境で十分テスト
+
+ステージング環境:
+```bash
+$ sudo certbot --nginx --staging \
+  -d example.com -d www.example.com
+# → レート制限が緩い、信頼されない証明書（テスト用）
+```
+
+トラブルシューティング:
+```bash
+# ログ確認
+$ sudo tail -f /var/log/letsencrypt/letsencrypt.log
+
+# 証明書の手動削除
+$ sudo certbot delete --cert-name example.com
+
+# Nginxの設定確認
+$ sudo nginx -t
+
+# ポート80が開いているか確認（HTTP-01チャレンジ）
+$ curl http://example.com/.well-known/acme-challenge/test
+```
+
+代替クライアント:
+- acme.sh: シェルスクリプトのみ、依存なし
+- Caddy: Webサーバーに証明書取得機能を内蔵
+- Traefik: リバースプロキシに証明書取得機能を内蔵
 
 ---
 

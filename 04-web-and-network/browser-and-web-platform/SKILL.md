@@ -11,7 +11,7 @@
 ## 前提知識
 
 - HTML/CSS/JavaScriptの基本
-- HTTPの基本 → 参照: [[network-fundamentals]]
+- HTTPの基本 → 参照: [ネットワーク基礎](../network-fundamentals/)
 
 ## ガイド一覧
 
@@ -63,7 +63,41 @@ API活用:   03-web-apis → 04-storage-and-caching
 
 ## 関連Skills
 
-- [[network-fundamentals]] — ネットワーク基礎
-- [[frontend-performance]] — フロントエンドパフォーマンス
-- [[web-development]] — Web開発
-- [[react-development]] — React開発
+- [ネットワーク基礎](../network-fundamentals/) — ネットワーク基礎
+- [Webアプリケーション開発](../web-application-development/) — Webアプリケーション開発
+- [APIガイド](../api-and-library-guide/) — API・ライブラリ設計
+
+---
+
+## FAQ
+
+### Q1: このSkillはフロントエンドフレームワーク（React、Vueなど）の知識がなくても学べますか?
+はい、本Skillはブラウザのネイティブな仕組みに焦点を当てています。フレームワークの知識は前提としません。むしろ、ここで学ぶレンダリングパイプラインやイベントループ、DOM API の理解は、フレームワークの内部動作を把握する上でも非常に有益です。フレームワークを使う前にブラウザの基盤技術を理解しておくことで、パフォーマンス問題のデバッグやアーキテクチャ設計の精度が格段に向上します。
+
+### Q2: 学習の順番は厳密に守る必要がありますか?
+推奨の学習パス（00-browser-engine → 01-rendering → 02-javascript-runtime → 03-web-apis → 04-storage-and-caching）に沿って進めるのが最も効率的ですが、すでに特定分野の知識がある場合は興味のあるセクションから始めても構いません。ただし、レンダリングパイプラインの理解はほぼ全てのセクションの前提知識となるため、01-rendering は早い段階で読むことを推奨します。
+
+### Q3: このSkillで学んだ知識はどのような実務場面で役立ちますか?
+パフォーマンス最適化（Core Web Vitals の改善、レンダリングボトルネックの特定）、メモリリークの調査と修正、セキュリティ対策（CSP設定、XSS防御）、オフライン対応（Service Worker、Cache API）など、フロントエンド開発の幅広い場面で直接活用できます。特にDevToolsを使ったプロファイリングやデバッグの能力は、日常的な開発業務の生産性を大きく向上させます。
+
+---
+
+## まとめ
+
+このSkillでは以下を学びました:
+
+- ブラウザのマルチプロセスアーキテクチャとセキュリティモデルの多層防御構造
+- レンダリングパイプライン（DOM構築からCompositeまで）の6段階とパフォーマンス最適化手法
+- JavaScriptのイベントループ、V8エンジンの内部構造、メモリ管理とGCアルゴリズム
+- DOM API、Fetch API、Observer API などの Web API の効率的な活用方法
+- Cookie、localStorage、IndexedDB、Cache API、Service Worker によるストレージとキャッシュ戦略
+
+---
+
+## 参考文献
+
+- [Chrome Developers](https://developer.chrome.com/) - Google Chrome チームによるWeb開発者向け公式ドキュメント
+- [MDN Web Docs](https://developer.mozilla.org/) - Mozilla が運営するWeb技術の包括的なリファレンス
+- [web.dev](https://web.dev/) - Google が提供するWebパフォーマンスとベストプラクティスのガイド
+- [WHATWG HTML Living Standard](https://html.spec.whatwg.org/) - HTML仕様の公式ドキュメント（イベントループ、パーサー等を含む）
+- [W3C CSS Specifications](https://www.w3.org/Style/CSS/) - CSS関連仕様の公式ドキュメント群

@@ -2,6 +2,21 @@
 
 > WebSocketはHTTP上で確立される双方向リアルタイム通信プロトコル。チャット、リアルタイム通知、ゲーム、金融データ配信など、サーバーからのプッシュが必要なアプリケーションの基盤。RFC 6455で標準化されたこのプロトコルは、従来のHTTPポーリングの限界を克服し、クライアントとサーバー間の真の全二重通信を実現する。
 
+## 前提知識
+
+このガイドを最大限に活用するには、以下の知識が必要です。
+
+**必須**
+- [[./00-tcp.md]] — TCP: WebSocketはTCP上で動作するプロトコル
+- [[../02-http/00-http-basics.md]] — HTTP基礎: WebSocketハンドシェイクはHTTPで行われる
+
+**推奨**
+- JavaScriptの基礎知識（ブラウザAPI、非同期処理）
+- Node.jsの基本（サーバーサイド実装で必要）
+- [[../04-security/00-tls.md]] — TLS: WSS（WebSocket Secure）の理解に必要
+
+---
+
 ## この章で学ぶこと
 
 - [ ] WebSocketのハンドシェイクと通信の仕組みを理解する
@@ -2551,6 +2566,309 @@ wscat -c ws://localhost:8080 -H "Authorization: Bearer token123"
 ### Q5: WebSocket接続が頻繁に切断される場合、どう対処すべきか？
 
 **A:** 頻繁な切断の原因は複数考えられる。(1) ロードバランサーやプロキシのアイドルタイムアウト: Ping/Pongフレームを定期的に送信してアイドル状態を防ぐ（推奨間隔は25〜30秒）。(2) ネットワークの不安定さ: 指数バックオフ付きの自動再接続を実装し、ジッターを加えてサーバーへの負荷集中を避ける。(3) サーバー側のリソース不足: メモリ使用量とファイルディスクリプタ数を監視し、適切なリソース制限を設定する。(4) クライアントのバックグラウンド化: Page Visibility APIを活用し、バックグラウンドタブでの通信頻度を下げる。また、切断イベントのcloseコードとreasonを分析することで、切断原因の特定に役立つ。
+
+### Q6: WebSocketとSSE（Server-Sent Events）はどう使い分けるべきか？
+
+**比較表**
+
+| 特性 | WebSocket | SSE (Server-Sent Events) |
+|------|-----------|--------------------------|
+| 通信方向 | **双方向**（全二重） | **一方向**（サーバー→クライアント） |
+| プロトコル | 専用プロトコル（ws://, wss://） | HTTP/HTTPS上のストリーム |
+| 自動再接続 | 実装必要（Socket.IOは標準搭載） | **ブラウザ標準機能** |
+| イベントID | 実装必要 | **標準サポート**（last-event-id） |
+| バイナリ | サポート | テキストのみ（Base64エンコード必要） |
+| ブラウザサポート | 全モダンブラウザ | IE/Edgeレガシー版は非対応 |
+| HTTP/2最適化 | 限定的 | **優れた性能**（1接続で多重化） |
+| CORS | Origin検証が必要 | 標準のCORSポリシー適用 |
+
+**使い分けの判断基準**
+
+**SSEを選ぶべきケース**
+```
+✅ サーバーからのプッシュのみ（クライアント→サーバーはHTTP POST）
+   例: ニュースフィード、株価更新、進捗通知、ダッシュボード
+
+✅ 自動再接続・イベントID管理が必要
+   → SSEは標準機能として提供
+
+✅ HTTP/2環境での効率的な通信
+   → SSEは1つのHTTP/2接続で複数ストリームを多重化
+
+✅ シンプルな実装
+   → クライアント: new EventSource(url)
+   → サーバー: Content-Type: text/event-stream
+```
+
+**WebSocketを選ぶべきケース**
+```
+✅ 双方向リアルタイム通信が必要
+   例: チャット、ゲーム、共同編集、リモート制御
+
+✅ バイナリデータの送受信
+   例: 画像・動画のストリーミング、ファイル転送
+
+✅ 低遅延が最優先
+   → WebSocketはフレームオーバーヘッドが小さい
+
+✅ カスタムプロトコルの実装
+   → サブプロトコル（Sec-WebSocket-Protocol）で拡張可能
+```
+
+**実装例の比較**
+
+```javascript
+// SSE（サーバー → クライアント）
+const eventSource = new EventSource('/api/updates');
+eventSource.addEventListener('message', (event) => {
+  console.log('Received:', event.data);
+});
+// 自動再接続: ブラウザが自動処理
+
+// WebSocket（双方向）
+const ws = new WebSocket('wss://example.com/socket');
+ws.addEventListener('message', (event) => {
+  console.log('Received:', event.data);
+});
+ws.send(JSON.stringify({ type: 'chat', message: 'Hello' }));
+// 再接続: 自分で実装必要（Socket.IOは自動）
+```
+
+### Q7: WebSocketのセキュリティ対策（WSS、認証、Origin検証）は？
+
+**1. WSS（WebSocket Secure）の必須化**
+
+```javascript
+// ❌ 本番環境で絶対NG
+const ws = new WebSocket('ws://example.com/socket');
+
+// ✅ 常にWSS（TLS暗号化）を使用
+const ws = new WebSocket('wss://example.com/socket');
+```
+
+**WSSを使う理由**
+- 中間者攻撃（MITM）の防止: 通信内容の盗聴・改ざんを防ぐ
+- プロキシ透過性: 企業ネットワークの透過プロキシがWSを誤処理することを防ぐ
+- Cookie保護: Secure属性のCookieはWSSでのみ送信される
+
+**2. Origin検証（CSRFに類似の攻撃を防ぐ）**
+
+```javascript
+// サーバーサイド（Node.js + ws）
+const WebSocket = require('ws');
+const wss = new WebSocket.Server({
+  verifyClient: (info) => {
+    const origin = info.origin || info.req.headers.origin;
+    const allowedOrigins = ['https://example.com', 'https://app.example.com'];
+
+    if (!allowedOrigins.includes(origin)) {
+      console.warn(`Rejected connection from: ${origin}`);
+      return false; // 接続拒否
+    }
+    return true; // 接続許可
+  }
+});
+```
+
+**注意**: Originヘッダーはブラウザ以外のクライアント（curl等）では偽装可能。トークン認証と併用必須。
+
+**3. トークンベース認証**
+
+```javascript
+// クライアント: 接続URLにトークンを含める
+const token = localStorage.getItem('authToken');
+const ws = new WebSocket(`wss://example.com/socket?token=${token}`);
+
+// または、接続後に認証メッセージを送信
+ws.addEventListener('open', () => {
+  ws.send(JSON.stringify({ type: 'auth', token: token }));
+});
+
+// サーバー: トークンを検証
+wss.on('connection', (ws, req) => {
+  const url = new URL(req.url, 'wss://example.com');
+  const token = url.searchParams.get('token');
+
+  if (!verifyToken(token)) {
+    ws.close(1008, 'Unauthorized'); // Policy Violation
+    return;
+  }
+
+  // 認証済みユーザーとして処理
+  ws.userId = getUserIdFromToken(token);
+});
+```
+
+**4. レート制限（DoS対策）**
+
+```javascript
+const clients = new Map(); // userId -> { ws, messageCount, lastReset }
+
+wss.on('connection', (ws, req) => {
+  const userId = authenticateUser(req);
+
+  clients.set(userId, {
+    ws: ws,
+    messageCount: 0,
+    lastReset: Date.now()
+  });
+
+  ws.on('message', (data) => {
+    const client = clients.get(userId);
+    const now = Date.now();
+
+    // 1分ごとにカウントリセット
+    if (now - client.lastReset > 60000) {
+      client.messageCount = 0;
+      client.lastReset = now;
+    }
+
+    client.messageCount++;
+
+    // レート制限: 1分あたり100メッセージ
+    if (client.messageCount > 100) {
+      ws.close(1008, 'Rate limit exceeded');
+      return;
+    }
+
+    // 通常の処理
+    handleMessage(ws, data);
+  });
+});
+```
+
+**5. 入力検証とサニタイゼーション**
+
+```javascript
+ws.on('message', (data) => {
+  let message;
+  try {
+    message = JSON.parse(data);
+  } catch (e) {
+    ws.close(1003, 'Invalid JSON'); // Unsupported Data
+    return;
+  }
+
+  // スキーマ検証（Joi、Zod等を使用）
+  const schema = Joi.object({
+    type: Joi.string().valid('chat', 'typing', 'presence').required(),
+    content: Joi.string().max(1000),
+  });
+
+  const { error } = schema.validate(message);
+  if (error) {
+    ws.close(1003, 'Invalid message format');
+    return;
+  }
+
+  // XSS対策: HTMLエスケープ
+  const sanitizedContent = escapeHtml(message.content);
+  broadcastToRoom(ws.roomId, { ...message, content: sanitizedContent });
+});
+```
+
+### Q8: WebSocketのスケーリング戦略（水平スケール、Sticky Session）は？
+
+**問題: WebSocketは状態を持つプロトコル**
+
+```
+クライアント1 ── [Load Balancer] ── サーバーA（接続保持）
+クライアント2 ──                  ─ サーバーB（接続保持）
+クライアント3 ──                  ─ サーバーC（接続保持）
+
+課題: クライアント1がサーバーAに接続している状態で、
+     クライアント2のメッセージをクライアント1に届けるには？
+```
+
+**解決策1: Sticky Session（セッション固定）**
+
+```nginx
+# Nginx設定例
+upstream websocket_backend {
+    ip_hash; # 同じIPアドレスは同じサーバーに振り分け
+    server 192.168.1.101:3000;
+    server 192.168.1.102:3000;
+    server 192.168.1.103:3000;
+}
+
+server {
+    location /socket {
+        proxy_pass http://websocket_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
+```
+
+**問題点**
+- ユーザーAとユーザーBが別サーバーに接続していると、メッセージ配信ができない
+- → Redis Pub/Subで解決
+
+**解決策2: Redis Pub/Sub（サーバー間メッセージング）**
+
+```javascript
+const redis = require('redis');
+const publisher = redis.createClient();
+const subscriber = redis.createClient();
+
+// サーバーA: メッセージを受信 → Redis経由で全サーバーにブロードキャスト
+wss.on('connection', (ws, req) => {
+  const userId = authenticateUser(req);
+
+  ws.on('message', (data) => {
+    const message = JSON.parse(data);
+
+    // Redis経由で全サーバーに配信
+    publisher.publish('chat:room:123', JSON.stringify({
+      userId: userId,
+      content: message.content,
+      timestamp: Date.now()
+    }));
+  });
+});
+
+// 全サーバー: Redisからメッセージを受信 → 接続中のクライアントに配信
+subscriber.subscribe('chat:room:123');
+subscriber.on('message', (channel, data) => {
+  const message = JSON.parse(data);
+
+  // このサーバーに接続している全クライアントに配信
+  wss.clients.forEach(client => {
+    if (client.roomId === 'room:123' && client.readyState === WebSocket.OPEN) {
+      client.send(JSON.stringify(message));
+    }
+  });
+});
+```
+
+**アーキテクチャ図**
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│  Server A   │     │  Server B   │     │  Server C   │
+│  (ws接続3個)│     │  (ws接続2個)│     │  (ws接続4個)│
+└──────┬──────┘     └──────┬──────┘     └──────┬──────┘
+       │                   │                   │
+       └───────────────────┼───────────────────┘
+                           │
+                  ┌────────▼────────┐
+                  │  Redis Pub/Sub  │ ← メッセージハブ
+                  │  (chat:room:*)  │
+                  └─────────────────┘
+```
+
+---
+
+## FAQ
+
+### Q1: WebSocketとSSE（Server-Sent Events）はどう使い分ける?
+SSEはサーバーからクライアントへの一方向ストリーミングに特化しており、HTTPの上で動作するためプロキシやファイアウォールとの互換性が高く、自動再接続も内蔵しています。通知、ニュースフィード、ダッシュボードの更新など、サーバー→クライアント方向のみのデータ配信にはSSEが適しています。一方、チャット、ゲーム、共同編集など双方向のリアルタイム通信が必要な場合はWebSocketを選択してください。コスト面でもSSEの方がインフラ構成がシンプルです。
+
+### Q2: WebSocketのスケーリングで最も重要な考慮事項は?
+Sticky Session（セッションアフィニティ）とメッセージブロードキャストの仕組みです。WebSocketはステートフルなコネクションのため、クライアントは常に同一のサーバーインスタンスに接続する必要があります。ロードバランサーでSticky Sessionを設定し、複数サーバー間のメッセージ配信にはRedis Pub/SubやNATS等のメッセージブローカーを使用します。さらに、コネクション数の上限（OSのファイルディスクリプタ制限）と心拍監視（Ping/Pong）の設計も重要です。
+
+### Q3: Socket.IOと素のWebSocket API、どちらを使うべき?
+プロダクション環境ではSocket.IOが推奨されます。自動再接続（指数バックオフ）、ルーム機能、名前空間、バイナリ転送、フォールバック（WebSocket非対応環境でのHTTPロングポーリング）など、本番運用に必要な機能が内蔵されています。一方、シンプルなユースケースで最小限のオーバーヘッドを求める場合や、独自のプロトコル設計が必要な場合は素のWebSocket APIが適しています。Socket.IOは独自プロトコルのため、素のWebSocketクライアントとは通信できない点に注意してください。
 
 ---
 

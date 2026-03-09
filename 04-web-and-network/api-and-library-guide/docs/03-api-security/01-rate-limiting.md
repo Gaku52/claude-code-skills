@@ -13,6 +13,14 @@
 
 ---
 
+## 前提知識
+
+- API認証パターンの理解 → 参照: [認証パターン](./00-authentication-patterns.md)
+- HTTPステータスコード（429 Too Many Requests等） → 参照: [HTTPの基礎](../../04-web-and-network/network-fundamentals/docs/02-http/00-http-basics.md)
+- 分散システムの基本概念（複数サーバー環境でのレート制限）
+
+---
+
 ## 1. レート制限の目的と基本概念
 
 ### 1.1 なぜレート制限が必要か
@@ -2903,6 +2911,285 @@ app.post('/api/ai/generate', async (req, res) => {
 
 ---
 
+## FAQ
+
+### Q1: レート制限の適切なしきい値の決め方は?
+
+**A:** しきい値は以下の要素を総合的に考慮して決定します。
+
+```
+しきい値決定のアプローチ:
+
+  ① データ分析ベース:
+     → 過去のアクセスログから95パーセンタイルの使用量を算出
+     → 正常な使用パターンの最大値に20-30%のバッファを追加
+     → 時間帯や曜日による変動を考慮
+
+  ② リソースベース:
+     → サーバーの処理能力（CPU、メモリ、DB接続数）から逆算
+     → 負荷テストで実際の限界値を測定
+     → バックエンドサービスの制限を考慮
+
+  ③ ビジネス要件ベース:
+     → 無料プラン: 1000 req/hour（基本的な利用）
+     → スタンダードプラン: 10000 req/hour（通常利用）
+     → プレミアムプラン: 100000 req/hour（大規模利用）
+     → エンタープライズ: カスタム制限
+
+  ④ 段階的調整:
+     → 緩めのしきい値から開始（警告のみ）
+     → メトリクスを監視しながら徐々に最適化
+     → A/Bテストで影響を測定
+```
+
+実務での例:
+```javascript
+// プランベースのレート制限設定例
+const rateLimits = {
+  free: {
+    perSecond: 1,    // バーストを抑制
+    perMinute: 20,   // 短期的な制限
+    perHour: 1000,   // 1時間の総量
+    perDay: 10000    // 1日の総量
+  },
+  standard: {
+    perSecond: 10,
+    perMinute: 300,
+    perHour: 10000,
+    perDay: 200000
+  },
+  premium: {
+    perSecond: 100,
+    perMinute: 3000,
+    perHour: 100000,
+    perDay: 2000000
+  }
+};
+```
+
+### Q2: 分散環境でのレート制限の実装方法（Redis等）は?
+
+**A:** 分散環境では共有ステートストアを使用する必要があります。
+
+```
+分散レート制限の実装パターン:
+
+  ① Redis ベース（最も一般的）:
+     → INCR + EXPIRE でカウンター管理
+     → Lua スクリプトでアトミック操作
+     → クラスター構成で高可用性確保
+
+  ② ローカルキャッシュ + Redis（ハイブリッド）:
+     → 短期制限はローカルメモリで高速処理
+     → 長期制限はRedisで集約
+     → Redis障害時のフォールバック機能
+
+  ③ API Gateway（マネージドサービス）:
+     → AWS API Gateway の使用量プラン
+     → Google Cloud Endpoints のクォータ
+     → Kong、Tyk等のOSS API Gateway
+```
+
+Redisを使った実装例:
+```javascript
+// Redis + Sliding Window Counter
+const rateLimiter = {
+  async checkLimit(userId, limit, windowSeconds) {
+    const now = Date.now();
+    const windowStart = now - (windowSeconds * 1000);
+    const key = `ratelimit:${userId}:${windowSeconds}`;
+
+    // Luaスクリプトでアトミックに実行
+    const script = `
+      local current = redis.call('ZCOUNT', KEYS[1], ARGV[1], ARGV[2])
+      if current < tonumber(ARGV[3]) then
+        redis.call('ZADD', KEYS[1], ARGV[2], ARGV[2])
+        redis.call('EXPIRE', KEYS[1], ARGV[4])
+        return 1
+      else
+        return 0
+      end
+    `;
+
+    const allowed = await redis.eval(
+      script,
+      1,
+      key,
+      windowStart,
+      now,
+      limit,
+      windowSeconds
+    );
+
+    return allowed === 1;
+  }
+};
+
+// Redis Cluster対応版
+const Redis = require('ioredis');
+const cluster = new Redis.Cluster([
+  { host: 'redis-node-1', port: 6379 },
+  { host: 'redis-node-2', port: 6379 },
+  { host: 'redis-node-3', port: 6379 }
+], {
+  redisOptions: {
+    password: process.env.REDIS_PASSWORD
+  }
+});
+```
+
+ローカルキャッシュとの組み合わせ:
+```javascript
+class HybridRateLimiter {
+  constructor() {
+    this.localCache = new Map(); // 短期制限（秒単位）
+    this.redis = new Redis(redisConfig); // 長期制限（分・時間単位）
+  }
+
+  async checkLimit(userId, limits) {
+    // ローカルで秒単位の制限をチェック（高速）
+    const localKey = `${userId}:second`;
+    const localCount = this.localCache.get(localKey) || 0;
+    if (localCount >= limits.perSecond) {
+      return { allowed: false, reason: 'second_limit' };
+    }
+
+    // Redisで分・時間単位の制限をチェック
+    const redisAllowed = await this.checkRedisLimits(userId, limits);
+    if (!redisAllowed.allowed) {
+      return redisAllowed;
+    }
+
+    // 両方OKならカウントを増やす
+    this.localCache.set(localKey, localCount + 1);
+    setTimeout(() => this.localCache.delete(localKey), 1000);
+
+    return { allowed: true };
+  }
+}
+```
+
+### Q3: レート制限に引っかかったクライアントへの適切なレスポンスは?
+
+**A:** クライアントが適切に対応できる情報を返すことが重要です。
+
+```
+適切なレスポンス設計:
+
+  ① HTTPステータスコード:
+     → 429 Too Many Requests（必須）
+     → 503 Service Unavailable（サーバー過負荷時）
+
+  ② レスポンスヘッダー（標準化されつつある）:
+     → X-RateLimit-Limit: 1000
+     → X-RateLimit-Remaining: 0
+     → X-RateLimit-Reset: 1677649200（UNIX timestamp）
+     → Retry-After: 60（秒数またはHTTP日付）
+
+  ③ エラーメッセージ:
+     → 明確な理由説明
+     → いつリトライすべきかの情報
+     → サポートへの連絡先（必要に応じて）
+```
+
+実装例:
+```javascript
+// Express ミドルウェア
+app.use(async (req, res, next) => {
+  const userId = req.user?.id || req.ip;
+  const limit = getUserLimit(req.user);
+
+  const result = await rateLimiter.check(userId, limit);
+
+  // ヘッダーを常に追加
+  res.set({
+    'X-RateLimit-Limit': limit.perHour,
+    'X-RateLimit-Remaining': result.remaining,
+    'X-RateLimit-Reset': result.resetTime
+  });
+
+  if (!result.allowed) {
+    const retryAfter = Math.ceil((result.resetTime - Date.now()) / 1000);
+
+    return res.status(429)
+      .set('Retry-After', retryAfter)
+      .json({
+        error: 'rate_limit_exceeded',
+        message: `レート制限を超過しました。${retryAfter}秒後に再試行してください。`,
+        limit: limit.perHour,
+        remaining: 0,
+        resetTime: new Date(result.resetTime).toISOString(),
+        retryAfter: retryAfter,
+        documentation: 'https://api.example.com/docs/rate-limits'
+      });
+  }
+
+  next();
+});
+```
+
+クライアント側の対応例:
+```javascript
+// クライアント側のリトライロジック
+async function apiCallWithRetry(url, options = {}) {
+  const maxRetries = 3;
+  let retries = 0;
+
+  while (retries < maxRetries) {
+    try {
+      const response = await fetch(url, options);
+
+      // レート制限ヘッダーをログ
+      console.log('Rate limit remaining:',
+        response.headers.get('X-RateLimit-Remaining'));
+
+      if (response.status === 429) {
+        const retryAfter = parseInt(
+          response.headers.get('Retry-After') || '60'
+        );
+
+        console.log(`Rate limited. Retrying after ${retryAfter}s`);
+        await sleep(retryAfter * 1000);
+        retries++;
+        continue;
+      }
+
+      return await response.json();
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  throw new Error('Max retries exceeded');
+}
+
+// Exponential Backoff（指数バックオフ）版
+async function apiCallWithBackoff(url, options = {}) {
+  let delay = 1000; // 初期待機時間
+  const maxDelay = 32000; // 最大待機時間
+
+  while (true) {
+    const response = await fetch(url, options);
+
+    if (response.status !== 429) {
+      return await response.json();
+    }
+
+    // Retry-After ヘッダーがあればそれを優先
+    const retryAfter = response.headers.get('Retry-After');
+    if (retryAfter) {
+      delay = parseInt(retryAfter) * 1000;
+    } else {
+      delay = Math.min(delay * 2, maxDelay); // 指数的に増加
+    }
+
+    await sleep(delay + Math.random() * 1000); // ジッター追加
+  }
+}
+```
+
+---
+
 ## まとめ
 
 | アルゴリズム | 特徴 | メモリ | 精度 | 用途 |
@@ -2938,7 +3225,7 @@ app.post('/api/ai/generate', async (req, res) => {
 ---
 
 ## 次に読むべきガイド
-→ [[02-input-validation.md]] -- 入力バリデーション
+→ [入力バリデーション](./02-input-validation.md)
 
 ---
 
