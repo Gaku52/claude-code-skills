@@ -19,6 +19,10 @@ From CS fundamentals to AI — 36 Skills / 952 guide files / 43M+ characters.
 >
 > Phase 1 Complete — All guides expanded to 40KB+ **952/952 (100%)**
 
+> [!NOTE]
+> Guide content is currently written in Japanese. English translation is planned.
+> Claude Code and other AI tools can interpret and utilize the guides regardless of language.
+
 ## Overview
 
 | Metric | Value |
