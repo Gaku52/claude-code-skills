@@ -183,6 +183,14 @@ cat ~/.claude/skills/05-infrastructure/docker-container-guide/docs/multi-stage-b
 
 **実施内容:** 必須セクション追加、コンテンツ拡充（11種テンプレート）、壊れたリンク修正、検出パターン改善、スコア計算実装
 
+## Premium Guides
+
+This knowledge base is free and open source. For deeper, production-focused content, premium guides are available:
+
+| Guide | Description | Link |
+|-------|-------------|------|
+| Building AI Agents with Claude SDK and MCP | 5,300+ words, 39 code examples, ProductionAgent class, MCP integration — based on shipping 7 agents to production | [Get the guide ($19)](https://gakuengineer.gumroad.com/l/kupfee) |
+
 ## License
 
 MIT License - See [LICENSE](LICENSE)
