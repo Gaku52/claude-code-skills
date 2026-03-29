@@ -1,3 +1,5 @@
+[日本語版はこちら](README.ja.md)
+
 # Claude Code Skills
 
 <!-- PROGRESS_BADGES_START -->
@@ -10,178 +12,178 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-ソフトウェア開発の全領域をカバーする体系的な知識ベース。
-CS基礎からAI活用まで、36 Skills / 952ガイドファイル / 4,300万字超。
+A systematic knowledge base covering all areas of software development.
+From CS fundamentals to AI — 36 Skills / 952 guide files / 43M+ characters.
 
-> **Status:** Phase 2 品質レビュー完了 — ERROR **0** / 壊れたリンク **0** / 平均スコア **90.3/100**
+> **Status:** Phase 2 Quality Review Complete — Errors **0** / Broken Links **0** / Avg Score **90.3/100**
 >
-> Phase 1 完了 — 全ガイド40KB+化 **952/952（100%）**
+> Phase 1 Complete — All guides expanded to 40KB+ **952/952 (100%)**
 
-## 概要
+## Overview
 
-| 指標 | 値 |
-|------|-----|
-| Skills数 | 36 |
-| ガイドファイル数 | 952 |
-| 総文字数 | 4,300万字超 |
-| カテゴリ数 | 8 |
-| Phase 1 進捗 | 952/952（100%） |
-| Phase 2 進捗 | 完了（全5基準達成） |
-| 平均品質スコア | 90.3/100 |
+| Metric | Value |
+|--------|-------|
+| Skills | 36 |
+| Guide Files | 952 |
+| Total Characters | 43M+ |
+| Categories | 8 |
+| Phase 1 Progress | 952/952 (100%) |
+| Phase 2 Progress | Complete (all 5 criteria met) |
+| Avg Quality Score | 90.3/100 |
 
-## カテゴリ一覧
+## Categories
 
-### 01-cs-fundamentals — CS基礎 (4 Skills / 131 files)
+### 01-cs-fundamentals — Computer Science Fundamentals (4 Skills / 131 files)
 
-| Skill | ファイル数 | 内容 |
-|-------|-----------|------|
-| computer-science-fundamentals | 55 | ハードウェア、データ表現、計算理論、プログラミングパラダイム |
-| algorithm-and-data-structures | 24 | アルゴリズム設計、データ構造、計算量解析 |
-| operating-system-guide | 20 | プロセス管理、メモリ、ファイルシステム、カーネル |
-| programming-language-fundamentals | 32 | 型システム、コンパイラ、言語設計、メモリモデル |
+| Skill | Files | Topics |
+|-------|-------|--------|
+| computer-science-fundamentals | 55 | Hardware, data representation, theory of computation, programming paradigms |
+| algorithm-and-data-structures | 24 | Algorithm design, data structures, complexity analysis |
+| operating-system-guide | 20 | Process management, memory, file systems, kernel |
+| programming-language-fundamentals | 32 | Type systems, compilers, language design, memory models |
 
-### 02-programming — プログラミング言語・技法 (6 Skills / 118 files)
+### 02-programming — Programming Languages & Techniques (6 Skills / 118 files)
 
-| Skill | ファイル数 | 内容 |
-|-------|-----------|------|
-| object-oriented-programming | 20 | SOLID原則、デザインパターン、継承vs合成 |
-| async-and-error-handling | 18 | 非同期処理、Promise、エラーハンドリング戦略 |
-| typescript-complete-guide | 25 | 型システム、ジェネリクス、ユーティリティ型 |
-| go-practical-guide | 18 | Goroutine、チャネル、Go実践パターン |
-| rust-systems-programming | 25 | 所有権、ライフタイム、unsafe、並行処理 |
-| regex-and-text-processing | 12 | 正規表現、テキスト処理、パーサー |
+| Skill | Files | Topics |
+|-------|-------|--------|
+| object-oriented-programming | 20 | SOLID principles, design patterns, inheritance vs composition |
+| async-and-error-handling | 18 | Asynchronous processing, Promises, error handling strategies |
+| typescript-complete-guide | 25 | Type system, generics, utility types |
+| go-practical-guide | 18 | Goroutines, channels, practical Go patterns |
+| rust-systems-programming | 25 | Ownership, lifetimes, unsafe, concurrency |
+| regex-and-text-processing | 12 | Regular expressions, text processing, parsers |
 
-### 03-software-design — ソフトウェア設計・品質 (3 Skills / 58 files)
+### 03-software-design — Software Design & Quality (3 Skills / 58 files)
 
-| Skill | ファイル数 | 内容 |
-|-------|-----------|------|
-| clean-code-principles | 20 | 命名規則、関数設計、リファクタリング |
-| design-patterns-guide | 20 | GoFパターン、アーキテクチャパターン |
-| system-design-guide | 18 | スケーラビリティ、分散システム、設計面接 |
+| Skill | Files | Topics |
+|-------|-------|--------|
+| clean-code-principles | 20 | Naming conventions, function design, refactoring |
+| design-patterns-guide | 20 | GoF patterns, architectural patterns |
+| system-design-guide | 18 | Scalability, distributed systems, system design interviews |
 
-### 04-web-and-network — Web・ネットワーク (4 Skills / 75 files)
+### 04-web-and-network — Web & Networking (4 Skills / 75 files)
 
-| Skill | ファイル数 | 内容 |
-|-------|-----------|------|
-| network-fundamentals | 20 | TCP/IP、DNS、HTTP、TLS |
-| browser-and-web-platform | 18 | レンダリング、DOM、Web API |
-| web-application-development | 20 | フルスタック開発、SPA/SSR、状態管理 |
-| api-and-library-guide | 17 | REST/GraphQL設計、ライブラリ選定 |
+| Skill | Files | Topics |
+|-------|-------|--------|
+| network-fundamentals | 20 | TCP/IP, DNS, HTTP, TLS |
+| browser-and-web-platform | 18 | Rendering, DOM, Web APIs |
+| web-application-development | 20 | Full-stack development, SPA/SSR, state management |
+| api-and-library-guide | 17 | REST/GraphQL design, library selection |
 
-### 05-infrastructure — インフラ・DevOps (7 Skills / 130 files)
+### 05-infrastructure — Infrastructure & DevOps (7 Skills / 130 files)
 
-| Skill | ファイル数 | 内容 |
-|-------|-----------|------|
-| linux-cli-mastery | 22 | シェル、コマンド、システム管理 |
-| docker-container-guide | 22 | コンテナ、Docker Compose、マルチステージビルド |
-| aws-cloud-guide | 29 | EC2、Lambda、S3、IAM、VPC |
-| devops-and-github-actions | 17 | CI/CD、GitHub Actions、自動化 |
-| development-environment-setup | 14 | エディタ、ツールチェーン、dotfiles |
-| windows-application-development | 14 | WPF、WinUI、Win32 API |
-| version-control-and-jujutsu | 12 | Git高度操作、Jujutsu |
+| Skill | Files | Topics |
+|-------|-------|--------|
+| linux-cli-mastery | 22 | Shell, commands, system administration |
+| docker-container-guide | 22 | Containers, Docker Compose, multi-stage builds |
+| aws-cloud-guide | 29 | EC2, Lambda, S3, IAM, VPC |
+| devops-and-github-actions | 17 | CI/CD, GitHub Actions, automation |
+| development-environment-setup | 14 | Editors, toolchains, dotfiles |
+| windows-application-development | 14 | WPF, WinUI, Win32 API |
+| version-control-and-jujutsu | 12 | Advanced Git, Jujutsu |
 
-### 06-data-and-security — データ・セキュリティ (3 Skills / 63 files)
+### 06-data-and-security — Data & Security (3 Skills / 63 files)
 
-| Skill | ファイル数 | 内容 |
-|-------|-----------|------|
-| sql-and-query-mastery | 19 | SQL最適化、インデックス、トランザクション |
-| security-fundamentals | 25 | 暗号化、OWASP、脆弱性対策 |
-| authentication-and-authorization | 19 | OAuth2、JWT、RBAC |
+| Skill | Files | Topics |
+|-------|-------|--------|
+| sql-and-query-mastery | 19 | SQL optimization, indexing, transactions |
+| security-fundamentals | 25 | Encryption, OWASP, vulnerability mitigation |
+| authentication-and-authorization | 19 | OAuth2, JWT, RBAC |
 
-### 07-ai — AI・LLM (8 Skills / 125 files)
+### 07-ai — AI & LLM (8 Skills / 125 files)
 
-| Skill | ファイル数 | 内容 |
-|-------|-----------|------|
-| llm-and-ai-comparison | 20 | LLMモデル比較、ベンチマーク |
-| ai-analysis-guide | 16 | AIによるデータ分析、プロンプト設計 |
-| ai-audio-generation | 14 | AI音声生成、音楽生成 |
-| ai-visual-generation | 14 | AI画像・動画生成 |
-| ai-automation-and-monetization | 15 | AI自動化、収益化戦略 |
-| ai-era-development-workflow | 15 | AI時代の開発ワークフロー |
-| ai-era-gadgets | 12 | AIガジェット、ハードウェア |
-| custom-ai-agents | 19 | AIエージェント設計・実装 |
+| Skill | Files | Topics |
+|-------|-------|--------|
+| llm-and-ai-comparison | 20 | LLM model comparison, benchmarks |
+| ai-analysis-guide | 16 | AI-powered data analysis, prompt design |
+| ai-audio-generation | 14 | AI audio generation, music production |
+| ai-visual-generation | 14 | AI image & video generation |
+| ai-automation-and-monetization | 15 | AI automation, monetization strategies |
+| ai-era-development-workflow | 15 | Development workflows in the AI era |
+| ai-era-gadgets | 12 | AI gadgets, hardware |
+| custom-ai-agents | 19 | AI agent design & implementation |
 
-### 08-hobby — 趣味 (1 Skill / 207 files)
+### 08-hobby — Hobby (1 Skill / 207 files)
 
-| Skill | ファイル数 | 内容 |
-|-------|-----------|------|
-| dj-skills-guide | 207 | DJテクニック、Rekordbox、Ableton Live、楽曲制作 |
+| Skill | Files | Topics |
+|-------|-------|--------|
+| dj-skills-guide | 207 | DJ techniques, Rekordbox, Ableton Live, music production |
 
-## ディレクトリ構成
+## Directory Structure
 
 ```
 skills/
-├── 01-cs-fundamentals/          # CS基礎 (4)
-├── 02-programming/              # プログラミング (6)
-├── 03-software-design/          # 設計・品質 (3)
-├── 04-web-and-network/          # Web・ネットワーク (4)
-├── 05-infrastructure/           # インフラ・DevOps (7)
-├── 06-data-and-security/        # データ・セキュリティ (3)
-├── 07-ai/                       # AI・LLM (8)
-├── 08-hobby/                    # 趣味 (1)
-├── _original-skills/            # Phase 1以前の26 Skills（アーカイブ）
-├── _legacy/                     # レガシーディレクトリ
-├── _meta/                       # プロジェクト管理（SESSION_ARCHIVE等）
+├── 01-cs-fundamentals/          # CS Fundamentals (4)
+├── 02-programming/              # Programming (6)
+├── 03-software-design/          # Design & Quality (3)
+├── 04-web-and-network/          # Web & Networking (4)
+├── 05-infrastructure/           # Infrastructure & DevOps (7)
+├── 06-data-and-security/        # Data & Security (3)
+├── 07-ai/                       # AI & LLM (8)
+├── 08-hobby/                    # Hobby (1)
+├── _original-skills/            # Pre-Phase 1 26 Skills (archived)
+├── _legacy/                     # Legacy directory
+├── _meta/                       # Project management (SESSION_ARCHIVE, etc.)
 └── README.md
 ```
 
-### Skill内部構造
+### Internal Skill Structure
 
 ```
 skill-name/
-├── SKILL.md       # 概要・目次
-├── docs/          # ガイドファイル群（メインコンテンツ）
-└── README.md      # 使い方
+├── SKILL.md       # Overview & table of contents
+├── docs/          # Guide files (main content)
+└── README.md      # Usage instructions
 ```
 
-## 使い方
+## Usage
 
-### Claude Codeでの使用
+### With Claude Code
 
 ```bash
 git clone https://github.com/Gaku52/claude-code-skills.git ~/.claude/skills
 ```
 
-Claude Codeが `~/.claude/skills/` を自動参照。開発時にSkillの知識が適用される。
+Claude Code automatically references `~/.claude/skills/`. Skill knowledge is applied during development.
 
-### 手動参照
+### Manual Reference
 
 ```bash
-# Skill概要を見る
+# View a skill overview
 cat ~/.claude/skills/02-programming/typescript-complete-guide/SKILL.md
 
-# 特定ガイドを読む
+# Read a specific guide
 cat ~/.claude/skills/05-infrastructure/docker-container-guide/docs/multi-stage-build.md
 ```
 
-## Phase 2: 品質レビュー & 改善（完了）
+## Phase 2: Quality Review & Improvement (Complete)
 
-全952ファイルを品質基準（QUALITY_STANDARDS.md）に基づきレビュー・修正完了。
+All 952 files reviewed and fixed based on quality standards (QUALITY_STANDARDS.md).
 
-### 達成基準
+### Achievement Criteria
 
-| 基準 | 目標 | 結果 |
-|------|------|------|
-| ERROR数 | 0 | **0**（1,315から改善） |
-| P0/P1問題 | 全解消 | **全解消** |
-| 壊れたリンク | 0 | **0**（1,859から改善） |
-| REVIEW_RESULTS | 完備 | **JSON + Markdown出力済** |
-| 平均スコア | 90/100以上 | **90.3/100** |
+| Criterion | Target | Result |
+|-----------|--------|--------|
+| Errors | 0 | **0** (improved from 1,315) |
+| P0/P1 Issues | All resolved | **All resolved** |
+| Broken Links | 0 | **0** (improved from 1,859) |
+| REVIEW_RESULTS | Complete | **JSON + Markdown output done** |
+| Avg Score | 90/100+ | **90.3/100** |
 
-### カテゴリ別結果
+### Results by Category
 
-| カテゴリ | ファイル数 | ERROR | WARNING | ステータス |
-|---------|----------|-------|---------|---------|
-| 01-cs-fundamentals | 135 | 0 | 180 | ✅ |
-| 02-programming | 124 | 0 | 283 | ✅ |
-| 03-software-design | 61 | 0 | 41 | ✅ |
-| 04-web-and-network | 79 | 0 | 160 | ✅ |
-| 05-infrastructure | 137 | 0 | 270 | ✅ |
-| 06-data-and-security | 66 | 0 | 93 | ✅ |
-| 07-ai | 133 | 0 | 242 | ✅ |
-| 08-hobby | 207 | 0 | 455 | ✅ |
+| Category | Files | Errors | Warnings | Status |
+|----------|-------|--------|----------|--------|
+| 01-cs-fundamentals | 135 | 0 | 180 | Pass |
+| 02-programming | 124 | 0 | 283 | Pass |
+| 03-software-design | 61 | 0 | 41 | Pass |
+| 04-web-and-network | 79 | 0 | 160 | Pass |
+| 05-infrastructure | 137 | 0 | 270 | Pass |
+| 06-data-and-security | 66 | 0 | 93 | Pass |
+| 07-ai | 133 | 0 | 242 | Pass |
+| 08-hobby | 207 | 0 | 455 | Pass |
 
-**実施内容:** 必須セクション追加、コンテンツ拡充（11種テンプレート）、壊れたリンク修正、検出パターン改善、スコア計算実装
+**What was done:** Added required sections, expanded content (11 template types), fixed broken links, improved detection patterns, implemented scoring system
 
 ## Premium Guides
 
@@ -197,5 +199,5 @@ MIT License - See [LICENSE](LICENSE)
 
 ---
 
-**最終更新**: 2026-03-09
-**バージョン**: 2.2.0 (Phase 2 Complete — Quality Review & Improvement)
+**Last updated**: 2026-03-29
+**Version**: 2.2.0 (Phase 2 Complete — Quality Review & Improvement)
