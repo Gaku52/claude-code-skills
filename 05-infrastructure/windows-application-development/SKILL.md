@@ -1,63 +1,65 @@
-# Windows アプリケーション開発
+[日本語版](../../ja/05-infrastructure/windows-application-development/SKILL.md)
 
-> Web 技術を活用したデスクトップアプリ開発が主流の時代。Electron、Tauri、WPF/WinUI の特徴と選定基準、クロスプラットフォーム対応、ネイティブ機能の活用、配布とアップデートまで、Windows デスクトップアプリ開発の全体像を解説する。
+# Windows Application Development
 
-## このSkillの対象者
+> Desktop app development using web technologies has become the mainstream approach. This guide covers the characteristics and selection criteria for Electron, Tauri, and WPF/WinUI, along with cross-platform support, native feature integration, distribution, and updates -- providing a complete picture of Windows desktop application development.
 
-- Web 技術（React/TypeScript）でデスクトップアプリを開発したいエンジニア
-- Electron / Tauri の選定・実装を行う方
-- Windows ネイティブ機能（通知、トレイ、ファイルシステム等）を活用したい方
+## Target Audience
 
-## 前提知識
+- Engineers who want to build desktop apps using web technologies (React/TypeScript)
+- Developers evaluating and implementing Electron or Tauri
+- Those looking to leverage Windows-native features (notifications, system tray, file system, etc.)
 
-- HTML/CSS/JavaScript の基礎
-- React/TypeScript の基本的な開発経験
-- Node.js の基礎知識
+## Prerequisites
 
-## 学習ガイド
+- HTML/CSS/JavaScript fundamentals
+- Basic React/TypeScript development experience
+- Foundational Node.js knowledge
 
-### 00-fundamentals — デスクトップアプリの基礎
+## Study Guide
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 00-fundamentals — Desktop App Fundamentals
 
-### 01-wpf-and-winui — Windows ネイティブ
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 01-wpf-and-winui — Windows Native
 
-### 02-electron-and-tauri — Web技術ベース
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 02-electron-and-tauri — Web Technology-Based
 
-### 03-distribution — 配布とアップデート
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 03-distribution — Distribution and Updates
 
-## クイックリファレンス
+| # | File | Description |
+|---|------|-------------|
+
+## Quick Reference
 
 ```
-技術選定ガイド:
+Technology Selection Guide:
 
-  軽量 + セキュリティ重視 → Tauri（推奨）
-  エコシステム + 実績 → Electron
-  Windows 専用 + ネイティブ感 → WinUI 3
-  クロスプラットフォーム + .NET → MAUI
+  Lightweight + security-focused → Tauri (recommended)
+  Rich ecosystem + proven track record → Electron
+  Windows-only + native feel → WinUI 3
+  Cross-platform + .NET → MAUI
 
-  バンドルサイズ比較:
-    Electron: ~150MB（Chromium同梱）
-    Tauri:    ~5MB（OS の WebView 使用）
-    WinUI 3:  ~20MB（.NET ランタイム）
+  Bundle Size Comparison:
+    Electron: ~150MB (includes Chromium)
+    Tauri:    ~5MB (uses OS WebView)
+    WinUI 3:  ~20MB (.NET runtime)
 
-  メモリ使用量:
+  Memory Usage:
     Electron: ~200MB+
     Tauri:    ~50MB
     WinUI 3:  ~100MB
 ```
 
-## 参考文献
+## References
 
 1. Electron. "Documentation." electronjs.org, 2024.
 2. Tauri. "Documentation." tauri.app, 2024.

@@ -1,52 +1,54 @@
-# AI 自動化とマネタイズ
+[日本語版](../../ja/07-ai/ai-automation-and-monetization/SKILL.md)
 
-> AI は業務自動化と新たな収益機会を生む。ワークフロー自動化、AI SaaS 構築、コンテンツ収益化、AI ビジネスモデルまで、AI で稼ぐための全体像を解説する。
+# AI Automation and Monetization
 
-## このSkillの対象者
+> AI creates opportunities for workflow automation and new revenue streams. This skill covers the full picture of making money with AI — from workflow automation, AI SaaS development, and content monetization to AI business models.
 
-- AI を使った業務自動化を推進したい方
-- AI ベースのプロダクト・サービスを構築したいエンジニア
-- AI で収益化を考えている個人・チーム
+## Target Audience
 
-## 前提知識
+- Those looking to drive workflow automation with AI
+- Engineers building AI-based products and services
+- Individuals and teams exploring AI monetization
 
-- LLM API の基礎知識
-- Web 開発の基礎
+## Prerequisites
 
-## 学習ガイド
+- Basic knowledge of LLM APIs
+- Web development fundamentals
 
-### 00-automation — AI 自動化
+## Learning Guide
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 00-automation — AI Automation
 
-### 01-business — AI ビジネス
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 01-business — AI Business
 
-### 02-monetization — 収益化
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 02-monetization — Monetization
 
-### 03-legal — 法律と倫理
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 03-legal — Law and Ethics
 
-## クイックリファレンス
+| # | File | Description |
+|---|------|-------------|
+
+## Quick Reference
 
 ```
-AI マネタイズモデル:
-  SaaS:        月額サブスクリプション + 従量課金
-  API:         トークン/リクエスト単位課金
-  コンテンツ:   AI 支援コンテンツの広告・販売収入
-  コンサル:     AI 導入支援の時間単価
-  マーケット:   プロンプト/モデル/ワークフロー販売
+AI Monetization Models:
+  SaaS:         Monthly subscription + usage-based pricing
+  API:          Per-token / per-request billing
+  Content:      Ad revenue and sales from AI-assisted content
+  Consulting:   Hourly rates for AI adoption support
+  Marketplace:  Selling prompts / models / workflows
 ```
 
-## 参考文献
+## References
 
 1. a16z. "AI Economics." a16z.com, 2024.
 2. OpenAI. "Usage Policies." openai.com/policies, 2024.

@@ -1,54 +1,56 @@
-# AI 解析ガイド
+[日本語版](../../ja/07-ai/ai-analysis-guide/SKILL.md)
 
-> AI/ML はデータから価値を引き出す技術。機械学習の基礎、ディープラーニング、自然言語処理、コンピュータビジョン、実践的なモデル開発フローまで、AI 解析の全てを体系的に解説する。
+# AI Analysis Guide
 
-## このSkillの対象者
+> AI/ML is the technology for extracting value from data. This skill systematically covers all aspects of AI analysis — from machine learning fundamentals, deep learning, natural language processing, and computer vision to practical model development workflows.
 
-- AI/ML の基礎を体系的に学びたいエンジニア
-- データ分析・予測モデル構築に取り組みたい方
-- 業務で AI を活用したい方
+## Target Audience
 
-## 前提知識
+- Engineers seeking to systematically learn AI/ML fundamentals
+- Those working on data analysis and predictive model development
+- Professionals looking to leverage AI in their work
 
-- Python の基礎知識
-- 数学の基礎（線形代数、確率統計の概念）
+## Prerequisites
 
-## 学習ガイド
+- Basic knowledge of Python
+- Foundational mathematics (concepts in linear algebra and probability/statistics)
 
-### 00-fundamentals — AI/ML の基礎
+## Learning Guide
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 00-fundamentals — AI/ML Fundamentals
 
-### 01-ml-basics — 機械学習の基礎
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 01-ml-basics — Machine Learning Basics
 
-### 02-deep-learning — ディープラーニング
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 02-deep-learning — Deep Learning
 
-### 03-practical — 実践応用
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 03-practical — Practical Applications
 
-## クイックリファレンス
+| # | File | Description |
+|---|------|-------------|
+
+## Quick Reference
 
 ```
-ML アルゴリズム選定:
-  分類 → ロジスティック回帰 → ランダムフォレスト → XGBoost → NN
-  回帰 → 線形回帰 → ランダムフォレスト → XGBoost → NN
-  クラスタリング → k-means → DBSCAN → 階層
-  次元削減 → PCA → t-SNE → UMAP
-  テキスト → Transformer → BERT → GPT
-  画像 → CNN → ResNet → Vision Transformer
+ML Algorithm Selection:
+  Classification → Logistic Regression → Random Forest → XGBoost → NN
+  Regression     → Linear Regression → Random Forest → XGBoost → NN
+  Clustering     → k-means → DBSCAN → Hierarchical
+  Dimensionality → PCA → t-SNE → UMAP
+  Text           → Transformer → BERT → GPT
+  Image          → CNN → ResNet → Vision Transformer
 ```
 
-## 参考文献
+## References
 
 1. Goodfellow, I. et al. "Deep Learning." MIT Press, 2016.
-2. Géron, A. "Hands-On Machine Learning." O'Reilly, 2022.
+2. Geron, A. "Hands-On Machine Learning." O'Reilly, 2022.
 3. Vaswani, A. et al. "Attention Is All You Need." NeurIPS, 2017.

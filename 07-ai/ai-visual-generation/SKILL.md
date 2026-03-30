@@ -1,52 +1,54 @@
-# AI ビジュアル生成
+[日本語版](../../ja/07-ai/ai-visual-generation/SKILL.md)
 
-> AI が画像・映像制作を革新する。Stable Diffusion、DALL-E、Midjourney から動画生成（Sora）、3D モデリングまで、AI ビジュアル生成の全てを解説する。
+# AI Visual Generation
 
-## このSkillの対象者
+> AI is revolutionizing image and video production. This skill covers all aspects of AI visual generation — from Stable Diffusion, DALL-E, and Midjourney to video generation (Sora) and 3D modeling.
 
-- AI 画像・映像生成技術を学びたいクリエイター
-- プロダクトに AI ビジュアル生成を組み込みたいエンジニア
-- AI アート・デザインに興味がある方
+## Target Audience
 
-## 前提知識
+- Creators looking to learn AI image and video generation technologies
+- Engineers integrating AI visual generation into their products
+- Those interested in AI art and design
 
-- AI/ML の基礎概念
-- 画像処理の基礎知識
+## Prerequisites
 
-## 学習ガイド
+- Foundational AI/ML concepts
+- Basic knowledge of image processing
 
-### 00-fundamentals — 画像生成 AI の基礎
+## Learning Guide
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 00-fundamentals — Image Generation AI Fundamentals
 
-### 01-image — 画像生成
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 01-image — Image Generation
 
-### 02-video — 動画生成
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 02-video — Video Generation
 
-### 03-3d — 3D 生成
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 03-3d — 3D Generation
 
-## クイックリファレンス
+| # | File | Description |
+|---|------|-------------|
+
+## Quick Reference
 
 ```
-AI 画像生成サービス比較:
-  Midjourney:       最高品質、Discord ベース
-  DALL-E 3:         API 統合容易、ChatGPT 連携
-  Stable Diffusion: オープンソース、カスタマイズ自由
-  Adobe Firefly:    商用利用安全、Adobe 統合
-  Flux:             最新オープンモデル、高品質
+AI Image Generation Service Comparison:
+  Midjourney:        Highest quality, Discord-based
+  DALL-E 3:          Easy API integration, ChatGPT integration
+  Stable Diffusion:  Open source, fully customizable
+  Adobe Firefly:     Commercially safe, Adobe integration
+  Flux:              Latest open model, high quality
 ```
 
-## 参考文献
+## References
 
 1. Rombach, R. et al. "High-Resolution Image Synthesis with Latent Diffusion Models." CVPR, 2022.
 2. OpenAI. "DALL-E 3." openai.com, 2024.

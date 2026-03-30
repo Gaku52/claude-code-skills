@@ -1,39 +1,41 @@
-# AI 時代のガジェット
+[日本語版](../../ja/07-ai/ai-era-gadgets/SKILL.md)
 
-> AI が組み込まれたデバイスが日常を変革する。AI PC、スマートグラス、AIウェアラブル、ロボティクスまで、AI 時代のハードウェアエコシステムを解説する。
+# AI-Era Gadgets
 
-## このSkillの対象者
+> AI-embedded devices are transforming everyday life. This skill covers the hardware ecosystem of the AI era — from AI PCs and smart glasses to AI wearables and robotics.
 
-- AI デバイスの最新動向を把握したい方
-- AI ハードウェアとソフトウェアの統合に興味がある方
-- 次世代デバイスの活用を検討しているエンジニア
+## Target Audience
 
-## 前提知識
+- Those looking to stay current with AI device trends
+- Those interested in the integration of AI hardware and software
+- Engineers considering the adoption of next-generation devices
 
-- AI/ML の基礎概念
-- スマートフォン・PC の基本知識
+## Prerequisites
 
-## 学習ガイド
+- Foundational AI/ML concepts
+- Basic knowledge of smartphones and PCs
 
-### 00-devices — AI デバイス
+## Learning Guide
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 00-devices — AI Devices
 
-### 01-integration — AI 統合
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 01-integration — AI Integration
 
-### 02-future — 未来展望
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 02-future — Future Outlook
 
-## クイックリファレンス
+| # | File | Description |
+|---|------|-------------|
+
+## Quick Reference
 
 ```
-AI チップ比較:
+AI Chip Comparison:
   Apple M4 Pro:     NPU 38 TOPS
   Snapdragon X:     NPU 45 TOPS
   Intel Core Ultra: NPU 34 TOPS
@@ -41,7 +43,7 @@ AI チップ比較:
   Google TPU v5:    GPU ~459 TFLOPS
 ```
 
-## 参考文献
+## References
 
 1. Apple. "Apple Silicon." apple.com/apple-silicon, 2024.
 2. NVIDIA. "Data Center GPUs." nvidia.com/data-center, 2024.

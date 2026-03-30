@@ -1,0 +1,1987 @@
+# Go ジェネリクスガイド
+
+> Go 1.18で導入された型パラメータと制約を使い、型安全で再利用可能なコードを書く
+
+## この章で学ぶこと
+
+1. **型パラメータ** の構文と基本的な使い方（ジェネリック関数・型）
+2. **制約（constraints）** の定義方法と標準ライブラリの制約パッケージ
+3. **実践パターン** — コレクション操作、リポジトリパターン、Result型の実装
+4. **標準ライブラリ** の `slices`、`maps`、`cmp` パッケージの活用
+5. **パフォーマンス特性** とジェネリクスの適用判断基準
+
+
+## 前提知識
+
+このガイドを読む前に、以下の知識があると理解が深まります:
+
+- 基本的なプログラミングの知識
+- 関連する基礎概念の理解
+- [Go CLI開発ガイド](./00-cli-development.md) の内容を理解していること
+
+---
+
+## 1. ジェネリクスの基本
+
+### ジェネリクス導入前後の比較
+
+```
+【導入前】型ごとに関数を複製
+
+func MaxInt(a, b int) int         { if a > b { return a }; return b }
+func MaxFloat(a, b float64) float64 { if a > b { return a }; return b }
+func MaxString(a, b string) string  { if a > b { return a }; return b }
+
+           ↓ ジェネリクスで統一
+
+【導入後】一つの関数で全ての型に対応
+
+func MaxT cmp.Ordered T { if a > b { return a }; return b }
+```
+
+### 型パラメータの構文
+
+```
++-------- 型パラメータリスト --------+
+|                                    |
+func  FuncName  T  constraint  returns
+                 |       |
+                 |       +--- 制約: T が満たすべき条件
+                 +----------- 型パラメータ名
+```
+
+### コード例1: 最初のジェネリック関数
+
+```go
+package main
+
+import (
+    "cmp"
+    "fmt"
+)
+
+// T は cmp.Ordered を満たす任意の型
+func MaxT cmp.Ordered T {
+    if a > b {
+        return a
+    }
+    return b
+}
+
+func MinT cmp.Ordered T {
+    if a < b {
+        return a
+    }
+    return b
+}
+
+func ClampT cmp.Ordered T {
+    return Max(lo, Min(val, hi))
+}
+
+func main() {
+    fmt.Println(Max(3, 7))           // 7
+    fmt.Println(Max(3.14, 2.71))     // 3.14
+    fmt.Println(Max("apple", "banana")) // banana
+    fmt.Println(Clamp(150, 0, 100))  // 100
+}
+```
+
+### コード例2: ジェネリックなスライス操作
+
+```go
+// Map はスライスの各要素に関数を適用する
+func MapT, U any U) []U {
+    result := make([]U, len(s))
+    for i, v := range s {
+        result[i] = f(v)
+    }
+    return result
+}
+
+// Filter はスライスから条件を満たす要素を抽出する
+func FilterT any bool) []T {
+    var result []T
+    for _, v := range s {
+        if pred(v) {
+            result = append(result, v)
+        }
+    }
+    return result
+}
+
+// Reduce はスライスを単一の値に集約する
+func ReduceT, U any U) U {
+    acc := init
+    for _, v := range s {
+        acc = f(acc, v)
+    }
+    return acc
+}
+
+// Find は条件を満たす最初の要素を返す
+func FindT any bool) (T, bool) {
+    for _, v := range s {
+        if pred(v) {
+            return v, true
+        }
+    }
+    var zero T
+    return zero, false
+}
+
+// GroupBy はキー関数に基づいてグルーピングする
+func GroupByT any, K comparable K) map[K][]T {
+    result := make(map[K][]T)
+    for _, v := range s {
+        key := keyFn(v)
+        result[key] = append(result[key], v)
+    }
+    return result
+}
+
+// Chunk はスライスを指定サイズのチャンクに分割する
+func ChunkT any [][]T {
+    if size <= 0 {
+        return nil
+    }
+    var chunks [][]T
+    for i := 0; i < len(s); i += size {
+        end := i + size
+        if end > len(s) {
+            end = len(s)
+        }
+        chunks = append(chunks, s[i:end])
+    }
+    return chunks
+}
+
+// Unique は重複を排除したスライスを返す
+func UniqueT comparable []T {
+    seen := make(map[T]struct{})
+    var result []T
+    for _, v := range s {
+        if _, ok := seen[v]; !ok {
+            seen[v] = struct{}{}
+            result = append(result, v)
+        }
+    }
+    return result
+}
+
+// 使用例
+func main() {
+    nums := []int{1, 2, 3, 4, 5}
+    doubled := Map(nums, func(n int) int { return n * 2 })
+    // [2, 4, 6, 8, 10]
+
+    evens := Filter(nums, func(n int) bool { return n%2 == 0 })
+    // [2, 4]
+
+    sum := Reduce(nums, 0, func(acc, n int) int { return acc + n })
+    // 15
+
+    // 文字列操作
+    words := []string{"hello", "world", "go", "generics"}
+    lengths := Map(words, func(s string) int { return len(s) })
+    // [5, 5, 2, 8]
+
+    longWords := Filter(words, func(s string) bool { return len(s) > 3 })
+    // ["hello", "world", "generics"]
+
+    // グルーピング
+    type User struct {
+        Name string
+        Role string
+    }
+    users := []User{
+        {"Alice", "admin"}, {"Bob", "user"}, {"Charlie", "admin"}, {"Dave", "user"},
+    }
+    byRole := GroupBy(users, func(u User) string { return u.Role })
+    // map["admin":[Alice, Charlie] "user":[Bob, Dave]]
+
+    // 重複排除
+    ids := []int{1, 2, 3, 2, 1, 4, 3, 5}
+    unique := Unique(ids) // [1, 2, 3, 4, 5]
+}
+```
+
+### コード例3: FlatMap と Zip
+
+```go
+// FlatMap はスライスの各要素をスライスに変換してフラット化する
+func FlatMapT, U any []U) []U {
+    var result []U
+    for _, v := range s {
+        result = append(result, f(v)...)
+    }
+    return result
+}
+
+// Zip は2つのスライスを組にする
+func ZipT, U any []Pair[T, U] {
+    minLen := len(a)
+    if len(b) < minLen {
+        minLen = len(b)
+    }
+    result := make([]Pair[T, U], minLen)
+    for i := 0; i < minLen; i++ {
+        result[i] = Pair[T, U]{First: a[i], Second: b[i]}
+    }
+    return result
+}
+
+type Pair[T, U any] struct {
+    First  T
+    Second U
+}
+
+// Partition は条件に基づいてスライスを2つに分割する
+func PartitionT any bool) (matched, unmatched []T) {
+    for _, v := range s {
+        if pred(v) {
+            matched = append(matched, v)
+        } else {
+            unmatched = append(unmatched, v)
+        }
+    }
+    return
+}
+
+// 使用例
+func example() {
+    // FlatMap: 文をトークンに分割
+    sentences := []string{"hello world", "go generics"}
+    tokens := FlatMap(sentences, func(s string) []string {
+        return strings.Split(s, " ")
+    })
+    // ["hello", "world", "go", "generics"]
+
+    // Zip: 名前とスコアを組にする
+    names := []string{"Alice", "Bob", "Charlie"}
+    scores := []int{90, 85, 95}
+    pairs := Zip(names, scores)
+    // [{Alice, 90}, {Bob, 85}, {Charlie, 95}]
+
+    // Partition: 合格と不合格に分ける
+    pass, fail := Partition(scores, func(s int) bool { return s >= 90 })
+    // pass: [90, 95], fail: [85]
+}
+```
+
+---
+
+## 2. 制約（Constraints）
+
+### 制約の種類
+
+```
++-------------------+
+|   any (interface{})|  ← 最も緩い: 全ての型を許容
++-------------------+
+        |
++-------------------+
+|   comparable      |  ← == と != が使える型
++-------------------+
+        |
++-------------------+
+|   cmp.Ordered     |  ← 比較演算子が使える型 (<, >, <=, >=)
++-------------------+
+        |
++-------------------+
+|  カスタム制約      |  ← 特定のメソッドや型を要求
++-------------------+
+```
+
+### コード例4: カスタム制約の定義
+
+```go
+// メソッドベースの制約
+type Stringer interface {
+    String() string
+}
+
+// 型集合ベースの制約（union）
+type Number interface {
+    ~int | ~int8 | ~int16 | ~int32 | ~int64 |
+    ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 |
+    ~float32 | ~float64
+}
+
+// 整数のみの制約
+type Integer interface {
+    ~int | ~int8 | ~int16 | ~int32 | ~int64 |
+    ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64
+}
+
+// 浮動小数点のみの制約
+type Float interface {
+    ~float32 | ~float64
+}
+
+// チルダ (~) は基底型を指定
+// ~int は「基底型が int である全ての型」を含む
+type MyInt int      // ~int に含まれる
+type Score int      // ~int に含まれる
+
+// 複合制約: メソッド + 型集合
+type OrderedStringer interface {
+    cmp.Ordered
+    String() string
+}
+
+// 実用例: Sum 関数
+func SumT Number T {
+    var total T
+    for _, n := range nums {
+        total += n
+    }
+    return total
+}
+
+// 実用例: Average 関数（浮動小数点を返す）
+func AverageT Number float64 {
+    if len(nums) == 0 {
+        return 0
+    }
+    var sum T
+    for _, n := range nums {
+        sum += n
+    }
+    return float64(sum) / float64(len(nums))
+}
+
+// 実用例: Abs 関数（符号付き数値）
+type Signed interface {
+    ~int | ~int8 | ~int16 | ~int32 | ~int64 | ~float32 | ~float64
+}
+
+func AbsT Signed T {
+    if v < 0 {
+        return -v
+    }
+    return v
+}
+
+fmt.Println(Sum([]int{1, 2, 3}))        // 6
+fmt.Println(Sum([]float64{1.1, 2.2}))   // 3.3
+fmt.Println(Average([]int{10, 20, 30})) // 20.0
+fmt.Println(Abs(-42))                    // 42
+```
+
+### 主要な制約の比較表
+
+| 制約 | 許容される型 | 使える演算 | 用途 |
+|------|------------|-----------|------|
+| `any` | 全ての型 | なし（インターフェース経由のみ） | コンテナ、ラッパー |
+| `comparable` | 比較可能な型 | `==`, `!=` | マップのキー、重複排除 |
+| `cmp.Ordered` | 順序付き型 | `<`, `>`, `<=`, `>=`, `==` | ソート、最大最小 |
+| `~int \| ~float64` | 指定型の基底型を持つ型 | 数値演算 | 計算、集計 |
+| カスタム interface | メソッドを持つ型 | 指定メソッド | ドメイン固有のロジック |
+
+### ~ (チルダ) あり/なし 比較表
+
+| 制約定義 | `int` | `type MyInt int` | `type Score int` |
+|---------|-------|-----------------|-----------------|
+| `int` | 合致 | 不一致 | 不一致 |
+| `~int` | 合致 | 合致 | 合致 |
+
+### コード例5: 複合制約の実践
+
+```go
+// Comparable + Stringer を両方満たす制約
+type ComparableStringer interface {
+    comparable
+    String() string
+}
+
+// マップのキーとして使え、文字列表現を持つ型
+func PrintMapK ComparableStringer, V any {
+    for k, v := range m {
+        fmt.Printf("%s: %v\n", k.String(), v)
+    }
+}
+
+// 制約インターフェースの合成
+type Numeric interface {
+    Integer | Float
+}
+
+type Addable interface {
+    Numeric
+    comparable
+}
+
+// JSON シリアライズ可能な制約
+type JSONSerializable interface {
+    comparable
+    MarshalJSON() ([]byte, error)
+    UnmarshalJSON([]byte) error
+}
+
+// バリデーション可能な制約
+type Validatable interface {
+    Validate() error
+}
+
+// バリデーション付きの保存関数
+func SaveAllT Validatable error {
+    for i, item := range items {
+        if err := item.Validate(); err != nil {
+            return fmt.Errorf("item[%d]: %w", i, err)
+        }
+    }
+    // 保存処理...
+    return nil
+}
+```
+
+---
+
+## 3. ジェネリック型
+
+### コード例6: ジェネリックなデータ構造
+
+```go
+// スタック
+type Stack[T any] struct {
+    items []T
+}
+
+func NewStack[T any]() *Stack[T] {
+    return &Stack[T]{}
+}
+
+func (s *Stack[T]) Push(item T) {
+    s.items = append(s.items, item)
+}
+
+func (s *Stack[T]) Pop() (T, bool) {
+    if len(s.items) == 0 {
+        var zero T
+        return zero, false
+    }
+    last := len(s.items) - 1
+    item := s.items[last]
+    s.items = s.items[:last]
+    return item, true
+}
+
+func (s *Stack[T]) Peek() (T, bool) {
+    if len(s.items) == 0 {
+        var zero T
+        return zero, false
+    }
+    return s.items[len(s.items)-1], true
+}
+
+func (s *Stack[T]) Len() int {
+    return len(s.items)
+}
+
+func (s *Stack[T]) IsEmpty() bool {
+    return len(s.items) == 0
+}
+
+// 使用例
+intStack := NewStack[int]()
+intStack.Push(1)
+intStack.Push(2)
+val, _ := intStack.Pop() // 2
+
+strStack := NewStack[string]()
+strStack.Push("hello")
+```
+
+### コード例7: ジェネリックなキュー
+
+```go
+// Queue はジェネリックなFIFOキュー
+type Queue[T any] struct {
+    items []T
+}
+
+func NewQueue[T any]() *Queue[T] {
+    return &Queue[T]{}
+}
+
+func (q *Queue[T]) Enqueue(item T) {
+    q.items = append(q.items, item)
+}
+
+func (q *Queue[T]) Dequeue() (T, bool) {
+    if len(q.items) == 0 {
+        var zero T
+        return zero, false
+    }
+    item := q.items[0]
+    q.items = q.items[1:]
+    return item, true
+}
+
+func (q *Queue[T]) Peek() (T, bool) {
+    if len(q.items) == 0 {
+        var zero T
+        return zero, false
+    }
+    return q.items[0], true
+}
+
+func (q *Queue[T]) Len() int {
+    return len(q.items)
+}
+
+// PriorityQueue は優先度付きキュー
+type PriorityQueue[T any] struct {
+    items []T
+    less  func(a, b T) bool
+}
+
+func NewPriorityQueueT any bool) *PriorityQueue[T] {
+    return &PriorityQueue[T]{less: less}
+}
+
+func (pq *PriorityQueue[T]) Push(item T) {
+    pq.items = append(pq.items, item)
+    pq.up(len(pq.items) - 1)
+}
+
+func (pq *PriorityQueue[T]) Pop() (T, bool) {
+    if len(pq.items) == 0 {
+        var zero T
+        return zero, false
+    }
+    n := len(pq.items) - 1
+    pq.items[0], pq.items[n] = pq.items[n], pq.items[0]
+    item := pq.items[n]
+    pq.items = pq.items[:n]
+    if n > 0 {
+        pq.down(0)
+    }
+    return item, true
+}
+
+func (pq *PriorityQueue[T]) up(j int) {
+    for {
+        i := (j - 1) / 2
+        if i == j || !pq.less(pq.items[j], pq.items[i]) {
+            break
+        }
+        pq.items[i], pq.items[j] = pq.items[j], pq.items[i]
+        j = i
+    }
+}
+
+func (pq *PriorityQueue[T]) down(i int) {
+    n := len(pq.items)
+    for {
+        left := 2*i + 1
+        if left >= n {
+            break
+        }
+        j := left
+        if right := left + 1; right < n && pq.less(pq.items[right], pq.items[left]) {
+            j = right
+        }
+        if !pq.less(pq.items[j], pq.items[i]) {
+            break
+        }
+        pq.items[i], pq.items[j] = pq.items[j], pq.items[i]
+        i = j
+    }
+}
+
+func (pq *PriorityQueue[T]) Len() int {
+    return len(pq.items)
+}
+
+// 使用例
+pq := NewPriorityQueue(func(a, b int) bool { return a < b })
+pq.Push(3)
+pq.Push(1)
+pq.Push(2)
+val, _ := pq.Pop() // 1（最小値が先に出る）
+```
+
+### コード例8: ジェネリックな並行安全マップ
+
+```go
+// SyncMap はジェネリックな並行安全マップ
+type SyncMap[K comparable, V any] struct {
+    mu sync.RWMutex
+    m  map[K]V
+}
+
+func NewSyncMap[K comparable, V any]() *SyncMap[K, V] {
+    return &SyncMap[K, V]{
+        m: make(map[K]V),
+    }
+}
+
+func (sm *SyncMap[K, V]) Get(key K) (V, bool) {
+    sm.mu.RLock()
+    defer sm.mu.RUnlock()
+    val, ok := sm.m[key]
+    return val, ok
+}
+
+func (sm *SyncMap[K, V]) Set(key K, value V) {
+    sm.mu.Lock()
+    defer sm.mu.Unlock()
+    sm.m[key] = value
+}
+
+func (sm *SyncMap[K, V]) Delete(key K) {
+    sm.mu.Lock()
+    defer sm.mu.Unlock()
+    delete(sm.m, key)
+}
+
+func (sm *SyncMap[K, V]) Len() int {
+    sm.mu.RLock()
+    defer sm.mu.RUnlock()
+    return len(sm.m)
+}
+
+func (sm *SyncMap[K, V]) Range(fn func(K, V) bool) {
+    sm.mu.RLock()
+    defer sm.mu.RUnlock()
+    for k, v := range sm.m {
+        if !fn(k, v) {
+            break
+        }
+    }
+}
+
+// GetOrSet は値が存在しなければ設定して返す
+func (sm *SyncMap[K, V]) GetOrSet(key K, defaultVal V) V {
+    sm.mu.Lock()
+    defer sm.mu.Unlock()
+    if val, ok := sm.m[key]; ok {
+        return val
+    }
+    sm.m[key] = defaultVal
+    return defaultVal
+}
+
+// 使用例
+cache := NewSyncMap[string, int]()
+cache.Set("count", 42)
+val, ok := cache.Get("count") // 42, true
+```
+
+### コード例9: Result 型（エラーハンドリング改善）
+
+```go
+// Result はエラーまたは値を持つ型
+type Result[T any] struct {
+    value T
+    err   error
+}
+
+func OkT any Result[T] {
+    return Result[T]{value: value}
+}
+
+func ErrT any Result[T] {
+    return Result[T]{err: err}
+}
+
+func (r Result[T]) IsOk() bool {
+    return r.err == nil
+}
+
+func (r Result[T]) IsErr() bool {
+    return r.err != nil
+}
+
+func (r Result[T]) Unwrap() (T, error) {
+    return r.value, r.err
+}
+
+func (r Result[T]) UnwrapOr(defaultVal T) T {
+    if r.err != nil {
+        return defaultVal
+    }
+    return r.value
+}
+
+func (r Result[T]) UnwrapOrElse(fn func(error) T) T {
+    if r.err != nil {
+        return fn(r.err)
+    }
+    return r.value
+}
+
+// Map: 値がある場合のみ変換を適用
+func MapResultT, U any U) Result[U] {
+    if r.err != nil {
+        return ErrU
+    }
+    return Ok(f(r.value))
+}
+
+// FlatMap: 値がある場合に別のResult生成関数を適用
+func FlatMapResultT, U any Result[U]) Result[U] {
+    if r.err != nil {
+        return ErrU
+    }
+    return f(r.value)
+}
+
+// Collect: Result のスライスから成功値を収集（1つでもエラーなら失敗）
+func CollectT any Result[[]T] {
+    values := make([]T, 0, len(results))
+    for _, r := range results {
+        if r.IsErr() {
+            return Err[[]T](r.err)
+        }
+        values = append(values, r.value)
+    }
+    return Ok(values)
+}
+
+// 使用例
+result := Ok(42)
+doubled := MapResult(result, func(n int) int { return n * 2 })
+val, _ := doubled.Unwrap() // 84
+
+// チェーン
+func fetchUser(id string) Result[User] {
+    user, err := db.FindUser(id)
+    if err != nil {
+        return ErrUser
+    }
+    return Ok(*user)
+}
+
+func getEmail(u User) Result[string] {
+    if u.Email == "" {
+        return Errstring)
+    }
+    return Ok(u.Email)
+}
+
+// Result チェーン
+email := FlatMapResult(fetchUser("123"), getEmail)
+fmt.Println(email.UnwrapOr("no-email@example.com"))
+```
+
+### コード例10: Optional 型
+
+```go
+// Optional はnil安全な値コンテナ
+type Optional[T any] struct {
+    value *T
+}
+
+func SomeT any Optional[T] {
+    return Optional[T]{value: &v}
+}
+
+func None[T any]() Optional[T] {
+    return Optional[T]{}
+}
+
+func (o Optional[T]) IsPresent() bool {
+    return o.value != nil
+}
+
+func (o Optional[T]) Get() (T, bool) {
+    if o.value == nil {
+        var zero T
+        return zero, false
+    }
+    return *o.value, true
+}
+
+func (o Optional[T]) OrElse(defaultVal T) T {
+    if o.value == nil {
+        return defaultVal
+    }
+    return *o.value
+}
+
+func (o Optional[T]) IfPresent(fn func(T)) {
+    if o.value != nil {
+        fn(*o.value)
+    }
+}
+
+func MapOptionalT, U any U) Optional[U] {
+    if o.value == nil {
+        return None[U]()
+    }
+    return Some(f(*o.value))
+}
+
+// 使用例
+name := Some("Alice")
+name.IfPresent(func(n string) {
+    fmt.Printf("Hello, %s!\n", n)
+})
+
+empty := None[string]()
+fmt.Println(empty.OrElse("anonymous")) // "anonymous"
+```
+
+---
+
+## 4. 実践パターン
+
+### コード例11: ジェネリックなリポジトリパターン
+
+```go
+type Entity interface {
+    GetID() string
+}
+
+type Repository[T Entity] interface {
+    FindByID(id string) (T, error)
+    FindAll() ([]T, error)
+    Save(entity T) error
+    Delete(id string) error
+}
+
+// インメモリ実装
+type InMemoryRepo[T Entity] struct {
+    mu    sync.RWMutex
+    store map[string]T
+}
+
+func NewInMemoryRepo[T Entity]() *InMemoryRepo[T] {
+    return &InMemoryRepo[T]{
+        store: make(map[string]T),
+    }
+}
+
+func (r *InMemoryRepo[T]) FindByID(id string) (T, error) {
+    r.mu.RLock()
+    defer r.mu.RUnlock()
+    entity, ok := r.store[id]
+    if !ok {
+        var zero T
+        return zero, fmt.Errorf("entity %s not found", id)
+    }
+    return entity, nil
+}
+
+func (r *InMemoryRepo[T]) FindAll() ([]T, error) {
+    r.mu.RLock()
+    defer r.mu.RUnlock()
+    result := make([]T, 0, len(r.store))
+    for _, entity := range r.store {
+        result = append(result, entity)
+    }
+    return result, nil
+}
+
+func (r *InMemoryRepo[T]) Save(entity T) error {
+    r.mu.Lock()
+    defer r.mu.Unlock()
+    r.store[entity.GetID()] = entity
+    return nil
+}
+
+func (r *InMemoryRepo[T]) Delete(id string) error {
+    r.mu.Lock()
+    defer r.mu.Unlock()
+    if _, ok := r.store[id]; !ok {
+        return fmt.Errorf("entity %s not found", id)
+    }
+    delete(r.store, id)
+    return nil
+}
+
+// FindBy は条件に一致するエンティティを検索する
+func (r *InMemoryRepo[T]) FindBy(pred func(T) bool) []T {
+    r.mu.RLock()
+    defer r.mu.RUnlock()
+    var result []T
+    for _, entity := range r.store {
+        if pred(entity) {
+            result = append(result, entity)
+        }
+    }
+    return result
+}
+
+// 使用例
+type User struct {
+    ID   string
+    Name string
+    Age  int
+}
+
+func (u User) GetID() string { return u.ID }
+
+repo := NewInMemoryRepo[User]()
+repo.Save(User{ID: "1", Name: "Alice", Age: 30})
+repo.Save(User{ID: "2", Name: "Bob", Age: 25})
+user, _ := repo.FindByID("1")
+
+// 条件検索
+adults := repo.FindBy(func(u User) bool { return u.Age >= 18 })
+```
+
+### コード例12: ジェネリックなページネーション
+
+```go
+// Page はページネーション結果を表す
+type Page[T any] struct {
+    Items      []T `json:"items"`
+    Total      int `json:"total"`
+    Page       int `json:"page"`
+    PageSize   int `json:"page_size"`
+    TotalPages int `json:"total_pages"`
+    HasNext    bool `json:"has_next"`
+    HasPrev    bool `json:"has_prev"`
+}
+
+// Paginate はスライスをページネーションする
+func PaginateT any Page[T] {
+    total := len(items)
+    totalPages := (total + pageSize - 1) / pageSize
+
+    if page < 1 {
+        page = 1
+    }
+    if page > totalPages && totalPages > 0 {
+        page = totalPages
+    }
+
+    start := (page - 1) * pageSize
+    end := start + pageSize
+    if start > total {
+        start = total
+    }
+    if end > total {
+        end = total
+    }
+
+    return Page[T]{
+        Items:      items[start:end],
+        Total:      total,
+        Page:       page,
+        PageSize:   pageSize,
+        TotalPages: totalPages,
+        HasNext:    page < totalPages,
+        HasPrev:    page > 1,
+    }
+}
+
+// 使用例
+users := getAllUsers() // []User
+page := Paginate(users, 2, 10) // 2ページ目、1ページ10件
+fmt.Printf("Page %d/%d, %d items\n", page.Page, page.TotalPages, len(page.Items))
+```
+
+### コード例13: ジェネリックなキャッシュ
+
+```go
+// Cache はTTL付きのジェネリックキャッシュ
+type Cache[K comparable, V any] struct {
+    mu      sync.RWMutex
+    items   map[K]cacheItem[V]
+    ttl     time.Duration
+    maxSize int
+}
+
+type cacheItem[V any] struct {
+    value     V
+    expiresAt time.Time
+}
+
+func NewCacheK comparable, V any *Cache[K, V] {
+    return &Cache[K, V]{
+        items:   make(map[K]cacheItem[V]),
+        ttl:     ttl,
+        maxSize: maxSize,
+    }
+}
+
+func (c *Cache[K, V]) Get(key K) (V, bool) {
+    c.mu.RLock()
+    defer c.mu.RUnlock()
+
+    item, ok := c.items[key]
+    if !ok || time.Now().After(item.expiresAt) {
+        var zero V
+        return zero, false
+    }
+    return item.value, true
+}
+
+func (c *Cache[K, V]) Set(key K, value V) {
+    c.mu.Lock()
+    defer c.mu.Unlock()
+
+    // maxSize を超えたら期限切れのアイテムを削除
+    if len(c.items) >= c.maxSize {
+        c.evictExpired()
+    }
+
+    c.items[key] = cacheItem[V]{
+        value:     value,
+        expiresAt: time.Now().Add(c.ttl),
+    }
+}
+
+func (c *Cache[K, V]) Delete(key K) {
+    c.mu.Lock()
+    defer c.mu.Unlock()
+    delete(c.items, key)
+}
+
+func (c *Cache[K, V]) evictExpired() {
+    now := time.Now()
+    for k, item := range c.items {
+        if now.After(item.expiresAt) {
+            delete(c.items, k)
+        }
+    }
+}
+
+// GetOrLoad はキャッシュに値がなければloader関数で取得してキャッシュする
+func (c *Cache[K, V]) GetOrLoad(key K, loader func(K) (V, error)) (V, error) {
+    if val, ok := c.Get(key); ok {
+        return val, nil
+    }
+
+    val, err := loader(key)
+    if err != nil {
+        var zero V
+        return zero, err
+    }
+
+    c.Set(key, val)
+    return val, nil
+}
+
+// 使用例
+userCache := NewCachestring, *User
+user, err := userCache.GetOrLoad("user-123", func(id string) (*User, error) {
+    return db.FindUser(id)
+})
+```
+
+### ジェネリクスの型推論フロー
+
+```
+Max(3, 7)
+   |
+   +-- コンパイラが引数の型を推論
+   |     3 → int,  7 → int
+   |
+   +-- T = int と決定
+   |
+   +-- Maxint として展開
+   |
+   +-- int は cmp.Ordered を満たすか？ → Yes
+   |
+   +-- コンパイル成功
+
+Max(3, 7.0)
+   |
+   +-- 3 → int,  7.0 → float64
+   |
+   +-- 型が一致しない → コンパイルエラー
+   |
+   +-- 修正: Max(float64(3), 7.0) または Maxfloat64
+```
+
+---
+
+## 5. 標準ライブラリのジェネリック関数
+
+### コード例14: slices パッケージ
+
+```go
+import "slices"
+
+// ソート
+nums := []int{3, 1, 4, 1, 5, 9, 2, 6}
+slices.Sort(nums) // [1, 1, 2, 3, 4, 5, 6, 9]
+
+// カスタムソート
+type User struct {
+    Name string
+    Age  int
+}
+users := []User{{"Charlie", 30}, {"Alice", 25}, {"Bob", 35}}
+slices.SortFunc(users, func(a, b User) int {
+    return cmp.Compare(a.Age, b.Age)
+})
+// [{Alice 25}, {Charlie 30}, {Bob 35}]
+
+// 安定ソート（同じキーの要素の順序を保持）
+slices.SortStableFunc(users, func(a, b User) int {
+    return cmp.Compare(a.Name, b.Name)
+})
+
+// 二分探索
+sorted := []int{1, 2, 3, 4, 5, 6, 7, 8, 9}
+idx, found := slices.BinarySearch(sorted, 5) // 4, true
+
+// 含有チェック
+slices.Contains([]string{"a", "b", "c"}, "b") // true
+
+// 最大・最小
+slices.Max([]int{3, 1, 4, 1, 5}) // 5
+slices.Min([]int{3, 1, 4, 1, 5}) // 1
+
+// コンパクト（連続する重複を除去）
+nums = []int{1, 1, 2, 3, 3, 3, 4}
+slices.Compact(nums) // [1, 2, 3, 4]
+
+// リバース
+slices.Reverse([]int{1, 2, 3}) // [3, 2, 1]
+
+// インデックス検索
+slices.Index([]string{"a", "b", "c"}, "b") // 1
+
+// 等値比較
+slices.Equal([]int{1, 2, 3}, []int{1, 2, 3}) // true
+
+// クローン
+original := []int{1, 2, 3}
+cloned := slices.Clone(original) // ディープコピー
+```
+
+### コード例15: maps パッケージ
+
+```go
+import "maps"
+
+m := map[string]int{"a": 1, "b": 2, "c": 3}
+
+// キー一覧
+keys := maps.Keys(m) // イテレータを返す（Go 1.23+）
+
+// 値一覧
+values := maps.Values(m) // イテレータを返す
+
+// クローン
+cloned := maps.Clone(m) // 浅いコピー
+
+// 等値比較
+maps.Equal(m, cloned) // true
+
+// コピー（dstにsrcをマージ）
+dst := map[string]int{"a": 10, "d": 4}
+maps.Copy(dst, m) // dst = {"a": 1, "b": 2, "c": 3, "d": 4}
+
+// 条件による削除
+maps.DeleteFunc(m, func(k string, v int) bool {
+    return v < 2
+})
+// m = {"b": 2, "c": 3}
+```
+
+### コード例16: cmp パッケージ
+
+```go
+import "cmp"
+
+// 比較
+cmp.Compare(1, 2)     // -1
+cmp.Compare(2, 2)     //  0
+cmp.Compare(3, 2)     //  1
+
+// ゼロ値チェック
+cmp.Or(0, 42)         // 42（最初の非ゼロ値）
+cmp.Or("", "default") // "default"
+cmp.Or("hello", "default") // "hello"
+
+// 複数フォールバック
+cmp.Or("", "", "fallback") // "fallback"
+
+// ソートキーの合成
+type Employee struct {
+    Department string
+    Name       string
+    Salary     int
+}
+
+employees := []Employee{...}
+slices.SortFunc(employees, func(a, b Employee) int {
+    // まず部門でソート、同じなら名前でソート
+    if c := cmp.Compare(a.Department, b.Department); c != 0 {
+        return c
+    }
+    return cmp.Compare(a.Name, b.Name)
+})
+```
+
+---
+
+## 6. パフォーマンス特性
+
+### GCShape Stenciling
+
+```
++----------------------------------------------------------+
+|  Go ジェネリクスのコンパイル戦略                            |
++----------------------------------------------------------+
+|                                                          |
+|  func MaxT cmp.Ordered T                      |
+|                                                          |
+|  コンパイル時:                                            |
+|  +-------------------+  +-------------------+            |
+|  | ポインタ型         |  | 値型              |            |
+|  | (*User, *string等)|  | (int, float64等)  |            |
+|  | → 共通の実装を共有 |  | → 型ごとに特殊化  |            |
+|  +-------------------+  +-------------------+            |
+|                                                          |
+|  GCShape = 同じメモリレイアウトの型は同じ実装を共有        |
+|  → コードサイズの爆発を防ぐ                               |
+|  → ポインタ型はすべて同じ shape                           |
++----------------------------------------------------------+
+```
+
+### コード例17: ベンチマークによるパフォーマンス比較
+
+```go
+// インターフェース版
+func SumInterface(nums []interface{}) int {
+    sum := 0
+    for _, n := range nums {
+        sum += n.(int)
+    }
+    return sum
+}
+
+// ジェネリック版
+func SumGenericT Number T {
+    var sum T
+    for _, n := range nums {
+        sum += n
+    }
+    return sum
+}
+
+// 具体型版
+func SumInt(nums []int) int {
+    sum := 0
+    for _, n := range nums {
+        sum += n
+    }
+    return sum
+}
+
+// ベンチマーク
+func BenchmarkSumInterface(b *testing.B) {
+    nums := make([]interface{}, 1000)
+    for i := range nums { nums[i] = i }
+    b.ResetTimer()
+    for i := 0; i < b.N; i++ {
+        SumInterface(nums)
+    }
+}
+
+func BenchmarkSumGeneric(b *testing.B) {
+    nums := make([]int, 1000)
+    for i := range nums { nums[i] = i }
+    b.ResetTimer()
+    for i := 0; i < b.N; i++ {
+        SumGeneric(nums)
+    }
+}
+
+func BenchmarkSumConcrete(b *testing.B) {
+    nums := make([]int, 1000)
+    for i := range nums { nums[i] = i }
+    b.ResetTimer()
+    for i := 0; i < b.N; i++ {
+        SumInt(nums)
+    }
+}
+
+// 典型的な結果:
+// BenchmarkSumInterface-8   500000  2800 ns/op  0 B/op  0 allocs/op
+// BenchmarkSumGeneric-8    2000000   600 ns/op  0 B/op  0 allocs/op
+// BenchmarkSumConcrete-8   2000000   580 ns/op  0 B/op  0 allocs/op
+// → ジェネリクスは具体型とほぼ同等、interfaceより大幅に高速
+```
+
+---
+
+## 7. ジェネリクスの適用判断
+
+### ジェネリクスを使うべき場面
+
+```
++----------------------------------------------------------+
+|  ジェネリクスの適用判断フロー                               |
++----------------------------------------------------------+
+|                                                          |
+|  同じロジックを異なる型に適用したい？                      |
+|    |                                                     |
+|    +-- YES → 型パラメータが2つ以上の具体型で使われる？     |
+|    |           |                                         |
+|    |           +-- YES → ジェネリクスが適切              |
+|    |           +-- NO  → 具体型を直接使う                |
+|    |                                                     |
+|    +-- NO  → 異なる実装を同じ振る舞いに抽象化したい？     |
+|              |                                           |
+|              +-- YES → インターフェースが適切            |
+|              +-- NO  → ジェネリクスは不要                |
++----------------------------------------------------------+
+```
+
+| 場面 | 推奨 | 理由 |
+|------|------|------|
+| コレクション操作（Map, Filter, Reduce） | ジェネリクス | 同じアルゴリズムを全ての型に適用 |
+| データ構造（Stack, Queue, Tree） | ジェネリクス | 型安全なコンテナ |
+| DB接続の抽象化 | インターフェース | 実装が異なる（MySQL vs PostgreSQL） |
+| HTTPハンドラ | インターフェース | http.Handler パターン |
+| ソートアルゴリズム | ジェネリクス | 比較可能な全ての型に対応 |
+| ロガー | インターフェース | 出力先が異なる |
+| `fmt.Println(v any)` のような関数 | `any` 引数 | ジェネリクスは不要 |
+
+---
+
+## 8. アンチパターン
+
+### アンチパターン1: 不要なジェネリクス化
+
+```go
+// NG: ジェネリクスが不要なケース
+func PrintValueT any {
+    fmt.Println(v) // any なら interface{} で十分
+}
+
+// OK: interface{} または any を直接使う
+func PrintValue(v any) {
+    fmt.Println(v)
+}
+
+// NG: 型パラメータが1つの具体型にしか使われない
+func ParseUserJSONT User (T, error) {
+    var result T
+    err := json.Unmarshal(data, &result)
+    return result, err
+}
+
+// OK: 具体型を直接使う
+func ParseUserJSON(data []byte) (User, error) {
+    var user User
+    err := json.Unmarshal(data, &user)
+    return user, err
+}
+```
+
+### アンチパターン2: 過度に複雑な制約
+
+```go
+// NG: 制約が複雑すぎて可読性が低い
+type ComplexConstraint[K comparable, V interface {
+    ~int | ~string
+    fmt.Stringer
+    encoding.BinaryMarshaler
+}] struct {
+    data map[K]V
+}
+
+// OK: 制約を分離して名前をつける
+type Serializable interface {
+    fmt.Stringer
+    encoding.BinaryMarshaler
+}
+
+type ValueType interface {
+    ~int | ~string
+    Serializable
+}
+
+type Store[K comparable, V ValueType] struct {
+    data map[K]V
+}
+```
+
+### アンチパターン3: ジェネリクスで多態性を実現しようとする
+
+```go
+// NG: ジェネリクスで振る舞いの切り替え
+func ProcessT Animal string {
+    // T の具体型によって処理を変えたい
+    // → ジェネリクスでは型に基づくディスパッチはできない
+}
+
+// OK: インターフェースを使う
+type Animal interface {
+    Speak() string
+}
+
+func Process(a Animal) string {
+    return a.Speak()
+}
+```
+
+### アンチパターン4: ゼロ値の誤った扱い
+
+```go
+// NG: ジェネリックなゼロ値チェック
+func IsZeroT any bool {
+    // any にはゼロ値比較の演算がない → コンパイルエラー
+    return v == T{} // 不可
+}
+
+// OK: comparable 制約を使う
+func IsZeroT comparable bool {
+    var zero T
+    return v == zero
+}
+
+// OK: reflect を使う（any の場合）
+func IsZeroAny(v any) bool {
+    return reflect.ValueOf(v).IsZero()
+}
+```
+
+
+---
+
+## 実践演習
+
+### 演習1: 基本的な実装
+
+以下の要件を満たすコードを実装してください。
+
+**要件:**
+- 入力データの検証を行うこと
+- エラーハンドリングを適切に実装すること
+- テストコードも作成すること
+
+```python
+# 演習1: 基本実装のテンプレート
+class Exercise1:
+    """基本的な実装パターンの演習"""
+
+    def __init__(self):
+        self.data = []
+
+    def validate_input(self, value):
+        """入力値の検証"""
+        if value is None:
+            raise ValueError("入力値がNoneです")
+        return True
+
+    def process(self, value):
+        """データ処理のメインロジック"""
+        self.validate_input(value)
+        self.data.append(value)
+        return self.data
+
+    def get_results(self):
+        """処理結果の取得"""
+        return {
+            'count': len(self.data),
+            'data': self.data
+        }
+
+# テスト
+def test_exercise1():
+    ex = Exercise1()
+    assert ex.process(1) == [1]
+    assert ex.process(2) == [1, 2]
+    assert ex.get_results()['count'] == 2
+
+    try:
+        ex.process(None)
+        assert False, "例外が発生するべき"
+    except ValueError:
+        pass
+
+    print("全テスト合格!")
+
+test_exercise1()
+```
+
+### 演習2: 応用パターン
+
+基本実装を拡張して、以下の機能を追加してください。
+
+```python
+# 演習2: 応用パターン
+from typing import List, Dict, Optional
+from datetime import datetime
+
+class AdvancedExercise:
+    """応用パターンの演習"""
+
+    def __init__(self, max_size: int = 100):
+        self._items: List[Dict] = []
+        self._max_size = max_size
+        self._created_at = datetime.now()
+
+    def add(self, key: str, value: any) -> bool:
+        """アイテムの追加（サイズ制限付き）"""
+        if len(self._items) >= self._max_size:
+            return False
+        self._items.append({
+            'key': key,
+            'value': value,
+            'timestamp': datetime.now().isoformat()
+        })
+        return True
+
+    def find(self, key: str) -> Optional[Dict]:
+        """キーによる検索"""
+        for item in reversed(self._items):
+            if item['key'] == key:
+                return item
+        return None
+
+    def remove(self, key: str) -> bool:
+        """キーによる削除"""
+        for i, item in enumerate(self._items):
+            if item['key'] == key:
+                self._items.pop(i)
+                return True
+        return False
+
+    def stats(self) -> Dict:
+        """統計情報"""
+        return {
+            'total_items': len(self._items),
+            'max_size': self._max_size,
+            'usage_percent': len(self._items) / self._max_size * 100,
+            'uptime': str(datetime.now() - self._created_at)
+        }
+
+# テスト
+def test_advanced():
+    ex = AdvancedExercise(max_size=3)
+    assert ex.add("a", 1) == True
+    assert ex.add("b", 2) == True
+    assert ex.add("c", 3) == True
+    assert ex.add("d", 4) == False  # サイズ制限
+    assert ex.find("b")['value'] == 2
+    assert ex.remove("b") == True
+    assert ex.find("b") is None
+    stats = ex.stats()
+    assert stats['total_items'] == 2
+    print("応用テスト全合格!")
+
+test_advanced()
+```
+
+### 演習3: パフォーマンス最適化
+
+以下のコードのパフォーマンスを改善してください。
+
+```python
+# 演習3: パフォーマンス最適化
+import time
+from functools import lru_cache
+
+# 最適化前（O(n^2)）
+def slow_search(data: list, target: int) -> int:
+    """非効率な検索"""
+    for i in range(len(data)):
+        for j in range(i + 1, len(data)):
+            if data[i] + data[j] == target:
+                return (i, j)
+    return (-1, -1)
+
+# 最適化後（O(n)）
+def fast_search(data: list, target: int) -> tuple:
+    """ハッシュマップを使った効率的な検索"""
+    seen = {}
+    for i, num in enumerate(data):
+        complement = target - num
+        if complement in seen:
+            return (seen[complement], i)
+        seen[num] = i
+    return (-1, -1)
+
+# ベンチマーク
+def benchmark():
+    import random
+    data = list(range(5000))
+    random.shuffle(data)
+    target = data[100] + data[4000]
+
+    start = time.time()
+    result1 = slow_search(data, target)
+    slow_time = time.time() - start
+
+    start = time.time()
+    result2 = fast_search(data, target)
+    fast_time = time.time() - start
+
+    print(f"非効率版: {slow_time:.4f}秒")
+    print(f"効率版:   {fast_time:.6f}秒")
+    print(f"高速化率: {slow_time/fast_time:.0f}倍")
+
+benchmark()
+```
+
+**ポイント:**
+- アルゴリズムの計算量を意識する
+- 適切なデータ構造を選択する
+- ベンチマークで効果を測定する
+
+---
+
+## トラブルシューティング
+
+### よくあるエラーと解決策
+
+| エラー | 原因 | 解決策 |
+|--------|------|--------|
+| 初期化エラー | 設定ファイルの不備 | 設定ファイルのパスと形式を確認 |
+| タイムアウト | ネットワーク遅延/リソース不足 | タイムアウト値の調整、リトライ処理の追加 |
+| メモリ不足 | データ量の増大 | バッチ処理の導入、ページネーションの実装 |
+| 権限エラー | アクセス権限の不足 | 実行ユーザーの権限確認、設定の見直し |
+| データ不整合 | 並行処理の競合 | ロック機構の導入、トランザクション管理 |
+
+### デバッグの手順
+
+1. **エラーメッセージの確認**: スタックトレースを読み、発生箇所を特定する
+2. **再現手順の確立**: 最小限のコードでエラーを再現する
+3. **仮説の立案**: 考えられる原因をリストアップする
+4. **段階的な検証**: ログ出力やデバッガを使って仮説を検証する
+5. **修正と回帰テスト**: 修正後、関連する箇所のテストも実行する
+
+```python
+# デバッグ用ユーティリティ
+import logging
+import traceback
+from functools import wraps
+
+# ロガーの設定
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+def debug_decorator(func):
+    """関数の入出力をログ出力するデコレータ"""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        logger.debug(f"呼び出し: {func.__name__}(args={args}, kwargs={kwargs})")
+        try:
+            result = func(*args, **kwargs)
+            logger.debug(f"戻り値: {func.__name__} -> {result}")
+            return result
+        except Exception as e:
+            logger.error(f"例外発生: {func.__name__}: {e}")
+            logger.error(traceback.format_exc())
+            raise
+    return wrapper
+
+@debug_decorator
+def process_data(items):
+    """データ処理（デバッグ対象）"""
+    if not items:
+        raise ValueError("空のデータ")
+    return [item * 2 for item in items]
+```
+
+### パフォーマンス問題の診断
+
+パフォーマンス問題が発生した場合の診断手順:
+
+1. **ボトルネックの特定**: プロファイリングツールで計測
+2. **メモリ使用量の確認**: メモリリークの有無をチェック
+3. **I/O待ちの確認**: ディスクやネットワークI/Oの状況を確認
+4. **同時接続数の確認**: コネクションプールの状態を確認
+
+| 問題の種類 | 診断ツール | 対策 |
+|-----------|-----------|------|
+| CPU負荷 | cProfile, py-spy | アルゴリズム改善、並列化 |
+| メモリリーク | tracemalloc, objgraph | 参照の適切な解放 |
+| I/Oボトルネック | strace, iostat | 非同期I/O、キャッシュ |
+| DB遅延 | EXPLAIN, slow query log | インデックス、クエリ最適化 |
+
+---
+
+## 設計判断ガイド
+
+### 選択基準マトリクス
+
+技術選択を行う際の判断基準を以下にまとめます。
+
+| 判断基準 | 重視する場合 | 妥協できる場合 |
+|---------|------------|-------------|
+| パフォーマンス | リアルタイム処理、大規模データ | 管理画面、バッチ処理 |
+| 保守性 | 長期運用、チーム開発 | プロトタイプ、短期プロジェクト |
+| スケーラビリティ | 成長が見込まれるサービス | 社内ツール、固定ユーザー |
+| セキュリティ | 個人情報、金融データ | 公開データ、社内利用 |
+| 開発速度 | MVP、市場投入スピード | 品質重視、ミッションクリティカル |
+
+### アーキテクチャパターンの選択
+
+```
+┌─────────────────────────────────────────────────┐
+│              アーキテクチャ選択フロー              │
+├─────────────────────────────────────────────────┤
+│                                                 │
+│  ① チーム規模は？                                │
+│    ├─ 小規模（1-5人）→ モノリス                   │
+│    └─ 大規模（10人+）→ ②へ                       │
+│                                                 │
+│  ② デプロイ頻度は？                               │
+│    ├─ 週1回以下 → モノリス + モジュール分割         │
+│    └─ 毎日/複数回 → ③へ                          │
+│                                                 │
+│  ③ チーム間の独立性は？                            │
+│    ├─ 高い → マイクロサービス                      │
+│    └─ 中程度 → モジュラーモノリス                   │
+│                                                 │
+└─────────────────────────────────────────────────┘
+```
+
+### トレードオフの分析
+
+技術的な判断には必ずトレードオフが伴います。以下の観点で分析を行いましょう:
+
+**1. 短期 vs 長期のコスト**
+- 短期的に速い方法が長期的には技術的負債になることがある
+- 逆に、過剰な設計は短期的なコストが高く、プロジェクトの遅延を招く
+
+**2. 一貫性 vs 柔軟性**
+- 統一された技術スタックは学習コストが低い
+- 多様な技術の採用は適材適所が可能だが、運用コストが増加
+
+**3. 抽象化のレベル**
+- 高い抽象化は再利用性が高いが、デバッグが困難になる場合がある
+- 低い抽象化は直感的だが、コードの重複が発生しやすい
+
+```python
+# 設計判断の記録テンプレート
+class ArchitectureDecisionRecord:
+    """ADR (Architecture Decision Record) の作成"""
+
+    def __init__(self, title: str):
+        self.title = title
+        self.context = ""
+        self.decision = ""
+        self.consequences = []
+        self.alternatives = []
+
+    def set_context(self, context: str):
+        """背景と課題の記述"""
+        self.context = context
+        return self
+
+    def set_decision(self, decision: str):
+        """決定内容の記述"""
+        self.decision = decision
+        return self
+
+    def add_consequence(self, consequence: str, positive: bool = True):
+        """結果の追加"""
+        self.consequences.append({
+            'description': consequence,
+            'type': 'positive' if positive else 'negative'
+        })
+        return self
+
+    def add_alternative(self, name: str, reason_rejected: str):
+        """却下した代替案の追加"""
+        self.alternatives.append({
+            'name': name,
+            'reason_rejected': reason_rejected
+        })
+        return self
+
+    def to_markdown(self) -> str:
+        """Markdown形式で出力"""
+        md = f"# ADR: {self.title}\n\n"
+        md += f"## 背景\n{self.context}\n\n"
+        md += f"## 決定\n{self.decision}\n\n"
+        md += "## 結果\n"
+        for c in self.consequences:
+            icon = "✅" if c['type'] == 'positive' else "⚠️"
+            md += f"- {icon} {c['description']}\n"
+        md += "\n## 却下した代替案\n"
+        for a in self.alternatives:
+            md += f"- **{a['name']}**: {a['reason_rejected']}\n"
+        return md
+```
+---
+
+## FAQ
+
+### Q1. ジェネリクスとインターフェースの使い分けは？
+
+ジェネリクスは「同じアルゴリズムを異なる型に適用する」場合に使う。インターフェースは「異なる実装を同じ振る舞いとして抽象化する」場合に使う。例えば、ソートアルゴリズムはジェネリクス向き。一方、データベース接続のような多態性はインターフェース向き。
+
+### Q2. ジェネリクスはパフォーマンスに影響するか？
+
+Go のジェネリクスはコンパイル時にGCShape stenciling（形状ベースの特殊化）を行う。ポインタ型は共通の実装を共有し、値型は必要に応じて特殊化される。大半のケースでインターフェース経由の呼び出しより高速または同等。
+
+### Q3. Go 1.18以降、標準ライブラリでジェネリクスはどう使われている？
+
+`slices` パッケージ（ソート、検索、比較）、`maps` パッケージ（キー取得、値取得、クローン）、`cmp` パッケージ（比較関数）が追加された。`sync.Map` のジェネリクス版は標準ライブラリにはないが、サードパーティで提供されている。
+
+### Q4. 型パラメータにメソッドを定義できるか？
+
+型パラメータ自体にはメソッドを定義できない。ただし、ジェネリック型（例: `Stack[T any]`）にはメソッドを定義可能。メソッドの型パラメータは型定義で宣言されたものを使い、メソッド宣言で新しい型パラメータを追加することはできない。
+
+```go
+type Stack[T any] struct { items []T }
+
+// OK: 型定義の T を使う
+func (s *Stack[T]) Push(item T) { ... }
+
+// NG: メソッドに新しい型パラメータを追加
+func (s *Stack[T]) MapU any U) *Stack[U] { ... } // コンパイルエラー
+
+// OK: 関数として定義する
+func MapStackT, U any U) *Stack[U] { ... }
+```
+
+### Q5. ジェネリクスと reflect の使い分けは？
+
+ジェネリクスはコンパイル時の型安全性を保証し、パフォーマンスも良好。reflect はランタイムの型情報にアクセスでき柔軟性が高いが、型安全性がなくパフォーマンスも劣る。原則としてジェネリクスで解決できる場合はジェネリクスを使い、JSON マーシャリングやORM のようにランタイムで型を動的に扱う必要がある場合のみ reflect を使う。
+
+```go
+// ジェネリクスで解決できるケース → ジェネリクスを使う
+func ContainsT comparable bool {
+    for _, v := range slice {
+        if v == target {
+            return true
+        }
+    }
+    return false
+}
+
+// reflect が必要なケース → 構造体のフィールドを動的に走査
+func StructToMap(v any) map[string]any {
+    result := make(map[string]any)
+    val := reflect.ValueOf(v)
+    typ := val.Type()
+    for i := 0; i < val.NumField(); i++ {
+        field := typ.Field(i)
+        if field.IsExported() {
+            result[field.Name] = val.Field(i).Interface()
+        }
+    }
+    return result
+}
+```
+
+### Q6. ジェネリクスで再帰的な型制約は可能か？
+
+Go 1.18時点では直接的な再帰制約はサポートされていないが、間接的に実現可能。
+
+```go
+// 自己参照型のパターン
+type Comparable[T any] interface {
+    CompareTo(other T) int
+}
+
+// 使用例
+type MyString string
+
+func (s MyString) CompareTo(other MyString) int {
+    return strings.Compare(string(s), string(other))
+}
+
+func Sort[T Comparable[T]](items []T) {
+    slices.SortFunc(items, func(a, b T) int {
+        return a.CompareTo(b)
+    })
+}
+```
+
+---
+
+### Q7. union 型制約内のメソッドは呼び出せるか？
+
+union 型（`int | string` など）はメソッドを持たないため、union 型制約のみではメソッド呼び出しはできない。メソッドを呼び出したい場合は、インターフェースメソッドを制約に追加する必要がある。
+
+```go
+// NG: union 型にはメソッドがない
+type Numeric interface {
+    ~int | ~float64
+}
+
+func DoubleT Numeric string {
+    return v.String() // コンパイルエラー: String() は定義されていない
+}
+
+// OK: メソッドを制約に含める
+type StringableNumeric interface {
+    ~int | ~float64
+    String() string
+}
+```
+
+### Q8. ジェネリクスでイテレータパターンは実現できるか？
+
+Go 1.23 以降の range over function（レンジ関数）と組み合わせることで、型安全なイテレータを実装できる。
+
+```go
+// iter.Seq を使ったジェネリックイテレータ（Go 1.23+）
+func FilterT any bool) iter.Seq[T] {
+    return func(yield func(T) bool) {
+        for v := range seq {
+            if predicate(v) {
+                if !yield(v) {
+                    return
+                }
+            }
+        }
+    }
+}
+
+func MapT, U any U) iter.Seq[U] {
+    return func(yield func(U) bool) {
+        for v := range seq {
+            if !yield(transform(v)) {
+                return
+            }
+        }
+    }
+}
+
+// 使用例
+numbers := slices.Values([]int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10})
+evens := Filter(numbers, func(n int) bool { return n%2 == 0 })
+doubled := Map(evens, func(n int) int { return n * 2 })
+for v := range doubled {
+    fmt.Println(v) // 4, 8, 12, 16, 20
+}
+```
+
+---
+
+## まとめ
+
+| 概念 | 要点 |
+|------|------|
+| 型パラメータ `[T ...]` | 関数・型を複数の型に対して一般化 |
+| `any` | 全ての型を許容する制約（= `interface{}`） |
+| `comparable` | `==` / `!=` が使える型の制約 |
+| `cmp.Ordered` | 比較演算子が使える型の制約 |
+| `~T` (チルダ) | 基底型が T である全ての型を含む |
+| 型推論 | 引数から型パラメータを自動推論 |
+| ゼロ値 | `var zero T` でジェネリック型のゼロ値を取得 |
+| `slices` / `maps` | 標準ライブラリのジェネリックユーティリティ |
+| Result / Optional | エラーハンドリング・nil安全のジェネリック型 |
+| GCShape stenciling | コンパイル時の型特殊化戦略 |
+
+---
+
+## 次に読むべきガイド
+
+- **03-tools/02-profiling.md** — プロファイリング：pprof、trace
+- **03-tools/04-best-practices.md** — ベストプラクティス：Effective Go
+- **03-tools/00-cli-development.md** — CLI開発：cobra、flag、promptui
+
+---
+
+## 参考文献
+
+1. **Go公式 — Type Parameters Proposal** https://go.googlesource.com/proposal/+/refs/heads/master/design/43651-type-parameters.md
+2. **Go公式 — Tutorial: Getting started with generics** https://go.dev/doc/tutorial/generics
+3. **Go Blog — An Introduction To Generics** https://go.dev/blog/intro-generics
+4. **Go標準ライブラリ — slices パッケージ** https://pkg.go.dev/slices
+5. **Go標準ライブラリ — maps パッケージ** https://pkg.go.dev/maps
+6. **Go標準ライブラリ — cmp パッケージ** https://pkg.go.dev/cmp

@@ -1,54 +1,56 @@
-# 正規表現とテキスト処理
+[日本語版](../../ja/02-programming/regex-and-text-processing/SKILL.md)
 
-> 正規表現はテキスト処理の強力な武器。基本構文からルックアヘッド/ビハインド、名前付きキャプチャ、Unicode 対応、各言語での実装まで、正規表現の全てを解説する。
+# Regular Expressions and Text Processing
 
-## このSkillの対象者
+> Regular expressions are a powerful tool for text processing. This guide covers everything about regex -- from basic syntax, lookahead/lookbehind, and named captures to Unicode support and implementations across different languages.
 
-- 正規表現を体系的に学びたいエンジニア
-- テキスト処理・データクレンジングを効率化したい方
-- バリデーション実装を改善したい方
+## Target Audience
 
-## 前提知識
+- Engineers who want to systematically learn regular expressions
+- Developers looking to streamline text processing and data cleansing
+- Those who want to improve their validation implementations
 
-- 基本的なプログラミング経験
-- 文字列操作の基礎知識
+## Prerequisites
 
-## 学習ガイド
+- Basic programming experience
+- Foundational knowledge of string manipulation
 
-### 00-basics — 正規表現の基礎
+## Study Guide
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 00-basics -- Regex Basics
 
-### 01-advanced — 高度な機能
+| # | File | Content |
+|---|------|---------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 01-advanced -- Advanced Features
 
-### 02-languages — 言語別実装
+| # | File | Content |
+|---|------|---------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 02-languages -- Language-Specific Implementations
 
-## クイックリファレンス
+| # | File | Content |
+|---|------|---------|
+
+## Quick Reference
 
 ```
-正規表現チートシート:
-  .       — 任意の1文字
-  \d \w \s — 数字/英数字/空白
-  [abc]   — 文字クラス
-  ^  $    — 行頭/行末
-  *  +  ? — 0回以上/1回以上/0-1回
-  {n,m}   — n〜m回
-  (...)   — キャプチャグループ
-  (?:...) — 非キャプチャグループ
-  (?=...) — 先読み
-  (?<=..) — 後読み
-  \1      — 後方参照
+Regex Cheat Sheet:
+  .       -- Any single character
+  \d \w \s -- Digit / word character / whitespace
+  [abc]   -- Character class
+  ^  $    -- Start / end of line
+  *  +  ? -- 0 or more / 1 or more / 0 or 1
+  {n,m}   -- Between n and m times
+  (...)   -- Capture group
+  (?:...) -- Non-capturing group
+  (?=...) -- Lookahead
+  (?<=..) -- Lookbehind
+  \1      -- Backreference
 ```
 
-## 参考文献
+## References
 
 1. Friedl, J. "Mastering Regular Expressions." O'Reilly, 2006.
-2. regular-expressions.info — 総合リファレンス
-3. regex101.com — オンラインテスター
+2. regular-expressions.info -- Comprehensive reference
+3. regex101.com -- Online tester

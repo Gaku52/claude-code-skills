@@ -1,62 +1,68 @@
-# LLM と AI モデル比較
+[日本語版](../../ja/07-ai/llm-and-ai-comparison/SKILL.md)
 
-> LLM の世界は急速に進化する。Claude、GPT、Gemini、Llama の特徴比較、プロンプトエンジニアリング、RAG、ファインチューニング、評価手法まで、LLM 活用の全てを体系的に解説する。
+# LLM and AI Model Comparison
 
-## このSkillの対象者
+> The world of LLMs is evolving rapidly. This skill systematically covers everything about leveraging LLMs — from comparing the characteristics of Claude, GPT, Gemini, and Llama, to prompt engineering, RAG, fine-tuning, and evaluation methodologies.
 
-- LLM を活用したアプリケーションを開発するエンジニア
-- AI モデルの選定・比較を行う方
-- プロンプトエンジニアリングを極めたい方
+## Target Audience
 
-## 前提知識
+- Engineers developing applications powered by LLMs
+- Professionals evaluating and comparing AI models
+- Those seeking to master prompt engineering
 
-- AI/ML の基礎概念
-- Web API の基礎知識
-- Python or TypeScript の基礎
+## Prerequisites
 
-## 学習ガイド
+- Foundational AI/ML concepts
+- Basic knowledge of Web APIs
+- Basics of Python or TypeScript
 
-### 00-fundamentals — LLM の基礎
+## Learning Guide
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 00-fundamentals — LLM Fundamentals
 
-### 01-models — モデル比較
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 01-models — Model Comparison
 
-### 02-techniques — 活用技術
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 02-techniques — Applied Techniques
 
-### 03-applications — アプリケーション
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 03-applications — Applications
 
-### 04-evaluation — 評価と安全性
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 04-evaluation — Evaluation and Safety
 
-## クイックリファレンス
+| # | File | Description |
+|---|------|-------------|
+
+## Quick Reference
 
 ```
-LLM モデル比較（2024年末時点）:
+LLM Model Comparison (as of late 2024):
 
-  モデル          │ 強み              │ コスト  │ 用途
-  ──────────────┼──────────────────┼───────┼────────
-  Claude Opus   │ 推論・分析・コード  │ 高     │ 複雑なタスク
-  Claude Sonnet │ バランス           │ 中     │ 汎用
-  GPT-4o        │ マルチモーダル      │ 高     │ 汎用
-  Gemini Pro    │ 長文脈・検索統合    │ 中     │ Google 連携
-  Llama 3       │ オープン・カスタム  │ 自前   │ セルフホスト
-  Mistral       │ コスパ・EU 拠点    │ 低-中  │ 欧州案件
+  Model           | Strengths              | Cost    | Use Case
+  ────────────────┼────────────────────────┼─────────┼─────────────
+  Claude Opus     | Reasoning, analysis,   | High    | Complex tasks
+                  | coding                 |         |
+  Claude Sonnet   | Well-balanced          | Medium  | General purpose
+  GPT-4o          | Multimodal             | High    | General purpose
+  Gemini Pro      | Long context, search   | Medium  | Google integration
+                  | integration            |         |
+  Llama 3         | Open, customizable     | Self-   | Self-hosting
+                  |                        | hosted  |
+  Mistral         | Cost-effective,        | Low-Med | EU projects
+                  | EU-based               |         |
 ```
 
-## 参考文献
+## References
 
 1. Anthropic. "Claude Documentation." docs.anthropic.com, 2024.
 2. OpenAI. "API Documentation." platform.openai.com, 2024.

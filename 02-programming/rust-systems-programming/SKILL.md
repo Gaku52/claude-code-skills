@@ -1,62 +1,64 @@
-# Rust システムプログラミング
+[日本語版](../../ja/02-programming/rust-systems-programming/SKILL.md)
 
-> Rust は安全性・速度・並行性を兼ね備えたシステムプログラミング言語。所有権システム、ライフタイム、トレイト、非同期プログラミング、unsafe まで、Rust の全てを体系的に解説する。
+# Rust Systems Programming
 
-## このSkillの対象者
+> Rust is a systems programming language that combines safety, speed, and concurrency. This guide systematically covers everything in Rust -- from the ownership system, lifetimes, and traits to async programming and unsafe code.
 
-- Rust を基礎から学びたいエンジニア
-- システムプログラミング（CLI/サーバー/WebAssembly）を行いたい方
-- メモリ安全性と高パフォーマンスを両立したい方
+## Target Audience
 
-## 前提知識
+- Engineers who want to learn Rust from the ground up
+- Developers doing systems programming (CLI tools, servers, WebAssembly)
+- Those who want to achieve both memory safety and high performance
 
-- 何らかのプログラミング言語の経験
-- メモリ管理の基礎概念
+## Prerequisites
 
-## 学習ガイド
+- Experience with any programming language
+- Basic understanding of memory management concepts
 
-### 00-basics — Rust の基礎
+## Study Guide
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 00-basics -- Rust Basics
 
-### 01-ownership — 所有権システム
+| # | File | Content |
+|---|------|---------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 01-ownership -- The Ownership System
 
-### 02-advanced — 高度な機能
+| # | File | Content |
+|---|------|---------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 02-advanced -- Advanced Features
 
-### 03-systems — システム応用
+| # | File | Content |
+|---|------|---------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 03-systems -- Systems Applications
 
-### 04-async — 非同期プログラミング
+| # | File | Content |
+|---|------|---------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 04-async -- Async Programming
 
-## クイックリファレンス
+| # | File | Content |
+|---|------|---------|
+
+## Quick Reference
 
 ```
-Rust 早見表:
-  cargo new myapp          — プロジェクト作成
-  cargo build --release    — リリースビルド
-  cargo test               — テスト実行
-  cargo clippy             — リント
-  cargo fmt                — フォーマット
+Rust Cheat Sheet:
+  cargo new myapp          -- Create a new project
+  cargo build --release    -- Release build
+  cargo test               -- Run tests
+  cargo clippy             -- Lint
+  cargo fmt                -- Format
 
-  所有権ルール:
-    1. 各値は1つのオーナーを持つ
-    2. オーナーがスコープを抜けると値は破棄
-    3. 参照は値より長生きできない
+  Ownership Rules:
+    1. Each value has exactly one owner
+    2. When the owner goes out of scope, the value is dropped
+    3. References must not outlive the value they point to
 ```
 
-## 参考文献
+## References
 
 1. Klabnik, S. & Nichols, C. "The Rust Programming Language." doc.rust-lang.org/book, 2024.
 2. Rust. "Rust by Example." doc.rust-lang.org/rust-by-example, 2024.

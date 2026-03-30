@@ -1,64 +1,66 @@
-# カスタム AI エージェント
+[日本語版](../../ja/07-ai/custom-ai-agents/SKILL.md)
 
-> AI エージェントは LLM に自律的な行動能力を与える。エージェントアーキテクチャ、ツール統合、マルチエージェント、MCP プロトコル、プロダクションデプロイまで、AI エージェント開発の全てを解説する。
+# Custom AI Agents
 
-## このSkillの対象者
+> AI agents grant LLMs the ability to act autonomously. This skill covers everything about AI agent development — from agent architecture, tool integration, and multi-agent systems to the MCP protocol and production deployment.
 
-- AI エージェントを設計・実装したいエンジニア
-- LLM アプリケーションを高度化したい方
-- マルチエージェントシステムに興味がある方
+## Target Audience
 
-## 前提知識
+- Engineers designing and implementing AI agents
+- Those looking to build more advanced LLM applications
+- Those interested in multi-agent systems
 
-- LLM API の使用経験
-- TypeScript or Python の実務経験
-- Web 開発の基礎
+## Prerequisites
 
-## 学習ガイド
+- Experience using LLM APIs
+- Hands-on experience with TypeScript or Python
+- Web development fundamentals
 
-### 00-fundamentals — エージェントの基礎
+## Learning Guide
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 00-fundamentals — Agent Fundamentals
 
-### 01-architecture — アーキテクチャ
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 01-architecture — Architecture
 
-### 02-tools — ツールとフレームワーク
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 02-tools — Tools and Frameworks
 
-### 03-advanced — 高度なトピック
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 03-advanced — Advanced Topics
 
-### 04-deployment — デプロイと運用
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 04-deployment — Deployment and Operations
 
-## クイックリファレンス
+| # | File | Description |
+|---|------|-------------|
+
+## Quick Reference
 
 ```
-エージェントパターン選定:
-  単純タスク → シングルエージェント + Tool Use
-  複雑タスク → Plan-and-Execute
-  専門分野混合 → マルチエージェント
-  人間の承認必要 → Human-in-the-Loop
-  外部ツール多数 → MCP 統合
+Agent Pattern Selection:
+  Simple task          → Single Agent + Tool Use
+  Complex task         → Plan-and-Execute
+  Mixed specialties    → Multi-Agent
+  Human approval needed → Human-in-the-Loop
+  Many external tools  → MCP Integration
 
-フレームワーク選定:
-  軽量・柔軟 → Anthropic SDK 直接
-  フルスタック → LangChain / LangGraph
-  マルチエージェント → CrewAI / AutoGen
-  TypeScript → Vercel AI SDK
+Framework Selection:
+  Lightweight, flexible   → Anthropic SDK directly
+  Full-stack              → LangChain / LangGraph
+  Multi-agent             → CrewAI / AutoGen
+  TypeScript              → Vercel AI SDK
 ```
 
-## 参考文献
+## References
 
 1. Anthropic. "Tool Use Documentation." docs.anthropic.com, 2024.
 2. LangChain. "Documentation." langchain.com/docs, 2024.

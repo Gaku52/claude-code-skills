@@ -1,58 +1,60 @@
-# 開発環境セットアップ
+[日本語版](../../ja/05-infrastructure/development-environment-setup/SKILL.md)
 
-> 生産性の高い開発は適切な環境から始まる。エディタ設定、ランタイム管理、パッケージマネージャー、Docker 開発環境、チーム統一設定まで、モダンな開発環境構築の全てを解説する。
+# Development Environment Setup
 
-## このSkillの対象者
+> Productive development starts with a well-configured environment. This guide covers editor configuration, runtime management, package managers, Docker-based development environments, and team-wide standardization -- everything you need to build a modern development setup.
 
-- 新しいプロジェクトの開発環境を構築するエンジニア
-- チーム全体の開発環境を統一したいリード
-- Docker を使った開発環境の構築を学びたい方
+## Target Audience
 
-## 前提知識
+- Engineers setting up development environments for new projects
+- Tech leads looking to standardize their team's development environment
+- Developers who want to learn Docker-based development environments
 
-- ターミナルの基本操作
-- Git の基礎知識
+## Prerequisites
 
-## 学習ガイド
+- Basic terminal operations
+- Fundamental Git knowledge
 
-### 00-editor-and-tools — エディタと開発ツール
+## Study Guide
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 00-editor-and-tools — Editors and Development Tools
 
-### 01-runtime-and-package — ランタイムとパッケージ管理
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 01-runtime-and-package — Runtime and Package Management
 
-### 02-docker-dev — Docker 開発環境
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 02-docker-dev — Docker Development Environment
 
-### 03-team-setup — チーム統一設定
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 03-team-setup — Team-Wide Configuration
 
-## クイックリファレンス
+| # | File | Description |
+|---|------|-------------|
+
+## Quick Reference
 
 ```
-推奨開発環境スタック:
-  エディタ:     VS Code + 拡張機能 or Cursor
-  ターミナル:   Warp (macOS) / Windows Terminal
-  シェル:      zsh + starship prompt
-  Node.js:    fnm（推奨）or mise
-  パッケージ:   pnpm（推奨）
-  リンター:    Biome（推奨）or ESLint + Prettier
-  Git Hooks:  husky + lint-staged
-  Docker:     Docker Desktop or OrbStack (macOS)
-  DB GUI:     TablePlus or DBeaver
-  API:        Bruno or Hoppscotch
-  AI:         GitHub Copilot + Claude Code
+Recommended Development Stack:
+  Editor:       VS Code + extensions or Cursor
+  Terminal:     Warp (macOS) / Windows Terminal
+  Shell:        zsh + starship prompt
+  Node.js:      fnm (recommended) or mise
+  Packages:     pnpm (recommended)
+  Linter:       Biome (recommended) or ESLint + Prettier
+  Git Hooks:    husky + lint-staged
+  Docker:       Docker Desktop or OrbStack (macOS)
+  DB GUI:       TablePlus or DBeaver
+  API:          Bruno or Hoppscotch
+  AI:           GitHub Copilot + Claude Code
 ```
 
-## 参考文献
+## References
 
 1. VS Code. "Documentation." code.visualstudio.com, 2024.
 2. Docker. "Docker Desktop." docs.docker.com, 2024.

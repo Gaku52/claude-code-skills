@@ -1,61 +1,63 @@
-# バージョン管理と Jujutsu
+[日本語版](../../ja/05-infrastructure/version-control-and-jujutsu/SKILL.md)
 
-> Git は開発の基盤だが、その内部構造を理解する者は少ない。Git の内部オブジェクトモデル、高度な操作、そして次世代 VCS である Jujutsu（jj）まで、バージョン管理の深層を解説する。
+# Version Control and Jujutsu
 
-## このSkillの対象者
+> Git is the foundation of modern development, yet few truly understand its internals. This guide dives deep into Git's internal object model, advanced operations, and the next-generation VCS Jujutsu (jj) -- exploring the depths of version control.
 
-- Git の内部構造を理解したいエンジニア
-- 高度な Git 操作（rebase、bisect、reflog 等）を習得したい方
-- 次世代 VCS（Jujutsu）に興味がある方
+## Target Audience
 
-## 前提知識
+- Engineers who want to understand Git's internal architecture
+- Developers looking to master advanced Git operations (rebase, bisect, reflog, etc.)
+- Those interested in the next-generation VCS, Jujutsu
 
-- Git の基本操作（add、commit、push、pull、branch）
-- ターミナルの基本操作
+## Prerequisites
 
-## 学習ガイド
+- Basic Git operations (add, commit, push, pull, branch)
+- Basic terminal operations
 
-### 00-git-internals — Git 内部構造
+## Study Guide
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 00-git-internals — Git Internals
 
-### 01-advanced-git — Git 高度な操作
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 01-advanced-git — Advanced Git Operations
 
-### 02-jujutsu — Jujutsu（jj）
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 02-jujutsu — Jujutsu (jj)
 
-## クイックリファレンス
+| # | File | Description |
+|---|------|-------------|
+
+## Quick Reference
 
 ```
-Git 内部オブジェクト:
-  blob   — ファイルの内容
-  tree   — ディレクトリ構造
-  commit — スナップショット + メタデータ
-  tag    — 名前付き参照
+Git Internal Objects:
+  blob   — File contents
+  tree   — Directory structure
+  commit — Snapshot + metadata
+  tag    — Named reference
 
-Git 高度コマンド:
-  git rebase -i HEAD~5        — 直近5コミットを編集
-  git bisect start/bad/good   — バグ混入コミット特定
-  git reflog                  — HEAD の移動履歴
-  git worktree add ../feature — 別ディレクトリでブランチ作業
-  git log -S "keyword"        — コード変更の検索
+Advanced Git Commands:
+  git rebase -i HEAD~5        — Interactively edit the last 5 commits
+  git bisect start/bad/good   — Identify the commit that introduced a bug
+  git reflog                  — View HEAD movement history
+  git worktree add ../feature — Work on a branch in a separate directory
+  git log -S "keyword"        — Search for code changes
 
-Jujutsu（jj）基本:
-  jj init                     — リポジトリ初期化
-  jj status                   — 状態確認
-  jj describe -m "message"    — コミットメッセージ設定
-  jj new                      — 新しい変更セット作成
-  jj squash                   — 親に統合
-  jj git push                 — Git リモートにプッシュ
+Jujutsu (jj) Basics:
+  jj init                     — Initialize a repository
+  jj status                   — Check status
+  jj describe -m "message"    — Set commit message
+  jj new                      — Create a new change set
+  jj squash                   — Squash into parent
+  jj git push                 — Push to Git remote
 ```
 
-## 参考文献
+## References
 
 1. Chacon, S. & Straub, B. "Pro Git." git-scm.com/book, 2024.
 2. Git. "Git Internals." git-scm.com/book/en/v2/Git-Internals, 2024.

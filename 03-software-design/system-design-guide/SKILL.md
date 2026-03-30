@@ -1,53 +1,55 @@
-# システム設計ガイド
+[日本語版](../../ja/03-software-design/system-design-guide/SKILL.md)
 
-> システム設計はエンジニアリングの総合力。スケーラビリティ、可用性、一貫性のトレードオフを理解し、実際のシステムを設計するための体系的な知識を解説する。
+# System Design Guide
 
-## このSkillの対象者
+> System design is the culmination of engineering expertise. This skill provides a systematic body of knowledge for designing real-world systems, covering the trade-offs between scalability, availability, and consistency.
 
-- システム設計面接の準備をしているエンジニア
-- 大規模システムの設計に関わる方
-- アーキテクチャ判断の根拠を学びたい方
+## Target Audience
 
-## 前提知識
+- Engineers preparing for system design interviews
+- Those involved in designing large-scale systems
+- Anyone who wants to learn the rationale behind architectural decisions
 
-- Web 開発の基礎知識
-- データベースの基礎
-- ネットワークの基礎
+## Prerequisites
 
-## 学習ガイド
+- Basic knowledge of web development
+- Database fundamentals
+- Networking fundamentals
 
-### 00-fundamentals — 基礎概念
+## Learning Guide
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 00-fundamentals — Core Concepts
 
-### 01-building-blocks — 構成要素
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 01-building-blocks — Building Blocks
 
-### 02-patterns — 設計パターン
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 02-patterns — Design Patterns
 
-### 03-case-studies — ケーススタディ
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 03-case-studies — Case Studies
 
-## クイックリファレンス
+| # | File | Description |
+|---|------|-------------|
+
+## Quick Reference
 
 ```
-システム設計フレームワーク:
-  1. 要件定義（機能/非機能/制約）
-  2. 概算（QPS/ストレージ/帯域）
-  3. 高レベル設計（コンポーネント図）
-  4. 詳細設計（API/DB スキーマ/アルゴリズム）
-  5. スケーラビリティ/ボトルネック対策
+System Design Framework:
+  1. Define requirements (functional / non-functional / constraints)
+  2. Back-of-the-envelope estimation (QPS / storage / bandwidth)
+  3. High-level design (component diagram)
+  4. Detailed design (API / DB schema / algorithms)
+  5. Scalability and bottleneck mitigation
 ```
 
-## 参考文献
+## References
 
 1. Xu, A. "System Design Interview." ByteByteGo, 2023.
 2. Kleppmann, M. "Designing Data-Intensive Applications." O'Reilly, 2017.

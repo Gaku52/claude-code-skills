@@ -1,274 +1,276 @@
 ---
 name: computer-science-fundamentals
-description: コンピュータサイエンスの基礎知識を網羅的にカバー。ハードウェアの仕組みからデータ表現、アルゴリズム、データ構造、計算理論、プログラミングパラダイム、ソフトウェアエンジニアリング基礎まで、エンジニアに必要な全てのCS基礎知識を体系的に解説。
+description: A comprehensive guide covering the fundamentals of computer science. From hardware internals and data representation to algorithms, data structures, computation theory, programming paradigms, and software engineering basics — a systematic guide to all the CS foundations every engineer needs.
 ---
+
+[日本語版](../../ja/01-cs-fundamentals/computer-science-fundamentals/SKILL.md)
 
 # Computer Science Fundamentals
 
-## 目次
+## Table of Contents
 
-1. [概要](#概要)
-2. [いつ使うか](#いつ使うか)
-3. [学習ロードマップ](#学習ロードマップ)
-4. [セクション一覧](#セクション一覧)
-5. [ベストプラクティス](#ベストプラクティス)
-6. [詳細ドキュメント](#詳細ドキュメント)
-
----
-
-## 概要
-
-このSkillは、**コンピュータサイエンスの基礎知識**を包括的にカバーする。フレームワークやライブラリは5年で変わるが、ここで扱うCS基礎は50年以上変わらない普遍的な知識であり、エンジニアとしての基礎体力そのものである。
-
-### カバー範囲
-
-- ハードウェアの仕組み（CPU、メモリ、ストレージ、GPU、I/O）
-- データ表現（2進数、文字コード、整数、浮動小数点、圧縮）
-- アルゴリズム（計算量解析、ソート、探索、再帰、DP、グラフ）
-- データ構造（配列、リスト、スタック、キュー、ハッシュ、木、グラフ）
-- 計算理論（オートマトン、形式言語、チューリングマシン、計算可能性、P vs NP）
-- プログラミングパラダイム（命令型、関数型、OOP、論理型、マルチパラダイム）
-- ソフトウェアエンジニアリング基礎（開発手法、バージョン管理、テスト、デバッグ）
-- 発展トピック（分散システム、並行処理、セキュリティ、AI/ML入門）
-
-### 前提知識
-
-- **不要**。本Skillはゼロからコンピュータサイエンスを学ぶための入口として設計されている。
-- プログラミング経験があるとより理解が深まるが、必須ではない。
-
-### 対象読者
-
-- **初心者**: プログラミングを始めたばかりで、CS基礎を体系的に学びたい人
-- **中級者**: 実務経験はあるが、CS基礎に不安がある人、転職面接に備えたい人
-- **上級者**: 知識の棚卸し、深い理論的理解の獲得、チーム教育の参考にしたい人
+1. [Overview](#overview)
+2. [When to Use](#when-to-use)
+3. [Learning Roadmap](#learning-roadmap)
+4. [Section Index](#section-index)
+5. [Best Practices](#best-practices)
+6. [Detailed Documentation](#detailed-documentation)
 
 ---
 
-## いつ使うか
+## Overview
 
-### 自動的に参照されるケース
+This Skill provides **comprehensive coverage of computer science fundamentals**. Frameworks and libraries change every five years, but the CS foundations covered here are timeless knowledge that has remained relevant for over 50 years — they represent the core strength of an engineer.
 
-- パフォーマンス問題の調査（計算量、メモリ使用量の分析）
-- データ構造の選択（配列 vs ハッシュ vs 木の判断）
-- アルゴリズムの設計と最適化
-- 低レベルの問題（文字化け、浮動小数点誤差、整数オーバーフロー）
-- システム設計の議論（CAP定理、一貫性モデル）
+### Coverage
 
-### 手動で参照すべきケース
+- Hardware internals (CPU, memory, storage, GPU, I/O)
+- Data representation (binary, character encoding, integers, floating point, compression)
+- Algorithms (complexity analysis, sorting, searching, recursion, DP, graphs)
+- Data structures (arrays, lists, stacks, queues, hash tables, trees, graphs)
+- Computation theory (automata, formal languages, Turing machines, computability, P vs NP)
+- Programming paradigms (imperative, functional, OOP, logic, multi-paradigm)
+- Software engineering basics (development methodologies, version control, testing, debugging)
+- Advanced topics (distributed systems, concurrency, security, AI/ML introduction)
 
-- CS基礎の体系的な学習を開始するとき
-- 技術面接の準備
-- チームメンバーへの教育・メンタリング
-- 特定のCS概念の深い理解が必要なとき
+### Prerequisites
+
+- **None**. This Skill is designed as an entry point for learning computer science from scratch.
+- Prior programming experience helps deepen understanding but is not required.
+
+### Target Audience
+
+- **Beginners**: Those who have just started programming and want to systematically learn CS fundamentals
+- **Intermediate**: Those with practical experience who feel uncertain about CS fundamentals or are preparing for job interviews
+- **Advanced**: Those looking to audit their knowledge, gain deeper theoretical understanding, or use as a reference for team education
 
 ---
 
-## 学習ロードマップ
+## When to Use
 
-### Phase 1: 基礎の基礎（1-2ヶ月）
+### Automatically Referenced Cases
+
+- Investigating performance issues (complexity analysis, memory usage analysis)
+- Choosing data structures (deciding between arrays vs hash tables vs trees)
+- Designing and optimizing algorithms
+- Low-level issues (character encoding errors, floating-point precision, integer overflow)
+- System design discussions (CAP theorem, consistency models)
+
+### Cases for Manual Reference
+
+- Starting systematic study of CS fundamentals
+- Preparing for technical interviews
+- Educating and mentoring team members
+- When deep understanding of a specific CS concept is needed
+
+---
+
+## Learning Roadmap
+
+### Phase 1: The Very Basics (1-2 months)
 
 ```
 00-introduction → 01-hardware-basics → 02-data-representation
-「コンピュータが物理的にどう動くか」を理解する
+Understand "how a computer physically works"
 ```
 
-### Phase 2: アルゴリズムとデータ構造（2-3ヶ月）
+### Phase 2: Algorithms and Data Structures (2-3 months)
 
 ```
 03-algorithms-basics → 04-data-structures
-「問題を効率的に解く方法」を身につける
+Learn "how to solve problems efficiently"
 ```
 
-### Phase 3: 理論と応用（2-3ヶ月）
+### Phase 3: Theory and Application (2-3 months)
 
 ```
 05-computation-theory → 06-programming-paradigms → 07-software-engineering-basics → 08-advanced-topics
-「なぜそうなのか」を理論的に理解し、実務に応用する
+Understand the "why" theoretically and apply it in practice
 ```
 
 ---
 
-## セクション一覧
+## Section Index
 
-### 00 - Introduction（導入）
+### 00 - Introduction
 
-| # | ファイル | 内容 |
-|---|---------|------|
-| 00 | [overview.md](docs/00-introduction/00-overview.md) | コンピュータサイエンスの全体像 — CSの定義、主要分野、なぜ学ぶべきか |
-| 01 | [history-of-computing.md](docs/00-introduction/01-history-of-computing.md) | コンピューティングの歴史 — そろばんから量子コンピュータまで |
-| 02 | [why-learn-cs.md](docs/00-introduction/02-why-learn-cs.md) | なぜCSを学ぶのか — 具体的なメリット、CS知識なしの失敗例 |
-| 03 | [learning-path.md](docs/00-introduction/03-learning-path.md) | CS学習ロードマップ — 目標別カスタムパス、リソース一覧 |
+| # | File | Description |
+|---|------|-------------|
+| 00 | [overview.md](docs/00-introduction/00-overview.md) | Overview of Computer Science — definition, major fields, and why you should study it |
+| 01 | [history-of-computing.md](docs/00-introduction/01-history-of-computing.md) | History of Computing — from the abacus to quantum computers |
+| 02 | [why-learn-cs.md](docs/00-introduction/02-why-learn-cs.md) | Why Learn CS — concrete benefits and real-world failure cases from lack of CS knowledge |
+| 03 | [learning-path.md](docs/00-introduction/03-learning-path.md) | CS Learning Roadmap — customized paths by goal with resource lists |
 
-コンピュータサイエンスとは何か、その全体像を俯瞰する導入セクション。CSの歴史を紐解きながら、なぜエンジニアにCSの知識が不可欠なのかを具体例を交えて解説する。さらに、読者のレベルと目標に応じた最適な学習パスを提示し、本Skill全体の見通しを立てる。
+An introductory section that provides a bird's-eye view of what computer science is and its overall landscape. While tracing the history of CS, it explains with concrete examples why CS knowledge is indispensable for engineers. It also presents optimal learning paths tailored to the reader's level and goals, providing a roadmap for the entire Skill.
 
-CSは単なる「プログラミング」ではない。計算可能性、効率性、正確性を数学的に扱う学問であり、その基礎はハードウェアからソフトウェア、理論から応用まで広範囲にわたる。本セクションではその全体像を把握し、以降のセクションへの道標を提供する。
+CS is not merely "programming." It is a discipline that mathematically addresses computability, efficiency, and correctness, with foundations spanning from hardware to software, theory to application. This section provides that big picture and serves as a signpost for the sections that follow.
 
-### 01 - Hardware Basics（ハードウェアの基礎）
+### 01 - Hardware Basics
 
-| # | ファイル | 内容 |
-|---|---------|------|
-| 00 | [cpu-architecture.md](docs/01-hardware-basics/00-cpu-architecture.md) | CPUアーキテクチャ — 命令サイクル、パイプライン、CISC vs RISC |
-| 01 | [memory-hierarchy.md](docs/01-hardware-basics/01-memory-hierarchy.md) | メモリ階層 — キャッシュ、RAM、局所性の原理、仮想メモリ |
-| 02 | [storage-systems.md](docs/01-hardware-basics/02-storage-systems.md) | ストレージ — HDD、SSD、NVMe、ファイルシステム、RAID |
-| 03 | [motherboard-and-bus.md](docs/01-hardware-basics/03-motherboard-and-bus.md) | マザーボードとバス — PCIe、USB、チップセット、ブートプロセス |
-| 04 | [gpu-and-parallel.md](docs/01-hardware-basics/04-gpu-and-parallel.md) | GPUと並列計算 — CUDA、OpenCL、AI学習エンジン |
-| 05 | [io-systems.md](docs/01-hardware-basics/05-io-systems.md) | I/Oシステム — 割り込み、DMA、デバイスドライバ |
-| 06 | [pcb-and-circuits.md](docs/01-hardware-basics/06-pcb-and-circuits.md) | 電子回路 — トランジスタ、論理ゲート、半導体製造 |
-| 07 | [capacity-limits.md](docs/01-hardware-basics/07-capacity-limits.md) | 性能限界と未来 — ムーアの法則、量子コンピュータ |
+| # | File | Description |
+|---|------|-------------|
+| 00 | [cpu-architecture.md](docs/01-hardware-basics/00-cpu-architecture.md) | CPU Architecture — instruction cycle, pipelining, CISC vs RISC |
+| 01 | [memory-hierarchy.md](docs/01-hardware-basics/01-memory-hierarchy.md) | Memory Hierarchy — cache, RAM, locality principles, virtual memory |
+| 02 | [storage-systems.md](docs/01-hardware-basics/02-storage-systems.md) | Storage — HDD, SSD, NVMe, file systems, RAID |
+| 03 | [motherboard-and-bus.md](docs/01-hardware-basics/03-motherboard-and-bus.md) | Motherboard and Bus — PCIe, USB, chipset, boot process |
+| 04 | [gpu-and-parallel.md](docs/01-hardware-basics/04-gpu-and-parallel.md) | GPU and Parallel Computing — CUDA, OpenCL, AI training engines |
+| 05 | [io-systems.md](docs/01-hardware-basics/05-io-systems.md) | I/O Systems — interrupts, DMA, device drivers |
+| 06 | [pcb-and-circuits.md](docs/01-hardware-basics/06-pcb-and-circuits.md) | Electronic Circuits — transistors, logic gates, semiconductor manufacturing |
+| 07 | [capacity-limits.md](docs/01-hardware-basics/07-capacity-limits.md) | Performance Limits and the Future — Moore's Law, quantum computing |
 
-ソフトウェアは最終的にハードウェア上で動く。CPUが命令をどう実行し、メモリがどう階層化され、ストレージがどうデータを永続化するかを理解することは、パフォーマンスを意識したプログラミングの第一歩である。
+Software ultimately runs on hardware. Understanding how a CPU executes instructions, how memory is organized into hierarchies, and how storage persists data is the first step toward performance-conscious programming.
 
-CPUのパイプライン処理を理解すれば分岐予測ミスのコストが分かり、メモリ階層を知ればキャッシュフレンドリーなコードが書ける。GPUの仕組みを知ればAI学習の高速化が理解でき、I/Oの仕組みを知ればio_uringやDPDKの意義が分かる。このセクションはプログラマーの視点でハードウェアを解説し、実務に直結する知識を提供する。
+Understanding CPU pipelining reveals the cost of branch misprediction. Knowing the memory hierarchy enables writing cache-friendly code. Understanding GPU architecture clarifies how AI training acceleration works, and knowing I/O mechanisms reveals the significance of io_uring and DPDK. This section explains hardware from a programmer's perspective, providing knowledge directly applicable to real-world practice.
 
-### 02 - Data Representation（データ表現）
+### 02 - Data Representation
 
-| # | ファイル | 内容 |
-|---|---------|------|
-| 00 | [binary-and-number-systems.md](docs/02-data-representation/00-binary-and-number-systems.md) | 2進数と数値表現 — ビット演算、基数変換 |
-| 01 | [character-encoding.md](docs/02-data-representation/01-character-encoding.md) | 文字コード — ASCII、Unicode、UTF-8、文字化け対策 |
-| 02 | [integer-representation.md](docs/02-data-representation/02-integer-representation.md) | 整数表現 — 2の補数、オーバーフロー、エンディアン |
-| 03 | [floating-point.md](docs/02-data-representation/03-floating-point.md) | 浮動小数点数 — IEEE 754、丸め誤差、0.1+0.2問題 |
-| 04 | [compression-algorithms.md](docs/02-data-representation/04-compression-algorithms.md) | 圧縮アルゴリズム — ハフマン、LZ77、DEFLATE、JPEG/MP3 |
-| 05 | [storage-capacity.md](docs/02-data-representation/05-storage-capacity.md) | データ量の感覚 — 単位、Back-of-the-envelope計算 |
-| 06 | [brain-vs-computer.md](docs/02-data-representation/06-brain-vs-computer.md) | 脳とコンピュータの比較 — 情報処理方式の根本的な違い |
+| # | File | Description |
+|---|------|-------------|
+| 00 | [binary-and-number-systems.md](docs/02-data-representation/00-binary-and-number-systems.md) | Binary and Number Systems — bitwise operations, base conversion |
+| 01 | [character-encoding.md](docs/02-data-representation/01-character-encoding.md) | Character Encoding — ASCII, Unicode, UTF-8, handling encoding issues |
+| 02 | [integer-representation.md](docs/02-data-representation/02-integer-representation.md) | Integer Representation — two's complement, overflow, endianness |
+| 03 | [floating-point.md](docs/02-data-representation/03-floating-point.md) | Floating-Point Numbers — IEEE 754, rounding errors, the 0.1+0.2 problem |
+| 04 | [compression-algorithms.md](docs/02-data-representation/04-compression-algorithms.md) | Compression Algorithms — Huffman, LZ77, DEFLATE, JPEG/MP3 |
+| 05 | [storage-capacity.md](docs/02-data-representation/05-storage-capacity.md) | Developing Intuition for Data Sizes — units, back-of-the-envelope calculations |
+| 06 | [brain-vs-computer.md](docs/02-data-representation/06-brain-vs-computer.md) | Brain vs Computer — fundamental differences in information processing |
 
-コンピュータ内部では全てのデータが0と1で表現される。テキスト、数値、画像、音声 — 全てはビット列の解釈の仕方が異なるだけである。このセクションではデータ表現の全てを解説する。
+Inside a computer, all data is represented as 0s and 1s. Text, numbers, images, audio — they are all just bit sequences interpreted differently. This section covers everything about data representation.
 
-0.1 + 0.2 ≠ 0.3 の理由、文字化けの原因、整数オーバーフローによる事故事例（Ariane 5ロケット爆発）など、データ表現の理解不足が引き起こす実務上の問題は多い。IEEE 754の仕組みをビットレベルで理解し、UTF-8のバイト構造を把握することで、これらの問題を根本から理解し予防できる。
+Many real-world problems stem from misunderstanding data representation: why 0.1 + 0.2 does not equal 0.3, what causes character encoding errors, and integer overflow incidents (such as the Ariane 5 rocket explosion). By understanding IEEE 754 at the bit level and grasping the byte structure of UTF-8, you can understand and prevent these issues at their root.
 
-### 03 - Algorithms Basics（アルゴリズムの基礎）
+### 03 - Algorithms Basics
 
-| # | ファイル | 内容 |
-|---|---------|------|
-| 00 | what-is-algorithm.md | アルゴリズムとは — 定義、表現方法、設計手法概観 |
-| 01 | complexity-analysis.md | 計算量解析 — Big-O、Big-Ω、Big-Θ、償却計算量 |
-| 02 | sorting-algorithms.md | ソートアルゴリズム — バブル〜TimSort、比較ソートの下界 |
-| 03 | searching-algorithms.md | 探索アルゴリズム — 線形、二分、ハッシュ、文字列探索 |
-| 04 | recursion-and-divide.md | 再帰と分割統治 — コールスタック、Master Theorem |
-| 05 | greedy-algorithms.md | 貪欲法 — 活動選択、ハフマン、ダイクストラ |
-| 06 | dynamic-programming.md | 動的計画法 — ナップサック、LCS、編集距離 |
-| 07 | graph-algorithms.md | グラフアルゴリズム — BFS/DFS、最短経路、MST、トポロジカルソート |
+| # | File | Description |
+|---|------|-------------|
+| 00 | what-is-algorithm.md | What Is an Algorithm — definition, representation methods, design approaches overview |
+| 01 | complexity-analysis.md | Complexity Analysis — Big-O, Big-Omega, Big-Theta, amortized complexity |
+| 02 | sorting-algorithms.md | Sorting Algorithms — from Bubble Sort to TimSort, lower bound of comparison sorts |
+| 03 | searching-algorithms.md | Searching Algorithms — linear, binary, hash-based, string search |
+| 04 | recursion-and-divide.md | Recursion and Divide-and-Conquer — call stack, Master Theorem |
+| 05 | greedy-algorithms.md | Greedy Algorithms — activity selection, Huffman coding, Dijkstra's algorithm |
+| 06 | dynamic-programming.md | Dynamic Programming — knapsack, LCS, edit distance |
+| 07 | graph-algorithms.md | Graph Algorithms — BFS/DFS, shortest paths, MST, topological sort |
 
-アルゴリズムはCSの心臓部である。O(n)とO(n²)の違いは、データが100万件になると「1秒 vs 11.5日」の差になる。この差を理解し、適切なアルゴリズムを選択できるかどうかが、エンジニアの実力を分ける。
+Algorithms are the heart of CS. The difference between O(n) and O(n^2) translates to "1 second vs 11.5 days" when data reaches 1 million entries. Whether you understand this difference and can choose the right algorithm is what separates engineers by skill level.
 
-ソート、探索、再帰、動的計画法、グラフアルゴリズムという5大テーマを、理論（計算量証明）と実践（動作するコード）の両面から解説する。各アルゴリズムは「なぜこの方法が効率的なのか」を内部的に解説し、単なる暗記ではなく深い理解を促す。
+This section covers the five major topics — sorting, searching, recursion, dynamic programming, and graph algorithms — from both theoretical (complexity proofs) and practical (working code) perspectives. Each algorithm is explained internally in terms of "why this approach is efficient," promoting deep understanding rather than mere memorization.
 
-### 04 - Data Structures（データ構造）
+### 04 - Data Structures
 
-| # | ファイル | 内容 |
-|---|---------|------|
-| 00 | arrays-and-lists.md | 配列と連結リスト — 動的配列、スキップリスト |
-| 01 | stacks-and-queues.md | スタックとキュー — LIFO/FIFO、Deque、優先度キュー |
-| 02 | hash-tables.md | ハッシュテーブル — 衝突解決、ブルームフィルタ、一貫性ハッシュ |
-| 03 | trees-basics.md | 木構造の基礎 — 二分探索木、走査、トライ木 |
-| 04 | balanced-trees.md | 平衡木 — AVL木、赤黒木、B木、B+木 |
-| 05 | heaps-and-priority.md | ヒープと優先度キュー — 二分ヒープ、フィボナッチヒープ |
-| 06 | graphs.md | グラフ — 隣接行列/リスト、Union-Find |
-| 07 | advanced-structures.md | 発展的データ構造 — ブルームフィルタ、LRUキャッシュ、ロープ |
+| # | File | Description |
+|---|------|-------------|
+| 00 | arrays-and-lists.md | Arrays and Linked Lists — dynamic arrays, skip lists |
+| 01 | stacks-and-queues.md | Stacks and Queues — LIFO/FIFO, deque, priority queue |
+| 02 | hash-tables.md | Hash Tables — collision resolution, Bloom filters, consistent hashing |
+| 03 | trees-basics.md | Tree Basics — binary search trees, traversal, tries |
+| 04 | balanced-trees.md | Balanced Trees — AVL trees, red-black trees, B-trees, B+ trees |
+| 05 | heaps-and-priority.md | Heaps and Priority Queues — binary heaps, Fibonacci heaps |
+| 06 | graphs.md | Graphs — adjacency matrix/list, Union-Find |
+| 07 | advanced-structures.md | Advanced Data Structures — Bloom filters, LRU cache, ropes |
 
-「適切なデータ構造を選ぶ」ことは、プログラミングにおける最も重要な判断の一つである。配列、ハッシュテーブル、木、グラフ — それぞれに得意・不得意があり、問題に応じた最適な選択ができるかどうかでコードの品質が決まる。
+"Choosing the right data structure" is one of the most important decisions in programming. Arrays, hash tables, trees, graphs — each has its strengths and weaknesses, and whether you can make the optimal choice for a given problem determines the quality of your code.
 
-各データ構造について、内部実装の仕組み、計算量、メモリ使用量、キャッシュ効率まで深く解説する。さらに、各プログラミング言語（Python、JavaScript、Java、Rust）での標準ライブラリの実装も比較し、実務ですぐに使える知識を提供する。
+Each data structure is covered in depth, including internal implementation details, time complexity, memory usage, and cache efficiency. Additionally, standard library implementations across multiple programming languages (Python, JavaScript, Java, Rust) are compared, providing knowledge immediately applicable in practice.
 
-### 05 - Computation Theory（計算理論）
+### 05 - Computation Theory
 
-| # | ファイル | 内容 |
-|---|---------|------|
-| 00 | automata-theory.md | オートマトン理論 — DFA/NFA、正規表現エンジン |
-| 01 | formal-languages.md | 形式言語 — チョムスキー階層、BNF、構文解析 |
-| 02 | turing-machines.md | チューリングマシン — 計算の数学的定義 |
-| 03 | computability.md | 計算可能性 — 停止問題、決定不能性 |
-| 04 | complexity-classes.md | 計算量クラス — P、NP、NP完全、P vs NP問題 |
-| 05 | information-theory.md | 情報理論 — エントロピー、シャノンの定理 |
+| # | File | Description |
+|---|------|-------------|
+| 00 | automata-theory.md | Automata Theory — DFA/NFA, regex engines |
+| 01 | formal-languages.md | Formal Languages — Chomsky hierarchy, BNF, parsing |
+| 02 | turing-machines.md | Turing Machines — mathematical definition of computation |
+| 03 | computability.md | Computability — halting problem, undecidability |
+| 04 | complexity-classes.md | Complexity Classes — P, NP, NP-complete, the P vs NP problem |
+| 05 | information-theory.md | Information Theory — entropy, Shannon's theorem |
 
-計算理論はCSの最も深い層であり、「何が計算可能で、何が不可能か」を数学的に明らかにする。正規表現がなぜ再帰的なパターンにマッチできないのか、完璧なバグ検出ツールがなぜ作れないのか — これらの「不可能」を理解することは、エンジニアの思考の深さを決定的に変える。
+Computation theory is the deepest layer of CS, mathematically revealing "what is computable and what is not." Why regular expressions cannot match recursive patterns, why a perfect bug detector cannot be built — understanding these "impossibilities" fundamentally changes the depth of an engineer's thinking.
 
-### 06 - Programming Paradigms（プログラミングパラダイム）
+### 06 - Programming Paradigms
 
-| # | ファイル | 内容 |
-|---|---------|------|
-| 00 | [imperative.md](docs/06-programming-paradigms/00-imperative.md) | 命令型プログラミング — 手続き型、構造化、C言語 |
-| 01 | functional.md | 関数型プログラミング — 純粋関数、不変性、モナド |
-| 02 | object-oriented.md | オブジェクト指向 — SOLID、デザインパターン |
-| 03 | logic.md | 論理型プログラミング — Prolog、宣言的プログラミング |
-| 04 | multi-paradigm.md | マルチパラダイム — Rust、Kotlin、TypeScript |
+| # | File | Description |
+|---|------|-------------|
+| 00 | [imperative.md](docs/06-programming-paradigms/00-imperative.md) | Imperative Programming — procedural, structured, C language |
+| 01 | functional.md | Functional Programming — pure functions, immutability, monads |
+| 02 | object-oriented.md | Object-Oriented Programming — SOLID, design patterns |
+| 03 | logic.md | Logic Programming — Prolog, declarative programming |
+| 04 | multi-paradigm.md | Multi-Paradigm — Rust, Kotlin, TypeScript |
 
-### 07 - Software Engineering Basics（ソフトウェアエンジニアリング基礎）
+### 07 - Software Engineering Basics
 
-| # | ファイル | 内容 |
-|---|---------|------|
-| 00 | development-lifecycle.md | 開発ライフサイクル — ウォーターフォール、アジャイル、DevOps |
-| 01 | version-control.md | バージョン管理 — Gitの内部構造、ブランチ戦略 |
-| 02 | testing-fundamentals.md | テスト基礎 — テストピラミッド、TDD、BDD |
-| 03 | debugging-techniques.md | デバッグ技法 — 科学的デバッグ、プロファイリング |
-| 04 | documentation-practices.md | ドキュメンテーション — Docs as Code、ADR |
+| # | File | Description |
+|---|------|-------------|
+| 00 | development-lifecycle.md | Development Lifecycle — Waterfall, Agile, DevOps |
+| 01 | version-control.md | Version Control — Git internals, branching strategies |
+| 02 | testing-fundamentals.md | Testing Fundamentals — test pyramid, TDD, BDD |
+| 03 | debugging-techniques.md | Debugging Techniques — scientific debugging, profiling |
+| 04 | documentation-practices.md | Documentation — Docs as Code, ADR |
 
-### 08 - Advanced Topics（発展トピック）
+### 08 - Advanced Topics
 
-| # | ファイル | 内容 |
-|---|---------|------|
-| 00 | distributed-systems-intro.md | 分散システム入門 — CAP定理、Raft、マイクロサービス |
-| 01 | concurrency-intro.md | 並行処理入門 — スレッド、デッドロック、async/await |
-| 02 | security-intro.md | セキュリティ入門 — 暗号、TLS、OWASP Top 10 |
-| 03 | ai-ml-intro.md | AI/ML入門 — 機械学習分類、ニューラルネット、LLM |
-
----
-
-## ベストプラクティス
-
-### CS学習
-
-1. **理論と実践を交互に** — 理論を学んだら必ずコードで確認する
-2. **計算量を常に意識** — 全てのコードに対して「O(?)」を考える習慣を持つ
-3. **「なぜ」を追求する** — 手法だけでなく、なぜその手法が正しいかを理解する
-4. **手を動かす** — 主要なデータ構造とアルゴリズムは一度は自分で実装する
-5. **実務と結びつける** — 学んだ概念が実際のプロダクトでどう使われているか考える
-6. **段階的に深める** — 最初は概要を掴み、必要に応じて深い理論に踏み込む
-7. **複数の言語で実装** — 同じアルゴリズムをPython、C、Rustで書くと理解が深まる
-8. **可視化する** — データ構造やアルゴリズムの動作を図に描いて理解する
-9. **教える** — 学んだことを他者に説明できるレベルを目指す
-10. **継続する** — CS基礎は一度学べば終わりではなく、深さは無限
-
-### アンチパターン
-
-1. **「CSは数学だから無理」** — CS基礎の大半は高校数学レベルで理解できる
-2. **「プログラミングができればCSは不要」** — スケールしないコードを書く原因
-3. **「最新技術だけ追えばいい」** — 基礎なき応用は砂上の楼閣
-4. **「教科書を最初から全部読む」** — 必要な箇所から実践的に学ぶべき
-5. **「LeetCodeだけやればいい」** — パターン暗記ではなく本質的理解が重要
-6. **「アルゴリズムは実務で使わない」** — 意識せずに使っているだけ
-7. **「理論は不要」** — 理論を知らないと不可能な問題に挑んで時間を無駄にする
-8. **「一度学べば忘れない」** — 定期的な復習と実践が必要
-9. **「完璧に理解してから次へ」** — 80%理解で次に進み、後から深める
-10. **「暗記で乗り切る」** — 原理を理解すれば暗記は不要になる
+| # | File | Description |
+|---|------|-------------|
+| 00 | distributed-systems-intro.md | Introduction to Distributed Systems — CAP theorem, Raft, microservices |
+| 01 | concurrency-intro.md | Introduction to Concurrency — threads, deadlocks, async/await |
+| 02 | security-intro.md | Introduction to Security — cryptography, TLS, OWASP Top 10 |
+| 03 | ai-ml-intro.md | Introduction to AI/ML — machine learning taxonomy, neural networks, LLMs |
 
 ---
 
-## 詳細ドキュメント
+## Best Practices
 
-| ディレクトリ | 内容 | ファイル数 |
-|-------------|------|----------|
-| `docs/00-introduction/` | 導入、歴史、学習パス | 4 |
-| `docs/01-hardware-basics/` | ハードウェアの仕組み | 8 |
-| `docs/02-data-representation/` | データの内部表現 | 7 |
-| `docs/03-algorithms-basics/` | アルゴリズムの基礎 | 8 |
-| `docs/04-data-structures/` | データ構造 | 8 |
-| `docs/05-computation-theory/` | 計算理論 | 6 |
-| `docs/06-programming-paradigms/` | プログラミングパラダイム | 5 |
-| `docs/07-software-engineering-basics/` | SE基礎 | 5 |
-| `docs/08-advanced-topics/` | 発展トピック | 4 |
-| **合計** | | **55** |
+### Studying CS
+
+1. **Alternate between theory and practice** — Always verify with code after learning theory
+2. **Always be conscious of complexity** — Build the habit of asking "O(?)'' for every piece of code
+3. **Pursue the "why"** — Understand not just the technique but why it is correct
+4. **Get hands-on** — Implement all major data structures and algorithms yourself at least once
+5. **Connect to real-world practice** — Consider how the concepts you learn are used in actual products
+6. **Deepen progressively** — First grasp the overview, then dive into deeper theory as needed
+7. **Implement in multiple languages** — Writing the same algorithm in Python, C, and Rust deepens understanding
+8. **Visualize** — Draw diagrams of data structures and algorithm behavior to aid comprehension
+9. **Teach** — Aim for the level of understanding where you can explain what you have learned to others
+10. **Keep going** — CS fundamentals are not a one-time study; their depth is infinite
+
+### Anti-Patterns
+
+1. **"CS is math, so it's impossible for me"** — The vast majority of CS fundamentals can be understood with high school-level math
+2. **"I can program, so I don't need CS"** — This is the root cause of code that does not scale
+3. **"I just need to keep up with the latest tech"** — Application without fundamentals is a house built on sand
+4. **"Read the textbook from cover to cover"** — Start with what you need and learn practically
+5. **"Just grind LeetCode"** — Fundamental understanding matters more than pattern memorization
+6. **"Algorithms are not used in real work"** — You use them without realizing it
+7. **"Theory is unnecessary"** — Without theory, you waste time attempting impossible problems
+8. **"Once learned, never forgotten"** — Regular review and practice are essential
+9. **"Understand perfectly before moving on"** — Move forward at 80% understanding and deepen later
+10. **"Memorize everything"** — Understanding the principles eliminates the need for memorization
 
 ---
 
-## 関連Skills
+## Detailed Documentation
 
-| Skill | 関係 |
-|-------|------|
+| Directory | Description | File Count |
+|-----------|-------------|------------|
+| `docs/00-introduction/` | Introduction, history, learning paths | 4 |
+| `docs/01-hardware-basics/` | How hardware works | 8 |
+| `docs/02-data-representation/` | Internal data representation | 7 |
+| `docs/03-algorithms-basics/` | Algorithm fundamentals | 8 |
+| `docs/04-data-structures/` | Data structures | 8 |
+| `docs/05-computation-theory/` | Computation theory | 6 |
+| `docs/06-programming-paradigms/` | Programming paradigms | 5 |
+| `docs/07-software-engineering-basics/` | SE basics | 5 |
+| `docs/08-advanced-topics/` | Advanced topics | 4 |
+| **Total** | | **55** |
 
 ---
 
-## 参考文献
+## Related Skills
+
+| Skill | Relationship |
+|-------|--------------|
+
+---
+
+## References
 
 1. Cormen, T. H. et al. "Introduction to Algorithms" (CLRS). MIT Press, 4th Edition, 2022.
 2. Bryant, R. E. & O'Hallaron, D. R. "Computer Systems: A Programmer's Perspective" (CS:APP). Pearson, 3rd Edition, 2015.

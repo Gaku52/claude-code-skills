@@ -1,60 +1,62 @@
-# AI 時代の開発ワークフロー
+[日本語版](../../ja/07-ai/ai-era-development-workflow/SKILL.md)
 
-> AI はソフトウェア開発のあり方を根本的に変える。AI コーディング支援、AI ペアプログラミング、AI 駆動テスト、AI レビュー、プロンプト駆動開発まで、AI 時代の開発手法を解説する。
+# AI-Era Development Workflow
 
-## このSkillの対象者
+> AI is fundamentally transforming how software is built. This skill covers development methodologies for the AI era — from AI coding assistance, AI pair programming, and AI-driven testing to AI code review and prompt-driven development.
 
-- AI ツールを開発ワークフローに統合したいエンジニア
-- 開発生産性を最大化したい方
-- AI 時代のエンジニアリングスキルを身につけたい方
+## Target Audience
 
-## 前提知識
+- Engineers integrating AI tools into their development workflow
+- Those seeking to maximize development productivity
+- Developers building engineering skills for the AI era
 
-- ソフトウェア開発の実務経験
-- Git/CI の基礎知識
-- LLM の基礎概念
+## Prerequisites
 
-## 学習ガイド
+- Hands-on software development experience
+- Basic knowledge of Git and CI
+- Foundational understanding of LLMs
 
-### 00-fundamentals — AI 開発の基礎
+## Learning Guide
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 00-fundamentals — AI Development Fundamentals
 
-### 01-ai-coding — AI コーディング
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 01-ai-coding — AI Coding
 
-### 02-workflow — AI ワークフロー
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 02-workflow — AI Workflow
 
-### 03-team — AI チーム開発
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 03-team — AI Team Development
 
-## クイックリファレンス
+| # | File | Description |
+|---|------|-------------|
+
+## Quick Reference
 
 ```
-AI 開発ツール推奨スタック:
-  コーディング: Claude Code + GitHub Copilot
-  IDE:         Cursor or VS Code + 拡張
-  テスト:      AI テスト生成 + Vitest
-  レビュー:    AI レビュー + 人間レビュー
-  ドキュメント: AI 生成 + 人間レビュー
-  デバッグ:    AI 分析 + 従来デバッガー
+Recommended AI Development Tool Stack:
+  Coding:        Claude Code + GitHub Copilot
+  IDE:           Cursor or VS Code + extensions
+  Testing:       AI test generation + Vitest
+  Review:        AI review + human review
+  Documentation: AI-generated + human review
+  Debugging:     AI analysis + traditional debugger
 
-生産性向上の原則:
-  ✓ AI に丸投げせず、レビュー必須
-  ✓ コンテキストを十分に与える
-  ✓ 小さなタスクに分割して依頼
-  ✓ テストで品質を担保
+Principles for Productivity Gains:
+  - Always review AI output — never blindly accept it
+  - Provide sufficient context
+  - Break tasks into small, focused units
+  - Ensure quality through testing
 ```
 
-## 参考文献
+## References
 
 1. GitHub. "Copilot Documentation." docs.github.com/copilot, 2024.
 2. Anthropic. "Claude Code." claude.ai/claude-code, 2024.

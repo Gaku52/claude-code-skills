@@ -1,71 +1,73 @@
-# TypeScript 完全ガイド
+[日本語版](../../ja/02-programming/typescript-complete-guide/SKILL.md)
 
-> TypeScript は JavaScript に型安全性を加え、大規模開発を可能にする。型システムの深層、ジェネリクス、条件付き型、Template Literal Types、型レベルプログラミングまで、TypeScript の全てを体系的に解説する。
+# TypeScript Complete Guide
 
-## このSkillの対象者
+> TypeScript adds type safety to JavaScript, enabling large-scale development. This guide systematically covers everything in TypeScript -- from the depths of the type system, generics, and conditional types to Template Literal Types and type-level programming.
 
-- TypeScript を基礎から体系的に学びたいエンジニア
-- 型システムを深く理解し活用したい方
-- ライブラリ・フレームワークの型定義を書きたい方
+## Target Audience
 
-## 前提知識
+- Engineers who want to systematically learn TypeScript from the ground up
+- Developers seeking a deep understanding of the type system
+- Those who want to write type definitions for libraries and frameworks
 
-- JavaScript（ES2022+）の基礎知識
-- Node.js の基本操作
+## Prerequisites
 
-## 学習ガイド
+- Foundational knowledge of JavaScript (ES2022+)
+- Basic familiarity with Node.js
 
-### 00-basics — TypeScript の基礎
+## Study Guide
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 00-basics -- TypeScript Basics
 
-### 01-type-system — 型システム深掘り
+| # | File | Content |
+|---|------|---------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 01-type-system -- Deep Dive into the Type System
 
-### 02-advanced-types — 高度な型パターン
+| # | File | Content |
+|---|------|---------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 02-advanced-types -- Advanced Type Patterns
 
-### 03-patterns — 実践パターン
+| # | File | Content |
+|---|------|---------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 03-patterns -- Practical Patterns
 
-### 04-tooling — ツールチェーン
+| # | File | Content |
+|---|------|---------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 04-tooling -- Toolchain
 
-## クイックリファレンス
+| # | File | Content |
+|---|------|---------|
+
+## Quick Reference
 
 ```
-TypeScript 型チートシート:
+TypeScript Type Cheat Sheet:
 
-  ユーティリティ型:
-    Partial<T>       — 全プロパティをオプショナルに
-    Required<T>      — 全プロパティを必須に
-    Readonly<T>      — 全プロパティを readonly に
-    Pick<T, K>       — 指定プロパティのみ抽出
-    Omit<T, K>       — 指定プロパティを除外
-    Record<K, V>     — キーと値の型を指定
-    Extract<T, U>    — T から U に代入可能な型を抽出
-    Exclude<T, U>    — T から U に代入可能な型を除外
-    ReturnType<F>    — 関数の戻り値型
-    Parameters<F>    — 関数の引数型
-    Awaited<T>       — Promise の解決型
-    NonNullable<T>   — null/undefined を除外
+  Utility Types:
+    Partial<T>       -- Makes all properties optional
+    Required<T>      -- Makes all properties required
+    Readonly<T>      -- Makes all properties readonly
+    Pick<T, K>       -- Extracts specified properties
+    Omit<T, K>       -- Excludes specified properties
+    Record<K, V>     -- Defines key and value types
+    Extract<T, U>    -- Extracts types from T assignable to U
+    Exclude<T, U>    -- Excludes types from T assignable to U
+    ReturnType<F>    -- Return type of a function
+    Parameters<F>    -- Parameter types of a function
+    Awaited<T>       -- Resolved type of a Promise
+    NonNullable<T>   -- Excludes null/undefined
 
-  tsconfig 推奨設定:
+  Recommended tsconfig settings:
     "strict": true
     "noUncheckedIndexedAccess": true
     "exactOptionalPropertyTypes": true
 ```
 
-## 参考文献
+## References
 
 1. TypeScript. "Handbook." typescriptlang.org/docs, 2024.
 2. Vanderkam, D. "Effective TypeScript." O'Reilly, 2024.

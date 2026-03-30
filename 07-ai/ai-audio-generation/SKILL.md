@@ -1,51 +1,53 @@
-# AI 音声・音楽生成
+[日本語版](../../ja/07-ai/ai-audio-generation/SKILL.md)
 
-> AI が音の創造を民主化する。テキスト音声合成、音声クローニング、AI 作曲、サウンドデザインまで、AI 音声・音楽生成の全てを解説する。
+# AI Audio and Music Generation
 
-## このSkillの対象者
+> AI is democratizing the creation of sound. This skill covers all aspects of AI audio and music generation — from text-to-speech synthesis, voice cloning, and AI composition to sound design.
 
-- AI 音声・音楽生成技術を学びたいクリエイター
-- 音声合成をアプリに組み込みたいエンジニア
-- AI 音楽制作に興味がある方
+## Target Audience
 
-## 前提知識
+- Creators looking to learn AI audio and music generation technologies
+- Engineers integrating speech synthesis into their applications
+- Those interested in AI music production
 
-- 音声・音楽の基礎概念
-- Python の基礎知識
+## Prerequisites
 
-## 学習ガイド
+- Basic concepts of audio and music
+- Basic knowledge of Python
 
-### 00-fundamentals — 音声 AI の基礎
+## Learning Guide
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 00-fundamentals — Audio AI Fundamentals
 
-### 01-music — AI 音楽生成
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 01-music — AI Music Generation
 
-### 02-voice — AI 音声合成
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 02-voice — AI Speech Synthesis
 
-### 03-tools — ツールとワークフロー
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 03-tools — Tools and Workflows
 
-## クイックリファレンス
+| # | File | Description |
+|---|------|-------------|
+
+## Quick Reference
 
 ```
-AI 音声サービス比較:
-  TTS:     ElevenLabs（高品質）/ OpenAI TTS（API統合）/ VOICEVOX（無料・日本語）
-  音楽:    Suno（歌詞→楽曲）/ Udio（高品質）/ Stable Audio
-  認識:    Whisper（オープン）/ Deepgram（API）/ Google STT
-  分離:    Demucs / Spleeter
+AI Audio Service Comparison:
+  TTS:          ElevenLabs (high quality) / OpenAI TTS (API integration) / VOICEVOX (free, Japanese)
+  Music:        Suno (lyrics to song) / Udio (high quality) / Stable Audio
+  Recognition:  Whisper (open source) / Deepgram (API) / Google STT
+  Separation:   Demucs / Spleeter
 ```
 
-## 参考文献
+## References
 
 1. Radford, A. et al. "Robust Speech Recognition via Large-Scale Weak Supervision." OpenAI, 2023.
 2. ElevenLabs. "Documentation." elevenlabs.io/docs, 2024.

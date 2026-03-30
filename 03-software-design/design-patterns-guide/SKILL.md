@@ -1,58 +1,60 @@
-# デザインパターンガイド
+[日本語版](../../ja/03-software-design/design-patterns-guide/SKILL.md)
 
-> デザインパターンは再利用可能な設計の知恵。GoF パターン、アーキテクチャパターン、関数型パターン、モダンな JavaScript/TypeScript での実装まで、設計パターンの全てを体系的に解説する。
+# Design Patterns Guide
 
-## このSkillの対象者
+> Design patterns are reusable wisdom in software design. This skill systematically covers everything about design patterns, from GoF patterns, architectural patterns, and functional patterns to modern implementations in JavaScript/TypeScript.
 
-- デザインパターンを体系的に学びたいエンジニア
-- コードの品質と保守性を向上させたい方
-- 設計判断の根拠を明確にしたい方
+## Target Audience
 
-## 前提知識
+- Engineers who want to systematically learn design patterns
+- Anyone looking to improve code quality and maintainability
+- Those who want to make well-grounded design decisions
 
-- オブジェクト指向プログラミングの基礎
-- TypeScript の基礎知識
+## Prerequisites
 
-## 学習ガイド
+- Fundamentals of object-oriented programming
+- Basic knowledge of TypeScript
 
-### 00-creational — 生成パターン
+## Learning Guide
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 00-creational — Creational Patterns
 
-### 01-structural — 構造パターン
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 01-structural — Structural Patterns
 
-### 02-behavioral — 振る舞いパターン
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 02-behavioral — Behavioral Patterns
 
-### 03-architectural — アーキテクチャパターン
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 03-architectural — Architectural Patterns
 
-### 04-functional — 関数型パターン
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 04-functional — Functional Patterns
 
-## クイックリファレンス
+| # | File | Description |
+|---|------|-------------|
+
+## Quick Reference
 
 ```
-パターン選定ガイド:
-  オブジェクト生成 → Factory / Builder / DI
-  インターフェース適合 → Adapter / Facade
-  状態管理 → Observer / State / Redux
-  アルゴリズム切替 → Strategy
-  非同期処理 → Promise / Observable
-  エラー処理 → Result 型 / Chain of Responsibility
+Pattern Selection Guide:
+  Object creation     → Factory / Builder / DI
+  Interface adapting   → Adapter / Facade
+  State management    → Observer / State / Redux
+  Algorithm switching → Strategy
+  Async processing    → Promise / Observable
+  Error handling      → Result type / Chain of Responsibility
 ```
 
-## 参考文献
+## References
 
 1. Gamma, E. et al. "Design Patterns." Addison-Wesley, 1994.
 2. Freeman, E. "Head First Design Patterns." O'Reilly, 2020.

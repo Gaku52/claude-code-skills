@@ -1,53 +1,55 @@
-# クリーンコード原則
+[日本語版](../../ja/03-software-design/clean-code-principles/SKILL.md)
 
-> クリーンコードは読みやすく、変更しやすく、テストしやすいコード。命名規則、関数設計、SOLID 原則、リファクタリングテクニック、コードレビュー文化まで、コード品質の全てを解説する。
+# Clean Code Principles
 
-## このSkillの対象者
+> Clean code is code that is easy to read, easy to change, and easy to test. This skill covers everything about code quality, from naming conventions, function design, and SOLID principles to refactoring techniques and code review culture.
 
-- コード品質を向上させたいエンジニア
-- チームのコーディング規約を整備したいリード
-- リファクタリングの技法を学びたい方
+## Target Audience
 
-## 前提知識
+- Engineers who want to improve their code quality
+- Tech leads looking to establish team coding standards
+- Anyone who wants to learn refactoring techniques
 
-- 何らかのプログラミング言語の実務経験
-- 基本的な設計パターンの知識
+## Prerequisites
 
-## 学習ガイド
+- Hands-on experience with at least one programming language
+- Basic knowledge of design patterns
 
-### 00-fundamentals — 基礎原則
+## Learning Guide
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 00-fundamentals — Core Principles
 
-### 01-practices — 実践テクニック
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 01-practices — Practical Techniques
 
-### 02-refactoring — リファクタリング
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 02-refactoring — Refactoring
 
-### 03-team — チーム品質
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 03-team — Team Quality
 
-## クイックリファレンス
+| # | File | Description |
+|---|------|-------------|
+
+## Quick Reference
 
 ```
-クリーンコードチェックリスト:
-  ✓ 意図が明確な命名
-  ✓ 関数は20行以内、引数は3個以下
-  ✓ 1関数1責任
-  ✓ 早期リターンでネスト削減
-  ✓ マジックナンバーは定数化
-  ✓ コメントより自己文書化コード
+Clean Code Checklist:
+  ✓ Use intention-revealing names
+  ✓ Keep functions under 20 lines with no more than 3 parameters
+  ✓ One responsibility per function
+  ✓ Reduce nesting with early returns
+  ✓ Replace magic numbers with named constants
+  ✓ Prefer self-documenting code over comments
 ```
 
-## 参考文献
+## References
 
 1. Martin, R. "Clean Code." Prentice Hall, 2008.
 2. Fowler, M. "Refactoring." Addison-Wesley, 2018.

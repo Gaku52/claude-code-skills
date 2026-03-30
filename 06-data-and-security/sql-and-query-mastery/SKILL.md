@@ -1,53 +1,55 @@
-# SQL とクエリマスタリー
+[日本語版](../../ja/06-data-and-security/sql-and-query-mastery/SKILL.md)
 
-> SQL はデータ操作の共通言語。基本構文から高度なウィンドウ関数、クエリ最適化、実行計画分析、データベース固有機能まで、SQL の全てを体系的に解説する。
+# SQL and Query Mastery
 
-## このSkillの対象者
+> SQL is the universal language of data manipulation. This skill systematically covers everything from basic syntax to advanced window functions, query optimization, execution plan analysis, and database-specific features.
 
-- SQL を体系的に学びたいエンジニア
-- クエリパフォーマンスを最適化したい方
-- データベース設計と運用に関わる方
+## Target Audience
 
-## 前提知識
+- Engineers who want to learn SQL systematically
+- Developers looking to optimize query performance
+- Those involved in database design and operations
 
-- リレーショナルデータベースの基礎概念
-- 基本的な SQL（SELECT/INSERT/UPDATE/DELETE）
+## Prerequisites
 
-## 学習ガイド
+- Foundational understanding of relational databases
+- Basic SQL knowledge (SELECT/INSERT/UPDATE/DELETE)
 
-### 00-basics — SQL の基礎
+## Study Guide
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 00-basics — SQL Fundamentals
 
-### 01-advanced — 高度な SQL
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 01-advanced — Advanced SQL
 
-### 02-optimization — クエリ最適化
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 02-optimization — Query Optimization
 
-### 03-specific — データベース固有機能
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 03-specific — Database-Specific Features
 
-## クイックリファレンス
+| # | File | Description |
+|---|------|-------------|
+
+## Quick Reference
 
 ```
-SQL パフォーマンスチェックリスト:
-  ✓ EXPLAIN ANALYZE で実行計画を確認
-  ✓ 適切なインデックスを作成
-  ✓ SELECT * を避け、必要なカラムのみ
-  ✓ N+1 クエリを JOIN で解決
-  ✓ 大量データは LIMIT/OFFSET → カーソルベース
-  ✓ 集約は DB 側で実行
+SQL Performance Checklist:
+  ✓ Verify execution plans with EXPLAIN ANALYZE
+  ✓ Create appropriate indexes
+  ✓ Avoid SELECT *; query only the columns you need
+  ✓ Resolve N+1 queries with JOINs
+  ✓ For large datasets, use cursor-based pagination instead of LIMIT/OFFSET
+  ✓ Perform aggregations on the database side
 ```
 
-## 参考文献
+## References
 
 1. PostgreSQL. "Documentation." postgresql.org/docs, 2024.
 2. Winand, M. "SQL Performance Explained." use-the-index-luke.com, 2012.

@@ -1,106 +1,108 @@
-# AWS クラウドガイド
+[日本語版](../../ja/05-infrastructure/aws-cloud-guide/SKILL.md)
 
-> AWS はクラウドコンピューティングの事実上の標準。EC2/S3/Lambda の基礎からネットワーク設計、データベース選定、サーバーレスアーキテクチャ、コンテナ運用、セキュリティ、コスト最適化まで、AWS の全てを体系的に解説する。
+# AWS Cloud Guide
 
-## このSkillの対象者
+> AWS is the de facto standard in cloud computing. This guide systematically covers everything from the basics of EC2, S3, and Lambda to network design, database selection, serverless architecture, container operations, security, and cost optimization.
 
-- AWS を使ったインフラ構築を学びたいエンジニア
-- AWS 認定資格（SAA/SAP）の取得を目指す方
-- オンプレミスからクラウドへの移行を計画する方
+## Target Audience
 
-## 前提知識
+- Engineers looking to learn AWS infrastructure
+- Professionals pursuing AWS certifications (SAA/SAP)
+- Teams planning migrations from on-premises to the cloud
 
-- Linux の基本操作
-- ネットワークの基礎（TCP/IP、DNS、HTTP）
-- コンテナの基礎知識（Docker）
+## Prerequisites
 
-## 学習ガイド
+- Basic Linux operations
+- Networking fundamentals (TCP/IP, DNS, HTTP)
+- Basic container knowledge (Docker)
 
-### 00-fundamentals — AWS の基礎
+## Study Guide
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 00-fundamentals — AWS Fundamentals
 
-### 01-compute — コンピューティング
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 01-compute — Compute
 
-### 02-storage — ストレージ
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 02-storage — Storage
 
-### 03-database — データベース
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 03-database — Database
 
-### 04-networking — ネットワーキング
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 04-networking — Networking
 
-### 05-serverless — サーバーレス
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 05-serverless — Serverless
 
-### 06-containers — コンテナサービス
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 06-containers — Container Services
 
-### 07-devops — DevOps サービス
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 07-devops — DevOps Services
 
-### 08-security — セキュリティサービス
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 08-security — Security Services
 
-### 09-cost-management — コスト管理
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 09-cost-management — Cost Management
 
-## クイックリファレンス
+| # | File | Description |
+|---|------|-------------|
+
+## Quick Reference
 
 ```
-AWS サービス選定チャート:
+AWS Service Selection Chart:
 
-  コンピューティング:
-    コンテナ → ECS Fargate（推奨）or EKS
-    サーバーレス → Lambda + API Gateway
-    VM → EC2 + Auto Scaling
+  Compute:
+    Containers → ECS Fargate (recommended) or EKS
+    Serverless → Lambda + API Gateway
+    VMs → EC2 + Auto Scaling
     PaaS → Elastic Beanstalk
 
-  データベース:
-    RDB → Aurora（推奨）or RDS
+  Database:
+    Relational → Aurora (recommended) or RDS
     NoSQL → DynamoDB
-    キャッシュ → ElastiCache Redis
-    全文検索 → OpenSearch
+    Cache → ElastiCache Redis
+    Full-text search → OpenSearch
 
-  ストレージ:
-    オブジェクト → S3
-    ファイル → EFS
-    ブロック → EBS
+  Storage:
+    Object → S3
+    File → EFS
+    Block → EBS
 
-  ネットワーク:
+  Networking:
     DNS → Route 53
     CDN → CloudFront
-    ロードバランサー → ALB
+    Load Balancer → ALB
 
-  コスト削減:
+  Cost Reduction:
     ✓ Savings Plans / Reserved Instances
-    ✓ スポットインスタンス（耐障害性あるワークロード）
-    ✓ S3 ライフサイクル（Glacier 移行）
-    ✓ Lambda（低トラフィック時）
+    ✓ Spot Instances (for fault-tolerant workloads)
+    ✓ S3 Lifecycle policies (transition to Glacier)
+    ✓ Lambda (for low-traffic periods)
 ```
 
-## 参考文献
+## References
 
 1. AWS. "Documentation." docs.aws.amazon.com, 2024.
 2. AWS. "Well-Architected Framework." aws.amazon.com/architecture, 2024.

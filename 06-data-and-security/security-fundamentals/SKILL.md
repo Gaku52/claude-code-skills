@@ -1,80 +1,82 @@
-# セキュリティ基礎
+[日本語版](../../ja/06-data-and-security/security-fundamentals/SKILL.md)
 
-> セキュリティはソフトウェア開発の基盤。OWASP Top 10、暗号技術、ネットワークセキュリティ、アプリケーションセキュリティ、クラウドセキュリティ、セキュリティ運用まで、エンジニアに必要なセキュリティ知識を体系的に解説する。
+# Security Fundamentals
 
-## このSkillの対象者
+> Security is the foundation of software development. This skill systematically covers the essential security knowledge every engineer needs — from the OWASP Top 10 and cryptography to network security, application security, cloud security, and security operations.
 
-- セキュリティの基礎を体系的に学びたいエンジニア
-- セキュアなアプリケーション開発を目指す方
-- セキュリティ監査・インシデント対応を担当する方
+## Target Audience
 
-## 前提知識
+- Engineers who want to build a systematic understanding of security fundamentals
+- Developers aiming to build secure applications
+- Those responsible for security audits and incident response
 
-- Web アプリケーションの基本構造
-- ネットワークの基礎知識（TCP/IP、HTTP）
-- Linux の基本操作
+## Prerequisites
 
-## 学習ガイド
+- Basic understanding of web application architecture
+- Foundational networking knowledge (TCP/IP, HTTP)
+- Basic Linux command-line skills
 
-### 00-basics — セキュリティの基礎
+## Study Guide
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 00-basics — Security Fundamentals
 
-### 01-web-security — Web セキュリティ
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 01-web-security — Web Security
 
-### 02-cryptography — 暗号技術
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 02-cryptography — Cryptography
 
-### 03-network-security — ネットワークセキュリティ
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 03-network-security — Network Security
 
-### 04-application-security — アプリケーションセキュリティ
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 04-application-security — Application Security
 
-### 05-cloud-security — クラウドセキュリティ
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 05-cloud-security — Cloud Security
 
-### 06-operations — セキュリティ運用
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 06-operations — Security Operations
 
-## クイックリファレンス
+| # | File | Description |
+|---|------|-------------|
+
+## Quick Reference
 
 ```
-セキュリティチェックリスト:
+Security Checklist:
 
-  Web アプリケーション:
-    ✓ 入力検証（サーバーサイド必須）
-    ✓ パラメータ化クエリ（SQL Injection 防止）
-    ✓ CSP ヘッダー設定（XSS 防止）
-    ✓ CSRF トークン or SameSite=Lax
-    ✓ HttpOnly + Secure Cookie
-    ✓ HTTPS 強制（HSTS）
+  Web Applications:
+    ✓ Input validation (server-side is mandatory)
+    ✓ Parameterized queries (prevent SQL Injection)
+    ✓ CSP header configuration (prevent XSS)
+    ✓ CSRF tokens or SameSite=Lax
+    ✓ HttpOnly + Secure cookies
+    ✓ Enforce HTTPS (HSTS)
 
-  認証・認可:
-    ✓ bcrypt/Argon2 パスワードハッシュ
-    ✓ MFA（TOTP or WebAuthn）
-    ✓ JWT 署名検証（ES256 推奨）
-    ✓ 最小権限の原則
+  Authentication & Authorization:
+    ✓ Password hashing with bcrypt/Argon2
+    ✓ MFA (TOTP or WebAuthn)
+    ✓ JWT signature verification (ES256 recommended)
+    ✓ Principle of least privilege
 
-  インフラ:
-    ✓ 依存関係の脆弱性スキャン
-    ✓ コンテナイメージスキャン
-    ✓ シークレット管理（.env をコミットしない）
-    ✓ ログ・監査証跡の保持
+  Infrastructure:
+    ✓ Dependency vulnerability scanning
+    ✓ Container image scanning
+    ✓ Secret management (never commit .env files)
+    ✓ Log retention and audit trails
 
   OWASP Top 10 (2021):
     A01: Broken Access Control
@@ -89,7 +91,7 @@
     A10: SSRF
 ```
 
-## 参考文献
+## References
 
 1. OWASP. "Top 10 Web Application Security Risks." owasp.org, 2021.
 2. NIST. "Cybersecurity Framework." nist.gov, 2024.

@@ -1,78 +1,80 @@
-# Docker コンテナガイド
+[日本語版](../../ja/05-infrastructure/docker-container-guide/SKILL.md)
 
-> Docker はモダン開発の基盤インフラ。コンテナの基礎概念、Dockerfile のベストプラクティス、Docker Compose によるマルチサービス構成、ネットワーキング、本番運用、オーケストレーション、セキュリティまで、Docker の全てを体系的に解説する。
+# Docker Container Guide
 
-## このSkillの対象者
+> Docker is a foundational piece of modern development infrastructure. This guide systematically covers container fundamentals, Dockerfile best practices, multi-service orchestration with Docker Compose, networking, production operations, orchestration, and security.
 
-- Docker を使った開発・運用を学びたいエンジニア
-- コンテナ化されたアプリケーションを本番デプロイする方
-- Docker Compose でマルチサービス環境を構築する方
+## Target Audience
 
-## 前提知識
+- Engineers looking to learn Docker-based development and operations
+- Developers deploying containerized applications to production
+- Teams building multi-service environments with Docker Compose
 
-- Linux の基本コマンド
-- Web アプリケーションの基本構造
-- ネットワークの基礎知識
+## Prerequisites
 
-## 学習ガイド
+- Basic Linux commands
+- Fundamental understanding of web application architecture
+- Basic networking knowledge
 
-### 00-fundamentals — コンテナの基礎
+## Study Guide
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 00-fundamentals — Container Fundamentals
 
-### 01-dockerfile — Dockerfile ベストプラクティス
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 01-dockerfile — Dockerfile Best Practices
+
+| # | File | Description |
+|---|------|-------------|
 
 ### 02-compose — Docker Compose
 
-| # | ファイル | 内容 |
-|---|---------|------|
+| # | File | Description |
+|---|------|-------------|
 
-### 03-networking — ネットワーキング
+### 03-networking — Networking
 
-| # | ファイル | 内容 |
-|---|---------|------|
+| # | File | Description |
+|---|------|-------------|
 
-### 04-production — 本番運用
+### 04-production — Production Operations
 
-| # | ファイル | 内容 |
-|---|---------|------|
+| # | File | Description |
+|---|------|-------------|
 
-### 05-orchestration — オーケストレーション
+### 05-orchestration — Orchestration
 
-| # | ファイル | 内容 |
-|---|---------|------|
+| # | File | Description |
+|---|------|-------------|
 
-### 06-security — セキュリティ
+### 06-security — Security
 
-| # | ファイル | 内容 |
-|---|---------|------|
+| # | File | Description |
+|---|------|-------------|
 
-## クイックリファレンス
+## Quick Reference
 
 ```
-Docker コマンド早見表:
-  docker build -t app:latest .        — イメージビルド
-  docker run -d -p 3000:3000 app      — コンテナ起動
-  docker compose up -d                — Compose 起動
-  docker compose down -v              — Compose 停止+ボリューム削除
-  docker logs -f <container>          — ログ追跡
-  docker exec -it <container> sh      — コンテナ内シェル
-  docker system prune -a              — 不要リソース削除
+Docker Command Cheat Sheet:
+  docker build -t app:latest .        — Build an image
+  docker run -d -p 3000:3000 app      — Start a container
+  docker compose up -d                — Start Compose services
+  docker compose down -v              — Stop Compose and remove volumes
+  docker logs -f <container>          — Follow container logs
+  docker exec -it <container> sh      — Open a shell inside a container
+  docker system prune -a              — Remove unused resources
 
-Dockerfile ベストプラクティス:
-  ✓ マルチステージビルドでサイズ削減
-  ✓ 非 root ユーザーで実行
-  ✓ .dockerignore でビルドコンテキスト最適化
-  ✓ COPY --chown でファイル所有者設定
-  ✓ ヘルスチェック（HEALTHCHECK）設定
-  ✓ 固定バージョンのベースイメージ
+Dockerfile Best Practices:
+  ✓ Use multi-stage builds to reduce image size
+  ✓ Run as a non-root user
+  ✓ Optimize build context with .dockerignore
+  ✓ Set file ownership with COPY --chown
+  ✓ Configure health checks (HEALTHCHECK)
+  ✓ Pin base image versions
 ```
 
-## 参考文献
+## References
 
 1. Docker. "Documentation." docs.docker.com, 2024.
 2. Docker. "Dockerfile Best Practices." docs.docker.com, 2024.

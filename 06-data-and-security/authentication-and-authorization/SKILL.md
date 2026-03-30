@@ -1,68 +1,70 @@
-# 認証・認可（Authentication & Authorization）
+[日本語版](../../ja/06-data-and-security/authentication-and-authorization/SKILL.md)
 
-> 認証と認可はWebアプリケーションセキュリティの根幹。パスワード管理、セッション、JWT、OAuth 2.0、OpenID Connect、RBAC/ABAC、多要素認証からNextAuth.js実装まで、安全なアクセス制御の全てを体系的に解説する。
+# Authentication and Authorization
 
-## このSkillの対象者
+> Authentication and authorization are the cornerstones of web application security. This skill systematically covers everything about secure access control — from password management, sessions, JWT, OAuth 2.0, OpenID Connect, RBAC/ABAC, and multi-factor authentication to practical NextAuth.js implementation.
 
-- Web アプリケーションに認証機能を実装するエンジニア
-- セキュリティを意識した設計・実装を学びたい開発者
-- OAuth 2.0 / OIDC の仕組みを深く理解したい方
-- RBAC/ABAC による権限管理を設計する方
+## Target Audience
 
-## 前提知識
+- Engineers implementing authentication in web applications
+- Developers who want to learn security-conscious design and implementation
+- Those seeking a deep understanding of OAuth 2.0 / OIDC
+- Those designing permission management with RBAC/ABAC
 
-- HTTP の基礎（ヘッダー、Cookie、ステータスコード）
-- JavaScript / TypeScript の基礎
-- Web アプリケーションの基本構造（フロントエンド / バックエンド）
+## Prerequisites
 
-## 学習ガイド
+- HTTP fundamentals (headers, cookies, status codes)
+- Basic JavaScript / TypeScript knowledge
+- Understanding of web application architecture (frontend / backend)
 
-### 00-fundamentals — 認証・認可の基礎
+## Study Guide
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 00-fundamentals — Authentication and Authorization Basics
 
-### 01-session-auth — セッションベース認証
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 01-session-auth — Session-Based Authentication
 
-### 02-token-auth — トークンベース認証
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 02-token-auth — Token-Based Authentication
 
-### 03-authorization — 認可設計
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 03-authorization — Authorization Design
 
-### 04-implementation — 実装パターン
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 04-implementation — Implementation Patterns
 
-## クイックリファレンス
+| # | File | Description |
+|---|------|-------------|
+
+## Quick Reference
 
 ```
-認証方式の選定:
-  個人開発・小規模 → NextAuth.js + ソーシャルログイン
-  B2C サービス → OAuth 2.0 + PKCE + メール認証
+Choosing an Authentication Strategy:
+  Personal projects / Small-scale → NextAuth.js + social login
+  B2C services → OAuth 2.0 + PKCE + email verification
   B2B SaaS → OIDC + SAML SSO + RBAC
-  API サービス → API Key + OAuth 2.0 Client Credentials
-  モバイルアプリ → OAuth 2.0 + PKCE + Refresh Token Rotation
+  API services → API Key + OAuth 2.0 Client Credentials
+  Mobile apps → OAuth 2.0 + PKCE + Refresh Token Rotation
 
-セキュリティチェックリスト:
-  ✓ パスワードは bcrypt/Argon2 でハッシュ
-  ✓ JWT は RS256/ES256 で署名
-  ✓ Cookie は HttpOnly + Secure + SameSite=Lax
-  ✓ CSRF トークンを実装
-  ✓ Refresh Token はローテーション + 失効検知
-  ✓ レート制限をログインに適用
-  ✓ MFA を重要操作に要求
+Security Checklist:
+  ✓ Hash passwords with bcrypt/Argon2
+  ✓ Sign JWTs with RS256/ES256
+  ✓ Set cookies to HttpOnly + Secure + SameSite=Lax
+  ✓ Implement CSRF tokens
+  ✓ Use Refresh Token rotation with revocation detection
+  ✓ Apply rate limiting to login endpoints
+  ✓ Require MFA for sensitive operations
 ```
 
-## 参考文献
+## References
 
 1. OWASP. "Authentication Cheat Sheet." cheatsheetseries.owasp.org, 2024.
 2. RFC 6749. "The OAuth 2.0 Authorization Framework." IETF, 2012.

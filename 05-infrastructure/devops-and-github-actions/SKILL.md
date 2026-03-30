@@ -1,70 +1,72 @@
-# DevOps と GitHub Actions
+[日本語版](../../ja/05-infrastructure/devops-and-github-actions/SKILL.md)
 
-> DevOps はソフトウェアのビルド・テスト・デプロイを自動化し、開発と運用の壁を取り払う。CI/CD の基礎、GitHub Actions の実践、デプロイ戦略、監視・アラートまで、モダン DevOps の全体像を解説する。
+# DevOps and GitHub Actions
 
-## このSkillの対象者
+> DevOps automates the build, test, and deploy lifecycle, breaking down the wall between development and operations. This guide covers CI/CD fundamentals, hands-on GitHub Actions, deployment strategies, and monitoring/alerting -- providing a complete picture of modern DevOps.
 
-- CI/CD パイプラインを構築したいエンジニア
-- GitHub Actions を本格活用したい方
-- デプロイ自動化・監視体制を整備したい方
+## Target Audience
 
-## 前提知識
+- Engineers looking to build CI/CD pipelines
+- Developers who want to fully leverage GitHub Actions
+- Teams aiming to establish deployment automation and monitoring infrastructure
 
-- Git の基本操作
-- Docker の基礎知識
-- YAML の記法
+## Prerequisites
 
-## 学習ガイド
+- Basic Git operations
+- Fundamental Docker knowledge
+- YAML syntax
 
-### 00-devops-basics — DevOps の基礎
+## Study Guide
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 00-devops-basics — DevOps Fundamentals
+
+| # | File | Description |
+|---|------|-------------|
 
 ### 01-github-actions — GitHub Actions
 
-| # | ファイル | 内容 |
-|---|---------|------|
+| # | File | Description |
+|---|------|-------------|
 
-### 02-deployment — デプロイメント
+### 02-deployment — Deployment
 
-| # | ファイル | 内容 |
-|---|---------|------|
+| # | File | Description |
+|---|------|-------------|
 
-### 03-monitoring — 監視とオブザーバビリティ
+### 03-monitoring — Monitoring and Observability
 
-| # | ファイル | 内容 |
-|---|---------|------|
+| # | File | Description |
+|---|------|-------------|
 
-## クイックリファレンス
+## Quick Reference
 
 ```
-GitHub Actions 構文早見表:
+GitHub Actions Syntax Cheat Sheet:
 
-  トリガー:
+  Triggers:
     on: push / pull_request / schedule / workflow_dispatch
     branches: [main] / paths: ['src/**']
 
-  ジョブ:
+  Jobs:
     runs-on: ubuntu-latest
     strategy: matrix (node-version: [18, 20, 22])
     needs: [build, test]
 
-  よく使うアクション:
+  Commonly Used Actions:
     actions/checkout@v4
     actions/setup-node@v4
     actions/cache@v4
     docker/build-push-action@v5
     aws-actions/configure-aws-credentials@v4
 
-  デプロイ戦略選定:
-    低リスク小規模 → Rolling Update
-    中リスク → Blue-Green
-    高リスク大規模 → Canary
-    実験的機能 → Feature Flag
+  Deployment Strategy Selection:
+    Low risk, small scale → Rolling Update
+    Medium risk → Blue-Green
+    High risk, large scale → Canary
+    Experimental features → Feature Flag
 ```
 
-## 参考文献
+## References
 
 1. GitHub. "Actions Documentation." docs.github.com/actions, 2024.
 2. Forsgren, N. et al. "Accelerate." IT Revolution Press, 2018.

@@ -1,59 +1,61 @@
-# アルゴリズムとデータ構造
+[日本語版](../../ja/01-cs-fundamentals/algorithm-and-data-structures/SKILL.md)
 
-> アルゴリズムとデータ構造はプログラミングの基盤。計算量分析、ソートアルゴリズム、木構造、グラフアルゴリズム、動的計画法、競技プログラミングのテクニックまで体系的に解説する。
+# Algorithms and Data Structures
 
-## このSkillの対象者
+> Algorithms and data structures form the foundation of programming. This guide systematically covers complexity analysis, sorting algorithms, tree structures, graph algorithms, dynamic programming, and competitive programming techniques.
 
-- アルゴリズムを体系的に学びたいエンジニア
-- コーディング面接の準備をしている方
-- 競技プログラミングに取り組みたい方
+## Target Audience
 
-## 前提知識
+- Engineers who want to systematically learn algorithms
+- Those preparing for coding interviews
+- Those interested in competitive programming
 
-- 基本的なプログラミング（ループ、条件分岐、関数）
-- 数学の基礎（対数、指数、集合）
+## Prerequisites
 
-## 学習ガイド
+- Basic programming (loops, conditionals, functions)
+- Basic mathematics (logarithms, exponents, sets)
 
-### 00-basics — 基礎
+## Study Guide
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 00-basics — Fundamentals
 
-### 01-sorting — ソートアルゴリズム
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 01-sorting — Sorting Algorithms
 
-### 02-data-structures — データ構造
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 02-data-structures — Data Structures
 
-### 03-graph — グラフアルゴリズム
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 03-graph — Graph Algorithms
 
-### 04-advanced — 高度なアルゴリズム
+| # | File | Description |
+|---|------|-------------|
 
-| # | ファイル | 内容 |
-|---|---------|------|
+### 04-advanced — Advanced Algorithms
 
-## クイックリファレンス
+| # | File | Description |
+|---|------|-------------|
+
+## Quick Reference
 
 ```
-計算量チートシート:
-  O(1)        — ハッシュテーブル lookup
-  O(log n)    — 二分探索
-  O(n)        — 線形探索
-  O(n log n)  — マージソート、クイックソート（平均）
-  O(n²)       — バブルソート、挿入ソート
-  O(2^n)      — 部分集合列挙
-  O(n!)       — 順列列挙
+Complexity Cheat Sheet:
+  O(1)        — Hash table lookup
+  O(log n)    — Binary search
+  O(n)        — Linear search
+  O(n log n)  — Merge sort, quicksort (average)
+  O(n^2)      — Bubble sort, insertion sort
+  O(2^n)      — Subset enumeration
+  O(n!)       — Permutation enumeration
 ```
 
-## 参考文献
+## References
 
 1. Cormen, T. et al. "Introduction to Algorithms." MIT Press, 2022.
 2. Sedgewick, R. "Algorithms." Addison-Wesley, 2011.
