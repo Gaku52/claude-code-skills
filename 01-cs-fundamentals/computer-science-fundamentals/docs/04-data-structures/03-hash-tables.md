@@ -1,157 +1,157 @@
-# ハッシュテーブル
+# Hash Tables
 
-> ハッシュテーブルは「期待O(1)の探索」を実現する、実務で最も頻繁に使用されるデータ構造である。
+> Hash tables are the most frequently used data structure in practice, achieving expected O(1) lookups.
 
-## この章で学ぶこと
+## Learning Objectives
 
-- [ ] ハッシュ関数と衝突解決の仕組みを理解する
-- [ ] ハッシュテーブルの性能特性を説明できる
-- [ ] 実務での使い分け（dict/set/Map等）を理解する
-- [ ] ハッシュテーブルのセキュリティ上の考慮点を把握する
-- [ ] 各言語におけるハッシュテーブルの内部実装を理解する
-- [ ] 分散システムにおけるハッシュ技法を習得する
+- [ ] Understand hash functions and collision resolution mechanisms
+- [ ] Explain the performance characteristics of hash tables
+- [ ] Understand practical usage patterns (dict/set/Map, etc.)
+- [ ] Recognize security considerations for hash tables
+- [ ] Understand hash table internal implementations across different languages
+- [ ] Master hashing techniques for distributed systems
 
-## 前提知識
+## Prerequisites
 
 
 ---
 
-## 1. ハッシュテーブルの仕組み
+## 1. How Hash Tables Work
 
-### 1.1 基本構造
-
-```
-ハッシュテーブル: キー → ハッシュ関数 → インデックス → 値
-
-  キー "Alice" → hash("Alice") = 0x7A3B...
-                → 0x7A3B % 8 = 3  (テーブルサイズ8)
-                → table[3] = "Alice: 100"
-
-  ┌─────┐
-  │  0  │ → (空)
-  │  1  │ → ("Bob", 85)
-  │  2  │ → (空)
-  │  3  │ → ("Alice", 100)
-  │  4  │ → ("Charlie", 92) → ("Eve", 78)  ← 衝突(チェイニング)
-  │  5  │ → (空)
-  │  6  │ → ("Diana", 88)
-  │  7  │ → (空)
-  └─────┘
-```
-
-ハッシュテーブルの基本概念は非常にシンプルである。任意のキーをハッシュ関数で整数値に変換し、その整数値をテーブルサイズで割った余りをインデックスとして使用する。この仕組みにより、キーから値への直接的なアクセスが可能となり、期待計算量O(1)の探索が実現される。
-
-### 1.2 ハッシュ関数の設計原理
-
-良いハッシュ関数は以下の性質を満たす必要がある。
+### 1.1 Basic Structure
 
 ```
-良いハッシュ関数の条件:
+Hash Table: Key -> Hash Function -> Index -> Value
 
-  1. 決定性: 同じ入力に対して常に同じ出力を返す
-  2. 均一分布: 出力がハッシュ空間に均等に分布する
-  3. 効率性: 計算が高速である（O(1)に近い）
-  4. 雪崩効果: 入力の1ビットの変化が出力の約半数のビットを変える
+  Key "Alice" -> hash("Alice") = 0x7A3B...
+              -> 0x7A3B % 8 = 3  (table size 8)
+              -> table[3] = "Alice: 100"
 
-主要なハッシュ関数:
+  +-----+
+  |  0  | -> (empty)
+  |  1  | -> ("Bob", 85)
+  |  2  | -> (empty)
+  |  3  | -> ("Alice", 100)
+  |  4  | -> ("Charlie", 92) -> ("Eve", 78)  <- collision (chaining)
+  |  5  | -> (empty)
+  |  6  | -> ("Diana", 88)
+  |  7  | -> (empty)
+  +-----+
+```
+
+The fundamental concept of a hash table is remarkably simple. An arbitrary key is converted to an integer value through a hash function, and the remainder of dividing that integer by the table size serves as the index. This mechanism enables direct access from key to value, achieving expected O(1) lookup time.
+
+### 1.2 Hash Function Design Principles
+
+A good hash function must satisfy the following properties:
+
+```
+Properties of a Good Hash Function:
+
+  1. Determinism: Always returns the same output for the same input
+  2. Uniform Distribution: Output is evenly distributed across the hash space
+  3. Efficiency: Computation is fast (close to O(1))
+  4. Avalanche Effect: A 1-bit change in input alters approximately half the output bits
+
+Major Hash Functions:
 
   Division Method:
     h(k) = k mod m
-    mは2の冪を避ける（素数が望ましい）
-    例: m = 997（素数）
+    Avoid powers of 2 for m (primes are preferred)
+    Example: m = 997 (prime)
 
   Multiplication Method:
-    h(k) = floor(m × (k × A mod 1))
-    A = (√5 - 1) / 2 ≈ 0.6180339887（黄金比）
-    mが2の冪でも良好に動作
+    h(k) = floor(m * (k * A mod 1))
+    A = (sqrt(5) - 1) / 2 ~ 0.6180339887 (golden ratio)
+    Works well even when m is a power of 2
 
   Universal Hashing:
-    h(k) = ((a × k + b) mod p) mod m
-    a, bをランダムに選択
-    衝突確率が1/mに制限される
+    h(k) = ((a * k + b) mod p) mod m
+    a, b chosen randomly
+    Collision probability bounded by 1/m
 
   MurmurHash3:
-    高速な非暗号ハッシュ関数
-    Redis, Hadoop, Spark等で使用
+    Fast non-cryptographic hash function
+    Used in Redis, Hadoop, Spark, etc.
 
   SipHash:
-    Hash DoS耐性のあるPRF
-    Python 3.4+, Rust, Perl で標準使用
+    PRF with Hash DoS resistance
+    Standard in Python 3.4+, Rust, Perl
 ```
 
-### 1.3 文字列のハッシュ
+### 1.3 String Hashing
 
 ```python
-# 文字列のハッシュ関数の例
+# Examples of string hash functions
 
-# 1. 単純な方法（均一性が低い）
+# 1. Naive approach (poor uniformity)
 def bad_hash(s, m):
-    """各文字のASCIIコードの合計"""
+    """Sum of ASCII codes of each character"""
     return sum(ord(c) for c in s) % m
-# "abc" と "bca" が同じハッシュ値 → アナグラムが衝突
+# "abc" and "bca" produce the same hash -> anagrams collide
 
-# 2. 多項式ハッシュ（一般的）
+# 2. Polynomial hash (commonly used)
 def polynomial_hash(s, m, base=31):
-    """多項式ハッシュ: s[0]*base^(n-1) + s[1]*base^(n-2) + ... + s[n-1]"""
+    """Polynomial hash: s[0]*base^(n-1) + s[1]*base^(n-2) + ... + s[n-1]"""
     h = 0
     for c in s:
         h = (h * base + ord(c)) % m
     return h
-# "abc" → 31^2*97 + 31*98 + 99 = 96262
-# "bca" → 31^2*98 + 31*99 + 97 = 97168  → 異なるハッシュ値
+# "abc" -> 31^2*97 + 31*98 + 99 = 96262
+# "bca" -> 31^2*98 + 31*99 + 97 = 97168  -> different hash values
 
-# 3. Java の String.hashCode() と同等
+# 3. Equivalent to Java's String.hashCode()
 def java_string_hash(s):
     """s[0]*31^(n-1) + s[1]*31^(n-2) + ... + s[n-1]"""
     h = 0
     for c in s:
         h = h * 31 + ord(c)
-        h &= 0xFFFFFFFF  # 32ビットに制限
+        h &= 0xFFFFFFFF  # Constrain to 32 bits
     return h
 
-# 4. FNV-1a ハッシュ（高速・均一分布）
+# 4. FNV-1a hash (fast, uniform distribution)
 def fnv1a_hash(data, m):
-    """FNV-1a: offset_basis XOR byte → multiply by prime"""
+    """FNV-1a: offset_basis XOR byte -> multiply by prime"""
     FNV_OFFSET = 0xcbf29ce484222325
     FNV_PRIME = 0x100000001b3
     h = FNV_OFFSET
     for byte in data.encode():
         h ^= byte
         h *= FNV_PRIME
-        h &= 0xFFFFFFFFFFFFFFFF  # 64ビットに制限
+        h &= 0xFFFFFFFFFFFFFFFF  # Constrain to 64 bits
     return h % m
 ```
 
-### 1.4 衝突解決
+### 1.4 Collision Resolution
 
 ```
-衝突解決の2大方式:
+Two Major Collision Resolution Strategies:
 
-  1. チェイニング（Separate Chaining）:
-     → 同じスロットにリンクリストで格納
-     → 実装が単純、ロードファクターが1を超えてもOK
-     → Java HashMap, Go map
+  1. Separate Chaining:
+     -> Store colliding entries in a linked list at the same slot
+     -> Simple implementation, load factor can exceed 1
+     -> Java HashMap, Go map
 
-  2. オープンアドレス法:
-     → 衝突時に別のスロットを探す
-     → メモリ効率が良い、キャッシュフレンドリー
-     → Python dict, Rust HashMap
+  2. Open Addressing:
+     -> Probe for an alternative slot upon collision
+     -> Better memory efficiency, cache-friendly
+     -> Python dict, Rust HashMap
 
-     探索方法:
-     - 線形探索: h(k)+1, h(k)+2, ...（クラスタリング問題）
-     - 二次探索: h(k)+1², h(k)+2², ...
-     - ダブルハッシュ: h(k)+i×h2(k)
+     Probing strategies:
+     - Linear probing: h(k)+1, h(k)+2, ... (clustering problem)
+     - Quadratic probing: h(k)+1^2, h(k)+2^2, ...
+     - Double hashing: h(k)+i*h2(k)
 
-  ロードファクター = 要素数 / テーブルサイズ
-  → チェイニング: 0.75で拡張（Java）
-  → オープンアドレス: 2/3で拡張（Python）
+  Load Factor = number of elements / table size
+  -> Chaining: resize at 0.75 (Java)
+  -> Open addressing: resize at 2/3 (Python)
 ```
 
-### 1.5 チェイニングの詳細実装
+### 1.5 Detailed Chaining Implementation
 
 ```python
 class HashTableChaining:
-    """チェイニング方式のハッシュテーブル"""
+    """Hash table using separate chaining"""
 
     def __init__(self, capacity=16, load_factor_threshold=0.75):
         self.capacity = capacity
@@ -160,30 +160,30 @@ class HashTableChaining:
         self.buckets = [[] for _ in range(capacity)]
 
     def _hash(self, key):
-        """ハッシュ値を計算"""
+        """Compute hash value"""
         return hash(key) % self.capacity
 
     def put(self, key, value):
-        """キーと値のペアを挿入"""
+        """Insert a key-value pair"""
         idx = self._hash(key)
         bucket = self.buckets[idx]
 
-        # 既存キーの更新
+        # Update existing key
         for i, (k, v) in enumerate(bucket):
             if k == key:
                 bucket[i] = (key, value)
                 return
 
-        # 新規挿入
+        # New insertion
         bucket.append((key, value))
         self.size += 1
 
-        # ロードファクターチェック
+        # Check load factor
         if self.size / self.capacity > self.load_factor_threshold:
             self._resize()
 
     def get(self, key, default=None):
-        """キーから値を取得"""
+        """Retrieve value by key"""
         idx = self._hash(key)
         for k, v in self.buckets[idx]:
             if k == key:
@@ -191,7 +191,7 @@ class HashTableChaining:
         return default
 
     def remove(self, key):
-        """キーを削除"""
+        """Remove a key"""
         idx = self._hash(key)
         bucket = self.buckets[idx]
         for i, (k, v) in enumerate(bucket):
@@ -202,11 +202,11 @@ class HashTableChaining:
         return False
 
     def __contains__(self, key):
-        """in 演算子のサポート"""
+        """Support for the `in` operator"""
         return self.get(key) is not None
 
     def _resize(self):
-        """テーブルサイズを2倍に拡張"""
+        """Double the table size"""
         old_buckets = self.buckets
         self.capacity *= 2
         self.buckets = [[] for _ in range(self.capacity)]
@@ -216,7 +216,7 @@ class HashTableChaining:
                 self.put(key, value)
 
     def load_factor(self):
-        """現在のロードファクターを返す"""
+        """Return the current load factor"""
         return self.size / self.capacity
 
     def __len__(self):
@@ -230,7 +230,7 @@ class HashTableChaining:
         return "{" + ", ".join(items) + "}"
 
 
-# 使用例
+# Usage example
 ht = HashTableChaining()
 ht.put("name", "Alice")
 ht.put("age", 30)
@@ -242,14 +242,14 @@ ht.remove("age")
 print(len(ht))          # 2
 ```
 
-### 1.6 オープンアドレス法の詳細実装
+### 1.6 Detailed Open Addressing Implementation
 
 ```python
 class HashTableOpenAddressing:
-    """オープンアドレス法（線形探索）のハッシュテーブル"""
+    """Hash table using open addressing (linear probing)"""
 
-    EMPTY = object()    # 空スロットの番兵
-    DELETED = object()  # 削除済みスロットの番兵（墓石）
+    EMPTY = object()    # Sentinel for empty slots
+    DELETED = object()  # Sentinel for deleted slots (tombstone)
 
     def __init__(self, capacity=16, load_factor_threshold=0.67):
         self.capacity = capacity
@@ -262,7 +262,7 @@ class HashTableOpenAddressing:
         return hash(key) % self.capacity
 
     def _probe(self, key):
-        """線形探索でスロットを探す"""
+        """Find a slot using linear probing"""
         idx = self._hash(key)
         first_deleted = None
 
@@ -270,7 +270,7 @@ class HashTableOpenAddressing:
             pos = (idx + i) % self.capacity
 
             if self.keys[pos] is self.EMPTY:
-                # 空スロットに到達 → キーは存在しない
+                # Reached an empty slot -> key does not exist
                 return (first_deleted if first_deleted is not None else pos, False)
 
             if self.keys[pos] is self.DELETED:
@@ -279,15 +279,15 @@ class HashTableOpenAddressing:
                 continue
 
             if self.keys[pos] == key:
-                return (pos, True)  # キーが見つかった
+                return (pos, True)  # Key found
 
-        # テーブルが満杯（通常はリサイズで防止）
+        # Table is full (normally prevented by resizing)
         return (first_deleted if first_deleted is not None else -1, False)
 
     def put(self, key, value):
         pos, found = self._probe(key)
         if found:
-            self.values[pos] = value  # 更新
+            self.values[pos] = value  # Update
         else:
             self.keys[pos] = key
             self.values[pos] = value
@@ -302,7 +302,7 @@ class HashTableOpenAddressing:
         return default
 
     def remove(self, key):
-        """削除: 墓石（DELETED）マーカーを配置"""
+        """Delete: place a DELETED tombstone marker"""
         pos, found = self._probe(key)
         if found:
             self.keys[pos] = self.DELETED
@@ -323,19 +323,19 @@ class HashTableOpenAddressing:
                 self.put(k, v)
 
 
-# 線形探索のクラスタリング問題の可視化
-# スロット: [A][B][C][_][_][E][F][G][_][_]
-#            ^^^^^^^^          ^^^^^^^^
-#            クラスタ1          クラスタ2
-# 新しい要素がクラスタ近くにハッシュされると、クラスタが成長
-# → 探索時間が O(1) から O(n) に劣化
+# Visualization of the clustering problem with linear probing
+# Slots: [A][B][C][_][_][E][F][G][_][_]
+#          ^^^^^^^^          ^^^^^^^^
+#          Cluster 1         Cluster 2
+# When a new element hashes near a cluster, the cluster grows
+# -> Search time degrades from O(1) to O(n)
 ```
 
-### 1.7 Robin Hood ハッシング
+### 1.7 Robin Hood Hashing
 
 ```python
 class RobinHoodHashTable:
-    """Robin Hood ハッシング: 挿入時に「貧しい」要素を優先する"""
+    """Robin Hood hashing: prioritizes 'poor' elements during insertion"""
 
     EMPTY = None
 
@@ -344,7 +344,7 @@ class RobinHoodHashTable:
         self.size = 0
         self.keys = [self.EMPTY] * capacity
         self.values = [None] * capacity
-        self.distances = [0] * capacity  # 理想位置からの距離
+        self.distances = [0] * capacity  # Distance from ideal position
 
     def _hash(self, key):
         return hash(key) % self.capacity
@@ -360,7 +360,7 @@ class RobinHoodHashTable:
             pos = (idx + dist) % self.capacity
 
             if self.keys[pos] is self.EMPTY:
-                # 空スロットに挿入
+                # Insert into empty slot
                 self.keys[pos] = key
                 self.values[pos] = value
                 self.distances[pos] = dist
@@ -368,13 +368,13 @@ class RobinHoodHashTable:
                 return
 
             if self.keys[pos] == key:
-                # 既存キーの更新
+                # Update existing key
                 self.values[pos] = value
                 return
 
-            # Robin Hood: 現在の要素より探索距離が短い場合、交換
+            # Robin Hood: swap if the current element has a shorter probe distance
             if self.distances[pos] < dist:
-                # 「裕福な」要素（短い距離）を追い出す
+                # Displace the "rich" element (shorter distance)
                 key, self.keys[pos] = self.keys[pos], key
                 value, self.values[pos] = self.values[pos], value
                 dist, self.distances[pos] = self.distances[pos], dist
@@ -392,7 +392,7 @@ class RobinHoodHashTable:
                 return default
 
             if self.distances[pos] < dist:
-                # この位置に到達する前に見つかるはず
+                # Should have been found before reaching this position
                 return default
 
             if self.keys[pos] == key:
@@ -413,84 +413,84 @@ class RobinHoodHashTable:
                 self.put(k, v)
 
 
-# Robin Hood の利点:
-# - 最悪ケースの探索距離が O(log log n) に改善
-# - 探索距離の分散が小さい（均一に近い）
-# - Rust の HashMap が採用（2015-2021、その後 hashbrown/Swiss Table に移行）
+# Advantages of Robin Hood hashing:
+# - Worst-case probe distance improved to O(log log n)
+# - Low variance in probe distances (close to uniform)
+# - Used by Rust's HashMap (2015-2021, then migrated to hashbrown/Swiss Table)
 ```
 
-### 1.8 計算量
+### 1.8 Time Complexity
 
 ```
-ハッシュテーブルの計算量:
+Hash Table Time Complexity:
 
-  ┌──────────┬──────────┬──────────┐
-  │ 操作     │ 期待     │ 最悪     │
-  ├──────────┼──────────┼──────────┤
-  │ 挿入     │ O(1)     │ O(n)     │
-  │ 検索     │ O(1)     │ O(n)     │
-  │ 削除     │ O(1)     │ O(n)     │
-  │ リサイズ │ O(n)     │ O(n)     │
-  └──────────┴──────────┴──────────┘
+  +----------+----------+----------+
+  | Operation| Expected | Worst    |
+  +----------+----------+----------+
+  | Insert   | O(1)     | O(n)     |
+  | Search   | O(1)     | O(n)     |
+  | Delete   | O(1)     | O(n)     |
+  | Resize   | O(n)     | O(n)     |
+  +----------+----------+----------+
 
-  最悪ケース O(n) の条件:
-  - 全てのキーが同じスロットに衝突
-  - 意図的な攻撃（Hash DoS）
+  Conditions for worst-case O(n):
+  - All keys collide into the same slot
+  - Deliberate attack (Hash DoS)
 
-  対策:
-  - ランダム化ハッシュ（SipHash: Python, Rust）
-  - 赤黒木へのフォールバック（Java 8+ HashMap）
+  Countermeasures:
+  - Randomized hashing (SipHash: Python, Rust)
+  - Fallback to red-black trees (Java 8+ HashMap)
 
-  リサイズの償却分析:
-  - テーブルサイズが n のとき、リサイズコストは O(n)
-  - リサイズ間に少なくとも n/2 回の挿入が発生
-  - 償却コスト = O(n) / (n/2) = O(1)
-  - つまり、個々の挿入の償却計算量は O(1)
+  Amortized analysis of resizing:
+  - When the table size is n, the resize cost is O(n)
+  - At least n/2 insertions occur between resizes
+  - Amortized cost = O(n) / (n/2) = O(1)
+  - Thus, the amortized cost per insertion is O(1)
 ```
 
 ---
 
-## 2. 各言語のハッシュテーブル内部実装
+## 2. Hash Table Internal Implementations Across Languages
 
-### 2.1 Python dict の内部実装
+### 2.1 Python dict Internals
 
 ```python
-# Python 3.6+ の dict はコンパクト辞書（順序保持）
-# 内部構造:
-#   - indices: ハッシュテーブル（インデックスの配列）
-#   - entries: (hash, key, value) のコンパクト配列
+# Python 3.6+ dict uses a compact dictionary (order-preserving)
+# Internal structure:
+#   - indices: hash table (array of indices)
+#   - entries: compact array of (hash, key, value)
 
-# 実装の概念図:
+# Conceptual diagram:
 # indices = [None, 1, None, None, 0, None, None, 2]
-#                  ↓                ↓              ↓
+#                  |                |              |
 # entries = [(hash_a, "age", 30),      # index 0
 #            (hash_n, "name", "Alice"), # index 1
 #            (hash_e, "email", "x@y")] # index 2
 
-# メリット:
-# 1. メモリ効率: indicesは1バイトエントリ（要素数 < 256の場合）
-# 2. 順序保持: entries配列は挿入順
-# 3. イテレーション高速化: entries配列を順に走査
+# Benefits:
+# 1. Memory efficiency: indices use 1-byte entries (when element count < 256)
+# 2. Order preservation: entries array maintains insertion order
+# 3. Fast iteration: sequential traversal of the entries array
 
-# Python dict の特殊な最適化
+# Special optimizations in Python dict
 d = {}
 
-# 1. Key-Sharing辞書（同じクラスのインスタンス間でキーを共有）
+# 1. Key-Sharing dictionaries (keys shared across instances of the same class)
 class Point:
     def __init__(self, x, y):
         self.x = x
         self.y = y
 
-# p1.__dict__ と p2.__dict__ はキー配列を共有
-# → メモリ節約（特にクラスのインスタンスが大量にある場合）
+# p1.__dict__ and p2.__dict__ share the key array
+# -> Memory savings (especially with many class instances)
 
-# 2. 文字列の特別扱い
-# 短い文字列は intern される（同一オブジェクトを再利用）
+# 2. Special handling of strings
+# Short strings are interned (same object is reused)
 a = "hello"
 b = "hello"
-print(a is b)  # True（同一オブジェクト）
+print(a is b)  # True (same object)
 
-# 3. __hash__と__eq__のプロトコル
+# 3. __hash__ and __eq__ protocol
 class CustomKey:
     def __init__(self, value):
         self.value = value
@@ -501,51 +501,51 @@ class CustomKey:
     def __eq__(self, other):
         return isinstance(other, CustomKey) and self.value == other.value
 
-# ミュータブルなオブジェクトはハッシュ不可
-# list, dict, set はキーにできない（TypeError）
+# Mutable objects are not hashable
+# list, dict, set cannot be used as keys (TypeError)
 ```
 
-### 2.2 Java HashMap の内部実装
+### 2.2 Java HashMap Internals
 
 ```java
-// Java 8+ HashMap の内部構造
-// - 初期容量: 16
-// - ロードファクター: 0.75
-// - チェイニング方式
-// - バケット内要素数 >= 8 で赤黒木に変換（Treeification）
-// - バケット内要素数 <= 6 でリンクリストに戻す
+// Java 8+ HashMap internal structure
+// - Initial capacity: 16
+// - Load factor: 0.75
+// - Separate chaining
+// - Converts to red-black tree when bucket size >= 8 (Treeification)
+// - Reverts to linked list when bucket size <= 6
 
-// HashMap の put メソッドの流れ
+// Flow of HashMap's put method
 public V put(K key, V value) {
-    // 1. key の hashCode() を取得
+    // 1. Get the hashCode() of key
     int hash = hash(key);
 
-    // 2. 上位ビットを下位ビットに混ぜる（spread）
+    // 2. Mix upper bits into lower bits (spread)
     // static int hash(Object key) {
     //     int h;
     //     return (key == null) ? 0 : (h = key.hashCode()) ^ (h >>> 16);
     // }
 
     // 3. index = hash & (capacity - 1)
-    //    capacity が 2の冪なので、ビットANDで高速にmod
+    //    Since capacity is a power of 2, bitwise AND provides fast modulo
 
-    // 4. バケットに挿入
-    //    - 空 → 新規ノード
-    //    - リンクリスト → 線形探索で末尾に追加
-    //    - 赤黒木 → 木に挿入
+    // 4. Insert into bucket
+    //    - Empty -> new node
+    //    - Linked list -> linear search, append to tail
+    //    - Red-black tree -> insert into tree
 
-    // 5. サイズ > threshold (capacity * loadFactor) ならリサイズ
+    // 5. Resize if size > threshold (capacity * loadFactor)
     return putVal(hash, key, value, false, true);
 }
 
-// Java 8 以降の Treeification（赤黒木化）
-// リンクリスト O(n) → 赤黒木 O(log n)
-// Hash DoS 攻撃への対策
+// Treeification in Java 8+ (conversion to red-black tree)
+// Linked list O(n) -> Red-black tree O(log n)
+// Countermeasure against Hash DoS attacks
 
-// ConcurrentHashMap（スレッドセーフ版）
-// - Java 8+: CAS + synchronized（セグメントロック廃止）
-// - 読み取りはロックフリー（volatile読み取り）
-// - 書き込みはバケット単位のsynchronized
+// ConcurrentHashMap (thread-safe version)
+// - Java 8+: CAS + synchronized (segment locks removed)
+// - Reads are lock-free (volatile reads)
+// - Writes use per-bucket synchronized
 
 import java.util.concurrent.ConcurrentHashMap;
 ConcurrentHashMap<String, Integer> map = new ConcurrentHashMap<>();
@@ -553,92 +553,92 @@ map.put("key", 42);
 map.computeIfAbsent("key2", k -> expensiveComputation(k));
 ```
 
-### 2.3 Go map の内部実装
+### 2.3 Go map Internals
 
 ```go
-// Go の map は runtime パッケージで実装
-// - バケット方式（各バケットに8つのキー/値ペアを格納）
-// - 増分リサイズ（incremental resizing）
-// - ランダム化されたイテレーション順序
+// Go's map is implemented in the runtime package
+// - Bucket-based (each bucket holds 8 key/value pairs)
+// - Incremental resizing
+// - Randomized iteration order
 
 package main
 
 import "fmt"
 
 func main() {
-    // 基本操作
+    // Basic operations
     m := make(map[string]int)
     m["Alice"] = 100
     m["Bob"] = 85
 
-    // 存在確認（2値返し）
+    // Existence check (two-value return)
     if v, ok := m["Alice"]; ok {
         fmt.Printf("Alice: %d\n", v)
     }
 
-    // 削除
+    // Deletion
     delete(m, "Bob")
 
-    // イテレーション（順序は非決定的）
+    // Iteration (order is non-deterministic)
     for k, v := range m {
         fmt.Printf("%s: %d\n", k, v)
     }
 }
 
-// Go map の内部構造:
+// Go map internal structure:
 // type hmap struct {
-//     count     int     // 要素数
+//     count     int     // Number of elements
 //     flags     uint8
-//     B         uint8   // バケット数 = 2^B
-//     noverflow uint16  // オーバーフローバケット数
-//     hash0     uint32  // ハッシュシード（ランダム化）
+//     B         uint8   // Number of buckets = 2^B
+//     noverflow uint16  // Number of overflow buckets
+//     hash0     uint32  // Hash seed (randomized)
 //     buckets   unsafe.Pointer
-//     oldbuckets unsafe.Pointer // リサイズ中の旧バケット
+//     oldbuckets unsafe.Pointer // Old buckets during resize
 //     ...
 // }
 
-// Go map はスレッドセーフではない
-// 並行アクセスには sync.Map を使用
+// Go map is NOT thread-safe
+// Use sync.Map for concurrent access
 // import "sync"
 // var m sync.Map
 // m.Store("key", "value")
 // v, ok := m.Load("key")
 ```
 
-### 2.4 Rust HashMap の内部実装
+### 2.4 Rust HashMap Internals
 
 ```rust
 use std::collections::HashMap;
 
 fn main() {
-    // Rust HashMap は hashbrown クレート（Swiss Table ベース）
-    // - SipHash-1-3 をデフォルトハッシュ関数として使用（Hash DoS 耐性）
-    // - SIMD を活用した高速探索
+    // Rust HashMap is based on the hashbrown crate (Swiss Table)
+    // - Uses SipHash-1-3 as the default hash function (Hash DoS resistant)
+    // - Leverages SIMD for fast probing
 
     let mut map = HashMap::new();
     map.insert("Alice", 100);
     map.insert("Bob", 85);
 
-    // パターンマッチングで安全にアクセス
+    // Safe access via pattern matching
     match map.get("Alice") {
         Some(&score) => println!("Alice: {}", score),
         None => println!("Not found"),
     }
 
-    // Entry API（存在しない場合のみ挿入）
+    // Entry API (insert only if absent)
     map.entry("Charlie").or_insert(90);
 
-    // Entry API（既存値の更新）
+    // Entry API (update existing value)
     let count = map.entry("Alice").or_insert(0);
     *count += 10; // Alice: 110
 
-    // イテレーション
+    // Iteration
     for (key, value) in &map {
         println!("{}: {}", key, value);
     }
 }
 
-// カスタムハッシュ関数の使用（高速だがDoS非耐性）
+// Using a custom hash function (fast but not DoS-resistant)
 // use std::collections::HashMap;
 // use std::hash::BuildHasherDefault;
 // use ahash::AHasher;
@@ -649,47 +649,47 @@ fn main() {
 
 ---
 
-## 3. 実務での活用
+## 3. Practical Usage
 
-### 3.1 各言語のハッシュテーブル
+### 3.1 Hash Tables Across Languages
 
 ```python
-# Python: dict（最も使用頻度が高いデータ構造）
+# Python: dict (the most frequently used data structure)
 d = {"name": "Alice", "age": 30}
 d["email"] = "alice@example.com"  # O(1)
 "name" in d  # O(1)
 
-# Python: set（重複排除、集合演算）
+# Python: set (deduplication, set operations)
 s = {1, 2, 3}
 s.add(4)          # O(1)
 2 in s            # O(1)
-s & {2, 3, 4}     # 積集合: {2, 3}
-s | {4, 5}        # 和集合: {1, 2, 3, 4, 5}
+s & {2, 3, 4}     # Intersection: {2, 3}
+s | {4, 5}        # Union: {1, 2, 3, 4, 5}
 
-# Counter（頻度カウント）
+# Counter (frequency counting)
 from collections import Counter
 words = ["apple", "banana", "apple", "cherry", "banana", "apple"]
 count = Counter(words)
 # Counter({'apple': 3, 'banana': 2, 'cherry': 1})
 count.most_common(2)  # [('apple', 3), ('banana', 2)]
 
-# defaultdict（デフォルト値付き辞書）
+# defaultdict (dictionary with default values)
 from collections import defaultdict
 graph = defaultdict(list)
-graph["A"].append("B")  # KeyError なし
+graph["A"].append("B")  # No KeyError
 ```
 
-### 3.2 ハッシュテーブルの設計パターン
+### 3.2 Hash Table Design Patterns
 
 ```python
-# パターン1: メモ化（キャッシュ）
+# Pattern 1: Memoization (caching)
 cache = {}
 def expensive_computation(key):
     if key not in cache:
-        cache[key] = compute(key)  # 初回のみ計算
+        cache[key] = compute(key)  # Computed only on first call
     return cache[key]
 
-# functools.lru_cache を使ったメモ化
+# Memoization using functools.lru_cache
 from functools import lru_cache
 
 @lru_cache(maxsize=128)
@@ -698,7 +698,7 @@ def fibonacci(n):
         return n
     return fibonacci(n - 1) + fibonacci(n - 2)
 
-# パターン2: グルーピング
+# Pattern 2: Grouping
 from collections import defaultdict
 def group_anagrams(words):
     groups = defaultdict(list)
@@ -707,11 +707,11 @@ def group_anagrams(words):
         groups[key].append(word)
     return list(groups.values())
 
-# 使用例
+# Usage example
 print(group_anagrams(["eat", "tea", "tan", "ate", "nat", "bat"]))
 # [['eat', 'tea', 'ate'], ['tan', 'nat'], ['bat']]
 
-# パターン3: Two Sum（ハッシュマップで O(n)）
+# Pattern 3: Two Sum (O(n) with a hash map)
 def two_sum(nums, target):
     seen = {}
     for i, num in enumerate(nums):
@@ -720,9 +720,9 @@ def two_sum(nums, target):
             return [seen[complement], i]
         seen[num] = i
 
-# パターン4: スライディングウィンドウ + ハッシュマップ
+# Pattern 4: Sliding window + hash map
 def length_of_longest_substring(s):
-    """重複のない最長部分文字列の長さ"""
+    """Length of the longest substring without repeating characters"""
     char_index = {}
     max_len = 0
     start = 0
@@ -735,14 +735,14 @@ def length_of_longest_substring(s):
 
     return max_len
 
-# 使用例
+# Usage examples
 print(length_of_longest_substring("abcabcbb"))  # 3 ("abc")
 print(length_of_longest_substring("bbbbb"))     # 1 ("b")
 print(length_of_longest_substring("pwwkew"))    # 3 ("wke")
 
-# パターン5: 頻度マップによる判定
+# Pattern 5: Frequency map for validation
 def is_anagram(s, t):
-    """2つの文字列がアナグラムかどうか"""
+    """Check whether two strings are anagrams"""
     if len(s) != len(t):
         return False
     count = {}
@@ -754,9 +754,9 @@ def is_anagram(s, t):
             return False
     return True
 
-# パターン6: ハッシュマップによるグラフの表現
+# Pattern 6: Graph representation using hash maps
 def build_graph(edges):
-    """エッジリストから隣接リストを構築"""
+    """Build an adjacency list from an edge list"""
     graph = defaultdict(list)
     for u, v in edges:
         graph[u].append(v)
@@ -767,9 +767,9 @@ edges = [("A", "B"), ("A", "C"), ("B", "C"), ("C", "D")]
 graph = build_graph(edges)
 # {'A': ['B', 'C'], 'B': ['A', 'C'], 'C': ['A', 'B', 'D'], 'D': ['C']}
 
-# パターン7: 文字列の圧縮/展開
+# Pattern 7: String pattern matching (bijection verification)
 def word_pattern(pattern, s):
-    """パターンと文字列の対応を検証（bijection）"""
+    """Verify a bijection between pattern characters and words"""
     words = s.split()
     if len(pattern) != len(words):
         return False
@@ -793,10 +793,10 @@ print(word_pattern("abba", "dog cat cat dog"))  # True
 print(word_pattern("abba", "dog cat cat fish")) # False
 ```
 
-### 3.3 JavaScript/TypeScript でのハッシュテーブル
+### 3.3 Hash Tables in JavaScript/TypeScript
 
 ```typescript
-// Map（順序保持、任意のキー型）
+// Map (order-preserving, arbitrary key types)
 const map = new Map<string, number>();
 map.set("Alice", 100);
 map.set("Bob", 85);
@@ -804,24 +804,24 @@ console.log(map.get("Alice")); // 100
 console.log(map.has("Charlie")); // false
 console.log(map.size); // 2
 
-// Object vs Map の使い分け
-// Object: キーが文字列/Symbol のみ、プロトタイプチェーンあり
-// Map: 任意のキー型、サイズ取得 O(1)、イテレーション順保証
+// Object vs Map: when to use which
+// Object: keys are strings/Symbols only, prototype chain exists
+// Map: arbitrary key types, O(1) size retrieval, guaranteed iteration order
 
-// WeakMap（GC対応、キーがオブジェクトのみ）
+// WeakMap (GC-friendly, keys must be objects)
 const weakMap = new WeakMap<object, string>();
 let obj = { id: 1 };
 weakMap.set(obj, "metadata");
-// obj への参照がなくなると、WeakMap のエントリも GC される
+// When there are no more references to obj, the WeakMap entry is also GC'd
 
 // Set
 const set = new Set<number>([1, 2, 3, 2, 1]);
-console.log(set.size); // 3（重複排除）
+console.log(set.size); // 3 (duplicates removed)
 set.add(4);
 set.delete(2);
 console.log([...set]); // [1, 3, 4]
 
-// 実務例: API レスポンスのキャッシュ
+// Practical example: API response cache
 class APICache {
     private cache: Map<string, { data: unknown; timestamp: number }>;
     private ttlMs: number;
@@ -855,15 +855,15 @@ class APICache {
 
 ---
 
-## 4. LRU キャッシュの実装
+## 4. LRU Cache Implementation
 
-### 4.1 OrderedDict を使った実装
+### 4.1 Implementation Using OrderedDict
 
 ```python
 from collections import OrderedDict
 
 class LRUCache:
-    """Least Recently Used キャッシュ"""
+    """Least Recently Used cache"""
 
     def __init__(self, capacity: int):
         self.capacity = capacity
@@ -872,7 +872,7 @@ class LRUCache:
     def get(self, key):
         if key not in self.cache:
             return -1
-        # アクセスされたキーを末尾に移動（最近使用）
+        # Move accessed key to the end (most recently used)
         self.cache.move_to_end(key)
         return self.cache[key]
 
@@ -881,24 +881,24 @@ class LRUCache:
             self.cache.move_to_end(key)
         self.cache[key] = value
         if len(self.cache) > self.capacity:
-            # 先頭（最も古い）を削除
+            # Remove the oldest entry (front)
             self.cache.popitem(last=False)
 
-# 使用例
+# Usage example
 cache = LRUCache(3)
 cache.put("a", 1)
 cache.put("b", 2)
 cache.put("c", 3)
-print(cache.get("a"))  # 1（"a"が最近使用に）
-cache.put("d", 4)      # "b"が削除される（最も古い）
-print(cache.get("b"))   # -1（削除済み）
+print(cache.get("a"))  # 1 ("a" becomes most recently used)
+cache.put("d", 4)      # "b" is evicted (oldest)
+print(cache.get("b"))   # -1 (evicted)
 ```
 
-### 4.2 ハッシュマップ + 双方向連結リストでの実装
+### 4.2 Implementation with Hash Map + Doubly Linked List
 
 ```python
 class DLinkedNode:
-    """双方向連結リストのノード"""
+    """Node for a doubly linked list"""
     def __init__(self, key=0, value=0):
         self.key = key
         self.value = value
@@ -906,16 +906,16 @@ class DLinkedNode:
         self.next = None
 
 class LRUCacheManual:
-    """双方向連結リスト + ハッシュマップによる LRU キャッシュ"""
+    """LRU cache using a doubly linked list + hash map"""
 
     def __init__(self, capacity: int):
         self.capacity = capacity
         self.size = 0
         self.cache = {}  # key -> DLinkedNode
 
-        # 番兵ノード（実装を簡潔にする）
-        self.head = DLinkedNode()  # ダミーヘッド（最近使用側）
-        self.tail = DLinkedNode()  # ダミーテール（最も古い側）
+        # Sentinel nodes (simplify implementation)
+        self.head = DLinkedNode()  # Dummy head (most recently used side)
+        self.tail = DLinkedNode()  # Dummy tail (oldest side)
         self.head.next = self.tail
         self.tail.prev = self.head
 
@@ -943,37 +943,37 @@ class LRUCacheManual:
                 self.size -= 1
 
     def _add_node(self, node):
-        """ヘッドの直後に追加"""
+        """Add immediately after the head"""
         node.prev = self.head
         node.next = self.head.next
         self.head.next.prev = node
         self.head.next = node
 
     def _remove_node(self, node):
-        """ノードを連結リストから削除"""
+        """Remove a node from the linked list"""
         prev = node.prev
         nxt = node.next
         prev.next = nxt
         nxt.prev = prev
 
     def _move_to_head(self, node):
-        """ノードをヘッド直後に移動"""
+        """Move a node to just after the head"""
         self._remove_node(node)
         self._add_node(node)
 
     def _pop_tail(self):
-        """テールの直前（最も古い）を削除"""
+        """Remove the node just before the tail (oldest)"""
         node = self.tail.prev
         self._remove_node(node)
         return node
 
-# LRU キャッシュの計算量:
-# get: O(1) - ハッシュマップ参照 + 連結リスト操作
-# put: O(1) - ハッシュマップ挿入 + 連結リスト操作
-# 空間: O(capacity)
+# LRU cache time complexity:
+# get: O(1) - hash map lookup + linked list operation
+# put: O(1) - hash map insertion + linked list operation
+# Space: O(capacity)
 ```
 
-### 4.3 TTL（Time-To-Live）付きキャッシュ
+### 4.3 TTL (Time-To-Live) Cache
 
 ```python
 import time
@@ -981,7 +981,7 @@ import threading
 from collections import OrderedDict
 
 class TTLCache:
-    """有効期限付きキャッシュ"""
+    """Cache with expiration"""
 
     def __init__(self, capacity: int, ttl_seconds: float):
         self.capacity = capacity
@@ -997,11 +997,11 @@ class TTLCache:
             value, expire_time = self.cache[key]
 
             if time.time() > expire_time:
-                # 期限切れ
+                # Expired
                 del self.cache[key]
                 return None
 
-            # LRU: 最近使用に移動
+            # LRU: move to most recently used
             self.cache.move_to_end(key)
             return value
 
@@ -1012,12 +1012,12 @@ class TTLCache:
 
             self.cache[key] = (value, time.time() + self.ttl)
 
-            # 容量制限
+            # Capacity limit
             while len(self.cache) > self.capacity:
                 self.cache.popitem(last=False)
 
     def cleanup(self):
-        """期限切れエントリを一括削除"""
+        """Bulk removal of expired entries"""
         with self.lock:
             now = time.time()
             expired_keys = [
@@ -1027,31 +1027,31 @@ class TTLCache:
             for k in expired_keys:
                 del self.cache[k]
 
-# 使用例
-cache = TTLCache(capacity=100, ttl_seconds=300)  # 5分間キャッシュ
+# Usage example
+cache = TTLCache(capacity=100, ttl_seconds=300)  # 5-minute cache
 cache.put("user:123", {"name": "Alice", "age": 30})
-user = cache.get("user:123")  # 5分以内なら取得可能
+user = cache.get("user:123")  # Retrievable within 5 minutes
 ```
 
 ---
 
-## 5. 一貫性ハッシュ（Consistent Hashing）
+## 5. Consistent Hashing
 
-### 5.1 基本概念
+### 5.1 Basic Concept
 
 ```
-一貫性ハッシュ: 分散システムでのデータ分散
+Consistent Hashing: Data distribution in distributed systems
 
-  従来のハッシュ:
+  Traditional hashing:
     server = hash(key) % num_servers
-    → サーバー追加/削除時に全データの再配置が必要
-    → サーバーが3台→4台: 75%のデータが移動
+    -> All data must be redistributed when servers are added/removed
+    -> Going from 3 to 4 servers: 75% of data must move
 
-  一貫性ハッシュ:
-    サーバーとキーを同じハッシュリング上に配置
-    → サーバー追加/削除時に移動するデータは1/N程度
+  Consistent hashing:
+    Servers and keys are placed on the same hash ring
+    -> Only ~1/N of data moves when servers are added/removed
 
-    ハッシュリング（0 ~ 2^32-1）:
+    Hash ring (0 ~ 2^32-1):
                    0
                  /   \
                S1     S3
@@ -1065,35 +1065,35 @@ user = cache.get("user:123")  # 5分以内なら取得可能
                 S4---K6
                  2^32
 
-    K1 → 時計回りで最初のサーバー S1 に割り当て
-    K4 → S2
-    K5 → S2
-    K6 → S4
+    K1 -> assigned to first server clockwise: S1
+    K4 -> S2
+    K5 -> S2
+    K6 -> S4
 
-    S2 がダウン → K4, K5 は S3 に移動（K1, K2, K3, K6 は影響なし）
+    If S2 goes down -> K4, K5 move to S3 (K1, K2, K3, K6 are unaffected)
 ```
 
-### 5.2 仮想ノードを使った実装
+### 5.2 Implementation with Virtual Nodes
 
 ```python
 import hashlib
 from bisect import bisect_right
 
 class ConsistentHash:
-    """仮想ノード付き一貫性ハッシュ"""
+    """Consistent hashing with virtual nodes"""
 
     def __init__(self, num_replicas=150):
-        self.num_replicas = num_replicas  # 仮想ノード数
+        self.num_replicas = num_replicas  # Number of virtual nodes
         self.ring = {}       # hash -> node
-        self.sorted_keys = []  # ソート済みハッシュ値
+        self.sorted_keys = []  # Sorted hash values
 
     def _hash(self, key: str) -> int:
-        """MD5ハッシュで均一分布を実現"""
+        """Achieve uniform distribution using MD5 hash"""
         digest = hashlib.md5(key.encode()).hexdigest()
         return int(digest, 16)
 
     def add_node(self, node: str):
-        """ノード（サーバー）を追加"""
+        """Add a node (server)"""
         for i in range(self.num_replicas):
             virtual_key = f"{node}:{i}"
             h = self._hash(virtual_key)
@@ -1102,7 +1102,7 @@ class ConsistentHash:
         self.sorted_keys.sort()
 
     def remove_node(self, node: str):
-        """ノードを削除"""
+        """Remove a node"""
         for i in range(self.num_replicas):
             virtual_key = f"{node}:{i}"
             h = self._hash(virtual_key)
@@ -1110,21 +1110,21 @@ class ConsistentHash:
             self.sorted_keys.remove(h)
 
     def get_node(self, key: str) -> str:
-        """キーが割り当てられるノードを取得"""
+        """Get the node assigned to a key"""
         if not self.ring:
             return None
 
         h = self._hash(key)
         idx = bisect_right(self.sorted_keys, h)
 
-        # リングの末尾を超えたら先頭に戻る
+        # Wrap around to the beginning if past the end of the ring
         if idx == len(self.sorted_keys):
             idx = 0
 
         return self.ring[self.sorted_keys[idx]]
 
     def get_nodes(self, key: str, n: int = 3) -> list:
-        """レプリカ用: キーに対する n 個の異なるノードを取得"""
+        """For replicas: get n distinct nodes for a key"""
         if not self.ring or n > len(set(self.ring.values())):
             return list(set(self.ring.values()))
 
@@ -1146,135 +1146,135 @@ class ConsistentHash:
         return result
 
 
-# 使用例: キャッシュサーバーの分散
+# Usage example: distributing cache servers
 ch = ConsistentHash(num_replicas=150)
 ch.add_node("cache-server-1")
 ch.add_node("cache-server-2")
 ch.add_node("cache-server-3")
 
-# キーの割り当て
+# Key assignment
 print(ch.get_node("user:1001"))    # "cache-server-2"
 print(ch.get_node("session:abc"))  # "cache-server-1"
 
-# サーバー追加（影響は最小限）
+# Adding a server (minimal impact)
 ch.add_node("cache-server-4")
-print(ch.get_node("user:1001"))    # 多くは同じサーバーに留まる
+print(ch.get_node("user:1001"))    # Most keys remain on the same server
 
-# レプリカの取得
-print(ch.get_nodes("user:1001", n=2))  # 2つの異なるサーバー
+# Retrieving replicas
+print(ch.get_nodes("user:1001", n=2))  # 2 different servers
 ```
 
-### 5.3 一貫性ハッシュの実用例
+### 5.3 Real-World Applications of Consistent Hashing
 
 ```
-一貫性ハッシュの実用例:
+Real-world applications of consistent hashing:
 
   1. Amazon DynamoDB:
-     - キーをパーティションに分散
-     - 仮想ノードでデータの偏りを緩和
-     - 優先リストでレプリカ先を決定
+     - Distributes keys across partitions
+     - Virtual nodes mitigate data skew
+     - Preference lists determine replica destinations
 
   2. Apache Cassandra:
-     - パーティションキーのハッシュでノードを決定
-     - Murmur3Partitioner がデフォルト
-     - vnodes（仮想ノード）で負荷分散
+     - Determines nodes via hash of partition key
+     - Murmur3Partitioner is the default
+     - vnodes (virtual nodes) for load balancing
 
   3. Memcached / Redis Cluster:
-     - クライアント側で一貫性ハッシュを実装
-     - サーバーの追加/削除時のキャッシュミスを最小化
+     - Consistent hashing implemented on the client side
+     - Minimizes cache misses when servers are added/removed
 
-  4. CDN（Akamai等）:
-     - リクエストURLをハッシュしてエッジサーバーに振り分け
-     - サーバー障害時の影響を局所化
+  4. CDN (Akamai, etc.):
+     - Hashes request URLs to assign edge servers
+     - Localizes the impact of server failures
 
-  5. ロードバランサー:
-     - セッションアフィニティ（同じユーザーを同じサーバーに）
-     - Nginx の upstream hash モジュール
+  5. Load Balancers:
+     - Session affinity (same user to same server)
+     - Nginx upstream hash module
 ```
 
 ---
 
-## 6. Hash DoS 攻撃と対策
+## 6. Hash DoS Attacks and Countermeasures
 
-### 6.1 攻撃の原理
+### 6.1 Attack Principle
 
 ```
-Hash DoS（ハッシュ衝突攻撃）:
+Hash DoS (Hash Collision Attack):
 
-  原理:
-  - ハッシュ関数の出力が予測可能な場合
-  - 攻撃者が同じバケットに衝突するキーを大量に生成
-  - ハッシュテーブルの操作が O(1) → O(n) に劣化
-  - n個のキーで O(n²) の処理時間
+  Principle:
+  - When hash function output is predictable
+  - Attacker generates a large number of keys that collide into the same bucket
+  - Hash table operations degrade from O(1) to O(n)
+  - n keys cause O(n^2) processing time
 
-  歴史:
-  - 2003年: Perl のハッシュ衝突攻撃が報告
-  - 2011年: CCC（Chaos Communication Congress）で
-            PHP, Python, Ruby, Java等への攻撃が公開
-  - JSON/XMLリクエストに衝突するキーを大量に含めて送信
-  - 小さなリクエストでサーバーのCPUを100%使用可能
+  History:
+  - 2003: Hash collision attack on Perl reported
+  - 2011: Attacks on PHP, Python, Ruby, Java, etc. presented at
+          CCC (Chaos Communication Congress)
+  - Sending JSON/XML requests with many colliding keys
+  - A small request can consume 100% of a server's CPU
 
-  具体例（Python 3.2以前）:
-  # 以下のキーは同じハッシュ値を持つように構成
+  Concrete example (Python 3.2 and earlier):
+  # The following keys are crafted to have the same hash value
   # {"key1": 1, "key2": 2, ..., "key100000": 100000}
-  # → 挿入に O(n²) 時間がかかり、サーバーがハング
+  # -> Insertion takes O(n^2) time, causing the server to hang
 ```
 
-### 6.2 対策
+### 6.2 Countermeasures
 
 ```python
-# 対策1: ランダム化ハッシュ（Python 3.3+）
-# PYTHONHASHSEED 環境変数でシードを制御
-# デフォルトはプロセス起動時にランダムシード
+# Countermeasure 1: Randomized hashing (Python 3.3+)
+# PYTHONHASHSEED environment variable controls the seed
+# Default is a random seed at process startup
 import sys
 print(sys.hash_info)
 # sys.hash_info(width=64, modulus=2305843009213693951,
 #               inf=314159, nan=0, imag=1000003,
 #               algorithm='siphash24', ...)
 
-# 対策2: SipHash（暗号学的PRF）
-# Python 3.4+, Rust, Perl 5.18+ で標準採用
-# 128ビットの秘密鍵を使用
-# Hash DoS に対して安全、かつ十分高速
+# Countermeasure 2: SipHash (cryptographic PRF)
+# Standard in Python 3.4+, Rust, Perl 5.18+
+# Uses a 128-bit secret key
+# Secure against Hash DoS while remaining sufficiently fast
 
-# 対策3: 赤黒木へのフォールバック（Java 8+）
-# HashMap のバケット内要素が8を超えると
-# リンクリスト → 赤黒木に変換
-# 最悪ケースが O(n) → O(log n) に改善
+# Countermeasure 3: Fallback to red-black trees (Java 8+)
+# When a HashMap bucket exceeds 8 elements,
+# it converts from linked list to red-black tree
+# Worst case improves from O(n) to O(log n)
 
-# 対策4: リクエスト制限
-# Webアプリケーションレベルでの対策
-# - リクエストサイズの制限
-# - JSONパラメータ数の上限設定
-# - レート制限
+# Countermeasure 4: Request throttling
+# Application-level countermeasures
+# - Limit request size
+# - Set maximum number of JSON parameters
+# - Rate limiting
 
-# 対策5: カスタムハッシュ関数の使用
+# Countermeasure 5: Using custom hash functions
 import hmac
 import hashlib
 
 def secure_hash(key: str, secret: bytes) -> int:
-    """HMAC ベースのセキュアハッシュ"""
+    """HMAC-based secure hash"""
     h = hmac.new(secret, key.encode(), hashlib.sha256)
     return int.from_bytes(h.digest()[:8], 'big')
 ```
 
 ---
 
-## 7. ハッシュテーブルの応用データ構造
+## 7. Hash Table Derived Data Structures
 
-### 7.1 カウンティングブルームフィルター
+### 7.1 Counting Bloom Filter
 
 ```python
 class CountingBloomFilter:
-    """削除をサポートするBloom Filter"""
+    """Bloom Filter with deletion support"""
 
     def __init__(self, size, num_hashes):
         self.size = size
         self.num_hashes = num_hashes
-        self.counters = [0] * size  # ビットではなくカウンター
+        self.counters = [0] * size  # Counters instead of bits
 
     def _hashes(self, item):
-        """k個のハッシュ値を生成"""
+        """Generate k hash values"""
         import hashlib
         indices = []
         for i in range(self.num_hashes):
@@ -1287,7 +1287,7 @@ class CountingBloomFilter:
             self.counters[idx] += 1
 
     def remove(self, item):
-        """標準Bloom Filterでは不可能な削除操作"""
+        """Deletion operation impossible with standard Bloom Filters"""
         indices = self._hashes(item)
         if all(self.counters[idx] > 0 for idx in indices):
             for idx in indices:
@@ -1297,13 +1297,13 @@ class CountingBloomFilter:
         return all(self.counters[idx] > 0 for idx in self._hashes(item))
 ```
 
-### 7.2 Cuckoo ハッシング
+### 7.2 Cuckoo Hashing
 
 ```python
 class CuckooHashTable:
-    """Cuckoo ハッシング: 2つのハッシュ関数で最悪 O(1) 検索"""
+    """Cuckoo hashing: worst-case O(1) lookup with two hash functions"""
 
-    MAX_KICKS = 500  # 最大追い出し回数
+    MAX_KICKS = 500  # Maximum number of displacements
 
     def __init__(self, capacity=16):
         self.capacity = capacity
@@ -1315,10 +1315,10 @@ class CuckooHashTable:
         return hash(key) % self.capacity
 
     def _hash2(self, key):
-        return hash(key * 2654435761) % self.capacity  # 別のハッシュ
+        return hash(key * 2654435761) % self.capacity  # Different hash
 
     def get(self, key):
-        """O(1) 最悪ケース検索"""
+        """O(1) worst-case lookup"""
         pos1 = self._hash1(key)
         if self.table1[pos1] and self.table1[pos1][0] == key:
             return self.table1[pos1][1]
@@ -1327,11 +1327,11 @@ class CuckooHashTable:
         if self.table2[pos2] and self.table2[pos2][0] == key:
             return self.table2[pos2][1]
 
-        return None  # 見つからない
+        return None  # Not found
 
     def put(self, key, value):
-        """挿入（Cuckoo 方式で追い出し）"""
-        # 既存キーの更新チェック
+        """Insert (using cuckoo-style displacement)"""
+        # Check for existing key update
         pos1 = self._hash1(key)
         if self.table1[pos1] and self.table1[pos1][0] == key:
             self.table1[pos1] = (key, value)
@@ -1342,30 +1342,30 @@ class CuckooHashTable:
             self.table2[pos2] = (key, value)
             return
 
-        # 新規挿入
+        # New insertion
         current = (key, value)
         for _ in range(self.MAX_KICKS):
-            # table1 に挿入を試みる
+            # Try inserting into table1
             pos = self._hash1(current[0])
             if self.table1[pos] is None:
                 self.table1[pos] = current
                 self.size += 1
                 return
 
-            # 追い出し
+            # Displace
             current, self.table1[pos] = self.table1[pos], current
 
-            # table2 に挿入を試みる
+            # Try inserting into table2
             pos = self._hash2(current[0])
             if self.table2[pos] is None:
                 self.table2[pos] = current
                 self.size += 1
                 return
 
-            # 追い出し
+            # Displace
             current, self.table2[pos] = self.table2[pos], current
 
-        # 追い出しループ → リサイズが必要
+        # Displacement loop -> resize needed
         self._resize()
         self.put(current[0], current[1])
 
@@ -1387,46 +1387,46 @@ class CuckooHashTable:
             self.put(key, value)
 
 
-# Cuckoo ハッシングの利点:
-# - 検索が最悪 O(1)（2箇所を見るだけ）
-# - Cuckoo Filter（Bloom Filter の代替）の基盤
-# - 挿入の期待計算量は O(1)（追い出し回数の期待値は定数）
+# Advantages of Cuckoo hashing:
+# - Worst-case O(1) lookup (only 2 locations to check)
+# - Foundation for Cuckoo Filter (alternative to Bloom Filter)
+# - Expected O(1) insertion (expected constant number of displacements)
 ```
 
-### 7.3 Swiss Table（Google の高性能ハッシュテーブル）
+### 7.3 Swiss Table (Google's High-Performance Hash Table)
 
 ```
-Swiss Table の仕組み:
+How Swiss Table Works:
 
-  Rust (hashbrown), C++ (Abseil), Go の map が採用
+  Adopted by Rust (hashbrown), C++ (Abseil), Go map
 
-  構造:
-  ┌──────────────┐
-  │ Control Bytes │  16バイトグループ（SIMD で一括比較）
-  │ [H2|H2|..|H2]│  H2 = ハッシュの上位7ビット
-  ├──────────────┤
-  │   Slots      │  実際のキー/値ペア
-  │ [KV|KV|..|KV]│
-  └──────────────┘
+  Structure:
+  +----------------+
+  | Control Bytes  |  16-byte groups (compared in bulk using SIMD)
+  | [H2|H2|..|H2] |  H2 = upper 7 bits of hash
+  +----------------+
+  |     Slots      |  Actual key/value pairs
+  | [KV|KV|..|KV]  |
+  +----------------+
 
-  検索の流れ:
-  1. H1 = hash の下位ビット → グループのインデックス
-  2. H2 = hash の上位7ビット
-  3. SIMD命令で16個のcontrol byteを一括比較
-  4. マッチしたスロットのみキーを比較
+  Search flow:
+  1. H1 = lower bits of hash -> group index
+  2. H2 = upper 7 bits of hash
+  3. SIMD instruction compares 16 control bytes at once
+  4. Only matching slots require key comparison
 
-  利点:
-  - SIMD で 16 スロットを同時に比較
-  - キャッシュライン効率が高い
-  - 従来のオープンアドレス法より 2-3x 高速
-  - メモリオーバーヘッドは 1バイト/エントリ のみ
+  Advantages:
+  - SIMD compares 16 slots simultaneously
+  - High cache line efficiency
+  - 2-3x faster than traditional open addressing
+  - Memory overhead is only 1 byte/entry
 ```
 
 ---
 
-## 8. ハッシュテーブルのベンチマークと性能比較
+## 8. Hash Table Benchmarks and Performance Comparison
 
-### 8.1 Python での性能測定
+### 8.1 Performance Measurement in Python
 
 ```python
 import time
@@ -1434,64 +1434,64 @@ import random
 import string
 
 def benchmark_dict_operations(n):
-    """dict の各操作のベンチマーク"""
+    """Benchmark of dict operations"""
 
-    # ランダムキー生成
+    # Generate random keys
     keys = [''.join(random.choices(string.ascii_lowercase, k=10)) for _ in range(n)]
 
-    # 挿入
+    # Insertion
     d = {}
     start = time.perf_counter()
     for k in keys:
         d[k] = random.randint(0, 1000000)
     insert_time = time.perf_counter() - start
 
-    # 検索（存在するキー）
+    # Search (existing keys)
     start = time.perf_counter()
     for k in keys:
         _ = d[k]
     search_hit_time = time.perf_counter() - start
 
-    # 検索（存在しないキー）
+    # Search (non-existing keys)
     missing = [k + "x" for k in keys]
     start = time.perf_counter()
     for k in missing:
         _ = d.get(k)
     search_miss_time = time.perf_counter() - start
 
-    # 削除
+    # Deletion
     start = time.perf_counter()
     for k in keys:
         del d[k]
     delete_time = time.perf_counter() - start
 
     print(f"n={n:>10,}")
-    print(f"  挿入:       {insert_time:.4f}s ({insert_time/n*1e6:.2f}μs/op)")
-    print(f"  検索(hit):  {search_hit_time:.4f}s ({search_hit_time/n*1e6:.2f}μs/op)")
-    print(f"  検索(miss): {search_miss_time:.4f}s ({search_miss_time/n*1e6:.2f}μs/op)")
-    print(f"  削除:       {delete_time:.4f}s ({delete_time/n*1e6:.2f}μs/op)")
+    print(f"  Insert:       {insert_time:.4f}s ({insert_time/n*1e6:.2f}us/op)")
+    print(f"  Search(hit):  {search_hit_time:.4f}s ({search_hit_time/n*1e6:.2f}us/op)")
+    print(f"  Search(miss): {search_miss_time:.4f}s ({search_miss_time/n*1e6:.2f}us/op)")
+    print(f"  Delete:       {delete_time:.4f}s ({delete_time/n*1e6:.2f}us/op)")
 
-# 典型的な結果:
+# Typical results:
 # n=    10,000
-#   挿入:       0.0034s (0.34μs/op)
-#   検索(hit):  0.0012s (0.12μs/op)
-#   検索(miss): 0.0014s (0.14μs/op)
-#   削除:       0.0010s (0.10μs/op)
+#   Insert:       0.0034s (0.34us/op)
+#   Search(hit):  0.0012s (0.12us/op)
+#   Search(miss): 0.0014s (0.14us/op)
+#   Delete:       0.0010s (0.10us/op)
 # n= 1,000,000
-#   挿入:       0.4521s (0.45μs/op)
-#   検索(hit):  0.1523s (0.15μs/op)
-#   検索(miss): 0.1842s (0.18μs/op)
-#   削除:       0.1234s (0.12μs/op)
+#   Insert:       0.4521s (0.45us/op)
+#   Search(hit):  0.1523s (0.15us/op)
+#   Search(miss): 0.1842s (0.18us/op)
+#   Delete:       0.1234s (0.12us/op)
 ```
 
-### 8.2 データ構造間の性能比較
+### 8.2 Performance Comparison Across Data Structures
 
 ```python
 import time
 from sortedcontainers import SortedDict
 
 def compare_dict_vs_sorted(n):
-    """dict vs SortedDict vs list の検索性能比較"""
+    """Search performance comparison: dict vs SortedDict vs list"""
 
     import random
     data = [(random.randint(0, n*10), random.randint(0, 1000)) for _ in range(n)]
@@ -1504,59 +1504,59 @@ def compare_dict_vs_sorted(n):
         _ = k in d
     dict_time = time.perf_counter() - start
 
-    # SortedDict（平衡BST相当）
+    # SortedDict (equivalent to a balanced BST)
     sd = SortedDict(data)
     start = time.perf_counter()
     for k in search_keys:
         _ = k in sd
     sorted_time = time.perf_counter() - start
 
-    # list（線形探索）
+    # list (linear search)
     lst = data
     start = time.perf_counter()
     for k in search_keys:
         _ = any(kk == k for kk, _ in lst)
     list_time = time.perf_counter() - start
 
-    print(f"n={n:>10,} (10000回検索)")
+    print(f"n={n:>10,} (10000 searches)")
     print(f"  dict:       {dict_time:.4f}s")
     print(f"  SortedDict: {sorted_time:.4f}s")
     print(f"  list:       {list_time:.4f}s")
-    print(f"  dict/sorted: {sorted_time/dict_time:.1f}x遅い")
-    print(f"  dict/list:   {list_time/dict_time:.1f}x遅い")
+    print(f"  dict/sorted: {sorted_time/dict_time:.1f}x slower")
+    print(f"  dict/list:   {list_time/dict_time:.1f}x slower")
 
-# 典型的な結果:
-# n=   100,000 (10000回検索)
+# Typical results:
+# n=   100,000 (10000 searches)
 #   dict:       0.0009s
 #   SortedDict: 0.0213s
 #   list:       12.4523s
-#   dict/sorted: 23.7x遅い
-#   dict/list:   13836.x遅い
+#   dict/sorted: 23.7x slower
+#   dict/list:   13836.x slower
 ```
 
 ---
 
-## 9. 実務でよく使うパターン集
+## 9. Common Practical Patterns
 
-### 9.1 頻度カウントと統計
+### 9.1 Frequency Counting and Statistics
 
 ```python
 from collections import Counter, defaultdict
 
-# パターン: ログ解析
+# Pattern: Log analysis
 def analyze_access_log(log_entries):
-    """アクセスログの統計分析"""
+    """Statistical analysis of access logs"""
 
-    # エンドポイント別アクセス数
+    # Access count by endpoint
     endpoint_count = Counter(entry["path"] for entry in log_entries)
 
-    # ステータスコード別集計
+    # Count by status code
     status_count = Counter(entry["status"] for entry in log_entries)
 
-    # 時間帯別アクセス数
+    # Access count by hour
     hourly_count = Counter(entry["timestamp"].hour for entry in log_entries)
 
-    # IPアドレス別アクセス数（上位10）
+    # Access count by IP address (top 10)
     ip_count = Counter(entry["ip"] for entry in log_entries)
 
     return {
@@ -1570,35 +1570,35 @@ def analyze_access_log(log_entries):
     }
 
 
-# パターン: 集合演算による権限管理
+# Pattern: Permission management using set operations
 def check_permissions(user_roles: set, required_roles: set) -> bool:
-    """ユーザーの権限チェック"""
+    """Check user permissions"""
     return required_roles.issubset(user_roles)
 
 def common_permissions(user_a_roles: set, user_b_roles: set) -> set:
-    """2人のユーザーに共通する権限"""
+    """Permissions common to two users"""
     return user_a_roles & user_b_roles
 
 def exclusive_permissions(user_a_roles: set, user_b_roles: set) -> set:
-    """ユーザーAだけが持つ権限"""
+    """Permissions held only by user A"""
     return user_a_roles - user_b_roles
 
-# パターン: インデックス構築
+# Pattern: Building an inverted index
 def build_inverted_index(documents):
-    """転置インデックスの構築（全文検索の基盤）"""
+    """Build an inverted index (foundation for full-text search)"""
     index = defaultdict(set)
 
     for doc_id, text in enumerate(documents):
         words = text.lower().split()
         for word in words:
-            # 正規化（句読点除去等）
+            # Normalization (remove punctuation, etc.)
             word = word.strip(".,!?;:")
             index[word].add(doc_id)
 
     return index
 
 def search(index, query):
-    """AND検索"""
+    """AND search"""
     words = query.lower().split()
     if not words:
         return set()
@@ -1609,7 +1609,7 @@ def search(index, query):
 
     return result
 
-# 使用例
+# Usage example
 docs = [
     "Python is a great programming language",
     "Java is also a programming language",
@@ -1621,16 +1621,16 @@ print(search(idx, "programming language"))  # {0, 1, 3}
 print(search(idx, "Python"))                # {0, 2}
 ```
 
-### 9.2 データのバリデーションと変換
+### 9.2 Data Validation and Transformation
 
 ```python
-# パターン: スキーマバリデーション
+# Pattern: Schema validation
 def validate_schema(data: dict, schema: dict) -> list:
-    """簡易スキーマバリデーション"""
+    """Simple schema validation"""
     errors = []
 
     for field, rules in schema.items():
-        # 必須チェック
+        # Required check
         if rules.get("required") and field not in data:
             errors.append(f"Missing required field: {field}")
             continue
@@ -1640,24 +1640,24 @@ def validate_schema(data: dict, schema: dict) -> list:
 
         value = data[field]
 
-        # 型チェック
+        # Type check
         expected_type = rules.get("type")
         if expected_type and not isinstance(value, expected_type):
             errors.append(f"Invalid type for {field}: expected {expected_type.__name__}")
 
-        # 範囲チェック
+        # Range check
         if "min" in rules and value < rules["min"]:
             errors.append(f"{field} must be >= {rules['min']}")
         if "max" in rules and value > rules["max"]:
             errors.append(f"{field} must be <= {rules['max']}")
 
-        # 許可値チェック
+        # Allowed values check
         if "choices" in rules and value not in rules["choices"]:
             errors.append(f"{field} must be one of {rules['choices']}")
 
     return errors
 
-# 使用例
+# Usage example
 schema = {
     "name": {"required": True, "type": str},
     "age": {"required": True, "type": int, "min": 0, "max": 150},
@@ -1679,9 +1679,9 @@ print(errors)
 #  'role must be one of ["admin", "user", "guest"]']
 
 
-# パターン: データのマッピングと変換
+# Pattern: Data mapping and transformation
 def transform_records(records, field_mapping):
-    """フィールド名のマッピングと変換"""
+    """Field name mapping and transformation"""
     transformed = []
     for record in records:
         new_record = {}
@@ -1691,7 +1691,7 @@ def transform_records(records, field_mapping):
         transformed.append(new_record)
     return transformed
 
-# 使用例: CSVデータの変換
+# Usage example: CSV data transformation
 mapping = {
     "full_name": ("name", str.strip),
     "birth_year": ("age", lambda y: 2026 - int(y)),
@@ -1708,28 +1708,28 @@ print(transform_records(raw_data, mapping))
 #  {'name': 'Bob', 'age': 41, 'salary': 92500.5}]
 ```
 
-### 9.3 設定管理と環境変数
+### 9.3 Configuration Management and Environment Variables
 
 ```python
 import os
 from typing import Any, Optional
 
 class Config:
-    """ハッシュテーブルベースの設定管理"""
+    """Hash table-based configuration management"""
 
     def __init__(self, defaults: dict = None):
         self._config = {}
         self._defaults = defaults or {}
 
     def load_from_env(self, prefix: str = "APP_"):
-        """環境変数から設定を読み込み"""
+        """Load configuration from environment variables"""
         for key, value in os.environ.items():
             if key.startswith(prefix):
                 config_key = key[len(prefix):].lower()
                 self._config[config_key] = value
 
     def load_from_dict(self, data: dict):
-        """辞書から設定を読み込み（ネストをフラット化）"""
+        """Load configuration from a dictionary (flatten nested structures)"""
         def flatten(d, parent_key=""):
             for k, v in d.items():
                 new_key = f"{parent_key}.{k}" if parent_key else k
@@ -1740,7 +1740,7 @@ class Config:
         flatten(data)
 
     def get(self, key: str, default: Any = None) -> Any:
-        """設定値を取得（優先順位: 設定 > デフォルト > 引数）"""
+        """Get a config value (priority: config > defaults > argument)"""
         if key in self._config:
             return self._config[key]
         if key in self._defaults:
@@ -1756,7 +1756,7 @@ class Config:
             return val.lower() in ("true", "1", "yes")
         return bool(val)
 
-# 使用例
+# Usage example
 config = Config(defaults={
     "database.host": "localhost",
     "database.port": 5432,
@@ -1766,87 +1766,87 @@ config.load_from_dict({
     "database": {"host": "db.example.com", "name": "myapp"},
     "cache": {"ttl": 300},
 })
-print(config.get("database.host"))  # "db.example.com"（オーバーライド）
-print(config.get("database.port"))  # 5432（デフォルト値）
+print(config.get("database.host"))  # "db.example.com" (overridden)
+print(config.get("database.port"))  # 5432 (default value)
 print(config.get("cache.ttl"))      # 300
 ```
 
 ---
 
-## 10. 実践演習
+## 10. Exercises
 
-### 演習1: 基本操作（基礎）
-ハッシュテーブルをゼロから実装せよ（チェイニング方式、リサイズ付き）。以下の要件を満たすこと:
-- `put(key, value)`, `get(key)`, `remove(key)`, `contains(key)` の4操作
-- ロードファクター0.75でリサイズ
-- `__len__`, `__iter__`, `__repr__` の実装
-- 衝突数をカウントする機能
+### Exercise 1: Basic Operations (Fundamentals)
+Implement a hash table from scratch (using chaining with resizing). It must satisfy the following requirements:
+- `put(key, value)`, `get(key)`, `remove(key)`, `contains(key)` operations
+- Resize at load factor 0.75
+- Implement `__len__`, `__iter__`, `__repr__`
+- Collision counting functionality
 
-### 演習2: LRUキャッシュ（応用）
-OrderedDict または dict + 双方向連結リストで LRUキャッシュを実装せよ。以下の要件を満たすこと:
-- `get(key)` と `put(key, value)` の両操作が O(1)
-- 容量超過時に最も古いエントリを自動削除
-- TTL（有効期限）のサポート
-- スレッドセーフ（threading.Lock使用）
+### Exercise 2: LRU Cache (Intermediate)
+Implement an LRU cache using OrderedDict or dict + doubly linked list. It must satisfy the following requirements:
+- Both `get(key)` and `put(key, value)` operations run in O(1)
+- Automatically evict the oldest entry when capacity is exceeded
+- TTL (time-to-live) support
+- Thread safety (using threading.Lock)
 
-### 演習3: 一貫性ハッシュ（発展）
-分散システムで使われる一貫性ハッシュ（Consistent Hashing）を実装せよ。以下の要件を満たすこと:
-- 仮想ノードによる負荷分散
-- ノードの追加・削除
-- レプリカ取得（N個の異なるノードを返す）
-- 負荷分散の均一性をテストするベンチマーク
+### Exercise 3: Consistent Hashing (Advanced)
+Implement consistent hashing as used in distributed systems. It must satisfy the following requirements:
+- Load distribution via virtual nodes
+- Node addition and removal
+- Replica retrieval (returning N distinct nodes)
+- Benchmark testing load distribution uniformity
 
-### 演習4: 転置インデックス（応用）
-全文検索エンジンの基盤となる転置インデックスを実装せよ:
-- 文書の追加と検索（AND検索、OR検索）
-- TF-IDF スコアリング
-- 前方一致検索のサポート
+### Exercise 4: Inverted Index (Intermediate)
+Implement an inverted index as the foundation for a full-text search engine:
+- Document addition and search (AND search, OR search)
+- TF-IDF scoring
+- Prefix search support
 
-### 演習5: Cuckoo Filter（発展）
-Bloom Filter の改良版である Cuckoo Filter を実装せよ:
-- 挿入、検索、削除の全操作をサポート
-- 偽陽性率のパラメータ調整
-- Bloom Filter との性能比較ベンチマーク
+### Exercise 5: Cuckoo Filter (Advanced)
+Implement a Cuckoo Filter as an improvement over Bloom Filters:
+- Support insert, lookup, and delete operations
+- Configurable false positive rate
+- Performance comparison benchmark against Bloom Filters
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory, but by actually writing code and verifying its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## まとめ
-
-| 概念 | ポイント |
-|------|---------|
-| ハッシュ関数 | キー→整数。均一分布が理想。SipHash/MurmurHash3が実用的 |
-| 衝突解決 | チェイニング or オープンアドレス。Robin Hood/Cuckoo も |
-| 計算量 | 期待O(1)、最悪O(n)。償却分析でリサイズもO(1) |
-| 実務 | dict/set/Map/Counter/defaultdict |
-| 内部実装 | Python:コンパクト辞書、Java:赤黒木フォールバック、Rust:Swiss Table |
-| セキュリティ | Hash DoS対策にSipHash。リクエスト制限も重要 |
-| 分散 | 一貫性ハッシュで負荷分散。仮想ノードで均一化 |
-| 順序 | Python 3.7+は挿入順保証。他は非保証 |
+Knowledge of this topic is frequently applied in day-to-day development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## 次に読むべきガイド
+## Summary
+
+| Concept | Key Points |
+|---------|-----------|
+| Hash Functions | Key -> integer. Uniform distribution is ideal. SipHash/MurmurHash3 are practical |
+| Collision Resolution | Chaining or open addressing. Robin Hood/Cuckoo as well |
+| Time Complexity | Expected O(1), worst O(n). Amortized O(1) for resizing |
+| Practical Usage | dict/set/Map/Counter/defaultdict |
+| Internal Implementations | Python: compact dict, Java: red-black tree fallback, Rust: Swiss Table |
+| Security | SipHash for Hash DoS protection. Request throttling is also important |
+| Distributed Systems | Consistent hashing for load distribution. Virtual nodes for uniformity |
+| Ordering | Python 3.7+ guarantees insertion order. Others do not |
 
 ---
 
-## 参考文献
+## Recommended Next Guides
+
+---
+
+## References
 1. Cormen, T. H. "Introduction to Algorithms." Chapter 11: Hash Tables.
 2. Sedgewick, R. "Algorithms." Chapter 3.4: Hash Tables.
 3. Kleppmann, M. "Designing Data-Intensive Applications." Chapter 6: Partitioning.

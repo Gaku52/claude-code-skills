@@ -1,344 +1,369 @@
-# OSとは何か
+# What Is an Operating System?
 
-> オペレーティングシステムは「ハードウェアの複雑さを隠蔽し、アプリケーションに統一的なインターフェースを提供する」ソフトウェアである。
+> An operating system is software that "hides the complexity of hardware and provides a unified interface to applications."
 
-## この章で学ぶこと
+## Learning Objectives
 
-- [ ] OSの役割と基本機能を説明できる
-- [ ] カーネルとユーザー空間の違いを理解する
-- [ ] OSの基本構造（モノリシック、マイクロカーネル等）を区別できる
-- [ ] システムコールの仕組みと主要なsyscallを把握する
-- [ ] POSIXやUnix哲学の意義を理解する
-- [ ] 主要なOSファミリーの特徴と歴史的背景を知る
+- [ ] Explain the role and basic functions of an OS
+- [ ] Understand the difference between kernel space and user space
+- [ ] Distinguish between OS architectures (monolithic, microkernel, etc.)
+- [ ] Understand the mechanism of system calls and the major syscalls
+- [ ] Understand the significance of POSIX and Unix philosophy
+- [ ] Know the characteristics and historical background of major OS families
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+The following knowledge will help you better understand this guide:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-
----
-
-## 1. なぜOSが必要か
-
-```
-OSがない世界:
-
-  アプリケーション → ハードウェアを直接操作
-
-  問題:
-  ┌──────────────────────────────────────────┐
-  │ 1. 全アプリがハードウェアの詳細を知る必要  │
-  │    → ディスクのセクタ番号を直接指定？       │
-  │    → GPUのレジスタを直接操作？              │
-  │                                            │
-  │ 2. リソースの競合                           │
-  │    → 2つのアプリが同時にプリンタを使いたい  │
-  │    → メモリを好き勝手に使って他を破壊       │
-  │                                            │
-  │ 3. セキュリティなし                         │
-  │    → どのアプリも全データにアクセス可能      │
-  │    → 悪意あるプログラムがやりたい放題        │
-  └──────────────────────────────────────────┘
-
-OSの役割:
-  ┌──────────────────────────────────────────┐
-  │ アプリケーション（ブラウザ、エディタ等）    │
-  ├──────────────────────────────────────────┤
-  │ OS（カーネル）                             │
-  │  ├─ プロセス管理:  CPUの時間を分配          │
-  │  ├─ メモリ管理:    メモリを安全に分配        │
-  │  ├─ ファイルシステム: データの永続化         │
-  │  ├─ I/O管理:      デバイスへの統一API       │
-  │  └─ セキュリティ:  アクセス制御             │
-  ├──────────────────────────────────────────┤
-  │ ハードウェア（CPU, メモリ, ディスク, NIC等） │
-  └──────────────────────────────────────────┘
-
-  OSの2つの顔:
-  1. リソースマネージャー: CPU、メモリ、ディスク等を管理・分配
-  2. 抽象化レイヤー: ハードウェアの複雑さを隠蔽し簡単なAPIを提供
-```
-
-### 1.1 OSの具体的な機能
-
-```
-OSが提供する主要機能の詳細:
-
-  1. プロセス管理:
-     ┌────────────────────────────────────────────────┐
-     │ - プロセスの生成と終了                          │
-     │ - CPUスケジューリング（どのプロセスをいつ実行）  │
-     │ - プロセス間通信（パイプ、ソケット、共有メモリ） │
-     │ - 同期と排他制御（mutex、セマフォ）              │
-     │ - シグナル処理（SIGKILL, SIGTERM 等）           │
-     │                                                 │
-     │ 例: Chromeを起動すると                          │
-     │   → OSが新しいプロセスを生成                    │
-     │   → メモリ空間を割り当て                        │
-     │   → CPUの時間スライスを配分                     │
-     │   → 複数タブを別プロセスで隔離                  │
-     └────────────────────────────────────────────────┘
-
-  2. メモリ管理:
-     ┌────────────────────────────────────────────────┐
-     │ - 仮想メモリ: 物理メモリ以上のアドレス空間を提供│
-     │ - ページング: メモリを4KBのページ単位で管理      │
-     │ - メモリ保護: プロセス間のメモリ隔離             │
-     │ - メモリマッピング: ファイルをメモリに直接対応付け│
-     │ - スワップ: 使っていないページをディスクに退避   │
-     │                                                 │
-     │ 例: 8GBの物理メモリで複数アプリを動かす          │
-     │   → 各プロセスが独自の仮想アドレス空間を持つ    │
-     │   → 合計20GBのメモリ要求でも動作可能            │
-     │   → 使われないページはディスクにスワップ         │
-     └────────────────────────────────────────────────┘
-
-  3. ファイルシステム:
-     ┌────────────────────────────────────────────────┐
-     │ - ファイルの作成、読み書き、削除                 │
-     │ - ディレクトリ（フォルダ）の階層構造             │
-     │ - アクセス権限の管理（owner, group, other）      │
-     │ - ジャーナリング: 不意の電源断からデータを保護   │
-     │ - マウント: 異なるストレージデバイスを統合       │
-     │                                                 │
-     │ 主要なファイルシステム:                          │
-     │   ext4: Linux標準（ジャーナリング、最大1EB）     │
-     │   APFS: macOS/iOS（CoW、暗号化、スナップショット）│
-     │   NTFS: Windows（ACL、ジャーナリング、圧縮）     │
-     │   Btrfs: Linux次世代（CoW、RAID、スナップショット）│
-     │   ZFS: 企業向け（チェックサム、RAID-Z、圧縮）    │
-     │   XFS: 大規模ファイル向け（高並列I/O）           │
-     └────────────────────────────────────────────────┘
-
-  4. I/O管理:
-     ┌────────────────────────────────────────────────┐
-     │ - デバイスドライバ: ハードウェアとの通信を抽象化 │
-     │ - バッファリング: I/Oを効率化するためのバッファ  │
-     │ - 割り込み処理: デバイスからの通知を処理         │
-     │ - DMA（Direct Memory Access）: CPUを介さないデータ転送│
-     │ - I/Oスケジューリング: ディスクアクセスの最適化  │
-     │                                                 │
-     │ デバイスドライバの役割:                          │
-     │   アプリ → write() → VFS → ファイルシステム     │
-     │                        → ブロック層              │
-     │                        → デバイスドライバ        │
-     │                        → ハードウェア(SSD/HDD)   │
-     └────────────────────────────────────────────────┘
-
-  5. ネットワーク管理:
-     ┌────────────────────────────────────────────────┐
-     │ - TCP/IPプロトコルスタックの実装                 │
-     │ - ソケットAPI: アプリケーションのネットワーク通信 │
-     │ - ファイアウォール: パケットフィルタリング       │
-     │ - ルーティング: パケットの転送先決定             │
-     │ - ネットワークデバイスドライバ                   │
-     │                                                 │
-     │ Linuxのネットワークスタック:                     │
-     │   アプリ → socket() → TCP/UDP → IP → NIC Driver │
-     │   → iptables/nftables でフィルタリング           │
-     │   → tc (traffic control) で帯域制御              │
-     └────────────────────────────────────────────────┘
-
-  6. セキュリティ:
-     ┌────────────────────────────────────────────────┐
-     │ - ユーザー認証: ログイン、パスワード、生体認証  │
-     │ - アクセス制御: ファイル権限、ケーパビリティ    │
-     │ - 暗号化: ディスク暗号化、通信暗号化            │
-     │ - 監査: セキュリティイベントのログ記録           │
-     │ - サンドボックス: アプリの権限を制限             │
-     │                                                 │
-     │ Linuxのセキュリティモジュール:                   │
-     │   SELinux: 強制アクセス制御（Red Hat系）         │
-     │   AppArmor: パス名ベースのアクセス制御（Ubuntu） │
-     │   seccomp: システムコールのフィルタリング        │
-     │   namespaces + cgroups: コンテナ隔離の基盤       │
-     └────────────────────────────────────────────────┘
-```
-
-### 1.2 OSがなかった時代の実際
-
-```
-OSなしのプログラミング（1950年代）:
-
-  手順:
-  1. パンチカードにプログラムを書く
-  2. コンピュータ室に持参し、オペレータに渡す
-  3. プログラムがマシンに投入される（数時間〜数日待ち）
-  4. 結果が紙に印刷されて返却される
-  5. バグがあれば1からやり直し
-
-  問題点:
-  - CPUの稼働率が極めて低い（プログラム投入中はアイドル）
-  - プログラマが直接ハードウェアのアドレスを計算
-  - I/Oデバイスのタイミングを手動で管理
-  - エラーが発生するとマシン全体が停止
-
-  OSの登場で解決されたこと:
-  ┌────────────────────────────────────────────────┐
-  │ バッチ処理OS（1950年代後半）:                   │
-  │ → ジョブを自動で次々に実行                     │
-  │ → CPUの稼働率が飛躍的に向上                    │
-  │                                                 │
-  │ マルチプログラミングOS（1960年代）:             │
-  │ → 複数のジョブをメモリに同時に保持             │
-  │ → I/O待ち中に別のジョブを実行                  │
-  │                                                 │
-  │ タイムシェアリングOS（1960年代後半）:           │
-  │ → 複数ユーザーが端末から同時にアクセス         │
-  │ → 「対話的な」コンピュータ利用が可能に         │
-  └────────────────────────────────────────────────┘
-
-現代でもOSなしの環境:
-  - Arduino: 単一プログラムが直接ハードウェアを制御
-  - ベアメタルプログラミング: 組み込み機器のファームウェア
-  - ブートローダー: GRUB, U-Boot（OS起動前に動作）
-  → OSなしだと得られるもの: 低レイテンシ、小フットプリント
-  → 失うもの: マルチタスク、メモリ保護、抽象化
-```
+- Basic programming knowledge
+- Understanding of related foundational concepts
 
 ---
 
-## 2. カーネルとユーザー空間
+## 1. Why Do We Need an OS?
 
 ```
-CPUの動作モード（x86の場合）:
+A world without an OS:
 
-  Ring 0（カーネルモード）:
-  → 全ハードウェアに直接アクセス可能
-  → 特権命令を実行可能
-  → OSカーネルが動作
+  Application -> Directly operates hardware
 
-  Ring 3（ユーザーモード）:
-  → ハードウェアに直接アクセス不可
-  → 特権命令は例外（トラップ）が発生
-  → 一般アプリケーションが動作
+  Problems:
+  +----------------------------------------------+
+  | 1. Every app must know hardware details       |
+  |    -> Specify disk sector numbers directly?   |
+  |    -> Directly manipulate GPU registers?      |
+  |                                               |
+  | 2. Resource contention                        |
+  |    -> Two apps want to use the printer at once|
+  |    -> Freely using memory, destroying others  |
+  |                                               |
+  | 3. No security                                |
+  |    -> Any app can access all data             |
+  |    -> Malicious programs can do whatever they |
+  |       want                                    |
+  +----------------------------------------------+
 
-  ┌───────────────────────────────────────┐
-  │  ユーザー空間（Ring 3）                │
-  │  ┌──────┐ ┌──────┐ ┌──────┐          │
-  │  │Chrome│ │VSCode│ │Slack │ ...       │
-  │  └──┬───┘ └──┬───┘ └──┬───┘          │
-  │     │        │        │               │
-  │═════╪════════╪════════╪═══════════════│
-  │     │  システムコール（境界）           │
-  │═════╪════════╪════════╪═══════════════│
-  │  カーネル空間（Ring 0）                │
-  │  ┌──────────────────────────────┐     │
-  │  │ プロセス管理 │ メモリ管理    │     │
-  │  │ ファイルシステム│ ネットワーク │     │
-  │  │ デバイスドライバ               │     │
-  │  └──────────────────────────────┘     │
-  │  ハードウェア                          │
-  └───────────────────────────────────────┘
+The role of an OS:
+  +----------------------------------------------+
+  | Applications (browser, editor, etc.)          |
+  +----------------------------------------------+
+  | OS (Kernel)                                   |
+  |  +- Process management:  Distributes CPU time |
+  |  +- Memory management:   Safely allocates mem |
+  |  +- File system:         Persistent storage   |
+  |  +- I/O management:      Unified device API   |
+  |  +- Security:            Access control        |
+  +----------------------------------------------+
+  | Hardware (CPU, memory, disk, NIC, etc.)       |
+  +----------------------------------------------+
+
+  Two faces of an OS:
+  1. Resource manager: Manages and distributes CPU, memory, disk, etc.
+  2. Abstraction layer: Hides hardware complexity and provides simple APIs
+```
+
+### 1.1 Specific Functions of an OS
+
+```
+Detailed major functions provided by an OS:
+
+  1. Process management:
+     +----------------------------------------------------+
+     | - Process creation and termination                  |
+     | - CPU scheduling (which process runs when)          |
+     | - Inter-process communication (pipes, sockets,      |
+     |   shared memory)                                    |
+     | - Synchronization and mutual exclusion              |
+     |   (mutex, semaphore)                                |
+     | - Signal handling (SIGKILL, SIGTERM, etc.)          |
+     |                                                     |
+     | Example: When you launch Chrome                     |
+     |   -> OS creates a new process                       |
+     |   -> Allocates memory space                         |
+     |   -> Distributes CPU time slices                    |
+     |   -> Isolates multiple tabs in separate processes   |
+     +----------------------------------------------------+
+
+  2. Memory management:
+     +----------------------------------------------------+
+     | - Virtual memory: Provides address space larger     |
+     |   than physical memory                              |
+     | - Paging: Manages memory in 4KB page units          |
+     | - Memory protection: Isolates memory between        |
+     |   processes                                         |
+     | - Memory mapping: Maps files directly to memory     |
+     | - Swap: Evicts unused pages to disk                 |
+     |                                                     |
+     | Example: Running multiple apps with 8GB physical RAM|
+     |   -> Each process has its own virtual address space  |
+     |   -> Can operate even with 20GB total memory demand |
+     |   -> Unused pages are swapped to disk               |
+     +----------------------------------------------------+
+
+  3. File system:
+     +----------------------------------------------------+
+     | - File creation, reading/writing, and deletion      |
+     | - Hierarchical directory (folder) structure         |
+     | - Access permission management (owner, group, other)|
+     | - Journaling: Protects data from unexpected power   |
+     |   loss                                              |
+     | - Mount: Integrates different storage devices       |
+     |                                                     |
+     | Major file systems:                                 |
+     |   ext4: Linux standard (journaling, max 1EB)        |
+     |   APFS: macOS/iOS (CoW, encryption, snapshots)      |
+     |   NTFS: Windows (ACL, journaling, compression)      |
+     |   Btrfs: Next-gen Linux (CoW, RAID, snapshots)      |
+     |   ZFS: Enterprise (checksums, RAID-Z, compression)  |
+     |   XFS: Large files (high-concurrency I/O)           |
+     +----------------------------------------------------+
+
+  4. I/O management:
+     +----------------------------------------------------+
+     | - Device drivers: Abstract hardware communication   |
+     | - Buffering: Buffers to optimize I/O                |
+     | - Interrupt handling: Process notifications from     |
+     |   devices                                           |
+     | - DMA (Direct Memory Access): Data transfer without |
+     |   CPU involvement                                   |
+     | - I/O scheduling: Optimize disk access              |
+     |                                                     |
+     | Role of device drivers:                             |
+     |   App -> write() -> VFS -> File system              |
+     |                      -> Block layer                 |
+     |                      -> Device driver               |
+     |                      -> Hardware (SSD/HDD)          |
+     +----------------------------------------------------+
+
+  5. Network management:
+     +----------------------------------------------------+
+     | - TCP/IP protocol stack implementation              |
+     | - Socket API: Network communication for apps        |
+     | - Firewall: Packet filtering                        |
+     | - Routing: Determining packet forwarding            |
+     |   destination                                       |
+     | - Network device drivers                            |
+     |                                                     |
+     | Linux network stack:                                |
+     |   App -> socket() -> TCP/UDP -> IP -> NIC Driver    |
+     |   -> iptables/nftables for filtering                |
+     |   -> tc (traffic control) for bandwidth control     |
+     +----------------------------------------------------+
+
+  6. Security:
+     +----------------------------------------------------+
+     | - User authentication: Login, password, biometrics  |
+     | - Access control: File permissions, capabilities    |
+     | - Encryption: Disk encryption, communication        |
+     |   encryption                                        |
+     | - Auditing: Logging security events                 |
+     | - Sandboxing: Restricting app permissions           |
+     |                                                     |
+     | Linux security modules:                             |
+     |   SELinux: Mandatory access control (Red Hat family)|
+     |   AppArmor: Pathname-based access control (Ubuntu)  |
+     |   seccomp: System call filtering                    |
+     |   namespaces + cgroups: Foundation for container    |
+     |   isolation                                         |
+     +----------------------------------------------------+
+```
+
+### 1.2 The Era Before Operating Systems
+
+```
+Programming without an OS (1950s):
+
+  Procedure:
+  1. Write a program on punch cards
+  2. Bring cards to the computer room and hand them
+     to the operator
+  3. Program is loaded into the machine (wait hours
+     to days)
+  4. Results are printed on paper and returned
+  5. If there's a bug, start over from step 1
+
+  Problems:
+  - CPU utilization was extremely low (idle during
+    program loading)
+  - Programmers had to calculate hardware addresses
+    directly
+  - I/O device timing had to be managed manually
+  - An error would halt the entire machine
+
+  What the introduction of an OS solved:
+  +----------------------------------------------------+
+  | Batch processing OS (late 1950s):                   |
+  | -> Automatically executed jobs one after another     |
+  | -> CPU utilization improved dramatically             |
+  |                                                     |
+  | Multiprogramming OS (1960s):                        |
+  | -> Multiple jobs held in memory simultaneously       |
+  | -> Ran other jobs while one waited for I/O           |
+  |                                                     |
+  | Time-sharing OS (late 1960s):                       |
+  | -> Multiple users accessed simultaneously via        |
+  |    terminals                                         |
+  | -> "Interactive" computer usage became possible      |
+  +----------------------------------------------------+
+
+Environments without an OS even today:
+  - Arduino: A single program directly controls hardware
+  - Bare-metal programming: Firmware for embedded devices
+  - Bootloaders: GRUB, U-Boot (run before the OS starts)
+  -> What you gain without an OS: Low latency, small footprint
+  -> What you lose: Multitasking, memory protection, abstraction
+```
+
+---
+
+## 2. Kernel and User Space
+
+```
+CPU operating modes (x86):
+
+  Ring 0 (kernel mode):
+  -> Direct access to all hardware
+  -> Can execute privileged instructions
+  -> OS kernel runs here
+
+  Ring 3 (user mode):
+  -> Cannot directly access hardware
+  -> Privileged instructions cause exceptions (traps)
+  -> Regular applications run here
+
+  +---------------------------------------+
+  |  User space (Ring 3)                  |
+  |  +------+ +------+ +------+          |
+  |  |Chrome| |VSCode| |Slack | ...      |
+  |  +--+---+ +--+---+ +--+---+         |
+  |     |        |        |              |
+  |=====+========+========+=============|
+  |     |  System call (boundary)        |
+  |=====+========+========+=============|
+  |  Kernel space (Ring 0)               |
+  |  +------------------------------+   |
+  |  | Process mgmt | Memory mgmt   |   |
+  |  | File system  | Networking    |   |
+  |  | Device drivers               |   |
+  |  +------------------------------+   |
+  |  Hardware                            |
+  +---------------------------------------+
 
   Ring 1, 2:
-  → x86には4つのリングがあるが、ほとんどのOSは
-    Ring 0（カーネル）とRing 3（ユーザー）のみ使用
-  → VMX root/non-rootモード: 仮想化のための追加モード（VT-x）
+  -> x86 has 4 rings, but most OSes use only
+    Ring 0 (kernel) and Ring 3 (user)
+  -> VMX root/non-root mode: Additional mode for
+    virtualization (VT-x)
 ```
 
-### 2.1 システムコール（syscall）の詳細
+### 2.1 System Call (syscall) Details
 
 ```
-システムコール（syscall）:
-  ユーザー空間からカーネルの機能を呼び出す唯一の窓口
+System call (syscall):
+  The only gateway to invoke kernel functionality
+  from user space
 
-  システムコールの呼び出し手順:
-  ┌───────────────────────────────────────────────────┐
-  │ 1. アプリケーションがライブラリ関数を呼ぶ          │
-  │    例: write(fd, buf, count)                       │
-  │                                                    │
-  │ 2. Cライブラリ（glibc）がsyscall番号をレジスタに   │
-  │    設定し、syscall/int 0x80命令を実行               │
-  │                                                    │
-  │ 3. CPUがカーネルモードに切り替え                    │
-  │    → Ring 3 → Ring 0                               │
-  │    → スタックもカーネルスタックに切替               │
-  │                                                    │
-  │ 4. カーネルがsyscallハンドラを実行                  │
-  │    → sys_write() 等のカーネル関数                   │
-  │                                                    │
-  │ 5. 結果をレジスタに格納し、ユーザーモードに復帰    │
-  │    → Ring 0 → Ring 3                               │
-  └───────────────────────────────────────────────────┘
+  Steps for invoking a system call:
+  +---------------------------------------------------+
+  | 1. Application calls a library function            |
+  |    Example: write(fd, buf, count)                  |
+  |                                                    |
+  | 2. C library (glibc) sets the syscall number in    |
+  |    a register and executes the syscall/int 0x80    |
+  |    instruction                                     |
+  |                                                    |
+  | 3. CPU switches to kernel mode                     |
+  |    -> Ring 3 -> Ring 0                             |
+  |    -> Stack also switches to kernel stack          |
+  |                                                    |
+  | 4. Kernel executes the syscall handler             |
+  |    -> Kernel function such as sys_write()          |
+  |                                                    |
+  | 5. Result is stored in a register, and returns     |
+  |    to user mode                                    |
+  |    -> Ring 0 -> Ring 3                             |
+  +---------------------------------------------------+
 
-  主要なシステムコール（Linux）:
+  Major system calls (Linux):
 
-  プロセス管理:
-  ┌──────────────────────────────────────────────────────┐
-  │ fork()      → 現在のプロセスをコピーして子プロセス作成│
-  │ exec()      → 現在のプロセスを別のプログラムに置換    │
-  │ wait()      → 子プロセスの終了を待つ                  │
-  │ exit()      → プロセスを終了                          │
-  │ getpid()    → プロセスIDを取得                        │
-  │ kill()      → プロセスにシグナルを送信                │
-  │ clone()     → スレッドの生成（Linux固有）             │
-  └──────────────────────────────────────────────────────┘
+  Process management:
+  +------------------------------------------------------+
+  | fork()      -> Copy current process to create child   |
+  | exec()      -> Replace current process with another   |
+  |                program                                |
+  | wait()      -> Wait for child process to terminate    |
+  | exit()      -> Terminate the process                  |
+  | getpid()    -> Get process ID                         |
+  | kill()      -> Send a signal to a process             |
+  | clone()     -> Create a thread (Linux-specific)       |
+  +------------------------------------------------------+
 
-  ファイル操作:
-  ┌──────────────────────────────────────────────────────┐
-  │ open()      → ファイルを開く                          │
-  │ read()      → ファイルから読む                        │
-  │ write()     → ファイルに書く                          │
-  │ close()     → ファイルを閉じる                        │
-  │ lseek()     → ファイルポジションを移動                │
-  │ stat()      → ファイル情報を取得                      │
-  │ mkdir()     → ディレクトリを作成                      │
-  │ unlink()    → ファイルを削除                          │
-  └──────────────────────────────────────────────────────┘
+  File operations:
+  +------------------------------------------------------+
+  | open()      -> Open a file                            |
+  | read()      -> Read from a file                       |
+  | write()     -> Write to a file                        |
+  | close()     -> Close a file                           |
+  | lseek()     -> Move file position                     |
+  | stat()      -> Get file information                   |
+  | mkdir()     -> Create a directory                     |
+  | unlink()    -> Delete a file                          |
+  +------------------------------------------------------+
 
-  メモリ管理:
-  ┌──────────────────────────────────────────────────────┐
-  │ mmap()      → メモリをマッピング                      │
-  │ munmap()    → マッピングを解除                        │
-  │ brk()       → ヒープのサイズを変更                    │
-  │ mprotect()  → メモリの保護属性を変更                  │
-  │ mlock()     → メモリページをロック（スワップアウト防止）│
-  └──────────────────────────────────────────────────────┘
+  Memory management:
+  +------------------------------------------------------+
+  | mmap()      -> Map memory                             |
+  | munmap()    -> Unmap memory                           |
+  | brk()       -> Change heap size                       |
+  | mprotect()  -> Change memory protection attributes    |
+  | mlock()     -> Lock memory pages (prevent swap out)   |
+  +------------------------------------------------------+
 
-  ネットワーク:
-  ┌──────────────────────────────────────────────────────┐
-  │ socket()    → ソケットを作成                          │
-  │ bind()      → ソケットにアドレスをバインド            │
-  │ listen()    → 接続要求の待受を開始                    │
-  │ accept()    → 接続を受け入れ                          │
-  │ connect()   → サーバーに接続                          │
-  │ send()      → データを送信                            │
-  │ recv()      → データを受信                            │
-  └──────────────────────────────────────────────────────┘
+  Networking:
+  +------------------------------------------------------+
+  | socket()    -> Create a socket                        |
+  | bind()      -> Bind an address to a socket            |
+  | listen()    -> Start listening for connections         |
+  | accept()    -> Accept a connection                    |
+  | connect()   -> Connect to a server                    |
+  | send()      -> Send data                              |
+  | recv()      -> Receive data                           |
+  +------------------------------------------------------+
 
-  コスト:
-  ユーザーモード → カーネルモードの切替は高コスト（数千サイクル）
-  → システムコールの回数を減らすことがパフォーマンスの鍵
+  Cost:
+  Switching from user mode to kernel mode is expensive
+  (thousands of cycles)
+  -> Reducing the number of system calls is key to
+     performance
 
-  高速化技術:
-  ┌──────────────────────────────────────────────────────┐
-  │ vDSO (virtual Dynamic Shared Object):                │
-  │ → カーネルが提供する仮想共有ライブラリ               │
-  │ → gettimeofday() 等をユーザー空間で実行              │
-  │ → syscallのオーバーヘッドを完全に回避                │
-  │                                                      │
-  │ io_uring (Linux 5.1+):                               │
-  │ → 非同期I/Oの新しいインターフェース                  │
-  │ → リングバッファでカーネルと共有                      │
-  │ → syscall回数を劇的に削減                            │
-  │ → 高性能Webサーバーやデータベースで採用              │
-  │                                                      │
-  │ VDSO + io_uring の効果:                              │
-  │ 従来: read() → syscall → カーネル → 結果返却        │
-  │ io_uring: SQE投入 → カーネルが非同期処理 → CQE取得  │
-  │ → 1回のsyscallで複数のI/O操作をまとめて実行         │
-  └──────────────────────────────────────────────────────┘
+  Acceleration techniques:
+  +------------------------------------------------------+
+  | vDSO (virtual Dynamic Shared Object):                |
+  | -> Virtual shared library provided by the kernel     |
+  | -> Executes gettimeofday() etc. in user space        |
+  | -> Completely avoids syscall overhead                 |
+  |                                                      |
+  | io_uring (Linux 5.1+):                               |
+  | -> New interface for asynchronous I/O                 |
+  | -> Shares ring buffer with the kernel                |
+  | -> Dramatically reduces syscall count                |
+  | -> Adopted by high-performance web servers and       |
+  |    databases                                         |
+  |                                                      |
+  | Effect of vDSO + io_uring:                           |
+  | Traditional: read() -> syscall -> kernel -> result   |
+  | io_uring: Submit SQE -> kernel processes async       |
+  |           -> Retrieve CQE                            |
+  | -> Multiple I/O operations in a single syscall       |
+  +------------------------------------------------------+
 ```
 
-### 2.2 システムコールの実際の追跡
+### 2.2 Tracing System Calls in Practice
 
 ```bash
-# straceでシステムコールを観察（Linux）
-# "hello"を出力する際のsyscallを観察
+# Observe system calls with strace (Linux)
+# Observe syscalls when outputting "hello"
 
 $ strace echo "hello"
 execve("/usr/bin/echo", ["echo", "hello"], ...) = 0
@@ -348,7 +373,7 @@ openat(AT_FDCWD, "/etc/ld.so.cache", O_RDONLY|O_CLOEXEC) = 3
 fstat(3, {st_mode=S_IFREG|0644, ...})   = 0
 mmap(NULL, 76888, PROT_READ, MAP_PRIVATE, 3, 0) = 0x7f1234567000
 close(3)                                = 0
-# ... (共有ライブラリのロード)
+# ... (loading shared libraries)
 write(1, "hello\n", 6)                  = 6
 close(1)                                = 0
 close(2)                                = 0
@@ -356,7 +381,7 @@ exit_group(0)                           = ?
 ```
 
 ```c
-// C言語でシステムコールを直接呼び出す例
+// Example of directly invoking system calls in C
 
 #include <unistd.h>
 #include <sys/syscall.h>
@@ -364,22 +389,22 @@ exit_group(0)                           = ?
 #include <stdio.h>
 
 int main() {
-    // 方法1: ライブラリ関数経由（通常）
+    // Method 1: Via library function (normal)
     int fd = open("test.txt", O_RDONLY);
 
-    // 方法2: syscall() で直接呼び出し
+    // Method 2: Direct call via syscall()
     int fd2 = syscall(SYS_openat, AT_FDCWD, "test.txt", O_RDONLY);
 
-    // 方法3: インラインアセンブリ（x86_64）
-    // 通常は使わないが、仕組みの理解に有用
+    // Method 3: Inline assembly (x86_64)
+    // Not normally used, but useful for understanding the mechanism
     long result;
     char *msg = "Hello from syscall!\n";
     __asm__ volatile (
-        "mov $1, %%rax\n"    // syscall番号: write = 1
+        "mov $1, %%rax\n"    // syscall number: write = 1
         "mov $1, %%rdi\n"    // fd: stdout = 1
-        "mov %1, %%rsi\n"    // バッファ
-        "mov $20, %%rdx\n"   // サイズ
-        "syscall\n"          // syscall命令
+        "mov %1, %%rsi\n"    // buffer
+        "mov $20, %%rdx\n"   // size
+        "syscall\n"          // syscall instruction
         "mov %%rax, %0\n"
         : "=r" (result)
         : "r" (msg)
@@ -392,29 +417,29 @@ int main() {
 ```
 
 ```python
-# Pythonでシステムコールの挙動を確認
+# Verify system call behavior in Python
 import os
 import sys
 
-# ファイルディスクリプタの確認
+# Check file descriptors
 print(f"stdin:  fd={sys.stdin.fileno()}")    # 0
 print(f"stdout: fd={sys.stdout.fileno()}")   # 1
 print(f"stderr: fd={sys.stderr.fileno()}")   # 2
 
-# os.open() は内部でopen() syscallを呼ぶ
+# os.open() internally calls the open() syscall
 fd = os.open("test.txt", os.O_CREAT | os.O_WRONLY, 0o644)
 os.write(fd, b"Hello from Python syscall!\n")
 os.close(fd)
 
-# /proc/self/syscall で現在のsyscallを確認（Linux）
-# /proc/self/fd でオープンしているファイルを確認
+# Check the current syscall via /proc/self/syscall (Linux)
+# Check open files via /proc/self/fd
 try:
     fds = os.listdir("/proc/self/fd")
     print(f"Open file descriptors: {fds}")
 except FileNotFoundError:
     print("Not running on Linux")
 
-# プロセス情報の取得
+# Get process information
 print(f"PID: {os.getpid()}")
 print(f"PPID: {os.getppid()}")
 print(f"UID: {os.getuid()}")
@@ -423,465 +448,480 @@ print(f"GID: {os.getgid()}")
 
 ---
 
-## 3. カーネルアーキテクチャ
+## 3. Kernel Architecture
 
 ```
-1. モノリシックカーネル:
-   全OS機能が1つの巨大なバイナリ
+1. Monolithic kernel:
+   All OS functions in a single large binary
 
-   ┌──────────────────────────────────┐
-   │ カーネル空間                      │
-   │ ┌────┬────┬────┬────┬────┐       │
-   │ │プロ│メモ│FS  │Net │ドラ│       │
-   │ │セス│リ  │    │    │イバ│       │
-   │ └────┴────┴────┴────┴────┘       │
-   │ 全てが同一アドレス空間で動作       │
-   └──────────────────────────────────┘
+   +----------------------------------+
+   | Kernel space                      |
+   | +----+----+----+----+----+       |
+   | |Proc|Mem |FS  |Net |Dri |       |
+   | |ess |ory |    |    |ver |       |
+   | +----+----+----+----+----+       |
+   | All run in the same address space |
+   +----------------------------------+
 
-   利点: 高速（関数呼び出しで済む）
-   欠点: 1つのバグで全体がクラッシュ、巨大化
-   例: Linux, FreeBSD
+   Pros: Fast (simple function calls)
+   Cons: A single bug can crash the whole system; grows large
+   Examples: Linux, FreeBSD
 
-   Linuxカーネルの規模:
-   ┌──────────────────────────────────────────┐
-   │ ソースコード: 約3,000万行（2025年時点）   │
-   │ コミッター: 数千人                        │
-   │ サポートアーキテクチャ: 30以上            │
-   │ デバイスドライバ: カーネルの60%以上を占める│
-   │ リリースサイクル: 約9-10週ごと            │
-   └──────────────────────────────────────────┘
+   Scale of the Linux kernel:
+   +------------------------------------------+
+   | Source code: ~30 million lines (2025)     |
+   | Committers: Thousands                     |
+   | Supported architectures: 30+             |
+   | Device drivers: Over 60% of the kernel   |
+   | Release cycle: Approximately every 9-10  |
+   | weeks                                     |
+   +------------------------------------------+
 
-   Linuxの動的モジュール:
-   → モノリシックだが、モジュールを動的にロード/アンロード可能
-   → デバイスドライバ等を必要に応じてカーネルに追加
-   → lsmod, modprobe, rmmod で管理
-   → /lib/modules/<kernel-version>/ に格納
+   Linux dynamic modules:
+   -> Monolithic, but can dynamically load/unload modules
+   -> Add device drivers etc. to the kernel as needed
+   -> Managed with lsmod, modprobe, rmmod
+   -> Stored in /lib/modules/<kernel-version>/
 
-2. マイクロカーネル:
-   最小限の機能のみカーネルに、残りはユーザー空間
+2. Microkernel:
+   Only minimal functionality in the kernel;
+   the rest runs in user space
 
-   ┌──────────────────────────────────┐
-   │ ユーザー空間                      │
-   │ ┌────┐ ┌────┐ ┌────┐ ┌────┐    │
-   │ │FS  │ │Net │ │ドラ│ │アプ│    │
-   │ │サーバ││サーバ││イバ│ │リ  │    │
-   │ └──┬─┘ └──┬─┘ └──┬─┘ └──┬─┘    │
-   │────│──────│──────│──────│───── │
-   │ カーネル: IPC + スケジューリング   │
-   │           + メモリ管理（最小限）   │
-   └──────────────────────────────────┘
+   +----------------------------------+
+   | User space                        |
+   | +----+ +----+ +----+ +----+      |
+   | |FS  | |Net | |Dri | |App |      |
+   | |Srv || |Srv || |ver| |    |      |
+   | +--+-+ +--+-+ +--+-+ +--+-+      |
+   |---|------|------|------|-----     |
+   | Kernel: IPC + Scheduling          |
+   |         + Memory mgmt (minimal)   |
+   +----------------------------------+
 
-   利点: 安定性（サーバーが落ちてもカーネルは生存）
-   欠点: IPC（プロセス間通信）のオーバーヘッド
-   例: MINIX, QNX, seL4, GNU Hurd
+   Pros: Stability (if a server crashes, the kernel survives)
+   Cons: IPC (inter-process communication) overhead
+   Examples: MINIX, QNX, seL4, GNU Hurd
 
-   seL4の特徴:
-   ┌──────────────────────────────────────────────┐
-   │ - 世界初の形式検証されたOSカーネル            │
-   │ - 約8,700行のCコード + 600行のアセンブリ      │
-   │ - 数学的に正しさが証明されている              │
-   │ - 安全保障、航空、自動車分野で採用            │
-   │ - 実行時エラーが発生しないことが保証されている│
-   └──────────────────────────────────────────────┘
+   Features of seL4:
+   +----------------------------------------------+
+   | - World's first formally verified OS kernel   |
+   | - ~8,700 lines of C + 600 lines of assembly  |
+   | - Mathematically proven to be correct          |
+   | - Used in defense, aviation, automotive fields|
+   | - Guaranteed to never produce runtime errors   |
+   +----------------------------------------------+
 
-3. ハイブリッドカーネル:
-   モノリシックの性能 + マイクロカーネルの設計思想
+3. Hybrid kernel:
+   Monolithic performance + microkernel design philosophy
 
-   例: Windows NT, macOS (XNU), DragonFly BSD
-   → 実質的にはモノリシックに近い実装が多い
+   Examples: Windows NT, macOS (XNU), DragonFly BSD
+   -> In practice, most implementations are close to
+      monolithic
 
-   macOS XNUカーネル:
-   ┌──────────────────────────────────────────────────┐
-   │ XNU = "X is Not Unix"                             │
-   │                                                    │
-   │ Mach マイクロカーネル（メッセージパッシング、VM）  │
-   │ + BSD（POSIX API、VFS、ネットワーク）              │
-   │ + I/O Kit（オブジェクト指向デバイスドライバ）       │
-   │                                                    │
-   │ → Machの設計思想 + BSDの実用性 = ハイブリッド     │
-   │ → オープンソース（darwin-xnu）                     │
-   └──────────────────────────────────────────────────┘
+   macOS XNU kernel:
+   +------------------------------------------------------+
+   | XNU = "X is Not Unix"                                 |
+   |                                                       |
+   | Mach microkernel (message passing, VM)                |
+   | + BSD (POSIX API, VFS, networking)                    |
+   | + I/O Kit (object-oriented device drivers)            |
+   |                                                       |
+   | -> Mach's design philosophy + BSD's practicality      |
+   |    = Hybrid                                           |
+   | -> Open source (darwin-xnu)                           |
+   +------------------------------------------------------+
 
-   Windows NTカーネル:
-   ┌──────────────────────────────────────────────────┐
-   │ HAL（Hardware Abstraction Layer）                  │
-   │ + マイクロカーネル（スケジューラ、割り込み処理）   │
-   │ + エグゼクティブ（I/O、VM、プロセス管理）          │
-   │ + Win32サブシステム（GUI、API）                     │
-   │ + WSL2サブシステム（Linux互換）                     │
-   │                                                    │
-   │ → Dave Cutler (VMS設計者) が設計                   │
-   │ → 初期はマイクロカーネル志向だったが               │
-   │   パフォーマンスのため機能をカーネルに取り込んだ   │
-   └──────────────────────────────────────────────────┘
+   Windows NT kernel:
+   +------------------------------------------------------+
+   | HAL (Hardware Abstraction Layer)                       |
+   | + Microkernel (scheduler, interrupt handling)          |
+   | + Executive (I/O, VM, process management)              |
+   | + Win32 subsystem (GUI, API)                           |
+   | + WSL2 subsystem (Linux compatibility)                 |
+   |                                                       |
+   | -> Designed by Dave Cutler (VMS designer)              |
+   | -> Initially microkernel-oriented, but functions       |
+   |    were pulled into the kernel for performance         |
+   +------------------------------------------------------+
 
 4. Unikernel:
-   アプリ+必要なOS機能のみを1つのイメージにパック
+   Packs only the app + required OS functions into
+   a single image
 
-   ┌──────────────────┐
-   │ アプリ + OS機能   │  ← 1つのバイナリ
-   └──────────────────┘
+   +------------------+
+   | App + OS funcs   |  <- Single binary
+   +------------------+
 
-   利点: 極小サイズ、高速起動、攻撃面が最小
-   欠点: シングルアプリ、デバッグ困難
-   例: MirageOS, Unikraft, OSv
+   Pros: Minimal size, fast boot, smallest attack surface
+   Cons: Single app only, difficult to debug
+   Examples: MirageOS, Unikraft, OSv
 
-   ユースケース:
-   - クラウドのマイクロサービス（最小フットプリント）
-   - NFV（ネットワーク機能仮想化）
-   - CDNエッジノード
-   - IoTデバイス
+   Use cases:
+   - Cloud microservices (minimal footprint)
+   - NFV (Network Function Virtualization)
+   - CDN edge nodes
+   - IoT devices
 
 5. Exokernel:
-   カーネルはリソース保護のみ、管理はアプリに委任
+   Kernel only handles resource protection;
+   management is delegated to the application
 
-   ┌──────────────────────────────────┐
-   │ アプリ + LibOS（FS, Net等を実装）│
-   │ ────────────────────────────     │
-   │ Exokernel: リソース割当と保護のみ│
-   └──────────────────────────────────┘
+   +----------------------------------+
+   | App + LibOS (implements FS, Net) |
+   | -------------------------------- |
+   | Exokernel: Resource allocation   |
+   | and protection only              |
+   +----------------------------------+
 
-   → アプリがOS機能をカスタマイズ可能
-   → 研究段階だが、コンテナやUnikernelに影響
+   -> Apps can customize OS functions
+   -> Still in research, but influences containers
+      and unikernels
 
-比較:
-┌──────────────┬──────────┬──────────┬──────────┬───────────┐
-│ 種類         │ 性能     │ 安定性   │ 採用例   │ コード量  │
-├──────────────┼──────────┼──────────┼──────────┼───────────┤
-│ モノリシック  │ ◎       │ △       │ Linux    │ 数千万行  │
-│ マイクロ     │ △       │ ◎       │ QNX      │ 数万行    │
-│ ハイブリッド │ ○       │ ○       │ Windows  │ 数百万行  │
-│ Unikernel   │ ◎       │ ○       │ クラウド  │ 数千行    │
-│ Exokernel   │ ◎       │ △       │ 研究     │ 数千行    │
-└──────────────┴──────────┴──────────┴──────────┴───────────┘
+Comparison:
++--------------+----------+----------+----------+-----------+
+| Type         | Perf.    | Stabil.  | Example  | Code size |
++--------------+----------+----------+----------+-----------+
+| Monolithic   | Excellent| Fair     | Linux    | Tens of M |
+| Micro        | Fair     | Excellent| QNX      | Tens of K |
+| Hybrid       | Good     | Good     | Windows  | Millions  |
+| Unikernel    | Excellent| Good     | Cloud    | Thousands |
+| Exokernel    | Excellent| Fair     | Research | Thousands |
++--------------+----------+----------+----------+-----------+
 ```
 
 ---
 
-## 4. 主要なOSファミリー
+## 4. Major OS Families
 
 ```
-Unix系:
-  1969: Unix (AT&T Bell Labs — Thompson, Ritchie)
-    ├── BSD系: FreeBSD, OpenBSD, NetBSD
-    │   └── macOS / iOS (Darwin = Mach + FreeBSD)
-    ├── System V系
-    │   └── Solaris, AIX, HP-UX
-    └── Linux (1991, Linus Torvalds)
-        ├── Debian系: Ubuntu, Linux Mint, Raspberry Pi OS
-        ├── Red Hat系: RHEL, CentOS Stream, Fedora, Rocky, AlmaLinux
-        ├── Arch系: Arch Linux, Manjaro, EndeavourOS
-        ├── SUSE系: openSUSE, SLES
-        ├── Android (Linux カーネル + Dalvik/ART)
-        ├── Chrome OS (Linux カーネル + Chrome ブラウザ)
-        └── SteamOS (Linux カーネル + Steam)
+Unix family:
+  1969: Unix (AT&T Bell Labs -- Thompson, Ritchie)
+    +-- BSD family: FreeBSD, OpenBSD, NetBSD
+    |   +-- macOS / iOS (Darwin = Mach + FreeBSD)
+    +-- System V family
+    |   +-- Solaris, AIX, HP-UX
+    +-- Linux (1991, Linus Torvalds)
+        +-- Debian family: Ubuntu, Linux Mint, Raspberry Pi OS
+        +-- Red Hat family: RHEL, CentOS Stream, Fedora, Rocky, AlmaLinux
+        +-- Arch family: Arch Linux, Manjaro, EndeavourOS
+        +-- SUSE family: openSUSE, SLES
+        +-- Android (Linux kernel + Dalvik/ART)
+        +-- Chrome OS (Linux kernel + Chrome browser)
+        +-- SteamOS (Linux kernel + Steam)
 
-Windows系:
+Windows family:
   MS-DOS (1981)
-    └── Windows 3.1 → 95 → 98 → Me（DOS ベース）
+    +-- Windows 3.1 -> 95 -> 98 -> Me (DOS-based)
   Windows NT (1993)
-    └── NT → 2000 → XP → Vista → 7 → 8 → 10 → 11
+    +-- NT -> 2000 -> XP -> Vista -> 7 -> 8 -> 10 -> 11
 
-その他:
-  z/OS: IBM メインフレーム（COBOL資産が稼働）
-  VxWorks: 組み込みリアルタイムOS（火星探査機にも搭載）
-  FreeRTOS: IoT向け軽量RTOS（AWS が管理）
-  Zephyr: IoT向けRTOS（Linux Foundation）
-  Fuchsia: Google の次世代OS（Zircon マイクロカーネル）
-  HarmonyOS: Huawei のOS（マイクロカーネル）
-  Redox: Rustで書かれたマイクロカーネルOS
+Others:
+  z/OS: IBM mainframe (runs COBOL assets)
+  VxWorks: Embedded RTOS (also used on Mars rovers)
+  FreeRTOS: Lightweight RTOS for IoT (managed by AWS)
+  Zephyr: RTOS for IoT (Linux Foundation)
+  Fuchsia: Google's next-gen OS (Zircon microkernel)
+  HarmonyOS: Huawei's OS (microkernel)
+  Redox: Microkernel OS written in Rust
 
-現在のシェア（2025年概算）:
-  デスクトップ: Windows 72%, macOS 16%, Linux 4%, Chrome OS 3%
-  サーバー:     Linux 80%+, Windows 15%
-  モバイル:     Android 72%, iOS 27%
-  スーパーコンピュータ: Linux 100% (TOP500)
-  組み込み/IoT: FreeRTOS, Linux, VxWorks, Zephyr が主要
-  コンテナ:     Linux 99%+（Docker/K8sはLinuxカーネルに依存）
+Current market share (2025 estimate):
+  Desktop:        Windows 72%, macOS 16%, Linux 4%, Chrome OS 3%
+  Server:         Linux 80%+, Windows 15%
+  Mobile:         Android 72%, iOS 27%
+  Supercomputers: Linux 100% (TOP500)
+  Embedded/IoT:   FreeRTOS, Linux, VxWorks, Zephyr are dominant
+  Containers:     Linux 99%+ (Docker/K8s depend on the Linux kernel)
 ```
 
-### 4.1 Linuxディストリビューションの選び方
+### 4.1 Choosing a Linux Distribution
 
 ```
-用途別の推奨ディストリビューション:
+Recommended distributions by use case:
 
-  サーバー用途:
-  ┌────────────────────────────────────────────────┐
-  │ RHEL/Rocky Linux: エンタープライズ、長期サポート│
-  │ Ubuntu Server: クラウド、初心者にも扱いやすい  │
-  │ Debian: 安定重視、サーバー定番                 │
-  │ Amazon Linux: AWSに最適化                      │
-  │ Alpine Linux: コンテナ向け（軽量、5MB以下）    │
-  └────────────────────────────────────────────────┘
+  Server use:
+  +----------------------------------------------------+
+  | RHEL/Rocky Linux: Enterprise, long-term support     |
+  | Ubuntu Server: Cloud, beginner-friendly             |
+  | Debian: Stability-focused, server staple            |
+  | Amazon Linux: Optimized for AWS                     |
+  | Alpine Linux: For containers (lightweight, <5MB)    |
+  +----------------------------------------------------+
 
-  デスクトップ用途:
-  ┌────────────────────────────────────────────────┐
-  │ Ubuntu Desktop: 初心者向け、情報が豊富         │
-  │ Fedora: 最新技術、GNOME                        │
-  │ Linux Mint: Windows からの移行に最適           │
-  │ Arch Linux: カスタマイズ重視、上級者向け       │
-  │ Pop!_OS: 開発者向け、NVIDIA GPU対応            │
-  └────────────────────────────────────────────────┘
+  Desktop use:
+  +----------------------------------------------------+
+  | Ubuntu Desktop: For beginners, abundant resources   |
+  | Fedora: Cutting-edge technology, GNOME              |
+  | Linux Mint: Best for transitioning from Windows     |
+  | Arch Linux: Customization-focused, for advanced     |
+  |   users                                             |
+  | Pop!_OS: For developers, NVIDIA GPU support         |
+  +----------------------------------------------------+
 
-  パッケージ管理の比較:
-  ┌───────────┬──────────┬──────────────────────┐
-  │ 系統      │ ツール   │ コマンド例            │
-  ├───────────┼──────────┼──────────────────────┤
-  │ Debian系  │ apt      │ apt install nginx    │
-  │ Red Hat系 │ dnf/yum  │ dnf install nginx    │
-  │ Arch系   │ pacman   │ pacman -S nginx      │
-  │ SUSE系   │ zypper   │ zypper install nginx │
-  │ Alpine   │ apk      │ apk add nginx        │
-  │ 汎用     │ snap     │ snap install firefox │
-  │ 汎用     │ flatpak  │ flatpak install ...  │
-  └───────────┴──────────┴──────────────────────┘
-```
-
----
-
-## 5. OSの抽象化
-
-```
-OSが提供する主要な抽象化:
-
-  物理リソース    →    OS抽象化
-  ────────────────────────────────
-  CPU             →    プロセス/スレッド
-  物理メモリ      →    仮想アドレス空間
-  ディスクセクタ  →    ファイル/ディレクトリ
-  ネットワーク    →    ソケット
-  ディスプレイ    →    ウィンドウ
-  タイマー        →    時刻API
-
-  抽象化のメリット:
-  ┌──────────────────────────────────────────────────┐
-  │ 1. 移植性: 同じプログラムが異なるハードウェアで動く│
-  │ 2. 簡潔性: 複雑な操作を簡単なAPIで呼べる         │
-  │ 3. 隔離性: プロセス間の干渉を防止                 │
-  │ 4. 効率性: リソースを自動で最適に配分             │
-  │ 5. セキュリティ: アクセス制御を強制               │
-  └──────────────────────────────────────────────────┘
-
-  「Everything is a file」（Unix哲学）:
-  /dev/sda        → ディスク
-  /dev/null       → 捨て場
-  /proc/cpuinfo   → CPU情報
-  /dev/urandom    → 乱数
-  /dev/tty        → 端末
-  /sys/class/net/ → ネットワークインターフェース情報
-  /dev/video0     → Webカメラ
-  → 全てをファイルとして統一的に扱える
-  → read/write/open/close の4つの操作で統一
-
-  Linuxの仮想ファイルシステム:
-  ┌──────────────────────────────────────────────────┐
-  │ /proc:                                           │
-  │   /proc/<pid>/status    → プロセスの状態          │
-  │   /proc/<pid>/maps      → メモリマッピング        │
-  │   /proc/<pid>/fd/       → オープンファイル        │
-  │   /proc/meminfo         → メモリ使用状況          │
-  │   /proc/cpuinfo         → CPU情報                │
-  │   /proc/loadavg         → ロードアベレージ        │
-  │   /proc/net/tcp         → TCP接続情報             │
-  │                                                   │
-  │ /sys:                                             │
-  │   /sys/class/           → デバイスクラス          │
-  │   /sys/block/           → ブロックデバイス        │
-  │   /sys/fs/              → ファイルシステム情報    │
-  │   /sys/kernel/          → カーネルパラメータ      │
-  │                                                   │
-  │ /dev:                                             │
-  │   /dev/sd*              → SCSIディスク            │
-  │   /dev/nvme*            → NVMeデバイス            │
-  │   /dev/tty*             → 端末デバイス            │
-  │   /dev/loop*            → ループバックデバイス    │
-  └──────────────────────────────────────────────────┘
-
-  POSIX（Portable Operating System Interface）:
-  Unix系OSの標準API仕様
-  → POSIXに準拠したプログラムは移植性が高い
-  → Linux, macOS, BSD は概ねPOSIX準拠
-  → Windows はWSL2でLinux互換環境を提供
-
-  POSIXが定義するもの:
-  ┌──────────────────────────────────────────┐
-  │ - システムコールインターフェース          │
-  │ - 基本コマンド（ls, grep, awk等）       │
-  │ - シェル言語（sh）                       │
-  │ - スレッドAPI（pthread）                 │
-  │ - 正規表現                               │
-  │ - ファイル権限モデル                     │
-  │ - シグナル処理                           │
-  └──────────────────────────────────────────┘
-```
-
-### 5.1 Unix哲学の実践
-
-```
-Unix哲学の核心（Doug McIlroy）:
-
-  1. 「1つのことをうまくやるプログラムを書け」
-  2. 「プログラムの出力が別のプログラムの入力になるようにせよ」
-  3. 「ソフトウェアは早く試作し、拙い部分は捨てて作り直せ」
-
-  パイプの威力:
-  ┌──────────────────────────────────────────────────────┐
-  │ # アクセスログから、IPアドレスごとのリクエスト数を集計│
-  │ cat access.log | awk '{print $1}' | sort | uniq -c | sort -rn | head -10│
-  │                                                      │
-  │ 各コマンドの役割:                                    │
-  │ cat: ファイル内容を出力                              │
-  │ awk: 1番目のフィールド（IPアドレス）を抽出          │
-  │ sort: ソート                                        │
-  │ uniq -c: 重複をカウント                             │
-  │ sort -rn: 数値で逆順ソート                          │
-  │ head -10: 上位10件を表示                            │
-  │                                                      │
-  │ → 6つの小さなプログラムの組み合わせで               │
-  │   複雑なログ分析が実現できる                        │
-  └──────────────────────────────────────────────────────┘
-
-  Plan 9（Unixの後継研究OS）の革新:
-  → 「全てがファイル」をネットワークまで拡張
-  → /net/tcp でネットワーク接続をファイル操作
-  → /proc でプロセスをファイル操作
-  → 9P プロトコルでリモートリソースをマウント
-  → この思想がLinuxの /proc, /sys に継承された
+  Package management comparison:
+  +-----------+----------+----------------------+
+  | Family    | Tool     | Example command       |
+  +-----------+----------+----------------------+
+  | Debian    | apt      | apt install nginx    |
+  | Red Hat   | dnf/yum  | dnf install nginx    |
+  | Arch      | pacman   | pacman -S nginx      |
+  | SUSE      | zypper   | zypper install nginx |
+  | Alpine    | apk      | apk add nginx        |
+  | Universal | snap     | snap install firefox |
+  | Universal | flatpak  | flatpak install ...  |
+  +-----------+----------+----------------------+
 ```
 
 ---
 
-## 6. OSとコンテナ・仮想化
+## 5. OS Abstraction
 
 ```
-現代のOS機能: コンテナ技術
+Major abstractions provided by an OS:
 
-  コンテナの基盤となるLinuxカーネル機能:
+  Physical Resource   ->   OS Abstraction
+  ----------------------------------------
+  CPU                 ->   Process/Thread
+  Physical memory     ->   Virtual address space
+  Disk sectors        ->   Files/Directories
+  Network             ->   Sockets
+  Display             ->   Windows
+  Timer               ->   Time API
 
-  1. Namespace（名前空間）:
-     リソースの可視性を隔離
-     ┌──────────────────────────────────────────┐
-     │ PID namespace:   プロセスIDの隔離         │
-     │ Network namespace: ネットワークの隔離      │
-     │ Mount namespace:  ファイルシステムの隔離   │
-     │ UTS namespace:    ホスト名の隔離           │
-     │ User namespace:   UID/GIDの隔離            │
-     │ IPC namespace:    プロセス間通信の隔離     │
-     │ Cgroup namespace: cgroupの隔離             │
-     │ Time namespace:   時刻の隔離（Linux 5.6+）│
-     └──────────────────────────────────────────┘
+  Benefits of abstraction:
+  +------------------------------------------------------+
+  | 1. Portability: Same program runs on different HW     |
+  | 2. Simplicity: Complex operations via simple APIs     |
+  | 3. Isolation: Prevents interference between processes |
+  | 4. Efficiency: Resources are automatically optimally  |
+  |    distributed                                        |
+  | 5. Security: Enforces access control                  |
+  +------------------------------------------------------+
 
-  2. Cgroups（Control Groups）:
-     リソース使用量の制限
-     ┌──────────────────────────────────────────┐
-     │ CPU: 使用率の上限を設定                   │
-     │ Memory: メモリ使用量の上限                 │
-     │ I/O: ディスクI/Oの帯域制限               │
-     │ PID: プロセス数の上限                     │
-     │ → Dockerコンテナのリソース制限に使われる  │
-     └──────────────────────────────────────────┘
+  "Everything is a file" (Unix philosophy):
+  /dev/sda        -> Disk
+  /dev/null       -> Bit bucket
+  /proc/cpuinfo   -> CPU information
+  /dev/urandom    -> Random numbers
+  /dev/tty        -> Terminal
+  /sys/class/net/ -> Network interface information
+  /dev/video0     -> Webcam
+  -> Everything can be treated uniformly as files
+  -> Unified with 4 operations: read/write/open/close
 
-  3. Union FS（OverlayFS等）:
-     レイヤーベースのファイルシステム
-     ┌──────────────────────────────────────────┐
-     │ 読み書き層（コンテナ固有）               │
-     │ ──────────────────────                   │
-     │ 読み取り専用層3（アプリ）                │
-     │ ──────────────────────                   │
-     │ 読み取り専用層2（ライブラリ）            │
-     │ ──────────────────────                   │
-     │ 読み取り専用層1（ベースOS）              │
-     │ → Docker イメージのレイヤー構造           │
-     └──────────────────────────────────────────┘
+  Linux virtual file systems:
+  +------------------------------------------------------+
+  | /proc:                                                |
+  |   /proc/<pid>/status    -> Process state              |
+  |   /proc/<pid>/maps      -> Memory mappings            |
+  |   /proc/<pid>/fd/       -> Open files                 |
+  |   /proc/meminfo         -> Memory usage               |
+  |   /proc/cpuinfo         -> CPU information            |
+  |   /proc/loadavg         -> Load average               |
+  |   /proc/net/tcp         -> TCP connection info        |
+  |                                                       |
+  | /sys:                                                 |
+  |   /sys/class/           -> Device classes             |
+  |   /sys/block/           -> Block devices              |
+  |   /sys/fs/              -> File system information    |
+  |   /sys/kernel/          -> Kernel parameters          |
+  |                                                       |
+  | /dev:                                                 |
+  |   /dev/sd*              -> SCSI disks                 |
+  |   /dev/nvme*            -> NVMe devices               |
+  |   /dev/tty*             -> Terminal devices           |
+  |   /dev/loop*            -> Loopback devices           |
+  +------------------------------------------------------+
 
-  仮想マシン vs コンテナ:
-  ┌─────────────────┬──────────────────────────────┐
-  │ 仮想マシン       │ コンテナ                      │
-  ├─────────────────┼──────────────────────────────┤
-  │ ゲストOS全体    │ ホストOSのカーネルを共有      │
-  │ 起動: 数十秒〜  │ 起動: ミリ秒〜数秒            │
-  │ サイズ: GB      │ サイズ: MB                     │
-  │ オーバーヘッド大 │ オーバーヘッド小              │
-  │ 隔離性: 強      │ 隔離性: 中（カーネル共有）    │
-  │ 用途: 異なるOS  │ 用途: 同一OS上のアプリ隔離    │
-  └─────────────────┴──────────────────────────────┘
+  POSIX (Portable Operating System Interface):
+  Standard API specification for Unix-like OSes
+  -> Programs conforming to POSIX have high portability
+  -> Linux, macOS, BSD are broadly POSIX-compliant
+  -> Windows provides Linux-compatible environment via WSL2
+
+  What POSIX defines:
+  +------------------------------------------+
+  | - System call interface                   |
+  | - Basic commands (ls, grep, awk, etc.)   |
+  | - Shell language (sh)                     |
+  | - Thread API (pthread)                    |
+  | - Regular expressions                     |
+  | - File permission model                   |
+  | - Signal handling                         |
+  +------------------------------------------+
+```
+
+### 5.1 Unix Philosophy in Practice
+
+```
+The essence of Unix philosophy (Doug McIlroy):
+
+  1. "Write programs that do one thing and do it well."
+  2. "Write programs to work together."
+  3. "Build a prototype as soon as possible, discard
+     clumsy parts, and rebuild."
+
+  The power of pipes:
+  +------------------------------------------------------+
+  | # Tally request counts per IP address from access log |
+  | cat access.log | awk '{print $1}' | sort | uniq -c | sort -rn | head -10
+  |                                                      |
+  | Role of each command:                                |
+  | cat: Output file contents                            |
+  | awk: Extract 1st field (IP address)                  |
+  | sort: Sort                                           |
+  | uniq -c: Count duplicates                            |
+  | sort -rn: Reverse numeric sort                       |
+  | head -10: Show top 10                                |
+  |                                                      |
+  | -> Complex log analysis achieved by combining        |
+  |    6 small programs                                  |
+  +------------------------------------------------------+
+
+  Plan 9 (Unix successor research OS) innovations:
+  -> Extended "everything is a file" to the network
+  -> Network connections as file operations via /net/tcp
+  -> Processes as file operations via /proc
+  -> Mount remote resources via the 9P protocol
+  -> This philosophy was inherited by Linux's /proc, /sys
+```
+
+---
+
+## 6. OS, Containers, and Virtualization
+
+```
+Modern OS features: Container technology
+
+  Linux kernel features that form the foundation
+  of containers:
+
+  1. Namespace:
+     Isolates resource visibility
+     +------------------------------------------+
+     | PID namespace:     Process ID isolation   |
+     | Network namespace: Network isolation       |
+     | Mount namespace:   File system isolation   |
+     | UTS namespace:     Hostname isolation      |
+     | User namespace:    UID/GID isolation       |
+     | IPC namespace:     IPC isolation           |
+     | Cgroup namespace:  cgroup isolation        |
+     | Time namespace:    Time isolation (5.6+)   |
+     +------------------------------------------+
+
+  2. Cgroups (Control Groups):
+     Limits resource usage
+     +------------------------------------------+
+     | CPU: Set usage cap                        |
+     | Memory: Set memory usage limit            |
+     | I/O: Limit disk I/O bandwidth             |
+     | PID: Set process count limit              |
+     | -> Used for Docker container resource      |
+     |    limits                                 |
+     +------------------------------------------+
+
+  3. Union FS (OverlayFS, etc.):
+     Layer-based file system
+     +------------------------------------------+
+     | Read-write layer (container-specific)     |
+     | ---------------------                     |
+     | Read-only layer 3 (app)                   |
+     | ---------------------                     |
+     | Read-only layer 2 (libraries)             |
+     | ---------------------                     |
+     | Read-only layer 1 (base OS)               |
+     | -> Docker image layer structure            |
+     +------------------------------------------+
+
+  Virtual machine vs. Container:
+  +-----------------+------------------------------+
+  | Virtual Machine | Container                     |
+  +-----------------+------------------------------+
+  | Full guest OS   | Shares host OS kernel         |
+  | Boot: tens of s | Boot: milliseconds to seconds |
+  | Size: GB        | Size: MB                      |
+  | High overhead   | Low overhead                  |
+  | Isolation: high | Isolation: medium (shared      |
+  |                 | kernel)                        |
+  | Use: different  | Use: App isolation on the      |
+  | OSes            | same OS                        |
+  +-----------------+------------------------------+
 ```
 
 ```bash
-# コンテナの原理を手動で体験（Linux）
+# Experience container principles manually (Linux)
 
-# 1. 新しいnamespaceでプロセスを起動
+# 1. Start a process in a new namespace
 sudo unshare --pid --fork --mount-proc /bin/bash
 
-# 2. ps を実行すると、自プロセスしか見えない
+# 2. Running ps shows only your own process
 ps aux
-# PID 1 が bash になっている（隔離されている）
+# PID 1 is bash (isolated)
 
-# 3. cgroupでメモリ制限を設定
+# 3. Set a memory limit with cgroups
 sudo mkdir /sys/fs/cgroup/memory/mycontainer
 echo 100M > /sys/fs/cgroup/memory/mycontainer/memory.limit_in_bytes
 echo $$ > /sys/fs/cgroup/memory/mycontainer/cgroup.procs
 
-# 4. ネットワークnamespaceの作成
+# 4. Create a network namespace
 sudo ip netns add testns
 sudo ip netns exec testns ip addr
-# → ループバックインターフェースのみの隔離されたネットワーク
+# -> An isolated network with only the loopback interface
 ```
 
 ---
 
-## 実践演習
+## Hands-On Exercises
 
-### 演習1: [基礎] -- システムコールの追跡
+### Exercise 1: [Basics] -- Tracing System Calls
 
 ```bash
-# straceでシステムコールを観察（Linux）
+# Observe system calls with strace (Linux)
 strace ls /tmp 2>&1 | head -30
 
-# macOS の場合は dtruss
+# On macOS, use dtruss
 sudo dtruss ls /tmp 2>&1 | head -30
 
-# 観察ポイント:
-# 1. execve() → プログラムの起動
-# 2. openat() → ファイルを開く
-# 3. getdents() → ディレクトリエントリを読む
-# 4. write() → 結果を出力
-# 5. close() → ファイルを閉じる
+# Observation points:
+# 1. execve() -> Program start
+# 2. openat() -> Opening a file
+# 3. getdents() -> Reading directory entries
+# 4. write() -> Outputting results
+# 5. close() -> Closing a file
 
-# 課題: 以下のコマンドのsyscallを比較せよ
+# Task: Compare the syscalls of the following commands
 # - echo "hello" vs printf "hello"
 # - cat file vs less file
 
-# 発展課題: syscallの統計を取る
+# Advanced task: Gather syscall statistics
 strace -c ls /tmp 2>&1
-# → 各syscallの呼び出し回数、所要時間を集計
+# -> Tallies call count and time for each syscall
 
-# 特定のsyscallだけをフィルタリング
+# Filter specific syscalls only
 strace -e trace=open,read,write cat /etc/passwd 2>&1
 ```
 
-### 演習2: [応用] -- カーネルモジュール概念
+### Exercise 2: [Intermediate] -- Kernel Module Concepts
 
 ```bash
-# Linuxカーネルモジュールの確認
+# Inspect Linux kernel modules
 
-# 現在ロードされているモジュールの一覧
+# List currently loaded modules
 lsmod
 
-# 特定のモジュールの情報
+# Information about a specific module
 modinfo ext4
 
-# モジュールの依存関係
+# Module dependencies
 modprobe --show-depends usb_storage
 
-# /proc/modules と lsmod の関係
+# Relationship between /proc/modules and lsmod
 cat /proc/modules | head -10
-# → lsmod は /proc/modules を整形して表示しているだけ
+# -> lsmod simply formats and displays /proc/modules
 ```
 
 ```c
-// 最小のLinuxカーネルモジュール（教育用）
-// ファイル名: hello_module.c
+// Minimal Linux kernel module (educational)
+// Filename: hello_module.c
 
 #include <linux/init.h>
 #include <linux/module.h>
@@ -910,119 +950,125 @@ module_exit(hello_exit);
 // clean:
 //     make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
 
-// ビルドとロード:
+// Build and load:
 // make
 // sudo insmod hello_module.ko
-// dmesg | tail  → "Hello from kernel module!"
+// dmesg | tail  -> "Hello from kernel module!"
 // sudo rmmod hello_module
-// dmesg | tail  → "Goodbye from kernel module!"
+// dmesg | tail  -> "Goodbye from kernel module!"
 ```
 
-### 演習3: [発展] -- OS設計の比較
+### Exercise 3: [Advanced] -- Comparing OS Designs
 
 ```
-以下の要件に最適なOSアーキテクチャを選択し、理由を述べよ:
+Choose the optimal OS architecture for the following
+requirements and explain your reasoning:
 
-1. 自動車の制御システム（ブレーキ、ステアリング）
-   → ヒント: リアルタイム性、安全性、認証が重要
-   → QNX (マイクロカーネル) or seL4 (形式検証済み)
+1. Automotive control system (brakes, steering)
+   -> Hint: Real-time performance, safety, and
+      certification are critical
+   -> QNX (microkernel) or seL4 (formally verified)
 
-2. Webサーバー（大量リクエスト処理）
-   → ヒント: 性能、エコシステム、運用性が重要
-   → Linux (モノリシック) + io_uring
+2. Web server (high-volume request processing)
+   -> Hint: Performance, ecosystem, and operability
+      are critical
+   -> Linux (monolithic) + io_uring
 
-3. IoTセンサーデバイス（バッテリー駆動、最小リソース）
-   → ヒント: フットプリント、消費電力が重要
-   → FreeRTOS or Zephyr
+3. IoT sensor device (battery-powered, minimal resources)
+   -> Hint: Footprint and power consumption are critical
+   -> FreeRTOS or Zephyr
 
-4. クラウドのFaaS（Function as a Service）基盤
-   → ヒント: 起動速度、隔離、効率が重要
-   → Unikernel or Firecracker (microVM)
+4. Cloud FaaS (Function as a Service) platform
+   -> Hint: Boot speed, isolation, and efficiency
+      are critical
+   -> Unikernel or Firecracker (microVM)
 
-各ケースで「モノリシック / マイクロ / Unikernel」の
-どれが適切か、パフォーマンス・安全性・開発コストの観点で議論せよ
+For each case, discuss whether "monolithic / micro /
+unikernel" is appropriate from the perspectives of
+performance, safety, and development cost.
 
-評価観点の例:
-┌──────────────────────┬──────────┬──────────┬──────────┐
-│ 観点                 │ ケース1  │ ケース2  │ ケース3  │
-├──────────────────────┼──────────┼──────────┼──────────┤
-│ パフォーマンス       │          │          │          │
-│ 安全性・信頼性      │          │          │          │
-│ 開発コスト          │          │          │          │
-│ 保守性              │          │          │          │
-│ 起動速度            │          │          │          │
-│ メモリフットプリント│          │          │          │
-│ 認証取得の容易さ    │          │          │          │
-└──────────────────────┴──────────┴──────────┴──────────┘
+Example evaluation criteria:
++----------------------+----------+----------+----------+
+| Criteria             | Case 1   | Case 2   | Case 3   |
++----------------------+----------+----------+----------+
+| Performance          |          |          |          |
+| Safety/Reliability   |          |          |          |
+| Development cost     |          |          |          |
+| Maintainability      |          |          |          |
+| Boot speed           |          |          |          |
+| Memory footprint     |          |          |          |
+| Ease of certification|          |          |          |
++----------------------+----------+----------+----------+
 ```
 
-### 演習4: [発展] -- OSの内部を探索する
+### Exercise 4: [Advanced] -- Exploring OS Internals
 
 ```bash
-# Linuxの内部状態を探索
+# Explore the internal state of Linux
 
-# 1. CPU情報
+# 1. CPU information
 cat /proc/cpuinfo | grep "model name" | head -1
-nproc  # CPUコア数
+nproc  # Number of CPU cores
 
-# 2. メモリ情報
+# 2. Memory information
 free -h
 cat /proc/meminfo | head -10
 
-# 3. プロセス情報
-ps aux --sort=-%mem | head -10  # メモリ使用量トップ10
-ps aux --sort=-%cpu | head -10  # CPU使用量トップ10
+# 3. Process information
+ps aux --sort=-%mem | head -10  # Top 10 by memory usage
+ps aux --sort=-%cpu | head -10  # Top 10 by CPU usage
 
-# 4. ファイルシステム情報
-df -h            # ディスク使用量
-mount | head -20 # マウント情報
+# 4. File system information
+df -h            # Disk usage
+mount | head -20 # Mount information
 
-# 5. ネットワーク情報
-ss -tlnp        # リスニングポート（Linux）
-# netstat -tlnp  # 旧コマンド
+# 5. Network information
+ss -tlnp        # Listening ports (Linux)
+# netstat -tlnp  # Legacy command
 
-# 6. カーネル情報
-uname -a         # カーネルバージョン
+# 6. Kernel information
+uname -a         # Kernel version
 cat /proc/version
 
-# 7. システムのブート時間
+# 7. System boot time
 uptime
 who -b
 
-# 課題: 上記の情報を収集するスクリプトを作成し、
-#       「サーバー健康診断レポート」を生成せよ
+# Task: Create a script that collects the above
+#       information and generates a "server health
+#       check report"
 ```
 
 
 ---
 
-## トラブルシューティング
+## Troubleshooting
 
-### よくあるエラーと解決策
+### Common Errors and Solutions
 
-| エラー | 原因 | 解決策 |
-|--------|------|--------|
-| 初期化エラー | 設定ファイルの不備 | 設定ファイルのパスと形式を確認 |
-| タイムアウト | ネットワーク遅延/リソース不足 | タイムアウト値の調整、リトライ処理の追加 |
-| メモリ不足 | データ量の増大 | バッチ処理の導入、ページネーションの実装 |
-| 権限エラー | アクセス権限の不足 | 実行ユーザーの権限確認、設定の見直し |
-| データ不整合 | 並行処理の競合 | ロック機構の導入、トランザクション管理 |
+| Error | Cause | Solution |
+|-------|-------|----------|
+| Initialization error | Configuration file issues | Verify configuration file path and format |
+| Timeout | Network latency/resource shortage | Adjust timeout values, add retry logic |
+| Out of memory | Data volume growth | Introduce batch processing, implement pagination |
+| Permission error | Insufficient access rights | Verify executing user's permissions, review settings |
+| Data inconsistency | Concurrent processing conflicts | Introduce locking mechanisms, transaction management |
 
-### デバッグの手順
+### Debugging Steps
 
-1. **エラーメッセージの確認**: スタックトレースを読み、発生箇所を特定する
-2. **再現手順の確立**: 最小限のコードでエラーを再現する
-3. **仮説の立案**: 考えられる原因をリストアップする
-4. **段階的な検証**: ログ出力やデバッガを使って仮説を検証する
-5. **修正と回帰テスト**: 修正後、関連する箇所のテストも実行する
+1. **Check error messages**: Read the stack trace and identify where the error occurred
+2. **Establish reproduction steps**: Reproduce the error with minimal code
+3. **Formulate hypotheses**: List possible causes
+4. **Verify step by step**: Use logging or a debugger to verify hypotheses
+5. **Fix and regression test**: After fixing, also run tests on related areas
 
 ```python
-# デバッグ用ユーティリティ
+# Debugging utility
 import logging
 import traceback
 from functools import wraps
 
-# ロガーの設定
+# Logger configuration
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
@@ -1030,102 +1076,102 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def debug_decorator(func):
-    """関数の入出力をログ出力するデコレータ"""
+    """Decorator that logs function input/output"""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        logger.debug(f"呼び出し: {func.__name__}(args={args}, kwargs={kwargs})")
+        logger.debug(f"Call: {func.__name__}(args={args}, kwargs={kwargs})")
         try:
             result = func(*args, **kwargs)
-            logger.debug(f"戻り値: {func.__name__} -> {result}")
+            logger.debug(f"Return: {func.__name__} -> {result}")
             return result
         except Exception as e:
-            logger.error(f"例外発生: {func.__name__}: {e}")
+            logger.error(f"Exception: {func.__name__}: {e}")
             logger.error(traceback.format_exc())
             raise
     return wrapper
 
 @debug_decorator
 def process_data(items):
-    """データ処理（デバッグ対象）"""
+    """Data processing (debug target)"""
     if not items:
-        raise ValueError("空のデータ")
+        raise ValueError("Empty data")
     return [item * 2 for item in items]
 ```
 
-### パフォーマンス問題の診断
+### Diagnosing Performance Issues
 
-パフォーマンス問題が発生した場合の診断手順:
+Steps for diagnosing performance problems:
 
-1. **ボトルネックの特定**: プロファイリングツールで計測
-2. **メモリ使用量の確認**: メモリリークの有無をチェック
-3. **I/O待ちの確認**: ディスクやネットワークI/Oの状況を確認
-4. **同時接続数の確認**: コネクションプールの状態を確認
+1. **Identify the bottleneck**: Measure with profiling tools
+2. **Check memory usage**: Check for memory leaks
+3. **Check I/O waits**: Examine disk and network I/O conditions
+4. **Check concurrent connections**: Examine connection pool status
 
-| 問題の種類 | 診断ツール | 対策 |
-|-----------|-----------|------|
-| CPU負荷 | cProfile, py-spy | アルゴリズム改善、並列化 |
-| メモリリーク | tracemalloc, objgraph | 参照の適切な解放 |
-| I/Oボトルネック | strace, iostat | 非同期I/O、キャッシュ |
-| DB遅延 | EXPLAIN, slow query log | インデックス、クエリ最適化 |
+| Problem Type | Diagnostic Tool | Countermeasure |
+|-------------|----------------|----------------|
+| CPU load | cProfile, py-spy | Algorithm improvement, parallelization |
+| Memory leak | tracemalloc, objgraph | Properly release references |
+| I/O bottleneck | strace, iostat | Async I/O, caching |
+| DB latency | EXPLAIN, slow query log | Indexing, query optimization |
 
 ---
 
-## 設計判断ガイド
+## Design Decision Guide
 
-### 選択基準マトリクス
+### Selection Criteria Matrix
 
-技術選択を行う際の判断基準を以下にまとめます。
+Summary of criteria for making technology choices:
 
-| 判断基準 | 重視する場合 | 妥協できる場合 |
-|---------|------------|-------------|
-| パフォーマンス | リアルタイム処理、大規模データ | 管理画面、バッチ処理 |
-| 保守性 | 長期運用、チーム開発 | プロトタイプ、短期プロジェクト |
-| スケーラビリティ | 成長が見込まれるサービス | 社内ツール、固定ユーザー |
-| セキュリティ | 個人情報、金融データ | 公開データ、社内利用 |
-| 開発速度 | MVP、市場投入スピード | 品質重視、ミッションクリティカル |
+| Criterion | Prioritize when | Can compromise when |
+|-----------|----------------|-------------------|
+| Performance | Real-time processing, large-scale data | Admin panels, batch processing |
+| Maintainability | Long-term operation, team development | Prototypes, short-term projects |
+| Scalability | Services expected to grow | Internal tools, fixed user base |
+| Security | Personal data, financial data | Public data, internal use |
+| Development speed | MVP, time-to-market | Quality-focused, mission-critical |
 
-### アーキテクチャパターンの選択
+### Architecture Pattern Selection
 
 ```
-┌─────────────────────────────────────────────────┐
-│              アーキテクチャ選択フロー              │
-├─────────────────────────────────────────────────┤
-│                                                 │
-│  ① チーム規模は？                                │
-│    ├─ 小規模（1-5人）→ モノリス                   │
-│    └─ 大規模（10人+）→ ②へ                       │
-│                                                 │
-│  ② デプロイ頻度は？                               │
-│    ├─ 週1回以下 → モノリス + モジュール分割         │
-│    └─ 毎日/複数回 → ③へ                          │
-│                                                 │
-│  ③ チーム間の独立性は？                            │
-│    ├─ 高い → マイクロサービス                      │
-│    └─ 中程度 → モジュラーモノリス                   │
-│                                                 │
-└─────────────────────────────────────────────────┘
++-----------------------------------------------------+
+|           Architecture Selection Flow                |
++-----------------------------------------------------+
+|                                                     |
+|  (1) Team size?                                     |
+|    +-- Small (1-5) -> Monolith                      |
+|    +-- Large (10+) -> Go to (2)                     |
+|                                                     |
+|  (2) Deploy frequency?                              |
+|    +-- Weekly or less -> Monolith + module split     |
+|    +-- Daily/multiple -> Go to (3)                   |
+|                                                     |
+|  (3) Team independence?                             |
+|    +-- High -> Microservices                         |
+|    +-- Medium -> Modular monolith                    |
+|                                                     |
++-----------------------------------------------------+
 ```
 
-### トレードオフの分析
+### Trade-off Analysis
 
-技術的な判断には必ずトレードオフが伴います。以下の観点で分析を行いましょう:
+Technical decisions always involve trade-offs. Analyze from the following perspectives:
 
-**1. 短期 vs 長期のコスト**
-- 短期的に速い方法が長期的には技術的負債になることがある
-- 逆に、過剰な設計は短期的なコストが高く、プロジェクトの遅延を招く
+**1. Short-term vs. long-term cost**
+- A quick approach in the short term can become technical debt in the long run
+- Conversely, over-engineering incurs high short-term costs and delays projects
 
-**2. 一貫性 vs 柔軟性**
-- 統一された技術スタックは学習コストが低い
-- 多様な技術の採用は適材適所が可能だが、運用コストが増加
+**2. Consistency vs. flexibility**
+- A unified technology stack has lower learning costs
+- Adopting diverse technologies enables best-fit solutions but increases operational costs
 
-**3. 抽象化のレベル**
-- 高い抽象化は再利用性が高いが、デバッグが困難になる場合がある
-- 低い抽象化は直感的だが、コードの重複が発生しやすい
+**3. Level of abstraction**
+- Higher abstraction increases reusability but can make debugging harder
+- Lower abstraction is more intuitive but prone to code duplication
 
 ```python
-# 設計判断の記録テンプレート
+# Design decision record template
 class ArchitectureDecisionRecord:
-    """ADR (Architecture Decision Record) の作成"""
+    """Create an ADR (Architecture Decision Record)"""
 
     def __init__(self, title: str):
         self.title = title
@@ -1135,17 +1181,17 @@ class ArchitectureDecisionRecord:
         self.alternatives = []
 
     def set_context(self, context: str):
-        """背景と課題の記述"""
+        """Describe the background and problem"""
         self.context = context
         return self
 
     def set_decision(self, decision: str):
-        """決定内容の記述"""
+        """Describe the decision"""
         self.decision = decision
         return self
 
     def add_consequence(self, consequence: str, positive: bool = True):
-        """結果の追加"""
+        """Add a consequence"""
         self.consequences.append({
             'description': consequence,
             'type': 'positive' if positive else 'negative'
@@ -1153,7 +1199,7 @@ class ArchitectureDecisionRecord:
         return self
 
     def add_alternative(self, name: str, reason_rejected: str):
-        """却下した代替案の追加"""
+        """Add a rejected alternative"""
         self.alternatives.append({
             'name': name,
             'reason_rejected': reason_rejected
@@ -1161,15 +1207,15 @@ class ArchitectureDecisionRecord:
         return self
 
     def to_markdown(self) -> str:
-        """Markdown形式で出力"""
+        """Output in Markdown format"""
         md = f"# ADR: {self.title}\n\n"
-        md += f"## 背景\n{self.context}\n\n"
-        md += f"## 決定\n{self.decision}\n\n"
-        md += "## 結果\n"
+        md += f"## Context\n{self.context}\n\n"
+        md += f"## Decision\n{self.decision}\n\n"
+        md += "## Consequences\n"
         for c in self.consequences:
-            icon = "✅" if c['type'] == 'positive' else "⚠️"
+            icon = "+" if c['type'] == 'positive' else "!"
             md += f"- {icon} {c['description']}\n"
-        md += "\n## 却下した代替案\n"
+        md += "\n## Rejected Alternatives\n"
         for a in self.alternatives:
             md += f"- **{a['name']}**: {a['reason_rejected']}\n"
         return md
@@ -1177,53 +1223,53 @@ class ArchitectureDecisionRecord:
 
 ---
 
-## 実務での適用シナリオ
+## Practical Application Scenarios
 
-### シナリオ1: スタートアップでのMVP開発
+### Scenario 1: MVP Development at a Startup
 
-**状況:** 限られたリソースで素早くプロダクトをリリースする必要がある
+**Situation:** Need to release a product quickly with limited resources
 
-**アプローチ:**
-- シンプルなアーキテクチャを選択
-- 必要最小限の機能に集中
-- 自動テストはクリティカルパスのみ
-- モニタリングは早期から導入
+**Approach:**
+- Choose a simple architecture
+- Focus on the minimum necessary features
+- Automated tests only for critical paths
+- Introduce monitoring early
 
-**学んだ教訓:**
-- 完璧を求めすぎない（YAGNI原則）
-- ユーザーフィードバックを早期に取得
-- 技術的負債は意識的に管理する
+**Lessons learned:**
+- Don't aim for perfection (YAGNI principle)
+- Get user feedback early
+- Manage technical debt consciously
 
-### シナリオ2: レガシーシステムのモダナイゼーション
+### Scenario 2: Legacy System Modernization
 
-**状況:** 10年以上運用されているシステムを段階的に刷新する
+**Situation:** Incrementally modernizing a system that has been in operation for over 10 years
 
-**アプローチ:**
-- Strangler Fig パターンで段階的に移行
-- 既存のテストがない場合はCharacterization Testを先に作成
-- APIゲートウェイで新旧システムを共存
-- データ移行は段階的に実施
+**Approach:**
+- Migrate incrementally using the Strangler Fig pattern
+- Create Characterization Tests first if no existing tests exist
+- Use an API gateway to allow old and new systems to coexist
+- Migrate data incrementally
 
-| フェーズ | 作業内容 | 期間目安 | リスク |
-|---------|---------|---------|--------|
-| 1. 調査 | 現状分析、依存関係の把握 | 2-4週間 | 低 |
-| 2. 基盤 | CI/CD構築、テスト環境 | 4-6週間 | 低 |
-| 3. 移行開始 | 周辺機能から順次移行 | 3-6ヶ月 | 中 |
-| 4. コア移行 | 中核機能の移行 | 6-12ヶ月 | 高 |
-| 5. 完了 | 旧システム廃止 | 2-4週間 | 中 |
+| Phase | Work | Estimated Duration | Risk |
+|-------|------|-------------------|------|
+| 1. Investigation | Current state analysis, dependency mapping | 2-4 weeks | Low |
+| 2. Foundation | CI/CD setup, test environment | 4-6 weeks | Low |
+| 3. Migration start | Sequential migration from peripheral features | 3-6 months | Medium |
+| 4. Core migration | Migration of core features | 6-12 months | High |
+| 5. Completion | Decommission legacy system | 2-4 weeks | Medium |
 
-### シナリオ3: 大規模チームでの開発
+### Scenario 3: Large Team Development
 
-**状況:** 50人以上のエンジニアが同一プロダクトを開発する
+**Situation:** 50+ engineers developing the same product
 
-**アプローチ:**
-- ドメイン駆動設計で境界を明確化
-- チームごとにオーナーシップを設定
-- 共通ライブラリはInner Source方式で管理
-- APIファーストで設計し、チーム間の依存を最小化
+**Approach:**
+- Clarify boundaries with domain-driven design
+- Set ownership per team
+- Manage shared libraries using the Inner Source model
+- Design API-first to minimize inter-team dependencies
 
 ```python
-# チーム間のAPI契約定義
+# API contract definition between teams
 from dataclasses import dataclass
 from typing import List, Optional
 from enum import Enum
@@ -1236,20 +1282,20 @@ class Priority(Enum):
 
 @dataclass
 class APIContract:
-    """チーム間のAPI契約"""
+    """API contract between teams"""
     endpoint: str
     method: str
     owner_team: str
     consumers: List[str]
-    sla_ms: int  # レスポンスタイムSLA
+    sla_ms: int  # Response time SLA
     priority: Priority
 
     def validate_sla(self, actual_ms: int) -> bool:
-        """SLA準拠の確認"""
+        """Verify SLA compliance"""
         return actual_ms <= self.sla_ms
 
     def to_openapi(self) -> dict:
-        """OpenAPI形式で出力"""
+        """Output in OpenAPI format"""
         return {
             'path': self.endpoint,
             'method': self.method,
@@ -1258,7 +1304,7 @@ class APIContract:
             'x-sla-ms': self.sla_ms
         }
 
-# 使用例
+# Usage example
 contracts = [
     APIContract(
         endpoint="/api/v1/users",
@@ -1279,104 +1325,105 @@ contracts = [
 ]
 ```
 
-### シナリオ4: パフォーマンスクリティカルなシステム
+### Scenario 4: Performance-Critical Systems
 
-**状況:** ミリ秒単位のレスポンスが求められるシステム
+**Situation:** A system requiring millisecond-level response times
 
-**最適化ポイント:**
-1. キャッシュ戦略（L1: インメモリ、L2: Redis、L3: CDN）
-2. 非同期処理の活用
-3. コネクションプーリング
-4. クエリ最適化とインデックス設計
+**Optimization points:**
+1. Caching strategy (L1: in-memory, L2: Redis, L3: CDN)
+2. Leverage asynchronous processing
+3. Connection pooling
+4. Query optimization and index design
 
-| 最適化手法 | 効果 | 実装コスト | 適用場面 |
-|-----------|------|-----------|---------|
-| インメモリキャッシュ | 高 | 低 | 頻繁にアクセスされるデータ |
-| CDN | 高 | 低 | 静的コンテンツ |
-| 非同期処理 | 中 | 中 | I/O待ちが多い処理 |
-| DB最適化 | 高 | 高 | クエリが遅い場合 |
-| コード最適化 | 低-中 | 高 | CPU律速の場合 |
-
----
-
-## チーム開発での活用
-
-### コードレビューのチェックリスト
-
-このトピックに関連するコードレビューで確認すべきポイント:
-
-- [ ] 命名規則が一貫しているか
-- [ ] エラーハンドリングが適切か
-- [ ] テストカバレッジは十分か
-- [ ] パフォーマンスへの影響はないか
-- [ ] セキュリティ上の問題はないか
-- [ ] ドキュメントは更新されているか
-
-### ナレッジ共有のベストプラクティス
-
-| 方法 | 頻度 | 対象 | 効果 |
-|------|------|------|------|
-| ペアプログラミング | 随時 | 複雑なタスク | 即時のフィードバック |
-| テックトーク | 週1回 | チーム全体 | 知識の水平展開 |
-| ADR (設計記録) | 都度 | 将来のメンバー | 意思決定の透明性 |
-| 振り返り | 2週間ごと | チーム全体 | 継続的改善 |
-| モブプログラミング | 月1回 | 重要な設計 | 合意形成 |
-
-### 技術的負債の管理
-
-```
-優先度マトリクス:
-
-        影響度 高
-          │
-    ┌─────┼─────┐
-    │ 計画 │ 即座 │
-    │ 的に │ に   │
-    │ 対応 │ 対応 │
-    ├─────┼─────┤
-    │ 記録 │ 次の │
-    │ のみ │ Sprint│
-    │     │ で   │
-    └─────┼─────┘
-          │
-        影響度 低
-    発生頻度 低  発生頻度 高
-```
+| Optimization Method | Effect | Implementation Cost | Application |
+|-------------------|--------|-------------------|-------------|
+| In-memory cache | High | Low | Frequently accessed data |
+| CDN | High | Low | Static content |
+| Async processing | Medium | Medium | I/O-heavy workloads |
+| DB optimization | High | High | Slow queries |
+| Code optimization | Low-Med | High | CPU-bound workloads |
 
 ---
 
-## セキュリティの考慮事項
+## Team Development Practices
 
-### 一般的な脆弱性と対策
+### Code Review Checklist
 
-| 脆弱性 | リスクレベル | 対策 | 検出方法 |
-|--------|------------|------|---------|
-| インジェクション攻撃 | 高 | 入力値のバリデーション・パラメータ化クエリ | SAST/DAST |
-| 認証の不備 | 高 | 多要素認証・セッション管理の強化 | ペネトレーションテスト |
-| 機密データの露出 | 高 | 暗号化・アクセス制御 | セキュリティ監査 |
-| 設定の不備 | 中 | セキュリティヘッダー・最小権限の原則 | 構成スキャン |
-| ログの不足 | 中 | 構造化ログ・監査証跡 | ログ分析 |
+Points to check in code reviews related to this topic:
 
-### セキュアコーディングのベストプラクティス
+- [ ] Naming conventions are consistent
+- [ ] Error handling is appropriate
+- [ ] Test coverage is sufficient
+- [ ] No performance impact
+- [ ] No security issues
+- [ ] Documentation has been updated
+
+### Knowledge Sharing Best Practices
+
+| Method | Frequency | Audience | Effect |
+|--------|-----------|----------|--------|
+| Pair programming | As needed | Complex tasks | Immediate feedback |
+| Tech talk | Weekly | Entire team | Horizontal knowledge sharing |
+| ADR (Decision Record) | As needed | Future members | Decision transparency |
+| Retrospective | Biweekly | Entire team | Continuous improvement |
+| Mob programming | Monthly | Critical design | Building consensus |
+
+### Managing Technical Debt
+
+```
+Priority matrix:
+
+        High impact
+          |
+    +-----+-----+
+    | Plan | Fix  |
+    | for  | imme-|
+    | later| diate|
+    |      | ly   |
+    +-----+-----+
+    | Log  | Next |
+    | only | Sprint|
+    |      |      |
+    +-----+-----+
+          |
+        Low impact
+    Low frequency  High frequency
+```
+
+---
+
+## Security Considerations
+
+### Common Vulnerabilities and Countermeasures
+
+| Vulnerability | Risk Level | Countermeasure | Detection Method |
+|--------------|-----------|---------------|-----------------|
+| Injection attacks | High | Input validation, parameterized queries | SAST/DAST |
+| Authentication flaws | High | Multi-factor auth, strengthened session management | Penetration testing |
+| Sensitive data exposure | High | Encryption, access control | Security audit |
+| Configuration issues | Medium | Security headers, principle of least privilege | Configuration scanning |
+| Insufficient logging | Medium | Structured logs, audit trails | Log analysis |
+
+### Secure Coding Best Practices
 
 ```python
-# セキュアコーディング例
+# Secure coding example
 import hashlib
 import secrets
 import hmac
 from typing import Optional
 
 class SecurityUtils:
-    """セキュリティユーティリティ"""
+    """Security utilities"""
 
     @staticmethod
     def generate_token(length: int = 32) -> str:
-        """暗号学的に安全なトークン生成"""
+        """Generate a cryptographically secure token"""
         return secrets.token_urlsafe(length)
 
     @staticmethod
     def hash_password(password: str, salt: Optional[str] = None) -> tuple:
-        """パスワードのハッシュ化"""
+        """Hash a password"""
         if salt is None:
             salt = secrets.token_hex(16)
         hashed = hashlib.pbkdf2_hmac(
@@ -1389,94 +1436,94 @@ class SecurityUtils:
 
     @staticmethod
     def verify_password(password: str, hashed: str, salt: str) -> bool:
-        """パスワードの検証"""
+        """Verify a password"""
         new_hash, _ = SecurityUtils.hash_password(password, salt)
         return hmac.compare_digest(new_hash, hashed)
 
     @staticmethod
     def sanitize_input(value: str) -> str:
-        """入力値のサニタイズ"""
+        """Sanitize input"""
         dangerous_chars = ['<', '>', '"', "'", '&', '\\']
         result = value
         for char in dangerous_chars:
             result = result.replace(char, '')
         return result.strip()
 
-# 使用例
+# Usage example
 token = SecurityUtils.generate_token()
 hashed, salt = SecurityUtils.hash_password("my_password")
 is_valid = SecurityUtils.verify_password("my_password", hashed, salt)
 ```
 
-### セキュリティチェックリスト
+### Security Checklist
 
-- [ ] 全ての入力値がバリデーションされている
-- [ ] 機密情報がログに出力されていない
-- [ ] HTTPS が強制されている
-- [ ] CORS ポリシーが適切に設定されている
-- [ ] 依存パッケージの脆弱性スキャンが実施されている
-- [ ] エラーメッセージに内部情報が含まれていない
+- [ ] All input values are validated
+- [ ] Sensitive information is not output to logs
+- [ ] HTTPS is enforced
+- [ ] CORS policy is properly configured
+- [ ] Dependency vulnerability scanning has been performed
+- [ ] Error messages do not contain internal information
 ---
 
 ## FAQ
 
-### Q1: LinuxはUnixなのか？
+### Q1: Is Linux a Unix?
 
-厳密には「Unixではない」。LinuxはUnixのソースコードを使わずにゼロから書かれた「Unix互換」のOS。AT&TのUnixライセンスは不要。ただしPOSIX互換であり、Unix哲学を踏襲しているため「Unix系（Unix-like）」と呼ばれる。正式なUNIX認証（Single UNIX Specification準拠）を取得しているのはmacOS、Solaris、AIX等で、LinuxはUNIX認証を取得していない（申請していない）。
+Strictly speaking, "no." Linux was written from scratch without using Unix source code; it is a "Unix-compatible" OS. No AT&T Unix license is required. However, because it is POSIX-compatible and follows Unix philosophy, it is called "Unix-like." The OSes that have obtained official UNIX certification (Single UNIX Specification compliance) include macOS, Solaris, and AIX. Linux has not obtained UNIX certification (it has not applied for it).
 
-### Q2: カーネルとOSの違いは？
+### Q2: What is the difference between a kernel and an OS?
 
-カーネルはOSの中核部分（ハードウェア管理、プロセス管理等）。OSはカーネル+シェル+ユーティリティ+ライブラリの総称。Linuxは厳密にはカーネル名で、Ubuntu等のディストリビューション全体がOS。GNU/Linuxという呼称は、GNUプロジェクトのユーティリティ群（gcc, coreutils, bash等）とLinuxカーネルを組み合わせたものという意味。
+The kernel is the core part of an OS (hardware management, process management, etc.). An OS is the collective term for the kernel + shell + utilities + libraries. Strictly speaking, Linux is a kernel name, and distributions like Ubuntu are the complete OS. The term GNU/Linux means the combination of GNU project utilities (gcc, coreutils, bash, etc.) and the Linux kernel.
 
-### Q3: なぜサーバーはLinuxが圧倒的か？
+### Q3: Why is Linux overwhelmingly dominant on servers?
 
-1. 無料（ライセンスコストゼロ）
-2. オープンソース（カスタマイズ自由）
-3. 安定性（数年間の無停止運用が可能）
-4. コマンドライン中心（リモート管理に最適）
-5. コミュニティとエコシステムの充実
-6. コンテナ技術（Docker/K8s）がLinux前提
-7. クラウドプロバイダ（AWS, GCP, Azure）がLinuxを標準提供
-8. 軽量（GUI不要でサーバーリソースを最大活用）
+1. Free (zero licensing cost)
+2. Open source (freely customizable)
+3. Stability (can run for years without downtime)
+4. Command-line centric (ideal for remote management)
+5. Rich community and ecosystem
+6. Container technology (Docker/K8s) is built for Linux
+7. Cloud providers (AWS, GCP, Azure) offer Linux as standard
+8. Lightweight (no GUI needed, maximizing server resources)
 
-### Q4: リアルタイムOSとは何か？
+### Q4: What is a real-time OS?
 
-リアルタイムOS（RTOS）は、決められた時間以内に確実に処理を完了することを保証するOS。ハードリアルタイム（締め切り厳守: 医療機器、自動車制御）とソフトリアルタイム（ベストエフォート: マルチメディア再生）がある。Linux自体は汎用OSだが、PREEMPT_RTパッチを適用することでソフトリアルタイム性能を得られる。
+A real-time OS (RTOS) is an OS that guarantees processing will be completed within a specified time. There are hard real-time (strict deadlines: medical devices, automotive controls) and soft real-time (best effort: multimedia playback) types. Linux itself is a general-purpose OS, but applying the PREEMPT_RT patch can achieve soft real-time performance.
 
-### Q5: WSL2はどのような仕組みか？
+### Q5: How does WSL2 work?
 
-WSL2（Windows Subsystem for Linux 2）は、Windows上で完全なLinuxカーネルを動かす仕組み。Hyper-V仮想化技術を使って軽量なLinux VMを起動し、Windowsとのシームレスな統合（ファイル共有、ネットワーク共有、GPU共有）を提供する。従来のWSL1（syscall変換方式）と異なり、完全なLinuxカーネルが動作するためすべてのLinuxプログラムが動作する。
+WSL2 (Windows Subsystem for Linux 2) is a mechanism for running a full Linux kernel on Windows. It uses Hyper-V virtualization technology to launch a lightweight Linux VM and provides seamless integration with Windows (file sharing, network sharing, GPU sharing). Unlike the original WSL1 (syscall translation approach), a full Linux kernel runs, so all Linux programs work.
 
-### Q6: OSを自作するにはどこから始めるべきか？
+### Q6: Where should I start to build my own OS?
 
-1. **OS理論の学習**: 「Operating Systems: Three Easy Pieces」（無料オンライン教科書）
-2. **xv6**: MITの教育用OS（Unixのシンプルな実装、x86/RISC-V対応）
-3. **OSDev Wiki**: OS開発のコミュニティリソース
-4. **Writing an OS in Rust**: Philipp Oppermann のブログシリーズ
-5. **30日でできる！OS自作入門**: 川合秀実著（日本語、x86）
-
----
-
-## まとめ
-
-| 概念 | ポイント |
-|------|---------|
-| OSの役割 | リソース管理 + ハードウェア抽象化 |
-| カーネル | Ring 0で動作。全ハードウェアにアクセス可能 |
-| システムコール | ユーザー空間→カーネルの唯一の窓口。数千サイクルのコスト |
-| アーキテクチャ | モノリシック(Linux) vs マイクロ(QNX) vs ハイブリッド(Windows) |
-| Unix哲学 | Everything is a file。小さなツールを組み合わせる |
-| POSIX | Unix系OSの標準API仕様。移植性の鍵 |
-| コンテナ | Namespace + Cgroups + Union FS で実現 |
-| 仮想化 | VM（完全隔離）vs コンテナ（軽量隔離） |
+1. **Learn OS theory**: "Operating Systems: Three Easy Pieces" (free online textbook)
+2. **xv6**: MIT's educational OS (simple Unix implementation, x86/RISC-V)
+3. **OSDev Wiki**: Community resource for OS development
+4. **Writing an OS in Rust**: Blog series by Philipp Oppermann
+5. **"30 Days to Make Your Own OS"**: By Hidemi Kawai (Japanese, x86)
 
 ---
 
-## 次に読むべきガイド
+## Summary
+
+| Concept | Key Point |
+|---------|----------|
+| Role of an OS | Resource management + hardware abstraction |
+| Kernel | Runs in Ring 0. Can access all hardware |
+| System call | The only gateway from user space to kernel. Costs thousands of cycles |
+| Architecture | Monolithic (Linux) vs. Micro (QNX) vs. Hybrid (Windows) |
+| Unix philosophy | Everything is a file. Combine small tools |
+| POSIX | Standard API spec for Unix-like OSes. Key to portability |
+| Containers | Implemented with Namespace + Cgroups + Union FS |
+| Virtualization | VM (full isolation) vs. Container (lightweight isolation) |
 
 ---
 
-## 参考文献
+## Recommended Next Guides
+
+---
+
+## References
 1. Silberschatz, A. et al. "Operating System Concepts." 10th Ed, Wiley, 2018.
 2. Tanenbaum, A. "Modern Operating Systems." 4th Ed, Pearson, 2014.
 3. Arpaci-Dusseau, R. & A. "Operating Systems: Three Easy Pieces." 2018.

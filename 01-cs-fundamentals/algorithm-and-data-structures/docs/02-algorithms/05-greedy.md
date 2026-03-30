@@ -1,118 +1,127 @@
-# 貪欲法（Greedy Algorithm）
+# Greedy Algorithm
 
-> 各ステップで局所的に最適な選択を繰り返すことで、全体の最適解を効率的に求める設計手法を理解する
+> Understand the design technique of efficiently finding a globally optimal solution by repeatedly making locally optimal choices at each step
 
-## この章で学ぶこと
+## Learning Objectives
 
-1. **貪欲法の適用条件**（貪欲選択性質・最適部分構造）を見抜き、正当性を検証できる
-2. **活動選択問題・ハフマン符号・最小全域木**を貪欲法で正しく解ける
-3. **貪欲法と DP の使い分け**を判断でき、貪欲法が使えない場合を識別できる
-4. **マトロイド理論**の基礎を理解し、貪欲法の正当性を体系的に判断できる
+1. **Identify the conditions for applying greedy algorithms** (greedy choice property and optimal substructure) and verify their correctness
+2. **Correctly solve the activity selection problem, Huffman coding, and minimum spanning tree** using greedy algorithms
+3. **Judge the choice between greedy algorithms and DP**, and identify cases where greedy algorithms cannot be used
+4. **Understand the basics of matroid theory** and systematically determine the correctness of greedy algorithms
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, the following knowledge will help deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [動的計画法（Dynamic Programming）](./04-dynamic-programming.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related fundamental concepts
+- Understanding of the content in [Dynamic Programming](./04-dynamic-programming.md)
 
 ---
 
-## 1. 貪欲法の原理
+## 1. Principles of Greedy Algorithms
 
 ```
-┌──────────────────────────────────────────────┐
-│             貪欲法の2条件                      │
-├──────────────────────────────────────────────┤
-│                                               │
-│  1. 貪欲選択性質 (Greedy Choice Property)      │
-│     → 局所最適な選択が全体最適につながる        │
-│                                               │
-│  2. 最適部分構造 (Optimal Substructure)         │
-│     → 部分問題の最適解から全体の最適解が得られる │
-│                                               │
-├──────────────────────────────────────────────┤
-│                                               │
-│  DP との違い:                                  │
-│  DP  → 全ての選択肢を試して最適を選ぶ          │
-│  貪欲 → 一度の選択で即座に決定（後戻りなし）    │
-│                                               │
-│  貪欲は DP より高速だが、適用範囲が狭い         │
-└──────────────────────────────────────────────┘
++----------------------------------------------+
+|        Two Conditions for Greedy Algorithms   |
++----------------------------------------------+
+|                                               |
+|  1. Greedy Choice Property                    |
+|     -> A locally optimal choice leads to a    |
+|        globally optimal solution              |
+|                                               |
+|  2. Optimal Substructure                      |
+|     -> An optimal solution to the overall     |
+|        problem can be obtained from optimal   |
+|        solutions to subproblems               |
+|                                               |
++----------------------------------------------+
+|                                               |
+|  Difference from DP:                          |
+|  DP     -> Try all choices and select the     |
+|            optimal one                        |
+|  Greedy -> Make an immediate decision at each |
+|            step (no backtracking)             |
+|                                               |
+|  Greedy is faster than DP but has a narrower  |
+|  range of applicability                       |
++----------------------------------------------+
 ```
 
-### 貪欲法の設計手順
+### Design Procedure for Greedy Algorithms
 
 ```
-1. 問題を「選択の繰り返し」として定式化する
-2. 各ステップの貪欲な選択基準を定める
-3. 貪欲選択性質を証明（交換論法 or マトロイド）
-4. 最適部分構造を確認する
-5. 実装する
+1. Formulate the problem as a sequence of choices
+2. Define the greedy criterion for each step
+3. Prove the greedy choice property (exchange argument or matroid)
+4. Verify optimal substructure
+5. Implement
 
-注意: Step 3 を省略すると、直感で間違える危険がある
+Note: Skipping Step 3 risks making incorrect intuitive decisions
 ```
 
-### 貪欲法が適用できるかの判断フロー
+### Decision Flow for Greedy Applicability
 
 ```
-問題を見たとき:
+When examining a problem:
 
-  最適化問題か?
-    ├─ NO  → 貪欲法の対象外
-    └─ YES → 局所最適 = 全体最適が成り立つか?
-              ├─ YES → 貪欲法で解ける（証明は必要）
-              │         ├─ 交換論法で証明可能? → 実装
-              │         └─ マトロイド構造を持つ? → 実装
-              └─ NO or 不明 → DP を検討
-                    └─ 反例が見つかったら DP 確定
+  Is it an optimization problem?
+    +- NO  -> Not a candidate for greedy algorithms
+    +- YES -> Does local optimum = global optimum hold?
+              +- YES -> Solvable by greedy (proof required)
+              |         +- Can it be proved by exchange argument? -> Implement
+              |         +- Does it have matroid structure? -> Implement
+              +- NO or Unknown -> Consider DP
+                    +- If a counterexample is found -> DP is confirmed
 ```
 
-### 1.1 交換論法（Exchange Argument）の詳細
+### 1.1 Exchange Argument in Detail
 
-交換論法は貪欲法の正当性を証明するための最も一般的な技法である。基本的な考え方は「最適解が貪欲解と異なると仮定し、最適解の要素を貪欲解の要素に交換しても最適性が損なわれないことを示す」というものである。
+The exchange argument is the most common technique for proving the correctness of a greedy algorithm. The basic idea is to "assume that the optimal solution differs from the greedy solution, and show that replacing elements of the optimal solution with elements of the greedy solution does not compromise optimality."
 
 ```
-┌──────────────────────────────────────────────────────┐
-│           交換論法の一般的な手順                        │
-├──────────────────────────────────────────────────────┤
-│                                                       │
-│  Step 1: OPT を任意の最適解、G を貪欲解とする          │
-│                                                       │
-│  Step 2: OPT と G の「最初の相違点」を特定する          │
-│          OPT = {o₁, o₂, ..., oₖ}                     │
-│          G   = {g₁, g₂, ..., gₘ}                     │
-│          oᵢ ≠ gᵢ となる最小の i を見つける              │
-│                                                       │
-│  Step 3: OPT の oᵢ を gᵢ に交換した解 OPT' を作る      │
-│          OPT' = {o₁, ..., oᵢ₋₁, gᵢ, oᵢ₊₁, ...}     │
-│                                                       │
-│  Step 4: OPT' が以下を満たすことを示す                 │
-│          (a) OPT' は有効な解である                     │
-│          (b) OPT' の目的関数値 ≥ OPT の目的関数値      │
-│                                                       │
-│  Step 5: 繰り返し適用して OPT を G に変換できることを示す│
-│          → |G| = |OPT| が成立 → G は最適              │
-│                                                       │
-└──────────────────────────────────────────────────────┘
++------------------------------------------------------+
+|        General Procedure of the Exchange Argument     |
++------------------------------------------------------+
+|                                                       |
+|  Step 1: Let OPT be any optimal solution, G be the   |
+|          greedy solution                              |
+|                                                       |
+|  Step 2: Identify the "first point of difference"     |
+|          between OPT and G                            |
+|          OPT = {o1, o2, ..., ok}                      |
+|          G   = {g1, g2, ..., gm}                      |
+|          Find the smallest i where oi != gi           |
+|                                                       |
+|  Step 3: Create OPT' by replacing oi with gi in OPT  |
+|          OPT' = {o1, ..., o(i-1), gi, o(i+1), ...}   |
+|                                                       |
+|  Step 4: Show that OPT' satisfies the following:      |
+|          (a) OPT' is a valid solution                 |
+|          (b) Objective value of OPT' >= that of OPT   |
+|                                                       |
+|  Step 5: Show that repeated application can transform |
+|          OPT into G                                   |
+|          -> |G| = |OPT| holds -> G is optimal         |
+|                                                       |
++------------------------------------------------------+
 ```
 
-### 1.2 貪欲法の一般テンプレート
+### 1.2 General Template for Greedy Algorithms
 
 ```python
 def greedy_template(problem_input):
-    """貪欲法の一般的なテンプレート"""
-    # Step 1: 入力を貪欲基準でソート
+    """General template for greedy algorithms"""
+    # Step 1: Sort input by greedy criterion
     candidates = sort_by_greedy_criterion(problem_input)
 
     solution = []
 
-    # Step 2: 各候補について判定
+    # Step 2: Evaluate each candidate
     for candidate in candidates:
         if is_feasible(solution, candidate):
-            # Step 3: 制約を満たすなら解に追加
+            # Step 3: Add to solution if it satisfies constraints
             solution.append(candidate)
 
     return solution
@@ -120,12 +129,12 @@ def greedy_template(problem_input):
 
 ---
 
-## 2. 活動選択問題（Activity Selection）
+## 2. Activity Selection Problem
 
-終了時間が最も早い活動を優先的に選び、できるだけ多くの活動をスケジュールする。
+Select the activity with the earliest finish time first, and schedule as many activities as possible.
 
 ```
-活動:  開始  終了
+Activities: Start  End
  a1:   1 --- 4
  a2:     3 ----- 5
  a3:  0 ---- 6
@@ -138,43 +147,47 @@ def greedy_template(problem_input):
  a10:                      2 ---------- 14
  a11:                              12 --- 16
 
-タイムライン:
+Timeline:
 0  1  2  3  4  5  6  7  8  9  10 11 12 13 14 15 16
 |--a1--|     |--a4--|  |--a7--|   |--a8--|   |--a11--|
-               ← 終了時間順に貪欲選択 → 最大4活動
+               <- Greedy selection by finish time -> Max 4 activities
 ```
 
-### 正当性の証明（交換論法）
+### Correctness Proof (Exchange Argument)
 
 ```
-定理: 終了時間が最も早い活動を選ぶ貪欲法は最適である。
+Theorem: The greedy algorithm that selects the activity with the
+earliest finish time is optimal.
 
-証明（交換論法）:
-  OPT を最適解、G を貪欲解とする。
-  OPT の最初の活動が G の最初の活動 a₁ と異なるとする。
+Proof (Exchange Argument):
+  Let OPT be the optimal solution, G be the greedy solution.
+  Suppose the first activity in OPT differs from the first
+  activity a1 in G.
 
-  OPT の最初の活動を a₁ に交換すると:
-  - a₁ は全活動中で終了時間が最も早い
-  - よって a₁ は OPT の最初の活動より早く終わるか同時に終わる
-  - OPT の2番目以降の活動と矛盾しない
-  - 交換後も有効な解で、活動数は同じ
+  Replacing the first activity in OPT with a1:
+  - a1 has the earliest finish time among all activities
+  - Therefore a1 finishes no later than the first activity of OPT
+  - This does not conflict with the second and subsequent
+    activities of OPT
+  - The result is still a valid solution with the same number
+    of activities
 
-  これを繰り返すと、OPT を G に変換できる。
-  よって |G| = |OPT|、すなわち貪欲解は最適。 □
+  Repeating this process can transform OPT into G.
+  Therefore |G| = |OPT|, i.e., the greedy solution is optimal. []
 ```
 
 ```python
 def activity_selection(activities: list) -> list:
-    """活動選択問題 - O(n log n)
+    """Activity Selection Problem - O(n log n)
     activities: [(start, end), ...]
     """
-    # 終了時間でソート
+    # Sort by finish time
     sorted_acts = sorted(activities, key=lambda x: x[1])
     selected = [sorted_acts[0]]
     last_end = sorted_acts[0][1]
 
     for start, end in sorted_acts[1:]:
-        if start >= last_end:  # 前の活動と重ならない
+        if start >= last_end:  # Does not overlap with previous activity
             selected.append((start, end))
             last_end = end
 
@@ -183,28 +196,28 @@ def activity_selection(activities: list) -> list:
 activities = [(1,4), (3,5), (0,6), (5,7), (3,9), (5,9),
               (6,8), (8,11), (8,12), (2,14), (12,16)]
 result = activity_selection(activities)
-print(f"選択された活動: {result}")
+print(f"Selected activities: {result}")
 # [(1, 4), (5, 7), (8, 11), (12, 16)]
-print(f"活動数: {len(result)}")  # 4
+print(f"Number of activities: {len(result)}")  # 4
 ```
 
-### 重み付き活動選択問題
+### Weighted Activity Selection Problem
 
-活動に重み（利益）がある場合は、貪欲法では解けない。DP が必要。
+When activities have weights (profits), the greedy algorithm cannot solve the problem. DP is required.
 
 ```python
 import bisect
 
 def weighted_activity_selection(activities: list) -> int:
-    """重み付き活動選択問題 - O(n log n)
+    """Weighted Activity Selection Problem - O(n log n)
     activities: [(start, end, weight), ...]
-    貪欲では解けないため DP を使う
+    Cannot be solved greedily; uses DP instead
     """
-    # 終了時間でソート
+    # Sort by finish time
     activities.sort(key=lambda x: x[1])
     n = len(activities)
 
-    # 各活動 i に対して、i と重ならない直前の活動を二分探索で求める
+    # For each activity i, find the latest non-conflicting activity via binary search
     ends = [a[1] for a in activities]
 
     def latest_non_conflict(i):
@@ -215,29 +228,29 @@ def weighted_activity_selection(activities: list) -> int:
     # DP
     dp = [0] * (n + 1)
     for i in range(1, n + 1):
-        # 活動 i-1 を含まない
+        # Exclude activity i-1
         dp[i] = dp[i - 1]
-        # 活動 i-1 を含む
+        # Include activity i-1
         j = latest_non_conflict(i - 1)
         dp[i] = max(dp[i], dp[j + 1] + activities[i - 1][2])
 
     return dp[n]
 
 activities_w = [(1, 4, 5), (3, 5, 6), (0, 6, 8), (5, 7, 4), (6, 9, 2)]
-print(weighted_activity_selection(activities_w))  # 13 (活動(0,6,8) + (6,9,2) ?)
+print(weighted_activity_selection(activities_w))  # 13 (activities (0,6,8) + (6,9,2)?)
 ```
 
 ---
 
-## 3. ハフマン符号（Huffman Coding）
+## 3. Huffman Coding
 
-出現頻度の低い文字に長い符号、高い文字に短い符号を割り当て、全体のビット数を最小化する。
+Assign longer codes to less frequent characters and shorter codes to more frequent characters, minimizing the total number of bits.
 
 ```
-文字と頻度:
+Characters and frequencies:
   a:45  b:13  c:12  d:16  e:9  f:5
 
-ハフマン木の構築:
+Constructing the Huffman tree:
 Step1: f(5) + e(9) = 14
 Step2: c(12) + b(13) = 25
 Step3: 14 + d(16) = 30
@@ -254,27 +267,29 @@ Step5: a(45) + 55 = 100
                   /    \
                 f(5)  e(9)
 
-符号割当:
-  a: 0       (1ビット)
-  c: 100     (3ビット)
-  b: 101     (3ビット)
-  f: 1100    (4ビット)
-  e: 1101    (4ビット)
-  d: 111     (3ビット)
+Code assignment:
+  a: 0       (1 bit)
+  c: 100     (3 bits)
+  b: 101     (3 bits)
+  f: 1100    (4 bits)
+  e: 1101    (4 bits)
+  d: 111     (3 bits)
 ```
 
-### ハフマン符号の最適性
+### Optimality of Huffman Coding
 
 ```
-定理: ハフマン符号は最適接頭辞符号である。
+Theorem: Huffman coding is an optimal prefix code.
 
-接頭辞符号: どの符号語も他の符号語の接頭辞でない
-  → 曖昧さなくデコード可能
+Prefix code: No codeword is a prefix of another codeword
+  -> Can be decoded unambiguously
 
-最適性の直感:
-  - 出現頻度が最も低い2つの文字は、最適木で最も深い兄弟ノードに配置される
-  - この2文字を統合しても、問題の構造は変わらない（最適部分構造）
-  - 毎回頻度が最小の2つを統合する（貪欲選択）
+Intuition for optimality:
+  - The two least frequent characters are placed at the deepest
+    sibling nodes in the optimal tree
+  - Merging these two characters does not change the problem
+    structure (optimal substructure)
+  - Always merge the two with the lowest frequency (greedy choice)
 ```
 
 ```python
@@ -292,7 +307,7 @@ class HuffmanNode:
         return self.freq < other.freq
 
 def build_huffman_tree(freq: dict) -> HuffmanNode:
-    """ハフマン木を構築 - O(n log n)"""
+    """Build a Huffman tree - O(n log n)"""
     heap = [HuffmanNode(char=c, freq=f) for c, f in freq.items()]
     heapq.heapify(heap)
 
@@ -306,7 +321,7 @@ def build_huffman_tree(freq: dict) -> HuffmanNode:
     return heap[0]
 
 def build_codes(root: HuffmanNode, prefix="", codes=None) -> dict:
-    """ハフマン符号を生成"""
+    """Generate Huffman codes"""
     if codes is None:
         codes = {}
 
@@ -322,7 +337,7 @@ def build_codes(root: HuffmanNode, prefix="", codes=None) -> dict:
     return codes
 
 def huffman_encode(text: str) -> tuple:
-    """ハフマン符号化"""
+    """Huffman encoding"""
     freq = Counter(text)
     tree = build_huffman_tree(freq)
     codes = build_codes(tree)
@@ -330,7 +345,7 @@ def huffman_encode(text: str) -> tuple:
     return encoded, codes, tree
 
 def huffman_decode(encoded: str, tree: HuffmanNode) -> str:
-    """ハフマン復号"""
+    """Huffman decoding"""
     result = []
     node = tree
     for bit in encoded:
@@ -343,49 +358,49 @@ def huffman_decode(encoded: str, tree: HuffmanNode) -> str:
             node = tree
     return ''.join(result)
 
-# 使用例
+# Usage example
 text = "aaaaabbbccddddeefffff"
 encoded, codes, tree = huffman_encode(text)
-print("符号表:", codes)
-print(f"元のサイズ: {len(text) * 8} ビット")
-print(f"圧縮後: {len(encoded)} ビット")
-print(f"圧縮率: {len(encoded) / (len(text) * 8):.1%}")
+print("Code table:", codes)
+print(f"Original size: {len(text) * 8} bits")
+print(f"Compressed: {len(encoded)} bits")
+print(f"Compression ratio: {len(encoded) / (len(text) * 8):.1%}")
 
-# 復号して検証
+# Decode and verify
 decoded = huffman_decode(encoded, tree)
-print(f"復号結果一致: {decoded == text}")  # True
+print(f"Decode matches: {decoded == text}")  # True
 ```
 
-### 適応型ハフマン符号
+### Adaptive Huffman Coding
 
 ```python
-# 実務では「静的ハフマン」よりも「適応型ハフマン」が使われることが多い
+# In practice, "adaptive Huffman" is used more often than "static Huffman"
 #
-# 静的ハフマン:
-#   - 全文を2パスで処理（1パス目で頻度計算、2パス目で符号化）
-#   - 符号表をデータと一緒に保存する必要がある
+# Static Huffman:
+#   - Processes the text in 2 passes (1st pass for frequency counting, 2nd for encoding)
+#   - The code table must be stored alongside the data
 #
-# 適応型ハフマン (Adaptive Huffman):
-#   - 1パスで処理（文字を読みながら木を更新）
-#   - 符号表の伝送が不要
-#   - gzip、DEFLATE アルゴリズム等で使用
+# Adaptive Huffman:
+#   - Processes in 1 pass (updates the tree while reading characters)
+#   - No need to transmit the code table
+#   - Used in gzip, DEFLATE algorithm, etc.
 #
-# 実用的な圧縮ライブラリ:
-#   - zlib: DEFLATE（LZ77 + ハフマン）
-#   - brotli: LZ77 + ハフマン + コンテキストモデリング
-#   - zstd: LZ77 + FSE（有限状態エントロピー）
+# Practical compression libraries:
+#   - zlib: DEFLATE (LZ77 + Huffman)
+#   - brotli: LZ77 + Huffman + context modeling
+#   - zstd: LZ77 + FSE (Finite State Entropy)
 ```
 
 ---
 
-## 4. 最小全域木
+## 4. Minimum Spanning Tree
 
-### 4.1 Kruskal のアルゴリズム
+### 4.1 Kruskal's Algorithm
 
-辺を重みの昇順に調べ、サイクルを作らない辺を追加していく。
+Examine edges in ascending order of weight and add edges that do not create a cycle.
 
 ```
-グラフ:
+Graph:
     A ---4--- B
     |       / |
     8     2   6
@@ -396,20 +411,20 @@ print(f"復号結果一致: {decoded == text}")  # True
         \ /
          E
 
-辺の重み順: (B,C,2) → (C,D,3) → (A,B,4) → (B,D,6) → (C,E,7) → (A,C,8) → (D,E,9)
+Edges in weight order: (B,C,2) -> (C,D,3) -> (A,B,4) -> (B,D,6) -> (C,E,7) -> (A,C,8) -> (D,E,9)
 
-Step1: B-C (2) 追加  ← サイクルなし
-Step2: C-D (3) 追加  ← サイクルなし
-Step3: A-B (4) 追加  ← サイクルなし
-Step4: B-D (6) スキップ ← B-C-D でサイクル!
-Step5: C-E (7) 追加  ← サイクルなし → V-1=4辺 → 完了
+Step1: B-C (2) added  <- No cycle
+Step2: C-D (3) added  <- No cycle
+Step3: A-B (4) added  <- No cycle
+Step4: B-D (6) skipped <- Cycle via B-C-D!
+Step5: C-E (7) added  <- No cycle -> V-1=4 edges -> Done
 
-MST: B-C(2), C-D(3), A-B(4), C-E(7) = 合計 16
+MST: B-C(2), C-D(3), A-B(4), C-E(7) = Total 16
 ```
 
 ```python
 class UnionFind:
-    """Union-Find（Kruskal用）"""
+    """Union-Find (for Kruskal's)"""
     def __init__(self, n):
         self.parent = list(range(n))
         self.rank = [0] * n
@@ -417,7 +432,7 @@ class UnionFind:
 
     def find(self, x):
         if self.parent[x] != x:
-            self.parent[x] = self.find(self.parent[x])  # 経路圧縮
+            self.parent[x] = self.find(self.parent[x])  # Path compression
         return self.parent[x]
 
     def union(self, x, y):
@@ -436,11 +451,11 @@ class UnionFind:
         return self.find(x) == self.find(y)
 
 def kruskal(n: int, edges: list) -> tuple:
-    """Kruskal法 - O(E log E)
+    """Kruskal's Algorithm - O(E log E)
     edges: [(weight, u, v), ...]
-    返り値: (MST辺リスト, 合計重み)
+    Returns: (MST edge list, total weight)
     """
-    edges.sort()  # 重みでソート
+    edges.sort()  # Sort by weight
     uf = UnionFind(n)
     mst = []
     total = 0
@@ -454,29 +469,29 @@ def kruskal(n: int, edges: list) -> tuple:
 
     return mst, total
 
-# 頂点: 0=A, 1=B, 2=C, 3=D, 4=E
+# Vertices: 0=A, 1=B, 2=C, 3=D, 4=E
 edges = [(4,0,1), (8,0,2), (2,1,2), (6,1,3), (3,2,3), (7,2,4), (9,3,4)]
 mst, total = kruskal(5, edges)
-print(f"MST辺: {mst}")     # [(1, 2, 2), (2, 3, 3), (0, 1, 4), (2, 4, 7)]
-print(f"合計重み: {total}")  # 16
+print(f"MST edges: {mst}")     # [(1, 2, 2), (2, 3, 3), (0, 1, 4), (2, 4, 7)]
+print(f"Total weight: {total}")  # 16
 ```
 
-### 4.2 Prim のアルゴリズム
+### 4.2 Prim's Algorithm
 
-頂点ベースで MST を構築。密グラフでは Kruskal より効率的。
+Builds the MST vertex by vertex. More efficient than Kruskal for dense graphs.
 
 ```python
 import heapq
 
 def prim(graph: dict, start: int = 0) -> tuple:
-    """Prim法 - O((V + E) log V)
+    """Prim's Algorithm - O((V + E) log V)
     graph: {u: [(v, weight), ...]}
-    返り値: (MST辺リスト, 合計重み)
+    Returns: (MST edge list, total weight)
     """
     mst = []
     total = 0
     visited = {start}
-    # (weight, from, to) のヒープ
+    # Heap of (weight, from, to)
     edges = [(w, start, v) for v, w in graph[start]]
     heapq.heapify(edges)
 
@@ -502,65 +517,70 @@ graph_prim = {
     4: [(2, 7), (3, 9)],
 }
 mst, total = prim(graph_prim)
-print(f"MST辺: {mst}")     # Kruskal と同じ結果
-print(f"合計重み: {total}")  # 16
+print(f"MST edges: {mst}")     # Same result as Kruskal
+print(f"Total weight: {total}")  # 16
 ```
 
 ### 4.3 Kruskal vs Prim
 
-| 特性 | Kruskal | Prim |
+| Property | Kruskal | Prim |
 |:---|:---|:---|
-| ベース | 辺ベース | 頂点ベース |
-| データ構造 | Union-Find | 優先度キュー |
-| 計算量 | O(E log E) | O((V+E) log V) |
-| 疎グラフ | 効率的 | やや非効率 |
-| 密グラフ | 非効率 | 効率的 |
-| 切断されたグラフ | 森を返す | 1つの木のみ |
-| 実装の簡潔さ | やや複雑（UF必要） | 比較的簡潔 |
+| Approach | Edge-based | Vertex-based |
+| Data Structure | Union-Find | Priority queue |
+| Time Complexity | O(E log E) | O((V+E) log V) |
+| Sparse graphs | Efficient | Somewhat inefficient |
+| Dense graphs | Inefficient | Efficient |
+| Disconnected graphs | Returns a forest | Returns a single tree |
+| Implementation simplicity | Somewhat complex (UF required) | Relatively simple |
 
-### 4.4 MST の正当性: カット性質
-
-```
-カット性質 (Cut Property):
-  グラフのカット（頂点集合の2分割）を考える。
-  カットをまたぐ辺のうち、重みが最小の辺は必ず何らかの MST に含まれる。
-
-  この性質から:
-  - Kruskal: 全体で最小の辺を選ぶ → ある2つの連結成分間のカットで最小
-  - Prim: 木と非木の間のカットで最小の辺を選ぶ
-
-  どちらもカット性質に基づいて正しい。
-```
-
-### 4.5 Boruvka のアルゴリズム
-
-Kruskal や Prim に加えて、もう一つの MST アルゴリズムとして Boruvka のアルゴリズムがある。これは並列処理に適した貪欲法である。
+### 4.4 MST Correctness: Cut Property
 
 ```
-┌──────────────────────────────────────────────────────┐
-│          Boruvka のアルゴリズムの動作                   │
-├──────────────────────────────────────────────────────┤
-│                                                       │
-│  Phase 1: 各頂点は独立した連結成分                      │
-│    A(0)  B(0)  C(0)  D(0)  E(0)                      │
-│                                                       │
-│  Phase 2: 各連結成分から最小辺を選択（並列可能）        │
-│    A→B(4), B→C(2), C→B(2), D→C(3), E→C(7)          │
-│    追加: B-C(2), A-B(4), C-D(3), C-E(7)              │
-│                                                       │
-│  → 1フェーズで全頂点が接続 → 完了                      │
-│  合計: 2 + 3 + 4 + 7 = 16                             │
-│                                                       │
-│  特徴: 各フェーズで連結成分数が半分以下になる           │
-│  → O(E log V) フェーズ数は最大 O(log V)               │
-└──────────────────────────────────────────────────────┘
+Cut Property:
+  Consider a cut (partition of the vertex set into two groups) of the graph.
+  Among the edges crossing the cut, the one with minimum weight is
+  guaranteed to be in some MST.
+
+  From this property:
+  - Kruskal: Selects the globally minimum edge -> minimum across
+    some cut between two connected components
+  - Prim: Selects the minimum edge across the cut between the tree
+    and non-tree vertices
+
+  Both are correct based on the cut property.
+```
+
+### 4.5 Boruvka's Algorithm
+
+In addition to Kruskal and Prim, Boruvka's algorithm is another MST algorithm. It is a greedy approach well-suited for parallel processing.
+
+```
++------------------------------------------------------+
+|          How Boruvka's Algorithm Works                |
++------------------------------------------------------+
+|                                                       |
+|  Phase 1: Each vertex is an independent component     |
+|    A(0)  B(0)  C(0)  D(0)  E(0)                      |
+|                                                       |
+|  Phase 2: Select the minimum edge from each           |
+|           component (parallelizable)                  |
+|    A->B(4), B->C(2), C->B(2), D->C(3), E->C(7)      |
+|    Added: B-C(2), A-B(4), C-D(3), C-E(7)             |
+|                                                       |
+|  -> All vertices connected in 1 phase -> Done         |
+|  Total: 2 + 3 + 4 + 7 = 16                           |
+|                                                       |
+|  Key property: The number of components halves        |
+|  (or more) in each phase                              |
+|  -> O(E log V), at most O(log V) phases               |
++------------------------------------------------------+
 ```
 
 ```python
 def boruvka(n: int, edges: list) -> tuple:
-    """Boruvka法 - O(E log V)
+    """Boruvka's Algorithm - O(E log V)
     edges: [(u, v, weight), ...]
-    並列処理に適したMSTアルゴリズム
+    MST algorithm well-suited for parallel processing
     """
     uf = UnionFind(n)
     mst = []
@@ -568,7 +588,7 @@ def boruvka(n: int, edges: list) -> tuple:
     num_components = n
 
     while num_components > 1:
-        # 各連結成分の最小辺を記録
+        # Record the minimum edge for each component
         cheapest = [None] * n  # cheapest[comp] = (weight, u, v)
 
         for u, v, w in edges:
@@ -576,14 +596,14 @@ def boruvka(n: int, edges: list) -> tuple:
             comp_v = uf.find(v)
 
             if comp_u == comp_v:
-                continue  # 同じ連結成分
+                continue  # Same component
 
             if cheapest[comp_u] is None or w < cheapest[comp_u][0]:
                 cheapest[comp_u] = (w, u, v)
             if cheapest[comp_v] is None or w < cheapest[comp_v][0]:
                 cheapest[comp_v] = (w, u, v)
 
-        # 各連結成分の最小辺を追加
+        # Add the minimum edge from each component
         for comp in range(n):
             if cheapest[comp] is not None:
                 w, u, v = cheapest[comp]
@@ -595,25 +615,25 @@ def boruvka(n: int, edges: list) -> tuple:
 
     return mst, total
 
-# 使用例
+# Usage example
 edges_b = [(0,1,4), (0,2,8), (1,2,2), (1,3,6), (2,3,3), (2,4,7), (3,4,9)]
 mst_b, total_b = boruvka(5, edges_b)
 print(f"Boruvka MST: {mst_b}")
-print(f"合計重み: {total_b}")  # 16
+print(f"Total weight: {total_b}")  # 16
 ```
 
 ---
 
-## 5. その他の貪欲法の例
+## 5. Other Examples of Greedy Algorithms
 
-### 5.1 分数ナップサック（Fractional Knapsack）
+### 5.1 Fractional Knapsack
 
 ```python
 def fractional_knapsack(items: list, capacity: float) -> float:
-    """分数ナップサック - O(n log n)
+    """Fractional Knapsack - O(n log n)
     items: [(weight, value), ...]
     """
-    # 単位重さあたりの価値でソート（降順）
+    # Sort by value-to-weight ratio (descending)
     items_sorted = sorted(items, key=lambda x: x[1]/x[0], reverse=True)
 
     total_value = 0.0
@@ -633,12 +653,12 @@ items = [(10, 60), (20, 100), (30, 120)]
 print(fractional_knapsack(items, 50))  # 240.0
 ```
 
-### 5.2 区間スケジューリング最大化
+### 5.2 Interval Scheduling Maximization
 
 ```python
 def interval_scheduling(intervals: list) -> int:
-    """重ならない区間の最大数 - O(n log n)"""
-    intervals.sort(key=lambda x: x[1])  # 終了時間でソート
+    """Maximum number of non-overlapping intervals - O(n log n)"""
+    intervals.sort(key=lambda x: x[1])  # Sort by finish time
     count = 0
     last_end = float('-inf')
 
@@ -653,11 +673,11 @@ intervals = [(1,3), (2,5), (4,7), (1,8), (5,9), (8,10)]
 print(interval_scheduling(intervals))  # 3: (1,3), (4,7), (8,10)
 ```
 
-### 5.3 最小区間カバー
+### 5.3 Minimum Interval Cover
 
 ```python
 def min_interval_cover(intervals: list, target_start: int, target_end: int) -> list:
-    """[target_start, target_end] を最小数の区間でカバー - O(n log n)"""
+    """Cover [target_start, target_end] with minimum number of intervals - O(n log n)"""
     intervals.sort()
     result = []
     i = 0
@@ -665,14 +685,14 @@ def min_interval_cover(intervals: list, target_start: int, target_end: int) -> l
     current = target_start
 
     while current < target_end and i < n:
-        # current 以前に始まり、最も遠くまで伸びる区間を選ぶ
+        # Select the interval starting at or before current that extends farthest
         best_end = current
         while i < n and intervals[i][0] <= current:
             best_end = max(best_end, intervals[i][1])
             i += 1
 
         if best_end == current:
-            return []  # カバーできない
+            return []  # Cannot cover
 
         result.append(best_end)
         current = best_end
@@ -683,25 +703,25 @@ intervals = [(0, 3), (1, 5), (2, 7), (4, 9), (6, 10)]
 print(min_interval_cover(intervals, 0, 10))  # [3, 7, 10]
 ```
 
-### 5.4 ジョブスケジューリング（デッドライン付き）
+### 5.4 Job Scheduling with Deadlines
 
 ```python
 def job_scheduling_with_deadlines(jobs: list) -> tuple:
-    """デッドライン付きジョブスケジューリング - O(n² log n)
+    """Job scheduling with deadlines - O(n^2 log n)
     jobs: [(deadline, profit), ...]
-    各ジョブは1単位時間で完了。デッドラインまでに完了すれば利益を得る。
+    Each job takes 1 unit of time. Profit is earned if completed by the deadline.
     """
-    # 利益の降順でソート
+    # Sort by profit in descending order
     jobs_sorted = sorted(enumerate(jobs), key=lambda x: x[1][1], reverse=True)
     max_deadline = max(d for d, _ in jobs)
 
-    # スロット管理（1-indexed）
+    # Slot management (1-indexed)
     slots = [False] * (max_deadline + 1)
     result = []
     total_profit = 0
 
     for idx, (deadline, profit) in jobs_sorted:
-        # デッドライン以前で最も遅い空きスロットを探す
+        # Find the latest available slot before the deadline
         for t in range(min(deadline, max_deadline), 0, -1):
             if not slots[t]:
                 slots[t] = True
@@ -713,15 +733,15 @@ def job_scheduling_with_deadlines(jobs: list) -> tuple:
 
 jobs = [(2, 100), (1, 19), (2, 27), (1, 25), (3, 15)]
 profit, schedule = job_scheduling_with_deadlines(jobs)
-print(f"最大利益: {profit}")    # 142
-print(f"スケジュール: {schedule}")
+print(f"Maximum profit: {profit}")    # 142
+print(f"Schedule: {schedule}")
 ```
 
-### 5.5 文字列圧縮（Run-Length Encoding）
+### 5.5 String Compression (Run-Length Encoding)
 
 ```python
 def run_length_encode(s: str) -> str:
-    """ランレングス符号化 — 貪欲法の一種"""
+    """Run-length encoding -- a form of greedy algorithm"""
     if not s:
         return ""
 
@@ -739,7 +759,7 @@ def run_length_encode(s: str) -> str:
     return ''.join(result)
 
 def run_length_decode(encoded: str) -> str:
-    """ランレングス復号"""
+    """Run-length decoding"""
     result = []
     i = 0
     while i < len(encoded):
@@ -754,57 +774,57 @@ def run_length_decode(encoded: str) -> str:
 
 original = "AAABBBCCDDDDEEFFFFF"
 encoded = run_length_encode(original)
-print(f"符号化: {encoded}")      # A3B3C2D4E2F5
-print(f"復号化: {run_length_decode(encoded)}")  # AAABBBCCDDDDEEFFFFF
+print(f"Encoded: {encoded}")      # A3B3C2D4E2F5
+print(f"Decoded: {run_length_decode(encoded)}")  # AAABBBCCDDDDEEFFFFF
 ```
 
-### 5.6 Dijkstra法（貪欲法としての視点）
+### 5.6 Dijkstra's Algorithm (Viewed as a Greedy Algorithm)
 
 ```python
-# Dijkstra法は貪欲法の一例として理解できる:
+# Dijkstra's algorithm can be understood as an example of a greedy algorithm:
 #
-# 貪欲選択: 「未確定頂点の中で距離が最小の頂点を確定する」
+# Greedy choice: "Finalize the unvisited vertex with the smallest distance"
 #
-# 貪欲選択性質の証明:
-#   - 未確定頂点 u の距離 d[u] が最小
-#   - 別の経路 s → ... → w → ... → u が d[u] より短いと仮定
-#   - しかし w は未確定なので d[w] >= d[u]
-#   - 辺の重みは非負なので w 経由の経路は d[w] 以上 >= d[u]
-#   - 矛盾 → d[u] は最短
+# Proof of greedy choice property:
+#   - Unvisited vertex u has the smallest distance d[u]
+#   - Suppose another path s -> ... -> w -> ... -> u is shorter than d[u]
+#   - But w is unvisited, so d[w] >= d[u]
+#   - Since edge weights are non-negative, the path via w is >= d[w] >= d[u]
+#   - Contradiction -> d[u] is the shortest
 #
-# この証明が成り立つ条件: 全辺の重みが非負
-# 負辺があると成り立たない → Bellman-Ford（DPベース）が必要
+# Condition for this proof to hold: All edge weights are non-negative
+# With negative edges this breaks -> Bellman-Ford (DP-based) is needed
 ```
 
-### 5.7 ガソリンスタンド問題（Gas Station Problem）
+### 5.7 Gas Station Problem
 
-旅行中にガソリンスタンドに立ち寄る回数を最小化する問題は、典型的な貪欲法で解ける。
+The problem of minimizing the number of gas station stops during a trip is a classic greedy problem.
 
 ```python
 def min_gas_stops(stations: list, tank_capacity: int, total_distance: int) -> list:
-    """ガソリンスタンド問題 - O(n)
-    stations: ガソリンスタンドの位置（距離）のリスト（ソート済み）
-    tank_capacity: 満タンで走れる距離
-    total_distance: 目的地までの総距離
+    """Gas Station Problem - O(n)
+    stations: List of gas station positions (distances), sorted
+    tank_capacity: Maximum distance on a full tank
+    total_distance: Total distance to destination
 
-    貪欲戦略: 現在の燃料で到達可能な最も遠いスタンドで給油する
+    Greedy strategy: Refuel at the farthest reachable station
     """
     stops = []
     current_fuel = tank_capacity
     current_pos = 0
 
-    # 目的地もリストに加える
+    # Add destination to the list
     all_points = stations + [total_distance]
 
     for point in all_points:
         distance = point - current_pos
 
         if distance > tank_capacity:
-            return []  # 到達不可能
+            return []  # Unreachable
 
         if current_fuel < distance:
-            # 燃料不足 → 直前のスタンドで給油が必要だった
-            # このアルゴリズムでは「行けるだけ行って給油」戦略
+            # Insufficient fuel -> should have refueled at previous station
+            # This algorithm uses the "go as far as possible then refuel" strategy
             stops.append(current_pos)
             current_fuel = tank_capacity
 
@@ -815,7 +835,7 @@ def min_gas_stops(stations: list, tank_capacity: int, total_distance: int) -> li
 
 
 def min_gas_stops_greedy(stations: list, tank_capacity: int, total_distance: int) -> list:
-    """改良版: 行けるだけ行ってから給油する貪欲法 - O(n)"""
+    """Improved version: Greedy algorithm that goes as far as possible before refueling - O(n)"""
     if not stations:
         return [] if tank_capacity >= total_distance else [-1]
 
@@ -827,10 +847,10 @@ def min_gas_stops_greedy(stations: list, tank_capacity: int, total_distance: int
         dist = station_pos - prev_pos
 
         if dist > current_fuel:
-            # ここまで来られない → 直前のスタンドで給油すべきだった
-            # 直前のスタンドがないなら到達不可能
+            # Cannot reach here -> should have refueled at the previous station
+            # If there is no previous station, destination is unreachable
             if not stops and prev_pos == 0:
-                return [-1]  # 到達不可能
+                return [-1]  # Unreachable
             current_fuel = tank_capacity
             dist = station_pos - prev_pos
             if dist > current_fuel:
@@ -839,91 +859,93 @@ def min_gas_stops_greedy(stations: list, tank_capacity: int, total_distance: int
         current_fuel -= dist
         prev_pos = station_pos
 
-        # 次のポイントまで行けるか確認
+        # Check if we can reach the next point
         next_point = stations[i + 1] if i + 1 < len(stations) else total_distance
         if current_fuel < next_point - station_pos:
             stops.append(station_pos)
             current_fuel = tank_capacity
 
-    # 最後の区間
+    # Final segment
     if current_fuel < total_distance - prev_pos:
         return [-1]
 
     return stops
 
-# 使用例
+# Usage example
 stations = [100, 200, 375, 550, 750]
 tank = 400
 distance = 900
 result = min_gas_stops_greedy(stations, tank, distance)
-print(f"給油地点: {result}")  # 到達可能な最小停車
+print(f"Refueling points: {result}")  # Minimum stops to reach destination
 ```
 
 ---
 
-## 6. マトロイド理論と貪欲法
+## 6. Matroid Theory and Greedy Algorithms
 
 ```
-マトロイドの定義:
-  集合 S と独立集合族 I が以下を満たすとき (S, I) はマトロイド:
-  1. 空集合は独立 (∅ ∈ I)
-  2. 遺伝性: A ∈ I かつ B ⊆ A ならば B ∈ I
-  3. 交換性: A, B ∈ I かつ |A| < |B| ならば、
-             ある b ∈ B\A が存在して A ∪ {b} ∈ I
+Definition of a Matroid:
+  A set S and a family of independent sets I form a matroid (S, I) if:
+  1. The empty set is independent (empty set in I)
+  2. Hereditary property: If A in I and B is a subset of A, then B in I
+  3. Exchange property: If A, B in I and |A| < |B|, then there exists
+     some b in B\A such that A union {b} is in I
 
-定理（Rado-Edmonds）:
-  重み付きマトロイドの最大重み独立集合は、
-  貪欲法（重みの大きい要素から順に、独立性を保って追加）で求まる。
+Theorem (Rado-Edmonds):
+  The maximum weight independent set of a weighted matroid can be found
+  by a greedy algorithm (adding elements in decreasing order of weight
+  while maintaining independence).
 
-例:
-  - グラフの辺集合 + 森（サイクルなし）の条件 → グラフ的マトロイド
-  - → 最小全域木が貪欲法（Kruskal）で求まる理由
+Example:
+  - Edge set of a graph + forest (no cycles) condition -> Graphic Matroid
+  - -> This is why the MST can be found greedily (Kruskal)
 ```
 
-### 6.1 マトロイドの具体例
+### 6.1 Concrete Examples of Matroids
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│             代表的なマトロイドの種類                       │
-├──────────────────────────────────────────────────────────┤
-│                                                           │
-│  1. グラフ的マトロイド (Graphic Matroid)                   │
-│     S = グラフの辺集合                                    │
-│     I = 森（サイクルを含まない辺の部分集合）               │
-│     応用: 最小全域木 (Kruskal)                            │
-│                                                           │
-│  2. 一様マトロイド (Uniform Matroid)                       │
-│     S = n 個の要素                                        │
-│     I = 要素数が k 以下の部分集合                          │
-│     応用: 上位 k 個の選択                                 │
-│                                                           │
-│  3. 分割マトロイド (Partition Matroid)                     │
-│     S をグループに分割、各グループから最大 kᵢ 個選択       │
-│     応用: 各カテゴリから制限数を選ぶ問題                   │
-│                                                           │
-│  4. 線形マトロイド (Linear Matroid)                        │
-│     S = ベクトル集合                                      │
-│     I = 線形独立なベクトルの部分集合                       │
-│     応用: 線形代数における基底選択                         │
-│                                                           │
-│  5. 横断マトロイド (Transversal Matroid)                   │
-│     二部グラフのマッチングに基づく独立集合                 │
-│     応用: 割り当て問題の部分構造                           │
-│                                                           │
-└──────────────────────────────────────────────────────────┘
++----------------------------------------------------------+
+|             Common Types of Matroids                      |
++----------------------------------------------------------+
+|                                                           |
+|  1. Graphic Matroid                                       |
+|     S = edge set of a graph                               |
+|     I = forests (subsets of edges without cycles)          |
+|     Application: Minimum Spanning Tree (Kruskal)          |
+|                                                           |
+|  2. Uniform Matroid                                       |
+|     S = n elements                                        |
+|     I = subsets with at most k elements                   |
+|     Application: Selecting the top k                      |
+|                                                           |
+|  3. Partition Matroid                                      |
+|     S partitioned into groups, selecting at most ki       |
+|     from each group                                       |
+|     Application: Selection with per-category limits       |
+|                                                           |
+|  4. Linear Matroid                                        |
+|     S = set of vectors                                    |
+|     I = linearly independent subsets of vectors           |
+|     Application: Basis selection in linear algebra        |
+|                                                           |
+|  5. Transversal Matroid                                   |
+|     Independent sets based on bipartite graph matchings   |
+|     Application: Substructure of assignment problems      |
+|                                                           |
++----------------------------------------------------------+
 ```
 
-### 6.2 マトロイドと貪欲法の関係の検証
+### 6.2 Verifying the Relationship Between Matroids and Greedy Algorithms
 
 ```python
 def verify_matroid_greedy(elements: list, weights: dict,
                           is_independent) -> list:
-    """マトロイド上の重み最大独立集合を貪欲法で求める
-    elements: 元の集合
-    weights: 各要素の重み
-    is_independent: 独立性を判定する関数
+    """Find the maximum weight independent set on a matroid using greedy
+    elements: the ground set
+    weights: weight of each element
+    is_independent: function to test independence
     """
-    # 重みの降順にソート
+    # Sort by weight in descending order
     sorted_elements = sorted(elements, key=lambda x: weights[x], reverse=True)
 
     solution = []
@@ -934,7 +956,7 @@ def verify_matroid_greedy(elements: list, weights: dict,
 
     return solution
 
-# 一様マトロイドの例: 上位k個の重み最大要素を選ぶ
+# Uniform matroid example: Select top k elements by weight
 elements = ['a', 'b', 'c', 'd', 'e']
 weights = {'a': 10, 'b': 30, 'c': 20, 'd': 5, 'e': 25}
 k = 3
@@ -943,83 +965,83 @@ def uniform_independent(subset):
     return len(subset) <= k
 
 result = verify_matroid_greedy(elements, weights, uniform_independent)
-print(f"選択: {result}")  # ['b', 'e', 'c'] (重み: 30, 25, 20)
-print(f"合計重み: {sum(weights[x] for x in result)}")  # 75
+print(f"Selection: {result}")  # ['b', 'e', 'c'] (weights: 30, 25, 20)
+print(f"Total weight: {sum(weights[x] for x in result)}")  # 75
 ```
 
 ---
 
-## 7. 貪欲法 vs DP 比較表
+## 7. Greedy vs DP Comparison Table
 
-| 特性 | 貪欲法 | 動的計画法 |
+| Property | Greedy | Dynamic Programming |
 |:---|:---|:---|
-| 選択方法 | 局所最適を即座に決定 | 全選択肢を比較 |
-| 後戻り | なし | なし（全探索済み） |
-| 計算量 | 通常 O(n log n) | 通常 O(n^2) 以上 |
-| 正当性の証明 | 必要（反例がないか確認） | 遷移式の正しさで証明 |
-| 適用範囲 | 狭い（条件が厳しい） | 広い |
-| 実装の簡潔さ | 簡潔 | やや複雑 |
-| 空間計算量 | O(1)〜O(n) | O(n)〜O(n^2) |
-| 最適性の保証 | 証明されていれば保証 | 常に保証 |
+| Selection method | Immediately decide on local optimum | Compare all options |
+| Backtracking | None | None (all explored) |
+| Time complexity | Typically O(n log n) | Typically O(n^2) or more |
+| Correctness proof | Required (check for counterexamples) | Proved by correctness of transitions |
+| Applicability | Narrow (strict conditions) | Wide |
+| Implementation simplicity | Simple | Somewhat complex |
+| Space complexity | O(1) to O(n) | O(n) to O(n^2) |
+| Optimality guarantee | Guaranteed if proven | Always guaranteed |
 
-## 貪欲法で解ける問題・解けない問題
+## Problems Solvable and Unsolvable by Greedy
 
-| 問題 | 貪欲で解けるか | 理由 |
+| Problem | Solvable by Greedy? | Reason |
 |:---|:---|:---|
-| 活動選択問題 | 解ける | 終了時間順の貪欲選択が最適 |
-| 分数ナップサック | 解ける | 単価順の選択が最適 |
-| 0/1 ナップサック | 解けない | 分割不可 → DP 必要 |
-| ハフマン符号 | 解ける | 頻度最小の統合が最適 |
-| 最小全域木 | 解ける | カット性質による正当性 |
-| 最短経路（負辺なし） | 解ける | Dijkstra は貪欲 |
-| コイン問題（一般） | 解けない | 特定額面でのみ貪欲が有効 |
-| 重み付き活動選択 | 解けない | DP が必要 |
-| 集合被覆問題 | 近似のみ | NP困難、貪欲は ln(n) 近似 |
-| 最小点彩色 | 解けない | NP困難 |
+| Activity Selection | Yes | Greedy by finish time is optimal |
+| Fractional Knapsack | Yes | Selection by unit value is optimal |
+| 0/1 Knapsack | No | Items cannot be split -> DP needed |
+| Huffman Coding | Yes | Merging least frequent pair is optimal |
+| Minimum Spanning Tree | Yes | Correctness by cut property |
+| Shortest Path (non-negative edges) | Yes | Dijkstra is greedy |
+| Coin Problem (general) | No | Greedy works only for specific denominations |
+| Weighted Activity Selection | No | DP is needed |
+| Set Cover Problem | Approximation only | NP-hard, greedy gives ln(n) approximation |
+| Minimum Graph Coloring | No | NP-hard |
 
 ---
 
-## 8. 実務応用パターン
+## 8. Practical Application Patterns
 
-### 8.1 CDNのサーバー配置
+### 8.1 CDN Server Placement
 
 ```python
 def greedy_facility_placement(cities: list, k: int) -> list:
-    """k 個の施設を貪欲に配置（最大距離の最小化）
-    これは近似アルゴリズム（最適解の2倍以内を保証）
+    """Greedily place k facilities (minimize maximum distance)
+    This is an approximation algorithm (guarantees within 2x of optimal)
     """
     n = len(cities)
     if k >= n:
         return list(range(n))
 
-    # 最初の施設: 任意（ここでは都市0）
+    # First facility: arbitrary (here, city 0)
     facilities = [0]
     min_dist = [float('inf')] * n
 
     for _ in range(k - 1):
-        # 各都市の最寄り施設までの距離を更新
+        # Update the distance from each city to the nearest facility
         last = facilities[-1]
         for j in range(n):
             d = abs(cities[j][0] - cities[last][0]) + abs(cities[j][1] - cities[last][1])
             min_dist[j] = min(min_dist[j], d)
 
-        # 最寄り施設から最も遠い都市を次の施設に
+        # Choose the city farthest from its nearest facility
         farthest = max(range(n), key=lambda j: min_dist[j] if j not in facilities else -1)
         facilities.append(farthest)
 
     return facilities
 ```
 
-### 8.2 タスクの締め切り最適化
+### 8.2 Task Deadline Optimization
 
 ```python
 def minimize_lateness(tasks: list) -> tuple:
-    """遅延の最大値を最小化するスケジューリング
+    """Scheduling to minimize maximum lateness
     tasks: [(processing_time, deadline), ...]
-    最適戦略: 締め切りが早い順に処理（EDF: Earliest Deadline First）
+    Optimal strategy: Process in order of earliest deadline (EDF: Earliest Deadline First)
     """
     indexed = [(d, p, i) for i, (p, d) in enumerate(tasks)]
-    indexed.sort()  # 締め切り順
+    indexed.sort()  # Sort by deadline
 
     schedule = []
     current_time = 0
@@ -1037,17 +1059,17 @@ def minimize_lateness(tasks: list) -> tuple:
 
 tasks = [(3, 6), (2, 8), (1, 9), (4, 9), (3, 14), (2, 15)]
 max_late, sched = minimize_lateness(tasks)
-print(f"最大遅延: {max_late}")
+print(f"Maximum lateness: {max_late}")
 for idx, start, finish, late in sched:
-    print(f"  タスク{idx}: {start}-{finish} (遅延: {late})")
+    print(f"  Task {idx}: {start}-{finish} (lateness: {late})")
 ```
 
-### 8.3 ページキャッシュの置換戦略
+### 8.3 Page Cache Replacement Strategy
 
 ```python
 def optimal_page_replacement(pages: list, cache_size: int) -> int:
-    """Belady の最適ページ置換アルゴリズム（将来のアクセスを知っている前提）
-    page fault の回数を返す
+    """Belady's Optimal Page Replacement Algorithm (assumes knowledge of future accesses)
+    Returns the number of page faults
     """
     cache = set()
     faults = 0
@@ -1061,14 +1083,14 @@ def optimal_page_replacement(pages: list, cache_size: int) -> int:
         if len(cache) < cache_size:
             cache.add(page)
         else:
-            # キャッシュ内で、次に使われるのが最も遅いページを追い出す
+            # Evict the page in cache whose next use is farthest in the future
             farthest = -1
             victim = None
             for cached_page in cache:
                 try:
                     next_use = pages[i+1:].index(cached_page)
                 except ValueError:
-                    next_use = float('inf')  # 二度と使われない
+                    next_use = float('inf')  # Never used again
 
                 if next_use > farthest:
                     farthest = next_use
@@ -1084,23 +1106,23 @@ print(f"Page faults (OPT): {optimal_page_replacement(pages, 3)}")   # 9
 print(f"Page faults (OPT): {optimal_page_replacement(pages, 4)}")   # 6
 ```
 
-### 8.4 貪欲近似: 集合被覆問題
+### 8.4 Greedy Approximation: Set Cover Problem
 
 ```python
 def greedy_set_cover(universe: set, subsets: list) -> list:
-    """集合被覆問題の貪欲近似 - O(|U| * |S|)
-    NP困難問題だが、貪欲法で ln(|U|)+1 倍以内の近似解を得られる
+    """Greedy approximation for the Set Cover Problem - O(|U| * |S|)
+    NP-hard, but greedy achieves an approximation within ln(|U|)+1 factor
     """
     uncovered = set(universe)
     selected = []
 
     while uncovered:
-        # 未カバー要素を最も多くカバーする集合を選ぶ
+        # Select the set that covers the most uncovered elements
         best = max(range(len(subsets)),
                    key=lambda i: len(subsets[i] & uncovered) if i not in selected else 0)
 
         if not (subsets[best] & uncovered):
-            break  # これ以上カバーできない
+            break  # No further coverage possible
 
         selected.append(best)
         uncovered -= subsets[best]
@@ -1116,29 +1138,29 @@ subsets = [
     {6, 7, 8, 9, 10},  # S4
 ]
 selected = greedy_set_cover(universe, subsets)
-print(f"選択された集合: {selected}")  # [1, 4] or similar
+print(f"Selected sets: {selected}")  # [1, 4] or similar
 ```
 
-### 8.5 貪欲法によるグラフ彩色（近似）
+### 8.5 Greedy Graph Coloring (Approximation)
 
-グラフ彩色はNP困難であるが、貪欲法により効率的な近似解を得ることができる。
+Graph coloring is NP-hard, but a greedy algorithm can efficiently produce an approximate solution.
 
 ```python
 def greedy_graph_coloring(graph: dict) -> dict:
-    """貪欲法によるグラフ彩色 - O(V + E)
+    """Greedy graph coloring - O(V + E)
     graph: {node: [neighbors]}
-    最適解は保証しないが、最大次数+1色以内で彩色可能（Brook の定理）
+    Does not guarantee optimal, but colors with at most max_degree+1 colors (Brook's theorem)
     """
     colors = {}
 
     for node in graph:
-        # 隣接頂点が使っている色を収集
+        # Collect colors used by adjacent vertices
         used_colors = set()
         for neighbor in graph[node]:
             if neighbor in colors:
                 used_colors.add(colors[neighbor])
 
-        # 使われていない最小の色番号を割り当て
+        # Assign the smallest unused color number
         color = 0
         while color in used_colors:
             color += 1
@@ -1146,7 +1168,7 @@ def greedy_graph_coloring(graph: dict) -> dict:
 
     return colors
 
-# 使用例: ペテルセングラフの一部
+# Usage example: Part of the Petersen graph
 graph = {
     0: [1, 4, 5],
     1: [0, 2, 6],
@@ -1161,28 +1183,28 @@ graph = {
 }
 coloring = greedy_graph_coloring(graph)
 num_colors = len(set(coloring.values()))
-print(f"彩色結果: {coloring}")
-print(f"使用色数: {num_colors}")
+print(f"Coloring result: {coloring}")
+print(f"Number of colors used: {num_colors}")
 
-# 彩色の妥当性を検証
+# Verify validity of coloring
 valid = all(
     coloring[u] != coloring[v]
     for u in graph for v in graph[u]
 )
-print(f"彩色は有効: {valid}")  # True
+print(f"Coloring is valid: {valid}")  # True
 ```
 
-### 8.6 最適マージパターン（ファイルマージ）
+### 8.6 Optimal Merge Pattern (File Merging)
 
-複数のソート済みファイルを2つずつマージして1つにまとめる問題。ハフマン符号と同じ構造を持つ。
+The problem of merging multiple sorted files two at a time into one. It has the same structure as Huffman coding.
 
 ```python
 import heapq
 
 def optimal_merge_pattern(file_sizes: list) -> tuple:
-    """最適マージパターン - O(n log n)
-    各ステップで最も小さい2つのファイルをマージする（ハフマンと同じ戦略）
-    返り値: (合計マージコスト, マージ順序)
+    """Optimal Merge Pattern - O(n log n)
+    At each step, merge the two smallest files (same strategy as Huffman)
+    Returns: (total merge cost, merge order)
     """
     heap = list(file_sizes)
     heapq.heapify(heap)
@@ -1199,31 +1221,31 @@ def optimal_merge_pattern(file_sizes: list) -> tuple:
 
     return total_cost, merge_order
 
-# 使用例
+# Usage example
 sizes = [20, 30, 10, 5, 30]
 cost, order = optimal_merge_pattern(sizes)
-print(f"最小マージコスト: {cost}")
+print(f"Minimum merge cost: {cost}")
 for f1, f2, merged in order:
     print(f"  {f1} + {f2} = {merged}")
-# 出力例:
+# Example output:
 # 5 + 10 = 15
 # 15 + 20 = 35
 # 30 + 30 = 60
 # 35 + 60 = 95
-# 合計コスト = 15 + 35 + 60 + 95 = 205
+# Total cost = 15 + 35 + 60 + 95 = 205
 ```
 
 ---
 
-## 9. アンチパターン
+## 9. Anti-patterns
 
-### アンチパターン1: 貪欲選択性質の未証明
+### Anti-pattern 1: Unproven Greedy Choice Property
 
 ```python
-# BAD: 「直感的に正しそう」で貪欲法を適用
-# コイン問題: 額面 = [1, 3, 4], 金額 = 6
-# 貪欲（最大額面優先）: 4 + 1 + 1 = 3枚
-# 最適解: 3 + 3 = 2枚  ← 貪欲は失敗!
+# BAD: Applying greedy because "it seems intuitively correct"
+# Coin problem: denominations = [1, 3, 4], amount = 6
+# Greedy (largest first): 4 + 1 + 1 = 3 coins
+# Optimal: 3 + 3 = 2 coins  <- Greedy fails!
 
 def bad_coin_greedy(coins, amount):
     coins.sort(reverse=True)
@@ -1233,9 +1255,9 @@ def bad_coin_greedy(coins, amount):
         amount %= coin
     return count
 
-print(bad_coin_greedy([1, 3, 4], 6))  # 3 (不正解、正解は2)
+print(bad_coin_greedy([1, 3, 4], 6))  # 3 (incorrect, answer is 2)
 
-# GOOD: この問題にはDPを使う
+# GOOD: Use DP for this problem
 def good_coin_dp(coins, amount):
     dp = [float('inf')] * (amount + 1)
     dp[0] = 0
@@ -1245,51 +1267,51 @@ def good_coin_dp(coins, amount):
                 dp[i] = min(dp[i], dp[i - c] + 1)
     return dp[amount]
 
-print(good_coin_dp([1, 3, 4], 6))  # 2 (正解)
+print(good_coin_dp([1, 3, 4], 6))  # 2 (correct)
 ```
 
-### アンチパターン2: 0/1 ナップサックに貪欲法
+### Anti-pattern 2: Greedy for 0/1 Knapsack
 
 ```python
-# BAD: 0/1ナップサックに単価順の貪欲を適用
-# アイテム: (重さ=10, 価値=60), (重さ=20, 価値=100), (重さ=30, 価値=120)
-# 容量: 50
-# 貪欲（単価順）: 60 + 100 = 160
-# 最適解: 100 + 120 = 220  ← 重さ20+30=50で入る
+# BAD: Applying unit-value greedy to 0/1 Knapsack
+# Items: (weight=10, value=60), (weight=20, value=100), (weight=30, value=120)
+# Capacity: 50
+# Greedy (by unit value): 60 + 100 = 160
+# Optimal: 100 + 120 = 220  <- weight 20+30=50 fits
 
-# GOOD: 0/1ナップサックにはDPを使う
+# GOOD: Use DP for 0/1 Knapsack
 ```
 
-### アンチパターン3: ソートの基準を間違える
+### Anti-pattern 3: Wrong Sorting Criterion
 
 ```python
-# BAD: 活動選択で「開始時間」でソート → 最適でない
+# BAD: Sorting by "start time" in activity selection -> Not optimal
 def bad_activity_selection(activities):
-    activities.sort(key=lambda x: x[0])  # 開始時間でソート → 不正解
+    activities.sort(key=lambda x: x[0])  # Sort by start time -> incorrect
     ...
 
-# GOOD: 「終了時間」でソート
+# GOOD: Sort by "finish time"
 def good_activity_selection(activities):
-    activities.sort(key=lambda x: x[1])  # 終了時間でソート → 正解
+    activities.sort(key=lambda x: x[1])  # Sort by finish time -> correct
     ...
 ```
 
-### アンチパターン4: 貪欲法の「近似」を「最適」と誤解
+### Anti-pattern 4: Confusing "Approximation" with "Optimal" in Greedy
 
 ```python
-# BAD: 集合被覆問題に貪欲を使い、「最適解が得られた」と主張
-# → 貪欲は近似解であり、最適とは限らない
+# BAD: Using greedy for the Set Cover Problem and claiming "optimal solution obtained"
+# -> Greedy gives an approximate solution, not necessarily optimal
 
-# GOOD: 近似比を明記する
-# 「貪欲法による近似解。最適解の ln(n)+1 倍以内を保証」
+# GOOD: State the approximation ratio explicitly
+# "Approximate solution by greedy. Guaranteed within ln(n)+1 factor of optimal."
 ```
 
-### アンチパターン5: 局所最適の罠 — 巡回セールスマン問題
+### Anti-pattern 5: The Trap of Local Optima -- Traveling Salesman Problem
 
 ```python
-# BAD: TSP に最近傍法（貪欲）を適用して「最適」と主張
+# BAD: Applying nearest neighbor (greedy) to TSP and claiming "optimal"
 def bad_tsp_nearest_neighbor(dist_matrix: list, start: int = 0) -> tuple:
-    """最近傍法は貪欲ヒューリスティックであり、最適解を保証しない"""
+    """Nearest neighbor is a greedy heuristic that does not guarantee optimality"""
     n = len(dist_matrix)
     visited = [False] * n
     visited[start] = True
@@ -1313,7 +1335,7 @@ def bad_tsp_nearest_neighbor(dist_matrix: list, start: int = 0) -> tuple:
     tour.append(start)
     return total, tour
 
-# 反例を示す距離行列
+# Distance matrix demonstrating a counterexample
 dist = [
     [0, 1, 15, 6],
     [1, 0, 7, 3],
@@ -1321,29 +1343,29 @@ dist = [
     [6, 3, 1, 0],
 ]
 greedy_cost, greedy_tour = bad_tsp_nearest_neighbor(dist, 0)
-print(f"最近傍法: コスト={greedy_cost}, 経路={greedy_tour}")
-# 最適経路は異なる場合がある
+print(f"Nearest neighbor: cost={greedy_cost}, tour={greedy_tour}")
+# The optimal tour may be different
 
-# GOOD: TSP には厳密解法（分枝限定法など）か、
-# 2-opt 等の局所探索で改善する
+# GOOD: For TSP, use exact methods (e.g., branch and bound) or
+# improve with local search such as 2-opt
 ```
 
-### アンチパターン6: 負の重みを持つグラフへのDijkstra適用
+### Anti-pattern 6: Applying Dijkstra to Graphs with Negative Weights
 
 ```python
-# BAD: 負辺のあるグラフに Dijkstra（貪欲法）を適用
-# → 負辺があると貪欲選択性質が崩壊する
+# BAD: Applying Dijkstra (greedy) to a graph with negative edges
+# -> The greedy choice property breaks down with negative edges
 #
-# 例:  A --1--> B --(-3)--> C
-#      A --2--> C
+# Example:  A --1--> B --(-3)--> C
+#           A --2--> C
 #
-# Dijkstra: A→B(1), A→C(2) → Cの距離=2
-# 正解: A→B→C = 1+(-3) = -2
+# Dijkstra: A->B(1), A->C(2) -> Distance to C = 2
+# Correct:  A->B->C = 1+(-3) = -2
 #
-# GOOD: 負辺がある場合は Bellman-Ford を使う
+# GOOD: Use Bellman-Ford when negative edges are present
 
 def bellman_ford(n: int, edges: list, source: int) -> list:
-    """負辺を含むグラフの最短経路 - O(VE)"""
+    """Shortest paths in a graph with negative edges - O(VE)"""
     dist = [float('inf')] * n
     dist[source] = 0
 
@@ -1352,84 +1374,85 @@ def bellman_ford(n: int, edges: list, source: int) -> list:
             if dist[u] != float('inf') and dist[u] + w < dist[v]:
                 dist[v] = dist[u] + w
 
-    # 負閉路の検出
+    # Detect negative cycles
     for u, v, w in edges:
         if dist[u] != float('inf') and dist[u] + w < dist[v]:
-            raise ValueError("負閉路が存在します")
+            raise ValueError("Negative cycle detected")
 
     return dist
 
 edges = [(0, 1, 1), (1, 2, -3), (0, 2, 2)]
 dist = bellman_ford(3, edges, 0)
-print(f"最短距離: {dist}")  # [0, 1, -2]
+print(f"Shortest distances: {dist}")  # [0, 1, -2]
 ```
 
 ---
 
-## 10. コイン問題における貪欲法の成立条件
+## 10. When Greedy Works for the Coin Problem
 
 ```
-コイン問題で貪欲法（大きい額面から使う）が最適になる条件:
+Conditions under which greedy (using the largest denomination first) is optimal
+for the coin problem:
 
-1. 額面が canonical coin system を満たす
-   例: [1, 5, 10, 25, 50, 100] (USドル) → 貪欲で最適
-   例: [1, 5, 10, 50, 100, 500] (日本円) → 貪欲で最適
+1. The denominations form a canonical coin system
+   Example: [1, 5, 10, 25, 50, 100] (US dollars) -> Greedy is optimal
+   Example: [1, 5, 10, 50, 100, 500] (Japanese yen) -> Greedy is optimal
 
-2. canonical でない例:
-   [1, 3, 4]     → 金額6で貪欲が失敗
-   [1, 5, 6, 9]  → 金額11で貪欲(9+1+1=3枚)が失敗、最適は(6+5=2枚)
+2. Non-canonical examples:
+   [1, 3, 4]     -> Greedy fails for amount 6
+   [1, 5, 6, 9]  -> Greedy fails for amount 11 (9+1+1=3 coins), optimal is (6+5=2 coins)
 
-判定方法:
-   全ての額面の組について検証するか、
-   Pearson (2005) のアルゴリズムで多項式時間で判定可能
-```
-
----
-
-## 11. 貪欲法の計算量分析パターン
-
-貪欲法アルゴリズムの計算量は、多くの場合ソートがボトルネックになる。
-
-```
-┌────────────────────────────────────────────────────────────┐
-│           貪欲法アルゴリズムの計算量パターン                 │
-├──────────────────┬─────────────────┬───────────────────────┤
-│ アルゴリズム       │ 時間計算量       │ ボトルネック           │
-├──────────────────┼─────────────────┼───────────────────────┤
-│ 活動選択          │ O(n log n)      │ ソート                 │
-│ 分数ナップサック   │ O(n log n)      │ ソート                 │
-│ ハフマン符号       │ O(n log n)      │ ヒープ操作             │
-│ Kruskal          │ O(E log E)      │ ソート + Union-Find    │
-│ Prim (ヒープ)     │ O((V+E) log V)  │ ヒープ操作             │
-│ Prim (配列)       │ O(V²)          │ 最小値探索             │
-│ Boruvka          │ O(E log V)      │ フェーズ反復           │
-│ Dijkstra (ヒープ) │ O((V+E) log V)  │ ヒープ操作             │
-│ 区間スケジューリング│ O(n log n)      │ ソート                 │
-│ ジョブスケジューリング│ O(n²)        │ スロット探索           │
-│ 集合被覆(近似)     │ O(|U| * |S|)   │ 集合走査               │
-│ グラフ彩色(近似)   │ O(V + E)       │ 隣接リスト走査         │
-└──────────────────┴─────────────────┴───────────────────────┘
-
-ポイント:
-  - ソート O(n log n) が支配的なパターンが最も多い
-  - ヒープを使うと、動的に最小/最大を取得する操作が O(log n)
-  - 貪欲法自体のループは O(n) であることが多い
-  - 前処理（ソートやヒープ構築）が全体の計算量を決定する
+How to determine:
+   Verify for all combinations of denominations, or
+   use Pearson's (2005) algorithm for polynomial-time verification
 ```
 
 ---
 
-## 12. 演習問題
+## 11. Complexity Analysis Patterns for Greedy Algorithms
 
-### 基礎レベル
+In most cases, sorting is the bottleneck of greedy algorithms.
 
-**問題 B1: お釣り問題**
+```
++------------------------------------------------------------+
+|       Complexity Patterns for Greedy Algorithms             |
++------------------+-----------------+-----------------------+
+| Algorithm        | Time Complexity | Bottleneck            |
++------------------+-----------------+-----------------------+
+| Activity Select. | O(n log n)      | Sorting               |
+| Frac. Knapsack   | O(n log n)      | Sorting               |
+| Huffman Coding   | O(n log n)      | Heap operations       |
+| Kruskal          | O(E log E)      | Sorting + Union-Find  |
+| Prim (heap)      | O((V+E) log V)  | Heap operations       |
+| Prim (array)     | O(V^2)          | Minimum search        |
+| Boruvka          | O(E log V)      | Phase iteration       |
+| Dijkstra (heap)  | O((V+E) log V)  | Heap operations       |
+| Interval Sched.  | O(n log n)      | Sorting               |
+| Job Scheduling   | O(n^2)          | Slot search           |
+| Set Cover(approx)| O(|U| * |S|)   | Set traversal         |
+| Graph Color(appr)| O(V + E)       | Adjacency list trav.  |
++------------------+-----------------+-----------------------+
 
-日本の硬貨 [500, 100, 50, 10, 5, 1] を使って、お釣りを最小枚数で支払うプログラムを作成せよ。この額面では貪欲法が最適であることを確認せよ。
+Key points:
+  - The most common pattern is sorting at O(n log n) being dominant
+  - Using heaps allows dynamic min/max retrieval in O(log n)
+  - The greedy loop itself is often O(n)
+  - Preprocessing (sorting or heap construction) determines overall complexity
+```
+
+---
+
+## 12. Exercises
+
+### Foundation Level
+
+**Problem B1: Making Change**
+
+Write a program that makes change using Japanese coins [500, 100, 50, 10, 5, 1] with the minimum number of coins. Verify that the greedy algorithm is optimal for these denominations.
 
 ```python
 def min_coins_japan(amount: int) -> dict:
-    """日本の硬貨でお釣りを最小枚数にする"""
+    """Make change with minimum coins using Japanese denominations"""
     coins = [500, 100, 50, 10, 5, 1]
     result = {}
     remaining = amount
@@ -1442,21 +1465,21 @@ def min_coins_japan(amount: int) -> dict:
 
     return result
 
-# テスト
+# Test
 change = min_coins_japan(1376)
-print(f"1376円のお釣り: {change}")
+print(f"Change for 1376 yen: {change}")
 # {500: 2, 100: 3, 50: 1, 10: 2, 5: 1, 1: 1}
 total_coins = sum(change.values())
-print(f"合計枚数: {total_coins}")  # 10
+print(f"Total coins: {total_coins}")  # 10
 ```
 
-**問題 B2: 会議室割り当て**
+**Problem B2: Meeting Room Allocation**
 
-N 個の会議の開始・終了時間が与えられる。1つの会議室で最大何個の会議を開催できるか。
+Given start and end times of N meetings, find the maximum number of meetings that can be held in one room.
 
 ```python
 def max_meetings(meetings: list) -> list:
-    """会議室割り当て問題（活動選択問題の応用）"""
+    """Meeting room allocation (application of activity selection)"""
     indexed = [(end, start, i) for i, (start, end) in enumerate(meetings)]
     indexed.sort()
 
@@ -1472,21 +1495,21 @@ def max_meetings(meetings: list) -> list:
 
 meetings = [(0, 6), (1, 4), (3, 5), (5, 7), (5, 9), (8, 9)]
 result = max_meetings(meetings)
-print(f"開催可能な会議数: {len(result)}")
+print(f"Number of meetings possible: {len(result)}")
 for idx, s, e in result:
-    print(f"  会議{idx}: {s}-{e}")
-# 会議1: 1-4, 会議3: 5-7, 会議5: 8-9 → 3会議
+    print(f"  Meeting {idx}: {s}-{e}")
+# Meeting 1: 1-4, Meeting 3: 5-7, Meeting 5: 8-9 -> 3 meetings
 ```
 
-**問題 B3: 最大配分問題**
+**Problem B3: Maximum Allocation Problem**
 
-子供たちに飴を配る。各子供には満足度閾値があり、各飴にはサイズがある。1人に1個ずつ配り、満足する子供の数を最大化せよ。
+Distribute candies to children. Each child has a satisfaction threshold, and each candy has a size. Give one candy per child and maximize the number of satisfied children.
 
 ```python
 def assign_cookies(children: list, cookies: list) -> int:
-    """飴の配分問題 - O(n log n + m log m)
-    children: 各子供の満足度閾値
-    cookies: 各飴のサイズ
+    """Candy distribution problem - O(n log n + m log m)
+    children: satisfaction threshold for each child
+    cookies: size of each candy
     """
     children_sorted = sorted(children)
     cookies_sorted = sorted(cookies)
@@ -1496,38 +1519,38 @@ def assign_cookies(children: list, cookies: list) -> int:
 
     while child_i < len(children_sorted) and cookie_i < len(cookies_sorted):
         if cookies_sorted[cookie_i] >= children_sorted[child_i]:
-            child_i += 1  # この子供は満足
-        cookie_i += 1  # 次の飴へ
+            child_i += 1  # This child is satisfied
+        cookie_i += 1  # Next candy
 
     return child_i
 
 children = [1, 2, 3]
 cookies = [1, 1]
-print(f"満足する子供の数: {assign_cookies(children, cookies)}")  # 1
+print(f"Satisfied children: {assign_cookies(children, cookies)}")  # 1
 
 children = [1, 2]
 cookies = [1, 2, 3]
-print(f"満足する子供の数: {assign_cookies(children, cookies)}")  # 2
+print(f"Satisfied children: {assign_cookies(children, cookies)}")  # 2
 ```
 
-### 応用レベル
+### Intermediate Level
 
-**問題 A1: 最小プラットフォーム数**
+**Problem A1: Minimum Number of Platforms**
 
-電車の到着・出発時刻が与えられる。同時に停車する電車を全て収容するために必要な最小プラットフォーム数を求めよ。
+Given arrival and departure times of trains, find the minimum number of platforms needed to accommodate all trains stopped at the same time.
 
 ```python
 def min_platforms(arrivals: list, departures: list) -> int:
-    """最小プラットフォーム数 - O(n log n)
-    イベントソートによる貪欲法
+    """Minimum number of platforms - O(n log n)
+    Greedy algorithm using event sorting
     """
     events = []
     for a in arrivals:
-        events.append((a, 1))   # 到着: +1
+        events.append((a, 1))   # Arrival: +1
     for d in departures:
-        events.append((d, -1))  # 出発: -1
+        events.append((d, -1))  # Departure: -1
 
-    events.sort(key=lambda x: (x[0], x[1]))  # 同時刻なら出発を先に
+    events.sort(key=lambda x: (x[0], x[1]))  # At same time, process departures first
 
     current = 0
     max_platforms = 0
@@ -1540,17 +1563,17 @@ def min_platforms(arrivals: list, departures: list) -> int:
 
 arrivals   = [900, 940, 950, 1100, 1500, 1800]
 departures = [910, 1200, 1120, 1130, 1900, 2000]
-print(f"最小プラットフォーム数: {min_platforms(arrivals, departures)}")  # 3
+print(f"Minimum platforms: {min_platforms(arrivals, departures)}")  # 3
 ```
 
-**問題 A2: 文字列の辞書順最小化**
+**Problem A2: Lexicographically Smallest String**
 
-文字列 s が与えられる。s の各文字を先頭または末尾に追加して新しい文字列を構築するとき、辞書順最小の文字列を求めよ。
+Given a string s, build a new string by appending each character of s to either the front or back. Find the lexicographically smallest result.
 
 ```python
 def smallest_string_by_appending(s: str) -> str:
-    """辞書順最小の文字列を構築する貪欲法 - O(n²)
-    各文字を先頭か末尾に追加する
+    """Greedy algorithm to build the lexicographically smallest string - O(n^2)
+    Append each character to the front or back
     """
     from collections import deque
     result = deque()
@@ -1563,9 +1586,9 @@ def smallest_string_by_appending(s: str) -> str:
 
     return ''.join(result)
 
-# より洗練された解法: 残りの文字列との比較
+# More refined solution: compare with the remaining string
 def smallest_string_precise(s: str) -> str:
-    """辞書順最小の文字列を構築（正確版）- O(n²)"""
+    """Build the lexicographically smallest string (precise version) - O(n^2)"""
     from collections import deque
     result = deque()
     n = len(s)
@@ -1582,7 +1605,7 @@ def smallest_string_precise(s: str) -> str:
             result.append(chars[right])
             right -= 1
         else:
-            # 同じ場合は内側を比較して決定
+            # If equal, compare inner characters to decide
             l, r = left, right
             while l < r and chars[l] == chars[r]:
                 l += 1
@@ -1597,17 +1620,17 @@ def smallest_string_precise(s: str) -> str:
     return ''.join(result)
 
 print(smallest_string_by_appending("ACBDFE"))
-print(smallest_string_precise("CBABC"))  # "BAACC" ではなく正しい辞書順最小
+print(smallest_string_precise("CBABC"))  # Correct lexicographically smallest
 ```
 
-**問題 A3: 区間の最小グループ分け**
+**Problem A3: Minimum Group Partition of Intervals**
 
-N 個の区間が与えられる。重なる区間は同じグループに入れられない制約で、最小グループ数に分割せよ（区間グラフの最小彩色数 = 最大重なり数）。
+Given N intervals, partition them into the minimum number of groups such that overlapping intervals are not in the same group (minimum coloring of an interval graph = maximum overlap count).
 
 ```python
 def min_groups(intervals: list) -> int:
-    """区間の最小グループ分け - O(n log n)
-    最大同時重なり数を求める（= 最小グループ数 = 区間グラフの彩色数）
+    """Minimum group partition of intervals - O(n log n)
+    Find the maximum simultaneous overlap (= minimum groups = chromatic number of interval graph)
     """
     events = []
     for start, end in intervals:
@@ -1625,21 +1648,21 @@ def min_groups(intervals: list) -> int:
     return max_overlap
 
 intervals = [(1, 5), (2, 6), (4, 7), (6, 8), (7, 10)]
-print(f"最小グループ数: {min_groups(intervals)}")  # 3
+print(f"Minimum groups: {min_groups(intervals)}")  # 3
 ```
 
-### 発展レベル
+### Advanced Level
 
-**問題 E1: マトロイド交差（発展的課題）**
+**Problem E1: Matroid Intersection (Advanced Topic)**
 
-2つのマトロイドの共通独立集合の最大サイズを求める問題を考察せよ。以下は二部グラフの最大マッチングをマトロイド交差として定式化する例である。
+Consider the problem of finding the maximum-size common independent set of two matroids. Below is an example formulating bipartite matching as matroid intersection.
 
 ```python
 def bipartite_matching_as_matroid_intersection(
     left_nodes: list, right_nodes: list, edges: list
 ) -> list:
-    """二部マッチング（マトロイド交差の具体例）
-    ここでは増加路法で実装（マトロイド交差の特殊ケース）
+    """Bipartite matching (concrete example of matroid intersection)
+    Implemented here using augmenting paths (special case of matroid intersection)
     """
     match_left = {}
     match_right = {}
@@ -1667,44 +1690,44 @@ left = ['a', 'b', 'c']
 right = ['x', 'y', 'z']
 edges = [('a','x'), ('a','y'), ('b','x'), ('b','z'), ('c','y')]
 matching = bipartite_matching_as_matroid_intersection(left, right, edges)
-print(f"最大マッチング: {matching}")
-print(f"マッチングサイズ: {len(matching)}")
-# マトロイド交差の理論により、貪欲法の一般化で解ける
+print(f"Maximum matching: {matching}")
+print(f"Matching size: {len(matching)}")
+# By matroid intersection theory, this can be solved as a generalization of greedy
 ```
 
-**問題 E2: オンライン貪欲法 — セクレタリー問題**
+**Problem E2: Online Greedy -- Secretary Problem**
 
-n 人の候補者を順に面接し、各面接後に即座に採用/不採用を決定する。一度不採用にした候補者は呼び戻せない。最良の候補者を選ぶ確率を最大化する戦略を実装せよ。
+Interview n candidates in sequence, making an immediate hire/reject decision after each interview. A rejected candidate cannot be recalled. Implement the strategy that maximizes the probability of selecting the best candidate.
 
 ```python
 import random
 import math
 
 def secretary_problem_strategy(candidates: list) -> tuple:
-    """セクレタリー問題の最適戦略（1/e 戦略）
-    最初の n/e 人を観察のみ（基準値の設定）
-    以降、基準値を超えた最初の候補者を採用
+    """Optimal strategy for the Secretary Problem (1/e strategy)
+    Observe the first n/e candidates (set a baseline)
+    Then hire the first candidate that exceeds the baseline
 
-    最良の候補者を選ぶ確率は 1/e ≒ 36.8% に収束する
+    The probability of selecting the best candidate converges to 1/e ~ 36.8%
     """
     n = len(candidates)
-    # 最初の n/e 人を観察（探索フェーズ）
+    # Observe the first n/e candidates (exploration phase)
     observe_count = max(1, int(n / math.e))
 
-    # 観察フェーズで最高スコアを記録
+    # Record the highest score during the observation phase
     threshold = max(candidates[:observe_count])
 
-    # 決定フェーズ: 基準を超えた最初の候補者を採用
+    # Decision phase: hire the first candidate exceeding the threshold
     for i in range(observe_count, n):
         if candidates[i] > threshold:
-            return candidates[i], i, True  # (スコア, インデックス, 採用した)
+            return candidates[i], i, True  # (score, index, hired)
 
-    # 誰も基準を超えなければ最後の候補者を採用
+    # If no one exceeds the threshold, hire the last candidate
     return candidates[-1], n - 1, False
 
-# シミュレーション
+# Simulation
 def simulate_secretary(n: int, trials: int = 10000) -> float:
-    """セクレタリー問題のシミュレーション"""
+    """Simulation of the Secretary Problem"""
     successes = 0
 
     for _ in range(trials):
@@ -1721,180 +1744,180 @@ def simulate_secretary(n: int, trials: int = 10000) -> float:
 random.seed(42)
 for n in [10, 50, 100, 1000]:
     success_rate = simulate_secretary(n)
-    print(f"n={n:4d}: 成功率 = {success_rate:.3f} (理論値 ≒ {1/math.e:.3f})")
+    print(f"n={n:4d}: success rate = {success_rate:.3f} (theoretical ~ {1/math.e:.3f})")
 ```
 
-**問題 E3: 貪欲法の競合比分析 — オンラインスキーレンタル問題**
+**Problem E3: Competitive Ratio Analysis of Greedy -- Online Ski Rental Problem**
 
-スキーをレンタル（1日r円）するか購入（p円）するか。何日滑るか事前に分からない場合のオンライン戦略を分析せよ。
+You can either rent skis (r yen per day) or buy them (p yen). How to decide when you do not know how many days you will ski? Analyze the online strategy.
 
 ```python
 def ski_rental_deterministic(daily_rent: int, purchase_price: int,
                               actual_days: int) -> dict:
-    """スキーレンタル問題の決定的戦略
-    break-even 日（p/r 日目）にレンタルから購入に切り替える
-    競合比: 2 - r/p（最悪ケースで最適解の2倍以内）
+    """Deterministic strategy for the Ski Rental Problem
+    Switch from renting to buying on the break-even day (p/r days)
+    Competitive ratio: 2 - r/p (within 2x of optimal in worst case)
     """
     break_even = purchase_price // daily_rent
 
-    # 戦略: break_even 日目に購入
+    # Strategy: buy on the break-even day
     if actual_days <= break_even:
-        # 購入前に終了 → レンタルのみ
+        # Trip ends before purchase -> rent only
         online_cost = actual_days * daily_rent
     else:
-        # break_even 日レンタル + 購入
+        # Rent for break_even days + purchase
         online_cost = break_even * daily_rent + purchase_price
 
-    # 最適解（事後的に判断）
+    # Optimal solution (determined in hindsight)
     optimal_cost = min(actual_days * daily_rent, purchase_price)
 
     return {
         'online_cost': online_cost,
         'optimal_cost': optimal_cost,
         'competitive_ratio': online_cost / optimal_cost if optimal_cost > 0 else float('inf'),
-        'strategy': f"{'レンタル' if actual_days <= break_even else f'{break_even}日目に購入'}"
+        'strategy': f"{'Rent only' if actual_days <= break_even else f'Buy on day {break_even}'}"
     }
 
-# 使用例
+# Usage example
 rent = 100
 price = 1000
 
 for days in [5, 10, 15, 20, 50]:
     result = ski_rental_deterministic(rent, price, days)
-    print(f"日数={days:2d}: オンライン={result['online_cost']:5d}, "
-          f"最適={result['optimal_cost']:5d}, "
-          f"競合比={result['competitive_ratio']:.2f}, "
-          f"戦略={result['strategy']}")
+    print(f"Days={days:2d}: online={result['online_cost']:5d}, "
+          f"optimal={result['optimal_cost']:5d}, "
+          f"competitive ratio={result['competitive_ratio']:.2f}, "
+          f"strategy={result['strategy']}")
 ```
 
 ---
 
-## 13. 貪欲法の設計パターン分類
+## 13. Design Pattern Classification for Greedy Algorithms
 
-貪欲法で登場する典型的な設計パターンを整理する。
+A summary of typical design patterns encountered in greedy algorithms.
 
-| パターン名 | 貪欲基準 | 代表的な問題 | 計算量 |
+| Pattern Name | Greedy Criterion | Representative Problem | Complexity |
 |:---|:---|:---|:---|
-| 端点ソート | 終了時間/締切で整列 | 活動選択、EDF | O(n log n) |
-| 比率ソート | 価値/コストで整列 | 分数ナップサック | O(n log n) |
-| 最小統合 | 最小要素をペアで統合 | ハフマン符号、マージパターン | O(n log n) |
-| 最小辺選択 | グラフの最小辺 | Kruskal、Boruvka | O(E log E) |
-| 最近傍拡張 | 隣接する最小コスト | Prim、Dijkstra | O((V+E)log V) |
-| イベントスイープ | タイムラインを走査 | 最小プラットフォーム | O(n log n) |
-| Farthest-first | 最も遠い要素を選択 | k-center 近似 | O(nk) |
-| 最大マージン | 最も余裕のある選択 | セクレタリー問題 | O(n) |
+| Endpoint Sort | Sort by finish time/deadline | Activity Selection, EDF | O(n log n) |
+| Ratio Sort | Sort by value/cost | Fractional Knapsack | O(n log n) |
+| Minimum Merge | Merge minimum elements in pairs | Huffman Coding, Merge Pattern | O(n log n) |
+| Minimum Edge Selection | Minimum edge in graph | Kruskal, Boruvka | O(E log E) |
+| Nearest Neighbor Expansion | Adjacent minimum cost | Prim, Dijkstra | O((V+E)log V) |
+| Event Sweep | Scan timeline | Minimum Platforms | O(n log n) |
+| Farthest-first | Select farthest element | k-center approximation | O(nk) |
+| Maximum Margin | Select with most slack | Secretary Problem | O(n) |
 
 ---
 
 ## 14. FAQ
 
-### Q1: 貪欲法の正当性はどう証明する？
+### Q1: How do you prove the correctness of a greedy algorithm?
 
-**A:** 主な証明手法は2つ。(1) **交換論法**: 最適解が貪欲解と異なると仮定し、貪欲解の要素と交換しても最適性が維持される（または改善される）ことを示す。(2) **マトロイド理論**: 問題構造がマトロイドの公理を満たすなら、貪欲法が最適。実用的には反例を探す→見つからなければ交換論法で証明が一般的。
+**A:** There are two main proof techniques. (1) **Exchange argument**: Assume the optimal solution differs from the greedy solution, and show that replacing elements with greedy choices maintains (or improves) optimality. (2) **Matroid theory**: If the problem structure satisfies the matroid axioms, the greedy algorithm is optimal. In practice, the common approach is to search for counterexamples, and if none are found, prove correctness via exchange argument.
 
-### Q2: 貪欲法とヒューリスティックの違いは？
+### Q2: What is the difference between a greedy algorithm and a heuristic?
 
-**A:** 貪欲法は正当性が証明された場合、最適解を保証する。ヒューリスティックは近似解を素早く得る手法で、最適性は保証しない。貪欲選択性質が成り立たない問題に貪欲法を適用すると、それは（精度の低い）ヒューリスティックになる。
+**A:** A greedy algorithm guarantees an optimal solution when its correctness is proven. A heuristic is a method for quickly obtaining an approximate solution without optimality guarantees. When a greedy algorithm is applied to a problem where the greedy choice property does not hold, it becomes a (potentially inaccurate) heuristic.
 
-### Q3: Prim法とKruskal法の使い分けは？
+### Q3: When should Prim's vs Kruskal's be used?
 
-**A:** 両方とも最小全域木を求める貪欲アルゴリズム。Kruskal は辺ベース（E log E）で疎グラフに強い。Prim は頂点ベース（優先度キューで V log V + E）で密グラフに強い。辺数が少なければ Kruskal、多ければ Prim が効率的。
+**A:** Both are greedy algorithms for finding the minimum spanning tree. Kruskal is edge-based (E log E) and works well on sparse graphs. Prim is vertex-based (V log V + E with priority queue) and works well on dense graphs. Use Kruskal when the number of edges is small, and Prim when there are many edges.
 
-### Q4: ダイクストラ法は貪欲法なのか？
+### Q4: Is Dijkstra's algorithm a greedy algorithm?
 
-**A:** はい。Dijkstra法は「未確定頂点のうち距離最小のものを確定する」という貪欲選択を繰り返す。非負辺の条件下でこの貪欲選択が最適であることが証明されている。負辺があると貪欲選択性質が崩れるため、Bellman-Ford（DPベース）が必要になる。
+**A:** Yes. Dijkstra's algorithm repeats the greedy choice of "finalizing the unvisited vertex with minimum distance." Under the condition of non-negative edges, this greedy choice is proven to be optimal. With negative edges, the greedy choice property breaks down, requiring Bellman-Ford (DP-based).
 
-### Q5: 貪欲法を使うべきでないのはどんな場合？
+### Q5: When should greedy algorithms NOT be used?
 
-**A:** (1) 反例が見つかる場合。(2) 問題が NP 困難で最適解が必要な場合（貪欲は近似のみ）。(3) 選択の影響が将来に及ぶ場合（例: 0/1ナップサック）。(4) 「最適」ではなく「全ての解」を列挙する必要がある場合。
+**A:** (1) When a counterexample is found. (2) When the problem is NP-hard and an optimal solution is required (greedy gives only an approximation). (3) When a choice affects future options (e.g., 0/1 knapsack). (4) When you need to enumerate "all solutions" rather than find the "optimal" one.
 
-### Q6: 貪欲法とビームサーチの関係は？
+### Q6: What is the relationship between greedy algorithms and beam search?
 
-**A:** ビームサーチは貪欲法の拡張版。貪欲法が各ステップで1つの最良候補のみを保持するのに対し、ビームサーチは上位 k 個の候補を保持する。k=1 がまさに貪欲法。k を増やすと解の品質が向上するが、計算量も増える。自然言語処理のデコーディングなどで広く使われる。
+**A:** Beam search is an extension of greedy algorithms. While greedy maintains only one best candidate at each step, beam search maintains the top k candidates. k=1 is exactly greedy. Increasing k improves solution quality but increases computation. It is widely used in decoding for natural language processing.
 
-### Q7: 貪欲法はオンラインアルゴリズムとしても使えるか？
+### Q7: Can greedy algorithms be used as online algorithms?
 
-**A:** 使える場合がある。オンラインアルゴリズムとは入力が逐次的に与えられ、各時点で取消不能な決定を下す手法である。貪欲法の「後戻りなし」という性質はオンラインアルゴリズムと親和性が高い。セクレタリー問題の 1/e 戦略、スキーレンタル問題の break-even 戦略などが代表的な例である。ただし、オンラインの場合は最適性ではなく「競合比」（最適解と比較した最悪ケースの倍率）で評価する。
+**A:** In some cases, yes. An online algorithm receives input sequentially and makes irrevocable decisions at each point. The "no backtracking" property of greedy algorithms has strong affinity with online algorithms. The 1/e strategy for the Secretary Problem and the break-even strategy for the Ski Rental Problem are representative examples. However, in the online setting, algorithms are evaluated by their "competitive ratio" (worst-case multiple compared to optimal) rather than optimality.
 
-### Q8: 貪欲法のデバッグ手法は？
+### Q8: How do you debug greedy algorithms?
 
-**A:** 貪欲法のバグは「アルゴリズムは正しいが実装が間違っている」場合と「そもそも貪欲法が適用できない問題に使っている」場合に大別される。前者はソート基準やエッジケース（空入力、同値の処理）の確認で対処する。後者は小さなテストケースで全探索の結果と比較し、一致しない反例を見つけることで判別する。以下にデバッグ用のテストコードを示す。
+**A:** Bugs in greedy algorithms fall into two categories: "the algorithm is correct but the implementation is wrong" and "greedy is not applicable to the problem in the first place." The former is addressed by checking the sorting criterion and edge cases (empty input, handling of equal values). The latter is identified by comparing results with brute-force on small test cases to find counterexamples. Below is test code for debugging.
 
 ```python
 import itertools
 
 def verify_greedy(greedy_func, brute_force_func, test_cases):
-    """貪欲法の結果を全探索と比較して検証"""
+    """Verify greedy results by comparing with brute-force"""
     for i, test_input in enumerate(test_cases):
         greedy_result = greedy_func(test_input)
         bf_result = brute_force_func(test_input)
         if greedy_result != bf_result:
-            print(f"反例発見! テスト{i}: 入力={test_input}")
-            print(f"  貪欲: {greedy_result}")
-            print(f"  全探索: {bf_result}")
+            print(f"Counterexample found! Test {i}: input={test_input}")
+            print(f"  Greedy: {greedy_result}")
+            print(f"  Brute-force: {bf_result}")
             return False
-    print("全テスト合格")
+    print("All tests passed")
     return True
 ```
 
-### Q9: 貪欲法は並列処理に向いているか？
+### Q9: Are greedy algorithms suitable for parallel processing?
 
-**A:** 問題による。Boruvka のアルゴリズムのように、各連結成分の処理が独立であれば高い並列性を持つ。一方、活動選択問題のように前の選択結果に依存する逐次的な貪欲法は並列化が困難である。MapReduce フレームワークで大規模グラフの MST を求める場合などは Boruvka が好まれる。
+**A:** It depends on the problem. Algorithms like Boruvka's, where processing of each component is independent, have high parallelism. On the other hand, sequential greedy algorithms like activity selection, which depend on previous choices, are difficult to parallelize. When computing MST of large-scale graphs using the MapReduce framework, Boruvka is preferred.
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point in learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important aspect. Understanding deepens not just from theory but from actually writing code and observing its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this knowledge applied in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+The knowledge of this topic is frequently utilized in daily development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## 15. まとめ
+## 15. Summary
 
-| 項目 | 要点 |
+| Item | Key Points |
 |:---|:---|
-| 貪欲法の条件 | 貪欲選択性質 + 最適部分構造 |
-| 活動選択問題 | 終了時間順に選択。区間スケジューリングの基本 |
-| ハフマン符号 | 頻度最小のペアを統合。最適接頭辞符号 |
-| Kruskal | 辺を重み順に追加。Union-Find でサイクル判定 |
-| Prim | 頂点ベースで MST を構築。密グラフに有利 |
-| Boruvka | 並列処理に適した MST アルゴリズム |
-| 分数ナップサック | 単価順に選択。0/1 とは異なり貪欲で最適 |
-| マトロイド | 貪欲法の正当性を保証する理論的枠組み |
-| DP との使い分け | 貪欲で解けるなら貪欲（高速）、解けなければ DP |
-| 正当性の証明 | 交換論法またはマトロイド理論で証明が必須 |
-| 近似アルゴリズム | NP困難問題には貪欲法が有効な近似を与えることが多い |
-| オンライン設定 | 競合比分析により貪欲戦略の品質を保証可能 |
+| Conditions for Greedy | Greedy choice property + Optimal substructure |
+| Activity Selection | Select by finish time. Foundation of interval scheduling |
+| Huffman Coding | Merge least frequent pairs. Optimal prefix code |
+| Kruskal | Add edges by weight. Cycle detection with Union-Find |
+| Prim | Build MST vertex by vertex. Advantageous for dense graphs |
+| Boruvka | MST algorithm well-suited for parallel processing |
+| Fractional Knapsack | Select by unit value. Unlike 0/1, greedy is optimal |
+| Matroid | Theoretical framework guaranteeing greedy correctness |
+| Choosing between Greedy and DP | Use greedy if applicable (faster); otherwise DP |
+| Correctness proof | Proof via exchange argument or matroid theory is essential |
+| Approximation algorithms | Greedy often provides good approximations for NP-hard problems |
+| Online setting | Competitive ratio analysis can guarantee quality of greedy strategies |
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Guides
 
-- [動的計画法](./04-dynamic-programming.md) -- 貪欲法で解けない問題への対処
-- [分割統治法](./06-divide-conquer.md) -- もう一つの設計パラダイム
-- [Union-Find](../03-advanced/00-union-find.md) -- Kruskal に不可欠なデータ構造
+- [Dynamic Programming](./04-dynamic-programming.md) -- Handling problems unsolvable by greedy
+- [Divide and Conquer](./06-divide-conquer.md) -- Another design paradigm
+- [Union-Find](../03-advanced/00-union-find.md) -- Data structure essential for Kruskal
 
 ---
 
-## 参考文献
+## References
 
-1. Cormen, T. H. et al. (2022). *Introduction to Algorithms* (4th ed.). MIT Press. -- 第15章: 貪欲アルゴリズム
+1. Cormen, T. H. et al. (2022). *Introduction to Algorithms* (4th ed.). MIT Press. -- Chapter 15: Greedy Algorithms
 2. Huffman, D. A. (1952). "A Method for the Construction of Minimum-Redundancy Codes." *Proceedings of the IRE*, 40(9), 1098-1101.
 3. Kruskal, J. B. (1956). "On the shortest spanning subtree of a graph and the traveling salesman problem." *Proceedings of the AMS*, 7(1), 48-50.
 4. Prim, R. C. (1957). "Shortest connection networks and some generalizations." *Bell System Technical Journal*, 36(6), 1389-1401.
 5. Kleinberg, J. & Tardos, E. (2005). *Algorithm Design*. Pearson. -- Chapter 4: Greedy Algorithms
 6. Oxley, J. G. (2011). *Matroid Theory* (2nd ed.). Oxford University Press.
-7. Borodin, A. & El-Yaniv, R. (1998). *Online Computation and Competitive Analysis*. Cambridge University Press. -- オンライン貪欲法と競合比分析の理論
-8. Vazirani, V. V. (2001). *Approximation Algorithms*. Springer. -- 貪欲法による近似アルゴリズムの体系的解説
-9. Lawler, E. L. (1976). *Combinatorial Optimization: Networks and Matroids*. Holt, Rinehart and Winston. -- マトロイドと貪欲法の古典的参考書
+7. Borodin, A. & El-Yaniv, R. (1998). *Online Computation and Competitive Analysis*. Cambridge University Press. -- Theory of online greedy algorithms and competitive analysis
+8. Vazirani, V. V. (2001). *Approximation Algorithms*. Springer. -- Systematic treatment of greedy approximation algorithms
+9. Lawler, E. L. (1976). *Combinatorial Optimization: Networks and Matroids*. Holt, Rinehart and Winston. -- Classic reference on matroids and greedy algorithms

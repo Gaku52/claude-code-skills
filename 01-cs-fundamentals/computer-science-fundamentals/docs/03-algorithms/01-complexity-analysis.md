@@ -1,112 +1,110 @@
-# 計算量解析（Big-O記法）
+# Complexity Analysis (Big-O Notation)
 
-> 「動く」コードと「速い」コードの違いは計算量にある。O(n²) と O(n log n) の差は、データが大きくなるほど致命的になる。
+> The difference between code that "works" and code that is "fast" lies in computational complexity. The gap between O(n^2) and O(n log n) becomes critical as data size grows.
 
-## この章で学ぶこと
+## Learning Objectives
 
-- [ ] Big-O記法を使って時間計算量を表現できる
-- [ ] 主要な計算量クラスを直感的に理解する
-- [ ] コードを見て計算量を分析できる
-- [ ] 空間計算量（メモリ使用量）も評価できる
-- [ ] 再帰アルゴリズムの計算量をマスター定理で求められる
-- [ ] 償却計算量の概念を理解し適用できる
+- [ ] Express time complexity using Big-O notation
+- [ ] Develop intuitive understanding of major complexity classes
+- [ ] Analyze the complexity of code by inspection
+- [ ] Evaluate space complexity (memory usage)
+- [ ] Determine the complexity of recursive algorithms using the Master Theorem
+- [ ] Understand and apply the concept of amortized complexity
 
-## 前提知識
+## Prerequisites
 
 
 ---
 
-## 1. Big-O記法
+## 1. Big-O Notation
 
-### 1.1 定義と直感
+### 1.1 Definition and Intuition
 
 ```
-Big-O記法: 入力サイズ n に対する実行時間の「成長率」を表す
+Big-O Notation: Expresses the "growth rate" of execution time relative to input size n
 
-  厳密な定義:
+  Formal definition:
     f(n) = O(g(n)) ⟺ ∃c > 0, ∃n₀ > 0 such that
     ∀n ≥ n₀: f(n) ≤ c × g(n)
 
-  直感:
-  「n が十分大きい時、f(n) は g(n) の定数倍以下で抑えられる」
+  Intuition:
+  "For sufficiently large n, f(n) is bounded above by a constant multiple of g(n)"
 
-  例:
+  Example:
     3n² + 5n + 100 = O(n²)
-    → n が大きくなると n² が支配的
-    → 5n も 100 も誤差の範囲
+    → As n grows, n² dominates
+    → 5n and 100 become negligible
 
-  ルール:
-  1. 定数倍は無視: 5n → O(n)
-  2. 低次項は無視: n² + n → O(n²)
-  3. 底は無視:     log₂n = log₁₀n × 定数 → O(log n)
+  Rules:
+  1. Ignore constant factors: 5n → O(n)
+  2. Ignore lower-order terms: n² + n → O(n²)
+  3. Ignore base of logarithm: log₂n = log₁₀n × constant → O(log n)
 ```
 
 ```
-Big-O記法の具体的な計算例:
+Concrete examples of Big-O calculation:
 
-  例1: f(n) = 3n² + 5n + 100 = O(n²)
+  Example 1: f(n) = 3n² + 5n + 100 = O(n²)
 
-    証明: c = 4, n₀ = 100 とすると
-    n ≥ 100 の時:
-    3n² + 5n + 100 ≤ 3n² + 5n² + n² = 9n² ≤ 4n² × 3
-    → ではないが...正確には:
-    3n² + 5n + 100 ≤ 3n² + n² + n² = 5n² ≤ 5 × n²
-    c = 5 で f(n) ≤ 5n² → O(n²) ✓
+    Proof: Let c = 5, n₀ = 100
+    For n ≥ 100:
+    3n² + 5n + 100 ≤ 3n² + n² + n² = 5n²
+    c = 5 gives f(n) ≤ 5n² → O(n²) ✓
 
-  例2: f(n) = log₂n = O(log n)
+  Example 2: f(n) = log₂n = O(log n)
 
-    底の変換: log₂n = log₁₀n / log₁₀2 = log₁₀n × 3.32...
-    → 定数倍の違いのみ → Big-Oでは区別しない
+    Base conversion: log₂n = log₁₀n / log₁₀2 = log₁₀n × 3.32...
+    → Differs only by a constant factor → Big-O does not distinguish
     → O(log₂n) = O(log₁₀n) = O(ln n) = O(log n)
 
-  例3: f(n) = 2^(n+1) = O(2ⁿ)
+  Example 3: f(n) = 2^(n+1) = O(2ⁿ)
 
     2^(n+1) = 2 × 2ⁿ
-    c = 2 で f(n) ≤ 2 × 2ⁿ → O(2ⁿ) ✓
+    c = 2 gives f(n) ≤ 2 × 2ⁿ → O(2ⁿ) ✓
 
-  例4: f(n) = n! は O(2ⁿ) ではない
+  Example 4: f(n) = n! is NOT O(2ⁿ)
 
-    n! = n × (n-1) × ... × 1 は 2ⁿ よりも速く成長する
-    n! = Ω(2ⁿ) だが n! ≠ O(2ⁿ)（n≥5から n! > 2ⁿ×n）
-    正確には n! = O(nⁿ) かつ n! = Ω((n/e)ⁿ)
+    n! = n × (n-1) × ... × 1 grows faster than 2ⁿ
+    n! = Ω(2ⁿ) but n! ≠ O(2ⁿ) (for n≥5, n! > 2ⁿ×n)
+    Precisely: n! = O(nⁿ) and n! = Ω((n/e)ⁿ)
 ```
 
-### 1.2 主要な計算量クラス
+### 1.2 Major Complexity Classes
 
 ```
-計算量クラスの比較（n = 入力サイズ）:
+Comparison of complexity classes (n = input size):
 
   ┌──────────────┬──────────────┬──────────────────────────┐
-  │ 記法         │ 名前         │ n=100での演算数          │
+  │ Notation     │ Name         │ Operations for n=100     │
   ├──────────────┼──────────────┼──────────────────────────┤
-  │ O(1)         │ 定数時間     │ 1                        │
-  │ O(log n)     │ 対数時間     │ 7                        │
-  │ O(√n)        │ 平方根時間   │ 10                       │
-  │ O(n)         │ 線形時間     │ 100                      │
-  │ O(n log n)   │ 線形対数時間 │ 700                      │
-  │ O(n²)        │ 二乗時間     │ 10,000                   │
-  │ O(n³)        │ 三乗時間     │ 1,000,000                │
-  │ O(2ⁿ)        │ 指数時間     │ 1.27 × 10³⁰            │
-  │ O(n!)        │ 階乗時間     │ 9.33 × 10¹⁵⁷           │
+  │ O(1)         │ Constant     │ 1                        │
+  │ O(log n)     │ Logarithmic  │ 7                        │
+  │ O(√n)        │ Square root  │ 10                       │
+  │ O(n)         │ Linear       │ 100                      │
+  │ O(n log n)   │ Linearithmic │ 700                      │
+  │ O(n²)        │ Quadratic    │ 10,000                   │
+  │ O(n³)        │ Cubic        │ 1,000,000                │
+  │ O(2ⁿ)        │ Exponential  │ 1.27 × 10³⁰            │
+  │ O(n!)        │ Factorial    │ 9.33 × 10¹⁵⁷           │
   └──────────────┴──────────────┴──────────────────────────┘
 
-  n=1,000,000（100万）での実行時間（1命令=1ns）:
-  O(1):        0.001 μs     瞬時
-  O(log n):    0.02 μs      瞬時
-  O(√n):       1 μs         瞬時
-  O(n):        1 ms          瞬時
-  O(n log n):  20 ms         一瞬
-  O(n²):       16 分         コーヒー1杯
-  O(n³):       31.7 年       人生が終わる
-  O(2ⁿ):       宇宙の寿命を超える
+  Execution time for n=1,000,000 (one million) at 1 operation = 1 ns:
+  O(1):        0.001 μs     Instantaneous
+  O(log n):    0.02 μs      Instantaneous
+  O(√n):       1 μs         Instantaneous
+  O(n):        1 ms          Instantaneous
+  O(n log n):  20 ms         A blink
+  O(n²):       16 minutes    Time for a coffee
+  O(n³):       31.7 years    A lifetime
+  O(2ⁿ):       Exceeds the age of the universe
 
-  → O(n²) と O(n log n) の差は、n=100万で48,000倍！
+  → The gap between O(n²) and O(n log n) at n=1 million is 48,000x!
 ```
 
-### 1.3 成長率のグラフ（ASCII）
+### 1.3 Growth Rate Graph (ASCII)
 
 ```
-  演算数
+  Operations
   │
   │                                          ╱ O(2ⁿ)
   │                                        ╱
@@ -124,131 +122,136 @@ Big-O記法の具体的な計算例:
   └───────────────────────────── n
 ```
 
-### 1.4 各計算量クラスの直感的な理解
+### 1.4 Intuitive Understanding of Each Complexity Class
 
 ```
-各計算量クラスの「感覚」:
+The "feel" of each complexity class:
 
-  O(1) — 定数時間:
+  O(1) — Constant time:
   ┌──────────────────────────────────────┐
-  │ 「本棚の3番目の本を取る」             │
-  │ 入力サイズに関係なく同じ時間           │
+  │ "Pick the 3rd book from the shelf"   │
+  │ Same time regardless of input size   │
   │                                      │
-  │ 例:                                  │
-  │ - 配列のインデックスアクセス arr[i]    │
-  │ - ハッシュテーブルのルックアップ        │
-  │ - スタックの push/pop                 │
-  │ - 数学的な公式による計算               │
+  │ Examples:                            │
+  │ - Array index access arr[i]          │
+  │ - Hash table lookup                  │
+  │ - Stack push/pop                     │
+  │ - Calculation using a formula        │
   └──────────────────────────────────────┘
 
-  O(log n) — 対数時間:
+  O(log n) — Logarithmic time:
   ┌──────────────────────────────────────┐
-  │ 「辞書で単語を引く」                   │
-  │ 毎回半分に絞り込む                     │
-  │ n=10億でもたった30ステップ             │
+  │ "Look up a word in a dictionary"     │
+  │ Halve the search space each time     │
+  │ Only 30 steps even for n = 1 billion │
   │                                      │
-  │ 例:                                  │
-  │ - 二分探索                            │
-  │ - 平衡二分木の操作                    │
-  │ - べき乗の繰り返し二乗法              │
+  │ Examples:                            │
+  │ - Binary search                      │
+  │ - Balanced binary tree operations    │
+  │ - Exponentiation by squaring         │
   └──────────────────────────────────────┘
 
-  O(√n) — 平方根時間:
+  O(√n) — Square root time:
   ┌──────────────────────────────────────┐
-  │ 「素数判定: √n まで試し割り」          │
-  │ n=10億でも31623ステップ               │
+  │ "Primality test: trial division      │
+  │  up to √n"                           │
+  │ Only 31,623 steps for n = 1 billion  │
   │                                      │
-  │ 例:                                  │
-  │ - 素数判定の試し割り法                │
-  │ - 平方分割（バケット分割）            │
+  │ Examples:                            │
+  │ - Trial division for primality       │
+  │ - Square root decomposition          │
   └──────────────────────────────────────┘
 
-  O(n) — 線形時間:
+  O(n) — Linear time:
   ┌──────────────────────────────────────┐
-  │ 「本棚の全ての本を1冊ずつ見る」        │
-  │ 全要素を1回ずつ処理                    │
+  │ "Check every book on the shelf       │
+  │  one by one"                         │
+  │ Process each element exactly once    │
   │                                      │
-  │ 例:                                  │
-  │ - 配列の走査（最大値、合計）           │
-  │ - リンクリストの探索                  │
-  │ - カウンティングソート                │
+  │ Examples:                            │
+  │ - Array traversal (max, sum)         │
+  │ - Linked list search                 │
+  │ - Counting sort                      │
   └──────────────────────────────────────┘
 
-  O(n log n) — 線形対数時間:
+  O(n log n) — Linearithmic time:
   ┌──────────────────────────────────────┐
-  │ 「本棚の本を全部出して並べ替える」      │
-  │ 分割統治で効率的に処理                 │
+  │ "Take all the books off the shelf    │
+  │  and rearrange them"                 │
+  │ Efficient processing via divide      │
+  │ and conquer                          │
   │                                      │
-  │ 例:                                  │
-  │ - マージソート、クイックソート         │
-  │ - FFT（高速フーリエ変換）             │
-  │ - 凸包（点集合の外周計算）            │
+  │ Examples:                            │
+  │ - Merge sort, quick sort             │
+  │ - FFT (Fast Fourier Transform)       │
+  │ - Convex hull computation            │
   └──────────────────────────────────────┘
 
-  O(n²) — 二乗時間:
+  O(n²) — Quadratic time:
   ┌──────────────────────────────────────┐
-  │ 「全員と握手する」                     │
-  │ n人がいれば n(n-1)/2 回の握手          │
+  │ "Shake hands with everyone"          │
+  │ n people require n(n-1)/2 handshakes │
   │                                      │
-  │ 例:                                  │
-  │ - バブルソート、挿入ソート             │
-  │ - 全ペアの比較                        │
-  │ - 単純な行列演算                      │
+  │ Examples:                            │
+  │ - Bubble sort, insertion sort        │
+  │ - All-pairs comparison               │
+  │ - Simple matrix operations           │
   └──────────────────────────────────────┘
 
-  O(2ⁿ) — 指数時間:
+  O(2ⁿ) — Exponential time:
   ┌──────────────────────────────────────┐
-  │ 「全ての組み合わせを試す」             │
-  │ n個の要素の全部分集合 = 2ⁿ 通り       │
+  │ "Try every combination"              │
+  │ All subsets of n elements = 2ⁿ       │
   │                                      │
-  │ 例:                                  │
-  │ - 素朴な再帰フィボナッチ              │
-  │ - 部分和問題の全探索                  │
-  │ - TSPの全探索                        │
+  │ Examples:                            │
+  │ - Naive recursive Fibonacci          │
+  │ - Subset sum brute force             │
+  │ - TSP brute force                    │
   └──────────────────────────────────────┘
 
-  O(n!) — 階乗時間:
+  O(n!) — Factorial time:
   ┌──────────────────────────────────────┐
-  │ 「全ての並べ方を試す」                 │
-  │ n個の要素の全順列 = n! 通り            │
+  │ "Try every permutation"              │
+  │ All orderings of n elements = n!     │
   │                                      │
-  │ 例:                                  │
-  │ - TSPの全探索（全順列を試す）          │
-  │ - 全順列の生成                        │
-  │ n=20 で 2.4×10¹⁸ → 実質不可能       │
+  │ Examples:                            │
+  │ - TSP brute force (all permutations) │
+  │ - Generating all permutations        │
+  │ n=20 gives 2.4×10¹⁸ → practically   │
+  │ impossible                           │
   └──────────────────────────────────────┘
 ```
 
 ---
 
-## 2. 計算量の求め方
+## 2. Determining Complexity
 
-### 2.1 基本パターン
+### 2.1 Basic Patterns
 
 ```python
-# パターン1: O(1) — 定数時間
+# Pattern 1: O(1) — Constant time
 def get_first(arr):
-    return arr[0]  # インデックスアクセスは O(1)
+    return arr[0]  # Index access is O(1)
 
-# パターン2: O(n) — 線形時間
+# Pattern 2: O(n) — Linear time
 def sum_array(arr):
     total = 0
-    for x in arr:      # n回ループ
-        total += x     # O(1) の操作
+    for x in arr:      # Loop n times
+        total += x     # O(1) operation
     return total
 # → O(n)
 
-# パターン3: O(n²) — 二重ループ
+# Pattern 3: O(n²) — Nested loop
 def has_duplicate(arr):
     n = len(arr)
-    for i in range(n):       # n回
-        for j in range(i+1, n):  # 最大 n-1 回
+    for i in range(n):       # n times
+        for j in range(i+1, n):  # up to n-1 times
             if arr[i] == arr[j]:
                 return True
     return False
 # → O(n × n) = O(n²)
 
-# パターン4: O(log n) — 半分に分割
+# Pattern 4: O(log n) — Halving
 def binary_search(arr, target):
     left, right = 0, len(arr) - 1
     while left <= right:
@@ -256,13 +259,13 @@ def binary_search(arr, target):
         if arr[mid] == target:
             return mid
         elif arr[mid] < target:
-            left = mid + 1     # 探索範囲が半分に
+            left = mid + 1     # Search space halved
         else:
-            right = mid - 1    # 探索範囲が半分に
+            right = mid - 1    # Search space halved
     return -1
-# → 毎回半分 → log₂(n) 回で終了 → O(log n)
+# → Halved each time → log₂(n) iterations → O(log n)
 
-# パターン5: O(n log n) — 分割統治
+# Pattern 5: O(n log n) — Divide and conquer
 def merge_sort(arr):
     if len(arr) <= 1:
         return arr
@@ -273,297 +276,306 @@ def merge_sort(arr):
 # T(n) = 2T(n/2) + O(n) → O(n log n)
 ```
 
-### 2.2 ループの計算量分析（詳細）
+### 2.2 Detailed Loop Complexity Analysis
 
 ```python
-# ケース1: 独立したループ → 加算
+# Case 1: Independent loops → Addition
 def example1(arr):
     n = len(arr)
 
-    # ループ1: O(n)
+    # Loop 1: O(n)
     for i in range(n):
         process(arr[i])
 
-    # ループ2: O(n)
+    # Loop 2: O(n)
     for i in range(n):
         process(arr[i])
 
-    # 合計: O(n) + O(n) = O(2n) = O(n)
-    # → 定数倍は無視
+    # Total: O(n) + O(n) = O(2n) = O(n)
+    # → Constant factors are ignored
 
-# ケース2: ネストしたループ → 乗算
+# Case 2: Nested loops → Multiplication
 def example2(arr):
     n = len(arr)
-    for i in range(n):        # n回
-        for j in range(n):    # n回
+    for i in range(n):        # n times
+        for j in range(n):    # n times
             process(arr[i], arr[j])
-    # 合計: O(n × n) = O(n²)
+    # Total: O(n × n) = O(n²)
 
-# ケース3: 内側ループがiに依存
+# Case 3: Inner loop depends on i
 def example3(arr):
     n = len(arr)
     for i in range(n):
-        for j in range(i):    # i回（0, 1, 2, ..., n-1）
+        for j in range(i):    # i times (0, 1, 2, ..., n-1)
             process(arr[i], arr[j])
-    # 合計: 0 + 1 + 2 + ... + (n-1) = n(n-1)/2 = O(n²)
+    # Total: 0 + 1 + 2 + ... + (n-1) = n(n-1)/2 = O(n²)
 
-# ケース4: ループ変数が倍増
+# Case 4: Loop variable doubles
 def example4(n):
     i = 1
     while i < n:
         process(i)
         i *= 2  # 1, 2, 4, 8, 16, ...
-    # 何回ループする？ 2^k = n → k = log₂(n)
-    # 合計: O(log n)
+    # How many iterations? 2^k = n → k = log₂(n)
+    # Total: O(log n)
 
-# ケース5: ループ変数が平方根に
+# Case 5: Loop variable takes square root
 def example5(n):
     i = n
     while i > 1:
         process(i)
         i = int(i ** 0.5)  # n, √n, n^(1/4), n^(1/8), ...
     # 2^(2^k) = n → k = log₂(log₂(n))
-    # 合計: O(log log n)
+    # Total: O(log log n)
 
-# ケース6: 二重ループだが合計はO(n)
+# Case 6: Double loop but total is O(n)
 def example6(arr):
-    """2ポインタの典型例"""
+    """Classic two-pointer example"""
     n = len(arr)
     j = 0
-    for i in range(n):         # n回
+    for i in range(n):         # n times
         while j < n and arr[j] < arr[i]:
-            j += 1             # jは全体でn回しか増えない
-    # 外側ループ: n回、j の増加: 合計n回
-    # 合計: O(n + n) = O(n) ← O(n²)ではない！
+            j += 1             # j increases at most n times total
+    # Outer loop: n times, j increments: n times total
+    # Total: O(n + n) = O(n) ← NOT O(n²)!
 
-# ケース7: 再帰でのO(2^n)
+# Case 7: O(2^n) with recursion
 def example7(n):
-    """フィボナッチの素朴な再帰"""
+    """Naive recursive Fibonacci"""
     if n <= 1:
         return n
     return example7(n-1) + example7(n-2)
     # T(n) = T(n-1) + T(n-2) + O(1)
     # T(n) ≈ 2T(n-1) → O(2^n)
-    # 正確には O(φ^n) where φ = (1+√5)/2 ≈ 1.618
+    # More precisely O(φ^n) where φ = (1+√5)/2 ≈ 1.618
 ```
 
-### 2.3 再帰の計算量 — マスター定理
+### 2.3 Recurrence Complexity — The Master Theorem
 
 ```
-マスター定理:
-  T(n) = a × T(n/b) + O(n^d) の形の再帰に対して:
+Master Theorem:
+  For recurrences of the form T(n) = a × T(n/b) + O(n^d):
 
   Case 1: d < log_b(a)  → T(n) = O(n^(log_b(a)))
   Case 2: d = log_b(a)  → T(n) = O(n^d × log n)
   Case 3: d > log_b(a)  → T(n) = O(n^d)
 
-  直感:
-  - Case 1: 再帰の「分岐」が支配的（葉の数が多い）
-  - Case 2: 各レベルの仕事量がバランス
-  - Case 3: 「結合」ステップが支配的（ルートの仕事が多い）
+  Intuition:
+  - Case 1: Recursive "branching" dominates (many leaves)
+  - Case 2: Work at each level is balanced
+  - Case 3: The "combine" step dominates (heavy work at the root)
 
-  適用例:
+  Application examples:
   ─────────────────────────────────────────────────
-  マージソート: T(n) = 2T(n/2) + O(n)
+  Merge sort: T(n) = 2T(n/2) + O(n)
     a=2, b=2, d=1 → log₂(2)=1=d → Case 2 → O(n log n) ✓
 
-  二分探索: T(n) = T(n/2) + O(1)
+  Binary search: T(n) = T(n/2) + O(1)
     a=1, b=2, d=0 → log₂(1)=0=d → Case 2 → O(log n) ✓
 
-  ストラッセンの行列乗算: T(n) = 7T(n/2) + O(n²)
+  Strassen's matrix multiplication: T(n) = 7T(n/2) + O(n²)
     a=7, b=2, d=2 → log₂(7)≈2.81 > 2 → Case 1 → O(n^2.81) ✓
 
-  最大値の分割統治: T(n) = 2T(n/2) + O(1)
+  Divide-and-conquer max: T(n) = 2T(n/2) + O(1)
     a=2, b=2, d=0 → log₂(2)=1 > 0 → Case 1 → O(n^1) = O(n) ✓
 
-  カラツバ法: T(n) = 3T(n/2) + O(n)
+  Karatsuba multiplication: T(n) = 3T(n/2) + O(n)
     a=3, b=2, d=1 → log₂(3)≈1.585 > 1 → Case 1 → O(n^1.585) ✓
 
-  線形探索（再帰版）: T(n) = T(n-1) + O(1)
-    → マスター定理は適用不可（n/b ではなく n-1）
-    → 直接展開: T(n) = T(n-1) + 1 = T(n-2) + 2 = ... = O(n)
+  Linear search (recursive): T(n) = T(n-1) + O(1)
+    → Master Theorem does not apply (n-1, not n/b)
+    → Direct expansion: T(n) = T(n-1) + 1 = T(n-2) + 2 = ... = O(n)
 ```
 
 ```
-マスター定理が適用できない場合:
+When the Master Theorem does not apply:
 
-  1. T(n) = T(n-1) + O(1) → 直接展開 → O(n)
-  2. T(n) = T(n-1) + O(n) → 直接展開 → O(n²)
+  1. T(n) = T(n-1) + O(1) → Direct expansion → O(n)
+  2. T(n) = T(n-1) + O(n) → Direct expansion → O(n²)
      T(n) = n + (n-1) + ... + 1 = n(n+1)/2
   3. T(n) = 2T(n-1) + O(1) → O(2^n)
-  4. T(n) = T(n/2) + O(n) → O(n)（マスター定理Case 3でも可）
-  5. T(n) = T(√n) + O(1) → 変数変換で解く
-     m = log n とすると T(2^m) = T(2^(m/2)) + O(1)
+  4. T(n) = T(n/2) + O(n) → O(n) (also via Master Theorem Case 3)
+  5. T(n) = T(√n) + O(1) → Solve via variable substitution
+     Let m = log n, then T(2^m) = T(2^(m/2)) + O(1)
      S(m) = S(m/2) + O(1) → O(log m) = O(log log n)
 
-  再帰ツリー法:
+  Recursion tree method:
   ┌──────────────────────────────────────┐
-  │ T(n) = 2T(n/2) + cn の場合           │
+  │ For T(n) = 2T(n/2) + cn:            │
   │                                      │
-  │ レベル0:        cn                    │
-  │                / \                    │
-  │ レベル1:    cn/2  cn/2     = cn       │
-  │            / \    / \                 │
-  │ レベル2: cn/4 ... cn/4    = cn       │
-  │          ...                         │
-  │ レベルk:   c × n個の葉   = cn       │
+  │ Level 0:        cn                   │
+  │                / \                   │
+  │ Level 1:    cn/2  cn/2     = cn      │
+  │            / \    / \                │
+  │ Level 2: cn/4 ... cn/4    = cn      │
+  │          ...                        │
+  │ Level k:   c × n leaves   = cn      │
   │                                      │
-  │ 高さ: log₂(n) レベル                  │
-  │ 各レベルの仕事: cn                    │
-  │ 合計: cn × log₂(n) = O(n log n) ✓    │
+  │ Height: log₂(n) levels              │
+  │ Work per level: cn                   │
+  │ Total: cn × log₂(n) = O(n log n) ✓  │
   └──────────────────────────────────────┘
 ```
 
-### 2.4 償却計算量（Amortized Analysis）
+### 2.4 Amortized Analysis
 
 ```python
-# 動的配列（Python list）の append は O(1)?
+# Is the append operation of a dynamic array (Python list) O(1)?
 
-# 実際の動作:
-# - 容量に余裕がある場合: O(1)
-# - 容量が足りない場合: O(n)（新しい配列にコピー）
+# Actual behavior:
+# - When capacity remains: O(1)
+# - When capacity is exceeded: O(n) (copy to new array)
 
-# 償却分析:
-# n回の append での総コスト:
+# Amortized analysis:
+# Total cost of n appends:
 # 1, 1, 1, ..., 1, n, 1, 1, ..., 1, 2n, ...
-#                  ↑ リサイズ          ↑ リサイズ
+#                  ↑ resize          ↑ resize
 #
-# 容量を2倍に拡張する場合:
-# 総コスト = n + (1 + 2 + 4 + ... + n) = n + 2n = 3n
-# 1回あたり = 3n / n = O(1)（償却）
+# When capacity doubles:
+# Total cost = n + (1 + 2 + 4 + ... + n) = n + 2n = 3n
+# Per operation = 3n / n = O(1) (amortized)
 #
-# → 個々の操作はO(1)〜O(n)だが、
-#   n回の操作全体で見るとO(n) → 1回あたりO(1)
+# → Individual operations range from O(1) to O(n),
+#   but n operations total O(n) → O(1) per operation
 
-# 他の償却O(1)の例:
-# - ハッシュテーブルの挿入（リハッシュ時にO(n)）
-# - Union-Find の操作（経路圧縮+ランク付き）
-# - 二進カウンタのインクリメント
+# Other examples of amortized O(1):
+# - Hash table insertion (O(n) during rehash)
+# - Union-Find operations (with path compression + union by rank)
+# - Binary counter increment
 ```
 
 ```
-償却分析の3つの手法:
+Three techniques for amortized analysis:
 
-  1. 集約法（Aggregate Method）
+  1. Aggregate Method
   ┌──────────────────────────────────────┐
-  │ n回の操作の合計コストTを求め、         │
-  │ 1回あたり T/n を償却コストとする       │
+  │ Compute total cost T for n           │
+  │ operations, then amortized cost      │
+  │ per operation is T/n                 │
   │                                      │
-  │ 例: 動的配列のappend                  │
-  │ n回の合計: O(n) → 1回あたり O(1)      │
+  │ Example: Dynamic array append        │
+  │ Total for n operations: O(n)         │
+  │ → O(1) per operation                 │
   └──────────────────────────────────────┘
 
-  2. 配分法（Accounting Method）
+  2. Accounting Method
   ┌──────────────────────────────────────┐
-  │ 各操作に「料金」を設定する              │
-  │ 安い操作は多めに、高い操作は少なめに    │
-  │ 前払いの「貯金」で高い操作をカバー      │
+  │ Assign a "charge" to each operation  │
+  │ Overcharge cheap operations,         │
+  │ undercharge expensive ones           │
+  │ Use prepaid "savings" to cover       │
+  │ expensive operations                 │
   │                                      │
-  │ 例: 動的配列のappend                  │
-  │ - 通常のappend: 3の料金を徴収          │
-  │   1: 実際の挿入、2: 将来のコピー用貯金 │
-  │ - リサイズ時: 貯金からコピー代を支払い  │
+  │ Example: Dynamic array append        │
+  │ - Normal append: charge 3            │
+  │   1: actual insertion,               │
+  │   2: savings for future copy         │
+  │ - On resize: pay copy cost from      │
+  │   savings                            │
   └──────────────────────────────────────┘
 
-  3. ポテンシャル法（Potential Method）
+  3. Potential Method
   ┌──────────────────────────────────────┐
-  │ データ構造の「ポテンシャル関数」Φを定義 │
-  │ 償却コスト = 実コスト + ΔΦ             │
+  │ Define a "potential function" Φ for  │
+  │ the data structure                   │
+  │ Amortized cost = actual cost + ΔΦ   │
   │                                      │
-  │ 例: 動的配列（サイズs, 容量c）         │
-  │ Φ = 2s - c（使用量の2倍 - 容量）      │
-  │ - 通常のappend:                       │
-  │   実コスト1 + ΔΦ=2 → 償却3            │
-  │ - リサイズ時:                          │
-  │   実コスト=s+1 + ΔΦ=-(s-1) → 償却2   │
+  │ Example: Dynamic array (size s,      │
+  │ capacity c)                          │
+  │ Φ = 2s - c (twice usage - capacity)  │
+  │ - Normal append:                     │
+  │   actual cost 1 + ΔΦ=2 → amortized 3│
+  │ - On resize:                         │
+  │   actual cost=s+1 + ΔΦ=-(s-1)       │
+  │   → amortized 2                      │
   └──────────────────────────────────────┘
 ```
 
 ---
 
-## 3. 空間計算量
+## 3. Space Complexity
 
-### 3.1 メモリ使用量の分析
+### 3.1 Analyzing Memory Usage
 
 ```python
-# 空間計算量: アルゴリズムが使用する追加メモリ量
+# Space complexity: Additional memory used by an algorithm
 
-# O(1) 空間: 入力以外に固定量のメモリ
+# O(1) space: Fixed amount of memory beyond input
 def find_max(arr):
-    max_val = arr[0]  # 変数1つだけ
+    max_val = arr[0]  # Only one variable
     for x in arr:
         if x > max_val:
             max_val = x
     return max_val
-# 空間: O(1) — max_val のみ
+# Space: O(1) — only max_val
 
-# O(n) 空間: 入力に比例するメモリ
+# O(n) space: Memory proportional to input
 def reverse_array(arr):
-    result = []        # 新しい配列
+    result = []        # New array
     for x in reversed(arr):
         result.append(x)
     return result
-# 空間: O(n) — result 配列
+# Space: O(n) — result array
 
-# O(n) 空間 (再帰のスタック)
+# O(n) space (recursive stack)
 def factorial(n):
     if n <= 1:
         return 1
     return n * factorial(n - 1)
-# 空間: O(n) — 再帰の深さが n（スタックフレーム n 個）
+# Space: O(n) — recursion depth is n (n stack frames)
 
-# O(log n) 空間
-# マージソートの再帰の深さ: O(log n)
-# ただし配列のコピーで O(n) 空間が必要
+# O(log n) space
+# Merge sort recursion depth: O(log n)
+# But O(n) space is needed for array copies
 
-# 時間と空間のトレードオフ:
-# 例: 重複チェック
-# 方法1: O(n²) 時間, O(1) 空間 — 全ペア比較
-# 方法2: O(n) 時間, O(n) 空間 — ハッシュセット使用
-# → メモリを使って速度を買う
+# Time-space tradeoff:
+# Example: Duplicate detection
+# Method 1: O(n²) time, O(1) space — all-pairs comparison
+# Method 2: O(n) time, O(n) space — using a hash set
+# → Trading memory for speed
 ```
 
-### 3.2 空間計算量の詳細な分析例
+### 3.2 Detailed Space Complexity Analysis
 
 ```python
-# 例1: インプレース vs 非インプレース
+# Example 1: In-place vs out-of-place
 
-# 非インプレース: O(n) 追加空間
+# Out-of-place: O(n) additional space
 def sorted_copy(arr):
-    return sorted(arr)  # 新しいリストを作成
+    return sorted(arr)  # Creates a new list
 
-# インプレース: O(1) 追加空間
+# In-place: O(1) additional space
 def sort_inplace(arr):
-    arr.sort()  # 元のリストを変更
+    arr.sort()  # Modifies the original list
 
-# 例2: 再帰の空間計算量
+# Example 2: Space complexity of recursion
 
-# O(n) 空間 — 再帰が深い
+# O(n) space — deep recursion
 def sum_recursive(arr, n):
     if n == 0:
         return 0
     return arr[n-1] + sum_recursive(arr, n-1)
-# コールスタック: n フレーム
+# Call stack: n frames
 
-# O(log n) 空間 — 再帰が浅い
+# O(log n) space — shallow recursion
 def sum_divide(arr, left, right):
     if left == right:
         return arr[left]
     mid = (left + right) // 2
     return sum_divide(arr, left, mid) + sum_divide(arr, mid+1, right)
-# コールスタック: log₂(n) フレーム
+# Call stack: log₂(n) frames
 
-# 例3: 末尾再帰最適化（TCO）
-# 一部の言語（Scheme, Scala等）では末尾再帰をO(1)空間に最適化
+# Example 3: Tail Call Optimization (TCO)
+# Some languages (Scheme, Scala, etc.) optimize tail recursion to O(1) space
 def factorial_tail(n, acc=1):
     if n <= 1:
         return acc
-    return factorial_tail(n - 1, n * acc)  # 末尾位置の再帰呼び出し
-# Pythonは末尾再帰最適化をサポートしない
-# → iterativeに書き直すのが一般的
+    return factorial_tail(n - 1, n * acc)  # Tail-position recursive call
+# Python does NOT support tail call optimization
+# → Converting to an iterative approach is standard practice
 
-# 例4: DPの空間最適化
-# 通常のDP: O(n × m)
+# Example 4: Space optimization in DP
+# Standard DP: O(n × m)
 def lcs_full(s1, s2):
     m, n = len(s1), len(s2)
     dp = [[0] * (n + 1) for _ in range(m + 1)]
@@ -574,9 +586,9 @@ def lcs_full(s1, s2):
             else:
                 dp[i][j] = max(dp[i-1][j], dp[i][j-1])
     return dp[m][n]
-# 空間: O(m × n)
+# Space: O(m × n)
 
-# 空間最適化DP: O(min(m, n))
+# Space-optimized DP: O(min(m, n))
 def lcs_optimized(s1, s2):
     if len(s1) < len(s2):
         s1, s2 = s2, s1
@@ -591,166 +603,169 @@ def lcs_optimized(s1, s2):
                 curr[j] = max(prev[j], curr[j-1])
         prev, curr = curr, [0] * (n + 1)
     return prev[n]
-# 空間: O(n) — 2行分だけ保持
+# Space: O(n) — only two rows retained
 ```
 
-### 3.3 実務でのメモリ考慮
+### 3.3 Memory Considerations in Practice
 
 ```
-メモリ使用量の実務的な目安:
+Practical guidelines for memory usage:
 
   ┌──────────────────┬───────────────────────────────┐
-  │ データ量         │ メモリ使用量の目安              │
+  │ Data volume      │ Approximate memory usage       │
   ├──────────────────┼───────────────────────────────┤
-  │ int配列 10^6    │ 約 4MB (32bit) / 8MB (64bit)  │
-  │ int配列 10^7    │ 約 40MB / 80MB                │
-  │ int配列 10^8    │ 約 400MB / 800MB              │
-  │ 2D配列 10^3×10^3│ 約 4MB / 8MB                  │
-  │ 2D配列 10^4×10^4│ 約 400MB / 800MB              │
-  │ 文字列 10^6文字 │ 約 1MB (ASCII) / 4MB (UTF-32) │
+  │ int array 10^6   │ ~4MB (32-bit) / 8MB (64-bit)  │
+  │ int array 10^7   │ ~40MB / 80MB                   │
+  │ int array 10^8   │ ~400MB / 800MB                 │
+  │ 2D array 10^3×10^3│ ~4MB / 8MB                    │
+  │ 2D array 10^4×10^4│ ~400MB / 800MB                │
+  │ string 10^6 chars│ ~1MB (ASCII) / 4MB (UTF-32)    │
   └──────────────────┴───────────────────────────────┘
 
-  メモリの階層と速度:
+  Memory hierarchy and speed:
   ┌───────────┬─────────────┬──────────────┐
-  │ レベル     │ サイズ       │ アクセス時間  │
+  │ Level     │ Size        │ Access time  │
   ├───────────┼─────────────┼──────────────┤
-  │ L1キャッシュ│ 32-64 KB   │ 1 ns         │
-  │ L2キャッシュ│ 256 KB-1MB │ 4 ns         │
-  │ L3キャッシュ│ 8-64 MB    │ 10 ns        │
-  │ メインメモリ│ 8-128 GB   │ 100 ns       │
+  │ L1 cache  │ 32-64 KB    │ 1 ns         │
+  │ L2 cache  │ 256 KB-1MB  │ 4 ns         │
+  │ L3 cache  │ 8-64 MB     │ 10 ns        │
+  │ Main RAM  │ 8-128 GB    │ 100 ns       │
   │ SSD       │ 256GB-4TB   │ 100 μs       │
-  │ HDD       │ 1-20 TB    │ 10 ms        │
+  │ HDD       │ 1-20 TB     │ 10 ms        │
   └───────────┴─────────────┴──────────────┘
 
-  → O(n) のアルゴリズムでも、キャッシュに収まるかどうかで
-    実測の速度が10-100倍変わることがある！
+  → Even an O(n) algorithm can see 10-100x difference
+    in measured speed depending on whether data fits in cache!
 
-  メモリ節約のテクニック:
-  1. ストリーミング処理（全データをメモリに載せない）
-  2. ジェネレータ/イテレータの活用
-  3. ビットボードの使用（ブーリアン配列の代わり）
-  4. DPテーブルの空間最適化（全行→2行）
-  5. 外部メモリアルゴリズム（ディスクを活用）
+  Memory-saving techniques:
+  1. Streaming (avoid loading all data into memory)
+  2. Use generators/iterators
+  3. Use bitboards (instead of boolean arrays)
+  4. Space-optimize DP tables (full table → 2 rows)
+  5. External memory algorithms (leverage disk)
 ```
 
 ---
 
-## 4. 実務での計算量
+## 4. Complexity in Practice
 
-### 4.1 制約から計算量を逆算する
+### 4.1 Reverse-Engineering Complexity from Constraints
 
 ```
-競技プログラミング / 実務での目安:
+Guidelines for competitive programming / real-world applications:
 
-  1秒あたりの処理可能な演算数: 約 10^8 〜 10^9
+  Operations per second: approximately 10^8 to 10^9
 
   ┌──────────┬──────────────────┬──────────────────┐
-  │ データ量  │ 許容計算量        │ 使えるアルゴリズム │
+  │ Data size│ Allowable        │ Usable           │
+  │          │ complexity       │ algorithms       │
   ├──────────┼──────────────────┼──────────────────┤
-  │ n ≤ 10   │ O(n!) ← OK      │ 全探索            │
-  │ n ≤ 20   │ O(2ⁿ) ← OK     │ ビット全探索       │
-  │ n ≤ 500  │ O(n³) ← OK     │ 3重ループ          │
-  │ n ≤ 5000 │ O(n²) ← OK     │ 2重ループ          │
-  │ n ≤ 10⁶  │ O(n log n) ← OK│ ソート, 二分探索   │
-  │ n ≤ 10⁸  │ O(n) ← OK      │ 線形走査           │
-  │ n ≤ 10¹⁸ │ O(log n) ← OK  │ 二分探索, 数学     │
+  │ n ≤ 10   │ O(n!) ← OK      │ Brute force      │
+  │ n ≤ 20   │ O(2ⁿ) ← OK     │ Bitmask brute    │
+  │ n ≤ 500  │ O(n³) ← OK     │ Triple loop      │
+  │ n ≤ 5000 │ O(n²) ← OK     │ Double loop      │
+  │ n ≤ 10⁶  │ O(n log n) ← OK│ Sort, binary     │
+  │          │                  │ search           │
+  │ n ≤ 10⁸  │ O(n) ← OK      │ Linear scan      │
+  │ n ≤ 10¹⁸ │ O(log n) ← OK  │ Binary search,   │
+  │          │                  │ math             │
   └──────────┴──────────────────┴──────────────────┘
 
-  実務のWebアプリケーション:
-  - APIレスポンス: 100ms以内 → O(n log n) まで（n=数万程度）
-  - バッチ処理: 分〜時間 → O(n²) でも許容される場合あり
-  - リアルタイム: 16ms以内(60fps) → O(n) 以下が望ましい
-  - データベースクエリ: O(log n) のインデックスが基本
+  Real-world web applications:
+  - API response: within 100ms → up to O(n log n) (n ~ tens of thousands)
+  - Batch processing: minutes to hours → O(n²) may be acceptable
+  - Real-time: within 16ms (60fps) → O(n) or better preferred
+  - Database queries: O(log n) index-based access is standard
 ```
 
-### 4.2 よくある最適化パターン
+### 4.2 Common Optimization Patterns
 
 ```python
-# O(n²) → O(n) に改善する定番パターン
+# Classic patterns for improving O(n²) → O(n)
 
-# パターン1: ハッシュマップで探索を O(1) に
-# 問題: 配列から合計が target になるペアを見つける
+# Pattern 1: Hash map for O(1) lookup
+# Problem: Find a pair in an array that sums to target
 
-# ❌ O(n²): 全ペア探索
+# ❌ O(n²): Brute force all pairs
 def two_sum_brute(nums, target):
     for i in range(len(nums)):
         for j in range(i+1, len(nums)):
             if nums[i] + nums[j] == target:
                 return [i, j]
 
-# ✅ O(n): ハッシュマップ
+# ✅ O(n): Hash map
 def two_sum_hash(nums, target):
-    seen = {}  # 値 → インデックス
+    seen = {}  # value → index
     for i, num in enumerate(nums):
         complement = target - num
-        if complement in seen:  # O(1) ルックアップ
+        if complement in seen:  # O(1) lookup
             return [seen[complement], i]
         seen[num] = i
 
-# パターン2: ソートして二分探索
-# 問題: ソート済み配列で target 以上の最小値を見つける
+# Pattern 2: Sort then binary search
+# Problem: Find the smallest value >= target in a sorted array
 
-# ❌ O(n): 線形探索
+# ❌ O(n): Linear search
 def find_ceiling_linear(arr, target):
     for x in arr:
         if x >= target:
             return x
 
-# ✅ O(log n): 二分探索
+# ✅ O(log n): Binary search
 import bisect
 def find_ceiling_binary(arr, target):
     idx = bisect.bisect_left(arr, target)
     return arr[idx] if idx < len(arr) else None
 
-# パターン3: スライディングウィンドウ
-# 問題: 長さ k の連続部分配列の最大合計
+# Pattern 3: Sliding window
+# Problem: Maximum sum of a contiguous subarray of length k
 
-# ❌ O(nk): 毎回合計を計算
+# ❌ O(nk): Recompute sum each time
 def max_sum_brute(arr, k):
     max_sum = 0
     for i in range(len(arr) - k + 1):
         max_sum = max(max_sum, sum(arr[i:i+k]))
     return max_sum
 
-# ✅ O(n): ウィンドウをスライド
+# ✅ O(n): Slide the window
 def max_sum_sliding(arr, k):
     window = sum(arr[:k])
     max_sum = window
     for i in range(k, len(arr)):
-        window += arr[i] - arr[i-k]  # 追加と削除
+        window += arr[i] - arr[i-k]  # Add and remove
         max_sum = max(max_sum, window)
     return max_sum
 ```
 
-### 4.3 さらなる最適化パターン
+### 4.3 Additional Optimization Patterns
 
 ```python
-# パターン4: 前計算（Prefix Sum）
-# 問題: 区間 [l, r] の合計をQ回クエリされる
+# Pattern 4: Prefix sum (precomputation)
+# Problem: Answer Q range-sum queries over interval [l, r]
 
-# ❌ O(n × Q): 毎回合計を計算
+# ❌ O(n × Q): Recompute sum each time
 def range_sum_brute(arr, queries):
     results = []
     for l, r in queries:
         results.append(sum(arr[l:r+1]))  # O(n)
     return results
 
-# ✅ O(n + Q): 前計算で O(1) クエリ
+# ✅ O(n + Q): Precompute for O(1) queries
 def range_sum_prefix(arr, queries):
     n = len(arr)
     prefix = [0] * (n + 1)
     for i in range(n):
-        prefix[i+1] = prefix[i] + arr[i]  # 前計算 O(n)
+        prefix[i+1] = prefix[i] + arr[i]  # Precompute O(n)
 
     results = []
     for l, r in queries:
         results.append(prefix[r+1] - prefix[l])  # O(1)
     return results
 
-# パターン5: 二ポインタ
-# 問題: ソート済み配列で条件を満たすペアを見つける
+# Pattern 5: Two pointers
+# Problem: Find pairs satisfying a condition in a sorted array
 
-# ❌ O(n²): 全ペア
+# ❌ O(n²): All pairs
 def count_pairs_brute(arr, target):
     count = 0
     for i in range(len(arr)):
@@ -759,22 +774,22 @@ def count_pairs_brute(arr, target):
                 count += 1
     return count
 
-# ✅ O(n): 二ポインタ（ソート済み前提）
+# ✅ O(n): Two pointers (assumes sorted input)
 def count_pairs_two_pointer(arr, target):
     count = 0
     left, right = 0, len(arr) - 1
     while left < right:
         if arr[left] + arr[right] <= target:
-            count += right - left  # left と left+1...right の全ペア
+            count += right - left  # All pairs with left and left+1...right
             left += 1
         else:
             right -= 1
     return count
 
-# パターン6: 累積最大値/最小値の前計算
-# 問題: 株式売買の最大利益
+# Pattern 6: Running min/max precomputation
+# Problem: Maximum profit from stock trading
 
-# ❌ O(n²): 全ペアの売買を比較
+# ❌ O(n²): Compare all buy-sell pairs
 def max_profit_brute(prices):
     max_p = 0
     for i in range(len(prices)):
@@ -782,7 +797,7 @@ def max_profit_brute(prices):
             max_p = max(max_p, prices[j] - prices[i])
     return max_p
 
-# ✅ O(n): 最小値を追跡しながら走査
+# ✅ O(n): Track minimum while scanning
 def max_profit_optimal(prices):
     min_price = float('inf')
     max_profit = 0
@@ -791,10 +806,10 @@ def max_profit_optimal(prices):
         max_profit = max(max_profit, price - min_price)
     return max_profit
 
-# パターン7: 単調スタック
-# 問題: 各要素の「右側で最初に大きい要素」を求める
+# Pattern 7: Monotonic stack
+# Problem: Find the "next greater element" to the right of each element
 
-# ❌ O(n²): 各要素から右方向に線形探索
+# ❌ O(n²): Linear scan to the right for each element
 def next_greater_brute(arr):
     n = len(arr)
     result = [-1] * n
@@ -805,139 +820,147 @@ def next_greater_brute(arr):
                 break
     return result
 
-# ✅ O(n): 単調スタック
+# ✅ O(n): Monotonic stack
 def next_greater_stack(arr):
     n = len(arr)
     result = [-1] * n
-    stack = []  # インデックスのスタック
+    stack = []  # Stack of indices
     for i in range(n):
         while stack and arr[i] > arr[stack[-1]]:
             result[stack.pop()] = arr[i]
         stack.append(i)
     return result
-# スタックへのpush/popは各要素1回ずつ → O(n)
+# Each element is pushed/popped from the stack at most once → O(n)
 ```
 
 ---
 
-## 5. Big-O以外の漸近記法
+## 5. Asymptotic Notations Beyond Big-O
 
-### 5.1 Ω記法とΘ記法
+### 5.1 Omega and Theta Notations
 
 ```
-3つの漸近記法:
+Three asymptotic notations:
 
-  O（Big-O）:  上界 — 「最悪でもこの程度」
+  O (Big-O):  Upper bound — "at most this much"
     f(n) = O(g(n)) → f(n) ≤ c × g(n)
 
-  Ω（Big-Omega）: 下界 — 「少なくともこの程度」
+  Ω (Big-Omega): Lower bound — "at least this much"
     f(n) = Ω(g(n)) → f(n) ≥ c × g(n)
 
-  Θ（Big-Theta）: 厳密な境界 — 「ちょうどこの程度」
-    f(n) = Θ(g(n)) → f(n) = O(g(n)) かつ f(n) = Ω(g(n))
+  Θ (Big-Theta): Tight bound — "exactly this much"
+    f(n) = Θ(g(n)) → f(n) = O(g(n)) and f(n) = Ω(g(n))
 
-  例:
-  比較ベースのソートの下界:  Ω(n log n)
-  → どんなに工夫しても O(n log n) 未満にはできない
+  Example:
+  Lower bound for comparison-based sorting:  Ω(n log n)
+  → No matter what tricks are used, it cannot be faster than O(n log n)
 
-  マージソート: Θ(n log n) — 最悪・平均・最良が全て同じ
-  クイックソート: O(n²) 最悪、Θ(n log n) 平均
+  Merge sort: Θ(n log n) — worst, average, and best are all the same
+  Quick sort: O(n²) worst case, Θ(n log n) average
 
-  実務では:
-  - Big-O（上界）が最も重要 → 最悪のケースを保証
-  - 平均計算量も重要 → 実際のパフォーマンス
-  - 最良計算量はあまり重要でない → 「運が良い場合」
+  In practice:
+  - Big-O (upper bound) is most important → guarantees worst case
+  - Average complexity is also important → predicts actual performance
+  - Best-case complexity is rarely important → "lucky case"
 ```
 
-### 5.2 o記法とω記法（小文字）
+### 5.2 Little-o and Little-omega Notations
 
 ```
-小文字の漸近記法（あまり使わないが知っておくと有益）:
+Lowercase asymptotic notations (rarely used but helpful to know):
 
-  o（Little-o）:  厳密な上界
+  o (Little-o):  Strict upper bound
     f(n) = o(g(n)) → lim(n→∞) f(n)/g(n) = 0
-    「f(n) は g(n) より真に遅い成長率」
+    "f(n) grows strictly slower than g(n)"
 
-    例: n = o(n²)  — n は n² より真に遅く成長する
-        n² ≠ o(n²) — n² は n² と同じ成長率
+    Example: n = o(n²)  — n grows strictly slower than n²
+             n² ≠ o(n²) — n² grows at the same rate as n²
 
-  ω（Little-omega）:  厳密な下界
+  ω (Little-omega):  Strict lower bound
     f(n) = ω(g(n)) → lim(n→∞) f(n)/g(n) = ∞
 
-    例: n² = ω(n)  — n² は n より真に速く成長する
+    Example: n² = ω(n)  — n² grows strictly faster than n
 
-  関係のまとめ:
+  Summary of relationships:
   ┌───────┬────────────────────────────────┐
-  │ 記法  │ 比喩                            │
+  │ Notn. │ Analogy                        │
   ├───────┼────────────────────────────────┤
-  │ O     │ ≤ （以下）                      │
-  │ Ω     │ ≥ （以上）                      │
-  │ Θ     │ = （等しい、定数倍の範囲で）     │
-  │ o     │ < （真に小さい）                │
-  │ ω     │ > （真に大きい）                │
+  │ O     │ ≤ (at most)                    │
+  │ Ω     │ ≥ (at least)                   │
+  │ Θ     │ = (equal, up to constant)      │
+  │ o     │ < (strictly less than)         │
+  │ ω     │ > (strictly greater than)      │
   └───────┴────────────────────────────────┘
 ```
 
-### 5.3 最悪・平均・最良計算量
+### 5.3 Worst, Average, and Best-Case Complexity
 
 ```
-3つの計算量の意味:
+Meaning of the three cases:
 
-  最悪計算量（Worst Case）:
+  Worst-case complexity:
   ┌──────────────────────────────────────┐
-  │ 最も不運な入力での実行時間             │
-  │ → 性能の「保証」として最も重要         │
-  │ → Big-O は通常これを指す              │
+  │ Execution time on the most           │
+  │ unfavorable input                    │
+  │ → Most important as a performance    │
+  │   "guarantee"                        │
+  │ → Big-O typically refers to this     │
   │                                      │
-  │ 例: クイックソート O(n²)               │
-  │    → ソート済み配列で最悪ケース発生    │
+  │ Example: Quick sort O(n²)            │
+  │    → Worst case occurs on already    │
+  │      sorted arrays                   │
   └──────────────────────────────────────┘
 
-  平均計算量（Average Case）:
+  Average-case complexity:
   ┌──────────────────────────────────────┐
-  │ ランダムな入力での期待実行時間         │
-  │ → 実際のパフォーマンスの予測に有用     │
-  │ → 入力の確率分布の仮定が必要           │
+  │ Expected execution time on random    │
+  │ input                                │
+  │ → Useful for predicting actual       │
+  │   performance                        │
+  │ → Requires assumptions about input   │
+  │   probability distribution           │
   │                                      │
-  │ 例: クイックソート O(n log n)           │
-  │    → ランダム入力では高速              │
+  │ Example: Quick sort O(n log n)       │
+  │    → Fast on random input            │
   └──────────────────────────────────────┘
 
-  最良計算量（Best Case）:
+  Best-case complexity:
   ┌──────────────────────────────────────┐
-  │ 最も幸運な入力での実行時間             │
-  │ → 実用上はあまり意味がない             │
+  │ Execution time on the most           │
+  │ favorable input                      │
+  │ → Rarely meaningful in practice      │
   │                                      │
-  │ 例: 挿入ソート O(n)                    │
-  │    → ソート済み入力で最良ケース        │
-  │    → 「ほぼソート済み」のデータに有用   │
+  │ Example: Insertion sort O(n)         │
+  │    → Best case on already sorted     │
+  │      input                           │
+  │    → Useful for "nearly sorted" data │
   └──────────────────────────────────────┘
 
-  主要アルゴリズムの3つの計算量:
+  The three complexities for major algorithms:
   ┌────────────────┬─────────┬──────────┬─────────┐
-  │ アルゴリズム    │ 最良     │ 平均      │ 最悪    │
+  │ Algorithm      │ Best    │ Average  │ Worst   │
   ├────────────────┼─────────┼──────────┼─────────┤
-  │ 二分探索       │ O(1)    │ O(log n) │ O(log n)│
-  │ 線形探索       │ O(1)    │ O(n)     │ O(n)    │
-  │ 挿入ソート     │ O(n)    │ O(n²)   │ O(n²)  │
-  │ マージソート   │ O(n logn)│O(n logn) │O(n logn)│
-  │ クイックソート │ O(n logn)│O(n logn) │ O(n²)  │
-  │ ハッシュ探索   │ O(1)    │ O(1)     │ O(n)    │
-  │ ヒープの挿入   │ O(1)    │ O(log n) │ O(log n)│
+  │ Binary search  │ O(1)    │ O(log n) │ O(log n)│
+  │ Linear search  │ O(1)    │ O(n)     │ O(n)    │
+  │ Insertion sort │ O(n)    │ O(n²)   │ O(n²)  │
+  │ Merge sort     │ O(n logn)│O(n logn) │O(n logn)│
+  │ Quick sort     │ O(n logn)│O(n logn) │ O(n²)  │
+  │ Hash lookup    │ O(1)    │ O(1)     │ O(n)    │
+  │ Heap insert    │ O(1)    │ O(log n) │ O(log n)│
   └────────────────┴─────────┴──────────┴─────────┘
 ```
 
 ---
 
-## 6. 計算量解析の実践的なテクニック
+## 6. Practical Techniques for Complexity Analysis
 
-### 6.1 ログの性質の復習
+### 6.1 Review of Logarithm Properties
 
 ```
-対数の重要な性質（計算量解析で頻出）:
+Important properties of logarithms (frequently used in complexity analysis):
 
   1. log(a × b) = log(a) + log(b)
-     → ループ内の掛け算は加算に分解可能
+     → Multiplication inside loops can be decomposed into addition
 
   2. log(a / b) = log(a) - log(b)
 
@@ -945,12 +968,12 @@ def next_greater_stack(arr):
      → log(n²) = 2 × log(n) = O(log n)
 
   4. log(n!) = n × log(n) - n + O(log n) ≈ n × log(n)
-     → スターリングの近似の帰結
+     → Consequence of Stirling's approximation
 
-  5. 底の変換: log_a(n) = log_b(n) / log_b(a)
-     → Big-O では底は無関係: O(log₂n) = O(log₁₀n) = O(ln n)
+  5. Base conversion: log_a(n) = log_b(n) / log_b(a)
+     → In Big-O, the base is irrelevant: O(log₂n) = O(log₁₀n) = O(ln n)
 
-  実用的な覚え方:
+  Practical reference values:
   - log₂(10) ≈ 3.32
   - log₂(100) ≈ 6.64
   - log₂(1000) ≈ 10
@@ -958,153 +981,158 @@ def next_greater_stack(arr):
   - log₂(10⁹) ≈ 30
   - log₂(10¹⁸) ≈ 60
 
-  → 10億のデータでも二分探索は30回で終わる！
+  → Even 1 billion items can be searched in just 30 steps with binary search!
 ```
 
-### 6.2 計算量解析のよくある間違い
+### 6.2 Common Mistakes in Complexity Analysis
 
 ```
-間違いやすいポイント:
+Error-prone areas:
 
-  1. 入力サイズの取り違え
+  1. Confusing input size
   ┌──────────────────────────────────────┐
-  │ ❌ "sort() は O(n log n)"            │
-  │ → n は何のn？配列の長さ？文字列の長さ？│
+  │ ❌ "sort() is O(n log n)"           │
+  │ → What is n? Array length? String    │
+  │   length?                            │
   │                                      │
-  │ ✅ "sort() は配列の長さをnとしてO(n log n)"│
+  │ ✅ "sort() is O(n log n) where n is  │
+  │    the array length"                 │
   └──────────────────────────────────────┘
 
-  2. ハッシュ操作の計算量
+  2. Hash operation complexity
   ┌──────────────────────────────────────┐
-  │ ❌ "ハッシュテーブルの操作はO(1)"     │
-  │ → 期待値O(1)、最悪O(n)               │
-  │ → キーの比較コストも含めるべき         │
-  │   （文字列キーなら O(L)、L=文字列長）  │
+  │ ❌ "Hash table operations are O(1)"  │
+  │ → Expected O(1), worst case O(n)     │
+  │ → Key comparison cost should be      │
+  │   included (O(L) for string keys,    │
+  │   L = string length)                 │
   └──────────────────────────────────────┘
 
-  3. 再帰のスタック空間を忘れる
+  3. Forgetting recursive stack space
   ┌──────────────────────────────────────┐
-  │ ❌ "DFSの空間計算量はO(1)"           │
-  │ → 再帰の深さ分のスタック O(V) が必要  │
+  │ ❌ "DFS space complexity is O(1)"    │
+  │ → Stack space O(V) is required for   │
+  │   recursion depth                    │
   └──────────────────────────────────────┘
 
-  4. 文字列操作のコスト
+  4. Cost of string operations
   ┌──────────────────────────────────────┐
-  │ ❌ s += "a" を n 回 → O(n)          │
-  │ → Pythonでは文字列は不変なので       │
-  │   毎回新しい文字列を作成: O(n²)!     │
+  │ ❌ s += "a" repeated n times → O(n)  │
+  │ → In Python, strings are immutable   │
+  │   so a new string is created each    │
+  │   time: O(n²)!                       │
   │                                      │
   │ ✅ parts = []; parts.append("a") ×n  │
-  │   → ''.join(parts) で最後に結合: O(n)│
+  │   → ''.join(parts) at the end: O(n)  │
   └──────────────────────────────────────┘
 
-  5. リストの操作コスト
+  5. List operation costs
   ┌──────────────────────────────────────┐
-  │ 操作                │ Python list     │
+  │ Operation            │ Python list   │
   │ ──────────────────── │ ───────────── │
-  │ append              │ O(1) 償却       │
-  │ pop()               │ O(1)            │
-  │ pop(0) / insert(0,x)│ O(n)!           │
-  │ x in list           │ O(n)            │
-  │ list[i]             │ O(1)            │
-  │ list.sort()         │ O(n log n)      │
-  │ len(list)           │ O(1)            │
-  │ list.copy()         │ O(n)            │
-  │ list + list         │ O(n + m)        │
+  │ append               │ O(1) amortized│
+  │ pop()                │ O(1)          │
+  │ pop(0) / insert(0,x) │ O(n)!         │
+  │ x in list            │ O(n)          │
+  │ list[i]              │ O(1)          │
+  │ list.sort()          │ O(n log n)    │
+  │ len(list)            │ O(1)          │
+  │ list.copy()          │ O(n)          │
+  │ list + list          │ O(n + m)      │
   └──────────────────────────────────────┘
 ```
 
-### 6.3 各言語のデータ構造の計算量
+### 6.3 Complexity of Data Structures by Language
 
 ```
-主要なデータ構造の計算量まとめ:
+Summary of complexity for major data structures:
 
   Python:
   ┌──────────────┬───────┬──────────┬──────────┬──────────┐
-  │ 操作         │ list  │ dict     │ set      │ deque    │
+  │ Operation    │ list  │ dict     │ set      │ deque    │
   ├──────────────┼───────┼──────────┼──────────┼──────────┤
-  │ アクセス     │ O(1)  │ O(1) 期待│ -        │ O(1)     │
-  │ 検索         │ O(n)  │ O(1) 期待│ O(1) 期待│ O(n)     │
-  │ 先頭に挿入   │ O(n)  │ -        │ -        │ O(1)     │
-  │ 末尾に挿入   │ O(1)* │ O(1) 期待│ O(1) 期待│ O(1)     │
-  │ 先頭を削除   │ O(n)  │ -        │ -        │ O(1)     │
-  │ 末尾を削除   │ O(1)  │ O(1) 期待│ O(1) 期待│ O(1)     │
-  │ ソート       │O(nlogn)│ -       │ -        │ -        │
+  │ Access       │ O(1)  │ O(1) exp.│ -        │ O(1)     │
+  │ Search       │ O(n)  │ O(1) exp.│ O(1) exp.│ O(n)     │
+  │ Insert front │ O(n)  │ -        │ -        │ O(1)     │
+  │ Insert back  │ O(1)* │ O(1) exp.│ O(1) exp.│ O(1)     │
+  │ Delete front │ O(n)  │ -        │ -        │ O(1)     │
+  │ Delete back  │ O(1)  │ O(1) exp.│ O(1) exp.│ O(1)     │
+  │ Sort         │O(nlogn)│ -       │ -        │ -        │
   └──────────────┴───────┴──────────┴──────────┴──────────┘
-  * 償却 O(1)
+  * Amortized O(1)
 
   Java:
   ┌──────────────┬─────────┬──────────┬──────────┬──────────┐
-  │ 操作         │ArrayList│ HashMap  │ TreeMap  │LinkedList│
+  │ Operation    │ArrayList│ HashMap  │ TreeMap  │LinkedList│
   ├──────────────┼─────────┼──────────┼──────────┼──────────┤
-  │ アクセス     │ O(1)    │ O(1) 期待│ O(log n) │ O(n)     │
-  │ 検索         │ O(n)    │ O(1) 期待│ O(log n) │ O(n)     │
-  │ 挿入         │ O(1)*   │ O(1) 期待│ O(log n) │ O(1)     │
-  │ 削除         │ O(n)    │ O(1) 期待│ O(log n) │ O(1)     │
+  │ Access       │ O(1)    │ O(1) exp.│ O(log n) │ O(n)     │
+  │ Search       │ O(n)    │ O(1) exp.│ O(log n) │ O(n)     │
+  │ Insert       │ O(1)*   │ O(1) exp.│ O(log n) │ O(1)     │
+  │ Delete       │ O(n)    │ O(1) exp.│ O(log n) │ O(1)     │
   └──────────────┴─────────┴──────────┴──────────┴──────────┘
 
-  → データ構造の選択で計算量が劇的に変わる！
-  → 適切なデータ構造を選ぶことがアルゴリズム設計の半分
+  → Data structure choice can dramatically change complexity!
+  → Choosing the right data structure is half of algorithm design
 ```
 
 ---
 
-## 7. 実践演習
+## 7. Practice Exercises
 
-### 演習1: 計算量の判定（基礎）
-以下のコードの時間計算量と空間計算量を求めよ:
-1. 配列の全ての2要素の組を出力するコード
-2. 再帰的な二分探索
-3. フィボナッチ数列の再帰的計算（メモ化なし vs あり）
-4. 3重ネストのループで内側ループ変数が外側に依存する場合
+### Exercise 1: Determining Complexity (Basics)
+Determine the time and space complexity of the following:
+1. Code that prints all 2-element combinations of an array
+2. Recursive binary search
+3. Recursive Fibonacci computation (without vs. with memoization)
+4. Triple-nested loops where the inner loop variable depends on the outer ones
 
-### 演習2: 計算量の改善（応用）
-O(n³) のアルゴリズム（3つの配列からの3Sum問題）を O(n²) に改善せよ。
+### Exercise 2: Improving Complexity (Applied)
+Improve an O(n^3) algorithm (3Sum problem using three arrays) to O(n^2).
 
-### 演習3: マスター定理の適用（応用）
-以下の再帰関係式の計算量をマスター定理または再帰ツリー法で求めよ:
+### Exercise 3: Applying the Master Theorem (Applied)
+Use the Master Theorem or the recursion tree method to determine the complexity of:
 1. T(n) = 4T(n/2) + O(n)
 2. T(n) = T(n/3) + T(2n/3) + O(n)
 3. T(n) = 2T(n/2) + O(n log n)
 
-### 演習4: 償却分析（発展）
-スタック2つを使ったキューの実装で、各操作が償却 O(1) であることを証明せよ。ポテンシャル法を用いること。
+### Exercise 4: Amortized Analysis (Advanced)
+Prove that each operation of a queue implemented with two stacks has amortized O(1) complexity. Use the potential method.
 
-### 演習5: 実測と理論の比較（発展）
-以下のアルゴリズムを実装し、入力サイズを変えて実行時間を計測せよ。計測結果と理論的な計算量を比較し、差がある場合はその原因を分析せよ:
-1. バブルソート vs マージソート vs クイックソート
-2. 線形探索 vs 二分探索 vs ハッシュテーブル探索
+### Exercise 5: Comparing Measured and Theoretical Results (Advanced)
+Implement the following algorithms, measure execution time for varying input sizes, and compare the results with theoretical complexity. If differences exist, analyze their causes:
+1. Bubble sort vs. merge sort vs. quick sort
+2. Linear search vs. binary search vs. hash table lookup
 
 
 ---
 
-## トラブルシューティング
+## Troubleshooting
 
-### よくあるエラーと解決策
+### Common Errors and Solutions
 
-| エラー | 原因 | 解決策 |
-|--------|------|--------|
-| 初期化エラー | 設定ファイルの不備 | 設定ファイルのパスと形式を確認 |
-| タイムアウト | ネットワーク遅延/リソース不足 | タイムアウト値の調整、リトライ処理の追加 |
-| メモリ不足 | データ量の増大 | バッチ処理の導入、ページネーションの実装 |
-| 権限エラー | アクセス権限の不足 | 実行ユーザーの権限確認、設定の見直し |
-| データ不整合 | 並行処理の競合 | ロック機構の導入、トランザクション管理 |
+| Error | Cause | Solution |
+|-------|-------|----------|
+| Initialization error | Configuration file issues | Verify configuration file path and format |
+| Timeout | Network latency/insufficient resources | Adjust timeout values, add retry logic |
+| Out of memory | Data volume growth | Introduce batch processing, implement pagination |
+| Permission error | Insufficient access rights | Verify execution user permissions, review settings |
+| Data inconsistency | Concurrent processing conflicts | Introduce locking, implement transaction management |
 
-### デバッグの手順
+### Debugging Procedure
 
-1. **エラーメッセージの確認**: スタックトレースを読み、発生箇所を特定する
-2. **再現手順の確立**: 最小限のコードでエラーを再現する
-3. **仮説の立案**: 考えられる原因をリストアップする
-4. **段階的な検証**: ログ出力やデバッガを使って仮説を検証する
-5. **修正と回帰テスト**: 修正後、関連する箇所のテストも実行する
+1. **Check the error message**: Read the stack trace to identify the location of the error
+2. **Establish reproduction steps**: Reproduce the error with minimal code
+3. **Formulate hypotheses**: List possible causes
+4. **Verify step by step**: Use logging or a debugger to test hypotheses
+5. **Fix and regression test**: After fixing, run tests on related areas as well
 
 ```python
-# デバッグ用ユーティリティ
+# Debugging utility
 import logging
 import traceback
 from functools import wraps
 
-# ロガーの設定
+# Logger configuration
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
@@ -1112,102 +1140,102 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def debug_decorator(func):
-    """関数の入出力をログ出力するデコレータ"""
+    """Decorator that logs function inputs and outputs"""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        logger.debug(f"呼び出し: {func.__name__}(args={args}, kwargs={kwargs})")
+        logger.debug(f"Call: {func.__name__}(args={args}, kwargs={kwargs})")
         try:
             result = func(*args, **kwargs)
-            logger.debug(f"戻り値: {func.__name__} -> {result}")
+            logger.debug(f"Return: {func.__name__} -> {result}")
             return result
         except Exception as e:
-            logger.error(f"例外発生: {func.__name__}: {e}")
+            logger.error(f"Exception in {func.__name__}: {e}")
             logger.error(traceback.format_exc())
             raise
     return wrapper
 
 @debug_decorator
 def process_data(items):
-    """データ処理（デバッグ対象）"""
+    """Data processing (debug target)"""
     if not items:
-        raise ValueError("空のデータ")
+        raise ValueError("Empty data")
     return [item * 2 for item in items]
 ```
 
-### パフォーマンス問題の診断
+### Diagnosing Performance Issues
 
-パフォーマンス問題が発生した場合の診断手順:
+Steps to diagnose performance problems:
 
-1. **ボトルネックの特定**: プロファイリングツールで計測
-2. **メモリ使用量の確認**: メモリリークの有無をチェック
-3. **I/O待ちの確認**: ディスクやネットワークI/Oの状況を確認
-4. **同時接続数の確認**: コネクションプールの状態を確認
+1. **Identify the bottleneck**: Measure with profiling tools
+2. **Check memory usage**: Verify the presence of memory leaks
+3. **Check I/O waits**: Examine disk and network I/O conditions
+4. **Check connection count**: Inspect connection pool status
 
-| 問題の種類 | 診断ツール | 対策 |
-|-----------|-----------|------|
-| CPU負荷 | cProfile, py-spy | アルゴリズム改善、並列化 |
-| メモリリーク | tracemalloc, objgraph | 参照の適切な解放 |
-| I/Oボトルネック | strace, iostat | 非同期I/O、キャッシュ |
-| DB遅延 | EXPLAIN, slow query log | インデックス、クエリ最適化 |
+| Problem type | Diagnostic tools | Countermeasures |
+|-------------|-----------------|-----------------|
+| CPU load | cProfile, py-spy | Algorithm improvement, parallelization |
+| Memory leak | tracemalloc, objgraph | Proper reference release |
+| I/O bottleneck | strace, iostat | Async I/O, caching |
+| DB latency | EXPLAIN, slow query log | Indexing, query optimization |
 
 ---
 
-## 設計判断ガイド
+## Design Decision Guide
 
-### 選択基準マトリクス
+### Selection Criteria Matrix
 
-技術選択を行う際の判断基準を以下にまとめます。
+A summary of decision criteria for technology selection:
 
-| 判断基準 | 重視する場合 | 妥協できる場合 |
-|---------|------------|-------------|
-| パフォーマンス | リアルタイム処理、大規模データ | 管理画面、バッチ処理 |
-| 保守性 | 長期運用、チーム開発 | プロトタイプ、短期プロジェクト |
-| スケーラビリティ | 成長が見込まれるサービス | 社内ツール、固定ユーザー |
-| セキュリティ | 個人情報、金融データ | 公開データ、社内利用 |
-| 開発速度 | MVP、市場投入スピード | 品質重視、ミッションクリティカル |
+| Criterion | Prioritize when | Acceptable to compromise when |
+|-----------|----------------|------------------------------|
+| Performance | Real-time processing, large-scale data | Admin panels, batch processing |
+| Maintainability | Long-term operation, team development | Prototypes, short-term projects |
+| Scalability | Growing services | Internal tools, fixed user base |
+| Security | Personal data, financial data | Public data, internal use |
+| Development speed | MVP, time-to-market | Quality-first, mission-critical |
 
-### アーキテクチャパターンの選択
+### Architecture Pattern Selection
 
 ```
 ┌─────────────────────────────────────────────────┐
-│              アーキテクチャ選択フロー              │
+│           Architecture Selection Flow            │
 ├─────────────────────────────────────────────────┤
 │                                                 │
-│  ① チーム規模は？                                │
-│    ├─ 小規模（1-5人）→ モノリス                   │
-│    └─ 大規模（10人+）→ ②へ                       │
+│  (1) Team size?                                 │
+│    ├─ Small (1-5) → Monolith                    │
+│    └─ Large (10+) → Go to (2)                   │
 │                                                 │
-│  ② デプロイ頻度は？                               │
-│    ├─ 週1回以下 → モノリス + モジュール分割         │
-│    └─ 毎日/複数回 → ③へ                          │
+│  (2) Deployment frequency?                      │
+│    ├─ Weekly or less → Monolith + modules        │
+│    └─ Daily/multiple → Go to (3)                │
 │                                                 │
-│  ③ チーム間の独立性は？                            │
-│    ├─ 高い → マイクロサービス                      │
-│    └─ 中程度 → モジュラーモノリス                   │
+│  (3) Team independence?                         │
+│    ├─ High → Microservices                      │
+│    └─ Moderate → Modular monolith               │
 │                                                 │
 └─────────────────────────────────────────────────┘
 ```
 
-### トレードオフの分析
+### Tradeoff Analysis
 
-技術的な判断には必ずトレードオフが伴います。以下の観点で分析を行いましょう:
+Technical decisions always involve tradeoffs. Analyze from the following perspectives:
 
-**1. 短期 vs 長期のコスト**
-- 短期的に速い方法が長期的には技術的負債になることがある
-- 逆に、過剰な設計は短期的なコストが高く、プロジェクトの遅延を招く
+**1. Short-term vs. long-term cost**
+- A quick short-term solution may become technical debt long-term
+- Conversely, over-engineering raises short-term costs and delays the project
 
-**2. 一貫性 vs 柔軟性**
-- 統一された技術スタックは学習コストが低い
-- 多様な技術の採用は適材適所が可能だが、運用コストが増加
+**2. Consistency vs. flexibility**
+- A unified tech stack lowers learning costs
+- Diverse technologies enable best-fit choices but increase operational costs
 
-**3. 抽象化のレベル**
-- 高い抽象化は再利用性が高いが、デバッグが困難になる場合がある
-- 低い抽象化は直感的だが、コードの重複が発生しやすい
+**3. Level of abstraction**
+- Higher abstraction improves reusability but can complicate debugging
+- Lower abstraction is more intuitive but leads to code duplication
 
 ```python
-# 設計判断の記録テンプレート
+# Design decision recording template
 class ArchitectureDecisionRecord:
-    """ADR (Architecture Decision Record) の作成"""
+    """ADR (Architecture Decision Record) creation"""
 
     def __init__(self, title: str):
         self.title = title
@@ -1217,17 +1245,17 @@ class ArchitectureDecisionRecord:
         self.alternatives = []
 
     def set_context(self, context: str):
-        """背景と課題の記述"""
+        """Describe background and problem"""
         self.context = context
         return self
 
     def set_decision(self, decision: str):
-        """決定内容の記述"""
+        """Describe the decision"""
         self.decision = decision
         return self
 
     def add_consequence(self, consequence: str, positive: bool = True):
-        """結果の追加"""
+        """Add a consequence"""
         self.consequences.append({
             'description': consequence,
             'type': 'positive' if positive else 'negative'
@@ -1235,7 +1263,7 @@ class ArchitectureDecisionRecord:
         return self
 
     def add_alternative(self, name: str, reason_rejected: str):
-        """却下した代替案の追加"""
+        """Add a rejected alternative"""
         self.alternatives.append({
             'name': name,
             'reason_rejected': reason_rejected
@@ -1243,15 +1271,15 @@ class ArchitectureDecisionRecord:
         return self
 
     def to_markdown(self) -> str:
-        """Markdown形式で出力"""
+        """Output in Markdown format"""
         md = f"# ADR: {self.title}\n\n"
-        md += f"## 背景\n{self.context}\n\n"
-        md += f"## 決定\n{self.decision}\n\n"
-        md += "## 結果\n"
+        md += f"## Context\n{self.context}\n\n"
+        md += f"## Decision\n{self.decision}\n\n"
+        md += "## Consequences\n"
         for c in self.consequences:
             icon = "✅" if c['type'] == 'positive' else "⚠️"
             md += f"- {icon} {c['description']}\n"
-        md += "\n## 却下した代替案\n"
+        md += "\n## Rejected Alternatives\n"
         for a in self.alternatives:
             md += f"- **{a['name']}**: {a['reason_rejected']}\n"
         return md
@@ -1259,84 +1287,85 @@ class ArchitectureDecisionRecord:
 
 ---
 
-## チーム開発での活用
+## Team Development
 
-### コードレビューのチェックリスト
+### Code Review Checklist
 
-このトピックに関連するコードレビューで確認すべきポイント:
+Points to check in code reviews related to this topic:
 
-- [ ] 命名規則が一貫しているか
-- [ ] エラーハンドリングが適切か
-- [ ] テストカバレッジは十分か
-- [ ] パフォーマンスへの影響はないか
-- [ ] セキュリティ上の問題はないか
-- [ ] ドキュメントは更新されているか
+- [ ] Naming conventions are consistent
+- [ ] Error handling is appropriate
+- [ ] Test coverage is sufficient
+- [ ] No performance impact
+- [ ] No security concerns
+- [ ] Documentation is updated
 
-### ナレッジ共有のベストプラクティス
+### Knowledge Sharing Best Practices
 
-| 方法 | 頻度 | 対象 | 効果 |
-|------|------|------|------|
-| ペアプログラミング | 随時 | 複雑なタスク | 即時のフィードバック |
-| テックトーク | 週1回 | チーム全体 | 知識の水平展開 |
-| ADR (設計記録) | 都度 | 将来のメンバー | 意思決定の透明性 |
-| 振り返り | 2週間ごと | チーム全体 | 継続的改善 |
-| モブプログラミング | 月1回 | 重要な設計 | 合意形成 |
+| Method | Frequency | Target | Effect |
+|--------|-----------|--------|--------|
+| Pair programming | As needed | Complex tasks | Immediate feedback |
+| Tech talks | Weekly | Entire team | Horizontal knowledge transfer |
+| ADR (Decision records) | Per decision | Future members | Decision transparency |
+| Retrospectives | Biweekly | Entire team | Continuous improvement |
+| Mob programming | Monthly | Important designs | Consensus building |
 
-### 技術的負債の管理
+### Managing Technical Debt
 
 ```
-優先度マトリクス:
+Priority matrix:
 
-        影響度 高
+        Impact: High
           │
     ┌─────┼─────┐
-    │ 計画 │ 即座 │
-    │ 的に │ に   │
-    │ 対応 │ 対応 │
+    │ Plan │ Fix │
+    │ for  │ imme│
+    │ later│ dia-│
+    │      │ tely│
     ├─────┼─────┤
-    │ 記録 │ 次の │
-    │ のみ │ Sprint│
-    │     │ で   │
+    │Record│ Next│
+    │ only │Sprint│
+    │      │     │
     └─────┼─────┘
           │
-        影響度 低
-    発生頻度 低  発生頻度 高
+        Impact: Low
+    Frequency: Low  Frequency: High
 ```
 
 ---
 
-## セキュリティの考慮事項
+## Security Considerations
 
-### 一般的な脆弱性と対策
+### Common Vulnerabilities and Countermeasures
 
-| 脆弱性 | リスクレベル | 対策 | 検出方法 |
-|--------|------------|------|---------|
-| インジェクション攻撃 | 高 | 入力値のバリデーション・パラメータ化クエリ | SAST/DAST |
-| 認証の不備 | 高 | 多要素認証・セッション管理の強化 | ペネトレーションテスト |
-| 機密データの露出 | 高 | 暗号化・アクセス制御 | セキュリティ監査 |
-| 設定の不備 | 中 | セキュリティヘッダー・最小権限の原則 | 構成スキャン |
-| ログの不足 | 中 | 構造化ログ・監査証跡 | ログ分析 |
+| Vulnerability | Risk level | Countermeasure | Detection method |
+|--------------|-----------|----------------|-----------------|
+| Injection attacks | High | Input validation, parameterized queries | SAST/DAST |
+| Authentication flaws | High | MFA, session management hardening | Penetration testing |
+| Sensitive data exposure | High | Encryption, access control | Security audit |
+| Misconfiguration | Medium | Security headers, principle of least privilege | Configuration scanning |
+| Insufficient logging | Medium | Structured logging, audit trails | Log analysis |
 
-### セキュアコーディングのベストプラクティス
+### Secure Coding Best Practices
 
 ```python
-# セキュアコーディング例
+# Secure coding examples
 import hashlib
 import secrets
 import hmac
 from typing import Optional
 
 class SecurityUtils:
-    """セキュリティユーティリティ"""
+    """Security utilities"""
 
     @staticmethod
     def generate_token(length: int = 32) -> str:
-        """暗号学的に安全なトークン生成"""
+        """Generate a cryptographically secure token"""
         return secrets.token_urlsafe(length)
 
     @staticmethod
     def hash_password(password: str, salt: Optional[str] = None) -> tuple:
-        """パスワードのハッシュ化"""
+        """Hash a password"""
         if salt is None:
             salt = secrets.token_hex(16)
         hashed = hashlib.pbkdf2_hmac(
@@ -1349,50 +1378,50 @@ class SecurityUtils:
 
     @staticmethod
     def verify_password(password: str, hashed: str, salt: str) -> bool:
-        """パスワードの検証"""
+        """Verify a password"""
         new_hash, _ = SecurityUtils.hash_password(password, salt)
         return hmac.compare_digest(new_hash, hashed)
 
     @staticmethod
     def sanitize_input(value: str) -> str:
-        """入力値のサニタイズ"""
+        """Sanitize input values"""
         dangerous_chars = ['<', '>', '"', "'", '&', '\\']
         result = value
         for char in dangerous_chars:
             result = result.replace(char, '')
         return result.strip()
 
-# 使用例
+# Usage
 token = SecurityUtils.generate_token()
 hashed, salt = SecurityUtils.hash_password("my_password")
 is_valid = SecurityUtils.verify_password("my_password", hashed, salt)
 ```
 
-### セキュリティチェックリスト
+### Security Checklist
 
-- [ ] 全ての入力値がバリデーションされている
-- [ ] 機密情報がログに出力されていない
-- [ ] HTTPS が強制されている
-- [ ] CORS ポリシーが適切に設定されている
-- [ ] 依存パッケージの脆弱性スキャンが実施されている
-- [ ] エラーメッセージに内部情報が含まれていない
+- [ ] All input values are validated
+- [ ] Sensitive information is not output to logs
+- [ ] HTTPS is enforced
+- [ ] CORS policy is properly configured
+- [ ] Dependency vulnerability scanning has been performed
+- [ ] Error messages do not contain internal information
 
 ---
 
-## マイグレーションガイド
+## Migration Guide
 
-### バージョンアップ時の注意点
+### Notes for Version Upgrades
 
-| バージョン | 主な変更点 | 移行作業 | 影響範囲 |
-|-----------|-----------|---------|---------|
-| v1.x → v2.x | API設計の刷新 | エンドポイント変更 | 全クライアント |
-| v2.x → v3.x | 認証方式の変更 | トークン形式更新 | 認証関連 |
-| v3.x → v4.x | データモデル変更 | マイグレーションスクリプト実行 | DB関連 |
+| Version | Major changes | Migration work | Impact scope |
+|---------|--------------|----------------|-------------|
+| v1.x → v2.x | API design overhaul | Endpoint changes | All clients |
+| v2.x → v3.x | Authentication method change | Token format update | Auth-related |
+| v3.x → v4.x | Data model change | Run migration scripts | DB-related |
 
-### 段階的移行の手順
+### Step-by-Step Migration Procedure
 
 ```python
-# マイグレーションスクリプトのテンプレート
+# Migration script template
 import json
 import logging
 from pathlib import Path
@@ -1402,7 +1431,7 @@ from typing import List, Dict, Callable
 logger = logging.getLogger(__name__)
 
 class MigrationRunner:
-    """段階的マイグレーション実行エンジン"""
+    """Step-by-step migration execution engine"""
 
     def __init__(self, migration_dir: str):
         self.migration_dir = Path(migration_dir)
@@ -1411,7 +1440,7 @@ class MigrationRunner:
 
     def register(self, version: str, description: str,
                  up: Callable, down: Callable):
-        """マイグレーションの登録"""
+        """Register a migration"""
         self.migrations.append({
             'version': version,
             'description': description,
@@ -1421,35 +1450,35 @@ class MigrationRunner:
         })
 
     def run_up(self, target_version: str = None):
-        """マイグレーションの実行（アップグレード）"""
+        """Execute migrations (upgrade)"""
         for migration in self.migrations:
             if migration['version'] in self.completed:
                 continue
-            logger.info(f"実行中: {migration['version']} - "
+            logger.info(f"Running: {migration['version']} - "
                        f"{migration['description']}")
             try:
                 migration['up']()
                 self.completed.append(migration['version'])
-                logger.info(f"完了: {migration['version']}")
+                logger.info(f"Completed: {migration['version']}")
             except Exception as e:
-                logger.error(f"失敗: {migration['version']}: {e}")
+                logger.error(f"Failed: {migration['version']}: {e}")
                 raise
             if target_version and migration['version'] == target_version:
                 break
 
     def run_down(self, target_version: str):
-        """マイグレーションのロールバック"""
+        """Rollback migrations"""
         for migration in reversed(self.migrations):
             if migration['version'] not in self.completed:
                 continue
             if migration['version'] == target_version:
                 break
-            logger.info(f"ロールバック: {migration['version']}")
+            logger.info(f"Rolling back: {migration['version']}")
             migration['down']()
             self.completed.remove(migration['version'])
 
     def status(self) -> Dict:
-        """マイグレーション状態の確認"""
+        """Check migration status"""
         return {
             'total': len(self.migrations),
             'completed': len(self.completed),
@@ -1462,78 +1491,78 @@ class MigrationRunner:
         }
 ```
 
-### ロールバック計画
+### Rollback Plan
 
-移行作業には必ずロールバック計画を準備してください:
+Always prepare a rollback plan for migration work:
 
-1. **データのバックアップ**: 移行前に完全バックアップを取得
-2. **テスト環境での検証**: 本番と同等の環境で事前検証
-3. **段階的なロールアウト**: カナリアリリースで段階的に展開
-4. **監視の強化**: 移行中はメトリクスの監視間隔を短縮
-5. **判断基準の明確化**: ロールバックを判断する基準を事前に定義
+1. **Data backup**: Take a full backup before migration
+2. **Test environment verification**: Pre-verify in an environment equivalent to production
+3. **Staged rollout**: Deploy gradually with canary releases
+4. **Enhanced monitoring**: Shorten metric monitoring intervals during migration
+5. **Clear decision criteria**: Define rollback decision criteria in advance
 
 ---
 
-## 用語集
+## Glossary
 
-| 用語 | 英語表記 | 説明 |
-|------|---------|------|
-| 抽象化 | Abstraction | 複雑な実装の詳細を隠し、本質的なインターフェースのみを公開すること |
-| カプセル化 | Encapsulation | データと操作を一つの単位にまとめ、外部からのアクセスを制御すること |
-| 凝集度 | Cohesion | モジュール内の要素がどの程度関連しているかの指標 |
-| 結合度 | Coupling | モジュール間の依存関係の度合い |
-| リファクタリング | Refactoring | 外部の振る舞いを変えずにコードの内部構造を改善すること |
-| テスト駆動開発 | TDD (Test-Driven Development) | テストを先に書いてから実装するアプローチ |
-| 継続的インテグレーション | CI (Continuous Integration) | コードの変更を頻繁に統合し、自動テストで検証するプラクティス |
-| 継続的デリバリー | CD (Continuous Delivery) | いつでもリリース可能な状態を維持するプラクティス |
-| 技術的負債 | Technical Debt | 短期的な解決策を選んだことで将来的に発生する追加作業 |
-| ドメイン駆動設計 | DDD (Domain-Driven Design) | ビジネスドメインの知識に基づいてソフトウェアを設計するアプローチ |
-| マイクロサービス | Microservices | アプリケーションを小さな独立したサービスの集合として構築するアーキテクチャ |
-| サーキットブレーカー | Circuit Breaker | 障害の連鎖を防ぐための設計パターン |
-| イベント駆動 | Event-Driven | イベントの発生と処理に基づくアーキテクチャパターン |
-| 冪等性 | Idempotency | 同じ操作を複数回実行しても結果が変わらない性質 |
-| オブザーバビリティ | Observability | システムの内部状態を外部から観測可能にする能力 |
+| Term | English | Description |
+|------|---------|-------------|
+| Abstraction | Abstraction | Hiding complex implementation details and exposing only essential interfaces |
+| Encapsulation | Encapsulation | Bundling data and operations into a single unit and controlling external access |
+| Cohesion | Cohesion | A measure of how closely related elements within a module are |
+| Coupling | Coupling | The degree of interdependence between modules |
+| Refactoring | Refactoring | Improving the internal structure of code without changing its external behavior |
+| Test-Driven Development | TDD (Test-Driven Development) | An approach where tests are written before implementation |
+| Continuous Integration | CI (Continuous Integration) | A practice of frequently integrating code changes and verifying with automated tests |
+| Continuous Delivery | CD (Continuous Delivery) | A practice of maintaining a release-ready state at all times |
+| Technical Debt | Technical Debt | Additional future work caused by choosing a short-term solution |
+| Domain-Driven Design | DDD (Domain-Driven Design) | An approach to software design based on business domain knowledge |
+| Microservices | Microservices | An architecture that builds applications as a collection of small independent services |
+| Circuit Breaker | Circuit Breaker | A design pattern to prevent cascading failures |
+| Event-Driven | Event-Driven | An architecture pattern based on event generation and processing |
+| Idempotency | Idempotency | The property where performing the same operation multiple times yields the same result |
+| Observability | Observability | The ability to observe a system's internal state from the outside |
 ---
 
 ## FAQ
 
-### Q1: Big-O は実行時間の正確な予測に使えますか？
-**A**: いいえ。Big-O は「成長率」を表すだけで、定数倍の違いを無視する。O(n) でも定数が大きければ O(n log n) より遅い場合がある。実際のパフォーマンスはキャッシュ効率、分岐予測、メモリアクセスパターンなど多くの要因に依存する。理論的な計算量は「どの戦略を選ぶべきか」の指針であり、最終的な性能は実測で確認すべき。
+### Q1: Can Big-O be used to accurately predict execution time?
+**A**: No. Big-O only represents "growth rate" and ignores constant factors. An O(n) algorithm with a large constant can be slower than O(n log n). Actual performance depends on many factors including cache efficiency, branch prediction, and memory access patterns. Theoretical complexity serves as a guide for "which strategy to choose," but final performance should always be verified through measurement.
 
-### Q2: O(1) は常に速いですか？
-**A**: 必ずしも。O(1) は「入力サイズに依存しない」だけで、O(1) = 100万回の定数操作もあり得る。また、ハッシュテーブルの O(1) は「期待値」であり、最悪ケースは O(n)。実測が重要。例えばハッシュ関数の計算自体が重い場合、小さいnでは線形探索の方が速いこともある。
+### Q2: Is O(1) always fast?
+**A**: Not necessarily. O(1) only means "independent of input size" -- O(1) could mean one million constant operations. Also, the O(1) of hash tables is an "expected value"; worst case is O(n). Measurement is essential. For example, if the hash function computation itself is expensive, linear search may be faster for small n.
 
-### Q3: 計算量を改善すべきか、定数倍を改善すべきか？
-**A**: まず計算量の改善。O(n²)→O(n log n) は劇的。定数倍の改善（キャッシュ最適化等）は計算量が最適になった後で検討。ただし n が小さい場合は定数倍が支配的になることもある。実際にC++のstd::sortはnが小さい時に挿入ソート（O(n²)だが定数倍が小さい）に切り替える。
+### Q3: Should I improve the complexity class or the constant factor?
+**A**: Start with improving the complexity class. Going from O(n^2) to O(n log n) is dramatic. Constant factor improvements (cache optimization, etc.) should be considered after the complexity is optimal. However, for small n, constant factors can dominate. In practice, C++'s std::sort switches to insertion sort (O(n^2) but with a small constant) when n is small.
 
-### Q4: 計算量解析はいつ必要ですか？
-**A**: (1) パフォーマンスに問題がある時、(2) システム設計の段階でスケーラビリティを検討する時、(3) コードレビューでアルゴリズムの妥当性を判断する時。日常的なコーディングでは直感的に「nが増えたら遅くなりそうか」を判断できれば十分。ただしN+1問題のようなO(n)→O(n²)の悪化パターンは常に意識すべき。
-
----
-
-## まとめ
-
-| 概念 | ポイント |
-|------|---------|
-| Big-O | 実行時間の成長率。定数倍と低次項を無視 |
-| 主要クラス | O(1) < O(log n) < O(√n) < O(n) < O(n log n) < O(n²) < O(2ⁿ) |
-| 求め方 | ループ数, 再帰の深さ, マスター定理, 再帰ツリー法 |
-| 空間計算量 | 追加メモリ。時間との「トレードオフ」 |
-| 償却計算量 | 個々は高いが平均するとO(1)な操作 |
-| 実務 | n≤10⁶ → O(n log n)以下、APIは100ms以内 |
-| 最適化 | ハッシュマップ、前計算、二ポインタ、スライディングウィンドウ |
+### Q4: When is complexity analysis needed?
+**A**: (1) When there is a performance problem, (2) when evaluating scalability during system design, (3) when judging the appropriateness of algorithms during code review. For everyday coding, being able to intuitively judge "will this get slow as n increases?" is sufficient. However, degradation patterns like the N+1 problem (O(n) → O(n^2)) should always be kept in mind.
 
 ---
 
-## 次に読むべきガイド
+## Summary
+
+| Concept | Key Points |
+|---------|-----------|
+| Big-O | Growth rate of execution time. Ignores constants and lower-order terms |
+| Major classes | O(1) < O(log n) < O(√n) < O(n) < O(n log n) < O(n²) < O(2ⁿ) |
+| How to determine | Loop count, recursion depth, Master Theorem, recursion tree method |
+| Space complexity | Additional memory. "Tradeoff" with time |
+| Amortized complexity | Operations that are individually expensive but average to O(1) |
+| Practice | n ≤ 10⁶ → O(n log n) or better; APIs within 100ms |
+| Optimization | Hash map, precomputation, two pointers, sliding window |
 
 ---
 
-## 参考文献
+## Recommended Next Reading
+
+---
+
+## References
 1. Cormen, T. H. et al. "Introduction to Algorithms (CLRS)." Chapter 3: Growth of Functions.
 2. Skiena, S. S. "The Algorithm Design Manual." Chapter 2: Algorithm Analysis.
 3. Sedgewick, R. & Wayne, K. "Algorithms." 4th Edition, Chapter 1.4.
 4. Bentley, J. "Programming Pearls." 2nd Edition, Addison-Wesley, 2000.
 5. Tarjan, R. E. "Amortized Computational Complexity." SIAM Journal on Algebraic Discrete Methods, 1985.
 
-計算量解析は、効率的なアルゴリズム設計の基盤です。
+Complexity analysis is the foundation of efficient algorithm design.

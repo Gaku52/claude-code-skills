@@ -1,177 +1,180 @@
-# 並行・並列プログラミング
+# Concurrent and Parallel Programming
 
-> 並行性は「構造」の問題であり、並列性は「実行」の問題である。——Rob Pike
+> Concurrency is about dealing with lots of things at once. Parallelism is about doing lots of things at once. —Rob Pike
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] 並行（Concurrency）と並列（Parallelism）の違いを明確に説明できる
-- [ ] デッドロック、競合状態、飢餓の原因と対策を理解する
-- [ ] async/awaitの仕組みとイベントループを理解する
-- [ ] Go の goroutine/channel（CSPモデル）を理解する
-- [ ] アクターモデルの原理と適用場面を理解する
-- [ ] ロックフリーアルゴリズムの概念を知る
-- [ ] 実務での並行処理のパターンとアンチパターンを身につける
+- [ ] Clearly explain the difference between concurrency and parallelism
+- [ ] Understand the causes of and countermeasures for deadlocks, race conditions, and starvation
+- [ ] Understand the mechanics of async/await and event loops
+- [ ] Understand Go's goroutine/channel (CSP model)
+- [ ] Understand the principles and use cases of the actor model
+- [ ] Know the concepts behind lock-free algorithms
+- [ ] Master practical concurrency patterns and anti-patterns
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, familiarity with the following will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [関数型プログラミング](./02-functional.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related fundamental concepts
+- Familiarity with the content in [Functional Programming](./02-functional.md)
 
 ---
 
-## 1. 並行 vs 並列
+## 1. Concurrency vs Parallelism
 
-### 1.1 基本概念の整理
+### 1.1 Clarifying the Basic Concepts
 
 ```
-並行（Concurrency）: 複数のタスクを「論理的に」同時に管理
-  → 1つのCPUコアでも実現可能（タイムスライシング）
-  → 構造の問題: 「どう複数の仕事を整理するか」
-  → 複数のタスクの実行期間が重なっている状態
+Concurrency: Managing multiple tasks "logically" at the same time
+  → Achievable even with a single CPU core (time slicing)
+  → A structural concern: "How do we organize multiple tasks?"
+  → A state where the execution periods of multiple tasks overlap
 
-並列（Parallelism）: 複数のタスクを「物理的に」同時に実行
-  → 複数のCPUコアが必要
-  → 実行の問題: 「どう物理的に同時実行するか」
-  → 同一時刻に複数のタスクが実行されている状態
+Parallelism: Executing multiple tasks "physically" at the same time
+  → Requires multiple CPU cores
+  → An execution concern: "How do we physically run things simultaneously?"
+  → A state where multiple tasks are executing at the same instant
 
-  例えで理解:
+  Analogy:
 
-  並行: 1人のシェフが複数の料理を交互に調理
-        パスタを茹でている間にソースを準備、
-        ソースを煮込んでいる間にサラダを盛り付け
-        → 1人でも効率的に複数タスクをこなせる
+  Concurrency: One chef cooking multiple dishes by switching between them
+              Preparing sauce while pasta is boiling,
+              arranging a salad while sauce is simmering
+              → A single person can efficiently handle multiple tasks
 
-  並列: 複数のシェフが同時に別々の料理を調理
-        シェフAがパスタ、シェフBがサラダ、シェフCがデザート
-        → 物理的な同時実行
+  Parallelism: Multiple chefs cooking different dishes simultaneously
+              Chef A handles pasta, Chef B handles salad, Chef C handles dessert
+              → Physical simultaneous execution
 
-  重要: 並行性は並列性を包含する上位概念
-  並列は並行の一形態（物理的に同時実行される並行処理）
+  Key insight: Concurrency is a superset that encompasses parallelism
+  Parallelism is one form of concurrency (concurrent processing that
+  happens to execute physically at the same time)
 
   ┌─────────────────────────────────┐
-  │         並行（Concurrency）       │
-  │  ┌───────────────────────┐      │
-  │  │   並列（Parallelism）  │      │
-  │  └───────────────────────┘      │
-  │  非同期I/O、コルーチン等         │
+  │         Concurrency             │
+  │  ┌───────────────────────┐     │
+  │  │     Parallelism       │     │
+  │  └───────────────────────┘     │
+  │  Async I/O, Coroutines, etc.   │
   └─────────────────────────────────┘
 ```
 
-### 1.2 なぜ並行処理が必要なのか
+### 1.2 Why Do We Need Concurrent Processing?
 
 ```
-並行処理が必要な理由:
+Reasons why concurrent processing is necessary:
 
-1. I/O待ちの有効活用
-   - ネットワーク通信: 数ミリ秒〜数秒
-   - ディスクI/O: 数ミリ秒
-   - ユーザー入力: 数秒〜数分
-   → CPUを遊ばせず、待ち時間に他の処理を実行
+1. Effective use of I/O wait time
+   - Network communication: milliseconds to seconds
+   - Disk I/O: milliseconds
+   - User input: seconds to minutes
+   → Keep the CPU busy by performing other work during wait times
 
-2. 応答性の確保
-   - GUIアプリケーション: メインスレッドをブロックしない
-   - Webサーバー: 1リクエストの処理中に他のリクエストも受付
-   - ゲーム: 描画・物理演算・AI・入力を同時管理
+2. Ensuring responsiveness
+   - GUI applications: Don't block the main thread
+   - Web servers: Accept other requests while processing one
+   - Games: Manage rendering, physics, AI, and input simultaneously
 
-3. スループットの向上
-   - マルチコアCPUの活用
-   - バッチ処理の高速化
-   - 大量のリクエストの同時処理
+3. Improving throughput
+   - Utilizing multi-core CPUs
+   - Accelerating batch processing
+   - Handling large numbers of concurrent requests
 
-4. リアルタイム性
-   - センサーデータの継続的な監視
-   - ストリーム処理（ログ集約、イベント処理）
-   - リアルタイム通信（チャット、ビデオ通話）
+4. Real-time requirements
+   - Continuous monitoring of sensor data
+   - Stream processing (log aggregation, event processing)
+   - Real-time communication (chat, video calls)
 
-性能の比較例（Webスクレイピング 100ページ）:
+Performance comparison example (web scraping 100 pages):
 ┌──────────────────┬──────────────┬──────────────┐
-│ 方式              │ 所要時間      │ 備考          │
+│ Approach          │ Time         │ Notes        │
 ├──────────────────┼──────────────┼──────────────┤
-│ 逐次処理          │ 約100秒      │ 1ページ1秒    │
-│ マルチスレッド(10) │ 約10秒       │ 10並行        │
-│ async/await       │ 約2-3秒      │ 100並行I/O    │
-│ マルチプロセス(10) │ 約10秒       │ CPU限界       │
+│ Sequential        │ ~100 sec     │ 1 sec/page   │
+│ Multi-threaded(10)│ ~10 sec      │ 10 concurrent│
+│ async/await       │ ~2-3 sec     │ 100 conc. I/O│
+│ Multi-process(10) │ ~10 sec      │ CPU-limited  │
 └──────────────────┴──────────────┴──────────────┘
 ```
 
-### 1.3 プロセス、スレッド、コルーチンの違い
+### 1.3 Differences Between Processes, Threads, and Coroutines
 
 ```
-並行実行の単位:
+Units of concurrent execution:
 
 ┌──────────────┬───────────────┬──────────────┬──────────────┐
-│              │ プロセス       │ スレッド      │ コルーチン    │
+│              │ Process       │ Thread       │ Coroutine    │
 ├──────────────┼───────────────┼──────────────┼──────────────┤
-│ メモリ空間   │ 独立          │ 共有          │ 共有          │
-│ 作成コスト   │ 高い          │ 中程度        │ 低い          │
-│ コンテキスト │ 重い          │ 中程度        │ 軽い          │
-│ スイッチ     │               │               │               │
-│ 通信方式     │ IPC           │ 共有メモリ    │ 関数呼び出し  │
-│              │ (パイプ等)    │ + ロック      │ + yield       │
-│ 並列性       │ ✅ 真の並列   │ ✅ 真の並列*  │ ❌ 並行のみ   │
-│ 安全性       │ 高い(分離)    │ 低い(競合)    │ 高い(単一)    │
-│ スケーラ     │ 数百程度      │ 数千程度      │ 数百万可能    │
-│ ビリティ     │               │               │               │
-│ 代表例       │ multiprocessing│ threading    │ asyncio       │
-│              │ fork          │ pthread       │ goroutine     │
-│ 適する処理   │ CPU-bound     │ 汎用          │ I/O-bound     │
+│ Memory space │ Isolated      │ Shared       │ Shared       │
+│ Creation cost│ High          │ Medium       │ Low          │
+│ Context      │ Heavy         │ Medium       │ Light        │
+│ switch       │               │              │              │
+│ Communication│ IPC           │ Shared memory│ Function call│
+│              │ (pipes, etc.) │ + locks      │ + yield      │
+│ Parallelism  │ ✅ True       │ ✅ True*     │ ❌ Concurrency│
+│              │   parallel    │   parallel   │   only       │
+│ Safety       │ High          │ Low (races)  │ High (single)│
+│              │ (isolation)   │              │              │
+│ Scalability  │ ~hundreds     │ ~thousands   │ Millions     │
+│              │               │              │ possible     │
+│ Examples     │ multiprocessing│ threading   │ asyncio      │
+│              │ fork          │ pthread      │ goroutine    │
+│ Best for     │ CPU-bound     │ General      │ I/O-bound   │
 └──────────────┴───────────────┴──────────────┴──────────────┘
 
-* Python の GIL (Global Interpreter Lock) により、
-  CPython のスレッドは真の並列CPU実行ができない
+* Due to Python's GIL (Global Interpreter Lock),
+  CPython threads cannot achieve true parallel CPU execution
 ```
 
 ---
 
-## 2. 並行性の問題と対策
+## 2. Concurrency Problems and Solutions
 
-### 2.1 競合状態（Race Condition）
+### 2.1 Race Conditions
 
 ```python
 import threading
 import time
 
-# === 競合状態のデモ ===
+# === Race Condition Demo ===
 
-# ❌ 競合状態が発生するコード
+# ❌ Code that causes a race condition
 counter = 0
 
 def increment_unsafe():
-    """安全でないインクリメント"""
+    """Unsafe increment"""
     global counter
     for _ in range(100000):
         counter += 1
-        # 内部動作:
-        # 1. counter の値を読む (read)
-        # 2. 値を +1 する (increment)
-        # 3. counter に書き戻す (write)
-        # → 2つのスレッドが同時に step 1 を実行すると
-        #   1回分のインクリメントが失われる！
+        # Internal operations:
+        # 1. Read the value of counter (read)
+        # 2. Increment the value by 1 (increment)
+        # 3. Write the value back to counter (write)
+        # → If two threads execute step 1 simultaneously,
+        #   one increment is lost!
 
-# 2スレッドで実行
+# Execute with 2 threads
 threads = [threading.Thread(target=increment_unsafe) for _ in range(2)]
 for t in threads:
     t.start()
 for t in threads:
     t.join()
 
-print(f"期待値: 200000, 実際: {counter}")
-# → 実際の値は200000未満になることが多い（例: 183421）
+print(f"Expected: 200000, Actual: {counter}")
+# → The actual value is often less than 200000 (e.g., 183421)
 
 
-# ✅ 対策1: ロック（Mutex）
+# ✅ Solution 1: Lock (Mutex)
 counter = 0
 lock = threading.Lock()
 
 def increment_with_lock():
-    """ロックで保護されたインクリメント"""
+    """Increment protected by a lock"""
     global counter
     for _ in range(100000):
-        with lock:  # 排他制御: 1スレッドだけが実行
+        with lock:  # Mutual exclusion: only 1 thread executes
             counter += 1
 
 threads = [threading.Thread(target=increment_with_lock) for _ in range(2)]
@@ -179,30 +182,30 @@ for t in threads:
     t.start()
 for t in threads:
     t.join()
-print(f"ロック使用: {counter}")  # 必ず200000
+print(f"With lock: {counter}")  # Always 200000
 
 
-# ✅ 対策2: スレッドセーフなデータ構造
+# ✅ Solution 2: Thread-safe data structures
 import queue
 
 def producer(q: queue.Queue, items: list):
-    """プロデューサー: キューにアイテムを投入"""
+    """Producer: puts items into the queue"""
     for item in items:
         q.put(item)
         time.sleep(0.01)
-    q.put(None)  # 終了シグナル
+    q.put(None)  # Termination signal
 
 def consumer(q: queue.Queue, name: str):
-    """コンシューマー: キューからアイテムを取得"""
+    """Consumer: retrieves items from the queue"""
     while True:
-        item = q.get()  # ブロッキング（スレッドセーフ）
+        item = q.get()  # Blocking (thread-safe)
         if item is None:
-            q.put(None)  # 他のconsumerにも終了を伝える
+            q.put(None)  # Propagate termination to other consumers
             break
-        print(f"[{name}] 処理: {item}")
+        print(f"[{name}] Processing: {item}")
         q.task_done()
 
-# スレッドセーフなキューで通信
+# Communicate via a thread-safe queue
 q = queue.Queue(maxsize=10)
 prod = threading.Thread(target=producer, args=(q, list(range(20))))
 cons1 = threading.Thread(target=consumer, args=(q, "Consumer-1"))
@@ -218,29 +221,29 @@ cons2.join()
 ```
 
 ```java
-// Java での競合状態対策
+// Race condition solutions in Java
 
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class ConcurrencyDemo {
 
-    // ✅ 対策1: synchronized キーワード
+    // ✅ Solution 1: synchronized keyword
     private int counter = 0;
 
     public synchronized void incrementSync() {
         counter++;
     }
 
-    // ✅ 対策2: AtomicInteger（CAS操作）
+    // ✅ Solution 2: AtomicInteger (CAS operation)
     private AtomicInteger atomicCounter = new AtomicInteger(0);
 
     public void incrementAtomic() {
         atomicCounter.incrementAndGet();
-        // Compare-And-Swap: ロック不要で高速
+        // Compare-And-Swap: fast without locks
     }
 
-    // ✅ 対策3: ReentrantLock（明示的ロック）
+    // ✅ Solution 3: ReentrantLock (explicit lock)
     private final ReentrantLock lock = new ReentrantLock();
     private int lockedCounter = 0;
 
@@ -249,74 +252,74 @@ public class ConcurrencyDemo {
         try {
             lockedCounter++;
         } finally {
-            lock.unlock();  // 必ず解放
+            lock.unlock();  // Always release
         }
     }
 
-    // ✅ 対策4: concurrent コレクション
-    // ConcurrentHashMap, CopyOnWriteArrayList, BlockingQueue 等
-    // → スレッドセーフなコレクション実装が標準提供
+    // ✅ Solution 4: Concurrent collections
+    // ConcurrentHashMap, CopyOnWriteArrayList, BlockingQueue, etc.
+    // → Thread-safe collection implementations provided in the standard library
 }
 ```
 
-### 2.2 デッドロック（Deadlock）
+### 2.2 Deadlock
 
 ```python
 import threading
 import time
 
-# === デッドロックのデモ ===
+# === Deadlock Demo ===
 
 lock_a = threading.Lock()
 lock_b = threading.Lock()
 
-# ❌ デッドロックが発生するコード
+# ❌ Code that causes a deadlock
 def thread_1():
     with lock_a:
-        print("Thread-1: lock_a 取得")
-        time.sleep(0.1)  # lock_b を待つ間に...
-        with lock_b:     # Thread-2 が lock_b を持っている！
-            print("Thread-1: lock_b 取得")
+        print("Thread-1: acquired lock_a")
+        time.sleep(0.1)  # While waiting for lock_b...
+        with lock_b:     # Thread-2 holds lock_b!
+            print("Thread-1: acquired lock_b")
 
 def thread_2():
     with lock_b:
-        print("Thread-2: lock_b 取得")
-        time.sleep(0.1)  # lock_a を待つ間に...
-        with lock_a:     # Thread-1 が lock_a を持っている！
-            print("Thread-2: lock_a 取得")
+        print("Thread-2: acquired lock_b")
+        time.sleep(0.1)  # While waiting for lock_a...
+        with lock_a:     # Thread-1 holds lock_a!
+            print("Thread-2: acquired lock_a")
 
-# → Thread-1 は lock_b を待ち、Thread-2 は lock_a を待つ
-# → どちらも永遠に待ち続ける = デッドロック
+# → Thread-1 waits for lock_b, Thread-2 waits for lock_a
+# → Both wait forever = deadlock
 
 
-# ✅ 対策1: ロック取得の順序を統一
+# ✅ Solution 1: Enforce a consistent lock acquisition order
 def thread_1_fixed():
-    with lock_a:       # 常に lock_a → lock_b の順
-        print("Thread-1: lock_a 取得")
+    with lock_a:       # Always acquire lock_a → lock_b in order
+        print("Thread-1: acquired lock_a")
         with lock_b:
-            print("Thread-1: lock_b 取得")
+            print("Thread-1: acquired lock_b")
 
 def thread_2_fixed():
-    with lock_a:       # 常に lock_a → lock_b の順（統一）
-        print("Thread-2: lock_a 取得")
+    with lock_a:       # Always acquire lock_a → lock_b in order (consistent)
+        print("Thread-2: acquired lock_a")
         with lock_b:
-            print("Thread-2: lock_b 取得")
+            print("Thread-2: acquired lock_b")
 
 
-# ✅ 対策2: タイムアウト付きロック
+# ✅ Solution 2: Lock acquisition with timeout
 def thread_with_timeout():
-    acquired_a = lock_a.acquire(timeout=1.0)  # 1秒でタイムアウト
+    acquired_a = lock_a.acquire(timeout=1.0)  # Timeout after 1 second
     if not acquired_a:
-        print("lock_a 取得タイムアウト、リトライ")
+        print("lock_a acquisition timed out, retrying")
         return False
 
     try:
         acquired_b = lock_b.acquire(timeout=1.0)
         if not acquired_b:
-            print("lock_b 取得タイムアウト、リリースしてリトライ")
+            print("lock_b acquisition timed out, releasing and retrying")
             return False
         try:
-            # クリティカルセクション
+            # Critical section
             pass
         finally:
             lock_b.release()
@@ -325,184 +328,193 @@ def thread_with_timeout():
     return True
 
 
-# ✅ 対策3: コンテキストマネージャで安全にロック管理
+# ✅ Solution 3: Safe lock management with a context manager
 import contextlib
 
 @contextlib.contextmanager
 def acquire_locks(*locks, timeout=5.0):
-    """複数のロックを安全に取得するコンテキストマネージャ"""
+    """Context manager for safely acquiring multiple locks"""
     acquired = []
     try:
-        for lock in sorted(locks, key=id):  # id順で取得順序を統一
+        for lock in sorted(locks, key=id):  # Unify acquisition order by id
             if lock.acquire(timeout=timeout):
                 acquired.append(lock)
             else:
-                raise TimeoutError(f"ロック取得タイムアウト")
+                raise TimeoutError(f"Lock acquisition timed out")
         yield
     finally:
         for lock in reversed(acquired):
             lock.release()
 
-# 使用例
+# Usage example
 # with acquire_locks(lock_a, lock_b):
-#     # 安全にクリティカルセクションを実行
+#     # Safely execute the critical section
 #     pass
 ```
 
 ```
-デッドロック発生の4条件（Coffman条件）:
-すべてを同時に満たすとデッドロックが発生する
+Coffman Conditions for Deadlock:
+Deadlock occurs when all four conditions are met simultaneously
 
-1. 相互排除（Mutual Exclusion）
-   リソースは同時に1つのプロセスしか使えない
+1. Mutual Exclusion
+   A resource can only be used by one process at a time
 
-2. 保持と待ち（Hold and Wait）
-   リソースを保持しながら別のリソースを待つ
+2. Hold and Wait
+   A process holds resources while waiting for additional ones
 
-3. 横取り不可（No Preemption）
-   保持中のリソースを強制的に奪えない
+3. No Preemption
+   Resources held by a process cannot be forcibly taken away
 
-4. 循環待ち（Circular Wait）
-   プロセスが循環的にリソースを待っている
+4. Circular Wait
+   Processes are waiting for resources in a circular chain
 
-防止策（いずれか1つを崩せばよい）:
-┌──────────┬─────────────────────────────────────┐
-│ 条件      │ 防止策                                │
-├──────────┼─────────────────────────────────────┤
-│ 相互排除  │ ロックフリーアルゴリズム              │
-│ 保持と待ち│ 全リソースを一度に取得                │
-│ 横取り不可│ タイムアウトで強制解放                │
-│ 循環待ち  │ リソースに順序をつけて取得順序を統一  │
-└──────────┴─────────────────────────────────────┘
+Prevention strategies (breaking any one condition is sufficient):
+┌──────────────┬─────────────────────────────────────┐
+│ Condition     │ Prevention Strategy                  │
+├──────────────┼─────────────────────────────────────┤
+│ Mutual       │ Lock-free algorithms                 │
+│ exclusion    │                                      │
+│ Hold and wait│ Acquire all resources at once         │
+│ No preemption│ Forced release via timeout            │
+│ Circular wait│ Assign resource ordering and enforce  │
+│              │ consistent acquisition order          │
+└──────────────┴─────────────────────────────────────┘
 ```
 
-### 2.3 その他の並行性問題
+### 2.3 Other Concurrency Problems
 
 ```python
-# === ライブロック（Livelock）===
-# デッドロックと似ているが、スレッドが「動いている」のに進展しない
+# === Livelock ===
+# Similar to deadlock, but threads are "active" yet make no progress
 
-# 例: 廊下で2人がすれ違えない状況
-# AとBが互いに譲ろうとして、同じ方向に動き続ける
+# Example: Two people unable to pass each other in a hallway
+# A and B both try to yield, continuously moving in the same direction
 
-# 対策: ランダムなバックオフ
+# Solution: Random backoff
 import random
 
 def polite_worker(name: str, resource_a, resource_b):
     while True:
         if resource_a.acquire(timeout=0.1):
             if resource_b.acquire(timeout=0.1):
-                # 両方取得成功
+                # Both acquired successfully
                 try:
-                    print(f"{name}: 処理実行")
+                    print(f"{name}: executing task")
                     break
                 finally:
                     resource_b.release()
                     resource_a.release()
             else:
                 resource_a.release()
-                # ランダムなバックオフで再試行
+                # Retry with random backoff
                 time.sleep(random.uniform(0.01, 0.1))
         else:
             time.sleep(random.uniform(0.01, 0.1))
 
 
-# === 飢餓状態（Starvation）===
-# 特定のスレッドがいつまでもリソースを取得できない
+# === Starvation ===
+# A specific thread is perpetually unable to acquire a resource
 
-# 対策: 公平なロック（Fair Lock）
-# Java の ReentrantLock(true) は公平性を保証
-# Python では queue.PriorityQueue でタスクに優先度を付ける
+# Solution: Fair Lock
+# Java's ReentrantLock(true) guarantees fairness
+# In Python, use queue.PriorityQueue to assign priorities to tasks
 
-# === メモリ可視性の問題 ===
-# あるスレッドの書き込みが、他のスレッドから見えない
+# === Memory Visibility Problem ===
+# Writes by one thread are not visible to other threads
 
-# Java: volatile キーワードで可視性を保証
-# Python: GILが暗黙的に保証（ただしCPythonのみ）
-# C++: std::atomic, memory_order で明示的に制御
+# Java: volatile keyword guarantees visibility
+# Python: GIL implicitly guarantees this (CPython only)
+# C++: std::atomic, memory_order for explicit control
 ```
 
-### 2.4 並行モデルの比較
+### 2.4 Comparison of Concurrency Models
 
 ```
-主要な並行モデル:
+Major concurrency models:
 
 ┌───────────────┬──────────────────────┬───────────────────┬──────────────┐
-│ モデル         │ 特徴                  │ メリット           │ 言語/FW      │
+│ Model          │ Characteristics      │ Advantages         │ Language/FW  │
 ├───────────────┼──────────────────────┼───────────────────┼──────────────┤
-│ スレッド       │ OSスレッドを共有      │ 馴染みやすい       │ Java, C++    │
-│ +ロック        │ メモリで通信          │ 低レベル制御可能   │ Python       │
-│               │                       │                    │              │
-│ アクター       │ 独立したエンティティ  │ 分散に強い         │ Erlang/OTP   │
-│ モデル         │ メッセージパッシング  │ 耐障害性           │ Akka(Scala)  │
-│               │ 共有状態なし          │ スケーラブル       │              │
-│               │                       │                    │              │
-│ CSP           │ チャネルを通じた通信  │ シンプルで安全     │ Go           │
-│               │ goroutine(軽量)       │ 高性能             │ Clojure      │
-│               │                       │ 推論しやすい       │              │
-│               │                       │                    │              │
-│ async/await   │ 協調的マルチタスク    │ I/Oに最適          │ JavaScript   │
-│               │ イベントループ        │ ロック不要          │ Python       │
-│               │ シングルスレッド      │ 実装が容易          │ Rust, C#     │
-│               │                       │                    │              │
-│ STM           │ トランザクション      │ 合成可能            │ Haskell      │
-│               │ メモリの楽観的制御    │ デッドロックなし    │ Clojure      │
-│               │                       │ 推論が容易          │              │
-│               │                       │                    │              │
-│ データ並列    │ SIMD/GPUベース       │ 大量データに強い    │ CUDA         │
-│               │ 同一操作を並列適用    │ 数値計算に最適      │ OpenCL       │
-│               │                       │                    │ numpy        │
+│ Threads        │ OS threads with      │ Familiar           │ Java, C++   │
+│ + Locks        │ shared memory comm.  │ Low-level control  │ Python      │
+│                │                      │                    │             │
+│ Actor          │ Independent entities │ Strong for         │ Erlang/OTP  │
+│ Model          │ Message passing      │ distributed systems│ Akka(Scala) │
+│                │ No shared state      │ Fault tolerant     │             │
+│                │                      │ Scalable           │             │
+│                │                      │                    │             │
+│ CSP            │ Communication via    │ Simple and safe    │ Go          │
+│                │ channels             │ High performance   │ Clojure     │
+│                │ goroutines (light)   │ Easy to reason     │             │
+│                │                      │ about              │             │
+│                │                      │                    │             │
+│ async/await    │ Cooperative          │ Optimal for I/O    │ JavaScript  │
+│                │ multitasking         │ No locks needed    │ Python      │
+│                │ Event loop           │ Easy to implement  │ Rust, C#    │
+│                │ Single-threaded      │                    │             │
+│                │                      │                    │             │
+│ STM            │ Transactional        │ Composable         │ Haskell     │
+│                │ Optimistic memory    │ No deadlocks       │ Clojure     │
+│                │ control              │ Easy to reason     │             │
+│                │                      │ about              │             │
+│                │                      │                    │             │
+│ Data-parallel  │ SIMD/GPU-based       │ Strong for large   │ CUDA        │
+│                │ Apply same operation │ data volumes       │ OpenCL      │
+│                │ in parallel          │ Optimal for        │ numpy       │
+│                │                      │ numerical computing│             │
 └───────────────┴──────────────────────┴───────────────────┴──────────────┘
 ```
 
 ---
 
-## 3. async/await（非同期プログラミング）
+## 3. async/await (Asynchronous Programming)
 
-### 3.1 イベントループの仕組み
+### 3.1 How the Event Loop Works
 
 ```python
-# === async/await の仕組み ===
+# === How async/await Works ===
 
-# イベントループの概念図:
+# Conceptual diagram of the event loop:
 #
 # ┌──────────────────────────────────────────┐
-# │            イベントループ                  │
-# │                                            │
+# │            Event Loop                     │
+# │                                           │
 # │  ┌─────┐  ┌─────┐  ┌─────┐  ┌─────┐    │
 # │  │Task1│  │Task2│  │Task3│  │Task4│    │
 # │  │await│  │ready│  │await│  │ready│    │
 # │  └─────┘  └─────┘  └─────┘  └─────┘    │
-# │                                            │
-# │  1. ready なタスクを1つ取り出す            │
-# │  2. await に達するまで実行                 │
-# │  3. await で I/O 開始、タスクを待機に      │
-# │  4. I/O 完了したタスクを ready に          │
-# │  5. 1 に戻る                               │
+# │                                           │
+# │  1. Pick one ready task                   │
+# │  2. Execute until it hits await           │
+# │  3. On await, start I/O, move task to     │
+# │     waiting state                         │
+# │  4. Move tasks with completed I/O to      │
+# │     ready state                           │
+# │  5. Go back to step 1                     │
 # └──────────────────────────────────────────┘
 
 import asyncio
 import time
 
 
-# 基本的な async/await
+# Basic async/await
 async def fetch_data(name: str, delay: float) -> str:
-    """I/O を模擬する非同期関数"""
-    print(f"  [{name}] 開始 (待機: {delay}秒)")
-    await asyncio.sleep(delay)  # I/O待ち（他のタスクに制御を渡す）
-    print(f"  [{name}] 完了")
+    """Async function simulating I/O"""
+    print(f"  [{name}] Started (waiting: {delay}s)")
+    await asyncio.sleep(delay)  # I/O wait (yields control to other tasks)
+    print(f"  [{name}] Completed")
     return f"{name}_data"
 
 
 async def main():
     start = time.perf_counter()
 
-    # ❌ 逐次実行: 合計3秒
+    # ❌ Sequential execution: total 3 seconds
     # result1 = await fetch_data("API-1", 1.0)
     # result2 = await fetch_data("API-2", 1.0)
     # result3 = await fetch_data("API-3", 1.0)
 
-    # ✅ 並行実行: 合計約1秒（最も遅いタスクの時間）
+    # ✅ Concurrent execution: total ~1 second (time of the slowest task)
     results = await asyncio.gather(
         fetch_data("API-1", 1.0),
         fetch_data("API-2", 0.5),
@@ -510,13 +522,13 @@ async def main():
     )
 
     elapsed = time.perf_counter() - start
-    print(f"  結果: {results}")
-    print(f"  所要時間: {elapsed:.2f}秒")  # 約1.0秒
+    print(f"  Results: {results}")
+    print(f"  Elapsed time: {elapsed:.2f}s")  # ~1.0 seconds
 
 asyncio.run(main())
 ```
 
-### 3.2 実務的な非同期パターン
+### 3.2 Practical Asynchronous Patterns
 
 ```python
 import asyncio
@@ -525,10 +537,10 @@ from typing import Any
 from dataclasses import dataclass
 
 
-# === 並行HTTP リクエスト ===
+# === Concurrent HTTP Requests ===
 
 async def fetch_url(session: aiohttp.ClientSession, url: str) -> dict:
-    """1つのURLからデータを取得"""
+    """Fetch data from a single URL"""
     try:
         async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
             data = await resp.json()
@@ -538,11 +550,11 @@ async def fetch_url(session: aiohttp.ClientSession, url: str) -> dict:
 
 
 async def fetch_all(urls: list[str], max_concurrent: int = 10) -> list[dict]:
-    """複数URLを並行取得（同時接続数制限付き）"""
+    """Fetch multiple URLs concurrently (with concurrency limit)"""
     semaphore = asyncio.Semaphore(max_concurrent)
 
     async def fetch_with_limit(session, url):
-        async with semaphore:  # 同時接続数を制限
+        async with semaphore:  # Limit concurrent connections
             return await fetch_url(session, url)
 
     async with aiohttp.ClientSession() as session:
@@ -550,18 +562,18 @@ async def fetch_all(urls: list[str], max_concurrent: int = 10) -> list[dict]:
         return await asyncio.gather(*tasks)
 
 
-# === タイムアウト付き処理 ===
+# === Processing with Timeout ===
 
 async def with_timeout(coro, timeout_seconds: float, default=None):
-    """タイムアウト付きでコルーチンを実行"""
+    """Execute a coroutine with a timeout"""
     try:
         return await asyncio.wait_for(coro, timeout=timeout_seconds)
     except asyncio.TimeoutError:
-        print(f"タイムアウト ({timeout_seconds}秒)")
+        print(f"Timed out ({timeout_seconds}s)")
         return default
 
 
-# === リトライ付き非同期処理 ===
+# === Async Processing with Retry ===
 
 async def retry_async(
     coro_func,
@@ -570,7 +582,7 @@ async def retry_async(
     backoff: float = 2.0,
     exceptions: tuple = (Exception,)
 ):
-    """指数バックオフ付きリトライ"""
+    """Retry with exponential backoff"""
     current_delay = delay
     for attempt in range(1, max_retries + 1):
         try:
@@ -578,15 +590,15 @@ async def retry_async(
         except exceptions as e:
             if attempt == max_retries:
                 raise
-            print(f"リトライ {attempt}/{max_retries}: {e}")
+            print(f"Retry {attempt}/{max_retries}: {e}")
             await asyncio.sleep(current_delay)
             current_delay *= backoff
 
 
-# === 非同期ジェネレータ（ストリーム処理）===
+# === Async Generator (Stream Processing) ===
 
 async def event_stream(interval: float = 1.0):
-    """イベントを非同期的に生成するジェネレータ"""
+    """Generator that asynchronously produces events"""
     event_id = 0
     while True:
         await asyncio.sleep(interval)
@@ -595,39 +607,39 @@ async def event_stream(interval: float = 1.0):
 
 
 async def process_events():
-    """イベントストリームを処理"""
+    """Process the event stream"""
     async for event in event_stream(0.5):
-        print(f"イベント受信: {event}")
+        print(f"Event received: {event}")
         if event["id"] >= 5:
             break
 
 
-# === Producer-Consumer パターン（非同期版）===
+# === Producer-Consumer Pattern (Async Version) ===
 
 async def async_producer(queue: asyncio.Queue, items: list):
-    """非同期プロデューサー"""
+    """Async producer"""
     for item in items:
-        await asyncio.sleep(0.1)  # 生成に時間がかかる
+        await asyncio.sleep(0.1)  # Simulates time-consuming generation
         await queue.put(item)
-        print(f"[Producer] 投入: {item}")
-    await queue.put(None)  # 終了シグナル
+        print(f"[Producer] Enqueued: {item}")
+    await queue.put(None)  # Termination signal
 
 async def async_consumer(queue: asyncio.Queue, name: str):
-    """非同期コンシューマー"""
+    """Async consumer"""
     while True:
         item = await queue.get()
         if item is None:
-            await queue.put(None)  # 他のconsumerにも伝播
+            await queue.put(None)  # Propagate to other consumers
             break
-        await asyncio.sleep(0.2)  # 処理に時間がかかる
-        print(f"[{name}] 処理完了: {item}")
+        await asyncio.sleep(0.2)  # Simulates time-consuming processing
+        print(f"[{name}] Processed: {item}")
         queue.task_done()
 
 async def producer_consumer_demo():
-    """Producer-Consumer パターンのデモ"""
+    """Producer-Consumer pattern demo"""
     queue = asyncio.Queue(maxsize=5)
 
-    # 1 producer + 3 consumers を並行実行
+    # Run 1 producer + 3 consumers concurrently
     await asyncio.gather(
         async_producer(queue, list(range(10))),
         async_consumer(queue, "Consumer-A"),
@@ -637,11 +649,11 @@ async def producer_consumer_demo():
 ```
 
 ```javascript
-// JavaScript の async/await
+// JavaScript async/await
 
-// Promise ベースの非同期処理
+// Promise-based asynchronous processing
 async function fetchUserWithPosts(userId) {
-    // 並行でユーザー情報と投稿を取得
+    // Fetch user info and posts concurrently
     const [user, posts] = await Promise.all([
         fetch(`/api/users/${userId}`).then(r => r.json()),
         fetch(`/api/users/${userId}/posts`).then(r => r.json()),
@@ -650,7 +662,7 @@ async function fetchUserWithPosts(userId) {
     return { ...user, posts };
 }
 
-// エラーハンドリング
+// Error handling
 async function safelyFetch(url) {
     try {
         const response = await fetch(url);
@@ -663,7 +675,7 @@ async function safelyFetch(url) {
     }
 }
 
-// Promise.allSettled: 全てのPromiseが完了するまで待つ（失敗しても）
+// Promise.allSettled: Wait for all Promises to complete (even if some fail)
 async function fetchMultiple(urls) {
     const results = await Promise.allSettled(
         urls.map(url => fetch(url).then(r => r.json()))
@@ -677,7 +689,7 @@ async function fetchMultiple(urls) {
     }));
 }
 
-// レートリミッター
+// Rate limiter
 class AsyncRateLimiter {
     constructor(maxConcurrent) {
         this.maxConcurrent = maxConcurrent;
@@ -702,25 +714,25 @@ class AsyncRateLimiter {
     }
 }
 
-// 使用例: 最大5同時リクエスト
+// Usage example: max 5 concurrent requests
 const limiter = new AsyncRateLimiter(5);
 const results = await Promise.all(
     urls.map(url => limiter.execute(() => fetch(url)))
 );
 ```
 
-### 3.3 Python の GIL と multiprocessing
+### 3.3 Python's GIL and multiprocessing
 
 ```python
-# === Python の GIL (Global Interpreter Lock) ===
+# === Python's GIL (Global Interpreter Lock) ===
 
-# GILとは:
-# CPython がメモリ管理の安全性のために導入した排他ロック
-# → 同一プロセス内で同時に1スレッドしかPythonバイトコードを実行できない
-# → マルチスレッドでもCPU-bound処理は並列化されない
+# What is the GIL:
+# An exclusive lock introduced by CPython for memory management safety
+# → Only one thread can execute Python bytecode at a time within a process
+# → Multi-threaded code does not parallelize CPU-bound work
 
-# I/O-bound → スレッドでOK（I/O待ちの間にGILが解放される）
-# CPU-bound → multiprocessing を使う
+# I/O-bound → Threads are fine (GIL is released during I/O waits)
+# CPU-bound → Use multiprocessing
 
 import multiprocessing
 import time
@@ -728,25 +740,25 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 
 
 def cpu_heavy_task(n: int) -> int:
-    """CPU集約的な処理"""
+    """CPU-intensive computation"""
     total = 0
     for i in range(n):
         total += i * i
     return total
 
 
-# ❌ マルチスレッド: CPU-bound では GIL のせいで速くならない
+# ❌ Multi-threaded: Does not speed up CPU-bound work due to the GIL
 def with_threads(tasks: list[int]) -> list[int]:
     with ThreadPoolExecutor(max_workers=4) as executor:
         return list(executor.map(cpu_heavy_task, tasks))
 
-# ✅ マルチプロセス: 真の並列実行
+# ✅ Multi-process: True parallel execution
 def with_processes(tasks: list[int]) -> list[int]:
     with ProcessPoolExecutor(max_workers=4) as executor:
         return list(executor.map(cpu_heavy_task, tasks))
 
 
-# ベンチマーク
+# Benchmark
 tasks = [10_000_000] * 4
 
 start = time.perf_counter()
@@ -757,26 +769,26 @@ start = time.perf_counter()
 with_processes(tasks)
 process_time = time.perf_counter() - start
 
-print(f"スレッド: {thread_time:.2f}秒")    # 例: 8.5秒（GILで遅い）
-print(f"プロセス: {process_time:.2f}秒")   # 例: 2.5秒（4コアで並列）
+print(f"Threads: {thread_time:.2f}s")    # e.g., 8.5s (slow due to GIL)
+print(f"Processes: {process_time:.2f}s")  # e.g., 2.5s (parallel on 4 cores)
 
 
-# === concurrent.futures: 統一的なインターフェース ===
+# === concurrent.futures: Unified Interface ===
 
 from concurrent.futures import as_completed
 
 def process_batch(items: list, worker_func, max_workers: int = 4):
-    """バッチ処理を並列実行して結果を収集"""
+    """Execute batch processing in parallel and collect results"""
     results = {}
 
     with ProcessPoolExecutor(max_workers=max_workers) as executor:
-        # 各タスクを投入
+        # Submit each task
         future_to_item = {
             executor.submit(worker_func, item): item
             for item in items
         }
 
-        # 完了順に結果を取得
+        # Retrieve results in completion order
         for future in as_completed(future_to_item):
             item = future_to_item[future]
             try:
@@ -790,9 +802,9 @@ def process_batch(items: list, worker_func, max_workers: int = 4):
 
 ---
 
-## 4. Go の goroutine/channel（CSPモデル）
+## 4. Go's goroutine/channel (CSP Model)
 
-### 4.1 goroutine の基本
+### 4.1 goroutine Basics
 
 ```go
 package main
@@ -803,31 +815,31 @@ import (
     "time"
 )
 
-// goroutine: 軽量スレッド（数KB、OSスレッドは数MB）
-// → 数十万の goroutine を同時実行可能
+// goroutine: lightweight thread (a few KB; OS threads are several MB)
+// → Can run hundreds of thousands of goroutines concurrently
 
 func worker(id int, wg *sync.WaitGroup) {
     defer wg.Done()
-    fmt.Printf("Worker %d: 開始\n", id)
+    fmt.Printf("Worker %d: started\n", id)
     time.Sleep(time.Second)
-    fmt.Printf("Worker %d: 完了\n", id)
+    fmt.Printf("Worker %d: completed\n", id)
 }
 
 func main() {
     var wg sync.WaitGroup
 
-    // 10個の goroutine を起動
+    // Launch 10 goroutines
     for i := 0; i < 10; i++ {
         wg.Add(1)
-        go worker(i, &wg)  // go キーワードで goroutine 起動
+        go worker(i, &wg)  // Launch goroutine with go keyword
     }
 
-    wg.Wait()  // 全 goroutine の完了を待つ
-    fmt.Println("全ワーカー完了")
+    wg.Wait()  // Wait for all goroutines to complete
+    fmt.Println("All workers completed")
 }
 ```
 
-### 4.2 チャネルによる通信
+### 4.2 Communication via Channels
 
 ```go
 package main
@@ -840,27 +852,27 @@ import (
 // "Don't communicate by sharing memory,
 //  share memory by communicating." — Go Proverb
 
-// === チャネルの基本 ===
+// === Channel Basics ===
 
-// Producer-Consumer パターン
+// Producer-Consumer Pattern
 func producer(ch chan<- int) {
     for i := 0; i < 10; i++ {
-        ch <- i  // チャネルに送信
-        fmt.Printf("[Producer] 送信: %d\n", i)
+        ch <- i  // Send to channel
+        fmt.Printf("[Producer] Sent: %d\n", i)
         time.Sleep(100 * time.Millisecond)
     }
-    close(ch)  // チャネルを閉じる（これ以上送信しない）
+    close(ch)  // Close channel (no more sends)
 }
 
 func consumer(ch <-chan int, name string) {
-    for val := range ch {  // チャネルが閉じるまで受信
-        fmt.Printf("[%s] 受信: %d\n", name, val)
+    for val := range ch {  // Receive until channel is closed
+        fmt.Printf("[%s] Received: %d\n", name, val)
         time.Sleep(200 * time.Millisecond)
     }
 }
 
 
-// === Fan-out / Fan-in パターン ===
+// === Fan-out / Fan-in Pattern ===
 
 func fanOut(input <-chan int, workers int) []<-chan int {
     channels := make([]<-chan int, workers)
@@ -869,7 +881,7 @@ func fanOut(input <-chan int, workers int) []<-chan int {
         channels[i] = ch
         go func(out chan<- int, workerID int) {
             for val := range input {
-                // 重い処理をシミュレート
+                // Simulate heavy processing
                 result := val * val
                 fmt.Printf("[Worker-%d] %d → %d\n", workerID, val, result)
                 out <- result
@@ -903,7 +915,7 @@ func fanIn(channels ...<-chan int) <-chan int {
 }
 
 
-// === select 文: 複数チャネルの待機 ===
+// === select Statement: Waiting on Multiple Channels ===
 
 func selectDemo() {
     ch1 := make(chan string)
@@ -912,29 +924,29 @@ func selectDemo() {
 
     go func() {
         time.Sleep(1 * time.Second)
-        ch1 <- "ch1のデータ"
+        ch1 <- "data from ch1"
     }()
 
     go func() {
         time.Sleep(2 * time.Second)
-        ch2 <- "ch2のデータ"
+        ch2 <- "data from ch2"
     }()
 
     for i := 0; i < 2; i++ {
         select {
         case msg := <-ch1:
-            fmt.Printf("ch1 受信: %s\n", msg)
+            fmt.Printf("Received from ch1: %s\n", msg)
         case msg := <-ch2:
-            fmt.Printf("ch2 受信: %s\n", msg)
+            fmt.Printf("Received from ch2: %s\n", msg)
         case <-timeout:
-            fmt.Println("タイムアウト！")
+            fmt.Println("Timeout!")
             return
         }
     }
 }
 
 
-// === Pipeline パターン ===
+// === Pipeline Pattern ===
 
 func generate(nums ...int) <-chan int {
     out := make(chan int)
@@ -972,7 +984,7 @@ func filter(in <-chan int, predicate func(int) bool) <-chan int {
 }
 
 func pipelineMain() {
-    // パイプライン: 生成 → 二乗 → フィルタ
+    // Pipeline: generate → square → filter
     numbers := generate(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
     squared := square(numbers)
     filtered := filter(squared, func(n int) bool { return n > 20 })
@@ -983,7 +995,7 @@ func pipelineMain() {
 }
 
 
-// === Context によるキャンセレーション ===
+// === Cancellation with Context ===
 
 import "context"
 
@@ -991,12 +1003,12 @@ func longRunningTask(ctx context.Context, id int) error {
     for i := 0; ; i++ {
         select {
         case <-ctx.Done():
-            // キャンセルされた
-            fmt.Printf("Task %d: キャンセル (理由: %v)\n", id, ctx.Err())
+            // Cancelled
+            fmt.Printf("Task %d: cancelled (reason: %v)\n", id, ctx.Err())
             return ctx.Err()
         default:
-            // 処理を続行
-            fmt.Printf("Task %d: ステップ %d\n", id, i)
+            // Continue processing
+            fmt.Printf("Task %d: step %d\n", id, i)
             time.Sleep(500 * time.Millisecond)
         }
     }
@@ -1010,55 +1022,55 @@ func contextDemo() {
     go longRunningTask(ctx, 2)
 
     time.Sleep(3 * time.Second)
-    // → 2秒後に自動キャンセル
+    // → Auto-cancelled after 2 seconds
 }
 ```
 
 ---
 
-## 5. アクターモデル
+## 5. The Actor Model
 
-### 5.1 アクターモデルの原理
+### 5.1 Principles of the Actor Model
 
 ```
-アクターモデル（Carl Hewitt, 1973）:
+Actor Model (Carl Hewitt, 1973):
 
-  基本概念:
-  - すべてがアクター（独立した計算単位）
-  - アクターは以下の3つだけを行う:
-    1. メッセージの受信と処理
-    2. 新しいアクターの生成
-    3. 他のアクターへのメッセージ送信
-  - 共有状態は一切なし
-  - メッセージは非同期に送受信
+  Core concepts:
+  - Everything is an actor (an independent unit of computation)
+  - An actor can only do three things:
+    1. Receive and process messages
+    2. Create new actors
+    3. Send messages to other actors
+  - No shared state whatsoever
+  - Messages are sent and received asynchronously
 
-  メッセージボックスモデル:
+  Mailbox model:
   ┌─────────────────────────────────────┐
   │          Actor A                     │
   │  ┌──────────┐  ┌─────────────┐     │
-  │  │ Mailbox  │→ │ 振る舞い     │     │
-  │  │ msg1     │  │ (状態を持つ) │     │
+  │  │ Mailbox  │→ │ Behavior    │     │
+  │  │ msg1     │  │ (has state) │     │
   │  │ msg2     │  │             │     │
-  │  │ msg3     │  │ → msg処理   │──→ Actor B に送信
+  │  │ msg3     │  │ → process   │──→ Send to Actor B
   │  └──────────┘  └─────────────┘     │
   └─────────────────────────────────────┘
 
-  メリット:
-  - 共有状態がないためロック不要
-  - 分散システムとの親和性が高い
-  - 耐障害性（Let it crash 哲学）
-  - スケーラビリティ
+  Advantages:
+  - No shared state means no locks needed
+  - High affinity with distributed systems
+  - Fault tolerance (Let it crash philosophy)
+  - Scalability
 ```
 
-### 5.2 Erlang/Elixir のアクター実装
+### 5.2 Actor Implementation in Erlang/Elixir
 
 ```elixir
-# Elixir のアクターモデル（GenServer）
+# Elixir's actor model (GenServer)
 
 defmodule BankAccount do
   use GenServer
 
-  # クライアントAPI
+  # Client API
   def start_link(initial_balance) do
     GenServer.start_link(__MODULE__, initial_balance)
   end
@@ -1075,7 +1087,7 @@ defmodule BankAccount do
     GenServer.call(pid, :balance)
   end
 
-  # サーバーコールバック
+  # Server callbacks
   @impl true
   def init(initial_balance) do
     {:ok, %{balance: initial_balance, transactions: []}}
@@ -1111,16 +1123,16 @@ defmodule BankAccount do
   end
 end
 
-# 使用例
+# Usage example
 {:ok, account} = BankAccount.start_link(10000)
 BankAccount.deposit(account, 5000)    # {:ok, 15000}
 BankAccount.withdraw(account, 3000)   # {:ok, 12000}
 BankAccount.balance(account)          # 12000
 
-# 並行アクセスしても安全（メッセージは順番に処理される）
+# Safe even under concurrent access (messages are processed sequentially)
 ```
 
-### 5.3 Python でのアクターモデル風実装
+### 5.3 Actor Model Implementation in Python
 
 ```python
 import asyncio
@@ -1129,7 +1141,7 @@ from dataclasses import dataclass, field
 
 
 class Actor:
-    """シンプルなアクター実装"""
+    """Simple actor implementation"""
 
     def __init__(self, name: str):
         self.name = name
@@ -1137,25 +1149,25 @@ class Actor:
         self._running = False
 
     async def start(self):
-        """アクターを起動"""
+        """Start the actor"""
         self._running = True
         while self._running:
             message = await self._mailbox.get()
-            if message is None:  # 停止シグナル
+            if message is None:  # Stop signal
                 self._running = False
                 break
             await self.handle_message(message)
 
     async def send(self, message: Any):
-        """メッセージを送信"""
+        """Send a message"""
         await self._mailbox.put(message)
 
     async def stop(self):
-        """アクターを停止"""
+        """Stop the actor"""
         await self._mailbox.put(None)
 
     async def handle_message(self, message: Any):
-        """メッセージハンドラ（サブクラスでオーバーライド）"""
+        """Message handler (override in subclass)"""
         raise NotImplementedError
 
 
@@ -1168,7 +1180,7 @@ class Transfer:
 
 
 class BankAccountActor(Actor):
-    """銀行口座アクター"""
+    """Bank account actor"""
 
     def __init__(self, name: str, initial_balance: int = 0):
         super().__init__(name)
@@ -1185,27 +1197,27 @@ class BankAccountActor(Actor):
                     self._balance -= amount
                     await reply.put({"status": "ok", "balance": self._balance})
                 else:
-                    await reply.put({"status": "error", "reason": "残高不足"})
+                    await reply.put({"status": "error", "reason": "insufficient funds"})
 
             case {"action": "balance", "reply": reply}:
                 await reply.put({"balance": self._balance})
 
 
 async def actor_demo():
-    """アクターモデルのデモ"""
-    # アクターを作成して起動
+    """Actor model demo"""
+    # Create and start the actor
     account = BankAccountActor("account-1", 10000)
     task = asyncio.create_task(account.start())
 
-    # メッセージ送信と返信受信
+    # Send messages and receive replies
     reply = asyncio.Queue()
     await account.send({"action": "deposit", "amount": 5000, "reply": reply})
     result = await reply.get()
-    print(f"入金結果: {result}")  # {"status": "ok", "balance": 15000}
+    print(f"Deposit result: {result}")  # {"status": "ok", "balance": 15000}
 
     await account.send({"action": "balance", "reply": reply})
     result = await reply.get()
-    print(f"残高: {result}")  # {"balance": 15000}
+    print(f"Balance: {result}")  # {"balance": 15000}
 
     await account.stop()
     await task
@@ -1213,60 +1225,61 @@ async def actor_demo():
 
 ---
 
-## 6. ロックフリープログラミング
+## 6. Lock-Free Programming
 
 ```
-ロックフリーアルゴリズム:
+Lock-free algorithms:
 
-  ロック（Mutex）の問題:
-  - デッドロックのリスク
-  - 優先度逆転
-  - コンテキストスイッチのオーバーヘッド
-  - スケーラビリティの限界
+  Problems with locks (Mutex):
+  - Risk of deadlock
+  - Priority inversion
+  - Context switch overhead
+  - Scalability limitations
 
-  ロックフリーの手法:
-  1. CAS (Compare-And-Swap) 操作
-     - アトミックに「比較して一致すれば書き換え」
-     - ハードウェアレベルでサポート
+  Lock-free techniques:
+  1. CAS (Compare-And-Swap) Operations
+     - Atomically "compare and swap if equal"
+     - Supported at the hardware level
 
   2. Immutable Data Structures
-     - 変更不可能なデータ → ロック不要
-     - 永続データ構造（Persistent Data Structures）
+     - Immutable data → no locks needed
+     - Persistent Data Structures
 
   3. Lock-Free Queue / Stack
-     - CAS ベースの実装
-     - 高スループット
+     - CAS-based implementations
+     - High throughput
 
-  CAS の動作:
+  How CAS works:
   ┌─────────────────────────────────────┐
-  │ CAS(メモリ位置, 期待値, 新しい値)    │
-  │                                       │
-  │ if メモリ位置の値 == 期待値:          │
-  │     メモリ位置の値 = 新しい値         │
-  │     return true  // 成功              │
-  │ else:                                 │
-  │     return false // 他のスレッドが     │
-  │                  // 変更済み → リトライ│
+  │ CAS(memory_location, expected, new) │
+  │                                     │
+  │ if memory_location == expected:     │
+  │     memory_location = new           │
+  │     return true  // success         │
+  │ else:                               │
+  │     return false // another thread  │
+  │                  // already changed │
+  │                  // → retry         │
   └─────────────────────────────────────┘
 ```
 
 ```python
-# Python での Atomic 操作（簡易的な実装）
+# Atomic operations in Python (simplified implementation)
 import threading
 
 class AtomicInteger:
-    """アトミックな整数（CAS風の実装）"""
+    """Atomic integer (CAS-style implementation)"""
 
     def __init__(self, value: int = 0):
         self._value = value
-        self._lock = threading.Lock()  # Python では真の CAS がないためロックで代用
+        self._lock = threading.Lock()  # Python lacks true CAS, so we use a lock as a substitute
 
     @property
     def value(self) -> int:
         return self._value
 
     def compare_and_swap(self, expected: int, new_value: int) -> bool:
-        """CAS: 現在の値が expected なら new_value に更新"""
+        """CAS: Update to new_value if current value equals expected"""
         with self._lock:
             if self._value == expected:
                 self._value = new_value
@@ -1274,21 +1287,21 @@ class AtomicInteger:
             return False
 
     def increment(self) -> int:
-        """アトミックなインクリメント"""
+        """Atomic increment"""
         while True:
             current = self._value
             if self.compare_and_swap(current, current + 1):
                 return current + 1
 
     def decrement(self) -> int:
-        """アトミックなデクリメント"""
+        """Atomic decrement"""
         while True:
             current = self._value
             if self.compare_and_swap(current, current - 1):
                 return current - 1
 
     def add_and_get(self, delta: int) -> int:
-        """アトミックな加算"""
+        """Atomic addition"""
         while True:
             current = self._value
             if self.compare_and_swap(current, current + delta):
@@ -1297,12 +1310,12 @@ class AtomicInteger:
 
 ---
 
-## 7. 実務での並行処理パターン
+## 7. Practical Concurrency Patterns
 
-### 7.1 よく使われるパターン
+### 7.1 Commonly Used Patterns
 
 ```python
-# === Worker Pool パターン ===
+# === Worker Pool Pattern ===
 
 import asyncio
 from typing import Callable, Any
@@ -1314,7 +1327,7 @@ async def worker_pool(
     max_workers: int = 10,
     progress_callback: Callable = None
 ) -> list[Any]:
-    """ワーカープールで複数タスクを並行処理"""
+    """Process multiple tasks concurrently using a worker pool"""
     semaphore = asyncio.Semaphore(max_workers)
     results = [None] * len(tasks)
     completed = 0
@@ -1334,18 +1347,18 @@ async def worker_pool(
     return results
 
 
-# === Circuit Breaker パターン ===
+# === Circuit Breaker Pattern ===
 
 import time
 from enum import Enum
 
 class CircuitState(Enum):
-    CLOSED = "closed"        # 正常
-    OPEN = "open"            # 遮断
-    HALF_OPEN = "half_open"  # 半開
+    CLOSED = "closed"        # Normal
+    OPEN = "open"            # Tripped
+    HALF_OPEN = "half_open"  # Partially open
 
 class CircuitBreaker:
-    """サーキットブレーカー: 連続失敗時にリクエストを遮断"""
+    """Circuit Breaker: blocks requests after consecutive failures"""
 
     def __init__(
         self,
@@ -1364,18 +1377,18 @@ class CircuitBreaker:
     @property
     def state(self) -> CircuitState:
         if self._state == CircuitState.OPEN:
-            # タイムアウト経過で HALF_OPEN に移行
+            # Transition to HALF_OPEN after timeout elapses
             if time.time() - self._last_failure_time >= self._recovery_timeout:
                 self._state = CircuitState.HALF_OPEN
                 self._success_count = 0
         return self._state
 
     async def call(self, func: Callable, *args, **kwargs):
-        """サーキットブレーカーを通してリクエストを実行"""
+        """Execute a request through the circuit breaker"""
         current_state = self.state
 
         if current_state == CircuitState.OPEN:
-            raise RuntimeError("サーキットブレーカーが開いています")
+            raise RuntimeError("Circuit breaker is open")
 
         try:
             result = await func(*args, **kwargs)
@@ -1394,15 +1407,15 @@ class CircuitBreaker:
 
             if self._failure_count >= self._failure_threshold:
                 self._state = CircuitState.OPEN
-                print(f"サーキットブレーカー: OPEN (失敗{self._failure_count}回)")
+                print(f"Circuit breaker: OPEN ({self._failure_count} failures)")
 
             raise
 
 
-# === Bulkhead パターン（隔壁）===
+# === Bulkhead Pattern ===
 
 class Bulkhead:
-    """バルクヘッド: サービスごとにリソースを分離"""
+    """Bulkhead: isolate resources per service"""
 
     def __init__(self, name: str, max_concurrent: int):
         self.name = name
@@ -1412,8 +1425,8 @@ class Bulkhead:
     async def execute(self, func: Callable, *args, **kwargs):
         if self._semaphore.locked():
             raise RuntimeError(
-                f"バルクヘッド '{self.name}' の容量超過 "
-                f"(アクティブ: {self._active})"
+                f"Bulkhead '{self.name}' capacity exceeded "
+                f"(active: {self._active})"
             )
 
         async with self._semaphore:
@@ -1424,84 +1437,84 @@ class Bulkhead:
                 self._active -= 1
 
 
-# サービスごとにバルクヘッドを設定
-api_bulkhead = Bulkhead("外部API", max_concurrent=10)
-db_bulkhead = Bulkhead("データベース", max_concurrent=20)
+# Set up bulkheads per service
+api_bulkhead = Bulkhead("External API", max_concurrent=10)
+db_bulkhead = Bulkhead("Database", max_concurrent=20)
 
-# APIサービスが過負荷でもDBサービスに影響しない
+# Even if the API service is overloaded, the DB service is not affected
 # await api_bulkhead.execute(call_external_api, url)
 # await db_bulkhead.execute(query_database, sql)
 ```
 
-### 7.2 並行処理のアンチパターン
+### 7.2 Concurrency Anti-Patterns
 
 ```
-並行処理のアンチパターン:
+Concurrency anti-patterns:
 
-1. ❌ 必要以上の並行度
-   - スレッドをリクエストごとに作成（C10K問題）
-   - → イベントループやスレッドプールを使う
+1. ❌ Excessive concurrency
+   - Creating a thread per request (C10K problem)
+   - → Use event loops or thread pools
 
-2. ❌ ロックの粒度が大きすぎる
-   - 処理全体をロックする（コンカレンシーが下がる）
-   - → ロックの範囲を最小限にする
+2. ❌ Lock granularity too coarse
+   - Locking the entire operation (reduces concurrency)
+   - → Minimize the scope of locks
 
-3. ❌ ロックの粒度が小さすぎる
-   - 細かすぎるロック（オーバーヘッド増大）
-   - → 適切な粒度を見極める
+3. ❌ Lock granularity too fine
+   - Overly fine-grained locks (increased overhead)
+   - → Find the appropriate granularity
 
-4. ❌ ネストしたロック
-   - デッドロックの温床
-   - → ロックの順序を統一、またはロック不要な設計
+4. ❌ Nested locks
+   - A breeding ground for deadlocks
+   - → Unify lock ordering, or design to avoid locks entirely
 
-5. ❌ busy waiting（スピンロック）
-   - CPU使用率100%で待機
-   - → 条件変数やセマフォで待機
+5. ❌ Busy waiting (spin lock)
+   - 100% CPU usage while waiting
+   - → Use condition variables or semaphores to wait
 
-6. ❌ fire and forget
-   - 非同期タスクのエラーを無視
-   - → 必ずエラーハンドリングと完了確認
+6. ❌ Fire and forget
+   - Ignoring errors from async tasks
+   - → Always handle errors and confirm completion
 
-7. ❌ 共有ミュータブル状態
-   - グローバル変数を複数スレッドから変更
-   - → 不変データ or メッセージパッシング
+7. ❌ Shared mutable state
+   - Modifying global variables from multiple threads
+   - → Use immutable data or message passing
 
-8. ❌ スレッドセーフでないライブラリの使用
-   - 共有状態を持つライブラリをマルチスレッドで使用
-   - → ドキュメントでスレッドセーフ性を確認
+8. ❌ Using non-thread-safe libraries
+   - Using libraries with shared state in a multi-threaded context
+   - → Verify thread safety in the documentation
 ```
 
 ---
 
-## 8. Rust の並行処理
+## 8. Concurrency in Rust
 
 ```rust
-// Rust: 所有権システムによるコンパイル時の安全性保証
+// Rust: Compile-time safety guarantees through the ownership system
 
 use std::thread;
 use std::sync::{Arc, Mutex, mpsc};
 
-// === スレッド + メッセージパッシング ===
+// === Threads + Message Passing ===
 
 fn channel_example() {
     let (tx, rx) = mpsc::channel();
 
-    // 送信側スレッド
+    // Sender thread
     thread::spawn(move || {
-        let messages = vec!["こんにちは", "from", "スレッド"];
+        let messages = vec!["hello", "from", "thread"];
         for msg in messages {
             tx.send(msg).unwrap();
             thread::sleep(Duration::from_millis(100));
         }
     });
 
-    // 受信側（メインスレッド）
+    // Receiver (main thread)
     for received in rx {
-        println!("受信: {}", received);
+        println!("Received: {}", received);
     }
 }
 
-// === 共有状態（Arc + Mutex）===
+// === Shared State (Arc + Mutex) ===
 
 fn shared_state_example() {
     let counter = Arc::new(Mutex::new(0));
@@ -1520,33 +1533,33 @@ fn shared_state_example() {
         handle.join().unwrap();
     }
 
-    println!("結果: {}", *counter.lock().unwrap());  // 10
+    println!("Result: {}", *counter.lock().unwrap());  // 10
 }
 
-// Rust のコンパイラが防ぐ問題:
-// - データ競合: &mut T の同時アクセスをコンパイル時に禁止
-// - ダングリングポインタ: 所有権システムで防止
-// - Send/Sync トレイト: スレッド安全でない型の送信を禁止
+// Problems the Rust compiler prevents:
+// - Data races: Concurrent &mut T access is forbidden at compile time
+// - Dangling pointers: Prevented by the ownership system
+// - Send/Sync traits: Prohibit sending non-thread-safe types across threads
 
-// === async/await（tokio ランタイム）===
+// === async/await (tokio runtime) ===
 
 use tokio;
 
 #[tokio::main]
 async fn main() {
     let handle1 = tokio::spawn(async {
-        // 非同期タスク1
+        // Async task 1
         tokio::time::sleep(Duration::from_secs(1)).await;
-        "結果1"
+        "result1"
     });
 
     let handle2 = tokio::spawn(async {
-        // 非同期タスク2
+        // Async task 2
         tokio::time::sleep(Duration::from_secs(2)).await;
-        "結果2"
+        "result2"
     });
 
-    // 並行実行
+    // Concurrent execution
     let (result1, result2) = tokio::join!(handle1, handle2);
     println!("{:?}, {:?}", result1, result2);
 }
@@ -1554,53 +1567,56 @@ async fn main() {
 
 ---
 
-## 9. 実務での並行処理設計指針
+## 9. Design Guidelines for Practical Concurrency
 
 ```
-並行処理の設計指針:
+Concurrency design guidelines:
 
-1. まず並行性が必要か検討する
-   - 逐次処理で十分なら無理に並行化しない
-   - 複雑さが増すコスト vs 性能改善の利益
+1. First, consider whether concurrency is actually needed
+   - Don't force concurrency if sequential processing is sufficient
+   - Weigh the cost of added complexity vs. performance gains
 
-2. 最も単純なモデルを選ぶ
+2. Choose the simplest model
    I/O-bound → async/await
-   CPU-bound → マルチプロセス（Python）/ マルチスレッド
-   分散処理 → メッセージキュー（RabbitMQ, Kafka等）
-   リアルタイム → アクターモデル or CSP
+   CPU-bound → Multi-process (Python) / Multi-threaded
+   Distributed → Message queues (RabbitMQ, Kafka, etc.)
+   Real-time → Actor model or CSP
 
-3. 共有ミュータブル状態を最小化する
-   - 不変データ構造を優先
-   - 必要な場合のみロックを使用
-   - ロック範囲は最小限に
+3. Minimize shared mutable state
+   - Prefer immutable data structures
+   - Use locks only when necessary
+   - Keep lock scope minimal
 
-4. エラーハンドリングを設計する
-   - タイムアウトを必ず設定
-   - リトライ戦略を定義
-   - サーキットブレーカーの導入を検討
-   - 障害の伝播を制限（バルクヘッド）
+4. Design error handling
+   - Always set timeouts
+   - Define retry strategies
+   - Consider introducing circuit breakers
+   - Limit fault propagation (bulkhead)
 
-5. テスト戦略
-   - 競合状態のテストは困難 → 設計で防ぐ
-   - 純粋関数を多用してテスト容易性を確保
-   - stress test、chaos engineering の導入
+5. Testing strategy
+   - Race conditions are hard to test → prevent them by design
+   - Use pure functions extensively for testability
+   - Adopt stress testing and chaos engineering
 
-6. 監視とデバッグ
-   - 構造化ログにスレッド/タスクIDを含める
-   - メトリクス: 並行度、レイテンシ、エラー率
-   - デッドロック検出ツールの活用
+6. Monitoring and debugging
+   - Include thread/task IDs in structured logs
+   - Metrics: concurrency level, latency, error rate
+   - Leverage deadlock detection tools
 
-技術選定の早見表:
+Technology selection quick reference:
 ┌───────────────────────┬───────────────────────────┐
-│ 要件                   │ 推奨技術                   │
+│ Requirement            │ Recommended Technology     │
 ├───────────────────────┼───────────────────────────┤
-│ Web API の並行リクエスト │ async/await                │
-│ 画像/動画のバッチ処理   │ マルチプロセス             │
-│ WebSocket サーバー     │ async/await + イベント      │
-│ 分散タスクキュー       │ Celery / Kafka / RabbitMQ  │
-│ リアルタイムゲーム     │ アクターモデル / ECS       │
-│ データパイプライン     │ Apache Spark / Flink       │
-│ マイクロサービス間通信 │ gRPC / メッセージキュー    │
+│ Concurrent web API     │ async/await               │
+│ requests               │                           │
+│ Image/video batch      │ Multi-process             │
+│ processing             │                           │
+│ WebSocket server       │ async/await + events      │
+│ Distributed task queue │ Celery / Kafka / RabbitMQ │
+│ Real-time game         │ Actor model / ECS         │
+│ Data pipeline          │ Apache Spark / Flink      │
+│ Microservice           │ gRPC / message queues     │
+│ communication          │                           │
 └───────────────────────┴───────────────────────────┘
 ```
 
@@ -1609,42 +1625,42 @@ async fn main() {
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when studying this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is paramount. Understanding deepens not just through theory but by actually writing code and observing its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping ahead to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this knowledge applied in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## まとめ
-
-| 概念 | ポイント |
-|------|---------|
-| 並行 vs 並列 | 並行=構造（1コアでも可能）、並列=実行（複数コア必要） |
-| 競合状態 | 共有状態 + 非アトミック操作。ロック/CAS/不変性で防止 |
-| デッドロック | 循環する待ち合わせ。Coffman条件の1つを崩して防止 |
-| async/await | シングルスレッド非同期。I/O-bound に最適 |
-| goroutine/channel | CSPモデル。軽量スレッド + チャネル通信 |
-| アクターモデル | メッセージパッシング。共有状態なし。分散に強い |
-| ロックフリー | CAS操作でロック不要。高スループット |
-| GIL (Python) | CPU-bound はマルチプロセスを使う |
-| パターン | Worker Pool, Circuit Breaker, Bulkhead |
-| 設計指針 | 共有状態最小化、タイムアウト必須、最も単純なモデルを選ぶ |
+The knowledge covered in this topic is frequently applied in day-to-day development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## 次に読むべきガイド
+## Summary
+
+| Concept | Key Point |
+|---------|-----------|
+| Concurrency vs Parallelism | Concurrency = structure (possible on 1 core), Parallelism = execution (requires multiple cores) |
+| Race Condition | Shared state + non-atomic operations. Prevent with locks/CAS/immutability |
+| Deadlock | Circular resource waiting. Prevent by breaking one of the Coffman conditions |
+| async/await | Single-threaded async. Optimal for I/O-bound work |
+| goroutine/channel | CSP model. Lightweight threads + channel communication |
+| Actor Model | Message passing. No shared state. Strong for distributed systems |
+| Lock-Free | CAS operations eliminate locks. High throughput |
+| GIL (Python) | Use multi-process for CPU-bound work |
+| Patterns | Worker Pool, Circuit Breaker, Bulkhead |
+| Design Guidelines | Minimize shared state, always set timeouts, choose the simplest model |
 
 ---
 
-## 参考文献
+## Recommended Next Reading
+
+---
+
+## References
 1. Pike, R. "Concurrency Is Not Parallelism." Waza Conference, 2012.
 2. Goetz, B. "Java Concurrency in Practice." Addison-Wesley, 2006.
 3. Armstrong, J. "Programming Erlang: Software for a Concurrent World." 2nd Edition, Pragmatic Bookshelf, 2013.

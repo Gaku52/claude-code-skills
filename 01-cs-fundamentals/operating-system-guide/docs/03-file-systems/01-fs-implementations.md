@@ -1,449 +1,460 @@
-# 主要ファイルシステム実装
+# Major Filesystem Implementations
 
-> ファイルシステムの選択はワークロードに依存する。万能なFSは存在しない。
+> The choice of filesystem depends on the workload. There is no one-size-fits-all filesystem.
 
-## この章で学ぶこと
+## Learning Objectives
 
-- [ ] 主要なファイルシステムの特徴を比較できる
-- [ ] ワークロードに応じたFS選択ができる
-- [ ] 各FSの内部構造とアルゴリズムを理解する
-- [ ] FS固有のチューニング手法を習得する
-- [ ] FS間のデータ移行を行える
+- [ ] Compare the characteristics of major filesystems
+- [ ] Select an appropriate filesystem based on the workload
+- [ ] Understand the internal structures and algorithms of each filesystem
+- [ ] Master filesystem-specific tuning techniques
+- [ ] Perform data migration between filesystems
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Having the following knowledge before reading this guide will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [ファイルシステムの基礎](./00-fs-basics.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related fundamental concepts
+- Understanding of the content in [Filesystem Basics](./00-fs-basics.md)
 
 ---
 
-## 1. ext4（Linux標準）
+## 1. ext4 (Linux Standard)
 
-### 1.1 ext4の歴史と進化
+### 1.1 History and Evolution of ext4
 
 ```
-ext ファミリーの系譜:
+ext Family Lineage:
 
-  ext (1992): Linux 最初のファイルシステム
-  → 最大 2GB パーティション
-  → UFS（Unix File System）の影響
+  ext (1992): The first Linux filesystem
+  -> Maximum 2GB partition
+  -> Influenced by UFS (Unix File System)
 
-  ext2 (1993): 本格的なLinuxファイルシステム
-  → 最大 4TB パーティション、2GB ファイル
-  → ジャーナリングなし
-  → 長期間使用された安定設計
-  → USB メモリ等でまだ使われる場合あり
+  ext2 (1993): The first full-featured Linux filesystem
+  -> Maximum 4TB partition, 2GB file
+  -> No journaling
+  -> Stable design used for a long time
+  -> Still used in some cases for USB drives
 
-  ext3 (2001): ext2 + ジャーナリング
-  → ext2 との後方互換性
-  → オンラインでの ext2 → ext3 アップグレード可能
-  → 3つのジャーナリングモード導入
+  ext3 (2001): ext2 + journaling
+  -> Backward compatible with ext2
+  -> Online upgrade from ext2 to ext3 possible
+  -> Introduced 3 journaling modes
 
-  ext4 (2008): ext3 の大幅拡張
-  → 最大 1EB パーティション、16TB ファイル
-  → エクステント、遅延アロケーション等の新機能
-  → Ubuntu, Debian のデフォルト
-  → 最も広く使われている Linux FS
+  ext4 (2008): Major extension of ext3
+  -> Maximum 1EB partition, 16TB file
+  -> New features: extents, delayed allocation, etc.
+  -> Default on Ubuntu, Debian
+  -> The most widely used Linux filesystem
 
-  進化の図:
+  Evolution diagram:
   ext (1992)
-   │
-   ↓
-  ext2 (1993) ── ジャーナリング追加 ──→ ext3 (2001)
-                                          │
-                                          ↓
-                   大容量対応/エクステント ──→ ext4 (2008)
+   |
+   v
+  ext2 (1993) -- Added journaling --> ext3 (2001)
+                                       |
+                                       v
+                  Large capacity/extents --> ext4 (2008)
 ```
 
-### 1.2 ext4 の主要機能
+### 1.2 Key Features of ext4
 
 ```
 ext4 (Fourth Extended Filesystem, 2008):
-  ext2 → ext3(ジャーナリング追加) → ext4(大容量対応)
+  ext2 -> ext3 (added journaling) -> ext4 (large capacity support)
 
-  主な特徴:
-  ┌──────────────────────────────────────────────────┐
-  │ 容量制限                                          │
-  │ - 最大ボリューム: 1EB (エクサバイト)               │
-  │ - 最大ファイル: 16TB                              │
-  │ - 最大ファイル名: 255バイト                        │
-  │ - 最大パス長: 4096バイト                           │
-  │ - ディレクトリ内最大エントリ: 約1000万              │
-  ├──────────────────────────────────────────────────┤
-  │ エクステント (Extents)                             │
-  │ - 連続ブロックを1エントリで管理（断片化削減）       │
-  │ - エクステントツリー（B木構造）                     │
-  │ - 最大128MB の連続領域を1エクステントで表現         │
-  ├──────────────────────────────────────────────────┤
-  │ 遅延割り当て (Delayed Allocation)                  │
-  │ - 書き込みをページキャッシュに保留                  │
-  │ - 実際のディスク書き込み時に最適な配置を決定        │
-  │ - 連続ブロック確保の確率が向上                      │
-  │ - 短命ファイルの不要な書き込みを回避                │
-  ├──────────────────────────────────────────────────┤
-  │ ジャーナリング                                     │
-  │ - メタデータ+データの整合性保証                     │
-  │ - 3つのモード: journal, ordered, writeback         │
-  │ - JBD2 (Journaling Block Device 2) エンジン        │
-  ├──────────────────────────────────────────────────┤
-  │ ディレクトリインデックス                            │
-  │ - HTree（ハッシュB木）で高速ルックアップ           │
-  │ - ハーフMD4ハッシュ関数使用                        │
-  │ - 数百万ファイルのディレクトリでも高速              │
-  ├──────────────────────────────────────────────────┤
-  │ マルチブロックアロケーション                        │
-  │ - 複数ブロックを一度に割り当て                     │
-  │ - ブロックアロケータの呼び出し回数を削減            │
-  │ - 連続ブロック確保の効率向上                        │
-  ├──────────────────────────────────────────────────┤
-  │ プリアロケーション (fallocate)                      │
-  │ - ファイルに事前にブロックを予約                    │
-  │ - データベースファイル等で断片化を防止              │
-  │ - POSIX fallocate() システムコール                 │
-  ├──────────────────────────────────────────────────┤
-  │ Flex Block Groups                                  │
-  │ - 複数ブロックグループのメタデータを集約            │
-  │ - メタデータの局所性向上                           │
-  │ - 大容量FS での性能改善                            │
-  └──────────────────────────────────────────────────┘
+  Key features:
+  +--------------------------------------------------+
+  | Capacity Limits                                    |
+  | - Maximum volume: 1EB (exabyte)                    |
+  | - Maximum file: 16TB                               |
+  | - Maximum filename: 255 bytes                      |
+  | - Maximum path length: 4096 bytes                  |
+  | - Maximum directory entries: approx. 10 million    |
+  +--------------------------------------------------+
+  | Extents                                            |
+  | - Manages contiguous blocks with a single entry    |
+  |   (reduces fragmentation)                          |
+  | - Extent tree (B-tree structure)                   |
+  | - Up to 128MB of contiguous space per extent       |
+  +--------------------------------------------------+
+  | Delayed Allocation                                 |
+  | - Holds writes in page cache                       |
+  | - Determines optimal placement at actual disk      |
+  |   write time                                       |
+  | - Increases probability of contiguous block        |
+  |   allocation                                       |
+  | - Avoids unnecessary writes for short-lived files  |
+  +--------------------------------------------------+
+  | Journaling                                         |
+  | - Ensures metadata + data consistency              |
+  | - 3 modes: journal, ordered, writeback             |
+  | - JBD2 (Journaling Block Device 2) engine          |
+  +--------------------------------------------------+
+  | Directory Indexing                                  |
+  | - Fast lookup via HTree (hashed B-tree)            |
+  | - Uses half-MD4 hash function                      |
+  | - Fast even with millions of files in a directory  |
+  +--------------------------------------------------+
+  | Multiblock Allocation                              |
+  | - Allocates multiple blocks at once                |
+  | - Reduces block allocator invocation count         |
+  | - Improves contiguous block allocation efficiency  |
+  +--------------------------------------------------+
+  | Preallocation (fallocate)                          |
+  | - Reserves blocks for a file in advance            |
+  | - Prevents fragmentation for database files, etc.  |
+  | - POSIX fallocate() system call                    |
+  +--------------------------------------------------+
+  | Flex Block Groups                                  |
+  | - Aggregates metadata from multiple block groups   |
+  | - Improves metadata locality                       |
+  | - Performance improvement for large filesystems    |
+  +--------------------------------------------------+
 
-  利点: 安定性、互換性、ツールの充実、広範なテスト実績
-  欠点: スナップショット非対応、データチェックサム非対応
-  用途: デスクトップ、一般サーバー（Ubuntu デフォルト）
+  Advantages: Stability, compatibility, rich tooling, extensive test track record
+  Disadvantages: No snapshot support, no data checksums
+  Use cases: Desktops, general servers (Ubuntu default)
 ```
 
-### 1.3 ext4 のディスク上データ構造
+### 1.3 ext4 On-Disk Data Structures
 
 ```
-ext4 の inode 構造（256バイト、拡張可能）:
+ext4 inode structure (256 bytes, extensible):
 
-  従来の ext2 inode（128バイト）:
-  ┌────────────────────────────────┐
-  │ i_mode (2)    : ファイルタイプ+権限│
-  │ i_uid (2)     : 所有者ID(下位16bit)│
-  │ i_size_lo (4) : サイズ(下位32bit)  │
-  │ i_atime (4)   : アクセス時刻      │
-  │ i_ctime (4)   : 変更時刻          │
-  │ i_mtime (4)   : 更新時刻          │
-  │ i_dtime (4)   : 削除時刻          │
-  │ i_gid (2)     : グループID        │
-  │ i_links_count (2): リンク数       │
-  │ i_blocks_lo (4): ブロック数       │
-  │ i_flags (4)   : フラグ            │
-  │ i_block[15] (60): データポインタ  │
-  │ ...                               │
-  └────────────────────────────────┘
+  Traditional ext2 inode (128 bytes):
+  +--------------------------------+
+  | i_mode (2)    : File type+perms|
+  | i_uid (2)     : Owner ID       |
+  |                 (lower 16 bits) |
+  | i_size_lo (4) : Size            |
+  |                 (lower 32 bits) |
+  | i_atime (4)   : Access time    |
+  | i_ctime (4)   : Change time    |
+  | i_mtime (4)   : Modify time    |
+  | i_dtime (4)   : Delete time    |
+  | i_gid (2)     : Group ID       |
+  | i_links_count (2): Link count  |
+  | i_blocks_lo (4): Block count   |
+  | i_flags (4)   : Flags          |
+  | i_block[15] (60): Data ptrs    |
+  | ...                            |
+  +--------------------------------+
 
-  ext4 拡張フィールド（128バイト追加）:
-  ┌────────────────────────────────┐
-  │ i_extra_isize  : 拡張サイズ    │
-  │ i_checksum_hi  : チェックサム  │
-  │ i_ctime_extra  : ナノ秒精度   │
-  │ i_mtime_extra  : ナノ秒精度   │
-  │ i_atime_extra  : ナノ秒精度   │
-  │ i_crtime       : 作成時刻     │
-  │ i_crtime_extra : 作成時刻ns   │
-  │ i_version_hi   : NFS用バージョン│
-  │ i_projid       : プロジェクトID │
-  └────────────────────────────────┘
+  ext4 extended fields (128 bytes additional):
+  +--------------------------------+
+  | i_extra_isize  : Extended size |
+  | i_checksum_hi  : Checksum     |
+  | i_ctime_extra  : Nanosecond   |
+  |                  precision     |
+  | i_mtime_extra  : Nanosecond   |
+  |                  precision     |
+  | i_atime_extra  : Nanosecond   |
+  |                  precision     |
+  | i_crtime       : Creation time|
+  | i_crtime_extra : Creation ns  |
+  | i_version_hi   : NFS version  |
+  | i_projid       : Project ID   |
+  +--------------------------------+
 
-  エクステントツリーのディスク上構造:
-  ┌─────────────────────────────────────┐
-  │ ext4_extent_header:                  │
-  │   eh_magic  = 0xF30A                │
-  │   eh_entries: エントリ数             │
-  │   eh_max:    最大エントリ数          │
-  │   eh_depth:  ツリーの深さ            │
-  │   eh_generation: 世代番号            │
-  │                                      │
-  │ depth=0 の場合: ext4_extent[4]      │
-  │   ee_block:  論理ブロック番号        │
-  │   ee_len:    ブロック数              │
-  │   ee_start:  物理ブロック番号        │
-  │                                      │
-  │ depth>0 の場合: ext4_extent_idx[4]  │
-  │   ei_block:  論理ブロック番号        │
-  │   ei_leaf:   子ノードのブロック      │
-  └─────────────────────────────────────┘
+  Extent tree on-disk structure:
+  +-------------------------------------+
+  | ext4_extent_header:                  |
+  |   eh_magic  = 0xF30A                |
+  |   eh_entries: Number of entries     |
+  |   eh_max:    Maximum entries        |
+  |   eh_depth:  Tree depth             |
+  |   eh_generation: Generation number  |
+  |                                      |
+  | When depth=0: ext4_extent[4]        |
+  |   ee_block:  Logical block number   |
+  |   ee_len:    Block count            |
+  |   ee_start:  Physical block number  |
+  |                                      |
+  | When depth>0: ext4_extent_idx[4]    |
+  |   ei_block:  Logical block number   |
+  |   ei_leaf:   Child node block       |
+  +-------------------------------------+
 ```
 
-### 1.4 ext4 のチューニング
+### 1.4 ext4 Tuning
 
 ```bash
-# ext4 ファイルシステムの作成（カスタム設定）
-# 一般的なサーバー向け
+# Creating an ext4 filesystem (custom settings)
+# For a typical server
 mkfs.ext4 -L "data" \
-  -b 4096 \              # ブロックサイズ 4KB
-  -i 16384 \             # bytes-per-inode（inode密度）
-  -J size=256 \          # ジャーナルサイズ 256MB
-  -O metadata_csum \     # メタデータチェックサム有効
-  -E lazy_itable_init=1 \  # 遅延 inode テーブル初期化
+  -b 4096 \              # Block size 4KB
+  -i 16384 \             # bytes-per-inode (inode density)
+  -J size=256 \          # Journal size 256MB
+  -O metadata_csum \     # Enable metadata checksums
+  -E lazy_itable_init=1 \  # Lazy inode table initialization
   /dev/sda1
 
-# メールサーバー向け（小ファイル多数）
+# For a mail server (many small files)
 mkfs.ext4 -L "mail" \
   -b 4096 \
-  -i 4096 \              # inode を多く確保
+  -i 4096 \              # Allocate more inodes
   -J size=128 \
   /dev/sda1
 
-# 大ファイル向け（メディアサーバー）
+# For large files (media server)
 mkfs.ext4 -L "media" \
   -b 4096 \
-  -i 1048576 \           # inode を少なく（大ファイル前提）
-  -T largefile4 \        # 大ファイルプリセット
+  -i 1048576 \           # Fewer inodes (large files assumed)
+  -T largefile4 \        # Large file preset
   /dev/sda1
 
-# マウントオプションの最適化
+# Mount option optimization
 # /etc/fstab
-# 一般用途（推奨設定）
+# General use (recommended settings)
 /dev/sda1 / ext4 defaults,noatime,commit=60 0 1
 
-# データベース用途
+# Database use
 /dev/sda1 /var/lib/mysql ext4 defaults,noatime,data=ordered,barrier=1,commit=5 0 2
 
-# 一時ファイル/ビルド用途
+# Temporary files / build use
 /dev/sda1 /tmp ext4 defaults,noatime,data=writeback,barrier=0,commit=120 0 0
 
-# SSD 向け
+# For SSDs
 /dev/sda1 / ext4 defaults,noatime,discard,commit=60 0 1
 ```
 
 ```bash
-# 運用中の ext4 チューニング
+# Tuning ext4 during operation
 
-# ジャーナリングモードの確認・変更
+# Check/change journaling mode
 cat /proc/fs/ext4/sda1/options | grep data
 # data=ordered
 
-# コミット間隔の調整（デフォルト5秒）
-# 長くすると性能向上、短くすると安全性向上
+# Adjust commit interval (default 5 seconds)
+# Longer improves performance, shorter improves safety
 sudo tune2fs -o commit=30 /dev/sda1
 
-# リザーブドブロックの調整（デフォルト5%）
-# 大容量ディスクでは減らしてもよい
-sudo tune2fs -m 1 /dev/sda1       # 1% に削減
+# Adjust reserved blocks (default 5%)
+# Can be reduced on large disks
+sudo tune2fs -m 1 /dev/sda1       # Reduce to 1%
 sudo tune2fs -l /dev/sda1 | grep "Reserved"
 
-# ファイルシステムラベルの設定
+# Set filesystem label
 sudo e2label /dev/sda1 "my-data"
 
-# チェック間隔の設定
-sudo tune2fs -c 50 /dev/sda1      # 50回マウントごとにチェック
-sudo tune2fs -i 6m /dev/sda1      # 6ヶ月ごとにチェック
+# Set check interval
+sudo tune2fs -c 50 /dev/sda1      # Check every 50 mounts
+sudo tune2fs -i 6m /dev/sda1      # Check every 6 months
 
-# メタデータチェックサムの有効化（ext4 >= 3.18）
+# Enable metadata checksums (ext4 >= 3.18)
 sudo tune2fs -O metadata_csum /dev/sda1
 
-# 断片化の確認
+# Check fragmentation
 sudo e4defrag -c /mount/point
-# Fragmentation score: 0-30=低, 30-55=中, 55-100=高
+# Fragmentation score: 0-30=low, 30-55=medium, 55-100=high
 ```
 
 ---
 
 ## 2. XFS
 
-### 2.1 XFS の概要と歴史
+### 2.1 XFS Overview and History
 
 ```
-XFS (SGI, 1993 → Linux):
-  Silicon Graphics が IRIX 向けに開発
-  → 2001年に Linux にポーティング
-  → 2014年に RHEL 7 のデフォルトに採用
-  → 現在最も広く使われる Linux FS の一つ
+XFS (SGI, 1993 -> Linux):
+  Developed by Silicon Graphics for IRIX
+  -> Ported to Linux in 2001
+  -> Adopted as RHEL 7 default in 2014
+  -> Currently one of the most widely used Linux filesystems
 
-  設計思想:
-  - 大規模ストレージ向け（元はスーパーコンピュータ向け）
-  - 高い並列I/O性能
-  - スケーラビリティ重視
-  - 64bit ネイティブ設計（当初から）
+  Design philosophy:
+  - Designed for large-scale storage (originally for supercomputers)
+  - High parallel I/O performance
+  - Emphasis on scalability
+  - Native 64-bit design (from the beginning)
 
-  主な特徴:
-  ┌──────────────────────────────────────────────────┐
-  │ 容量制限                                          │
-  │ - 最大ボリューム: 8EB (64bit)                     │
-  │ - 最大ファイル: 8EB                               │
-  │ - 最大ファイル名: 255バイト                        │
-  ├──────────────────────────────────────────────────┤
-  │ B+木ベースのメタデータ管理                         │
-  │ - 全メタデータがB+木で管理                         │
-  │ - inode割り当て、空きブロック管理、ディレクトリ    │
-  │ - 効率的な検索・更新                               │
-  ├──────────────────────────────────────────────────┤
-  │ アロケーショングループ (AG)                         │
-  │ - ファイルシステムを独立した領域に分割              │
-  │ - 各AG が独立したメタデータを持つ                  │
-  │ - 並列アクセスが可能（異なるAGへの同時書き込み）   │
-  │ - ロック競合の削減                                 │
-  ├──────────────────────────────────────────────────┤
-  │ 遅延アロケーション                                 │
-  │ - ext4 と同様、書き込み時にブロック割り当てを遅延  │
-  │ - 連続ブロック確保の最適化                         │
-  ├──────────────────────────────────────────────────┤
-  │ ジャーナリング                                     │
-  │ - メタデータのみジャーナリング                     │
-  │ - 外部ログデバイスのサポート                       │
-  │ - 非同期の遅延ロギング（delayed logging）          │
-  ├──────────────────────────────────────────────────┤
-  │ オンライン操作                                     │
-  │ - オンラインリサイズ（拡張のみ、縮小不可）         │
-  │ - オンラインデフラグ (xfs_fsr)                     │
-  │ - オンラインダンプ/リストア (xfsdump/xfsrestore)  │
-  └──────────────────────────────────────────────────┘
+  Key features:
+  +--------------------------------------------------+
+  | Capacity Limits                                    |
+  | - Maximum volume: 8EB (64-bit)                     |
+  | - Maximum file: 8EB                                |
+  | - Maximum filename: 255 bytes                      |
+  +--------------------------------------------------+
+  | B+ tree-based metadata management                  |
+  | - All metadata managed by B+ trees                 |
+  | - Inode allocation, free block management,         |
+  |   directories                                      |
+  | - Efficient search and update                      |
+  +--------------------------------------------------+
+  | Allocation Groups (AG)                             |
+  | - Divides the filesystem into independent regions  |
+  | - Each AG has its own independent metadata         |
+  | - Parallel access possible (concurrent writes to   |
+  |   different AGs)                                   |
+  | - Reduces lock contention                          |
+  +--------------------------------------------------+
+  | Delayed Allocation                                 |
+  | - Like ext4, delays block allocation at write time |
+  | - Optimizes contiguous block allocation            |
+  +--------------------------------------------------+
+  | Journaling                                         |
+  | - Metadata-only journaling                         |
+  | - External log device support                      |
+  | - Asynchronous delayed logging                     |
+  +--------------------------------------------------+
+  | Online Operations                                  |
+  | - Online resize (expansion only, no shrinking)     |
+  | - Online defrag (xfs_fsr)                          |
+  | - Online dump/restore (xfsdump/xfsrestore)         |
+  +--------------------------------------------------+
 ```
 
-### 2.2 XFS の内部構造
+### 2.2 XFS Internal Structure
 
 ```
-XFS のディスクレイアウト:
+XFS disk layout:
 
-  ┌──────────────────────────────────────────────┐
-  │ ファイルシステム全体                          │
-  ├──────────┬──────────┬──────────┬──────────────┤
-  │   AG 0   │   AG 1   │   AG 2   │    AG 3     │
-  └──────────┴──────────┴──────────┴──────────────┘
+  +----------------------------------------------+
+  | Filesystem (entire)                           |
+  +----------+----------+----------+--------------+
+  |   AG 0   |   AG 1   |   AG 2   |    AG 3     |
+  +----------+----------+----------+--------------+
 
-  各AG（Allocation Group）の構造:
-  ┌──────────────────────────────────────────────┐
-  │ AG ヘッダ領域:                                │
-  │ ┌──────┬──────┬──────┬──────┬──────┐         │
-  │ │ AGF  │ AGI  │ AGFL │Free  │inode │         │
-  │ │      │      │      │Space │B+Tree│         │
-  │ │      │      │      │B+Tree│      │         │
-  │ └──────┴──────┴──────┴──────┴──────┘         │
-  │                                              │
-  │ データ領域:                                   │
-  │ ┌────────────────────────────────────┐        │
-  │ │ inode チャンク + データブロック      │        │
-  │ └────────────────────────────────────┘        │
-  └──────────────────────────────────────────────┘
+  Structure of each AG (Allocation Group):
+  +----------------------------------------------+
+  | AG header area:                               |
+  | +------+------+------+------+------+         |
+  | | AGF  | AGI  | AGFL |Free  |inode |         |
+  | |      |      |      |Space |B+Tree|         |
+  | |      |      |      |B+Tree|      |         |
+  | +------+------+------+------+------+         |
+  |                                               |
+  | Data area:                                    |
+  | +------------------------------------+        |
+  | | inode chunks + data blocks          |        |
+  | +------------------------------------+        |
+  +----------------------------------------------+
 
-  AGF (AG Free Space): 空きブロック管理
-  AGI (AG Inode):      inode 管理
-  AGFL (AG Free List): AGF/AGI のB+木ブロック管理
+  AGF (AG Free Space): Free block management
+  AGI (AG Inode):      Inode management
+  AGFL (AG Free List): Block management for AGF/AGI B+ trees
 
-  B+木の活用:
-  ┌────────────────────────────────────────────┐
-  │ XFS における B+木の使用箇所                  │
-  ├────────────────────────────────────────────┤
-  │ 1. 空きブロック管理（ブロック番号順）       │
-  │ 2. 空きブロック管理（サイズ順）             │
-  │ 3. inode 割り当て管理                       │
-  │ 4. ディレクトリエントリ                     │
-  │ 5. エクステントマップ（ファイルデータ）     │
-  │ 6. リバースマッピング（reflink用）          │
-  │ 7. 参照カウント（reflink用）                │
-  └────────────────────────────────────────────┘
+  B+ tree usage:
+  +--------------------------------------------+
+  | Where XFS uses B+ trees                     |
+  +--------------------------------------------+
+  | 1. Free block management (by block number)  |
+  | 2. Free block management (by size)          |
+  | 3. Inode allocation management              |
+  | 4. Directory entries                        |
+  | 5. Extent maps (file data)                  |
+  | 6. Reverse mapping (for reflink)            |
+  | 7. Reference counts (for reflink)           |
+  +--------------------------------------------+
 ```
 
-### 2.3 XFS のチューニングと運用
+### 2.3 XFS Tuning and Operations
 
 ```bash
-# XFS ファイルシステムの作成
+# Creating an XFS filesystem
 mkfs.xfs -L "xfs-data" \
-  -b size=4096 \         # ブロックサイズ
-  -d agcount=16 \        # AG数（並列性の調整）
-  -l size=256m \         # ログサイズ
+  -b size=4096 \         # Block size
+  -d agcount=16 \        # Number of AGs (adjusts parallelism)
+  -l size=256m \         # Log size
   /dev/sda1
 
-# 外部ログデバイスの使用（性能向上）
+# Using an external log device (performance improvement)
 mkfs.xfs -l logdev=/dev/sdb1,size=256m /dev/sda1
 mount -o logdev=/dev/sdb1 /dev/sda1 /mnt
 
-# XFS の情報確認
+# Checking XFS information
 xfs_info /mount/point
 # meta-data=/dev/sda1  isize=512  agcount=16, agsize=...
 # data     =           bsize=4096 blocks=...
 # naming   =version 2  bsize=4096 ascii-ci=0
 # log      =internal   bsize=4096 blocks=...
 
-# マウントオプション
+# Mount options
 # /etc/fstab
 /dev/sda1 /data xfs defaults,noatime,inode64,logbufs=8 0 0
 
-# パフォーマンス関連オプション:
-# logbufs=N     : ログバッファ数（2-8、デフォルト8）
-# logbsize=N    : ログバッファサイズ（32K-256K）
-# nobarrier     : 書き込みバリア無効化（BBU付きRAID向け）
-# allocsize=N   : 先読みアロケーションサイズ
-# inode64       : 64bit inode番号（大容量FS必須）
+# Performance-related options:
+# logbufs=N     : Number of log buffers (2-8, default 8)
+# logbsize=N    : Log buffer size (32K-256K)
+# nobarrier     : Disable write barriers (for RAID with BBU)
+# allocsize=N   : Speculative preallocation size
+# inode64       : 64-bit inode numbers (required for large FS)
 
-# オンラインリサイズ（拡張のみ）
+# Online resize (expansion only)
 xfs_growfs /mount/point
 
-# 注意: XFS は縮小できない
-# 縮小が必要な場合: バックアップ → 再作成 → リストア
+# Note: XFS cannot be shrunk
+# If shrinking is needed: backup -> recreate -> restore
 
-# デフラグ
-xfs_fsr /mount/point          # ファイルシステム全体
-xfs_fsr /path/to/file         # 特定ファイル
-xfs_fsr -v /mount/point       # 詳細表示
+# Defragmentation
+xfs_fsr /mount/point          # Entire filesystem
+xfs_fsr /path/to/file         # Specific file
+xfs_fsr -v /mount/point       # Verbose output
 
-# バックアップとリストア（XFS固有ツール）
+# Backup and restore (XFS-specific tools)
 xfsdump -l 0 -f /backup/dump.xfsdump /mount/point
 xfsrestore -f /backup/dump.xfsdump /restore/point
 
-# 修復
-xfs_repair /dev/sda1           # アンマウント状態で
-xfs_repair -L /dev/sda1        # ログをゼロクリア（最終手段）
+# Repair
+xfs_repair /dev/sda1           # Must be unmounted
+xfs_repair -L /dev/sda1        # Clear log to zero (last resort)
 
-# XFS のメタデータダンプ（デバッグ用）
+# XFS metadata dump (for debugging)
 xfs_db -r /dev/sda1
-xfs_db> sb 0                   # スーパーブロック表示
-xfs_db> freesp                 # 空き領域分布
+xfs_db> sb 0                   # Display superblock
+xfs_db> freesp                 # Free space distribution
 ```
 
-### 2.4 XFS の reflink とコピー
+### 2.4 XFS reflink and Copy
 
 ```
-reflink（参照リンク）:
-  XFS 4.9+ で対応。ファイルのコピーを瞬時に行う仕組み
+reflink (reference link):
+  Supported since XFS 4.9+. A mechanism for instant file copying.
 
-  通常のコピー:
-  cp source dest → 全データブロックをコピー（時間 ∝ ファイルサイズ）
+  Normal copy:
+  cp source dest -> Copies all data blocks (time proportional to file size)
 
-  reflink コピー:
-  cp --reflink source dest → メタデータのみコピー（瞬時）
-  → データブロックを共有
-  → どちらかが変更されたら、変更部分だけ新しいブロックに書き込み（CoW）
+  reflink copy:
+  cp --reflink source dest -> Copies metadata only (instant)
+  -> Shares data blocks
+  -> When either is modified, only the changed portion is written
+     to a new block (CoW)
 
-  仕組み:
-  ┌────────────────────────────────────────┐
-  │ reflink 前:                            │
-  │ source → [Block A] [Block B] [Block C]│
-  │                                        │
-  │ reflink 後:                            │
-  │ source → [Block A] [Block B] [Block C]│
-  │ dest   →↗          ↗          ↗       │
-  │ （参照カウント = 2）                    │
-  │                                        │
-  │ dest の Block B を変更:                │
-  │ source → [Block A] [Block B] [Block C]│
-  │ dest   →↗         [Block B'] ↗        │
-  │ Block A, C: 参照カウント = 2           │
-  │ Block B:    参照カウント = 1           │
-  │ Block B':   参照カウント = 1（新規）   │
-  └────────────────────────────────────────┘
+  Mechanism:
+  +----------------------------------------+
+  | Before reflink:                         |
+  | source -> [Block A] [Block B] [Block C]|
+  |                                         |
+  | After reflink:                          |
+  | source -> [Block A] [Block B] [Block C]|
+  | dest   ->/          /          /        |
+  | (reference count = 2)                   |
+  |                                         |
+  | Modifying Block B in dest:              |
+  | source -> [Block A] [Block B] [Block C]|
+  | dest   ->/         [Block B'] /         |
+  | Block A, C: reference count = 2         |
+  | Block B:    reference count = 1         |
+  | Block B':   reference count = 1 (new)   |
+  +----------------------------------------+
 
-  使用例:
-  # reflink コピーの作成
-  $ cp --reflink=auto source.img dest.img   # 可能なら reflink
-  $ cp --reflink=always source.img dest.img # reflink 必須（不可ならエラー）
+  Usage examples:
+  # Create a reflink copy
+  $ cp --reflink=auto source.img dest.img   # Use reflink if possible
+  $ cp --reflink=always source.img dest.img # Require reflink (error if not possible)
 
-  # 仮想マシンイメージの高速クローン
-  $ cp --reflink=always base.qcow2 vm1.qcow2  # 瞬時
-  $ cp --reflink=always base.qcow2 vm2.qcow2  # 瞬時
+  # Fast cloning of virtual machine images
+  $ cp --reflink=always base.qcow2 vm1.qcow2  # Instant
+  $ cp --reflink=always base.qcow2 vm2.qcow2  # Instant
 
-  # reflink が有効か確認
+  # Check if reflink is enabled
   $ xfs_info /mount/point | grep reflink
-  # reflink=1 が表示されれば有効
+  # reflink=1 means enabled
 
-  # mkfs 時に reflink を有効化（デフォルトで有効、XFS 5.1+）
+  # Enable reflink at mkfs time (enabled by default, XFS 5.1+)
   $ mkfs.xfs -m reflink=1 /dev/sda1
 ```
 
@@ -451,267 +462,271 @@ reflink（参照リンク）:
 
 ## 3. Btrfs
 
-### 3.1 Btrfs の概要
+### 3.1 Btrfs Overview
 
 ```
-Btrfs (B-tree File System, Oracle → Linux, 2009):
-  「バターFS」と読む
-  → ZFS の Linux 版を目指して開発
-  → SUSE Linux Enterprise のデフォルト（15 SP1以降）
-  → Fedora 33 以降のデフォルト（ワークステーション版）
+Btrfs (B-tree File System, Oracle -> Linux, 2009):
+  Pronounced "butter FS"
+  -> Developed as a Linux equivalent to ZFS
+  -> Default on SUSE Linux Enterprise (15 SP1+)
+  -> Default on Fedora 33+ (Workstation edition)
 
-  設計思想:
-  - Copy-on-Write (CoW) ベース
-  - 全データ・メタデータにチェックサム
-  - 柔軟なストレージ管理
-  - スナップショットとクローンの効率的なサポート
-  - エンタープライズ機能を Linux ネイティブに
+  Design philosophy:
+  - Copy-on-Write (CoW) based
+  - Checksums for all data and metadata
+  - Flexible storage management
+  - Efficient support for snapshots and clones
+  - Enterprise features native to Linux
 
-  主な特徴:
-  ┌──────────────────────────────────────────────────┐
-  │ Copy-on-Write                                     │
-  │ - データを上書きせず新しい場所に書き込み           │
-  │ - クラッシュ一貫性の構造的保証                     │
-  │ - ジャーナル不要                                   │
-  ├──────────────────────────────────────────────────┤
-  │ スナップショット                                   │
-  │ - サブボリュームの瞬時バックアップ                 │
-  │ - 読み取り専用 / 読み書き可能                      │
-  │ - 増分バックアップ（send/receive）                 │
-  ├──────────────────────────────────────────────────┤
-  │ 透過的圧縮                                        │
-  │ - zstd（推奨）, lzo, zlib                         │
-  │ - ファイル/ディレクトリ単位で設定可能              │
-  │ - 読み書き時に自動で圧縮/展開                      │
-  ├──────────────────────────────────────────────────┤
-  │ データ・メタデータチェックサム                      │
-  │ - CRC32C（デフォルト）, xxhash, sha256, blake2b   │
-  │ - サイレントデータ破損（ビット腐敗）の検出         │
-  │ - RAID と組み合わせて自動修復                      │
-  ├──────────────────────────────────────────────────┤
-  │ 内蔵RAID                                          │
-  │ - RAID 0, 1, 10: 安定                             │
-  │ - RAID 5, 6: write hole 問題あり（実験的）         │
-  │ - プロファイルの動的変更可能                       │
-  ├──────────────────────────────────────────────────┤
-  │ サブボリューム                                     │
-  │ - FS内の独立した名前空間                           │
-  │ - パーティション分割の代替                         │
-  │ - 個別にマウント可能                               │
-  │ - 個別にスナップショット可能                       │
-  ├──────────────────────────────────────────────────┤
-  │ オンライン操作                                     │
-  │ - オンラインリサイズ（拡張・縮小可能）             │
-  │ - オンラインデフラグ                               │
-  │ - オンラインスクラブ（データ整合性チェック）       │
-  │ - オンラインバランス（データ再配置）               │
-  ├──────────────────────────────────────────────────┤
-  │ デデュプリケーション                               │
-  │ - オフライン: duperemove ツール                    │
-  │ - reflink ベースの効率的な重複排除                 │
-  └──────────────────────────────────────────────────┘
+  Key features:
+  +--------------------------------------------------+
+  | Copy-on-Write                                      |
+  | - Writes data to a new location instead of         |
+  |   overwriting                                      |
+  | - Structural guarantee of crash consistency        |
+  | - No journal needed                                |
+  +--------------------------------------------------+
+  | Snapshots                                          |
+  | - Instant backup of subvolumes                     |
+  | - Read-only / read-write capable                   |
+  | - Incremental backup (send/receive)                |
+  +--------------------------------------------------+
+  | Transparent Compression                            |
+  | - zstd (recommended), lzo, zlib                    |
+  | - Configurable per file/directory                  |
+  | - Automatic compression/decompression on           |
+  |   read/write                                       |
+  +--------------------------------------------------+
+  | Data and Metadata Checksums                        |
+  | - CRC32C (default), xxhash, sha256, blake2b       |
+  | - Detection of silent data corruption (bit rot)    |
+  | - Auto-repair when combined with RAID              |
+  +--------------------------------------------------+
+  | Built-in RAID                                      |
+  | - RAID 0, 1, 10: Stable                            |
+  | - RAID 5, 6: Write hole issue (experimental)       |
+  | - Profile can be dynamically changed               |
+  +--------------------------------------------------+
+  | Subvolumes                                         |
+  | - Independent namespaces within the filesystem     |
+  | - Alternative to partition splitting               |
+  | - Individually mountable                           |
+  | - Individually snapshottable                       |
+  +--------------------------------------------------+
+  | Online Operations                                  |
+  | - Online resize (both expansion and shrinking)     |
+  | - Online defragmentation                           |
+  | - Online scrub (data integrity check)              |
+  | - Online balance (data redistribution)             |
+  +--------------------------------------------------+
+  | Deduplication                                      |
+  | - Offline: duperemove tool                         |
+  | - Efficient deduplication based on reflink         |
+  +--------------------------------------------------+
 ```
 
-### 3.2 Btrfs の内部構造
+### 3.2 Btrfs Internal Structure
 
 ```
-Btrfs のディスクレイアウト:
+Btrfs disk layout:
 
-  全てがB木（B-tree）で管理される:
+  Everything is managed by B-trees:
 
-  ┌────────────────────────────────────────────┐
-  │ Superblock (3つのコピー: 64KB, 64MB, 256GB)│
-  │                                            │
-  │ ┌──────────────────────────────────┐       │
-  │ │ Tree of Trees (Root Tree)        │       │
-  │ │ → 全B木のルートを管理             │       │
-  │ └──────┬───────┬────────┬──────────┘       │
-  │        ↓       ↓        ↓                  │
-  │  ┌────────┐┌────────┐┌────────┐            │
-  │  │FS Tree ││Extent  ││Checksum│            │
-  │  │(ファイル││ Tree   ││ Tree   │            │
-  │  │ +ディレ ││(ブロック││(チェック│            │
-  │  │ クトリ) ││ 管理)  ││ サム)  │            │
-  │  └────────┘└────────┘└────────┘            │
-  │  ┌────────┐┌────────┐┌────────┐            │
-  │  │Chunk   ││Device  ││UUID    │            │
-  │  │ Tree   ││ Tree   ││ Tree   │            │
-  │  │(論理→  ││(デバイス││(UUID   │            │
-  │  │ 物理)  ││ 管理)  ││ 管理)  │            │
-  │  └────────┘└────────┘└────────┘            │
-  └────────────────────────────────────────────┘
+  +--------------------------------------------+
+  | Superblock (3 copies: 64KB, 64MB, 256GB)   |
+  |                                             |
+  | +----------------------------------+        |
+  | | Tree of Trees (Root Tree)        |        |
+  | | -> Manages roots of all B-trees  |        |
+  | +------+-------+--------+---------+        |
+  |        v       v        v                   |
+  |  +--------++--------++--------+             |
+  |  |FS Tree ||Extent  ||Checksum|             |
+  |  |(files  || Tree   || Tree   |             |
+  |  | + dirs)|| (block ||        |             |
+  |  |        || mgmt)  ||        |             |
+  |  +--------++--------++--------+             |
+  |  +--------++--------++--------+             |
+  |  |Chunk   ||Device  ||UUID    |             |
+  |  | Tree   || Tree   || Tree   |             |
+  |  |(logical|| (device||        |             |
+  |  | ->     || mgmt)  ||        |             |
+  |  | phys)  ||        ||        |             |
+  |  +--------++--------++--------+             |
+  +--------------------------------------------+
 
-  CoW による更新:
-  ┌─────────────────────────────────────────┐
-  │ 更新前:                                  │
-  │ Root → A → [D] [E] [F]                 │
-  │          → [G] [H]                      │
-  │                                          │
-  │ [E] を変更:                              │
-  │ 1. E のコピーを E' として新しい場所に作成 │
-  │ 2. A のコピーを A' として作成（E'を指す）│
-  │ 3. Root を A' に更新（アトミック）       │
-  │                                          │
-  │ 更新後:                                  │
-  │ Root' → A' → [D] [E'] [F]              │
-  │            → [G] [H]                    │
-  │                                          │
-  │ 旧 Root, A, E は解放可能                │
-  │ （スナップショットが参照中なら保持）     │
-  └─────────────────────────────────────────┘
+  CoW update:
+  +---------------------------------------------+
+  | Before update:                               |
+  | Root -> A -> [D] [E] [F]                    |
+  |           -> [G] [H]                         |
+  |                                              |
+  | Modifying [E]:                               |
+  | 1. Create a copy of E as E' at a new loc     |
+  | 2. Create a copy of A as A' (pointing to E') |
+  | 3. Update Root to A' (atomic)                |
+  |                                              |
+  | After update:                                |
+  | Root' -> A' -> [D] [E'] [F]                 |
+  |             -> [G] [H]                       |
+  |                                              |
+  | Old Root, A, E can be freed                  |
+  | (retained if referenced by a snapshot)       |
+  +---------------------------------------------+
 ```
 
-### 3.3 Btrfs のサブボリュームとスナップショット
+### 3.3 Btrfs Subvolumes and Snapshots
 
 ```bash
-# サブボリュームの管理
-# サブボリューム作成
+# Subvolume management
+# Create subvolumes
 btrfs subvolume create /mnt/@home
 btrfs subvolume create /mnt/@var
 btrfs subvolume create /mnt/@snapshots
 
-# サブボリューム一覧
+# List subvolumes
 btrfs subvolume list /mnt
 # ID 256 gen 100 top level 5 path @home
 # ID 257 gen 101 top level 5 path @var
 # ID 258 gen 102 top level 5 path @snapshots
 
-# サブボリュームの個別マウント
+# Mount subvolumes individually
 # /etc/fstab
 /dev/sda1  /home       btrfs  subvol=@home,defaults,noatime,compress=zstd  0  0
 /dev/sda1  /var        btrfs  subvol=@var,defaults,noatime                  0  0
 
-# スナップショットの作成
-# 読み取り専用スナップショット
+# Create snapshots
+# Read-only snapshot
 btrfs subvolume snapshot -r /mnt/@home /mnt/@snapshots/home-$(date +%Y%m%d)
 
-# 読み書き可能スナップショット
+# Read-write snapshot
 btrfs subvolume snapshot /mnt/@home /mnt/@snapshots/home-writable
 
-# スナップショットからのファイル復旧
+# Restore a file from a snapshot
 cp /mnt/@snapshots/home-20240101/user/important.txt /home/user/
 
-# スナップショットへのロールバック（読み書きスナップショットの場合）
-# 現在のサブボリュームを削除して、スナップショットをリネーム
+# Roll back to a snapshot (for read-write snapshots)
+# Delete the current subvolume and rename the snapshot
 btrfs subvolume delete /mnt/@home
 btrfs subvolume snapshot /mnt/@snapshots/home-20240101 /mnt/@home
 
-# スナップショットの削除
+# Delete a snapshot
 btrfs subvolume delete /mnt/@snapshots/home-20240101
 
-# 増分バックアップ（send/receive）
-# 初回: フルバックアップ
+# Incremental backup (send/receive)
+# First time: full backup
 btrfs subvolume snapshot -r /mnt/@home /mnt/@snapshots/snap1
 btrfs send /mnt/@snapshots/snap1 | btrfs receive /backup/
 
-# 2回目以降: 増分バックアップ
+# Subsequent times: incremental backup
 btrfs subvolume snapshot -r /mnt/@home /mnt/@snapshots/snap2
 btrfs send -p /mnt/@snapshots/snap1 /mnt/@snapshots/snap2 | btrfs receive /backup/
-# → snap1 と snap2 の差分のみ転送
+# -> Only the diff between snap1 and snap2 is transferred
 
-# SSH 越しの増分バックアップ
+# Incremental backup over SSH
 btrfs send -p /mnt/@snapshots/snap1 /mnt/@snapshots/snap2 | \
   ssh backup-server "btrfs receive /backup/"
 ```
 
-### 3.4 Btrfs の圧縮と RAID
+### 3.4 Btrfs Compression and RAID
 
 ```bash
-# 透過的圧縮の設定
+# Transparent compression settings
 
-# マウント時に圧縮を有効化
+# Enable compression at mount time
 mount -o compress=zstd /dev/sda1 /mnt
-mount -o compress=zstd:3 /dev/sda1 /mnt   # 圧縮レベル指定
+mount -o compress=zstd:3 /dev/sda1 /mnt   # Specify compression level
 
-# 圧縮アルゴリズムの比較:
-# ┌─────────┬──────────┬──────────┬──────────┐
-# │ アルゴリズム│ 圧縮率  │ 圧縮速度 │ 展開速度 │
-# ├─────────┼──────────┼──────────┼──────────┤
-# │ lzo     │ 低       │ 最速     │ 最速     │
-# │ zstd:1  │ 中       │ 高速     │ 高速     │
-# │ zstd:3  │ 中-高    │ 中速     │ 高速     │ ← 推奨
-# │ zlib:6  │ 高       │ 低速     │ 中速     │
-# │ zstd:15 │ 最高     │ 最低     │ 高速     │
-# └─────────┴──────────┴──────────┴──────────┘
+# Compression algorithm comparison:
+# +-----------+----------+----------+----------+
+# | Algorithm | Ratio    | Compress | Decompr  |
+# |           |          | Speed    | Speed    |
+# +-----------+----------+----------+----------+
+# | lzo       | Low      | Fastest  | Fastest  |
+# | zstd:1    | Medium   | Fast     | Fast     |
+# | zstd:3    | Med-High | Medium   | Fast     | <- Recommended
+# | zlib:6    | High     | Slow     | Medium   |
+# | zstd:15   | Highest  | Slowest  | Fast     |
+# +-----------+----------+----------+----------+
 
-# 特定ディレクトリの圧縮を無効化
+# Disable compression for a specific directory
 btrfs property set /mnt/database compression ""
-chattr +m /mnt/database    # 圧縮無効フラグ
+chattr +m /mnt/database    # No-compression flag
 
-# 既存データの再圧縮
+# Recompress existing data
 btrfs filesystem defragment -r -czstd /mnt/
 
-# 圧縮統計の確認
+# Check compression statistics
 btrfs filesystem df /mnt
-compsize /mnt                # 圧縮率の詳細確認ツール
+compsize /mnt                # Detailed compression ratio tool
 
-# RAID 構成
+# RAID configuration
 
-# RAID1（ミラーリング）
+# RAID1 (mirroring)
 mkfs.btrfs -d raid1 -m raid1 /dev/sda1 /dev/sdb1
 
-# RAID10（ストライプ+ミラー）
+# RAID10 (stripe + mirror)
 mkfs.btrfs -d raid10 -m raid10 /dev/sd{a,b,c,d}1
 
-# RAID プロファイルの動的変更
-# single → RAID1 に変換
+# Dynamically change RAID profile
+# Convert single -> RAID1
 btrfs balance start -dconvert=raid1 -mconvert=raid1 /mnt
 
-# デバイスの追加
+# Add a device
 btrfs device add /dev/sdc1 /mnt
-btrfs balance start /mnt      # データを再配置
+btrfs balance start /mnt      # Redistribute data
 
-# デバイスの削除
+# Remove a device
 btrfs device delete /dev/sda1 /mnt
 
-# デバイスの交換
+# Replace a device
 btrfs replace start /dev/sda1 /dev/sdd1 /mnt
 
-# RAID 情報の確認
+# Check RAID information
 btrfs filesystem show /mnt
 btrfs filesystem df /mnt
 btrfs filesystem usage /mnt
 ```
 
-### 3.5 Btrfs の運用とメンテナンス
+### 3.5 Btrfs Operations and Maintenance
 
 ```bash
-# スクラブ（データ整合性チェック）
-# → 全データのチェックサムを検証
-# → RAID の場合は自動修復
+# Scrub (data integrity check)
+# -> Verifies checksums of all data
+# -> Auto-repair with RAID
 btrfs scrub start /mnt
 btrfs scrub status /mnt
 
-# 定期スクラブの設定（systemd timer）
+# Set up periodic scrub (systemd timer)
 # /etc/systemd/system/btrfs-scrub.timer
 # [Timer]
 # OnCalendar=monthly
 # [Install]
 # WantedBy=timers.target
 
-# バランス（データ再配置）
+# Balance (data redistribution)
 btrfs balance start /mnt
 btrfs balance status /mnt
-btrfs balance cancel /mnt      # 中断
+btrfs balance cancel /mnt      # Cancel
 
-# 使用量の詳細確認
+# Detailed usage information
 btrfs filesystem usage /mnt
 btrfs filesystem df /mnt
 btrfs filesystem show
 
-# クォータの設定
+# Quota settings
 btrfs quota enable /mnt
 btrfs qgroup limit 50G /mnt/@home
 btrfs qgroup show /mnt
 
-# ファイルシステムの修復
-# 通常修復
+# Filesystem repair
+# Normal check
 btrfs check /dev/sda1
 
-# 修復実行（注意: 危険な操作）
+# Execute repair (caution: dangerous operation)
 btrfs check --repair /dev/sda1
 
-# rescue モード
+# Rescue mode
 btrfs rescue super-recover /dev/sda1
 btrfs rescue zero-log /dev/sda1
 btrfs rescue chunk-recover /dev/sda1
@@ -721,158 +736,162 @@ btrfs rescue chunk-recover /dev/sda1
 
 ## 4. ZFS
 
-### 4.1 ZFS の概要
+### 4.1 ZFS Overview
 
 ```
 ZFS (Zettabyte File System, Sun Microsystems, 2005):
-  「最後のファイルシステム」として設計
-  → 2005年に OpenSolaris で公開
-  → FreeBSD に移植（ネイティブサポート）
-  → Linux では ZFS on Linux (OpenZFS) として利用可能
-  → ライセンス問題（CDDL vs GPL）でカーネル統合不可
+  Designed as "the last filesystem"
+  -> Released with OpenSolaris in 2005
+  -> Ported to FreeBSD (native support)
+  -> Available on Linux as ZFS on Linux (OpenZFS)
+  -> Cannot be integrated into the kernel due to license issues
+     (CDDL vs GPL)
 
-  設計思想:
-  - ストレージスタック全体を統合管理
-  - ボリュームマネージャ + ファイルシステム + RAID
-  - エンタープライズグレードのデータ保護
-  - 管理の簡素化（「設定して忘れる」）
+  Design philosophy:
+  - Integrated management of the entire storage stack
+  - Volume manager + filesystem + RAID
+  - Enterprise-grade data protection
+  - Simplified administration ("set and forget")
 
-  主な特徴:
-  ┌──────────────────────────────────────────────────┐
-  │ 128bit アドレッシング                              │
-  │ - 事実上無限の容量（256兆ヨビバイト）              │
-  │ - 全データにチェックサム（SHA-256/Fletcher4）       │
-  │ - メタデータの3重コピー                            │
-  ├──────────────────────────────────────────────────┤
-  │ プール型ストレージ管理                             │
-  │ - zpool: 物理デバイスのプール                      │
-  │ - zfs dataset: プールから切り出す論理ボリューム    │
-  │ - パーティション不要、動的なサイズ変更              │
-  ├──────────────────────────────────────────────────┤
-  │ RAID-Z（RAID5/6 の改良版）                         │
-  │ - RAID-Z1: 1台のディスク障害に耐える               │
-  │ - RAID-Z2: 2台のディスク障害に耐える               │
-  │ - RAID-Z3: 3台のディスク障害に耐える               │
-  │ - Write Hole 問題なし（CoW ベース）                │
-  ├──────────────────────────────────────────────────┤
-  │ ARC (Adaptive Replacement Cache)                   │
-  │ - 高度なキャッシュアルゴリズム                     │
-  │ - MRU（最近使用）+ MFU（頻繁使用）の適応的組合せ  │
-  │ - L2ARC: SSD をキャッシュデバイスとして使用        │
-  ├──────────────────────────────────────────────────┤
-  │ ZIL (ZFS Intent Log)                               │
-  │ - 同期書き込みの高速化                             │
-  │ - SLOG: 別デバイス（SSD）にZILを配置              │
-  ├──────────────────────────────────────────────────┤
-  │ スナップショットとクローン                          │
-  │ - 瞬時のスナップショット作成                       │
-  │ - 読み書き可能なクローン                           │
-  │ - send/receive による効率的なレプリケーション       │
-  ├──────────────────────────────────────────────────┤
-  │ デデュプリケーション（重複排除）                    │
-  │ - ブロックレベルの重複排除                         │
-  │ - DDT (Dedup Table) をメモリに保持                 │
-  │ - 大量のメモリが必要（1TB あたり約5GB RAM）        │
-  ├──────────────────────────────────────────────────┤
-  │ 圧縮                                              │
-  │ - LZ4（デフォルト、推奨）, gzip, zstd, lzjb       │
-  │ - 透過的圧縮                                      │
-  │ - 圧縮+デデュプリケーションの組合せ可能            │
-  └──────────────────────────────────────────────────┘
+  Key features:
+  +--------------------------------------------------+
+  | 128-bit Addressing                                 |
+  | - Virtually unlimited capacity                     |
+  |   (256 trillion yobibytes)                         |
+  | - Checksums on all data (SHA-256/Fletcher4)        |
+  | - Triple copies of metadata                        |
+  +--------------------------------------------------+
+  | Pool-based Storage Management                      |
+  | - zpool: Pool of physical devices                  |
+  | - zfs dataset: Logical volume carved from pool     |
+  | - No partitioning needed, dynamic resizing         |
+  +--------------------------------------------------+
+  | RAID-Z (Improved RAID5/6)                          |
+  | - RAID-Z1: Tolerates 1 disk failure                |
+  | - RAID-Z2: Tolerates 2 disk failures               |
+  | - RAID-Z3: Tolerates 3 disk failures               |
+  | - No write hole problem (CoW-based)                |
+  +--------------------------------------------------+
+  | ARC (Adaptive Replacement Cache)                   |
+  | - Advanced caching algorithm                       |
+  | - Adaptive combination of MRU (Most Recently       |
+  |   Used) + MFU (Most Frequently Used)               |
+  | - L2ARC: Uses SSD as cache device                  |
+  +--------------------------------------------------+
+  | ZIL (ZFS Intent Log)                               |
+  | - Accelerates synchronous writes                   |
+  | - SLOG: Places ZIL on a separate device (SSD)      |
+  +--------------------------------------------------+
+  | Snapshots and Clones                               |
+  | - Instant snapshot creation                        |
+  | - Read-write clones                                |
+  | - Efficient replication via send/receive            |
+  +--------------------------------------------------+
+  | Deduplication                                      |
+  | - Block-level deduplication                        |
+  | - DDT (Dedup Table) kept in memory                 |
+  | - Requires large amounts of memory                 |
+  |   (approx. 5GB RAM per 1TB)                        |
+  +--------------------------------------------------+
+  | Compression                                        |
+  | - LZ4 (default, recommended), gzip, zstd, lzjb    |
+  | - Transparent compression                          |
+  | - Can combine compression + deduplication          |
+  +--------------------------------------------------+
 ```
 
-### 4.2 ZFS の基本操作
+### 4.2 ZFS Basic Operations
 
 ```bash
-# ZFS のインストール（Ubuntu）
+# Installing ZFS (Ubuntu)
 sudo apt install zfsutils-linux
 
-# プール（zpool）の作成
+# Creating a pool (zpool)
 
-# シンプルなプール（ストライプ、冗長性なし）
+# Simple pool (stripe, no redundancy)
 sudo zpool create tank /dev/sdb
 
-# ミラープール（RAID1 相当）
+# Mirror pool (RAID1 equivalent)
 sudo zpool create tank mirror /dev/sdb /dev/sdc
 
-# RAID-Z1 プール（RAID5 相当）
+# RAID-Z1 pool (RAID5 equivalent)
 sudo zpool create tank raidz1 /dev/sdb /dev/sdc /dev/sdd
 
-# RAID-Z2 プール（RAID6 相当）
+# RAID-Z2 pool (RAID6 equivalent)
 sudo zpool create tank raidz2 /dev/sd{b,c,d,e}
 
-# キャッシュとログ付きプール
+# Pool with cache and log
 sudo zpool create tank raidz1 /dev/sd{b,c,d} \
-  cache /dev/sde \      # L2ARC（読み取りキャッシュ用SSD）
-  log mirror /dev/sdf /dev/sdg  # SLOG（書き込みログ用SSD、ミラー）
+  cache /dev/sde \      # L2ARC (SSD for read cache)
+  log mirror /dev/sdf /dev/sdg  # SLOG (SSD for write log, mirrored)
 
-# プール情報の確認
+# Check pool information
 zpool status tank
 zpool list
-zpool iostat -v tank 5     # 5秒ごとのI/O統計
+zpool iostat -v tank 5     # I/O statistics every 5 seconds
 
-# データセットの作成と管理
+# Create and manage datasets
 sudo zfs create tank/home
 sudo zfs create tank/data
 sudo zfs create tank/backup
 
-# プロパティの設定
-sudo zfs set compression=lz4 tank         # 圧縮有効化
-sudo zfs set atime=off tank               # atime 無効化
-sudo zfs set recordsize=1M tank/media     # 大ファイル向け
-sudo zfs set quota=100G tank/home         # クォータ設定
-sudo zfs set reservation=50G tank/data    # 予約領域
+# Set properties
+sudo zfs set compression=lz4 tank         # Enable compression
+sudo zfs set atime=off tank               # Disable atime
+sudo zfs set recordsize=1M tank/media     # For large files
+sudo zfs set quota=100G tank/home         # Set quota
+sudo zfs set reservation=50G tank/data    # Reserve space
 
-# プロパティの確認
+# Check properties
 zfs get all tank/home
 zfs get compression,compressratio tank
 zfs list -o name,used,avail,refer,mountpoint
 ```
 
-### 4.3 ZFS のスナップショットとレプリケーション
+### 4.3 ZFS Snapshots and Replication
 
 ```bash
-# スナップショットの作成
+# Create a snapshot
 sudo zfs snapshot tank/home@daily-$(date +%Y%m%d)
 
-# 再帰的スナップショット（全子データセット含む）
+# Recursive snapshot (including all child datasets)
 sudo zfs snapshot -r tank@backup-$(date +%Y%m%d)
 
-# スナップショット一覧
+# List snapshots
 zfs list -t snapshot
 
-# スナップショットからのファイル復旧
-# スナップショットは .zfs/snapshot/ からアクセス可能
+# Restore a file from a snapshot
+# Snapshots are accessible via .zfs/snapshot/
 ls /tank/home/.zfs/snapshot/daily-20240101/
 cp /tank/home/.zfs/snapshot/daily-20240101/file.txt /tank/home/
 
-# スナップショットへのロールバック
+# Roll back to a snapshot
 sudo zfs rollback tank/home@daily-20240101
 
-# スナップショットの削除
+# Delete a snapshot
 sudo zfs destroy tank/home@daily-20240101
 
-# 古いスナップショットの一括削除
-sudo zfs destroy tank/home@%daily-202301  # 2023年1月分を削除
+# Bulk delete old snapshots
+sudo zfs destroy tank/home@%daily-202301  # Delete all from January 2023
 
-# レプリケーション（send/receive）
-# 初回: フルバックアップ
+# Replication (send/receive)
+# First time: full backup
 sudo zfs send tank/home@snap1 | sudo zfs receive backup/home
 
-# 増分バックアップ
+# Incremental backup
 sudo zfs send -i tank/home@snap1 tank/home@snap2 | \
   sudo zfs receive backup/home
 
-# SSH 越しのレプリケーション
+# Replication over SSH
 sudo zfs send -i tank/home@snap1 tank/home@snap2 | \
   ssh backup-server "sudo zfs receive backup/home"
 
-# 暗号化付き送信（raw send）
+# Encrypted send (raw send)
 sudo zfs send --raw -i tank/home@snap1 tank/home@snap2 | \
   ssh backup-server "sudo zfs receive backup/home"
 
-# 自動スナップショット（zfs-auto-snapshot, sanoid/syncoid）
-# sanoid.conf の例:
+# Automated snapshots (zfs-auto-snapshot, sanoid/syncoid)
+# Example sanoid.conf:
 # [tank/home]
 #   use_template = production
 #   autosnap = yes
@@ -884,146 +903,146 @@ sudo zfs send --raw -i tank/home@snap1 tank/home@snap2 | \
 #   yearly = 5
 ```
 
-### 4.4 ZFS のパフォーマンスチューニング
+### 4.4 ZFS Performance Tuning
 
 ```bash
-# ARC（キャッシュ）の確認と調整
+# Check and adjust ARC (cache)
 cat /proc/spl/kstat/zfs/arcstats | grep -E "^(size|c_max|hits|misses)"
-# ARC サイズの上限設定（/etc/modprobe.d/zfs.conf）
+# Set ARC size limit (/etc/modprobe.d/zfs.conf)
 # options zfs zfs_arc_max=8589934592   # 8GB
 
-# ZIL（書き込みログ）の無効化（非推奨、テスト用）
-# sync=disabled は同期書き込みを無効化
+# Disable ZIL (write log) (not recommended, for testing only)
+# sync=disabled disables synchronous writes
 sudo zfs set sync=disabled tank/tmp
 
-# レコードサイズの最適化
-# データベース（小ブロックI/O）
+# Optimize record size
+# Database (small block I/O)
 sudo zfs set recordsize=8K tank/database
 
-# 大ファイル（メディア、バックアップ）
+# Large files (media, backups)
 sudo zfs set recordsize=1M tank/media
 
-# 一般用途
-sudo zfs set recordsize=128K tank/home    # デフォルト
+# General use
+sudo zfs set recordsize=128K tank/home    # Default
 
-# 圧縮の効果確認
+# Check compression effectiveness
 zfs get compressratio tank
 # NAME  PROPERTY       VALUE  SOURCE
 # tank  compressratio  2.50x  -
-# → 2.5倍の圧縮率 = 40%のディスク節約
+# -> 2.5x compression ratio = 40% disk savings
 
-# スクラブ（データ整合性チェック）
+# Scrub (data integrity check)
 sudo zpool scrub tank
-zpool status tank      # スクラブの進捗確認
+zpool status tank      # Check scrub progress
 
-# I/O パフォーマンスの確認
-zpool iostat -v 5      # 5秒ごと
+# Check I/O performance
+zpool iostat -v 5      # Every 5 seconds
 
-# デバイスの交換
+# Replace a device
 sudo zpool replace tank /dev/sdb /dev/sdh
 
-# デバイスの追加（ミラーの追加）
-sudo zpool attach tank /dev/sdb /dev/sdc  # sdb のミラーとして sdc を追加
+# Add a device (add a mirror)
+sudo zpool attach tank /dev/sdb /dev/sdc  # Add sdc as mirror of sdb
 ```
 
 ---
 
-## 5. その他のFS
+## 5. Other Filesystems
 
-### 5.1 NTFS（Windows）
+### 5.1 NTFS (Windows)
 
 ```
 NTFS (New Technology File System, 1993):
-  Windows NT 以降の標準ファイルシステム
+  The standard filesystem for Windows NT and later
 
-  主な特徴:
-  - MFT (Master File Table): 全ファイルのメタデータ管理
-  - ジャーナリング: USN (Update Sequence Number) Journal
-  - ACL: Windows 固有のアクセス制御リスト
-  - 暗号化: EFS (Encrypting File System)
-  - 圧縮: NTFS 圧縮（ファイル/ディレクトリ単位）
-  - ハードリンク、シンボリックリンク（Vista以降）
-  - 代替データストリーム (ADS): ファイルに複数のデータストリーム
-  - クォータ: ユーザごとのディスク使用量制限
-  - VSS (Volume Shadow Copy Service): スナップショット
+  Key features:
+  - MFT (Master File Table): Manages metadata for all files
+  - Journaling: USN (Update Sequence Number) Journal
+  - ACL: Windows-specific access control lists
+  - Encryption: EFS (Encrypting File System)
+  - Compression: NTFS compression (per file/directory)
+  - Hard links, symbolic links (Vista and later)
+  - Alternate Data Streams (ADS): Multiple data streams per file
+  - Quotas: Per-user disk usage limits
+  - VSS (Volume Shadow Copy Service): Snapshots
 
-  容量:
-  - 最大ボリューム: 256TB（理論上16EB）
-  - 最大ファイル: 256TB
-  - クラスタサイズ: 4KB（デフォルト）
+  Capacity:
+  - Maximum volume: 256TB (theoretically 16EB)
+  - Maximum file: 256TB
+  - Cluster size: 4KB (default)
 
-  Linux からのアクセス:
-  # カーネルドライバ（読み取り専用）
+  Accessing from Linux:
+  # Kernel driver (read-only)
   mount -t ntfs /dev/sda1 /mnt
 
-  # NTFS-3G（読み書き可能、FUSEベース）
+  # NTFS-3G (read-write, FUSE-based)
   mount -t ntfs-3g /dev/sda1 /mnt
 
-  # ntfs3（Linux 5.15+、カーネル内蔵、読み書き可能）
+  # ntfs3 (Linux 5.15+, built into kernel, read-write)
   mount -t ntfs3 /dev/sda1 /mnt
 
-  MFT の構造:
-  ┌────────────────────────────────────────┐
-  │ MFT エントリ（通常 1KB）               │
-  │ ┌─────────────────────────────────────┐│
-  │ │ $STANDARD_INFORMATION              ││
-  │ │  → タイムスタンプ、フラグ            ││
-  │ ├─────────────────────────────────────┤│
-  │ │ $FILE_NAME                          ││
-  │ │  → ファイル名、親ディレクトリ参照    ││
-  │ ├─────────────────────────────────────┤│
-  │ │ $DATA                              ││
-  │ │  → ファイルデータ                    ││
-  │ │  → 小さなファイルは MFT 内に格納    ││
-  │ │  → 大きなファイルはランを参照        ││
-  │ ├─────────────────────────────────────┤│
-  │ │ $SECURITY_DESCRIPTOR               ││
-  │ │  → ACL 情報                         ││
-  │ └─────────────────────────────────────┘│
-  └────────────────────────────────────────┘
+  MFT structure:
+  +----------------------------------------+
+  | MFT entry (typically 1KB)              |
+  | +-------------------------------------+|
+  | | $STANDARD_INFORMATION              ||
+  | |  -> Timestamps, flags               ||
+  | +-------------------------------------+|
+  | | $FILE_NAME                          ||
+  | |  -> Filename, parent directory ref   ||
+  | +-------------------------------------+|
+  | | $DATA                               ||
+  | |  -> File data                        ||
+  | |  -> Small files stored within MFT    ||
+  | |  -> Large files reference runs       ||
+  | +-------------------------------------+|
+  | | $SECURITY_DESCRIPTOR                ||
+  | |  -> ACL information                  ||
+  | +-------------------------------------+|
+  +----------------------------------------+
 ```
 
-### 5.2 APFS（Apple）
+### 5.2 APFS (Apple)
 
 ```
 APFS (Apple File System, 2017):
-  HFS+ の後継として Apple が開発
-  → macOS High Sierra (10.13) 以降のデフォルト
-  → iOS 10.3 以降で採用
-  → watchOS, tvOS でも使用
+  Developed by Apple as the successor to HFS+
+  -> Default since macOS High Sierra (10.13)
+  -> Adopted since iOS 10.3
+  -> Also used on watchOS, tvOS
 
-  設計思想:
-  - SSD/フラッシュストレージ最適化
-  - 暗号化ファーストの設計
-  - コンテナ+ボリュームモデル
+  Design philosophy:
+  - Optimized for SSD/flash storage
+  - Encryption-first design
+  - Container + volume model
 
-  主な特徴:
+  Key features:
   - CoW (Copy-on-Write)
-  - スナップショット: Time Machine バックアップで使用
-  - 暗号化: ボリューム全体 / ファイル単位（FileVault 2）
-  - スペース共有: 複数ボリュームでコンテナの容量を共有
-  - クローン: ファイル/ディレクトリの瞬時コピー
-  - ナノ秒タイムスタンプ（HFS+ は秒精度）
-  - クラッシュプロテクション
-  - TRIM サポート（SSD 最適化）
+  - Snapshots: Used for Time Machine backups
+  - Encryption: Entire volume / per-file (FileVault 2)
+  - Space sharing: Multiple volumes share container capacity
+  - Clones: Instant copy of files/directories
+  - Nanosecond timestamps (HFS+ had second precision)
+  - Crash protection
+  - TRIM support (SSD optimization)
 
-  コンテナモデル:
-  ┌────────────────────────────────────────┐
-  │ APFS コンテナ（= 物理パーティション）   │
-  │ ┌──────────┐┌──────────┐┌──────────┐  │
-  │ │ Volume 1 ││ Volume 2 ││ Volume 3 │  │
-  │ │ (macOS)  ││ (Data)   ││ (VM)     │  │
-  │ │          ││          ││          │  │
-  │ └──────────┘└──────────┘└──────────┘  │
-  │   ← 空き容量をボリューム間で共有 →      │
-  └────────────────────────────────────────┘
+  Container model:
+  +----------------------------------------+
+  | APFS Container (= physical partition)  |
+  | +----------++----------++----------+   |
+  | | Volume 1 || Volume 2 || Volume 3 |   |
+  | | (macOS)  || (Data)   || (VM)     |   |
+  | |          ||          ||          |   |
+  | +----------++----------++----------+   |
+  |   <- Free space shared between vols -> |
+  +----------------------------------------+
 
-  macOS Catalina 以降のボリューム構成:
-  - Macintosh HD (System): 読み取り専用のシステムボリューム
-  - Macintosh HD - Data: ユーザデータ
-  - Preboot, Recovery, VM: システム用
+  Volume layout since macOS Catalina:
+  - Macintosh HD (System): Read-only system volume
+  - Macintosh HD - Data: User data
+  - Preboot, Recovery, VM: System volumes
 
-  diskutil での確認:
+  Checking with diskutil:
   $ diskutil list
   $ diskutil apfs list
   $ diskutil info /
@@ -1033,252 +1052,265 @@ APFS (Apple File System, 2017):
 
 ```
 FAT32 (File Allocation Table, 1996):
-  最も互換性が高いファイルシステム
+  The most widely compatible filesystem
 
-  特徴:
-  - 全OS（Windows, macOS, Linux, 組込み）で読み書き可能
-  - 最大ファイル: 4GB（最大の制約）
-  - 最大ボリューム: 2TB（理論上8TB）
-  - ジャーナリングなし
-  - ACL なし（基本的なパーミッションのみ）
+  Features:
+  - Read/write on all OSes (Windows, macOS, Linux, embedded)
+  - Maximum file: 4GB (biggest limitation)
+  - Maximum volume: 2TB (theoretically 8TB)
+  - No journaling
+  - No ACL (basic permissions only)
 
-  構造:
-  ┌──────┬──────────┬───────────┬──────────┐
-  │ Boot │ FAT 1    │ FAT 2     │ Data     │
-  │ Sect │(ファイル ││(バックアップ)│ 領域     │
-  │      │割当テーブル)│          │          │
-  └──────┴──────────┴───────────┴──────────┘
+  Structure:
+  +------+----------+-----------+----------+
+  | Boot | FAT 1    | FAT 2     | Data     |
+  | Sect | (file    | (backup)  | area     |
+  |      | alloc    |           |          |
+  |      | table)   |           |          |
+  +------+----------+-----------+----------+
 
-  FAT（File Allocation Table）:
-  各クラスタの次のクラスタ番号を記録するリンクリスト
-  ┌──────────────────────────────┐
-  │ クラスタ 2: → 3             │
-  │ クラスタ 3: → 7             │
-  │ クラスタ 4: → EOF（空き）    │
-  │ クラスタ 5: → 0（空き）     │
-  │ クラスタ 6: → EOF           │
-  │ クラスタ 7: → EOF           │
-  └──────────────────────────────┘
-  ファイルA: 2 → 3 → 7 → EOF
+  FAT (File Allocation Table):
+  A linked list recording the next cluster number for each cluster
+  +------------------------------+
+  | Cluster 2: -> 3              |
+  | Cluster 3: -> 7              |
+  | Cluster 4: -> EOF (free)     |
+  | Cluster 5: -> 0 (free)      |
+  | Cluster 6: -> EOF            |
+  | Cluster 7: -> EOF            |
+  +------------------------------+
+  File A: 2 -> 3 -> 7 -> EOF
 
-  用途: SDカード、USBメモリ（小容量）、組込みシステム
+  Use cases: SD cards, USB drives (small capacity), embedded systems
 
 exFAT (Extended FAT, 2006):
-  FAT32 の後継。大ファイル対応
+  Successor to FAT32. Supports large files.
 
-  特徴:
-  - 最大ファイル: 16EB（事実上無制限）
-  - 最大ボリューム: 128PB
-  - FAT32 の 4GB 制限を解消
-  - Microsoft がパテント公開（2019年）
-  - Linux カーネル 5.4 以降でネイティブサポート
-  - ジャーナリングなし
-  - ACL なし
+  Features:
+  - Maximum file: 16EB (virtually unlimited)
+  - Maximum volume: 128PB
+  - Removes FAT32's 4GB limitation
+  - Microsoft published patents (2019)
+  - Native support since Linux kernel 5.4
+  - No journaling
+  - No ACL
 
-  用途:
-  - SDカード（SDXC 規格の公式FS）
-  - USBメモリ（大容量ファイル）
-  - Windows/Mac 共用の外付けHDD
-  - デジタルカメラのメモリカード
+  Use cases:
+  - SD cards (official filesystem for SDXC standard)
+  - USB drives (large files)
+  - External HDDs shared between Windows/Mac
+  - Memory cards for digital cameras
 
-  作成:
+  Creation:
   # FAT32
   $ mkfs.vfat -F 32 /dev/sdb1
   # exFAT
   $ mkfs.exfat /dev/sdb1
 ```
 
-### 5.4 特殊な仮想ファイルシステム
+### 5.4 Special Virtual Filesystems
 
 ```
 tmpfs:
-  RAM上のファイルシステム
-  - マウントポイント: /tmp, /dev/shm, /run
-  - 超高速だが再起動で消失
-  - スワップにも書き出される
-  - ビルドキャッシュ、一時ファイルに最適
+  Filesystem on RAM
+  - Mount points: /tmp, /dev/shm, /run
+  - Extremely fast but lost on reboot
+  - Can also be swapped out
+  - Ideal for build caches, temporary files
 
-  設定:
+  Configuration:
   # /etc/fstab
   tmpfs  /tmp      tmpfs  defaults,size=4G,noatime  0  0
   tmpfs  /dev/shm  tmpfs  defaults,size=2G          0  0
 
 procfs:
-  プロセスとカーネルの情報を公開する仮想FS
-  マウントポイント: /proc
+  Virtual filesystem exposing process and kernel information
+  Mount point: /proc
 
-  重要なファイル:
-  /proc/cpuinfo        : CPU 情報
-  /proc/meminfo        : メモリ情報
-  /proc/loadavg        : 負荷平均
-  /proc/version        : カーネルバージョン
-  /proc/<pid>/status   : プロセスの状態
-  /proc/<pid>/maps     : メモリマッピング
-  /proc/<pid>/fd/      : ファイルディスクリプタ
-  /proc/sys/           : カーネルパラメータ（sysctl）
+  Important files:
+  /proc/cpuinfo        : CPU information
+  /proc/meminfo        : Memory information
+  /proc/loadavg        : Load average
+  /proc/version        : Kernel version
+  /proc/<pid>/status   : Process status
+  /proc/<pid>/maps     : Memory mappings
+  /proc/<pid>/fd/      : File descriptors
+  /proc/sys/           : Kernel parameters (sysctl)
 
 sysfs:
-  デバイスとドライバの情報をツリー構造で公開
-  マウントポイント: /sys
+  Exposes device and driver information in a tree structure
+  Mount point: /sys
 
-  構造:
-  /sys/class/           : デバイスクラス
-  /sys/block/           : ブロックデバイス
-  /sys/devices/         : デバイスの物理階層
-  /sys/bus/             : バスタイプ
-  /sys/module/          : ロードされたモジュール
-  /sys/fs/              : ファイルシステム固有の情報
+  Structure:
+  /sys/class/           : Device classes
+  /sys/block/           : Block devices
+  /sys/devices/         : Physical device hierarchy
+  /sys/bus/             : Bus types
+  /sys/module/          : Loaded modules
+  /sys/fs/              : Filesystem-specific information
 
 debugfs:
-  デバッグ情報の公開
-  マウントポイント: /sys/kernel/debug
-  → ftrace, tracing 等のデバッグツールが使用
+  Exposes debug information
+  Mount point: /sys/kernel/debug
+  -> Used by debug tools such as ftrace, tracing
 
 devtmpfs:
-  デバイスファイルの自動作成
-  マウントポイント: /dev
-  → udev と連携してデバイスノードを自動管理
+  Automatic creation of device files
+  Mount point: /dev
+  -> Works with udev to automatically manage device nodes
 
 cgroupfs:
-  コントロールグループの管理
-  → CPU、メモリ、I/O のリソース制限
-  → コンテナ（Docker, systemd）の基盤技術
+  Control group management
+  -> Resource limiting for CPU, memory, I/O
+  -> Foundation technology for containers (Docker, systemd)
 
 overlayfs:
-  複数のディレクトリを重ね合わせる
-  → Docker のイメージレイヤーの実装
-  → lower（読み取り専用）+ upper（読み書き）= merged（統合ビュー）
+  Overlays multiple directories
+  -> Implements Docker image layers
+  -> lower (read-only) + upper (read-write) = merged (unified view)
 ```
 
-### 5.5 ネットワークファイルシステム
+### 5.5 Network Filesystems
 
 ```
 NFS (Network File System):
-  Unix/Linux 標準のネットワーク共有
-  - NFSv3: ステートレス（復旧が容易）
-  - NFSv4: ステートフル（ロック機能改善、ファイアウォール通過）
-  - NFSv4.1: pNFS（並列NFS、分散ストレージ対応）
-  - NFSv4.2: サーバーサイドコピー、ホール検出
+  Standard network sharing for Unix/Linux
+  - NFSv3: Stateless (easy recovery)
+  - NFSv4: Stateful (improved locking, firewall traversal)
+  - NFSv4.1: pNFS (parallel NFS, distributed storage support)
+  - NFSv4.2: Server-side copy, hole detection
 
-  # サーバー設定（/etc/exports）
+  # Server configuration (/etc/exports)
   /data  192.168.1.0/24(rw,sync,no_subtree_check,no_root_squash)
 
-  # クライアントからのマウント
+  # Mount from client
   mount -t nfs server:/data /mnt/nfs
 
 SMB/CIFS (Server Message Block):
-  Windows 標準のネットワーク共有
-  - Samba を使って Linux サーバーで提供
-  - SMB1 (CIFS): 古い、セキュリティ問題あり（使用非推奨）
-  - SMB2: Windows Vista 以降
-  - SMB3: 暗号化、マルチチャネル（Windows 8 / Server 2012）
+  Standard network sharing for Windows
+  - Samba provides this on Linux servers
+  - SMB1 (CIFS): Legacy, security issues (use discouraged)
+  - SMB2: Windows Vista and later
+  - SMB3: Encryption, multichannel (Windows 8 / Server 2012)
 
-  # Linux クライアントからのマウント
+  # Mount from Linux client
   mount -t cifs //server/share /mnt/smb -o user=username
 
 GlusterFS:
-  分散ファイルシステム
-  → 複数サーバーを束ねて単一の大容量FSを構成
-  → レプリケーション、ストライプ、分散
+  Distributed filesystem
+  -> Combines multiple servers into a single large-capacity filesystem
+  -> Replication, striping, distribution
 
 CephFS:
-  分散ファイルシステム（Ceph ストレージの一部）
-  → POSIX 互換
-  → スケーラビリティが高い
-  → OpenStack, Kubernetes で利用
+  Distributed filesystem (part of Ceph storage)
+  -> POSIX compatible
+  -> Highly scalable
+  -> Used with OpenStack, Kubernetes
 
 FUSE (Filesystem in Userspace):
-  ユーザ空間でファイルシステムを実装するフレームワーク
-  → SSHFS: SSH 越しのファイルアクセス
-  → S3FS: Amazon S3 をファイルシステムとしてマウント
-  → NTFS-3G: NTFS の読み書きサポート
-  → rclone mount: クラウドストレージのマウント
+  Framework for implementing filesystems in user space
+  -> SSHFS: File access over SSH
+  -> S3FS: Mount Amazon S3 as a filesystem
+  -> NTFS-3G: NTFS read-write support
+  -> rclone mount: Mount cloud storage
 
-  # SSHFS の例
+  # SSHFS example
   sshfs user@server:/remote/path /mnt/sshfs
 
-  # S3FS の例
+  # S3FS example
   s3fs mybucket /mnt/s3 -o passwd_file=~/.passwd-s3fs
 ```
 
 ---
 
-## 6. ファイルシステムの選択ガイド
+## 6. Filesystem Selection Guide
 
-### 6.1 用途別推奨
-
-```
-用途別ファイルシステム選択:
-
-┌─────────────────────────┬──────────┬────────────────────────┐
-│ 用途                     │ 推奨 FS  │ 理由                    │
-├─────────────────────────┼──────────┼────────────────────────┤
-│ デスクトップ（一般）     │ ext4     │ 安定、互換性、ツール充実 │
-│ デスクトップ（Fedora）   │ Btrfs    │ スナップショットで復元   │
-│ エンタープライズサーバー │ XFS      │ 高並列、大規模、RHEL標準│
-│ データベースサーバー     │ XFS/ext4 │ 高I/O性能、安定性       │
-│ NAS（家庭・小規模）     │ Btrfs    │ RAID内蔵、スナップ     │
-│ NAS（エンタープライズ） │ ZFS      │ 最強のデータ保護        │
-│ USBメモリ（共用）       │ exFAT    │ 全OS互換、大ファイル対応│
-│ SDカード（32GB以下）    │ FAT32    │ 最大互換性              │
-│ SDカード（64GB以上）    │ exFAT    │ SDXC 標準               │
-│ CI/CDビルドディレクトリ │ tmpfs    │ RAM上で超高速           │
-│ コンテナ（Docker）      │ overlay2 │ レイヤー管理に最適      │
-│ 仮想マシンストレージ     │ XFS+reflink│ 高速クローン           │
-│ バックアップサーバー     │ ZFS/Btrfs│ スナップショット+圧縮  │
-│ メディアサーバー         │ XFS      │ 大ファイルの高速転送    │
-│ 組込みシステム           │ SquashFS+│ 読み取り専用+書き込み領域│
-│                         │ overlayfs│                        │
-│ ブートパーティション     │ ext4/FAT32│ GRUB/UEFI 互換        │
-└─────────────────────────┴──────────┴────────────────────────┘
-```
-
-### 6.2 総合比較表
+### 6.1 Recommendations by Use Case
 
 ```
-主要FS の詳細比較:
+Filesystem selection by use case:
 
-┌──────────────┬──────────┬──────────┬──────────┬──────────┐
-│ 項目          │ ext4     │ XFS      │ Btrfs    │ ZFS      │
-├──────────────┼──────────┼──────────┼──────────┼──────────┤
-│ 最大FS       │ 1EB      │ 8EB      │ 16EB     │ 256ZiB   │
-│ 最大ファイル  │ 16TB     │ 8EB      │ 16EB     │ 16EB     │
-│ CoW          │ ✗        │ ✗(reflink)│ ✓       │ ✓       │
-│ 圧縮         │ ✗        │ ✗        │ ✓        │ ✓       │
-│ スナップショット│ ✗      │ ✗        │ ✓        │ ✓       │
-│ RAID         │ ✗        │ ✗        │ ✓        │ ✓       │
-│ チェックサム  │ meta のみ│ meta のみ│ data+meta│ data+meta│
-│ 縮小         │ ✓        │ ✗        │ ✓        │ ✗       │
-│ reflink      │ ✗        │ ✓(4.9+)  │ ✓        │ ✗       │
-│ デデュプ     │ ✗        │ ✗        │ offline  │ ✓       │
-│ 暗号化       │ fscrypt  │ ✗        │ ✗        │ ✓       │
-│ クォータ     │ ✓        │ ✓(prj)   │ ✓(qgroup)│ ✓       │
-│ 安定性       │ ◎        │ ◎        │ ○        │ ◎       │
-│ 速度（seq）  │ ○        │ ◎        │ ○        │ ○       │
-│ 速度（rand） │ ○        │ ◎        │ △        │ ○       │
-│ メモリ使用   │ 少        │ 少        │ 中       │ 多       │
-│ ツール充実度 │ ◎        │ ○        │ ○        │ ○       │
-│ Linux統合    │ ◎        │ ◎        │ ◎        │ △(DKMS) │
-└──────────────┴──────────┴──────────┴──────────┴──────────┘
++-------------------------+----------+------------------------+
+| Use Case                | Rec. FS  | Reason                 |
++-------------------------+----------+------------------------+
+| Desktop (general)       | ext4     | Stable, compatible,    |
+|                         |          | rich tooling           |
+| Desktop (Fedora)        | Btrfs    | Snapshot-based restore |
+| Enterprise server       | XFS      | High parallelism,      |
+|                         |          | large-scale, RHEL std  |
+| Database server         | XFS/ext4 | High I/O performance,  |
+|                         |          | stability              |
+| NAS (home/small-scale)  | Btrfs    | Built-in RAID,         |
+|                         |          | snapshots              |
+| NAS (enterprise)        | ZFS      | Best data protection   |
+| USB drive (shared)      | exFAT    | All-OS compatible,     |
+|                         |          | large file support     |
+| SD card (32GB or less)  | FAT32    | Maximum compatibility  |
+| SD card (64GB or more)  | exFAT    | SDXC standard          |
+| CI/CD build directory   | tmpfs    | Ultra-fast on RAM      |
+| Container (Docker)      | overlay2 | Best for layer mgmt    |
+| VM storage              | XFS+     | Fast cloning           |
+|                         | reflink  |                        |
+| Backup server           | ZFS/     | Snapshots +            |
+|                         | Btrfs    | compression            |
+| Media server            | XFS      | Fast transfer of       |
+|                         |          | large files            |
+| Embedded system         | SquashFS+| Read-only + writable   |
+|                         | overlayfs| area                   |
+| Boot partition          | ext4/    | GRUB/UEFI compatible   |
+|                         | FAT32    |                        |
++-------------------------+----------+------------------------+
+```
+
+### 6.2 Comprehensive Comparison Table
+
+```
+Detailed comparison of major filesystems:
+
++--------------+----------+----------+----------+----------+
+| Property     | ext4     | XFS      | Btrfs    | ZFS      |
++--------------+----------+----------+----------+----------+
+| Max FS       | 1EB      | 8EB      | 16EB     | 256ZiB   |
+| Max file     | 16TB     | 8EB      | 16EB     | 16EB     |
+| CoW          | No       | No       | Yes      | Yes      |
+|              |          | (reflink)|          |          |
+| Compression  | No       | No       | Yes      | Yes      |
+| Snapshots    | No       | No       | Yes      | Yes      |
+| RAID         | No       | No       | Yes      | Yes      |
+| Checksums    | meta only| meta only| data+meta| data+meta|
+| Shrinking    | Yes      | No       | Yes      | No       |
+| reflink      | No       | Yes(4.9+)| Yes      | No       |
+| Dedup        | No       | No       | offline  | Yes      |
+| Encryption   | fscrypt  | No       | No       | Yes      |
+| Quotas       | Yes      | Yes(prj) | Yes      | Yes      |
+|              |          |          | (qgroup) |          |
+| Stability    | Excellent| Excellent| Good     | Excellent|
+| Speed (seq)  | Good     | Excellent| Good     | Good     |
+| Speed (rand) | Good     | Excellent| Fair     | Good     |
+| Memory usage | Low      | Low      | Medium   | High     |
+| Tooling      | Excellent| Good     | Good     | Good     |
+| Linux integ. | Excellent| Excellent| Excellent| Fair     |
+|              |          |          |          | (DKMS)   |
++--------------+----------+----------+----------+----------+
 ```
 
 ---
 
-## 実践演習
+## Practical Exercises
 
-### 演習1: [基礎] -- ファイルシステム情報の確認
+### Exercise 1: [Basic] -- Checking Filesystem Information
 
 ```bash
-# 現在のファイルシステムを確認
+# Check current filesystems
 df -Th
 lsblk -f
 cat /etc/fstab
 
-# マウントポイントの詳細情報
-findmnt --real                # 物理FSのみ表示
-findmnt -t ext4,xfs,btrfs    # 特定タイプのみ
+# Detailed mount point information
+findmnt --real                # Show only physical filesystems
+findmnt -t ext4,xfs,btrfs    # Show specific types only
 
-# ファイルシステム固有の情報
+# Filesystem-specific information
 # ext4
 sudo dumpe2fs -h /dev/sda1
 sudo tune2fs -l /dev/sda1
@@ -1296,40 +1328,41 @@ zpool status
 zfs list
 ```
 
-### 演習2: [応用] -- FS選択判断
+### Exercise 2: [Applied] -- Filesystem Selection Decisions
 
 ```
-以下の用途に最適なFSを選択し理由を述べよ:
+Select the optimal filesystem for the following use cases
+and explain your reasoning:
 
-1. 100TBのNASストレージ（定期バックアップ必須）
-   → ZFS: チェックサム、RAID-Z2/Z3、スナップショット、
-     send/receive による効率的なバックアップ
+1. 100TB NAS storage (regular backup required)
+   -> ZFS: Checksums, RAID-Z2/Z3, snapshots,
+     efficient backup via send/receive
 
-2. 高頻度のDBトランザクション（MySQL/PostgreSQL）
-   → XFS: 高並列I/O性能、B+木メタデータ管理、
-     安定したパフォーマンス、RHEL推奨
+2. High-frequency DB transactions (MySQL/PostgreSQL)
+   -> XFS: High parallel I/O performance, B+ tree metadata
+     management, stable performance, RHEL recommended
 
-3. USBメモリ（Windows/Mac/Linuxで共用）
-   → exFAT: 全OS対応、4GB超ファイル対応、
-     SDXCカード規格準拠
+3. USB drive (shared between Windows/Mac/Linux)
+   -> exFAT: All-OS support, supports files over 4GB,
+     SDXC card standard compliant
 
-4. CI/CDの一時ビルドディレクトリ
-   → tmpfs: RAM上で最速、再起動で自動クリーン、
-     ディスクI/Oボトルネック解消
+4. CI/CD temporary build directory
+   -> tmpfs: Fastest on RAM, auto-clean on reboot,
+     eliminates disk I/O bottleneck
 
-5. 開発者のLinuxデスクトップ
-   → Btrfs: スナップショットで設定変更前の状態保存、
-     圧縮でSSD容量節約、Fedoraデフォルト
+5. Developer Linux desktop
+   -> Btrfs: Save state before config changes via snapshots,
+     SSD space savings via compression, Fedora default
 
-6. コンテナホストのストレージ
-   → XFS + overlay2: Docker推奨構成、
-     reflinkでイメージ層の効率的管理
+6. Container host storage
+   -> XFS + overlay2: Docker recommended configuration,
+     efficient image layer management with reflink
 ```
 
-### 演習3: [上級] -- ファイルシステムのベンチマーク比較
+### Exercise 3: [Advanced] -- Filesystem Benchmark Comparison
 
 ```bash
-# テスト環境の準備（ループバックデバイスで各FSを作成）
+# Prepare test environment (create each FS on loopback devices)
 for fs in ext4 xfs btrfs; do
   dd if=/dev/zero of=/tmp/test_${fs}.img bs=1M count=2048
   case $fs in
@@ -1341,7 +1374,7 @@ for fs in ext4 xfs btrfs; do
   mount -o loop /tmp/test_${fs}.img /mnt/test_${fs}
 done
 
-# fio でベンチマーク（各FSで実行）
+# Benchmark with fio (run on each filesystem)
 for fs in ext4 xfs btrfs; do
   echo "=== ${fs} ==="
   fio --name=${fs}_seqwrite \
@@ -1351,7 +1384,7 @@ for fs in ext4 xfs btrfs; do
     --group_reporting
 done
 
-# クリーンアップ
+# Cleanup
 for fs in ext4 xfs btrfs; do
   umount /mnt/test_${fs}
   rm /tmp/test_${fs}.img
@@ -1361,33 +1394,33 @@ done
 
 ---
 
-## トラブルシューティング
+## Troubleshooting
 
-### よくあるエラーと解決策
+### Common Errors and Solutions
 
-| エラー | 原因 | 解決策 |
-|--------|------|--------|
-| 初期化エラー | 設定ファイルの不備 | 設定ファイルのパスと形式を確認 |
-| タイムアウト | ネットワーク遅延/リソース不足 | タイムアウト値の調整、リトライ処理の追加 |
-| メモリ不足 | データ量の増大 | バッチ処理の導入、ページネーションの実装 |
-| 権限エラー | アクセス権限の不足 | 実行ユーザーの権限確認、設定の見直し |
-| データ不整合 | 並行処理の競合 | ロック機構の導入、トランザクション管理 |
+| Error | Cause | Solution |
+|-------|-------|----------|
+| Initialization error | Configuration file issues | Check path and format of configuration files |
+| Timeout | Network latency / insufficient resources | Adjust timeout values, add retry logic |
+| Out of memory | Data volume increase | Introduce batch processing, implement pagination |
+| Permission error | Insufficient access permissions | Check execution user permissions, review settings |
+| Data inconsistency | Concurrent processing conflicts | Introduce locking mechanisms, transaction management |
 
-### デバッグの手順
+### Debugging Procedure
 
-1. **エラーメッセージの確認**: スタックトレースを読み、発生箇所を特定する
-2. **再現手順の確立**: 最小限のコードでエラーを再現する
-3. **仮説の立案**: 考えられる原因をリストアップする
-4. **段階的な検証**: ログ出力やデバッガを使って仮説を検証する
-5. **修正と回帰テスト**: 修正後、関連する箇所のテストも実行する
+1. **Check error messages**: Read stack traces and identify the location
+2. **Establish reproduction steps**: Reproduce the error with minimal code
+3. **Formulate hypotheses**: List possible causes
+4. **Verify step by step**: Use log output and debuggers to test hypotheses
+5. **Fix and regression test**: After fixing, run tests on related areas as well
 
 ```python
-# デバッグ用ユーティリティ
+# Debugging utility
 import logging
 import traceback
 from functools import wraps
 
-# ロガーの設定
+# Logger configuration
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
@@ -1395,102 +1428,102 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def debug_decorator(func):
-    """関数の入出力をログ出力するデコレータ"""
+    """Decorator that logs function inputs and outputs"""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        logger.debug(f"呼び出し: {func.__name__}(args={args}, kwargs={kwargs})")
+        logger.debug(f"Call: {func.__name__}(args={args}, kwargs={kwargs})")
         try:
             result = func(*args, **kwargs)
-            logger.debug(f"戻り値: {func.__name__} -> {result}")
+            logger.debug(f"Return: {func.__name__} -> {result}")
             return result
         except Exception as e:
-            logger.error(f"例外発生: {func.__name__}: {e}")
+            logger.error(f"Exception: {func.__name__}: {e}")
             logger.error(traceback.format_exc())
             raise
     return wrapper
 
 @debug_decorator
 def process_data(items):
-    """データ処理（デバッグ対象）"""
+    """Data processing (debug target)"""
     if not items:
-        raise ValueError("空のデータ")
+        raise ValueError("Empty data")
     return [item * 2 for item in items]
 ```
 
-### パフォーマンス問題の診断
+### Diagnosing Performance Issues
 
-パフォーマンス問題が発生した場合の診断手順:
+Diagnostic procedure when performance issues occur:
 
-1. **ボトルネックの特定**: プロファイリングツールで計測
-2. **メモリ使用量の確認**: メモリリークの有無をチェック
-3. **I/O待ちの確認**: ディスクやネットワークI/Oの状況を確認
-4. **同時接続数の確認**: コネクションプールの状態を確認
+1. **Identify bottlenecks**: Measure with profiling tools
+2. **Check memory usage**: Check for memory leaks
+3. **Check I/O waits**: Check disk and network I/O status
+4. **Check concurrent connections**: Check connection pool status
 
-| 問題の種類 | 診断ツール | 対策 |
-|-----------|-----------|------|
-| CPU負荷 | cProfile, py-spy | アルゴリズム改善、並列化 |
-| メモリリーク | tracemalloc, objgraph | 参照の適切な解放 |
-| I/Oボトルネック | strace, iostat | 非同期I/O、キャッシュ |
-| DB遅延 | EXPLAIN, slow query log | インデックス、クエリ最適化 |
+| Problem Type | Diagnostic Tool | Solution |
+|-------------|----------------|----------|
+| CPU load | cProfile, py-spy | Algorithm improvement, parallelization |
+| Memory leak | tracemalloc, objgraph | Proper reference release |
+| I/O bottleneck | strace, iostat | Async I/O, caching |
+| DB latency | EXPLAIN, slow query log | Indexing, query optimization |
 
 ---
 
-## 設計判断ガイド
+## Design Decision Guide
 
-### 選択基準マトリクス
+### Selection Criteria Matrix
 
-技術選択を行う際の判断基準を以下にまとめます。
+The following summarizes the decision criteria for making technology choices.
 
-| 判断基準 | 重視する場合 | 妥協できる場合 |
-|---------|------------|-------------|
-| パフォーマンス | リアルタイム処理、大規模データ | 管理画面、バッチ処理 |
-| 保守性 | 長期運用、チーム開発 | プロトタイプ、短期プロジェクト |
-| スケーラビリティ | 成長が見込まれるサービス | 社内ツール、固定ユーザー |
-| セキュリティ | 個人情報、金融データ | 公開データ、社内利用 |
-| 開発速度 | MVP、市場投入スピード | 品質重視、ミッションクリティカル |
+| Criteria | When Prioritized | When Acceptable to Compromise |
+|---------|-----------------|------------------------------|
+| Performance | Real-time processing, large-scale data | Admin screens, batch processing |
+| Maintainability | Long-term operation, team development | Prototypes, short-term projects |
+| Scalability | Growing services | Internal tools, fixed users |
+| Security | Personal data, financial data | Public data, internal use |
+| Development speed | MVP, time-to-market | Quality-focused, mission-critical |
 
-### アーキテクチャパターンの選択
+### Architecture Pattern Selection
 
 ```
-┌─────────────────────────────────────────────────┐
-│              アーキテクチャ選択フロー              │
-├─────────────────────────────────────────────────┤
-│                                                 │
-│  ① チーム規模は？                                │
-│    ├─ 小規模（1-5人）→ モノリス                   │
-│    └─ 大規模（10人+）→ ②へ                       │
-│                                                 │
-│  ② デプロイ頻度は？                               │
-│    ├─ 週1回以下 → モノリス + モジュール分割         │
-│    └─ 毎日/複数回 → ③へ                          │
-│                                                 │
-│  ③ チーム間の独立性は？                            │
-│    ├─ 高い → マイクロサービス                      │
-│    └─ 中程度 → モジュラーモノリス                   │
-│                                                 │
-└─────────────────────────────────────────────────┘
++-----------------------------------------------------+
+|              Architecture Selection Flow              |
++-----------------------------------------------------+
+|                                                       |
+|  (1) Team size?                                       |
+|    +-- Small (1-5) -> Monolith                        |
+|    +-- Large (10+) -> Go to (2)                       |
+|                                                       |
+|  (2) Deployment frequency?                            |
+|    +-- Once a week or less -> Monolith + module split |
+|    +-- Daily/multiple times -> Go to (3)              |
+|                                                       |
+|  (3) Inter-team independence?                         |
+|    +-- High -> Microservices                          |
+|    +-- Moderate -> Modular Monolith                   |
+|                                                       |
++-----------------------------------------------------+
 ```
 
-### トレードオフの分析
+### Trade-off Analysis
 
-技術的な判断には必ずトレードオフが伴います。以下の観点で分析を行いましょう:
+Technical decisions always involve trade-offs. Analyze from the following perspectives:
 
-**1. 短期 vs 長期のコスト**
-- 短期的に速い方法が長期的には技術的負債になることがある
-- 逆に、過剰な設計は短期的なコストが高く、プロジェクトの遅延を招く
+**1. Short-term vs. Long-term Cost**
+- Methods that are fast in the short term may become technical debt in the long term
+- Conversely, over-engineering has high short-term costs and delays the project
 
-**2. 一貫性 vs 柔軟性**
-- 統一された技術スタックは学習コストが低い
-- 多様な技術の採用は適材適所が可能だが、運用コストが増加
+**2. Consistency vs. Flexibility**
+- A unified tech stack has lower learning costs
+- Adopting diverse technologies enables the right tool for the job but increases operational costs
 
-**3. 抽象化のレベル**
-- 高い抽象化は再利用性が高いが、デバッグが困難になる場合がある
-- 低い抽象化は直感的だが、コードの重複が発生しやすい
+**3. Level of Abstraction**
+- High abstraction increases reusability but can make debugging difficult
+- Low abstraction is intuitive but prone to code duplication
 
 ```python
-# 設計判断の記録テンプレート
+# Design Decision Record Template
 class ArchitectureDecisionRecord:
-    """ADR (Architecture Decision Record) の作成"""
+    """Create an ADR (Architecture Decision Record)"""
 
     def __init__(self, title: str):
         self.title = title
@@ -1500,17 +1533,17 @@ class ArchitectureDecisionRecord:
         self.alternatives = []
 
     def set_context(self, context: str):
-        """背景と課題の記述"""
+        """Describe the background and challenges"""
         self.context = context
         return self
 
     def set_decision(self, decision: str):
-        """決定内容の記述"""
+        """Describe the decision"""
         self.decision = decision
         return self
 
     def add_consequence(self, consequence: str, positive: bool = True):
-        """結果の追加"""
+        """Add a consequence"""
         self.consequences.append({
             'description': consequence,
             'type': 'positive' if positive else 'negative'
@@ -1518,7 +1551,7 @@ class ArchitectureDecisionRecord:
         return self
 
     def add_alternative(self, name: str, reason_rejected: str):
-        """却下した代替案の追加"""
+        """Add a rejected alternative"""
         self.alternatives.append({
             'name': name,
             'reason_rejected': reason_rejected
@@ -1526,15 +1559,15 @@ class ArchitectureDecisionRecord:
         return self
 
     def to_markdown(self) -> str:
-        """Markdown形式で出力"""
+        """Output in Markdown format"""
         md = f"# ADR: {self.title}\n\n"
-        md += f"## 背景\n{self.context}\n\n"
-        md += f"## 決定\n{self.decision}\n\n"
-        md += "## 結果\n"
+        md += f"## Context\n{self.context}\n\n"
+        md += f"## Decision\n{self.decision}\n\n"
+        md += "## Consequences\n"
         for c in self.consequences:
-            icon = "✅" if c['type'] == 'positive' else "⚠️"
+            icon = "+" if c['type'] == 'positive' else "!"
             md += f"- {icon} {c['description']}\n"
-        md += "\n## 却下した代替案\n"
+        md += "\n## Rejected Alternatives\n"
         for a in self.alternatives:
             md += f"- **{a['name']}**: {a['reason_rejected']}\n"
         return md
@@ -1544,40 +1577,40 @@ class ArchitectureDecisionRecord:
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when studying this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory but by actually writing code and verifying behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the basics and jumping to advanced topics. We recommend firmly understanding the fundamental concepts explained in this guide before moving to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this knowledge applied in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## まとめ
-
-| FS | 特徴 | 用途 |
-|----|------|------|
-| ext4 | 安定、汎用、最も広く使われる | デスクトップ、一般サーバー |
-| XFS | 大ファイル、高並列、B+木 | DB、メディア、RHEL |
-| Btrfs | CoW、スナップショット、圧縮、RAID | NAS、バックアップ、Fedora/SUSE |
-| ZFS | 最強データ保護、プール管理 | エンタープライズNAS、バックアップ |
-| NTFS | Windows標準、ACL | Windows環境 |
-| APFS | SSD最適化、暗号化 | macOS、iOS |
-| exFAT | 全OS互換、大ファイル対応 | USBメモリ、SDカード |
-| tmpfs | RAM上、超高速 | 一時ファイル、ビルドキャッシュ |
+Knowledge of this topic is frequently used in everyday development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## 次に読むべきガイド
+## Summary
+
+| FS | Characteristics | Use Cases |
+|----|----------------|-----------|
+| ext4 | Stable, general-purpose, most widely used | Desktops, general servers |
+| XFS | Large files, high parallelism, B+ tree | DB, media, RHEL |
+| Btrfs | CoW, snapshots, compression, RAID | NAS, backups, Fedora/SUSE |
+| ZFS | Best data protection, pool management | Enterprise NAS, backups |
+| NTFS | Windows standard, ACL | Windows environments |
+| APFS | SSD optimized, encryption | macOS, iOS |
+| exFAT | All-OS compatible, large file support | USB drives, SD cards |
+| tmpfs | On RAM, ultra-fast | Temp files, build caches |
 
 ---
 
-## 参考文献
+## Recommended Next Reading
+
+---
+
+## References
 1. Carrier, B. "File System Forensic Analysis." Addison-Wesley, 2005.
 2. McDougall, R. & Mauro, J. "Solaris Internals." 2nd Ed, Prentice Hall, 2006.
 3. Rodeh, O. et al. "BTRFS: The Linux B-Tree Filesystem." ACM TOS, 2013.

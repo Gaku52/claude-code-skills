@@ -1,119 +1,119 @@
-# ソートアルゴリズム
+# Sorting Algorithms
 
-> データを特定の順序に並べ替える基本アルゴリズム群を、計算量・安定性・実装の観点から体系的に理解する
+> Systematically understand fundamental algorithms for rearranging data into a specific order, from the perspectives of computational complexity, stability, and implementation
 
-## この章で学ぶこと
+## What You Will Learn
 
-1. **7種のソートアルゴリズム**の原理・実装・計算量を比較できるようになる
-2. **安定性・in-place性・適応性**の違いから、場面に応じた最適なソートを選択できる
-3. **分割統治・ヒープ・計数**といった異なるパラダイムがソートにどう適用されるかを理解する
-4. **TimSort・Introsort** など現代の実用ソートの設計思想を把握する
-5. **外部ソート・並列ソート** など発展的なトピックの基礎を理解する
+1. Compare the principles, implementations, and complexities of **7 sorting algorithms**
+2. Select the optimal sort for a given scenario based on differences in **stability, in-place property, and adaptivity**
+3. Understand how different paradigms such as **divide and conquer, heaps, and counting** are applied to sorting
+4. Grasp the design philosophy behind modern practical sorts like **TimSort and Introsort**
+5. Understand the fundamentals of advanced topics such as **external sorting and parallel sorting**
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, having the following knowledge will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
+- Basic programming knowledge
+- Understanding of related foundational concepts
 
 ---
 
-## 目次
+## Table of Contents
 
-1. [ソートの全体像](#1-ソートの全体像)
-2. [バブルソート](#2-バブルソートbubble-sort)
-3. [選択ソート](#3-選択ソートselection-sort)
-4. [挿入ソート](#4-挿入ソートinsertion-sort)
-5. [マージソート](#5-マージソートmerge-sort)
-6. [クイックソート](#6-クイックソートquick-sort)
-7. [ヒープソート](#7-ヒープソートheap-sort)
-8. [非比較ベースソート](#8-非比較ベースソート)
-9. [高度なソートアルゴリズム](#9-高度なソートアルゴリズム)
-10. [計算量比較表と用途別選択ガイド](#10-計算量比較表と用途別選択ガイド)
-11. [アンチパターン](#11-アンチパターン)
-12. [演習問題](#12-演習問題)
+1. [Overview of Sorting](#1-overview-of-sorting)
+2. [Bubble Sort](#2-bubble-sort)
+3. [Selection Sort](#3-selection-sort)
+4. [Insertion Sort](#4-insertion-sort)
+5. [Merge Sort](#5-merge-sort)
+6. [Quick Sort](#6-quick-sort)
+7. [Heap Sort](#7-heap-sort)
+8. [Non-Comparison-Based Sorts](#8-non-comparison-based-sorts)
+9. [Advanced Sorting Algorithms](#9-advanced-sorting-algorithms)
+10. [Complexity Comparison Table and Use-Case Selection Guide](#10-complexity-comparison-table-and-use-case-selection-guide)
+11. [Anti-Patterns](#11-anti-patterns)
+12. [Exercises](#12-exercises)
 13. [FAQ](#13-faq)
-14. [まとめ](#14-まとめ)
-15. [参考文献](#15-参考文献)
+14. [Summary](#14-summary)
+15. [References](#15-references)
 
 ---
 
-## 1. ソートの全体像
+## 1. Overview of Sorting
 
-### 1.1 ソートとは何か
+### 1.1 What Is Sorting?
 
-ソート（整列）とは、データの集合を特定の順序関係に従って並べ替える操作である。コンピュータサイエンスにおいて最も基本的かつ重要な問題の一つであり、探索の前処理、データの可視化、重複除去、統計処理など、あらゆる場面で利用される。
+Sorting is the operation of rearranging a collection of data according to a specific ordering relation. It is one of the most fundamental and important problems in computer science, used everywhere from search preprocessing, data visualization, and duplicate removal to statistical processing.
 
-Donald Knuth は *The Art of Computer Programming* において「コンピュータの計算時間のうち、ソートに費やされる時間は全体の25%以上にのぼる」と推定した。現代のシステムでもデータベースのインデックス構築、ファイルシステムのディレクトリ表示、検索エンジンのランキングなど、ソートは至る所に存在する。
+Donald Knuth estimated in *The Art of Computer Programming* that "more than 25% of all computer computation time is spent on sorting." Even in modern systems, sorting is ubiquitous -- from database index construction and file system directory listings to search engine rankings.
 
-### 1.2 ソートの分類体系
-
-```
-┌──────────────────────────────────────────────────────────────────────┐
-│                     ソートアルゴリズムの分類体系                        │
-├──────────────────────────────────────────────────────────────────────┤
-│                                                                      │
-│  ┌─────────────────────────────────────────────────────────────┐    │
-│  │              比較ベースソート (Comparison-based)              │    │
-│  │          理論的下限: Omega(n log n)                           │    │
-│  ├───────────────────────┬─────────────────────────────────────┤    │
-│  │  単純: O(n^2)         │  効率的: O(n log n)                 │    │
-│  │  ・バブルソート        │  ・マージソート                      │    │
-│  │  ・選択ソート          │  ・クイックソート                    │    │
-│  │  ・挿入ソート          │  ・ヒープソート                      │    │
-│  │  ・シェルソート        │  ・TimSort (ハイブリッド)            │    │
-│  │                       │  ・Introsort (ハイブリッド)          │    │
-│  └───────────────────────┴─────────────────────────────────────┘    │
-│                                                                      │
-│  ┌─────────────────────────────────────────────────────────────┐    │
-│  │            非比較ベースソート (Non-comparison-based)          │    │
-│  │          条件付きで O(n) 達成可能                             │    │
-│  ├─────────────────────────────────────────────────────────────┤    │
-│  │  ・計数ソート (Counting Sort)    -- 整数・範囲小             │    │
-│  │  ・基数ソート (Radix Sort)       -- 固定長キー               │    │
-│  │  ・バケットソート (Bucket Sort)   -- 一様分布                 │    │
-│  └─────────────────────────────────────────────────────────────┘    │
-└──────────────────────────────────────────────────────────────────────┘
-```
-
-### 1.3 ソートの重要な性質
-
-ソートアルゴリズムを評価する際には、時間計算量だけでなく以下の性質も考慮する必要がある。
-
-**安定性 (Stability)**
-
-安定なソートとは、等しいキーを持つ要素の相対的な順序がソート前後で保たれることを保証するソートである。
+### 1.2 Classification of Sorting Algorithms
 
 ```
-安定ソートの例:
-入力:  [(3,"Alice"), (1,"Bob"), (3,"Charlie"), (2,"Dave")]
-        キーでソート
-出力:  [(1,"Bob"), (2,"Dave"), (3,"Alice"), (3,"Charlie")]
-        ↑ Alice と Charlie の相対順序が保持されている
-
-不安定ソートの例:
-出力:  [(1,"Bob"), (2,"Dave"), (3,"Charlie"), (3,"Alice")]
-        ↑ Alice と Charlie の相対順序が逆転する可能性がある
++----------------------------------------------------------------------+
+|              Classification of Sorting Algorithms                     |
++----------------------------------------------------------------------+
+|                                                                      |
+|  +-------------------------------------------------------------+    |
+|  |          Comparison-Based Sorts                              |    |
+|  |          Theoretical lower bound: Omega(n log n)             |    |
+|  +-----------------------+-------------------------------------+    |
+|  |  Simple: O(n^2)       |  Efficient: O(n log n)              |    |
+|  |  - Bubble Sort        |  - Merge Sort                       |    |
+|  |  - Selection Sort     |  - Quick Sort                       |    |
+|  |  - Insertion Sort     |  - Heap Sort                        |    |
+|  |  - Shell Sort         |  - TimSort (hybrid)                 |    |
+|  |                       |  - Introsort (hybrid)               |    |
+|  +-----------------------+-------------------------------------+    |
+|                                                                      |
+|  +-------------------------------------------------------------+    |
+|  |          Non-Comparison-Based Sorts                          |    |
+|  |          Can achieve O(n) under certain conditions            |    |
+|  +-------------------------------------------------------------+    |
+|  |  - Counting Sort    -- integers, small range                 |    |
+|  |  - Radix Sort       -- fixed-length keys                    |    |
+|  |  - Bucket Sort      -- uniform distribution                 |    |
+|  +-------------------------------------------------------------+    |
++----------------------------------------------------------------------+
 ```
 
-安定性が重要になるのは、複数のキーでソートする場合である。たとえば、まず名前でソートし、次に成績でソートするとき、安定ソートであれば同一成績の学生は名前順が維持される。
+### 1.3 Important Properties of Sorting
 
-**in-place性**
+When evaluating sorting algorithms, it is necessary to consider not only time complexity but also the following properties.
 
-追加のメモリ使用量が O(1) または O(log n) であるソートを in-place ソートと呼ぶ。組み込みシステムやメモリ制約の厳しい環境では in-place 性が重要になる。
+**Stability**
 
-**適応性 (Adaptivity)**
-
-入力がほぼ整列済みの場合に、計算量が改善されるソートを適応的ソートと呼ぶ。挿入ソートは典型例で、ほぼ整列済みなら O(n) で完了する。
-
-### 1.4 比較ベースソートの理論的下限
-
-比較ベースのソートアルゴリズムには、**O(n log n)** という理論的下限が存在する。これは決定木モデルによって証明される。
+A stable sort guarantees that the relative order of elements with equal keys is preserved before and after sorting.
 
 ```
-n=3 の決定木 (要素 a, b, c):
+Example of stable sort:
+Input:  [(3,"Alice"), (1,"Bob"), (3,"Charlie"), (2,"Dave")]
+        Sort by key
+Output: [(1,"Bob"), (2,"Dave"), (3,"Alice"), (3,"Charlie")]
+        ^ Relative order of Alice and Charlie is preserved
+
+Example of unstable sort:
+Output: [(1,"Bob"), (2,"Dave"), (3,"Charlie"), (3,"Alice")]
+        ^ Relative order of Alice and Charlie may be reversed
+```
+
+Stability becomes important when sorting by multiple keys. For example, when first sorting by name and then by grade, a stable sort ensures that students with the same grade remain in name order.
+
+**In-Place Property**
+
+A sort is called in-place when its additional memory usage is O(1) or O(log n). The in-place property is important in embedded systems and environments with tight memory constraints.
+
+**Adaptivity**
+
+A sort is called adaptive when its complexity improves for nearly sorted input. Insertion Sort is a typical example, completing in O(n) for nearly sorted data.
+
+### 1.4 Theoretical Lower Bound of Comparison-Based Sorts
+
+Comparison-based sorting algorithms have a theoretical lower bound of **O(n log n)**. This is proven using the decision tree model.
+
+```
+Decision tree for n=3 (elements a, b, c):
 
                     a < b ?
                    /       \
@@ -129,69 +129,69 @@ n=3 の決定木 (要素 a, b, c):
             /         \        /         \
         [a,c,b]    [c,a,b] [b,c,a]   [c,b,a]
 
-葉の数 = n! = 6 (3つの要素の全順列)
-木の高さ >= log2(n!) = Omega(n log n)   (スターリングの近似より)
+Number of leaves = n! = 6 (all permutations of 3 elements)
+Height of tree >= log2(n!) = Omega(n log n)   (by Stirling's approximation)
 ```
 
-n 個の要素の全順列は n! 通りあり、決定木の各葉はそのうち1つに対応する。木の高さ（＝最悪の比較回数）は log2(n!) 以上であり、スターリングの近似 n! ≈ (n/e)^n から log2(n!) = Omega(n log n) が導かれる。
+There are n! permutations of n elements, and each leaf of the decision tree corresponds to one of them. The height of the tree (= worst-case number of comparisons) is at least log2(n!), and from Stirling's approximation n! ~ (n/e)^n, we derive log2(n!) = Omega(n log n).
 
 ---
 
-## 2. バブルソート（Bubble Sort）
+## 2. Bubble Sort
 
-### 2.1 アルゴリズムの原理
+### 2.1 Algorithm Principle
 
-隣接する要素を比較・交換し、最大値を末尾に「泡」のように浮かせる操作を繰り返す。名前の由来は、大きな値が配列の末尾に向かって「泡立つ」ように移動する様子から来ている。
+Repeatedly compare and swap adjacent elements, "bubbling" the largest value toward the end. The name comes from the way large values move toward the end of the array like rising bubbles.
 
-### 2.2 動作の可視化
+### 2.2 Visualization
 
 ```
-初期配列: [5, 3, 8, 1, 2]
+Initial array: [5, 3, 8, 1, 2]
 
-パス1: 未ソート部分 [5, 3, 8, 1, 2]
-  比較 5>3 → 交換  [3, 5, 8, 1, 2]
-  比較 5<8 → 維持  [3, 5, 8, 1, 2]
-  比較 8>1 → 交換  [3, 5, 1, 8, 2]
-  比較 8>2 → 交換  [3, 5, 1, 2, 8]  ← 8 が確定位置へ
+Pass 1: Unsorted portion [5, 3, 8, 1, 2]
+  Compare 5>3 -> swap  [3, 5, 8, 1, 2]
+  Compare 5<8 -> keep   [3, 5, 8, 1, 2]
+  Compare 8>1 -> swap  [3, 5, 1, 8, 2]
+  Compare 8>2 -> swap  [3, 5, 1, 2, 8]  <- 8 reaches its final position
                                   ~~~~~~~~
 
-パス2: 未ソート部分 [3, 5, 1, 2] | 確定 [8]
-  比較 3<5 → 維持  [3, 5, 1, 2, 8]
-  比較 5>1 → 交換  [3, 1, 5, 2, 8]
-  比較 5>2 → 交換  [3, 1, 2, 5, 8]  ← 5 が確定位置へ
+Pass 2: Unsorted portion [3, 5, 1, 2] | Settled [8]
+  Compare 3<5 -> keep   [3, 5, 1, 2, 8]
+  Compare 5>1 -> swap  [3, 1, 5, 2, 8]
+  Compare 5>2 -> swap  [3, 1, 2, 5, 8]  <- 5 reaches its final position
                              ~~~~~
 
-パス3: 未ソート部分 [3, 1, 2] | 確定 [5, 8]
-  比較 3>1 → 交換  [1, 3, 2, 5, 8]
-  比較 3>2 → 交換  [1, 2, 3, 5, 8]  ← 3 が確定位置へ
+Pass 3: Unsorted portion [3, 1, 2] | Settled [5, 8]
+  Compare 3>1 -> swap  [1, 3, 2, 5, 8]
+  Compare 3>2 -> swap  [1, 2, 3, 5, 8]  <- 3 reaches its final position
                           ~~~~~~~~
 
-パス4: 未ソート部分 [1, 2] | 確定 [3, 5, 8]
-  比較 1<2 → 維持  [1, 2, 3, 5, 8]  ← 交換なし → 完了!
+Pass 4: Unsorted portion [1, 2] | Settled [3, 5, 8]
+  Compare 1<2 -> keep   [1, 2, 3, 5, 8]  <- No swaps -> done!
 
-結果: [1, 2, 3, 5, 8]
+Result: [1, 2, 3, 5, 8]
 ```
 
-### 2.3 実装（Python）
+### 2.3 Implementation (Python)
 
 ```python
 def bubble_sort(arr: list) -> list:
-    """バブルソート - 安定・in-place
+    """Bubble Sort - stable, in-place
 
-    隣接要素を比較・交換し、最大値を末尾に移動させることを繰り返す。
-    最適化: 1パスで交換がなければソート済みと判定して早期終了する。
+    Compares and swaps adjacent elements, moving the maximum to the end repeatedly.
+    Optimization: Early termination if no swaps occur in a single pass.
 
     Args:
-        arr: ソート対象のリスト（破壊的に変更される）
+        arr: List to sort (modified in place)
 
     Returns:
-        ソート済みのリスト（入力と同一オブジェクト）
+        Sorted list (same object as input)
 
-    計算量:
-        最良: O(n)   -- 入力がソート済みの場合
-        平均: O(n^2)
-        最悪: O(n^2)
-        空間: O(1)
+    Complexity:
+        Best:    O(n)   -- input is already sorted
+        Average: O(n^2)
+        Worst:   O(n^2)
+        Space:   O(1)
     """
     n = len(arr)
     for i in range(n):
@@ -205,43 +205,43 @@ def bubble_sort(arr: list) -> list:
     return arr
 
 
-# --- 動作確認 ---
+# --- Test ---
 if __name__ == "__main__":
     data = [64, 34, 25, 12, 22, 11, 90]
-    print(f"入力: {data}")
+    print(f"Input: {data}")
     result = bubble_sort(data)
-    print(f"出力: {result}")
-    # 入力: [64, 34, 25, 12, 22, 11, 90]
-    # 出力: [11, 12, 22, 25, 34, 64, 90]
+    print(f"Output: {result}")
+    # Input: [64, 34, 25, 12, 22, 11, 90]
+    # Output: [11, 12, 22, 25, 34, 64, 90]
 
-    # ソート済みデータ → O(n) で完了
+    # Already sorted data -> completes in O(n)
     sorted_data = [1, 2, 3, 4, 5]
     bubble_sort(sorted_data)
-    print(f"ソート済み: {sorted_data}")  # [1, 2, 3, 4, 5]
+    print(f"Already sorted: {sorted_data}")  # [1, 2, 3, 4, 5]
 ```
 
-### 2.4 計算量分析
+### 2.4 Complexity Analysis
 
-| ケース | 比較回数 | 交換回数 | 説明 |
+| Case | Comparisons | Swaps | Description |
 |:---|:---|:---|:---|
-| 最良 | O(n) | 0 | 入力がソート済み（swapped フラグで早期終了） |
-| 平均 | O(n^2) | O(n^2) | ランダムな入力 |
-| 最悪 | O(n^2) | O(n^2) | 逆順にソートされた入力 |
+| Best | O(n) | 0 | Input is already sorted (early termination via swapped flag) |
+| Average | O(n^2) | O(n^2) | Random input |
+| Worst | O(n^2) | O(n^2) | Reverse-sorted input |
 
-バブルソートの比較回数は最悪で n(n-1)/2 回、交換回数は転倒数（inversion count）に等しい。転倒数とは、i < j かつ arr[i] > arr[j] となるペアの数である。
+The worst-case number of comparisons for Bubble Sort is n(n-1)/2, and the number of swaps equals the inversion count. An inversion is a pair where i < j and arr[i] > arr[j].
 
-### 2.5 バリエーション: カクテルシェーカーソート
+### 2.5 Variation: Cocktail Shaker Sort
 
-バブルソートは一方向にしかスキャンしないが、カクテルシェーカーソートは前後交互にスキャンする。「うさぎ問題」（小さい値が配列の末尾にある場合の移動の遅さ）を軽減する。
+Bubble Sort scans in only one direction, whereas Cocktail Shaker Sort alternates scanning forward and backward. This mitigates the "turtle problem" (slow movement of small values at the end of the array).
 
 ```python
 def cocktail_shaker_sort(arr: list) -> list:
-    """カクテルシェーカーソート（双方向バブルソート）
+    """Cocktail Shaker Sort (Bidirectional Bubble Sort)
 
-    バブルソートの改良版。前方向と後方向を交互にスキャンする。
-    末尾付近の小さい値の移動が高速化される。
+    An improved version of Bubble Sort that alternates forward and backward scans.
+    Movement of small values near the end is accelerated.
 
-    計算量は最悪 O(n^2) で変わらないが、定数係数が改善される場合がある。
+    Worst-case complexity remains O(n^2), but the constant factor may improve.
     """
     n = len(arr)
     start = 0
@@ -251,7 +251,7 @@ def cocktail_shaker_sort(arr: list) -> list:
     while swapped:
         swapped = False
 
-        # 前方スキャン: 最大値を末尾へ
+        # Forward scan: move maximum to the end
         for i in range(start, end):
             if arr[i] > arr[i + 1]:
                 arr[i], arr[i + 1] = arr[i + 1], arr[i]
@@ -263,7 +263,7 @@ def cocktail_shaker_sort(arr: list) -> list:
 
         swapped = False
 
-        # 後方スキャン: 最小値を先頭へ
+        # Backward scan: move minimum to the front
         for i in range(end, start, -1):
             if arr[i] < arr[i - 1]:
                 arr[i], arr[i - 1] = arr[i - 1], arr[i]
@@ -273,7 +273,7 @@ def cocktail_shaker_sort(arr: list) -> list:
     return arr
 
 
-# --- 動作確認 ---
+# --- Test ---
 if __name__ == "__main__":
     data = [5, 1, 4, 2, 8, 0, 2]
     print(cocktail_shaker_sort(data))  # [0, 1, 2, 2, 4, 5, 8]
@@ -281,62 +281,62 @@ if __name__ == "__main__":
 
 ---
 
-## 3. 選択ソート（Selection Sort）
+## 3. Selection Sort
 
-### 3.1 アルゴリズムの原理
+### 3.1 Algorithm Principle
 
-未ソート部分から最小値を見つけ、未ソート部分の先頭と交換する。この操作を繰り返すことで、先頭から順にソート済みの部分が拡大していく。
+Find the minimum value in the unsorted portion and swap it with the element at the beginning of the unsorted portion. By repeating this operation, the sorted portion expands from the beginning.
 
-### 3.2 動作の可視化
+### 3.2 Visualization
 
 ```
-初期配列: [29, 10, 14, 37, 13]
+Initial array: [29, 10, 14, 37, 13]
 
-ステップ1: 未ソート [29, 10, 14, 37, 13]
-  最小値 = 10 (インデックス 1)
-  29 と 10 を交換
-  結果: [10 | 29, 14, 37, 13]
+Step 1: Unsorted [29, 10, 14, 37, 13]
+  Minimum = 10 (index 1)
+  Swap 29 and 10
+  Result: [10 | 29, 14, 37, 13]
          ~~
 
-ステップ2: 未ソート [29, 14, 37, 13]
-  最小値 = 13 (インデックス 4)
-  29 と 13 を交換
-  結果: [10, 13 | 14, 37, 29]
+Step 2: Unsorted [29, 14, 37, 13]
+  Minimum = 13 (index 4)
+  Swap 29 and 13
+  Result: [10, 13 | 14, 37, 29]
              ~~
 
-ステップ3: 未ソート [14, 37, 29]
-  最小値 = 14 (インデックス 2) -- 自分自身
-  交換不要
-  結果: [10, 13, 14 | 37, 29]
+Step 3: Unsorted [14, 37, 29]
+  Minimum = 14 (index 2) -- itself
+  No swap needed
+  Result: [10, 13, 14 | 37, 29]
                  ~~
 
-ステップ4: 未ソート [37, 29]
-  最小値 = 29 (インデックス 4)
-  37 と 29 を交換
-  結果: [10, 13, 14, 29 | 37]
+Step 4: Unsorted [37, 29]
+  Minimum = 29 (index 4)
+  Swap 37 and 29
+  Result: [10, 13, 14, 29 | 37]
                      ~~
 
-完了: [10, 13, 14, 29, 37]
+Done: [10, 13, 14, 29, 37]
 ```
 
-### 3.3 実装
+### 3.3 Implementation
 
 ```python
 def selection_sort(arr: list) -> list:
-    """選択ソート - 不安定・in-place
+    """Selection Sort - unstable, in-place
 
-    未ソート部分の最小値を見つけ、先頭に配置することを繰り返す。
-    交換回数は常に O(n) であり、書き込みコストが高い場合に有利。
+    Finds the minimum in the unsorted portion and places it at the front, repeatedly.
+    The number of swaps is always O(n), which is advantageous when write cost is high.
 
     Args:
-        arr: ソート対象のリスト
+        arr: List to sort
 
     Returns:
-        ソート済みのリスト
+        Sorted list
 
-    計算量:
-        最良/平均/最悪: O(n^2) -- 入力に依らず常に同じ
-        空間: O(1)
+    Complexity:
+        Best/Average/Worst: O(n^2) -- always the same regardless of input
+        Space: O(1)
     """
     n = len(arr)
     for i in range(n):
@@ -349,113 +349,113 @@ def selection_sort(arr: list) -> list:
     return arr
 
 
-# --- 動作確認 ---
+# --- Test ---
 if __name__ == "__main__":
     data = [29, 10, 14, 37, 13]
     print(selection_sort(data))  # [10, 13, 14, 29, 37]
 ```
 
-### 3.4 選択ソートが不安定な理由
+### 3.4 Why Selection Sort Is Unstable
 
-選択ソートが不安定であることを具体例で確認する。
+Let us confirm with a concrete example that Selection Sort is unstable.
 
 ```
-入力: [3a, 2, 3b, 1]    (3a と 3b は同じキー値 3)
+Input: [3a, 2, 3b, 1]    (3a and 3b have the same key value 3)
 
-ステップ1: 最小値 = 1、3a と 1 を交換
-  [1, 2, 3b, 3a]    ← 3a と 3b の相対順序が逆転!
+Step 1: Minimum = 1, swap 3a and 1
+  [1, 2, 3b, 3a]    <- Relative order of 3a and 3b is reversed!
 
-結果: [1, 2, 3b, 3a]    ← 不安定
+Result: [1, 2, 3b, 3a]    <- Unstable
 ```
 
-交換操作で離れた位置の要素を入れ替えるため、同一キーの要素の相対順序が崩れる。
+Because the swap operation exchanges elements at distant positions, the relative order of elements with equal keys can be disrupted.
 
-### 3.5 選択ソートの特徴と用途
+### 3.5 Characteristics and Use Cases of Selection Sort
 
-選択ソートは計算量の面では優れていないが、以下の特徴から特定の状況で有用である。
+Selection Sort is not outstanding in terms of complexity, but it is useful in specific situations due to the following characteristics.
 
-- **交換回数が O(n)**: 比較回数は O(n^2) だが、交換は各ステップで最大1回しか発生しない。書き込みコストが高い媒体（フラッシュメモリなど）では有利になる場合がある。
-- **実装の単純さ**: コード量が少なく、バグが入りにくい。
-- **予測可能な性能**: 入力データの内容に関わらず、常に同じ計算量。
+- **O(n) swaps**: While the number of comparisons is O(n^2), at most one swap occurs per step. This can be advantageous for media with high write costs (e.g., flash memory).
+- **Simplicity of implementation**: Small code size, less prone to bugs.
+- **Predictable performance**: Always the same complexity regardless of input data.
 
 ---
 
-## 4. 挿入ソート（Insertion Sort）
+## 4. Insertion Sort
 
-### 4.1 アルゴリズムの原理
+### 4.1 Algorithm Principle
 
-トランプの手札を整列するように、未ソート部分の先頭要素を取り出し、ソート済み部分の適切な位置に挿入する。人間が自然に行うソート手法に最も近い。
+Like sorting a hand of playing cards, take the first element from the unsorted portion and insert it into the correct position within the sorted portion. This is the sorting technique closest to how humans naturally sort.
 
-### 4.2 動作の可視化
+### 4.2 Visualization
 
 ```
-初期: [5, 2, 4, 6, 1, 3]
-       ソート済み|未ソート
+Initial: [5, 2, 4, 6, 1, 3]
+       Sorted|Unsorted
 
 i=1: key=2
-  ソート済み [5] に 2 を挿入
-  5 > 2 → 5 を右シフト
-  位置 0 に 2 を挿入
-  結果: [2, 5 | 4, 6, 1, 3]
+  Insert 2 into sorted [5]
+  5 > 2 -> shift 5 right
+  Insert 2 at position 0
+  Result: [2, 5 | 4, 6, 1, 3]
          ~~~~
 
 i=2: key=4
-  ソート済み [2, 5] に 4 を挿入
-  5 > 4 → 5 を右シフト
-  2 < 4 → 停止
-  位置 1 に 4 を挿入
-  結果: [2, 4, 5 | 6, 1, 3]
+  Insert 4 into sorted [2, 5]
+  5 > 4 -> shift 5 right
+  2 < 4 -> stop
+  Insert 4 at position 1
+  Result: [2, 4, 5 | 6, 1, 3]
          ~~~~~~~
 
 i=3: key=6
-  ソート済み [2, 4, 5] に 6 を挿入
-  5 < 6 → 停止（移動不要）
-  結果: [2, 4, 5, 6 | 1, 3]
+  Insert 6 into sorted [2, 4, 5]
+  5 < 6 -> stop (no shift needed)
+  Result: [2, 4, 5, 6 | 1, 3]
          ~~~~~~~~~~
 
 i=4: key=1
-  ソート済み [2, 4, 5, 6] に 1 を挿入
-  6 > 1 → 右シフト
-  5 > 1 → 右シフト
-  4 > 1 → 右シフト
-  2 > 1 → 右シフト
-  位置 0 に 1 を挿入
-  結果: [1, 2, 4, 5, 6 | 3]
+  Insert 1 into sorted [2, 4, 5, 6]
+  6 > 1 -> shift right
+  5 > 1 -> shift right
+  4 > 1 -> shift right
+  2 > 1 -> shift right
+  Insert 1 at position 0
+  Result: [1, 2, 4, 5, 6 | 3]
          ~~~~~~~~~~~~~
 
 i=5: key=3
-  ソート済み [1, 2, 4, 5, 6] に 3 を挿入
-  6 > 3 → 右シフト
-  5 > 3 → 右シフト
-  4 > 3 → 右シフト
-  2 < 3 → 停止
-  位置 2 に 3 を挿入
-  結果: [1, 2, 3, 4, 5, 6]
+  Insert 3 into sorted [1, 2, 4, 5, 6]
+  6 > 3 -> shift right
+  5 > 3 -> shift right
+  4 > 3 -> shift right
+  2 < 3 -> stop
+  Insert 3 at position 2
+  Result: [1, 2, 3, 4, 5, 6]
          ~~~~~~~~~~~~~~~~
 
-完了!
+Done!
 ```
 
-### 4.3 実装
+### 4.3 Implementation
 
 ```python
 def insertion_sort(arr: list) -> list:
-    """挿入ソート - 安定・in-place・適応的
+    """Insertion Sort - stable, in-place, adaptive
 
-    ソート済み部分に未ソート要素を一つずつ挿入する。
-    ほぼ整列済みのデータに対して非常に高速（O(n) に近い）。
+    Inserts unsorted elements one by one into the sorted portion.
+    Very fast for nearly sorted data (close to O(n)).
 
     Args:
-        arr: ソート対象のリスト
+        arr: List to sort
 
     Returns:
-        ソート済みのリスト
+        Sorted list
 
-    計算量:
-        最良: O(n)   -- 入力がソート済みの場合
-        平均: O(n^2)
-        最悪: O(n^2) -- 入力が逆順の場合
-        空間: O(1)
+    Complexity:
+        Best:    O(n)   -- input is already sorted
+        Average: O(n^2)
+        Worst:   O(n^2) -- input is in reverse order
+        Space:   O(1)
     """
     for i in range(1, len(arr)):
         key = arr[i]
@@ -467,78 +467,78 @@ def insertion_sort(arr: list) -> list:
     return arr
 
 
-# --- 動作確認 ---
+# --- Test ---
 if __name__ == "__main__":
-    # ランダムデータ
+    # Random data
     data = [5, 2, 4, 6, 1, 3]
     print(insertion_sort(data))  # [1, 2, 3, 4, 5, 6]
 
-    # ほぼ整列済みデータ → O(n) に近い
+    # Nearly sorted data -> close to O(n)
     nearly_sorted = [1, 3, 2, 4, 6, 5]
     print(insertion_sort(nearly_sorted))  # [1, 2, 3, 4, 5, 6]
 ```
 
-### 4.4 二分挿入ソート
+### 4.4 Binary Insertion Sort
 
-挿入位置の探索を二分探索で行うことで、比較回数を O(n log n) に削減できる。ただし、要素のシフト操作は依然 O(n^2) のため、全体の計算量は O(n^2) のままである。
+By using binary search to find the insertion position, the number of comparisons can be reduced to O(n log n). However, since the element shifting operations remain O(n^2), the overall complexity stays at O(n^2).
 
 ```python
 import bisect
 
 def binary_insertion_sort(arr: list) -> list:
-    """二分挿入ソート - 安定・in-place
+    """Binary Insertion Sort - stable, in-place
 
-    挿入位置を二分探索で決定する改良版。
-    比較回数は O(n log n) に削減されるが、
-    シフト操作は O(n^2) のまま。
+    An improved version that determines the insertion position via binary search.
+    Comparisons are reduced to O(n log n), but
+    shift operations remain O(n^2).
 
-    連結リストと組み合わせればシフトが O(1) になるが、
-    二分探索には O(n) のアクセスが必要なため相殺される。
+    Combining with a linked list would make shifts O(1),
+    but binary search requires O(n) access, canceling out the benefit.
     """
     for i in range(1, len(arr)):
         key = arr[i]
-        # bisect_left で挿入位置を二分探索
+        # Find insertion position via binary search using bisect_left
         pos = bisect.bisect_left(arr, key, 0, i)
-        # pos から i-1 までの要素を右にシフト
+        # Shift elements from pos to i-1 to the right
         for j in range(i, pos, -1):
             arr[j] = arr[j - 1]
         arr[pos] = key
     return arr
 
 
-# --- 動作確認 ---
+# --- Test ---
 if __name__ == "__main__":
     data = [37, 23, 0, 17, 12, 72, 31]
     print(binary_insertion_sort(data))  # [0, 12, 17, 23, 31, 37, 72]
 ```
 
-### 4.5 挿入ソートの重要性
+### 4.5 The Importance of Insertion Sort
 
-挿入ソートは単純な O(n^2) アルゴリズムの中で最も実用的であり、以下の理由から現代のソートアルゴリズムの部品として広く使われている。
+Insertion Sort is the most practical among simple O(n^2) algorithms and is widely used as a building block in modern sorting algorithms for the following reasons.
 
-1. **小規模データに最適**: n が小さい場合、O(n log n) アルゴリズムのオーバーヘッド（再帰呼び出し、関数呼び出しコスト）が相対的に大きくなる。多くのライブラリ実装では、n < 16～64 程度で挿入ソートに切り替える。
-2. **適応的**: ほぼ整列済みデータに対して O(n) で動作する。
-3. **安定**: 等しいキーの相対順序を保持する。
-4. **オンライン**: データが逐次的に到着する場合にも対応できる。
-5. **キャッシュ効率が高い**: 隣接メモリへの連続アクセスが中心。
+1. **Optimal for small data**: When n is small, the overhead of O(n log n) algorithms (recursive calls, function call costs) becomes relatively large. Many library implementations switch to Insertion Sort when n < 16-64.
+2. **Adaptive**: Operates in O(n) on nearly sorted data.
+3. **Stable**: Preserves the relative order of equal keys.
+4. **Online**: Can handle data arriving incrementally.
+5. **Cache-efficient**: Primarily sequential access to adjacent memory.
 
 ---
 
-## 5. マージソート（Merge Sort）
+## 5. Merge Sort
 
-### 5.1 アルゴリズムの原理
+### 5.1 Algorithm Principle
 
-分割統治法の代表例。配列を再帰的に半分に分割し、各部分をソートした後、ソート済みの部分配列をマージ（統合）する。John von Neumann が 1945 年に考案した。
+A classic example of divide and conquer. Recursively divide the array in half, sort each half, and then merge the sorted subarrays. Invented by John von Neumann in 1945.
 
-**3つのステップ:**
-1. **分割 (Divide)**: 配列を半分に分割する
-2. **征服 (Conquer)**: 各半分を再帰的にソートする
-3. **統合 (Combine)**: 2つのソート済み配列をマージする
+**Three steps:**
+1. **Divide**: Split the array in half
+2. **Conquer**: Recursively sort each half
+3. **Combine**: Merge the two sorted arrays
 
-### 5.2 動作の可視化
+### 5.2 Visualization
 
 ```
-分割フェーズ (トップダウン):
+Division phase (top-down):
                 [38, 27, 43, 3, 9, 82, 10]
                      /                \
             [38, 27, 43]         [3, 9, 82, 10]
@@ -547,7 +547,7 @@ if __name__ == "__main__":
                    /   \        / \         /   \
                 [27]  [43]   [3]  [9]    [82]  [10]
 
-マージフェーズ (ボトムアップ):
+Merge phase (bottom-up):
                 [27]  [43]   [3]  [9]    [82]  [10]
                    \   /        \ /         \   /
                 [27, 43]     [3, 9]      [10, 82]
@@ -556,36 +556,36 @@ if __name__ == "__main__":
                      \                /
               [3, 9, 10, 27, 38, 43, 82]
 
-マージの詳細 ([27, 38, 43] と [3, 9, 10, 82]):
+Merge detail ([27, 38, 43] and [3, 9, 10, 82]):
   L = [27, 38, 43]    R = [3, 9, 10, 82]
        ^                    ^
-  比較: 27 > 3  → 3 を出力    結果: [3]
-  比較: 27 > 9  → 9 を出力    結果: [3, 9]
-  比較: 27 > 10 → 10 を出力   結果: [3, 9, 10]
-  比較: 27 < 82 → 27 を出力   結果: [3, 9, 10, 27]
-  比較: 38 < 82 → 38 を出力   結果: [3, 9, 10, 27, 38]
-  比較: 43 < 82 → 43 を出力   結果: [3, 9, 10, 27, 38, 43]
-  L が空 → R の残りを出力     結果: [3, 9, 10, 27, 38, 43, 82]
+  Compare: 27 > 3  -> output 3    Result: [3]
+  Compare: 27 > 9  -> output 9    Result: [3, 9]
+  Compare: 27 > 10 -> output 10   Result: [3, 9, 10]
+  Compare: 27 < 82 -> output 27   Result: [3, 9, 10, 27]
+  Compare: 38 < 82 -> output 38   Result: [3, 9, 10, 27, 38]
+  Compare: 43 < 82 -> output 43   Result: [3, 9, 10, 27, 38, 43]
+  L is empty -> output remainder of R  Result: [3, 9, 10, 27, 38, 43, 82]
 ```
 
-### 5.3 実装
+### 5.3 Implementation
 
 ```python
 def merge_sort(arr: list) -> list:
-    """マージソート - 安定・O(n) 追加メモリ
+    """Merge Sort - stable, O(n) additional memory
 
-    分割統治法により配列を再帰的に分割・マージする。
-    安定性と O(n log n) の保証を兼ね備える。
+    Recursively divides and merges the array using divide and conquer.
+    Combines stability with guaranteed O(n log n).
 
     Args:
-        arr: ソート対象のリスト
+        arr: List to sort
 
     Returns:
-        新しいソート済みリスト
+        New sorted list
 
-    計算量:
-        最良/平均/最悪: O(n log n)
-        空間: O(n) -- マージ時の一時配列
+    Complexity:
+        Best/Average/Worst: O(n log n)
+        Space: O(n) -- temporary array during merge
     """
     if len(arr) <= 1:
         return arr
@@ -597,10 +597,10 @@ def merge_sort(arr: list) -> list:
 
 
 def _merge(left: list, right: list) -> list:
-    """2つのソート済み配列をマージする
+    """Merge two sorted arrays
 
-    両方の配列の先頭から比較し、小さい方を結果に追加する。
-    <= で比較することで安定性を保証する。
+    Compares from the front of both arrays and appends the smaller element to the result.
+    Using <= for comparison guarantees stability.
     """
     result = []
     i = j = 0
@@ -616,24 +616,24 @@ def _merge(left: list, right: list) -> list:
     return result
 
 
-# --- 動作確認 ---
+# --- Test ---
 if __name__ == "__main__":
     data = [38, 27, 43, 3, 9, 82, 10]
     print(merge_sort(data))  # [3, 9, 10, 27, 38, 43, 82]
 ```
 
-### 5.4 ボトムアップ・マージソート
+### 5.4 Bottom-Up Merge Sort
 
-再帰を使わない反復版の実装。スタックオーバーフローのリスクがなく、定数的なオーバーヘッドも小さい。
+An iterative version that does not use recursion. No risk of stack overflow and smaller constant overhead.
 
 ```python
 def merge_sort_bottom_up(arr: list) -> list:
-    """ボトムアップ・マージソート（反復版）
+    """Bottom-Up Merge Sort (iterative)
 
-    再帰を使わず、サイズ 1 の部分配列から始めて
-    順次マージサイズを倍にしていく。
-    再帰版と同じ O(n log n) だが、関数呼び出しの
-    オーバーヘッドがない。
+    Without using recursion, starts from subarrays of size 1
+    and progressively doubles the merge size.
+    Same O(n log n) as the recursive version, but without
+    function call overhead.
     """
     n = len(arr)
     if n <= 1:
@@ -653,90 +653,90 @@ def merge_sort_bottom_up(arr: list) -> list:
     return result
 
 
-# --- 動作確認 ---
+# --- Test ---
 if __name__ == "__main__":
     data = [5, 2, 4, 7, 1, 3, 2, 6]
     print(merge_sort_bottom_up(data))  # [1, 2, 2, 3, 4, 5, 6, 7]
 ```
 
-### 5.5 マージソートの特徴
+### 5.5 Characteristics of Merge Sort
 
-- **安定性保証**: `<=` で比較することで、等しいキーの相対順序を保持
-- **O(n log n) 保証**: 入力データの内容に関わらず常に O(n log n)
-- **外部ソートとの親和性**: ディスク上の大規模データを部分的に読み込んでマージする外部ソートの基盤
-- **並列化との親和性**: 分割された部分配列を独立にソートできるため、並列処理に向いている
-- **欠点**: O(n) の追加メモリが必要
+- **Guaranteed stability**: Using `<=` for comparison preserves the relative order of equal keys
+- **Guaranteed O(n log n)**: Always O(n log n) regardless of input data
+- **Affinity with external sorting**: Forms the basis for external sorting that reads large-scale data from disk in chunks and merges them
+- **Affinity with parallelism**: Divided subarrays can be sorted independently, making it well-suited for parallel processing
+- **Drawback**: Requires O(n) additional memory
 
 ---
 
-## 6. クイックソート（Quick Sort）
+## 6. Quick Sort
 
-### 6.1 アルゴリズムの原理
+### 6.1 Algorithm Principle
 
-Tony Hoare が 1959 年に考案。ピボット（基準値）を選び、配列を「ピボット以下」と「ピボット以上」の2つに分割し、それぞれを再帰的にソートする。分割統治法の一種だが、マージソートとは異なり「統合」のステップが不要で、分割（パーティション）に計算量が集中する。
+Devised by Tony Hoare in 1959. Select a pivot (reference value), partition the array into elements "less than or equal to the pivot" and "greater than the pivot," and recursively sort each partition. It is a form of divide and conquer, but unlike Merge Sort, no "combine" step is needed -- the computation is concentrated in the partition step.
 
-### 6.2 パーティションの可視化
+### 6.2 Partition Visualization
 
 ```
-Lomuto パーティション (ピボット = 末尾要素):
+Lomuto Partition (pivot = last element):
 
-配列: [10, 80, 30, 90, 40, 50, 70]   ピボット = 70
+Array: [10, 80, 30, 90, 40, 50, 70]   Pivot = 70
        i
        j
 
-j=0: arr[0]=10 <= 70  → i++, swap(arr[0],arr[0])
+j=0: arr[0]=10 <= 70  -> i++, swap(arr[0],arr[0])
   [10, 80, 30, 90, 40, 50, 70]
         i
 
-j=1: arr[1]=80 > 70   → 何もしない
+j=1: arr[1]=80 > 70   -> do nothing
   [10, 80, 30, 90, 40, 50, 70]
         i
 
-j=2: arr[2]=30 <= 70  → i++, swap(arr[1],arr[2])
+j=2: arr[2]=30 <= 70  -> i++, swap(arr[1],arr[2])
   [10, 30, 80, 90, 40, 50, 70]
             i
 
-j=3: arr[3]=90 > 70   → 何もしない
+j=3: arr[3]=90 > 70   -> do nothing
 
-j=4: arr[4]=40 <= 70  → i++, swap(arr[2],arr[4])
+j=4: arr[4]=40 <= 70  -> i++, swap(arr[2],arr[4])
   [10, 30, 40, 90, 80, 50, 70]
                 i
 
-j=5: arr[5]=50 <= 70  → i++, swap(arr[3],arr[5])
+j=5: arr[5]=50 <= 70  -> i++, swap(arr[3],arr[5])
   [10, 30, 40, 50, 80, 90, 70]
                     i
 
-最後: swap(arr[i+1], arr[high]) = swap(arr[4], arr[6])
+Final: swap(arr[i+1], arr[high]) = swap(arr[4], arr[6])
   [10, 30, 40, 50, 70, 90, 80]
                     ^^
-                  ピボット位置確定
+                  Pivot in final position
 
-左側 [10, 30, 40, 50] は全て <= 70
-右側 [90, 80] は全て > 70
+Left  [10, 30, 40, 50] are all <= 70
+Right [90, 80] are all > 70
 ```
 
-### 6.3 実装
+### 6.3 Implementation
 
 ```python
 def quick_sort(arr: list, low: int = 0, high: int = None) -> list:
-    """クイックソート - 不安定・in-place
+    """Quick Sort - unstable, in-place
 
-    ピボットによる分割と再帰的ソートを行う。
-    平均的に最も高速な汎用ソートアルゴリズム。
+    Performs partitioning by pivot and recursive sorting.
+    On average, the fastest general-purpose sorting algorithm.
 
     Args:
-        arr: ソート対象のリスト
-        low: ソート範囲の開始インデックス
-        high: ソート範囲の終了インデックス
+        arr: List to sort
+        low: Start index of sort range
+        high: End index of sort range
 
     Returns:
-        ソート済みのリスト
+        Sorted list
 
-    計算量:
-        最良: O(n log n)
-        平均: O(n log n)
-        最悪: O(n^2) -- ソート済み配列 + 末尾ピボット
-        空間: O(log n) -- 再帰スタック（平均）
+    Complexity:
+        Best:    O(n log n)
+        Average: O(n log n)
+        Worst:   O(n^2) -- sorted array + last-element pivot
+        Space:   O(log n) -- recursion stack (average)
     """
     if high is None:
         high = len(arr) - 1
@@ -748,7 +748,7 @@ def quick_sort(arr: list, low: int = 0, high: int = None) -> list:
 
 
 def _partition(arr: list, low: int, high: int) -> int:
-    """Lomuto のパーティション"""
+    """Lomuto partition"""
     pivot = arr[high]
     i = low - 1
     for j in range(low, high):
@@ -759,26 +759,26 @@ def _partition(arr: list, low: int, high: int) -> int:
     return i + 1
 
 
-# --- 動作確認 ---
+# --- Test ---
 if __name__ == "__main__":
     data = [10, 7, 8, 9, 1, 5]
     print(quick_sort(data[:]))  # [1, 5, 7, 8, 9, 10]
 ```
 
-### 6.4 ピボット選択戦略
+### 6.4 Pivot Selection Strategies
 
-ピボットの選択はクイックソートの性能に決定的な影響を与える。
+Pivot selection has a decisive impact on Quick Sort's performance.
 
 ```python
 import random
 
 
 def quick_sort_randomized(arr: list, low: int = 0, high: int = None) -> list:
-    """ランダム化クイックソート
+    """Randomized Quick Sort
 
-    ピボットをランダムに選択することで、
-    特定の入力パターンによる最悪ケースを確率的に回避する。
-    期待計算量は O(n log n)。
+    By selecting the pivot randomly,
+    worst-case scenarios for specific input patterns are probabilistically avoided.
+    Expected complexity is O(n log n).
     """
     if high is None:
         high = len(arr) - 1
@@ -792,10 +792,10 @@ def quick_sort_randomized(arr: list, low: int = 0, high: int = None) -> list:
 
 
 def partition_median_of_three(arr: list, low: int, high: int) -> int:
-    """三値の中央値によるパーティション
+    """Median-of-Three Partition
 
-    先頭・中央・末尾の3要素の中央値をピボットに選ぶ。
-    ソート済み・逆順データでの最悪ケースを回避する。
+    Selects the median of the first, middle, and last elements as the pivot.
+    Avoids worst-case behavior on sorted and reverse-sorted data.
     """
     mid = (low + high) // 2
     if arr[low] > arr[mid]:
@@ -804,7 +804,7 @@ def partition_median_of_three(arr: list, low: int, high: int) -> int:
         arr[low], arr[high] = arr[high], arr[low]
     if arr[mid] > arr[high]:
         arr[mid], arr[high] = arr[high], arr[mid]
-    # 中央値(mid)をピボットとして high-1 に退避
+    # Move median (mid) to high-1 as pivot
     arr[mid], arr[high - 1] = arr[high - 1], arr[mid]
     pivot = arr[high - 1]
 
@@ -824,26 +824,26 @@ def partition_median_of_three(arr: list, low: int, high: int) -> int:
     return i
 
 
-# --- 動作確認 ---
+# --- Test ---
 if __name__ == "__main__":
     data = [10, 7, 8, 9, 1, 5]
     print(quick_sort_randomized(data[:]))  # [1, 5, 7, 8, 9, 10]
 ```
 
-### 6.5 三方分割（Dutch National Flag）
+### 6.5 Three-Way Partitioning (Dutch National Flag)
 
-重複要素が多い場合、通常のクイックソートは効率が悪い。Dijkstra の「オランダ国旗問題」を応用した三方分割により、ピボットと等しい要素をまとめて処理できる。
+When there are many duplicate elements, standard Quick Sort becomes inefficient. By applying Dijkstra's "Dutch National Flag" problem, elements equal to the pivot can be handled collectively.
 
 ```python
 def quick_sort_three_way(arr: list, low: int = 0, high: int = None) -> list:
-    """三方分割クイックソート
+    """Three-Way Partition Quick Sort
 
-    配列を「ピボット未満」「ピボットと等しい」「ピボット超過」
-    の3つに分割する。重複要素が多い場合に特に有効。
+    Partitions the array into "less than pivot," "equal to pivot,"
+    and "greater than pivot." Particularly effective when there are many duplicates.
 
-    計算量:
-        重複なし: O(n log n)
-        重複多数: O(n) に近づく（等しい要素をスキップ）
+    Complexity:
+        No duplicates: O(n log n)
+        Many duplicates: approaches O(n) (equal elements are skipped)
     """
     if high is None:
         high = len(arr) - 1
@@ -871,93 +871,93 @@ def quick_sort_three_way(arr: list, low: int = 0, high: int = None) -> list:
     return arr
 
 
-# --- 動作確認 ---
+# --- Test ---
 if __name__ == "__main__":
     data = [3, 1, 4, 1, 5, 9, 2, 6, 5, 3, 5]
     print(quick_sort_three_way(data))  # [1, 1, 2, 3, 3, 4, 5, 5, 5, 6, 9]
 ```
 
-### 6.6 クイックソートの最悪ケース分析
+### 6.6 Worst-Case Analysis of Quick Sort
 
-| 入力パターン | 固定ピボット(末尾) | ランダムピボット | 三値中央値 |
+| Input Pattern | Fixed Pivot (last) | Random Pivot | Median-of-Three |
 |:---|:---|:---|:---|
-| ソート済み | O(n^2) | O(n log n) 期待 | O(n log n) |
-| 逆順 | O(n^2) | O(n log n) 期待 | O(n log n) |
-| 全て同じ値 | O(n^2) | O(n^2) | O(n^2) |
-| ランダム | O(n log n) | O(n log n) | O(n log n) |
+| Sorted | O(n^2) | O(n log n) expected | O(n log n) |
+| Reverse | O(n^2) | O(n log n) expected | O(n log n) |
+| All same values | O(n^2) | O(n^2) | O(n^2) |
+| Random | O(n log n) | O(n log n) | O(n log n) |
 
-全て同じ値の場合は三方分割を使えば O(n) になる。
+For the case where all values are identical, three-way partitioning achieves O(n).
 
 ---
 
-## 7. ヒープソート（Heap Sort）
+## 7. Heap Sort
 
-### 7.1 アルゴリズムの原理
+### 7.1 Algorithm Principle
 
-最大ヒープ（親が子以上の完全二分木）を構築し、ルート（最大値）を末尾に移動してヒープサイズを縮小する操作を繰り返す。J. W. J. Williams が 1964 年に考案した。
+Build a max-heap (a complete binary tree where each parent is greater than or equal to its children), then repeatedly move the root (maximum) to the end and reduce the heap size. Devised by J. W. J. Williams in 1964.
 
-### 7.2 ヒープの構造と配列表現
+### 7.2 Heap Structure and Array Representation
 
 ```
-最大ヒープの配列表現:
+Array representation of a max-heap:
 
-インデックス:   0   1   2   3   4   5   6
-配列:        [90, 70, 80, 30, 50, 40, 20]
+Index:         0   1   2   3   4   5   6
+Array:        [90, 70, 80, 30, 50, 40, 20]
 
-ツリー表現:
+Tree representation:
                  90 (i=0)
                /    \
            70 (i=1)   80 (i=2)
            / \         / \
       30(i=3) 50(i=4) 40(i=5) 20(i=6)
 
-親子の関係（0-indexed）:
-  親:     (i - 1) // 2
-  左の子: 2 * i + 1
-  右の子: 2 * i + 2
+Parent-child relationships (0-indexed):
+  Parent:      (i - 1) // 2
+  Left child:  2 * i + 1
+  Right child: 2 * i + 2
 
-ヒープソートの手順:
-  1. 配列全体を最大ヒープに構築する（ボトムアップ）
-  2. ルート（最大値）を末尾と交換する
-  3. ヒープサイズを 1 縮小し、ルートを heapify する
-  4. ヒープサイズが 1 になるまで 2-3 を繰り返す
+Heap Sort procedure:
+  1. Build a max-heap from the entire array (bottom-up)
+  2. Swap the root (maximum) with the last element
+  3. Reduce heap size by 1 and heapify the root
+  4. Repeat steps 2-3 until heap size is 1
 
-ソート過程:
-  [90, 70, 80, 30, 50, 40, 20]  ← 最大ヒープ
-   90 と 20 を交換 → heapify
+Sorting process:
+  [90, 70, 80, 30, 50, 40, 20]  <- Max-heap
+   Swap 90 and 20 -> heapify
   [80, 70, 40, 30, 50, 20 | 90]
-   80 と 20 を交換 → heapify
+   Swap 80 and 20 -> heapify
   [70, 50, 40, 30, 20 | 80, 90]
-   ...繰り返し...
-  [20, 30, 40, 50, 70, 80, 90]  ← ソート完了
+   ...repeat...
+  [20, 30, 40, 50, 70, 80, 90]  <- Sort complete
 ```
 
-### 7.3 実装
+### 7.3 Implementation
 
 ```python
 def heap_sort(arr: list) -> list:
-    """ヒープソート - 不安定・in-place・O(n log n) 保証
+    """Heap Sort - unstable, in-place, guaranteed O(n log n)
 
-    最大ヒープを構築し、ルートを末尾に移動させることを繰り返す。
-    最悪でも O(n log n) が保証され、O(1) 追加メモリで動作する。
+    Builds a max-heap and repeatedly moves the root to the end.
+    Guarantees O(n log n) even in the worst case, using O(1) additional memory.
 
     Args:
-        arr: ソート対象のリスト
+        arr: List to sort
 
     Returns:
-        ソート済みのリスト
+        Sorted list
 
-    計算量:
-        最良/平均/最悪: O(n log n)
-        空間: O(1)
+    Complexity:
+        Best/Average/Worst: O(n log n)
+        Space: O(1)
     """
     n = len(arr)
 
-    # 最大ヒープ構築（ボトムアップ）
+    # Build max-heap (bottom-up)
     for i in range(n // 2 - 1, -1, -1):
         _heapify(arr, n, i)
 
-    # ルートを末尾に移動してヒープサイズを縮小
+    # Move root to end and reduce heap size
     for i in range(n - 1, 0, -1):
         arr[0], arr[i] = arr[i], arr[0]
         _heapify(arr, i, 0)
@@ -966,7 +966,7 @@ def heap_sort(arr: list) -> list:
 
 
 def _heapify(arr: list, n: int, i: int) -> None:
-    """ノード i を根とする部分木を最大ヒープ化する"""
+    """Max-heapify the subtree rooted at node i"""
     largest = i
     left = 2 * i + 1
     right = 2 * i + 2
@@ -981,7 +981,7 @@ def _heapify(arr: list, n: int, i: int) -> None:
         _heapify(arr, n, largest)
 
 
-# --- 動作確認 ---
+# --- Test ---
 if __name__ == "__main__":
     data = [12, 11, 13, 5, 6, 7]
     print(heap_sort(data))  # [5, 6, 7, 11, 12, 13]
@@ -990,89 +990,89 @@ if __name__ == "__main__":
     print(heap_sort(data2))  # [1, 3, 4, 5, 10]
 ```
 
-### 7.4 ヒープ構築の計算量
+### 7.4 Complexity of Heap Construction
 
-ヒープ構築は直感的には O(n log n) に思えるが、実際には **O(n)** である。これはボトムアップ構築において、葉に近いノードほど heapify のコストが小さいためである。
+Heap construction may intuitively seem like O(n log n), but it is actually **O(n)**. This is because in bottom-up construction, nodes closer to the leaves have lower heapify costs.
 
 ```
-高さ h のノード数と heapify コスト:
+Number of nodes and heapify cost at each height h:
 
-高さ 0 (葉):     n/2 個  x O(0) = 0
-高さ 1:          n/4 個  x O(1) = n/4
-高さ 2:          n/8 個  x O(2) = n/4
-高さ 3:          n/16 個 x O(3) = 3n/16
+Height 0 (leaves):   n/2 nodes  x O(0) = 0
+Height 1:            n/4 nodes  x O(1) = n/4
+Height 2:            n/8 nodes  x O(2) = n/4
+Height 3:            n/16 nodes x O(3) = 3n/16
   ...
-高さ log n (根): 1 個    x O(log n) = log n
+Height log n (root): 1 node     x O(log n) = log n
 
-合計 = Sum_{h=0}^{log n} ceil(n / 2^{h+1}) * h
-     = n * Sum_{h=0}^{inf} h / 2^{h+1}
-     = n * 1
-     = O(n)
+Total = Sum_{h=0}^{log n} ceil(n / 2^{h+1}) * h
+      = n * Sum_{h=0}^{inf} h / 2^{h+1}
+      = n * 1
+      = O(n)
 ```
 
-### 7.5 ヒープソートの特徴
+### 7.5 Characteristics of Heap Sort
 
-| 特性 | 詳細 |
+| Property | Details |
 |:---|:---|
-| 最悪計算量保証 | 常に O(n log n) -- クイックソートの O(n^2) 退化がない |
-| メモリ効率 | O(1) 追加メモリ -- マージソートの O(n) が不要 |
-| 不安定 | 等しいキーの相対順序は保証されない |
-| キャッシュ効率 | 悪い -- ヒープの親子アクセスがメモリ上で離れている |
-| 実用性能 | 定数係数が大きく、同じ O(n log n) でもクイックソートより遅いことが多い |
+| Worst-case guarantee | Always O(n log n) -- no O(n^2) degradation like Quick Sort |
+| Memory efficiency | O(1) additional memory -- no O(n) required like Merge Sort |
+| Unstable | Relative order of equal keys is not guaranteed |
+| Cache efficiency | Poor -- heap parent-child accesses are far apart in memory |
+| Practical performance | Large constant factor; often slower than Quick Sort at the same O(n log n) |
 
 ---
 
-## 8. 非比較ベースソート
+## 8. Non-Comparison-Based Sorts
 
-### 8.1 概要
+### 8.1 Overview
 
-比較ベースソートには O(n log n) の理論的下限が存在するが、非比較ベースソートはこの制約を受けない。データの性質（整数、固定長、一様分布など）を利用して、条件付きで O(n) のソートを実現する。
+Comparison-based sorts have a theoretical lower bound of O(n log n), but non-comparison-based sorts are not subject to this constraint. By exploiting properties of the data (integers, fixed-length, uniform distribution, etc.), they can achieve O(n) sorting under certain conditions.
 
-### 8.2 計数ソート（Counting Sort）
+### 8.2 Counting Sort
 
-要素の出現回数をカウントし、累積和で最終位置を決定する。
+Count the occurrences of each element and use cumulative sums to determine final positions.
 
 ```
-入力:  [4, 2, 2, 8, 3, 3, 1]
-範囲:  1..8 (min=1, max=8, range=8)
+Input:  [4, 2, 2, 8, 3, 3, 1]
+Range:  1..8 (min=1, max=8, range=8)
 
-Step 1: カウント配列を作成
-  値:      1  2  3  4  5  6  7  8
-  count: [ 1, 2, 2, 1, 0, 0, 0, 1 ]
+Step 1: Create count array
+  Value:     1  2  3  4  5  6  7  8
+  count:   [ 1, 2, 2, 1, 0, 0, 0, 1 ]
 
-Step 2: 累積和を計算
-  値:      1  2  3  4  5  6  7  8
-  count: [ 1, 3, 5, 6, 6, 6, 6, 7 ]
-  意味: 値 k 以下の要素は count[k] 個
+Step 2: Compute cumulative sums
+  Value:     1  2  3  4  5  6  7  8
+  count:   [ 1, 3, 5, 6, 6, 6, 6, 7 ]
+  Meaning: There are count[k] elements with value <= k
 
-Step 3: 出力配列を構築（末尾から走査して安定性を保証）
-  i=6: arr[6]=1 → output[0] = 1
-  i=5: arr[5]=3 → output[4] = 3
-  i=4: arr[4]=3 → output[3] = 3
-  i=3: arr[3]=8 → output[6] = 8
-  i=2: arr[2]=2 → output[2] = 2
-  i=1: arr[1]=2 → output[1] = 2
-  i=0: arr[0]=4 → output[5] = 4
+Step 3: Build output array (traverse from end for stability)
+  i=6: arr[6]=1 -> output[0] = 1
+  i=5: arr[5]=3 -> output[4] = 3
+  i=4: arr[4]=3 -> output[3] = 3
+  i=3: arr[3]=8 -> output[6] = 8
+  i=2: arr[2]=2 -> output[2] = 2
+  i=1: arr[1]=2 -> output[1] = 2
+  i=0: arr[0]=4 -> output[5] = 4
 
-出力: [1, 2, 2, 3, 3, 4, 8]
+Output: [1, 2, 2, 3, 3, 4, 8]
 ```
 
 ```python
 def counting_sort(arr: list) -> list:
-    """計数ソート - 安定・O(n + k)
+    """Counting Sort - stable, O(n + k)
 
-    要素の出現回数をカウントし、累積和で位置を決定する。
-    整数データで値の範囲 k が小さい場合に最適。
+    Counts occurrences of elements and uses cumulative sums to determine positions.
+    Optimal for integer data with a small range of values k.
 
     Args:
-        arr: 整数のリスト
+        arr: List of integers
 
     Returns:
-        新しいソート済みリスト
+        New sorted list
 
-    計算量:
-        時間: O(n + k) -- k は値の範囲
-        空間: O(n + k)
+    Complexity:
+        Time:  O(n + k) -- k is the range of values
+        Space: O(n + k)
     """
     if not arr:
         return arr
@@ -1097,61 +1097,61 @@ def counting_sort(arr: list) -> list:
     return output
 
 
-# --- 動作確認 ---
+# --- Test ---
 if __name__ == "__main__":
     data = [4, 2, 2, 8, 3, 3, 1]
     print(counting_sort(data))  # [1, 2, 2, 3, 3, 4, 8]
 ```
 
-### 8.3 基数ソート（Radix Sort）
+### 8.3 Radix Sort
 
-各桁ごとに安定ソート（通常は計数ソート）を適用することで、複数桁の整数をソートする。最下位桁（LSD: Least Significant Digit）から処理する方法が一般的。
+Apply a stable sort (typically Counting Sort) for each digit to sort multi-digit integers. The LSD (Least Significant Digit) approach, which processes from the least significant digit, is the most common.
 
 ```
-LSD 基数ソートの動作 (基数=10):
+LSD Radix Sort operation (radix=10):
 
-入力: [170, 45, 75, 90, 802, 24, 2, 66]
+Input: [170, 45, 75, 90, 802, 24, 2, 66]
 
-1の位でソート:
-  17[0], 9[0]  → 0 のバケット
-  80[2], [2]   → 2 のバケット
-  2[4]         → 4 のバケット
-  4[5], 7[5]   → 5 のバケット
-  6[6]         → 6 のバケット
-  結果: [170, 90, 802, 2, 24, 45, 75, 66]
+Sort by ones digit:
+  17[0], 9[0]  -> bucket 0
+  80[2], [2]   -> bucket 2
+  2[4]         -> bucket 4
+  4[5], 7[5]   -> bucket 5
+  6[6]         -> bucket 6
+  Result: [170, 90, 802, 2, 24, 45, 75, 66]
 
-10の位でソート:
-  8[0]2, [0]2  → 0 のバケット
-  [2]4         → 2 のバケット
-  [4]5         → 4 のバケット
-  [6]6         → 6 のバケット
-  1[7]0, [7]5  → 7 のバケット
-  [9]0         → 9 のバケット
-  結果: [802, 2, 24, 45, 66, 170, 75, 90]
+Sort by tens digit:
+  8[0]2, [0]2  -> bucket 0
+  [2]4         -> bucket 2
+  [4]5         -> bucket 4
+  [6]6         -> bucket 6
+  1[7]0, [7]5  -> bucket 7
+  [9]0         -> bucket 9
+  Result: [802, 2, 24, 45, 66, 170, 75, 90]
 
-100の位でソート:
-  [0]02, [0]24, [0]45, [0]66, [0]75, [0]90  → 0
-  [1]70                                      → 1
-  [8]02                                      → 8
-  結果: [2, 24, 45, 66, 75, 90, 170, 802]
+Sort by hundreds digit:
+  [0]02, [0]24, [0]45, [0]66, [0]75, [0]90  -> 0
+  [1]70                                      -> 1
+  [8]02                                      -> 8
+  Result: [2, 24, 45, 66, 75, 90, 170, 802]
 ```
 
 ```python
 def radix_sort(arr: list) -> list:
-    """基数ソート (LSD) - 安定・O(d * (n + k))
+    """Radix Sort (LSD) - stable, O(d * (n + k))
 
-    最下位桁から順に計数ソートを適用する。
-    d は最大桁数、k は基数（通常 10）。
+    Applies Counting Sort from the least significant digit upward.
+    d is the maximum number of digits, k is the radix (typically 10).
 
     Args:
-        arr: 非負整数のリスト
+        arr: List of non-negative integers
 
     Returns:
-        新しいソート済みリスト
+        New sorted list
 
-    計算量:
-        時間: O(d * (n + k))
-        空間: O(n + k)
+    Complexity:
+        Time:  O(d * (n + k))
+        Space: O(n + k)
     """
     if not arr:
         return arr
@@ -1168,7 +1168,7 @@ def radix_sort(arr: list) -> list:
 
 
 def _counting_sort_by_digit(arr: list, exp: int) -> list:
-    """特定の桁に基づく計数ソート"""
+    """Counting Sort based on a specific digit"""
     n = len(arr)
     output = [0] * n
     count = [0] * 10
@@ -1188,35 +1188,35 @@ def _counting_sort_by_digit(arr: list, exp: int) -> list:
     return output
 
 
-# --- 動作確認 ---
+# --- Test ---
 if __name__ == "__main__":
     data = [170, 45, 75, 90, 802, 24, 2, 66]
     print(radix_sort(data))  # [2, 24, 45, 66, 75, 90, 170, 802]
 ```
 
-### 8.4 バケットソート（Bucket Sort）
+### 8.4 Bucket Sort
 
-入力が一様分布に従う場合に有効。値の範囲を等間隔のバケットに分割し、各バケット内を個別にソートする。
+Effective when input follows a uniform distribution. Divide the value range into equally spaced buckets and sort each bucket individually.
 
 ```python
 def bucket_sort(arr: list, bucket_count: int = 10) -> list:
-    """バケットソート - 安定（内部ソートが安定なら）
+    """Bucket Sort - stable (if internal sort is stable)
 
-    値の範囲を等間隔のバケットに分割し、
-    各バケット内を挿入ソートでソートする。
-    一様分布の浮動小数点データに最適。
+    Divides the value range into equally spaced buckets
+    and sorts each bucket with Insertion Sort.
+    Optimal for uniformly distributed floating-point data.
 
     Args:
-        arr: 数値のリスト
-        bucket_count: バケットの数
+        arr: List of numbers
+        bucket_count: Number of buckets
 
     Returns:
-        新しいソート済みリスト
+        New sorted list
 
-    計算量:
-        平均: O(n + n^2/k + k) -- k=n なら O(n)
-        最悪: O(n^2) -- 全要素が同一バケットに集中
-        空間: O(n + k)
+    Complexity:
+        Average: O(n + n^2/k + k) -- O(n) when k=n
+        Worst:   O(n^2) -- all elements fall into one bucket
+        Space:   O(n + k)
     """
     if not arr:
         return arr
@@ -1243,82 +1243,82 @@ def bucket_sort(arr: list, bucket_count: int = 10) -> list:
     return result
 
 
-# --- 動作確認 ---
+# --- Test ---
 if __name__ == "__main__":
     data = [0.897, 0.565, 0.656, 0.1234, 0.665, 0.3434]
     print(bucket_sort(data, 5))
     # [0.1234, 0.3434, 0.565, 0.656, 0.665, 0.897]
 ```
 
-### 8.5 非比較ベースソートの比較表
+### 8.5 Comparison of Non-Comparison-Based Sorts
 
-| アルゴリズム | 計算量 | 空間 | 安定 | 適用条件 |
+| Algorithm | Complexity | Space | Stable | Applicable Conditions |
 |:---|:---|:---|:---|:---|
-| 計数ソート | O(n + k) | O(n + k) | Yes | 整数、値の範囲 k が小さい |
-| 基数ソート | O(d(n + k)) | O(n + k) | Yes | 固定長キー、d 桁 |
-| バケットソート | O(n) 平均 | O(n + k) | Yes* | 一様分布のデータ |
+| Counting Sort | O(n + k) | O(n + k) | Yes | Integers, small value range k |
+| Radix Sort | O(d(n + k)) | O(n + k) | Yes | Fixed-length keys, d digits |
+| Bucket Sort | O(n) average | O(n + k) | Yes* | Uniformly distributed data |
 
-*内部ソートに安定ソートを使用した場合
+*When a stable sort is used internally
 
 ---
 
-## 9. 高度なソートアルゴリズム
+## 9. Advanced Sorting Algorithms
 
-### 9.1 シェルソート（Shell Sort）
+### 9.1 Shell Sort
 
-Donald Shell が 1959 年に考案。挿入ソートの改良版で、離れた要素同士を比較・交換することで、要素の大きな移動を効率的に行う。ギャップ（間隔）を徐々に小さくしながら挿入ソートを繰り返す。
+Devised by Donald Shell in 1959. An improved version of Insertion Sort that compares and swaps elements at a distance, enabling large movements of elements efficiently. Insertion Sort is repeated while gradually reducing the gap (interval).
 
 ```
-シェルソートの動作（ギャップ列: 4, 2, 1）:
+Shell Sort operation (gap sequence: 4, 2, 1):
 
-初期: [35, 33, 42, 10, 14, 19, 27, 44, 26, 31]
+Initial: [35, 33, 42, 10, 14, 19, 27, 44, 26, 31]
 
-ギャップ 4:
-  グループ1: [35, 14, 26]  → [14, 26, 35]
-  グループ2: [33, 19, 31]  → [19, 31, 33]
-  グループ3: [42, 27]      → [27, 42]
-  グループ4: [10, 44]      → [10, 44]
-  結果: [14, 19, 27, 10, 26, 31, 42, 44, 35, 33]
+Gap 4:
+  Group 1: [35, 14, 26]  -> [14, 26, 35]
+  Group 2: [33, 19, 31]  -> [19, 31, 33]
+  Group 3: [42, 27]      -> [27, 42]
+  Group 4: [10, 44]      -> [10, 44]
+  Result: [14, 19, 27, 10, 26, 31, 42, 44, 35, 33]
 
-ギャップ 2:
-  グループ1: [14, 27, 26, 42, 35]  → [14, 26, 27, 35, 42]
-  グループ2: [19, 10, 31, 44, 33]  → [10, 19, 31, 33, 44]
-  結果: [14, 10, 26, 19, 27, 31, 35, 33, 42, 44]
+Gap 2:
+  Group 1: [14, 27, 26, 42, 35]  -> [14, 26, 27, 35, 42]
+  Group 2: [19, 10, 31, 44, 33]  -> [10, 19, 31, 33, 44]
+  Result: [14, 10, 26, 19, 27, 31, 35, 33, 42, 44]
 
-ギャップ 1 (通常の挿入ソート):
-  結果: [10, 14, 19, 26, 27, 31, 33, 35, 42, 44]
+Gap 1 (standard Insertion Sort):
+  Result: [10, 14, 19, 26, 27, 31, 33, 35, 42, 44]
 ```
 
 ```python
 def shell_sort(arr: list) -> list:
-    """シェルソート - 不安定・in-place
+    """Shell Sort - unstable, in-place
 
-    ギャップを縮小しながら挿入ソートを繰り返す。
-    ギャップ列の選択により計算量が変わる。
+    Repeats Insertion Sort while reducing the gap.
+    Complexity varies depending on the gap sequence chosen.
 
-    Knuth のギャップ列: 1, 4, 13, 40, 121, ...  (3h + 1)
-    このギャップ列での計算量は O(n^{3/2})。
+    Knuth's gap sequence: 1, 4, 13, 40, 121, ...  (3h + 1)
+    Complexity with this sequence is O(n^{3/2}).
 
     Args:
-        arr: ソート対象のリスト
+        arr: List to sort
 
     Returns:
-        ソート済みのリスト
+        Sorted list
 
-    計算量:
-        Knuth列: O(n^{3/2})
-        Sedgewick列: O(n^{4/3})
-        空間: O(1)
+    Complexity:
+        Knuth sequence:    O(n^{3/2})
+        Sedgewick sequence: O(n^{4/3})
+        Space: O(1)
     """
     n = len(arr)
 
-    # Knuth のギャップ列を計算
+    # Compute Knuth's gap sequence
     gap = 1
     while gap < n // 3:
         gap = gap * 3 + 1  # 1, 4, 13, 40, 121, ...
 
     while gap >= 1:
-        # ギャップ付き挿入ソート
+        # Gap-based Insertion Sort
         for i in range(gap, n):
             key = arr[i]
             j = i
@@ -1331,7 +1331,7 @@ def shell_sort(arr: list) -> list:
     return arr
 
 
-# --- 動作確認 ---
+# --- Test ---
 if __name__ == "__main__":
     data = [35, 33, 42, 10, 14, 19, 27, 44, 26, 31]
     print(shell_sort(data))  # [10, 14, 19, 26, 27, 31, 33, 35, 42, 44]
@@ -1339,53 +1339,53 @@ if __name__ == "__main__":
 
 ### 9.2 TimSort
 
-Python の `list.sort()` と `sorted()`、Java の `Arrays.sort()` で使用されているハイブリッドソートアルゴリズム。Tim Peters が 2002 年に設計した。マージソートと挿入ソートを組み合わせ、実データのパターンを活用して高速化する。
+A hybrid sorting algorithm used by Python's `list.sort()` and `sorted()`, as well as Java's `Arrays.sort()`. Designed by Tim Peters in 2002. Combines Merge Sort and Insertion Sort, leveraging patterns in real-world data for acceleration.
 
 ```
-TimSort の戦略:
+TimSort strategy:
 
-1. 配列を "run" (既にソートされた部分列) に分割する
-   入力: [1, 3, 5, 2, 4, 6, 8, 7, 9]
+1. Divide the array into "runs" (already sorted subsequences)
+   Input: [1, 3, 5, 2, 4, 6, 8, 7, 9]
          |--run1--|  |---run2---|  |-run3-|
          [1, 3, 5]  [2, 4, 6, 8]  [7, 9]
 
-2. 短い run は挿入ソートで minrun 以上の長さに拡張する
-   (minrun は通常 32-64、n の上位6ビットから算出)
+2. Short runs are extended to at least minrun length using Insertion Sort
+   (minrun is typically 32-64, computed from the top 6 bits of n)
 
-3. run をスタックに積み、マージルールに従ってマージする
-   マージルール (不変条件):
-     A > B + C  (3つ目と2つ目の合計より大きい)
-     B > C      (2つ目が3つ目より大きい)
-   この条件が崩れたら、隣接 run をマージする
+3. Runs are pushed onto a stack and merged according to merge rules
+   Merge rules (invariants):
+     A > B + C  (third is larger than sum of second and first)
+     B > C      (second is larger than first)
+   When these conditions are violated, adjacent runs are merged
 
-4. galloping mode: マージ中に一方の配列から連続して
-   要素が選ばれる場合、二分探索で一括処理する
+4. Galloping mode: when elements are consecutively selected from one
+   array during merging, binary search is used for batch processing
 ```
 
-**TimSort の設計思想:**
+**TimSort's design philosophy:**
 
-- **実データは完全にランダムではない**: 多くの実データには部分的な秩序（run）が存在する。TimSort はこれを検出して活用する。
-- **小規模部分配列には挿入ソートが最適**: run が短い場合は挿入ソートで処理する。キャッシュ効率が良く、オーバーヘッドも小さい。
-- **安定性の保証**: マージベースのため安定性を保持する。
-- **最悪でも O(n log n)**: マージソートの最悪計算量保証を維持する。
+- **Real-world data is not completely random**: Most real data contains partial order (runs). TimSort detects and exploits this.
+- **Insertion Sort is optimal for small subarrays**: Short runs are processed with Insertion Sort. Cache-efficient with small overhead.
+- **Stability guaranteed**: Stability is maintained because it is merge-based.
+- **O(n log n) in the worst case**: Maintains the worst-case guarantee of Merge Sort.
 
-### 9.3 Introsort（内省的ソート）
+### 9.3 Introsort (Introspective Sort)
 
-David Musser が 1997 年に考案。クイックソートを基本とし、再帰の深さが 2 * log(n) を超えたらヒープソートに切り替え、小規模部分配列には挿入ソートを使用するハイブリッドアルゴリズム。C++ の `std::sort` で使用されている。
+Devised by David Musser in 1997. A hybrid algorithm that uses Quick Sort as its base, switches to Heap Sort when recursion depth exceeds 2 * log(n), and uses Insertion Sort for small subarrays. Used by C++'s `std::sort`.
 
 ```
-Introsort の動作:
+Introsort operation:
 
-1. 最初はクイックソートで分割
-2. 再帰深度を監視
-   - 深度 < 2*log(n) → クイックソートを継続
-   - 深度 >= 2*log(n) → ヒープソートに切り替え（最悪ケース回避）
-3. 部分配列のサイズが閾値以下 → 挿入ソートに切り替え
+1. Start with Quick Sort for partitioning
+2. Monitor recursion depth
+   - depth < 2*log(n) -> continue Quick Sort
+   - depth >= 2*log(n) -> switch to Heap Sort (avoid worst case)
+3. Subarray size below threshold -> switch to Insertion Sort
 
-結果:
-  - 平均: クイックソートの高速性 O(n log n)
-  - 最悪: ヒープソートの保証 O(n log n)
-  - 小規模: 挿入ソートの低オーバーヘッド
+Result:
+  - Average: Quick Sort's speed O(n log n)
+  - Worst: Heap Sort's guarantee O(n log n)
+  - Small: Insertion Sort's low overhead
 ```
 
 ```python
@@ -1393,14 +1393,14 @@ import math
 
 
 def introsort(arr: list) -> list:
-    """Introsort（内省的ソート）
+    """Introsort (Introspective Sort)
 
-    クイックソート + ヒープソート + 挿入ソートのハイブリッド。
-    C++ の std::sort の基盤アルゴリズム。
+    Hybrid of Quick Sort + Heap Sort + Insertion Sort.
+    The foundational algorithm of C++'s std::sort.
 
-    計算量:
-        最良/平均/最悪: O(n log n)
-        空間: O(log n)
+    Complexity:
+        Best/Average/Worst: O(n log n)
+        Space: O(log n)
     """
     max_depth = 2 * math.floor(math.log2(max(len(arr), 1)))
     _introsort_impl(arr, 0, len(arr) - 1, max_depth)
@@ -1408,12 +1408,12 @@ def introsort(arr: list) -> list:
 
 
 def _introsort_impl(arr: list, low: int, high: int, depth_limit: int) -> None:
-    """Introsort の内部実装"""
+    """Internal implementation of Introsort"""
     INSERTION_THRESHOLD = 16
 
     while high - low + 1 > INSERTION_THRESHOLD:
         if depth_limit == 0:
-            # 深度超過 → ヒープソートに切り替え
+            # Depth exceeded -> switch to Heap Sort
             sub = arr[low:high + 1]
             heap_sort(sub)
             arr[low:high + 1] = sub
@@ -1421,7 +1421,7 @@ def _introsort_impl(arr: list, low: int, high: int, depth_limit: int) -> None:
 
         depth_limit -= 1
 
-        # 三値中央値でピボット選択
+        # Median-of-three pivot selection
         mid = (low + high) // 2
         if arr[mid] < arr[low]:
             arr[low], arr[mid] = arr[mid], arr[low]
@@ -1433,7 +1433,7 @@ def _introsort_impl(arr: list, low: int, high: int, depth_limit: int) -> None:
         pivot = arr[mid]
         arr[mid], arr[high - 1] = arr[high - 1], arr[mid]
 
-        # パーティション
+        # Partition
         i = low
         j = high - 1
         while True:
@@ -1449,7 +1449,7 @@ def _introsort_impl(arr: list, low: int, high: int, depth_limit: int) -> None:
 
         arr[i], arr[high - 1] = arr[high - 1], arr[i]
 
-        # 短い方を再帰、長い方をループ（末尾再帰最適化）
+        # Recurse on the shorter side, loop on the longer side (tail recursion optimization)
         if i - low < high - i:
             _introsort_impl(arr, low, i - 1, depth_limit)
             low = i + 1
@@ -1457,7 +1457,7 @@ def _introsort_impl(arr: list, low: int, high: int, depth_limit: int) -> None:
             _introsort_impl(arr, i + 1, high, depth_limit)
             high = i - 1
 
-    # 閾値以下は挿入ソート
+    # Below threshold: use Insertion Sort
     for i in range(low + 1, high + 1):
         key = arr[i]
         j = i - 1
@@ -1467,156 +1467,156 @@ def _introsort_impl(arr: list, low: int, high: int, depth_limit: int) -> None:
         arr[j + 1] = key
 
 
-# --- 動作確認 ---
+# --- Test ---
 if __name__ == "__main__":
     data = [5, 3, 8, 4, 2, 7, 1, 10, 6, 9]
     print(introsort(data))  # [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 ```
 
-### 9.4 外部ソート（External Sort）
+### 9.4 External Sort
 
-メインメモリに収まりきらない大規模データをソートする手法。ディスクとメモリ間のI/Oを最小化することが鍵。
+A technique for sorting large-scale data that does not fit in main memory. The key is to minimize I/O between disk and memory.
 
 ```
-外部マージソートの手順:
+External Merge Sort procedure:
 
-1. 分割フェーズ:
-   巨大ファイル (例: 100GB)
-   → メモリに収まるチャンク (例: 1GB) に分割
-   → 各チャンクをメモリ内でソートしてディスクに書き出す
-   → 100個のソート済みチャンクファイルが生成される
+1. Split phase:
+   Huge file (e.g., 100GB)
+   -> Split into chunks that fit in memory (e.g., 1GB)
+   -> Sort each chunk in memory and write to disk
+   -> 100 sorted chunk files are produced
 
-2. マージフェーズ:
-   ┌──────────┐  ┌──────────┐       ┌──────────┐
-   │ Chunk 1  │  │ Chunk 2  │  ...  │ Chunk 100│
-   └────┬─────┘  └────┬─────┘       └────┬─────┘
-        │             │                   │
+2. Merge phase:
+   +----------+  +----------+       +----------+
+   | Chunk 1  |  | Chunk 2  |  ...  | Chunk 100|
+   +----+-----+  +----+-----+       +----+-----+
+        |             |                   |
         v             v                   v
-   ┌──────────────────────────────────────────┐
-   │     k-way マージ (最小ヒープ使用)         │
-   │     各チャンクの先頭要素をヒープに格納     │
-   │     最小値を取り出し → 出力ファイルへ      │
-   │     取り出したチャンクから次の要素を補充    │
-   └──────────────────────┬───────────────────┘
-                          │
-                          v
-                  ┌──────────────┐
-                  │ ソート済み    │
-                  │ 出力ファイル  │
-                  └──────────────┘
+   +------------------------------------------+
+   |     k-way merge (using min-heap)          |
+   |     Store head element of each chunk      |
+   |     Extract minimum -> output file        |
+   |     Replenish from the extracted chunk    |
+   +--------------------+---------------------+
+                        |
+                        v
+                +--------------+
+                | Sorted       |
+                | output file  |
+                +--------------+
 ```
 
 ---
 
-## 10. 計算量比較表と用途別選択ガイド
+## 10. Complexity Comparison Table and Use-Case Selection Guide
 
-### 10.1 全アルゴリズム計算量比較表
+### 10.1 Full Algorithm Complexity Comparison Table
 
-| アルゴリズム | 最良 | 平均 | 最悪 | 空間 | 安定 | in-place | 適応的 |
+| Algorithm | Best | Average | Worst | Space | Stable | In-Place | Adaptive |
 |:---|:---|:---|:---|:---|:---|:---|:---|
-| バブルソート | O(n) | O(n^2) | O(n^2) | O(1) | Yes | Yes | Yes |
-| 選択ソート | O(n^2) | O(n^2) | O(n^2) | O(1) | No | Yes | No |
-| 挿入ソート | O(n) | O(n^2) | O(n^2) | O(1) | Yes | Yes | Yes |
-| シェルソート | O(n log n) | O(n^{3/2}) | O(n^{3/2}) | O(1) | No | Yes | Yes |
-| マージソート | O(n log n) | O(n log n) | O(n log n) | O(n) | Yes | No | No |
-| クイックソート | O(n log n) | O(n log n) | O(n^2) | O(log n) | No | Yes | No |
-| ヒープソート | O(n log n) | O(n log n) | O(n log n) | O(1) | No | Yes | No |
+| Bubble Sort | O(n) | O(n^2) | O(n^2) | O(1) | Yes | Yes | Yes |
+| Selection Sort | O(n^2) | O(n^2) | O(n^2) | O(1) | No | Yes | No |
+| Insertion Sort | O(n) | O(n^2) | O(n^2) | O(1) | Yes | Yes | Yes |
+| Shell Sort | O(n log n) | O(n^{3/2}) | O(n^{3/2}) | O(1) | No | Yes | Yes |
+| Merge Sort | O(n log n) | O(n log n) | O(n log n) | O(n) | Yes | No | No |
+| Quick Sort | O(n log n) | O(n log n) | O(n^2) | O(log n) | No | Yes | No |
+| Heap Sort | O(n log n) | O(n log n) | O(n log n) | O(1) | No | Yes | No |
 | TimSort | O(n) | O(n log n) | O(n log n) | O(n) | Yes | No | Yes |
 | Introsort | O(n log n) | O(n log n) | O(n log n) | O(log n) | No | Yes | No |
-| 計数ソート | O(n+k) | O(n+k) | O(n+k) | O(n+k) | Yes | No | -- |
-| 基数ソート | O(d(n+k)) | O(d(n+k)) | O(d(n+k)) | O(n+k) | Yes | No | -- |
-| バケットソート | O(n+k) | O(n+k) | O(n^2) | O(n+k) | Yes* | No | -- |
+| Counting Sort | O(n+k) | O(n+k) | O(n+k) | O(n+k) | Yes | No | -- |
+| Radix Sort | O(d(n+k)) | O(d(n+k)) | O(d(n+k)) | O(n+k) | Yes | No | -- |
+| Bucket Sort | O(n+k) | O(n+k) | O(n^2) | O(n+k) | Yes* | No | -- |
 
-### 10.2 用途別選択ガイド
+### 10.2 Use-Case Selection Guide
 
-| 状況 | 推奨アルゴリズム | 理由 |
+| Situation | Recommended Algorithm | Reason |
 |:---|:---|:---|
-| 小規模データ（n < 50） | 挿入ソート | オーバーヘッドが最小 |
-| ほぼ整列済み | 挿入ソート / TimSort | 適応的で O(n) に近い |
-| 汎用（ライブラリ） | TimSort | Python/Java 標準、安定 + 高速 |
-| メモリ制約あり | ヒープソート | O(1) 追加メモリ、O(n log n) 保証 |
-| 整数・範囲が小さい | 計数ソート | O(n+k) で最速 |
-| 平均性能重視 | クイックソート / Introsort | 定数係数が小さい |
-| 安定性必須 | マージソート / TimSort | O(n log n) かつ安定 |
-| 外部ソート（大容量） | 外部マージソート | 逐次アクセスに強い |
-| C++ 標準ライブラリ | Introsort | std::sort の基盤 |
-| 重複が多いデータ | 三方分割クイックソート | 重複要素を効率的にスキップ |
-| 固定長の文字列/数値 | 基数ソート | O(d*n) で比較不要 |
+| Small data (n < 50) | Insertion Sort | Minimal overhead |
+| Nearly sorted | Insertion Sort / TimSort | Adaptive, close to O(n) |
+| General-purpose (library) | TimSort | Python/Java standard, stable + fast |
+| Memory constrained | Heap Sort | O(1) additional memory, O(n log n) guaranteed |
+| Integers, small range | Counting Sort | Fastest at O(n+k) |
+| Average performance focus | Quick Sort / Introsort | Small constant factor |
+| Stability required | Merge Sort / TimSort | O(n log n) and stable |
+| External sort (large data) | External Merge Sort | Strong with sequential access |
+| C++ standard library | Introsort | Basis of std::sort |
+| Data with many duplicates | Three-way Quick Sort | Efficiently skips duplicate elements |
+| Fixed-length strings/numbers | Radix Sort | O(d*n) without comparisons |
 
 ---
 
-## 11. アンチパターン
+## 11. Anti-Patterns
 
-### アンチパターン1: ピボット選択の固定化
+### Anti-Pattern 1: Fixed Pivot Selection
 
 ```python
-# BAD: 常に末尾をピボットにする
-# ソート済み配列で O(n^2) に退化する
+# BAD: Always using the last element as pivot
+# Degrades to O(n^2) on sorted arrays
 def bad_quicksort(arr, low, high):
-    pivot = arr[high]  # ソート済みで最悪ケース
-    # ...パーティション処理...
+    pivot = arr[high]  # Worst case on sorted input
+    # ...partition processing...
 
 
-# GOOD: 三値の中央値 or ランダム選択
+# GOOD: Median-of-three or random selection
 import random
 
 def good_quicksort(arr, low, high):
     if low < high:
-        # ランダムピボット選択
+        # Random pivot selection
         rand_idx = random.randint(low, high)
         arr[rand_idx], arr[high] = arr[high], arr[rand_idx]
-        # ...パーティション処理...
+        # ...partition processing...
 ```
 
-**問題点**: ソート済み・逆順・ほぼソート済みのデータで O(n^2) に退化する。本番システムでは入力データのパターンを事前に知ることができないため、固定ピボットは危険。
+**Problem**: Degrades to O(n^2) on sorted, reverse-sorted, and nearly sorted data. In production systems, input data patterns cannot be predicted in advance, making fixed pivots dangerous.
 
-### アンチパターン2: 計数ソートの値域無視
+### Anti-Pattern 2: Ignoring Value Range for Counting Sort
 
 ```python
-# BAD: 値域が巨大な場合に計数ソートを使う
-data = [1, 1000000000, 2]  # count 配列が 10^9 サイズ!
-counting_sort(data)         # メモリ不足でクラッシュ
+# BAD: Using Counting Sort when the value range is huge
+data = [1, 1000000000, 2]  # count array would be 10^9 in size!
+counting_sort(data)         # Crashes with out-of-memory error
 
-# GOOD: 値域を確認してからアルゴリズムを選択
+# GOOD: Check value range before choosing the algorithm
 def smart_sort(data: list) -> list:
     if not data:
         return data
     range_val = max(data) - min(data) + 1
     if range_val <= len(data) * 10:
-        return counting_sort(data)  # 値域が小さい → 計数ソート
+        return counting_sort(data)  # Small range -> Counting Sort
     else:
-        return sorted(data)  # 値域が大きい → 比較ソート
+        return sorted(data)  # Large range -> comparison sort
 ```
 
-**問題点**: 計数ソートの空間計算量は O(n + k) であり、k（値の範囲）が巨大な場合はメモリを大量に消費する。値域の確認なしに使用するのは危険。
+**Problem**: Counting Sort's space complexity is O(n + k), and when k (value range) is huge, it consumes massive memory. Using it without checking the value range is dangerous.
 
-### アンチパターン3: 安定性を無視した選択
+### Anti-Pattern 3: Ignoring Stability Requirements
 
 ```python
-# BAD: レコードのソートに不安定ソートを使い順序が崩れる
+# BAD: Using an unstable sort for records, breaking order
 students = [(3, "Alice"), (1, "Bob"), (3, "Charlie")]
-# ヒープソートを使うと同一キーの Alice, Charlie の順序が保証されない
+# Using Heap Sort does not guarantee the order of Alice and Charlie with the same key
 
-# GOOD: 安定ソートを使う（Python の sort は TimSort で安定）
+# GOOD: Use a stable sort (Python's sort is TimSort, which is stable)
 students.sort(key=lambda x: x[0])
-# [(1, "Bob"), (3, "Alice"), (3, "Charlie")]  ← 元の順序が保持される
+# [(1, "Bob"), (3, "Alice"), (3, "Charlie")]  <- Original order is preserved
 ```
 
-**問題点**: 多段ソート（まず名前順、次に成績順など）で不安定ソートを使うと、先にソートした順序が崩れる。データベースの ORDER BY 相当の処理では安定性が不可欠。
+**Problem**: When performing multi-key sorting (e.g., first by name, then by grade), using an unstable sort breaks the previously established order. Stability is essential for operations equivalent to database ORDER BY.
 
-### アンチパターン4: 再帰深度の無制限
+### Anti-Pattern 4: Unlimited Recursion Depth
 
 ```python
-# BAD: 再帰深度を制限しないクイックソート
-# 最悪ケースで再帰深度が O(n) になり、スタックオーバーフローが発生
+# BAD: Quick Sort without recursion depth limit
+# Worst case leads to O(n) recursion depth, causing stack overflow
 def bad_quicksort(arr, low, high):
     if low < high:
         p = partition(arr, low, high)
-        bad_quicksort(arr, low, p - 1)   # 左側を再帰
-        bad_quicksort(arr, p + 1, high)  # 右側を再帰
-        # n=10000 のソート済みデータで RecursionError!
+        bad_quicksort(arr, low, p - 1)   # Recurse left
+        bad_quicksort(arr, p + 1, high)  # Recurse right
+        # RecursionError on sorted data with n=10000!
 
-# GOOD: Introsort パターンで深度制限 + 末尾再帰最適化
+# GOOD: Introsort pattern with depth limit + tail recursion optimization
 import math
 
 def good_quicksort(arr, low, high, depth=None):
@@ -1624,14 +1624,14 @@ def good_quicksort(arr, low, high, depth=None):
         depth = 2 * math.floor(math.log2(max(len(arr), 1)))
     while low < high:
         if depth == 0:
-            # ヒープソートにフォールバック
+            # Fall back to Heap Sort
             sub = arr[low:high + 1]
             heap_sort(sub)
             arr[low:high + 1] = sub
             return
         depth -= 1
         p = _partition(arr, low, high)
-        # 短い方を再帰、長い方をループ（末尾再帰最適化）
+        # Recurse on the shorter side, loop on the longer side (tail recursion optimization)
         if p - low < high - p:
             good_quicksort(arr, low, p - 1, depth)
             low = p + 1
@@ -1642,107 +1642,107 @@ def good_quicksort(arr, low, high, depth=None):
 
 ---
 
-## 12. 演習問題
+## 12. Exercises
 
-### 基礎レベル
+### Basic Level
 
-**問題 B1: ソートアルゴリズムの手動トレース**
+**Problem B1: Manual Trace of a Sorting Algorithm**
 
-以下の配列 `[6, 3, 8, 2, 7, 4]` に対して、挿入ソートの各ステップを手動でトレースせよ。各ステップでの配列の状態を書き出すこと。
+Manually trace each step of Insertion Sort on the array `[6, 3, 8, 2, 7, 4]`. Write out the state of the array at each step.
 
 <details>
-<summary>解答例</summary>
+<summary>Solution</summary>
 
 ```
-初期: [6, 3, 8, 2, 7, 4]
+Initial: [6, 3, 8, 2, 7, 4]
 
-i=1: key=3, 6>3 → シフト
+i=1: key=3, 6>3 -> shift
   [3, 6, 8, 2, 7, 4]
 
-i=2: key=8, 6<8 → 移動なし
+i=2: key=8, 6<8 -> no shift
   [3, 6, 8, 2, 7, 4]
 
-i=3: key=2, 8>2 → シフト, 6>2 → シフト, 3>2 → シフト
+i=3: key=2, 8>2 -> shift, 6>2 -> shift, 3>2 -> shift
   [2, 3, 6, 8, 7, 4]
 
-i=4: key=7, 8>7 → シフト, 6<7 → 停止
+i=4: key=7, 8>7 -> shift, 6<7 -> stop
   [2, 3, 6, 7, 8, 4]
 
-i=5: key=4, 8>4 → シフト, 7>4 → シフト, 6>4 → シフト, 3<4 → 停止
+i=5: key=4, 8>4 -> shift, 7>4 -> shift, 6>4 -> shift, 3<4 -> stop
   [2, 3, 4, 6, 7, 8]
 ```
 
 </details>
 
-**問題 B2: 安定性の判定**
+**Problem B2: Identifying Stability**
 
-以下のソートアルゴリズムのうち、安定なものを全て選べ。
+From the following sorting algorithms, select all that are stable.
 
-(a) バブルソート  (b) 選択ソート  (c) 挿入ソート  (d) マージソート  (e) クイックソート  (f) ヒープソート  (g) 計数ソート
+(a) Bubble Sort  (b) Selection Sort  (c) Insertion Sort  (d) Merge Sort  (e) Quick Sort  (f) Heap Sort  (g) Counting Sort
 
 <details>
-<summary>解答</summary>
+<summary>Solution</summary>
 
-安定なソート: **(a) バブルソート、(c) 挿入ソート、(d) マージソート、(g) 計数ソート**
+Stable sorts: **(a) Bubble Sort, (c) Insertion Sort, (d) Merge Sort, (g) Counting Sort**
 
-不安定なソート: (b) 選択ソート、(e) クイックソート、(f) ヒープソート
+Unstable sorts: (b) Selection Sort, (e) Quick Sort, (f) Heap Sort
 
-選択ソートは離れた位置の要素を交換するため不安定。クイックソートはパーティション操作で相対順序が崩れる。ヒープソートはヒープの再構築で相対順序が崩れる。
+Selection Sort is unstable because it swaps elements at distant positions. Quick Sort's partition operation disrupts relative order. Heap Sort's heap reconstruction disrupts relative order.
 
 </details>
 
-**問題 B3: 計算量の比較**
+**Problem B3: Complexity Comparison**
 
-n = 1,000,000 のランダムデータをソートする場合、バブルソート O(n^2) とマージソート O(n log n) のおおよその計算ステップ数をそれぞれ見積もれ。
+For random data with n = 1,000,000, estimate the approximate number of computational steps for Bubble Sort O(n^2) and Merge Sort O(n log n).
 
 <details>
-<summary>解答</summary>
+<summary>Solution</summary>
 
 ```
-バブルソート: n^2 = (10^6)^2 = 10^12 ステップ
-マージソート: n * log2(n) = 10^6 * 20 = 2 * 10^7 ステップ
+Bubble Sort: n^2 = (10^6)^2 = 10^12 steps
+Merge Sort: n * log2(n) = 10^6 * 20 = 2 * 10^7 steps
 
-差: 10^12 / (2 * 10^7) = 50,000 倍
+Ratio: 10^12 / (2 * 10^7) = 50,000x
 
-仮に 1 ステップ = 1ナノ秒 とすると:
-  バブルソート: 10^12 ns = 1000 秒 (約 16.7 分)
-  マージソート: 2 * 10^7 ns = 0.02 秒
+Assuming 1 step = 1 nanosecond:
+  Bubble Sort: 10^12 ns = 1000 seconds (approx. 16.7 minutes)
+  Merge Sort: 2 * 10^7 ns = 0.02 seconds
 
-この差がアルゴリズムの計算量クラスの重要性を示している。
+This difference demonstrates the importance of algorithmic complexity classes.
 ```
 
 </details>
 
-### 応用レベル
+### Applied Level
 
-**問題 A1: k 番目に小さい要素の探索**
+**Problem A1: Finding the k-th Smallest Element**
 
-ソートを使わずに、配列の中から k 番目に小さい要素を平均 O(n) で見つけるアルゴリズムを実装せよ（Quickselect アルゴリズム）。
+Implement an algorithm that finds the k-th smallest element in an array in average O(n) without sorting (Quickselect algorithm).
 
 <details>
-<summary>解答例</summary>
+<summary>Solution</summary>
 
 ```python
 import random
 
 
 def quickselect(arr: list, k: int) -> int:
-    """Quickselect - 平均 O(n) で k 番目に小さい要素を見つける
+    """Quickselect - finds the k-th smallest element in average O(n)
 
-    クイックソートのパーティションを利用し、
-    必要な側だけを再帰的に処理することで計算量を削減する。
+    Uses Quick Sort's partitioning but only recurses into the
+    needed side, reducing complexity.
 
     Args:
-        arr: 数値のリスト
-        k: 1-indexed で何番目に小さい要素を求めるか
+        arr: List of numbers
+        k: The k-th smallest element to find (1-indexed)
 
     Returns:
-        k 番目に小さい要素
+        The k-th smallest element
     """
     if k < 1 or k > len(arr):
         raise ValueError(f"k={k} is out of range for array of size {len(arr)}")
 
-    arr = arr[:]  # 元の配列を変更しないためにコピー
+    arr = arr[:]  # Copy to avoid modifying the original
     return _quickselect(arr, 0, len(arr) - 1, k - 1)
 
 
@@ -1750,11 +1750,11 @@ def _quickselect(arr: list, low: int, high: int, k: int) -> int:
     if low == high:
         return arr[low]
 
-    # ランダムピボット
+    # Random pivot
     pivot_idx = random.randint(low, high)
     arr[pivot_idx], arr[high] = arr[high], arr[pivot_idx]
 
-    # パーティション
+    # Partition
     pivot = arr[high]
     i = low - 1
     for j in range(low, high):
@@ -1772,35 +1772,36 @@ def _quickselect(arr: list, low: int, high: int, k: int) -> int:
         return _quickselect(arr, pivot_pos + 1, high, k)
 
 
-# --- 動作確認 ---
+# --- Test ---
 if __name__ == "__main__":
     data = [7, 10, 4, 3, 20, 15]
-    print(quickselect(data, 3))  # 7 (3番目に小さい要素)
-    print(quickselect(data, 1))  # 3 (最小値)
-    print(quickselect(data, 6))  # 20 (最大値)
+    print(quickselect(data, 3))  # 7 (3rd smallest element)
+    print(quickselect(data, 1))  # 3 (minimum)
+    print(quickselect(data, 6))  # 20 (maximum)
 ```
 
 </details>
 
-**問題 A2: マージソートを用いた転倒数の計算**
+**Problem A2: Counting Inversions Using Merge Sort**
 
-配列の転倒数（inversion count: i < j かつ arr[i] > arr[j] となるペアの数）をマージソートを改造して O(n log n) で計算する関数を実装せよ。
+Implement a function that computes the inversion count (the number of pairs where i < j and arr[i] > arr[j]) of an array in O(n log n) by modifying Merge Sort.
 
 <details>
-<summary>解答例</summary>
+<summary>Solution</summary>
 
 ```python
 def count_inversions(arr: list) -> tuple[list, int]:
-    """マージソートを利用して転倒数を O(n log n) で計算する
+    """Compute inversion count in O(n log n) using Merge Sort
 
-    マージ時に右側配列の要素が先に出力される回数を数える。
-    右側要素が選ばれたとき、左側の残り要素数が転倒数への寄与。
+    Counts the number of times a right-side element is output first during merging.
+    When a right-side element is chosen, the remaining count of left-side elements
+    contributes to the inversion count.
 
     Args:
-        arr: 数値のリスト
+        arr: List of numbers
 
     Returns:
-        (ソート済みリスト, 転倒数) のタプル
+        Tuple of (sorted list, inversion count)
     """
     if len(arr) <= 1:
         return arr[:], 0
@@ -1819,7 +1820,7 @@ def count_inversions(arr: list) -> tuple[list, int]:
             i += 1
         else:
             merged.append(right[j])
-            # 左側の残り要素数が全て転倒ペアを形成
+            # All remaining left-side elements form inversion pairs
             inversions += len(left) - i
             j += 1
 
@@ -1829,51 +1830,51 @@ def count_inversions(arr: list) -> tuple[list, int]:
     return merged, inversions
 
 
-# --- 動作確認 ---
+# --- Test ---
 if __name__ == "__main__":
     data = [2, 4, 1, 3, 5]
     sorted_arr, inv_count = count_inversions(data)
-    print(f"ソート済み: {sorted_arr}")  # [1, 2, 3, 4, 5]
-    print(f"転倒数: {inv_count}")       # 3
-    # 転倒ペア: (2,1), (4,1), (4,3)
+    print(f"Sorted: {sorted_arr}")  # [1, 2, 3, 4, 5]
+    print(f"Inversions: {inv_count}")  # 3
+    # Inversion pairs: (2,1), (4,1), (4,3)
 
     data2 = [5, 4, 3, 2, 1]
     _, inv_count2 = count_inversions(data2)
-    print(f"逆順の転倒数: {inv_count2}")  # 10 = 5*4/2
+    print(f"Inversions in reverse: {inv_count2}")  # 10 = 5*4/2
 ```
 
 </details>
 
-### 発展レベル
+### Advanced Level
 
-**問題 C1: 比較ベースソートの下限証明**
+**Problem C1: Lower Bound Proof for Comparison-Based Sorts**
 
-決定木モデルを用いて、比較ベースソートの最悪計算量が Omega(n log n) であることを証明せよ。
+Prove using the decision tree model that the worst-case complexity of comparison-based sorting is Omega(n log n).
 
 <details>
-<summary>解答の要点</summary>
+<summary>Key Points of the Proof</summary>
 
-**証明の概要:**
+**Proof outline:**
 
-1. n 個の要素のソートは、n! 通りの順列のうちどれが入力かを特定する問題と等価である。
+1. Sorting n elements is equivalent to the problem of determining which of the n! permutations is the input.
 
-2. 比較ベースのアルゴリズムは二分決定木としてモデル化できる。各内部ノードは「a_i < a_j ?」という比較を表し、YES/NO の2つの子を持つ。
+2. A comparison-based algorithm can be modeled as a binary decision tree. Each internal node represents a comparison "a_i < a_j?" with two children YES/NO.
 
-3. 決定木の各葉は、ある特定の順列に対応する出力を表す。正しくソートするには、全ての n! 通りの順列に対して異なる葉が必要。
+3. Each leaf of the decision tree represents output corresponding to a specific permutation. To sort correctly, distinct leaves are needed for all n! permutations.
 
-4. したがって、決定木の葉の数 L >= n! である。
+4. Therefore, the number of leaves L >= n!.
 
-5. 高さ h の二分木の葉の数は最大 2^h であるから:
+5. The maximum number of leaves in a binary tree of height h is 2^h, so:
    2^h >= L >= n!
    h >= log2(n!)
 
-6. スターリングの近似 n! >= (n/e)^n より:
+6. By Stirling's approximation n! >= (n/e)^n:
    h >= log2((n/e)^n) = n * log2(n/e) = n * (log2(n) - log2(e))
    h = Omega(n log n)
 
-7. 決定木の高さは最悪ケースの比較回数に対応するため、比較ベースソートの最悪計算量は Omega(n log n)。
+7. Since the height of the decision tree corresponds to the worst-case number of comparisons, the worst-case complexity of comparison-based sorting is Omega(n log n).
 
-この下限は情報理論的な議論であり、特定のアルゴリズムに依存しない普遍的な結果である。
+This lower bound is an information-theoretic argument and is a universal result independent of any specific algorithm.
 
 </details>
 
@@ -1881,147 +1882,147 @@ if __name__ == "__main__":
 
 ## 13. FAQ
 
-### Q1: Python の `sort()` と `sorted()` は何のアルゴリズム？
+### Q1: What algorithm do Python's `sort()` and `sorted()` use?
 
-**A:** TimSort（マージソート + 挿入ソートのハイブリッド）を使用している。安定で、最良 O(n)、平均・最悪 O(n log n)。実データのパターン（run: 既にソートされた部分列）を検出して効率化する。`sort()` は in-place で元のリストを変更し、`sorted()` は新しいリストを返す。Java の `Arrays.sort()` もオブジェクト配列に TimSort を使用する（プリミティブ型には Dual-Pivot Quicksort を使用）。
+**A:** They use TimSort (a hybrid of Merge Sort + Insertion Sort). It is stable, with best-case O(n), and average/worst-case O(n log n). It detects and exploits patterns in real data (runs: already sorted subsequences). `sort()` is in-place and modifies the original list, while `sorted()` returns a new list. Java's `Arrays.sort()` also uses TimSort for object arrays (it uses Dual-Pivot Quicksort for primitive types).
 
-### Q2: O(n log n) より速いソートは存在するか？
+### Q2: Does a sort faster than O(n log n) exist?
 
-**A:** 比較ベースのソートでは O(n log n) が理論的下限である（決定木の高さによる証明）。ただし、非比較ベースのソート（計数ソート、基数ソート、バケットソート）はこの制約を受けず、データの性質に応じて O(n) を達成できる。ただし、これらは入力データに対する前提条件（整数であること、値の範囲が限定的であること、等）が必要である。
+**A:** For comparison-based sorts, O(n log n) is the theoretical lower bound (proven via decision tree height). However, non-comparison-based sorts (Counting Sort, Radix Sort, Bucket Sort) are not subject to this constraint and can achieve O(n) depending on data characteristics. These, however, require preconditions on the input data (being integers, having a limited value range, etc.).
 
-### Q3: 実務で自前ソートを実装すべきか？
+### Q3: Should you implement your own sort in practice?
 
-**A:** 通常は NO。言語標準のソート（Python の TimSort、C++ の Introsort、Java の Dual-Pivot Quicksort 等）は高度に最適化されており、自前実装より高速かつ堅牢。自前実装が正当化されるのは以下の限定的な場面のみ:
-- 外部ソート（ディスク上の大規模データ）
-- 特殊なキー関数やカスタム比較が必要な場合
-- 組み込みシステムでメモリ制約が極めて厳しい場合
-- 教育・研究目的
+**A:** Usually NO. Language-standard sorts (Python's TimSort, C++'s Introsort, Java's Dual-Pivot Quicksort, etc.) are highly optimized and are faster and more robust than custom implementations. Custom implementation is justified only in the following limited scenarios:
+- External sorting (large-scale data on disk)
+- When special key functions or custom comparisons are needed
+- Embedded systems with extremely tight memory constraints
+- Educational or research purposes
 
-### Q4: クイックソートとマージソートの使い分けは？
+### Q4: When should you choose Quick Sort vs. Merge Sort?
 
-**A:** クイックソートは平均的に高速（キャッシュ効率が良く、定数係数が小さい）だが最悪 O(n^2) のリスクがある。マージソートは O(n log n) が保証され安定だが、O(n) の追加メモリが必要。実用的な指針:
-- **安定性が必要** → マージソート / TimSort
-- **メモリ制約がある** → クイックソート（Introsort で最悪ケースを回避）
-- **外部ソート** → マージソート（逐次アクセスパターンがディスクI/Oに適合）
-- **汎用的な選択** → 言語標準のソート関数を使用する
+**A:** Quick Sort is on average faster (good cache efficiency, small constant factor) but has the risk of worst-case O(n^2). Merge Sort guarantees O(n log n) and is stable, but requires O(n) additional memory. Practical guidelines:
+- **Stability required** -> Merge Sort / TimSort
+- **Memory constrained** -> Quick Sort (avoid worst case with Introsort)
+- **External sorting** -> Merge Sort (sequential access pattern suits disk I/O)
+- **General-purpose choice** -> Use the language's standard sort function
 
-### Q5: なぜ C++ は不安定ソート（std::sort）をデフォルトにしているのか？
+### Q5: Why does C++ use an unstable sort (std::sort) as the default?
 
-**A:** `std::sort` は Introsort をベースとしており、in-place（O(log n) の追加メモリ）で動作する。安定性を保証するには O(n) の追加メモリが必要なマージベースのアルゴリズムが必要で、性能とメモリ効率のトレードオフから不安定ソートがデフォルトに選ばれた。安定ソートが必要な場合は `std::stable_sort`（マージソートベース）を使用する。
+**A:** `std::sort` is based on Introsort and operates in-place (O(log n) additional memory). Guaranteeing stability requires a merge-based algorithm with O(n) additional memory. Due to the performance and memory efficiency trade-off, an unstable sort was chosen as the default. When stability is required, use `std::stable_sort` (merge sort-based).
 
-### Q6: ソートの並列化はどのように行うか？
+### Q6: How is sorting parallelized?
 
-**A:** 主なアプローチは以下の通り:
-- **並列マージソート**: 分割された部分配列を独立したスレッドでソートし、マージする。分割フェーズは自然に並列化でき、マージフェーズも並列マージアルゴリズムが存在する。
-- **並列クイックソート**: パーティション後の左右を別スレッドで処理する。ただしパーティション自体の並列化は難しい。
-- **ソーティングネットワーク**: Bitonic Sort や Odd-Even Merge Sort など、比較の順序が入力に依存しないアルゴリズム。GPU での並列ソートに適している。
-- **サンプルソート**: データからサンプルを取り出してピボットの組を決定し、データを均等に分割して各プロセッサに配分する。分散環境向け。
+**A:** The main approaches are as follows:
+- **Parallel Merge Sort**: Sort divided subarrays in independent threads and merge. The division phase naturally parallelizes, and parallel merge algorithms exist for the merge phase.
+- **Parallel Quick Sort**: Process left and right partitions in separate threads. However, parallelizing the partition itself is difficult.
+- **Sorting Networks**: Algorithms like Bitonic Sort and Odd-Even Merge Sort where the comparison order is independent of input. Suitable for parallel sorting on GPUs.
+- **Sample Sort**: Take samples from the data to determine a set of pivots, distribute data evenly to processors. Designed for distributed environments.
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when studying this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Building practical experience is the most important thing. Understanding deepens not only through theory but also by actually writing code and verifying behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before proceeding to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this applied in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently used in day-to-day development work. It becomes particularly important during code reviews and architecture design.
 
 ---
 
-## 14. まとめ
+## 14. Summary
 
-### 14.1 要点の整理
+### 14.1 Key Points
 
-| 項目 | 要点 |
+| Item | Key Point |
 |:---|:---|
-| O(n^2) ソート | バブル・選択・挿入は教育的、小規模データや部分ソートに有用 |
-| O(n log n) ソート | マージ・クイック・ヒープが実用の中心 |
-| 非比較ソート | 計数・基数・バケットは条件付きで O(n) |
-| ハイブリッドソート | TimSort（マージ+挿入）、Introsort（クイック+ヒープ+挿入）が現代の標準 |
-| 安定性 | レコードの相対順序を保持するかどうか。マージ・挿入・計数・TimSort は安定 |
-| 実務選択 | 言語標準ソート（TimSort / Introsort）が第一選択、特殊要件時のみ自前実装 |
-| ピボット戦略 | ランダム化 or 三値中央値で最悪ケースを回避 |
-| 理論的下限 | 比較ベースソートは O(n log n) が下限（決定木モデルによる証明） |
+| O(n^2) sorts | Bubble, Selection, and Insertion are educational; useful for small data or partial sorting |
+| O(n log n) sorts | Merge, Quick, and Heap are at the core of practical use |
+| Non-comparison sorts | Counting, Radix, and Bucket achieve O(n) under certain conditions |
+| Hybrid sorts | TimSort (Merge + Insertion) and Introsort (Quick + Heap + Insertion) are the modern standard |
+| Stability | Whether relative order of records is preserved. Merge, Insertion, Counting, and TimSort are stable |
+| Practical choice | Language-standard sorts (TimSort / Introsort) are the first choice; custom implementation only for special requirements |
+| Pivot strategy | Randomization or median-of-three to avoid worst-case behavior |
+| Theoretical lower bound | O(n log n) is the lower bound for comparison-based sorting (proven by decision tree model) |
 
-### 14.2 アルゴリズム選択のフローチャート
+### 14.2 Algorithm Selection Flowchart
 
 ```
-ソートアルゴリズム選択フロー:
+Sorting algorithm selection flow:
 
-                        データの性質は?
+                        Nature of data?
                        /              \
-                整数 (範囲小)        一般的
+                Integers (small range)  General
                      |                  |
-               計数/基数ソート     データサイズは?
+               Counting/Radix Sort  Data size?
                                   /     |      \
-                              小(n<50)  中      大(外部)
+                              Small(n<50) Med    Large(external)
                                 |       |        |
-                            挿入ソート  |    外部マージソート
+                          Insertion Sort |    External Merge Sort
                                        |
-                                安定性は必要?
+                                Is stability needed?
                                /            \
                              Yes             No
                               |               |
-                         TimSort /      メモリ制約は?
-                       マージソート     /          \
-                                    厳しい       余裕あり
+                         TimSort /      Memory constraint?
+                       Merge Sort      /          \
+                                    Tight        Plenty
                                       |            |
-                                 ヒープソート   Introsort /
-                                              クイックソート
+                                 Heap Sort     Introsort /
+                                              Quick Sort
 ```
 
-### 14.3 学習のロードマップ
+### 14.3 Learning Roadmap
 
 ```
-Level 1 (入門):
-  挿入ソート → バブルソート → 選択ソート
-  ↓
-Level 2 (中級):
-  マージソート → クイックソート → ヒープソート
-  ↓
-Level 3 (上級):
-  計数/基数/バケットソート → シェルソート
-  ↓
-Level 4 (発展):
-  TimSort → Introsort → 外部ソート → 並列ソート
-  ↓
-Level 5 (理論):
-  計算量の下限証明 → 情報理論的最適性 → 適応的ソートの理論
+Level 1 (Beginner):
+  Insertion Sort -> Bubble Sort -> Selection Sort
+  |
+Level 2 (Intermediate):
+  Merge Sort -> Quick Sort -> Heap Sort
+  |
+Level 3 (Advanced):
+  Counting/Radix/Bucket Sort -> Shell Sort
+  |
+Level 4 (Expert):
+  TimSort -> Introsort -> External Sort -> Parallel Sort
+  |
+Level 5 (Theory):
+  Lower bound proofs -> Information-theoretic optimality -> Adaptive sorting theory
 ```
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Guides
 
-- [探索アルゴリズム](./01-searching.md) -- ソート済みデータに対する効率的な探索
-- [分割統治法](./06-divide-conquer.md) -- マージソート・クイックソートの設計パラダイム
-- [動的計画法](./04-dynamic-programming.md) -- 最適部分構造を活用する別のパラダイム
-
----
-
-## 15. 参考文献
-
-1. Cormen, T. H., Leiserson, C. E., Rivest, R. L., & Stein, C. (2022). *Introduction to Algorithms* (4th ed.). MIT Press. -- 第2章（挿入ソート）、第6章（ヒープソート）、第7章（クイックソート）、第8章（線形時間ソート）
-2. Sedgewick, R. & Wayne, K. (2011). *Algorithms* (4th ed.). Addison-Wesley. -- Part 2: Sorting（マージソート、クイックソート、優先度キュー、応用）
-3. Knuth, D. E. (1998). *The Art of Computer Programming, Volume 3: Sorting and Searching* (2nd ed.). Addison-Wesley. -- ソートアルゴリズムの網羅的な分析と歴史
-4. Python Documentation. "Sorting HOW TO." https://docs.python.org/3/howto/sorting.html -- Python のソート機能の公式ガイド
-5. McIlroy, P. (1993). "Optimistic Sorting and Information Theoretic Complexity." *Proceedings of the Fourth Annual ACM-SIAM Symposium on Discrete Algorithms (SODA)*. -- TimSort の理論的基盤
-6. Musser, D. R. (1997). "Introspective Sorting and Selection Algorithms." *Software: Practice and Experience*, 27(8), 983-993. -- Introsort の原論文
-7. Peters, T. (2002). "[Python-Dev] Sorting." https://mail.python.org/pipermail/python-dev/2002-July/026837.html -- TimSort の設計文書
+- [Search Algorithms](./01-searching.md) -- Efficient searching on sorted data
+- [Divide and Conquer](./06-divide-conquer.md) -- The design paradigm behind Merge Sort and Quick Sort
+- [Dynamic Programming](./04-dynamic-programming.md) -- Another paradigm leveraging optimal substructure
 
 ---
 
+## 15. References
+
+1. Cormen, T. H., Leiserson, C. E., Rivest, R. L., & Stein, C. (2022). *Introduction to Algorithms* (4th ed.). MIT Press. -- Chapter 2 (Insertion Sort), Chapter 6 (Heap Sort), Chapter 7 (Quick Sort), Chapter 8 (Linear-Time Sorting)
+2. Sedgewick, R. & Wayne, K. (2011). *Algorithms* (4th ed.). Addison-Wesley. -- Part 2: Sorting (Merge Sort, Quick Sort, Priority Queues, Applications)
+3. Knuth, D. E. (1998). *The Art of Computer Programming, Volume 3: Sorting and Searching* (2nd ed.). Addison-Wesley. -- Comprehensive analysis and history of sorting algorithms
+4. Python Documentation. "Sorting HOW TO." https://docs.python.org/3/howto/sorting.html -- Official guide to Python's sorting features
+5. McIlroy, P. (1993). "Optimistic Sorting and Information Theoretic Complexity." *Proceedings of the Fourth Annual ACM-SIAM Symposium on Discrete Algorithms (SODA)*. -- Theoretical foundation of TimSort
+6. Musser, D. R. (1997). "Introspective Sorting and Selection Algorithms." *Software: Practice and Experience*, 27(8), 983-993. -- Original paper on Introsort
+7. Peters, T. (2002). "[Python-Dev] Sorting." https://mail.python.org/pipermail/python-dev/2002-July/026837.html -- TimSort design document
+
 ---
 
-## 参考文献
+---
 
-- [MDN Web Docs](https://developer.mozilla.org/) - Web技術のリファレンス
-- [Wikipedia](https://ja.wikipedia.org/) - 技術概念の概要
+## References
+
+- [MDN Web Docs](https://developer.mozilla.org/) - Web technology reference
+- [Wikipedia](https://en.wikipedia.org/) - Overview of technical concepts

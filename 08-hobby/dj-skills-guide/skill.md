@@ -1,657 +1,659 @@
+[日本語版](../../ja/08-hobby/dj-skills-guide/SKILL.md)
+
 ---
 name: dj-production
-description: DJテクニック（Rekordbox 7.2.7）と楽曲制作（Ableton Live 12 Suite）を体系的に学べる包括的なガイド。基礎音楽理論から応用テクニック、キャリア構築まで、DJ・音楽プロデューサーに必要な全スキルをカバー。
+description: A comprehensive guide to systematically learning DJ techniques (Rekordbox 7.2.7) and music production (Ableton Live 12 Suite). Covers everything a DJ and music producer needs — from foundational music theory and applied techniques to career development.
 ---
 
 # DJ & Production Skill
 
 
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] 基本概念と用語の理解
-- [ ] 実装パターンとベストプラクティスの習得
-- [ ] 実務での適用方法の把握
-- [ ] トラブルシューティングの基本
-
----
-
-## 前提知識
-
-このガイドを読む前に、以下の知識があると理解が深まります:
-
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [DJ Skills Guide 構成レビュー（2025-12-01）](./STRUCTURE_REVIEW.md) の内容を理解していること
+- [ ] Understanding core concepts and terminology
+- [ ] Mastering implementation patterns and best practices
+- [ ] Knowing how to apply skills in real-world scenarios
+- [ ] Fundamentals of troubleshooting
 
 ---
 
-## 📋 目次
+## Prerequisites
 
-1. [概要](#概要)
-2. [いつ使うか](#いつ使うか)
-3. [00-fundamentals - 音楽の基礎知識](#00-fundamentals---音楽の基礎知識)
-4. [DJ スキル（Rekordbox 7.2.7）](#dj-スキルrekordbox-727)
-5. [楽曲制作（Ableton Live 12 Suite）](#楽曲制作ableton-live-12-suite)
-6. [DJ × 制作の統合](#dj--制作の統合)
-7. [学習ロードマップ](#学習ロードマップ)
-8. [ベストプラクティス](#ベストプラクティス)
+Having the following knowledge will deepen your understanding of this guide:
+
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Familiarity with the contents of [DJ Skills Guide Structure Review (2025-12-01)](./STRUCTURE_REVIEW.md)
 
 ---
 
-## 概要
+## Table of Contents
 
-このSkillは、**DJ パフォーマンス**と**楽曲制作**の両方を包括的にカバーします：
+1. [Overview](#overview)
+2. [When to Use This Guide](#when-to-use-this-guide)
+3. [00-fundamentals - Music Foundations](#00-fundamentals---music-foundations)
+4. [DJ Skills (Rekordbox 7.2.7)](#dj-skills-rekordbox-727)
+5. [Music Production (Ableton Live 12 Suite)](#music-production-ableton-live-12-suite)
+6. [Integrating DJ and Production](#integrating-dj-and-production)
+7. [Learning Roadmap](#learning-roadmap)
+8. [Best Practices](#best-practices)
 
-### 使用ツール
+---
+
+## Overview
+
+This Skill comprehensively covers both **DJ performance** and **music production**:
+
+### Tools Used
 - **DJ**: Rekordbox 7.2.7
-- **制作**: Ableton Live 12 Suite
+- **Production**: Ableton Live 12 Suite
 
-### カバー範囲
-- ✅ 音楽理論基礎（スケール、コード、リズム、ハーモニー）
-- ✅ DJ 基礎知識と機材セットアップ
-- ✅ ビートマッチング、ミキシング、EQ 操作
-- ✅ ハーモニックミキシング、エフェクト、スクラッチ
-- ✅ 選曲とセットリスト構築
-- ✅ ジャンル別テクニック（House, Techno, Hip Hop, Dubstep, D&B）
-- ✅ Ableton Live での楽曲制作（シンセシス、サンプリング、アレンジメント）
-- ✅ ミキシング・マスタリング
-- ✅ DJ 用トラック制作とリミックス
-- ✅ ライブパフォーマンス
-- ✅ キャリア構築とブランディング
-
----
-
-## いつ使うか
-
-### 自動的に参照されるケース
-
-- DJ セットの準備やミキシング技術の相談
-- Rekordbox の使い方や機材選定
-- 楽曲制作（Ableton Live）の質問
-- ジャンル別の制作テクニック
-- ミキシング・マスタリングの手法
-- 音楽理論やハーモニックミキシングの質問
-
-### 手動で参照すべきケース
-
-- DJ としてのキャリアプランを立てる時
-- 新しいジャンルに挑戦する時
-- ライブパフォーマンスのセットアップ
-- オリジナル曲で DJ をする統合ワークフロー
+### Coverage
+- Foundational music theory (scales, chords, rhythm, harmony)
+- DJ fundamentals and equipment setup
+- Beatmatching, mixing, and EQ techniques
+- Harmonic mixing, effects, and scratching
+- Track selection and setlist construction
+- Genre-specific techniques (House, Techno, Hip Hop, Dubstep, D&B)
+- Music production in Ableton Live (synthesis, sampling, arrangement)
+- Mixing and mastering
+- Producing DJ-ready tracks and remixes
+- Live performance
+- Career development and branding
 
 ---
 
-## 00-fundamentals - 音楽の基礎知識
+## When to Use This Guide
 
-DJ と楽曲制作の両方に共通する基礎知識。
+### Automatically Referenced In
 
-### 音楽理論基礎
-- **スケール**: メジャー、マイナー、ペンタトニック、ブルース
-- **コード**: トライアド、セブンス、テンション
-- **インターバル**: 音程の関係性と協和・不協和
+- Preparing DJ sets or discussing mixing techniques
+- Rekordbox usage and equipment selection
+- Music production questions (Ableton Live)
+- Genre-specific production techniques
+- Mixing and mastering methods
+- Music theory and harmonic mixing questions
 
-### リズム基礎
-- **BPM**: テンポの概念と測定方法
-- **拍子**: 4/4, 3/4, 6/8 などの拍子記号
-- **グルーヴ**: リズムの感覚とスウィング
+### When to Reference Manually
 
-### 和声基礎
-- **コード進行**: I-V-vi-IV などの基本進行
-- **ダイアトニックコード**: キー内のコード体系
-- **機能和声**: トニック、ドミナント、サブドミナント
-
-### オーディオ基礎
-- **サンプルレート**: 44.1kHz, 48kHz の違い
-- **ビット深度**: 16bit, 24bit の違い
-- **デジタルオーディオ**: アナログとデジタルの変換
-
-### 周波数とスペクトラム
-- **周波数帯域**: Low (20-250Hz), Mid (250Hz-4kHz), High (4kHz-20kHz)
-- **EQ 基礎**: ブースト・カット、Q値、シェルビング
-- **周波数バランス**: ミキシングにおける帯域分離
-
-### キーとスケール
-- **調性**: メジャーとマイナーの違い
-- **ハーモニックミキシング**: Camelot Wheel, Open Key システム
-- **キーマッチング**: 相性の良いキーの組み合わせ
+- Planning a career as a DJ
+- Exploring a new genre
+- Setting up for a live performance
+- Integrated workflows for DJing with original tracks
 
 ---
 
-## DJ スキル（Rekordbox 7.2.7）
+## 00-fundamentals - Music Foundations
 
-### 01-basics - DJ 基礎知識
+Foundational knowledge shared by both DJing and music production.
 
-#### DJ とは何か
-- DJ の歴史と進化
-- 現代 DJ の役割
-- DJing vs ターンテーブリズム
+### Music Theory Basics
+- **Scales**: Major, minor, pentatonic, blues
+- **Chords**: Triads, sevenths, tensions
+- **Intervals**: Relationships between pitches — consonance and dissonance
 
-#### 基本概念
-- **BPM（Beats Per Minute）**: テンポの単位
-- **フレーズ構造**: 4小節、8小節、16小節、32小節
-- **DJ マインドセット**: フロアリーディング、音楽選択の哲学
+### Rhythm Basics
+- **BPM**: The concept of tempo and how to measure it
+- **Time Signatures**: 4/4, 3/4, 6/8, and other meters
+- **Groove**: Rhythmic feel and swing
 
-### 02-equipment - 機材ガイド
+### Harmony Basics
+- **Chord Progressions**: Common patterns such as I-V-vi-IV
+- **Diatonic Chords**: The chord system within a key
+- **Functional Harmony**: Tonic, dominant, subdominant
 
-#### DJ コントローラー
-- **初心者向け**: DDJ-400, DDJ-FLX4
-- **中級者向け**: DDJ-800, DDJ-FLX10
-- **上級者向け**: DDJ-1000, DDJ-REV7
+### Audio Basics
+- **Sample Rate**: Differences between 44.1kHz and 48kHz
+- **Bit Depth**: Differences between 16-bit and 24-bit
+- **Digital Audio**: Analog-to-digital conversion
 
-#### CDJ・ミキサー
+### Frequency and Spectrum
+- **Frequency Bands**: Low (20-250Hz), Mid (250Hz-4kHz), High (4kHz-20kHz)
+- **EQ Basics**: Boost and cut, Q value, shelving
+- **Frequency Balance**: Band separation in mixing
+
+### Key and Scale
+- **Tonality**: Differences between major and minor
+- **Harmonic Mixing**: Camelot Wheel and Open Key systems
+- **Key Matching**: Compatible key combinations
+
+---
+
+## DJ Skills (Rekordbox 7.2.7)
+
+### 01-basics - DJ Fundamentals
+
+#### What Is a DJ?
+- History and evolution of DJing
+- The role of the modern DJ
+- DJing vs. turntablism
+
+#### Core Concepts
+- **BPM (Beats Per Minute)**: The unit of tempo
+- **Phrase Structure**: 4-bar, 8-bar, 16-bar, and 32-bar phrases
+- **DJ Mindset**: Reading the floor and the philosophy of music selection
+
+### 02-equipment - Equipment Guide
+
+#### DJ Controllers
+- **Beginner**: DDJ-400, DDJ-FLX4
+- **Intermediate**: DDJ-800, DDJ-FLX10
+- **Advanced**: DDJ-1000, DDJ-REV7
+
+#### CDJs and Mixers
 - **CDJ**: CDJ-3000, CDJ-2000NXS2
-- **ミキサー**: DJM-900NXS2, DJM-V10
+- **Mixer**: DJM-900NXS2, DJM-V10
 
-#### Rekordbox 設定
-- **ライブラリ管理**: トラック整理、タグ付け、プレイリスト
-- **分析**: ビートグリッド調整、キー検出
-- **エクスポート**: USB デバイスへの転送
+#### Rekordbox Configuration
+- **Library Management**: Organizing tracks, tagging, and playlists
+- **Analysis**: Beatgrid adjustment and key detection
+- **Export**: Transferring to USB devices
 
-### 03-basic-techniques - 基本テクニック
+### 03-basic-techniques - Basic Techniques
 
-#### ビートマッチング
-- **手順**:
-  1. 両トラックの BPM を確認
-  2. Pitch Fader でテンポを合わせる
-  3. Jog Wheel で位相を調整
-  4. 同期を保ちながら Crossfader でミックス
+#### Beatmatching
+- **Steps**:
+  1. Check the BPM of both tracks
+  2. Match the tempo using the Pitch Fader
+  3. Align the phase using the Jog Wheel
+  4. Mix using the Crossfader while maintaining sync
 
-#### ミキシング
-- **クロスフェード**: スムーズなトランジション
-- **レベル調整**: Trim、Channel Fader、Master Output
-- **モニタリング**: ヘッドホンでの Cue 出し
+#### Mixing
+- **Crossfade**: Smooth transitions
+- **Level Adjustment**: Trim, Channel Fader, and Master Output
+- **Monitoring**: Cueing through headphones
 
-#### EQ 操作
-- **3バンド EQ**: High, Mid, Low の調整
-- **基本テクニック**:
-  - Low Cut: ベースの衝突を避ける
-  - High Cut: 滑らかなトランジション
-  - Mid 調整: ボーカルや主旋律の管理
+#### EQ Techniques
+- **3-Band EQ**: Adjusting High, Mid, and Low
+- **Basic Techniques**:
+  - Low Cut: Avoid bass collisions
+  - High Cut: Smooth transitions
+  - Mid Adjustment: Managing vocals and lead melodies
 
-#### キューイング
-- **Cue Point 設定**: トラックの頭出しポイント
-- **Hot Cue**: 瞬時アクセス用のマーカー
-- **メモリーキュー**: Rekordbox でのキューポイント保存
+#### Cueing
+- **Cue Points**: Setting start markers on a track
+- **Hot Cues**: Markers for instant access
+- **Memory Cues**: Saving cue points in Rekordbox
 
-### 04-advanced-techniques - 応用テクニック
+### 04-advanced-techniques - Advanced Techniques
 
-#### ハーモニックミキシング
-- **Camelot Wheel**: キーの相性を視覚化
-- **相性の良い遷移**:
-  - 同じキー
-  - ±1 Camelot Number（完全5度）
-  - 同じ Number、異なる A/B（平行調）
+#### Harmonic Mixing
+- **Camelot Wheel**: Visualizing key compatibility
+- **Compatible Transitions**:
+  - Same key
+  - +/- 1 Camelot Number (perfect fifth)
+  - Same number, different A/B (relative major/minor)
 
-#### エフェクト
-- **Echo/Delay**: リズミックなトランジション
-- **Reverb**: 空間的な広がり
-- **Filter**: High Pass/Low Pass フィルター
-- **Flanger/Phaser**: サイケデリックなサウンド
+#### Effects
+- **Echo/Delay**: Rhythmic transitions
+- **Reverb**: Spatial depth
+- **Filter**: High Pass / Low Pass filters
+- **Flanger/Phaser**: Psychedelic sounds
 
-#### ループ
-- **Auto Loop**: 4, 8, 16 ビートのループ
-- **Manual Loop**: In/Out ポイントの手動設定
-- **Loop Roll**: リズミックな繰り返しエフェクト
+#### Loops
+- **Auto Loop**: 4, 8, and 16-beat loops
+- **Manual Loop**: Setting In/Out points manually
+- **Loop Roll**: Rhythmic repetition effect
 
-#### スクラッチ
-- **Baby Scratch**: 基本的な前後運動
-- **Forward Scratch**: フェーダーを使った刻み
-- **Transform**: リズミックなカット
-- **Chirp**: 高速フェーダーテクニック
+#### Scratching
+- **Baby Scratch**: Basic forward-and-back motion
+- **Forward Scratch**: Cuts using the fader
+- **Transform**: Rhythmic cuts
+- **Chirp**: High-speed fader technique
 
-### 05-track-selection - 選曲とセットリスト
+### 05-track-selection - Track Selection and Setlists
 
-#### ジャンル知識
+#### Genre Knowledge
 - **House**: Deep House, Tech House, Progressive House
 - **Techno**: Minimal Techno, Industrial Techno
 - **Hip Hop**: Old School, Trap, Boom Bap
 - **Dubstep**: Brostep, Deep Dubstep
 - **Drum & Bass**: Liquid, Neurofunk, Jump Up
 
-#### エネルギーカーブ
-- **Opening**: 低〜中エネルギー（ウォームアップ）
-- **Build Up**: 徐々にエネルギーを上げる
-- **Peak Time**: 最高エネルギー
-- **Cool Down**: エネルギーを下げてクロージング
+#### Energy Curve
+- **Opening**: Low to mid energy (warm-up)
+- **Build Up**: Gradually increase energy
+- **Peak Time**: Maximum energy
+- **Cool Down**: Lower energy for the closing
 
-#### フロアリーディング
-- **観察**: ダンスフロアの反応を見る
-- **調整**: 曲調、BPM、エネルギーレベルを調整
-- **インタラクション**: オーディエンスとの一体感
+#### Reading the Floor
+- **Observe**: Watch the crowd's reaction on the dance floor
+- **Adapt**: Adjust mood, BPM, and energy level
+- **Interact**: Build a connection with the audience
 
-### 06-performance - パフォーマンス
+### 06-performance - Performance
 
-#### ステージプレゼンス
-- **視線**: オーディエンスとのアイコンタクト
-- **動き**: リズムに合わせた身体の動き
-- **エネルギー**: 情熱と集中のバランス
+#### Stage Presence
+- **Eye Contact**: Engaging with the audience
+- **Movement**: Moving in rhythm with the music
+- **Energy**: Balancing passion and focus
 
-#### セットアップ
-- **機材配置**: 効率的なレイアウト
-- **バックアップ**: USB、ケーブル、ヘッドホン
-- **サウンドチェック**: 事前の音響確認
+#### Setup
+- **Equipment Layout**: Efficient placement
+- **Backup**: USB drives, cables, headphones
+- **Soundcheck**: Pre-event audio testing
 
-#### ライブストリーミング
-- **OBS Studio**: 配信設定
-- **音声ルーティング**: DJ ミキサー → PC
-- **配信プラットフォーム**: Twitch, YouTube Live, Mixcloud
+#### Live Streaming
+- **OBS Studio**: Broadcast configuration
+- **Audio Routing**: DJ Mixer to PC
+- **Platforms**: Twitch, YouTube Live, Mixcloud
 
-### 07-genres - ジャンル別ガイド
+### 07-genres - Genre Guide
 
 #### House
 - **BPM**: 120-130
-- **特徴**: 4つ打ちキック、反復的なリズム
-- **ミキシング**: ロングミックス、フレーズマッチング
+- **Characteristics**: Four-on-the-floor kick, repetitive rhythms
+- **Mixing**: Long mixes, phrase matching
 
 #### Techno
 - **BPM**: 125-135
-- **特徴**: ミニマル、工業的なサウンド
-- **ミキシング**: EQ を駆使した滑らかなトランジション
+- **Characteristics**: Minimal, industrial sound
+- **Mixing**: Smooth transitions driven by EQ work
 
 #### Hip Hop
 - **BPM**: 80-100
-- **特徴**: ブレイクビーツ、サンプリング
-- **ミキシング**: クイックカット、スクラッチ
+- **Characteristics**: Breakbeats, sampling
+- **Mixing**: Quick cuts, scratching
 
 #### Dubstep
 - **BPM**: 140 (Half-time: 70)
-- **特徴**: ヘビーベース、Wobble
-- **ミキシング**: ドロップタイミング、ベース管理
+- **Characteristics**: Heavy bass, wobble
+- **Mixing**: Drop timing, bass management
 
 #### Drum & Bass
 - **BPM**: 160-180
-- **特徴**: 高速ブレイクビーツ、深いベース
-- **ミキシング**: ダブルドロップ、リワインド
+- **Characteristics**: Fast breakbeats, deep bass
+- **Mixing**: Double drops, rewinds
 
-### 08-practice - 練習とスキルアップ
+### 08-practice - Practice and Skill Development
 
-#### 練習ルーティン
-- **毎日 30 分**: ビートマッチング練習
-- **週 1 回**: 1 時間セット録音
-- **月 1 回**: セルフレビューと改善
+#### Practice Routine
+- **Daily 30 minutes**: Beatmatching practice
+- **Weekly**: Record a 1-hour set
+- **Monthly**: Self-review and improvement
 
-#### 自己分析
-- **録音**: 自分のセットを録音
-- **聴き返し**: ミス、タイミング、選曲を分析
-- **改善**: 具体的な目標設定
+#### Self-Analysis
+- **Record**: Record your own sets
+- **Review**: Analyze mistakes, timing, and track selection
+- **Improve**: Set specific goals
 
-#### トラブルシューティング
-- **ビートがずれる**: Pitch Fader の微調整、Sync 機能の活用
-- **EQ が上手くいかない**: 周波数の理解、リスニング訓練
-- **選曲に迷う**: ジャンル研究、プレイリスト事前準備
+#### Troubleshooting
+- **Beats drifting out of sync**: Fine-tune the Pitch Fader; use the Sync function
+- **EQ not sounding right**: Deepen your understanding of frequencies; train your ears
+- **Struggling with track selection**: Study genres; prepare playlists in advance
 
-### 09-career - DJ キャリア
+### 09-career - DJ Career
 
-#### ブランディング
-- **アーティスト名**: 覚えやすく、ユニーク
-- **ロゴ・ビジュアル**: 一貫性のあるデザイン
-- **SNS**: Instagram, Twitter, Facebook での発信
+#### Branding
+- **Artist Name**: Memorable and unique
+- **Logo and Visuals**: Consistent design
+- **Social Media**: Promotion on Instagram, Twitter, and Facebook
 
-#### プロモーション
-- **ミックス公開**: SoundCloud, Mixcloud, YouTube
-- **プレスキット**: Bio, 写真、過去のギグ情報
-- **ネットワーキング**: 他の DJ、プロモーター、クラブとの関係構築
+#### Promotion
+- **Publishing Mixes**: SoundCloud, Mixcloud, YouTube
+- **Press Kit**: Bio, photos, and past gig information
+- **Networking**: Building relationships with other DJs, promoters, and clubs
 
-#### ギグ獲得
-- **デモ送付**: クラブ、イベントオーガナイザーへ
-- **自主イベント**: 小規模からスタート
-- **レジデンシー**: 定期的なギグの獲得
+#### Getting Gigs
+- **Sending Demos**: To clubs and event organizers
+- **Hosting Your Own Events**: Start small
+- **Residencies**: Securing regular gigs
 
 ---
 
-## 楽曲制作（Ableton Live 12 Suite）
+## Music Production (Ableton Live 12 Suite)
 
-### 01-ableton-basics - Ableton Live 基礎
+### 01-ableton-basics - Ableton Live Basics
 
-#### インターフェイス
-- **セッションビュー**: ループベースの即興
-- **アレンジメントビュー**: タイムラインベースの制作
-- **ブラウザ**: サンプル、プラグイン、プリセット
+#### Interface
+- **Session View**: Loop-based improvisation
+- **Arrangement View**: Timeline-based production
+- **Browser**: Samples, plugins, and presets
 
-#### プロジェクト設定
-- **サンプルレート**: 44.1kHz (CD品質) または 48kHz (ビデオ用)
-- **ビット深度**: 24bit 推奨
-- **バッファサイズ**: 低レイテンシー（256 samples）または安定性（512-1024）
+#### Project Settings
+- **Sample Rate**: 44.1kHz (CD quality) or 48kHz (for video)
+- **Bit Depth**: 24-bit recommended
+- **Buffer Size**: Low latency (256 samples) or stability (512-1024)
 
 ### 02-audio-midi - Audio & MIDI
 
-#### オーディオクリップ
-- **ワーピング**: テンポ同期
-- **ストレッチモード**: Beats, Tones, Texture, Re-Pitch
-- **サンプル編集**: Fade In/Out, Reverse
+#### Audio Clips
+- **Warping**: Tempo synchronization
+- **Stretch Modes**: Beats, Tones, Texture, Re-Pitch
+- **Sample Editing**: Fade In/Out, Reverse
 
-#### MIDI 編集
-- **ピアノロール**: ノート入力、ベロシティ調整
-- **量子化**: タイミング補正
-- **MIDI エフェクト**: Arpeggiator, Chord, Scale
+#### MIDI Editing
+- **Piano Roll**: Note input and velocity adjustment
+- **Quantization**: Timing correction
+- **MIDI Effects**: Arpeggiator, Chord, Scale
 
-### 03-instruments - 音源・楽器
+### 03-instruments - Instruments and Sound Sources
 
 #### Wavetable
-- **用途**: リード、パッド、ベース
-- **特徴**: 2 つのオシレーター、モジュレーション
+- **Use Cases**: Leads, pads, bass
+- **Features**: 2 oscillators, modulation
 
 #### Operator
-- **用途**: FM シンセシス、メタリックなサウンド
-- **特徴**: 4 オペレーター FM/加算合成
+- **Use Cases**: FM synthesis, metallic sounds
+- **Features**: 4-operator FM/additive synthesis
 
 #### Analog
-- **用途**: アナログモデリング、ウォームなサウンド
-- **特徴**: 2 オシレーター、フィルター、エンベロープ
+- **Use Cases**: Analog modeling, warm sounds
+- **Features**: 2 oscillators, filters, envelopes
 
 #### Sampler
-- **用途**: サンプルベースの音源
-- **特徴**: マルチサンプリング、フィルター、モジュレーション
+- **Use Cases**: Sample-based instruments
+- **Features**: Multi-sampling, filters, modulation
 
 #### Drum Rack
-- **用途**: ドラムキット構築
-- **特徴**: 16 パッド、個別エフェクト、チェイン
+- **Use Cases**: Building drum kits
+- **Features**: 16 pads, individual effects, chains
 
-### 04-sound-design - サウンドデザイン
+### 04-sound-design - Sound Design
 
-#### シンセシス
-- **減算合成**: オシレーター → フィルター → アンプ
-- **FM 合成**: オペレーターによる周波数変調
-- **ウェーブテーブル**: 波形のモーフィング
+#### Synthesis
+- **Subtractive Synthesis**: Oscillator -> Filter -> Amp
+- **FM Synthesis**: Frequency modulation via operators
+- **Wavetable**: Waveform morphing
 
-#### サンプリング
-- **ワンショット**: キック、スネア、ハット
-- **ループ**: ブレイクビーツ、アトモスフィア
-- **レイヤリング**: 複数のサンプルを重ねる
+#### Sampling
+- **One-shots**: Kick, snare, hi-hat
+- **Loops**: Breakbeats, atmospheres
+- **Layering**: Stacking multiple samples
 
-#### モジュレーション
-- **LFO**: 周期的な変化
-- **エンベロープ**: ADSR によるダイナミクス
-- **マクロ**: 複数パラメーターの一括制御
+#### Modulation
+- **LFO**: Periodic variation
+- **Envelope**: Dynamics via ADSR
+- **Macros**: Controlling multiple parameters at once
 
-### 05-drums-rhythm - ドラム・リズム
+### 05-drums-rhythm - Drums and Rhythm
 
-#### ドラムプログラミング
-- **4つ打ち**: Kick on every beat (House, Techno)
-- **Breakbeat**: シャッフル、複雑なパターン (D&B, Hip Hop)
-- **Half-time**: BPM を半分に感じさせる (Dubstep)
+#### Drum Programming
+- **Four-on-the-floor**: Kick on every beat (House, Techno)
+- **Breakbeat**: Shuffled, complex patterns (D&B, Hip Hop)
+- **Half-time**: Making the BPM feel halved (Dubstep)
 
-#### キック設計
-- **レイヤリング**: Sub (低域) + Punch (中域) + Click (高域)
-- **サイドチェイン**: ベースとの干渉回避
-- **EQ**: 不要な周波数のカット
+#### Kick Design
+- **Layering**: Sub (low end) + Punch (mids) + Click (highs)
+- **Sidechain**: Avoiding interference with the bass
+- **EQ**: Cutting unnecessary frequencies
 
-#### スネア・ハット
-- **スネア**: 200-400Hz (Body), 1-5kHz (Snap)
-- **ハイハット**: High Pass Filter (200Hz 以下カット)
-- **ゴースト ノート**: 小さな音量のアクセント
+#### Snare and Hi-Hat
+- **Snare**: 200-400Hz (body), 1-5kHz (snap)
+- **Hi-Hat**: High Pass Filter (cut below 200Hz)
+- **Ghost Notes**: Subtle, low-volume accents
 
-### 06-bass-melody - ベース・メロディ
+### 06-bass-melody - Bass and Melody
 
-#### ベースライン
-- **サブベース**: 30-60Hz、シンプルな音色
-- **ミッドベース**: 100-500Hz、リズミック
-- **リースベース**: ノコギリ波、Dubstep で頻出
+#### Basslines
+- **Sub Bass**: 30-60Hz, simple tones
+- **Mid Bass**: 100-500Hz, rhythmic
+- **Reese Bass**: Sawtooth wave, common in Dubstep
 
-#### コード進行
-- **I-V-vi-IV**: ポップスの定番
-- **i-VI-III-VII**: EDM でよく使われる
-- **ii-V-I**: ジャズ的進行
+#### Chord Progressions
+- **I-V-vi-IV**: Pop staple
+- **i-VI-III-VII**: Common in EDM
+- **ii-V-I**: Jazz-influenced progression
 
-#### メロディ作成
-- **スケール内**: キーに沿った音選び
-- **モチーフ**: 短いフレーズの繰り返しと変化
-- **コール＆レスポンス**: フレーズの対話
+#### Melody Writing
+- **Stay in Scale**: Choose notes within the key
+- **Motif**: Short phrases repeated with variation
+- **Call and Response**: Dialogic phrasing
 
-### 07-arrangement - アレンジメント
+### 07-arrangement - Arrangement
 
-#### 曲構造
-- **Intro**: 16-32 小節、楽曲への導入
-- **Breakdown**: エネルギーを落とす、展開を作る
-- **Build Up**: 緊張感を高める
-- **Drop**: メインフレーズ、最高エネルギー
-- **Outro**: 16-32 小節、クロージング
+#### Song Structure
+- **Intro**: 16-32 bars, easing into the track
+- **Breakdown**: Dropping the energy, building narrative
+- **Build Up**: Creating tension
+- **Drop**: Main phrase, peak energy
+- **Outro**: 16-32 bars, closing out
 
-#### トランジション
-- **フィルタースイープ**: Low Pass/High Pass Filter
-- **リバーステール**: リバーブの余韻
-- **ドラムフィル**: スネアロール、タムフィル
-- **サイレンス**: 一瞬の無音でインパクト
+#### Transitions
+- **Filter Sweep**: Low Pass / High Pass Filter
+- **Reverse Tail**: Reverb trail
+- **Drum Fill**: Snare rolls, tom fills
+- **Silence**: A brief moment of silence for impact
 
-### 08-effects - エフェクト
+### 08-effects - Effects
 
 #### EQ
-- **High Pass Filter**: 不要な低域カット (30-50Hz)
-- **ブースト**: 存在感を出したい帯域
-- **カット**: マスキングを避ける
+- **High Pass Filter**: Cutting unnecessary lows (30-50Hz)
+- **Boost**: Emphasizing a frequency band for presence
+- **Cut**: Avoiding masking
 
-#### コンプレッサー
-- **用途**: ダイナミクス制御、音圧向上
-- **パラメーター**: Threshold, Ratio, Attack, Release
-- **サイドチェイン**: キックでベースを ducking
+#### Compressor
+- **Purpose**: Dynamic control and loudness enhancement
+- **Parameters**: Threshold, Ratio, Attack, Release
+- **Sidechain**: Ducking the bass with the kick
 
-#### リバーブ
-- **Room**: 小さな空間
-- **Hall**: 大きなホール
-- **Plate**: メタリックな響き
+#### Reverb
+- **Room**: Small space
+- **Hall**: Large hall
+- **Plate**: Metallic resonance
 
-#### ディレイ
-- **1/4 Note**: リズミックな繰り返し
-- **Ping Pong**: 左右に跳ね返る
-- **Dub Delay**: フィードバック高め
+#### Delay
+- **1/4 Note**: Rhythmic repetition
+- **Ping Pong**: Bouncing left and right
+- **Dub Delay**: High feedback
 
-### 09-mixing - ミキシング
+### 09-mixing - Mixing
 
-#### ゲインステージング
-- **入力**: -18dB to -12dB (ヘッドルーム確保)
-- **トラック**: ピークが -6dB を超えない
-- **マスター**: -6dB to -3dB (マスタリング用)
+#### Gain Staging
+- **Input**: -18dB to -12dB (maintaining headroom)
+- **Track**: Peaks should not exceed -6dB
+- **Master**: -6dB to -3dB (for mastering)
 
-#### パンニング
-- **センター**: キック、ベース、ボーカル
-- **左右**: ハイハット、パーカッション、シンセ
-- **ステレオ幅**: Utility プラグインで調整
+#### Panning
+- **Center**: Kick, bass, vocals
+- **Left/Right**: Hi-hats, percussion, synths
+- **Stereo Width**: Adjusted with the Utility plugin
 
-#### オートメーション
-- **フィルター**: ビルドアップでカットオフを上げる
-- **ボリューム**: フレーズごとの音量調整
-- **エフェクト**: リバーブやディレイの Send 量
+#### Automation
+- **Filter**: Raising the cutoff during build-ups
+- **Volume**: Adjusting levels per phrase
+- **Effects**: Send amounts for reverb and delay
 
-### 10-mastering - マスタリング
+### 10-mastering - Mastering
 
-#### マスタリング EQ
-- **Low Cut**: 30Hz 以下
-- **High Shelf**: 10kHz 以上を微調整
-- **Mid ブースト**: 存在感を出す
+#### Mastering EQ
+- **Low Cut**: Below 30Hz
+- **High Shelf**: Fine-tuning above 10kHz
+- **Mid Boost**: Adding presence
 
-#### リミッター
+#### Limiter
 - **True Peak**: -1dB to -0.3dB
-- **Ceiling**: デジタルクリッピング回避
-- **Gain Reduction**: 2-3dB 程度
+- **Ceiling**: Preventing digital clipping
+- **Gain Reduction**: Around 2-3dB
 
-#### ラウドネス
+#### Loudness
 - **LUFS**: -14 LUFS (Spotify), -16 LUFS (Apple Music)
-- **ダイナミックレンジ**: 過度な圧縮を避ける
+- **Dynamic Range**: Avoid over-compression
 
-#### エクスポート
-- **WAV**: 24bit, 44.1kHz/48kHz
+#### Exporting
+- **WAV**: 24-bit, 44.1kHz/48kHz
 - **MP3**: 320kbps
-- **メタデータ**: アーティスト名、曲名、BPM、キー
+- **Metadata**: Artist name, track title, BPM, key
 
-### 11-genre-production - ジャンル別制作
+### 11-genre-production - Genre-Specific Production
 
 #### House
 - **BPM**: 120-130
-- **ドラム**: 4つ打ちキック、オフビートハット
-- **ベース**: グルーヴィー、ファンキー
-- **コード**: ピアノ、シンセパッド
+- **Drums**: Four-on-the-floor kick, offbeat hi-hats
+- **Bass**: Groovy, funky
+- **Chords**: Piano, synth pads
 
 #### Techno
 - **BPM**: 125-135
-- **ドラム**: ミニマル、工業的
-- **ベース**: ダークで深い
-- **シンセ**: アシッド、モジュラー
+- **Drums**: Minimal, industrial
+- **Bass**: Dark and deep
+- **Synths**: Acid, modular
 
 #### Dubstep
 - **BPM**: 140 (Half-time)
-- **ドラム**: スネア on 3, シンコペーション
-- **ベース**: Wobble, Reese
-- **構成**: Intro-Buildup-Drop-Breakdown-Drop-Outro
+- **Drums**: Snare on 3, syncopation
+- **Bass**: Wobble, Reese
+- **Structure**: Intro-Buildup-Drop-Breakdown-Drop-Outro
 
 #### Drum & Bass
 - **BPM**: 160-180
-- **ドラム**: Amen Break, 複雑なブレイクビーツ
-- **ベース**: Sub + Reese
-- **リズム**: 高速でダイナミック
+- **Drums**: Amen Break, complex breakbeats
+- **Bass**: Sub + Reese
+- **Rhythm**: Fast and dynamic
 
-### 12-workflow - ワークフロー
+### 12-workflow - Workflow
 
-#### 制作フロー
-1. **スケッチ**: アイデア出し、8-16 小節
-2. **ドラム**: リズム基盤
-3. **ベース**: 低域構築
-4. **メロディ**: コード、リード
-5. **アレンジメント**: 曲構成
-6. **ミキシング**: バランス調整
-7. **マスタリング**: 最終調整
+#### Production Flow
+1. **Sketch**: Brainstorming ideas, 8-16 bars
+2. **Drums**: Building the rhythmic foundation
+3. **Bass**: Constructing the low end
+4. **Melody**: Chords and leads
+5. **Arrangement**: Song structure
+6. **Mixing**: Balancing levels
+7. **Mastering**: Final polish
 
-#### クリエイティブプロセス
-- **サンプルパック**: 良質な素材を集める
-- **リファレンストラック**: 目標とする楽曲を分析
-- **制作時間**: 集中できる時間帯に作業
+#### Creative Process
+- **Sample Packs**: Collect high-quality material
+- **Reference Tracks**: Analyze tracks you aspire to
+- **Production Time**: Work during your most focused hours
 
-#### サンプル管理
-- **フォルダ構成**: Drums, Bass, Synths, FX, Vocals
-- **命名規則**: BPM, Key, 楽器名を含める
-- **タグ付け**: Ableton ブラウザでのタグ機能活用
-
----
-
-## DJ × 制作の統合
-
-### DJ 用トラック制作
-- **イントロ・アウトロ**: 32 小節のミキシングスペース
-- **構成**: シンプルでミキシングしやすい
-- **キー情報**: ID3 タグに記載
-
-### エディット・リミックス
-- **アカペラ**: ボーカルトラックの抽出
-- **インストゥルメンタル**: 伴奏のみのバージョン
-- **エクステンデッド**: Drop を延長
-
-### Ableton でのライブ DJ
-- **セッションビュー**: クリップベースの即興
-- **MIDI コントローラー**: APC40, Push
-- **エフェクトラック**: リアルタイムエフェクト
-
-### 制作者のための DJ 知識
-- **フロアでの反応**: どの部分で盛り上がるか
-- **ミキシングポイント**: DJ がミックスしやすい構成
-- **エネルギーフロー**: セット内での曲の役割
+#### Sample Management
+- **Folder Structure**: Drums, Bass, Synths, FX, Vocals
+- **Naming Conventions**: Include BPM, key, and instrument name
+- **Tagging**: Use the tagging features in Ableton's browser
 
 ---
 
-## 学習ロードマップ
+## Integrating DJ and Production
 
-### DJ を始めたい方
+### Producing DJ-Ready Tracks
+- **Intro and Outro**: 32 bars of mixing space
+- **Structure**: Simple and easy to mix
+- **Key Information**: Include in ID3 tags
+
+### Edits and Remixes
+- **Acapella**: Extracting the vocal track
+- **Instrumental**: Accompaniment-only version
+- **Extended**: Lengthening the drop
+
+### Live DJing with Ableton
+- **Session View**: Clip-based improvisation
+- **MIDI Controllers**: APC40, Push
+- **Effects Racks**: Real-time effects processing
+
+### DJ Knowledge for Producers
+- **Floor Reactions**: Understanding which sections get the crowd going
+- **Mix Points**: Structuring tracks so DJs can mix them easily
+- **Energy Flow**: Understanding a track's role within a set
+
+---
+
+## Learning Roadmap
+
+### For Aspiring DJs
 ```
-1. 00-fundamentals で音楽の基礎
-2. dj/01-basics で DJ の基礎知識
-3. dj/02-equipment で Rekordbox の使い方
-4. dj/03-basic-techniques で実践開始
-5. dj/05-track-selection で選曲スキル
-6. dj/04-advanced-techniques で応用テクニック
-7. dj/09-career でキャリア構築
+1. 00-fundamentals — Music foundations
+2. dj/01-basics — DJ fundamentals
+3. dj/02-equipment — Getting started with Rekordbox
+4. dj/03-basic-techniques — Hands-on practice
+5. dj/05-track-selection — Track selection skills
+6. dj/04-advanced-techniques — Advanced techniques
+7. dj/09-career — Career development
 ```
 
-### 楽曲制作を始めたい方
+### For Aspiring Producers
 ```
-1. 00-fundamentals で音楽の基礎
-2. production/01-ableton-basics で Ableton の基礎
-3. production/05-drums-rhythm でドラム作成
-4. production/06-bass-melody でベース・メロディ
-5. production/07-arrangement で曲構成
-6. production/09-mixing でミキシング
-7. production/10-mastering で仕上げ
+1. 00-fundamentals — Music foundations
+2. production/01-ableton-basics — Ableton basics
+3. production/05-drums-rhythm — Creating drums
+4. production/06-bass-melody — Bass and melody
+5. production/07-arrangement — Song structure
+6. production/09-mixing — Mixing
+7. production/10-mastering — Final polish
 ```
 
-### 両方を学びたい方
+### For Those Who Want to Learn Both
 ```
-1. 00-fundamentals で共通基礎
-2. DJ と制作を並行して学ぶ
-3. integration/ で統合テクニック
-4. オリジナル曲で DJ パフォーマンス
+1. 00-fundamentals — Shared foundations
+2. Learn DJ and production in parallel
+3. integration/ — Integrated techniques
+4. DJ performances with your original tracks
 ```
 
 ---
 
-## ベストプラクティス
+## Best Practices
 
-### DJ
-- **練習**: 毎日少しでも機材に触れる
-- **録音**: 自分のセットを録音して聴き返す
-- **研究**: 好きな DJ のセットを分析
-- **ネットワーキング**: コミュニティに参加
+### DJing
+- **Practice**: Touch the equipment every day, even briefly
+- **Record**: Record your sets and listen back
+- **Study**: Analyze sets from DJs you admire
+- **Network**: Get involved in the community
 
-### 楽曲制作
-- **リファレンス**: プロの楽曲を参考に
-- **整理**: サンプル、プロジェクトの管理
-- **完成させる**: 70% の完成度で一旦完成とする
-- **フィードバック**: 他者の意見を聞く
+### Music Production
+- **Reference**: Learn from professional tracks
+- **Organize**: Keep samples and projects well managed
+- **Finish**: Aim to call a track done at 70% — you can always refine later
+- **Feedback**: Seek opinions from others
 
-### 統合
-- **オリジナル曲**: 自分の DJ セット用に制作
-- **リミックス**: 好きな曲をリミックス
-- **ライブセット**: Ableton でのライブパフォーマンス
-- **トラック ID**: DJ 用にメタデータを整備
+### Integration
+- **Original Tracks**: Produce music for your own DJ sets
+- **Remixes**: Remix tracks you love
+- **Live Sets**: Perform live with Ableton
+- **Track IDs**: Maintain proper metadata for DJ use
 
 ---
 
-## 詳細ドキュメント
+## Detailed Documentation
 
-このスキルの詳細な内容は、以下のディレクトリに格納されています：
+The full content of this skill is organized in the following directories:
 
-- `docs/00-fundamentals/` - 音楽理論とオーディオ基礎
-- `docs/dj/` - DJ テクニックの詳細（9セクション）
-- `docs/production/` - Ableton Live 制作の詳細（12モジュール）
-- `docs/integration/` - DJ と制作の統合テクニック
-- `docs/resources/` - 用語集、ロードマップ、ツール一覧
+- `docs/00-fundamentals/` - Music theory and audio fundamentals
+- `docs/dj/` - Detailed DJ techniques (9 sections)
+- `docs/production/` - Detailed Ableton Live production (12 modules)
+- `docs/integration/` - Techniques integrating DJ and production
+- `docs/resources/` - Glossary, roadmaps, and tool references
 
-必要に応じて、これらのファイルを参照してください。
+Refer to these files as needed.
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important thing to focus on when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining hands-on experience is the most important thing. Understanding deepens not just through theory, but through actually practicing and verifying results for yourself.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the basics and jumping straight to advanced topics. We recommend solidly understanding the foundational concepts covered in this guide before moving on.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this knowledge applied in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## まとめ
-
-このガイドでは以下の重要なポイントを学びました:
-
-- 基本概念と原則の理解
-- 実践的な実装パターン
-- ベストプラクティスと注意点
-- 実務での活用方法
+The knowledge in this topic is frequently applied in everyday work. It becomes especially important during performance preparation, set planning, and collaborative sessions.
 
 ---
 
-## 次に読むべきガイド
+## Summary
 
-- 同カテゴリの他のガイドを参照してください
+In this guide, you have learned the following key points:
+
+- Understanding of core concepts and principles
+- Practical implementation patterns
+- Best practices and important considerations
+- Real-world application methods
 
 ---
 
-## 参考文献
+## Recommended Next Reading
 
-- [MDN Web Docs](https://developer.mozilla.org/) - Web技術のリファレンス
-- [Wikipedia](https://ja.wikipedia.org/) - 技術概念の概要
+- Refer to other guides in the same category
+
+---
+
+## References
+
+- [MDN Web Docs](https://developer.mozilla.org/) - Web technology reference
+- [Wikipedia](https://en.wikipedia.org/) - Overview of technical concepts
