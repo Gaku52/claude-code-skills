@@ -1,104 +1,104 @@
-# 木構造 — 二分木・BST・AVL/赤黒木・B木・Trie
+# Tree Structures — Binary Trees, BST, AVL/Red-Black Trees, B-Trees, and Trie
 
-> 階層的なデータを表現する木構造の各種バリエーションを学ぶ。二分探索木の基本から平衡木、B木、Trie まで体系的に解説する。
-
----
-
-## この章で学ぶこと
-
-1. **二分木と走査** — 前順・中順・後順・レベル順
-2. **二分探索木（BST）** と平衡木（AVL・赤黒木）の原理
-3. **B木と Trie** — ディスクアクセス最適化と文字列検索
-4. **セグメント木と Fenwick 木** — 区間クエリの高速処理
-5. **実務応用** — DB インデックス、オートコンプリート、構文解析
-
-
-## 前提知識
-
-このガイドを読む前に、以下の知識があると理解が深まります:
-
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [ハッシュテーブル — ハッシュ関数・衝突解決・ロードファクター](./03-hash-tables.md) の内容を理解していること
+> Learn the various tree structure variants that represent hierarchical data. This guide provides a systematic explanation ranging from the basics of binary search trees to balanced trees, B-trees, and Tries.
 
 ---
 
-## 1. 木の基本用語
+## What You Will Learn in This Chapter
+
+1. **Binary trees and traversals** — Preorder, inorder, postorder, and level-order
+2. **Binary Search Trees (BST)** and balanced trees (AVL, red-black trees)
+3. **B-trees and Trie** — Disk access optimization and string search
+4. **Segment trees and Fenwick trees** — Fast range query processing
+5. **Practical applications** — DB indexes, autocomplete, syntax parsing
+
+## Prerequisites
+
+Before reading this guide, having the following knowledge will deepen your understanding:
+
+- Basic programming knowledge
+- Understanding of related fundamental concepts
+- Familiarity with the content of [Hash Tables — Hash Functions, Collision Resolution, and Load Factor](./03-hash-tables.md)
+
+---
+
+## 1. Basic Tree Terminology
 
 ```
-        [A]         ← 根 (root)、深さ 0
+        [A]         ← Root, depth 0
        /   \
-     [B]   [C]      ← 深さ 1
+     [B]   [C]      ← Depth 1
     / \      \
-  [D] [E]   [F]     ← 深さ 2 (葉: D, E, F)
+  [D] [E]   [F]     ← Depth 2 (leaves: D, E, F)
 
-  用語:
-  - 根 (root): 最上位のノード (A)
-  - 葉 (leaf): 子を持たないノード (D, E, F)
-  - 内部ノード (internal): 子を持つノード (A, B, C)
-  - 深さ (depth): 根からの距離
-  - 高さ (height): 葉までの最大距離（木の高さ = 2）
-  - 部分木 (subtree): 任意のノードを根とする木
-  - 次数 (degree): ノードの子の数
-  - レベル (level): 深さと同義（根がレベル 0）
-  - 祖先 (ancestor): 根までのパス上のノード
-  - 子孫 (descendant): 部分木内の全ノード
-  - 兄弟 (sibling): 同じ親を持つノード (D, E は兄弟)
+  Terminology:
+  - Root: The topmost node (A)
+  - Leaf: A node with no children (D, E, F)
+  - Internal node: A node with children (A, B, C)
+  - Depth: Distance from the root
+  - Height: Maximum distance to a leaf (tree height = 2)
+  - Subtree: A tree rooted at any node
+  - Degree: Number of children of a node
+  - Level: Synonymous with depth (root is level 0)
+  - Ancestor: Nodes on the path to the root
+  - Descendant: All nodes within a subtree
+  - Sibling: Nodes sharing the same parent (D and E are siblings)
 ```
 
-### 1.1 木の種類
+### 1.1 Types of Trees
 
 ```
-完全二分木 (Complete):          満二分木 (Full/Perfect):
+Complete Binary Tree:              Full/Perfect Binary Tree:
        [A]                           [A]
       /   \                         /   \
     [B]   [C]                     [B]   [C]
    / \   /                       / \   / \
   [D] [E][F]                   [D][E][F][G]
-  最後のレベルは左詰め          全レベルが完全に埋まっている
+  Last level is left-filled     All levels are completely filled
 
-二分木 (Binary):                N分木 (N-ary):
+Binary Tree:                    N-ary Tree:
        [A]                           [A]
       /   \                        / | \
     [B]   [C]                    [B][C][D]
    /        \                    |    / \
   [D]       [F]                 [E] [F][G]
-  各ノード最大2子               各ノード最大N子
+  Each node has at most 2       Each node has at most N
+  children                      children
 ```
 
-### 1.2 木の性質
+### 1.2 Properties of Trees
 
 ```python
-# 二分木の重要な性質:
-# - n ノードの二分木の辺の数 = n - 1
-# - 高さ h の二分木のノード数: 最小 h+1, 最大 2^(h+1) - 1
-# - n ノードの完全二分木の高さ: floor(log2(n))
-# - 高さ h の満二分木のノード数: 2^(h+1) - 1
-# - 葉の数 = 内部ノード（子が2つ）の数 + 1 （満二分木）
+# Important properties of binary trees:
+# - Number of edges in a binary tree with n nodes = n - 1
+# - Node count for a binary tree of height h: min h+1, max 2^(h+1) - 1
+# - Height of a complete binary tree with n nodes: floor(log2(n))
+# - Node count of a full binary tree of height h: 2^(h+1) - 1
+# - Number of leaves = number of internal nodes with 2 children + 1 (full binary tree)
 
 def tree_properties(n):
-    """n ノードの完全二分木の性質を計算"""
+    """Calculate properties of a complete binary tree with n nodes"""
     import math
     height = math.floor(math.log2(n)) if n > 0 else 0
-    leaves = (n + 1) // 2  # 完全二分木の場合
+    leaves = (n + 1) // 2  # For a complete binary tree
     internal = n - leaves
     edges = n - 1
-    print(f"ノード数: {n}")
-    print(f"高さ: {height}")
-    print(f"葉の数: {leaves}")
-    print(f"内部ノード数: {internal}")
-    print(f"辺の数: {edges}")
+    print(f"Node count: {n}")
+    print(f"Height: {height}")
+    print(f"Leaf count: {leaves}")
+    print(f"Internal node count: {internal}")
+    print(f"Edge count: {edges}")
     return height, leaves, internal, edges
 
 tree_properties(15)
-# ノード数: 15, 高さ: 3, 葉の数: 8, 内部ノード数: 7, 辺の数: 14
+# Node count: 15, Height: 3, Leaf count: 8, Internal node count: 7, Edge count: 14
 ```
 
 ---
 
-## 2. 二分木の走査
+## 2. Binary Tree Traversals
 
-### 2.1 再帰的走査
+### 2.1 Recursive Traversals
 
 ```python
 class TreeNode:
@@ -108,32 +108,32 @@ class TreeNode:
         self.right = right
 
 def preorder(node):
-    """前順走査 (根→左→右) — O(n)
-    用途: 木のシリアライズ、式のプレフィックス表記
+    """Preorder traversal (root -> left -> right) — O(n)
+    Use cases: Tree serialization, prefix notation of expressions
     """
     if not node:
         return []
     return [node.val] + preorder(node.left) + preorder(node.right)
 
 def inorder(node):
-    """中順走査 (左→根→右) — O(n)
-    用途: BST でソート順に取得
+    """Inorder traversal (left -> root -> right) — O(n)
+    Use cases: Retrieving elements in sorted order from a BST
     """
     if not node:
         return []
     return inorder(node.left) + [node.val] + inorder(node.right)
 
 def postorder(node):
-    """後順走査 (左→右→根) — O(n)
-    用途: 部分木の削除、式の後置記法
+    """Postorder traversal (left -> right -> root) — O(n)
+    Use cases: Subtree deletion, postfix notation of expressions
     """
     if not node:
         return []
     return postorder(node.left) + postorder(node.right) + [node.val]
 
 def levelorder(root):
-    """レベル順走査 (BFS) — O(n)
-    用途: 最短経路、レベルごとの処理
+    """Level-order traversal (BFS) — O(n)
+    Use cases: Shortest path, level-by-level processing
     """
     from collections import deque
     if not root:
@@ -149,18 +149,18 @@ def levelorder(root):
     return result
 ```
 
-### 2.2 反復的走査（スタックを使用）
+### 2.2 Iterative Traversals (Using a Stack)
 
 ```python
 def preorder_iterative(root):
-    """前順走査の反復版 — O(n) 時間, O(h) 空間"""
+    """Iterative preorder traversal — O(n) time, O(h) space"""
     if not root:
         return []
     result, stack = [], [root]
     while stack:
         node = stack.pop()
         result.append(node.val)
-        # 右を先にスタックに入れる（左を先に処理するため）
+        # Push right first so that left is processed first
         if node.right:
             stack.append(node.right)
         if node.left:
@@ -168,11 +168,11 @@ def preorder_iterative(root):
     return result
 
 def inorder_iterative(root):
-    """中順走査の反復版 — O(n) 時間, O(h) 空間"""
+    """Iterative inorder traversal — O(n) time, O(h) space"""
     result, stack = [], []
     current = root
     while current or stack:
-        # 左端まで進む
+        # Go to the leftmost node
         while current:
             stack.append(current)
             current = current.left
@@ -182,8 +182,8 @@ def inorder_iterative(root):
     return result
 
 def postorder_iterative(root):
-    """後順走査の反復版 — O(n) 時間, O(h) 空間
-    前順（根→左→右）の逆は（右→左→根）＝後順の逆
+    """Iterative postorder traversal — O(n) time, O(h) space
+    The reverse of preorder (root -> left -> right) is (right -> left -> root) = reverse of postorder
     """
     if not root:
         return []
@@ -195,16 +195,16 @@ def postorder_iterative(root):
             stack.append(node.left)
         if node.right:
             stack.append(node.right)
-    return result[::-1]  # 逆順にする
+    return result[::-1]  # Reverse the result
 ```
 
-### 2.3 Morris 走査（O(1) 空間）
+### 2.3 Morris Traversal (O(1) Space)
 
 ```python
 def morris_inorder(root):
-    """Morris 中順走査 — O(n) 時間, O(1) 空間
-    スレッド化二分木の概念を使用。
-    スタックも再帰も使わない。
+    """Morris inorder traversal — O(n) time, O(1) space
+    Uses the concept of threaded binary trees.
+    Requires neither a stack nor recursion.
     """
     result = []
     current = root
@@ -213,39 +213,39 @@ def morris_inorder(root):
             result.append(current.val)
             current = current.right
         else:
-            # 左部分木の最右ノードを見つける
+            # Find the rightmost node of the left subtree
             predecessor = current.left
             while predecessor.right and predecessor.right != current:
                 predecessor = predecessor.right
 
             if not predecessor.right:
-                # スレッドを張る
+                # Create thread
                 predecessor.right = current
                 current = current.left
             else:
-                # スレッドを除去
+                # Remove thread
                 predecessor.right = None
                 result.append(current.val)
                 current = current.right
     return result
 ```
 
-### 2.4 走査の図解と用途
+### 2.4 Traversal Illustration and Use Cases
 
 ```
-走査順序の例:
+Traversal order example:
        [4]
       /   \
     [2]   [6]
    / \   / \
   [1] [3] [5] [7]
 
-  前順 (Pre):  4, 2, 1, 3, 6, 5, 7   ← 木のコピー、シリアライズ
-  中順 (In):   1, 2, 3, 4, 5, 6, 7   ← BST ではソート順
-  後順 (Post): 1, 3, 2, 5, 7, 6, 4   ← 木の削除、式の評価
-  レベル順:    4, 2, 6, 1, 3, 5, 7   ← 最短距離、幅優先
+  Preorder (Pre):   4, 2, 1, 3, 6, 5, 7   ← Tree copying, serialization
+  Inorder (In):     1, 2, 3, 4, 5, 6, 7   ← Sorted order in BST
+  Postorder (Post): 1, 3, 2, 5, 7, 6, 4   ← Tree deletion, expression evaluation
+  Level-order:      4, 2, 6, 1, 3, 5, 7   ← Shortest distance, breadth-first
 
-レベルごとの走査（実務で頻出）:
+Level-by-level traversal (frequently used in practice):
   Level 0: [4]
   Level 1: [2, 6]
   Level 2: [1, 3, 5, 7]
@@ -253,7 +253,7 @@ def morris_inorder(root):
 
 ```python
 def levelorder_by_level(root):
-    """レベルごとにグループ化して返す"""
+    """Return elements grouped by level"""
     from collections import deque
     if not root:
         return []
@@ -277,22 +277,22 @@ def levelorder_by_level(root):
 
 ---
 
-## 3. 二分探索木（BST）
+## 3. Binary Search Tree (BST)
 
-### 3.1 完全実装
+### 3.1 Complete Implementation
 
 ```python
 class BST:
-    """二分探索木: 左 < 根 < 右 の性質を持つ二分木
+    """Binary Search Tree: A binary tree with the property left < root < right
 
-    平均計算量: O(log n)
-    最悪計算量: O(n) — ソート済みデータ挿入時
+    Average complexity: O(log n)
+    Worst-case complexity: O(n) — when inserting sorted data
     """
     def __init__(self):
         self.root = None
 
     def insert(self, val):
-        """O(h), h = 木の高さ"""
+        """O(h), h = height of the tree"""
         self.root = self._insert(self.root, val)
 
     def _insert(self, node, val):
@@ -316,7 +316,7 @@ class BST:
         return self._search(node.right, val)
 
     def delete(self, val):
-        """O(h) — 3つのケースを処理"""
+        """O(h) — handles 3 cases"""
         self.root = self._delete(self.root, val)
 
     def _delete(self, node, val):
@@ -327,34 +327,34 @@ class BST:
         elif val > node.val:
             node.right = self._delete(node.right, val)
         else:
-            # ケース1: 葉ノード
+            # Case 1: Leaf node
             if not node.left and not node.right:
                 return None
-            # ケース2: 子が1つ
+            # Case 2: One child
             if not node.left:
                 return node.right
             if not node.right:
                 return node.left
-            # ケース3: 子が2つ — 右部分木の最小値で置換
+            # Case 3: Two children — replace with minimum value of right subtree
             successor = self._min_node(node.right)
             node.val = successor.val
             node.right = self._delete(node.right, successor.val)
         return node
 
     def _min_node(self, node):
-        """部分木の最小ノードを返す"""
+        """Return the minimum node in a subtree"""
         while node.left:
             node = node.left
         return node
 
     def find_min(self):
-        """最小値 — O(h)"""
+        """Minimum value — O(h)"""
         if not self.root:
             return None
         return self._min_node(self.root).val
 
     def find_max(self):
-        """最大値 — O(h)"""
+        """Maximum value — O(h)"""
         if not self.root:
             return None
         node = self.root
@@ -363,7 +363,7 @@ class BST:
         return node.val
 
     def inorder_successor(self, val):
-        """中順での後続ノード — O(h)"""
+        """Inorder successor — O(h)"""
         successor = None
         node = self.root
         while node:
@@ -379,7 +379,7 @@ class BST:
         return None
 
     def kth_smallest(self, k):
-        """k番目に小さい要素 — O(h + k)"""
+        """k-th smallest element — O(h + k)"""
         stack = []
         current = self.root
         count = 0
@@ -395,7 +395,7 @@ class BST:
         return None
 
     def range_query(self, low, high):
-        """[low, high] 範囲内の全要素 — O(h + k), k = 結果数"""
+        """All elements in [low, high] range — O(h + k), k = number of results"""
         result = []
         self._range_query(self.root, low, high, result)
         return result
@@ -411,7 +411,7 @@ class BST:
             self._range_query(node.right, low, high, result)
 
     def is_valid_bst(self):
-        """BST の性質を検証"""
+        """Validate the BST property"""
         return self._validate(self.root, float('-inf'), float('inf'))
 
     def _validate(self, node, min_val, max_val):
@@ -423,7 +423,7 @@ class BST:
                 self._validate(node.right, node.val, max_val))
 
     def height(self):
-        """木の高さ — O(n)"""
+        """Height of the tree — O(n)"""
         return self._height(self.root)
 
     def _height(self, node):
@@ -432,7 +432,7 @@ class BST:
         return 1 + max(self._height(node.left), self._height(node.right))
 
     def size(self):
-        """ノード数 — O(n)"""
+        """Node count — O(n)"""
         return self._size(self.root)
 
     def _size(self, node):
@@ -440,7 +440,7 @@ class BST:
             return 0
         return 1 + self._size(node.left) + self._size(node.right)
 
-# 使用例
+# Usage example
 bst = BST()
 for val in [5, 3, 7, 1, 4, 6, 8]:
     bst.insert(val)
@@ -455,28 +455,28 @@ print(bst.height())             # 2
 print(bst.is_valid_bst())       # True
 ```
 
-### 3.2 BST の削除の図解
+### 3.2 BST Deletion Illustrated
 
 ```
-削除のケース:
+Deletion cases:
 
-ケース1: 葉ノードの削除 (値 1 を削除)
+Case 1: Deleting a leaf node (delete value 1)
      5                5
-    / \     →        / \
+    / \     ->       / \
    3   7            3   7
   / \              / \
  1   4            _   4
 
-ケース2: 子が1つのノードの削除 (値 3 を削除、左子のみ)
+Case 2: Deleting a node with one child (delete value 3, left child only)
      5                5
-    / \     →        / \
+    / \     ->       / \
    3   7            1   7
   /
  1
 
-ケース3: 子が2つのノードの削除 (値 5 を削除)
-     5                6         ← 右部分木の最小値(6)で置換
-    / \     →        / \
+Case 3: Deleting a node with two children (delete value 5)
+     5                6         <- Replace with the minimum of the right subtree (6)
+    / \     ->       / \
    3   7            3   7
   / \  /           / \
  1  4 6           1   4
@@ -484,53 +484,53 @@ print(bst.is_valid_bst())       # True
 
 ---
 
-## 4. AVL 木（自己平衡BST）
+## 4. AVL Tree (Self-Balancing BST)
 
-### 4.1 回転操作の図解
+### 4.1 Rotation Operations Illustrated
 
 ```
-AVL木: 全ノードで |左の高さ - 右の高さ| ≤ 1
+AVL Tree: |left height - right height| <= 1 for all nodes
 
-4つの不均衡パターンと回転:
+4 imbalance patterns and rotations:
 
-=== LL ケース (右回転) ===
+=== LL Case (Right Rotation) ===
       z(3)                 y(2)
      /    \               /    \
-    y(2)   T4    →      x(1)  z(3)
+    y(2)   T4    ->      x(1)  z(3)
    /    \               / \   / \
   x(1)  T3            T1  T2 T3 T4
  / \
 T1  T2
 
-=== RR ケース (左回転) ===
+=== RR Case (Left Rotation) ===
   z(1)                   y(2)
  /    \                 /    \
-T1   y(2)     →      z(1)  x(3)
+T1   y(2)     ->      z(1)  x(3)
     /    \            / \   / \
    T2   x(3)        T1 T2 T3 T4
        / \
       T3  T4
 
-=== LR ケース (左回転 → 右回転) ===
+=== LR Case (Left Rotation -> Right Rotation) ===
       z(3)            z(3)               x(2)
      /    \          /    \             /    \
-    y(1)   T4  →   x(2)  T4    →    y(1)  z(3)
+    y(1)   T4  ->   x(2)  T4    ->    y(1)  z(3)
    /    \          /    \            / \   / \
   T1   x(2)      y(1)  T3         T1 T2 T3 T4
       / \        / \
      T2  T3     T1  T2
 
-=== RL ケース (右回転 → 左回転) ===
+=== RL Case (Right Rotation -> Left Rotation) ===
   z(1)             z(1)                  x(2)
  /    \           /    \                /    \
-T1   y(3)   →   T1   x(2)    →      z(1)  y(3)
+T1   y(3)   ->   T1   x(2)    ->      z(1)  y(3)
     /    \           /    \          / \   / \
    x(2)  T4        T2   y(3)       T1 T2 T3 T4
   / \                   / \
  T2  T3                T3  T4
 ```
 
-### 4.2 AVL 木の完全実装
+### 4.2 Complete AVL Tree Implementation
 
 ```python
 class AVLNode:
@@ -540,9 +540,9 @@ class AVLNode:
         self.height = 1
 
 class AVLTree:
-    """AVL 木: 全ノードのバランスファクターが [-1, 0, 1] の範囲内
+    """AVL Tree: Balance factor of every node is within [-1, 0, 1]
 
-    全操作が O(log n) を保証
+    Guarantees O(log n) for all operations
     """
     def __init__(self):
         self.root = None
@@ -557,7 +557,7 @@ class AVLTree:
         node.height = 1 + max(self.height(node.left), self.height(node.right))
 
     def rotate_right(self, z):
-        """右回転: LL ケースを修正"""
+        """Right rotation: fixes LL case"""
         y = z.left
         T3 = y.right
         y.right = z
@@ -567,7 +567,7 @@ class AVLTree:
         return y
 
     def rotate_left(self, z):
-        """左回転: RR ケースを修正"""
+        """Left rotation: fixes RR case"""
         y = z.right
         T2 = y.left
         y.left = z
@@ -577,24 +577,24 @@ class AVLTree:
         return y
 
     def _balance(self, node):
-        """ノードのバランスを復元"""
+        """Restore balance of a node"""
         self.update_height(node)
         bf = self.balance_factor(node)
 
-        # LL ケース
+        # LL case
         if bf > 1 and self.balance_factor(node.left) >= 0:
             return self.rotate_right(node)
 
-        # LR ケース
+        # LR case
         if bf > 1 and self.balance_factor(node.left) < 0:
             node.left = self.rotate_left(node.left)
             return self.rotate_right(node)
 
-        # RR ケース
+        # RR case
         if bf < -1 and self.balance_factor(node.right) <= 0:
             return self.rotate_left(node)
 
-        # RL ケース
+        # RL case
         if bf < -1 and self.balance_factor(node.right) > 0:
             node.right = self.rotate_right(node.right)
             return self.rotate_left(node)
@@ -602,7 +602,7 @@ class AVLTree:
         return node
 
     def insert(self, val):
-        """O(log n) — 挿入後にバランス復元"""
+        """O(log n) — restores balance after insertion"""
         self.root = self._insert(self.root, val)
 
     def _insert(self, node, val):
@@ -613,11 +613,11 @@ class AVLTree:
         elif val > node.val:
             node.right = self._insert(node.right, val)
         else:
-            return node  # 重複は無視
+            return node  # Ignore duplicates
         return self._balance(node)
 
     def delete(self, val):
-        """O(log n) — 削除後にバランス復元"""
+        """O(log n) — restores balance after deletion"""
         self.root = self._delete(self.root, val)
 
     def _delete(self, node, val):
@@ -632,7 +632,7 @@ class AVLTree:
                 return node.right
             if not node.right:
                 return node.left
-            # 右部分木の最小値で置換
+            # Replace with minimum of right subtree
             successor = node.right
             while successor.left:
                 successor = successor.left
@@ -653,7 +653,7 @@ class AVLTree:
         return None
 
     def inorder(self):
-        """中順走査 — ソート順"""
+        """Inorder traversal — sorted order"""
         result = []
         self._inorder(self.root, result)
         return result
@@ -664,46 +664,46 @@ class AVLTree:
             result.append(node.val)
             self._inorder(node.right, result)
 
-# 使用例
+# Usage example
 avl = AVLTree()
 for val in [10, 20, 30, 40, 50, 25]:
     avl.insert(val)
 print(avl.inorder())  # [10, 20, 25, 30, 40, 50]
-print(f"根: {avl.root.val}")  # 30（バランスが保たれている）
-print(f"高さ: {avl.height(avl.root)}")  # 2 or 3
+print(f"Root: {avl.root.val}")  # 30 (balance is maintained)
+print(f"Height: {avl.height(avl.root)}")  # 2 or 3
 ```
 
 ---
 
-## 5. 赤黒木
+## 5. Red-Black Tree
 
-### 5.1 赤黒木の性質
+### 5.1 Properties of Red-Black Trees
 
 ```
-赤黒木の5つの性質:
-1. 各ノードは赤か黒
-2. 根は黒
-3. 全ての葉 (NIL) は黒
-4. 赤ノードの子は黒（赤が連続しない）
-5. 任意のノードからその子孫の葉までの全パスで、黒ノード数が同一（黒高さ）
+Five properties of red-black trees:
+1. Each node is either red or black
+2. The root is black
+3. All leaves (NIL) are black
+4. Children of a red node are black (no consecutive reds)
+5. For any node, all paths to its descendant leaves have the same number of black nodes (black-height)
 
-例:
-         [7:黒]
+Example:
+         [7:Black]
         /      \
-    [3:赤]    [18:赤]
+    [3:Red]    [18:Red]
     /   \     /    \
-  [1:黒] [5:黒] [10:黒] [22:黒]
+  [1:Black] [5:Black] [10:Black] [22:Black]
                   \
-                 [15:赤]
+                 [15:Red]
 
-黒高さ = 2（任意のパスで黒ノードが2つ）
+Black-height = 2 (2 black nodes on every path)
 
-重要な定理:
-- n ノードの赤黒木の高さ h ≤ 2 log2(n+1)
-- したがって全操作が O(log n) を保証
+Important theorem:
+- Height h of a red-black tree with n nodes <= 2 log2(n+1)
+- Therefore all operations are guaranteed O(log n)
 ```
 
-### 5.2 赤黒木の実装
+### 5.2 Red-Black Tree Implementation
 
 ```python
 class RBNode:
@@ -716,10 +716,10 @@ class RBNode:
         self.left = self.right = self.parent = None
 
 class RedBlackTree:
-    """赤黒木: AVL 木より回転が少なく、挿入/削除が効率的
+    """Red-Black Tree: Fewer rotations than AVL tree, more efficient insertions/deletions
 
-    Java の TreeMap, C++ の std::map が採用
-    Linux カーネルのスケジューラでも使用
+    Adopted by Java's TreeMap, C++ std::map
+    Also used in the Linux kernel scheduler
     """
     def __init__(self):
         self.NIL = RBNode(None, RBNode.BLACK)
@@ -756,12 +756,12 @@ class RedBlackTree:
         x.parent = y
 
     def insert(self, val):
-        """O(log n) — 挿入後に色の修正"""
+        """O(log n) — fixes colors after insertion"""
         node = RBNode(val)
         node.left = self.NIL
         node.right = self.NIL
 
-        # 通常の BST 挿入
+        # Standard BST insertion
         parent = None
         current = self.root
         while current != self.NIL:
@@ -771,7 +771,7 @@ class RedBlackTree:
             elif val > current.val:
                 current = current.right
             else:
-                return  # 重複は無視
+                return  # Ignore duplicates
 
         node.parent = parent
         if parent is None:
@@ -781,35 +781,35 @@ class RedBlackTree:
         else:
             parent.right = node
 
-        # ケース1: 根の場合
+        # Case 1: Node is the root
         if node.parent is None:
             node.color = RBNode.BLACK
             return
 
-        # ケース2: 親が黒ならOK
+        # Case 2: Parent is black — no violation
         if node.parent.color == RBNode.BLACK:
             return
 
-        # 色の修正
+        # Fix colors
         self._fix_insert(node)
 
     def _fix_insert(self, node):
-        """挿入後の赤黒木性質の修正"""
+        """Fix red-black tree properties after insertion"""
         while node.parent and node.parent.color == RBNode.RED:
             if node.parent == node.parent.parent.left:
                 uncle = node.parent.parent.right
                 if uncle.color == RBNode.RED:
-                    # ケース3: 叔父が赤 → 色の反転
+                    # Case 3: Uncle is red -> color flip
                     node.parent.color = RBNode.BLACK
                     uncle.color = RBNode.BLACK
                     node.parent.parent.color = RBNode.RED
                     node = node.parent.parent
                 else:
                     if node == node.parent.right:
-                        # ケース4: LR → 左回転して LL に変換
+                        # Case 4: LR -> left rotate to convert to LL
                         node = node.parent
                         self._rotate_left(node)
-                    # ケース5: LL → 右回転
+                    # Case 5: LL -> right rotate
                     node.parent.color = RBNode.BLACK
                     node.parent.parent.color = RBNode.RED
                     self._rotate_right(node.parent.parent)
@@ -856,7 +856,7 @@ class RedBlackTree:
             result.append(node.val)
             self._inorder(node.right, result)
 
-# 使用例
+# Usage example
 rbt = RedBlackTree()
 for val in [7, 3, 18, 10, 22, 8, 11, 26, 2, 6]:
     rbt.insert(val)
@@ -865,12 +865,12 @@ print(rbt.inorder())  # [2, 3, 6, 7, 8, 10, 11, 18, 22, 26]
 
 ---
 
-## 6. B 木
+## 6. B-Tree
 
-### 6.1 B 木の構造と性質
+### 6.1 B-Tree Structure and Properties
 
 ```
-B木 (order m = 4, 2-3-4 木):
+B-Tree (order m = 4, 2-3-4 tree):
 
               [17]
             /      \
@@ -878,21 +878,21 @@ B木 (order m = 4, 2-3-4 木):
      /   |   \     /   |   \
   [1,3] [7,11] [14,16] [18,20] [22,25] [31,40]
 
-B木の性質 (order m):
-- 各ノードは最大 m-1 個のキーを持つ
-- 各ノードは最大 m 個の子を持つ
-- 根以外の各ノードは最低 ⌈m/2⌉ - 1 個のキーを持つ
-- 全ての葉は同じレベルにある
-- ノードのキーはソート済み
+B-Tree properties (order m):
+- Each node holds at most m-1 keys
+- Each node has at most m children
+- Each node (except the root) holds at least ceil(m/2) - 1 keys
+- All leaves are at the same level
+- Keys within a node are sorted
 
-B木がデータベースに最適な理由:
-1. ノードサイズをディスクブロック（4KB〜16KB）に合わせられる
-2. 高さが非常に低い（3〜4レベルで数百万件を格納）
-3. ディスク I/O 回数 = 木の高さ = O(log_m n)
-4. 例: m=1000, n=10^9 → 高さ ≈ 3 回のディスクアクセス
+Why B-Trees are optimal for databases:
+1. Node size can be aligned to disk block size (4KB-16KB)
+2. Tree height is very low (3-4 levels can store millions of records)
+3. Number of disk I/O operations = tree height = O(log_m n)
+4. Example: m=1000, n=10^9 -> height ~ 3 disk accesses
 ```
 
-### 6.2 B 木の実装
+### 6.2 B-Tree Implementation
 
 ```python
 class BTreeNode:
@@ -902,14 +902,14 @@ class BTreeNode:
         self.leaf = leaf
 
 class BTree:
-    """B木 — ディスクベースのデータ構造
+    """B-Tree — a disk-based data structure
 
-    データベースのインデックスとして広く使用される
+    Widely used as database indexes
     """
     def __init__(self, order=4):
         self.root = BTreeNode()
-        self.order = order  # 最大子数
-        self.min_keys = order // 2 - 1  # ノードの最小キー数
+        self.order = order  # Maximum number of children
+        self.min_keys = order // 2 - 1  # Minimum number of keys per node
 
     def search(self, key, node=None):
         """O(log_m n) — m = order"""
@@ -932,7 +932,7 @@ class BTree:
         """O(log_m n)"""
         root = self.root
         if len(root.keys) == self.order - 1:
-            # 根が満杯 → 分割して新しい根を作る
+            # Root is full -> split and create a new root
             new_root = BTreeNode(leaf=False)
             new_root.children.append(self.root)
             self._split_child(new_root, 0)
@@ -944,20 +944,20 @@ class BTree:
         i = len(node.keys) - 1
 
         if node.leaf:
-            # 葉ノードに挿入
+            # Insert into a leaf node
             node.keys.append(None)
             while i >= 0 and key < node.keys[i]:
                 node.keys[i + 1] = node.keys[i]
                 i -= 1
             node.keys[i + 1] = key
         else:
-            # 内部ノード: 適切な子に降りる
+            # Internal node: descend to the appropriate child
             while i >= 0 and key < node.keys[i]:
                 i -= 1
             i += 1
 
             if len(node.children[i].keys) == self.order - 1:
-                # 子が満杯なら分割
+                # Split the child if it is full
                 self._split_child(node, i)
                 if key > node.keys[i]:
                     i += 1
@@ -965,28 +965,28 @@ class BTree:
             self._insert_non_full(node.children[i], key)
 
     def _split_child(self, parent, i):
-        """子ノードの分割"""
+        """Split a child node"""
         order = self.order
         child = parent.children[i]
         mid = order // 2 - 1
 
-        # 右半分を新しいノードに
+        # Move the right half to a new node
         new_node = BTreeNode(leaf=child.leaf)
         new_node.keys = child.keys[mid + 1:]
         if not child.leaf:
             new_node.children = child.children[mid + 1:]
 
-        # 中央のキーを親に昇格
+        # Promote the middle key to the parent
         parent.keys.insert(i, child.keys[mid])
         parent.children.insert(i + 1, new_node)
 
-        # 左半分を残す
+        # Keep the left half
         child.keys = child.keys[:mid]
         if not child.leaf:
             child.children = child.children[:mid + 1]
 
     def traverse(self, node=None):
-        """全キーをソート順に返す"""
+        """Return all keys in sorted order"""
         if node is None:
             node = self.root
         result = []
@@ -998,53 +998,56 @@ class BTree:
             result.extend(self.traverse(node.children[-1]))
         return result
 
-# 使用例
+# Usage example
 btree = BTree(order=4)
 for key in [10, 20, 5, 6, 12, 30, 7, 17]:
     btree.insert(key)
 print(btree.traverse())  # [5, 6, 7, 10, 12, 17, 20, 30]
 ```
 
-### 6.3 B+ 木
+### 6.3 B+ Tree
 
 ```python
 class BPlusLeafNode:
-    """B+ 木の葉ノード: データは全て葉に格納"""
+    """B+ Tree leaf node: all data is stored in leaves"""
     def __init__(self):
         self.keys = []
-        self.values = []  # 実データ or データへのポインタ
-        self.next_leaf = None  # 右隣の葉へのポインタ
+        self.values = []  # Actual data or pointers to data
+        self.next_leaf = None  # Pointer to the next leaf on the right
 
 class BPlusInternalNode:
-    """B+ 木の内部ノード: キーのみ（インデックス）"""
+    """B+ Tree internal node: keys only (index)"""
     def __init__(self):
         self.keys = []
         self.children = []
 
-# B+ 木の特徴:
-# 1. 全データが葉ノードにある → 範囲検索が高速
-# 2. 葉ノードが連結リストで接続 → シーケンシャルアクセスが O(n)
-# 3. 内部ノードはキーのみ → より多くのキーを格納できる
-# 4. MySQL の InnoDB、PostgreSQL のインデックスが B+ 木
+# Characteristics of B+ Trees:
+# 1. All data resides in leaf nodes -> fast range queries
+# 2. Leaf nodes are connected as a linked list -> O(n) sequential access
+# 3. Internal nodes hold only keys -> can store more keys
+# 4. MySQL's InnoDB and PostgreSQL indexes use B+ Trees
 #
-# B木 vs B+ 木:
-# | 特性           | B木              | B+ 木             |
-# |---------------|-----------------|-------------------|
-# | データの位置    | 全ノード         | 葉ノードのみ       |
-# | 範囲検索       | 中順走査が必要    | 葉の連結リストで高速 |
-# | 重複キー       | 内部ノードにも    | 葉にのみ           |
-# | ファンアウト    | やや少ない       | 多い（内部はキーのみ）|
-# | 用途           | 一般的           | DB インデックスの標準 |
+# B-Tree vs B+ Tree:
+# | Property         | B-Tree           | B+ Tree              |
+# |-----------------|-----------------|----------------------|
+# | Data location    | All nodes        | Leaf nodes only       |
+# | Range search     | Requires inorder | Fast via leaf linked  |
+# |                  | traversal        | list                  |
+# | Duplicate keys   | In internal too  | Leaves only           |
+# | Fan-out          | Slightly lower   | Higher (internal has  |
+# |                  |                  | keys only)            |
+# | Use case         | General purpose  | Standard for DB       |
+# |                  |                  | indexes               |
 ```
 
 ---
 
-## 7. Trie（接頭辞木）
+## 7. Trie (Prefix Tree)
 
-### 7.1 基本構造と実装
+### 7.1 Basic Structure and Implementation
 
 ```
-"app", "apple", "apt", "bat" を格納:
+Storing "app", "apple", "apt", "bat":
 
       (root)
       /    \
@@ -1058,7 +1061,7 @@ class BPlusInternalNode:
    |
   [e*]
 
-  * = 単語の終端
+  * = end of word
 ```
 
 ```python
@@ -1066,18 +1069,18 @@ class TrieNode:
     def __init__(self):
         self.children = {}
         self.is_end = False
-        self.count = 0  # この接頭辞を持つ単語数
+        self.count = 0  # Number of words with this prefix
 
 class Trie:
-    """Trie（接頭辞木）— 文字列の高速検索
+    """Trie (Prefix Tree) — fast string search
 
-    用途: オートコンプリート、スペルチェック、IP ルーティング
+    Use cases: Autocomplete, spell checking, IP routing
     """
     def __init__(self):
         self.root = TrieNode()
 
     def insert(self, word):
-        """O(m), m = 単語の長さ"""
+        """O(m), m = length of word"""
         node = self.root
         for char in word:
             if char not in node.children:
@@ -1087,16 +1090,16 @@ class Trie:
         node.is_end = True
 
     def search(self, word):
-        """完全一致検索 — O(m)"""
+        """Exact match search — O(m)"""
         node = self._find(word)
         return node is not None and node.is_end
 
     def starts_with(self, prefix):
-        """接頭辞検索 — O(m)"""
+        """Prefix search — O(m)"""
         return self._find(prefix) is not None
 
     def count_prefix(self, prefix):
-        """指定接頭辞を持つ単語数 — O(m)"""
+        """Number of words with the given prefix — O(m)"""
         node = self._find(prefix)
         return node.count if node else 0
 
@@ -1109,7 +1112,7 @@ class Trie:
         return node
 
     def delete(self, word):
-        """単語を削除 — O(m)"""
+        """Delete a word — O(m)"""
         self._delete(self.root, word, 0)
 
     def _delete(self, node, word, depth):
@@ -1134,7 +1137,7 @@ class Trie:
         return False
 
     def autocomplete(self, prefix, limit=10):
-        """オートコンプリート — 接頭辞に続く単語を返す"""
+        """Autocomplete — return words that follow the prefix"""
         node = self._find(prefix)
         if not node:
             return []
@@ -1151,10 +1154,10 @@ class Trie:
             self._collect_words(node.children[char], prefix + char, results, limit)
 
     def get_all_words(self):
-        """全単語を返す"""
+        """Return all words"""
         return self.autocomplete("", limit=float('inf'))
 
-# 使用例
+# Usage example
 trie = Trie()
 words = ["apple", "app", "application", "apply", "apt", "bat", "batch", "bath"]
 for w in words:
@@ -1168,13 +1171,13 @@ print(trie.count_prefix("app"))   # 4 (apple, app, application, apply)
 print(trie.autocomplete("app"))   # ['app', 'apple', 'application', 'apply']
 ```
 
-### 7.2 圧縮 Trie（Patricia Trie / Radix Tree）
+### 7.2 Compressed Trie (Patricia Trie / Radix Tree)
 
 ```python
 class CompressedTrieNode:
-    """圧縮 Trie: 分岐のないパスを1つのノードにまとめる
+    """Compressed Trie: Collapses non-branching paths into a single node
 
-    通常の Trie:          圧縮 Trie:
+    Standard Trie:          Compressed Trie:
         (root)              (root)
           |                 /    \
          [t]           ["test"]  ["toast"]
@@ -1187,7 +1190,7 @@ class CompressedTrieNode:
               |
              [t*]
 
-    メモリ効率が大幅に改善される
+    Greatly improves memory efficiency
     """
     def __init__(self, label=""):
         self.label = label
@@ -1201,24 +1204,24 @@ class CompressedTrie:
     def insert(self, word):
         node = self.root
         while word:
-            # 共通接頭辞を持つ子を探す
+            # Find a child with a common prefix
             found = False
             for key, child in node.children.items():
                 common = self._common_prefix(word, key)
                 if common:
                     found = True
                     if common == key:
-                        # キー全体が共通 → 子ノードに進む
+                        # Entire key is common -> proceed to child node
                         node = child
                         word = word[len(common):]
                     else:
-                        # 部分的に共通 → ノードを分割
+                        # Partially common -> split the node
                         self._split(node, key, common)
                         node = node.children[common]
                         word = word[len(common):]
                     break
             if not found:
-                # 新しい子ノードを追加
+                # Add a new child node
                 new_node = CompressedTrieNode(word)
                 new_node.is_end = True
                 node.children[word] = new_node
@@ -1255,13 +1258,13 @@ class CompressedTrie:
         return node.is_end
 ```
 
-### 7.3 ビット Trie（XOR Trie）
+### 7.3 Bit Trie (XOR Trie)
 
 ```python
 class BitTrie:
-    """ビット Trie: 整数のビット表現で Trie を構築
+    """Bit Trie: Builds a Trie on the bit representation of integers
 
-    用途: 最大 XOR ペアの探索、IP ルーティング
+    Use cases: Finding maximum XOR pairs, IP routing
     """
     def __init__(self, max_bits=32):
         self.root = {}
@@ -1276,7 +1279,7 @@ class BitTrie:
             node = node[bit]
 
     def find_max_xor(self, num):
-        """num との XOR が最大になる値を探索 — O(max_bits)"""
+        """Find the value that maximizes XOR with num — O(max_bits)"""
         node = self.root
         xor_result = 0
         for i in range(self.max_bits - 1, -1, -1):
@@ -1291,7 +1294,7 @@ class BitTrie:
                 break
         return xor_result
 
-# 使用例: 最大 XOR ペア
+# Usage example: Maximum XOR pair
 def max_xor_pair(nums):
     trie = BitTrie()
     max_xor = 0
@@ -1305,9 +1308,9 @@ print(max_xor_pair([3, 10, 5, 25, 2, 8]))  # 28 (5 XOR 25)
 
 ---
 
-## 8. 実務応用パターン
+## 8. Practical Application Patterns
 
-### 8.1 式木（Expression Tree）
+### 8.1 Expression Tree
 
 ```python
 class ExprNode:
@@ -1317,7 +1320,7 @@ class ExprNode:
         self.right = right
 
 def evaluate(node):
-    """式木の評価 — 後順走査"""
+    """Evaluate an expression tree — postorder traversal"""
     if not node.left and not node.right:
         return float(node.val)
 
@@ -1329,22 +1332,22 @@ def evaluate(node):
            '*': lambda a, b: a * b,
            '/': lambda a, b: a / b}
 
-    return opsnode.val
+    return ops[node.val](left_val, right_val)
 
-# (3 + 4) * 2 の式木
+# Expression tree for (3 + 4) * 2
 expr = ExprNode('*',
     ExprNode('+', ExprNode('3'), ExprNode('4')),
     ExprNode('2'))
 print(evaluate(expr))  # 14.0
 ```
 
-### 8.2 最小共通祖先（LCA）
+### 8.2 Lowest Common Ancestor (LCA)
 
 ```python
 def lowest_common_ancestor(root, p, q):
-    """二分木の最小共通祖先 — O(n)
+    """Lowest Common Ancestor of a binary tree — O(n)
 
-    LCA(p, q): p と q の両方を子孫に持つ最も深いノード
+    LCA(p, q): The deepest node that has both p and q as descendants
     """
     if not root or root.val == p or root.val == q:
         return root
@@ -1353,12 +1356,12 @@ def lowest_common_ancestor(root, p, q):
     right = lowest_common_ancestor(root.right, p, q)
 
     if left and right:
-        return root  # p と q が左右に分かれている → root が LCA
+        return root  # p and q are in different subtrees -> root is the LCA
     return left if left else right
 
-# BST の場合は O(log n) に最適化可能
+# For BST, this can be optimized to O(log n)
 def lca_bst(root, p, q):
-    """BST の最小共通祖先 — O(h)"""
+    """Lowest Common Ancestor of a BST — O(h)"""
     while root:
         if p < root.val and q < root.val:
             root = root.left
@@ -1369,17 +1372,17 @@ def lca_bst(root, p, q):
     return None
 ```
 
-### 8.3 木のシリアライズ/デシリアライズ
+### 8.3 Tree Serialization/Deserialization
 
 ```python
 def serialize(root):
-    """木を文字列に変換 — 前順走査"""
+    """Convert a tree to a string — preorder traversal"""
     if not root:
         return "null"
     return f"{root.val},{serialize(root.left)},{serialize(root.right)}"
 
 def deserialize(data):
-    """文字列から木を復元"""
+    """Reconstruct a tree from a string"""
     values = iter(data.split(","))
 
     def build():
@@ -1393,7 +1396,7 @@ def deserialize(data):
 
     return build()
 
-# 使用例
+# Usage example
 root = TreeNode(1, TreeNode(2), TreeNode(3, TreeNode(4), TreeNode(5)))
 s = serialize(root)
 print(s)  # "1,2,null,null,3,4,null,null,5,null,null"
@@ -1401,11 +1404,11 @@ restored = deserialize(s)
 print(preorder(restored))  # [1, 2, 3, 4, 5]
 ```
 
-### 8.4 二分木の直径
+### 8.4 Diameter of a Binary Tree
 
 ```python
 def diameter_of_binary_tree(root):
-    """二分木の直径（最長パスの辺の数）— O(n)"""
+    """Diameter of a binary tree (number of edges in the longest path) — O(n)"""
     max_diameter = [0]
 
     def height(node):
@@ -1413,7 +1416,7 @@ def diameter_of_binary_tree(root):
             return 0
         left_h = height(node.left)
         right_h = height(node.right)
-        # このノードを経由するパスの長さ
+        # Length of the path passing through this node
         max_diameter[0] = max(max_diameter[0], left_h + right_h)
         return 1 + max(left_h, right_h)
 
@@ -1421,13 +1424,13 @@ def diameter_of_binary_tree(root):
     return max_diameter[0]
 ```
 
-### 8.5 木の左側面ビュー
+### 8.5 Side View of a Tree
 
 ```python
 def right_side_view(root):
-    """二分木の右側面ビュー — O(n)
+    """Right side view of a binary tree — O(n)
 
-    各レベルで最も右にあるノードの値を返す
+    Returns the value of the rightmost node at each level
     """
     from collections import deque
     if not root:
@@ -1438,7 +1441,7 @@ def right_side_view(root):
         level_size = len(queue)
         for i in range(level_size):
             node = queue.popleft()
-            if i == level_size - 1:  # レベルの最後のノード
+            if i == level_size - 1:  # Last node at this level
                 result.append(node.val)
             if node.left:
                 queue.append(node.left)
@@ -1449,75 +1452,75 @@ def right_side_view(root):
 
 ---
 
-## 9. 比較表
+## 9. Comparison Tables
 
-### 表1: 木構造の操作計算量
+### Table 1: Operation Complexity by Tree Type
 
-| 木の種類 | 探索 | 挿入 | 削除 | 空間 |
+| Tree Type | Search | Insert | Delete | Space |
 |---------|------|------|------|------|
-| BST（平均） | O(log n) | O(log n) | O(log n) | O(n) |
-| BST（最悪） | O(n) | O(n) | O(n) | O(n) |
-| AVL 木 | O(log n) | O(log n) | O(log n) | O(n) |
-| 赤黒木 | O(log n) | O(log n) | O(log n) | O(n) |
-| B 木 (order m) | O(log n) | O(log n) | O(log n) | O(n) |
-| B+ 木 | O(log n) | O(log n) | O(log n) | O(n) |
+| BST (average) | O(log n) | O(log n) | O(log n) | O(n) |
+| BST (worst) | O(n) | O(n) | O(n) | O(n) |
+| AVL Tree | O(log n) | O(log n) | O(log n) | O(n) |
+| Red-Black Tree | O(log n) | O(log n) | O(log n) | O(n) |
+| B-Tree (order m) | O(log n) | O(log n) | O(log n) | O(n) |
+| B+ Tree | O(log n) | O(log n) | O(log n) | O(n) |
 | Trie | O(m) | O(m) | O(m) | O(SIGMA * L * N) |
-| Splay 木 | O(log n)償却 | O(log n)償却 | O(log n)償却 | O(n) |
+| Splay Tree | O(log n) amortized | O(log n) amortized | O(log n) amortized | O(n) |
 
-### 表2: 平衡木の比較
+### Table 2: Balanced Tree Comparison
 
-| 特性 | AVL 木 | 赤黒木 | B 木 | Splay 木 |
+| Property | AVL Tree | Red-Black Tree | B-Tree | Splay Tree |
 |------|--------|--------|------|----------|
-| 平衡条件 | 高さ差 <= 1 | 色条件 | ノード充填率 | なし（償却） |
-| 探索速度 | 速い | やや遅い | ディスク最適 | 局所性高い |
-| 挿入/削除 | 回転多い | 回転少ない | 分割/併合 | ジグザグ |
-| 主用途 | メモリ内検索 | 汎用（TreeMap） | DB インデックス | キャッシュ |
-| 高さ | <= 1.44 log n | <= 2 log n | <= log_t n | O(n) 最悪 |
-| 回転数（挿入） | 最大2回 | 最大2回 | 0回 | O(log n) |
-| 回転数（削除） | O(log n) | 最大3回 | 0回 | O(log n) |
+| Balance condition | Height diff <= 1 | Color rules | Node fill rate | None (amortized) |
+| Search speed | Fast | Slightly slower | Disk-optimized | High locality |
+| Insert/Delete | More rotations | Fewer rotations | Split/Merge | Zig-zag |
+| Primary use | In-memory search | General (TreeMap) | DB indexes | Cache |
+| Height | <= 1.44 log n | <= 2 log n | <= log_t n | O(n) worst |
+| Rotations (insert) | At most 2 | At most 2 | 0 | O(log n) |
+| Rotations (delete) | O(log n) | At most 3 | 0 | O(log n) |
 
-### 表3: 言語標準ライブラリの木構造
+### Table 3: Tree Structures in Language Standard Libraries
 
-| 言語 | 順序付きマップ | 内部実装 | 順序なしマップ |
+| Language | Ordered Map | Internal Implementation | Unordered Map |
 |------|-------------|---------|-------------|
-| Java | TreeMap | 赤黒木 | HashMap |
-| C++ | std::map | 赤黒木 | std::unordered_map |
-| Python | SortedDict (sortedcontainers) | B木ベース | dict |
-| Rust | BTreeMap | B木 | HashMap |
-| Go | なし（標準） | - | map |
-| C# | SortedDictionary | 赤黒木 | Dictionary |
+| Java | TreeMap | Red-Black Tree | HashMap |
+| C++ | std::map | Red-Black Tree | std::unordered_map |
+| Python | SortedDict (sortedcontainers) | B-Tree based | dict |
+| Rust | BTreeMap | B-Tree | HashMap |
+| Go | None (standard) | - | map |
+| C# | SortedDictionary | Red-Black Tree | Dictionary |
 
 ---
 
-## 10. アンチパターン
+## 10. Anti-Patterns
 
-### アンチパターン1: ソート済みデータをBSTに挿入
+### Anti-Pattern 1: Inserting Sorted Data into a BST
 
 ```python
-# BAD: ソート済みデータ → 偏った木 → O(n)
+# BAD: Sorted data -> skewed tree -> O(n)
 bst = BST()
 for i in range(1, 8):
     bst.insert(i)
 
-# 結果: 1 → 2 → 3 → 4 → 5 → 6 → 7（連結リストと同じ）
-# 探索: O(n)
+# Result: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 (same as a linked list)
+# Search: O(n)
 
-# GOOD: 平衡木（AVL/赤黒木）を使う
+# GOOD: Use a balanced tree (AVL/Red-Black Tree)
 avl = AVLTree()
 for i in range(1, 8):
     avl.insert(i)
-# → 常に O(log n) を保証
+# -> Always guarantees O(log n)
 
-# GOOD: ランダムシャッフルしてから挿入
+# GOOD: Randomly shuffle before inserting
 import random
 data = list(range(1, 8))
 random.shuffle(data)
 bst2 = BST()
 for i in data:
     bst2.insert(i)
-# → 平均的にバランスの良い木になる
+# -> On average produces a well-balanced tree
 
-# GOOD: ソート済み配列から直接バランスBSTを構築
+# GOOD: Build a balanced BST directly from a sorted array
 def sorted_array_to_bst(arr):
     if not arr:
         return None
@@ -1531,36 +1534,36 @@ root = sorted_array_to_bst([1, 2, 3, 4, 5, 6, 7])
 print(levelorder(root))  # [4, 2, 6, 1, 3, 5, 7]
 ```
 
-### アンチパターン2: Trie で不要なメモリ消費
+### Anti-Pattern 2: Unnecessary Memory Consumption in Trie
 
 ```python
-# BAD: 26文字分の配列を毎ノードに確保
+# BAD: Allocate an array for 26 characters at every node
 class BadTrieNode:
     def __init__(self):
-        self.children = [None] * 26  # 26 x 8byte = 208byte/node
+        self.children = [None] * 26  # 26 x 8bytes = 208bytes/node
         self.is_end = False
 
-# GOOD: 辞書で必要な文字のみ
+# GOOD: Use a dictionary for only the needed characters
 class GoodTrieNode:
     def __init__(self):
-        self.children = {}  # 必要な文字だけ
+        self.children = {}  # Only the characters that exist
         self.is_end = False
 
-# BETTER: 圧縮 Trie で分岐のないパスをまとめる
-# "application" の 11 ノード → 1-2 ノードに圧縮
+# BETTER: Use a compressed Trie to collapse non-branching paths
+# "application" with 11 nodes -> compressed to 1-2 nodes
 ```
 
-### アンチパターン3: 再帰の深さ制限を考慮しない
+### Anti-Pattern 3: Not Considering Recursion Depth Limits
 
 ```python
-# BAD: 深い木で再帰が StackOverflow
+# BAD: Recursion causes StackOverflow on deep trees
 def bad_inorder(node):
     if not node:
         return []
     return bad_inorder(node.left) + [node.val] + bad_inorder(node.right)
-# Python のデフォルト再帰制限は 1000
+# Python's default recursion limit is 1000
 
-# GOOD: 反復版を使う
+# GOOD: Use the iterative version
 def good_inorder(root):
     result, stack = [], []
     current = root
@@ -1573,107 +1576,107 @@ def good_inorder(root):
         current = current.right
     return result
 
-# あるいは再帰制限を引き上げる（非推奨）
+# Or raise the recursion limit (not recommended)
 # import sys
 # sys.setrecursionlimit(100000)
 ```
 
-### アンチパターン4: BST のキーに可変オブジェクトを使用
+### Anti-Pattern 4: Using Mutable Objects as BST Keys
 
 ```python
-# BAD: 挿入後にキーの比較結果が変わる
+# BAD: Comparison results change after insertion
 class MutableKey:
     def __init__(self, val):
         self.val = val
     def __lt__(self, other):
         return self.val < other.val
 
-# キーの値を変更すると BST の性質が壊れる
+# Modifying the key value breaks the BST property
 
-# GOOD: 不変のキーを使用する
-# 数値、文字列、タプルなど
+# GOOD: Use immutable keys
+# Numbers, strings, tuples, etc.
 ```
 
 ---
 
 ## 11. FAQ
 
-### Q1: AVL 木と赤黒木はどちらを使うべきか？
+### Q1: Should I use an AVL tree or a red-black tree?
 
-**A:** 探索が多いなら AVL 木（木の高さが低い、最大 1.44 log n）、挿入・削除が多いなら赤黒木（回転が少ない、挿入は最大2回、削除は最大3回の回転）。実務では多くの言語の標準ライブラリが赤黒木を採用（Java TreeMap、C++ std::map）。ただし Rust は B木を標準（BTreeMap）に採用しており、キャッシュ効率が良い。
+**A:** If searches are frequent, use an AVL tree (lower tree height, at most 1.44 log n). If insertions and deletions are frequent, use a red-black tree (fewer rotations: at most 2 for insertion, at most 3 for deletion). In practice, many language standard libraries adopt red-black trees (Java TreeMap, C++ std::map). However, Rust uses a B-tree as its standard (BTreeMap), which offers better cache efficiency.
 
-### Q2: B木はなぜデータベースに使われるか？
+### Q2: Why are B-trees used in databases?
 
-**A:** B木はノードが大きく（数百〜数千のキー）、ディスクブロックサイズに合わせられる。木の高さが非常に低い（3〜4レベルで数百万件を格納）ため、ディスクI/O回数が最小になる。B+木はさらに範囲検索に最適化されており、葉ノードが連結リストでつながっているため、ORDER BY や BETWEEN 句が高速。
+**A:** B-tree nodes are large (hundreds to thousands of keys) and can be aligned to disk block sizes. The tree height is very low (3-4 levels can store millions of records), minimizing the number of disk I/O operations. B+ trees are further optimized for range queries, with leaf nodes connected as a linked list, making ORDER BY and BETWEEN clauses fast.
 
-### Q3: Trie のメモリ消費を減らすには？
+### Q3: How can I reduce the memory consumption of a Trie?
 
-**A:** 複数の手法がある:
-1. **圧縮 Trie（Patricia Trie / Radix Tree）**: 分岐のないパスを1つのノードにまとめる
-2. **辞書ベースの子管理**: 配列の代わりに辞書を使えばスパースなアルファベットでも効率的
-3. **ダブルアレイ Trie**: 2つの配列で Trie を表現。メモリ効率と速度のバランスが良い
-4. **HAT-Trie**: ハッシュテーブルと Trie のハイブリッド
+**A:** Several techniques are available:
+1. **Compressed Trie (Patricia Trie / Radix Tree)**: Collapses non-branching paths into a single node
+2. **Dictionary-based child management**: Using a dictionary instead of an array is efficient even for sparse alphabets
+3. **Double-Array Trie**: Represents a Trie using two arrays, balancing memory efficiency and speed
+4. **HAT-Trie**: A hybrid of hash tables and Tries
 
-### Q4: 二分木の問題を解く際のコツは？
-
-**A:**
-1. **再帰で考える**: ほとんどの二分木問題は「根での処理 + 左部分木 + 右部分木」に分解できる
-2. **戻り値の型を明確に**: 関数が返すべき情報（高さ、結果、真偽値など）を事前に決める
-3. **ベースケースを確認**: null ノードの処理を忘れない
-4. **走査の選択**: 目的に合った走査を選ぶ（ソート順なら中順、コピーなら前順、削除なら後順）
-
-### Q5: セグメント木と Fenwick 木の違いは？
+### Q4: What are some tips for solving binary tree problems?
 
 **A:**
-- **セグメント木**: 任意の区間クエリと区間更新に対応。遅延伝播で範囲更新が O(log n)。実装がやや複雑だが汎用性が高い。
-- **Fenwick 木（BIT）**: 接頭辞和に特化。実装が簡単でメモリ効率が良い。ただし区間更新には追加の工夫が必要。
-- 指針: 単純な累積和クエリなら Fenwick 木、複雑な区間操作ならセグメント木。
+1. **Think recursively**: Most binary tree problems can be decomposed into "processing at the root + left subtree + right subtree"
+2. **Clarify the return type**: Decide in advance what information the function should return (height, result, boolean, etc.)
+3. **Check the base case**: Do not forget to handle null nodes
+4. **Choose the right traversal**: Select the traversal that matches your goal (inorder for sorted order, preorder for copying, postorder for deletion)
+
+### Q5: What is the difference between segment trees and Fenwick trees?
+
+**A:**
+- **Segment Tree**: Supports arbitrary range queries and range updates. Range updates are O(log n) with lazy propagation. Implementation is somewhat complex but highly versatile.
+- **Fenwick Tree (BIT)**: Specialized for prefix sums. Easy to implement with good memory efficiency. However, range updates require additional techniques.
+- Guideline: Use a Fenwick tree for simple cumulative sum queries, and a segment tree for complex range operations.
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when studying this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory but by actually writing code and verifying its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes that beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend building a solid understanding of the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this knowledge applied in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently utilized in day-to-day development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## 12. まとめ
+## 12. Summary
 
-| 項目 | ポイント |
+| Topic | Key Points |
 |------|---------|
-| 二分木走査 | 前順/中順/後順/レベル順の4種。反復版と Morris 走査も重要 |
-| BST | 中順走査がソート順。最悪 O(n)。削除は3ケースの処理 |
-| AVL 木 | 高さ差 <= 1。探索に最適。4パターンの回転 |
-| 赤黒木 | 回転が少ない。挿入2回、削除3回が上限。汎用的 |
-| B 木 | ディスク I/O 最適化。DB のインデックス。高ファンアウト |
-| B+ 木 | データは葉のみ。葉が連結リスト。範囲検索に最適 |
-| Trie | 接頭辞検索に O(m)。オートコンプリート。圧縮で省メモリ |
-| 実務応用 | LCA、シリアライズ、式木、直径など多数の頻出パターン |
+| Binary tree traversals | 4 types: preorder/inorder/postorder/level-order. Iterative and Morris traversal are also important |
+| BST | Inorder traversal yields sorted order. Worst case O(n). Deletion handles 3 cases |
+| AVL Tree | Height difference <= 1. Optimal for search. 4 rotation patterns |
+| Red-Black Tree | Fewer rotations. At most 2 for insertion, 3 for deletion. General purpose |
+| B-Tree | Disk I/O optimized. Used for DB indexes. High fan-out |
+| B+ Tree | Data only in leaves. Leaves form a linked list. Optimal for range queries |
+| Trie | O(m) for prefix search. Autocomplete. Memory-efficient with compression |
+| Practical applications | Many common patterns including LCA, serialization, expression trees, diameter |
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Guides
 
-- [ヒープ — 二分ヒープとヒープソート](./05-heaps.md)
-- [セグメント木 — 区間クエリと遅延伝播](../03-advanced/01-segment-tree.md)
+- [Heaps — Binary Heaps and Heap Sort](./05-heaps.md)
+- [Segment Trees — Range Queries and Lazy Propagation](../03-advanced/01-segment-tree.md)
 
 ---
 
-## 参考文献
+## References
 
-1. Cormen, T.H. et al. (2022). *Introduction to Algorithms* (4th ed.). MIT Press. — 第12-13章「Binary Search Trees」「Red-Black Trees」、第18章「B-Trees」
+1. Cormen, T.H. et al. (2022). *Introduction to Algorithms* (4th ed.). MIT Press. — Chapters 12-13 "Binary Search Trees" "Red-Black Trees", Chapter 18 "B-Trees"
 2. Bayer, R. & McCreight, E. (1972). "Organization and maintenance of large ordered indexes." *Acta Informatica*, 1(3), 173-189.
-3. Sedgewick, R. & Wayne, K. (2011). *Algorithms* (4th ed.). Addison-Wesley. — Trie の実装
+3. Sedgewick, R. & Wayne, K. (2011). *Algorithms* (4th ed.). Addison-Wesley. — Trie implementation
 4. Adelson-Velsky, G.M. & Landis, E.M. (1962). "An algorithm for the organization of information." *Soviet Mathematics Doklady*, 3, 1259-1263.
 5. Guibas, L.J. & Sedgewick, R. (1978). "A dichromatic framework for balanced trees." *19th Annual Symposium on Foundations of Computer Science*.

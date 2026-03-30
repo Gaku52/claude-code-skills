@@ -1,104 +1,104 @@
-# 時間空間トレードオフ — メモ化・テーブル・キャッシュ・ブルームフィルタ
+# Space-Time Tradeoff — Memoization, Tables, Caching, and Bloom Filters
 
-> メモリを追加で使用することで計算時間を削減する（または逆に空間を節約して時間を犠牲にする）手法を体系的に学ぶ。
-> アルゴリズム設計における最も基本的な判断軸の一つであり、あらゆるソフトウェアの性能チューニングに直結する知識である。
-
----
-
-## この章で学ぶこと
-
-1. **トレードオフの理論的基盤** — なぜ時間と空間は交換可能なのか
-2. **メモ化（Memoization）** — 再帰アルゴリズムの高速化とそのコスト分析
-3. **キャッシュ戦略** — LRU、LFU、TTL によるメモリ管理と実践パターン
-4. **ルックアップテーブル** — 事前計算による O(1) 参照の設計手法
-5. **ブルームフィルタ** — 確率的データ構造による空間効率の劇的改善
-6. **実践的な判断基準** — どの手法をいつ選ぶべきかの意思決定フレームワーク
-
-### 前提知識
-
-- 基本的な計算量表記（O, Theta, Omega）を理解していること
-- Python の基本構文（再帰、辞書、リスト内包表記）を読めること
-- ハッシュ関数の概念を知っていること（詳細は不要）
+> A systematic study of techniques for reducing computation time by using additional memory (or, conversely, saving space at the expense of time).
+> This is one of the most fundamental decision axes in algorithm design, and the knowledge directly impacts performance tuning in all software.
 
 ---
 
-## 1. トレードオフの理論的基盤
+## What You Will Learn in This Chapter
 
-### 1.1 なぜ時間と空間は交換可能なのか
+1. **Theoretical Foundations of Tradeoffs** — Why time and space are interchangeable
+2. **Memoization** — Speeding up recursive algorithms and analyzing their costs
+3. **Caching Strategies** — Memory management with LRU, LFU, and TTL, and practical patterns
+4. **Lookup Tables** — Design techniques for O(1) reference via precomputation
+5. **Bloom Filters** — Dramatic space efficiency improvement through probabilistic data structures
+6. **Practical Decision Criteria** — A decision-making framework for choosing the right technique at the right time
 
-計算の本質は「状態の変換」である。ある計算結果を再利用する場面を考えよう。選択肢は2つある。
+### Prerequisites
 
-1. **毎回計算し直す** — 空間は不要だが、計算に時間がかかる
-2. **計算結果を保存して再利用する** — 時間は短縮されるが、保存のための空間が必要になる
+- Understanding of basic complexity notation (O, Theta, Omega)
+- Ability to read basic Python syntax (recursion, dictionaries, list comprehensions)
+- Familiarity with the concept of hash functions (details not required)
 
-この関係は数学的に表現できる。関数 f(x) を n 回評価する場面で、1 回の計算に時間 T がかかるとする。
+---
 
-- **保存なし**: 時間 = O(n * T)、空間 = O(1)
-- **全保存**: 時間 = O(T + n)（初回計算 + n 回の参照）、空間 = O(結果のサイズ)
+## 1. Theoretical Foundations of Tradeoffs
 
-この2つの極端な選択肢の間に、無数の中間点が存在する。これが「トレードオフ」の意味である。
+### 1.1 Why Are Time and Space Interchangeable?
 
-### 1.2 トレードオフの全体像
+The essence of computation is "state transformation." Consider a scenario where a computation result needs to be reused. There are two options:
+
+1. **Recompute every time** — No space required, but computation takes time
+2. **Store and reuse the result** — Time is reduced, but space is needed for storage
+
+This relationship can be expressed mathematically. Consider a scenario where function f(x) is evaluated n times, with each computation taking time T:
+
+- **No storage**: Time = O(n * T), Space = O(1)
+- **Full storage**: Time = O(T + n) (initial computation + n lookups), Space = O(result size)
+
+Between these two extremes lies an infinite number of intermediate points. This is what "tradeoff" means.
+
+### 1.2 The Big Picture of Tradeoffs
 
 ```
-時間空間トレードオフの全体像:
+The Big Picture of Space-Time Tradeoffs:
 
-  時間 ▲
-  (計算量) │
-       │  ● 素朴な再計算
-       │     (時間大・空間小)
-       │     例: 毎回フィボナッチを再帰計算
-       │
-       │     ● 部分キャッシュ
-       │        (LRU で頻出のみ保存)
-       │
-       │        ● メモ化
-       │           (計算済みを全保存)
-       │
-       │           ● ルックアップテーブル
-       │              (事前に全パターン計算)
-       │                 時間小・空間大
-       ┼──────────────────────────────────► 空間
-                                          (メモリ使用量)
+  Time  ^
+  (Complexity)
+       |  * Naive recomputation
+       |     (high time, low space)
+       |     e.g., Fibonacci via naive recursion every time
+       |
+       |     * Partial caching
+       |        (cache only frequent items with LRU)
+       |
+       |        * Memoization
+       |           (store all computed results)
+       |
+       |           * Lookup table
+       |              (precompute all patterns)
+       |                 low time, high space
+       +---------------------------------------> Space
+                                          (Memory usage)
 
-  「パレートフロンティア」上のどの点を選ぶかが設計判断
+  The design decision is choosing which point on the "Pareto frontier"
 ```
 
-### 1.3 Cobham の定理との関係
+### 1.3 Relationship with Cobham's Thesis
 
-計算量理論において、**PSPACE** は多項式空間で解ける問題のクラスであり、**P** は多項式時間で解ける問題のクラスである。P ⊆ PSPACE が成り立つが、これは「時間で効率的に解ける問題は空間でも効率的に解ける」ことを意味する。逆は未解決（PSPACE = P かどうかは不明）であり、空間効率と時間効率は必ずしも等価ではない。
+In computational complexity theory, **PSPACE** is the class of problems solvable in polynomial space, and **P** is the class of problems solvable in polynomial time. The inclusion P ⊆ PSPACE holds, meaning "problems that can be solved efficiently in time can also be solved efficiently in space." The converse is unresolved (whether PSPACE = P is unknown), and space efficiency and time efficiency are not necessarily equivalent.
 
-この理論的背景を踏まえると、実務では以下の指針が得られる。
+With this theoretical background, the following practical guidelines emerge:
 
-| 状況 | 推奨方向 | 理由 |
-|------|---------|------|
-| メモリ潤沢・レイテンシ重要 | 時間優先（空間を消費） | ユーザー体験に直結するため |
-| 組み込み・IoT | 空間優先（時間を犠牲） | 物理メモリの制約が厳しいため |
-| バッチ処理 | 状況依存 | スループットとコストのバランスによる |
-| クラウド環境 | コスト最適化 | メモリ課金と計算時間課金の比較による |
+| Situation | Recommended Direction | Reason |
+|-----------|----------------------|--------|
+| Ample memory, latency matters | Prioritize time (consume space) | Directly impacts user experience |
+| Embedded / IoT | Prioritize space (sacrifice time) | Physical memory constraints are severe |
+| Batch processing | Depends on situation | Balance between throughput and cost |
+| Cloud environment | Cost optimization | Compare memory billing vs. compute time billing |
 
 ---
 
-## 2. メモ化（Memoization）
+## 2. Memoization
 
-### 2.1 メモ化の原理
+### 2.1 Principles of Memoization
 
-メモ化とは、関数の計算結果を引数をキーとして保存し、同じ引数での再呼び出し時に保存済みの結果を返す手法である。この手法が有効になるための条件が2つある。
+Memoization is a technique that stores function computation results using arguments as keys and returns the stored result when the function is called again with the same arguments. Two conditions must be met for this technique to be effective:
 
-1. **重複部分問題の存在**: 同じ引数で関数が複数回呼ばれること
-2. **参照透過性**: 同じ引数に対して常に同じ結果を返すこと（副作用がないこと）
+1. **Overlapping subproblems**: The function must be called multiple times with the same arguments
+2. **Referential transparency**: The function must always return the same result for the same arguments (no side effects)
 
-条件 1 がなければキャッシュヒットが発生せず空間の無駄になり、条件 2 がなければキャッシュした値が不正になる。
+If condition 1 is not met, cache hits never occur and space is wasted. If condition 2 is not met, cached values become incorrect.
 
-### 2.2 素朴なフィボナッチ vs メモ化
+### 2.2 Naive Fibonacci vs. Memoized Fibonacci
 
-以下は完全に動作するコードで、メモ化の効果を計測できる。
+Below is fully working code that can measure the effect of memoization.
 
 ```python
 """
-フィボナッチ数列: 素朴な再帰 vs メモ化 の比較
-- 素朴版: 時間 O(2^n), 空間 O(n)（コールスタック）
-- メモ化版: 時間 O(n), 空間 O(n)（キャッシュ + コールスタック）
+Fibonacci sequence: Naive recursion vs. memoization comparison
+- Naive: Time O(2^n), Space O(n) (call stack)
+- Memoized: Time O(n), Space O(n) (cache + call stack)
 """
 
 import time
@@ -106,14 +106,15 @@ import sys
 
 
 def fib_naive(n: int) -> int:
-    """素朴な再帰によるフィボナッチ数列。
+    """Fibonacci via naive recursion.
 
-    なぜ O(2^n) なのか:
-    fib(n) は fib(n-1) と fib(n-2) を呼ぶ。
-    この再帰木の高さは n であり、各レベルで分岐が最大2つ。
-    よって呼び出し回数は最悪 2^n に近い。
-    実際には fib(n) の呼び出し回数は fib(n+1) - 1 回であり、
-    これは黄金比 φ = (1+√5)/2 ≈ 1.618 を用いて φ^n に比例する。
+    Why O(2^n):
+    fib(n) calls fib(n-1) and fib(n-2).
+    The recursion tree has height n and up to 2 branches at each level.
+    Therefore, the number of calls is close to 2^n in the worst case.
+    In reality, the number of calls to fib(n) is fib(n+1) - 1,
+    which is proportional to phi^n using the golden ratio
+    phi = (1+sqrt(5))/2 ~ 1.618.
     """
     if n <= 1:
         return n
@@ -121,16 +122,17 @@ def fib_naive(n: int) -> int:
 
 
 def fib_memo(n: int, memo: dict = None) -> int:
-    """メモ化によるフィボナッチ数列。
+    """Fibonacci with memoization.
 
-    なぜ O(n) なのか:
-    各 fib(k) (k=0..n) は最大1回だけ「実際に計算」される。
-    2回目以降は memo から O(1) で取得する。
-    よって計算回数は n+1 回、各回 O(1) なので全体 O(n)。
+    Why O(n):
+    Each fib(k) (k=0..n) is "actually computed" at most once.
+    On subsequent calls, it is retrieved from memo in O(1).
+    Therefore, the number of computations is n+1, each O(1),
+    giving an overall O(n).
 
-    注意: デフォルト引数に mutable オブジェクトを使うと
-    関数呼び出し間で共有される。ここでは意図的に None を
-    デフォルトにし、初回呼び出しで辞書を生成している。
+    Note: Using a mutable object as a default argument causes
+    it to be shared between function calls. Here we intentionally
+    use None as default and create the dictionary on the first call.
     """
     if memo is None:
         memo = {}
@@ -143,14 +145,15 @@ def fib_memo(n: int, memo: dict = None) -> int:
 
 
 def fib_bottom_up(n: int) -> int:
-    """ボトムアップ DP によるフィボナッチ数列。
+    """Fibonacci via bottom-up DP.
 
-    なぜこの方法が存在するのか:
-    メモ化（トップダウン）は再帰呼び出しを使うため、
-    Python のデフォルト再帰上限（通常 1000）に引っかかる。
-    ボトムアップはループで計算するため再帰上限の制約がない。
+    Why does this approach exist:
+    Memoization (top-down) relies on recursive calls, so it hits
+    Python's default recursion limit (typically 1000).
+    Bottom-up uses a loop for computation and is not constrained
+    by the recursion limit.
 
-    時間 O(n), 空間 O(1)（直前の2値のみ保持）
+    Time O(n), Space O(1) (only retains the previous two values)
     """
     if n <= 1:
         return n
@@ -161,22 +164,22 @@ def fib_bottom_up(n: int) -> int:
 
 
 def benchmark_fibonacci():
-    """3手法の性能を比較する。"""
+    """Compare performance of the three approaches."""
     print("=" * 60)
-    print("フィボナッチ数列: 手法別ベンチマーク")
+    print("Fibonacci Sequence: Benchmark by Method")
     print("=" * 60)
 
-    # 素朴版は n=35 程度が限界（それ以上は待ち時間が長すぎる）
+    # The naive version is limited to about n=35 (beyond that, wait time is too long)
     for n in [10, 20, 30, 35]:
         start = time.perf_counter()
         result = fib_naive(n)
         elapsed = time.perf_counter() - start
-        print(f"素朴版     fib({n:2d}) = {result:>15,d}  "
-              f"時間: {elapsed:.6f}秒")
+        print(f"Naive      fib({n:2d}) = {result:>15,d}  "
+              f"Time: {elapsed:.6f}s")
 
     print("-" * 60)
 
-    # メモ化版とボトムアップ版は大きな n でも高速
+    # Memoized and bottom-up versions are fast even for large n
     sys.setrecursionlimit(10000)
     for n in [10, 100, 1000, 5000]:
         memo = {}
@@ -188,80 +191,80 @@ def benchmark_fibonacci():
         result_bu = fib_bottom_up(n)
         elapsed_bu = time.perf_counter() - start
 
-        assert result_memo == result_bu, "結果が一致しません"
+        assert result_memo == result_bu, "Results do not match"
         digits = len(str(result_memo))
-        print(f"メモ化版   fib({n:4d}): {digits:>5d}桁  "
-              f"時間: {elapsed_memo:.6f}秒  "
-              f"キャッシュサイズ: {len(memo)}")
-        print(f"ボトムアップ fib({n:4d}): {digits:>5d}桁  "
-              f"時間: {elapsed_bu:.6f}秒  "
-              f"追加空間: O(1)")
+        print(f"Memoized   fib({n:4d}): {digits:>5d} digits  "
+              f"Time: {elapsed_memo:.6f}s  "
+              f"Cache size: {len(memo)}")
+        print(f"Bottom-up  fib({n:4d}): {digits:>5d} digits  "
+              f"Time: {elapsed_bu:.6f}s  "
+              f"Extra space: O(1)")
 
 
 if __name__ == "__main__":
     benchmark_fibonacci()
 ```
 
-### 2.3 呼び出しの削減を図で理解
+### 2.3 Understanding Call Reduction with Diagrams
 
 ```
-素朴なフィボナッチ fib(5) の再帰木 — 重複計算が多い:
+Naive Fibonacci fib(5) recursion tree — many duplicate computations:
 
                fib(5)
               /      \
-          fib(4)      fib(3)        ← fib(3) が 2 回出現
+          fib(4)      fib(3)        <- fib(3) appears 2 times
           /    \       /   \
-      fib(3)  fib(2) fib(2) fib(1)  ← fib(2) が 3 回出現
+      fib(3)  fib(2) fib(2) fib(1)  <- fib(2) appears 3 times
       /  \    /  \    /  \
-   f(2) f(1) f(1) f(0) f(1) f(0)   ← fib(1) が 5 回出現
+   f(2) f(1) f(1) f(0) f(1) f(0)   <- fib(1) appears 5 times
    / \
  f(1) f(0)
 
-呼び出し回数: 15 回（n=5 で既に多い）
-n=40 では約 3.3 億回に達する
+Number of calls: 15 (already many for n=5)
+For n=40, this reaches about 330 million calls
 
-───────────────────────────────────────────
+---------------------------------------------------
 
-メモ化版 fib(5) — 各値は1回だけ「真の計算」:
+Memoized fib(5) — each value is "truly computed" only once:
 
-  呼び出し順序:
-  fib(5) → fib(4) → fib(3) → fib(2) → fib(1): return 1  ← 計算
-                                       fib(0): return 0  ← 計算
-                              fib(2) = 1       ← 計算(1+0)
-                     fib(3):  fib(1) → キャッシュヒット
-                     fib(3) = 2                ← 計算(1+1)
-            fib(4):  fib(2) → キャッシュヒット
-            fib(4) = 3                         ← 計算(2+1)
-   fib(5):  fib(3) → キャッシュヒット
-   fib(5) = 5                                  ← 計算(3+2)
+  Call order:
+  fib(5) -> fib(4) -> fib(3) -> fib(2) -> fib(1): return 1  <- compute
+                                       fib(0): return 0  <- compute
+                              fib(2) = 1       <- compute(1+0)
+                     fib(3):  fib(1) -> cache hit
+                     fib(3) = 2                <- compute(1+1)
+            fib(4):  fib(2) -> cache hit
+            fib(4) = 3                         <- compute(2+1)
+   fib(5):  fib(3) -> cache hit
+   fib(5) = 5                                  <- compute(3+2)
 
-  実際の計算: 6 回（fib(0)..fib(5) 各1回）
-  キャッシュ参照: 3 回
+  Actual computations: 6 (fib(0)..fib(5), once each)
+  Cache lookups: 3
 
-  memo の状態変化:
-  {} → {1:1} → {1:1, 0:0} → {1:1, 0:0, 2:1}
-     → {..., 3:2} → {..., 4:3} → {..., 5:5}
+  State changes of memo:
+  {} -> {1:1} -> {1:1, 0:0} -> {1:1, 0:0, 2:1}
+     -> {..., 3:2} -> {..., 4:3} -> {..., 5:5}
 ```
 
-### 2.4 Python デコレータによるメモ化
+### 2.4 Memoization with Python Decorators
 
-`functools.lru_cache` は Python 標準ライブラリが提供するメモ化デコレータである。内部的には二重連結リストとハッシュマップを組み合わせた LRU（Least Recently Used）キャッシュを実装している。
+`functools.lru_cache` is a memoization decorator provided by the Python standard library. Internally, it implements an LRU (Least Recently Used) cache using a combination of a doubly linked list and a hash map.
 
 ```python
 """
-functools.lru_cache の活用パターンと注意点
+Usage patterns and considerations for functools.lru_cache
 
-lru_cache が内部で行っていること:
-1. 引数をタプルに変換してハッシュキーを生成
-2. キーがキャッシュに存在すれば、そのエントリを「最近使用」に移動して返す
-3. 存在しなければ関数を実行し、結果をキャッシュに追加
-4. maxsize を超えたら「最も古い」エントリを削除
+What lru_cache does internally:
+1. Converts arguments to a tuple to generate a hash key
+2. If the key exists in the cache, moves that entry to "most recently used" and returns it
+3. If it doesn't exist, executes the function and adds the result to the cache
+4. If maxsize is exceeded, removes the "oldest" entry
 
-なぜ maxsize=None と maxsize=128 を使い分けるのか:
-- maxsize=None: 無制限キャッシュ。全結果を保存。メモリ使用量が増え続ける。
-  → 部分問題数が有限で予測可能な場合（DP など）に適する
-- maxsize=128（デフォルト）: 最大128エントリ。LRU で古いものを追い出す。
-  → 入力の種類が膨大だがアクセスに局所性がある場合に適する
+Why distinguish between maxsize=None and maxsize=128:
+- maxsize=None: Unlimited cache. Stores all results. Memory usage grows indefinitely.
+  -> Suitable when the number of subproblems is finite and predictable (e.g., DP)
+- maxsize=128 (default): Maximum 128 entries. Evicts old entries via LRU.
+  -> Suitable when input varieties are vast but access has locality
 """
 
 from functools import lru_cache
@@ -270,12 +273,12 @@ import time
 
 @lru_cache(maxsize=None)
 def fib_cached(n: int) -> int:
-    """メモ化フィボナッチ — lru_cache 版
+    """Memoized Fibonacci — lru_cache version
 
-    なぜ maxsize=None なのか:
-    fib(n) の部分問題数は n+1 個で有限。
-    全てキャッシュしても空間 O(n) で収まる。
-    LRU の追い出しが発生すると再計算が必要になり非効率。
+    Why maxsize=None:
+    The number of subproblems for fib(n) is n+1, which is finite.
+    Caching all of them stays within O(n) space.
+    If LRU eviction occurs, recomputation becomes necessary and is inefficient.
     """
     if n <= 1:
         return n
@@ -284,112 +287,113 @@ def fib_cached(n: int) -> int:
 
 @lru_cache(maxsize=256)
 def expensive_api_simulation(user_id: int, query: str) -> dict:
-    """高コスト処理のキャッシュ例
+    """Example of caching an expensive operation
 
-    なぜ maxsize=256 なのか:
-    ユーザーID × クエリの組み合わせは膨大になりうる。
-    全てキャッシュするとメモリが枯渇する。
-    アクセスパターンには時間的局所性があるため、
-    最近のエントリのみ保持すれば十分なヒット率が得られる。
+    Why maxsize=256:
+    The combination of user ID x query can be enormous.
+    Caching everything would exhaust memory.
+    Since access patterns have temporal locality,
+    retaining only recent entries yields sufficient hit rates.
     """
-    # 重い処理をシミュレート
+    # Simulate heavy processing
     time.sleep(0.001)
     return {"user_id": user_id, "query": query, "result": "data"}
 
 
 def demonstrate_cache_info():
-    """lru_cache の統計情報を確認する。"""
-    # キャッシュをクリア
+    """Examine lru_cache statistics."""
+    # Clear cache
     fib_cached.cache_clear()
 
-    # 計算実行
+    # Execute computation
     result = fib_cached(100)
     info = fib_cached.cache_info()
 
     print(f"fib(100) = {result}")
-    print(f"キャッシュ情報:")
-    print(f"  ヒット数:   {info.hits}")
-    print(f"  ミス数:     {info.misses}")
-    print(f"  最大サイズ: {info.maxsize}")
-    print(f"  現在サイズ: {info.currsize}")
-    print(f"  ヒット率:   {info.hits / (info.hits + info.misses) * 100:.1f}%")
+    print(f"Cache info:")
+    print(f"  Hits:         {info.hits}")
+    print(f"  Misses:       {info.misses}")
+    print(f"  Max size:     {info.maxsize}")
+    print(f"  Current size: {info.currsize}")
+    print(f"  Hit rate:     {info.hits / (info.hits + info.misses) * 100:.1f}%")
 
 
 if __name__ == "__main__":
     demonstrate_cache_info()
 ```
 
-### 2.5 メモ化の空間コスト分析
+### 2.5 Space Cost Analysis of Memoization
 
-メモ化は「時間を空間で買う」手法であるため、空間コストの分析が重要になる。
+Memoization is a technique that "buys time with space," so analyzing the space cost is crucial.
 
 ```
-メモ化の空間コスト内訳:
+Space cost breakdown of memoization:
 
-1. キャッシュ本体
-   ┌────────────────────────────────────────┐
-   │  辞書 (dict) のオーバーヘッド           │
-   │  - ハッシュテーブルの空きスロット        │
-   │  - 各エントリのキーと値                  │
-   │  - Python オブジェクトのヘッダ           │
-   │                                         │
-   │  例: fib(1000) のメモ化                  │
-   │  - エントリ数: 1001                      │
-   │  - 1エントリあたり: ~100バイト（概算）    │
-   │  - 合計: ~100KB                          │
-   └────────────────────────────────────────┘
+1. Cache body
+   +--------------------------------------------+
+   |  Dictionary (dict) overhead                 |
+   |  - Empty slots in the hash table            |
+   |  - Key and value for each entry             |
+   |  - Python object headers                    |
+   |                                             |
+   |  Example: Memoizing fib(1000)               |
+   |  - Number of entries: 1001                  |
+   |  - Per entry: ~100 bytes (approximate)      |
+   |  - Total: ~100KB                            |
+   +--------------------------------------------+
 
-2. コールスタック（再帰の場合）
-   ┌────────────────────────────────────────┐
-   │  再帰呼び出しのスタックフレーム          │
-   │  - 最大深さ: O(n)                        │
-   │  - 1フレームあたり: ~数百バイト           │
-   │                                         │
-   │  Python デフォルト再帰上限: 1000          │
-   │  → sys.setrecursionlimit() で変更可能    │
-   │  → ただし変更はスタックオーバーフローの   │
-   │    リスクを伴う                          │
-   └────────────────────────────────────────┘
+2. Call stack (for recursion)
+   +--------------------------------------------+
+   |  Stack frames from recursive calls          |
+   |  - Maximum depth: O(n)                      |
+   |  - Per frame: ~several hundred bytes        |
+   |                                             |
+   |  Python default recursion limit: 1000       |
+   |  -> Can be changed with                     |
+   |     sys.setrecursionlimit()                 |
+   |  -> However, changing it carries the risk   |
+   |    of stack overflow                        |
+   +--------------------------------------------+
 
-3. ボトムアップ DP との空間比較
-   ┌────────────────────────────────────────┐
-   │  問題          メモ化     ボトムアップ   │
-   │  ────────────  ────────   ────────────  │
-   │  フィボナッチ  O(n)       O(1) ※最適化後│
-   │  最長共通部分  O(m*n)     O(min(m,n))   │
-   │  ナップサック  O(n*W)     O(W) ※1行DP  │
-   │                                         │
-   │  ※ ボトムアップでは「もう使わない」行を  │
-   │    捨てることで空間を削減できる場合がある │
-   └────────────────────────────────────────┘
+3. Space comparison with bottom-up DP
+   +--------------------------------------------+
+   |  Problem         Memoization  Bottom-up     |
+   |  --------------- ----------   -----------   |
+   |  Fibonacci       O(n)         O(1)*         |
+   |  LCS             O(m*n)       O(min(m,n))   |
+   |  Knapsack        O(n*W)       O(W)*         |
+   |                                             |
+   |  * In bottom-up, rows that are no longer    |
+   |    needed can be discarded to reduce space  |
+   +--------------------------------------------+
 ```
 
-### 2.6 メモ化が有効なケースと無効なケース
+### 2.6 When Memoization Is Effective vs. Ineffective
 
-| 条件 | メモ化が有効 | メモ化が無効 |
-|------|------------|------------|
-| 重複部分問題 | あり（フィボナッチ、最短経路） | なし（二分探索、マージソート） |
-| 参照透過性 | あり（純粋関数） | なし（乱数、現在時刻に依存） |
-| 部分問題数 | 多項式個（n^k） | 指数個（2^n）※キャッシュ自体が爆発 |
-| 引数のハッシュ | 可能（整数、文字列） | 困難（リスト、可変オブジェクト） |
+| Condition | Memoization Effective | Memoization Ineffective |
+|-----------|----------------------|------------------------|
+| Overlapping subproblems | Present (Fibonacci, shortest path) | Absent (binary search, merge sort) |
+| Referential transparency | Present (pure functions) | Absent (random, depends on current time) |
+| Number of subproblems | Polynomial (n^k) | Exponential (2^n) — cache itself explodes |
+| Argument hashing | Possible (integers, strings) | Difficult (lists, mutable objects) |
 
 ---
 
-## 3. キャッシュ戦略の体系
+## 3. Systematic Caching Strategies
 
-### 3.1 キャッシュ追い出しポリシーの比較
+### 3.1 Comparison of Cache Eviction Policies
 
-メモ化は「全結果を保存する」単純な戦略であるが、実務ではメモリに制約があるため、どのエントリを残しどれを追い出すかという**キャッシュ追い出しポリシー**が重要になる。
+Memoization is a simple strategy of "storing all results," but in practice, memory is limited, so **cache eviction policies** — deciding which entries to keep and which to evict — become important.
 
 ```python
 """
-主要なキャッシュ追い出しポリシーの実装と比較
+Implementation and comparison of major cache eviction policies
 
-なぜ複数のポリシーが存在するのか:
-アクセスパターンによって最適なポリシーが異なるためである。
-- LRU: 時間的局所性（最近アクセスしたものを再びアクセスしやすい）に強い
-- LFU: 頻度的局所性（よく使うものは今後も使いやすい）に強い
-- FIFO: 実装が最も単純。局所性を仮定しない場合の基本選択
+Why do multiple policies exist:
+The optimal policy differs depending on the access pattern.
+- LRU: Strong against temporal locality (recently accessed items are likely to be accessed again)
+- LFU: Strong against frequency locality (frequently used items are likely to be used again)
+- FIFO: Simplest implementation. Default choice when locality cannot be assumed.
 """
 
 from collections import OrderedDict, defaultdict
@@ -397,16 +401,16 @@ import time
 
 
 class LRUCache:
-    """Least Recently Used キャッシュ
+    """Least Recently Used cache
 
-    なぜ OrderedDict を使うのか:
-    LRU は「最も最近使われていないエントリ」を追い出す。
-    これには各エントリの「最終アクセス時刻」の管理が必要。
-    OrderedDict は挿入順序を保持し、move_to_end() で
-    O(1) でエントリを末尾に移動できるため、LRU に最適。
+    Why use OrderedDict:
+    LRU evicts the "least recently used entry."
+    This requires tracking the "last access time" of each entry.
+    OrderedDict preserves insertion order and can move entries to the
+    end in O(1) with move_to_end(), making it ideal for LRU.
 
-    時間計算量: get/put ともに O(1) 平均
-    空間計算量: O(capacity)
+    Time complexity: get/put both O(1) average
+    Space complexity: O(capacity)
     """
 
     def __init__(self, capacity: int):
@@ -428,7 +432,7 @@ class LRUCache:
             self.cache.move_to_end(key)
         self.cache[key] = value
         if len(self.cache) > self.capacity:
-            self.cache.popitem(last=False)  # 先頭（最古）を削除
+            self.cache.popitem(last=False)  # Remove the first (oldest) entry
 
     def hit_rate(self) -> float:
         total = self.hits + self.misses
@@ -436,22 +440,22 @@ class LRUCache:
 
 
 class LFUCache:
-    """Least Frequently Used キャッシュ
+    """Least Frequently Used cache
 
-    なぜ LRU ではなく LFU を選ぶ場合があるのか:
-    アクセスパターンに「人気アイテム」が存在する場合、
-    LFU は高頻度アイテムを保持し続けるため効率が良い。
-    例: CDN でのコンテンツキャッシュ（人気動画は常にキャッシュ）
+    Why choose LFU over LRU in some cases:
+    When the access pattern has "popular items,"
+    LFU keeps high-frequency items cached, making it more efficient.
+    Example: Content caching on CDNs (popular videos are always cached)
 
-    LFU の弱点:
-    - 過去に人気だったが今は不要なアイテムが残り続ける
-    - 新しいアイテムがキャッシュに定着しにくい（頻度が低いため）
+    Weaknesses of LFU:
+    - Items that were popular in the past but are no longer needed persist
+    - New items have difficulty establishing in the cache (due to low frequency)
     """
 
     def __init__(self, capacity: int):
         self.capacity = capacity
         self.cache = {}            # key -> value
-        self.freq = defaultdict(int)  # key -> 使用頻度
+        self.freq = defaultdict(int)  # key -> usage frequency
         self.hits = 0
         self.misses = 0
 
@@ -471,7 +475,7 @@ class LFUCache:
             self.freq[key] += 1
             return
         if len(self.cache) >= self.capacity:
-            # 最低頻度のキーを見つけて削除
+            # Find and remove the key with the lowest frequency
             min_freq_key = min(self.freq, key=lambda k: self.freq[k])
             del self.cache[min_freq_key]
             del self.freq[min_freq_key]
@@ -484,17 +488,17 @@ class LFUCache:
 
 
 class TTLCache:
-    """Time-To-Live キャッシュ
+    """Time-To-Live cache
 
-    なぜ TTL が必要なのか:
-    外部データ（API レスポンス、DB クエリ結果）は時間とともに
-    変化する可能性がある。TTL を設定することで、古くなった
-    キャッシュエントリを自動的に無効化し、データの鮮度を保証する。
+    Why TTL is necessary:
+    External data (API responses, DB query results) may change over
+    time. By setting a TTL, stale cache entries are automatically
+    invalidated, ensuring data freshness.
 
-    LRU/LFU との違い:
-    - LRU/LFU: 容量制約に基づく追い出し
-    - TTL: 時間制約に基づく無効化
-    - 実務では LRU + TTL を組み合わせることが多い
+    Difference from LRU/LFU:
+    - LRU/LFU: Eviction based on capacity constraints
+    - TTL: Invalidation based on time constraints
+    - In practice, LRU + TTL are often combined
     """
 
     def __init__(self, capacity: int, ttl_seconds: float):
@@ -514,11 +518,11 @@ class TTLCache:
         if key in self.cache and not self._is_expired(key):
             self.hits += 1
             value, _ = self.cache[key]
-            # タイムスタンプを更新
+            # Update timestamp
             self.cache[key] = (value, time.time())
             self.cache.move_to_end(key)
             return value
-        # 期限切れエントリがあれば削除
+        # Delete expired entry if present
         if key in self.cache:
             del self.cache[key]
         self.misses += 1
@@ -532,86 +536,86 @@ class TTLCache:
 
 
 def compare_cache_policies():
-    """異なるキャッシュポリシーの比較デモ。
+    """Demo comparing different cache policies.
 
-    シナリオ: キャッシュ容量5、アクセスパターンに偏りあり
+    Scenario: Cache capacity of 5, skewed access pattern
     """
     import random
     random.seed(42)
 
-    # Zipf 分布的なアクセスパターン: 少数のキーに集中
-    # キー 0-2 が高頻度、キー 3-19 が低頻度
+    # Zipf-like access pattern: concentrated on a few keys
+    # Keys 0-2 are high frequency, keys 3-19 are low frequency
     access_pattern = []
     for _ in range(1000):
         if random.random() < 0.7:
-            access_pattern.append(random.randint(0, 2))   # 70%: 人気キー
+            access_pattern.append(random.randint(0, 2))   # 70%: popular keys
         else:
-            access_pattern.append(random.randint(3, 19))   # 30%: その他
+            access_pattern.append(random.randint(3, 19))   # 30%: others
 
     lru = LRUCache(capacity=5)
     lfu = LFUCache(capacity=5)
 
     for key in access_pattern:
-        # get して miss なら put
+        # get and put on miss
         for cache in [lru, lfu]:
             if cache.get(key) is None:
                 cache.put(key, f"value_{key}")
 
-    print("キャッシュポリシー比較 (容量=5, アクセス=1000回)")
-    print(f"  LRU ヒット率: {lru.hit_rate():.1%}")
-    print(f"  LFU ヒット率: {lfu.hit_rate():.1%}")
+    print("Cache Policy Comparison (capacity=5, accesses=1000)")
+    print(f"  LRU hit rate: {lru.hit_rate():.1%}")
+    print(f"  LFU hit rate: {lfu.hit_rate():.1%}")
 
 
 if __name__ == "__main__":
     compare_cache_policies()
 ```
 
-### 3.2 キャッシュポリシーの選択基準
+### 3.2 Cache Policy Selection Criteria
 
-| ポリシー | 得意パターン | 苦手パターン | 実装の複雑さ |
-|---------|------------|------------|------------|
-| LRU | 時間的局所性が強い場合 | スキャン汚染（大量の1回限りアクセス） | O(1) 操作、中程度 |
-| LFU | 人気アイテムが固定的 | 人気の移り変わりが激しい | O(1) は工夫が必要、やや高 |
-| FIFO | 局所性が弱い・予測不能 | 局所性がある場合（LRU に劣る） | 最も単純 |
-| TTL | 鮮度が重要なデータ | 鮮度不要で容量が問題の場合 | 時刻管理が必要、中程度 |
-| Random | 計算コストを最小化したい | 局所性がある場合 | 最も単純 |
+| Policy | Best For | Worst For | Implementation Complexity |
+|--------|----------|-----------|--------------------------|
+| LRU | Strong temporal locality | Scan pollution (massive one-time accesses) | O(1) operations, moderate |
+| LFU | Fixed popular items | Rapidly shifting popularity | O(1) requires effort, somewhat high |
+| FIFO | Weak/unpredictable locality | Cases with locality (inferior to LRU) | Simplest |
+| TTL | Data where freshness matters | When freshness is irrelevant and capacity is the concern | Requires time management, moderate |
+| Random | Minimizing computation cost | Cases with locality | Simplest |
 
 ---
 
-## 4. ルックアップテーブル
+## 4. Lookup Tables
 
-### 4.1 事前計算の原理
+### 4.1 Principles of Precomputation
 
-ルックアップテーブルは「入力空間が有限かつ小さい」場合に、全ての入力に対する出力を事前に計算してテーブルに格納する手法である。クエリ時は計算を一切行わず、テーブル参照のみで O(1) で結果を得る。
+A lookup table is a technique that precomputes the output for all inputs and stores them in a table, applicable when "the input space is finite and small." At query time, no computation is performed; results are obtained in O(1) through table lookup alone.
 
-なぜこの手法が強力なのか: 元の関数の計算量が O(f(n)) であっても、テーブル参照は常に O(1) である。つまり、事前計算のコストを1回だけ支払えば、以降は無制限に O(1) クエリが可能になる。
+Why this technique is powerful: Even if the original function has complexity O(f(n)), a table lookup is always O(1). By paying the precomputation cost once, unlimited O(1) queries become possible thereafter.
 
-### 4.2 popcount（ビットカウント）テーブル
+### 4.2 popcount (Bit Count) Table
 
 ```python
 """
-popcount（整数のビット中の 1 の数）を3つの手法で実装し比較する。
+Implement and compare three methods for popcount (counting 1-bits in an integer).
 
-なぜ popcount が重要なのか:
-- ハミング距離の計算（誤り訂正符号）
-- 集合演算のビットベクトル実装
-- チェスエンジンのビットボード評価
-- ブルームフィルタの実装
+Why popcount is important:
+- Hamming distance computation (error correction codes)
+- Bit vector implementation of set operations
+- Bitboard evaluation in chess engines
+- Implementation of Bloom filters
 """
 
 import time
 
 
 def popcount_naive(n: int) -> int:
-    """ビットを1つずつ調べる素朴な方法。
+    """Naive method: examine bits one by one.
 
-    時間: O(log n) — n のビット数に比例
-    空間: O(1)
+    Time: O(log n) — proportional to the number of bits in n
+    Space: O(1)
 
-    なぜ n & 1 でビットが分かるのか:
-    n & 1 は n の最下位ビットを取り出す演算。
-    n >>= 1 で右シフトすると次のビットが最下位に来る。
-    これを n が 0 になるまで繰り返す。
+    Why n & 1 reveals the bit:
+    n & 1 extracts the least significant bit of n.
+    n >>= 1 right-shifts so the next bit becomes the LSB.
+    Repeat until n becomes 0.
     """
     count = 0
     while n:
@@ -621,19 +625,19 @@ def popcount_naive(n: int) -> int:
 
 
 def popcount_kernighan(n: int) -> int:
-    """Brian Kernighan のアルゴリズム。
+    """Brian Kernighan's algorithm.
 
-    時間: O(セットビット数) — 1 のビット数に比例
-    空間: O(1)
+    Time: O(number of set bits) — proportional to the number of 1-bits
+    Space: O(1)
 
-    なぜ n & (n-1) で最下位の 1 ビットが消えるのか:
-    n = ...10...0 のとき（最下位の1ビットとその右の0）
-    n-1 = ...01...1 となる（その1ビットが0になり右が全て1）
-    よって n & (n-1) は最下位の1ビットだけが消える。
+    Why n & (n-1) clears the lowest set bit:
+    When n = ...10...0 (the lowest 1-bit and zeros to its right),
+    n-1 = ...01...1 (that 1-bit becomes 0 and all bits to the right become 1).
+    Therefore n & (n-1) clears only the lowest set bit.
 
-    例: n = 12 = 1100
-         n-1 = 11 = 1011
-         n & (n-1) = 1000 = 8  → 最下位の 1(位置2) が消えた
+    Example: n = 12 = 1100
+             n-1 = 11 = 1011
+             n & (n-1) = 1000 = 8  -> the lowest 1 (position 2) was cleared
     """
     count = 0
     while n:
@@ -642,28 +646,29 @@ def popcount_kernighan(n: int) -> int:
     return count
 
 
-# 8ビットルックアップテーブルの構築
-# なぜ 8 ビットなのか:
-# - 256 エントリで全パターンを網羅でき、メモリは 256 バイトのみ
-# - 16 ビット（65536 エントリ）でも良いが、L1 キャッシュに収まる
-#   サイズが望ましい
-# - 32 ビット（約40億エントリ）は実用的でない
+# Build the 8-bit lookup table
+# Why 8 bits:
+# - 256 entries cover all patterns, requiring only 256 bytes of memory
+# - 16 bits (65536 entries) is also feasible, but a size that fits
+#   in L1 cache is preferable
+# - 32 bits (~4 billion entries) is impractical
 POPCOUNT_TABLE_8BIT = [0] * 256
 for i in range(256):
-    # i のビット数 = 最下位ビット + (i >> 1) のビット数
-    # この漸化式で 0 から順に構築できる
+    # Bit count of i = LSB + bit count of (i >> 1)
+    # This recurrence builds from 0 upward
     POPCOUNT_TABLE_8BIT[i] = (i & 1) + POPCOUNT_TABLE_8BIT[i >> 1]
 
 
 def popcount_table(n: int) -> int:
-    """8ビットテーブル参照による popcount。
+    """popcount via 8-bit table lookup.
 
-    時間: O(1) — 32ビット整数なら常に4回のテーブル参照
-    空間: O(256) — テーブルのサイズ
+    Time: O(1) — always 4 table lookups for a 32-bit integer
+    Space: O(256) — table size
 
-    なぜ 8 ビットずつに分割するのか:
-    32 ビット整数を 4 つの 8 ビットチャンクに分割し、
-    各チャンクの popcount をテーブルから O(1) で取得して合計する。
+    Why split into 8-bit chunks:
+    A 32-bit integer is split into 4 eight-bit chunks,
+    and the popcount of each chunk is obtained in O(1) from the table
+    and summed.
     """
     return (POPCOUNT_TABLE_8BIT[n & 0xFF] +
             POPCOUNT_TABLE_8BIT[(n >> 8) & 0xFF] +
@@ -672,53 +677,53 @@ def popcount_table(n: int) -> int:
 
 
 def benchmark_popcount():
-    """3手法の性能比較。"""
+    """Performance comparison of the three methods."""
     import random
     random.seed(42)
     test_values = [random.randint(0, 2**32 - 1) for _ in range(100000)]
 
-    # 正しさの検証
+    # Verify correctness
     for v in test_values[:100]:
         assert popcount_naive(v) == popcount_kernighan(v) == popcount_table(v), \
-            f"不一致: {v}"
+            f"Mismatch: {v}"
 
     methods = [
-        ("素朴版(ビットスキャン)", popcount_naive),
-        ("Kernighan法",          popcount_kernighan),
-        ("テーブル参照(8bit)",    popcount_table),
+        ("Naive (bit scan)",       popcount_naive),
+        ("Kernighan's method",     popcount_kernighan),
+        ("Table lookup (8-bit)",   popcount_table),
     ]
 
-    print("popcount ベンチマーク (100,000 回)")
+    print("popcount Benchmark (100,000 iterations)")
     print("-" * 50)
     for name, func in methods:
         start = time.perf_counter()
         for v in test_values:
             func(v)
         elapsed = time.perf_counter() - start
-        print(f"  {name:25s}: {elapsed:.4f}秒")
+        print(f"  {name:25s}: {elapsed:.4f}s")
 
 
 if __name__ == "__main__":
     benchmark_popcount()
 ```
 
-### 4.3 三角関数テーブル — ゲーム開発での定番パターン
+### 4.3 Trigonometric Function Table — A Classic Pattern in Game Development
 
 ```python
 """
-三角関数のルックアップテーブル
+Trigonometric function lookup table
 
-なぜゲーム開発で三角関数テーブルが使われるのか:
-1. math.sin/cos は内部で Taylor 展開や CORDIC を使い、
-   1回あたり数十〜数百ナノ秒かかる
-2. ゲームでは毎フレーム（1/60秒）に数千回の三角関数計算が必要
-3. テーブル参照なら配列アクセス1回（数ナノ秒）で済む
-4. 角度の精度は 1度 や 0.1度 で十分な場合が多い
+Why trigonometric tables are used in game development:
+1. math.sin/cos internally uses Taylor expansion or CORDIC,
+   taking tens to hundreds of nanoseconds per call
+2. Games require thousands of trigonometric calculations per frame (1/60 second)
+3. A table lookup takes only one array access (a few nanoseconds)
+4. Angular precision of 1 degree or 0.1 degrees is often sufficient
 
-トレードオフ:
-- 精度: テーブルの粒度（1度 vs 0.1度 vs 0.01度）で制御
-- 空間: 粒度を細かくするほどテーブルが大きくなる
-- 補間: テーブル間の値は線形補間で精度を上げられる
+Tradeoff:
+- Precision: Controlled by table granularity (1 deg vs. 0.1 deg vs. 0.01 deg)
+- Space: Finer granularity means larger tables
+- Interpolation: Values between table entries can be improved with linear interpolation
 """
 
 import math
@@ -726,15 +731,15 @@ import time
 
 
 class TrigTable:
-    """三角関数ルックアップテーブル（線形補間付き）"""
+    """Trigonometric function lookup table (with linear interpolation)"""
 
     def __init__(self, resolution: float = 1.0):
         """
-        resolution: 角度の刻み幅（度）。小さいほど精度が高いが空間が増える。
+        resolution: Step size in degrees. Smaller means higher precision but more space.
 
-        なぜコンストラクタで全計算するのか:
-        テーブルは不変であり、アプリケーション起動時に1回だけ構築すれば、
-        以降は全スレッドで安全に共有できる。
+        Why compute everything in the constructor:
+        The table is immutable and only needs to be built once at application startup.
+        It can then be safely shared across all threads.
         """
         self.resolution = resolution
         self.size = int(360 / resolution)
@@ -746,26 +751,26 @@ class TrigTable:
             self.sin_table[i] = math.sin(angle_rad)
             self.cos_table[i] = math.cos(angle_rad)
 
-        # 空間使用量の計算
-        self.memory_bytes = self.size * 8 * 2  # float64 × 2テーブル
+        # Calculate space usage
+        self.memory_bytes = self.size * 8 * 2  # float64 x 2 tables
 
     def sin(self, degrees: float) -> float:
-        """テーブル参照 + 線形補間による sin 近似。"""
+        """sin approximation via table lookup + linear interpolation."""
         degrees = degrees % 360
         idx_f = degrees / self.resolution
         idx = int(idx_f)
-        frac = idx_f - idx  # 小数部分（補間用）
+        frac = idx_f - idx  # Fractional part (for interpolation)
 
         if frac < 1e-9:
             return self.sin_table[idx % self.size]
 
-        # 線形補間: f(x) ≈ f(a) + (f(b) - f(a)) * t
+        # Linear interpolation: f(x) ~ f(a) + (f(b) - f(a)) * t
         val_a = self.sin_table[idx % self.size]
         val_b = self.sin_table[(idx + 1) % self.size]
         return val_a + (val_b - val_a) * frac
 
     def cos(self, degrees: float) -> float:
-        """テーブル参照 + 線形補間による cos 近似。"""
+        """cos approximation via table lookup + linear interpolation."""
         degrees = degrees % 360
         idx_f = degrees / self.resolution
         idx = int(idx_f)
@@ -780,16 +785,16 @@ class TrigTable:
 
 
 def benchmark_trig():
-    """精度と速度の比較。"""
+    """Compare precision and speed."""
     import random
     random.seed(42)
 
-    table_1deg = TrigTable(resolution=1.0)    # 360 エントリ
-    table_01deg = TrigTable(resolution=0.1)   # 3600 エントリ
+    table_1deg = TrigTable(resolution=1.0)    # 360 entries
+    table_01deg = TrigTable(resolution=0.1)   # 3600 entries
 
     test_angles = [random.uniform(0, 360) for _ in range(100000)]
 
-    # 精度の比較
+    # Precision comparison
     max_error_1deg = 0
     max_error_01deg = 0
     for angle in test_angles[:1000]:
@@ -799,161 +804,162 @@ def benchmark_trig():
         max_error_1deg = max(max_error_1deg, err_1)
         max_error_01deg = max(max_error_01deg, err_01)
 
-    print("三角関数テーブル: 精度と速度の比較")
+    print("Trig Table: Precision and Speed Comparison")
     print("=" * 55)
-    print(f"  1度刻み:   最大誤差 = {max_error_1deg:.8f}  "
-          f"空間 = {table_1deg.memory_bytes:,} bytes")
-    print(f"  0.1度刻み: 最大誤差 = {max_error_01deg:.8f}  "
-          f"空間 = {table_01deg.memory_bytes:,} bytes")
+    print(f"  1-degree:   Max error = {max_error_1deg:.8f}  "
+          f"Space = {table_1deg.memory_bytes:,} bytes")
+    print(f"  0.1-degree: Max error = {max_error_01deg:.8f}  "
+          f"Space = {table_01deg.memory_bytes:,} bytes")
     print()
 
-    # 速度の比較
+    # Speed comparison
     methods = [
-        ("math.sin",       lambda a: math.sin(math.radians(a))),
-        ("テーブル(1度)",   table_1deg.sin),
-        ("テーブル(0.1度)", table_01deg.sin),
+        ("math.sin",          lambda a: math.sin(math.radians(a))),
+        ("Table (1 deg)",     table_1deg.sin),
+        ("Table (0.1 deg)",   table_01deg.sin),
     ]
-    print("速度比較 (100,000 回)")
+    print("Speed Comparison (100,000 iterations)")
     print("-" * 45)
     for name, func in methods:
         start = time.perf_counter()
         for a in test_angles:
             func(a)
         elapsed = time.perf_counter() - start
-        print(f"  {name:20s}: {elapsed:.4f}秒")
+        print(f"  {name:20s}: {elapsed:.4f}s")
 
 
 if __name__ == "__main__":
     benchmark_trig()
 ```
 
-### 4.4 テーブルサイズと精度のトレードオフ
+### 4.4 Table Size vs. Precision Tradeoff
 
 ```
-テーブルサイズと精度の関係（三角関数の例）:
+Relationship between table size and precision (trigonometric example):
 
-  最大誤差 ▲
-           │
-  1e-2     │  ●  10度刻み (36エントリ, 576B)
-           │
-  1e-3     │     ●  1度刻み (360エントリ, 5.6KB)
-           │
-  1e-5     │        ●  0.1度刻み (3600エントリ, 56KB)
-           │
-  1e-7     │           ●  0.01度刻み (36000エントリ, 562KB)
-           │
-  1e-9     │              ●  0.001度刻み (360000エントリ, 5.6MB)
-           │
-           ┼────────────────────────────────────► テーブルサイズ
-                                                 (メモリ使用量)
+  Max error ^
+           |
+  1e-2     |  *  10-degree steps (36 entries, 576B)
+           |
+  1e-3     |     *  1-degree steps (360 entries, 5.6KB)
+           |
+  1e-5     |        *  0.1-degree steps (3600 entries, 56KB)
+           |
+  1e-7     |           *  0.01-degree steps (36000 entries, 562KB)
+           |
+  1e-9     |              *  0.001-degree steps (360000 entries, 5.6MB)
+           |
+           +---------------------------------------------> Table size
+                                                         (Memory usage)
 
-  精度が1桁上がるごとにテーブルサイズが10倍になる。
-  ほとんどのアプリケーションでは 0.1度刻み（56KB）で十分。
-  56KB は現代の CPU の L1 キャッシュ（通常 32-64KB）に
-  ギリギリ収まるサイズであり、高速なアクセスが期待できる。
+  For every order of magnitude improvement in precision, the table size grows 10x.
+  For most applications, 0.1-degree steps (56KB) are sufficient.
+  56KB is a size that barely fits in a modern CPU's L1 cache
+  (typically 32-64KB), enabling fast access.
 ```
 
 ---
 
-## 5. ブルームフィルタ
+## 5. Bloom Filters
 
-### 5.1 なぜブルームフィルタが必要なのか
+### 5.1 Why Are Bloom Filters Necessary?
 
-巨大なデータセットに対する「存在判定」は多くのシステムで必要になる。
+"Membership testing" against huge datasets is needed in many systems:
 
-- Web ブラウザ: URL が悪意あるサイトのリストに含まれるか（Google Safe Browsing）
-- データベース: あるキーが SSTable に存在するか（LevelDB、RocksDB、Cassandra）
-- ネットワーク: パケットのフィンガープリントが既知のものか
+- Web browsers: Whether a URL is on a malicious site list (Google Safe Browsing)
+- Databases: Whether a key exists in an SSTable (LevelDB, RocksDB, Cassandra)
+- Networking: Whether a packet fingerprint matches a known one
 
-これらの場面で「完全なハッシュセット」を使うと、データ量に比例したメモリが必要になる。例えば 1000 万 URL をハッシュセットで保持すると数百 MB になる。ブルームフィルタなら同じデータを数 MB で表現でき、しかも偽陰性（本当は存在するのに「存在しない」と答える）が発生しない。
+Using a "complete hash set" for these scenarios requires memory proportional to the data size. For example, storing 10 million URLs in a hash set requires several hundred MB. A Bloom filter can represent the same data in just a few MB, and false negatives (reporting "does not exist" for something that actually exists) never occur.
 
-### 5.2 仕組みの詳細
+### 5.2 Detailed Mechanism
 
 ```
-ブルームフィルタの動作原理:
+How a Bloom filter works:
 
-【初期状態】m=12 ビットの配列、k=3 個のハッシュ関数
+[Initial state] Bit array of m=12 bits, k=3 hash functions
 
-  位置:  0  1  2  3  4  5  6  7  8  9  10 11
-  値:   [0][0][0][0][0][0][0][0][0][0][0][0]
+  Position: 0  1  2  3  4  5  6  7  8  9  10 11
+  Value:   [0][0][0][0][0][0][0][0][0][0][0][0]
 
-【"apple" を追加】
+[Adding "apple"]
   h1("apple") = 1
-  h2("apple") = 5    → 位置 1, 5, 9 を 1 にする
+  h2("apple") = 5    -> Set positions 1, 5, 9 to 1
   h3("apple") = 9
 
-  位置:  0  1  2  3  4  5  6  7  8  9  10 11
-  値:   [0][1][0][0][0][1][0][0][0][1][0][0]
+  Position: 0  1  2  3  4  5  6  7  8  9  10 11
+  Value:   [0][1][0][0][0][1][0][0][0][1][0][0]
 
-【"banana" を追加】
+[Adding "banana"]
   h1("banana") = 3
-  h2("banana") = 5   → 位置 3, 5, 11 を 1 にする
-  h3("banana") = 11     (位置 5 は既に 1)
+  h2("banana") = 5   -> Set positions 3, 5, 11 to 1
+  h3("banana") = 11     (position 5 is already 1)
 
-  位置:  0  1  2  3  4  5  6  7  8  9  10 11
-  値:   [0][1][0][1][0][1][0][0][0][1][0][1]
+  Position: 0  1  2  3  4  5  6  7  8  9  10 11
+  Value:   [0][1][0][1][0][1][0][0][0][1][0][1]
 
-【"cherry" を検索 — 真の陰性】
-  h1("cherry") = 2   → 位置 2: 0 → 即座に「存在しない」
-  h2("cherry") = 7       (1つでも 0 なら確実に不在)
+[Querying "cherry" — true negative]
+  h1("cherry") = 2   -> Position 2: 0 -> Immediately "does not exist"
+  h2("cherry") = 7       (if any bit is 0, definitely absent)
   h3("cherry") = 9
 
-【"date" を検索 — 偽陽性!】
-  h1("date") = 1    → 位置 1: 1 ✓
-  h2("date") = 3    → 位置 3: 1 ✓  (banana が設定)
-  h3("date") = 9    → 位置 9: 1 ✓  (apple が設定)
+[Querying "date" — false positive!]
+  h1("date") = 1    -> Position 1: 1 check
+  h2("date") = 3    -> Position 3: 1 check  (set by banana)
+  h3("date") = 9    -> Position 9: 1 check  (set by apple)
 
-  全て 1 → 「たぶん存在する」と回答
-  しかし "date" は追加していない → これが偽陽性
+  All 1 -> Answers "probably exists"
+  But "date" was never added -> This is a false positive
 
-【なぜ偽陰性は発生しないのか】
-  要素 x を追加すると、h1(x), h2(x), ..., hk(x) の全位置が 1 になる。
-  ビットは 0→1 にしか変化せず、1→0 にはならない（削除がないため）。
-  よって、追加済みの要素を検索すると必ず全ビットが 1 である。
+[Why false negatives never occur]
+  When element x is added, all positions h1(x), h2(x), ..., hk(x) are set to 1.
+  Bits only change from 0->1, never from 1->0 (since there is no deletion).
+  Therefore, querying an already-added element always finds all bits set to 1.
 ```
 
-### 5.3 数学的分析 — 偽陽性率の導出
+### 5.3 Mathematical Analysis — Derivation of False Positive Rate
 
-ブルームフィルタの偽陽性率は以下のパラメータで決まる。
+The false positive rate of a Bloom filter is determined by the following parameters:
 
-- **m**: ビット配列のサイズ
-- **n**: 追加する要素数
-- **k**: ハッシュ関数の数
+- **m**: Size of the bit array
+- **n**: Number of elements to be added
+- **k**: Number of hash functions
 
-n 個の要素を追加した後、あるビットが 0 のままである確率は:
-
-```
-P(bit=0) = (1 - 1/m)^(k*n) ≈ e^(-kn/m)
-```
-
-偽陽性が発生するのは k 個のハッシュ位置が全て 1 の場合なので:
+After adding n elements, the probability that a given bit is still 0:
 
 ```
-偽陽性率 ≈ (1 - e^(-kn/m))^k
+P(bit=0) = (1 - 1/m)^(k*n) ~ e^(-kn/m)
 ```
 
-最適なハッシュ関数の数は:
+A false positive occurs when all k hash positions are 1:
 
 ```
-k_opt = (m/n) * ln(2) ≈ 0.693 * (m/n)
+False positive rate ~ (1 - e^(-kn/m))^k
 ```
 
-このとき偽陽性率は:
+The optimal number of hash functions is:
+
+```
+k_opt = (m/n) * ln(2) ~ 0.693 * (m/n)
+```
+
+At this point, the false positive rate is:
 
 ```
 FPR_opt = (1/2)^k = (0.6185)^(m/n)
 ```
 
-### 5.4 完全な Python 実装
+### 5.4 Complete Python Implementation
 
 ```python
 """
-ブルームフィルタの完全実装 — パラメータ最適化と偽陽性率の検証付き
+Complete Bloom filter implementation — with parameter optimization and
+false positive rate verification
 
-このコードは以下を含む:
-1. 基本的なブルームフィルタクラス
-2. 最適パラメータの自動計算
-3. 偽陽性率の理論値と想定される実測値の比較
+This code includes:
+1. A basic Bloom filter class
+2. Automatic calculation of optimal parameters
+3. Comparison of theoretical and expected measured false positive rates
 """
 
 import hashlib
@@ -961,50 +967,51 @@ import math
 
 
 class BloomFilter:
-    """ブルームフィルタの完全実装。
+    """Complete implementation of a Bloom filter.
 
-    なぜ md5 を使うのか:
-    ブルームフィルタのハッシュ関数に求められるのは暗号学的安全性ではなく、
-    出力の均一分布性である。md5 は暗号用途では破られているが、
-    128ビットの出力が均一に分布するという性質は健在であり、
-    ブルームフィルタには十分である。
+    Why use md5:
+    What is required of a Bloom filter's hash functions is not
+    cryptographic security but uniform distribution of output.
+    md5 has been broken for cryptographic use, but its property
+    of uniformly distributing 128-bit output remains intact,
+    which is sufficient for Bloom filters.
 
-    実務では mmh3（MurmurHash3）や xxHash のような
-    非暗号学的ハッシュ関数がより高速で推奨される。
+    In practice, non-cryptographic hash functions like
+    mmh3 (MurmurHash3) or xxHash are faster and recommended.
     """
 
     def __init__(self, expected_items: int, false_positive_rate: float = 0.01):
         """
-        expected_items: 想定される追加要素数
-        false_positive_rate: 許容する偽陽性率（0〜1）
+        expected_items: Expected number of elements to be added
+        false_positive_rate: Acceptable false positive rate (0 to 1)
 
-        なぜこのコンストラクタで m と k を自動計算するのか:
-        ユーザーが最適な m と k を手動で計算するのは面倒であり、
-        間違いやすい。expected_items と false_positive_rate から
-        自動的に最適値を導出する方が安全で使いやすい。
+        Why this constructor automatically computes m and k:
+        It is tedious and error-prone for users to manually calculate
+        optimal m and k. Automatically deriving optimal values from
+        expected_items and false_positive_rate is safer and more usable.
         """
-        # 最適なビット配列サイズ: m = -n*ln(p) / (ln2)^2
+        # Optimal bit array size: m = -n*ln(p) / (ln2)^2
         self.size = self._optimal_size(expected_items, false_positive_rate)
-        # 最適なハッシュ関数数: k = (m/n) * ln2
+        # Optimal number of hash functions: k = (m/n) * ln2
         self.num_hashes = self._optimal_hash_count(
             self.size, expected_items
         )
         self.bit_array = bytearray(
-            (self.size + 7) // 8  # ビット→バイトに変換（切り上げ）
+            (self.size + 7) // 8  # Convert bits to bytes (round up)
         )
-        self.count = 0  # 追加した要素数
+        self.count = 0  # Number of added elements
 
-        # パラメータの記録
+        # Record parameters
         self.expected_items = expected_items
         self.target_fpr = false_positive_rate
 
     @staticmethod
     def _optimal_size(n: int, p: float) -> int:
-        """最適なビット配列サイズを計算する。
+        """Calculate the optimal bit array size.
 
-        導出:
-        偽陽性率 p = (1 - e^(-kn/m))^k を最小化する m を求める。
-        k を最適値 k = (m/n)*ln2 で置換すると:
+        Derivation:
+        Minimize m for the false positive rate p = (1 - e^(-kn/m))^k.
+        Substituting k with the optimal value k = (m/n)*ln2:
         m = -n * ln(p) / (ln2)^2
         """
         m = -n * math.log(p) / (math.log(2) ** 2)
@@ -1012,33 +1019,33 @@ class BloomFilter:
 
     @staticmethod
     def _optimal_hash_count(m: int, n: int) -> int:
-        """最適なハッシュ関数数を計算する。"""
+        """Calculate the optimal number of hash functions."""
         k = (m / n) * math.log(2)
         return max(1, int(round(k)))
 
     def _get_bit(self, index: int) -> bool:
-        """ビット配列の指定位置の値を取得する。"""
+        """Get the value at the specified position of the bit array."""
         byte_index = index // 8
         bit_offset = index % 8
         return bool(self.bit_array[byte_index] & (1 << bit_offset))
 
     def _set_bit(self, index: int):
-        """ビット配列の指定位置を 1 にする。"""
+        """Set the specified position of the bit array to 1."""
         byte_index = index // 8
         bit_offset = index % 8
         self.bit_array[byte_index] |= (1 << bit_offset)
 
     def _hashes(self, item: str) -> list:
-        """要素から k 個のハッシュ値を生成する。
+        """Generate k hash values from an element.
 
-        なぜ double hashing を使うのか:
-        k 個の独立したハッシュ関数を用意するのは面倒である。
-        代わりに、2つのハッシュ値 h1, h2 から
+        Why double hashing is used:
+        Preparing k independent hash functions is cumbersome.
+        Instead, from two hash values h1 and h2,
         gi(x) = h1(x) + i*h2(x) (mod m)  (i = 0, 1, ..., k-1)
-        として k 個のハッシュ値を生成する。
-        Kirsch & Mitzenmacher (2006) により、この方法は
-        k 個の独立ハッシュ関数と同等の偽陽性率を達成することが
-        証明されている。
+        generates k hash values.
+        Kirsch & Mitzenmacher (2006) proved that this method
+        achieves the same false positive rate as k independent
+        hash functions.
         """
         h = hashlib.md5(str(item).encode()).hexdigest()
         h1 = int(h[:16], 16)
@@ -1046,71 +1053,71 @@ class BloomFilter:
         return [(h1 + i * h2) % self.size for i in range(self.num_hashes)]
 
     def add(self, item: str):
-        """要素を追加する。"""
+        """Add an element."""
         for pos in self._hashes(item):
             self._set_bit(pos)
         self.count += 1
 
     def might_contain(self, item: str) -> bool:
-        """要素の存在を確認する。
+        """Check for element existence.
 
-        True: 「たぶん存在する」（偽陽性の可能性あり）
-        False: 「確実に存在しない」（偽陰性は発生しない）
+        True: "Probably exists" (possibility of false positive)
+        False: "Definitely does not exist" (no false negatives)
         """
         return all(self._get_bit(pos) for pos in self._hashes(item))
 
     def theoretical_fpr(self) -> float:
-        """現在の状態での理論的偽陽性率。"""
+        """Theoretical false positive rate for the current state."""
         if self.count == 0:
             return 0.0
         exponent = -self.num_hashes * self.count / self.size
         return (1 - math.exp(exponent)) ** self.num_hashes
 
     def memory_usage_bytes(self) -> int:
-        """メモリ使用量（バイト）。"""
+        """Memory usage (bytes)."""
         return len(self.bit_array)
 
     def info(self) -> dict:
-        """フィルタの状態情報を返す。"""
+        """Return filter state information."""
         return {
-            "ビット配列サイズ(m)": self.size,
-            "ハッシュ関数数(k)": self.num_hashes,
-            "追加済み要素数": self.count,
-            "メモリ使用量": f"{self.memory_usage_bytes():,} bytes",
-            "理論的偽陽性率": f"{self.theoretical_fpr():.6f}",
-            "目標偽陽性率": f"{self.target_fpr:.6f}",
+            "Bit array size (m)": self.size,
+            "Number of hash functions (k)": self.num_hashes,
+            "Elements added": self.count,
+            "Memory usage": f"{self.memory_usage_bytes():,} bytes",
+            "Theoretical FPR": f"{self.theoretical_fpr():.6f}",
+            "Target FPR": f"{self.target_fpr:.6f}",
         }
 
 
 def verify_bloom_filter():
-    """ブルームフィルタの動作検証。"""
+    """Verify Bloom filter behavior."""
     print("=" * 60)
-    print("ブルームフィルタの動作検証")
+    print("Bloom Filter Verification")
     print("=" * 60)
 
-    # 10000 要素、偽陽性率 1% で構築
+    # Build with 10000 elements, 1% false positive rate
     bf = BloomFilter(expected_items=10000, false_positive_rate=0.01)
 
-    # フィルタ情報
+    # Filter info
     for key, val in bf.info().items():
         print(f"  {key}: {val}")
     print()
 
-    # 10000 個の要素を追加
+    # Add 10000 elements
     added = set()
     for i in range(10000):
         word = f"word_{i}"
         bf.add(word)
         added.add(word)
 
-    # 偽陰性の確認（追加した要素は必ず True）
+    # Verify no false negatives (added elements must always return True)
     false_negatives = 0
     for word in added:
         if not bf.might_contain(word):
             false_negatives += 1
-    print(f"偽陰性数: {false_negatives} (理論上 0)")
+    print(f"False negatives: {false_negatives} (theoretically 0)")
 
-    # 偽陽性率の計測
+    # Measure false positive rate
     false_positives = 0
     test_count = 100000
     for i in range(test_count):
@@ -1119,63 +1126,65 @@ def verify_bloom_filter():
             false_positives += 1
 
     actual_fpr = false_positives / test_count
-    print(f"想定される偽陽性率: {actual_fpr:.4f} "
-          f"(理論値: {bf.theoretical_fpr():.4f})")
+    print(f"Expected FPR: {actual_fpr:.4f} "
+          f"(theoretical: {bf.theoretical_fpr():.4f})")
 
-    # ハッシュセットとの空間比較
+    # Space comparison with hash set
     import sys
     hash_set_size = sys.getsizeof(added)
     bloom_size = bf.memory_usage_bytes()
-    print(f"\n空間比較:")
-    print(f"  ハッシュセット: {hash_set_size:>10,} bytes")
-    print(f"  ブルームフィルタ: {bloom_size:>10,} bytes")
-    print(f"  削減率: {(1 - bloom_size / hash_set_size) * 100:.1f}%")
+    print(f"\nSpace comparison:")
+    print(f"  Hash set:      {hash_set_size:>10,} bytes")
+    print(f"  Bloom filter:  {bloom_size:>10,} bytes")
+    print(f"  Reduction:     {(1 - bloom_size / hash_set_size) * 100:.1f}%")
 
 
 if __name__ == "__main__":
     verify_bloom_filter()
 ```
 
-### 5.5 ブルームフィルタのバリエーション
+### 5.5 Bloom Filter Variations
 
 ```
-ブルームフィルタのバリエーション比較:
+Bloom filter variation comparison:
 
-┌────────────────────┬──────────┬──────────┬────────────────┐
-│ バリエーション      │ 削除対応 │ カウント │ 主な用途        │
-├────────────────────┼──────────┼──────────┼────────────────┤
-│ 標準ブルーム        │ ×        │ ×        │ 存在判定全般    │
-│ Counting Bloom     │ ○        │ ○        │ 動的な集合      │
-│ Cuckoo Filter      │ ○        │ ×        │ 削除が必要な場合│
-│ Quotient Filter    │ ○        │ ×        │ SSD 親和性      │
-│ Scalable Bloom     │ ×        │ ×        │ 要素数が不明    │
-└────────────────────┴──────────┴──────────┴────────────────┘
++---------------------+----------+----------+------------------+
+| Variation           | Deletion | Counting | Primary Use      |
++---------------------+----------+----------+------------------+
+| Standard Bloom      | No       | No       | General membership|
+| Counting Bloom      | Yes      | Yes      | Dynamic sets     |
+| Cuckoo Filter       | Yes      | No       | When deletion is |
+|                     |          |          | needed           |
+| Quotient Filter     | Yes      | No       | SSD-friendly     |
+| Scalable Bloom      | No       | No       | Unknown element  |
+|                     |          |          | count            |
++---------------------+----------+----------+------------------+
 
-Counting Bloom Filter のビット配列:
-  標準: 各位置 1ビット → [0][1][1][0][1][0]...
-  Counting: 各位置 4ビット → [0][3][2][0][1][0]...
-  → カウンタをデクリメントすることで削除が可能
-  → ただし空間は 4 倍になる
+Counting Bloom Filter bit array:
+  Standard: 1 bit per position -> [0][1][1][0][1][0]...
+  Counting: 4 bits per position -> [0][3][2][0][1][0]...
+  -> Deletion is possible by decrementing counters
+  -> However, space is 4x larger
 
 Cuckoo Filter:
-  ブルームフィルタより空間効率が良い場合がある。
-  削除をサポートし、検索も高速。
-  ただし挿入時にリロケーションが必要で最悪ケースが存在する。
+  Can be more space-efficient than Bloom filters in some cases.
+  Supports deletion and has fast lookups.
+  However, insertion requires relocation and worst cases exist.
 ```
 
 ---
 
-## 6. 代表的なトレードオフパターン集
+## 6. Representative Tradeoff Pattern Collection
 
-### 6.1 ハッシュテーブル vs 線形探索 — 重複検出
+### 6.1 Hash Table vs. Linear Search — Duplicate Detection
 
 ```python
 """
-配列内の重複要素検出: 空間 vs 時間のトレードオフ
+Duplicate detection in arrays: Space vs. time tradeoff
 
-このパターンはコーディング面接で最頻出の一つである。
-「空間を O(n) 使えば時間を O(n^2) から O(n) に改善できる」
-という典型的なトレードオフを示す。
+This pattern is one of the most frequently asked in coding interviews.
+It demonstrates the classic tradeoff: "Using O(n) space can improve
+time from O(n^2) to O(n)."
 """
 
 import time
@@ -1183,14 +1192,14 @@ import random
 
 
 def has_duplicate_brute_force(arr: list) -> bool:
-    """全ペア比較による重複検出。
+    """Duplicate detection by comparing all pairs.
 
-    時間: O(n^2) — 全ペアを比較
-    空間: O(1)   — 追加メモリなし
+    Time: O(n^2) — compare all pairs
+    Space: O(1)   — no additional memory
 
-    なぜ O(n^2) なのか:
-    外側ループが n 回、内側ループが平均 n/2 回。
-    合計で n*(n-1)/2 回の比較 = O(n^2)。
+    Why O(n^2):
+    The outer loop runs n times, the inner loop averages n/2 times.
+    Total: n*(n-1)/2 comparisons = O(n^2).
     """
     n = len(arr)
     for i in range(n):
@@ -1201,14 +1210,14 @@ def has_duplicate_brute_force(arr: list) -> bool:
 
 
 def has_duplicate_sort(arr: list) -> bool:
-    """ソート後に隣接要素を比較する方法。
+    """Sort then compare adjacent elements.
 
-    時間: O(n log n) — ソートの時間
-    空間: O(n)       — ソート用（Timsort の場合）
+    Time: O(n log n) — sorting time
+    Space: O(n)       — for sorting (Timsort)
 
-    なぜソートすると隣接比較だけで済むのか:
-    ソート後は同じ値が隣り合う。よって隣接ペアのみ
-    チェックすれば全重複を検出できる。
+    Why sorting makes adjacent comparison sufficient:
+    After sorting, identical values are adjacent. Therefore,
+    checking only adjacent pairs detects all duplicates.
     """
     sorted_arr = sorted(arr)
     for i in range(len(sorted_arr) - 1):
@@ -1218,15 +1227,15 @@ def has_duplicate_sort(arr: list) -> bool:
 
 
 def has_duplicate_hash_set(arr: list) -> bool:
-    """ハッシュセットによる重複検出。
+    """Duplicate detection using a hash set.
 
-    時間: O(n) — 各要素を1回ずつ処理
-    空間: O(n) — ハッシュセットのサイズ
+    Time: O(n) — process each element once
+    Space: O(n) — hash set size
 
-    なぜ O(n) なのか:
-    set の in 演算子と add 演算子はハッシュテーブルにより
-    平均 O(1) で動作する。n 個の要素を1回ずつ処理するので
-    全体で O(n)。
+    Why O(n):
+    The set's `in` and `add` operations run in average O(1)
+    due to the hash table. Processing n elements once each
+    gives O(n) overall.
     """
     seen = set()
     for x in arr:
@@ -1237,51 +1246,52 @@ def has_duplicate_hash_set(arr: list) -> bool:
 
 
 def benchmark_duplicate_detection():
-    """3手法の性能比較。"""
+    """Performance comparison of the three methods."""
     random.seed(42)
 
-    print("重複検出ベンチマーク")
+    print("Duplicate Detection Benchmark")
     print("=" * 65)
 
     for n in [1000, 5000, 10000]:
         arr = list(range(n))
-        arr[-1] = 0  # 最後の要素を重複させる（最悪ケース）
+        arr[-1] = 0  # Make the last element a duplicate (worst case)
 
         results = {}
         for name, func in [
-            ("全ペア比較 O(n^2)", has_duplicate_brute_force),
-            ("ソート後比較 O(n log n)", has_duplicate_sort),
-            ("ハッシュセット O(n)", has_duplicate_hash_set),
+            ("All pairs O(n^2)",        has_duplicate_brute_force),
+            ("Sort + compare O(n log n)", has_duplicate_sort),
+            ("Hash set O(n)",           has_duplicate_hash_set),
         ]:
             start = time.perf_counter()
-            result = func(arr[:])  # コピーして渡す
+            result = func(arr[:])  # Pass a copy
             elapsed = time.perf_counter() - start
             results[name] = elapsed
             assert result is True
 
         print(f"\nn = {n:,}")
         for name, elapsed in results.items():
-            print(f"  {name:30s}: {elapsed:.6f}秒")
+            print(f"  {name:30s}: {elapsed:.6f}s")
 
 
 if __name__ == "__main__":
     benchmark_duplicate_detection()
 ```
 
-### 6.2 Two Sum 問題 — 面接定番のトレードオフ例
+### 6.2 Two Sum Problem — A Classic Interview Tradeoff Example
 
 ```python
 """
-Two Sum: 配列から合計が target になるペアを見つける
+Two Sum: Find a pair in an array that sums to target
 
-この問題は LeetCode #1 であり、面接で最も頻出する問題の一つ。
-3つの手法が存在し、それぞれ異なるトレードオフを示す。
+This problem is LeetCode #1 and one of the most frequently asked
+in interviews. Three approaches exist, each demonstrating a
+different tradeoff.
 """
 
 
 def two_sum_brute_force(nums: list, target: int) -> tuple:
-    """全ペア探索。
-    時間: O(n^2), 空間: O(1)
+    """All-pair search.
+    Time: O(n^2), Space: O(1)
     """
     for i in range(len(nums)):
         for j in range(i + 1, len(nums)):
@@ -1291,11 +1301,11 @@ def two_sum_brute_force(nums: list, target: int) -> tuple:
 
 
 def two_sum_sort(nums: list, target: int) -> tuple:
-    """ソート + 二分探索 / 二ポインタ。
-    時間: O(n log n), 空間: O(n)（インデックスの保持）
+    """Sort + binary search / two pointers.
+    Time: O(n log n), Space: O(n) (storing original indices)
 
-    注意: ソートするとインデックスが変わるため、
-    元のインデックスを別途保持する必要がある。
+    Note: Sorting changes indices, so original indices must
+    be stored separately.
     """
     indexed = sorted(enumerate(nums), key=lambda x: x[1])
     left, right = 0, len(indexed) - 1
@@ -1311,14 +1321,14 @@ def two_sum_sort(nums: list, target: int) -> tuple:
 
 
 def two_sum_hash(nums: list, target: int) -> tuple:
-    """ハッシュマップ。
-    時間: O(n), 空間: O(n)
+    """Hash map.
+    Time: O(n), Space: O(n)
 
-    なぜ 1-pass で済むのか:
-    各要素 nums[i] を見るとき、target - nums[i] が
-    既にマップに登録されていればペアが見つかる。
-    まだなければ nums[i] を登録して次へ。
-    1回の走査で完了する。
+    Why a single pass suffices:
+    For each element nums[i], if target - nums[i] is already
+    registered in the map, the pair is found.
+    If not, register nums[i] and move on.
+    Completed in a single scan.
     """
     seen = {}
     for i, num in enumerate(nums):
@@ -1330,7 +1340,7 @@ def two_sum_hash(nums: list, target: int) -> tuple:
 
 
 def test_two_sum():
-    """3手法の正当性と性能を検証。"""
+    """Verify correctness and performance of the three methods."""
     test_cases = [
         ([2, 7, 11, 15], 9, {(0, 1)}),
         ([3, 2, 4], 6, {(1, 2)}),
@@ -1344,12 +1354,12 @@ def test_two_sum():
             ("hash",        two_sum_hash),
         ]:
             result = func(nums, target)
-            assert result is not None, f"{name}: 解が見つかりません"
+            assert result is not None, f"{name}: No solution found"
             pair = tuple(sorted(result))
             assert pair in expected, \
-                f"{name}: {pair} は期待値 {expected} に含まれません"
+                f"{name}: {pair} is not in expected {expected}"
 
-    print("全テストケース通過")
+    print("All test cases passed")
 
 
 if __name__ == "__main__":
@@ -1358,79 +1368,81 @@ if __name__ == "__main__":
 
 ---
 
-## 7. 比較表
+## 7. Comparison Tables
 
-### 表1: トレードオフ手法の総合比較
+### Table 1: Comprehensive Comparison of Tradeoff Techniques
 
-| 手法 | 時間改善 | 空間コスト | 前提条件 | 適用場面 | リスク |
-|------|---------|-----------|---------|---------|-------|
-| メモ化 | 指数→多項式 | O(部分問題数) | 重複部分問題・参照透過性 | DP、再帰的な計算 | スタックオーバーフロー |
-| LRU キャッシュ | クエリ O(1) | O(容量) | アクセスの時間的局所性 | API 応答、DB クエリ | キャッシュ汚染 |
-| ルックアップテーブル | O(f)→O(1) | O(入力空間) | 入力空間が有限かつ小さい | 三角関数、ビット操作 | L1 キャッシュ溢れ |
-| ハッシュセット | O(n^2)→O(n) | O(n) | ハッシュ可能な要素 | 重複検出、存在判定 | ハッシュ衝突 |
-| ブルームフィルタ | 存在判定 O(k) | O(m), m << n | 偽陽性を許容できる | 大規模な存在判定 | 偽陽性、削除不可 |
-| ソート前処理 | クエリ O(log n) | O(1)〜O(n) | 静的データ | 繰り返し検索 | ソートコスト O(n log n) |
-| 逆引きインデックス | 検索 O(1) | O(n) | キーの抽出が可能 | 全文検索、DB インデックス | 更新コスト |
+| Technique | Time Improvement | Space Cost | Prerequisites | Application | Risk |
+|-----------|-----------------|------------|---------------|-------------|------|
+| Memoization | Exponential -> Polynomial | O(subproblem count) | Overlapping subproblems, referential transparency | DP, recursive computations | Stack overflow |
+| LRU Cache | Query O(1) | O(capacity) | Temporal locality of access | API responses, DB queries | Cache pollution |
+| Lookup Table | O(f) -> O(1) | O(input space) | Input space is finite and small | Trig functions, bit operations | L1 cache overflow |
+| Hash Set | O(n^2) -> O(n) | O(n) | Hashable elements | Duplicate detection, membership testing | Hash collisions |
+| Bloom Filter | Membership test O(k) | O(m), m << n | False positives are acceptable | Large-scale membership testing | False positives, no deletion |
+| Sort Preprocessing | Query O(log n) | O(1) to O(n) | Static data | Repeated searches | Sort cost O(n log n) |
+| Inverted Index | Search O(1) | O(n) | Key extraction is possible | Full-text search, DB indexing | Update cost |
 
-### 表2: ブルームフィルタ vs 他のデータ構造
+### Table 2: Bloom Filter vs. Other Data Structures
 
-| 特性 | ハッシュセット | ブルームフィルタ | Cuckoo Filter | ソート済み配列 |
-|------|-------------|---------------|--------------|-------------|
-| 空間計算量 | O(n) | O(m), m << n | O(n) だが定数小 | O(n) |
-| 追加 | O(1) 平均 | O(k) | O(1) 平均 | O(n) |
-| 検索 | O(1) 平均 | O(k) | O(1) 平均 | O(log n) |
-| 削除 | O(1) 平均 | 不可（標準版） | O(1) 平均 | O(n) |
-| 偽陽性 | なし | あり（制御可能） | あり（制御可能） | なし |
-| 偽陰性 | なし | なし | なし | なし |
-| 要素の取り出し | 可能 | 不可 | フィンガープリントのみ | 可能 |
-| 要素数 10^7 時の空間 | ~400MB | ~12MB (FPR=1%) | ~80MB | ~80MB |
+| Property | Hash Set | Bloom Filter | Cuckoo Filter | Sorted Array |
+|----------|----------|-------------|---------------|-------------|
+| Space Complexity | O(n) | O(m), m << n | O(n) but small constant | O(n) |
+| Add | O(1) average | O(k) | O(1) average | O(n) |
+| Lookup | O(1) average | O(k) | O(1) average | O(log n) |
+| Delete | O(1) average | Not possible (standard) | O(1) average | O(n) |
+| False Positives | None | Yes (controllable) | Yes (controllable) | None |
+| False Negatives | None | None | None | None |
+| Element Retrieval | Possible | Not possible | Fingerprint only | Possible |
+| Space for 10^7 elements | ~400MB | ~12MB (FPR=1%) | ~80MB | ~80MB |
 
-### 表3: キャッシュ戦略の選択ガイド
+### Table 3: Cache Strategy Selection Guide
 
-| 状況 | 推奨戦略 | 理由 |
-|------|---------|------|
-| 部分問題数が少なく全て必要 | メモ化（maxsize=None） | 全結果を保持しても空間が小さいため |
-| 入力パターンが膨大だが局所性あり | LRU キャッシュ | 最近のアクセスに偏りがあるため |
-| 人気アイテムが固定的 | LFU キャッシュ | 高頻度アイテムを優先保持するため |
-| データの鮮度が重要 | TTL キャッシュ | 古いデータを自動的に無効化するため |
-| 入力空間が小さく固定 | ルックアップテーブル | O(1) 参照が保証されるため |
-| 大規模データの存在判定 | ブルームフィルタ | 空間効率が桁違いに良いため |
+| Situation | Recommended Strategy | Reason |
+|-----------|---------------------|--------|
+| Few subproblems, all needed | Memoization (maxsize=None) | Space is small even when all results are retained |
+| Vast input patterns but with locality | LRU Cache | Access is biased toward recent items |
+| Fixed popular items | LFU Cache | Prioritize retaining high-frequency items |
+| Data freshness is important | TTL Cache | Automatically invalidate stale data |
+| Small, fixed input space | Lookup Table | O(1) reference is guaranteed |
+| Large-scale membership testing | Bloom Filter | Space efficiency is orders of magnitude better |
 
 ---
 
-## 8. アンチパターン
+## 8. Anti-Patterns
 
-### アンチパターン1: 重複部分問題がない再帰にメモ化を適用する
+### Anti-Pattern 1: Applying Memoization to Recursion Without Overlapping Subproblems
 
 ```python
 """
-アンチパターン: 二分探索にメモ化を適用する
+Anti-pattern: Applying memoization to binary search
 
-なぜこれが無意味なのか:
-二分探索は各再帰呼び出しで探索範囲が異なる（lo, hi の組み合わせが一意）。
-つまり同じ引数で2回呼ばれることがない。
-キャッシュに格納してもヒットが0回であり、空間の無駄である。
+Why this is pointless:
+Binary search has a different search range (lo, hi pair) for each
+recursive call. This means the function is never called twice with
+the same arguments. Even if results are stored in the cache, there
+are zero hits, making it a waste of space.
 
-一般原則: メモ化が有効なのは「同じ部分問題が複数回出現する」場合のみ。
-再帰であっても、分割統治（二分探索、マージソート、クイックソート）
-のように各部分問題が1回しか呼ばれない構造にはメモ化は不要。
+General principle: Memoization is effective only when "the same
+subproblem appears multiple times." Even for recursive algorithms,
+divide-and-conquer approaches (binary search, merge sort, quicksort)
+where each subproblem is called only once do not need memoization.
 """
 
 from functools import lru_cache
 
 
-# BAD: 無意味なメモ化（全呼び出しがキャッシュミス）
+# BAD: Pointless memoization (all calls are cache misses)
 @lru_cache(maxsize=None)
 def binary_search_bad(arr_tuple: tuple, target: int,
                       lo: int, hi: int) -> int:
-    """二分探索にメモ化を適用 — 無意味な例。
+    """Binary search with memoization — a pointless example.
 
-    問題点:
-    1. (arr_tuple, target, lo, hi) の組み合わせは全て一意
-       → キャッシュヒット率 = 0%
-    2. arr_tuple のハッシュ計算に O(n) かかる
-       → メモ化なしより遅くなる
-    3. キャッシュが O(log n) エントリ分のメモリを無駄に消費する
+    Problems:
+    1. All combinations of (arr_tuple, target, lo, hi) are unique
+       -> Cache hit rate = 0%
+    2. Hashing arr_tuple takes O(n)
+       -> Slower than without memoization
+    3. Cache wastes memory for O(log n) entries
     """
     if lo > hi:
         return -1
@@ -1443,14 +1455,14 @@ def binary_search_bad(arr_tuple: tuple, target: int,
         return binary_search_bad(arr_tuple, target, lo, mid - 1)
 
 
-# GOOD: メモ化なしの素直な実装
+# GOOD: Straightforward implementation without memoization
 def binary_search_good(arr: list, target: int) -> int:
-    """素直な二分探索 — 再帰ではなくループ版。
+    """Straightforward binary search — iterative version.
 
-    なぜループ版が良いのか:
-    1. 再帰オーバーヘッドがない
-    2. スタック空間 O(1)（再帰版は O(log n)）
-    3. 末尾再帰最適化がない Python では特に重要
+    Why the iterative version is better:
+    1. No recursion overhead
+    2. Stack space O(1) (recursive version is O(log n))
+    3. Especially important in Python which lacks tail call optimization
     """
     lo, hi = 0, len(arr) - 1
     while lo <= hi:
@@ -1465,14 +1477,14 @@ def binary_search_good(arr: list, target: int) -> int:
 
 
 def demonstrate_useless_memoization():
-    """無意味なメモ化のコスト。"""
+    """Demonstrate the cost of useless memoization."""
     import time
 
     arr = list(range(100000))
     arr_tuple = tuple(arr)
     target = 99999
 
-    # キャッシュクリア
+    # Clear cache
     binary_search_bad.cache_clear()
 
     start = time.perf_counter()
@@ -1487,85 +1499,85 @@ def demonstrate_useless_memoization():
     elapsed_good = time.perf_counter() - start
 
     info = binary_search_bad.cache_info()
-    print("無意味なメモ化の実例")
-    print(f"  メモ化版:  {elapsed_bad:.4f}秒")
-    print(f"  素直な版:  {elapsed_good:.4f}秒")
-    print(f"  キャッシュヒット: {info.hits}回 "
-          f"(ミス: {info.misses}回)")
-    print(f"  → ヒット率 0% であり、メモ化は完全に無駄")
+    print("Useless Memoization Example")
+    print(f"  Memoized:       {elapsed_bad:.4f}s")
+    print(f"  Straightforward: {elapsed_good:.4f}s")
+    print(f"  Cache hits: {info.hits} "
+          f"(misses: {info.misses})")
+    print(f"  -> Hit rate 0%, memoization is completely wasteful")
 
 
 if __name__ == "__main__":
     demonstrate_useless_memoization()
 ```
 
-### アンチパターン2: テーブルサイズの見積もり不足
+### Anti-Pattern 2: Underestimating Table Size
 
 ```python
 """
-アンチパターン: 入力空間を過大評価したルックアップテーブル
+Anti-pattern: Lookup table with overestimated input space
 
-なぜこれが危険なのか:
-テーブルサイズが大きすぎると:
-1. メモリ不足（OOM）でプロセスがクラッシュする
-2. テーブルが L1/L2 キャッシュに収まらず、参照が遅くなる
-   → テーブル参照のはずが、毎回メインメモリアクセスになる
-   → 元の計算より遅くなる逆転現象が発生しうる
-3. 構築時間が長くなり、アプリケーションの起動が遅延する
+Why this is dangerous:
+If the table is too large:
+1. Out of memory (OOM) crashes the process
+2. The table doesn't fit in L1/L2 cache, making lookups slow
+   -> What should be a table lookup becomes a main memory access every time
+   -> A reversal can occur where it becomes slower than the original computation
+3. Build time becomes long, delaying application startup
 """
 
 import sys
 
 
 def demonstrate_table_size_problem():
-    """テーブルサイズの見積もり失敗例。"""
-    print("テーブルサイズの見積もり")
+    """Example of table size estimation failure."""
+    print("Table Size Estimation")
     print("=" * 50)
 
     sizes = [
-        ("8ビット",  2**8,   "popcount 等に最適"),
-        ("16ビット", 2**16,  "まだ許容範囲"),
-        ("20ビット", 2**20,  "L2 キャッシュに収まる可能性"),
-        ("24ビット", 2**24,  "16MB — L3 キャッシュの限界"),
-        ("32ビット", 2**32,  "16GB — 一般的なPCのRAMを超える"),
+        ("8-bit",  2**8,   "Optimal for popcount etc."),
+        ("16-bit", 2**16,  "Still within acceptable range"),
+        ("20-bit", 2**20,  "May fit in L2 cache"),
+        ("24-bit", 2**24,  "16MB — L3 cache limit"),
+        ("32-bit", 2**32,  "16GB — exceeds typical PC RAM"),
     ]
 
     for name, size, comment in sizes:
-        # int のリストの場合（Python の int は 28 バイト以上）
+        # For a list of ints (Python int is 28+ bytes)
         memory_mb = size * 28 / (1024 * 1024)
-        feasible = "OK" if memory_mb < 100 else "危険" if memory_mb < 10000 else "不可能"
-        print(f"  {name:10s}: {size:>15,}エントリ  "
+        feasible = "OK" if memory_mb < 100 else "DANGER" if memory_mb < 10000 else "IMPOSSIBLE"
+        print(f"  {name:10s}: {size:>15,} entries  "
               f"~{memory_mb:>10,.0f}MB  [{feasible}] {comment}")
 
     print()
-    print("対策: 分割テーブル")
-    print("  32ビット値の popcount を求めるとき:")
-    print("  BAD:  table[2^32] = 16GB のテーブル")
-    print("  GOOD: table[2^8] = 256 エントリ × 4回参照 = 実質 O(1)")
+    print("Countermeasure: Split tables")
+    print("  To compute popcount of a 32-bit value:")
+    print("  BAD:  table[2^32] = 16GB table")
+    print("  GOOD: table[2^8] = 256 entries x 4 lookups = effectively O(1)")
 
 
-# BAD: メモリを大量消費するテーブル
+# BAD: Table that consumes massive memory
 def create_bad_table():
-    """絶対に実行しないこと — メモリを 16GB 以上消費する。"""
-    # table = [0] * (2**32)  # ~16GB — 実行するとクラッシュの恐れ
-    print("このコードは危険なので実行をスキップします")
+    """DO NOT run this — it would consume 16GB+ of memory."""
+    # table = [0] * (2**32)  # ~16GB — running this may crash
+    print("This code is dangerous, so execution is skipped")
 
 
-# GOOD: 分割テーブルで同じ結果を達成
+# GOOD: Split table achieving the same result
 SMALL_TABLE = [0] * 256
 for i in range(256):
     SMALL_TABLE[i] = (i & 1) + SMALL_TABLE[i >> 1]
 
 
 def popcount_safe(n: int) -> int:
-    """安全な分割テーブルによる popcount。
+    """popcount using a safe split table.
 
-    なぜ 4 回のテーブル参照が 1 回の巨大テーブル参照と同等なのか:
-    32ビット整数は 4 つの 8 ビットチャンクに分割できる。
-    各チャンクの popcount は独立に計算でき、合計すれば全体の
-    popcount になる。4 回の O(1) 参照は依然として O(1) である。
-    しかもテーブルは L1 キャッシュに確実に収まるため、
-    巨大テーブルよりキャッシュ効率が良い。
+    Why 4 table lookups are equivalent to 1 giant table lookup:
+    A 32-bit integer can be split into 4 eight-bit chunks.
+    The popcount of each chunk can be computed independently
+    and summed to get the total popcount. Four O(1) lookups
+    are still O(1). Moreover, the table is guaranteed to fit
+    in L1 cache, giving better cache efficiency than a giant table.
     """
     return (SMALL_TABLE[n & 0xFF] +
             SMALL_TABLE[(n >> 8) & 0xFF] +
@@ -1577,47 +1589,45 @@ if __name__ == "__main__":
     demonstrate_table_size_problem()
 ```
 
-### アンチパターン3: キャッシュの無効化を忘れる
+### Anti-Pattern 3: Forgetting to Invalidate the Cache
 
 ```python
 """
-アンチパターン: 変化するデータに対してキャッシュを無効化しない
+Anti-pattern: Not invalidating the cache for changing data
 
-なぜこれが危険なのか:
-キャッシュした値が古くなると「正しくない結果」を返すようになる。
-これはサイレントバグ（エラーにならず静かに間違った結果を返す）であり、
-デバッグが非常に困難である。
+Why this is dangerous:
+When cached values become stale, "incorrect results" are returned.
+This is a silent bug (quietly returns wrong results without errors),
+making debugging extremely difficult.
 
-Phil Karlton の有名な格言:
+Phil Karlton's famous quote:
 "There are only two hard things in Computer Science:
  cache invalidation and naming things."
-（コンピュータサイエンスで本当に難しいのは
- キャッシュの無効化と命名の2つだけだ）
 """
 
 from functools import lru_cache
 import time
 
 
-# BAD: 外部状態に依存する関数をキャッシュ
-EXCHANGE_RATE = {"USD_JPY": 150.0}  # 為替レートは常に変動する
+# BAD: Caching a function that depends on external state
+EXCHANGE_RATE = {"USD_JPY": 150.0}  # Exchange rates constantly fluctuate
 
 
 @lru_cache(maxsize=128)
 def convert_usd_to_jpy_bad(amount: float) -> float:
-    """BAD: 為替レートが変わってもキャッシュが古い値を返す。"""
+    """BAD: Returns stale cached value even when the exchange rate changes."""
     return amount * EXCHANGE_RATE["USD_JPY"]
 
 
-# GOOD: TTL 付きキャッシュで鮮度を保証
+# GOOD: TTL cache to guarantee freshness
 class CurrencyConverter:
-    """為替変換器 — TTL 付きキャッシュ版。
+    """Currency converter — TTL cache version.
 
-    なぜ TTL が必要なのか:
-    為替レートは秒単位で変動する。しかし、
-    毎回 API を呼ぶのはコストが高い（レート制限、遅延）。
-    TTL を設定することで「最大 N 秒前のレート」を使い、
-    API 呼び出し回数を削減しつつ、ある程度の鮮度を保証する。
+    Why TTL is necessary:
+    Exchange rates fluctuate on a per-second basis. However,
+    calling the API every time is costly (rate limits, latency).
+    By setting a TTL, you use "a rate at most N seconds old,"
+    reducing API calls while ensuring a degree of freshness.
     """
 
     def __init__(self, ttl_seconds: float = 60.0):
@@ -1626,52 +1636,52 @@ class CurrencyConverter:
         self._timestamps = {}
 
     def get_rate(self, pair: str) -> float:
-        """為替レートを取得（キャッシュ付き）。"""
+        """Get exchange rate (with cache)."""
         now = time.time()
         if pair in self._cache:
             age = now - self._timestamps[pair]
             if age < self.ttl:
                 return self._cache[pair]
 
-        # キャッシュミスまたは期限切れ → API 呼び出し（シミュレート）
+        # Cache miss or expired -> API call (simulated)
         rate = self._fetch_rate_from_api(pair)
         self._cache[pair] = rate
         self._timestamps[pair] = now
         return rate
 
     def _fetch_rate_from_api(self, pair: str) -> float:
-        """API からレートを取得（シミュレート）。"""
-        # 実際にはここで外部 API を呼ぶ
+        """Fetch rate from API (simulated)."""
+        # In practice, this would call an external API
         return EXCHANGE_RATE.get(pair, 1.0)
 
     def convert(self, amount: float, pair: str = "USD_JPY") -> float:
-        """通貨変換。"""
+        """Convert currency."""
         return amount * self.get_rate(pair)
 
 
 def demonstrate_cache_invalidation():
-    """キャッシュ無効化の重要性を示す。"""
-    print("キャッシュ無効化の問題")
+    """Demonstrate the importance of cache invalidation."""
+    print("Cache Invalidation Problem")
     print("=" * 50)
 
-    # BAD 版
+    # BAD version
     convert_usd_to_jpy_bad.cache_clear()
     result1 = convert_usd_to_jpy_bad(100.0)
-    print(f"BAD版: $100 = ¥{result1:.0f} (レート: {EXCHANGE_RATE['USD_JPY']})")
+    print(f"BAD: $100 = JPY {result1:.0f} (rate: {EXCHANGE_RATE['USD_JPY']})")
 
-    EXCHANGE_RATE["USD_JPY"] = 140.0  # レートが変動
+    EXCHANGE_RATE["USD_JPY"] = 140.0  # Rate changes
     result2 = convert_usd_to_jpy_bad(100.0)
-    print(f"BAD版: $100 = ¥{result2:.0f} (レート変動後も古い値が返る!)")
+    print(f"BAD: $100 = JPY {result2:.0f} (stale value returned after rate change!)")
 
-    # GOOD 版
-    converter = CurrencyConverter(ttl_seconds=0.1)  # TTL 0.1秒
+    # GOOD version
+    converter = CurrencyConverter(ttl_seconds=0.1)  # TTL 0.1s
     result3 = converter.convert(100.0)
-    print(f"GOOD版: $100 = ¥{result3:.0f}")
+    print(f"GOOD: $100 = JPY {result3:.0f}")
 
     EXCHANGE_RATE["USD_JPY"] = 130.0
-    time.sleep(0.15)  # TTL を超えるまで待つ
+    time.sleep(0.15)  # Wait for TTL to expire
     result4 = converter.convert(100.0)
-    print(f"GOOD版: $100 = ¥{result4:.0f} (TTL経過後に新レートを取得)")
+    print(f"GOOD: $100 = JPY {result4:.0f} (fetched new rate after TTL expiry)")
 
 
 if __name__ == "__main__":
@@ -1680,36 +1690,36 @@ if __name__ == "__main__":
 
 ---
 
-## 9. エッジケース分析
+## 9. Edge Case Analysis
 
-### エッジケース1: メモ化と Python の再帰制限
+### Edge Case 1: Memoization and Python's Recursion Limit
 
 ```python
 """
-エッジケース: メモ化で再帰制限に到達する
+Edge case: Hitting the recursion limit with memoization
 
-Python のデフォルト再帰制限は 1000 である。
-メモ化フィボナッチで fib(1000) を直接呼ぶと
-RecursionError が発生する。
+Python's default recursion limit is 1000.
+Calling fib(1000) directly with memoized Fibonacci
+will raise a RecursionError.
 
-なぜこれが問題なのか:
-メモ化は再帰を前提とするため、深い再帰が必要な問題では
-Python の再帰制限がボトルネックになる。
+Why this is a problem:
+Memoization relies on recursion, so problems requiring deep
+recursion hit Python's recursion limit as a bottleneck.
 
-解決策:
-1. sys.setrecursionlimit() で上限を引き上げる（推奨しない）
-   → スタックオーバーフローのリスクがある
-2. ボトムアップ DP に書き換える（推奨）
-   → ループなので再帰制限に依存しない
-3. 反復的深化: 小さい値から段階的に呼ぶ（妥協策）
-   → キャッシュが温まるので深い再帰が発生しない
+Solutions:
+1. Raise the limit with sys.setrecursionlimit() (not recommended)
+   -> Risk of stack overflow
+2. Rewrite as bottom-up DP (recommended)
+   -> Uses a loop so is not constrained by the recursion limit
+3. Iterative deepening: call with small values first (compromise)
+   -> Cache warms up so deep recursion doesn't occur
 """
 
 import sys
 
 
 def fib_memo_recursive(n: int, memo: dict = None) -> int:
-    """メモ化フィボナッチ（再帰版）。"""
+    """Memoized Fibonacci (recursive version)."""
     if memo is None:
         memo = {}
     if n in memo:
@@ -1722,16 +1732,16 @@ def fib_memo_recursive(n: int, memo: dict = None) -> int:
 
 
 def fib_iterative_warmup(n: int) -> int:
-    """反復的にキャッシュを温めてから大きな値を計算する。
+    """Iteratively warm up the cache, then compute large values.
 
-    なぜこの方法が有効なのか:
-    fib(500) を先に呼ぶと、fib(0)〜fib(500) がキャッシュされる。
-    その後 fib(1000) を呼ぶと、fib(501)〜fib(1000) の計算で
-    fib(499) と fib(500) はキャッシュから取得される。
-    再帰の深さは最大 500 となり、制限内に収まる。
+    Why this works:
+    Calling fib(500) first caches fib(0) through fib(500).
+    When fib(1000) is then called, fib(499) and fib(500)
+    are retrieved from the cache during computation of fib(501) through fib(1000).
+    The maximum recursion depth is 500, which fits within the limit.
     """
     memo = {}
-    step = 400  # 再帰制限よりも十分小さいステップ
+    step = 400  # Step size well below the recursion limit
     for start in range(0, n + 1, step):
         target = min(start + step, n)
         fib_memo_recursive(target, memo)
@@ -1739,11 +1749,11 @@ def fib_iterative_warmup(n: int) -> int:
 
 
 def fib_bottom_up_space_optimized(n: int) -> int:
-    """ボトムアップ DP（空間最適化版）。
+    """Bottom-up DP (space-optimized version).
 
-    なぜ空間 O(1) で済むのか:
-    fib(i) の計算には fib(i-1) と fib(i-2) の2つの値だけが必要。
-    それより前の値は不要であるため、2変数のみで十分。
+    Why O(1) space suffices:
+    Computing fib(i) requires only fib(i-1) and fib(i-2).
+    Values before those are not needed, so two variables suffice.
     """
     if n <= 1:
         return n
@@ -1754,57 +1764,58 @@ def fib_bottom_up_space_optimized(n: int) -> int:
 
 
 def demonstrate_recursion_limit():
-    """再帰制限の問題と解決策。"""
-    print("再帰制限のエッジケース")
+    """Demonstrate the recursion limit problem and solutions."""
+    print("Recursion Limit Edge Case")
     print("=" * 50)
 
-    # 現在の再帰制限
-    print(f"現在の再帰制限: {sys.getrecursionlimit()}")
+    # Current recursion limit
+    print(f"Current recursion limit: {sys.getrecursionlimit()}")
 
-    # 小さい値は問題なし
+    # Small values are fine
     memo = {}
     result = fib_memo_recursive(100, memo)
-    print(f"fib(100) = {len(str(result))}桁 [OK]")
+    print(f"fib(100) = {len(str(result))} digits [OK]")
 
-    # 大きい値は RecursionError
+    # Large values trigger RecursionError
     try:
         memo2 = {}
         fib_memo_recursive(5000, memo2)
-        print("fib(5000) [OK — 再帰制限が十分大きい環境]")
+        print("fib(5000) [OK — recursion limit is large enough in this environment]")
     except RecursionError:
-        print("fib(5000) [RecursionError発生]")
+        print("fib(5000) [RecursionError occurred]")
 
-    # 反復的ウォームアップで回避
+    # Avoid with iterative warmup
     result_warmup = fib_iterative_warmup(5000)
-    print(f"fib(5000) (ウォームアップ版) = {len(str(result_warmup))}桁 [OK]")
+    print(f"fib(5000) (warmup version) = {len(str(result_warmup))} digits [OK]")
 
-    # ボトムアップで回避
+    # Avoid with bottom-up
     result_bu = fib_bottom_up_space_optimized(5000)
-    print(f"fib(5000) (ボトムアップ版) = {len(str(result_bu))}桁 [OK]")
+    print(f"fib(5000) (bottom-up version) = {len(str(result_bu))} digits [OK]")
 
-    assert result_warmup == result_bu, "結果が一致しません"
+    assert result_warmup == result_bu, "Results do not match"
 
 
 if __name__ == "__main__":
     demonstrate_recursion_limit()
 ```
 
-### エッジケース2: ブルームフィルタの飽和
+### Edge Case 2: Bloom Filter Saturation
 
 ```python
 """
-エッジケース: ブルームフィルタに想定以上の要素を追加すると偽陽性率が急増する
+Edge case: Adding more elements than expected to a Bloom filter causes
+the false positive rate to spike
 
-なぜこれが重要なのか:
-ブルームフィルタのサイズは想定要素数から事前に決定される。
-想定以上の要素を追加すると、ビット配列がほぼ全て 1 になり
-（「飽和」状態）、偽陽性率が 100% に近づく。
-これは事実上フィルタが役に立たない状態である。
+Why this matters:
+A Bloom filter's size is determined in advance based on the expected
+element count. Adding more than expected causes almost all bits in the
+bit array to become 1 ("saturation"), and the false positive rate
+approaches 100%. This effectively makes the filter useless.
 
-対策:
-1. 要素数を事前に見積もり、余裕を持ったサイズにする
-2. Scalable Bloom Filter を使う（要素数に応じて自動拡張）
-3. 飽和を検知したら新しいフィルタに切り替える
+Countermeasures:
+1. Estimate the element count in advance and size with margin
+2. Use a Scalable Bloom Filter (auto-expands with element count)
+3. Detect saturation and switch to a new filter
 """
 
 import math
@@ -1812,7 +1823,7 @@ import hashlib
 
 
 class MonitoredBloomFilter:
-    """飽和監視付きブルームフィルタ。"""
+    """Bloom filter with saturation monitoring."""
 
     def __init__(self, expected_items: int, false_positive_rate: float = 0.01):
         self.expected_items = expected_items
@@ -1825,7 +1836,7 @@ class MonitoredBloomFilter:
         )))
         self.bit_array = bytearray((self.size + 7) // 8)
         self.count = 0
-        self._set_bits = 0  # 1 になっているビット数
+        self._set_bits = 0  # Number of bits set to 1
 
     def _hashes(self, item: str) -> list:
         h = hashlib.md5(str(item).encode()).hexdigest()
@@ -1852,30 +1863,31 @@ class MonitoredBloomFilter:
         return all(self._get_bit(pos) for pos in self._hashes(item))
 
     def saturation(self) -> float:
-        """飽和率（0.0〜1.0）を返す。"""
+        """Return the saturation rate (0.0 to 1.0)."""
         return self._set_bits / self.size
 
     def estimated_fpr(self) -> float:
-        """現在の飽和率から推定される偽陽性率。"""
+        """Estimated false positive rate based on current saturation."""
         sat = self.saturation()
         return sat ** self.num_hashes
 
     def is_saturated(self, threshold: float = 0.5) -> bool:
-        """フィルタが飽和状態かどうかを判定する。
+        """Determine whether the filter is saturated.
 
-        なぜ閾値 0.5 なのか:
-        最適なハッシュ関数数のとき、各ビットが 1 になる確率は
-        ちょうど 0.5 である。これを超えると急速に偽陽性率が上昇する。
+        Why 0.5 as the threshold:
+        With the optimal number of hash functions, the probability
+        of each bit being 1 is exactly 0.5. Beyond this, the false
+        positive rate rises rapidly.
         """
         return self.saturation() > threshold
 
 
 def demonstrate_saturation():
-    """飽和の進行と偽陽性率の上昇を示す。"""
-    print("ブルームフィルタの飽和")
+    """Demonstrate the progression of saturation and FPR increase."""
+    print("Bloom Filter Saturation")
     print("=" * 65)
-    print(f"{'追加数':>10s}  {'飽和率':>8s}  {'推定FPR':>10s}  "
-          f"{'想定される実FPR':>15s}  {'状態':>8s}")
+    print(f"{'Added':>10s}  {'Saturation':>10s}  {'Est. FPR':>10s}  "
+          f"{'Expected Act. FPR':>17s}  {'Status':>8s}")
     print("-" * 65)
 
     bf = MonitoredBloomFilter(expected_items=1000, false_positive_rate=0.01)
@@ -1886,7 +1898,7 @@ def demonstrate_saturation():
         while bf.count < target:
             bf.add(f"item_{bf.count}")
 
-        # 偽陽性率を計測
+        # Measure false positive rate
         fp = 0
         tests = 10000
         for i in range(tests):
@@ -1895,172 +1907,172 @@ def demonstrate_saturation():
                 fp += 1
         actual_fpr = fp / tests
 
-        status = "正常" if not bf.is_saturated() else "飽和!"
-        print(f"{bf.count:>10,d}  {bf.saturation():>8.1%}  "
+        status = "Normal" if not bf.is_saturated() else "Saturated!"
+        print(f"{bf.count:>10,d}  {bf.saturation():>10.1%}  "
               f"{bf.estimated_fpr():>10.4f}  "
-              f"{actual_fpr:>15.4f}  {status:>8s}")
+              f"{actual_fpr:>17.4f}  {status:>8s}")
 
 
 if __name__ == "__main__":
     demonstrate_saturation()
 ```
 
-### エッジケース3: ハッシュテーブルのリサイズとメモリスパイク
+### Edge Case 3: Hash Table Resizing and Memory Spikes
 
 ```
-ハッシュテーブル（set/dict）のメモリ使用量は一定ではない:
+Hash table (set/dict) memory usage is not constant:
 
-  メモリ ▲
-         │
-  256KB  │              ┌─────────────  ← リサイズ発生
-         │              │                 (2/3 充填でテーブルサイズ2倍)
-  128KB  │      ┌───────┘
-         │      │
-   64KB  │  ┌───┘
-         │  │
-   32KB  │──┘
-         │
-         ┼──────────────────────────────► 要素数
+  Memory ^
+         |
+  256KB  |              +-------------  <- Resize occurs
+         |              |                 (table size doubles at 2/3 fill)
+  128KB  |      +-------+
+         |      |
+   64KB  |  +---+
+         |  |
+   32KB  |--+
+         |
+         +-------------------------------> Element count
          0     1000   2000   3000   4000
 
-  問題: リサイズ時に一時的に新旧2つのテーブルが存在する
-  → 最大で定常状態の 3 倍のメモリを消費する瞬間がある
-  → メモリ制約の厳しい環境ではこのスパイクに注意が必要
+  Problem: During resize, both old and new tables exist temporarily
+  -> At worst, 3x the steady-state memory is consumed momentarily
+  -> In memory-constrained environments, this spike needs attention
 
-  対策:
-  1. 初期サイズを予測して事前確保 (dict.fromkeys() 等)
-  2. メモリ制約が厳しい場合はソート済み配列 + 二分探索を検討
-  3. ブルームフィルタで代替可能な用途であれば切り替える
+  Countermeasures:
+  1. Predict initial size and pre-allocate (e.g., dict.fromkeys())
+  2. If memory is tight, consider sorted array + binary search
+  3. If the use case can substitute a Bloom filter, switch to one
 ```
 
 ---
 
-## 10. 実践的な設計判断フレームワーク
+## 10. Practical Design Decision Framework
 
-### 10.1 意思決定フローチャート
+### 10.1 Decision Flowchart
 
 ```
-時間空間トレードオフの選択フロー:
+Space-time tradeoff selection flow:
 
-  [開始]
-    │
-    ▼
-  同じ計算を何回繰り返すか？
-    │
-    ├─ 1回だけ → トレードオフ不要（素直に計算）
-    │
-    ├─ 少数回（< 10） → 再計算が安い場合はそのまま
-    │
-    └─ 多数回（10+） ──┐
-                        ▼
-                  入力空間の大きさは？
-                        │
-                  ├─ 小さい（< 10^6）
-                  │     │
-                  │     ▼
-                  │   全パターン事前計算可能？
-                  │     ├─ はい → ルックアップテーブル
-                  │     └─ いいえ → メモ化 / LRU キャッシュ
-                  │
-                  ├─ 中程度（10^6〜10^9）
-                  │     │
-                  │     ▼
-                  │   アクセスに局所性があるか？
-                  │     ├─ はい → LRU / LFU キャッシュ
-                  │     └─ いいえ → ブルームフィルタ（存在判定のみ）
-                  │
-                  └─ 巨大（> 10^9）
-                        │
-                        ▼
-                  偽陽性を許容できるか？
-                        ├─ はい → ブルームフィルタ
-                        └─ いいえ → 外部ストレージ（DB、Redis）
+  [Start]
+    |
+    v
+  How many times is the same computation repeated?
+    |
+    +-- Only once -> No tradeoff needed (compute straightforwardly)
+    |
+    +-- Few times (< 10) -> Recomputation is cheap, keep as is
+    |
+    +-- Many times (10+) --+
+                            v
+                  How large is the input space?
+                            |
+                  +-- Small (< 10^6)
+                  |     |
+                  |     v
+                  |   Can all patterns be precomputed?
+                  |     +-- Yes -> Lookup table
+                  |     +-- No  -> Memoization / LRU cache
+                  |
+                  +-- Medium (10^6 to 10^9)
+                  |     |
+                  |     v
+                  |   Is there locality in access?
+                  |     +-- Yes -> LRU / LFU cache
+                  |     +-- No  -> Bloom filter (membership testing only)
+                  |
+                  +-- Huge (> 10^9)
+                        |
+                        v
+                  Can false positives be tolerated?
+                        +-- Yes -> Bloom filter
+                        +-- No  -> External storage (DB, Redis)
 ```
 
-### 10.2 実務での判断基準
+### 10.2 Practical Decision Criteria
 
-| 判断軸 | 時間優先を選ぶ条件 | 空間優先を選ぶ条件 |
-|--------|------------------|------------------|
-| レイテンシ要件 | p99 < 10ms など厳格 | バッチ処理で遅延許容 |
-| メモリ単価 | クラウドでメモリが安い | 組み込みで RAM 制約あり |
-| データの変動性 | 静的データ（参照テーブル） | 動的データ（頻繁に更新） |
-| 正確性要件 | 厳密な結果が必要 | 近似・確率的でよい（ブルーム） |
-| スケール | 単一マシンで完結 | 分散システムで一貫性が課題 |
+| Decision Axis | Choose Time Priority When | Choose Space Priority When |
+|---------------|--------------------------|---------------------------|
+| Latency requirements | Strict (e.g., p99 < 10ms) | Batch processing with delay tolerance |
+| Memory cost per unit | Memory is cheap in the cloud | RAM constraints in embedded systems |
+| Data volatility | Static data (reference tables) | Dynamic data (frequently updated) |
+| Accuracy requirements | Exact results needed | Approximate/probabilistic is fine (Bloom) |
+| Scale | Self-contained on a single machine | Distributed system with consistency challenges |
 
 ---
 
-## 11. 演習問題
+## 11. Exercises
 
-### 基礎レベル
+### Beginner Level
 
-**演習 1: メモ化の効果を体感する**
+**Exercise 1: Experience the Effect of Memoization**
 
-以下の関数 `grid_paths(m, n)` は m x n グリッドの左上から右下までの経路数を計算する。メモ化なしの版を実行し、メモ化版を自分で実装して性能差を確認せよ。
+The function `grid_paths(m, n)` below computes the number of paths from the top-left to the bottom-right of an m x n grid. Run the version without memoization, then implement the memoized version yourself and verify the performance difference.
 
 ```python
 """
-演習1: グリッド経路数の計算にメモ化を適用する
+Exercise 1: Apply memoization to grid path counting
 
-問題:
-m x n のグリッドにおいて、左上 (0,0) から右下 (m-1,n-1) まで
-右か下にのみ移動する場合の経路数を求めよ。
+Problem:
+In an m x n grid, find the number of paths from the top-left (0,0) to
+the bottom-right (m-1,n-1) when only moving right or down.
 
-ヒント:
+Hint:
 - grid_paths(m, n) = grid_paths(m-1, n) + grid_paths(m, n-1)
-- 基底条件: m == 1 または n == 1 のとき経路は 1 通り
+- Base case: When m == 1 or n == 1, there is exactly 1 path
 """
 
 import time
 
 
 def grid_paths_naive(m: int, n: int) -> int:
-    """メモ化なし版。時間計算量は？ 自分で考えてみよ。"""
+    """Version without memoization. What is the time complexity? Think about it."""
     if m == 1 or n == 1:
         return 1
     return grid_paths_naive(m - 1, n) + grid_paths_naive(m, n - 1)
 
 
-# TODO: grid_paths_memo(m, n) をメモ化付きで実装せよ
+# TODO: Implement grid_paths_memo(m, n) with memoization
 # def grid_paths_memo(m, n, memo=None):
 #     ...
 
 
-# 検証用
+# Verification
 if __name__ == "__main__":
-    # 小さい入力で確認
+    # Verify with small inputs
     print(f"grid_paths(3, 3) = {grid_paths_naive(3, 3)}")  # 6
     print(f"grid_paths(4, 4) = {grid_paths_naive(4, 4)}")  # 20
 
-    # m=15, n=15 で素朴版の遅さを体感（数秒かかるはず）
+    # Experience the slowness of the naive version at m=15, n=15 (should take seconds)
     start = time.perf_counter()
     result = grid_paths_naive(15, 15)
     elapsed = time.perf_counter() - start
-    print(f"grid_paths(15, 15) = {result}  ({elapsed:.3f}秒)")
-    # メモ化版なら瞬時に完了するはず
+    print(f"grid_paths(15, 15) = {result}  ({elapsed:.3f}s)")
+    # The memoized version should complete instantly
 ```
 
-**演習 2: ルックアップテーブルの構築**
+**Exercise 2: Building a Lookup Table**
 
-0〜255 の各バイト値について「ビットを反転した値」を返すテーブルを構築し、32ビット整数のビット反転関数を実装せよ。
+Build a table that returns the "bit-reversed value" for each byte value 0-255, and implement a 32-bit integer bit-reversal function.
 
 ```python
 """
-演習2: ビット反転テーブル
+Exercise 2: Bit reversal table
 
-問題:
-8ビット値のビット反転テーブルを構築せよ。
-例: 0b11010010 → 0b01001011  (上位と下位を入れ替え)
+Problem:
+Build an 8-bit bit reversal lookup table.
+Example: 0b11010010 -> 0b01001011  (swap high and low bits)
 
-ヒント:
-reverse_bits_8(n) は n の 8ビットを反転する。
-0b10110000 → 0b00001101
+Hint:
+reverse_bits_8(n) reverses the 8 bits of n.
+0b10110000 -> 0b00001101
 
-全 256 パターンを事前計算してテーブルに格納する。
+Precompute all 256 patterns and store them in a table.
 """
 
 
 def reverse_bits_8(n: int) -> int:
-    """8ビット値のビット反転（素朴版）。"""
+    """Bit reversal of an 8-bit value (naive version)."""
     result = 0
     for _ in range(8):
         result = (result << 1) | (n & 1)
@@ -2068,37 +2080,37 @@ def reverse_bits_8(n: int) -> int:
     return result
 
 
-# TODO: テーブルを構築
+# TODO: Build the table
 # REVERSE_TABLE = [reverse_bits_8(i) for i in range(256)]
 
-# TODO: 32ビット整数のビット反転をテーブル参照で実装
+# TODO: Implement 32-bit integer bit reversal using table lookup
 # def reverse_bits_32(n):
 #     ...
 ```
 
-### 応用レベル
+### Intermediate Level
 
-**演習 3: LRU キャッシュの自作**
+**Exercise 3: Build Your Own LRU Cache**
 
-Python の `OrderedDict` を使わずに、二重連結リストとハッシュマップで LRU キャッシュを実装せよ。`get(key)` と `put(key, value)` が両方 O(1) で動作すること。
+Implement an LRU cache using a doubly linked list and a hash map, without using Python's `OrderedDict`. Both `get(key)` and `put(key, value)` must operate in O(1).
 
 ```python
 """
-演習3: LRU キャッシュの自作実装
+Exercise 3: Custom LRU cache implementation
 
-要件:
-1. get(key): O(1) でキャッシュから取得。ミス時は -1 を返す。
-2. put(key, value): O(1) で追加/更新。容量超過時は最古を削除。
+Requirements:
+1. get(key): Retrieve from cache in O(1). Return -1 on miss.
+2. put(key, value): Add/update in O(1). Evict oldest on capacity overflow.
 
-ヒント:
-- ハッシュマップ: key → ノードへの参照（O(1) アクセス）
-- 二重連結リスト: アクセス順を管理（O(1) で移動・削除）
-- ダミーの head と tail ノードを使うと境界条件の処理が楽になる
+Hints:
+- Hash map: key -> reference to node (O(1) access)
+- Doubly linked list: manage access order (O(1) move/delete)
+- Using dummy head and tail nodes simplifies boundary condition handling
 """
 
 
 class Node:
-    """二重連結リストのノード。"""
+    """Doubly linked list node."""
     def __init__(self, key: int = 0, value: int = 0):
         self.key = key
         self.value = value
@@ -2107,77 +2119,76 @@ class Node:
 
 
 class LRUCacheManual:
-    """LRU キャッシュ — 自作版。"""
+    """LRU cache — custom implementation."""
 
     def __init__(self, capacity: int):
         self.capacity = capacity
-        self.cache = {}  # key → Node
+        self.cache = {}  # key -> Node
 
-        # ダミーノード（番兵）
+        # Dummy nodes (sentinels)
         self.head = Node()
         self.tail = Node()
         self.head.next = self.tail
         self.tail.prev = self.head
 
-    # TODO: _remove(node), _add_to_front(node), get(key), put(key, value)
-    # を実装せよ
+    # TODO: Implement _remove(node), _add_to_front(node), get(key), put(key, value)
 
 
-# テスト
+# Test
 if __name__ == "__main__":
     cache = LRUCacheManual(2)
     cache.put(1, 1)
     cache.put(2, 2)
-    assert cache.get(1) == 1      # key=1 にアクセス → 最新に
-    cache.put(3, 3)               # 容量超過 → key=2 が追い出される
-    assert cache.get(2) == -1     # key=2 は追い出し済み
-    cache.put(4, 4)               # 容量超過 → key=1 が追い出される
+    assert cache.get(1) == 1      # Access key=1 -> becomes most recent
+    cache.put(3, 3)               # Capacity exceeded -> key=2 is evicted
+    assert cache.get(2) == -1     # key=2 has been evicted
+    cache.put(4, 4)               # Capacity exceeded -> key=1 is evicted
     assert cache.get(1) == -1
     assert cache.get(3) == 3
     assert cache.get(4) == 4
-    print("全テスト通過")
+    print("All tests passed")
 ```
 
-### 発展レベル
+### Advanced Level
 
-**演習 4: Counting Bloom Filter の実装**
+**Exercise 4: Implementing a Counting Bloom Filter**
 
-標準のブルームフィルタに「削除」機能を追加した Counting Bloom Filter を実装せよ。各ビット位置を 4 ビットカウンタにし、追加時にインクリメント、削除時にデクリメントする。
+Implement a Counting Bloom Filter that adds "deletion" capability to a standard Bloom filter. Use 4-bit counters at each position, incrementing on add and decrementing on delete.
 
 ```python
 """
-演習4: Counting Bloom Filter
+Exercise 4: Counting Bloom Filter
 
-通常のブルームフィルタは削除ができない（ビットを 0 に戻すと
-他の要素の情報が失われるため）。Counting Bloom Filter は
-各位置にカウンタを持つことでこの問題を解決する。
+A standard Bloom filter cannot delete (resetting a bit to 0 would lose
+information about other elements). A Counting Bloom Filter solves this
+by maintaining counters at each position.
 
-要件:
-1. add(item): 各ハッシュ位置のカウンタをインクリメント
-2. remove(item): 各ハッシュ位置のカウンタをデクリメント
-3. might_contain(item): 全カウンタが 0 より大きいか判定
-4. カウンタオーバーフロー（> 15）時の対処を考慮すること
+Requirements:
+1. add(item): Increment counters at each hash position
+2. remove(item): Decrement counters at each hash position
+3. might_contain(item): Check if all counters are greater than 0
+4. Handle counter overflow (> 15)
 
-注意:
-- 追加していない要素を remove するとカウンタが不整合になる
-- この問題はブルームフィルタの本質的な制約であり、
-  Counting Bloom Filter でも完全には解決できない
+Note:
+- Removing an element that was never added makes counters inconsistent
+- This is an inherent limitation of Bloom filters that the Counting
+  Bloom Filter cannot fully resolve
 """
 
 
 class CountingBloomFilter:
-    """Counting Bloom Filter のスケルトン。"""
+    """Counting Bloom Filter skeleton."""
 
     def __init__(self, size: int = 1000, num_hashes: int = 3):
         self.size = size
         self.num_hashes = num_hashes
-        # 4ビットカウンタ → 1バイトに2カウンタを格納可能
-        # ここでは簡略化のためリストで実装
+        # 4-bit counters -> could pack 2 per byte
+        # Here simplified as a list
         self.counters = [0] * size
 
-    # TODO: _hashes(item), add(item), remove(item),
-    #       might_contain(item) を実装せよ
-    # ヒント: remove で counter < 0 にならないようにすること
+    # TODO: Implement _hashes(item), add(item), remove(item),
+    #       might_contain(item)
+    # Hint: Ensure counter doesn't go below 0 on remove
 
 
 if __name__ == "__main__":
@@ -2188,37 +2199,37 @@ if __name__ == "__main__":
     assert cbf.might_contain("banana") is True
 
     cbf.remove("apple")
-    assert cbf.might_contain("apple") is False  # 削除成功
-    assert cbf.might_contain("banana") is True   # 影響なし
-    print("Counting Bloom Filter テスト通過")
+    assert cbf.might_contain("apple") is False  # Deletion successful
+    assert cbf.might_contain("banana") is True   # Unaffected
+    print("Counting Bloom Filter test passed")
 ```
 
-**演習 5: 空間最適化付き DP — 最長共通部分列**
+**Exercise 5: Space-Optimized DP — Longest Common Subsequence**
 
-最長共通部分列（LCS）の DP テーブルを空間最適化せよ。通常は O(m*n) 空間が必要だが、O(min(m,n)) に削減可能である。
+Optimize the space of the Longest Common Subsequence (LCS) DP table. Normally O(m*n) space is required, but it can be reduced to O(min(m,n)).
 
 ```python
 """
-演習5: LCS の空間最適化
+Exercise 5: Space optimization of LCS
 
-通常の LCS DP テーブル:
+Standard LCS DP table:
      ""  a  b  c  d  e
   "" [0, 0, 0, 0, 0, 0]
   a  [0, 1, 1, 1, 1, 1]
   c  [0, 1, 1, 2, 2, 2]
   e  [0, 1, 1, 2, 2, 3]
 
-空間 O(m*n) → 文字列が長いとメモリ不足に
+Space O(m*n) -> memory issues for long strings
 
-ヒント:
-- dp[i][j] は dp[i-1][j] と dp[i][j-1] と dp[i-1][j-1] のみに依存
-- 2行分だけ保持すれば十分 → 空間 O(n)
-- さらに工夫すると 1行 + 1変数 で O(n) に
+Hints:
+- dp[i][j] depends only on dp[i-1][j], dp[i][j-1], and dp[i-1][j-1]
+- Keeping only 2 rows suffices -> space O(n)
+- With further optimization, 1 row + 1 variable gives O(n)
 """
 
 
 def lcs_full_table(s1: str, s2: str) -> int:
-    """通常版 LCS — 空間 O(m*n)。"""
+    """Standard LCS — space O(m*n)."""
     m, n = len(s1), len(s2)
     dp = [[0] * (n + 1) for _ in range(m + 1)]
     for i in range(1, m + 1):
@@ -2230,7 +2241,7 @@ def lcs_full_table(s1: str, s2: str) -> int:
     return dp[m][n]
 
 
-# TODO: lcs_space_optimized(s1, s2) を空間 O(min(m,n)) で実装せよ
+# TODO: Implement lcs_space_optimized(s1, s2) with space O(min(m,n))
 # def lcs_space_optimized(s1, s2):
 #     ...
 
@@ -2238,138 +2249,141 @@ if __name__ == "__main__":
     assert lcs_full_table("abcde", "ace") == 3
     assert lcs_full_table("abc", "def") == 0
     # assert lcs_space_optimized("abcde", "ace") == 3
-    print("LCS テスト通過")
+    print("LCS test passed")
 ```
 
 ---
 
 ## 12. FAQ
 
-### Q1: メモ化（トップダウン DP）とボトムアップ DP はどちらを使うべきか？
+### Q1: Should I Use Top-Down DP (Memoization) or Bottom-Up DP?
 
-**A:** 両方とも同じ問題を解けるが、特性が異なる。
+**A:** Both can solve the same problems, but they have different characteristics.
 
-| 特性 | トップダウン（メモ化） | ボトムアップ |
-|------|---------------------|------------|
-| 計算する部分問題 | 必要なもののみ | 全て |
-| 実装の直感性 | 再帰で自然に書ける | テーブルの添字管理が必要 |
-| 再帰オーバーヘッド | あり | なし |
-| Python での再帰制限 | 影響を受ける | 影響なし |
-| 空間最適化 | 困難 | 可能（不要な行を破棄） |
+| Property | Top-Down (Memoization) | Bottom-Up |
+|----------|----------------------|-----------|
+| Subproblems computed | Only those needed | All of them |
+| Implementation intuitiveness | Written naturally with recursion | Requires managing table indices |
+| Recursion overhead | Present | None |
+| Python recursion limit | Affected | Unaffected |
+| Space optimization | Difficult | Possible (discard unneeded rows) |
 
-**推奨:** 問題を最初に理解・実装するときはトップダウン（考えやすいため）。性能が必要な場合はボトムアップに変換する。特に Python では再帰制限の関係でボトムアップが安全である。
+**Recommendation:** Use top-down when first understanding and implementing a problem (it's easier to think about). Convert to bottom-up when performance is needed. In Python especially, bottom-up is safer due to the recursion limit.
 
-### Q2: ブルームフィルタの偽陽性率はどう制御するのか？
+### Q2: How Do You Control the False Positive Rate of a Bloom Filter?
 
-**A:** 3つのパラメータ（m, n, k）の関係で制御する。
+**A:** It is controlled by the relationship between three parameters (m, n, k).
 
-- **m（ビット配列サイズ）を増やす**: 偽陽性率が下がる。コストはメモリ増加。
-- **k（ハッシュ関数数）を最適化する**: k = (m/n) * ln(2) が最適値。小さすぎても大きすぎても偽陽性率が上がる。
-- **n（要素数）を事前に見積もる**: 見積もりが甘いとフィルタが飽和する。
+- **Increase m (bit array size)**: Reduces the false positive rate. Cost is increased memory.
+- **Optimize k (number of hash functions)**: k = (m/n) * ln(2) is optimal. Too few or too many increases the false positive rate.
+- **Estimate n (element count) in advance**: Underestimation leads to filter saturation.
 
-実用的な目安:
+Practical guidelines:
 
-| 偽陽性率 | 必要なビット数/要素 (m/n) | 最適 k |
-|---------|-------------------------|--------|
+| False Positive Rate | Required bits/element (m/n) | Optimal k |
+|--------------------|---------------------------|-----------|
 | 10% | 4.8 | 3 |
 | 1% | 9.6 | 7 |
 | 0.1% | 14.4 | 10 |
 | 0.01% | 19.2 | 13 |
 
-例: 1000 万件のデータに対して偽陽性率 1% を実現するには、m = 9.6 * 10^7 ≈ 1200 万バイト（約 12MB）のメモリが必要である。同じデータをハッシュセットで持つと数百 MB になるため、約 25 倍の空間削減になる。
+Example: To achieve a 1% false positive rate for 10 million data items, m = 9.6 * 10^7 ~ 12 million bytes (~12MB) of memory is needed. Storing the same data in a hash set would require several hundred MB, so this represents roughly a 25x space reduction.
 
-### Q3: 時間と空間のどちらを優先すべきか？
+### Q3: Should Time or Space Be Prioritized?
 
-**A:** 一般的な指針は以下の通り。
+**A:** General guidelines are as follows.
 
-1. **まず時間制約を確認する**: ユーザーに直接影響するレイテンシ（API レスポンスタイム、UI 応答速度）が最も重要な場合が多い。メモリは追加購入できるが、ユーザーの忍耐は購入できない。
+1. **First, check the time constraints**: Latency that directly impacts users (API response time, UI responsiveness) is often the most important. Memory can be purchased, but user patience cannot.
 
-2. **次にメモリ制約を確認する**: 組み込みシステム、モバイルデバイス、コンテナの Memory Limit、クラウドのメモリ課金など、物理的・経済的なメモリ制約がある場合は空間優先を検討する。
+2. **Next, check the memory constraints**: When physical or economic memory constraints exist — embedded systems, mobile devices, container Memory Limits, cloud memory billing — consider prioritizing space.
 
-3. **スケーラビリティを考慮する**: データ量が増えたときにどちらの手法がスケールするかを考える。O(n) 空間の手法は n が 10 倍になればメモリも 10 倍になるが、O(1) 空間の手法はデータ量に依存しない。
+3. **Consider scalability**: Think about which approach scales as data volume grows. An O(n) space technique requires 10x memory when n grows 10x, but an O(1) space technique is data-volume-independent.
 
-4. **コスト試算を行う**: クラウド環境では、メモリの増強コストと計算時間のコスト（CPU 時間の課金）を比較して最適な点を選ぶ。
+4. **Perform cost estimation**: In cloud environments, compare the cost of memory increases with compute time costs (CPU time billing) to select the optimal point.
 
-### Q4: lru_cache のデフォルト maxsize=128 は変更すべきか？
+### Q4: Should the Default maxsize=128 of lru_cache Be Changed?
 
-**A:** ユースケースによる。
+**A:** It depends on the use case.
 
-- **DP 問題（部分問題数が有限）**: `maxsize=None` にする。全結果を保持しないと、追い出された値の再計算が発生して計算量が悪化する。
-- **API キャッシュ（入力パターンが膨大）**: デフォルトの 128 または `maxsize=256〜1024` 程度。大きくしすぎるとメモリを圧迫する。
-- **数値計算（引数が実数）**: 浮動小数点数はハッシュの問題で意図したキャッシュヒットが起きにくい。整数に丸めるか、テーブル参照に切り替えることを検討する。
+- **DP problems (finite subproblems)**: Set `maxsize=None`. If all results are not retained, evicted values require recomputation, degrading complexity.
+- **API caching (vast input patterns)**: Default 128 or `maxsize=256-1024` or so. Making it too large puts pressure on memory.
+- **Numerical computation (float arguments)**: Due to floating-point hashing issues, intended cache hits may not occur. Consider rounding to integers or switching to table lookup.
 
-### Q5: ブルームフィルタの代わりに Cuckoo Filter を使うべきか？
+### Q5: Should a Cuckoo Filter Be Used Instead of a Bloom Filter?
 
-**A:** Cuckoo Filter は以下の場合に有利である。
+**A:** A Cuckoo Filter is advantageous in the following cases:
 
-1. **削除が必要**: ブルームフィルタは削除不可（Counting 版を除く）だが、Cuckoo Filter はネイティブに削除をサポートする。
-2. **空間効率**: 偽陽性率が 3% 以下の場合、Cuckoo Filter の方がブルームフィルタより空間効率が良い。
-3. **検索速度**: Cuckoo Filter は最大 2 回のメモリアクセスで判定が完了し、キャッシュフレンドリーである。
+1. **Deletion is needed**: Bloom filters cannot delete (except the Counting variant), but Cuckoo Filters natively support deletion.
+2. **Space efficiency**: When the false positive rate is 3% or less, Cuckoo Filters can be more space-efficient than Bloom filters.
+3. **Lookup speed**: Cuckoo Filters complete lookups in at most 2 memory accesses and are cache-friendly.
 
-ただし、Cuckoo Filter には挿入時にリロケーション（既存要素の移動）が必要になる場合があり、最悪ケースでは挿入が失敗する。挿入が頻繁で失敗が許容できない場合はブルームフィルタの方が安全である。
+However, Cuckoo Filters may require relocation (moving existing elements) during insertion, and in the worst case, insertions can fail. If insertions are frequent and failures are unacceptable, Bloom filters are safer.
 
 ---
 
-## 13. 実世界での適用事例
+## 13. Real-World Application Examples
 
-### 13.1 データベースにおけるトレードオフ
+### 13.1 Tradeoffs in Databases
 
 ```
-データベースの読み書きトレードオフ:
+Database read/write tradeoffs:
 
-  B-Tree インデックス:
-  ┌──────────────────────────────────────────────┐
-  │  空間: インデックスはデータの 10-30% の追加空間  │
-  │  読み取り: O(log n) — インデックスなしの O(n) から改善│
-  │  書き込み: 各 INSERT/UPDATE でインデックスも更新    │
-  │                                                  │
-  │  トレードオフ:                                     │
-  │  インデックスが多い → 読み取り高速 / 書き込み低速    │
-  │  インデックスが少ない → 読み取り低速 / 書き込み高速  │
-  └──────────────────────────────────────────────┘
+  B-Tree Index:
+  +----------------------------------------------+
+  |  Space: Index adds 10-30% extra space to data |
+  |  Read: O(log n) — improved from O(n) without  |
+  |        an index                                |
+  |  Write: Index must also be updated on each     |
+  |         INSERT/UPDATE                          |
+  |                                                |
+  |  Tradeoff:                                     |
+  |  More indexes -> faster reads / slower writes  |
+  |  Fewer indexes -> slower reads / faster writes |
+  +----------------------------------------------+
 
   LSM-Tree (LevelDB, RocksDB):
-  ┌──────────────────────────────────────────────┐
-  │  書き込み: メモリ上の MemTable → 高速            │
-  │  読み取り: 複数の SSTable を走査 → やや低速       │
-  │  ブルームフィルタ: 各 SSTable に付与               │
-  │    → 「このキーは SSTable に存在しない」を高速判定 │
-  │    → 不要な SSTable の読み込みをスキップ           │
-  │    → 読み取り性能を大幅改善                       │
-  └──────────────────────────────────────────────┘
+  +----------------------------------------------+
+  |  Write: In-memory MemTable -> fast             |
+  |  Read: Scan multiple SSTables -> somewhat slow |
+  |  Bloom filter: Attached to each SSTable        |
+  |    -> Quickly determines "this key is not in   |
+  |       this SSTable"                            |
+  |    -> Skips unnecessary SSTable reads          |
+  |    -> Dramatically improves read performance   |
+  +----------------------------------------------+
 ```
 
-### 13.2 Web ブラウザのセーフブラウジング
+### 13.2 Safe Browsing in Web Browsers
 
-Google Chrome のセーフブラウジング機能では、悪意ある URL のリストをブルームフィルタとしてブラウザに保持している。ユーザーが URL にアクセスするとき、まずローカルのブルームフィルタで判定し、「たぶん危険」と判定された場合のみ Google のサーバーに問い合わせる。
+Google Chrome's Safe Browsing feature stores a list of malicious URLs as a Bloom filter within the browser. When a user accesses a URL, the local Bloom filter is checked first, and only if it determines "probably dangerous" is a query sent to Google's servers.
 
-- ブルームフィルタなし: 全 URL を毎回サーバーに問い合わせ → 遅延 + プライバシー問題
-- ブルームフィルタあり: 99%+ のアクセスでサーバー問い合わせ不要 → 高速 + プライバシー保護
+- Without Bloom filter: Every URL is queried to the server -> latency + privacy issues
+- With Bloom filter: 99%+ of accesses need no server query -> fast + privacy protection
 
-### 13.3 Redis のキャッシュパターン
+### 13.3 Cache Patterns in Redis
 
 ```
-Cache-Aside パターン（最も一般的）:
+Cache-Aside pattern (most common):
 
-  [アプリケーション]
-       │
-       ├─ 1. get(key) ──→ [Redis キャッシュ]
-       │                      │
-       │                      ├─ ヒット → 結果を返す（高速）
-       │                      │
-       │                      └─ ミス
-       │                           │
-       ├─ 2. query(key) ──→ [データベース]
-       │                      │
-       │                      └─ 結果
-       │
-       └─ 3. set(key, result, TTL) ──→ [Redis キャッシュ]
+  [Application]
+       |
+       +-- 1. get(key) --> [Redis Cache]
+       |                      |
+       |                      +-- Hit -> Return result (fast)
+       |                      |
+       |                      +-- Miss
+       |                           |
+       +-- 2. query(key) --> [Database]
+       |                      |
+       |                      +-- Result
+       |
+       +-- 3. set(key, result, TTL) --> [Redis Cache]
 
-  このパターンのトレードオフ:
-  - 空間: Redis のメモリ分だけ追加コスト
-  - 時間: キャッシュヒット時は DB アクセスを完全にスキップ
-  - 一貫性: DB 更新後も TTL が切れるまで古いデータが返る
-  - 可用性: Redis 障害時は DB に直接アクセスにフォールバック
+  Tradeoffs of this pattern:
+  - Space: Additional cost for Redis memory
+  - Time: On cache hit, DB access is completely skipped
+  - Consistency: Stale data may be returned until TTL expires after DB update
+  - Availability: On Redis failure, falls back to direct DB access
 ```
 
 ---
@@ -2377,69 +2391,69 @@ Cache-Aside パターン（最も一般的）:
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point in learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory, but by actually writing code and verifying behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this applied in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## 14. まとめ
-
-### 核心的な原則
-
-| 原則 | 説明 |
-|------|------|
-| 空間と時間は交換可能 | メモリを追加で使えば計算時間を削減でき、逆も成り立つ |
-| 重複部分問題の検出 | メモ化/DP が有効かどうかの最重要判断基準 |
-| テーブルサイズの見積もり | 入力空間が小さい場合のみルックアップテーブルが実用的 |
-| 偽陽性の許容判断 | ブルームフィルタは偽陽性を許容する代わりに空間を劇的に削減 |
-| キャッシュの無効化 | キャッシュ戦略の選択以上に、無効化戦略の設計が重要 |
-| パレートフロンティア | 完璧なトレードオフは存在せず、要件に応じた最適点を選ぶ |
-
-### 各手法の使い分け早見表
-
-| 手法 | 使う場面 | 避ける場面 |
-|------|---------|-----------|
-| メモ化 | 重複部分問題があるとき | 各部分問題が1回しか呼ばれないとき |
-| lru_cache | Python で手軽にキャッシュしたいとき | 引数が mutable なとき |
-| ルックアップテーブル | 入力空間が小さく固定のとき | 入力空間が巨大なとき |
-| ブルームフィルタ | 大規模データの存在判定で偽陽性が許容できるとき | 偽陽性が致命的なとき |
-| ハッシュセット | 汎用的な存在判定・重複検出 | メモリ制約が厳しいとき |
-| TTL キャッシュ | 外部データの鮮度が重要なとき | データが不変のとき |
+Knowledge of this topic is frequently used in everyday development work. It becomes particularly important during code reviews and architecture design.
 
 ---
 
-## 次に読むべきガイド
+## 14. Summary
 
-- [ハッシュテーブル — 衝突解決とロードファクター](../01-data-structures/03-hash-tables.md) — ハッシュセットやブルームフィルタの基盤となるデータ構造
-- [動的計画法 — メモ化とテーブルの詳細](../02-algorithms/04-dynamic-programming.md) — メモ化をさらに深掘りする
-- キャッシュアーキテクチャ — CPU キャッシュから CDN まで — ハードウェアレベルでのキャッシュの仕組み
+### Core Principles
+
+| Principle | Description |
+|-----------|-------------|
+| Space and time are interchangeable | Additional memory can reduce computation time, and vice versa |
+| Detection of overlapping subproblems | The most important criterion for whether memoization/DP is effective |
+| Table size estimation | Lookup tables are practical only when the input space is small |
+| Tolerance for false positives | Bloom filters dramatically reduce space by tolerating false positives |
+| Cache invalidation | Designing invalidation strategy is more important than choosing the caching strategy itself |
+| Pareto frontier | No perfect tradeoff exists; choose the optimal point based on requirements |
+
+### Quick Reference for Technique Selection
+
+| Technique | When to Use | When to Avoid |
+|-----------|-------------|---------------|
+| Memoization | When overlapping subproblems exist | When each subproblem is called only once |
+| lru_cache | When you want quick caching in Python | When arguments are mutable |
+| Lookup table | When the input space is small and fixed | When the input space is huge |
+| Bloom filter | Large-scale membership testing where false positives are acceptable | When false positives are fatal |
+| Hash set | General membership testing and duplicate detection | When memory constraints are severe |
+| TTL cache | When freshness of external data matters | When data is immutable |
 
 ---
 
-## 参考文献
+## Recommended Next Guides
 
-1. Bloom, B.H. (1970). "Space/time trade-offs in hash coding with allowable errors." *Communications of the ACM*, 13(7), 422-426. — ブルームフィルタの原著論文。偽陽性を許容することで空間効率を劇的に改善する確率的データ構造を提案した歴史的論文。
-
-2. Cormen, T.H., Leiserson, C.E., Rivest, R.L., & Stein, C. (2022). *Introduction to Algorithms* (4th ed.). MIT Press. — 第14章「Dynamic Programming」でメモ化とボトムアップ DP のトレードオフを体系的に解説。第11章「Hash Tables」でハッシュ関数とキャッシュの基礎理論を提供。
-
-3. Mitzenmacher, M. & Upfal, E. (2017). *Probability and Computing: Randomization and Probabilistic Techniques in Algorithms and Data Analysis* (2nd ed.). Cambridge University Press. — ブルームフィルタの偽陽性率の厳密な確率分析と、Counting Bloom Filter など各種バリエーションの理論的基盤。
-
-4. Kirsch, A. & Mitzenmacher, M. (2006). "Less Hashing, Same Performance: Building a Better Bloom Filter." *Proceedings of ESA 2006*, 456-467. — ブルームフィルタで必要なハッシュ関数数を 2 つに削減できることを証明した論文。本ガイドのダブルハッシング実装の理論的根拠。
-
-5. Fan, B., Andersen, D.G., Kaminsky, M., & Mitzenmacher, M. (2014). "Cuckoo Filter: Practically Better Than Bloom." *Proceedings of ACM CoNEXT 2014*. — Cuckoo Filter がブルームフィルタより実用面で優れるケースを示した論文。削除対応と空間効率の改善を提案。
-
-6. Knuth, D.E. (1997). *The Art of Computer Programming, Volume 3: Sorting and Searching* (2nd ed.). Addison-Wesley. — ルックアップテーブルと事前計算の手法を含む、検索アルゴリズムの包括的な参考書。
+- [Hash Tables — Collision Resolution and Load Factor](../01-data-structures/03-hash-tables.md) — The data structure underlying hash sets and Bloom filters
+- [Dynamic Programming — Memoization and Tables in Detail](../02-algorithms/04-dynamic-programming.md) — A deeper dive into memoization
+- Cache Architecture — From CPU Cache to CDN — How caching works at the hardware level
 
 ---
 
-*本ガイドで紹介した全てのコード例は Python 3.8 以降で動作確認が可能である。*
-*ベンチマーク結果は実行環境（CPU、メモリ、Python バージョン）によって変動する。*
+## References
+
+1. Bloom, B.H. (1970). "Space/time trade-offs in hash coding with allowable errors." *Communications of the ACM*, 13(7), 422-426. — The original paper on Bloom filters. A historic paper proposing a probabilistic data structure that dramatically improves space efficiency by tolerating false positives.
+
+2. Cormen, T.H., Leiserson, C.E., Rivest, R.L., & Stein, C. (2022). *Introduction to Algorithms* (4th ed.). MIT Press. — Chapter 14 "Dynamic Programming" systematically explains the tradeoffs between memoization and bottom-up DP. Chapter 11 "Hash Tables" provides foundational theory on hash functions and caching.
+
+3. Mitzenmacher, M. & Upfal, E. (2017). *Probability and Computing: Randomization and Probabilistic Techniques in Algorithms and Data Analysis* (2nd ed.). Cambridge University Press. — Rigorous probabilistic analysis of Bloom filter false positive rates, and the theoretical foundation for variants including Counting Bloom Filters.
+
+4. Kirsch, A. & Mitzenmacher, M. (2006). "Less Hashing, Same Performance: Building a Better Bloom Filter." *Proceedings of ESA 2006*, 456-467. — Paper proving that the number of hash functions needed for a Bloom filter can be reduced to 2. The theoretical basis for the double hashing implementation in this guide.
+
+5. Fan, B., Andersen, D.G., Kaminsky, M., & Mitzenmacher, M. (2014). "Cuckoo Filter: Practically Better Than Bloom." *Proceedings of ACM CoNEXT 2014*. — Paper demonstrating cases where Cuckoo Filters outperform Bloom filters in practice. Proposes deletion support and space efficiency improvements.
+
+6. Knuth, D.E. (1997). *The Art of Computer Programming, Volume 3: Sorting and Searching* (2nd ed.). Addison-Wesley. — A comprehensive reference on search algorithms including lookup tables and precomputation techniques.
+
+---
+
+*All code examples in this guide can be tested with Python 3.8 or later.*
+*Benchmark results will vary depending on the execution environment (CPU, memory, Python version).*

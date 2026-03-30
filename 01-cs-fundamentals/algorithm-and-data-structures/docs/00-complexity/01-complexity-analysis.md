@@ -1,116 +1,116 @@
-# 計算量解析 — 最悪/平均/最良ケース、償却解析、再帰の解析、マスター定理
+# Complexity Analysis — Worst/Average/Best Case, Amortized Analysis, Recurrence Analysis, Master Theorem
 
-> アルゴリズムの効率を正確に評価するための体系的手法を学ぶ。最悪・平均・最良ケースの違い、償却解析の考え方、再帰アルゴリズムの漸化式の立て方と解法（マスター定理、再帰木法、置換法）までを網羅する。
-
----
-
-## この章で学ぶこと
-
-1. **漸近記法**（O, Omega, Theta）の厳密な定義と使い分け
-2. **最悪ケース・平均ケース・最良ケース** の区別と各解析手法
-3. **償却解析**（集約法、配賦法、ポテンシャル法）の理論と実践
-4. **再帰の漸化式** の立て方と3つの解法（マスター定理、再帰木法、置換法）
-5. **マスター定理** の3つのケースと適用条件、適用外への対処
-6. 計算量解析における **よくある落とし穴** と回避策
-
-
-## 前提知識
-
-このガイドを読む前に、以下の知識があると理解が深まります:
-
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [Big-O 記法と計算量の基礎](./00-big-o-notation.md) の内容を理解していること
+> Learn the systematic methods for accurately evaluating algorithm efficiency. This guide covers the differences between worst, average, and best cases, the concepts behind amortized analysis, how to formulate recurrence relations for recursive algorithms, and their solution methods (Master Theorem, recursion tree method, substitution method).
 
 ---
 
-## 目次
+## What You Will Learn in This Chapter
 
-1. [漸近記法の基礎](#1-漸近記法の基礎)
-2. [最悪ケース・平均ケース・最良ケースの解析](#2-最悪ケース平均ケース最良ケースの解析)
-3. [償却解析](#3-償却解析)
-4. [再帰の計算量を求める手法](#4-再帰の計算量を求める手法)
-5. [漸化式の立て方](#5-漸化式の立て方)
-6. [マスター定理](#6-マスター定理)
-7. [再帰木法](#7-再帰木法)
-8. [置換法（帰納法）](#8-置換法帰納法)
-9. [一般的な再帰パターン](#9-一般的な再帰パターン)
-10. [比較表](#10-比較表)
-11. [アンチパターン](#11-アンチパターン)
-12. [エッジケース分析](#12-エッジケース分析)
-13. [演習問題](#13-演習問題)
+1. **Asymptotic notation** (O, Omega, Theta): rigorous definitions and usage
+2. **Worst case, average case, best case**: distinguishing and analyzing each
+3. **Amortized analysis** (aggregate, accounting, potential methods): theory and practice
+4. **Recurrence relations** for recursion: formulation and three solution methods (Master Theorem, recursion tree, substitution)
+5. **Master Theorem**: the three cases, applicability conditions, and handling inapplicable cases
+6. **Common pitfalls** in complexity analysis and how to avoid them
+
+
+## Prerequisites
+
+The following knowledge will help deepen your understanding of this guide:
+
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Familiarity with the content of [Big-O Notation and Complexity Basics](./00-big-o-notation.md)
+
+---
+
+## Table of Contents
+
+1. [Fundamentals of Asymptotic Notation](#1-fundamentals-of-asymptotic-notation)
+2. [Worst Case, Average Case, and Best Case Analysis](#2-worst-case-average-case-and-best-case-analysis)
+3. [Amortized Analysis](#3-amortized-analysis)
+4. [Methods for Analyzing Recursive Complexity](#4-methods-for-analyzing-recursive-complexity)
+5. [Formulating Recurrence Relations](#5-formulating-recurrence-relations)
+6. [Master Theorem](#6-master-theorem)
+7. [Recursion Tree Method](#7-recursion-tree-method)
+8. [Substitution Method (Induction)](#8-substitution-method-induction)
+9. [Common Recursion Patterns](#9-common-recursion-patterns)
+10. [Comparison Tables](#10-comparison-tables)
+11. [Anti-patterns](#11-anti-patterns)
+12. [Edge Case Analysis](#12-edge-case-analysis)
+13. [Practice Problems](#13-practice-problems)
 14. [FAQ](#14-faq)
-15. [まとめ](#15-まとめ)
-16. [参考文献](#16-参考文献)
+15. [Summary](#15-summary)
+16. [References](#16-references)
 
 ---
 
-## 1. 漸近記法の基礎
+## 1. Fundamentals of Asymptotic Notation
 
-計算量解析では、入力サイズ n が十分大きくなったときのアルゴリズムの振る舞いを議論する。
-そのために、定数係数や低次項を無視し、支配的な増加率だけを捉える **漸近記法** を用いる。
+Complexity analysis discusses the behavior of algorithms as the input size n becomes sufficiently large.
+To do this, we use **asymptotic notation**, which ignores constant factors and lower-order terms and captures only the dominant growth rate.
 
-### 1.1 なぜ漸近記法を使うのか
+### 1.1 Why Use Asymptotic Notation?
 
-具体的な実行時間（例: 3.2 秒）は、ハードウェアや実装言語、コンパイラの最適化など多数の要因で変動する。
-漸近記法を用いる理由は以下の通りである:
+Concrete execution times (e.g., 3.2 seconds) vary depending on hardware, implementation language, compiler optimizations, and many other factors.
+The reasons for using asymptotic notation are as follows:
 
-- **ハードウェア非依存**: CPU 速度やメモリ帯域に依存しない評価が可能になる
-- **スケーラビリティの予測**: 入力サイズが 10 倍になったとき、実行時間がどの程度増加するかを見積もれる
-- **アルゴリズム間の比較**: 同じ問題を解く異なるアルゴリズムの本質的な効率差を議論できる
+- **Hardware independence**: Enables evaluation independent of CPU speed or memory bandwidth
+- **Scalability prediction**: Allows estimation of how much execution time increases when input size grows by 10x
+- **Algorithm comparison**: Enables discussion of the fundamental efficiency differences between different algorithms solving the same problem
 
-### 1.2 三つの漸近記法
+### 1.2 The Three Asymptotic Notations
 
 ```
-漸近記法の関係図:
+Relationship diagram of asymptotic notations:
 
-              O(g(n))        ── 上界（最悪でもこの程度）
-             ╱      ╲
-     実際の増加率 f(n)
-             ╲      ╱
-              Ω(g(n))        ── 下界（少なくともこの程度）
+              O(g(n))        -- Upper bound (at most this much)
+             /      \
+     Actual growth rate f(n)
+             \      /
+              Omega(g(n))    -- Lower bound (at least this much)
 
-     上界と下界が一致するとき:
-              Θ(g(n))        ── タイトな界（ちょうどこの程度）
+     When upper and lower bounds coincide:
+              Theta(g(n))    -- Tight bound (exactly this much)
 ```
 
-**O 記法（上界）**: ある定数 c > 0 と n_0 > 0 が存在して、すべての n >= n_0 に対し f(n) <= c * g(n) が成り立つとき、f(n) = O(g(n)) と書く。
+**O notation (upper bound)**: There exist constants c > 0 and n_0 > 0 such that for all n >= n_0, f(n) <= c * g(n). We write f(n) = O(g(n)).
 
-**Omega 記法（下界）**: ある定数 c > 0 と n_0 > 0 が存在して、すべての n >= n_0 に対し f(n) >= c * g(n) が成り立つとき、f(n) = Omega(g(n)) と書く。
+**Omega notation (lower bound)**: There exist constants c > 0 and n_0 > 0 such that for all n >= n_0, f(n) >= c * g(n). We write f(n) = Omega(g(n)).
 
-**Theta 記法（タイトな界）**: f(n) = O(g(n)) かつ f(n) = Omega(g(n)) のとき、f(n) = Theta(g(n)) と書く。
+**Theta notation (tight bound)**: When f(n) = O(g(n)) and f(n) = Omega(g(n)), we write f(n) = Theta(g(n)).
 
-### 1.3 漸近記法の計算規則
+### 1.3 Rules for Asymptotic Notation
 
-漸近記法を扱う上で、以下の規則が成り立つ。これらは証明によって裏付けられた性質であり、感覚的な「お約束」ではない。
+The following rules hold when working with asymptotic notation. These are properties backed by proofs, not mere conventions.
 
-| 規則 | 内容 | 理由 |
-|------|------|------|
-| 定数係数の無視 | O(5n) = O(n) | 定義中の c に 5 を吸収できるため |
-| 低次項の無視 | O(n^2 + n) = O(n^2) | n が十分大きいと n^2 が n を支配するため |
-| 対数の底の無視 | O(log_2 n) = O(log_10 n) | log_a(n) = log_b(n) / log_b(a) より定数倍の違いのみ |
-| 加法則 | O(f) + O(g) = O(max(f, g)) | 支配項が全体のオーダーを決定するため |
-| 乗法則 | O(f) * O(g) = O(f * g) | 各ステップが独立に繰り返される場合に適用 |
+| Rule | Content | Reason |
+|------|---------|--------|
+| Ignore constant factors | O(5n) = O(n) | The 5 can be absorbed into the constant c in the definition |
+| Ignore lower-order terms | O(n^2 + n) = O(n^2) | For sufficiently large n, n^2 dominates n |
+| Ignore logarithm base | O(log_2 n) = O(log_10 n) | log_a(n) = log_b(n) / log_b(a), so they differ only by a constant factor |
+| Addition rule | O(f) + O(g) = O(max(f, g)) | The dominant term determines the overall order |
+| Multiplication rule | O(f) * O(g) = O(f * g) | Applies when each step is independently repeated |
 
-### 1.4 コード例: 漸近記法の直感を確認する
+### 1.4 Code Example: Building Intuition for Asymptotic Notation
 
-以下のコードは、各計算量の関数がどの程度の速さで増加するかを数値的に確認するものである。
+The following code numerically demonstrates how quickly each complexity class grows.
 
 ```python
 """
-漸近記法の増加率を数値的に比較するプログラム。
-なぜこの比較が重要か: アルゴリズム選択時に、入力サイズの増加が
-実行時間にどう影響するかを直感的に理解するためである。
+A program that numerically compares growth rates of asymptotic notation.
+Why this comparison matters: To intuitively understand how input size
+growth affects execution time when choosing algorithms.
 """
 
 import math
 
 
 def compare_growth_rates(sizes: list[int]) -> None:
-    """異なる計算量クラスの増加率を表形式で表示する。
+    """Display growth rates of different complexity classes in tabular form.
 
     Args:
-        sizes: 比較する入力サイズのリスト
+        sizes: List of input sizes to compare
     """
     header = f"{'n':>10} | {'log n':>10} | {'n':>10} | {'n log n':>12} | {'n^2':>12} | {'2^n':>15}"
     separator = "-" * len(header)
@@ -122,7 +122,7 @@ def compare_growth_rates(sizes: list[int]) -> None:
         log_n = math.log2(n) if n > 0 else 0
         n_log_n = n * log_n
         n_squared = n * n
-        # 2^n は n が大きいと天文学的数値になるため、上限を設ける
+        # 2^n becomes astronomically large for large n, so we cap it
         two_to_n = 2 ** n if n <= 30 else float("inf")
 
         print(
@@ -140,8 +140,8 @@ def main() -> None:
     compare_growth_rates(sizes)
     print()
 
-    # 計算量クラス間の「壁」を実感する
-    print("=== n=20 における各関数の値 ===")
+    # Feel the "wall" between complexity classes
+    print("=== Values of each function at n=20 ===")
     n = 20
     print(f"  log n    = {math.log2(n):.2f}")
     print(f"  n        = {n}")
@@ -150,15 +150,15 @@ def main() -> None:
     print(f"  n^3      = {n**3}")
     print(f"  2^n      = {2**n}")
     print(f"  n!       = {math.factorial(n)}")
-    # 2^20 = 1,048,576 に対し 20! = 2,432,902,008,176,640,000
-    # この差が「指数時間 vs 階乗時間」の壁を示している
+    # 2^20 = 1,048,576 vs 20! = 2,432,902,008,176,640,000
+    # This gap illustrates the "wall" between exponential and factorial time
 
 
 if __name__ == "__main__":
     main()
 ```
 
-想定される出力（先頭部分）:
+Expected output (first few lines):
 
 ```
          n |      log n |          n |      n log n |          n^2 |             2^n
@@ -172,44 +172,46 @@ if __name__ == "__main__":
 
 ---
 
-## 2. 最悪ケース・平均ケース・最良ケースの解析
+## 2. Worst Case, Average Case, and Best Case Analysis
 
-同じアルゴリズムでも、入力データの内容によって実行時間は大きく変わる。
-計算量解析では、この変動を3つの観点から捉える。
+Even for the same algorithm, execution time can vary significantly depending on the input data.
+Complexity analysis captures this variation from three perspectives.
 
-### 2.1 三つのケースの定義
+### 2.1 Definition of the Three Cases
 
 ```
-入力空間と実行時間の関係図:
+Relationship between input space and execution time:
 
-  実行時間
-  ▲
-  │    ×                              ── 最悪ケース W(n)
-  │         ×        ×
-  │    ×         ×        ×    ×
-  │         ×        ×              × ── 平均ケース A(n)
-  │    ×              ×        ×
-  │                        ×
-  │              ×                    ── 最良ケース B(n)
-  │
-  └─────────────────────────────────→ 入力パターン
-           （サイズ n の全入力）
+  Execution
+  Time
+  ^
+  |    x                              -- Worst case W(n)
+  |         x        x
+  |    x         x        x    x
+  |         x        x              x -- Average case A(n)
+  |    x              x        x
+  |                        x
+  |              x                    -- Best case B(n)
+  |
+  +-----------------------------------> Input patterns
+           (all inputs of size n)
 
-  W(n) = max { T(I) | |I| = n }    すべてのサイズ n の入力 I のうち最大の実行時間
-  B(n) = min { T(I) | |I| = n }    すべてのサイズ n の入力 I のうち最小の実行時間
-  A(n) = Σ T(I) × Pr(I)            各入力 I の実行時間の期待値
+  W(n) = max { T(I) | |I| = n }    Maximum execution time over all inputs I of size n
+  B(n) = min { T(I) | |I| = n }    Minimum execution time over all inputs I of size n
+  A(n) = Sum T(I) * Pr(I)          Expected value of execution time over each input I
 ```
 
-**なぜ最悪ケースを重視するのか**: システムの応答時間保証（SLA）やリアルタイムシステムでは、「ほとんどの場合速い」では不十分であり、「どんな入力に対しても一定時間内に応答する」ことが求められるためである。
+**Why worst case is emphasized**: In systems with response time guarantees (SLAs) or real-time systems, "fast most of the time" is insufficient -- "guaranteed response within a fixed time for any input" is required.
 
-**なぜ平均ケースも重要か**: 最悪ケースが滅多に起きない場合（例: クイックソートの O(n^2) は非常にまれ）、実用上の性能は平均ケースで評価した方が実態に即する。
+**Why average case also matters**: When the worst case rarely occurs (e.g., quicksort's O(n^2) is extremely rare), the average case provides a more practical performance evaluation.
 
-### 2.2 コード例: 線形探索の三つのケース
+### 2.2 Code Example: Three Cases of Linear Search
 
 ```python
 """
-線形探索における最悪・平均・最良ケースの解析。
-同じアルゴリズムでも、ターゲットの位置により比較回数が大きく異なることを示す。
+Analysis of worst, average, and best cases in linear search.
+Demonstrates that the same algorithm can have vastly different
+comparison counts depending on the target's position.
 """
 
 import random
@@ -217,15 +219,15 @@ import statistics
 
 
 def linear_search(arr: list[int], target: int) -> tuple[int, int]:
-    """線形探索を行い、見つかったインデックスと比較回数を返す。
+    """Perform linear search and return the found index and comparison count.
 
     Args:
-        arr: 探索対象の配列
-        target: 探索する値
+        arr: Array to search
+        target: Value to search for
 
     Returns:
-        (見つかったインデックス, 比較回数) のタプル。
-        見つからない場合はインデックスに -1 を返す。
+        Tuple of (found index, comparison count).
+        Returns -1 for the index if not found.
     """
     comparisons = 0
     for i, val in enumerate(arr):
@@ -236,24 +238,24 @@ def linear_search(arr: list[int], target: int) -> tuple[int, int]:
 
 
 def analyze_linear_search(n: int, trials: int = 10000) -> None:
-    """線形探索の最悪・平均・最良ケースを実験的に分析する。
+    """Experimentally analyze worst, average, and best cases of linear search.
 
-    なぜ実験的分析を行うか: 理論値との一致を確認することで、
-    漸近解析の妥当性を検証するためである。
+    Why perform experimental analysis: To verify the validity of asymptotic
+    analysis by confirming agreement with theoretical values.
 
     Args:
-        n: 配列のサイズ
-        trials: 試行回数
+        n: Array size
+        trials: Number of trials
     """
     arr = list(range(n))
 
-    # 最良ケース: ターゲットが先頭にある場合
+    # Best case: target is at the beginning
     _, best_comparisons = linear_search(arr, 0)
 
-    # 最悪ケース: ターゲットが存在しない場合
+    # Worst case: target does not exist
     _, worst_comparisons = linear_search(arr, n + 1)
 
-    # 平均ケース: ターゲットの位置がランダム
+    # Average case: target position is random
     comparison_counts = []
     for _ in range(trials):
         target = random.randint(0, n - 1)
@@ -262,17 +264,17 @@ def analyze_linear_search(n: int, trials: int = 10000) -> None:
 
     avg_comparisons = statistics.mean(comparison_counts)
 
-    print(f"=== 線形探索の解析 (n={n}) ===")
-    print(f"  最良ケース: {best_comparisons} 回の比較   (理論値: 1)")
-    print(f"  最悪ケース: {worst_comparisons} 回の比較   (理論値: {n})")
-    print(f"  平均ケース: {avg_comparisons:.1f} 回の比較 (理論値: {(n + 1) / 2:.1f})")
+    print(f"=== Linear Search Analysis (n={n}) ===")
+    print(f"  Best case:    {best_comparisons} comparisons   (theoretical: 1)")
+    print(f"  Worst case:   {worst_comparisons} comparisons   (theoretical: {n})")
+    print(f"  Average case: {avg_comparisons:.1f} comparisons (theoretical: {(n + 1) / 2:.1f})")
     print()
 
-    # 理論値との誤差を確認
+    # Check error against theoretical value
     theoretical_avg = (n + 1) / 2
     error_pct = abs(avg_comparisons - theoretical_avg) / theoretical_avg * 100
-    print(f"  平均ケースの理論値との誤差: {error_pct:.2f}%")
-    # 試行回数が十分なら、この誤差は 1% 以下に収まることが想定される
+    print(f"  Error from theoretical average: {error_pct:.2f}%")
+    # With sufficient trials, this error should be below 1%
 
 
 def main() -> None:
@@ -285,14 +287,14 @@ if __name__ == "__main__":
     main()
 ```
 
-### 2.3 コード例: クイックソートの三つのケース
+### 2.3 Code Example: Three Cases of Quicksort
 
-クイックソートは、ピボットの選び方によって性能が劇的に変わるアルゴリズムの代表例である。
+Quicksort is a prime example of an algorithm whose performance changes dramatically depending on pivot selection.
 
 ```python
 """
-クイックソートにおける最悪・平均・最良ケースの具体例。
-ピボット選択がアルゴリズムの性能にどのように影響するかを示す。
+Concrete examples of worst, average, and best cases in quicksort.
+Demonstrates how pivot selection affects algorithm performance.
 """
 
 import random
@@ -300,21 +302,21 @@ import time
 
 
 def quicksort_count(arr: list[int]) -> tuple[list[int], int]:
-    """クイックソート（先頭ピボット）を行い、比較回数も返す。
+    """Perform quicksort (first-element pivot) and return comparison count.
 
-    なぜ先頭ピボットを使うか: 最悪ケースが発生しやすい実装として、
-    ピボット選択の重要性を示すためである。
+    Why use the first element as pivot: To demonstrate an implementation
+    prone to worst-case behavior, highlighting the importance of pivot selection.
 
     Args:
-        arr: ソート対象のリスト
+        arr: List to sort
 
     Returns:
-        (ソート済みリスト, 比較回数) のタプル
+        Tuple of (sorted list, comparison count)
     """
     if len(arr) <= 1:
         return arr[:], 0
 
-    pivot = arr[0]  # 先頭要素をピボットにする（意図的に単純な選択）
+    pivot = arr[0]  # Intentionally simple pivot selection
     left = []
     right = []
     comparisons = 0
@@ -333,26 +335,26 @@ def quicksort_count(arr: list[int]) -> tuple[list[int], int]:
 
 
 def demonstrate_quicksort_cases(n: int) -> None:
-    """クイックソートの三つのケースを実験的に示す。
+    """Experimentally demonstrate the three cases of quicksort.
 
     Args:
-        n: 配列のサイズ
+        n: Array size
     """
-    print(f"=== クイックソートの解析 (n={n}) ===")
+    print(f"=== Quicksort Analysis (n={n}) ===")
 
-    # 最悪ケース: 既にソート済みの配列（先頭ピボットでは最悪）
+    # Worst case: already sorted array (worst for first-element pivot)
     sorted_arr = list(range(n))
     _, worst_comps = quicksort_count(sorted_arr)
-    print(f"  最悪ケース（ソート済み）: {worst_comps} 回の比較")
-    print(f"    → 想定される計算量: O(n^2) = {n * (n - 1) // 2}")
+    print(f"  Worst case (sorted):      {worst_comps} comparisons")
+    print(f"    -> Expected complexity: O(n^2) = {n * (n - 1) // 2}")
 
-    # 最良ケース: 毎回中央値がピボットになるケース
-    # （実際に毎回中央値になる配列を構築するのは複雑なので、理論値を示す）
+    # Best case: median always selected as pivot
+    # (constructing such an array is complex, so we show the theoretical value)
     import math
     theoretical_best = n * math.log2(max(n, 1))
-    print(f"  最良ケースの理論値: O(n log n) ≈ {theoretical_best:.0f}")
+    print(f"  Best case theoretical:    O(n log n) ~ {theoretical_best:.0f}")
 
-    # 平均ケース: ランダムな配列
+    # Average case: random array
     total_comps = 0
     trials = 100
     for _ in range(trials):
@@ -361,15 +363,15 @@ def demonstrate_quicksort_cases(n: int) -> None:
         _, comps = quicksort_count(random_arr)
         total_comps += comps
     avg_comps = total_comps / trials
-    # 平均ケースの理論値: 2n ln n ≈ 1.39 n log_2 n
+    # Average case theoretical value: 2n ln n ~ 1.39 n log_2 n
     theoretical_avg = 1.39 * n * math.log2(max(n, 1))
-    print(f"  平均ケース（{trials}回平均）: {avg_comps:.0f} 回の比較")
-    print(f"    → 理論値 1.39 n log n ≈ {theoretical_avg:.0f}")
+    print(f"  Average case ({trials}-trial mean): {avg_comps:.0f} comparisons")
+    print(f"    -> Theoretical 1.39 n log n ~ {theoretical_avg:.0f}")
     print()
 
 
 def main() -> None:
-    # n=500 程度なら最悪ケースでもスタックオーバーフローしない
+    # n=500 or so avoids stack overflow even in worst case
     for n in [50, 100, 500]:
         demonstrate_quicksort_cases(n)
 
@@ -378,115 +380,114 @@ if __name__ == "__main__":
     main()
 ```
 
-### 2.4 平均ケース解析の数学的導出
+### 2.4 Mathematical Derivation of Average Case Analysis
 
-平均ケース解析は、入力の確率分布を仮定した上で、実行時間の期待値を計算する手法である。
+Average case analysis computes the expected value of execution time under an assumed probability distribution of inputs.
 
-**線形探索の平均ケース（ターゲットが配列内に存在する場合）**:
+**Average case of linear search (when target exists in the array)**:
 
-各位置 i (1 <= i <= n) にターゲットがある確率が等確率 1/n のとき:
-
-```
-A(n) = Σ_{i=1}^{n} i × (1/n) = (1/n) × n(n+1)/2 = (n+1)/2
-```
-
-よって A(n) = Theta((n+1)/2) = Theta(n) である。
-
-**クイックソートの平均ケース**:
-
-ピボットが k 番目に小さい要素になる確率が各 1/n のとき、比較回数の期待値 C(n) は:
+When target is at each position i (1 <= i <= n) with equal probability 1/n:
 
 ```
-C(n) = (n - 1) + (1/n) Σ_{k=0}^{n-1} [C(k) + C(n - 1 - k)]
-     = (n - 1) + (2/n) Σ_{k=0}^{n-1} C(k)
+A(n) = Sum_{i=1}^{n} i * (1/n) = (1/n) * n(n+1)/2 = (n+1)/2
 ```
 
-この漸化式を解くと C(n) = 2n ln n + O(n) ≈ 1.39 n log_2 n となる。
-この導出が意味するのは、ランダムな入力に対してクイックソートは「ほぼ最適な」 O(n log n) の性能を発揮するということである。
+Therefore A(n) = Theta((n+1)/2) = Theta(n).
+
+**Average case of quicksort**:
+
+When the pivot is the k-th smallest element with probability 1/n each, the expected number of comparisons C(n) is:
+
+```
+C(n) = (n - 1) + (1/n) Sum_{k=0}^{n-1} [C(k) + C(n - 1 - k)]
+     = (n - 1) + (2/n) Sum_{k=0}^{n-1} C(k)
+```
+
+Solving this recurrence yields C(n) = 2n ln n + O(n) ~ 1.39 n log_2 n. This derivation means that for random inputs, quicksort achieves "nearly optimal" O(n log n) performance.
 
 ---
 
-## 3. 償却解析
+## 3. Amortized Analysis
 
-### 3.1 償却解析とは何か
+### 3.1 What Is Amortized Analysis?
 
-償却解析（Amortized Analysis）は、一連の操作列全体のコストを評価する手法である。
-個々の操作の最悪ケースだけを見ると悲観的すぎる場合に、操作列全体の「一操作あたりの平均コスト」を正確に求めるために使う。
+Amortized analysis is a technique for evaluating the cost of a sequence of operations as a whole. It is used when looking at the worst case of individual operations is overly pessimistic, to accurately determine the "average cost per operation" across the entire sequence.
 
-**なぜ「単純な最悪ケースの合計」では不十分なのか**: 例えば動的配列の append 操作は、ほとんどが O(1) だが、たまに配列の拡張（コピー）で O(n) かかる。単純に「各操作 O(n)」として合計すると O(n^2) となるが、実際にはそこまで遅くない。償却解析はこの「たまにしか起きない高コスト操作」を正しく扱う。
+**Why is "simply summing worst cases" insufficient?**: For example, the append operation on a dynamic array is usually O(1), but occasionally costs O(n) when the array needs to be expanded (copied). Simply summing "O(n) per operation" yields O(n^2), but the actual cost is much less. Amortized analysis correctly handles these "occasionally expensive operations."
 
 ```
-償却解析の直感図:
+Intuitive diagram of amortized analysis:
 
-  コスト
-  ▲
-  │
-n │              *                              *
-  │
-  │
-  │
-  │        *                         *
-  │
-  │    *                    *
-  │  *              *
-1 │ * * * * * * * * * * * * * * * * * * * * * * * *
-  └──────────────────────────────────────────────→ 操作番号
+  Cost
+  ^
+  |
+n |              *                              *
+  |
+  |
+  |
+  |        *                         *
+  |
+  |    *                    *
+  |  *              *
+1 | * * * * * * * * * * * * * * * * * * * * * * * *
+  +-----------------------------------------------> Operation number
       1 2 3 4 5 6 7 8 9 ...
 
-  大半の操作は O(1) だが、まれに O(n) のスパイクが発生する。
-  償却解析は、全操作にわたるコストの合計を正確に見積もる。
+  Most operations are O(1), but rare O(n) spikes occur.
+  Amortized analysis accurately estimates the total cost across all operations.
 
-  → n 回の操作の合計コスト = O(n)
-  → 一操作あたりの償却コスト = O(1)
+  -> Total cost of n operations = O(n)
+  -> Amortized cost per operation = O(1)
 ```
 
-### 3.2 三つの償却解析手法
+### 3.2 Three Amortized Analysis Methods
 
-| 手法 | 考え方 | 適用場面 |
-|------|--------|----------|
-| 集約法（Aggregate） | 全操作の合計コストを直接計算し、操作数で割る | 計算が直接的に行える場合 |
-| 配賦法（Accounting） | 安い操作に「貯金」を上乗せし、高い操作で使う | 操作ごとに均等なコストを割り当てたい場合 |
-| ポテンシャル法（Potential） | データ構造の「ポテンシャル関数」を定義し、コストの増減を追跡 | 複雑なデータ構造の解析に適する |
+| Method | Concept | When to Apply |
+|--------|---------|---------------|
+| Aggregate | Directly compute total cost of all operations and divide by the number of operations | When computation can be done directly |
+| Accounting | Overcharge cheap operations as "savings" and spend them on expensive ones | When you want to assign uniform costs per operation |
+| Potential | Define a "potential function" on the data structure and track cost changes | Suitable for analyzing complex data structures |
 
-### 3.3 コード例: 動的配列の償却解析
+### 3.3 Code Example: Amortized Analysis of Dynamic Arrays
 
 ```python
 """
-動的配列（倍増戦略）の償却解析。
-三つの手法（集約法、配賦法、ポテンシャル法）を実装で示す。
+Amortized analysis of dynamic arrays (doubling strategy).
+Demonstrates the three methods (aggregate, accounting, potential) through implementation.
 """
 
 
 class DynamicArray:
-    """倍増戦略を用いた動的配列の実装。
+    """Dynamic array implementation using the doubling strategy.
 
-    なぜ倍増戦略を使うか:
-    配列が満杯になったとき、容量を 2 倍にする。毎回 1 だけ増やす戦略では
-    n 回の append に O(n^2) のコストがかかるが、倍増戦略なら O(n) で済む。
-    この差は容量拡張の頻度に由来する。
+    Why use the doubling strategy:
+    When the array is full, capacity is doubled. A strategy of increasing
+    by 1 each time would cost O(n^2) for n appends, but the doubling
+    strategy costs only O(n). This difference stems from the frequency
+    of capacity expansion.
     """
 
     def __init__(self) -> None:
         self._capacity = 1
         self._size = 0
         self._data = [None] * self._capacity
-        self._total_cost = 0  # コスト追跡用
-        self._operation_costs: list[int] = []  # 各操作のコスト記録
+        self._total_cost = 0  # For cost tracking
+        self._operation_costs: list[int] = []  # Record cost of each operation
 
     def append(self, value: int) -> int:
-        """要素を末尾に追加し、この操作のコスト（要素コピー回数 + 1）を返す。
+        """Add element to end and return cost (copy count + 1) of this operation.
 
         Args:
-            value: 追加する値
+            value: Value to add
 
         Returns:
-            この操作にかかったコスト
+            Cost incurred by this operation
         """
-        cost = 1  # 要素の書き込みコスト
+        cost = 1  # Write cost for the element
 
         if self._size == self._capacity:
-            # 容量拡張: 全要素をコピーするコストが発生
-            cost += self._size  # コピーコスト
+            # Expansion: copying all elements incurs cost
+            cost += self._size  # Copy cost
             new_data = [None] * (self._capacity * 2)
             for i in range(self._size):
                 new_data[i] = self._data[i]
@@ -513,56 +514,56 @@ class DynamicArray:
 
 
 def demonstrate_aggregate_method(n: int) -> None:
-    """集約法による償却解析のデモンストレーション。
+    """Demonstrate amortized analysis using the aggregate method.
 
-    集約法の考え方:
-    n 回の append の合計コストを直接計算する。
-    拡張が起きるのは i = 1, 2, 4, 8, ..., 2^k の時点で、
-    拡張コストは 1 + 2 + 4 + ... + 2^k <= 2n。
-    書き込みコストは n。
-    よって合計コスト <= 3n → 一操作あたり O(1)。
+    Aggregate method concept:
+    Directly compute total cost of n appends.
+    Expansion occurs at i = 1, 2, 4, 8, ..., 2^k,
+    expansion cost is 1 + 2 + 4 + ... + 2^k <= 2n.
+    Write cost is n.
+    Total cost <= 3n -> O(1) per operation.
     """
     arr = DynamicArray()
-    print(f"=== 集約法による解析 (n={n}) ===")
-    print(f"{'操作番号':>8} | {'この操作のコスト':>16} | {'累積コスト':>10} | {'容量':>6}")
+    print(f"=== Aggregate Method Analysis (n={n}) ===")
+    print(f"{'Op #':>8} | {'Cost of this op':>16} | {'Cumulative':>10} | {'Capacity':>6}")
     print("-" * 50)
 
     for i in range(1, n + 1):
         cost = arr.append(i)
-        if cost > 1 or i <= 5 or i == n:  # 拡張時と先頭・末尾を表示
+        if cost > 1 or i <= 5 or i == n:  # Show expansions plus first/last
             print(f"{i:>8} | {cost:>16} | {arr.total_cost:>10} | {arr.capacity:>6}")
 
     amortized = arr.total_cost / n
-    print(f"\n  合計コスト: {arr.total_cost}")
-    print(f"  操作回数: {n}")
-    print(f"  一操作あたりの償却コスト: {amortized:.2f}")
-    print(f"  → 理論的な上界: 3.0 (3n/n)")
+    print(f"\n  Total cost: {arr.total_cost}")
+    print(f"  Number of operations: {n}")
+    print(f"  Amortized cost per operation: {amortized:.2f}")
+    print(f"  -> Theoretical upper bound: 3.0 (3n/n)")
     print()
 
 
 def demonstrate_accounting_method(n: int) -> None:
-    """配賦法による償却解析のデモンストレーション。
+    """Demonstrate amortized analysis using the accounting method.
 
-    配賦法の考え方:
-    各 append 操作に「償却コスト 3」を請求する。
-      - 1: 要素の書き込み
-      - 2: 将来の拡張に備えた「貯金」
-    拡張時には、貯金されたコインで全コピーを賄う。
+    Accounting method concept:
+    Charge each append "amortized cost 3."
+      - 1: for writing the element
+      - 2: "savings" for future expansion
+    During expansion, the saved coins pay for all copies.
     """
-    print(f"=== 配賦法による解析 (n={n}) ===")
-    balance = 0  # 貯金残高
-    amortized_cost_per_op = 3  # 各操作に請求する償却コスト
+    print(f"=== Accounting Method Analysis (n={n}) ===")
+    balance = 0  # Savings balance
+    amortized_cost_per_op = 3  # Amortized cost charged per operation
 
     capacity = 1
     size = 0
     all_balanced = True
 
     for i in range(1, n + 1):
-        balance += amortized_cost_per_op  # 3 コインを請求
-        balance -= 1  # 書き込みに 1 コイン使用
+        balance += amortized_cost_per_op  # Charge 3 coins
+        balance -= 1  # Use 1 coin for writing
 
         if size == capacity:
-            # 拡張: size 個のコピーにコインを使用
+            # Expansion: use coins for copying size elements
             balance -= size
             capacity *= 2
             if balance < 0:
@@ -570,36 +571,36 @@ def demonstrate_accounting_method(n: int) -> None:
 
         size += 1
 
-    print(f"  各操作への請求額: {amortized_cost_per_op}")
-    print(f"  最終的な貯金残高: {balance}")
-    print(f"  貯金が負にならなかったか: {'はい' if all_balanced else 'いいえ'}")
-    print(f"  → 貯金が常に非負なら、償却コスト {amortized_cost_per_op} は正当")
+    print(f"  Charge per operation: {amortized_cost_per_op}")
+    print(f"  Final savings balance: {balance}")
+    print(f"  Balance never went negative: {'Yes' if all_balanced else 'No'}")
+    print(f"  -> If balance is always non-negative, amortized cost {amortized_cost_per_op} is justified")
     print()
 
 
 def demonstrate_potential_method(n: int) -> None:
-    """ポテンシャル法による償却解析のデモンストレーション。
+    """Demonstrate amortized analysis using the potential method.
 
-    ポテンシャル法の考え方:
-    ポテンシャル関数 Phi(D) = 2 * size - capacity と定義する。
-    (ここで D はデータ構造の状態)
+    Potential method concept:
+    Define potential function Phi(D) = 2 * size - capacity
+    (where D is the data structure state)
 
-    償却コスト = 実コスト + Phi(D_after) - Phi(D_before)
+    Amortized cost = actual cost + Phi(D_after) - Phi(D_before)
 
-    拡張なしの場合:
-      実コスト = 1
-      Phi 変化 = 2(size+1) - cap - (2*size - cap) = 2
-      償却コスト = 1 + 2 = 3
+    Without expansion:
+      Actual cost = 1
+      Phi change = 2(size+1) - cap - (2*size - cap) = 2
+      Amortized cost = 1 + 2 = 3
 
-    拡張ありの場合 (size == capacity のとき):
-      実コスト = 1 + size (コピー)
-      新容量 = 2 * capacity
+    With expansion (when size == capacity):
+      Actual cost = 1 + size (copying)
+      New capacity = 2 * capacity
       Phi_after = 2(size+1) - 2*capacity = 2*size + 2 - 2*size = 2
       Phi_before = 2*size - capacity = 2*size - size = size
-      Phi 変化 = 2 - size
-      償却コスト = (1 + size) + (2 - size) = 3
+      Phi change = 2 - size
+      Amortized cost = (1 + size) + (2 - size) = 3
     """
-    print(f"=== ポテンシャル法による解析 (n={n}) ===")
+    print(f"=== Potential Method Analysis (n={n}) ===")
 
     capacity = 1
     size = 0
@@ -620,14 +621,14 @@ def demonstrate_potential_method(n: int) -> None:
 
         if expanded or i <= 5:
             print(
-                f"  操作 {i:>3}: "
-                f"実コスト={actual_cost:>4}, "
-                f"Phi変化={phi_after - phi_before:>4}, "
-                f"償却コスト={amortized:>2}"
-                f"{'  ← 拡張' if expanded else ''}"
+                f"  Op {i:>3}: "
+                f"actual_cost={actual_cost:>4}, "
+                f"Phi_change={phi_after - phi_before:>4}, "
+                f"amortized_cost={amortized:>2}"
+                f"{'  <- expansion' if expanded else ''}"
             )
 
-    print(f"  → すべての操作で償却コスト = 3（定数）")
+    print(f"  -> Amortized cost = 3 (constant) for all operations")
     print()
 
 
@@ -642,23 +643,23 @@ if __name__ == "__main__":
     main()
 ```
 
-### 3.4 償却解析の応用例: スタック with MultiPop
+### 3.4 Application of Amortized Analysis: Stack with MultiPop
 
 ```python
 """
-MultiPop 付きスタックの償却解析。
-push は O(1)、multi_pop(k) は O(min(k, size)) だが、
-n 回の操作列全体の償却コストは一操作あたり O(1) であることを示す。
+Amortized analysis of a stack with MultiPop.
+push is O(1), multi_pop(k) is O(min(k, size)), but the amortized
+cost per operation over a sequence of n operations is O(1).
 """
 
 
 class StackWithMultiPop:
-    """MultiPop 操作を持つスタック。
+    """Stack with MultiPop operation.
 
-    なぜ償却解析が必要か:
-    multi_pop(k) は最悪 O(n) だが、pop できるのは push された要素だけである。
-    n 回の操作列中の pop 合計回数は push 回数を超えないため、
-    全操作の合計コストは O(n) に収まる。
+    Why amortized analysis is needed:
+    multi_pop(k) is worst-case O(n), but only previously pushed elements
+    can be popped. In a sequence of n operations, the total number of pops
+    cannot exceed the number of pushes, so total cost is bounded by O(n).
     """
 
     def __init__(self) -> None:
@@ -666,19 +667,19 @@ class StackWithMultiPop:
         self._total_cost = 0
 
     def push(self, value: int) -> int:
-        """要素をプッシュする。コスト: 1。"""
+        """Push an element. Cost: 1."""
         self._stack.append(value)
         self._total_cost += 1
         return 1
 
     def multi_pop(self, k: int) -> tuple[list[int], int]:
-        """最大 k 個の要素をポップする。コスト: min(k, size)。
+        """Pop up to k elements. Cost: min(k, size).
 
         Args:
-            k: ポップする最大個数
+            k: Maximum number of elements to pop
 
         Returns:
-            (取り出した要素のリスト, コスト)
+            (list of popped elements, cost)
         """
         actual_pops = min(k, len(self._stack))
         popped = []
@@ -697,11 +698,11 @@ class StackWithMultiPop:
 
 
 def demonstrate_multipop_amortized() -> None:
-    """MultiPop スタックの償却解析デモ。"""
+    """Demonstrate amortized analysis of MultiPop stack."""
     stack = StackWithMultiPop()
     operations = []
 
-    # 操作列: push を多数行い、時折 multi_pop で一気に取り出す
+    # Operation sequence: many pushes with occasional bulk multi_pops
     import random
     random.seed(42)
 
@@ -715,111 +716,111 @@ def demonstrate_multipop_amortized() -> None:
             _, cost = stack.multi_pop(k)
             operations.append((f"multi_pop({k})", cost))
 
-    print(f"=== MultiPop スタックの償却解析 ===")
-    print(f"  操作回数: {n}")
-    print(f"  合計コスト: {stack.total_cost}")
-    print(f"  一操作あたりの償却コスト: {stack.total_cost / n:.2f}")
-    print(f"  → 理論的な償却コスト: O(1)")
+    print(f"=== MultiPop Stack Amortized Analysis ===")
+    print(f"  Number of operations: {n}")
+    print(f"  Total cost: {stack.total_cost}")
+    print(f"  Amortized cost per operation: {stack.total_cost / n:.2f}")
+    print(f"  -> Theoretical amortized cost: O(1)")
     print()
 
-    # 最悪の個別操作のコストを確認
+    # Check max cost of any individual operation
     max_cost = max(cost for _, cost in operations)
-    print(f"  個別操作の最大コスト: {max_cost}")
-    print(f"  → 個別の最悪ケースは O(n) だが、償却では O(1)")
+    print(f"  Maximum individual operation cost: {max_cost}")
+    print(f"  -> Individual worst case is O(n), but amortized is O(1)")
 
 
 if __name__ == "__main__":
     demonstrate_multipop_amortized()
 ```
 
-### 3.5 よく使われるデータ構造の償却計算量
+### 3.5 Amortized Complexities of Common Data Structures
 
-| データ構造 | 操作 | 最悪ケース | 償却コスト | 理由 |
-|------------|------|------------|------------|------|
-| 動的配列 | append | O(n) | O(1) | 倍増戦略により拡張頻度が指数的に減少 |
-| 動的配列 | pop (末尾) | O(1) | O(1) | 縮小しない場合は常に O(1) |
-| 二項ヒープ | insert | O(log n) | O(1) | 繰り上がりの合計コストが制限される |
-| Splay 木 | 任意の操作 | O(n) | O(log n) | スプレー操作が木をバランスさせる |
-| Union-Find | Union + Find | O(log n) | O(alpha(n)) ≈ O(1) | 経路圧縮とランクによる結合 |
-
----
-
-## 4. 再帰の計算量を求める手法
-
-再帰アルゴリズムの計算量解析は、まず漸化式を立て、次にそれを解くという二段階で行う。
-
-```
-再帰の計算量解析手法:
-
-┌──────────────────────────────────┐
-│ Step 1: 漸化式を立てる           │
-│   再帰の構造からコスト関係式を   │
-│   導出する                       │
-└──────────┬───────────────────────┘
-           ▼
-┌──────────────────────────────────┐
-│ Step 2: 漸化式を解く             │
-│                                  │
-│  ┌─ マスター定理                 │
-│  │    T(n)=aT(n/b)+f(n) の形    │
-│  │    → 3 ケースで即座に解決     │
-│  │                               │
-│  ├─ 再帰木法                     │
-│  │    各レベルのコストを足し上げ  │
-│  │    → 視覚的に理解しやすい     │
-│  │                               │
-│  └─ 置換法                       │
-│       解を予想して帰納法で証明    │
-│       → 最も厳密な証明           │
-└──────────────────────────────────┘
-```
-
-### なぜ漸化式を経由するのか
-
-再帰アルゴリズムの実行時間は、そのアルゴリズム自身の小さなインスタンスの実行時間で表現される。
-これはそのまま漸化式の構造と一致する。漸化式を解くことで、入力サイズ n の閉じた式（非再帰的な式）が得られ、漸近的な増加率を議論できるようになる。
+| Data Structure | Operation | Worst Case | Amortized Cost | Reason |
+|----------------|-----------|------------|----------------|--------|
+| Dynamic array | append | O(n) | O(1) | Doubling strategy makes expansion frequency decrease exponentially |
+| Dynamic array | pop (end) | O(1) | O(1) | Always O(1) when no shrinking |
+| Binomial heap | insert | O(log n) | O(1) | Total carry cost is bounded |
+| Splay tree | any operation | O(n) | O(log n) | Splay operations balance the tree |
+| Union-Find | Union + Find | O(log n) | O(alpha(n)) ~ O(1) | Path compression and union by rank |
 
 ---
 
-## 5. 漸化式の立て方
+## 4. Methods for Analyzing Recursive Complexity
 
-### 5.1 漸化式を立てる手順
+Analyzing the complexity of recursive algorithms proceeds in two stages: first formulate the recurrence relation, then solve it.
 
-1. **ベースケースを特定する**: 再帰が停止する条件と、その時のコスト
-2. **再帰呼び出しの構造を特定する**: 何回呼ばれ、各呼び出しの問題サイズはいくつか
-3. **再帰以外のコストを特定する**: 分割・統合・その他の処理にかかるコスト
+```
+Methods for analyzing recursive complexity:
 
-### 5.2 例: マージソート
++----------------------------------+
+| Step 1: Formulate the recurrence |
+|   Derive the cost relation from  |
+|   the recursive structure        |
++----------+-----------------------+
+           v
++----------------------------------+
+| Step 2: Solve the recurrence     |
+|                                  |
+|  +- Master Theorem              |
+|  |    For T(n)=aT(n/b)+f(n)    |
+|  |    -> 3 cases, immediate     |
+|  |                               |
+|  +- Recursion Tree Method        |
+|  |    Sum costs at each level    |
+|  |    -> Visually intuitive      |
+|  |                               |
+|  +- Substitution Method          |
+|       Guess solution, prove by   |
+|       induction -> Most rigorous |
++----------------------------------+
+```
+
+### Why Go Through Recurrence Relations?
+
+The running time of a recursive algorithm is expressed in terms of the running time of smaller instances of itself. This directly corresponds to the structure of a recurrence relation. By solving the recurrence, we obtain a closed-form (non-recursive) expression in terms of input size n, allowing discussion of asymptotic growth rates.
+
+---
+
+## 5. Formulating Recurrence Relations
+
+### 5.1 Steps for Formulating Recurrences
+
+1. **Identify the base case**: The condition under which recursion stops and its cost
+2. **Identify the recursive call structure**: How many calls are made and what is the problem size of each
+3. **Identify non-recursive costs**: Cost of dividing, merging, or other processing
+
+### 5.2 Example: Merge Sort
 
 ```python
 """
-マージソートの漸化式導出。
-各行のコストをコメントで注釈し、漸化式の構成要素を明示する。
+Derivation of merge sort's recurrence relation.
+Each line's cost is annotated in comments to make
+the components of the recurrence explicit.
 """
 
 
 def merge_sort(arr: list[int]) -> list[int]:
-    """マージソート — T(n) = 2T(n/2) + O(n)
+    """Merge sort -- T(n) = 2T(n/2) + O(n)
 
-    漸化式の導出:
-    - ベースケース: len(arr) <= 1 のとき O(1)
-    - 再帰呼び出し: 2 回、各サイズ n/2 → 2T(n/2)
-    - 統合コスト: merge は各要素を 1 回ずつ見る → O(n)
+    Recurrence derivation:
+    - Base case: O(1) when len(arr) <= 1
+    - Recursive calls: 2 calls, each of size n/2 -> 2T(n/2)
+    - Merge cost: merge examines each element once -> O(n)
     """
-    if len(arr) <= 1:                  # O(1) — ベースケース
+    if len(arr) <= 1:                  # O(1) -- base case
         return arr
 
-    mid = len(arr) // 2                # O(1) — 分割位置の計算
-    left = merge_sort(arr[:mid])       # T(n/2) — 左半分を再帰的にソート
-    right = merge_sort(arr[mid:])      # T(n/2) — 右半分を再帰的にソート
-    return merge(left, right)          # O(n) — 統合
+    mid = len(arr) // 2                # O(1) -- compute split point
+    left = merge_sort(arr[:mid])       # T(n/2) -- recursively sort left half
+    right = merge_sort(arr[mid:])      # T(n/2) -- recursively sort right half
+    return merge(left, right)          # O(n) -- merge
 
 
 def merge(left: list[int], right: list[int]) -> list[int]:
-    """二つのソート済みリストを統合する。コスト: O(n)。
+    """Merge two sorted lists. Cost: O(n).
 
-    なぜ O(n) か: 各要素は最大 1 回だけ比較・コピーされ、
-    両リストの合計要素数は n であるため。
+    Why O(n): Each element is compared and copied at most once,
+    and the total number of elements across both lists is n.
     """
     result = []
     i = j = 0
@@ -838,13 +839,13 @@ def merge(left: list[int], right: list[int]) -> list[int]:
 
 
 def verify_merge_sort() -> None:
-    """マージソートの正当性と計算量を検証する。"""
+    """Verify correctness and complexity of merge sort."""
     import random
     import time
 
     sizes = [1000, 2000, 4000, 8000, 16000]
-    print("=== マージソートの計算量検証 ===")
-    print(f"{'n':>8} | {'時間(ms)':>10} | {'比率':>8} | {'想定される比率':>14}")
+    print("=== Merge Sort Complexity Verification ===")
+    print(f"{'n':>8} | {'Time (ms)':>10} | {'Ratio':>8} | {'Expected ratio':>14}")
     print("-" * 50)
 
     prev_time = None
@@ -858,8 +859,8 @@ def verify_merge_sort() -> None:
 
         if prev_time and prev_time > 0:
             ratio = elapsed / prev_time
-            # O(n log n) の場合、n を 2 倍にすると
-            # 2n log(2n) / (n log n) = 2(1 + log2/logn) ≈ 2+ (n が大きいとき)
+            # For O(n log n), doubling n gives
+            # 2n log(2n) / (n log n) = 2(1 + log2/logn) ~ 2+ (for large n)
             print(f"{n:>8} | {elapsed:>10.2f} | {ratio:>8.2f} | ~2.0-2.3")
         else:
             print(f"{n:>8} | {elapsed:>10.2f} | {'---':>8} | ---")
@@ -871,83 +872,83 @@ if __name__ == "__main__":
     verify_merge_sort()
 ```
 
-漸化式: `T(n) = 2T(n/2) + cn` （c は定数）
+Recurrence: `T(n) = 2T(n/2) + cn` (c is a constant)
 
-### 5.3 例: ストラッセンの行列乗算
+### 5.3 Example: Strassen's Matrix Multiplication
 
-通常の行列乗算は 8 回の n/2 サイズの部分行列乗算を行うため T(n) = 8T(n/2) + O(n^2) → O(n^3)。
-ストラッセンは乗算回数を 7 回に削減: T(n) = 7T(n/2) + O(n^2) → O(n^{log_2 7}) ≈ O(n^{2.807})。
+Standard matrix multiplication performs 8 submatrix multiplications of size n/2, giving T(n) = 8T(n/2) + O(n^2) -> O(n^3).
+Strassen reduces the multiplication count to 7: T(n) = 7T(n/2) + O(n^2) -> O(n^{log_2 7}) ~ O(n^{2.807}).
 
 ```
-通常の行列乗算 vs ストラッセン:
+Standard matrix multiplication vs Strassen:
 
-  通常:                     ストラッセン:
-  a = 8, b = 2, f(n) = n²   a = 7, b = 2, f(n) = n²
-  n^(log₂ 8) = n³           n^(log₂ 7) ≈ n^2.807
-  Case 1 → Θ(n³)           Case 1 → Θ(n^2.807)
+  Standard:                    Strassen:
+  a = 8, b = 2, f(n) = n^2    a = 7, b = 2, f(n) = n^2
+  n^(log_2 8) = n^3            n^(log_2 7) ~ n^2.807
+  Case 1 -> Theta(n^3)         Case 1 -> Theta(n^2.807)
 
-  → 乗算を 1 回減らすだけで、漸近的に高速化
+  -> Reducing multiplications by just 1 yields asymptotic speedup
 ```
 
 ---
 
-## 6. マスター定理
+## 6. Master Theorem
 
-### 6.1 一般形
+### 6.1 General Form
 
-マスター定理は、分割統治法の漸化式 T(n) = aT(n/b) + f(n) を、f(n) と n^{log_b(a)} の比較だけで解く定理である。
+The Master Theorem solves divide-and-conquer recurrences of the form T(n) = aT(n/b) + f(n) by simply comparing f(n) with n^{log_b(a)}.
 
 ```
 T(n) = aT(n/b) + f(n)
 
-  a : 再帰呼び出しの回数（a >= 1）
-  b : 問題サイズの縮小率（b > 1）
-  f(n) : 分割・統合のコスト（非負）
+  a : number of recursive calls (a >= 1)
+  b : factor by which problem size shrinks (b > 1)
+  f(n) : cost of dividing/merging (non-negative)
 
-  キーとなる値: n^(log_b(a))
-    → これは「再帰木の葉の総数」に対応する
-    → 再帰木は深さ log_b(n) で、各レベルで a 倍に分岐
-    → 葉の数 = a^(log_b(n)) = n^(log_b(a))
+  Key value: n^(log_b(a))
+    -> This corresponds to the "total number of leaves in the recursion tree"
+    -> The recursion tree has depth log_b(n), branching by factor a at each level
+    -> Number of leaves = a^(log_b(n)) = n^(log_b(a))
 ```
 
-### 6.2 三つのケース
+### 6.2 The Three Cases
 
 ```
-ケース判定フローチャート:
+Case decision flowchart:
 
-  f(n) と n^(log_b(a)) を比較
-         │
-    ┌────┼────────────────┐
-    ▼    ▼                ▼
+  Compare f(n) with n^(log_b(a))
+         |
+    +----+----------------+
+    v    v                v
  Case 1  Case 2         Case 3
- f(n)が   f(n)が         f(n)が
- 小さい   同程度         大きい
+ f(n) is f(n) is        f(n) is
+ smaller  comparable     larger
 
-Case 1: f(n) = O(n^(log_b(a) - epsilon))  （epsilon > 0）
-  → 葉のコストが支配的
-  → T(n) = Theta(n^(log_b(a)))
-  → 直感: 再帰の「拡散」が速く、葉の数がコストを決める
+Case 1: f(n) = O(n^(log_b(a) - epsilon))  (epsilon > 0)
+  -> Leaf cost dominates
+  -> T(n) = Theta(n^(log_b(a)))
+  -> Intuition: recursion "fans out" fast, leaf count determines cost
 
 Case 2: f(n) = Theta(n^(log_b(a)))
-  → 各レベルのコストが均等
-  → T(n) = Theta(n^(log_b(a)) * log n)
-  → 直感: 各レベルで同じコスト × レベル数 = ×log n
+  -> Cost is uniform across levels
+  -> T(n) = Theta(n^(log_b(a)) * log n)
+  -> Intuition: equal cost at each level x number of levels = x log n
 
-Case 3: f(n) = Omega(n^(log_b(a) + epsilon))  （epsilon > 0）
-  かつ正則条件: a*f(n/b) <= c*f(n) (c < 1, 十分大きな n)
-  → ルートのコストが支配的
-  → T(n) = Theta(f(n))
-  → 直感: 各レベルで「統合コスト」が急速に減衰
+Case 3: f(n) = Omega(n^(log_b(a) + epsilon))  (epsilon > 0)
+  and regularity condition: a*f(n/b) <= c*f(n) (c < 1, sufficiently large n)
+  -> Root cost dominates
+  -> T(n) = Theta(f(n))
+  -> Intuition: "merge cost" decays rapidly at each level
 ```
 
-**なぜ正則条件（Case 3）が必要なのか**: f(n) が n^{log_b(a)} より漸近的に大きくても、f の減少速度が不規則だと合計が発散する可能性がある。正則条件は「f のコストがレベルごとに一定割合で減少する」ことを保証し、幾何級数の収束を担保する。
+**Why is the regularity condition (Case 3) needed?**: Even if f(n) is asymptotically larger than n^{log_b(a)}, the total may diverge if f decreases irregularly. The regularity condition guarantees that "f's cost decreases by a constant fraction at each level," ensuring convergence of the geometric series.
 
-### 6.3 マスター定理の適用例
+### 6.3 Application Examples of the Master Theorem
 
 ```python
 """
-マスター定理の適用例を体系的に示す。
-各例で a, b, f(n) を特定し、どのケースに該当するかを判定する。
+Systematically demonstrate applications of the Master Theorem.
+For each example, identify a, b, f(n), and determine which case applies.
 """
 
 import math
@@ -956,277 +957,276 @@ import math
 def master_theorem_analyze(
     a: int, b: int, f_desc: str, f_degree: float, algorithm: str
 ) -> None:
-    """マスター定理によるケース判定を行う。
+    """Perform case determination using the Master Theorem.
 
     Args:
-        a: 再帰呼び出し回数
-        b: 問題サイズの縮小率
-        f_desc: f(n) の説明文字列
-        f_degree: f(n) が Theta(n^f_degree) であるとき、その次数
-        algorithm: アルゴリズム名
+        a: Number of recursive calls
+        b: Problem size reduction factor
+        f_desc: Description string of f(n)
+        f_degree: Degree when f(n) is Theta(n^f_degree)
+        algorithm: Algorithm name
     """
     critical_exp = math.log(a) / math.log(b)  # log_b(a)
     print(f"--- {algorithm} ---")
-    print(f"  漸化式: T(n) = {a}T(n/{b}) + {f_desc}")
+    print(f"  Recurrence: T(n) = {a}T(n/{b}) + {f_desc}")
     print(f"  a={a}, b={b}, n^(log_{b}({a})) = n^{critical_exp:.3f}")
-    print(f"  f(n) = {f_desc} → 次数 {f_degree}")
+    print(f"  f(n) = {f_desc} -> degree {f_degree}")
 
     if f_degree < critical_exp:
-        print(f"  f(n) の次数 {f_degree} < {critical_exp:.3f} → Case 1")
+        print(f"  f(n) degree {f_degree} < {critical_exp:.3f} -> Case 1")
         print(f"  T(n) = Theta(n^{critical_exp:.3f})")
     elif abs(f_degree - critical_exp) < 0.001:
-        print(f"  f(n) の次数 {f_degree} ≈ {critical_exp:.3f} → Case 2")
+        print(f"  f(n) degree {f_degree} ~ {critical_exp:.3f} -> Case 2")
         print(f"  T(n) = Theta(n^{critical_exp:.3f} * log n)")
     else:
-        print(f"  f(n) の次数 {f_degree} > {critical_exp:.3f} → Case 3")
+        print(f"  f(n) degree {f_degree} > {critical_exp:.3f} -> Case 3")
         print(f"  T(n) = Theta({f_desc})")
     print()
 
 
 def main() -> None:
-    print("=== マスター定理の適用例集 ===\n")
+    print("=== Master Theorem Application Examples ===\n")
 
-    # 例1: マージソート
-    master_theorem_analyze(2, 2, "n", 1.0, "マージソート")
+    # Example 1: Merge sort
+    master_theorem_analyze(2, 2, "n", 1.0, "Merge Sort")
 
-    # 例2: 二分探索
-    master_theorem_analyze(1, 2, "1", 0.0, "二分探索")
+    # Example 2: Binary search
+    master_theorem_analyze(1, 2, "1", 0.0, "Binary Search")
 
-    # 例3: カラツバ乗算
-    master_theorem_analyze(3, 2, "n", 1.0, "カラツバ乗算")
+    # Example 3: Karatsuba multiplication
+    master_theorem_analyze(3, 2, "n", 1.0, "Karatsuba Multiplication")
 
-    # 例4: ストラッセン行列乗算
-    master_theorem_analyze(7, 2, "n^2", 2.0, "ストラッセン行列乗算")
+    # Example 4: Strassen matrix multiplication
+    master_theorem_analyze(7, 2, "n^2", 2.0, "Strassen Matrix Multiplication")
 
-    # 例5: 二分木走査
-    master_theorem_analyze(2, 2, "1", 0.0, "二分木走査")
+    # Example 5: Binary tree traversal
+    master_theorem_analyze(2, 2, "1", 0.0, "Binary Tree Traversal")
 
-    # 例6: T(n) = 4T(n/2) + n^2
+    # Example 6: T(n) = 4T(n/2) + n^2
     master_theorem_analyze(4, 2, "n^2", 2.0, "4T(n/2) + n^2")
 
-    # 例7: T(n) = 4T(n/2) + n^3
+    # Example 7: T(n) = 4T(n/2) + n^3
     master_theorem_analyze(4, 2, "n^3", 3.0, "4T(n/2) + n^3")
 
-    # 例8: クイックセレクト（平均）
-    master_theorem_analyze(1, 2, "n", 1.0, "クイックセレクト(平均)")
+    # Example 8: Quickselect (average)
+    master_theorem_analyze(1, 2, "n", 1.0, "Quickselect (average)")
 
 
 if __name__ == "__main__":
     main()
 ```
 
-### 6.4 マスター定理が適用できないケース
+### 6.4 Cases Where the Master Theorem Cannot Be Applied
 
-マスター定理には明確な適用限界がある。以下のケースでは適用できない:
+The Master Theorem has clear limitations. It cannot be applied in the following cases:
 
-**1. f(n) が多項式的に異ならない場合（ギャップケース）**
+**1. When f(n) does not differ polynomially (gap case)**
 
 ```
 T(n) = 2T(n/2) + n log n
 
-  a=2, b=2 → n^(log_2(2)) = n
+  a=2, b=2 -> n^(log_2(2)) = n
   f(n) = n log n
 
-  n log n は n^1 より大きいが、n^(1+epsilon) より小さい（任意の epsilon > 0 に対して）。
-  → Case 2 と Case 3 の間に落ち、標準のマスター定理は適用不可。
+  n log n is larger than n^1 but smaller than n^(1+epsilon) (for any epsilon > 0).
+  -> Falls between Case 2 and Case 3; standard Master Theorem is inapplicable.
 
-  解: Akra-Bazzi 定理を適用するか、再帰木法で直接解く。
-  結果: T(n) = Theta(n log^2 n)
+  Solution: Apply the Akra-Bazzi theorem or solve directly with the recursion tree method.
+  Result: T(n) = Theta(n log^2 n)
 ```
 
-**2. 問題サイズの分割が均等でない場合**
+**2. When the problem size split is uneven**
 
 ```
 T(n) = T(n/3) + T(2n/3) + n
 
-  再帰呼び出しのサイズが異なる → T(n) = aT(n/b) の形でない。
-  → マスター定理は適用不可。
+  Recursive call sizes differ -> Not in the form T(n) = aT(n/b).
+  -> Master Theorem is inapplicable.
 
-  解: 再帰木法で解く。
-  最も深いパスは n → (2/3)n → (2/3)^2 n → ... → 1 で、
-  深さは log_{3/2}(n)。各レベルのコストは O(n)。
-  結果: T(n) = O(n log n)
+  Solution: Solve with the recursion tree method.
+  The deepest path is n -> (2/3)n -> (2/3)^2 n -> ... -> 1,
+  with depth log_{3/2}(n). Cost at each level is O(n).
+  Result: T(n) = O(n log n)
 ```
 
-**3. a < 1 または b <= 1 の場合**
+**3. When a < 1 or b <= 1**
 
-マスター定理は a >= 1 かつ b > 1 を前提とする。これらの条件が満たされない場合は適用できない。
+The Master Theorem assumes a >= 1 and b > 1. It cannot be applied when these conditions are not met.
 
 ---
 
-## 7. 再帰木法
+## 7. Recursion Tree Method
 
-再帰木法は、再帰の展開を木構造として可視化し、各レベルのコストを合計する手法である。
-マスター定理の背後にある直感を理解するための最も強力なツールでもある。
+The recursion tree method visualizes the expansion of a recurrence as a tree structure and sums the costs at each level. It is also the most powerful tool for understanding the intuition behind the Master Theorem.
 
-### 7.1 T(n) = 2T(n/2) + n の再帰木
+### 7.1 Recursion Tree for T(n) = 2T(n/2) + n
 
 ```
-レベル 0:              n                           → コスト: n
+Level 0:              n                           -> Cost: n
                     /     \
-レベル 1:        n/2       n/2                     → コスト: n/2 + n/2 = n
+Level 1:        n/2       n/2                     -> Cost: n/2 + n/2 = n
                 / \        / \
-レベル 2:    n/4  n/4   n/4  n/4                  → コスト: 4*(n/4) = n
+Level 2:    n/4  n/4   n/4  n/4                  -> Cost: 4*(n/4) = n
               / \  / \  / \  / \
-レベル 3: n/8 ...                                  → コスト: 8*(n/8) = n
+Level 3: n/8 ...                                  -> Cost: 8*(n/8) = n
              :
              :
-レベル k:  2^k 個のノード、各サイズ n/2^k          → コスト: n
+Level k:  2^k nodes, each of size n/2^k          -> Cost: n
 
-レベル log₂n: n 個の葉、各サイズ 1               → コスト: n
+Level log_2(n): n leaves, each of size 1          -> Cost: n
 
-合計: n × (log₂n + 1) = Θ(n log n)
+Total: n * (log_2(n) + 1) = Theta(n log n)
 
-なぜ各レベルのコストが n になるか:
-  レベル k にはノードが 2^k 個あり、各ノードのサイズは n/2^k。
-  各ノードの「統合コスト」は n/2^k に比例する。
-  2^k × (n/2^k) = n → レベルに依存しない定数。
+Why cost at each level is n:
+  Level k has 2^k nodes, each of size n/2^k.
+  The "merge cost" at each node is proportional to n/2^k.
+  2^k * (n/2^k) = n -> independent of level.
 ```
 
-### 7.2 T(n) = 3T(n/4) + cn^2 の再帰木
+### 7.2 Recursion Tree for T(n) = 3T(n/4) + cn^2
 
 ```
-レベル 0:                cn²                           → コスト: cn²
+Level 0:                cn^2                          -> Cost: cn^2
                       /   |   \
-レベル 1:      c(n/4)²  c(n/4)²  c(n/4)²             → コスト: 3c(n/4)² = (3/16)cn²
+Level 1:      c(n/4)^2  c(n/4)^2  c(n/4)^2          -> Cost: 3c(n/4)^2 = (3/16)cn^2
                / | \    / | \    / | \
-レベル 2:    各 c(n/16)²                               → コスト: 9c(n/16)² = (3/16)²cn²
+Level 2:    each c(n/16)^2                            -> Cost: 9c(n/16)^2 = (3/16)^2 cn^2
               :
-レベル k:    3^k 個のノード、各サイズ n/4^k            → コスト: (3/16)^k × cn²
+Level k:    3^k nodes, each of size n/4^k            -> Cost: (3/16)^k * cn^2
 
-  合計: cn² × Σ_{k=0}^{∞} (3/16)^k
-       = cn² × 1/(1 - 3/16)
-       = cn² × 16/13
-       = Θ(n²)
+  Total: cn^2 * Sum_{k=0}^{inf} (3/16)^k
+       = cn^2 * 1/(1 - 3/16)
+       = cn^2 * 16/13
+       = Theta(n^2)
 
-  なぜ幾何級数が収束するか: 公比 3/16 < 1 であるため。
-  これは Case 3 に対応する: f(n) = n² が支配的で、
-  深いレベルほどコストが急速に減衰する。
+  Why the geometric series converges: Because the common ratio 3/16 < 1.
+  This corresponds to Case 3: f(n) = n^2 dominates, and cost
+  decays rapidly at deeper levels.
 ```
 
-### 7.3 T(n) = T(n/3) + T(2n/3) + n の再帰木（不均等分割）
+### 7.3 Recursion Tree for T(n) = T(n/3) + T(2n/3) + n (Uneven Split)
 
 ```
-レベル 0:                    n                           → コスト: n
+Level 0:                    n                           -> Cost: n
                           /     \
-レベル 1:             n/3       2n/3                     → コスト: n/3 + 2n/3 = n
+Level 1:             n/3       2n/3                     -> Cost: n/3 + 2n/3 = n
                      / \        / \
-レベル 2:        n/9  2n/9  2n/9  4n/9                  → コスト: n
+Level 2:        n/9  2n/9  2n/9  4n/9                  -> Cost: n
                  :                  :
                  :                  :
 
-  最短パス: n → n/3 → n/9 → ... → 1   深さ log₃ n
-  最長パス: n → 2n/3 → 4n/9 → ... → 1  深さ log_{3/2} n
+  Shortest path: n -> n/3 -> n/9 -> ... -> 1   depth log_3 n
+  Longest path:  n -> 2n/3 -> 4n/9 -> ... -> 1  depth log_{3/2} n
 
-  各レベルのコストは最大 n（葉に近いレベルではやや少ない）。
-  レベル数は log_{3/2} n まで。
+  Cost at each level is at most n (slightly less near the leaves).
+  Number of levels is up to log_{3/2} n.
 
-  合計: O(n × log_{3/2} n) = O(n log n)
+  Total: O(n * log_{3/2} n) = O(n log n)
 
-  → 不均等分割でも、各レベルの合計コストが O(n) 程度なら
-    全体は O(n log n) に収まる。
+  -> Even with uneven splits, if the total cost per level is O(n),
+    the overall result is O(n log n).
 ```
 
 ---
 
-## 8. 置換法（帰納法）
+## 8. Substitution Method (Induction)
 
-置換法は、漸化式の解を「予想」し、数学的帰納法で正しさを証明する手法である。
+The substitution method "guesses" the solution to a recurrence and proves correctness by mathematical induction.
 
-### 8.1 手順
+### 8.1 Procedure
 
-1. **解を予想する**（再帰木法などの結果、または経験から）
-2. **帰納法の仮定を置く**: T(k) <= c * g(k) がすべての k < n に対して成り立つと仮定
-3. **帰納ステップを証明する**: T(n) <= c * g(n) を導出
-4. **ベースケースを確認する**: T(n_0) <= c * g(n_0) が成り立つ c を確認
+1. **Guess the solution** (from recursion tree results or experience)
+2. **State the inductive hypothesis**: Assume T(k) <= c * g(k) for all k < n
+3. **Prove the inductive step**: Derive T(n) <= c * g(n)
+4. **Verify the base case**: Confirm there exists a c such that T(n_0) <= c * g(n_0)
 
-### 8.2 例: T(n) = 2T(n/2) + n を O(n log n) と証明
+### 8.2 Example: Prove T(n) = 2T(n/2) + n is O(n log n)
 
 ```
-予想: T(n) <= c * n * log(n) （c は適切な定数）
+Guess: T(n) <= c * n * log(n)  (c is an appropriate constant)
 
-帰納法の仮定: すべての k < n に対し T(k) <= c * k * log(k)
+Inductive hypothesis: For all k < n, T(k) <= c * k * log(k)
 
-帰納ステップ:
+Inductive step:
   T(n) = 2T(n/2) + n
-       <= 2 * c * (n/2) * log(n/2) + n     （帰納法の仮定を適用）
-       = c * n * (log(n) - log(2)) + n      （log(n/2) = log(n) - 1 を使用）
+       <= 2 * c * (n/2) * log(n/2) + n     (applying inductive hypothesis)
+       = c * n * (log(n) - log(2)) + n      (using log(n/2) = log(n) - 1)
        = c * n * log(n) - c * n + n
        = c * n * log(n) - (c - 1) * n
 
-  c >= 1 ならば -(c-1)*n <= 0 なので:
+  If c >= 1, then -(c-1)*n <= 0, so:
        <= c * n * log(n)
 
-  よって T(n) <= c * n * log(n) が成立。 ■
+  Therefore T(n) <= c * n * log(n) holds. QED
 
-ベースケース: T(1) = d（定数）とすると、
-  c * 1 * log(1) = 0 なので T(1) <= c * 1 * log(1) は成り立たない。
-  → n >= 2 をベースケースとし、T(2) <= c * 2 * log(2) = 2c。
-  T(2) = 2T(1) + 2 = 2d + 2 なので、c >= d + 1 とすれば成立。
+Base case: Let T(1) = d (constant), then
+  c * 1 * log(1) = 0, so T(1) <= c * 1 * log(1) does not hold.
+  -> Take n >= 2 as base case: T(2) <= c * 2 * log(2) = 2c.
+  T(2) = 2T(1) + 2 = 2d + 2, so setting c >= d + 1 suffices.
 ```
 
-### 8.3 置換法の落とし穴
+### 8.3 Pitfalls of the Substitution Method
 
 ```python
 """
-置換法でよくある間違いを示す。
+Common mistakes with the substitution method.
 """
 
-# 間違い1: 帰納法の仮定を「弱すぎる」形で置く
+# Mistake 1: Setting the inductive hypothesis too weak
 #
-# 予想: T(n) = O(n) で T(n) = 2T(n/2) + n を証明しようとする
+# Guess: T(n) = O(n) for T(n) = 2T(n/2) + n
 #
 # T(n) = 2T(n/2) + n
 #      <= 2 * c * (n/2) + n
 #      = cn + n
 #      = (c+1)n
-#      ≠ cn   ← c が「育ってしまう」ため証明できない
+#      != cn   <- c "grows," so the proof fails
 #
-# → これは正しい。T(n) = Θ(n log n) であって O(n) ではないから。
+# -> This is correct. T(n) = Theta(n log n), not O(n).
 
-# 間違い2: 低次項を無視して「うまくいった」と誤認する
+# Mistake 2: Ignoring lower-order terms and falsely concluding success
 #
-# 予想: T(n) <= cn で T(n) = T(n/2) + T(n/2) + 1 を証明
+# Guess: T(n) <= cn for T(n) = T(n/2) + T(n/2) + 1
 #
-# T(n) <= c(n/2) + c(n/2) + 1 = cn + 1  ← 「ほぼ cn」だが cn 以下ではない！
+# T(n) <= c(n/2) + c(n/2) + 1 = cn + 1  <- "almost cn" but not <= cn!
 #
-# 正しい対処: T(n) <= cn - d とより強い仮定を置く
-# T(n) <= c(n/2) - d + c(n/2) - d + 1 = cn - 2d + 1 <= cn - d (d >= 1)
+# Correct approach: Use a stronger hypothesis T(n) <= cn - d
+# T(n) <= c(n/2) - d + c(n/2) - d + 1 = cn - 2d + 1 <= cn - d (if d >= 1)
 ```
 
 ---
 
-## 9. 一般的な再帰パターン
+## 9. Common Recursion Patterns
 
-### パターン1: 線形再帰 T(n) = T(n-1) + O(1) → O(n)
+### Pattern 1: Linear Recursion T(n) = T(n-1) + O(1) -> O(n)
 
 ```python
 def factorial(n: int) -> int:
-    """階乗を再帰的に計算する。T(n) = T(n-1) + O(1) → O(n)
+    """Compute factorial recursively. T(n) = T(n-1) + O(1) -> O(n)
 
-    なぜ O(n) か: 再帰の深さが n で、各レベルのコストが O(1) であるため。
+    Why O(n): Recursion depth is n, and cost at each level is O(1).
     """
     if n <= 1:
         return 1
     return n * factorial(n - 1)
 
 
-# 検証
+# Verification
 assert factorial(0) == 1
 assert factorial(1) == 1
 assert factorial(5) == 120
 assert factorial(10) == 3628800
 ```
 
-### パターン2: 線形再帰（各レベルで O(n) の仕事） T(n) = T(n-1) + O(n) → O(n^2)
+### Pattern 2: Linear Recursion (O(n) work per level) T(n) = T(n-1) + O(n) -> O(n^2)
 
 ```python
 def selection_sort(arr: list[int]) -> list[int]:
-    """選択ソート。T(n) = T(n-1) + O(n) → O(n^2)
+    """Selection sort. T(n) = T(n-1) + O(n) -> O(n^2)
 
-    なぜ O(n^2) か: 各ステップで残り要素から最小値を見つけるのに O(n)、
-    それを n 回繰り返すため。漸化式を展開すると
-    T(n) = n + (n-1) + (n-2) + ... + 1 = n(n+1)/2 = Θ(n^2)。
+    Why O(n^2): Each step finds the minimum among remaining elements in O(n),
+    repeated n times. Expanding the recurrence:
+    T(n) = n + (n-1) + (n-2) + ... + 1 = n(n+1)/2 = Theta(n^2).
     """
     arr = arr[:]
     for i in range(len(arr)):
@@ -1238,20 +1238,20 @@ def selection_sort(arr: list[int]) -> list[int]:
     return arr
 
 
-# 検証
+# Verification
 assert selection_sort([3, 1, 4, 1, 5]) == [1, 1, 3, 4, 5]
 assert selection_sort([]) == []
 assert selection_sort([1]) == [1]
 ```
 
-### パターン3: 二分再帰（分割のみ） T(n) = T(n/2) + O(1) → O(log n)
+### Pattern 3: Binary Recursion (divide only) T(n) = T(n/2) + O(1) -> O(log n)
 
 ```python
 def binary_search(arr: list[int], target: int) -> int:
-    """二分探索。T(n) = T(n/2) + O(1) → O(log n)
+    """Binary search. T(n) = T(n/2) + O(1) -> O(log n)
 
-    なぜ O(log n) か: 各ステップで探索範囲が半分になり、
-    範囲が 1 になるまで log₂n 回の比較で済むため。
+    Why O(log n): The search range halves at each step,
+    requiring log_2(n) comparisons until the range becomes 1.
     """
     left, right = 0, len(arr) - 1
     while left <= right:
@@ -1265,7 +1265,7 @@ def binary_search(arr: list[int], target: int) -> int:
     return -1
 
 
-# 検証
+# Verification
 arr = [1, 3, 5, 7, 9, 11, 13]
 assert binary_search(arr, 7) == 3
 assert binary_search(arr, 1) == 0
@@ -1273,17 +1273,17 @@ assert binary_search(arr, 13) == 6
 assert binary_search(arr, 4) == -1
 ```
 
-### パターン4: 繰り返し二乗法 T(n) = T(n/2) + O(1) → O(log n)
+### Pattern 4: Exponentiation by Squaring T(n) = T(n/2) + O(1) -> O(log n)
 
 ```python
 def power(x: float, n: int) -> float:
-    """繰り返し二乗法。T(n) = T(n/2) + O(1) → O(log n)
+    """Exponentiation by squaring. T(n) = T(n/2) + O(1) -> O(log n)
 
-    なぜ O(log n) か: 指数を 2 で割っていくため、再帰の深さは log₂n。
-    各レベルでは乗算 1 回（O(1)）のみ。
+    Why O(log n): The exponent is halved at each step, so recursion
+    depth is log_2(n). Each level performs only one multiplication (O(1)).
 
-    x^n = (x^(n/2))^2       (n が偶数)
-    x^n = x * (x^(n-1/2))^2 (n が奇数)
+    x^n = (x^(n/2))^2       (n is even)
+    x^n = x * (x^(n-1/2))^2 (n is odd)
     """
     if n == 0:
         return 1
@@ -1296,21 +1296,22 @@ def power(x: float, n: int) -> float:
         return x * power(x, n - 1)
 
 
-# 検証
+# Verification
 assert power(2, 10) == 1024
 assert power(3, 0) == 1
 assert abs(power(2, -1) - 0.5) < 1e-10
 ```
 
-### パターン5: 複数分岐再帰 T(n) = T(n-1) + T(n-2) + O(1) → O(phi^n)
+### Pattern 5: Multi-branch Recursion T(n) = T(n-1) + T(n-2) + O(1) -> O(phi^n)
 
 ```python
 def fibonacci_naive(n: int) -> int:
-    """素朴なフィボナッチ。T(n) = T(n-1) + T(n-2) + O(1) → O(phi^n)
+    """Naive Fibonacci. T(n) = T(n-1) + T(n-2) + O(1) -> O(phi^n)
 
-    なぜ指数時間か: 再帰木の各ノードが 2 つの子を持ち、
-    深さ n まで「ほぼ」完全二分木になるため。正確には黄金比
-    phi = (1 + sqrt(5)) / 2 ≈ 1.618 のべき乗で増加する。
+    Why exponential time: Each node in the recursion tree has 2 children,
+    and the tree extends to depth n, forming a "nearly" complete binary tree.
+    More precisely, growth follows the golden ratio
+    phi = (1 + sqrt(5)) / 2 ~ 1.618 raised to the power n.
     """
     if n <= 1:
         return n
@@ -1318,10 +1319,10 @@ def fibonacci_naive(n: int) -> int:
 
 
 def fibonacci_dp(n: int) -> int:
-    """動的計画法によるフィボナッチ。O(n) 時間、O(1) 空間。
+    """Dynamic programming Fibonacci. O(n) time, O(1) space.
 
-    メモ化や DP テーブルで重複計算を排除することで、
-    O(phi^n) → O(n) に改善される。
+    Eliminating redundant computation via memoization or DP table
+    improves from O(phi^n) to O(n).
     """
     if n <= 1:
         return n
@@ -1331,71 +1332,71 @@ def fibonacci_dp(n: int) -> int:
     return curr
 
 
-# 検証
+# Verification
 for i in range(10):
     assert fibonacci_naive(i) == fibonacci_dp(i)
 ```
 
-### パターン6: 指数再帰 T(n) = 2T(n-1) + O(1) → O(2^n)
+### Pattern 6: Exponential Recursion T(n) = 2T(n-1) + O(1) -> O(2^n)
 
 ```python
 def hanoi(n: int, source: str = "A", target: str = "C", auxiliary: str = "B") -> int:
-    """ハノイの塔。T(n) = 2T(n-1) + O(1) → O(2^n)
+    """Tower of Hanoi. T(n) = 2T(n-1) + O(1) -> O(2^n)
 
-    なぜ O(2^n) か: n 枚を移動するには、上の n-1 枚を 2 回移動し、
-    さらに最大の円盤を 1 回移動する。
-    T(n) = 2T(n-1) + 1 → T(n) = 2^n - 1。
+    Why O(2^n): Moving n disks requires moving the top n-1 disks twice
+    and the largest disk once.
+    T(n) = 2T(n-1) + 1 -> T(n) = 2^n - 1.
 
     Returns:
-        移動回数
+        Number of moves
     """
     if n == 0:
         return 0
     moves = 0
     moves += hanoi(n - 1, source, auxiliary, target)
-    moves += 1  # 最大の円盤を移動
+    moves += 1  # Move the largest disk
     moves += hanoi(n - 1, auxiliary, target, source)
     return moves
 
 
-# 検証: T(n) = 2^n - 1
+# Verification: T(n) = 2^n - 1
 for n in range(1, 15):
     assert hanoi(n) == 2**n - 1, f"n={n}: {hanoi(n)} != {2**n - 1}"
 
-print("ハノイの塔の移動回数:")
+print("Tower of Hanoi move counts:")
 for n in [1, 5, 10, 15, 20]:
-    print(f"  n={n:>2}: {2**n - 1:>8} 回")
+    print(f"  n={n:>2}: {2**n - 1:>8} moves")
 ```
 
 ---
 
-## 10. 比較表
+## 10. Comparison Tables
 
-### 表1: マスター定理の3ケース詳細比較
+### Table 1: Detailed Comparison of the Master Theorem's Three Cases
 
-| ケース | 条件 | 結果 | 直感的説明 | 再帰木での理解 |
-|--------|------|------|------------|----------------|
-| Case 1 | f(n) = O(n^{log_b(a) - epsilon}) | Theta(n^{log_b(a)}) | 葉のコストが支配 | 下層に向かってコスト増大、葉の合計が全体を決定 |
-| Case 2 | f(n) = Theta(n^{log_b(a)}) | Theta(n^{log_b(a)} * log n) | 各レベル均等 | 全レベルが等しいコスト、レベル数分だけ積算 |
-| Case 3 | f(n) = Omega(n^{log_b(a) + epsilon}) + 正則条件 | Theta(f(n)) | ルートが支配 | 上層に向かってコスト増大、ルートの寄与が支配的 |
+| Case | Condition | Result | Intuitive Explanation | Understanding via Recursion Tree |
+|------|-----------|--------|-----------------------|----------------------------------|
+| Case 1 | f(n) = O(n^{log_b(a) - epsilon}) | Theta(n^{log_b(a)}) | Leaf cost dominates | Cost increases toward lower levels; total at leaves determines overall cost |
+| Case 2 | f(n) = Theta(n^{log_b(a)}) | Theta(n^{log_b(a)} * log n) | Uniform across levels | Equal cost at all levels, multiplied by number of levels |
+| Case 3 | f(n) = Omega(n^{log_b(a) + epsilon}) + regularity condition | Theta(f(n)) | Root dominates | Cost increases toward upper levels; root's contribution dominates |
 
-### 表2: 代表的な漸化式と解の一覧
+### Table 2: Representative Recurrences and Their Solutions
 
-| 漸化式 | 解 | アルゴリズム例 | 解法の根拠 |
-|--------|-----|---------------|-----------|
-| T(n) = T(n-1) + O(1) | O(n) | 線形走査・階乗 | 合計 = 1+1+...+1 = n |
-| T(n) = T(n-1) + O(n) | O(n^2) | 選択ソート・挿入ソート | 合計 = n+(n-1)+...+1 |
-| T(n) = T(n/2) + O(1) | O(log n) | 二分探索 | マスター定理 Case 2 |
-| T(n) = T(n/2) + O(n) | O(n) | クイックセレクト(平均) | マスター定理 Case 3 |
-| T(n) = 2T(n/2) + O(1) | O(n) | 二分木走査 | マスター定理 Case 1 |
-| T(n) = 2T(n/2) + O(n) | O(n log n) | マージソート | マスター定理 Case 2 |
-| T(n) = 2T(n/2) + O(n^2) | O(n^2) | 非効率な分割統治 | マスター定理 Case 3 |
-| T(n) = 3T(n/2) + O(n) | O(n^{1.585}) | カラツバ乗算 | マスター定理 Case 1 |
-| T(n) = 7T(n/2) + O(n^2) | O(n^{2.807}) | ストラッセン行列乗算 | マスター定理 Case 1 |
-| T(n) = 2T(n-1) + O(1) | O(2^n) | ハノイの塔 | 展開: 2^n - 1 |
-| T(n) = T(n-1) + T(n-2) + O(1) | O(phi^n) | 素朴なフィボナッチ | 特性方程式の解 |
+| Recurrence | Solution | Algorithm Example | Basis |
+|------------|----------|-------------------|-------|
+| T(n) = T(n-1) + O(1) | O(n) | Linear scan, factorial | Sum = 1+1+...+1 = n |
+| T(n) = T(n-1) + O(n) | O(n^2) | Selection sort, insertion sort | Sum = n+(n-1)+...+1 |
+| T(n) = T(n/2) + O(1) | O(log n) | Binary search | Master Theorem Case 2 |
+| T(n) = T(n/2) + O(n) | O(n) | Quickselect (average) | Master Theorem Case 3 |
+| T(n) = 2T(n/2) + O(1) | O(n) | Binary tree traversal | Master Theorem Case 1 |
+| T(n) = 2T(n/2) + O(n) | O(n log n) | Merge sort | Master Theorem Case 2 |
+| T(n) = 2T(n/2) + O(n^2) | O(n^2) | Inefficient divide-and-conquer | Master Theorem Case 3 |
+| T(n) = 3T(n/2) + O(n) | O(n^{1.585}) | Karatsuba multiplication | Master Theorem Case 1 |
+| T(n) = 7T(n/2) + O(n^2) | O(n^{2.807}) | Strassen matrix multiplication | Master Theorem Case 1 |
+| T(n) = 2T(n-1) + O(1) | O(2^n) | Tower of Hanoi | Expansion: 2^n - 1 |
+| T(n) = T(n-1) + T(n-2) + O(1) | O(phi^n) | Naive Fibonacci | Characteristic equation solution |
 
-### 表3: 計算量クラスの増加率比較
+### Table 3: Growth Rate Comparison of Complexity Classes
 
 | n | O(1) | O(log n) | O(n) | O(n log n) | O(n^2) | O(2^n) |
 |---|------|----------|------|------------|--------|--------|
@@ -1406,111 +1407,112 @@ for n in [1, 5, 10, 15, 20]:
 | 10,000 | 1 | 13.3 | 10,000 | 132,877 | 100,000,000 | -- |
 | 100,000 | 1 | 16.6 | 100,000 | 1,660,964 | 10,000,000,000 | -- |
 
-「--」は値が天文学的に大きく実用上計算不可能であることを示す。
+"--" indicates values so astronomically large as to be computationally infeasible.
 
 ---
 
-## 11. アンチパターン
+## 11. Anti-patterns
 
-### アンチパターン1: マスター定理の適用条件を確認しない
+### Anti-pattern 1: Applying the Master Theorem Without Checking Conditions
 
 ```python
 """
-マスター定理の「ギャップケース」に陥る例。
+Example of falling into the "gap case" of the Master Theorem.
 """
 
-# BAD: T(n) = 2T(n/2) + n log n にマスター定理を直接適用しようとする
+# BAD: Trying to directly apply Master Theorem to T(n) = 2T(n/2) + n log n
 #
-# a=2, b=2 → n^(log_2(2)) = n^1 = n
+# a=2, b=2 -> n^(log_2(2)) = n^1 = n
 # f(n) = n log n
 #
-# Case 2 に該当するか？ → Case 2 は f(n) = Θ(n^(log_b(a))) を要求。
-#   n log n ≠ Θ(n) なので Case 2 ではない。
+# Does Case 2 apply? -> Case 2 requires f(n) = Theta(n^(log_b(a))).
+#   n log n != Theta(n), so Case 2 does not apply.
 #
-# Case 3 に該当するか？ → Case 3 は f(n) = Ω(n^(1+ε)) を要求。
-#   n log n = O(n^(1+ε)) for any ε > 0 なので Case 3 でもない。
+# Does Case 3 apply? -> Case 3 requires f(n) = Omega(n^(1+epsilon)).
+#   n log n = O(n^(1+epsilon)) for any epsilon > 0, so Case 3 does not apply either.
 #
-# → 標準のマスター定理は適用不可（ギャップケース）
-# → 拡張マスター定理を適用: f(n) = Θ(n log^k n) で k=1 のとき
-#   T(n) = Θ(n log^(k+1) n) = Θ(n log^2 n)
+# -> Standard Master Theorem is inapplicable (gap case)
+# -> Apply Extended Master Theorem: for f(n) = Theta(n log^k n) with k=1,
+#   T(n) = Theta(n log^(k+1) n) = Theta(n log^2 n)
 #
-# GOOD: 適用前に必ず 3 ケースのどれに該当するか確認し、
-#        どれにも該当しない場合は再帰木法や Akra-Bazzi 定理を使う。
+# GOOD: Always verify which of the 3 cases applies before using it,
+#        and use recursion tree or Akra-Bazzi theorem when none applies.
 ```
 
-### アンチパターン2: 再帰の深さと呼び出し回数を混同する
+### Anti-pattern 2: Confusing Recursion Depth with Total Call Count
 
 ```python
 """
-再帰の「深さ」と「呼び出し総数」は別の概念である。
+Recursion "depth" and "total call count" are distinct concepts.
 """
 
-# BAD: 「二分再帰だから O(log n)」と誤解する
+# BAD: Mistakenly thinking "binary recursion means O(log n)"
 def count_all(n: int) -> int:
     """T(n) = T(n-1) + T(n-2) + O(1)
 
-    誤った推論: 「再帰が 2 つに分かれるから O(log n)」
-    正しい分析: 深さは O(n)、呼び出し回数は O(φ^n)
+    Wrong reasoning: "Recursion splits into 2, so O(log n)"
+    Correct analysis: Depth is O(n), call count is O(phi^n)
     """
     if n <= 0:
         return 0
     return 1 + count_all(n - 1) + count_all(n - 2)
 
 
-# GOOD: 深さと呼び出し回数を区別して分析する
+# GOOD: Distinguish between depth and call count
 #
-#   再帰木の深さ: 最も深いパスの長さ → スタック使用量に影響
-#   呼び出し回数: 全ノード数 → 時間計算量に影響
+#   Recursion tree depth: Length of deepest path -> affects stack usage
+#   Call count: Total number of nodes -> affects time complexity
 #
-#   例: フィボナッチ再帰
-#     深さ: O(n) — 左端のパスが n → n-1 → n-2 → ... → 0
-#     呼び出し回数: O(φ^n) — ほぼ完全二分木に近い構造
+#   Example: Fibonacci recursion
+#     Depth: O(n) -- leftmost path goes n -> n-1 -> n-2 -> ... -> 0
+#     Call count: O(phi^n) -- nearly complete binary tree structure
 ```
 
-### アンチパターン3: 平均ケースを「典型ケース」と同一視する
+### Anti-pattern 3: Equating Average Case with "Typical Case"
 
 ```python
 """
-平均ケースは確率分布に基づく期待値であり、
-「よくある入力」での性能とは必ずしも一致しない。
+Average case is the expected value based on a probability distribution,
+which does not necessarily match performance on "common inputs."
 """
 
-# BAD: 「クイックソートの平均 O(n log n) だから、
-#        ほぼすべての入力で O(n log n) になる」と誤解
+# BAD: Assuming "quicksort averages O(n log n), so nearly all
+#        inputs will be O(n log n)"
 
-# 正しい理解:
-# 1. 平均ケースは「すべてのサイズ n の入力が等確率で出現する」
-#    という仮定のもとでの期待値
-# 2. 実際のアプリケーションでは入力に偏りがある場合がある
-#    例: ほぼソート済みデータが頻繁に入力されるログ処理システム
-# 3. 敵対的入力（adversarial input）が存在する環境では、
-#    最悪ケースの保証が必要
+# Correct understanding:
+# 1. Average case is the expected value under the assumption that
+#    "all size-n inputs appear with equal probability"
+# 2. In real applications, input may be biased
+#    Example: a log processing system frequently receives nearly-sorted data
+# 3. In environments where adversarial input exists,
+#    worst-case guarantees are necessary
 
-# GOOD: 入力の分布を考慮してアルゴリズムを選択する
-# - ランダムな入力が保証される → 平均ケースで評価可能
-# - 敵対的入力の可能性あり → 最悪ケースの保証が必要
-# - 特定のパターンが多い → そのパターンでの性能を個別に評価
+# GOOD: Choose algorithms considering input distribution
+# - Random input is guaranteed -> Average case evaluation is valid
+# - Adversarial input possible -> Worst-case guarantees needed
+# - Specific patterns are common -> Evaluate performance on those patterns individually
 ```
 
-### アンチパターン4: 再帰のオーバーヘッドを無視する
+### Anti-pattern 4: Ignoring Recursion Overhead
 
 ```python
 """
-漸近的に同等でも、再帰のオーバーヘッドが定数係数に影響する。
+Even when asymptotically equivalent, recursion overhead
+affects the constant factor.
 """
 
 import time
 
 
 def sum_recursive(n: int) -> int:
-    """再帰版の合計。時間計算量: O(n)。"""
+    """Recursive sum. Time complexity: O(n)."""
     if n <= 0:
         return 0
     return n + sum_recursive(n - 1)
 
 
 def sum_iterative(n: int) -> int:
-    """反復版の合計。時間計算量: O(n)。"""
+    """Iterative sum. Time complexity: O(n)."""
     total = 0
     for i in range(1, n + 1):
         total += i
@@ -1518,10 +1520,10 @@ def sum_iterative(n: int) -> int:
 
 
 def compare_overhead() -> None:
-    """再帰と反復のオーバーヘッド差を測定する。
+    """Measure overhead difference between recursion and iteration.
 
-    漸近記法では両方 O(n) だが、再帰版は関数呼び出しのオーバーヘッド
-    （スタックフレームの生成・破棄）により定数係数が大きくなる。
+    Both are O(n) asymptotically, but the recursive version has a larger
+    constant factor due to function call overhead (stack frame creation/destruction).
     """
     import sys
     sys.setrecursionlimit(20000)
@@ -1538,10 +1540,10 @@ def compare_overhead() -> None:
     assert result_rec == result_iter
 
     print(f"n = {n}")
-    print(f"  再帰版: {time_rec * 1000:.2f} ms")
-    print(f"  反復版: {time_iter * 1000:.2f} ms")
-    print(f"  比率: {time_rec / time_iter:.1f}x")
-    print(f"  → 漸近的には同じ O(n) だが、定数係数が異なる")
+    print(f"  Recursive: {time_rec * 1000:.2f} ms")
+    print(f"  Iterative: {time_iter * 1000:.2f} ms")
+    print(f"  Ratio: {time_rec / time_iter:.1f}x")
+    print(f"  -> Asymptotically the same O(n), but constant factors differ")
 
 
 if __name__ == "__main__":
@@ -1550,20 +1552,21 @@ if __name__ == "__main__":
 
 ---
 
-## 12. エッジケース分析
+## 12. Edge Case Analysis
 
-### エッジケース1: 入力サイズが非常に小さい場合の漸近解析の限界
+### Edge Case 1: Limitations of Asymptotic Analysis for Very Small Input Sizes
 
-漸近記法は n → ∞ での振る舞いを記述するため、小さな n では理論と実態が乖離することがある。
+Asymptotic notation describes behavior as n -> infinity, so for small n, theory and reality can diverge.
 
 ```python
 """
-小さな入力サイズでは、漸近的に「劣る」アルゴリズムが
-漸近的に「優れる」アルゴリズムより高速になるケースを示す。
+Demonstrates cases where an asymptotically "inferior" algorithm
+outperforms an asymptotically "superior" one on small inputs.
 
-なぜこの現象が起きるか:
-O(n^2) アルゴリズムの定数係数が O(n log n) アルゴリズムより
-十分小さい場合、n が小さいうちは定数係数の差が支配する。
+Why this happens:
+When the constant factor of an O(n^2) algorithm is much smaller
+than that of an O(n log n) algorithm, the constant factor difference
+dominates for small n.
 """
 
 import time
@@ -1571,7 +1574,7 @@ import random
 
 
 def insertion_sort(arr: list[int]) -> list[int]:
-    """挿入ソート。最悪 O(n^2) だが定数係数が小さい。"""
+    """Insertion sort. Worst case O(n^2) but small constant factor."""
     arr = arr[:]
     for i in range(1, len(arr)):
         key = arr[i]
@@ -1584,7 +1587,7 @@ def insertion_sort(arr: list[int]) -> list[int]:
 
 
 def merge_sort_full(arr: list[int]) -> list[int]:
-    """マージソート。O(n log n) だが定数係数がやや大きい。"""
+    """Merge sort. O(n log n) but somewhat larger constant factor."""
     if len(arr) <= 1:
         return arr[:]
     mid = len(arr) // 2
@@ -1603,19 +1606,19 @@ def merge_sort_full(arr: list[int]) -> list[int]:
 
 
 def find_crossover_point() -> None:
-    """挿入ソートとマージソートの交差点を実験的に見つける。
+    """Experimentally find the crossover point between insertion sort and merge sort.
 
-    想定される結果: n が 20-50 程度で交差する。
-    これが Tim Sort（Python の組み込みソート）が小さな部分配列に
-    挿入ソートを使う理由である。
+    Expected result: Crossover occurs around n = 20-50.
+    This is why Tim Sort (Python's built-in sort) uses insertion sort
+    for small sub-arrays.
     """
-    print("=== 小さな入力サイズでの比較 ===")
-    print(f"{'n':>6} | {'挿入ソート(ms)':>14} | {'マージソート(ms)':>14} | {'速い方':>8}")
+    print("=== Small Input Size Comparison ===")
+    print(f"{'n':>6} | {'Insertion (ms)':>14} | {'Merge sort (ms)':>14} | {'Faster':>8}")
     print("-" * 55)
 
     trials = 1000
     for n in [5, 10, 15, 20, 30, 50, 100, 200, 500]:
-        # 挿入ソートの計測
+        # Measure insertion sort
         total_ins = 0
         for _ in range(trials):
             arr = random.sample(range(n * 10), n)
@@ -1623,7 +1626,7 @@ def find_crossover_point() -> None:
             insertion_sort(arr)
             total_ins += time.perf_counter() - start
 
-        # マージソートの計測
+        # Measure merge sort
         total_merge = 0
         for _ in range(trials):
             arr = random.sample(range(n * 10), n)
@@ -1633,50 +1636,51 @@ def find_crossover_point() -> None:
 
         ins_ms = total_ins / trials * 1000
         merge_ms = total_merge / trials * 1000
-        winner = "挿入" if ins_ms < merge_ms else "マージ"
+        winner = "Insert" if ins_ms < merge_ms else "Merge"
         print(f"{n:>6} | {ins_ms:>14.4f} | {merge_ms:>14.4f} | {winner:>8}")
 
     print()
-    print("  → n が小さいとき、O(n^2) の挿入ソートが O(n log n) のマージソートに勝つ。")
-    print("    これは漸近記法が定数係数を無視することの実用的帰結である。")
+    print("  -> For small n, O(n^2) insertion sort beats O(n log n) merge sort.")
+    print("    This is a practical consequence of asymptotic notation ignoring constant factors.")
 
 
 if __name__ == "__main__":
     find_crossover_point()
 ```
 
-**教訓**: 漸近記法はアルゴリズムの「スケーラビリティ」を評価するツールであり、小さな n での絶対性能を保証するものではない。実用的なソートアルゴリズム（Tim Sort、Introsort など）は、n が小さい部分配列に対して挿入ソートに切り替えることで、漸近的優位性と定数係数の優位性を両立させている。
+**Lesson**: Asymptotic notation is a tool for evaluating algorithm "scalability," not for guaranteeing absolute performance on small n. Practical sorting algorithms (Tim Sort, Introsort, etc.) switch to insertion sort for small sub-arrays, combining asymptotic superiority with constant-factor superiority.
 
-### エッジケース2: 再帰の漸化式でベースケースのコストが無視できない場合
+### Edge Case 2: When Base Case Cost Cannot Be Ignored in Recurrences
 
 ```python
 """
-ベースケースのコストが O(1) でない場合、漸化式の解が変わることを示す。
+Demonstrates that when the base case cost is not O(1),
+the recurrence solution changes.
 """
 
 
 def matrix_multiply_recursive(
     A: list[list[float]], B: list[list[float]], n: int
 ) -> list[list[float]]:
-    """再帰的行列乗算（単純な分割統治）。
+    """Recursive matrix multiplication (simple divide and conquer).
 
-    ベースケースが 1x1 行列のとき: T(1) = O(1)
-    → T(n) = 8T(n/2) + O(n^2) → O(n^3)
+    When base case is 1x1 matrix: T(1) = O(1)
+    -> T(n) = 8T(n/2) + O(n^2) -> O(n^3)
 
-    もしベースケースを k×k（k は定数）にして直接計算すると:
-    T(k) = O(k^3) ≈ O(1)  （k が定数なら）
-    漸近的な結果は変わらないが、定数係数が改善される。
+    If base case is k x k (k constant) with direct computation:
+    T(k) = O(k^3) ~ O(1)  (since k is constant)
+    The asymptotic result stays the same, but constant factor improves.
 
-    なぜこれが重要か: 実装では再帰のベースケースを適切に設定することで、
-    関数呼び出しのオーバーヘッドを削減できる。ストラッセンのアルゴリズムでも、
-    n が十分小さくなったら通常の O(n^3) 行列乗算に切り替える。
+    Why this matters: In implementation, setting an appropriate recursion
+    base case reduces function call overhead. Strassen's algorithm also
+    switches to standard O(n^3) matrix multiplication when n becomes small enough.
     """
     if n == 1:
         return [[A[0][0] * B[0][0]]]
 
     mid = n // 2
 
-    # 部分行列の抽出（簡略化のためスライスを使用）
+    # Extract sub-matrices (simplified using slicing)
     A11 = [row[:mid] for row in A[:mid]]
     A12 = [row[mid:] for row in A[:mid]]
     A21 = [row[:mid] for row in A[mid:]]
@@ -1687,7 +1691,7 @@ def matrix_multiply_recursive(
     B21 = [row[:mid] for row in B[mid:]]
     B22 = [row[mid:] for row in B[mid:]]
 
-    # 8 回の再帰呼び出し
+    # 8 recursive calls
     C11 = matrix_add(
         matrix_multiply_recursive(A11, B11, mid),
         matrix_multiply_recursive(A12, B21, mid),
@@ -1705,7 +1709,7 @@ def matrix_multiply_recursive(
         matrix_multiply_recursive(A22, B22, mid),
     )
 
-    # 結果の統合
+    # Combine results
     result = []
     for i in range(mid):
         result.append(C11[i] + C12[i])
@@ -1717,75 +1721,75 @@ def matrix_multiply_recursive(
 def matrix_add(
     A: list[list[float]], B: list[list[float]]
 ) -> list[list[float]]:
-    """行列の加算。O(n^2)。"""
+    """Matrix addition. O(n^2)."""
     n = len(A)
     return [[A[i][j] + B[i][j] for j in range(n)] for i in range(n)]
 
 
 def verify_recursive_matrix_multiply() -> None:
-    """再帰的行列乗算の正当性を検証する。"""
+    """Verify correctness of recursive matrix multiplication."""
     A = [[1, 2], [3, 4]]
     B = [[5, 6], [7, 8]]
     C = matrix_multiply_recursive(A, B, 2)
-    # 期待値: [[19, 22], [43, 50]]
+    # Expected: [[19, 22], [43, 50]]
     assert C == [[19, 22], [43, 50]], f"Got {C}"
 
-    # 4x4 行列のテスト
+    # 4x4 matrix test
     A4 = [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
     B4 = [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]]
     C4 = matrix_multiply_recursive(A4, B4, 4)
-    assert C4 == B4, "単位行列との積は元の行列に等しいはず"
+    assert C4 == B4, "Product with identity matrix should equal original"
 
-    print("再帰的行列乗算: 全テスト通過")
+    print("Recursive matrix multiplication: all tests passed")
 
 
 if __name__ == "__main__":
     verify_recursive_matrix_multiply()
 ```
 
-### エッジケース3: 償却解析で「負の貯金」が生じるシナリオ
+### Edge Case 3: Scenarios Where "Negative Savings" Occur in Amortized Analysis
 
 ```
-償却コストの設定が不適切な場合、「貯金」が負になり得る。
+When amortized cost is set inappropriately, "savings" can go negative.
 
-例: 動的配列で倍増ではなく 1.5 倍に拡張する場合
+Example: Dynamic array with 1.5x expansion instead of doubling
 
-  容量拡張の頻度が倍増戦略より多くなるため、
-  1 操作あたりの償却コスト 3 では足りない場合がある。
+  Expansion frequency is higher than the doubling strategy,
+  so an amortized cost of 3 per operation may not suffice.
 
-  配賦法で正しく分析するには:
-  - 拡張係数 α に基づいて、必要な「前払い額」を計算する
-  - α = 2 の場合: 償却コスト 3 で十分
-  - α = 1.5 の場合: 償却コストを増やす必要がある
+  To correctly analyze with the accounting method:
+  - Compute the required "prepayment" based on expansion factor alpha
+  - alpha = 2: amortized cost 3 is sufficient
+  - alpha = 1.5: amortized cost needs to be higher
 
-  正しい計算:
-  拡張係数 α で、各要素は最大 1/(α-1) 回コピーされる。
-  α = 2 → 各要素は最大 1/(2-1) = 1 回コピー → 償却コスト ≈ 3
-  α = 1.5 → 各要素は最大 1/(1.5-1) = 2 回コピー → 償却コスト ≈ 5
+  Correct computation:
+  With expansion factor alpha, each element is copied at most 1/(alpha-1) times.
+  alpha = 2 -> each element copied at most 1/(2-1) = 1 time -> amortized cost ~ 3
+  alpha = 1.5 -> each element copied at most 1/(1.5-1) = 2 times -> amortized cost ~ 5
 
-  教訓: 償却解析の結果はデータ構造の実装戦略に依存する。
-        拡張係数を変えると、償却コストも変わる。
+  Lesson: Amortized analysis results depend on the data structure's implementation strategy.
+        Changing the expansion factor changes the amortized cost.
 ```
 
 ---
 
-## 13. 演習問題
+## 13. Practice Problems
 
-### 基礎レベル
+### Basic Level
 
-**問題 B1: 漸化式の立式**
+**Problem B1: Formulating Recurrences**
 
-以下の各コードについて、漸化式を立て、計算量を求めよ。
+For each of the following code snippets, formulate the recurrence relation and determine the complexity.
 
 ```python
-# (a) 最大値を再帰的に求める
+# (a) Finding maximum recursively
 def find_max(arr: list[int], n: int) -> int:
     if n == 1:
         return arr[0]
     return max(arr[n - 1], find_max(arr, n - 1))
 
 
-# (b) 配列の合計を分割統治で求める
+# (b) Sum via divide and conquer
 def divide_sum(arr: list[int], left: int, right: int) -> int:
     if left == right:
         return arr[left]
@@ -1793,34 +1797,34 @@ def divide_sum(arr: list[int], left: int, right: int) -> int:
     return divide_sum(arr, left, mid) + divide_sum(arr, mid + 1, right)
 
 
-# (c) べき乗を再帰的に計算する（非効率版）
+# (c) Naive recursive exponentiation
 def power_naive(x: float, n: int) -> float:
     if n == 0:
         return 1
     return x * power_naive(x, n - 1)
 ```
 
-**解答**:
+**Solution**:
 
 ```
 (a) T(n) = T(n-1) + O(1)
-    展開: T(n) = T(n-1) + c = T(n-2) + 2c = ... = T(1) + (n-1)c
-    → T(n) = O(n)
+    Expansion: T(n) = T(n-1) + c = T(n-2) + 2c = ... = T(1) + (n-1)c
+    -> T(n) = O(n)
 
 (b) T(n) = 2T(n/2) + O(1)
-    マスター定理: a=2, b=2, f(n)=O(1), n^(log_2 2) = n
-    f(n) = O(n^(1-ε)) → Case 1 → T(n) = Θ(n)
+    Master Theorem: a=2, b=2, f(n)=O(1), n^(log_2 2) = n
+    f(n) = O(n^(1-epsilon)) -> Case 1 -> T(n) = Theta(n)
 
 (c) T(n) = T(n-1) + O(1)
-    → T(n) = O(n)
-    注: 繰り返し二乗法を使えば O(log n) に改善可能
+    -> T(n) = O(n)
+    Note: Can be improved to O(log n) using exponentiation by squaring
 ```
 
 ---
 
-**問題 B2: マスター定理の適用**
+**Problem B2: Applying the Master Theorem**
 
-以下の各漸化式にマスター定理を適用し、計算量を求めよ。
+Apply the Master Theorem to each of the following recurrences and determine the complexity.
 
 ```
 (a) T(n) = 9T(n/3) + n
@@ -1829,117 +1833,117 @@ def power_naive(x: float, n: int) -> float:
 (d) T(n) = 2T(n/4) + sqrt(n)
 ```
 
-**解答**:
+**Solution**:
 
 ```
 (a) a=9, b=3, f(n)=n, n^(log_3 9) = n^2
-    f(n) = n = O(n^(2-ε)) で ε=1 → Case 1
-    T(n) = Θ(n^2)
+    f(n) = n = O(n^(2-epsilon)) with epsilon=1 -> Case 1
+    T(n) = Theta(n^2)
 
 (b) a=1, b=3/2, f(n)=1, n^(log_{3/2} 1) = n^0 = 1
-    f(n) = 1 = Θ(n^0) → Case 2
-    T(n) = Θ(log n)
+    f(n) = 1 = Theta(n^0) -> Case 2
+    T(n) = Theta(log n)
 
-(c) a=3, b=4, f(n)=n log n, n^(log_4 3) ≈ n^0.793
-    f(n) = n log n = Ω(n^(0.793+ε)) → Case 3 の候補
-    正則条件: 3 * (n/4) * log(n/4) <= c * n * log n
+(c) a=3, b=4, f(n)=n log n, n^(log_4 3) ~ n^0.793
+    f(n) = n log n = Omega(n^(0.793+epsilon)) -> Case 3 candidate
+    Regularity condition: 3 * (n/4) * log(n/4) <= c * n * log n
               (3/4) * n * (log n - log 4) <= c * n * log n
-              → c = 3/4 < 1 で十分大きな n に対し成立
-    T(n) = Θ(n log n)
+              -> c = 3/4 < 1, holds for sufficiently large n
+    T(n) = Theta(n log n)
 
-(d) a=2, b=4, f(n)=√n, n^(log_4 2) = n^(1/2) = √n
-    f(n) = √n = Θ(n^(1/2)) → Case 2
-    T(n) = Θ(√n * log n)
+(d) a=2, b=4, f(n)=sqrt(n), n^(log_4 2) = n^(1/2) = sqrt(n)
+    f(n) = sqrt(n) = Theta(n^(1/2)) -> Case 2
+    T(n) = Theta(sqrt(n) * log n)
 ```
 
 ---
 
-**問題 B3: 最悪ケースと最良ケースの特定**
+**Problem B3: Identifying Worst and Best Cases**
 
-以下のアルゴリズムについて、最悪ケースと最良ケースの入力例を示し、それぞれの計算量を求めよ。
+For the following algorithm, provide example inputs for the worst and best cases and determine the complexity of each.
 
 ```python
 def linear_search_first_even(arr: list[int]) -> int:
-    """配列から最初の偶数を見つけて返す。見つからなければ -1。"""
+    """Find and return the first even number in the array. Return -1 if not found."""
     for i, val in enumerate(arr):
         if val % 2 == 0:
             return val
     return -1
 ```
 
-**解答**:
+**Solution**:
 
 ```
-最良ケース: arr = [2, 1, 3, 5, ...] （先頭が偶数）
-  → 1 回の比較で終了。B(n) = O(1)
+Best case: arr = [2, 1, 3, 5, ...] (first element is even)
+  -> Terminates after 1 comparison. B(n) = O(1)
 
-最悪ケース: arr = [1, 3, 5, 7, ...] （全て奇数）
-  → n 回の比較が必要。W(n) = O(n)
+Worst case: arr = [1, 3, 5, 7, ...] (all odd)
+  -> Requires n comparisons. W(n) = O(n)
 
-平均ケース: 各要素が偶数である確率 p = 1/2 と仮定すると、
-  最初の偶数が位置 k にある確率 = (1/2)^k * (1/2) = (1/2)^(k+1)
-  期待比較回数 = Σ_{k=0}^{n-1} (k+1) * (1/2)^(k+1) ≈ 2 - (n+2)/2^n
-  → A(n) = O(1) （期待値は定数に収束する）
+Average case: Assuming each element is even with probability p = 1/2,
+  Probability that first even is at position k = (1/2)^k * (1/2) = (1/2)^(k+1)
+  Expected comparisons = Sum_{k=0}^{n-1} (k+1) * (1/2)^(k+1) ~ 2 - (n+2)/2^n
+  -> A(n) = O(1) (expected value converges to a constant)
 ```
 
 ---
 
-### 応用レベル
+### Advanced Level
 
-**問題 A1: 再帰木法による解析**
+**Problem A1: Analysis Using the Recursion Tree Method**
 
-T(n) = T(n/4) + T(3n/4) + cn の計算量を再帰木法で求めよ。
+Determine the complexity of T(n) = T(n/4) + T(3n/4) + cn using the recursion tree method.
 
-**ヒント**: 最短パスと最長パスの深さを求め、各レベルのコストを分析せよ。
+**Hint**: Find the depth of the shortest and longest paths, and analyze the cost at each level.
 
-**解答**:
+**Solution**:
 
 ```
-再帰木の構造:
+Recursion tree structure:
                         cn
                       /     \
-                 cn/4       3cn/4           → 合計: cn
+                 cn/4       3cn/4           -> Total: cn
                 /    \      /     \
-           cn/16  3cn/16 3cn/16  9cn/16     → 合計: cn
+           cn/16  3cn/16 3cn/16  9cn/16     -> Total: cn
               :                     :
 
-  最短パス: n → n/4 → n/16 → ... → 1  深さ = log_4 n
-  最長パス: n → 3n/4 → 9n/16 → ... → 1  深さ = log_{4/3} n
+  Shortest path: n -> n/4 -> n/16 -> ... -> 1  depth = log_4 n
+  Longest path:  n -> 3n/4 -> 9n/16 -> ... -> 1  depth = log_{4/3} n
 
-  各レベルのコスト合計:
-  レベル 0: cn
-  レベル 1: c(n/4) + c(3n/4) = cn
-  レベル 2: cn（各ノードのサイズの合計が n に等しいため）
+  Total cost at each level:
+  Level 0: cn
+  Level 1: c(n/4) + c(3n/4) = cn
+  Level 2: cn (because the sum of all node sizes equals n)
 
-  レベル数の上界: log_{4/3} n
+  Upper bound on number of levels: log_{4/3} n
 
-  → T(n) = Θ(n log n)
+  -> T(n) = Theta(n log n)
 
-  この結果は直感的にも納得できる: 各レベルで合計コスト O(n) × log n レベル。
-  不均等分割であっても、「合計サイズが各レベルで n を超えない」という
-  性質が保たれるため、マージソートと同じ計算量になる。
+  This result is intuitive: total cost O(n) per level x log n levels.
+  Even with uneven splits, the property that "total size does not
+  exceed n at each level" is maintained, yielding the same complexity as merge sort.
 ```
 
 ---
 
-**問題 A2: 償却解析の実践**
+**Problem A2: Amortized Analysis in Practice**
 
-以下の「二進カウンタ」に対して、n 回の INCREMENT 操作の償却計算量を3つの手法で求めよ。
+For the following "binary counter," determine the amortized complexity of n INCREMENT operations using all three methods.
 
 ```python
 class BinaryCounter:
-    """k ビットの二進カウンタ。"""
+    """k-bit binary counter."""
 
     def __init__(self, k: int) -> None:
         self.bits = [0] * k
         self.k = k
 
     def increment(self) -> int:
-        """カウンタを 1 増やす。ビット反転回数を返す。"""
+        """Increment counter by 1. Return number of bit flips."""
         flips = 0
         i = 0
         while i < self.k and self.bits[i] == 1:
-            self.bits[i] = 0  # 桁上がり
+            self.bits[i] = 0  # Carry
             flips += 1
             i += 1
         if i < self.k:
@@ -1948,252 +1952,252 @@ class BinaryCounter:
         return flips
 ```
 
-**解答**:
+**Solution**:
 
 ```
-■ 集約法:
-  n 回の INCREMENT で各ビットが何回反転するかを数える。
-  - ビット 0: 毎回反転 → n 回
-  - ビット 1: 2 回に 1 回反転 → n/2 回
-  - ビット 2: 4 回に 1 回反転 → n/4 回
-  - ビット i: 2^i 回に 1 回反転 → n/2^i 回
+Aggregate method:
+  Count how many times each bit flips over n INCREMENTs.
+  - Bit 0: flips every time -> n times
+  - Bit 1: flips every 2nd time -> n/2 times
+  - Bit 2: flips every 4th time -> n/4 times
+  - Bit i: flips every 2^i times -> n/2^i times
 
-  合計反転回数 = Σ_{i=0}^{k-1} n/2^i < n × Σ_{i=0}^{∞} 1/2^i = 2n
+  Total flips = Sum_{i=0}^{k-1} n/2^i < n * Sum_{i=0}^{inf} 1/2^i = 2n
 
-  → n 回の操作で合計 O(n) → 一操作あたり O(1)
+  -> Total cost for n operations is O(n) -> O(1) per operation
 
-■ 配賦法:
-  各 INCREMENT に償却コスト 2 を請求する。
-  - ビットを 1 にセット: コスト 1 + 貯金 1
-  - ビットを 0 にリセット: 貯金から 1 を消費
+Accounting method:
+  Charge amortized cost 2 per INCREMENT.
+  - Setting a bit to 1: cost 1 + savings 1
+  - Resetting a bit to 0: spend 1 from savings
 
-  すべてのリセットは過去のセットで「前払い」されているため、
-  貯金は常に非負。→ 償却コスト O(1)
+  Every reset was "prepaid" by a past set operation,
+  so savings is always non-negative. -> Amortized cost O(1)
 
-■ ポテンシャル法:
-  Φ(D) = カウンタ中の 1 の個数
+Potential method:
+  Phi(D) = number of 1-bits in the counter
 
-  INCREMENT で t 個のビットをリセット、1 個をセットする場合:
-  実コスト = t + 1
-  Φ変化 = (1 ビットセット - t ビットリセット) = 1 - t
-  償却コスト = (t + 1) + (1 - t) = 2
+  When INCREMENT resets t bits and sets 1 bit:
+  Actual cost = t + 1
+  Phi change = (1 bit set - t bits reset) = 1 - t
+  Amortized cost = (t + 1) + (1 - t) = 2
 
-  → 一操作あたりの償却コスト O(1)
+  -> Amortized cost per operation is O(1)
 ```
 
 ---
 
-**問題 A3: 置換法による証明**
+**Problem A3: Proof by Substitution**
 
-T(n) = T(n/2) + T(n/4) + n が T(n) = O(n) であることを置換法で証明せよ。
+Prove by the substitution method that T(n) = T(n/2) + T(n/4) + n is O(n).
 
-**解答**:
+**Solution**:
 
 ```
-予想: T(n) <= cn （c は適切な定数）
+Guess: T(n) <= cn  (c is an appropriate constant)
 
-帰納法の仮定: すべての k < n に対し T(k) <= ck
+Inductive hypothesis: For all k < n, T(k) <= ck
 
-帰納ステップ:
+Inductive step:
   T(n) = T(n/2) + T(n/4) + n
-       <= c(n/2) + c(n/4) + n     （帰納法の仮定）
+       <= c(n/2) + c(n/4) + n     (inductive hypothesis)
        = cn/2 + cn/4 + n
        = (3/4)cn + n
        = cn - cn/4 + n
        = cn - (c/4 - 1)n
 
-  c/4 - 1 >= 0 すなわち c >= 4 のとき:
+  When c/4 - 1 >= 0, i.e., c >= 4:
        <= cn
 
-  よって c >= 4 とすれば T(n) <= cn = O(n)。 ■
+  Therefore with c >= 4, T(n) <= cn = O(n). QED
 
-  ベースケース: T(1) = d → c >= d で成立。
-  c = max(4, d) とすれば全体で成立する。
+  Base case: T(1) = d -> c >= d suffices.
+  Setting c = max(4, d) satisfies the entire proof.
 ```
 
 ---
 
-### 発展レベル
+### Advanced Level
 
-**問題 D1: Akra-Bazzi 定理の適用**
+**Problem D1: Applying the Akra-Bazzi Theorem**
 
-Akra-Bazzi 定理を用いて T(n) = T(n/3) + T(2n/3) + n を解け。
+Solve T(n) = T(n/3) + T(2n/3) + n using the Akra-Bazzi theorem.
 
-**ヒント**: Akra-Bazzi 定理は T(n) = Σ a_i T(n/b_i) + g(n) の形で、
-Σ a_i / b_i^p = 1 を満たす p を求め、T(n) = Θ(n^p (1 + ∫_1^n g(u)/u^{p+1} du)) とする。
+**Hint**: The Akra-Bazzi theorem handles T(n) = Sum a_i T(n/b_i) + g(n),
+finding p such that Sum a_i / b_i^p = 1, then T(n) = Theta(n^p (1 + integral_1^n g(u)/u^{p+1} du)).
 
-**解答**:
+**Solution**:
 
 ```
 T(n) = T(n/3) + T(2n/3) + n
 
-Akra-Bazzi 条件: (1/3)^p + (2/3)^p = 1 を満たす p を求める。
+Akra-Bazzi condition: Find p such that (1/3)^p + (2/3)^p = 1.
 
-  p = 1 を試す: 1/3 + 2/3 = 1 ✓
+  Try p = 1: 1/3 + 2/3 = 1  checkmark
 
-  g(n) = n なので:
-  T(n) = Θ(n^1 × (1 + ∫_1^n u / u^2 du))
-       = Θ(n × (1 + ∫_1^n 1/u du))
-       = Θ(n × (1 + ln n))
-       = Θ(n log n)
+  g(n) = n, so:
+  T(n) = Theta(n^1 * (1 + integral_1^n u / u^2 du))
+       = Theta(n * (1 + integral_1^n 1/u du))
+       = Theta(n * (1 + ln n))
+       = Theta(n log n)
 
-  → 再帰木法で得た結果と一致する。
+  -> Matches the result obtained by the recursion tree method.
 ```
 
 ---
 
-**問題 D2: 拡張マスター定理**
+**Problem D2: Extended Master Theorem**
 
-T(n) = 4T(n/2) + n^2 log n の計算量を求めよ（標準のマスター定理は適用不可）。
+Determine the complexity of T(n) = 4T(n/2) + n^2 log n (standard Master Theorem is inapplicable).
 
-**ヒント**: 拡張マスター定理: f(n) = Θ(n^{log_b a} × log^k n) のとき、T(n) = Θ(n^{log_b a} × log^{k+1} n)。
+**Hint**: Extended Master Theorem: When f(n) = Theta(n^{log_b a} * log^k n), T(n) = Theta(n^{log_b a} * log^{k+1} n).
 
-**解答**:
+**Solution**:
 
 ```
 a = 4, b = 2, n^(log_2 4) = n^2
-f(n) = n^2 log n = Θ(n^2 × log^1 n)
+f(n) = n^2 log n = Theta(n^2 * log^1 n)
 
-これは f(n) = Θ(n^(log_b a) × log^k n) で k = 1 のケース。
+This is the case f(n) = Theta(n^(log_b a) * log^k n) with k = 1.
 
-拡張マスター定理より:
-T(n) = Θ(n^2 × log^(1+1) n) = Θ(n^2 log^2 n)
+By Extended Master Theorem:
+T(n) = Theta(n^2 * log^(1+1) n) = Theta(n^2 log^2 n)
 
-検証（再帰木法）:
-  レベル l のコスト: 4^l × (n/2^l)^2 × log(n/2^l)
-                    = n^2 × (log n - l)
-  合計: Σ_{l=0}^{log n} n^2 × (log n - l)
-       = n^2 × Σ_{j=0}^{log n} j
-       = n^2 × (log n)(log n + 1)/2
-       = Θ(n^2 log^2 n) ✓
+Verification (recursion tree):
+  Cost at level l: 4^l * (n/2^l)^2 * log(n/2^l)
+                  = n^2 * (log n - l)
+  Total: Sum_{l=0}^{log n} n^2 * (log n - l)
+       = n^2 * Sum_{j=0}^{log n} j
+       = n^2 * (log n)(log n + 1)/2
+       = Theta(n^2 log^2 n)  checkmark
 ```
 
 ---
 
-**問題 D3: 償却計算量の下界証明**
+**Problem D3: Lower Bound Proof for Amortized Complexity**
 
-動的配列において、拡張係数 alpha > 1 で容量を alpha 倍にする戦略を考える。
-n 回の append 操作の合計コストが Omega(n) であることを証明し、
-一操作あたりの償却コストが Theta(1/(alpha - 1)) に比例することを示せ。
+Consider a dynamic array strategy that expands capacity by a factor of alpha > 1.
+Prove that the total cost of n append operations is Omega(n),
+and show that the amortized cost per operation is proportional to Theta(1/(alpha - 1)).
 
-**解答**:
+**Solution**:
 
 ```
-n 回の append で、拡張は以下のタイミングで発生する:
-  容量 1 → α → α² → ... → α^k （α^k >= n となる k まで）
+Over n appends, expansion occurs at the following times:
+  Capacity 1 -> alpha -> alpha^2 -> ... -> alpha^k (until alpha^k >= n)
 
-  拡張回数: k = ⌈log_α n⌉
+  Number of expansions: k = ceil(log_alpha n)
 
-  各拡張時のコピーコスト: 拡張直前の要素数
-  合計コピーコスト = 1 + α + α² + ... + α^{k-1}
-                   = (α^k - 1) / (α - 1)
-                   ≈ n / (α - 1)
+  Copy cost at each expansion: number of elements just before expansion
+  Total copy cost = 1 + alpha + alpha^2 + ... + alpha^{k-1}
+                  = (alpha^k - 1) / (alpha - 1)
+                  ~ n / (alpha - 1)
 
-  書き込みコスト: n
+  Write cost: n
 
-  合計コスト = n + n/(α-1) = n × (1 + 1/(α-1)) = n × α/(α-1)
+  Total cost = n + n/(alpha-1) = n * (1 + 1/(alpha-1)) = n * alpha/(alpha-1)
 
-  一操作あたりの償却コスト = α/(α-1)
+  Amortized cost per operation = alpha/(alpha-1)
 
-  α = 2 → 2/1 = 2   （1 操作あたり 2）
-  α = 1.5 → 1.5/0.5 = 3   （1 操作あたり 3）
-  α → 1 → ∞   （拡張係数を 1 に近づけると発散）
+  alpha = 2 -> 2/1 = 2   (2 per operation)
+  alpha = 1.5 -> 1.5/0.5 = 3   (3 per operation)
+  alpha -> 1 -> infinity   (diverges as expansion factor approaches 1)
 
-  → 拡張係数 α を小さくするとメモリ効率は良くなるが、
-    コピーの頻度が増えて時間コストが増大する。
-    これが空間と時間のトレードオフの典型例である。
+  -> Reducing expansion factor alpha improves memory efficiency
+    but increases copy frequency and time cost.
+    This is a classic example of the space-time tradeoff.
 ```
 
 ---
 
 ## 14. FAQ
 
-### Q1: マスター定理が使えないケースはどうすればよいか？
+### Q1: What should I do when the Master Theorem cannot be applied?
 
-**A:** 主に3つの代替手法がある:
+**A:** There are mainly three alternative methods:
 
-1. **再帰木法**: 最も汎用的。T(n) = T(n/3) + T(2n/3) + n のように分割が不均等な場合にも対応できる。各レベルのコストを計算して合計する。
+1. **Recursion tree method**: The most versatile. Can handle cases like T(n) = T(n/3) + T(2n/3) + n where splits are uneven. Compute the cost at each level and sum them.
 
-2. **Akra-Bazzi 定理**: T(n) = Σ a_i T(n/b_i) + g(n) の一般的な形に対応する、マスター定理の上位互換。ただし、g(n) が多項式的に有界である必要がある。
+2. **Akra-Bazzi theorem**: A generalization of the Master Theorem that handles T(n) = Sum a_i T(n/b_i) + g(n). However, g(n) must be polynomially bounded.
 
-3. **置換法**: 解を予想して帰納法で証明する。再帰木法で得た予想を厳密化するのに使う。予想が正しいことの「最終確認」としての役割が大きい。
+3. **Substitution method**: Guess and prove by induction. Used to rigorize guesses obtained from the recursion tree method. Its primary role is as a "final verification" that the guess is correct.
 
-実用的な方針: まず再帰木法で解の見当をつけ、次にマスター定理（適用可能なら）または Akra-Bazzi 定理で確認し、必要に応じて置換法で厳密に証明する。
+Practical approach: First use the recursion tree to get an estimate, then confirm with the Master Theorem (if applicable) or Akra-Bazzi theorem, and rigorously prove with the substitution method if needed.
 
-### Q2: log の底は計算量に影響するか？
+### Q2: Does the base of a logarithm affect complexity?
 
-**A:** 漸近記法（O, Θ, Ω）の中では影響しない。これは以下の数学的性質に基づく:
+**A:** Within asymptotic notation (O, Theta, Omega), it does not. This is based on the mathematical property:
 
 ```
 log_a(n) = log_b(n) / log_b(a)
 ```
 
-log_b(a) は定数であるため、底の違いは定数倍の差にしかならない。漸近記法は定数倍を無視するので、O(log_2 n) = O(log_10 n) = O(ln n) = O(log n) である。
+Since log_b(a) is a constant, differences in base are only constant factor differences. Asymptotic notation ignores constant factors, so O(log_2 n) = O(log_10 n) = O(ln n) = O(log n).
 
-**ただし注意**: 漸近記法の「外」では底は重要である。例えば:
-- 二分探索は正確には log_2 n 回の比較を行う
-- 三分探索は log_3 n 回の比較を行う
-- 実際の比較回数を議論するときは底を明示すべき
+**However, note**: Outside asymptotic notation, the base matters. For example:
+- Binary search performs exactly log_2 n comparisons
+- Ternary search performs log_3 n comparisons
+- When discussing actual comparison counts, the base should be specified
 
-また、log の指数が異なる場合は影響する: O(log n) ≠ O(log^2 n)。
+Also, different exponents of log do matter: O(log n) != O(log^2 n).
 
-### Q3: 再帰を反復に変換すると計算量は変わるか？
+### Q3: Does converting recursion to iteration change the complexity?
 
-**A:** 時間計算量は通常変わらない。ただし以下の点で差異が生じる:
+**A:** Time complexity usually does not change. However, differences arise in the following aspects:
 
-| 観点 | 再帰版 | 反復版 |
-|------|--------|--------|
-| 時間計算量 | 同じ | 同じ |
-| 空間計算量 | O(再帰の深さ) のスタック | 明示的スタックで制御可能 |
-| 定数係数 | 関数呼び出しオーバーヘッドあり | オーバーヘッドなし |
-| 末尾再帰最適化 | 言語依存（Python は非対応） | 不要 |
-| スタックオーバーフロー | 深い再帰で発生しうる | 発生しない |
+| Aspect | Recursive Version | Iterative Version |
+|--------|-------------------|-------------------|
+| Time complexity | Same | Same |
+| Space complexity | O(recursion depth) stack | Controllable with explicit stack |
+| Constant factor | Function call overhead present | No overhead |
+| Tail recursion optimization | Language-dependent (Python: not supported) | Not needed |
+| Stack overflow | Can occur with deep recursion | Does not occur |
 
-特に Python では再帰の深さが デフォルトで 1000 に制限されているため、深い再帰は反復に変換するか `sys.setrecursionlimit()` を明示的に設定する必要がある。
+In Python especially, recursion depth is limited to 1000 by default, so deep recursion should be converted to iteration or `sys.setrecursionlimit()` must be explicitly set.
 
-### Q4: 償却計算量は「平均計算量」と同じか？
+### Q4: Is amortized complexity the same as average complexity?
 
-**A:** 異なる。この混同は非常にありがちだが、明確に区別すべきである。
+**A:** They are different. This confusion is very common but should be clearly distinguished.
 
-| 観点 | 償却計算量 | 平均計算量 |
-|------|-----------|-----------|
-| 対象 | 操作列全体のコスト | 入力の確率分布に基づく期待値 |
-| 確率 | 一切使わない（決定論的） | 入力の確率分布を仮定 |
-| 保証 | 最悪ケースでの保証 | 確率的な保証のみ |
-| 例 | 動的配列: n 回の append で O(n) を保証 | クイックソート: ランダム入力で O(n log n) を期待 |
+| Aspect | Amortized Complexity | Average Complexity |
+|--------|---------------------|-------------------|
+| Subject | Cost of the entire operation sequence | Expected value based on input probability distribution |
+| Probability | Not used at all (deterministic) | Assumes input probability distribution |
+| Guarantee | Worst-case guarantee | Probabilistic guarantee only |
+| Example | Dynamic array: guarantees O(n) for n appends | Quicksort: expects O(n log n) for random input |
 
-償却計算量は「n 回の操作の合計が確実に O(n) 以下」という保証であり、特定の操作が遅くても、操作列全体では帳尻が合うことを示す。これに対し、平均計算量は「典型的な入力に対する期待実行時間」であり、最悪ケースでは保証されない。
+Amortized complexity is a guarantee that "the total of n operations is definitely at most O(n)." Even if a specific operation is slow, the entire sequence balances out. In contrast, average complexity is the "expected running time for typical input" and is not guaranteed in the worst case.
 
-### Q5: なぜ計算量解析が重要なのか？ プロファイラで測定すれば十分ではないか？
+### Q5: Why is complexity analysis important? Isn't profiling sufficient?
 
-**A:** 計算量解析とプロファイリングは相補的なツールであり、どちらか一方では不十分である。
+**A:** Complexity analysis and profiling are complementary tools; neither alone is sufficient.
 
-計算量解析の利点:
-- **実装前に性能を予測できる**: コードを書く前に、設計段階でボトルネックを特定できる
-- **スケーラビリティの予測**: 「入力が 10 倍になったとき、どうなるか？」に答えられる
-- **ハードウェア非依存**: 今日の高速なマシンでは気にならない差が、10 倍の入力では致命的になり得る
+Advantages of complexity analysis:
+- **Can predict performance before implementation**: Identify bottlenecks at design stage before writing code
+- **Scalability prediction**: Can answer "what happens when input grows 10x?"
+- **Hardware independent**: Differences negligible on today's fast machines can become critical at 10x input
 
-プロファイリングの利点:
-- **定数係数やキャッシュ効率を反映**: 漸近記法では見えない実際の性能を測定できる
-- **ボトルネックの特定**: コードのどの部分が実際に遅いかを正確に知れる
+Advantages of profiling:
+- **Reflects constant factors and cache efficiency**: Measures actual performance invisible in asymptotic notation
+- **Bottleneck identification**: Precisely identifies which parts of code are actually slow
 
-両者を組み合わせるのが理想的: まず計算量解析で O(n log n) vs O(n^2) 等の「大枠」を決め、次にプロファイリングで定数係数や実装の最適化を行う。
+Ideally, combine both: First use complexity analysis to decide the "big picture" (O(n log n) vs O(n^2) etc.), then use profiling for constant factor and implementation optimization.
 
-### Q6: 空間計算量は時間計算量とどう関係するか？
+### Q6: How does space complexity relate to time complexity?
 
-**A:** 一般に、空間計算量は時間計算量以下である。なぜなら、メモリの各セルに書き込むのに少なくとも O(1) 時間がかかるためである。
+**A:** In general, space complexity is at most equal to time complexity. This is because writing to each memory cell takes at least O(1) time.
 
 ```
-S(n) <= T(n) が常に成り立つ
+S(n) <= T(n) always holds
 
-ただし、逆は成り立たない:
-  例: 二分探索 — T(n) = O(log n), S(n) = O(1)
-  例: マージソート — T(n) = O(n log n), S(n) = O(n)
+However, the reverse does not hold:
+  Example: Binary search -- T(n) = O(log n), S(n) = O(1)
+  Example: Merge sort -- T(n) = O(n log n), S(n) = O(n)
 
-時間と空間のトレードオフの典型例:
-  素朴なフィボナッチ: T(n) = O(φ^n), S(n) = O(n) （再帰スタック）
-  メモ化フィボナッチ:  T(n) = O(n), S(n) = O(n) （キャッシュ）
-  反復フィボナッチ:   T(n) = O(n), S(n) = O(1) （変数2つ）
+Classic examples of time-space tradeoffs:
+  Naive Fibonacci: T(n) = O(phi^n), S(n) = O(n) (recursion stack)
+  Memoized Fibonacci: T(n) = O(n), S(n) = O(n) (cache)
+  Iterative Fibonacci: T(n) = O(n), S(n) = O(1) (two variables)
 ```
 
 ---
@@ -2201,96 +2205,98 @@ S(n) <= T(n) が常に成り立つ
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is paramount. Understanding deepens not just through theory, but by actually writing and running code to verify behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What common mistakes do beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping fundamentals and jumping to applications. We recommend thoroughly understanding the basic concepts explained in this guide before moving to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this knowledge applied in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently used in everyday development work, particularly during code reviews and architecture design.
 
 ---
 
-## 15. まとめ
+## 15. Summary
 
-### 15.1 知識の全体像
+### 15.1 Overall Knowledge Map
 
 ```
-計算量解析の全体マップ:
+Overall map of complexity analysis:
 
-┌─────────────────────────────────────────────────┐
-│                  計算量解析                       │
-├─────────────┬──────────────┬─────────────────────┤
-│  ケース分析  │  償却解析     │  再帰の解析          │
-│             │              │                     │
-│ ・最悪ケース │ ・集約法      │ ・漸化式の立式       │
-│ ・平均ケース │ ・配賦法      │ ・マスター定理       │
-│ ・最良ケース │ ・ポテンシャル │ ・再帰木法          │
-│             │  法          │ ・置換法            │
-│             │              │ ・Akra-Bazzi        │
-└─────────────┴──────────────┴─────────────────────┘
-         ↓                           ↓
-  ┌──────────────────┐    ┌───────────────────────┐
-  │ アルゴリズム選択   │    │ データ構造の評価       │
-  │ の判断基準        │    │ の判断基準            │
-  └──────────────────┘    └───────────────────────┘
++--------------------------------------------------+
+|                  Complexity Analysis              |
++--------------+---------------+--------------------+
+|  Case Analysis| Amortized    | Recursion Analysis |
+|              | Analysis      |                    |
+| - Worst case | - Aggregate   | - Formulating      |
+| - Average    |   method      |   recurrences      |
+|   case       | - Accounting  | - Master Theorem   |
+| - Best case  |   method      | - Recursion tree   |
+|              | - Potential    | - Substitution     |
+|              |   method      | - Akra-Bazzi       |
++--------------+---------------+--------------------+
+         |                           |
+  +------------------+    +------------------------+
+  | Criteria for     |    | Criteria for evaluating|
+  | algorithm        |    | data structures        |
+  | selection        |    |                        |
+  +------------------+    +------------------------+
 ```
 
-### 15.2 核心ポイント
+### 15.2 Key Points
 
-| 項目 | ポイント |
-|------|---------|
-| 漸近記法 | O（上界）、Omega（下界）、Theta（タイトな界）の3種を使い分ける |
-| 最悪ケース | 応答時間保証が必要な場面で重視。SLA やリアルタイムシステムに不可欠 |
-| 平均ケース | 入力の確率分布を仮定した期待値。実用上の性能評価に有用 |
-| 償却解析 | 操作列全体のコストを評価。「たまに高い操作」を正しく扱う |
-| 漸化式 | 再帰構造からコストの関係式を立てる。解析の出発点 |
-| マスター定理 | T(n) = aT(n/b) + f(n) 形の定型解法。3ケースで分類 |
-| 再帰木法 | 各レベルのコストを視覚化して合計する。最も直感的な手法 |
-| 置換法 | 予想を立てて帰納法で証明する。厳密性を要求される場面で使用 |
-| Akra-Bazzi | マスター定理の一般化。不均等分割にも対応 |
-| 実用との接続 | 漸近解析は「大枠」、プロファイリングは「詳細」。両方必要 |
+| Item | Key Point |
+|------|-----------|
+| Asymptotic notation | Distinguish among O (upper bound), Omega (lower bound), and Theta (tight bound) |
+| Worst case | Emphasized when response time guarantees are needed. Essential for SLAs and real-time systems |
+| Average case | Expected value assuming input probability distribution. Useful for practical performance evaluation |
+| Amortized analysis | Evaluates cost of the entire operation sequence. Correctly handles "occasionally expensive operations" |
+| Recurrences | Formulate cost relations from recursive structure. Starting point for analysis |
+| Master Theorem | Standard solution for T(n) = aT(n/b) + f(n). Classified into 3 cases |
+| Recursion tree | Visualize and sum costs at each level. Most intuitive method |
+| Substitution | Guess and prove by induction. Used when rigor is required |
+| Akra-Bazzi | Generalization of Master Theorem. Handles uneven splits |
+| Practical connection | Asymptotic analysis provides the "big picture," profiling provides "details." Both are needed |
 
-### 15.3 計算量解析を行う際のチェックリスト
+### 15.3 Checklist for Performing Complexity Analysis
 
-1. **漸化式を正しく立てたか**: ベースケース、再帰呼び出し数、各呼び出しのサイズ、再帰外のコストを確認
-2. **適用する定理の前提条件を満たしているか**: マスター定理の 3 ケース、正則条件
-3. **ケースの区別をしているか**: 最悪・平均・最良のどれを議論しているかを明示
-4. **償却解析が必要な場面を見逃していないか**: 個別操作の最悪ケースが「悲観的すぎ」ないか確認
-5. **定数係数が実用上重要でないか**: 小さな n での性能が問題になる場面では定数係数も考慮
-
----
-
-## 次に読むべきガイド
-
-- [時間空間トレードオフ — メモ化とブルームフィルタ](./02-space-time-tradeoff.md)
-- [ソート — Quick/Merge/Heap の計算量比較](../02-algorithms/00-sorting.md)
+1. **Was the recurrence formulated correctly?**: Verify base case, number of recursive calls, size of each call, and non-recursive costs
+2. **Are the conditions for the applied theorem satisfied?**: Master Theorem's 3 cases, regularity condition
+3. **Are cases distinguished?**: Make explicit whether worst, average, or best case is being discussed
+4. **Have you missed situations requiring amortized analysis?**: Verify that individual operation worst case is not "overly pessimistic"
+5. **Are constant factors practically important?**: Also consider constant factors in scenarios where small-n performance matters
 
 ---
 
-## 16. 参考文献
+## Recommended Next Guides
 
-1. Cormen, T.H., Leiserson, C.E., Rivest, R.L., & Stein, C. (2022). *Introduction to Algorithms* (4th ed.). MIT Press. — 第3章「Growth of Functions」、第4章「Divide-and-Conquer」、第16章「Amortized Analysis」。漸近記法の厳密な定義、マスター定理の証明、償却解析の3手法が詳述されている。
-
-2. Akra, M. & Bazzi, L. (1998). "On the solution of linear recurrence equations." *Computational Optimization and Applications*, 10(2), 195-210. — マスター定理では扱えない不均等分割の漸化式を一般的に解く定理を提示した原論文。
-
-3. Levitin, A. (2012). *Introduction to the Design and Analysis of Algorithms* (3rd ed.). Pearson. — 再帰の解析手法を豊富な例題とともに解説。初学者にとって最も取り組みやすい教科書のひとつ。
-
-4. Sedgewick, R. & Flajolet, P. (2013). *An Introduction to the Analysis of Algorithms* (2nd ed.). Addison-Wesley. — 平均ケース解析の数学的手法を体系的に扱った上級教科書。クイックソートの平均ケース導出が特に詳しい。
-
-5. Tarjan, R.E. (1985). "Amortized Computational Complexity." *SIAM Journal on Algebraic and Discrete Methods*, 6(2), 306-318. — 償却解析の概念を形式化した先駆的論文。ポテンシャル法の原型が示されている。
-
-6. Knuth, D.E. (1997). *The Art of Computer Programming, Volume 1: Fundamental Algorithms* (3rd ed.). Addison-Wesley. — 計算量解析の数学的基礎を最も厳密に扱った古典。漸近記法の起源と精密な定義が記されている。
-
-7. MIT OpenCourseWare. "6.006 Introduction to Algorithms" and "6.046J Design and Analysis of Algorithms." — MIT の計算量解析に関する講義資料。再帰の解析、マスター定理、償却解析の講義動画とノートが無償公開されている。
+- [Space-Time Tradeoff -- Memoization and Bloom Filters](./02-space-time-tradeoff.md)
+- [Sorting -- Quick/Merge/Heap Complexity Comparison](../02-algorithms/00-sorting.md)
 
 ---
 
-## 参考文献
+## 16. References
 
-- [MDN Web Docs](https://developer.mozilla.org/) - Web技術のリファレンス
-- [Wikipedia](https://ja.wikipedia.org/) - 技術概念の概要
+1. Cormen, T.H., Leiserson, C.E., Rivest, R.L., & Stein, C. (2022). *Introduction to Algorithms* (4th ed.). MIT Press. -- Chapter 3 "Growth of Functions," Chapter 4 "Divide-and-Conquer," Chapter 16 "Amortized Analysis." Provides rigorous definitions of asymptotic notation, proof of the Master Theorem, and detailed treatment of the three amortized analysis methods.
+
+2. Akra, M. & Bazzi, L. (1998). "On the solution of linear recurrence equations." *Computational Optimization and Applications*, 10(2), 195-210. -- The original paper presenting a theorem for generally solving recurrences with uneven splits that the Master Theorem cannot handle.
+
+3. Levitin, A. (2012). *Introduction to the Design and Analysis of Algorithms* (3rd ed.). Pearson. -- Explains recursion analysis techniques with abundant examples. One of the most accessible textbooks for beginners.
+
+4. Sedgewick, R. & Flajolet, P. (2013). *An Introduction to the Analysis of Algorithms* (2nd ed.). Addison-Wesley. -- An advanced textbook that systematically covers mathematical methods for average case analysis. Particularly detailed on quicksort's average case derivation.
+
+5. Tarjan, R.E. (1985). "Amortized Computational Complexity." *SIAM Journal on Algebraic and Discrete Methods*, 6(2), 306-318. -- The pioneering paper that formalized the concept of amortized analysis. Presents the prototype of the potential method.
+
+6. Knuth, D.E. (1997). *The Art of Computer Programming, Volume 1: Fundamental Algorithms* (3rd ed.). Addison-Wesley. -- The classic that treats the mathematical foundations of complexity analysis most rigorously. Contains the origins and precise definitions of asymptotic notation.
+
+7. MIT OpenCourseWare. "6.006 Introduction to Algorithms" and "6.046J Design and Analysis of Algorithms." -- MIT lecture materials on complexity analysis. Lecture videos and notes on recursion analysis, Master Theorem, and amortized analysis are freely available.
+
+---
+
+## References
+
+- [MDN Web Docs](https://developer.mozilla.org/) - Web technology reference
+- [Wikipedia](https://en.wikipedia.org/) - Technical concept overviews

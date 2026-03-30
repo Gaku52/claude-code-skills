@@ -1,137 +1,137 @@
-# グラフ — 表現方法・隣接リスト/行列・重み付きグラフ
+# Graphs — Representations, Adjacency Lists/Matrices, and Weighted Graphs
 
-> ネットワーク、依存関係、地図など多様な関係を表現するグラフの基本概念と、各表現方法の特徴を学ぶ。
-
----
-
-## この章で学ぶこと
-
-1. **グラフの基本用語** — 頂点、辺、有向/無向、重み
-2. **隣接リストと隣接行列** の実装と使い分け
-3. **重み付きグラフ** と特殊なグラフの表現
-4. **Union-Find** — 素集合データ構造
-5. **実務応用** — ソーシャルグラフ、依存関係解決、経路探索
-
-
-## 前提知識
-
-このガイドを読む前に、以下の知識があると理解が深まります:
-
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [ヒープ — 二分ヒープ・ヒープソート・優先度キュー実装](./05-heaps.md) の内容を理解していること
+> Learn the fundamental concepts of graphs that represent diverse relationships such as networks, dependencies, and maps, along with the characteristics of each representation method.
 
 ---
 
-## 1. グラフの基本概念
+## What You Will Learn in This Chapter
 
-### 1.1 グラフの種類
+1. **Basic graph terminology** — vertices, edges, directed/undirected, weights
+2. **Adjacency lists and adjacency matrices** — implementation and when to use each
+3. **Weighted graphs** and representations of special graphs
+4. **Union-Find** — disjoint set data structure
+5. **Practical applications** — social graphs, dependency resolution, pathfinding
+
+
+## Prerequisites
+
+Before reading this guide, having the following knowledge will deepen your understanding:
+
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Familiarity with the content of [Heaps -- Binary Heaps, Heapsort, and Priority Queue Implementation](./05-heaps.md)
+
+---
+
+## 1. Fundamental Graph Concepts
+
+### 1.1 Types of Graphs
 
 ```
-無向グラフ:                  有向グラフ:
-  A --- B                    A → B
-  |   / |                    ↑   ↓
-  |  /  |                    D ← C
+Undirected graph:               Directed graph:
+  A --- B                    A -> B
+  |   / |                    ^    |
+  |  /  |                    D <- C
   | /   |
   C --- D
 
-重み付きグラフ:              DAG (有向非巡回グラフ):
-  A -5- B                    A → B → D
-  |     |                    ↓   ↓
-  3     2                    C → E
+Weighted graph:                 DAG (Directed Acyclic Graph):
+  A -5- B                    A -> B -> D
+  |     |                    |    |
+  3     2                    C -> E
   |     |
   C -1- D
 
-完全グラフ K4:               二部グラフ:
+Complete graph K4:              Bipartite graph:
   A --- B                    L1 --- R1
   |\ /|                     |  \ / |
   | X  |                     |   X  |
   |/ \ |                     |  / \ |
   C --- D                    L2 --- R2
 
-多重グラフ:                  自己ループ:
-  A ==== B                    A ⟲
-  (2本の辺)                   (自分自身への辺)
+Multigraph:                     Self-loop:
+  A ==== B                    A <->
+  (2 edges)                   (edge to itself)
 ```
 
-### 1.2 用語
+### 1.2 Terminology
 
 ```
-頂点 (Vertex/Node): グラフの点
-辺 (Edge): 頂点間の接続
-次数 (Degree): 頂点に接続する辺の数
-  - 有向グラフ: 入次数 (in-degree) + 出次数 (out-degree)
-パス (Path): 頂点の列で連続する辺が存在
-  - 単純パス: 頂点の重複なし
-サイクル (Cycle): 始点と終点が同じパス
-  - DAG: サイクルを持たない有向グラフ
-連結 (Connected): 全頂点間にパスが存在（無向グラフ）
-強連結 (Strongly Connected): 全頂点間に有向パスが存在（有向グラフ）
-連結成分 (Connected Component): 極大連結部分グラフ
-木 (Tree): 連結でサイクルのないグラフ（E = V - 1）
-森 (Forest): サイクルのないグラフ（複数の木の集合）
+Vertex (Node): a point in the graph
+Edge: a connection between vertices
+Degree: the number of edges connected to a vertex
+  - Directed graph: in-degree + out-degree
+Path: a sequence of vertices where consecutive edges exist
+  - Simple path: no vertex repetition
+Cycle: a path where the start and end vertices are the same
+  - DAG: a directed graph with no cycles
+Connected: a path exists between all vertex pairs (undirected graph)
+Strongly connected: a directed path exists between all vertex pairs (directed graph)
+Connected component: a maximal connected subgraph
+Tree: a connected graph with no cycles (E = V - 1)
+Forest: a graph with no cycles (a collection of trees)
 ```
 
-### 1.3 グラフの基本定理
+### 1.3 Fundamental Graph Theorems
 
 ```python
-# グラフの重要な定理:
+# Important graph theorems:
 #
-# 1. 握手定理 (Handshaking Lemma):
-#    無向グラフの全頂点の次数の和 = 2 × 辺数
-#    Σ deg(v) = 2|E|
+# 1. Handshaking Lemma:
+#    Sum of all vertex degrees in an undirected graph = 2 * number of edges
+#    sum(deg(v)) = 2|E|
 #
-# 2. 木の定理:
-#    n 頂点の木は必ず n-1 本の辺を持つ
-#    木に辺を1本追加するとサイクルが1つできる
+# 2. Tree theorem:
+#    A tree with n vertices always has n-1 edges
+#    Adding one edge to a tree creates exactly one cycle
 #
-# 3. オイラーの定理:
-#    平面グラフについて: V - E + F = 2
-#    (V: 頂点数, E: 辺数, F: 面数)
+# 3. Euler's formula:
+#    For planar graphs: V - E + F = 2
+#    (V: vertices, E: edges, F: faces)
 #
-# 4. 辺数の上限:
-#    無向単純グラフ: E ≤ V(V-1)/2
-#    有向単純グラフ: E ≤ V(V-1)
+# 4. Upper bound on edges:
+#    Undirected simple graph: E <= V(V-1)/2
+#    Directed simple graph: E <= V(V-1)
 
 def graph_info(vertices, edges, directed=False):
-    """グラフの基本情報を表示"""
+    """Display basic graph information"""
     v = len(vertices)
     e = len(edges)
     max_edges = v * (v - 1) if directed else v * (v - 1) // 2
     density = e / max_edges if max_edges > 0 else 0
 
-    print(f"頂点数: {v}")
-    print(f"辺数: {e}")
-    print(f"最大辺数: {max_edges}")
-    print(f"密度: {density:.4f}")
-    print(f"疎/密: {'密' if density > 0.5 else '疎'}")
-    print(f"木の可能性: {'Yes' if e == v - 1 else 'No'}")
+    print(f"Number of vertices: {v}")
+    print(f"Number of edges: {e}")
+    print(f"Maximum edges: {max_edges}")
+    print(f"Density: {density:.4f}")
+    print(f"Sparse/Dense: {'Dense' if density > 0.5 else 'Sparse'}")
+    print(f"Could be a tree: {'Yes' if e == v - 1 else 'No'}")
 ```
 
 ---
 
-## 2. 隣接リスト
+## 2. Adjacency List
 
-### 2.1 辞書ベースの実装（最も一般的）
+### 2.1 Dictionary-Based Implementation (Most Common)
 
 ```python
 class Graph:
-    """辞書ベースの隣接リスト
+    """Dictionary-based adjacency list
 
-    疎グラフに最適。動的な頂点/辺の追加が容易。
-    空間計算量: O(V + E)
+    Optimal for sparse graphs. Easy dynamic vertex/edge addition.
+    Space complexity: O(V + E)
     """
     def __init__(self, directed=False):
         self.adj = {}
         self.directed = directed
 
     def add_vertex(self, v):
-        """頂点を追加 — O(1)"""
+        """Add a vertex — O(1)"""
         if v not in self.adj:
             self.adj[v] = []
 
     def add_edge(self, u, v, weight=1):
-        """辺を追加 — O(1)"""
+        """Add an edge — O(1)"""
         self.add_vertex(u)
         self.add_vertex(v)
         self.adj[u].append((v, weight))
@@ -139,34 +139,34 @@ class Graph:
             self.adj[v].append((u, weight))
 
     def remove_edge(self, u, v):
-        """辺を削除 — O(degree)"""
+        """Remove an edge — O(degree)"""
         self.adj[u] = [(w, wt) for w, wt in self.adj.get(u, []) if w != v]
         if not self.directed:
             self.adj[v] = [(w, wt) for w, wt in self.adj.get(v, []) if w != u]
 
     def remove_vertex(self, v):
-        """頂点とその辺を全て削除 — O(V + E)"""
+        """Remove a vertex and all its edges — O(V + E)"""
         if v not in self.adj:
             return
-        # v を参照する辺を削除
+        # Remove edges referencing v
         for u in self.adj:
             self.adj[u] = [(w, wt) for w, wt in self.adj[u] if w != v]
         del self.adj[v]
 
     def neighbors(self, v):
-        """隣接頂点を返す — O(1)"""
+        """Return adjacent vertices — O(1)"""
         return [(w, wt) for w, wt in self.adj.get(v, [])]
 
     def has_edge(self, u, v):
-        """辺の存在確認 — O(degree(u))"""
+        """Check edge existence — O(degree(u))"""
         return any(w == v for w, _ in self.adj.get(u, []))
 
     def vertices(self):
-        """全頂点 — O(V)"""
+        """All vertices — O(V)"""
         return list(self.adj.keys())
 
     def edges(self):
-        """全辺 — O(V + E)"""
+        """All edges — O(V + E)"""
         result = []
         visited = set()
         for u in self.adj:
@@ -178,18 +178,18 @@ class Graph:
         return result
 
     def degree(self, v):
-        """次数 — O(1)"""
+        """Degree — O(1)"""
         return len(self.adj.get(v, []))
 
     def in_degree(self, v):
-        """入次数（有向グラフ）— O(V + E)"""
+        """In-degree (directed graph) — O(V + E)"""
         count = 0
         for u in self.adj:
             count += sum(1 for w, _ in self.adj[u] if w == v)
         return count
 
     def out_degree(self, v):
-        """出次数（有向グラフ）— O(1)"""
+        """Out-degree (directed graph) — O(1)"""
         return len(self.adj.get(v, []))
 
     def __repr__(self):
@@ -199,27 +199,27 @@ class Graph:
             lines.append(f"  {v}: {neighbors}")
         return "Graph(\n" + "\n".join(lines) + "\n)"
 
-# 使用例
+# Usage example
 g = Graph()
 g.add_edge('A', 'B', 5)
 g.add_edge('A', 'C', 3)
 g.add_edge('B', 'D', 2)
 g.add_edge('C', 'D', 1)
 print(g)
-print(f"A の隣接頂点: {g.neighbors('A')}")
-print(f"B-D 辺の存在: {g.has_edge('B', 'D')}")
-print(f"全辺: {g.edges()}")
+print(f"Neighbors of A: {g.neighbors('A')}")
+print(f"Edge B-D exists: {g.has_edge('B', 'D')}")
+print(f"All edges: {g.edges()}")
 ```
 
-### 2.2 defaultdict ベースの簡潔な実装
+### 2.2 Concise Implementation Using defaultdict
 
 ```python
 from collections import defaultdict
 
 class SimpleGraph:
-    """defaultdict を使った簡潔な実装
+    """Concise implementation using defaultdict
 
-    競技プログラミングや簡易的な用途向け
+    Suitable for competitive programming and quick prototyping
     """
     def __init__(self, directed=False):
         self.adj = defaultdict(list)
@@ -233,7 +233,7 @@ class SimpleGraph:
     def __getitem__(self, v):
         return self.adj[v]
 
-# 重みなしグラフの場合はさらにシンプル
+# Even simpler for unweighted graphs
 class UnweightedGraph:
     def __init__(self, directed=False):
         self.adj = defaultdict(set)
@@ -248,67 +248,67 @@ class UnweightedGraph:
         return v in self.adj[u]  # O(1) average with set
 ```
 
-### 2.3 隣接リスト表現の図解
+### 2.3 Visual Illustration of Adjacency List Representation
 
 ```
-隣接リスト表現:
+Adjacency list representation:
 
-  無向重み付きグラフ:
+  Undirected weighted graph:
   A: [(B,5), (C,3)]
   B: [(A,5), (D,2)]
   C: [(A,3), (D,1)]
   D: [(B,2), (C,1)]
 
-  有向グラフ:
+  Directed graph:
   A: [B, C]
   B: [D]
   C: [D]
   D: []
 
-メモリ: O(V + E)（無向は各辺が2回格納されるので O(V + 2E)）
+Memory: O(V + E) (undirected stores each edge twice: O(V + 2E))
 ```
 
 ---
 
-## 3. 隣接行列
+## 3. Adjacency Matrix
 
-### 3.1 基本実装
+### 3.1 Basic Implementation
 
 ```python
 class GraphMatrix:
-    """隣接行列: 密グラフや小規模グラフに最適
+    """Adjacency matrix: optimal for dense or small-scale graphs
 
-    辺の存在確認が O(1)
-    空間計算量: O(V^2)
+    Edge existence check is O(1)
+    Space complexity: O(V^2)
     """
     def __init__(self, n):
         self.n = n
         self.matrix = [[0] * n for _ in range(n)]
 
     def add_edge(self, u, v, weight=1):
-        """辺を追加 — O(1)"""
+        """Add an edge — O(1)"""
         self.matrix[u][v] = weight
-        self.matrix[v][u] = weight  # 無向グラフの場合
+        self.matrix[v][u] = weight  # For undirected graph
 
     def remove_edge(self, u, v):
-        """辺を削除 — O(1)"""
+        """Remove an edge — O(1)"""
         self.matrix[u][v] = 0
         self.matrix[v][u] = 0
 
     def has_edge(self, u, v):
-        """辺の存在確認 — O(1)"""
+        """Check edge existence — O(1)"""
         return self.matrix[u][v] != 0
 
     def neighbors(self, v):
-        """隣接頂点を返す — O(V)"""
+        """Return adjacent vertices — O(V)"""
         return [u for u in range(self.n) if self.matrix[v][u] != 0]
 
     def degree(self, v):
-        """次数 — O(V)"""
+        """Degree — O(V)"""
         return sum(1 for u in range(self.n) if self.matrix[v][u] != 0)
 
     def edge_weight(self, u, v):
-        """辺の重みを返す — O(1)"""
+        """Return edge weight — O(1)"""
         return self.matrix[u][v]
 
     def __repr__(self):
@@ -319,26 +319,26 @@ class GraphMatrix:
             rows.append(row)
         return header + "\n" + "\n".join(rows)
 
-# 使用例
+# Usage example
 gm = GraphMatrix(4)  # A=0, B=1, C=2, D=3
 gm.add_edge(0, 1, 5)  # A-B: 5
 gm.add_edge(0, 2, 3)  # A-C: 3
 gm.add_edge(1, 3, 2)  # B-D: 2
 gm.add_edge(2, 3, 1)  # C-D: 1
 print(gm)
-print(f"A の隣接頂点: {gm.neighbors(0)}")  # [1, 2]
-print(f"B-D の重み: {gm.edge_weight(1, 3)}")  # 2
+print(f"Neighbors of A: {gm.neighbors(0)}")  # [1, 2]
+print(f"Weight of B-D: {gm.edge_weight(1, 3)}")  # 2
 ```
 
-### 3.2 NumPy を使った高速な隣接行列
+### 3.2 Fast Adjacency Matrix Using NumPy
 
 ```python
 import numpy as np
 
 class NumpyGraphMatrix:
-    """NumPy ベースの隣接行列
+    """NumPy-based adjacency matrix
 
-    大規模グラフの行列演算（ワーシャル・フロイド等）に最適
+    Optimal for matrix operations on large graphs (Floyd-Warshall, etc.)
     """
     def __init__(self, n):
         self.n = n
@@ -349,9 +349,9 @@ class NumpyGraphMatrix:
         self.matrix[v][u] = weight
 
     def shortest_paths_floyd(self):
-        """ワーシャル・フロイド法 — O(V^3)
+        """Floyd-Warshall algorithm — O(V^3)
 
-        全ペアの最短距離を求める
+        Computes all-pairs shortest distances
         """
         dist = self.matrix.copy()
         dist[dist == 0] = np.inf
@@ -365,7 +365,7 @@ class NumpyGraphMatrix:
         return dist
 
     def transitive_closure(self):
-        """推移的閉包: 到達可能性の行列"""
+        """Transitive closure: reachability matrix"""
         reach = (self.matrix > 0).astype(int)
         np.fill_diagonal(reach, 1)
         for k in range(self.n):
@@ -375,23 +375,23 @@ class NumpyGraphMatrix:
         return reach
 
     def degree_matrix(self):
-        """次数行列"""
+        """Degree matrix"""
         degrees = np.sum(self.matrix > 0, axis=1)
         return np.diag(degrees)
 
     def laplacian_matrix(self):
-        """ラプラシアン行列 = 次数行列 - 隣接行列
+        """Laplacian matrix = degree matrix - adjacency matrix
 
-        グラフの連結成分数 = ラプラシアン行列の固有値 0 の重複度
+        Number of connected components = multiplicity of eigenvalue 0 in the Laplacian
         """
         adj = (self.matrix > 0).astype(float)
         return self.degree_matrix() - adj
 ```
 
-### 3.3 隣接行列表現の図解
+### 3.3 Visual Illustration of Adjacency Matrix Representation
 
 ```
-隣接行列表現 (A=0, B=1, C=2, D=3):
+Adjacency matrix representation (A=0, B=1, C=2, D=3):
 
       A  B  C  D
   A [ 0  5  3  0 ]
@@ -399,23 +399,23 @@ class NumpyGraphMatrix:
   C [ 3  0  0  1 ]
   D [ 0  2  1  0 ]
 
-メモリ: O(V^2)
+Memory: O(V^2)
 
-行列演算が可能:
-- A^k[i][j] = i から j への長さ k のパス数
-- 固有値分析によるグラフのスペクトル解析
+Matrix operations are possible:
+- A^k[i][j] = number of paths of length k from i to j
+- Eigenvalue analysis for spectral analysis of the graph
 ```
 
 ---
 
-## 4. 辺リスト表現
+## 4. Edge List Representation
 
 ```python
 class EdgeListGraph:
-    """辺リスト: 辺の集合としてグラフを表現
+    """Edge list: represents a graph as a collection of edges
 
-    Kruskal のアルゴリズムに最適（辺を重みでソート）
-    空間計算量: O(E)
+    Optimal for Kruskal's algorithm (edges sorted by weight)
+    Space complexity: O(E)
     """
     def __init__(self):
         self.edges = []
@@ -428,11 +428,11 @@ class EdgeListGraph:
         self.vertices.add(v)
 
     def sorted_edges(self):
-        """重みでソート — O(E log E)"""
+        """Sort by weight — O(E log E)"""
         return sorted(self.edges, key=lambda e: e[2])
 
     def to_adjacency_list(self, directed=False):
-        """隣接リストに変換"""
+        """Convert to adjacency list"""
         adj = {v: [] for v in self.vertices}
         for u, v, w in self.edges:
             adj[u].append((v, w))
@@ -440,29 +440,29 @@ class EdgeListGraph:
                 adj[v].append((u, w))
         return adj
 
-# 使用例
+# Usage example
 g = EdgeListGraph()
 g.add_edge('A', 'B', 5)
 g.add_edge('A', 'C', 3)
 g.add_edge('B', 'D', 2)
 g.add_edge('C', 'D', 1)
-print(f"辺（重み順）: {g.sorted_edges()}")
+print(f"Edges (sorted by weight): {g.sorted_edges()}")
 # [('C', 'D', 1), ('B', 'D', 2), ('A', 'C', 3), ('A', 'B', 5)]
 ```
 
 ---
 
-## 5. Union-Find（素集合データ構造）
+## 5. Union-Find (Disjoint Set Data Structure)
 
 ```python
 class UnionFind:
-    """Union-Find: 素集合の管理
+    """Union-Find: management of disjoint sets
 
-    2つの最適化:
-    1. Path Compression: find 時にノードを根に直接接続
-    2. Union by Rank: 小さい木を大きい木に接続
+    Two optimizations:
+    1. Path Compression: connect nodes directly to root during find
+    2. Union by Rank: attach smaller tree to larger tree
 
-    ほぼ O(1) の操作（逆アッカーマン関数 α(n) ≈ 5）
+    Nearly O(1) operations (inverse Ackermann function alpha(n) ~ 5)
     """
     def __init__(self, n):
         self.parent = list(range(n))
@@ -471,13 +471,13 @@ class UnionFind:
         self.components = n
 
     def find(self, x):
-        """根を返す — O(α(n)) ≈ O(1)"""
+        """Return root — O(alpha(n)) ~ O(1)"""
         if self.parent[x] != x:
             self.parent[x] = self.find(self.parent[x])  # Path Compression
         return self.parent[x]
 
     def union(self, x, y):
-        """2つの集合を統合 — O(α(n)) ≈ O(1)
+        """Merge two sets — O(alpha(n)) ~ O(1)
 
         Returns: True if merged, False if already in same set
         """
@@ -496,42 +496,42 @@ class UnionFind:
         return True
 
     def connected(self, x, y):
-        """同じ集合に属するか — O(α(n))"""
+        """Check if in the same set — O(alpha(n))"""
         return self.find(x) == self.find(y)
 
     def component_size(self, x):
-        """x が属する集合のサイズ"""
+        """Size of the set containing x"""
         return self.size[self.find(x)]
 
     def num_components(self):
-        """連結成分の数"""
+        """Number of connected components"""
         return self.components
 
-# 使用例
+# Usage example
 uf = UnionFind(7)
 uf.union(0, 1)
 uf.union(1, 2)
 uf.union(3, 4)
 print(uf.connected(0, 2))  # True
 print(uf.connected(0, 3))  # False
-print(uf.num_components())  # 4 (グループ: {0,1,2}, {3,4}, {5}, {6})
+print(uf.num_components())  # 4 (groups: {0,1,2}, {3,4}, {5}, {6})
 print(uf.component_size(0)) # 3
 ```
 
-### 5.1 Union-Find の応用
+### 5.1 Applications of Union-Find
 
 ```python
-# === Kruskal の最小全域木 ===
+# === Kruskal's Minimum Spanning Tree ===
 def kruskal(vertices, edges):
-    """Kruskal のアルゴリズム — O(E log E)
+    """Kruskal's algorithm — O(E log E)
 
-    辺を重みでソートし、サイクルを作らない辺を順に追加
+    Sort edges by weight and add edges that don't create cycles
     """
     n = len(vertices)
     uf = UnionFind(n)
     vertex_idx = {v: i for i, v in enumerate(vertices)}
 
-    # 辺を重みでソート
+    # Sort edges by weight
     sorted_edges = sorted(edges, key=lambda e: e[2])
 
     mst = []
@@ -546,7 +546,7 @@ def kruskal(vertices, edges):
 
     return mst, total_weight
 
-# 使用例
+# Usage example
 vertices = ['A', 'B', 'C', 'D', 'E']
 edges = [
     ('A', 'B', 4), ('A', 'C', 2), ('B', 'C', 1),
@@ -554,14 +554,14 @@ edges = [
     ('D', 'E', 2),
 ]
 mst, weight = kruskal(vertices, edges)
-print(f"最小全域木: {mst}")
-print(f"総重み: {weight}")
-# 最小全域木: [('B', 'C', 1), ('A', 'C', 2), ('D', 'E', 2), ('A', 'B', 4)]
-# 総重み: 9
+print(f"Minimum spanning tree: {mst}")
+print(f"Total weight: {weight}")
+# Minimum spanning tree: [('B', 'C', 1), ('A', 'C', 2), ('D', 'E', 2), ('A', 'B', 4)]
+# Total weight: 9
 
-# === 連結成分の検出 ===
+# === Connected Component Detection ===
 def count_connected_components(n, edges):
-    """無向グラフの連結成分数"""
+    """Count connected components in an undirected graph"""
     uf = UnionFind(n)
     for u, v in edges:
         uf.union(u, v)
@@ -569,13 +569,13 @@ def count_connected_components(n, edges):
 
 print(count_connected_components(5, [(0,1), (1,2), (3,4)]))  # 2
 
-# === サイクル検出 ===
+# === Cycle Detection ===
 def has_cycle_undirected(n, edges):
-    """無向グラフのサイクル検出"""
+    """Cycle detection in an undirected graph"""
     uf = UnionFind(n)
     for u, v in edges:
         if uf.connected(u, v):
-            return True  # 既に連結 → サイクル
+            return True  # Already connected -> cycle
         uf.union(u, v)
     return False
 
@@ -585,16 +585,16 @@ print(has_cycle_undirected(4, [(0,1), (1,2), (2,3), (3,0)])) # True
 
 ---
 
-## 6. 特殊なグラフ
+## 6. Special Graphs
 
-### 6.1 二部グラフ
+### 6.1 Bipartite Graphs
 
 ```python
 def is_bipartite(graph, n):
-    """二部グラフ判定（BFS彩色）— O(V+E)
+    """Bipartite graph check (BFS coloring) — O(V+E)
 
-    2色で塗り分けられるかどうかを判定。
-    マッチング問題の前提条件。
+    Determines whether the graph can be 2-colored.
+    A prerequisite for matching problems.
     """
     from collections import deque
     color = [-1] * n
@@ -613,21 +613,21 @@ def is_bipartite(graph, n):
                     return False, []
     return True, color
 
-# 使用例
+# Usage example
 graph = {0: [1, 3], 1: [0, 2], 2: [1, 3], 3: [0, 2]}
 is_bip, coloring = is_bipartite(graph, 4)
-print(f"二部グラフ: {is_bip}, 彩色: {coloring}")
-# 二部グラフ: True, 彩色: [0, 1, 0, 1]
+print(f"Bipartite: {is_bip}, Coloring: {coloring}")
+# Bipartite: True, Coloring: [0, 1, 0, 1]
 ```
 
-### 6.2 グリッドをグラフとして扱う
+### 6.2 Treating Grids as Graphs
 
 ```python
 def grid_to_graph(grid):
-    """2D グリッドの隣接関係
+    """Adjacency relations on a 2D grid
 
-    多くのグラフ問題はグリッド上で出題される。
-    迷路探索、島の数、最短経路など。
+    Many graph problems are posed on grids.
+    Maze search, number of islands, shortest path, etc.
     """
     rows, cols = len(grid), len(grid[0])
     directions = [(0, 1), (0, -1), (1, 0), (-1, 0)]
@@ -640,9 +640,9 @@ def grid_to_graph(grid):
 
     return neighbors
 
-# 島の数（Number of Islands）
+# Number of Islands
 def num_islands(grid):
-    """島の数を DFS で数える — O(R × C)"""
+    """Count the number of islands using DFS — O(R x C)"""
     if not grid:
         return 0
 
@@ -671,9 +671,9 @@ grid = [
     ['0', '0', '1', '0', '0'],
     ['0', '0', '0', '1', '1'],
 ]
-print(f"島の数: {num_islands(grid)}")  # 3
+print(f"Number of islands: {num_islands(grid)}")  # 3
 
-# 8方向の場合
+# For 8-directional movement
 def grid_8dir_neighbors(grid):
     rows, cols = len(grid), len(grid[0])
     directions = [
@@ -688,18 +688,18 @@ def grid_8dir_neighbors(grid):
     return neighbors
 ```
 
-### 6.3 暗黙的グラフ（Implicit Graph）
+### 6.3 Implicit Graphs
 
 ```python
-# 暗黙的グラフ: 辺を明示的に持たず、
-# 関数で隣接頂点を動的に生成するグラフ
+# Implicit graphs: graphs that don't explicitly store edges,
+# but dynamically generate adjacent vertices via functions
 
-# 例1: 数値パズル（状態空間グラフ）
+# Example 1: Number puzzle (state-space graph)
 def word_ladder(begin_word, end_word, word_list):
-    """ワードラダー: 1文字ずつ変えて目的語に到達
+    """Word Ladder: reach the target word by changing one letter at a time
 
-    頂点: 各単語
-    辺: 1文字だけ異なる単語ペア
+    Vertices: each word
+    Edges: word pairs differing by exactly one letter
     """
     from collections import deque
     word_set = set(word_list)
@@ -723,9 +723,9 @@ def word_ladder(begin_word, end_word, word_list):
 
 print(word_ladder("hit", "cog", ["hot","dot","dog","lot","log","cog"]))  # 5
 
-# 例2: ナイトの最短移動
+# Example 2: Minimum knight moves
 def min_knight_moves(x, y):
-    """チェスのナイトが (0,0) から (x,y) への最短手数"""
+    """Minimum moves for a chess knight from (0,0) to (x,y)"""
     from collections import deque
     moves = [
         (2, 1), (2, -1), (-2, 1), (-2, -1),
@@ -747,16 +747,16 @@ def min_knight_moves(x, y):
     return -1
 ```
 
-### 6.4 トポロジカルソート
+### 6.4 Topological Sort
 
 ```python
 from collections import deque
 
 def topological_sort_kahn(graph, n):
-    """カーンのアルゴリズム（BFS ベース）— O(V+E)
+    """Kahn's algorithm (BFS-based) — O(V+E)
 
-    入次数 0 のノードから順に処理。
-    DAG でない場合（サイクルあり）は全ノードを処理できない。
+    Process nodes with in-degree 0 first.
+    If the graph is not a DAG (has cycles), not all nodes can be processed.
     """
     in_degree = [0] * n
     for u in range(n):
@@ -775,11 +775,11 @@ def topological_sort_kahn(graph, n):
                 queue.append(v)
 
     if len(result) != n:
-        return None  # サイクルが存在
+        return None  # Cycle exists
     return result
 
 def topological_sort_dfs(graph, n):
-    """DFS ベースのトポロジカルソート — O(V+E)"""
+    """DFS-based topological sort — O(V+E)"""
     visited = [False] * n
     stack = []
     has_cycle = [False]
@@ -806,24 +806,24 @@ def topological_sort_dfs(graph, n):
         return None
     return stack[::-1]
 
-# 使用例: タスク依存関係
-# 0→1→3
-# 0→2→3
+# Usage example: task dependencies
+# 0->1->3
+# 0->2->3
 graph = {0: [1, 2], 1: [3], 2: [3], 3: []}
 print(topological_sort_kahn(graph, 4))  # [0, 1, 2, 3] or [0, 2, 1, 3]
 ```
 
-### 6.5 強連結成分（Kosaraju のアルゴリズム）
+### 6.5 Strongly Connected Components (Kosaraju's Algorithm)
 
 ```python
 def kosaraju_scc(graph, n):
-    """Kosaraju のアルゴリズム: 強連結成分の分解 — O(V+E)
+    """Kosaraju's algorithm: SCC decomposition — O(V+E)
 
-    Step 1: DFS で後行順序を求める
-    Step 2: グラフを転置
-    Step 3: 後行順序の逆順で転置グラフの DFS → 各 SCC
+    Step 1: Compute post-order via DFS
+    Step 2: Transpose the graph
+    Step 3: DFS on transposed graph in reverse post-order -> each SCC
     """
-    # Step 1: 後行順序
+    # Step 1: Post-order
     visited = [False] * n
     order = []
 
@@ -838,13 +838,13 @@ def kosaraju_scc(graph, n):
         if not visited[v]:
             dfs1(v)
 
-    # Step 2: 転置グラフ
+    # Step 2: Transposed graph
     reversed_graph = {i: [] for i in range(n)}
     for u in graph:
         for v in graph[u]:
             reversed_graph[v].append(u)
 
-    # Step 3: 逆順で DFS
+    # Step 3: DFS in reverse order
     visited = [False] * n
     sccs = []
 
@@ -863,19 +863,19 @@ def kosaraju_scc(graph, n):
 
     return sccs
 
-# 使用例
+# Usage example
 graph = {0: [1], 1: [2], 2: [0, 3], 3: [4], 4: [5], 5: [3]}
 sccs = kosaraju_scc(graph, 6)
-print(f"強連結成分: {sccs}")  # [[0, 2, 1], [3, 5, 4]]
+print(f"Strongly connected components: {sccs}")  # [[0, 2, 1], [3, 5, 4]]
 ```
 
 ---
 
-## 7. グラフの表現変換
+## 7. Graph Representation Conversion
 
 ```python
 def adj_list_to_matrix(adj, vertices):
-    """隣接リストから隣接行列へ変換"""
+    """Convert adjacency list to adjacency matrix"""
     n = len(vertices)
     v_idx = {v: i for i, v in enumerate(vertices)}
     matrix = [[0] * n for _ in range(n)]
@@ -885,7 +885,7 @@ def adj_list_to_matrix(adj, vertices):
     return matrix
 
 def adj_matrix_to_list(matrix, vertices=None):
-    """隣接行列から隣接リストへ変換"""
+    """Convert adjacency matrix to adjacency list"""
     n = len(matrix)
     if vertices is None:
         vertices = list(range(n))
@@ -897,7 +897,7 @@ def adj_matrix_to_list(matrix, vertices=None):
     return adj
 
 def edge_list_to_adj_list(edges, directed=False):
-    """辺リストから隣接リストへ変換"""
+    """Convert edge list to adjacency list"""
     from collections import defaultdict
     adj = defaultdict(list)
     for u, v, w in edges:
@@ -909,15 +909,15 @@ def edge_list_to_adj_list(edges, directed=False):
 
 ---
 
-## 8. 実務応用パターン
+## 8. Practical Application Patterns
 
-### 8.1 ソーシャルグラフ分析
+### 8.1 Social Graph Analysis
 
 ```python
 from collections import deque
 
 def bfs_shortest_path(graph, start, end):
-    """2人のユーザー間の最短距離（6次の隔たり）"""
+    """Shortest distance between two users (six degrees of separation)"""
     if start == end:
         return 0, [start]
 
@@ -933,18 +933,18 @@ def bfs_shortest_path(graph, start, end):
                 visited.add(neighbor)
                 queue.append((neighbor, path + [neighbor]))
 
-    return -1, []  # 到達不可能
+    return -1, []  # Unreachable
 
 def mutual_friends(graph, user_a, user_b):
-    """共通の友人を返す — O(min(deg(A), deg(B)))"""
+    """Return mutual friends — O(min(deg(A), deg(B)))"""
     friends_a = set(graph.get(user_a, []))
     friends_b = set(graph.get(user_b, []))
     return friends_a & friends_b
 
 def friend_recommendations(graph, user, max_recs=10):
-    """友達の友達（2ホップ先）をレコメンド
+    """Recommend friends-of-friends (2 hops away)
 
-    既に友人でない人を、共通友人数でランク付け
+    Rank people who are not already friends by number of mutual friends
     """
     from collections import Counter
     friends = set(graph.get(user, []))
@@ -954,11 +954,11 @@ def friend_recommendations(graph, user, max_recs=10):
     for friend in graph.get(user, []):
         for fof in graph.get(friend, []):
             if fof not in friends:
-                candidates[fof] += 1  # 共通友人数をカウント
+                candidates[fof] += 1  # Count mutual friends
 
     return candidates.most_common(max_recs)
 
-# 使用例
+# Usage example
 social = {
     "Alice": ["Bob", "Charlie", "David"],
     "Bob": ["Alice", "Charlie", "Eve"],
@@ -969,27 +969,27 @@ social = {
 }
 print(mutual_friends(social, "Alice", "Bob"))  # {'Charlie'}
 print(friend_recommendations(social, "Alice"))
-# [('Frank', 2), ('Eve', 1)]  Frank は Charlie と David 経由
+# [('Frank', 2), ('Eve', 1)]  Frank via Charlie and David
 ```
 
-### 8.2 依存関係の解決
+### 8.2 Dependency Resolution
 
 ```python
 def resolve_dependencies(packages):
-    """パッケージの依存関係をトポロジカルソートで解決
+    """Resolve package dependencies using topological sort
 
     packages: {package: [dependencies]}
     """
     from collections import deque
 
-    # 入次数の計算
+    # Compute in-degrees
     in_degree = {pkg: 0 for pkg in packages}
     for pkg, deps in packages.items():
         for dep in deps:
             if dep in in_degree:
                 in_degree[dep] = in_degree.get(dep, 0)
 
-    # 逆グラフの構築（依存先 → 依存元）
+    # Build reverse graph (dependency -> dependent)
     reverse = {pkg: [] for pkg in packages}
     for pkg, deps in packages.items():
         for dep in deps:
@@ -997,7 +997,7 @@ def resolve_dependencies(packages):
                 reverse[dep].append(pkg)
                 in_degree[pkg] += 1
 
-    # トポロジカルソート
+    # Topological sort
     queue = deque([pkg for pkg, deg in in_degree.items() if deg == 0])
     install_order = []
 
@@ -1010,11 +1010,11 @@ def resolve_dependencies(packages):
                 queue.append(dependent)
 
     if len(install_order) != len(packages):
-        return None  # 循環依存
+        return None  # Circular dependency
 
     return install_order
 
-# 使用例
+# Usage example
 packages = {
     "express": ["body-parser", "cookie-parser"],
     "body-parser": ["bytes", "content-type"],
@@ -1024,15 +1024,15 @@ packages = {
     "cookie": [],
 }
 order = resolve_dependencies(packages)
-print(f"インストール順: {order}")
+print(f"Install order: {order}")
 # ['bytes', 'content-type', 'cookie', 'body-parser', 'cookie-parser', 'express']
 ```
 
-### 8.3 コースの順序（Course Schedule）
+### 8.3 Course Schedule
 
 ```python
 def can_finish_courses(num_courses, prerequisites):
-    """全コースを受講可能か判定（サイクル検出）
+    """Determine if all courses can be completed (cycle detection)
 
     prerequisites: [[course, prereq], ...]
     """
@@ -1045,7 +1045,7 @@ def can_finish_courses(num_courses, prerequisites):
         graph[prereq].append(course)
         in_degree[course] += 1
 
-    # 入次数 0 のコースからスタート
+    # Start with courses having in-degree 0
     queue = deque([i for i in range(num_courses) if in_degree[i] == 0])
     count = 0
 
@@ -1060,17 +1060,17 @@ def can_finish_courses(num_courses, prerequisites):
     return count == num_courses
 
 print(can_finish_courses(4, [[1,0], [2,0], [3,1], [3,2]]))  # True
-print(can_finish_courses(2, [[1,0], [0,1]]))  # False（循環依存）
+print(can_finish_courses(2, [[1,0], [0,1]]))  # False (circular dependency)
 ```
 
-### 8.4 グラフの彩色
+### 8.4 Graph Coloring
 
 ```python
 def graph_coloring(graph, n, max_colors=None):
-    """貪欲法によるグラフ彩色 — O(V + E)
+    """Greedy graph coloring — O(V + E)
 
-    各頂点に隣接頂点と異なる色を割り当てる。
-    最適解の保証はないが、高々 max_degree + 1 色で彩色可能。
+    Assign each vertex a color different from its neighbors.
+    No optimality guarantee, but can color with at most max_degree + 1 colors.
     """
     if max_colors is None:
         max_colors = n
@@ -1078,13 +1078,13 @@ def graph_coloring(graph, n, max_colors=None):
     colors = [-1] * n
 
     for v in range(n):
-        # 隣接頂点で使われている色を収集
+        # Collect colors used by neighbors
         used_colors = set()
         for u in graph.get(v, []):
             if colors[u] != -1:
                 used_colors.add(colors[u])
 
-        # 最小の未使用色を割り当て
+        # Assign the smallest unused color
         for c in range(max_colors):
             if c not in used_colors:
                 colors[v] = c
@@ -1092,20 +1092,20 @@ def graph_coloring(graph, n, max_colors=None):
 
     return colors
 
-# 使用例: スケジューリング（時間帯の割り当て）
-# 同時に行えない会議を隣接辺で表現
+# Usage example: scheduling (time slot assignment)
+# Meetings that cannot occur simultaneously are represented as adjacent edges
 meetings = {0: [1, 2], 1: [0, 3], 2: [0, 3], 3: [1, 2]}
 colors = graph_coloring(meetings, 4)
-print(f"彩色結果: {colors}")  # [0, 1, 1, 0] — 2色で彩色可能
+print(f"Coloring result: {colors}")  # [0, 1, 1, 0] — 2 colors suffice
 ```
 
-### 8.5 最短経路（BFS: 重みなし）
+### 8.5 Shortest Path (BFS: Unweighted)
 
 ```python
 from collections import deque
 
 def shortest_path_bfs(graph, start, end):
-    """重みなしグラフの最短経路 — O(V + E)"""
+    """Shortest path in an unweighted graph — O(V + E)"""
     visited = {start}
     queue = deque([(start, [start])])
 
@@ -1119,10 +1119,10 @@ def shortest_path_bfs(graph, start, end):
                 visited.add(neighbor)
                 queue.append((neighbor, path + [neighbor]))
 
-    return None  # 到達不可能
+    return None  # Unreachable
 
 def all_shortest_paths_bfs(graph, start):
-    """始点からの全頂点への最短距離 — O(V + E)"""
+    """Shortest distances from source to all vertices — O(V + E)"""
     dist = {start: 0}
     queue = deque([start])
 
@@ -1138,75 +1138,75 @@ def all_shortest_paths_bfs(graph, start):
 
 ---
 
-## 9. 比較表
+## 9. Comparison Tables
 
-### 表1: 表現方法の比較
+### Table 1: Comparison of Representation Methods
 
-| 操作 | 隣接リスト | 隣接行列 | 辺リスト |
-|------|-----------|---------|---------|
-| 空間 | O(V+E) | O(V^2) | O(E) |
-| 辺の追加 | O(1) | O(1) | O(1) |
-| 辺の存在確認 | O(degree) | O(1) | O(E) |
-| 隣接頂点列挙 | O(degree) | O(V) | O(E) |
-| 全辺列挙 | O(V+E) | O(V^2) | O(E) |
-| 頂点の追加 | O(1) | O(V^2) | O(1) |
-| 辺の削除 | O(degree) | O(1) | O(E) |
-| 適するグラフ | 疎 | 密 | ソート前提 |
-| メモリ効率 | 良い | 悪い（疎） | 最良 |
+| Operation | Adjacency List | Adjacency Matrix | Edge List |
+|-----------|---------------|-----------------|-----------|
+| Space | O(V+E) | O(V^2) | O(E) |
+| Add edge | O(1) | O(1) | O(1) |
+| Check edge existence | O(degree) | O(1) | O(E) |
+| List neighbors | O(degree) | O(V) | O(E) |
+| List all edges | O(V+E) | O(V^2) | O(E) |
+| Add vertex | O(1) | O(V^2) | O(1) |
+| Remove edge | O(degree) | O(1) | O(E) |
+| Best for | Sparse | Dense | Sort-based |
+| Memory efficiency | Good | Poor (sparse) | Best |
 
-### 表2: グラフの種類と特徴
+### Table 2: Graph Types and Characteristics
 
-| 種類 | 特徴 | 例 | 辺数 |
-|------|------|-----|------|
-| 無向グラフ | 辺に方向なし | SNS の友人関係 | - |
-| 有向グラフ | 辺に方向あり | Web のリンク構造 | - |
-| 重み付きグラフ | 辺にコストあり | 道路ネットワーク | - |
-| DAG | 有向 + サイクルなし | タスク依存関係 | - |
-| 二部グラフ | 2色彩色可能 | マッチング問題 | - |
-| 完全グラフ | 全頂点ペアに辺 | - | V(V-1)/2 |
-| 木 | 連結 + サイクルなし | 階層構造 | V-1 |
-| 平面グラフ | 辺が交差しない | V-E+F=2 | E <= 3V-6 |
+| Type | Characteristics | Example | Edge Count |
+|------|----------------|---------|------------|
+| Undirected graph | Edges have no direction | SNS friendships | - |
+| Directed graph | Edges have direction | Web link structure | - |
+| Weighted graph | Edges have costs | Road networks | - |
+| DAG | Directed + no cycles | Task dependencies | - |
+| Bipartite graph | 2-colorable | Matching problems | - |
+| Complete graph | Edges between all vertex pairs | - | V(V-1)/2 |
+| Tree | Connected + no cycles | Hierarchical structures | V-1 |
+| Planar graph | No edge crossings | V-E+F=2 | E <= 3V-6 |
 
-### 表3: グラフアルゴリズムの計算量
+### Table 3: Graph Algorithm Complexities
 
-| アルゴリズム | 計算量 | 用途 |
-|-------------|--------|------|
-| BFS | O(V+E) | 最短経路（重みなし）、連結性 |
-| DFS | O(V+E) | サイクル検出、トポロジカルソート |
-| Dijkstra | O((V+E) log V) | 最短経路（非負重み） |
-| Bellman-Ford | O(VE) | 最短経路（負の重みあり） |
-| Floyd-Warshall | O(V^3) | 全ペア最短経路 |
-| Kruskal | O(E log E) | 最小全域木 |
-| Prim | O((V+E) log V) | 最小全域木 |
-| Tarjan SCC | O(V+E) | 強連結成分 |
-| Kosaraju SCC | O(V+E) | 強連結成分 |
+| Algorithm | Complexity | Use Case |
+|-----------|-----------|----------|
+| BFS | O(V+E) | Shortest path (unweighted), connectivity |
+| DFS | O(V+E) | Cycle detection, topological sort |
+| Dijkstra | O((V+E) log V) | Shortest path (non-negative weights) |
+| Bellman-Ford | O(VE) | Shortest path (negative weights allowed) |
+| Floyd-Warshall | O(V^3) | All-pairs shortest path |
+| Kruskal | O(E log E) | Minimum spanning tree |
+| Prim | O((V+E) log V) | Minimum spanning tree |
+| Tarjan SCC | O(V+E) | Strongly connected components |
+| Kosaraju SCC | O(V+E) | Strongly connected components |
 
 ---
 
-## 10. アンチパターン
+## 10. Anti-Patterns
 
-### アンチパターン1: 疎グラフに隣接行列を使う
+### Anti-Pattern 1: Using adjacency matrix for sparse graphs
 
 ```python
-# BAD: 頂点 10,000 で辺 20,000 の疎グラフ
-# 隣接行列: 10,000 x 10,000 = 100,000,000 要素 (約 800MB)
+# BAD: 10,000 vertices with 20,000 edges (sparse graph)
+# Adjacency matrix: 10,000 x 10,000 = 100,000,000 elements (~800MB)
 matrix = [[0] * 10000 for _ in range(10000)]
 
-# GOOD: 隣接リスト — O(V+E) = O(30,000) 程度
+# GOOD: Adjacency list — O(V+E) = ~O(30,000)
 from collections import defaultdict
 adj = defaultdict(list)
 ```
 
-### アンチパターン2: 頂点の追加/削除を考慮しない
+### Anti-Pattern 2: Not considering dynamic vertex addition/removal
 
 ```python
-# BAD: 固定サイズの隣接行列で頂点を動的に追加
+# BAD: Fixed-size adjacency matrix with dynamic vertex addition
 class FixedGraph:
     def __init__(self):
         self.matrix = [[0] * 100 for _ in range(100)]
-    # 100頂点を超えると破綻
+    # Breaks when exceeding 100 vertices
 
-# GOOD: 辞書ベースの隣接リスト — 動的にサイズ変更可能
+# GOOD: Dictionary-based adjacency list — dynamically resizable
 class DynamicGraph:
     def __init__(self):
         self.adj = {}
@@ -1215,18 +1215,18 @@ class DynamicGraph:
             self.adj[v] = []
 ```
 
-### アンチパターン3: BFS/DFS で visited を忘れる
+### Anti-Pattern 3: Forgetting visited set in BFS/DFS
 
 ```python
-# BAD: visited チェックなし → 無限ループ
+# BAD: No visited check -> infinite loop
 def bad_bfs(graph, start):
     queue = [start]
     while queue:
         node = queue.pop(0)
         for neighbor in graph[node]:
-            queue.append(neighbor)  # 同じノードを何度も訪問!
+            queue.append(neighbor)  # Visits same node repeatedly!
 
-# GOOD: visited set を使用
+# GOOD: Use a visited set
 def good_bfs(graph, start):
     visited = {start}
     queue = [start]
@@ -1238,13 +1238,13 @@ def good_bfs(graph, start):
                 queue.append(neighbor)
 ```
 
-### アンチパターン4: 負の重みに Dijkstra を使う
+### Anti-Pattern 4: Using Dijkstra with negative weights
 
 ```python
-# BAD: 負の重みがある場合に Dijkstra → 不正な結果
-# Dijkstra は貪欲法なので、負の重みがあると最短経路を見逃す
+# BAD: Using Dijkstra with negative weights -> incorrect results
+# Dijkstra is greedy, so negative weights can cause it to miss shortest paths
 
-# GOOD: 負の重みがある場合は Bellman-Ford を使用
+# GOOD: Use Bellman-Ford when negative weights exist
 def bellman_ford(vertices, edges, start):
     dist = {v: float('inf') for v in vertices}
     dist[start] = 0
@@ -1254,43 +1254,43 @@ def bellman_ford(vertices, edges, start):
             if dist[u] + w < dist[v]:
                 dist[v] = dist[u] + w
 
-    # 負のサイクル検出
+    # Negative cycle detection
     for u, v, w in edges:
         if dist[u] + w < dist[v]:
-            return None  # 負のサイクルが存在
+            return None  # Negative cycle exists
     return dist
 ```
 
 
 ---
 
-## トラブルシューティング
+## Troubleshooting
 
-### よくあるエラーと解決策
+### Common Errors and Solutions
 
-| エラー | 原因 | 解決策 |
-|--------|------|--------|
-| 初期化エラー | 設定ファイルの不備 | 設定ファイルのパスと形式を確認 |
-| タイムアウト | ネットワーク遅延/リソース不足 | タイムアウト値の調整、リトライ処理の追加 |
-| メモリ不足 | データ量の増大 | バッチ処理の導入、ページネーションの実装 |
-| 権限エラー | アクセス権限の不足 | 実行ユーザーの権限確認、設定の見直し |
-| データ不整合 | 並行処理の競合 | ロック機構の導入、トランザクション管理 |
+| Error | Cause | Solution |
+|-------|-------|----------|
+| Initialization error | Configuration file issues | Verify config file path and format |
+| Timeout | Network latency / resource shortage | Adjust timeout values, add retry logic |
+| Out of memory | Data volume increase | Introduce batch processing, implement pagination |
+| Permission error | Insufficient access rights | Check user permissions, review configuration |
+| Data inconsistency | Concurrency conflicts | Introduce locking mechanisms, transaction management |
 
-### デバッグの手順
+### Debugging Steps
 
-1. **エラーメッセージの確認**: スタックトレースを読み、発生箇所を特定する
-2. **再現手順の確立**: 最小限のコードでエラーを再現する
-3. **仮説の立案**: 考えられる原因をリストアップする
-4. **段階的な検証**: ログ出力やデバッガを使って仮説を検証する
-5. **修正と回帰テスト**: 修正後、関連する箇所のテストも実行する
+1. **Check error messages**: read the stack trace to identify the location
+2. **Establish reproduction steps**: reproduce the error with minimal code
+3. **Form hypotheses**: list possible causes
+4. **Verify systematically**: use log output or debuggers to test hypotheses
+5. **Fix and regression test**: after fixing, also run tests on related areas
 
 ```python
-# デバッグ用ユーティリティ
+# Debugging utility
 import logging
 import traceback
 from functools import wraps
 
-# ロガーの設定
+# Logger configuration
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
@@ -1298,124 +1298,125 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def debug_decorator(func):
-    """関数の入出力をログ出力するデコレータ"""
+    """Decorator that logs function input/output"""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        logger.debug(f"呼び出し: {func.__name__}(args={args}, kwargs={kwargs})")
+        logger.debug(f"Call: {func.__name__}(args={args}, kwargs={kwargs})")
         try:
             result = func(*args, **kwargs)
-            logger.debug(f"戻り値: {func.__name__} -> {result}")
+            logger.debug(f"Return: {func.__name__} -> {result}")
             return result
         except Exception as e:
-            logger.error(f"例外発生: {func.__name__}: {e}")
+            logger.error(f"Exception in {func.__name__}: {e}")
             logger.error(traceback.format_exc())
             raise
     return wrapper
 
 @debug_decorator
 def process_data(items):
-    """データ処理（デバッグ対象）"""
+    """Data processing (debug target)"""
     if not items:
-        raise ValueError("空のデータ")
+        raise ValueError("Empty data")
     return [item * 2 for item in items]
 ```
 
-### パフォーマンス問題の診断
+### Performance Issue Diagnosis
 
-パフォーマンス問題が発生した場合の診断手順:
+Steps for diagnosing performance issues:
 
-1. **ボトルネックの特定**: プロファイリングツールで計測
-2. **メモリ使用量の確認**: メモリリークの有無をチェック
-3. **I/O待ちの確認**: ディスクやネットワークI/Oの状況を確認
-4. **同時接続数の確認**: コネクションプールの状態を確認
+1. **Identify bottlenecks**: measure with profiling tools
+2. **Check memory usage**: check for memory leaks
+3. **Check I/O waits**: verify disk and network I/O status
+4. **Check connection counts**: verify connection pool status
 
-| 問題の種類 | 診断ツール | 対策 |
-|-----------|-----------|------|
-| CPU負荷 | cProfile, py-spy | アルゴリズム改善、並列化 |
-| メモリリーク | tracemalloc, objgraph | 参照の適切な解放 |
-| I/Oボトルネック | strace, iostat | 非同期I/O、キャッシュ |
-| DB遅延 | EXPLAIN, slow query log | インデックス、クエリ最適化 |
-
----
-
-## チーム開発での活用
-
-### コードレビューのチェックリスト
-
-このトピックに関連するコードレビューで確認すべきポイント:
-
-- [ ] 命名規則が一貫しているか
-- [ ] エラーハンドリングが適切か
-- [ ] テストカバレッジは十分か
-- [ ] パフォーマンスへの影響はないか
-- [ ] セキュリティ上の問題はないか
-- [ ] ドキュメントは更新されているか
-
-### ナレッジ共有のベストプラクティス
-
-| 方法 | 頻度 | 対象 | 効果 |
-|------|------|------|------|
-| ペアプログラミング | 随時 | 複雑なタスク | 即時のフィードバック |
-| テックトーク | 週1回 | チーム全体 | 知識の水平展開 |
-| ADR (設計記録) | 都度 | 将来のメンバー | 意思決定の透明性 |
-| 振り返り | 2週間ごと | チーム全体 | 継続的改善 |
-| モブプログラミング | 月1回 | 重要な設計 | 合意形成 |
-
-### 技術的負債の管理
-
-```
-優先度マトリクス:
-
-        影響度 高
-          │
-    ┌─────┼─────┐
-    │ 計画 │ 即座 │
-    │ 的に │ に   │
-    │ 対応 │ 対応 │
-    ├─────┼─────┤
-    │ 記録 │ 次の │
-    │ のみ │ Sprint│
-    │     │ で   │
-    └─────┼─────┘
-          │
-        影響度 低
-    発生頻度 低  発生頻度 高
-```
+| Issue Type | Diagnostic Tool | Countermeasure |
+|-----------|----------------|----------------|
+| CPU load | cProfile, py-spy | Algorithm improvement, parallelization |
+| Memory leak | tracemalloc, objgraph | Proper reference release |
+| I/O bottleneck | strace, iostat | Async I/O, caching |
+| DB delay | EXPLAIN, slow query log | Indexing, query optimization |
 
 ---
 
-## セキュリティの考慮事項
+## Team Development Practices
 
-### 一般的な脆弱性と対策
+### Code Review Checklist
 
-| 脆弱性 | リスクレベル | 対策 | 検出方法 |
-|--------|------------|------|---------|
-| インジェクション攻撃 | 高 | 入力値のバリデーション・パラメータ化クエリ | SAST/DAST |
-| 認証の不備 | 高 | 多要素認証・セッション管理の強化 | ペネトレーションテスト |
-| 機密データの露出 | 高 | 暗号化・アクセス制御 | セキュリティ監査 |
-| 設定の不備 | 中 | セキュリティヘッダー・最小権限の原則 | 構成スキャン |
-| ログの不足 | 中 | 構造化ログ・監査証跡 | ログ分析 |
+Points to check during code reviews related to this topic:
 
-### セキュアコーディングのベストプラクティス
+- [ ] Are naming conventions consistent?
+- [ ] Is error handling appropriate?
+- [ ] Is test coverage sufficient?
+- [ ] Is there any performance impact?
+- [ ] Are there any security issues?
+- [ ] Is documentation updated?
+
+### Knowledge Sharing Best Practices
+
+| Method | Frequency | Audience | Benefit |
+|--------|-----------|----------|---------|
+| Pair programming | As needed | Complex tasks | Immediate feedback |
+| Tech talks | Weekly | Entire team | Horizontal knowledge transfer |
+| ADR (Architecture Decision Records) | As needed | Future members | Decision transparency |
+| Retrospectives | Biweekly | Entire team | Continuous improvement |
+| Mob programming | Monthly | Important designs | Consensus building |
+
+### Technical Debt Management
+
+```
+Priority matrix:
+
+        Impact High
+          |
+    +-----+-----+
+    | Plan |  Act |
+    | and  | Imme-|
+    |sched-|diate-|
+    | ule  |  ly  |
+    +------+------+
+    |Record| Next |
+    | only | Sprint|
+    |      |      |
+    +------+------+
+          |
+        Impact Low
+    Frequency Low  Frequency High
+```
+
+---
+
+## Security Considerations
+
+### Common Vulnerabilities and Countermeasures
+
+| Vulnerability | Risk Level | Countermeasure | Detection Method |
+|--------------|------------|----------------|------------------|
+| Injection attacks | High | Input validation, parameterized queries | SAST/DAST |
+| Authentication flaws | High | Multi-factor auth, session management hardening | Penetration testing |
+| Sensitive data exposure | High | Encryption, access control | Security audit |
+| Misconfiguration | Medium | Security headers, principle of least privilege | Configuration scan |
+| Insufficient logging | Medium | Structured logging, audit trails | Log analysis |
+
+### Secure Coding Best Practices
 
 ```python
-# セキュアコーディング例
+# Secure coding example
 import hashlib
 import secrets
 import hmac
 from typing import Optional
 
 class SecurityUtils:
-    """セキュリティユーティリティ"""
+    """Security utilities"""
 
     @staticmethod
     def generate_token(length: int = 32) -> str:
-        """暗号学的に安全なトークン生成"""
+        """Generate cryptographically secure token"""
         return secrets.token_urlsafe(length)
 
     @staticmethod
     def hash_password(password: str, salt: Optional[str] = None) -> tuple:
-        """パスワードのハッシュ化"""
+        """Hash a password"""
         if salt is None:
             salt = secrets.token_hex(16)
         hashed = hashlib.pbkdf2_hmac(
@@ -1428,118 +1429,118 @@ class SecurityUtils:
 
     @staticmethod
     def verify_password(password: str, hashed: str, salt: str) -> bool:
-        """パスワードの検証"""
+        """Verify a password"""
         new_hash, _ = SecurityUtils.hash_password(password, salt)
         return hmac.compare_digest(new_hash, hashed)
 
     @staticmethod
     def sanitize_input(value: str) -> str:
-        """入力値のサニタイズ"""
+        """Sanitize input value"""
         dangerous_chars = ['<', '>', '"', "'", '&', '\\']
         result = value
         for char in dangerous_chars:
             result = result.replace(char, '')
         return result.strip()
 
-# 使用例
+# Usage example
 token = SecurityUtils.generate_token()
 hashed, salt = SecurityUtils.hash_password("my_password")
 is_valid = SecurityUtils.verify_password("my_password", hashed, salt)
 ```
 
-### セキュリティチェックリスト
+### Security Checklist
 
-- [ ] 全ての入力値がバリデーションされている
-- [ ] 機密情報がログに出力されていない
-- [ ] HTTPS が強制されている
-- [ ] CORS ポリシーが適切に設定されている
-- [ ] 依存パッケージの脆弱性スキャンが実施されている
-- [ ] エラーメッセージに内部情報が含まれていない
+- [ ] All input values are validated
+- [ ] Sensitive information is not output to logs
+- [ ] HTTPS is enforced
+- [ ] CORS policy is properly configured
+- [ ] Dependency vulnerability scans have been performed
+- [ ] Error messages do not contain internal information
 ---
 
 ## 11. FAQ
 
-### Q1: 有向グラフと無向グラフの変換は？
+### Q1: How do you convert between directed and undirected graphs?
 
-**A:** 無向グラフは各辺を双方向の有向辺2本に置き換えれば有向グラフに変換できる。逆に、有向グラフから方向を無視すれば無向グラフになるが、情報が失われる。
+**A:** An undirected graph can be converted to a directed graph by replacing each edge with two directed edges in both directions. Conversely, ignoring directions in a directed graph yields an undirected graph, but information is lost.
 
-### Q2: 密グラフと疎グラフの境界は？
+### Q2: Where is the boundary between dense and sparse graphs?
 
-**A:** E 約 V^2 なら密、E 約 V なら疎。実用上、E < V^2 / 10 程度なら隣接リストが有利。ソーシャルグラフは通常疎（ユーザー数は多いが友人数は限定的）、小規模な完全グラフは密。
+**A:** If E is approximately V^2, the graph is dense; if E is approximately V, it is sparse. In practice, if E < V^2 / 10, adjacency lists are advantageous. Social graphs are typically sparse (many users but limited friends), while small complete graphs are dense.
 
-### Q3: NetworkX と自前実装はどう使い分けるか？
+### Q3: When should you use NetworkX vs. a custom implementation?
 
-**A:** プロトタイピングや分析には NetworkX が便利（豊富なアルゴリズムとVisualization）。競技プログラミングや性能要件が厳しいシステムでは自前実装。NetworkX は純 Python で大規模グラフ（数百万ノード）には遅い場合がある。大規模なら igraph や graph-tool（C++バックエンド）を検討。
+**A:** NetworkX is convenient for prototyping and analysis (rich algorithms and visualization). For competitive programming or systems with strict performance requirements, use custom implementations. NetworkX is pure Python and can be slow for large-scale graphs (millions of nodes). For large-scale graphs, consider igraph or graph-tool (C++ backends).
 
-### Q4: グラフの表現方法はどう選ぶべきか？
+### Q4: How should you choose a graph representation?
 
 **A:**
-- **隣接リスト**: ほとんどの場合のデフォルト。疎グラフ、動的なグラフに最適
-- **隣接行列**: 密グラフ、辺の存在確認が頻繁、行列演算（Floyd-Warshall等）
-- **辺リスト**: Kruskal のアルゴリズム、辺のソートが前提の問題
-- **暗黙的グラフ**: 状態空間探索（パズル、ゲーム）
+- **Adjacency list**: the default for most cases. Optimal for sparse graphs and dynamic graphs
+- **Adjacency matrix**: dense graphs, frequent edge existence checks, matrix operations (Floyd-Warshall, etc.)
+- **Edge list**: Kruskal's algorithm, problems that assume sorted edges
+- **Implicit graph**: state-space search (puzzles, games)
 
-### Q5: Union-Find はどんな場面で使うか？
+### Q5: When should you use Union-Find?
 
-**A:** 「同じグループに属するか？」「グループを統合する」という操作が中心の問題に最適:
-- 連結成分の管理
-- Kruskal のアルゴリズム
-- サイクル検出（無向グラフ）
-- 等価クラスの管理
-- 動的連結性の問題
+**A:** Optimal for problems centered on "Do they belong to the same group?" and "Merge groups":
+- Connected component management
+- Kruskal's algorithm
+- Cycle detection (undirected graphs)
+- Equivalence class management
+- Dynamic connectivity problems
 
-### Q6: DAG の判定方法は？
+### Q6: How do you determine if a graph is a DAG?
 
-**A:** トポロジカルソートが完了すれば DAG。完了しなければサイクルが存在する。カーンのアルゴリズム（入次数ベース）では、結果のノード数が全ノード数と一致すれば DAG。DFS ベースでは、バックエッジ（走査中のノードへの辺）が検出されればサイクルが存在。
+**A:** If topological sort completes successfully, it is a DAG. If it doesn't complete, a cycle exists. In Kahn's algorithm (in-degree based), if the number of nodes in the result equals the total number of nodes, it is a DAG. In DFS-based approaches, a cycle exists if a back edge (an edge to a node currently being traversed) is detected.
 
 ---
 
-## 12. 設計判断のフローチャート
+## 12. Design Decision Flowchart
 
 ```
-グラフ表現の選択フロー:
+Graph representation selection flow:
 
   [START]
-    │
-    ▼
-  辺数 E は V^2 に近い？
-    │
-  Yes ──→ 隣接行列を使用
-    │       (Floyd-Warshall, 辺の存在確認 O(1))
+    |
+    v
+  Is E close to V^2?
+    |
+  Yes --> Use adjacency matrix
+    |       (Floyd-Warshall, O(1) edge existence check)
   No
-    │
-    ▼
-  辺のソートが前提？ (Kruskal 等)
-    │
-  Yes ──→ 辺リストを使用
-    │
+    |
+    v
+  Is edge sorting assumed? (Kruskal, etc.)
+    |
+  Yes --> Use edge list
+    |
   No
-    │
-    ▼
-  頂点/辺の動的追加・削除がある？
-    │
-  Yes ──→ 辞書ベースの隣接リスト
-    │       (defaultdict or dict)
+    |
+    v
+  Is there dynamic vertex/edge addition or removal?
+    |
+  Yes --> Use dictionary-based adjacency list
+    |       (defaultdict or dict)
   No
-    │
-    ▼
-  頂点数が固定で数値インデックス？
-    │
-  Yes ──→ 配列ベースの隣接リスト
-    │       (list[list[int]])
+    |
+    v
+  Fixed vertex count with numeric indices?
+    |
+  Yes --> Use array-based adjacency list
+    |       (list[list[int]])
   No
-    │
-    ▼
-  辞書ベースの隣接リスト（汎用デフォルト）
+    |
+    v
+  Dictionary-based adjacency list (general-purpose default)
 ```
 
 ---
 
-## 13. 演習問題
+## 13. Exercises
 
-### 初級: グラフの基本操作
+### Beginner: Basic Graph Operations
 
-**問題:** 以下の無向重み付きグラフを隣接リストと隣接行列の両方で表現し、頂点 A から D への全パスを列挙せよ。
+**Problem:** Represent the following undirected weighted graph using both an adjacency list and an adjacency matrix, and enumerate all paths from vertex A to D.
 
 ```
         2
@@ -1552,11 +1553,11 @@ is_valid = SecurityUtils.verify_password("my_password", hashed, salt)
 ```
 
 ```python
-# 解答例: 全パスの列挙（DFS + バックトラック）
+# Solution: enumerate all paths (DFS + backtracking)
 def find_all_paths(graph, start, end, path=None):
-    """始点から終点への全パスを DFS で列挙 — O(V! 最悪)
+    """Enumerate all paths from start to end using DFS — O(V! worst case)
 
-    バックトラックにより訪問済み頂点を戻しながら探索する。
+    Explores while backtracking to unvisit visited vertices.
     """
     if path is None:
         path = []
@@ -1572,7 +1573,7 @@ def find_all_paths(graph, start, end, path=None):
             paths.extend(new_paths)
     return paths
 
-# グラフ定義
+# Graph definition
 graph = {
     'A': [('B', 2), ('C', 4)],
     'B': [('A', 2), ('D', 3)],
@@ -1586,38 +1587,38 @@ for p in all_paths:
 # A -> C -> D
 ```
 
-### 中級: 最小全域木の構築と検証
+### Intermediate: Building and Verifying a Minimum Spanning Tree
 
-**問題:** 6 頂点のグラフに対して Kruskal のアルゴリズムを手動でトレースし、最小全域木を求めよ。Union-Find の状態遷移も記録すること。
+**Problem:** Manually trace Kruskal's algorithm on a 6-vertex graph and find the MST. Record the Union-Find state transitions as well.
 
 ```
-頂点: {0, 1, 2, 3, 4, 5}
-辺: (0,1,6) (0,2,1) (0,3,5) (1,2,5) (1,4,3) (2,3,5)
-     (2,4,6) (2,5,4) (3,5,2) (4,5,6)
+Vertices: {0, 1, 2, 3, 4, 5}
+Edges: (0,1,6) (0,2,1) (0,3,5) (1,2,5) (1,4,3) (2,3,5)
+       (2,4,6) (2,5,4) (3,5,2) (4,5,6)
 
-手順:
-  1. 辺を重みでソート: (0,2,1) (3,5,2) (1,4,3) (2,5,4) ...
-  2. (0,2,1): UF={0,2} 他は単独 → 採用
-  3. (3,5,2): UF={3,5} → 採用
-  4. (1,4,3): UF={1,4} → 採用
-  5. (2,5,4): 0,2 と 3,5 を統合 → 採用
-  6. (1,2,5): 1,4 と {0,2,3,5} を統合 → 採用
-  → MST辺数 = 5 = V-1、総重み = 1+2+3+4+5 = 15
+Steps:
+  1. Sort edges by weight: (0,2,1) (3,5,2) (1,4,3) (2,5,4) ...
+  2. (0,2,1): UF={0,2} others are singletons -> accept
+  3. (3,5,2): UF={3,5} -> accept
+  4. (1,4,3): UF={1,4} -> accept
+  5. (2,5,4): merge {0,2} and {3,5} -> accept
+  6. (1,2,5): merge {1,4} and {0,2,3,5} -> accept
+  -> MST edges = 5 = V-1, total weight = 1+2+3+4+5 = 15
 ```
 
-### 上級: グラフの直径と中心の計算
+### Advanced: Computing Graph Diameter and Center
 
-**問題:** 任意の連結無向グラフに対して、グラフの直径（最も遠い2頂点間の最短距離）と中心（離心率が最小の頂点集合）を求めるアルゴリズムを実装せよ。
+**Problem:** Implement an algorithm to compute the diameter (shortest distance between the two farthest vertices) and center (set of vertices with minimum eccentricity) of an arbitrary connected undirected graph.
 
 ```python
 from collections import deque
 
 def graph_diameter_and_center(graph, vertices):
-    """グラフの直径と中心を求める — O(V * (V + E))
+    """Compute graph diameter and center — O(V * (V + E))
 
-    離心率 (eccentricity): 頂点 v から最も遠い頂点までの距離
-    直径 (diameter): 全頂点の離心率の最大値
-    中心 (center): 離心率が最小の頂点集合
+    Eccentricity: the distance from vertex v to the farthest vertex
+    Diameter: the maximum eccentricity across all vertices
+    Center: the set of vertices with minimum eccentricity
     """
     def bfs_distances(start):
         dist = {start: 0}
@@ -1641,117 +1642,118 @@ def graph_diameter_and_center(graph, vertices):
 
     return diameter, radius, center, eccentricity
 
-# 使用例: パス型グラフ 0-1-2-3-4
+# Usage example: path graph 0-1-2-3-4
 graph = {0: [1], 1: [0, 2], 2: [1, 3], 3: [2, 4], 4: [3]}
 diam, rad, center, ecc = graph_diameter_and_center(graph, [0,1,2,3,4])
-print(f"直径: {diam}, 半径: {rad}, 中心: {center}")
-# 直径: 4, 半径: 2, 中心: [2]
-print(f"離心率: {ecc}")
+print(f"Diameter: {diam}, Radius: {rad}, Center: {center}")
+# Diameter: 4, Radius: 2, Center: [2]
+print(f"Eccentricity: {ecc}")
 # {0: 4, 1: 3, 2: 2, 3: 3, 4: 4}
 ```
 
 ---
 
-## 14. 発展的トピック
+## 14. Advanced Topics
 
-### 14.1 Euler 路と Hamilton 路
-
-```
-Euler 路 (オイラー路):
-  全ての「辺」をちょうど1回通るパス
-  ┌──→──┐
-  A      B      存在条件:
-  │    ╱ │      - 無向: 奇数次数の頂点が 0 個（回路）
-  │  ╱   │              または 2 個（路）
-  ↓╱     ↓      - 有向: 全頂点で入次数=出次数（回路）
-  C──→──D              または始点で出-入=1、終点で入-出=1（路）
-
-Hamilton 路 (ハミルトン路):
-  全ての「頂点」をちょうど1回通るパス
-  A → B → D → C   存在条件:
-                    一般的な多項式時間判定法は未知（NP完全）
-                    Dirac の定理: 全頂点の次数 >= V/2 なら Hamilton 回路が存在
-```
-
-### 14.2 グラフの密度と実世界のスケール感
+### 14.1 Euler Paths and Hamilton Paths
 
 ```
-密度 (density) = E / E_max
+Euler path:
+  A path that traverses every "edge" exactly once
+  +-->--+
+  A      B      Existence conditions:
+  |    / |      - Undirected: 0 vertices with odd degree (circuit)
+  |  /   |                    or 2 vertices with odd degree (path)
+  v/     v      - Directed: in-degree = out-degree for all vertices (circuit)
+  C-->--D                or source has out-in=1, sink has in-out=1 (path)
 
-グラフの規模と表現の選択指針:
-
-  規模        | 頂点数      | 密度   | 推奨表現
-  ------------|------------|--------|------------------
-  小規模      | ~100       | 任意   | 隣接行列 or リスト
-  中規模      | ~10,000    | 疎     | 隣接リスト
-  大規模      | ~1,000,000 | 疎     | 圧縮隣接リスト (CSR)
-  超大規模    | ~10^9      | 極疎   | 分散グラフ (Pregel等)
-
-CSR (Compressed Sparse Row) 形式:
-  - 頂点配列: 各頂点の辺リスト開始位置
-  - 辺配列:   全辺の行き先を連続配置
-  - メモリ局所性が高く、キャッシュ効率が良い
+Hamilton path:
+  A path that visits every "vertex" exactly once
+  A -> B -> D -> C   Existence conditions:
+                     No general polynomial-time decision method is known (NP-complete)
+                     Dirac's theorem: if all vertices have degree >= V/2,
+                     a Hamilton circuit exists
 ```
 
-### 14.3 グラフデータベースとの関連
+### 14.2 Graph Density and Real-World Scale
 
-グラフ構造をデータベースとして永続化する需要は、ソーシャルネットワークや知識グラフの普及に伴い増大している。代表的なグラフデータベースとクエリ言語の対応を以下にまとめる。
+```
+Density = E / E_max
 
-| グラフDB | クエリ言語 | 主な用途 |
-|----------|-----------|---------|
-| Neo4j | Cypher | ソーシャルグラフ、推薦 |
-| Amazon Neptune | Gremlin / SPARQL | 知識グラフ、不正検知 |
-| JanusGraph | Gremlin | 大規模分散グラフ |
-| ArangoDB | AQL | マルチモデル（文書+グラフ） |
+Graph scale and representation selection guidelines:
+
+  Scale       | Vertices    | Density | Recommended Representation
+  ------------|-------------|---------|---------------------------
+  Small       | ~100        | Any     | Adjacency matrix or list
+  Medium      | ~10,000     | Sparse  | Adjacency list
+  Large       | ~1,000,000  | Sparse  | Compressed adjacency list (CSR)
+  Very large  | ~10^9       | V. sparse| Distributed graph (Pregel, etc.)
+
+CSR (Compressed Sparse Row) format:
+  - Vertex array: start position of each vertex's edge list
+  - Edge array: all edge destinations stored contiguously
+  - High memory locality and cache efficiency
+```
+
+### 14.3 Relation to Graph Databases
+
+The demand for persisting graph structures as databases has grown with the proliferation of social networks and knowledge graphs. Below is a summary of representative graph databases and their query languages.
+
+| Graph DB | Query Language | Primary Use |
+|----------|---------------|-------------|
+| Neo4j | Cypher | Social graphs, recommendations |
+| Amazon Neptune | Gremlin / SPARQL | Knowledge graphs, fraud detection |
+| JanusGraph | Gremlin | Large-scale distributed graphs |
+| ArangoDB | AQL | Multi-model (document + graph) |
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory, but by actually writing code and verifying its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes that beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## 15. まとめ
-
-| 項目 | ポイント |
-|------|---------|
-| 隣接リスト | 疎グラフに最適。O(V+E) 空間。デフォルトの選択 |
-| 隣接行列 | 密グラフ・辺の存在確認 O(1)。行列演算に便利 |
-| 辺リスト | ソートが必要なアルゴリズム向け。Kruskal に最適 |
-| Union-Find | 連結成分管理。ほぼ O(1) の find/union |
-| トポロジカルソート | DAG の線形順序。依存関係の解決 |
-| 強連結成分 | 有向グラフの分解。Kosaraju / Tarjan |
-| 表現の選択 | グラフの密度と操作パターンで決定 |
-| 有向/無向 | 問題の対称性で選択 |
-| 重み | 辺にコストを付与。最短経路問題で使用 |
-| 演習 | 初級: 全パス列挙、中級: MST トレース、上級: 直径と中心 |
-| 発展 | Euler/Hamilton 路、CSR 形式、グラフDB |
+Knowledge of this topic is frequently applied in daily development work. It becomes particularly important during code reviews and architecture design.
 
 ---
 
-## 次に読むべきガイド
+## 15. Summary
 
-- [グラフ走査 — BFS/DFS](../02-algorithms/02-graph-traversal.md)
-- [最短経路 — Dijkstra、Bellman-Ford](../02-algorithms/03-shortest-path.md)
+| Item | Key Point |
+|------|-----------|
+| Adjacency list | Optimal for sparse graphs. O(V+E) space. The default choice |
+| Adjacency matrix | Dense graphs, O(1) edge existence check. Convenient for matrix operations |
+| Edge list | For algorithms requiring sorting. Optimal for Kruskal |
+| Union-Find | Connected component management. Nearly O(1) find/union |
+| Topological sort | Linear ordering of a DAG. Dependency resolution |
+| Strongly connected components | Decomposition of directed graphs. Kosaraju / Tarjan |
+| Representation choice | Determined by graph density and operation patterns |
+| Directed/undirected | Choose based on problem symmetry |
+| Weights | Assign costs to edges. Used in shortest path problems |
+| Exercises | Beginner: enumerate all paths, Intermediate: MST trace, Advanced: diameter and center |
+| Advanced topics | Euler/Hamilton paths, CSR format, graph databases |
 
 ---
 
-## 参考文献
+## Recommended Next Guides
 
-1. Cormen, T.H. et al. (2022). *Introduction to Algorithms* (4th ed.). MIT Press. — 第20章「Elementary Graph Algorithms」、第21章「Minimum Spanning Trees」
-2. Sedgewick, R. & Wayne, K. (2011). *Algorithms* (4th ed.). Addison-Wesley. — グラフの表現とアルゴリズム
-3. Skiena, S.S. (2020). *The Algorithm Design Manual* (3rd ed.). Springer. — グラフの実践的設計
+- [Graph Traversal -- BFS/DFS](../02-algorithms/02-graph-traversal.md)
+- [Shortest Paths -- Dijkstra, Bellman-Ford](../02-algorithms/03-shortest-path.md)
+
+---
+
+## References
+
+1. Cormen, T.H. et al. (2022). *Introduction to Algorithms* (4th ed.). MIT Press. -- Chapter 20 "Elementary Graph Algorithms", Chapter 21 "Minimum Spanning Trees"
+2. Sedgewick, R. & Wayne, K. (2011). *Algorithms* (4th ed.). Addison-Wesley. -- Graph representations and algorithms
+3. Skiena, S.S. (2020). *The Algorithm Design Manual* (3rd ed.). Springer. -- Practical graph design
 4. Tarjan, R.E. (1972). "Depth-first search and linear graph algorithms." *SIAM Journal on Computing*, 1(2), 146-160.
 5. Kosaraju, S.R. (1978). Unpublished manuscript, referenced in Aho, Hopcroft, Ullman (1983).

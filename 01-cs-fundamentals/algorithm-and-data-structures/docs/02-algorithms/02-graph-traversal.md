@@ -1,31 +1,31 @@
-# グラフ走査アルゴリズム
+# Graph Traversal Algorithms
 
-> グラフの頂点と辺を体系的に訪問するBFS・DFS・トポロジカルソートを理解し、実装と応用パターンを習得する
+> Understand and master BFS, DFS, and topological sort for systematically visiting vertices and edges of a graph, including their implementations and application patterns
 
-## この章で学ぶこと
+## What You Will Learn
 
-1. **BFS（幅優先探索）とDFS（深さ優先探索）**の動作原理・実装・計算量を正確に理解する
-2. **グラフの表現方法**（隣接リスト・隣接行列）とその使い分けを把握する
-3. **トポロジカルソート**の原理と応用（依存関係解決・ビルドシステム等）を実装できる
-4. **強連結成分・二部グラフ判定・オイラー路**などの発展的な走査アルゴリズムを理解する
+1. Accurately understand the **operating principles, implementation, and computational complexity** of BFS (Breadth-First Search) and DFS (Depth-First Search)
+2. Understand **graph representation methods** (adjacency list, adjacency matrix) and when to use each
+3. Implement **topological sort** and its applications (dependency resolution, build systems, etc.)
+4. Understand advanced traversal algorithms such as **strongly connected components, bipartite graph detection, and Eulerian paths**
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Having the following knowledge will deepen your understanding of this guide:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [探索アルゴリズム](./01-searching.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Familiarity with the content in [Search Algorithms](./01-searching.md)
 
 ---
 
-## 1. グラフの表現方法
+## 1. Graph Representations
 
-### 1.1 隣接リストと隣接行列
+### 1.1 Adjacency List and Adjacency Matrix
 
 ```
-グラフ G:
+Graph G:
     0 --- 1
     |   / |
     |  /  |
@@ -33,7 +33,7 @@
         |
         4
 
-隣接リスト:                     隣接行列:
+Adjacency List:                Adjacency Matrix:
 0: [1, 2]                       0  1  2  3  4
 1: [0, 2, 3]                 0 [0, 1, 1, 0, 0]
 2: [0, 1, 3]                 1 [1, 0, 1, 1, 0]
@@ -42,25 +42,25 @@
                               4 [0, 0, 0, 1, 0]
 ```
 
-### 1.2 表現方法の比較
+### 1.2 Comparison of Representations
 
-| 特性 | 隣接リスト | 隣接行列 |
+| Property | Adjacency List | Adjacency Matrix |
 |:---|:---|:---|
-| 空間計算量 | O(V + E) | O(V^2) |
-| 辺の存在判定 | O(degree(v)) | O(1) |
-| 全隣接頂点の列挙 | O(degree(v)) | O(V) |
-| 辺の追加 | O(1) | O(1) |
-| 辺の削除 | O(degree(v)) | O(1) |
-| 適するグラフ | 疎グラフ (E << V^2) | 密グラフ (E ≈ V^2) |
-| メモリ効率 | 高い | 低い（疎な場合） |
+| Space complexity | O(V + E) | O(V^2) |
+| Edge existence check | O(degree(v)) | O(1) |
+| Enumerate all neighbors | O(degree(v)) | O(V) |
+| Add edge | O(1) | O(1) |
+| Remove edge | O(degree(v)) | O(1) |
+| Best suited for | Sparse graphs (E << V^2) | Dense graphs (E ~ V^2) |
+| Memory efficiency | High | Low (for sparse graphs) |
 
-### 1.3 Python での各表現方法の実装
+### 1.3 Implementation of Each Representation in Python
 
 ```python
 from collections import defaultdict, deque
 
 class Graph:
-    """隣接リストによるグラフ表現"""
+    """Graph representation using an adjacency list"""
     def __init__(self, directed=False):
         self.adj = defaultdict(list)
         self.directed = directed
@@ -92,11 +92,11 @@ class Graph:
         return verts
 
     def degree(self, v):
-        """頂点 v の次数を返す"""
+        """Return the degree of vertex v"""
         return len(self.adj[v])
 
     def has_edge(self, u, v):
-        """辺 (u, v) が存在するか"""
+        """Check whether edge (u, v) exists"""
         return v in self.adj[u]
 
     def __repr__(self):
@@ -104,7 +104,7 @@ class Graph:
 
 
 class AdjacencyMatrix:
-    """隣接行列によるグラフ表現"""
+    """Graph representation using an adjacency matrix"""
     def __init__(self, n, directed=False):
         self.n = n
         self.directed = directed
@@ -130,11 +130,11 @@ class AdjacencyMatrix:
         return sum(1 for v in range(self.n) if self.matrix[u][v] != 0)
 ```
 
-### 1.4 辺リスト表現
+### 1.4 Edge List Representation
 
 ```python
 class EdgeListGraph:
-    """辺リストによるグラフ表現（Kruskal等で有用）"""
+    """Edge list graph representation (useful for Kruskal's, etc.)"""
     def __init__(self, directed=False):
         self.edges = []
         self.directed = directed
@@ -155,55 +155,55 @@ class EdgeListGraph:
         return [(v, w) for src, v, w in self.edges if src == u]
 ```
 
-### 1.5 実務での使い分け指針
+### 1.5 Practical Guidelines for Choosing a Representation
 
 ```
-判断フロー:
+Decision Flow:
 
-  グラフは疎? (E << V²)
-    ├─ YES → 隣接リスト（デフォルト選択）
-    └─ NO  → 密グラフ?
-              ├─ YES → 隣接行列
-              └─ どちらとも → 隣接リストが安全
+  Is the graph sparse? (E << V^2)
+    |-- YES -> Adjacency list (default choice)
+    +-- NO  -> Dense graph?
+              |-- YES -> Adjacency matrix
+              +-- Either -> Adjacency list is the safe choice
 
-  辺の存在判定が頻繁?
-    ├─ YES → 隣接行列 or set ベースの隣接リスト
-    └─ NO  → 隣接リスト
+  Are edge existence checks frequent?
+    |-- YES -> Adjacency matrix or set-based adjacency list
+    +-- NO  -> Adjacency list
 
-  辺をソートして処理する?
-    ├─ YES → 辺リスト（Kruskal等）
-    └─ NO  → 隣接リスト
+  Do you need to sort and process edges?
+    |-- YES -> Edge list (Kruskal's, etc.)
+    +-- NO  -> Adjacency list
 ```
 
 ---
 
-## 2. BFS（幅優先探索）
+## 2. BFS (Breadth-First Search)
 
-キューを使い、始点から近い頂点から順に訪問する。最短経路（重みなし）を保証。
+Uses a queue to visit vertices in order of increasing distance from the source. Guarantees shortest paths (unweighted).
 
 ```
-始点: 0
+Source: 0
 
-レベル0:  [0]               キュー: [0]
-レベル1:  [1, 2]            キュー: [1, 2]
-レベル2:  [3]               キュー: [3]
-レベル3:  [4]               キュー: [4]
+Level 0:  [0]               Queue: [0]
+Level 1:  [1, 2]            Queue: [1, 2]
+Level 2:  [3]               Queue: [3]
+Level 3:  [4]               Queue: [4]
 
-訪問順: 0 → 1 → 2 → 3 → 4
+Visit order: 0 -> 1 -> 2 -> 3 -> 4
 
-    0 ─── 1
-    |   / |       BFS は「波紋」のように広がる
-    |  /  |       同じ距離の頂点を先に訪問
-    2 ─── 3
+    0 --- 1
+    |   / |       BFS spreads like "ripples"
+    |  /  |       Visits all vertices at the same distance first
+    2 --- 3
           |
           4
 ```
 
-### 2.1 基本実装
+### 2.1 Basic Implementation
 
 ```python
 def bfs(graph: dict, start) -> list:
-    """幅優先探索 - O(V + E)"""
+    """Breadth-First Search - O(V + E)"""
     visited = set([start])
     queue = deque([start])
     order = []
@@ -219,9 +219,9 @@ def bfs(graph: dict, start) -> list:
 
     return order
 
-# 最短経路（重みなし）
+# Shortest path (unweighted)
 def bfs_shortest_path(graph: dict, start, end) -> list:
-    """BFS で最短経路を復元"""
+    """Reconstruct the shortest path using BFS"""
     visited = {start}
     queue = deque([(start, [start])])
 
@@ -235,11 +235,11 @@ def bfs_shortest_path(graph: dict, start, end) -> list:
                 visited.add(neighbor)
                 queue.append((neighbor, path + [neighbor]))
 
-    return []  # 到達不可能
+    return []  # Unreachable
 
-# 最短距離（メモリ効率版）
+# Shortest distances (memory-efficient version)
 def bfs_shortest_distance(graph: dict, start) -> dict:
-    """全頂点への最短距離を計算（メモリ効率版）"""
+    """Compute shortest distances to all vertices (memory-efficient)"""
     dist = {start: 0}
     queue = deque([start])
 
@@ -252,18 +252,18 @@ def bfs_shortest_distance(graph: dict, start) -> dict:
 
     return dist
 
-# 使用例
+# Usage example
 g = {0: [1, 2], 1: [0, 2, 3], 2: [0, 1, 3], 3: [1, 2, 4], 4: [3]}
 print(bfs(g, 0))                    # [0, 1, 2, 3, 4]
 print(bfs_shortest_path(g, 0, 4))   # [0, 1, 3, 4]
 print(bfs_shortest_distance(g, 0))  # {0: 0, 1: 1, 2: 1, 3: 2, 4: 3}
 ```
 
-### 2.2 BFS の応用: レベル別走査
+### 2.2 BFS Application: Level-Order Traversal
 
 ```python
 def bfs_levels(graph: dict, start) -> list:
-    """レベル（距離）ごとに頂点をグループ化"""
+    """Group vertices by level (distance)"""
     visited = {start}
     queue = deque([start])
     levels = []
@@ -288,14 +288,14 @@ def bfs_levels(graph: dict, start) -> list:
 print(bfs_levels(g, 0))  # [[0], [1, 2], [3], [4]]
 ```
 
-### 2.3 BFS の応用: 二部グラフ判定
+### 2.3 BFS Application: Bipartite Graph Detection
 
-二部グラフとは、頂点集合を2つのグループに分割でき、同じグループ内の頂点間に辺がないグラフのこと。BFS のレベル分けを利用して判定できる。
+A bipartite graph is one whose vertex set can be partitioned into two groups such that no edge connects vertices within the same group. BFS level assignment can be used for detection.
 
 ```python
 def is_bipartite(graph: dict, vertices: set) -> tuple:
-    """二部グラフ判定 - O(V + E)
-    返り値: (二部グラフか, 2色の割当辞書)
+    """Bipartite graph detection - O(V + E)
+    Returns: (is_bipartite, 2-coloring dictionary)
     """
     color = {}
 
@@ -303,7 +303,7 @@ def is_bipartite(graph: dict, vertices: set) -> tuple:
         if start in color:
             continue
 
-        # BFS で 2色塗り
+        # 2-color using BFS
         color[start] = 0
         queue = deque([start])
 
@@ -318,7 +318,7 @@ def is_bipartite(graph: dict, vertices: set) -> tuple:
 
     return True, color
 
-# 二部グラフの例（木は常に二部グラフ）
+# Bipartite example (trees are always bipartite)
 g_bipartite = {
     0: [1, 3],
     1: [0, 2],
@@ -326,23 +326,23 @@ g_bipartite = {
     3: [0, 2],
 }
 result, coloring = is_bipartite(g_bipartite, {0, 1, 2, 3})
-print(f"二部グラフ: {result}")  # True
-print(f"色分け: {coloring}")    # {0: 0, 1: 1, 3: 1, 2: 0}
+print(f"Bipartite: {result}")   # True
+print(f"Coloring: {coloring}")  # {0: 0, 1: 1, 3: 1, 2: 0}
 
-# 非二部グラフの例（奇数サイクル）
+# Non-bipartite example (odd cycle)
 g_odd = {0: [1, 2], 1: [0, 2], 2: [0, 1]}
 result, _ = is_bipartite(g_odd, {0, 1, 2})
-print(f"二部グラフ: {result}")  # False
+print(f"Bipartite: {result}")  # False
 ```
 
-### 2.4 BFS の応用: 複数始点 BFS（マルチソース BFS）
+### 2.4 BFS Application: Multi-Source BFS
 
-複数の始点から同時に BFS を行う手法。最寄りの始点からの距離を一括で求められる。
+A technique that runs BFS simultaneously from multiple source vertices. Computes the distance from each vertex to the nearest source in one pass.
 
 ```python
 def multi_source_bfs(graph: dict, sources: list) -> dict:
-    """複数始点BFS - O(V + E)
-    各頂点から最寄りのソースまでの距離を計算
+    """Multi-source BFS - O(V + E)
+    Computes the distance from each vertex to the nearest source
     """
     dist = {}
     queue = deque()
@@ -360,8 +360,8 @@ def multi_source_bfs(graph: dict, sources: list) -> dict:
 
     return dist
 
-# 実務例: グリッド上で複数の施設から各セルへの最短距離
-# ゲーム開発での「最寄りの敵/味方までの距離マップ」生成に使われる
+# Practical example: shortest distance from each cell to the nearest facility on a grid
+# Used in game development for generating "distance to nearest enemy/ally" maps
 grid_graph = {
     (0,0): [(0,1), (1,0)],
     (0,1): [(0,0), (0,2), (1,1)],
@@ -382,12 +382,12 @@ print(distances)
 
 ### 2.5 0-1 BFS
 
-辺の重みが 0 か 1 のみのグラフで、Dijkstra の代わりに deque を使って O(V+E) で最短距離を求める手法。
+A technique for finding shortest distances in O(V+E) on graphs where all edge weights are either 0 or 1, using a deque instead of Dijkstra's algorithm.
 
 ```python
 def bfs_01(graph: dict, start) -> dict:
     """0-1 BFS - O(V + E)
-    graph: {u: [(v, weight), ...]}  weight は 0 or 1
+    graph: {u: [(v, weight), ...]}  weight is 0 or 1
     """
     dist = defaultdict(lambda: float('inf'))
     dist[start] = 0
@@ -400,13 +400,13 @@ def bfs_01(graph: dict, start) -> dict:
             if new_dist < dist[v]:
                 dist[v] = new_dist
                 if w == 0:
-                    dq.appendleft(v)  # 重み0 → 先頭に追加
+                    dq.appendleft(v)  # Weight 0 -> push to front
                 else:
-                    dq.append(v)      # 重み1 → 末尾に追加
+                    dq.append(v)      # Weight 1 -> push to back
 
     return dict(dist)
 
-# 例: グリッドで壁の破壊コスト 1、通路の移動コスト 0
+# Example: grid where wall destruction costs 1, corridor movement costs 0
 graph_01 = {
     'A': [('B', 0), ('C', 1)],
     'B': [('A', 0), ('D', 1)],
@@ -419,35 +419,35 @@ print(bfs_01(graph_01, 'A'))
 
 ---
 
-## 3. DFS（深さ優先探索）
+## 3. DFS (Depth-First Search)
 
-スタック（または再帰）を使い、行き止まりまで深く進んでからバックトラックする。
+Uses a stack (or recursion) to go as deep as possible before backtracking.
 
 ```
-始点: 0
+Source: 0
 
-探索の流れ:
-  0 → 1 → 2 (0は訪問済み) → 3 → 4 (行き止まり)
-                                ↑ バックトラック
-                             3 (隣接全訪問済み)
-                             ↑ バックトラック
-                          ...完了
+Exploration flow:
+  0 -> 1 -> 2 (0 already visited) -> 3 -> 4 (dead end)
+                                ^ backtrack
+                             3 (all neighbors visited)
+                             ^ backtrack
+                          ...done
 
-訪問順: 0 → 1 → 2 → 3 → 4
+Visit order: 0 -> 1 -> 2 -> 3 -> 4
 
-    0 ─── 1
-    |   / |       DFS は「一本道」を深く進む
-    |  /  |       行き止まりで引き返す
-    2 ─── 3
+    0 --- 1
+    |   / |       DFS goes deep along a single path
+    |  /  |       Backtracks at dead ends
+    2 --- 3
           |
           4
 ```
 
-### 3.1 基本実装
+### 3.1 Basic Implementation
 
 ```python
 def dfs_recursive(graph: dict, start, visited=None) -> list:
-    """DFS 再帰版 - O(V + E)"""
+    """DFS recursive version - O(V + E)"""
     if visited is None:
         visited = set()
 
@@ -461,7 +461,7 @@ def dfs_recursive(graph: dict, start, visited=None) -> list:
     return order
 
 def dfs_iterative(graph: dict, start) -> list:
-    """DFS 反復版（スタック使用）"""
+    """DFS iterative version (using a stack)"""
     visited = set()
     stack = [start]
     order = []
@@ -471,7 +471,7 @@ def dfs_iterative(graph: dict, start) -> list:
         if vertex not in visited:
             visited.add(vertex)
             order.append(vertex)
-            # 逆順に積むと辞書順で訪問
+            # Push in reverse order to visit in lexicographic order
             for neighbor in reversed(graph[vertex]):
                 if neighbor not in visited:
                     stack.append(neighbor)
@@ -483,22 +483,22 @@ print(dfs_recursive(g, 0))  # [0, 1, 2, 3, 4]
 print(dfs_iterative(g, 0))  # [0, 1, 2, 3, 4]
 ```
 
-### 3.2 DFS のタイムスタンプ（発見時刻と完了時刻）
+### 3.2 DFS Timestamps (Discovery and Finish Times)
 
 ```python
 class DFSWithTimestamp:
-    """タイムスタンプ付き DFS
-    辺の分類やトポロジカルソートに必要な情報を収集する
+    """DFS with timestamps
+    Collects information needed for edge classification and topological sort
     """
     def __init__(self, graph: dict):
         self.graph = graph
-        self.discovery = {}   # 発見時刻
-        self.finish = {}      # 完了時刻
-        self.parent = {}      # DFS木における親
+        self.discovery = {}   # Discovery time
+        self.finish = {}      # Finish time
+        self.parent = {}      # Parent in the DFS tree
         self.time = 0
 
     def dfs(self):
-        """全頂点から DFS を実行"""
+        """Run DFS from all vertices"""
         all_vertices = set(self.graph.keys())
         for neighbors in self.graph.values():
             all_vertices.update(neighbors)
@@ -521,19 +521,19 @@ class DFSWithTimestamp:
         self.finish[u] = self.time
 
     def classify_edge(self, u, v):
-        """辺 (u, v) を分類する"""
+        """Classify edge (u, v)"""
         if self.parent.get(v) == u:
-            return "tree"      # 木辺
+            return "tree"      # Tree edge
         elif (self.discovery[u] < self.discovery[v] and
               self.finish[u] > self.finish[v]):
-            return "forward"   # 前方辺
+            return "forward"   # Forward edge
         elif (self.discovery[u] > self.discovery[v] and
               self.finish[u] < self.finish[v]):
-            return "back"      # 後退辺（サイクルを示す）
+            return "back"      # Back edge (indicates a cycle)
         else:
-            return "cross"     # 交差辺
+            return "cross"     # Cross edge
 
-# 使用例
+# Usage example
 g_directed = {
     'A': ['B', 'C'],
     'B': ['D'],
@@ -543,33 +543,33 @@ g_directed = {
 }
 dfs_ts = DFSWithTimestamp(g_directed)
 dfs_ts.dfs()
-print("発見時刻:", dfs_ts.discovery)
-print("完了時刻:", dfs_ts.finish)
+print("Discovery times:", dfs_ts.discovery)
+print("Finish times:", dfs_ts.finish)
 ```
 
-### 3.3 辺の分類
+### 3.3 Edge Classification
 
 ```
-有向グラフにおける DFS の辺分類:
+Edge classification in DFS on directed graphs:
 
-  Tree Edge（木辺）     : DFS木の辺。新しい頂点を発見した辺
-  Back Edge（後退辺）   : 祖先へ戻る辺。サイクルの存在を示す
-  Forward Edge（前方辺）: 子孫への辺（木辺以外）
-  Cross Edge（交差辺）  : 別の部分木への辺
+  Tree Edge     : An edge in the DFS tree. Discovers a new vertex
+  Back Edge     : An edge back to an ancestor. Indicates cycle existence
+  Forward Edge  : An edge to a descendant (other than tree edges)
+  Cross Edge    : An edge to a different subtree
 
-  判定基準（タイムスタンプ d[u], f[u]）:
+  Classification criteria (timestamps d[u], f[u]):
   - Tree/Forward: d[u] < d[v] < f[v] < f[u]
   - Back:         d[v] < d[u] < f[u] < f[v]
   - Cross:        d[v] < f[v] < d[u] < f[u]
 
-  サイクル検出: Back Edge が存在 ⟺ サイクルが存在
+  Cycle detection: A back edge exists <=> A cycle exists
 ```
 
-### 3.4 DFS の応用: 連結成分の検出
+### 3.4 DFS Application: Finding Connected Components
 
 ```python
 def find_connected_components(graph: dict, vertices: set) -> list:
-    """無向グラフの連結成分を列挙"""
+    """Enumerate connected components of an undirected graph"""
     visited = set()
     components = []
 
@@ -589,28 +589,28 @@ def find_connected_components(graph: dict, vertices: set) -> list:
 
     return components
 
-# 切断されたグラフ
+# Disconnected graph
 g2 = {0: [1], 1: [0], 2: [3], 3: [2], 4: []}
 print(find_connected_components(g2, {0,1,2,3,4}))
 # [[0, 1], [2, 3], [4]]
 ```
 
-### 3.5 DFS の応用: サイクル検出
+### 3.5 DFS Application: Cycle Detection
 
 ```python
 def has_cycle_directed(graph: dict) -> bool:
-    """有向グラフのサイクル検出（3色法）"""
+    """Cycle detection in a directed graph (3-color method)"""
     WHITE, GRAY, BLACK = 0, 1, 2
-    color = defaultdict(int)  # 全頂点 WHITE
+    color = defaultdict(int)  # All vertices start WHITE
 
     def dfs(u):
-        color[u] = GRAY  # 探索中
+        color[u] = GRAY  # Currently being explored
         for v in graph.get(u, []):
-            if color[v] == GRAY:  # 探索中の頂点に戻った → サイクル
+            if color[v] == GRAY:  # Returned to a vertex under exploration -> cycle
                 return True
             if color[v] == WHITE and dfs(v):
                 return True
-        color[u] = BLACK  # 探索完了
+        color[u] = BLACK  # Exploration complete
         return False
 
     for vertex in graph:
@@ -620,7 +620,7 @@ def has_cycle_directed(graph: dict) -> bool:
     return False
 
 def has_cycle_undirected(graph: dict) -> bool:
-    """無向グラフのサイクル検出"""
+    """Cycle detection in an undirected graph"""
     visited = set()
 
     def dfs(v, parent):
@@ -630,7 +630,7 @@ def has_cycle_undirected(graph: dict) -> bool:
                 if dfs(neighbor, v):
                     return True
             elif neighbor != parent:
-                return True  # 親以外の訪問済み頂点 → サイクル
+                return True  # Visited vertex other than parent -> cycle
         return False
 
     for vertex in graph:
@@ -639,24 +639,24 @@ def has_cycle_undirected(graph: dict) -> bool:
                 return True
     return False
 
-# サイクルあり: 0 → 1 → 2 → 0
+# Cycle present: 0 -> 1 -> 2 -> 0
 g_cycle = {0: [1], 1: [2], 2: [0]}
 print(has_cycle_directed(g_cycle))  # True
 
-# サイクルなし: DAG
+# No cycle: DAG
 g_dag = {0: [1], 1: [2], 2: []}
 print(has_cycle_directed(g_dag))  # False
 
-# 無向グラフのサイクル
+# Undirected graph cycle
 g_undirected_cycle = {0: [1, 2], 1: [0, 2], 2: [0, 1]}
 print(has_cycle_undirected(g_undirected_cycle))  # True
 ```
 
-### 3.6 DFS の応用: サイクルの実際の経路を復元
+### 3.6 DFS Application: Recovering the Actual Cycle Path
 
 ```python
 def find_cycle_directed(graph: dict) -> list:
-    """有向グラフでサイクルを1つ見つけて経路を返す"""
+    """Find one cycle in a directed graph and return the path"""
     WHITE, GRAY, BLACK = 0, 1, 2
     color = defaultdict(int)
     parent = {}
@@ -687,7 +687,7 @@ def find_cycle_directed(graph: dict) -> list:
     if cycle_start is None:
         return []
 
-    # サイクルの経路を復元
+    # Recover the cycle path
     cycle = [cycle_start]
     current = cycle_end
     while current != cycle_start:
@@ -702,42 +702,42 @@ print(find_cycle_directed(g_cycle))  # [1, 2, 3]
 
 ---
 
-## 4. トポロジカルソート
+## 4. Topological Sort
 
-DAG（有向非巡回グラフ）の頂点を、辺の方向に沿った順序に並べる。
+Arranges vertices of a DAG (Directed Acyclic Graph) in an order consistent with edge directions.
 
 ```
-  課題の依存関係:
-  数学 → 物理 → 量子力学
-  数学 → 線形代数 → 量子力学
-  プログラミング → アルゴリズム
+  Course dependencies:
+  Math -> Physics -> Quantum Mechanics
+  Math -> Linear Algebra -> Quantum Mechanics
+  Programming -> Algorithms
 
   DAG:
-  数学 ──→ 物理 ──────→ 量子力学
-    │                     ↑
-    └──→ 線形代数 ────────┘
-  プログラミング ──→ アルゴリズム
+  Math -----> Physics ----------> Quantum Mechanics
+    |                              ^
+    +-----> Linear Algebra --------+
+  Programming -----> Algorithms
 
-  トポロジカル順序の一例:
-  [数学, プログラミング, 物理, 線形代数, アルゴリズム, 量子力学]
+  One possible topological order:
+  [Math, Programming, Physics, Linear Algebra, Algorithms, Quantum Mechanics]
 ```
 
-### 4.1 DFS ベースの実装（Tarjan）
+### 4.1 DFS-Based Implementation (Tarjan)
 
 ```python
 def topological_sort_dfs(graph: dict) -> list:
-    """DFS ベースのトポロジカルソート - O(V + E)"""
+    """DFS-based topological sort - O(V + E)"""
     visited = set()
-    stack = []  # 結果を逆順に積む
+    stack = []  # Accumulate results in reverse order
 
     def dfs(v):
         visited.add(v)
         for neighbor in graph.get(v, []):
             if neighbor not in visited:
                 dfs(neighbor)
-        stack.append(v)  # 帰りがけに追加
+        stack.append(v)  # Add on backtrack
 
-    # 全頂点から DFS
+    # DFS from all vertices
     all_vertices = set(graph.keys())
     for v in graph.values():
         all_vertices.update(v)
@@ -746,36 +746,36 @@ def topological_sort_dfs(graph: dict) -> list:
         if vertex not in visited:
             dfs(vertex)
 
-    return stack[::-1]  # 逆順が答え
+    return stack[::-1]  # Reverse gives the answer
 
 dag = {
-    "数学": ["物理", "線形代数"],
-    "物理": ["量子力学"],
-    "線形代数": ["量子力学"],
-    "プログラミング": ["アルゴリズム"],
-    "量子力学": [],
-    "アルゴリズム": [],
+    "Math": ["Physics", "Linear Algebra"],
+    "Physics": ["Quantum Mechanics"],
+    "Linear Algebra": ["Quantum Mechanics"],
+    "Programming": ["Algorithms"],
+    "Quantum Mechanics": [],
+    "Algorithms": [],
 }
 print(topological_sort_dfs(dag))
 ```
 
-### 4.2 Kahn のアルゴリズム（BFS ベース）
+### 4.2 Kahn's Algorithm (BFS-Based)
 
 ```python
 def topological_sort_kahn(graph: dict) -> list:
-    """Kahn のアルゴリズム（入次数ベース）- O(V + E)"""
-    # 全頂点を収集
+    """Kahn's algorithm (in-degree based) - O(V + E)"""
+    # Collect all vertices
     all_vertices = set(graph.keys())
     for neighbors in graph.values():
         all_vertices.update(neighbors)
 
-    # 入次数を計算
+    # Compute in-degrees
     in_degree = {v: 0 for v in all_vertices}
     for u in graph:
         for v in graph[u]:
             in_degree[v] += 1
 
-    # 入次数 0 の頂点をキューに
+    # Enqueue vertices with in-degree 0
     queue = deque([v for v in all_vertices if in_degree[v] == 0])
     result = []
 
@@ -789,18 +789,18 @@ def topological_sort_kahn(graph: dict) -> list:
                 queue.append(neighbor)
 
     if len(result) != len(all_vertices):
-        raise ValueError("サイクルが存在します")
+        raise ValueError("Cycle detected")
 
     return result
 
 print(topological_sort_kahn(dag))
 ```
 
-### 4.3 全てのトポロジカル順序を列挙
+### 4.3 Enumerating All Topological Orders
 
 ```python
 def all_topological_sorts(graph: dict) -> list:
-    """全トポロジカル順序を列挙（バックトラッキング）"""
+    """Enumerate all topological orders (backtracking)"""
     all_vertices = set(graph.keys())
     for neighbors in graph.values():
         all_vertices.update(neighbors)
@@ -821,7 +821,7 @@ def all_topological_sorts(graph: dict) -> list:
 
         for v in sorted(all_vertices):
             if v not in visited and in_degree[v] == 0:
-                # 選択
+                # Choose
                 visited.add(v)
                 current.append(v)
                 for neighbor in graph.get(v, []):
@@ -829,7 +829,7 @@ def all_topological_sorts(graph: dict) -> list:
 
                 backtrack()
 
-                # 取り消し
+                # Undo
                 visited.discard(v)
                 current.pop()
                 for neighbor in graph.get(v, []):
@@ -838,16 +838,16 @@ def all_topological_sorts(graph: dict) -> list:
     backtrack()
     return result
 
-# 小さなDAGの例
+# Small DAG example
 small_dag = {'A': ['C'], 'B': ['C'], 'C': []}
 print(all_topological_sorts(small_dag))
 # [['A', 'B', 'C'], ['B', 'A', 'C']]
 ```
 
-### 4.4 トポロジカルソートの実務応用
+### 4.4 Practical Applications of Topological Sort
 
 ```python
-# 実務例1: ビルドシステムの依存関係解決
+# Practical example 1: Build system dependency resolution
 build_deps = {
     "utils.o": ["utils.c", "utils.h"],
     "main.o": ["main.c", "utils.h"],
@@ -858,8 +858,8 @@ build_deps = {
 }
 
 def build_order(deps: dict) -> list:
-    """ビルド順序を決定"""
-    # 依存関係を逆転（A depends on B → B → A）
+    """Determine build order"""
+    # Reverse dependencies (A depends on B -> B -> A)
     graph = defaultdict(list)
     all_files = set(deps.keys())
     for target, sources in deps.items():
@@ -867,7 +867,7 @@ def build_order(deps: dict) -> list:
             graph[src].append(target)
             all_files.add(src)
 
-    # Kahn のアルゴリズム
+    # Kahn's algorithm
     in_deg = {f: 0 for f in all_files}
     for u in graph:
         for v in graph[u]:
@@ -889,9 +889,9 @@ print(build_order(build_deps))
 # ['utils.c', 'utils.h', 'main.c', 'utils.o', 'main.o', 'app']
 
 
-# 実務例2: タスクスケジューリング（並列実行可能なタスクの識別）
+# Practical example 2: Task scheduling (identifying parallelizable tasks)
 def schedule_tasks_parallel(graph: dict) -> list:
-    """並列実行可能なタスクをステージごとにまとめる"""
+    """Group parallelizable tasks by stage"""
     all_vertices = set(graph.keys())
     for neighbors in graph.values():
         all_vertices.update(neighbors)
@@ -933,25 +933,25 @@ print(schedule_tasks_parallel(task_deps))
 
 ---
 
-## 5. 強連結成分（SCC）
+## 5. Strongly Connected Components (SCC)
 
-有向グラフにおいて、互いに到達可能な頂点の最大集合を強連結成分と呼ぶ。
+In a directed graph, a strongly connected component is a maximal set of vertices such that every vertex is reachable from every other vertex in the set.
 
-### 5.1 Kosaraju のアルゴリズム
+### 5.1 Kosaraju's Algorithm
 
 ```python
 def kosaraju_scc(graph: dict) -> list:
-    """Kosaraju のアルゴリズム - O(V + E)
-    1. 元グラフで DFS → 完了順に頂点を記録
-    2. グラフの転置を作成
-    3. 転置グラフ上で、完了順の逆順に DFS → 各 DFS で到達する頂点が SCC
+    """Kosaraju's algorithm - O(V + E)
+    1. Run DFS on the original graph -> record vertices in finish order
+    2. Create the transpose of the graph
+    3. Run DFS on the transpose graph in reverse finish order -> each DFS yields an SCC
     """
-    # 全頂点を収集
+    # Collect all vertices
     all_vertices = set(graph.keys())
     for neighbors in graph.values():
         all_vertices.update(neighbors)
 
-    # Step 1: 元グラフで DFS、完了順を記録
+    # Step 1: DFS on the original graph, record finish order
     visited = set()
     finish_order = []
 
@@ -966,13 +966,13 @@ def kosaraju_scc(graph: dict) -> list:
         if v not in visited:
             dfs1(v)
 
-    # Step 2: 転置グラフの作成
+    # Step 2: Create the transpose graph
     transpose = defaultdict(list)
     for u in graph:
         for v in graph[u]:
             transpose[v].append(u)
 
-    # Step 3: 転置グラフ上で逆順に DFS
+    # Step 3: DFS on the transpose in reverse order
     visited.clear()
     sccs = []
 
@@ -991,25 +991,25 @@ def kosaraju_scc(graph: dict) -> list:
 
     return sccs
 
-# 使用例
+# Usage example
 g_scc = {
     0: [1],
     1: [2],
-    2: [0, 3],  # 0→1→2→0 がSCC
+    2: [0, 3],  # 0->1->2->0 forms an SCC
     3: [4],
     4: [5],
-    5: [3],     # 3→4→5→3 がSCC
+    5: [3],     # 3->4->5->3 forms an SCC
 }
 print(kosaraju_scc(g_scc))
-# [[0, 2, 1], [3, 5, 4]] （順序は異なりうる）
+# [[0, 2, 1], [3, 5, 4]] (order may vary)
 ```
 
-### 5.2 Tarjan の SCC アルゴリズム
+### 5.2 Tarjan's SCC Algorithm
 
 ```python
 def tarjan_scc(graph: dict) -> list:
-    """Tarjan の SCC アルゴリズム - O(V + E)
-    DFS 1回で全 SCC を発見（Kosaraju より実用的）
+    """Tarjan's SCC algorithm - O(V + E)
+    Finds all SCCs in a single DFS pass (more practical than Kosaraju's)
     """
     index_counter = [0]
     stack = []
@@ -1036,7 +1036,7 @@ def tarjan_scc(graph: dict) -> list:
             elif w in on_stack:
                 lowlink[v] = min(lowlink[v], index[w])
 
-        # v がルートなら SCC を取り出す
+        # If v is a root, pop the SCC
         if lowlink[v] == index[v]:
             component = []
             while True:
@@ -1058,48 +1058,48 @@ print(tarjan_scc(g_scc))
 
 ---
 
-## 6. BFS vs DFS 比較表
+## 6. BFS vs DFS Comparison
 
-| 特性 | BFS | DFS |
+| Property | BFS | DFS |
 |:---|:---|:---|
-| データ構造 | キュー（FIFO） | スタック（LIFO）/ 再帰 |
-| 訪問順 | 近い頂点から | 深い頂点から |
-| 最短経路（重みなし） | 保証する | 保証しない |
-| メモリ使用量 | O(V)（幅に比例） | O(V)（深さに比例） |
-| 木の走査 | レベル順 | 前順/中順/後順 |
-| 実装の容易さ | やや複雑 | 再帰で簡潔 |
-| サイクル検出 | 可能 | 3色法で容易 |
-| 辺の分類 | 不可 | 可能（4種類） |
-| 完全性（無限グラフ） | 保証する | 保証しない |
+| Data structure | Queue (FIFO) | Stack (LIFO) / Recursion |
+| Visit order | Nearest vertices first | Deepest vertices first |
+| Shortest path (unweighted) | Guaranteed | Not guaranteed |
+| Memory usage | O(V) (proportional to width) | O(V) (proportional to depth) |
+| Tree traversal | Level-order | Pre-order / In-order / Post-order |
+| Implementation ease | Slightly more complex | Concise with recursion |
+| Cycle detection | Possible | Easy with 3-color method |
+| Edge classification | Not possible | Possible (4 types) |
+| Completeness (infinite graphs) | Guaranteed | Not guaranteed |
 
-## 走査アルゴリズムの用途
+## Use Cases for Traversal Algorithms
 
-| 用途 | 推奨アルゴリズム | 理由 |
+| Use Case | Recommended Algorithm | Reason |
 |:---|:---|:---|
-| 最短経路（重みなし） | BFS | 最短距離を保証 |
-| 連結成分 | DFS | 実装がシンプル |
-| トポロジカルソート | DFS / Kahn | DAG の順序付け |
-| サイクル検出 | DFS（3色法） | バックエッジ検出が容易 |
-| 二部グラフ判定 | BFS | レベル別の2色塗り |
-| 迷路の最短経路 | BFS | グリッド上の最短探索 |
-| パズル解法 | DFS + バックトラック | 状態空間の全探索 |
-| ウェブクローラ | BFS | 浅いページから順に |
-| 強連結成分 | DFS（Tarjan/Kosaraju） | 1-2回のDFSで完了 |
-| 関節点・橋の検出 | DFS | lowlink値で判定 |
-| オイラー路 | DFS (Hierholzer) | 辺を1回ずつ通る経路 |
+| Shortest path (unweighted) | BFS | Guarantees shortest distance |
+| Connected components | DFS | Simpler implementation |
+| Topological sort | DFS / Kahn | Ordering of DAGs |
+| Cycle detection | DFS (3-color) | Easy back edge detection |
+| Bipartite check | BFS | Level-based 2-coloring |
+| Shortest path in a maze | BFS | Shortest search on grids |
+| Puzzle solving | DFS + Backtracking | Exhaustive state space search |
+| Web crawler | BFS | Shallow pages first |
+| Strongly connected components | DFS (Tarjan/Kosaraju) | Completed in 1-2 DFS passes |
+| Articulation points and bridges | DFS | Detected using lowlink values |
+| Eulerian path | DFS (Hierholzer) | Path traversing each edge once |
 
 ---
 
-## 7. グリッド上の BFS
+## 7. BFS on Grids
 
 ```python
 def bfs_grid(grid: list, start: tuple, end: tuple) -> int:
-    """2Dグリッド上の最短経路（BFS）"""
+    """Shortest path on a 2D grid (BFS)"""
     rows, cols = len(grid), len(grid[0])
-    directions = [(0, 1), (0, -1), (1, 0), (-1, 0)]  # 右左下上
+    directions = [(0, 1), (0, -1), (1, 0), (-1, 0)]  # Right, Left, Down, Up
 
     visited = {start}
-    queue = deque([(start, 0)])  # (位置, 距離)
+    queue = deque([(start, 0)])  # (position, distance)
 
     while queue:
         (r, c), dist = queue.popleft()
@@ -1113,9 +1113,9 @@ def bfs_grid(grid: list, start: tuple, end: tuple) -> int:
                 visited.add((nr, nc))
                 queue.append(((nr, nc), dist + 1))
 
-    return -1  # 到達不可能
+    return -1  # Unreachable
 
-# 0: 通路, 1: 壁
+# 0: corridor, 1: wall
 maze = [
     [0, 0, 0, 0],
     [1, 1, 0, 1],
@@ -1125,13 +1125,13 @@ maze = [
 print(bfs_grid(maze, (0, 0), (3, 3)))  # 6
 ```
 
-### 8方向移動のグリッド BFS
+### 8-Directional Grid BFS
 
 ```python
 def bfs_grid_8dir(grid: list, start: tuple, end: tuple) -> int:
-    """8方向移動の最短経路"""
+    """Shortest path with 8-directional movement"""
     rows, cols = len(grid), len(grid[0])
-    # 8方向: 上下左右 + 斜め4方向
+    # 8 directions: up/down/left/right + 4 diagonals
     directions = [
         (-1, -1), (-1, 0), (-1, 1),
         (0, -1),           (0, 1),
@@ -1156,11 +1156,11 @@ def bfs_grid_8dir(grid: list, start: tuple, end: tuple) -> int:
     return -1
 ```
 
-### グリッド BFS で経路を復元
+### Grid BFS with Path Reconstruction
 
 ```python
 def bfs_grid_with_path(grid: list, start: tuple, end: tuple) -> list:
-    """2Dグリッドで最短経路を復元"""
+    """Reconstruct the shortest path on a 2D grid"""
     rows, cols = len(grid), len(grid[0])
     directions = [(0, 1), (0, -1), (1, 0), (-1, 0)]
 
@@ -1171,7 +1171,7 @@ def bfs_grid_with_path(grid: list, start: tuple, end: tuple) -> list:
     while queue:
         r, c = queue.popleft()
         if (r, c) == end:
-            # 経路復元
+            # Path reconstruction
             path = []
             current = end
             while current is not None:
@@ -1187,7 +1187,7 @@ def bfs_grid_with_path(grid: list, start: tuple, end: tuple) -> list:
                 parent[(nr, nc)] = (r, c)
                 queue.append((nr, nc))
 
-    return []  # 到達不可能
+    return []  # Unreachable
 
 path = bfs_grid_with_path(maze, (0, 0), (3, 3))
 print(path)
@@ -1196,18 +1196,18 @@ print(path)
 
 ---
 
-## 8. 関節点と橋の検出
+## 8. Articulation Points and Bridges
 
-無向グラフにおいて、削除するとグラフが非連結になる頂点（関節点）と辺（橋）を検出する。ネットワークの脆弱性分析に使われる。
+Detect vertices (articulation points) and edges (bridges) in an undirected graph whose removal disconnects the graph. Used for network vulnerability analysis.
 
 ```python
 def find_articulation_points_and_bridges(graph: dict, vertices: set):
-    """関節点と橋の検出 - O(V + E)"""
+    """Detect articulation points and bridges - O(V + E)"""
     discovery = {}
     low = {}
     parent = {}
-    ap = set()          # 関節点
-    bridges = []        # 橋
+    ap = set()          # Articulation points
+    bridges = []        # Bridges
     time_counter = [0]
 
     def dfs(u):
@@ -1222,15 +1222,15 @@ def find_articulation_points_and_bridges(graph: dict, vertices: set):
                 dfs(v)
                 low[u] = min(low[u], low[v])
 
-                # u がルートで子が2つ以上 → 関節点
+                # u is root and has 2+ children -> articulation point
                 if parent[u] is None and children > 1:
                     ap.add(u)
 
-                # u がルートでなく、子の lowlink が u の discovery 以上 → 関節点
+                # u is not root and child's lowlink >= u's discovery -> articulation point
                 if parent[u] is not None and low[v] >= discovery[u]:
                     ap.add(u)
 
-                # 橋の条件: low[v] > discovery[u]
+                # Bridge condition: low[v] > discovery[u]
                 if low[v] > discovery[u]:
                     bridges.append((u, v))
             elif v != parent.get(u):
@@ -1243,7 +1243,7 @@ def find_articulation_points_and_bridges(graph: dict, vertices: set):
 
     return ap, bridges
 
-# 使用例
+# Usage example
 g_bridge = {
     0: [1, 2],
     1: [0, 2],
@@ -1252,42 +1252,42 @@ g_bridge = {
     4: [3],
 }
 ap, bridges = find_articulation_points_and_bridges(g_bridge, {0,1,2,3,4})
-print(f"関節点: {ap}")     # {2, 3}
-print(f"橋: {bridges}")    # [(2, 3), (3, 4)]
+print(f"Articulation points: {ap}")  # {2, 3}
+print(f"Bridges: {bridges}")         # [(2, 3), (3, 4)]
 ```
 
 ---
 
-## 9. オイラー路とオイラー回路
+## 9. Eulerian Paths and Circuits
 
-全ての辺をちょうど1回ずつ通る経路（オイラー路）と、始点に戻る経路（オイラー回路）。
+A path that traverses every edge exactly once (Eulerian path) and one that returns to the starting vertex (Eulerian circuit).
 
 ```
-オイラー路の存在条件:
-  無向グラフ: 奇数次数の頂点が 0個（回路）or 2個（路）
-  有向グラフ: 各頂点の入次数=出次数（回路）
-              or 1頂点で出次数=入次数+1、1頂点で入次数=出次数+1（路）
+Conditions for Eulerian path existence:
+  Undirected graph: 0 vertices of odd degree (circuit) or 2 vertices of odd degree (path)
+  Directed graph: in-degree = out-degree for all vertices (circuit)
+              or 1 vertex with out-degree = in-degree + 1, 1 vertex with in-degree = out-degree + 1 (path)
 ```
 
 ```python
 def find_euler_path(graph: dict) -> list:
-    """Hierholzer のアルゴリズムでオイラー路/回路を求める
-    graph: 隣接リスト（辺のリスト）、辺は消費される
+    """Find an Eulerian path/circuit using Hierholzer's algorithm
+    graph: adjacency list (edges are consumed during traversal)
     """
-    # グラフのコピー（辺を消費するため）
+    # Copy the graph (edges are consumed)
     adj = defaultdict(list)
     for u in graph:
         for v in graph[u]:
             adj[u].append(v)
 
-    # 始点の決定
+    # Determine the starting vertex
     odd_vertices = [v for v in adj if len(adj[v]) % 2 == 1]
     if len(odd_vertices) == 0:
-        start = next(iter(adj))  # オイラー回路: 任意の頂点
+        start = next(iter(adj))  # Eulerian circuit: any vertex
     elif len(odd_vertices) == 2:
-        start = odd_vertices[0]   # オイラー路: 奇数次数頂点から
+        start = odd_vertices[0]   # Eulerian path: start from an odd-degree vertex
     else:
-        return []  # オイラー路/回路は存在しない
+        return []  # No Eulerian path/circuit exists
 
     stack = [start]
     path = []
@@ -1296,7 +1296,7 @@ def find_euler_path(graph: dict) -> list:
         v = stack[-1]
         if adj[v]:
             u = adj[v].pop()
-            # 無向グラフの場合、逆辺も削除
+            # For undirected graphs, also remove the reverse edge
             adj[u].remove(v)
             stack.append(u)
         else:
@@ -1304,7 +1304,7 @@ def find_euler_path(graph: dict) -> list:
 
     return path[::-1]
 
-# ケーニヒスベルクの橋（オイラーが解けないことを証明した問題の変形）
+# Konigsberg bridges (a variant of the problem Euler proved unsolvable)
 g_euler = {
     'A': ['B', 'C'],
     'B': ['A', 'C', 'D', 'D'],
@@ -1312,24 +1312,24 @@ g_euler = {
     'D': ['B', 'B', 'C'],
 }
 path = find_euler_path(g_euler)
-print(f"オイラー路: {path}")
+print(f"Eulerian path: {path}")
 ```
 
 ---
 
-## 10. 実務応用パターン集
+## 10. Practical Application Patterns
 
-### 10.1 ソーシャルネットワーク分析
+### 10.1 Social Network Analysis
 
 ```python
 def mutual_friends(graph: dict, u, v) -> set:
-    """共通の友人を見つける"""
+    """Find mutual friends"""
     friends_u = set(graph.get(u, []))
     friends_v = set(graph.get(v, []))
     return friends_u & friends_v
 
 def degrees_of_separation(graph: dict, u, v) -> int:
-    """2人の間の隔たりの次数（最短距離）"""
+    """Degrees of separation between two people (shortest distance)"""
     if u == v:
         return 0
     visited = {u}
@@ -1342,10 +1342,10 @@ def degrees_of_separation(graph: dict, u, v) -> int:
             if neighbor not in visited:
                 visited.add(neighbor)
                 queue.append((neighbor, dist + 1))
-    return -1  # 非連結
+    return -1  # Disconnected
 
 def influence_score(graph: dict, start, max_depth: int = 3) -> int:
-    """影響力スコア: max_depth ホップ以内に到達可能な頂点数"""
+    """Influence score: number of vertices reachable within max_depth hops"""
     visited = {start}
     queue = deque([(start, 0)])
     while queue:
@@ -1356,14 +1356,14 @@ def influence_score(graph: dict, start, max_depth: int = 3) -> int:
             if neighbor not in visited:
                 visited.add(neighbor)
                 queue.append((neighbor, depth + 1))
-    return len(visited) - 1  # 自分を除く
+    return len(visited) - 1  # Exclude self
 ```
 
-### 10.2 ウェブクローラの基本構造
+### 10.2 Basic Web Crawler Structure
 
 ```python
 def web_crawler_bfs(start_url: str, max_pages: int = 100) -> list:
-    """BFS ベースのウェブクローラ（概念的な実装）"""
+    """BFS-based web crawler (conceptual implementation)"""
     visited = {start_url}
     queue = deque([start_url])
     crawled = []
@@ -1372,8 +1372,8 @@ def web_crawler_bfs(start_url: str, max_pages: int = 100) -> list:
         url = queue.popleft()
         crawled.append(url)
 
-        # 実際には HTTP リクエストでページを取得し、リンクを抽出する
-        links = extract_links(url)  # 仮想関数
+        # In practice, fetch the page via HTTP request and extract links
+        links = extract_links(url)  # Hypothetical function
 
         for link in links:
             if link not in visited:
@@ -1383,15 +1383,15 @@ def web_crawler_bfs(start_url: str, max_pages: int = 100) -> list:
     return crawled
 
 def extract_links(url):
-    """仮想的なリンク抽出（実際にはHTMLパースが必要）"""
-    return []  # プレースホルダ
+    """Hypothetical link extraction (actual implementation requires HTML parsing)"""
+    return []  # Placeholder
 ```
 
-### 10.3 依存関係のデッドロック検出
+### 10.3 Dependency Deadlock Detection
 
 ```python
 def detect_deadlock(resource_graph: dict) -> list:
-    """リソース割り当てグラフでデッドロック（サイクル）を検出"""
+    """Detect deadlock (cycle) in a resource allocation graph"""
     WHITE, GRAY, BLACK = 0, 1, 2
     color = defaultdict(int)
     path = []
@@ -1402,7 +1402,7 @@ def detect_deadlock(resource_graph: dict) -> list:
         path.append(u)
         for v in resource_graph.get(u, []):
             if color[v] == GRAY:
-                # サイクル発見 → デッドロック
+                # Cycle found -> deadlock
                 idx = path.index(v)
                 cycle.extend(path[idx:])
                 return True
@@ -1417,9 +1417,9 @@ def detect_deadlock(resource_graph: dict) -> list:
             if dfs(vertex):
                 return cycle
 
-    return []  # デッドロックなし
+    return []  # No deadlock
 
-# プロセス P1 → リソース R1 → プロセス P2 → リソース R2 → P1
+# Process P1 -> Resource R1 -> Process P2 -> Resource R2 -> P1
 resource_graph = {
     'P1': ['R1'],
     'R1': ['P2'],
@@ -1427,50 +1427,50 @@ resource_graph = {
     'R2': ['P1'],
 }
 deadlock = detect_deadlock(resource_graph)
-print(f"デッドロック: {deadlock}")
-# デッドロック: ['P1', 'R1', 'P2', 'R2']
+print(f"Deadlock: {deadlock}")
+# Deadlock: ['P1', 'R1', 'P2', 'R2']
 ```
 
 ---
 
-## 11. アンチパターン
+## 11. Anti-Patterns
 
-### アンチパターン1: visited チェックのタイミング
+### Anti-Pattern 1: Incorrect Timing of visited Checks
 
 ```python
-# BAD: キューから取り出した時に visited チェック
-# → 同じ頂点が複数回キューに入り、メモリと時間を浪費
+# BAD: Check visited when dequeuing
+# -> Same vertex enters the queue multiple times, wasting memory and time
 def bad_bfs(graph, start):
     queue = deque([start])
     visited = set()
     while queue:
         v = queue.popleft()
-        if v in visited:  # ここでチェック → 遅い
+        if v in visited:  # Checking here -> slow
             continue
         visited.add(v)
         for n in graph[v]:
-            queue.append(n)  # 重複追加される
+            queue.append(n)  # Duplicate additions
 
-# GOOD: キューに追加する時に visited チェック
+# GOOD: Check visited when enqueuing
 def good_bfs(graph, start):
     queue = deque([start])
-    visited = {start}  # 追加時にマーク
+    visited = {start}  # Mark on addition
     while queue:
         v = queue.popleft()
         for n in graph[v]:
             if n not in visited:
-                visited.add(n)  # ここでマーク
+                visited.add(n)  # Mark here
                 queue.append(n)
 ```
 
-### アンチパターン2: 再帰 DFS のスタックオーバーフロー
+### Anti-Pattern 2: Stack Overflow with Recursive DFS
 
 ```python
-# BAD: 大きなグラフで再帰 DFS → RecursionError
+# BAD: Recursive DFS on large graphs -> RecursionError
 import sys
-sys.setrecursionlimit(10**6)  # 応急処置だが不安定
+sys.setrecursionlimit(10**6)  # Stopgap measure, but unstable
 
-# GOOD: 反復版 DFS を使用
+# GOOD: Use iterative DFS
 def safe_dfs(graph, start):
     visited = set()
     stack = [start]
@@ -1483,25 +1483,25 @@ def safe_dfs(graph, start):
                     stack.append(n)
 ```
 
-### アンチパターン3: 隣接行列を疎グラフに使用
+### Anti-Pattern 3: Using Adjacency Matrix for Sparse Graphs
 
 ```python
-# BAD: 頂点数 100,000 の疎グラフに隣接行列
-# → メモリ 100,000 × 100,000 = 10^10 要素 → メモリ不足
+# BAD: Adjacency matrix for a sparse graph with 100,000 vertices
+# -> Memory: 100,000 x 100,000 = 10^10 elements -> out of memory
 n = 100000
 matrix = [[0] * n for _ in range(n)]  # MemoryError!
 
-# GOOD: 隣接リストを使う
+# GOOD: Use an adjacency list
 graph = defaultdict(list)
-# 辺数 E << V^2 なので、メモリは O(V + E) で済む
+# With E << V^2, memory is O(V + E)
 ```
 
-### アンチパターン4: BFS でのパス記録方法
+### Anti-Pattern 4: Path Recording Method in BFS
 
 ```python
-# BAD: パスを毎回コピー → O(V^2) メモリ
+# BAD: Copy path each time -> O(V^2) memory
 def bad_bfs_path(graph, start, end):
-    queue = deque([(start, [start])])  # パス全体をコピー
+    queue = deque([(start, [start])])  # Copies entire path
     visited = {start}
     while queue:
         v, path = queue.popleft()
@@ -1510,9 +1510,9 @@ def bad_bfs_path(graph, start, end):
         for n in graph[v]:
             if n not in visited:
                 visited.add(n)
-                queue.append((n, path + [n]))  # O(V) のコピー
+                queue.append((n, path + [n]))  # O(V) copy
 
-# GOOD: 前任者辞書を使って後から復元 → O(V) メモリ
+# GOOD: Use a predecessor dictionary and reconstruct afterward -> O(V) memory
 def good_bfs_path(graph, start, end):
     prev = {start: None}
     queue = deque([start])
@@ -1533,63 +1533,63 @@ def good_bfs_path(graph, start, end):
 
 ---
 
-## 12. 計算量のまとめ
+## 12. Complexity Summary
 
-| アルゴリズム | 時間計算量 | 空間計算量 | 備考 |
+| Algorithm | Time Complexity | Space Complexity | Notes |
 |:---|:---|:---|:---|
-| BFS | O(V + E) | O(V) | キュー + visited |
-| DFS（再帰） | O(V + E) | O(V) | コールスタック |
-| DFS（反復） | O(V + E) | O(V) | 明示的スタック |
-| トポロジカルソート（DFS） | O(V + E) | O(V) | DAG限定 |
-| トポロジカルソート（Kahn） | O(V + E) | O(V) | DAG限定 |
-| 強連結成分（Kosaraju） | O(V + E) | O(V) | DFS 2回 |
-| 強連結成分（Tarjan） | O(V + E) | O(V) | DFS 1回 |
-| 関節点・橋 | O(V + E) | O(V) | lowlink使用 |
-| オイラー路（Hierholzer） | O(V + E) | O(E) | 辺の管理 |
-| 二部グラフ判定 | O(V + E) | O(V) | BFS/DFS |
+| BFS | O(V + E) | O(V) | Queue + visited |
+| DFS (recursive) | O(V + E) | O(V) | Call stack |
+| DFS (iterative) | O(V + E) | O(V) | Explicit stack |
+| Topological sort (DFS) | O(V + E) | O(V) | DAG only |
+| Topological sort (Kahn) | O(V + E) | O(V) | DAG only |
+| SCC (Kosaraju) | O(V + E) | O(V) | 2 DFS passes |
+| SCC (Tarjan) | O(V + E) | O(V) | 1 DFS pass |
+| Articulation points/bridges | O(V + E) | O(V) | Uses lowlink |
+| Eulerian path (Hierholzer) | O(V + E) | O(E) | Edge management |
+| Bipartite check | O(V + E) | O(V) | BFS/DFS |
 
 
 ---
 
-## 実践演習
+## Exercises
 
-### 演習1: 基本的な実装
+### Exercise 1: Basic Implementation
 
-以下の要件を満たすコードを実装してください。
+Implement code that satisfies the following requirements.
 
-**要件:**
-- 入力データの検証を行うこと
-- エラーハンドリングを適切に実装すること
-- テストコードも作成すること
+**Requirements:**
+- Perform input data validation
+- Implement proper error handling
+- Write test code as well
 
 ```python
-# 演習1: 基本実装のテンプレート
+# Exercise 1: Basic implementation template
 class Exercise1:
-    """基本的な実装パターンの演習"""
+    """Exercise for basic implementation patterns"""
 
     def __init__(self):
         self.data = []
 
     def validate_input(self, value):
-        """入力値の検証"""
+        """Validate input value"""
         if value is None:
-            raise ValueError("入力値がNoneです")
+            raise ValueError("Input value is None")
         return True
 
     def process(self, value):
-        """データ処理のメインロジック"""
+        """Main processing logic"""
         self.validate_input(value)
         self.data.append(value)
         return self.data
 
     def get_results(self):
-        """処理結果の取得"""
+        """Get processing results"""
         return {
             'count': len(self.data),
             'data': self.data
         }
 
-# テスト
+# Tests
 def test_exercise1():
     ex = Exercise1()
     assert ex.process(1) == [1]
@@ -1598,26 +1598,26 @@ def test_exercise1():
 
     try:
         ex.process(None)
-        assert False, "例外が発生するべき"
+        assert False, "Exception should have been raised"
     except ValueError:
         pass
 
-    print("全テスト合格!")
+    print("All tests passed!")
 
 test_exercise1()
 ```
 
-### 演習2: 応用パターン
+### Exercise 2: Applied Patterns
 
-基本実装を拡張して、以下の機能を追加してください。
+Extend the basic implementation by adding the following features.
 
 ```python
-# 演習2: 応用パターン
+# Exercise 2: Applied patterns
 from typing import List, Dict, Optional
 from datetime import datetime
 
 class AdvancedExercise:
-    """応用パターンの演習"""
+    """Exercise for applied patterns"""
 
     def __init__(self, max_size: int = 100):
         self._items: List[Dict] = []
@@ -1625,7 +1625,7 @@ class AdvancedExercise:
         self._created_at = datetime.now()
 
     def add(self, key: str, value: any) -> bool:
-        """アイテムの追加（サイズ制限付き）"""
+        """Add an item (with size limit)"""
         if len(self._items) >= self._max_size:
             return False
         self._items.append({
@@ -1636,14 +1636,14 @@ class AdvancedExercise:
         return True
 
     def find(self, key: str) -> Optional[Dict]:
-        """キーによる検索"""
+        """Search by key"""
         for item in reversed(self._items):
             if item['key'] == key:
                 return item
         return None
 
     def remove(self, key: str) -> bool:
-        """キーによる削除"""
+        """Remove by key"""
         for i, item in enumerate(self._items):
             if item['key'] == key:
                 self._items.pop(i)
@@ -1651,7 +1651,7 @@ class AdvancedExercise:
         return False
 
     def stats(self) -> Dict:
-        """統計情報"""
+        """Statistics"""
         return {
             'total_items': len(self._items),
             'max_size': self._max_size,
@@ -1659,44 +1659,44 @@ class AdvancedExercise:
             'uptime': str(datetime.now() - self._created_at)
         }
 
-# テスト
+# Tests
 def test_advanced():
     ex = AdvancedExercise(max_size=3)
     assert ex.add("a", 1) == True
     assert ex.add("b", 2) == True
     assert ex.add("c", 3) == True
-    assert ex.add("d", 4) == False  # サイズ制限
+    assert ex.add("d", 4) == False  # Size limit
     assert ex.find("b")['value'] == 2
     assert ex.remove("b") == True
     assert ex.find("b") is None
     stats = ex.stats()
     assert stats['total_items'] == 2
-    print("応用テスト全合格!")
+    print("All applied tests passed!")
 
 test_advanced()
 ```
 
-### 演習3: パフォーマンス最適化
+### Exercise 3: Performance Optimization
 
-以下のコードのパフォーマンスを改善してください。
+Improve the performance of the following code.
 
 ```python
-# 演習3: パフォーマンス最適化
+# Exercise 3: Performance optimization
 import time
 from functools import lru_cache
 
-# 最適化前（O(n^2)）
+# Before optimization (O(n^2))
 def slow_search(data: list, target: int) -> int:
-    """非効率な検索"""
+    """Inefficient search"""
     for i in range(len(data)):
         for j in range(i + 1, len(data)):
             if data[i] + data[j] == target:
                 return (i, j)
     return (-1, -1)
 
-# 最適化後（O(n)）
+# After optimization (O(n))
 def fast_search(data: list, target: int) -> tuple:
-    """ハッシュマップを使った効率的な検索"""
+    """Efficient search using a hash map"""
     seen = {}
     for i, num in enumerate(data):
         complement = target - num
@@ -1705,7 +1705,7 @@ def fast_search(data: list, target: int) -> tuple:
         seen[num] = i
     return (-1, -1)
 
-# ベンチマーク
+# Benchmark
 def benchmark():
     import random
     data = list(range(5000))
@@ -1720,44 +1720,44 @@ def benchmark():
     result2 = fast_search(data, target)
     fast_time = time.time() - start
 
-    print(f"非効率版: {slow_time:.4f}秒")
-    print(f"効率版:   {fast_time:.6f}秒")
-    print(f"高速化率: {slow_time/fast_time:.0f}倍")
+    print(f"Inefficient: {slow_time:.4f}s")
+    print(f"Efficient:   {fast_time:.6f}s")
+    print(f"Speedup:     {slow_time/fast_time:.0f}x")
 
 benchmark()
 ```
 
-**ポイント:**
-- アルゴリズムの計算量を意識する
-- 適切なデータ構造を選択する
-- ベンチマークで効果を測定する
+**Key Points:**
+- Be mindful of algorithmic complexity
+- Choose appropriate data structures
+- Measure the effect with benchmarks
 ---
 
 ## 13. FAQ
 
-### Q1: BFS と DFS の計算量は同じ？
+### Q1: Are the complexities of BFS and DFS the same?
 
-**A:** はい、どちらも O(V + E)。全頂点と全辺を1回ずつ処理する。違いは訪問順序とメモリの使われ方。BFS は「幅」方向にメモリを消費し、DFS は「深さ」方向に消費する。木の場合、BFS は最大幅 O(V) のメモリを使い、DFS は最大深さ O(log V)〜O(V) のメモリを使う。
+**A:** Yes, both are O(V + E). They process every vertex and every edge once. The difference lies in visit order and how memory is used. BFS consumes memory proportional to the "width," while DFS consumes memory proportional to the "depth." For trees, BFS uses O(V) memory for maximum width, while DFS uses O(log V) to O(V) memory for maximum depth.
 
-### Q2: トポロジカルソートの結果は一意か？
+### Q2: Is the result of topological sort unique?
 
-**A:** 一般に一意ではない。複数の有効な順序が存在しうる。一意になるのは、各レベルで入次数0の頂点が常に1つの場合（ハミルトンパスが存在する場合）。辞書順で最小のトポロジカル順序を求めたい場合は、Kahn のアルゴリズムで deque の代わりに heapq（最小ヒープ）を使う。
+**A:** Generally no. Multiple valid orderings can exist. The result is unique only when there is always exactly one vertex with in-degree 0 at each level (i.e., when a Hamiltonian path exists). To find the lexicographically smallest topological order, use Kahn's algorithm with a `heapq` (min-heap) instead of a deque.
 
-### Q3: 有向グラフの強連結成分はどう求める？
+### Q3: How do you find strongly connected components in a directed graph?
 
-**A:** Tarjan のアルゴリズムまたは Kosaraju のアルゴリズムを使う。どちらも O(V + E)。Tarjan は DFS 1回、Kosaraju は DFS 2回（元グラフ + 転置グラフ）で求まる。実装の簡潔さでは Kosaraju、効率では Tarjan が優位。
+**A:** Use Tarjan's algorithm or Kosaraju's algorithm. Both run in O(V + E). Tarjan requires 1 DFS pass, while Kosaraju requires 2 (original graph + transpose graph). Kosaraju is simpler to implement; Tarjan is more efficient.
 
-### Q4: グラフが暗黙的に定義される場合は？
+### Q4: What if the graph is defined implicitly?
 
-**A:** パズルの状態空間や迷路のグリッドなど、隣接リストを事前に構築せず、BFS/DFS の訪問時にオンデマンドで隣接頂点を生成する。メモリ効率が良い。例えばルービックキューブの解法では、各状態から可能な手の組み合わせで次の状態を生成する。
+**A:** For puzzle state spaces or maze grids, do not pre-build an adjacency list. Instead, generate neighbor vertices on-demand during BFS/DFS traversal. This is memory-efficient. For example, when solving a Rubik's Cube, the next states are generated by applying all possible moves from the current state.
 
-### Q5: 双方向BFSとは何か？
+### Q5: What is bidirectional BFS?
 
-**A:** 始点と終点の両方から同時にBFSを行い、2つの探索が出会った時点で最短経路を確定する手法。通常の BFS が O(b^d) の頂点を探索するのに対し（b=分岐係数, d=距離）、双方向BFSは O(b^(d/2)) × 2 = O(2 × b^(d/2)) で済む。指数的に探索空間を削減できる。
+**A:** A technique that runs BFS simultaneously from both the source and the target, terminating when the two search frontiers meet. While standard BFS explores O(b^d) vertices (b = branching factor, d = distance), bidirectional BFS explores O(b^(d/2)) x 2 = O(2 * b^(d/2)), providing an exponential reduction in search space.
 
 ```python
 def bidirectional_bfs(graph: dict, start, end) -> int:
-    """双方向BFS - 始点と終点から同時に探索"""
+    """Bidirectional BFS - searches from both source and target"""
     if start == end:
         return 0
 
@@ -1769,7 +1769,7 @@ def bidirectional_bfs(graph: dict, start, end) -> int:
 
     while front and back:
         depth += 1
-        # 小さい方を拡張（効率化）
+        # Expand the smaller frontier (optimization)
         if len(front) > len(back):
             front, back = back, front
             visited_front, visited_back = visited_back, visited_front
@@ -1785,60 +1785,60 @@ def bidirectional_bfs(graph: dict, start, end) -> int:
 
         front = next_front
 
-    return -1  # 到達不可能
+    return -1  # Unreachable
 ```
 
-### Q6: グラフの走査で注意すべきエッジケースは？
+### Q6: What edge cases should be considered during graph traversal?
 
-**A:** 主なエッジケース: (1) 空のグラフ（頂点も辺もない）、(2) 孤立頂点（辺のない頂点）、(3) 自己ループ（u→u の辺）、(4) 多重辺（同じ頂点間の複数辺）、(5) 非連結グラフ（全頂点を訪問するには全頂点からの開始が必要）、(6) 単一頂点のグラフ。堅牢な実装ではこれらを全て考慮する必要がある。
+**A:** Key edge cases: (1) Empty graph (no vertices or edges), (2) Isolated vertices (vertices with no edges), (3) Self-loops (edges u -> u), (4) Multi-edges (multiple edges between the same vertices), (5) Disconnected graphs (starting from all vertices is necessary to visit all vertices), (6) Single-vertex graphs. A robust implementation must account for all of these.
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point to keep in mind when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory, but by actually writing code and verifying how it works.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes that beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently applied in day-to-day development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## 14. まとめ
+## 14. Summary
 
-| 項目 | 要点 |
+| Topic | Key Points |
 |:---|:---|
-| BFS | キュー使用、レベル順訪問、最短経路保証（重みなし） |
-| DFS | スタック/再帰使用、深さ優先、バックトラックに適する |
-| トポロジカルソート | DAG の依存順序。DFS(Tarjan) or BFS(Kahn) |
-| 強連結成分 | Tarjan（DFS 1回）または Kosaraju（DFS 2回） |
-| グラフ表現 | 疎→隣接リスト、密→隣接行列。ほとんどの場合隣接リスト |
-| 計算量 | BFS/DFS ともに O(V + E) |
-| 応用範囲 | 最短経路、連結成分、サイクル検出、二部判定、依存解決 |
-| 実務応用 | SNS分析、ウェブクローラ、ビルドシステム、デッドロック検出 |
+| BFS | Uses queue, level-order traversal, guarantees shortest path (unweighted) |
+| DFS | Uses stack/recursion, depth-first, suited for backtracking |
+| Topological sort | Ordering of DAGs. DFS (Tarjan) or BFS (Kahn) |
+| Strongly connected components | Tarjan (1 DFS pass) or Kosaraju (2 DFS passes) |
+| Graph representation | Sparse -> adjacency list, Dense -> adjacency matrix. Adjacency list for most cases |
+| Complexity | Both BFS and DFS are O(V + E) |
+| Applications | Shortest path, connected components, cycle detection, bipartite check, dependency resolution |
+| Practical uses | Social network analysis, web crawlers, build systems, deadlock detection |
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Guides
 
-- [最短経路アルゴリズム](./03-shortest-path.md) -- 重み付きグラフの最短経路（Dijkstra等）
-- [バックトラッキング](./07-backtracking.md) -- DFS を応用した全探索
-- [Union-Find](../03-advanced/00-union-find.md) -- 連結成分管理の効率的データ構造
+- [Shortest Path Algorithms](./03-shortest-path.md) -- Shortest paths in weighted graphs (Dijkstra, etc.)
+- [Backtracking](./07-backtracking.md) -- Exhaustive search using DFS
+- [Union-Find](../03-advanced/00-union-find.md) -- Efficient data structure for managing connected components
 
 ---
 
-## 参考文献
+## References
 
-1. Cormen, T. H. et al. (2022). *Introduction to Algorithms* (4th ed.). MIT Press. -- 第20-22章
+1. Cormen, T. H. et al. (2022). *Introduction to Algorithms* (4th ed.). MIT Press. -- Chapters 20-22
 2. Sedgewick, R. & Wayne, K. (2011). *Algorithms* (4th ed.). Addison-Wesley. -- Part 5: Graphs
 3. Kahn, A. B. (1962). "Topological sorting of large networks." *Communications of the ACM*.
 4. Tarjan, R. E. (1972). "Depth-first search and linear graph algorithms." *SIAM Journal on Computing*.
-5. Kosaraju, S. R. (1978). Unpublished manuscript. -- 強連結成分の2パスアルゴリズム
-6. Hierholzer, C. (1873). "Über die Möglichkeit, einen Linienzug ohne Wiederholung und ohne Unterbrechung zu umfahren." *Mathematische Annalen*.
+5. Kosaraju, S. R. (1978). Unpublished manuscript. -- Two-pass algorithm for strongly connected components
+6. Hierholzer, C. (1873). "Uber die Moglichkeit, einen Linienzug ohne Wiederholung und ohne Unterbrechung zu umfahren." *Mathematische Annalen*.

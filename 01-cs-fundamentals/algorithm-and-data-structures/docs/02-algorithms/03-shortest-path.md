@@ -1,121 +1,123 @@
-# 最短経路アルゴリズム
+# Shortest Path Algorithms
 
-> 重み付きグラフにおける最短経路問題を、Dijkstra・Bellman-Ford・Floyd-Warshallの3大アルゴリズムで解く手法を体系的に理解する
+> Systematically understand techniques for solving shortest path problems in weighted graphs using the three major algorithms: Dijkstra, Bellman-Ford, and Floyd-Warshall
 
-## この章で学ぶこと
+## What You Will Learn
 
-1. **Dijkstra法**の原理と優先度キュー実装で単一始点最短経路を効率的に求められる
-2. **Bellman-Ford法**で負の辺重みを扱い、負閉路の検出ができる
-3. **Floyd-Warshall法**で全点対最短経路を動的計画法で求められる
-4. **Johnson法**や**0-1 BFS**、**A*探索**などの発展的アルゴリズムを理解する
-5. 各アルゴリズムの適用条件と使い分けを正確に判断できる
+1. Efficiently find single-source shortest paths using **Dijkstra's algorithm** with a priority queue implementation
+2. Handle negative edge weights and detect negative cycles using **the Bellman-Ford algorithm**
+3. Compute all-pairs shortest paths using **the Floyd-Warshall algorithm** with dynamic programming
+4. Understand advanced algorithms such as **Johnson's algorithm**, **0-1 BFS**, and **A* search**
+5. Accurately determine the applicability and appropriate selection of each algorithm
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Having the following knowledge will deepen your understanding of this guide:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [グラフ走査アルゴリズム](./02-graph-traversal.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Familiarity with the content in [Graph Traversal Algorithms](./02-graph-traversal.md)
 
 ---
 
-## 1. 最短経路問題の分類
+## 1. Classification of Shortest Path Problems
 
 ```
-┌─────────────────────────────────────────────────────┐
-│               最短経路問題                            │
-├───────────────────┬─────────────────────────────────┤
-│  単一始点          │  全点対間                        │
-│  (SSSP)           │  (APSP)                         │
-├───────────────────┼─────────────────────────────────┤
-│ Dijkstra          │ Floyd-Warshall                   │
-│ (負辺なし)        │ O(V³)                            │
-│ O((V+E) log V)   │                                   │
-├───────────────────┤                                   │
-│ Bellman-Ford      │ Johnson                           │
-│ (負辺あり)        │ (疎グラフ向け)                     │
-│ O(VE)             │ O(V² log V + VE)                 │
-├───────────────────┤                                   │
-│ DAG 最短経路      │                                   │
-│ (DAG限定)         │                                   │
-│ O(V + E)          │                                   │
-├───────────────────┤                                   │
-│ A* 探索           │                                   │
-│ (ヒューリスティック)│                                  │
-│ O(E) 最良ケース   │                                   │
-└───────────────────┴─────────────────────────────────┘
++-----------------------------------------------------+
+|            Shortest Path Problems                     |
++-------------------+---------------------------------+
+|  Single-Source     |  All-Pairs                       |
+|  (SSSP)           |  (APSP)                         |
++-------------------+---------------------------------+
+| Dijkstra          | Floyd-Warshall                   |
+| (no negative      | O(V^3)                           |
+|  edges)           |                                   |
+| O((V+E) log V)   |                                   |
++-------------------+                                   |
+| Bellman-Ford      | Johnson                           |
+| (negative edges   | (for sparse graphs)               |
+|  allowed)         |                                   |
+| O(VE)             | O(V^2 log V + VE)                 |
++-------------------+                                   |
+| DAG Shortest Path |                                   |
+| (DAG only)        |                                   |
+| O(V + E)          |                                   |
++-------------------+                                   |
+| A* Search         |                                   |
+| (heuristic)       |                                   |
+| O(E) best case    |                                   |
++-------------------+---------------------------------+
 ```
 
-### 最短経路問題の前提知識
+### Foundational Concept for Shortest Path Problems
 
 ```
-緩和（Relaxation）操作 — 全アルゴリズムに共通する基本操作:
+Relaxation -- the fundamental operation common to all algorithms:
 
   if dist[u] + weight(u, v) < dist[v]:
       dist[v] = dist[u] + weight(u, v)
       prev[v] = u
 
-  「u を経由して v に行く方が近いなら、v の距離を更新する」
+  "If going to v via u is shorter, update v's distance"
 
-  この操作を:
-  - Dijkstra  → 頂点を確定する度に実行
-  - Bellman   → 全辺に対して V-1 回繰り返す
-  - Floyd     → 中継点を増やしながら実行
-  - DAG       → トポロジカル順に実行
+  This operation is performed:
+  - Dijkstra  -> each time a vertex is finalized
+  - Bellman   -> V-1 times over all edges
+  - Floyd     -> while incrementally adding relay vertices
+  - DAG       -> in topological order
 ```
 
 ---
 
-## 2. Dijkstra法
+## 2. Dijkstra's Algorithm
 
-非負の辺重みを持つグラフで、単一始点からの最短経路を求める。「確定していない頂点の中で最短距離の頂点を確定する」を繰り返す。
+Finds single-source shortest paths in a graph with non-negative edge weights. The core idea is to repeatedly "finalize the unvisited vertex with the shortest known distance."
 
 ```
-グラフ:
+Graph:
       2        3
-  A ────→ B ────→ D
-  │       ↑       ↑
-  │1      │1      │1
-  ↓       │       │
-  C ────→ E ────→ F
+  A -----> B -----> D
+  |        ^        ^
+  |1       |1       |1
+  v        |        |
+  C -----> E -----> F
       4        2
 
-始点 A からの最短距離:
+Shortest distances from source A:
   Step 0: A=0, B=inf, C=inf, D=inf, E=inf, F=inf
-  Step 1: A=0* → C=1, B=2
-  Step 2: C=1* → E=5
-  Step 3: B=2* → D=5, E=min(5,3)=3
-  Step 4: E=3* → F=5
-  Step 5: D=5* (B経由: 2+3=5)
-  Step 6: F=5* (E経由: 3+2=5)
+  Step 1: A=0* -> C=1, B=2
+  Step 2: C=1* -> E=5
+  Step 3: B=2* -> D=5, E=min(5,3)=3
+  Step 4: E=3* -> F=5
+  Step 5: D=5* (via B: 2+3=5)
+  Step 6: F=5* (via E: 3+2=5)
 
-  最短距離: A=0, B=2, C=1, D=5, E=3, F=5
+  Shortest distances: A=0, B=2, C=1, D=5, E=3, F=5
 ```
 
-### 2.1 優先度キュー実装
+### 2.1 Priority Queue Implementation
 
 ```python
 import heapq
 from collections import defaultdict
 
 def dijkstra(graph: dict, start: str) -> tuple:
-    """Dijkstra法 - O((V+E) log V)
+    """Dijkstra's algorithm - O((V+E) log V)
     graph: {u: [(v, weight), ...], ...}
-    返り値: (距離辞書, 前任者辞書)
+    Returns: (distance dict, predecessor dict)
     """
     dist = defaultdict(lambda: float('inf'))
     prev = {}
     dist[start] = 0
 
-    # (距離, 頂点) の最小ヒープ
+    # Min-heap of (distance, vertex)
     pq = [(0, start)]
 
     while pq:
         d, u = heapq.heappop(pq)
 
-        # 古い情報はスキップ
+        # Skip stale entries
         if d > dist[u]:
             continue
 
@@ -129,18 +131,18 @@ def dijkstra(graph: dict, start: str) -> tuple:
     return dict(dist), prev
 
 def reconstruct_path(prev: dict, start: str, end: str) -> list:
-    """前任者辞書から経路を復元"""
+    """Reconstruct path from predecessor dictionary"""
     path = []
     current = end
     while current != start:
         if current not in prev:
-            return []  # 到達不可能
+            return []  # Unreachable
         path.append(current)
         current = prev[current]
     path.append(start)
     return path[::-1]
 
-# 使用例
+# Usage example
 graph = {
     'A': [('B', 2), ('C', 1)],
     'B': [('D', 3)],
@@ -153,32 +155,33 @@ print(dist)                            # {'A': 0, 'B': 2, 'C': 1, 'D': 5, 'E': 5
 print(reconstruct_path(prev, 'A', 'D'))  # ['A', 'B', 'D']
 ```
 
-### 2.2 Dijkstra法の正当性の証明（概要）
+### 2.2 Proof of Correctness for Dijkstra's Algorithm (Overview)
 
 ```
-Dijkstra法の貪欲選択性質:
+Greedy choice property of Dijkstra's algorithm:
 
-  定理: 非負辺グラフにおいて、未確定頂点の中で距離が最小の頂点 u を
-        確定すると、dist[u] は u への真の最短距離である。
+  Theorem: In a non-negative edge graph, when we finalize vertex u
+           with the smallest distance among unfinalized vertices,
+           dist[u] is the true shortest distance to u.
 
-  証明の概要（帰納法・背理法）:
-  1. dist[u] が最短でないと仮定する
-  2. すると、別の未確定頂点 w を経由するより短い経路が存在する
-  3. しかし w は未確定なので dist[w] >= dist[u]
-  4. 辺の重みが非負なので、w を経由する経路は dist[u] 以上
-  5. 矛盾 → dist[u] は最短距離
+  Proof outline (by induction and contradiction):
+  1. Assume dist[u] is not the shortest
+  2. Then a shorter path via another unfinalized vertex w exists
+  3. But w is unfinalized, so dist[w] >= dist[u]
+  4. Since edge weights are non-negative, the path via w is >= dist[u]
+  5. Contradiction -> dist[u] is the shortest distance
 
-  この証明が成り立つ条件: 全辺の重みが非負
-  負辺があると Step 4 が成立しなくなる
+  This proof holds under the condition: all edge weights are non-negative
+  With negative edges, Step 4 fails
 ```
 
-### 2.3 Dijkstra法のバリエーション
+### 2.3 Variations of Dijkstra's Algorithm
 
-#### visitedフラグ版（メモリ効率版）
+#### Visited Flag Version (Memory-Efficient)
 
 ```python
 def dijkstra_with_visited(graph: dict, start: str) -> dict:
-    """visited フラグを使った Dijkstra（ヒープに古いエントリが溜まりにくい）"""
+    """Dijkstra with visited flag (fewer stale entries accumulate in the heap)"""
     dist = defaultdict(lambda: float('inf'))
     dist[start] = 0
     visited = set()
@@ -200,14 +203,14 @@ def dijkstra_with_visited(graph: dict, start: str) -> dict:
     return dict(dist)
 ```
 
-#### k番目に短い経路を求めるDijkstra
+#### Finding the k-th Shortest Path with Dijkstra
 
 ```python
 def dijkstra_kth_shortest(graph: dict, start: str, end: str, k: int) -> list:
-    """k番目に短い経路の距離を返す
-    各頂点に最大 k 回到達するまで探索を続ける
+    """Return distances of the k shortest paths
+    Continue exploring until each vertex has been reached at most k times
     """
-    count = defaultdict(int)  # 各頂点への到達回数
+    count = defaultdict(int)  # Number of times each vertex has been reached
     pq = [(0, start)]
     distances = []
 
@@ -228,7 +231,7 @@ def dijkstra_kth_shortest(graph: dict, start: str, end: str, k: int) -> list:
 
     return distances
 
-# 使用例
+# Usage example
 graph_multi = {
     'A': [('B', 1), ('C', 3)],
     'B': [('C', 1), ('D', 4)],
@@ -236,14 +239,14 @@ graph_multi = {
     'D': [],
 }
 print(dijkstra_kth_shortest(graph_multi, 'A', 'D', 3))
-# [3, 4, 5]  (A→B→C→D=3, A→C→D=4, A→B→D=5)
+# [3, 4, 5]  (A->B->C->D=3, A->C->D=4, A->B->D=5)
 ```
 
-### 2.4 グリッド上の Dijkstra
+### 2.4 Dijkstra on Grids
 
 ```python
 def dijkstra_grid(grid: list, start: tuple, end: tuple) -> int:
-    """2Dグリッド上の Dijkstra（各セルにコストがある場合）"""
+    """Dijkstra on a 2D grid (where each cell has a traversal cost)"""
     rows, cols = len(grid), len(grid[0])
     directions = [(0, 1), (0, -1), (1, 0), (-1, 0)]
 
@@ -271,7 +274,7 @@ def dijkstra_grid(grid: list, start: tuple, end: tuple) -> int:
 
     return -1
 
-# 各セルの通過コスト
+# Traversal cost per cell
 cost_grid = [
     [1, 3, 1, 2],
     [1, 5, 1, 1],
@@ -283,45 +286,45 @@ print(dijkstra_grid(cost_grid, (0, 0), (3, 3)))  # 7
 
 ---
 
-## 3. Bellman-Ford法
+## 3. Bellman-Ford Algorithm
 
-負の辺重みを許容する単一始点最短経路アルゴリズム。全辺を V-1 回緩和し、V 回目の緩和で負閉路を検出する。
+A single-source shortest path algorithm that allows negative edge weights. It relaxes all edges V-1 times, then detects negative cycles on the V-th iteration.
 
 ```
-緩和（Relaxation）の概念:
+The concept of relaxation:
   if dist[u] + weight(u,v) < dist[v]:
       dist[v] = dist[u] + weight(u,v)
 
-  A ──(5)──→ B
-  ↓           ↓
+  A --(5)--> B
+  |           |
  (2)        (-3)
-  ↓           ↓
-  C ──(4)──→ D
+  |           |
+  C --(4)--> D
 
   Step 0: A=0, B=inf, C=inf, D=inf
-  Step 1: A→B: B=5, A→C: C=2
-  Step 2: B→D: D=2, C→D: D=min(2,6)=2
-  Step 3: 変化なし → 収束
+  Step 1: A->B: B=5, A->C: C=2
+  Step 2: B->D: D=2, C->D: D=min(2,6)=2
+  Step 3: No change -> converged
 
-なぜ V-1 回で十分か:
-  最短経路は最大 V-1 本の辺を含む（サイクルがない場合）。
-  各回のイテレーションで、最短経路の辺を少なくとも1本確定させる。
-  したがって V-1 回のイテレーションで全ての最短経路が求まる。
+Why V-1 iterations are sufficient:
+  The shortest path contains at most V-1 edges (when cycle-free).
+  Each iteration finalizes at least one edge of the shortest path.
+  Therefore, V-1 iterations find all shortest paths.
 ```
 
-### 3.1 基本実装
+### 3.1 Basic Implementation
 
 ```python
 def bellman_ford(vertices: list, edges: list, start) -> tuple:
-    """Bellman-Ford法 - O(VE)
+    """Bellman-Ford algorithm - O(VE)
     edges: [(u, v, weight), ...]
-    返り値: (距離辞書, 前任者辞書, 負閉路フラグ)
+    Returns: (distance dict, predecessor dict, negative cycle flag)
     """
     dist = {v: float('inf') for v in vertices}
     prev = {v: None for v in vertices}
     dist[start] = 0
 
-    # V-1 回の緩和
+    # V-1 relaxation passes
     for _ in range(len(vertices) - 1):
         updated = False
         for u, v, w in edges:
@@ -329,10 +332,10 @@ def bellman_ford(vertices: list, edges: list, start) -> tuple:
                 dist[v] = dist[u] + w
                 prev[v] = u
                 updated = True
-        if not updated:  # 早期終了
+        if not updated:  # Early termination
             break
 
-    # V 回目：負閉路の検出
+    # V-th pass: detect negative cycles
     has_negative_cycle = False
     for u, v, w in edges:
         if dist[u] != float('inf') and dist[u] + w < dist[v]:
@@ -341,7 +344,7 @@ def bellman_ford(vertices: list, edges: list, start) -> tuple:
 
     return dist, prev, has_negative_cycle
 
-# 使用例（負の辺あり）
+# Usage example (with negative edges)
 vertices = ['A', 'B', 'C', 'D', 'E']
 edges = [
     ('A', 'B', 4), ('A', 'C', 2),
@@ -352,36 +355,36 @@ dist, prev, neg_cycle = bellman_ford(vertices, edges, 'A')
 print(dist)       # {'A': 0, 'B': 1, 'C': 2, 'D': 4, 'E': 5}
 print(neg_cycle)  # False
 
-# 負閉路の例
+# Negative cycle example
 edges_neg = [('A', 'B', 1), ('B', 'C', -3), ('C', 'A', 1)]
 _, _, neg = bellman_ford(['A','B','C'], edges_neg, 'A')
 print(neg)  # True
 ```
 
-### 3.2 負閉路に影響される頂点の特定
+### 3.2 Identifying Vertices Affected by Negative Cycles
 
 ```python
 def bellman_ford_with_negative_cycle_detection(vertices, edges, start):
-    """負閉路の影響を受ける全頂点を特定"""
+    """Identify all vertices affected by negative cycles"""
     dist = {v: float('inf') for v in vertices}
     prev = {v: None for v in vertices}
     dist[start] = 0
 
-    # V-1 回の緩和
+    # V-1 relaxation passes
     for _ in range(len(vertices) - 1):
         for u, v, w in edges:
             if dist[u] != float('inf') and dist[u] + w < dist[v]:
                 dist[v] = dist[u] + w
                 prev[v] = u
 
-    # V 回目で更新される頂点 → 負閉路の影響を受ける
+    # Vertices updated in the V-th pass are affected by negative cycles
     affected = set()
     for u, v, w in edges:
         if dist[u] != float('inf') and dist[u] + w < dist[v]:
             affected.add(v)
 
-    # 負閉路から到達可能な全頂点も影響を受ける
-    # BFS で伝播
+    # All vertices reachable from the negative cycle are also affected
+    # Propagate via BFS
     queue = deque(affected)
     while queue:
         node = queue.popleft()
@@ -394,25 +397,25 @@ def bellman_ford_with_negative_cycle_detection(vertices, edges, start):
 
 vertices_nc = ['A', 'B', 'C', 'D', 'E']
 edges_nc = [
-    ('A', 'B', 1), ('B', 'C', -3), ('C', 'B', 1),  # B-C間に負閉路
+    ('A', 'B', 1), ('B', 'C', -3), ('C', 'B', 1),  # Negative cycle between B-C
     ('C', 'D', 2), ('D', 'E', 1),
 ]
 dist, affected = bellman_ford_with_negative_cycle_detection(vertices_nc, edges_nc, 'A')
-print(f"負閉路の影響を受ける頂点: {affected}")
-# {'B', 'C', 'D', 'E'} — B,C が負閉路上、D,E は到達可能
+print(f"Vertices affected by negative cycle: {affected}")
+# {'B', 'C', 'D', 'E'} -- B,C are on the cycle; D,E are reachable from it
 ```
 
-### 3.3 SPFA（Shortest Path Faster Algorithm）
+### 3.3 SPFA (Shortest Path Faster Algorithm)
 
-Bellman-Ford の改良版。更新された頂点のみをキューに入れて処理する。平均的には高速だが、最悪は O(VE)。
+An improvement over Bellman-Ford that only processes vertices whose distances have been updated. Faster on average, but worst case remains O(VE).
 
 ```python
 from collections import deque
 
 def spfa(graph: dict, start) -> tuple:
-    """SPFA - Bellman-Ford の改良版
+    """SPFA - improved Bellman-Ford
     graph: {u: [(v, weight), ...]}
-    平均計算量は Bellman-Ford より大幅に速い
+    Significantly faster than Bellman-Ford on average
     """
     all_vertices = set(graph.keys())
     for neighbors in graph.values():
@@ -422,7 +425,7 @@ def spfa(graph: dict, start) -> tuple:
     dist = {v: float('inf') for v in all_vertices}
     dist[start] = 0
     in_queue = {v: False for v in all_vertices}
-    count = {v: 0 for v in all_vertices}  # 各頂点のキュー入り回数
+    count = {v: 0 for v in all_vertices}  # Queue entry count per vertex
 
     queue = deque([start])
     in_queue[start] = True
@@ -440,7 +443,7 @@ def spfa(graph: dict, start) -> tuple:
                     in_queue[v] = True
                     count[v] += 1
                     if count[v] >= len(all_vertices):
-                        return dist, True  # 負閉路検出
+                        return dist, True  # Negative cycle detected
 
     return dist, False
 
@@ -458,49 +461,49 @@ print(has_neg)   # False
 
 ---
 
-## 4. Floyd-Warshall法
+## 4. Floyd-Warshall Algorithm
 
-全頂点対の最短経路を動的計画法で求める。中継点を1つずつ増やしながら距離行列を更新する。
+Computes all-pairs shortest paths using dynamic programming. Updates the distance matrix by incrementally adding relay vertices.
 
 ```
-初期距離行列:              k=1 (A経由):
+Initial distance matrix:           k=1 (via A):
      A    B    C    D         A    B    C    D
 A [  0,   3, inf,   7]   A [  0,   3, inf,   7]
 B [  8,   0,   2, inf]   B [  8,   0,   2,  15]
 C [  5, inf,   0,   1]   C [  5,   8,   0,   1]
 D [  2, inf, inf,   0]   D [  2,   5, inf,   0]
 
-k=2 (B経由):              最終結果:
+k=2 (via B):              Final result:
      A    B    C    D         A    B    C    D
 A [  0,   3,   5,   7]   A [  0,   3,   5,   6]
 B [  8,   0,   2,   3]   B [  5,   0,   2,   3]
 C [  5,   8,   0,   1]   C [  3,   6,   0,   1]
 D [  2,   5,   7,   0]   D [  2,   5,   7,   0]
 
-DP の遷移式:
+DP recurrence:
   dist[i][j] = min(dist[i][j], dist[i][k] + dist[k][j])
 
-  「i から j への距離を、k を中継点として使った場合と使わなかった場合で比較」
+  "Compare the distance from i to j with and without using k as a relay vertex"
 ```
 
-### 4.1 基本実装
+### 4.1 Basic Implementation
 
 ```python
 def floyd_warshall(n: int, edges: list) -> list:
-    """Floyd-Warshall法 - O(V³)
+    """Floyd-Warshall algorithm - O(V^3)
     edges: [(u, v, weight), ...]
-    返り値: 距離行列
+    Returns: distance matrix
     """
     INF = float('inf')
     dist = [[INF] * n for _ in range(n)]
 
-    # 初期化
+    # Initialization
     for i in range(n):
         dist[i][i] = 0
     for u, v, w in edges:
         dist[u][v] = w
 
-    # DP: 中継点 k を順に追加
+    # DP: incrementally add relay vertex k
     for k in range(n):
         for i in range(n):
             for j in range(n):
@@ -510,11 +513,11 @@ def floyd_warshall(n: int, edges: list) -> list:
     return dist
 ```
 
-### 4.2 経路復元付き実装
+### 4.2 Implementation with Path Reconstruction
 
 ```python
 def floyd_warshall_with_path(n: int, edges: list) -> tuple:
-    """Floyd-Warshall + 経路復元"""
+    """Floyd-Warshall + path reconstruction"""
     INF = float('inf')
     dist = [[INF] * n for _ in range(n)]
     nxt = [[None] * n for _ in range(n)]
@@ -535,7 +538,7 @@ def floyd_warshall_with_path(n: int, edges: list) -> tuple:
     return dist, nxt
 
 def get_path(nxt: list, u: int, v: int) -> list:
-    """経路復元"""
+    """Reconstruct the path"""
     if nxt[u][v] is None:
         return []
     path = [u]
@@ -544,18 +547,18 @@ def get_path(nxt: list, u: int, v: int) -> list:
         path.append(u)
     return path
 
-# 使用例
+# Usage example
 edges = [(0,1,3), (0,3,7), (1,0,8), (1,2,2), (2,0,5), (2,3,1), (3,0,2)]
 dist, nxt = floyd_warshall_with_path(4, edges)
 print(dist[1][3])           # 3
 print(get_path(nxt, 1, 3))  # [1, 2, 3]
 ```
 
-### 4.3 Floyd-Warshall による負閉路検出
+### 4.3 Negative Cycle Detection with Floyd-Warshall
 
 ```python
 def floyd_warshall_with_negative_cycle(n: int, edges: list) -> tuple:
-    """Floyd-Warshall + 負閉路検出"""
+    """Floyd-Warshall + negative cycle detection"""
     INF = float('inf')
     dist = [[INF] * n for _ in range(n)]
 
@@ -571,18 +574,19 @@ def floyd_warshall_with_negative_cycle(n: int, edges: list) -> tuple:
                     if dist[i][k] + dist[k][j] < dist[i][j]:
                         dist[i][j] = dist[i][k] + dist[k][j]
 
-    # 対角成分が負 → 負閉路が存在
+    # Negative diagonal element -> negative cycle exists
     has_negative_cycle = any(dist[i][i] < 0 for i in range(n))
 
     return dist, has_negative_cycle
 ```
 
-### 4.4 Floyd-Warshall の応用: 推移閉包
+### 4.4 Floyd-Warshall Application: Transitive Closure
 
 ```python
 def transitive_closure(n: int, edges: list) -> list:
-    """推移閉包: i から j に到達可能かどうかの行列を求める
-    Floyd-Warshall の変形（重みの代わりに到達可能性を管理）
+    """Transitive closure: compute a reachability matrix indicating
+    whether vertex i can reach vertex j.
+    A variant of Floyd-Warshall (managing reachability instead of weights)
     """
     reach = [[False] * n for _ in range(n)]
 
@@ -600,22 +604,22 @@ def transitive_closure(n: int, edges: list) -> list:
 
 edges_reach = [(0, 1), (1, 2), (2, 3)]
 reach = transitive_closure(4, edges_reach)
-print(reach[0][3])  # True (0→1→2→3)
-print(reach[3][0])  # False (3から0へは到達不可)
+print(reach[0][3])  # True (0->1->2->3)
+print(reach[3][0])  # False (3 cannot reach 0)
 ```
 
 ---
 
-## 5. DAG 最短経路
+## 5. DAG Shortest Path
 
-DAG（有向非巡回グラフ）では、トポロジカル順序で緩和すれば O(V+E) で求まる。
+In a DAG (Directed Acyclic Graph), shortest paths can be found in O(V+E) by relaxing edges in topological order.
 
 ```python
 from collections import defaultdict, deque
 
 def dag_shortest_path(graph: dict, start) -> dict:
-    """DAG上の最短経路 - O(V + E)"""
-    # トポロジカルソート（Kahn）
+    """Shortest path on a DAG - O(V + E)"""
+    # Topological sort (Kahn's)
     in_degree = defaultdict(int)
     all_verts = set(graph.keys())
     for u in graph:
@@ -633,7 +637,7 @@ def dag_shortest_path(graph: dict, start) -> dict:
             if in_degree[neighbor] == 0:
                 queue.append(neighbor)
 
-    # トポロジカル順に緩和
+    # Relax in topological order
     dist = {v: float('inf') for v in all_verts}
     dist[start] = 0
     for u in topo_order:
@@ -653,14 +657,14 @@ dag = {
 print(dag_shortest_path(dag, 'A'))  # {'A': 0, 'B': 2, 'C': 3, 'D': 4}
 ```
 
-### DAG 最長経路
+### DAG Longest Path
 
-DAG では重みを反転させるか、max を使って最長経路も O(V+E) で求められる。クリティカルパス分析に使われる。
+In a DAG, the longest path can also be found in O(V+E) by negating weights or using max. Used for critical path analysis.
 
 ```python
 def dag_longest_path(graph: dict, start) -> dict:
-    """DAG上の最長経路 - O(V + E)
-    プロジェクト管理のクリティカルパス分析に使用
+    """Longest path on a DAG - O(V + E)
+    Used for critical path analysis in project management
     """
     in_degree = defaultdict(int)
     all_verts = set(graph.keys())
@@ -690,37 +694,37 @@ def dag_longest_path(graph: dict, start) -> dict:
 
     return dist
 
-# プロジェクトタスクのDAG（タスク名: [(次タスク, 所要日数)])
+# Project task DAG (task name: [(next task, duration in days)])
 project = {
-    '設計':     [('開発', 5), ('テスト設計', 3)],
-    '開発':     [('テスト', 8)],
-    'テスト設計': [('テスト', 2)],
-    'テスト':   [('リリース', 3)],
-    'リリース': [],
+    'Design':      [('Development', 5), ('Test Design', 3)],
+    'Development': [('Testing', 8)],
+    'Test Design': [('Testing', 2)],
+    'Testing':     [('Release', 3)],
+    'Release':     [],
 }
-longest = dag_longest_path(project, '設計')
+longest = dag_longest_path(project, 'Design')
 print(longest)
-# {'設計': 0, '開発': 5, 'テスト設計': 3, 'テスト': 13, 'リリース': 16}
-# クリティカルパス: 設計→開発→テスト→リリース = 16日
+# {'Design': 0, 'Development': 5, 'Test Design': 3, 'Testing': 13, 'Release': 16}
+# Critical path: Design -> Development -> Testing -> Release = 16 days
 ```
 
 ---
 
-## 6. Johnson法（全点対最短経路 — 疎グラフ向け）
+## 6. Johnson's Algorithm (All-Pairs Shortest Paths for Sparse Graphs)
 
-Bellman-Ford で辺の重みを非負に変換し、各頂点から Dijkstra を実行する。疎グラフでは Floyd-Warshall より高速。
+Uses Bellman-Ford to reweight edges to non-negative values, then runs Dijkstra from each vertex. Faster than Floyd-Warshall for sparse graphs.
 
 ```python
 def johnson(n: int, edges: list) -> list:
-    """Johnson法 - O(V² log V + VE)
+    """Johnson's algorithm - O(V^2 log V + VE)
     edges: [(u, v, weight), ...]
     """
     INF = float('inf')
 
-    # Step 1: 仮想頂点 s を追加し、全頂点へ重み 0 の辺を張る
+    # Step 1: Add virtual vertex s with zero-weight edges to all vertices
     new_edges = edges + [(n, v, 0) for v in range(n)]
 
-    # Step 2: Bellman-Ford で s からの最短距離 h を求める
+    # Step 2: Run Bellman-Ford from s to compute shortest distances h
     h = [INF] * (n + 1)
     h[n] = 0
     for _ in range(n):
@@ -728,30 +732,30 @@ def johnson(n: int, edges: list) -> list:
             if h[u] != INF and h[u] + w < h[v]:
                 h[v] = h[u] + w
 
-    # 負閉路チェック
+    # Negative cycle check
     for u, v, w in new_edges:
         if h[u] != INF and h[u] + w < h[v]:
-            raise ValueError("負閉路が存在します")
+            raise ValueError("Negative cycle detected")
 
-    # Step 3: 辺の重みを非負に変換: w'(u,v) = w(u,v) + h[u] - h[v]
+    # Step 3: Reweight edges to non-negative: w'(u,v) = w(u,v) + h[u] - h[v]
     reweighted_graph = defaultdict(list)
     for u, v, w in edges:
         new_w = w + h[u] - h[v]
         reweighted_graph[u].append((v, new_w))
 
-    # Step 4: 各頂点から Dijkstra
+    # Step 4: Run Dijkstra from each vertex
     dist = [[INF] * n for _ in range(n)]
     for s in range(n):
         d = dijkstra_array(reweighted_graph, s, n)
         for t in range(n):
             if d[t] != INF:
-                # 元の重みに戻す
+                # Restore original weights
                 dist[s][t] = d[t] - h[s] + h[t]
 
     return dist
 
 def dijkstra_array(graph, start, n):
-    """配列版 Dijkstra（Johnson用）"""
+    """Array-based Dijkstra (for Johnson's)"""
     INF = float('inf')
     dist = [INF] * n
     dist[start] = 0
@@ -769,27 +773,27 @@ def dijkstra_array(graph, start, n):
 
 ---
 
-## 7. A* 探索
+## 7. A* Search
 
-Dijkstra にヒューリスティック関数を加えた探索。ゴールが明確な場合に Dijkstra より高速に最短経路を見つけられる。
+An extension of Dijkstra that adds a heuristic function. Finds shortest paths faster than Dijkstra when the goal is well-defined.
 
 ```
-Dijkstra: f(n) = g(n)        ← 始点からの実コスト
-A*:       f(n) = g(n) + h(n) ← 実コスト + ゴールまでの推定コスト
+Dijkstra: f(n) = g(n)        <- actual cost from source
+A*:       f(n) = g(n) + h(n) <- actual cost + estimated cost to goal
 
-ヒューリスティック h(n) の条件:
-  - 許容性 (Admissible): h(n) <= 実際のコスト（過大評価しない）
-  - 一貫性 (Consistent): h(n) <= cost(n, n') + h(n')
+Conditions for heuristic h(n):
+  - Admissibility: h(n) <= actual cost (never overestimates)
+  - Consistency:   h(n) <= cost(n, n') + h(n')
 
-  許容的なら最適解が保証される
+  Admissibility guarantees an optimal solution
 ```
 
 ```python
 def astar(graph: dict, start, goal, heuristic) -> tuple:
-    """A* 探索
+    """A* search
     graph: {u: [(v, weight), ...]}
-    heuristic: h(node) → ゴールまでの推定コスト
-    返り値: (距離, 経路)
+    heuristic: h(node) -> estimated cost to goal
+    Returns: (distance, path)
     """
     open_set = [(heuristic(start), 0, start)]  # (f, g, node)
     came_from = {}
@@ -823,11 +827,11 @@ def astar(graph: dict, start, goal, heuristic) -> tuple:
 
     return float('inf'), []
 
-# グリッド上の A* 探索例（マンハッタン距離をヒューリスティックに）
+# A* search on a grid (using Manhattan distance as the heuristic)
 def manhattan_distance(node, goal=(9, 9)):
     return abs(node[0] - goal[0]) + abs(node[1] - goal[1])
 
-# グリッドグラフの構築
+# Build grid graph
 def build_grid_graph(rows, cols, blocked=set()):
     graph = {}
     for r in range(rows):
@@ -844,42 +848,42 @@ def build_grid_graph(rows, cols, blocked=set()):
 
 grid_graph = build_grid_graph(10, 10, blocked={(3,3), (3,4), (3,5)})
 dist, path = astar(grid_graph, (0, 0), (9, 9), manhattan_distance)
-print(f"最短距離: {dist}")  # 18
-print(f"経路長: {len(path)}")
+print(f"Shortest distance: {dist}")  # 18
+print(f"Path length: {len(path)}")
 ```
 
-### A* vs Dijkstra の比較
+### A* vs Dijkstra Comparison
 
 ```
           Dijkstra                    A*
-        ┌─────────┐             ┌─────────┐
-        │ ○ ○ ○ ○ │             │ . . . . │
-        │ ○ ○ ○ ○ │             │ . ○ ○ . │
-     S → ○ ○ ○ ○ → G         S → . ○ ○ → G
-        │ ○ ○ ○ ○ │             │ . ○ ○ . │
-        │ ○ ○ ○ ○ │             │ . . . . │
-        └─────────┘             └─────────┘
-     探索頂点数: 多い          探索頂点数: 少ない
+        +---------+             +---------+
+        | o o o o |             | . . . . |
+        | o o o o |             | . o o . |
+     S -> o o o o -> G         S -> . o o -> G
+        | o o o o |             | . o o . |
+        | o o o o |             | . . . . |
+        +---------+             +---------+
+     Explored vertices: many    Explored vertices: few
 
-  ○ = 探索された頂点
-  . = 探索されなかった頂点
+  o = explored vertex
+  . = unexplored vertex
 
-  A* は h(n) によってゴール方向に探索を集中させるため、
-  大規模なグラフで大幅に高速になる
+  A* uses h(n) to focus the search toward the goal,
+  achieving significantly faster performance on large graphs
 ```
 
 ---
 
-## 8. 特殊な最短経路アルゴリズム
+## 8. Specialized Shortest Path Algorithms
 
 ### 8.1 0-1 BFS
 
-辺の重みが 0 か 1 のみの場合、deque を使って O(V+E) で最短距離を求める。
+When all edge weights are either 0 or 1, use a deque to find shortest distances in O(V+E).
 
 ```python
 def bfs_01(graph: dict, start) -> dict:
     """0-1 BFS - O(V + E)
-    graph: {u: [(v, weight), ...]}  weight は 0 or 1
+    graph: {u: [(v, weight), ...]}  weight is 0 or 1
     """
     dist = defaultdict(lambda: float('inf'))
     dist[start] = 0
@@ -892,22 +896,22 @@ def bfs_01(graph: dict, start) -> dict:
             if new_dist < dist[v]:
                 dist[v] = new_dist
                 if w == 0:
-                    dq.appendleft(v)  # 重み0 → 先頭に追加
+                    dq.appendleft(v)  # Weight 0 -> push to front
                 else:
-                    dq.append(v)      # 重み1 → 末尾に追加
+                    dq.append(v)      # Weight 1 -> push to back
 
     return dict(dist)
 ```
 
-### 8.2 双方向 Dijkstra
+### 8.2 Bidirectional Dijkstra
 
-始点と終点の両方から Dijkstra を行い、探索領域が重なった時点で最短距離を確定させる。大規模グラフでの1対1最短経路に有効。
+Runs Dijkstra from both source and target, determining the shortest distance when the two search spaces overlap. Effective for point-to-point shortest paths on large graphs.
 
 ```python
 def bidirectional_dijkstra(graph: dict, reverse_graph: dict, start, end) -> int:
-    """双方向 Dijkstra
-    graph: 順方向の隣接リスト
-    reverse_graph: 逆方向の隣接リスト
+    """Bidirectional Dijkstra
+    graph: forward adjacency list
+    reverse_graph: reverse adjacency list
     """
     INF = float('inf')
 
@@ -925,7 +929,7 @@ def bidirectional_dijkstra(graph: dict, reverse_graph: dict, start, end) -> int:
     best = INF
 
     while pq_f or pq_b:
-        # 前方から探索
+        # Forward search
         if pq_f:
             d, u = heapq.heappop(pq_f)
             if d <= best:
@@ -938,7 +942,7 @@ def bidirectional_dijkstra(graph: dict, reverse_graph: dict, start, end) -> int:
                     if v in visited_b:
                         best = min(best, dist_f[v] + dist_b[v])
 
-        # 後方から探索
+        # Backward search
         if pq_b:
             d, u = heapq.heappop(pq_b)
             if d <= best:
@@ -951,7 +955,7 @@ def bidirectional_dijkstra(graph: dict, reverse_graph: dict, start, end) -> int:
                     if v in visited_f:
                         best = min(best, dist_f[v] + dist_b[v])
 
-        # 両方の最小距離が best 以上なら終了
+        # Terminate when both minimum distances >= best
         min_f = pq_f[0][0] if pq_f else INF
         min_b = pq_b[0][0] if pq_b else INF
         if min_f + min_b >= best:
@@ -960,20 +964,20 @@ def bidirectional_dijkstra(graph: dict, reverse_graph: dict, start, end) -> int:
     return best
 ```
 
-### 8.3 ダイヤル法（Dial's Algorithm）
+### 8.3 Dial's Algorithm
 
-辺の重みが小さな非負整数の場合、バケットを使って O(V + E + W_max) で動作する。
+When edge weights are small non-negative integers, operates in O(V + E + W_max) using buckets.
 
 ```python
 def dial_shortest_path(graph: dict, start, n: int, max_weight: int) -> list:
-    """ダイヤル法 - O(V + E + W_max * V)
-    辺の重みが [0, max_weight] の非負整数の場合に有効
+    """Dial's algorithm - O(V + E + W_max * V)
+    Effective when edge weights are non-negative integers in [0, max_weight]
     """
     INF = float('inf')
     dist = [INF] * n
     dist[start] = 0
 
-    # バケット（循環バッファ）
+    # Buckets (circular buffer)
     num_buckets = max_weight * n + 1
     buckets = [[] for _ in range(num_buckets)]
     buckets[0].append(start)
@@ -1002,25 +1006,25 @@ def dial_shortest_path(graph: dict, start, n: int, max_weight: int) -> list:
 
 ---
 
-## 9. 実務応用パターン
+## 9. Practical Application Patterns
 
-### 9.1 カーナビの経路検索
+### 9.1 Navigation Route Search
 
 ```python
-# 実際のカーナビでは以下の手法が使われる:
+# In real-world navigation systems, the following techniques are used:
 #
 # 1. Contraction Hierarchies (CH)
-#    - 前処理で重要度の低い頂点を「収縮」し、ショートカット辺を追加
-#    - クエリは双方向 Dijkstra で、前処理済みグラフ上で高速に探索
-#    - 前処理: O(n log n) 〜 O(n²), クエリ: 数ミリ秒
+#    - Preprocessing "contracts" low-importance vertices and adds shortcut edges
+#    - Queries use bidirectional Dijkstra on the preprocessed graph
+#    - Preprocessing: O(n log n) ~ O(n^2), Query: milliseconds
 #
 # 2. ALT (A*, Landmarks, Triangle inequality)
-#    - ランドマーク頂点への距離を前処理で計算
-#    - 三角不等式を使ってヒューリスティックを計算
-#    - A* のヒューリスティックとして使用
+#    - Precompute distances to landmark vertices
+#    - Use the triangle inequality to compute heuristics
+#    - Used as the heuristic for A*
 
 def travel_time_dijkstra(road_network, start, end, departure_time):
-    """時間依存の経路検索（ラッシュアワーを考慮）"""
+    """Time-dependent route search (accounting for rush hours)"""
     dist = defaultdict(lambda: float('inf'))
     dist[start] = departure_time
     pq = [(departure_time, start)]
@@ -1032,7 +1036,7 @@ def travel_time_dijkstra(road_network, start, end, departure_time):
         if time > dist[u]:
             continue
         for v, travel_time_func in road_network.get(u, []):
-            # travel_time_func(t) は時刻 t における移動時間を返す
+            # travel_time_func(t) returns the travel time at time t
             arrival = time + travel_time_func(time)
             if arrival < dist[v]:
                 dist[v] = arrival
@@ -1040,12 +1044,12 @@ def travel_time_dijkstra(road_network, start, end, departure_time):
     return float('inf')
 ```
 
-### 9.2 ネットワークルーティング
+### 9.2 Network Routing
 
 ```python
 def ospf_routing(network: dict, router_id: str) -> dict:
-    """OSPF（Open Shortest Path First）のルーティングテーブル計算
-    実際の OSPF は Dijkstra 法をベースにしている
+    """OSPF (Open Shortest Path First) routing table computation
+    Real OSPF is based on Dijkstra's algorithm
     """
     dist, prev = dijkstra(network, router_id)
 
@@ -1053,7 +1057,7 @@ def ospf_routing(network: dict, router_id: str) -> dict:
     for dest in dist:
         if dest == router_id:
             continue
-        # 次ホップを求める
+        # Find the next hop
         next_hop = dest
         while prev.get(next_hop) != router_id:
             next_hop = prev.get(next_hop)
@@ -1068,22 +1072,22 @@ def ospf_routing(network: dict, router_id: str) -> dict:
     return routing_table
 ```
 
-### 9.3 為替レートの裁定取引検出
+### 9.3 Currency Arbitrage Detection
 
 ```python
 import math
 
 def detect_arbitrage(currencies: list, rates: dict) -> list:
-    """為替レートの裁定取引を検出（Bellman-Ford で負閉路を検出）
+    """Detect currency arbitrage using Bellman-Ford (negative cycle detection)
     rates: {(from, to): rate, ...}
 
-    裁定取引: A → B → C → A で利益が出る状態
-    rates を -log(rate) に変換すると、負閉路 = 裁定取引機会
+    Arbitrage: A -> B -> C -> A yields a profit
+    Converting rates to -log(rate) transforms negative cycles into arbitrage opportunities
     """
     n = len(currencies)
     currency_idx = {c: i for i, c in enumerate(currencies)}
 
-    # 辺リストの作成（重み = -log(rate)）
+    # Build edge list (weight = -log(rate))
     edges = []
     for (src, dst), rate in rates.items():
         if rate > 0:
@@ -1100,11 +1104,11 @@ def detect_arbitrage(currencies: list, rates: dict) -> list:
                 dist[v] = dist[u] + w
                 prev[v] = u
 
-    # 負閉路の検出
+    # Negative cycle detection
     for u, v, w in edges:
         if dist[u] != float('inf') and dist[u] + w < dist[v]:
-            # 負閉路を見つけた → 裁定取引が可能
-            # サイクルを復元
+            # Found a negative cycle -> arbitrage is possible
+            # Recover the cycle
             cycle = []
             visited = set()
             x = v
@@ -1119,7 +1123,7 @@ def detect_arbitrage(currencies: list, rates: dict) -> list:
             cycle.append(currencies[start])
             return cycle[::-1]
 
-    return []  # 裁定取引なし
+    return []  # No arbitrage
 
 currencies = ['USD', 'EUR', 'GBP', 'JPY']
 rates = {
@@ -1130,151 +1134,151 @@ rates = {
 }
 cycle = detect_arbitrage(currencies, rates)
 if cycle:
-    print(f"裁定取引: {' → '.join(cycle)}")
+    print(f"Arbitrage: {' -> '.join(cycle)}")
 ```
 
 ---
 
-## 10. アルゴリズム比較表
+## 10. Algorithm Comparison Table
 
-| アルゴリズム | 計算量 | 負辺 | 負閉路検出 | 種別 | 用途 |
+| Algorithm | Complexity | Negative Edges | Negative Cycle Detection | Type | Use Case |
 |:---|:---|:---|:---|:---|:---|
-| Dijkstra | O((V+E) log V) | 不可 | 不可 | 単一始点 | 非負辺グラフ |
-| Bellman-Ford | O(VE) | 可 | 可 | 単一始点 | 負辺あり |
-| SPFA | O(VE) 最悪 | 可 | 可 | 単一始点 | BFの改良版 |
-| Floyd-Warshall | O(V³) | 可 | 可(対角負) | 全点対 | 小規模・密グラフ |
-| Johnson | O(V² log V + VE) | 可 | 可 | 全点対 | 疎グラフ |
-| DAG 最短経路 | O(V+E) | 可 | 不要(DAG) | 単一始点 | DAG限定 |
-| BFS | O(V+E) | 不可(重み=1) | 不可 | 単一始点 | 重みなし |
-| 0-1 BFS | O(V+E) | 不可(重み0/1) | 不可 | 単一始点 | 重み0or1 |
-| A* | O(E) 最良 | 不可 | 不可 | 1対1 | ヒューリスティック可能 |
+| Dijkstra | O((V+E) log V) | No | No | Single-source | Non-negative edge graphs |
+| Bellman-Ford | O(VE) | Yes | Yes | Single-source | Negative edges |
+| SPFA | O(VE) worst | Yes | Yes | Single-source | Improved Bellman-Ford |
+| Floyd-Warshall | O(V^3) | Yes | Yes (negative diagonal) | All-pairs | Small/dense graphs |
+| Johnson | O(V^2 log V + VE) | Yes | Yes | All-pairs | Sparse graphs |
+| DAG Shortest Path | O(V+E) | Yes | N/A (DAG) | Single-source | DAG only |
+| BFS | O(V+E) | No (weight=1) | No | Single-source | Unweighted |
+| 0-1 BFS | O(V+E) | No (weight 0/1) | No | Single-source | Weights 0 or 1 |
+| A* | O(E) best | No | No | Point-to-point | When heuristic is available |
 
-## 使い分けガイド
+## Selection Guide
 
 ```
-最短経路アルゴリズムの選択フロー:
+Algorithm selection flow for shortest paths:
 
-  辺の重みは全て同じ(or なし)?
-    ├─ YES → BFS  O(V+E)
-    └─ NO  → 辺の重みは 0 or 1 のみ?
-              ├─ YES → 0-1 BFS  O(V+E)
-              └─ NO  → 負の辺がある?
-                        ├─ NO  → DAG?
-                        │        ├─ YES → DAGトポ順  O(V+E)
-                        │        └─ NO  → ゴールが明確?
-                        │                  ├─ YES → A*
-                        │                  └─ NO  → Dijkstra  O((V+E)logV)
-                        └─ YES → 全点対が必要?
-                                  ├─ YES → 密? → Floyd  O(V³)
-                                  │        疎? → Johnson  O(V²logV+VE)
-                                  └─ NO  → Bellman-Ford  O(VE)
+  Are all edge weights equal (or absent)?
+    |-- YES -> BFS  O(V+E)
+    +-- NO  -> Are edge weights only 0 or 1?
+              |-- YES -> 0-1 BFS  O(V+E)
+              +-- NO  -> Are there negative edges?
+                        |-- NO  -> Is it a DAG?
+                        |         |-- YES -> DAG topological order  O(V+E)
+                        |         +-- NO  -> Is the goal well-defined?
+                        |                   |-- YES -> A*
+                        |                   +-- NO  -> Dijkstra  O((V+E)logV)
+                        +-- YES -> Do you need all-pairs?
+                                  |-- YES -> Dense? -> Floyd  O(V^3)
+                                  |         Sparse? -> Johnson  O(V^2logV+VE)
+                                  +-- NO  -> Bellman-Ford  O(VE)
 ```
 
-| 条件 | 推奨 | 理由 |
+| Condition | Recommended | Reason |
 |:---|:---|:---|
-| 非負辺 + 単一始点 | Dijkstra | 最速 |
-| 負辺あり + 単一始点 | Bellman-Ford | 負辺対応 |
-| 全頂点対の最短距離 | Floyd-Warshall | 簡潔な実装 |
-| DAG | トポロジカル順緩和 | O(V+E)で最速 |
-| 辺重み全て1 | BFS | O(V+E) |
-| 疎グラフ + 全点対 | Johnson | Dijkstra V回 |
-| 明確なゴール | A* | ヒューリスティックで高速化 |
-| 辺重み 0/1 | 0-1 BFS | deque で O(V+E) |
+| Non-negative edges + single-source | Dijkstra | Fastest |
+| Negative edges + single-source | Bellman-Ford | Handles negative edges |
+| All-pairs shortest distances | Floyd-Warshall | Simple implementation |
+| DAG | Topological relaxation | Fastest at O(V+E) |
+| All edges weight 1 | BFS | O(V+E) |
+| Sparse graph + all-pairs | Johnson | Dijkstra V times |
+| Well-defined goal | A* | Speedup via heuristic |
+| Edge weights 0/1 | 0-1 BFS | deque for O(V+E) |
 
 ---
 
-## 11. アンチパターン
+## 11. Anti-Patterns
 
-### アンチパターン1: 負の辺にDijkstraを使う
+### Anti-Pattern 1: Using Dijkstra with Negative Edges
 
 ```python
-# BAD: 負辺のあるグラフにDijkstra
+# BAD: Dijkstra on a graph with negative edges
 graph_neg = {
     'A': [('B', 1), ('C', 4)],
-    'B': [('C', -3)],   # 負辺!
+    'B': [('C', -3)],   # Negative edge!
     'C': [],
 }
-# Dijkstra は A→C=4 を確定してしまうが、
-# 実際は A→B→C = 1+(-3) = -2 が最短
+# Dijkstra finalizes A->C=4, but the actual shortest is
+# A->B->C = 1+(-3) = -2
 
-# GOOD: Bellman-Ford を使う
+# GOOD: Use Bellman-Ford
 vertices = ['A', 'B', 'C']
 edges = [('A','B',1), ('A','C',4), ('B','C',-3)]
 dist, _, _ = bellman_ford(vertices, edges, 'A')
-# dist['C'] = -2 (正しい)
+# dist['C'] = -2 (correct)
 ```
 
-### アンチパターン2: Floyd-Warshallを大規模グラフに使う
+### Anti-Pattern 2: Using Floyd-Warshall on Large Graphs
 
 ```python
-# BAD: V=10000 のグラフに Floyd-Warshall
-# → O(V³) = 10^12 回の演算 → 数時間かかる
+# BAD: Floyd-Warshall on a graph with V=10000
+# -> O(V^3) = 10^12 operations -> takes hours
 
-# GOOD: 単一始点なら Dijkstra を使う
-# 全点対が本当に必要か再検討する
-# 疎グラフなら Johnson のアルゴリズムを検討
+# GOOD: Use Dijkstra for single-source queries
+# Reconsider whether all-pairs is truly needed
+# For sparse graphs, consider Johnson's algorithm
 ```
 
-### アンチパターン3: 距離更新時にヒープの古いエントリを放置
+### Anti-Pattern 3: Not Skipping Stale Heap Entries on Distance Update
 
 ```python
-# Dijkstra で距離更新時、古いエントリがヒープに残る
-# → heappop 時に dist[u] との比較でスキップが必要
+# When distances are updated in Dijkstra, stale entries remain in the heap
+# -> Must compare with dist[u] on heappop to skip them
 
-# BAD: スキップ処理を忘れる
+# BAD: Forgetting to skip
 def bad_dijkstra(graph, start):
     dist = defaultdict(lambda: float('inf'))
     dist[start] = 0
     pq = [(0, start)]
     while pq:
         d, u = heapq.heappop(pq)
-        # スキップなし → 古い情報で無駄な処理
+        # No skip -> wasteful processing with stale data
         for v, w in graph[u]:
             ...
 
-# GOOD: 古いエントリをスキップ
+# GOOD: Skip stale entries
 def good_dijkstra(graph, start):
     dist = defaultdict(lambda: float('inf'))
     dist[start] = 0
     pq = [(0, start)]
     while pq:
         d, u = heapq.heappop(pq)
-        if d > dist[u]:  # 古い情報 → スキップ
+        if d > dist[u]:  # Stale entry -> skip
             continue
         for v, w in graph[u]:
             ...
 ```
 
-### アンチパターン4: A* のヒューリスティックが非許容的
+### Anti-Pattern 4: Non-Admissible Heuristic in A*
 
 ```python
-# BAD: ヒューリスティックが実際のコストを過大評価 → 最適解が保証されない
+# BAD: Heuristic overestimates actual cost -> optimal solution not guaranteed
 def bad_heuristic(node, goal):
-    # ユークリッド距離 × 2 → 過大評価
+    # Euclidean distance x 2 -> overestimates
     return 2 * math.sqrt((node[0]-goal[0])**2 + (node[1]-goal[1])**2)
 
-# GOOD: 許容的なヒューリスティック
+# GOOD: Admissible heuristic
 def good_heuristic(node, goal):
-    # マンハッタン距離（グリッドでは許容的）
+    # Manhattan distance (admissible on grids)
     return abs(node[0]-goal[0]) + abs(node[1]-goal[1])
 ```
 
-### アンチパターン5: 到達不可能な頂点の処理忘れ
+### Anti-Pattern 5: Forgetting to Handle Unreachable Vertices
 
 ```python
-# BAD: 到達不可能な場合のチェックなし
+# BAD: No check for unreachable case
 def bad_path_reconstruction(prev, start, end):
     path = [end]
     current = end
     while current != start:
-        current = prev[current]  # KeyError の可能性!
+        current = prev[current]  # Possible KeyError!
         path.append(current)
     return path[::-1]
 
-# GOOD: 到達可能性をチェック
+# GOOD: Check reachability
 def good_path_reconstruction(prev, start, end):
     if end not in prev and end != start:
-        return []  # 到達不可能
+        return []  # Unreachable
     path = [end]
     current = end
     while current != start:
@@ -1287,82 +1291,82 @@ def good_path_reconstruction(prev, start, end):
 
 ---
 
-## 12. 計算量の詳細分析
+## 12. Detailed Complexity Analysis
 
-### Dijkstra法の計算量の導出
+### Deriving Dijkstra's Complexity
 
 ```
-優先度キュー（二分ヒープ）を使用した場合:
+Using a priority queue (binary heap):
 
-  操作                    回数          1回あたり    合計
-  ─────────────────────────────────────────────────────
-  heappush (初期化)       1             O(1)         O(1)
-  heappop                 最大 V+E 回   O(log(V+E))  O((V+E) log V)
-  heappush (緩和時)       最大 E 回     O(log(V+E))  O(E log V)
-  ─────────────────────────────────────────────────────
-  合計                                               O((V+E) log V)
+  Operation                Count            Per-op cost   Total
+  ---------------------------------------------------------------
+  heappush (init)          1                O(1)          O(1)
+  heappop                  at most V+E      O(log(V+E))   O((V+E) log V)
+  heappush (relaxation)    at most E        O(log(V+E))   O(E log V)
+  ---------------------------------------------------------------
+  Total                                                   O((V+E) log V)
 
-  注: ヒープサイズは最大 V+E（古いエントリが残るため）
-  log(V+E) = O(log V) （E ≤ V² なので log(V+E) ≤ log(V² + V) ≈ 2 log V）
+  Note: Heap size is at most V+E (due to stale entries)
+  log(V+E) = O(log V) (since E <= V^2, log(V+E) <= log(V^2 + V) ~ 2 log V)
 
-  フィボナッチヒープを使った場合:
-  - decrease-key が O(1)（償却）になるため
-  - 合計 O(V log V + E)
-  - 理論的には高速だが、実装が複雑で定数係数が大きい
+  With a Fibonacci heap:
+  - decrease-key becomes O(1) (amortized)
+  - Total: O(V log V + E)
+  - Theoretically faster, but complex to implement with large constant factors
 ```
 
-### Floyd-Warshall の空間最適化
+### Space Optimization for Floyd-Warshall
 
 ```python
-# 標準版: O(V²) 空間（k の次元は不要 — 上書きしても正しい）
-# 理由: dist[i][k] と dist[k][j] は k 番目の反復で変化しないため
+# Standard version: O(V^2) space (the k dimension is unnecessary -- overwriting is correct)
+# Reason: dist[i][k] and dist[k][j] do not change during the k-th iteration
 
-# 注意: 経路復元が不要なら dist 行列だけで十分
-# 経路復元が必要なら nxt 行列も必要で、合計 O(V²) 空間
+# Note: If path reconstruction is not needed, only the dist matrix suffices
+# If path reconstruction is needed, the nxt matrix is also required, totaling O(V^2) space
 ```
 
 
 ---
 
-## 実践演習
+## Exercises
 
-### 演習1: 基本的な実装
+### Exercise 1: Basic Implementation
 
-以下の要件を満たすコードを実装してください。
+Implement code that satisfies the following requirements.
 
-**要件:**
-- 入力データの検証を行うこと
-- エラーハンドリングを適切に実装すること
-- テストコードも作成すること
+**Requirements:**
+- Perform input data validation
+- Implement proper error handling
+- Write test code as well
 
 ```python
-# 演習1: 基本実装のテンプレート
+# Exercise 1: Basic implementation template
 class Exercise1:
-    """基本的な実装パターンの演習"""
+    """Exercise for basic implementation patterns"""
 
     def __init__(self):
         self.data = []
 
     def validate_input(self, value):
-        """入力値の検証"""
+        """Validate input value"""
         if value is None:
-            raise ValueError("入力値がNoneです")
+            raise ValueError("Input value is None")
         return True
 
     def process(self, value):
-        """データ処理のメインロジック"""
+        """Main processing logic"""
         self.validate_input(value)
         self.data.append(value)
         return self.data
 
     def get_results(self):
-        """処理結果の取得"""
+        """Get processing results"""
         return {
             'count': len(self.data),
             'data': self.data
         }
 
-# テスト
+# Tests
 def test_exercise1():
     ex = Exercise1()
     assert ex.process(1) == [1]
@@ -1371,26 +1375,26 @@ def test_exercise1():
 
     try:
         ex.process(None)
-        assert False, "例外が発生するべき"
+        assert False, "Exception should have been raised"
     except ValueError:
         pass
 
-    print("全テスト合格!")
+    print("All tests passed!")
 
 test_exercise1()
 ```
 
-### 演習2: 応用パターン
+### Exercise 2: Applied Patterns
 
-基本実装を拡張して、以下の機能を追加してください。
+Extend the basic implementation by adding the following features.
 
 ```python
-# 演習2: 応用パターン
+# Exercise 2: Applied patterns
 from typing import List, Dict, Optional
 from datetime import datetime
 
 class AdvancedExercise:
-    """応用パターンの演習"""
+    """Exercise for applied patterns"""
 
     def __init__(self, max_size: int = 100):
         self._items: List[Dict] = []
@@ -1398,7 +1402,7 @@ class AdvancedExercise:
         self._created_at = datetime.now()
 
     def add(self, key: str, value: any) -> bool:
-        """アイテムの追加（サイズ制限付き）"""
+        """Add an item (with size limit)"""
         if len(self._items) >= self._max_size:
             return False
         self._items.append({
@@ -1409,14 +1413,14 @@ class AdvancedExercise:
         return True
 
     def find(self, key: str) -> Optional[Dict]:
-        """キーによる検索"""
+        """Search by key"""
         for item in reversed(self._items):
             if item['key'] == key:
                 return item
         return None
 
     def remove(self, key: str) -> bool:
-        """キーによる削除"""
+        """Remove by key"""
         for i, item in enumerate(self._items):
             if item['key'] == key:
                 self._items.pop(i)
@@ -1424,7 +1428,7 @@ class AdvancedExercise:
         return False
 
     def stats(self) -> Dict:
-        """統計情報"""
+        """Statistics"""
         return {
             'total_items': len(self._items),
             'max_size': self._max_size,
@@ -1432,44 +1436,44 @@ class AdvancedExercise:
             'uptime': str(datetime.now() - self._created_at)
         }
 
-# テスト
+# Tests
 def test_advanced():
     ex = AdvancedExercise(max_size=3)
     assert ex.add("a", 1) == True
     assert ex.add("b", 2) == True
     assert ex.add("c", 3) == True
-    assert ex.add("d", 4) == False  # サイズ制限
+    assert ex.add("d", 4) == False  # Size limit
     assert ex.find("b")['value'] == 2
     assert ex.remove("b") == True
     assert ex.find("b") is None
     stats = ex.stats()
     assert stats['total_items'] == 2
-    print("応用テスト全合格!")
+    print("All applied tests passed!")
 
 test_advanced()
 ```
 
-### 演習3: パフォーマンス最適化
+### Exercise 3: Performance Optimization
 
-以下のコードのパフォーマンスを改善してください。
+Improve the performance of the following code.
 
 ```python
-# 演習3: パフォーマンス最適化
+# Exercise 3: Performance optimization
 import time
 from functools import lru_cache
 
-# 最適化前（O(n^2)）
+# Before optimization (O(n^2))
 def slow_search(data: list, target: int) -> int:
-    """非効率な検索"""
+    """Inefficient search"""
     for i in range(len(data)):
         for j in range(i + 1, len(data)):
             if data[i] + data[j] == target:
                 return (i, j)
     return (-1, -1)
 
-# 最適化後（O(n)）
+# After optimization (O(n))
 def fast_search(data: list, target: int) -> tuple:
-    """ハッシュマップを使った効率的な検索"""
+    """Efficient search using a hash map"""
     seen = {}
     for i, num in enumerate(data):
         complement = target - num
@@ -1478,7 +1482,7 @@ def fast_search(data: list, target: int) -> tuple:
         seen[num] = i
     return (-1, -1)
 
-# ベンチマーク
+# Benchmark
 def benchmark():
     import random
     data = list(range(5000))
@@ -1493,91 +1497,91 @@ def benchmark():
     result2 = fast_search(data, target)
     fast_time = time.time() - start
 
-    print(f"非効率版: {slow_time:.4f}秒")
-    print(f"効率版:   {fast_time:.6f}秒")
-    print(f"高速化率: {slow_time/fast_time:.0f}倍")
+    print(f"Inefficient: {slow_time:.4f}s")
+    print(f"Efficient:   {fast_time:.6f}s")
+    print(f"Speedup:     {slow_time/fast_time:.0f}x")
 
 benchmark()
 ```
 
-**ポイント:**
-- アルゴリズムの計算量を意識する
-- 適切なデータ構造を選択する
-- ベンチマークで効果を測定する
+**Key Points:**
+- Be mindful of algorithmic complexity
+- Choose appropriate data structures
+- Measure the effect with benchmarks
 ---
 
 ## 13. FAQ
 
-### Q1: Dijkstra法でなぜ負辺が扱えないのか？
+### Q1: Why can't Dijkstra's algorithm handle negative edges?
 
-**A:** Dijkstra法は「一度確定した最短距離は変わらない」という貪欲な仮定に基づく。負辺があると、後から見つかる経路が既に確定した距離より短くなりうるため、この仮定が崩れる。例: A→C(重み4)を確定した後に A→B→C(1+(-3)=-2) が見つかっても修正できない。
+**A:** Dijkstra's algorithm relies on the greedy assumption that "once a shortest distance is finalized, it never changes." With negative edges, a path discovered later may be shorter than an already finalized distance, violating this assumption. Example: after finalizing A->C (weight 4), A->B->C (1+(-3)=-2) might be found but cannot be corrected.
 
-### Q2: ダイクストラ法の計算量 O((V+E) log V) はどこから来る？
+### Q2: Where does the O((V+E) log V) complexity of Dijkstra come from?
 
-**A:** 各頂点は最大1回ヒープから取り出され(V回のheappop = V log V)、各辺は最大1回の緩和でヒープへの挿入を引き起こす(E回のheappush = E log V)。合計 O((V+E) log V)。フィボナッチヒープを使うと O(V log V + E) に改善できるが、実装が複雑なため実用では二分ヒープが主流。
+**A:** Each vertex is removed from the heap at most once (V heappop operations = V log V), and each edge causes at most one heap insertion during relaxation (E heappush operations = E log V). Total: O((V+E) log V). Using a Fibonacci heap improves this to O(V log V + E), but the implementation complexity makes binary heaps the practical standard.
 
-### Q3: 経路復元はどう実装する？
+### Q3: How do you implement path reconstruction?
 
-**A:** 「前任者（predecessor）」を記録する。各頂点について「どの頂点から来たか」を保存し、ゴールからスタートまで辿ることで経路を復元する。上記の `reconstruct_path` 関数を参照。
+**A:** Record the "predecessor" for each vertex -- which vertex it was reached from. Then trace back from the goal to the start to reconstruct the path. See the `reconstruct_path` function above.
 
-### Q4: 0-1 BFS とは何か？
+### Q4: What is 0-1 BFS?
 
-**A:** 辺重みが0か1のグラフに特化した最短経路アルゴリズム。通常のキューの代わりにデック（両端キュー）を使い、重み0の辺は先頭に、重み1の辺は末尾に追加する。O(V+E)で動作する。壁を壊してグリッドを移動するような問題に有効。
+**A:** A shortest path algorithm specialized for graphs where edge weights are only 0 or 1. Instead of a regular queue, it uses a deque (double-ended queue), pushing weight-0 edges to the front and weight-1 edges to the back. Runs in O(V+E). Effective for problems like moving through a grid where breaking walls costs 1.
 
-### Q5: A*探索のヒューリスティック関数はどう選ぶ？
+### Q5: How do you choose the heuristic function for A* search?
 
-**A:** グリッド上の問題では、4方向移動ならマンハッタン距離、8方向移動ならチェビシェフ距離、自由移動ならユークリッド距離が一般的。重要なのは「許容性」（真の距離を過大評価しない）を満たすこと。許容的でないヒューリスティックは高速だが最適解を見逃す可能性がある。
+**A:** For grid problems, Manhattan distance is typical for 4-directional movement, Chebyshev distance for 8-directional movement, and Euclidean distance for free movement. The key requirement is "admissibility" (never overestimating the true distance). A non-admissible heuristic is faster but may miss the optimal solution.
 
-### Q6: 負閉路があるとなぜ最短経路が定義できないのか？
+### Q6: Why can't shortest paths be defined when negative cycles exist?
 
-**A:** 負閉路を何周もすれば距離を無限に小さくできるため、「最短」が定義できない。具体的には、始点から負閉路に到達でき、かつ負閉路から終点に到達できる場合、最短距離は -∞ になる。Bellman-Ford はこの状況を V 回目の緩和で検出する。
+**A:** Traversing a negative cycle multiple times can reduce the distance indefinitely, making the "shortest" undefined. Specifically, if the source can reach a negative cycle and the negative cycle can reach the destination, the shortest distance is negative infinity. Bellman-Ford detects this situation during the V-th relaxation pass.
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point to keep in mind when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory, but by actually writing code and verifying how it works.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes that beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently applied in day-to-day development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## 14. まとめ
+## 14. Summary
 
-| 項目 | 要点 |
+| Topic | Key Points |
 |:---|:---|
-| Dijkstra法 | 非負辺の単一始点最短経路。優先度キューで O((V+E) log V) |
-| Bellman-Ford法 | 負辺を許容。全辺 V-1 回緩和で O(VE)。負閉路検出可能 |
-| Floyd-Warshall法 | 全点対最短経路。DP で O(V³)。小規模グラフ向け |
-| Johnson法 | 疎グラフの全点対最短経路。BF + Dijkstra V回 |
-| DAG最短経路 | トポロジカル順の緩和で O(V+E)。DAG限定 |
-| A*探索 | ヒューリスティック付き Dijkstra。1対1の最短経路に最適 |
-| 緩和操作 | 全アルゴリズムに共通する基本操作 |
-| 経路復元 | 前任者配列を使ってゴールから逆順に辿る |
+| Dijkstra's Algorithm | Single-source shortest path for non-negative edges. O((V+E) log V) with priority queue |
+| Bellman-Ford Algorithm | Allows negative edges. V-1 edge relaxations in O(VE). Can detect negative cycles |
+| Floyd-Warshall Algorithm | All-pairs shortest paths. DP in O(V^3). For small graphs |
+| Johnson's Algorithm | All-pairs shortest paths for sparse graphs. BF + Dijkstra V times |
+| DAG Shortest Path | Topological-order relaxation in O(V+E). DAG only |
+| A* Search | Dijkstra with heuristic. Optimal for point-to-point shortest paths |
+| Relaxation | Fundamental operation common to all algorithms |
+| Path reconstruction | Trace backward from goal using a predecessor array |
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Guides
 
-- [グラフ走査](./02-graph-traversal.md) -- BFS/DFS の基礎（最短経路の前提知識）
-- [動的計画法](./04-dynamic-programming.md) -- Floyd-Warshall の背景にある DP の考え方
-- [貪欲法](./05-greedy.md) -- Dijkstra 法の背景にある貪欲戦略
-- [ネットワークフロー](../03-advanced/03-network-flow.md) -- グラフ最適化の発展
+- [Graph Traversal](./02-graph-traversal.md) -- BFS/DFS fundamentals (prerequisite for shortest paths)
+- [Dynamic Programming](./04-dynamic-programming.md) -- The DP concepts behind Floyd-Warshall
+- [Greedy Algorithms](./05-greedy.md) -- The greedy strategy behind Dijkstra's algorithm
+- [Network Flow](../03-advanced/03-network-flow.md) -- Advanced graph optimization
 
 ---
 
-## 参考文献
+## References
 
-1. Cormen, T. H. et al. (2022). *Introduction to Algorithms* (4th ed.). MIT Press. -- 第22-25章
+1. Cormen, T. H. et al. (2022). *Introduction to Algorithms* (4th ed.). MIT Press. -- Chapters 22-25
 2. Dijkstra, E. W. (1959). "A note on two problems in connexion with graphs." *Numerische Mathematik*.
 3. Bellman, R. (1958). "On a routing problem." *Quarterly of Applied Mathematics*.
 4. Floyd, R. W. (1962). "Algorithm 97: Shortest Path." *Communications of the ACM*.

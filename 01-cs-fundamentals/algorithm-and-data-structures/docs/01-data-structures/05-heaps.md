@@ -1,51 +1,50 @@
-# ヒープ — 二分ヒープ・ヒープソート・優先度キュー実装
+# Heaps — Binary Heaps, Heapsort, and Priority Queue Implementation
 
-> 効率的な最大/最小値の取得を可能にするヒープの構造、ヒープソート、優先度キューの実装を学ぶ。
-
----
-
-## この章で学ぶこと
-
-1. **二分ヒープ** の構造と配列表現
-2. **ヒープソート** の仕組みと計算量
-3. **優先度キュー** のヒープによる実装と応用
-4. **各種ヒープ** — d-ary ヒープ、フィボナッチヒープ、インデックス付きヒープ
-5. **実務応用** — Top-K、中央値、タスクスケジューラ、マージ K ソート済みリスト
-
-
-## 前提知識
-
-このガイドを読む前に、以下の知識があると理解が深まります:
-
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [木構造 — 二分木・BST・AVL/赤黒木・B木・Trie](./04-trees.md) の内容を理解していること
+> Learn the structure of heaps that enable efficient retrieval of maximum/minimum values, heapsort, and priority queue implementation.
 
 ---
 
-## 1. 二分ヒープの構造
+## What You Will Learn in This Chapter
 
-### 1.1 ヒープの定義
+1. **Binary heap** structure and array representation
+2. **Heapsort** mechanism and complexity analysis
+3. **Priority queue** implementation using heaps and practical applications
+4. **Various heap types** — d-ary heaps, Fibonacci heaps, indexed heaps
+5. **Practical applications** — Top-K, median finding, task schedulers, merging K sorted lists
+
+## Prerequisites
+
+Before reading this guide, having the following knowledge will deepen your understanding:
+
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Familiarity with the content of [Trees — Binary Trees, BST, AVL/Red-Black Trees, B-Trees, Tries](./04-trees.md)
+
+---
+
+## 1. Binary Heap Structure
+
+### 1.1 Heap Definition
 
 ```
-最小ヒープ (Min-Heap):
-  親 ≤ 子 が全ノードで成立
+Min-Heap:
+  parent <= child holds for all nodes
 
-         [1]            インデックス:
+         [1]            Index:
         /   \              0: 1
       [3]   [2]           1: 3,  2: 2
      / \   /              3: 5,  4: 8,  5: 7
    [5] [8] [7]
 
-配列表現: [1, 3, 2, 5, 8, 7]
+Array representation: [1, 3, 2, 5, 8, 7]
 
-  親:       i → (i-1) // 2
-  左の子:   i → 2*i + 1
-  右の子:   i → 2*i + 2
-  葉ノード: i >= n // 2
+  Parent:       i -> (i-1) // 2
+  Left child:   i -> 2*i + 1
+  Right child:  i -> 2*i + 2
+  Leaf node:    i >= n // 2
 
-最大ヒープ (Max-Heap):
-  親 ≥ 子 が全ノードで成立
+Max-Heap:
+  parent >= child holds for all nodes
 
          [9]
         /   \
@@ -53,52 +52,52 @@
      / \   /
    [3] [5] [2]
 
-配列表現: [9, 7, 8, 3, 5, 2]
+Array representation: [9, 7, 8, 3, 5, 2]
 ```
 
-### 1.2 ヒープの重要な性質
+### 1.2 Important Properties of Heaps
 
 ```python
-# 二分ヒープの性質:
-# 1. 完全二分木: 最後のレベル以外は完全に埋まっている
-# 2. ヒープ順序性: 親 ≤ 子（最小ヒープ）or 親 ≥ 子（最大ヒープ）
-# 3. 配列で効率的に表現可能（ポインタ不要）
-# 4. 根が最小値（最小ヒープ）or 最大値（最大ヒープ）
+# Properties of a binary heap:
+# 1. Complete binary tree: all levels except the last are fully filled
+# 2. Heap order property: parent <= child (min-heap) or parent >= child (max-heap)
+# 3. Can be efficiently represented as an array (no pointers needed)
+# 4. Root is the minimum (min-heap) or maximum (max-heap)
 
-# n ノードのヒープの性質:
-# - 高さ: floor(log2(n))
-# - 葉ノード数: ceil(n/2)
-# - 内部ノード数: floor(n/2)
-# - 最後の内部ノード: インデックス n//2 - 1
+# Properties of a heap with n nodes:
+# - Height: floor(log2(n))
+# - Number of leaf nodes: ceil(n/2)
+# - Number of internal nodes: floor(n/2)
+# - Last internal node: index n//2 - 1
 
 def heap_properties(n):
-    """n ノードのヒープの性質"""
+    """Properties of a heap with n nodes"""
     import math
     height = math.floor(math.log2(n)) if n > 0 else 0
     leaves = math.ceil(n / 2)
     internal = n // 2
     last_internal = n // 2 - 1
-    print(f"ノード数: {n}")
-    print(f"高さ: {height}")
-    print(f"葉ノード数: {leaves}")
-    print(f"内部ノード数: {internal}")
-    print(f"最後の内部ノード: インデックス {last_internal}")
+    print(f"Number of nodes: {n}")
+    print(f"Height: {height}")
+    print(f"Number of leaf nodes: {leaves}")
+    print(f"Number of internal nodes: {internal}")
+    print(f"Last internal node: index {last_internal}")
 
 heap_properties(10)
-# ノード数: 10, 高さ: 3, 葉ノード数: 5, 内部ノード数: 5
+# Number of nodes: 10, Height: 3, Leaf nodes: 5, Internal nodes: 5
 ```
 
 ---
 
-## 2. ヒープ操作の実装
+## 2. Heap Operation Implementation
 
-### 2.1 最小ヒープ
+### 2.1 Min-Heap
 
 ```python
 class MinHeap:
-    """最小ヒープ: 根が最小値
+    """Min-Heap: root is the minimum value
 
-    用途: 優先度キュー、Dijkstra、ハフマン符号化
+    Use cases: priority queues, Dijkstra's algorithm, Huffman coding
     """
     def __init__(self):
         self.heap = []
@@ -110,12 +109,12 @@ class MinHeap:
         return len(self.heap) > 0
 
     def push(self, val):
-        """O(log n) — 末尾に追加して上方向に修正"""
+        """O(log n) — append to the end and sift up"""
         self.heap.append(val)
         self._sift_up(len(self.heap) - 1)
 
     def pop(self):
-        """O(log n) — 根を取り出して下方向に修正"""
+        """O(log n) — extract root and sift down"""
         if not self.heap:
             raise IndexError("heap is empty")
         self._swap(0, len(self.heap) - 1)
@@ -125,14 +124,14 @@ class MinHeap:
         return val
 
     def peek(self):
-        """O(1) — 最小値を返す（削除しない）"""
+        """O(1) — return minimum value (without removing)"""
         if not self.heap:
             raise IndexError("heap is empty")
         return self.heap[0]
 
     def push_pop(self, val):
-        """push + pop を最適化 — O(log n)
-        push してから pop するより効率的
+        """Optimized push + pop — O(log n)
+        More efficient than pushing then popping separately
         """
         if self.heap and self.heap[0] < val:
             val, self.heap[0] = self.heap[0], val
@@ -140,8 +139,8 @@ class MinHeap:
         return val
 
     def replace(self, val):
-        """pop + push を最適化 — O(log n)
-        pop してから push するより効率的
+        """Optimized pop + push — O(log n)
+        More efficient than popping then pushing separately
         """
         if not self.heap:
             raise IndexError("heap is empty")
@@ -151,7 +150,7 @@ class MinHeap:
         return old
 
     def _sift_up(self, i):
-        """上方向修正: 親より小さければ交換"""
+        """Sift up: swap with parent if smaller"""
         while i > 0:
             parent = (i - 1) // 2
             if self.heap[i] < self.heap[parent]:
@@ -161,7 +160,7 @@ class MinHeap:
                 break
 
     def _sift_down(self, i):
-        """下方向修正: 子の最小値より大きければ交換"""
+        """Sift down: swap with smallest child if larger"""
         n = len(self.heap)
         while True:
             smallest = i
@@ -181,18 +180,18 @@ class MinHeap:
 
     @classmethod
     def heapify(cls, arr):
-        """配列からヒープを構築 — O(n)
-        ボトムアップに sift_down することで O(n) を達成
+        """Build a heap from an array — O(n)
+        Achieves O(n) by performing bottom-up sift_down
         """
         heap = cls()
         heap.heap = list(arr)
         n = len(heap.heap)
-        # 最後の内部ノードから根に向かって sift_down
+        # Sift down from the last internal node toward the root
         for i in range(n // 2 - 1, -1, -1):
             heap._sift_down(i)
         return heap
 
-# 使用例
+# Usage example
 h = MinHeap()
 h.push(5)
 h.push(3)
@@ -208,13 +207,13 @@ print(h2.pop())  # 1
 print(h2.pop())  # 2
 ```
 
-### 2.2 最大ヒープ
+### 2.2 Max-Heap
 
 ```python
 class MaxHeap:
-    """最大ヒープ: 根が最大値
+    """Max-Heap: root is the maximum value
 
-    用途: 優先度の高いタスクの取得、降順のストリーミング処理
+    Use cases: retrieving highest-priority tasks, descending-order streaming
     """
     def __init__(self):
         self.heap = []
@@ -246,7 +245,7 @@ class MaxHeap:
     def _sift_up(self, i):
         while i > 0:
             parent = (i - 1) // 2
-            if self.heap[i] > self.heap[parent]:  # > に変更
+            if self.heap[i] > self.heap[parent]:  # Changed to >
                 self._swap(i, parent)
                 i = parent
             else:
@@ -271,38 +270,38 @@ class MaxHeap:
         self.heap[i], self.heap[j] = self.heap[j], self.heap[i]
 ```
 
-### 2.3 操作の図解
+### 2.3 Visual Illustration of Operations
 
 ```
-push(2) の例 (sift-up):
+push(2) example (sift-up):
 
-  [1, 5, 3, 8, 7]  ← push(2)
+  [1, 5, 3, 8, 7]  <- push(2)
   [1, 5, 3, 8, 7, 2]
 
          [1]                  [1]
         /   \                /   \
-      [5]   [3]    →      [5]   [2]  ← 2 < 3 なので swap
+      [5]   [3]    ->      [5]   [2]  <- swap because 2 < 3
      / \   /              / \   /
    [8] [7] [2]         [8] [7] [3]
 
-pop() の例 (sift-down):
+pop() example (sift-down):
 
-  [1, 5, 2, 8, 7, 3]  → 先頭(1)を返す
+  [1, 5, 2, 8, 7, 3]  -> return head (1)
 
-  末尾(3)を先頭に移動:
+  Move tail (3) to head:
   [3, 5, 2, 8, 7]
 
          [3]                  [2]
         /   \                /   \
-      [5]   [2]    →      [5]   [3]  ← 3 > 2 なので swap
+      [5]   [2]    ->      [5]   [3]  <- swap because 3 > 2
      / \                  / \
    [8] [7]             [8] [7]
 
-heapify の過程 (ボトムアップ):
+heapify process (bottom-up):
 
-  入力: [4, 10, 3, 5, 1]
+  Input: [4, 10, 3, 5, 1]
 
-  Step 0: 初期状態
+  Step 0: Initial state
          [4]
         /   \
       [10]  [3]
@@ -312,48 +311,48 @@ heapify の過程 (ボトムアップ):
   Step 1: i=1, sift_down(10)
          [4]
         /   \
-      [1]   [3]     ← 10 > 1 なので swap
+      [1]   [3]     <- swap because 10 > 1
      / \
     [5] [10]
 
   Step 2: i=0, sift_down(4)
          [1]
         /   \
-      [4]   [3]     ← 4 > 1 なので swap, さらに 4 と 5 は交換不要
+      [4]   [3]     <- swap because 4 > 1; no swap needed between 4 and 5
      / \
     [5] [10]
 
-  結果: [1, 4, 3, 5, 10] — 正しいヒープ
+  Result: [1, 4, 3, 5, 10] — valid heap
 ```
 
 ---
 
-## 3. ヒープソート
+## 3. Heapsort
 
-### 3.1 基本実装
+### 3.1 Basic Implementation
 
 ```python
 def heapsort(arr):
-    """ヒープソート — O(n log n) 時間, O(1) 空間
+    """Heapsort — O(n log n) time, O(1) space
 
-    Step 1: 最大ヒープを構築 — O(n)
-    Step 2: 根と末尾を交換し、ヒープサイズを縮小 — O(n log n)
+    Step 1: Build a max-heap — O(n)
+    Step 2: Swap root with tail and shrink heap size — O(n log n)
     """
     n = len(arr)
 
-    # Step 1: 最大ヒープを構築 — O(n)
+    # Step 1: Build max-heap — O(n)
     for i in range(n // 2 - 1, -1, -1):
         _sift_down_max(arr, n, i)
 
-    # Step 2: 1つずつ取り出し — O(n log n)
+    # Step 2: Extract one by one — O(n log n)
     for i in range(n - 1, 0, -1):
-        arr[0], arr[i] = arr[i], arr[0]  # 最大値を末尾に
-        _sift_down_max(arr, i, 0)        # 残りをヒープ化
+        arr[0], arr[i] = arr[i], arr[0]  # Move maximum to tail
+        _sift_down_max(arr, i, 0)        # Re-heapify remainder
 
     return arr
 
 def _sift_down_max(arr, n, i):
-    """最大ヒープの下方向修正"""
+    """Max-heap sift down"""
     while True:
         largest = i
         left = 2 * i + 1
@@ -367,58 +366,58 @@ def _sift_down_max(arr, n, i):
         arr[i], arr[largest] = arr[largest], arr[i]
         i = largest
 
-# 使用例
+# Usage example
 data = [12, 11, 13, 5, 6, 7, 3, 1, 9, 2, 4, 8, 10, 14, 15]
 print(heapsort(data))
 # [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
 ```
 
-### 3.2 ヒープソートの過程
+### 3.2 Heapsort Process
 
 ```
-ヒープソートの過程:
+Heapsort process:
 
-Step 1: 最大ヒープ構築
-  [4, 1, 3, 2, 5]  →  [5, 4, 3, 2, 1]
+Step 1: Build max-heap
+  [4, 1, 3, 2, 5]  ->  [5, 4, 3, 2, 1]
 
          [4]               [5]
-        /   \      →      /   \
+        /   \      ->      /   \
       [1]   [3]         [4]   [3]
      / \               / \
     [2] [5]           [2] [1]
 
-Step 2: 先頭と末尾を swap + sift-down
+Step 2: Swap head and tail + sift-down
   Round 1: swap(5,1)
-  [5, 4, 3, 2, 1] → [1, 4, 3, 2, |5]
-  sift-down → [4, 2, 3, 1, |5]
+  [5, 4, 3, 2, 1] -> [1, 4, 3, 2, |5]
+  sift-down -> [4, 2, 3, 1, |5]
 
   Round 2: swap(4,1)
-  [4, 2, 3, 1, |5] → [1, 2, 3, |4, 5]
-  sift-down → [3, 2, 1, |4, 5]
+  [4, 2, 3, 1, |5] -> [1, 2, 3, |4, 5]
+  sift-down -> [3, 2, 1, |4, 5]
 
   Round 3: swap(3,1)
-  [3, 2, 1, |4, 5] → [1, 2, |3, 4, 5]
+  [3, 2, 1, |4, 5] -> [1, 2, |3, 4, 5]
 
   Round 4: swap(2,1)
-  [2, 1, |3, 4, 5] → [1, |2, 3, 4, 5]
+  [2, 1, |3, 4, 5] -> [1, |2, 3, 4, 5]
 
-  結果: [1, 2, 3, 4, 5]
+  Result: [1, 2, 3, 4, 5]
 ```
 
-### 3.3 部分ソート（Top-K）の最適化
+### 3.3 Partial Sort (Top-K) Optimization
 
 ```python
 def partial_sort_top_k(arr, k):
-    """配列の上位 k 個のみをソートして返す — O(n + k log n)
+    """Return only the top k elements sorted — O(n + k log n)
 
-    全体をソートする O(n log n) より効率的（k << n の場合）
+    More efficient than full O(n log n) sort when k << n
     """
     n = len(arr)
-    # Step 1: 最大ヒープ構築 — O(n)
+    # Step 1: Build max-heap — O(n)
     for i in range(n // 2 - 1, -1, -1):
         _sift_down_max(arr, n, i)
 
-    # Step 2: 上位 k 個だけ取り出し — O(k log n)
+    # Step 2: Extract only top k elements — O(k log n)
     result = []
     heap_size = n
     for _ in range(min(k, n)):
@@ -435,80 +434,80 @@ print(partial_sort_top_k(data[:], 3))  # [9, 6, 5]
 
 ---
 
-## 4. heapq モジュール
+## 4. The heapq Module
 
-### 4.1 基本操作
+### 4.1 Basic Operations
 
 ```python
 import heapq
 
-# 最小ヒープ操作
+# Min-heap operations
 nums = [5, 3, 8, 1, 2]
-heapq.heapify(nums)          # O(n) でヒープ化
+heapq.heapify(nums)          # O(n) heapify
 print(nums)                   # [1, 2, 8, 5, 3]
 
 heapq.heappush(nums, 0)      # O(log n)
 print(heapq.heappop(nums))   # 0 — O(log n)
 
-# heappushpop: push + pop を最適化
-result = heapq.heappushpop(nums, 4)  # push(4) して pop
+# heappushpop: optimized push + pop
+result = heapq.heappushpop(nums, 4)  # push(4) then pop
 print(result)  # 1
 
-# heapreplace: pop + push を最適化
-result = heapq.heapreplace(nums, 10)  # pop して push(10)
+# heapreplace: optimized pop + push
+result = heapq.heapreplace(nums, 10)  # pop then push(10)
 print(result)  # 2
 
-# Top-K（最小 K 個）
+# Top-K (smallest K elements)
 top3 = heapq.nsmallest(3, [5, 3, 8, 1, 2])  # [1, 2, 3]
-# Top-K（最大 K 個）
+# Top-K (largest K elements)
 top3 = heapq.nlargest(3, [5, 3, 8, 1, 2])   # [8, 5, 3]
 
-# 最大ヒープ（符号反転のトリック）
+# Max-heap (sign negation trick)
 max_heap = []
 for x in [5, 3, 8, 1, 2]:
     heapq.heappush(max_heap, -x)
 print(-heapq.heappop(max_heap))  # 8
 
-# キー付きヒープ（タプルを使用）
+# Keyed heap (using tuples)
 tasks = [(3, "low priority"), (1, "high priority"), (2, "medium")]
 heapq.heapify(tasks)
 print(heapq.heappop(tasks))  # (1, 'high priority')
 ```
 
-### 4.2 heapq の内部実装
+### 4.2 Internal Implementation of heapq
 
 ```python
-# heapq のパフォーマンス特性:
-# - C実装（CPython）: 非常に高速
+# Performance characteristics of heapq:
+# - C implementation (CPython): very fast
 # - heapify: O(n)
 # - heappush/heappop: O(log n)
 # - nsmallest/nlargest:
-#   - k が小さい場合: ヒープを使用 O(n + k log n)
-#   - k が n に近い場合: ソートを使用 O(n log n)
-#   - 内部で自動的に最適な方法を選択
+#   - When k is small: uses heap O(n + k log n)
+#   - When k is close to n: uses sort O(n log n)
+#   - Automatically selects the optimal method internally
 
-# nsmallest/nlargest の使い分け
+# Choosing between nsmallest/nlargest
 import heapq
 
 data = list(range(1000000))
 
-# k << n の場合: nsmallest が効率的
+# When k << n: nsmallest is efficient
 top10 = heapq.nsmallest(10, data)  # O(n)
 
-# k が n に近い場合: sorted の方が効率的
-# heapq.nsmallest(999990, data)  # 内部で sorted に切り替え
+# When k is close to n: sorted is more efficient
+# heapq.nsmallest(999990, data)  # internally switches to sorted
 
-# k = 1 の場合: min/max が最速
+# When k = 1: min/max is fastest
 minimum = min(data)  # O(n)
 maximum = max(data)  # O(n)
 ```
 
-### 4.3 heapq.merge — K個のソート済みイテラブルのマージ
+### 4.3 heapq.merge — Merging K Sorted Iterables
 
 ```python
 import heapq
 
-# ソート済みリストのマージ — O(n log k)
+# Merging sorted lists — O(n log k)
 list1 = [1, 4, 7, 10]
 list2 = [2, 5, 8, 11]
 list3 = [3, 6, 9, 12]
@@ -516,17 +515,17 @@ list3 = [3, 6, 9, 12]
 merged = list(heapq.merge(list1, list2, list3))
 print(merged)  # [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
 
-# key 引数を使ったカスタムマージ
+# Custom merge using the key argument
 records1 = [(1, "a"), (3, "c"), (5, "e")]
 records2 = [(2, "b"), (4, "d"), (6, "f")]
 merged = list(heapq.merge(records1, records2, key=lambda x: x[0]))
 print(merged)  # [(1, 'a'), (2, 'b'), (3, 'c'), (4, 'd'), (5, 'e'), (6, 'f')]
 
-# 外部ソート（大容量ファイルのソート）のマージフェーズ
-# 各チャンクをソートしてファイルに書き出し
-# heapq.merge で K 個のチャンクをマージ
+# Merge phase of external sort (sorting large files)
+# Sort each chunk and write to file
+# Merge K chunks using heapq.merge
 def external_sort_merge(sorted_files, output_file):
-    """外部ソートのマージフェーズ"""
+    """Merge phase of external sort"""
     import itertools
     file_iters = [open(f) for f in sorted_files]
     with open(output_file, 'w') as out:
@@ -538,25 +537,24 @@ def external_sort_merge(sorted_files, output_file):
 
 ---
 
-## 5. 優先度キューの実装
+## 5. Priority Queue Implementation
 
-### 5.1 基本的な優先度キュー
+### 5.1 Basic Priority Queue
 
 ```python
 import heapq
 
 class PriorityQueue:
-    """優先度キュー: 優先度の高い要素を先に取り出す
+    """Priority Queue: dequeues the highest-priority element first
 
-    heapq ベースの実装。
-    タプル (priority, counter, item) を使用して:
-    1. 同一優先度での FIFO 順序
-    2. 比較不可能なオブジェクトへの対応
-    を実現する。
+    heapq-based implementation.
+    Uses tuples (priority, counter, item) to achieve:
+    1. FIFO ordering for equal priorities
+    2. Support for non-comparable objects
     """
     def __init__(self):
         self._queue = []
-        self._counter = 0  # FIFO 順序保持用
+        self._counter = 0  # For maintaining FIFO order
 
     def push(self, item, priority=0):
         """O(log n)"""
@@ -564,7 +562,7 @@ class PriorityQueue:
         self._counter += 1
 
     def pop(self):
-        """O(log n) — 最も優先度の高い（値が小さい）要素を返す"""
+        """O(log n) — returns the element with highest priority (lowest value)"""
         if not self._queue:
             raise IndexError("queue is empty")
         return heapq.heappop(self._queue)[2]
@@ -581,7 +579,7 @@ class PriorityQueue:
     def __bool__(self):
         return len(self._queue) > 0
 
-# 使用例
+# Usage example
 pq = PriorityQueue()
 pq.push("low priority task", priority=3)
 pq.push("high priority task", priority=1)
@@ -591,27 +589,27 @@ pq.push("another high priority", priority=1)
 while pq:
     print(pq.pop())
 # high priority task
-# another high priority  (同一優先度は FIFO)
+# another high priority  (FIFO for equal priorities)
 # medium priority task
 # low priority task
 ```
 
-### 5.2 削除可能な優先度キュー（遅延削除）
+### 5.2 Priority Queue with Lazy Deletion
 
 ```python
 import heapq
 
 class LazyDeletionPQ:
-    """遅延削除対応の優先度キュー
+    """Priority queue with lazy deletion support
 
-    ヒープから要素を直接削除する代わりに、
-    削除マークを付けて pop 時にスキップする。
-    Dijkstra アルゴリズムの実装で頻出。
+    Instead of directly removing elements from the heap,
+    marks them as deleted and skips them on pop.
+    Commonly used in Dijkstra's algorithm implementations.
     """
     def __init__(self):
         self._queue = []
         self._counter = 0
-        self._deleted = set()  # 削除済みのカウンタID
+        self._deleted = set()  # Counter IDs of deleted entries
 
     def push(self, item, priority=0):
         """O(log n)"""
@@ -621,7 +619,7 @@ class LazyDeletionPQ:
         return entry_id
 
     def pop(self):
-        """O(log n) 償却 — 削除済み要素をスキップ"""
+        """O(log n) amortized — skips deleted entries"""
         while self._queue:
             priority, entry_id, item = heapq.heappop(self._queue)
             if entry_id not in self._deleted:
@@ -630,33 +628,33 @@ class LazyDeletionPQ:
         raise IndexError("queue is empty")
 
     def delete(self, entry_id):
-        """O(1) — 遅延削除マーク"""
+        """O(1) — lazy deletion mark"""
         self._deleted.add(entry_id)
 
     def __len__(self):
         return len(self._queue) - len(self._deleted)
 
-# 使用例: 優先度の更新（古いエントリを削除して新しく追加）
+# Usage example: priority update (delete old entry and add new one)
 pq = LazyDeletionPQ()
 id1 = pq.push("task A", priority=5)
 id2 = pq.push("task B", priority=3)
 
-# task A の優先度を更新（5 → 1）
+# Update priority of task A (5 -> 1)
 pq.delete(id1)
 id1_new = pq.push("task A", priority=1)
 
-print(pq.pop())  # "task A" (優先度 1)
-print(pq.pop())  # "task B" (優先度 3)
+print(pq.pop())  # "task A" (priority 1)
+print(pq.pop())  # "task B" (priority 3)
 ```
 
-### 5.3 インデックス付きヒープ
+### 5.3 Indexed Heap
 
 ```python
 class IndexedMinHeap:
-    """インデックス付き最小ヒープ
+    """Indexed min-heap
 
-    各キーの優先度を O(log n) で更新可能。
-    Dijkstra、Prim のアルゴリズムに最適。
+    Supports O(log n) priority updates for each key.
+    Ideal for Dijkstra's and Prim's algorithms.
 
     - insert(key, priority): O(log n)
     - pop(): O(log n)
@@ -664,8 +662,8 @@ class IndexedMinHeap:
     - contains(key): O(1)
     """
     def __init__(self, capacity=100):
-        self.heap = []          # (priority, key) のリスト
-        self.key_to_idx = {}    # key → ヒープ内のインデックス
+        self.heap = []          # List of (priority, key)
+        self.key_to_idx = {}    # key -> index in heap
         self.key_to_priority = {}
 
     def __len__(self):
@@ -685,7 +683,7 @@ class IndexedMinHeap:
         self._sift_up(idx)
 
     def pop(self):
-        """O(log n) — 最小優先度の要素を返す"""
+        """O(log n) — returns the element with minimum priority"""
         if not self.heap:
             raise IndexError("heap is empty")
         priority, key = self.heap[0]
@@ -698,11 +696,11 @@ class IndexedMinHeap:
         return key, priority
 
     def decrease_key(self, key, new_priority):
-        """O(log n) — キーの優先度を下げる"""
+        """O(log n) — decrease the priority of a key"""
         if key not in self.key_to_idx:
             raise KeyError(key)
         if new_priority >= self.key_to_priority[key]:
-            return  # 新しい優先度が高くない場合は何もしない
+            return  # Do nothing if new priority is not lower
         idx = self.key_to_idx[key]
         self.heap[idx] = (new_priority, key)
         self.key_to_priority[key] = new_priority
@@ -739,15 +737,15 @@ class IndexedMinHeap:
         self.key_to_idx[kj] = i
         self.heap[i], self.heap[j] = self.heap[j], self.heap[i]
 
-# 使用例: Dijkstra での使用
+# Usage example: Dijkstra's algorithm
 ipq = IndexedMinHeap()
-ipq.insert("A", 0)   # 始点: 距離 0
+ipq.insert("A", 0)   # Source: distance 0
 ipq.insert("B", 10)
 ipq.insert("C", 5)
 ipq.insert("D", float('inf'))
 
-# 距離の更新
-ipq.decrease_key("B", 3)  # B への距離が 10 → 3 に改善
+# Update distances
+ipq.decrease_key("B", 3)  # Distance to B improved from 10 to 3
 
 key, dist = ipq.pop()
 print(f"{key}: {dist}")  # A: 0
@@ -759,21 +757,21 @@ print(f"{key}: {dist}")  # C: 5
 
 ---
 
-## 6. 各種ヒープ
+## 6. Various Heap Types
 
-### 6.1 d-ary ヒープ
+### 6.1 d-ary Heap
 
 ```python
 class DaryHeap:
-    """d-ary ヒープ: 各ノードが d 個の子を持つ
+    """d-ary heap: each node has d children
 
-    d=2: 二分ヒープ（標準）
-    d=4: 四分ヒープ（キャッシュ効率が良い場合がある）
+    d=2: binary heap (standard)
+    d=4: quaternary heap (can be more cache-efficient)
 
-    - sift_up: O(log_d n) — d が大きいほど高さが低い
-    - sift_down: O(d * log_d n) — d が大きいほど子の比較が多い
-    - decrease_key が多い場合は d を大きくすると有利
-      （Dijkstra の密グラフなど）
+    - sift_up: O(log_d n) — lower height with larger d
+    - sift_down: O(d * log_d n) — more child comparisons with larger d
+    - Larger d is advantageous when decrease_key is frequent
+      (e.g., Dijkstra on dense graphs)
     """
     def __init__(self, d=4):
         self.d = d
@@ -819,42 +817,42 @@ class DaryHeap:
             self.heap[i], self.heap[smallest] = self.heap[smallest], self.heap[i]
             i = smallest
 
-# d の選択指針:
-# - d=2: 標準的な二分ヒープ。最もバランスが良い
-# - d=4: decrease_key が多い場合。Dijkstra の密グラフに有利
-# - d=8+: キャッシュラインに合わせた最適化が可能
+# Guidelines for choosing d:
+# - d=2: standard binary heap. Best overall balance
+# - d=4: when decrease_key is frequent. Advantageous for Dijkstra on dense graphs
+# - d=8+: can be optimized for cache line alignment
 ```
 
-### 6.2 フィボナッチヒープ（概念）
+### 6.2 Fibonacci Heap (Concept)
 
 ```python
-# フィボナッチヒープは理論的に最も効率的なヒープ:
+# The Fibonacci heap is the theoretically most efficient heap:
 #
-# | 操作           | 二分ヒープ  | フィボナッチヒープ |
-# |---------------|-----------|----------------|
-# | insert        | O(log n)  | O(1) 償却      |
-# | peek          | O(1)      | O(1)           |
-# | pop           | O(log n)  | O(log n) 償却   |
-# | decrease_key  | O(log n)  | O(1) 償却      |
-# | merge         | O(n)      | O(1)           |
+# | Operation      | Binary Heap | Fibonacci Heap  |
+# |----------------|-------------|-----------------|
+# | insert         | O(log n)    | O(1) amortized  |
+# | peek           | O(1)        | O(1)            |
+# | pop            | O(log n)    | O(log n) amort. |
+# | decrease_key   | O(log n)    | O(1) amortized  |
+# | merge          | O(n)        | O(1)            |
 #
-# Dijkstra に使うと O(V log V + E) を達成（二分ヒープでは O((V+E) log V)）
+# When used with Dijkstra's, achieves O(V log V + E) (vs O((V+E) log V) with binary heap)
 #
-# ただし実装が非常に複雑で、定数係数が大きいため、
-# 実務では二分ヒープの方が高速な場合が多い。
-# 主に理論的な計算量の分析で使用される。
+# However, the implementation is very complex and the constant factor is large,
+# so binary heaps are often faster in practice.
+# Primarily used for theoretical complexity analysis.
 
-# 簡易的なマージ可能ヒープ（Pairing Heap）
+# Simplified mergeable heap (Pairing Heap)
 class PairingHeapNode:
     def __init__(self, val):
         self.val = val
         self.children = []
 
 class PairingHeap:
-    """ペアリングヒープ: フィボナッチヒープの簡易版
+    """Pairing heap: simplified version of Fibonacci heap
 
-    実装が簡単で実測性能も良い。
-    merge が O(1) で可能。
+    Simple to implement with good practical performance.
+    Merge is possible in O(1).
     """
     def __init__(self):
         self.root = None
@@ -871,17 +869,17 @@ class PairingHeap:
         return self.root.val
 
     def pop(self):
-        """O(log n) 償却"""
+        """O(log n) amortized"""
         if not self.root:
             raise IndexError("heap is empty")
         val = self.root.val
         children = self.root.children
 
-        # 二段階マージ (two-pass pairing)
+        # Two-pass pairing
         if not children:
             self.root = None
         else:
-            # 1段目: 隣接ペアをマージ
+            # Pass 1: merge adjacent pairs
             merged = []
             for i in range(0, len(children), 2):
                 if i + 1 < len(children):
@@ -889,7 +887,7 @@ class PairingHeap:
                 else:
                     merged.append(children[i])
 
-            # 2段目: 右から左にマージ
+            # Pass 2: merge from right to left
             result = merged[-1]
             for i in range(len(merged) - 2, -1, -1):
                 result = self._merge(result, merged[i])
@@ -898,7 +896,7 @@ class PairingHeap:
         return val
 
     def _merge(self, h1, h2):
-        """2つのヒープをマージ — O(1)"""
+        """Merge two heaps — O(1)"""
         if not h1:
             return h2
         if not h2:
@@ -911,10 +909,10 @@ class PairingHeap:
             return h2
 
     def merge_with(self, other):
-        """別のヒープとマージ — O(1)"""
+        """Merge with another heap — O(1)"""
         self.root = self._merge(self.root, other.root)
 
-# 使用例
+# Usage example
 ph = PairingHeap()
 for x in [5, 3, 8, 1, 7]:
     ph.push(x)
@@ -924,19 +922,19 @@ print(ph.pop())  # 3
 
 ---
 
-## 7. 実務応用
+## 7. Practical Applications
 
-### 7.1 K番目に大きい要素
+### 7.1 K-th Largest Element
 
 ```python
 def kth_largest(nums, k):
-    """K番目に大きい要素 — O(n log k)
+    """K-th largest element — O(n log k)
 
-    サイズ k の最小ヒープを維持。
-    ヒープの根が常に k 番目に大きい要素になる。
+    Maintain a min-heap of size k.
+    The root of the heap is always the k-th largest element.
     """
     import heapq
-    # サイズ k の最小ヒープを維持
+    # Maintain a min-heap of size k
     heap = nums[:k]
     heapq.heapify(heap)
     for num in nums[k:]:
@@ -948,32 +946,32 @@ print(kth_largest([3, 2, 1, 5, 6, 4], 2))  # 5
 print(kth_largest([3, 2, 3, 1, 2, 4, 5, 5, 6], 4))  # 4
 ```
 
-### 7.2 ストリーミング中央値
+### 7.2 Streaming Median
 
 ```python
 import heapq
 
 class MedianFinder:
-    """ストリーミング中央値 — O(log n) 挿入, O(1) 取得
+    """Streaming median — O(log n) insertion, O(1) retrieval
 
-    2つのヒープを使用:
-    - max_heap: 小さい方の半分（最大ヒープ）
-    - min_heap: 大きい方の半分（最小ヒープ）
+    Uses two heaps:
+    - max_heap: lower half (max-heap)
+    - min_heap: upper half (min-heap)
 
-    max_heap の根 ≤ min_heap の根
-    サイズ差は最大1
+    Root of max_heap <= root of min_heap
+    Size difference is at most 1
     """
     def __init__(self):
-        self.max_heap = []  # 小さい方の半分（符号反転で最大ヒープ）
-        self.min_heap = []  # 大きい方の半分
+        self.max_heap = []  # Lower half (max-heap via sign negation)
+        self.min_heap = []  # Upper half
 
     def add_num(self, num):
         """O(log n)"""
-        # まず max_heap に追加
+        # First add to max_heap
         heapq.heappush(self.max_heap, -num)
-        # max_heap の最大値を min_heap に移動
+        # Move max of max_heap to min_heap
         heapq.heappush(self.min_heap, -heapq.heappop(self.max_heap))
-        # min_heap が大きすぎたら max_heap に戻す
+        # If min_heap is too large, move back to max_heap
         if len(self.min_heap) > len(self.max_heap):
             heapq.heappush(self.max_heap, -heapq.heappop(self.min_heap))
 
@@ -983,7 +981,7 @@ class MedianFinder:
             return -self.max_heap[0]
         return (-self.max_heap[0] + self.min_heap[0]) / 2
 
-# 使用例
+# Usage example
 mf = MedianFinder()
 mf.add_num(1)
 print(mf.find_median())  # 1.0
@@ -997,16 +995,16 @@ mf.add_num(5)
 print(mf.find_median())  # 3.0
 ```
 
-### 7.3 K個のソート済みリストのマージ
+### 7.3 Merging K Sorted Lists
 
 ```python
 import heapq
 
 def merge_k_sorted_lists(lists):
-    """K個のソート済みリストをマージ — O(N log K)
+    """Merge K sorted lists — O(N log K)
 
-    N = 全要素数, K = リスト数
-    ヒープに各リストの先頭要素を入れ、最小値を取り出す。
+    N = total number of elements, K = number of lists
+    Insert the head element of each list into the heap and extract the minimum.
     """
     heap = []
     for i, lst in enumerate(lists):
@@ -1023,7 +1021,7 @@ def merge_k_sorted_lists(lists):
 
     return result
 
-# 使用例
+# Usage example
 lists = [
     [1, 4, 5],
     [1, 3, 4],
@@ -1032,37 +1030,37 @@ lists = [
 print(merge_k_sorted_lists(lists))  # [1, 1, 2, 3, 4, 4, 5, 6]
 ```
 
-### 7.4 タスクスケジューラ
+### 7.4 Task Scheduler
 
 ```python
 import heapq
 from collections import Counter
 
 def least_interval(tasks, n):
-    """タスクスケジューラ: 同一タスク間に最低 n 個の間隔
+    """Task scheduler: minimum n intervals between identical tasks
 
-    例: tasks = ["A","A","A","B","B","B"], n = 2
-    結果: A B _ A B _ A B → 長さ 8
+    Example: tasks = ["A","A","A","B","B","B"], n = 2
+    Result: A B _ A B _ A B -> length 8
 
-    貪欲法 + 最大ヒープ: 頻度の高いタスクから優先的に実行
+    Greedy + max-heap: execute higher-frequency tasks first
     """
     freq = Counter(tasks)
     max_heap = [-count for count in freq.values()]
     heapq.heapify(max_heap)
 
     time = 0
-    cooldown = []  # (再利用可能時刻, 残り回数)
+    cooldown = []  # (available_time, remaining_count)
 
     while max_heap or cooldown:
         time += 1
 
         if max_heap:
-            count = heapq.heappop(max_heap) + 1  # -値なので +1 で回数減少
+            count = heapq.heappop(max_heap) + 1  # Negated, so +1 decrements count
             if count != 0:
                 cooldown.append((time + n, count))
-        # else: アイドル
+        # else: idle
 
-        # クールダウン終了のタスクをヒープに戻す
+        # Return tasks whose cooldown has ended back to the heap
         if cooldown and cooldown[0][0] == time:
             _, count = cooldown.pop(0)
             heapq.heappush(max_heap, count)
@@ -1073,35 +1071,35 @@ print(least_interval(["A","A","A","B","B","B"], 2))  # 8
 print(least_interval(["A","A","A","B","B","B"], 0))  # 6
 ```
 
-### 7.5 スライディングウィンドウの最大値
+### 7.5 Sliding Window Maximum
 
 ```python
 from collections import deque
 
 def max_sliding_window(nums, k):
-    """スライディングウィンドウの最大値 — O(n)
+    """Sliding window maximum — O(n)
 
-    単調減少のデック（monotonic deque）を使用。
-    ヒープ版は O(n log n) だが、デック版は O(n)。
+    Uses a monotonic decreasing deque.
+    The heap version is O(n log n), but the deque version is O(n).
     """
     if not nums or k == 0:
         return []
 
-    dq = deque()  # インデックスを格納（単調減少）
+    dq = deque()  # Stores indices (monotonically decreasing)
     result = []
 
     for i in range(len(nums)):
-        # ウィンドウ外の要素を除去
+        # Remove elements outside the window
         while dq and dq[0] < i - k + 1:
             dq.popleft()
 
-        # 新しい要素より小さい要素を除去
+        # Remove elements smaller than the new element
         while dq and nums[dq[-1]] < nums[i]:
             dq.pop()
 
         dq.append(i)
 
-        # ウィンドウが完成したら結果に追加
+        # Add to result once the window is complete
         if i >= k - 1:
             result.append(nums[dq[0]])
 
@@ -1110,22 +1108,22 @@ def max_sliding_window(nums, k):
 print(max_sliding_window([1, 3, -1, -3, 5, 3, 6, 7], 3))
 # [3, 3, 5, 5, 6, 7]
 
-# ヒープ版（比較用）
+# Heap version (for comparison)
 import heapq
 
 def max_sliding_window_heap(nums, k):
-    """ヒープ版 — O(n log n)"""
+    """Heap version — O(n log n)"""
     if not nums or k == 0:
         return []
 
-    heap = []  # (-値, インデックス)
+    heap = []  # (-value, index)
     result = []
 
     for i in range(len(nums)):
         heapq.heappush(heap, (-nums[i], i))
 
         if i >= k - 1:
-            # ウィンドウ外の要素をスキップ
+            # Skip elements outside the window
             while heap[0][1] < i - k + 1:
                 heapq.heappop(heap)
             result.append(-heap[0][0])
@@ -1133,19 +1131,19 @@ def max_sliding_window_heap(nums, k):
     return result
 ```
 
-### 7.6 最大スコアの仕事選択
+### 7.6 Maximum Performance Team Selection
 
 ```python
 import heapq
 
 def max_performance(n, speed, efficiency, k):
-    """最大パフォーマンス: k人以下のチームで
-    sum(speed) * min(efficiency) を最大化
+    """Maximum performance: maximize sum(speed) * min(efficiency)
+    with a team of at most k members
 
-    効率降順にソートし、速度の最小ヒープで
-    合計速度を管理する。
+    Sort by efficiency in descending order and manage
+    the speed sum using a min-heap.
     """
-    # 効率の降順にソート
+    # Sort by efficiency in descending order
     engineers = sorted(zip(efficiency, speed), reverse=True)
     max_perf = 0
     speed_sum = 0
@@ -1162,17 +1160,17 @@ def max_performance(n, speed, efficiency, k):
 
     return max_perf
 
-# 使用例
+# Usage example
 print(max_performance(6, [2,10,3,1,5,8], [5,4,3,9,7,2], 2))  # 60
 ```
 
-### 7.7 Dijkstra のアルゴリズム
+### 7.7 Dijkstra's Algorithm
 
 ```python
 import heapq
 
 def dijkstra(graph, start):
-    """Dijkstra の最短経路アルゴリズム — O((V+E) log V)
+    """Dijkstra's shortest path algorithm — O((V+E) log V)
 
     graph: {node: [(neighbor, weight), ...]}
     """
@@ -1185,7 +1183,7 @@ def dijkstra(graph, start):
         dist, u = heapq.heappop(heap)
 
         if dist > distances[u]:
-            continue  # 古いエントリをスキップ（遅延削除）
+            continue  # Skip stale entry (lazy deletion)
 
         for v, weight in graph[u]:
             new_dist = dist + weight
@@ -1197,7 +1195,7 @@ def dijkstra(graph, start):
     return distances, prev
 
 def reconstruct_path(prev, start, end):
-    """最短経路を復元"""
+    """Reconstruct shortest path"""
     path = []
     current = end
     while current is not None:
@@ -1205,7 +1203,7 @@ def reconstruct_path(prev, start, end):
         current = prev[current]
     return path[::-1] if path[-1] == start else []
 
-# 使用例
+# Usage example
 graph = {
     'A': [('B', 4), ('C', 2)],
     'B': [('D', 3), ('C', 1)],
@@ -1217,7 +1215,7 @@ print(distances)  # {'A': 0, 'B': 3, 'C': 2, 'D': 6}
 print(reconstruct_path(prev, 'A', 'D'))  # ['A', 'C', 'B', 'D']
 ```
 
-### 7.8 ハフマン符号化
+### 7.8 Huffman Coding
 
 ```python
 import heapq
@@ -1234,33 +1232,33 @@ class HuffmanNode:
         return self.freq < other.freq
 
 def huffman_encoding(text):
-    """ハフマン符号化 — O(n log n)
+    """Huffman coding — O(n log n)
 
-    出現頻度に基づいて可変長符号を割り当てる。
-    頻度の高い文字ほど短い符号 → 全体の圧縮率が向上。
+    Assigns variable-length codes based on character frequency.
+    Higher-frequency characters get shorter codes, improving overall compression.
     """
     if not text:
         return {}, ""
 
-    # 頻度カウント
+    # Frequency count
     freq = Counter(text)
 
-    # 優先度キューに葉ノードを追加
+    # Add leaf nodes to the priority queue
     heap = [HuffmanNode(char=ch, freq=f) for ch, f in freq.items()]
     heapq.heapify(heap)
 
-    # 1文字しかない場合の特殊処理
+    # Special case: only one unique character
     if len(heap) == 1:
         return {heap[0].char: "0"}, "0" * len(text)
 
-    # ハフマン木の構築
+    # Build the Huffman tree
     while len(heap) > 1:
         left = heapq.heappop(heap)
         right = heapq.heappop(heap)
         merged = HuffmanNode(freq=left.freq + right.freq, left=left, right=right)
         heapq.heappush(heap, merged)
 
-    # 符号の生成
+    # Generate codes
     codes = {}
     def build_codes(node, code=""):
         if node.char is not None:
@@ -1271,67 +1269,67 @@ def huffman_encoding(text):
 
     build_codes(heap[0])
 
-    # エンコード
+    # Encode
     encoded = "".join(codes[ch] for ch in text)
     return codes, encoded
 
-# 使用例
+# Usage example
 text = "this is an example of huffman encoding"
 codes, encoded = huffman_encoding(text)
-print("符号表:")
+print("Code table:")
 for char, code in sorted(codes.items(), key=lambda x: len(x[1])):
     print(f"  '{char}': {code}")
-print(f"\n原文: {len(text) * 8} bits (ASCII)")
-print(f"圧縮後: {len(encoded)} bits")
-print(f"圧縮率: {len(encoded) / (len(text) * 8) * 100:.1f}%")
+print(f"\nOriginal: {len(text) * 8} bits (ASCII)")
+print(f"Compressed: {len(encoded)} bits")
+print(f"Compression ratio: {len(encoded) / (len(text) * 8) * 100:.1f}%")
 ```
 
 ---
 
-## 8. 比較表
+## 8. Comparison Tables
 
-### 表1: ヒープ操作の計算量
+### Table 1: Heap Operation Complexity
 
-| 操作 | 二分ヒープ | d-ary ヒープ | フィボナッチ | ペアリング |
-|------|-----------|-------------|------------|----------|
+| Operation | Binary Heap | d-ary Heap | Fibonacci | Pairing |
+|-----------|-------------|------------|-----------|---------|
 | peek | O(1) | O(1) | O(1) | O(1) |
-| push | O(log n) | O(log_d n) | O(1) 償却 | O(1) |
-| pop | O(log n) | O(d log_d n) | O(log n) 償却 | O(log n) 償却 |
-| decrease_key | O(log n) | O(log_d n) | O(1) 償却 | O(1) 償却 |
+| push | O(log n) | O(log_d n) | O(1) amort. | O(1) |
+| pop | O(log n) | O(d log_d n) | O(log n) amort. | O(log n) amort. |
+| decrease_key | O(log n) | O(log_d n) | O(1) amort. | O(1) amort. |
 | merge | O(n) | O(n) | O(1) | O(1) |
 | heapify | O(n) | O(n) | - | - |
 
-### 表2: ソートアルゴリズムとの比較
+### Table 2: Comparison with Sorting Algorithms
 
-| アルゴリズム | 平均 | 最悪 | 空間 | 安定 | 特徴 |
-|-------------|------|------|------|------|------|
-| ヒープソート | O(n log n) | O(n log n) | O(1) | 不安定 | in-place、最悪保証 |
-| マージソート | O(n log n) | O(n log n) | O(n) | 安定 | 外部ソート向き |
-| クイックソート | O(n log n) | O(n^2) | O(log n) | 不安定 | 実測最速 |
-| Tim ソート | O(n log n) | O(n log n) | O(n) | 安定 | Python/Java 標準 |
-| イントロソート | O(n log n) | O(n log n) | O(log n) | 不安定 | C++ 標準 |
+| Algorithm | Average | Worst | Space | Stable | Characteristics |
+|-----------|---------|-------|-------|--------|-----------------|
+| Heapsort | O(n log n) | O(n log n) | O(1) | Unstable | In-place, worst-case guarantee |
+| Merge sort | O(n log n) | O(n log n) | O(n) | Stable | Suited for external sort |
+| Quicksort | O(n log n) | O(n^2) | O(log n) | Unstable | Fastest in practice |
+| Timsort | O(n log n) | O(n log n) | O(n) | Stable | Python/Java standard |
+| Introsort | O(n log n) | O(n log n) | O(log n) | Unstable | C++ standard |
 
-### 表3: 優先度キューの言語別実装
+### Table 3: Priority Queue Implementations by Language
 
-| 言語 | クラス/モジュール | 内部実装 | 備考 |
-|------|----------------|---------|------|
-| Python | heapq | 二分ヒープ（配列） | 最小ヒープのみ |
-| Java | PriorityQueue | 二分ヒープ | 最小ヒープ、Comparator で変更可能 |
-| C++ | priority_queue | 二分ヒープ | 最大ヒープがデフォルト |
-| Go | container/heap | インタフェース | Push/Pop/Len/Less/Swap を実装 |
-| Rust | BinaryHeap | 二分ヒープ | 最大ヒープ、Reverse で最小 |
-| C# | PriorityQueue<T, P> | .NET 6+ | 最小ヒープ |
+| Language | Class/Module | Internal Implementation | Notes |
+|----------|-------------|------------------------|-------|
+| Python | heapq | Binary heap (array) | Min-heap only |
+| Java | PriorityQueue | Binary heap | Min-heap, configurable via Comparator |
+| C++ | priority_queue | Binary heap | Max-heap by default |
+| Go | container/heap | Interface | Implement Push/Pop/Len/Less/Swap |
+| Rust | BinaryHeap | Binary heap | Max-heap, use Reverse for min |
+| C# | PriorityQueue<T, P> | .NET 6+ | Min-heap |
 
 ---
 
-## 9. アンチパターン
+## 9. Anti-Patterns
 
-### アンチパターン1: heapify の代わりに逐次 push
+### Anti-Pattern 1: Sequential push instead of heapify
 
 ```python
 import heapq
 
-# BAD: n 回の push — O(n log n)
+# BAD: n pushes — O(n log n)
 heap = []
 for x in data:
     heapq.heappush(heap, x)
@@ -1340,26 +1338,26 @@ for x in data:
 heap = list(data)
 heapq.heapify(heap)
 
-# パフォーマンス差:
-# n = 1,000,000 の場合
-# BAD:  ~1.2 秒
-# GOOD: ~0.05 秒（約 24 倍高速）
+# Performance difference:
+# For n = 1,000,000
+# BAD:  ~1.2 seconds
+# GOOD: ~0.05 seconds (approximately 24x faster)
 ```
 
-### アンチパターン2: ヒープで最小/最大以外を頻繁に検索
+### Anti-Pattern 2: Frequent non-min/max lookups in a heap
 
 ```python
-# BAD: ヒープで特定値を探索 — O(n)
+# BAD: searching for a specific value in a heap — O(n)
 def find_in_heap(heap, target):
     for item in heap:
         if item == target:
             return True
     return False
 
-# ヒープは最小値/最大値の取得に特化
-# 任意の要素検索が必要なら set や dict を併用する
+# Heaps are specialized for min/max retrieval
+# If arbitrary element lookup is needed, use a set or dict alongside
 
-# GOOD: ヒープ + セットの併用
+# GOOD: combining heap with set
 class HeapWithSet:
     def __init__(self):
         self.heap = []
@@ -1379,41 +1377,41 @@ class HeapWithSet:
         return val in self.members  # O(1)
 ```
 
-### アンチパターン3: nsmallest/nlargest の不適切な使用
+### Anti-Pattern 3: Inappropriate use of nsmallest/nlargest
 
 ```python
 import heapq
 
-# BAD: 全要素が必要なのに nsmallest を使う
+# BAD: using nsmallest when all elements are needed
 sorted_data = heapq.nsmallest(len(data), data)  # O(n log n)
 
-# GOOD: sorted() を使う
-sorted_data = sorted(data)  # O(n log n) だが定数係数が小さい
+# GOOD: use sorted()
+sorted_data = sorted(data)  # O(n log n) but with smaller constant factor
 
-# BAD: 最小/最大の1つだけが必要なのに nsmallest を使う
+# BAD: using nsmallest when only 1 element is needed
 minimum = heapq.nsmallest(1, data)[0]  # O(n)
 
-# GOOD: min/max を使う
-minimum = min(data)  # O(n) だがオーバーヘッドが少ない
+# GOOD: use min/max
+minimum = min(data)  # O(n) but with less overhead
 
-# GOOD: k が小さい場合は nsmallest/nlargest
-top10 = heapq.nsmallest(10, data)  # O(n + 10 log n) ≈ O(n)
+# GOOD: nsmallest/nlargest when k is small
+top10 = heapq.nsmallest(10, data)  # O(n + 10 log n) ~ O(n)
 ```
 
-### アンチパターン4: ヒープのソート済み保証を誤解
+### Anti-Pattern 4: Assuming heap array is sorted
 
 ```python
 import heapq
 
-# BAD: ヒープ配列がソート済みだと思い込む
+# BAD: assuming the heap array is sorted
 heap = [1, 3, 2, 5, 8, 7]
 heapq.heapify(heap)
-print(heap)  # [1, 3, 2, 5, 8, 7] — ソートされていない!
+print(heap)  # [1, 3, 2, 5, 8, 7] — NOT sorted!
 
-# ヒープ順序性: 親 ≤ 子 だが、兄弟間の順序は保証されない
-# heap[0] は最小値だが、heap[1] は2番目に小さい値とは限らない
+# Heap order property: parent <= child, but sibling order is not guaranteed
+# heap[0] is the minimum, but heap[1] is not necessarily the second smallest
 
-# GOOD: ソート順が必要なら pop を繰り返す
+# GOOD: if sorted order is needed, repeatedly pop
 sorted_result = []
 temp = list(heap)
 heapq.heapify(temp)
@@ -1422,67 +1420,67 @@ while temp:
 print(sorted_result)  # [1, 2, 3, 5, 7, 8]
 ```
 
-### アンチパターン5: 優先度キューの優先度更新を再挿入で代用
+### Anti-Pattern 5: Substituting priority updates with re-insertion
 
 ```python
 import heapq
 
-# BAD: 優先度の更新を新しいエントリの追加だけで対応
-# → 古いエントリがヒープに残り続けメモリリーク
+# BAD: updating priority by just adding a new entry
+# -> old entry remains in the heap, causing a memory leak
 heap = []
 heapq.heappush(heap, (5, "task_A"))
-heapq.heappush(heap, (3, "task_A"))  # 優先度更新のつもり
-# → (5, "task_A") がヒープに残る
+heapq.heappush(heap, (3, "task_A"))  # Intended as priority update
+# -> (5, "task_A") remains in the heap
 
-# GOOD: 遅延削除パターンを使う
-# → LazyDeletionPQ（上記セクション参照）
+# GOOD: use the lazy deletion pattern
+# -> LazyDeletionPQ (see section above)
 #
-# BETTER: インデックス付きヒープで decrease_key を使う
-# → IndexedMinHeap（上記セクション参照）
+# BETTER: use an indexed heap with decrease_key
+# -> IndexedMinHeap (see section above)
 ```
 
 
 ---
 
-## 実践演習
+## Practical Exercises
 
-### 演習1: 基本的な実装
+### Exercise 1: Basic Implementation
 
-以下の要件を満たすコードを実装してください。
+Implement code that satisfies the following requirements.
 
-**要件:**
-- 入力データの検証を行うこと
-- エラーハンドリングを適切に実装すること
-- テストコードも作成すること
+**Requirements:**
+- Validate input data
+- Implement proper error handling
+- Write test code
 
 ```python
-# 演習1: 基本実装のテンプレート
+# Exercise 1: Basic implementation template
 class Exercise1:
-    """基本的な実装パターンの演習"""
+    """Exercise for basic implementation patterns"""
 
     def __init__(self):
         self.data = []
 
     def validate_input(self, value):
-        """入力値の検証"""
+        """Validate input value"""
         if value is None:
-            raise ValueError("入力値がNoneです")
+            raise ValueError("Input value is None")
         return True
 
     def process(self, value):
-        """データ処理のメインロジック"""
+        """Main processing logic"""
         self.validate_input(value)
         self.data.append(value)
         return self.data
 
     def get_results(self):
-        """処理結果の取得"""
+        """Get processing results"""
         return {
             'count': len(self.data),
             'data': self.data
         }
 
-# テスト
+# Tests
 def test_exercise1():
     ex = Exercise1()
     assert ex.process(1) == [1]
@@ -1491,26 +1489,26 @@ def test_exercise1():
 
     try:
         ex.process(None)
-        assert False, "例外が発生するべき"
+        assert False, "Exception should have been raised"
     except ValueError:
         pass
 
-    print("全テスト合格!")
+    print("All tests passed!")
 
 test_exercise1()
 ```
 
-### 演習2: 応用パターン
+### Exercise 2: Advanced Patterns
 
-基本実装を拡張して、以下の機能を追加してください。
+Extend the basic implementation by adding the following features.
 
 ```python
-# 演習2: 応用パターン
+# Exercise 2: Advanced patterns
 from typing import List, Dict, Optional
 from datetime import datetime
 
 class AdvancedExercise:
-    """応用パターンの演習"""
+    """Exercise for advanced patterns"""
 
     def __init__(self, max_size: int = 100):
         self._items: List[Dict] = []
@@ -1518,7 +1516,7 @@ class AdvancedExercise:
         self._created_at = datetime.now()
 
     def add(self, key: str, value: any) -> bool:
-        """アイテムの追加（サイズ制限付き）"""
+        """Add an item (with size limit)"""
         if len(self._items) >= self._max_size:
             return False
         self._items.append({
@@ -1529,14 +1527,14 @@ class AdvancedExercise:
         return True
 
     def find(self, key: str) -> Optional[Dict]:
-        """キーによる検索"""
+        """Search by key"""
         for item in reversed(self._items):
             if item['key'] == key:
                 return item
         return None
 
     def remove(self, key: str) -> bool:
-        """キーによる削除"""
+        """Delete by key"""
         for i, item in enumerate(self._items):
             if item['key'] == key:
                 self._items.pop(i)
@@ -1544,7 +1542,7 @@ class AdvancedExercise:
         return False
 
     def stats(self) -> Dict:
-        """統計情報"""
+        """Statistics"""
         return {
             'total_items': len(self._items),
             'max_size': self._max_size,
@@ -1552,44 +1550,44 @@ class AdvancedExercise:
             'uptime': str(datetime.now() - self._created_at)
         }
 
-# テスト
+# Tests
 def test_advanced():
     ex = AdvancedExercise(max_size=3)
     assert ex.add("a", 1) == True
     assert ex.add("b", 2) == True
     assert ex.add("c", 3) == True
-    assert ex.add("d", 4) == False  # サイズ制限
+    assert ex.add("d", 4) == False  # Size limit
     assert ex.find("b")['value'] == 2
     assert ex.remove("b") == True
     assert ex.find("b") is None
     stats = ex.stats()
     assert stats['total_items'] == 2
-    print("応用テスト全合格!")
+    print("All advanced tests passed!")
 
 test_advanced()
 ```
 
-### 演習3: パフォーマンス最適化
+### Exercise 3: Performance Optimization
 
-以下のコードのパフォーマンスを改善してください。
+Improve the performance of the following code.
 
 ```python
-# 演習3: パフォーマンス最適化
+# Exercise 3: Performance optimization
 import time
 from functools import lru_cache
 
-# 最適化前（O(n^2)）
+# Before optimization (O(n^2))
 def slow_search(data: list, target: int) -> int:
-    """非効率な検索"""
+    """Inefficient search"""
     for i in range(len(data)):
         for j in range(i + 1, len(data)):
             if data[i] + data[j] == target:
                 return (i, j)
     return (-1, -1)
 
-# 最適化後（O(n)）
+# After optimization (O(n))
 def fast_search(data: list, target: int) -> tuple:
-    """ハッシュマップを使った効率的な検索"""
+    """Efficient search using hash map"""
     seen = {}
     for i, num in enumerate(data):
         complement = target - num
@@ -1598,7 +1596,7 @@ def fast_search(data: list, target: int) -> tuple:
         seen[num] = i
     return (-1, -1)
 
-# ベンチマーク
+# Benchmark
 def benchmark():
     import random
     data = list(range(5000))
@@ -1613,32 +1611,32 @@ def benchmark():
     result2 = fast_search(data, target)
     fast_time = time.time() - start
 
-    print(f"非効率版: {slow_time:.4f}秒")
-    print(f"効率版:   {fast_time:.6f}秒")
-    print(f"高速化率: {slow_time/fast_time:.0f}倍")
+    print(f"Inefficient version: {slow_time:.4f}s")
+    print(f"Efficient version:   {fast_time:.6f}s")
+    print(f"Speedup: {slow_time/fast_time:.0f}x")
 
 benchmark()
 ```
 
-**ポイント:**
-- アルゴリズムの計算量を意識する
-- 適切なデータ構造を選択する
-- ベンチマークで効果を測定する
+**Key Points:**
+- Be mindful of algorithm complexity
+- Choose appropriate data structures
+- Measure the effect with benchmarks
 ---
 
 ## 10. FAQ
 
-### Q1: heapify がなぜ O(n) で済むのか？
+### Q1: Why is heapify O(n)?
 
-**A:** ボトムアップに sift-down する。葉ノード（約 n/2 個）は sift-down 不要。高さ h のノード数は n/2^(h+1) で、sift-down コストは O(h)。合計 Sigma(h * n/2^(h+1)) = O(n)。直感的には、ほとんどのノードが低い高さにあり、sift-down 距離が短いため。
+**A:** It performs sift-down from the bottom up. Leaf nodes (approximately n/2) require no sift-down. The number of nodes at height h is n/2^(h+1), and the sift-down cost is O(h). The total is Sigma(h * n/2^(h+1)) = O(n). Intuitively, most nodes are at low heights, so their sift-down distances are short.
 
-### Q2: Python の heapq に最大ヒープはないのか？
+### Q2: Does Python's heapq have a max-heap?
 
-**A:** 標準では最小ヒープのみ。最大ヒープを実現する方法:
-1. **符号反転**: `heappush(h, -val)` で挿入、`-heappop(h)` で取得。最も一般的
-2. **タプルの反転**: `heappush(h, (-priority, item))` でカスタムオブジェクトに対応
-3. **サードパーティ**: `heapdict` パッケージや自作クラス
-4. **ラッパークラス**: `__lt__` を反転させたクラスでラップ
+**A:** The standard library provides only a min-heap. Ways to implement a max-heap:
+1. **Sign negation**: insert with `heappush(h, -val)`, retrieve with `-heappop(h)`. Most common approach
+2. **Tuple negation**: `heappush(h, (-priority, item))` for custom objects
+3. **Third-party**: `heapdict` package or custom class
+4. **Wrapper class**: wrap with a class that reverses `__lt__`
 
 ```python
 from dataclasses import dataclass, field
@@ -1650,89 +1648,89 @@ class MaxHeapItem:
     item: Any = field(compare=False)
 
     def __post_init__(self):
-        self.priority = -self.priority  # 符号反転
+        self.priority = -self.priority  # Sign negation
 ```
 
-### Q3: ヒープと BST の使い分けは？
+### Q3: When to use a heap vs. a BST?
 
 **A:**
-- **ヒープ**: 最小/最大値だけが必要 → O(1) 参照、O(log n) 挿入/削除
-- **BST**: 範囲検索、順序走査、k番目の要素が必要 → O(log n) 各種操作
-- **ヒープの利点**: 配列で実装でき、メモリ効率が良い。キャッシュフレンドリー
-- **BST の利点**: 任意の要素の探索/削除が O(log n)。ヒープは O(n)
+- **Heap**: when only the min/max value is needed -- O(1) lookup, O(log n) insert/delete
+- **BST**: when range queries, in-order traversal, or k-th element are needed -- O(log n) for various operations
+- **Heap advantages**: implemented as an array, memory-efficient, cache-friendly
+- **BST advantages**: O(log n) search/delete of arbitrary elements; heaps require O(n)
 
-### Q4: Top-K 問題の最適解は？
+### Q4: What is the optimal solution for the Top-K problem?
 
-**A:** K の大きさによって変わる:
-- **k = 1**: `min()` / `max()` で O(n)
-- **k が小さい**: サイズ k のヒープで O(n log k)
-- **k ≈ n/2**: Quick Select で O(n) 平均
-- **k ≈ n**: `sorted()` で O(n log n)
+**A:** It depends on the size of K:
+- **k = 1**: `min()` / `max()` in O(n)
+- **k is small**: heap of size k in O(n log k)
+- **k ~ n/2**: Quick Select in O(n) average
+- **k ~ n**: `sorted()` in O(n log n)
 
-### Q5: ヒープソートはなぜ実務であまり使われないか？
+### Q5: Why is heapsort rarely used in practice?
 
-**A:** ヒープソートは O(n log n) 最悪保証、O(1) 追加メモリという優れた性質を持つが、実測ではクイックソートや TimSort に劣る。理由:
-1. **キャッシュ効率が悪い**: ヒープの参照パターンが非局所的（親子関係がメモリ上で遠い）
-2. **分岐予測が困難**: sift-down での比較パターンが予測しにくい
-3. **不安定**: 同一キーの相対順序が保持されない
-ただしメモリ制約が厳しい場合や、最悪ケース保証が必要な場合は有効。C++ の `std::sort` は内部でイントロソート（クイック+ヒープのハイブリッド）を使用。
+**A:** Heapsort has excellent properties with O(n log n) worst-case guarantee and O(1) extra memory, but it is slower than quicksort and Timsort in practice. Reasons:
+1. **Poor cache efficiency**: the heap's access pattern is non-local (parent-child relationships are far apart in memory)
+2. **Difficult branch prediction**: comparison patterns in sift-down are hard to predict
+3. **Unstable**: relative order of equal keys is not preserved
+However, it is effective when memory constraints are strict or worst-case guarantees are required. C++'s `std::sort` internally uses introsort (a hybrid of quicksort and heapsort).
 
-### Q6: ヒープを使った効率的な外部ソートの方法は？
+### Q6: How to perform efficient external sorting with heaps?
 
-**A:** K-way マージ:
-1. 大きなファイルを RAM に収まるチャンクに分割
-2. 各チャンクをメモリ内でソートしてファイルに書き出す
-3. サイズ K の最小ヒープで K 個のチャンクの先頭要素を管理
-4. ヒープから最小値を取り出し、出力ファイルに書き込む
-5. 取り出したチャンクの次の要素をヒープに追加
+**A:** K-way merge:
+1. Split the large file into chunks that fit in RAM
+2. Sort each chunk in memory and write to file
+3. Manage the head elements of K chunks using a min-heap of size K
+4. Extract the minimum from the heap and write to the output file
+5. Add the next element from the extracted chunk to the heap
 
-Python の `heapq.merge()` がまさにこの操作を提供する。
+Python's `heapq.merge()` provides exactly this operation.
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory, but by actually writing code and verifying its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes that beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## 11. まとめ
-
-| 項目 | ポイント |
-|------|---------|
-| 二分ヒープ | 完全二分木。配列で効率的に表現。ポインタ不要 |
-| 最小/最大ヒープ | 根が最小/最大値。O(1) で参照 |
-| sift-up/down | 挿入/削除後のヒープ性質の復元 — O(log n) |
-| heapify | ボトムアップ構築で O(n)。逐次 push の O(n log n) より高速 |
-| ヒープソート | O(n log n)、in-place、不安定。最悪保証あり |
-| 優先度キュー | ヒープで実装。遅延削除やインデックス付きヒープも重要 |
-| d-ary ヒープ | decrease_key が多い場合に d を大きくすると有利 |
-| ペアリングヒープ | マージが O(1)。フィボナッチヒープの簡易版 |
-| 実務応用 | Top-K、中央値、Dijkstra、ハフマン、タスクスケジューラ |
+Knowledge of this topic is frequently applied in daily development work. It becomes particularly important during code reviews and architecture design.
 
 ---
 
-## 次に読むべきガイド
+## 11. Summary
 
-- [グラフ — 表現方法と重み付きグラフ](./06-graphs.md)
-- [最短経路 — Dijkstra とヒープの活用](../02-algorithms/03-shortest-path.md)
+| Item | Key Point |
+|------|-----------|
+| Binary heap | Complete binary tree. Efficiently represented as an array. No pointers needed |
+| Min/max heap | Root is the min/max value. O(1) lookup |
+| sift-up/down | Restoring heap property after insertion/deletion -- O(log n) |
+| heapify | Bottom-up construction in O(n). Faster than sequential push O(n log n) |
+| Heapsort | O(n log n), in-place, unstable. Worst-case guarantee |
+| Priority queue | Implemented with heaps. Lazy deletion and indexed heaps are also important |
+| d-ary heap | Larger d is advantageous when decrease_key is frequent |
+| Pairing heap | O(1) merge. Simplified version of Fibonacci heap |
+| Practical applications | Top-K, median, Dijkstra, Huffman, task scheduler |
 
 ---
 
-## 参考文献
+## Recommended Next Guides
 
-1. Cormen, T.H. et al. (2022). *Introduction to Algorithms* (4th ed.). MIT Press. — 第6章「Heapsort」、第19章「Fibonacci Heaps」
+- [Graphs -- Representations and Weighted Graphs](./06-graphs.md)
+- [Shortest Paths -- Dijkstra and Heap Utilization](../02-algorithms/03-shortest-path.md)
+
+---
+
+## References
+
+1. Cormen, T.H. et al. (2022). *Introduction to Algorithms* (4th ed.). MIT Press. -- Chapter 6 "Heapsort", Chapter 19 "Fibonacci Heaps"
 2. Williams, J.W.J. (1964). "Algorithm 232: Heapsort." *Communications of the ACM*, 7(6), 347-348.
 3. Fredman, M.L. & Tarjan, R.E. (1987). "Fibonacci heaps and their uses in improved network optimization algorithms." *Journal of the ACM*, 34(3), 596-615.
 4. Python Documentation. "heapq --- Heap queue algorithm." --- https://docs.python.org/3/library/heapq.html
