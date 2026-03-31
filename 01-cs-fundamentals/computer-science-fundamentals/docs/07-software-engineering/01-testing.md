@@ -1,221 +1,221 @@
-# ソフトウェアテスト
+# Software Testing
 
-> テストのないコードはレガシーコードである。——Michael Feathers, *Working Effectively with Legacy Code*
+> Code without tests is legacy code. -- Michael Feathers, *Working Effectively with Legacy Code*
 
-ソフトウェアテストは、プログラムが仕様どおりに動作することを検証し、
-バグの早期発見・品質保証・保守性向上を実現するための体系的な活動である。
-本章では、単体テストから統合テスト・E2E テスト・受入テストに至る分類体系、
-TDD や BDD といった開発手法、同値分割・境界値分析などのテスト技法、
-モックとスタブの使い分け、CI/CD パイプラインでの自動化戦略、
-コードカバレッジの意義と限界、プロパティベーステスト、
-そして現場でよく見られるアンチパターンまでを網羅的に扱う。
-
----
-
-## この章で学ぶこと
-
-- [ ] テストピラミッドの構造と各レイヤーの役割を理解する
-- [ ] ユニットテストを AAA パターンで書けるようになる
-- [ ] TDD の Red-Green-Refactor サイクルを実践できる
-- [ ] BDD のシナリオ駆動テストを説明できる
-- [ ] 同値分割・境界値分析・デシジョンテーブルを適用できる
-- [ ] モックとスタブの使い分けを判断できる
-- [ ] CI/CD パイプラインにテストを組み込む方法を知る
-- [ ] カバレッジ指標の種類と限界を理解する
-- [ ] プロパティベーステストの基本を知る
-- [ ] テストに関する典型的なアンチパターンを識別し、回避できる
-
-
-## 前提知識
-
-このガイドを読む前に、以下の知識があると理解が深まります:
-
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [ソフトウェア開発プロセス](./00-development-process.md) の内容を理解していること
+Software testing is a systematic activity for verifying that programs behave according to specifications,
+enabling early bug detection, quality assurance, and improved maintainability.
+This chapter comprehensively covers the classification system from unit tests through integration tests,
+E2E tests, and acceptance tests; development methodologies such as TDD and BDD; test techniques
+including equivalence partitioning and boundary value analysis; the proper use of mocks and stubs;
+automation strategies in CI/CD pipelines; the significance and limitations of code coverage;
+property-based testing; and commonly observed anti-patterns in practice.
 
 ---
 
-## 1. テストの重要性
+## Learning Objectives
 
-### 1.1 なぜテストを書くのか
+- [ ] Understand the structure and role of each layer in the test pyramid
+- [ ] Be able to write unit tests following the AAA pattern
+- [ ] Be able to practice the TDD Red-Green-Refactor cycle
+- [ ] Be able to explain BDD scenario-driven testing
+- [ ] Be able to apply equivalence partitioning, boundary value analysis, and decision tables
+- [ ] Be able to determine when to use mocks vs. stubs
+- [ ] Know how to integrate tests into a CI/CD pipeline
+- [ ] Understand the types and limitations of coverage metrics
+- [ ] Know the basics of property-based testing
+- [ ] Be able to identify and avoid common testing anti-patterns
 
-ソフトウェア開発においてテストが重要である理由は、大きく分けて以下の 4 つに整理できる。
 
-**1. バグの早期検出とコスト削減**
+## Prerequisites
 
-ソフトウェアの欠陥は、発見が遅れるほど修正コストが指数関数的に増大する。
-要件定義段階で見つかった誤りの修正コストを 1 とすると、
-設計段階では 5 倍、実装段階では 10 倍、テスト段階では 20 倍、
-リリース後には 100 倍以上に達するとされる（Barry Boehm の研究に基づく経験則）。
-自動テストを開発と同時に書くことで、欠陥を実装段階で捕捉し、修正コストを最小化できる。
+Before reading this guide, having the following knowledge will deepen your understanding:
+
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Familiarity with the content in [Software Development Process](./00-development-process.md)
+
+---
+
+## 1. The Importance of Testing
+
+### 1.1 Why Write Tests
+
+The reasons why testing is important in software development can be broadly organized into the following four categories.
+
+**1. Early Bug Detection and Cost Reduction**
+
+The cost of fixing software defects increases exponentially the later they are discovered.
+If the cost of fixing an error found during the requirements phase is 1,
+it becomes 5x in the design phase, 10x in the implementation phase, 20x in the testing phase,
+and over 100x after release (based on Barry Boehm's research).
+By writing automated tests alongside development, defects can be caught during implementation, minimizing repair costs.
 
 ```
-バグ修正コストの増大曲線（概念図）:
+Bug fix cost growth curve (conceptual diagram):
 
-コスト
+Cost
   ^
-  |                                              * リリース後
+  |                                              * After release
   |                                         *
   |                                    *
   |                              *
   |                        *
   |                  *
   |            *
-  |       * テスト段階
-  |    * 実装段階
-  |  * 設計段階
-  | * 要件定義
-  +--------------------------------------------> 時間
-    要件  設計  実装  テスト  運用  保守
+  |       * Testing phase
+  |    * Implementation phase
+  |  * Design phase
+  | * Requirements
+  +--------------------------------------------> Time
+    Req.  Design  Impl.  Testing  Ops  Maint.
 ```
 
-**2. 回帰（リグレッション）の防止**
+**2. Prevention of Regression**
 
-既存機能が新しい変更によって壊れることを「回帰バグ」と呼ぶ。
-自動テストスイートが存在すれば、コードを変更するたびにテストを実行し、
-意図しない影響がないことを即座に確認できる。
-これは特に大規模なコードベースやチーム開発において不可欠である。
+When existing functionality breaks due to new changes, it is called a "regression bug."
+If an automated test suite exists, tests can be run every time code is changed to immediately
+confirm that there are no unintended side effects.
+This is especially essential for large codebases and team development.
 
-**3. 設計の改善**
+**3. Design Improvement**
 
-テストを書きやすいコードは、一般に疎結合で高凝集である。
-テストを先に書く（TDD）ことで、自然とクリーンな設計に導かれる。
-テストしにくいコードは、多くの場合、設計上の問題（密結合、副作用の多さ、責務の混在）を抱えている。
+Code that is easy to test is generally loosely coupled and highly cohesive.
+By writing tests first (TDD), you are naturally guided toward clean design.
+Code that is hard to test almost always has design problems (tight coupling, excessive side effects, mixed responsibilities).
 
-**4. 生きたドキュメントとしての役割**
+**4. Role as Living Documentation**
 
-テストコードは、対象コードの使い方や期待される振る舞いを具体的に示す。
-API ドキュメントが古くなっても、テストが通り続ける限り、
-テストコード自体が最新の仕様書として機能する。
+Test code concretely demonstrates how the target code should be used and what behavior is expected.
+Even if API documentation becomes outdated, as long as tests continue to pass,
+the test code itself functions as an up-to-date specification.
 
-### 1.2 テストの基本用語
+### 1.2 Basic Testing Terminology
 
-| 用語 | 定義 |
-|------|------|
-| テストケース (Test Case) | 特定の条件下で期待される結果を検証する最小単位 |
-| テストスイート (Test Suite) | 関連するテストケースをまとめたグループ |
-| テストランナー (Test Runner) | テストを実行し結果を報告するツール（pytest, JUnit など） |
-| テストフィクスチャ (Test Fixture) | テスト実行前後のセットアップ・ティアダウン処理 |
-| アサーション (Assertion) | 期待値と実際の値を比較する検証文 |
-| SUT (System Under Test) | テスト対象のシステムまたはコンポーネント |
-| テストダブル (Test Double) | 本物のオブジェクトの代わりに使う代替品の総称 |
-| テストカバレッジ (Test Coverage) | テストによって実行されるコードの割合 |
-| 回帰テスト (Regression Test) | 既存機能が壊れていないことを確認するテスト |
-| フレイキーテスト (Flaky Test) | 同じ条件で実行しても結果が安定しないテスト |
+| Term | Definition |
+|------|-----------|
+| Test Case | The smallest unit that verifies expected results under specific conditions |
+| Test Suite | A group of related test cases |
+| Test Runner | A tool that executes tests and reports results (pytest, JUnit, etc.) |
+| Test Fixture | Setup and teardown processing before and after test execution |
+| Assertion | A verification statement that compares expected and actual values |
+| SUT (System Under Test) | The system or component being tested |
+| Test Double | A generic term for substitutes used in place of real objects |
+| Test Coverage | The proportion of code executed by tests |
+| Regression Test | A test that confirms existing functionality is not broken |
+| Flaky Test | A test that produces inconsistent results even under the same conditions |
 
 ---
 
-## 2. テストの分類
+## 2. Test Classification
 
-ソフトウェアテストは、テストの粒度、目的、実行タイミングなどによって多角的に分類される。
-ここでは最も基本的な「テストレベルによる分類」を中心に解説する。
+Software tests are classified from multiple perspectives based on test granularity, purpose, execution timing, and more.
+Here we focus primarily on "classification by test level," the most fundamental approach.
 
-### 2.1 テストピラミッド
+### 2.1 The Test Pyramid
 
-Mike Cohn が提唱したテストピラミッドは、
-テストの自動化戦略における基本指針を図式化したものである。
+The test pyramid, proposed by Mike Cohn,
+is a visual representation of the fundamental guidelines for test automation strategy.
 
 ```
-テストピラミッド:
+Test Pyramid:
 
                     /\
                    /  \
-                  / E2E \        ← 少数・高コスト・低速・壊れやすい
-                 /  テスト \        ブラウザ操作、API全体の結合
-                /──────────\
+                  / E2E \        <- Few / High cost / Slow / Fragile
+                 / Tests  \        Browser operations, full API integration
+                /----------\
                /            \
-              /   統合テスト   \    ← 中程度の量・コスト・速度
-             /  Integration   \    DB接続、API連携、サービス間通信
-            /──────────────────\
+              / Integration  \    <- Moderate quantity / cost / speed
+             /    Tests       \    DB connections, API integration, inter-service communication
+            /------------------\
            /                    \
-          /   ユニットテスト      \  ← 大量・低コスト・高速・安定
-         /    Unit Tests         \   関数・クラス単位、モックで隔離
-        /────────────────────────\
+          /    Unit Tests        \  <- Many / Low cost / Fast / Stable
+         /                        \   Function/class level, isolated with mocks
+        /--------------------------\
 
-  推奨比率:
-  ┌──────────────┬────────┬────────────┬──────────────┐
-  │ レイヤー     │ 比率   │ 実行速度   │ 保守コスト   │
-  ├──────────────┼────────┼────────────┼──────────────┤
-  │ ユニット     │ 70%    │ ms 単位    │ 低           │
-  │ 統合         │ 20%    │ 秒〜分     │ 中           │
-  │ E2E          │ 10%    │ 分〜十分   │ 高           │
-  └──────────────┴────────┴────────────┴──────────────┘
+  Recommended ratios:
+  +----------------+--------+--------------+------------------+
+  | Layer          | Ratio  | Exec Speed   | Maintenance Cost |
+  +----------------+--------+--------------+------------------+
+  | Unit           | 70%    | milliseconds | Low              |
+  | Integration    | 20%    | sec to min   | Medium           |
+  | E2E            | 10%    | min to tens  | High             |
+  +----------------+--------+--------------+------------------+
 ```
 
-このピラミッドの意味するところは明快である。
-低コストで高速なユニットテストを土台として大量に書き、
-統合テストで主要なコンポーネント間の連携を検証し、
-E2E テストはビジネス上重要なシナリオに絞って少数書く。
+The meaning of this pyramid is clear.
+Write a large number of low-cost, fast unit tests as the foundation,
+verify key component interactions with integration tests,
+and write only a small number of E2E tests focused on business-critical scenarios.
 
-ピラミッドが逆三角形（アイスクリームコーン型）になると、
-テストスイート全体が遅く、不安定で、保守コストが高くなる。
-これは多くのプロジェクトで見られるアンチパターンである。
+When the pyramid becomes inverted (ice cream cone shape),
+the entire test suite becomes slow, unstable, and expensive to maintain.
+This is an anti-pattern commonly seen in many projects.
 
 ```
-アンチパターン: アイスクリームコーン型
+Anti-pattern: Ice Cream Cone
 
-        ┌────────────────────────────┐
-        │      手動テスト (大量)      │  ← 手動でしか確認していない
-        ├────────────────────────────┤
-        │    E2E テスト (大量)        │  ← 遅い・壊れやすい
-        ├────────────────────────────┤
-        │  統合テスト (少量)          │
-        ├────────────────────────────┤
-        │ ユニットテスト (極少)       │  ← ほとんど書かれていない
-        └────────────────────────────┘
+        +----------------------------+
+        |    Manual Tests (many)     |  <- Only verified manually
+        +----------------------------+
+        |    E2E Tests (many)        |  <- Slow / Fragile
+        +----------------------------+
+        |  Integration Tests (few)   |
+        +----------------------------+
+        | Unit Tests (very few)      |  <- Almost none written
+        +----------------------------+
 
-  問題点:
-  - テストスイート全体の実行に数十分〜数時間
-  - フレイキーテストが頻発し、テスト結果への信頼が低下
-  - 開発者がテストを実行しなくなる悪循環
-  - バグの原因特定が困難（粒度が粗すぎる）
+  Problems:
+  - Entire test suite takes tens of minutes to hours to run
+  - Flaky tests occur frequently, eroding trust in test results
+  - Developers stop running tests -- a vicious cycle
+  - Difficult to pinpoint bug causes (too coarse-grained)
 ```
 
-### 2.2 ユニットテスト（単体テスト）
+### 2.2 Unit Tests
 
-ユニットテストは、関数やメソッドなどの最小単位を隔離して検証するテストである。
-テストピラミッドの土台であり、テストスイート全体の 70% 以上を占めることが推奨される。
+Unit tests verify the smallest units, such as functions and methods, in isolation.
+They form the foundation of the test pyramid, and it is recommended that they comprise 70% or more of the entire test suite.
 
-#### 特徴
+#### Characteristics
 
-- **高速**: 1 テストあたりミリ秒単位で完了する
-- **隔離**: 外部依存（DB、ネットワーク、ファイルシステム）はモックで置き換える
-- **決定的**: 同じ入力に対して常に同じ結果を返す
-- **独立**: テスト間に順序依存がない
+- **Fast**: Each test completes in milliseconds
+- **Isolated**: External dependencies (DB, network, filesystem) are replaced with mocks
+- **Deterministic**: Always returns the same result for the same input
+- **Independent**: No order dependency between tests
 
-#### AAA パターン
+#### AAA Pattern
 
-ユニットテストの構造は AAA（Arrange-Act-Assert）パターンに従うのが標準である。
+The structure of unit tests follows the standard AAA (Arrange-Act-Assert) pattern.
 
 ```python
-# ===== コード例 1: pytest によるユニットテストと AAA パターン =====
+# ===== Code Example 1: Unit Testing with pytest and the AAA Pattern =====
 
 import pytest
 from decimal import Decimal
 
 
-# --- テスト対象のコード ---
+# --- Code Under Test ---
 
 class Money:
-    """金額を扱うバリューオブジェクト。"""
+    """A value object for handling monetary amounts."""
 
     def __init__(self, amount: int, currency: str = "JPY"):
         if amount < 0:
-            raise ValueError("金額は 0 以上でなければならない")
+            raise ValueError("Amount must be 0 or greater")
         if currency not in ("JPY", "USD", "EUR"):
-            raise ValueError(f"未対応の通貨: {currency}")
+            raise ValueError(f"Unsupported currency: {currency}")
         self.amount = amount
         self.currency = currency
 
     def add(self, other: "Money") -> "Money":
         if self.currency != other.currency:
-            raise ValueError("異なる通貨同士の加算はできない")
+            raise ValueError("Cannot add amounts in different currencies")
         return Money(self.amount + other.amount, self.currency)
 
     def multiply(self, factor: int) -> "Money":
         if factor < 0:
-            raise ValueError("係数は 0 以上でなければならない")
+            raise ValueError("Factor must be 0 or greater")
         return Money(self.amount * factor, self.currency)
 
     def __eq__(self, other: object) -> bool:
@@ -227,26 +227,26 @@ class Money:
         return f"Money({self.amount}, '{self.currency}')"
 
 
-# --- テストコード ---
+# --- Test Code ---
 
 class TestMoney:
-    """Money クラスのユニットテスト。"""
+    """Unit tests for the Money class."""
 
-    # === 正常系テスト ===
+    # === Normal Case Tests ===
 
-    def test_生成_正常な金額で生成できる(self):
-        # Arrange（準備）
+    def test_creation_succeeds_with_valid_amount(self):
+        # Arrange
         amount = 1000
         currency = "JPY"
 
-        # Act（実行）
+        # Act
         money = Money(amount, currency)
 
-        # Assert（検証）
+        # Assert
         assert money.amount == 1000
         assert money.currency == "JPY"
 
-    def test_加算_同一通貨の金額を加算できる(self):
+    def test_addition_adds_same_currency_amounts(self):
         # Arrange
         money1 = Money(1000, "JPY")
         money2 = Money(500, "JPY")
@@ -257,7 +257,7 @@ class TestMoney:
         # Assert
         assert result == Money(1500, "JPY")
 
-    def test_乗算_正の係数で乗算できる(self):
+    def test_multiplication_multiplies_by_positive_factor(self):
         # Arrange
         money = Money(100, "USD")
 
@@ -267,88 +267,88 @@ class TestMoney:
         # Assert
         assert result == Money(300, "USD")
 
-    def test_等価性_同じ金額と通貨なら等しい(self):
+    def test_equality_equal_when_same_amount_and_currency(self):
         assert Money(500, "JPY") == Money(500, "JPY")
 
-    def test_等価性_金額が異なれば等しくない(self):
+    def test_equality_not_equal_when_different_amounts(self):
         assert Money(500, "JPY") != Money(600, "JPY")
 
-    def test_等価性_通貨が異なれば等しくない(self):
+    def test_equality_not_equal_when_different_currencies(self):
         assert Money(500, "JPY") != Money(500, "USD")
 
-    # === 異常系テスト ===
+    # === Error Case Tests ===
 
-    def test_生成_負の金額で例外が発生する(self):
-        with pytest.raises(ValueError, match="金額は 0 以上"):
+    def test_creation_raises_for_negative_amount(self):
+        with pytest.raises(ValueError, match="Amount must be 0 or greater"):
             Money(-100, "JPY")
 
-    def test_生成_未対応通貨で例外が発生する(self):
-        with pytest.raises(ValueError, match="未対応の通貨"):
+    def test_creation_raises_for_unsupported_currency(self):
+        with pytest.raises(ValueError, match="Unsupported currency"):
             Money(100, "GBP")
 
-    def test_加算_異なる通貨で例外が発生する(self):
+    def test_addition_raises_for_different_currencies(self):
         money_jpy = Money(1000, "JPY")
         money_usd = Money(10, "USD")
-        with pytest.raises(ValueError, match="異なる通貨"):
+        with pytest.raises(ValueError, match="different currencies"):
             money_jpy.add(money_usd)
 
-    def test_乗算_負の係数で例外が発生する(self):
+    def test_multiplication_raises_for_negative_factor(self):
         money = Money(100, "JPY")
-        with pytest.raises(ValueError, match="係数は 0 以上"):
+        with pytest.raises(ValueError, match="Factor must be 0 or greater"):
             money.multiply(-1)
 
-    # === 境界値テスト ===
+    # === Boundary Value Tests ===
 
-    def test_生成_金額0は有効(self):
+    def test_creation_zero_amount_is_valid(self):
         money = Money(0, "JPY")
         assert money.amount == 0
 
-    def test_加算_金額0同士の加算(self):
+    def test_addition_of_two_zero_amounts(self):
         result = Money(0, "JPY").add(Money(0, "JPY"))
         assert result == Money(0, "JPY")
 
-    def test_乗算_係数0で金額0になる(self):
+    def test_multiplication_by_zero_yields_zero(self):
         result = Money(1000, "JPY").multiply(0)
         assert result == Money(0, "JPY")
 ```
 
-#### テスト命名規則
+#### Test Naming Conventions
 
-テスト名は「何をテストしているか」「どの条件で」「何が期待されるか」を明確にする。
+Test names should clearly indicate "what is being tested," "under what conditions," and "what is expected."
 
-| 命名スタイル | 例 | 特徴 |
+| Naming Style | Example | Characteristics |
 |---|---|---|
-| 日本語メソッド名 | `test_加算_同一通貨で加算できる` | 可読性が高い。pytest で利用可能 |
-| Given-When-Then | `test_given_same_currency_when_add_then_returns_sum` | BDD 風。条件が明確 |
-| should スタイル | `test_add_should_return_sum_for_same_currency` | 期待動作が明確 |
-| メソッド名_条件_期待 | `test_add_sameCurrency_returnsSum` | Java/JUnit で一般的 |
+| Descriptive method name | `test_addition_adds_same_currency` | High readability. Works with pytest |
+| Given-When-Then | `test_given_same_currency_when_add_then_returns_sum` | BDD-style. Conditions are clear |
+| should style | `test_add_should_return_sum_for_same_currency` | Expected behavior is clear |
+| method_condition_expected | `test_add_sameCurrency_returnsSum` | Common in Java/JUnit |
 
-### 2.3 統合テスト（Integration Test）
+### 2.3 Integration Tests
 
-統合テストは、複数のコンポーネントを組み合わせた状態で、
-それらが正しく連携するかを検証するテストである。
+Integration tests verify that multiple components work correctly together
+when combined.
 
-#### ユニットテストとの違い
+#### Differences from Unit Tests
 
-| 観点 | ユニットテスト | 統合テスト |
-|------|---------------|-----------|
-| テスト対象 | 単一の関数・クラス | 複数コンポーネントの連携 |
-| 外部依存 | モックで隔離 | 実際のリソースを使用 |
-| 実行速度 | ms 単位 | 秒〜分単位 |
-| テスト環境 | 特別な準備不要 | DB、APIサーバー等の準備が必要 |
-| 検出できるバグ | ロジックの誤り | 接続設定、データ変換、プロトコルの不一致 |
-| 安定性 | 高い（決定的） | やや低い（環境依存） |
+| Aspect | Unit Tests | Integration Tests |
+|--------|-----------|------------------|
+| Test target | Single function/class | Interaction of multiple components |
+| External dependencies | Isolated with mocks | Uses actual resources |
+| Execution speed | Milliseconds | Seconds to minutes |
+| Test environment | No special setup required | Requires DB, API server, etc. |
+| Bugs detected | Logic errors | Connection settings, data conversion, protocol mismatches |
+| Stability | High (deterministic) | Somewhat lower (environment-dependent) |
 
-#### 統合テストの対象例
+#### Integration Test Targets
 
-- データベースとの CRUD 操作
-- 外部 API との通信
-- メッセージキューの送受信
-- ファイルシステムへの読み書き
-- 認証・認可フローの全体
+- CRUD operations with databases
+- Communication with external APIs
+- Message queue sending/receiving
+- File system read/write operations
+- Authentication/authorization flows
 
 ```python
-# ===== コード例 2: pytest + SQLAlchemy による統合テスト =====
+# ===== Code Example 2: Integration Tests with pytest + SQLAlchemy =====
 
 import pytest
 from sqlalchemy import create_engine, Column, Integer, String
@@ -358,7 +358,7 @@ Base = declarative_base()
 
 
 class User(Base):
-    """ユーザーテーブルのモデル。"""
+    """User table model."""
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(100), nullable=False)
@@ -366,7 +366,7 @@ class User(Base):
 
 
 class UserRepository:
-    """ユーザーのデータアクセスを担当するリポジトリ。"""
+    """Repository responsible for user data access."""
 
     def __init__(self, session):
         self.session = session
@@ -388,11 +388,11 @@ class UserRepository:
         self.session.commit()
 
 
-# --- テスト用フィクスチャ ---
+# --- Test Fixtures ---
 
 @pytest.fixture
 def db_session():
-    """テスト用のインメモリ SQLite セッションを提供する。"""
+    """Provides an in-memory SQLite session for testing."""
     engine = create_engine("sqlite:///:memory:", echo=False)
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
@@ -403,16 +403,16 @@ def db_session():
 
 @pytest.fixture
 def user_repo(db_session):
-    """UserRepository のインスタンスを提供する。"""
+    """Provides a UserRepository instance."""
     return UserRepository(db_session)
 
 
-# --- 統合テスト ---
+# --- Integration Tests ---
 
 class TestUserRepository:
-    """UserRepository の統合テスト。実際の DB（インメモリ SQLite）を使用する。"""
+    """Integration tests for UserRepository. Uses an actual DB (in-memory SQLite)."""
 
-    def test_ユーザーを追加して取得できる(self, user_repo):
+    def test_can_add_and_retrieve_user(self, user_repo):
         # Arrange & Act
         user_repo.add("Alice", "alice@example.com")
 
@@ -422,11 +422,11 @@ class TestUserRepository:
         assert found.name == "Alice"
         assert found.email == "alice@example.com"
 
-    def test_存在しないメールで検索するとNoneが返る(self, user_repo):
+    def test_searching_nonexistent_email_returns_none(self, user_repo):
         result = user_repo.find_by_email("nobody@example.com")
         assert result is None
 
-    def test_複数ユーザーを登録して全件取得できる(self, user_repo):
+    def test_can_register_multiple_users_and_retrieve_all(self, user_repo):
         user_repo.add("Alice", "alice@example.com")
         user_repo.add("Bob", "bob@example.com")
         user_repo.add("Charlie", "charlie@example.com")
@@ -434,165 +434,167 @@ class TestUserRepository:
         users = user_repo.find_all()
         assert len(users) == 3
 
-    def test_ユーザーを削除できる(self, user_repo):
+    def test_can_delete_user(self, user_repo):
         user = user_repo.add("Alice", "alice@example.com")
         user_repo.delete(user)
 
         assert user_repo.find_by_email("alice@example.com") is None
 
-    def test_重複メールで追加すると例外が発生する(self, user_repo):
+    def test_duplicate_email_raises_exception(self, user_repo):
         user_repo.add("Alice", "alice@example.com")
         with pytest.raises(Exception):  # IntegrityError
             user_repo.add("Alice2", "alice@example.com")
 ```
 
-### 2.4 E2E テスト（End-to-End テスト）
+### 2.4 E2E Tests (End-to-End Tests)
 
-E2E テストは、アプリケーション全体をエンドユーザーの視点から検証するテストである。
-ブラウザ自動操作ツール（Playwright, Cypress, Selenium）を使い、
-実際のユーザー操作をシミュレートする。
+E2E tests verify the entire application from the end user's perspective.
+They use browser automation tools (Playwright, Cypress, Selenium) to
+simulate actual user operations.
 
-#### E2E テストの位置づけ
+#### E2E Test Scope
 
 ```
-E2E テストのスコープ:
+E2E Test Scope:
 
-  ブラウザ/クライアント    サーバー           データベース
-  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
-  │  ユーザー操作  │───>│  API/Web     │───>│  データ永続化  │
-  │  画面遷移     │<───│  ビジネスロジック│<───│  クエリ実行   │
-  │  表示確認     │    │  認証/認可    │    │              │
-  └──────────────┘    └──────────────┘    └──────────────┘
+  Browser/Client         Server              Database
+  +--------------+    +--------------+    +--------------+
+  | User actions |---->| API/Web      |---->| Data         |
+  | Page nav.    |<----| Business     |<----| persistence  |
+  | Display      |    | logic        |    | Query exec.  |
+  | verification |    | Auth         |    |              |
+  +--------------+    +--------------+    +--------------+
        ^                                         |
-       |          E2E テストのスコープ              |
-       └─────────────────────────────────────────┘
-       全レイヤーを貫通して検証する
+       |          E2E Test Scope                  |
+       +------------------------------------------+
+       Verifies across all layers
 ```
 
-#### E2E テストを書くべき場面
+#### When to Write E2E Tests
 
-- ログイン → 商品検索 → カート追加 → 決済 のような重要なユーザーフロー
-- 法規制やビジネス要件に直結する機能（決済、個人情報処理）
-- 過去に重大な障害が発生した箇所
+- Critical user flows like Login -> Product Search -> Add to Cart -> Checkout
+- Features directly tied to legal regulations or business requirements (payments, personal data processing)
+- Areas where serious incidents have occurred in the past
 
-#### E2E テストを避けるべき場面
+#### When to Avoid E2E Tests
 
-- 個々のバリデーションルール（ユニットテストで十分）
-- 全ての UI パターンの網羅（コストが見合わない）
-- 頻繁に変更される UI 要素（テストが壊れやすくなる）
+- Individual validation rules (unit tests are sufficient)
+- Exhaustive coverage of all UI patterns (cost is not justified)
+- Frequently changing UI elements (tests become fragile)
 
-### 2.5 受入テスト（Acceptance Test）
+### 2.5 Acceptance Tests
 
-受入テストは、システムがビジネス要件を満たしていることを確認するテストである。
-顧客やプロダクトオーナーの視点で書かれ、
-「この機能は完了したか？」の判断基準となる。
+Acceptance tests confirm that the system meets business requirements.
+Written from the perspective of the customer or product owner,
+they serve as the criteria for determining "Is this feature done?"
 
-受入テストは E2E テストと混同されがちだが、異なる概念である。
+Acceptance tests are often confused with E2E tests, but they are different concepts.
 
-| 観点 | E2E テスト | 受入テスト |
-|------|-----------|-----------|
-| 目的 | システム全体の技術的な動作確認 | ビジネス要件の充足確認 |
-| 視点 | 開発者 | 顧客・プロダクトオーナー |
-| 記述者 | QA エンジニア・開発者 | PO と開発者の協力 |
-| 実装手段 | Playwright, Cypress 等 | Cucumber, Behave 等（BDD ツール） |
-| 実行頻度 | CI で自動実行 | スプリントレビュー時など |
+| Aspect | E2E Tests | Acceptance Tests |
+|--------|-----------|-----------------|
+| Purpose | Technical verification of the entire system | Verification of business requirement fulfillment |
+| Perspective | Developers | Customers / Product Owners |
+| Authors | QA Engineers / Developers | PO and developers collaborating |
+| Implementation tools | Playwright, Cypress, etc. | Cucumber, Behave, etc. (BDD tools) |
+| Execution frequency | Automated in CI | Sprint reviews, etc. |
 
 ---
 
-## 3. テスト駆動開発（TDD）
+## 3. Test-Driven Development (TDD)
 
-### 3.1 TDD の基本サイクル
+### 3.1 The Basic TDD Cycle
 
-TDD（Test-Driven Development）は、Kent Beck が体系化した開発手法であり、
-「テストを先に書く」ことを核心とする。
+TDD (Test-Driven Development) is a methodology systematized by Kent Beck,
+with "writing tests first" at its core.
 
 ```
-TDD の Red-Green-Refactor サイクル:
+TDD Red-Green-Refactor Cycle:
 
-        ┌─────────────────────────────────┐
-        │                                 │
-        v                                 │
-  ┌───────────┐    ┌───────────┐    ┌───────────┐
-  │   RED     │───>│   GREEN   │───>│ REFACTOR  │
-  │           │    │           │    │           │
-  │ 失敗する   │    │ テストを   │    │ コードを   │
-  │ テストを   │    │ 通す最小限 │    │ 整理する   │
-  │ 書く      │    │ のコードを │    │ (テストは  │
-  │           │    │ 書く      │    │  通ったまま)│
-  └───────────┘    └───────────┘    └───────────┘
+        +-----------------------------------+
+        |                                   |
+        v                                   |
+  +-----------+    +-----------+    +-----------+
+  |   RED     |--->|   GREEN   |--->| REFACTOR  |
+  |           |    |           |    |           |
+  | Write a   |    | Write the |    | Clean up  |
+  | failing   |    | minimal   |    | the code  |
+  | test      |    | code to   |    | (tests    |
+  |           |    | pass      |    |  still    |
+  |           |    | the test  |    |  pass)    |
+  +-----------+    +-----------+    +-----------+
 
-  各フェーズの詳細:
+  Details of each phase:
 
-  RED（赤）:
-    1. まだ存在しない機能のテストを書く
-    2. テストを実行し、失敗することを確認する
-    3. 失敗の理由が「機能が未実装だから」であることを確認する
+  RED:
+    1. Write a test for functionality that doesn't exist yet
+    2. Run the test and confirm it fails
+    3. Confirm the failure reason is "the feature is not yet implemented"
 
-  GREEN（緑）:
-    1. テストを通す最小限のコードを書く
-    2. 美しさや効率は一切考えない
-    3. ハードコードでも構わない（最初のステップとして）
-    4. テストが通ることを確認する
+  GREEN:
+    1. Write the minimal code to pass the test
+    2. Don't worry about elegance or efficiency at all
+    3. Hard-coded values are fine (as a first step)
+    4. Confirm the test passes
 
-  REFACTOR（リファクタリング）:
-    1. 重複を排除する
-    2. 命名を改善する
-    3. 設計パターンを適用する
-    4. テストが通り続けることを常に確認する
+  REFACTOR:
+    1. Eliminate duplication
+    2. Improve naming
+    3. Apply design patterns
+    4. Always confirm tests continue to pass
 ```
 
-### 3.2 TDD の実践例: FizzBuzz
+### 3.2 TDD in Practice: FizzBuzz
 
-TDD の流れを FizzBuzz を題材に示す。
+Here is a demonstration of the TDD flow using FizzBuzz as the subject.
 
 ```python
-# ===== コード例 3: TDD で FizzBuzz を実装する =====
+# ===== Code Example 3: Implementing FizzBuzz with TDD =====
 
-# --- ステップ 1: RED — 最初のテストを書く ---
-# テストファイル: test_fizzbuzz.py
+# --- Step 1: RED -- Write the first test ---
+# Test file: test_fizzbuzz.py
 
-def test_1を渡すと文字列1を返す():
+def test_returns_string_1_when_given_1():
     assert fizzbuzz(1) == "1"
 
-# この時点で fizzbuzz 関数は存在しないため、テストは失敗する（NameError）
+# At this point the fizzbuzz function doesn't exist, so the test fails (NameError)
 
 
-# --- ステップ 2: GREEN — テストを通す最小限のコード ---
-# プロダクションコード: fizzbuzz.py
+# --- Step 2: GREEN -- Write the minimal code to pass ---
+# Production code: fizzbuzz.py
 
 def fizzbuzz(n: int) -> str:
     return str(n)
 
-# テスト実行 → PASSED
+# Run tests -> PASSED
 
 
-# --- ステップ 3: RED — 次のテストを追加 ---
+# --- Step 3: RED -- Add the next test ---
 
-def test_3を渡すとFizzを返す():
+def test_returns_Fizz_when_given_3():
     assert fizzbuzz(3) == "Fizz"
 
-# テスト実行 → FAILED（"3" != "Fizz"）
+# Run tests -> FAILED ("3" != "Fizz")
 
 
-# --- ステップ 4: GREEN — テストを通す ---
+# --- Step 4: GREEN -- Make the test pass ---
 
 def fizzbuzz(n: int) -> str:
     if n % 3 == 0:
         return "Fizz"
     return str(n)
 
-# テスト実行 → 2件とも PASSED
+# Run tests -> Both PASSED
 
 
-# --- ステップ 5: RED — さらにテストを追加 ---
+# --- Step 5: RED -- Add another test ---
 
-def test_5を渡すとBuzzを返す():
+def test_returns_Buzz_when_given_5():
     assert fizzbuzz(5) == "Buzz"
 
-# テスト実行 → FAILED
+# Run tests -> FAILED
 
 
-# --- ステップ 6: GREEN ---
+# --- Step 6: GREEN ---
 
 def fizzbuzz(n: int) -> str:
     if n % 3 == 0:
@@ -601,18 +603,18 @@ def fizzbuzz(n: int) -> str:
         return "Buzz"
     return str(n)
 
-# テスト実行 → 3件とも PASSED
+# Run tests -> All 3 PASSED
 
 
-# --- ステップ 7: RED — 15の倍数のテスト ---
+# --- Step 7: RED -- Test for multiples of 15 ---
 
-def test_15を渡すとFizzBuzzを返す():
+def test_returns_FizzBuzz_when_given_15():
     assert fizzbuzz(15) == "FizzBuzz"
 
-# テスト実行 → FAILED（"Fizz" != "FizzBuzz"）
+# Run tests -> FAILED ("Fizz" != "FizzBuzz")
 
 
-# --- ステップ 8: GREEN ---
+# --- Step 8: GREEN ---
 
 def fizzbuzz(n: int) -> str:
     if n % 15 == 0:
@@ -623,18 +625,18 @@ def fizzbuzz(n: int) -> str:
         return "Buzz"
     return str(n)
 
-# テスト実行 → 4件とも PASSED
+# Run tests -> All 4 PASSED
 
 
-# --- ステップ 9: REFACTOR — コードの整理 ---
+# --- Step 9: REFACTOR -- Clean up the code ---
 
 def fizzbuzz(n: int) -> str:
-    """n に対する FizzBuzz の結果を返す。
+    """Return the FizzBuzz result for n.
 
-    - 3 の倍数なら "Fizz"
-    - 5 の倍数なら "Buzz"
-    - 15 の倍数なら "FizzBuzz"
-    - それ以外は数値の文字列表現
+    - Multiples of 3 return "Fizz"
+    - Multiples of 5 return "Buzz"
+    - Multiples of 15 return "FizzBuzz"
+    - All others return the string representation of the number
     """
     result = ""
     if n % 3 == 0:
@@ -643,15 +645,15 @@ def fizzbuzz(n: int) -> str:
         result += "Buzz"
     return result or str(n)
 
-# テスト実行 → 4件とも PASSED（リファクタリング後もテストは通る）
+# Run tests -> All 4 PASSED (tests still pass after refactoring)
 
 
-# --- 最終的なテストスイート ---
+# --- Final Test Suite ---
 
 import pytest
 
 class TestFizzBuzz:
-    """FizzBuzz のテストスイート。"""
+    """FizzBuzz test suite."""
 
     @pytest.mark.parametrize("input_val, expected", [
         (1, "1"),
@@ -668,252 +670,252 @@ class TestFizzBuzz:
         assert fizzbuzz(input_val) == expected
 ```
 
-### 3.3 TDD の利点と注意点
+### 3.3 Benefits and Caveats of TDD
 
-**利点:**
+**Benefits:**
 
-1. **設計が使いやすい API に導かれる** — テストを先に書くことで、利用者の視点でインターフェースを考えることになる
-2. **回帰テストが自動的に蓄積される** — 開発と同時にテストスイートが成長する
-3. **過剰な実装を防ぐ（YAGNI 原則）** — テストで要求された機能だけを実装する
-4. **変更への自信** — リファクタリング時にテストが安全網として機能する
-5. **デバッグ時間の短縮** — バグが入り込んだ時点でテストが失敗するため、原因箇所の特定が容易
+1. **Design is guided toward usable APIs** -- Writing tests first forces you to think about the interface from the user's perspective
+2. **Regression tests accumulate automatically** -- The test suite grows alongside development
+3. **Prevents over-implementation (YAGNI principle)** -- Only functionality required by tests is implemented
+4. **Confidence in changes** -- Tests act as a safety net during refactoring
+5. **Reduced debugging time** -- Tests fail at the point a bug is introduced, making it easy to pinpoint the cause
 
-**注意点:**
+**Caveats:**
 
-1. **全てに TDD を適用する必要はない** — 探索的なプロトタイピングや UI 実装では、設計が固まってからテストを書く方が効率的な場合がある
-2. **テストの保守コスト** — テストコードもプロダクションコードと同様にメンテナンスが必要
-3. **学習コスト** — TDD を効果的に実践するには、テスト設計とリファクタリングのスキルが必要
-4. **過度なモック** — TDD に不慣れだと、テストを通すためにモックを多用しがちで、実装の詳細に結合したテストになりやすい
+1. **TDD need not be applied to everything** -- For exploratory prototyping or UI implementation, it may be more efficient to write tests after the design is settled
+2. **Test maintenance cost** -- Test code requires maintenance just like production code
+3. **Learning cost** -- Effective TDD practice requires skills in test design and refactoring
+4. **Excessive mocking** -- Those new to TDD tend to overuse mocks to make tests pass, leading to tests coupled to implementation details
 
 ---
 
-## 4. ビヘイビア駆動開発（BDD）
+## 4. Behavior-Driven Development (BDD)
 
-### 4.1 BDD の概要
+### 4.1 BDD Overview
 
-BDD（Behavior-Driven Development）は、Dan North が提唱した開発手法であり、
-TDD をビジネスの視点から再解釈したものである。
-「テスト」ではなく「振る舞いの仕様（Specification）」としてシナリオを記述する。
+BDD (Behavior-Driven Development), proposed by Dan North,
+is a reinterpretation of TDD from a business perspective.
+Scenarios are written as "behavior specifications" rather than "tests."
 
-BDD の核心は、開発者・QA・ビジネスサイドの三者（"Three Amigos"）が
-共通言語（ユビキタス言語）でシナリオを議論し、
-それをそのまま自動テストとして実行可能にすることにある。
+The core of BDD is that the "Three Amigos" -- developers, QA, and business stakeholders --
+discuss scenarios using a common language (ubiquitous language),
+and those scenarios are made directly executable as automated tests.
 
-### 4.2 Gherkin 記法
+### 4.2 Gherkin Notation
 
-BDD のシナリオは Gherkin と呼ばれる自然言語に近い記法で書かれる。
+BDD scenarios are written in Gherkin, a notation close to natural language.
 
 ```gherkin
-# ===== Gherkin によるシナリオ記述の例 =====
+# ===== Example of scenario description in Gherkin =====
 
-Feature: ショッピングカート
-  オンラインショップの顧客として
-  商品をカートに追加し、合計金額を確認したい
-  購入前に数量の変更や商品の削除もできるようにしたい
+Feature: Shopping Cart
+  As an online shop customer
+  I want to add products to my cart and check the total amount
+  I also want to be able to change quantities and remove products before purchase
 
   Background:
-    Given 以下の商品がカタログに登録されている
-      | 商品名      | 単価  |
-      | Python入門  | 3000  |
-      | Go実践      | 3500  |
-      | Rust入門    | 4000  |
+    Given the following products are registered in the catalog
+      | Product Name         | Unit Price |
+      | Python Introduction  | 3000       |
+      | Go in Practice       | 3500       |
+      | Rust Introduction    | 4000       |
 
-  Scenario: 商品をカートに追加する
-    Given カートが空である
-    When "Python入門" を 1 個カートに追加する
-    Then カート内の商品数は 1 である
-    And 合計金額は 3000 円である
+  Scenario: Add a product to the cart
+    Given the cart is empty
+    When I add 1 "Python Introduction" to the cart
+    Then the number of items in the cart is 1
+    And the total amount is 3000 yen
 
-  Scenario: 複数商品をカートに追加する
-    Given カートが空である
-    When "Python入門" を 2 個カートに追加する
-    And "Go実践" を 1 個カートに追加する
-    Then カート内の商品数は 3 である
-    And 合計金額は 9500 円である
+  Scenario: Add multiple products to the cart
+    Given the cart is empty
+    When I add 2 "Python Introduction" to the cart
+    And I add 1 "Go in Practice" to the cart
+    Then the number of items in the cart is 3
+    And the total amount is 9500 yen
 
-  Scenario: カートから商品を削除する
-    Given カートに "Python入門" が 1 個入っている
-    When "Python入門" をカートから削除する
-    Then カートが空である
-    And 合計金額は 0 円である
+  Scenario: Remove a product from the cart
+    Given the cart contains 1 "Python Introduction"
+    When I remove "Python Introduction" from the cart
+    Then the cart is empty
+    And the total amount is 0 yen
 
-  Scenario Outline: 数量による合計金額の計算
-    Given カートが空である
-    When "<商品名>" を <数量> 個カートに追加する
-    Then 合計金額は <期待金額> 円である
+  Scenario Outline: Total amount calculation by quantity
+    Given the cart is empty
+    When I add <quantity> "<product_name>" to the cart
+    Then the total amount is <expected_amount> yen
 
     Examples:
-      | 商品名     | 数量 | 期待金額 |
-      | Python入門 | 1    | 3000    |
-      | Python入門 | 3    | 9000    |
-      | Go実践     | 2    | 7000    |
-      | Rust入門   | 1    | 4000    |
+      | product_name         | quantity | expected_amount |
+      | Python Introduction  | 1        | 3000            |
+      | Python Introduction  | 3        | 9000            |
+      | Go in Practice       | 2        | 7000            |
+      | Rust Introduction    | 1        | 4000            |
 ```
 
-### 4.3 TDD と BDD の比較
+### 4.3 Comparison of TDD and BDD
 
-| 観点 | TDD | BDD |
-|------|-----|-----|
-| 起点 | 技術的なテスト | ビジネスの振る舞い |
-| 記述者 | 開発者 | 開発者 + PO + QA |
-| 記法 | プログラミング言語 | Gherkin（自然言語風） |
-| 粒度 | 関数・メソッド単位 | ユーザーストーリー単位 |
-| ツール | pytest, JUnit 等 | Cucumber, Behave, SpecFlow 等 |
-| 主な用途 | 実装の正しさの検証 | 要件の合意と検証 |
-| 共通理解 | 開発チーム内 | ビジネスチーム含む全体 |
+| Aspect | TDD | BDD |
+|--------|-----|-----|
+| Starting point | Technical tests | Business behavior |
+| Authors | Developers | Developers + PO + QA |
+| Notation | Programming language | Gherkin (natural language-like) |
+| Granularity | Function/method level | User story level |
+| Tools | pytest, JUnit, etc. | Cucumber, Behave, SpecFlow, etc. |
+| Primary use | Verification of implementation correctness | Requirements agreement and verification |
+| Shared understanding | Within the dev team | Entire team including business |
 
 ---
 
-## 5. テスト技法
+## 5. Test Techniques
 
-テスト技法は、テストケースを効率的かつ効果的に設計するための方法論である。
-無限にある入力の組み合わせから、バグを発見しやすいテストケースを選び出す手法を学ぶ。
+Test techniques are methodologies for designing test cases efficiently and effectively.
+They help select test cases most likely to find bugs from the infinite combinations of inputs.
 
-### 5.1 同値分割（Equivalence Partitioning）
+### 5.1 Equivalence Partitioning
 
-入力ドメインを「同じ振る舞いをするグループ（同値クラス）」に分割し、
-各クラスから代表値を 1 つずつ選んでテストする技法である。
-
-```
-同値分割の例: 年齢による料金区分
-
-  入力: 年齢（0〜150 の整数と仮定）
-  ルール:
-    - 0〜5 歳    → 無料
-    - 6〜12 歳   → 子供料金
-    - 13〜64 歳  → 大人料金
-    - 65〜150 歳 → シニア料金
-    - 上記以外   → エラー
-
-  同値クラス:
-  ┌─────────────────────────────────────────────────────────┐
-  │ 無効(負) │  無料  │ 子供  │  大人   │ シニア │ 無効(超過) │
-  │  < 0    │ 0〜5  │ 6〜12 │ 13〜64 │ 65〜150│  > 150    │
-  └─────────────────────────────────────────────────────────┘
-
-  代表値:  -1     3      9      30      80       200
-```
-
-### 5.2 境界値分析（Boundary Value Analysis）
-
-同値クラスの境界付近は、off-by-one エラー（1 つずれるバグ）が発生しやすい。
-境界値分析では、境界の値とその前後の値をテストする。
+This technique divides the input domain into "groups with the same behavior (equivalence classes)"
+and selects one representative value from each class for testing.
 
 ```
-境界値分析の例: 年齢による料金区分
+Equivalence Partitioning Example: Pricing by Age
 
-  テストすべき境界値:
+  Input: Age (assuming integers from 0 to 150)
+  Rules:
+    - 0-5 years    -> Free
+    - 6-12 years   -> Child rate
+    - 13-64 years  -> Adult rate
+    - 65-150 years -> Senior rate
+    - Other        -> Error
 
-  無効/無料の境界:  -1,  0,  1
-  無料/子供の境界:   4,  5,  6,  7
-  子供/大人の境界:  11, 12, 13, 14
-  大人/シニアの境界: 63, 64, 65, 66
-  シニア/無効の境界: 149, 150, 151
+  Equivalence Classes:
+  +-----------------------------------------------------------+
+  | Invalid | Free  | Child | Adult  | Senior | Invalid       |
+  | (neg.)  | 0-5   | 6-12  | 13-64  | 65-150 | (exceeds)    |
+  |  < 0    |       |       |        |        |  > 150       |
+  +-----------------------------------------------------------+
 
-  テストケース表:
-  ┌──────┬──────────┬───────────┐
-  │ 入力 │ 期待区分  │ テスト目的  │
-  ├──────┼──────────┼───────────┤
-  │  -1  │ エラー   │ 下限外     │
-  │   0  │ 無料     │ 下限境界   │
-  │   1  │ 無料     │ 下限+1     │
-  │   5  │ 無料     │ 上限境界   │
-  │   6  │ 子供     │ 次クラス下限│
-  │  12  │ 子供     │ 上限境界   │
-  │  13  │ 大人     │ 次クラス下限│
-  │  64  │ 大人     │ 上限境界   │
-  │  65  │ シニア   │ 次クラス下限│
-  │ 150  │ シニア   │ 上限境界   │
-  │ 151  │ エラー   │ 上限外     │
-  └──────┴──────────┴───────────┘
+  Representative values:  -1     3      9      30      80       200
 ```
 
-### 5.3 デシジョンテーブル（Decision Table）
+### 5.2 Boundary Value Analysis
 
-複数の条件の組み合わせによって動作が変わる場合、
-デシジョンテーブルを使って全ての組み合わせを網羅的に列挙する。
+The area near equivalence class boundaries is prone to off-by-one errors.
+Boundary value analysis tests the boundary values and their adjacent values.
 
 ```
-デシジョンテーブルの例: ECサイトの送料計算
+Boundary Value Analysis Example: Pricing by Age
 
-  条件:
-    C1: 会員か？           (Yes/No)
-    C2: 合計金額 3000円以上？ (Yes/No)
-    C3: 離島か？           (Yes/No)
+  Boundary values to test:
 
-  ┌──────────────────┬─────┬─────┬─────┬─────┬─────┬─────┬─────┬─────┐
-  │ ルール番号        │  1  │  2  │  3  │  4  │  5  │  6  │  7  │  8  │
-  ├──────────────────┼─────┼─────┼─────┼─────┼─────┼─────┼─────┼─────┤
-  │ C1: 会員         │ Yes │ Yes │ Yes │ Yes │ No  │ No  │ No  │ No  │
-  │ C2: 3000円以上   │ Yes │ Yes │ No  │ No  │ Yes │ Yes │ No  │ No  │
-  │ C3: 離島         │ No  │ Yes │ No  │ Yes │ No  │ Yes │ No  │ Yes │
-  ├──────────────────┼─────┼─────┼─────┼─────┼─────┼─────┼─────┼─────┤
-  │ 送料             │ 0円 │500円│300円│800円│500円│1000円│800円│1500円│
-  └──────────────────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┘
+  Invalid/Free boundary:    -1,  0,  1
+  Free/Child boundary:       4,  5,  6,  7
+  Child/Adult boundary:     11, 12, 13, 14
+  Adult/Senior boundary:    63, 64, 65, 66
+  Senior/Invalid boundary: 149, 150, 151
+
+  Test Case Table:
+  +------+------------------+---------------------+
+  | Input| Expected Category| Test Purpose        |
+  +------+------------------+---------------------+
+  |  -1  | Error            | Below lower bound   |
+  |   0  | Free             | Lower boundary      |
+  |   1  | Free             | Lower bound + 1     |
+  |   5  | Free             | Upper boundary      |
+  |   6  | Child            | Next class lower    |
+  |  12  | Child            | Upper boundary      |
+  |  13  | Adult            | Next class lower    |
+  |  64  | Adult            | Upper boundary      |
+  |  65  | Senior           | Next class lower    |
+  | 150  | Senior           | Upper boundary      |
+  | 151  | Error            | Above upper bound   |
+  +------+------------------+---------------------+
 ```
 
-### 5.4 ペアワイズテスト（Pairwise Testing）
+### 5.3 Decision Tables
 
-条件が多くなると全組み合わせの数が爆発的に増大する。
-ペアワイズテストは、「任意の 2 因子の全ての値の組み合わせを少なくとも 1 回カバーする」
-という基準で、テストケース数を大幅に削減する技法である。
+When behavior changes based on combinations of multiple conditions,
+decision tables are used to exhaustively enumerate all combinations.
 
-実際のバグの多くは、2 つの要因の相互作用で発生するという研究結果に基づく。
+```
+Decision Table Example: EC Site Shipping Cost Calculation
 
-| 因子数 | 全組み合わせ | ペアワイズ | 削減率 |
-|--------|------------|-----------|--------|
-| 3因子 x 3値 | 27 | 9〜12 | 56〜67% |
-| 4因子 x 3値 | 81 | 9〜15 | 81〜89% |
-| 10因子 x 3値 | 59,049 | 15〜20 | 99.97% |
-| 13因子 x 3値 | 1,594,323 | 15〜20 | 99.999% |
+  Conditions:
+    C1: Is member?              (Yes/No)
+    C2: Total >= 3000 yen?      (Yes/No)
+    C3: Remote island?          (Yes/No)
 
-ペアワイズテストの生成には PICT（Microsoft 製）、AllPairs などのツールを使用する。
+  +------------------+-----+-----+-----+-----+-----+------+-----+------+
+  | Rule Number      |  1  |  2  |  3  |  4  |  5  |  6   |  7  |  8   |
+  +------------------+-----+-----+-----+-----+-----+------+-----+------+
+  | C1: Member       | Yes | Yes | Yes | Yes | No  | No   | No  | No   |
+  | C2: >= 3000 yen  | Yes | Yes | No  | No  | Yes | Yes  | No  | No   |
+  | C3: Remote island| No  | Yes | No  | Yes | No  | Yes  | No  | Yes  |
+  +------------------+-----+-----+-----+-----+-----+------+-----+------+
+  | Shipping cost    | 0   | 500 | 300 | 800 | 500 | 1000 | 800 | 1500 |
+  +------------------+-----+-----+-----+-----+-----+------+-----+------+
+```
+
+### 5.4 Pairwise Testing
+
+When the number of conditions increases, the total number of combinations explodes.
+Pairwise testing dramatically reduces the number of test cases based on the criterion
+"cover all value combinations for any two factors at least once."
+
+This is based on research findings that most real bugs are caused by the interaction of two factors.
+
+| Number of factors | All combinations | Pairwise | Reduction rate |
+|-------------------|-----------------|----------|---------------|
+| 3 factors x 3 values | 27 | 9-12 | 56-67% |
+| 4 factors x 3 values | 81 | 9-15 | 81-89% |
+| 10 factors x 3 values | 59,049 | 15-20 | 99.97% |
+| 13 factors x 3 values | 1,594,323 | 15-20 | 99.999% |
+
+Tools such as PICT (by Microsoft) and AllPairs are used to generate pairwise tests.
 
 ---
 
-## 6. モックとスタブ
+## 6. Mocks and Stubs
 
-### 6.1 テストダブルの分類
+### 6.1 Classification of Test Doubles
 
-Martin Fowler の分類に基づくテストダブルの種類を整理する。
+Here we organize the types of test doubles based on Martin Fowler's classification.
 
 ```
-テストダブルの分類:
+Test Double Classification:
 
-  ┌─────────────────────────────────────────────────────────┐
-  │                   テストダブル (Test Double)              │
-  │                                                         │
-  │  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌───────────┐ │
-  │  │ ダミー   │  │ スタブ   │  │ スパイ   │  │   モック   │ │
-  │  │ Dummy   │  │ Stub    │  │ Spy     │  │   Mock    │ │
-  │  ├─────────┤  ├─────────┤  ├─────────┤  ├───────────┤ │
-  │  │引数を   │  │固定値を │  │呼び出し │  │期待される │ │
-  │  │埋める   │  │返す    │  │を記録   │  │呼び出しを │ │
-  │  │だけ    │  │        │  │する    │  │検証する   │ │
-  │  └─────────┘  └─────────┘  └─────────┘  └───────────┘ │
-  │                                                         │
-  │  ┌─────────────────┐                                    │
-  │  │   フェイク       │                                    │
-  │  │   Fake          │                                    │
-  │  ├─────────────────┤                                    │
-  │  │ 簡易実装を持つ   │                                    │
-  │  │ (インメモリDB等) │                                    │
-  │  └─────────────────┘                                    │
-  └─────────────────────────────────────────────────────────┘
+  +---------------------------------------------------------+
+  |                   Test Double                            |
+  |                                                         |
+  |  +---------+  +---------+  +---------+  +------------+  |
+  |  | Dummy   |  | Stub    |  | Spy     |  | Mock       |  |
+  |  +---------+  +---------+  +---------+  +------------+  |
+  |  |Just fill|  |Returns  |  |Records  |  |Verifies    |  |
+  |  |argument |  |fixed    |  |calls    |  |expected    |  |
+  |  |slots   |  |values   |  |         |  |calls       |  |
+  |  +---------+  +---------+  +---------+  +------------+  |
+  |                                                         |
+  |  +-----------------+                                    |
+  |  | Fake            |                                    |
+  |  +-----------------+                                    |
+  |  |Has a simplified |                                    |
+  |  |implementation   |                                    |
+  |  |(in-memory DB)   |                                    |
+  |  +-----------------+                                    |
+  +---------------------------------------------------------+
 ```
 
-| 種類 | 目的 | 振る舞い | 検証 |
-|------|------|---------|------|
-| ダミー (Dummy) | 引数を埋めるために渡す | 何もしない。呼ばれたら例外 | しない |
-| スタブ (Stub) | 間接入力を制御する | 事前定義された固定値を返す | しない |
-| スパイ (Spy) | 間接出力を記録する | 呼び出し履歴を保持する | 呼び出し履歴を事後検証 |
-| モック (Mock) | 期待される相互作用を検証する | 期待に沿わない呼び出しで失敗 | 相互作用を検証 |
-| フェイク (Fake) | 軽量な代替実装を提供する | 動作する簡易実装（インメモリ DB 等） | しない |
+| Type | Purpose | Behavior | Verification |
+|------|---------|----------|-------------|
+| Dummy | Passed to fill argument slots | Does nothing. Throws exception if called | None |
+| Stub | Controls indirect inputs | Returns pre-defined fixed values | None |
+| Spy | Records indirect outputs | Retains call history | Post-verification of call history |
+| Mock | Verifies expected interactions | Fails on unexpected calls | Verifies interactions |
+| Fake | Provides a lightweight alternative implementation | Working simplified implementation (in-memory DB, etc.) | None |
 
-### 6.2 unittest.mock の実践
+### 6.2 Practical Use of unittest.mock
 
 ```python
-# ===== コード例 4: unittest.mock を用いたモックとスタブの実践 =====
+# ===== Code Example 4: Practical Mocks and Stubs with unittest.mock =====
 
 from unittest.mock import Mock, patch, MagicMock
 import pytest
@@ -921,11 +923,11 @@ from dataclasses import dataclass
 from typing import Protocol
 
 
-# --- プロダクションコード ---
+# --- Production Code ---
 
 @dataclass
 class WeatherData:
-    """天気データを表すデータクラス。"""
+    """Data class representing weather data."""
     city: str
     temperature: float
     humidity: float
@@ -933,25 +935,25 @@ class WeatherData:
 
 
 class WeatherApiClient:
-    """外部天気 API との通信を担当する。"""
+    """Handles communication with the external weather API."""
 
     def __init__(self, api_key: str):
         self.api_key = api_key
 
     def fetch_weather(self, city: str) -> dict:
-        """外部 API から天気データを取得する（実際のHTTP通信）。"""
-        # 実際には requests.get() などで API を呼ぶ
-        raise NotImplementedError("本番コードでは HTTP 通信を行う")
+        """Fetch weather data from the external API (actual HTTP communication)."""
+        # In production, this would call the API using requests.get(), etc.
+        raise NotImplementedError("Production code performs HTTP communication")
 
 
 class WeatherService:
-    """天気情報のビジネスロジックを担当する。"""
+    """Handles business logic for weather information."""
 
     def __init__(self, api_client: WeatherApiClient):
         self.api_client = api_client
 
     def get_weather(self, city: str) -> WeatherData:
-        """指定都市の天気を取得して WeatherData に変換する。"""
+        """Fetch weather for the specified city and convert to WeatherData."""
         raw = self.api_client.fetch_weather(city)
         return WeatherData(
             city=city,
@@ -961,172 +963,174 @@ class WeatherService:
         )
 
     def is_hot(self, city: str, threshold: float = 30.0) -> bool:
-        """指定都市が暑いかどうかを判定する。"""
+        """Determine whether the specified city is hot."""
         weather = self.get_weather(city)
         return weather.temperature >= threshold
 
     def compare_temperature(self, city1: str, city2: str) -> str:
-        """2 都市の気温を比較する。"""
+        """Compare the temperature of two cities."""
         w1 = self.get_weather(city1)
         w2 = self.get_weather(city2)
         if w1.temperature > w2.temperature:
-            return f"{city1} の方が暑い"
+            return f"{city1} is hotter"
         elif w1.temperature < w2.temperature:
-            return f"{city2} の方が暑い"
+            return f"{city2} is hotter"
         else:
-            return "同じ気温"
+            return "Same temperature"
 
 
-# --- テストコード（スタブの例）---
+# --- Test Code (Stub Example) ---
 
 class TestWeatherService:
-    """WeatherService のテスト。外部 API はスタブで置き換える。"""
+    """Tests for WeatherService. External API is replaced with stubs."""
 
     def _create_service_with_stub(self, stub_response: dict) -> WeatherService:
-        """スタブ化された API クライアントでサービスを生成する。"""
+        """Create a service with a stubbed API client."""
         mock_client = Mock(spec=WeatherApiClient)
         mock_client.fetch_weather.return_value = stub_response
         return WeatherService(mock_client)
 
     def _sample_response(self, temp: float = 25.0, humidity: float = 60.0,
                          desc: str = "clear sky") -> dict:
-        """テスト用のダミーレスポンスを生成する。"""
+        """Generate a dummy response for testing."""
         return {
             "main": {"temp": temp, "humidity": humidity},
             "weather": [{"description": desc}],
         }
 
-    def test_天気データを正しく変換できる(self):
-        # Arrange: スタブが固定のレスポンスを返すように設定
+    def test_correctly_converts_weather_data(self):
+        # Arrange: Configure stub to return a fixed response
         service = self._create_service_with_stub(
-            self._sample_response(temp=25.0, humidity=60.0, desc="晴れ")
+            self._sample_response(temp=25.0, humidity=60.0, desc="sunny")
         )
 
         # Act
-        weather = service.get_weather("東京")
+        weather = service.get_weather("Tokyo")
 
         # Assert
-        assert weather.city == "東京"
+        assert weather.city == "Tokyo"
         assert weather.temperature == 25.0
         assert weather.humidity == 60.0
-        assert weather.description == "晴れ"
+        assert weather.description == "sunny"
 
-    def test_閾値以上なら暑いと判定する(self):
+    def test_determines_hot_when_above_threshold(self):
         service = self._create_service_with_stub(
             self._sample_response(temp=35.0)
         )
-        assert service.is_hot("東京", threshold=30.0) is True
+        assert service.is_hot("Tokyo", threshold=30.0) is True
 
-    def test_閾値未満なら暑くないと判定する(self):
+    def test_determines_not_hot_when_below_threshold(self):
         service = self._create_service_with_stub(
             self._sample_response(temp=25.0)
         )
-        assert service.is_hot("東京", threshold=30.0) is False
+        assert service.is_hot("Tokyo", threshold=30.0) is False
 
 
-# --- テストコード（モックの例：呼び出しの検証）---
+# --- Test Code (Mock Example: Verifying Calls) ---
 
 class TestWeatherServiceInteraction:
-    """WeatherService の相互作用をモックで検証する。"""
+    """Verify WeatherService interactions using mocks."""
 
-    def test_get_weatherがAPIクライアントを正しく呼び出す(self):
+    def test_get_weather_calls_api_client_correctly(self):
         # Arrange
         mock_client = Mock(spec=WeatherApiClient)
         mock_client.fetch_weather.return_value = {
             "main": {"temp": 25.0, "humidity": 60.0},
-            "weather": [{"description": "晴れ"}],
+            "weather": [{"description": "sunny"}],
         }
         service = WeatherService(mock_client)
 
         # Act
-        service.get_weather("大阪")
+        service.get_weather("Osaka")
 
-        # Assert: API クライアントが正しい引数で呼ばれたことを検証
-        mock_client.fetch_weather.assert_called_once_with("大阪")
+        # Assert: Verify the API client was called with the correct argument
+        mock_client.fetch_weather.assert_called_once_with("Osaka")
 
-    def test_compare_temperatureが2回APIを呼び出す(self):
+    def test_compare_temperature_calls_api_twice(self):
         # Arrange
         mock_client = Mock(spec=WeatherApiClient)
         mock_client.fetch_weather.side_effect = [
             {"main": {"temp": 30.0, "humidity": 50.0},
-             "weather": [{"description": "晴れ"}]},
+             "weather": [{"description": "sunny"}]},
             {"main": {"temp": 25.0, "humidity": 70.0},
-             "weather": [{"description": "曇り"}]},
+             "weather": [{"description": "cloudy"}]},
         ]
         service = WeatherService(mock_client)
 
         # Act
-        result = service.compare_temperature("東京", "札幌")
+        result = service.compare_temperature("Tokyo", "Sapporo")
 
         # Assert
-        assert result == "東京 の方が暑い"
+        assert result == "Tokyo is hotter"
         assert mock_client.fetch_weather.call_count == 2
 ```
 
-### 6.3 モックの使いすぎに注意
+### 6.3 Beware of Over-Mocking
 
-モックの過剰使用は、以下の問題を引き起こす。
+Excessive use of mocks causes the following problems.
 
-1. **テストが実装の詳細に結合する** — 内部構造を変更しただけでテストが壊れる
-2. **偽の安心感を与える** — モックが正しく設定されていれば通るが、実際の連携は壊れている
-3. **テストの可読性が低下する** — モックの設定コードが複雑になると、何をテストしているか分かりにくい
+1. **Tests become coupled to implementation details** -- Tests break even from internal structural changes
+2. **False sense of security** -- Tests pass as long as mocks are correctly configured, but actual integration may be broken
+3. **Decreased test readability** -- Complex mock setup code makes it difficult to understand what is being tested
 
-**経験則**: 「自分が所有していないコードはモックしない」（Don't mock what you don't own）。
-外部ライブラリや API クライアントを直接モックするのではなく、
-薄いラッパー（アダプター）を挟み、そのアダプターをモックする。
+**Rule of thumb**: "Don't mock what you don't own."
+Rather than directly mocking external libraries or API clients,
+create a thin wrapper (adapter) and mock that adapter.
 
 ---
 
-## 7. CI/CD でのテスト自動化
+## 7. Test Automation in CI/CD
 
-### 7.1 テスト自動化の全体像
+### 7.1 Overview of Test Automation
 
 ```
-CI/CD パイプラインにおけるテスト自動化:
+Test Automation in CI/CD Pipelines:
 
-  コード変更
-      │
+  Code Change
+      |
       v
-  ┌─────────────────────────────────────────────────────┐
-  │                  CI パイプライン                       │
-  │                                                     │
-  │  ┌──────────┐  ┌──────────┐  ┌──────────┐          │
-  │  │ Lint /   │─>│ ユニット  │─>│ 統合     │          │
-  │  │ 静的解析  │  │ テスト   │  │ テスト   │          │
-  │  │ (数秒)   │  │ (数十秒) │  │ (数分)   │          │
-  │  └──────────┘  └──────────┘  └──────────┘          │
-  │       │              │             │                │
-  │       v              v             v                │
-  │  ┌──────────┐  ┌──────────┐  ┌──────────┐          │
-  │  │ セキュリ  │  │ カバレッジ│  │ E2E     │          │
-  │  │ ティスキャン│ │ レポート │  │ テスト   │          │
-  │  │ (数分)   │  │ 生成     │  │ (数十分) │          │
-  │  └──────────┘  └──────────┘  └──────────┘          │
-  │                      │                              │
-  │                      v                              │
-  │               ┌──────────┐                          │
-  │               │ ビルド / │                          │
-  │               │ パッケージ│                          │
-  │               └──────────┘                          │
-  └─────────────────────────────────────────────────────┘
-      │
+  +-----------------------------------------------------+
+  |                  CI Pipeline                          |
+  |                                                     |
+  |  +----------+  +----------+  +----------+           |
+  |  | Lint /   |->| Unit     |->| Integ.   |           |
+  |  | Static   |  | Tests    |  | Tests    |           |
+  |  | Analysis |  | (secs)   |  | (mins)   |           |
+  |  | (secs)   |  |          |  |          |           |
+  |  +----------+  +----------+  +----------+           |
+  |       |              |             |                |
+  |       v              v             v                |
+  |  +----------+  +----------+  +----------+           |
+  |  | Security |  | Coverage |  | E2E      |           |
+  |  | Scan     |  | Report   |  | Tests    |           |
+  |  | (mins)   |  | Gen.     |  | (tens of |           |
+  |  |          |  |          |  |  mins)   |           |
+  |  +----------+  +----------+  +----------+           |
+  |                      |                              |
+  |                      v                              |
+  |               +----------+                          |
+  |               | Build /  |                          |
+  |               | Package  |                          |
+  |               +----------+                          |
+  +-----------------------------------------------------+
+      |
       v
-  ┌─────────────────────────────────────────────────────┐
-  │                  CD パイプライン                       │
-  │                                                     │
-  │  ┌──────────┐  ┌──────────┐  ┌──────────┐          │
-  │  │ステージング│─>│ スモーク  │─>│ 本番     │          │
-  │  │デプロイ   │  │ テスト   │  │ デプロイ  │          │
-  │  └──────────┘  └──────────┘  └──────────┘          │
-  └─────────────────────────────────────────────────────┘
+  +-----------------------------------------------------+
+  |                  CD Pipeline                          |
+  |                                                     |
+  |  +----------+  +----------+  +----------+           |
+  |  | Staging  |->| Smoke    |->| Prod.    |           |
+  |  | Deploy   |  | Tests    |  | Deploy   |           |
+  |  +----------+  +----------+  +----------+           |
+  +-----------------------------------------------------+
 ```
 
-### 7.2 GitHub Actions によるテスト自動化の例
+### 7.2 Test Automation with GitHub Actions
 
 ```yaml
 # .github/workflows/test.yml
 
-name: テスト自動実行
+name: Automated Test Execution
 
 on:
   push:
@@ -1136,7 +1140,7 @@ on:
 
 jobs:
   lint:
-    name: Lint & 静的解析
+    name: Lint & Static Analysis
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -1148,7 +1152,7 @@ jobs:
       - run: mypy src/
 
   unit-test:
-    name: ユニットテスト
+    name: Unit Tests
     runs-on: ubuntu-latest
     needs: lint
     strategy:
@@ -1166,7 +1170,7 @@ jobs:
           file: ./coverage.xml
 
   integration-test:
-    name: 統合テスト
+    name: Integration Tests
     runs-on: ubuntu-latest
     needs: unit-test
     services:
@@ -1194,7 +1198,7 @@ jobs:
           DATABASE_URL: postgresql://testuser:testpass@localhost:5432/testdb
 
   e2e-test:
-    name: E2E テスト
+    name: E2E Tests
     runs-on: ubuntu-latest
     needs: integration-test
     steps:
@@ -1207,69 +1211,69 @@ jobs:
       - run: pytest tests/e2e/ -v --headed=false
 ```
 
-### 7.3 テスト自動化のベストプラクティス
+### 7.3 Best Practices for Test Automation
 
-1. **高速フィードバック** — ユニットテストは PR ごとに必ず実行する。全テストが 5 分以内に完了するのが理想
-2. **テストの並列実行** — pytest-xdist などで並列化し、実行時間を短縮する
-3. **失敗時の即時停止** — `pytest -x`（最初の失敗で停止）オプションを活用し、無駄な待ち時間を排除する
-4. **テスト結果のキャッシュ** — 変更のないモジュールのテストをスキップする
-5. **フレイキーテストの管理** — 不安定なテストを隔離し、定期的に修正する
+1. **Fast feedback** -- Run unit tests on every PR. Ideally, all tests complete within 5 minutes
+2. **Parallel test execution** -- Use pytest-xdist or similar to parallelize and reduce execution time
+3. **Stop on first failure** -- Use the `pytest -x` (stop at first failure) option to eliminate unnecessary waiting
+4. **Test result caching** -- Skip tests for modules that haven't changed
+5. **Flaky test management** -- Isolate unstable tests and fix them regularly
 
 ---
 
-## 8. コードカバレッジ
+## 8. Code Coverage
 
-### 8.1 カバレッジ指標の種類
+### 8.1 Types of Coverage Metrics
 
-| 指標 | 定義 | 計測対象 |
-|------|------|---------|
-| 行カバレッジ (Line) | テストで実行された行の割合 | ソースコードの各行 |
-| 分岐カバレッジ (Branch) | テストで通過した分岐の割合 | if/else, switch の各分岐 |
-| 関数カバレッジ (Function) | テストで呼び出された関数の割合 | 定義された各関数 |
-| 条件カバレッジ (Condition) | 各条件式の真偽両方がテストされた割合 | 複合条件の各部分条件 |
-| パスカバレッジ (Path) | テストで通過した実行パスの割合 | 全ての実行パス |
-| MC/DC | 各条件が独立して判定結果に影響することの検証 | 航空宇宙・自動車等の安全規格 |
+| Metric | Definition | What is measured |
+|--------|-----------|-----------------|
+| Line Coverage | Percentage of lines executed by tests | Each line of source code |
+| Branch Coverage | Percentage of branches traversed by tests | Each branch of if/else, switch |
+| Function Coverage | Percentage of functions called by tests | Each defined function |
+| Condition Coverage | Percentage of conditions tested for both true and false | Each sub-condition in compound conditions |
+| Path Coverage | Percentage of execution paths traversed by tests | All execution paths |
+| MC/DC | Verification that each condition independently affects the decision outcome | Aerospace, automotive safety standards |
 
-### 8.2 カバレッジの目安
+### 8.2 Coverage Targets
 
-| カバレッジ水準 | 意味 | 適用場面 |
-|--------------|------|---------|
-| 80% 以上 | 標準的な目標。多くのプロジェクトで推奨 | 一般的な Web アプリケーション |
-| 90% 以上 | 高品質。コアライブラリで推奨 | ライブラリ、フレームワーク |
-| 95% 以上 | 非常に高品質。維持コストも高い | 決済処理、医療系 |
-| 100% | 理想的だが、実務上は費用対効果が低い場合が多い | 安全クリティカルシステム |
+| Coverage Level | Meaning | Application |
+|---------------|---------|-------------|
+| 80% or higher | Standard target. Recommended for most projects | General web applications |
+| 90% or higher | High quality. Recommended for core libraries | Libraries, frameworks |
+| 95% or higher | Very high quality. Maintenance cost is also high | Payment processing, healthcare |
+| 100% | Ideal but often not cost-effective in practice | Safety-critical systems |
 
-### 8.3 カバレッジの限界
+### 8.3 Limitations of Coverage
 
-**カバレッジは「テストの網羅性」を測るが、「テストの品質」は測れない。**
+**Coverage measures "test thoroughness" but cannot measure "test quality."**
 
 ```python
-# カバレッジ 100% だがバグを検出できない例
+# Example of 100% coverage that fails to detect a bug
 
 def divide(a: int, b: int) -> float:
-    return a / b  # b=0 の場合の処理がない
+    return a / b  # No handling for b=0
 
 def test_divide():
     assert divide(10, 2) == 5.0
-    # この 1 つのテストだけで行カバレッジ 100% だが、
-    # b=0 の場合のテストがないためバグを見逃す
+    # This single test achieves 100% line coverage,
+    # but misses the b=0 case, so the bug goes undetected
 ```
 
-カバレッジが高いことは必要条件だが、十分条件ではない。
-以下の点を常に意識する必要がある。
+High coverage is a necessary condition but not a sufficient one.
+The following points must always be kept in mind.
 
-1. **カバレッジはコードが「実行された」ことしか示さない** — 正しい結果が返されたかは別問題
-2. **カバレッジ目標の数値だけを追うと、品質の低いテストが増える** — assert のないテストや、意味のないテストケース
-3. **カバレッジが測定できない品質要因がある** — 性能、ユーザビリティ、セキュリティなど
-4. **エッジケースの不在はカバレッジに表れない** — 正常系だけで 100% に達することがある
+1. **Coverage only shows that code was "executed"** -- Whether correct results are returned is a separate issue
+2. **Pursuing coverage numbers alone leads to low-quality tests** -- Tests without assertions or meaningless test cases
+3. **Some quality factors cannot be measured by coverage** -- Performance, usability, security, etc.
+4. **Absence of edge cases is not reflected in coverage** -- 100% can be achieved with only normal cases
 
-### 8.4 pytest-cov によるカバレッジ計測
+### 8.4 Coverage Measurement with pytest-cov
 
 ```bash
-# カバレッジレポートの生成
+# Generate a coverage report
 pytest --cov=src/ --cov-report=term-missing --cov-report=html
 
-# 出力例:
+# Example output:
 # Name                     Stmts   Miss  Cover   Missing
 # -------------------------------------------------------
 # src/money.py                25      2    92%   18, 22
@@ -1280,114 +1284,114 @@ pytest --cov=src/ --cov-report=term-missing --cov-report=html
 
 ---
 
-## 9. プロパティベーステスト
+## 9. Property-Based Testing
 
-### 9.1 プロパティベーステストとは
+### 9.1 What Is Property-Based Testing
 
-従来のテスト（サンプルベーステスト）では、
-テスト作成者が具体的な入力値と期待値のペアを手動で選ぶ。
-プロパティベーステストでは、入力をランダムに自動生成し、
-「どんな入力に対しても成り立つべき性質（プロパティ）」を検証する。
+In conventional tests (example-based tests),
+the test author manually selects specific input values and expected values.
+In property-based testing, inputs are automatically generated randomly,
+and "properties that should hold for any input" are verified.
 
-| 比較項目 | サンプルベーステスト | プロパティベーステスト |
-|---------|-------------------|---------------------|
-| 入力値の決定 | テスト作成者が手動で選択 | フレームワークが自動生成 |
-| テストケース数 | 数件〜数十件 | 数百件〜数千件（自動） |
-| バグ発見力 | 思いつかないケースは見逃す | 予想外の入力パターンを発見 |
-| テストの記述 | 具体的な入力と期待値 | 抽象的な性質（プロパティ） |
-| 再現性 | 常に同じ | シードで再現可能 |
-| 縮小（shrinking） | なし | 最小の反例を自動探索 |
+| Comparison | Example-Based Testing | Property-Based Testing |
+|-----------|----------------------|----------------------|
+| Input determination | Manually selected by test author | Automatically generated by framework |
+| Number of test cases | Several to dozens | Hundreds to thousands (automatic) |
+| Bug discovery power | Misses unforeseen cases | Discovers unexpected input patterns |
+| Test description | Specific inputs and expected values | Abstract properties |
+| Reproducibility | Always the same | Reproducible via seed |
+| Shrinking | None | Automatically searches for minimal counterexample |
 
-### 9.2 Hypothesis による実践
+### 9.2 Practice with Hypothesis
 
 ```python
-# ===== コード例 5: Hypothesis によるプロパティベーステスト =====
+# ===== Code Example 5: Property-Based Testing with Hypothesis =====
 
 from hypothesis import given, assume, settings, example
 from hypothesis import strategies as st
 import pytest
 
 
-# --- テスト対象 ---
+# --- Code Under Test ---
 
 def sort_list(lst: list[int]) -> list[int]:
-    """リストをソートして返す。"""
+    """Sort and return a list."""
     return sorted(lst)
 
 
 def reverse_string(s: str) -> str:
-    """文字列を反転させる。"""
+    """Reverse a string."""
     return s[::-1]
 
 
 def encode_decode(text: str) -> str:
-    """UTF-8 でエンコードしてデコードする。"""
+    """Encode to UTF-8 and decode back."""
     return text.encode("utf-8").decode("utf-8")
 
 
 def clamp(value: int, min_val: int, max_val: int) -> int:
-    """value を min_val〜max_val の範囲に制限する。"""
+    """Clamp value to the range [min_val, max_val]."""
     if min_val > max_val:
-        raise ValueError("min_val は max_val 以下でなければならない")
+        raise ValueError("min_val must be less than or equal to max_val")
     return max(min_val, min(value, max_val))
 
 
-# --- プロパティベーステスト ---
+# --- Property-Based Tests ---
 
 class TestSortListProperties:
-    """sort_list のプロパティベーステスト。"""
+    """Property-based tests for sort_list."""
 
     @given(st.lists(st.integers()))
-    def test_ソート結果の長さは入力と同じ(self, lst):
-        """プロパティ: ソートは要素数を変えない。"""
+    def test_sorted_result_has_same_length_as_input(self, lst):
+        """Property: Sorting does not change the number of elements."""
         result = sort_list(lst)
         assert len(result) == len(lst)
 
     @given(st.lists(st.integers()))
-    def test_ソート結果は昇順に並んでいる(self, lst):
-        """プロパティ: ソート結果の各要素は前の要素以上。"""
+    def test_sorted_result_is_in_ascending_order(self, lst):
+        """Property: Each element in the sorted result is >= the previous element."""
         result = sort_list(lst)
         for i in range(1, len(result)):
             assert result[i] >= result[i - 1]
 
     @given(st.lists(st.integers()))
-    def test_ソート結果は入力と同じ要素を含む(self, lst):
-        """プロパティ: ソートは要素を変えない（並び替えるだけ）。"""
+    def test_sorted_result_contains_same_elements_as_input(self, lst):
+        """Property: Sorting does not change elements (only rearranges them)."""
         result = sort_list(lst)
         assert sorted(result) == sorted(lst)
 
     @given(st.lists(st.integers()))
-    def test_ソートの冪等性(self, lst):
-        """プロパティ: 2回ソートしても結果は同じ。"""
+    def test_sort_is_idempotent(self, lst):
+        """Property: Sorting twice produces the same result."""
         once = sort_list(lst)
         twice = sort_list(once)
         assert once == twice
 
 
 class TestReverseStringProperties:
-    """reverse_string のプロパティベーステスト。"""
+    """Property-based tests for reverse_string."""
 
     @given(st.text())
-    def test_二重反転で元に戻る(self, s):
-        """プロパティ: 反転の反転は恒等変換。"""
+    def test_double_reversal_returns_original(self, s):
+        """Property: Reversing twice is an identity operation."""
         assert reverse_string(reverse_string(s)) == s
 
     @given(st.text())
-    def test_反転結果の長さは同じ(self, s):
-        """プロパティ: 反転は長さを変えない。"""
+    def test_reversed_result_has_same_length(self, s):
+        """Property: Reversing does not change the length."""
         assert len(reverse_string(s)) == len(s)
 
 
 class TestClampProperties:
-    """clamp のプロパティベーステスト。"""
+    """Property-based tests for clamp."""
 
     @given(
         st.integers(min_value=-1000, max_value=1000),
         st.integers(min_value=-1000, max_value=0),
         st.integers(min_value=0, max_value=1000),
     )
-    def test_結果は常に範囲内(self, value, min_val, max_val):
-        """プロパティ: clamp の結果は必ず [min_val, max_val] の範囲内。"""
+    def test_result_is_always_within_range(self, value, min_val, max_val):
+        """Property: The result of clamp is always within [min_val, max_val]."""
         assume(min_val <= max_val)
         result = clamp(value, min_val, max_val)
         assert min_val <= result <= max_val
@@ -1396,540 +1400,539 @@ class TestClampProperties:
         st.integers(min_value=0, max_value=100),
         st.integers(min_value=0, max_value=100),
     )
-    def test_範囲内の値はそのまま返る(self, value, bound):
-        """プロパティ: 既に範囲内の値は変更されない。"""
+    def test_value_within_range_is_returned_unchanged(self, value, bound):
+        """Property: A value already within range is not changed."""
         min_val = 0
         max_val = max(value, bound)
         min_val_actual = min(0, value)
-        # value が [min_val, max_val] 内なら結果は value 自身
+        # If value is within [min_val, max_val], the result is value itself
         result = clamp(value, min_val, max_val)
         if min_val <= value <= max_val:
             assert result == value
 
 
 class TestEncodeDecodeProperties:
-    """encode_decode のプロパティベーステスト。"""
+    """Property-based tests for encode_decode."""
 
     @given(st.text())
-    def test_ラウンドトリップ(self, text):
-        """プロパティ: エンコード→デコードで元に戻る。"""
+    def test_round_trip(self, text):
+        """Property: Encoding then decoding returns the original."""
         assert encode_decode(text) == text
 ```
 
-### 9.3 プロパティの見つけ方
+### 9.3 How to Find Properties
 
-プロパティベーステストを書く際に、どのようなプロパティを検証すべきかは
-初学者がつまずきやすいポイントである。以下に代表的なパターンを示す。
+When writing property-based tests, knowing which properties to verify
+is a common stumbling block for beginners. Here are representative patterns.
 
-| パターン | 説明 | 例 |
-|---------|------|-----|
-| ラウンドトリップ | encode → decode で元に戻る | JSON, Base64, 暗号化 |
-| 冪等性 | 2 回実行しても結果が同じ | ソート, 正規化, フォーマット |
-| 不変量 | 操作前後で保存される性質 | 要素数、合計値 |
-| 単調性 | 入力が増えると出力も増える | ソート済みリストへの挿入 |
-| 参照実装 | 単純だが正しい実装と比較 | 最適化版 vs ナイーブ版 |
-| 逆関数 | f(g(x)) == x | push/pop, insert/delete |
-| 帰納法 | 小さい入力から大きい入力への帰納 | 再帰的データ構造 |
+| Pattern | Description | Example |
+|---------|-----------|---------|
+| Round-trip | encode -> decode returns the original | JSON, Base64, encryption |
+| Idempotence | Executing twice produces the same result | Sort, normalization, formatting |
+| Invariant | Properties preserved before and after an operation | Element count, total sum |
+| Monotonicity | Output increases as input increases | Insertion into a sorted list |
+| Reference implementation | Compare with a simple but correct implementation | Optimized vs. naive version |
+| Inverse function | f(g(x)) == x | push/pop, insert/delete |
+| Induction | Induction from small to large inputs | Recursive data structures |
 
 ---
 
-## 10. テストのアンチパターン
+## 10. Testing Anti-Patterns
 
-### 10.1 アンチパターン一覧
+### 10.1 Anti-Pattern Catalog
 
-テストコードにおいてよく見られるアンチパターンを解説する。
-これらはテストの信頼性、保守性、可読性を損なう原因となる。
+Here we explain commonly seen anti-patterns in test code.
+These are causes of degraded test reliability, maintainability, and readability.
 
-#### アンチパターン 1: テストの相互依存（The Order-Dependent Test）
+#### Anti-Pattern 1: Test Interdependence (The Order-Dependent Test)
 
 ```python
-# ===== アンチパターン: テスト間の順序依存 =====
+# ===== Anti-pattern: Order dependency between tests =====
 
-# 危険: テスト A の結果がテスト B に影響する
+# Dangerous: The result of test A affects test B
 
 class SharedState:
-    """グローバルに共有される状態（アンチパターン）。"""
+    """Globally shared state (anti-pattern)."""
     items = []
 
 
-class TestBad_テスト間の順序依存:
-    """テストの順序に依存する悪い例。"""
+class TestBad_OrderDependent:
+    """Bad example: Tests depend on execution order."""
 
-    def test_A_アイテムを追加(self):
+    def test_A_add_item(self):
         SharedState.items.append("item1")
         assert len(SharedState.items) == 1
 
-    def test_B_アイテム数を確認(self):
-        # 危険: test_A が先に実行されることを前提としている
-        assert len(SharedState.items) == 1  # test_A に依存
+    def test_B_check_item_count(self):
+        # Dangerous: Assumes test_A was executed first
+        assert len(SharedState.items) == 1  # Depends on test_A
 
-    def test_C_アイテムを削除(self):
+    def test_C_remove_items(self):
         SharedState.items.clear()
         assert len(SharedState.items) == 0
-        # test_B の後に実行されなければ失敗するかもしれない
+        # May fail if not executed after test_B
 
 
-# ===== 改善例: 各テストが独立 =====
+# ===== Improved Example: Each test is independent =====
 
-class TestGood_テストの独立性:
-    """各テストが独立している良い例。"""
+class TestGood_Independent:
+    """Good example: Each test is independent."""
 
     def setup_method(self):
-        """各テストの前に状態を初期化する。"""
+        """Initialize state before each test."""
         self.items = []
 
-    def test_A_アイテムを追加(self):
+    def test_A_add_item(self):
         self.items.append("item1")
         assert len(self.items) == 1
 
-    def test_B_空のリストのサイズは0(self):
+    def test_B_empty_list_has_size_zero(self):
         assert len(self.items) == 0
 
-    def test_C_追加して削除すると空になる(self):
+    def test_C_add_then_clear_results_in_empty(self):
         self.items.append("item1")
         self.items.clear()
         assert len(self.items) == 0
 ```
 
-**問題点:**
-- テストの実行順序を変えると結果が変わる
-- 並列実行できない
-- 1 つのテストが失敗すると、後続のテストも連鎖的に失敗する
+**Problems:**
+- Results change when test execution order changes
+- Cannot be run in parallel
+- When one test fails, subsequent tests fail in cascade
 
-**対策:**
-- 各テストの前にフィクスチャで状態を初期化する
-- グローバル状態を避け、テストごとに独立したインスタンスを使う
-- `pytest --randomly`（pytest-randomly プラグイン）で順序をシャッフルして検証する
+**Solutions:**
+- Initialize state before each test with fixtures
+- Avoid global state; use independent instances for each test
+- Use `pytest --randomly` (pytest-randomly plugin) to verify by shuffling order
 
-#### アンチパターン 2: 氷山テスト（The Ice-Cream Cone / The Giant Test）
+#### Anti-Pattern 2: The Iceberg Test (The Ice-Cream Cone / The Giant Test)
 
 ```python
-# ===== アンチパターン: 1つのテストに多すぎるアサーション =====
+# ===== Anti-pattern: Too many assertions in one test =====
 
-def test_bad_ユーザー登録から購入まで全部テスト():
-    """1 つのテストケースに多すぎる検証を詰め込む悪い例。"""
-    # ユーザー登録
+def test_bad_everything_from_registration_to_purchase():
+    """Bad example: Too many verifications packed into one test case."""
+    # User registration
     user = register_user("Alice", "alice@example.com")
     assert user.id is not None
     assert user.name == "Alice"
     assert user.email == "alice@example.com"
     assert user.is_active is True
 
-    # ログイン
+    # Login
     token = login(user.email, "password123")
     assert token is not None
     assert len(token) > 0
 
-    # 商品検索
+    # Product search
     products = search_products("Python")
     assert len(products) > 0
-    assert products[0].name == "Python入門"
+    assert products[0].name == "Python Introduction"
 
-    # カートに追加
+    # Add to cart
     cart = add_to_cart(user.id, products[0].id, quantity=2)
     assert len(cart.items) == 1
     assert cart.total == 6000
 
-    # 決済
+    # Checkout
     order = checkout(user.id, cart.id)
     assert order.status == "completed"
     assert order.total == 6000
 
 
-# ===== 改善例: 適切な粒度に分割 =====
+# ===== Improved Example: Appropriately granular tests =====
 
 class TestUserRegistration:
-    def test_正常な情報で登録できる(self):
+    def test_register_with_valid_info(self):
         user = register_user("Alice", "alice@example.com")
         assert user.id is not None
         assert user.name == "Alice"
 
 class TestAuthentication:
-    def test_正しい認証情報でログインできる(self):
-        # ...（ユーザーはフィクスチャで事前準備）
+    def test_login_with_valid_credentials(self):
+        # ... (user is prepared via fixture)
         pass
 
 class TestShoppingCart:
-    def test_商品をカートに追加できる(self):
-        # ...（ユーザーとカートはフィクスチャで事前準備）
+    def test_add_product_to_cart(self):
+        # ... (user and cart are prepared via fixture)
         pass
 
 class TestCheckout:
-    def test_カートの内容で決済できる(self):
+    def test_checkout_with_cart_contents(self):
         # ...
         pass
 ```
 
-**問題点:**
-- テストが失敗した場合、どの機能に問題があるか特定しにくい
-- テスト名から何をテストしているか分からない
-- 前半が失敗すると後半のテストがスキップされる
+**Problems:**
+- When the test fails, it is difficult to identify which feature has a problem
+- The test name does not indicate what is being tested
+- If the first part fails, later tests are skipped
 
-**対策:**
-- 1 テスト 1 関心事を原則とする
-- テスト名で何をテストしているか明確にする
-- フィクスチャで前提条件を準備し、各テストは 1 つの振る舞いだけを検証する
+**Solutions:**
+- Follow the principle of one concern per test
+- Make test names clearly indicate what is being tested
+- Prepare preconditions with fixtures and have each test verify only one behavior
 
-#### アンチパターン 3: フレイキーテスト（The Flickering Test）
+#### Anti-Pattern 3: The Flaky Test (The Flickering Test)
 
-フレイキーテストは、同じコードに対して実行するたびに結果が変わるテストである。
+A flaky test is a test whose results vary each time it is run against the same code.
 
-**主な原因:**
+**Common causes:**
 
-| 原因 | 例 | 対策 |
-|------|-----|------|
-| 時刻依存 | `datetime.now()` に依存 | 時刻をインジェクション可能にする |
-| 乱数依存 | ランダム値に依存する処理 | シードを固定する |
-| 並行処理 | レースコンディション | 適切な同期処理を入れる |
-| 外部サービス | ネットワーク遅延・障害 | モックを使用する |
-| 共有リソース | 他のテストが変更した DB | テストごとにリセットする |
-| タイミング依存 | `sleep(1)` の後に検証 | ポーリングまたはイベント待ちに変える |
-| 環境依存 | OS、ロケール、タイムゾーン | テスト環境を固定する |
+| Cause | Example | Solution |
+|-------|---------|---------|
+| Time dependency | Depends on `datetime.now()` | Make time injectable |
+| Random dependency | Relies on random values | Fix the seed |
+| Concurrency | Race conditions | Add proper synchronization |
+| External services | Network latency/failures | Use mocks |
+| Shared resources | DB modified by other tests | Reset for each test |
+| Timing dependency | Verify after `sleep(1)` | Use polling or event-waiting instead |
+| Environment dependency | OS, locale, timezone | Fix the test environment |
 
-#### アンチパターン 4: テストのないリファクタリング
+#### Anti-Pattern 4: Refactoring Without Tests
 
-テストなしでコードを変更すると、回帰バグを見逃すリスクが高い。
-「テストがあるからこそリファクタリングできる」のであり、
-テストなしのリファクタリングは単なるギャンブルである。
+Changing code without tests carries a high risk of missing regression bugs.
+"Tests enable refactoring" -- refactoring without tests is merely gambling.
 
-**対策:**
-- リファクタリング前にまずテストを書く（特にレガシーコード）
-- Michael Feathers の「レガシーコード改善ガイド」のテクニックを活用する
-- 特性テスト（Characterization Test）で現在の振る舞いを記録してからリファクタリングする
+**Solutions:**
+- Write tests before refactoring (especially for legacy code)
+- Use techniques from Michael Feathers' "Working Effectively with Legacy Code"
+- Record current behavior with characterization tests before refactoring
 
-#### アンチパターン 5: 過度に具体的なアサーション
+#### Anti-Pattern 5: Overly Specific Assertions
 
 ```python
-# 悪い例: 出力全体を文字列比較
-def test_bad_レポート出力():
+# Bad example: Full string comparison of output
+def test_bad_report_output():
     result = generate_report(2024, 1)
-    assert result == "2024年1月の売上レポート\n売上合計: ¥1,234,567\n前月比: +5.2%\n..."
-    # 改行やスペースが1つ変わるだけで失敗する
+    assert result == "January 2024 Sales Report\nTotal Sales: $1,234,567\nMonth-over-month: +5.2%\n..."
+    # Fails if even one space or newline changes
 
-# 良い例: 重要な情報だけを検証
-def test_good_レポートに売上合計が含まれる():
+# Good example: Verify only important information
+def test_good_report_contains_total_sales():
     result = generate_report(2024, 1)
-    assert "売上合計" in result
-    assert "¥1,234,567" in result
+    assert "Total Sales" in result
+    assert "$1,234,567" in result
 ```
 
 ---
 
-## 11. テストの設計原則
+## 11. Test Design Principles
 
-### 11.1 FIRST 原則
+### 11.1 FIRST Principles
 
-良いユニットテストは FIRST 原則に従う。
+Good unit tests follow the FIRST principles.
 
-| 文字 | 原則 | 説明 |
-|------|------|------|
-| F | Fast（高速） | テストは数ミリ秒で完了すべき |
-| I | Independent（独立） | テスト間に依存関係がない |
-| R | Repeatable（再現可能） | どの環境でも同じ結果を返す |
-| S | Self-validating（自己検証的） | テスト自身が成功/失敗を判定する |
-| T | Timely（適時的） | プロダクションコードと同時に書く |
+| Letter | Principle | Description |
+|--------|----------|-------------|
+| F | Fast | Tests should complete in milliseconds |
+| I | Independent | No dependencies between tests |
+| R | Repeatable | Returns the same result in any environment |
+| S | Self-validating | The test itself determines success/failure |
+| T | Timely | Written at the same time as production code |
 
-### 11.2 テストの構造パターン
+### 11.2 Test Structure Patterns
 
-#### AAA パターン（再掲・詳細）
+#### AAA Pattern (Detailed Review)
 
 ```
-AAA パターンの構造:
+AAA Pattern Structure:
 
-  def test_〇〇の場合に△△が起きる():
-      # ─── Arrange（準備）──────────────
-      #   テスト対象のオブジェクトを生成
-      #   テストに必要なデータを用意
-      #   依存オブジェクトをセットアップ
+  def test_when_X_then_Y():
+      # --- Arrange (Setup) ----------------
+      #   Create the object under test
+      #   Prepare data needed for the test
+      #   Set up dependency objects
       sut = SystemUnderTest()
       input_data = create_test_data()
 
-      # ─── Act（実行）──────────────────
-      #   テスト対象の操作を 1 つだけ実行
+      # --- Act (Execute) ------------------
+      #   Execute exactly one operation on the SUT
       result = sut.do_something(input_data)
 
-      # ─── Assert（検証）──────────────
-      #   期待される結果を検証
-      #   1 テスト 1 概念の検証（理想）
+      # --- Assert (Verify) ----------------
+      #   Verify the expected result
+      #   Ideally one concept per test
       assert result == expected_value
 ```
 
-#### Given-When-Then パターン
+#### Given-When-Then Pattern
 
-BDD 寄りの記法で、AAA と本質的に同じだが、ビジネス寄りの用語を使う。
+BDD-oriented notation; essentially the same as AAA but uses business-oriented terms.
 
-| AAA | Given-When-Then | 説明 |
-|-----|----------------|------|
-| Arrange | Given（前提条件） | 初期状態の設定 |
-| Act | When（操作） | テスト対象の操作 |
-| Assert | Then（期待結果） | 結果の検証 |
+| AAA | Given-When-Then | Description |
+|-----|----------------|-------------|
+| Arrange | Given (precondition) | Setting the initial state |
+| Act | When (action) | Operation under test |
+| Assert | Then (expected result) | Verification of the result |
 
-### 11.3 テストフィクスチャのベストプラクティス
+### 11.3 Test Fixture Best Practices
 
 ```python
-# pytest のフィクスチャ活用例
+# Example of using pytest fixtures
 
 import pytest
 
 @pytest.fixture
 def sample_user():
-    """テスト用のユーザーオブジェクトを提供する。"""
-    return User(name="テスト太郎", email="test@example.com")
+    """Provides a test user object."""
+    return User(name="Test User", email="test@example.com")
 
 @pytest.fixture
 def authenticated_client(sample_user):
-    """認証済みの API クライアントを提供する。"""
+    """Provides an authenticated API client."""
     client = TestClient(app)
     token = create_token(sample_user)
     client.headers["Authorization"] = f"Bearer {token}"
     return client
 
-# フィクスチャの粒度:
-#   - 小さすぎる: 各テストで同じセットアップコードが重複する
-#   - 大きすぎる: 不要なセットアップが含まれ、テストが遅くなる
-#   - 適切: テストが何をテストしているか明確で、必要最小限のセットアップ
+# Fixture granularity:
+#   - Too small: Same setup code duplicated across each test
+#   - Too large: Unnecessary setup is included, slowing down tests
+#   - Appropriate: Clear what the test is testing, with minimal setup
 ```
 
 ---
 
-## 12. 特殊なテスト手法
+## 12. Specialized Testing Techniques
 
-### 12.1 ミューテーションテスト
+### 12.1 Mutation Testing
 
-ミューテーションテストは、プロダクションコードに意図的な変異（ミュータント）を
-導入し、テストスイートがその変異を検出できるかを評価する手法である。
+Mutation testing is a technique that intentionally introduces mutations (mutants)
+into production code and evaluates whether the test suite can detect them.
 
 ```
-ミューテーションテストの流れ:
+Mutation Testing Flow:
 
-  元のコード:
+  Original code:
     if age >= 18:
-        return "成人"
+        return "adult"
 
-  ミュータント 1:         ミュータント 2:
-    if age > 18:            if age >= 19:
-        return "成人"           return "成人"
-    （>= を > に変更）       （18 を 19 に変更）
+  Mutant 1:              Mutant 2:
+    if age > 18:           if age >= 19:
+        return "adult"         return "adult"
+    (Changed >= to >)      (Changed 18 to 19)
 
-  テストスイートが:
-    - ミュータントを検出（kill）→ テストの品質が高い
-    - ミュータントを見逃す（survive）→ テストに漏れがある
+  If the test suite:
+    - Detects (kills) the mutant -> Tests are high quality
+    - Misses (lets survive) the mutant -> Tests have gaps
 ```
 
-Python では mutmut ツールで実行できる。
+In Python, this can be executed with the mutmut tool.
 
 ```bash
-# ミューテーションテストの実行
+# Running mutation tests
 mutmut run --paths-to-mutate=src/
 mutmut results
 ```
 
-### 12.2 スナップショットテスト
+### 12.2 Snapshot Testing
 
-スナップショットテストは、関数の出力を「スナップショット」として保存し、
-次回の実行時に以前のスナップショットと比較するテスト手法である。
-UI コンポーネントやシリアライズされたデータの回帰テストに有用である。
+Snapshot testing saves the output of a function as a "snapshot"
+and compares it against the previous snapshot on subsequent runs.
+It is useful for regression testing of UI components and serialized data.
 
 ```python
-# pytest-snapshot を使ったスナップショットテスト
+# Snapshot testing with pytest-snapshot
 
-def test_レポート出力のスナップショット(snapshot):
+def test_report_output_snapshot(snapshot):
     result = generate_report(year=2024, month=1)
     snapshot.assert_match(result, "report_2024_01.txt")
-    # 初回実行時: スナップショットファイルが生成される
-    # 2回目以降: 保存されたスナップショットと比較される
-    # 変更時: pytest --snapshot-update で更新
+    # First run: A snapshot file is generated
+    # Subsequent runs: Compared against the saved snapshot
+    # On changes: Update with pytest --snapshot-update
 ```
 
-### 12.3 コントラクトテスト
+### 12.3 Contract Testing
 
-マイクロサービス間の API 連携において、
-サービス間の「契約（コントラクト）」が守られているかを検証するテスト。
-Pact などのツールが使われる。
+In microservice API integration,
+contract testing verifies that the "contract" between services is maintained.
+Tools like Pact are used.
 
 ```
-コントラクトテストの概念:
+Contract Testing Concept:
 
-  Consumer（利用側）         Provider（提供側）
-  ┌──────────────┐         ┌──────────────┐
-  │ フロントエンド │  Contract │ バックエンド  │
-  │              │◄────────►│              │
-  │  "GET /users │  (Pact)  │  API サーバー │
-  │   を呼ぶと   │         │              │
-  │   [{id, name}]│         │              │
-  │   が返る"    │         │              │
-  └──────────────┘         └──────────────┘
+  Consumer (Client)            Provider (Server)
+  +--------------+            +--------------+
+  | Frontend     |  Contract  | Backend      |
+  |              |<---------->|              |
+  | "When calling|  (Pact)    | API Server   |
+  |  GET /users  |            |              |
+  |  returns     |            |              |
+  |  [{id,name}]"|            |              |
+  +--------------+            +--------------+
 
-  Consumer 側: 期待するリクエスト/レスポンスをコントラクトとして定義
-  Provider 側: コントラクトに従ってレスポンスを返せるかを検証
-  → 両者が独立してテスト可能。デプロイ前に互換性を確認できる
+  Consumer side: Defines expected requests/responses as contracts
+  Provider side: Verifies it can respond according to the contracts
+  -> Both can be tested independently. Compatibility can be confirmed before deployment
 ```
 
 ---
 
-## 13. テストフレームワークとツールの比較
+## 13. Test Frameworks and Tools Comparison
 
-### 13.1 Python テストフレームワーク比較
+### 13.1 Python Test Framework Comparison
 
-| フレームワーク | 特徴 | テスト記述スタイル | フィクスチャ | パラメータ化 | プラグイン |
+| Framework | Characteristics | Test Writing Style | Fixtures | Parameterization | Plugins |
 |---|---|---|---|---|---|
-| pytest | Python で最も広く使われるテストフレームワーク | 関数ベース + クラスベース | `@pytest.fixture`（強力で柔軟） | `@pytest.mark.parametrize` | 1000 以上のプラグイン |
-| unittest | Python 標準ライブラリ同梱 | クラスベース（`TestCase` 継承） | `setUp` / `tearDown` | `subTest` | 限定的 |
-| nose2 | unittest の拡張（nose の後継） | 関数ベース + クラスベース | プラグインベース | パラメータプラグイン | 中程度 |
-| doctest | ドキュメント文字列内にテストを記述 | docstring 内のインタラクティブ例 | なし | なし | なし |
+| pytest | Most widely used test framework for Python | Function-based + class-based | `@pytest.fixture` (powerful and flexible) | `@pytest.mark.parametrize` | 1000+ plugins |
+| unittest | Included in Python standard library | Class-based (`TestCase` inheritance) | `setUp` / `tearDown` | `subTest` | Limited |
+| nose2 | Extension of unittest (successor to nose) | Function-based + class-based | Plugin-based | Parameter plugin | Moderate |
+| doctest | Tests written within docstrings | Interactive examples in docstrings | None | None | None |
 
-**推奨**: 新規プロジェクトでは **pytest** を第一選択とする。
-豊富なプラグインエコシステム、直感的なフィクスチャ機構、
-分かりやすいアサーションの失敗メッセージが強みである。
+**Recommendation**: For new projects, **pytest** should be the first choice.
+Its rich plugin ecosystem, intuitive fixture mechanism,
+and clear assertion failure messages are its strengths.
 
-### 13.2 主要言語のテストフレームワーク
+### 13.2 Test Frameworks by Language
 
-| 言語 | フレームワーク | 特徴 |
-|------|--------------|------|
-| Python | pytest | 関数ベース、強力なフィクスチャ、豊富なプラグイン |
-| JavaScript/TypeScript | Jest | Meta 製。スナップショットテスト、モック内蔵 |
-| JavaScript/TypeScript | Vitest | Vite ベース。ESM ネイティブ、Jest 互換 API |
-| Java | JUnit 5 | アノテーション駆動。パラメータ化テストが強力 |
-| Go | testing (標準) | 標準ライブラリで完結。`go test` コマンド |
-| Rust | cargo test (標準) | `#[test]` アトリビュート。ドキュメントテスト対応 |
-| C# | xUnit.net | .NET の標準的フレームワーク。`[Fact]`, `[Theory]` |
-| Ruby | RSpec | BDD スタイル。`describe`, `it` ブロック |
+| Language | Framework | Characteristics |
+|----------|----------|----------------|
+| Python | pytest | Function-based, powerful fixtures, rich plugins |
+| JavaScript/TypeScript | Jest | Made by Meta. Snapshot testing, built-in mocking |
+| JavaScript/TypeScript | Vitest | Vite-based. Native ESM, Jest-compatible API |
+| Java | JUnit 5 | Annotation-driven. Powerful parameterized tests |
+| Go | testing (standard) | Self-contained in standard library. `go test` command |
+| Rust | cargo test (standard) | `#[test]` attribute. Supports documentation tests |
+| C# | xUnit.net | Standard .NET framework. `[Fact]`, `[Theory]` |
+| Ruby | RSpec | BDD-style. `describe`, `it` blocks |
 
-### 13.3 テスト支援ツール
+### 13.3 Test Support Tools
 
-#### モック/スタブ
+#### Mocking/Stubbing
 
-| ツール | 言語 | 特徴 |
-|--------|------|------|
-| unittest.mock | Python | 標準ライブラリ。`Mock`, `patch`, `MagicMock` |
-| pytest-mock | Python | unittest.mock の pytest ラッパー。`mocker` フィクスチャ |
-| responses | Python | requests ライブラリの HTTP モック |
-| Mockito | Java | Java の代表的モックライブラリ |
-| testdouble.js | JavaScript | JavaScript のテストダブルライブラリ |
+| Tool | Language | Characteristics |
+|------|----------|----------------|
+| unittest.mock | Python | Standard library. `Mock`, `patch`, `MagicMock` |
+| pytest-mock | Python | pytest wrapper for unittest.mock. `mocker` fixture |
+| responses | Python | HTTP mocking for the requests library |
+| Mockito | Java | Representative mock library for Java |
+| testdouble.js | JavaScript | Test double library for JavaScript |
 
-#### E2E / ブラウザ自動化
+#### E2E / Browser Automation
 
-| ツール | 対応ブラウザ | 特徴 |
-|--------|------------|------|
-| Playwright | Chromium, Firefox, WebKit | Microsoft 製。複数ブラウザ対応、自動待機 |
-| Cypress | Chromium ベース | JavaScript ネイティブ。タイムトラベルデバッグ |
-| Selenium | 全主要ブラウザ | 最も歴史が長い。WebDriver プロトコル |
+| Tool | Supported Browsers | Characteristics |
+|------|-------------------|----------------|
+| Playwright | Chromium, Firefox, WebKit | Made by Microsoft. Multi-browser support, auto-waiting |
+| Cypress | Chromium-based | Native JavaScript. Time-travel debugging |
+| Selenium | All major browsers | Longest history. WebDriver protocol |
 
-#### カバレッジ
+#### Coverage
 
-| ツール | 言語 | 出力形式 |
-|--------|------|---------|
-| pytest-cov (coverage.py) | Python | HTML, XML, JSON, ターミナル |
+| Tool | Language | Output Formats |
+|------|----------|---------------|
+| pytest-cov (coverage.py) | Python | HTML, XML, JSON, terminal |
 | Istanbul (nyc) | JavaScript | HTML, lcov, text |
 | JaCoCo | Java | HTML, XML, CSV |
-| gcov / lcov | C/C++ | HTML, テキスト |
+| gcov / lcov | C/C++ | HTML, text |
 
-#### プロパティベーステスト
+#### Property-Based Testing
 
-| ツール | 言語 | 特徴 |
-|--------|------|------|
-| Hypothesis | Python | 強力な shrinking、stateful テスト対応 |
-| QuickCheck | Haskell | プロパティベーステストの元祖 |
-| fast-check | JavaScript/TypeScript | JS/TS 向け。Hypothesis インスパイア |
-| PropTest | Rust | Rust 向けプロパティベーステスト |
-| jqwik | Java | JUnit 5 統合型プロパティベーステスト |
+| Tool | Language | Characteristics |
+|------|----------|----------------|
+| Hypothesis | Python | Powerful shrinking, stateful test support |
+| QuickCheck | Haskell | The originator of property-based testing |
+| fast-check | JavaScript/TypeScript | For JS/TS. Inspired by Hypothesis |
+| PropTest | Rust | Property-based testing for Rust |
+| jqwik | Java | JUnit 5 integrated property-based testing |
 
-#### ミューテーションテスト
+#### Mutation Testing
 
-| ツール | 言語 | 特徴 |
-|--------|------|------|
-| mutmut | Python | シンプルで使いやすい |
-| cosmic-ray | Python | より多くのミュータントオペレータ |
-| Stryker | JS/TS, C# | 複数言語対応。リッチなレポート |
-| PIT (pitest) | Java | Java の代表的ミューテーションテストツール |
+| Tool | Language | Characteristics |
+|------|----------|----------------|
+| mutmut | Python | Simple and easy to use |
+| cosmic-ray | Python | More mutant operators |
+| Stryker | JS/TS, C# | Multi-language support. Rich reports |
+| PIT (pitest) | Java | Representative mutation testing tool for Java |
 
-### 13.4 テスト実行の最適化テクニック
+### 13.4 Test Execution Optimization Techniques
 
-テストスイートが成長すると実行時間が問題になる。
-以下に主要な最適化テクニックを示す。
+As the test suite grows, execution time becomes a problem.
+Here are the main optimization techniques.
 
 ```
-テスト実行の最適化戦略:
+Test Execution Optimization Strategy:
 
-  ┌─────────────────────────────────────────────────────┐
-  │              テスト実行の高速化                        │
-  ├─────────────────────────────────────────────────────┤
-  │                                                     │
-  │  1. 並列実行                                         │
-  │     pytest-xdist: pytest -n auto                    │
-  │     → CPU コア数に応じて自動並列化                     │
-  │                                                     │
-  │  2. 変更検知ベースの実行                               │
-  │     pytest --lf  (前回失敗したテストだけ再実行)         │
-  │     pytest --ff  (前回失敗したテストを優先的に実行)      │
-  │     pytest-testmon (変更されたコードに関連するテストのみ) │
-  │                                                     │
-  │  3. 層別実行                                         │
-  │     pytest -m "not slow"  (遅いテストをスキップ)       │
-  │     pytest -m "unit"      (ユニットテストだけ)          │
-  │     pytest -m "smoke"     (スモークテストだけ)          │
-  │                                                     │
-  │  4. フィクスチャの最適化                               │
-  │     scope="session" → テストセッション全体で1回だけ実行  │
-  │     scope="module"  → モジュールごとに1回               │
-  │     scope="class"   → クラスごとに1回                   │
-  │     scope="function"→ テスト関数ごとに1回（デフォルト）   │
-  │                                                     │
-  │  5. 不要なI/Oの削減                                   │
-  │     インメモリDB（SQLite :memory:）の活用              │
-  │     ファイルシステムの代わりに StringIO / BytesIO       │
-  │     HTTP 通信のモック化                                │
-  └─────────────────────────────────────────────────────┘
+  +-----------------------------------------------------+
+  |           Test Execution Speedup                      |
+  +-----------------------------------------------------+
+  |                                                     |
+  |  1. Parallel execution                               |
+  |     pytest-xdist: pytest -n auto                    |
+  |     -> Auto-parallelizes based on CPU core count     |
+  |                                                     |
+  |  2. Change-detection-based execution                  |
+  |     pytest --lf  (re-run only previously failed tests)|
+  |     pytest --ff  (prioritize previously failed tests) |
+  |     pytest-testmon (only tests related to changed code)|
+  |                                                     |
+  |  3. Layered execution                                |
+  |     pytest -m "not slow"  (skip slow tests)          |
+  |     pytest -m "unit"      (unit tests only)          |
+  |     pytest -m "smoke"     (smoke tests only)         |
+  |                                                     |
+  |  4. Fixture optimization                              |
+  |     scope="session" -> Run once for entire session    |
+  |     scope="module"  -> Once per module               |
+  |     scope="class"   -> Once per class                |
+  |     scope="function"-> Once per test function (default)|
+  |                                                     |
+  |  5. Reducing unnecessary I/O                          |
+  |     Use in-memory DB (SQLite :memory:)               |
+  |     StringIO / BytesIO instead of filesystem         |
+  |     Mock HTTP communication                          |
+  +-----------------------------------------------------+
 ```
 
 ```python
-# pytest マーカーによる層別実行の例
+# Example of layered execution with pytest markers
 
 import pytest
 
-# テストにマーカーを付与
+# Assign markers to tests
 @pytest.mark.unit
-def test_高速なユニットテスト():
+def test_fast_unit_test():
     assert 1 + 1 == 2
 
 @pytest.mark.integration
-def test_DB接続を伴うテスト():
-    # DB に接続するテスト
+def test_with_db_connection():
+    # Test that connects to DB
     pass
 
 @pytest.mark.slow
-def test_時間のかかるテスト():
-    # 実行に数十秒かかるテスト
+def test_slow_running_test():
+    # Test that takes tens of seconds
     pass
 
 @pytest.mark.e2e
-def test_ブラウザ操作テスト():
-    # Playwright でブラウザを操作するテスト
+def test_browser_operation():
+    # Test that operates a browser with Playwright
     pass
 
-# pyproject.toml での設定:
+# pyproject.toml configuration:
 # [tool.pytest.ini_options]
 # markers = [
-#     "unit: ユニットテスト",
-#     "integration: 統合テスト",
-#     "slow: 実行が遅いテスト",
-#     "e2e: E2E テスト",
+#     "unit: Unit tests",
+#     "integration: Integration tests",
+#     "slow: Slow-running tests",
+#     "e2e: E2E tests",
 # ]
 
-# 実行例:
-# pytest -m unit           → ユニットテストだけ
-# pytest -m "not slow"     → 遅いテスト以外
-# pytest -m "unit or integration"  → ユニット + 統合
+# Execution examples:
+# pytest -m unit           -> Unit tests only
+# pytest -m "not slow"     -> All except slow tests
+# pytest -m "unit or integration"  -> Unit + Integration
 ```
 
-### 13.5 テストデータの管理
+### 13.5 Test Data Management
 
-テストデータの管理はテストの信頼性と保守性に直結する。
+Test data management is directly tied to test reliability and maintainability.
 
-#### ファクトリーパターン
+#### Factory Pattern
 
 ```python
-# テストデータのファクトリーパターン
+# Factory pattern for test data
 
 from dataclasses import dataclass, field
 import uuid
@@ -1937,15 +1940,15 @@ import uuid
 
 @dataclass
 class UserFactory:
-    """テスト用のユーザーデータを生成するファクトリー。"""
+    """Factory for generating test user data."""
 
-    name: str = "テスト太郎"
+    name: str = "Test User"
     email: str = field(default_factory=lambda: f"test-{uuid.uuid4().hex[:8]}@example.com")
     age: int = 30
     is_active: bool = True
 
     def build(self) -> dict:
-        """辞書形式でユーザーデータを返す。"""
+        """Return user data in dictionary format."""
         return {
             "name": self.name,
             "email": self.email,
@@ -1955,45 +1958,45 @@ class UserFactory:
 
     @classmethod
     def admin(cls) -> "UserFactory":
-        """管理者ユーザーのプリセット。"""
-        return cls(name="管理者", age=40)
+        """Admin user preset."""
+        return cls(name="Admin", age=40)
 
     @classmethod
     def child(cls) -> "UserFactory":
-        """子供ユーザーのプリセット。"""
-        return cls(name="テスト子供", age=10)
+        """Child user preset."""
+        return cls(name="Test Child", age=10)
 
 
-# 使用例
-def test_デフォルトユーザーで登録できる():
+# Usage examples
+def test_register_with_default_user():
     user_data = UserFactory().build()
     result = register_user(**user_data)
-    assert result.name == "テスト太郎"
+    assert result.name == "Test User"
 
-def test_管理者で登録できる():
+def test_register_as_admin():
     user_data = UserFactory.admin().build()
     result = register_user(**user_data)
-    assert result.name == "管理者"
+    assert result.name == "Admin"
 
-def test_カスタムデータで登録できる():
-    user_data = UserFactory(name="カスタム", age=25).build()
+def test_register_with_custom_data():
+    user_data = UserFactory(name="Custom", age=25).build()
     result = register_user(**user_data)
-    assert result.name == "カスタム"
+    assert result.name == "Custom"
 ```
 
-#### ビルダーパターン
+#### Builder Pattern
 
 ```python
-# テストデータのビルダーパターン
+# Builder pattern for test data
 
 class OrderBuilder:
-    """テスト用の注文データをビルダーパターンで生成する。"""
+    """Generates test order data using the builder pattern."""
 
     def __init__(self):
         self._customer_id = "C001"
         self._items = []
         self._discount = 0
-        self._shipping_address = "東京都千代田区"
+        self._shipping_address = "Tokyo, Chiyoda-ku"
 
     def with_customer(self, customer_id: str) -> "OrderBuilder":
         self._customer_id = customer_id
@@ -2020,12 +2023,12 @@ class OrderBuilder:
         }
 
 
-# 使用例
-def test_複数商品の注文合計():
+# Usage example
+def test_order_total_with_multiple_items():
     order = (
         OrderBuilder()
-        .with_item("Python入門", 3000, quantity=2)
-        .with_item("Go実践", 3500)
+        .with_item("Python Introduction", 3000, quantity=2)
+        .with_item("Go in Practice", 3500)
         .with_discount(500)
         .build()
     )
@@ -2035,50 +2038,50 @@ def test_複数商品の注文合計():
 
 ---
 
-## 14. テストと設計の関係
+## 14. The Relationship Between Testing and Design
 
-### 14.1 テスタビリティと設計品質
+### 14.1 Testability and Design Quality
 
-テストのしやすさ（テスタビリティ）は、設計品質の優れた指標である。
-テストしにくいコードは、ほぼ確実に設計上の問題を抱えている。
+Testability is an excellent indicator of design quality.
+Code that is hard to test almost certainly has design problems.
 
 ```
-テスタビリティと設計の関係:
+Relationship Between Testability and Design:
 
-  テストしにくいコードの特徴        対応する設計上の問題
-  ──────────────────────        ──────────────────
-  ・new で直接依存を生成          → 密結合（Tight Coupling）
-  ・グローバル変数に依存          → 隠れた依存関係
-  ・static メソッドが多い         → テストダブルで置換不能
-  ・1メソッドが数百行             → 単一責任原則の違反
-  ・コンストラクタで副作用        → 生成と利用の混在
-  ・環境変数に直接アクセス        → 設定の暗黙的依存
+  Characteristics of hard-to-test code      Corresponding design problems
+  ------------------------------------      ----------------------------
+  - Creates dependencies with new directly  -> Tight Coupling
+  - Depends on global variables             -> Hidden dependencies
+  - Many static methods                     -> Cannot be replaced with test doubles
+  - Methods with hundreds of lines          -> SRP violation
+  - Side effects in constructors            -> Mixed creation and usage
+  - Direct access to environment variables  -> Implicit dependency on configuration
 
-  テストしやすいコードの特徴        対応する設計原則
-  ──────────────────────        ──────────────────
-  ・依存はコンストラクタで注入     → 依存性逆転原則（DIP）
-  ・インターフェースに依存        → 開放閉鎖原則（OCP）
-  ・メソッドは短く単一目的        → 単一責任原則（SRP）
-  ・副作用が少ない純粋関数       → 関数型プログラミング
-  ・設定は引数で受け取る         → 明示的な依存関係
+  Characteristics of easy-to-test code      Corresponding design principles
+  ------------------------------------      ------------------------------
+  - Dependencies injected via constructor   -> Dependency Inversion Principle (DIP)
+  - Depends on interfaces                   -> Open/Closed Principle (OCP)
+  - Methods are short with single purpose   -> Single Responsibility Principle (SRP)
+  - Pure functions with few side effects    -> Functional Programming
+  - Configuration received via arguments    -> Explicit dependencies
 ```
 
-### 14.2 依存性注入とテスタビリティ
+### 14.2 Dependency Injection and Testability
 
 ```python
-# ===== コード例 6: 依存性注入によるテスタビリティの向上 =====
+# ===== Code Example 6: Improving Testability Through Dependency Injection =====
 
-# 悪い例: 直接依存を生成
+# Bad example: Creating dependencies directly
 class NotificationService_Bad:
     def notify(self, user_id: str, message: str) -> bool:
-        # テスト時にもメールが送信されてしまう
+        # Emails are sent even during testing
         import smtplib
         server = smtplib.SMTP("smtp.example.com")
         server.sendmail("noreply@example.com", user_id, message)
         return True
 
 
-# 良い例: 依存性注入
+# Good example: Dependency injection
 from typing import Protocol
 
 class EmailSender(Protocol):
@@ -2091,14 +2094,14 @@ class NotificationService_Good:
     def notify(self, user_id: str, message: str) -> bool:
         return self._email_sender.send(
             to=user_id,
-            subject="通知",
+            subject="Notification",
             body=message,
         )
 
 
-# テストコード
+# Test code
 class FakeEmailSender:
-    """テスト用のフェイク実装。"""
+    """Fake implementation for testing."""
     def __init__(self):
         self.sent_emails = []
 
@@ -2107,78 +2110,78 @@ class FakeEmailSender:
         return True
 
 
-def test_通知が送信される():
+def test_notification_is_sent():
     fake_sender = FakeEmailSender()
     service = NotificationService_Good(fake_sender)
 
-    result = service.notify("user@example.com", "テストメッセージ")
+    result = service.notify("user@example.com", "Test message")
 
     assert result is True
     assert len(fake_sender.sent_emails) == 1
     assert fake_sender.sent_emails[0]["to"] == "user@example.com"
 ```
 
-### 14.3 Hexagonal Architecture とテスト
+### 14.3 Hexagonal Architecture and Testing
 
-Hexagonal Architecture（ポート&アダプターアーキテクチャ）は、
-テスタビリティに優れた設計パターンである。
+Hexagonal Architecture (Ports & Adapters Architecture)
+is a design pattern that excels in testability.
 
 ```
-Hexagonal Architecture とテスト戦略:
+Hexagonal Architecture and Test Strategy:
 
-                    ┌──────────────────────┐
-                    │    テスト戦略         │
-                    └──────────────────────┘
+                    +----------------------+
+                    |    Test Strategy      |
+                    +----------------------+
 
-  ┌─────────┐                               ┌─────────┐
-  │ アダプター│    ┌────────────────────┐     │ アダプター│
-  │ (入力)   │───>│   ポート（入力）     │     │ (出力)   │
-  │ HTTP API │    │                    │     │ DB      │
-  │ CLI      │    │  ┌──────────────┐  │     │ メール   │
-  │ メッセージ│    │  │ ドメイン      │  │───> │ 外部API  │
-  │          │    │  │ ロジック      │  │     │          │
-  │          │    │  └──────────────┘  │     │          │
-  └─────────┘    │   ポート（出力）     │     └─────────┘
-                  └────────────────────┘
+  +-----------+                               +-----------+
+  | Adapter   |    +--------------------+     | Adapter   |
+  | (Input)   |--->|   Port (Input)     |     | (Output)  |
+  | HTTP API  |    |                    |     | DB        |
+  | CLI       |    |  +--------------+  |     | Email     |
+  | Message   |    |  | Domain       |  |---> | External  |
+  |           |    |  | Logic        |  |     | API       |
+  |           |    |  +--------------+  |     |           |
+  +-----------+    |   Port (Output)    |     +-----------+
+                   +--------------------+
 
-  テスト戦略:
-  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Test Strategy:
+  ==================================================
 
-  ユニットテスト → ドメインロジック
-    ・外部依存なし。純粋なビジネスルールを検証
-    ・ポートをモック/スタブで置換
+  Unit Tests -> Domain Logic
+    - No external dependencies. Verifies pure business rules
+    - Ports are replaced with mocks/stubs
 
-  統合テスト → アダプター
-    ・実際のDBやHTTPサーバーで接続を検証
-    ・ポートの実装が正しく動作するか
+  Integration Tests -> Adapters
+    - Verify connections with actual DB and HTTP servers
+    - Whether port implementations work correctly
 
-  E2Eテスト → 入力アダプター → ドメイン → 出力アダプター
-    ・全レイヤーを貫通。主要フローのみ
+  E2E Tests -> Input Adapter -> Domain -> Output Adapter
+    - Penetrates all layers. Only for key flows
 ```
 
 ---
 
-## 15. 演習問題
+## 15. Exercises
 
-### 演習 1（初級）: ユニットテストの実装
+### Exercise 1 (Beginner): Implementing Unit Tests
 
-以下の `StringCalculator` クラスに対して、pytest を使ったユニットテストを作成せよ。
+Create unit tests using pytest for the following `StringCalculator` class.
 
 ```python
 class StringCalculator:
-    """文字列形式の数値を計算する。"""
+    """Calculates numbers in string format."""
 
     def add(self, numbers: str) -> int:
-        """カンマ区切りの数値文字列を受け取り、合計を返す。
+        """Takes a comma-separated number string and returns the sum.
 
-        ルール:
-        - 空文字列の場合は 0 を返す
-        - 数値が 1 つの場合はその数値を返す
-        - カンマ区切りの複数数値の合計を返す
-        - 改行もデリミタとして扱う（"1\n2,3" → 6）
-        - 負の数が含まれる場合は ValueError を発生させる
-          （エラーメッセージに負の数を含める）
-        - 1000 より大きい数は無視する（"2,1001" → 2）
+        Rules:
+        - Returns 0 for empty string
+        - Returns the number if there is only one
+        - Returns the sum of comma-separated numbers
+        - Newlines are also treated as delimiters ("1\n2,3" -> 6)
+        - Raises ValueError if negative numbers are included
+          (error message includes the negative numbers)
+        - Numbers greater than 1000 are ignored ("2,1001" -> 2)
         """
         if not numbers:
             return 0
@@ -2191,40 +2194,40 @@ class StringCalculator:
 
         negatives = [v for v in values if v < 0]
         if negatives:
-            raise ValueError(f"負の数は許可されていない: {negatives}")
+            raise ValueError(f"Negative numbers are not allowed: {negatives}")
 
         return sum(v for v in values if v <= 1000)
 ```
 
-**要件:**
-- 正常系テストを 5 件以上
-- 異常系テストを 2 件以上
-- 境界値テストを 3 件以上
-- `@pytest.mark.parametrize` を少なくとも 1 箇所使用
+**Requirements:**
+- At least 5 normal case tests
+- At least 2 error case tests
+- At least 3 boundary value tests
+- Use `@pytest.mark.parametrize` in at least one place
 
-### 演習 2（中級）: TDD で Stack を実装
+### Exercise 2 (Intermediate): Implement a Stack Using TDD
 
-以下の仕様を満たす `Stack` クラスを TDD で実装せよ。
+Implement a `Stack` class that satisfies the following specification using TDD.
 
-**仕様:**
-1. `push(item)` — アイテムをスタックの最上部に追加する
-2. `pop()` — 最上部のアイテムを取り出して返す。空なら `IndexError`
-3. `peek()` — 最上部のアイテムを返すが、取り出さない。空なら `IndexError`
-4. `is_empty()` — スタックが空なら `True`
-5. `size()` — スタック内のアイテム数を返す
-6. `max_size` — コンストラクタで指定。`push` 時にサイズ超過なら `OverflowError`
+**Specification:**
+1. `push(item)` -- Add an item to the top of the stack
+2. `pop()` -- Remove and return the top item. Raise `IndexError` if empty
+3. `peek()` -- Return the top item without removing it. Raise `IndexError` if empty
+4. `is_empty()` -- Return `True` if the stack is empty
+5. `size()` -- Return the number of items in the stack
+6. `max_size` -- Specified in constructor. Raise `OverflowError` on `push` when size is exceeded
 
-**手順:**
-1. まず `is_empty` のテストを書き、実装する（Red → Green）
-2. 次に `push` と `size` のテストを書き、実装する
-3. `pop` のテスト（正常系・異常系）を書き、実装する
-4. `peek` のテストを書き、実装する
-5. `max_size` のテストを書き、実装する
-6. 全テストが通った状態でリファクタリングする
+**Procedure:**
+1. First write a test for `is_empty` and implement it (Red -> Green)
+2. Write tests for `push` and `size` and implement them
+3. Write tests for `pop` (normal and error cases) and implement
+4. Write tests for `peek` and implement
+5. Write tests for `max_size` and implement
+6. Refactor while all tests pass
 
-### 演習 3（上級）: プロパティベーステストの設計
+### Exercise 3 (Advanced): Designing Property-Based Tests
 
-以下の関数群に対して、Hypothesis を使ったプロパティベーステストを設計・実装せよ。
+Design and implement property-based tests using Hypothesis for the following functions.
 
 ```python
 import json
@@ -2232,13 +2235,13 @@ from typing import Any
 
 
 def json_round_trip(data: dict) -> dict:
-    """JSON シリアライズ → デシリアライズのラウンドトリップ。"""
+    """JSON serialize -> deserialize round trip."""
     return json.loads(json.dumps(data))
 
 
 def flatten_dict(d: dict, prefix: str = "") -> dict:
-    """ネストされた辞書をフラットにする。
-    例: {"a": {"b": 1}} → {"a.b": 1}
+    """Flatten a nested dictionary.
+    Example: {"a": {"b": 1}} -> {"a.b": 1}
     """
     result = {}
     for key, value in d.items():
@@ -2251,251 +2254,251 @@ def flatten_dict(d: dict, prefix: str = "") -> dict:
 
 
 def compact(lst: list) -> list:
-    """リストから None と空文字列を除去する。"""
+    """Remove None and empty strings from a list."""
     return [x for x in lst if x is not None and x != ""]
 ```
 
-**要件:**
-- 各関数に対して 2 つ以上のプロパティを定義する
-- `st.dictionaries`, `st.recursive` などの高度な戦略を使用する
-- `@example` デコレータでエッジケースを明示する
+**Requirements:**
+- Define at least 2 properties for each function
+- Use advanced strategies such as `st.dictionaries`, `st.recursive`
+- Use the `@example` decorator to specify edge cases
 
 ---
 
-## 16. FAQ（よくある質問）
+## 16. FAQ (Frequently Asked Questions)
 
-### Q1: テストカバレッジは何パーセントを目標にすべきか？
+### Q1: What percentage should code coverage target?
 
-一般的には **80% 以上**が推奨される目安である。ただし、カバレッジの数値だけを
-追い求めるのは危険である。重要なのは以下の 3 点である。
+Generally, **80% or higher** is the recommended guideline. However, pursuing coverage numbers
+alone is dangerous. The important points are the following three:
 
-1. **ビジネスクリティカルな部分**（決済処理、認証、データ変換など）は高いカバレッジを維持する
-2. **カバレッジの低い部分**を定期的にレビューし、テストが本当に不要かを判断する
-3. **カバレッジの高さよりも、テストの品質**（適切なアサーション、エッジケースの網羅）を重視する
+1. **Business-critical areas** (payment processing, authentication, data conversion, etc.) should maintain high coverage
+2. **Regularly review low-coverage areas** and determine whether tests are truly unnecessary
+3. **Prioritize test quality over high coverage** (appropriate assertions, edge case coverage)
 
-カバレッジが 100% でもバグはゼロにならない（前述のとおり）。
-カバレッジは「テストされていない部分を発見するための指標」として活用し、
-テストの品質評価には別の手法（ミューテーションテストなど）を併用すべきである。
+Even 100% coverage does not mean zero bugs (as mentioned earlier).
+Coverage should be used as "an indicator for discovering untested areas,"
+and other techniques (such as mutation testing) should be used in combination for test quality evaluation.
 
-### Q2: テストが遅くて CI のフィードバックが遅い。どう改善すべきか？
+### Q2: Tests are slow and CI feedback is delayed. How should this be improved?
 
-以下のアプローチを段階的に適用する。
+Apply the following approaches incrementally.
 
-**短期的な対策:**
-1. **テストの並列実行**: `pytest-xdist` で `pytest -n auto` を使う
-2. **遅いテストの特定**: `pytest --durations=20` で遅いテスト Top 20 を確認する
-3. **不要な E2E テストの削減**: ユニットテストで代替できるものを移行する
-4. **フィクスチャの最適化**: セットアップの重複を排除する
+**Short-term measures:**
+1. **Parallel test execution**: Use `pytest-xdist` with `pytest -n auto`
+2. **Identify slow tests**: Use `pytest --durations=20` to check the top 20 slowest tests
+3. **Reduce unnecessary E2E tests**: Migrate those that can be replaced by unit tests
+4. **Optimize fixtures**: Eliminate duplicate setups
 
-**中期的な対策:**
-1. **テストの層別実行**: PR では高速なユニットテストのみ、マージ後に全テストを実行
-2. **変更検知**: 変更されたファイルに関連するテストだけを実行する
-3. **テスト用 DB の最適化**: PostgreSQL より SQLite（テスト用）、またはインメモリ DB
+**Medium-term measures:**
+1. **Layered test execution**: Run only fast unit tests on PRs, run all tests after merge
+2. **Change detection**: Only run tests related to changed files
+3. **Optimize test DB**: Use SQLite (for tests) or in-memory DB instead of PostgreSQL
 
-**長期的な対策:**
-1. **テストピラミッドの再構築**: E2E が多すぎる場合、下位レイヤーに移行する
-2. **テストインフラの改善**: キャッシュ、並列化、分散実行
-3. **テストアーキテクチャの見直し**: Hexagonal Architecture で外部依存を隔離
+**Long-term measures:**
+1. **Reconstruct the test pyramid**: If there are too many E2E tests, migrate to lower layers
+2. **Improve test infrastructure**: Caching, parallelization, distributed execution
+3. **Review test architecture**: Isolate external dependencies with Hexagonal Architecture
 
-### Q3: レガシーコードにテストを追加するにはどうすればよいか？
+### Q3: How do you add tests to legacy code?
 
-Michael Feathers の「レガシーコード改善ガイド」に基づくアプローチを推奨する。
+We recommend the approach from Michael Feathers' "Working Effectively with Legacy Code."
 
-**ステップ 1: 変更点を特定する**
-- 変更が必要な箇所を特定し、そこに関連するコードの依存関係を把握する
+**Step 1: Identify the change point**
+- Identify the area that needs change and understand the dependency relationships of related code
 
-**ステップ 2: テストハーネスを確立する**
-- 変更箇所をテスト可能にするための最小限のリファクタリングを行う
-- 依存関係を切り離す技法:
-  - Extract Interface（インターフェースの抽出）
-  - Parameterize Constructor（コンストラクタのパラメータ化）
-  - Wrap Method（メソッドのラップ）
+**Step 2: Establish a test harness**
+- Perform minimal refactoring to make the change point testable
+- Techniques for breaking dependencies:
+  - Extract Interface
+  - Parameterize Constructor
+  - Wrap Method
 
-**ステップ 3: 特性テストを書く**
-- 現在の振る舞い（仕様どおりかどうかは問わない）を記録するテストを書く
-- これにより、リファクタリング時に意図しない変更を検出できる
+**Step 3: Write characterization tests**
+- Write tests that record current behavior (regardless of whether it matches the spec)
+- This allows detection of unintended changes during refactoring
 
-**ステップ 4: 変更を加える**
-- テストの安全網のもとで、必要な変更を加える
+**Step 4: Make the change**
+- Make the necessary changes under the safety net of tests
 
-**ステップ 5: テストを改善する**
-- 特性テストを正しい仕様に基づくテストに徐々に置き換えていく
+**Step 5: Improve the tests**
+- Gradually replace characterization tests with tests based on the correct specification
 
-### Q4: モックはどの程度使うべきか？
+### Q4: How much should mocks be used?
 
-モックの使用量は「テストの種類」と「テスト対象の依存関係」によって異なる。
+The amount of mock usage varies depending on "test type" and "dependencies of the test target."
 
-**モックすべきもの:**
-- 外部 API への HTTP リクエスト
-- 時刻、乱数などの非決定的な要素
-- 送信系の処理（メール送信、Push 通知など）
-- テスト環境に存在しない外部サービス
+**Should be mocked:**
+- HTTP requests to external APIs
+- Non-deterministic elements such as time and random numbers
+- Sending operations (email sending, push notifications, etc.)
+- External services that don't exist in the test environment
 
-**モックすべきでないもの:**
-- テスト対象自身のメソッド（テストの意味がなくなる）
-- 単純なバリューオブジェクト
-- 標準ライブラリの基本機能
+**Should not be mocked:**
+- Methods of the test target itself (defeats the purpose of the test)
+- Simple value objects
+- Basic standard library functions
 
-**判断基準:**
-- 「このモックを外したら、テストはまだ意味があるか？」を問う
-- モックの設定コードがプロダクションコードより長い場合は、設計を見直す
+**Judgment criteria:**
+- Ask yourself "If I remove this mock, does the test still have meaning?"
+- If mock setup code is longer than production code, reconsider the design
 
-### Q5: E2E テストと統合テストの境界はどこにあるか？
+### Q5: Where is the boundary between E2E tests and integration tests?
 
-明確な境界は組織やプロジェクトによって異なるが、一般的な目安は以下のとおりである。
+There is no clear boundary as it varies by organization and project, but general guidelines are as follows.
 
-| 基準 | 統合テスト | E2E テスト |
-|------|-----------|-----------|
-| UI の関与 | なし（API レイヤーまで） | あり（ブラウザ操作を含む） |
-| テスト対象 | 2〜3 コンポーネントの連携 | システム全体のフロー |
-| データ | テスト専用 DB に直接準備 | UI からの入力で準備 |
-| 実行速度 | 秒〜分 | 分〜十分 |
-| 壊れやすさ | 中程度 | 高い |
+| Criteria | Integration Tests | E2E Tests |
+|----------|------------------|-----------|
+| UI involvement | None (up to API layer) | Yes (includes browser operations) |
+| Test target | Interaction of 2-3 components | Entire system flow |
+| Data | Prepared directly in test DB | Prepared via UI input |
+| Execution speed | Seconds to minutes | Minutes to tens of minutes |
+| Fragility | Moderate | High |
 
-実務では「UI を伴うかどうか」を境界とすることが多い。
-API に対する統合テストは十分に安定しており、
-ブラウザ操作を伴う E2E テストはコストが高いという認識が広まっている。
+In practice, "whether or not UI is involved" is often used as the boundary.
+Integration tests against APIs are sufficiently stable,
+and the recognition that E2E tests involving browser operations are costly has become widespread.
 
 ---
 
-## 17. テスト戦略の実践的ガイドライン
+## 17. Practical Guidelines for Test Strategy
 
-### 15.1 テストを書く順序
+### 15.1 Order of Writing Tests
 
-新しい機能を開発する際のテスト作成順序の指針を示す。
+Here are guidelines for the order of test creation when developing new features.
 
 ```
-テスト作成の推奨順序:
+Recommended Order for Test Creation:
 
-  1. ドメインロジックのユニットテスト
-     └─ ビジネスルール、バリデーション、計算処理
-         最も重要で、最もテストしやすい
+  1. Unit tests for domain logic
+     +-- Business rules, validation, calculations
+         Most important and easiest to test
 
-  2. サービス層のユニットテスト
-     └─ ドメインロジックの組み合わせ、外部依存のモック
+  2. Unit tests for the service layer
+     +-- Combinations of domain logic, mocking external dependencies
 
-  3. リポジトリ/データアクセスの統合テスト
-     └─ DB とのやり取りの正確性
+  3. Integration tests for repositories/data access
+     +-- Accuracy of DB interactions
 
-  4. API エンドポイントの統合テスト
-     └─ リクエスト/レスポンスの形式、ステータスコード
+  4. Integration tests for API endpoints
+     +-- Request/response formats, status codes
 
-  5. 重要なユーザーフローの E2E テスト
-     └─ ビジネス上クリティカルなシナリオのみ
+  5. E2E tests for critical user flows
+     +-- Only business-critical scenarios
 ```
 
-### 15.2 テストのメンテナンス
+### 15.2 Test Maintenance
 
-テストコードもプロダクションコードと同様にメンテナンスが必要である。
+Test code requires maintenance just like production code.
 
-**定期的に行うべきこと:**
-1. **遅いテストの改善** — `pytest --durations` で定期計測
-2. **フレイキーテストの修正** — 不安定なテストを放置しない
-3. **不要なテストの削除** — 仕様変更で不要になったテスト、重複テスト
-4. **テスト用ユーティリティの整理** — ファクトリー、ビルダー、共通フィクスチャの最適化
-5. **カバレッジレポートの確認** — テストされていない箇所の把握
+**Things to do regularly:**
+1. **Improve slow tests** -- Periodically measure with `pytest --durations`
+2. **Fix flaky tests** -- Do not leave unstable tests unaddressed
+3. **Remove unnecessary tests** -- Tests made unnecessary by spec changes, duplicate tests
+4. **Organize test utilities** -- Optimize factories, builders, shared fixtures
+5. **Review coverage reports** -- Identify untested areas
 
-### 15.3 テストコードの品質基準
+### 15.3 Quality Standards for Test Code
 
-テストコードにもコーディング規約を適用する。
+Apply coding standards to test code as well.
 
-| 基準 | 内容 |
-|------|------|
-| 可読性 | テストを読むだけで仕様が分かる |
-| 命名 | テスト名が何を検証しているか明確 |
-| 構造 | AAA パターンに従い、各セクションが明確に分離 |
-| DRY | フィクスチャでセットアップを共通化（ただしテストの可読性を損なわない範囲で） |
-| 独立性 | テスト間の依存がない |
-| 速度 | ユニットテストは ms 単位 |
-| 安定性 | フレイキーでない |
+| Standard | Content |
+|----------|---------|
+| Readability | The specification can be understood just by reading the test |
+| Naming | Test names clearly indicate what is being verified |
+| Structure | Follows the AAA pattern with clearly separated sections |
+| DRY | Setup is shared via fixtures (but not at the expense of test readability) |
+| Independence | No dependencies between tests |
+| Speed | Unit tests complete in milliseconds |
+| Stability | Not flaky |
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory, but by actually writing code and verifying how it works.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this applied in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently applied in day-to-day development work. It is particularly important during code reviews and architecture design.
 
 ---
 
-## 18. まとめ
+## 18. Summary
 
-### テスト分類の全体像
+### Overview of Test Classification
 
-| テストレベル | 対象 | 速度 | コスト | 推奨比率 |
-|------------|------|------|--------|---------|
-| ユニットテスト | 関数・クラス | ms | 低 | 70% |
-| 統合テスト | コンポーネント連携 | 秒〜分 | 中 | 20% |
-| E2E テスト | システム全体 | 分〜十分 | 高 | 10% |
-| 受入テスト | ビジネス要件 | 分〜十分 | 高 | スプリントごと |
+| Test Level | Target | Speed | Cost | Recommended Ratio |
+|-----------|--------|-------|------|-------------------|
+| Unit Tests | Functions/Classes | ms | Low | 70% |
+| Integration Tests | Component interaction | sec to min | Medium | 20% |
+| E2E Tests | Entire system | min to tens | High | 10% |
+| Acceptance Tests | Business requirements | min to tens | High | Per sprint |
 
-### 開発手法の比較
+### Comparison of Development Methodologies
 
-| 手法 | 核心 | ツール | 適用場面 |
-|------|------|--------|---------|
-| TDD | テストファーストで設計を駆動 | pytest, JUnit | ロジック実装 |
-| BDD | ビジネスシナリオを自動テスト化 | Cucumber, Behave | 要件の合意 |
-| プロパティベーステスト | ランダム入力で不変量を検証 | Hypothesis, QuickCheck | 汎用ロジック |
+| Methodology | Core | Tools | Application |
+|------------|------|-------|-------------|
+| TDD | Test-first drives design | pytest, JUnit | Logic implementation |
+| BDD | Business scenarios as automated tests | Cucumber, Behave | Requirements agreement |
+| Property-Based Testing | Verify invariants with random inputs | Hypothesis, QuickCheck | General-purpose logic |
 
-### テスト技法の使い分け
+### When to Use Each Test Technique
 
-| 技法 | 用途 | 効果 |
-|------|------|------|
-| 同値分割 | 入力ドメインのグループ化 | テストケース数の削減 |
-| 境界値分析 | off-by-one エラーの検出 | 境界バグの早期発見 |
-| デシジョンテーブル | 複合条件の網羅 | 条件漏れの防止 |
-| ペアワイズテスト | 多因子の組み合わせ削減 | テスト効率の最大化 |
+| Technique | Use Case | Effect |
+|-----------|---------|--------|
+| Equivalence Partitioning | Grouping input domains | Reducing test case count |
+| Boundary Value Analysis | Detecting off-by-one errors | Early detection of boundary bugs |
+| Decision Table | Covering compound conditions | Preventing condition omissions |
+| Pairwise Testing | Reducing multi-factor combinations | Maximizing test efficiency |
 
-### テスト設計の原則
+### Test Design Principles
 
 ```
-テスト設計チェックリスト:
+Test Design Checklist:
 
-  [ ] FIRST 原則（Fast, Independent, Repeatable, Self-validating, Timely）
-  [ ] AAA パターン（Arrange, Act, Assert）
-  [ ] 1 テスト 1 概念
-  [ ] テスト名が仕様を表現している
-  [ ] テストピラミッドのバランスが取れている
-  [ ] カバレッジが 80% 以上
-  [ ] フレイキーテストがない
-  [ ] CI で自動実行されている
+  [ ] FIRST principles (Fast, Independent, Repeatable, Self-validating, Timely)
+  [ ] AAA pattern (Arrange, Act, Assert)
+  [ ] One concept per test
+  [ ] Test names express the specification
+  [ ] Test pyramid is balanced
+  [ ] Coverage is 80% or higher
+  [ ] No flaky tests
+  [ ] Automated execution in CI
 ```
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Reading
 
 
 ---
 
-## 参考文献
+## References
 
 1. Beck, K. *Test Driven Development: By Example*. Addison-Wesley, 2002.
-   — TDD の原典。Red-Green-Refactor の基本サイクルと実践例を網羅。
+   -- The definitive work on TDD. Covers the Red-Green-Refactor basic cycle and practical examples.
 2. Feathers, M. *Working Effectively with Legacy Code*. Prentice Hall, 2004.
-   — テストのないコード（レガシーコード）にテストを追加するための実践的テクニック。
+   -- Practical techniques for adding tests to code without tests (legacy code).
 3. Freeman, S., Pryce, N. *Growing Object-Oriented Software, Guided by Tests*. Addison-Wesley, 2009.
-   — モックを活用したテスト駆動設計の名著。ロンドン学派 TDD の代表作。
+   -- A seminal work on test-driven design using mocks. Representative of the London School of TDD.
 4. Meszaros, G. *xUnit Test Patterns: Refactoring Test Code*. Addison-Wesley, 2007.
-   — テストダブルの分類（ダミー、スタブ、スパイ、モック、フェイク）を体系化。
+   -- Systematized the classification of test doubles (Dummy, Stub, Spy, Mock, Fake).
 5. Cohn, M. *Succeeding with Agile*. Addison-Wesley, 2009.
-   — テストピラミッドの原典。アジャイル開発におけるテスト戦略を解説。
+   -- The origin of the test pyramid. Explains testing strategy in agile development.
 6. Claessen, K., Hughes, J. "QuickCheck: A Lightweight Tool for Random Testing of Haskell Programs." ICFP, 2000.
-   — プロパティベーステストの原論文。Hypothesis はこの思想を Python に移植したもの。
+   -- The original paper on property-based testing. Hypothesis ported this philosophy to Python.
 7. MacLeod, D. *Hypothesis documentation*. https://hypothesis.readthedocs.io/
-   — Python のプロパティベーステストフレームワーク Hypothesis の公式ドキュメント。
+   -- The official documentation for Hypothesis, the property-based testing framework for Python.
 
 ---
 
-> テストは品質を作り込むものではない。テストは品質を可視化するものである。
-> 品質はテスト可能な設計から生まれる。
+> Testing does not build quality in. Testing makes quality visible.
+> Quality comes from testable design.

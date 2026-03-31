@@ -1,129 +1,132 @@
-# データ構造の選び方
+# How to Choose Data Structures
 
-> 適切なデータ構造を選ぶことは、適切なアルゴリズムを選ぶことと同等に重要である。
+> Choosing the right data structure is as important as choosing the right algorithm.
 > --- Niklaus Wirth, "Algorithms + Data Structures = Programs" (1976)
 
-## この章で学ぶこと
+## Learning Objectives
 
-- [ ] 要件に応じて最適なデータ構造を選択できる
-- [ ] 各データ構造のトレードオフを定量的に理解する
-- [ ] 選択基準を体系的に整理し、判断フレームワークを身につける
-- [ ] 実務でよくある場面に対して即座に適切な構造を選べる
-- [ ] アンチパターンを認識し、回避できる
+- [ ] Select the optimal data structure based on requirements
+- [ ] Understand the trade-offs of each data structure quantitatively
+- [ ] Organize selection criteria systematically and develop a decision framework
+- [ ] Immediately identify the appropriate structure for common real-world scenarios
+- [ ] Recognize and avoid anti-patterns
 
-## 前提知識
+## Prerequisites
 
 
 ---
 
-## 1. データ構造選択の重要性
+## 1. The Importance of Data Structure Selection
 
-### 1.1 なぜデータ構造の選択が決定的なのか
+### 1.1 Why Data Structure Choice Is Decisive
 
-ソフトウェア工学において、データ構造の選択はシステム全体の性能・保守性・拡張性を根本的に左右する。Niklaus Wirth が著書のタイトル "Algorithms + Data Structures = Programs" で示したように、アルゴリズムとデータ構造は車の両輪であり、どちらか一方だけを最適化しても十分な成果は得られない。
+In software engineering, the choice of data structure fundamentally affects the performance, maintainability, and extensibility of an entire system. As Niklaus Wirth conveyed through his book title "Algorithms + Data Structures = Programs," algorithms and data structures are two sides of the same coin, and optimizing only one side yields insufficient results.
 
-データ構造の選択が与える影響を具体的に整理すると、以下の 4 つの軸に分類できる。
+The impact of data structure selection can be organized along the following four axes.
 
 ```
-データ構造選択の影響範囲:
+Impact scope of data structure selection:
 
-  ┌──────────────────────────────────────────────────────┐
-  │              データ構造の選択                          │
-  └──────────┬───────────┬───────────┬──────────┬────────┘
-             │           │           │          │
-             ▼           ▼           ▼          ▼
-  ┌──────────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐
-  │ 時間計算量   │ │空間計算量│ │ 可読性   │ │ 拡張性   │
-  │              │ │          │ │          │ │          │
-  │ 操作ごとの   │ │メモリ消費│ │コードの  │ │要件変更  │
-  │ 実行速度     │ │ と局所性 │ │明快さ    │ │への対応力│
-  └──────────────┘ └──────────┘ └──────────┘ └──────────┘
+  +------------------------------------------------------+
+  |              Data Structure Selection                  |
+  +----------+-----------+-----------+----------+---------+
+             |           |           |          |
+             v           v           v          v
+  +--------------+ +----------+ +----------+ +----------+
+  | Time         | | Space    | |Readability| |Extensi-  |
+  | Complexity   | |Complexity| |          | |bility    |
+  |              | |          | |          | |          |
+  | Execution    | | Memory   | | Code     | | Adapta-  |
+  | speed per    | | usage &  | | clarity  | | bility to|
+  | operation    | | locality | |          | | changes  |
+  +--------------+ +----------+ +----------+ +----------+
 ```
 
-#### 時間計算量の観点
+#### Time Complexity Perspective
 
-同じ「値の検索」という操作でも、使用するデータ構造によって計算量は劇的に異なる。未ソートの配列での線形探索は O(n) だが、ハッシュテーブルなら期待 O(1)、平衡 BST なら O(log n) で完了する。10 万件のデータに対して、n=100,000 回の検索を行う場面を想定すると、理論上の比較回数は以下のようになる。
+Even for the same "value lookup" operation, complexity varies dramatically depending on the data structure used. Linear search on an unsorted array is O(n), but a hash table achieves expected O(1), and a balanced BST completes in O(log n). Assuming 100,000 searches on a dataset of n=100,000 items, the theoretical number of comparisons is as follows:
 
-| データ構造 | 1 回の検索 | 10 万回の検索 |
+| Data Structure | 1 Search | 100,000 Searches |
 |---|---|---|
-| 未ソート配列 (線形探索) | 平均 50,000 回 | 約 50 億回 |
-| ソート済み配列 (二分探索) | 約 17 回 | 約 170 万回 |
-| ハッシュテーブル | 期待 1 回 | 約 10 万回 |
-| 平衡 BST | 約 17 回 | 約 170 万回 |
+| Unsorted array (linear search) | Average 50,000 | ~5 billion |
+| Sorted array (binary search) | ~17 | ~1.7 million |
+| Hash table | Expected 1 | ~100,000 |
+| Balanced BST | ~17 | ~1.7 million |
 
-この差は、小規模データでは体感できないことが多いが、データ量が増えるにつれて指数的に顕在化する。
+This difference is often imperceptible with small-scale data, but it manifests exponentially as data volume increases.
 
-#### 空間計算量の観点
+#### Space Complexity Perspective
 
-メモリ使用量も無視できない要素である。ハッシュテーブルは高速な検索を実現する代わりに、ハッシュ値格納やチェイン用ポインタ、負荷率維持のための未使用スロットなど、追加のメモリオーバーヘッドを伴う。一方、配列は要素を連続領域に格納するため、メモリ効率が高く CPU キャッシュの恩恵も受けやすい。
+Memory usage is another factor that cannot be ignored. While hash tables achieve fast lookups, they carry additional memory overhead for hash value storage, chaining pointers, and unused slots to maintain load factor. Arrays, on the other hand, store elements in contiguous memory regions, making them memory-efficient and more likely to benefit from CPU cache.
 
-組み込みシステムやモバイルアプリケーションなど、メモリが制約されている環境では、空間効率の観点からデータ構造を選ぶ必要がある場面も少なくない。
+In environments with limited memory, such as embedded systems or mobile applications, there are many situations where data structures must be chosen from the perspective of space efficiency.
 
-#### 可読性の観点
+#### Readability Perspective
 
-データ構造の選択はコードの可読性にも直結する。Python の `dict` を使ったルックアップテーブルは、if-elif の連鎖よりも意図が明確であり、保守しやすい。同様に、`set` を使った重複排除は、リストに対する手動ループよりもコードの意図を端的に表現できる。
+Data structure selection directly affects code readability. A lookup table using Python's `dict` is more intent-revealing and maintainable than a chain of if-elif statements. Similarly, deduplication using `set` expresses the intent more concisely than manual loops over lists.
 
-#### 拡張性の観点
+#### Extensibility Perspective
 
-初期設計で選んだデータ構造は、後から変更するコストが非常に高い。API のインターフェースやデータベースのスキーマに組み込まれてしまうと、内部構造の変更がシステム全体に波及する。したがって、将来の要件変更を見越した選択が重要になる。
+The data structures chosen in the initial design are very costly to change later. Once they become embedded in API interfaces or database schemas, changes to internal structures propagate throughout the entire system. Therefore, it is important to make selections that anticipate future requirement changes.
 
-### 1.2 選択を間違えるとどうなるか
+### 1.2 What Happens When You Choose Wrong
 
-データ構造の選択ミスは、以下のような形で顕在化する。
+Data structure selection mistakes manifest in the following ways:
 
-1. **性能の崩壊**: データ量が増えるにつれて急激にレスポンスが悪化する。典型例は、リスト内検索を多用するシステムが、ハッシュセットで解決できるケース。
-2. **メモリの浪費**: 不要な冗長性を持つ構造の選択。例えば、少数の固定キーに対して巨大なハッシュテーブルを用意する。
-3. **コードの複雑化**: 不適切なデータ構造を補うための「回避策コード」が増殖し、保守コストが上昇する。
-4. **並行処理の困難**: スレッドセーフでないデータ構造を選んだ結果、後からロック機構を追加する必要に迫られる。
+1. **Performance collapse**: Response time degrades sharply as data volume increases. A typical example is a system that relies heavily on list membership checks, which could be solved with a hash set.
+2. **Memory waste**: Selecting structures with unnecessary redundancy. For example, preparing a huge hash table for a small number of fixed keys.
+3. **Code complexity**: "Workaround code" proliferates to compensate for inappropriate data structures, increasing maintenance costs.
+4. **Concurrency difficulties**: Choosing non-thread-safe data structures, later requiring the addition of locking mechanisms.
 
-### 1.3 この章のアプローチ
+### 1.3 Approach of This Chapter
 
-本章では、データ構造の選択を「勘と経験」ではなく「体系的な判断プロセス」として整理する。具体的には以下のステップで進める。
+This chapter organizes data structure selection as a "systematic decision process" rather than relying on "intuition and experience." Specifically, we proceed with the following steps:
 
-1. 選択基準の軸を明確化する（セクション 2）
-2. 主要データ構造の特性を定量的に比較する（セクション 3）
-3. ユースケースごとの推奨を示す（セクション 4）
-4. 実装例とベンチマークで裏付ける（セクション 5）
-5. 判断フローチャートで体系化する（セクション 6）
-6. 陥りやすいアンチパターンを提示する（セクション 7）
+1. Clarify the axes of selection criteria (Section 2)
+2. Compare the characteristics of major data structures quantitatively (Section 3)
+3. Provide recommendations per use case (Section 4)
+4. Validate with implementation examples and benchmarks (Section 5)
+5. Systematize with a decision flowchart (Section 6)
+6. Present common anti-patterns (Section 7)
 
 ---
 
-## 2. 選択基準
+## 2. Selection Criteria
 
-データ構造を選択する際には、複数の基準を同時に考慮する必要がある。ここでは主要な 6 つの基準軸を解説する。
+When selecting data structures, multiple criteria must be considered simultaneously. Here we explain six major criteria axes.
 
-### 2.1 操作頻度と操作種別
+### 2.1 Operation Frequency and Types
 
-最も基本的な基準は「どの操作を最も頻繁に行うか」である。データ構造ごとに得意な操作と不得意な操作があるため、主要操作の計算量が支配的要因となる。
+The most fundamental criterion is "which operations are performed most frequently." Each data structure has strengths and weaknesses in different operations, so the complexity of the dominant operations becomes the deciding factor.
 
 ```
-操作分類マトリクス:
+Operation classification matrix:
 
-  ┌────────────────────────────────────────────────────────┐
-  │                    操作の種類                           │
-  ├──────────────┬──────────────┬──────────────────────────┤
-  │  読み取り系  │  書き込み系  │     特殊操作             │
-  ├──────────────┼──────────────┼──────────────────────────┤
-  │ ・インデックス│ ・挿入       │ ・ソート                │
-  │   アクセス   │ ・削除       │ ・範囲検索              │
-  │ ・検索       │ ・更新       │ ・前方一致/部分一致     │
-  │ ・最小/最大  │ ・先頭追加   │ ・集合演算（和/積/差）  │
-  │ ・順序走査   │ ・末尾追加   │ ・マージ               │
-  │ ・ランダム   │ ・中間挿入   │ ・Top-K / 中央値       │
-  │   アクセス   │              │ ・ランク（順位）       │
-  └──────────────┴──────────────┴──────────────────────────┘
+  +--------------------------------------------------------+
+  |                    Operation Types                       |
+  +--------------+--------------+--------------------------+
+  |  Read        |  Write       |     Special Operations   |
+  +--------------+--------------+--------------------------+
+  | - Index      | - Insert     | - Sort                   |
+  |   access     | - Delete     | - Range search           |
+  | - Search     | - Update     | - Prefix/Substring match |
+  | - Min/Max    | - Prepend    | - Set ops (union/        |
+  | - Ordered    | - Append     |   intersection/diff)     |
+  |   traversal  | - Mid insert | - Merge                  |
+  | - Random     |              | - Top-K / Median         |
+  |   access     |              | - Rank                   |
+  +--------------+--------------+--------------------------+
 ```
 
-例えば「挿入は稀だが検索が頻繁」という要件であれば、挿入コストが高くても検索が高速なデータ構造（ソート済み配列 + 二分探索、ハッシュテーブルなど）を選ぶべきである。逆に「挿入・削除が頻繁だが検索はほぼ行わない」なら、連結リストやキューが候補になる。
+For example, if the requirement is "insertions are rare but searches are frequent," you should choose a data structure with fast searches even if insertion cost is high (sorted array + binary search, hash table, etc.). Conversely, if "insertions and deletions are frequent but searches are almost never performed," linked lists or queues become candidates.
 
-以下のコード例は、操作パターンに応じた構造選択の基本的な考え方を示す。
+The following code example demonstrates the basic thinking behind structure selection based on operation patterns.
 
 ```python
 """
-コード例1: 操作パターンによるデータ構造選択の比較
+Code Example 1: Comparing data structure selection by operation pattern
 
-要件: 大量の整数データに対して「存在確認」を頻繁に行う
+Requirement: Frequently check existence against a large set of integer data
 """
 import time
 from typing import List, Set
@@ -131,9 +134,9 @@ from typing import List, Set
 
 def benchmark_membership_test(data_list: List[int], data_set: Set[int],
                                queries: List[int]) -> None:
-    """リストとセットでの存在確認の性能差を示す"""
+    """Demonstrate the performance difference between list and set membership tests"""
 
-    # --- リストでの存在確認: O(n) ---
+    # --- Membership test with list: O(n) ---
     start = time.perf_counter()
     count_list = 0
     for q in queries:
@@ -141,7 +144,7 @@ def benchmark_membership_test(data_list: List[int], data_set: Set[int],
             count_list += 1
     elapsed_list = time.perf_counter() - start
 
-    # --- セットでの存在確認: 期待 O(1) ---
+    # --- Membership test with set: Expected O(1) ---
     start = time.perf_counter()
     count_set = 0
     for q in queries:
@@ -149,11 +152,11 @@ def benchmark_membership_test(data_list: List[int], data_set: Set[int],
             count_set += 1
     elapsed_set = time.perf_counter() - start
 
-    print(f"データ件数: {len(data_list):>10,}")
-    print(f"クエリ件数: {len(queries):>10,}")
-    print(f"リスト検索: {elapsed_list:.4f} 秒  (ヒット数: {count_list})")
-    print(f"セット検索: {elapsed_set:.4f} 秒  (ヒット数: {count_set})")
-    print(f"速度比:     {elapsed_list / max(elapsed_set, 1e-9):.1f} 倍")
+    print(f"Data count:   {len(data_list):>10,}")
+    print(f"Query count:  {len(queries):>10,}")
+    print(f"List search:  {elapsed_list:.4f} sec  (hits: {count_list})")
+    print(f"Set search:   {elapsed_set:.4f} sec  (hits: {count_set})")
+    print(f"Speed ratio:  {elapsed_list / max(elapsed_set, 1e-9):.1f}x")
     print()
 
 
@@ -168,234 +171,238 @@ if __name__ == "__main__":
         benchmark_membership_test(data, data_set, queries)
 ```
 
-このコードを実行すると、データ件数が増えるほどリストとセットの性能差が拡大することが確認できる。1,000 件程度では数倍の差だが、100,000 件では数百倍以上の差になる。
+Running this code confirms that the performance gap between list and set widens as data count increases. At around 1,000 items, the difference is only a few times, but at 100,000 items, it becomes several hundred times or more.
 
-### 2.2 データサイズと成長パターン
+### 2.2 Data Size and Growth Patterns
 
-データの規模と成長パターンは、選択に大きな影響を与える。
+The scale and growth pattern of data have a significant impact on selection.
 
-| データ規模 | 特徴 | 推奨戦略 |
+| Data Scale | Characteristics | Recommended Strategy |
 |---|---|---|
-| 小規模 (〜1,000) | 計算量の定数項が支配的 | 単純な構造（配列）で十分 |
-| 中規模 (1,000〜100,000) | 計算量のオーダーが影響し始める | 要件に応じて適切な構造を選択 |
-| 大規模 (100,000〜) | オーダーの差が支配的 | O(1) や O(log n) の構造が必須 |
-| 超大規模 (数億〜) | メモリに乗りきらない可能性 | 外部記憶向け構造（B+木等）を検討 |
+| Small (~1,000) | Constant factors dominate | Simple structures (arrays) suffice |
+| Medium (1,000~100,000) | Order of complexity begins to matter | Choose appropriate structure based on requirements |
+| Large (100,000~) | Order difference dominates | O(1) or O(log n) structures are essential |
+| Very large (hundreds of millions~) | May not fit in memory | Consider external memory structures (B+ tree, etc.) |
 
-重要な注意点として、**小規模データでは単純なデータ構造のほうが高速な場合がある**。これは、計算量の定数項やキャッシュ効率の影響である。配列の線形探索は O(n) だが、n が小さければ CPU キャッシュに乗る連続メモリアクセスの恩恵で、ハッシュテーブルの O(1) 検索より速いこともある。
+An important caveat: **for small-scale data, simpler data structures may actually be faster**. This is due to constant factors and cache efficiency. Array linear search is O(n), but when n is small, the benefit of contiguous memory access fitting in the CPU cache can make it faster than O(1) hash table lookups.
 
-### 2.3 メモリ使用量と局所性
+### 2.3 Memory Usage and Locality
 
-データ構造ごとにメモリの使い方は大きく異なる。以下に Python での代表的なメモリオーバーヘッドを整理する。
+Memory usage characteristics differ significantly across data structures. Below is a summary of typical memory overhead in Python.
 
 ```
-Python における各構造のメモリ特性（概算）:
+Memory characteristics of each structure in Python (approximate):
 
-  構造          要素あたりの追加オーバーヘッド    メモリ局所性
-  ──────────    ──────────────────────────────    ──────────
-  list          8 バイト（ポインタ配列）           高い
-  tuple         8 バイト（ポインタ配列）           高い（不変）
-  set           各要素にハッシュ値格納             中程度
-  dict          キー + 値 + ハッシュ値             中程度
-  deque         ブロック単位の連結                 中程度
-  連結リスト    ノードオブジェクト + ポインタ      低い
+  Structure       Additional overhead per element      Memory locality
+  ----------      --------------------------------      ---------------
+  list            8 bytes (pointer array)                High
+  tuple           8 bytes (pointer array)                High (immutable)
+  set             Hash value stored per element          Moderate
+  dict            Key + value + hash value               Moderate
+  deque           Block-based linked list                Moderate
+  Linked list     Node object + pointer                  Low
 
-  ※ Python のオブジェクトは全てヒープ上に確保されるため、
-    C/C++ の配列ほどの局所性は得られない点に注意
+  Note: Since all Python objects are heap-allocated,
+  the locality is not as good as C/C++ arrays
 ```
 
-現代のプロセッサは階層的なキャッシュ機構を持っており、メモリアクセスの局所性（locality）が性能に大きく影響する。配列は連続メモリ領域を使用するため、キャッシュラインを効率的に活用できる。一方、連結リストやツリー構造はノードが散在するため、キャッシュミスが頻発しやすい。
+Modern processors have hierarchical cache mechanisms, and memory access locality significantly affects performance. Arrays use contiguous memory regions, efficiently utilizing cache lines. In contrast, linked lists and tree structures have scattered nodes, leading to frequent cache misses.
 
-### 2.4 順序の保持
+### 2.4 Order Preservation
 
-データの順序を保持する必要があるかどうかは、重要な選択基準である。
+Whether data order needs to be preserved is an important selection criterion.
 
-- **順序不要**: ハッシュテーブル、ハッシュセットが最適。挿入順さえ不要なら最も高速。
-- **挿入順の保持**: Python 3.7+ の `dict` は挿入順を保持する。`collections.OrderedDict` も同等。
-- **ソート順の維持**: `sortedcontainers.SortedList`、平衡 BST（`TreeMap` 等）、B+木。
-- **カスタム順序**: ヒープ（優先度キュー）で優先度に基づく順序を管理。
+- **Order not required**: Hash table, hash set are optimal. Fastest when even insertion order is unnecessary.
+- **Insertion order preserved**: Python 3.7+ `dict` preserves insertion order. `collections.OrderedDict` is equivalent.
+- **Sorted order maintained**: `sortedcontainers.SortedList`, balanced BST (`TreeMap`, etc.), B+ tree.
+- **Custom order**: Heap (priority queue) manages order based on priority.
 
-### 2.5 並行性とスレッドセーフティ
+### 2.5 Concurrency and Thread Safety
 
-マルチスレッド環境では、データ構造のスレッドセーフティが重要になる。
+In multi-threaded environments, thread safety of data structures becomes important.
 
-| 戦略 | 特徴 | 適用場面 |
+| Strategy | Characteristics | Application |
 |---|---|---|
-| ロックなし（immutable） | 不変データ構造を使用 | 読み取り専用データの共有 |
-| グローバルロック | 全操作にロックを取得 | 低競合の簡易な共有 |
-| 細粒度ロック | 操作ごとに最小限のロック | 高競合の読み書き混在 |
-| ロックフリー構造 | CAS 等で非ロック同期 | 超高並行性が求められる場面 |
-| スレッドローカル | 各スレッドに独立コピー | 書き込みが主体の場面 |
+| Lock-free (immutable) | Use immutable data structures | Sharing read-only data |
+| Global lock | Acquire lock for all operations | Low-contention simple sharing |
+| Fine-grained locking | Minimal locking per operation | High-contention read-write mix |
+| Lock-free structures | Non-lock sync via CAS, etc. | Ultra-high concurrency scenarios |
+| Thread-local | Independent copy per thread | Write-heavy scenarios |
 
-Python では GIL（Global Interpreter Lock）の存在により、CPU バウンドな操作ではマルチスレッドの恩恵が限定的だが、I/O バウンドな処理や `multiprocessing` を使う場合には依然として重要な考慮事項である。
+In Python, due to the GIL (Global Interpreter Lock), multi-threading benefits are limited for CPU-bound operations, but it remains an important consideration for I/O-bound processing or when using `multiprocessing`.
 
-`queue.Queue`、`queue.PriorityQueue`、`collections.deque`（両端の append/pop はスレッドセーフ）などは、スレッドセーフなデータ構造として利用できる。
+`queue.Queue`, `queue.PriorityQueue`, and `collections.deque` (append/pop on both ends are thread-safe) can be used as thread-safe data structures.
 
-### 2.6 永続性と直列化
+### 2.6 Persistence and Serialization
 
-データをディスクに保存したり、ネットワーク越しに送受信する場合、直列化（シリアライゼーション）の容易さも選択基準になる。
+When saving data to disk or transmitting it over a network, ease of serialization also becomes a selection criterion.
 
-- **配列・辞書**: JSON、MessagePack、Protocol Buffers 等で容易に直列化可能。
-- **ツリー・グラフ**: ノード間の参照関係の表現に工夫が必要。
-- **カスタム構造**: 独自の直列化ロジックが必要になる場合がある。
+- **Arrays/Dictionaries**: Easily serializable with JSON, MessagePack, Protocol Buffers, etc.
+- **Trees/Graphs**: Require creative representation of inter-node references.
+- **Custom structures**: May require custom serialization logic.
 
-また、永続データ構造（persistent data structure）という概念も存在する。これは変更時に新しいバージョンを作成し、過去のバージョンも参照可能な構造である。関数型プログラミングでよく使われ、Git の内部データモデルもこの概念に基づいている。
+Additionally, the concept of persistent data structures exists. These create new versions on modification while keeping past versions accessible. They are commonly used in functional programming, and Git's internal data model is also based on this concept.
 
 ---
 
-## 3. 主要データ構造の特性比較
+## 3. Characteristics Comparison of Major Data Structures
 
-### 3.1 計算量の総合比較表
+### 3.1 Comprehensive Complexity Comparison Table
 
-以下は、主要データ構造における各操作の計算量を網羅的にまとめた表である。選択の際の基本参照資料として活用できる。
-
-```
-主要データ構造の計算量一覧（平均 / 最悪）:
-
-  ┌──────────────────┬──────────────┬──────────────┬──────────────┬──────────────┬──────────┐
-  │ データ構造        │ アクセス     │ 検索         │ 挿入         │ 削除         │ 空間     │
-  ├──────────────────┼──────────────┼──────────────┼──────────────┼──────────────┼──────────┤
-  │ 静的配列          │ O(1)/O(1)    │ O(n)/O(n)    │ O(n)/O(n)    │ O(n)/O(n)    │ O(n)     │
-  │ 動的配列 (list)   │ O(1)/O(1)    │ O(n)/O(n)    │ O(1)*/O(n)   │ O(n)/O(n)    │ O(n)     │
-  │ 単方向連結リスト  │ O(n)/O(n)    │ O(n)/O(n)    │ O(1)/O(1)    │ O(1)/O(1)    │ O(n)     │
-  │ 双方向連結リスト  │ O(n)/O(n)    │ O(n)/O(n)    │ O(1)/O(1)    │ O(1)/O(1)    │ O(n)     │
-  │ スタック          │ O(n)/O(n)    │ O(n)/O(n)    │ O(1)/O(1)    │ O(1)/O(1)    │ O(n)     │
-  │ キュー            │ O(n)/O(n)    │ O(n)/O(n)    │ O(1)/O(1)    │ O(1)/O(1)    │ O(n)     │
-  │ ハッシュテーブル  │ N/A          │ O(1)/O(n)    │ O(1)/O(n)    │ O(1)/O(n)    │ O(n)     │
-  │ ハッシュセット    │ N/A          │ O(1)/O(n)    │ O(1)/O(n)    │ O(1)/O(n)    │ O(n)     │
-  │ BST（非平衡）    │ O(log n)/O(n)│ O(log n)/O(n)│ O(log n)/O(n)│ O(log n)/O(n)│ O(n)     │
-  │ 平衡BST           │ O(log n)     │ O(log n)     │ O(log n)     │ O(log n)     │ O(n)     │
-  │ 二分ヒープ        │ O(1)†        │ O(n)/O(n)    │ O(log n)     │ O(log n)     │ O(n)     │
-  │ Trie              │ N/A          │ O(m)/O(m)    │ O(m)/O(m)    │ O(m)/O(m)    │ O(SIGMA) │
-  │ B木 / B+木        │ O(log n)     │ O(log n)     │ O(log n)     │ O(log n)     │ O(n)     │
-  │ スキップリスト    │ O(log n)     │ O(log n)     │ O(log n)     │ O(log n)     │ O(n)     │
-  └──────────────────┴──────────────┴──────────────┴──────────────┴──────────────┴──────────┘
-
-  * 末尾追加の償却計算量  † 最小または最大のみ O(1)
-  m = キーの長さ  SIGMA = 全キーの文字数合計
-```
-
-### 3.2 操作別の最適構造
-
-各操作において最適なデータ構造は以下の通りである。
-
-**インデックスアクセス（i 番目の要素を取得）**
-- 最適: 配列 / 動的配列 → O(1)
-- 次点: スキップリスト → O(log n)（インデックス操作を拡張した場合）
-- 不適: 連結リスト → O(n)
-
-**値の検索（指定値の存在確認）**
-- 最適: ハッシュテーブル / ハッシュセット → 期待 O(1)
-- 次点: 平衡 BST / ソート済み配列 → O(log n)
-- 不適: 未ソート配列 / 連結リスト → O(n)
-
-**最小値 / 最大値の取得**
-- 最適: 二分ヒープ → O(1)（片方のみ）
-- 次点: 平衡 BST → O(log n)（両方取得可能）
-- 不適: ハッシュテーブル → O(n)
-
-**範囲検索（a 以上 b 以下の要素を全取得）**
-- 最適: 平衡 BST / B+木 → O(log n + k)（k は結果の個数）
-- 次点: ソート済み配列 + 二分探索 → O(log n + k)
-- 不適: ハッシュテーブル → O(n)
-
-**先頭への挿入 / 削除**
-- 最適: 連結リスト / deque → O(1)
-- 次点: なし
-- 不適: 配列 → O(n)（全要素のシフトが発生）
-
-**ソート順の動的維持**
-- 最適: 平衡 BST / スキップリスト → O(log n)
-- 次点: ソート済み配列（挿入は O(n) だが検索は O(log n)）
-- 不適: ハッシュテーブル（順序を持たない）
-
-### 3.3 Python 標準ライブラリにおける対応
-
-Python の標準ライブラリは、多くのデータ構造を組み込み型やモジュールとして提供している。
+The following is a comprehensive table of operation complexities for major data structures. It can be used as a basic reference for selection.
 
 ```
-Python 標準ライブラリのデータ構造対応:
+Complexity overview of major data structures (average / worst):
 
-  抽象的な構造              Python での実装
-  ──────────────            ──────────────────────────────
-  動的配列                  list
-  不変配列                  tuple
-  ハッシュテーブル          dict
-  ハッシュセット            set / frozenset
-  両端キュー (deque)        collections.deque
-  ヒープ (優先度キュー)     heapq モジュール (list ベース)
-  スタック                  list（末尾 append/pop）
-  FIFO キュー               collections.deque（または queue.Queue）
-  順序付き辞書              dict（3.7+）/ collections.OrderedDict
-  デフォルト辞書            collections.defaultdict
-  カウンタ                  collections.Counter
-  名前付きタプル            collections.namedtuple / typing.NamedTuple
-  不変集合                  frozenset
-  ビット配列                int のビット演算 / array.array
-  型付き配列                array.array / numpy.ndarray（外部）
+  +------------------+--------------+--------------+--------------+--------------+----------+
+  | Data Structure   | Access       | Search       | Insert       | Delete       | Space    |
+  +------------------+--------------+--------------+--------------+--------------+----------+
+  | Static array     | O(1)/O(1)    | O(n)/O(n)    | O(n)/O(n)    | O(n)/O(n)    | O(n)     |
+  | Dynamic array    | O(1)/O(1)    | O(n)/O(n)    | O(1)*/O(n)   | O(n)/O(n)    | O(n)     |
+  | (list)           |              |              |              |              |          |
+  | Singly linked    | O(n)/O(n)    | O(n)/O(n)    | O(1)/O(1)    | O(1)/O(1)    | O(n)     |
+  | list             |              |              |              |              |          |
+  | Doubly linked    | O(n)/O(n)    | O(n)/O(n)    | O(1)/O(1)    | O(1)/O(1)    | O(n)     |
+  | list             |              |              |              |              |          |
+  | Stack            | O(n)/O(n)    | O(n)/O(n)    | O(1)/O(1)    | O(1)/O(1)    | O(n)     |
+  | Queue            | O(n)/O(n)    | O(n)/O(n)    | O(1)/O(1)    | O(1)/O(1)    | O(n)     |
+  | Hash table       | N/A          | O(1)/O(n)    | O(1)/O(n)    | O(1)/O(n)    | O(n)     |
+  | Hash set         | N/A          | O(1)/O(n)    | O(1)/O(n)    | O(1)/O(n)    | O(n)     |
+  | BST (unbalanced) | O(log n)/O(n)| O(log n)/O(n)| O(log n)/O(n)| O(log n)/O(n)| O(n)     |
+  | Balanced BST     | O(log n)     | O(log n)     | O(log n)     | O(log n)     | O(n)     |
+  | Binary heap      | O(1)^        | O(n)/O(n)    | O(log n)     | O(log n)     | O(n)     |
+  | Trie             | N/A          | O(m)/O(m)    | O(m)/O(m)    | O(m)/O(m)    | O(SIGMA) |
+  | B-tree / B+ tree | O(log n)     | O(log n)     | O(log n)     | O(log n)     | O(n)     |
+  | Skip list        | O(log n)     | O(log n)     | O(log n)     | O(log n)     | O(n)     |
+  +------------------+--------------+--------------+--------------+--------------+----------+
 
-  ※ 平衡 BST、Trie、スキップリスト等は標準ライブラリに含まれないため、
-    sortedcontainers（外部）や自前実装が必要
+  * Amortized complexity for tail append  ^ O(1) for min or max only
+  m = key length  SIGMA = total characters across all keys
 ```
 
-### 3.4 言語間の対応関係
+### 3.2 Optimal Structure by Operation
 
-複数言語でプログラミングを行う場合、同等の構造が異なる名前で提供されている点に注意が必要である。
+The optimal data structure for each operation is as follows.
 
-| 抽象構造 | Python | Java | C++ | Go | Rust |
+**Index access (get the i-th element)**
+- Best: Array / Dynamic array -> O(1)
+- Runner-up: Skip list -> O(log n) (with extended index operations)
+- Unsuitable: Linked list -> O(n)
+
+**Value search (check if a value exists)**
+- Best: Hash table / Hash set -> Expected O(1)
+- Runner-up: Balanced BST / Sorted array -> O(log n)
+- Unsuitable: Unsorted array / Linked list -> O(n)
+
+**Min/Max retrieval**
+- Best: Binary heap -> O(1) (one side only)
+- Runner-up: Balanced BST -> O(log n) (can retrieve both)
+- Unsuitable: Hash table -> O(n)
+
+**Range search (get all elements between a and b)**
+- Best: Balanced BST / B+ tree -> O(log n + k) (k is the result count)
+- Runner-up: Sorted array + binary search -> O(log n + k)
+- Unsuitable: Hash table -> O(n)
+
+**Insertion/Deletion at the front**
+- Best: Linked list / deque -> O(1)
+- Runner-up: None
+- Unsuitable: Array -> O(n) (requires shifting all elements)
+
+**Dynamic maintenance of sorted order**
+- Best: Balanced BST / Skip list -> O(log n)
+- Runner-up: Sorted array (insertion is O(n) but search is O(log n))
+- Unsuitable: Hash table (has no order)
+
+### 3.3 Correspondence in Python Standard Library
+
+Python's standard library provides many data structures as built-in types or modules.
+
+```
+Data structure correspondence in Python standard library:
+
+  Abstract Structure            Python Implementation
+  -----------------------       ----------------------------------
+  Dynamic array                 list
+  Immutable array               tuple
+  Hash table                    dict
+  Hash set                      set / frozenset
+  Double-ended queue (deque)    collections.deque
+  Heap (priority queue)         heapq module (list-based)
+  Stack                         list (append/pop at end)
+  FIFO queue                    collections.deque (or queue.Queue)
+  Ordered dictionary            dict (3.7+) / collections.OrderedDict
+  Default dictionary            collections.defaultdict
+  Counter                       collections.Counter
+  Named tuple                   collections.namedtuple / typing.NamedTuple
+  Frozen set                    frozenset
+  Bit array                     int bit operations / array.array
+  Typed array                   array.array / numpy.ndarray (external)
+
+  Note: Balanced BST, Trie, Skip list, etc. are not included in the
+  standard library, requiring sortedcontainers (external) or custom
+  implementations
+```
+
+### 3.4 Cross-Language Correspondence
+
+When programming in multiple languages, note that equivalent structures are provided under different names.
+
+| Abstract Structure | Python | Java | C++ | Go | Rust |
 |---|---|---|---|---|---|
-| 動的配列 | `list` | `ArrayList` | `std::vector` | `slice` | `Vec<T>` |
-| 連結リスト | (自前) | `LinkedList` | `std::list` | `list.List` | `LinkedList<T>` |
-| ハッシュマップ | `dict` | `HashMap` | `std::unordered_map` | `map` | `HashMap<K,V>` |
-| ハッシュセット | `set` | `HashSet` | `std::unordered_set` | (map利用) | `HashSet<T>` |
-| ソート済みマップ | (外部) | `TreeMap` | `std::map` | (外部) | `BTreeMap<K,V>` |
-| ヒープ | `heapq` | `PriorityQueue` | `std::priority_queue` | `heap` | `BinaryHeap<T>` |
-| 両端キュー | `deque` | `ArrayDeque` | `std::deque` | (外部) | `VecDeque<T>` |
-| スタック | `list` | `Stack`/`Deque` | `std::stack` | `slice` | `Vec<T>` |
+| Dynamic array | `list` | `ArrayList` | `std::vector` | `slice` | `Vec<T>` |
+| Linked list | (custom) | `LinkedList` | `std::list` | `list.List` | `LinkedList<T>` |
+| Hash map | `dict` | `HashMap` | `std::unordered_map` | `map` | `HashMap<K,V>` |
+| Hash set | `set` | `HashSet` | `std::unordered_set` | (use map) | `HashSet<T>` |
+| Sorted map | (external) | `TreeMap` | `std::map` | (external) | `BTreeMap<K,V>` |
+| Heap | `heapq` | `PriorityQueue` | `std::priority_queue` | `heap` | `BinaryHeap<T>` |
+| Double-ended queue | `deque` | `ArrayDeque` | `std::deque` | (external) | `VecDeque<T>` |
+| Stack | `list` | `Stack`/`Deque` | `std::stack` | `slice` | `Vec<T>` |
 
 ---
 
-## 4. ユースケース別ガイド
+## 4. Use Case Guide
 
-### 4.1 検索の最適化
+### 4.1 Search Optimization
 
-検索は最も頻繁に行われる操作の一つであり、用途に応じて最適な構造が異なる。
+Search is one of the most frequently performed operations, and the optimal structure differs depending on the use case.
 
-#### 完全一致検索
+#### Exact Match Search
 
-要素が存在するかどうか、またはキーに対応する値を取得する操作。
+Check whether an element exists, or retrieve the value corresponding to a key.
 
-- **推奨**: ハッシュテーブル（`dict`）/ ハッシュセット（`set`）
-- **計算量**: 期待 O(1)
-- **注意点**: ハッシュ関数の品質に依存。最悪 O(n) になる可能性があるが、Python の組み込みハッシュ関数は十分に高品質。
+- **Recommended**: Hash table (`dict`) / Hash set (`set`)
+- **Complexity**: Expected O(1)
+- **Caveat**: Depends on hash function quality. Can degrade to O(n) in the worst case, but Python's built-in hash function is sufficiently high quality.
 
 ```python
 """
-コード例2: 検索パターン別の最適構造
+Code Example 2: Optimal structures for different search patterns
 """
 
 
-# --- 完全一致検索: dict / set が最適 ---
+# --- Exact match search: dict / set are optimal ---
 def build_user_lookup(users: list[dict]) -> dict[int, dict]:
-    """ユーザーリストから ID → ユーザー情報のルックアップテーブルを構築"""
+    """Build an ID -> user info lookup table from a user list"""
     return {user["id"]: user for user in users}
 
 
-# 使用例
+# Usage example
 users = [
     {"id": 1, "name": "Alice", "email": "alice@example.com"},
     {"id": 2, "name": "Bob", "email": "bob@example.com"},
     {"id": 3, "name": "Charlie", "email": "charlie@example.com"},
 ]
 lookup = build_user_lookup(users)
-print(lookup[2])  # O(1) で取得: {'id': 2, 'name': 'Bob', ...}
+print(lookup[2])  # O(1) retrieval: {'id': 2, 'name': 'Bob', ...}
 
 
-# --- 複数条件での検索: 複合インデックスの構築 ---
+# --- Multi-criteria search: Building compound indexes ---
 from collections import defaultdict
 
 
 def build_multi_index(users: list[dict]) -> dict:
-    """複数のキーでインデックスを構築"""
+    """Build indexes on multiple keys"""
     index = {
         "by_id": {},
         "by_email": {},
@@ -404,7 +411,7 @@ def build_multi_index(users: list[dict]) -> dict:
     for user in users:
         index["by_id"][user["id"]] = user
         index["by_email"][user["email"]] = user
-        # 名前の各プレフィックスでインデックス（簡易 Trie 的アプローチ）
+        # Index by each prefix of the name (simplified Trie-like approach)
         name = user["name"].lower()
         for i in range(1, len(name) + 1):
             index["by_name_prefix"][name[:i]].append(user)
@@ -413,41 +420,41 @@ def build_multi_index(users: list[dict]) -> dict:
 
 multi_idx = build_multi_index(users)
 print(multi_idx["by_email"]["bob@example.com"])     # O(1)
-print(multi_idx["by_name_prefix"]["ch"])             # O(1) + 結果数
+print(multi_idx["by_name_prefix"]["ch"])             # O(1) + result count
 ```
 
-#### 範囲検索
+#### Range Search
 
-「10 以上 20 以下」「日付が先月の範囲内」のように、値の範囲に基づいて検索する操作。
+Search based on a range of values, such as "between 10 and 20" or "dates within last month."
 
-- **推奨**: ソート済み配列 + `bisect` / 平衡 BST
-- **計算量**: O(log n + k)（k は結果の個数）
-- **ハッシュテーブルでは不可能**: ハッシュテーブルは順序を持たないため、範囲検索には対応できない。
+- **Recommended**: Sorted array + `bisect` / Balanced BST
+- **Complexity**: O(log n + k) (k is the result count)
+- **Not possible with hash tables**: Hash tables have no order and cannot handle range searches.
 
 ```python
 """
-コード例3: 範囲検索の実装（bisect モジュール活用）
+Code Example 3: Range search implementation (using bisect module)
 """
 import bisect
 from datetime import datetime, timedelta
 
 
 class TimeSeriesIndex:
-    """タイムスタンプベースの範囲検索を効率的に行うインデックス"""
+    """An index for efficient timestamp-based range queries"""
 
     def __init__(self):
         self._timestamps: list[float] = []
         self._values: list[dict] = []
 
     def insert(self, timestamp: datetime, value: dict) -> None:
-        """タイムスタンプ順を維持しながらデータを挿入"""
+        """Insert data while maintaining timestamp order"""
         ts = timestamp.timestamp()
         pos = bisect.bisect_left(self._timestamps, ts)
         self._timestamps.insert(pos, ts)
         self._values.insert(pos, value)
 
     def range_query(self, start: datetime, end: datetime) -> list[dict]:
-        """指定した時間範囲内のデータを取得 - O(log n + k)"""
+        """Retrieve data within the specified time range - O(log n + k)"""
         start_ts = start.timestamp()
         end_ts = end.timestamp()
         left = bisect.bisect_left(self._timestamps, start_ts)
@@ -458,86 +465,86 @@ class TimeSeriesIndex:
         return len(self._timestamps)
 
 
-# 使用例
+# Usage example
 index = TimeSeriesIndex()
 base_time = datetime(2025, 1, 1)
 
-# データ挿入
+# Insert data
 for i in range(1000):
     t = base_time + timedelta(hours=i)
     index.insert(t, {"event_id": i, "time": t.isoformat()})
 
-# 範囲検索: 最初の24時間のイベント
+# Range search: Events in the first 24 hours
 results = index.range_query(
     base_time,
     base_time + timedelta(hours=24)
 )
-print(f"最初の24時間のイベント数: {len(results)}")  # 25
-print(f"最初のイベント: {results[0]}")
-print(f"最後のイベント: {results[-1]}")
+print(f"Events in the first 24 hours: {len(results)}")  # 25
+print(f"First event: {results[0]}")
+print(f"Last event: {results[-1]}")
 ```
 
-#### 前方一致検索（プレフィックス検索）
+#### Prefix Search
 
-- **推奨**: Trie（トライ木）
-- **計算量**: O(m)（m はプレフィックスの長さ）
-- **用途**: オートコンプリート、辞書の前方一致、IP アドレスのルーティングテーブル
+- **Recommended**: Trie
+- **Complexity**: O(m) (m is the prefix length)
+- **Use cases**: Autocomplete, dictionary prefix matching, IP address routing tables
 
-### 4.2 順序付きデータの管理
+### 4.2 Ordered Data Management
 
-データを常にソートされた状態で保持し、動的に追加・削除する必要がある場面。
+Scenarios where data must be kept sorted at all times with dynamic additions and deletions.
 
-| 要件 | 推奨構造 | 理由 |
+| Requirement | Recommended Structure | Reason |
 |---|---|---|
-| 静的データのソート | 配列 + sort | O(n log n) でソート後、O(log n) で検索 |
-| 動的にソート順維持 | 平衡 BST / SortedList | 挿入・削除が O(log n) |
-| Top-K の動的管理 | ヒープ | 挿入 O(log K)、最小/最大取得 O(1) |
-| ランク（順位）クエリ | 順序統計木 | k 番目の要素を O(log n) で取得 |
+| Sort static data | Array + sort | O(n log n) for sorting, then O(log n) for search |
+| Dynamically maintain sorted order | Balanced BST / SortedList | Insert/delete at O(log n) |
+| Dynamic Top-K management | Heap | Insert O(log K), get min/max O(1) |
+| Rank query | Order-statistic tree | Get k-th element at O(log n) |
 
-### 4.3 FIFO / LIFO パターン
+### 4.3 FIFO / LIFO Patterns
 
-#### スタック（LIFO: Last In, First Out）
+#### Stack (LIFO: Last In, First Out)
 
-典型的な用途:
-- 関数呼び出しの管理
-- Undo/Redo 機能
-- 括弧の対応チェック
-- DFS（深さ優先探索）
-- 式の評価（逆ポーランド記法）
+Typical use cases:
+- Function call management
+- Undo/Redo functionality
+- Parenthesis matching
+- DFS (Depth-First Search)
+- Expression evaluation (Reverse Polish Notation)
 
-Python での実装: `list` の `append()` / `pop()` が最もシンプル。
+Python implementation: `list`'s `append()` / `pop()` is simplest.
 
-#### キュー（FIFO: First In, First Out）
+#### Queue (FIFO: First In, First Out)
 
-典型的な用途:
-- タスクキュー / ジョブキュー
-- BFS（幅優先探索）
-- イベント処理
-- バッファリング
+Typical use cases:
+- Task queue / Job queue
+- BFS (Breadth-First Search)
+- Event processing
+- Buffering
 
-Python での実装: `collections.deque` が最適。`list` の `pop(0)` は O(n) なので不適切。
+Python implementation: `collections.deque` is optimal. `list`'s `pop(0)` is O(n) and thus inappropriate.
 
-#### 優先度キュー
+#### Priority Queue
 
-典型的な用途:
-- Dijkstra のアルゴリズム
-- タスクスケジューリング（優先度付き）
-- リアルタイム Top-K
-- イベント駆動シミュレーション
+Typical use cases:
+- Dijkstra's algorithm
+- Task scheduling (with priorities)
+- Real-time Top-K
+- Event-driven simulation
 
-Python での実装: `heapq` モジュール。
+Python implementation: `heapq` module.
 
 ```python
 """
-コード例4: 用途に応じたキュー選択
+Code Example 4: Queue selection based on use case
 """
 import heapq
 from collections import deque
 
 
-# --- 通常のキュー (FIFO): deque ---
+# --- Standard queue (FIFO): deque ---
 class TaskQueue:
-    """単純な先入先出のタスクキュー"""
+    """Simple first-in-first-out task queue"""
 
     def __init__(self):
         self._queue = deque()
@@ -547,20 +554,20 @@ class TaskQueue:
 
     def dequeue(self) -> str:
         if not self._queue:
-            raise IndexError("キューが空です")
+            raise IndexError("Queue is empty")
         return self._queue.popleft()  # O(1)
 
     def __len__(self) -> int:
         return len(self._queue)
 
 
-# --- 優先度キュー: heapq ---
+# --- Priority queue: heapq ---
 class PriorityTaskQueue:
-    """優先度付きタスクキュー（数値が小さいほど高優先度）"""
+    """Priority task queue (lower number = higher priority)"""
 
     def __init__(self):
         self._heap: list[tuple[int, int, str]] = []
-        self._counter = 0  # タイブレーカー（同一優先度の安定性）
+        self._counter = 0  # Tiebreaker (stability for same priority)
 
     def enqueue(self, task: str, priority: int) -> None:
         heapq.heappush(self._heap, (priority, self._counter, task))
@@ -568,13 +575,13 @@ class PriorityTaskQueue:
 
     def dequeue(self) -> tuple[int, str]:
         if not self._heap:
-            raise IndexError("キューが空です")
+            raise IndexError("Queue is empty")
         priority, _, task = heapq.heappop(self._heap)  # O(log n)
         return priority, task
 
     def peek(self) -> tuple[int, str]:
         if not self._heap:
-            raise IndexError("キューが空です")
+            raise IndexError("Queue is empty")
         priority, _, task = self._heap[0]  # O(1)
         return priority, task
 
@@ -582,41 +589,41 @@ class PriorityTaskQueue:
         return len(self._heap)
 
 
-# 使用例
-print("=== 通常のキュー ===")
+# Usage example
+print("=== Standard Queue ===")
 tq = TaskQueue()
-for task in ["メール送信", "ログ出力", "DB更新"]:
+for task in ["Send email", "Write log", "Update DB"]:
     tq.enqueue(task)
 while len(tq) > 0:
-    print(f"  処理: {tq.dequeue()}")
+    print(f"  Processing: {tq.dequeue()}")
 
-print("\n=== 優先度キュー ===")
+print("\n=== Priority Queue ===")
 pq = PriorityTaskQueue()
-pq.enqueue("バグ修正", priority=1)       # 最高優先度
-pq.enqueue("新機能開発", priority=3)     # 低優先度
-pq.enqueue("セキュリティ修正", priority=1)  # 最高優先度
-pq.enqueue("ドキュメント更新", priority=5)  # 最低優先度
-pq.enqueue("パフォーマンス改善", priority=2)
+pq.enqueue("Bug fix", priority=1)              # Highest priority
+pq.enqueue("New feature development", priority=3)  # Low priority
+pq.enqueue("Security fix", priority=1)         # Highest priority
+pq.enqueue("Documentation update", priority=5) # Lowest priority
+pq.enqueue("Performance improvement", priority=2)
 
 while len(pq) > 0:
     pri, task = pq.dequeue()
-    print(f"  優先度 {pri}: {task}")
+    print(f"  Priority {pri}: {task}")
 ```
 
-### 4.4 集合演算
+### 4.4 Set Operations
 
-重複排除、和集合、積集合、差集合などの集合演算が必要な場面。
+Scenarios requiring deduplication, union, intersection, difference, and other set operations.
 
-- **推奨**: `set` / `frozenset`
-- **用途**: タグのフィルタリング、権限管理、データの重複排除、共通要素の抽出
+- **Recommended**: `set` / `frozenset`
+- **Use cases**: Tag filtering, permission management, data deduplication, extracting common elements
 
 ```python
-# 集合演算の活用例
+# Set operation usage examples
 admin_permissions = {"read", "write", "delete", "admin"}
 editor_permissions = {"read", "write"}
 viewer_permissions = {"read"}
 
-# 和集合: ユーザーが持つ全権限
+# Union: All permissions a user has
 user_roles = ["editor", "viewer"]
 all_permissions: set[str] = set()
 role_map = {
@@ -626,49 +633,49 @@ role_map = {
 }
 for role in user_roles:
     all_permissions |= role_map[role]  # O(len(smaller_set))
-print(f"全権限: {all_permissions}")  # {'read', 'write'}
+print(f"All permissions: {all_permissions}")  # {'read', 'write'}
 
-# 積集合: 全ロールに共通の権限
+# Intersection: Permissions common to all roles
 common = admin_permissions & editor_permissions & viewer_permissions
-print(f"共通権限: {common}")  # {'read'}
+print(f"Common permissions: {common}")  # {'read'}
 
-# 差集合: admin だけが持つ権限
+# Difference: Permissions only admin has
 admin_only = admin_permissions - editor_permissions
-print(f"admin固有: {admin_only}")  # {'delete', 'admin'}
+print(f"Admin-only: {admin_only}")  # {'delete', 'admin'}
 ```
 
-### 4.5 キャッシュ
+### 4.5 Caching
 
-アクセス頻度に基づいてデータを保持・排除する必要がある場面。
+Scenarios requiring data retention and eviction based on access frequency.
 
-- **LRU キャッシュ**: `functools.lru_cache` または `collections.OrderedDict`
-- **内部構造**: ハッシュテーブル + 双方向連結リスト
-- **計算量**: get/put ともに O(1)
+- **LRU cache**: `functools.lru_cache` or `collections.OrderedDict`
+- **Internal structure**: Hash table + Doubly linked list
+- **Complexity**: get/put both O(1)
 
-### 4.6 グラフの表現
+### 4.6 Graph Representation
 
-エンティティ間の関係を表現する必要がある場面。
+Scenarios requiring representation of relationships between entities.
 
-| 表現方法 | 適用場面 | 空間計算量 |
+| Representation | Applicable Scenario | Space Complexity |
 |---|---|---|
-| 隣接行列 | 密グラフ、辺の存在確認が頻繁 | O(V^2) |
-| 隣接リスト | 疎グラフ、隣接頂点の列挙が頻繁 | O(V + E) |
-| 辺リスト | Kruskal のアルゴリズム等 | O(E) |
-| 隣接マップ | 重み付きグラフ、辺の存在確認と列挙の両方 | O(V + E) |
+| Adjacency matrix | Dense graphs, frequent edge existence checks | O(V^2) |
+| Adjacency list | Sparse graphs, frequent neighbor enumeration | O(V + E) |
+| Edge list | Kruskal's algorithm, etc. | O(E) |
+| Adjacency map | Weighted graphs, both edge existence and enumeration | O(V + E) |
 
-多くの実用的なグラフ（ソーシャルネットワーク、Web のリンク構造等）は疎グラフであるため、隣接リストまたは隣接マップが第一選択になる。
+Most practical graphs (social networks, web link structures, etc.) are sparse, so adjacency lists or adjacency maps are the default choice.
 
 ---
 
-## 5. 実装例とベンチマーク比較
+## 5. Implementation Examples and Benchmark Comparisons
 
-### 5.1 同一問題に対する異なるデータ構造の適用
+### 5.1 Applying Different Data Structures to the Same Problem
 
-ここでは「重複排除」という具体的な問題に対して、異なるデータ構造を使った解法を比較する。
+Here we compare solutions using different data structures for the specific problem of "deduplication."
 
 ```python
 """
-コード例5: 重複排除の実装比較とベンチマーク
+Code Example 5: Deduplication implementation comparison and benchmark
 """
 import time
 import random
@@ -676,32 +683,32 @@ from typing import Callable
 
 
 def deduplicate_with_list(data: list[int]) -> list[int]:
-    """リストを使った重複排除 - O(n^2)"""
+    """Deduplication using list - O(n^2)"""
     result: list[int] = []
     for item in data:
-        if item not in result:  # O(n) の検索が毎回発生
+        if item not in result:  # O(n) search occurs each time
             result.append(item)
     return result
 
 
 def deduplicate_with_set(data: list[int]) -> list[int]:
-    """セットを使った重複排除（挿入順保持）- O(n)"""
+    """Deduplication using set (preserves insertion order) - O(n)"""
     seen: set[int] = set()
     result: list[int] = []
     for item in data:
-        if item not in seen:  # O(1) の検索
+        if item not in seen:  # O(1) search
             seen.add(item)
             result.append(item)
     return result
 
 
 def deduplicate_with_dict(data: list[int]) -> list[int]:
-    """dictを使った重複排除（Python 3.7+ 挿入順保持）- O(n)"""
+    """Deduplication using dict (Python 3.7+ preserves insertion order) - O(n)"""
     return list(dict.fromkeys(data))
 
 
 def benchmark(func: Callable, data: list[int], label: str) -> float:
-    """関数の実行時間を計測"""
+    """Measure function execution time"""
     start = time.perf_counter()
     result = func(data)
     elapsed = time.perf_counter() - start
@@ -711,46 +718,46 @@ def benchmark(func: Callable, data: list[int], label: str) -> float:
 if __name__ == "__main__":
     random.seed(42)
 
-    print("重複排除ベンチマーク")
+    print("Deduplication Benchmark")
     print("=" * 60)
 
     for size in [100, 1_000, 10_000]:
-        # データの50%が重複するように生成
+        # Generate data with 50% duplicates
         data = [random.randint(0, size // 2) for _ in range(size)]
 
-        print(f"\nデータ件数: {size:>10,}  (ユニーク: 約 {size // 2:,})")
+        print(f"\nData count: {size:>10,}  (unique: ~{size // 2:,})")
         print("-" * 60)
 
-        # リスト方式
+        # List approach
         t_list = benchmark(deduplicate_with_list, data, "list")
-        print(f"  list方式:     {t_list:.6f} 秒")
+        print(f"  list approach:  {t_list:.6f} sec")
 
-        # セット方式
+        # Set approach
         t_set = benchmark(deduplicate_with_set, data, "set")
-        print(f"  set方式:      {t_set:.6f} 秒")
+        print(f"  set approach:   {t_set:.6f} sec")
 
-        # dict方式
+        # Dict approach
         t_dict = benchmark(deduplicate_with_dict, data, "dict")
-        print(f"  dict方式:     {t_dict:.6f} 秒")
+        print(f"  dict approach:  {t_dict:.6f} sec")
 
         if t_set > 0:
-            print(f"  list/set比:   {t_list / t_set:.1f} 倍")
+            print(f"  list/set ratio: {t_list / t_set:.1f}x")
 ```
 
-この例から読み取れるポイント:
+Key takeaways from this example:
 
-1. **小規模 (100 件)**: どの方式でも差はほとんど感じられない。
-2. **中規模 (1,000 件)**: リスト方式が明らかに遅くなり始める。
-3. **大規模 (10,000 件)**: リスト方式は O(n^2) のため壊滅的に遅く、セット/dict 方式と数百倍の差がつく。
+1. **Small scale (100 items)**: Virtually no noticeable difference across approaches.
+2. **Medium scale (1,000 items)**: The list approach begins to show clear slowdown.
+3. **Large scale (10,000 items)**: The list approach is catastrophically slow due to O(n^2), showing hundreds of times difference from set/dict approaches.
 
-### 5.2 LRU キャッシュの実装比較
+### 5.2 LRU Cache Implementation Comparison
 
-キャッシュは多くのシステムで重要なコンポーネントである。ここでは LRU（Least Recently Used）キャッシュを異なるアプローチで実装し、性能を比較する。
+Caching is an important component in many systems. Here we implement an LRU (Least Recently Used) cache using different approaches and compare performance.
 
 ```python
 """
-コード例6: LRU キャッシュの実装
-ハッシュテーブル + 双方向連結リスト による O(1) 実装
+Code Example 6: LRU cache implementation
+O(1) implementation using hash table + doubly linked list
 """
 from collections import OrderedDict
 from typing import Optional, Hashable
@@ -758,17 +765,17 @@ from typing import Optional, Hashable
 
 class LRUCache:
     """
-    OrderedDict を用いた LRU キャッシュ
+    LRU cache using OrderedDict
 
-    OrderedDict は内部的に双方向連結リストを持ち、
-    要素の順序変更を O(1) で行える。
-    これにハッシュテーブルの O(1) 検索を組み合わせることで、
-    get/put ともに O(1) を実現する。
+    OrderedDict internally maintains a doubly linked list,
+    enabling O(1) element order changes.
+    Combined with hash table O(1) lookup,
+    this achieves O(1) for both get and put.
     """
 
     def __init__(self, capacity: int):
         if capacity <= 0:
-            raise ValueError("キャパシティは正の整数を指定してください")
+            raise ValueError("Capacity must be a positive integer")
         self._capacity = capacity
         self._cache: OrderedDict[Hashable, object] = OrderedDict()
         self._hits = 0
@@ -776,11 +783,11 @@ class LRUCache:
 
     def get(self, key: Hashable) -> Optional[object]:
         """
-        キーに対応する値を取得（O(1)）
-        アクセスされた要素は末尾（最新）に移動する
+        Retrieve value for key (O(1))
+        Accessed element is moved to the end (most recent)
         """
         if key in self._cache:
-            self._cache.move_to_end(key)  # O(1): 最新としてマーク
+            self._cache.move_to_end(key)  # O(1): Mark as most recent
             self._hits += 1
             return self._cache[key]
         self._misses += 1
@@ -788,14 +795,14 @@ class LRUCache:
 
     def put(self, key: Hashable, value: object) -> None:
         """
-        キーと値を格納（O(1)）
-        容量超過時は最も古い要素を削除する
+        Store key-value pair (O(1))
+        Evicts the oldest element when capacity is exceeded
         """
         if key in self._cache:
             self._cache.move_to_end(key)
         self._cache[key] = value
         if len(self._cache) > self._capacity:
-            self._cache.popitem(last=False)  # O(1): 最古の要素を削除
+            self._cache.popitem(last=False)  # O(1): Remove oldest element
 
     @property
     def hit_rate(self) -> float:
@@ -810,25 +817,25 @@ class LRUCache:
                 f"hit_rate={self.hit_rate:.2%})")
 
 
-# 使用例
+# Usage example
 cache = LRUCache(capacity=3)
 cache.put("a", 1)
 cache.put("b", 2)
 cache.put("c", 3)
-print(cache.get("a"))   # 1（"a" が最新に）
-cache.put("d", 4)       # 容量超過 → "b" が削除される
-print(cache.get("b"))   # None（削除済み）
+print(cache.get("a"))   # 1 ("a" becomes most recent)
+cache.put("d", 4)       # Capacity exceeded -> "b" is evicted
+print(cache.get("b"))   # None (evicted)
 print(cache.get("c"))   # 3
 print(cache)            # LRUCache(capacity=3, size=3, hit_rate=66.67%)
 ```
 
-### 5.3 データ構造ごとの挿入・検索ベンチマーク
+### 5.3 Insert/Search Benchmark by Data Structure
 
-以下は、主要なデータ構造に対して挿入と検索の性能を比較するベンチマークである。
+The following is a benchmark comparing insertion and search performance across major data structures.
 
 ```python
 """
-コード例7: 主要データ構造の挿入・検索ベンチマーク
+Code Example 7: Insert/search benchmark for major data structures
 """
 import time
 import random
@@ -837,7 +844,7 @@ from collections import deque
 
 
 def benchmark_insert_search(n: int) -> dict:
-    """各データ構造の挿入と検索の所要時間を計測"""
+    """Measure insertion and search time for each data structure"""
     random.seed(42)
     data = [random.randint(0, n * 10) for _ in range(n)]
     queries = [random.randint(0, n * 10) for _ in range(min(n, 10_000))]
@@ -883,7 +890,7 @@ def benchmark_insert_search(n: int) -> dict:
     search_time = time.perf_counter() - start
     results["dict"] = {"insert": insert_time, "search": search_time}
 
-    # --- ソート済みリスト + bisect ---
+    # --- Sorted list + bisect ---
     start = time.perf_counter()
     sorted_lst: list[int] = []
     for item in data:
@@ -901,156 +908,156 @@ def benchmark_insert_search(n: int) -> dict:
 
 
 if __name__ == "__main__":
-    print("データ構造別 挿入・検索ベンチマーク")
+    print("Data Structure Insert/Search Benchmark")
     print("=" * 70)
 
     for n in [1_000, 10_000, 100_000]:
         print(f"\n--- n = {n:,} ---")
         results = benchmark_insert_search(n)
-        print(f"  {'構造':<15} {'挿入(秒)':<15} {'検索(秒)':<15}")
+        print(f"  {'Structure':<15} {'Insert(sec)':<15} {'Search(sec)':<15}")
         print(f"  {'-'*45}")
         for name, times in results.items():
             print(f"  {name:<15} {times['insert']:<15.6f} {times['search']:<15.6f}")
 ```
 
-### 5.4 ベンチマーク結果の解釈指針
+### 5.4 Guidelines for Interpreting Benchmark Results
 
-ベンチマーク結果を解釈する際には、以下の点に留意する。
+When interpreting benchmark results, keep the following points in mind:
 
-1. **定数項の影響**: O(1) のハッシュテーブル検索でも、ハッシュ計算のコストがある。小さな n では O(n) の線形探索のほうが速い場合がある。
-2. **キャッシュ効率**: 配列ベースの構造はメモリ局所性が高く、理論的な計算量以上に高速に動作することがある。
-3. **Python のオーバーヘッド**: Python はインタプリタ言語であるため、各操作に一定のオーバーヘッドがかかる。C 拡張で実装された組み込み型（`list`、`dict`、`set`）は純 Python 実装より大幅に高速。
-4. **ガベージコレクション**: Python の GC が計測中に動作すると、結果にブレが生じる。`gc.disable()` で一時停止するか、複数回計測して中央値を取ることが望ましい。
+1. **Constant factor effects**: Even O(1) hash table lookups have hash computation costs. For small n, O(n) linear search may be faster.
+2. **Cache efficiency**: Array-based structures have high memory locality and may perform faster than theoretical complexity suggests.
+3. **Python overhead**: As an interpreted language, Python incurs overhead per operation. Built-in types (`list`, `dict`, `set`) implemented as C extensions are significantly faster than pure Python implementations.
+4. **Garbage collection**: If Python's GC runs during measurement, results may fluctuate. It is advisable to temporarily disable it with `gc.disable()` or take the median of multiple measurements.
 
 ---
 
-## 6. 選択フローチャート
+## 6. Selection Flowchart
 
-### 6.1 基本フローチャート
+### 6.1 Basic Flowchart
 
-以下のフローチャートは、データ構造選択の基本的な判断プロセスを視覚化したものである。
-
-```
-データ構造選択の判断フロー（詳細版）:
-
-  START: どのような操作が支配的か？
-  │
-  ├─ キーによる検索が主体 ─────────────────────┐
-  │                                             │
-  │  Q: 順序は必要？                             │
-  │  ├── No ──→ ハッシュテーブル (dict)          │
-  │  │          期待 O(1) 検索/挿入/削除         │
-  │  │                                           │
-  │  └── Yes ─→ Q: 範囲検索も必要？             │
-  │             ├── Yes ──→ 平衡 BST / B+木     │
-  │             │           O(log n) + O(k)      │
-  │             └── No ───→ ソート済み配列       │
-  │                         + bisect             │
-  │                         O(log n) 検索        │
-  │                                              │
-  ├─ 存在確認が主体 ─────────────────────────────┤
-  │                                              │
-  │  Q: 厳密な結果が必要？                       │
-  │  ├── Yes ──→ ハッシュセット (set)            │
-  │  │           期待 O(1)                       │
-  │  └── No ───→ Q: 大量データ＋メモリ制約？     │
-  │              ├── Yes ──→ Bloom Filter        │
-  │              │           空間効率的、偽陽性あり│
-  │              └── No ───→ ハッシュセット (set) │
-  │                                              │
-  ├─ 順序付き処理が主体 ─────────────────────────┤
-  │                                              │
-  │  Q: どのような順序？                         │
-  │  ├── LIFO ──────→ スタック (list)            │
-  │  ├── FIFO ──────→ キュー (deque)             │
-  │  ├── 優先度付き ─→ ヒープ (heapq)            │
-  │  └── 両端操作 ──→ 両端キュー (deque)         │
-  │                                              │
-  ├─ ソート順の動的維持が主体 ───────────────────┤
-  │                                              │
-  │  Q: 挿入頻度は？                             │
-  │  ├── 高頻度 ──→ 平衡 BST / SortedList       │
-  │  │              O(log n) 挿入/削除           │
-  │  └── 低頻度 ──→ 配列 + 定期的ソート         │
-  │                  挿入 O(n)、ソート O(n log n)│
-  │                                              │
-  ├─ 順次アクセス / ランダムアクセスが主体 ──────┤
-  │                                              │
-  │  Q: サイズは固定？                           │
-  │  ├── Yes ──→ 配列 / tuple                    │
-  │  │           O(1) アクセス、メモリ効率良好   │
-  │  └── No ───→ 動的配列 (list)                 │
-  │              O(1) 末尾追加（償却）            │
-  │                                              │
-  └─ 関係性の表現が主体 ─────────────────────────┘
-     │
-     Q: グラフの密度は？
-     ├── 密 ──→ 隣接行列
-     │          O(1) 辺の存在確認
-     └── 疎 ──→ 隣接リスト / 隣接マップ
-                O(V + E) 空間
-```
-
-### 6.2 ユースケース別クイックリファレンス
+The following flowchart visualizes the basic decision process for data structure selection.
 
 ```
-ユースケース別 推奨データ構造クイックリファレンス:
+Data structure selection decision flow (detailed):
 
-  ┌──────────────────────────────┬─────────────────────────────┐
-  │ ユースケース                 │ 推奨データ構造               │
-  ├──────────────────────────────┼─────────────────────────────┤
-  │ ユーザー一覧の表示           │ list（動的配列）            │
-  │ ID からユーザーを検索        │ dict（ハッシュテーブル）    │
-  │ ユーザー名の重複チェック     │ set（ハッシュセット）       │
-  │ ランキング（Top-K）          │ heapq（二分ヒープ）        │
-  │ Undo / Redo                  │ list（スタック）× 2        │
-  │ タスクキュー                 │ deque または heapq          │
-  │ オートコンプリート           │ Trie                        │
-  │ 範囲検索（日付、金額等）     │ SortedList / 平衡 BST      │
-  │ LRU キャッシュ               │ OrderedDict                 │
-  │ グラフの最短経路             │ 隣接リスト + heapq          │
-  │ 大量データの存在確認         │ Bloom Filter                │
-  │ 設定値の管理                 │ dict                        │
-  │ イベントログ                 │ deque（maxlen 指定）        │
-  │ 式の解析（構文木）           │ ツリー構造                  │
-  │ データベースのインデックス   │ B+木                        │
-  │ ネットワークルーティング     │ Trie / 基数木               │
-  │ リアルタイム中央値           │ 2 つのヒープ（最大 + 最小） │
-  │ 区間の重なり判定             │ 区間木                      │
-  │ 文字列の部分一致             │ 接尾辞木 / 接尾辞配列      │
-  └──────────────────────────────┴─────────────────────────────┘
+  START: What operation is dominant?
+  |
+  +-- Key-based search is primary -----------------------+
+  |                                                      |
+  |  Q: Is order needed?                                 |
+  |  +-- No --> Hash table (dict)                        |
+  |  |          Expected O(1) search/insert/delete       |
+  |  |                                                   |
+  |  +-- Yes -> Q: Is range search also needed?          |
+  |             +-- Yes --> Balanced BST / B+ tree        |
+  |             |           O(log n) + O(k)              |
+  |             +-- No ---> Sorted array                 |
+  |                         + bisect                     |
+  |                         O(log n) search              |
+  |                                                      |
+  +-- Existence check is primary -------------------------+
+  |                                                      |
+  |  Q: Are exact results needed?                        |
+  |  +-- Yes --> Hash set (set)                          |
+  |  |           Expected O(1)                           |
+  |  +-- No ---> Q: Large data + memory constraints?     |
+  |              +-- Yes --> Bloom Filter                 |
+  |              |           Space-efficient, FP possible |
+  |              +-- No ---> Hash set (set)              |
+  |                                                      |
+  +-- Ordered processing is primary ----------------------+
+  |                                                      |
+  |  Q: What kind of order?                              |
+  |  +-- LIFO --------> Stack (list)                     |
+  |  +-- FIFO --------> Queue (deque)                    |
+  |  +-- Priority -----> Heap (heapq)                    |
+  |  +-- Both ends ----> Deque (deque)                   |
+  |                                                      |
+  +-- Dynamic sorted order maintenance is primary --------+
+  |                                                      |
+  |  Q: Insertion frequency?                             |
+  |  +-- High -----> Balanced BST / SortedList           |
+  |  |               O(log n) insert/delete              |
+  |  +-- Low ------> Array + periodic sort               |
+  |                   Insert O(n), sort O(n log n)       |
+  |                                                      |
+  +-- Sequential / random access is primary ---------------+
+  |                                                      |
+  |  Q: Is size fixed?                                   |
+  |  +-- Yes --> Array / tuple                           |
+  |  |           O(1) access, good memory efficiency     |
+  |  +-- No ---> Dynamic array (list)                    |
+  |              O(1) tail append (amortized)             |
+  |                                                      |
+  +-- Relationship representation is primary ---------------+
+     |
+     Q: Graph density?
+     +-- Dense --> Adjacency matrix
+     |             O(1) edge existence check
+     +-- Sparse -> Adjacency list / Adjacency map
+                   O(V + E) space
 ```
 
-### 6.3 判断に迷った場合の黄金ルール
+### 6.2 Quick Reference by Use Case
 
-データ構造の選択に迷った場合は、以下のルールに従う。
+```
+Quick reference of recommended data structures by use case:
 
-**ルール1: まず配列かハッシュテーブルを検討する**
+  +------------------------------+-----------------------------+
+  | Use Case                     | Recommended Data Structure  |
+  +------------------------------+-----------------------------+
+  | Display user list            | list (dynamic array)        |
+  | Look up user by ID          | dict (hash table)           |
+  | Check username uniqueness    | set (hash set)              |
+  | Ranking (Top-K)             | heapq (binary heap)         |
+  | Undo / Redo                 | list (stack) x 2            |
+  | Task queue                  | deque or heapq              |
+  | Autocomplete                | Trie                        |
+  | Range search (date, price)  | SortedList / Balanced BST   |
+  | LRU cache                   | OrderedDict                 |
+  | Shortest path in graph      | Adjacency list + heapq      |
+  | Existence check on big data | Bloom Filter                |
+  | Configuration management    | dict                        |
+  | Event log                   | deque (with maxlen)         |
+  | Expression parsing (AST)    | Tree structure              |
+  | Database index              | B+ tree                     |
+  | Network routing             | Trie / Radix tree           |
+  | Real-time median            | Two heaps (max + min)       |
+  | Interval overlap detection  | Interval tree               |
+  | Substring matching          | Suffix tree / Suffix array  |
+  +------------------------------+-----------------------------+
+```
 
-実務の 90% 以上の場面は、配列（`list`）またはハッシュテーブル（`dict` / `set`）で十分に対応できる。特殊な構造が必要になるのは、明確な性能要件がある場合に限られる。
+### 6.3 Golden Rules When in Doubt
 
-**ルール2: 計測なき最適化は避ける**
+When uncertain about data structure selection, follow these rules.
 
-「リストでは遅いに違いない」という直感だけでデータ構造を変更してはならない。まず計測し、ボトルネックを特定してから最適化を行う。小規模データに対する過度な最適化は、可読性を犠牲にするだけで実益がない。
+**Rule 1: First consider arrays or hash tables**
 
-**ルール3: 将来の拡張を 1 段階だけ見据える**
+More than 90% of real-world scenarios can be adequately handled with arrays (`list`) or hash tables (`dict` / `set`). Special structures are only needed when there are clear performance requirements.
 
-現在の要件だけでなく、近い将来に追加されそうな要件を 1 段階だけ先読みする。ただし、YAGNI（You Ain't Gonna Need It）原則に従い、2 段階以上先の最適化は行わない。
+**Rule 2: Avoid optimization without measurement**
 
-**ルール4: 抽象化層を設ける**
+Do not change data structures based solely on the intuition that "lists must be slow." First measure, identify the bottleneck, then optimize. Over-optimization for small-scale data only sacrifices readability with no practical benefit.
 
-データ構造を直接公開 API に露出させず、抽象化層（クラスやインターフェース）を挟む。これにより、後からデータ構造を変更する際の影響範囲を最小化できる。
+**Rule 3: Look ahead by exactly one step**
+
+Consider not only current requirements but requirements that are likely to be added in the near future -- but only one step ahead. Following the YAGNI (You Ain't Gonna Need It) principle, do not optimize for more than two steps ahead.
+
+**Rule 4: Provide an abstraction layer**
+
+Do not directly expose internal data structures in public APIs. Instead, interpose an abstraction layer (class or interface). This minimizes the impact radius when changing data structures later.
 
 ```python
-# 悪い例: データ構造を直接公開
+# Bad example: Exposing data structure directly
 class UserService:
     def __init__(self):
-        self.users: list[dict] = []  # 内部構造が外部に露出
+        self.users: list[dict] = []  # Internal structure exposed externally
 
-# 良い例: 抽象化層を設ける
+# Good example: Providing an abstraction layer
 class UserRepository:
     def __init__(self):
-        self._users_by_id: dict[int, dict] = {}  # 内部構造は非公開
+        self._users_by_id: dict[int, dict] = {}  # Internal structure is private
 
     def add(self, user: dict) -> None:
         self._users_by_id[user["id"]] = user
@@ -1064,56 +1071,56 @@ class UserRepository:
 
 ---
 
-## 7. アンチパターン
+## 7. Anti-Patterns
 
-データ構造の選択において、頻繁に見られる誤りをアンチパターンとして整理する。これらを認識することで、設計段階での失敗を防ぐことができる。
+Common mistakes in data structure selection are organized as anti-patterns. Recognizing these helps prevent failures at the design stage.
 
-### 7.1 アンチパターン1: 何でもリスト症候群
+### 7.1 Anti-Pattern 1: The "Everything Is a List" Syndrome
 
-**症状**: あらゆる場面で `list` を使い、他のデータ構造を検討しない。
+**Symptom**: Using `list` for every situation without considering other data structures.
 
-**根本原因**: リストは最も親しみやすいデータ構造であるため、無意識に選択してしまう。特に入門者に多い傾向がある。
+**Root cause**: Lists are the most familiar data structure, leading to unconscious selection. Particularly common among beginners.
 
-**具体例と修正**:
+**Example and fix**:
 
 ```python
 # ============================================================
-# アンチパターン: 何でもリストで処理する
+# Anti-pattern: Processing everything with lists
 # ============================================================
 
-# --- 問題のあるコード ---
+# --- Problematic code ---
 def find_duplicates_bad(items: list[str]) -> list[str]:
-    """重複する要素を見つける（アンチパターン）"""
+    """Find duplicate elements (anti-pattern)"""
     duplicates = []
     for i, item in enumerate(items):
-        if item in items[i + 1:]:       # O(n) の検索が毎回
-            if item not in duplicates:   # O(n) の検索が毎回
+        if item in items[i + 1:]:       # O(n) search each time
+            if item not in duplicates:   # O(n) search each time
                 duplicates.append(item)
     return duplicates
-    # 全体の計算量: O(n^3) ← 壊滅的に遅い
+    # Overall complexity: O(n^3) <- catastrophically slow
 
 
-# --- 修正後のコード ---
+# --- Fixed code ---
 def find_duplicates_good(items: list[str]) -> list[str]:
-    """重複する要素を見つける（改善版）"""
+    """Find duplicate elements (improved)"""
     seen: set[str] = set()
     duplicates: set[str] = set()
     for item in items:
-        if item in seen:          # O(1) の検索
-            duplicates.add(item)  # O(1) の挿入
+        if item in seen:          # O(1) search
+            duplicates.add(item)  # O(1) insertion
         else:
-            seen.add(item)        # O(1) の挿入
+            seen.add(item)        # O(1) insertion
     return list(duplicates)
-    # 全体の計算量: O(n) ← 線形時間
+    # Overall complexity: O(n) <- linear time
 
 
-# --- 性能差の検証 ---
+# --- Performance verification ---
 import time
 import random
 import string
 
 def generate_random_strings(n: int, length: int = 5) -> list[str]:
-    """ランダムな文字列リストを生成"""
+    """Generate a random string list"""
     return ["".join(random.choices(string.ascii_lowercase, k=length))
             for _ in range(n)]
 
@@ -1131,37 +1138,37 @@ if __name__ == "__main__":
         t_good = time.perf_counter() - start
 
         print(f"n={size:>5,}: "
-              f"list方式={t_bad:.4f}s, set方式={t_good:.6f}s, "
-              f"比率={t_bad/max(t_good, 1e-9):.0f}倍")
+              f"list approach={t_bad:.4f}s, set approach={t_good:.6f}s, "
+              f"ratio={t_bad/max(t_good, 1e-9):.0f}x")
 ```
 
-**識別のポイント**:
-- `if x in some_list` が頻繁に登場する
-- リスト内のリニアサーチがループの中にネストされている
-- `list.index()` や `list.count()` が頻繁に呼ばれる
+**Identification points**:
+- `if x in some_list` appears frequently
+- Linear searches within lists are nested inside loops
+- `list.index()` or `list.count()` are called frequently
 
-**修正方針**: 存在確認には `set`、キーによる検索には `dict` を使う。
+**Fix strategy**: Use `set` for existence checks, `dict` for key-based lookups.
 
-### 7.2 アンチパターン2: 過剰な最適化（Premature Optimization）
+### 7.2 Anti-Pattern 2: Premature Optimization
 
-**症状**: データ件数が少ないにもかかわらず、複雑なデータ構造を導入する。
+**Symptom**: Introducing complex data structures despite small data volumes.
 
-**根本原因**: 計算量の理論的な優位性にのみ注目し、実際のデータ規模や可読性への影響を考慮しない。
+**Root cause**: Focusing only on theoretical complexity advantages without considering actual data scale or readability impact.
 
-**具体例と修正**:
+**Example and fix**:
 
 ```python
 # ============================================================
-# アンチパターン: 過剰な最適化
+# Anti-pattern: Premature optimization
 # ============================================================
 
-# --- 問題のあるコード: 設定値の管理に B+木を使う ---
-# 設定項目は多くても数十件程度
-# B+木の実装コストと保守コストが見合わない
+# --- Problematic code: Using B+ tree for configuration management ---
+# Configuration items are at most a few dozen
+# The implementation and maintenance cost of a B+ tree is not justified
 
 # class ConfigStore:
 #     def __init__(self):
-#         self._btree = BPlusTree(order=4)  # 数十件のデータに B+木...
+#         self._btree = BPlusTree(order=4)  # B+ tree for dozens of items...
 #
 #     def get(self, key: str) -> str:
 #         return self._btree.search(key)
@@ -1170,9 +1177,9 @@ if __name__ == "__main__":
 #         self._btree.insert(key, value)
 
 
-# --- 修正後のコード: 単純な dict で十分 ---
+# --- Fixed code: A simple dict suffices ---
 class ConfigStore:
-    """アプリケーション設定の管理（数十件程度を想定）"""
+    """Application configuration management (assuming a few dozen items)"""
 
     def __init__(self):
         self._config: dict[str, str] = {}
@@ -1187,43 +1194,43 @@ class ConfigStore:
         return dict(self._config)
 ```
 
-**識別のポイント**:
-- データ件数が 100 件未満なのに、自前のツリー構造やスキップリストを実装している
-- 「将来的に数百万件になるかもしれない」という根拠のない仮定に基づいている
-- 可読性やテストの容易さが著しく低下している
+**Identification points**:
+- Custom tree structures or skip lists implemented for fewer than 100 items
+- Based on unfounded assumptions like "it might grow to millions in the future"
+- Readability and testability are significantly degraded
 
-**修正方針**: YAGNI 原則に従い、現在の要件と現実的な将来の規模に基づいて選択する。必要になったタイミングで最適化すればよい。
+**Fix strategy**: Follow the YAGNI principle and select based on current requirements and realistic future scale. Optimize when the need actually arises.
 
-### 7.3 アンチパターン3: list.pop(0) の多用
+### 7.3 Anti-Pattern 3: Overuse of list.pop(0)
 
-**症状**: `list` を FIFO キューとして使い、`pop(0)` で先頭要素を取り出す。
+**Symptom**: Using `list` as a FIFO queue, removing head elements with `pop(0)`.
 
-**根本原因**: `list.pop()` が O(1) であることから、`list.pop(0)` も O(1) だと誤解している。
+**Root cause**: Assuming `list.pop(0)` is O(1) because `list.pop()` is O(1).
 
-**問題**: `list.pop(0)` は全要素を 1 つずつ前にシフトする必要があるため、O(n) の計算量がかかる。n 回の操作で O(n^2) になる。
+**Problem**: `list.pop(0)` requires shifting all elements forward by one position, resulting in O(n) complexity. Over n operations, this becomes O(n^2).
 
 ```python
-# --- アンチパターン ---
+# --- Anti-pattern ---
 queue_bad: list[int] = list(range(10_000))
 while queue_bad:
-    item = queue_bad.pop(0)  # O(n) × n 回 = O(n^2)
+    item = queue_bad.pop(0)  # O(n) x n times = O(n^2)
 
-# --- 修正 ---
+# --- Fix ---
 from collections import deque
 queue_good: deque[int] = deque(range(10_000))
 while queue_good:
-    item = queue_good.popleft()  # O(1) × n 回 = O(n)
+    item = queue_good.popleft()  # O(1) x n times = O(n)
 ```
 
-### 7.4 アンチパターン4: ネストされた dict の乱用
+### 7.4 Anti-Pattern 4: Abuse of Nested Dicts
 
-**症状**: 複雑なデータ関係を深くネストされた辞書で表現する。
+**Symptom**: Expressing complex data relationships with deeply nested dictionaries.
 
-**根本原因**: クラスやデータクラスの設計を避け、場当たり的に `dict` を重ねていく。
+**Root cause**: Avoiding class or dataclass design, piling up `dict` layers ad hoc.
 
 ```python
-# --- アンチパターン ---
-# 何の構造なのか、型が不明、typo に気づけない
+# --- Anti-pattern ---
+# Structure is unclear, types are unknown, typos go unnoticed
 user = {
     "profile": {
         "name": "Alice",
@@ -1239,9 +1246,9 @@ user = {
         }
     }
 }
-# user["profile"]["adress"]["city"]  # typo に気づけない（KeyError）
+# user["profile"]["adress"]["city"]  # Typo goes unnoticed (KeyError)
 
-# --- 修正: データクラスを使う ---
+# --- Fix: Use dataclasses ---
 from dataclasses import dataclass
 
 @dataclass
@@ -1268,7 +1275,7 @@ class User:
     profile: UserProfile
     settings: UserSettings
 
-# 型チェッカーが typo を検出してくれる
+# Type checker catches typos
 user_obj = User(
     profile=UserProfile(
         name="Alice",
@@ -1278,55 +1285,55 @@ user_obj = User(
         notifications=NotificationSettings(email=True, push=False)
     )
 )
-print(user_obj.profile.address.city)  # IDE の補完が効く
+print(user_obj.profile.address.city)  # IDE autocompletion works
 ```
 
-### 7.5 アンチパターン5: 不変データに可変構造を使う
+### 7.5 Anti-Pattern 5: Using Mutable Structures for Immutable Data
 
-**症状**: 変更されないデータに `list` や `dict` を使い、意図しない変更のリスクを残す。
+**Symptom**: Using `list` or `dict` for data that is never modified, leaving risk of unintended changes.
 
-**修正**: `tuple`、`frozenset`、`types.MappingProxyType` などの不変構造を使う。
+**Fix**: Use immutable structures such as `tuple`, `frozenset`, `types.MappingProxyType`.
 
 ```python
-# --- アンチパターン ---
+# --- Anti-pattern ---
 WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-# 誰かが WEEKDAYS.append("Holiday") すると全体が壊れる
+# If someone does WEEKDAYS.append("Holiday"), everything breaks
 
-# --- 修正 ---
+# --- Fix ---
 WEEKDAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
-# tuple は不変なので append できない → 安全
+# tuple is immutable, so append is not possible -> safe
 ```
 
-### 7.6 アンチパターンの一覧表
+### 7.6 Anti-Pattern Summary Table
 
-| アンチパターン | 症状 | 計算量への影響 | 修正方針 |
+| Anti-Pattern | Symptom | Impact on Complexity | Fix Strategy |
 |---|---|---|---|
-| 何でもリスト | `in list` の多用 | O(n) → O(1) | `set` / `dict` に変更 |
-| 過剰な最適化 | 小データに複雑構造 | 変わらないが保守性低下 | 単純な構造に戻す |
-| list.pop(0) | FIFO にリスト使用 | O(n^2) → O(n) | `deque` に変更 |
-| ネスト dict 乱用 | 深い辞書のネスト | 変わらないが型安全性低下 | データクラスに変更 |
-| 可変構造の誤用 | 定数に list/dict | バグの温床 | 不変構造に変更 |
+| Everything is a list | Frequent `in list` | O(n) -> O(1) | Switch to `set` / `dict` |
+| Premature optimization | Complex structure for small data | No change but maintainability drops | Revert to simple structure |
+| list.pop(0) | Using list as FIFO | O(n^2) -> O(n) | Switch to `deque` |
+| Nested dict abuse | Deep dictionary nesting | No change but type safety drops | Switch to dataclasses |
+| Mutable structure misuse | Constants as list/dict | Breeding ground for bugs | Switch to immutable structures |
 
 ---
 
-## 8. 演習問題
+## 8. Exercises
 
-### 演習1: 要件分析（基礎）
+### Exercise 1: Requirements Analysis (Basics)
 
-以下の各要件に対して、最適なデータ構造を選び、選択理由を O 記法を用いて説明せよ。
+For each of the following requirements, select the optimal data structure and explain the rationale using Big-O notation.
 
-**問題 1-1**: 直近 100 件のログを保持し、古いものから自動的に削除したい。
+**Problem 1-1**: Keep the most recent 100 log entries and automatically discard old ones.
 
 <details>
-<summary>解答例</summary>
+<summary>Solution</summary>
 
-**推奨**: `collections.deque(maxlen=100)`
+**Recommended**: `collections.deque(maxlen=100)`
 
-**理由**:
-- `deque` は両端の追加・削除が O(1) で行える
-- `maxlen` を指定すると、容量超過時に自動的に反対端の要素が削除される
-- FIFO（先入先出）のセマンティクスが自然に表現される
-- `list` でも実現可能だが、先頭の削除は O(n) となるため不適切
+**Rationale**:
+- `deque` performs additions and removals at both ends in O(1)
+- With `maxlen` specified, elements are automatically removed from the opposite end when capacity is exceeded
+- FIFO (first-in-first-out) semantics are naturally expressed
+- Can be achieved with `list` too, but head removal is O(n), making it inappropriate
 
 ```python
 from collections import deque
@@ -1335,58 +1342,58 @@ log_buffer = deque(maxlen=100)
 for i in range(200):
     log_buffer.append(f"log entry {i}")
 # len(log_buffer) == 100
-# log_buffer[0] == "log entry 100"（最古）
-# log_buffer[-1] == "log entry 199"（最新）
+# log_buffer[0] == "log entry 100" (oldest)
+# log_buffer[-1] == "log entry 199" (newest)
 ```
 
 </details>
 
-**問題 1-2**: 英単語辞書（約 30 万語）から、入力された文字列に前方一致する単語をすべて取得したい。
+**Problem 1-2**: From an English dictionary (~300,000 words), retrieve all words that prefix-match a given input string.
 
 <details>
-<summary>解答例</summary>
+<summary>Solution</summary>
 
-**推奨**: Trie（トライ木）
+**Recommended**: Trie
 
-**理由**:
-- Trie は前方一致検索に特化した構造で、プレフィックスの長さ m に対して O(m) で検索ノードに到達できる
-- 到達後、その部分木を走査することで全一致単語を O(k)（k は結果数）で列挙できる
-- ハッシュテーブルでは全キーに対する前方一致チェックが必要となり O(n) かかる
-- ソート済み配列 + bisect でも O(log n + k) で実現可能だが、Trie のほうがプレフィックス操作に特化しており効率的
+**Rationale**:
+- Trie is specialized for prefix searches, reaching the search node in O(m) for prefix length m
+- After reaching the node, all matching words can be enumerated in O(k) (k is the result count) by traversing the subtree
+- With a hash table, prefix matching against all keys requires O(n)
+- Sorted array + bisect can also achieve O(log n + k), but Trie is more efficient for prefix operations
 
-**補足**: `sortedcontainers.SortedList` を使えば、Trie を自前実装せずとも `irange` メソッドで近似的な前方一致検索が可能。実務では実装コストとのバランスも考慮する。
+**Note**: Using `sortedcontainers.SortedList`, an approximate prefix search is possible via the `irange` method without implementing a Trie from scratch. In practice, the balance with implementation cost should also be considered.
 
 </details>
 
-**問題 1-3**: ストリーミングデータに対して、リアルタイムで中央値を計算したい。
+**Problem 1-3**: Compute the median in real-time from streaming data.
 
 <details>
-<summary>解答例</summary>
+<summary>Solution</summary>
 
-**推奨**: 2 つのヒープ（最大ヒープ + 最小ヒープ）
+**Recommended**: Two heaps (max-heap + min-heap)
 
-**理由**:
-- 最大ヒープ（下位半分を管理）と最小ヒープ（上位半分を管理）を組み合わせる
-- データ追加: O(log n)（ヒープへの挿入とバランス調整）
-- 中央値取得: O(1)（両ヒープの先頭を参照するだけ）
-- ソート済み配列だと挿入が O(n)、平衡 BST でも O(log n) だが実装が複雑
+**Rationale**:
+- Combine a max-heap (managing the lower half) with a min-heap (managing the upper half)
+- Data insertion: O(log n) (heap insertion and balance adjustment)
+- Median retrieval: O(1) (just reference the tops of both heaps)
+- Sorted array would require O(n) for insertion; balanced BST also O(log n) but more complex to implement
 
 ```python
 import heapq
 
 class MedianFinder:
-    """2 つのヒープを使ったリアルタイム中央値計算"""
+    """Real-time median computation using two heaps"""
 
     def __init__(self):
-        self._max_heap: list[int] = []  # 下位半分（符号反転で最大ヒープ）
-        self._min_heap: list[int] = []  # 上位半分
+        self._max_heap: list[int] = []  # Lower half (sign-inverted for max-heap)
+        self._min_heap: list[int] = []  # Upper half
 
     def add(self, num: int) -> None:
-        # まず最大ヒープに追加
+        # First add to max-heap
         heapq.heappush(self._max_heap, -num)
-        # 最大ヒープの最大値を最小ヒープに移動
+        # Move max-heap's max to min-heap
         heapq.heappush(self._min_heap, -heapq.heappop(self._max_heap))
-        # サイズバランス: 最大ヒープのサイズ >= 最小ヒープのサイズ
+        # Size balance: max-heap size >= min-heap size
         if len(self._min_heap) > len(self._max_heap):
             heapq.heappush(self._max_heap, -heapq.heappop(self._min_heap))
 
@@ -1399,54 +1406,54 @@ class MedianFinder:
 mf = MedianFinder()
 for num in [5, 2, 8, 1, 9]:
     mf.add(num)
-    print(f"追加: {num}, 中央値: {mf.median()}")
-# 追加: 5, 中央値: 5.0
-# 追加: 2, 中央値: 3.5
-# 追加: 8, 中央値: 5.0
-# 追加: 1, 中央値: 3.5
-# 追加: 9, 中央値: 5.0
+    print(f"Added: {num}, Median: {mf.median()}")
+# Added: 5, Median: 5.0
+# Added: 2, Median: 3.5
+# Added: 8, Median: 5.0
+# Added: 1, Median: 3.5
+# Added: 9, Median: 5.0
 ```
 
 </details>
 
-**問題 1-4**: ゲームのリーダーボード（ランキング）を管理し、スコア更新とランク取得を効率的に行いたい。
+**Problem 1-4**: Manage a game leaderboard (ranking) and efficiently perform score updates and rank retrieval.
 
 <details>
-<summary>解答例</summary>
+<summary>Solution</summary>
 
-**推奨**: 平衡 BST（`sortedcontainers.SortedList`）またはスキップリスト
+**Recommended**: Balanced BST (`sortedcontainers.SortedList`) or Skip list
 
-**理由**:
-- スコア更新（削除 + 挿入）: O(log n)
-- ランク取得（指定スコア以上の要素数）: O(log n)
-- Top-K 取得: O(K)（末尾からの走査）
-- ハッシュテーブルではランク計算が O(n)、ヒープでは任意のスコア更新が困難
+**Rationale**:
+- Score update (delete + insert): O(log n)
+- Rank retrieval (count of elements above a given score): O(log n)
+- Top-K retrieval: O(K) (traversal from the end)
+- Hash table requires O(n) for rank computation; heaps make arbitrary score updates difficult
 
 </details>
 
-### 演習2: 設計問題（応用）
+### Exercise 2: Design Problems (Applied)
 
-**問題 2-1**: SNS のタイムライン機能を設計せよ。
+**Problem 2-1**: Design a timeline feature for a social network.
 
-以下の要件を満たすデータ構造を設計し、各操作の計算量を示すこと。
+Design data structures that satisfy the following requirements, and show the complexity of each operation.
 
-- ユーザーが投稿を作成できる（テキスト + タイムスタンプ）
-- ユーザーは他のユーザーをフォローできる
-- タイムライン取得: フォローしているユーザーの投稿を新しい順に最大 20 件取得
-- 投稿数: 1 ユーザーあたり最大数千件、全体で数百万件を想定
+- Users can create posts (text + timestamp)
+- Users can follow other users
+- Timeline retrieval: Get up to 20 most recent posts from followed users
+- Post count: Up to several thousand per user, millions total expected
 
 <details>
-<summary>解答例</summary>
+<summary>Solution</summary>
 
 ```python
 """
-SNS タイムライン設計
+SNS Timeline Design
 
-データ構造の選択根拠:
-- ユーザー検索: dict（O(1)）
-- フォロー関係: dict[int, set]（O(1) でフォロー/アンフォロー/確認）
-- 投稿保存: dict[int, list]（ユーザー別にリストで時系列順保持）
-- タイムライン取得: ヒープマージ（フォロー先の最新投稿を効率的にマージ）
+Data structure selection rationale:
+- User lookup: dict (O(1))
+- Follow relationships: dict[int, set] (O(1) for follow/unfollow/check)
+- Post storage: dict[int, list] (lists per user maintaining chronological order)
+- Timeline retrieval: Heap merge (efficiently merge latest posts from followed users)
 """
 import heapq
 from dataclasses import dataclass, field
@@ -1461,25 +1468,25 @@ class Post:
     created_at: datetime
 
     def __lt__(self, other: "Post") -> bool:
-        # ヒープ用: タイムスタンプの降順（新しい順）
+        # For heap: Descending by timestamp (newest first)
         return self.created_at > other.created_at
 
 
 @dataclass
 class SocialNetwork:
-    # ユーザー ID → ユーザー名: O(1) 検索
+    # User ID -> Username: O(1) lookup
     users: dict[int, str] = field(default_factory=dict)
 
-    # ユーザー ID → フォロー先 ID の集合: O(1) フォロー確認
+    # User ID -> Set of followed user IDs: O(1) follow check
     following: dict[int, set[int]] = field(default_factory=lambda: {})
 
-    # ユーザー ID → 投稿リスト（時系列順）
+    # User ID -> Post list (chronological order)
     posts: dict[int, list[Post]] = field(default_factory=lambda: {})
 
     _post_counter: int = 0
 
     def create_post(self, user_id: int, text: str) -> Post:
-        """投稿作成 - O(1)"""
+        """Create a post - O(1)"""
         self._post_counter += 1
         post = Post(
             post_id=self._post_counter,
@@ -1493,31 +1500,31 @@ class SocialNetwork:
         return post
 
     def follow(self, user_id: int, target_id: int) -> None:
-        """フォロー - O(1)"""
+        """Follow - O(1)"""
         if user_id not in self.following:
             self.following[user_id] = set()
         self.following[user_id].add(target_id)
 
     def unfollow(self, user_id: int, target_id: int) -> None:
-        """アンフォロー - O(1)"""
+        """Unfollow - O(1)"""
         if user_id in self.following:
             self.following[user_id].discard(target_id)
 
     def get_timeline(self, user_id: int, limit: int = 20) -> list[Post]:
         """
-        タイムライン取得 - O(F * log F + limit * log F)
-        F = フォロー数
+        Get timeline - O(F * log F + limit * log F)
+        F = number of followed users
 
-        K-way マージアルゴリズム:
-        各フォロー先の最新投稿をヒープに入れ、
-        最新のものから limit 件取り出す
+        K-way merge algorithm:
+        Put the latest post from each followed user into a heap,
+        then extract the limit newest ones
         """
         follow_ids = self.following.get(user_id, set())
         if not follow_ids:
             return []
 
-        # 各フォロー先の最新投稿のイテレータを用意
-        # (投稿, ユーザーの投稿リスト, インデックス) のヒープ
+        # Prepare iterators for the latest posts from each followed user
+        # Heap of (post, user's post list, index)
         heap: list[tuple[Post, int, int]] = []
         for fid in follow_ids:
             user_posts = self.posts.get(fid, [])
@@ -1537,101 +1544,101 @@ class SocialNetwork:
         return timeline
 ```
 
-**計算量のまとめ**:
-| 操作 | 計算量 | 使用構造 |
+**Complexity summary**:
+| Operation | Complexity | Structure Used |
 |---|---|---|
-| 投稿作成 | O(1) | list (append) |
-| フォロー/アンフォロー | O(1) | set (add/discard) |
-| フォロー確認 | O(1) | set (in) |
-| タイムライン取得 | O(F log F + L log F) | heapq (K-way merge) |
+| Create post | O(1) | list (append) |
+| Follow/Unfollow | O(1) | set (add/discard) |
+| Follow check | O(1) | set (in) |
+| Timeline retrieval | O(F log F + L log F) | heapq (K-way merge) |
 
-（F = フォロー数、L = limit）
+(F = number of followed users, L = limit)
 
 </details>
 
-**問題 2-2**: テキストエディタのバッファ構造を設計せよ。
+**Problem 2-2**: Design a text editor buffer structure.
 
-以下の操作を効率的にサポートすること:
-- カーソル位置への文字挿入
-- カーソル位置の文字削除
-- カーソルの移動（前後、行頭、行末）
+Efficiently support the following operations:
+- Character insertion at cursor position
+- Character deletion at cursor position
+- Cursor movement (forward/backward, beginning/end of line)
 - Undo / Redo
 
 <details>
-<summary>解答例</summary>
+<summary>Solution</summary>
 
-**推奨構造の組み合わせ**:
-- **テキストバッファ**: ギャップバッファ（Gap Buffer）
-  - カーソル位置に「ギャップ」（空白領域）を設けた配列
-  - カーソル周辺の挿入・削除が O(1)
-  - カーソル移動時にギャップを移動: O(移動距離)
-  - 連続入力は局所的なため、実用上ほぼ O(1) で動作
-- **Undo/Redo**: 2 つのスタック
-  - 操作スタック（Undo 用）と Redo スタック
-  - コマンドパターンで操作を表現
+**Recommended structure combination**:
+- **Text buffer**: Gap Buffer
+  - An array with a "gap" (empty region) at the cursor position
+  - Insertion/deletion near the cursor is O(1)
+  - Gap moves when cursor moves: O(movement distance)
+  - Continuous input is local, so practically works at ~O(1)
+- **Undo/Redo**: Two stacks
+  - Operation stack (for Undo) and Redo stack
+  - Operations represented using the Command pattern
 
-**代替案**: Rope（ロープ）構造
-- 大きなテキスト（数 MB 以上）に適した平衡二分木ベースの文字列構造
-- 挿入・削除・連結が O(log n)
-- Visual Studio Code の内部で採用されている構造に類似
+**Alternative**: Rope structure
+- A balanced binary tree-based string structure suited for large text (several MB+)
+- Insert/delete/concatenation at O(log n)
+- Similar to the structure used internally by Visual Studio Code
 
 </details>
 
-### 演習3: 最適化問題（発展）
+### Exercise 3: Optimization Problems (Advanced)
 
-**問題 3-1**: 以下のコードのボトルネックを特定し、データ構造の変更によって改善せよ。
+**Problem 3-1**: Identify the bottleneck in the following code and improve it by changing the data structure.
 
 ```python
 def count_common_elements(list_a: list[int], list_b: list[int]) -> int:
-    """2 つのリストの共通要素数を数える（改善前）"""
+    """Count common elements between two lists (before improvement)"""
     count = 0
     for item in list_a:
-        if item in list_b:  # ← ボトルネック: O(n) × m 回
+        if item in list_b:  # <- Bottleneck: O(n) x m times
             count += 1
     return count
 ```
 
 <details>
-<summary>解答例</summary>
+<summary>Solution</summary>
 
 ```python
 def count_common_elements_optimized(list_a: list[int],
                                      list_b: list[int]) -> int:
-    """2 つのリストの共通要素数を数える（改善後）"""
-    set_b = set(list_b)  # O(n) で構築
+    """Count common elements between two lists (after improvement)"""
+    set_b = set(list_b)  # O(n) to build
     count = 0
     for item in list_a:
-        if item in set_b:  # O(1) の検索
+        if item in set_b:  # O(1) search
             count += 1
     return count
-    # 全体: O(m + n)
+    # Total: O(m + n)
 
-# さらに簡潔に書く場合:
+# More concise version:
 def count_common_elements_pythonic(list_a: list[int],
                                     list_b: list[int]) -> int:
-    """集合の積集合を使った実装"""
+    """Implementation using set intersection"""
     return len(set(list_a) & set(list_b))
 ```
 
-**改善効果**: O(m * n) → O(m + n)
+**Improvement**: O(m * n) -> O(m + n)
 
 </details>
 
-**問題 3-2**: 大量のセンサーデータ（1 秒あたり 1,000 件）をリアルタイムで受信し、以下のクエリに応答するシステムを設計せよ。
+**Problem 3-2**: Design a system that receives large volumes of sensor data in real-time (1,000 readings per second) and responds to the following queries:
 
-- 直近 5 分間のデータの平均値
-- 直近 5 分間のデータの最大値・最小値
-- 指定した時間範囲内のデータ一覧
+- Average value of data from the last 5 minutes
+- Max/min values from the last 5 minutes
+- List of data within a specified time range
 
 <details>
-<summary>解答例</summary>
+<summary>Solution</summary>
 
-**推奨構造の組み合わせ**:
+**Recommended structure combination**:
 
-1. **リングバッファ（`deque(maxlen=300_000)`）**: 直近 5 分間（300,000 件）のデータを保持
-2. **累積和 / スライディングウィンドウ**: 平均値を O(1) で計算するための累計管理
-3. **単調デキュー（Monotonic Deque）**: 最大値・最小値をウィンドウ内で O(1) で取得
-4. **ソート済みインデックス**: 時間範囲クエリ用（bisect ベース）
+1. **Ring buffer (`deque(maxlen=300_000)`)**: Holds the last 5 minutes (300,000 readings) of data
+2. **Running sum / Sliding window**: Running total for O(1) average computation
+3. **Monotonic deque**: Get max/min within the window at O(1)
+4. **Sorted index**: For time range queries (bisect-based)
 
 ```python
 from collections import deque
@@ -1646,336 +1653,338 @@ class SensorReading:
 
 
 class SensorAggregator:
-    """センサーデータのリアルタイム集計"""
+    """Real-time aggregation of sensor data"""
 
     def __init__(self, window_seconds: int = 300):
         self._window = timedelta(seconds=window_seconds)
         self._data: deque[SensorReading] = deque()
         self._sum: float = 0.0
-        # 単調デキュー: 最大値用（インデックスを保持）
+        # Monotonic deque: For max values (stores indices)
         self._max_deque: deque[int] = deque()
-        # 単調デキュー: 最小値用（インデックスを保持）
+        # Monotonic deque: For min values (stores indices)
         self._min_deque: deque[int] = deque()
         self._index: int = 0
 
     def _evict_old(self, now: datetime) -> None:
-        """ウィンドウ外のデータを除去"""
+        """Evict data outside the window"""
         cutoff = now - self._window
         while self._data and self._data[0].timestamp < cutoff:
             old = self._data.popleft()
             self._sum -= old.value
 
     def add(self, reading: SensorReading) -> None:
-        """データ追加 - 償却 O(1)"""
+        """Add data - Amortized O(1)"""
         self._evict_old(reading.timestamp)
         self._data.append(reading)
         self._sum += reading.value
         self._index += 1
 
     def average(self) -> float:
-        """直近ウィンドウの平均値 - O(1)"""
+        """Average of recent window - O(1)"""
         if not self._data:
             return 0.0
         return self._sum / len(self._data)
 
     def count(self) -> int:
-        """直近ウィンドウのデータ数 - O(1)"""
+        """Data count in recent window - O(1)"""
         return len(self._data)
 ```
 
 </details>
 
-**問題 3-3**: 以下の要件を持つインメモリデータベースのインデックス構造を設計せよ。
+**Problem 3-3**: Design the index structure for an in-memory database with the following requirements.
 
-- レコード数: 最大 100 万件
-- プライマリキー（整数）による完全一致検索: O(1)
-- 名前フィールドによる前方一致検索: 効率的に
-- 作成日時による範囲検索: 効率的に
-- 挿入・削除: O(log n) 以下
+- Record count: Up to 1 million
+- Exact match search by primary key (integer): O(1)
+- Prefix search by name field: Efficient
+- Range search by creation date: Efficient
+- Insert/delete: O(log n) or less
 
 <details>
-<summary>解答例</summary>
+<summary>Solution</summary>
 
-**複合インデックス戦略**:
+**Compound index strategy**:
 
-| フィールド | インデックス構造 | 計算量 |
+| Field | Index Structure | Complexity |
 |---|---|---|
-| プライマリキー | `dict` (ハッシュテーブル) | 検索 O(1)、挿入 O(1) |
-| 名前 | Trie | 前方一致 O(m + k) |
-| 作成日時 | `SortedList` (平衡 BST) | 範囲検索 O(log n + k)、挿入 O(log n) |
+| Primary key | `dict` (hash table) | Search O(1), Insert O(1) |
+| Name | Trie | Prefix search O(m + k) |
+| Creation date | `SortedList` (balanced BST) | Range search O(log n + k), Insert O(log n) |
 
-各インデックスはレコードへの参照（ID）を保持し、実データはプライマリキーの `dict` に格納する。インデックスの同期は挿入・削除時に全インデックスを更新することで維持する。
+Each index holds references (IDs) to records, while the actual data is stored in the primary key `dict`. Index synchronization is maintained by updating all indexes during inserts and deletes.
 
-**トレードオフ**: インデックスを増やすほど検索は高速化するが、挿入・削除時の更新コストが増大する。読み取り頻度と書き込み頻度の比率を考慮して決定する。
+**Trade-off**: More indexes speed up searches but increase update costs for inserts and deletes. Decide based on the ratio of read frequency to write frequency.
 
 </details>
 
 ---
 
-## 9. よくある質問（FAQ）
+## 9. Frequently Asked Questions (FAQ)
 
-### FAQ 1: dict と defaultdict はどう使い分ける？
+### FAQ 1: How should dict and defaultdict be used differently?
 
-**回答**: `dict` はキーが存在しない場合に `KeyError` を発生させる。一方、`defaultdict` はキーが存在しない場合に自動的にデフォルト値を生成する。
+**Answer**: `dict` raises a `KeyError` when a key does not exist, while `defaultdict` automatically generates a default value when a key does not exist.
 
 ```python
 from collections import defaultdict
 
-# --- dict の場合: 明示的な初期化が必要 ---
+# --- dict: Requires explicit initialization ---
 word_count_dict: dict[str, int] = {}
 for word in ["apple", "banana", "apple", "cherry", "banana", "apple"]:
     if word not in word_count_dict:
         word_count_dict[word] = 0
     word_count_dict[word] += 1
-# または dict.get() を使う
+# Or use dict.get()
 # word_count_dict[word] = word_count_dict.get(word, 0) + 1
 
-# --- defaultdict の場合: 初期化不要 ---
+# --- defaultdict: No initialization needed ---
 word_count_dd: defaultdict[str, int] = defaultdict(int)
 for word in ["apple", "banana", "apple", "cherry", "banana", "apple"]:
-    word_count_dd[word] += 1  # キーが存在しなければ int() = 0 が自動生成
+    word_count_dd[word] += 1  # If key doesn't exist, int() = 0 is auto-generated
 
-# --- Counter の場合: さらに簡潔 ---
+# --- Counter: Even more concise ---
 from collections import Counter
 word_count_counter = Counter(["apple", "banana", "apple", "cherry",
                                "banana", "apple"])
 print(word_count_counter.most_common(2))  # [('apple', 3), ('banana', 2)]
 ```
 
-**使い分けの指針**:
-- 単純なカウント → `Counter`
-- グルーピング（キー → リスト）→ `defaultdict(list)`
-- キー不在時にエラーにしたい → `dict`
-- キー不在時にデフォルト値が欲しい → `defaultdict` または `dict.setdefault()`
+**Usage guidelines**:
+- Simple counting -> `Counter`
+- Grouping (key -> list) -> `defaultdict(list)`
+- Want error on missing key -> `dict`
+- Want default value on missing key -> `defaultdict` or `dict.setdefault()`
 
-### FAQ 2: list と tuple はどう使い分ける？
+### FAQ 2: How should list and tuple be used differently?
 
-**回答**: 意味的な違いと技術的な違いの両面がある。
+**Answer**: There are both semantic and technical differences.
 
-**意味的な違い**:
-- `list`: 同種の要素の可変長コレクション（例: ユーザーの一覧）
-- `tuple`: 異種の要素の固定長レコード（例: (x座標, y座標)、(名前, 年齢)）
+**Semantic differences**:
+- `list`: Variable-length collection of homogeneous elements (e.g., a list of users)
+- `tuple`: Fixed-length record of heterogeneous elements (e.g., (x-coordinate, y-coordinate), (name, age))
 
-**技術的な違い**:
-- `tuple` は不変（immutable）であり、ハッシュ可能。`dict` のキーや `set` の要素に使える
-- `tuple` はわずかにメモリ効率が良い（`list` はサイズ変更用のバッファを持つため）
-- `tuple` の生成はわずかに高速（`list` は内部配列のアロケーションが必要）
+**Technical differences**:
+- `tuple` is immutable and hashable. Can be used as `dict` keys or `set` elements
+- `tuple` is slightly more memory-efficient (`list` has a buffer for resizing)
+- `tuple` creation is slightly faster (`list` requires internal array allocation)
 
 ```python
 import sys
 
-# メモリ比較
+# Memory comparison
 lst = [1, 2, 3, 4, 5]
 tpl = (1, 2, 3, 4, 5)
-print(f"list: {sys.getsizeof(lst)} bytes")  # list: 104 bytes (目安)
-print(f"tuple: {sys.getsizeof(tpl)} bytes")  # tuple: 80 bytes (目安)
+print(f"list: {sys.getsizeof(lst)} bytes")  # list: 104 bytes (approximate)
+print(f"tuple: {sys.getsizeof(tpl)} bytes")  # tuple: 80 bytes (approximate)
 ```
 
-**指針**: データが変更されないなら `tuple`、変更される可能性があるなら `list`。
+**Guideline**: Use `tuple` if data will not be modified, `list` if it may be modified.
 
-### FAQ 3: set の要素の順序は保証されるか？
+### FAQ 3: Is the order of elements in a set guaranteed?
 
-**回答**: **保証されない**。`set` は内部的にハッシュテーブルで実装されており、要素の格納順序はハッシュ値に依存する。イテレーション時の順序は実装依存であり、Python のバージョンや実行環境によって異なる可能性がある。
+**Answer**: **Not guaranteed.** `set` is internally implemented as a hash table, and element storage order depends on hash values. Iteration order is implementation-dependent and may vary across Python versions and execution environments.
 
 ```python
-# 順序が保証されない例
+# Example where order is not guaranteed
 s = {3, 1, 4, 1, 5, 9, 2, 6}
-print(s)  # {1, 2, 3, 4, 5, 6, 9} ← この順序は保証されない
+print(s)  # {1, 2, 3, 4, 5, 6, 9} <- this order is not guaranteed
 
-# 順序が必要な場合の選択肢:
-# 1. ソート済みリストに変換
+# Options when order is needed:
+# 1. Convert to sorted list
 sorted_list = sorted(s)  # [1, 2, 3, 4, 5, 6, 9]
 
-# 2. 挿入順を保持したい場合は dict.fromkeys()
+# 2. If insertion order is needed, use dict.fromkeys()
 ordered_unique = list(dict.fromkeys([3, 1, 4, 1, 5, 9, 2, 6]))
-print(ordered_unique)  # [3, 1, 4, 5, 9, 2, 6]（挿入順を保持）
+print(ordered_unique)  # [3, 1, 4, 5, 9, 2, 6] (insertion order preserved)
 ```
 
-注意: Python 3.7+ の `dict` は挿入順序が保証されているが、これは `dict` の仕様であり、`set` には適用されない。
+Note: Python 3.7+ `dict` guarantees insertion order, but this is a `dict` specification and does not apply to `set`.
 
-### FAQ 4: heapq はなぜ最小ヒープなのか？最大ヒープが必要な場合は？
+### FAQ 4: Why is heapq a min-heap? What if a max-heap is needed?
 
-**回答**: Python の `heapq` は最小ヒープ（min-heap）のみを提供する。最大ヒープが必要な場合は、値の符号を反転させるのが標準的な手法である。
+**Answer**: Python's `heapq` only provides a min-heap. When a max-heap is needed, the standard approach is to negate the values.
 
 ```python
 import heapq
 
-# --- 最小ヒープ（そのまま） ---
+# --- Min-heap (as-is) ---
 min_heap: list[int] = []
 for val in [5, 3, 8, 1, 9]:
     heapq.heappush(min_heap, val)
-print(heapq.heappop(min_heap))  # 1（最小値）
+print(heapq.heappop(min_heap))  # 1 (minimum)
 
-# --- 最大ヒープ（符号反転） ---
+# --- Max-heap (negate values) ---
 max_heap: list[int] = []
 for val in [5, 3, 8, 1, 9]:
-    heapq.heappush(max_heap, -val)  # 符号反転して格納
-print(-heapq.heappop(max_heap))  # 9（最大値）
+    heapq.heappush(max_heap, -val)  # Store negated
+print(-heapq.heappop(max_heap))  # 9 (maximum)
 
-# --- Top-K（最大の K 個を取得）---
+# --- Top-K (get the K largest) ---
 data = [5, 3, 8, 1, 9, 2, 7, 4, 6]
 top_3 = heapq.nlargest(3, data)    # [9, 8, 7]
 bottom_3 = heapq.nsmallest(3, data)  # [1, 2, 3]
 ```
 
-### FAQ 5: numpy の配列と Python のリストはどう使い分ける？
+### FAQ 5: How should numpy arrays and Python lists be used differently?
 
-**回答**: 数値計算が主体なら `numpy.ndarray`、汎用データの管理なら `list` を使う。
+**Answer**: Use `numpy.ndarray` when numerical computation is primary, `list` for general data management.
 
-| 観点 | `list` | `numpy.ndarray` |
+| Aspect | `list` | `numpy.ndarray` |
 |---|---|---|
-| 要素の型 | 混在可能 | 同一型のみ |
-| メモリ効率 | 低い（オブジェクトへのポインタ配列） | 高い（連続した値の配列） |
-| 数値演算 | 遅い（Python ループ） | 高速（C 実装のベクトル演算） |
-| 柔軟性 | 高い（append、extend 等） | 低い（サイズ変更はコストが高い） |
-| 用途 | 汎用データ管理 | 数値計算、科学計算、機械学習 |
+| Element types | Can be mixed | Same type only |
+| Memory efficiency | Low (array of pointers to objects) | High (contiguous value array) |
+| Numerical operations | Slow (Python loops) | Fast (C-implemented vector ops) |
+| Flexibility | High (append, extend, etc.) | Low (resizing is costly) |
+| Use case | General data management | Numerical, scientific computing, ML |
 
-10 万件以上の数値データに対して一括演算を行う場合、`numpy` は `list` の数十〜数百倍高速になることがある。
+For bulk operations on 100,000+ numerical data points, `numpy` can be tens to hundreds of times faster than `list`.
 
-### FAQ 6: データベースのインデックスと言語のデータ構造の関係は？
+### FAQ 6: What is the relationship between database indexes and language data structures?
 
-**回答**: リレーショナルデータベースのインデックスは、データ構造の応用である。
+**Answer**: Relational database indexes are applications of data structures.
 
-| データベース機能 | 内部で使われるデータ構造 |
+| Database Feature | Underlying Data Structure |
 |---|---|
-| B-Tree インデックス | B+木 |
-| ハッシュインデックス | ハッシュテーブル |
-| 全文検索インデックス | 転置インデックス（ハッシュテーブル + ソート済みリスト） |
-| 空間インデックス（GiST） | R 木 |
-| カバリングインデックス | B+木（葉にデータを含む） |
+| B-Tree index | B+ tree |
+| Hash index | Hash table |
+| Full-text search index | Inverted index (hash table + sorted list) |
+| Spatial index (GiST) | R-tree |
+| Covering index | B+ tree (with data in leaves) |
 
-データ構造の理論を理解することで、データベースのインデックス設計やクエリ最適化の背景を深く理解できるようになる。
+Understanding data structure theory enables deeper understanding of database index design and query optimization.
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point in learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important aspect. Understanding deepens not just through theory but by actually writing and running code.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently applied in day-to-day development work. It becomes particularly important during code reviews and architecture design.
 
 ---
 
-## 10. まとめ
+## 10. Summary
 
-### 10.1 選択の基本原則
+### 10.1 Fundamental Principles of Selection
 
-本章で扱った内容を、選択の基本原則として整理する。
+The contents covered in this chapter are organized as fundamental principles of selection.
 
-**原則1: 操作の頻度を基準にする**
+**Principle 1: Base decisions on operation frequency**
 
-最も頻繁に行う操作が最も高速になるデータ構造を選ぶ。全ての操作を同時に最適化することはできないため、トレードオフを受け入れる。
+Choose the data structure that makes the most frequently performed operation the fastest. You cannot optimize all operations simultaneously, so accept trade-offs.
 
-**原則2: まず単純な構造から始める**
+**Principle 2: Start with simple structures**
 
-実務の大半は `list`、`dict`、`set` の 3 つで解決できる。特殊なデータ構造は、計測によってボトルネックが確認された後に検討する。
+The vast majority of real-world situations can be solved with just three: `list`, `dict`, `set`. Special data structures should only be considered after a bottleneck has been confirmed through measurement.
 
-**原則3: データの規模を見積もる**
+**Principle 3: Estimate data scale**
 
-n が 100 未満なら、どの構造を選んでも体感差はない。n が 10,000 を超えるあたりから、計算量のオーダーが効いてくる。n が 100 万を超えると、O(n) と O(log n) の差は致命的になる。
+When n is under 100, there is no perceptible difference regardless of which structure you choose. Around n > 10,000, the order of complexity starts to matter. When n exceeds 1 million, the difference between O(n) and O(log n) becomes critical.
 
-**原則4: 抽象化で変更に備える**
+**Principle 4: Prepare for change through abstraction**
 
-内部のデータ構造を直接外部に公開せず、インターフェースを通じてアクセスする設計にする。これにより、後からデータ構造を差し替える際のコストを最小化できる。
+Do not directly expose internal data structures; access them through interfaces. This minimizes the cost of replacing data structures later.
 
-**原則5: 読みやすさを犠牲にしない**
+**Principle 5: Do not sacrifice readability**
 
-コードは書く時間より読む時間のほうが長い。データ構造の選択が原因でコードの意図が不明瞭になるなら、多少の性能を犠牲にしてでも可読性を優先する。
+Code is read more often than it is written. If a data structure choice makes code intent unclear, prioritize readability even at the cost of some performance.
 
-### 10.2 要件別推奨の最終一覧
+### 10.2 Final Recommendation List by Requirement
 
-| 要件 | 推奨データ構造 | 主要操作の計算量 |
+| Requirement | Recommended Data Structure | Key Operation Complexity |
 |---|---|---|
-| 順次アクセス・末尾追加 | `list` | アクセス O(1)、末尾追加 O(1)* |
-| キーによる高速検索 | `dict` | 検索 O(1)、挿入 O(1) |
-| 重複排除・存在確認 | `set` | 検索 O(1)、挿入 O(1) |
-| ソート順の動的維持 | `SortedList` / 平衡 BST | 挿入 O(log n)、検索 O(log n) |
-| LIFO（Undo/Redo 等） | `list`（スタック） | push O(1)、pop O(1) |
-| FIFO（タスクキュー等） | `deque` | enqueue O(1)、dequeue O(1) |
-| 優先度付き処理 | `heapq` | 挿入 O(log n)、最小取得 O(1) |
-| 前方一致検索 | Trie | 検索 O(m)（m = キー長） |
-| 範囲検索 | ソート済み配列 / 平衡 BST | O(log n + k) |
-| キャッシュ（LRU） | `OrderedDict` | get/put O(1) |
-| 大量データの存在確認 | Bloom Filter | 検索 O(k)（k = ハッシュ数） |
-| グラフ（疎） | `dict[int, set[int]]` | 辺の追加 O(1)、隣接 O(1) |
-| グラフ（密） | 二次元配列 | 辺の確認 O(1) |
-| リアルタイム中央値 | 2 つのヒープ | 追加 O(log n)、取得 O(1) |
+| Sequential access / tail append | `list` | Access O(1), tail append O(1)* |
+| Fast lookup by key | `dict` | Search O(1), insert O(1) |
+| Deduplication / existence check | `set` | Search O(1), insert O(1) |
+| Dynamic sorted order maintenance | `SortedList` / Balanced BST | Insert O(log n), search O(log n) |
+| LIFO (Undo/Redo, etc.) | `list` (stack) | push O(1), pop O(1) |
+| FIFO (task queue, etc.) | `deque` | enqueue O(1), dequeue O(1) |
+| Priority-based processing | `heapq` | Insert O(log n), get min O(1) |
+| Prefix search | Trie | Search O(m) (m = key length) |
+| Range search | Sorted array / Balanced BST | O(log n + k) |
+| Cache (LRU) | `OrderedDict` | get/put O(1) |
+| Existence check on large data | Bloom Filter | Search O(k) (k = hash count) |
+| Graph (sparse) | `dict[int, set[int]]` | Add edge O(1), adjacency O(1) |
+| Graph (dense) | 2D array | Edge check O(1) |
+| Real-time median | Two heaps | Add O(log n), get O(1) |
 
-### 10.3 学習のロードマップ
+### 10.3 Learning Roadmap
 
-データ構造の選択力を向上させるためのロードマップを以下に示す。
+The following roadmap is for improving your data structure selection skills.
 
 ```
-データ構造 選択力向上のロードマップ:
+Data Structure Selection Skill Roadmap:
 
-  Level 1: 基礎（必須）
-  ┌─────────────────────────────────────────────────┐
-  │ ・list, dict, set の特性と計算量を完全に理解     │
-  │ ・tuple, deque, heapq の使い分け                 │
-  │ ・O 記法の直感的な理解（n=10万でどの程度か）     │
-  └─────────────────────────────────────────────────┘
-            │
-            ▼
-  Level 2: 応用（実務で頻出）
-  ┌─────────────────────────────────────────────────┐
-  │ ・sortedcontainers での範囲検索                   │
-  │ ・複合インデックスの設計                          │
-  │ ・LRU キャッシュの実装と活用                      │
-  │ ・2 つのヒープによる中央値計算                    │
-  │ ・グラフの表現方法の使い分け                      │
-  └─────────────────────────────────────────────────┘
-            │
-            ▼
-  Level 3: 発展（専門的な場面）
-  ┌─────────────────────────────────────────────────┐
-  │ ・Trie、接尾辞木、接尾辞配列                     │
-  │ ・Bloom Filter、Count-Min Sketch                 │
-  │ ・永続データ構造（Persistent Data Structures）    │
-  │ ・並行データ構造（Lock-Free, Wait-Free）          │
-  │ ・外部記憶アルゴリズム（B+木、LSM 木）           │
-  └─────────────────────────────────────────────────┘
+  Level 1: Fundamentals (Essential)
+  +-----------------------------------------------------+
+  | - Completely understand characteristics and          |
+  |   complexities of list, dict, set                    |
+  | - Distinguish between tuple, deque, heapq            |
+  | - Intuitive understanding of Big-O                   |
+  |   (how much impact at n=100,000)                     |
+  +-----------------------------------------------------+
+            |
+            v
+  Level 2: Applied (Common in Practice)
+  +-----------------------------------------------------+
+  | - Range search with sortedcontainers                 |
+  | - Compound index design                              |
+  | - LRU cache implementation and usage                 |
+  | - Median computation with two heaps                  |
+  | - Graph representation method selection              |
+  +-----------------------------------------------------+
+            |
+            v
+  Level 3: Advanced (Specialized Scenarios)
+  +-----------------------------------------------------+
+  | - Trie, suffix tree, suffix array                    |
+  | - Bloom Filter, Count-Min Sketch                     |
+  | - Persistent Data Structures                         |
+  | - Concurrent data structures (Lock-Free, Wait-Free)  |
+  | - External memory algorithms (B+ tree, LSM tree)     |
+  +-----------------------------------------------------+
 ```
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Guides
 
 ---
 
-## 参考文献
+## References
 
 1. Skiena, S. S. *The Algorithm Design Manual*, 3rd Edition, Springer, 2020.
-   - 第 3 章「Data Structures」: データ構造の選択に関する実践的なガイドライン。第 12 章「Data Structures」のカタログでは、各構造のトレードオフが詳細に整理されている。
+   - Chapter 3 "Data Structures": Practical guidelines on data structure selection. Chapter 12's "Data Structures" catalog provides detailed trade-off analysis for each structure.
 
 2. Kleppmann, M. *Designing Data-Intensive Applications*, O'Reilly Media, 2017.
-   - 第 3 章「Storage and Retrieval」: B 木、LSM 木、ハッシュインデックスなど、データベース内部で使われるデータ構造の選択基準を解説。
+   - Chapter 3 "Storage and Retrieval": Explains selection criteria for data structures used inside databases, including B-trees, LSM trees, and hash indexes.
 
 3. Cormen, T. H., Leiserson, C. E., Rivest, R. L., and Stein, C. *Introduction to Algorithms*, 4th Edition, MIT Press, 2022.
-   - 通称 CLRS。各データ構造の理論的な計算量分析の基礎を網羅。特に第 III 部「Data Structures」が本章の理論的背景。
+   - Known as CLRS. Covers theoretical complexity analysis foundations for each data structure. Part III "Data Structures" provides the theoretical background for this chapter.
 
 4. Wirth, N. *Algorithms + Data Structures = Programs*, Prentice-Hall, 1976.
-   - データ構造とアルゴリズムの不可分性を示した古典的名著。プログラムの設計においてデータ構造の選択がいかに重要かを論じている。
+   - A classic work demonstrating the inseparability of data structures and algorithms. Argues how critical data structure selection is in program design.
 
 5. Knuth, D. E. *The Art of Computer Programming, Volume 3: Sorting and Searching*, 2nd Edition, Addison-Wesley, 1998.
-   - 検索アルゴリズムとデータ構造の理論的基盤。ハッシュ法、木構造、ソートの詳細な分析。
+   - Theoretical foundations for search algorithms and data structures. Detailed analysis of hashing, tree structures, and sorting.
 
-6. Python 公式ドキュメント「Data Structures」
+6. Python Official Documentation "Data Structures"
    - https://docs.python.org/3/tutorial/datastructures.html
-   - Python 組み込みデータ構造の公式リファレンス。`list`、`dict`、`set`、`tuple` の使い方と性能特性。
+   - Official reference for Python built-in data structures. Usage and performance characteristics of `list`, `dict`, `set`, `tuple`.
 
-7. Python 公式ドキュメント「collections --- Container datatypes」
+7. Python Official Documentation "collections --- Container datatypes"
    - https://docs.python.org/3/library/collections.html
-   - `deque`、`defaultdict`、`Counter`、`OrderedDict` などの追加データ構造の公式リファレンス。
+   - Official reference for additional data structures including `deque`, `defaultdict`, `Counter`, `OrderedDict`.
 
-8. Python Wiki「TimeComplexity」
+8. Python Wiki "TimeComplexity"
    - https://wiki.python.org/moin/TimeComplexity
-   - Python 組み込み型の各操作の計算量を網羅した公式リファレンス。データ構造選択時の計算量確認に不可欠。
+   - Official reference comprehensively covering the complexity of each operation for Python built-in types. Essential for verifying complexities during data structure selection.
