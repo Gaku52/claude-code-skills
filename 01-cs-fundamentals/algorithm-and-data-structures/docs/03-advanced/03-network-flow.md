@@ -1,151 +1,151 @@
-# ネットワークフロー
+# Network Flow
 
-> グラフ上の最大流問題を Ford-Fulkerson法・Dinic法・二部マッチング・最小費用流を通じて理解し、実用的な応用パターンを習得する
+> Understand maximum flow problems on graphs through Ford-Fulkerson, Dinic's algorithm, bipartite matching, and minimum cost flow, and master practical application patterns
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-1. **最大流問題の定義**と残余グラフ・増加パスの概念を理解する
-2. **Ford-Fulkerson法**と BFS による Edmonds-Karp 法を正確に実装できる
-3. **Dinic法**で高速に最大流を求める手法を実装できる
-4. **二部マッチング**を最大流に帰着させ、仕事割当・マッチング問題を解ける
-5. **最大流最小カット定理・最小費用流**の理論と応用を理解する
+1. **The definition of the maximum flow problem** and the concepts of residual graphs and augmenting paths
+2. **Ford-Fulkerson method** and the Edmonds-Karp algorithm with BFS, implemented correctly
+3. **Dinic's algorithm** for computing maximum flow efficiently
+4. **Bipartite matching** reduced to maximum flow, solving job assignment and matching problems
+5. **Max-flow min-cut theorem and minimum cost flow** -- their theory and applications
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+The following knowledge will help deepen your understanding before reading this guide:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [文字列アルゴリズム](./02-string-algorithms.md) の内容を理解していること
-
----
-
-## 1. ネットワークフローの基本概念
-
-ネットワークフロー問題は、パイプラインや通信ネットワークを流れる「もの」の最大量を求める問題として定式化される。
-
-```
-フローネットワーク:
-  ・有向グラフ G = (V, E)
-  ・容量関数 c(u,v) ≥ 0（各辺の最大流量）
-  ・始点 s（ソース）、終点 t（シンク）
-
-制約:
-  1. 容量制約: 0 ≤ f(u,v) ≤ c(u,v)
-  2. フロー保存: 各頂点で流入量 = 流出量（s,t を除く）
-  3. 歪対称性: f(u,v) = -f(v,u)
-
-例:
-         10        10
-    s ────→ A ────→ t
-    │       ↑       ↑
-    │5      │15     │10
-    ↓       │       │
-    B ────→ C ────→ D
-         10        10
-
-最大流 = 19（s→A→t:10, s→B→C→D→t:5, s→B→C→A→t:0, ...）
-```
-
-### フロー問題の実世界での例
-
-```
-1. 物流ネットワーク
-   工場(s) → 倉庫 → 配送センター → 店舗(t)
-   各辺の容量 = トラックの輸送能力
-   最大流 = 最大輸送量
-
-2. 通信ネットワーク
-   送信元(s) → ルータ群 → 受信先(t)
-   各辺の容量 = 回線の帯域幅
-   最大流 = 最大データ転送速度
-
-3. 水道管ネットワーク
-   水源(s) → 配管 → 各家庭(t)
-   各辺の容量 = 管の太さ
-   最大流 = 最大配水量
-
-4. スケジューリング
-   開始(s) → 作業員 → タスク → 終了(t)
-   容量 = 各作業員の処理能力
-   最大流 = 最大処理量
-```
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Understanding of [String Algorithms](./02-string-algorithms.md)
 
 ---
 
-## 2. 残余グラフと増加パス
+## 1. Fundamental Concepts of Network Flow
+
+Network flow problems are formulated as finding the maximum amount of "stuff" that can flow through pipelines or communication networks.
 
 ```
-元のグラフ:               現在のフロー:
-    s ──(10)──→ A           s ──7/10──→ A
-    │           │           │           │
+Flow network:
+  - Directed graph G = (V, E)
+  - Capacity function c(u,v) >= 0 (maximum flow on each edge)
+  - Source s, sink t
+
+Constraints:
+  1. Capacity constraint: 0 <= f(u,v) <= c(u,v)
+  2. Flow conservation: inflow = outflow at each vertex (except s, t)
+  3. Skew symmetry: f(u,v) = -f(v,u)
+
+Example:
+         10        10
+    s -----> A -----> t
+    |       ^       ^
+    |5      |15     |10
+    v       |       |
+    B -----> C -----> D
+         10        10
+
+Maximum flow = 19 (s->A->t:10, s->B->C->D->t:5, s->B->C->A->t:0, ...)
+```
+
+### Real-world Examples of Flow Problems
+
+```
+1. Logistics network
+   Factory(s) -> Warehouse -> Distribution center -> Store(t)
+   Edge capacity = truck transport capacity
+   Maximum flow = maximum transport volume
+
+2. Communication network
+   Sender(s) -> Routers -> Receiver(t)
+   Edge capacity = bandwidth
+   Maximum flow = maximum data transfer rate
+
+3. Water pipeline network
+   Water source(s) -> Pipes -> Households(t)
+   Edge capacity = pipe diameter
+   Maximum flow = maximum water distribution
+
+4. Scheduling
+   Start(s) -> Workers -> Tasks -> End(t)
+   Capacity = processing capacity of each worker
+   Maximum flow = maximum throughput
+```
+
+---
+
+## 2. Residual Graphs and Augmenting Paths
+
+```
+Original graph:              Current flow:
+    s --(10)--> A           s --7/10--> A
+    |           |           |           |
    (5)       (10)         5/5        7/10
-    ↓           ↓           ↓           ↓
-    B ──(10)──→ t           B ──5/10──→ t
+    v           v           v           v
+    B --(10)--> t           B --5/10--> t
 
-残余グラフ（residual graph）:
-  ・順方向: 残り容量 = c(u,v) - f(u,v)
-  ・逆方向: キャンセル可能量 = f(u,v)
+Residual graph:
+  - Forward direction: remaining capacity = c(u,v) - f(u,v)
+  - Backward direction: cancellable amount = f(u,v)
 
-    s ──(3)──→ A           残り容量
-    │ ←(7)── A             逆方向（キャンセル）
-    │           │
-   (0)→      (3)→
-   ←(5)      ←(7)
-    ↓           ↓
-    B ──(5)──→ t
-    B ←(5)── t
+    s --(3)--> A           remaining capacity
+    | <-(7)-- A             backward (cancel)
+    |           |
+   (0)->      (3)->
+   <-(5)      <-(7)
+    v           v
+    B --(5)--> t
+    B <-(5)-- t
 
-増加パス = 残余グラフ上の s→t パス
-ボトルネック = パス上の最小残余容量
+Augmenting path = s->t path in the residual graph
+Bottleneck = minimum residual capacity on the path
 ```
 
-### 残余グラフの重要性
+### Importance of the Residual Graph
 
 ```
-なぜ逆辺（キャンセル）が必要か？
+Why are backward edges (cancellation) necessary?
 
-例:
-    s ──(1)──→ A ──(1)──→ t
-    │                       ↑
+Example:
+    s --(1)--> A --(1)--> t
+    |                       ^
    (1)                    (1)
-    ↓                       │
-    B ──────(1)────────→ C
+    v                       |
+    B -------(1)---------> C
 
-最適なフロー:
-  s→A→t: 1
-  s→B→C→t: 1
-  合計: 2
+Optimal flow:
+  s->A->t: 1
+  s->B->C->t: 1
+  Total: 2
 
-逆辺なしで貪欲に選ぶと:
-  s→A→C→t ではなく...（Cからtへの直接辺がないケース）
-  → 逆辺があることで、一度流したフローを「取り消す」ことが可能
-  → 最適解に到達できる
+Without backward edges, a greedy approach:
+  s->A->C->t would not work (no direct edge from C to t in this case)
+  -> Backward edges allow "undoing" flow that was already sent
+  -> Makes it possible to reach the optimal solution
 ```
 
 ---
 
-## 3. Ford-Fulkerson法
+## 3. Ford-Fulkerson Method
 
-残余グラフ上で増加パスを見つけ、フローを送ることを繰り返す。
+Repeatedly finds augmenting paths in the residual graph and sends flow along them.
 
 ```python
 from collections import defaultdict, deque
 
 class MaxFlow:
-    """Ford-Fulkerson法（Edmonds-Karp: BFSで増加パス探索）"""
+    """Ford-Fulkerson method (Edmonds-Karp: augmenting path search via BFS)"""
 
     def __init__(self, n: int):
         self.n = n
-        self.graph = defaultdict(lambda: defaultdict(int))  # 容量
+        self.graph = defaultdict(lambda: defaultdict(int))  # capacity
 
     def add_edge(self, u: int, v: int, cap: int):
-        """辺を追加（有向）"""
+        """Add a directed edge"""
         self.graph[u][v] += cap
 
     def bfs(self, source: int, sink: int, parent: dict) -> int:
-        """BFS で増加パスを探索し、ボトルネック容量を返す"""
+        """Find an augmenting path via BFS and return the bottleneck capacity"""
         visited = {source}
         queue = deque([(source, float('inf'))])
 
@@ -163,7 +163,7 @@ class MaxFlow:
         return 0
 
     def max_flow(self, source: int, sink: int) -> int:
-        """最大流を計算 - O(VE^2)"""
+        """Compute maximum flow - O(VE^2)"""
         total_flow = 0
 
         while True:
@@ -171,71 +171,71 @@ class MaxFlow:
             path_flow = self.bfs(source, sink, parent)
 
             if path_flow == 0:
-                break  # 増加パスがない → 最大流に到達
+                break  # no augmenting path -> maximum flow reached
 
             total_flow += path_flow
 
-            # フローの更新（残余グラフの更新）
+            # Update flow (update residual graph)
             v = sink
             while v != source:
                 u = parent[v]
-                self.graph[u][v] -= path_flow  # 順方向: 容量を減らす
-                self.graph[v][u] += path_flow  # 逆方向: キャンセル可能量を増やす
+                self.graph[u][v] -= path_flow  # forward: reduce capacity
+                self.graph[v][u] += path_flow  # backward: increase cancellable amount
                 v = u
 
         return total_flow
 
-# 使用例
+# Usage example
 mf = MaxFlow(6)
 # s=0, A=1, B=2, C=3, D=4, t=5
-mf.add_edge(0, 1, 10)  # s → A
-mf.add_edge(0, 2, 10)  # s → B
-mf.add_edge(1, 3, 4)   # A → C
-mf.add_edge(1, 4, 8)   # A → D
-mf.add_edge(2, 4, 9)   # B → D
-mf.add_edge(3, 5, 10)  # C → t
-mf.add_edge(4, 3, 6)   # D → C
-mf.add_edge(4, 5, 10)  # D → t
+mf.add_edge(0, 1, 10)  # s -> A
+mf.add_edge(0, 2, 10)  # s -> B
+mf.add_edge(1, 3, 4)   # A -> C
+mf.add_edge(1, 4, 8)   # A -> D
+mf.add_edge(2, 4, 9)   # B -> D
+mf.add_edge(3, 5, 10)  # C -> t
+mf.add_edge(4, 3, 6)   # D -> C
+mf.add_edge(4, 5, 10)  # D -> t
 
 print(mf.max_flow(0, 5))  # 19
 ```
 
-### Ford-Fulkerson法の動作トレース
+### Ford-Fulkerson Execution Trace
 
 ```
-初期状態:
-  s → A: 10, s → B: 10
-  A → C: 4,  A → D: 8
-  B → D: 9
-  C → t: 10, D → C: 6, D → t: 10
+Initial state:
+  s -> A: 10, s -> B: 10
+  A -> C: 4,  A -> D: 8
+  B -> D: 9
+  C -> t: 10, D -> C: 6, D -> t: 10
 
-Iteration 1: BFS で s→A→D→t を発見（ボトルネック = min(10,8,10) = 8）
-  更新後: s→A: 2, A→D: 0, D→t: 2
+Iteration 1: BFS finds s->A->D->t (bottleneck = min(10,8,10) = 8)
+  After update: s->A: 2, A->D: 0, D->t: 2
 
-Iteration 2: BFS で s→A→C→t を発見（ボトルネック = min(2,4,10) = 2）
-  更新後: s→A: 0, A→C: 2, C→t: 8
+Iteration 2: BFS finds s->A->C->t (bottleneck = min(2,4,10) = 2)
+  After update: s->A: 0, A->C: 2, C->t: 8
 
-Iteration 3: BFS で s→B→D→C→t を発見（ボトルネック = min(10,9,6,8) = 6）
-  更新後: s→B: 4, B→D: 3, D→C: 0, C→t: 2
+Iteration 3: BFS finds s->B->D->C->t (bottleneck = min(10,9,6,8) = 6)
+  After update: s->B: 4, B->D: 3, D->C: 0, C->t: 2
 
-Iteration 4: BFS で s→B→D→t を発見（ボトルネック = min(4,3,2) = 2）
-  更新後: s→B: 2, B→D: 1, D→t: 0
+Iteration 4: BFS finds s->B->D->t (bottleneck = min(4,3,2) = 2)
+  After update: s->B: 2, B->D: 1, D->t: 0
 
-Iteration 5: 増加パスなし → 終了
+Iteration 5: No augmenting path -> done
 
-最大流 = 8 + 2 + 6 + 2 + 1 = 19
+Maximum flow = 8 + 2 + 6 + 2 + 1 = 19
 ```
 
 ---
 
-## 4. Dinic法（高速版）
+## 4. Dinic's Algorithm (Faster Version)
 
-レベルグラフ（BFS で構築）上でブロッキングフローを求める。Edmonds-Karp より高速で、容量が整数の場合 O(V^2 E)、単位容量の場合 O(E sqrt(V))。
+Finds blocking flows on a level graph (built via BFS). Faster than Edmonds-Karp: O(V^2 E) for integer capacities, O(E sqrt(V)) for unit capacities.
 
 ```python
 class Dinic:
-    """Dinic法 - O(V^2 E)
-    二部マッチングでは O(E sqrt(V))
+    """Dinic's algorithm - O(V^2 E)
+    O(E sqrt(V)) for bipartite matching
     """
 
     def __init__(self, n: int):
@@ -243,12 +243,12 @@ class Dinic:
         self.graph = [[] for _ in range(n)]
 
     def add_edge(self, u: int, v: int, cap: int):
-        """辺の追加（逆辺も同時に追加）"""
+        """Add an edge (reverse edge is also added)"""
         self.graph[u].append([v, cap, len(self.graph[v])])
         self.graph[v].append([u, 0, len(self.graph[u]) - 1])
 
     def bfs(self, s: int, t: int) -> bool:
-        """レベルグラフを構築"""
+        """Build the level graph"""
         self.level = [-1] * self.n
         self.level[s] = 0
         queue = deque([s])
@@ -263,7 +263,7 @@ class Dinic:
         return self.level[t] >= 0
 
     def dfs(self, u: int, t: int, f: int) -> int:
-        """ブロッキングフローを求める"""
+        """Find a blocking flow"""
         if u == t:
             return f
         while self.iter[u] < len(self.graph[u]):
@@ -278,7 +278,7 @@ class Dinic:
         return 0
 
     def max_flow(self, s: int, t: int) -> int:
-        """最大流を計算"""
+        """Compute maximum flow"""
         flow = 0
         while self.bfs(s, t):
             self.iter = [0] * self.n
@@ -290,8 +290,8 @@ class Dinic:
         return flow
 
     def min_cut(self, s: int) -> list:
-        """最小カットを求める（max_flow 実行後に呼ぶ）
-        返り値: s 側に属する頂点のリスト
+        """Find the minimum cut (call after max_flow)
+        Returns: list of vertices on the s-side
         """
         visited = [False] * self.n
         queue = deque([s])
@@ -304,7 +304,7 @@ class Dinic:
                     queue.append(v)
         return [i for i in range(self.n) if visited[i]]
 
-# 使用例
+# Usage example
 dinic = Dinic(6)
 dinic.add_edge(0, 1, 10)
 dinic.add_edge(0, 2, 10)
@@ -317,55 +317,55 @@ dinic.add_edge(4, 5, 10)
 print(dinic.max_flow(0, 5))  # 19
 ```
 
-### Dinic法 vs Edmonds-Karp の違い
+### Dinic's Algorithm vs Edmonds-Karp
 
 ```
 Edmonds-Karp:
-  - BFS で最短の増加パスを1本見つける
-  - フローを流す
-  - 再び BFS → ... を繰り返す
-  - 計算量: O(VE^2)
+  - BFS finds one shortest augmenting path
+  - Sends flow along it
+  - BFS again -> ... repeat
+  - Complexity: O(VE^2)
 
 Dinic:
-  - BFS でレベルグラフを構築
-  - レベルグラフ上で DFS で複数の増加パスを一度に処理（ブロッキングフロー）
-  - レベルグラフが変わるまで DFS を繰り返す
-  - 再び BFS → ... を繰り返す
-  - 計算量: O(V^2 E)
+  - BFS builds the level graph
+  - DFS processes multiple augmenting paths at once on the level graph (blocking flow)
+  - Repeats DFS until the level graph changes
+  - BFS again -> ... repeat
+  - Complexity: O(V^2 E)
 
-  キーポイント:
-  - BFS の回数は高々 V-1 回（レベルが毎回少なくとも1増加）
-  - 各 BFS フェーズ内で DFS によるブロッキングフローは O(VE)
-  - iter 配列で同じ辺を再探索しない → DFS の効率化
+  Key points:
+  - BFS runs at most V-1 times (level increases by at least 1 each time)
+  - Each BFS phase: blocking flow via DFS is O(VE)
+  - The iter array avoids re-exploring the same edges -> DFS efficiency
 ```
 
 ---
 
-## 5. 最大流最小カット定理
+## 5. Max-Flow Min-Cut Theorem
 
 ```
-最大流 = 最小カット
+Maximum flow = Minimum cut
 
-最小カット = ネットワークを s 側と t 側に分断する辺の
-            容量の最小和
+Minimum cut = the minimum total capacity of edges that
+              separate the network into s-side and t-side
 
-例:
-    s ──(3)──→ A ──(2)──→ t
-    │                      ↑
+Example:
+    s --(3)--> A --(2)--> t
+    |                      ^
    (5)                   (4)
-    ↓                      │
-    B ────────(6)────────→ C
+    v                      |
+    B ---------(6)-------> C
 
-最大流 = 7
-最小カット: {(A,t): 2, (s,B): 5} = 7
+Maximum flow = 7
+Minimum cut: {(A,t): 2, (s,B): 5} = 7
 
-→ 最大流の後、残余グラフで s から到達可能な頂点集合 S と
-  到達不能な頂点集合 T を求めると、S→T の辺が最小カット
+-> After max flow, find the set of vertices reachable from s in the residual graph (set S)
+   and unreachable vertices (set T). Edges from S to T form the minimum cut.
 ```
 
 ```python
 def find_min_cut_edges(n: int, edges: list, source: int, sink: int) -> list:
-    """最小カットの辺を求める"""
+    """Find the edges of the minimum cut"""
     dinic = Dinic(n)
     original_edges = []
 
@@ -376,10 +376,10 @@ def find_min_cut_edges(n: int, edges: list, source: int, sink: int) -> list:
 
     max_flow_value = dinic.max_flow(source, sink)
 
-    # s 側の頂点を特定
+    # Identify s-side vertices
     s_side = set(dinic.min_cut(source))
 
-    # S→T の辺がカット辺
+    # Edges from S to T are cut edges
     cut_edges = []
     for u, v, cap, _ in original_edges:
         if u in s_side and v not in s_side:
@@ -390,57 +390,57 @@ def find_min_cut_edges(n: int, edges: list, source: int, sink: int) -> list:
 edges = [(0, 1, 3), (0, 2, 5), (1, 3, 2), (2, 3, 6), (2, 1, 4)]
 # s=0, A=1, B=2, t=3
 flow, cuts = find_min_cut_edges(4, edges, 0, 3)
-print(f"最大流: {flow}")
-print(f"最小カット辺: {cuts}")
+print(f"Maximum flow: {flow}")
+print(f"Minimum cut edges: {cuts}")
 ```
 
-### 最大流最小カット定理の証明の概要
+### Outline of the Max-Flow Min-Cut Theorem Proof
 
 ```
-定理: 任意のフローネットワークにおいて、
-      最大流の値 = 最小カットの容量
+Theorem: In any flow network,
+         maximum flow value = minimum cut capacity
 
-証明の概略:
-1. 任意のフロー f と任意のカット (S, T) について、
-   |f| ≤ c(S, T) （フロー値 ≤ カット容量）
+Proof sketch:
+1. For any flow f and any cut (S, T),
+   |f| <= c(S, T) (flow value <= cut capacity)
 
-2. Ford-Fulkerson が停止したとき、
-   残余グラフに s→t パスが存在しない
+2. When Ford-Fulkerson terminates,
+   there is no s->t path in the residual graph
 
-3. s から到達可能な頂点集合を S、残りを T とすると、
-   S→T のすべての辺は飽和（f(u,v) = c(u,v)）
-   T→S のすべての辺はフロー 0（f(v,u) = 0）
+3. Let S be the set of vertices reachable from s, and T be the rest.
+   All edges from S to T are saturated (f(u,v) = c(u,v))
+   All edges from T to S have zero flow (f(v,u) = 0)
 
-4. よって |f| = c(S, T) = 最小カットの容量
+4. Therefore |f| = c(S, T) = minimum cut capacity
 ```
 
 ---
 
-## 6. 二部マッチング
+## 6. Bipartite Matching
 
-二部グラフの最大マッチングを最大流に帰着する。
+Reducing maximum matching in a bipartite graph to maximum flow.
 
 ```
-二部グラフ:                 フローネットワーク化:
-  学生  ←→  プロジェクト       s → 学生 → プロジェクト → t
-                              容量全て 1
+Bipartite graph:                Flow network construction:
+  Students <-> Projects          s -> Students -> Projects -> t
+                                 All capacities = 1
 
-  A ── P1                    s ──→ A ──→ P1 ──→ t
-  A ── P2                    s ──→ A ──→ P2 ──→ t
-  B ── P1                    s ──→ B ──→ P1 ──→ t
-  B ── P3                    s ──→ B ──→ P3 ──→ t
-  C ── P2                    s ──→ C ──→ P2 ──→ t
-  C ── P3                    s ──→ C ──→ P3 ──→ t
+  A -- P1                    s --> A --> P1 --> t
+  A -- P2                    s --> A --> P2 --> t
+  B -- P1                    s --> B --> P1 --> t
+  B -- P3                    s --> B --> P3 --> t
+  C -- P2                    s --> C --> P2 --> t
+  C -- P3                    s --> C --> P3 --> t
 
-  最大マッチング = 最大流 = 3
-  例: A-P1, B-P3, C-P2
+  Maximum matching = Maximum flow = 3
+  Example: A-P1, B-P3, C-P2
 ```
 
 ```python
 def bipartite_matching(left: int, right: int, edges: list) -> tuple:
-    """二部マッチング（最大流ベース）
-    left: 左側頂点数, right: 右側頂点数
-    edges: [(左頂点, 右頂点), ...]
+    """Bipartite matching (max-flow based)
+    left: number of left vertices, right: number of right vertices
+    edges: [(left vertex, right vertex), ...]
     """
     n = left + right + 2
     source = 0
@@ -448,36 +448,36 @@ def bipartite_matching(left: int, right: int, edges: list) -> tuple:
 
     dinic = Dinic(n)
 
-    # source → 左側頂点（容量1）
+    # source -> left vertices (capacity 1)
     for i in range(left):
         dinic.add_edge(source, i + 1, 1)
 
-    # 左側 → 右側（容量1）
+    # left -> right (capacity 1)
     for l, r in edges:
         dinic.add_edge(l + 1, left + r + 1, 1)
 
-    # 右側頂点 → sink（容量1）
+    # right vertices -> sink (capacity 1)
     for j in range(right):
         dinic.add_edge(left + j + 1, sink, 1)
 
     max_matching = dinic.max_flow(source, sink)
     return max_matching
 
-# Hungarian アルゴリズム（直接実装版: DFSベース）
+# Hungarian algorithm (direct DFS-based implementation)
 def hungarian(n: int, m: int, adj: list) -> tuple:
-    """二部マッチング（ハンガリアン法）- O(VE)
-    n: 左側頂点数, m: 右側頂点数
-    adj[i]: 左頂点iに隣接する右頂点のリスト
+    """Bipartite matching (Hungarian method) - O(VE)
+    n: left vertex count, m: right vertex count
+    adj[i]: list of right vertices adjacent to left vertex i
     """
-    match_l = [-1] * n  # 左側のマッチ相手
-    match_r = [-1] * m  # 右側のマッチ相手
+    match_l = [-1] * n  # left match partner
+    match_r = [-1] * m  # right match partner
 
     def dfs(u, visited):
         for v in adj[u]:
             if visited[v]:
                 continue
             visited[v] = True
-            # v が未マッチ or v のマッチ相手を別に移せる
+            # v is unmatched or v's match partner can be reassigned
             if match_r[v] == -1 or dfs(match_r[v], visited):
                 match_l[u] = v
                 match_r[v] = u
@@ -492,26 +492,26 @@ def hungarian(n: int, m: int, adj: list) -> tuple:
 
     return matching, match_l, match_r
 
-# 使用例: 学生(0,1,2) → プロジェクト(0,1,2)
+# Usage example: Students(0,1,2) -> Projects(0,1,2)
 adj = [
-    [0, 1],  # 学生0 → P0, P1
-    [0, 2],  # 学生1 → P0, P2
-    [1, 2],  # 学生2 → P1, P2
+    [0, 1],  # Student 0 -> P0, P1
+    [0, 2],  # Student 1 -> P0, P2
+    [1, 2],  # Student 2 -> P1, P2
 ]
 count, ml, mr = hungarian(3, 3, adj)
-print(f"最大マッチング: {count}")  # 3
-print(f"左→右: {ml}")             # [0, 2, 1] or similar
+print(f"Maximum matching: {count}")  # 3
+print(f"Left->Right: {ml}")         # [0, 2, 1] or similar
 ```
 
-### Hopcroft-Karp法
+### Hopcroft-Karp Algorithm
 
-二部マッチングの最速アルゴリズム。O(E sqrt(V))。
+The fastest algorithm for bipartite matching. O(E sqrt(V)).
 
 ```python
 def hopcroft_karp(n: int, m: int, adj: list) -> tuple:
-    """Hopcroft-Karp法 - O(E sqrt(V))
-    n: 左側頂点数, m: 右側頂点数
-    adj[i]: 左頂点iに隣接する右頂点のリスト
+    """Hopcroft-Karp algorithm - O(E sqrt(V))
+    n: left vertex count, m: right vertex count
+    adj[i]: list of right vertices adjacent to left vertex i
     """
     INF = float('inf')
     match_l = [-1] * n
@@ -558,35 +558,35 @@ def hopcroft_karp(n: int, m: int, adj: list) -> tuple:
 
     return matching, match_l, match_r
 
-# 使用例
+# Usage example
 adj = [
-    [0, 1],   # 左0 → 右0, 右1
-    [0, 2],   # 左1 → 右0, 右2
-    [1, 2],   # 左2 → 右1, 右2
+    [0, 1],   # Left 0 -> Right 0, Right 1
+    [0, 2],   # Left 1 -> Right 0, Right 2
+    [1, 2],   # Left 2 -> Right 1, Right 2
 ]
 count, ml, mr = hopcroft_karp(3, 3, adj)
-print(f"最大マッチング: {count}")  # 3
+print(f"Maximum matching: {count}")  # 3
 ```
 
 ---
 
-## 7. 応用パターン
+## 7. Application Patterns
 
-### 最小頂点被覆（Konig の定理）
+### Minimum Vertex Cover (Konig's Theorem)
 
 ```python
 def minimum_vertex_cover(n: int, m: int, adj: list) -> list:
-    """二部グラフの最小頂点被覆を求める（Konig の定理）
-    最小頂点被覆 = 最大マッチング（二部グラフのみ）
-    返り値: 被覆に含まれる頂点のリスト
+    """Find the minimum vertex cover of a bipartite graph (Konig's theorem)
+    Minimum vertex cover = Maximum matching (bipartite graphs only)
+    Returns: list of vertices in the cover
     """
     _, match_l, match_r = hungarian(n, m, adj)
 
-    # 未マッチの左頂点から交互道を辿る
+    # Traverse alternating paths from unmatched left vertices
     visited_l = [False] * n
     visited_r = [False] * m
 
-    # 未マッチの左頂点をキューに入れる
+    # Enqueue unmatched left vertices
     queue = deque()
     for u in range(n):
         if match_l[u] == -1:
@@ -603,7 +603,7 @@ def minimum_vertex_cover(n: int, m: int, adj: list) -> list:
                     visited_l[w] = True
                     queue.append(w)
 
-    # 被覆 = 到達不能な左頂点 + 到達可能な右頂点
+    # Cover = unreachable left vertices + reachable right vertices
     cover = []
     for u in range(n):
         if not visited_l[u]:
@@ -615,12 +615,12 @@ def minimum_vertex_cover(n: int, m: int, adj: list) -> list:
     return cover
 ```
 
-### プロジェクト割り当て問題
+### Project Assignment Problem
 
 ```python
 def project_assignment(students: list, projects: list,
                        preferences: dict) -> dict:
-    """学生をプロジェクトに最大数割り当て"""
+    """Assign the maximum number of students to projects"""
     n_students = len(students)
     n_projects = len(projects)
 
@@ -649,60 +649,60 @@ prefs = {
     "Charlie": ["Web", "DB"],
 }
 result = project_assignment(students, projects, prefs)
-print(result)  # {'Alice': 'Web', 'Bob': 'AI', 'Charlie': 'DB'} など
+print(result)  # {'Alice': 'Web', 'Bob': 'AI', 'Charlie': 'DB'} etc.
 ```
 
-### 頂点素なパス数（頂点分割法）
+### Vertex-Disjoint Paths (Vertex Splitting)
 
 ```python
 def vertex_disjoint_paths(n: int, edges: list, s: int, t: int) -> int:
-    """s から t への頂点素なパスの最大数
-    各頂点を v_in と v_out に分割し、v_in → v_out の容量を 1 にする
+    """Maximum number of vertex-disjoint paths from s to t
+    Split each vertex v into v_in and v_out, with capacity 1 on v_in -> v_out
     """
-    # 頂点 v → v_in = 2*v, v_out = 2*v + 1
+    # Vertex v -> v_in = 2*v, v_out = 2*v + 1
     dinic = Dinic(2 * n)
 
     for v in range(n):
         if v == s or v == t:
-            dinic.add_edge(2 * v, 2 * v + 1, float('inf'))  # s, t は無制限
+            dinic.add_edge(2 * v, 2 * v + 1, float('inf'))  # s, t are unlimited
         else:
-            dinic.add_edge(2 * v, 2 * v + 1, 1)  # 各頂点は1回のみ通過
+            dinic.add_edge(2 * v, 2 * v + 1, 1)  # each vertex can be used only once
 
     for u, v in edges:
-        dinic.add_edge(2 * u + 1, 2 * v, 1)  # u_out → v_in
-        dinic.add_edge(2 * v + 1, 2 * u, 1)  # v_out → u_in（無向グラフの場合）
+        dinic.add_edge(2 * u + 1, 2 * v, 1)  # u_out -> v_in
+        dinic.add_edge(2 * v + 1, 2 * u, 1)  # v_out -> u_in (for undirected graphs)
 
     return dinic.max_flow(2 * s, 2 * t + 1)
 
-# 使用例
+# Usage example
 edges = [(0, 1), (0, 2), (1, 3), (2, 3), (3, 4)]
 print(vertex_disjoint_paths(5, edges, 0, 4))  # 2
 ```
 
-### 画像セグメンテーション（最小カット応用）
+### Image Segmentation (Min-Cut Application)
 
 ```python
 def image_segmentation(rows: int, cols: int,
                         foreground_cost: list,
                         background_cost: list,
                         neighbor_penalty: float) -> list:
-    """画像のピクセルを前景/背景に分割する最小カットベースの手法
-    foreground_cost[i]: ピクセル i を前景にするコスト
-    background_cost[i]: ピクセル i を背景にするコスト
-    neighbor_penalty: 隣接ピクセルが異なるラベルの場合のペナルティ
+    """Min-cut based method to partition pixels into foreground/background
+    foreground_cost[i]: cost of labeling pixel i as foreground
+    background_cost[i]: cost of labeling pixel i as background
+    neighbor_penalty: penalty when adjacent pixels have different labels
     """
     n = rows * cols
-    source = n      # 前景ソース
-    sink = n + 1    # 背景シンク
+    source = n      # foreground source
+    sink = n + 1    # background sink
     dinic = Dinic(n + 2)
 
     for i in range(n):
-        # source → pixel: 前景コスト（背景にするとカットされる）
+        # source -> pixel: foreground cost (cut when labeled as background)
         dinic.add_edge(source, i, int(background_cost[i] * 100))
-        # pixel → sink: 背景コスト（前景にするとカットされる）
+        # pixel -> sink: background cost (cut when labeled as foreground)
         dinic.add_edge(i, sink, int(foreground_cost[i] * 100))
 
-    # 隣接ペナルティ
+    # Neighbor penalty
     penalty = int(neighbor_penalty * 100)
     for r in range(rows):
         for c in range(cols):
@@ -716,27 +716,27 @@ def image_segmentation(rows: int, cols: int,
 
     dinic.max_flow(source, sink)
 
-    # s 側 = 前景, t 側 = 背景
+    # s-side = foreground, t-side = background
     s_side = set(dinic.min_cut(source))
     labels = [[0] * cols for _ in range(rows)]
     for r in range(rows):
         for c in range(cols):
             if r * cols + c in s_side:
-                labels[r][c] = 1  # 前景
+                labels[r][c] = 1  # foreground
 
     return labels
 ```
 
 ---
 
-## 8. 最小費用流
+## 8. Minimum Cost Flow
 
-各辺にフローの単位コストが設定されたネットワークで、指定量のフローを最小コストで流す問題。
+A problem where each edge has a per-unit flow cost, and the goal is to send a specified amount of flow at minimum total cost.
 
 ```python
 class MinCostFlow:
-    """最小費用流 (Primal-Dual / SPFA版)
-    Successive Shortest Paths アルゴリズム
+    """Minimum cost flow (Primal-Dual / SPFA version)
+    Successive Shortest Paths algorithm
     """
 
     def __init__(self, n: int):
@@ -744,19 +744,19 @@ class MinCostFlow:
         self.graph = [[] for _ in range(n)]
 
     def add_edge(self, u: int, v: int, cap: int, cost: int):
-        """辺を追加 (容量 cap, 単位コスト cost)"""
+        """Add an edge (capacity cap, unit cost cost)"""
         self.graph[u].append([v, cap, cost, len(self.graph[v])])
         self.graph[v].append([u, 0, -cost, len(self.graph[u]) - 1])
 
     def min_cost_flow(self, s: int, t: int, max_flow: int) -> tuple:
-        """s から t に max_flow だけ流す最小コスト
+        """Send max_flow units from s to t at minimum cost
         Returns: (actual_flow, total_cost) or (-1, -1) if infeasible
         """
         total_flow = 0
         total_cost = 0
 
         while total_flow < max_flow:
-            # SPFA (Bellman-Ford の改良) で最短路を求める
+            # Find shortest path using SPFA (improved Bellman-Ford)
             dist = [float('inf')] * self.n
             dist[s] = 0
             in_queue = [False] * self.n
@@ -780,9 +780,9 @@ class MinCostFlow:
                             in_queue[v] = True
 
             if dist[t] == float('inf'):
-                break  # t に到達不能
+                break  # t is unreachable
 
-            # パス上のボトルネック容量
+            # Bottleneck capacity on the path
             path_flow = max_flow - total_flow
             v = t
             while v != s:
@@ -791,7 +791,7 @@ class MinCostFlow:
                 path_flow = min(path_flow, self.graph[u][e][1])
                 v = u
 
-            # フローの更新
+            # Update flow
             v = t
             while v != s:
                 u = prev_node[v]
@@ -805,34 +805,34 @@ class MinCostFlow:
 
         return total_flow, total_cost
 
-# 使用例: 最小費用で 2 単位のフローを流す
+# Usage example: send 2 units of flow at minimum cost
 mcf = MinCostFlow(4)
 # s=0, A=1, B=2, t=3
-mcf.add_edge(0, 1, 2, 1)  # s→A: 容量2, コスト1
-mcf.add_edge(0, 2, 2, 3)  # s→B: 容量2, コスト3
-mcf.add_edge(1, 3, 1, 2)  # A→t: 容量1, コスト2
-mcf.add_edge(2, 3, 2, 1)  # B→t: 容量2, コスト1
-mcf.add_edge(1, 2, 1, 1)  # A→B: 容量1, コスト1
+mcf.add_edge(0, 1, 2, 1)  # s->A: capacity 2, cost 1
+mcf.add_edge(0, 2, 2, 3)  # s->B: capacity 2, cost 3
+mcf.add_edge(1, 3, 1, 2)  # A->t: capacity 1, cost 2
+mcf.add_edge(2, 3, 2, 1)  # B->t: capacity 2, cost 1
+mcf.add_edge(1, 2, 1, 1)  # A->B: capacity 1, cost 1
 
 flow, cost = mcf.min_cost_flow(0, 3, 2)
-print(f"フロー: {flow}, コスト: {cost}")
-# フロー: 2, コスト: 6 (s→A→t: 1*3=3, s→A→B→t: 1*(1+1+1)=3 or similar)
+print(f"Flow: {flow}, Cost: {cost}")
+# Flow: 2, Cost: 6 (s->A->t: 1*3=3, s->A->B->t: 1*(1+1+1)=3 or similar)
 ```
 
-### 最小費用流の応用: 仕事の割り当てコスト最小化
+### Min-Cost Flow Application: Minimizing Job Assignment Cost
 
 ```python
 def min_cost_assignment(workers: list, tasks: list,
                          costs: dict) -> tuple:
-    """各ワーカーに1つのタスクを割り当て、総コストを最小化
-    costs[(worker, task)] = コスト
+    """Assign one task to each worker, minimizing total cost
+    costs[(worker, task)] = cost
     """
     n_workers = len(workers)
     n_tasks = len(tasks)
     worker_idx = {w: i for i, w in enumerate(workers)}
     task_idx = {t: i for i, t in enumerate(tasks)}
 
-    # ネットワーク: s → workers → tasks → t
+    # Network: s -> workers -> tasks -> t
     n = n_workers + n_tasks + 2
     source = n - 2
     sink = n - 1
@@ -861,69 +861,69 @@ costs = {
     ("Charlie", "Task1"): 8, ("Charlie", "Task2"): 1, ("Charlie", "Task3"): 3,
 }
 flow, cost = min_cost_assignment(workers, tasks, costs)
-print(f"割り当て数: {flow}, 総コスト: {cost}")
-# 最適: Alice-Task2(3), Bob-Task1(2), Charlie-Task3(3) → 総コスト: 8
+print(f"Assignments: {flow}, Total cost: {cost}")
+# Optimal: Alice-Task2(3), Bob-Task1(2), Charlie-Task3(3) -> Total cost: 8
 ```
 
 ---
 
-## 9. アルゴリズム比較表
+## 9. Algorithm Comparison Table
 
-| アルゴリズム | 計算量 | 特徴 |
+| Algorithm | Complexity | Features |
 |:---|:---|:---|
-| Ford-Fulkerson (DFS) | O(E * max_flow) | 無理数容量で非停止の可能性 |
-| Edmonds-Karp (BFS) | O(VE^2) | BFS で最短増加パス |
-| Dinic | O(V^2 E) | レベルグラフ + ブロッキングフロー |
-| Push-Relabel | O(V^2 E) or O(V^3) | 前置リレーベル法 |
-| Hungarian | O(VE) | 二部マッチング特化 |
-| Hopcroft-Karp | O(E sqrt(V)) | 二部マッチング最速 |
-| MCMC/SPFA | O(VE * flow) | 最小費用流 |
+| Ford-Fulkerson (DFS) | O(E * max_flow) | May not terminate with irrational capacities |
+| Edmonds-Karp (BFS) | O(VE^2) | Shortest augmenting path via BFS |
+| Dinic | O(V^2 E) | Level graph + blocking flow |
+| Push-Relabel | O(V^2 E) or O(V^3) | Preflow-relabel method |
+| Hungarian | O(VE) | Specialized for bipartite matching |
+| Hopcroft-Karp | O(E sqrt(V)) | Fastest bipartite matching |
+| MCMC/SPFA | O(VE * flow) | Minimum cost flow |
 
-## フロー問題の帰着関係
+## Reduction Relationships Among Flow Problems
 
 ```
-多くの組合せ最適化問題はフロー問題に帰着できる:
+Many combinatorial optimization problems reduce to flow problems:
 
-最大二部マッチング ←──── 最大流（容量1）
-     │
-     ↓ Konig の定理
-最小頂点被覆 ←───── n - 最大独立集合
-     │
-     ↓ 補集合
-最大独立集合
+Maximum bipartite matching <--- Maximum flow (capacity 1)
+     |
+     v  Konig's theorem
+Minimum vertex cover <----- n - Maximum independent set
+     |
+     v  complement
+Maximum independent set
 
-最小パスカバー ←──── n - 最大マッチング（DAG上）
+Minimum path cover <------- n - Maximum matching (on DAG)
 
-エッジ素なパス数 ←── 最大流（辺容量1）
-頂点素なパス数 ←──── 最大流（頂点分割）
+Edge-disjoint path count <-- Maximum flow (edge capacity 1)
+Vertex-disjoint path count <-- Maximum flow (vertex splitting)
 ```
 
-## フロー問題の応用
+## Applications of Flow Problems
 
-| 問題 | 帰着先 | 容量設定 |
+| Problem | Reduction Target | Capacity Setting |
 |:---|:---|:---|
-| 二部マッチング | 最大流 | 全辺容量1 |
-| 最小頂点被覆 | 最大マッチング | Konig の定理 |
-| 最大独立集合 | n - 最小頂点被覆 | 補集合 |
-| エッジ素なパス数 | 最大流 | 辺容量1 |
-| 頂点素なパス数 | 最大流 | 頂点分割（容量1） |
-| 最小費用流 | SPFA + 増加パス | 費用付き辺 |
-| 最小パスカバー（DAG） | n - 最大マッチング | 入次数・出次数 |
-| 画像セグメンテーション | 最小カット | ピクセル間ペナルティ |
+| Bipartite matching | Maximum flow | All edge capacities = 1 |
+| Minimum vertex cover | Maximum matching | Konig's theorem |
+| Maximum independent set | n - Minimum vertex cover | Complement |
+| Edge-disjoint path count | Maximum flow | Edge capacity 1 |
+| Vertex-disjoint path count | Maximum flow | Vertex splitting (capacity 1) |
+| Minimum cost flow | SPFA + augmenting path | Edges with costs |
+| Minimum path cover (DAG) | n - Maximum matching | In-degree/out-degree |
+| Image segmentation | Minimum cut | Inter-pixel penalty |
 
 ---
 
-## 10. 実務での応用例
+## 10. Practical Applications
 
-### スケジューリング問題
+### Scheduling Problem
 
 ```python
 def schedule_tasks(n_workers: int, tasks: list) -> int:
-    """各タスクに開始時刻・終了時刻・必要人数が設定されている
-    全タスクを同時に満たすために必要な最小ワーカー数を求める
-    （最大流の逆問題として解く場合もあるが、ここではフローで検証）
+    """Each task has a start time, end time, and required number of workers.
+    Find the minimum number of workers needed to satisfy all tasks simultaneously.
+    (Sometimes solved as the inverse of max flow; here we verify via flow)
     """
-    # 時刻を離散化
+    # Discretize time points
     times = set()
     for start, end, _ in tasks:
         times.add(start)
@@ -937,11 +937,11 @@ def schedule_tasks(n_workers: int, tasks: list) -> int:
     total_nodes = sink + 1
     dinic = Dinic(total_nodes)
 
-    # 時間ノード間を繋ぐ（ワーカーの流れ）
+    # Connect time nodes (worker flow)
     for i in range(n_times - 1):
         dinic.add_edge(i, i + 1, n_workers)
 
-    # 各タスク: 開始時刻 → タスクノード → 終了時刻
+    # Each task: start time -> task node -> end time
     for task_id, (start, end, required) in enumerate(tasks):
         task_node = n_times + task_id
         si = time_idx[start]
@@ -949,29 +949,29 @@ def schedule_tasks(n_workers: int, tasks: list) -> int:
         dinic.add_edge(si, task_node, required)
         dinic.add_edge(task_node, ei, required)
 
-    # source → 最初の時刻, 最後の時刻 → sink
+    # source -> first time point, last time point -> sink
     dinic.add_edge(source, 0, n_workers)
     dinic.add_edge(n_times - 1, sink, n_workers)
 
     return dinic.max_flow(source, sink)
 ```
 
-### ネットワークの信頼性分析
+### Network Reliability Analysis
 
 ```python
 def network_reliability(n: int, edges: list, s: int, t: int) -> dict:
-    """ネットワークの信頼性指標を計算
-    - 辺連結度: s-t 間を切断するために必要な最小辺数
-    - 頂点連結度: s-t 間を切断するために必要な最小頂点数
+    """Compute network reliability metrics
+    - Edge connectivity: minimum number of edges to disconnect s-t
+    - Vertex connectivity: minimum number of vertices to disconnect s-t
     """
-    # 辺連結度 = 最大流（全辺容量1）
+    # Edge connectivity = max flow (all edge capacities = 1)
     dinic_edge = Dinic(n)
     for u, v in edges:
         dinic_edge.add_edge(u, v, 1)
         dinic_edge.add_edge(v, u, 1)
     edge_connectivity = dinic_edge.max_flow(s, t)
 
-    # 頂点連結度 = 頂点分割後の最大流
+    # Vertex connectivity = max flow after vertex splitting
     vertex_connectivity = vertex_disjoint_paths(n, edges, s, t)
 
     return {
@@ -981,64 +981,64 @@ def network_reliability(n: int, edges: list, s: int, t: int) -> dict:
 
 edges = [(0, 1), (0, 2), (1, 3), (2, 3), (1, 2)]
 result = network_reliability(4, edges, 0, 3)
-print(f"辺連結度: {result['edge_connectivity']}")
-print(f"頂点連結度: {result['vertex_connectivity']}")
+print(f"Edge connectivity: {result['edge_connectivity']}")
+print(f"Vertex connectivity: {result['vertex_connectivity']}")
 ```
 
 ---
 
-## 11. アンチパターン
+## 11. Anti-patterns
 
-### アンチパターン1: 逆辺の追加忘れ
+### Anti-pattern 1: Forgetting to Add Reverse Edges
 
 ```python
-# BAD: 残余グラフの逆辺を追加しない
+# BAD: Not adding reverse edges to the residual graph
 def bad_add_edge(self, u, v, cap):
     self.graph[u][v] = cap
-    # 逆辺 graph[v][u] = 0 を追加していない!
-    # → フローのキャンセルができず、最大流が求まらない
+    # Missing graph[v][u] = 0 (reverse edge)!
+    # -> Cannot cancel flow, so max flow cannot be computed
 
-# GOOD: 必ず逆辺を追加
+# GOOD: Always add reverse edges
 def good_add_edge(self, u, v, cap):
     self.graph[u][v] += cap
-    # 逆辺（初期容量0）を確保
+    # Ensure reverse edge (initial capacity 0) exists
     if v not in self.graph or u not in self.graph[v]:
         self.graph[v][u] += 0
 ```
 
-### アンチパターン2: 二部マッチングで全探索
+### Anti-pattern 2: Brute-Force for Bipartite Matching
 
 ```python
-# BAD: 全順列を試して最大マッチング → O(n!)
+# BAD: Try all permutations for maximum matching -> O(n!)
 from itertools import permutations
 def bad_matching(adj, n, m):
     max_match = 0
     for perm in permutations(range(m)):
         count = sum(1 for i in range(min(n,m)) if perm[i] in adj[i])
         max_match = max(max_match, count)
-    return max_match  # n! は大きすぎる
+    return max_match  # n! is far too large
 
-# GOOD: ハンガリアン法 or 最大流 → O(VE) or O(V^2 E)
+# GOOD: Hungarian method or max flow -> O(VE) or O(V^2 E)
 count, _, _ = hungarian(n, m, adj)
 ```
 
-### アンチパターン3: Dinic法で iter 配列を初期化し忘れ
+### Anti-pattern 3: Forgetting to Reset iter Array in Dinic's Algorithm
 
 ```python
-# BAD: BFS のたびに iter を初期化しない
+# BAD: Not resetting iter for each BFS phase
 def bad_max_flow(self, s, t):
     flow = 0
-    self.iter = [0] * self.n  # 一度だけ初期化
+    self.iter = [0] * self.n  # initialized only once
     while self.bfs(s, t):
-        # iter が前回の値のまま → DFS が正しく動かない
+        # iter carries over from previous phase -> DFS doesn't work correctly
         f = self.dfs(s, t, float('inf'))
         flow += f
 
-# GOOD: BFS のたびに iter を再初期化
+# GOOD: Reset iter for each BFS phase
 def good_max_flow(self, s, t):
     flow = 0
     while self.bfs(s, t):
-        self.iter = [0] * self.n  # 毎回初期化
+        self.iter = [0] * self.n  # reset every time
         while True:
             f = self.dfs(s, t, float('inf'))
             if f == 0:
@@ -1047,49 +1047,49 @@ def good_max_flow(self, s, t):
     return flow
 ```
 
-### アンチパターン4: 無向グラフでの辺の追加ミス
+### Anti-pattern 4: Incorrect Edge Addition for Undirected Graphs
 
 ```python
-# BAD: 無向辺を有向辺として1回だけ追加
-dinic.add_edge(u, v, cap)  # u→v のみ
+# BAD: Adding an undirected edge as only one directed edge
+dinic.add_edge(u, v, cap)  # only u->v
 
-# GOOD: 無向辺は両方向に追加
+# GOOD: Add both directions for undirected edges
 dinic.add_edge(u, v, cap)
 dinic.add_edge(v, u, cap)
-# ※ Dinic の add_edge は内部で逆辺（容量0）を追加しているので
-# 無向辺の場合は手動で両方向の辺を追加する必要がある
+# Note: Dinic's add_edge internally adds a reverse edge (capacity 0),
+# so for undirected edges, you need to manually add both directions
 ```
 
 
 ---
 
-## トラブルシューティング
+## Troubleshooting
 
-### よくあるエラーと解決策
+### Common Errors and Solutions
 
-| エラー | 原因 | 解決策 |
+| Error | Cause | Solution |
 |--------|------|--------|
-| 初期化エラー | 設定ファイルの不備 | 設定ファイルのパスと形式を確認 |
-| タイムアウト | ネットワーク遅延/リソース不足 | タイムアウト値の調整、リトライ処理の追加 |
-| メモリ不足 | データ量の増大 | バッチ処理の導入、ページネーションの実装 |
-| 権限エラー | アクセス権限の不足 | 実行ユーザーの権限確認、設定の見直し |
-| データ不整合 | 並行処理の競合 | ロック機構の導入、トランザクション管理 |
+| Initialization error | Configuration file issues | Check configuration file path and format |
+| Timeout | Network latency / insufficient resources | Adjust timeout values, add retry logic |
+| Out of memory | Data volume growth | Introduce batch processing, implement pagination |
+| Permission error | Insufficient access rights | Check execution user permissions, review settings |
+| Data inconsistency | Concurrent processing conflicts | Introduce locking mechanisms, manage transactions |
 
-### デバッグの手順
+### Debugging Procedure
 
-1. **エラーメッセージの確認**: スタックトレースを読み、発生箇所を特定する
-2. **再現手順の確立**: 最小限のコードでエラーを再現する
-3. **仮説の立案**: 考えられる原因をリストアップする
-4. **段階的な検証**: ログ出力やデバッガを使って仮説を検証する
-5. **修正と回帰テスト**: 修正後、関連する箇所のテストも実行する
+1. **Check error messages**: Read the stack trace and identify the location
+2. **Establish reproduction steps**: Reproduce the error with minimal code
+3. **Formulate hypotheses**: List possible causes
+4. **Verify step by step**: Use logging or a debugger to verify hypotheses
+5. **Fix and regression test**: After fixing, also run tests on related areas
 
 ```python
-# デバッグ用ユーティリティ
+# Debugging utilities
 import logging
 import traceback
 from functools import wraps
 
-# ロガーの設定
+# Logger configuration
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
@@ -1097,102 +1097,102 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def debug_decorator(func):
-    """関数の入出力をログ出力するデコレータ"""
+    """Decorator that logs function input/output"""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        logger.debug(f"呼び出し: {func.__name__}(args={args}, kwargs={kwargs})")
+        logger.debug(f"Call: {func.__name__}(args={args}, kwargs={kwargs})")
         try:
             result = func(*args, **kwargs)
-            logger.debug(f"戻り値: {func.__name__} -> {result}")
+            logger.debug(f"Return: {func.__name__} -> {result}")
             return result
         except Exception as e:
-            logger.error(f"例外発生: {func.__name__}: {e}")
+            logger.error(f"Exception in {func.__name__}: {e}")
             logger.error(traceback.format_exc())
             raise
     return wrapper
 
 @debug_decorator
 def process_data(items):
-    """データ処理（デバッグ対象）"""
+    """Data processing (debug target)"""
     if not items:
-        raise ValueError("空のデータ")
+        raise ValueError("Empty data")
     return [item * 2 for item in items]
 ```
 
-### パフォーマンス問題の診断
+### Diagnosing Performance Issues
 
-パフォーマンス問題が発生した場合の診断手順:
+Steps for diagnosing performance problems:
 
-1. **ボトルネックの特定**: プロファイリングツールで計測
-2. **メモリ使用量の確認**: メモリリークの有無をチェック
-3. **I/O待ちの確認**: ディスクやネットワークI/Oの状況を確認
-4. **同時接続数の確認**: コネクションプールの状態を確認
+1. **Identify bottlenecks**: Measure with profiling tools
+2. **Check memory usage**: Check for memory leaks
+3. **Check I/O wait**: Monitor disk and network I/O status
+4. **Check connection count**: Monitor connection pool state
 
-| 問題の種類 | 診断ツール | 対策 |
+| Problem Type | Diagnostic Tool | Countermeasure |
 |-----------|-----------|------|
-| CPU負荷 | cProfile, py-spy | アルゴリズム改善、並列化 |
-| メモリリーク | tracemalloc, objgraph | 参照の適切な解放 |
-| I/Oボトルネック | strace, iostat | 非同期I/O、キャッシュ |
-| DB遅延 | EXPLAIN, slow query log | インデックス、クエリ最適化 |
+| CPU load | cProfile, py-spy | Algorithm improvement, parallelization |
+| Memory leak | tracemalloc, objgraph | Proper reference release |
+| I/O bottleneck | strace, iostat | Async I/O, caching |
+| DB latency | EXPLAIN, slow query log | Index, query optimization |
 
 ---
 
-## 設計判断ガイド
+## Design Decision Guide
 
-### 選択基準マトリクス
+### Selection Criteria Matrix
 
-技術選択を行う際の判断基準を以下にまとめます。
+The following summarizes criteria for making technology choices.
 
-| 判断基準 | 重視する場合 | 妥協できる場合 |
+| Criterion | Prioritize When | Can Compromise When |
 |---------|------------|-------------|
-| パフォーマンス | リアルタイム処理、大規模データ | 管理画面、バッチ処理 |
-| 保守性 | 長期運用、チーム開発 | プロトタイプ、短期プロジェクト |
-| スケーラビリティ | 成長が見込まれるサービス | 社内ツール、固定ユーザー |
-| セキュリティ | 個人情報、金融データ | 公開データ、社内利用 |
-| 開発速度 | MVP、市場投入スピード | 品質重視、ミッションクリティカル |
+| Performance | Real-time processing, large-scale data | Admin panels, batch processing |
+| Maintainability | Long-term operation, team development | Prototypes, short-term projects |
+| Scalability | Services expected to grow | Internal tools, fixed user base |
+| Security | Personal information, financial data | Public data, internal use |
+| Development speed | MVP, time to market | Quality-focused, mission-critical |
 
-### アーキテクチャパターンの選択
+### Architecture Pattern Selection
 
 ```
-┌─────────────────────────────────────────────────┐
-│              アーキテクチャ選択フロー              │
-├─────────────────────────────────────────────────┤
-│                                                 │
-│  ① チーム規模は？                                │
-│    ├─ 小規模（1-5人）→ モノリス                   │
-│    └─ 大規模（10人+）→ ②へ                       │
-│                                                 │
-│  ② デプロイ頻度は？                               │
-│    ├─ 週1回以下 → モノリス + モジュール分割         │
-│    └─ 毎日/複数回 → ③へ                          │
-│                                                 │
-│  ③ チーム間の独立性は？                            │
-│    ├─ 高い → マイクロサービス                      │
-│    └─ 中程度 → モジュラーモノリス                   │
-│                                                 │
-└─────────────────────────────────────────────────┘
++--------------------------------------------------+
+|        Architecture Selection Flow                |
++--------------------------------------------------+
+|                                                   |
+|  (1) Team size?                                   |
+|    +-- Small (1-5) -> Monolith                    |
+|    +-- Large (10+) -> Go to (2)                   |
+|                                                   |
+|  (2) Deploy frequency?                            |
+|    +-- Weekly or less -> Monolith + module split   |
+|    +-- Daily/multiple -> Go to (3)                 |
+|                                                   |
+|  (3) Team independence?                            |
+|    +-- High -> Microservices                       |
+|    +-- Moderate -> Modular monolith                |
+|                                                   |
++--------------------------------------------------+
 ```
 
-### トレードオフの分析
+### Trade-off Analysis
 
-技術的な判断には必ずトレードオフが伴います。以下の観点で分析を行いましょう:
+Technical decisions always involve trade-offs. Analyze from these perspectives:
 
-**1. 短期 vs 長期のコスト**
-- 短期的に速い方法が長期的には技術的負債になることがある
-- 逆に、過剰な設計は短期的なコストが高く、プロジェクトの遅延を招く
+**1. Short-term vs Long-term Cost**
+- The fastest short-term approach may become technical debt in the long run
+- Conversely, over-engineering increases short-term costs and can delay the project
 
-**2. 一貫性 vs 柔軟性**
-- 統一された技術スタックは学習コストが低い
-- 多様な技術の採用は適材適所が可能だが、運用コストが増加
+**2. Consistency vs Flexibility**
+- A unified tech stack has lower learning costs
+- Diverse technology adoption enables best-fit choices but increases operational costs
 
-**3. 抽象化のレベル**
-- 高い抽象化は再利用性が高いが、デバッグが困難になる場合がある
-- 低い抽象化は直感的だが、コードの重複が発生しやすい
+**3. Level of Abstraction**
+- Higher abstraction increases reusability but can make debugging harder
+- Lower abstraction is intuitive but tends to result in code duplication
 
 ```python
-# 設計判断の記録テンプレート
+# Design decision recording template
 class ArchitectureDecisionRecord:
-    """ADR (Architecture Decision Record) の作成"""
+    """ADR (Architecture Decision Record) creation"""
 
     def __init__(self, title: str):
         self.title = title
@@ -1202,17 +1202,17 @@ class ArchitectureDecisionRecord:
         self.alternatives = []
 
     def set_context(self, context: str):
-        """背景と課題の記述"""
+        """Describe background and challenges"""
         self.context = context
         return self
 
     def set_decision(self, decision: str):
-        """決定内容の記述"""
+        """Describe the decision"""
         self.decision = decision
         return self
 
     def add_consequence(self, consequence: str, positive: bool = True):
-        """結果の追加"""
+        """Add a consequence"""
         self.consequences.append({
             'description': consequence,
             'type': 'positive' if positive else 'negative'
@@ -1220,7 +1220,7 @@ class ArchitectureDecisionRecord:
         return self
 
     def add_alternative(self, name: str, reason_rejected: str):
-        """却下した代替案の追加"""
+        """Add a rejected alternative"""
         self.alternatives.append({
             'name': name,
             'reason_rejected': reason_rejected
@@ -1228,15 +1228,15 @@ class ArchitectureDecisionRecord:
         return self
 
     def to_markdown(self) -> str:
-        """Markdown形式で出力"""
+        """Output in Markdown format"""
         md = f"# ADR: {self.title}\n\n"
-        md += f"## 背景\n{self.context}\n\n"
-        md += f"## 決定\n{self.decision}\n\n"
-        md += "## 結果\n"
+        md += f"## Context\n{self.context}\n\n"
+        md += f"## Decision\n{self.decision}\n\n"
+        md += "## Consequences\n"
         for c in self.consequences:
-            icon = "✅" if c['type'] == 'positive' else "⚠️"
-            md += f"- {icon} {c['description']}\n"
-        md += "\n## 却下した代替案\n"
+            icon = "+" if c['type'] == 'positive' else "!"
+            md += f"- [{icon}] {c['description']}\n"
+        md += "\n## Rejected Alternatives\n"
         for a in self.alternatives:
             md += f"- **{a['name']}**: {a['reason_rejected']}\n"
         return md
@@ -1245,91 +1245,91 @@ class ArchitectureDecisionRecord:
 
 ## 12. FAQ
 
-### Q1: 最大流最小カット定理は何に使えるか？
+### Q1: What can the max-flow min-cut theorem be used for?
 
-**A:** ネットワークの「ボトルネック」の特定に使える。通信ネットワークで最も脆弱なリンク、道路網で渋滞の原因となる区間、パイプラインの最大輸送量など。また、画像のセグメンテーション（前景/背景分離）にも応用される。
+**A:** It is used to identify "bottlenecks" in networks. Examples include the most vulnerable link in a communication network, sections causing congestion in road networks, and maximum transport volume in pipelines. It is also applied to image segmentation (foreground/background separation).
 
-### Q2: 最小費用流とは何か？
+### Q2: What is minimum cost flow?
 
-**A:** 各辺にフローの単位コストが設定されたネットワークで、指定量のフローを最小コストで流す問題。SPFA（Bellman-Ford の改良）で最短パスを見つけながら増加パスを送る。仕事の割り当てコスト最小化、輸送計画などに応用される。
+**A:** A problem where each edge has a per-unit flow cost, and the goal is to send a specified amount of flow at minimum total cost. It finds shortest paths using SPFA (improved Bellman-Ford) while sending augmenting paths. Applications include job assignment cost minimization and transportation planning.
 
-### Q3: 二部マッチングの実際のユースケースは？
+### Q3: What are real-world use cases for bipartite matching?
 
-**A:** (1) 学生と研究室の配属、(2) タスクとワーカーの割り当て、(3) レビュアーと論文のマッチング、(4) 安定結婚問題（Gale-Shapley）、(5) コンパイラのレジスタ割り当て。Hall の結婚定理で完全マッチングの存在条件を判定できる。
+**A:** (1) Student-to-lab assignment, (2) task-to-worker assignment, (3) reviewer-to-paper matching, (4) stable marriage problem (Gale-Shapley), (5) register allocation in compilers. Hall's marriage theorem can determine the existence condition for a perfect matching.
 
-### Q4: Dinic法とEdmonds-Karp法はどちらを使うべきか？
+### Q4: Should I use Dinic's algorithm or Edmonds-Karp?
 
-**A:** ほぼ常に Dinic法が推奨される。計算量が O(V^2 E) で Edmonds-Karp の O(VE^2) より良く、二部マッチングでは O(E sqrt(V)) になる。実装の複雑さもほぼ同等。
+**A:** Dinic's algorithm is almost always recommended. Its complexity is O(V^2 E), better than Edmonds-Karp's O(VE^2), and it becomes O(E sqrt(V)) for bipartite matching. Implementation complexity is roughly the same.
 
-### Q5: 最大流問題で容量が実数（浮動小数点数）の場合は？
+### Q5: What if the max flow problem has real-valued (floating-point) capacities?
 
-**A:** Ford-Fulkerson法（DFS版）は収束しない可能性がある（Zwick-Paterson の反例）。Edmonds-Karp法（BFS版）やDinic法は有理数容量でも正しく動作する。実用上は整数に丸めるか、有理数演算を使う。
+**A:** Ford-Fulkerson (DFS version) may not converge (Zwick-Paterson counterexample). Edmonds-Karp (BFS version) and Dinic's algorithm work correctly even with rational capacities. In practice, either round to integers or use rational arithmetic.
 
-### Q6: Hall の結婚定理とは？
+### Q6: What is Hall's marriage theorem?
 
-**A:** 二部グラフ G = (L, R, E) において、L のすべての頂点をマッチできる（完全マッチングが存在する）ための必要十分条件は「L の任意の部分集合 S について、S の近傍 N(S) のサイズが |S| 以上」であること。フロー理論の最大流最小カット定理から導出できる。
+**A:** In a bipartite graph G = (L, R, E), a necessary and sufficient condition for matching all vertices in L (a perfect matching exists) is that "for any subset S of L, the neighborhood N(S) has size at least |S|." This can be derived from the max-flow min-cut theorem.
 
 ---
 
-## 13. Push-Relabel法（前置リレーベル法）
+## 13. Push-Relabel Algorithm
 
-Ford-Fulkerson系のアルゴリズムがグローバルな増加パスを探索するのに対し、Push-Relabel法はローカルな操作（push と relabel）を繰り返して最大流を求める。大規模グラフで高い性能を発揮する。
+While Ford-Fulkerson-type algorithms search for global augmenting paths, the Push-Relabel algorithm repeatedly performs local operations (push and relabel) to find the maximum flow. It delivers high performance on large-scale graphs.
 
-### アルゴリズムの概要
+### Algorithm Overview
 
 ```
-Push-Relabel の基本概念:
+Push-Relabel basic concepts:
 
-1. 高さラベル h(v): 各頂点にラベルを割り当てる
+1. Height label h(v): Assign a label to each vertex
    - h(s) = |V|, h(t) = 0
-   - 辺 (u,v) に残余容量がある → h(u) ≤ h(v) + 1
+   - If edge (u,v) has residual capacity -> h(u) <= h(v) + 1
 
-2. 超過フロー e(v): 各頂点の流入量 - 流出量
-   - s, t 以外で e(v) > 0 の頂点が「アクティブ」
+2. Excess flow e(v): inflow - outflow at each vertex
+   - Vertices (other than s, t) with e(v) > 0 are "active"
 
-3. Push 操作: アクティブ頂点 u から隣接頂点 v へフローを送る
-   条件: h(u) = h(v) + 1 かつ残余容量 > 0
-   送る量: min(e(u), 残余容量(u,v))
+3. Push operation: Send flow from active vertex u to adjacent vertex v
+   Condition: h(u) = h(v) + 1 and residual capacity > 0
+   Amount sent: min(e(u), residual capacity(u,v))
 
-4. Relabel 操作: Push できない場合にラベルを引き上げる
-   h(u) = min(h(v) + 1 | (u,v) に残余容量がある)
+4. Relabel operation: Raise label when push is not possible
+   h(u) = min(h(v) + 1 | (u,v) has residual capacity)
 
-処理の流れ:
-   s からすべての隣接辺を飽和させる（初期プッシュ）
-   → アクティブ頂点が存在する限り Push or Relabel を繰り返す
-   → 全頂点のラベルが安定したとき、e(t) が最大流
+Flow of processing:
+   Saturate all adjacent edges from s (initial push)
+   -> Repeat Push or Relabel as long as active vertices exist
+   -> When all vertex labels are stable, e(t) is the maximum flow
 
-計算量: O(V^2 E)  ※FIFO選択則で O(V^3)
+Complexity: O(V^2 E)  *O(V^3) with FIFO selection rule
 ```
 
-### Push-Relabel法のイメージ図
+### Push-Relabel Visualization
 
 ```
-  高さラベルのイメージ（水が高い所から低い所へ流れる）:
+  Height label image (water flows from high to low):
 
   h=6(s)
    |
    | push
    v
-  h=1(A) ──push──→ h=0(t)
+  h=1(A) --push--> h=0(t)
    |
    | push
    v
-  h=1(B) ──push──→ h=0(t)
+  h=1(B) --push--> h=0(t)
 
-  Push できない頂点は Relabel で高さを上げる:
+  Vertices that cannot push are relabeled to raise their height:
 
-  relabel前:          relabel後:
-  h=1(A)              h=2(A)  ← 引き上げ
-    ↓ push不可           ↓ push可能に
-  h=1(B)              h=1(B)
-    ↓                    ↓
-  h=0(t)              h=0(t)
+  Before relabel:         After relabel:
+  h=1(A)                  h=2(A)  <- raised
+    v push impossible       v push now possible
+  h=1(B)                  h=1(B)
+    v                        v
+  h=0(t)                  h=0(t)
 ```
 
 ```python
 class PushRelabel:
-    """Push-Relabel法（FIFO選択則） - O(V^3)"""
+    """Push-Relabel algorithm (FIFO selection rule) - O(V^3)"""
 
     def __init__(self, n: int):
         self.n = n
@@ -1345,7 +1345,7 @@ class PushRelabel:
         excess = [0] * n
         height[s] = n
 
-        # 初期プッシュ: s から全隣接辺を飽和
+        # Initial push: saturate all adjacent edges from s
         for v in range(n):
             if self.cap[s][v] > 0:
                 f = self.cap[s][v]
@@ -1354,7 +1354,7 @@ class PushRelabel:
                 excess[v] = f
                 excess[s] -= f
 
-        # アクティブ頂点のキュー（FIFO）
+        # FIFO queue of active vertices
         active = deque()
         in_queue = [False] * n
         for v in range(n):
@@ -1400,7 +1400,7 @@ class PushRelabel:
             active.append(u)
             in_queue[u] = True
 
-# 使用例
+# Usage example
 pr = PushRelabel(6)
 pr.add_edge(0, 1, 10)
 pr.add_edge(0, 2, 10)
@@ -1413,136 +1413,136 @@ pr.add_edge(4, 5, 10)
 print(pr.max_flow(0, 5))  # 19
 ```
 
-### 各アルゴリズムの選択指針
+### Algorithm Selection Guidelines
 
 ```
-使い分けの判断フロー:
+Decision flow for choosing the right algorithm:
 
-問題の種類は？
-├── 二部マッチング → Hopcroft-Karp  O(E sqrt(V))
-├── 最小費用流     → SPFA + Successive Shortest Paths
-├── 単純な最大流   → Dinic法  O(V^2 E)
-│    ├── 密グラフ（E ≈ V^2）→ Push-Relabel  O(V^3)
-│    └── 疎グラフ（E ≈ V）  → Dinic法
-└── 小規模（V < 100）→ どれでも可（Edmonds-Karp が最も実装簡単）
+Problem type?
++-- Bipartite matching -> Hopcroft-Karp  O(E sqrt(V))
++-- Minimum cost flow  -> SPFA + Successive Shortest Paths
++-- Simple max flow    -> Dinic's algorithm  O(V^2 E)
+|    +-- Dense graph (E ~ V^2) -> Push-Relabel  O(V^3)
+|    +-- Sparse graph (E ~ V)  -> Dinic's algorithm
++-- Small scale (V < 100) -> Any will work (Edmonds-Karp is simplest to implement)
 ```
 
 ---
 
-## 14. 演習問題（3段階）
+## 14. Exercises (3 Levels)
 
-### 初級: 基本的なフロー計算
+### Beginner: Basic Flow Computation
 
-**問題 1:** 以下のグラフの最大流を手計算で求めよ。
+**Problem 1:** Compute the maximum flow of the following graph by hand.
 
 ```
          8         6
-    s ────→ A ────→ t
-    │               ↑
-    │3              │5
-    ↓               │
-    B ─────────────→ C
+    s -----> A -----> t
+    |               ^
+    |3              |5
+    v               |
+    B -------------> C
            7
 ```
 
-**ヒント:** 増加パスを1本ずつ見つけて残余グラフを更新する。
+**Hint:** Find augmenting paths one by one and update the residual graph.
 
-**解答例:**
+**Solution:**
 
 ```
-パス1: s → A → t  ボトルネック = min(8, 6) = 6
-  残余: s→A: 2, A→t: 0, t→A: 6
+Path 1: s -> A -> t  Bottleneck = min(8, 6) = 6
+  Residual: s->A: 2, A->t: 0, t->A: 6
 
-パス2: s → B → C → t  ボトルネック = min(3, 7, 5) = 3
-  残余: s→B: 0, B→C: 4, C→t: 2
+Path 2: s -> B -> C -> t  Bottleneck = min(3, 7, 5) = 3
+  Residual: s->B: 0, B->C: 4, C->t: 2
 
-パス3: 増加パスなし（s からの辺: s→A: 2 だが A→t: 0、A→... 到達不能）
-  → s → A → ... t に到達するパスを探す
+Path 3: No augmenting path (edges from s: s->A: 2 but A->t: 0, A->... unreachable)
+  -> Search for s -> A -> ... t path in residual graph
 
-  残余グラフで確認:
-  s→A: 2, A→t: 0, t→A: 6
-  s→B: 0, B→C: 4, C→t: 2
-  （逆辺も含む）
+  Checking residual graph:
+  s->A: 2, A->t: 0, t->A: 6
+  s->B: 0, B->C: 4, C->t: 2
+  (including reverse edges)
 
-  実際は s→A (容量2) を使って... A からは直接 t に行けないが
-  逆辺等を考慮すると追加パスなし。
+  Actually, using s->A (capacity 2)... A cannot reach t directly
+  Considering reverse edges etc., no additional path exists.
 
-最大流 = 6 + 3 = 9
+Maximum flow = 6 + 3 = 9
 
-検証: 最小カットは {s→A: 8, s→B: 3} ではなく
-      {A→t: 6, C→t: 5} = 11 でもない。
-      実際の最小カット = {s→B: 3, A→t: 6} = 9  ← 一致
+Verification: Minimum cut is not {s->A: 8, s->B: 3} nor
+      {A->t: 6, C->t: 5} = 11.
+      Actual minimum cut = {s->B: 3, A->t: 6} = 9  <- matches
 ```
 
-**問題 2:** Ford-Fulkerson法を使って、以下の 4 頂点グラフの最大流を計算するコードを書け。
+**Problem 2:** Write code using the Ford-Fulkerson method to compute the maximum flow of the following 4-vertex graph.
 
 ```
 s=0, A=1, B=2, t=3
-辺: s→A(容量10), s→B(容量5), A→B(容量15), A→t(容量10), B→t(容量10)
+Edges: s->A(cap 10), s->B(cap 5), A->B(cap 15), A->t(cap 10), B->t(cap 10)
 ```
 
-### 中級: 二部マッチングと最小カット
+### Intermediate: Bipartite Matching and Minimum Cut
 
-**問題 3:** 5人の学生と5つの研究室がある。以下の志望リストから最大マッチングを求めよ。
+**Problem 3:** There are 5 students and 5 labs. Find the maximum matching given the following preference lists.
 
 ```
-学生0: 研究室 {0, 1, 3}
-学生1: 研究室 {1, 2}
-学生2: 研究室 {0, 3}
-学生3: 研究室 {2, 4}
-学生4: 研究室 {1, 3, 4}
+Student 0: Labs {0, 1, 3}
+Student 1: Labs {1, 2}
+Student 2: Labs {0, 3}
+Student 3: Labs {2, 4}
+Student 4: Labs {1, 3, 4}
 ```
 
-**解答例:**
+**Solution:**
 
 ```python
 adj = [
-    [0, 1, 3],   # 学生0
-    [1, 2],       # 学生1
-    [0, 3],       # 学生2
-    [2, 4],       # 学生3
-    [1, 3, 4],    # 学生4
+    [0, 1, 3],   # Student 0
+    [1, 2],       # Student 1
+    [0, 3],       # Student 2
+    [2, 4],       # Student 3
+    [1, 3, 4],    # Student 4
 ]
 count, match_l, match_r = hopcroft_karp(5, 5, adj)
-print(f"最大マッチング: {count}")  # 5（完全マッチング可能）
-# 例: 学生0→研究室0, 学生1→研究室2, 学生2→研究室3,
-#      学生3→研究室4, 学生4→研究室1
+print(f"Maximum matching: {count}")  # 5 (perfect matching possible)
+# Example: Student 0->Lab 0, Student 1->Lab 2, Student 2->Lab 3,
+#          Student 3->Lab 4, Student 4->Lab 1
 ```
 
-**問題 4:** ネットワークの最小カット辺を求め、最もボトルネックとなるリンクを特定せよ。
+**Problem 4:** Find the minimum cut edges of the network and identify the most critical bottleneck link.
 
 ```
-6頂点のネットワーク:
-s(0)→A(1): 16, s(0)→B(2): 13
-A(1)→B(2): 4,  A(1)→C(3): 12
-B(2)→A(1): 10, B(2)→D(4): 14
-C(3)→B(2): 9,  C(3)→t(5): 20
-D(4)→C(3): 7,  D(4)→t(5): 4
+6-vertex network:
+s(0)->A(1): 16, s(0)->B(2): 13
+A(1)->B(2): 4,  A(1)->C(3): 12
+B(2)->A(1): 10, B(2)->D(4): 14
+C(3)->B(2): 9,  C(3)->t(5): 20
+D(4)->C(3): 7,  D(4)->t(5): 4
 ```
 
-### 上級: 最小費用流と複合問題
+### Advanced: Minimum Cost Flow and Compound Problems
 
-**問題 5:** 3つの工場と4つの店舗がある。各工場の供給量と各店舗の需要量、輸送コストが与えられている。総輸送コストを最小化する輸送計画を最小費用流で求めよ。
+**Problem 5:** There are 3 factories and 4 stores. Given the supply of each factory, demand of each store, and transportation costs, find the transportation plan that minimizes total cost using minimum cost flow.
 
 ```
-工場: F1(供給20), F2(供給30), F3(供給25)
-店舗: S1(需要15), S2(需要20), S3(需要25), S4(需要15)
+Factories: F1(supply 20), F2(supply 30), F3(supply 25)
+Stores: S1(demand 15), S2(demand 20), S3(demand 25), S4(demand 15)
 
-輸送コスト（単位あたり）:
+Transportation cost (per unit):
       S1  S2  S3  S4
 F1:    4   6   8   5
 F2:    6   3   5   7
 F3:    3   8   4   6
 ```
 
-**ヒント:** 超過ソース s と超過シンク t を追加して、s→工場（容量=供給量, コスト=0）、店舗→t（容量=需要量, コスト=0）、工場→店舗（容量=十分大, コスト=輸送コスト）のネットワークを構築する。
+**Hint:** Add a super-source s and super-sink t, then construct the network as: s->factories (capacity=supply, cost=0), stores->t (capacity=demand, cost=0), factories->stores (capacity=large enough, cost=transport cost).
 
 ```python
-# 解法のスケルトン
-mcf = MinCostFlow(2 + 3 + 4)  # s, t, 3工場, 4店舗
+# Solution skeleton
+mcf = MinCostFlow(2 + 3 + 4)  # s, t, 3 factories, 4 stores
 source, sink = 0, 1
-factories = [2, 3, 4]      # ノード番号
-stores = [5, 6, 7, 8]      # ノード番号
+factories = [2, 3, 4]      # node numbers
+stores = [5, 6, 7, 8]      # node numbers
 supply = [20, 30, 25]
 demand = [15, 20, 25, 15]
 cost_matrix = [
@@ -1563,66 +1563,66 @@ for j, s in enumerate(stores):
 
 total_demand = sum(demand)  # 75
 flow, total_cost = mcf.min_cost_flow(source, sink, total_demand)
-print(f"総輸送量: {flow}, 総コスト: {total_cost}")
+print(f"Total transport volume: {flow}, Total cost: {total_cost}")
 ```
 
-**問題 6:** 有向非巡回グラフ（DAG）上の最小パスカバーを求めよ。最小パスカバー = n - 最大マッチング であることを利用せよ。
+**Problem 6:** Find the minimum path cover on a directed acyclic graph (DAG). Use the fact that minimum path cover = n - maximum matching.
 
 ```
-DAG (6頂点):
-0 → 1, 0 → 2
-1 → 3
-2 → 3, 2 → 4
-4 → 5
+DAG (6 vertices):
+0 -> 1, 0 -> 2
+1 -> 3
+2 -> 3, 2 -> 4
+4 -> 5
 ```
 
 ---
 
-## 15. Push-Relabel vs Dinic: 性能比較
+## 15. Push-Relabel vs Dinic: Performance Comparison
 
-| 観点 | Dinic法 | Push-Relabel法 |
+| Aspect | Dinic's Algorithm | Push-Relabel |
 |:---|:---|:---|
-| 計算量（一般） | O(V^2 E) | O(V^2 E) / O(V^3) |
-| 計算量（単位容量） | O(E sqrt(V)) | O(E sqrt(V)) |
-| 実装の容易さ | 中程度 | やや複雑 |
-| 疎グラフでの性能 | 優れる | 標準的 |
-| 密グラフでの性能 | 標準的 | 優れる |
-| メモリ使用量 | 隣接リスト（軽量） | 隣接行列版は O(V^2) |
-| 競技プログラミング | 最もよく使われる | 稀に使用 |
-| 実務（大規模） | 適度 | 高い並列性で有利 |
+| Complexity (general) | O(V^2 E) | O(V^2 E) / O(V^3) |
+| Complexity (unit capacity) | O(E sqrt(V)) | O(E sqrt(V)) |
+| Ease of implementation | Moderate | Somewhat complex |
+| Performance on sparse graphs | Excellent | Standard |
+| Performance on dense graphs | Standard | Excellent |
+| Memory usage | Adjacency list (lightweight) | Adjacency matrix version is O(V^2) |
+| Competitive programming | Most commonly used | Rarely used |
+| Production (large-scale) | Moderate | Advantageous due to high parallelism |
 
-### 問題規模別の推奨アルゴリズム
+### Recommended Algorithms by Problem Scale
 
-| グラフ規模 | 辺数 | 推奨アルゴリズム | 理由 |
+| Graph Scale | Edge Count | Recommended Algorithm | Reason |
 |:---|:---|:---|:---|
-| V < 100 | E < 1000 | Edmonds-Karp | 実装が最も簡単 |
-| V < 1000 | E < 10000 | Dinic | バランスの良い性能 |
-| V < 10000 | E < 100000 | Dinic | 疎グラフで高速 |
-| V > 10000 | E ~ V^2 | Push-Relabel | 密グラフに強い |
-| 二部グラフ | - | Hopcroft-Karp | O(E sqrt(V)) で最速 |
-| コスト付き | - | SPFA + SSP | 唯一の選択肢 |
+| V < 100 | E < 1000 | Edmonds-Karp | Simplest to implement |
+| V < 1000 | E < 10000 | Dinic | Balanced performance |
+| V < 10000 | E < 100000 | Dinic | Fast on sparse graphs |
+| V > 10000 | E ~ V^2 | Push-Relabel | Strong on dense graphs |
+| Bipartite | - | Hopcroft-Karp | Fastest at O(E sqrt(V)) |
+| With costs | - | SPFA + SSP | Only option |
 
 ---
 
-## 16. 追加のアンチパターン
+## 16. Additional Anti-patterns
 
-### アンチパターン5: 最大流の値だけ求めて経路復元を忘れる
+### Anti-pattern 5: Computing Only the Max-Flow Value Without Path Recovery
 
 ```python
-# BAD: 最大流の値は求めたが、実際にどの辺にどれだけ流れたか不明
+# BAD: Computed the max-flow value but cannot determine which edges carry how much flow
 flow_value = dinic.max_flow(s, t)
-# ここで「どの辺に何単位流れたか」を出力しようとしても
-# 残余グラフから逆算する必要がある
+# Trying to output "how many units flow through each edge" requires
+# reverse-computing from the residual graph
 
-# GOOD: フロー値と経路を同時に記録する設計
+# GOOD: Design that records flow values alongside paths
 class DinicWithFlowRecovery(Dinic):
     def get_flow_on_edges(self):
-        """各辺の実際のフロー量を復元"""
+        """Recover the actual flow amount on each edge"""
         result = []
         for u in range(self.n):
             for i, (v, cap, rev) in enumerate(self.graph[u]):
-                # 元の辺（逆辺でない）のフロー量
-                if i % 2 == 0:  # add_edge で追加された順辺
+                # Flow on original edges (not reverse edges)
+                if i % 2 == 0:  # forward edge added by add_edge
                     original_cap = cap + self.graph[v][rev][1]
                     flow = self.graph[v][rev][1]
                     if flow > 0:
@@ -1630,113 +1630,113 @@ class DinicWithFlowRecovery(Dinic):
         return result
 ```
 
-### アンチパターン6: 多重辺の処理ミス
+### Anti-pattern 6: Incorrect Handling of Multiple Edges
 
 ```python
-# BAD: 隣接行列で多重辺を上書き
-cap[u][v] = 5   # 1本目
-cap[u][v] = 3   # 2本目 → 上書き! 合計8ではなく3になる
+# BAD: Overwriting parallel edges with adjacency matrix
+cap[u][v] = 5   # first edge
+cap[u][v] = 3   # second edge -> overwrites! becomes 3 instead of total 8
 
-# GOOD: 容量を加算する
-cap[u][v] += 5   # 1本目
-cap[u][v] += 3   # 2本目 → 合計8
+# GOOD: Add capacities
+cap[u][v] += 5   # first edge
+cap[u][v] += 3   # second edge -> total 8
 
-# Dinic の隣接リスト版では自動的に別の辺として追加されるので
-# この問題は発生しない（隣接行列版のみ注意）
+# With Dinic's adjacency list version, edges are automatically added as separate entries,
+# so this problem does not occur (only the adjacency matrix version needs attention)
 ```
 
 ---
 
-## 17. 追加 FAQ
+## 17. Additional FAQ
 
-### Q7: フロー問題で負の容量はあり得るか？
+### Q7: Can flow problems have negative capacities?
 
-**A:** 標準的なフロー問題では容量は非負（c(u,v) >= 0）。ただし、下限付きフロー（lower bound flow）問題では各辺に最小フロー量が設定される。この場合、変数変換によって標準的な最大流問題に帰着できる。具体的には、下限 l(u,v) の辺を「容量 c(u,v) - l(u,v) の辺」に変換し、超過ソース・超過シンクを追加する。
+**A:** In standard flow problems, capacities are non-negative (c(u,v) >= 0). However, in lower-bounded flow problems, each edge has a minimum flow requirement. In this case, a variable substitution can reduce it to a standard max-flow problem. Specifically, an edge with lower bound l(u,v) is transformed into "an edge with capacity c(u,v) - l(u,v)," and a super-source and super-sink are added.
 
-### Q8: 最大流問題は線形計画問題として定式化できるか？
+### Q8: Can the max-flow problem be formulated as a linear program?
 
-**A:** できる。最大流問題は以下の線形計画問題（LP）と等価である:
+**A:** Yes. The max-flow problem is equivalent to the following linear program (LP):
 
 ```
-maximize  Σ f(s,v)  （s からの総流出量）
+maximize  sum f(s,v)  (total outflow from s)
 subject to:
-  0 ≤ f(u,v) ≤ c(u,v)           （容量制約）
-  Σ f(u,v) = Σ f(v,w)  ∀v≠s,t  （フロー保存）
+  0 <= f(u,v) <= c(u,v)           (capacity constraints)
+  sum f(u,v) = sum f(v,w)  for all v != s,t  (flow conservation)
 ```
 
-最大流最小カット定理は、この LP とその双対問題（最小カット）の強双対性から導かれる。整数容量の場合、LP 緩和の最適解が自動的に整数になる（完全単模行列性）。
+The max-flow min-cut theorem is derived from strong duality between this LP and its dual (the minimum cut). For integer capacities, the LP relaxation automatically yields an integer optimal solution (total unimodularity).
 
-### Q9: 動的にグラフが変化する場合の最大流はどう求めるか？
+### Q9: How do you compute max flow when the graph changes dynamically?
 
-**A:** 辺の追加・削除が発生する動的フロー問題では、毎回ゼロから再計算するのは非効率である。辺追加の場合は、既存のフローを保持したまま追加辺を含む残余グラフで増加パスを探索すればよい（増分計算）。辺削除の場合は、削除辺にフローが流れていなければ何もしない。流れている場合は、そのフロー分を「取り消す」操作（逆方向に流す）が必要になり、やや複雑になる。
+**A:** In dynamic flow problems where edges are added or removed, recomputing from scratch each time is inefficient. When an edge is added, you can keep the existing flow and search for augmenting paths in the residual graph including the new edge (incremental computation). When an edge is removed, if no flow passes through it, nothing needs to be done. If flow does pass through it, a "cancellation" operation (sending flow in the reverse direction) is needed, which is somewhat more complex.
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Building practical experience is the most important aspect. Understanding deepens not only through theory but also by actually writing code and verifying its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What common mistakes do beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently applied in day-to-day development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## 18. まとめ
+## 18. Summary
 
-| 項目 | 要点 |
+| Topic | Key Points |
 |:---|:---|
-| 最大流問題 | 残余グラフ上の増加パスを繰り返し探索 |
-| Ford-Fulkerson | BFS版(Edmonds-Karp)で O(VE^2) |
-| Dinic法 | レベルグラフ + ブロッキングフローで O(V^2 E) |
-| Push-Relabel法 | ローカル操作（push/relabel）で O(V^3)、密グラフに強い |
-| 最大流最小カット | 最大流 = 最小カット（双対性） |
-| 二部マッチング | 最大流に帰着（容量1）or ハンガリアン法 |
-| Hopcroft-Karp | 二部マッチングを O(E sqrt(V)) で解く |
-| 最小費用流 | 費用付き辺でコスト最小化 |
-| 応用範囲 | 割り当て、被覆、独立集合、パス分離、画像処理、輸送計画 |
+| Maximum flow problem | Repeatedly search for augmenting paths in the residual graph |
+| Ford-Fulkerson | BFS version (Edmonds-Karp) runs in O(VE^2) |
+| Dinic's algorithm | Level graph + blocking flow in O(V^2 E) |
+| Push-Relabel | Local operations (push/relabel) in O(V^3), strong on dense graphs |
+| Max-flow min-cut | Maximum flow = minimum cut (duality) |
+| Bipartite matching | Reduce to max flow (capacity 1) or use Hungarian method |
+| Hopcroft-Karp | Solves bipartite matching in O(E sqrt(V)) |
+| Minimum cost flow | Cost minimization with cost-bearing edges |
+| Applications | Assignment, covering, independent set, path separation, image processing, transportation planning |
 
-### 学習ロードマップ
+### Learning Roadmap
 
 ```
-Step 1: 基礎理解
-  フローの定義 → 残余グラフ → 増加パス → Ford-Fulkerson
-  ↓
-Step 2: 高速化
-  Edmonds-Karp → Dinic法 → Push-Relabel法
-  ↓
-Step 3: 応用
-  二部マッチング → 最小カット → 頂点分割 → 最小費用流
-  ↓
-Step 4: 発展
-  下限付きフロー → LP双対 → 動的フロー → 近似アルゴリズム
+Step 1: Fundamentals
+  Flow definition -> Residual graph -> Augmenting path -> Ford-Fulkerson
+  |
+Step 2: Speed Improvements
+  Edmonds-Karp -> Dinic's algorithm -> Push-Relabel
+  |
+Step 3: Applications
+  Bipartite matching -> Minimum cut -> Vertex splitting -> Minimum cost flow
+  |
+Step 4: Advanced Topics
+  Lower-bounded flow -> LP duality -> Dynamic flow -> Approximation algorithms
 ```
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Guides
 
-- [最短経路](../02-algorithms/03-shortest-path.md) -- フローアルゴリズムの前提知識
-- [グラフ走査](../02-algorithms/02-graph-traversal.md) -- BFS/DFS の基礎
-- [競技プログラミング](../04-practice/01-competitive-programming.md) -- フロー問題の実戦
+- [Shortest Path](../02-algorithms/03-shortest-path.md) -- Prerequisite knowledge for flow algorithms
+- [Graph Traversal](../02-algorithms/02-graph-traversal.md) -- BFS/DFS fundamentals
+- [Competitive Programming](../04-practice/01-competitive-programming.md) -- Flow problems in practice
 
 ---
 
-## 参考文献
+## References
 
-1. Cormen, T. H. et al. (2022). *Introduction to Algorithms* (4th ed.). MIT Press. -- 第24-26章: ネットワークフローの包括的解説
-2. Ford, L. R. & Fulkerson, D. R. (1956). "Maximal flow through a network." *Canadian Journal of Mathematics*. -- 最大流問題の原論文
-3. Dinic, E. A. (1970). "Algorithm for solution of a problem of maximum flow in networks with power estimation." *Soviet Mathematics Doklady*. -- Dinic法の原論文
-4. Kleinberg, J. & Tardos, E. (2005). *Algorithm Design*. Pearson. -- Chapter 7: Network Flow の応用を豊富に解説
-5. Hopcroft, J. E. & Karp, R. M. (1973). "An n^{5/2} Algorithm for Maximum Matchings in Bipartite Graphs." *SIAM Journal on Computing*. -- Hopcroft-Karp法の原論文
-6. Konig, D. (1931). "Grafok es matrixok." *Matematikai es Fizikai Lapok*. -- Konigの定理（最小頂点被覆 = 最大マッチング）
-7. Goldberg, A. V. & Tarjan, R. E. (1988). "A new approach to the maximum-flow problem." *Journal of the ACM*. -- Push-Relabel法の原論文
-8. Ahuja, R. K., Magnanti, T. L. & Orlin, J. B. (1993). *Network Flows: Theory, Algorithms, and Applications*. Prentice Hall. -- ネットワークフロー理論の決定版テキスト
-9. Schrijver, A. (2003). *Combinatorial Optimization: Polyhedra and Efficiency*. Springer. -- 最適化理論からの視点でフロー問題を解説
+1. Cormen, T. H. et al. (2022). *Introduction to Algorithms* (4th ed.). MIT Press. -- Chapters 24-26: Comprehensive coverage of network flow
+2. Ford, L. R. & Fulkerson, D. R. (1956). "Maximal flow through a network." *Canadian Journal of Mathematics*. -- Original paper on the maximum flow problem
+3. Dinic, E. A. (1970). "Algorithm for solution of a problem of maximum flow in networks with power estimation." *Soviet Mathematics Doklady*. -- Original paper on Dinic's algorithm
+4. Kleinberg, J. & Tardos, E. (2005). *Algorithm Design*. Pearson. -- Chapter 7: Rich coverage of network flow applications
+5. Hopcroft, J. E. & Karp, R. M. (1973). "An n^{5/2} Algorithm for Maximum Matchings in Bipartite Graphs." *SIAM Journal on Computing*. -- Original paper on the Hopcroft-Karp algorithm
+6. Konig, D. (1931). "Grafok es matrixok." *Matematikai es Fizikai Lapok*. -- Konig's theorem (minimum vertex cover = maximum matching)
+7. Goldberg, A. V. & Tarjan, R. E. (1988). "A new approach to the maximum-flow problem." *Journal of the ACM*. -- Original paper on Push-Relabel
+8. Ahuja, R. K., Magnanti, T. L. & Orlin, J. B. (1993). *Network Flows: Theory, Algorithms, and Applications*. Prentice Hall. -- The definitive text on network flow theory
+9. Schrijver, A. (2003). *Combinatorial Optimization: Polyhedra and Efficiency*. Springer. -- Flow problems from the perspective of optimization theory

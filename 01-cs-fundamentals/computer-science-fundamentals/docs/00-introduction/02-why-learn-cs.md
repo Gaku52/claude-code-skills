@@ -1,84 +1,84 @@
-# なぜコンピュータサイエンスを学ぶのか
+# Why Learn Computer Science
 
-> フレームワークは5年で変わるが、CSの基礎は50年以上変わらない。
+> Frameworks change every 5 years, but CS fundamentals have remained unchanged for over 50.
 
-## この章で学ぶこと
+## Learning Objectives
 
-- [ ] CS知識の有無がエンジニアの実力をどう左右するか説明できる
-- [ ] CS基礎が効く具体的な場面を10個以上挙げられる
-- [ ] 学習のアンチパターンを避けられる
-- [ ] CS知識がキャリアに与える長期的な影響を理解する
-- [ ] AI時代にCS基礎がなぜより重要になるか説明できる
+- [ ] Explain how the presence or absence of CS knowledge affects an engineer's capabilities
+- [ ] Name 10 or more specific situations where CS fundamentals make a difference
+- [ ] Avoid learning anti-patterns
+- [ ] Understand the long-term impact of CS knowledge on your career
+- [ ] Explain why CS fundamentals become even more important in the age of AI
 
-## 前提知識
+## Prerequisites
 
-- プログラミングの基礎があると理解が深まるが、必須ではない
+- Having some programming basics will deepen understanding, but is not required
 
 ---
 
-## 1. CS知識なしのエンジニアが陥る問題10選
+## 1. Top 10 Problems Engineers Face Without CS Knowledge
 
-### 問題1: O(n²) のAPI — 「100件では動くが10万件で死ぬ」
+### Problem 1: An O(n^2) API -- "Works with 100 records, dies with 100,000"
 
 ```python
-# CS知識なし: ネストしたループでユーザー検索
+# Without CS knowledge: Nested loop for user search
 def find_common_users(list_a, list_b):
-    """2つのリストの共通ユーザーを返す"""
+    """Return common users from two lists"""
     common = []
     for user_a in list_a:           # O(n)
-        for user_b in list_b:       # × O(m) = O(n×m)
+        for user_b in list_b:       # x O(m) = O(n*m)
             if user_a['id'] == user_b['id']:
                 common.append(user_a)
     return common
 
-# list_a = 10,000件, list_b = 10,000件
-# → 10,000 × 10,000 = 1億回の比較
-# → 数十秒〜数分かかる
+# list_a = 10,000 records, list_b = 10,000 records
+# -> 10,000 x 10,000 = 100 million comparisons
+# -> Takes tens of seconds to minutes
 
-# CS知識あり: ハッシュセットで O(n+m) に改善
+# With CS knowledge: Improve to O(n+m) using a hash set
 def find_common_users(list_a, list_b):
-    """ハッシュセットを使い O(n+m) で解決"""
-    ids_b = {user['id'] for user in list_b}  # O(m) で構築
-    return [user for user in list_a if user['id'] in ids_b]  # O(n) で検索
-    # 合計: O(n + m)
+    """Solve in O(n+m) using a hash set"""
+    ids_b = {user['id'] for user in list_b}  # Built in O(m)
+    return [user for user in list_a if user['id'] in ids_b]  # O(n) search
+    # Total: O(n + m)
 
-# 10,000 + 10,000 = 20,000回の操作
-# → 数ミリ秒で完了（5,000倍高速）
+# 10,000 + 10,000 = 20,000 operations
+# -> Completes in milliseconds (5,000x faster)
 ```
 
-**根本原因**: データ構造の知識不足。配列の線形探索 O(n) vs ハッシュの O(1) を知らない。
+**Root cause**: Lack of data structure knowledge. Unaware of the difference between linear search O(n) on an array vs. O(1) on a hash.
 
-### 問題2: メモリリーク — 「なぜかアプリが段々遅くなる」
+### Problem 2: Memory Leak -- "The app gradually slows down for no apparent reason"
 
 ```javascript
-// CS知識なし: イベントリスナーの解除忘れ
+// Without CS knowledge: Forgetting to remove event listeners
 class UserDashboard {
   constructor() {
-    // コンポーネント作成のたびにリスナー追加
+    // Adding a listener every time the component is created
     window.addEventListener('resize', this.handleResize);
-    // → コンポーネントが破棄されてもリスナーは残る
-    // → handleResizeがthisを参照し続ける
-    // → UserDashboardオブジェクトがGCされない
-    // → メモリリーク
+    // -> The listener remains even after the component is destroyed
+    // -> handleResize keeps referencing this
+    // -> UserDashboard object cannot be garbage collected
+    // -> Memory leak
   }
 
   handleResize = () => {
-    this.updateLayout(); // thisへの参照を保持
+    this.updateLayout(); // Holds reference to this
   }
 }
 
-// CS知識あり: ガベージコレクションの仕組みを理解
+// With CS knowledge: Understanding how garbage collection works
 class UserDashboard {
   #abortController = new AbortController();
 
   constructor() {
     window.addEventListener('resize', this.handleResize, {
-      signal: this.#abortController.signal // 自動解除の仕組み
+      signal: this.#abortController.signal // Automatic cleanup mechanism
     });
   }
 
   destroy() {
-    this.#abortController.abort(); // 全リスナーを一括解除
+    this.#abortController.abort(); // Remove all listeners at once
   }
 
   handleResize = () => {
@@ -87,97 +87,97 @@ class UserDashboard {
 }
 ```
 
-**根本原因**: GCの仕組み（参照カウント、マーク&スイープ）を理解していない。参照が残る限りオブジェクトは解放されない。
+**Root cause**: Not understanding how GC works (reference counting, mark-and-sweep). Objects are not freed as long as references to them remain.
 
-### 問題3: 0.1 + 0.2 ≠ 0.3 — 「金額計算がずれる」
+### Problem 3: 0.1 + 0.2 != 0.3 -- "Monetary calculations are off"
 
 ```javascript
-// CS知識なし: floatで金額計算
+// Without CS knowledge: Using float for monetary calculations
 const price = 0.1 + 0.2;
 console.log(price);           // 0.30000000000000004
 console.log(price === 0.3);   // false
 
-// 決済システムで1円のずれが発生:
+// Discrepancy of 1 yen in a payment system:
 const total = items.reduce((sum, item) => sum + item.price, 0);
-// 1000件の小数点計算で誤差が蓄積 → 数円〜数十円のずれ
+// With 1,000 floating-point calculations, errors accumulate -> off by several to tens of yen
 
-// CS知識あり: IEEE 754の仕組みを理解
-// 方法1: 整数で計算（最小単位=「銭」or「セント」で扱う）
-const priceInCents = 10 + 20; // 30（正確）
-const displayPrice = priceInCents / 100; // 表示時のみ変換
+// With CS knowledge: Understanding how IEEE 754 works
+// Method 1: Calculate with integers (use the smallest unit -- cents or sen)
+const priceInCents = 10 + 20; // 30 (exact)
+const displayPrice = priceInCents / 100; // Convert only for display
 
-// 方法2: Decimalライブラリ使用
+// Method 2: Use a Decimal library
 // import Decimal from 'decimal.js';
 // const price = new Decimal('0.1').plus('0.2');
-// price.equals(0.3) → true
+// price.equals(0.3) -> true
 ```
 
-**根本原因**: IEEE 754浮動小数点数では0.1は正確に表現できない（無限循環小数になる）。
+**Root cause**: In IEEE 754 floating-point, 0.1 cannot be represented exactly (it becomes an infinite repeating fraction in binary).
 
-**IEEE 754の内部表現の詳細**:
+**Detailed internal representation of IEEE 754**:
 
 ```
-0.1 の IEEE 754 倍精度表現:
+IEEE 754 double-precision representation of 0.1:
 
-  符号: 0 (正)
-  指数: 01111111011 (= 1019 - 1023 = -4)
-  仮数: 1001100110011001100110011001100110011001100110011010
+  Sign: 0 (positive)
+  Exponent: 01111111011 (= 1019 - 1023 = -4)
+  Mantissa: 1001100110011001100110011001100110011001100110011010
 
-  0.1 (十進) = 0.0001100110011001100... (二進)
-                       ↑ 0011 が無限に繰り返される
+  0.1 (decimal) = 0.0001100110011001100... (binary)
+                       ^ 0011 repeats infinitely
 
-  64ビットに収まらないため、丸められる
-  → 実際に格納される値: 0.1000000000000000055511151231257827021181583404541015625
-  → 0.1 とは微妙に異なる！
+  Since it doesn't fit in 64 bits, it gets rounded
+  -> Actual stored value: 0.1000000000000000055511151231257827021181583404541015625
+  -> Slightly different from 0.1!
 
-  教訓: 10進小数の多くは2進小数では正確に表せない
-  （1/3 が 0.333... と無限に続くのと同じ原理）
+  Lesson: Many decimal fractions cannot be represented exactly in binary
+  (Same principle as 1/3 = 0.333... repeating infinitely)
 ```
 
-### 問題4: 文字化け — 「絵文字が????になる」
+### Problem 4: Garbled Characters -- "Emojis become ????"
 
 ```python
-# CS知識なし: エンコーディングを意識しない
-text = "Hello 世界"
-# データベースにLatin-1で保存 → 絵文字と日本語が文字化け
+# Without CS knowledge: Not considering encoding
+text = "Hello World"
+# Saved to database with Latin-1 -> Emojis and non-ASCII characters get garbled
 
-# CS知識あり: UTF-8の仕組みを理解
-# UTF-8のバイト構造:
-# 1バイト: 0xxxxxxx (ASCII互換: 0-127)
-# 2バイト: 110xxxxx 10xxxxxx (ラテン拡張: 128-2047)
-# 3バイト: 1110xxxx 10xxxxxx 10xxxxxx (日本語等: 2048-65535)
-# 4バイト: 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx (絵文字等: 65536-)
+# With CS knowledge: Understanding how UTF-8 works
+# UTF-8 byte structure:
+# 1 byte: 0xxxxxxx (ASCII compatible: 0-127)
+# 2 bytes: 110xxxxx 10xxxxxx (Extended Latin: 128-2047)
+# 3 bytes: 1110xxxx 10xxxxxx 10xxxxxx (CJK characters: 2048-65535)
+# 4 bytes: 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx (Emojis etc.: 65536+)
 
-# 正しい対処:
-# 1. DB: CHARACTER SET utf8mb4（MySQLではutf8は3バイトまで！）
+# Correct approach:
+# 1. DB: CHARACTER SET utf8mb4 (in MySQL, utf8 only supports up to 3 bytes!)
 # 2. HTTP: Content-Type: text/html; charset=utf-8
-# 3. ファイル: BOMなしUTF-8で統一
+# 3. Files: Use BOM-less UTF-8 consistently
 # 4. Python: open('file.txt', encoding='utf-8')
 ```
 
-**根本原因**: 文字コード（ASCII→Latin-1→UTF-8→UTF-16）の歴史と仕組みを知らない。
+**Root cause**: Not knowing the history and workings of character encodings (ASCII -> Latin-1 -> UTF-8 -> UTF-16).
 
-### 問題5: デッドロック — 「サーバーが突然固まる」
+### Problem 5: Deadlock -- "The server suddenly freezes"
 
 ```python
-# CS知識なし: ロックの順序を意識しない
+# Without CS knowledge: Not maintaining lock ordering
 import threading
 
 lock_a = threading.Lock()
 lock_b = threading.Lock()
 
 def transfer_money(from_acc, to_acc, amount):
-    # スレッド1: A→B の送金（lock_a → lock_b の順）
-    # スレッド2: B→A の送金（lock_b → lock_a の順）
-    # → デッドロック！互いに相手のロック解放を永遠に待つ
+    # Thread 1: Transfer A->B (lock_a -> lock_b order)
+    # Thread 2: Transfer B->A (lock_b -> lock_a order)
+    # -> Deadlock! Each waits forever for the other's lock
     with from_acc.lock:
         with to_acc.lock:
             from_acc.balance -= amount
             to_acc.balance += amount
 
-# CS知識あり: ロック順序を統一（デッドロック防止の基本）
+# With CS knowledge: Enforce consistent lock ordering (deadlock prevention basics)
 def transfer_money(from_acc, to_acc, amount):
-    # 常にID順でロックを取得 → 循環待ちを防止
+    # Always acquire locks in ID order -> prevents circular wait
     first, second = sorted([from_acc, to_acc], key=lambda a: a.id)
     with first.lock:
         with second.lock:
@@ -185,179 +185,179 @@ def transfer_money(from_acc, to_acc, amount):
             to_acc.balance += amount
 ```
 
-**根本原因**: デッドロックの4条件（相互排除、保持と待機、非プリエンプション、循環待ち）を知らない。
+**Root cause**: Not knowing the four conditions for deadlock (mutual exclusion, hold and wait, no preemption, circular wait).
 
-**デッドロック防止の体系的アプローチ**:
+**A systematic approach to deadlock prevention**:
 
 ```python
-# デッドロックの4条件（Coffman条件、1971年）
-# 4つ全てが揃うとデッドロックが発生する
+# The Four Coffman Conditions for Deadlock (1971)
+# Deadlock occurs when all four conditions are present
 
-# 1. 相互排除: リソースは同時に1つのスレッドしか使えない
-#    → 対策: 可能ならリソースを共有可能にする（読み取りロック）
+# 1. Mutual exclusion: Only one thread can use a resource at a time
+#    -> Countermeasure: Make resources shareable if possible (read locks)
 
-# 2. 保持と待機: リソースを保持したまま別のリソースを待つ
-#    → 対策: 全リソースを一括取得（All-or-Nothing）
+# 2. Hold and wait: Holding one resource while waiting for another
+#    -> Countermeasure: Acquire all resources at once (All-or-Nothing)
 
-# 3. 非プリエンプション: リソースの強制解放ができない
-#    → 対策: タイムアウト付きロック
+# 3. No preemption: Resources cannot be forcibly released
+#    -> Countermeasure: Use timed lock acquisition
 import threading
 
 lock = threading.Lock()
-acquired = lock.acquire(timeout=5)  # 5秒でタイムアウト
+acquired = lock.acquire(timeout=5)  # Timeout after 5 seconds
 if not acquired:
-    # ロック取得失敗 → リトライまたは別の処理
+    # Lock acquisition failed -> retry or fallback
     handle_timeout()
 
-# 4. 循環待ち: A→B→C→A のような循環的な待ち関係
-#    → 対策: ロック順序の統一（上述）
+# 4. Circular wait: Cyclic wait relationship like A->B->C->A
+#    -> Countermeasure: Enforce consistent lock ordering (as shown above)
 ```
 
-### 問題6: N+1問題 — 「DBクエリが1000回走る」
+### Problem 6: The N+1 Problem -- "1,000 DB queries are firing"
 
 ```python
-# CS知識なし: ORMに任せっきり
-users = User.objects.all()  # 1クエリ
+# Without CS knowledge: Leaving everything to the ORM
+users = User.objects.all()  # 1 query
 for user in users:
-    print(user.posts.all())  # ユーザーごとに1クエリ → N回
-# 合計: 1 + N クエリ（1000ユーザー → 1001クエリ）
+    print(user.posts.all())  # 1 query per user -> N queries
+# Total: 1 + N queries (1,000 users -> 1,001 queries)
 
-# CS知識あり: JOINの仕組みとインデックスを理解
+# With CS knowledge: Understanding JOIN mechanics and indexes
 users = User.objects.prefetch_related('posts').all()
-# 合計: 2クエリ（ユーザー取得 + 全ポスト取得）
-# → 500倍高速
+# Total: 2 queries (fetch users + fetch all posts)
+# -> 500x faster
 
-# さらに深い理解:
+# Even deeper understanding:
 # SELECT * FROM users
 # JOIN posts ON posts.user_id = users.id
 # WHERE users.active = true
-# → B+木インデックスがuser_idにあれば O(n log m)
-# → なければフルテーブルスキャン O(n × m)
+# -> With a B+ tree index on user_id: O(n log m)
+# -> Without an index: full table scan O(n * m)
 ```
 
-### 問題7: 再帰の暴走 — 「スタックオーバーフロー」
+### Problem 7: Runaway Recursion -- "Stack Overflow"
 
 ```python
-# CS知識なし: 再帰の深さを考慮しない
+# Without CS knowledge: Not considering recursion depth
 def factorial(n):
     return n * factorial(n - 1) if n > 0 else 1
-# factorial(10000) → RecursionError: maximum recursion depth exceeded
+# factorial(10000) -> RecursionError: maximum recursion depth exceeded
 
-# CS知識あり: 末尾再帰最適化、またはループに変換
+# With CS knowledge: Tail-call optimization, or convert to a loop
 def factorial(n):
     result = 1
     for i in range(2, n + 1):
         result *= i
     return result
-# factorial(10000) → 正常に計算（巨大な数だがメモリは十分）
+# factorial(10000) -> Computes normally (huge number but enough memory)
 
-# さらに深い理解: コールスタックの仕組み
-# 再帰呼び出しのたびにスタックフレーム（ローカル変数、戻りアドレス）が積まれる
-# Pythonのデフォルト上限: 1000フレーム
-# → 大きなNには反復法かメモ化が必須
+# Deeper understanding: How the call stack works
+# Each recursive call pushes a stack frame (local variables, return address)
+# Python's default limit: 1,000 frames
+# -> For large N, iteration or memoization is essential
 ```
 
-### 問題8: ハッシュの衝突 — 「辞書が異常に遅い」
+### Problem 8: Hash Collisions -- "The dictionary is abnormally slow"
 
-**症状**: Pythonの辞書やJavaのHashMapが、特定の入力パターンで極端に遅くなる。
+**Symptoms**: Python dicts or Java HashMaps become extremely slow with certain input patterns.
 
-**原因**: 全てのキーが同じハッシュバケットに衝突し、O(1)→O(n)に退化。
+**Cause**: All keys collide into the same hash bucket, degrading O(1) to O(n).
 
-**CS知識があれば**: ハッシュテーブルの衝突解決法（チェーン法、オープンアドレス法）、ハッシュDoS攻撃の仕組みを理解し、適切なハッシュ関数の選択やランダム化で対処できる。
+**With CS knowledge**: You understand hash table collision resolution (chaining, open addressing), HashDoS attacks, and can address them with proper hash function selection or randomization.
 
 ```python
-# ハッシュ衝突の実例と対策
+# Hash collision example and countermeasures
 
-# ハッシュDoS攻撃の原理
-# 攻撃者が意図的にハッシュ値が衝突するキーを大量に送信
-# → ハッシュテーブルが O(n) に退化 → サーバーが応答不能に
+# Principle of a HashDoS attack
+# Attacker deliberately sends a large number of keys that hash to the same value
+# -> Hash table degrades to O(n) -> Server becomes unresponsive
 
-# Python 3.3以降の対策: ハッシュランダム化
-# 起動ごとにハッシュのシードが変わる
-# → 攻撃者が衝突するキーを事前計算できない
+# Python 3.3+ countermeasure: Hash randomization
+# Hash seed changes on each startup
+# -> Attacker cannot precompute colliding keys
 
 import sys
 print(sys.hash_info.hash_bits)     # 64
 print(sys.hash_info.algorithm)     # siphash24
 
-# 安全なハッシュ: SipHash（暗号学的に安全なハッシュ関数）
-# Python, Rust, Ruby が採用
+# Secure hash: SipHash (cryptographically secure hash function)
+# Adopted by Python, Rust, and Ruby
 ```
 
-### 問題9: 不適切な暗号化 — 「パスワードが漏洩」
+### Problem 9: Improper Encryption -- "Passwords have been leaked"
 
 ```python
-# CS知識なし: MD5やSHA-256でパスワードをハッシュ
+# Without CS knowledge: Hashing passwords with MD5 or SHA-256
 import hashlib
 hashed = hashlib.sha256(password.encode()).hexdigest()
-# レインボーテーブルで一瞬で解読される
+# Cracked instantly with rainbow tables
 
-# CS知識あり: bcryptを使用（意図的に遅いハッシュ関数）
+# With CS knowledge: Using bcrypt (an intentionally slow hash function)
 import bcrypt
 hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=12))
-# ソルト付き + ストレッチング → レインボーテーブル無効化
-# rounds=12 → 1回のハッシュに約250ms → ブルートフォース困難
+# Salted + key stretching -> Rainbow tables neutralized
+# rounds=12 -> ~250ms per hash -> Brute force becomes impractical
 ```
 
-**パスワードハッシュの選択基準（CS知識）**:
+**Password hashing selection criteria (CS knowledge)**:
 
 ```
-パスワードハッシュ関数の比較:
+Comparison of Password Hash Functions:
 
-  関数        速度      メモリ    推奨度   備考
-  ─────────────────────────────────────────────────
-  MD5         極速      低       ×        衝突攻撃あり、絶対使うな
-  SHA-256     極速      低       ×        高速すぎてブルートフォース容易
-  bcrypt      遅い      低       ○        業界標準、十分安全
-  scrypt      遅い      高       ○        メモリハード（GPU攻撃に強い）
-  Argon2id    遅い      高       ◎        2015年コンペ優勝、最新推奨
+  Function    Speed      Memory    Recommended  Notes
+  -------------------------------------------------
+  MD5         Very fast  Low       x            Collision attacks exist, never use
+  SHA-256     Very fast  Low       x            Too fast, easy to brute force
+  bcrypt      Slow       Low       o            Industry standard, sufficiently secure
+  scrypt      Slow       High      o            Memory-hard (resistant to GPU attacks)
+  Argon2id    Slow       High      **           2015 competition winner, current recommendation
 
-  「遅い」ことが「良い」という逆転の発想がCS的思考
-  → パスワードハッシュは1回の計算に100ms以上かかるべき
-  → 正当なユーザーには影響ないが、攻撃者の試行回数を制限
+  "Slow" is "good" -- a counterintuitive insight from CS thinking
+  -> A password hash should take 100ms+ per computation
+  -> No impact on legitimate users, but limits attacker attempts
 ```
 
-### 問題10: CAP定理を知らない — 「分散システムで不整合」
+### Problem 10: Not Knowing the CAP Theorem -- "Inconsistency in distributed systems"
 
-**症状**: マイクロサービス間でデータの不整合が発生。「書き込んだはずのデータが読めない」。
+**Symptoms**: Data inconsistency between microservices. "Data I just wrote can't be read."
 
-**原因**: CAP定理（一貫性 Consistency、可用性 Availability、分断耐性 Partition tolerance の3つを同時に満たすことは不可能）を知らずに設計している。
+**Cause**: Designing without knowing the CAP Theorem (it is impossible to simultaneously guarantee all three of Consistency, Availability, and Partition tolerance).
 
-**CS知識があれば**: 結果整合性（Eventual Consistency）を採用し、Sagaパターンで分散トランザクションを管理する設計を選択できる。
+**With CS knowledge**: You can adopt eventual consistency and manage distributed transactions using the Saga pattern.
 
 ```python
-# CAP定理の実務的な適用例
+# Practical application of the CAP Theorem
 
-# CP（一貫性 + 分断耐性）: 銀行の送金処理
-# → 多少の遅延は許容するが、残高の不整合は絶対にNG
-# 例: PostgreSQL (単一ノード), ZooKeeper, etcd
+# CP (Consistency + Partition tolerance): Bank transfers
+# -> Some latency is acceptable, but balance inconsistency is absolutely not
+# Examples: PostgreSQL (single node), ZooKeeper, etcd
 
-# AP（可用性 + 分断耐性）: SNSのタイムライン
-# → 数秒の遅延は許容するが、サービス停止はNG
-# 例: Cassandra, DynamoDB, CouchDB
+# AP (Availability + Partition tolerance): Social media timelines
+# -> A few seconds of delay is acceptable, but service downtime is not
+# Examples: Cassandra, DynamoDB, CouchDB
 
-# 実装例: Sagaパターンによる分散トランザクション
+# Implementation example: Distributed transactions with the Saga pattern
 class OrderSaga:
-    """注文処理のSagaパターン"""
+    """Saga pattern for order processing"""
 
     async def execute(self, order):
         try:
-            # Step 1: 在庫確保（Inventory Service）
+            # Step 1: Reserve inventory (Inventory Service)
             reservation = await self.inventory.reserve(order.items)
 
-            # Step 2: 決済処理（Payment Service）
+            # Step 2: Process payment (Payment Service)
             payment = await self.payment.charge(order.total)
 
-            # Step 3: 配送手配（Shipping Service）
+            # Step 3: Arrange shipping (Shipping Service)
             shipment = await self.shipping.arrange(order)
 
         except PaymentError:
-            # 補償トランザクション: 在庫確保を取り消し
+            # Compensating transaction: Release inventory reservation
             await self.inventory.release(reservation)
             raise
 
         except ShippingError:
-            # 補償トランザクション: 決済取消 + 在庫解放
+            # Compensating transaction: Refund payment + release inventory
             await self.payment.refund(payment)
             await self.inventory.release(reservation)
             raise
@@ -365,192 +365,195 @@ class OrderSaga:
 
 ---
 
-## 2. CS基礎が効く場面
+## 2. Where CS Fundamentals Make a Difference
 
-### アルゴリズム選択
-
-```
-問題: 100万件の商品から価格範囲で検索
-
-  方法A（CS知識なし）: 全件走査
-    → O(n) = 100万回の比較 ≈ 100ms
-
-  方法B（CS知識あり）: ソート済み配列で二分探索
-    → O(log n) = 20回の比較 ≈ 0.001ms
-
-  方法C（CS知識+実務）: B+木インデックス
-    → O(log n) + ディスクI/O最適化 ≈ 0.01ms
-
-  改善率: 10,000倍〜100,000倍
-```
-
-### データ構造選択
+### Algorithm Selection
 
 ```
-操作別の最適データ構造:
+Problem: Searching 1 million products by price range
 
-┌─────────────────┬────────┬───────┬──────────┬─────────┐
-│ 操作            │ 配列   │ リスト│ ハッシュ  │ B+木    │
-├─────────────────┼────────┼───────┼──────────┼─────────┤
-│ インデックス参照│ O(1) ★│ O(n)  │ ─        │ O(log n)│
-│ 先頭挿入       │ O(n)   │ O(1) ★│ ─        │ O(log n)│
-│ 末尾挿入       │ O(1)*  │ O(1)  │ ─        │ O(log n)│
-│ キー検索       │ O(n)   │ O(n)  │ O(1) ★   │ O(log n)│
-│ 範囲検索       │ O(n)   │ O(n)  │ O(n)     │ O(log n)★│
-│ ソート済み走査 │ O(n log n)│O(n log n)│O(n log n)│ O(n) ★│
-│ メモリ効率     │ 高 ★   │ 低    │ 中       │ 中      │
-└─────────────────┴────────┴───────┴──────────┴─────────┘
-★ = その操作に最適
-* = 償却O(1)
+  Method A (without CS knowledge): Full table scan
+    -> O(n) = 1 million comparisons ~ 100ms
+
+  Method B (with CS knowledge): Binary search on a sorted array
+    -> O(log n) = 20 comparisons ~ 0.001ms
+
+  Method C (with CS knowledge + practical experience): B+ tree index
+    -> O(log n) + disk I/O optimization ~ 0.01ms
+
+  Improvement: 10,000x to 100,000x
 ```
 
-### OS理解
+### Data Structure Selection
 
-| 場面 | CS知識なし | CS知識あり |
-|------|----------|----------|
-| プロセスvs スレッド | 「なんとなくスレッドを使う」 | メモリ共有のリスクを理解し、適切に選択 |
-| async/await | 「おまじない」 | イベントループ、ノンブロッキングI/Oの仕組みを理解 |
-| ファイルI/O | 「openして書いてclose」 | バッファリング、fsync、ジャーナリングを理解 |
-| メモリ管理 | 「GCに任せる」 | 世代別GC、参照カウント、WeakRefを使い分ける |
+```
+Optimal data structure by operation:
 
-**async/awaitの内部メカニズム（CS知識）**:
++-----------------+--------+-------+----------+---------+
+| Operation       | Array  | List  | Hash     | B+ Tree |
++-----------------+--------+-------+----------+---------+
+| Index access    | O(1) * | O(n)  | -        | O(log n)|
+| Insert at front | O(n)   | O(1) *| -        | O(log n)|
+| Insert at end   | O(1)** | O(1)  | -        | O(log n)|
+| Key lookup      | O(n)   | O(n)  | O(1) *   | O(log n)|
+| Range search    | O(n)   | O(n)  | O(n)     | O(log n)*|
+| Sorted traversal| O(n log n)|O(n log n)|O(n log n)| O(n) *|
+| Memory efficien.| High * | Low   | Medium   | Medium  |
++-----------------+--------+-------+----------+---------+
+* = Optimal for that operation
+** = Amortized O(1)
+```
+
+### OS Understanding
+
+| Scenario | Without CS Knowledge | With CS Knowledge |
+|----------|---------------------|-------------------|
+| Process vs. Thread | "Just use threads for some reason" | Understand the risks of shared memory and choose appropriately |
+| async/await | "Magic incantation" | Understand event loops and non-blocking I/O |
+| File I/O | "Open, write, close" | Understand buffering, fsync, and journaling |
+| Memory management | "Leave it to GC" | Differentiate between generational GC, reference counting, and WeakRef |
+
+**Internal mechanism of async/await (CS knowledge)**:
 
 ```python
-# async/await は「おまじない」ではない
-# イベントループとコルーチンの仕組みを理解すると、
-# 正しい使い方が見えてくる
+# async/await is not "magic"
+# Understanding event loops and coroutines reveals
+# the correct way to use them
 
 import asyncio
 
-# イベントループの概念図:
+# Conceptual diagram of the event loop:
 #
-# ┌───────────────────────────────────┐
-# │          イベントループ            │
-# │                                   │
-# │  ┌─────┐  ┌─────┐  ┌─────┐      │
-# │  │Task1│  │Task2│  │Task3│      │
-# │  │await│  │ready│  │await│      │
-# │  │ I/O │  │     │  │sleep│      │
-# │  └─────┘  └─────┘  └─────┘      │
-# │                                   │
-# │  1. readyなタスクを実行           │
-# │  2. awaitでブロックしたら別タスクへ│
-# │  3. I/O完了通知で元タスクに戻る   │
-# │  → シングルスレッドで並行処理！   │
-# └───────────────────────────────────┘
+# +-----------------------------------+
+# |          Event Loop                |
+# |                                   |
+# |  +-----+  +-----+  +-----+      |
+# |  |Task1|  |Task2|  |Task3|      |
+# |  |await|  |ready|  |await|      |
+# |  | I/O |  |     |  |sleep|      |
+# |  +-----+  +-----+  +-----+      |
+# |                                   |
+# |  1. Execute ready tasks           |
+# |  2. When blocked by await, switch |
+# |     to another task               |
+# |  3. Return to original task when  |
+# |     I/O completion is notified    |
+# |  -> Concurrency on a single       |
+# |     thread!                        |
+# +-----------------------------------+
 
 async def fetch_data(url: str) -> dict:
-    """非同期HTTP リクエスト"""
-    # awaitでI/O待ちの間、他のタスクが実行される
+    """Async HTTP request"""
+    # While awaiting I/O, other tasks can execute
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as response:
             return await response.json()
 
 async def main():
-    # 3つのリクエストを並行実行（スレッドなし）
+    # Execute 3 requests concurrently (no threads)
     results = await asyncio.gather(
         fetch_data('https://api.example.com/users'),
         fetch_data('https://api.example.com/posts'),
         fetch_data('https://api.example.com/comments'),
     )
-    # 3つのI/O待ちが重なるので、
-    # 直列(3秒)ではなく並行(1秒程度)で完了
+    # Since the 3 I/O waits overlap,
+    # completes in ~1 second (concurrent) instead of 3 seconds (sequential)
 ```
 
-### ネットワーク最適化
+### Network Optimization
 
-| 場面 | CS知識なし | CS知識あり |
-|------|----------|----------|
-| HTTP/2のメリット | 「速くなるらしい」 | マルチプレクシング、ヘッダー圧縮の仕組み |
-| WebSocket | 「双方向通信」 | TCPの上にフレームプロトコルを載せた仕組み |
-| CDN | 「静的ファイルを速く配信」 | エッジキャッシュ、TTL、キャッシュ無効化戦略 |
-| DNS | 「名前解決」 | 再帰問い合わせ、TTL、Aレコード vs CNAME |
+| Scenario | Without CS Knowledge | With CS Knowledge |
+|----------|---------------------|-------------------|
+| HTTP/2 benefits | "Supposedly faster" | Understanding multiplexing, header compression |
+| WebSocket | "Bidirectional communication" | Understanding the frame protocol on top of TCP |
+| CDN | "Faster static file delivery" | Edge caching, TTL, cache invalidation strategies |
+| DNS | "Name resolution" | Recursive queries, TTL, A records vs. CNAME |
 
 ---
 
-## 3. 実コード改善例（Before/After）
+## 3. Real Code Improvement Examples (Before/After)
 
-### 改善例1: 配列の重複除去
+### Example 1: Removing Duplicates from an Array
 
 ```python
-# Before: O(n²) — ネストループ
+# Before: O(n^2) -- Nested loop
 def remove_duplicates(items):
     unique = []
     for item in items:
-        if item not in unique:  # 'not in' は O(n) の線形探索
+        if item not in unique:  # 'not in' is O(n) linear search
             unique.append(item)
     return unique
-# 10,000件 → 約50,000,000回の比較
+# 10,000 items -> ~50,000,000 comparisons
 
-# After: O(n) — セットの活用
+# After: O(n) -- Using a set
 def remove_duplicates(items):
     seen = set()
     unique = []
     for item in items:
-        if item not in seen:  # 'not in' は O(1) のハッシュ探索
+        if item not in seen:  # 'not in' is O(1) hash lookup
             seen.add(item)
             unique.append(item)
     return unique
-# 10,000件 → 約10,000回のハッシュ計算
+# 10,000 items -> ~10,000 hash computations
 
-# さらに簡潔に（順序保持、Python 3.7+）:
+# Even more concise (order-preserving, Python 3.7+):
 def remove_duplicates(items):
     return list(dict.fromkeys(items))
 ```
 
-### 改善例2: 文字列結合
+### Example 2: String Concatenation
 
 ```python
-# Before: O(n²) — 文字列の連結は毎回新オブジェクト生成
+# Before: O(n^2) -- String concatenation creates a new object each time
 def build_report(records):
     result = ""
     for record in records:
-        result += f"{record['name']}: {record['value']}\n"  # O(n) × n回 = O(n²)
+        result += f"{record['name']}: {record['value']}\n"  # O(n) x n times = O(n^2)
     return result
 
-# After: O(n) — joinを使用
+# After: O(n) -- Using join
 def build_report(records):
     lines = [f"{record['name']}: {record['value']}" for record in records]
-    return "\n".join(lines)  # 一度にメモリ確保 → O(n)
+    return "\n".join(lines)  # Single memory allocation -> O(n)
 ```
 
-**なぜ文字列連結がO(n²)になるのか（CS知識）**:
+**Why string concatenation becomes O(n^2) (CS knowledge)**:
 
 ```
-文字列の += 操作の内部動作:
+Internal behavior of the += operation on strings:
 
-  iteration 1: result = "a"           → 1文字コピー
-  iteration 2: result = "a" + "b"     → 2文字コピー（新しい文字列を作成）
-  iteration 3: result = "ab" + "c"    → 3文字コピー
-  iteration 4: result = "abc" + "d"   → 4文字コピー
+  iteration 1: result = "a"           -> 1 character copied
+  iteration 2: result = "a" + "b"     -> 2 characters copied (new string created)
+  iteration 3: result = "ab" + "c"    -> 3 characters copied
+  iteration 4: result = "abc" + "d"   -> 4 characters copied
   ...
-  iteration n: result = "abc...y" + "z" → n文字コピー
+  iteration n: result = "abc...y" + "z" -> n characters copied
 
-  合計コピー回数: 1 + 2 + 3 + ... + n = n(n+1)/2 = O(n²)
+  Total copies: 1 + 2 + 3 + ... + n = n(n+1)/2 = O(n^2)
 
-  Pythonの文字列は不変（immutable）オブジェクト
-  → += のたびに新しい文字列オブジェクトが作成される
-  → 古い文字列はGCされるが、コピーコストが蓄積
+  Python strings are immutable objects
+  -> A new string object is created with each +=
+  -> The old string is garbage collected, but copy costs accumulate
 
-  join() は最初に合計サイズを計算し、
-  一度のメモリ確保で全文字列を結合 → O(n)
+  join() first computes the total size,
+  then concatenates all strings with a single memory allocation -> O(n)
 ```
 
-### 改善例3: 二重ループのAPI
+### Example 3: Double-Loop API
 
 ```javascript
-// Before: O(n × m) — ネストループ
+// Before: O(n * m) -- Nested loop
 function getUserOrders(users, orders) {
   return users.map(user => ({
     ...user,
     orders: orders.filter(order => order.userId === user.id)
-    // filter は全orders を走査 → O(m) × n回 = O(n×m)
+    // filter scans all orders -> O(m) x n times = O(n*m)
   }));
 }
 
-// After: O(n + m) — グルーピング
+// After: O(n + m) -- Grouping
 function getUserOrders(users, orders) {
-  // 前処理: ordersをuserIdでグルーピング O(m)
+  // Preprocessing: Group orders by userId O(m)
   const ordersByUser = new Map();
   for (const order of orders) {
     if (!ordersByUser.has(order.userId)) {
@@ -559,7 +562,7 @@ function getUserOrders(users, orders) {
     ordersByUser.get(order.userId).push(order);
   }
 
-  // 結合: O(n)
+  // Joining: O(n)
   return users.map(user => ({
     ...user,
     orders: ordersByUser.get(user.id) || []
@@ -567,16 +570,16 @@ function getUserOrders(users, orders) {
 }
 ```
 
-### 改善例4: キャッシュの活用
+### Example 4: Leveraging Caching
 
 ```python
-# Before: 同じ計算を何度も実行
+# Before: Executing the same computation repeatedly
 def get_user_stats(user_id):
-    user = db.query(f"SELECT * FROM users WHERE id = {user_id}")  # 毎回DB
-    posts = db.query(f"SELECT * FROM posts WHERE user_id = {user_id}")  # 毎回DB
+    user = db.query(f"SELECT * FROM users WHERE id = {user_id}")  # DB every time
+    posts = db.query(f"SELECT * FROM posts WHERE user_id = {user_id}")  # DB every time
     return {"user": user, "post_count": len(posts)}
 
-# After: LRUキャッシュで頻繁なクエリを高速化
+# After: Speed up frequent queries with LRU cache
 from functools import lru_cache
 
 @lru_cache(maxsize=1000)
@@ -585,273 +588,278 @@ def get_user_stats(user_id):
     posts = db.query(f"SELECT * FROM posts WHERE user_id = %s", (user_id,))
     return {"user": user, "post_count": len(posts)}
 
-# CS知識: LRUキャッシュの内部実装
-# - ハッシュマップ（O(1)検索）+ 双方向リンクリスト（O(1)更新）
-# - 最も古い（Least Recently Used）エントリを自動削除
+# CS knowledge: Internal implementation of LRU cache
+# - Hash map (O(1) lookup) + doubly linked list (O(1) update)
+# - Automatically evicts the Least Recently Used entry
 ```
 
-### 改善例5: 適切なソートの選択
+### Example 5: Choosing the Right Sort
 
 ```python
-# Before: 「ソートは sort() を呼ぶだけ」（正しい、だが理解が浅い）
-items.sort()  # Python の TimSort: O(n log n) — 常に最適
+# Before: "Sorting is just calling sort()" (correct, but shallow understanding)
+items.sort()  # Python's TimSort: O(n log n) -- always optimal
 
-# CS知識があると分かること:
-# 1. sort() は安定ソート（同じキーの相対順序を保持）
-# 2. ほぼソート済みなら O(n) に近い（TimSortの特性）
-# 3. key= でカスタムキーを指定すると比較コストを制御できる
+# What CS knowledge reveals:
+# 1. sort() is stable (preserves relative order of equal keys)
+# 2. Nearly sorted data approaches O(n) (TimSort characteristic)
+# 3. Using key= controls comparison cost
 
-# 実務応用: 複合ソートの最適化
+# Practical application: Optimizing compound sorts
 users.sort(key=lambda u: (u['department'], -u['salary']))
-# CS知識: Pythonのsortはタプルの辞書順比較を利用
-# → 部門名の昇順、同じ部門内は給与の降順
+# CS knowledge: Python's sort uses lexicographic comparison of tuples
+# -> Ascending by department, descending by salary within each department
 
-# さらに: 100万件を超える場合
-# - メモリに乗る → TimSort O(n log n)
-# - メモリに乗らない → 外部ソート（マージソート）
-# - 特定の範囲の整数 → 計数ソート O(n + k) [非比較ソート]
+# Furthermore: When exceeding 1 million items
+# - Fits in memory -> TimSort O(n log n)
+# - Doesn't fit in memory -> External sort (merge sort)
+# - Integers in a specific range -> Counting sort O(n + k) [non-comparison sort]
 ```
 
-### 改善例6: 正規表現のパフォーマンス問題
+### Example 6: Regular Expression Performance Issues
 
 ```python
 import re
 
-# Before: バックトラッキングが爆発する正規表現
-# ReDoS（Regular Expression Denial of Service）
+# Before: A regex with exploding backtracking
+# ReDoS (Regular Expression Denial of Service)
 pattern_bad = r'^(a+)+$'
 text = 'a' * 30 + 'b'
-# re.match(pattern_bad, text)  # 数十秒〜フリーズ！
+# re.match(pattern_bad, text)  # Takes tens of seconds to freeze!
 
-# 原因: (a+)+ のネストにより、指数的なバックトラッキングが発生
-# 'aaaa...b' に対して:
-# (a)(a)(a)...b → 失敗
-# (aa)(a)(a)...b → 失敗
-# (a)(aa)(a)...b → 失敗
-# → 2^n 通りの分割を試行 → 指数時間
+# Cause: Nested (a+)+ causes exponential backtracking
+# For 'aaaa...b':
+# (a)(a)(a)...b -> fail
+# (aa)(a)(a)...b -> fail
+# (a)(aa)(a)...b -> fail
+# -> Tries 2^n partitions -> Exponential time
 
-# After: CS知識でバックトラッキングを回避
-pattern_good = r'^a+$'  # ネストを排除
-# または原子グループ/所有量指定子を使用
+# After: Avoid backtracking with CS knowledge
+pattern_good = r'^a+$'  # Eliminate nesting
+# Or use atomic groups / possessive quantifiers
 
-# CS知識: NFAとDFAの違い
-# Python の re はNFA（バックトラッキングあり）
-# → 悪い正規表現で指数時間になりうる
-# Google RE2 はDFA（バックトラッキングなし）
-# → 常に線形時間で動作
+# CS knowledge: Difference between NFA and DFA
+# Python's re uses NFA (with backtracking)
+# -> Bad regex patterns can take exponential time
+# Google RE2 uses DFA (no backtracking)
+# -> Always runs in linear time
 
-# 対策:
-# 1. ネストした量指定子を避ける: (a+)+ → a+
-# 2. 入力長を制限する
-# 3. タイムアウトを設定する
-# 4. RE2などDFAベースのエンジンを使う
+# Countermeasures:
+# 1. Avoid nested quantifiers: (a+)+ -> a+
+# 2. Limit input length
+# 3. Set timeouts
+# 4. Use DFA-based engines like RE2
 ```
 
 ---
 
-## 4. アンチパターン（CS学習の間違った方法）
+## 4. Anti-patterns (Wrong Ways to Study CS)
 
-### アンチパターン1: 「LeetCodeだけやれば完璧」
+### Anti-pattern 1: "LeetCode alone is enough"
 
-LeetCodeは「アルゴリズムのパターン練習」であり、CS基礎の一部しかカバーしない。
-
-```
-CS基礎の全体像に対するLeetCodeのカバー範囲:
-
-  アルゴリズム     ████████░░ 80%  ← LeetCode
-  データ構造       ██████░░░░ 60%  ← LeetCode
-  計算量解析       ████░░░░░░ 40%  ← 部分的
-  OS               ░░░░░░░░░░  0%  ← カバーなし
-  ネットワーク     ░░░░░░░░░░  0%  ← カバーなし
-  データベース     ██░░░░░░░░ 20%  ← SQL問題のみ
-  計算理論         ░░░░░░░░░░  0%  ← カバーなし
-  SE基礎           ░░░░░░░░░░  0%  ← カバーなし
-  セキュリティ     ░░░░░░░░░░  0%  ← カバーなし
-```
-
-### アンチパターン2: 「教科書を最初から全部読む」
-
-CLRSを1ページ目から読み始めて3章で挫折するパターン。**必要な箇所から実践的に学ぶ**べき。
-
-### アンチパターン3: 「理論だけ学んで実装しない」
-
-計算量をO(n log n)と言えても、実際にマージソートを書いたことがなければ理解は浅い。**理論を学んだら必ず実装する**。
-
-### アンチパターン4: 「最新技術だけ追う」
-
-React、Next.js、Tailwindの最新バージョンは追うが、データ構造やアルゴリズムは放置。5年後には別のフレームワークに移行するが、CS基礎は不変。
-
-### アンチパターン5: 「一度学べば終わり」
-
-CS基礎は深さが無限。配列を「知っている」と思っても、キャッシュライン、プリフェッチ、SIMD最適化まで深掘りすれば新しい学びがある。**定期的な復習と深掘りが必要**。
-
-### アンチパターン6: 「暗記中心の学習」
+LeetCode is "pattern practice for algorithms" and covers only a portion of CS fundamentals.
 
 ```
-暗記学習 vs 理解学習:
+LeetCode coverage relative to the full scope of CS fundamentals:
 
-  暗記: 「クイックソートはO(n log n)」
-  理解: 「なぜピボット選択が重要なのか」
-        「最悪ケースO(n²)はどう発生するのか」
-        「ランダムピボットがなぜ効果的なのか」
-        「安定ソートではない理由は何か」
-        「メモリ使用量がマージソートより少ない理由は？」
+  Algorithms       ########.. 80%  <- LeetCode
+  Data Structures  ######.... 60%  <- LeetCode
+  Complexity Anal. ####...... 40%  <- Partial
+  OS               .......... 0%   <- Not covered
+  Networking       .......... 0%   <- Not covered
+  Databases        ##........ 20%  <- SQL problems only
+  Theory of Comp.  .......... 0%   <- Not covered
+  SE Fundamentals  .......... 0%   <- Not covered
+  Security         .......... 0%   <- Not covered
+```
 
-  暗記した知識は応用できない。
-  理解した知識は未知の問題にも適用できる。
+### Anti-pattern 2: "Read the textbook cover to cover"
 
-  例: 「クイックソートのパーティション」を理解していれば、
-  「k番目に大きい要素を見つける」問題（QuickSelect）も解ける。
-  → O(n) のアルゴリズムを自分で発想できる。
+The pattern of starting CLRS from page 1 and giving up by chapter 3. You should **learn practically, starting from the parts you need**.
+
+### Anti-pattern 3: "Study theory without ever implementing"
+
+Even if you can state that the complexity is O(n log n), your understanding is shallow if you've never actually implemented merge sort. **Always implement after learning theory**.
+
+### Anti-pattern 4: "Only chase the latest technologies"
+
+You track the latest versions of React, Next.js, and Tailwind, but ignore data structures and algorithms. In 5 years you'll migrate to a different framework, but CS fundamentals remain constant.
+
+### Anti-pattern 5: "Learn it once and you're done"
+
+CS fundamentals have infinite depth. Even if you think you "know" arrays, there are new discoveries when you dig into cache lines, prefetching, and SIMD optimization. **Regular review and deep dives are necessary**.
+
+### Anti-pattern 6: "Memorization-focused learning"
+
+```
+Memorization vs. Understanding:
+
+  Memorization: "Quicksort is O(n log n)"
+  Understanding: "Why is pivot selection important?"
+               "How does the worst case O(n^2) occur?"
+               "Why is a random pivot effective?"
+               "Why is it not a stable sort?"
+               "Why does it use less memory than merge sort?"
+
+  Memorized knowledge cannot be applied.
+  Understood knowledge can be applied to unknown problems.
+
+  Example: If you understand "Quicksort's partition,"
+  you can also solve "find the k-th largest element" (QuickSelect).
+  -> You can devise an O(n) algorithm on your own.
 ```
 
 ---
 
-## 5. MIT / Stanford / CMU CSカリキュラム比較
+## 5. MIT / Stanford / CMU CS Curriculum Comparison
 
-| 分類 | MIT (6-3) | Stanford (BS CS) | CMU (SCS) |
-|------|-----------|-------------------|-----------|
-| **入門** | 6.100A (Python入門) | CS106A (Java/Python) | 15-112 (Python) |
-| **データ構造** | 6.006 (アルゴリズム入門) | CS106B (C++) | 15-122 (C) |
-| **アルゴリズム** | 6.046 (アルゴリズム設計) | CS161 | 15-451 |
-| **計算機構造** | 6.004 (計算構造) | CS107 (コンピュータ構成) | 15-213 (CS:APP) |
-| **OS** | 6.033 (コンピュータシステム) | CS110/CS111 | 15-410 |
-| **計算理論** | 6.045 | CS154 | 15-251 (Great Theoretical Ideas) |
+| Category | MIT (6-3) | Stanford (BS CS) | CMU (SCS) |
+|----------|-----------|-------------------|-----------|
+| **Intro** | 6.100A (Python Intro) | CS106A (Java/Python) | 15-112 (Python) |
+| **Data Structures** | 6.006 (Intro to Algorithms) | CS106B (C++) | 15-122 (C) |
+| **Algorithms** | 6.046 (Algorithm Design) | CS161 | 15-451 |
+| **Computer Architecture** | 6.004 (Computation Structures) | CS107 (Computer Organization) | 15-213 (CS:APP) |
+| **OS** | 6.033 (Computer Systems) | CS110/CS111 | 15-410 |
+| **Theory of Computation** | 6.045 | CS154 | 15-251 (Great Theoretical Ideas) |
 | **AI** | 6.034 + 6.036 | CS221 + CS229 | 10-301 + 10-315 |
-| **DB** | 6.814 (選択) | CS145 | 15-445 |
-| **ネットワーク** | 6.829 (選択) | CS144 | 15-441 |
-| **特色** | 理論+実践バランス、研究重視 | 起業文化、Track選択制 | システム実装重視 |
+| **DB** | 6.814 (Elective) | CS145 | 15-445 |
+| **Networking** | 6.829 (Elective) | CS144 | 15-441 |
+| **Distinctive Features** | Theory + practice balance, research focus | Entrepreneurial culture, track system | Systems implementation focus |
 
-### 3大学に共通する「CS基礎3本柱」
-
-```
-┌─────────────────────────────────────┐
-│     CS基礎の3本柱（全名門大学共通）  │
-├─────────────────────────────────────┤
-│                                     │
-│  1. アルゴリズムとデータ構造         │
-│     MIT 6.006 / Stanford CS161     │
-│     → 効率的な問題解決の核          │
-│                                     │
-│  2. コンピュータシステム             │
-│     MIT 6.004 / CMU 15-213         │
-│     → HWとSWの接点の理解           │
-│                                     │
-│  3. 数学的基盤                      │
-│     離散数学 + 確率統計 + 論理学    │
-│     → 厳密な思考の道具             │
-│                                     │
-│  この3本柱は1970年代から変わらない   │
-│  フレームワークは変わっても          │
-│  基礎は不変                         │
-│                                     │
-└─────────────────────────────────────┘
-```
-
----
-
-## 6. キャリアへの影響
-
-### CS基礎の有無による差
+### The "Three Pillars of CS" Common to All Three Universities
 
 ```
-エンジニアの成長曲線:
-
-スキル
-  │
-  │                              ★ CS基礎あり
-  │                           ／
-  │                        ／
-  │                     ／
-  │                  ／
-  │               ／    ☆ CS基礎なし（天井にぶつかる）
-  │            ／   ─────────────────────────
-  │         ／  ／
-  │      ／／
-  │   ／／
-  │ ／
-  │
-  └──────────────────────────────── 経験年数
-    1年   3年   5年   7年   10年
-
-  CS基礎なし: 3-5年で成長が鈍化
-  → フレームワークは使えるが、根本的な問題解決ができない
-  → シニア/リードへの昇進が困難
-
-  CS基礎あり: 指数的に成長し続ける
-  → 新技術の習得が高速（基礎があるから応用が速い）
-  → アーキテクチャ設計、技術選定、パフォーマンス最適化が可能
-```
-
-### 技術面接での重要性
-
-FAANG（Meta, Apple, Amazon, Netflix, Google）を含む多くの大手テック企業の面接で、CS基礎が直接問われる:
-
-| 面接タイプ | CS基礎の比重 | 出題例 |
-|-----------|-------------|--------|
-| コーディング | 80% | アルゴリズム、データ構造の実装 |
-| システムデザイン | 70% | 分散システム、CAP定理、負荷分散 |
-| ビヘイビア | 20% | 技術的意思決定の根拠 |
-
-### 年収への影響（日本市場）
-
-```
-CS基礎の有無と年収（日本のソフトウェアエンジニア概算）:
-
-  経験年数   CS基礎なし     CS基礎あり     差
-  ────────────────────────────────────────────
-   1-3年     400-600万       400-700万      +0-100万
-   3-5年     500-700万       600-900万      +100-200万
-   5-10年    600-800万       800-1200万     +200-400万
-  10年以上   700-1000万     1000-2000万+    +300-1000万
-
-  注: 個人差が大きく、CSの有無だけが要因ではない
-  しかし「天井」が確実に上がる
-
-  特にCS基礎が効く場面:
-  - GAFAMなど外資テック企業の面接
-  - アーキテクト/テックリードへの昇進
-  - パフォーマンスチューニングの案件
-  - AI/ML関連の高単価案件
-```
-
-### AI時代のCSの価値
-
-```
-AI時代にCS基礎が必要な理由:
-
-  1. AIの出力を評価する力
-     LLMが書いたコードの計算量は適切か？
-     セキュリティ上の問題はないか？
-     → CS基礎なしでは判断できない
-
-  2. AIを正しく活用する力
-     RAGの設計: チャンクサイズ、エンベディングの選択
-     プロンプト: トークン制限の理解、コンテキストウィンドウ
-     → CSの知識がAIの効果的な活用に直結
-
-  3. AIでは置き換えられない力
-     システム全体のアーキテクチャ設計
-     非機能要件（可用性、スケーラビリティ、セキュリティ）
-     ビジネス要件とのトレードオフ判断
-     → 「何を作るか」の判断は人間の仕事
-
-  4. AIの限界を理解する力
-     停止問題: AIにも原理的な限界がある
-     ハルシネーション: LLMは事実を保証しない
-     → CS基礎があれば、AIの限界を正しく理解できる
++-------------------------------------+
+|  Three Pillars of CS Fundamentals    |
+|  (Common across top universities)    |
++-------------------------------------+
+|                                     |
+|  1. Algorithms and Data Structures  |
+|     MIT 6.006 / Stanford CS161      |
+|     -> The core of efficient        |
+|        problem solving              |
+|                                     |
+|  2. Computer Systems                |
+|     MIT 6.004 / CMU 15-213          |
+|     -> Understanding the HW/SW      |
+|        interface                    |
+|                                     |
+|  3. Mathematical Foundations        |
+|     Discrete Math + Probability &   |
+|     Statistics + Logic              |
+|     -> Tools for rigorous thinking  |
+|                                     |
+|  These three pillars have not       |
+|  changed since the 1970s.           |
+|  Frameworks change, but             |
+|  fundamentals do not.               |
+|                                     |
++-------------------------------------+
 ```
 
 ---
 
-## 7. 実践演習
+## 6. Career Impact
 
-### 演習1: コード改善チャレンジ（基礎）
+### The Difference CS Fundamentals Make
 
-以下のコードの計算量を分析し、改善版を書け:
+```
+Engineer Growth Curves:
+
+Skill
+  |
+  |                              * With CS fundamentals
+  |                           /
+  |                        /
+  |                     /
+  |                  /
+  |               /    o Without CS fundamentals (hits a ceiling)
+  |            /   ---------------------------------
+  |         /  /
+  |      //
+  |   //
+  | /
+  |
+  +-------------------------------------- Years of Experience
+    1yr   3yr   5yr   7yr   10yr
+
+  Without CS fundamentals: Growth plateaus at 3-5 years
+  -> Can use frameworks but cannot solve fundamental problems
+  -> Promotion to Senior/Lead becomes difficult
+
+  With CS fundamentals: Exponential, continuous growth
+  -> New technology adoption is fast (fundamentals enable rapid application)
+  -> Architecture design, technology selection, performance optimization become possible
+```
+
+### Importance in Technical Interviews
+
+CS fundamentals are directly tested in interviews at FAANG (Meta, Apple, Amazon, Netflix, Google) and many other major tech companies:
+
+| Interview Type | Weight of CS Fundamentals | Example Questions |
+|---------------|--------------------------|-------------------|
+| Coding | 80% | Algorithm and data structure implementation |
+| System Design | 70% | Distributed systems, CAP theorem, load balancing |
+| Behavioral | 20% | Rationale behind technical decisions |
+
+### Impact on Salary (Japan Market)
+
+```
+CS fundamentals and salary (approximate, for software engineers in Japan):
+
+  Experience   Without CS      With CS         Difference
+  -------------------------------------------------------
+   1-3 years   4-6M JPY        4-7M JPY        +0-1M JPY
+   3-5 years   5-7M JPY        6-9M JPY        +1-2M JPY
+   5-10 years  6-8M JPY        8-12M JPY       +2-4M JPY
+  10+ years    7-10M JPY      10-20M+ JPY      +3-10M JPY
+
+  Note: Individual variance is large; CS is not the only factor
+  However, the "ceiling" definitely rises
+
+  Situations where CS fundamentals are particularly impactful:
+  - GAFAM and other foreign tech company interviews
+  - Promotion to Architect / Tech Lead
+  - Performance tuning projects
+  - High-paying AI/ML projects
+```
+
+### The Value of CS in the Age of AI
+
+```
+Why CS fundamentals are needed in the AI era:
+
+  1. The ability to evaluate AI output
+     Is the computational complexity of LLM-generated code appropriate?
+     Are there security issues?
+     -> Cannot judge without CS fundamentals
+
+  2. The ability to use AI effectively
+     RAG design: chunk sizes, embedding selection
+     Prompting: understanding token limits, context windows
+     -> CS knowledge directly enhances effective AI utilization
+
+  3. Abilities that AI cannot replace
+     Entire system architecture design
+     Non-functional requirements (availability, scalability, security)
+     Trade-off decisions with business requirements
+     -> Deciding "what to build" remains a human job
+
+  4. The ability to understand AI's limitations
+     Halting problem: AI also has fundamental limitations
+     Hallucinations: LLMs do not guarantee facts
+     -> With CS fundamentals, you can correctly understand AI's limits
+```
+
+---
+
+## 7. Practical Exercises
+
+### Exercise 1: Code Improvement Challenge (Beginner)
+
+Analyze the computational complexity of the following code and write an improved version:
 
 ```python
-# 問題: 配列の中で合計がtargetになるペアを見つける
+# Problem: Find a pair in an array that sums to target
 def two_sum(nums, target):
     for i in range(len(nums)):
         for j in range(i + 1, len(nums)):
@@ -861,110 +869,110 @@ def two_sum(nums, target):
 ```
 
 <details>
-<summary>ヒント</summary>
-ハッシュマップを使えば1回のループで解ける。各要素について「target - nums[i]」が既にマップに存在するかチェック。
+<summary>Hint</summary>
+You can solve this in a single loop using a hash map. For each element, check if "target - nums[i]" already exists in the map.
 </details>
 
 <details>
-<summary>解答</summary>
+<summary>Solution</summary>
 
 ```python
 def two_sum(nums, target):
-    """O(n) のハッシュマップ解法"""
-    seen = {}  # 値 → インデックス のマッピング
+    """O(n) hash map solution"""
+    seen = {}  # value -> index mapping
     for i, num in enumerate(nums):
         complement = target - num
-        if complement in seen:  # O(1) のハッシュ探索
+        if complement in seen:  # O(1) hash lookup
             return [seen[complement], i]
         seen[num] = i
     return []
 
-# Before: O(n²) — 二重ループ
-# After:  O(n)  — 1回のループ + ハッシュマップ
-# n=10,000 の場合: 50,000,000回 → 10,000回（5,000倍高速）
+# Before: O(n^2) -- Double loop
+# After:  O(n)  -- Single loop + hash map
+# For n=10,000: 50,000,000 operations -> 10,000 operations (5,000x faster)
 ```
 
 </details>
 
-### 演習2: システム設計（応用）
+### Exercise 2: System Design (Intermediate)
 
-URLを短縮するサービス（bit.ly のような）を設計する場合、以下の質問に答えよ:
-1. 短縮URLのキーにどのデータ構造を使うか？
-2. 100億URLを扱う場合のストレージ容量は？
-3. 読み取り:書き込み比が100:1の場合、どうキャッシュするか？
+If designing a URL shortening service (like bit.ly), answer the following:
+1. What data structure would you use for the shortened URL key?
+2. What storage capacity is needed for 10 billion URLs?
+3. If the read:write ratio is 100:1, how would you cache?
 
 <details>
-<summary>解答例</summary>
+<summary>Sample Answer</summary>
 
 ```
-1. キー設計:
-   Base62エンコーディング（a-z, A-Z, 0-9）で7文字
-   62^7 = 3.5兆通り → 100億URLに十分
-   ハッシュテーブル（Redis）+ B+木（MySQL）のハイブリッド
+1. Key design:
+   Base62 encoding (a-z, A-Z, 0-9) with 7 characters
+   62^7 = 3.5 trillion possibilities -> sufficient for 10 billion URLs
+   Hybrid of hash table (Redis) + B+ tree (MySQL)
 
-2. ストレージ:
-   1URL = キー(7B) + URL(100B avg) + メタデータ(50B) = 約160B
-   100億 × 160B = 1.6TB
-   レプリケーション3倍 = 4.8TB（NVMe SSD 1台に収まる）
+2. Storage:
+   1 URL = key(7B) + URL(100B avg) + metadata(50B) = ~160B
+   10 billion x 160B = 1.6TB
+   With 3x replication = 4.8TB (fits on a single NVMe SSD)
 
-3. キャッシュ戦略:
-   読み取り100:1 → キャッシュヒット率が重要
-   - Redis: ホット URL をLRUキャッシュ（数GB）
-   - CDN: エッジでリダイレクト（最もアクセス多いURL）
-   - TTL: 24時間（URLは変わらないのでキャッシュに適している）
-   パレートの法則: 上位20%のURLが80%のトラフィック
-   → 全URLの20%をキャッシュすれば80%ヒット
+3. Cache strategy:
+   Read ratio 100:1 -> Cache hit rate is critical
+   - Redis: LRU cache for hot URLs (a few GB)
+   - CDN: Redirect at the edge (most accessed URLs)
+   - TTL: 24 hours (URLs don't change, so they're cache-friendly)
+   Pareto principle: Top 20% of URLs account for 80% of traffic
+   -> Caching 20% of all URLs achieves 80% hit rate
 ```
 
 </details>
 
-### 演習3: 自己診断（発展）
+### Exercise 3: Self-Assessment (Advanced)
 
-以下の10項目について、自分の理解度を1-5で評価し、弱い分野の学習計画を立てよ:
+Rate your understanding of the following 10 areas on a 1-5 scale, and create a study plan for your weak areas:
 
-| # | 分野 | 1(知らない)〜5(教えられる) |
-|---|------|--------------------------|
-| 1 | 計算量解析（Big-O） | |
-| 2 | ハッシュテーブルの内部構造 | |
-| 3 | 二分探索木の計算量 | |
-| 4 | TCPの3ウェイハンドシェイク | |
-| 5 | 仮想メモリとページフォルト | |
-| 6 | 正規表現のバックトラッキング | |
-| 7 | SQLのJOINの計算量 | |
-| 8 | GCの仕組み（世代別GC） | |
-| 9 | TLSハンドシェイク | |
-| 10 | CAP定理 | |
+| # | Area | 1 (Don't know) -- 5 (Can teach it) |
+|---|------|-------------------------------------|
+| 1 | Complexity analysis (Big-O) | |
+| 2 | Hash table internals | |
+| 3 | Binary search tree complexity | |
+| 4 | TCP 3-way handshake | |
+| 5 | Virtual memory and page faults | |
+| 6 | Regex backtracking | |
+| 7 | SQL JOIN complexity | |
+| 8 | How GC works (generational GC) | |
+| 9 | TLS handshake | |
+| 10 | CAP Theorem | |
 
 
 ---
 
-## トラブルシューティング
+## Troubleshooting
 
-### よくあるエラーと解決策
+### Common Errors and Solutions
 
-| エラー | 原因 | 解決策 |
-|--------|------|--------|
-| 初期化エラー | 設定ファイルの不備 | 設定ファイルのパスと形式を確認 |
-| タイムアウト | ネットワーク遅延/リソース不足 | タイムアウト値の調整、リトライ処理の追加 |
-| メモリ不足 | データ量の増大 | バッチ処理の導入、ページネーションの実装 |
-| 権限エラー | アクセス権限の不足 | 実行ユーザーの権限確認、設定の見直し |
-| データ不整合 | 並行処理の競合 | ロック機構の導入、トランザクション管理 |
+| Error | Cause | Solution |
+|-------|-------|---------|
+| Initialization error | Configuration file issues | Verify configuration file path and format |
+| Timeout | Network latency / insufficient resources | Adjust timeout values, add retry logic |
+| Out of memory | Data volume growth | Introduce batch processing, implement pagination |
+| Permission error | Insufficient access rights | Check user permissions, review settings |
+| Data inconsistency | Concurrent process conflicts | Introduce locking mechanisms, manage transactions |
 
-### デバッグの手順
+### Debugging Procedure
 
-1. **エラーメッセージの確認**: スタックトレースを読み、発生箇所を特定する
-2. **再現手順の確立**: 最小限のコードでエラーを再現する
-3. **仮説の立案**: 考えられる原因をリストアップする
-4. **段階的な検証**: ログ出力やデバッガを使って仮説を検証する
-5. **修正と回帰テスト**: 修正後、関連する箇所のテストも実行する
+1. **Check error messages**: Read the stack trace and identify where the error occurred
+2. **Establish reproduction steps**: Reproduce the error with minimal code
+3. **Formulate hypotheses**: List possible causes
+4. **Verify step by step**: Use log output and debuggers to test hypotheses
+5. **Fix and regression test**: After fixing, also run tests on related areas
 
 ```python
-# デバッグ用ユーティリティ
+# Debugging utility
 import logging
 import traceback
 from functools import wraps
 
-# ロガーの設定
+# Logger configuration
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
@@ -972,102 +980,102 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def debug_decorator(func):
-    """関数の入出力をログ出力するデコレータ"""
+    """Decorator that logs function input/output"""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        logger.debug(f"呼び出し: {func.__name__}(args={args}, kwargs={kwargs})")
+        logger.debug(f"Call: {func.__name__}(args={args}, kwargs={kwargs})")
         try:
             result = func(*args, **kwargs)
-            logger.debug(f"戻り値: {func.__name__} -> {result}")
+            logger.debug(f"Return: {func.__name__} -> {result}")
             return result
         except Exception as e:
-            logger.error(f"例外発生: {func.__name__}: {e}")
+            logger.error(f"Exception: {func.__name__}: {e}")
             logger.error(traceback.format_exc())
             raise
     return wrapper
 
 @debug_decorator
 def process_data(items):
-    """データ処理（デバッグ対象）"""
+    """Data processing (debugging target)"""
     if not items:
-        raise ValueError("空のデータ")
+        raise ValueError("Empty data")
     return [item * 2 for item in items]
 ```
 
-### パフォーマンス問題の診断
+### Diagnosing Performance Issues
 
-パフォーマンス問題が発生した場合の診断手順:
+Diagnostic procedure when performance issues occur:
 
-1. **ボトルネックの特定**: プロファイリングツールで計測
-2. **メモリ使用量の確認**: メモリリークの有無をチェック
-3. **I/O待ちの確認**: ディスクやネットワークI/Oの状況を確認
-4. **同時接続数の確認**: コネクションプールの状態を確認
+1. **Identify the bottleneck**: Measure with profiling tools
+2. **Check memory usage**: Check for memory leaks
+3. **Check I/O wait**: Verify disk and network I/O conditions
+4. **Check connection count**: Verify connection pool status
 
-| 問題の種類 | 診断ツール | 対策 |
-|-----------|-----------|------|
-| CPU負荷 | cProfile, py-spy | アルゴリズム改善、並列化 |
-| メモリリーク | tracemalloc, objgraph | 参照の適切な解放 |
-| I/Oボトルネック | strace, iostat | 非同期I/O、キャッシュ |
-| DB遅延 | EXPLAIN, slow query log | インデックス、クエリ最適化 |
+| Problem Type | Diagnostic Tool | Countermeasure |
+|-------------|----------------|----------------|
+| CPU load | cProfile, py-spy | Algorithm improvement, parallelization |
+| Memory leak | tracemalloc, objgraph | Proper release of references |
+| I/O bottleneck | strace, iostat | Async I/O, caching |
+| DB latency | EXPLAIN, slow query log | Indexing, query optimization |
 
 ---
 
-## 設計判断ガイド
+## Design Decision Guide
 
-### 選択基準マトリクス
+### Selection Criteria Matrix
 
-技術選択を行う際の判断基準を以下にまとめます。
+The following summarizes decision criteria for technology selection.
 
-| 判断基準 | 重視する場合 | 妥協できる場合 |
-|---------|------------|-------------|
-| パフォーマンス | リアルタイム処理、大規模データ | 管理画面、バッチ処理 |
-| 保守性 | 長期運用、チーム開発 | プロトタイプ、短期プロジェクト |
-| スケーラビリティ | 成長が見込まれるサービス | 社内ツール、固定ユーザー |
-| セキュリティ | 個人情報、金融データ | 公開データ、社内利用 |
-| 開発速度 | MVP、市場投入スピード | 品質重視、ミッションクリティカル |
+| Criterion | When to Prioritize | When Acceptable to Compromise |
+|-----------|-------------------|------------------------------|
+| Performance | Real-time processing, large-scale data | Admin panels, batch processing |
+| Maintainability | Long-term operation, team development | Prototypes, short-term projects |
+| Scalability | Growing services | Internal tools, fixed user base |
+| Security | Personal data, financial data | Public data, internal use |
+| Development speed | MVP, time to market | Quality-first, mission-critical |
 
-### アーキテクチャパターンの選択
+### Choosing an Architecture Pattern
 
 ```
-┌─────────────────────────────────────────────────┐
-│              アーキテクチャ選択フロー              │
-├─────────────────────────────────────────────────┤
-│                                                 │
-│  ① チーム規模は？                                │
-│    ├─ 小規模（1-5人）→ モノリス                   │
-│    └─ 大規模（10人+）→ ②へ                       │
-│                                                 │
-│  ② デプロイ頻度は？                               │
-│    ├─ 週1回以下 → モノリス + モジュール分割         │
-│    └─ 毎日/複数回 → ③へ                          │
-│                                                 │
-│  ③ チーム間の独立性は？                            │
-│    ├─ 高い → マイクロサービス                      │
-│    └─ 中程度 → モジュラーモノリス                   │
-│                                                 │
-└─────────────────────────────────────────────────┘
++-----------------------------------------------+
+|        Architecture Selection Flow             |
++-----------------------------------------------+
+|                                               |
+|  (1) Team size?                               |
+|    +- Small (1-5) -> Monolith                 |
+|    +- Large (10+) -> Go to (2)                |
+|                                               |
+|  (2) Deployment frequency?                    |
+|    +- Once a week or less -> Monolith + mods  |
+|    +- Daily/multiple times -> Go to (3)       |
+|                                               |
+|  (3) Inter-team independence?                 |
+|    +- High -> Microservices                   |
+|    +- Moderate -> Modular monolith            |
+|                                               |
++-----------------------------------------------+
 ```
 
-### トレードオフの分析
+### Trade-off Analysis
 
-技術的な判断には必ずトレードオフが伴います。以下の観点で分析を行いましょう:
+Technical decisions always involve trade-offs. Analyze from the following perspectives:
 
-**1. 短期 vs 長期のコスト**
-- 短期的に速い方法が長期的には技術的負債になることがある
-- 逆に、過剰な設計は短期的なコストが高く、プロジェクトの遅延を招く
+**1. Short-term vs. Long-term Cost**
+- A quick short-term solution may become technical debt in the long run
+- Conversely, over-engineering incurs high short-term costs and may delay the project
 
-**2. 一貫性 vs 柔軟性**
-- 統一された技術スタックは学習コストが低い
-- 多様な技術の採用は適材適所が可能だが、運用コストが増加
+**2. Consistency vs. Flexibility**
+- A unified technology stack reduces learning costs
+- Adopting diverse technologies enables best-fit choices but increases operational cost
 
-**3. 抽象化のレベル**
-- 高い抽象化は再利用性が高いが、デバッグが困難になる場合がある
-- 低い抽象化は直感的だが、コードの重複が発生しやすい
+**3. Level of Abstraction**
+- Higher abstraction improves reusability but can make debugging more difficult
+- Lower abstraction is more intuitive but tends to produce code duplication
 
 ```python
-# 設計判断の記録テンプレート
+# Architecture Decision Record template
 class ArchitectureDecisionRecord:
-    """ADR (Architecture Decision Record) の作成"""
+    """Creating an ADR (Architecture Decision Record)"""
 
     def __init__(self, title: str):
         self.title = title
@@ -1077,17 +1085,17 @@ class ArchitectureDecisionRecord:
         self.alternatives = []
 
     def set_context(self, context: str):
-        """背景と課題の記述"""
+        """Describe the background and problem"""
         self.context = context
         return self
 
     def set_decision(self, decision: str):
-        """決定内容の記述"""
+        """Describe the decision"""
         self.decision = decision
         return self
 
     def add_consequence(self, consequence: str, positive: bool = True):
-        """結果の追加"""
+        """Add a consequence"""
         self.consequences.append({
             'description': consequence,
             'type': 'positive' if positive else 'negative'
@@ -1095,7 +1103,7 @@ class ArchitectureDecisionRecord:
         return self
 
     def add_alternative(self, name: str, reason_rejected: str):
-        """却下した代替案の追加"""
+        """Add a rejected alternative"""
         self.alternatives.append({
             'name': name,
             'reason_rejected': reason_rejected
@@ -1103,15 +1111,15 @@ class ArchitectureDecisionRecord:
         return self
 
     def to_markdown(self) -> str:
-        """Markdown形式で出力"""
+        """Output in Markdown format"""
         md = f"# ADR: {self.title}\n\n"
-        md += f"## 背景\n{self.context}\n\n"
-        md += f"## 決定\n{self.decision}\n\n"
-        md += "## 結果\n"
+        md += f"## Context\n{self.context}\n\n"
+        md += f"## Decision\n{self.decision}\n\n"
+        md += "## Consequences\n"
         for c in self.consequences:
-            icon = "✅" if c['type'] == 'positive' else "⚠️"
-            md += f"- {icon} {c['description']}\n"
-        md += "\n## 却下した代替案\n"
+            icon = "+" if c['type'] == 'positive' else "!"
+            md += f"- [{icon}] {c['description']}\n"
+        md += "\n## Rejected Alternatives\n"
         for a in self.alternatives:
             md += f"- **{a['name']}**: {a['reason_rejected']}\n"
         return md
@@ -1119,53 +1127,53 @@ class ArchitectureDecisionRecord:
 
 ---
 
-## 実務での適用シナリオ
+## Real-World Application Scenarios
 
-### シナリオ1: スタートアップでのMVP開発
+### Scenario 1: MVP Development at a Startup
 
-**状況:** 限られたリソースで素早くプロダクトをリリースする必要がある
+**Situation:** Need to ship a product quickly with limited resources
 
-**アプローチ:**
-- シンプルなアーキテクチャを選択
-- 必要最小限の機能に集中
-- 自動テストはクリティカルパスのみ
-- モニタリングは早期から導入
+**Approach:**
+- Choose a simple architecture
+- Focus on the minimum viable set of features
+- Automated testing only for critical paths
+- Monitoring from early on
 
-**学んだ教訓:**
-- 完璧を求めすぎない（YAGNI原則）
-- ユーザーフィードバックを早期に取得
-- 技術的負債は意識的に管理する
+**Lessons learned:**
+- Don't pursue perfection (YAGNI principle)
+- Get user feedback early
+- Manage technical debt consciously
 
-### シナリオ2: レガシーシステムのモダナイゼーション
+### Scenario 2: Legacy System Modernization
 
-**状況:** 10年以上運用されているシステムを段階的に刷新する
+**Situation:** Incrementally modernize a system that has been running for 10+ years
 
-**アプローチ:**
-- Strangler Fig パターンで段階的に移行
-- 既存のテストがない場合はCharacterization Testを先に作成
-- APIゲートウェイで新旧システムを共存
-- データ移行は段階的に実施
+**Approach:**
+- Migrate incrementally using the Strangler Fig pattern
+- Create Characterization Tests first if none exist
+- Use an API gateway to allow old and new systems to coexist
+- Migrate data in stages
 
-| フェーズ | 作業内容 | 期間目安 | リスク |
-|---------|---------|---------|--------|
-| 1. 調査 | 現状分析、依存関係の把握 | 2-4週間 | 低 |
-| 2. 基盤 | CI/CD構築、テスト環境 | 4-6週間 | 低 |
-| 3. 移行開始 | 周辺機能から順次移行 | 3-6ヶ月 | 中 |
-| 4. コア移行 | 中核機能の移行 | 6-12ヶ月 | 高 |
-| 5. 完了 | 旧システム廃止 | 2-4週間 | 中 |
+| Phase | Work | Estimated Duration | Risk |
+|-------|------|-------------------|------|
+| 1. Investigation | Current state analysis, dependency mapping | 2-4 weeks | Low |
+| 2. Foundation | CI/CD setup, test environment | 4-6 weeks | Low |
+| 3. Migration Start | Migrate peripheral features first | 3-6 months | Medium |
+| 4. Core Migration | Migrate core functionality | 6-12 months | High |
+| 5. Completion | Decommission the old system | 2-4 weeks | Medium |
 
-### シナリオ3: 大規模チームでの開発
+### Scenario 3: Large Team Development
 
-**状況:** 50人以上のエンジニアが同一プロダクトを開発する
+**Situation:** 50+ engineers developing the same product
 
-**アプローチ:**
-- ドメイン駆動設計で境界を明確化
-- チームごとにオーナーシップを設定
-- 共通ライブラリはInner Source方式で管理
-- APIファーストで設計し、チーム間の依存を最小化
+**Approach:**
+- Establish clear boundaries with Domain-Driven Design
+- Set ownership per team
+- Manage shared libraries via Inner Source
+- Design API-first to minimize cross-team dependencies
 
 ```python
-# チーム間のAPI契約定義
+# Inter-team API contract definition
 from dataclasses import dataclass
 from typing import List, Optional
 from enum import Enum
@@ -1178,20 +1186,20 @@ class Priority(Enum):
 
 @dataclass
 class APIContract:
-    """チーム間のAPI契約"""
+    """Inter-team API contract"""
     endpoint: str
     method: str
     owner_team: str
     consumers: List[str]
-    sla_ms: int  # レスポンスタイムSLA
+    sla_ms: int  # Response time SLA
     priority: Priority
 
     def validate_sla(self, actual_ms: int) -> bool:
-        """SLA準拠の確認"""
+        """Verify SLA compliance"""
         return actual_ms <= self.sla_ms
 
     def to_openapi(self) -> dict:
-        """OpenAPI形式で出力"""
+        """Output in OpenAPI format"""
         return {
             'path': self.endpoint,
             'method': self.method,
@@ -1200,7 +1208,7 @@ class APIContract:
             'x-sla-ms': self.sla_ms
         }
 
-# 使用例
+# Usage example
 contracts = [
     APIContract(
         endpoint="/api/v1/users",
@@ -1221,104 +1229,104 @@ contracts = [
 ]
 ```
 
-### シナリオ4: パフォーマンスクリティカルなシステム
+### Scenario 4: Performance-Critical Systems
 
-**状況:** ミリ秒単位のレスポンスが求められるシステム
+**Situation:** A system that requires millisecond-level response times
 
-**最適化ポイント:**
-1. キャッシュ戦略（L1: インメモリ、L2: Redis、L3: CDN）
-2. 非同期処理の活用
-3. コネクションプーリング
-4. クエリ最適化とインデックス設計
+**Optimization Points:**
+1. Cache strategy (L1: in-memory, L2: Redis, L3: CDN)
+2. Async processing
+3. Connection pooling
+4. Query optimization and index design
 
-| 最適化手法 | 効果 | 実装コスト | 適用場面 |
-|-----------|------|-----------|---------|
-| インメモリキャッシュ | 高 | 低 | 頻繁にアクセスされるデータ |
-| CDN | 高 | 低 | 静的コンテンツ |
-| 非同期処理 | 中 | 中 | I/O待ちが多い処理 |
-| DB最適化 | 高 | 高 | クエリが遅い場合 |
-| コード最適化 | 低-中 | 高 | CPU律速の場合 |
-
----
-
-## チーム開発での活用
-
-### コードレビューのチェックリスト
-
-このトピックに関連するコードレビューで確認すべきポイント:
-
-- [ ] 命名規則が一貫しているか
-- [ ] エラーハンドリングが適切か
-- [ ] テストカバレッジは十分か
-- [ ] パフォーマンスへの影響はないか
-- [ ] セキュリティ上の問題はないか
-- [ ] ドキュメントは更新されているか
-
-### ナレッジ共有のベストプラクティス
-
-| 方法 | 頻度 | 対象 | 効果 |
-|------|------|------|------|
-| ペアプログラミング | 随時 | 複雑なタスク | 即時のフィードバック |
-| テックトーク | 週1回 | チーム全体 | 知識の水平展開 |
-| ADR (設計記録) | 都度 | 将来のメンバー | 意思決定の透明性 |
-| 振り返り | 2週間ごと | チーム全体 | 継続的改善 |
-| モブプログラミング | 月1回 | 重要な設計 | 合意形成 |
-
-### 技術的負債の管理
-
-```
-優先度マトリクス:
-
-        影響度 高
-          │
-    ┌─────┼─────┐
-    │ 計画 │ 即座 │
-    │ 的に │ に   │
-    │ 対応 │ 対応 │
-    ├─────┼─────┤
-    │ 記録 │ 次の │
-    │ のみ │ Sprint│
-    │     │ で   │
-    └─────┼─────┘
-          │
-        影響度 低
-    発生頻度 低  発生頻度 高
-```
+| Optimization Method | Effect | Implementation Cost | Application |
+|-------------------|--------|-------------------|-------------|
+| In-memory cache | High | Low | Frequently accessed data |
+| CDN | High | Low | Static content |
+| Async processing | Medium | Medium | I/O-heavy processing |
+| DB optimization | High | High | Slow queries |
+| Code optimization | Low-Med | High | CPU-bound cases |
 
 ---
 
-## セキュリティの考慮事項
+## Team Development
 
-### 一般的な脆弱性と対策
+### Code Review Checklist
 
-| 脆弱性 | リスクレベル | 対策 | 検出方法 |
-|--------|------------|------|---------|
-| インジェクション攻撃 | 高 | 入力値のバリデーション・パラメータ化クエリ | SAST/DAST |
-| 認証の不備 | 高 | 多要素認証・セッション管理の強化 | ペネトレーションテスト |
-| 機密データの露出 | 高 | 暗号化・アクセス制御 | セキュリティ監査 |
-| 設定の不備 | 中 | セキュリティヘッダー・最小権限の原則 | 構成スキャン |
-| ログの不足 | 中 | 構造化ログ・監査証跡 | ログ分析 |
+Points to verify during code reviews related to this topic:
 
-### セキュアコーディングのベストプラクティス
+- [ ] Are naming conventions consistent?
+- [ ] Is error handling appropriate?
+- [ ] Is test coverage sufficient?
+- [ ] Is there any performance impact?
+- [ ] Are there any security concerns?
+- [ ] Has documentation been updated?
+
+### Knowledge Sharing Best Practices
+
+| Method | Frequency | Audience | Effect |
+|--------|-----------|----------|--------|
+| Pair programming | As needed | Complex tasks | Immediate feedback |
+| Tech talks | Weekly | Entire team | Horizontal knowledge sharing |
+| ADR (Decision Records) | As needed | Future team members | Decision transparency |
+| Retrospective | Every 2 weeks | Entire team | Continuous improvement |
+| Mob programming | Monthly | Critical design | Consensus building |
+
+### Managing Technical Debt
+
+```
+Priority Matrix:
+
+        Impact High
+          |
+    +-----+-----+
+    | Plan |Imme-|
+    | ned  |diate|
+    |      |     |
+    +------+-----+
+    |Record| Next|
+    | only |Sprint|
+    |      |     |
+    +------+-----+
+          |
+        Impact Low
+    Frequency Low  Frequency High
+```
+
+---
+
+## Security Considerations
+
+### Common Vulnerabilities and Countermeasures
+
+| Vulnerability | Risk Level | Countermeasure | Detection Method |
+|--------------|-----------|----------------|-----------------|
+| Injection attacks | High | Input validation, parameterized queries | SAST/DAST |
+| Authentication flaws | High | MFA, strengthened session management | Penetration testing |
+| Sensitive data exposure | High | Encryption, access control | Security audit |
+| Misconfiguration | Medium | Security headers, principle of least privilege | Configuration scanning |
+| Insufficient logging | Medium | Structured logging, audit trails | Log analysis |
+
+### Secure Coding Best Practices
 
 ```python
-# セキュアコーディング例
+# Secure coding example
 import hashlib
 import secrets
 import hmac
 from typing import Optional
 
 class SecurityUtils:
-    """セキュリティユーティリティ"""
+    """Security utilities"""
 
     @staticmethod
     def generate_token(length: int = 32) -> str:
-        """暗号学的に安全なトークン生成"""
+        """Generate a cryptographically secure token"""
         return secrets.token_urlsafe(length)
 
     @staticmethod
     def hash_password(password: str, salt: Optional[str] = None) -> tuple:
-        """パスワードのハッシュ化"""
+        """Hash a password"""
         if salt is None:
             salt = secrets.token_hex(16)
         hashed = hashlib.pbkdf2_hmac(
@@ -1331,50 +1339,50 @@ class SecurityUtils:
 
     @staticmethod
     def verify_password(password: str, hashed: str, salt: str) -> bool:
-        """パスワードの検証"""
+        """Verify a password"""
         new_hash, _ = SecurityUtils.hash_password(password, salt)
         return hmac.compare_digest(new_hash, hashed)
 
     @staticmethod
     def sanitize_input(value: str) -> str:
-        """入力値のサニタイズ"""
+        """Sanitize input"""
         dangerous_chars = ['<', '>', '"', "'", '&', '\\']
         result = value
         for char in dangerous_chars:
             result = result.replace(char, '')
         return result.strip()
 
-# 使用例
+# Usage
 token = SecurityUtils.generate_token()
 hashed, salt = SecurityUtils.hash_password("my_password")
 is_valid = SecurityUtils.verify_password("my_password", hashed, salt)
 ```
 
-### セキュリティチェックリスト
+### Security Checklist
 
-- [ ] 全ての入力値がバリデーションされている
-- [ ] 機密情報がログに出力されていない
-- [ ] HTTPS が強制されている
-- [ ] CORS ポリシーが適切に設定されている
-- [ ] 依存パッケージの脆弱性スキャンが実施されている
-- [ ] エラーメッセージに内部情報が含まれていない
+- [ ] All input values are validated
+- [ ] Sensitive information is not logged
+- [ ] HTTPS is enforced
+- [ ] CORS policy is properly configured
+- [ ] Dependency vulnerability scanning has been performed
+- [ ] Error messages do not expose internal information
 
 ---
 
-## マイグレーションガイド
+## Migration Guide
 
-### バージョンアップ時の注意点
+### Version Upgrade Considerations
 
-| バージョン | 主な変更点 | 移行作業 | 影響範囲 |
-|-----------|-----------|---------|---------|
-| v1.x → v2.x | API設計の刷新 | エンドポイント変更 | 全クライアント |
-| v2.x → v3.x | 認証方式の変更 | トークン形式更新 | 認証関連 |
-| v3.x → v4.x | データモデル変更 | マイグレーションスクリプト実行 | DB関連 |
+| Version | Major Changes | Migration Work | Impact Scope |
+|---------|--------------|----------------|-------------|
+| v1.x -> v2.x | API redesign | Endpoint changes | All clients |
+| v2.x -> v3.x | Authentication method change | Token format update | Auth-related |
+| v3.x -> v4.x | Data model change | Run migration scripts | DB-related |
 
-### 段階的移行の手順
+### Gradual Migration Procedure
 
 ```python
-# マイグレーションスクリプトのテンプレート
+# Migration script template
 import json
 import logging
 from pathlib import Path
@@ -1384,7 +1392,7 @@ from typing import List, Dict, Callable
 logger = logging.getLogger(__name__)
 
 class MigrationRunner:
-    """段階的マイグレーション実行エンジン"""
+    """Incremental migration execution engine"""
 
     def __init__(self, migration_dir: str):
         self.migration_dir = Path(migration_dir)
@@ -1393,7 +1401,7 @@ class MigrationRunner:
 
     def register(self, version: str, description: str,
                  up: Callable, down: Callable):
-        """マイグレーションの登録"""
+        """Register a migration"""
         self.migrations.append({
             'version': version,
             'description': description,
@@ -1403,35 +1411,35 @@ class MigrationRunner:
         })
 
     def run_up(self, target_version: str = None):
-        """マイグレーションの実行（アップグレード）"""
+        """Execute migrations (upgrade)"""
         for migration in self.migrations:
             if migration['version'] in self.completed:
                 continue
-            logger.info(f"実行中: {migration['version']} - "
+            logger.info(f"Running: {migration['version']} - "
                        f"{migration['description']}")
             try:
                 migration['up']()
                 self.completed.append(migration['version'])
-                logger.info(f"完了: {migration['version']}")
+                logger.info(f"Completed: {migration['version']}")
             except Exception as e:
-                logger.error(f"失敗: {migration['version']}: {e}")
+                logger.error(f"Failed: {migration['version']}: {e}")
                 raise
             if target_version and migration['version'] == target_version:
                 break
 
     def run_down(self, target_version: str):
-        """マイグレーションのロールバック"""
+        """Rollback migrations"""
         for migration in reversed(self.migrations):
             if migration['version'] not in self.completed:
                 continue
             if migration['version'] == target_version:
                 break
-            logger.info(f"ロールバック: {migration['version']}")
+            logger.info(f"Rolling back: {migration['version']}")
             migration['down']()
             self.completed.remove(migration['version'])
 
     def status(self) -> Dict:
-        """マイグレーション状態の確認"""
+        """Check migration status"""
         return {
             'total': len(self.migrations),
             'completed': len(self.completed),
@@ -1444,60 +1452,60 @@ class MigrationRunner:
         }
 ```
 
-### ロールバック計画
+### Rollback Plan
 
-移行作業には必ずロールバック計画を準備してください:
+Always prepare a rollback plan for migration work:
 
-1. **データのバックアップ**: 移行前に完全バックアップを取得
-2. **テスト環境での検証**: 本番と同等の環境で事前検証
-3. **段階的なロールアウト**: カナリアリリースで段階的に展開
-4. **監視の強化**: 移行中はメトリクスの監視間隔を短縮
-5. **判断基準の明確化**: ロールバックを判断する基準を事前に定義
-
----
-
-## 用語集
-
-| 用語 | 英語表記 | 説明 |
-|------|---------|------|
-| 抽象化 | Abstraction | 複雑な実装の詳細を隠し、本質的なインターフェースのみを公開すること |
-| カプセル化 | Encapsulation | データと操作を一つの単位にまとめ、外部からのアクセスを制御すること |
-| 凝集度 | Cohesion | モジュール内の要素がどの程度関連しているかの指標 |
-| 結合度 | Coupling | モジュール間の依存関係の度合い |
-| リファクタリング | Refactoring | 外部の振る舞いを変えずにコードの内部構造を改善すること |
-| テスト駆動開発 | TDD (Test-Driven Development) | テストを先に書いてから実装するアプローチ |
-| 継続的インテグレーション | CI (Continuous Integration) | コードの変更を頻繁に統合し、自動テストで検証するプラクティス |
-| 継続的デリバリー | CD (Continuous Delivery) | いつでもリリース可能な状態を維持するプラクティス |
-| 技術的負債 | Technical Debt | 短期的な解決策を選んだことで将来的に発生する追加作業 |
-| ドメイン駆動設計 | DDD (Domain-Driven Design) | ビジネスドメインの知識に基づいてソフトウェアを設計するアプローチ |
-| マイクロサービス | Microservices | アプリケーションを小さな独立したサービスの集合として構築するアーキテクチャ |
-| サーキットブレーカー | Circuit Breaker | 障害の連鎖を防ぐための設計パターン |
-| イベント駆動 | Event-Driven | イベントの発生と処理に基づくアーキテクチャパターン |
-| 冪等性 | Idempotency | 同じ操作を複数回実行しても結果が変わらない性質 |
-| オブザーバビリティ | Observability | システムの内部状態を外部から観測可能にする能力 |
+1. **Data backup**: Take a full backup before migration
+2. **Test environment verification**: Pre-verify in a production-equivalent environment
+3. **Gradual rollout**: Deploy incrementally with canary releases
+4. **Enhanced monitoring**: Shorten metrics monitoring intervals during migration
+5. **Clear decision criteria**: Define rollback criteria in advance
 
 ---
 
-## よくある誤解と注意点
+## Glossary
 
-### 誤解1: 「完璧な設計を最初から作るべき」
+| Term | Description |
+|------|------------|
+| Abstraction | Hiding complex implementation details and exposing only the essential interface |
+| Encapsulation | Bundling data and operations into a single unit and controlling external access |
+| Cohesion | A measure of how closely related the elements within a module are |
+| Coupling | The degree of dependency between modules |
+| Refactoring | Improving the internal structure of code without changing its external behavior |
+| TDD (Test-Driven Development) | An approach where tests are written before implementation |
+| CI (Continuous Integration) | The practice of frequently integrating code changes and verifying with automated tests |
+| CD (Continuous Delivery) | The practice of maintaining a state that is always ready for release |
+| Technical Debt | Additional work that arises in the future from choosing a short-term solution |
+| DDD (Domain-Driven Design) | An approach to designing software based on business domain knowledge |
+| Microservices | An architecture that builds an application as a collection of small, independent services |
+| Circuit Breaker | A design pattern that prevents cascading failures |
+| Event-Driven | An architectural pattern based on event generation and processing |
+| Idempotency | The property that executing the same operation multiple times produces the same result |
+| Observability | The ability to observe a system's internal state from the outside |
 
-**現実:** 完璧な設計は存在しません。要件の変化に応じて設計も進化させるべきです。最初から完璧を目指すと、過度に複雑な設計になりがちです。
+---
 
-> "Make it work, make it right, make it fast" — Kent Beck
+## Common Misconceptions and Caveats
 
-### 誤解2: 「最新の技術を使えば自動的に良くなる」
+### Misconception 1: "You should create the perfect design from the start"
 
-**現実:** 技術選択はプロジェクトの要件に基づいて行うべきです。最新の技術が必ずしもプロジェクトに最適とは限りません。チームの習熟度、エコシステムの成熟度、サポートの持続性も考慮しましょう。
+**Reality:** The perfect design does not exist. Design should evolve as requirements change. Aiming for perfection from the start tends to result in an overly complex design.
 
-### 誤解3: 「テストは開発速度を落とす」
+> "Make it work, make it right, make it fast" -- Kent Beck
 
-**現実:** 短期的にはテストの作成に時間がかかりますが、中長期的にはバグの早期発見、リファクタリングの安全性確保、ドキュメントとしての役割により、開発速度の向上に貢献します。
+### Misconception 2: "Using the latest technology automatically makes things better"
+
+**Reality:** Technology selection should be based on project requirements. The latest technology is not always optimal for the project. Consider team proficiency, ecosystem maturity, and sustainability of support.
+
+### Misconception 3: "Testing slows down development"
+
+**Reality:** While writing tests takes time in the short term, in the medium to long term, early bug detection, safe refactoring, and documentation value contribute to faster development.
 
 ```python
-# テストの ROI（投資対効果）を示す例
+# Example demonstrating test ROI (Return on Investment)
 class TestROICalculator:
-    """テスト投資対効果の計算"""
+    """Calculate test investment return"""
 
     def __init__(self):
         self.test_writing_hours = 0
@@ -1505,16 +1513,16 @@ class TestROICalculator:
         self.debug_hours_saved = 0
 
     def add_test_investment(self, hours: float):
-        """テスト作成にかかった時間"""
+        """Time spent writing tests"""
         self.test_writing_hours += hours
 
     def add_bug_prevention(self, count: int, avg_debug_hours: float = 2.0):
-        """テストにより防いだバグ"""
+        """Bugs prevented by tests"""
         self.bugs_prevented += count
         self.debug_hours_saved += count * avg_debug_hours
 
     def calculate_roi(self) -> dict:
-        """ROIの計算"""
+        """Calculate ROI"""
         net_benefit = self.debug_hours_saved - self.test_writing_hours
         roi_percent = (net_benefit / self.test_writing_hours * 100
                       if self.test_writing_hours > 0 else 0)
@@ -1527,93 +1535,93 @@ class TestROICalculator:
         }
 ```
 
-### 誤解4: 「ドキュメントは後から書けばいい」
+### Misconception 4: "Documentation can be written later"
 
-**現実:** コードの意図や設計判断は、書いた直後が最も正確に記録できます。後回しにするほど、正確な情報を失います。
+**Reality:** The intent and design decisions behind code are most accurately captured right after they are made. The longer you delay, the more accurate information you lose.
 
-### 誤解5: 「パフォーマンスは常に最優先」
+### Misconception 5: "Performance should always be the top priority"
 
-**現実:** 可読性と保守性を犠牲にした最適化は、長期的にはコストが高くつきます。「推測するな、計測せよ」の原則に従い、ボトルネックを特定してから最適化しましょう。
+**Reality:** Optimization at the expense of readability and maintainability is costly in the long run. Follow the principle of "Don't guess, measure" -- identify bottlenecks before optimizing.
 ---
 
 ## FAQ
 
-### Q1: CS基礎の学習にどのくらい時間がかかりますか？
+### Q1: How long does it take to learn CS fundamentals?
 
-**A**: 深さによる:
-- **基礎レベル**（本Skillの内容を一通り理解）: 3-6ヶ月（毎日1-2時間）
-- **中級レベル**（面接で困らない程度）: 6-12ヶ月
-- **上級レベル**（アーキテクチャ設計ができる）: 2-3年の実践経験
+**A**: It depends on the depth:
+- **Basic level** (understand the content of this Skill): 3-6 months (1-2 hours daily)
+- **Intermediate level** (interview-ready): 6-12 months
+- **Advanced level** (can design architecture): 2-3 years of practical experience
 
-ただし、CS基礎は「一度学んで終わり」ではなく、実務経験と組み合わせて深まり続けるもの。
+However, CS fundamentals are not a "learn once and done" subject -- they deepen continuously through combination with practical experience.
 
-### Q2: 独学でCS学位と同等の知識は得られますか？
+### Q2: Can I acquire university-equivalent knowledge through self-study?
 
-**A**: 知識としては十分に可能。以下の学習リソースを推奨:
-- **MIT OpenCourseWare**: 無料で全講義が視聴可能
-- **CS50 (Harvard)**: CS入門の決定版
-- **teachyourselfcs.com**: 独学CSのロードマップ
-- **本Skill**: 体系的な学習教材
+**A**: In terms of knowledge, absolutely. The following learning resources are recommended:
+- **MIT OpenCourseWare**: All lectures available for free
+- **CS50 (Harvard)**: The definitive CS introduction
+- **teachyourselfcs.com**: A self-study CS roadmap
+- **This Skill**: Structured learning materials
 
-ただし、大学には「同級生との議論」「教授からのフィードバック」「研究経験」があり、これらは独学では得にくい。
+However, universities offer "discussion with classmates," "feedback from professors," and "research experience," which are difficult to obtain through self-study.
 
-### Q3: フロントエンドエンジニアにもCS基礎は必要ですか？
+### Q3: Do frontend engineers also need CS fundamentals?
 
-**A**: 特に以下の場面で必要:
-- **パフォーマンス最適化**: 仮想スクロール、メモ化、不必要な再レンダリング防止
-- **状態管理**: 不変データ構造、イベントソーシング
-- **アニメーション**: 60fps維持のためのレンダリングパイプライン理解
-- **大量データ**: 数万行のテーブル、リアルタイム更新
+**A**: Particularly in the following situations:
+- **Performance optimization**: Virtual scrolling, memoization, preventing unnecessary re-renders
+- **State management**: Immutable data structures, event sourcing
+- **Animation**: Understanding the rendering pipeline to maintain 60fps
+- **Large datasets**: Tables with tens of thousands of rows, real-time updates
 
-フレームワーク(React, Vue)は「何をするか」を教えてくれるが、「なぜ遅いのか」「どう最適化するか」はCS基礎がなければ分からない。
+Frameworks (React, Vue) tell you "what to do," but only CS fundamentals can tell you "why it's slow" and "how to optimize it."
 
-### Q4: AIがコードを書く時代にCS基礎は不要になりますか？
+### Q4: Will CS fundamentals become unnecessary when AI writes code?
 
-**A**: むしろ**より重要になる**。AIが生成したコードの品質を判断するには:
-- 計算量が適切か？（O(n²)のコードを生成していないか？）
-- メモリ使用量は妥当か？
-- セキュリティ上の問題はないか？
-- アーキテクチャ的に正しいか？
+**A**: They become **even more important**. To judge the quality of AI-generated code:
+- Is the computational complexity appropriate? (Is it generating O(n^2) code?)
+- Is memory usage reasonable?
+- Are there security issues?
+- Is the architecture correct?
 
-AIは「動くコード」を生成できるが、「最適なコード」を生成するとは限らない。CS基礎がなければ、AIの出力の品質を評価できない。
+AI can generate "working code," but not necessarily "optimal code." Without CS fundamentals, you cannot evaluate the quality of AI's output.
 
-### Q5: バックエンドエンジニアに特に重要なCS分野は？
+### Q5: Which CS areas are most important for backend engineers?
 
-**A**: 優先度順に:
-1. **アルゴリズム+データ構造**: 計算量を理解し、適切なデータ構造を選択
-2. **データベース**: インデックス設計、クエリ最適化、トランザクション
-3. **OS**: プロセス、スレッド、メモリ管理、I/O
-4. **ネットワーク**: TCP/IP、HTTP/2/3、TLS
-5. **分散システム**: CAP定理、一貫性モデル、マイクロサービス
-6. **セキュリティ**: 認証、暗号、入力検証
+**A**: In order of priority:
+1. **Algorithms + Data Structures**: Understanding complexity and choosing appropriate data structures
+2. **Databases**: Index design, query optimization, transactions
+3. **OS**: Processes, threads, memory management, I/O
+4. **Networking**: TCP/IP, HTTP/2/3, TLS
+5. **Distributed Systems**: CAP theorem, consistency models, microservices
+6. **Security**: Authentication, cryptography, input validation
 
-### Q6: 30代・40代からCS基礎を学び始めても遅くないですか？
+### Q6: Is it too late to start learning CS fundamentals in your 30s or 40s?
 
-**A**: 全く遅くない。むしろ実務経験が豊富なほど、CS基礎の価値を実感しやすい。「なぜあのシステムが遅かったのか」「なぜあのバグが起きたのか」を、CSの原理から説明できるようになる喜びは大きい。年齢に関係なく、学び始めた時点から知識は蓄積される。
-
----
-
-## まとめ
-
-| 観点 | CS基礎なし | CS基礎あり |
-|------|----------|----------|
-| コード品質 | 動くが遅い・脆弱 | 効率的で堅牢 |
-| 問題解決 | ググって場当たり的に対処 | 根本原因を理解して解決 |
-| 新技術習得 | チュートリアル頼み | 原理から理解するため高速 |
-| キャリア | 3-5年で天井 | 継続的に成長 |
-| システム設計 | 「みんなが使っているから」 | トレードオフを理解した選択 |
-| AI活用 | AIの出力をそのまま使う | AIの出力を評価・改善できる |
-
-**結論**: CS基礎は「オプション」ではなく「必須」。フレームワークは道具であり、CS基礎はその道具を使いこなす力そのものである。
+**A**: Not at all. In fact, the more practical experience you have, the easier it is to appreciate the value of CS fundamentals. The joy of being able to explain "why that system was slow" or "why that bug occurred" from CS principles is immense. Regardless of age, knowledge accumulates from the moment you start learning.
 
 ---
 
-## 次に読むべきガイド
+## Summary
+
+| Aspect | Without CS Fundamentals | With CS Fundamentals |
+|--------|------------------------|---------------------|
+| Code quality | Works but slow and fragile | Efficient and robust |
+| Problem solving | Ad hoc fixes from web searches | Root cause understanding and resolution |
+| New tech adoption | Dependent on tutorials | Fast, understanding from principles |
+| Career | Ceiling at 3-5 years | Continuous growth |
+| System design | "Because everyone else uses it" | Informed trade-off decisions |
+| AI utilization | Uses AI output as-is | Can evaluate and improve AI output |
+
+**Conclusion**: CS fundamentals are not "optional" -- they are "essential." Frameworks are tools, and CS fundamentals are the very ability to wield those tools effectively.
+
+---
+
+## Recommended Next Guides
 
 
 ---
 
-## 参考文献
+## References
 
 1. Wirth, N. "Algorithms + Data Structures = Programs." Prentice-Hall, 1976.
 2. McDowell, G. L. "Cracking the Coding Interview." CareerCup, 6th Edition, 2015.
@@ -1629,16 +1637,16 @@ AIは「動くコード」を生成できるが、「最適なコード」を生
 
 ---
 
-## 補足: さらなる学習のために
+## Further Reading
 
-### このトピックの発展的な側面
+### Advanced Aspects of This Topic
 
-本ガイドで扱った内容は基礎的な部分をカバーしていますが、さらに深く学ぶための方向性をいくつか紹介します。
+This guide covers foundational material, but here are some directions for deeper learning.
 
-#### 理論的な深掘り
+#### Theoretical Deep Dives
 
-このトピックの背景には、長年にわたる研究と実践の蓄積があります。基本的な概念を理解した上で、以下の方向性で学習を深めることをお勧めします:
+Behind this topic lies years of accumulated research and practice. After understanding the basic concepts, we recommend deepening your studies in the following directions:
 
-1. **歴史的な経緯の理解**: 現在のベストプラクティスがなぜそうなったのかを理解することで、より深い洞察が得られます
-2. **関連分野との接点**: 隣接する分野の知識を取り入れることで、視野が広がり、より創造的なアプローチが可能になります
-3. **最新のトレンドの把握**: 技術や手法は常に進化しています。定期的に最新の動向をチェックしましょう
+1. **Understanding historical context**: Knowing why current best practices came to be provides deeper insight
+2. **Intersections with related fields**: Incorporating knowledge from adjacent domains broadens your perspective and enables more creative approaches
+3. **Staying current with the latest trends**: Technologies and methodologies are constantly evolving. Regularly check the latest developments

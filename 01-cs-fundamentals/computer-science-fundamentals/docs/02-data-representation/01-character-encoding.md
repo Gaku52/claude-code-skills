@@ -1,73 +1,73 @@
-# 文字コードとUnicode
+# Character Encoding and Unicode
 
-> 文字化けの原因は常に「エンコーディングの不一致」であり、UTF-8の仕組みを理解すれば根本的に予防できる。
+> The cause of garbled text is always "encoding mismatch" -- understanding how UTF-8 works allows you to prevent it at the root.
 
-## この章で学ぶこと
+## Learning Objectives
 
-- [ ] ASCII → Unicode → UTF-8 の進化を説明できる
-- [ ] UTF-8のバイト構造を手計算で確認できる
-- [ ] 文字化けの原因と対策を説明できる
-- [ ] UTF-8、UTF-16、UTF-32の違いを説明できる
-- [ ] Unicode正規化（NFC/NFD）の概念と実装を理解する
-- [ ] 各プログラミング言語での文字列処理の注意点を把握する
+- [ ] Explain the evolution from ASCII to Unicode to UTF-8
+- [ ] Manually verify the UTF-8 byte structure through hand calculation
+- [ ] Explain the causes of and solutions for garbled text (mojibake)
+- [ ] Explain the differences between UTF-8, UTF-16, and UTF-32
+- [ ] Understand the concept and implementation of Unicode normalization (NFC/NFD)
+- [ ] Be aware of string handling considerations in each programming language
 
-## 前提知識
+## Prerequisites
 
 
 ---
 
-## 1. 文字コードの歴史
+## 1. History of Character Encoding
 
-### 1.1 ASCII（1963年）
+### 1.1 ASCII (1963)
 
 ```
-ASCII: 7ビット = 128文字
+ASCII: 7 bits = 128 characters
 
-  0x00-0x1F: 制御文字（改行LF, タブHT, NULL等）
-  0x20:      スペース
-  0x30-0x39: 数字 '0'-'9'
-  0x41-0x5A: 大文字 'A'-'Z'
-  0x61-0x7A: 小文字 'a'-'z'
+  0x00-0x1F: Control characters (LF, HT, NULL, etc.)
+  0x20:      Space
+  0x30-0x39: Digits '0'-'9'
+  0x41-0x5A: Uppercase 'A'-'Z'
+  0x61-0x7A: Lowercase 'a'-'z'
   0x7F:      DEL
 
-  特徴:
-  - 英語圏のみ。日本語、中国語は表現不可能
-  - 大文字と小文字の差は 0x20（ビット5の違い）
+  Characteristics:
+  - English only. Cannot represent Japanese, Chinese, etc.
+  - Difference between uppercase and lowercase is 0x20 (bit 5)
     'A' = 0x41 = 0100 0001
     'a' = 0x61 = 0110 0001
-    →  差 = 0010 0000 = 0x20 = 32
-  - 数字 '0'-'9' は 0x30-0x39（下位4ビットが数値そのもの）
+    →  diff = 0010 0000 = 0x20 = 32
+  - Digits '0'-'9' are 0x30-0x39 (lower 4 bits are the numeric value itself)
 ```
 
-### 1.2 ASCII完全テーブル
+### 1.2 Complete ASCII Table
 
 ```
-ASCII コードテーブル（全128文字）:
+ASCII Code Table (all 128 characters):
 
-  制御文字（0x00-0x1F）:
-  Dec  Hex  文字  説明
+  Control Characters (0x00-0x1F):
+  Dec  Hex  Char  Description
   ───  ───  ────  ────────────────
-    0  0x00  NUL  Null（文字列終端）
+    0  0x00  NUL  Null (string terminator)
     1  0x01  SOH  Start of Heading
     2  0x02  STX  Start of Text
-    3  0x03  ETX  End of Text（Ctrl+C）
-    4  0x04  EOT  End of Transmission（Ctrl+D）
-    7  0x07  BEL  Bell（端末のベル音）
+    3  0x03  ETX  End of Text (Ctrl+C)
+    4  0x04  EOT  End of Transmission (Ctrl+D)
+    7  0x07  BEL  Bell (terminal bell sound)
     8  0x08  BS   Backspace
     9  0x09  HT   Horizontal Tab
-   10  0x0A  LF   Line Feed（Unix改行）
+   10  0x0A  LF   Line Feed (Unix newline)
    11  0x0B  VT   Vertical Tab
-   12  0x0C  FF   Form Feed（改ページ）
-   13  0x0D  CR   Carriage Return（Mac旧改行）
-   27  0x1B  ESC  Escape（ANSIエスケープシーケンスの開始）
+   12  0x0C  FF   Form Feed (page break)
+   13  0x0D  CR   Carriage Return (old Mac newline)
+   27  0x1B  ESC  Escape (start of ANSI escape sequences)
    31  0x1F  US   Unit Separator
 
-  改行コードの違い:
+  Newline conventions:
   Unix/Linux/macOS: LF (0x0A) = \n
   Windows: CR+LF (0x0D 0x0A) = \r\n
-  旧Mac (OS 9以前): CR (0x0D) = \r
+  Classic Mac (OS 9 and earlier): CR (0x0D) = \r
 
-  印字可能文字（0x20-0x7E）:
+  Printable Characters (0x20-0x7E):
   Dec  Hex  Char │ Dec  Hex  Char │ Dec  Hex  Char
   ───  ───  ──── │ ───  ───  ──── │ ───  ───  ────
    32  0x20  SP  │  64  0x40  @   │  96  0x60  `
@@ -103,339 +103,339 @@ ASCII コードテーブル（全128文字）:
    62  0x3E  >   │  94  0x5E  ^   │ 126  0x7E  ~
    63  0x3F  ?   │  95  0x5F  _   │ 127  0x7F  DEL
 
-  実務で重要なASCIIの性質:
-  - 'A'-'Z': 0x41-0x5A (ビット5=0)
-  - 'a'-'z': 0x61-0x7A (ビット5=1)
-  - 大小変換: c ^ 0x20 でトグル
-  - '0'-'9': 0x30-0x39 (c - 0x30 で数値に変換)
-  - 印字可能文字: 0x20-0x7E の範囲
+  Practically important ASCII properties:
+  - 'A'-'Z': 0x41-0x5A (bit 5 = 0)
+  - 'a'-'z': 0x61-0x7A (bit 5 = 1)
+  - Case toggle: c ^ 0x20
+  - '0'-'9': 0x30-0x39 (c - 0x30 yields the numeric value)
+  - Printable characters: range 0x20-0x7E
 ```
 
-### 1.3 ASCIIの設計思想
+### 1.3 Design Philosophy of ASCII
 
 ```
-ASCIIが7ビットである理由:
+Why ASCII uses 7 bits:
 
-  1960年代のテレタイプ通信:
-  - 5ビット（Baudotコード）: 32文字しか表現不可
-  - 6ビット: 64文字（BCDIC等）
-  - 7ビット: 128文字 → 英語の全文字 + 制御文字 + 記号
-  - 8ビット: 256文字 → 当時は「贅沢」と判断
+  Teletype communications in the 1960s:
+  - 5 bits (Baudot code): only 32 characters representable
+  - 6 bits: 64 characters (BCDIC, etc.)
+  - 7 bits: 128 characters -> all English characters + control chars + symbols
+  - 8 bits: 256 characters -> considered "extravagant" at the time
 
-  残りの1ビット（8ビット目）:
-  - パリティチェックに使用（通信エラー検出）
-  - 後に ISO 8859 等の拡張文字セットに活用
+  The remaining 1 bit (8th bit):
+  - Used for parity checking (communication error detection)
+  - Later repurposed for extended character sets such as ISO 8859
 
-  大文字/小文字の設計が巧妙な理由:
-  - ビット5のON/OFFで切り替え可能
-  - ハードウェアで容易に変換可能
-  - アルファベット順 ≈ コードの昇順
+  Why the uppercase/lowercase design is clever:
+  - Toggled by switching bit 5 ON/OFF
+  - Easily converted in hardware
+  - Alphabetical order approximately equals ascending code order
 
-  制御文字の設計:
-  - Ctrl+キー = キーのASCIIコード - 0x40
+  Design of control characters:
+  - Ctrl+key = ASCII code of key - 0x40
     Ctrl+A = 0x41 - 0x40 = 0x01 (SOH)
-    Ctrl+C = 0x43 - 0x40 = 0x03 (ETX → 割り込み信号)
-    Ctrl+D = 0x44 - 0x40 = 0x04 (EOT → EOF)
-    Ctrl+G = 0x47 - 0x40 = 0x07 (BEL → ベル音)
-    Ctrl+H = 0x48 - 0x40 = 0x08 (BS → バックスペース)
-    Ctrl+I = 0x49 - 0x40 = 0x09 (HT → タブ)
-    Ctrl+J = 0x4A - 0x40 = 0x0A (LF → 改行)
-    Ctrl+M = 0x4D - 0x40 = 0x0D (CR → 復帰)
+    Ctrl+C = 0x43 - 0x40 = 0x03 (ETX -> interrupt signal)
+    Ctrl+D = 0x44 - 0x40 = 0x04 (EOT -> EOF)
+    Ctrl+G = 0x47 - 0x40 = 0x07 (BEL -> bell sound)
+    Ctrl+H = 0x48 - 0x40 = 0x08 (BS -> backspace)
+    Ctrl+I = 0x49 - 0x40 = 0x09 (HT -> tab)
+    Ctrl+J = 0x4A - 0x40 = 0x0A (LF -> line feed)
+    Ctrl+M = 0x4D - 0x40 = 0x0D (CR -> carriage return)
 ```
 
-### 1.4 文字コードの混乱期
+### 1.4 The Era of Character Encoding Chaos
 
-| コード | 年代 | 対象 | 問題 |
-|--------|------|------|------|
-| ASCII | 1963 | 英語 | 128文字のみ |
-| Latin-1 (ISO-8859-1) | 1987 | 西欧 | 256文字、日本語不可 |
-| Shift_JIS | 1982 | 日本語 | Windows標準。可変長。他言語と混在困難 |
-| EUC-JP | 1985 | 日本語 | UNIX標準。Shift_JISと互換性なし |
-| ISO-2022-JP | 1994 | 日本語 | メール標準。エスケープシーケンスで切替 |
-| GB2312/GBK | 1980 | 中国語 | 日本語と互換性なし |
-| Big5 | 1984 | 繁体字 | 簡体字と互換性なし |
-| KS X 1001 | 1986 | 韓国語 | EUC-KRとして使用 |
+| Encoding | Era | Target | Problem |
+|----------|-----|--------|---------|
+| ASCII | 1963 | English | Only 128 characters |
+| Latin-1 (ISO-8859-1) | 1987 | Western European | 256 characters, no Japanese support |
+| Shift_JIS | 1982 | Japanese | Windows standard. Variable-length. Difficult to mix with other languages |
+| EUC-JP | 1985 | Japanese | UNIX standard. Incompatible with Shift_JIS |
+| ISO-2022-JP | 1994 | Japanese | Email standard. Switches via escape sequences |
+| GB2312/GBK | 1980 | Chinese | Incompatible with Japanese |
+| Big5 | 1984 | Traditional Chinese | Incompatible with Simplified Chinese |
+| KS X 1001 | 1986 | Korean | Used as EUC-KR |
 
-→ **各言語・地域ごとに独自の文字コード** → **相互運用性の悪夢**
+-> **Each language/region had its own character encoding** -> **an interoperability nightmare**
 
-### 1.5 日本語文字コードの詳細
-
-```
-【JIS X 0208（JIS第一・第二水準）】
-  - 6,879文字（漢字4,888 + 非漢字1,991）
-  - 94×94のマトリクスで管理
-  - 区点コード: 区番号(1-94) × 点番号(1-94)
-
-【Shift_JIS（MS漢字コード）】
-  構造:
-  - 1バイト文字: 0x00-0x7F (ASCII) + 0xA1-0xDF (半角カナ)
-  - 2バイト文字: 第1バイト 0x81-0x9F, 0xE0-0xEF
-                  第2バイト 0x40-0x7E, 0x80-0xFC
-
-  問題点:
-  - 「表」(0x955C) の第2バイト 0x5C = '\' → パス区切りと衝突
-  - 「ソ」「能」等で同様の問題（ダメ文字問題）
-  - 半角カナがASCIIの上位バイトと競合
-
-  例: "表示" のバイト列
-  表 = 0x95 0x5C  (第2バイトが 0x5C = バックスラッシュ)
-  示 = 0x8E 0xA6
-  → C言語の文字列 "表示" でバックスラッシュがエスケープ文字に
-
-【EUC-JP（Extended Unix Code）】
-  構造:
-  - 1バイト文字: 0x00-0x7F (ASCII)
-  - 2バイト文字: 各バイト 0xA1-0xFE
-  - 3バイト文字: 0x8F + 2バイト（JIS第三水準）
-
-  利点:
-  - ASCIIとの衝突がない（上位バイトのみ使用）
-  - Unix系OSで長年標準
-
-【ISO-2022-JP（JISコード）】
-  構造:
-  - エスケープシーケンスでASCII/日本語を切替
-  - ASCII開始: ESC ( B
-  - JIS X 0208開始: ESC $ B
-  - 7ビット領域のみ使用（メール送信に適していた）
-
-  例: "ABCあいう" のエンコード
-  ESC ( B → ASCII モード → 41 42 43
-  ESC $ B → JIS モード → 24 22 24 24 24 26
-  ESC ( B → ASCII モードに復帰
-```
-
-### 1.6 Unicode の誕生（1991年）
-
-Unicode の理念: **全ての言語の全ての文字に一意のコードポイントを割り当てる**
+### 1.5 Japanese Character Encoding in Detail
 
 ```
-Unicode のコードポイント:
+[JIS X 0208 (JIS Level 1 and Level 2)]
+  - 6,879 characters (4,888 kanji + 1,991 non-kanji)
+  - Managed in a 94x94 matrix
+  - Kuten code: row number (1-94) x point number (1-94)
 
-  U+0041  = 'A' (ラテン文字)
-  U+3042  = 'あ' (ひらがな)
-  U+4E16  = '世' (CJK漢字)
-  U+1F600 = '😀' (絵文字)
-  U+1F4A9 = '💩' (うんち絵文字)
+[Shift_JIS (MS Kanji Code)]
+  Structure:
+  - Single-byte characters: 0x00-0x7F (ASCII) + 0xA1-0xDF (half-width katakana)
+  - Double-byte characters: 1st byte 0x81-0x9F, 0xE0-0xEF
+                             2nd byte 0x40-0x7E, 0x80-0xFC
 
-  範囲: U+0000 〜 U+10FFFF（約111万コードポイント）
-  割り当て済み: 約15万文字（2024年時点）
-  → 人類が使用する全ての文字を収容可能
+  Problems:
+  - The kanji for "table" (0x955C) has 0x5C as its 2nd byte = '\' -> path separator collision
+  - Similar issues with characters like "so" and "nou" (the "dame-moji" problem)
+  - Half-width katakana conflicts with upper byte range of ASCII
+
+  Example: byte sequence for the kanji compound "hyouji" (display)
+  hyou = 0x95 0x5C  (2nd byte is 0x5C = backslash)
+  ji   = 0x8E 0xA6
+  -> In C string literals, the backslash acts as an escape character
+
+[EUC-JP (Extended Unix Code)]
+  Structure:
+  - Single-byte characters: 0x00-0x7F (ASCII)
+  - Double-byte characters: each byte 0xA1-0xFE
+  - Triple-byte characters: 0x8F + 2 bytes (JIS Level 3)
+
+  Advantages:
+  - No collision with ASCII (uses only upper byte range)
+  - Long-standing standard on Unix-based systems
+
+[ISO-2022-JP (JIS Code)]
+  Structure:
+  - Switches between ASCII/Japanese via escape sequences
+  - Start ASCII: ESC ( B
+  - Start JIS X 0208: ESC $ B
+  - Uses only the 7-bit range (suitable for email transmission)
+
+  Example: encoding "ABCaiu" (ABC + Japanese hiragana)
+  ESC ( B -> ASCII mode -> 41 42 43
+  ESC $ B -> JIS mode -> 24 22 24 24 24 26
+  ESC ( B -> Return to ASCII mode
 ```
 
-### 1.7 Unicodeの面（Plane）構造
+### 1.6 The Birth of Unicode (1991)
+
+The philosophy of Unicode: **Assign a unique code point to every character in every language**
 
 ```
-Unicode の17個の面（Plane 0-16）:
+Unicode code points:
 
-  面0: BMP（Basic Multilingual Plane）U+0000 - U+FFFF
-    - 最も多く使われる文字の大部分がここに収容
-    - ラテン文字、ひらがな、カタカナ、CJK漢字の主要部分
-    - 65,536コードポイント
+  U+0041  = 'A' (Latin letter)
+  U+3042  = 'a' (Hiragana, Japanese)
+  U+4E16  = 'shi' (CJK Unified Ideograph, meaning "world")
+  U+1F600 = 'grinning face' (Emoji)
+  U+1F4A9 = 'pile of poo' (Emoji)
 
-  面1: SMP（Supplementary Multilingual Plane）U+10000 - U+1FFFF
-    - 絵文字（U+1F600-U+1F64F 等）
-    - 楔形文字、エジプトヒエログリフ
-    - 古代文字、音楽記号、数学記号
+  Range: U+0000 to U+10FFFF (approximately 1.1 million code points)
+  Assigned: approximately 150,000 characters (as of 2024)
+  -> Capable of accommodating all characters used by humanity
+```
 
-  面2: SIP（Supplementary Ideographic Plane）U+20000 - U+2FFFF
-    - CJK統合漢字拡張B〜（稀少漢字）
-    - 約42,711文字
+### 1.7 Unicode Plane Structure
 
-  面3: TIP（Tertiary Ideographic Plane）U+30000 - U+3FFFF
-    - CJK統合漢字拡張G〜
+```
+Unicode's 17 Planes (Plane 0-16):
 
-  面14: SSP（Supplementary Special-purpose Plane）U+E0000 - U+EFFFF
-    - タグ文字、バリエーションセレクタ
+  Plane 0: BMP (Basic Multilingual Plane) U+0000 - U+FFFF
+    - Contains the vast majority of commonly used characters
+    - Latin, Hiragana, Katakana, main CJK Ideographs
+    - 65,536 code points
 
-  面15-16: PUA（Private Use Areas）
-    - 私用領域（企業や個人が自由に定義可能）
+  Plane 1: SMP (Supplementary Multilingual Plane) U+10000 - U+1FFFF
+    - Emoji (U+1F600-U+1F64F, etc.)
+    - Cuneiform, Egyptian Hieroglyphs
+    - Ancient scripts, musical symbols, mathematical symbols
 
-  面の可視化:
-  ┌───────────────────────────────────────────┐
-  │ Plane 0 (BMP): ほぼ全ての現代文字          │
-  │ U+0000-U+FFFF                             │
-  │ ASCII, ラテン, ギリシャ, キリル,             │
-  │ ひらがな, カタカナ, CJK漢字の大部分        │
-  ├───────────────────────────────────────────┤
-  │ Plane 1 (SMP): 絵文字, 古代文字            │
-  │ U+10000-U+1FFFF                           │
-  ├───────────────────────────────────────────┤
-  │ Plane 2 (SIP): 稀少CJK漢字               │
-  │ U+20000-U+2FFFF                           │
-  ├───────────────────────────────────────────┤
-  │ Plane 3-13: 大部分が未割り当て             │
-  ├───────────────────────────────────────────┤
-  │ Plane 14 (SSP): 特殊目的                   │
-  ├───────────────────────────────────────────┤
-  │ Plane 15-16: 私用領域                      │
-  └───────────────────────────────────────────┘
+  Plane 2: SIP (Supplementary Ideographic Plane) U+20000 - U+2FFFF
+    - CJK Unified Ideographs Extension B and beyond (rare kanji)
+    - Approximately 42,711 characters
+
+  Plane 3: TIP (Tertiary Ideographic Plane) U+30000 - U+3FFFF
+    - CJK Unified Ideographs Extension G and beyond
+
+  Plane 14: SSP (Supplementary Special-purpose Plane) U+E0000 - U+EFFFF
+    - Tag characters, variation selectors
+
+  Planes 15-16: PUA (Private Use Areas)
+    - Private use areas (freely definable by organizations or individuals)
+
+  Plane visualization:
+  +-------------------------------------------+
+  | Plane 0 (BMP): Nearly all modern scripts  |
+  | U+0000-U+FFFF                             |
+  | ASCII, Latin, Greek, Cyrillic,            |
+  | Hiragana, Katakana, most CJK Ideographs   |
+  +-------------------------------------------+
+  | Plane 1 (SMP): Emoji, ancient scripts     |
+  | U+10000-U+1FFFF                           |
+  +-------------------------------------------+
+  | Plane 2 (SIP): Rare CJK Ideographs       |
+  | U+20000-U+2FFFF                           |
+  +-------------------------------------------+
+  | Planes 3-13: Mostly unassigned            |
+  +-------------------------------------------+
+  | Plane 14 (SSP): Special purpose           |
+  +-------------------------------------------+
+  | Planes 15-16: Private Use Areas           |
+  +-------------------------------------------+
 ```
 
 ---
 
-## 2. UTF-8 — 現代の標準
+## 2. UTF-8 -- The Modern Standard
 
-### 2.1 UTF-8のバイト構造
+### 2.1 UTF-8 Byte Structure
 
 ```
-UTF-8 エンコーディング規則:
+UTF-8 Encoding Rules:
 
-  コードポイント範囲        バイト数  バイト列パターン
+  Code Point Range            Bytes  Byte Pattern
   ──────────────────────────────────────────────────
-  U+0000  - U+007F         1バイト   0xxxxxxx
-  U+0080  - U+07FF         2バイト   110xxxxx 10xxxxxx
-  U+0800  - U+FFFF         3バイト   1110xxxx 10xxxxxx 10xxxxxx
-  U+10000 - U+10FFFF       4バイト   11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+  U+0000  - U+007F         1 byte   0xxxxxxx
+  U+0080  - U+07FF         2 bytes  110xxxxx 10xxxxxx
+  U+0800  - U+FFFF         3 bytes  1110xxxx 10xxxxxx 10xxxxxx
+  U+10000 - U+10FFFF       4 bytes  11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
 
-  先頭バイトの1の数 = バイト数
-  継続バイトは必ず 10 で始まる
-  → どのバイトからでも文字境界を特定できる（自己同期性）
+  The number of leading 1s in the first byte = number of bytes
+  Continuation bytes always start with 10
+  -> Character boundaries can be identified from any byte position (self-synchronization)
 
-  バイトの分類（先頭ビットパターン）:
-  0xxxxxxx → 1バイト文字の先頭（ASCII互換）
-  10xxxxxx → 継続バイト（先頭バイトではない）
-  110xxxxx → 2バイト文字の先頭
-  1110xxxx → 3バイト文字の先頭
-  11110xxx → 4バイト文字の先頭
+  Byte classification (leading bit patterns):
+  0xxxxxxx -> First byte of a 1-byte character (ASCII-compatible)
+  10xxxxxx -> Continuation byte (not a leading byte)
+  110xxxxx -> First byte of a 2-byte character
+  1110xxxx -> First byte of a 3-byte character
+  11110xxx -> First byte of a 4-byte character
 
-  自己同期性の意味:
-  - 任意のバイトを見て、それが文字の先頭か継続かが即座に分かる
-  - ストリームの途中からでも次の文字境界を見つけられる
-  - 1バイト破損しても影響は最大1文字（UTF-16では最大2文字影響）
+  Significance of self-synchronization:
+  - Any byte immediately reveals whether it is a character start or a continuation
+  - The next character boundary can be found even from the middle of a stream
+  - A single corrupted byte affects at most 1 character (UTF-16 can affect up to 2)
 ```
 
-### 2.2 具体例（エンコード手順）
+### 2.2 Concrete Examples (Encoding Procedure)
 
 ```
 'A' = U+0041:
-  2進数: 100 0001 (7ビット → 1バイトで収まる)
-  UTF-8: 0_1000001 = 0x41 (1バイト、ASCIIと完全互換)
+  Binary: 100 0001 (7 bits -> fits in 1 byte)
+  UTF-8: 0_1000001 = 0x41 (1 byte, fully compatible with ASCII)
 
-'¥' = U+00A5:
-  2進数: 10 100101 (8ビット → 2バイト必要)
-  テンプレート: 110xxxxx 10xxxxxx
-  分割: 00010 100101
-  埋め込み: 110_00010 10_100101
-  結果: 0xC2 0xA5 (2バイト)
+'yen sign' = U+00A5:
+  Binary: 10 100101 (8 bits -> 2 bytes required)
+  Template: 110xxxxx 10xxxxxx
+  Split: 00010 100101
+  Fill:  110_00010 10_100101
+  Result: 0xC2 0xA5 (2 bytes)
 
-  検算: 00010_100101 = 0x0A5 = 165 = U+00A5 ✓
+  Verification: 00010_100101 = 0x0A5 = 165 = U+00A5
 
-'あ' = U+3042:
-  2進数: 0011 0000 0100 0010 (16ビット → 3バイト必要)
-  テンプレート: 1110xxxx 10xxxxxx 10xxxxxx
-  分割: 0011 000001 000010
-  埋め込み: 1110_0011 10_000001 10_000010
-  結果: 0xE3 0x81 0x82 (3バイト)
+'a' (Hiragana) = U+3042:
+  Binary: 0011 0000 0100 0010 (16 bits -> 3 bytes required)
+  Template: 1110xxxx 10xxxxxx 10xxxxxx
+  Split: 0011 000001 000010
+  Fill:  1110_0011 10_000001 10_000010
+  Result: 0xE3 0x81 0x82 (3 bytes)
 
-  エンコード手順:
+  Encoding steps:
   U+3042 = 0011 000001 000010
-  テンプレート: 1110xxxx 10xxxxxx 10xxxxxx
-  埋め込み:     1110_0011 10_000001 10_000010
-  結果:         E3 81 82
+  Template: 1110xxxx 10xxxxxx 10xxxxxx
+  Fill:     1110_0011 10_000001 10_000010
+  Result:   E3 81 82
 
-'漢' = U+6F22:
-  2進数: 0110 1111 0010 0010
-  分割: 0110 111100 100010
-  埋め込み: 1110_0110 10_111100 10_100010
-  結果: 0xE6 0xBC 0xA2 (3バイト)
+'kan' (kanji for "Chinese character") = U+6F22:
+  Binary: 0110 1111 0010 0010
+  Split: 0110 111100 100010
+  Fill:  1110_0110 10_111100 10_100010
+  Result: 0xE6 0xBC 0xA2 (3 bytes)
 
-'😀' = U+1F600:
-  2進数: 0001 1111 0110 0000 0000 (21ビット → 4バイト必要)
-  テンプレート: 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
-  分割: 000 011111 011000 000000
-  埋め込み: 11110_000 10_011111 10_011000 10_000000
-  結果: 0xF0 0x9F 0x98 0x80 (4バイト)
+'grinning face' = U+1F600:
+  Binary: 0001 1111 0110 0000 0000 (21 bits -> 4 bytes required)
+  Template: 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+  Split: 000 011111 011000 000000
+  Fill:  11110_000 10_011111 10_011000 10_000000
+  Result: 0xF0 0x9F 0x98 0x80 (4 bytes)
 
-'𠮷' = U+20BB7（つちよし、JIS第三水準漢字）:
-  2進数: 0010 0000 1011 1011 0111
-  分割: 000 100000 101110 110111
-  埋め込み: 11110_000 10_100000 10_101110 10_110111
-  結果: 0xF0 0xA0 0xAE 0xB7 (4バイト)
+'tsuchiyoshi' = U+20BB7 (JIS Level 3 kanji):
+  Binary: 0010 0000 1011 1011 0111
+  Split: 000 100000 101110 110111
+  Fill:  11110_000 10_100000 10_101110 10_110111
+  Result: 0xF0 0xA0 0xAE 0xB7 (4 bytes)
 ```
 
-### 2.3 UTF-8の利点
+### 2.3 Advantages of UTF-8
 
-| 特性 | 説明 |
-|------|------|
-| ASCII互換 | ASCIIテキストはそのままUTF-8として有効 |
-| 可変長 | 1-4バイト。英語はコンパクト、全言語をサポート |
-| 自己同期 | 任意のバイト位置から文字境界を復元可能 |
-| ソート可能 | バイト列の辞書順 ≈ コードポイントの昇順 |
-| BOM不要 | エンディアン問題がない（UTF-16と異なり） |
-| NUL安全 | U+0000以外に0x00バイトが出現しない（C文字列安全） |
-| 広く普及 | Web の 98%以上が UTF-8 |
+| Property | Description |
+|----------|-------------|
+| ASCII-compatible | ASCII text is valid UTF-8 as-is |
+| Variable-length | 1-4 bytes. Compact for English, supports all languages |
+| Self-synchronizing | Character boundaries recoverable from any byte position |
+| Sortable | Lexicographic byte order approximately equals ascending code point order |
+| No BOM required | No endianness issues (unlike UTF-16) |
+| NUL-safe | 0x00 byte never appears except for U+0000 (safe for C strings) |
+| Widely adopted | Over 98% of the Web uses UTF-8 |
 
-### 2.4 UTF-8のデコードアルゴリズム
+### 2.4 UTF-8 Decoding Algorithm
 
 ```python
 def utf8_decode_manual(byte_sequence):
-    """UTF-8バイト列を手動でデコードする（教育用実装）"""
+    """Manually decode a UTF-8 byte sequence (educational implementation)"""
     result = []
     i = 0
     while i < len(byte_sequence):
         b = byte_sequence[i]
 
         if b < 0x80:
-            # 1バイト文字 (0xxxxxxx)
+            # 1-byte character (0xxxxxxx)
             codepoint = b
             i += 1
         elif b < 0xC0:
-            # 継続バイト (10xxxxxx) が先頭に来るのはエラー
-            raise ValueError(f"不正な継続バイト: 0x{b:02X} at position {i}")
+            # Continuation byte (10xxxxxx) at the start is an error
+            raise ValueError(f"Invalid continuation byte: 0x{b:02X} at position {i}")
         elif b < 0xE0:
-            # 2バイト文字 (110xxxxx 10xxxxxx)
+            # 2-byte character (110xxxxx 10xxxxxx)
             if i + 1 >= len(byte_sequence):
-                raise ValueError("不完全な2バイト文字")
+                raise ValueError("Incomplete 2-byte character")
             codepoint = ((b & 0x1F) << 6) | (byte_sequence[i+1] & 0x3F)
-            # オーバーロング検出: U+0080未満は1バイトで表すべき
+            # Overlong detection: values below U+0080 should use 1 byte
             if codepoint < 0x80:
-                raise ValueError(f"オーバーロング: U+{codepoint:04X}")
+                raise ValueError(f"Overlong encoding: U+{codepoint:04X}")
             i += 2
         elif b < 0xF0:
-            # 3バイト文字 (1110xxxx 10xxxxxx 10xxxxxx)
+            # 3-byte character (1110xxxx 10xxxxxx 10xxxxxx)
             if i + 2 >= len(byte_sequence):
-                raise ValueError("不完全な3バイト文字")
+                raise ValueError("Incomplete 3-byte character")
             codepoint = ((b & 0x0F) << 12) | \
                        ((byte_sequence[i+1] & 0x3F) << 6) | \
                        (byte_sequence[i+2] & 0x3F)
             if codepoint < 0x800:
-                raise ValueError(f"オーバーロング: U+{codepoint:04X}")
-            # サロゲートペア範囲は不正
+                raise ValueError(f"Overlong encoding: U+{codepoint:04X}")
+            # Surrogate pair range is invalid
             if 0xD800 <= codepoint <= 0xDFFF:
-                raise ValueError(f"サロゲート: U+{codepoint:04X}")
+                raise ValueError(f"Surrogate: U+{codepoint:04X}")
             i += 3
         elif b < 0xF8:
-            # 4バイト文字 (11110xxx 10xxxxxx 10xxxxxx 10xxxxxx)
+            # 4-byte character (11110xxx 10xxxxxx 10xxxxxx 10xxxxxx)
             if i + 3 >= len(byte_sequence):
-                raise ValueError("不完全な4バイト文字")
+                raise ValueError("Incomplete 4-byte character")
             codepoint = ((b & 0x07) << 18) | \
                        ((byte_sequence[i+1] & 0x3F) << 12) | \
                        ((byte_sequence[i+2] & 0x3F) << 6) | \
                        (byte_sequence[i+3] & 0x3F)
             if codepoint < 0x10000:
-                raise ValueError(f"オーバーロング: U+{codepoint:04X}")
+                raise ValueError(f"Overlong encoding: U+{codepoint:04X}")
             if codepoint > 0x10FFFF:
-                raise ValueError(f"範囲外: U+{codepoint:04X}")
+                raise ValueError(f"Out of range: U+{codepoint:04X}")
             i += 4
         else:
-            raise ValueError(f"不正な先頭バイト: 0x{b:02X}")
+            raise ValueError(f"Invalid leading byte: 0x{b:02X}")
 
         result.append(chr(codepoint))
 
     return ''.join(result)
 
 
-# テスト
-test_bytes = bytes([0xE3, 0x81, 0x82])  # 'あ'
-print(utf8_decode_manual(test_bytes))  # あ
+# Test
+test_bytes = bytes([0xE3, 0x81, 0x82])  # Hiragana 'a'
+print(utf8_decode_manual(test_bytes))  # a (hiragana)
 
-test_bytes2 = bytes([0xF0, 0x9F, 0x98, 0x80])  # '😀'
-print(utf8_decode_manual(test_bytes2))  # 😀
+test_bytes2 = bytes([0xF0, 0x9F, 0x98, 0x80])  # grinning face emoji
+print(utf8_decode_manual(test_bytes2))  # grinning face emoji
 
 
 def utf8_encode_manual(text):
-    """文字列をUTF-8バイト列に手動エンコード（教育用実装）"""
+    """Manually encode a string to UTF-8 byte sequence (educational implementation)"""
     result = bytearray()
     for char in text:
         cp = ord(char)
@@ -455,54 +455,54 @@ def utf8_encode_manual(text):
             result.append(0x80 | (cp & 0x3F))
     return bytes(result)
 
-# テスト
-print(utf8_encode_manual("あ").hex())  # e38182
-print(utf8_encode_manual("😀").hex())  # f09f9880
+# Test
+print(utf8_encode_manual("a").hex())  # e38182 (hiragana 'a')
+print(utf8_encode_manual("grinning face").hex())  # f09f9880
 ```
 
 ---
 
-## 3. UTF-16 と UTF-32
+## 3. UTF-16 and UTF-32
 
 ### 3.1 UTF-16
 
 ```
-UTF-16 エンコーディング:
+UTF-16 Encoding:
 
-  BMP（U+0000-U+FFFF）: 2バイトでそのまま
-  SMP以上（U+10000-U+10FFFF）: サロゲートペア（4バイト）
+  BMP (U+0000-U+FFFF): Directly represented as 2 bytes
+  SMP and above (U+10000-U+10FFFF): Surrogate pairs (4 bytes)
 
-  サロゲートペアの計算:
-  1. コードポイントから 0x10000 を引く（20ビット値になる）
-  2. 上位10ビット + 0xD800 → 上位サロゲート（0xD800-0xDBFF）
-  3. 下位10ビット + 0xDC00 → 下位サロゲート（0xDC00-0xDFFF）
+  Surrogate pair calculation:
+  1. Subtract 0x10000 from the code point (yields a 20-bit value)
+  2. Upper 10 bits + 0xD800 -> High surrogate (0xD800-0xDBFF)
+  3. Lower 10 bits + 0xDC00 -> Low surrogate (0xDC00-0xDFFF)
 
-  例: '😀' U+1F600
+  Example: grinning face U+1F600
   1. 0x1F600 - 0x10000 = 0x0F600
-  2. 上位10ビット: 0x0F600 >> 10 = 0x003D → + 0xD800 = 0xD83D
-  3. 下位10ビット: 0x0F600 & 0x3FF = 0x0200 → + 0xDC00 = 0xDE00
+  2. Upper 10 bits: 0x0F600 >> 10 = 0x003D -> + 0xD800 = 0xD83D
+  3. Lower 10 bits: 0x0F600 & 0x3FF = 0x0200 -> + 0xDC00 = 0xDE00
   4. UTF-16: 0xD83D 0xDE00
 
-  エンディアンの問題:
-  UTF-16BE: 0xD8 0x3D 0xDE 0x00（ビッグエンディアン）
-  UTF-16LE: 0x3D 0xD8 0x00 0xDE（リトルエンディアン）
-  → BOM (U+FEFF) で判定:
-    FF FE → リトルエンディアン
-    FE FF → ビッグエンディアン
+  Endianness issue:
+  UTF-16BE: 0xD8 0x3D 0xDE 0x00 (big-endian)
+  UTF-16LE: 0x3D 0xD8 0x00 0xDE (little-endian)
+  -> Determined by BOM (U+FEFF):
+    FF FE -> little-endian
+    FE FF -> big-endian
 
-  UTF-16を使用する環境:
+  Environments that use UTF-16:
   - Windows API (WCHAR, wchar_t)
-  - Java (char型, String)
+  - Java (char type, String)
   - JavaScript (String)
   - .NET (System.String)
-  - macOS/iOS (NSString / CFString の内部表現)
+  - macOS/iOS (internal representation of NSString / CFString)
 ```
 
 ```python
-# サロゲートペアの計算
+# Surrogate pair calculation
 
 def codepoint_to_utf16(cp):
-    """コードポイントからUTF-16エンコーディングを計算"""
+    """Calculate UTF-16 encoding from a code point"""
     if cp < 0x10000:
         return [cp]
     else:
@@ -512,14 +512,14 @@ def codepoint_to_utf16(cp):
         return [high, low]
 
 def utf16_to_codepoint(units):
-    """UTF-16コードユニットからコードポイントを復元"""
+    """Recover the code point from UTF-16 code units"""
     if len(units) == 1:
         return units[0]
     else:
         high, low = units
         return ((high - 0xD800) << 10) + (low - 0xDC00) + 0x10000
 
-# テスト
+# Test
 print([hex(u) for u in codepoint_to_utf16(0x1F600)])  # ['0xd83d', '0xde00']
 print(hex(utf16_to_codepoint([0xD83D, 0xDE00])))      # 0x1f600
 ```
@@ -527,114 +527,113 @@ print(hex(utf16_to_codepoint([0xD83D, 0xDE00])))      # 0x1f600
 ### 3.2 UTF-32
 
 ```
-UTF-32 エンコーディング:
+UTF-32 Encoding:
 
-  全てのコードポイントを固定4バイトで表現
-  → 最もシンプルだが、メモリ効率が最悪
+  Represents all code points as fixed 4-byte values
+  -> Simplest, but worst memory efficiency
 
-  例:
-  'A'  = 0x00000041
-  'あ' = 0x00003042
-  '😀' = 0x0001F600
+  Examples:
+  'A'          = 0x00000041
+  'a' (hira.)  = 0x00003042
+  grinning face = 0x0001F600
 
-  利点:
-  - 固定長なのでインデックスアクセスが O(1)
-  - 実装が極めてシンプル
-  - コードポイントの直接比較が容易
+  Advantages:
+  - Fixed-length, so index access is O(1)
+  - Extremely simple implementation
+  - Direct comparison of code points is easy
 
-  欠点:
-  - ASCII文字でも4バイト（UTF-8の4倍）
-  - メモリ使用量が多い
-  - エンディアンの問題がある（UTF-32BE/UTF-32LE）
-  - 実務ではほぼ使われない
+  Disadvantages:
+  - Even ASCII characters use 4 bytes (4x compared to UTF-8)
+  - High memory usage
+  - Endianness issues exist (UTF-32BE/UTF-32LE)
+  - Rarely used in practice
 
-  使用される場面:
-  - Python 3の内部表現（コードポイントに依る: Latin-1/UCS-2/UCS-4の切替）
-  - ICU（International Components for Unicode）の一部
-  - テキスト処理ライブラリの内部
+  Use cases:
+  - Python 3 internal representation (depends on code points: Latin-1/UCS-2/UCS-4 switching)
+  - Parts of ICU (International Components for Unicode)
+  - Internal use in text processing libraries
 ```
 
-### 3.3 エンコーディング比較
+### 3.3 Encoding Comparison
 
 ```
-各UTFの比較表:
+Comparison table of each UTF:
 
-  文字      UTF-8      UTF-16LE      UTF-32LE
+  Character  UTF-8      UTF-16LE      UTF-32LE
   ─────── ────────── ──────────── ────────────
   'A'       41         41 00         41 00 00 00
-  '¥'       C2 A5      A5 00         A5 00 00 00
-  'あ'      E3 81 82   42 30         42 30 00 00
-  '漢'      E6 BC A2   22 6F         22 6F 00 00
-  '😀'      F0 9F 98   3D D8 00 DE   00 F6 01 00
+  'yen'     C2 A5      A5 00         A5 00 00 00
+  'a'(hira) E3 81 82   42 30         42 30 00 00
+  'kan'     E6 BC A2   22 6F         22 6F 00 00
+  grin face F0 9F 98   3D D8 00 DE   00 F6 01 00
             80
 
-  サイズ比較（"Hello, 世界!" = ASCII 8文字 + 漢字 2文字）:
-  UTF-8:  8×1 + 2×3 = 14 bytes
-  UTF-16: 8×2 + 2×2 = 20 bytes
-  UTF-32: 10×4       = 40 bytes
+  Size comparison ("Hello, sekai!" = 8 ASCII chars + 2 CJK chars):
+  UTF-8:  8x1 + 2x3 = 14 bytes
+  UTF-16: 8x2 + 2x2 = 20 bytes
+  UTF-32: 10x4       = 40 bytes
 
-  サイズ比較（日本語文章 "日本語のテスト" = 7文字）:
-  UTF-8:  7×3 = 21 bytes
-  UTF-16: 7×2 = 14 bytes
-  UTF-32: 7×4 = 28 bytes
+  Size comparison (Japanese text "nihongo no tesuto" = 7 characters):
+  UTF-8:  7x3 = 21 bytes
+  UTF-16: 7x2 = 14 bytes
+  UTF-32: 7x4 = 28 bytes
 
-  → 日本語テキストでは UTF-16 が最もコンパクト
-  → 英語テキストでは UTF-8 が最もコンパクト
-  → 混在テキストでは大抵 UTF-8 が有利
-  → UTF-32 は常に最大
+  -> For Japanese text, UTF-16 is the most compact
+  -> For English text, UTF-8 is the most compact
+  -> For mixed text, UTF-8 usually wins
+  -> UTF-32 is always the largest
 ```
 
 ---
 
-## 4. 文字化けの原因と対策
+## 4. Causes and Solutions for Garbled Text (Mojibake)
 
-### 4.1 よくある文字化けパターン
+### 4.1 Common Garbled Text Patterns
 
 ```python
-# 文字化けの再現と分析
+# Reproducing and analyzing garbled text
 
-text = "こんにちは"
+text = "konnichiha"  # Japanese greeting in hiragana
 
-# UTF-8でエンコードしたバイト列
+# Byte sequence encoded as UTF-8
 utf8_bytes = text.encode('utf-8')
 # b'\xe3\x81\x93\xe3\x82\x93\xe3\x81\xab\xe3\x81\xa1\xe3\x81\xaf'
 
-# ❌ パターン1: Latin-1としてデコード → 文字化け（最も多い）
+# Pattern 1: Decoded as Latin-1 -> garbled text (most common)
 wrong = utf8_bytes.decode('latin-1')
-# 'ã\x81\x93ã\x82\x93ã\x81«ã\x81¡ã\x81¯'
-# → UTF-8のバイトをLatin-1として解釈した典型パターン
+# Typical pattern of interpreting UTF-8 bytes as Latin-1
 
-# ❌ パターン2: Shift_JISとしてデコード → 別の文字化け
+# Pattern 2: Decoded as Shift_JIS -> different garbled text
 wrong2 = utf8_bytes.decode('shift_jis', errors='replace')
-# '縺薙s縺ォ縺。縺ッ' のような意味不明な文字列
+# Produces meaningless characters
 
-# ❌ パターン3: 二重エンコード（UTF-8を更にUTF-8としてエンコード）
+# Pattern 3: Double encoding (UTF-8 encoded again as UTF-8)
 double_encoded = text.encode('utf-8').decode('latin-1').encode('utf-8')
-# 元に戻すには逆操作が必要
+# Requires the reverse operation to recover
 recovered = double_encoded.decode('utf-8').encode('latin-1').decode('utf-8')
-print(recovered)  # 'こんにちは'
+print(recovered)  # 'konnichiha'
 
-# ✅ 正しいエンコーディングでデコード
+# Correct: decode with the proper encoding
 correct = utf8_bytes.decode('utf-8')
-# 'こんにちは'
+# 'konnichiha'
 ```
 
-### 4.2 文字化けの診断方法
+### 4.2 Diagnosing Garbled Text
 
 ```python
-# 文字化けの自動診断
+# Automatic encoding diagnosis for garbled text
 
 def diagnose_encoding(broken_text, expected_text=None):
-    """文字化けテキストのエンコーディングを診断"""
-    # よくある文字化けパターンを試す
+    """Diagnose the encoding of garbled text"""
+    # Try common garbled text patterns
     patterns = [
         # (encode_as, decode_as, description)
-        ('latin-1', 'utf-8', 'UTF-8をLatin-1で開いた'),
-        ('cp1252', 'utf-8', 'UTF-8をWindows-1252で開いた'),
-        ('shift_jis', 'utf-8', 'UTF-8をShift_JISで開いた'),
-        ('utf-8', 'shift_jis', 'Shift_JISをUTF-8で開いた'),
-        ('utf-8', 'euc-jp', 'EUC-JPをUTF-8で開いた'),
-        ('euc-jp', 'utf-8', 'UTF-8をEUC-JPで開いた'),
+        ('latin-1', 'utf-8', 'UTF-8 opened as Latin-1'),
+        ('cp1252', 'utf-8', 'UTF-8 opened as Windows-1252'),
+        ('shift_jis', 'utf-8', 'UTF-8 opened as Shift_JIS'),
+        ('utf-8', 'shift_jis', 'Shift_JIS opened as UTF-8'),
+        ('utf-8', 'euc-jp', 'EUC-JP opened as UTF-8'),
+        ('euc-jp', 'utf-8', 'UTF-8 opened as EUC-JP'),
     ]
 
     results = []
@@ -642,150 +641,151 @@ def diagnose_encoding(broken_text, expected_text=None):
         try:
             recovered = broken_text.encode(enc).decode(dec)
             if expected_text and recovered == expected_text:
-                results.append((desc, recovered, "✓ MATCH"))
+                results.append((desc, recovered, "MATCH"))
             elif recovered.isprintable() and not any(c == '\ufffd' for c in recovered):
-                results.append((desc, recovered, "? 可能性あり"))
+                results.append((desc, recovered, "? Possible"))
         except (UnicodeDecodeError, UnicodeEncodeError):
             pass
 
     return results
 
 
-# chardetライブラリによる自動検出
+# Automatic detection using the chardet library
 # pip install chardet
 import chardet
 
 def detect_encoding(byte_data):
-    """バイト列のエンコーディングを推定"""
+    """Estimate the encoding of a byte sequence"""
     result = chardet.detect(byte_data)
     return result
     # {'encoding': 'utf-8', 'confidence': 0.99, 'language': ''}
 
-# 使用例
+# Usage example
 with open('unknown_file.txt', 'rb') as f:
     raw_data = f.read()
     detection = chardet.detect(raw_data)
-    print(f"推定: {detection['encoding']} (信頼度: {detection['confidence']:.2%})")
+    print(f"Estimated: {detection['encoding']} (confidence: {detection['confidence']:.2%})")
     text = raw_data.decode(detection['encoding'])
 ```
 
-### 4.3 文字化け対策チェックリスト
+### 4.3 Garbled Text Prevention Checklist
 
 ```
-全レイヤーでUTF-8を統一:
+Unify UTF-8 across all layers:
 
-  ┌──────────────────────────────┐
-  │ ファイル保存: UTF-8 (BOMなし) │
-  ├──────────────────────────────┤
-  │ HTTP: Content-Type: text/html;│
-  │       charset=utf-8          │
-  ├──────────────────────────────┤
-  │ HTML: <meta charset="utf-8"> │
-  ├──────────────────────────────┤
-  │ DB: CHARACTER SET utf8mb4    │
-  │    (MySQLのutf8は3バイトまで！│
-  │     utf8mb4が真のUTF-8)     │
-  ├──────────────────────────────┤
-  │ Python: open(f, encoding='utf-8') │
-  ├──────────────────────────────┤
-  │ JSON: デフォルトUTF-8        │
-  └──────────────────────────────┘
+  +------------------------------+
+  | File save: UTF-8 (no BOM)    |
+  +------------------------------+
+  | HTTP: Content-Type: text/html;|
+  |       charset=utf-8          |
+  +------------------------------+
+  | HTML: <meta charset="utf-8"> |
+  +------------------------------+
+  | DB: CHARACTER SET utf8mb4    |
+  |    (MySQL's utf8 only        |
+  |     supports up to 3 bytes!  |
+  |     utf8mb4 is true UTF-8)   |
+  +------------------------------+
+  | Python: open(f, encoding='utf-8') |
+  +------------------------------+
+  | JSON: UTF-8 by default       |
+  +------------------------------+
 
-  注意: MySQLの"utf8"は3バイトまで（絵文字不可）
-  → 必ず"utf8mb4"を使用すること！
+  Note: MySQL's "utf8" supports only up to 3 bytes (no emoji)
+  -> Always use "utf8mb4"!
 ```
 
-### 4.4 各環境での文字コード設定
+### 4.4 Character Encoding Settings in Various Environments
 
 ```python
 # === Python ===
 
-# ファイル読み書き（常にencodingを明示）
+# File I/O (always specify encoding explicitly)
 with open('file.txt', 'r', encoding='utf-8') as f:
     text = f.read()
 
 with open('file.txt', 'w', encoding='utf-8') as f:
     f.write(text)
 
-# Python 3.15+ ではデフォルトがUTF-8に変更予定
-# Python 3.7+: UTF-8モード
-# PYTHONUTF8=1 環境変数 or python3 -X utf8
+# Python 3.15+: default will change to UTF-8
+# Python 3.7+: UTF-8 mode
+# PYTHONUTF8=1 environment variable or python3 -X utf8
 
-# CSVファイル（Excel対応でBOM付きUTF-8が必要な場合）
+# CSV files (BOM-prefixed UTF-8 required for Excel compatibility)
 with open('data.csv', 'w', encoding='utf-8-sig') as f:
     # utf-8-sig = BOM (EF BB BF) + UTF-8
-    f.write('名前,年齢\n')
+    f.write('Name,Age\n')
 
-# バイト列と文字列の変換
-text = "日本語"
-encoded = text.encode('utf-8')     # str → bytes
-decoded = encoded.decode('utf-8')  # bytes → str
+# Conversion between byte strings and text strings
+text = "Japanese text"
+encoded = text.encode('utf-8')     # str -> bytes
+decoded = encoded.decode('utf-8')  # bytes -> str
 
-# エラーハンドリング
-text = b'\xff\xfe'.decode('utf-8', errors='replace')   # '??'（置換）
-text = b'\xff\xfe'.decode('utf-8', errors='ignore')    # ''（無視）
+# Error handling
+text = b'\xff\xfe'.decode('utf-8', errors='replace')   # '??' (replacement)
+text = b'\xff\xfe'.decode('utf-8', errors='ignore')    # '' (ignore)
 text = b'\xff\xfe'.decode('utf-8', errors='backslashreplace')  # '\\xff\\xfe'
 ```
 
 ```sql
 -- === MySQL ===
 
--- データベース作成時
+-- When creating a database
 CREATE DATABASE mydb
   CHARACTER SET utf8mb4
   COLLATE utf8mb4_unicode_ci;
 
--- テーブル作成時
+-- When creating a table
 CREATE TABLE users (
   id INT PRIMARY KEY,
   name VARCHAR(100) CHARACTER SET utf8mb4
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 接続時
+-- At connection time
 SET NAMES utf8mb4;
--- または接続パラメータで: charset=utf8mb4
+-- Or via connection parameter: charset=utf8mb4
 
--- 既存テーブルの変更
+-- Altering an existing table
 ALTER TABLE users CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
--- 確認
+-- Verification
 SHOW VARIABLES LIKE 'character_set%';
 SHOW VARIABLES LIKE 'collation%';
 
--- utf8 vs utf8mb4 の違い:
--- utf8:    最大3バイト（BMP内のみ, 絵文字不可, U+0000-U+FFFF）
--- utf8mb4: 最大4バイト（全Unicode対応, 絵文字OK, U+0000-U+10FFFF）
--- → 常にutf8mb4を使うべき
+-- Difference between utf8 and utf8mb4:
+-- utf8:    Max 3 bytes (BMP only, no emoji, U+0000-U+FFFF)
+-- utf8mb4: Max 4 bytes (full Unicode support, emoji OK, U+0000-U+10FFFF)
+-- -> Always use utf8mb4
 ```
 
 ```javascript
 // === JavaScript / Node.js ===
 
-// ファイル読み書き
+// File I/O
 const fs = require('fs');
 const text = fs.readFileSync('file.txt', 'utf-8');
 fs.writeFileSync('file.txt', text, 'utf-8');
 
-// Buffer操作
-const buf = Buffer.from('こんにちは', 'utf-8');
+// Buffer operations
+const buf = Buffer.from('konnichiha', 'utf-8');
 console.log(buf);        // <Buffer e3 81 93 e3 82 93 ...>
-console.log(buf.length); // 15 (バイト数)
+console.log(buf.length); // 15 (byte count)
 const str = buf.toString('utf-8');
 
 // TextEncoder / TextDecoder (Web API & Node.js)
-const encoder = new TextEncoder();  // デフォルトUTF-8
+const encoder = new TextEncoder();  // Default UTF-8
 const decoder = new TextDecoder('utf-8');
 
-const encoded = encoder.encode('Hello, 世界');
+const encoded = encoder.encode('Hello, World');
 const decoded = decoder.decode(encoded);
 
-// Shift_JISのデコード（Node.js: iconv-lite）
+// Decoding Shift_JIS (Node.js: iconv-lite)
 // const iconv = require('iconv-lite');
 // const text = iconv.decode(buffer, 'Shift_JIS');
 
-// fetch APIでの文字コード指定
-// Response.text() はデフォルトでUTF-8
-// Content-Type ヘッダーの charset を参照
+// Character encoding in fetch API
+// Response.text() defaults to UTF-8
+// Refers to the charset in the Content-Type header
 ```
 
 ```go
@@ -803,20 +803,20 @@ import (
 )
 
 func main() {
-    // Goの文字列はデフォルトでUTF-8
-    s := "こんにちは"
-    fmt.Println(len(s))                    // 15 (バイト数)
-    fmt.Println(utf8.RuneCountInString(s)) // 5 (文字数)
+    // Go strings are UTF-8 by default
+    s := "konnichiha"
+    fmt.Println(len(s))                    // 15 (byte count)
+    fmt.Println(utf8.RuneCountInString(s)) // 5 (character count)
 
-    // ルーン（Unicodeコードポイント）でのイテレーション
+    // Iterating by rune (Unicode code point)
     for i, r := range s {
         fmt.Printf("byte[%d]: U+%04X '%c'\n", i, r, r)
     }
 
-    // UTF-8の妥当性チェック
+    // UTF-8 validity check
     fmt.Println(utf8.ValidString(s))  // true
 
-    // Shift_JISからUTF-8への変換
+    // Converting from Shift_JIS to UTF-8
     sjisReader := transform.NewReader(
         strings.NewReader(sjisData),
         japanese.ShiftJIS.NewDecoder(),
@@ -828,231 +828,231 @@ func main() {
 
 ---
 
-## 5. Unicode の落とし穴
+## 5. Unicode Pitfalls
 
-### 5.1 結合文字と正規化
+### 5.1 Combining Characters and Normalization
 
 ```python
-# 「が」の2つの表現方法
+# Two ways to represent the Japanese character "ga"
 
-# 1. 合成済み文字（NFC）: 1文字
-ga_nfc = '\u304C'  # 'が' (1コードポイント)
+# 1. Precomposed character (NFC): 1 character
+ga_nfc = '\u304C'  # 'ga' (1 code point)
 len(ga_nfc)  # 1
 
-# 2. 結合文字（NFD）: 基底文字 + 濁点
-ga_nfd = '\u304B\u3099'  # 'か' + '゙' (2コードポイント)
+# 2. Combining character (NFD): base character + combining dakuten
+ga_nfd = '\u304B\u3099'  # 'ka' + combining dakuten mark (2 code points)
 len(ga_nfd)  # 2
 
-# 見た目は同じ 'が' だが、==で比較するとFalse!
+# They look identical as 'ga', but == comparison returns False!
 ga_nfc == ga_nfd  # False!
 
-# 対策: unicodedata.normalize で正規化
+# Solution: normalize with unicodedata.normalize
 import unicodedata
 unicodedata.normalize('NFC', ga_nfd) == ga_nfc  # True
 ```
 
-### 5.2 4つの正規化形式
+### 5.2 Four Normalization Forms
 
 ```python
 import unicodedata
 
-# NFC（Canonical Decomposition, followed by Canonical Composition）
-# → 最も一般的。合成済み形式。Webで推奨
+# NFC (Canonical Decomposition, followed by Canonical Composition)
+# -> Most common. Precomposed form. Recommended for the Web
 nfc = unicodedata.normalize('NFC', text)
 
-# NFD（Canonical Decomposition）
-# → macOSのファイルシステム（HFS+）が使用
+# NFD (Canonical Decomposition)
+# -> Used by macOS file systems (HFS+)
 nfd = unicodedata.normalize('NFD', text)
 
-# NFKC（Compatibility Decomposition, followed by Canonical Composition）
-# → 検索/比較に最適。互換文字を統一
+# NFKC (Compatibility Decomposition, followed by Canonical Composition)
+# -> Best for search/comparison. Unifies compatibility characters
 nfkc = unicodedata.normalize('NFKC', text)
 
-# NFKD（Compatibility Decomposition）
-# → 最も分解された形式
+# NFKD (Compatibility Decomposition)
+# -> Most decomposed form
 nfkd = unicodedata.normalize('NFKD', text)
 
-# NFC vs NFD の例:
-text = "が"  # U+304C
+# NFC vs NFD example:
+text = "ga"  # U+304C
 nfc = unicodedata.normalize('NFC', text)
 nfd = unicodedata.normalize('NFD', text)
 print(len(nfc), [hex(ord(c)) for c in nfc])  # 1 ['0x304c']
 print(len(nfd), [hex(ord(c)) for c in nfd])  # 2 ['0x304b', '0x3099']
 
-# NFKC vs NFC の例:
-# 全角英数字 → 半角英数字
-text2 = "Ａ１"  # U+FF21, U+FF11（全角）
-nfc2 = unicodedata.normalize('NFC', text2)    # "Ａ１"（そのまま）
-nfkc2 = unicodedata.normalize('NFKC', text2)  # "A1"（半角に変換）
+# NFKC vs NFC example:
+# Full-width alphanumerics -> half-width alphanumerics
+text2 = "\uff21\uff11"  # Full-width 'A' and '1'
+nfc2 = unicodedata.normalize('NFC', text2)    # Full-width (unchanged)
+nfkc2 = unicodedata.normalize('NFKC', text2)  # "A1" (converted to half-width)
 print(nfkc2)  # A1
 
-# 互換分解の例:
-# ① → 1  (U+2460 → U+0031)
-# ㌔ → キロ (U+3314 → U+30AD U+30ED)
-# ﬁ → fi  (U+FB01 → U+0066 U+0069)
-# ² → 2   (U+00B2 → U+0032)
+# Compatibility decomposition examples:
+# circled 1 -> 1  (U+2460 -> U+0031)
+# kilo sign -> ki + ro  (U+3314 -> U+30AD U+30ED)
+# fi ligature -> fi  (U+FB01 -> U+0066 U+0069)
+# superscript 2 -> 2   (U+00B2 -> U+0032)
 
-# 実務での使い分け:
-# - 保存/表示: NFC（最も広くサポート）
-# - 検索/比較: NFKC（互換文字を統一）
-# - macOSファイル名: NFD（OSが自動変換）
+# Practical usage guidelines:
+# - Storage/display: NFC (most widely supported)
+# - Search/comparison: NFKC (unifies compatibility characters)
+# - macOS file names: NFD (OS converts automatically)
 ```
 
-### 5.3 サロゲートペア（UTF-16の問題）
+### 5.3 Surrogate Pairs (A UTF-16 Issue)
 
 ```
-UTF-16 でのコードポイント表現:
+Code point representation in UTF-16:
 
-  U+0000 - U+FFFF:   2バイトでそのまま（BMP: Basic Multilingual Plane）
-  U+10000 - U+10FFFF: 4バイト（サロゲートペア必要）
+  U+0000 - U+FFFF:   Directly as 2 bytes (BMP: Basic Multilingual Plane)
+  U+10000 - U+10FFFF: 4 bytes (surrogate pair required)
 
-  例: '😀' U+1F600
+  Example: grinning face U+1F600
   1. U+1F600 - 0x10000 = 0x0F600
-  2. 上位10ビット: 0x003D → + 0xD800 = 0xD83D（上位サロゲート）
-  3. 下位10ビット: 0x0200 → + 0xDC00 = 0xDE00（下位サロゲート）
+  2. Upper 10 bits: 0x003D -> + 0xD800 = 0xD83D (high surrogate)
+  3. Lower 10 bits: 0x0200 -> + 0xDC00 = 0xDE00 (low surrogate)
   4. UTF-16: 0xD83D 0xDE00
 
-  → JavaScript の string.length が絵文字で2を返す理由
-  '😀'.length === 2  // true! (UTF-16の内部表現)
-  [...'😀'].length === 1  // true (イテレータはコードポイント単位)
+  -> This is why JavaScript's string.length returns 2 for emoji
+  'grinning face'.length === 2  // true! (UTF-16 internal representation)
+  [...'grinning face'].length === 1  // true (iterator works per code point)
 ```
 
-### 5.4 書記素クラスタ（Grapheme Cluster）
+### 5.4 Grapheme Clusters
 
 ```python
-# 1つの「見た目の文字」が複数のコードポイントから構成される場合
+# Cases where a single "visible character" consists of multiple code points
 
-# 例1: 家族絵文字
-family = "👨‍👩‍👧‍👦"
-print(len(family))  # 11 (コードポイント数!)
-# 構成: 👨 U+1F468 + ZWJ + 👩 U+1F469 + ZWJ + 👧 U+1F467 + ZWJ + 👦 U+1F466
+# Example 1: Family emoji
+family = "family emoji"  # man + woman + girl + boy joined by ZWJ
+print(len(family))  # 11 (code point count!)
+# Composition: man U+1F468 + ZWJ + woman U+1F469 + ZWJ + girl U+1F467 + ZWJ + boy U+1F466
 # ZWJ = Zero Width Joiner (U+200D)
 
-# 例2: 国旗絵文字
-flag_jp = "🇯🇵"
+# Example 2: Flag emoji
+flag_jp = "JP flag"
 print(len(flag_jp))  # 2
-# 構成: U+1F1EF (Regional Indicator J) + U+1F1F5 (Regional Indicator P)
+# Composition: U+1F1EF (Regional Indicator J) + U+1F1F5 (Regional Indicator P)
 
-# 例3: 肌の色修飾子
-wave = "👋🏽"
+# Example 3: Skin tone modifier
+wave = "waving hand medium skin tone"
 print(len(wave))  # 2
-# 構成: U+1F44B (手を振る) + U+1F3FD (肌色修飾子: Medium)
+# Composition: U+1F44B (waving hand) + U+1F3FD (skin tone modifier: Medium)
 
-# 例4: 結合文字（アクセント付き文字）
-e_acute = "é"  # U+0065 + U+0301 (NFD) or U+00E9 (NFC)
+# Example 4: Combining characters (accented letters)
+e_acute = "e with acute"  # U+0065 + U+0301 (NFD) or U+00E9 (NFC)
 
-# 正しく「見た目の文字数」を数えるには:
-# Python: regex ライブラリ（標準のreではなく第三者ライブラリ）
+# To correctly count "visible characters":
+# Python: regex library (third-party, not the standard re)
 import regex  # pip install regex
-text = "👨‍👩‍👧‍👦こんにちは"
+text = "family emoji + konnichiha"
 graphemes = regex.findall(r'\X', text)
-print(len(graphemes))  # 6 (家族1 + ひらがな5)
+print(len(graphemes))  # 6 (1 family + 5 hiragana)
 
 # JavaScript:
 # Intl.Segmenter API (ES2022+)
 # const segmenter = new Intl.Segmenter('ja', { granularity: 'grapheme' });
 # const segments = [...segmenter.segment(text)];
-# segments.length; // 正しい書記素クラスタ数
+# segments.length; // correct grapheme cluster count
 
 # Go:
-# golang.org/x/text/unicode/norm パッケージ
-# rivo/uniseg パッケージ
+# golang.org/x/text/unicode/norm package
+# rivo/uniseg package
 ```
 
-### 5.5 文字列の長さとインデックス
+### 5.5 String Length and Indexing
 
 ```python
-# 各言語での「文字列の長さ」の意味の違い
+# What "string length" means differs across languages
 
-text = "Hello, 世界! 😀"
+text = "Hello, sekai! grinning face"
 
-# Python 3: コードポイント数
+# Python 3: code point count
 print(len(text))                    # 11
-print(len(text.encode('utf-8')))    # 18 (バイト数)
+print(len(text.encode('utf-8')))    # 18 (byte count)
 
-# Pythonでの正しいスライス
-# text[7:9] は 'World' の一部ではなく、コードポイント単位
+# Correct slicing in Python
+# text[7:9] is based on code point units
 
-# 各言語の比較:
-# ┌─────────────┬──────────────────────┬────────┐
-# │ 言語        │ lengthの意味          │ 値     │
-# ├─────────────┼──────────────────────┼────────┤
-# │ Python 3    │ コードポイント数      │ 11     │
-# │ JavaScript  │ UTF-16コードユニット数│ 12*    │
-# │ Java        │ UTF-16コードユニット数│ 12*    │
-# │ Rust (str)  │ バイト数             │ 18     │
-# │ Go          │ バイト数             │ 18     │
-# │ C (strlen)  │ バイト数（NULまで）  │ 18     │
-# │ Swift       │ 書記素クラスタ数     │ 11**   │
-# └─────────────┴──────────────────────┴────────┘
-# * 😀が2カウント（サロゲートペア）
-# ** Swiftは最も直感的だが、O(n)のコスト
+# Comparison across languages:
+# +-------------+----------------------+--------+
+# | Language    | Meaning of length    | Value  |
+# +-------------+----------------------+--------+
+# | Python 3    | Code point count     | 11     |
+# | JavaScript  | UTF-16 code units    | 12*    |
+# | Java        | UTF-16 code units    | 12*    |
+# | Rust (str)  | Byte count           | 18     |
+# | Go          | Byte count           | 18     |
+# | C (strlen)  | Byte count (to NUL)  | 18     |
+# | Swift       | Grapheme clusters    | 11**   |
+# +-------------+----------------------+--------+
+# * Emoji counts as 2 (surrogate pair)
+# ** Swift is the most intuitive but at O(n) cost
 ```
 
 ```javascript
-// JavaScript での文字列長の罠
+// String length pitfalls in JavaScript
 
-const text = "Hello, 世界! 😀";
+const text = "Hello, sekai! grinning face";
 
-// .length は UTF-16 コードユニット数
-console.log(text.length);  // 12 (😀 がサロゲートペアで2カウント)
+// .length is the UTF-16 code unit count
+console.log(text.length);  // 12 (emoji is 2 due to surrogate pair)
 
-// コードポイント数
+// Code point count
 console.log([...text].length);  // 11
 
-// 正しい文字列操作
-// ❌ 危険: text[10] は絵文字の上位サロゲートのみ
-console.log(text[10]);  // '\uD83D' (壊れた文字)
+// Correct string operations
+// Bad: text[10] is only the high surrogate of the emoji
+console.log(text[10]);  // '\uD83D' (broken character)
 
-// ✅ 安全: Array.from() or スプレッド構文
+// Safe: Array.from() or spread syntax
 const chars = [...text];
-console.log(chars[10]);  // '😀'
+console.log(chars[10]);  // grinning face emoji
 
-// ✅ 安全: codePointAt / String.fromCodePoint
+// Safe: codePointAt / String.fromCodePoint
 for (const cp of text) {
     console.log(cp.codePointAt(0).toString(16));
 }
 
-// 書記素クラスタでの分割 (ES2022+)
+// Grapheme cluster segmentation (ES2022+)
 const segmenter = new Intl.Segmenter('ja', { granularity: 'grapheme' });
 const segments = [...segmenter.segment(text)];
 console.log(segments.length);  // 11
 ```
 
 ```rust
-// Rust での文字列操作
+// String operations in Rust
 
 fn main() {
-    let text = "Hello, 世界! 😀";
+    let text = "Hello, sekai! grinning face";
 
-    // .len() はバイト数
+    // .len() is the byte count
     println!("{}", text.len());  // 18
 
-    // .chars().count() はコードポイント数
+    // .chars().count() is the code point count
     println!("{}", text.chars().count());  // 11
 
-    // バイトでのイテレーション
+    // Iterating by bytes
     for b in text.bytes() {
         print!("{:02X} ", b);
     }
     println!();
 
-    // コードポイントでのイテレーション
+    // Iterating by code points
     for c in text.chars() {
         println!("U+{:04X} '{}'", c as u32, c);
     }
 
-    // 文字列スライスはバイト境界でないとパニック
-    // let s = &text[0..7]; // OK (ASCII部分)
-    // let s = &text[0..8]; // パニック! UTF-8の途中で切断
+    // String slicing panics if not at a character boundary
+    // let s = &text[0..7]; // OK (ASCII portion)
+    // let s = &text[0..8]; // Panics! Cuts in the middle of UTF-8
 
-    // 安全なスライス
+    // Safe slicing
     if text.is_char_boundary(7) {
         let s = &text[0..7];
         println!("{}", s);  // "Hello, "
     }
 
-    // char_indices でバイト位置とcharを取得
+    // char_indices to get byte positions and chars
     for (i, c) in text.char_indices() {
         println!("byte[{}]: U+{:04X} '{}'", i, c as u32, c);
     }
@@ -1061,22 +1061,22 @@ fn main() {
 
 ---
 
-## 6. 特殊な文字と制御文字
+## 6. Special Characters and Control Characters
 
-### 6.1 見えない文字
+### 6.1 Invisible Characters
 
 ```
-注意すべき見えない/紛らわしいUnicode文字:
+Invisible/confusable Unicode characters to watch out for:
 
-  【ゼロ幅文字】
-  U+200B  Zero Width Space（ゼロ幅スペース）
-  U+200C  Zero Width Non-Joiner（ZWNJ）
-  U+200D  Zero Width Joiner（ZWJ）
+  [Zero-width characters]
+  U+200B  Zero Width Space
+  U+200C  Zero Width Non-Joiner (ZWNJ)
+  U+200D  Zero Width Joiner (ZWJ)
   U+FEFF  BOM / Zero Width No-Break Space
 
-  【方向制御文字】
-  U+200E  Left-to-Right Mark（LRM）
-  U+200F  Right-to-Left Mark（RLM）
+  [Directional control characters]
+  U+200E  Left-to-Right Mark (LRM)
+  U+200F  Right-to-Left Mark (RLM)
   U+202A  Left-to-Right Embedding
   U+202B  Right-to-Left Embedding
   U+202C  Pop Directional Formatting
@@ -1084,22 +1084,22 @@ fn main() {
   U+2067  Right-to-Left Isolate
   U+2069  Pop Directional Isolate
 
-  【セキュリティ上の懸念】
-  - Bidi Override（U+202E）でテキスト方向を逆転
-    → ファイル名の偽装: "document.pdf" が実は "document.exe" に見える
-  - ゼロ幅文字をパスワードやユーザー名に混入
-    → 見た目は同じだが異なる文字列
-  - ホモグリフ攻撃: Cyrillicの 'а' (U+0430) vs Latin 'a' (U+0061)
-    → "аpple.com" は "apple.com" と見分けがつかない
+  [Security concerns]
+  - Bidi Override (U+202E) reverses text direction
+    -> File name spoofing: "document.pdf" might actually appear as "document.exe"
+  - Zero-width characters injected into passwords or usernames
+    -> Look identical but are different strings
+  - Homoglyph attacks: Cyrillic 'a' (U+0430) vs Latin 'a' (U+0061)
+    -> "apple.com" (with Cyrillic 'a') is indistinguishable from "apple.com"
 ```
 
 ```python
-# 見えない文字の検出と除去
+# Detecting and removing invisible characters
 
 import unicodedata
 
 def detect_invisible_chars(text):
-    """見えない文字を検出して報告"""
+    """Detect and report invisible characters"""
     invisible = []
     for i, char in enumerate(text):
         cat = unicodedata.category(char)
@@ -1109,111 +1109,111 @@ def detect_invisible_chars(text):
     return invisible
 
 def remove_invisible_chars(text):
-    """見えない文字を除去（改行・タブは保持）"""
+    """Remove invisible characters (preserving newlines and tabs)"""
     return ''.join(
         c for c in text
         if not unicodedata.category(c).startswith('C')
         or c in '\n\r\t'
     )
 
-# ホモグリフ検出
+# Homoglyph detection
 def detect_homoglyphs(text):
-    """ラテン文字に見えるが異なるスクリプトの文字を検出"""
+    """Detect characters that look like Latin letters but belong to different scripts"""
     suspicious = []
     for i, char in enumerate(text):
         if char.isalpha():
             script = unicodedata.name(char, '').split()[0] if unicodedata.name(char, '') else ''
-            # ラテン文字に見えるがCyrillicやGreekの文字
+            # Characters that look Latin but are Cyrillic or Greek
             if script in ('CYRILLIC', 'GREEK') and char.lower() in 'abcdefghijklmnopqrstuvwxyz':
                 suspicious.append((i, char, hex(ord(char)), script))
     return suspicious
 
 
-# Unicode カテゴリの概要
+# Unicode category overview
 categories = """
-L  = Letter（文字）
-  Lu = Uppercase Letter（大文字）
-  Ll = Lowercase Letter（小文字）
+L  = Letter
+  Lu = Uppercase Letter
+  Ll = Lowercase Letter
   Lt = Titlecase Letter
   Lm = Modifier Letter
-  Lo = Other Letter（漢字、ひらがな等）
+  Lo = Other Letter (kanji, hiragana, etc.)
 
-M  = Mark（結合文字）
-  Mn = Nonspacing Mark（濁点等）
+M  = Mark (combining characters)
+  Mn = Nonspacing Mark (dakuten, etc.)
   Mc = Spacing Combining Mark
   Me = Enclosing Mark
 
-N  = Number（数字）
-  Nd = Decimal Digit Number（0-9等）
-  Nl = Letter Number（ローマ数字等）
-  No = Other Number（丸数字等）
+N  = Number
+  Nd = Decimal Digit Number (0-9, etc.)
+  Nl = Letter Number (Roman numerals, etc.)
+  No = Other Number (circled numbers, etc.)
 
-P  = Punctuation（句読点）
-S  = Symbol（記号）
-Z  = Separator（空白文字）
+P  = Punctuation
+S  = Symbol
+Z  = Separator (whitespace)
   Zs = Space Separator
   Zl = Line Separator
   Zp = Paragraph Separator
 
-C  = Other（制御文字等）
+C  = Other (control characters, etc.)
   Cc = Control
-  Cf = Format（ZWJ, BOM等）
+  Cf = Format (ZWJ, BOM, etc.)
   Co = Private Use
   Cs = Surrogate
 """
 ```
 
-### 6.2 異体字セレクタ
+### 6.2 Variation Selectors
 
 ```
-異体字セレクタ（Variation Selector）:
+Variation Selectors:
 
-  同じ漢字でも字形が異なる場合がある:
-  「辻」の1点しんにょう vs 2点しんにょう
-  「葛」の旧字体 vs 新字体
+  The same kanji can have different glyph forms:
+  Different stroke counts for the "shinnyou" radical in certain kanji
+  Old vs new character forms
 
-  IVS（Ideographic Variation Sequence）:
-  基底文字 + 異体字セレクタ（U+E0100-U+E01EF）で字形を指定
+  IVS (Ideographic Variation Sequence):
+  Base character + variation selector (U+E0100-U+E01EF) specifies the glyph form
 
-  例:
-  U+8FBB + U+E0100 → 辻（1点しんにょう）
-  U+8FBB + U+E0101 → 辻（2点しんにょう）
+  Example:
+  U+8FBB + U+E0100 -> "tsuji" (1-dot shinnyou variant)
+  U+8FBB + U+E0101 -> "tsuji" (2-dot shinnyou variant)
 
-  注意:
-  - フォントがIVSをサポートしている必要がある
-  - 多くの環境ではデフォルト字形のみ表示
-  - 戸籍・住民票などの公的文書で重要
+  Notes:
+  - The font must support IVS
+  - Most environments display only the default glyph
+  - Important for official documents such as family registers and resident cards
 ```
 
 ---
 
-## 7. 実務での文字コード処理
+## 7. Character Encoding in Practice
 
-### 7.1 Webアプリケーション
+### 7.1 Web Applications
 
 ```html
-<!-- HTML での文字コード指定 -->
+<!-- Character encoding specification in HTML -->
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="en">
 <head>
-    <!-- 必ず最初の1024バイト以内に -->
+    <!-- Must appear within the first 1024 bytes -->
     <meta charset="utf-8">
-    <!-- Content-Type ヘッダーでも指定 -->
+    <!-- Also specified via the Content-Type header -->
     <!-- Content-Type: text/html; charset=utf-8 -->
-    <title>文字コードテスト</title>
+    <title>Character Encoding Test</title>
 </head>
 <body>
-    <!-- フォームのデフォルトエンコーディング -->
+    <!-- Default form encoding -->
     <form accept-charset="utf-8" method="post">
         <input type="text" name="name" value="">
-        <button type="submit">送信</button>
+        <button type="submit">Submit</button>
     </form>
 </body>
 </html>
 ```
 
 ```python
-# Flask での文字コード処理
+# Character encoding handling in Flask
 
 from flask import Flask, request, Response
 import json
@@ -1222,31 +1222,31 @@ app = Flask(__name__)
 
 @app.route('/api/data', methods=['POST'])
 def handle_data():
-    # リクエストのデコード
-    # Flask は Content-Type の charset を自動検出
+    # Decode the request
+    # Flask auto-detects charset from Content-Type
     text = request.data.decode('utf-8')
 
-    # JSON レスポンス（ensure_ascii=False で日本語をそのまま出力）
-    data = {"message": "こんにちは", "status": "ok"}
+    # JSON response (ensure_ascii=False to output non-ASCII characters directly)
+    data = {"message": "Hello", "status": "ok"}
     response = Response(
         json.dumps(data, ensure_ascii=False),
         content_type='application/json; charset=utf-8'
     )
     return response
 
-# Django の場合:
-# settings.py で DEFAULT_CHARSET = 'utf-8'（デフォルト）
+# For Django:
+# settings.py: DEFAULT_CHARSET = 'utf-8' (default)
 # FILE_CHARSET = 'utf-8'
 ```
 
-### 7.2 データベース操作
+### 7.2 Database Operations
 
 ```python
-# MySQL での絵文字対応
+# Emoji support in MySQL
 
 import mysql.connector
 
-# 接続時にutf8mb4を指定
+# Specify utf8mb4 at connection time
 conn = mysql.connector.connect(
     host='localhost',
     user='root',
@@ -1258,44 +1258,44 @@ conn = mysql.connector.connect(
 
 cursor = conn.cursor()
 
-# 絵文字を含むデータの挿入
+# Inserting data containing emoji
 cursor.execute(
     "INSERT INTO messages (content) VALUES (%s)",
-    ("こんにちは 😀🎉",)
+    ("Hello grinning face party emoji",)
 )
 conn.commit()
 
-# PostgreSQL の場合:
-# デフォルトでUTF-8をフルサポート
-# CREATE DATABASE mydb ENCODING 'UTF8' LC_COLLATE 'ja_JP.UTF-8';
+# For PostgreSQL:
+# Full UTF-8 support by default
+# CREATE DATABASE mydb ENCODING 'UTF8' LC_COLLATE 'en_US.UTF-8';
 ```
 
-### 7.3 ファイル入出力
+### 7.3 File I/O
 
 ```python
-# CSV ファイルの文字コード処理
+# Character encoding handling for CSV files
 
 import csv
 
-# UTF-8 CSV の読み込み
+# Reading a UTF-8 CSV
 with open('data.csv', 'r', encoding='utf-8') as f:
     reader = csv.reader(f)
     for row in reader:
         print(row)
 
-# Excel互換のCSV出力（BOM付きUTF-8）
+# Excel-compatible CSV output (BOM-prefixed UTF-8)
 with open('output.csv', 'w', encoding='utf-8-sig', newline='') as f:
     writer = csv.writer(f)
-    writer.writerow(['名前', '年齢', '住所'])
-    writer.writerow(['田中太郎', '30', '東京都'])
+    writer.writerow(['Name', 'Age', 'Address'])
+    writer.writerow(['Taro Tanaka', '30', 'Tokyo'])
 
-# Shift_JIS CSVの読み込み（レガシーシステムから）
+# Reading a Shift_JIS CSV (from a legacy system)
 with open('legacy.csv', 'r', encoding='shift_jis') as f:
     reader = csv.reader(f)
     for row in reader:
         print(row)
 
-# Shift_JIS → UTF-8 の一括変換
+# Bulk conversion from Shift_JIS to UTF-8
 def convert_encoding(input_path, output_path, from_enc='shift_jis', to_enc='utf-8'):
     with open(input_path, 'r', encoding=from_enc) as f_in:
         content = f_in.read()
@@ -1303,177 +1303,176 @@ def convert_encoding(input_path, output_path, from_enc='shift_jis', to_enc='utf-
         f_out.write(content)
 
 
-# JSON ファイル（常にUTF-8）
+# JSON files (always UTF-8)
 import json
 
-data = {"名前": "田中", "趣味": ["読書", "😀"]}
+data = {"name": "Tanaka", "hobbies": ["reading", "grinning face"]}
 
-# ensure_ascii=False が重要!
+# ensure_ascii=False is important!
 with open('data.json', 'w', encoding='utf-8') as f:
     json.dump(data, f, ensure_ascii=False, indent=2)
 
-# 結果: {"名前": "田中", "趣味": ["読書", "😀"]}
-# ensure_ascii=True だと: {"\u540d\u524d": "\u7530\u4e2d", ...}
+# Result: {"name": "Tanaka", "hobbies": ["reading", "grinning face"]}
+# With ensure_ascii=True: {"\u540d\u524d": "\u7530\u4e2d", ...}
 ```
 
-### 7.4 コマンドラインでの文字コード
+### 7.4 Character Encoding on the Command Line
 
 ```bash
-# ファイルの文字コード判定
+# Determine the character encoding of a file
 file -i document.txt
 # document.txt: text/plain; charset=utf-8
 
-# nkf（Network Kanji Filter）で変換
-nkf -w input_sjis.txt > output_utf8.txt     # Shift_JIS → UTF-8
-nkf -s input_utf8.txt > output_sjis.txt     # UTF-8 → Shift_JIS
-nkf --guess input.txt                        # エンコーディング推定
+# Convert using nkf (Network Kanji Filter)
+nkf -w input_sjis.txt > output_utf8.txt     # Shift_JIS -> UTF-8
+nkf -s input_utf8.txt > output_sjis.txt     # UTF-8 -> Shift_JIS
+nkf --guess input.txt                        # Estimate encoding
 
-# iconv で変換
+# Convert using iconv
 iconv -f SHIFT_JIS -t UTF-8 input.txt > output.txt
 
-# Python ワンライナー
+# Python one-liner
 python3 -c "
 import sys
 sys.stdout.buffer.write(
     sys.stdin.buffer.read().decode('shift_jis').encode('utf-8')
 )" < input_sjis.txt > output_utf8.txt
 
-# hexdump でバイト列確認
-echo -n "あ" | xxd
+# Check byte sequence with hexdump
+echo -n "a" | xxd
 # 00000000: e381 82                                  ...
-# → E3 81 82 = UTF-8の「あ」
+# -> E3 81 82 = UTF-8 for hiragana 'a'
 
-# ロケール確認
+# Check locale
 locale
-# LANG=ja_JP.UTF-8
+# LANG=en_US.UTF-8
 
-# 環境変数での文字コード設定
-export LANG=ja_JP.UTF-8
-export LC_ALL=ja_JP.UTF-8
+# Set character encoding via environment variables
+export LANG=en_US.UTF-8
+export LC_ALL=en_US.UTF-8
 ```
 
 ---
 
-## 8. 実践演習
+## 8. Practical Exercises
 
-### 演習1: UTF-8エンコード（基礎）
-以下の文字のUTF-8バイト列を手計算で求めよ:
+### Exercise 1: UTF-8 Encoding (Basic)
+Calculate the UTF-8 byte sequence for the following characters by hand:
 1. 'Z' (U+005A)
-2. '¥' (U+00A5)
-3. '漢' (U+6F22)
-4. '𠮷' (U+20BB7)
+2. Yen sign (U+00A5)
+3. Kanji 'kan' (U+6F22)
+4. Kanji 'tsuchiyoshi' (U+20BB7)
 
-### 演習2: 文字化け解析（応用）
-バイト列 `E6 97 A5 E6 9C AC E8 AA 9E` をUTF-8としてデコードし、元の文字列を求めよ。
+### Exercise 2: Garbled Text Analysis (Intermediate)
+Decode the byte sequence `E6 97 A5 E6 9C AC E8 AA 9E` as UTF-8 and determine the original string.
 
-### 演習3: Unicode正規化の実装（発展）
-Pythonで、2つの文字列が「見た目」が同じか（NFC/NFD正規化後に一致するか）を判定する関数を作成せよ。
+### Exercise 3: Unicode Normalization Implementation (Advanced)
+Create a Python function that determines whether two strings are "visually identical" (i.e., match after NFC/NFD normalization).
 
-### 演習4: サロゲートペア計算
-以下のコードポイントをUTF-16サロゲートペアに変換せよ:
+### Exercise 4: Surrogate Pair Calculation
+Convert the following code points to UTF-16 surrogate pairs:
 1. U+1F4A9
 2. U+1F1EF (Regional Indicator J)
 3. U+20000
 
-### 演習5: 文字コード変換ツール
-Pythonで以下の機能を持つCLIツールを実装せよ:
-- 入力ファイルのエンコーディング自動判定
-- 指定エンコーディングへの変換
-- 変換レポートの出力
+### Exercise 5: Character Encoding Conversion Tool
+Implement a CLI tool in Python with the following features:
+- Automatic detection of input file encoding
+- Conversion to a specified encoding
+- Conversion report output
 
-### 演習解答例
+### Exercise Solutions
 
 ```python
-# 演習1 解答
+# Exercise 1 Solutions
 
 # 'Z' = U+005A
-# 2進: 101 1010 (7ビット → 1バイト)
+# Binary: 101 1010 (7 bits -> 1 byte)
 # UTF-8: 0_1011010 = 0x5A
 print('Z'.encode('utf-8').hex())  # 5a
 
-# '¥' = U+00A5
-# 2進: 10 100101 (8ビット → 2バイト)
-# 分割: 00010 100101
+# Yen sign = U+00A5
+# Binary: 10 100101 (8 bits -> 2 bytes)
+# Split: 00010 100101
 # UTF-8: 110_00010 10_100101 = 0xC2 0xA5
-print('¥'.encode('utf-8').hex())  # c2a5
+print('\u00a5'.encode('utf-8').hex())  # c2a5
 
-# '漢' = U+6F22
-# 2進: 0110 1111 0010 0010 (16ビット → 3バイト)
-# 分割: 0110 111100 100010
+# 'kan' = U+6F22
+# Binary: 0110 1111 0010 0010 (16 bits -> 3 bytes)
+# Split: 0110 111100 100010
 # UTF-8: 1110_0110 10_111100 10_100010 = 0xE6 0xBC 0xA2
-print('漢'.encode('utf-8').hex())  # e6bca2
+print('\u6f22'.encode('utf-8').hex())  # e6bca2
 
-# '𠮷' = U+20BB7
-# 2進: 0010 0000 1011 1011 0111 (21ビット → 4バイト)
-# 分割: 000 100000 101110 110111
+# 'tsuchiyoshi' = U+20BB7
+# Binary: 0010 0000 1011 1011 0111 (21 bits -> 4 bytes)
+# Split: 000 100000 101110 110111
 # UTF-8: 11110_000 10_100000 10_101110 10_110111 = 0xF0 0xA0 0xAE 0xB7
-print('𠮷'.encode('utf-8').hex())  # f0a0aeb7
+print('\U00020bb7'.encode('utf-8').hex())  # f0a0aeb7
 
 
-# 演習2 解答
+# Exercise 2 Solution
 bytes_data = bytes([0xE6, 0x97, 0xA5, 0xE6, 0x9C, 0xAC, 0xE8, 0xAA, 0x9E])
 result = bytes_data.decode('utf-8')
-print(result)  # '日本語'
+print(result)  # 'nihongo' (Japanese word meaning "Japanese language")
 
-# 手動デコード:
+# Manual decoding:
 # E6 97 A5:
 #   1110_0110 10_010111 10_100101
-#   0110 010111 100101 = 0x65E5 → 不正
-#   正しくは: 0110 100111 100101 ... → U+65E5 = '日'
+#   -> U+65E5 = 'nichi' (sun/day)
 
 
-# 演習3 解答
+# Exercise 3 Solution
 import unicodedata
 
 def visual_equal(s1, s2):
-    """2つの文字列が見た目上同じかを判定"""
-    # NFC正規化で比較
+    """Determine whether two strings are visually identical"""
+    # Compare after NFC normalization
     nfc1 = unicodedata.normalize('NFC', s1)
     nfc2 = unicodedata.normalize('NFC', s2)
     if nfc1 == nfc2:
         return True
 
-    # NFKC正規化でも比較（互換文字の違いも吸収）
+    # Also compare after NFKC normalization (absorbs compatibility character differences)
     nfkc1 = unicodedata.normalize('NFKC', s1)
     nfkc2 = unicodedata.normalize('NFKC', s2)
     return nfkc1 == nfkc2
 
-# テスト
-print(visual_equal('\u304C', '\u304B\u3099'))  # True (が = か+゛)
-print(visual_equal('Ａ', 'A'))                  # True (全角A = 半角A, NFKC)
-print(visual_equal('あ', 'ア'))                  # False
+# Test
+print(visual_equal('\u304C', '\u304B\u3099'))  # True (ga = ka + dakuten)
+print(visual_equal('\uff21', 'A'))              # True (full-width A = half-width A, NFKC)
+print(visual_equal('\u3042', '\u30A2'))         # False (hiragana 'a' != katakana 'a')
 ```
 
 
 ---
 
-## トラブルシューティング
+## Troubleshooting
 
-### よくあるエラーと解決策
+### Common Errors and Solutions
 
-| エラー | 原因 | 解決策 |
-|--------|------|--------|
-| 初期化エラー | 設定ファイルの不備 | 設定ファイルのパスと形式を確認 |
-| タイムアウト | ネットワーク遅延/リソース不足 | タイムアウト値の調整、リトライ処理の追加 |
-| メモリ不足 | データ量の増大 | バッチ処理の導入、ページネーションの実装 |
-| 権限エラー | アクセス権限の不足 | 実行ユーザーの権限確認、設定の見直し |
-| データ不整合 | 並行処理の競合 | ロック機構の導入、トランザクション管理 |
+| Error | Cause | Solution |
+|-------|-------|----------|
+| Initialization error | Configuration file issues | Verify configuration file path and format |
+| Timeout | Network latency / resource shortage | Adjust timeout values, add retry logic |
+| Out of memory | Data volume growth | Introduce batch processing, implement pagination |
+| Permission error | Insufficient access rights | Verify user permissions, review settings |
+| Data inconsistency | Concurrent processing conflicts | Introduce locking mechanisms, manage transactions |
 
-### デバッグの手順
+### Debugging Steps
 
-1. **エラーメッセージの確認**: スタックトレースを読み、発生箇所を特定する
-2. **再現手順の確立**: 最小限のコードでエラーを再現する
-3. **仮説の立案**: 考えられる原因をリストアップする
-4. **段階的な検証**: ログ出力やデバッガを使って仮説を検証する
-5. **修正と回帰テスト**: 修正後、関連する箇所のテストも実行する
+1. **Check error messages**: Read the stack trace and identify the location of the error
+2. **Establish reproduction steps**: Reproduce the error with minimal code
+3. **Formulate hypotheses**: List possible causes
+4. **Verify step by step**: Use log output or a debugger to validate hypotheses
+5. **Fix and regression test**: After fixing, run tests on related areas as well
 
 ```python
-# デバッグ用ユーティリティ
+# Debugging utilities
 import logging
 import traceback
 from functools import wraps
 
-# ロガーの設定
+# Logger setup
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
@@ -1481,102 +1480,102 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def debug_decorator(func):
-    """関数の入出力をログ出力するデコレータ"""
+    """Decorator that logs function inputs and outputs"""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        logger.debug(f"呼び出し: {func.__name__}(args={args}, kwargs={kwargs})")
+        logger.debug(f"Call: {func.__name__}(args={args}, kwargs={kwargs})")
         try:
             result = func(*args, **kwargs)
-            logger.debug(f"戻り値: {func.__name__} -> {result}")
+            logger.debug(f"Return: {func.__name__} -> {result}")
             return result
         except Exception as e:
-            logger.error(f"例外発生: {func.__name__}: {e}")
+            logger.error(f"Exception: {func.__name__}: {e}")
             logger.error(traceback.format_exc())
             raise
     return wrapper
 
 @debug_decorator
 def process_data(items):
-    """データ処理（デバッグ対象）"""
+    """Data processing (debug target)"""
     if not items:
-        raise ValueError("空のデータ")
+        raise ValueError("Empty data")
     return [item * 2 for item in items]
 ```
 
-### パフォーマンス問題の診断
+### Diagnosing Performance Issues
 
-パフォーマンス問題が発生した場合の診断手順:
+Steps for diagnosing performance issues:
 
-1. **ボトルネックの特定**: プロファイリングツールで計測
-2. **メモリ使用量の確認**: メモリリークの有無をチェック
-3. **I/O待ちの確認**: ディスクやネットワークI/Oの状況を確認
-4. **同時接続数の確認**: コネクションプールの状態を確認
+1. **Identify the bottleneck**: Measure using profiling tools
+2. **Check memory usage**: Check for memory leaks
+3. **Check I/O waits**: Examine disk and network I/O conditions
+4. **Check concurrent connections**: Inspect connection pool status
 
-| 問題の種類 | 診断ツール | 対策 |
-|-----------|-----------|------|
-| CPU負荷 | cProfile, py-spy | アルゴリズム改善、並列化 |
-| メモリリーク | tracemalloc, objgraph | 参照の適切な解放 |
-| I/Oボトルネック | strace, iostat | 非同期I/O、キャッシュ |
-| DB遅延 | EXPLAIN, slow query log | インデックス、クエリ最適化 |
+| Problem Type | Diagnostic Tool | Solution |
+|-------------|----------------|----------|
+| CPU load | cProfile, py-spy | Algorithm improvements, parallelization |
+| Memory leak | tracemalloc, objgraph | Proper reference release |
+| I/O bottleneck | strace, iostat | Asynchronous I/O, caching |
+| DB latency | EXPLAIN, slow query log | Indexing, query optimization |
 
 ---
 
-## 設計判断ガイド
+## Design Decision Guide
 
-### 選択基準マトリクス
+### Selection Criteria Matrix
 
-技術選択を行う際の判断基準を以下にまとめます。
+The following summarizes the criteria for technology selection decisions.
 
-| 判断基準 | 重視する場合 | 妥協できる場合 |
-|---------|------------|-------------|
-| パフォーマンス | リアルタイム処理、大規模データ | 管理画面、バッチ処理 |
-| 保守性 | 長期運用、チーム開発 | プロトタイプ、短期プロジェクト |
-| スケーラビリティ | 成長が見込まれるサービス | 社内ツール、固定ユーザー |
-| セキュリティ | 個人情報、金融データ | 公開データ、社内利用 |
-| 開発速度 | MVP、市場投入スピード | 品質重視、ミッションクリティカル |
+| Criterion | Prioritize when | Can compromise when |
+|-----------|----------------|-------------------|
+| Performance | Real-time processing, large-scale data | Admin panels, batch processing |
+| Maintainability | Long-term operation, team development | Prototypes, short-term projects |
+| Scalability | Services expected to grow | Internal tools, fixed user base |
+| Security | Personal data, financial data | Public data, internal use |
+| Development speed | MVP, time-to-market | Quality-focused, mission-critical |
 
-### アーキテクチャパターンの選択
+### Architecture Pattern Selection
 
 ```
-┌─────────────────────────────────────────────────┐
-│              アーキテクチャ選択フロー              │
-├─────────────────────────────────────────────────┤
-│                                                 │
-│  ① チーム規模は？                                │
-│    ├─ 小規模（1-5人）→ モノリス                   │
-│    └─ 大規模（10人+）→ ②へ                       │
-│                                                 │
-│  ② デプロイ頻度は？                               │
-│    ├─ 週1回以下 → モノリス + モジュール分割         │
-│    └─ 毎日/複数回 → ③へ                          │
-│                                                 │
-│  ③ チーム間の独立性は？                            │
-│    ├─ 高い → マイクロサービス                      │
-│    └─ 中程度 → モジュラーモノリス                   │
-│                                                 │
-└─────────────────────────────────────────────────┘
++---------------------------------------------------+
+|          Architecture Selection Flow               |
++---------------------------------------------------+
+|                                                    |
+|  (1) Team size?                                    |
+|    +-- Small (1-5 people) -> Monolith              |
+|    +-- Large (10+ people) -> Go to (2)             |
+|                                                    |
+|  (2) Deployment frequency?                         |
+|    +-- Once a week or less -> Monolith + modules   |
+|    +-- Daily/multiple times -> Go to (3)           |
+|                                                    |
+|  (3) Team independence?                            |
+|    +-- High -> Microservices                       |
+|    +-- Moderate -> Modular Monolith                |
+|                                                    |
++---------------------------------------------------+
 ```
 
-### トレードオフの分析
+### Trade-off Analysis
 
-技術的な判断には必ずトレードオフが伴います。以下の観点で分析を行いましょう:
+Technical decisions always involve trade-offs. Analyze from the following perspectives:
 
-**1. 短期 vs 長期のコスト**
-- 短期的に速い方法が長期的には技術的負債になることがある
-- 逆に、過剰な設計は短期的なコストが高く、プロジェクトの遅延を招く
+**1. Short-term vs Long-term Costs**
+- A fast short-term approach can become technical debt in the long run
+- Conversely, over-engineering incurs high short-term costs and may delay the project
 
-**2. 一貫性 vs 柔軟性**
-- 統一された技術スタックは学習コストが低い
-- 多様な技術の採用は適材適所が可能だが、運用コストが増加
+**2. Consistency vs Flexibility**
+- A unified technology stack has lower learning costs
+- Adopting diverse technologies enables best-fit solutions but increases operational costs
 
-**3. 抽象化のレベル**
-- 高い抽象化は再利用性が高いが、デバッグが困難になる場合がある
-- 低い抽象化は直感的だが、コードの重複が発生しやすい
+**3. Level of Abstraction**
+- High abstraction offers greater reusability but can make debugging difficult
+- Low abstraction is intuitive but prone to code duplication
 
 ```python
-# 設計判断の記録テンプレート
+# Design decision recording template
 class ArchitectureDecisionRecord:
-    """ADR (Architecture Decision Record) の作成"""
+    """Create an ADR (Architecture Decision Record)"""
 
     def __init__(self, title: str):
         self.title = title
@@ -1586,17 +1585,17 @@ class ArchitectureDecisionRecord:
         self.alternatives = []
 
     def set_context(self, context: str):
-        """背景と課題の記述"""
+        """Describe the background and problem"""
         self.context = context
         return self
 
     def set_decision(self, decision: str):
-        """決定内容の記述"""
+        """Describe the decision"""
         self.decision = decision
         return self
 
     def add_consequence(self, consequence: str, positive: bool = True):
-        """結果の追加"""
+        """Add a consequence"""
         self.consequences.append({
             'description': consequence,
             'type': 'positive' if positive else 'negative'
@@ -1604,7 +1603,7 @@ class ArchitectureDecisionRecord:
         return self
 
     def add_alternative(self, name: str, reason_rejected: str):
-        """却下した代替案の追加"""
+        """Add a rejected alternative"""
         self.alternatives.append({
             'name': name,
             'reason_rejected': reason_rejected
@@ -1612,15 +1611,15 @@ class ArchitectureDecisionRecord:
         return self
 
     def to_markdown(self) -> str:
-        """Markdown形式で出力"""
+        """Output in Markdown format"""
         md = f"# ADR: {self.title}\n\n"
-        md += f"## 背景\n{self.context}\n\n"
-        md += f"## 決定\n{self.decision}\n\n"
-        md += "## 結果\n"
+        md += f"## Context\n{self.context}\n\n"
+        md += f"## Decision\n{self.decision}\n\n"
+        md += "## Consequences\n"
         for c in self.consequences:
-            icon = "✅" if c['type'] == 'positive' else "⚠️"
+            icon = "+" if c['type'] == 'positive' else "!"
             md += f"- {icon} {c['description']}\n"
-        md += "\n## 却下した代替案\n"
+        md += "\n## Rejected Alternatives\n"
         for a in self.alternatives:
             md += f"- **{a['name']}**: {a['reason_rejected']}\n"
         return md
@@ -1629,59 +1628,59 @@ class ArchitectureDecisionRecord:
 
 ## FAQ
 
-### Q1: BOM（Byte Order Mark）は必要ですか？
-**A**: UTF-8では不要（むしろ有害な場合あり）。UTF-16/UTF-32ではエンディアン判定に必要。BOM（U+FEFF）がUTF-8ファイルの先頭にあると、シェルスクリプトやCSV解析でエラーの原因になる。ExcelでCSVを正しく開くためにBOM付きUTF-8（`utf-8-sig`）が必要な場合がある。
+### Q1: Is a BOM (Byte Order Mark) necessary?
+**A**: Not needed for UTF-8 (and can even be harmful). It is needed for UTF-16/UTF-32 to determine endianness. A BOM (U+FEFF) at the beginning of a UTF-8 file can cause errors in shell scripts or CSV parsing. BOM-prefixed UTF-8 (`utf-8-sig`) may be required to correctly open CSVs in Excel.
 
-### Q2: 絵文字はどう実装されていますか？
-**A**: Unicodeで標準化。U+1F600〜に割り当て。肌の色は修飾子（U+1F3FB〜U+1F3FF）で変更。家族絵文字はZWJ（Zero Width Joiner）で複数の絵文字を結合。国旗はRegional Indicator記号のペアで表現（JP → U+1F1EF U+1F1F5）。
+### Q2: How are emoji implemented?
+**A**: Standardized in Unicode. Assigned starting from U+1F600. Skin tones are modified via modifiers (U+1F3FB-U+1F3FF). Family emoji are composed by joining multiple emoji with ZWJ (Zero Width Joiner). National flags are represented as pairs of Regional Indicator symbols (e.g., JP = U+1F1EF U+1F1F5).
 
-### Q3: ASCII以外のファイル名は安全ですか？
-**A**: OS依存:
-- macOS: NFD正規化を強制（ファイル名が意図しない形に）
-- Linux: バイト列として格納（UTF-8推奨だが強制なし）
-- Windows: UTF-16で格納（内部はUCS-2の拡張）
-安全を期すなら英数字とハイフン/アンダースコアのみ使用。
+### Q3: Are non-ASCII file names safe?
+**A**: OS-dependent:
+- macOS: Forces NFD normalization (file names may take unintended forms)
+- Linux: Stored as byte sequences (UTF-8 recommended but not enforced)
+- Windows: Stored in UTF-16 (internally an extension of UCS-2)
+For maximum safety, use only alphanumeric characters, hyphens, and underscores.
 
-### Q4: MySQLでutf8ではなくutf8mb4を使うべき理由は？
-**A**: MySQLの`utf8`は最大3バイト（BMP内のU+0000-U+FFFFのみ）しかサポートしない独自仕様。絵文字（U+1F600等）やCJK拡張漢字（U+20000以降）は4バイト必要なので`utf8mb4`が必須。`utf8mb4`が本来のUTF-8仕様に準拠。
+### Q4: Why should you use utf8mb4 instead of utf8 in MySQL?
+**A**: MySQL's `utf8` is a proprietary implementation that supports only up to 3 bytes (BMP only, U+0000-U+FFFF). Emoji (U+1F600, etc.) and CJK Extended ideographs (U+20000 and beyond) require 4 bytes, making `utf8mb4` essential. `utf8mb4` conforms to the actual UTF-8 specification.
 
-### Q5: CJK統合漢字とは何ですか？
-**A**: 中国語（Chinese）、日本語（Japanese）、韓国語（Korean）で共通する漢字を統合（Han Unification）したUnicodeの領域。例えば「海」は中日韓で字形が微妙に異なるが、同一コードポイント（U+6D77）に割り当てられている。これはUnicodeの最も論争的な設計判断の一つで、適切なフォント選択が重要。
+### Q5: What are CJK Unified Ideographs?
+**A**: A Unicode region that unifies kanji characters shared across Chinese, Japanese, and Korean (Han Unification). For example, the character for "sea" has slightly different glyph forms in Chinese, Japanese, and Korean, but is assigned the same code point (U+6D77). This is one of Unicode's most controversial design decisions, and proper font selection is important.
 
-### Q6: 文字列の正しい比較方法は？
-**A**: 用途による:
-- 完全一致: NFCに正規化してからバイト列比較
-- 大小無視: casefold()（Pythonの場合）してから比較（`str.lower()`より正確）
-- 検索用: NFKCに正規化して互換文字の違いも吸収
-- ロケール依存ソート: ICUのCollationを使用
-- セキュリティ: ホモグリフ・見えない文字のチェックも追加
-
----
-
-## まとめ
-
-| 概念 | ポイント |
-|------|---------|
-| ASCII | 7ビット128文字。英語のみ。全ての基盤 |
-| Unicode | 全言語を統一。コードポイント U+0000〜U+10FFFF |
-| UTF-8 | 可変長(1-4バイト)。ASCII互換。Webの98%で使用 |
-| UTF-16 | 可変長(2or4バイト)。Windows/Java/JSの内部表現 |
-| UTF-32 | 固定長(4バイト)。シンプルだがメモリ非効率 |
-| 文字化け | エンコーディング不一致が原因。全レイヤーでUTF-8統一 |
-| 正規化 | NFC/NFD/NFKC/NFKDの違いに注意。比較前に正規化必須 |
-| 書記素クラスタ | 1「文字」≠1コードポイント。絵文字で顕著 |
-| サロゲートペア | BMP外のコードポイントをUTF-16で表す仕組み |
-| セキュリティ | ホモグリフ、見えない文字、Bidiオーバーライドに注意 |
+### Q6: What is the correct way to compare strings?
+**A**: Depends on the use case:
+- Exact match: Normalize to NFC first, then compare byte sequences
+- Case-insensitive: Use casefold() (in Python) then compare (more accurate than str.lower())
+- Search: Normalize to NFKC to absorb compatibility character differences
+- Locale-dependent sorting: Use ICU's Collation
+- Security: Also check for homoglyphs and invisible characters
 
 ---
 
-## 次に読むべきガイド
+## Summary
+
+| Concept | Key Points |
+|---------|-----------|
+| ASCII | 7-bit, 128 characters. English only. Foundation of everything |
+| Unicode | Unifies all languages. Code points U+0000 to U+10FFFF |
+| UTF-8 | Variable-length (1-4 bytes). ASCII-compatible. Used by 98%+ of the Web |
+| UTF-16 | Variable-length (2 or 4 bytes). Internal representation of Windows/Java/JS |
+| UTF-32 | Fixed-length (4 bytes). Simple but memory-inefficient |
+| Garbled text | Caused by encoding mismatch. Unify UTF-8 across all layers |
+| Normalization | Note the differences between NFC/NFD/NFKC/NFKD. Normalize before comparison |
+| Grapheme clusters | 1 "character" does not always equal 1 code point. Prominent with emoji |
+| Surrogate pairs | Mechanism for representing code points outside the BMP in UTF-16 |
+| Security | Watch out for homoglyphs, invisible characters, and Bidi overrides |
 
 ---
 
-## 参考文献
+## Recommended Next Guides
+
+---
+
+## References
 1. Unicode Consortium. "The Unicode Standard." https://unicode.org/
-2. Pike, R. & Thompson, K. "Hello World, or Καλημέρα κόσμε, or こんにちは 世界." UTF-8 Design, 1992.
+2. Pike, R. & Thompson, K. "Hello World, or Kalimera kosme, or konnichiha sekai." UTF-8 Design, 1992.
 3. Spolsky, J. "The Absolute Minimum Every Software Developer Absolutely, Positively Must Know About Unicode and Character Sets." 2003.
 4. W3C. "Character encodings for beginners." https://www.w3.org/International/
 5. RFC 3629. "UTF-8, a transformation format of ISO 10646." IETF, 2003.

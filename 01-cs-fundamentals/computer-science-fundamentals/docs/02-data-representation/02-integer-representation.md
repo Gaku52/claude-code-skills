@@ -1,36 +1,36 @@
-# 整数表現と2の補数
+# Integer Representation and Two's Complement
 
-> コンピュータが負の数を表現する方法は「2の補数」という天才的な仕組みであり、加算器1つで加算も減算もこなせる。
+> The way computers represent negative numbers -- two's complement -- is an ingenious mechanism that allows a single adder circuit to handle both addition and subtraction.
 
-## この章で学ぶこと
+## Learning Objectives
 
-- [ ] 符号なし整数と符号付き整数の違いを説明できる
-- [ ] 2の補数の仕組みを手計算で確認できる
-- [ ] オーバーフローの原因と対策を説明できる
-- [ ] エンディアン（バイトオーダー）の違いを理解する
-- [ ] 固定小数点数の仕組みと金融計算での応用を理解する
-- [ ] 各言語の整数型の特性と制限を把握する
+- [ ] Explain the difference between unsigned and signed integers
+- [ ] Manually verify the two's complement mechanism through hand calculation
+- [ ] Explain the causes of and solutions for overflow
+- [ ] Understand the differences in endianness (byte order)
+- [ ] Understand the mechanism of fixed-point numbers and their application in financial calculations
+- [ ] Be aware of the characteristics and limitations of integer types in each language
 
-## 前提知識
+## Prerequisites
 
 
 ---
 
-## 1. 符号なし整数（Unsigned Integer）
+## 1. Unsigned Integers
 
-### 1.1 基本
+### 1.1 Basics
 
 ```
-符号なし整数: 全ビットを値の表現に使用
+Unsigned integers: all bits are used for value representation
 
-  Nビットで表現できる範囲: 0 〜 2^N - 1
+  Range representable with N bits: 0 to 2^N - 1
 
-  8ビット (uint8):   0 〜 255
-  16ビット (uint16):  0 〜 65,535
-  32ビット (uint32):  0 〜 4,294,967,295 (約43億)
-  64ビット (uint64):  0 〜 18,446,744,073,709,551,615 (約1844京)
+  8-bit (uint8):   0 to 255
+  16-bit (uint16):  0 to 65,535
+  32-bit (uint32):  0 to 4,294,967,295 (approx. 4.3 billion)
+  64-bit (uint64):  0 to 18,446,744,073,709,551,615 (approx. 1.8 x 10^19)
 
-  例: 8ビットでの表現
+  Example: 8-bit representation
   0000 0000 =   0
   0000 0001 =   1
   0111 1111 = 127
@@ -38,124 +38,124 @@
   1111 1111 = 255
 ```
 
-### 1.2 符号なし整数の演算
+### 1.2 Unsigned Integer Arithmetic
 
 ```
-符号なし整数の加算（8ビット）:
+Unsigned integer addition (8-bit):
 
-  基本加算:
+  Basic addition:
     0000 0011 (3)
   + 0000 0101 (5)
   ──────────────
-    0000 1000 (8) ✓
+    0000 1000 (8)
 
-  キャリー（繰り上がり）付き加算:
+  Addition with carry:
     0110 1100 (108)
   + 0011 0101 (53)
   ──────────────
-    1010 0001 (161) ✓
+    1010 0001 (161)
 
-  ラップアラウンド（オーバーフロー）:
+  Wraparound (overflow):
     1111 1111 (255)
   + 0000 0001 (1)
   ──────────────
-  1 0000 0000 → 8ビットに切り詰め → 0000 0000 (0)
-  キャリーフラグ = 1（キャリーアウト）
+  1 0000 0000 -> truncated to 8 bits -> 0000 0000 (0)
+  Carry flag = 1 (carry out)
 
-  符号なし整数の減算:
-    実際には「2の補数を加算」として実行される
-    5 - 3 → 5 + (-3) → 5 + (256 - 3) → 5 + 253 = 258 → 8ビット: 2
+  Unsigned integer subtraction:
+    Actually performed as "add the two's complement"
+    5 - 3 -> 5 + (-3) -> 5 + (256 - 3) -> 5 + 253 = 258 -> 8-bit: 2
 
     0000 0101 (5)
-  + 1111 1101 (253 = -3の2の補数表現)
+  + 1111 1101 (253 = two's complement representation of -3)
   ──────────────
-  1 0000 0010 → キャリーを捨てて → 0000 0010 (2) ✓
+  1 0000 0010 -> discard carry -> 0000 0010 (2)
 
 
-符号なし整数の乗算:
+Unsigned integer multiplication:
 
-  8ビット × 8ビット → 最大 255 × 255 = 65,025 → 16ビット必要
-  → 乗算結果は元のビット幅の2倍のビット数が必要
+  8-bit x 8-bit -> max 255 x 255 = 65,025 -> 16 bits needed
+  -> Multiplication result requires up to twice the original bit width
 
-  実務的な注意:
-  - C言語: unsigned char の乗算は int に昇格してから実行
-  - 結果を元の型に格納するとオーバーフローの可能性
-  - 中間計算はより広い型で行うのが安全
+  Practical notes:
+  - C language: unsigned char multiplication is promoted to int before execution
+  - Storing the result back to the original type may cause overflow
+  - Safer to perform intermediate calculations in a wider type
 ```
 
-### 1.3 各言語での符号なし整数
+### 1.3 Unsigned Integers in Each Language
 
 ```python
-# Python: 整数に上限なし（任意精度整数）
-x = 2**64  # 18446744073709551616 — 問題なく扱える
-x = 2**1000  # これも問題なし
+# Python: integers have no upper limit (arbitrary-precision integers)
+x = 2**64  # 18446744073709551616 -- handled without issue
+x = 2**1000  # Also no problem
 
-# ただしctypesやstructで固定幅を扱う場合は制限あり
+# However, ctypes and struct have fixed-width limitations
 import struct
 struct.pack('B', 255)   # uint8: OK
 # struct.pack('B', 256)   # struct.error: ubyte format requires 0 <= number <= 255
 
-# struct フォーマット文字
+# struct format characters
 # 'B' = uint8,  'b' = int8
 # 'H' = uint16, 'h' = int16
 # 'I' = uint32, 'i' = int32
 # 'Q' = uint64, 'q' = int64
 
-# ctypes での固定幅整数
+# Fixed-width integers with ctypes
 import ctypes
 val = ctypes.c_uint8(255)
 print(val.value)  # 255
 val = ctypes.c_uint8(256)
-print(val.value)  # 0 (ラップアラウンド)
+print(val.value)  # 0 (wraparound)
 
-# numpy での固定幅整数
+# Fixed-width integers with numpy
 import numpy as np
 a = np.uint8(255)
-print(a + np.uint8(1))  # 0 (ラップアラウンド、警告あり)
+print(a + np.uint8(1))  # 0 (wraparound, with warning)
 ```
 
 ```rust
-// Rust: 明示的な型指定が必須
+// Rust: explicit type annotation is required
 let a: u8 = 255;    // OK
-// let b: u8 = 256;    // コンパイルエラー！
-let c: u32 = 4_294_967_295;  // OK (アンダースコアで視認性向上)
+// let b: u8 = 256;    // Compile error!
+let c: u32 = 4_294_967_295;  // OK (underscores for readability)
 let d: u64 = 18_446_744_073_709_551_615;  // OK
 
-// 型変換
+// Type conversion
 let small: u8 = 200;
-let large: u32 = small as u32;   // 安全な拡張（200のまま）
-let back: u8 = large as u8;     // 切り捨て（200が戻る）
+let large: u32 = small as u32;   // Safe widening (remains 200)
+let back: u8 = large as u8;     // Truncation (200 is preserved)
 
-// u16 → u8 の切り捨て
+// u16 -> u8 truncation
 let big: u16 = 300;
 let truncated: u8 = big as u8;  // 300 - 256 = 44
 
-// usize: プラットフォーム依存のサイズ（32ビットOS=32bit, 64ビットOS=64bit）
-let index: usize = 42;  // 配列インデックスに使用
+// usize: platform-dependent size (32-bit OS = 32bit, 64-bit OS = 64bit)
+let index: usize = 42;  // Used for array indexing
 ```
 
 ```go
-// Go: 明確な型システム
+// Go: clear type system
 var a uint8 = 255
 var b uint16 = 65535
 var c uint32 = 4294967295
 var d uint64 = 18446744073709551615
 
-// uint: プラットフォーム依存（32 or 64ビット）
+// uint: platform-dependent (32 or 64 bits)
 var e uint = 42
 
-// byte は uint8 のエイリアス
+// byte is an alias for uint8
 var f byte = 0xFF
 
-// 型変換は明示的
-var g uint32 = uint32(a)  // uint8 → uint32
-var h uint8 = uint8(b)    // uint16 → uint8（切り捨て）
+// Type conversion is explicit
+var g uint32 = uint32(a)  // uint8 -> uint32
+var h uint8 = uint8(b)    // uint16 -> uint8 (truncation)
 
-// オーバーフローチェックはない（ラップアラウンド）
+// No overflow checking (wraparound)
 var i uint8 = 255
-i++  // i = 0 (ラップアラウンド、エラーなし)
+i++  // i = 0 (wraparound, no error)
 
-// math パッケージの定数
+// Constants from the math package
 import "math"
 fmt.Println(math.MaxUint8)   // 255
 fmt.Println(math.MaxUint16)  // 65535
@@ -163,186 +163,186 @@ fmt.Println(math.MaxUint32)  // 4294967295
 ```
 
 ```javascript
-// JavaScript: Number型は64ビット浮動小数点
-// → 安全に扱える整数の範囲は限定的
+// JavaScript: Number type is 64-bit floating point
+// -> The range of safely representable integers is limited
 Number.MAX_SAFE_INTEGER  // 9007199254740991 (2^53 - 1)
 Number.MIN_SAFE_INTEGER  // -9007199254740991
 
-// 安全な範囲を超えると精度が失われる
-console.log(9007199254740992 === 9007199254740993);  // true!（区別不可）
+// Beyond the safe range, precision is lost
+console.log(9007199254740992 === 9007199254740993);  // true! (indistinguishable)
 
-// BigInt で任意精度
+// BigInt for arbitrary precision
 const big = 18446744073709551615n;  // OK
 const sum = big + 1n;  // 18446744073709551616n
 
-// TypedArray で固定幅の符号なし整数
+// TypedArray for fixed-width unsigned integers
 const u8 = new Uint8Array([255]);
 const u16 = new Uint16Array([65535]);
 const u32 = new Uint32Array([4294967295]);
 
-// DataView でバイナリデータの読み書き
+// DataView for reading/writing binary data
 const buffer = new ArrayBuffer(4);
 const view = new DataView(buffer);
-view.setUint32(0, 0xDEADBEEF, true);  // true = リトルエンディアン
+view.setUint32(0, 0xDEADBEEF, true);  // true = little-endian
 console.log(view.getUint8(0).toString(16));  // 'ef'
 ```
 
 ```c
-// C言語: 固定幅整数型（stdint.h 推奨）
+// C: fixed-width integer types (stdint.h recommended)
 #include <stdint.h>
 #include <limits.h>
 
-uint8_t  a = 255;           // 0 〜 255
-uint16_t b = 65535;          // 0 〜 65535
-uint32_t c = 4294967295U;   // 0 〜 4,294,967,295
-uint64_t d = 18446744073709551615ULL;  // 0 〜 2^64-1
+uint8_t  a = 255;           // 0 to 255
+uint16_t b = 65535;          // 0 to 65535
+uint32_t c = 4294967295U;   // 0 to 4,294,967,295
+uint64_t d = 18446744073709551615ULL;  // 0 to 2^64-1
 
-// size_t: メモリサイズ表現用（常に符号なし）
+// size_t: for representing memory sizes (always unsigned)
 size_t len = sizeof(int);  // 4 or 8
 
-// 伝統的な型（サイズはプラットフォーム依存で非推奨）
-unsigned char      uc;    // 少なくとも8ビット
-unsigned short     us;    // 少なくとも16ビット
-unsigned int       ui;    // 少なくとも16ビット（通常32ビット）
-unsigned long      ul;    // 少なくとも32ビット
-unsigned long long ull;   // 少なくとも64ビット
+// Traditional types (size is platform-dependent, not recommended)
+unsigned char      uc;    // At least 8 bits
+unsigned short     us;    // At least 16 bits
+unsigned int       ui;    // At least 16 bits (typically 32 bits)
+unsigned long      ul;    // At least 32 bits
+unsigned long long ull;   // At least 64 bits
 
-// リテラルサフィックス
+// Literal suffixes
 uint32_t x = 42U;      // unsigned
 uint64_t y = 42ULL;    // unsigned long long
 ```
 
 ```java
-// Java: 符号なし整数型がない（Java 8以降で部分サポート）
+// Java: no unsigned integer types (partial support since Java 8)
 
-// Java は全ての整数型が符号付き
-byte  b = 127;     // -128 〜 127
-short s = 32767;   // -32768 〜 32767
-int   i = 2147483647;  // -2^31 〜 2^31-1
-long  l = 9223372036854775807L;  // -2^63 〜 2^63-1
+// All integer types in Java are signed
+byte  b = 127;     // -128 to 127
+short s = 32767;   // -32768 to 32767
+int   i = 2147483647;  // -2^31 to 2^31-1
+long  l = 9223372036854775807L;  // -2^63 to 2^63-1
 
-// Java 8以降: Integer/Long の符号なし演算メソッド
+// Java 8+: unsigned operation methods on Integer/Long
 int unsigned = Integer.parseUnsignedInt("4294967295");  // 0xFFFFFFFF
 String str = Integer.toUnsignedString(unsigned);  // "4294967295"
 int result = Integer.divideUnsigned(unsigned, 2);  // 2147483647
-int cmp = Integer.compareUnsigned(-1, 1);  // 正の値 (0xFFFFFFFF > 1)
+int cmp = Integer.compareUnsigned(-1, 1);  // positive value (0xFFFFFFFF > 1)
 
-// byte を符号なしとして扱う
-byte byteVal = (byte) 0xFF;  // -1 として格納
-int unsignedByte = byteVal & 0xFF;  // 255 として取得
+// Treating byte as unsigned
+byte byteVal = (byte) 0xFF;  // Stored as -1
+int unsignedByte = byteVal & 0xFF;  // Retrieved as 255
 ```
 
 ---
 
-## 2. 符号付き整数（Signed Integer）— 2の補数
+## 2. Signed Integers -- Two's Complement
 
-### 2.1 負の数の表現方法の比較
+### 2.1 Comparison of Methods for Representing Negative Numbers
 
 ```
-負の数を表現する3つの方法（8ビットの場合）:
+Three methods for representing negative numbers (8-bit example):
 
-  方法1: 符号ビット（Sign-Magnitude）
+  Method 1: Sign-Magnitude
   ─────────────────────────────
-    最上位ビット = 符号（0:正, 1:負）
-    残り7ビット = 絶対値
+    Most significant bit = sign (0: positive, 1: negative)
+    Remaining 7 bits = absolute value
 
     +5 = 0_0000101
     -5 = 1_0000101
 
-    問題点:
-    - +0 (0000 0000) と -0 (1000 0000) の2つのゼロが存在
-    - 加算に特別な回路が必要
-    - 範囲: -127 〜 +127
+    Problems:
+    - Two zeros exist: +0 (0000 0000) and -0 (1000 0000)
+    - Addition requires special circuitry
+    - Range: -127 to +127
 
-  方法2: 1の補数（One's Complement）
+  Method 2: One's Complement
   ─────────────────────────────
-    負の数 = 全ビット反転
+    Negative number = bit-invert all bits
 
     +5 = 0000 0101
     -5 = 1111 1010
 
-    問題点:
-    - +0 (0000 0000) と -0 (1111 1111) の2つのゼロ
-    - 桁上がりの処理が必要（end-around carry）
-    - 範囲: -127 〜 +127
+    Problems:
+    - Two zeros: +0 (0000 0000) and -0 (1111 1111)
+    - Carry handling required (end-around carry)
+    - Range: -127 to +127
 
-  方法3: 2の補数（Two's Complement）★現代の標準
+  Method 3: Two's Complement (the modern standard)
   ─────────────────────────────
-    負の数 = 全ビット反転 + 1
+    Negative number = bit-invert all bits + 1
 
     +5 = 0000 0101
-    -5 = 1111 1011  (0000 0101 → 反転 → 1111 1010 → +1 → 1111 1011)
+    -5 = 1111 1011  (0000 0101 -> invert -> 1111 1010 -> +1 -> 1111 1011)
 
-    利点:
-    - ゼロが1つだけ（0000 0000）
-    - 加算器1つで加算も減算もできる！
-    - 範囲: -128 〜 +127（非対称だが合理的）
+    Advantages:
+    - Only one zero (0000 0000)
+    - A single adder handles both addition and subtraction!
+    - Range: -128 to +127 (asymmetric but rational)
 ```
 
-### 2.2 2の補数の数学的理解
+### 2.2 Mathematical Understanding of Two's Complement
 
 ```
-2の補数の本質:
-  -x = 2^N - x  （N = ビット数）
+The essence of two's complement:
+  -x = 2^N - x  (N = number of bits)
 
-  8ビットの場合: -x = 256 - x
+  For 8-bit: -x = 256 - x
 
-  例: -5 = 256 - 5 = 251 = 1111 1011
+  Example: -5 = 256 - 5 = 251 = 1111 1011
 
-  なぜこれで加算が統一できるのか:
-  5 + (-5) = 5 + 251 = 256 = 1_0000_0000 (9ビット)
-  → 8ビットに収まらない最上位ビット(キャリー)を捨てると 0000 0000 = 0 ✓
+  Why this unifies addition:
+  5 + (-5) = 5 + 251 = 256 = 1_0000_0000 (9 bits)
+  -> Discard the MSB (carry) that doesn't fit in 8 bits -> 0000 0000 = 0
 
   3 + (-5) = 3 + 251 = 254 = 1111 1110
-  → 2の補数として解釈すると -2 ✓
+  -> Interpreted as two's complement: -2
 
-  → ハードウェアは符号を意識せず、ただ加算するだけでよい！
-
-
-数学的な背景（剰余演算/合同算術）:
-
-  2の補数は mod 2^N の世界での演算と等価
-
-  例（mod 256）:
-  -5 ≡ 251 (mod 256)   ← 256 - 5 = 251
-  -1 ≡ 255 (mod 256)   ← 256 - 1 = 255
-
-  加算: 3 + (-5) ≡ 3 + 251 ≡ 254 ≡ -2 (mod 256) ✓
-
-  → 2の補数は、整数の剰余群 Z/2^N Z そのもの
-  → 加算の群演算が自然に成立するため、ハードウェアで効率的
+  -> Hardware doesn't need to be aware of the sign; it simply adds!
 
 
-2の補数の重要な性質:
+Mathematical background (modular arithmetic / congruence):
 
-  1. 符号判定: 最上位ビット(MSB)が1なら負
-     0xxx xxxx → 正 (0 〜 127)
-     1xxx xxxx → 負 (-128 〜 -1)
+  Two's complement is equivalent to arithmetic mod 2^N
 
-  2. 符号拡張: ビット幅を広げる際、MSBを複製
-     int8 → int16: -5 (1111 1011) → (1111 1111 1111 1011) = -5
-     int8 → int16:  5 (0000 0101) → (0000 0000 0000 0101) = 5
+  Example (mod 256):
+  -5 = 251 (mod 256)   <- 256 - 5 = 251
+  -1 = 255 (mod 256)   <- 256 - 1 = 255
 
-  3. 否定: ~x + 1 = -x
+  Addition: 3 + (-5) = 3 + 251 = 254 = -2 (mod 256)
+
+  -> Two's complement is precisely the residue group Z/2^N Z
+  -> The group operation for addition holds naturally, making it hardware-efficient
+
+
+Important properties of two's complement:
+
+  1. Sign determination: if MSB is 1, the number is negative
+     0xxx xxxx -> positive (0 to 127)
+     1xxx xxxx -> negative (-128 to -1)
+
+  2. Sign extension: when widening bit width, replicate the MSB
+     int8 -> int16: -5 (1111 1011) -> (1111 1111 1111 1011) = -5
+     int8 -> int16:  5 (0000 0101) -> (0000 0000 0000 0101) = 5
+
+  3. Negation: ~x + 1 = -x
      ~0000 0101 = 1111 1010
      1111 1010 + 1 = 1111 1011 = -5
 
-  4. 絶対値: |x| = x が正なら x, 負なら ~x + 1
+  4. Absolute value: |x| = x if positive, ~x + 1 if negative
 ```
 
-### 2.3 2の補数の全数表（8ビット）
+### 2.3 Complete Table of Two's Complement (8-bit)
 
 ```
-8ビット2の補数の全数表（主要な値）:
+8-bit two's complement table (key values):
 
-  2進数        10進数   16進数   説明
+  Binary        Decimal   Hex      Description
   ──────────────────────────────────────
   0111 1111    +127     0x7F    INT8_MAX
   0111 1110    +126     0x7E
   ...
   0000 0010      +2     0x02
   0000 0001      +1     0x01
-  0000 0000       0     0x00    ゼロ
+  0000 0000       0     0x00    Zero
   1111 1111      -1     0xFF
   1111 1110      -2     0xFE
   1111 1101      -3     0xFD
@@ -351,199 +351,194 @@ int unsignedByte = byteVal & 0xFF;  // 255 として取得
   1000 0001    -127     0x81
   1000 0000    -128     0x80    INT8_MIN
 
-  パターンの観察:
-  - 正の数: 0x00-0x7F (0-127)
-  - 負の数: 0x80-0xFF (-128 〜 -1)
-  - -1 = 全ビット1 (0xFF)
-  - INT8_MIN = MSBのみ1 (0x80)
-  - 0を挟んで: ... -3, -2, -1, 0, +1, +2, +3 ...
-  - ビットパターンとしては連続: ... FD, FE, FF, 00, 01, 02, 03 ...
+  Pattern observations:
+  - Positive numbers: 0x00-0x7F (0-127)
+  - Negative numbers: 0x80-0xFF (-128 to -1)
+  - -1 = all bits 1 (0xFF)
+  - INT8_MIN = only MSB is 1 (0x80)
+  - Around zero: ... -3, -2, -1, 0, +1, +2, +3 ...
+  - As bit patterns, they are contiguous: ... FD, FE, FF, 00, 01, 02, 03 ...
 ```
 
-### 2.4 2の補数の変換手順
+### 2.4 Two's Complement Conversion Steps
 
 ```
-正 → 負 の変換:
+Positive -> Negative conversion:
 
-  方法1: 全ビット反転 + 1
+  Method 1: Invert all bits + 1
     +42 = 0010 1010
-    反転 → 1101 0101
-    +1  → 1101 0110 = -42
+    Invert -> 1101 0101
+    +1     -> 1101 0110 = -42
 
-  方法2: 2^N - x
-    -42 = 256 - 42 = 214 = 1101 0110 ✓
+  Method 2: 2^N - x
+    -42 = 256 - 42 = 214 = 1101 0110
 
-  方法3: 右端の1を見つけ、それより左のビットを全て反転
+  Method 3: Find the rightmost 1, invert all bits to its left
     +42 = 0010 1010
-              ↑ 右端の1
-    反転 → 1101 0110 = -42
+              ^ rightmost 1
+    Invert -> 1101 0110 = -42
 
-  逆変換（負 → 正）: 同じ操作をもう一度行う
+  Reverse conversion (negative -> positive): apply the same operation again
     -42 = 1101 0110
-    反転 → 0010 1001
-    +1  → 0010 1010 = +42 ✓
+    Invert -> 0010 1001
+    +1     -> 0010 1010 = +42
 
 
-具体例をいくつか:
+Several concrete examples:
 
-  +1 → -1:
-    0000 0001 → 反転 → 1111 1110 → +1 → 1111 1111 = 0xFF = -1
+  +1 -> -1:
+    0000 0001 -> invert -> 1111 1110 -> +1 -> 1111 1111 = 0xFF = -1
 
-  +100 → -100:
-    0110 0100 → 反転 → 1001 1011 → +1 → 1001 1100 = 0x9C = -100
+  +100 -> -100:
+    0110 0100 -> invert -> 1001 1011 -> +1 -> 1001 1100 = 0x9C = -100
 
-  +127 → -127:
-    0111 1111 → 反転 → 1000 0000 → +1 → 1000 0001 = 0x81 = -127
+  +127 -> -127:
+    0111 1111 -> invert -> 1000 0000 -> +1 -> 1000 0001 = 0x81 = -127
 
-  -128 → ???:
-    1000 0000 → 反転 → 0111 1111 → +1 → 1000 0000 = -128（自分自身！）
-    → -128は8ビットで対称な正の値を持たない特殊な値
+  -128 -> ???:
+    1000 0000 -> invert -> 0111 1111 -> +1 -> 1000 0000 = -128 (itself!)
+    -> -128 is a special value with no symmetric positive counterpart in 8-bit
 ```
 
-### 2.5 2の補数の加減算
+### 2.5 Two's Complement Addition and Subtraction
 
 ```
-2の補数での加減算の実例:
+Worked examples of addition/subtraction in two's complement:
 
-  例1: 50 + 30 = 80
+  Example 1: 50 + 30 = 80
     0011 0010 (50)
   + 0001 1110 (30)
   ──────────────
-    0101 0000 (80) ✓  符号ビット=0, オーバーフローなし
+    0101 0000 (80)   Sign bit = 0, no overflow
 
-
-  例2: 50 + (-30) = 20
+  Example 2: 50 + (-30) = 20
     0011 0010 (50)
   + 1110 0010 (-30)
   ──────────────
-  1 0001 0100 → キャリーを捨てて → 0001 0100 (20) ✓
+  1 0001 0100 -> discard carry -> 0001 0100 (20)
 
-
-  例3: -50 + (-30) = -80
+  Example 3: -50 + (-30) = -80
     1100 1110 (-50)
   + 1110 0010 (-30)
   ──────────────
-  1 1011 0000 → キャリーを捨てて → 1011 0000
-  1011 0000 = -(~1011 0000 + 1) = -(0100 1111 + 1) = -(0101 0000) = -80 ✓
+  1 1011 0000 -> discard carry -> 1011 0000
+  1011 0000 = -(~1011 0000 + 1) = -(0100 1111 + 1) = -(0101 0000) = -80
 
-
-  例4: 100 + 50 = 150 → オーバーフロー！
+  Example 4: 100 + 50 = 150 -> Overflow!
     0110 0100 (100)
   + 0011 0010 (50)
   ──────────────
-    1001 0110 → 2の補数として: -106（正しくない！）
-  正+正=負 → オーバーフロー発生！（8ビット符号付きの最大値は127）
+    1001 0110 -> as two's complement: -106 (incorrect!)
+  positive + positive = negative -> Overflow! (8-bit signed max is 127)
 
-
-  例5: -100 + (-50) = -150 → オーバーフロー！
+  Example 5: -100 + (-50) = -150 -> Overflow!
     1001 1100 (-100)
   + 1100 1110 (-50)
   ──────────────
-  1 0110 1010 → キャリーを捨てて → 0110 1010 = 106（正しくない！）
-  負+負=正 → オーバーフロー発生！（8ビット符号付きの最小値は-128）
+  1 0110 1010 -> discard carry -> 0110 1010 = 106 (incorrect!)
+  negative + negative = positive -> Overflow! (8-bit signed min is -128)
 
-
-  減算は「2の補数を加算」に変換:
+  Subtraction is converted to "adding the two's complement":
   A - B = A + (-B) = A + (~B + 1)
 
-  例: 30 - 50 = -20
+  Example: 30 - 50 = -20
     0001 1110 (30)
-  + 1100 1110 (-50)  ← 50の2の補数
+  + 1100 1110 (-50)  <- two's complement of 50
   ──────────────
-    1110 1100 → 2の補数として: -20 ✓
+    1110 1100 -> as two's complement: -20
 ```
 
-### 2.6 符号付き整数の範囲
+### 2.6 Range of Signed Integers
 
 ```
-Nビット2の補数の範囲: -2^(N-1) 〜 2^(N-1) - 1
+Range of N-bit two's complement: -2^(N-1) to 2^(N-1) - 1
 
-  型       ビット数  最小値                     最大値
+  Type     Bits   Minimum                        Maximum
   ──────────────────────────────────────────────────────
   int8     8        -128                       127
   int16    16       -32,768                    32,767
-  int32    32       -2,147,483,648             2,147,483,647 (約±21億)
+  int32    32       -2,147,483,648             2,147,483,647 (approx. +/- 2.1 billion)
   int64    64       -9,223,372,036,854,775,808  9,223,372,036,854,775,807
 
-  なぜ負の方が1つ多い？
+  Why does the negative side have one more value?
   ────────────────────
-  8ビットの場合:
-  正の最大: 0111 1111 = +127
-  負の最小: 1000 0000 = -128
+  For 8-bit:
+  Positive max: 0111 1111 = +127
+  Negative min: 1000 0000 = -128
 
-  -128を反転+1すると:
-  1000 0000 → 0111 1111 → 1000 0000 = -128 (自分自身に戻る！)
-  → -128は反転操作で対になる正の数が存在しない特殊な値
+  Inverting -128 and adding 1:
+  1000 0000 -> 0111 1111 -> 1000 0000 = -128 (maps back to itself!)
+  -> -128 has no corresponding positive value via the inversion operation
 
-  対称性の問題:
-  - abs(INT_MIN) はオーバーフローする！
-  - abs(-128) は128だが、int8で128は表現不可
-  - C言語: abs(INT_MIN) は未定義動作
-  - Java: Math.abs(Integer.MIN_VALUE) は Integer.MIN_VALUE を返す
+  Symmetry issue:
+  - abs(INT_MIN) overflows!
+  - abs(-128) is 128, but 128 cannot be represented in int8
+  - C: abs(INT_MIN) is undefined behavior
+  - Java: Math.abs(Integer.MIN_VALUE) returns Integer.MIN_VALUE
 
-  安全な絶対値計算:
+  Safe absolute value calculation:
   long safe_abs(int x) {
-      return (long)x < 0 ? -(long)x : (long)x;  // より広い型に変換
+      return (long)x < 0 ? -(long)x : (long)x;  // Convert to a wider type
   }
 ```
 
-### 2.7 符号拡張とゼロ拡張
+### 2.7 Sign Extension and Zero Extension
 
 ```
-符号拡張（Sign Extension）: 符号付き整数のビット幅を広げる
+Sign Extension: widening a signed integer's bit width
 
-  int8 → int16:
-  +5:  0000 0101 → 0000 0000 0000 0101  (MSBの0を左に拡張)
-  -5:  1111 1011 → 1111 1111 1111 1011  (MSBの1を左に拡張)
+  int8 -> int16:
+  +5:  0000 0101 -> 0000 0000 0000 0101  (extend MSB 0 to the left)
+  -5:  1111 1011 -> 1111 1111 1111 1011  (extend MSB 1 to the left)
 
-  int16 → int32:
+  int16 -> int32:
   -100: 1111 1111 1001 1100
-      → 1111 1111 1111 1111 1111 1111 1001 1100
+      -> 1111 1111 1111 1111 1111 1111 1001 1100
 
-  規則: MSB（符号ビット）を新しいビットにコピーする
-  → 値は変わらない
-
-
-ゼロ拡張（Zero Extension）: 符号なし整数のビット幅を広げる
-
-  uint8 → uint16:
-  200: 1100 1000 → 0000 0000 1100 1000  (左に0を詰める)
-  255: 1111 1111 → 0000 0000 1111 1111
-
-  規則: 常に0を左に詰める
-  → 値は変わらない
+  Rule: copy the MSB (sign bit) to the new bits
+  -> The value is preserved
 
 
-C言語での注意:
+Zero Extension: widening an unsigned integer's bit width
+
+  uint8 -> uint16:
+  200: 1100 1000 -> 0000 0000 1100 1000  (pad with zeros on the left)
+  255: 1111 1111 -> 0000 0000 1111 1111
+
+  Rule: always pad with zeros on the left
+  -> The value is preserved
+
+
+Caution in C:
   int8_t x = -5;     // 1111 1011
-  uint16_t y = x;    // 符号拡張 → 1111 1111 1111 1011 → uint16として 65531!
-  // 意図: -5 → 65531 になってしまう
-  // 正しくは: int16_t y = x; で符号拡張
+  uint16_t y = x;    // Sign extension -> 1111 1111 1111 1011 -> as uint16: 65531!
+  // Intention: -5 -> becomes 65531
+  // Correct: int16_t y = x; for sign extension
 
   uint8_t a = 200;   // 1100 1000
-  int16_t b = a;     // ゼロ拡張 → 0000 0000 1100 1000 → 200
-  // OK: 符号なし→符号付きへの変換で値が保持される（範囲内なら）
+  int16_t b = a;     // Zero extension -> 0000 0000 1100 1000 -> 200
+  // OK: value is preserved when converting unsigned -> signed (if within range)
 ```
 
 ```python
-# Pythonでの符号拡張シミュレーション
+# Simulating sign extension in Python
 
 def sign_extend(value, from_bits, to_bits):
-    """符号拡張: from_bits幅の符号付き整数をto_bits幅に拡張"""
-    # 符号ビットを確認
+    """Sign extend: widen a signed integer from from_bits to to_bits"""
+    # Check the sign bit
     if value & (1 << (from_bits - 1)):
-        # 負の数: 上位ビットを1で埋める
+        # Negative: fill upper bits with 1s
         mask = ((1 << to_bits) - 1) ^ ((1 << from_bits) - 1)
         return value | mask
     return value
 
-# int8 → int32
-print(sign_extend(0xFB, 8, 32))   # 0xFFFFFFFB = -5（32ビット）
-print(sign_extend(0x05, 8, 32))   # 0x00000005 = +5（32ビット）
+# int8 -> int32
+print(sign_extend(0xFB, 8, 32))   # 0xFFFFFFFB = -5 (32-bit)
+print(sign_extend(0x05, 8, 32))   # 0x00000005 = +5 (32-bit)
 
-# 8ビット符号付き → Python整数
+# 8-bit signed -> Python integer
 def int8_to_python(byte_val):
-    """uint8値を符号付きint8として解釈"""
+    """Interpret a uint8 value as a signed int8"""
     if byte_val & 0x80:
         return byte_val - 256
     return byte_val
@@ -555,128 +550,128 @@ print(int8_to_python(0x80))  # -128
 
 ---
 
-## 3. オーバーフロー
+## 3. Overflow
 
-### 3.1 オーバーフローとは
+### 3.1 What Is Overflow
 
 ```
-オーバーフロー: 演算結果が表現可能な範囲を超えること
+Overflow: when the result of an operation exceeds the representable range
 
-  符号なし8ビット:
-  255 + 1 = 256 → 0 (ラップアラウンド)
+  Unsigned 8-bit:
+  255 + 1 = 256 -> 0 (wraparound)
 
   1111 1111
 + 0000 0001
 ──────────
-1 0000 0000 → 8ビットに切り詰め → 0000 0000 = 0
+1 0000 0000 -> truncated to 8 bits -> 0000 0000 = 0
 
-  符号付き8ビット (2の補数):
-  127 + 1 = 128? → -128 (オーバーフロー!)
+  Signed 8-bit (two's complement):
+  127 + 1 = 128? -> -128 (overflow!)
 
   0111 1111  (+127)
 + 0000 0001  (+1)
 ──────────
-  1000 0000  (-128)  ← 正+正=負 は明らかにおかしい
+  1000 0000  (-128)  <- positive + positive = negative is clearly wrong
 
-  オーバーフロー検出:
-  - 正 + 正 = 負 → オーバーフロー
-  - 負 + 負 = 正 → オーバーフロー
-  - 正 + 負 は絶対にオーバーフローしない
+  Overflow detection:
+  - positive + positive = negative -> overflow
+  - negative + negative = positive -> overflow
+  - positive + negative never overflows
 ```
 
-### 3.2 符号なし vs 符号付きオーバーフロー
+### 3.2 Unsigned vs Signed Overflow
 
 ```
-符号なしオーバーフロー（ラップアラウンド）:
-  C言語では「well-defined behavior」（定義済み動作）
-  結果は mod 2^N
+Unsigned overflow (wraparound):
+  In C, this is "well-defined behavior"
+  Result is mod 2^N
 
   uint8: 255 + 1 = 0
   uint8: 0 - 1 = 255
   uint16: 65535 + 1 = 0
   uint32: 4294967295 + 1 = 0
 
-  用途:
-  - ハッシュ計算（ラップアラウンドを利用）
-  - カウンタ（一周して0に戻ることを前提）
-  - CRC計算
+  Use cases:
+  - Hash computation (exploiting wraparound)
+  - Counters (wrapping back to 0 by design)
+  - CRC calculation
 
 
-符号付きオーバーフロー:
-  C/C++では「undefined behavior」（未定義動作）！
-  → コンパイラは「起きない」と仮定して最適化する
+Signed overflow:
+  In C/C++, this is "undefined behavior"!
+  -> The compiler may assume it "never happens" and optimize accordingly
 
-  例:
+  Example:
   int x = INT_MAX;
-  if (x + 1 > x) {  // コンパイラはこの条件を常にtrueと仮定
-      // ...          // オーバーフローチェックが削除される可能性
+  if (x + 1 > x) {  // The compiler may assume this is always true
+      // ...          // The overflow check could be eliminated
   }
 
-  GCC -O2 での最適化例:
-  // 元のコード
+  GCC -O2 optimization example:
+  // Original code
   int check_overflow(int x) {
       return x + 1 > x;
   }
-  // 最適化後: 常に 1 を返す（オーバーフローは起きないと仮定）
+  // After optimization: always returns 1 (assumes overflow doesn't happen)
 
-  → -fwrapv オプションで符号付きラップアラウンドを保証可能
-  → -ftrapv オプションでオーバーフロー時にトラップ
+  -> -fwrapv option guarantees signed wraparound behavior
+  -> -ftrapv option traps on overflow
 ```
 
-### 3.3 実際のバグ・事故
+### 3.3 Real-World Bugs and Incidents
 
 ```python
-# 有名なオーバーフロー事故
+# Famous overflow incidents
 
-# 1. Ariane 5 ロケット爆発（1996年）
-#    64ビット浮動小数点 → 16ビット符号付き整数への変換
-#    水平速度が32,767を超え、オーバーフロー → 制御不能 → 爆発
-#    損害: 5億ドル
+# 1. Ariane 5 Rocket Explosion (1996)
+#    64-bit floating point -> 16-bit signed integer conversion
+#    Horizontal velocity exceeded 32,767, causing overflow -> loss of control -> explosion
+#    Damage: $500 million
 
-# 2. パックマン 256面バグ（1980年）
-#    面数を8ビット符号なし整数で管理
-#    255面クリア → 256面 = 0x100 → 8ビットでは0x00
-#    右半分が文字化けした「キルスクリーン」が出現
+# 2. Pac-Man Level 256 Bug (1980)
+#    Level counter managed as an 8-bit unsigned integer
+#    Clearing level 255 -> level 256 = 0x100 -> 0x00 in 8 bits
+#    The right half of the screen became the garbled "kill screen"
 
-# 3. Boeing 787 電源喪失（2015年）
-#    32ビットカウンタが248日で2^31に到達
-#    int32オーバーフロー → 電源制御システムがシャットダウン
-#    対策: 248日以内に再起動する暫定措置（！）
+# 3. Boeing 787 Power Loss (2015)
+#    32-bit counter reached 2^31 after 248 days
+#    int32 overflow -> power control system shutdown
+#    Mitigation: restart within 248 days (!)
 
-# 4. 2038年問題（Y2K38）
-#    Unix時間: 1970年1月1日からの秒数（int32）
-#    2^31 - 1 = 2,147,483,647秒 = 2038年1月19日 03:14:07 UTC
-#    → int64への移行が必要
+# 4. Year 2038 Problem (Y2K38)
+#    Unix time: seconds since January 1, 1970 (int32)
+#    2^31 - 1 = 2,147,483,647 seconds = January 19, 2038 03:14:07 UTC
+#    -> Migration to int64 is required
 import time
-# 2038年問題のタイムスタンプ
+# Timestamp of the 2038 problem
 print(2**31 - 1)  # 2147483647
-# ほとんどの現代システムは64ビットに移行済み
+# Most modern systems have already migrated to 64-bit
 
-# 5. 文明シリーズの核ガンジー（都市伝説的だが有名）
-#    ガンジーの攻撃性パラメータ(uint8)が1で、民主主義で-2されると
-#    1 - 2 = -1 → uint8で255（最大値）になり超攻撃的に
-#    ※ 実際にはバグではなく仕様だった可能性も指摘されている
+# 5. Civilization's "Nuclear Gandhi" (famous, though somewhat legendary)
+#    Gandhi's aggression parameter (uint8) was 1; adopting democracy subtracted 2
+#    1 - 2 = -1 -> as uint8: 255 (maximum) -> hyper-aggressive
+#    Note: it has been suggested this may have been by design rather than a bug
 
-# 6. ヒープバッファオーバーフロー（セキュリティ）
-#    整数オーバーフローはバッファオーバーフロー攻撃の入り口になる
-#    例: size_t size = user_input_width * user_input_height * 4;
-#    巨大な width と height で乗算がオーバーフロー
-#    → 小さなバッファが確保される
-#    → 書き込み時にヒープ破壊 → 任意コード実行
+# 6. Heap Buffer Overflow (security)
+#    Integer overflow can be an entry point for buffer overflow attacks
+#    Example: size_t size = user_input_width * user_input_height * 4;
+#    Large width and height cause the multiplication to overflow
+#    -> A small buffer is allocated
+#    -> Heap corruption on write -> arbitrary code execution
 ```
 
-### 3.4 バイナリサーチのオーバーフローバグ
+### 3.4 The Binary Search Overflow Bug
 
 ```python
-# 有名なバイナリサーチのバグ（JDK 6で発見）
+# Famous binary search bug (discovered in JDK 6)
 
-# ❌ 古典的な中間点計算（オーバーフローの可能性）
+# Bad: classic midpoint calculation (potential overflow)
 def binary_search_buggy(arr, target):
     low = 0
     high = len(arr) - 1
     while low <= high:
-        mid = (low + high) // 2  # ← low + high がオーバーフローする可能性！
-        # 例: low=2^30, high=2^30+100 → low+high > INT_MAX
+        mid = (low + high) // 2  # <- low + high can overflow!
+        # e.g., low=2^30, high=2^30+100 -> low+high > INT_MAX
         if arr[mid] == target:
             return mid
         elif arr[mid] < target:
@@ -685,13 +680,13 @@ def binary_search_buggy(arr, target):
             high = mid - 1
     return -1
 
-# ✅ 安全な中間点計算
+# Good: safe midpoint calculation
 def binary_search_safe(arr, target):
     low = 0
     high = len(arr) - 1
     while low <= high:
-        mid = low + (high - low) // 2  # オーバーフロー安全
-        # または: mid = (low + high) >>> 1  (Java/C#の符号なし右シフト)
+        mid = low + (high - low) // 2  # Overflow-safe
+        # Or: mid = (low + high) >>> 1  (unsigned right shift in Java/C#)
         if arr[mid] == target:
             return mid
         elif arr[mid] < target:
@@ -700,28 +695,28 @@ def binary_search_safe(arr, target):
             high = mid - 1
     return -1
 
-# ビット演算での安全な平均値計算
+# Overflow-safe average via bit manipulation
 def safe_average(a, b):
-    """オーバーフローなしの平均値"""
+    """Average without overflow"""
     return (a & b) + ((a ^ b) >> 1)
-    # 共通ビット + 異なるビットの半分
+    # Common bits + half of the differing bits
 ```
 
-### 3.5 各言語のオーバーフロー対策
+### 3.5 Overflow Countermeasures in Each Language
 
 ```python
-# Python: 任意精度整数 → オーバーフローなし！
-x = 2**100 + 1  # 問題なし
-# Pythonは唯一、整数オーバーフローを心配しなくてよい言語
+# Python: arbitrary-precision integers -> no overflow!
+x = 2**100 + 1  # No problem
+# Python is the only language where you don't need to worry about integer overflow
 
-# ただし、ctypes/struct/numpy では固定幅なのでオーバーフローあり
+# However, ctypes/struct/numpy have fixed widths, so overflow exists
 import numpy as np
 a = np.int8(127)
-print(a + np.int8(1))  # -128 (ラップアラウンド)
+print(a + np.int8(1))  # -128 (wraparound)
 
-# 安全な固定幅演算
+# Safe fixed-width arithmetic
 def safe_add_int32(a, b):
-    """Pythonでint32のオーバーフローをシミュレート"""
+    """Simulate int32 overflow in Python"""
     result = a + b
     if result > 2**31 - 1 or result < -(2**31):
         raise OverflowError(f"int32 overflow: {a} + {b} = {result}")
@@ -729,26 +724,26 @@ def safe_add_int32(a, b):
 ```
 
 ```rust
-// Rust: コンパイル時・実行時の検出
+// Rust: compile-time and runtime detection
 let x: u8 = 255;
 
-// デバッグビルド: パニック（プログラム停止）
+// Debug build: panic (program halts)
 // let y = x + 1;  // thread 'main' panicked at 'attempt to add with overflow'
 
-// リリースビルド: ラップアラウンド（デフォルト）
-// 明示的なオーバーフロー制御メソッド:
-let a = x.checked_add(1);    // Option<u8> → None
-let b = x.saturating_add(1); // 255 (上限で飽和)
-let c = x.wrapping_add(1);   // 0 (明示的ラップ)
-let d = x.overflowing_add(1); // (0, true) — 値とオーバーフローフラグ
+// Release build: wraparound (default)
+// Explicit overflow control methods:
+let a = x.checked_add(1);    // Option<u8> -> None
+let b = x.saturating_add(1); // 255 (saturates at the upper limit)
+let c = x.wrapping_add(1);   // 0 (explicit wraparound)
+let d = x.overflowing_add(1); // (0, true) -- value and overflow flag
 
-// 実務での使い分け:
-// checked_add: 正確性が最重要（金融、科学計算）
-// saturating_add: 上限/下限で止まるのが望ましい（音量、明度）
-// wrapping_add: ラップアラウンドが仕様（ハッシュ、カウンタ）
-// overflowing_add: オーバーフローの発生を知りたい（低レベルCPU模倣）
+// Practical usage guidelines:
+// checked_add: when correctness is paramount (finance, scientific computing)
+// saturating_add: when clamping at limits is desired (volume, brightness)
+// wrapping_add: when wraparound is by design (hash, counters)
+// overflowing_add: when you want to know if overflow occurred (low-level CPU emulation)
 
-// saturating の実用例
+// Practical example of saturating
 fn adjust_volume(current: u8, delta: i8) -> u8 {
     if delta >= 0 {
         current.saturating_add(delta as u8)
@@ -756,50 +751,50 @@ fn adjust_volume(current: u8, delta: i8) -> u8 {
         current.saturating_sub((-delta) as u8)
     }
 }
-// adjust_volume(250, 10) → 255（255で飽和）
-// adjust_volume(5, -10) → 0（0で飽和）
+// adjust_volume(250, 10) -> 255 (saturates at 255)
+// adjust_volume(5, -10) -> 0 (saturates at 0)
 ```
 
 ```java
-// Java: サイレントラップアラウンド（危険！）
+// Java: silent wraparound (dangerous!)
 int x = Integer.MAX_VALUE;  // 2147483647
-int y = x + 1;              // -2147483648 (警告なし！)
+int y = x + 1;              // -2147483648 (no warning!)
 
-// Java 8以降: Math.addExact()
+// Java 8+: Math.addExact()
 try {
     int z = Math.addExact(x, 1);  // ArithmeticException
 } catch (ArithmeticException e) {
     System.out.println("Overflow detected!");
 }
 
-// Math クラスの安全な演算メソッド
-Math.addExact(a, b);       // 加算（オーバーフロー時例外）
-Math.subtractExact(a, b);  // 減算
-Math.multiplyExact(a, b);  // 乗算
-Math.negateExact(a);       // 否定
+// Safe arithmetic methods in the Math class
+Math.addExact(a, b);       // Addition (throws on overflow)
+Math.subtractExact(a, b);  // Subtraction
+Math.multiplyExact(a, b);  // Multiplication
+Math.negateExact(a);       // Negation
 Math.incrementExact(a);    // +1
 Math.decrementExact(a);    // -1
-Math.toIntExact(longVal);  // long → int（範囲外で例外）
+Math.toIntExact(longVal);  // long -> int (throws if out of range)
 ```
 
 ```c
-// C: 符号付きオーバーフローは未定義動作（最も危険）
+// C: signed overflow is undefined behavior (most dangerous)
 int x = INT_MAX;
-int y = x + 1;  // 未定義動作！コンパイラが何をしても「正しい」
-// GCCの最適化により、オーバーフローチェックが削除される場合もある
+int y = x + 1;  // Undefined behavior! The compiler can do anything it wants.
+// GCC optimizations may eliminate overflow checks
 
-// 安全な加算チェック（符号付き）:
+// Safe addition check (signed):
 #include <limits.h>
 #include <stdbool.h>
 
 bool safe_add_int(int a, int b, int *result) {
-    if (b > 0 && a > INT_MAX - b) return false;  // オーバーフロー
-    if (b < 0 && a < INT_MIN - b) return false;  // アンダーフロー
+    if (b > 0 && a > INT_MAX - b) return false;  // Overflow
+    if (b < 0 && a < INT_MIN - b) return false;  // Underflow
     *result = a + b;
     return true;
 }
 
-// 安全な乗算チェック（符号付き）:
+// Safe multiplication check (signed):
 bool safe_mul_int(int a, int b, int *result) {
     if (a == 0 || b == 0) {
         *result = 0;
@@ -813,18 +808,18 @@ bool safe_mul_int(int a, int b, int *result) {
     return true;
 }
 
-// GCC/Clang ビルトイン:
+// GCC/Clang builtins:
 int result;
 if (__builtin_add_overflow(a, b, &result)) {
-    // オーバーフロー発生
+    // Overflow occurred
 }
 if (__builtin_mul_overflow(a, b, &result)) {
-    // オーバーフロー発生
+    // Overflow occurred
 }
 ```
 
 ```go
-// Go: サイレントラップアラウンド（Javaと同様）
+// Go: silent wraparound (similar to Java)
 package main
 
 import (
@@ -834,10 +829,10 @@ import (
 
 func main() {
     var x int32 = math.MaxInt32  // 2147483647
-    x++  // -2147483648 (ラップアラウンド、エラーなし)
+    x++  // -2147483648 (wraparound, no error)
     fmt.Println(x)
 
-    // 安全な加算
+    // Safe addition
     a, b := int32(2000000000), int32(1000000000)
     if safeAddInt32(a, b) {
         fmt.Println("OK:", a+b)
@@ -859,63 +854,63 @@ func safeAddInt32(a, b int32) bool {
 
 ---
 
-## 4. エンディアン（Byte Order）
+## 4. Endianness (Byte Order)
 
-### 4.1 ビッグエンディアンとリトルエンディアン
+### 4.1 Big-Endian and Little-Endian
 
 ```
-エンディアン: マルチバイト値をメモリに格納する際のバイト順序
+Endianness: the byte order when storing multi-byte values in memory
 
-  値: 0x12345678（32ビット整数）
+  Value: 0x12345678 (32-bit integer)
 
-  ビッグエンディアン（Big-Endian）:
-  アドレス:  0x00  0x01  0x02  0x03
-  値:        0x12  0x34  0x56  0x78
-  → 最上位バイト(MSB)が最小アドレスに格納
-  → 人間の読み方と同じ順序
-  → ネットワーク通信の標準（ネットワークバイトオーダー）
+  Big-Endian:
+  Address:  0x00  0x01  0x02  0x03
+  Value:    0x12  0x34  0x56  0x78
+  -> Most significant byte (MSB) stored at the lowest address
+  -> Same order as human reading
+  -> Standard for network communication (network byte order)
 
-  リトルエンディアン（Little-Endian）:
-  アドレス:  0x00  0x01  0x02  0x03
-  値:        0x78  0x56  0x34  0x12
-  → 最下位バイト(LSB)が最小アドレスに格納
-  → Intel/AMD x86/x64, ARM（デフォルト）
-  → 加算時に下位バイトから処理でき、回路が単純
+  Little-Endian:
+  Address:  0x00  0x01  0x02  0x03
+  Value:    0x78  0x56  0x34  0x12
+  -> Least significant byte (LSB) stored at the lowest address
+  -> Intel/AMD x86/x64, ARM (default)
+  -> Lower bytes are processed first during addition, simplifying circuitry
 
-  バイエンディアン（Bi-Endian）:
-  → 切り替え可能。ARM, MIPS, PowerPC
-  → ARM は実質リトルエンディアンで使用されることが多い
+  Bi-Endian:
+  -> Switchable. ARM, MIPS, PowerPC
+  -> ARM is practically used in little-endian mode in most cases
 ```
 
-### 4.2 エンディアンの実務的影響
+### 4.2 Practical Impact of Endianness
 
 ```python
 import struct
 
 value = 0x12345678
 
-# ビッグエンディアンでパック
+# Pack as big-endian
 big = struct.pack('>I', value)
 print(big.hex())  # '12345678'
 
-# リトルエンディアンでパック
+# Pack as little-endian
 little = struct.pack('<I', value)
 print(little.hex())  # '78563412'
 
-# ネットワーク通信での注意:
-# ネットワーク = ビッグエンディアン
-# x86 PC = リトルエンディアン
-# → 送受信時にバイトオーダー変換が必要
+# Note for network communication:
+# Network = big-endian
+# x86 PC = little-endian
+# -> Byte order conversion is needed during send/receive
 
 import socket
-# ホストバイトオーダー → ネットワークバイトオーダー
+# Host byte order -> network byte order
 port = 8080
 network_port = socket.htons(port)  # host to network short
 
 ip = 0xC0A80001  # 192.168.0.1
 network_ip = socket.htonl(ip)  # host to network long
 
-# バイトスワップのビット演算実装
+# Byte swap implementation using bit operations
 def bswap32(n):
     return ((n & 0xFF000000) >> 24) | \
            ((n & 0x00FF0000) >> 8) | \
@@ -929,21 +924,21 @@ print(hex(bswap32(0x12345678)))  # 0x78563412
 print(hex(bswap16(0x1234)))      # 0x3412
 ```
 
-### 4.3 エンディアンの確認方法
+### 4.3 Detecting Endianness
 
 ```python
 import sys
 print(sys.byteorder)  # 'little' (x86/ARM) or 'big'
 
-# バイナリファイルの先頭を見て判断する例:
-# BMP画像: 先頭が 'BM' (0x42 0x4D) → リトルエンディアン
-# JPEG: 先頭が 0xFF 0xD8 → エンディアン非依存
-# ELF: offset 5 に 1(LE) or 2(BE) が格納
-# UTF-16 BOM: 0xFE 0xFF(BE) or 0xFF 0xFE(LE)
+# Determining endianness by examining the beginning of binary files:
+# BMP image: starts with 'BM' (0x42 0x4D) -> little-endian
+# JPEG: starts with 0xFF 0xD8 -> endianness-independent
+# ELF: offset 5 contains 1 (LE) or 2 (BE)
+# UTF-16 BOM: 0xFE 0xFF (BE) or 0xFF 0xFE (LE)
 
-# エンディアン判定の実用コード
+# Practical code for endianness detection
 def detect_endianness():
-    """実行環境のエンディアンを判定"""
+    """Determine the endianness of the execution environment"""
     import struct
     if struct.pack('@I', 1) == struct.pack('<I', 1):
         return 'little'
@@ -951,16 +946,16 @@ def detect_endianness():
         return 'big'
 ```
 
-### 4.4 バイナリプロトコルとエンディアン
+### 4.4 Binary Protocols and Endianness
 
 ```python
-# 実務: バイナリプロトコルの設計と実装
+# Practical: designing and implementing binary protocols
 
 import struct
 
-# パケットヘッダの例（ネットワークバイトオーダー = ビッグエンディアン）
+# Packet header example (network byte order = big-endian)
 class PacketHeader:
-    FORMAT = '>HHI'  # ビッグエンディアン: uint16 type, uint16 length, uint32 sequence
+    FORMAT = '>HHI'  # Big-endian: uint16 type, uint16 length, uint32 sequence
     SIZE = struct.calcsize(FORMAT)
 
     def __init__(self, msg_type, length, sequence):
@@ -976,20 +971,20 @@ class PacketHeader:
         msg_type, length, sequence = struct.unpack(cls.FORMAT, data[:cls.SIZE])
         return cls(msg_type, length, sequence)
 
-# 使用例
+# Usage example
 header = PacketHeader(msg_type=1, length=100, sequence=42)
 packed = header.pack()
 print(packed.hex())  # '0001006400000002a'
 
-# 受信側
+# Receiving side
 received = PacketHeader.unpack(packed)
 print(f"Type: {received.msg_type}, Len: {received.length}, Seq: {received.sequence}")
 
 
-# バイナリファイルフォーマットの例
+# Binary file format example
 class BMPHeader:
-    """BMP画像ヘッダ（リトルエンディアン）"""
-    FORMAT = '<2sIHHI'  # リトルエンディアン: signature, filesize, reserved1, reserved2, data_offset
+    """BMP image header (little-endian)"""
+    FORMAT = '<2sIHHI'  # Little-endian: signature, filesize, reserved1, reserved2, data_offset
 
     @classmethod
     def read(cls, filepath):
@@ -1005,68 +1000,68 @@ class BMPHeader:
 
 ---
 
-## 5. 固定小数点数
+## 5. Fixed-Point Numbers
 
-### 5.1 固定小数点の仕組み
+### 5.1 How Fixed-Point Works
 
 ```
-固定小数点数: 小数点の位置を固定して整数演算で小数を扱う
+Fixed-point numbers: handle decimals via integer arithmetic with a fixed decimal point position
 
-  Q8.8 形式（16ビット: 整数部8ビット + 小数部8ビット）:
+  Q8.8 format (16 bits: 8-bit integer part + 8-bit fractional part):
 
-  ビット: IIIIIIII.FFFFFFFF
+  Bits: IIIIIIII.FFFFFFFF
 
-  例: 3.75 を Q8.8 で表現
-  整数部: 3 = 0000 0011
-  小数部: 0.75 = 0.5 + 0.25 = 2^(-1) + 2^(-2) = 1100 0000
-  結果: 0000 0011.1100 0000 = 0x03C0
+  Example: representing 3.75 in Q8.8
+  Integer part: 3 = 0000 0011
+  Fractional part: 0.75 = 0.5 + 0.25 = 2^(-1) + 2^(-2) = 1100 0000
+  Result: 0000 0011.1100 0000 = 0x03C0
 
-  格納値 = 実数値 × 2^小数部ビット数
-  3.75 × 256 = 960 = 0x03C0 ✓
+  Stored value = real value x 2^(fractional bits)
+  3.75 x 256 = 960 = 0x03C0
 
-  逆変換: 実数値 = 格納値 / 2^小数部ビット数
-  960 / 256 = 3.75 ✓
-
-
-固定小数点の演算:
-
-  加算/減算: そのまま整数加算（小数点位置が同じなら）
-    3.75 + 1.25 → 960 + 320 = 1280 → 1280/256 = 5.0 ✓
-
-  乗算: 結果を右シフト（小数部ビット数分）
-    3.75 × 2.0 → 960 × 512 = 491520 → 491520 >> 8 = 1920 → 1920/256 = 7.5 ✓
-
-  除算: 被除数を左シフトしてから除算
-    3.75 / 2.0 → (960 << 8) / 512 = 245760 / 512 = 480 → 480/256 = 1.875 ✓
+  Reverse conversion: real value = stored value / 2^(fractional bits)
+  960 / 256 = 3.75
 
 
-よく使われる固定小数点フォーマット:
+Fixed-point arithmetic:
 
-  Q1.15 (16ビット): 信号処理（-1.0 〜 +0.999969）
-  Q8.8  (16ビット): 汎用（-128.0 〜 +127.996）
-  Q16.16 (32ビット): ゲーム/グラフィックス
-  Q1.31 (32ビット): 高精度信号処理
-  Q32.32 (64ビット): 高精度計算
+  Addition/subtraction: perform integer addition directly (when decimal point positions match)
+    3.75 + 1.25 -> 960 + 320 = 1280 -> 1280/256 = 5.0
+
+  Multiplication: right-shift the result (by the number of fractional bits)
+    3.75 x 2.0 -> 960 x 512 = 491520 -> 491520 >> 8 = 1920 -> 1920/256 = 7.5
+
+  Division: left-shift the dividend, then divide
+    3.75 / 2.0 -> (960 << 8) / 512 = 245760 / 512 = 480 -> 480/256 = 1.875
 
 
-用途:
-  - 金融計算（通貨は小数2桁固定）
-  - 組み込みシステム（FPU非搭載のマイコン）
-  - ゲーム（DSP時代の3Dグラフィックス）
-  - 音声処理（DSP）
-  - GPS座標（マイクロ度単位の整数）
+Commonly used fixed-point formats:
+
+  Q1.15 (16-bit): Signal processing (-1.0 to +0.999969)
+  Q8.8  (16-bit): General purpose (-128.0 to +127.996)
+  Q16.16 (32-bit): Games/graphics
+  Q1.31 (32-bit): High-precision signal processing
+  Q32.32 (64-bit): High-precision computation
+
+
+Use cases:
+  - Financial calculations (currency is fixed to 2 decimal places)
+  - Embedded systems (microcontrollers without an FPU)
+  - Games (3D graphics in the DSP era)
+  - Audio processing (DSP)
+  - GPS coordinates (integers in micro-degree units)
 ```
 
-### 5.2 固定小数点の実装
+### 5.2 Fixed-Point Implementation
 
 ```python
-# 固定小数点数ライブラリの実装
+# Fixed-point number library implementation
 
 class FixedPoint:
-    """Q16.16 固定小数点数"""
+    """Q16.16 fixed-point number"""
     FRAC_BITS = 16
     SCALE = 1 << FRAC_BITS  # 65536
-    MASK = (1 << 32) - 1     # 32ビットマスク
+    MASK = (1 << 32) - 1     # 32-bit mask
 
     def __init__(self, value=0):
         if isinstance(value, float):
@@ -1078,7 +1073,7 @@ class FixedPoint:
 
     @classmethod
     def from_raw(cls, raw):
-        """内部値から直接生成"""
+        """Create directly from internal value"""
         obj = cls.__new__(cls)
         obj._raw = raw
         return obj
@@ -1093,11 +1088,11 @@ class FixedPoint:
         return FixedPoint.from_raw(self._raw - other._raw)
 
     def __mul__(self, other):
-        # 乗算後に小数部ビット数分右シフト
+        # Right-shift by fractional bits after multiplication
         return FixedPoint.from_raw((self._raw * other._raw) >> self.FRAC_BITS)
 
     def __truediv__(self, other):
-        # 被除数を左シフトしてから除算
+        # Left-shift dividend before dividing
         return FixedPoint.from_raw((self._raw << self.FRAC_BITS) // other._raw)
 
     def __repr__(self):
@@ -1106,7 +1101,7 @@ class FixedPoint:
     def __eq__(self, other):
         return self._raw == other._raw
 
-# 使用例
+# Usage example
 a = FixedPoint(3.75)
 b = FixedPoint(2.0)
 print(a + b)      # FixedPoint(5.750000)
@@ -1115,40 +1110,40 @@ print(a * b)      # FixedPoint(7.500000)
 print(a / b)      # FixedPoint(1.875000)
 ```
 
-### 5.3 金融計算での整数活用
+### 5.3 Using Integers for Financial Calculations
 
 ```python
-# ❌ 浮動小数点で金額計算（危険！）
+# Bad: financial calculations with floating point (dangerous!)
 price = 0.1 + 0.2
 print(price)  # 0.30000000000000004
 print(price == 0.3)  # False!
 
-# ✅ 整数（セント単位）で金額計算
-price_cents = 10 + 20  # 30セント
+# Good: financial calculations with integers (cent units)
+price_cents = 10 + 20  # 30 cents
 print(price_cents / 100)  # 0.3
 
-# ✅ Decimal型を使用
+# Good: use Decimal type
 from decimal import Decimal, ROUND_HALF_UP
 price = Decimal('0.1') + Decimal('0.2')
 print(price)  # 0.3
 print(price == Decimal('0.3'))  # True
 
-# 通貨計算のベストプラクティス
+# Best practices for currency calculations
 class Money:
-    """整数ベースの金額表現"""
+    """Integer-based monetary representation"""
 
     def __init__(self, amount_cents):
         self._cents = int(amount_cents)
 
     @classmethod
     def from_string(cls, s):
-        """'1234.56' → Money(123456)"""
+        """'1234.56' -> Money(123456)"""
         d = Decimal(s) * 100
         return cls(int(d))
 
     @classmethod
     def from_float(cls, f):
-        """浮動小数点から（非推奨だが必要な場合）"""
+        """From float (not recommended, but sometimes necessary)"""
         return cls(round(f * 100))
 
     def __add__(self, other):
@@ -1158,191 +1153,191 @@ class Money:
         return Money(self._cents - other._cents)
 
     def __mul__(self, factor):
-        """金額 × 数量"""
+        """Amount x quantity"""
         result = Decimal(self._cents) * Decimal(str(factor))
         return Money(int(result.quantize(Decimal('1'), rounding=ROUND_HALF_UP)))
 
     def __repr__(self):
         sign = '-' if self._cents < 0 else ''
         abs_cents = abs(self._cents)
-        return f"¥{sign}{abs_cents // 100}.{abs_cents % 100:02d}"
+        return f"${sign}{abs_cents // 100}.{abs_cents % 100:02d}"
 
-# 使用例
-item = Money.from_string('1980')     # ¥1980.00
-tax = item * Decimal('0.1')          # ¥198.00
-total = item + tax                    # ¥2178.00
-print(total)                          # ¥2178.00
+# Usage example
+item = Money.from_string('1980')     # $1980.00
+tax = item * Decimal('0.1')          # $198.00
+total = item + tax                    # $2178.00
+print(total)                          # $2178.00
 
 
-# ✅ 実務でのベストプラクティス
-# データベース: DECIMAL(10, 2) — 整数部10桁、小数部2桁
-# JavaScript: 金額は全てセント(整数)で扱い、表示時のみ変換
-# Java: BigDecimal を使用
-# Python: decimal.Decimal を使用
+# Best practices in practice
+# Database: DECIMAL(10, 2) -- 10 integer digits, 2 decimal digits
+# JavaScript: handle all amounts as cents (integers), convert only for display
+# Java: use BigDecimal
+# Python: use decimal.Decimal
 ```
 
 ---
 
-## 6. 整数型の選択ガイド
+## 6. Integer Type Selection Guide
 
-### 6.1 型選択の指針
-
-```
-整数型選択のフローチャート:
-
-  1. 負の数が必要？
-     YES → 符号付き整数
-     NO  → 符号なし整数
-
-  2. 必要な範囲は？
-     ┌─────────────────────────────────────┐
-     │ 範囲                    推奨型       │
-     ├─────────────────────────────────────┤
-     │ 0-255                   uint8/byte  │
-     │ 0-65535                 uint16      │
-     │ 0-約43億                uint32      │
-     │ それ以上                 uint64      │
-     │ -128〜127               int8        │
-     │ -32768〜32767           int16       │
-     │ -21億〜21億              int32       │
-     │ それ以上                 int64       │
-     │ 任意の大きさ            BigInteger  │
-     └─────────────────────────────────────┘
-
-  3. 特殊な用途:
-     - 配列インデックス: size_t / usize (C/Rust)
-     - タイムスタンプ: int64 (2038年問題回避)
-     - ID/ハッシュ: uint64
-     - 金額: Decimal / BigDecimal
-     - フラグ: uint8 / uint16 / uint32
-     - ループカウンタ: int (言語のデフォルト整数型)
-
-  4. パフォーマンス考慮:
-     - CPUのネイティブ幅（32/64ビット）が最速
-     - uint8/uint16 は拡張/切り詰めのコストがかかる場合あり
-     - ただしメモリ帯域がボトルネックなら小さい型が有利
-     - SIMD: 小さい型 → 同時処理数が増加
-```
-
-### 6.2 各言語のデフォルト整数型
+### 6.1 Type Selection Guidelines
 
 ```
-各言語のデフォルト整数型と推奨:
+Integer type selection flowchart:
 
-  Python:  int（任意精度、オーバーフローなし）
-           → 型選択を気にする必要なし
+  1. Do you need negative numbers?
+     YES -> Signed integer
+     NO  -> Unsigned integer
 
-  Go:      int（プラットフォーム依存: 32 or 64ビット）
-           → 明確なサイズが必要なら int32, int64 を使用
-           → 配列インデックスは int を使用
+  2. What range is needed?
+     +-------------------------------------+
+     | Range                   Recommended  |
+     +-------------------------------------+
+     | 0-255                   uint8/byte  |
+     | 0-65535                 uint16      |
+     | 0-~4.3 billion          uint32      |
+     | Larger                  uint64      |
+     | -128 to 127             int8        |
+     | -32768 to 32767         int16       |
+     | -~2.1 billion to ~2.1B  int32       |
+     | Larger                  int64       |
+     | Arbitrarily large       BigInteger  |
+     +-------------------------------------+
 
-  Rust:    i32（デフォルト推論型）
-           → 必ず明示的に型を指定すべき
-           → 配列インデックスは usize
+  3. Special use cases:
+     - Array index: size_t / usize (C/Rust)
+     - Timestamp: int64 (to avoid the 2038 problem)
+     - ID/hash: uint64
+     - Currency: Decimal / BigDecimal
+     - Flags: uint8 / uint16 / uint32
+     - Loop counter: int (language default integer type)
 
-  Java:    int（32ビット符号付き）
-           → long が必要な場面は多い（タイムスタンプ等）
-           → unsigned は Integer.toUnsignedXxx() メソッドで
-
-  C/C++:   int（少なくとも16ビット、通常32ビット）
-           → stdint.h の固定幅型を使用すべき
-
-  JavaScript: Number（64ビット浮動小数点）
-           → 整数精度は53ビット（MAX_SAFE_INTEGER）
-           → BigInt で任意精度
-
-  Swift:   Int（プラットフォーム依存: 32 or 64ビット）
-           → 通常は Int を使用
-           → 特殊な場面で Int8, UInt32 等
-
-  C#:      int（32ビット符号付き）
-           → long, uint, ulong も利用可能
-           → BigInteger（System.Numerics）で任意精度
+  4. Performance considerations:
+     - The CPU's native width (32/64-bit) is the fastest
+     - uint8/uint16 may incur extension/truncation costs
+     - However, smaller types can be advantageous if memory bandwidth is the bottleneck
+     - SIMD: smaller types -> more elements processed simultaneously
 ```
 
-### 6.3 暗黙の型変換の罠
+### 6.2 Default Integer Types by Language
+
+```
+Default integer types and recommendations by language:
+
+  Python:  int (arbitrary precision, no overflow)
+           -> No need to worry about type selection
+
+  Go:      int (platform-dependent: 32 or 64 bits)
+           -> Use int32, int64 when a specific size is needed
+           -> Use int for array indices
+
+  Rust:    i32 (default inferred type)
+           -> Should always specify types explicitly
+           -> Use usize for array indices
+
+  Java:    int (32-bit signed)
+           -> long is often needed (timestamps, etc.)
+           -> unsigned via Integer.toUnsignedXxx() methods
+
+  C/C++:   int (at least 16 bits, typically 32 bits)
+           -> Should use fixed-width types from stdint.h
+
+  JavaScript: Number (64-bit floating point)
+           -> Integer precision is 53 bits (MAX_SAFE_INTEGER)
+           -> BigInt for arbitrary precision
+
+  Swift:   Int (platform-dependent: 32 or 64 bits)
+           -> Typically use Int
+           -> Int8, UInt32, etc. for special cases
+
+  C#:      int (32-bit signed)
+           -> long, uint, ulong also available
+           -> BigInteger (System.Numerics) for arbitrary precision
+```
+
+### 6.3 Pitfalls of Implicit Type Conversion
 
 ```c
-// C言語の暗黙の型変換（整数昇格）
+// Implicit type conversion in C (integer promotion)
 
-// 1. 整数昇格: int より小さい型は int に変換される
+// 1. Integer promotion: types smaller than int are converted to int
 uint8_t a = 200;
 uint8_t b = 100;
-uint8_t c = a + b;  // 200 + 100 = 300 → int(300) → uint8(44)
-// a, b は int に昇格されて加算、結果が uint8 に切り捨て
+uint8_t c = a + b;  // 200 + 100 = 300 -> int(300) -> uint8(44)
+// a and b are promoted to int for addition, result truncated to uint8
 
-// 2. 符号付きと符号なしの混合演算
+// 2. Mixed signed/unsigned arithmetic
 int x = -1;
 unsigned int y = 1;
 if (x < y) {
-    printf("x < y\n");  // 期待する出力
+    printf("x < y\n");  // Expected output
 } else {
-    printf("x >= y\n");  // 実際にはこちら！
+    printf("x >= y\n");  // Actually prints this!
 }
-// -1 は unsigned int に変換 → 0xFFFFFFFF = 4294967295 > 1
+// -1 is converted to unsigned int -> 0xFFFFFFFF = 4294967295 > 1
 
-// 3. 比較時の暗黙変換
+// 3. Implicit conversion during comparisons
 int len = -1;
 if (len < sizeof(int)) {
-    // sizeof は size_t（符号なし）を返す
-    // len(-1) が size_t に変換 → 巨大な正の値
-    // → この条件は false になる！
+    // sizeof returns size_t (unsigned)
+    // len(-1) is converted to size_t -> huge positive value
+    // -> This condition is false!
 }
 
-// 安全なパターン
+// Safe pattern
 if (len >= 0 && (size_t)len < sizeof(int)) {
-    // 先に負の値チェック
+    // Check for negative value first
 }
 ```
 
 ```python
-# Pythonでの型変換の注意点
+# Type conversion pitfalls in Python
 
-# Python 3 の // 演算子（切り捨て除算）
-print(7 // 2)     # 3 (正の数は切り捨て)
-print(-7 // 2)    # -4 (負の無限大方向への切り捨て)
-# C言語の -7 / 2 = -3 (ゼロ方向への切り捨て) とは異なる!
+# Python 3's // operator (floor division)
+print(7 // 2)     # 3 (truncates toward zero for positive numbers)
+print(-7 // 2)    # -4 (truncates toward negative infinity)
+# Different from C's -7 / 2 = -3 (truncates toward zero)!
 
-# Python 3 の % 演算子（剰余）
+# Python 3's % operator (modulo)
 print(7 % 2)      # 1
-print(-7 % 2)     # 1 (Pythonの剰余は常に除数と同符号)
-# C言語の -7 % 2 = -1 とは異なる!
+print(-7 % 2)     # 1 (Python's modulo always has the same sign as the divisor)
+# Different from C's -7 % 2 = -1!
 
-# int から bool
+# int to bool
 bool(0)    # False
 bool(1)    # True
-bool(-1)   # True (0以外は全てTrue)
+bool(-1)   # True (anything non-zero is True)
 
-# bool から int
+# bool to int
 int(True)  # 1
 int(False) # 0
-True + True  # 2 (boolはintのサブクラス)
+True + True  # 2 (bool is a subclass of int)
 ```
 
 ---
 
-## 7. 実践演習
+## 7. Practical Exercises
 
-### 演習1: 2の補数（基礎）
-以下の計算を8ビット2の補数で手計算せよ:
-1. -42 のビット表現
-2. 50 + (-30) の加算
-3. -100 + (-50) の加算（オーバーフローするか？）
+### Exercise 1: Two's Complement (Basic)
+Perform the following calculations by hand in 8-bit two's complement:
+1. The bit representation of -42
+2. The addition 50 + (-30)
+3. The addition -100 + (-50) (does overflow occur?)
 
-### 演習2: オーバーフロー検出（応用）
-好きな言語で、2つの32ビット符号付き整数の加算がオーバーフローするかどうかを判定する関数を実装せよ。ただし、64ビット整数への拡張を使わずに判定すること。
+### Exercise 2: Overflow Detection (Intermediate)
+In your language of choice, implement a function that determines whether the addition of two 32-bit signed integers will overflow. Do so without using widening to 64-bit integers.
 
-### 演習3: エンディアン変換（発展）
-バイナリファイルから4バイトの整数を読み取り、リトルエンディアン/ビッグエンディアン両方で解釈した値を表示するプログラムを実装せよ。
+### Exercise 3: Endianness Conversion (Advanced)
+Implement a program that reads a 4-byte integer from a binary file and displays the value interpreted in both little-endian and big-endian.
 
-### 演習4: 固定小数点演算（応用）
-Q8.8形式の固定小数点数で以下を計算し、結果をfloatと比較せよ:
+### Exercise 4: Fixed-Point Arithmetic (Intermediate)
+Calculate the following using Q8.8 fixed-point numbers and compare the results to float:
 1. 3.14 + 2.71
-2. 3.14 × 2.71
+2. 3.14 x 2.71
 3. 10.0 / 3.0
 
-### 演習5: 型変換の罠（実務）
-以下のC言語コードの出力を予測し、なぜその結果になるか説明せよ:
+### Exercise 5: Type Conversion Pitfalls (Practical)
+Predict the output of the following C code and explain why it produces that result:
 ```c
 unsigned int a = 1;
 int b = -1;
@@ -1350,61 +1345,61 @@ printf("%d\n", a > b);  // ???
 printf("%u\n", b);       // ???
 ```
 
-### 演習解答例
+### Exercise Solutions
 
 ```python
-# 演習1 解答
+# Exercise 1 Solutions
 
-# 1. -42 のビット表現（8ビット2の補数）
+# 1. Bit representation of -42 (8-bit two's complement)
 # +42 = 0010 1010
-# 反転 = 1101 0101
-# +1  = 1101 0110 = 0xD6 = -42
+# Invert = 1101 0101
+# +1    = 1101 0110 = 0xD6 = -42
 print(f"-42 = {(-42) & 0xFF:08b} = 0x{(-42) & 0xFF:02X}")
 # -42 = 11010110 = 0xD6
 
-# 2. 50 + (-30) の加算
+# 2. 50 + (-30) addition
 #   0011 0010 (50)
 # + 1110 0010 (-30)
-# = 1 0001 0100 → キャリーを捨てて → 0001 0100 = 20 ✓
+# = 1 0001 0100 -> discard carry -> 0001 0100 = 20
 print(f"50 + (-30) = {(50 + (-30)) & 0xFF}")
 # 50 + (-30) = 20
 
-# 3. -100 + (-50) の加算
+# 3. -100 + (-50) addition
 # -100 = 1001 1100 (0x9C)
 # -50  = 1100 1110 (0xCE)
 #   1001 1100
 # + 1100 1110
-# = 1 0110 1010 → キャリーを捨てて → 0110 1010 = 106
-# 負 + 負 = 正 → オーバーフロー！（-150は8ビット符号付きの範囲外）
+# = 1 0110 1010 -> discard carry -> 0110 1010 = 106
+# negative + negative = positive -> Overflow! (-150 is outside the 8-bit signed range)
 result = ((-100) & 0xFF) + ((-50) & 0xFF)
 print(f"-100 + (-50) = {result & 0xFF} (unsigned), interpreted as {result & 0xFF if result & 0xFF < 128 else (result & 0xFF) - 256}")
-# → 106 (正の値) = オーバーフロー（正しい結果は-150）
+# -> 106 (positive value) = Overflow (correct result would be -150)
 
 
-# 演習2 解答
+# Exercise 2 Solution
 def will_overflow_int32(a, b):
-    """32ビット符号付き整数の加算がオーバーフローするか判定"""
+    """Determine whether 32-bit signed integer addition will overflow"""
     INT32_MAX = 2**31 - 1   # 2147483647
     INT32_MIN = -(2**31)    # -2147483648
 
     if b > 0 and a > INT32_MAX - b:
-        return True  # 正のオーバーフロー
+        return True  # Positive overflow
     if b < 0 and a < INT32_MIN - b:
-        return True  # 負のオーバーフロー
+        return True  # Negative overflow
     return False
 
-# テスト
+# Test
 print(will_overflow_int32(2**31 - 1, 1))      # True
 print(will_overflow_int32(2**31 - 1, 0))      # False
 print(will_overflow_int32(-(2**31), -1))       # True
 print(will_overflow_int32(100, -50))           # False
 
 
-# 演習3 解答
+# Exercise 3 Solution
 import struct
 
 def read_as_both_endian(data):
-    """4バイトを両エンディアンで解釈"""
+    """Interpret 4 bytes in both endiannesses"""
     le_value = struct.unpack('<I', data)[0]
     be_value = struct.unpack('>I', data)[0]
     le_signed = struct.unpack('<i', data)[0]
@@ -1416,7 +1411,7 @@ def read_as_both_endian(data):
     print(f"Little-Endian signed:   {le_signed}")
     print(f"Big-Endian signed:      {be_signed}")
 
-# テスト
+# Test
 read_as_both_endian(b'\x12\x34\x56\x78')
 # Bytes: 12345678
 # Little-Endian unsigned: 2018915346 (0x78563412)
@@ -1425,9 +1420,9 @@ read_as_both_endian(b'\x12\x34\x56\x78')
 # Big-Endian signed:      305419896
 
 
-# 演習4 解答
+# Exercise 4 Solution
 class Q8_8:
-    """Q8.8固定小数点数"""
+    """Q8.8 fixed-point number"""
     FRAC = 8
     SCALE = 256
 
@@ -1465,52 +1460,52 @@ print(f"3.14 * 2.71 = {(a * b)} (float: {3.14 * 2.71})")
 c = Q8_8(10.0)
 d = Q8_8(3.0)
 print(f"10.0 / 3.0 = {(c / d)} (float: {10.0 / 3.0})")
-# 固定小数点は精度が限られるため、float との微小な差が生じる
+# Fixed-point has limited precision, so small differences from float will occur
 
 
-# 演習5 解答
+# Exercise 5 Solution
 # unsigned int a = 1;
 # int b = -1;
 # printf("%d\n", a > b);
-# → 出力: 0 (false)
-# → bがunsigned intに変換され、-1は4294967295になる
-# → 1 > 4294967295 は false
+# -> Output: 0 (false)
+# -> b is converted to unsigned int, -1 becomes 4294967295
+# -> 1 > 4294967295 is false
 
 # printf("%u\n", b);
-# → 出力: 4294967295
-# → -1のビットパターン(0xFFFFFFFF)をunsignedとして解釈
+# -> Output: 4294967295
+# -> The bit pattern of -1 (0xFFFFFFFF) interpreted as unsigned
 ```
 
 
 ---
 
-## トラブルシューティング
+## Troubleshooting
 
-### よくあるエラーと解決策
+### Common Errors and Solutions
 
-| エラー | 原因 | 解決策 |
-|--------|------|--------|
-| 初期化エラー | 設定ファイルの不備 | 設定ファイルのパスと形式を確認 |
-| タイムアウト | ネットワーク遅延/リソース不足 | タイムアウト値の調整、リトライ処理の追加 |
-| メモリ不足 | データ量の増大 | バッチ処理の導入、ページネーションの実装 |
-| 権限エラー | アクセス権限の不足 | 実行ユーザーの権限確認、設定の見直し |
-| データ不整合 | 並行処理の競合 | ロック機構の導入、トランザクション管理 |
+| Error | Cause | Solution |
+|-------|-------|----------|
+| Initialization error | Configuration file issues | Verify configuration file path and format |
+| Timeout | Network latency / resource shortage | Adjust timeout values, add retry logic |
+| Out of memory | Data volume growth | Introduce batch processing, implement pagination |
+| Permission error | Insufficient access rights | Verify user permissions, review settings |
+| Data inconsistency | Concurrent processing conflicts | Introduce locking mechanisms, manage transactions |
 
-### デバッグの手順
+### Debugging Steps
 
-1. **エラーメッセージの確認**: スタックトレースを読み、発生箇所を特定する
-2. **再現手順の確立**: 最小限のコードでエラーを再現する
-3. **仮説の立案**: 考えられる原因をリストアップする
-4. **段階的な検証**: ログ出力やデバッガを使って仮説を検証する
-5. **修正と回帰テスト**: 修正後、関連する箇所のテストも実行する
+1. **Check error messages**: Read the stack trace and identify the location of the error
+2. **Establish reproduction steps**: Reproduce the error with minimal code
+3. **Formulate hypotheses**: List possible causes
+4. **Verify step by step**: Use log output or a debugger to validate hypotheses
+5. **Fix and regression test**: After fixing, run tests on related areas as well
 
 ```python
-# デバッグ用ユーティリティ
+# Debugging utilities
 import logging
 import traceback
 from functools import wraps
 
-# ロガーの設定
+# Logger setup
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
@@ -1518,102 +1513,102 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def debug_decorator(func):
-    """関数の入出力をログ出力するデコレータ"""
+    """Decorator that logs function inputs and outputs"""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        logger.debug(f"呼び出し: {func.__name__}(args={args}, kwargs={kwargs})")
+        logger.debug(f"Call: {func.__name__}(args={args}, kwargs={kwargs})")
         try:
             result = func(*args, **kwargs)
-            logger.debug(f"戻り値: {func.__name__} -> {result}")
+            logger.debug(f"Return: {func.__name__} -> {result}")
             return result
         except Exception as e:
-            logger.error(f"例外発生: {func.__name__}: {e}")
+            logger.error(f"Exception: {func.__name__}: {e}")
             logger.error(traceback.format_exc())
             raise
     return wrapper
 
 @debug_decorator
 def process_data(items):
-    """データ処理（デバッグ対象）"""
+    """Data processing (debug target)"""
     if not items:
-        raise ValueError("空のデータ")
+        raise ValueError("Empty data")
     return [item * 2 for item in items]
 ```
 
-### パフォーマンス問題の診断
+### Diagnosing Performance Issues
 
-パフォーマンス問題が発生した場合の診断手順:
+Steps for diagnosing performance issues:
 
-1. **ボトルネックの特定**: プロファイリングツールで計測
-2. **メモリ使用量の確認**: メモリリークの有無をチェック
-3. **I/O待ちの確認**: ディスクやネットワークI/Oの状況を確認
-4. **同時接続数の確認**: コネクションプールの状態を確認
+1. **Identify the bottleneck**: Measure using profiling tools
+2. **Check memory usage**: Check for memory leaks
+3. **Check I/O waits**: Examine disk and network I/O conditions
+4. **Check concurrent connections**: Inspect connection pool status
 
-| 問題の種類 | 診断ツール | 対策 |
-|-----------|-----------|------|
-| CPU負荷 | cProfile, py-spy | アルゴリズム改善、並列化 |
-| メモリリーク | tracemalloc, objgraph | 参照の適切な解放 |
-| I/Oボトルネック | strace, iostat | 非同期I/O、キャッシュ |
-| DB遅延 | EXPLAIN, slow query log | インデックス、クエリ最適化 |
+| Problem Type | Diagnostic Tool | Solution |
+|-------------|----------------|----------|
+| CPU load | cProfile, py-spy | Algorithm improvements, parallelization |
+| Memory leak | tracemalloc, objgraph | Proper reference release |
+| I/O bottleneck | strace, iostat | Asynchronous I/O, caching |
+| DB latency | EXPLAIN, slow query log | Indexing, query optimization |
 
 ---
 
-## 設計判断ガイド
+## Design Decision Guide
 
-### 選択基準マトリクス
+### Selection Criteria Matrix
 
-技術選択を行う際の判断基準を以下にまとめます。
+The following summarizes the criteria for technology selection decisions.
 
-| 判断基準 | 重視する場合 | 妥協できる場合 |
-|---------|------------|-------------|
-| パフォーマンス | リアルタイム処理、大規模データ | 管理画面、バッチ処理 |
-| 保守性 | 長期運用、チーム開発 | プロトタイプ、短期プロジェクト |
-| スケーラビリティ | 成長が見込まれるサービス | 社内ツール、固定ユーザー |
-| セキュリティ | 個人情報、金融データ | 公開データ、社内利用 |
-| 開発速度 | MVP、市場投入スピード | 品質重視、ミッションクリティカル |
+| Criterion | Prioritize when | Can compromise when |
+|-----------|----------------|-------------------|
+| Performance | Real-time processing, large-scale data | Admin panels, batch processing |
+| Maintainability | Long-term operation, team development | Prototypes, short-term projects |
+| Scalability | Services expected to grow | Internal tools, fixed user base |
+| Security | Personal data, financial data | Public data, internal use |
+| Development speed | MVP, time-to-market | Quality-focused, mission-critical |
 
-### アーキテクチャパターンの選択
+### Architecture Pattern Selection
 
 ```
-┌─────────────────────────────────────────────────┐
-│              アーキテクチャ選択フロー              │
-├─────────────────────────────────────────────────┤
-│                                                 │
-│  ① チーム規模は？                                │
-│    ├─ 小規模（1-5人）→ モノリス                   │
-│    └─ 大規模（10人+）→ ②へ                       │
-│                                                 │
-│  ② デプロイ頻度は？                               │
-│    ├─ 週1回以下 → モノリス + モジュール分割         │
-│    └─ 毎日/複数回 → ③へ                          │
-│                                                 │
-│  ③ チーム間の独立性は？                            │
-│    ├─ 高い → マイクロサービス                      │
-│    └─ 中程度 → モジュラーモノリス                   │
-│                                                 │
-└─────────────────────────────────────────────────┘
++---------------------------------------------------+
+|          Architecture Selection Flow               |
++---------------------------------------------------+
+|                                                    |
+|  (1) Team size?                                    |
+|    +-- Small (1-5 people) -> Monolith              |
+|    +-- Large (10+ people) -> Go to (2)             |
+|                                                    |
+|  (2) Deployment frequency?                         |
+|    +-- Once a week or less -> Monolith + modules   |
+|    +-- Daily/multiple times -> Go to (3)           |
+|                                                    |
+|  (3) Team independence?                            |
+|    +-- High -> Microservices                       |
+|    +-- Moderate -> Modular Monolith                |
+|                                                    |
++---------------------------------------------------+
 ```
 
-### トレードオフの分析
+### Trade-off Analysis
 
-技術的な判断には必ずトレードオフが伴います。以下の観点で分析を行いましょう:
+Technical decisions always involve trade-offs. Analyze from the following perspectives:
 
-**1. 短期 vs 長期のコスト**
-- 短期的に速い方法が長期的には技術的負債になることがある
-- 逆に、過剰な設計は短期的なコストが高く、プロジェクトの遅延を招く
+**1. Short-term vs Long-term Costs**
+- A fast short-term approach can become technical debt in the long run
+- Conversely, over-engineering incurs high short-term costs and may delay the project
 
-**2. 一貫性 vs 柔軟性**
-- 統一された技術スタックは学習コストが低い
-- 多様な技術の採用は適材適所が可能だが、運用コストが増加
+**2. Consistency vs Flexibility**
+- A unified technology stack has lower learning costs
+- Adopting diverse technologies enables best-fit solutions but increases operational costs
 
-**3. 抽象化のレベル**
-- 高い抽象化は再利用性が高いが、デバッグが困難になる場合がある
-- 低い抽象化は直感的だが、コードの重複が発生しやすい
+**3. Level of Abstraction**
+- High abstraction offers greater reusability but can make debugging difficult
+- Low abstraction is intuitive but prone to code duplication
 
 ```python
-# 設計判断の記録テンプレート
+# Design decision recording template
 class ArchitectureDecisionRecord:
-    """ADR (Architecture Decision Record) の作成"""
+    """Create an ADR (Architecture Decision Record)"""
 
     def __init__(self, title: str):
         self.title = title
@@ -1623,17 +1618,17 @@ class ArchitectureDecisionRecord:
         self.alternatives = []
 
     def set_context(self, context: str):
-        """背景と課題の記述"""
+        """Describe the background and problem"""
         self.context = context
         return self
 
     def set_decision(self, decision: str):
-        """決定内容の記述"""
+        """Describe the decision"""
         self.decision = decision
         return self
 
     def add_consequence(self, consequence: str, positive: bool = True):
-        """結果の追加"""
+        """Add a consequence"""
         self.consequences.append({
             'description': consequence,
             'type': 'positive' if positive else 'negative'
@@ -1641,7 +1636,7 @@ class ArchitectureDecisionRecord:
         return self
 
     def add_alternative(self, name: str, reason_rejected: str):
-        """却下した代替案の追加"""
+        """Add a rejected alternative"""
         self.alternatives.append({
             'name': name,
             'reason_rejected': reason_rejected
@@ -1649,15 +1644,15 @@ class ArchitectureDecisionRecord:
         return self
 
     def to_markdown(self) -> str:
-        """Markdown形式で出力"""
+        """Output in Markdown format"""
         md = f"# ADR: {self.title}\n\n"
-        md += f"## 背景\n{self.context}\n\n"
-        md += f"## 決定\n{self.decision}\n\n"
-        md += "## 結果\n"
+        md += f"## Context\n{self.context}\n\n"
+        md += f"## Decision\n{self.decision}\n\n"
+        md += "## Consequences\n"
         for c in self.consequences:
-            icon = "✅" if c['type'] == 'positive' else "⚠️"
+            icon = "+" if c['type'] == 'positive' else "!"
             md += f"- {icon} {c['description']}\n"
-        md += "\n## 却下した代替案\n"
+        md += "\n## Rejected Alternatives\n"
         for a in self.alternatives:
             md += f"- **{a['name']}**: {a['reason_rejected']}\n"
         return md
@@ -1665,53 +1660,53 @@ class ArchitectureDecisionRecord:
 
 ---
 
-## 実務での適用シナリオ
+## Practical Application Scenarios
 
-### シナリオ1: スタートアップでのMVP開発
+### Scenario 1: MVP Development at a Startup
 
-**状況:** 限られたリソースで素早くプロダクトをリリースする必要がある
+**Situation:** Need to release a product quickly with limited resources
 
-**アプローチ:**
-- シンプルなアーキテクチャを選択
-- 必要最小限の機能に集中
-- 自動テストはクリティカルパスのみ
-- モニタリングは早期から導入
+**Approach:**
+- Choose a simple architecture
+- Focus on the minimum viable set of features
+- Automated tests only for the critical path
+- Introduce monitoring early on
 
-**学んだ教訓:**
-- 完璧を求めすぎない（YAGNI原則）
-- ユーザーフィードバックを早期に取得
-- 技術的負債は意識的に管理する
+**Lessons Learned:**
+- Don't pursue perfection (YAGNI principle)
+- Get user feedback early
+- Manage technical debt consciously
 
-### シナリオ2: レガシーシステムのモダナイゼーション
+### Scenario 2: Modernizing a Legacy System
 
-**状況:** 10年以上運用されているシステムを段階的に刷新する
+**Situation:** Incrementally renewing a system that has been in operation for over 10 years
 
-**アプローチ:**
-- Strangler Fig パターンで段階的に移行
-- 既存のテストがない場合はCharacterization Testを先に作成
-- APIゲートウェイで新旧システムを共存
-- データ移行は段階的に実施
+**Approach:**
+- Use the Strangler Fig pattern for gradual migration
+- Create Characterization Tests first if existing tests are absent
+- Use an API gateway to allow old and new systems to coexist
+- Perform data migration in stages
 
-| フェーズ | 作業内容 | 期間目安 | リスク |
-|---------|---------|---------|--------|
-| 1. 調査 | 現状分析、依存関係の把握 | 2-4週間 | 低 |
-| 2. 基盤 | CI/CD構築、テスト環境 | 4-6週間 | 低 |
-| 3. 移行開始 | 周辺機能から順次移行 | 3-6ヶ月 | 中 |
-| 4. コア移行 | 中核機能の移行 | 6-12ヶ月 | 高 |
-| 5. 完了 | 旧システム廃止 | 2-4週間 | 中 |
+| Phase | Work | Estimated Duration | Risk |
+|-------|------|-------------------|------|
+| 1. Investigation | Current state analysis, dependency mapping | 2-4 weeks | Low |
+| 2. Foundation | CI/CD setup, test environment | 4-6 weeks | Low |
+| 3. Migration start | Sequential migration from peripheral features | 3-6 months | Medium |
+| 4. Core migration | Migration of core features | 6-12 months | High |
+| 5. Completion | Decommission the old system | 2-4 weeks | Medium |
 
-### シナリオ3: 大規模チームでの開発
+### Scenario 3: Development with a Large Team
 
-**状況:** 50人以上のエンジニアが同一プロダクトを開発する
+**Situation:** 50+ engineers working on the same product
 
-**アプローチ:**
-- ドメイン駆動設計で境界を明確化
-- チームごとにオーナーシップを設定
-- 共通ライブラリはInner Source方式で管理
-- APIファーストで設計し、チーム間の依存を最小化
+**Approach:**
+- Clarify boundaries with Domain-Driven Design
+- Assign ownership per team
+- Manage shared libraries via Inner Source
+- Design API-first to minimize inter-team dependencies
 
 ```python
-# チーム間のAPI契約定義
+# API contract definition between teams
 from dataclasses import dataclass
 from typing import List, Optional
 from enum import Enum
@@ -1724,20 +1719,20 @@ class Priority(Enum):
 
 @dataclass
 class APIContract:
-    """チーム間のAPI契約"""
+    """Inter-team API contract"""
     endpoint: str
     method: str
     owner_team: str
     consumers: List[str]
-    sla_ms: int  # レスポンスタイムSLA
+    sla_ms: int  # Response time SLA
     priority: Priority
 
     def validate_sla(self, actual_ms: int) -> bool:
-        """SLA準拠の確認"""
+        """Verify SLA compliance"""
         return actual_ms <= self.sla_ms
 
     def to_openapi(self) -> dict:
-        """OpenAPI形式で出力"""
+        """Output in OpenAPI format"""
         return {
             'path': self.endpoint,
             'method': self.method,
@@ -1746,7 +1741,7 @@ class APIContract:
             'x-sla-ms': self.sla_ms
         }
 
-# 使用例
+# Usage example
 contracts = [
     APIContract(
         endpoint="/api/v1/users",
@@ -1767,71 +1762,71 @@ contracts = [
 ]
 ```
 
-### シナリオ4: パフォーマンスクリティカルなシステム
+### Scenario 4: Performance-Critical Systems
 
-**状況:** ミリ秒単位のレスポンスが求められるシステム
+**Situation:** A system that requires millisecond-level response times
 
-**最適化ポイント:**
-1. キャッシュ戦略（L1: インメモリ、L2: Redis、L3: CDN）
-2. 非同期処理の活用
-3. コネクションプーリング
-4. クエリ最適化とインデックス設計
+**Optimization Points:**
+1. Cache strategy (L1: in-memory, L2: Redis, L3: CDN)
+2. Leverage asynchronous processing
+3. Connection pooling
+4. Query optimization and index design
 
-| 最適化手法 | 効果 | 実装コスト | 適用場面 |
-|-----------|------|-----------|---------|
-| インメモリキャッシュ | 高 | 低 | 頻繁にアクセスされるデータ |
-| CDN | 高 | 低 | 静的コンテンツ |
-| 非同期処理 | 中 | 中 | I/O待ちが多い処理 |
-| DB最適化 | 高 | 高 | クエリが遅い場合 |
-| コード最適化 | 低-中 | 高 | CPU律速の場合 |
+| Optimization Method | Impact | Implementation Cost | Applicable Scenario |
+|--------------------|--------|-------------------|-------------------|
+| In-memory cache | High | Low | Frequently accessed data |
+| CDN | High | Low | Static content |
+| Asynchronous processing | Medium | Medium | I/O-heavy processing |
+| DB optimization | High | High | Slow queries |
+| Code optimization | Low-Medium | High | CPU-bound cases |
 ---
 
 ## FAQ
 
-### Q1: なぜ2の補数が採用されたのですか？
-**A**: 加算器1つで加減算が統一できるため。ハードウェアコストが劇的に削減される。符号ビット方式では加算と減算に別の回路が必要で、かつ +0/-0 の2つのゼロの処理が複雑。2の補数は数学的にも美しく（mod 2^N の環）、実装も効率的。
+### Q1: Why was two's complement adopted?
+**A**: Because a single adder can handle both addition and subtraction, dramatically reducing hardware costs. Sign-magnitude requires separate circuits for addition and subtraction, plus complex handling of the two zeros (+0/-0). Two's complement is also mathematically elegant (the ring mod 2^N) and efficient to implement.
 
-### Q2: 2038年問題は本当に起きますか？
-**A**: 32ビットのtime_tを使い続けるシステムでは起きうる。ほとんどのデスクトップOS/サーバーは64ビットに移行済み。問題は組み込みシステム（IoTデバイス、産業制御装置）で、ファームウェア更新が困難な機器が多数残存している。
+### Q2: Will the Year 2038 problem actually happen?
+**A**: It can occur on systems that continue to use 32-bit time_t. Most desktop OSes and servers have already migrated to 64-bit. The real concern is embedded systems (IoT devices, industrial control equipment), many of which remain in operation with firmware that is difficult to update.
 
-### Q3: Pythonの整数に上限がないのはなぜですか？
-**A**: Pythonは内部的に可変長の整数表現を使用（ob_digit配列）。必要に応じてメモリを動的確保するため、メモリが許す限り任意の大きさの整数を扱える。代償として、固定幅整数に比べて演算速度は遅い。
+### Q3: Why do Python integers have no upper limit?
+**A**: Python internally uses a variable-length integer representation (ob_digit array). It dynamically allocates memory as needed, allowing integers of arbitrary size as long as memory permits. The trade-off is that arithmetic is slower compared to fixed-width integers.
 
-### Q4: 符号付き整数のオーバーフローがC言語で未定義動作なのはなぜですか？
-**A**: 2の補数以外の表現（符号ビット方式、1の補数）を使うプラットフォームも想定していたため。また、未定義とすることでコンパイラが「オーバーフローは起きない」と仮定した最適化が可能になる（ループ展開、インダクション変数の最適化等）。C23では2の補数が必須になった。
+### Q4: Why is signed integer overflow undefined behavior in C?
+**A**: Because the standard also accommodated platforms that used representations other than two's complement (sign-magnitude, one's complement). Additionally, making it undefined allows the compiler to assume "overflow never happens" and perform optimizations (loop unrolling, induction variable optimization, etc.). C23 now mandates two's complement.
 
-### Q5: なぜJavaには符号なし整数型がないのですか？
-**A**: 設計者のJames Goslingは「符号なし型は混乱の元」と判断した。C言語での符号付き/符号なし混合演算のバグが多発していたためである。Java 8以降、Integerクラスに符号なし演算メソッド（compareUnsigned, divideUnsigned等）が追加された。
+### Q5: Why doesn't Java have unsigned integer types?
+**A**: Designer James Gosling judged that "unsigned types are a source of confusion." This was because bugs from mixing signed/unsigned arithmetic in C were rampant. Since Java 8, unsigned operation methods (compareUnsigned, divideUnsigned, etc.) have been added to the Integer class.
 
-### Q6: 整数除算の丸め方向はなぜ言語ごとに異なるのですか？
-**A**: 数学的には複数の合理的な定義があるため。C99/Java/Goは「ゼロ方向への切り捨て」（-7/2=-3）、Pythonは「負の無限大方向への切り捨て」（-7//2=-4）。どちらも一長一短で、剰余の符号が変わる。Pythonの方が数学的に一貫しているが、Cの方がハードウェアの除算命令に合致する。
-
----
-
-## まとめ
-
-| 概念 | ポイント |
-|------|---------|
-| 符号なし整数 | 全ビットを値に使用。0〜2^N-1 |
-| 2の補数 | 負の数 = ビット反転+1。加算器で統一処理 |
-| 符号拡張 | ビット幅拡大時にMSBを複製。符号なしは0埋め |
-| オーバーフロー | 表現範囲を超える演算。言語ごとに挙動が異なる |
-| C言語の未定義動作 | 符号付きオーバーフローは未定義。コンパイラ最適化の罠 |
-| エンディアン | バイト格納順序。ネットワーク=BE、x86=LE |
-| 固定小数点 | 小数点位置固定。金融・組み込みで使用 |
-| 型変換の罠 | 符号付き/なし混合、整数昇格に注意 |
+### Q6: Why does the rounding direction of integer division differ between languages?
+**A**: Because there are multiple mathematically rational definitions. C99/Java/Go use "truncation toward zero" (-7/2=-3), while Python uses "floor toward negative infinity" (-7//2=-4). Both have pros and cons, and the sign of the remainder changes accordingly. Python's approach is more mathematically consistent, but C's matches the hardware division instruction.
 
 ---
 
-## 次に読むべきガイド
+## Summary
+
+| Concept | Key Points |
+|---------|-----------|
+| Unsigned integers | All bits used for value. Range: 0 to 2^N-1 |
+| Two's complement | Negative = bit inversion + 1. Unified processing with a single adder |
+| Sign extension | Replicate MSB when widening bit width. Zero-fill for unsigned |
+| Overflow | Operation exceeds representable range. Behavior varies by language |
+| C undefined behavior | Signed overflow is undefined. Beware of compiler optimization pitfalls |
+| Endianness | Byte storage order. Network = BE, x86 = LE |
+| Fixed-point | Fixed decimal point position. Used in finance and embedded systems |
+| Type conversion pitfalls | Watch out for signed/unsigned mixing and integer promotion |
 
 ---
 
-## 参考文献
+## Recommended Next Guides
+
+---
+
+## References
 1. Bryant, R. E. & O'Hallaron, D. R. "Computer Systems: A Programmer's Perspective." Chapter 2.
 2. Warren, H. S. "Hacker's Delight." 2nd Edition, Chapters 2-4.
 3. Goldberg, D. "What Every Computer Scientist Should Know About Floating-Point Arithmetic." 1991.
 4. IEEE. "IEEE 754-2019 Standard for Floating-Point Arithmetic."
-5. ISO/IEC 9899:2024 (C23). "Programming Languages — C."
+5. ISO/IEC 9899:2024 (C23). "Programming Languages -- C."
 6. Seacord, R. C. "Secure Coding in C and C++." 2nd Edition, Addison-Wesley, 2013.
 7. Bloch, J. "Nearly All Binary Searches and Mergesorts are Broken." Google Research Blog, 2006.

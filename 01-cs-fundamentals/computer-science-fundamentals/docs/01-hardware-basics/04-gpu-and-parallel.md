@@ -1,117 +1,118 @@
-# GPUと並列計算
+# GPU and Parallel Computing
 
-> GPUは「一つの命令を数千のコアで同時実行する」— CPU的な逐次処理とは根本的に異なるアプローチである。
+> The GPU "executes a single instruction across thousands of cores simultaneously" -- a fundamentally different approach from CPU-style sequential processing.
 
-## この章で学ぶこと
+## Learning Objectives
 
-- [ ] GPUの内部アーキテクチャとCPUとの違いを説明できる
-- [ ] GPGPU（汎用GPU計算）の仕組みを理解する
-- [ ] AI/MLにおけるGPUの役割を説明できる
-- [ ] CUDAプログラミングの基本パターンを理解する
-- [ ] GPU間通信技術（NVLink、NVSwitch）を説明できる
-- [ ] マルチGPU構成と分散学習の基礎を習得する
+- [ ] Explain the internal architecture of GPUs and how they differ from CPUs
+- [ ] Understand the mechanisms of GPGPU (General-Purpose GPU Computing)
+- [ ] Explain the role of GPUs in AI/ML
+- [ ] Understand the basic patterns of CUDA programming
+- [ ] Explain GPU interconnect technologies (NVLink, NVSwitch)
+- [ ] Master the fundamentals of multi-GPU configurations and distributed training
 
-## 前提知識
+## Prerequisites
 
 
 ---
 
 ## 1. GPU vs CPU
 
-### 1.1 設計思想の違い
+### 1.1 Design Philosophy Differences
 
 ```
-CPU: レイテンシ最適化（1タスクを最速で）
+CPU: Latency-Optimized (execute a single task as fast as possible)
   ┌──────────────────────────────────────┐
   │ ┌────────────────────┐ ┌──────────┐ │
-  │ │ 大きなキャッシュ    │ │ 分岐予測 │ │  ← 複雑な制御ロジック
-  │ │ (L1: 64KB×2)       │ │ 器       │ │  ← 少数の強力なコア
-  │ │ (L2: 1MB)          │ └──────────┘ │
-  │ │ (L3: 32MB)         │              │
+  │ │ Large Cache         │ │ Branch   │ │  ← Complex control logic
+  │ │ (L1: 64KB x2)      │ │ Predictor│ │  ← Few powerful cores
+  │ │ (L2: 1MB)           │ └──────────┘ │
+  │ │ (L3: 32MB)          │              │
   │ └────────────────────┘              │
   │ ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐│
-  │ │Core 0│ │Core 1│ │Core 2│ │Core 3││  ← 4-16コア
-  │ │(超強力)│ │(超強力)│ │(超強力)│ │(超強力)│
+  │ │Core 0│ │Core 1│ │Core 2│ │Core 3││  ← 4-16 cores
+  │ │(very  │ │(very  │ │(very  │ │(very  │
+  │ │powerful)│ │powerful)│ │powerful)│ │powerful)│
   │ └──────┘ └──────┘ └──────┘ └──────┘│
   └──────────────────────────────────────┘
 
-GPU: スループット最適化（大量タスクを並列で）
+GPU: Throughput-Optimized (process massive tasks in parallel)
   ┌──────────────────────────────────────┐
-  │ ┌────┐                   小キャッシュ │
-  │ │制御│                               │  ← 単純な制御ロジック
-  │ └────┘                               │  ← 数千の小さなコア
+  │ ┌────┐                  Small Cache  │
+  │ │Ctrl│                               │  ← Simple control logic
+  │ └────┘                               │  ← Thousands of small cores
   │ ┌─┐┌─┐┌─┐┌─┐┌─┐┌─┐┌─┐┌─┐┌─┐┌─┐  │
-  │ │c││c││c││c││c││c││c││c││c││c│  │  ← SM(ストリーミング
-  │ └─┘└─┘└─┘└─┘└─┘└─┘└─┘└─┘└─┘└─┘  │    マルチプロセッサ)内
-  │ ┌─┐┌─┐┌─┐┌─┐┌─┐┌─┐┌─┐┌─┐┌─┐┌─┐  │    に32-128コア
+  │ │c││c││c││c││c││c││c││c││c││c│  │  ← 32-128 cores per SM
+  │ └─┘└─┘└─┘└─┘└─┘└─┘└─┘└─┘└─┘└─┘  │    (Streaming Multiprocessor)
+  │ ┌─┐┌─┐┌─┐┌─┐┌─┐┌─┐┌─┐┌─┐┌─┐┌─┐  │
   │ │c││c││c││c││c││c││c││c││c││c│  │
-  │ └─┘└─┘└─┘└─┘└─┘└─┘└─┘└─┘└─┘└─┘  │  ← SMが数十〜百個
-  │ ... (数千コア)                       │
+  │ └─┘└─┘└─┘└─┘└─┘└─┘└─┘└─┘└─┘└─┘  │  ← Tens to hundreds of SMs
+  │ ... (thousands of cores)            │
   └──────────────────────────────────────┘
 ```
 
-### 1.2 数値比較
+### 1.2 Numerical Comparison
 
-| 指標 | CPU (Ryzen 9 7950X) | GPU (RTX 4090) |
+| Metric | CPU (Ryzen 9 7950X) | GPU (RTX 4090) |
 |------|---------------------|----------------|
-| コア数 | 16 | 16,384 (CUDA) |
-| クロック | 5.7 GHz | 2.5 GHz |
-| FP32性能 | 〜1.5 TFLOPS | 82.6 TFLOPS |
-| メモリ帯域 | 83 GB/s (DDR5) | 1,008 GB/s (GDDR6X) |
+| Core Count | 16 | 16,384 (CUDA) |
+| Clock Speed | 5.7 GHz | 2.5 GHz |
+| FP32 Performance | ~1.5 TFLOPS | 82.6 TFLOPS |
+| Memory Bandwidth | 83 GB/s (DDR5) | 1,008 GB/s (GDDR6X) |
 | TDP | 170W | 450W |
-| 得意分野 | 逐次処理、分岐多い処理 | 大量データの並列処理 |
-| 苦手分野 | 大規模並列 | 分岐多い処理、逐次処理 |
+| Strengths | Sequential processing, branch-heavy code | Massive data parallel processing |
+| Weaknesses | Large-scale parallelism | Branch-heavy code, sequential processing |
 
-### 1.3 トランジスタの使われ方の違い
+### 1.3 Differences in Transistor Allocation
 
 ```
-CPUのダイ面積配分:
+CPU Die Area Allocation:
   ┌──────────────────────────────────────┐
-  │ [     キャッシュ: 40%     ]          │
-  │ [制御ロジック: 30%]                  │
-  │ [分岐予測: 10%]                      │
-  │ [演算ユニット: 15%]                  │
-  │ [その他: 5%]                         │
+  │ [       Cache: 40%       ]          │
+  │ [Control Logic: 30%]                │
+  │ [Branch Prediction: 10%]            │
+  │ [ALUs: 15%]                         │
+  │ [Other: 5%]                         │
   └──────────────────────────────────────┘
-  → 面積の大部分がデータの取得と制御に使われ、
-    実際の演算に使われるのは15%程度
+  → The majority of die area is devoted to data fetching and control;
+    only about 15% is used for actual computation
 
-GPUのダイ面積配分:
+GPU Die Area Allocation:
   ┌──────────────────────────────────────┐
-  │ [     演算ユニット: 60%     ]        │
-  │ [キャッシュ: 15%]                    │
-  │ [制御ロジック: 10%]                  │
-  │ [メモリコントローラ: 10%]            │
-  │ [その他: 5%]                         │
+  │ [       ALUs: 60%       ]           │
+  │ [Cache: 15%]                        │
+  │ [Control Logic: 10%]                │
+  │ [Memory Controller: 10%]            │
+  │ [Other: 5%]                         │
   └──────────────────────────────────────┘
-  → 面積の大部分が演算に使われる
-  → 制御は最小限、その分スレッドを大量に走らせてレイテンシを隠蔽
+  → The majority of die area is devoted to computation
+  → Control is minimal; instead, massive threads hide latency
 ```
 
 ---
 
-## 2. GPUアーキテクチャ
+## 2. GPU Architecture
 
-### 2.1 NVIDIA GPU の構造
+### 2.1 NVIDIA GPU Structure
 
 ```
-NVIDIA GPU（Ada Lovelace アーキテクチャ）:
+NVIDIA GPU (Ada Lovelace Architecture):
 
   ┌─────────────────────────────────────────────┐
-  │                  GPU チップ                   │
+  │                  GPU Chip                     │
   │                                               │
   │  ┌─────────────────────────────────────────┐ │
-  │  │  GPC (Graphics Processing Cluster) × 12 │ │
+  │  │  GPC (Graphics Processing Cluster) x 12 │ │
   │  │  ┌──────────────────────────────────┐   │ │
   │  │  │  TPC (Texture Processing Cluster) │   │ │
   │  │  │  ┌────────────────────────────┐  │   │ │
   │  │  │  │  SM (Streaming Multiprocessor)│ │   │ │
   │  │  │  │  ┌─────────────────────────┐│ │   │ │
-  │  │  │  │  │ CUDA Core × 128        ││ │   │ │
-  │  │  │  │  │ Tensor Core × 4        ││ │   │ │
-  │  │  │  │  │ RT Core × 1            ││ │   │ │
-  │  │  │  │  │ 共有メモリ: 128KB      ││ │   │ │
-  │  │  │  │  │ レジスタファイル: 256KB ││ │   │ │
+  │  │  │  │  │ CUDA Core x 128        ││ │   │ │
+  │  │  │  │  │ Tensor Core x 4        ││ │   │ │
+  │  │  │  │  │ RT Core x 1            ││ │   │ │
+  │  │  │  │  │ Shared Memory: 128KB   ││ │   │ │
+  │  │  │  │  │ Register File: 256KB   ││ │   │ │
   │  │  │  │  │ L1 Cache: 128KB        ││ │   │ │
   │  │  │  │  └─────────────────────────┘│ │   │ │
   │  │  │  └────────────────────────────┘  │   │ │
@@ -119,23 +120,23 @@ NVIDIA GPU（Ada Lovelace アーキテクチャ）:
   │  └─────────────────────────────────────────┘ │
   │                                               │
   │  ┌─────────────────┐  ┌────────────────────┐│
-  │  │  L2 Cache: 72MB  │  │ メモリコントローラ  ││
-  │  └─────────────────┘  │ GDDR6X 24GB       ││
-  │                        │ 384-bit バス      ││
+  │  │  L2 Cache: 72MB  │  │ Memory Controller  ││
+  │  └─────────────────┘  │ GDDR6X 24GB        ││
+  │                        │ 384-bit bus         ││
   │                        └────────────────────┘│
   └─────────────────────────────────────────────┘
 
-  RTX 4090: 128SM × 128 CUDA Core = 16,384 CUDA Core
+  RTX 4090: 128 SM x 128 CUDA Cores = 16,384 CUDA Cores
 ```
 
-### 2.2 ワープ（Warp）とスレッド階層
+### 2.2 Warps and Thread Hierarchy
 
 ```
-NVIDIA GPU のスレッド階層:
+NVIDIA GPU Thread Hierarchy:
 
-  Grid（全体）
+  Grid (entire workload)
   ├── Block 0
-  │   ├── Warp 0: Thread 0-31   ← 32スレッドが完全同期実行
+  │   ├── Warp 0: Thread 0-31   ← 32 threads execute in perfect lockstep
   │   ├── Warp 1: Thread 32-63
   │   └── ...
   ├── Block 1
@@ -143,127 +144,128 @@ NVIDIA GPU のスレッド階層:
   │   └── ...
   └── ...
 
-  ワープ内の全スレッドは同じ命令を同時実行（SIMT: Single Instruction, Multiple Threads）
+  All threads within a warp execute the same instruction simultaneously
+  (SIMT: Single Instruction, Multiple Threads)
 
-  → 分岐があると「ワープダイバージェンス」が発生:
+  → When branches occur, "warp divergence" happens:
   if (threadIdx.x < 16) {
-      // 前半16スレッドがここを実行
-      // 後半16スレッドは待機（無駄）
+      // First 16 threads execute here
+      // Last 16 threads wait (wasted)
   } else {
-      // 後半16スレッドがここを実行
-      // 前半16スレッドは待機（無駄）
+      // Last 16 threads execute here
+      // First 16 threads wait (wasted)
   }
-  → GPU で分岐の多いコードが遅い理由
+  → This is why branch-heavy code is slow on GPUs
 ```
 
-### 2.3 GPUメモリ階層
+### 2.3 GPU Memory Hierarchy
 
 ```
-GPUメモリ階層の詳細:
+GPU Memory Hierarchy Details:
 
   ┌──────────────────────────────────────────────┐
-  │ レジスタファイル（各スレッド専用）              │
-  │ 容量: 256KB/SM                                │
-  │ レイテンシ: 1サイクル                          │
-  │ 帯域: 最大                                    │
+  │ Register File (per-thread private)            │
+  │ Capacity: 256KB/SM                            │
+  │ Latency: 1 cycle                              │
+  │ Bandwidth: Maximum                            │
   ├──────────────────────────────────────────────┤
-  │ 共有メモリ（ブロック内で共有）                  │
-  │ 容量: 最大100KB/SM（設定可能）                 │
-  │ レイテンシ: 〜5サイクル                        │
-  │ 帯域: 〜128 bytes/cycle                       │
-  │ → 明示的にプログラマが管理する高速メモリ       │
+  │ Shared Memory (shared within a block)         │
+  │ Capacity: Up to 100KB/SM (configurable)       │
+  │ Latency: ~5 cycles                            │
+  │ Bandwidth: ~128 bytes/cycle                   │
+  │ → Fast memory explicitly managed by the programmer │
   ├──────────────────────────────────────────────┤
-  │ L1 キャッシュ（SM内、自動管理）                │
-  │ 容量: 128KB/SM（共有メモリと配分）             │
-  │ レイテンシ: 〜30サイクル                       │
+  │ L1 Cache (per-SM, automatically managed)      │
+  │ Capacity: 128KB/SM (shared with shared mem)   │
+  │ Latency: ~30 cycles                           │
   ├──────────────────────────────────────────────┤
-  │ L2 キャッシュ（全SM共有）                      │
-  │ 容量: 72MB (RTX 4090)                         │
-  │ レイテンシ: 〜200サイクル                      │
+  │ L2 Cache (shared across all SMs)              │
+  │ Capacity: 72MB (RTX 4090)                     │
+  │ Latency: ~200 cycles                          │
   ├──────────────────────────────────────────────┤
-  │ グローバルメモリ（GDDR6X / HBM）              │
-  │ 容量: 24GB (RTX 4090) / 80GB (H100)          │
-  │ レイテンシ: 〜400-600サイクル                  │
-  │ 帯域: 1,008 GB/s (RTX 4090) / 3.35 TB/s (H100)│
+  │ Global Memory (GDDR6X / HBM)                 │
+  │ Capacity: 24GB (RTX 4090) / 80GB (H100)      │
+  │ Latency: ~400-600 cycles                      │
+  │ Bandwidth: 1,008 GB/s (RTX 4090) / 3.35 TB/s (H100) │
   └──────────────────────────────────────────────┘
 
-  メモリ合体アクセス（Coalesced Memory Access）:
+  Coalesced Memory Access:
   ┌──────────────────────────────────────────┐
-  │ 良い例（合体アクセス）:                     │
-  │ Thread 0 → addr[0]                        │
-  │ Thread 1 → addr[1]   → 1回のメモリトランザクション │
-  │ Thread 2 → addr[2]                        │
-  │ ...                                        │
-  │ Thread 31 → addr[31]                      │
-  │                                            │
-  │ 悪い例（非合体アクセス）:                   │
-  │ Thread 0 → addr[0]    → 個別のトランザクション │
-  │ Thread 1 → addr[128]  → 個別のトランザクション │
-  │ Thread 2 → addr[256]  → 個別のトランザクション │
-  │ ...                                        │
-  │ → 帯域を無駄遣い、性能が10-100倍低下       │
+  │ Good Example (coalesced access):          │
+  │ Thread 0  → addr[0]                      │
+  │ Thread 1  → addr[1]   → 1 memory transaction │
+  │ Thread 2  → addr[2]                      │
+  │ ...                                       │
+  │ Thread 31 → addr[31]                     │
+  │                                           │
+  │ Bad Example (non-coalesced access):       │
+  │ Thread 0  → addr[0]    → separate transaction │
+  │ Thread 1  → addr[128]  → separate transaction │
+  │ Thread 2  → addr[256]  → separate transaction │
+  │ ...                                       │
+  │ → Wastes bandwidth, performance drops 10-100x │
   └──────────────────────────────────────────┘
 ```
 
 ---
 
-## 3. CUDAプログラミング
+## 3. CUDA Programming
 
-### 3.1 基本構造
+### 3.1 Basic Structure
 
 ```cuda
-// CUDA: ベクトル加算の例
-// C = A + B (各要素を並列に計算)
+// CUDA: Vector Addition Example
+// C = A + B (compute each element in parallel)
 
-// GPU上で実行されるカーネル関数
+// Kernel function executed on the GPU
 __global__ void vectorAdd(float *A, float *B, float *C, int N) {
-    // 各スレッドが1要素を担当
+    // Each thread handles one element
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < N) {
-        C[idx] = A[idx] + B[idx];  // 超シンプル: 1スレッド1加算
+        C[idx] = A[idx] + B[idx];  // Simple: 1 thread = 1 addition
     }
 }
 
 int main() {
-    int N = 1000000;  // 100万要素
+    int N = 1000000;  // 1 million elements
     float *d_A, *d_B, *d_C;
 
-    // GPUメモリ確保
+    // Allocate GPU memory
     cudaMalloc(&d_A, N * sizeof(float));
     cudaMalloc(&d_B, N * sizeof(float));
     cudaMalloc(&d_C, N * sizeof(float));
 
-    // CPU→GPUにデータ転送
+    // Transfer data from CPU to GPU
     cudaMemcpy(d_A, h_A, N * sizeof(float), cudaMemcpyHostToDevice);
     cudaMemcpy(d_B, h_B, N * sizeof(float), cudaMemcpyHostToDevice);
 
-    // カーネル起動: 3907ブロック × 256スレッド = 〜100万スレッド
+    // Launch kernel: 3907 blocks x 256 threads = ~1 million threads
     int blockSize = 256;
     int numBlocks = (N + blockSize - 1) / blockSize;
     vectorAdd<<<numBlocks, blockSize>>>(d_A, d_B, d_C, N);
 
-    // GPU→CPUにデータ転送
+    // Transfer data from GPU to CPU
     cudaMemcpy(h_C, d_C, N * sizeof(float), cudaMemcpyDeviceToHost);
 
-    // GPUメモリ解放
+    // Free GPU memory
     cudaFree(d_A); cudaFree(d_B); cudaFree(d_C);
     return 0;
 }
 
-// CPU: 100万回のループ → 〜1ms
-// GPU: 100万スレッド並列 → 〜0.01ms + メモリ転送コスト
+// CPU: 1 million iterations in a loop → ~1ms
+// GPU: 1 million threads in parallel → ~0.01ms + memory transfer cost
 ```
 
-### 3.2 共有メモリの活用
+### 3.2 Leveraging Shared Memory
 
 ```cuda
-// 行列乗算: 共有メモリを使った最適化
-// C = A × B (N × N 行列)
+// Matrix Multiplication: Optimization using shared memory
+// C = A x B (N x N matrices)
 
 #define TILE_SIZE 32
 
 __global__ void matMul(float *A, float *B, float *C, int N) {
-    // 共有メモリにタイルをロード
+    // Load tiles into shared memory
     __shared__ float tileA[TILE_SIZE][TILE_SIZE];
     __shared__ float tileB[TILE_SIZE][TILE_SIZE];
 
@@ -271,16 +273,16 @@ __global__ void matMul(float *A, float *B, float *C, int N) {
     int col = blockIdx.x * TILE_SIZE + threadIdx.x;
     float sum = 0.0f;
 
-    // タイルごとに処理
+    // Process tile by tile
     for (int t = 0; t < N / TILE_SIZE; t++) {
-        // グローバルメモリ → 共有メモリにロード
+        // Load from global memory to shared memory
         tileA[threadIdx.y][threadIdx.x] = A[row * N + t * TILE_SIZE + threadIdx.x];
         tileB[threadIdx.y][threadIdx.x] = B[(t * TILE_SIZE + threadIdx.y) * N + col];
 
-        // 全スレッドのロード完了を待つ
+        // Wait for all threads to finish loading
         __syncthreads();
 
-        // 共有メモリから計算（高速）
+        // Compute from shared memory (fast)
         for (int k = 0; k < TILE_SIZE; k++) {
             sum += tileA[threadIdx.y][k] * tileB[k][threadIdx.x];
         }
@@ -291,28 +293,28 @@ __global__ void matMul(float *A, float *B, float *C, int N) {
     C[row * N + col] = sum;
 }
 
-// なぜ共有メモリが重要か:
-// グローバルメモリ: 400-600サイクルのレイテンシ
-// 共有メモリ: 5サイクルのレイテンシ
-// → タイリングにより同じデータを何度も共有メモリから読む
-// → グローバルメモリアクセスを大幅削減
-// → 実測で5-10倍の高速化
+// Why shared memory matters:
+// Global memory: 400-600 cycle latency
+// Shared memory: 5 cycle latency
+// → Tiling allows repeated reads of the same data from shared memory
+// → Dramatically reduces global memory access
+// → Measured speedup of 5-10x
 ```
 
-### 3.3 CUDAストリームと非同期実行
+### 3.3 CUDA Streams and Asynchronous Execution
 
 ```cuda
-// CUDAストリーム: カーネル実行とデータ転送の重ね合わせ
+// CUDA Streams: Overlapping kernel execution and data transfers
 
-// ストリームなし（逐次実行）:
-// [H→D転送] → [カーネル実行] → [D→H転送]
-// 合計時間 = 転送1 + 計算 + 転送2
+// Without streams (sequential execution):
+// [H→D Transfer] → [Kernel Execution] → [D→H Transfer]
+// Total time = transfer1 + compute + transfer2
 
-// ストリームあり（パイプライン）:
-// Stream 0: [H→D転送(0)] → [カーネル(0)] → [D→H転送(0)]
-// Stream 1:    [H→D転送(1)] → [カーネル(1)] → [D→H転送(1)]
-// Stream 2:       [H→D転送(2)] → [カーネル(2)] → [D→H転送(2)]
-// → 転送と計算が重なり、合計時間が短縮
+// With streams (pipelined):
+// Stream 0: [H→D Transfer(0)] → [Kernel(0)] → [D→H Transfer(0)]
+// Stream 1:    [H→D Transfer(1)] → [Kernel(1)] → [D→H Transfer(1)]
+// Stream 2:       [H→D Transfer(2)] → [Kernel(2)] → [D→H Transfer(2)]
+// → Transfers and computation overlap, reducing total time
 
 cudaStream_t stream[3];
 for (int i = 0; i < 3; i++) {
@@ -321,314 +323,314 @@ for (int i = 0; i < 3; i++) {
 
 for (int i = 0; i < 3; i++) {
     int offset = i * chunkSize;
-    // 各ストリームで非同期にH→D転送
+    // Asynchronous H→D transfer on each stream
     cudaMemcpyAsync(d_A + offset, h_A + offset,
                     chunkSize * sizeof(float),
                     cudaMemcpyHostToDevice, stream[i]);
-    // カーネル実行
+    // Kernel execution
     kernel<<<grid, block, 0, stream[i]>>>(d_A + offset, d_C + offset);
-    // D→H転送
+    // D→H transfer
     cudaMemcpyAsync(h_C + offset, d_C + offset,
                     chunkSize * sizeof(float),
                     cudaMemcpyDeviceToHost, stream[i]);
 }
 
-// 全ストリームの完了を待つ
+// Wait for all streams to complete
 cudaDeviceSynchronize();
 ```
 
-### 3.4 GPU計算が有利な条件
+### 3.4 When GPU Computing is Advantageous
 
 ```
-GPU が有利:
-  ■ データ並列性が高い（同じ処理を大量データに適用）
-  ■ 演算密度が高い（メモリアクセスより計算が多い）
-  ■ 分岐が少ない（条件分岐でスレッドが分散しない）
+GPU Advantages:
+  ■ High data parallelism (same operation applied to massive data)
+  ■ High arithmetic intensity (more computation than memory access)
+  ■ Few branches (threads do not diverge on conditions)
 
-  例: 行列乗算、画像処理、物理シミュレーション、AI学習
+  Examples: Matrix multiplication, image processing, physics simulation, AI training
 
-GPU が不利:
-  □ 逐次処理（前の結果に依存する連続計算）
-  □ 分岐が多い（if/else が複雑）
-  □ データが小さい（並列化のオーバーヘッドの方が大きい）
-  □ メモリアクセスがランダム（合体メモリアクセスが効かない）
+GPU Disadvantages:
+  □ Sequential processing (chained computations dependent on prior results)
+  □ Many branches (complex if/else)
+  □ Small data (parallelization overhead exceeds benefit)
+  □ Random memory access (coalesced memory access is ineffective)
 
-  例: ファイル処理、テキスト解析、ツリー探索
+  Examples: File processing, text analysis, tree traversal
 
-演算強度（Arithmetic Intensity）:
-  演算強度 = 浮動小数点演算数 / メモリアクセスバイト数
+Arithmetic Intensity:
+  Arithmetic Intensity = FLOPs / Memory Access Bytes
 
-  RTX 4090 の場合:
-  計算性能: 82.6 TFLOPS
-  メモリ帯域: 1,008 GB/s
-  バランスポイント: 82.6 / 1.008 ≈ 82 FLOP/byte
+  For RTX 4090:
+  Compute performance: 82.6 TFLOPS
+  Memory bandwidth: 1,008 GB/s
+  Balance point: 82.6 / 1.008 ≈ 82 FLOP/byte
 
-  演算強度 > 82: 計算律速（GPUの計算能力が限界）
-  演算強度 < 82: メモリ律速（メモリ帯域が限界）
+  Intensity > 82: Compute-bound (GPU compute is the limit)
+  Intensity < 82: Memory-bound (memory bandwidth is the limit)
 
-  代表的なワークロードの演算強度:
-  │ ワークロード        │ 演算強度(FLOP/byte) │ 律速要因   │
-  │────────────────────│─────────────────────│────────────│
-  │ ベクトル加算         │ 0.25                │ メモリ律速 │
-  │ 畳み込み(3×3)       │ 4.5                 │ メモリ律速 │
-  │ 行列乗算(大規模)    │ N/3 (Nに比例)       │ 計算律速   │
-  │ Transformer Attention│ 〜10-50             │ 混合       │
-  │ GEMM (FP16)         │ 〜100+              │ 計算律速   │
+  Arithmetic intensity of representative workloads:
+  │ Workload              │ Intensity (FLOP/byte) │ Bottleneck     │
+  │───────────────────────│───────────────────────│────────────────│
+  │ Vector addition        │ 0.25                  │ Memory-bound   │
+  │ Convolution (3x3)      │ 4.5                   │ Memory-bound   │
+  │ Matrix multiply (large)│ N/3 (proportional to N)│ Compute-bound │
+  │ Transformer Attention  │ ~10-50                │ Mixed          │
+  │ GEMM (FP16)            │ ~100+                 │ Compute-bound  │
 ```
 
 ---
 
-## 4. GPU世代の進化
+## 4. GPU Generational Evolution
 
-| 世代 | 年 | アーキテクチャ | CUDA Core | 特徴 |
+| Generation | Year | Architecture | CUDA Cores | Key Feature |
 |------|-----|-------------|-----------|------|
-| Tesla | 2006 | G80 | 128 | CUDA登場 |
-| Fermi | 2010 | GF100 | 512 | ECC、L1/L2キャッシュ |
+| Tesla | 2006 | G80 | 128 | CUDA introduced |
+| Fermi | 2010 | GF100 | 512 | ECC, L1/L2 cache |
 | Kepler | 2012 | GK110 | 2,880 | Dynamic Parallelism |
-| Maxwell | 2014 | GM200 | 3,072 | 電力効率2倍 |
-| Pascal | 2016 | GP100 | 3,840 | FP16、NVLink |
-| Volta | 2017 | GV100 | 5,120 | **Tensor Core登場** |
-| Turing | 2018 | TU102 | 4,608 | RT Core（レイトレ） |
-| Ampere | 2020 | GA102 | 10,752 | TF32、構造化スパース |
+| Maxwell | 2014 | GM200 | 3,072 | 2x power efficiency |
+| Pascal | 2016 | GP100 | 3,840 | FP16, NVLink |
+| Volta | 2017 | GV100 | 5,120 | **Tensor Core introduced** |
+| Turing | 2018 | TU102 | 4,608 | RT Core (ray tracing) |
+| Ampere | 2020 | GA102 | 10,752 | TF32, structured sparsity |
 | Hopper | 2022 | GH100 | 16,896 | Transformer Engine |
 | Ada | 2022 | AD102 | 16,384 | DLSS 3 |
-| Blackwell | 2024 | GB202 | 〜21,760 | FP4、第5世代Tensor |
+| Blackwell | 2024 | GB202 | ~21,760 | FP4, 5th gen Tensor Core |
 
-### 4.1 データセンターGPUの進化
+### 4.1 Data Center GPU Evolution
 
 ```
-NVIDIA データセンターGPU の主要スペック:
+NVIDIA Data Center GPU Key Specifications:
 
-  │ GPU      │ 年   │ FP16 TFLOPS │ VRAM    │ メモリ帯域│ TDP  │ 相互接続     │
-  │──────────│──────│─────────────│─────────│──────────│──────│──────────────│
-  │ V100     │ 2017 │ 125         │ 32GB HBM2│ 900 GB/s │ 300W │ NVLink 2    │
-  │ A100     │ 2020 │ 312         │ 80GB HBM2e│ 2.0 TB/s│ 400W │ NVLink 3    │
-  │ H100     │ 2022 │ 989         │ 80GB HBM3│ 3.35 TB/s│ 700W │ NVLink 4    │
-  │ H200     │ 2024 │ 989         │ 141GB HBM3e│4.8 TB/s│ 700W │ NVLink 4    │
-  │ B100     │ 2024 │ 1,800       │ 192GB HBM3e│8.0 TB/s│ 700W │ NVLink 5    │
-  │ B200     │ 2024 │ 2,250       │ 192GB HBM3e│8.0 TB/s│ 1000W│ NVLink 5    │
-  │ GB200    │ 2025 │ 4,500+      │ 384GB HBM3e│16 TB/s │ 1200W│ NVLink 5    │
+  │ GPU      │ Year │ FP16 TFLOPS │ VRAM      │ Mem BW    │ TDP  │ Interconnect │
+  │──────────│──────│─────────────│───────────│──────────│──────│──────────────│
+  │ V100     │ 2017 │ 125         │ 32GB HBM2 │ 900 GB/s │ 300W │ NVLink 2    │
+  │ A100     │ 2020 │ 312         │ 80GB HBM2e│ 2.0 TB/s │ 400W │ NVLink 3    │
+  │ H100     │ 2022 │ 989         │ 80GB HBM3 │ 3.35 TB/s│ 700W │ NVLink 4    │
+  │ H200     │ 2024 │ 989         │ 141GB HBM3e│4.8 TB/s │ 700W │ NVLink 4    │
+  │ B100     │ 2024 │ 1,800       │ 192GB HBM3e│8.0 TB/s │ 700W │ NVLink 5    │
+  │ B200     │ 2024 │ 2,250       │ 192GB HBM3e│8.0 TB/s │1000W │ NVLink 5    │
+  │ GB200    │ 2025 │ 4,500+      │ 384GB HBM3e│16 TB/s  │1200W │ NVLink 5    │
 
-  H100 vs A100 の改善点:
-  - FP16: 3.2倍高速
-  - FP8: 6.4倍高速（Hopper で新規追加）
-  - Transformer Engine: FP8/FP16の自動切り替え
-  - HBM3: 帯域1.7倍
-  - NVLink: 帯域1.5倍（900 GB/s）
+  H100 vs A100 Improvements:
+  - FP16: 3.2x faster
+  - FP8: 6.4x faster (newly added in Hopper)
+  - Transformer Engine: Automatic FP8/FP16 switching
+  - HBM3: 1.7x bandwidth
+  - NVLink: 1.5x bandwidth (900 GB/s)
 
-  Blackwell の革新:
-  - 2ダイ構成（チップレット）
-  - FP4対応（推論効率2倍）
-  - 第5世代Tensor Core
+  Blackwell Innovations:
+  - Dual-die design (chiplet)
+  - FP4 support (2x inference efficiency)
+  - 5th generation Tensor Core
   - NVLink 5: 1.8 TB/s
 ```
 
-### 4.2 HBM（High Bandwidth Memory）
+### 4.2 HBM (High Bandwidth Memory)
 
 ```
-GDDR vs HBM の比較:
+GDDR vs HBM Comparison:
 
-  GDDR6X（コンシューマGPU）:
+  GDDR6X (Consumer GPUs):
   ┌──────────┐
-  │ GPU チップ│
-  │          │── PCB配線 ──→ [GDDR6X] [GDDR6X] ...
-  │          │                チップがパッケージ外に配置
+  │ GPU Chip  │
+  │          │── PCB traces ──→ [GDDR6X] [GDDR6X] ...
+  │          │                 Chips placed outside the package
   └──────────┘
-  帯域: 1,008 GB/s (384-bit, RTX 4090)
-  消費電力: 高い（長い配線、高電圧駆動）
-  コスト: 安い
+  Bandwidth: 1,008 GB/s (384-bit, RTX 4090)
+  Power: High (long traces, high voltage operation)
+  Cost: Low
 
-  HBM3（データセンターGPU）:
+  HBM3 (Data Center GPUs):
   ┌──────────────────────────┐
-  │ シリコンインターポーザ      │
+  │ Silicon Interposer         │
   │ ┌──────┐ ┌────┐ ┌────┐  │
-  │ │ GPU  │ │HBM │ │HBM │  │  ← チップがGPUの隣に積層配置
+  │ │ GPU  │ │HBM │ │HBM │  │  ← Chips stacked adjacent to GPU
   │ │      │ │    │ │    │  │
   │ └──────┘ └────┘ └────┘  │
   └──────────────────────────┘
-  帯域: 3.35 TB/s (H100) → 8.0 TB/s (B200)
-  消費電力: 低い（短い配線、低電圧）
-  コスト: 高い（インターポーザ製造コスト）
+  Bandwidth: 3.35 TB/s (H100) → 8.0 TB/s (B200)
+  Power: Low (short traces, low voltage)
+  Cost: High (interposer manufacturing cost)
 
-  HBMの構造:
+  HBM Structure:
   ┌────┐
-  │DRAM│  ← 8-16層のDRAMダイを積層
+  │DRAM│  ← 8-16 DRAM dies stacked
   │DRAM│
   │DRAM│
   │DRAM│
-  │base│  ← ロジックダイ（TSV接続）
+  │base│  ← Logic die (TSV connected)
   └────┘
-  TSV（Through-Silicon Via）: シリコンを貫通する微細な穴で層間接続
-  → 数千のTSVで超広帯域を実現（1024ビット幅/スタック）
+  TSV (Through-Silicon Via): Microscopic holes through silicon for inter-layer connections
+  → Thousands of TSVs enable ultra-high bandwidth (1024-bit width per stack)
 ```
 
 ---
 
-## 5. AI学習エンジンとしてのGPU
+## 5. The GPU as an AI Training Engine
 
-### 5.1 Tensor Core
+### 5.1 Tensor Cores
 
 ```
-通常のCUDA Core: スカラ演算（1クロックで1演算）
-  a = b × c + d  → 1クロック
+Regular CUDA Core: Scalar operations (1 operation per clock)
+  a = b x c + d  → 1 clock
 
-Tensor Core: 行列演算（1クロックで行列乗算）
+Tensor Core: Matrix operations (matrix multiply in 1 clock)
   ┌─────┐   ┌─────┐   ┌─────┐
-  │ 4×4 │ × │ 4×4 │ = │ 4×4 │  → 1クロック
-  │行列A│   │行列B│   │行列C│
+  │ 4x4 │ x │ 4x4 │ = │ 4x4 │  → 1 clock
+  │Mat A│   │Mat B│   │Mat C│
   └─────┘   └─────┘   └─────┘
-  = 64回のFMA（積和演算）を1クロックで実行
+  = 64 FMA (fused multiply-add) operations in 1 clock
 
-  → AI学習の本質は巨大な行列乗算
-  → Tensor Core がAI学習を10-100倍高速化
+  → The essence of AI training is massive matrix multiplication
+  → Tensor Cores accelerate AI training by 10-100x
 
-Tensor Coreの世代別対応行列サイズ:
-  │ 世代     │ FP16行列サイズ │ INT8行列サイズ │ FP8対応 │
-  │──────────│────────────────│────────────────│─────────│
-  │ Volta    │ 4×4×4          │ なし           │ なし    │
-  │ Turing   │ 4×4×4          │ 8×8×16         │ なし    │
-  │ Ampere   │ 4×4×4          │ 8×8×16         │ なし    │
-  │ Hopper   │ 4×4×4          │ 8×8×16         │ 対応    │
-  │ Blackwell│ 4×4×4          │ 8×8×32         │ FP4も   │
+Tensor Core Matrix Sizes by Generation:
+  │ Generation │ FP16 Matrix Size │ INT8 Matrix Size │ FP8 Support │
+  │────────────│──────────────────│──────────────────│─────────────│
+  │ Volta      │ 4x4x4            │ N/A              │ No          │
+  │ Turing     │ 4x4x4            │ 8x8x16           │ No          │
+  │ Ampere     │ 4x4x4            │ 8x8x16           │ No          │
+  │ Hopper     │ 4x4x4            │ 8x8x16           │ Yes         │
+  │ Blackwell  │ 4x4x4            │ 8x8x32           │ FP4 too     │
 ```
 
-### 5.2 精度の使い分け
+### 5.2 Precision Selection
 
-| 精度 | ビット数 | 用途 | Tensor Core性能 |
+| Precision | Bits | Use Case | Tensor Core Perf |
 |------|---------|------|----------------|
-| FP64 | 64 | 科学計算 | 基準 |
-| FP32 | 32 | 一般的な計算 | 2倍 |
-| TF32 | 19 | AI学習 | 8倍 |
-| FP16 | 16 | AI学習/推論 | 16倍 |
-| BF16 | 16 | AI学習（範囲重視） | 16倍 |
-| INT8 | 8 | AI推論 | 32倍 |
-| FP8 | 8 | AI学習（Hopper〜） | 64倍 |
-| FP4 | 4 | AI推論（Blackwell〜） | 128倍 |
+| FP64 | 64 | Scientific computing | Baseline |
+| FP32 | 32 | General computation | 2x |
+| TF32 | 19 | AI training | 8x |
+| FP16 | 16 | AI training/inference | 16x |
+| BF16 | 16 | AI training (range-focused) | 16x |
+| INT8 | 8 | AI inference | 32x |
+| FP8 | 8 | AI training (Hopper+) | 64x |
+| FP4 | 4 | AI inference (Blackwell+) | 128x |
 
-> 精度を下げるほど高速。AI学習では混合精度（Mixed Precision）で品質を維持しつつ高速化。
+> Lower precision yields higher speed. AI training uses Mixed Precision to maintain quality while accelerating computation.
 
-### 5.3 混合精度学習（Mixed Precision Training）
+### 5.3 Mixed Precision Training
 
 ```
-混合精度学習の仕組み:
+How Mixed Precision Training Works:
 
-  従来（FP32のみ）:
-  重み(FP32) → 計算(FP32) → 勾配(FP32) → 更新(FP32)
-  → 遅い、メモリ消費大
+  Traditional (FP32 only):
+  Weights(FP32) → Compute(FP32) → Gradients(FP32) → Update(FP32)
+  → Slow, high memory consumption
 
-  混合精度:
+  Mixed Precision:
   ┌─────────────────────────────────────────────┐
-  │ マスターウェイト: FP32（精度維持）            │
-  │     ↓ コピー                                 │
-  │ FP16ウェイト: FP16（計算用）                  │
+  │ Master Weights: FP32 (precision maintained)  │
+  │     ↓ Copy                                   │
+  │ FP16 Weights: FP16 (for computation)         │
   │     ↓                                        │
-  │ 順伝播: FP16（Tensor Core で高速）            │
+  │ Forward Pass: FP16 (fast via Tensor Cores)   │
   │     ↓                                        │
-  │ 損失計算: FP32（精度のため）                  │
+  │ Loss Computation: FP32 (for precision)       │
   │     ↓                                        │
-  │ 逆伝播: FP16（Tensor Core で高速）            │
+  │ Backward Pass: FP16 (fast via Tensor Cores)  │
   │     ↓                                        │
-  │ 勾配: FP16 → FP32に変換                      │
+  │ Gradients: FP16 → Convert to FP32           │
   │     ↓                                        │
-  │ マスターウェイト更新: FP32                    │
+  │ Master Weight Update: FP32                   │
   └─────────────────────────────────────────────┘
 
   Loss Scaling:
-  FP16の最小正規化数 = 6.1e-5
-  → 小さい勾配がアンダーフローで0になる
-  → 対策: 損失を1024倍に拡大（Loss Scaling）
-  → 勾配も1024倍になり、アンダーフロー回避
-  → 更新時に1024で割って元に戻す
+  FP16 minimum normalized value = 6.1e-5
+  → Small gradients underflow to 0
+  → Solution: Scale the loss by 1024x (Loss Scaling)
+  → Gradients are also 1024x, avoiding underflow
+  → Divide by 1024 during the update to restore original values
 ```
 
 ```python
-# PyTorch での混合精度学習
+# Mixed Precision Training with PyTorch
 import torch
 from torch.cuda.amp import autocast, GradScaler
 
 model = MyModel().cuda()
 optimizer = torch.optim.Adam(model.parameters())
-scaler = GradScaler()  # Loss Scaling を自動管理
+scaler = GradScaler()  # Automatically manages Loss Scaling
 
 for data, target in dataloader:
     data, target = data.cuda(), target.cuda()
     optimizer.zero_grad()
 
-    # autocast: FP16で順伝播・逆伝播を実行
+    # autocast: Execute forward/backward pass in FP16
     with autocast():
         output = model(data)
         loss = criterion(output, target)
 
-    # GradScaler: Loss Scalingを自動適用
+    # GradScaler: Automatically applies Loss Scaling
     scaler.scale(loss).backward()
     scaler.step(optimizer)
     scaler.update()
 
-# 効果:
-# - 学習速度: 1.5-3倍高速化
-# - メモリ使用量: 約50%削減
-# - 学習品質: FP32とほぼ同等
+# Results:
+# - Training speed: 1.5-3x faster
+# - Memory usage: ~50% reduction
+# - Training quality: Nearly equivalent to FP32
 ```
 
-### 5.4 Transformer Engine（Hopper以降）
+### 5.4 Transformer Engine (Hopper and Later)
 
 ```
-Transformer Engine の仕組み:
+How the Transformer Engine Works:
 
-  従来の混合精度: FP16 固定
-  Transformer Engine: FP8/FP16 を自動切り替え
+  Traditional mixed precision: Fixed FP16
+  Transformer Engine: Automatically switches between FP8/FP16
 
-  各層ごとにテンソルの統計（最大値、分布）を監視:
+  Monitors tensor statistics (max value, distribution) per layer:
   ┌────────────────────────────────────────────┐
-  │ Layer N の出力テンソル:                      │
-  │ - 値の範囲が FP8 で表現可能 → FP8 で計算   │
-  │ - 値の範囲が FP8 を超える → FP16 にフォールバック│
-  │ - 次の反復で再度 FP8 を試行                 │
+  │ Layer N output tensor:                      │
+  │ - Value range representable in FP8 → Compute in FP8 │
+  │ - Value range exceeds FP8 → Fall back to FP16       │
+  │ - Retry FP8 on the next iteration           │
   └────────────────────────────────────────────┘
 
-  FP8 フォーマット:
-  E4M3: 指数部4bit + 仮数部3bit（学習向き、精度重視）
-  E5M2: 指数部5bit + 仮数部2bit（勾配向き、範囲重視）
+  FP8 Formats:
+  E4M3: 4-bit exponent + 3-bit mantissa (training-oriented, precision-focused)
+  E5M2: 5-bit exponent + 2-bit mantissa (gradient-oriented, range-focused)
 
-  効果:
-  - H100 + Transformer Engine: A100比で最大9倍の学習高速化
-  - GPT-3級モデルの学習が実用的な時間に
+  Results:
+  - H100 + Transformer Engine: Up to 9x training speedup vs A100
+  - GPT-3 class model training becomes practical in terms of time
 ```
 
 ---
 
-## 6. GPU間通信技術
+## 6. GPU Interconnect Technology
 
-### 6.1 NVLink と NVSwitch
+### 6.1 NVLink and NVSwitch
 
 ```
-GPU間接続の比較:
+GPU Interconnect Comparison:
 
   PCIe 5.0 x16:
-    帯域: 63 GB/s（双方向126 GB/s）
-    → GPUの計算速度に比べて帯域不足
+    Bandwidth: 63 GB/s (126 GB/s bidirectional)
+    → Insufficient bandwidth relative to GPU compute speed
 
   NVLink 4 (Hopper):
-    帯域: 900 GB/s（18リンク × 50 GB/s）
-    → PCIeの約7倍
-    → GPU間でメモリを直接読み書き可能
+    Bandwidth: 900 GB/s (18 links x 50 GB/s)
+    → Approximately 7x PCIe
+    → Enables direct memory read/write between GPUs
 
   NVLink 5 (Blackwell):
-    帯域: 1.8 TB/s
-    → Hopper比2倍
+    Bandwidth: 1.8 TB/s
+    → 2x vs Hopper
 
-NVSwitch による All-to-All 接続:
+NVSwitch All-to-All Connectivity:
 
-  PCIe接続（スター型）:
+  PCIe Connection (Star Topology):
   ┌──────┐
   │ CPU  │── GPU0
   │      │── GPU1
   │      │── GPU2
   │      │── GPU3
   └──────┘
-  → GPU間通信はCPU経由（遅い）
+  → GPU-to-GPU communication goes through CPU (slow)
 
-  NVSwitch接続（フルメッシュ）:
+  NVSwitch Connection (Full Mesh):
   ┌──────┐   NVLink   ┌──────┐
   │ GPU0 │←──────────→│ GPU1 │
   └──┬───┘            └──┬───┘
@@ -640,12 +642,12 @@ NVSwitch による All-to-All 接続:
   ┌──┴───┐            ┌──┴───┐
   │ GPU2 │←──────────→│ GPU3 │
   └──────┘   NVLink   └──────┘
-  → 全GPU間が直接NVLinkで接続
-  → 8GPU構成で合計14.4 TB/sの双方向帯域
+  → All GPUs directly connected via NVLink
+  → 8-GPU configuration: 14.4 TB/s total bidirectional bandwidth
 
-DGX H100 (8×H100):
+DGX H100 (8x H100):
   ┌───────────────────────────────────────────┐
-  │ 4× NVSwitch                                │
+  │ 4x NVSwitch                                │
   │                                             │
   │ ┌────┐ ┌────┐ ┌────┐ ┌────┐              │
   │ │H100│ │H100│ │H100│ │H100│              │
@@ -654,279 +656,280 @@ DGX H100 (8×H100):
   │ │H100│ │H100│ │H100│ │H100│              │
   │ └────┘ └────┘ └────┘ └────┘              │
   │                                             │
-  │ GPU-GPU帯域: 900 GB/s (各方向)             │
-  │ 合計GPU メモリ: 640 GB (8 × 80GB)          │
-  │ 合計FP8性能: 32 PFLOPS                     │
-  │ 消費電力: 約10kW                           │
-  │ 価格: 約5,000万円                          │
+  │ GPU-GPU bandwidth: 900 GB/s (each direction)│
+  │ Total GPU memory: 640 GB (8 x 80GB)        │
+  │ Total FP8 performance: 32 PFLOPS            │
+  │ Power consumption: ~10kW                    │
+  │ Price: ~$350,000                            │
   └───────────────────────────────────────────┘
 ```
 
-### 6.2 マルチノード通信
+### 6.2 Multi-Node Communication
 
 ```
-クラスター間GPU通信:
+Inter-Cluster GPU Communication:
 
-  ノード内: NVLink/NVSwitch（900 GB/s）
-  ノード間: InfiniBand/RoCE
+  Intra-node: NVLink/NVSwitch (900 GB/s)
+  Inter-node: InfiniBand/RoCE
 
-  InfiniBand の世代:
-  │ 世代      │ 帯域(1ポート) │ レイテンシ │
-  │───────────│───────────────│────────────│
-  │ FDR       │ 56 Gbps      │ 700 ns     │
-  │ EDR       │ 100 Gbps     │ 600 ns     │
-  │ HDR       │ 200 Gbps     │ 500 ns     │
-  │ NDR       │ 400 Gbps     │ 500 ns     │
-  │ XDR       │ 800 Gbps     │ TBD        │
+  InfiniBand Generations:
+  │ Generation │ BW (per port)   │ Latency    │
+  │────────────│─────────────────│────────────│
+  │ FDR        │ 56 Gbps         │ 700 ns     │
+  │ EDR        │ 100 Gbps        │ 600 ns     │
+  │ HDR        │ 200 Gbps        │ 500 ns     │
+  │ NDR        │ 400 Gbps        │ 500 ns     │
+  │ XDR        │ 800 Gbps        │ TBD        │
 
   NCCL (NVIDIA Collective Communications Library):
-  GPU間の集団通信を最適化するライブラリ
-  - AllReduce: 全GPUの勾配を平均
-  - AllGather: 全GPUにデータを配布
-  - ReduceScatter: 分散して集約
+  A library that optimizes collective communication between GPUs
+  - AllReduce: Average gradients across all GPUs
+  - AllGather: Distribute data to all GPUs
+  - ReduceScatter: Distribute and aggregate
 
-  通信パターン:
-  Ring AllReduce（帯域最適）:
+  Communication Patterns:
+  Ring AllReduce (bandwidth-optimal):
   GPU0 → GPU1 → GPU2 → GPU3 → GPU0
-  → 各GPUが1/(N-1)のデータを順に渡し集約
-  → N GPUで帯域効率 (N-1)/N（ほぼ線形スケール）
+  → Each GPU passes and aggregates 1/(N-1) of the data in sequence
+  → Bandwidth efficiency with N GPUs: (N-1)/N (near-linear scaling)
 ```
 
 ---
 
-## 7. GPU以外のアクセラレータ
+## 7. Non-GPU Accelerators
 
-| デバイス | 開発元 | 特徴 | 用途 |
+| Device | Developer | Features | Use Case |
 |---------|--------|------|------|
-| **TPU** | Google | 行列演算専用、大規模学習 | Google内部AI |
-| **NPU** | Apple/Qualcomm | 低消費電力AI推論 | スマホ/PC |
-| **FPGA** | Intel/AMD | プログラマブル回路 | カスタム処理 |
-| **IPU** | Graphcore | グラフ構造に最適化 | GNN、AI学習 |
-| **Trainium** | AWS | 学習専用チップ | AWS SageMaker |
-| **Inferentia** | AWS | 推論専用チップ | AWS推論サービス |
+| **TPU** | Google | Matrix operation dedicated, large-scale training | Google internal AI |
+| **NPU** | Apple/Qualcomm | Low-power AI inference | Smartphones/PCs |
+| **FPGA** | Intel/AMD | Programmable circuits | Custom processing |
+| **IPU** | Graphcore | Optimized for graph structures | GNN, AI training |
+| **Trainium** | AWS | Training-dedicated chip | AWS SageMaker |
+| **Inferentia** | AWS | Inference-dedicated chip | AWS inference services |
 
-### 7.1 各アクセラレータの詳細比較
+### 7.1 Detailed Accelerator Comparison
 
 ```
-GPU vs TPU vs 専用ASIC の比較:
+GPU vs TPU vs Dedicated ASIC Comparison:
 
   NVIDIA H100 (GPU):
   ┌──────────────────────────────────────┐
-  │ 汎用性: 高い（CUDA エコシステム）     │
+  │ Versatility: High (CUDA ecosystem)   │
   │ FP16: 989 TFLOPS                     │
   │ INT8: 1,979 TOPS                     │
   │ VRAM: 80GB HBM3                      │
-  │ 消費電力: 700W                       │
-  │ 利点: 幅広いモデルに対応             │
-  │ 欠点: 高価、消費電力大               │
+  │ Power: 700W                          │
+  │ Pros: Supports a wide range of models│
+  │ Cons: Expensive, high power draw     │
   └──────────────────────────────────────┘
 
   Google TPU v5e (TPU):
   ┌──────────────────────────────────────┐
-  │ 汎用性: 中（JAX/TF向け）              │
+  │ Versatility: Medium (JAX/TF focused) │
   │ BF16: 197 TFLOPS                     │
   │ INT8: 393 TOPS                       │
   │ HBM: 16GB HBM2e                      │
-  │ 消費電力: 〜200W                     │
-  │ 利点: コスト効率、Google Cloudで利用 │
-  │ 欠点: CUDA非対応、PyTorch対応限定    │
+  │ Power: ~200W                         │
+  │ Pros: Cost-efficient, Google Cloud   │
+  │ Cons: No CUDA, limited PyTorch support│
   └──────────────────────────────────────┘
 
   Apple Neural Engine (NPU):
   ┌──────────────────────────────────────┐
-  │ 汎用性: 低い（Apple専用）             │
-  │ 性能: 38 TOPS (M4 Pro)              │
-  │ メモリ: 統合メモリから共有            │
-  │ 消費電力: 〜数W                      │
-  │ 利点: 超低消費電力、常時稼働可能     │
-  │ 欠点: 学習不可、Apple エコシステム限定│
+  │ Versatility: Low (Apple exclusive)   │
+  │ Performance: 38 TOPS (M4 Pro)        │
+  │ Memory: Shared from unified memory   │
+  │ Power: ~a few watts                  │
+  │ Pros: Ultra-low power, always-on     │
+  │ Cons: No training, Apple ecosystem only │
   └──────────────────────────────────────┘
 ```
 
 ---
 
-## 8. 並列計算の理論
+## 8. Theory of Parallel Computing
 
-### 8.1 アムダールの法則
-
-```
-アムダールの法則:
-
-  高速化 = 1 / ((1-P) + P/N)
-
-  P = 並列化可能な割合
-  N = プロセッサ数
-
-  例: P=0.95（95%が並列化可能）、N=1024コア
-  高速化 = 1 / (0.05 + 0.95/1024) = 1 / 0.0509 ≈ 19.6倍
-
-  ★ 95%が並列化可能でも、最大19.6倍にしかならない
-  ★ 5%の逐次部分がボトルネック
-
-  並列化率と最大高速化:
-  P=50%  → 最大 2倍   （コアを増やしても意味なし）
-  P=90%  → 最大 10倍
-  P=95%  → 最大 20倍
-  P=99%  → 最大 100倍
-  P=99.9%→ 最大 1000倍 ← AI学習はこの領域
-```
-
-### 8.2 グスタフソンの法則
+### 8.1 Amdahl's Law
 
 ```
-グスタフソンの法則:
+Amdahl's Law:
 
-  アムダールの法則の「問題サイズ固定」を修正。
-  「コアが増えれば、より大きな問題を同じ時間で解ける」
+  Speedup = 1 / ((1-P) + P/N)
 
-  高速化 = N - (1-P) × (N-1)
+  P = Fraction that can be parallelized
+  N = Number of processors
 
-  → 問題サイズをスケールすれば、並列化の効果はほぼ線形
-  → これがGPU計算の真の価値:
-     「同じ時間で、より大きなモデルを学習できる」
+  Example: P=0.95 (95% parallelizable), N=1024 cores
+  Speedup = 1 / (0.05 + 0.95/1024) = 1 / 0.0509 ≈ 19.6x
+
+  ★ Even with 95% parallelizable code, the maximum speedup is only 19.6x
+  ★ The 5% sequential portion is the bottleneck
+
+  Parallelization ratio and maximum speedup:
+  P=50%   → max 2x    (adding more cores is pointless)
+  P=90%   → max 10x
+  P=95%   → max 20x
+  P=99%   → max 100x
+  P=99.9% → max 1000x ← AI training falls in this range
 ```
 
-### 8.3 ルーフラインモデル
+### 8.2 Gustafson's Law
 
 ```
-ルーフラインモデル（Roofline Model）:
+Gustafson's Law:
 
-  達成可能性能 = min(ピーク計算性能, ピークメモリ帯域 × 演算強度)
+  Corrects Amdahl's Law assumption of "fixed problem size."
+  "With more cores, you can solve a larger problem in the same time."
 
-  RTX 4090 の場合:
-  ピーク計算性能: 82.6 TFLOPS (FP32)
-  ピークメモリ帯域: 1,008 GB/s
+  Speedup = N - (1-P) x (N-1)
 
-                性能 (TFLOPS)
+  → If you scale the problem size, parallelization benefits are nearly linear
+  → This is the true value of GPU computing:
+     "You can train a larger model in the same amount of time"
+```
+
+### 8.3 Roofline Model
+
+```
+Roofline Model:
+
+  Achievable Performance = min(Peak Compute, Peak Memory Bandwidth x Arithmetic Intensity)
+
+  For RTX 4090:
+  Peak compute: 82.6 TFLOPS (FP32)
+  Peak memory bandwidth: 1,008 GB/s
+
+                Performance (TFLOPS)
                     │
-  82.6 TFLOPS ──────┼──────────────── 計算律速
+  82.6 TFLOPS ──────┼──────────────── Compute-bound
                     │              /
                     │            /
-                    │          /   ← メモリ律速
-                    │        /       （帯域 × 演算強度）
+                    │          /   ← Memory-bound
+                    │        /       (bandwidth x intensity)
                     │      /
                     │    /
                     │  /
                     │/
-                    └───────────────── 演算強度 (FLOP/byte)
+                    └───────────────── Arithmetic Intensity (FLOP/byte)
                          82
 
-  最適化の方向:
-  - メモリ律速 → データの再利用率向上（タイリング、キャッシュ活用）
-  - 計算律速 → アルゴリズムの効率化、精度を下げる（FP16/FP8）
-  - 両方の壁 → より高性能なハードウェアへ移行
+  Optimization Directions:
+  - Memory-bound → Improve data reuse (tiling, cache utilization)
+  - Compute-bound → Improve algorithm efficiency, lower precision (FP16/FP8)
+  - Both walls → Upgrade to more powerful hardware
 
-  実務での活用:
-  1. まず演算強度を計算
-  2. ルーフラインモデルで理論上限を求める
-  3. 実測値との差分が最適化の余地
-  → NVIDIA Nsight Compute が自動計算してくれる
+  Practical Application:
+  1. First, calculate the arithmetic intensity
+  2. Determine the theoretical upper bound via the Roofline Model
+  3. The gap between measured and theoretical values is the optimization opportunity
+  → NVIDIA Nsight Compute can calculate this automatically
 ```
 
 ---
 
-## 9. 分散学習の手法
+## 9. Distributed Training Methods
 
-### 9.1 データ並列とモデル並列
+### 9.1 Data Parallelism and Model Parallelism
 
 ```
-データ並列（Data Parallelism）:
+Data Parallelism:
   ┌──────────────────────────────────────────────┐
-  │ 同じモデルを全GPUにコピー                      │
+  │ Copy the same model to all GPUs               │
   │                                                │
-  │ GPU 0: Model + Data[0:N/4]  → 勾配0           │
-  │ GPU 1: Model + Data[N/4:N/2] → 勾配1          │
-  │ GPU 2: Model + Data[N/2:3N/4] → 勾配2         │
-  │ GPU 3: Model + Data[3N/4:N] → 勾配3           │
+  │ GPU 0: Model + Data[0:N/4]    → Gradients 0   │
+  │ GPU 1: Model + Data[N/4:N/2]  → Gradients 1   │
+  │ GPU 2: Model + Data[N/2:3N/4] → Gradients 2   │
+  │ GPU 3: Model + Data[3N/4:N]   → Gradients 3   │
   │                                                │
-  │ AllReduce: 全勾配を平均                        │
-  │ → 全GPUのモデルを同期更新                      │
+  │ AllReduce: Average all gradients               │
+  │ → Synchronously update models on all GPUs      │
   │                                                │
-  │ 適用: モデルが1GPU のVRAMに収まる場合          │
-  │ スケーラビリティ: 良好（通信がボトルネック）     │
+  │ Applicable: When the model fits in 1 GPU's VRAM│
+  │ Scalability: Good (communication is bottleneck)│
   └──────────────────────────────────────────────┘
 
-モデル並列（Model Parallelism）:
+Model Parallelism:
   ┌──────────────────────────────────────────────┐
-  │ モデルを分割して複数GPUに配置                   │
+  │ Split the model across multiple GPUs           │
   │                                                │
-  │ テンソル並列（Tensor Parallelism）:             │
-  │ GPU 0: Layer N の前半の重み                     │
-  │ GPU 1: Layer N の後半の重み                     │
-  │ → 1つの層を複数GPUで計算                       │
-  │ → 通信頻度が高い（各層の入出力で同期）          │
+  │ Tensor Parallelism:                            │
+  │ GPU 0: First half of Layer N weights           │
+  │ GPU 1: Second half of Layer N weights          │
+  │ → One layer computed across multiple GPUs      │
+  │ → High communication frequency (sync at each   │
+  │   layer's input/output)                        │
   │                                                │
-  │ パイプライン並列（Pipeline Parallelism）:       │
-  │ GPU 0: Layer 0-9                               │
-  │ GPU 1: Layer 10-19                             │
-  │ GPU 2: Layer 20-29                             │
-  │ GPU 3: Layer 30-39                             │
-  │ → マイクロバッチをパイプライン処理              │
-  │ → バブル（空き時間）が発生                     │
+  │ Pipeline Parallelism:                          │
+  │ GPU 0: Layers 0-9                              │
+  │ GPU 1: Layers 10-19                            │
+  │ GPU 2: Layers 20-29                            │
+  │ GPU 3: Layers 30-39                            │
+  │ → Micro-batches processed in pipeline fashion  │
+  │ → Bubbles (idle time) occur                    │
   │                                                │
-  │ 適用: 巨大モデル（GPT-4、Llama 3等）           │
+  │ Applicable: Very large models (GPT-4, Llama 3, etc.) │
   └──────────────────────────────────────────────┘
 
-3D並列（データ × テンソル × パイプライン）:
-  → 大規模言語モデルの学習ではこの3つを組み合わせ
-  → Megatron-LM、DeepSpeed 等のフレームワークが実装
+3D Parallelism (Data x Tensor x Pipeline):
+  → Large language model training combines all three
+  → Implemented by frameworks such as Megatron-LM, DeepSpeed, etc.
 ```
 
-### 9.2 ZeRO（Zero Redundancy Optimizer）
+### 9.2 ZeRO (Zero Redundancy Optimizer)
 
 ```
-ZeRO の3段階:
+ZeRO's 3 Stages:
 
-  通常のデータ並列:
-  各GPUが保持: モデル重み + 勾配 + オプティマイザ状態
-  メモリ使用: 16φ × N（φ=パラメータ数、N=GPU数）
+  Standard data parallelism:
+  Each GPU holds: Model weights + gradients + optimizer state
+  Memory usage: 16 x phi x N (phi = parameter count, N = GPU count)
 
-  ZeRO Stage 1: オプティマイザ状態を分割
-  各GPUが保持: モデル重み + 勾配 + 1/N のオプティマイザ状態
-  メモリ削減: 最大4倍
+  ZeRO Stage 1: Partition optimizer state
+  Each GPU holds: Model weights + gradients + 1/N of optimizer state
+  Memory reduction: Up to 4x
 
-  ZeRO Stage 2: 勾配も分割
-  各GPUが保持: モデル重み + 1/N の勾配 + 1/N のオプティマイザ状態
-  メモリ削減: 最大8倍
+  ZeRO Stage 2: Also partition gradients
+  Each GPU holds: Model weights + 1/N of gradients + 1/N of optimizer state
+  Memory reduction: Up to 8x
 
-  ZeRO Stage 3: 重みも分割
-  各GPUが保持: 1/N のモデル重み + 1/N の勾配 + 1/N のオプティマイザ状態
-  メモリ削減: 最大N倍（GPU数に比例）
+  ZeRO Stage 3: Also partition weights
+  Each GPU holds: 1/N of model weights + 1/N of gradients + 1/N of optimizer state
+  Memory reduction: Up to Nx (proportional to GPU count)
 
-  → 10Bパラメータモデルでも4×A100で学習可能に
+  → Enables training a 10B parameter model on 4x A100 GPUs
 ```
 
 ---
 
-## 10. 実践演習
+## 10. Hands-On Exercises
 
-### 演習1: CPU vs GPU の判定（基礎）
+### Exercise 1: CPU vs GPU Determination (Fundamentals)
 
-以下のタスクについて、CPUとGPUのどちらが適しているか判定し理由を述べよ:
-1. 100万枚の画像に同じフィルタを適用
-2. JSONファイルの解析と変換
-3. ニューラルネットワークの学習
-4. Gitの差分計算
-5. 動画のエンコード
+For each of the following tasks, determine whether CPU or GPU is better suited and explain your reasoning:
+1. Applying the same filter to 1 million images
+2. Parsing and transforming JSON files
+3. Neural network training
+4. Git diff computation
+5. Video encoding
 
-### 演習2: アムダールの法則（応用）
+### Exercise 2: Amdahl's Law (Intermediate)
 
-あるプログラムの実行時間の内訳が以下の場合:
-- 入力処理: 5% （逐次）
-- メイン計算: 80% （並列化可能）
-- 結果集約: 10% （部分的に並列化可能、50%）
-- 出力処理: 5% （逐次）
+Given the following breakdown of a program's execution time:
+- Input processing: 5% (sequential)
+- Main computation: 80% (parallelizable)
+- Result aggregation: 10% (partially parallelizable, 50%)
+- Output processing: 5% (sequential)
 
-16コアCPUと1024コアGPUを使った場合の最大高速化率を計算せよ。
+Calculate the maximum speedup using a 16-core CPU and a 1024-core GPU.
 
-### 演習3: GPU活用（発展）
+### Exercise 3: GPU Utilization (Advanced)
 
-PyTorchを使って、CPU vs GPUの行列乗算速度を比較するベンチマークを作成せよ:
+Create a benchmark using PyTorch that compares CPU vs GPU matrix multiplication speed:
 ```python
 import torch
 import time
 
-# 行列サイズを変えて測定: 100, 500, 1000, 5000, 10000
+# Measure with varying matrix sizes: 100, 500, 1000, 5000, 10000
 for N in [100, 500, 1000, 5000, 10000]:
     # CPU
     a_cpu = torch.randn(N, N)
@@ -936,60 +939,60 @@ for N in [100, 500, 1000, 5000, 10000]:
     cpu_time = time.time() - start
 
     # GPU (CUDA or MPS)
-    # ... 実装して比較
+    # ... implement and compare
 ```
 
-### 演習4: メモリ帯域の計算（応用）
+### Exercise 4: Memory Bandwidth Calculations (Intermediate)
 
-H100 GPU（80GB HBM3、3.35 TB/s帯域）で以下を計算せよ:
-1. 全VRAMを読み出すのにかかる最短時間
-2. 70Bパラメータモデル（FP16）のフォワードパスに必要な最小帯域
-3. バッチサイズ32で学習する場合のメモリ使用量見積もり
+For the H100 GPU (80GB HBM3, 3.35 TB/s bandwidth), calculate the following:
+1. Minimum time to read all VRAM
+2. Minimum bandwidth required for a forward pass of a 70B parameter model (FP16)
+3. Estimated memory usage for training with batch size 32
 
-### 演習5: 分散学習の設計（発展）
+### Exercise 5: Distributed Training Design (Advanced)
 
-以下の条件で大規模言語モデルの学習システムを設計せよ:
-- モデル: 13Bパラメータ、Transformer
-- GPU: A100 80GB × 16台（2ノード × 8GPU）
-- 目標: 1Tトークンの学習を30日以内に完了
+Design a large language model training system under the following conditions:
+- Model: 13B parameters, Transformer
+- GPUs: A100 80GB x 16 (2 nodes x 8 GPUs)
+- Goal: Complete training on 1T tokens within 30 days
 
-設計項目:
-1. 並列化戦略（データ/テンソル/パイプライン）
-2. バッチサイズとアキュムレーション
-3. 精度（FP16/BF16/FP8）
-4. 通信ボトルネックの特定と対策
-5. 必要な計算量（FLOPS）の見積もり
+Design Items:
+1. Parallelization strategy (data/tensor/pipeline)
+2. Batch size and accumulation
+3. Precision (FP16/BF16/FP8)
+4. Identify and mitigate communication bottlenecks
+5. Estimate required compute (FLOPS)
 
 
 ---
 
-## トラブルシューティング
+## Troubleshooting
 
-### よくあるエラーと解決策
+### Common Errors and Solutions
 
-| エラー | 原因 | 解決策 |
+| Error | Cause | Solution |
 |--------|------|--------|
-| 初期化エラー | 設定ファイルの不備 | 設定ファイルのパスと形式を確認 |
-| タイムアウト | ネットワーク遅延/リソース不足 | タイムアウト値の調整、リトライ処理の追加 |
-| メモリ不足 | データ量の増大 | バッチ処理の導入、ページネーションの実装 |
-| 権限エラー | アクセス権限の不足 | 実行ユーザーの権限確認、設定の見直し |
-| データ不整合 | 並行処理の競合 | ロック機構の導入、トランザクション管理 |
+| Initialization error | Configuration file issues | Verify config file path and format |
+| Timeout | Network latency / insufficient resources | Adjust timeout values, add retry logic |
+| Out of memory | Growing data volume | Implement batch processing, add pagination |
+| Permission error | Insufficient access rights | Verify executing user permissions, review settings |
+| Data inconsistency | Concurrent processing conflicts | Implement locking mechanisms, manage transactions |
 
-### デバッグの手順
+### Debugging Procedure
 
-1. **エラーメッセージの確認**: スタックトレースを読み、発生箇所を特定する
-2. **再現手順の確立**: 最小限のコードでエラーを再現する
-3. **仮説の立案**: 考えられる原因をリストアップする
-4. **段階的な検証**: ログ出力やデバッガを使って仮説を検証する
-5. **修正と回帰テスト**: 修正後、関連する箇所のテストも実行する
+1. **Check error messages**: Read the stack trace to identify the point of failure
+2. **Establish reproduction steps**: Reproduce the error with minimal code
+3. **Formulate hypotheses**: List possible causes
+4. **Verify step by step**: Use logging output or a debugger to verify hypotheses
+5. **Fix and regression test**: After fixing, also run tests on related areas
 
 ```python
-# デバッグ用ユーティリティ
+# Debugging utility
 import logging
 import traceback
 from functools import wraps
 
-# ロガーの設定
+# Logger configuration
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
@@ -997,102 +1000,102 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def debug_decorator(func):
-    """関数の入出力をログ出力するデコレータ"""
+    """Decorator that logs function input/output"""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        logger.debug(f"呼び出し: {func.__name__}(args={args}, kwargs={kwargs})")
+        logger.debug(f"Call: {func.__name__}(args={args}, kwargs={kwargs})")
         try:
             result = func(*args, **kwargs)
-            logger.debug(f"戻り値: {func.__name__} -> {result}")
+            logger.debug(f"Return: {func.__name__} -> {result}")
             return result
         except Exception as e:
-            logger.error(f"例外発生: {func.__name__}: {e}")
+            logger.error(f"Exception: {func.__name__}: {e}")
             logger.error(traceback.format_exc())
             raise
     return wrapper
 
 @debug_decorator
 def process_data(items):
-    """データ処理（デバッグ対象）"""
+    """Data processing (debug target)"""
     if not items:
-        raise ValueError("空のデータ")
+        raise ValueError("Empty data")
     return [item * 2 for item in items]
 ```
 
-### パフォーマンス問題の診断
+### Diagnosing Performance Issues
 
-パフォーマンス問題が発生した場合の診断手順:
+Steps for diagnosing performance issues:
 
-1. **ボトルネックの特定**: プロファイリングツールで計測
-2. **メモリ使用量の確認**: メモリリークの有無をチェック
-3. **I/O待ちの確認**: ディスクやネットワークI/Oの状況を確認
-4. **同時接続数の確認**: コネクションプールの状態を確認
+1. **Identify bottlenecks**: Measure with profiling tools
+2. **Check memory usage**: Check for memory leaks
+3. **Check I/O waits**: Verify disk and network I/O status
+4. **Check connection count**: Verify connection pool status
 
-| 問題の種類 | 診断ツール | 対策 |
+| Problem Type | Diagnostic Tool | Solution |
 |-----------|-----------|------|
-| CPU負荷 | cProfile, py-spy | アルゴリズム改善、並列化 |
-| メモリリーク | tracemalloc, objgraph | 参照の適切な解放 |
-| I/Oボトルネック | strace, iostat | 非同期I/O、キャッシュ |
-| DB遅延 | EXPLAIN, slow query log | インデックス、クエリ最適化 |
+| CPU load | cProfile, py-spy | Algorithm improvement, parallelization |
+| Memory leak | tracemalloc, objgraph | Proper reference release |
+| I/O bottleneck | strace, iostat | Async I/O, caching |
+| DB latency | EXPLAIN, slow query log | Indexing, query optimization |
 
 ---
 
-## 設計判断ガイド
+## Design Decision Guide
 
-### 選択基準マトリクス
+### Selection Criteria Matrix
 
-技術選択を行う際の判断基準を以下にまとめます。
+A summary of decision criteria for technology selection:
 
-| 判断基準 | 重視する場合 | 妥協できる場合 |
+| Criterion | When to Prioritize | When Compromise is Acceptable |
 |---------|------------|-------------|
-| パフォーマンス | リアルタイム処理、大規模データ | 管理画面、バッチ処理 |
-| 保守性 | 長期運用、チーム開発 | プロトタイプ、短期プロジェクト |
-| スケーラビリティ | 成長が見込まれるサービス | 社内ツール、固定ユーザー |
-| セキュリティ | 個人情報、金融データ | 公開データ、社内利用 |
-| 開発速度 | MVP、市場投入スピード | 品質重視、ミッションクリティカル |
+| Performance | Real-time processing, large-scale data | Admin dashboards, batch processing |
+| Maintainability | Long-term operation, team development | Prototypes, short-term projects |
+| Scalability | Services expected to grow | Internal tools, fixed user base |
+| Security | Personal data, financial data | Public data, internal use |
+| Development speed | MVP, time-to-market | Quality-focused, mission-critical |
 
-### アーキテクチャパターンの選択
+### Architecture Pattern Selection
 
 ```
 ┌─────────────────────────────────────────────────┐
-│              アーキテクチャ選択フロー              │
+│          Architecture Selection Flow             │
 ├─────────────────────────────────────────────────┤
 │                                                 │
-│  ① チーム規模は？                                │
-│    ├─ 小規模（1-5人）→ モノリス                   │
-│    └─ 大規模（10人+）→ ②へ                       │
+│  (1) Team size?                                 │
+│    ├─ Small (1-5 people) → Monolith             │
+│    └─ Large (10+ people) → Go to (2)            │
 │                                                 │
-│  ② デプロイ頻度は？                               │
-│    ├─ 週1回以下 → モノリス + モジュール分割         │
-│    └─ 毎日/複数回 → ③へ                          │
+│  (2) Deployment frequency?                       │
+│    ├─ Once a week or less → Monolith + modular  │
+│    └─ Daily / multiple times → Go to (3)        │
 │                                                 │
-│  ③ チーム間の独立性は？                            │
-│    ├─ 高い → マイクロサービス                      │
-│    └─ 中程度 → モジュラーモノリス                   │
+│  (3) Inter-team independence?                    │
+│    ├─ High → Microservices                       │
+│    └─ Moderate → Modular monolith                │
 │                                                 │
 └─────────────────────────────────────────────────┘
 ```
 
-### トレードオフの分析
+### Trade-off Analysis
 
-技術的な判断には必ずトレードオフが伴います。以下の観点で分析を行いましょう:
+Technical decisions always involve trade-offs. Analyze from the following perspectives:
 
-**1. 短期 vs 長期のコスト**
-- 短期的に速い方法が長期的には技術的負債になることがある
-- 逆に、過剰な設計は短期的なコストが高く、プロジェクトの遅延を招く
+**1. Short-term vs Long-term Costs**
+- A short-term fast approach may become technical debt in the long run
+- Conversely, over-engineering incurs high short-term costs and delays the project
 
-**2. 一貫性 vs 柔軟性**
-- 統一された技術スタックは学習コストが低い
-- 多様な技術の採用は適材適所が可能だが、運用コストが増加
+**2. Consistency vs Flexibility**
+- A unified technology stack has lower learning costs
+- Adopting diverse technologies enables best-fit solutions but increases operational costs
 
-**3. 抽象化のレベル**
-- 高い抽象化は再利用性が高いが、デバッグが困難になる場合がある
-- 低い抽象化は直感的だが、コードの重複が発生しやすい
+**3. Level of Abstraction**
+- High abstraction improves reusability but can make debugging harder
+- Low abstraction is intuitive but leads to code duplication
 
 ```python
-# 設計判断の記録テンプレート
+# Design decision record template
 class ArchitectureDecisionRecord:
-    """ADR (Architecture Decision Record) の作成"""
+    """Create an ADR (Architecture Decision Record)"""
 
     def __init__(self, title: str):
         self.title = title
@@ -1102,17 +1105,17 @@ class ArchitectureDecisionRecord:
         self.alternatives = []
 
     def set_context(self, context: str):
-        """背景と課題の記述"""
+        """Describe background and challenges"""
         self.context = context
         return self
 
     def set_decision(self, decision: str):
-        """決定内容の記述"""
+        """Describe the decision"""
         self.decision = decision
         return self
 
     def add_consequence(self, consequence: str, positive: bool = True):
-        """結果の追加"""
+        """Add a consequence"""
         self.consequences.append({
             'description': consequence,
             'type': 'positive' if positive else 'negative'
@@ -1120,7 +1123,7 @@ class ArchitectureDecisionRecord:
         return self
 
     def add_alternative(self, name: str, reason_rejected: str):
-        """却下した代替案の追加"""
+        """Add a rejected alternative"""
         self.alternatives.append({
             'name': name,
             'reason_rejected': reason_rejected
@@ -1128,15 +1131,15 @@ class ArchitectureDecisionRecord:
         return self
 
     def to_markdown(self) -> str:
-        """Markdown形式で出力"""
+        """Output in Markdown format"""
         md = f"# ADR: {self.title}\n\n"
-        md += f"## 背景\n{self.context}\n\n"
-        md += f"## 決定\n{self.decision}\n\n"
-        md += "## 結果\n"
+        md += f"## Context\n{self.context}\n\n"
+        md += f"## Decision\n{self.decision}\n\n"
+        md += "## Consequences\n"
         for c in self.consequences:
-            icon = "✅" if c['type'] == 'positive' else "⚠️"
-            md += f"- {icon} {c['description']}\n"
-        md += "\n## 却下した代替案\n"
+            icon = "+" if c['type'] == 'positive' else "!"
+            md += f"- [{icon}] {c['description']}\n"
+        md += "\n## Rejected Alternatives\n"
         for a in self.alternatives:
             md += f"- **{a['name']}**: {a['reason_rejected']}\n"
         return md
@@ -1144,53 +1147,53 @@ class ArchitectureDecisionRecord:
 
 ---
 
-## 実務での適用シナリオ
+## Practical Application Scenarios
 
-### シナリオ1: スタートアップでのMVP開発
+### Scenario 1: MVP Development at a Startup
 
-**状況:** 限られたリソースで素早くプロダクトをリリースする必要がある
+**Situation:** Need to release a product quickly with limited resources
 
-**アプローチ:**
-- シンプルなアーキテクチャを選択
-- 必要最小限の機能に集中
-- 自動テストはクリティカルパスのみ
-- モニタリングは早期から導入
+**Approach:**
+- Choose a simple architecture
+- Focus on the minimum viable feature set
+- Automated tests for critical paths only
+- Introduce monitoring early
 
-**学んだ教訓:**
-- 完璧を求めすぎない（YAGNI原則）
-- ユーザーフィードバックを早期に取得
-- 技術的負債は意識的に管理する
+**Lessons Learned:**
+- Do not pursue perfection (YAGNI principle)
+- Obtain user feedback early
+- Manage technical debt deliberately
 
-### シナリオ2: レガシーシステムのモダナイゼーション
+### Scenario 2: Legacy System Modernization
 
-**状況:** 10年以上運用されているシステムを段階的に刷新する
+**Situation:** Incrementally modernizing a system that has been in operation for 10+ years
 
-**アプローチ:**
-- Strangler Fig パターンで段階的に移行
-- 既存のテストがない場合はCharacterization Testを先に作成
-- APIゲートウェイで新旧システムを共存
-- データ移行は段階的に実施
+**Approach:**
+- Gradual migration using the Strangler Fig pattern
+- Create Characterization Tests first if existing tests are absent
+- Coexist old and new systems via an API gateway
+- Execute data migration incrementally
 
-| フェーズ | 作業内容 | 期間目安 | リスク |
+| Phase | Work Content | Estimated Duration | Risk |
 |---------|---------|---------|--------|
-| 1. 調査 | 現状分析、依存関係の把握 | 2-4週間 | 低 |
-| 2. 基盤 | CI/CD構築、テスト環境 | 4-6週間 | 低 |
-| 3. 移行開始 | 周辺機能から順次移行 | 3-6ヶ月 | 中 |
-| 4. コア移行 | 中核機能の移行 | 6-12ヶ月 | 高 |
-| 5. 完了 | 旧システム廃止 | 2-4週間 | 中 |
+| 1. Investigation | Current state analysis, dependency mapping | 2-4 weeks | Low |
+| 2. Foundation | CI/CD setup, test environment | 4-6 weeks | Low |
+| 3. Migration Start | Sequential migration from peripheral features | 3-6 months | Medium |
+| 4. Core Migration | Migration of core features | 6-12 months | High |
+| 5. Completion | Legacy system decommission | 2-4 weeks | Medium |
 
-### シナリオ3: 大規模チームでの開発
+### Scenario 3: Large-Team Development
 
-**状況:** 50人以上のエンジニアが同一プロダクトを開発する
+**Situation:** 50+ engineers developing the same product
 
-**アプローチ:**
-- ドメイン駆動設計で境界を明確化
-- チームごとにオーナーシップを設定
-- 共通ライブラリはInner Source方式で管理
-- APIファーストで設計し、チーム間の依存を最小化
+**Approach:**
+- Define clear boundaries using Domain-Driven Design
+- Assign ownership per team
+- Manage shared libraries via Inner Source
+- Design API-first to minimize inter-team dependencies
 
 ```python
-# チーム間のAPI契約定義
+# Inter-team API contract definition
 from dataclasses import dataclass
 from typing import List, Optional
 from enum import Enum
@@ -1203,20 +1206,20 @@ class Priority(Enum):
 
 @dataclass
 class APIContract:
-    """チーム間のAPI契約"""
+    """Inter-team API contract"""
     endpoint: str
     method: str
     owner_team: str
     consumers: List[str]
-    sla_ms: int  # レスポンスタイムSLA
+    sla_ms: int  # Response time SLA
     priority: Priority
 
     def validate_sla(self, actual_ms: int) -> bool:
-        """SLA準拠の確認"""
+        """Verify SLA compliance"""
         return actual_ms <= self.sla_ms
 
     def to_openapi(self) -> dict:
-        """OpenAPI形式で出力"""
+        """Output in OpenAPI format"""
         return {
             'path': self.endpoint,
             'method': self.method,
@@ -1225,7 +1228,7 @@ class APIContract:
             'x-sla-ms': self.sla_ms
         }
 
-# 使用例
+# Usage example
 contracts = [
     APIContract(
         endpoint="/api/v1/users",
@@ -1246,104 +1249,104 @@ contracts = [
 ]
 ```
 
-### シナリオ4: パフォーマンスクリティカルなシステム
+### Scenario 4: Performance-Critical System
 
-**状況:** ミリ秒単位のレスポンスが求められるシステム
+**Situation:** A system requiring millisecond-level response times
 
-**最適化ポイント:**
-1. キャッシュ戦略（L1: インメモリ、L2: Redis、L3: CDN）
-2. 非同期処理の活用
-3. コネクションプーリング
-4. クエリ最適化とインデックス設計
+**Optimization Points:**
+1. Caching strategy (L1: in-memory, L2: Redis, L3: CDN)
+2. Leverage asynchronous processing
+3. Connection pooling
+4. Query optimization and index design
 
-| 最適化手法 | 効果 | 実装コスト | 適用場面 |
+| Optimization Technique | Impact | Implementation Cost | Applicable Scenario |
 |-----------|------|-----------|---------|
-| インメモリキャッシュ | 高 | 低 | 頻繁にアクセスされるデータ |
-| CDN | 高 | 低 | 静的コンテンツ |
-| 非同期処理 | 中 | 中 | I/O待ちが多い処理 |
-| DB最適化 | 高 | 高 | クエリが遅い場合 |
-| コード最適化 | 低-中 | 高 | CPU律速の場合 |
+| In-memory cache | High | Low | Frequently accessed data |
+| CDN | High | Low | Static content |
+| Async processing | Medium | Medium | I/O-heavy operations |
+| DB optimization | High | High | Slow queries |
+| Code optimization | Low-Medium | High | CPU-bound cases |
 
 ---
 
-## チーム開発での活用
+## Team Development Practices
 
-### コードレビューのチェックリスト
+### Code Review Checklist
 
-このトピックに関連するコードレビューで確認すべきポイント:
+Key points to verify during code reviews related to this topic:
 
-- [ ] 命名規則が一貫しているか
-- [ ] エラーハンドリングが適切か
-- [ ] テストカバレッジは十分か
-- [ ] パフォーマンスへの影響はないか
-- [ ] セキュリティ上の問題はないか
-- [ ] ドキュメントは更新されているか
+- [ ] Naming conventions are consistent
+- [ ] Error handling is appropriate
+- [ ] Test coverage is sufficient
+- [ ] There is no negative performance impact
+- [ ] There are no security issues
+- [ ] Documentation is updated
 
-### ナレッジ共有のベストプラクティス
+### Knowledge Sharing Best Practices
 
-| 方法 | 頻度 | 対象 | 効果 |
+| Method | Frequency | Audience | Impact |
 |------|------|------|------|
-| ペアプログラミング | 随時 | 複雑なタスク | 即時のフィードバック |
-| テックトーク | 週1回 | チーム全体 | 知識の水平展開 |
-| ADR (設計記録) | 都度 | 将来のメンバー | 意思決定の透明性 |
-| 振り返り | 2週間ごと | チーム全体 | 継続的改善 |
-| モブプログラミング | 月1回 | 重要な設計 | 合意形成 |
+| Pair programming | As needed | Complex tasks | Immediate feedback |
+| Tech talks | Weekly | Entire team | Horizontal knowledge spread |
+| ADR (Decision Records) | As needed | Future members | Decision transparency |
+| Retrospectives | Biweekly | Entire team | Continuous improvement |
+| Mob programming | Monthly | Critical design | Consensus building |
 
-### 技術的負債の管理
+### Technical Debt Management
 
 ```
-優先度マトリクス:
+Priority Matrix:
 
-        影響度 高
+        Impact High
           │
     ┌─────┼─────┐
-    │ 計画 │ 即座 │
-    │ 的に │ に   │
-    │ 対応 │ 対応 │
+    │ Plan │ Act  │
+    │ for  │ on   │
+    │ later│ now  │
     ├─────┼─────┤
-    │ 記録 │ 次の │
-    │ のみ │ Sprint│
-    │     │ で   │
+    │ Log  │ Next │
+    │ only │Sprint│
+    │      │      │
     └─────┼─────┘
           │
-        影響度 低
-    発生頻度 低  発生頻度 高
+        Impact Low
+    Frequency Low  Frequency High
 ```
 
 ---
 
-## セキュリティの考慮事項
+## Security Considerations
 
-### 一般的な脆弱性と対策
+### Common Vulnerabilities and Countermeasures
 
-| 脆弱性 | リスクレベル | 対策 | 検出方法 |
+| Vulnerability | Risk Level | Countermeasure | Detection Method |
 |--------|------------|------|---------|
-| インジェクション攻撃 | 高 | 入力値のバリデーション・パラメータ化クエリ | SAST/DAST |
-| 認証の不備 | 高 | 多要素認証・セッション管理の強化 | ペネトレーションテスト |
-| 機密データの露出 | 高 | 暗号化・アクセス制御 | セキュリティ監査 |
-| 設定の不備 | 中 | セキュリティヘッダー・最小権限の原則 | 構成スキャン |
-| ログの不足 | 中 | 構造化ログ・監査証跡 | ログ分析 |
+| Injection attacks | High | Input validation, parameterized queries | SAST/DAST |
+| Authentication flaws | High | Multi-factor auth, session management hardening | Penetration testing |
+| Sensitive data exposure | High | Encryption, access control | Security audit |
+| Misconfiguration | Medium | Security headers, principle of least privilege | Configuration scanning |
+| Insufficient logging | Medium | Structured logs, audit trails | Log analysis |
 
-### セキュアコーディングのベストプラクティス
+### Secure Coding Best Practices
 
 ```python
-# セキュアコーディング例
+# Secure coding example
 import hashlib
 import secrets
 import hmac
 from typing import Optional
 
 class SecurityUtils:
-    """セキュリティユーティリティ"""
+    """Security utilities"""
 
     @staticmethod
     def generate_token(length: int = 32) -> str:
-        """暗号学的に安全なトークン生成"""
+        """Generate a cryptographically secure token"""
         return secrets.token_urlsafe(length)
 
     @staticmethod
     def hash_password(password: str, salt: Optional[str] = None) -> tuple:
-        """パスワードのハッシュ化"""
+        """Hash a password"""
         if salt is None:
             salt = secrets.token_hex(16)
         hashed = hashlib.pbkdf2_hmac(
@@ -1356,50 +1359,50 @@ class SecurityUtils:
 
     @staticmethod
     def verify_password(password: str, hashed: str, salt: str) -> bool:
-        """パスワードの検証"""
+        """Verify a password"""
         new_hash, _ = SecurityUtils.hash_password(password, salt)
         return hmac.compare_digest(new_hash, hashed)
 
     @staticmethod
     def sanitize_input(value: str) -> str:
-        """入力値のサニタイズ"""
+        """Sanitize input values"""
         dangerous_chars = ['<', '>', '"', "'", '&', '\\']
         result = value
         for char in dangerous_chars:
             result = result.replace(char, '')
         return result.strip()
 
-# 使用例
+# Usage example
 token = SecurityUtils.generate_token()
 hashed, salt = SecurityUtils.hash_password("my_password")
 is_valid = SecurityUtils.verify_password("my_password", hashed, salt)
 ```
 
-### セキュリティチェックリスト
+### Security Checklist
 
-- [ ] 全ての入力値がバリデーションされている
-- [ ] 機密情報がログに出力されていない
-- [ ] HTTPS が強制されている
-- [ ] CORS ポリシーが適切に設定されている
-- [ ] 依存パッケージの脆弱性スキャンが実施されている
-- [ ] エラーメッセージに内部情報が含まれていない
+- [ ] All input values are validated
+- [ ] Sensitive information is not written to logs
+- [ ] HTTPS is enforced
+- [ ] CORS policy is properly configured
+- [ ] Dependency vulnerability scanning is performed
+- [ ] Error messages do not contain internal information
 
 ---
 
-## マイグレーションガイド
+## Migration Guide
 
-### バージョンアップ時の注意点
+### Notes on Version Upgrades
 
-| バージョン | 主な変更点 | 移行作業 | 影響範囲 |
+| Version | Key Changes | Migration Work | Impact Scope |
 |-----------|-----------|---------|---------|
-| v1.x → v2.x | API設計の刷新 | エンドポイント変更 | 全クライアント |
-| v2.x → v3.x | 認証方式の変更 | トークン形式更新 | 認証関連 |
-| v3.x → v4.x | データモデル変更 | マイグレーションスクリプト実行 | DB関連 |
+| v1.x → v2.x | API design overhaul | Endpoint changes | All clients |
+| v2.x → v3.x | Authentication method change | Token format update | Auth-related |
+| v3.x → v4.x | Data model change | Run migration scripts | DB-related |
 
-### 段階的移行の手順
+### Step-by-Step Migration Procedure
 
 ```python
-# マイグレーションスクリプトのテンプレート
+# Migration script template
 import json
 import logging
 from pathlib import Path
@@ -1409,7 +1412,7 @@ from typing import List, Dict, Callable
 logger = logging.getLogger(__name__)
 
 class MigrationRunner:
-    """段階的マイグレーション実行エンジン"""
+    """Step-by-step migration execution engine"""
 
     def __init__(self, migration_dir: str):
         self.migration_dir = Path(migration_dir)
@@ -1418,7 +1421,7 @@ class MigrationRunner:
 
     def register(self, version: str, description: str,
                  up: Callable, down: Callable):
-        """マイグレーションの登録"""
+        """Register a migration"""
         self.migrations.append({
             'version': version,
             'description': description,
@@ -1428,35 +1431,35 @@ class MigrationRunner:
         })
 
     def run_up(self, target_version: str = None):
-        """マイグレーションの実行（アップグレード）"""
+        """Execute migrations (upgrade)"""
         for migration in self.migrations:
             if migration['version'] in self.completed:
                 continue
-            logger.info(f"実行中: {migration['version']} - "
+            logger.info(f"Running: {migration['version']} - "
                        f"{migration['description']}")
             try:
                 migration['up']()
                 self.completed.append(migration['version'])
-                logger.info(f"完了: {migration['version']}")
+                logger.info(f"Completed: {migration['version']}")
             except Exception as e:
-                logger.error(f"失敗: {migration['version']}: {e}")
+                logger.error(f"Failed: {migration['version']}: {e}")
                 raise
             if target_version and migration['version'] == target_version:
                 break
 
     def run_down(self, target_version: str):
-        """マイグレーションのロールバック"""
+        """Rollback migrations"""
         for migration in reversed(self.migrations):
             if migration['version'] not in self.completed:
                 continue
             if migration['version'] == target_version:
                 break
-            logger.info(f"ロールバック: {migration['version']}")
+            logger.info(f"Rolling back: {migration['version']}")
             migration['down']()
             self.completed.remove(migration['version'])
 
     def status(self) -> Dict:
-        """マイグレーション状態の確認"""
+        """Check migration status"""
         return {
             'total': len(self.migrations),
             'completed': len(self.completed),
@@ -1469,83 +1472,83 @@ class MigrationRunner:
         }
 ```
 
-### ロールバック計画
+### Rollback Plan
 
-移行作業には必ずロールバック計画を準備してください:
+Always prepare a rollback plan for migration work:
 
-1. **データのバックアップ**: 移行前に完全バックアップを取得
-2. **テスト環境での検証**: 本番と同等の環境で事前検証
-3. **段階的なロールアウト**: カナリアリリースで段階的に展開
-4. **監視の強化**: 移行中はメトリクスの監視間隔を短縮
-5. **判断基準の明確化**: ロールバックを判断する基準を事前に定義
+1. **Data backup**: Take a complete backup before migration
+2. **Test environment verification**: Validate in a production-equivalent environment beforehand
+3. **Gradual rollout**: Deploy incrementally using canary releases
+4. **Enhanced monitoring**: Shorten metrics monitoring intervals during migration
+5. **Clear criteria**: Define rollback decision criteria in advance
 ---
 
 ## FAQ
 
-### Q1: ゲーム用GPUとAI学習用GPUの違いは？
+### Q1: What is the difference between gaming GPUs and AI training GPUs?
 
-**A**: 同じGPUチップでも、用途によってメモリとTensor Coreが異なる:
-- **ゲーム用（RTX 4090）**: VRAM 24GB、RT Core重視、消費者向け
-- **AI学習用（A100/H100）**: VRAM 80GB、Tensor Core重視、ECC付き
-- **AI推論用（L4/L40S）**: 低消費電力、INT8/FP8最適化
+**A**: Even with the same GPU chip, memory and Tensor Core emphasis differ by use case:
+- **Gaming (RTX 4090)**: 24GB VRAM, RT Core emphasis, consumer-oriented
+- **AI Training (A100/H100)**: 80GB VRAM, Tensor Core emphasis, ECC-enabled
+- **AI Inference (L4/L40S)**: Low power consumption, INT8/FP8 optimized
 
-### Q2: Apple Silicon のGPUはNVIDIAに勝てますか？
+### Q2: Can Apple Silicon GPUs compete with NVIDIA?
 
-**A**: 用途による:
-- **メモリ帯域**: M4 Max (546GB/s) vs RTX 4090 (1,008GB/s) → NVIDIA優位
-- **統合メモリ**: M4 Maxの128GBをGPUが直接使える → 大規模LLM推論で有利
-- **電力効率**: Apple Siliconが圧倒的に優れる
-- **CUDA エコシステム**: AI/MLライブラリの大半がCUDA前提 → NVIDIA優位
+**A**: It depends on the use case:
+- **Memory Bandwidth**: M4 Max (546GB/s) vs RTX 4090 (1,008GB/s) → NVIDIA advantage
+- **Unified Memory**: M4 Max's 128GB directly accessible by GPU → Advantage for large LLM inference
+- **Power Efficiency**: Apple Silicon is overwhelmingly superior
+- **CUDA Ecosystem**: Majority of AI/ML libraries assume CUDA → NVIDIA advantage
 
-### Q3: GPUプログラミングを学ぶべきですか？
+### Q3: Should I learn GPU programming?
 
-**A**: AI/ML、ゲーム開発、HPC（高性能計算）に関わるなら必須。Web開発者は直接は不要だが、「なぜAI学習にGPUが必要か」を理解することは重要。PyTorch/TensorFlowはGPUの詳細を抽象化してくれるため、CUDAを直接書く必要は少ない。
+**A**: Essential if you work in AI/ML, game development, or HPC (High Performance Computing). Web developers do not need it directly, but understanding "why AI training requires GPUs" is important. PyTorch/TensorFlow abstract GPU details away, so there is rarely a need to write CUDA directly.
 
-### Q4: VRAMが足りない場合の対処法は？
+### Q4: What can I do when VRAM is insufficient?
 
-**A**: 以下の手法を組み合わせる:
-- **勾配チェックポインティング**: 中間結果を保存せず再計算
-- **混合精度**: FP16/BF16で使用量を半減
-- **ZeRO Stage 3**: 重みを複数GPUに分散
-- **オフロード**: CPU RAM/NVMe SSDに一部を退避
-- **量子化**: INT4/INT8で推論
-- **モデル分割**: 層ごとに異なるGPUに配置
+**A**: Combine the following techniques:
+- **Gradient Checkpointing**: Recompute intermediate results instead of storing them
+- **Mixed Precision**: Halve usage with FP16/BF16
+- **ZeRO Stage 3**: Distribute weights across multiple GPUs
+- **Offloading**: Offload portions to CPU RAM/NVMe SSD
+- **Quantization**: INT4/INT8 for inference
+- **Model Sharding**: Place different layers on different GPUs
 
-### Q5: GPU温度が高い場合の対策は？
+### Q5: What should I do about high GPU temperatures?
 
-**A**: GPU温度管理の基準:
-- 80度以下: 正常
-- 80-90度: 注意（サーマルスロットリングの可能性）
-- 90度以上: 対策必要
-対策:
-- ケース内エアフローの改善
-- GPUファンカーブの調整（MSI Afterburner等）
-- サーマルパッドの交換
-- アンダーボルト（電圧を下げて発熱抑制、性能微減）
+**A**: GPU temperature management guidelines:
+- Below 80C: Normal
+- 80-90C: Caution (thermal throttling may occur)
+- Above 90C: Action needed
+Countermeasures:
+- Improve case airflow
+- Adjust GPU fan curve (MSI Afterburner, etc.)
+- Replace thermal pads
+- Undervolt (reduce voltage to suppress heat, minor performance reduction)
 
 ---
 
-## まとめ
+## Summary
 
-| 概念 | ポイント |
+| Concept | Key Point |
 |------|---------|
-| CPU vs GPU | レイテンシ最適化 vs スループット最適化 |
-| CUDA Core | 汎用並列計算。数千〜数万コア |
-| Tensor Core | 行列演算専用。AI学習を10-100倍高速化 |
-| ワープ | 32スレッドの同期実行単位。分岐でダイバージェンス |
-| アムダールの法則 | 逐次部分が並列化の限界を決める |
-| 精度 | FP32→FP16→FP8と下げるほど高速（品質トレードオフ） |
-| NVLink | GPU間高帯域接続。マルチGPU学習に必須 |
-| 分散学習 | データ/テンソル/パイプライン並列の組み合わせ |
+| CPU vs GPU | Latency-optimized vs throughput-optimized |
+| CUDA Core | General-purpose parallel computing. Thousands to tens of thousands of cores |
+| Tensor Core | Matrix operation dedicated. Accelerates AI training 10-100x |
+| Warp | 32-thread synchronized execution unit. Divergence on branches |
+| Amdahl's Law | The sequential portion determines the limit of parallelization |
+| Precision | Lower precision (FP32→FP16→FP8) yields higher speed (quality trade-off) |
+| NVLink | High-bandwidth GPU interconnect. Essential for multi-GPU training |
+| Distributed Training | Combination of data/tensor/pipeline parallelism |
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Guides
 
 
 ---
 
-## 参考文献
+## References
 
 1. Kirk, D. B. & Hwu, W. W. "Programming Massively Parallel Processors." 4th Edition, Morgan Kaufmann, 2022.
 2. NVIDIA. "CUDA C++ Programming Guide." https://docs.nvidia.com/cuda/

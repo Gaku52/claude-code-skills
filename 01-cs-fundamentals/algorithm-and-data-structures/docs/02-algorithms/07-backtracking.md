@@ -1,149 +1,149 @@
-# バックトラッキング
+# Backtracking
 
-> 解の候補を体系的に探索し、制約を満たさない分岐を早期に枝刈りして効率化する手法を、N-Queens・数独・順列生成・グラフ彩色・ナイトツアーなど多角的な例題で深く理解する
+> Deeply understand the technique of systematically exploring solution candidates and pruning branches that violate constraints early -- through diverse examples including N-Queens, Sudoku, permutation generation, graph coloring, and Knight's tour
 
-## この章で学ぶこと
+## Learning Objectives
 
-1. **バックトラッキングの原理**（状態空間木の探索と枝刈り）を理解し、汎用テンプレートを使って実装できる
-2. **N-Queens 問題・数独ソルバー**を複数の枝刈り戦略とともに効率的に解ける
-3. **順列・組み合わせ・部分集合**の列挙を体系的に実装し、重複要素への対応もできる
-4. **グラフ彩色・ナイトツアー・括弧列挙**など応用問題にバックトラッキングを適用できる
-5. **枝刈り戦略の設計**と計算量分析を行い、最適化の方針を立てられる
+1. **Understand the principles of backtracking** (state space tree exploration and pruning) and implement them using a generic template
+2. **Efficiently solve N-Queens and Sudoku** with multiple pruning strategies
+3. **Systematically implement enumeration of permutations, combinations, and subsets**, including handling of duplicate elements
+4. **Apply backtracking to problems** such as graph coloring, Knight's tour, and parenthesis generation
+5. **Design pruning strategies** and analyze computational complexity to plan optimization approaches
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, familiarity with the following will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [分割統治法（Divide and Conquer）](./06-divide-conquer.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related fundamental concepts
+- Familiarity with the content in [Divide and Conquer](./06-divide-conquer.md)
 
 ---
 
-## 目次
+## Table of Contents
 
-1. [バックトラッキングの原理](#1-バックトラッキングの原理)
-2. [N-Queens 問題](#2-n-queens-問題)
-3. [数独ソルバー](#3-数独ソルバー)
-4. [順列・組み合わせ・部分集合](#4-順列組み合わせ部分集合)
-5. [応用問題: グラフ彩色](#5-応用問題-グラフ彩色)
-6. [応用問題: ナイトツアーと括弧生成](#6-応用問題-ナイトツアーと括弧生成)
-7. [状態空間木の構造と枝刈り戦略](#7-状態空間木の構造と枝刈り戦略)
-8. [計算量分析と最適化テクニック](#8-計算量分析と最適化テクニック)
-9. [アンチパターン](#9-アンチパターン)
-10. [演習問題](#10-演習問題)
+1. [Principles of Backtracking](#1-principles-of-backtracking)
+2. [N-Queens Problem](#2-n-queens-problem)
+3. [Sudoku Solver](#3-sudoku-solver)
+4. [Permutations, Combinations, and Subsets](#4-permutations-combinations-and-subsets)
+5. [Applied Problem: Graph Coloring](#5-applied-problem-graph-coloring)
+6. [Applied Problems: Knight's Tour and Parenthesis Generation](#6-applied-problems-knights-tour-and-parenthesis-generation)
+7. [State Space Tree Structure and Pruning Strategies](#7-state-space-tree-structure-and-pruning-strategies)
+8. [Complexity Analysis and Optimization Techniques](#8-complexity-analysis-and-optimization-techniques)
+9. [Anti-patterns](#9-anti-patterns)
+10. [Exercises](#10-exercises)
 11. [FAQ](#11-faq)
-12. [まとめ](#12-まとめ)
-13. [参考文献](#13-参考文献)
+12. [Summary](#12-summary)
+13. [References](#13-references)
 
 ---
 
-## 1. バックトラッキングの原理
+## 1. Principles of Backtracking
 
-### 1.1 概要と直感的理解
+### 1.1 Overview and Intuitive Understanding
 
-バックトラッキング（backtracking）は、探索問題を解くための体系的なアプローチである。迷路を解くときの行動を思い浮かべるとわかりやすい。分岐点に到達したら一つの道を選んで進み、行き止まりに当たったら最後の分岐点まで戻って別の道を試す。この「進む→行き詰まる→戻る→別の道を試す」というサイクルが、バックトラッキングの本質である。
-
-```
-バックトラッキング = 深さ優先探索（DFS） + 枝刈り（Pruning）
-
-迷路の例で理解するバックトラッキング:
-
-  S → → ↓         S → → ↓         S → → ↓
-           ↓              ↓              ↓
-       ↓ ← ←          × ← ←          ↓ ← ←
-       ↓                               ↓
-       × (行き止まり)                   → → G (ゴール!)
-
-  Step 1: 進む      Step 2: 戻る      Step 3: 別の道
-```
-
-アルゴリズムの核心は以下の3つのステップにある:
-
-1. **選択（Choose）**: 利用可能な選択肢の中から一つを選ぶ
-2. **探索（Explore）**: その選択のもとで再帰的に探索を続ける
-3. **取り消し（Unchoose）**: 探索が終わったら選択を元に戻す
-
-### 1.2 状態空間木
-
-バックトラッキングの探索過程は、**状態空間木（State Space Tree）** として視覚化できる。根ノードは初期状態、各辺は一つの選択、葉ノードは解または行き止まりを表す。
+Backtracking is a systematic approach to solving search problems. It is easiest to understand by imagining how you solve a maze: when you reach a fork, choose one path and proceed; if you hit a dead end, return to the last fork and try a different path. This cycle of "advance -> get stuck -> retreat -> try another path" is the essence of backtracking.
 
 ```
-状態空間木（3つの中から2つ選ぶ例）:
+Backtracking = Depth-First Search (DFS) + Pruning
 
-                    root (初期状態)
+Understanding backtracking through a maze example:
+
+  S -> -> v         S -> -> v         S -> -> v
+           v              v              v
+       v <- <          x <- <          v <- <
+       v                               v
+       x (dead end)                    -> -> G (goal!)
+
+  Step 1: Advance    Step 2: Retreat   Step 3: Try another path
+```
+
+The core of the algorithm consists of three steps:
+
+1. **Choose**: Select one from the available choices
+2. **Explore**: Continue searching recursively under that choice
+3. **Unchoose**: Undo the choice after exploration is complete
+
+### 1.2 State Space Tree
+
+The exploration process of backtracking can be visualized as a **state space tree**. The root node represents the initial state, each edge represents a choice, and leaf nodes represent solutions or dead ends.
+
+```
+State space tree (choosing 2 from 3 elements):
+
+                    root (initial state)
                   /   |   \
-                 1    2    3         ← 1番目の選択
+                 1    2    3         <- 1st choice
                 / \   |
-               2   3  3             ← 2番目の選択
+               2   3  3             <- 2nd choice
                |   |  |
-             [1,2][1,3][2,3]        ← 解（葉ノード）
+             [1,2][1,3][2,3]        <- Solutions (leaf nodes)
 
 
-枝刈りなしの全探索:
+Exhaustive search without pruning:
 
                     root
                   /   |   \
                  1    2    3
                / | \ / | \ / | \
-              1 2 3 1 2 3 1 2 3      ← 重複・無効を含む全探索
-              探索ノード数: 1 + 3 + 9 = 13
+              1 2 3 1 2 3 1 2 3      <- Exhaustive search including duplicates/invalids
+              Nodes explored: 1 + 3 + 9 = 13
 
 
-枝刈りあり:
+With pruning:
 
                     root
                   /   |   \
                  1    2    3
-                / \   |    X         ← 「自分より大きい数字のみ」で枝刈り
+                / \   |    X         <- Pruned: "only numbers greater than self"
                2   3  3
                |   |  |
-             [1,2][1,3][2,3]         ← 有効な解のみ探索
-              探索ノード数: 1 + 3 + 3 = 7（約46%削減）
+             [1,2][1,3][2,3]         <- Only valid solutions explored
+              Nodes explored: 1 + 3 + 3 = 7 (~46% reduction)
 ```
 
-枝刈りの効果は問題のサイズが大きくなるほど劇的に増大する。N-Queens 問題では、枝刈りなしの場合 O(N^N) のノードを探索するが、適切な枝刈りにより O(N!) 程度まで削減される。N=8 の場合、16,777,216 ノードが 40,320 ノード以下になる。
+The effect of pruning becomes dramatically greater as problem size increases. In the N-Queens problem, without pruning, O(N^N) nodes are explored, but appropriate pruning reduces this to approximately O(N!). For N=8, 16,777,216 nodes are reduced to 40,320 or fewer.
 
-### 1.3 基本テンプレート
+### 1.3 Basic Template
 
-バックトラッキングには汎用的なテンプレートが存在し、ほぼ全ての問題に適用できる。
+Backtracking has a generic template applicable to virtually all problems.
 
 ```python
 def backtrack(state, choices, result):
     """
-    バックトラッキングの基本テンプレート
+    Basic backtracking template
 
     Parameters:
-        state   : 現在の部分解（可変オブジェクト）
-        choices : 利用可能な選択肢
-        result  : 見つかった解を格納するリスト
+        state   : Current partial solution (mutable object)
+        choices : Available choices
+        result  : List to store found solutions
     """
-    # ---- 基底条件: 解が完成したか判定 ----
+    # ---- Base condition: check if solution is complete ----
     if is_solution(state):
-        result.append(state.copy())  # 解のコピーを保存
+        result.append(state.copy())  # Save a copy of the solution
         return
 
-    # ---- 各選択肢を試す ----
+    # ---- Try each choice ----
     for choice in choices:
-        # 枝刈り: この選択が制約を満たすか？
+        # Pruning: does this choice satisfy the constraints?
         if is_valid(state, choice):
-            # 1. 選択を適用（Choose）
+            # 1. Apply the choice (Choose)
             apply(state, choice)
 
-            # 2. 再帰的に探索（Explore）
+            # 2. Explore recursively (Explore)
             backtrack(state, next_choices(choice), result)
 
-            # 3. 選択を取り消し（Unchoose / Backtrack）
+            # 3. Undo the choice (Unchoose / Backtrack)
             undo(state, choice)
 
 
 def backtrack_single(state, choices):
     """
-    一つの解だけを求めるバリエーション
+    Variation for finding only one solution
 
     Returns:
-        bool: 解が見つかったら True
+        bool: True if a solution is found
     """
     if is_solution(state):
         return True
@@ -153,121 +153,122 @@ def backtrack_single(state, choices):
             apply(state, choice)
 
             if backtrack_single(state, next_choices(choice)):
-                return True  # 解が見つかったら即座に打ち切り
+                return True  # Stop immediately upon finding a solution
 
             undo(state, choice)
 
-    return False  # この分岐には解がない
+    return False  # No solution in this branch
 ```
 
-**テンプレートの使い分け:**
+**Choosing the right template:**
 
-| 目的 | テンプレート | return 値 | 解の格納 |
+| Objective | Template | Return value | Solution storage |
 |:---|:---|:---|:---|
-| 全ての解を列挙 | `backtrack` | なし (void) | `result` リストに追加 |
-| 一つの解を発見 | `backtrack_single` | `bool` | state を直接参照 |
-| 解の数を数える | カウンタ版 | `int` | グローバル変数 or 戻り値 |
-| 最適解を求める | 最適化版 | なし or 値 | 最良解を更新 |
+| Enumerate all solutions | `backtrack` | None (void) | Append to `result` list |
+| Find one solution | `backtrack_single` | `bool` | Reference state directly |
+| Count solutions | Counter variant | `int` | Global variable or return value |
+| Find optimal solution | Optimization variant | None or value | Update best solution |
 
-### 1.4 バックトラッキングが有効な問題の特徴
+### 1.4 Characteristics of Problems Where Backtracking is Effective
 
-バックトラッキングが特に有効なのは、以下の性質を持つ問題である:
+Backtracking is particularly effective for problems with the following properties:
 
-1. **逐次選択性**: 解が一連の選択の列として構成できる
-2. **制約の早期検出**: 部分解の段階で制約違反を検出できる
-3. **探索空間の削減可能性**: 枝刈りにより大幅にノード数を減らせる
+1. **Sequential selectivity**: The solution can be constructed as a sequence of choices
+2. **Early constraint detection**: Constraint violations can be detected at the partial solution stage
+3. **Search space reducibility**: Pruning can significantly reduce the number of nodes
 
 ```
-バックトラッキングの適用判断フローチャート:
+Backtracking applicability flowchart:
 
-  問題を受け取る
+  Receive problem
        |
        v
-  解は選択の列として
-  構成できるか？ ──No──> 他の手法を検討
+  Can the solution be
+  constructed as a sequence ----No----> Consider other approaches
+  of choices?
        |
       Yes
        |
        v
-  部分解の段階で
-  制約違反を検出  ──No──> 全探索 or DP を検討
-  できるか？
+  Can constraint violations
+  be detected at the         ----No----> Consider exhaustive search or DP
+  partial solution stage?
        |
       Yes
        |
        v
-  枝刈りで探索空間を
-  大幅削減できるか？ ──No──> 全探索 + 枝刈り（効果は限定的）
+  Can pruning significantly
+  reduce the search space?   ----No----> Exhaustive search + pruning (limited effect)
        |
       Yes
        |
        v
-  バックトラッキングが有効!
+  Backtracking is effective!
 ```
 
 ---
 
-## 2. N-Queens 問題
+## 2. N-Queens Problem
 
-### 2.1 問題定義
+### 2.1 Problem Definition
 
-N x N のチェス盤に N 個のクイーンを、互いに攻撃し合わないように配置する問題である。チェスのクイーンは、同じ行・同じ列・同じ対角線上にある駒を攻撃できる。
+Place N queens on an N x N chessboard such that no two queens attack each other. A chess queen can attack any piece on the same row, column, or diagonal.
 
 ```
-4-Queens の2つの解:
+Two solutions for 4-Queens:
 
-  解1:                解2:
-  . Q . .             . . Q .
-  . . . Q             Q . . .
-  Q . . .             . . . Q
-  . . Q .             . Q . .
+  Solution 1:           Solution 2:
+  . Q . .               . . Q .
+  . . . Q               Q . . .
+  Q . . .               . . . Q
+  . . Q .               . Q . .
 
-  board = [1,3,0,2]   board = [2,0,3,1]
+  board = [1,3,0,2]     board = [2,0,3,1]
 
 
-クイーンの攻撃範囲（中央に配置した場合）:
+Queen's attack range (placed at center):
 
-  \ . | . /           攻撃判定に使う3つの条件:
+  \ . | . /           Three conditions for attack detection:
   . \ | / .
-  ----Q----           1. 同じ列: col == prev_col
-  . / | \ .           2. 左上-右下対角線: row - col == prev_row - prev_col
-  / . | . \           3. 右上-左下対角線: row + col == prev_row + prev_col
+  ----Q----           1. Same column: col == prev_col
+  . / | \ .           2. Top-left to bottom-right diagonal: row - col == prev_row - prev_col
+  / . | . \           3. Top-right to bottom-left diagonal: row + col == prev_row + prev_col
 
-                      => 条件2,3は |row-prev_row| == |col-prev_col| と等価
+                      => Conditions 2,3 are equivalent to |row-prev_row| == |col-prev_col|
 ```
 
-### 2.2 基本実装
+### 2.2 Basic Implementation
 
-各行に一つずつクイーンを配置していく方式で実装する。行ごとに処理するため、行の制約は自動的に満たされる。
+We implement a row-by-row placement approach. Since each row is processed in order, the row constraint is automatically satisfied.
 
 ```python
 def solve_nqueens(n: int) -> list:
     """
-    N-Queens 問題を解き、全ての解を返す
+    Solve the N-Queens problem and return all solutions
 
     Parameters:
-        n: 盤面のサイズ（クイーンの数）
+        n: Board size (number of queens)
 
     Returns:
-        解のリスト。各解は board[row] = col の形式
+        List of solutions. Each solution is in the format board[row] = col
     """
     solutions = []
-    board = [-1] * n  # board[row] = col（その行のクイーンの列位置）
+    board = [-1] * n  # board[row] = col (column position of the queen in that row)
 
     def is_safe(row: int, col: int) -> bool:
-        """row 行 col 列にクイーンを置けるか判定"""
+        """Check if a queen can be placed at row, col"""
         for prev_row in range(row):
             prev_col = board[prev_row]
-            # 同じ列にあるか
+            # Same column?
             if prev_col == col:
                 return False
-            # 同じ対角線上にあるか（距離が等しい = 対角線上）
+            # Same diagonal? (equal distance = on diagonal)
             if abs(prev_row - row) == abs(prev_col - col):
                 return False
         return True
 
     def backtrack(row: int):
-        """row 行目にクイーンを配置する"""
+        """Place a queen in the given row"""
         if row == n:
             solutions.append(board[:])
             return
@@ -276,40 +277,40 @@ def solve_nqueens(n: int) -> list:
             if is_safe(row, col):
                 board[row] = col
                 backtrack(row + 1)
-                board[row] = -1  # バックトラック
+                board[row] = -1  # Backtrack
 
     backtrack(0)
     return solutions
 
 
-# ---- 実行例 ----
+# ---- Example ----
 solutions = solve_nqueens(4)
-print(f"4-Queens の解の数: {len(solutions)}")
+print(f"Number of 4-Queens solutions: {len(solutions)}")
 for i, sol in enumerate(solutions):
-    print(f"  解{i+1}: {sol}")
+    print(f"  Solution {i+1}: {sol}")
 
-# 出力:
-# 4-Queens の解の数: 2
-#   解1: [1, 3, 0, 2]
-#   解2: [2, 0, 3, 1]
+# Output:
+# Number of 4-Queens solutions: 2
+#   Solution 1: [1, 3, 0, 2]
+#   Solution 2: [2, 0, 3, 1]
 
 solutions_8 = solve_nqueens(8)
-print(f"8-Queens の解の数: {len(solutions_8)}")
-# 出力: 8-Queens の解の数: 92
+print(f"Number of 8-Queens solutions: {len(solutions_8)}")
+# Output: Number of 8-Queens solutions: 92
 ```
 
-### 2.3 集合を使った高速化
+### 2.3 Optimization Using Sets
 
-`is_safe` で毎回全ての前の行をチェックする代わりに、使用中の列と対角線を集合で管理すると O(1) で判定できる。
+Instead of checking all previous rows in `is_safe` each time, we manage occupied columns and diagonals using sets for O(1) checking.
 
 ```python
 def solve_nqueens_fast(n: int) -> list:
-    """N-Queens - 集合による高速判定版"""
+    """N-Queens - fast version using sets"""
     solutions = []
     board = [-1] * n
-    cols = set()       # 使用中の列
-    diag1 = set()      # 使用中の左上-右下対角線 (row - col)
-    diag2 = set()      # 使用中の右上-左下対角線 (row + col)
+    cols = set()       # Occupied columns
+    diag1 = set()      # Occupied top-left to bottom-right diagonals (row - col)
+    diag2 = set()      # Occupied top-right to bottom-left diagonals (row + col)
 
     def backtrack(row: int):
         if row == n:
@@ -326,7 +327,7 @@ def solve_nqueens_fast(n: int) -> list:
             if d2 in diag2:
                 continue
 
-            # 選択を適用
+            # Apply choice
             board[row] = col
             cols.add(col)
             diag1.add(d1)
@@ -334,7 +335,7 @@ def solve_nqueens_fast(n: int) -> list:
 
             backtrack(row + 1)
 
-            # 選択を取り消し
+            # Undo choice
             board[row] = -1
             cols.remove(col)
             diag1.remove(d1)
@@ -344,30 +345,30 @@ def solve_nqueens_fast(n: int) -> list:
     return solutions
 
 
-# ---- 実行例 ----
+# ---- Example ----
 solutions = solve_nqueens_fast(8)
-print(f"8-Queens の解の数: {len(solutions)}")  # 92
+print(f"Number of 8-Queens solutions: {len(solutions)}")  # 92
 ```
 
-### 2.4 ビットマスクによる最適化
+### 2.4 Optimization Using Bitmasks
 
-集合の代わりにビット演算を用いると、定数倍の高速化が実現できる。各ビットが盤面の列に対応する。
+Using bit operations instead of sets achieves a constant-factor speedup. Each bit corresponds to a column on the board.
 
 ```python
 def count_nqueens_bitmask(n: int) -> int:
     """
-    N-Queens の解の数をビットマスクで高速に数える
+    Count N-Queens solutions quickly using bitmasks
 
-    cols:  使用中の列を表すビットマスク
-    diag1: 左上→右下対角線（左にシフト）
-    diag2: 右上→左下対角線（右にシフト）
+    cols:  Bitmask of occupied columns
+    diag1: Top-left to bottom-right diagonal (shifted left)
+    diag2: Top-right to bottom-left diagonal (shifted right)
 
-    ビット操作の仕組み:
-      available & (-available) → 最下位の立っているビットを取得
-      available ^= pos         → そのビットを消す
+    Bit operation mechanics:
+      available & (-available) -> extract the lowest set bit
+      available ^= pos         -> clear that bit
     """
     count = 0
-    all_cols = (1 << n) - 1  # n ビット全てが 1 のマスク
+    all_cols = (1 << n) - 1  # Mask with all n bits set to 1
 
     def backtrack(row: int, cols: int, diag1: int, diag2: int):
         nonlocal count
@@ -375,16 +376,16 @@ def count_nqueens_bitmask(n: int) -> int:
             count += 1
             return
 
-        # 配置可能な列を計算
+        # Compute available columns
         available = all_cols & ~(cols | diag1 | diag2)
 
         while available:
-            pos = available & (-available)  # 最下位ビットを取得
-            available ^= pos               # そのビットを消す
+            pos = available & (-available)  # Extract lowest set bit
+            available ^= pos               # Clear that bit
             backtrack(
                 row + 1,
                 cols | pos,
-                (diag1 | pos) << 1,  # 対角線は次の行で1列ずれる
+                (diag1 | pos) << 1,  # Diagonal shifts by one column at the next row
                 (diag2 | pos) >> 1
             )
 
@@ -392,45 +393,45 @@ def count_nqueens_bitmask(n: int) -> int:
     return count
 
 
-# ---- 実行例 ----
+# ---- Example ----
 for n in range(1, 13):
-    print(f"N={n:2d}: {count_nqueens_bitmask(n)} 解")
+    print(f"N={n:2d}: {count_nqueens_bitmask(n)} solutions")
 
-# 出力:
-# N= 1: 1 解
-# N= 2: 0 解
-# N= 3: 0 解
-# N= 4: 2 解
-# N= 5: 10 解
-# N= 6: 4 解
-# N= 7: 40 解
-# N= 8: 92 解
-# N= 9: 352 解
-# N=10: 724 解
-# N=11: 2680 解
-# N=12: 14200 解
+# Output:
+# N= 1: 1 solutions
+# N= 2: 0 solutions
+# N= 3: 0 solutions
+# N= 4: 2 solutions
+# N= 5: 10 solutions
+# N= 6: 4 solutions
+# N= 7: 40 solutions
+# N= 8: 92 solutions
+# N= 9: 352 solutions
+# N=10: 724 solutions
+# N=11: 2680 solutions
+# N=12: 14200 solutions
 ```
 
 ```
-ビットマスクの動作例（N=4, row=0 で col=1 にクイーンを配置）:
+Bitmask operation example (N=4, placing queen at col=1 in row=0):
 
   row=0:  cols=0010  diag1=0010  diag2=0010
-                      ↓ <<1       ↓ >>1
+                      v <<1       v >>1
   row=1:  cols=0010  diag1=0100  diag2=0001
           blocked = cols | diag1 | diag2 = 0111
           available = 1111 & ~0111 = 1000
-          → col=3 のみ配置可能
+          -> Only col=3 is available
 
-  盤面:
-  row 0:  . Q . .    (cols に 0010)
-  row 1:  . . . Q    (col=3 のみ可能)
+  Board:
+  row 0:  . Q . .    (0010 in cols)
+  row 1:  . . . Q    (only col=3 available)
 ```
 
-### 2.5 解の可視化
+### 2.5 Solution Visualization
 
 ```python
 def print_board(solution: list) -> None:
-    """N-Queens の盤面をASCIIアートで表示"""
+    """Display an N-Queens board as ASCII art"""
     n = len(solution)
     border = "+" + "---+" * n
     print(border)
@@ -446,14 +447,14 @@ def print_board(solution: list) -> None:
     print()
 
 
-# ---- 実行例 ----
+# ---- Example ----
 solutions = solve_nqueens_fast(4)
 for i, sol in enumerate(solutions):
-    print(f"解 {i + 1}:")
+    print(f"Solution {i + 1}:")
     print_board(sol)
 
-# 出力:
-# 解 1:
+# Output:
+# Solution 1:
 # +---+---+---+---+
 # |   | Q |   |   |
 # +---+---+---+---+
@@ -467,14 +468,14 @@ for i, sol in enumerate(solutions):
 
 ---
 
-## 3. 数独ソルバー
+## 3. Sudoku Solver
 
-### 3.1 問題定義と制約
+### 3.1 Problem Definition and Constraints
 
-9x9 の数独を、行・列・3x3 ボックスの制約を全て満たすように埋める。各行、各列、各 3x3 ボックスに 1-9 の数字が一つずつ入る。
+Fill a 9x9 Sudoku grid satisfying all row, column, and 3x3 box constraints. Each row, column, and 3x3 box must contain exactly one of each digit from 1 to 9.
 
 ```
-入力:                         出力:
+Input:                         Output:
 5 3 . | . 7 . | . . .        5 3 4 | 6 7 8 | 9 1 2
 6 . . | 1 9 5 | . . .        6 7 2 | 1 9 5 | 3 4 8
 . 9 8 | . . . | . 6 .        1 9 8 | 3 4 2 | 5 6 7
@@ -487,36 +488,36 @@ for i, sol in enumerate(solutions):
 . . . | 4 1 9 | . . 5        2 8 7 | 4 1 9 | 6 3 5
 . . . | . 8 . | . 7 9        3 4 5 | 2 8 6 | 1 7 9
 
-制約の3重チェック:
+Triple constraint check:
 
-  行の制約          列の制約         ボックスの制約
-  → → → → →       ↓               +-------+
-  5 3 4 6 7 8 9 1 2 5              | 5 3 4 |
-  (各行に1-9が       6              | 6 7 2 |
-   1つずつ)          1              | 1 9 8 |
-                     ...            +-------+
-                    (各列に1-9が    (各3x3に1-9が
-                     1つずつ)        1つずつ)
+  Row constraint      Column constraint   Box constraint
+  -> -> -> -> ->       v               +-------+
+  5 3 4 6 7 8 9 1 2   5              | 5 3 4 |
+  (each row has 1-9     6              | 6 7 2 |
+   exactly once)        1              | 1 9 8 |
+                        ...            +-------+
+                       (each col has   (each 3x3 box has
+                        1-9 once)       1-9 once)
 ```
 
-### 3.2 基本実装
+### 3.2 Basic Implementation
 
-空きマスを左上から順に埋めていく素朴なアプローチ。
+A straightforward approach that fills empty cells from top-left to bottom-right.
 
 ```python
 def solve_sudoku(board: list) -> bool:
     """
-    数独ソルバー - 基本的なバックトラッキング
+    Sudoku solver - basic backtracking
 
     Parameters:
-        board: 9x9 の2次元リスト。空きマスは 0
+        board: 9x9 2D list. Empty cells are 0
 
     Returns:
-        解が見つかったら True（board は解で上書きされる）
+        True if a solution is found (board is overwritten with the solution)
     """
 
     def find_empty() -> tuple:
-        """左上から順に空のセルを見つける"""
+        """Find the first empty cell from top-left"""
         for r in range(9):
             for c in range(9):
                 if board[r][c] == 0:
@@ -524,17 +525,17 @@ def solve_sudoku(board: list) -> bool:
         return None
 
     def is_valid(row: int, col: int, num: int) -> bool:
-        """num を (row, col) に置けるか"""
-        # 行チェック
+        """Check if num can be placed at (row, col)"""
+        # Row check
         if num in board[row]:
             return False
 
-        # 列チェック
+        # Column check
         for r in range(9):
             if board[r][col] == num:
                 return False
 
-        # 3x3 ボックスチェック
+        # 3x3 box check
         box_r, box_c = 3 * (row // 3), 3 * (col // 3)
         for r in range(box_r, box_r + 3):
             for c in range(box_c, box_c + 3):
@@ -545,7 +546,7 @@ def solve_sudoku(board: list) -> bool:
 
     cell = find_empty()
     if cell is None:
-        return True  # 全て埋まった → 解発見
+        return True  # All cells filled -> solution found
 
     row, col = cell
     for num in range(1, 10):
@@ -555,29 +556,29 @@ def solve_sudoku(board: list) -> bool:
             if solve_sudoku(board):
                 return True
 
-            board[row][col] = 0  # バックトラック
+            board[row][col] = 0  # Backtrack
 
-    return False  # この分岐に解なし
+    return False  # No solution in this branch
 ```
 
-### 3.3 候補集合による高速化
+### 3.3 Speedup Using Candidate Sets
 
-候補数字を集合で管理することで、`is_valid` の判定を O(1) に高速化する。
+By managing candidate digits with sets, the `is_valid` check becomes O(1).
 
 ```python
 def solve_sudoku_fast(board: list) -> bool:
     """
-    数独ソルバー - 候補集合による高速版
+    Sudoku solver - fast version using candidate sets
 
-    行・列・ボックスごとに使用中の数字を集合で管理し、
-    O(1) で配置可能性を判定する。
+    Manages digits in use per row, column, and box using sets,
+    enabling O(1) placement feasibility checking.
     """
     rows = [set() for _ in range(9)]
     cols = [set() for _ in range(9)]
     boxes = [set() for _ in range(9)]
     empty_cells = []
 
-    # 初期状態の構築
+    # Build initial state
     for r in range(9):
         for c in range(9):
             if board[r][c] != 0:
@@ -618,7 +619,7 @@ def solve_sudoku_fast(board: list) -> bool:
     return backtrack(0)
 
 
-# ---- 実行例 ----
+# ---- Example ----
 board = [
     [5, 3, 0, 0, 7, 0, 0, 0, 0],
     [6, 0, 0, 1, 9, 5, 0, 0, 0],
@@ -632,11 +633,11 @@ board = [
 ]
 
 solve_sudoku_fast(board)
-print("数独の解:")
+print("Sudoku solution:")
 for row in board:
     print(row)
 
-# 出力:
+# Output:
 # [5, 3, 4, 6, 7, 8, 9, 1, 2]
 # [6, 7, 2, 1, 9, 5, 3, 4, 8]
 # [1, 9, 8, 3, 4, 2, 5, 6, 7]
@@ -648,17 +649,17 @@ for row in board:
 # [3, 4, 5, 2, 8, 6, 1, 7, 9]
 ```
 
-### 3.4 MRV ヒューリスティックによるさらなる高速化
+### 3.4 Further Speedup with MRV Heuristic
 
-**MRV（Minimum Remaining Values）** は、候補数が最も少ないマスから先に埋めるヒューリスティックである。選択肢が少ないマスほど早く行き詰まり、無駄な探索を回避できる。
+**MRV (Minimum Remaining Values)** is a heuristic that fills cells with the fewest candidates first. Cells with fewer choices reach dead ends sooner, avoiding wasted exploration.
 
 ```python
 def solve_sudoku_mrv(board: list) -> bool:
     """
-    数独ソルバー - MRV ヒューリスティック版
+    Sudoku solver - MRV heuristic version
 
-    各ステップで候補数が最小のマスを選んで埋めることで、
-    探索空間を劇的に削減する。
+    By choosing the cell with the minimum number of candidates at each step,
+    the search space is dramatically reduced.
     """
     rows = [set() for _ in range(9)]
     cols = [set() for _ in range(9)]
@@ -676,20 +677,20 @@ def solve_sudoku_mrv(board: list) -> bool:
                 empty_cells.add((r, c))
 
     def get_candidates(r: int, c: int) -> set:
-        """(r, c) に配置可能な数字の集合"""
+        """Set of digits that can be placed at (r, c)"""
         return set(range(1, 10)) - rows[r] - cols[c] - boxes[3 * (r // 3) + c // 3]
 
     def backtrack() -> bool:
         if not empty_cells:
             return True
 
-        # MRV: 候補数が最小のセルを選択
+        # MRV: select the cell with the fewest candidates
         min_cell = min(empty_cells, key=lambda rc: len(get_candidates(*rc)))
         r, c = min_cell
         candidates = get_candidates(r, c)
 
         if not candidates:
-            return False  # 候補なし → バックトラック
+            return False  # No candidates -> backtrack
 
         empty_cells.remove((r, c))
         box_id = 3 * (r // 3) + c // 3
@@ -714,37 +715,37 @@ def solve_sudoku_mrv(board: list) -> bool:
     return backtrack()
 ```
 
-### 3.5 数独の難易度と探索ノード数
+### 3.5 Sudoku Difficulty and Search Node Count
 
 ```
-数独の難易度と探索の関係:
+Relationship between Sudoku difficulty and search:
 
-  難易度     空きマス数    探索ノード数（目安）     候補集合の効果
-  ─────────────────────────────────────────────────────────
-  簡単       30-35個      100 以下                  大（多くが一意決定）
-  普通       40-50個      1,000 以下                中
-  難しい     50-55個      10,000 以下               小（分岐が多い）
-  極難       55-60個      100,000 以上              MRV が重要
+  Difficulty   Empty cells   Search nodes (approx.)   Effect of candidate sets
+  ---------------------------------------------------------------------------
+  Easy         30-35         Less than 100            High (many uniquely determined)
+  Medium       40-50         Less than 1,000          Medium
+  Hard         50-55         Less than 10,000         Low (many branches)
+  Expert       55-60         100,000 or more          MRV is critical
 
-  ※ 理論上の最大探索空間は 9^81 ≒ 1.97 x 10^77 だが、
-    適切な枝刈りにより数百〜数万ノードに収まる
+  * Theoretical max search space is 9^81 ~ 1.97 x 10^77,
+    but proper pruning keeps it to hundreds to tens of thousands of nodes
 ```
 
 ---
 
-## 4. 順列・組み合わせ・部分集合
+## 4. Permutations, Combinations, and Subsets
 
-### 4.1 順列の生成
+### 4.1 Generating Permutations
 
-n 個の要素を全ての順番で並べる。
+Arrange n elements in every possible order.
 
 ```python
 def permutations(nums: list) -> list:
     """
-    全順列の生成
+    Generate all permutations
 
-    計算量: O(n * n!)
-    空間量: O(n) （再帰スタック）+ O(n * n!)（結果格納）
+    Complexity: O(n * n!)
+    Space: O(n) (recursion stack) + O(n * n!) (result storage)
     """
     result = []
 
@@ -762,20 +763,20 @@ def permutations(nums: list) -> list:
     return result
 
 
-# ---- 実行例 ----
+# ---- Example ----
 print(permutations([1, 2, 3]))
 # [[1,2,3], [1,3,2], [2,1,3], [2,3,1], [3,1,2], [3,2,1]]
 ```
 
-**重複要素がある場合の順列:**
+**Permutations with duplicate elements:**
 
 ```python
 def permutations_unique(nums: list) -> list:
     """
-    重複要素を含む順列の生成（重複排除）
+    Generate permutations with duplicate elements (duplicates removed)
 
-    戦略: ソートして、同じ値の要素が前の要素を使い切る前に
-    使われないようにする
+    Strategy: sort the array, then ensure that a duplicate value is not
+    used before the previous identical element has been used
     """
     result = []
     nums.sort()
@@ -787,10 +788,10 @@ def permutations_unique(nums: list) -> list:
             return
 
         for i in range(len(nums)):
-            # 既に使用済み
+            # Already used
             if used[i]:
                 continue
-            # 重複スキップ: 同じ値の前の要素が未使用なら飛ばす
+            # Skip duplicates: if the previous identical element is unused, skip
             if i > 0 and nums[i] == nums[i - 1] and not used[i - 1]:
                 continue
 
@@ -804,22 +805,22 @@ def permutations_unique(nums: list) -> list:
     return result
 
 
-# ---- 実行例 ----
+# ---- Example ----
 print(permutations_unique([1, 1, 2]))
-# [[1, 1, 2], [1, 2, 1], [2, 1, 1]]  -- 重複なし（3!/2! = 3通り）
+# [[1, 1, 2], [1, 2, 1], [2, 1, 1]]  -- no duplicates (3!/2! = 3 patterns)
 ```
 
-### 4.2 組み合わせの生成
+### 4.2 Generating Combinations
 
-n 個の中から k 個を選ぶ（順序を問わない）。
+Choose k items from n (order does not matter).
 
 ```python
 def combinations(nums: list, k: int) -> list:
     """
-    nCk の全組み合わせを生成
+    Generate all nCk combinations
 
-    計算量: O(nCk)
-    枝刈り: 残り要素が足りない場合は探索を打ち切る
+    Complexity: O(nCk)
+    Pruning: skip exploration when remaining elements are insufficient
     """
     result = []
 
@@ -828,7 +829,7 @@ def combinations(nums: list, k: int) -> list:
             result.append(path[:])
             return
 
-        # 枝刈り: 残り要素数が不足していたらスキップ
+        # Pruning: skip if not enough elements remain
         remaining_needed = k - len(path)
         for i in range(start, len(nums) - remaining_needed + 1):
             path.append(nums[i])
@@ -839,7 +840,7 @@ def combinations(nums: list, k: int) -> list:
     return result
 
 
-# ---- 実行例 ----
+# ---- Example ----
 print(combinations([1, 2, 3, 4], 2))
 # [[1,2], [1,3], [1,4], [2,3], [2,4], [3,4]]
 
@@ -847,20 +848,20 @@ print(f"C(4,2) = {len(combinations([1,2,3,4], 2))}")
 # C(4,2) = 6
 ```
 
-### 4.3 部分集合の列挙
+### 4.3 Enumerating Subsets
 
 ```python
 def subsets(nums: list) -> list:
     """
-    全部分集合（べき集合）の生成
+    Generate all subsets (power set)
 
-    計算量: O(n * 2^n)
-    特徴: 全ての探索時点で解として記録する
+    Complexity: O(n * 2^n)
+    Feature: every exploration point is recorded as a solution
     """
     result = []
 
     def backtrack(start: int, path: list):
-        result.append(path[:])  # 全ての部分解が答え
+        result.append(path[:])  # Every partial solution is an answer
         for i in range(start, len(nums)):
             path.append(nums[i])
             backtrack(i + 1, path)
@@ -870,100 +871,100 @@ def subsets(nums: list) -> list:
     return result
 
 
-# ---- 実行例 ----
+# ---- Example ----
 print(subsets([1, 2, 3]))
 # [[], [1], [1,2], [1,2,3], [1,3], [2], [2,3], [3]]
 ```
 
-### 4.4 列挙パターンの比較
+### 4.4 Comparison of Enumeration Patterns
 
 ```
-順列・組み合わせ・部分集合の状態空間木の違い:
+Differences in state space trees for permutations, combinations, and subsets:
 
-順列 {1,2,3}:                 解の条件: path の長さが n
+Permutations {1,2,3}:        Solution condition: path length equals n
               {}
            /  |  \
-          1   2   3           ← 全要素から選択
+          1   2   3           <- Choose from all elements
          / \ / \ / \
-       12 13 21 23 31 32      ← 使用済みを除く全要素
+       12 13 21 23 31 32      <- All elements except used ones
        |  |  |  |  |  |
-      123 132 213 231 312 321 ← 解（葉ノード全て）
-      解の数: 3! = 6
+      123 132 213 231 312 321 <- Solutions (all leaf nodes)
+      Number of solutions: 3! = 6
 
 
-組み合わせ C(4,2):            解の条件: path の長さが k
+Combinations C(4,2):          Solution condition: path length equals k
               {}
           / | \  \
-         1  2  3  4           ← start 以降から選択
+         1  2  3  4           <- Choose from start onward
         /|\ /\  |
-      12 13 14 23 24 34       ← 解（長さ k に達した時点）
-      解の数: C(4,2) = 6
+      12 13 14 23 24 34       <- Solutions (when length k is reached)
+      Number of solutions: C(4,2) = 6
 
 
-部分集合 {1,2,3}:             解の条件: 全てのノードが解
-              {}              ← 解
+Subsets {1,2,3}:              Solution condition: every node is a solution
+              {}              <- Solution
            /  |  \
-          1   2   3           ← 解 x3
+          1   2   3           <- Solutions x3
          / \  |
-       12  13 23              ← 解 x3
+       12  13 23              <- Solutions x3
        |
-      123                    ← 解
-      解の数: 2^3 = 8
+      123                    <- Solution
+      Number of solutions: 2^3 = 8
 ```
 
-| 列挙パターン | 解の条件 | 選択肢の制約 | 計算量 | 解の数 |
+| Enumeration Pattern | Solution Condition | Choice Constraint | Complexity | Number of Solutions |
 |:---|:---|:---|:---|:---|
-| 順列 | path長 = n | 未使用の全要素 | O(n * n!) | n! |
-| 重複順列 | path長 = n | 全要素（重複可） | O(n^n) | n^n |
-| 組み合わせ | path長 = k | start以降の要素 | O(nCk) | nCk |
-| 部分集合 | 常に解 | start以降の要素 | O(n * 2^n) | 2^n |
-| 重複組み合わせ | path長 = k | 自身以降の要素 | O(n+k-1 C k) | (n+k-1)Ck |
+| Permutations | path length = n | All unused elements | O(n * n!) | n! |
+| Permutations with repetition | path length = n | All elements (repeats allowed) | O(n^n) | n^n |
+| Combinations | path length = k | Elements from start onward | O(nCk) | nCk |
+| Subsets | Always a solution | Elements from start onward | O(n * 2^n) | 2^n |
+| Combinations with repetition | path length = k | Current element onward | O(n+k-1 C k) | (n+k-1)Ck |
 
 ---
 
-## 5. 応用問題: グラフ彩色
+## 5. Applied Problem: Graph Coloring
 
-### 5.1 問題定義
+### 5.1 Problem Definition
 
-グラフ彩色問題（Graph Coloring）は、グラフの各頂点に色を割り当て、隣接する頂点が同じ色にならないようにする問題である。使用する色の数を最小化する問題は NP 困難だが、与えられた色数 m で彩色可能かどうかを判定する問題はバックトラッキングで解ける。
+The graph coloring problem assigns colors to each vertex of a graph such that no two adjacent vertices share the same color. Minimizing the number of colors is NP-hard, but determining whether a graph is colorable with a given number of colors m can be solved by backtracking.
 
 ```
-グラフ彩色の例（3色で彩色可能か？）:
+Graph coloring example (is 3-coloring possible?):
 
-  入力グラフ:              彩色結果:
+  Input graph:              Coloring result:
       0 --- 1                R --- G
       |   / |                |   / |
       |  /  |                |  /  |
       | /   |                | /   |
       2 --- 3                B --- R
 
-  隣接リスト:              色の割り当て:
-  0: [1, 2]                0: 赤(R)
-  1: [0, 2, 3]             1: 緑(G)
-  2: [0, 1, 3]             2: 青(B)
-  3: [1, 2]                3: 赤(R)
+  Adjacency list:            Color assignment:
+  0: [1, 2]                  0: Red (R)
+  1: [0, 2, 3]               1: Green (G)
+  2: [0, 1, 3]               2: Blue (B)
+  3: [1, 2]                  3: Red (R)
 ```
 
-### 5.2 実装
+### 5.2 Implementation
 
 ```python
 def graph_coloring(adj: dict, m: int) -> list:
     """
-    グラフ彩色問題をバックトラッキングで解く
+    Solve the graph coloring problem using backtracking
 
     Parameters:
-        adj: 隣接リスト {頂点: [隣接頂点のリスト]}
-        m  : 使用可能な色の数
+        adj: Adjacency list {vertex: [list of adjacent vertices]}
+        m  : Number of available colors
 
     Returns:
-        彩色が可能なら色の割り当てリスト、不可能なら None
+        Color assignment dictionary if colorable, None otherwise
     """
     vertices = sorted(adj.keys())
     n = len(vertices)
-    colors = [0] * n  # 0 = 未彩色、1..m = 色
+    colors = [0] * n  # 0 = uncolored, 1..m = colors
 
     def is_safe(vertex_idx: int, color: int) -> bool:
-        """vertex_idx に color を割り当てられるか"""
+        """Check if color can be assigned to vertex_idx"""
         vertex = vertices[vertex_idx]
         for neighbor in adj[vertex]:
             neighbor_idx = vertices.index(neighbor)
@@ -973,7 +974,7 @@ def graph_coloring(adj: dict, m: int) -> list:
 
     def backtrack(vertex_idx: int) -> bool:
         if vertex_idx == n:
-            return True  # 全頂点に色を割り当て完了
+            return True  # All vertices colored
 
         for color in range(1, m + 1):
             if is_safe(vertex_idx, color):
@@ -982,7 +983,7 @@ def graph_coloring(adj: dict, m: int) -> list:
                 if backtrack(vertex_idx + 1):
                     return True
 
-                colors[vertex_idx] = 0  # バックトラック
+                colors[vertex_idx] = 0  # Backtrack
 
         return False
 
@@ -991,7 +992,7 @@ def graph_coloring(adj: dict, m: int) -> list:
     return None
 
 
-# ---- 実行例 ----
+# ---- Example ----
 graph = {
     0: [1, 2],
     1: [0, 2, 3],
@@ -999,41 +1000,41 @@ graph = {
     3: [1, 2],
 }
 
-# 2色で彩色を試みる
+# Try 2-coloring
 result = graph_coloring(graph, 2)
-print(f"2色: {result}")
-# 出力: 2色: None（不可能）
+print(f"2 colors: {result}")
+# Output: 2 colors: None (impossible)
 
-# 3色で彩色を試みる
+# Try 3-coloring
 result = graph_coloring(graph, 3)
-print(f"3色: {result}")
-# 出力: 3色: {0: 1, 1: 2, 2: 3, 3: 1}
+print(f"3 colors: {result}")
+# Output: 3 colors: {0: 1, 1: 2, 2: 3, 3: 1}
 
-color_names = {1: "赤", 2: "緑", 3: "青"}
+color_names = {1: "Red", 2: "Green", 3: "Blue"}
 if result:
     for vertex, color in result.items():
-        print(f"  頂点 {vertex}: {color_names[color]}")
+        print(f"  Vertex {vertex}: {color_names[color]}")
 ```
 
-### 5.3 グラフ彩色のバリエーション
+### 5.3 Graph Coloring Variations
 
-| バリエーション | 説明 | 応用例 |
+| Variation | Description | Application |
 |:---|:---|:---|
-| 頂点彩色 | 隣接頂点が同色でない | 地図の塗り分け、時間割作成 |
-| 辺彩色 | 共通端点の辺が同色でない | ネットワーク周波数割り当て |
-| リスト彩色 | 頂点ごとに使用可能色が異なる | レジスタ割り当て |
-| 彩色数の最小化 | 最少の色数を求める | コンパイラ最適化 |
+| Vertex coloring | Adjacent vertices must differ in color | Map coloring, timetable scheduling |
+| Edge coloring | Edges sharing an endpoint must differ in color | Network frequency assignment |
+| List coloring | Available colors vary per vertex | Register allocation |
+| Chromatic number minimization | Find the minimum number of colors | Compiler optimization |
 
 ---
 
-## 6. 応用問題: ナイトツアーと括弧生成
+## 6. Applied Problems: Knight's Tour and Parenthesis Generation
 
-### 6.1 ナイトツアー
+### 6.1 Knight's Tour
 
-チェスのナイトが全てのマスをちょうど1回ずつ訪問する経路を見つける問題。
+Find a path for a chess knight to visit every square of the board exactly once.
 
 ```
-ナイトの移動パターン:          5x5 盤面でのナイトツアーの解（一例）:
+Knight's movement pattern:          A Knight's tour solution on a 5x5 board (example):
 
     . 2 . 1 .                  1 14  9 20  3
     3 . . . 8                  24 19  2 15 10
@@ -1041,32 +1042,32 @@ if result:
     4 . . . 7                   18 25  6 11 16
     . 5 . 6 .                    7 12 17 22  5
 
-  N から 1-8 の位置に
-  移動可能（L字型）
+  N can move to positions 1-8
+  (L-shaped moves)
 ```
 
 ```python
 def solve_knight_tour(n: int, start_row: int = 0, start_col: int = 0) -> list:
     """
-    ナイトツアー問題を解く
+    Solve the Knight's tour problem
 
     Parameters:
-        n: 盤面のサイズ
-        start_row, start_col: 開始位置
+        n: Board size
+        start_row, start_col: Starting position
 
     Returns:
-        解が見つかったら盤面（訪問順の2次元リスト）、なければ None
+        Board with visit order (2D list) if a solution exists, None otherwise
     """
     board = [[-1] * n for _ in range(n)]
 
-    # ナイトの8方向の移動
+    # 8 possible knight moves
     moves = [
         (-2, -1), (-2, 1), (-1, -2), (-1, 2),
         (1, -2), (1, 2), (2, -1), (2, 1)
     ]
 
     def count_onward_moves(r: int, c: int) -> int:
-        """(r, c) から移動可能なマス数（Warnsdorff's Rule 用）"""
+        """Count available moves from (r, c) (for Warnsdorff's Rule)"""
         count = 0
         for dr, dc in moves:
             nr, nc = r + dr, c + dc
@@ -1078,22 +1079,22 @@ def solve_knight_tour(n: int, start_row: int = 0, start_col: int = 0) -> list:
         board[r][c] = move_count
 
         if move_count == n * n - 1:
-            return True  # 全マス訪問完了
+            return True  # All squares visited
 
-        # Warnsdorff's Rule: 移動先の選択肢が少ない方を優先
+        # Warnsdorff's Rule: prioritize moves with fewer onward options
         next_moves = []
         for dr, dc in moves:
             nr, nc = r + dr, c + dc
             if 0 <= nr < n and 0 <= nc < n and board[nr][nc] == -1:
                 next_moves.append((count_onward_moves(nr, nc), nr, nc))
 
-        next_moves.sort()  # 選択肢が少ない順にソート
+        next_moves.sort()  # Sort by fewest onward moves
 
         for _, nr, nc in next_moves:
             if backtrack(nr, nc, move_count + 1):
                 return True
 
-        board[r][c] = -1  # バックトラック
+        board[r][c] = -1  # Backtrack
         return False
 
     if backtrack(start_row, start_col, 0):
@@ -1101,15 +1102,15 @@ def solve_knight_tour(n: int, start_row: int = 0, start_col: int = 0) -> list:
     return None
 
 
-# ---- 実行例 ----
+# ---- Example ----
 n = 6
 result = solve_knight_tour(n)
 if result:
-    print(f"{n}x{n} ナイトツアーの解:")
+    print(f"{n}x{n} Knight's tour solution:")
     for row in result:
         print(" ".join(f"{x:3d}" for x in row))
 
-# 出力例（6x6）:
+# Example output (6x6):
 #   0 15 22  3 14 25
 #  23  4  1 26  9 20
 #  16 31 24 21  2 13
@@ -1118,20 +1119,20 @@ if result:
 #  29  6 11 34  7 18
 ```
 
-### 6.2 括弧の生成
+### 6.2 Parenthesis Generation
 
-n 組の正しく対応する括弧の全パターンを生成する。
+Generate all patterns of n pairs of properly matched parentheses.
 
 ```
-n=3 の場合の全パターン:
+All patterns for n=3:
 
   ((()))    (()())    (())()    ()(())    ()()()
 
-  状態空間木の一部（枝刈りあり）:
+  Part of the state space tree (with pruning):
 
                     ""
                   /    \
-                "("    X (")" は最初に来れない)
+                "("    X (")" cannot come first)
                /    \
             "(("    "()"
            /    \       \
@@ -1143,17 +1144,17 @@ n=3 の場合の全パターン:
 ```python
 def generate_parentheses(n: int) -> list:
     """
-    n 組の正しく対応する括弧を全て生成
+    Generate all valid parentheses patterns with n pairs
 
     Parameters:
-        n: 括弧の組数
+        n: Number of pairs
 
     Returns:
-        有効な括弧文字列のリスト
+        List of valid parenthesis strings
 
-    枝刈り条件:
-      - 開き括弧は n 個まで使用可能
-      - 閉じ括弧は開き括弧の数以下
+    Pruning conditions:
+      - Open parentheses: up to n can be used
+      - Close parentheses: must not exceed open parentheses count
     """
     result = []
 
@@ -1162,11 +1163,11 @@ def generate_parentheses(n: int) -> list:
             result.append(s)
             return
 
-        # 開き括弧をまだ追加できる
+        # Can still add an open parenthesis
         if open_count < n:
             backtrack(s + "(", open_count + 1, close_count)
 
-        # 閉じ括弧を追加できる（開き括弧より少ない場合）
+        # Can add a close parenthesis (if fewer than open)
         if close_count < open_count:
             backtrack(s + ")", open_count, close_count + 1)
 
@@ -1174,46 +1175,46 @@ def generate_parentheses(n: int) -> list:
     return result
 
 
-# ---- 実行例 ----
+# ---- Example ----
 for n in range(1, 5):
     parens = generate_parentheses(n)
-    print(f"n={n}: {len(parens)} パターン")
+    print(f"n={n}: {len(parens)} patterns")
     if n <= 3:
         for p in parens:
             print(f"  {p}")
 
-# 出力:
-# n=1: 1 パターン
+# Output:
+# n=1: 1 patterns
 #   ()
-# n=2: 2 パターン
+# n=2: 2 patterns
 #   (())
 #   ()()
-# n=3: 5 パターン
+# n=3: 5 patterns
 #   ((()))
 #   (()())
 #   (())()
 #   ()(())
 #   ()()()
-# n=4: 14 パターン
+# n=4: 14 patterns
 ```
 
-括弧の数はカタラン数 C_n = (2n)! / ((n+1)! * n!) で与えられる。
+The number of parenthesis patterns is given by the Catalan number C_n = (2n)! / ((n+1)! * n!).
 
-### 6.3 組み合わせ和（Combination Sum）
+### 6.3 Combination Sum
 
-目標値 target に合計がちょうど等しくなる組み合わせを見つける。
+Find all combinations that sum exactly to a target value.
 
 ```python
 def combination_sum(candidates: list, target: int) -> list:
     """
-    candidates の要素を重複使用して target を作る全組み合わせ
+    Find all combinations from candidates (with reuse) that sum to target
 
     Parameters:
-        candidates: 正の整数のリスト（重複なし）
-        target: 目標合計値
+        candidates: List of positive integers (no duplicates)
+        target: Target sum
 
     Returns:
-        合計が target になる組み合わせのリスト
+        List of combinations that sum to target
     """
     result = []
     candidates.sort()
@@ -1224,12 +1225,12 @@ def combination_sum(candidates: list, target: int) -> list:
             return
 
         for i in range(start, len(candidates)):
-            # 枝刈り: 候補が残りを超えたら以降の候補も全て超える
+            # Pruning: if candidate exceeds remaining, all subsequent will too
             if candidates[i] > remaining:
                 break
 
             path.append(candidates[i])
-            # 同じ要素を再利用可能なので start = i
+            # Same element can be reused, so start = i
             backtrack(i, path, remaining - candidates[i])
             path.pop()
 
@@ -1237,7 +1238,7 @@ def combination_sum(candidates: list, target: int) -> list:
     return result
 
 
-# ---- 実行例 ----
+# ---- Example ----
 print(combination_sum([2, 3, 6, 7], 7))
 # [[2, 2, 3], [7]]
 
@@ -1247,60 +1248,60 @@ print(combination_sum([2, 3, 5], 8))
 
 ---
 
-## 7. 状態空間木の構造と枝刈り戦略
+## 7. State Space Tree Structure and Pruning Strategies
 
-### 7.1 状態空間木の定量分析
+### 7.1 Quantitative Analysis of State Space Trees
 
 ```
-N-Queens の状態空間木ノード数比較（N=8）:
+N-Queens state space tree node count comparison (N=8):
 
-  枝刈りなし（全列を試す）:
-    ノード数 ≒ 8^8 = 16,777,216
+  No pruning (try all columns):
+    Nodes ~ 8^8 = 16,777,216
 
-  列の重複排除のみ:
-    ノード数 ≒ 8! = 40,320
+  Column duplicate elimination only:
+    Nodes ~ 8! = 40,320
 
-  列 + 対角線の枝刈り:
-    ノード数 ≒ 2,057 （大幅に削減）
+  Column + diagonal pruning:
+    Nodes ~ 2,057 (dramatic reduction)
 
-  ビットマスク最適化:
-    ノード数は同じだが、各ノードの処理が O(1)
+  Bitmask optimization:
+    Same number of nodes, but O(1) processing per node
 
-  ┌──────────────────────────────────────────────┐
-  │ 枝刈りの段階別ノード数（N=8）                │
-  │                                              │
-  │ 16,777,216  ████████████████████████ 全探索  │
-  │     40,320  █                       列制約   │
-  │      2,057  ▏                       列+対角  │
-  │                                              │
-  │ → 適切な枝刈りで 99.99% のノードを削減      │
-  └──────────────────────────────────────────────┘
+  +----------------------------------------------+
+  | Node count by pruning level (N=8)            |
+  |                                              |
+  | 16,777,216  ======================== Full    |
+  |     40,320  =                        Column  |
+  |      2,057  |                        Col+Diag|
+  |                                              |
+  | -> Proper pruning eliminates 99.99% of nodes |
+  +----------------------------------------------+
 ```
 
-### 7.2 枝刈り戦略の体系
+### 7.2 Taxonomy of Pruning Strategies
 
-| 戦略カテゴリ | 戦略名 | 説明 | 適用例 | 削減効果 |
+| Strategy Category | Strategy Name | Description | Application | Reduction Effect |
 |:---|:---|:---|:---|:---|
-| **制約伝播** | 制約チェック | 現在の選択が制約を満たすか判定 | N-Queens（列/対角線） | 高 |
-| **制約伝播** | 前方チェック | 未割当変数の候補を事前に絞る | 数独（候補集合） | 高 |
-| **制約伝播** | アーク整合性 | 2変数間の整合性を維持 | CSP 全般 | 非常に高 |
-| **変数順序** | MRV | 候補数最小の変数から選択 | 数独 | 非常に高 |
-| **変数順序** | 次数ヒューリスティック | 制約数最大の変数から選択 | グラフ彩色 | 高 |
-| **値順序** | LCV | 他変数の選択肢を最も減らさない値 | CSP 全般 | 中 |
-| **対称性** | 対称性除去 | 回転・鏡像などの等価解を排除 | N-Queens | 中 |
-| **限定** | 分枝限定法 | 上界/下界で探索範囲を削減 | ナップサック、TSP | 高 |
-| **順序** | 順序制約 | 昇順等の制約で重複排除 | 組み合わせ列挙 | 高 |
+| **Constraint propagation** | Constraint check | Check if current choice satisfies constraints | N-Queens (col/diagonal) | High |
+| **Constraint propagation** | Forward checking | Pre-filter candidates of unassigned variables | Sudoku (candidate sets) | High |
+| **Constraint propagation** | Arc consistency | Maintain consistency between two variables | CSP in general | Very high |
+| **Variable ordering** | MRV | Choose variable with fewest candidates first | Sudoku | Very high |
+| **Variable ordering** | Degree heuristic | Choose variable with most constraints first | Graph coloring | High |
+| **Value ordering** | LCV | Choose value that least restricts other variables | CSP in general | Medium |
+| **Symmetry** | Symmetry breaking | Eliminate equivalent solutions (rotation/reflection) | N-Queens | Medium |
+| **Bounding** | Branch and bound | Reduce search range using upper/lower bounds | Knapsack, TSP | High |
+| **Ordering** | Order constraint | Eliminate duplicates via ascending order constraint | Combination enumeration | High |
 
-### 7.3 枝刈りの実装パターン
+### 7.3 Pruning Implementation Patterns
 
 ```python
-# ---- パターン1: フィルタリング型枝刈り ----
-# 制約を満たさない選択を事前に除外
+# ---- Pattern 1: Filtering-based pruning ----
+# Pre-filter choices that violate constraints
 def backtrack_filter(state, all_choices, result):
     if is_solution(state):
         result.append(state.copy())
         return
-    # 有効な選択肢のみをフィルタリング
+    # Filter to valid choices only
     valid_choices = [c for c in all_choices if is_valid(state, c)]
     for choice in valid_choices:
         state.append(choice)
@@ -1308,8 +1309,8 @@ def backtrack_filter(state, all_choices, result):
         state.pop()
 
 
-# ---- パターン2: 上界・下界型枝刈り（分枝限定法）----
-# 現在の部分解から最良ケースを推定し、既知の最良解と比較
+# ---- Pattern 2: Bound-based pruning (branch and bound) ----
+# Estimate best case from current partial solution, compare with known best
 best_value = float('inf')
 
 def backtrack_bound(state, choices, cost_so_far):
@@ -1320,10 +1321,10 @@ def backtrack_bound(state, choices, cost_so_far):
 
     for choice in choices:
         if is_valid(state, choice):
-            # 下界推定: 現在コスト + 残りの最小コスト推定
+            # Lower bound estimate: current cost + estimated minimum remaining cost
             lower_bound = cost_so_far + estimate_remaining(state, choice)
             if lower_bound >= best_value:
-                continue  # この分岐は最良解を改善できない
+                continue  # This branch cannot improve the best solution
 
             apply(state, choice)
             backtrack_bound(state, next_choices(choice),
@@ -1331,10 +1332,10 @@ def backtrack_bound(state, choices, cost_so_far):
             undo(state, choice)
 
 
-# ---- パターン3: 対称性除去型枝刈り ----
-# N-Queens で最初の行の配置を半分に制限
+# ---- Pattern 3: Symmetry breaking pruning ----
+# Restrict first row placement to half in N-Queens
 def nqueens_symmetry(n):
-    """対称性を利用して探索空間を半減"""
+    """Halve the search space using symmetry"""
     solutions = []
 
     def backtrack(row, board, cols, diag1, diag2):
@@ -1342,7 +1343,7 @@ def nqueens_symmetry(n):
             solutions.append(board[:])
             return
 
-        # 最初の行は左半分のみ（対称性で右半分は鏡像）
+        # First row: only left half (right half is a mirror image)
         limit = (n + 1) // 2 if row == 0 else n
         for col in range(limit):
             if col in cols or (row - col) in diag1 or (row + col) in diag2:
@@ -1363,50 +1364,51 @@ def nqueens_symmetry(n):
 
 ---
 
-## 8. 計算量分析と最適化テクニック
+## 8. Complexity Analysis and Optimization Techniques
 
-### 8.1 バックトラッキングの計算量一覧
+### 8.1 Backtracking Complexity Summary
 
-| 問題 | 枝刈りなし | 枝刈りあり | 解の数 | 備考 |
+| Problem | Without pruning | With pruning | Number of solutions | Notes |
 |:---|:---|:---|:---|:---|
-| N-Queens | O(N^N) | O(N!) 程度 | N=8: 92 | 対称性除去で半減可能 |
-| 数独 | O(9^81) | 数百〜数万ノード | 1（通常） | MRV で劇的に高速化 |
-| 全順列 | O(N * N!) | O(N!) | N! | 最適（枝刈り不要） |
-| 全組み合わせ | O(2^N) | O(NCk) | NCk | 順序制約で重複排除 |
-| 全部分集合 | O(N * 2^N) | O(2^N) | 2^N | 最適（枝刈り不要） |
-| グラフ彩色 | O(m^V) | 問題依存 | 問題依存 | MRV + LCV が有効 |
-| ナイトツアー | O(8^(N^2)) | Warnsdorff で準線形 | 問題依存 | ヒューリスティック必須 |
-| 括弧生成 | O(4^n) | O(C_n) | カタラン数 | 枝刈りが非常に有効 |
-| 組み合わせ和 | 指数的 | 問題依存 | 問題依存 | ソート + 上界枝刈り |
+| N-Queens | O(N^N) | ~O(N!) | N=8: 92 | Can be halved with symmetry breaking |
+| Sudoku | O(9^81) | Hundreds to tens of thousands of nodes | 1 (typically) | MRV yields dramatic speedup |
+| All permutations | O(N * N!) | O(N!) | N! | Optimal (no pruning needed) |
+| All combinations | O(2^N) | O(NCk) | NCk | Order constraint eliminates duplicates |
+| All subsets | O(N * 2^N) | O(2^N) | 2^N | Optimal (no pruning needed) |
+| Graph coloring | O(m^V) | Problem-dependent | Problem-dependent | MRV + LCV effective |
+| Knight's tour | O(8^(N^2)) | Near-linear with Warnsdorff | Problem-dependent | Heuristic essential |
+| Parenthesis gen. | O(4^n) | O(C_n) | Catalan number | Pruning is very effective |
+| Combination sum | Exponential | Problem-dependent | Problem-dependent | Sort + upper bound pruning |
 
-### 8.2 最適化テクニック集
+### 8.2 Collection of Optimization Techniques
 
 ```
-最適化テクニックの効果比較:
+Optimization technique effectiveness comparison:
 
-  テクニック                     効果の大きさ    実装の複雑さ
-  ────────────────────────────────────────────────────────
-  適切な枝刈り条件の設計         ★★★★★          ★★★
-  変数順序の最適化（MRV）        ★★★★★          ★★
-  データ構造の選択（集合/ビット） ★★★★            ★★
-  対称性の排除                   ★★★              ★★★★
-  値順序の最適化（LCV）          ★★★              ★★★
-  メモ化（重複状態の回避）       ★★★★            ★★
-  反復深化（深さ制限付き）       ★★                ★
-  並列化                         ★★★              ★★★★★
+  Technique                        Effectiveness    Implementation complexity
+  -------------------------------------------------------------------
+  Well-designed pruning conditions      *****          ***
+  Variable ordering (MRV)              *****          **
+  Data structure choice (set/bitmask)  ****           **
+  Symmetry breaking                    ***            ****
+  Value ordering (LCV)                 ***            ***
+  Memoization (avoiding duplicate      ****           **
+    states)
+  Iterative deepening (depth-limited)  **             *
+  Parallelization                      ***            *****
 ```
 
-### 8.3 メモ化との組み合わせ
+### 8.3 Combining with Memoization
 
-バックトラッキングに**メモ化（Memoization）** を組み合わせると、同じ状態を再計算することを避けられる。これは動的計画法（DP）への橋渡しでもある。
+Combining backtracking with **memoization** avoids recomputing identical states. This also serves as a bridge to dynamic programming (DP).
 
 ```python
 def can_partition(nums: list) -> bool:
     """
-    配列を和が等しい2つの部分集合に分割可能か判定
+    Determine if an array can be partitioned into two subsets with equal sums
 
-    バックトラッキング + メモ化 の例
-    （純粋なバックトラッキングでは TLE になるケースを高速化）
+    Example of backtracking + memoization
+    (speeds up cases that would TLE with pure backtracking)
     """
     total = sum(nums)
     if total % 2 != 0:
@@ -1426,7 +1428,7 @@ def can_partition(nums: list) -> bool:
         if key in memo:
             return memo[key]
 
-        # nums[idx] を選ぶ or 選ばない
+        # Include or exclude nums[idx]
         result = (backtrack(idx + 1, remaining - nums[idx]) or
                   backtrack(idx + 1, remaining))
 
@@ -1436,54 +1438,54 @@ def can_partition(nums: list) -> bool:
     return backtrack(0, target)
 
 
-# ---- 実行例 ----
-print(can_partition([1, 5, 11, 5]))   # True: [1,5,5] と [11]
+# ---- Example ----
+print(can_partition([1, 5, 11, 5]))   # True: [1,5,5] and [11]
 print(can_partition([1, 2, 3, 5]))    # False
-print(can_partition([3, 3, 3, 4, 5])) # True: [3,3,3] と [4,5]
+print(can_partition([3, 3, 3, 4, 5])) # True: [3,3,3] and [4,5]
 ```
 
 ```
-バックトラッキングからDPへの段階的変換:
+Progressive transformation from backtracking to DP:
 
-  Step 1: 素朴なバックトラッキング
-    → 全ての分岐を再帰的に探索
-    → 同じ状態を何度も再計算する可能性
+  Step 1: Naive backtracking
+    -> Recursively explore all branches
+    -> May recompute the same state many times
 
-  Step 2: バックトラッキング + メモ化（トップダウンDP）
-    → 計算済みの状態をキャッシュ
-    → 同じ状態は O(1) で返す
+  Step 2: Backtracking + memoization (top-down DP)
+    -> Cache computed states
+    -> Return cached states in O(1)
 
-  Step 3: ボトムアップ DP（テーブル）
-    → 再帰を排除し、テーブルを順に埋める
-    → スタックオーバーフローのリスクなし
+  Step 3: Bottom-up DP (tabulation)
+    -> Eliminate recursion, fill table iteratively
+    -> No risk of stack overflow
 
-  変換が可能な条件:
-    - 状態が有限個のパラメータで一意に決まる
-    - 部分問題に重複がある（overlapping subproblems）
-    - 最適部分構造がある（optimal substructure）
+  Conditions for transformation:
+    - State is uniquely determined by a finite number of parameters
+    - Subproblems overlap (overlapping subproblems)
+    - Optimal substructure exists
 ```
 
-### 8.4 反復深化によるメモリ最適化
+### 8.4 Memory Optimization via Iterative Deepening
 
-深さ制限付きのバックトラッキングを、深さを1ずつ増やしながら繰り返す手法。最適解の深さが浅い場合に有効で、メモリ使用量を O(bd) から O(d) に削減できる（b: 分岐因子、d: 深さ）。
+A technique that repeats depth-limited backtracking, increasing the depth by 1 each iteration. Effective when the optimal solution depth is shallow, reducing memory usage from O(bd) to O(d) (b: branching factor, d: depth).
 
 ```python
 def iterative_deepening_backtrack(initial_state, max_depth: int):
     """
-    反復深化バックトラッキング
+    Iterative deepening backtracking
 
     Parameters:
-        initial_state: 初期状態
-        max_depth: 探索する最大深さ
+        initial_state: Initial state
+        max_depth: Maximum search depth
 
     Returns:
-        解が見つかったら状態、なければ None
+        State if solution found, None otherwise
     """
     def depth_limited_search(state, depth_limit: int) -> bool:
         if is_solution(state):
             return True
         if depth_limit <= 0:
-            return False  # 深さ制限に到達
+            return False  # Depth limit reached
 
         for choice in get_choices(state):
             if is_valid(state, choice):
@@ -1502,15 +1504,15 @@ def iterative_deepening_backtrack(initial_state, max_depth: int):
 
 ---
 
-## 9. アンチパターン
+## 9. Anti-patterns
 
-### 9.1 アンチパターン1: バックトラックの取り消し忘れ
+### 9.1 Anti-pattern 1: Forgetting to Undo the Backtrack
 
-バックトラッキングで最も頻繁に発生するバグ。状態を変更した後に元に戻さないと、後続の探索で不正な状態が伝播し、解が見つからなかったり、不正な解が含まれたりする。
+The most frequent bug in backtracking. If the state is not restored after modification, corrupted state propagates to subsequent explorations, causing solutions to be missed or invalid solutions to be included.
 
 ```python
 # ============================================================
-# BAD: 選択の取り消しを忘れる → 状態が汚染される
+# BAD: Forgetting to undo the choice -> state corruption
 # ============================================================
 def bad_nqueens(board, row, n, solutions):
     if row == n:
@@ -1520,13 +1522,13 @@ def bad_nqueens(board, row, n, solutions):
         if is_safe(board, row, col):
             board[row] = col
             bad_nqueens(board, row + 1, n, solutions)
-            # board[row] = -1 を忘れている!
-            # → N=4 で本来2解なのに、1解しか見つからない、
-            #   または不正な解が混入する
+            # Forgot board[row] = -1!
+            # -> For N=4, finds only 1 solution instead of 2,
+            #   or invalid solutions may be included
 
 
 # ============================================================
-# GOOD: 必ず取り消す
+# GOOD: Always undo
 # ============================================================
 def good_nqueens(board, row, n, solutions):
     if row == n:
@@ -1536,24 +1538,24 @@ def good_nqueens(board, row, n, solutions):
         if is_safe(board, row, col):
             board[row] = col
             good_nqueens(board, row + 1, n, solutions)
-            board[row] = -1  # 必ず取り消す!
+            board[row] = -1  # Always undo!
 ```
 
-**取り消し忘れを防ぐ技法:**
+**Techniques to prevent forgetting to undo:**
 
-1. **イミュータブルな状態を渡す**: 状態のコピーを渡すことで取り消し不要にする（ただしメモリ使用量が増加）
-2. **with 文パターン**: Python のコンテキストマネージャで自動取り消しを保証する
-3. **タプルの連結**: `path + (choice,)` のように新しいタプルを作る（コピーと同等）
+1. **Pass immutable state**: Pass copies of state so undoing is unnecessary (increases memory usage)
+2. **Context manager pattern**: Use Python's `with` statement to guarantee automatic undo
+3. **Tuple concatenation**: Create new tuples like `path + (choice,)` (equivalent to copying)
 
 ```python
-# イミュータブル版: 取り消し忘れが原理的に発生しない
+# Immutable version: undo-forgetting is structurally impossible
 def safe_backtrack(path: tuple, remaining: tuple, result: list):
-    """イミュータブルなデータで安全にバックトラッキング"""
+    """Safely backtrack using immutable data"""
     if not remaining:
         result.append(list(path))
         return
     for i in range(len(remaining)):
-        # 新しいタプルを作るので元の path は変更されない
+        # Creates a new tuple, so the original path is never modified
         safe_backtrack(
             path + (remaining[i],),
             remaining[:i] + remaining[i + 1:],
@@ -1565,38 +1567,38 @@ safe_backtrack((), (1, 2, 3), result)
 print(result)  # [[1,2,3], [1,3,2], [2,1,3], [2,3,1], [3,1,2], [3,2,1]]
 ```
 
-### 9.2 アンチパターン2: 枝刈りなしの全探索
+### 9.2 Anti-pattern 2: Exhaustive Search Without Pruning
 
-制約チェックを解の完成時にのみ行うと、無効な分岐を大量に探索してしまう。
+Performing constraint checks only when a solution is complete results in exploring a vast number of invalid branches.
 
 ```python
 # ============================================================
-# BAD: 完成後にまとめてチェック → 指数的に遅い
+# BAD: Check only after completion -> exponentially slow
 # ============================================================
 def bad_nqueens_late_check(n):
-    """全配置を生成してから検証する（非常に遅い）"""
+    """Generate all placements then validate (very slow)"""
     solutions = []
 
     def generate(row, board):
         if row == n:
-            # ここで初めて全制約をチェック
+            # Check all constraints only here
             if all_queens_safe(board, n):
                 solutions.append(board[:])
             return
         for col in range(n):
             board[row] = col
-            generate(row + 1, board)  # 全分岐を探索!
+            generate(row + 1, board)  # Explores all branches!
 
     generate(0, [-1] * n)
     return solutions
-    # N=8: 16,777,216 ノードを探索（8^8）
+    # N=8: explores 16,777,216 nodes (8^8)
 
 
 # ============================================================
-# GOOD: 各ステップで逐次チェック → 高速
+# GOOD: Check incrementally at each step -> fast
 # ============================================================
 def good_nqueens_early_check(n):
-    """各行で制約チェックして早期枝刈り"""
+    """Check constraints at each row with early pruning"""
     solutions = []
 
     def backtrack(row, board, cols, diag1, diag2):
@@ -1617,21 +1619,21 @@ def good_nqueens_early_check(n):
 
     backtrack(0, [-1] * n, set(), set(), set())
     return solutions
-    # N=8: 約 2,057 ノードを探索（99.99% 削減）
+    # N=8: explores ~2,057 nodes (99.99% reduction)
 ```
 
-### 9.3 アンチパターン3: 解のコピーを忘れる
+### 9.3 Anti-pattern 3: Forgetting to Copy Solutions
 
 ```python
 # ============================================================
-# BAD: 参照をそのまま保存 → 全て同じリストを指す
+# BAD: Storing references directly -> all entries point to the same list
 # ============================================================
 def bad_subsets(nums):
     result = []
     path = []
 
     def backtrack(start):
-        result.append(path)  # 参照を追加 → 全エントリが同一オブジェクト!
+        result.append(path)  # Appends reference -> all entries are the same object!
         for i in range(start, len(nums)):
             path.append(nums[i])
             backtrack(i + 1)
@@ -1639,18 +1641,18 @@ def bad_subsets(nums):
 
     backtrack(0)
     return result
-    # 結果: [[], [], [], [], [], [], [], []]（全て空リスト）
+    # Result: [[], [], [], [], [], [], [], []] (all empty lists)
 
 
 # ============================================================
-# GOOD: コピーを保存
+# GOOD: Store copies
 # ============================================================
 def good_subsets(nums):
     result = []
     path = []
 
     def backtrack(start):
-        result.append(path[:])  # コピーを追加!
+        result.append(path[:])  # Append a copy!
         for i in range(start, len(nums)):
             path.append(nums[i])
             backtrack(i + 1)
@@ -1658,25 +1660,25 @@ def good_subsets(nums):
 
     backtrack(0)
     return result
-    # 結果: [[], [1], [1,2], [1,2,3], [1,3], [2], [2,3], [3]]
+    # Result: [[], [1], [1,2], [1,2,3], [1,3], [2], [2,3], [3]]
 ```
 
-### 9.4 アンチパターン4: 不要な探索の継続
+### 9.4 Anti-pattern 4: Continuing Search Unnecessarily
 
-一つの解が必要なのに全解を探索してしまう。
+Exploring all solutions when only one is needed.
 
 ```python
 # ============================================================
-# BAD: 1つ見つかれば十分なのに全解を探索
+# BAD: Searching for all solutions when one suffices
 # ============================================================
 def bad_sudoku(board):
-    """全解を探索（数独は通常1つの解で十分）"""
+    """Explores all solutions (Sudoku typically needs only one)"""
     solutions = []
 
     def backtrack(idx):
         if idx == len(empty_cells):
             solutions.append([row[:] for row in board])
-            return  # return True しない → 探索が続行
+            return  # Not returning True -> search continues
 
         r, c = empty_cells[idx]
         for num in range(1, 10):
@@ -1686,24 +1688,24 @@ def bad_sudoku(board):
                 board[r][c] = 0
 
     backtrack(0)
-    return solutions  # 全解のリスト（数独では通常1つ）
+    return solutions  # List of all solutions (typically 1 for Sudoku)
 
 
 # ============================================================
-# GOOD: 最初の解で探索を打ち切り
+# GOOD: Stop immediately at the first solution
 # ============================================================
 def good_sudoku(board):
-    """最初の解で即座に打ち切り"""
+    """Stop immediately upon finding the first solution"""
     def backtrack(idx):
         if idx == len(empty_cells):
-            return True  # 解発見 → 即座に True を返す
+            return True  # Solution found -> return True immediately
 
         r, c = empty_cells[idx]
         for num in range(1, 10):
             if is_valid(r, c, num):
                 board[r][c] = num
                 if backtrack(idx + 1):
-                    return True  # 上位に伝播して全探索を停止
+                    return True  # Propagate upward to halt all exploration
                 board[r][c] = 0
 
         return False
@@ -1713,18 +1715,18 @@ def good_sudoku(board):
 
 ---
 
-## 10. 演習問題
+## 10. Exercises
 
-### 10.1 基礎レベル
+### 10.1 Foundation Level
 
-**問題1: 文字列の全順列**
+**Problem 1: All Permutations of a String**
 
-与えられた文字列の全順列を辞書順で生成せよ。重複文字がある場合は重複を排除すること。
+Generate all permutations of a given string in lexicographic order. Remove duplicates when the string contains repeated characters.
 
 ```python
 def string_permutations(s: str) -> list:
     """
-    文字列の全順列を辞書順で返す
+    Return all permutations of the string in lexicographic order
 
     >>> string_permutations("abc")
     ['abc', 'acb', 'bac', 'bca', 'cab', 'cba']
@@ -1756,21 +1758,21 @@ def string_permutations(s: str) -> list:
     return result
 
 
-# テスト
+# Test
 assert string_permutations("abc") == ['abc', 'acb', 'bac', 'bca', 'cab', 'cba']
 assert string_permutations("aba") == ['aab', 'aba', 'baa']
 assert string_permutations("a") == ['a']
-print("問題1: 全テスト通過")
+print("Problem 1: All tests passed")
 ```
 
-**問題2: べき集合のフィルタリング**
+**Problem 2: Filtered Power Set**
 
-整数リストの部分集合のうち、合計が指定値以下のものだけを返せ。
+Return only those subsets of an integer list whose sum does not exceed a specified value.
 
 ```python
 def filtered_subsets(nums: list, max_sum: int) -> list:
     """
-    合計が max_sum 以下の部分集合を全て返す
+    Return all subsets whose sum is at most max_sum
 
     >>> filtered_subsets([1, 2, 3], 3)
     [[], [1], [1, 2], [2], [3]]
@@ -1781,7 +1783,7 @@ def filtered_subsets(nums: list, max_sum: int) -> list:
         result.append(path[:])
 
         for i in range(start, len(nums)):
-            # 枝刈り: 合計が max_sum を超えるならスキップ
+            # Pruning: skip if sum would exceed max_sum
             if current_sum + nums[i] > max_sum:
                 continue
             path.append(nums[i])
@@ -1793,27 +1795,27 @@ def filtered_subsets(nums: list, max_sum: int) -> list:
     return result
 
 
-# テスト
+# Test
 result = filtered_subsets([1, 2, 3], 3)
 assert [] in result
 assert [1] in result
 assert [1, 2] in result
 assert [2] in result
 assert [3] in result
-assert [1, 2, 3] not in result  # 合計6 > 3
-print("問題2: 全テスト通過")
+assert [1, 2, 3] not in result  # Sum 6 > 3
+print("Problem 2: All tests passed")
 ```
 
-### 10.2 応用レベル
+### 10.2 Intermediate Level
 
-**問題3: 単語探索（Word Search）**
+**Problem 3: Word Search**
 
-2次元グリッドの中から、隣接セルを辿って指定の単語を構成できるか判定せよ。同じセルは1回のみ使用可能。
+Determine whether a specified word can be formed by traversing adjacent cells in a 2D grid. Each cell may be used only once.
 
 ```python
 def word_search(board: list, word: str) -> bool:
     """
-    2次元グリッドで単語を探す
+    Search for a word in a 2D grid
 
     >>> board = [
     ...     ['A','B','C','E'],
@@ -1841,7 +1843,7 @@ def word_search(board: list, word: str) -> bool:
                 board[r][c] != word[idx]):
             return False
 
-        # セルを使用済みとしてマーク
+        # Mark cell as used
         original = board[r][c]
         board[r][c] = '#'
 
@@ -1849,7 +1851,7 @@ def word_search(board: list, word: str) -> bool:
             if backtrack(r + dr, c + dc, idx + 1):
                 return True
 
-        # バックトラック
+        # Backtrack
         board[r][c] = original
         return False
 
@@ -1860,7 +1862,7 @@ def word_search(board: list, word: str) -> bool:
     return False
 
 
-# テスト
+# Test
 board = [
     ['A', 'B', 'C', 'E'],
     ['S', 'F', 'C', 'S'],
@@ -1869,17 +1871,17 @@ board = [
 assert word_search([row[:] for row in board], "ABCCED") is True
 assert word_search([row[:] for row in board], "SEE") is True
 assert word_search([row[:] for row in board], "ABCB") is False
-print("問題3: 全テスト通過")
+print("Problem 3: All tests passed")
 ```
 
-**問題4: 分割回文列挙**
+**Problem 4: Palindrome Partitioning**
 
-文字列を、全てのパーツが回文になるように分割する全パターンを求めよ。
+Find all ways to partition a string such that every part is a palindrome.
 
 ```python
 def palindrome_partition(s: str) -> list:
     """
-    文字列を回文のパーツに分割する全パターンを返す
+    Return all palindrome partitions of a string
 
     >>> palindrome_partition("aab")
     [['a', 'a', 'b'], ['aa', 'b']]
@@ -1905,26 +1907,25 @@ def palindrome_partition(s: str) -> list:
     return result
 
 
-# テスト
+# Test
 assert palindrome_partition("aab") == [['a', 'a', 'b'], ['aa', 'b']]
 assert palindrome_partition("aba") == [['a', 'b', 'a'], ['aba']]
-print("問題4: 全テスト通過")
+print("Problem 4: All tests passed")
 ```
 
-### 10.3 発展レベル
+### 10.3 Advanced Level
 
-**問題5: 数独の難問**
+**Problem 5: Hard Sudoku**
 
-以下の難易度の高い数独をMRVヒューリスティック付きソルバーで解け。
+Solve the following hard Sudoku using the MRV heuristic solver.
 
 ```python
 def solve_hard_sudoku():
     """
-    世界最難数独の一つ（Arto Inkala 作）を解く
+    Solve one of the world's hardest Sudoku puzzles (by Arto Inkala)
 
-    空きマスが多く、通常のバックトラッキングでは
-    多くのノードを探索する必要がある。
-    MRV ヒューリスティックの効果を確認する。
+    With many empty cells, basic backtracking requires exploring
+    many nodes. Verify the effectiveness of the MRV heuristic.
     """
     hard_board = [
         [8, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -1938,22 +1939,22 @@ def solve_hard_sudoku():
         [0, 9, 0, 0, 0, 0, 4, 0, 0],
     ]
 
-    # solve_sudoku_mrv を使って解く（セクション3.4参照）
+    # Solve using solve_sudoku_mrv (see Section 3.4)
     solve_sudoku_mrv(hard_board)
 
-    # 検証
+    # Validate
     for r in range(9):
-        assert sorted(hard_board[r]) == list(range(1, 10)), f"行 {r} が不正"
+        assert sorted(hard_board[r]) == list(range(1, 10)), f"Row {r} is invalid"
     for c in range(9):
         col_vals = [hard_board[r][c] for r in range(9)]
-        assert sorted(col_vals) == list(range(1, 10)), f"列 {c} が不正"
+        assert sorted(col_vals) == list(range(1, 10)), f"Column {c} is invalid"
 
-    print("難問数独の解:")
+    print("Hard Sudoku solution:")
     for row in hard_board:
         print(" ".join(str(x) for x in row))
 
 solve_hard_sudoku()
-# 出力:
+# Output:
 # 8 1 2 7 5 3 6 4 9
 # 9 4 3 6 8 2 1 7 5
 # 6 7 5 4 9 1 2 8 3
@@ -1965,30 +1966,30 @@ solve_hard_sudoku()
 # 7 9 6 3 1 8 4 5 2
 ```
 
-**問題6: N-Queens の対称性解析**
+**Problem 6: N-Queens Symmetry Analysis**
 
-N-Queens の全解から、回転・反転で等価な解を除いた「本質的に異なる解」の数を数えよ。
+From all N-Queens solutions, count the number of "essentially distinct solutions" by removing those equivalent under rotation and reflection.
 
 ```python
 def count_unique_nqueens(n: int) -> int:
     """
-    N-Queens の本質的に異なる解の数を数える
+    Count the number of essentially distinct N-Queens solutions
 
-    8つの対称操作（4回転 x 2反転）で等価な解をグループ化し、
-    代表元のみを数える。
+    Group equivalent solutions under 8 symmetry operations
+    (4 rotations x 2 reflections) and count only representatives.
     """
-    all_solutions = solve_nqueens_fast(n)  # セクション2.3参照
+    all_solutions = solve_nqueens_fast(n)  # See Section 2.3
 
     def rotate_90(sol):
-        """90度時計回り回転"""
+        """90-degree clockwise rotation"""
         return [sol.index(n - 1 - i) for i in range(n)]
 
     def reflect(sol):
-        """左右反転"""
+        """Left-right reflection"""
         return [n - 1 - col for col in sol]
 
     def canonical(sol):
-        """8つの対称操作の中で辞書順最小の形を返す"""
+        """Return the lexicographically smallest form among 8 symmetry operations"""
         variants = []
         current = sol[:]
         for _ in range(4):
@@ -2004,111 +2005,112 @@ def count_unique_nqueens(n: int) -> int:
     return len(unique)
 
 
-# テスト
+# Test
 for n in range(1, 11):
     total = len(solve_nqueens_fast(n))
     unique = count_unique_nqueens(n)
-    print(f"N={n:2d}: 全解={total:5d}, 本質的に異なる解={unique:4d}")
+    print(f"N={n:2d}: total solutions={total:5d}, essentially distinct={unique:4d}")
 
-# 出力:
-# N= 1: 全解=    1, 本質的に異なる解=   1
-# N= 2: 全解=    0, 本質的に異なる解=   0
-# N= 3: 全解=    0, 本質的に異なる解=   0
-# N= 4: 全解=    2, 本質的に異なる解=   1
-# N= 5: 全解=   10, 本質的に異なる解=   2
-# N= 6: 全解=    4, 本質的に異なる解=   1
-# N= 7: 全解=   40, 本質的に異なる解=   6
-# N= 8: 全解=   92, 本質的に異なる解=  12
-# N= 9: 全解=  352, 本質的に異なる解=  46
-# N=10: 全解=  724, 本質的に異なる解=  92
+# Output:
+# N= 1: total solutions=    1, essentially distinct=   1
+# N= 2: total solutions=    0, essentially distinct=   0
+# N= 3: total solutions=    0, essentially distinct=   0
+# N= 4: total solutions=    2, essentially distinct=   1
+# N= 5: total solutions=   10, essentially distinct=   2
+# N= 6: total solutions=    4, essentially distinct=   1
+# N= 7: total solutions=   40, essentially distinct=   6
+# N= 8: total solutions=   92, essentially distinct=  12
+# N= 9: total solutions=  352, essentially distinct=  46
+# N=10: total solutions=  724, essentially distinct=  92
 ```
 
 ---
 
 ## 11. FAQ
 
-### Q1: バックトラッキングと DFS の違いは何か？
+### Q1: What is the difference between backtracking and DFS?
 
-**A:** DFS（深さ優先探索）は、グラフや木を走査するための具体的なアルゴリズムである。一方、バックトラッキングは DFS をベースにした**問題解決の設計パターン**であり、「制約を満たさない分岐を枝刈りする」という戦略が加わる。全ての DFS がバックトラッキングではないが、バックトラッキングは常に DFS の一種である。
+**A:** DFS (depth-first search) is a concrete algorithm for traversing graphs or trees. Backtracking, on the other hand, is a **problem-solving design pattern** based on DFS, with the added strategy of "pruning branches that violate constraints." Not all DFS is backtracking, but backtracking is always a form of DFS.
 
 ```
-         DFS（グラフ走査）              バックトラッキング
-  ┌──────────────────────┐    ┌─────────────────────────────┐
-  │ 全ノードを訪問する   │    │ 制約を満たす解を探す        │
-  │ 枝刈りなし           │    │ 制約違反で枝刈り            │
-  │ 訪問済みチェック     │    │ 選択→検証→再帰→取り消し    │
-  │ グラフの構造を探索   │    │ 解の空間を探索              │
-  └──────────────────────┘    └─────────────────────────────┘
+         DFS (graph traversal)         Backtracking
+  +------------------------+    +-----------------------------+
+  | Visit all nodes        |    | Search for constrained sols |
+  | No pruning             |    | Prune on constraint violation|
+  | Visited check          |    | Choose->Validate->Recurse   |
+  | Explore graph structure|    |  ->Undo                     |
+  +------------------------+    | Explore solution space       |
+                                +-----------------------------+
 ```
 
-### Q2: バックトラッキングの計算量を改善するにはどうすればよいか？
+### Q2: How can the complexity of backtracking be improved?
 
-**A:** 主な改善手法は以下の5つである:
+**A:** The five main improvement techniques are:
 
-1. **強力な枝刈り条件**: 制約違反をできるだけ早い段階で検出する。N-Queens では行ごとに配置して列と対角線をチェックする。
-2. **変数順序の最適化（MRV）**: 選択肢が最も少ない変数から先に処理する。数独では候補数が最小のマスから埋める。
-3. **データ構造の改善**: 集合やビットマスクを使い、制約チェックを O(1) にする。
-4. **対称性の排除**: 等価な解を重複して探索しない。N-Queens では最初の行を左半分に制限する。
-5. **分枝限定法（Branch and Bound）**: 下界推定により、最良解を改善できない分岐を刈る。最適化問題に有効。
+1. **Strong pruning conditions**: Detect constraint violations as early as possible. In N-Queens, check columns and diagonals row by row.
+2. **Variable ordering optimization (MRV)**: Process variables with the fewest choices first. In Sudoku, fill cells with the minimum number of candidates first.
+3. **Data structure improvements**: Use sets or bitmasks to make constraint checking O(1).
+4. **Symmetry breaking**: Avoid exploring equivalent solutions redundantly. In N-Queens, restrict the first row to the left half.
+5. **Branch and bound**: Prune branches that cannot improve the best known solution using lower bound estimation. Effective for optimization problems.
 
-### Q3: 全解を求める場合と一つの解を求める場合で実装はどう変わるか？
+### Q3: How does the implementation differ between finding all solutions and finding one?
 
-**A:** 制御フローが異なる。
+**A:** The control flow differs.
 
 ```python
-# 全解を求める場合: 解を見つけてもリストに追加して探索続行
+# Finding all solutions: add to list and continue exploring
 def find_all(state, result):
     if is_solution(state):
         result.append(state.copy())
-        return          # ← void: 探索は上位ループで続行
+        return          # <- void: exploration continues in the upper loop
 
     for choice in choices:
         if is_valid(state, choice):
             apply(state, choice)
-            find_all(state, result)  # 戻り値を使わない
+            find_all(state, result)  # Return value not used
             undo(state, choice)
 
-# 一つの解を求める場合: 見つかったら True を返して即座に打ち切り
+# Finding one solution: return True immediately and stop
 def find_one(state):
     if is_solution(state):
-        return True     # ← 即座に脱出
+        return True     # <- Exit immediately
 
     for choice in choices:
         if is_valid(state, choice):
             apply(state, choice)
             if find_one(state):
-                return True   # ← True を上位に伝播
+                return True   # <- Propagate True upward
             undo(state, choice)
 
     return False
 ```
 
-### Q4: バックトラッキングと動的計画法（DP）はどう使い分けるか？
+### Q4: How do you choose between backtracking and dynamic programming (DP)?
 
-**A:** 判断基準は「部分問題の重複」と「状態空間の構造」にある。
+**A:** The criteria are "subproblem overlap" and "state space structure."
 
-| 特性 | バックトラッキング | 動的計画法 |
+| Property | Backtracking | Dynamic Programming |
 |:---|:---|:---|
-| 部分問題の重複 | ない（各状態は一度だけ訪問） | ある（同じ状態を何度も計算） |
-| 解の構造 | 組み合わせ的（列挙） | 最適値（最大/最小/個数） |
-| メモ化の効果 | 低い（状態が再出現しない） | 高い（劇的に高速化） |
-| 適する問題 | N-Queens、数独、順列列挙 | ナップサック、最長部分列 |
+| Subproblem overlap | None (each state visited once) | Present (same state computed many times) |
+| Solution structure | Combinatorial (enumeration) | Optimal value (max/min/count) |
+| Effect of memoization | Low (states don't recur) | High (dramatic speedup) |
+| Suitable problems | N-Queens, Sudoku, permutation enum. | Knapsack, longest subsequence |
 
-メモ化を追加したバックトラッキングは「トップダウン DP」と等価になる。問題に部分問題の重複があるなら DP を、なければバックトラッキングを選ぶのが基本方針。
+Backtracking with memoization added is equivalent to "top-down DP." If the problem has overlapping subproblems, choose DP; otherwise, choose backtracking.
 
-### Q5: バックトラッキングで stack overflow を防ぐにはどうするか？
+### Q5: How do you prevent stack overflow in backtracking?
 
-**A:** 3つの対策がある:
+**A:** Three approaches:
 
-1. **再帰の深さ制限**: Python では `sys.setrecursionlimit()` で上限を調整する。ただし根本的解決ではない。
-2. **反復深化**: 深さ制限付き探索を段階的に深くすることで、メモリ使用量を制限する（セクション8.4参照）。
-3. **明示的スタックによる非再帰化**: 再帰をループとスタックで書き換える。
+1. **Recursion depth limit**: Adjust the limit in Python with `sys.setrecursionlimit()`. Not a fundamental solution.
+2. **Iterative deepening**: Gradually deepen the depth-limited search to control memory usage (see Section 8.4).
+3. **Explicit stack for non-recursive implementation**: Rewrite recursion using a loop and stack.
 
 ```python
-# 非再帰版バックトラッキング（明示的スタック）
+# Non-recursive backtracking (explicit stack)
 def iterative_permutations(nums):
     result = []
-    # スタック要素: (path, remaining)
+    # Stack elements: (path, remaining)
     stack = [([], list(nums))]
 
     while stack:
@@ -2116,7 +2118,7 @@ def iterative_permutations(nums):
         if not remaining:
             result.append(path)
             continue
-        # 逆順に追加（DFS の順序を維持するため）
+        # Add in reverse order (to maintain DFS order)
         for i in range(len(remaining) - 1, -1, -1):
             new_path = path + [remaining[i]]
             new_remaining = remaining[:i] + remaining[i + 1:]
@@ -2128,103 +2130,103 @@ print(iterative_permutations([1, 2, 3]))
 # [[1,2,3], [1,3,2], [2,1,3], [2,3,1], [3,1,2], [3,2,1]]
 ```
 
-### Q6: 制約充足問題（CSP）とバックトラッキングの関係は？
+### Q6: What is the relationship between constraint satisfaction problems (CSP) and backtracking?
 
-**A:** バックトラッキングは CSP を解くための標準的なアルゴリズムである。CSP は「変数の集合」「各変数の定義域」「制約の集合」の3要素で定義され、全制約を満たす変数割り当てを求める問題。数独・グラフ彩色・N-Queens は全て CSP として定式化でき、バックトラッキング + 制約伝播で効率的に解ける。
+**A:** Backtracking is the standard algorithm for solving CSPs. A CSP is defined by three components: a set of variables, a domain for each variable, and a set of constraints. The goal is to find an assignment of values to variables that satisfies all constraints. Sudoku, graph coloring, and N-Queens can all be formulated as CSPs, and are efficiently solved by backtracking combined with constraint propagation.
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when studying this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory, but by actually writing code and verifying behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving on.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently applied in everyday development work. It is particularly important during code reviews and architecture design.
 
 ---
 
-## 12. まとめ
+## 12. Summary
 
-### 12.1 重要概念の整理
+### 12.1 Key Concepts
 
-| 項目 | 要点 |
+| Item | Key Point |
 |:---|:---|
-| バックトラッキングの定義 | DFS + 枝刈りによる体系的な探索手法 |
-| 基本サイクル | 選択（Choose）→ 検証 → 再帰（Explore）→ 取り消し（Unchoose） |
-| N-Queens | 行・列・対角線の制約。集合やビットマスクで高速化 |
-| 数独 | 行・列・ボックスの制約。MRV ヒューリスティックが劇的に有効 |
-| 順列・組み合わせ・部分集合 | 列挙問題の3基本パターン。start パラメータと used 配列の使い分け |
-| グラフ彩色 | 隣接頂点の色制約。CSP の代表例 |
-| ナイトツアー | Warnsdorff のルールで高速化。ヒューリスティックの重要性 |
-| 枝刈りの効果 | 適切な枝刈りで探索空間を 99% 以上削減可能 |
-| メモ化との組み合わせ | 重複状態がある場合はトップダウン DP に変換可能 |
+| Definition of backtracking | Systematic search technique using DFS + pruning |
+| Basic cycle | Choose -> Validate -> Explore (recurse) -> Unchoose |
+| N-Queens | Row, column, and diagonal constraints. Speed up with sets or bitmasks |
+| Sudoku | Row, column, and box constraints. MRV heuristic is dramatically effective |
+| Permutations, combinations, subsets | Three fundamental enumeration patterns. Distinguish between start parameter and used array |
+| Graph coloring | Adjacent vertex color constraint. Representative CSP example |
+| Knight's tour | Warnsdorff's rule for speedup. Demonstrates the importance of heuristics |
+| Effect of pruning | Proper pruning can reduce search space by over 99% |
+| Combination with memoization | Can be transformed to top-down DP when duplicate states exist |
 
-### 12.2 バックトラッキング実装チェックリスト
-
-```
-バックトラッキング実装時の確認事項:
-
-  [ ] 基底条件（解の完成判定）は正しいか
-  [ ] 選択肢の列挙は漏れなくダブりなく行われているか
-  [ ] 枝刈り条件は正しく、十分に強力か
-  [ ] 状態の変更を正しく取り消しているか
-  [ ] 解のコピーを保存しているか（参照ではなく）
-  [ ] 全解 vs 一つの解で制御フローは適切か
-  [ ] 重複要素がある場合の処理は正しいか
-  [ ] 再帰の深さは十分か（stack overflow のリスク）
-```
-
-### 12.3 手法選択ガイド
+### 12.2 Backtracking Implementation Checklist
 
 ```
-問題のタイプ別アルゴリズム選択:
+Verification items when implementing backtracking:
 
-  列挙問題（全ての解を求める）
-    → バックトラッキング
+  [ ] Is the base condition (solution completeness check) correct?
+  [ ] Are choices enumerated completely and without duplication?
+  [ ] Are pruning conditions correct and sufficiently strong?
+  [ ] Are state changes properly undone?
+  [ ] Are solution copies being saved (not references)?
+  [ ] Is the control flow appropriate for all-solutions vs. one-solution?
+  [ ] Is duplicate element handling correct?
+  [ ] Is recursion depth sufficient (stack overflow risk)?
+```
 
-  最適化問題（最良の解を求める）
-    → 分枝限定法（バックトラッキング + 上界/下界）
-    → 部分問題の重複あり → 動的計画法
+### 12.3 Technique Selection Guide
 
-  判定問題（解の存在を確認）
-    → バックトラッキング（一つの解で打ち切り）
+```
+Algorithm selection by problem type:
 
-  制約充足問題（全制約を満たす割り当て）
-    → バックトラッキング + 制約伝播（AC-3 等）
-    → MRV + LCV ヒューリスティック
+  Enumeration problem (find all solutions)
+    -> Backtracking
+
+  Optimization problem (find the best solution)
+    -> Branch and bound (backtracking + upper/lower bounds)
+    -> If subproblems overlap -> Dynamic programming
+
+  Decision problem (confirm solution existence)
+    -> Backtracking (stop at first solution)
+
+  Constraint satisfaction problem (find assignment satisfying all constraints)
+    -> Backtracking + constraint propagation (AC-3, etc.)
+    -> MRV + LCV heuristics
 ```
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Readings
 
-- [グラフ走査](./02-graph-traversal.md) -- バックトラッキングの基盤となる DFS の理解
-- [動的計画法](./04-dynamic-programming.md) -- バックトラッキング + メモ化から DP への移行
-- [問題解決法](../04-practice/00-problem-solving.md) -- バックトラッキングの適用判断とアプローチ選択
-
----
-
-## 13. 参考文献
-
-1. Cormen, T. H., Leiserson, C. E., Rivest, R. L., & Stein, C. (2022). *Introduction to Algorithms* (4th ed.). MIT Press. -- 第34章: NP 完全性と探索アルゴリズムの理論的基盤
-2. Knuth, D. E. (2000). "Dancing Links." *arXiv preprint cs/0011047*. -- 正確被覆問題への応用と数独の効率的解法（Algorithm X + DLX）
-3. Skiena, S. S. (2020). *The Algorithm Design Manual* (3rd ed.). Springer. -- 第9章: Combinatorial Search and Heuristic Methods。バックトラッキングの体系的解説
-4. Wirth, N. (1976). *Algorithms + Data Structures = Programs*. Prentice-Hall. -- N-Queens とバックトラッキングの古典的解説
-5. Russell, S. J., & Norvig, P. (2021). *Artificial Intelligence: A Modern Approach* (4th ed.). Pearson. -- 第6章: Constraint Satisfaction Problems。CSP の理論とバックトラッキングの体系的位置づけ
-6. Sedgewick, R., & Wayne, K. (2011). *Algorithms* (4th ed.). Addison-Wesley. -- 部分集合列挙とバックトラッキングの実装パターン
-7. LeetCode. "Backtracking Problems." https://leetcode.com/tag/backtracking/ -- バックトラッキングの練習問題集（N-Queens, Sudoku Solver, Word Search 等）
+- [Graph Traversal](./02-graph-traversal.md) -- Understanding DFS, the foundation of backtracking
+- [Dynamic Programming](./04-dynamic-programming.md) -- Transitioning from backtracking + memoization to DP
+- [Problem-Solving Methods](../04-practice/00-problem-solving.md) -- Deciding when to apply backtracking and choosing approaches
 
 ---
 
-## 参考文献
+## 13. References
 
-- [MDN Web Docs](https://developer.mozilla.org/) - Web技術のリファレンス
-- [Wikipedia](https://ja.wikipedia.org/) - 技術概念の概要
+1. Cormen, T. H., Leiserson, C. E., Rivest, R. L., & Stein, C. (2022). *Introduction to Algorithms* (4th ed.). MIT Press. -- Chapter 34: Theoretical foundations of NP-completeness and search algorithms
+2. Knuth, D. E. (2000). "Dancing Links." *arXiv preprint cs/0011047*. -- Application to exact cover problems and efficient Sudoku solving (Algorithm X + DLX)
+3. Skiena, S. S. (2020). *The Algorithm Design Manual* (3rd ed.). Springer. -- Chapter 9: Combinatorial Search and Heuristic Methods. Systematic treatment of backtracking
+4. Wirth, N. (1976). *Algorithms + Data Structures = Programs*. Prentice-Hall. -- Classic treatment of N-Queens and backtracking
+5. Russell, S. J., & Norvig, P. (2021). *Artificial Intelligence: A Modern Approach* (4th ed.). Pearson. -- Chapter 6: Constraint Satisfaction Problems. Systematic positioning of CSP theory and backtracking
+6. Sedgewick, R., & Wayne, K. (2011). *Algorithms* (4th ed.). Addison-Wesley. -- Subset enumeration and backtracking implementation patterns
+7. LeetCode. "Backtracking Problems." https://leetcode.com/tag/backtracking/ -- Practice problem collection for backtracking (N-Queens, Sudoku Solver, Word Search, etc.)
+
+---
+
+## References
+
+- [MDN Web Docs](https://developer.mozilla.org/) - Web technology reference
+- [Wikipedia](https://en.wikipedia.org/) - Overview of technical concepts

@@ -1,103 +1,110 @@
-# 分割統治法（Divide and Conquer）
+# Divide and Conquer
 
-> 問題を小さな部分問題に分割し、再帰的に解いて統合する設計手法を、マージソート・大数乗算・最近接点対・Strassen 行列乗算を通じて理解する
+> Understand the design technique of dividing a problem into smaller subproblems, solving them recursively, and combining the results -- through merge sort, large number multiplication, closest pair of points, and Strassen matrix multiplication
 
-## この章で学ぶこと
+## Learning Objectives
 
-1. **分割統治法の3ステップ**（分割・統治・統合）を理解し、再帰的にアルゴリズムを設計できる
-2. **マスター定理**で分割統治アルゴリズムの計算量を正確に解析できる
-3. **Karatsuba 乗算・最近接点対・Strassen 行列乗算**など高度な分割統治アルゴリズムを実装できる
-4. **分割統治と DP・貪欲法の違い**を理解し、問題に応じて適切な手法を選択できる
-5. **再帰木の描画**と**漸化式の導出**を通じて、計算量を直感的に把握できる
+1. **Understand the 3-step framework of divide and conquer** (divide, conquer, combine) and design algorithms recursively
+2. **Accurately analyze the complexity of divide-and-conquer algorithms** using the **Master Theorem**
+3. **Implement advanced divide-and-conquer algorithms** including **Karatsuba multiplication, closest pair of points, and Strassen matrix multiplication**
+4. **Understand the differences between divide and conquer, DP, and greedy algorithms** and choose the appropriate technique for a given problem
+5. **Develop intuition for complexity analysis** through **recursion tree drawing** and **recurrence derivation**
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, familiarity with the following will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [貪欲法（Greedy Algorithm）](./05-greedy.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related fundamental concepts
+- Familiarity with the content in [Greedy Algorithm](./05-greedy.md)
 
 ---
 
-## 1. 分割統治法の原理
+## 1. Principles of Divide and Conquer
 
-### 1.1 3ステップのフレームワーク
+### 1.1 The 3-Step Framework
 
-分割統治法（Divide and Conquer）は、アルゴリズム設計における最も強力なパラダイムの一つである。その名の通り、問題を「分割」し、「統治」し、「統合」するという3つのステップで構成される。
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│              分割統治法の3ステップ                              │
-├──────────────────────────────────────────────────────────────┤
-│                                                              │
-│  Step 1. 分割 (Divide)                                       │
-│     問題を同じ種類のより小さな部分問題に分割する                 │
-│     - 通常は2つに分割（二分法）                                │
-│     - 3つ以上に分割する場合もある（Karatsuba: 3分割）          │
-│                                                              │
-│  Step 2. 統治 (Conquer)                                      │
-│     部分問題を再帰的に解く                                     │
-│     - 部分問題が十分小さければ直接解く（基底条件 / base case）  │
-│     - 基底条件の設計がアルゴリズム全体の正しさに直結する        │
-│                                                              │
-│  Step 3. 統合 (Combine)                                      │
-│     部分問題の解を組み合わせて元の問題の解を構成する            │
-│     - この統合ステップの効率が全体の計算量を左右する            │
-│     - マージソートの merge、最近接点対のストリップ処理など      │
-│                                                              │
-├──────────────────────────────────────────────────────────────┤
-│  DP との決定的な違い:                                          │
-│  DP       → 部分問題が重複する → 結果をキャッシュして再利用     │
-│  分割統治  → 部分問題が独立   → 各部分問題をそのまま再帰で解く  │
-│                                                              │
-│  ただし例外もある:                                             │
-│  - フィボナッチ数列の再帰木では部分問題が大量に重複             │
-│    → 分割統治ではなく DP（メモ化再帰）で解くべき               │
-│  - 行列連鎖乗算も部分問題が重複 → DP が適切                   │
-└──────────────────────────────────────────────────────────────┘
-```
-
-### 1.2 再帰構造の可視化
-
-分割統治のアルゴリズムは、再帰木（recursion tree）として可視化できる。再帰木の各ノードは1つの部分問題を表し、そのノードの子は分割された部分問題を表す。
+Divide and conquer is one of the most powerful paradigms in algorithm design. As its name suggests, it consists of three steps: "divide," "conquer," and "combine."
 
 ```
-分割統治の再帰木（マージソートの場合）:
++--------------------------------------------------------------+
+|             The 3 Steps of Divide and Conquer                |
++--------------------------------------------------------------+
+|                                                              |
+|  Step 1. Divide                                              |
+|     Split the problem into smaller subproblems of the        |
+|     same kind                                                |
+|     - Typically split into two (bisection)                   |
+|     - Sometimes into three or more (Karatsuba: 3-way split) |
+|                                                              |
+|  Step 2. Conquer                                             |
+|     Solve the subproblems recursively                        |
+|     - If the subproblem is small enough, solve it directly   |
+|       (base case)                                            |
+|     - The design of the base case directly determines the    |
+|       correctness of the entire algorithm                    |
+|                                                              |
+|  Step 3. Combine                                             |
+|     Merge the solutions of the subproblems to form the       |
+|     solution to the original problem                         |
+|     - The efficiency of this step governs the overall        |
+|       complexity                                             |
+|     - e.g., merge in merge sort, strip processing in         |
+|       closest pair                                           |
+|                                                              |
++--------------------------------------------------------------+
+|  Key difference from DP:                                     |
+|  DP           -> Subproblems overlap -> Cache and reuse      |
+|  Divide & Conq -> Subproblems are independent -> Solve       |
+|                   each recursively as-is                     |
+|                                                              |
+|  However, exceptions exist:                                  |
+|  - Fibonacci recursion tree has massive overlap              |
+|    -> Should use DP (memoized recursion), not divide & conq  |
+|  - Matrix chain multiplication also overlaps -> DP is proper |
++--------------------------------------------------------------+
+```
 
-深さ0:           [38, 27, 43, 3, 9, 82, 10]         ← 問題サイズ n
+### 1.2 Visualizing the Recursive Structure
+
+Divide-and-conquer algorithms can be visualized as a recursion tree. Each node represents one subproblem, and its children represent the divided subproblems.
+
+```
+Recursion tree of divide and conquer (merge sort example):
+
+Depth 0:           [38, 27, 43, 3, 9, 82, 10]         <- Problem size n
                  /                          \
-深さ1:    [38, 27, 43]                [3, 9, 82, 10]  ← サイズ n/2 が2つ
+Depth 1:    [38, 27, 43]                [3, 9, 82, 10]  <- Two subproblems of size n/2
            /       \                   /          \
-深さ2:  [38]    [27, 43]          [3, 9]      [82, 10] ← サイズ n/4 が4つ
+Depth 2:  [38]    [27, 43]          [3, 9]      [82, 10] <- Four subproblems of size n/4
                 /     \           /    \       /     \
-深さ3:        [27]   [43]       [3]   [9]   [82]   [10] ← 基底条件
+Depth 3:        [27]   [43]       [3]   [9]   [82]   [10] <- Base cases
 
-                    ↓ 統合（マージ）フェーズ ↓
+                    v Combine (merge) phase v
 
-深さ3:        [27]   [43]       [3]   [9]   [82]   [10]
+Depth 3:        [27]   [43]       [3]   [9]   [82]   [10]
                 \     /           \    /       \     /
-深さ2:       [27, 43]           [3, 9]       [10, 82]
+Depth 2:       [27, 43]           [3, 9]       [10, 82]
            \       /                   \          /
-深さ1:    [27, 38, 43]           [3, 9, 10, 82]
+Depth 1:    [27, 38, 43]           [3, 9, 10, 82]
                  \                          /
-深さ0:          [3, 9, 10, 27, 38, 43, 82]            ← 最終結果
+Depth 0:          [3, 9, 10, 27, 38, 43, 82]            <- Final result
 
-再帰の深さ: O(log n)
-各深さでの合計仕事量: O(n)（マージ処理）
-全体の計算量: O(n) × O(log n) = O(n log n)
+Recursion depth: O(log n)
+Total work at each depth: O(n) (merge operation)
+Overall complexity: O(n) x O(log n) = O(n log n)
 ```
 
-### 1.3 分割統治法の歴史的背景
+### 1.3 Historical Background of Divide and Conquer
 
-分割統治法は古くからある発想である。その名称は政治学の「分割統治」（divide et impera）に由来する。アルゴリズム設計の文脈では、John von Neumann が 1945 年にマージソートを発明した時点まで遡ることができる。
+Divide and conquer is an age-old concept. Its name derives from the political maxim "divide et impera" (divide and rule). In the context of algorithm design, it can be traced back to John von Neumann's invention of merge sort in 1945.
 
-アルゴリズム理論において分割統治法が体系的に研究されるようになったのは 1960 年代以降である。Karatsuba が 1962 年に大数乗算の高速アルゴリズムを発表し、Strassen が 1969 年に行列乗算の高速化を示したことで、分割統治法が計算量を根本的に改善できる強力な道具であることが認識された。
+Systematic study of divide and conquer in algorithm theory began in the 1960s. Karatsuba published a fast algorithm for large number multiplication in 1962, and Strassen demonstrated faster matrix multiplication in 1969, establishing divide and conquer as a powerful tool for fundamentally improving computational complexity.
 
-### 1.4 分割統治のテンプレート
+### 1.4 Divide-and-Conquer Template
 
-あらゆる分割統治アルゴリズムに共通する骨格を Python のテンプレートとして示す。
+The following Python template shows the common skeleton shared by all divide-and-conquer algorithms.
 
 ```python
 from typing import TypeVar, List, Callable, Any
@@ -110,38 +117,38 @@ def divide_and_conquer(
     solve_base: Callable[[T], Any],
     divide: Callable[[T], List[T]],
 ) -> Any:
-    """分割統治法の汎用テンプレート
+    """Generic template for divide and conquer
 
     Args:
-        problem: 解くべき問題
-        base_case: 基底条件の判定関数
-        solve_base: 基底条件を直接解く関数
-        divide: 問題を部分問題に分割する関数
-        combine: 部分問題の解を統合する関数
+        problem: The problem to solve
+        base_case: Function to check for the base case
+        solve_base: Function to directly solve the base case
+        divide: Function to split the problem into subproblems
+        combine: Function to merge subproblem solutions
 
     Returns:
-        問題の解
+        The solution to the problem
     """
-    # 基底条件: 問題が十分小さければ直接解く
+    # Base case: solve directly if the problem is small enough
     if base_case(problem):
         return solve_base(problem)
 
-    # 分割: 問題を小さな部分問題に分割
+    # Divide: split the problem into smaller subproblems
     subproblems = divide(problem)
 
-    # 統治: 各部分問題を再帰的に解く
+    # Conquer: solve each subproblem recursively
     subsolutions = [
         divide_and_conquer(sub, base_case, solve_base, divide, combine)
         for sub in subproblems
     ]
 
-    # 統合: 部分問題の解を組み合わせる
+    # Combine: merge the subproblem solutions
     return combine(subsolutions)
 
 
-# --- テンプレートの使用例: 配列の最大値を求める ---
+# --- Usage example: find the maximum of an array ---
 def find_max(arr: list) -> int:
-    """分割統治で配列の最大値を求める"""
+    """Find the maximum of an array using divide and conquer"""
     return divide_and_conquer(
         problem=arr,
         base_case=lambda a: len(a) <= 1,
@@ -151,122 +158,122 @@ def find_max(arr: list) -> int:
     )
 
 
-# 動作確認
+# Verification
 data = [3, 7, 2, 9, 1, 8, 5, 4, 6]
 print(find_max(data))  # 9
 ```
 
 ---
 
-## 2. マージソート -- 分割統治の教科書的な例
+## 2. Merge Sort -- The Textbook Example of Divide and Conquer
 
-### 2.1 アルゴリズムの詳細
+### 2.1 Algorithm Details
 
-マージソート（Merge Sort）は、分割統治法を学ぶ上で最も重要なアルゴリズムである。John von Neumann が 1945 年に発明し、以来コンピュータサイエンスの教科書における分割統治法の代表例として位置づけられている。
+Merge sort is the most important algorithm for learning divide and conquer. Invented by John von Neumann in 1945, it has been the canonical example of divide and conquer in computer science textbooks ever since.
 
-**特長:**
-- 安定ソート（同値要素の順序が保持される）
-- 最悪計算量が O(n log n) で保証される（クイックソートは最悪 O(n^2)）
-- 外部ソート（メモリに収まらないデータのソート）に適している
-- 連結リストのソートに適している（追加メモリがほぼ不要）
+**Key properties:**
+- Stable sort (preserves the order of equal elements)
+- Worst-case complexity guaranteed at O(n log n) (unlike quicksort's worst-case O(n^2))
+- Well-suited for external sorting (sorting data that doesn't fit in memory)
+- Well-suited for sorting linked lists (requires almost no extra memory)
 
 ```python
 def merge_sort(arr: list) -> list:
-    """マージソート - O(n log n)
+    """Merge sort - O(n log n)
 
-    分割: 配列を半分に分割する
-    統治: 各半分を再帰的にソートする
-    統合: 2つのソート済み配列をマージする
+    Divide: split the array in half
+    Conquer: recursively sort each half
+    Combine: merge the two sorted arrays
 
-    安定ソートであり、最悪でも O(n log n) を保証する。
-    追加メモリ O(n) が必要。
+    A stable sort that guarantees O(n log n) even in the worst case.
+    Requires O(n) additional memory.
     """
-    # 基底条件: 要素が0個または1個なら既にソート済み
+    # Base case: an array of 0 or 1 elements is already sorted
     if len(arr) <= 1:
         return arr
 
-    # 分割: 中央で2つに分ける
+    # Divide: split at the midpoint
     mid = len(arr) // 2
-    left = merge_sort(arr[:mid])     # 統治（左半分を再帰ソート）
-    right = merge_sort(arr[mid:])    # 統治（右半分を再帰ソート）
+    left = merge_sort(arr[:mid])     # Conquer (recursively sort left half)
+    right = merge_sort(arr[mid:])    # Conquer (recursively sort right half)
 
-    # 統合: 2つのソート済み配列をマージ
+    # Combine: merge the two sorted arrays
     return merge(left, right)
 
 
 def merge(left: list, right: list) -> list:
-    """2つのソート済み配列をマージする - O(n)
+    """Merge two sorted arrays - O(n)
 
-    両方の配列の先頭を比較し、小さい方を結果に追加する。
-    どちらかが空になったら、残りをそのまま追加する。
+    Compare the heads of both arrays and append the smaller one to the result.
+    When one is exhausted, append the remainder of the other.
     """
     result = []
     i = j = 0
 
     while i < len(left) and j < len(right):
-        if left[i] <= right[j]:  # <= で安定性を保証
+        if left[i] <= right[j]:  # <= guarantees stability
             result.append(left[i])
             i += 1
         else:
             result.append(right[j])
             j += 1
 
-    # 残りの要素を追加
+    # Append remaining elements
     result.extend(left[i:])
     result.extend(right[j:])
     return result
 
 
-# --- 動作確認 ---
+# --- Verification ---
 data = [38, 27, 43, 3, 9, 82, 10]
 sorted_data = merge_sort(data)
-print(f"入力: {data}")
-print(f"出力: {sorted_data}")
-# 入力: [38, 27, 43, 3, 9, 82, 10]
-# 出力: [3, 9, 10, 27, 38, 43, 82]
+print(f"Input: {data}")
+print(f"Output: {sorted_data}")
+# Input: [38, 27, 43, 3, 9, 82, 10]
+# Output: [3, 9, 10, 27, 38, 43, 82]
 
-# 安定性の確認（同値要素の順序保持）
+# Stability check (order preservation of equal elements)
 pairs = [(3, 'a'), (1, 'b'), (3, 'c'), (2, 'd'), (1, 'e')]
-sorted_pairs = merge_sort(pairs)  # タプルの辞書順比較を利用
-print(f"安定ソート: {sorted_pairs}")
+sorted_pairs = merge_sort(pairs)  # Uses lexicographic comparison of tuples
+print(f"Stable sort: {sorted_pairs}")
 # [(1, 'b'), (1, 'e'), (2, 'd'), (3, 'a'), (3, 'c')]
-# (1,'b') が (1,'e') の前、(3,'a') が (3,'c') の前 → 安定
+# (1,'b') before (1,'e'), (3,'a') before (3,'c') -> stable
 ```
 
-### 2.2 In-place マージソート
+### 2.2 In-place Merge Sort
 
-標準のマージソートは O(n) の追加メモリを必要とする。メモリ使用量を抑える工夫として、補助配列を1つだけ確保するバージョンを示す。
+Standard merge sort requires O(n) additional memory. The following version reduces memory usage by allocating only one auxiliary array.
 
 ```python
 def merge_sort_inplace(arr: list) -> None:
-    """補助配列を1つだけ使うマージソート（in-place に近い版）
+    """Merge sort using a single auxiliary array (near in-place)
 
-    元の配列を直接変更する。
-    補助配列 aux を一度だけ確保し、毎回のマージで再利用する。
+    Modifies the original array in place.
+    Allocates the auxiliary array aux once and reuses it for every merge.
     """
     if len(arr) <= 1:
         return
 
-    aux = [0] * len(arr)  # 補助配列を一度だけ確保
+    aux = [0] * len(arr)  # Allocate auxiliary array once
 
     def _sort(lo: int, hi: int) -> None:
-        """arr[lo..hi] をソートする"""
+        """Sort arr[lo..hi]"""
         if lo >= hi:
             return
 
         mid = (lo + hi) // 2
-        _sort(lo, mid)       # 左半分をソート
-        _sort(mid + 1, hi)   # 右半分をソート
+        _sort(lo, mid)       # Sort left half
+        _sort(mid + 1, hi)   # Sort right half
 
-        # 最適化: 既にソート済みならマージをスキップ
+        # Optimization: skip merge if already sorted
         if arr[mid] <= arr[mid + 1]:
             return
 
         _merge(lo, mid, hi)
 
     def _merge(lo: int, mid: int, hi: int) -> None:
-        """arr[lo..mid] と arr[mid+1..hi] をマージする"""
-        # 補助配列にコピー
+        """Merge arr[lo..mid] and arr[mid+1..hi]"""
+        # Copy to auxiliary array
         for k in range(lo, hi + 1):
             aux[k] = arr[k]
 
@@ -284,29 +291,29 @@ def merge_sort_inplace(arr: list) -> None:
     _sort(0, len(arr) - 1)
 
 
-# 動作確認
+# Verification
 data = [38, 27, 43, 3, 9, 82, 10]
 merge_sort_inplace(data)
 print(data)  # [3, 9, 10, 27, 38, 43, 82]
 ```
 
-### 2.3 ボトムアップ・マージソート
+### 2.3 Bottom-up Merge Sort
 
-再帰を使わないマージソートも存在する。サイズ 1 のブロックから始めて、隣接するブロックをマージしていく反復的な手法である。
+A non-recursive merge sort also exists. It starts with blocks of size 1 and iteratively merges adjacent blocks.
 
 ```python
 def merge_sort_bottom_up(arr: list) -> list:
-    """ボトムアップ・マージソート（非再帰版）
+    """Bottom-up merge sort (non-recursive version)
 
-    サイズ 1 → 2 → 4 → 8 → ... と倍増しながらマージしていく。
-    再帰のオーバーヘッドがなく、スタックオーバーフローの心配もない。
+    Merges blocks of increasing size: 1 -> 2 -> 4 -> 8 -> ...
+    No recursion overhead and no risk of stack overflow.
     """
     n = len(arr)
     if n <= 1:
         return arr[:]
 
     result = arr[:]
-    width = 1  # 現在のブロックサイズ
+    width = 1  # Current block size
 
     while width < n:
         for start in range(0, n, 2 * width):
@@ -315,7 +322,7 @@ def merge_sort_bottom_up(arr: list) -> list:
 
             left = result[start:mid]
             right = result[mid:end]
-            merged = merge(left, right)  # 上で定義した merge 関数を使用
+            merged = merge(left, right)  # Uses the merge function defined above
             result[start:start + len(merged)] = merged
 
         width *= 2
@@ -323,395 +330,400 @@ def merge_sort_bottom_up(arr: list) -> list:
     return result
 
 
-# 動作確認
+# Verification
 data = [5, 3, 8, 1, 9, 2, 7, 4, 6]
 print(merge_sort_bottom_up(data))  # [1, 2, 3, 4, 5, 6, 7, 8, 9]
 ```
 
-### 2.4 マージソートのトレース
+### 2.4 Merge Sort Trace
 
-マージソートの動作を段階的にトレースし、分割と統合の過程を確認する。
+A step-by-step trace of merge sort, showing the divide and combine phases.
 
 ```
-入力: [38, 27, 43, 3, 9, 82, 10]
+Input: [38, 27, 43, 3, 9, 82, 10]
 
-=== 分割フェーズ ===
+=== Divide Phase ===
 [38, 27, 43, 3, 9, 82, 10]
-├── [38, 27, 43]
-│   ├── [38]            ← 基底条件
-│   └── [27, 43]
-│       ├── [27]        ← 基底条件
-│       └── [43]        ← 基底条件
-└── [3, 9, 82, 10]
-    ├── [3, 9]
-    │   ├── [3]         ← 基底条件
-    │   └── [9]         ← 基底条件
-    └── [82, 10]
-        ├── [82]        ← 基底条件
-        └── [10]        ← 基底条件
++-- [38, 27, 43]
+|   +-- [38]            <- Base case
+|   +-- [27, 43]
+|       +-- [27]        <- Base case
+|       +-- [43]        <- Base case
++-- [3, 9, 82, 10]
+    +-- [3, 9]
+    |   +-- [3]         <- Base case
+    |   +-- [9]         <- Base case
+    +-- [82, 10]
+        +-- [82]        <- Base case
+        +-- [10]        <- Base case
 
-=== 統合フェーズ（ボトムアップ） ===
-merge([27], [43])       → [27, 43]
-merge([38], [27,43])    → [27, 38, 43]
-merge([3], [9])         → [3, 9]
-merge([82], [10])       → [10, 82]
-merge([3,9], [10,82])   → [3, 9, 10, 82]
-merge([27,38,43], [3,9,10,82]) → [3, 9, 10, 27, 38, 43, 82]
+=== Combine Phase (bottom-up) ===
+merge([27], [43])       -> [27, 43]
+merge([38], [27,43])    -> [27, 38, 43]
+merge([3], [9])         -> [3, 9]
+merge([82], [10])       -> [10, 82]
+merge([3,9], [10,82])   -> [3, 9, 10, 82]
+merge([27,38,43], [3,9,10,82]) -> [3, 9, 10, 27, 38, 43, 82]
 
-結果: [3, 9, 10, 27, 38, 43, 82]
+Result: [3, 9, 10, 27, 38, 43, 82]
 ```
 
 ---
 
-## 3. マスター定理 -- 計算量解析の決定版
+## 3. The Master Theorem -- The Definitive Tool for Complexity Analysis
 
-### 3.1 定理の定義
+### 3.1 Definition of the Theorem
 
-分割統治アルゴリズムの計算量は、漸化式（recurrence relation）で表現される。マスター定理（Master Theorem）は、特定の形式の漸化式を直接的に解くための定理である。
-
-```
-┌──────────────────────────────────────────────────────────────────┐
-│                    マスター定理 (Master Theorem)                   │
-├──────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  漸化式: T(n) = a * T(n/b) + O(n^d)                             │
-│                                                                  │
-│  パラメータ:                                                      │
-│    a : 部分問題の数（a >= 1）                                     │
-│    b : 分割比率 / 各部分問題のサイズ = n/b（b > 1）              │
-│    d : 統合コストの指数（d >= 0）                                 │
-│                                                                  │
-│  比較対象: c = log_b(a)  （再帰の「重さ」を表す）                │
-│                                                                  │
-│  ┌────────────────────────────────────────────────────────────┐ │
-│  │ ケース1: d < log_b(a) の場合                                │ │
-│  │   → T(n) = O(n^{log_b(a)})                                 │ │
-│  │   → 再帰呼び出しが支配的（葉の仕事量が多い）               │ │
-│  │                                                             │ │
-│  │ ケース2: d = log_b(a) の場合                                │ │
-│  │   → T(n) = O(n^d * log n)                                  │ │
-│  │   → 再帰と統合がバランス（各レベルの仕事量が均等）          │ │
-│  │                                                             │ │
-│  │ ケース3: d > log_b(a) の場合                                │ │
-│  │   → T(n) = O(n^d)                                          │ │
-│  │   → 統合ステップが支配的（根の仕事量が多い）               │ │
-│  └────────────────────────────────────────────────────────────┘ │
-│                                                                  │
-│  直感的な理解:                                                    │
-│    - log_b(a) は再帰木の葉の数の増加率を表す                     │
-│    - d は各レベルの仕事量の増加率を表す                           │
-│    - この2つを比較して、どちらが支配的かを判断する               │
-└──────────────────────────────────────────────────────────────────┘
-```
-
-### 3.2 再帰木による直感的理解
-
-マスター定理の3つのケースを再帰木で理解する。
+The complexity of divide-and-conquer algorithms is expressed as a recurrence relation. The Master Theorem directly solves recurrences of a specific form.
 
 ```
-再帰木の構造 (T(n) = a * T(n/b) + O(n^d)):
++------------------------------------------------------------------+
+|                    Master Theorem                                 |
++------------------------------------------------------------------+
+|                                                                  |
+|  Recurrence: T(n) = a * T(n/b) + O(n^d)                         |
+|                                                                  |
+|  Parameters:                                                     |
+|    a : number of subproblems (a >= 1)                            |
+|    b : division ratio / each subproblem size = n/b (b > 1)       |
+|    d : exponent of the combine cost (d >= 0)                     |
+|                                                                  |
+|  Comparison value: c = log_b(a) (represents the "weight" of     |
+|                                  the recursion)                  |
+|                                                                  |
+|  +------------------------------------------------------------+ |
+|  | Case 1: d < log_b(a)                                       | |
+|  |   -> T(n) = O(n^{log_b(a)})                                | |
+|  |   -> Recursive calls dominate (leaves do more work)         | |
+|  |                                                             | |
+|  | Case 2: d = log_b(a)                                       | |
+|  |   -> T(n) = O(n^d * log n)                                 | |
+|  |   -> Recursion and combine are balanced (equal work at each | |
+|  |      level)                                                 | |
+|  |                                                             | |
+|  | Case 3: d > log_b(a)                                       | |
+|  |   -> T(n) = O(n^d)                                         | |
+|  |   -> Combine step dominates (root does more work)           | |
+|  +------------------------------------------------------------+ |
+|                                                                  |
+|  Intuitive understanding:                                        |
+|    - log_b(a) represents the growth rate of the number of leaves |
+|    - d represents the growth rate of work at each level          |
+|    - Compare these two to determine which dominates              |
++------------------------------------------------------------------+
+```
 
-深さ0:   n^d の仕事量              ← 1個の問題
+### 3.2 Intuitive Understanding via Recursion Trees
+
+Understanding the three cases of the Master Theorem through recursion trees.
+
+```
+Recursion tree structure (T(n) = a * T(n/b) + O(n^d)):
+
+Depth 0:   n^d of work              <- 1 problem
           |
-深さ1:   a 個の (n/b)^d の仕事量   ← a 個の部分問題
+Depth 1:   a copies of (n/b)^d      <- a subproblems
           |
-深さ2:   a^2 個の (n/b^2)^d の仕事量
+Depth 2:   a^2 copies of (n/b^2)^d
           |
   ...     ...
           |
-深さk:   a^k 個の (n/b^k)^d の仕事量
+Depth k:   a^k copies of (n/b^k)^d
           |
-深さ log_b(n): a^{log_b(n)} = n^{log_b(a)} 個の O(1) の仕事量
+Depth log_b(n): a^{log_b(n)} = n^{log_b(a)} copies of O(1) work
 
-各深さの合計仕事量:
+Total work at each depth:
 
-  深さ k の合計 = a^k * (n/b^k)^d = n^d * (a / b^d)^k
+  Total at depth k = a^k * (n/b^k)^d = n^d * (a / b^d)^k
 
-  比率 r = a / b^d を考える:
-    - r > 1 (つまり d < log_b(a)): 深くなるほど仕事量が増える → 葉が支配
-    - r = 1 (つまり d = log_b(a)): 各深さで同じ仕事量 → 全レベルが均等
-    - r < 1 (つまり d > log_b(a)): 浅いほど仕事量が多い → 根が支配
+  Consider the ratio r = a / b^d:
+    - r > 1 (i.e., d < log_b(a)): work increases with depth -> leaves dominate
+    - r = 1 (i.e., d = log_b(a)): same work at each depth -> all levels equal
+    - r < 1 (i.e., d > log_b(a)): shallower levels have more work -> root dominates
 ```
 
-### 3.3 具体例での計算
+### 3.3 Concrete Examples
 
 ```python
 import math
 
 def analyze_master_theorem(a: int, b: int, d: float, name: str = "") -> str:
-    """マスター定理による計算量解析
+    """Complexity analysis using the Master Theorem
 
     Args:
-        a: 部分問題の数
-        b: 分割比率
-        d: 統合コストの指数
-        name: アルゴリズム名（表示用）
+        a: Number of subproblems
+        b: Division ratio
+        d: Exponent of the combine cost
+        name: Algorithm name (for display)
 
     Returns:
-        解析結果の文字列
+        Analysis result as a string
     """
     log_b_a = math.log(a) / math.log(b)
 
-    header = f"=== {name} ===" if name else "=== 解析結果 ==="
+    header = f"=== {name} ===" if name else "=== Analysis Result ==="
     lines = [
         header,
-        f"  漸化式: T(n) = {a}T(n/{b}) + O(n^{d})",
+        f"  Recurrence: T(n) = {a}T(n/{b}) + O(n^{d})",
         f"  a = {a}, b = {b}, d = {d}",
         f"  log_{b}({a}) = {log_b_a:.4f}",
     ]
 
     if abs(d - log_b_a) < 1e-9:
-        lines.append(f"  ケース2: d = log_b(a) = {log_b_a:.4f}")
+        lines.append(f"  Case 2: d = log_b(a) = {log_b_a:.4f}")
         lines.append(f"  => T(n) = O(n^{d} * log n)")
     elif d < log_b_a:
-        lines.append(f"  ケース1: d = {d} < log_b(a) = {log_b_a:.4f}")
+        lines.append(f"  Case 1: d = {d} < log_b(a) = {log_b_a:.4f}")
         lines.append(f"  => T(n) = O(n^{log_b_a:.4f})")
     else:
-        lines.append(f"  ケース3: d = {d} > log_b(a) = {log_b_a:.4f}")
+        lines.append(f"  Case 3: d = {d} > log_b(a) = {log_b_a:.4f}")
         lines.append(f"  => T(n) = O(n^{d})")
 
     return "\n".join(lines)
 
 
-# 代表的なアルゴリズムの解析
-print(analyze_master_theorem(2, 2, 1, "マージソート"))
-# ケース2: T(n) = O(n log n)
+# Analysis of representative algorithms
+print(analyze_master_theorem(2, 2, 1, "Merge Sort"))
+# Case 2: T(n) = O(n log n)
 
 print()
-print(analyze_master_theorem(1, 2, 0, "二分探索"))
-# ケース2: T(n) = O(log n)
+print(analyze_master_theorem(1, 2, 0, "Binary Search"))
+# Case 2: T(n) = O(log n)
 
 print()
-print(analyze_master_theorem(3, 2, 1, "Karatsuba 乗算"))
-# ケース1: T(n) = O(n^1.585)
+print(analyze_master_theorem(3, 2, 1, "Karatsuba Multiplication"))
+# Case 1: T(n) = O(n^1.585)
 
 print()
-print(analyze_master_theorem(7, 2, 2, "Strassen 行列乗算"))
-# ケース1: T(n) = O(n^2.807)
+print(analyze_master_theorem(7, 2, 2, "Strassen Matrix Multiplication"))
+# Case 1: T(n) = O(n^2.807)
 
 print()
-print(analyze_master_theorem(4, 2, 2, "特殊例"))
-# ケース2: T(n) = O(n^2 log n)
+print(analyze_master_theorem(4, 2, 2, "Special Case"))
+# Case 2: T(n) = O(n^2 log n)
 ```
 
-### 3.4 マスター定理の適用例一覧
+### 3.4 Master Theorem Application Summary
 
-| アルゴリズム | 漸化式 | a | b | d | log_b(a) | ケース | 計算量 |
+| Algorithm | Recurrence | a | b | d | log_b(a) | Case | Complexity |
 |:---|:---|:---:|:---:|:---:|:---:|:---:|:---|
-| 二分探索 | T(n) = T(n/2) + O(1) | 1 | 2 | 0 | 0 | 2 | O(log n) |
-| マージソート | T(n) = 2T(n/2) + O(n) | 2 | 2 | 1 | 1 | 2 | O(n log n) |
+| Binary search | T(n) = T(n/2) + O(1) | 1 | 2 | 0 | 0 | 2 | O(log n) |
+| Merge sort | T(n) = 2T(n/2) + O(n) | 2 | 2 | 1 | 1 | 2 | O(n log n) |
 | Karatsuba | T(n) = 3T(n/2) + O(n) | 3 | 2 | 1 | 1.585 | 1 | O(n^1.585) |
 | Strassen | T(n) = 7T(n/2) + O(n^2) | 7 | 2 | 2 | 2.807 | 1 | O(n^2.807) |
-| 最近接点対 | T(n) = 2T(n/2) + O(n) | 2 | 2 | 1 | 1 | 2 | O(n log n) |
-| 選択アルゴリズム | T(n) = T(n/2) + O(n) | 1 | 2 | 1 | 0 | 3 | O(n) |
-| ナイーブ行列乗算 | T(n) = 8T(n/2) + O(n^2) | 8 | 2 | 2 | 3 | 1 | O(n^3) |
+| Closest pair | T(n) = 2T(n/2) + O(n) | 2 | 2 | 1 | 1 | 2 | O(n log n) |
+| Selection algorithm | T(n) = T(n/2) + O(n) | 1 | 2 | 1 | 0 | 3 | O(n) |
+| Naive matrix mult. | T(n) = 8T(n/2) + O(n^2) | 8 | 2 | 2 | 3 | 1 | O(n^3) |
 
-### 3.5 マスター定理が適用できないケース
+### 3.5 Cases Where the Master Theorem Does Not Apply
 
-マスター定理は万能ではない。以下のような漸化式には適用できない。
+The Master Theorem is not universal. It cannot be applied to the following types of recurrences.
 
 ```
-適用不可の漸化式:
+Non-applicable recurrences:
 
-1. 部分問題のサイズが不均等
+1. Unequal subproblem sizes
    T(n) = T(n/3) + T(2n/3) + O(n)
-   → 部分問題のサイズが n/3 と 2n/3 で異なる
-   → Akra-Bazzi 定理または再帰木法で解析する
+   -> Subproblem sizes differ: n/3 and 2n/3
+   -> Use the Akra-Bazzi theorem or the recursion tree method
 
-2. T(n) = aT(n/b) + f(n) の形でない
+2. Not in the form T(n) = aT(n/b) + f(n)
    T(n) = T(n-1) + T(n-2)
-   → 減少幅が定数で、割り算ではない
-   → 特性方程式法で解く
+   -> Reduction by a constant, not division
+   -> Solve using the characteristic equation method
 
-3. f(n) が多項式的でない
+3. f(n) is not polynomial
    T(n) = 2T(n/2) + n/log(n)
-   → f(n) が n^d の形で表せない
-   → 再帰木法や置換法で解析する
+   -> f(n) cannot be expressed as n^d
+   -> Use the recursion tree method or substitution method
 ```
 
 ---
 
-## 4. Karatsuba 乗算 -- 大数乗算の高速化
+## 4. Karatsuba Multiplication -- Speeding Up Large Number Multiplication
 
-### 4.1 通常の乗算の問題点
+### 4.1 The Problem with Standard Multiplication
 
-2つの n 桁の数を掛け算するとき、小学校で習う筆算アルゴリズムは O(n^2) の計算量がかかる。暗号学や高精度演算など、数千桁以上の数を扱う場面ではこれがボトルネックになる。
+When multiplying two n-digit numbers, the grade-school long multiplication algorithm requires O(n^2) time. This becomes a bottleneck when dealing with numbers of thousands of digits or more, as in cryptography and high-precision arithmetic.
 
-1962 年、当時 23 歳の大学院生だった Anatolii Karatsuba は、乗算の計算量を O(n^{log_2 3}) ≈ O(n^{1.585}) に削減する方法を発見した。これは分割統治法の威力を示す画期的な成果だった。
+In 1962, 23-year-old graduate student Anatolii Karatsuba discovered a method to reduce the complexity of multiplication to O(n^{log_2 3}) ~= O(n^{1.585}). This was a groundbreaking result demonstrating the power of divide and conquer.
 
-### 4.2 Karatsuba のトリック
+### 4.2 Karatsuba's Trick
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│                 Karatsuba のアイデア                           │
-├──────────────────────────────────────────────────────────────┤
-│                                                              │
-│  2つの n 桁の数 x, y を上位と下位に分割する:                  │
-│    x = a * B^m + b    (B は基数、m = n/2)                    │
-│    y = c * B^m + d                                           │
-│                                                              │
-│  ナイーブな計算:                                              │
-│    x * y = ac * B^{2m} + (ad + bc) * B^m + bd                │
-│    → 4回の乗算: ac, ad, bc, bd                               │
-│                                                              │
-│  Karatsuba のトリック:                                        │
-│    p1 = a * c                                                │
-│    p2 = b * d                                                │
-│    p3 = (a + b) * (c + d) = ac + ad + bc + bd                │
-│                                                              │
-│    ad + bc = p3 - p1 - p2                                    │
-│                                                              │
-│    x * y = p1 * B^{2m} + (p3 - p1 - p2) * B^m + p2          │
-│                                                              │
-│  → 乗算が 4回 から 3回 に削減!                               │
-│    (加減算は増えるが、乗算よりはるかに安い)                   │
-│                                                              │
-│  漸化式: T(n) = 3T(n/2) + O(n)                               │
-│  マスター定理ケース1: T(n) = O(n^{log_2 3}) ≈ O(n^{1.585})  │
-└──────────────────────────────────────────────────────────────┘
++--------------------------------------------------------------+
+|                 Karatsuba's Idea                              |
++--------------------------------------------------------------+
+|                                                              |
+|  Split two n-digit numbers x, y into upper and lower halves: |
+|    x = a * B^m + b    (B is the base, m = n/2)              |
+|    y = c * B^m + d                                           |
+|                                                              |
+|  Naive computation:                                          |
+|    x * y = ac * B^{2m} + (ad + bc) * B^m + bd               |
+|    -> 4 multiplications: ac, ad, bc, bd                      |
+|                                                              |
+|  Karatsuba's trick:                                          |
+|    p1 = a * c                                                |
+|    p2 = b * d                                                |
+|    p3 = (a + b) * (c + d) = ac + ad + bc + bd                |
+|                                                              |
+|    ad + bc = p3 - p1 - p2                                    |
+|                                                              |
+|    x * y = p1 * B^{2m} + (p3 - p1 - p2) * B^m + p2          |
+|                                                              |
+|  -> Multiplications reduced from 4 to 3!                     |
+|    (Additions/subtractions increase but are much cheaper)     |
+|                                                              |
+|  Recurrence: T(n) = 3T(n/2) + O(n)                           |
+|  Master Theorem Case 1: T(n) = O(n^{log_2 3}) ~ O(n^{1.585})|
++--------------------------------------------------------------+
 ```
 
-### 4.3 実装
+### 4.3 Implementation
 
 ```python
 def karatsuba(x: int, y: int) -> int:
-    """Karatsuba 乗算アルゴリズム - O(n^1.585)
+    """Karatsuba multiplication algorithm - O(n^1.585)
 
-    大きな整数の乗算を、ナイーブな O(n^2) から O(n^{1.585}) に改善する。
-    再帰的に3回の乗算に分解する。
+    Improves large integer multiplication from naive O(n^2) to O(n^{1.585}).
+    Recursively decomposes into 3 multiplications.
     """
-    # 基底条件: 小さい数は直接掛ける
+    # Base case: multiply small numbers directly
     if x < 10 or y < 10:
         return x * y
 
-    # 符号の処理
+    # Handle signs
     sign = 1
     if x < 0:
         x, sign = -x, -sign
     if y < 0:
         y, sign = -y, -sign
 
-    # 桁数を揃える
+    # Equalize digit counts
     n = max(len(str(x)), len(str(y)))
     m = n // 2
 
-    # 分割: x = a * 10^m + b, y = c * 10^m + d
+    # Divide: x = a * 10^m + b, y = c * 10^m + d
     power = 10 ** m
     a, b = divmod(x, power)
     c, d = divmod(y, power)
 
-    # 3回の再帰的乗算（4回ではなく3回!）
+    # 3 recursive multiplications (not 4!)
     p1 = karatsuba(a, c)           # a * c
     p2 = karatsuba(b, d)           # b * d
     p3 = karatsuba(a + b, c + d)   # (a+b) * (c+d)
 
-    # 統合: x*y = p1 * 10^{2m} + (p3 - p1 - p2) * 10^m + p2
+    # Combine: x*y = p1 * 10^{2m} + (p3 - p1 - p2) * 10^m + p2
     result = p1 * (10 ** (2 * m)) + (p3 - p1 - p2) * power + p2
 
     return sign * result
 
 
-# --- 検証 ---
-# 小さい数
+# --- Verification ---
+# Small numbers
 assert karatsuba(1234, 5678) == 1234 * 5678  # 7006652
 print(f"1234 * 5678 = {karatsuba(1234, 5678)}")
 
-# 大きい数
+# Large numbers
 big_x = 3141592653589793238462643383279
 big_y = 2718281828459045235360287471352
 assert karatsuba(big_x, big_y) == big_x * big_y
-print(f"大数の検証: OK")
+print(f"Large number verification: OK")
 
-# 負の数
+# Negative numbers
 assert karatsuba(-123, 456) == -123 * 456
 assert karatsuba(-123, -456) == (-123) * (-456)
-print(f"負の数の検証: OK")
+print(f"Negative number verification: OK")
 
-# ゼロ
+# Zero
 assert karatsuba(0, 12345) == 0
-print(f"ゼロの検証: OK")
+print(f"Zero verification: OK")
 
-# 性能比較（概念的）
-# n桁 × n桁 の計算:
-#   ナイーブ: n^2 回の1桁乗算
-#   Karatsuba: n^1.585 回の1桁乗算
-# n = 1000 のとき:
-#   ナイーブ: 1,000,000 回
-#   Karatsuba: 約 38,000 回 → 約26倍高速
+# Performance comparison (conceptual)
+# For n-digit x n-digit multiplication:
+#   Naive: n^2 single-digit multiplications
+#   Karatsuba: n^1.585 single-digit multiplications
+# For n = 1000:
+#   Naive: 1,000,000 operations
+#   Karatsuba: ~38,000 operations -> ~26x faster
 ```
 
-### 4.4 Karatsuba を超える乗算アルゴリズム
+### 4.4 Multiplication Algorithms Beyond Karatsuba
 
-Karatsuba は大数乗算の高速化への扉を開いた。その後、さらに高速なアルゴリズムが発見されている。
+Karatsuba opened the door to faster large number multiplication. Even faster algorithms have been discovered since then.
 
-| アルゴリズム | 計算量 | 発表年 | 備考 |
+| Algorithm | Complexity | Year | Notes |
 |:---|:---|:---:|:---|
-| 筆算 | O(n^2) | - | 小学校で学ぶ方法 |
-| Karatsuba | O(n^{1.585}) | 1962 | 3分割の分割統治 |
-| Toom-Cook 3 | O(n^{1.465}) | 1963 | 5分割の分割統治 |
-| Schonhage-Strassen | O(n log n log log n) | 1971 | FFT ベース |
-| Harvey-van der Hoeven | O(n log n) | 2019 | 理論的下限に到達 |
+| Long multiplication | O(n^2) | - | The grade-school method |
+| Karatsuba | O(n^{1.585}) | 1962 | 3-way divide and conquer |
+| Toom-Cook 3 | O(n^{1.465}) | 1963 | 5-way divide and conquer |
+| Schonhage-Strassen | O(n log n log log n) | 1971 | FFT-based |
+| Harvey-van der Hoeven | O(n log n) | 2019 | Reaches the theoretical lower bound |
 
 ---
 
-## 5. 最近接点対問題（Closest Pair of Points）
+## 5. Closest Pair of Points
 
-### 5.1 問題の定義と応用
+### 5.1 Problem Definition and Applications
 
-平面上に n 個の点が与えられたとき、ユークリッド距離が最小となる2点の組を求める問題である。
+Given n points in the plane, find the pair of points with the minimum Euclidean distance.
 
-**応用分野:**
-- 衝突検出（ゲーム、ロボティクス）
-- クラスタリングの初期化
-- 地理情報システム（最寄り施設の検索）
-- 分子シミュレーション（最近接原子対の探索）
+**Application domains:**
+- Collision detection (games, robotics)
+- Clustering initialization
+- Geographic information systems (nearest facility search)
+- Molecular simulation (finding the nearest atom pair)
 
-ナイーブな全探索は全てのペアを調べるため O(n^2) だが、分割統治法を用いると O(n log n) で解ける。
+A naive brute-force approach checks all pairs, requiring O(n^2), but divide and conquer solves it in O(n log n).
 
-### 5.2 アルゴリズムの詳細
+### 5.2 Algorithm Details
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│              最近接点対の分割統治アルゴリズム                       │
-├──────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  前処理: 全点を x 座標でソートする                                │
-│                                                                  │
-│  1. 分割: 中央の x 座標で左右に分ける                             │
-│                                                                  │
-│     左半分      |  右半分                                         │
-│     *     *     |  *                                              │
-│        *        |     *                                           │
-│     *      *    |                                                 │
-│          *      |  *                                              │
-│     *           | *                                               │
-│                 |                                                 │
-│            中央線 x = mid_x                                       │
-│                                                                  │
-│  2. 統治: 左右それぞれで最近接点対を再帰的に求める                │
-│     delta_L = 左半分の最近接距離                                   │
-│     delta_R = 右半分の最近接距離                                   │
-│     delta   = min(delta_L, delta_R)                               │
-│                                                                  │
-│  3. 統合: 境界をまたぐペアをチェック                               │
-│     - 中央線から delta 以内の「ストリップ」内の点のみ調べる       │
-│     - ストリップ内の点を y 座標でソートする                       │
-│     - 各点について、y 座標の差が delta 未満の点のみ比較する       │
-│     - 理論上、各点と比較する必要がある点は最大 7 個               │
-│     - したがってストリップの処理は O(n) （ソート込みで O(n log n)）│
-│                                                                  │
-│   ←delta→|←delta→                                                │
-│     *     |  *      ← ストリップ内の点だけ調べる                  │
-│        *  |     *                                                 │
-│     *     |*                                                      │
-│     ← ストリップ →                                                │
-│                                                                  │
-│  漸化式: T(n) = 2T(n/2) + O(n log n) → O(n log^2 n)             │
-│  最適化: y ソートを事前に行うと O(n log n)                       │
-└──────────────────────────────────────────────────────────────────┘
++------------------------------------------------------------------+
+|        Closest Pair Divide-and-Conquer Algorithm                  |
++------------------------------------------------------------------+
+|                                                                  |
+|  Preprocessing: sort all points by x-coordinate                  |
+|                                                                  |
+|  1. Divide: split into left and right at the median x-coordinate |
+|                                                                  |
+|     Left half      |  Right half                                  |
+|     *     *        |  *                                           |
+|        *           |     *                                        |
+|     *      *       |                                              |
+|          *         |  *                                           |
+|     *              | *                                            |
+|                    |                                              |
+|             Midline x = mid_x                                     |
+|                                                                  |
+|  2. Conquer: recursively find closest pair in each half          |
+|     delta_L = closest distance in left half                       |
+|     delta_R = closest distance in right half                      |
+|     delta   = min(delta_L, delta_R)                               |
+|                                                                  |
+|  3. Combine: check pairs crossing the boundary                   |
+|     - Only examine points within a "strip" of width delta from   |
+|       the midline                                                |
+|     - Sort points in the strip by y-coordinate                   |
+|     - For each point, compare only with points whose y-distance  |
+|       is less than delta                                         |
+|     - Theoretically, at most 7 points need to be compared per    |
+|       point                                                      |
+|     - Therefore strip processing is O(n) (O(n log n) with sort)  |
+|                                                                  |
+|   <-delta->|<-delta->                                             |
+|     *      |  *      <- Only examine points inside the strip      |
+|        *   |     *                                                |
+|     *      |*                                                     |
+|     <- strip ->                                                   |
+|                                                                  |
+|  Recurrence: T(n) = 2T(n/2) + O(n log n) -> O(n log^2 n)        |
+|  Optimization: pre-sorting by y yields O(n log n)                |
++------------------------------------------------------------------+
 ```
 
-### 5.3 実装
+### 5.3 Implementation
 
 ```python
 import math
@@ -720,20 +732,20 @@ from typing import List, Tuple, Optional
 Point = Tuple[float, float]
 
 def closest_pair(points: List[Point]) -> Tuple[float, Point, Point]:
-    """最近接点対を分割統治法で求める - O(n log^2 n)
+    """Find the closest pair of points using divide and conquer - O(n log^2 n)
 
     Args:
-        points: 2次元平面上の点のリスト [(x, y), ...]
+        points: List of points on a 2D plane [(x, y), ...]
 
     Returns:
-        (最小距離, 点1, 点2) のタプル
+        Tuple of (minimum distance, point1, point2)
     """
     def dist(p1: Point, p2: Point) -> float:
-        """2点間のユークリッド距離"""
+        """Euclidean distance between two points"""
         return math.sqrt((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2)
 
     def brute_force(pts: List[Point]) -> Tuple[float, Point, Point]:
-        """3点以下の場合の全探索"""
+        """Brute force for 3 or fewer points"""
         min_d = float('inf')
         best_p1, best_p2 = pts[0], pts[1]
         for i in range(len(pts)):
@@ -747,15 +759,16 @@ def closest_pair(points: List[Point]) -> Tuple[float, Point, Point]:
     def closest_in_strip(
         strip: List[Point], delta: float
     ) -> Tuple[float, Optional[Point], Optional[Point]]:
-        """ストリップ内の最近接点対を求める
+        """Find the closest pair within the strip
 
-        y 座標でソート済みの strip 内で、距離が delta 未満のペアを探す。
-        各点について比較する必要がある点は最大 7 個なので、O(n) で処理できる。
+        In a strip sorted by y-coordinate, search for pairs with distance
+        less than delta. At most 7 points need to be compared for each,
+        so this runs in O(n).
         """
         min_d = delta
         best_p1, best_p2 = None, None
 
-        # y 座標でソート
+        # Sort by y-coordinate
         strip.sort(key=lambda p: p[1])
 
         for i in range(len(strip)):
@@ -770,30 +783,30 @@ def closest_pair(points: List[Point]) -> Tuple[float, Point, Point]:
         return min_d, best_p1, best_p2
 
     def solve(pts_sorted_x: List[Point]) -> Tuple[float, Point, Point]:
-        """分割統治の本体"""
+        """Main body of divide and conquer"""
         n = len(pts_sorted_x)
 
-        # 基底条件: 3点以下なら全探索
+        # Base case: brute force for 3 or fewer points
         if n <= 3:
             return brute_force(pts_sorted_x)
 
-        # 分割
+        # Divide
         mid = n // 2
         mid_x = pts_sorted_x[mid][0]
         left_half = pts_sorted_x[:mid]
         right_half = pts_sorted_x[mid:]
 
-        # 統治（再帰）
+        # Conquer (recursion)
         dl, pl1, pl2 = solve(left_half)
         dr, pr1, pr2 = solve(right_half)
 
-        # 左右の結果から小さい方を選ぶ
+        # Choose the smaller result from left and right
         if dl <= dr:
             delta, best_p1, best_p2 = dl, pl1, pl2
         else:
             delta, best_p1, best_p2 = dr, pr1, pr2
 
-        # 統合: ストリップ内のチェック
+        # Combine: check within the strip
         strip = [p for p in pts_sorted_x if abs(p[0] - mid_x) < delta]
         ds, ps1, ps2 = closest_in_strip(strip, delta)
 
@@ -801,53 +814,53 @@ def closest_pair(points: List[Point]) -> Tuple[float, Point, Point]:
             return ds, ps1, ps2
         return delta, best_p1, best_p2
 
-    # 前処理: x 座標でソート
+    # Preprocessing: sort by x-coordinate
     sorted_by_x = sorted(points, key=lambda p: p[0])
     return solve(sorted_by_x)
 
 
-# --- 動作確認 ---
+# --- Verification ---
 points = [
     (2, 3), (12, 30), (40, 50), (5, 1), (12, 10), (3, 4)
 ]
 distance, p1, p2 = closest_pair(points)
-print(f"最近接点対: {p1}, {p2}")
-print(f"距離: {distance:.4f}")
-# 最近接点対: (2, 3), (3, 4)
-# 距離: 1.4142
+print(f"Closest pair: {p1}, {p2}")
+print(f"Distance: {distance:.4f}")
+# Closest pair: (2, 3), (3, 4)
+# Distance: 1.4142
 
-# より多くの点でテスト
+# Test with more points
 import random
 random.seed(42)
 many_points = [(random.uniform(0, 1000), random.uniform(0, 1000)) for _ in range(100)]
 d, p1, p2 = closest_pair(many_points)
-print(f"\n100点のテスト:")
-print(f"最近接点対: ({p1[0]:.2f}, {p1[1]:.2f}), ({p2[0]:.2f}, {p2[1]:.2f})")
-print(f"距離: {d:.4f}")
+print(f"\nTest with 100 points:")
+print(f"Closest pair: ({p1[0]:.2f}, {p1[1]:.2f}), ({p2[0]:.2f}, {p2[1]:.2f})")
+print(f"Distance: {d:.4f}")
 ```
 
 ---
 
-## 6. その他の重要な分割統治アルゴリズム
+## 6. Other Important Divide-and-Conquer Algorithms
 
-### 6.1 Strassen 行列乗算
+### 6.1 Strassen Matrix Multiplication
 
-n x n の行列同士の乗算は、ナイーブに計算すると O(n^3) かかる。1969 年に Volker Strassen は、分割統治法を用いて O(n^{2.807}) に改善する方法を発見した。
+Multiplying two n x n matrices naively costs O(n^3). In 1969, Volker Strassen discovered a way to reduce this to O(n^{2.807}) using divide and conquer.
 
-**基本的なアイデア:**
-通常の 2x2 ブロック行列乗算では 8 回の乗算が必要だが、Strassen は巧妙な式変形により 7 回に削減した。
+**Core idea:**
+Standard 2x2 block matrix multiplication requires 8 multiplications, but Strassen cleverly reduced this to 7 through algebraic rearrangement.
 
 ```
-ナイーブな 2x2 ブロック行列乗算:
+Naive 2x2 block matrix multiplication:
 
-┌       ┐   ┌       ┐   ┌                   ┐
-│ A   B │ × │ E   F │ = │ AE+BG    AF+BH    │
-│ C   D │   │ G   H │   │ CE+DG    CF+DH    │
-└       ┘   └       ┘   └                   ┘
++       +   +       +   +                   +
+| A   B | x | E   F | = | AE+BG    AF+BH    |
+| C   D |   | G   H |   | CE+DG    CF+DH    |
++       +   +       +   +                   +
 
-→ 8回の行列乗算: AE, BG, AF, BH, CE, DG, CF, DH
+-> 8 matrix multiplications: AE, BG, AF, BH, CE, DG, CF, DH
 
-Strassen の 7 回の乗算:
+Strassen's 7 multiplications:
 
   M1 = (A + D)(E + H)
   M2 = (C + D) E
@@ -857,14 +870,14 @@ Strassen の 7 回の乗算:
   M6 = (C - A)(E + F)
   M7 = (B - D)(G + H)
 
-結果:
-  ┌                          ┐
-  │ M1+M4-M5+M7    M3+M5    │
-  │ M2+M4        M1-M2+M3+M6│
-  └                          ┘
+Result:
+  +                          +
+  | M1+M4-M5+M7    M3+M5    |
+  | M2+M4        M1-M2+M3+M6|
+  +                          +
 
-漸化式: T(n) = 7T(n/2) + O(n^2)
-マスター定理ケース1: O(n^{log_2 7}) ≈ O(n^{2.807})
+Recurrence: T(n) = 7T(n/2) + O(n^2)
+Master Theorem Case 1: O(n^{log_2 7}) ~ O(n^{2.807})
 ```
 
 ```python
@@ -872,18 +885,18 @@ import numpy as np
 from typing import Tuple
 
 def strassen(A: np.ndarray, B: np.ndarray) -> np.ndarray:
-    """Strassen 行列乗算 - O(n^2.807)
+    """Strassen matrix multiplication - O(n^2.807)
 
-    正方行列 A, B の積を Strassen アルゴリズムで計算する。
-    サイズが 2 の冪でない場合はゼロパディングを行う。
+    Computes the product of square matrices A and B using the Strassen
+    algorithm. Zero-pads if the size is not a power of 2.
     """
     n = A.shape[0]
 
-    # 基底条件: 小さい行列はナイーブに計算
+    # Base case: compute small matrices naively
     if n <= 64:
         return A @ B
 
-    # サイズが奇数の場合はパディング
+    # Pad if size is odd
     if n % 2 != 0:
         A = np.pad(A, ((0, 1), (0, 1)))
         B = np.pad(B, ((0, 1), (0, 1)))
@@ -892,13 +905,13 @@ def strassen(A: np.ndarray, B: np.ndarray) -> np.ndarray:
 
     mid = n // 2
 
-    # 4つのブロックに分割
+    # Split into 4 blocks
     A11, A12 = A[:mid, :mid], A[:mid, mid:]
     A21, A22 = A[mid:, :mid], A[mid:, mid:]
     B11, B12 = B[:mid, :mid], B[:mid, mid:]
     B21, B22 = B[mid:, :mid], B[mid:, mid:]
 
-    # Strassen の 7 回の乗算
+    # Strassen's 7 multiplications
     M1 = strassen(A11 + A22, B11 + B22)
     M2 = strassen(A21 + A22, B11)
     M3 = strassen(A11, B12 - B22)
@@ -907,13 +920,13 @@ def strassen(A: np.ndarray, B: np.ndarray) -> np.ndarray:
     M6 = strassen(A21 - A11, B11 + B12)
     M7 = strassen(A12 - A22, B21 + B22)
 
-    # 結果の統合
+    # Combine the results
     C11 = M1 + M4 - M5 + M7
     C12 = M3 + M5
     C21 = M2 + M4
     C22 = M1 - M2 + M3 + M6
 
-    # ブロックを結合
+    # Assemble blocks
     C = np.zeros((n, n))
     C[:mid, :mid] = C11
     C[:mid, mid:] = C12
@@ -923,7 +936,7 @@ def strassen(A: np.ndarray, B: np.ndarray) -> np.ndarray:
     return C
 
 
-# --- 動作確認 ---
+# --- Verification ---
 np.random.seed(42)
 n = 128
 A = np.random.randint(0, 10, (n, n)).astype(float)
@@ -932,23 +945,23 @@ B = np.random.randint(0, 10, (n, n)).astype(float)
 C_naive = A @ B
 C_strassen = strassen(A, B)
 
-print(f"行列サイズ: {n}x{n}")
-print(f"ナイーブとの差の最大値: {np.max(np.abs(C_naive - C_strassen)):.10f}")
-# 行列サイズ: 128x128
-# ナイーブとの差の最大値: 0.0000000000 (浮動小数点の範囲内)
+print(f"Matrix size: {n}x{n}")
+print(f"Max difference from naive: {np.max(np.abs(C_naive - C_strassen)):.10f}")
+# Matrix size: 128x128
+# Max difference from naive: 0.0000000000 (within floating-point range)
 ```
 
-### 6.2 べき乗の高速化（繰り返し二乗法）
+### 6.2 Fast Exponentiation (Repeated Squaring)
 
 ```python
 def fast_power(base: int, exp: int, mod: int = None) -> int:
-    """繰り返し二乗法 - O(log n)
+    """Repeated squaring - O(log n)
 
-    分割統治の考え方:
-      base^exp = (base^{exp/2})^2         (exp が偶数の場合)
-      base^exp = base * (base^{(exp-1)/2})^2  (exp が奇数の場合)
+    Divide-and-conquer idea:
+      base^exp = (base^{exp/2})^2         (if exp is even)
+      base^exp = base * (base^{(exp-1)/2})^2  (if exp is odd)
 
-    再帰版は理解しやすいが、スタックを消費する。
+    The recursive version is easy to understand but consumes stack.
     """
     if exp == 0:
         return 1
@@ -966,24 +979,24 @@ def fast_power(base: int, exp: int, mod: int = None) -> int:
 
 
 def fast_power_iterative(base: int, exp: int, mod: int = None) -> int:
-    """繰り返し二乗法（反復版） - O(log n)
+    """Repeated squaring (iterative version) - O(log n)
 
-    実用的にはこちらを使う。スタックオーバーフローの心配がない。
-    exp のビット表現を利用する。
+    Preferred in practice. No risk of stack overflow.
+    Uses the bit representation of exp.
 
-    例: base^13 = base^(1101_2) = base^8 * base^4 * base^1
+    Example: base^13 = base^(1101_2) = base^8 * base^4 * base^1
     """
     result = 1
     if mod:
         base %= mod
 
     while exp > 0:
-        # exp の最下位ビットが 1 なら結果に掛ける
+        # If the least significant bit of exp is 1, multiply into result
         if exp & 1:
             result *= base
             if mod:
                 result %= mod
-        # base を二乗する
+        # Square the base
         exp >>= 1
         base *= base
         if mod:
@@ -992,49 +1005,50 @@ def fast_power_iterative(base: int, exp: int, mod: int = None) -> int:
     return result
 
 
-# --- 動作確認 ---
+# --- Verification ---
 print(fast_power(2, 30))              # 1073741824
 print(fast_power(2, 30, 10**9 + 7))   # 1073741824
 print(fast_power(3, 100, 10**9 + 7))  # 981453966
 
-# 反復版との一致確認
+# Consistency check with iterative version
 for b in range(2, 10):
     for e in range(0, 50):
         assert fast_power(b, e, 997) == fast_power_iterative(b, e, 997)
-print("全テスト合格")
+print("All tests passed")
 ```
 
-### 6.3 最大部分配列和（分割統治版）
+### 6.3 Maximum Subarray Sum (Divide-and-Conquer Version)
 
 ```python
 def max_subarray_dc(arr: list) -> tuple:
-    """最大部分配列和 - 分割統治版 O(n log n)
+    """Maximum subarray sum - divide-and-conquer version O(n log n)
 
-    分割: 配列を左半分と右半分に分ける
-    統治: 各半分で最大部分配列和を求める
-    統合: 中央をまたぐ最大部分配列和を求め、3つの中で最大を返す
+    Divide: split the array into left and right halves
+    Conquer: find the maximum subarray sum in each half
+    Combine: find the maximum subarray sum crossing the midpoint,
+             return the maximum of the three
 
-    Kadane のアルゴリズム O(n) の方が速いが、
-    分割統治の練習問題として重要。
+    Kadane's algorithm is faster at O(n), but this is an important
+    exercise in divide and conquer.
 
     Returns:
-        (最大和, 開始インデックス, 終了インデックス)
+        (maximum sum, start index, end index)
     """
     def solve(lo: int, hi: int) -> tuple:
-        # 基底条件
+        # Base case
         if lo == hi:
             return arr[lo], lo, hi
 
         mid = (lo + hi) // 2
 
-        # 左半分の最大部分配列和
+        # Maximum subarray sum in the left half
         left_max, ll, lr = solve(lo, mid)
 
-        # 右半分の最大部分配列和
+        # Maximum subarray sum in the right half
         right_max, rl, rr = solve(mid + 1, hi)
 
-        # 中央をまたぐ最大部分配列和
-        # 中央から左に伸ばす
+        # Maximum subarray sum crossing the midpoint
+        # Extend left from the center
         left_sum = float('-inf')
         total = 0
         cross_l = mid
@@ -1044,7 +1058,7 @@ def max_subarray_dc(arr: list) -> tuple:
                 left_sum = total
                 cross_l = i
 
-        # 中央から右に伸ばす
+        # Extend right from the center
         right_sum = float('-inf')
         total = 0
         cross_r = mid + 1
@@ -1056,7 +1070,7 @@ def max_subarray_dc(arr: list) -> tuple:
 
         cross_max = left_sum + right_sum
 
-        # 3つの候補から最大を選ぶ
+        # Choose the maximum among three candidates
         if left_max >= right_max and left_max >= cross_max:
             return left_max, ll, lr
         elif right_max >= left_max and right_max >= cross_max:
@@ -1070,51 +1084,51 @@ def max_subarray_dc(arr: list) -> tuple:
     return solve(0, len(arr) - 1)
 
 
-# --- 動作確認 ---
+# --- Verification ---
 data = [-2, 1, -3, 4, -1, 2, 1, -5, 4]
 max_sum, start, end = max_subarray_dc(data)
-print(f"最大部分配列和: {max_sum}")
-print(f"部分配列: {data[start:end+1]} (インデックス {start}..{end})")
-# 最大部分配列和: 6
-# 部分配列: [4, -1, 2, 1] (インデックス 3..6)
+print(f"Maximum subarray sum: {max_sum}")
+print(f"Subarray: {data[start:end+1]} (indices {start}..{end})")
+# Maximum subarray sum: 6
+# Subarray: [4, -1, 2, 1] (indices 3..6)
 ```
 
-### 6.4 中央値の中央値（Median of Medians）
+### 6.4 Median of Medians
 
-k 番目に小さい要素を最悪 O(n) で求めるアルゴリズム。クイックセレクトの最悪ケースを防ぐためにピボット選択に分割統治を用いる。
+An algorithm that finds the k-th smallest element in worst-case O(n). It uses divide and conquer for pivot selection to prevent the worst case of quickselect.
 
 ```python
 def median_of_medians(arr: list, k: int) -> int:
-    """中央値の中央値アルゴリズムによる k 番目に小さい要素の選択
+    """Median of medians algorithm for selecting the k-th smallest element
 
-    最悪計算量: O(n)
-    漸化式: T(n) = T(n/5) + T(7n/10) + O(n)
+    Worst-case complexity: O(n)
+    Recurrence: T(n) = T(n/5) + T(7n/10) + O(n)
 
     Args:
-        arr: 数値のリスト
-        k: 求める順位（0-indexed）
+        arr: List of numbers
+        k: Desired rank (0-indexed)
 
     Returns:
-        k 番目に小さい要素
+        The k-th smallest element
     """
     if len(arr) <= 5:
         return sorted(arr)[k]
 
-    # Step 1: 5個ずつのグループに分割し、各グループの中央値を求める
+    # Step 1: Divide into groups of 5, find the median of each group
     medians = []
     for i in range(0, len(arr), 5):
         group = sorted(arr[i:i + 5])
         medians.append(group[len(group) // 2])
 
-    # Step 2: 中央値の中央値を再帰的に求める（ピボットとする）
+    # Step 2: Recursively find the median of medians (use as pivot)
     pivot = median_of_medians(medians, len(medians) // 2)
 
-    # Step 3: ピボットで3分割
+    # Step 3: 3-way partition around the pivot
     low = [x for x in arr if x < pivot]
     equal = [x for x in arr if x == pivot]
     high = [x for x in arr if x > pivot]
 
-    # Step 4: k がどの部分に属するか判定して再帰
+    # Step 4: Determine which partition k belongs to, recurse
     if k < len(low):
         return median_of_medians(low, k)
     elif k < len(low) + len(equal):
@@ -1123,74 +1137,75 @@ def median_of_medians(arr: list, k: int) -> int:
         return median_of_medians(high, k - len(low) - len(equal))
 
 
-# --- 動作確認 ---
+# --- Verification ---
 data = [3, 7, 2, 9, 1, 8, 5, 4, 6, 10]
 for k in range(len(data)):
     result = median_of_medians(data[:], k)
     expected = sorted(data)[k]
     assert result == expected, f"k={k}: got {result}, expected {expected}"
-    print(f"  {k}番目に小さい要素: {result}")
+    print(f"  {k}-th smallest element: {result}")
 
-# 中央値の取得
+# Retrieve the median
 median = median_of_medians(data[:], len(data) // 2)
-print(f"\n中央値: {median}")  # 6
+print(f"\nMedian: {median}")  # 6
 ```
 
 ---
 
-## 7. 分割統治の適用判断と設計パラダイムの比較
+## 7. When to Apply Divide and Conquer -- Comparing Design Paradigms
 
-### 7.1 分割統治が有効な問題の特徴
+### 7.1 Characteristics of Problems Suited for Divide and Conquer
 
 ```
-分割統治の適用判断フローチャート:
+Divide-and-conquer applicability flowchart:
 
-問題を小さな部分問題に分割できるか?
-│
-├─ NO → 他の手法を検討（貪欲法、探索、数学的解法など）
-│
-└─ YES → 部分問題は独立しているか（重複がないか）?
-          │
-          ├─ NO → 動的計画法（DP）を検討
-          │       例: フィボナッチ数列、LCS、行列連鎖乗算
-          │
-          └─ YES → 統合ステップは効率的か（O(n) 以下）?
-                    │
-                    ├─ NO → 分割が計算量を改善するか再検討
-                    │       統合が O(n^2) なら分割の意味がない場合も
-                    │
-                    └─ YES → 分割統治が有効!
-                              分割は均等か?
-                              │
-                              ├─ YES → マスター定理で解析可能
-                              └─ NO  → 再帰木法で解析
+Can the problem be divided into smaller subproblems?
+|
++-- NO -> Consider other techniques (greedy, search, mathematical methods, etc.)
+|
++-- YES -> Are the subproblems independent (no overlap)?
+          |
+          +-- NO -> Consider dynamic programming (DP)
+          |       e.g., Fibonacci sequence, LCS, matrix chain multiplication
+          |
+          +-- YES -> Is the combine step efficient (O(n) or less)?
+                    |
+                    +-- NO -> Re-examine whether division improves complexity
+                    |       If combining is O(n^2), division may be pointless
+                    |
+                    +-- YES -> Divide and conquer is effective!
+                              Is the division balanced?
+                              |
+                              +-- YES -> Analyzable with the Master Theorem
+                              +-- NO  -> Analyze with the recursion tree method
 ```
 
-### 7.2 設計パラダイムの包括的比較
+### 7.2 Comprehensive Comparison of Design Paradigms
 
-| 特性 | 分割統治 | 動的計画法 (DP) | 貪欲法 | バックトラッキング |
+| Property | Divide & Conquer | Dynamic Programming (DP) | Greedy | Backtracking |
 |:---|:---|:---|:---|:---|
-| 部分問題の関係 | 独立 | 重複あり | 独立 | 独立（探索木） |
-| 解の構築 | 再帰 + 統合 | テーブル埋め | 逐次的な決定 | 試行 + 巻き戻し |
-| 最適解の保証 | 問題による | 常に最適 | 貪欲選択性あれば最適 | 常に最適（全探索） |
-| 典型的な計算量 | O(n log n) | O(n^2) ~ O(nW) | O(n log n) | O(2^n) ~ O(n!) |
-| 空間計算量 | O(log n) ~ O(n) | O(n) ~ O(n^2) | O(1) ~ O(n) | O(n) |
-| 代表的な問題 | マージソート | 最長共通部分列 | 活動選択問題 | N-Queen |
-| 後戻り | しない | しない | しない | する |
-| 部分問題のサイズ | n/b（割合で縮小） | 1ずつ縮小 | 1ずつ縮小 | 1ずつ縮小 |
+| Subproblem relationship | Independent | Overlapping | Independent | Independent (search tree) |
+| Solution construction | Recursion + combine | Table filling | Sequential decisions | Trial + undo |
+| Guaranteed optimality | Problem-dependent | Always optimal | Optimal if greedy-choice property holds | Always optimal (exhaustive) |
+| Typical complexity | O(n log n) | O(n^2) ~ O(nW) | O(n log n) | O(2^n) ~ O(n!) |
+| Space complexity | O(log n) ~ O(n) | O(n) ~ O(n^2) | O(1) ~ O(n) | O(n) |
+| Representative problem | Merge sort | Longest common subsequence | Activity selection | N-Queens |
+| Backtracking | None | None | None | Yes |
+| Subproblem size | n/b (shrinks by ratio) | Shrinks by 1 | Shrinks by 1 | Shrinks by 1 |
 
-### 7.3 分割統治と DP の境界 -- 具体例で理解する
+### 7.3 The Boundary Between Divide-and-Conquer and DP -- Understanding Through Concrete Examples
 
-同じ問題でも、部分問題の構造によって分割統治と DP を使い分ける。
+Even for the same problem, we choose between divide and conquer and DP depending on the structure of the subproblems.
 
 ```python
-# --- 例: 行列のべき乗 ---
-# DP 的アプローチ（メモ化）は不要 → 分割統治が最適
+# --- Example: Matrix exponentiation ---
+# A DP approach (memoization) is unnecessary -> divide and conquer is optimal
 
 def matrix_power(M: list, n: int) -> list:
-    """行列の n 乗を分割統治で計算 - O(k^3 log n)
+    """Compute the n-th power of a matrix using divide and conquer - O(k^3 log n)
 
-    k は行列のサイズ。部分問題は独立なので分割統治が適切。
+    k is the matrix size. Subproblems are independent, so divide and
+    conquer is appropriate.
     """
     size = len(M)
 
@@ -1218,9 +1233,9 @@ def matrix_power(M: list, n: int) -> list:
         return mat_mult(M, matrix_power(M, n - 1))
 
 
-# --- 応用: フィボナッチ数を O(log n) で計算 ---
+# --- Application: computing Fibonacci numbers in O(log n) ---
 def fibonacci_matrix(n: int) -> int:
-    """行列べき乗法によるフィボナッチ数の計算 - O(log n)
+    """Compute Fibonacci numbers via matrix exponentiation - O(log n)
 
     [[F(n+1), F(n)], [F(n), F(n-1)]] = [[1,1],[1,0]]^n
     """
@@ -1232,7 +1247,7 @@ def fibonacci_matrix(n: int) -> int:
     return result[0][1]
 
 
-# 動作確認
+# Verification
 for i in range(15):
     print(f"F({i}) = {fibonacci_matrix(i)}", end="  ")
 # F(0)=0 F(1)=1 F(2)=1 F(3)=2 F(4)=3 F(5)=5 F(6)=8 ...
@@ -1244,27 +1259,27 @@ print(f"F(100) = {fibonacci_matrix(100)}") # 354224848179261915075
 
 ---
 
-## 8. アンチパターンと陥りやすい罠
+## 8. Anti-patterns and Common Pitfalls
 
-### アンチパターン 1: 不均等な分割による計算量の退化
+### Anti-pattern 1: Unbalanced Division Causing Complexity Degradation
 
-分割統治で最も重要なのは「均等な分割」である。分割が偏ると再帰木の深さが O(n) に退化し、期待される計算量が得られない。
+The most important aspect of divide and conquer is "balanced division." If the division is skewed, the recursion tree depth degrades to O(n), and the expected complexity is not achieved.
 
 ```python
 # ============================================================
-# BAD: 不均等な分割 → 最悪 O(n^2) に退化
+# BAD: Unbalanced division -> worst-case O(n^2) degradation
 # ============================================================
 def bad_quicksort(arr: list) -> list:
-    """最悪ケースのクイックソート
+    """Worst-case quicksort
 
-    ピボットに最小値を選ぶと、1 個 vs (n-1) 個の分割になる。
-    再帰の深さが O(n) になり、全体が O(n^2) に退化する。
+    Choosing the minimum as the pivot leads to a 1 vs (n-1) split.
+    Recursion depth becomes O(n), and overall is O(n^2).
 
-    漸化式: T(n) = T(n-1) + O(n) → O(n^2)
+    Recurrence: T(n) = T(n-1) + O(n) -> O(n^2)
     """
     if len(arr) <= 1:
         return arr
-    pivot = min(arr)  # 常に最小値をピボットに → 最悪の分割
+    pivot = min(arr)  # Always picks the minimum as pivot -> worst split
     left = [x for x in arr if x < pivot]
     middle = [x for x in arr if x == pivot]
     right = [x for x in arr if x > pivot]
@@ -1272,67 +1287,67 @@ def bad_quicksort(arr: list) -> list:
 
 
 # ============================================================
-# GOOD: 均等分割を保証するマージソート
+# GOOD: Merge sort guarantees balanced division
 # ============================================================
 def good_merge_sort(arr: list) -> list:
-    """マージソートは常に均等分割を保証する
+    """Merge sort always guarantees balanced division
 
-    常に中央で分割するため、再帰の深さは O(log n) で安定。
-    漸化式: T(n) = 2T(n/2) + O(n) → O(n log n) が常に保証される。
+    Always splits at the midpoint, so recursion depth is stable at O(log n).
+    Recurrence: T(n) = 2T(n/2) + O(n) -> O(n log n) is always guaranteed.
     """
     if len(arr) <= 1:
         return arr
     mid = len(arr) // 2
     left = good_merge_sort(arr[:mid])
     right = good_merge_sort(arr[mid:])
-    return merge(left, right)  # 前述の merge 関数を使用
+    return merge(left, right)  # Uses the merge function defined earlier
 
 
 # ============================================================
-# BETTER: ランダム化で平均的に均等な分割を実現
+# BETTER: Randomization achieves balanced division on average
 # ============================================================
 import random
 
 def randomized_quicksort(arr: list) -> list:
-    """ランダム化クイックソート
+    """Randomized quicksort
 
-    ピボットをランダムに選ぶことで、期待計算量 O(n log n) を達成。
-    最悪ケースの確率は 1/n! で、事実上起きない。
+    By choosing the pivot randomly, achieves expected O(n log n) complexity.
+    Probability of the worst case is 1/n!, virtually impossible.
     """
     if len(arr) <= 1:
         return arr
-    pivot = random.choice(arr)  # ランダムにピボットを選択
+    pivot = random.choice(arr)  # Randomly select the pivot
     left = [x for x in arr if x < pivot]
     middle = [x for x in arr if x == pivot]
     right = [x for x in arr if x > pivot]
     return randomized_quicksort(left) + middle + randomized_quicksort(right)
 
 
-# 不均等分割の影響を確認
+# Verify the impact of unbalanced division
 sorted_input = list(range(1000))
-# bad_quicksort(sorted_input)  # RecursionError の危険あり!
-print(f"ランダム化QS: {randomized_quicksort(sorted_input)[:10]}...")  # 正常動作
+# bad_quicksort(sorted_input)  # Risk of RecursionError!
+print(f"Randomized QS: {randomized_quicksort(sorted_input)[:10]}...")  # Works correctly
 ```
 
 ```
-不均等分割の再帰木（最悪ケース）:
+Recursion tree of unbalanced division (worst case):
 
 T(n)
-├── T(0)     ← 空
-└── T(n-1)
-    ├── T(0)
-    └── T(n-2)
-        ├── T(0)
-        └── T(n-3)
-            └── ...
-                └── T(1)
++-- T(0)     <- empty
++-- T(n-1)
+    +-- T(0)
+    +-- T(n-2)
+        +-- T(0)
+        +-- T(n-3)
+            +-- ...
+                +-- T(1)
 
-深さ: n
-各レベルの仕事: O(n), O(n-1), O(n-2), ...
-合計: O(n^2)  ← マージソートの O(n log n) に比べて大幅に劣化
+Depth: n
+Work at each level: O(n), O(n-1), O(n-2), ...
+Total: O(n^2)  <- much worse than merge sort's O(n log n)
 
 
-均等分割の再帰木（理想ケース）:
+Recursion tree of balanced division (ideal case):
 
               T(n)
          /          \
@@ -1341,24 +1356,24 @@ T(n)
   T(n/4) T(n/4) T(n/4) T(n/4)
   ...     ...    ...     ...
 
-深さ: log n
-各レベルの仕事: O(n)（合計で）
-合計: O(n log n)
+Depth: log n
+Work at each level: O(n) (total)
+Total: O(n log n)
 ```
 
-### アンチパターン 2: 部分問題が重複しているのに分割統治を適用
+### Anti-pattern 2: Applying Divide and Conquer to Overlapping Subproblems
 
 ```python
 # ============================================================
-# BAD: フィボナッチに素朴な分割統治 → O(2^n) の指数爆発
+# BAD: Naive divide and conquer for Fibonacci -> O(2^n) exponential explosion
 # ============================================================
 call_count = 0
 
 def fib_bad(n: int) -> int:
-    """素朴な再帰フィボナッチ - O(2^n)
+    """Naive recursive Fibonacci - O(2^n)
 
-    fib(5) を計算するだけで fib(2) が 3 回、fib(3) が 2 回呼ばれる。
-    部分問題が大量に重複しており、分割統治は不適切。
+    Computing fib(5) alone calls fib(2) three times and fib(3) twice.
+    Subproblems overlap massively -- divide and conquer is inappropriate.
     """
     global call_count
     call_count += 1
@@ -1370,20 +1385,20 @@ def fib_bad(n: int) -> int:
 
 call_count = 0
 result = fib_bad(20)
-print(f"fib_bad(20) = {result}, 関数呼び出し回数: {call_count}")
-# fib_bad(20) = 6765, 関数呼び出し回数: 21891
+print(f"fib_bad(20) = {result}, function calls: {call_count}")
+# fib_bad(20) = 6765, function calls: 21891
 
 
 # ============================================================
-# GOOD: メモ化再帰（DP）→ O(n)
+# GOOD: Memoized recursion (DP) -> O(n)
 # ============================================================
 from functools import lru_cache
 
 @lru_cache(maxsize=None)
 def fib_dp(n: int) -> int:
-    """メモ化再帰によるフィボナッチ - O(n)
+    """Memoized Fibonacci - O(n)
 
-    同じ部分問題を二度と再計算しない。
+    Never recomputes the same subproblem.
     """
     if n <= 1:
         return n
@@ -1394,22 +1409,22 @@ print(f"fib_dp(100) = {fib_dp(100)}") # 354224848179261915075
 
 
 # ============================================================
-# BEST: 行列べき乗法 → O(log n) ← 分割統治が適切に機能する例
+# BEST: Matrix exponentiation -> O(log n) <- divide and conquer works properly
 # ============================================================
 print(f"fibonacci_matrix(20) = {fibonacci_matrix(20)}")   # 6765
 print(f"fibonacci_matrix(100) = {fibonacci_matrix(100)}") # 354224848179261915075
 ```
 
-### アンチパターン 3: 基底条件の不備
+### Anti-pattern 3: Incomplete Base Cases
 
 ```python
 # ============================================================
-# BAD: 基底条件が不十分 → 無限再帰
+# BAD: Incomplete base case -> infinite recursion
 # ============================================================
 def bad_binary_search(arr: list, target: int, lo: int, hi: int) -> int:
-    """基底条件の不備がある二分探索"""
+    """Binary search with a flawed base case"""
     mid = (lo + hi) // 2
-    # BUG: lo > hi のチェックがない → 要素が存在しない場合に無限再帰
+    # BUG: Missing lo > hi check -> infinite recursion when element doesn't exist
     if arr[mid] == target:
         return mid
     elif arr[mid] < target:
@@ -1419,11 +1434,11 @@ def bad_binary_search(arr: list, target: int, lo: int, hi: int) -> int:
 
 
 # ============================================================
-# GOOD: 正しい基底条件
+# GOOD: Correct base case
 # ============================================================
 def good_binary_search(arr: list, target: int, lo: int, hi: int) -> int:
-    """正しい二分探索"""
-    if lo > hi:  # 基底条件: 要素が見つからない
+    """Correct binary search"""
+    if lo > hi:  # Base case: element not found
         return -1
     mid = (lo + hi) // 2
     if arr[mid] == target:
@@ -1434,40 +1449,41 @@ def good_binary_search(arr: list, target: int, lo: int, hi: int) -> int:
         return good_binary_search(arr, target, lo, mid - 1)
 
 
-# 動作確認
+# Verification
 arr = [1, 3, 5, 7, 9, 11, 13]
 print(good_binary_search(arr, 7, 0, len(arr) - 1))   # 3
-print(good_binary_search(arr, 6, 0, len(arr) - 1))   # -1（見つからない）
+print(good_binary_search(arr, 6, 0, len(arr) - 1))   # -1 (not found)
 ```
 
-### アンチパターンの判断基準まとめ
+### Anti-pattern Decision Criteria Summary
 
-| アンチパターン | 症状 | 原因 | 対策 |
+| Anti-pattern | Symptom | Cause | Remedy |
 |:---|:---|:---|:---|
-| 不均等分割 | 計算量が O(n^2) に退化 | ピボット選択の失敗 | ランダム化 or 中央値の中央値 |
-| 重複部分問題 | 指数的な計算量 | 部分問題の独立性を誤認 | DP（メモ化 or ボトムアップ）に切替 |
-| 基底条件の不備 | 無限再帰 / スタックオーバーフロー | 終了条件の漏れ | 全ての終端ケースを列挙 |
-| 統合コストの見落とし | 期待より遅い | 統合が O(n^2) | 統合の効率化 or 別手法を検討 |
+| Unbalanced division | Complexity degrades to O(n^2) | Poor pivot selection | Randomization or median of medians |
+| Overlapping subproblems | Exponential complexity | Misidentifying subproblem independence | Switch to DP (memoization or bottom-up) |
+| Incomplete base cases | Infinite recursion / stack overflow | Missing termination conditions | Enumerate all terminal cases |
+| Overlooked combine cost | Slower than expected | Combine is O(n^2) | Optimize combining or consider alternative methods |
 
 ---
 
-## 9. 演習問題（3段階）
+## 9. Exercises (3 Levels)
 
-### 基礎レベル（Foundation）
+### Foundation Level
 
-**演習 1: 転倒数のカウント**
+**Exercise 1: Inversion Count**
 
-配列中の転倒数（inversion count）を分割統治で O(n log n) で求めよ。転倒とは i < j かつ arr[i] > arr[j] となるペア (i, j) である。
+Count the number of inversions in an array using divide and conquer in O(n log n). An inversion is a pair (i, j) where i < j and arr[i] > arr[j].
 
 ```python
 def count_inversions(arr: list) -> tuple:
-    """転倒数を分割統治で求める - O(n log n)
+    """Count inversions using divide and conquer - O(n log n)
 
-    マージソートの統合ステップで、右側の要素が先にマージされる回数を
-    数えることで転倒数を求められる。
+    During the merge step of merge sort, the number of times an element
+    from the right is merged before one from the left gives the
+    inversion count.
 
     Returns:
-        (ソート済み配列, 転倒数)
+        (sorted array, inversion count)
     """
     if len(arr) <= 1:
         return arr[:], 0
@@ -1485,7 +1501,7 @@ def count_inversions(arr: list) -> tuple:
             merged.append(left[i])
             i += 1
         else:
-            # right[j] が left[i..] の全ての要素より小さい → 転倒
+            # right[j] is smaller than all remaining left[i..] -> inversions
             merged.append(right[j])
             inversions += len(left) - i
             j += 1
@@ -1495,10 +1511,10 @@ def count_inversions(arr: list) -> tuple:
     return merged, inversions
 
 
-# --- 動作確認 ---
+# --- Verification ---
 test_cases = [
-    ([1, 2, 3, 4, 5], 0),       # ソート済み → 転倒数 0
-    ([5, 4, 3, 2, 1], 10),      # 逆順 → C(5,2) = 10
+    ([1, 2, 3, 4, 5], 0),       # Already sorted -> 0 inversions
+    ([5, 4, 3, 2, 1], 10),      # Reversed -> C(5,2) = 10
     ([2, 4, 1, 3, 5], 3),       # (2,1), (4,1), (4,3)
     ([1, 20, 6, 4, 5], 5),      # (20,6), (20,4), (20,5), (6,4), (6,5)
 ]
@@ -1506,23 +1522,23 @@ test_cases = [
 for arr, expected in test_cases:
     _, inv = count_inversions(arr)
     status = "OK" if inv == expected else "NG"
-    print(f"  {arr} → 転倒数 {inv} (期待 {expected}) [{status}]")
+    print(f"  {arr} -> inversions {inv} (expected {expected}) [{status}]")
 ```
 
-**演習 2: べき乗和**
+**Exercise 2: Power Sum**
 
-1^k + 2^k + ... + n^k を分割統治の考え方で効率的に計算せよ（ヒント: 直接計算は O(n log k) だが、分割統治的な思考で問題構造を理解する）。
+Compute 1^k + 2^k + ... + n^k efficiently using divide-and-conquer thinking (hint: direct computation is O(n log k), but the divide-and-conquer perspective helps understand the problem structure).
 
 ```python
 def power_sum(n: int, k: int, mod: int = 10**9 + 7) -> int:
-    """1^k + 2^k + ... + n^k を計算する
+    """Compute 1^k + 2^k + ... + n^k
 
-    各項の計算に繰り返し二乗法 O(log k) を使用し、
-    全体で O(n log k) となる。
+    Each term uses repeated squaring O(log k),
+    giving an overall complexity of O(n log k).
 
-    分割統治的な分解:
+    Divide-and-conquer decomposition:
       S(n, k) = S(n/2, k) + sum(i^k for i in range(n/2+1, n+1))
-      ただしこの場合は直接計算の方がシンプル。
+      However, in this case direct computation is simpler.
     """
     total = 0
     for i in range(1, n + 1):
@@ -1530,33 +1546,33 @@ def power_sum(n: int, k: int, mod: int = 10**9 + 7) -> int:
     return total
 
 
-# 動作確認
+# Verification
 print(f"1^2 + 2^2 + ... + 10^2 = {power_sum(10, 2)}")  # 385
 print(f"1^3 + 2^3 + ... + 10^3 = {power_sum(10, 3)}")  # 3025
-# 検算: sum(i**2 for i in range(1,11)) = 385
-# 検算: sum(i**3 for i in range(1,11)) = 3025
+# Check: sum(i**2 for i in range(1,11)) = 385
+# Check: sum(i**3 for i in range(1,11)) = 3025
 ```
 
-### 応用レベル（Intermediate）
+### Intermediate Level
 
-**演習 3: 多数派要素（Majority Element）**
+**Exercise 3: Majority Element**
 
-配列中に過半数を占める要素があればそれを返し、なければ None を返せ。分割統治で O(n log n) で解け。
+Return the majority element in an array (appearing more than half the time), or None if none exists. Solve it in O(n log n) using divide and conquer.
 
 ```python
 def majority_element(arr: list) -> int:
-    """多数派要素を分割統治で求める - O(n log n)
+    """Find the majority element using divide and conquer - O(n log n)
 
-    Boyer-Moore 投票アルゴリズムなら O(n) だが、
-    分割統治の練習として実装する。
+    The Boyer-Moore voting algorithm is O(n), but we implement this as
+    a divide-and-conquer exercise.
 
-    アイデア:
-    - 配列を左右に分割する
-    - 左半分の多数派候補と右半分の多数派候補を再帰的に求める
-    - 全体で各候補の出現回数をカウントして判定する
+    Idea:
+    - Split the array into left and right halves
+    - Recursively find the majority candidate in each half
+    - Count each candidate in the full range to determine the answer
     """
     def solve(lo: int, hi: int):
-        # 基底条件: 要素が1つ
+        # Base case: single element
         if lo == hi:
             return arr[lo]
 
@@ -1564,11 +1580,11 @@ def majority_element(arr: list) -> int:
         left_maj = solve(lo, mid)
         right_maj = solve(mid + 1, hi)
 
-        # 両方の多数派が同じなら確定
+        # If both majorities agree, it's confirmed
         if left_maj == right_maj:
             return left_maj
 
-        # 異なる場合は全体でカウント
+        # If they differ, count each in the full range
         left_count = sum(1 for i in range(lo, hi + 1) if arr[i] == left_maj)
         right_count = sum(1 for i in range(lo, hi + 1) if arr[i] == right_maj)
 
@@ -1584,48 +1600,48 @@ def majority_element(arr: list) -> int:
 
     result = solve(0, len(arr) - 1)
 
-    # 最終確認
+    # Final verification
     if result is not None and arr.count(result) > len(arr) // 2:
         return result
     return None
 
 
-# --- 動作確認 ---
+# --- Verification ---
 print(majority_element([3, 3, 4, 2, 3, 3, 3]))  # 3
 print(majority_element([1, 2, 3, 4, 5]))          # None
 print(majority_element([2, 2, 1, 1, 1, 2, 2]))    # 2
 ```
 
-**演習 4: k 番目に小さい要素を2つのソート済み配列から求める**
+**Exercise 4: k-th Smallest Element from Two Sorted Arrays**
 
-2つのソート済み配列 A, B が与えられたとき、統合した場合に k 番目に小さい要素を O(log(min(m, n))) で求めよ。
+Given two sorted arrays A and B, find the k-th smallest element in O(log(min(m, n))) as if they were merged.
 
 ```python
 def kth_of_two_sorted(A: list, B: list, k: int) -> int:
-    """2つのソート済み配列の k 番目に小さい要素 - O(log(min(m,n)))
+    """k-th smallest element from two sorted arrays - O(log(min(m,n)))
 
-    分割統治のアイデア:
-    - A の前半 i 個と B の前半 j 個（i + j = k）を考える
-    - A[i-1] <= B[j] かつ B[j-1] <= A[i] なら、
-      max(A[i-1], B[j-1]) が答え
+    Divide-and-conquer idea:
+    - Consider taking i elements from A and j elements from B (i + j = k)
+    - If A[i-1] <= B[j] and B[j-1] <= A[i],
+      then max(A[i-1], B[j-1]) is the answer
 
     Args:
-        A, B: ソート済み配列
-        k: 求める順位（1-indexed）
+        A, B: Sorted arrays
+        k: Desired rank (1-indexed)
     """
-    # A が短い方になるようにする
+    # Ensure A is the shorter one
     if len(A) > len(B):
         return kth_of_two_sorted(B, A, k)
 
     m, n = len(A), len(B)
 
-    # i の範囲: A から最低 0 個、最大 min(m, k) 個取る
+    # Range of i: take at least 0, at most min(m, k) from A
     lo = max(0, k - n)
     hi = min(m, k)
 
     while lo <= hi:
-        i = (lo + hi) // 2  # A から i 個取る
-        j = k - i            # B から j 個取る
+        i = (lo + hi) // 2  # Take i elements from A
+        j = k - i            # Take j elements from B
 
         a_left = A[i - 1] if i > 0 else float('-inf')
         b_left = B[j - 1] if j > 0 else float('-inf')
@@ -1639,10 +1655,10 @@ def kth_of_two_sorted(A: list, B: list, k: int) -> int:
         else:
             lo = i + 1
 
-    raise ValueError("入力が不正")
+    raise ValueError("Invalid input")
 
 
-# --- 動作確認 ---
+# --- Verification ---
 A = [1, 3, 5, 7, 9]
 B = [2, 4, 6, 8, 10]
 for k in range(1, 11):
@@ -1652,40 +1668,40 @@ print()
 # k=1: 1, k=2: 2, ..., k=10: 10
 ```
 
-### 発展レベル（Advanced）
+### Advanced Level
 
-**演習 5: 高速フーリエ変換（FFT）による多項式乗算**
+**Exercise 5: Fast Fourier Transform (FFT) for Polynomial Multiplication**
 
-2つの多項式の積を O(n log n) で計算する FFT は、分割統治の極致である。
+The FFT, which computes the product of two polynomials in O(n log n), represents the pinnacle of divide and conquer.
 
 ```python
 import cmath
 from typing import List
 
 def fft(a: List[complex], invert: bool = False) -> List[complex]:
-    """高速フーリエ変換 (Cooley-Tukey FFT) - O(n log n)
+    """Fast Fourier Transform (Cooley-Tukey FFT) - O(n log n)
 
-    分割統治の適用:
-    - 偶数番目の係数と奇数番目の係数に分割
-    - それぞれを再帰的に FFT
-    - バタフライ演算で統合
+    Divide-and-conquer application:
+    - Split into even-indexed and odd-indexed coefficients
+    - Recursively apply FFT to each
+    - Combine via butterfly operations
 
     Args:
-        a: 多項式の係数（長さは 2 の冪）
-        invert: True なら逆 FFT
+        a: Polynomial coefficients (length must be a power of 2)
+        invert: If True, compute the inverse FFT
 
     Returns:
-        FFT 変換後の係数
+        FFT-transformed coefficients
     """
     n = len(a)
     if n == 1:
         return a[:]
 
-    # 偶数番目と奇数番目に分割
+    # Split into even-indexed and odd-indexed
     even = fft(a[0::2], invert)
     odd = fft(a[1::2], invert)
 
-    # 回転因子
+    # Twiddle factor
     angle = 2 * cmath.pi / n * (-1 if invert else 1)
     w = 1
     wn = cmath.exp(1j * angle)
@@ -1703,24 +1719,24 @@ def fft(a: List[complex], invert: bool = False) -> List[complex]:
 
 
 def polynomial_multiply(a: List[int], b: List[int]) -> List[int]:
-    """FFT による多項式乗算 - O(n log n)
+    """Polynomial multiplication via FFT - O(n log n)
 
-    通常の多項式乗算は O(n^2) だが、FFT を使うと O(n log n) になる。
+    Standard polynomial multiplication is O(n^2), but FFT reduces it to O(n log n).
 
-    手順:
-    1. 係数表現 → 点値表現 (FFT)
-    2. 点ごとに乗算 O(n)
-    3. 点値表現 → 係数表現 (逆 FFT)
+    Procedure:
+    1. Coefficient representation -> point-value representation (FFT)
+    2. Pointwise multiplication O(n)
+    3. Point-value representation -> coefficient representation (inverse FFT)
 
     Args:
-        a, b: 多項式の係数リスト（a[i] は x^i の係数）
+        a, b: Coefficient lists of polynomials (a[i] is the coefficient of x^i)
 
     Returns:
-        積の多項式の係数リスト
+        Coefficient list of the product polynomial
     """
     result_len = len(a) + len(b) - 1
 
-    # サイズを 2 の冪に拡張
+    # Extend size to a power of 2
     n = 1
     while n < result_len:
         n <<= 1
@@ -1728,22 +1744,22 @@ def polynomial_multiply(a: List[int], b: List[int]) -> List[int]:
     fa = [complex(x) for x in a] + [0] * (n - len(a))
     fb = [complex(x) for x in b] + [0] * (n - len(b))
 
-    # FFT で点値表現に変換
+    # Transform to point-value representation via FFT
     fa = fft(fa)
     fb = fft(fb)
 
-    # 点ごとに乗算
+    # Pointwise multiplication
     fc = [fa[i] * fb[i] for i in range(n)]
 
-    # 逆 FFT で係数表現に戻す
+    # Transform back to coefficient representation via inverse FFT
     fc = fft(fc, invert=True)
 
-    # 実部を取り出して整数に丸める
+    # Extract real parts and round to integers
     result = [round(c.real) for c in fc[:result_len]]
     return result
 
 
-# --- 動作確認 ---
+# --- Verification ---
 # (1 + 2x + 3x^2) * (4 + 5x) = 4 + 13x + 22x^2 + 15x^3
 a = [1, 2, 3]
 b = [4, 5]
@@ -1751,7 +1767,7 @@ product = polynomial_multiply(a, b)
 print(f"({a}) * ({b}) = {product}")
 # [4, 13, 22, 15]
 
-# 検算: 123 * 45 = 5535
+# Verification: 123 * 45 = 5535
 # (3 + 2*10 + 1*100) * (5 + 4*10) = 5535
 a2 = [3, 2, 1]
 b2 = [5, 4]
@@ -1762,85 +1778,85 @@ print(f"123 * 45 = {value}")  # 5535
 
 ---
 
-## 10. FAQ（よくある質問）
+## 10. FAQ (Frequently Asked Questions)
 
-### Q1: 分割統治と再帰の違いは何か?
+### Q1: What is the difference between divide and conquer and recursion?
 
-**A:** 再帰は**実装技法**（関数が自分自身を呼び出すこと）であり、分割統治は**設計パラダイム**（問題を分割→統治→統合するという戦略）である。
+**A:** Recursion is an **implementation technique** (a function calling itself), while divide and conquer is a **design paradigm** (a strategy of dividing, conquering, and combining).
 
-分割統治は通常、再帰で実装される。しかし、再帰を使う全てのアルゴリズムが分割統治というわけではない。例えば DFS（深さ優先探索）は再帰で実装されるが、「問題を分割して統合する」という構造を持たないため分割統治とは呼ばない。
+Divide and conquer is typically implemented using recursion. However, not every recursive algorithm is divide and conquer. For example, DFS (depth-first search) is implemented recursively but does not have the "divide the problem and combine the results" structure, so it is not called divide and conquer.
 
-逆に、ボトムアップ・マージソートのように、分割統治の考え方を反復（ループ）で実装することも可能である。
+Conversely, the divide-and-conquer approach can also be implemented iteratively, as in bottom-up merge sort.
 
-| | 再帰 | 分割統治 |
+| | Recursion | Divide and Conquer |
 |:---|:---|:---|
-| 分類 | 実装技法 | 設計パラダイム |
-| 定義 | 関数が自身を呼び出す | 分割→統治→統合の3ステップ |
-| 例 | DFS, 階乗, ハノイの塔 | マージソート, Karatsuba, FFT |
-| 関係 | 分割統治の実装に使われる | 再帰で実装されることが多い |
+| Category | Implementation technique | Design paradigm |
+| Definition | A function calls itself | 3-step process: divide, conquer, combine |
+| Examples | DFS, factorial, Tower of Hanoi | Merge sort, Karatsuba, FFT |
+| Relationship | Used to implement divide and conquer | Usually implemented with recursion |
 
-### Q2: マスター定理で解けない漸化式にはどう対処するか?
+### Q2: How do you handle recurrences that the Master Theorem cannot solve?
 
-**A:** マスター定理が適用できない場合、以下の3つの方法がある。
+**A:** When the Master Theorem does not apply, there are three alternative methods.
 
-1. **再帰木法 (Recursion Tree Method):** 再帰木を描き、各レベルの仕事量を合計する。直感的で汎用性が高い。
+1. **Recursion Tree Method:** Draw the recursion tree and sum the work at each level. Intuitive and versatile.
 
-2. **置換法 (Substitution Method):** 解を推測し、数学的帰納法で証明する。厳密だが、正しい推測が必要。
+2. **Substitution Method:** Guess the solution and prove it by mathematical induction. Rigorous but requires a correct guess.
 
-3. **Akra-Bazzi 定理:** T(n) = sum(a_i * T(n/b_i)) + f(n) の形で、部分問題のサイズが不均等な場合にも適用可能。マスター定理の一般化。
+3. **Akra-Bazzi Theorem:** Applies to recurrences of the form T(n) = sum(a_i * T(n/b_i)) + f(n) with unequal subproblem sizes. A generalization of the Master Theorem.
 
 ```
-例: T(n) = T(n/3) + T(2n/3) + O(n) の解析
+Example: Analysis of T(n) = T(n/3) + T(2n/3) + O(n)
 
-再帰木法:
-  深さ 0: n              仕事量 = n
-  深さ 1: n/3 + 2n/3     仕事量 = n
-  深さ 2: n/9 + 2n/9 + 2n/9 + 4n/9  仕事量 = n
+Recursion tree method:
+  Depth 0: n              work = n
+  Depth 1: n/3 + 2n/3     work = n
+  Depth 2: n/9 + 2n/9 + 2n/9 + 4n/9  work = n
   ...
-  深さ k: 仕事量 = n（各深さで仕事量は n）
+  Depth k: work = n (same at every depth)
 
-  最大深さ: log_{3/2}(n) ≈ 1.71 log n（最長パスは 2n/3 を辿る）
-  最小深さ: log_3(n)
+  Max depth: log_{3/2}(n) ~ 1.71 log n (following the 2n/3 path)
+  Min depth: log_3(n)
 
-  → T(n) = O(n log n)
+  -> T(n) = O(n log n)
 ```
 
-### Q3: Strassen 行列乗算は実用的か?
+### Q3: Is Strassen matrix multiplication practical?
 
-**A:** Strassen のアルゴリズムは理論的に O(n^{2.807}) であり、ナイーブな O(n^3) より漸近的に速い。しかし実用上は以下の理由から、使われる場面が限られる。
+**A:** Strassen's algorithm is theoretically O(n^{2.807}), which is asymptotically faster than the naive O(n^3). However, in practice its use is limited for the following reasons.
 
-1. **定数係数が大きい:** Strassen は 18 回の加減算を必要とし、小さな行列ではナイーブな方法が速い。一般的に n > 数百以上で初めて有利になる。
+1. **Large constant factor:** Strassen requires 18 additions/subtractions, making the naive method faster for small matrices. Generally, Strassen only becomes advantageous for n > several hundred.
 
-2. **数値的安定性:** 加減算の回数が多いため、浮動小数点演算では丸め誤差が蓄積しやすい。科学技術計算ではこれが問題になる。
+2. **Numerical stability:** The many additions/subtractions accumulate rounding errors in floating-point arithmetic. This is problematic in scientific computing.
 
-3. **キャッシュ効率:** 現代の CPU はキャッシュ階層を持つ。BLAS（Basic Linear Algebra Subprograms）などのライブラリは、キャッシュに最適化されたブロック行列乗算を実装しており、Strassen よりも実行速度が速いことが多い。
+3. **Cache efficiency:** Modern CPUs have cache hierarchies. Libraries like BLAS (Basic Linear Algebra Subprograms) implement cache-optimized block matrix multiplication that is often faster than Strassen.
 
-4. **GPU の台頭:** GPU は大規模な並列計算に特化しており、ナイーブな行列乗算でも極めて高速に実行できる。
+4. **Rise of GPUs:** GPUs specialize in massive parallelism and can execute naive matrix multiplication extremely fast.
 
-結論: Strassen は理論的には重要だが、実用的には BLAS ライブラリや GPU を使う方が一般的である。ただし、巨大な行列（数千 x 数千以上）や整数行列の場合は有用なことがある。
+Conclusion: Strassen is theoretically important but in practice, BLAS libraries or GPUs are more commonly used. However, it can be useful for very large matrices (several thousand x several thousand or more) or integer matrices.
 
-### Q4: 分割統治は並列化に向いているか?
+### Q4: Is divide and conquer well-suited for parallelization?
 
-**A:** 分割統治は並列化に非常に適している。部分問題が独立であるため、各部分問題を異なるプロセッサやスレッドで同時に処理できる。
+**A:** Divide and conquer is very well-suited for parallelization. Since the subproblems are independent, each can be processed simultaneously on different processors or threads.
 
 ```python
 from concurrent.futures import ThreadPoolExecutor
 
 def parallel_merge_sort(arr: list, threshold: int = 10000) -> list:
-    """並列マージソート
+    """Parallel merge sort
 
-    配列が threshold 以上の場合、左右の再帰を別スレッドで実行する。
-    小さな配列は通常の逐次処理にフォールバックする。
+    When the array exceeds the threshold, runs left and right recursions
+    in separate threads. Falls back to sequential processing for small arrays.
 
-    注意: Python の GIL の制約により、CPU バウンドな処理では
-    ThreadPoolExecutor よりも ProcessPoolExecutor の方が効果的。
-    ここでは簡略化のため ThreadPoolExecutor を使用。
+    Note: Due to Python's GIL constraint, ProcessPoolExecutor is more
+    effective than ThreadPoolExecutor for CPU-bound work.
+    ThreadPoolExecutor is used here for simplicity.
     """
     if len(arr) <= 1:
         return arr
 
     if len(arr) < threshold:
-        return merge_sort(arr)  # 小さい配列は逐次処理
+        return merge_sort(arr)  # Sequential for small arrays
 
     mid = len(arr) // 2
 
@@ -1853,111 +1869,111 @@ def parallel_merge_sort(arr: list, threshold: int = 10000) -> list:
     return merge(left, right)
 
 
-# 注意: 上記は概念実装。本番では multiprocessing や
-# C 拡張（numpy.sort など）を使う方が実用的。
+# Note: The above is a conceptual implementation. In production,
+# use multiprocessing or C extensions (e.g., numpy.sort).
 ```
 
-### Q5: 再帰の深さが深くなりすぎる場合はどうするか?
+### Q5: What should you do when recursion gets too deep?
 
-**A:** Python のデフォルトの再帰制限は 1000 回程度である。分割統治の再帰深さは O(log n) なので、n = 2^1000 でない限り問題にならない。ただし、不均等分割やバグにより O(n) の深さになるケースでは注意が必要。
+**A:** Python's default recursion limit is around 1000 calls. Divide-and-conquer recursion depth is O(log n), so unless n = 2^1000, this is rarely an issue. However, care is needed when unbalanced division or bugs cause O(n) depth.
 
-対処法:
-1. **再帰制限の引き上げ:** `sys.setrecursionlimit()` で一時的に制限を緩和する（ただし根本的な解決にはならない）。
-2. **反復版への変換:** ボトムアップ・マージソートのように、再帰を反復に変換する。
-3. **末尾再帰の最適化:** Python は末尾再帰最適化をサポートしていないが、手動でループに変換できる。
-4. **分割の均等性を保証する:** 常に半分に分割すれば、深さは O(log n) に収まる。
+Remedies:
+1. **Raise the recursion limit:** Use `sys.setrecursionlimit()` temporarily (not a fundamental fix).
+2. **Convert to iterative:** As in bottom-up merge sort, convert recursion to iteration.
+3. **Tail recursion optimization:** Python does not support tail call optimization, but you can manually convert to loops.
+4. **Guarantee balanced division:** Always splitting in half keeps the depth at O(log n).
 
-### Q6: 分割統治で解ける典型的な競技プログラミングの問題は?
+### Q6: What are typical competitive programming problems solvable with divide and conquer?
 
-**A:** 以下が代表的な問題パターンである。
+**A:** The following are representative problem patterns.
 
-| パターン | 典型問題 | 計算量 |
+| Pattern | Typical Problem | Complexity |
 |:---|:---|:---|
-| マージソート応用 | 転倒数カウント | O(n log n) |
-| 二分探索 | 値の探索、条件を満たす最小値 | O(log n) |
-| 分割統治 + 座標幾何 | 最近接点対 | O(n log n) |
-| セグメント木（区間クエリ） | 区間最大値、区間和 | O(n log n) 構築, O(log n) クエリ |
-| FFT / NTT | 多項式乗算、畳み込み | O(n log n) |
-| CDQ 分割統治 | 3次元偏順序カウント | O(n log^2 n) |
+| Merge sort application | Inversion count | O(n log n) |
+| Binary search | Value search, minimum satisfying condition | O(log n) |
+| Divide & conquer + computational geometry | Closest pair of points | O(n log n) |
+| Segment tree (range queries) | Range maximum, range sum | O(n log n) build, O(log n) query |
+| FFT / NTT | Polynomial multiplication, convolution | O(n log n) |
+| CDQ divide and conquer | 3D partial order counting | O(n log^2 n) |
 
 ---
 
-## 11. 計算量の包括的比較
+## 11. Comprehensive Complexity Comparison
 
-### 分割統治アルゴリズムの計算量一覧
+### Complexity Summary of Divide-and-Conquer Algorithms
 
-| アルゴリズム | 時間計算量 | 空間計算量 | 分割数 | 分割比率 | 統合コスト |
+| Algorithm | Time Complexity | Space Complexity | Divisions | Division Ratio | Combine Cost |
 |:---|:---|:---|:---:|:---:|:---|
-| 二分探索 | O(log n) | O(log n) 再帰 / O(1) 反復 | 1 | 1/2 | O(1) |
-| マージソート | O(n log n) | O(n) | 2 | 1/2 | O(n) |
-| クイックソート（平均） | O(n log n) | O(log n) | 2 | 可変 | O(n) |
-| クイックソート（最悪） | O(n^2) | O(n) | 2 | 不均等 | O(n) |
-| Karatsuba 乗算 | O(n^{1.585}) | O(n log n) | 3 | 1/2 | O(n) |
-| Strassen 行列乗算 | O(n^{2.807}) | O(n^2) | 7 | 1/2 | O(n^2) |
-| 最近接点対 | O(n log n) | O(n) | 2 | 1/2 | O(n) |
+| Binary search | O(log n) | O(log n) recursive / O(1) iterative | 1 | 1/2 | O(1) |
+| Merge sort | O(n log n) | O(n) | 2 | 1/2 | O(n) |
+| Quicksort (average) | O(n log n) | O(log n) | 2 | variable | O(n) |
+| Quicksort (worst) | O(n^2) | O(n) | 2 | unbalanced | O(n) |
+| Karatsuba multiplication | O(n^{1.585}) | O(n log n) | 3 | 1/2 | O(n) |
+| Strassen matrix mult. | O(n^{2.807}) | O(n^2) | 7 | 1/2 | O(n^2) |
+| Closest pair of points | O(n log n) | O(n) | 2 | 1/2 | O(n) |
 | FFT | O(n log n) | O(n) | 2 | 1/2 | O(n) |
-| 中央値の中央値 | O(n) | O(n) | 1 | 7/10 | O(n) |
-| 繰り返し二乗法 | O(log n) | O(log n) 再帰 / O(1) 反復 | 1 | 1/2 | O(1) |
+| Median of medians | O(n) | O(n) | 1 | 7/10 | O(n) |
+| Repeated squaring | O(log n) | O(log n) recursive / O(1) iterative | 1 | 1/2 | O(1) |
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when studying this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory, but by actually writing code and verifying behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving on.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently applied in everyday development work. It is particularly important during code reviews and architecture design.
 
 ---
 
-## 12. まとめ
+## 12. Summary
 
-### 分割統治法の核心
+### Core of Divide and Conquer
 
-| 項目 | 要点 |
+| Item | Key Point |
 |:---|:---|
-| 3ステップ | 分割→統治→統合の再帰的設計。基底条件の正しさが全体を左右する |
-| マスター定理 | T(n) = aT(n/b) + O(n^d) → 3ケースの判定で計算量を即座に求められる |
-| マージソート | 安定ソート、最悪 O(n log n) 保証。分割統治の最も基本的かつ実用的な例 |
-| Karatsuba | 4回の乗算を3回に削減。O(n^2) → O(n^{1.585}) の劇的な改善 |
-| Strassen | 8回の行列乗算を7回に削減。理論的意義は大きいが実用上は制約あり |
-| 最近接点対 | ストリップ内の限定的チェックにより O(n^2) → O(n log n) を達成 |
-| FFT | 多項式乗算を O(n^2) → O(n log n) に高速化。信号処理の基盤 |
-| 適用判断 | 独立な部分問題 + 効率的な統合 + 均等な分割が成功の鍵 |
+| 3 Steps | Recursive design of divide, conquer, combine. Correctness of the base case determines the whole |
+| Master Theorem | T(n) = aT(n/b) + O(n^d) -> 3-case evaluation instantly yields complexity |
+| Merge sort | Stable sort, worst-case O(n log n) guaranteed. The most fundamental and practical example |
+| Karatsuba | Reduces 4 multiplications to 3. Dramatic improvement from O(n^2) to O(n^{1.585}) |
+| Strassen | Reduces 8 matrix multiplications to 7. Theoretically significant but practically limited |
+| Closest pair | Limited checking within the strip achieves O(n^2) to O(n log n) |
+| FFT | Accelerates polynomial multiplication from O(n^2) to O(n log n). Foundation of signal processing |
+| Applicability | Independent subproblems + efficient combining + balanced division are the keys to success |
 
-### 分割統治を使いこなすためのチェックリスト
+### Checklist for Mastering Divide and Conquer
 
-1. **分割は均等か?** 不均等な分割は計算量を退化させる
-2. **部分問題は独立か?** 重複があるなら DP に切り替える
-3. **統合は効率的か?** 統合コストが全体の計算量を左右する
-4. **基底条件は正しいか?** 全ての終端ケースをカバーしているか確認する
-5. **マスター定理は適用可能か?** 漸化式を立てて計算量を解析する
-
----
-
-## 次に読むべきガイド
-
-- [ソートアルゴリズム](./00-sorting.md) -- マージソート・クイックソートの詳細な実装と比較
-- [動的計画法](./04-dynamic-programming.md) -- 部分問題が重複する場合の設計手法
-- [バックトラッキング](./07-backtracking.md) -- 別の再帰的問題解決パラダイム
-- [探索アルゴリズム](./01-searching.md) -- 二分探索の詳細
+1. **Is the division balanced?** Unbalanced division degrades complexity
+2. **Are the subproblems independent?** If they overlap, switch to DP
+3. **Is the combine step efficient?** Combine cost governs overall complexity
+4. **Is the base case correct?** Verify that all terminal cases are covered
+5. **Can the Master Theorem be applied?** Set up the recurrence and analyze the complexity
 
 ---
 
-## 参考文献
+## Recommended Next Readings
 
-1. Cormen, T. H., Leiserson, C. E., Rivest, R. L., & Stein, C. (2022). *Introduction to Algorithms* (4th ed.). MIT Press. -- 第4章「Divide-and-Conquer」は分割統治法の教科書的な解説であり、マスター定理の証明を含む。
-2. Karatsuba, A. & Ofman, Y. (1963). "Multiplication of multidigit numbers on automata." *Soviet Physics Doklady*, 7(7), 595-596. -- 大数乗算の計算量が O(n^2) を下回れることを初めて示した歴史的論文。
-3. Shamos, M. I. & Hoey, D. (1975). "Closest-point problems." *Proceedings of the 16th Annual Symposium on Foundations of Computer Science (FOCS)*. -- 最近接点対問題の O(n log n) アルゴリズムを提案した原論文。
-4. Kleinberg, J. & Tardos, E. (2005). *Algorithm Design*. Pearson. -- 第5章「Divide and Conquer」は応用例が豊富で、漸化式の解き方を丁寧に解説している。
-5. Strassen, V. (1969). "Gaussian elimination is not optimal." *Numerische Mathematik*, 13(4), 354-356. -- 行列乗算の計算量が O(n^3) を下回れることを示し、代数的計算量理論の端緒を開いた。
-6. Cooley, J. W. & Tukey, J. W. (1965). "An algorithm for the machine calculation of complex Fourier series." *Mathematics of Computation*, 19(90), 297-301. -- 高速フーリエ変換（FFT）の原論文。分割統治法の最も影響力のある応用の一つ。
-7. Sedgewick, R. & Wayne, K. (2011). *Algorithms* (4th ed.). Addison-Wesley. -- マージソートの実装バリエーション（ボトムアップ、最適化版）が詳しい。
+- [Sorting Algorithms](./00-sorting.md) -- Detailed implementation and comparison of merge sort and quicksort
+- [Dynamic Programming](./04-dynamic-programming.md) -- Design technique for overlapping subproblems
+- [Backtracking](./07-backtracking.md) -- Another recursive problem-solving paradigm
+- [Search Algorithms](./01-searching.md) -- Details on binary search
+
+---
+
+## References
+
+1. Cormen, T. H., Leiserson, C. E., Rivest, R. L., & Stein, C. (2022). *Introduction to Algorithms* (4th ed.). MIT Press. -- Chapter 4, "Divide-and-Conquer," is a textbook treatment of divide and conquer, including the proof of the Master Theorem.
+2. Karatsuba, A. & Ofman, Y. (1963). "Multiplication of multidigit numbers on automata." *Soviet Physics Doklady*, 7(7), 595-596. -- The historic paper first demonstrating that large number multiplication complexity can be sub-O(n^2).
+3. Shamos, M. I. & Hoey, D. (1975). "Closest-point problems." *Proceedings of the 16th Annual Symposium on Foundations of Computer Science (FOCS)*. -- The original paper proposing the O(n log n) algorithm for the closest pair problem.
+4. Kleinberg, J. & Tardos, E. (2005). *Algorithm Design*. Pearson. -- Chapter 5, "Divide and Conquer," offers rich application examples and carefully explains how to solve recurrences.
+5. Strassen, V. (1969). "Gaussian elimination is not optimal." *Numerische Mathematik*, 13(4), 354-356. -- Showed that matrix multiplication complexity can be sub-O(n^3), opening the field of algebraic complexity theory.
+6. Cooley, J. W. & Tukey, J. W. (1965). "An algorithm for the machine calculation of complex Fourier series." *Mathematics of Computation*, 19(90), 297-301. -- The original paper on the Fast Fourier Transform (FFT). One of the most influential applications of divide and conquer.
+7. Sedgewick, R. & Wayne, K. (2011). *Algorithms* (4th ed.). Addison-Wesley. -- Provides detailed coverage of merge sort implementation variants (bottom-up, optimized versions).

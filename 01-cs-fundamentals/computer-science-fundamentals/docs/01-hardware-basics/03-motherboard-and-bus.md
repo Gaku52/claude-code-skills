@@ -1,30 +1,30 @@
-# マザーボードとバス
+# Motherboard and Bus
 
-> マザーボードはコンピュータの「神経系」であり、全てのコンポーネント間の通信を司る。
+> The motherboard is the "nervous system" of the computer, governing communication between all components.
 
-## この章で学ぶこと
+## Learning Objectives
 
-- [ ] マザーボードの主要コンポーネントと役割を説明できる
-- [ ] バスアーキテクチャの進化を理解する
-- [ ] ブートプロセスの各段階を説明できる
-- [ ] PCIeの詳細仕様とレーン配分を理解する
-- [ ] USB規格の進化と実務での選定基準を習得する
-- [ ] サーバーアーキテクチャとの違いを説明できる
+- [ ] Describe the major components of a motherboard and their roles
+- [ ] Understand the evolution of bus architecture
+- [ ] Explain each stage of the boot process
+- [ ] Understand PCIe detailed specifications and lane allocation
+- [ ] Master USB specification evolution and practical selection criteria
+- [ ] Explain the differences from server architecture
 
-## 前提知識
+## Prerequisites
 
 
 ---
 
-## 1. マザーボードの構成要素
+## 1. Motherboard Components
 
 ```
-マザーボードのレイアウト（概念図）:
+Motherboard Layout (Conceptual Diagram):
 
   ┌──────────────────────────────────────────────────┐
   │  ┌──────────┐          ┌──────────────────────┐ │
-  │  │ CPU      │←────────→│ メモリスロット       │ │
-  │  │ ソケット │ メモリバス │ DIMM1 DIMM2 DIMM3  │ │
+  │  │ CPU      │←────────→│ Memory Slots         │ │
+  │  │ Socket   │ Memory Bus│ DIMM1 DIMM2 DIMM3  │ │
   │  └────┬─────┘          └──────────────────────┘ │
   │       │                                          │
   │       │ PCIe x16                                 │
@@ -32,965 +32,967 @@
   │  ┌──────────────────────────────────┐            │
   │  │       PCH (Platform Controller Hub)│           │
   │  │  ┌─────────────────────────────┐  │           │
-  │  │  │ PCIe x4 → NVMe SSD スロット │  │           │
-  │  │  │ PCIe x16 → GPU スロット     │  │           │
-  │  │  │ SATA → HDD/SSD              │  │           │
-  │  │  │ USB 3.x/4.0 コントローラ    │  │           │
-  │  │  │ Ethernet コントローラ        │  │           │
-  │  │  │ Audio コントローラ           │  │           │
-  │  │  │ Wi-Fi/Bluetooth              │  │           │
+  │  │  │ PCIe x4  → NVMe SSD Slot   │  │           │
+  │  │  │ PCIe x16 → GPU Slot        │  │           │
+  │  │  │ SATA     → HDD/SSD         │  │           │
+  │  │  │ USB 3.x/4.0 Controller     │  │           │
+  │  │  │ Ethernet Controller        │  │           │
+  │  │  │ Audio Controller           │  │           │
+  │  │  │ Wi-Fi/Bluetooth            │  │           │
   │  │  └─────────────────────────────┘  │           │
   │  └──────────────────────────────────┘            │
   │                                                   │
   │  ┌──────────┐  ┌──────────┐  ┌──────────────┐  │
-  │  │ BIOS/UEFI│  │ 電源      │  │ I/Oポート    │  │
-  │  │ (SPI     │  │ コネクタ  │  │ USB,HDMI,    │  │
-  │  │  Flash)  │  │ (ATX)     │  │ Ethernet...  │  │
+  │  │ BIOS/UEFI│  │ Power    │  │ I/O Ports    │  │
+  │  │ (SPI     │  │ Connector│  │ USB, HDMI,   │  │
+  │  │  Flash)  │  │ (ATX)    │  │ Ethernet...  │  │
   │  └──────────┘  └──────────┘  └──────────────┘  │
   └──────────────────────────────────────────────────┘
 ```
 
-### 1.1 マザーボードの主要コンポーネント詳解
+### 1.1 Detailed Breakdown of Major Motherboard Components
 
 ```
-各コンポーネントの詳細:
+Details of Each Component:
 
-  ■ CPUソケット
-    - Intel LGA (Land Grid Array): ピンがソケット側
+  ■ CPU Socket
+    - Intel LGA (Land Grid Array): Pins on the socket side
       LGA1700 (12th-14th Gen), LGA1851 (Arrow Lake)
-    - AMD PGA (Pin Grid Array): ピンがCPU側（AM4まで）
-    - AMD LGA: AM5からLGAに移行
-    - サーバー: LGA4094 (AMD SP5), LGA4677 (Intel)
+    - AMD PGA (Pin Grid Array): Pins on the CPU side (up to AM4)
+    - AMD LGA: Transitioned to LGA starting from AM5
+    - Server: LGA4094 (AMD SP5), LGA4677 (Intel)
 
-    ソケットの互換性:
+    Socket Compatibility:
     ┌───────────────────────────────────────────┐
-    │ プラットフォーム │ ソケット │ 世代            │
-    │──────────────────│──────────│─────────────────│
-    │ Intel Desktop    │ LGA1700  │ 12th-14th Gen   │
-    │ Intel Desktop    │ LGA1851  │ Arrow Lake+     │
-    │ AMD Desktop      │ AM4      │ Ryzen 1000-5000 │
-    │ AMD Desktop      │ AM5      │ Ryzen 7000+     │
-    │ Intel Server     │ LGA4677  │ Sapphire Rapids+ │
-    │ AMD Server       │ SP5      │ EPYC 9004+      │
+    │ Platform         │ Socket   │ Generation    │
+    │──────────────────│──────────│───────────────│
+    │ Intel Desktop    │ LGA1700  │ 12th-14th Gen │
+    │ Intel Desktop    │ LGA1851  │ Arrow Lake+   │
+    │ AMD Desktop      │ AM4      │ Ryzen 1000-5000│
+    │ AMD Desktop      │ AM5      │ Ryzen 7000+   │
+    │ Intel Server     │ LGA4677  │ Sapphire Rapids+│
+    │ AMD Server       │ SP5      │ EPYC 9004+    │
     └───────────────────────────────────────────┘
 
-  ■ メモリスロット（DIMMスロット）
-    - 通常2本または4本（デスクトップ）
-    - サーバーでは8-12本/CPU
-    - DDR5: 288ピン、デュアルチャネル（各チャネル32ビット）
-    - DIMM種類:
-      UDIMM: アンバッファード（デスクトップ）
-      RDIMM: レジスタード（サーバー、ECC対応）
-      LRDIMM: ロードリデュースト（大容量サーバー）
-      SO-DIMM: ノートPC用（小型）
+  ■ Memory Slots (DIMM Slots)
+    - Typically 2 or 4 slots (desktop)
+    - 8-12 slots per CPU on servers
+    - DDR5: 288-pin, dual-channel (32 bits per channel)
+    - DIMM Types:
+      UDIMM: Unbuffered (desktop)
+      RDIMM: Registered (server, ECC-capable)
+      LRDIMM: Load-Reduced (high-capacity servers)
+      SO-DIMM: For laptops (compact form factor)
 
   ■ VRM (Voltage Regulator Module)
-    - CPUに安定した電圧を供給
-    - フェーズ数が多いほど安定（高性能マザーボードは16-20フェーズ）
-    - オーバークロック時に特に重要
-    - MOSFETの品質がVRMの品質を決定
+    - Supplies stable voltage to the CPU
+    - More phases means greater stability (high-end motherboards have 16-20 phases)
+    - Especially important during overclocking
+    - MOSFET quality determines VRM quality
 
-    VRMの構成:
+    VRM Configuration:
     ┌──────────────────────────────────────────┐
-    │ 12V (ATX電源) → VRM → 1.1V (CPU VCore)  │
+    │ 12V (ATX PSU) → VRM → 1.1V (CPU VCore)  │
     │                                           │
     │ ┌─────┐ ┌─────┐ ┌─────┐    ┌──────┐  │
     │ │Phase│ │Phase│ │Phase│... │ CPU   │  │
     │ │ 1   │ │ 2   │ │ 3   │    │       │  │
     │ └─────┘ └─────┘ └─────┘    └──────┘  │
-    │ PWMコントローラが各フェーズを交互に動作   │
-    │ → 電流の安定化、発熱の分散               │
+    │ PWM controller alternates each phase     │
+    │ → Stabilizes current, distributes heat   │
     └──────────────────────────────────────────┘
 
-  ■ SPI フラッシュ（BIOS/UEFI ROM）
-    - 容量: 16-32MB（UEFI + マイクロコード）
-    - SPI (Serial Peripheral Interface) バスで接続
-    - 電源投入時に最初に読まれるチップ
-    - Dual BIOSの場合は2チップ搭載（障害対策）
+  ■ SPI Flash (BIOS/UEFI ROM)
+    - Capacity: 16-32MB (UEFI + microcode)
+    - Connected via SPI (Serial Peripheral Interface) bus
+    - The first chip read upon power-on
+    - Dual BIOS configurations include 2 chips (for fault tolerance)
 ```
 
-### 1.2 フォームファクタ
+### 1.2 Form Factors
 
 ```
-マザーボードのフォームファクタ:
+Motherboard Form Factors:
 
   ┌────────────────────────────────────────────────────┐
-  │ ATX (305 × 244 mm)                                 │
+  │ ATX (305 x 244 mm)                                 │
   │ ┌──────────────────────────────────────────────┐  │
   │ │                                              │  │
-  │ │  PCIe x16 × 2-3                             │  │
-  │ │  M.2 スロット × 2-4                          │  │
-  │ │  DIMM × 4                                    │  │
-  │ │  SATA × 4-8                                  │  │
-  │ │  USB ヘッダ × 多数                           │  │
+  │ │  PCIe x16 x 2-3                             │  │
+  │ │  M.2 Slots x 2-4                            │  │
+  │ │  DIMM x 4                                    │  │
+  │ │  SATA x 4-8                                  │  │
+  │ │  USB Headers x multiple                      │  │
   │ │                                              │  │
   │ └──────────────────────────────────────────────┘  │
-  │ → 最も一般的、拡張性最高                           │
+  │ → Most common, highest expandability               │
   └────────────────────────────────────────────────────┘
 
   ┌──────────────────────────────────────────┐
-  │ Micro-ATX (244 × 244 mm)                │
+  │ Micro-ATX (244 x 244 mm)                │
   │ ┌──────────────────────────────────┐    │
-  │ │  PCIe x16 × 1-2                  │    │
-  │ │  M.2 × 1-2                       │    │
-  │ │  DIMM × 2-4                      │    │
-  │ │  SATA × 4-6                      │    │
+  │ │  PCIe x16 x 1-2                  │    │
+  │ │  M.2 x 1-2                       │    │
+  │ │  DIMM x 2-4                      │    │
+  │ │  SATA x 4-6                      │    │
   │ └──────────────────────────────────┘    │
-  │ → コスパ重視、程よいサイズ              │
+  │ → Cost-effective, moderate size          │
   └──────────────────────────────────────────┘
 
   ┌────────────────────────────────┐
-  │ Mini-ITX (170 × 170 mm)       │
+  │ Mini-ITX (170 x 170 mm)       │
   │ ┌──────────────────────┐      │
-  │ │  PCIe x16 × 1        │      │
-  │ │  M.2 × 1-2           │      │
-  │ │  DIMM × 2            │      │
-  │ │  SATA × 2-4          │      │
+  │ │  PCIe x16 x 1        │      │
+  │ │  M.2 x 1-2           │      │
+  │ │  DIMM x 2            │      │
+  │ │  SATA x 2-4          │      │
   │ └──────────────────────┘      │
-  │ → 小型PC、HTPC向け            │
+  │ → Small PCs, HTPCs             │
   └────────────────────────────────┘
 
-  サーバー向け:
+  Server Form Factors:
   ┌────────────────────────────────────────────────────────┐
-  │ E-ATX (305 × 330 mm)                                   │
-  │ → デュアルソケット対応、DIMM × 8-16                     │
+  │ E-ATX (305 x 330 mm)                                   │
+  │ → Dual-socket support, DIMM x 8-16                     │
   │                                                         │
-  │ EEB (305 × 330 mm)                                     │
-  │ → サーバー標準、多数のPCIeスロット                       │
+  │ EEB (305 x 330 mm)                                     │
+  │ → Server standard, numerous PCIe slots                  │
   │                                                         │
   │ OCP (Open Compute Project)                              │
-  │ → データセンター向けオープン規格                          │
+  │ → Open standard for data centers                        │
   └────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 2. バスの種類と進化
+## 2. Bus Types and Evolution
 
-### 2.1 バスの歴史
+### 2.1 Bus History
 
-| 規格 | 年代 | 帯域幅 | 特徴 |
+| Standard | Era | Bandwidth | Characteristics |
 |------|------|--------|------|
-| ISA | 1981 | 8 MB/s | IBM PC初期のバス |
-| PCI | 1992 | 133 MB/s | 共有バス、プラグ&プレイ |
-| AGP | 1997 | 2.1 GB/s | GPU専用バス |
-| PCI Express 1.0 | 2003 | 250 MB/s/lane | ポイントtoポイント、レーン制 |
-| PCIe 2.0 | 2007 | 500 MB/s/lane | 帯域2倍 |
-| PCIe 3.0 | 2010 | 985 MB/s/lane | 128b/130bエンコーディング |
-| PCIe 4.0 | 2017 | 1,969 MB/s/lane | NVMe SSDの標準 |
-| PCIe 5.0 | 2019 | 3,938 MB/s/lane | サーバー、ハイエンド |
-| PCIe 6.0 | 2022 | 7,877 MB/s/lane | PAM4、FEC必須 |
-| PCIe 7.0 | 2025 | 15,754 MB/s/lane | 策定中 |
+| ISA | 1981 | 8 MB/s | Early IBM PC bus |
+| PCI | 1992 | 133 MB/s | Shared bus, Plug & Play |
+| AGP | 1997 | 2.1 GB/s | GPU-dedicated bus |
+| PCI Express 1.0 | 2003 | 250 MB/s/lane | Point-to-point, lane-based |
+| PCIe 2.0 | 2007 | 500 MB/s/lane | 2x bandwidth |
+| PCIe 3.0 | 2010 | 985 MB/s/lane | 128b/130b encoding |
+| PCIe 4.0 | 2017 | 1,969 MB/s/lane | Standard for NVMe SSDs |
+| PCIe 5.0 | 2019 | 3,938 MB/s/lane | Server, high-end |
+| PCIe 6.0 | 2022 | 7,877 MB/s/lane | PAM4, FEC required |
+| PCIe 7.0 | 2025 | 15,754 MB/s/lane | Under development |
 
-### 2.2 PCIe の構造
+### 2.2 PCIe Structure
 
 ```
-PCIe レーン構成:
+PCIe Lane Configurations:
 
-  PCIe x1:  ──→  1レーン  =  3.9 GB/s (PCIe 5.0)
-  PCIe x4:  ────→ 4レーン  = 15.8 GB/s (NVMe SSD)
-  PCIe x8:  ────────→ 8レーン  = 31.5 GB/s
-  PCIe x16: ────────────────→ 16レーン = 63.0 GB/s (GPU)
+  PCIe x1:  ──→  1 lane  =  3.9 GB/s (PCIe 5.0)
+  PCIe x4:  ────→ 4 lanes = 15.8 GB/s (NVMe SSD)
+  PCIe x8:  ────────→ 8 lanes  = 31.5 GB/s
+  PCIe x16: ────────────────→ 16 lanes = 63.0 GB/s (GPU)
 
-  各レーンは独立した送受信ペア（差動信号）:
+  Each lane is an independent transmit/receive pair (differential signaling):
   ┌──────┐         ┌──────┐
-  │ CPU  │ ──TX──→ │ GPU  │  送信
-  │      │ ←──RX── │      │  受信
+  │ CPU  │ ──TX──→ │ GPU  │  Transmit
+  │      │ ←──RX── │      │  Receive
   └──────┘         └──────┘
-  → 全二重通信（同時送受信）
+  → Full-duplex communication (simultaneous send/receive)
 ```
 
-### 2.3 PCIe の詳細技術
+### 2.3 PCIe Technical Details
 
 ```
-PCIeのプロトコル層:
+PCIe Protocol Layers:
 
   ┌─────────────────────────────────────┐
-  │ トランザクション層 (TLP)             │
-  │ - メモリ読み/書き、I/O、設定         │
-  │ - パケットベースの通信               │
-  │ - フロー制御（クレジットベース）      │
+  │ Transaction Layer (TLP)             │
+  │ - Memory read/write, I/O, config   │
+  │ - Packet-based communication       │
+  │ - Flow control (credit-based)      │
   ├─────────────────────────────────────┤
-  │ データリンク層 (DLLP)                │
-  │ - CRCによるエラー検出                │
-  │ - ACK/NAKによる再送制御              │
-  │ - フロー制御情報の送受信             │
+  │ Data Link Layer (DLLP)             │
+  │ - Error detection via CRC          │
+  │ - Retransmission via ACK/NAK      │
+  │ - Flow control information exchange│
   ├─────────────────────────────────────┤
-  │ 物理層                               │
-  │ - 差動信号ペア                       │
-  │ - エンコーディング                   │
-  │   PCIe 1.0-2.0: 8b/10b (20%オーバーヘッド) │
-  │   PCIe 3.0-5.0: 128b/130b (1.5%オーバーヘッド) │
-  │   PCIe 6.0-7.0: PAM4 + FEC          │
-  │ - レーン幅: x1, x2, x4, x8, x16    │
+  │ Physical Layer                      │
+  │ - Differential signal pairs        │
+  │ - Encoding                         │
+  │   PCIe 1.0-2.0: 8b/10b (20% overhead)     │
+  │   PCIe 3.0-5.0: 128b/130b (1.5% overhead) │
+  │   PCIe 6.0-7.0: PAM4 + FEC        │
+  │ - Lane widths: x1, x2, x4, x8, x16│
   └─────────────────────────────────────┘
 
-PCIe世代ごとの帯域幅計算:
+Bandwidth Calculation by PCIe Generation:
 
   PCIe 3.0 x4 (NVMe SSD):
-    転送レート: 8 GT/s × 4レーン = 32 GT/s
-    エンコーディング: 128b/130b
-    実効帯域幅: 32 × (128/130) / 8 = 3.938 GB/s
-    → 約3.9 GB/s（片方向）
+    Transfer rate: 8 GT/s x 4 lanes = 32 GT/s
+    Encoding: 128b/130b
+    Effective bandwidth: 32 x (128/130) / 8 = 3.938 GB/s
+    → Approximately 3.9 GB/s (unidirectional)
 
   PCIe 5.0 x16 (GPU):
-    転送レート: 32 GT/s × 16レーン = 512 GT/s
-    エンコーディング: 128b/130b
-    実効帯域幅: 512 × (128/130) / 8 = 63.0 GB/s
-    → 約63 GB/s（片方向）、双方向で126 GB/s
+    Transfer rate: 32 GT/s x 16 lanes = 512 GT/s
+    Encoding: 128b/130b
+    Effective bandwidth: 512 x (128/130) / 8 = 63.0 GB/s
+    → Approximately 63 GB/s (unidirectional), 126 GB/s bidirectional
 
   PCIe 6.0 x16:
-    転送レート: 64 GT/s × 16レーン = 1024 GT/s
-    変調方式: PAM4（2ビット/シンボル）
-    FECオーバーヘッド: 約3%
-    実効帯域幅: 約121 GB/s（片方向）
+    Transfer rate: 64 GT/s x 16 lanes = 1024 GT/s
+    Modulation: PAM4 (2 bits/symbol)
+    FEC overhead: approximately 3%
+    Effective bandwidth: approximately 121 GB/s (unidirectional)
 ```
 
-### 2.4 PCIeレーン配分の実例
+### 2.4 PCIe Lane Allocation Examples
 
 ```
-Intel 14th Gen (Raptor Lake) のPCIeレーン配分:
+Intel 14th Gen (Raptor Lake) PCIe Lane Allocation:
 
-  CPU直結レーン（合計20レーン + 4 DMI）:
+  CPU-Direct Lanes (total 20 lanes + 4 DMI):
   ┌─────────────────────────────────────────┐
   │ CPU                                      │
   │ ├── PCIe 5.0 x16 → GPU                  │
-  │ ├── PCIe 4.0 x4  → M.2 SSD (1番目)     │
+  │ ├── PCIe 4.0 x4  → M.2 SSD (1st)       │
   │ └── DMI 4.0 x4   → PCH                  │
   └─────────────────────────────────────────┘
 
-  PCH (Z790) レーン（合計28レーン）:
+  PCH (Z790) Lanes (total 28 lanes):
   ┌─────────────────────────────────────────┐
   │ PCH (Z790)                               │
-  │ ├── PCIe 4.0 x4 → M.2 SSD (2番目)      │
-  │ ├── PCIe 3.0 x4 → M.2 SSD (3番目)      │
-  │ ├── PCIe 3.0 x16 → 拡張スロット         │
-  │ ├── SATA × 8                             │
-  │ ├── USB 3.2 × 5                          │
-  │ ├── USB 2.0 × 14                        │
+  │ ├── PCIe 4.0 x4 → M.2 SSD (2nd)        │
+  │ ├── PCIe 3.0 x4 → M.2 SSD (3rd)        │
+  │ ├── PCIe 3.0 x16 → Expansion Slots      │
+  │ ├── SATA x 8                             │
+  │ ├── USB 3.2 x 5                          │
+  │ ├── USB 2.0 x 14                        │
   │ ├── Ethernet                             │
-  │ └── Audio, Wi-Fi 等                      │
+  │ └── Audio, Wi-Fi, etc.                   │
   └─────────────────────────────────────────┘
 
-  注意: PCHのレーンは共有リソース
-  → M.2 SSDを使うとSATAポートが無効化されることがある
-  → マザーボードのマニュアルで帯域共有を確認する必要あり
+  Note: PCH lanes are shared resources
+  → Using an M.2 SSD may disable certain SATA ports
+  → Check the motherboard manual for bandwidth sharing details
 
-AMD Ryzen 7000 (AM5) のPCIeレーン配分:
+AMD Ryzen 7000 (AM5) PCIe Lane Allocation:
 
-  CPU直結レーン（合計28レーン + 4 GMI）:
+  CPU-Direct Lanes (total 28 lanes + 4 GMI):
   ┌─────────────────────────────────────────┐
   │ CPU                                      │
   │ ├── PCIe 5.0 x16 → GPU                  │
-  │ ├── PCIe 5.0 x4  → M.2 SSD (1番目)     │
-  │ ├── PCIe 4.0 x4  → M.2 SSD (2番目)     │
-  │ ├── USB4 × 2                             │
-  │ └── GMI → チップセット                   │
+  │ ├── PCIe 5.0 x4  → M.2 SSD (1st)       │
+  │ ├── PCIe 4.0 x4  → M.2 SSD (2nd)       │
+  │ ├── USB4 x 2                             │
+  │ └── GMI → Chipset                        │
   └─────────────────────────────────────────┘
-  → AMD はCPU直結レーンが多く、GPU分岐（x8+x8）も可能
+  → AMD provides more CPU-direct lanes, GPU bifurcation (x8+x8) also possible
 ```
 
-### 2.5 PCIeの電力供給
+### 2.5 PCIe Power Delivery
 
 ```
-PCIeスロットの電力供給能力:
+PCIe Slot Power Delivery Capability:
 
-  │ スロット │ PCIe 3.0 │ PCIe 4.0 │ PCIe 5.0 │ PCIe 6.0 │
+  │ Slot     │ PCIe 3.0 │ PCIe 4.0 │ PCIe 5.0 │ PCIe 6.0 │
   │──────────│──────────│──────────│──────────│──────────│
   │ x1       │ 10W      │ 10W      │ 10W      │ 10W      │
   │ x4       │ 25W      │ 25W      │ 25W      │ 25W      │
   │ x8       │ 25W      │ 25W      │ 25W      │ 25W      │
   │ x16      │ 75W      │ 75W      │ 75W      │ 75W      │
 
-  GPU の追加電力供給:
+  Additional GPU Power Supply:
   ┌─────────────────────────────────────────────┐
-  │ コネクタ          │ 電力    │ 使用例         │
+  │ Connector           │ Power   │ Use Case     │
   │───────────────────│─────────│────────────────│
-  │ PCIeスロットのみ   │ 75W    │ ローエンドGPU  │
-  │ + 6ピン ×1        │ 150W   │ ミドルレンジ    │
-  │ + 8ピン ×1        │ 225W   │ ハイエンド      │
-  │ + 8ピン ×2        │ 375W   │ RTX 3090等     │
-  │ 12VHPWR (600W)    │ 675W   │ RTX 4090       │
-  │ 12V-2×6 (600W)    │ 675W   │ RTX 50系列     │
+  │ PCIe slot only      │ 75W    │ Low-end GPU    │
+  │ + 6-pin x1          │ 150W   │ Mid-range      │
+  │ + 8-pin x1          │ 225W   │ High-end       │
+  │ + 8-pin x2          │ 375W   │ RTX 3090, etc. │
+  │ 12VHPWR (600W)      │ 675W   │ RTX 4090       │
+  │ 12V-2x6 (600W)      │ 675W   │ RTX 50 series  │
   └─────────────────────────────────────────────┘
 
-  12VHPWR コネクタ（PCIe 5.0電源コネクタ）:
-  - 16ピン（12ピン電力 + 4ピンセンス）
-  - 最大600W供給可能
-  - ケーブル接続不良による溶融問題が報告あり（Gen5時代の課題）
+  12VHPWR Connector (PCIe 5.0 Power Connector):
+  - 16-pin (12-pin power + 4-pin sense)
+  - Capable of delivering up to 600W
+  - Cable connection issues causing melting have been reported (Gen5-era challenge)
 ```
 
 ---
 
-## 3. USB規格
+## 3. USB Standards
 
-### 3.1 USB規格比較
+### 3.1 USB Standard Comparison
 
-| 規格 | 年 | 速度 | 電力供給 | コネクタ |
+| Standard | Year | Speed | Power Delivery | Connector |
 |------|-----|------|---------|---------|
 | USB 1.1 | 1998 | 12 Mbps | 2.5W | Type-A/B |
 | USB 2.0 | 2000 | 480 Mbps | 2.5W | Type-A/B |
-| USB 3.0 | 2008 | 5 Gbps | 4.5W | Type-A(青)/B |
+| USB 3.0 | 2008 | 5 Gbps | 4.5W | Type-A (blue)/B |
 | USB 3.1 Gen2 | 2013 | 10 Gbps | 100W (PD) | Type-C |
 | USB 3.2 Gen2x2 | 2017 | 20 Gbps | 100W (PD) | Type-C |
 | USB4 v1 | 2019 | 40 Gbps | 100W (PD) | Type-C |
 | USB4 v2 | 2022 | 80 Gbps | 240W (EPR) | Type-C |
 | Thunderbolt 5 | 2024 | 120 Gbps | 240W | Type-C |
 
-### 3.2 USB Type-C の統一
+### 3.2 USB Type-C Unification
 
 ```
-USB Type-Cコネクタ（24ピン）:
+USB Type-C Connector (24-pin):
 
   ┌─────────────────────────────────┐
-  │ ● ● ● ● ● ● ● ● ● ● ● ● │ 上段12ピン
-  │ ● ● ● ● ● ● ● ● ● ● ● ● │ 下段12ピン
+  │ ● ● ● ● ● ● ● ● ● ● ● ● │ Upper row: 12 pins
+  │ ● ● ● ● ● ● ● ● ● ● ● ● │ Lower row: 12 pins
   └─────────────────────────────────┘
 
-  リバーシブル: どちら向きでも挿せる
-  統合: USB、Thunderbolt、DisplayPort、電力供給を1本で
+  Reversible: Can be inserted in either orientation
+  Unified: USB, Thunderbolt, DisplayPort, and power delivery in a single cable
 
-  ただし注意: Type-Cコネクタ ≠ USB4
-  → 見た目は同じType-Cでも、USB 2.0の速度しか出ないケーブルもある
-  → ケーブル/デバイスの仕様確認が重要
+  Important caveat: Type-C connector ≠ USB4
+  → Cables with the same Type-C appearance may only support USB 2.0 speeds
+  → Always verify cable/device specifications
 ```
 
-### 3.3 USB Power Delivery (PD) の詳細
+### 3.3 USB Power Delivery (PD) Details
 
 ```
-USB PD の電圧・電流の組み合わせ:
+USB PD Voltage and Current Combinations:
 
   USB PD 3.1 (SPR: Standard Power Range):
-  │ 電圧    │ 最大電流 │ 最大電力 │ 用途              │
-  │─────────│──────────│──────────│───────────────────│
-  │ 5V      │ 3A       │ 15W      │ スマホ充電         │
-  │ 9V      │ 3A       │ 27W      │ タブレット充電     │
-  │ 15V     │ 3A       │ 45W      │ 薄型ノートPC       │
-  │ 20V     │ 3A       │ 60W      │ 標準ノートPC       │
-  │ 20V     │ 5A       │ 100W     │ 高性能ノートPC     │
+  │ Voltage │ Max Current │ Max Power │ Use Case            │
+  │─────────│─────────────│───────────│─────────────────────│
+  │ 5V      │ 3A          │ 15W       │ Smartphone charging │
+  │ 9V      │ 3A          │ 27W       │ Tablet charging     │
+  │ 15V     │ 3A          │ 45W       │ Thin laptops        │
+  │ 20V     │ 3A          │ 60W       │ Standard laptops    │
+  │ 20V     │ 5A          │ 100W      │ High-performance laptops │
 
   USB PD 3.1 (EPR: Extended Power Range):
-  │ 電圧    │ 最大電流 │ 最大電力 │ 用途              │
-  │─────────│──────────│──────────│───────────────────│
-  │ 28V     │ 5A       │ 140W     │ ゲーミングノート   │
-  │ 36V     │ 5A       │ 180W     │ モバイルワークステーション│
-  │ 48V     │ 5A       │ 240W     │ 高性能デバイス     │
+  │ Voltage │ Max Current │ Max Power │ Use Case            │
+  │─────────│─────────────│───────────│─────────────────────│
+  │ 28V     │ 5A          │ 140W      │ Gaming laptops      │
+  │ 36V     │ 5A          │ 180W      │ Mobile workstations │
+  │ 48V     │ 5A          │ 240W      │ High-performance devices │
 
-  PD ネゴシエーション:
+  PD Negotiation:
   ┌──────────┐                    ┌──────────┐
-  │ 充電器   │ ── CC Line ──→   │ デバイス  │
+  │ Charger  │ ── CC Line ──→   │ Device   │
   │ (Source) │ ← USB PD Message │ (Sink)   │
   └──────────┘                    └──────────┘
 
-  1. デバイスが充電器に接続
-  2. CCライン（Configuration Channel）で通信開始
-  3. 充電器が対応電圧・電流を通知（Source Capabilities）
-  4. デバイスが希望する電圧・電流を要求（Request）
-  5. 充電器が承認 → 電圧切り替え
-  → 全て自動、ユーザー操作不要
+  1. Device connects to charger
+  2. Communication begins over CC line (Configuration Channel)
+  3. Charger advertises supported voltages/currents (Source Capabilities)
+  4. Device requests desired voltage/current (Request)
+  5. Charger approves → Voltage switches
+  → Fully automatic, no user action required
 ```
 
-### 3.4 USB の内部プロトコル
+### 3.4 USB Internal Protocol
 
 ```
-USB のデータ転送タイプ:
+USB Data Transfer Types:
 
-  ■ コントロール転送
-    - デバイス設定、ステータス取得
-    - 双方向、小サイズ
-    - 全USBデバイスが使用
+  ■ Control Transfer
+    - Device configuration, status retrieval
+    - Bidirectional, small size
+    - Used by all USB devices
 
-  ■ バルク転送
-    - 大量データ転送（ストレージ、プリンタ）
-    - 帯域保証なし、エラー訂正あり
-    - 空き帯域を最大限活用
+  ■ Bulk Transfer
+    - Large data transfers (storage, printers)
+    - No bandwidth guarantee, error correction included
+    - Utilizes available bandwidth to the maximum
 
-  ■ アイソクロナス転送
-    - リアルタイムデータ（音声、動画）
-    - 帯域保証あり、エラー訂正なし
-    - 遅延より連続性を重視
+  ■ Isochronous Transfer
+    - Real-time data (audio, video)
+    - Bandwidth guaranteed, no error correction
+    - Prioritizes continuity over latency
 
-  ■ インタラプト転送
-    - 少量の定期データ（キーボード、マウス）
-    - ポーリング間隔保証
-    - 低レイテンシ
+  ■ Interrupt Transfer
+    - Small periodic data (keyboard, mouse)
+    - Polling interval guaranteed
+    - Low latency
 
-USB 3.0以降の物理層:
+USB 3.0+ Physical Layer:
   ┌─────────────────────────────────────────┐
-  │ USB 2.0 ペア (D+/D-): 480 Mbps          │ ← 後方互換
-  │ USB 3.0 TX ペア:       5 Gbps            │ ← 追加
-  │ USB 3.0 RX ペア:       5 Gbps            │ ← 追加
+  │ USB 2.0 pair (D+/D-):  480 Mbps        │ ← Backward compatible
+  │ USB 3.0 TX pair:       5 Gbps          │ ← Added
+  │ USB 3.0 RX pair:       5 Gbps          │ ← Added
   └─────────────────────────────────────────┘
-  → USB 3.0以降はUSB 2.0信号線も同時搭載（互換性維持）
-  → Type-Cケーブルでは更にCC、SBU、VBUS等のピンが追加
+  → USB 3.0+ includes USB 2.0 signal lines as well (maintaining compatibility)
+  → Type-C cables add additional pins including CC, SBU, VBUS, etc.
 ```
 
 ---
 
-## 4. ブートプロセス
+## 4. Boot Process
 
-### 4.1 電源投入からOS起動まで
+### 4.1 From Power-On to OS Boot
 
 ```
-ブートプロセスの全段階:
+Complete Boot Process Stages:
 
   ┌──────────────┐
-  │ 1. 電源投入   │ ← 電源ユニットがPower Good信号を送出
+  │ 1. Power On   │ ← PSU sends Power Good signal
   └──────┬───────┘
          ▼
   ┌──────────────┐
-  │ 2. リセット   │ ← CPUのリセットベクタ（0xFFFFFFF0）にジャンプ
+  │ 2. Reset      │ ← CPU jumps to reset vector (0xFFFFFFF0)
   └──────┬───────┘
          ▼
   ┌──────────────┐
-  │ 3. BIOS/UEFI │ ← SPIフラッシュからファームウェアをロード
-  │    初期化    │    CPUキャッシュをRAMとして一時使用（CAR）
+  │ 3. BIOS/UEFI │ ← Firmware loaded from SPI flash
+  │    Init      │    CPU cache used as temporary RAM (CAR)
   └──────┬───────┘
          ▼
   ┌──────────────┐
   │ 4. POST      │ ← Power-On Self Test
-  │    (自己診断)│    メモリ検出、デバイス初期化、エラーチェック
-  └──────┬───────┘    ビープ音でエラー通知（メモリなし=連続ビープ等）
+  │  (Self-Test) │    Memory detection, device init, error checking
+  └──────┬───────┘    Beep codes for errors (no memory = continuous beep, etc.)
          ▼
   ┌──────────────┐
-  │ 5. ブート     │ ← ブートデバイスを検索（NVMe→USB→Network）
-  │    デバイス   │    UEFI: ESP (EFI System Partition) を探す
-  │    選択      │    BIOS: MBRの先頭512バイトを読む
+  │ 5. Boot      │ ← Searches for boot device (NVMe→USB→Network)
+  │    Device    │    UEFI: Searches for ESP (EFI System Partition)
+  │    Selection │    BIOS: Reads first 512 bytes of MBR
   └──────┬───────┘
          ▼
   ┌──────────────┐
-  │ 6. ブート     │ ← GRUB, systemd-boot, Windows Boot Manager等
-  │    ローダー  │    カーネルイメージとinitramfsをメモリにロード
+  │ 6. Boot      │ ← GRUB, systemd-boot, Windows Boot Manager, etc.
+  │    Loader    │    Loads kernel image and initramfs into memory
   └──────┬───────┘
          ▼
   ┌──────────────┐
-  │ 7. カーネル   │ ← ハードウェア初期化、ドライバーロード
-  │    初期化    │    ルートファイルシステムのマウント
+  │ 7. Kernel    │ ← Hardware initialization, driver loading
+  │    Init      │    Root filesystem mount
   └──────┬───────┘
          ▼
   ┌──────────────┐
-  │ 8. init/     │ ← systemd (PID 1) がサービスを起動
-  │    systemd   │    ネットワーク、ログ、GUI等
+  │ 8. init/     │ ← systemd (PID 1) starts services
+  │    systemd   │    Network, logging, GUI, etc.
   └──────┬───────┘
          ▼
   ┌──────────────┐
-  │ 9. ログイン   │ ← ユーザーの操作可能状態
+  │ 9. Login     │ ← System ready for user interaction
   └──────────────┘
 
-  所要時間: 数秒（NVMe + UEFI + SSD）〜数分（HDD + BIOS）
+  Duration: A few seconds (NVMe + UEFI + SSD) to several minutes (HDD + BIOS)
 ```
 
 ### 4.2 BIOS vs UEFI
 
-| 項目 | BIOS (Legacy) | UEFI |
+| Item | BIOS (Legacy) | UEFI |
 |------|-------------|------|
-| 策定 | 1975年 (IBM PC) | 2007年 (Intel主導) |
-| インターフェース | テキストベース | GUIサポート |
-| ブートドライバ | 16ビット | 64ビット |
-| パーティション | MBR (最大2TB) | GPT (最大8ZB) |
-| セキュリティ | なし | Secure Boot |
-| 起動速度 | 遅い | 高速 |
-| ネットワーク | なし | PXEブート標準 |
+| Established | 1975 (IBM PC) | 2007 (Intel-led) |
+| Interface | Text-based | GUI support |
+| Boot Driver | 16-bit | 64-bit |
+| Partitioning | MBR (max 2TB) | GPT (max 8ZB) |
+| Security | None | Secure Boot |
+| Boot Speed | Slow | Fast |
+| Networking | None | PXE boot standard |
 
-### 4.3 UEFI の詳細
+### 4.3 UEFI Details
 
 ```
-UEFI ブートの詳細フロー:
+UEFI Boot Detailed Flow:
 
   1. SEC (Security Phase)
-     - CPUの初期化（マイクロコード適用）
-     - 一時RAM（CAR: Cache As RAM）の設定
-     - セキュリティ検証の開始
+     - CPU initialization (microcode application)
+     - Temporary RAM setup (CAR: Cache As RAM)
+     - Security verification begins
 
   2. PEI (Pre-EFI Initialization)
-     - メモリコントローラの初期化
-     - DRAM トレーニング（タイミング最適化）
-     - 実RAMが使用可能に
+     - Memory controller initialization
+     - DRAM training (timing optimization)
+     - Physical RAM becomes available
 
   3. DXE (Driver Execution Environment)
-     - デバイスドライバのロード
-     - プロトコルの初期化
-     - PCI/PCIeデバイスの列挙
+     - Device driver loading
+     - Protocol initialization
+     - PCI/PCIe device enumeration
 
   4. BDS (Boot Device Selection)
-     - ブートオプションの列挙
-     - ESP（EFI System Partition）の探索
-     - ユーザー選択またはデフォルトでブート
+     - Boot option enumeration
+     - ESP (EFI System Partition) discovery
+     - Boot via user selection or default
 
   5. TSL (Transient System Load)
-     - ブートローダーの実行
-     - OS カーネルのロード
+     - Boot loader execution
+     - OS kernel loading
 
   6. RT (Runtime)
-     - OS実行中もUEFIランタイムサービスが利用可能
-     - 時計、変数ストア、電源管理等
+     - UEFI runtime services remain available during OS execution
+     - Clock, variable store, power management, etc.
 
-ESP（EFI System Partition）の構造:
-  /boot/efi/ (FAT32, 通常 100-500MB)
+ESP (EFI System Partition) Structure:
+  /boot/efi/ (FAT32, typically 100-500MB)
   ├── EFI/
   │   ├── BOOT/
-  │   │   └── BOOTX64.EFI    ← デフォルトブートエントリ
+  │   │   └── BOOTX64.EFI    ← Default boot entry
   │   ├── ubuntu/
-  │   │   └── grubx64.efi    ← Ubuntu のGRUB
+  │   │   └── grubx64.efi    ← Ubuntu's GRUB
   │   ├── Microsoft/
   │   │   └── Boot/
   │   │       └── bootmgfw.efi ← Windows Boot Manager
   │   └── fedora/
-  │       └── shimx64.efi    ← Fedora（Secure Boot対応）
+  │       └── shimx64.efi    ← Fedora (Secure Boot compatible)
   └── ...
 
 Secure Boot:
   ┌──────────────────────────────────────────────┐
-  │ 信頼チェーン:                                  │
+  │ Chain of Trust:                                │
   │                                                │
   │ Platform Key (PK)                              │
   │   └── Key Exchange Key (KEK)                   │
-  │       └── db (許可された署名のデータベース)     │
-  │           └── ブートローダーの署名を検証        │
-  │               └── カーネルの署名を検証          │
+  │       └── db (database of allowed signatures)  │
+  │           └── Verify boot loader signature     │
+  │               └── Verify kernel signature      │
   │                                                │
-  │ → 未署名のコードはブート時に実行不可            │
-  │ → マルウェアの早期検出                         │
+  │ → Unsigned code cannot execute at boot time    │
+  │ → Early detection of malware                   │
   └──────────────────────────────────────────────┘
 ```
 
 ```bash
-# UEFI関連の確認コマンド（Linux）
+# UEFI-related commands (Linux)
 
-# ブートエントリの一覧
+# List boot entries
 efibootmgr -v
 
-# ブート順序の変更
+# Change boot order
 sudo efibootmgr -o 0001,0002,0003
 
-# 新しいブートエントリの追加
+# Add a new boot entry
 sudo efibootmgr -c -d /dev/nvme0n1 -p 1 \
     -l /EFI/ubuntu/grubx64.efi -L "Ubuntu"
 
-# Secure Bootの状態確認
+# Check Secure Boot status
 mokutil --sb-state
 
-# UEFI変数の表示
+# Display UEFI variables
 ls /sys/firmware/efi/efivars/
 
-# systemdのブート時間分析
+# Analyze boot time with systemd
 systemd-analyze
 systemd-analyze blame | head -20
 systemd-analyze plot > boot.svg
 
-# dmesg でブートログ確認
+# Check boot log with dmesg
 dmesg | head -100
 ```
 
 ---
 
-## 5. チップセットアーキテクチャ
+## 5. Chipset Architecture
 
-### 5.1 進化の歴史
+### 5.1 History of Evolution
 
 ```
-旧式（2000年代）:
+Legacy (2000s era):
   ┌─────┐   FSB    ┌───────────┐   ┌──────┐
-  │ CPU │←────────→│ノースブリッジ│──→│ GPU  │
+  │ CPU │←────────→│Northbridge │──→│ GPU  │
   └─────┘          │(MCH)       │   └──────┘
                    └──────┬────┘
                           │
                    ┌──────┴────┐
-                   │サウスブリッジ│──→ USB, SATA, Audio
+                   │Southbridge │──→ USB, SATA, Audio
                    │(ICH)       │
                    └───────────┘
 
-現代（2020年代）:
+Modern (2020s):
   ┌──────────────────────┐
   │        CPU            │
   │  ┌──────────────────┐│
-  │  │ メモリコントローラ ││──→ DDR5 RAM
-  │  │ PCIe コントローラ  ││──→ GPU (PCIe x16)
+  │  │ Memory Controller ││──→ DDR5 RAM
+  │  │ PCIe Controller   ││──→ GPU (PCIe x16)
   │  │                    ││──→ NVMe (PCIe x4)
   │  └──────────────────┘│
   └──────────┬───────────┘
-             │ DMI 4.0 (〜8GB/s)
+             │ DMI 4.0 (~8GB/s)
              ▼
   ┌──────────────────────┐
   │   PCH (Platform      │
   │   Controller Hub)    │──→ USB, SATA, Audio
   │                      │──→ Wi-Fi, Ethernet
-  │                      │──→ 追加PCIeレーン
+  │                      │──→ Additional PCIe lanes
   └──────────────────────┘
 
-  進化: ノースブリッジ機能がCPUに統合
-  → メモリアクセスの高速化（バスのボトルネック除去）
-  → GPU接続の低レイテンシ化
+  Evolution: Northbridge functions integrated into CPU
+  → Faster memory access (bus bottleneck eliminated)
+  → Lower latency GPU connection
 ```
 
-### 5.2 Intel vs AMD チップセット比較
+### 5.2 Intel vs AMD Chipset Comparison
 
 ```
-Intel Z790 vs AMD X670E チップセット比較:
+Intel Z790 vs AMD X670E Chipset Comparison:
 
-  │ 機能              │ Z790         │ X670E         │
-  │───────────────────│──────────────│───────────────│
-  │ CPU-PCH接続       │ DMI 4.0 x4   │ GMI（独自）   │
-  │ CPU直結PCIe 5.0   │ x16 + x4     │ x16 + x4 + x4│
-  │ CPU直結PCIe 4.0   │ x4           │ なし          │
-  │ PCH PCIe 4.0      │ x12          │ x12           │
-  │ PCH PCIe 3.0      │ x16          │ x8            │
-  │ USB 3.2 Gen2x2    │ 5            │ 6             │
-  │ USB4               │ なし         │ 2（CPU直結）  │
-  │ SATA               │ 8            │ 8             │
-  │ DDRサポート        │ DDR4/DDR5    │ DDR5のみ      │
-  │ OC対応             │ 対応         │ 対応          │
+  │ Feature             │ Z790         │ X670E         │
+  │─────────────────────│──────────────│───────────────│
+  │ CPU-PCH Link        │ DMI 4.0 x4   │ GMI (proprietary) │
+  │ CPU-direct PCIe 5.0 │ x16 + x4     │ x16 + x4 + x4│
+  │ CPU-direct PCIe 4.0 │ x4           │ None          │
+  │ PCH PCIe 4.0        │ x12          │ x12           │
+  │ PCH PCIe 3.0        │ x16          │ x8            │
+  │ USB 3.2 Gen2x2      │ 5            │ 6             │
+  │ USB4                 │ None         │ 2 (CPU-direct)│
+  │ SATA                 │ 8            │ 8             │
+  │ DDR Support          │ DDR4/DDR5    │ DDR5 only     │
+  │ OC Support           │ Supported    │ Supported     │
 
-  AMD X670E はチップセット自体が2チップ構成:
+  AMD X670E uses a dual-chip chipset configuration:
   ┌──────────┐     ┌──────────┐
   │ Promontory│────│ Promontory│
-  │ チップ1   │    │ チップ2   │
+  │ Chip 1    │    │ Chip 2    │
   └──────────┘     └──────────┘
-  → より多くのI/Oを提供するが、消費電力増
+  → Provides more I/O but increases power consumption
 ```
 
-### 5.3 DMI（Direct Media Interface）のボトルネック
+### 5.3 DMI (Direct Media Interface) Bottleneck
 
 ```
-DMIボトルネックの理解:
+Understanding the DMI Bottleneck:
 
-  CPU直結のPCIe: 高帯域・低レイテンシ
-  PCH経由のデバイス: DMIが帯域の上限
+  CPU-direct PCIe: High bandwidth, low latency
+  PCH-connected devices: DMI caps the bandwidth
 
-  DMI 4.0 x4 の帯域幅:
-  = PCIe 4.0 x4 = 約 8 GB/s
+  DMI 4.0 x4 bandwidth:
+  = PCIe 4.0 x4 = approximately 8 GB/s
 
-  PCH配下のデバイスが全て同時にアクセスすると:
-  NVMe SSD (PCH経由): 最大3.5 GB/s
-  + USB 3.2 Gen2 ×2: 2.5 GB/s
-  + 2.5G Ethernet: 0.3 GB/s
-  + SATA SSD ×2: 1.0 GB/s
-  合計: 7.3 GB/s → DMI帯域に収まるが余裕は少ない
+  When all PCH-attached devices access simultaneously:
+  NVMe SSD (via PCH):   max 3.5 GB/s
+  + USB 3.2 Gen2 x2:    2.5 GB/s
+  + 2.5G Ethernet:       0.3 GB/s
+  + SATA SSD x2:         1.0 GB/s
+  Total: 7.3 GB/s → Fits within DMI bandwidth but with little headroom
 
-  対策:
-  - 高帯域が必要なデバイス（GPU、プライマリNVMe）はCPU直結を選ぶ
-  - PCH経由のNVMe SSDは2番目以降のストレージに
-  - ネットワークカードをPCIeスロットに増設する場合も注意
+  Mitigation:
+  - Choose CPU-direct connections for high-bandwidth devices (GPU, primary NVMe)
+  - PCH-connected NVMe SSDs should be secondary storage
+  - Be cautious when adding network cards to PCIe slots
 ```
 
 ---
 
-## 6. メモリバスとDDR
+## 6. Memory Bus and DDR
 
-### 6.1 DDR世代の比較
+### 6.1 DDR Generation Comparison
 
 ```
-DDRメモリの世代比較:
+DDR Memory Generation Comparison:
 
-  │ 規格     │ 年    │ 転送レート  │ 帯域幅(1ch) │ 電圧  │
-  │──────────│───────│─────────────│─────────────│───────│
-  │ DDR3     │ 2007  │ 800-2133    │ 17 GB/s     │ 1.5V  │
-  │ DDR4     │ 2014  │ 2133-5333   │ 42.7 GB/s   │ 1.2V  │
-  │ DDR5     │ 2020  │ 4800-8800   │ 70.4 GB/s   │ 1.1V  │
-  │ DDR5 OC  │ 2024  │ 9200+       │ 73.6 GB/s   │ 1.35V │
+  │ Standard │ Year  │ Transfer Rate │ Bandwidth(1ch)│ Voltage │
+  │──────────│───────│───────────────│───────────────│─────────│
+  │ DDR3     │ 2007  │ 800-2133      │ 17 GB/s       │ 1.5V    │
+  │ DDR4     │ 2014  │ 2133-5333     │ 42.7 GB/s     │ 1.2V    │
+  │ DDR5     │ 2020  │ 4800-8800     │ 70.4 GB/s     │ 1.1V    │
+  │ DDR5 OC  │ 2024  │ 9200+         │ 73.6 GB/s     │ 1.35V   │
 
-  DDR5 の主な改良点:
+  Key DDR5 Improvements:
   ┌───────────────────────────────────────────────┐
   │ DDR4:                                          │
   │ ┌──────────────────────────────────────────┐  │
-  │ │ 1チャネル × 64ビット幅                    │  │
-  │ │ バースト長: 8                              │  │
-  │ │ バンクグループ: 4                          │  │
-  │ │ PMIC: マザーボード上                       │  │
+  │ │ 1 channel x 64-bit width                 │  │
+  │ │ Burst length: 8                           │  │
+  │ │ Bank groups: 4                            │  │
+  │ │ PMIC: On motherboard                      │  │
   │ └──────────────────────────────────────────┘  │
   │                                                │
   │ DDR5:                                          │
   │ ┌──────────────────────────────────────────┐  │
-  │ │ 2サブチャネル × 32ビット幅               │  │
-  │ │ バースト長: 16                             │  │
-  │ │ バンクグループ: 8                          │  │
-  │ │ PMIC: DIMM上（電圧調整がモジュール側に）  │  │
-  │ │ On-die ECC: 内蔵エラー訂正                │  │
+  │ │ 2 sub-channels x 32-bit width            │  │
+  │ │ Burst length: 16                          │  │
+  │ │ Bank groups: 8                            │  │
+  │ │ PMIC: On-DIMM (voltage regulation on module)│ │
+  │ │ On-die ECC: Built-in error correction     │  │
   │ └──────────────────────────────────────────┘  │
   │                                                │
-  │ → 2サブチャネルで帯域効率向上                   │
-  │ → PMICがモジュール上でクリーンな電力供給         │
+  │ → 2 sub-channels improve bandwidth efficiency  │
+  │ → On-module PMIC provides cleaner power supply │
   └───────────────────────────────────────────────┘
 
-デュアルチャネル vs シングルチャネル:
-  シングルチャネル: 1本のDIMM = 帯域幅 × 1
-  デュアルチャネル: 2本のDIMM = 帯域幅 × 2
-  クアッドチャネル: 4本のDIMM = 帯域幅 × 4（サーバー/HEDT）
-  オクタチャネル:   8本のDIMM = 帯域幅 × 8（サーバー）
+Dual-Channel vs Single-Channel:
+  Single-channel: 1 DIMM = bandwidth x 1
+  Dual-channel:   2 DIMMs = bandwidth x 2
+  Quad-channel:   4 DIMMs = bandwidth x 4 (server/HEDT)
+  Octa-channel:   8 DIMMs = bandwidth x 8 (server)
 
-  → iGPUを使う場合、デュアルチャネルでフレームレートが2倍近くになる場合も
-  → 常にデュアルチャネル構成（2枚または4枚）で組むべき
+  → When using an iGPU, dual-channel can nearly double frame rates
+  → Always configure in dual-channel (2 or 4 sticks)
 ```
 
 ---
 
-## 7. 最新トレンド
+## 7. Latest Trends
 
-### 7.1 CXL（Compute Express Link）
+### 7.1 CXL (Compute Express Link)
 
 ```
-CXL の3つのプロトコル:
+CXL's 3 Protocols:
 
-  CXL.io   — PCIeベースのデバイスI/O（レガシー互換）
-  CXL.cache — デバイスがホストメモリをキャッシュ
-  CXL.mem   — ホストがデバイスメモリにアクセス
+  CXL.io    — PCIe-based device I/O (legacy compatible)
+  CXL.cache — Device caches host memory
+  CXL.mem   — Host accesses device memory
 
-  応用例:
+  Use Cases:
   ┌──────┐        CXL        ┌──────────────────┐
-  │ CPU  │←──────────────────→│ CXL メモリ拡張    │
-  └──────┘                    │ (DRAM増設、       │
-                              │  不揮発メモリ)    │
+  │ CPU  │←──────────────────→│ CXL Memory       │
+  └──────┘                    │ Expansion        │
+                              │ (DRAM expansion, │
+                              │  persistent memory)│
                               └──────────────────┘
-  → RAMをサーバー間で共有（メモリプーリング）
-  → 従来不可能だったTB級メモリ空間を実現
+  → Share RAM across servers (memory pooling)
+  → Enables previously impossible TB-scale memory spaces
 
-CXL のバージョン:
-  │ バージョン │ 年   │ 帯域幅     │ 主な機能                │
-  │────────────│──────│────────────│─────────────────────────│
-  │ CXL 1.1    │ 2020 │ PCIe 5.0   │ メモリ拡張の基本        │
-  │ CXL 2.0    │ 2022 │ PCIe 5.0   │ メモリプーリング        │
-  │ CXL 3.0    │ 2023 │ PCIe 6.0   │ マルチレベルスイッチング│
-  │ CXL 3.1    │ 2024 │ PCIe 6.0   │ TSP（セキュリティ強化） │
+CXL Versions:
+  │ Version    │ Year │ Bandwidth  │ Key Features                 │
+  │────────────│──────│────────────│──────────────────────────────│
+  │ CXL 1.1    │ 2020 │ PCIe 5.0   │ Basic memory expansion       │
+  │ CXL 2.0    │ 2022 │ PCIe 5.0   │ Memory pooling               │
+  │ CXL 3.0    │ 2023 │ PCIe 6.0   │ Multi-level switching        │
+  │ CXL 3.1    │ 2024 │ PCIe 6.0   │ TSP (security enhancement)   │
 
-CXLのデータセンター活用:
-  従来: 各サーバーに固定量のDRAM
+CXL in Data Centers:
+  Conventional: Fixed DRAM per server
   ┌──────┐ ┌──────┐ ┌──────┐
-  │128GB │ │256GB │ │64GB  │  ← メモリの無駄が発生
+  │128GB │ │256GB │ │64GB  │  ← Memory waste occurs
   │(50%  │ │(30%  │ │(90%  │
-  │使用) │ │使用) │ │使用) │
+  │used) │ │used) │ │used) │
   └──────┘ └──────┘ └──────┘
 
-  CXL: メモリプール共有
+  CXL: Shared memory pool
   ┌──────┐ ┌──────┐ ┌──────┐
   │CPU 1 │ │CPU 2 │ │CPU 3 │
   └──┬───┘ └──┬───┘ └──┬───┘
      │        │        │
   ┌──┴────────┴────────┴──┐
-  │   CXL メモリプール     │
-  │   合計: 448GB          │
-  │   各CPUが必要な分だけ使用│
+  │   CXL Memory Pool      │
+  │   Total: 448GB         │
+  │   Each CPU uses only   │
+  │   what it needs        │
   └────────────────────────┘
-  → メモリ利用率の大幅向上（TCO削減）
+  → Significant improvement in memory utilization (TCO reduction)
 ```
 
-### 7.2 チップレットアーキテクチャ
+### 7.2 Chiplet Architecture
 
-| アプローチ | 説明 | 例 |
+| Approach | Description | Example |
 |-----------|------|-----|
-| モノリシック | 1枚の大きなダイ | Intel Core (旧世代) |
-| チップレット | 複数の小ダイを接続 | AMD EPYC, Apple M2 Ultra |
-| UCIe | チップレット間の標準規格 | Intel, AMD, ARM共同策定 |
+| Monolithic | Single large die | Intel Core (older generations) |
+| Chiplet | Multiple small dies connected | AMD EPYC, Apple M2 Ultra |
+| UCIe | Standard for inter-chiplet communication | Co-developed by Intel, AMD, ARM |
 
-> 歩留まり向上、異なるプロセスノードの混在、柔軟なスケーリング。
+> Improved yield, mixed process nodes, flexible scaling.
 
 ```
-チップレット接続技術:
+Chiplet Interconnect Technologies:
 
   ■ AMD Infinity Fabric
     ┌────────┐  IF  ┌────────┐
     │ CCD 0  │────→│ CCD 1  │   CCD = Core Complex Die
-    │ 8コア  │←────│ 8コア  │
+    │ 8 cores│←────│ 8 cores│
     └───┬────┘     └───┬────┘
         │              │
     ┌───┴──────────────┴───┐
     │      IOD (I/O Die)    │
-    │  メモリコントローラ    │
-    │  PCIeコントローラ      │
+    │  Memory Controller    │
+    │  PCIe Controller      │
     └───────────────────────┘
-    → CCD: 5nm (最先端)、IOD: 6nm (安価) で混在可能
+    → CCD: 5nm (cutting-edge), IOD: 6nm (cheaper) can coexist
 
   ■ Apple UltraFusion
     ┌────────────────┐  UF  ┌────────────────┐
     │ M2 Max Die 1   │────→│ M2 Max Die 2   │
     │                │←────│                │
-    │ GPU 38コア     │      │ GPU 38コア     │
-    │ CPU 12コア     │      │ CPU 12コア     │
+    │ GPU 38 cores   │      │ GPU 38 cores   │
+    │ CPU 12 cores   │      │ CPU 12 cores   │
     └────────────────┘      └────────────────┘
-    帯域幅: 2.5 TB/s（シリコンインターポーザ）
-    → 2つのM2 Maxを1つのM2 Ultraとして使用
+    Bandwidth: 2.5 TB/s (silicon interposer)
+    → Two M2 Max dies used as one M2 Ultra
 
   ■ UCIe (Universal Chiplet Interconnect Express)
-    - 業界標準のチップレット接続規格
-    - 異なるベンダーのチップレットを組み合わせ可能
-    - 帯域幅: 最大256 GB/s/mm
-    - Intel, AMD, ARM, Samsung, TSMC等が参画
+    - Industry-standard chiplet interconnect specification
+    - Enables combining chiplets from different vendors
+    - Bandwidth: up to 256 GB/s/mm
+    - Participants include Intel, AMD, ARM, Samsung, TSMC, etc.
 ```
 
 ---
 
-## 8. サーバーアーキテクチャ
+## 8. Server Architecture
 
-### 8.1 サーバーとデスクトップの違い
+### 8.1 Differences Between Servers and Desktops
 
 ```
-サーバーマザーボードの特徴:
+Server Motherboard Characteristics:
 
-  │ 機能              │ デスクトップ    │ サーバー            │
-  │───────────────────│─────────────────│─────────────────────│
-  │ CPUソケット       │ 1              │ 1-2（デュアルソケット）│
-  │ メモリスロット    │ 2-4            │ 8-24                │
-  │ メモリ種類        │ UDIMM          │ RDIMM/LRDIMM (ECC) │
-  │ 最大メモリ        │ 128GB          │ 4-6TB               │
-  │ PCIeスロット      │ 1-3            │ 6-10                │
-  │ ネットワーク      │ 1GbE-2.5GbE   │ 10/25/100GbE        │
-  │ ストレージ        │ M.2 × 2-3     │ U.2/E1.S × 24+     │
-  │ リモート管理      │ なし           │ IPMI/BMC/iLO/iDRAC │
-  │ 冗長電源          │ なし           │ あり（ホットスワップ）│
-  │ ECC メモリ        │ 基本なし       │ 必須                │
+  │ Feature             │ Desktop         │ Server               │
+  │─────────────────────│─────────────────│──────────────────────│
+  │ CPU Sockets         │ 1               │ 1-2 (dual-socket)    │
+  │ Memory Slots        │ 2-4             │ 8-24                 │
+  │ Memory Type         │ UDIMM           │ RDIMM/LRDIMM (ECC)  │
+  │ Max Memory          │ 128GB           │ 4-6TB                │
+  │ PCIe Slots          │ 1-3             │ 6-10                 │
+  │ Networking          │ 1GbE-2.5GbE     │ 10/25/100GbE         │
+  │ Storage             │ M.2 x 2-3       │ U.2/E1.S x 24+      │
+  │ Remote Management   │ None            │ IPMI/BMC/iLO/iDRAC   │
+  │ Redundant PSU       │ None            │ Yes (hot-swappable)  │
+  │ ECC Memory          │ Typically none  │ Required             │
 
-  IPMI/BMC（Baseboard Management Controller）:
+  IPMI/BMC (Baseboard Management Controller):
   ┌────────────────────────────────────────┐
-  │ BMC チップ                              │
-  │ - 独立したCPU（ARM Cortex等）          │
-  │ - 独立したネットワーク接続             │
-  │ - OS停止中もサーバー管理可能           │
-  │ - 電源ON/OFF                           │
-  │ - KVM（キーボード・ビデオ・マウス）    │
-  │ - ファームウェアアップデート           │
-  │ - ハードウェア監視（温度、電圧、ファン）│
-  │ - シリアルコンソール                   │
+  │ BMC Chip                               │
+  │ - Independent CPU (ARM Cortex, etc.)   │
+  │ - Independent network connection       │
+  │ - Server management even when OS down  │
+  │ - Power ON/OFF                         │
+  │ - KVM (Keyboard, Video, Mouse)         │
+  │ - Firmware updates                     │
+  │ - Hardware monitoring (temp, voltage, fans) │
+  │ - Serial console                       │
   └────────────────────────────────────────┘
-  → データセンターでの物理アクセスなしでサーバー管理
+  → Server management without physical access in data centers
 ```
 
-### 8.2 NUMAアーキテクチャ
+### 8.2 NUMA Architecture
 
 ```
-NUMA（Non-Uniform Memory Access）:
+NUMA (Non-Uniform Memory Access):
 
-  デュアルソケットサーバーの場合:
+  Dual-Socket Server Configuration:
   ┌─────────────────────────────────────────────┐
   │ NUMA Node 0               NUMA Node 1       │
   │ ┌─────────┐               ┌─────────┐     │
   │ │ CPU 0   │               │ CPU 1   │     │
-  │ │ 32コア  │──── QPI/UPI ──│ 32コア  │     │
+  │ │ 32 cores│──── QPI/UPI ──│ 32 cores│     │
   │ └────┬────┘               └────┬────┘     │
   │      │                         │           │
   │ ┌────┴────┐               ┌────┴────┐     │
   │ │ DDR5    │               │ DDR5    │     │
   │ │ 256GB   │               │ 256GB   │     │
-  │ │ ローカル │               │ ローカル │     │
+  │ │ Local   │               │ Local   │     │
   │ └─────────┘               └─────────┘     │
   └─────────────────────────────────────────────┘
 
-  メモリアクセスレイテンシ:
-  - ローカルメモリ: 80ns
-  - リモートメモリ: 130ns（約1.6倍遅い）
+  Memory Access Latency:
+  - Local memory:  80ns
+  - Remote memory: 130ns (approximately 1.6x slower)
 
-  → OSとアプリケーションはNUMAを意識したメモリ配置が重要
-  → numactl コマンドでNUMA制御可能
+  → OS and applications must use NUMA-aware memory placement for optimal performance
+  → NUMA can be controlled via the numactl command
 ```
 
 ```bash
-# NUMA情報の確認
+# Check NUMA information
 numactl --hardware
 
-# NUMA Node 0 でプロセスを実行
+# Run a process on NUMA Node 0
 numactl --cpunodebind=0 --membind=0 ./my_application
 
-# NUMAバランスの確認
+# Check NUMA balancing
 cat /proc/sys/kernel/numa_balancing
 
-# メモリのNUMA配置状況
+# NUMA memory allocation status
 numastat -m
 ```
 
 ---
 
-## 9. 実践演習
+## 9. Hands-On Exercises
 
-### 演習1: スペックの読み方（基礎）
+### Exercise 1: Reading Specifications (Fundamentals)
 
-自分のPC/Macのスペックを調べ、以下を特定せよ:
-1. CPUソケット/チップの種類
-2. メモリの規格（DDR4/DDR5）、チャネル数、帯域幅
-3. ストレージの接続方式（NVMe/SATA）
-4. USBポートの種類と速度
+Investigate the specs of your own PC/Mac and identify the following:
+1. CPU socket/chip type
+2. Memory standard (DDR4/DDR5), channel count, and bandwidth
+3. Storage interface (NVMe/SATA)
+4. USB port types and speeds
 
-### 演習2: ボトルネック分析（応用）
+### Exercise 2: Bottleneck Analysis (Intermediate)
 
-以下のシステムで、ボトルネックになりうる箇所を特定せよ:
-- CPU: AMD Ryzen 9 7950X (16コア)
-- RAM: DDR5-5200 64GB（デュアルチャネル）
+Identify potential bottlenecks in the following system:
+- CPU: AMD Ryzen 9 7950X (16 cores)
+- RAM: DDR5-5200 64GB (dual-channel)
 - GPU: NVIDIA RTX 4090 (PCIe 4.0 x16)
 - Storage: Samsung 990 Pro 2TB (PCIe 4.0 x4)
-- ワークロード: 4K動画編集 + AI学習
+- Workload: 4K video editing + AI training
 
-### 演習3: ブートプロセスの観察（発展）
+### Exercise 3: Observing the Boot Process (Advanced)
 
-LinuxマシンでUEFIブートプロセスを観察せよ:
+Observe the UEFI boot process on a Linux machine:
 ```bash
-# ブートログの確認
+# Check boot log
 journalctl -b | head -100
 
-# UEFIブート変数の確認
+# Check UEFI boot variables
 efibootmgr -v
 
-# PCIeデバイスの列挙
+# Enumerate PCIe devices
 lspci -vvv | head -50
 
-# USBデバイスの列挙
+# Enumerate USB devices
 lsusb -t
 ```
 
-### 演習4: PCIeレーン配分の設計（応用）
+### Exercise 4: PCIe Lane Allocation Design (Intermediate)
 
-以下の要件を満たすシステムのPCIeレーン配分を設計せよ:
-- GPU: RTX 4090（x16必須）
-- NVMe SSD: 2TB × 2台（各x4）
+Design a PCIe lane allocation for a system with the following requirements:
+- GPU: RTX 4090 (x16 required)
+- NVMe SSD: 2TB x 2 drives (x4 each)
 - 10GbE NIC: x4
-- Thunderbolt 4 カード: x4
-- プラットフォーム: Intel Z790
+- Thunderbolt 4 card: x4
+- Platform: Intel Z790
 
-レーンの不足をどう解決するか、トレードオフを論じよ。
+Discuss how to resolve lane shortages and the associated trade-offs.
 
-### 演習5: サーバー構成の設計（発展）
+### Exercise 5: Server Configuration Design (Advanced)
 
-以下の要件のサーバーを設計せよ:
-- 用途: PostgreSQL データベースサーバー
-- CPU: デュアルソケット希望
-- メモリ: 512GB以上（ECC必須）
-- ストレージ: NVMe SSD RAID 10
-- ネットワーク: 25GbE × 2（冗長）
-- 予算: 300万円以内
+Design a server for the following requirements:
+- Purpose: PostgreSQL database server
+- CPU: Dual-socket preferred
+- Memory: 512GB minimum (ECC required)
+- Storage: NVMe SSD RAID 10
+- Network: 25GbE x 2 (redundant)
+- Budget: Within 3 million JPY
 
-設計項目:
-1. CPU/プラットフォームの選定
-2. メモリ構成（DIMM数、チャネル配分）
-3. ストレージ構成（台数、RAID）
-4. ネットワーク構成
-5. 冗長性の確保方法
+Design Items:
+1. CPU/platform selection
+2. Memory configuration (DIMM count, channel allocation)
+3. Storage configuration (drive count, RAID)
+4. Network configuration
+5. Redundancy strategy
 
 
 ---
 
-## トラブルシューティング
+## Troubleshooting
 
-### よくあるエラーと解決策
+### Common Errors and Solutions
 
-| エラー | 原因 | 解決策 |
+| Error | Cause | Solution |
 |--------|------|--------|
-| 初期化エラー | 設定ファイルの不備 | 設定ファイルのパスと形式を確認 |
-| タイムアウト | ネットワーク遅延/リソース不足 | タイムアウト値の調整、リトライ処理の追加 |
-| メモリ不足 | データ量の増大 | バッチ処理の導入、ページネーションの実装 |
-| 権限エラー | アクセス権限の不足 | 実行ユーザーの権限確認、設定の見直し |
-| データ不整合 | 並行処理の競合 | ロック機構の導入、トランザクション管理 |
+| Initialization error | Configuration file issues | Verify config file path and format |
+| Timeout | Network latency / insufficient resources | Adjust timeout values, add retry logic |
+| Out of memory | Growing data volume | Implement batch processing, add pagination |
+| Permission error | Insufficient access rights | Verify executing user permissions, review settings |
+| Data inconsistency | Concurrent processing conflicts | Implement locking mechanisms, manage transactions |
 
-### デバッグの手順
+### Debugging Procedure
 
-1. **エラーメッセージの確認**: スタックトレースを読み、発生箇所を特定する
-2. **再現手順の確立**: 最小限のコードでエラーを再現する
-3. **仮説の立案**: 考えられる原因をリストアップする
-4. **段階的な検証**: ログ出力やデバッガを使って仮説を検証する
-5. **修正と回帰テスト**: 修正後、関連する箇所のテストも実行する
+1. **Check error messages**: Read the stack trace to identify the point of failure
+2. **Establish reproduction steps**: Reproduce the error with minimal code
+3. **Formulate hypotheses**: List possible causes
+4. **Verify step by step**: Use logging output or a debugger to verify hypotheses
+5. **Fix and regression test**: After fixing, also run tests on related areas
 
 ```python
-# デバッグ用ユーティリティ
+# Debugging utility
 import logging
 import traceback
 from functools import wraps
 
-# ロガーの設定
+# Logger configuration
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
@@ -998,102 +1000,102 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def debug_decorator(func):
-    """関数の入出力をログ出力するデコレータ"""
+    """Decorator that logs function input/output"""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        logger.debug(f"呼び出し: {func.__name__}(args={args}, kwargs={kwargs})")
+        logger.debug(f"Call: {func.__name__}(args={args}, kwargs={kwargs})")
         try:
             result = func(*args, **kwargs)
-            logger.debug(f"戻り値: {func.__name__} -> {result}")
+            logger.debug(f"Return: {func.__name__} -> {result}")
             return result
         except Exception as e:
-            logger.error(f"例外発生: {func.__name__}: {e}")
+            logger.error(f"Exception: {func.__name__}: {e}")
             logger.error(traceback.format_exc())
             raise
     return wrapper
 
 @debug_decorator
 def process_data(items):
-    """データ処理（デバッグ対象）"""
+    """Data processing (debug target)"""
     if not items:
-        raise ValueError("空のデータ")
+        raise ValueError("Empty data")
     return [item * 2 for item in items]
 ```
 
-### パフォーマンス問題の診断
+### Diagnosing Performance Issues
 
-パフォーマンス問題が発生した場合の診断手順:
+Steps for diagnosing performance issues:
 
-1. **ボトルネックの特定**: プロファイリングツールで計測
-2. **メモリ使用量の確認**: メモリリークの有無をチェック
-3. **I/O待ちの確認**: ディスクやネットワークI/Oの状況を確認
-4. **同時接続数の確認**: コネクションプールの状態を確認
+1. **Identify bottlenecks**: Measure with profiling tools
+2. **Check memory usage**: Check for memory leaks
+3. **Check I/O waits**: Verify disk and network I/O status
+4. **Check connection count**: Verify connection pool status
 
-| 問題の種類 | 診断ツール | 対策 |
+| Problem Type | Diagnostic Tool | Solution |
 |-----------|-----------|------|
-| CPU負荷 | cProfile, py-spy | アルゴリズム改善、並列化 |
-| メモリリーク | tracemalloc, objgraph | 参照の適切な解放 |
-| I/Oボトルネック | strace, iostat | 非同期I/O、キャッシュ |
-| DB遅延 | EXPLAIN, slow query log | インデックス、クエリ最適化 |
+| CPU load | cProfile, py-spy | Algorithm improvement, parallelization |
+| Memory leak | tracemalloc, objgraph | Proper reference release |
+| I/O bottleneck | strace, iostat | Async I/O, caching |
+| DB latency | EXPLAIN, slow query log | Indexing, query optimization |
 
 ---
 
-## 設計判断ガイド
+## Design Decision Guide
 
-### 選択基準マトリクス
+### Selection Criteria Matrix
 
-技術選択を行う際の判断基準を以下にまとめます。
+A summary of decision criteria for technology selection:
 
-| 判断基準 | 重視する場合 | 妥協できる場合 |
+| Criterion | When to Prioritize | When Compromise is Acceptable |
 |---------|------------|-------------|
-| パフォーマンス | リアルタイム処理、大規模データ | 管理画面、バッチ処理 |
-| 保守性 | 長期運用、チーム開発 | プロトタイプ、短期プロジェクト |
-| スケーラビリティ | 成長が見込まれるサービス | 社内ツール、固定ユーザー |
-| セキュリティ | 個人情報、金融データ | 公開データ、社内利用 |
-| 開発速度 | MVP、市場投入スピード | 品質重視、ミッションクリティカル |
+| Performance | Real-time processing, large-scale data | Admin dashboards, batch processing |
+| Maintainability | Long-term operation, team development | Prototypes, short-term projects |
+| Scalability | Services expected to grow | Internal tools, fixed user base |
+| Security | Personal data, financial data | Public data, internal use |
+| Development speed | MVP, time-to-market | Quality-focused, mission-critical |
 
-### アーキテクチャパターンの選択
+### Architecture Pattern Selection
 
 ```
 ┌─────────────────────────────────────────────────┐
-│              アーキテクチャ選択フロー              │
+│          Architecture Selection Flow             │
 ├─────────────────────────────────────────────────┤
 │                                                 │
-│  ① チーム規模は？                                │
-│    ├─ 小規模（1-5人）→ モノリス                   │
-│    └─ 大規模（10人+）→ ②へ                       │
+│  (1) Team size?                                 │
+│    ├─ Small (1-5 people) → Monolith             │
+│    └─ Large (10+ people) → Go to (2)            │
 │                                                 │
-│  ② デプロイ頻度は？                               │
-│    ├─ 週1回以下 → モノリス + モジュール分割         │
-│    └─ 毎日/複数回 → ③へ                          │
+│  (2) Deployment frequency?                       │
+│    ├─ Once a week or less → Monolith + modular  │
+│    └─ Daily / multiple times → Go to (3)        │
 │                                                 │
-│  ③ チーム間の独立性は？                            │
-│    ├─ 高い → マイクロサービス                      │
-│    └─ 中程度 → モジュラーモノリス                   │
+│  (3) Inter-team independence?                    │
+│    ├─ High → Microservices                       │
+│    └─ Moderate → Modular monolith                │
 │                                                 │
 └─────────────────────────────────────────────────┘
 ```
 
-### トレードオフの分析
+### Trade-off Analysis
 
-技術的な判断には必ずトレードオフが伴います。以下の観点で分析を行いましょう:
+Technical decisions always involve trade-offs. Analyze from the following perspectives:
 
-**1. 短期 vs 長期のコスト**
-- 短期的に速い方法が長期的には技術的負債になることがある
-- 逆に、過剰な設計は短期的なコストが高く、プロジェクトの遅延を招く
+**1. Short-term vs Long-term Costs**
+- A short-term fast approach may become technical debt in the long run
+- Conversely, over-engineering incurs high short-term costs and delays the project
 
-**2. 一貫性 vs 柔軟性**
-- 統一された技術スタックは学習コストが低い
-- 多様な技術の採用は適材適所が可能だが、運用コストが増加
+**2. Consistency vs Flexibility**
+- A unified technology stack has lower learning costs
+- Adopting diverse technologies enables best-fit solutions but increases operational costs
 
-**3. 抽象化のレベル**
-- 高い抽象化は再利用性が高いが、デバッグが困難になる場合がある
-- 低い抽象化は直感的だが、コードの重複が発生しやすい
+**3. Level of Abstraction**
+- High abstraction improves reusability but can make debugging harder
+- Low abstraction is intuitive but leads to code duplication
 
 ```python
-# 設計判断の記録テンプレート
+# Design decision record template
 class ArchitectureDecisionRecord:
-    """ADR (Architecture Decision Record) の作成"""
+    """Create an ADR (Architecture Decision Record)"""
 
     def __init__(self, title: str):
         self.title = title
@@ -1103,17 +1105,17 @@ class ArchitectureDecisionRecord:
         self.alternatives = []
 
     def set_context(self, context: str):
-        """背景と課題の記述"""
+        """Describe background and challenges"""
         self.context = context
         return self
 
     def set_decision(self, decision: str):
-        """決定内容の記述"""
+        """Describe the decision"""
         self.decision = decision
         return self
 
     def add_consequence(self, consequence: str, positive: bool = True):
-        """結果の追加"""
+        """Add a consequence"""
         self.consequences.append({
             'description': consequence,
             'type': 'positive' if positive else 'negative'
@@ -1121,7 +1123,7 @@ class ArchitectureDecisionRecord:
         return self
 
     def add_alternative(self, name: str, reason_rejected: str):
-        """却下した代替案の追加"""
+        """Add a rejected alternative"""
         self.alternatives.append({
             'name': name,
             'reason_rejected': reason_rejected
@@ -1129,15 +1131,15 @@ class ArchitectureDecisionRecord:
         return self
 
     def to_markdown(self) -> str:
-        """Markdown形式で出力"""
+        """Output in Markdown format"""
         md = f"# ADR: {self.title}\n\n"
-        md += f"## 背景\n{self.context}\n\n"
-        md += f"## 決定\n{self.decision}\n\n"
-        md += "## 結果\n"
+        md += f"## Context\n{self.context}\n\n"
+        md += f"## Decision\n{self.decision}\n\n"
+        md += "## Consequences\n"
         for c in self.consequences:
-            icon = "✅" if c['type'] == 'positive' else "⚠️"
-            md += f"- {icon} {c['description']}\n"
-        md += "\n## 却下した代替案\n"
+            icon = "+" if c['type'] == 'positive' else "!"
+            md += f"- [{icon}] {c['description']}\n"
+        md += "\n## Rejected Alternatives\n"
         for a in self.alternatives:
             md += f"- **{a['name']}**: {a['reason_rejected']}\n"
         return md
@@ -1145,53 +1147,53 @@ class ArchitectureDecisionRecord:
 
 ---
 
-## 実務での適用シナリオ
+## Practical Application Scenarios
 
-### シナリオ1: スタートアップでのMVP開発
+### Scenario 1: MVP Development at a Startup
 
-**状況:** 限られたリソースで素早くプロダクトをリリースする必要がある
+**Situation:** Need to release a product quickly with limited resources
 
-**アプローチ:**
-- シンプルなアーキテクチャを選択
-- 必要最小限の機能に集中
-- 自動テストはクリティカルパスのみ
-- モニタリングは早期から導入
+**Approach:**
+- Choose a simple architecture
+- Focus on the minimum viable feature set
+- Automated tests for critical paths only
+- Introduce monitoring early
 
-**学んだ教訓:**
-- 完璧を求めすぎない（YAGNI原則）
-- ユーザーフィードバックを早期に取得
-- 技術的負債は意識的に管理する
+**Lessons Learned:**
+- Do not pursue perfection (YAGNI principle)
+- Obtain user feedback early
+- Manage technical debt deliberately
 
-### シナリオ2: レガシーシステムのモダナイゼーション
+### Scenario 2: Legacy System Modernization
 
-**状況:** 10年以上運用されているシステムを段階的に刷新する
+**Situation:** Incrementally modernizing a system that has been in operation for 10+ years
 
-**アプローチ:**
-- Strangler Fig パターンで段階的に移行
-- 既存のテストがない場合はCharacterization Testを先に作成
-- APIゲートウェイで新旧システムを共存
-- データ移行は段階的に実施
+**Approach:**
+- Gradual migration using the Strangler Fig pattern
+- Create Characterization Tests first if existing tests are absent
+- Coexist old and new systems via an API gateway
+- Execute data migration incrementally
 
-| フェーズ | 作業内容 | 期間目安 | リスク |
+| Phase | Work Content | Estimated Duration | Risk |
 |---------|---------|---------|--------|
-| 1. 調査 | 現状分析、依存関係の把握 | 2-4週間 | 低 |
-| 2. 基盤 | CI/CD構築、テスト環境 | 4-6週間 | 低 |
-| 3. 移行開始 | 周辺機能から順次移行 | 3-6ヶ月 | 中 |
-| 4. コア移行 | 中核機能の移行 | 6-12ヶ月 | 高 |
-| 5. 完了 | 旧システム廃止 | 2-4週間 | 中 |
+| 1. Investigation | Current state analysis, dependency mapping | 2-4 weeks | Low |
+| 2. Foundation | CI/CD setup, test environment | 4-6 weeks | Low |
+| 3. Migration Start | Sequential migration from peripheral features | 3-6 months | Medium |
+| 4. Core Migration | Migration of core features | 6-12 months | High |
+| 5. Completion | Legacy system decommission | 2-4 weeks | Medium |
 
-### シナリオ3: 大規模チームでの開発
+### Scenario 3: Large-Team Development
 
-**状況:** 50人以上のエンジニアが同一プロダクトを開発する
+**Situation:** 50+ engineers developing the same product
 
-**アプローチ:**
-- ドメイン駆動設計で境界を明確化
-- チームごとにオーナーシップを設定
-- 共通ライブラリはInner Source方式で管理
-- APIファーストで設計し、チーム間の依存を最小化
+**Approach:**
+- Define clear boundaries using Domain-Driven Design
+- Assign ownership per team
+- Manage shared libraries via Inner Source
+- Design API-first to minimize inter-team dependencies
 
 ```python
-# チーム間のAPI契約定義
+# Inter-team API contract definition
 from dataclasses import dataclass
 from typing import List, Optional
 from enum import Enum
@@ -1204,20 +1206,20 @@ class Priority(Enum):
 
 @dataclass
 class APIContract:
-    """チーム間のAPI契約"""
+    """Inter-team API contract"""
     endpoint: str
     method: str
     owner_team: str
     consumers: List[str]
-    sla_ms: int  # レスポンスタイムSLA
+    sla_ms: int  # Response time SLA
     priority: Priority
 
     def validate_sla(self, actual_ms: int) -> bool:
-        """SLA準拠の確認"""
+        """Verify SLA compliance"""
         return actual_ms <= self.sla_ms
 
     def to_openapi(self) -> dict:
-        """OpenAPI形式で出力"""
+        """Output in OpenAPI format"""
         return {
             'path': self.endpoint,
             'method': self.method,
@@ -1226,7 +1228,7 @@ class APIContract:
             'x-sla-ms': self.sla_ms
         }
 
-# 使用例
+# Usage example
 contracts = [
     APIContract(
         endpoint="/api/v1/users",
@@ -1247,104 +1249,104 @@ contracts = [
 ]
 ```
 
-### シナリオ4: パフォーマンスクリティカルなシステム
+### Scenario 4: Performance-Critical System
 
-**状況:** ミリ秒単位のレスポンスが求められるシステム
+**Situation:** A system requiring millisecond-level response times
 
-**最適化ポイント:**
-1. キャッシュ戦略（L1: インメモリ、L2: Redis、L3: CDN）
-2. 非同期処理の活用
-3. コネクションプーリング
-4. クエリ最適化とインデックス設計
+**Optimization Points:**
+1. Caching strategy (L1: in-memory, L2: Redis, L3: CDN)
+2. Leverage asynchronous processing
+3. Connection pooling
+4. Query optimization and index design
 
-| 最適化手法 | 効果 | 実装コスト | 適用場面 |
+| Optimization Technique | Impact | Implementation Cost | Applicable Scenario |
 |-----------|------|-----------|---------|
-| インメモリキャッシュ | 高 | 低 | 頻繁にアクセスされるデータ |
-| CDN | 高 | 低 | 静的コンテンツ |
-| 非同期処理 | 中 | 中 | I/O待ちが多い処理 |
-| DB最適化 | 高 | 高 | クエリが遅い場合 |
-| コード最適化 | 低-中 | 高 | CPU律速の場合 |
+| In-memory cache | High | Low | Frequently accessed data |
+| CDN | High | Low | Static content |
+| Async processing | Medium | Medium | I/O-heavy operations |
+| DB optimization | High | High | Slow queries |
+| Code optimization | Low-Medium | High | CPU-bound cases |
 
 ---
 
-## チーム開発での活用
+## Team Development Practices
 
-### コードレビューのチェックリスト
+### Code Review Checklist
 
-このトピックに関連するコードレビューで確認すべきポイント:
+Key points to verify during code reviews related to this topic:
 
-- [ ] 命名規則が一貫しているか
-- [ ] エラーハンドリングが適切か
-- [ ] テストカバレッジは十分か
-- [ ] パフォーマンスへの影響はないか
-- [ ] セキュリティ上の問題はないか
-- [ ] ドキュメントは更新されているか
+- [ ] Naming conventions are consistent
+- [ ] Error handling is appropriate
+- [ ] Test coverage is sufficient
+- [ ] There is no negative performance impact
+- [ ] There are no security issues
+- [ ] Documentation is updated
 
-### ナレッジ共有のベストプラクティス
+### Knowledge Sharing Best Practices
 
-| 方法 | 頻度 | 対象 | 効果 |
+| Method | Frequency | Audience | Impact |
 |------|------|------|------|
-| ペアプログラミング | 随時 | 複雑なタスク | 即時のフィードバック |
-| テックトーク | 週1回 | チーム全体 | 知識の水平展開 |
-| ADR (設計記録) | 都度 | 将来のメンバー | 意思決定の透明性 |
-| 振り返り | 2週間ごと | チーム全体 | 継続的改善 |
-| モブプログラミング | 月1回 | 重要な設計 | 合意形成 |
+| Pair programming | As needed | Complex tasks | Immediate feedback |
+| Tech talks | Weekly | Entire team | Horizontal knowledge spread |
+| ADR (Decision Records) | As needed | Future members | Decision transparency |
+| Retrospectives | Biweekly | Entire team | Continuous improvement |
+| Mob programming | Monthly | Critical design | Consensus building |
 
-### 技術的負債の管理
+### Technical Debt Management
 
 ```
-優先度マトリクス:
+Priority Matrix:
 
-        影響度 高
+        Impact High
           │
     ┌─────┼─────┐
-    │ 計画 │ 即座 │
-    │ 的に │ に   │
-    │ 対応 │ 対応 │
+    │ Plan │ Act  │
+    │ for  │ on   │
+    │ later│ now  │
     ├─────┼─────┤
-    │ 記録 │ 次の │
-    │ のみ │ Sprint│
-    │     │ で   │
+    │ Log  │ Next │
+    │ only │Sprint│
+    │      │      │
     └─────┼─────┘
           │
-        影響度 低
-    発生頻度 低  発生頻度 高
+        Impact Low
+    Frequency Low  Frequency High
 ```
 
 ---
 
-## セキュリティの考慮事項
+## Security Considerations
 
-### 一般的な脆弱性と対策
+### Common Vulnerabilities and Countermeasures
 
-| 脆弱性 | リスクレベル | 対策 | 検出方法 |
+| Vulnerability | Risk Level | Countermeasure | Detection Method |
 |--------|------------|------|---------|
-| インジェクション攻撃 | 高 | 入力値のバリデーション・パラメータ化クエリ | SAST/DAST |
-| 認証の不備 | 高 | 多要素認証・セッション管理の強化 | ペネトレーションテスト |
-| 機密データの露出 | 高 | 暗号化・アクセス制御 | セキュリティ監査 |
-| 設定の不備 | 中 | セキュリティヘッダー・最小権限の原則 | 構成スキャン |
-| ログの不足 | 中 | 構造化ログ・監査証跡 | ログ分析 |
+| Injection attacks | High | Input validation, parameterized queries | SAST/DAST |
+| Authentication flaws | High | Multi-factor auth, session management hardening | Penetration testing |
+| Sensitive data exposure | High | Encryption, access control | Security audit |
+| Misconfiguration | Medium | Security headers, principle of least privilege | Configuration scanning |
+| Insufficient logging | Medium | Structured logs, audit trails | Log analysis |
 
-### セキュアコーディングのベストプラクティス
+### Secure Coding Best Practices
 
 ```python
-# セキュアコーディング例
+# Secure coding example
 import hashlib
 import secrets
 import hmac
 from typing import Optional
 
 class SecurityUtils:
-    """セキュリティユーティリティ"""
+    """Security utilities"""
 
     @staticmethod
     def generate_token(length: int = 32) -> str:
-        """暗号学的に安全なトークン生成"""
+        """Generate a cryptographically secure token"""
         return secrets.token_urlsafe(length)
 
     @staticmethod
     def hash_password(password: str, salt: Optional[str] = None) -> tuple:
-        """パスワードのハッシュ化"""
+        """Hash a password"""
         if salt is None:
             salt = secrets.token_hex(16)
         hashed = hashlib.pbkdf2_hmac(
@@ -1357,50 +1359,50 @@ class SecurityUtils:
 
     @staticmethod
     def verify_password(password: str, hashed: str, salt: str) -> bool:
-        """パスワードの検証"""
+        """Verify a password"""
         new_hash, _ = SecurityUtils.hash_password(password, salt)
         return hmac.compare_digest(new_hash, hashed)
 
     @staticmethod
     def sanitize_input(value: str) -> str:
-        """入力値のサニタイズ"""
+        """Sanitize input values"""
         dangerous_chars = ['<', '>', '"', "'", '&', '\\']
         result = value
         for char in dangerous_chars:
             result = result.replace(char, '')
         return result.strip()
 
-# 使用例
+# Usage example
 token = SecurityUtils.generate_token()
 hashed, salt = SecurityUtils.hash_password("my_password")
 is_valid = SecurityUtils.verify_password("my_password", hashed, salt)
 ```
 
-### セキュリティチェックリスト
+### Security Checklist
 
-- [ ] 全ての入力値がバリデーションされている
-- [ ] 機密情報がログに出力されていない
-- [ ] HTTPS が強制されている
-- [ ] CORS ポリシーが適切に設定されている
-- [ ] 依存パッケージの脆弱性スキャンが実施されている
-- [ ] エラーメッセージに内部情報が含まれていない
+- [ ] All input values are validated
+- [ ] Sensitive information is not written to logs
+- [ ] HTTPS is enforced
+- [ ] CORS policy is properly configured
+- [ ] Dependency vulnerability scanning is performed
+- [ ] Error messages do not contain internal information
 
 ---
 
-## マイグレーションガイド
+## Migration Guide
 
-### バージョンアップ時の注意点
+### Notes on Version Upgrades
 
-| バージョン | 主な変更点 | 移行作業 | 影響範囲 |
+| Version | Key Changes | Migration Work | Impact Scope |
 |-----------|-----------|---------|---------|
-| v1.x → v2.x | API設計の刷新 | エンドポイント変更 | 全クライアント |
-| v2.x → v3.x | 認証方式の変更 | トークン形式更新 | 認証関連 |
-| v3.x → v4.x | データモデル変更 | マイグレーションスクリプト実行 | DB関連 |
+| v1.x → v2.x | API design overhaul | Endpoint changes | All clients |
+| v2.x → v3.x | Authentication method change | Token format update | Auth-related |
+| v3.x → v4.x | Data model change | Run migration scripts | DB-related |
 
-### 段階的移行の手順
+### Step-by-Step Migration Procedure
 
 ```python
-# マイグレーションスクリプトのテンプレート
+# Migration script template
 import json
 import logging
 from pathlib import Path
@@ -1410,7 +1412,7 @@ from typing import List, Dict, Callable
 logger = logging.getLogger(__name__)
 
 class MigrationRunner:
-    """段階的マイグレーション実行エンジン"""
+    """Step-by-step migration execution engine"""
 
     def __init__(self, migration_dir: str):
         self.migration_dir = Path(migration_dir)
@@ -1419,7 +1421,7 @@ class MigrationRunner:
 
     def register(self, version: str, description: str,
                  up: Callable, down: Callable):
-        """マイグレーションの登録"""
+        """Register a migration"""
         self.migrations.append({
             'version': version,
             'description': description,
@@ -1429,35 +1431,35 @@ class MigrationRunner:
         })
 
     def run_up(self, target_version: str = None):
-        """マイグレーションの実行（アップグレード）"""
+        """Execute migrations (upgrade)"""
         for migration in self.migrations:
             if migration['version'] in self.completed:
                 continue
-            logger.info(f"実行中: {migration['version']} - "
+            logger.info(f"Running: {migration['version']} - "
                        f"{migration['description']}")
             try:
                 migration['up']()
                 self.completed.append(migration['version'])
-                logger.info(f"完了: {migration['version']}")
+                logger.info(f"Completed: {migration['version']}")
             except Exception as e:
-                logger.error(f"失敗: {migration['version']}: {e}")
+                logger.error(f"Failed: {migration['version']}: {e}")
                 raise
             if target_version and migration['version'] == target_version:
                 break
 
     def run_down(self, target_version: str):
-        """マイグレーションのロールバック"""
+        """Rollback migrations"""
         for migration in reversed(self.migrations):
             if migration['version'] not in self.completed:
                 continue
             if migration['version'] == target_version:
                 break
-            logger.info(f"ロールバック: {migration['version']}")
+            logger.info(f"Rolling back: {migration['version']}")
             migration['down']()
             self.completed.remove(migration['version'])
 
     def status(self) -> Dict:
-        """マイグレーション状態の確認"""
+        """Check migration status"""
         return {
             'total': len(self.migrations),
             'completed': len(self.completed),
@@ -1470,93 +1472,93 @@ class MigrationRunner:
         }
 ```
 
-### ロールバック計画
+### Rollback Plan
 
-移行作業には必ずロールバック計画を準備してください:
+Always prepare a rollback plan for migration work:
 
-1. **データのバックアップ**: 移行前に完全バックアップを取得
-2. **テスト環境での検証**: 本番と同等の環境で事前検証
-3. **段階的なロールアウト**: カナリアリリースで段階的に展開
-4. **監視の強化**: 移行中はメトリクスの監視間隔を短縮
-5. **判断基準の明確化**: ロールバックを判断する基準を事前に定義
+1. **Data backup**: Take a complete backup before migration
+2. **Test environment verification**: Validate in a production-equivalent environment beforehand
+3. **Gradual rollout**: Deploy incrementally using canary releases
+4. **Enhanced monitoring**: Shorten metrics monitoring intervals during migration
+5. **Clear criteria**: Define rollback decision criteria in advance
 ---
 
 ## FAQ
 
-### Q1: マザーボードの選び方は？
+### Q1: How should I choose a motherboard?
 
-**A**: 以下の順で決める:
-1. CPUソケット（Intel LGA1700、AMD AM5等）
-2. チップセット（機能差: PCIeレーン数、USB数、オーバークロック対応）
-3. フォームファクタ（ATX/mATX/Mini-ITX）
-4. メモリスロット数とDDR世代
-5. M.2/NVMeスロット数
-6. 拡張性（PCIeスロット、USB、ネットワーク）
+**A**: Decide in the following order:
+1. CPU socket (Intel LGA1700, AMD AM5, etc.)
+2. Chipset (feature differences: PCIe lane count, USB count, overclocking support)
+3. Form factor (ATX/mATX/Mini-ITX)
+4. Number of memory slots and DDR generation
+5. Number of M.2/NVMe slots
+6. Expandability (PCIe slots, USB, networking)
 
-### Q2: Thunderbolt と USB4 の違いは？
+### Q2: What is the difference between Thunderbolt and USB4?
 
-**A**: Thunderbolt 4/5 は USB4 のスーパーセット:
-- USB4: 最低20Gbps保証
-- Thunderbolt 4: 40Gbps保証 + DP 2.0 + PCIeトンネリング
-- Thunderbolt 5: 80-120Gbps + 240W給電
+**A**: Thunderbolt 4/5 is a superset of USB4:
+- USB4: Guarantees minimum 20Gbps
+- Thunderbolt 4: Guarantees 40Gbps + DP 2.0 + PCIe tunneling
+- Thunderbolt 5: 80-120Gbps + 240W power delivery
 
-全てType-Cコネクタを使用するが、性能はケーブルとデバイスの対応次第。
+All use the Type-C connector, but actual performance depends on the cable and device capabilities.
 
-### Q3: なぜPCIeは「レーン」単位なのですか？
+### Q3: Why is PCIe measured in "lanes"?
 
-**A**: 柔軟なスケーリングのため。デバイスの帯域要求に応じてレーン数を変えられる:
-- NVMe SSD: x4で十分（〜8GB/s）
-- GPU: x16で最大帯域（〜32GB/s）
-- Wi-Fiカード: x1で十分（〜1GB/s）
-マザーボード上のPCIeレーン数はCPU+チップセットで決まり、配分はBIOSで設定可能。
+**A**: For flexible scaling. The number of lanes can be adjusted to match the device's bandwidth requirements:
+- NVMe SSD: x4 is sufficient (~8GB/s)
+- GPU: x16 for maximum bandwidth (~32GB/s)
+- Wi-Fi card: x1 is sufficient (~1GB/s)
+The total number of PCIe lanes on a motherboard is determined by the CPU + chipset, and allocation can be configured in the BIOS.
 
-### Q4: DDR5はDDR4よりどのくらい速いですか？
+### Q4: How much faster is DDR5 compared to DDR4?
 
-**A**: 帯域幅は約1.5-2倍だが、レイテンシは同等かやや悪い:
-- DDR4-3200: 帯域25.6GB/s、CL16 = 10ns
-- DDR5-5600: 帯域44.8GB/s、CL36 = 12.86ns
-- 帯域重視のワークロード（動画編集、AI）はDDR5が有利
-- レイテンシ重視のワークロード（ゲーム）はDDR4との差が小さい
+**A**: Bandwidth is approximately 1.5-2x higher, but latency is comparable or slightly worse:
+- DDR4-3200: 25.6GB/s bandwidth, CL16 = 10ns
+- DDR5-5600: 44.8GB/s bandwidth, CL36 = 12.86ns
+- Bandwidth-intensive workloads (video editing, AI) favor DDR5
+- Latency-sensitive workloads (gaming) show a smaller difference from DDR4
 
-### Q5: VRMの品質はどう見分けますか？
+### Q5: How can you evaluate VRM quality?
 
-**A**: 以下のポイントを確認:
-- フェーズ数: 12フェーズ以上が望ましい（OC用途なら16+）
-- MOSFET: DrMOS（高効率統合型）が理想
-- ヒートシンク: VRM上に大型ヒートシンクがあるか
-- PWMコントローラ: Renesas/Infineonの高品質チップ
-- レビューサイトのサーモグラフィーテスト結果
+**A**: Check the following points:
+- Phase count: 12+ phases desirable (16+ for overclocking)
+- MOSFET: DrMOS (high-efficiency integrated type) is ideal
+- Heatsink: Large heatsinks over the VRM area
+- PWM controller: High-quality chips from Renesas/Infineon
+- Thermography test results from review sites
 
-### Q6: Secure Bootを無効にしても大丈夫ですか？
+### Q6: Is it safe to disable Secure Boot?
 
-**A**: 一般的なLinux使用なら多くのディストリビューションがSecure Boot対応済み。無効化が必要なケース:
-- カスタムカーネルの使用
-- 署名されていないドライバ（一部のNVIDIAドライバ等）
-- デュアルブートの特殊構成
-セキュリティの観点からは有効のままが推奨。企業環境では必須であることが多い。
+**A**: For general Linux use, many distributions already support Secure Boot. Cases where disabling may be necessary:
+- Using a custom kernel
+- Unsigned drivers (certain NVIDIA drivers, etc.)
+- Special dual-boot configurations
+From a security standpoint, keeping it enabled is recommended. In enterprise environments, it is often mandatory.
 
 ---
 
-## まとめ
+## Summary
 
-| 概念 | ポイント |
+| Concept | Key Point |
 |------|---------|
-| マザーボード | CPU、メモリ、PCH（チップセット）を接続する基盤 |
-| PCIe | ポイントtoポイント、レーン制、世代ごとに帯域2倍 |
-| USB | Type-Cに統一傾向、USB4/Thunderboltで高速化 |
-| ブート | 電源→UEFI→POST→ブートローダー→カーネル→init |
-| 進化 | ノースブリッジ→CPU統合、CXL、チップレット |
-| DDR5 | 2サブチャネル、帯域向上、On-die ECC |
-| NUMA | デュアルソケットではメモリ配置が性能に直結 |
+| Motherboard | The foundation connecting CPU, memory, and PCH (chipset) |
+| PCIe | Point-to-point, lane-based, bandwidth doubles per generation |
+| USB | Trending toward Type-C unification, accelerated by USB4/Thunderbolt |
+| Boot | Power → UEFI → POST → Boot Loader → Kernel → init |
+| Evolution | Northbridge → CPU integration, CXL, chiplets |
+| DDR5 | 2 sub-channels, improved bandwidth, on-die ECC |
+| NUMA | In dual-socket systems, memory placement directly impacts performance |
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Guides
 
 
 ---
 
-## 参考文献
+## References
 
 1. PCI-SIG. "PCI Express Base Specification." Various Revisions.
 2. USB Implementers Forum. "Universal Serial Bus Specification." Various Revisions.

@@ -1,88 +1,88 @@
-# セグメント木（Segment Tree）
+# Segment Tree
 
-> 区間クエリと点更新を O(log n) で処理する木構造を、基本実装・遅延伝播・BITを通じて体系的に理解する
+> Systematically understand tree structures that handle range queries and point updates in O(log n), through basic implementation, lazy propagation, and BIT
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-1. **セグメント木の構造と基本操作**（構築・区間クエリ・点更新）を O(log n) で実装できる
-2. **遅延伝播（Lazy Propagation）**で区間更新も O(log n) に拡張できる
-3. **BIT（Binary Indexed Tree / Fenwick Tree）**との使い分けを理解し、適材適所で選択できる
-4. **抽象セグメント木**で任意のモノイド演算に対応できる
-5. **永続セグメント木・マージソートツリー**などの発展的なバリエーションを理解する
+1. **Segment tree structure and basic operations** (construction, range query, point update) with O(log n) implementation
+2. **Lazy Propagation** to extend range updates to O(log n)
+3. **BIT (Binary Indexed Tree / Fenwick Tree)** comparison to choose the right tool for the job
+4. **Abstract segment tree** to support arbitrary monoid operations
+5. **Persistent segment tree, merge sort tree**, and other advanced variations
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+The following knowledge will help deepen your understanding before reading this guide:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [Union-Find（素集合データ構造）](./00-union-find.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Understanding of [Union-Find (Disjoint Set Data Structure)](./00-union-find.md)
 
 ---
 
-## 1. セグメント木の概念
+## 1. Concept of Segment Trees
 
-セグメント木は、配列に対する「区間クエリ」と「要素の更新」を効率的に処理するための完全二分木である。配列の各要素を葉に配置し、各内部ノードがその子ノードの区間に対する演算結果（和、最小値、最大値、GCDなど）を保持する。
+A segment tree is a complete binary tree designed to efficiently handle "range queries" and "element updates" on an array. Each element of the array is placed at a leaf, and each internal node holds the result of an operation (sum, minimum, maximum, GCD, etc.) over the range covered by its child nodes.
 
 ```
-配列: [2, 1, 5, 3, 4, 2, 1, 6]
+Array: [2, 1, 5, 3, 4, 2, 1, 6]
 
-セグメント木（区間和）:
-                  [24]              ← 全体の和
+Segment tree (range sum):
+                  [24]              <- total sum
                /        \
-          [11]             [13]     ← 前半/後半の和
+          [11]             [13]     <- first half / second half sums
          /    \           /    \
       [3]     [8]     [6]     [7]
      / \     / \     / \     / \
-   [2] [1] [5] [3] [4] [2] [1] [6]  ← 葉 = 元の配列
+   [2] [1] [5] [3] [4] [2] [1] [6]  <- leaves = original array
 
-区間 [1, 5) の和を求める:
-  → [1] + [5,3] + [4] = 1 + 8 + 4 = 13
-  → 3ノードの参照で回答（O(log n)）
+Query for sum of range [1, 5):
+  -> [1] + [5,3] + [4] = 1 + 8 + 4 = 13
+  -> answered by accessing 3 nodes (O(log n))
 
-ナイーブな配列:
-  → 1 + 5 + 3 + 4 = 13
-  → 4要素を走査（O(n)）
+Naive array approach:
+  -> 1 + 5 + 3 + 4 = 13
+  -> scans 4 elements (O(n))
 ```
 
-### なぜセグメント木が重要か
+### Why Segment Trees Matter
 
 ```
-セグメント木が必要な場面:
+Scenarios where segment trees are needed:
 
-1. 動的な配列に対する区間クエリ
-   → 値の更新が頻繁に行われ、その都度区間の集約値（和、最小値等）を求めたい
+1. Range queries on dynamic arrays
+   -> Values are frequently updated, and aggregate values (sum, min, etc.) over ranges must be computed each time
 
-2. ナイーブ手法との比較:
-   操作           | 配列     | 累積和   | セグメント木
-   点更新         | O(1)     | O(n)     | O(log n)
-   区間クエリ     | O(n)     | O(1)     | O(log n)
+2. Comparison with naive approaches:
+   Operation        | Array    | Prefix Sum | Segment Tree
+   Point update     | O(1)     | O(n)       | O(log n)
+   Range query      | O(n)     | O(1)       | O(log n)
 
-   → 更新とクエリの両方が多い場合にセグメント木が最適
+   -> Segment trees are optimal when both updates and queries are frequent
 
-3. 具体的なユースケース:
-   - リアルタイムの株価の区間最小/最大クエリ
-   - ゲームのスコアランキング（更新+順位クエリ）
-   - データベースのrange queryの内部実装
-   - 競技プログラミングの区間問題全般
+3. Concrete use cases:
+   - Real-time min/max queries on stock prices over intervals
+   - Game score rankings (update + rank query)
+   - Internal implementation of database range queries
+   - Range-based problems in competitive programming
 ```
 
 ---
 
-## 2. 基本実装（区間和）
+## 2. Basic Implementation (Range Sum)
 
 ```python
 class SegmentTree:
-    """セグメント木（区間和クエリ + 点更新）"""
+    """Segment tree (range sum query + point update)"""
 
     def __init__(self, data: list):
         self.n = len(data)
-        self.tree = [0] * (4 * self.n)  # 十分なサイズ
+        self.tree = [0] * (4 * self.n)  # sufficient size
         self._build(data, 1, 0, self.n - 1)
 
     def _build(self, data, node, start, end):
-        """O(n) で構築"""
+        """Build in O(n)"""
         if start == end:
             self.tree[node] = data[start]
             return
@@ -92,7 +92,7 @@ class SegmentTree:
         self.tree[node] = self.tree[2 * node] + self.tree[2 * node + 1]
 
     def update(self, idx: int, val: int):
-        """点更新 - O(log n)"""
+        """Point update - O(log n)"""
         self._update(1, 0, self.n - 1, idx, val)
 
     def _update(self, node, start, end, idx, val):
@@ -107,36 +107,36 @@ class SegmentTree:
         self.tree[node] = self.tree[2 * node] + self.tree[2 * node + 1]
 
     def query(self, l: int, r: int) -> int:
-        """区間 [l, r] の和を返す - O(log n)"""
+        """Return sum of range [l, r] - O(log n)"""
         return self._query(1, 0, self.n - 1, l, r)
 
     def _query(self, node, start, end, l, r):
         if r < start or end < l:
-            return 0  # 範囲外
+            return 0  # out of range
         if l <= start and end <= r:
-            return self.tree[node]  # 完全に含まれる
+            return self.tree[node]  # fully contained
         mid = (start + end) // 2
         left_sum = self._query(2 * node, start, mid, l, r)
         right_sum = self._query(2 * node + 1, mid + 1, end, l, r)
         return left_sum + right_sum
 
-# 使用例
+# Usage example
 data = [2, 1, 5, 3, 4, 2, 1, 6]
 st = SegmentTree(data)
 print(st.query(1, 4))  # 13 (1+5+3+4)
-print(st.query(0, 7))  # 24 (全体の和)
+print(st.query(0, 7))  # 24 (total sum)
 
-st.update(2, 10)        # data[2] = 5 → 10
+st.update(2, 10)        # data[2] = 5 -> 10
 print(st.query(1, 4))  # 18 (1+10+3+4)
 ```
 
-### 非再帰版セグメント木（高速版）
+### Iterative Segment Tree (Faster Version)
 
-再帰を使わない実装は定数倍が小さく、競技プログラミングでは実用上高速である。
+The non-recursive implementation has a smaller constant factor and is practically faster in competitive programming.
 
 ```python
 class SegmentTreeIterative:
-    """非再帰セグメント木（区間和） - 定数倍が小さい"""
+    """Iterative segment tree (range sum) - smaller constant factor"""
 
     def __init__(self, data: list):
         self.n = len(data)
@@ -145,16 +145,16 @@ class SegmentTreeIterative:
             self.size <<= 1
         self.tree = [0] * (2 * self.size)
 
-        # 葉にデータを配置
+        # Place data at the leaves
         for i in range(self.n):
             self.tree[self.size + i] = data[i]
 
-        # ボトムアップで構築
+        # Build bottom-up
         for i in range(self.size - 1, 0, -1):
             self.tree[i] = self.tree[2 * i] + self.tree[2 * i + 1]
 
     def update(self, idx: int, val: int):
-        """点更新 - O(log n)"""
+        """Point update - O(log n)"""
         idx += self.size
         self.tree[idx] = val
         idx >>= 1
@@ -163,7 +163,7 @@ class SegmentTreeIterative:
             idx >>= 1
 
     def query(self, l: int, r: int) -> int:
-        """区間 [l, r) の和 - O(log n)"""
+        """Sum of range [l, r) - O(log n)"""
         result = 0
         l += self.size
         r += self.size
@@ -178,14 +178,14 @@ class SegmentTreeIterative:
             r >>= 1
         return result
 
-# 使用例（半開区間 [l, r) に注意）
+# Usage example (note: half-open interval [l, r))
 data = [2, 1, 5, 3, 4, 2, 1, 6]
 st = SegmentTreeIterative(data)
-print(st.query(1, 5))  # 13 (1+5+3+4) ← [1, 5) = index 1,2,3,4
-print(st.query(0, 8))  # 24 (全体)
+print(st.query(1, 5))  # 13 (1+5+3+4) <- [1, 5) = index 1,2,3,4
+print(st.query(0, 8))  # 24 (total)
 ```
 
-### C++ 実装（非再帰版）
+### C++ Implementation (Iterative Version)
 
 ```cpp
 #include <vector>
@@ -226,18 +226,18 @@ public:
     }
 };
 
-// 使用例
-// SegmentTree<int> st(data, 0, { return a + b; });  // 区間和
-// SegmentTree<int> st(data, INT_MAX, { return min(a, b); });  // 区間最小
+// Usage examples
+// SegmentTree<int> st(data, 0, { return a + b; });  // range sum
+// SegmentTree<int> st(data, INT_MAX, { return min(a, b); });  // range min
 ```
 
 ---
 
-## 3. 区間最小値クエリ（RMQ）
+## 3. Range Minimum Query (RMQ)
 
 ```python
 class SegmentTreeMin:
-    """セグメント木（区間最小値クエリ）"""
+    """Segment tree (range minimum query)"""
 
     def __init__(self, data: list):
         self.n = len(data)
@@ -287,20 +287,20 @@ print(st_min.query(0, 3))  # 1
 print(st_min.query(4, 7))  # 3
 ```
 
-### 区間最小値とそのインデックス
+### Range Minimum with Index
 
 ```python
 class SegmentTreeMinIndex:
-    """区間最小値とそのインデックスを返すセグメント木"""
+    """Segment tree that returns the range minimum and its index"""
 
     def __init__(self, data: list):
         self.n = len(data)
-        # tree[i] = (value, index) のペア
+        # tree[i] = (value, index) pair
         self.tree = [(float('inf'), -1)] * (4 * self.n)
         self._build(data, 1, 0, self.n - 1)
 
     def _merge(self, a, b):
-        """小さい方を返す（同値ならインデックスが小さい方）"""
+        """Return the smaller one (prefer smaller index on tie)"""
         if a[0] < b[0]:
             return a
         elif a[0] > b[0]:
@@ -318,7 +318,7 @@ class SegmentTreeMinIndex:
         self.tree[node] = self._merge(self.tree[2 * node], self.tree[2 * node + 1])
 
     def query(self, l: int, r: int) -> tuple:
-        """区間 [l, r] の最小値と位置を返す"""
+        """Return the minimum value and its position in range [l, r]"""
         return self._query(1, 0, self.n - 1, l, r)
 
     def _query(self, node, start, end, l, r):
@@ -334,22 +334,22 @@ class SegmentTreeMinIndex:
 data = [5, 2, 8, 1, 9, 3, 7, 4]
 st = SegmentTreeMinIndex(data)
 val, idx = st.query(0, 7)
-print(f"最小値: {val}, 位置: {idx}")  # 最小値: 1, 位置: 3
+print(f"Min: {val}, Position: {idx}")  # Min: 1, Position: 3
 val, idx = st.query(4, 7)
-print(f"最小値: {val}, 位置: {idx}")  # 最小値: 3, 位置: 5
+print(f"Min: {val}, Position: {idx}")  # Min: 3, Position: 5
 ```
 
 ---
 
-## 4. 抽象セグメント木（モノイド）
+## 4. Abstract Segment Tree (Monoid)
 
-任意の結合的二項演算に対応する汎用的なセグメント木。モノイド（結合律を満たす二項演算 + 単位元）であれば何でもセグメント木に載せられる。
+A generic segment tree that supports any associative binary operation. Any monoid (an associative binary operation + identity element) can be placed on a segment tree.
 
 ```python
 class AbstractSegmentTree:
-    """抽象セグメント木 - 任意のモノイド演算に対応
-    op: 二項演算 (結合律を満たす)
-    e: 単位元 (op(a, e) = op(e, a) = a)
+    """Abstract segment tree - supports arbitrary monoid operations
+    op: binary operation (must satisfy associativity)
+    e: identity element (op(a, e) = op(e, a) = a)
     """
 
     def __init__(self, data: list, op, e):
@@ -361,16 +361,16 @@ class AbstractSegmentTree:
             self.size <<= 1
         self.tree = [e] * (2 * self.size)
 
-        # 葉にデータを配置
+        # Place data at the leaves
         for i in range(self.n):
             self.tree[self.size + i] = data[i]
 
-        # ボトムアップで構築
+        # Build bottom-up
         for i in range(self.size - 1, 0, -1):
             self.tree[i] = self.op(self.tree[2 * i], self.tree[2 * i + 1])
 
     def update(self, idx: int, val):
-        """点更新"""
+        """Point update"""
         idx += self.size
         self.tree[idx] = val
         idx >>= 1
@@ -379,7 +379,7 @@ class AbstractSegmentTree:
             idx >>= 1
 
     def query(self, l: int, r: int):
-        """区間 [l, r) のクエリ"""
+        """Query over range [l, r)"""
         left_result = self.e
         right_result = self.e
         l += self.size
@@ -395,33 +395,33 @@ class AbstractSegmentTree:
             r >>= 1
         return self.op(left_result, right_result)
 
-# --- さまざまなモノイドでの使用例 ---
+# --- Usage examples with various monoids ---
 
 data = [2, 1, 5, 3, 4, 2, 1, 6]
 
-# 区間和 (和, 0)
+# Range sum (sum, 0)
 st_sum = AbstractSegmentTree(data, lambda a, b: a + b, 0)
 print(st_sum.query(1, 5))  # 13
 
-# 区間最小値 (min, inf)
+# Range minimum (min, inf)
 st_min = AbstractSegmentTree(data, min, float('inf'))
 print(st_min.query(0, 8))  # 1
 
-# 区間最大値 (max, -inf)
+# Range maximum (max, -inf)
 st_max = AbstractSegmentTree(data, max, float('-inf'))
 print(st_max.query(0, 8))  # 6
 
-# 区間GCD (gcd, 0)
+# Range GCD (gcd, 0)
 from math import gcd
 data_gcd = [12, 18, 24, 36]
 st_gcd = AbstractSegmentTree(data_gcd, gcd, 0)
 print(st_gcd.query(0, 4))  # 6
 
-# 区間XOR (xor, 0)
+# Range XOR (xor, 0)
 st_xor = AbstractSegmentTree(data, lambda a, b: a ^ b, 0)
 print(st_xor.query(0, 8))  # 2^1^5^3^4^2^1^6 = 0
 
-# 区間積 (乗算, 1) + MOD
+# Range product (multiplication, 1) + MOD
 MOD = 10**9 + 7
 st_prod = AbstractSegmentTree(data, lambda a, b: (a * b) % MOD, 1)
 print(st_prod.query(0, 4))  # 2*1*5*3 = 30
@@ -429,22 +429,22 @@ print(st_prod.query(0, 4))  # 2*1*5*3 = 30
 
 ---
 
-## 5. 遅延伝播（Lazy Propagation）
+## 5. Lazy Propagation
 
-区間更新（例: 区間 [l,r] の全要素に v を加算）を O(log n) で処理する。遅延伝播の核心は「必要になるまで更新を後回しにする」という考え方。
+Handles range updates (e.g., adding v to all elements in range [l,r]) in O(log n). The core idea of lazy propagation is "defer updates until they are actually needed."
 
 ```
-区間加算の遅延伝播:
+Lazy propagation for range addition:
 
-加算前:        [24]
-              /    \
-          [11]      [13]
-         /  \      /   \
-       [3]  [8] [6]   [7]
+Before addition:   [24]
+                  /    \
+              [11]      [13]
+             /  \      /   \
+           [3]  [8] [6]   [7]
 
-区間 [2,5] に +3 を加算:
-  → 影響ノードの lazy に +3 を記録
-  → 実際の伝播は必要時まで遅延
+Add +3 to range [2,5]:
+  -> Record +3 in the lazy values of affected nodes
+  -> Actual propagation is deferred until needed
 
           [24+12=36]
             /      \
@@ -457,7 +457,7 @@ print(st_prod.query(0, 4))  # 2*1*5*3 = 30
 
 ```python
 class LazySegmentTree:
-    """遅延伝播付きセグメント木（区間加算 + 区間和クエリ）"""
+    """Segment tree with lazy propagation (range addition + range sum query)"""
 
     def __init__(self, data: list):
         self.n = len(data)
@@ -475,7 +475,7 @@ class LazySegmentTree:
         self.tree[node] = self.tree[2 * node] + self.tree[2 * node + 1]
 
     def _push_down(self, node, start, end):
-        """遅延値を子に伝播"""
+        """Propagate lazy values to children"""
         if self.lazy[node] != 0:
             mid = (start + end) // 2
             left_len = mid - start + 1
@@ -490,7 +490,7 @@ class LazySegmentTree:
             self.lazy[node] = 0
 
     def range_update(self, l: int, r: int, val: int):
-        """区間 [l, r] に val を加算 - O(log n)"""
+        """Add val to range [l, r] - O(log n)"""
         self._range_update(1, 0, self.n - 1, l, r, val)
 
     def _range_update(self, node, start, end, l, r, val):
@@ -507,7 +507,7 @@ class LazySegmentTree:
         self.tree[node] = self.tree[2 * node] + self.tree[2 * node + 1]
 
     def query(self, l: int, r: int) -> int:
-        """区間 [l, r] の和 - O(log n)"""
+        """Sum of range [l, r] - O(log n)"""
         return self._query(1, 0, self.n - 1, l, r)
 
     def _query(self, node, start, end, l, r):
@@ -520,26 +520,26 @@ class LazySegmentTree:
         return (self._query(2 * node, start, mid, l, r) +
                 self._query(2 * node + 1, mid + 1, end, l, r))
 
-# 使用例
+# Usage example
 data = [1, 3, 5, 7, 9, 11]
 lst = LazySegmentTree(data)
 print(lst.query(1, 3))     # 15 (3+5+7)
-lst.range_update(1, 4, 10)  # 区間[1,4]に+10
+lst.range_update(1, 4, 10)  # add +10 to range [1,4]
 print(lst.query(1, 3))     # 45 (13+15+17)
 ```
 
-### 遅延伝播：区間代入 + 区間和クエリ
+### Lazy Propagation: Range Assignment + Range Sum Query
 
 ```python
 class LazySegmentTreeAssign:
-    """遅延伝播付きセグメント木（区間代入 + 区間和クエリ）
-    区間 [l, r] の全要素を val に置き換える
+    """Segment tree with lazy propagation (range assignment + range sum query)
+    Replace all elements in range [l, r] with val
     """
 
     def __init__(self, data: list):
         self.n = len(data)
         self.tree = [0] * (4 * self.n)
-        self.lazy = [None] * (4 * self.n)  # None = 未伝播
+        self.lazy = [None] * (4 * self.n)  # None = not propagated
         self._build(data, 1, 0, self.n - 1)
 
     def _build(self, data, node, start, end):
@@ -566,7 +566,7 @@ class LazySegmentTreeAssign:
             self.lazy[node] = None
 
     def range_assign(self, l: int, r: int, val: int):
-        """区間 [l, r] を val に代入 - O(log n)"""
+        """Assign val to range [l, r] - O(log n)"""
         self._range_assign(1, 0, self.n - 1, l, r, val)
 
     def _range_assign(self, node, start, end, l, r, val):
@@ -595,7 +595,7 @@ class LazySegmentTreeAssign:
         return (self._query(2 * node, start, mid, l, r) +
                 self._query(2 * node + 1, mid + 1, end, l, r))
 
-# 使用例
+# Usage example
 data = [1, 2, 3, 4, 5]
 lst = LazySegmentTreeAssign(data)
 print(lst.query(0, 4))     # 15 (1+2+3+4+5)
@@ -603,11 +603,11 @@ lst.range_assign(1, 3, 10)  # [1, 10, 10, 10, 5]
 print(lst.query(0, 4))     # 36 (1+10+10+10+5)
 ```
 
-### 遅延伝播：区間加算 + 区間最小値クエリ
+### Lazy Propagation: Range Addition + Range Minimum Query
 
 ```python
 class LazySegmentTreeMinAdd:
-    """遅延伝播付きセグメント木（区間加算 + 区間最小値クエリ）"""
+    """Segment tree with lazy propagation (range addition + range minimum query)"""
 
     def __init__(self, data: list):
         self.n = len(data)
@@ -671,15 +671,15 @@ print(lst.query_min(0, 5))     # -4
 
 ---
 
-## 6. BIT（Binary Indexed Tree / Fenwick Tree）
+## 6. BIT (Binary Indexed Tree / Fenwick Tree)
 
-接頭辞和の計算と点更新を O(log n) で行う。セグメント木より実装が簡潔でメモリ効率が良い。
+Performs prefix sum computation and point updates in O(log n). Simpler to implement and more memory-efficient than a segment tree.
 
 ```
-配列:  [3, 2, 5, 1, 4, 7, 2, 6]
+Array:  [3, 2, 5, 1, 4, 7, 2, 6]
 index:  1  2  3  4  5  6  7  8
 
-BIT の構造（1-indexed）:
+BIT structure (1-indexed):
 tree[1] = a[1]           = 3
 tree[2] = a[1]+a[2]      = 5
 tree[3] = a[3]           = 5
@@ -689,13 +689,13 @@ tree[6] = a[5]+a[6]      = 11
 tree[7] = a[7]           = 2
 tree[8] = a[1]+...+a[8]  = 30
 
-tree[i] がカバーする範囲 = lowbit(i) = i & (-i) 個
-  tree[4]: lowbit(4)=4 → a[1]~a[4]
-  tree[6]: lowbit(6)=2 → a[5]~a[6]
-  tree[7]: lowbit(7)=1 → a[7]
+Range covered by tree[i] = lowbit(i) = i & (-i) elements
+  tree[4]: lowbit(4)=4 -> a[1]~a[4]
+  tree[6]: lowbit(6)=2 -> a[5]~a[6]
+  tree[7]: lowbit(7)=1 -> a[7]
 
-ビット操作による親子関係:
-  index   binary   lowbit  カバー範囲
+Parent-child relationship via bit operations:
+  index   binary   lowbit  covered range
     1     0001      1      [1,1]
     2     0010      2      [1,2]
     3     0011      1      [3,3]
@@ -716,7 +716,7 @@ class BIT:
 
     @classmethod
     def from_array(cls, data: list):
-        """配列から O(n) で構築"""
+        """Build from array in O(n)"""
         bit = cls(len(data))
         for i, val in enumerate(data):
             bit.update(i + 1, val)  # 1-indexed
@@ -724,7 +724,7 @@ class BIT:
 
     @classmethod
     def from_array_fast(cls, data: list):
-        """配列から O(n) で構築（高速版）"""
+        """Build from array in O(n) (fast version)"""
         n = len(data)
         bit = cls(n)
         for i in range(1, n + 1):
@@ -735,17 +735,17 @@ class BIT:
         return bit
 
     def update(self, i: int, delta: int):
-        """a[i] に delta を加算 - O(log n)"""
+        """Add delta to a[i] - O(log n)"""
         while i <= self.n:
             self.tree[i] += delta
-            i += i & (-i)  # 次のノード
+            i += i & (-i)  # next node
 
     def prefix_sum(self, i: int) -> int:
         """a[1] + a[2] + ... + a[i] - O(log n)"""
         s = 0
         while i > 0:
             s += self.tree[i]
-            i -= i & (-i)  # 親ノード
+            i -= i & (-i)  # parent node
         return s
 
     def range_sum(self, l: int, r: int) -> int:
@@ -753,8 +753,8 @@ class BIT:
         return self.prefix_sum(r) - self.prefix_sum(l - 1)
 
     def lower_bound(self, target: int) -> int:
-        """prefix_sum(i) >= target となる最小の i を返す
-        （BIT上の二分探索）- O(log n)
+        """Return the smallest i such that prefix_sum(i) >= target
+        (binary search on BIT) - O(log n)
         """
         pos = 0
         total = 0
@@ -771,58 +771,58 @@ class BIT:
 
         return pos + 1
 
-# 使用例
+# Usage example
 data = [3, 2, 5, 1, 4, 7, 2, 6]
 bit = BIT.from_array(data)
 print(bit.range_sum(2, 5))  # 12 (2+5+1+4)
-bit.update(3, 3)             # data[3] += 3 (5→8)
+bit.update(3, 3)             # data[3] += 3 (5->8)
 print(bit.range_sum(2, 5))  # 15 (2+8+1+4)
 ```
 
-### 区間加算対応 BIT（Range Update BIT）
+### Range Update BIT
 
 ```python
 class RangeUpdateBIT:
-    """区間加算 + 点クエリ / 区間和クエリ に対応する BIT
-    2本の BIT を使って区間加算を実現
+    """BIT supporting range addition + point query / range sum query
+    Uses two BITs to achieve range addition
     """
 
     def __init__(self, n: int):
         self.n = n
-        self.bit1 = BIT(n)  # 差分用
-        self.bit2 = BIT(n)  # 補正用
+        self.bit1 = BIT(n)  # difference array
+        self.bit2 = BIT(n)  # correction array
 
     def range_add(self, l: int, r: int, val: int):
-        """区間 [l, r] に val を加算"""
+        """Add val to range [l, r]"""
         self.bit1.update(l, val)
         self.bit1.update(r + 1, -val)
         self.bit2.update(l, val * (l - 1))
         self.bit2.update(r + 1, -val * r)
 
     def prefix_sum(self, i: int) -> int:
-        """a[1] + ... + a[i] の和"""
+        """Sum of a[1] + ... + a[i]"""
         return self.bit1.prefix_sum(i) * i - self.bit2.prefix_sum(i)
 
     def range_sum(self, l: int, r: int) -> int:
-        """a[l] + ... + a[r] の和"""
+        """Sum of a[l] + ... + a[r]"""
         return self.prefix_sum(r) - self.prefix_sum(l - 1)
 
     def point_query(self, i: int) -> int:
-        """a[i] の値"""
+        """Value of a[i]"""
         return self.bit1.prefix_sum(i)
 
-# 使用例
+# Usage example
 rbit = RangeUpdateBIT(8)
 rbit.range_add(2, 5, 3)  # [0, 3, 3, 3, 3, 0, 0, 0]
 print(rbit.point_query(3))   # 3
 print(rbit.range_sum(1, 8))  # 12
 ```
 
-### 2次元 BIT
+### 2D BIT
 
 ```python
 class BIT2D:
-    """2次元 Binary Indexed Tree"""
+    """2D Binary Indexed Tree"""
 
     def __init__(self, rows: int, cols: int):
         self.rows = rows
@@ -830,7 +830,7 @@ class BIT2D:
         self.tree = [[0] * (cols + 1) for _ in range(rows + 1)]
 
     def update(self, r: int, c: int, delta: int):
-        """(r, c) に delta を加算 - O(log R * log C)"""
+        """Add delta to (r, c) - O(log R * log C)"""
         i = r
         while i <= self.rows:
             j = c
@@ -840,7 +840,7 @@ class BIT2D:
             i += i & (-i)
 
     def prefix_sum(self, r: int, c: int) -> int:
-        """(1,1) ~ (r,c) の矩形和 - O(log R * log C)"""
+        """Rectangle sum from (1,1) to (r,c) - O(log R * log C)"""
         s = 0
         i = r
         while i > 0:
@@ -852,13 +852,13 @@ class BIT2D:
         return s
 
     def range_sum(self, r1: int, c1: int, r2: int, c2: int) -> int:
-        """(r1,c1) ~ (r2,c2) の矩形和"""
+        """Rectangle sum from (r1,c1) to (r2,c2)"""
         return (self.prefix_sum(r2, c2)
                 - self.prefix_sum(r1 - 1, c2)
                 - self.prefix_sum(r2, c1 - 1)
                 + self.prefix_sum(r1 - 1, c1 - 1))
 
-# 使用例
+# Usage example
 bit2d = BIT2D(4, 4)
 bit2d.update(1, 1, 3)
 bit2d.update(2, 3, 5)
@@ -868,40 +868,40 @@ print(bit2d.range_sum(1, 1, 3, 3))  # 15 (3+5+7)
 
 ---
 
-## 7. セグメント木 vs BIT 比較表
+## 7. Segment Tree vs BIT Comparison
 
-| 特性 | セグメント木 | BIT |
+| Property | Segment Tree | BIT |
 |:---|:---|:---|
-| 空間計算量 | O(4n) | O(n) |
-| 構築 | O(n) | O(n log n)（O(n)も可能） |
-| 点更新 | O(log n) | O(log n) |
-| 区間クエリ | O(log n) | O(log n) |
-| 区間更新 | O(log n)（遅延伝播） | O(log n)（range update BIT） |
-| 対応クエリ | 和・最小・最大・GCD等 | 主に和（可逆演算） |
-| 実装の複雑さ | やや複雑 | 簡潔 |
-| 定数倍 | やや大きい | 小さい |
+| Space complexity | O(4n) | O(n) |
+| Construction | O(n) | O(n log n) (O(n) also possible) |
+| Point update | O(log n) | O(log n) |
+| Range query | O(log n) | O(log n) |
+| Range update | O(log n) (with lazy propagation) | O(log n) (range update BIT) |
+| Supported queries | Sum, min, max, GCD, etc. | Primarily sum (invertible operations) |
+| Implementation complexity | Moderately complex | Concise |
+| Constant factor | Somewhat large | Small |
 
-## 用途別選択ガイド
+## Selection Guide by Use Case
 
-| 用途 | 推奨 | 理由 |
+| Use Case | Recommended | Reason |
 |:---|:---|:---|
-| 区間和 + 点更新 | BIT | 実装簡潔、高速 |
-| 区間最小/最大 | セグメント木 | BIT では非対応 |
-| 区間加算 + 区間和 | 遅延伝播セグメント木 | 区間更新が必要 |
-| 転倒数の計算 | BIT | 座標圧縮+点更新 |
-| 2次元区間クエリ | 2D BIT or セグメント木 | 拡張が容易 |
-| k番目の要素 | BIT（二分探索付き） | lower_bound が効率的 |
+| Range sum + point update | BIT | Simple implementation, fast |
+| Range min/max | Segment tree | Not supported by BIT |
+| Range addition + range sum | Lazy segment tree | Range update required |
+| Inversion count | BIT | Coordinate compression + point update |
+| 2D range queries | 2D BIT or segment tree | Easy to extend |
+| k-th element | BIT (with binary search) | Efficient lower_bound |
 
 ---
 
-## 8. 転倒数の計算（BIT応用）
+## 8. Inversion Count (BIT Application)
 
 ```python
 def count_inversions(arr: list) -> int:
-    """転倒数をBITで O(n log n) で計算
-    転倒数 = i < j かつ arr[i] > arr[j] となるペア (i, j) の数
+    """Count inversions using BIT in O(n log n)
+    Inversion count = number of pairs (i, j) where i < j and arr[i] > arr[j]
     """
-    # 座標圧縮
+    # Coordinate compression
     sorted_unique = sorted(set(arr))
     rank = {v: i + 1 for i, v in enumerate(sorted_unique)}
 
@@ -909,7 +909,7 @@ def count_inversions(arr: list) -> int:
     inversions = 0
 
     for i in range(len(arr) - 1, -1, -1):
-        # arr[i] より小さい要素で、arr[i] より右にあるものの数
+        # Count elements smaller than arr[i] that appear to the right of arr[i]
         inversions += bit.prefix_sum(rank[arr[i]] - 1)
         bit.update(rank[arr[i]], 1)
 
@@ -920,18 +920,18 @@ print(count_inversions(data))  # 7
 # (5,3),(5,2),(5,4),(5,1),(3,2),(3,1),(4,1) = 7
 ```
 
-### k番目の要素の検索（BIT上の二分探索）
+### k-th Smallest Element Search (Binary Search on BIT)
 
 ```python
 def kth_smallest(bit: BIT, k: int) -> int:
-    """BIT上で k 番目に小さい要素のインデックスを返す
-    BIT[i] = 値 i が存在するか（0 or 1）として管理
+    """Return the index of the k-th smallest element on BIT
+    BIT[i] = whether value i exists (0 or 1)
     """
     return bit.lower_bound(k)
 
-# 使用例: 動的な k 番目の要素
+# Usage example: dynamic k-th element
 class DynamicKthElement:
-    """要素の追加・削除を行いながら k 番目の要素を求める"""
+    """Find the k-th element while supporting insertion and deletion"""
 
     def __init__(self, max_val: int):
         self.bit = BIT(max_val)
@@ -946,7 +946,7 @@ class DynamicKthElement:
         self.count -= 1
 
     def kth(self, k: int) -> int:
-        """k 番目に小さい要素を返す（1-indexed）"""
+        """Return the k-th smallest element (1-indexed)"""
         return self.bit.lower_bound(k)
 
 dke = DynamicKthElement(100)
@@ -954,66 +954,66 @@ dke.add(10)
 dke.add(30)
 dke.add(20)
 dke.add(50)
-print(dke.kth(1))  # 10（最小）
-print(dke.kth(3))  # 30（3番目）
+print(dke.kth(1))  # 10 (smallest)
+print(dke.kth(3))  # 30 (3rd smallest)
 dke.remove(20)
-print(dke.kth(2))  # 30（2番目）
+print(dke.kth(2))  # 30 (2nd smallest)
 ```
 
 ---
 
-## 9. セグメント木の応用問題
+## 9. Segment Tree Applications
 
-### セグメント木上の二分探索
+### Binary Search on Segment Tree
 
 ```python
 class SegmentTreeWithSearch(SegmentTree):
-    """セグメント木上の二分探索
-    「区間 [0, r] の和が target 以上になる最小の r」を O(log n) で求める
+    """Binary search on segment tree
+    Find the smallest r such that the sum of range [0, r] >= target in O(log n)
     """
 
     def find_first(self, target: int) -> int:
-        """prefix_sum(r) >= target となる最小の r"""
+        """Smallest r where prefix_sum(r) >= target"""
         return self._find_first(1, 0, self.n - 1, target)
 
     def _find_first(self, node, start, end, target):
         if self.tree[node] < target:
-            return -1  # この部分木では不足
+            return -1  # not enough in this subtree
         if start == end:
-            return start  # 見つかった
+            return start  # found
         mid = (start + end) // 2
-        # 左の子で十分なら左へ
+        # If the left child is sufficient, go left
         if self.tree[2 * node] >= target:
             return self._find_first(2 * node, start, mid, target)
         else:
-            # 左の分を引いて右で探索
+            # Subtract the left portion and search right
             return self._find_first(
                 2 * node + 1, mid + 1, end,
                 target - self.tree[2 * node]
             )
 ```
 
-### 最長増加部分列（LIS）のセグメント木解法
+### Longest Increasing Subsequence (LIS) via Segment Tree
 
 ```python
 def lis_segtree(arr: list) -> int:
-    """LIS の長さをセグメント木で O(n log n) で計算"""
-    # 座標圧縮
+    """Compute LIS length using segment tree in O(n log n)"""
+    # Coordinate compression
     sorted_unique = sorted(set(arr))
     compress = {v: i for i, v in enumerate(sorted_unique)}
     m = len(sorted_unique)
 
-    # 区間最大値のセグメント木
+    # Segment tree for range maximum
     st = AbstractSegmentTree([0] * m, max, 0)
 
     for val in arr:
         idx = compress[val]
-        # val より小さい要素で終わる LIS の最大長
+        # Maximum LIS length ending with an element smaller than val
         if idx > 0:
-            best = st.query(0, idx)  # [0, idx) の最大値
+            best = st.query(0, idx)  # max over [0, idx)
         else:
             best = 0
-        # val で終わる LIS の長さを更新
+        # Update LIS length ending with val
         st.update(idx, best + 1)
 
     return st.query(0, m)
@@ -1022,22 +1022,22 @@ arr = [10, 9, 2, 5, 3, 7, 101, 18]
 print(lis_segtree(arr))  # 4 (2, 3, 7, 101)
 ```
 
-### 区間スケジューリング（セグメント木）
+### Interval Scheduling (Segment Tree)
 
 ```python
 def max_events_attended(events: list) -> int:
-    """最大参加イベント数（各日1イベントのみ）
+    """Maximum number of events attended (at most one event per day)
     events: [(start_day, end_day), ...]
-    セグメント木で空いている日を効率的に検索
+    Uses a segment tree to efficiently search for available days
     """
     if not events:
         return 0
 
-    # 終了日でソート（貪欲法）
+    # Sort by end day (greedy approach)
     events.sort(key=lambda x: x[1])
     max_day = max(e[1] for e in events)
 
-    # セグメント木（区間最小値）: 0=空き, 1=予約済み
+    # Segment tree (range minimum): 0=available, 1=reserved
     tree = [0] * (4 * (max_day + 1))
     n = max_day + 1
 
@@ -1053,7 +1053,7 @@ def max_events_attended(events: list) -> int:
         tree[node] = min(tree[2 * node], tree[2 * node + 1])
 
     def find_empty(node, start, end, l, r):
-        """[l, r] 内の最初の空き日を返す（-1 = 空きなし）"""
+        """Return the first available day in [l, r] (-1 = none available)"""
         if r < start or end < l or tree[node] >= 1:
             return -1
         if start == end:
@@ -1076,15 +1076,15 @@ def max_events_attended(events: list) -> int:
 
 ---
 
-## 10. 永続セグメント木
+## 10. Persistent Segment Tree
 
-過去の任意のバージョンのセグメント木にアクセスできる。各更新で変更されたノードのみを新規作成する（共有構造）。
+Allows access to any past version of the segment tree. Only the modified nodes are newly created at each update (shared structure).
 
 ```python
 class PersistentSegmentTree:
-    """永続セグメント木（区間和）
-    更新のたびに新しいバージョンが作られ、過去のバージョンも参照可能
-    空間計算量: O(n + q * log n)（q = 更新回数）
+    """Persistent segment tree (range sum)
+    A new version is created on each update, and past versions remain accessible
+    Space complexity: O(n + q * log n) (q = number of updates)
     """
 
     class Node:
@@ -1109,8 +1109,8 @@ class PersistentSegmentTree:
         return self.Node(left.val + right.val, left, right)
 
     def update(self, version: int, idx: int, val: int) -> int:
-        """version の木を基に idx を val に更新した新バージョンを作成
-        Returns: 新バージョン番号
+        """Create a new version by updating idx to val based on the given version
+        Returns: new version number
         """
         new_root = self._update(self.roots[version], 0, self.n - 1, idx, val)
         self.roots.append(new_root)
@@ -1128,7 +1128,7 @@ class PersistentSegmentTree:
             return self.Node(node.left.val + new_right.val, node.left, new_right)
 
     def query(self, version: int, l: int, r: int) -> int:
-        """version の木で区間 [l, r] の和を求める"""
+        """Compute the sum of range [l, r] on the given version"""
         return self._query(self.roots[version], 0, self.n - 1, l, r)
 
     def _query(self, node, start, end, l, r):
@@ -1140,7 +1140,7 @@ class PersistentSegmentTree:
         return (self._query(node.left, start, mid, l, r) +
                 self._query(node.right, mid + 1, end, l, r))
 
-# 使用例
+# Usage example
 data = [1, 2, 3, 4, 5]
 pst = PersistentSegmentTree(data)  # version 0
 
@@ -1154,16 +1154,16 @@ print(pst.query(2, 0, 4))  # 37 (version 2: 1+2+10+4+20)
 
 ---
 
-## 11. Sparse Table（静的RMQ）
+## 11. Sparse Table (Static RMQ)
 
-更新がない場合の区間最小値クエリに特化した構造。前処理 O(n log n)、クエリ O(1)。
+A structure specialized for range minimum queries when there are no updates. Preprocessing O(n log n), query O(1).
 
 ```python
 import math
 
 class SparseTable:
-    """Sparse Table - 静的 RMQ（Range Minimum Query）
-    前処理: O(n log n), クエリ: O(1), 更新: 不可
+    """Sparse Table - static RMQ (Range Minimum Query)
+    Preprocessing: O(n log n), Query: O(1), Update: not supported
     """
 
     def __init__(self, data: list):
@@ -1171,11 +1171,11 @@ class SparseTable:
         self.LOG = max(1, math.floor(math.log2(self.n))) + 1
         self.table = [[float('inf')] * self.n for _ in range(self.LOG)]
 
-        # 初期化
+        # Initialization
         for i in range(self.n):
             self.table[0][i] = data[i]
 
-        # DP で構築
+        # Build via DP
         for j in range(1, self.LOG):
             for i in range(self.n - (1 << j) + 1):
                 self.table[j][i] = min(
@@ -1184,39 +1184,39 @@ class SparseTable:
                 )
 
     def query(self, l: int, r: int) -> int:
-        """区間 [l, r] の最小値 - O(1)"""
+        """Minimum of range [l, r] - O(1)"""
         length = r - l + 1
         k = math.floor(math.log2(length))
         return min(self.table[k][l], self.table[k][r - (1 << k) + 1])
 
-# 使用例
+# Usage example
 data = [5, 2, 8, 1, 9, 3, 7, 4]
 sp = SparseTable(data)
 print(sp.query(0, 3))  # 1
 print(sp.query(4, 7))  # 3
 print(sp.query(1, 6))  # 1
 
-# RMQ の手法比較
-# | 手法           | 前処理    | クエリ    | 更新     |
-# |:-------------|:---------|:---------|:---------|
-# | ナイーブ       | O(1)     | O(n)     | O(1)     |
-# | セグメント木    | O(n)     | O(log n) | O(log n) |
-# | Sparse Table  | O(n lg n)| O(1)     | 不可     |
-# | 平方分割       | O(n)     | O(√n)    | O(1)     |
+# RMQ method comparison
+# | Method         | Preprocessing | Query     | Update   |
+# |:--------------|:-------------|:---------|:---------|
+# | Naive          | O(1)         | O(n)     | O(1)     |
+# | Segment tree   | O(n)         | O(log n) | O(log n) |
+# | Sparse Table   | O(n lg n)    | O(1)     | N/A      |
+# | Sqrt decomp.   | O(n)         | O(sqrt n)| O(1)     |
 ```
 
 ---
 
-## 12. 平方分割（Sqrt Decomposition）
+## 12. Sqrt Decomposition
 
-配列を √n ブロックに分割する手法。セグメント木より実装が簡単で、一部の問題では十分な性能を提供する。
+A technique that divides the array into blocks of sqrt(n). Simpler to implement than segment trees and provides sufficient performance for some problems.
 
 ```python
 import math
 
 class SqrtDecomposition:
-    """平方分割 - 区間和クエリ + 点更新
-    構築: O(n), クエリ: O(√n), 更新: O(1)
+    """Sqrt decomposition - range sum query + point update
+    Construction: O(n), Query: O(sqrt n), Update: O(1)
     """
 
     def __init__(self, data: list):
@@ -1230,165 +1230,165 @@ class SqrtDecomposition:
             self.blocks[i // self.block_size] += data[i]
 
     def update(self, idx: int, val: int):
-        """点更新 - O(1)"""
+        """Point update - O(1)"""
         block = idx // self.block_size
         self.blocks[block] += val - self.data[idx]
         self.data[idx] = val
 
     def query(self, l: int, r: int) -> int:
-        """区間 [l, r] の和 - O(√n)"""
+        """Sum of range [l, r] - O(sqrt n)"""
         result = 0
         bl = l // self.block_size
         br = r // self.block_size
 
         if bl == br:
-            # 同じブロック内
+            # Within the same block
             for i in range(l, r + 1):
                 result += self.data[i]
         else:
-            # 左端の端数
+            # Left partial block
             for i in range(l, (bl + 1) * self.block_size):
                 result += self.data[i]
-            # 中間の完全ブロック
+            # Complete middle blocks
             for b in range(bl + 1, br):
                 result += self.blocks[b]
-            # 右端の端数
+            # Right partial block
             for i in range(br * self.block_size, r + 1):
                 result += self.data[i]
 
         return result
 
-# 使用例
+# Usage example
 data = [1, 3, 5, 7, 9, 11, 13, 15, 17]
 sd = SqrtDecomposition(data)
 print(sd.query(2, 6))  # 45 (5+7+9+11+13)
-sd.update(4, 100)       # data[4] = 9 → 100
+sd.update(4, 100)       # data[4] = 9 -> 100
 print(sd.query(2, 6))  # 136 (5+7+100+11+13)
 ```
 
 ---
 
-## 13. アンチパターン
+## 13. Anti-patterns
 
-### アンチパターン1: 配列サイズの見積もりミス
+### Anti-pattern 1: Incorrect Array Size Estimation
 
 ```python
-# BAD: セグメント木のサイズが不足
+# BAD: Segment tree size is insufficient
 class BadSegTree:
     def __init__(self, data):
-        self.tree = [0] * (2 * len(data))  # 不足!
-        # n が 2の冪でない場合、2n では足りない
+        self.tree = [0] * (2 * len(data))  # insufficient!
+        # When n is not a power of 2, 2n is not enough
 
-# GOOD: 4n で十分なサイズを確保
+# GOOD: Allocate sufficient size with 4n
 class GoodSegTree:
     def __init__(self, data):
-        self.tree = [0] * (4 * len(data))  # 安全
+        self.tree = [0] * (4 * len(data))  # safe
 ```
 
-### アンチパターン2: 遅延伝播の push_down 忘れ
+### Anti-pattern 2: Forgetting push_down in Lazy Propagation
 
 ```python
-# BAD: クエリ時に遅延値を伝播しない
+# BAD: Not propagating lazy values during query
 def bad_query(self, node, start, end, l, r):
     if l <= start and end <= r:
-        return self.tree[node]  # lazy が未反映!
+        return self.tree[node]  # lazy not reflected!
     mid = (start + end) // 2
-    # push_down なしで子にアクセス → 不正確な結果
+    # Accessing children without push_down -> incorrect results
     return (self._query(2*node, start, mid, l, r) +
             self._query(2*node+1, mid+1, end, l, r))
 
-# GOOD: 子にアクセスする前に必ず push_down
+# GOOD: Always push_down before accessing children
 def good_query(self, node, start, end, l, r):
     if l <= start and end <= r:
         return self.tree[node]
-    self._push_down(node, start, end)  # 遅延値を伝播!
+    self._push_down(node, start, end)  # propagate lazy values!
     mid = (start + end) // 2
     return (self._query(2*node, start, mid, l, r) +
             self._query(2*node+1, mid+1, end, l, r))
 ```
 
-### アンチパターン3: BIT の 0-indexed 使用
+### Anti-pattern 3: Using 0-indexed BIT
 
 ```python
-# BAD: BIT を 0-indexed で使う
-# i & (-i) は i=0 のとき 0 → 無限ループ!
+# BAD: Using BIT with 0-indexed
+# i & (-i) when i=0 is 0 -> infinite loop!
 class BadBIT:
     def prefix_sum(self, i):
         s = 0
-        while i > 0:  # i=0 の場合、i & (-i) = 0 で抜けるが...
+        while i > 0:  # when i=0, i & (-i) = 0 so it exits but...
             s += self.tree[i]
-            i -= i & (-i)  # 0 - 0 = 0 → 問題なし
+            i -= i & (-i)  # 0 - 0 = 0 -> no problem here
         return s
 
     def update(self, i, delta):
         while i <= self.n:
             self.tree[i] += delta
-            i += i & (-i)  # 0 + 0 = 0 → 無限ループ!
+            i += i & (-i)  # 0 + 0 = 0 -> infinite loop!
 
-# GOOD: BIT は必ず 1-indexed で使う
+# GOOD: Always use 1-indexed for BIT
 class GoodBIT:
     def update(self, i, delta):
-        # i は 1 以上であることを保証
+        # Ensure i is at least 1
         assert i >= 1
         while i <= self.n:
             self.tree[i] += delta
             i += i & (-i)
 ```
 
-### アンチパターン4: セグメント木の区間が閉区間/半開区間で混在
+### Anti-pattern 4: Mixing Closed and Half-open Intervals in Segment Tree
 
 ```python
-# BAD: 閉区間 [l, r] と半開区間 [l, r) が混在
-# セグメント木は閉区間、BIT は 1-indexed と一貫性を持たせる
+# BAD: Mixing closed interval [l, r] and half-open interval [l, r)
+# Maintain consistency between segment tree using closed intervals and BIT using 1-indexed
 
-# GOOD: 実装全体でどちらかに統一する
-# 再帰版セグメント木: 閉区間 [l, r] が一般的
-# 非再帰版セグメント木: 半開区間 [l, r) が一般的
-# BIT: 1-indexed + 閉区間 [l, r]
+# GOOD: Use one convention consistently throughout the implementation
+# Recursive segment tree: closed interval [l, r] is common
+# Iterative segment tree: half-open interval [l, r) is common
+# BIT: 1-indexed + closed interval [l, r]
 ```
 
 
 ---
 
-## 実践演習
+## Hands-on Exercises
 
-### 演習1: 基本的な実装
+### Exercise 1: Basic Implementation
 
-以下の要件を満たすコードを実装してください。
+Implement code that meets the following requirements.
 
-**要件:**
-- 入力データの検証を行うこと
-- エラーハンドリングを適切に実装すること
-- テストコードも作成すること
+**Requirements:**
+- Validate input data
+- Implement proper error handling
+- Include test code
 
 ```python
-# 演習1: 基本実装のテンプレート
+# Exercise 1: Basic implementation template
 class Exercise1:
-    """基本的な実装パターンの演習"""
+    """Exercise for basic implementation patterns"""
 
     def __init__(self):
         self.data = []
 
     def validate_input(self, value):
-        """入力値の検証"""
+        """Validate input value"""
         if value is None:
-            raise ValueError("入力値がNoneです")
+            raise ValueError("Input value is None")
         return True
 
     def process(self, value):
-        """データ処理のメインロジック"""
+        """Main processing logic"""
         self.validate_input(value)
         self.data.append(value)
         return self.data
 
     def get_results(self):
-        """処理結果の取得"""
+        """Get processing results"""
         return {
             'count': len(self.data),
             'data': self.data
         }
 
-# テスト
+# Tests
 def test_exercise1():
     ex = Exercise1()
     assert ex.process(1) == [1]
@@ -1397,26 +1397,26 @@ def test_exercise1():
 
     try:
         ex.process(None)
-        assert False, "例外が発生するべき"
+        assert False, "Should have raised an exception"
     except ValueError:
         pass
 
-    print("全テスト合格!")
+    print("All tests passed!")
 
 test_exercise1()
 ```
 
-### 演習2: 応用パターン
+### Exercise 2: Advanced Patterns
 
-基本実装を拡張して、以下の機能を追加してください。
+Extend the basic implementation with the following features.
 
 ```python
-# 演習2: 応用パターン
+# Exercise 2: Advanced patterns
 from typing import List, Dict, Optional
 from datetime import datetime
 
 class AdvancedExercise:
-    """応用パターンの演習"""
+    """Exercise for advanced patterns"""
 
     def __init__(self, max_size: int = 100):
         self._items: List[Dict] = []
@@ -1424,7 +1424,7 @@ class AdvancedExercise:
         self._created_at = datetime.now()
 
     def add(self, key: str, value: any) -> bool:
-        """アイテムの追加（サイズ制限付き）"""
+        """Add an item (with size limit)"""
         if len(self._items) >= self._max_size:
             return False
         self._items.append({
@@ -1435,14 +1435,14 @@ class AdvancedExercise:
         return True
 
     def find(self, key: str) -> Optional[Dict]:
-        """キーによる検索"""
+        """Search by key"""
         for item in reversed(self._items):
             if item['key'] == key:
                 return item
         return None
 
     def remove(self, key: str) -> bool:
-        """キーによる削除"""
+        """Delete by key"""
         for i, item in enumerate(self._items):
             if item['key'] == key:
                 self._items.pop(i)
@@ -1450,7 +1450,7 @@ class AdvancedExercise:
         return False
 
     def stats(self) -> Dict:
-        """統計情報"""
+        """Statistics"""
         return {
             'total_items': len(self._items),
             'max_size': self._max_size,
@@ -1458,44 +1458,44 @@ class AdvancedExercise:
             'uptime': str(datetime.now() - self._created_at)
         }
 
-# テスト
+# Tests
 def test_advanced():
     ex = AdvancedExercise(max_size=3)
     assert ex.add("a", 1) == True
     assert ex.add("b", 2) == True
     assert ex.add("c", 3) == True
-    assert ex.add("d", 4) == False  # サイズ制限
+    assert ex.add("d", 4) == False  # size limit
     assert ex.find("b")['value'] == 2
     assert ex.remove("b") == True
     assert ex.find("b") is None
     stats = ex.stats()
     assert stats['total_items'] == 2
-    print("応用テスト全合格!")
+    print("All advanced tests passed!")
 
 test_advanced()
 ```
 
-### 演習3: パフォーマンス最適化
+### Exercise 3: Performance Optimization
 
-以下のコードのパフォーマンスを改善してください。
+Improve the performance of the following code.
 
 ```python
-# 演習3: パフォーマンス最適化
+# Exercise 3: Performance optimization
 import time
 from functools import lru_cache
 
-# 最適化前（O(n^2)）
+# Before optimization (O(n^2))
 def slow_search(data: list, target: int) -> int:
-    """非効率な検索"""
+    """Inefficient search"""
     for i in range(len(data)):
         for j in range(i + 1, len(data)):
             if data[i] + data[j] == target:
                 return (i, j)
     return (-1, -1)
 
-# 最適化後（O(n)）
+# After optimization (O(n))
 def fast_search(data: list, target: int) -> tuple:
-    """ハッシュマップを使った効率的な検索"""
+    """Efficient search using a hash map"""
     seen = {}
     for i, num in enumerate(data):
         complement = target - num
@@ -1504,7 +1504,7 @@ def fast_search(data: list, target: int) -> tuple:
         seen[num] = i
     return (-1, -1)
 
-# ベンチマーク
+# Benchmark
 def benchmark():
     import random
     data = list(range(5000))
@@ -1519,88 +1519,88 @@ def benchmark():
     result2 = fast_search(data, target)
     fast_time = time.time() - start
 
-    print(f"非効率版: {slow_time:.4f}秒")
-    print(f"効率版:   {fast_time:.6f}秒")
-    print(f"高速化率: {slow_time/fast_time:.0f}倍")
+    print(f"Inefficient version: {slow_time:.4f}s")
+    print(f"Efficient version:   {fast_time:.6f}s")
+    print(f"Speedup: {slow_time/fast_time:.0f}x")
 
 benchmark()
 ```
 
-**ポイント:**
-- アルゴリズムの計算量を意識する
-- 適切なデータ構造を選択する
-- ベンチマークで効果を測定する
+**Key points:**
+- Be mindful of algorithmic time complexity
+- Choose appropriate data structures
+- Measure effectiveness with benchmarks
 ---
 
 ## 14. FAQ
 
-### Q1: セグメント木のサイズはなぜ 4n？
+### Q1: Why is the segment tree size 4n?
 
-**A:** セグメント木は完全二分木として構築され、n が 2 の冪でない場合、葉の数は次の 2 の冪に切り上げられる。ノードの索引付け（1-indexed, 子は 2*node と 2*node+1）を使うと、最大で 4n 程度のノードが必要になる。安全マージンを含めて 4n が定番。非再帰版では 2 * (次の2の冪) で正確に確保できる。
+**A:** A segment tree is built as a complete binary tree, and when n is not a power of 2, the number of leaves is rounded up to the next power of 2. When using 1-indexed node numbering (children at 2*node and 2*node+1), up to approximately 4n nodes are needed. 4n is the standard safe margin. The iterative version can allocate exactly 2 * (next power of 2).
 
-### Q2: BIT で区間最小値は求められるか？
+### Q2: Can BIT compute range minimum?
 
-**A:** 標準の BIT では困難。BIT は「接頭辞に関する可逆な二項演算」に適しており、min/max は逆元が存在しないため、区間 [l, r] のクエリに分解できない。区間最小値にはセグメント木を使う。ただし、値の更新が増加方向のみ（値の減少がない）場合は BIT でも区間最小値が求められるという特殊ケースがある。
+**A:** It is difficult with a standard BIT. BIT is suited for "invertible binary operations on prefixes," and since min/max lack inverses, they cannot be decomposed into range [l, r] queries. Use a segment tree for range minimum. However, there is a special case where BIT can compute range minimum when updates are monotonically increasing (values never decrease).
 
-### Q3: 2次元のセグメント木は？
+### Q3: What about 2D segment trees?
 
-**A:** 外側のセグメント木の各ノードが内側のセグメント木を持つ「2D セグメント木」が構築可能。計算量は O(log^2 n)、空間は O(n^2 log^2 n)。実用的には 2D BIT のほうが実装が簡潔。さらに高度なものとして KD-Tree や R-Tree がある。
+**A:** A "2D segment tree" where each node of the outer segment tree holds an inner segment tree is possible. Time complexity is O(log^2 n), space is O(n^2 log^2 n). In practice, a 2D BIT is simpler to implement. For more advanced needs, KD-Tree or R-Tree can be used.
 
-### Q4: 遅延伝播で複数の操作を組み合わせるには？
+### Q4: How do you combine multiple operations in lazy propagation?
 
-**A:** 例えば「区間代入」と「区間加算」を混在させる場合、遅延値を (add, assign) のペアで管理し、合成規則を正しく定義する必要がある。一般的には「assign があれば add をリセットし、add のみなら加算」のようなルールになる。このような複合遅延伝播は実装が難しく、バグの温床になりやすい。
+**A:** For example, when mixing "range assignment" and "range addition," the lazy values must be managed as (add, assign) pairs with correctly defined composition rules. Typically: "if assign exists, reset add; if only add, accumulate." Such compound lazy propagation is hard to implement and prone to bugs.
 
-### Q5: セグメント木のノード数が多くて MLE（メモリ制限超過）になる場合は？
+### Q5: What if the segment tree has too many nodes and causes MLE (Memory Limit Exceeded)?
 
-**A:** (1) 動的セグメント木（ノードを必要時に生成）を使う。座標が大きいが実際に使われるインデックスが少ない場合に有効。(2) 座標圧縮で値の範囲を縮小する。(3) BIT が使える問題なら BIT に切り替える（メモリが約 1/4）。
+**A:** (1) Use a dynamic segment tree (create nodes on demand). Effective when coordinates are large but only a few indices are actually used. (2) Use coordinate compression to reduce the value range. (3) If the problem can use BIT, switch to BIT (approximately 1/4 the memory).
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Building practical experience is the most important aspect. Understanding deepens not only through theory but also by actually writing code and verifying its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What common mistakes do beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently applied in day-to-day development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## 15. まとめ
+## 15. Summary
 
-| 項目 | 要点 |
+| Topic | Key Points |
 |:---|:---|
-| セグメント木 | 区間クエリ + 点更新を O(log n) で処理 |
-| 遅延伝播 | 区間更新を O(log n) に拡張。push_down が鍵 |
-| BIT | 接頭辞和特化。セグメント木より簡潔で高速 |
-| 抽象セグメント木 | モノイド演算を汎用化。任意の結合的演算に対応 |
-| 永続セグメント木 | 過去のバージョンにアクセス可能 |
-| Sparse Table | 静的RMQ に O(1) で回答。更新不可 |
-| 平方分割 | 実装が簡単。O(√n) のクエリ |
-| 適用場面 | 区間和・最小・最大・GCD の動的クエリ |
+| Segment tree | Handles range queries + point updates in O(log n) |
+| Lazy propagation | Extends range updates to O(log n). push_down is the key |
+| BIT | Specialized for prefix sums. Simpler and faster than segment trees |
+| Abstract segment tree | Generalizes monoid operations. Supports any associative operation |
+| Persistent segment tree | Enables access to past versions |
+| Sparse Table | Answers static RMQ in O(1). No update support |
+| Sqrt decomposition | Simple implementation. O(sqrt n) queries |
+| Use cases | Dynamic queries for range sum, min, max, GCD |
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Guides
 
-- [Union-Find](./00-union-find.md) -- 別の高度データ構造
-- [文字列アルゴリズム](./02-string-algorithms.md) -- Trie等の木構造応用
-- [競技プログラミング](../04-practice/01-competitive-programming.md) -- セグメント木の実践
+- [Union-Find](./00-union-find.md) -- Another advanced data structure
+- [String Algorithms](./02-string-algorithms.md) -- Tree structure applications such as Trie
+- [Competitive Programming](../04-practice/01-competitive-programming.md) -- Practical use of segment trees
 
 ---
 
-## 参考文献
+## References
 
 1. Cormen, T. H. et al. (2022). *Introduction to Algorithms* (4th ed.). MIT Press.
 2. Fenwick, P. M. (1994). "A New Data Structure for Cumulative Frequency Tables." *Software: Practice and Experience*.
 3. Halim, S. & Halim, F. (2013). *Competitive Programming 3*. -- Chapter 2: Data Structures
 4. cp-algorithms. "Segment Tree." https://cp-algorithms.com/data_structures/segment_tree.html
 5. Bender, M. A. & Farach-Colton, M. (2000). "The LCA Problem Revisited." *LATIN*. -- Sparse Table
-6. 秋葉拓哉ほか (2012). 『プログラミングコンテストチャレンジブック 第2版』. マイナビ出版.
+6. Akiba, T. et al. (2012). *Programming Contest Challenge Book* (2nd ed.). Mynavi Publishing.
