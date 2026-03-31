@@ -1,180 +1,180 @@
-# クリーンコード
+# Clean Code
 
-> コードは書く時間より読む時間の方が10倍長い。読みやすいコードは正しいコードへの最短距離である。
+> Code is read 10 times more than it is written. Readable code is the shortest path to correct code.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] 良い命名の原則を身につける
-- [ ] 関数設計の原則を理解する
-- [ ] コードの臭い（Code Smell）を認識できる
-- [ ] SOLID原則を理解し実践できる
-- [ ] DRY / KISS / YAGNI を正しく適用できる
-- [ ] コメントの書き方と不要なコメントの見極め方を学ぶ
-- [ ] エラー処理のベストプラクティスを習得する
-- [ ] テスタビリティの高いコードを書けるようになる
-- [ ] リファクタリングの手法と判断基準を身につける
-- [ ] コードレビューで品質を向上させる方法を学ぶ
+- [ ] Master the principles of good naming
+- [ ] Understand the principles of function design
+- [ ] Recognize Code Smells
+- [ ] Understand and practice the SOLID principles
+- [ ] Correctly apply DRY / KISS / YAGNI
+- [ ] Learn how to write comments and how to identify unnecessary comments
+- [ ] Master best practices for error handling
+- [ ] Be able to write highly testable code
+- [ ] Master refactoring techniques and decision criteria
+- [ ] Learn how to improve quality through code reviews
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Having the following knowledge before reading this guide will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [デザインパターン](./02-design-patterns.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Understanding the content of [Design Patterns](./02-design-patterns.md)
 
 ---
 
-## 1. 命名
+## 1. Naming
 
-### 1.1 命名の基本原則
+### 1.1 Fundamental Naming Principles
 
 ```python
-# ❌ 悪い命名
-d = 30          # 何の日数？
-lst = []        # 何のリスト？
-def proc(x):    # 何の処理？
+# Bad naming
+d = 30          # Days of what?
+lst = []        # List of what?
+def proc(x):    # What does it process?
     pass
 
-# ✅ 良い命名
+# Good naming
 trial_period_days = 30
 active_users = []
 def calculate_monthly_revenue(transactions):
     pass
 
-# 命名の原則:
-# 1. 意図を明確に: is_active, has_permission, should_retry
-# 2. 発音可能に: ❌ genymdhms → ✅ generation_timestamp
-# 3. 検索可能に: ❌ 7 → ✅ MAX_RETRY_COUNT = 7
-# 4. スコープに比例: ループ変数は短く(i)、グローバルは長く
-# 5. 一貫性: get/fetch/retrieve を混在させない
+# Naming Principles:
+# 1. Be intention-revealing: is_active, has_permission, should_retry
+# 2. Be pronounceable: Bad: genymdhms -> Good: generation_timestamp
+# 3. Be searchable: Bad: 7 -> Good: MAX_RETRY_COUNT = 7
+# 4. Proportional to scope: Short for loop variables (i), long for globals
+# 5. Consistency: Don't mix get/fetch/retrieve
 ```
 
-### 1.2 命名パターン集
+### 1.2 Naming Pattern Collection
 
 ```python
-# --- ブール変数の命名 ---
-# is_, has_, can_, should_, will_ のプレフィックスを使う
+# --- Boolean variable naming ---
+# Use is_, has_, can_, should_, will_ prefixes
 is_active = True
 has_permission = False
 can_edit = True
 should_retry = False
 will_expire = True
 
-# ❌ 曖昧なブール名
-flag = True        # 何のフラグ？
-status = False     # ステータスは値が必要では？
-check = True       # チェックの結果？チェックすべき？
+# Bad boolean names
+flag = True        # Flag for what?
+status = False     # Shouldn't status have a value?
+check = True       # Result of check? Or should check?
 
-# ✅ 明確なブール名
+# Good boolean names
 is_email_verified = True
 has_admin_role = False
 can_access_dashboard = True
 should_send_notification = False
 
-# --- コレクション型の命名 ---
-# 複数形を使う
+# --- Collection type naming ---
+# Use plurals
 users = [user1, user2, user3]
 email_addresses = ["a@example.com", "b@example.com"]
 order_items = []
 
-# ❌ 単数形のコレクション
-user_list = []     # "list" は型情報であり冗長
-email_array = []   # "array" も同様
+# Bad: Singular collection names
+user_list = []     # "list" is type information and redundant
+email_array = []   # "array" is similarly redundant
 
-# ✅ Map/Dictの命名は「key_to_value」または「value_by_key」
+# Good: Map/Dict naming uses "key_to_value" or "value_by_key"
 user_by_id = {"u001": user1, "u002": user2}
 price_by_product = {"apple": 100, "banana": 200}
 email_to_user = {"a@example.com": user1}
 
-# --- 関数名のパターン ---
-# 動詞 + 名詞
+# --- Function name patterns ---
+# verb + noun
 def calculate_total_price(items):
-    """合計金額を計算する"""
+    """Calculate the total price"""
     pass
 
 def validate_email_address(email):
-    """メールアドレスを検証する"""
+    """Validate an email address"""
     pass
 
 def send_welcome_email(user):
-    """ウェルカムメールを送信する"""
+    """Send a welcome email"""
     pass
 
 def parse_csv_file(file_path):
-    """CSVファイルを解析する"""
+    """Parse a CSV file"""
     pass
 
-# --- ファクトリメソッドの命名 ---
+# --- Factory method naming ---
 def create_user(name, email):
-    """新しいユーザーを作成する"""
+    """Create a new user"""
     pass
 
 def from_json(json_string):
-    """JSONから生成する"""
+    """Create from JSON"""
     pass
 
 def build_query(params):
-    """クエリを構築する"""
+    """Build a query"""
     pass
 ```
 
-### 1.3 命名のアンチパターン
+### 1.3 Naming Anti-Patterns
 
 ```python
-# --- 1. ハンガリアン記法（現代では不要） ---
-# ❌ 型をプレフィックスに含める
+# --- 1. Hungarian Notation (unnecessary in modern code) ---
+# Bad: Including type as a prefix
 str_name = "Alice"
 int_age = 30
 lst_users = []
 dict_config = {}
 
-# ✅ 型は型ヒントで表現する
+# Good: Express types with type hints
 name: str = "Alice"
 age: int = 30
 users: list[User] = []
 config: dict[str, Any] = {}
 
-# --- 2. 略語の乱用 ---
-# ❌ 意味不明な略語
+# --- 2. Excessive abbreviation ---
+# Bad: Cryptic abbreviations
 def calc_avg_rev_per_usr(txns):
     pass
 
-# ✅ 完全な単語を使う
+# Good: Use complete words
 def calculate_average_revenue_per_user(transactions):
     pass
 
-# ただし一般的な略語はOK
+# However, common abbreviations are OK
 # id, url, http, api, db, io, cpu, os, ui, html, css
 user_id = "u001"
 api_url = "https://api.example.com"
 db_connection = get_connection()
 
-# --- 3. 二重否定 ---
-# ❌ 理解しにくい
+# --- 3. Double negatives ---
+# Bad: Hard to understand
 if not is_not_active:
     pass
 
 if not disable_feature:
     pass
 
-# ✅ 肯定形を使う
+# Good: Use positive form
 if is_active:
     pass
 
 if enable_feature:
     pass
 
-# --- 4. 汎用的すぎる名前 ---
-# ❌ 具体性がない
+# --- 4. Overly generic names ---
+# Bad: Not specific enough
 data = fetch_data()
 result = process(data)
 temp = calculate(result)
 info = get_info()
 manager = create_manager()
 
-# ✅ 具体的な名前
+# Good: Specific names
 user_profiles = fetch_user_profiles()
 monthly_revenue = calculate_revenue(user_profiles)
 formatted_report = format_revenue_report(monthly_revenue)
@@ -182,25 +182,25 @@ server_health_info = get_server_health()
 connection_pool_manager = create_connection_pool()
 ```
 
-### 1.4 命名の一貫性ルール
+### 1.4 Naming Consistency Rules
 
 ```python
-# プロジェクト内で命名規則を統一する
+# Unify naming conventions within a project
 
-# --- 同じ概念には同じ動詞を使う ---
-# ❌ 混在
+# --- Use the same verb for the same concept ---
+# Bad: Mixed
 def get_user(user_id): pass
 def fetch_order(order_id): pass
 def retrieve_product(product_id): pass
 def obtain_payment(payment_id): pass
 
-# ✅ 統一
+# Good: Unified
 def get_user(user_id): pass
 def get_order(order_id): pass
 def get_product(product_id): pass
 def get_payment(payment_id): pass
 
-# --- 対称的な名前を使う ---
+# --- Use symmetrical names ---
 # open / close
 # start / stop
 # begin / end
@@ -217,41 +217,41 @@ def get_payment(payment_id): pass
 # enable / disable
 # increment / decrement
 
-# --- 命名規約をチーム共有する例 ---
+# --- Example of sharing naming conventions with the team ---
 """
-命名規約ドキュメント:
-1. クラス名: PascalCase (UserProfile, OrderItem)
-2. 関数・変数名: snake_case (calculate_total, user_name)
-3. 定数: UPPER_SNAKE_CASE (MAX_RETRY_COUNT, API_BASE_URL)
-4. プライベート: _先頭アンダースコア (_internal_method)
-5. ブール: is_, has_, can_, should_ プレフィックス
-6. コレクション: 複数形 (users, items, orders)
-7. 辞書: value_by_key 形式 (user_by_id)
-8. イベントハンドラ: on_ プレフィックス (on_click, on_submit)
-9. コールバック: _callback サフィックス (success_callback)
-10. テスト: test_ プレフィックス (test_create_user)
+Naming Convention Document:
+1. Class names: PascalCase (UserProfile, OrderItem)
+2. Functions/variables: snake_case (calculate_total, user_name)
+3. Constants: UPPER_SNAKE_CASE (MAX_RETRY_COUNT, API_BASE_URL)
+4. Private: Leading underscore (_internal_method)
+5. Booleans: is_, has_, can_, should_ prefix
+6. Collections: Plural (users, items, orders)
+7. Dictionaries: value_by_key format (user_by_id)
+8. Event handlers: on_ prefix (on_click, on_submit)
+9. Callbacks: _callback suffix (success_callback)
+10. Tests: test_ prefix (test_create_user)
 """
 ```
 
 ---
 
-## 2. 関数設計
+## 2. Function Design
 
-### 2.1 関数設計の基本原則
+### 2.1 Fundamental Principles of Function Design
 
 ```python
-# 原則: 1関数1責任、短く、引数は少なく
+# Principle: One function, one responsibility. Keep it short. Few arguments.
 
-# ❌ 長い関数（複数の責任）
+# Bad: Long function (multiple responsibilities)
 def process_order(order):
-    # バリデーション(20行)...
-    # 在庫確認(15行)...
-    # 決済処理(25行)...
-    # メール送信(10行)...
-    # ログ記録(5行)...
-    pass  # 75行の巨大関数
+    # Validation (20 lines)...
+    # Inventory check (15 lines)...
+    # Payment processing (25 lines)...
+    # Email sending (10 lines)...
+    # Logging (5 lines)...
+    pass  # 75-line giant function
 
-# ✅ 分割された関数
+# Good: Split functions
 def process_order(order):
     validate_order(order)
     check_inventory(order.items)
@@ -259,25 +259,25 @@ def process_order(order):
     send_confirmation_email(order.customer)
     log_order(order)
 
-# 引数の原則:
-# 0個（ニラディック）: 理想的
-# 1個（モナディック）: 良い
-# 2個（ダイアディック）: 許容
-# 3個以上: オブジェクトにまとめることを検討
+# Argument principles:
+# 0 arguments (niladic): Ideal
+# 1 argument (monadic): Good
+# 2 arguments (dyadic): Acceptable
+# 3+ arguments: Consider grouping into an object
 ```
 
-### 2.2 関数の抽象度レベル
+### 2.2 Abstraction Levels in Functions
 
 ```python
-# 1つの関数内では同じ抽象度レベルを維持する
+# Maintain the same abstraction level within a single function
 
-# ❌ 抽象度が混在
+# Bad: Mixed abstraction levels
 def generate_report(data):
-    # 高レベル: データ検証
+    # High level: Data validation
     if not data:
         raise ValueError("Data is empty")
 
-    # 低レベル: HTMLの直接操作
+    # Low level: Direct HTML manipulation
     html = "<html><head><title>Report</title></head><body>"
     html += "<table>"
     for row in data:
@@ -287,11 +287,11 @@ def generate_report(data):
         html += "</tr>"
     html += "</table></body></html>"
 
-    # 高レベル: メール送信
+    # High level: Send email
     send_email("admin@example.com", "Report", html)
     return html
 
-# ✅ 同じ抽象度レベル
+# Good: Same abstraction level
 def generate_report(data):
     validate_report_data(data)
     html = build_report_html(data)
@@ -313,20 +313,20 @@ def distribute_report(html):
     send_email("admin@example.com", "Report", html)
 ```
 
-### 2.3 引数設計のベストプラクティス
+### 2.3 Best Practices for Argument Design
 
 ```python
 from dataclasses import dataclass
 from typing import Optional
 
-# --- 引数が多すぎる関数 ---
-# ❌ 引数が多い
+# --- Functions with too many arguments ---
+# Bad: Too many arguments
 def create_user(name, email, age, address, phone,
                 role, department, manager_id,
                 start_date, salary):
     pass
 
-# ✅ パラメータオブジェクトを使う
+# Good: Use a parameter object
 @dataclass
 class UserCreationParams:
     name: str
@@ -341,34 +341,34 @@ class UserCreationParams:
     salary: Optional[float] = None
 
 def create_user(params: UserCreationParams):
-    # params.name, params.email 等でアクセス
+    # Access via params.name, params.email, etc.
     pass
 
-# --- フラグ引数を避ける ---
-# ❌ ブール引数で分岐
+# --- Avoid flag arguments ---
+# Bad: Branching on a boolean argument
 def get_users(include_inactive: bool):
     if include_inactive:
         return get_all_users()
     else:
         return get_active_users()
 
-# ✅ 関数を分割
+# Good: Split the function
 def get_active_users():
     return [u for u in all_users if u.is_active]
 
 def get_all_users():
     return all_users
 
-# --- 出力引数を避ける ---
-# ❌ 引数を変更する
+# --- Avoid output arguments ---
+# Bad: Modifying an argument
 def add_to_list(items, new_item):
-    items.append(new_item)  # 副作用
+    items.append(new_item)  # Side effect
 
-# ✅ 新しい値を返す
+# Good: Return a new value
 def add_to_list(items, new_item):
     return [*items, new_item]
 
-# --- デフォルト引数の活用 ---
+# --- Leverage default arguments ---
 def connect_to_database(
     host: str = "localhost",
     port: int = 5432,
@@ -376,21 +376,21 @@ def connect_to_database(
     timeout_seconds: int = 30,
     max_retries: int = 3
 ):
-    """必要な引数だけ指定すればよい"""
+    """Only specify the arguments you need"""
     pass
 
-# 使用例: デフォルトで十分な場合
+# Usage: When defaults are sufficient
 connect_to_database()
 
-# 一部だけ変更
+# Override only some
 connect_to_database(host="production-db.example.com", timeout_seconds=60)
 ```
 
-### 2.4 純粋関数と副作用
+### 2.4 Pure Functions and Side Effects
 
 ```python
-# --- 純粋関数: 同じ入力に対して常に同じ出力、副作用なし ---
-# ✅ 純粋関数の例
+# --- Pure function: Same input always produces same output, no side effects ---
+# Good: Pure function examples
 def calculate_tax(price: float, tax_rate: float) -> float:
     return price * tax_rate
 
@@ -400,49 +400,49 @@ def format_full_name(first_name: str, last_name: str) -> str:
 def filter_active_users(users: list) -> list:
     return [u for u in users if u.is_active]
 
-# --- 副作用を持つ関数: 名前で明示する ---
-# ✅ 副作用があることが名前から分かる
+# --- Functions with side effects: Make it clear in the name ---
+# Good: Side effect is apparent from the name
 def save_user_to_database(user):
-    """データベースに保存する（副作用）"""
+    """Save to database (side effect)"""
     db.users.insert(user.to_dict())
 
 def send_notification_email(user, message):
-    """メールを送信する（副作用）"""
+    """Send an email (side effect)"""
     email_service.send(user.email, message)
 
 def log_access(user_id, resource):
-    """アクセスログを記録する（副作用）"""
+    """Record an access log (side effect)"""
     logger.info(f"User {user_id} accessed {resource}")
 
-# --- コマンドとクエリの分離（CQS） ---
-# ❌ コマンドとクエリが混在
+# --- Command Query Separation (CQS) ---
+# Bad: Command and query mixed
 class UserService:
     def get_and_update_last_login(self, user_id):
-        """ユーザーを取得しつつ最終ログイン日時も更新する"""
+        """Get user while also updating last login timestamp"""
         user = self.db.find(user_id)
         user.last_login = datetime.now()
         self.db.save(user)
-        return user  # 取得（クエリ）と更新（コマンド）が混在
+        return user  # Query (get) and command (update) are mixed
 
-# ✅ コマンドとクエリを分離
+# Good: Separate command and query
 class UserService:
     def get_user(self, user_id):
-        """ユーザーを取得する（クエリ）"""
+        """Get a user (query)"""
         return self.db.find(user_id)
 
     def update_last_login(self, user_id):
-        """最終ログイン日時を更新する（コマンド）"""
+        """Update last login timestamp (command)"""
         user = self.db.find(user_id)
         user.last_login = datetime.now()
         self.db.save(user)
 ```
 
-### 2.5 関数の長さと複雑度
+### 2.5 Function Length and Complexity
 
 ```python
-# --- サイクロマティック複雑度を低く保つ ---
+# --- Keep cyclomatic complexity low ---
 
-# ❌ 複雑度が高い（分岐が多すぎる）
+# Bad: High complexity (too many branches)
 def calculate_discount(user, order):
     discount = 0
     if user.is_premium:
@@ -467,7 +467,7 @@ def calculate_discount(user, order):
             discount = 0.03
     return discount
 
-# ✅ テーブル駆動で複雑度を削減
+# Good: Table-driven to reduce complexity
 DISCOUNT_TABLE = {
     # (is_premium, min_total, min_years): discount_rate
     (True,  10000, 5): 0.20,
@@ -488,8 +488,8 @@ def calculate_discount(user, order):
             return rate
     return 0.0
 
-# --- ポリモーフィズムで条件分岐を排除 ---
-# ❌ 型による分岐
+# --- Eliminate conditional branching with polymorphism ---
+# Bad: Branching by type
 def calculate_shipping(order):
     if order.shipping_type == "standard":
         return order.weight * 10
@@ -502,7 +502,7 @@ def calculate_shipping(order):
     else:
         raise ValueError(f"Unknown shipping type: {order.shipping_type}")
 
-# ✅ ストラテジーパターン
+# Good: Strategy pattern
 from abc import ABC, abstractmethod
 
 class ShippingStrategy(ABC):
@@ -542,45 +542,47 @@ def calculate_shipping(order):
 
 ---
 
-## 3. コードの臭い（Code Smell）
+## 3. Code Smells
 
-### 3.1 代表的なコードの臭い一覧
+### 3.1 Common Code Smells List
 
 ```
-Code Smell（リファクタリングの兆候）:
+Code Smells (Signs That Refactoring Is Needed):
 
-  ┌──────────────────┬──────────────────────────────┐
-  │ 臭い             │ 対策                         │
-  ├──────────────────┼──────────────────────────────┤
-  │ 長いメソッド      │ メソッド抽出                  │
-  │ 大きなクラス      │ クラス分割                    │
-  │ 重複コード        │ 共通関数に抽出                │
-  │ 長い引数リスト    │ パラメータオブジェクト         │
-  │ フラグ引数        │ 関数を分割                    │
-  │ コメントが必要    │ コードを自己説明的に           │
-  │ 深いネスト       │ 早期リターン、ガード節         │
-  │ マジックナンバー  │ 名前付き定数                  │
-  │ データの塊        │ データクラスに抽出             │
-  │ 特性の横恋慕      │ メソッドを適切なクラスへ移動   │
-  │ 変更の発散        │ 責務の分離                    │
-  │ 変更の散弾        │ 関連する変更の集約             │
-  │ 中間者            │ 委譲の除去                    │
-  │ 不適切な親密さ    │ カプセル化の強化               │
-  │ 怠惰なクラス      │ クラスの統合                   │
-  │ 推測的一般化      │ 不要な抽象化の除去             │
-  └──────────────────┴──────────────────────────────┘
+  +--------------------+-------------------------------+
+  | Smell              | Remedy                        |
+  +--------------------+-------------------------------+
+  | Long Method        | Extract Method                |
+  | Large Class        | Split Class                   |
+  | Duplicated Code    | Extract into common function  |
+  | Long Parameter List| Parameter Object              |
+  | Flag Argument      | Split the function            |
+  | Comment Needed     | Make code self-documenting     |
+  | Deep Nesting       | Early return, guard clauses   |
+  | Magic Number       | Named constants               |
+  | Data Clumps        | Extract into data class       |
+  | Feature Envy       | Move method to proper class   |
+  | Divergent Change   | Separate responsibilities     |
+  | Shotgun Surgery    | Consolidate related changes   |
+  | Middle Man         | Remove delegation             |
+  | Inappropriate      | Strengthen encapsulation      |
+  |   Intimacy         |                               |
+  | Lazy Class         | Merge classes                 |
+  | Speculative        | Remove unnecessary            |
+  |   Generality       |   abstraction                 |
+  +--------------------+-------------------------------+
 ```
 
-### 3.2 早期リターンとガード節
+### 3.2 Early Return and Guard Clauses
 
 ```python
-# ❌ 深いネスト
+# Bad: Deep nesting
 def process(user):
     if user:
         if user.is_active:
             if user.has_permission:
                 if user.email_verified:
-                    # ようやく本来の処理
+                    # Finally the actual logic
                     result = do_complex_calculation(user)
                     save_result(result)
                     notify_user(user, result)
@@ -594,7 +596,7 @@ def process(user):
     else:
         raise ValueError("User is None")
 
-# ✅ ガード節で早期リターン
+# Good: Guard clauses with early return
 def process(user):
     if not user:
         raise ValueError("User is None")
@@ -605,54 +607,54 @@ def process(user):
     if not user.email_verified:
         raise ValueError("Email not verified")
 
-    # 本来の処理がフラットに書ける
+    # The actual logic can be written flat
     result = do_complex_calculation(user)
     save_result(result)
     notify_user(user, result)
     return result
 ```
 
-### 3.3 重複コードの排除
+### 3.3 Eliminating Duplicated Code
 
 ```python
-# ❌ コードの重複
+# Bad: Code duplication
 class UserReport:
     def generate_csv(self, users):
-        # バリデーション
+        # Validation
         if not users:
             raise ValueError("No users provided")
         if len(users) > 10000:
             raise ValueError("Too many users")
 
-        # フィルタリング
+        # Filtering
         active_users = [u for u in users if u.is_active]
 
-        # CSV生成
+        # CSV generation
         lines = ["name,email,role"]
         for user in active_users:
             lines.append(f"{user.name},{user.email},{user.role}")
         return "\n".join(lines)
 
     def generate_json(self, users):
-        # バリデーション（重複!）
+        # Validation (duplicate!)
         if not users:
             raise ValueError("No users provided")
         if len(users) > 10000:
             raise ValueError("Too many users")
 
-        # フィルタリング（重複!）
+        # Filtering (duplicate!)
         active_users = [u for u in users if u.is_active]
 
-        # JSON生成
+        # JSON generation
         return json.dumps([
             {"name": u.name, "email": u.email, "role": u.role}
             for u in active_users
         ])
 
-# ✅ 共通部分を抽出（Template Methodパターン）
+# Good: Extract common parts (Template Method pattern)
 class UserReport:
     def _validate_and_filter(self, users):
-        """共通のバリデーションとフィルタリング"""
+        """Common validation and filtering"""
         if not users:
             raise ValueError("No users provided")
         if len(users) > 10000:
@@ -674,10 +676,10 @@ class UserReport:
         ])
 ```
 
-### 3.4 マジックナンバーの排除
+### 3.4 Eliminating Magic Numbers
 
 ```python
-# ❌ マジックナンバーだらけ
+# Bad: Full of magic numbers
 def check_password(password):
     if len(password) < 8:
         return False
@@ -697,7 +699,7 @@ def calculate_shipping(weight):
     else:
         return 500 + 800 + (weight - 5.0) * 150
 
-# ✅ 名前付き定数
+# Good: Named constants
 MIN_PASSWORD_LENGTH = 8
 MAX_PASSWORD_LENGTH = 128
 
@@ -715,9 +717,9 @@ def check_password(password):
 BASE_SHIPPING_FEE = 500
 LIGHT_WEIGHT_LIMIT = 1.0    # kg
 MEDIUM_WEIGHT_LIMIT = 5.0   # kg
-LIGHT_RATE_PER_KG = 200     # 円/kg
-MEDIUM_RATE_PER_KG = 200    # 円/kg
-HEAVY_RATE_PER_KG = 150     # 円/kg
+LIGHT_RATE_PER_KG = 200     # yen/kg
+MEDIUM_RATE_PER_KG = 200    # yen/kg
+HEAVY_RATE_PER_KG = 150     # yen/kg
 
 def calculate_shipping(weight):
     if weight <= LIGHT_WEIGHT_LIMIT:
@@ -731,10 +733,10 @@ def calculate_shipping(weight):
         return BASE_SHIPPING_FEE + medium_fee + heavy_fee
 ```
 
-### 3.5 データの塊（Data Clumps）
+### 3.5 Data Clumps
 
 ```python
-# ❌ 同じデータのグループが繰り返し登場
+# Bad: The same group of data appears repeatedly
 def create_invoice(
     customer_name, customer_email, customer_phone,
     customer_address, customer_city, customer_zip,
@@ -755,7 +757,7 @@ def update_customer(
 ):
     pass
 
-# ✅ データクラスにまとめる
+# Good: Group into data classes
 @dataclass
 class Address:
     street: str
@@ -781,43 +783,43 @@ def update_customer(customer: Customer):
 
 ---
 
-## 4. SOLID原則
+## 4. SOLID Principles
 
-### 4.1 単一責任の原則（SRP: Single Responsibility Principle）
+### 4.1 Single Responsibility Principle (SRP)
 
 ```python
-# ❌ 複数の責任を持つクラス
+# Bad: A class with multiple responsibilities
 class User:
     def __init__(self, name, email):
         self.name = name
         self.email = email
 
     def save_to_database(self):
-        """データベースへの保存（永続化の責任）"""
+        """Save to database (persistence responsibility)"""
         db.execute("INSERT INTO users VALUES (?, ?)", (self.name, self.email))
 
     def send_welcome_email(self):
-        """メール送信（通知の責任）"""
+        """Send email (notification responsibility)"""
         smtp.send(self.email, "Welcome!", f"Hello {self.name}")
 
     def generate_report(self):
-        """レポート生成（表示の責任）"""
+        """Generate report (presentation responsibility)"""
         return f"User Report: {self.name} ({self.email})"
 
     def validate(self):
-        """バリデーション（検証の責任）"""
+        """Validation (verification responsibility)"""
         if "@" not in self.email:
             raise ValueError("Invalid email")
 
-# ✅ 責任ごとにクラスを分割
+# Good: Split classes by responsibility
 @dataclass
 class User:
-    """ユーザーのデータのみを保持"""
+    """Holds only user data"""
     name: str
     email: str
 
 class UserValidator:
-    """ユーザーの検証を担当"""
+    """Handles user validation"""
     @staticmethod
     def validate(user: User):
         if not user.name:
@@ -826,7 +828,7 @@ class UserValidator:
             raise ValueError("Invalid email")
 
 class UserRepository:
-    """ユーザーの永続化を担当"""
+    """Handles user persistence"""
     def __init__(self, db_connection):
         self.db = db_connection
 
@@ -844,7 +846,7 @@ class UserRepository:
         return User(name=row[0], email=row[1]) if row else None
 
 class UserNotifier:
-    """ユーザーへの通知を担当"""
+    """Handles user notifications"""
     def __init__(self, email_service):
         self.email_service = email_service
 
@@ -856,16 +858,16 @@ class UserNotifier:
         )
 
 class UserReportGenerator:
-    """ユーザーレポートの生成を担当"""
+    """Handles user report generation"""
     @staticmethod
     def generate(user: User) -> str:
         return f"User Report: {user.name} ({user.email})"
 ```
 
-### 4.2 開放閉鎖の原則（OCP: Open/Closed Principle）
+### 4.2 Open/Closed Principle (OCP)
 
 ```python
-# ❌ 新しい形状を追加するたびに既存コードを修正
+# Bad: Modify existing code every time a new shape is added
 class AreaCalculator:
     def calculate(self, shape):
         if shape.type == "circle":
@@ -874,9 +876,9 @@ class AreaCalculator:
             return shape.width * shape.height
         elif shape.type == "triangle":
             return 0.5 * shape.base * shape.height
-        # 新しい形状を追加するたびにここを修正...
+        # Need to modify here every time a new shape is added...
 
-# ✅ 拡張に開き、修正に閉じている
+# Good: Open for extension, closed for modification
 from abc import ABC, abstractmethod
 import math
 
@@ -908,7 +910,7 @@ class Triangle(Shape):
     def area(self) -> float:
         return 0.5 * self.base * self.height
 
-# 新しい形状を追加しても既存コードは変更不要
+# Adding a new shape requires no changes to existing code
 class Trapezoid(Shape):
     def __init__(self, top: float, bottom: float, height: float):
         self.top = top
@@ -918,15 +920,15 @@ class Trapezoid(Shape):
     def area(self) -> float:
         return 0.5 * (self.top + self.bottom) * self.height
 
-# 使用側は Shape インターフェースにのみ依存
+# The caller depends only on the Shape interface
 def total_area(shapes: list[Shape]) -> float:
     return sum(s.area() for s in shapes)
 ```
 
-### 4.3 リスコフの置換原則（LSP: Liskov Substitution Principle）
+### 4.3 Liskov Substitution Principle (LSP)
 
 ```python
-# ❌ LSP違反: 正方形は長方形のサブタイプとして適切でない
+# Bad: LSP violation: Square is not a proper subtype of Rectangle
 class Rectangle:
     def __init__(self, width, height):
         self._width = width
@@ -952,27 +954,27 @@ class Rectangle:
         return self._width * self._height
 
 class Square(Rectangle):
-    """正方形: 幅と高さを常に同じに保つ"""
+    """Square: Always keeps width and height equal"""
     def __init__(self, side):
         super().__init__(side, side)
 
     @Rectangle.width.setter
     def width(self, value):
         self._width = value
-        self._height = value  # 高さも変わってしまう!
+        self._height = value  # Height also changes!
 
     @Rectangle.height.setter
     def height(self, value):
         self._width = value
         self._height = value
 
-# これが問題になるケース
+# This becomes problematic
 def resize_rectangle(rect: Rectangle):
     rect.width = 10
     rect.height = 5
-    assert rect.area() == 50  # Squareだと失敗する!
+    assert rect.area() == 50  # Fails with Square!
 
-# ✅ LSPを守る設計
+# Good: Design that respects LSP
 class Shape(ABC):
     @abstractmethod
     def area(self) -> float:
@@ -994,10 +996,10 @@ class Square(Shape):
         return self.side ** 2
 ```
 
-### 4.4 インターフェース分離の原則（ISP: Interface Segregation Principle）
+### 4.4 Interface Segregation Principle (ISP)
 
 ```python
-# ❌ 大きすぎるインターフェース
+# Bad: Interface is too large
 class Worker(ABC):
     @abstractmethod
     def work(self): pass
@@ -1022,10 +1024,10 @@ class Robot(Worker):
         print("Working...")
 
     def eat(self):
-        raise NotImplementedError("Robots don't eat!")  # 違反!
+        raise NotImplementedError("Robots don't eat!")  # Violation!
 
     def sleep(self):
-        raise NotImplementedError("Robots don't sleep!")  # 違反!
+        raise NotImplementedError("Robots don't sleep!")  # Violation!
 
     def code(self):
         print("Coding...")
@@ -1036,7 +1038,7 @@ class Robot(Worker):
     def deploy(self):
         print("Deploying...")
 
-# ✅ インターフェースを分離
+# Good: Segregated interfaces
 class Workable(ABC):
     @abstractmethod
     def work(self): pass
@@ -1076,15 +1078,15 @@ class Robot(Workable, Codeable, Testable, Deployable):
     def deploy(self): print("Deploying...")
 ```
 
-### 4.5 依存性逆転の原則（DIP: Dependency Inversion Principle）
+### 4.5 Dependency Inversion Principle (DIP)
 
 ```python
-# ❌ 高レベルモジュールが低レベルモジュールに直接依存
+# Bad: High-level module directly depends on low-level module
 import mysql.connector
 
 class UserService:
     def __init__(self):
-        # MySQLに直接依存している
+        # Directly depends on MySQL
         self.connection = mysql.connector.connect(
             host="localhost",
             database="myapp"
@@ -1095,9 +1097,9 @@ class UserService:
         cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
         return cursor.fetchone()
 
-# ✅ 抽象に依存する
+# Good: Depend on abstractions
 class UserRepository(ABC):
-    """抽象リポジトリ（インターフェース）"""
+    """Abstract repository (interface)"""
     @abstractmethod
     def find_by_id(self, user_id: str) -> Optional[User]:
         pass
@@ -1111,7 +1113,7 @@ class UserRepository(ABC):
         pass
 
 class MySQLUserRepository(UserRepository):
-    """MySQL実装"""
+    """MySQL implementation"""
     def __init__(self, connection):
         self.connection = connection
 
@@ -1135,7 +1137,7 @@ class MySQLUserRepository(UserRepository):
         self.connection.commit()
 
 class InMemoryUserRepository(UserRepository):
-    """テスト用インメモリ実装"""
+    """In-memory implementation for testing"""
     def __init__(self):
         self.users: dict[str, User] = {}
 
@@ -1149,7 +1151,7 @@ class InMemoryUserRepository(UserRepository):
         self.users.pop(user_id, None)
 
 class UserService:
-    """抽象リポジトリに依存（具体的な実装を知らない）"""
+    """Depends on abstract repository (does not know the concrete implementation)"""
     def __init__(self, repository: UserRepository):
         self.repository = repository
 
@@ -1161,10 +1163,10 @@ class UserService:
         self.repository.save(user)
         return user
 
-# 本番環境
+# Production environment
 production_service = UserService(MySQLUserRepository(db_connection))
 
-# テスト環境
+# Test environment
 test_service = UserService(InMemoryUserRepository())
 ```
 
@@ -1172,32 +1174,32 @@ test_service = UserService(InMemoryUserRepository())
 
 ## 5. DRY / KISS / YAGNI
 
-### 5.1 DRY（Don't Repeat Yourself）
+### 5.1 DRY (Don't Repeat Yourself)
 
 ```python
-# DRY = 知識の重複を避ける（コードの文字列的な重複だけではない）
+# DRY = Avoid duplication of knowledge (not just textual duplication of code)
 
-# ❌ 知識の重複: 税率計算のロジックが散在
+# Bad: Knowledge duplication: Tax rate calculation logic scattered
 class OrderService:
     def calculate_order_total(self, items):
         subtotal = sum(item.price * item.quantity for item in items)
-        tax = subtotal * 0.10  # 税率10%がハードコード
+        tax = subtotal * 0.10  # 10% tax rate hard-coded
         return subtotal + tax
 
 class InvoiceService:
     def generate_invoice(self, order):
         subtotal = order.subtotal
-        tax = subtotal * 0.10  # 同じ税率が別の場所に
+        tax = subtotal * 0.10  # Same tax rate in another place
         return {"subtotal": subtotal, "tax": tax, "total": subtotal + tax}
 
 class ReportService:
     def calculate_revenue(self, orders):
         total = 0
         for order in orders:
-            total += order.subtotal * 1.10  # また同じ税率
+            total += order.subtotal * 1.10  # Same tax rate again
         return total
 
-# ✅ 税率計算を一箇所に集約
+# Good: Consolidate tax calculation in one place
 TAX_RATE = 0.10
 
 class TaxCalculator:
@@ -1220,27 +1222,27 @@ class InvoiceService:
         total = TaxCalculator.calculate_total_with_tax(order.subtotal)
         return {"subtotal": order.subtotal, "tax": tax, "total": total}
 
-# --- DRYの過剰適用に注意 ---
-# 偶然の重複はDRY化しない
-# ❌ 偶然の重複を無理にDRY化
+# --- Be careful not to over-apply DRY ---
+# Do not DRY-ify accidental duplication
+# Bad: Forcefully DRY-ifying accidental duplication
 def format_address(address):
     return f"{address.street}, {address.city} {address.zip}"
 
 def format_log_entry(entry):
-    # たまたま同じフォーマットだが、別の概念
+    # Happens to have the same format, but is a different concept
     return f"{entry.message}, {entry.level} {entry.timestamp}"
 
-# ✅ 別々の概念は別々のまま維持する
-# format_address と format_log_entry は偶然似ているだけ
-# 将来的に異なる方向に変化する可能性が高い
+# Good: Keep separate concepts separate
+# format_address and format_log_entry just happen to look similar
+# They are likely to diverge in different directions in the future
 ```
 
-### 5.2 KISS（Keep It Simple, Stupid）
+### 5.2 KISS (Keep It Simple, Stupid)
 
 ```python
-# KISS = 不必要な複雑さを避ける
+# KISS = Avoid unnecessary complexity
 
-# ❌ 過度に複雑（メタプログラミングの乱用）
+# Bad: Overly complex (abuse of metaprogramming)
 class DynamicValidator:
     def __init__(self):
         self._rules = {}
@@ -1273,41 +1275,41 @@ class DynamicValidator:
     def _validate_pattern(self, value, regex=""):
         return bool(re.match(regex, str(value)))
 
-# 使う側も複雑
+# The caller side is also complex
 validator = DynamicValidator()
 validator.register_rule("email", "required")
 validator.register_rule("email", "pattern", regex=r"^[\w.-]+@[\w.-]+\.\w+$")
 validator.register_rule("password", "required")
 validator.register_rule("password", "min_length", length=8)
 
-# ✅ シンプルで分かりやすい
+# Good: Simple and clear
 def validate_registration(data: dict) -> list[str]:
-    """登録データのバリデーション"""
+    """Validate registration data"""
     errors = []
 
     email = data.get("email", "")
     if not email:
-        errors.append("メールアドレスは必須です")
+        errors.append("Email address is required")
     elif not re.match(r"^[\w.-]+@[\w.-]+\.\w+$", email):
-        errors.append("メールアドレスの形式が正しくありません")
+        errors.append("Email address format is invalid")
 
     password = data.get("password", "")
     if not password:
-        errors.append("パスワードは必須です")
+        errors.append("Password is required")
     elif len(password) < 8:
-        errors.append("パスワードは8文字以上で入力してください")
+        errors.append("Password must be at least 8 characters")
 
     return errors
 
-# 必要になった時点で抽象化を検討する
+# Consider abstraction only when it becomes truly necessary
 ```
 
-### 5.3 YAGNI（You Aren't Gonna Need It）
+### 5.3 YAGNI (You Aren't Gonna Need It)
 
 ```python
-# YAGNI = 今必要のない機能を先に実装しない
+# YAGNI = Don't implement features you don't need yet
 
-# ❌ 「いつか必要になるかも」で作った過剰設計
+# Bad: Over-engineering based on "might need someday"
 class UserService:
     def __init__(self, repository, cache, event_bus, logger,
                  rate_limiter, circuit_breaker, metrics_collector,
@@ -1323,12 +1325,12 @@ class UserService:
         self.plugin_manager = plugin_manager
 
     def get_user(self, user_id):
-        # 実際には cache, event_bus, circuit_breaker は未使用
+        # In practice, cache, event_bus, circuit_breaker are unused
         self.logger.info(f"Getting user {user_id}")
         self.metrics_collector.increment("user.get")
         return self.repository.find_by_id(user_id)
 
-# ✅ 今必要なものだけを実装
+# Good: Implement only what you need now
 class UserService:
     def __init__(self, repository: UserRepository):
         self.repository = repository
@@ -1336,30 +1338,30 @@ class UserService:
     def get_user(self, user_id: str) -> Optional[User]:
         return self.repository.find_by_id(user_id)
 
-# キャッシュが本当に必要になったら追加する
-# イベントバスが本当に必要になったら追加する
-# → 必要なタイミングで段階的に拡張する
+# Add caching when it is truly needed
+# Add event bus when it is truly needed
+# -> Extend incrementally as needs arise
 ```
 
 ---
 
-## 6. コメントの書き方
+## 6. Writing Comments
 
-### 6.1 良いコメントと悪いコメント
+### 6.1 Good Comments and Bad Comments
 
 ```python
-# --- 悪いコメント（コードを説明するコメント） ---
-# ❌ コードを読めば分かることの繰り返し
-i = 0  # iを0に初期化する
-users = get_users()  # ユーザーを取得する
-total = price * quantity  # 金額 = 単価 x 数量
+# --- Bad comments (comments that explain the code) ---
+# Bad: Repeating what can be understood from reading the code
+i = 0  # Initialize i to 0
+users = get_users()  # Get users
+total = price * quantity  # amount = unit price x quantity
 
-# ❌ 嘘のコメント（コードと乖離している）
-# ユーザーの年齢を返す
-def get_user_name(user_id):  # 実際には名前を返す
+# Bad: Lying comments (diverged from code)
+# Returns the user's age
+def get_user_name(user_id):  # Actually returns the name
     pass
 
-# ❌ 閉じ括弧コメント（構造が複雑すぎるサイン）
+# Bad: Closing brace comments (a sign that the structure is too complex)
 for user in users:
     for order in user.orders:
         for item in order.items:
@@ -1368,41 +1370,41 @@ for user in users:
     # end for order
 # end for user
 
-# ❌ コメントアウトされたコード
+# Bad: Commented-out code
 # def old_calculate_tax(amount):
 #     return amount * 0.08
-# ↑ いつのコードか分からず誰も消せない
+# No one knows when this code was written, and no one dares delete it
 
-# --- 良いコメント ---
-# ✅ WHY（なぜそうするのか）を説明する
-# パフォーマンス上の理由でバッチサイズを1000に制限
-# 一度に10000件以上処理するとメモリが枯渇する問題があった（Issue #234）
+# --- Good comments ---
+# Good: Explain WHY (why it is done this way)
+# Batch size limited to 1000 for performance reasons
+# Processing 10000+ at once caused memory exhaustion (Issue #234)
 BATCH_SIZE = 1000
 
-# ✅ 法的コメント
+# Good: Legal comments
 # Copyright (c) 2024 Example Corp. All rights reserved.
 # Licensed under the MIT License.
 
-# ✅ TODO/FIXME（技術的負債の明示）
-# TODO(gaku): Redis導入後にキャッシュ機能を追加する（#456）
-# FIXME: 月末のタイムゾーン処理にバグがある（#789）
-# HACK: APIの仕様バグの回避策。v3.0リリースで修正予定
+# Good: TODO/FIXME (making technical debt explicit)
+# TODO(gaku): Add caching after Redis is introduced (#456)
+# FIXME: Bug in timezone handling at month-end (#789)
+# HACK: Workaround for API spec bug. Fix planned for v3.0 release
 
-# ✅ 結果の警告
-# 注意: この関数は外部APIを呼び出すため、3秒以上かかることがある
+# Good: Warning about consequences
+# Warning: This function calls an external API and may take 3+ seconds
 def fetch_exchange_rates():
     pass
 
-# ✅ 正規表現の説明
-# 日本の電話番号にマッチ: 03-1234-5678, 090-1234-5678 等
+# Good: Explaining regular expressions
+# Matches Japanese phone numbers: 03-1234-5678, 090-1234-5678, etc.
 PHONE_PATTERN = re.compile(r"^0\d{1,4}-\d{1,4}-\d{4}$")
 
-# ✅ ビジネスルールの説明
-# 消費税法第29条に基づき、1円未満は切り捨て
+# Good: Explaining business rules
+# Per Article 29 of the Consumption Tax Act, amounts less than 1 yen are truncated
 tax = math.floor(subtotal * TAX_RATE)
 ```
 
-### 6.2 docstringのベストプラクティス
+### 6.2 Docstring Best Practices
 
 ```python
 def calculate_compound_interest(
@@ -1411,23 +1413,23 @@ def calculate_compound_interest(
     years: int,
     compounds_per_year: int = 12
 ) -> float:
-    """複利計算を行う。
+    """Calculate compound interest.
 
-    指定された元本に対して、年利率と複利計算の頻度に基づいて
-    将来の価値を計算する。
+    Calculates the future value based on the specified principal,
+    annual interest rate, and compounding frequency.
 
     Args:
-        principal: 元本（円）。正の数であること。
-        annual_rate: 年利率（0.05 = 5%）。
-        years: 運用年数。
-        compounds_per_year: 年間の複利計算回数（デフォルト: 12=毎月）。
+        principal: Principal amount (yen). Must be a positive number.
+        annual_rate: Annual interest rate (0.05 = 5%).
+        years: Number of years for the investment.
+        compounds_per_year: Number of compounding periods per year (default: 12=monthly).
 
     Returns:
-        将来の元利合計額（円）。
+        Future value of principal plus interest (yen).
 
     Raises:
-        ValueError: principal が負の場合。
-        ValueError: years が 0 以下の場合。
+        ValueError: If principal is negative.
+        ValueError: If years is 0 or less.
 
     Examples:
         >>> calculate_compound_interest(1000000, 0.05, 10)
@@ -1436,27 +1438,27 @@ def calculate_compound_interest(
         1159274.07
 
     Note:
-        この計算では税金を考慮していない。
-        実際の投資では利子所得に対して約20%の税金がかかる。
+        This calculation does not account for taxes.
+        In actual investments, approximately 20% tax applies to interest income.
     """
     if principal < 0:
-        raise ValueError("元本は正の数である必要があります")
+        raise ValueError("Principal must be a positive number")
     if years <= 0:
-        raise ValueError("運用年数は1以上である必要があります")
+        raise ValueError("Years must be 1 or greater")
 
     return principal * (1 + annual_rate / compounds_per_year) ** (compounds_per_year * years)
 
 
 class ShoppingCart:
-    """ショッピングカートを管理するクラス。
+    """A class for managing a shopping cart.
 
-    ユーザーがカートに追加した商品の管理、合計金額の計算、
-    クーポン適用などの機能を提供する。
+    Provides features for managing items added to the cart,
+    calculating totals, and applying coupons.
 
     Attributes:
-        items: カート内の商品リスト。
-        user_id: カートの所有者のユーザーID。
-        created_at: カート作成日時。
+        items: List of items in the cart.
+        user_id: User ID of the cart owner.
+        created_at: Cart creation timestamp.
 
     Example:
         >>> cart = ShoppingCart(user_id="u001")
@@ -1473,19 +1475,19 @@ class ShoppingCart:
 
 ---
 
-## 7. エラー処理
+## 7. Error Handling
 
-### 7.1 例外処理のベストプラクティス
+### 7.1 Exception Handling Best Practices
 
 ```python
-# --- 1. 具体的な例外をキャッチする ---
-# ❌ 全ての例外をキャッチ
+# --- 1. Catch specific exceptions ---
+# Bad: Catching all exceptions
 try:
     result = process_data(data)
 except Exception:
     print("Something went wrong")
 
-# ✅ 具体的な例外をキャッチ
+# Good: Catch specific exceptions
 try:
     result = process_data(data)
 except ValueError as e:
@@ -1498,21 +1500,21 @@ except TimeoutError as e:
     logger.error(f"Operation timed out: {e}")
     raise
 
-# --- 2. カスタム例外を定義する ---
+# --- 2. Define custom exceptions ---
 class AppError(Exception):
-    """アプリケーション共通の基底例外"""
+    """Application common base exception"""
     def __init__(self, message: str, error_code: str = None):
         super().__init__(message)
         self.error_code = error_code
 
 class ValidationError(AppError):
-    """バリデーションエラー"""
+    """Validation error"""
     def __init__(self, field: str, message: str):
         super().__init__(message, error_code="VALIDATION_ERROR")
         self.field = field
 
 class NotFoundError(AppError):
-    """リソースが見つからないエラー"""
+    """Resource not found error"""
     def __init__(self, resource: str, resource_id: str):
         message = f"{resource} with id '{resource_id}' not found"
         super().__init__(message, error_code="NOT_FOUND")
@@ -1520,18 +1522,18 @@ class NotFoundError(AppError):
         self.resource_id = resource_id
 
 class AuthenticationError(AppError):
-    """認証エラー"""
+    """Authentication error"""
     def __init__(self, message: str = "Authentication failed"):
         super().__init__(message, error_code="AUTHENTICATION_ERROR")
 
 class AuthorizationError(AppError):
-    """認可エラー"""
+    """Authorization error"""
     def __init__(self, required_permission: str):
         message = f"Permission '{required_permission}' is required"
         super().__init__(message, error_code="AUTHORIZATION_ERROR")
         self.required_permission = required_permission
 
-# 使用例
+# Usage example
 class UserService:
     def get_user(self, user_id: str) -> User:
         user = self.repository.find_by_id(user_id)
@@ -1548,7 +1550,7 @@ class UserService:
             raise ValidationError("email", "Email already registered")
         return self.repository.save(User(name=name, email=email))
 
-# --- 3. 例外をログに記録する ---
+# --- 3. Log exceptions ---
 import logging
 logger = logging.getLogger(__name__)
 
@@ -1556,7 +1558,7 @@ def process_payment(order):
     try:
         payment_gateway.charge(order.amount, order.payment_method)
     except PaymentDeclinedError as e:
-        # ビジネス上想定されるエラー: WARNINGレベル
+        # Expected business error: WARNING level
         logger.warning(
             "Payment declined for order %s: %s",
             order.id, e,
@@ -1564,7 +1566,7 @@ def process_payment(order):
         )
         raise
     except PaymentGatewayError as e:
-        # システムエラー: ERRORレベル + スタックトレース
+        # System error: ERROR level + stack trace
         logger.error(
             "Payment gateway error for order %s: %s",
             order.id, e,
@@ -1573,14 +1575,14 @@ def process_payment(order):
         )
         raise ServiceUnavailableError("Payment service is temporarily unavailable") from e
 
-# --- 4. 例外の変換（例外チェーン） ---
+# --- 4. Exception translation (exception chaining) ---
 def get_user_profile(user_id: str) -> UserProfile:
     try:
         data = external_api.fetch_user(user_id)
     except requests.ConnectionError as e:
         raise ServiceUnavailableError(
             "External API is unavailable"
-        ) from e  # from e で元の例外を保持
+        ) from e  # from e preserves the original exception
     except requests.Timeout as e:
         raise ServiceUnavailableError(
             "External API request timed out"
@@ -1594,11 +1596,11 @@ def get_user_profile(user_id: str) -> UserProfile:
         ) from e
 ```
 
-### 7.2 Null/Noneの安全な扱い
+### 7.2 Safe Handling of Null/None
 
 ```python
-# --- 1. Noneチェックパターン ---
-# ❌ Noneチェックの散在
+# --- 1. None check patterns ---
+# Bad: Scattered None checks
 def get_user_city(user_id):
     user = repository.find_by_id(user_id)
     if user is not None:
@@ -1609,7 +1611,7 @@ def get_user_city(user_id):
                 return city
     return "Unknown"
 
-# ✅ 早期リターン
+# Good: Early return
 def get_user_city(user_id: str) -> str:
     user = repository.find_by_id(user_id)
     if user is None:
@@ -1618,16 +1620,16 @@ def get_user_city(user_id: str) -> str:
         return "Unknown"
     return user.address.city or "Unknown"
 
-# ✅ Optional型を活用（Python 3.10+）
+# Good: Use Optional type (Python 3.10+)
 from typing import Optional
 
 def find_user(user_id: str) -> Optional[User]:
-    """ユーザーが見つからない場合はNoneを返す"""
+    """Returns None if user is not found"""
     return repository.find_by_id(user_id)
 
-# --- 2. Null Objectパターン ---
+# --- 2. Null Object pattern ---
 class NullUser:
-    """ユーザーが存在しない場合のデフォルト値"""
+    """Default value when user does not exist"""
     name = "Guest"
     email = ""
     is_active = False
@@ -1642,34 +1644,34 @@ def get_user_or_default(user_id: str) -> User:
     user = repository.find_by_id(user_id)
     return user if user is not None else NULL_USER
 
-# --- 3. デフォルト値の活用 ---
-# dictのgetメソッド
+# --- 3. Leveraging default values ---
+# dict's get method
 config = {"debug": True, "log_level": "INFO"}
-debug_mode = config.get("debug", False)  # キーがなければFalse
-log_level = config.get("log_level", "WARNING")  # デフォルトWARNING
-timeout = config.get("timeout", 30)  # キーがなければ30
+debug_mode = config.get("debug", False)  # False if key is missing
+log_level = config.get("log_level", "WARNING")  # Default WARNING
+timeout = config.get("timeout", 30)  # 30 if key is missing
 ```
 
-### 7.3 リソース管理
+### 7.3 Resource Management
 
 ```python
-# --- コンテキストマネージャ（with文）を使う ---
+# --- Use context managers (with statement) ---
 
-# ❌ 手動でクローズ（例外時にリークする）
+# Bad: Manual close (leaks on exception)
 file = open("data.csv", "r")
 data = file.read()
-file.close()  # 例外発生時にclose()が呼ばれない
+file.close()  # close() is not called if an exception occurs
 
-# ✅ with文で自動クローズ
+# Good: Automatic close with with statement
 with open("data.csv", "r") as file:
-    data = file.read()  # 例外が発生してもclose()が呼ばれる
+    data = file.read()  # close() is called even if an exception occurs
 
-# --- カスタムコンテキストマネージャ ---
+# --- Custom context manager ---
 from contextlib import contextmanager
 
 @contextmanager
 def database_transaction(connection):
-    """データベーストランザクション管理"""
+    """Database transaction management"""
     cursor = connection.cursor()
     try:
         yield cursor
@@ -1680,24 +1682,24 @@ def database_transaction(connection):
     finally:
         cursor.close()
 
-# 使用例
+# Usage example
 with database_transaction(db_connection) as cursor:
     cursor.execute("INSERT INTO users (name) VALUES (?)", ("Alice",))
     cursor.execute("INSERT INTO logs (action) VALUES (?)", ("user_created",))
-    # 例外が発生したら自動的にrollback
+    # Automatically rolls back if an exception occurs
 
-# --- 複数リソースの管理 ---
+# --- Managing multiple resources ---
 with open("input.csv") as infile, open("output.csv", "w") as outfile:
     for line in infile:
         processed = process_line(line)
         outfile.write(processed)
 
-# --- タイムアウト管理 ---
+# --- Timeout management ---
 import signal
 
 @contextmanager
 def timeout(seconds):
-    """処理のタイムアウト管理"""
+    """Operation timeout management"""
     def handler(signum, frame):
         raise TimeoutError(f"Operation timed out after {seconds}s")
 
@@ -1709,23 +1711,23 @@ def timeout(seconds):
         signal.alarm(0)
         signal.signal(signal.SIGALRM, old_handler)
 
-# 使用例
+# Usage example
 with timeout(5):
     result = long_running_operation()
 ```
 
 ---
 
-## 8. テスタビリティの高いコード
+## 8. Highly Testable Code
 
-### 8.1 テストしやすいコードの特徴
+### 8.1 Characteristics of Testable Code
 
 ```python
-# --- テストしにくいコード ---
-# ❌ グローバル状態への依存
+# --- Hard to test code ---
+# Bad: Dependency on global state
 import datetime
 
-user_count = 0  # グローバル変数
+user_count = 0  # Global variable
 
 class UserService:
     def create_user(self, name, email):
@@ -1733,14 +1735,14 @@ class UserService:
         user = User(
             name=name,
             email=email,
-            created_at=datetime.datetime.now()  # 現在時刻に直接依存
+            created_at=datetime.datetime.now()  # Directly depends on current time
         )
-        user_count += 1  # グローバル状態を変更
-        db.save(user)  # グローバルDBに直接依存
+        user_count += 1  # Modifies global state
+        db.save(user)  # Directly depends on global DB
         return user
 
-# --- テストしやすいコード ---
-# ✅ 依存性注入
+# --- Easy to test code ---
+# Good: Dependency injection
 class UserService:
     def __init__(self, repository: UserRepository, clock: Clock):
         self.repository = repository
@@ -1755,7 +1757,7 @@ class UserService:
         self.repository.save(user)
         return user
 
-# テスト
+# Test
 class FakeClock:
     def __init__(self, fixed_time):
         self._time = fixed_time
@@ -1775,23 +1777,23 @@ def test_create_user():
     assert fake_repo.find_by_email("alice@example.com") is not None
 ```
 
-### 8.2 テストの構造（AAA パターン）
+### 8.2 Test Structure (AAA Pattern)
 
 ```python
 import pytest
 
 class TestShoppingCart:
-    """ショッピングカートのテスト"""
+    """Shopping cart tests"""
 
     def test_add_item_increases_total(self):
-        # Arrange（準備）
+        # Arrange
         cart = ShoppingCart()
         item = Item(name="Apple", price=100)
 
-        # Act（実行）
+        # Act
         cart.add_item(item, quantity=3)
 
-        # Assert（検証）
+        # Assert
         assert cart.total == 300
         assert cart.item_count == 3
 
@@ -1799,7 +1801,7 @@ class TestShoppingCart:
         # Arrange
         cart = ShoppingCart()
         cart.add_item(Item("Apple", 100), quantity=5)
-        coupon = PercentageCoupon(rate=0.10)  # 10%オフ
+        coupon = PercentageCoupon(rate=0.10)  # 10% off
 
         # Act
         cart.apply_coupon(coupon)
@@ -1839,20 +1841,20 @@ class TestShoppingCart:
             cart.add_item(item, quantity=-1)
 ```
 
-### 8.3 テストダブル（Mock/Stub/Fake/Spy）
+### 8.3 Test Doubles (Mock/Stub/Fake/Spy)
 
 ```python
 from unittest.mock import Mock, patch, MagicMock
 
-# --- Stub: 固定値を返す ---
+# --- Stub: Returns a fixed value ---
 class StubPaymentGateway:
-    """常に成功する決済ゲートウェイ"""
+    """Payment gateway that always succeeds"""
     def charge(self, amount, card):
         return PaymentResult(success=True, transaction_id="stub-txn-001")
 
-# --- Fake: 簡易実装 ---
+# --- Fake: Simplified implementation ---
 class FakeEmailService:
-    """実際には送信せず、送信履歴を保持する"""
+    """Does not actually send, but retains send history"""
     def __init__(self):
         self.sent_emails = []
 
@@ -1861,7 +1863,7 @@ class FakeEmailService:
             "to": to, "subject": subject, "body": body
         })
 
-# --- Mock: 呼び出しを検証 ---
+# --- Mock: Verify invocations ---
 def test_order_sends_confirmation_email():
     # Arrange
     mock_email = Mock(spec=EmailService)
@@ -1871,13 +1873,13 @@ def test_order_sends_confirmation_email():
     # Act
     service.complete_order(order)
 
-    # Assert: 正しい引数で呼び出されたか
+    # Assert: Was it called with the correct arguments?
     mock_email.send_confirmation.assert_called_once_with(
         to="alice@example.com",
         order_id=order.id
     )
 
-# --- Spy: 実際の処理を実行しつつ呼び出しを記録 ---
+# --- Spy: Executes actual processing while recording calls ---
 class SpyLogger:
     def __init__(self, real_logger):
         self.real_logger = real_logger
@@ -1891,7 +1893,7 @@ class SpyLogger:
         self.logged_messages.append(("ERROR", message))
         self.real_logger.error(message)
 
-# --- patch を使ったモック ---
+# --- Mocking with patch ---
 @patch("app.services.external_api.fetch_user")
 def test_get_user_profile(mock_fetch):
     # Arrange
@@ -1908,31 +1910,31 @@ def test_get_user_profile(mock_fetch):
 
 ---
 
-## 9. リファクタリング
+## 9. Refactoring
 
-### 9.1 リファクタリングのタイミング
+### 9.1 When to Refactor
 
 ```
-リファクタリングすべきタイミング:
+When You Should Refactor:
 
-  1. 機能追加前: 新機能が追加しやすい構造にする
-  2. バグ修正時: バグの原因を取り除く過程で
-  3. コードレビュー時: レビューで指摘された改善点を対応
-  4. ボーイスカウトルール: 触ったコードを少し良くして戻す
+  1. Before adding features: Make the structure amenable to new features
+  2. During bug fixes: In the process of removing the root cause of bugs
+  3. During code review: Address improvement points raised in review
+  4. Boy Scout Rule: Leave code a little better than you found it
 
-リファクタリングすべきでないタイミング:
+When You Should NOT Refactor:
 
-  1. デッドライン直前: リスクが高い
-  2. 動作が理解できていない時: まずテストを書く
-  3. テストがないコード: まずテストを追加してから
-  4. 大規模な書き換え: 段階的に進める
+  1. Right before a deadline: Risk is too high
+  2. When you don't understand the behavior: Write tests first
+  3. Code without tests: Add tests first
+  4. Large-scale rewrites: Proceed incrementally
 ```
 
-### 9.2 代表的なリファクタリング手法
+### 9.2 Common Refactoring Techniques
 
 ```python
-# --- 1. メソッド抽出（Extract Method） ---
-# ❌ 長い関数
+# --- 1. Extract Method ---
+# Bad: Long function
 def print_invoice(invoice):
     print("=" * 50)
     print(f"Invoice #{invoice.id}")
@@ -1950,7 +1952,7 @@ def print_invoice(invoice):
     print(f"  Total: {total}")
     print("=" * 50)
 
-# ✅ メソッドを抽出
+# Good: Extract methods
 def print_invoice(invoice):
     print_header(invoice)
     print_line_items(invoice.items)
@@ -1977,8 +1979,8 @@ def print_totals(items):
     print(f"  Total: {total}")
     print("=" * 50)
 
-# --- 2. 変数の抽出（Extract Variable） ---
-# ❌ 複雑な式
+# --- 2. Extract Variable ---
+# Bad: Complex expression
 def is_eligible_for_premium(user):
     return (user.age >= 18 and
             user.years_of_membership >= 2 and
@@ -1987,7 +1989,7 @@ def is_eligible_for_premium(user):
             not user.has_violations and
             user.last_login_days_ago <= 30)
 
-# ✅ 意味のある変数に分割
+# Good: Split into meaningful variables
 def is_eligible_for_premium(user):
     is_adult = user.age >= 18
     is_long_term_member = user.years_of_membership >= 2
@@ -2001,8 +2003,8 @@ def is_eligible_for_premium(user):
             is_recently_active and
             has_good_standing)
 
-# --- 3. 条件式の分解（Decompose Conditional） ---
-# ❌ 複雑な条件式
+# --- 3. Decompose Conditional ---
+# Bad: Complex conditional expression
 def calculate_charge(date, quantity):
     if (date.month >= 6 and date.month <= 9):
         charge = quantity * SUMMER_RATE + SUMMER_SERVICE_CHARGE
@@ -2010,7 +2012,7 @@ def calculate_charge(date, quantity):
         charge = quantity * WINTER_RATE + WINTER_SERVICE_CHARGE
     return charge
 
-# ✅ 条件を関数に抽出
+# Good: Extract condition into a function
 def is_summer(date):
     return 6 <= date.month <= 9
 
@@ -2025,8 +2027,8 @@ def calculate_charge(date, quantity):
         return summer_charge(quantity)
     return winter_charge(quantity)
 
-# --- 4. パラメータオブジェクトの導入 ---
-# ❌ 引数が多い
+# --- 4. Introduce Parameter Object ---
+# Bad: Too many arguments
 def search_products(
     category, min_price, max_price,
     brand, color, size,
@@ -2035,7 +2037,7 @@ def search_products(
 ):
     pass
 
-# ✅ パラメータオブジェクトに統合
+# Good: Consolidate into parameter objects
 @dataclass
 class ProductSearchCriteria:
     category: str = ""
@@ -2058,8 +2060,8 @@ def search_products(
 ):
     pass
 
-# --- 5. ガード節の導入（Replace Nested Conditional with Guard Clauses） ---
-# ❌ ネストした条件分岐
+# --- 5. Replace Nested Conditional with Guard Clauses ---
+# Bad: Nested conditional branches
 def calculate_pay(employee):
     if employee.is_separated:
         result = calculate_separated_pay(employee)
@@ -2070,7 +2072,7 @@ def calculate_pay(employee):
             result = calculate_normal_pay(employee)
     return result
 
-# ✅ ガード節
+# Good: Guard clauses
 def calculate_pay(employee):
     if employee.is_separated:
         return calculate_separated_pay(employee)
@@ -2079,29 +2081,29 @@ def calculate_pay(employee):
     return calculate_normal_pay(employee)
 ```
 
-### 9.3 リファクタリングの安全な進め方
+### 9.3 Safe Refactoring Practices
 
 ```
-安全なリファクタリングの手順:
+Safe Refactoring Steps:
 
-  1. テストが通ることを確認
-  ↓
-  2. 小さなステップでリファクタリング
-  ↓
-  3. テストが通ることを確認
-  ↓
-  4. コミット
-  ↓
-  5. 2-4を繰り返す
+  1. Verify tests pass
+  |
+  2. Refactor in small steps
+  |
+  3. Verify tests pass
+  |
+  4. Commit
+  |
+  5. Repeat steps 2-4
 
-  ポイント:
-  - 1回のコミットで1種類のリファクタリング
-  - 機能変更とリファクタリングを混ぜない
-  - テストがない場合はまずテストを追加
-  - IDEのリファクタリング機能を活用（手作業を減らす）
-  - ペアプログラミングやコードレビューを併用
+  Key Points:
+  - One type of refactoring per commit
+  - Do not mix feature changes and refactoring
+  - If there are no tests, add tests first
+  - Leverage IDE refactoring features (reduce manual work)
+  - Combine with pair programming and code review
 
-  推奨ツール:
+  Recommended Tools:
   - Python: ruff, mypy, black, isort
   - JavaScript/TypeScript: ESLint, Prettier
   - Java: IntelliJ IDEA, SpotBugs, PMD
@@ -2110,93 +2112,94 @@ def calculate_pay(employee):
 
 ---
 
-## 10. コードレビュー
+## 10. Code Review
 
-### 10.1 コードレビューの観点
-
-```
-コードレビューチェックリスト:
-
-  □ 正確性
-    - ロジックに誤りがないか
-    - エッジケースが考慮されているか
-    - 境界値の処理は正しいか
-    - 並行処理の安全性は確保されているか
-
-  □ 可読性
-    - 命名は適切か
-    - 関数は適切な長さか
-    - コメントは必要十分か
-    - コードの意図が明確か
-
-  □ 保守性
-    - SOLID原則に従っているか
-    - 適切な抽象化レベルか
-    - テストは十分か
-    - エラー処理は適切か
-
-  □ パフォーマンス
-    - 不要なN+1クエリがないか
-    - 適切なインデックスが使われているか
-    - メモリリークの可能性はないか
-    - キャッシュの活用は適切か
-
-  □ セキュリティ
-    - SQLインジェクション対策は十分か
-    - 入力値のバリデーションは行われているか
-    - 認証・認可のチェックは適切か
-    - 機密情報がログに出力されていないか
-```
-
-### 10.2 効果的なレビューコメントの書き方
+### 10.1 Code Review Perspectives
 
 ```
-レビューコメントのベストプラクティス:
+Code Review Checklist:
 
-  1. 具体的に指摘する
-    ❌ "ここは良くない"
-    ✅ "この関数は30行あり、バリデーションと計算と通知の3つの責任を持っています。
-        それぞれ別関数に抽出することで可読性が向上します"
+  [ ] Correctness
+    - Is the logic free of errors?
+    - Are edge cases considered?
+    - Is boundary value handling correct?
+    - Is concurrency safety ensured?
 
-  2. 理由を説明する
-    ❌ "定数にしてください"
-    ✅ "この 86400 は何の値か分かりにくいです。
-        SECONDS_PER_DAY = 86400 のように名前付き定数にすると
-        コードの意図が明確になります"
+  [ ] Readability
+    - Are names appropriate?
+    - Are functions an appropriate length?
+    - Are comments necessary and sufficient?
+    - Is the code's intent clear?
 
-  3. 提案を含める
-    ❌ "エラー処理が足りない"
-    ✅ "外部APIの呼び出しで ConnectionError が発生する可能性があります。
-        try-except で捕捉し、適切なリトライまたはフォールバック処理を
-        追加することを提案します"
+  [ ] Maintainability
+    - Does it follow SOLID principles?
+    - Is the abstraction level appropriate?
+    - Are tests sufficient?
+    - Is error handling appropriate?
 
-  4. 重要度を示す
-    [must]    修正必須（バグ、セキュリティ問題）
-    [should]  強く推奨（可読性、保守性の改善）
-    [nit]     些細な指摘（スタイル、命名の微調整）
-    [question] 質問（理解のため）
-    [praise]  良い点の称賛
+  [ ] Performance
+    - Are there unnecessary N+1 queries?
+    - Are appropriate indexes being used?
+    - Is there a possibility of memory leaks?
+    - Is caching being used appropriately?
 
-  5. 肯定的なフィードバックも入れる
-    "このテストケースのカバレッジは素晴らしいです！
-     特にエッジケースの網羅が丁寧です。"
+  [ ] Security
+    - Are SQL injection countermeasures sufficient?
+    - Is input validation performed?
+    - Are authentication/authorization checks appropriate?
+    - Is sensitive information not being logged?
+```
+
+### 10.2 Writing Effective Review Comments
+
+```
+Review Comment Best Practices:
+
+  1. Be specific
+    Bad: "This is not good"
+    Good: "This function is 30 lines long and has 3 responsibilities:
+        validation, calculation, and notification.
+        Extracting each into a separate function would improve readability"
+
+  2. Explain the reason
+    Bad: "Make this a constant"
+    Good: "It's unclear what this 86400 represents.
+        Defining it as a named constant like SECONDS_PER_DAY = 86400
+        would make the code's intent clear"
+
+  3. Include a suggestion
+    Bad: "Error handling is insufficient"
+    Good: "A ConnectionError could occur from the external API call.
+        I suggest adding try-except to catch it and implement
+        appropriate retry or fallback handling"
+
+  4. Indicate severity
+    [must]    Must fix (bugs, security issues)
+    [should]  Strongly recommended (readability, maintainability improvements)
+    [nit]     Minor observation (style, naming fine-tuning)
+    [question] Question (for understanding)
+    [praise]  Praise for good points
+
+  5. Include positive feedback
+    "This test case coverage is excellent!
+     The edge case coverage is particularly thorough."
 ```
 
 ---
 
-## 11. 言語別のクリーンコード実践
+## 11. Language-Specific Clean Code Practices
 
 ### 11.1 TypeScript/JavaScript
 
 ```typescript
-// --- 型を活用した安全なコード ---
+// --- Code made safe through types ---
 
-// ❌ any型の乱用
+// Bad: Abuse of any type
 function processData(data: any): any {
     return data.map((item: any) => item.value * 2);
 }
 
-// ✅ 適切な型定義
+// Good: Proper type definitions
 interface DataItem {
     id: string;
     value: number;
@@ -2215,7 +2218,7 @@ function processData(data: DataItem[]): ProcessedItem[] {
     }));
 }
 
-// --- Union型とType Guardの活用 ---
+// --- Using Union types and Type Guards ---
 type Result<T> =
     | { success: true; data: T }
     | { success: false; error: string };
@@ -2232,21 +2235,21 @@ function fetchUser(id: string): Result<User> {
     }
 }
 
-// 使用側で型安全にハンドリング
+// Type-safe handling on the caller side
 const result = fetchUser("u001");
 if (result.success) {
-    console.log(result.data.name);  // 型安全
+    console.log(result.data.name);  // Type safe
 } else {
     console.error(result.error);
 }
 
-// --- 不変性の確保 ---
-// ❌ ミュータブル
+// --- Ensuring immutability ---
+// Bad: Mutable
 const cart = { items: [], total: 0 };
-cart.items.push(newItem);  // 直接変更
+cart.items.push(newItem);  // Direct mutation
 cart.total = calculateTotal(cart.items);
 
-// ✅ イミュータブル
+// Good: Immutable
 interface Cart {
     readonly items: readonly CartItem[];
     readonly total: number;
@@ -2264,15 +2267,15 @@ function addItem(cart: Cart, item: CartItem): Cart {
 ### 11.2 Go
 
 ```go
-// --- エラー処理のパターン ---
+// --- Error handling patterns ---
 
-// ❌ エラーを無視
+// Bad: Ignoring errors
 func getUser(id string) *User {
-    user, _ := db.FindUser(id)  // エラーを無視
+    user, _ := db.FindUser(id)  // Error ignored
     return user
 }
 
-// ✅ エラーを適切に処理
+// Good: Handle errors properly
 func getUser(id string) (*User, error) {
     user, err := db.FindUser(id)
     if err != nil {
@@ -2284,9 +2287,9 @@ func getUser(id string) (*User, error) {
     return user, nil
 }
 
-// --- インターフェースの活用 ---
+// --- Using interfaces ---
 
-// ✅ 小さなインターフェース（Go流）
+// Good: Small interfaces (Go style)
 type Reader interface {
     Read(p []byte) (n int, err error)
 }
@@ -2300,7 +2303,7 @@ type ReadWriter interface {
     Writer
 }
 
-// ✅ 受け入れるインターフェースは小さく、返す型は具体的に
+// Good: Accept small interfaces, return concrete types
 type UserRepository interface {
     FindByID(id string) (*User, error)
     Save(user *User) error
@@ -2310,7 +2313,7 @@ func NewUserService(repo UserRepository) *UserService {
     return &UserService{repo: repo}
 }
 
-// --- 構造体のコンストラクタパターン ---
+// --- Struct constructor patterns ---
 type Server struct {
     host    string
     port    int
@@ -2318,7 +2321,7 @@ type Server struct {
     logger  *log.Logger
 }
 
-// Functional Optionsパターン
+// Functional Options pattern
 type ServerOption func(*Server)
 
 func WithPort(port int) ServerOption {
@@ -2342,7 +2345,7 @@ func WithLogger(logger *log.Logger) ServerOption {
 func NewServer(host string, opts ...ServerOption) *Server {
     s := &Server{
         host:    host,
-        port:    8080,  // デフォルト値
+        port:    8080,  // Default value
         timeout: 30 * time.Second,
         logger:  log.Default(),
     }
@@ -2352,7 +2355,7 @@ func NewServer(host string, opts ...ServerOption) *Server {
     return s
 }
 
-// 使用例
+// Usage example
 server := NewServer("localhost",
     WithPort(3000),
     WithTimeout(60*time.Second),
@@ -2362,21 +2365,21 @@ server := NewServer("localhost",
 ### 11.3 Java/Kotlin
 
 ```java
-// --- Optionalの正しい使い方（Java） ---
+// --- Correct usage of Optional (Java) ---
 
-// ❌ Optionalの誤用
+// Bad: Misuse of Optional
 public Optional<User> getUser(String id) {
     User user = repository.findById(id);
-    return Optional.ofNullable(user);  // ここまではOK
+    return Optional.ofNullable(user);  // This part is OK
 }
 
-// 呼び出し側の誤用
+// Caller-side misuse
 Optional<User> optUser = getUser("u001");
-if (optUser.isPresent()) {  // ❌ get()の前にisPresent()チェック = nullチェックと同じ
+if (optUser.isPresent()) {  // Bad: isPresent() before get() = same as null check
     User user = optUser.get();
 }
 
-// ✅ Optionalを活用した関数型スタイル
+// Good: Functional style using Optional
 public String getUserDisplayName(String userId) {
     return repository.findById(userId)
         .map(User::getDisplayName)
@@ -2396,9 +2399,9 @@ public User getActiveUser(String userId) {
 ```
 
 ```kotlin
-// --- Kotlinのクリーンコード ---
+// --- Kotlin clean code ---
 
-// データクラスの活用
+// Using data classes
 data class User(
     val id: String,
     val name: String,
@@ -2406,34 +2409,34 @@ data class User(
     val isActive: Boolean = true
 )
 
-// 拡張関数で既存クラスを拡張
+// Extending existing classes with extension functions
 fun String.isValidEmail(): Boolean =
     matches(Regex("^[\\w.-]+@[\\w.-]+\\.\\w+$"))
 
 fun List<User>.activeUsers(): List<User> =
     filter { it.isActive }
 
-// スコープ関数の使い分け
-// let: null安全な変換
+// Using scope functions properly
+// let: Null-safe transformation
 val displayName = user?.let { "${it.name} (${it.email})" } ?: "Guest"
 
-// apply: オブジェクトの初期化
+// apply: Object initialization
 val config = ServerConfig().apply {
     host = "localhost"
     port = 8080
     timeout = Duration.ofSeconds(30)
 }
 
-// also: 副作用（ログ出力等）
+// also: Side effects (logging, etc.)
 val result = repository.findById(id)
     .also { logger.info("Found user: ${it?.name}") }
 
-// run: オブジェクトに対する計算
+// run: Computation on an object
 val summary = order.run {
     "Order #$id: $itemCount items, total = $total"
 }
 
-// sealed classで網羅的なパターンマッチ
+// Exhaustive pattern matching with sealed classes
 sealed class Result<out T> {
     data class Success<T>(val data: T) : Result<T>()
     data class Failure(val error: String) : Result<Nothing>()
@@ -2444,18 +2447,18 @@ fun handleResult(result: Result<User>) = when (result) {
     is Result.Success -> showUser(result.data)
     is Result.Failure -> showError(result.error)
     Result.Loading -> showLoading()
-    // whenが網羅的なのでelseは不要
+    // when is exhaustive so else is not needed
 }
 ```
 
 ---
 
-## 12. クリーンコードのアンチパターン集
+## 12. Clean Code Anti-Pattern Collection
 
-### 12.1 過剰設計（Over-Engineering）
+### 12.1 Over-Engineering
 
 ```python
-# ❌ 1つのことしかしないのに過度に抽象化
+# Bad: Excessive abstraction for something that does only one thing
 class AbstractUserValidatorFactory(ABC):
     @abstractmethod
     def create_validator(self) -> AbstractUserValidator:
@@ -2484,29 +2487,29 @@ class ConcreteUserValidator(AbstractUserValidator):
     def validate(self, user):
         return ConcreteValidationResult(bool(user.get_name()))
 
-# ↑ 数百行のコードで実現していることは...
+# What hundreds of lines of code achieve is...
 
-# ✅ これだけで十分
+# Good: This is sufficient
 def validate_user(name: str) -> bool:
     return bool(name)
 ```
 
-### 12.2 早すぎる最適化
+### 12.2 Premature Optimization
 
 ```python
-# ❌ 早すぎる最適化
-# まだプロファイリングもしていないのにビット演算で最適化
+# Bad: Premature optimization
+# Optimizing with bit operations without even profiling first
 def is_even(n):
-    return not (n & 1)  # 読みにくい
+    return not (n & 1)  # Hard to read
 
-# ✅ まず可読性を優先
+# Good: Prioritize readability first
 def is_even(n):
-    return n % 2 == 0  # 明快
+    return n % 2 == 0  # Clear
 
-# ✅ パフォーマンスが本当に問題になった場合のみ最適化する
-# そしてコメントで理由を記載する
-# パフォーマンスプロファイルの結果、この関数が全体の30%を占めていたため
-# ビット演算に最適化（ベンチマーク: 2.1ms → 0.8ms, Issue #567）
+# Good: Optimize only when performance is truly a problem
+# And document the reason in a comment
+# Per performance profiling results, this function accounted for 30% of total execution time
+# Optimized to bit operations (benchmark: 2.1ms -> 0.8ms, Issue #567)
 def is_even_optimized(n):
     return not (n & 1)
 ```
@@ -2516,42 +2519,42 @@ def is_even_optimized(n):
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point in learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory, but by actually writing code and verifying how it works.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this applied in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## まとめ
-
-| 概念 | ポイント |
-|------|---------|
-| 命名 | 意図を明確に。検索可能に。一貫性を保つ |
-| 関数 | 小さく。1つの責任。引数は少なく |
-| コードの臭い | 長い関数、重複、深いネスト → リファクタリング |
-| SOLID | SRP, OCP, LSP, ISP, DIP の5原則を守る |
-| 原則 | DRY, KISS, YAGNI |
-| コメント | WHYを書く。コードが語れることは書かない |
-| エラー処理 | 具体的な例外、カスタム例外、リソース管理 |
-| テスト | テスタビリティ重視の設計。AAA パターン |
-| リファクタリング | 小さなステップで安全に。テストが先 |
-| レビュー | 具体的に、理由を添えて、提案を含めて |
+The knowledge from this topic is frequently used in everyday development work. It becomes particularly important during code reviews and architecture design.
 
 ---
 
-## 次に読むべきガイド
+## Summary
+
+| Concept | Key Points |
+|---------|-----------|
+| Naming | Be intention-revealing. Be searchable. Maintain consistency |
+| Functions | Keep small. One responsibility. Few arguments |
+| Code Smells | Long functions, duplication, deep nesting -> Refactoring |
+| SOLID | Follow the 5 principles: SRP, OCP, LSP, ISP, DIP |
+| Principles | DRY, KISS, YAGNI |
+| Comments | Write WHY. Don't write what the code already tells |
+| Error Handling | Specific exceptions, custom exceptions, resource management |
+| Testing | Design for testability. AAA pattern |
+| Refactoring | Small steps, safely. Tests come first |
+| Review | Be specific, give reasons, include suggestions |
 
 ---
 
-## 参考文献
+## Recommended Next Guides
+
+---
+
+## References
 1. Martin, R. C. "Clean Code." Prentice Hall, 2008.
 2. Fowler, M. "Refactoring." 2nd Edition, Addison-Wesley, 2018.
 3. Martin, R. C. "Clean Architecture." Prentice Hall, 2017.

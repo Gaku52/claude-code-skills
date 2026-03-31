@@ -1,147 +1,150 @@
-# ソフトウェア開発プロセス
+# Software Development Processes
 
-> 優れたソフトウェアは優れたプロセスから生まれる。ウォーターフォールからアジャイル、DevOps への変遷は、不確実性への適応力の進化そのものである。
+> Great software comes from great processes. The transition from waterfall to agile to DevOps is the evolution of adaptability to uncertainty itself.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] ソフトウェア開発プロセスの歴史的変遷を説明できる
-- [ ] ウォーターフォールモデルの構造・利点・限界を理解する
-- [ ] アジャイル開発の原則と主要フレームワーク（スクラム・XP・カンバン）を使い分けられる
-- [ ] DevOps と CI/CD パイプラインの設計・構築ができる
-- [ ] 要件定義からデプロイまでの一連のフローを俯瞰的に理解する
-- [ ] プロジェクト管理手法を適切に選択できる
-- [ ] 開発プロセスにおけるアンチパターンを認識し回避できる
+- [ ] Explain the historical evolution of software development processes
+- [ ] Understand the structure, advantages, and limitations of the waterfall model
+- [ ] Distinguish and apply major agile development frameworks (Scrum, XP, Kanban)
+- [ ] Design and build DevOps and CI/CD pipelines
+- [ ] Gain a holistic understanding of the end-to-end flow from requirements definition to deployment
+- [ ] Select appropriate project management methodologies
+- [ ] Recognize and avoid anti-patterns in development processes
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Having the following knowledge before reading this guide will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
+- Basic programming knowledge
+- Understanding of related foundational concepts
 
 ---
 
-## 1. 開発プロセスの歴史と背景
+## 1. History and Background of Development Processes
 
-### 1.1 ソフトウェア危機と体系化の始まり
+### 1.1 The Software Crisis and the Beginning of Systematization
 
-1960 年代後半、ソフトウェア開発は深刻な問題に直面した。プロジェクトの遅延、予算超過、品質不良が常態化し、この状況は「ソフトウェア危機（Software Crisis）」と呼ばれた。1968 年の NATO ソフトウェアエンジニアリング会議では、ソフトウェア開発にエンジニアリングの原則を適用する必要性が議論された。
+In the late 1960s, software development faced serious problems. Project delays, budget overruns, and poor quality became the norm, and this situation was called the "Software Crisis." At the 1968 NATO Software Engineering Conference, the need to apply engineering principles to software development was discussed.
 
-この危機の根本原因は、ソフトウェアの複雑さが指数関数的に増大する一方で、開発プロセスが属人的で非体系的であったことにある。ハードウェアの製造プロセスには品質管理手法が確立されていたが、ソフトウェアにはそれに相当するものが存在しなかった。
-
-```
-ソフトウェア危機の構造:
-
-  1960年代                    1970年代                   2000年代以降
-  ┌─────────┐              ┌──────────────┐           ┌──────────────┐
-  │ 場当たり的│   危機発生    │ 体系的プロセス│  変化への    │ 適応的プロセス│
-  │ な開発    │ ──────────→ │ の導入       │  対応要求   │ の台頭       │
-  │          │              │（ウォーター   │ ─────────→ │（アジャイル） │
-  │ ・個人技  │              │  フォール）   │             │              │
-  │ ・文書なし│              │ ・段階的管理  │             │ ・反復開発    │
-  │ ・計画なし│              │ ・文書重視    │             │ ・顧客協調    │
-  └─────────┘              │ ・品質ゲート  │             │ ・継続的改善  │
-                            └──────────────┘           └──────────────┘
-```
-
-### 1.2 開発プロセスモデルの系譜
-
-ソフトウェア開発プロセスモデルは、大きく以下の系譜で発展してきた。
+The root cause of this crisis was that while software complexity was growing exponentially, the development process remained ad hoc and unsystematic. While hardware manufacturing had established quality control methods, there was no equivalent for software.
 
 ```
-開発プロセスモデルの進化:
+Structure of the Software Crisis:
 
-  1970  ウォーターフォール（Royce, 1970）
-    │     └─ 段階的・逐次的アプローチ
-    │
-  1981  スパイラルモデル（Boehm, 1986）
-    │     └─ リスク駆動 + 反復
-    │
-  1990  RUP: Rational Unified Process（1998）
-    │     └─ ユースケース駆動 + アーキテクチャ中心 + 反復
-    │
-  1996  XP: eXtreme Programming（Beck, 1996）
-    │     └─ 軽量プロセス、ペアプログラミング、TDD
-    │
-  2001  アジャイルマニフェスト
-    │     └─ 4 つの価値と 12 の原則
-    │
-  2002  スクラム体系化（Schwaber & Sutherland）
-    │     └─ 役割・イベント・成果物の定義
-    │
-  2009  DevOps ムーブメント
-    │     └─ 開発と運用の統合、自動化
-    │
-  2017  GitOps（Weaveworks）
-    │     └─ Git を Single Source of Truth に
-    │
+  1960s                        1970s                       2000s onward
+  +-----------+              +----------------+           +----------------+
+  | Ad hoc    |  Crisis      | Systematic     | Demand    | Adaptive       |
+  | development| ----------> | processes      | for       | processes      |
+  |           |              | introduced     | change    | emerge         |
+  |           |              | (Waterfall)    | --------> | (Agile)        |
+  | - Craft   |              | - Phased mgmt  |           |                |
+  | - No docs |              | - Doc-focused  |           | - Iterative    |
+  | - No plans|              | - Quality gates|           | - Customer     |
+  +-----------+              +----------------+           |   collaboration|
+                                                          | - Continuous   |
+                                                          |   improvement  |
+                                                          +----------------+
+```
+
+### 1.2 Lineage of Development Process Models
+
+Software development process models have evolved along the following lineage.
+
+```
+Evolution of Development Process Models:
+
+  1970  Waterfall (Royce, 1970)
+    |     +-- Sequential, phased approach
+    |
+  1981  Spiral Model (Boehm, 1986)
+    |     +-- Risk-driven + iterative
+    |
+  1990  RUP: Rational Unified Process (1998)
+    |     +-- Use-case driven + architecture-centric + iterative
+    |
+  1996  XP: eXtreme Programming (Beck, 1996)
+    |     +-- Lightweight process, pair programming, TDD
+    |
+  2001  Agile Manifesto
+    |     +-- 4 values and 12 principles
+    |
+  2002  Scrum Formalized (Schwaber & Sutherland)
+    |     +-- Defined roles, events, and artifacts
+    |
+  2009  DevOps Movement
+    |     +-- Integration of development and operations, automation
+    |
+  2017  GitOps (Weaveworks)
+    |     +-- Git as the Single Source of Truth
+    |
   2022  Platform Engineering
-        └─ 内部開発者プラットフォーム（IDP）の構築
+        +-- Building Internal Developer Platforms (IDP)
 ```
 
-### 1.3 プロセスモデル選択の判断基準
+### 1.3 Criteria for Choosing a Process Model
 
-どのプロセスモデルを採用するかは、プロジェクトの特性に依存する。以下の表は主要な判断基準を整理したものである。
+Which process model to adopt depends on the characteristics of the project. The following table organizes the major decision criteria.
 
-| 判断基準 | ウォーターフォール寄り | アジャイル寄り |
-|----------|----------------------|---------------|
-| 要件の安定性 | 要件が明確で変更が少ない | 要件が不確実で変更が多い |
-| 顧客の関与 | 初期と最終のみ | 継続的に関与可能 |
-| チーム規模 | 大規模（50人以上） | 小〜中規模（3〜9人） |
-| 規制・法令遵守 | 厳格な規制あり（医療・航空） | 規制が比較的緩い |
-| リスク許容度 | リスク回避的 | リスク許容的 |
-| リリース頻度 | 年1〜2回 | 週次〜日次 |
-| 技術的不確実性 | 既知の技術を使用 | 新技術の探索を含む |
-| ドキュメント要件 | 詳細なドキュメントが必須 | 最小限で十分 |
+| Criterion | Waterfall-Leaning | Agile-Leaning |
+|-----------|-------------------|---------------|
+| Requirements Stability | Clear requirements with few changes | Uncertain requirements with frequent changes |
+| Customer Involvement | Initial and final stages only | Continuous involvement possible |
+| Team Size | Large (50+ people) | Small to medium (3-9 people) |
+| Regulatory Compliance | Strict regulations (medical, aviation) | Relatively lenient regulations |
+| Risk Tolerance | Risk-averse | Risk-tolerant |
+| Release Frequency | 1-2 times per year | Weekly to daily |
+| Technical Uncertainty | Using known technologies | Exploring new technologies |
+| Documentation Requirements | Detailed documentation required | Minimal documentation sufficient |
 
 ---
 
-## 2. ウォーターフォールモデル
+## 2. The Waterfall Model
 
-### 2.1 モデルの構造
+### 2.1 Structure of the Model
 
-ウォーターフォールモデルは、Winston W. Royce が 1970 年の論文 "Managing the Development of Large Software Systems" で記述したモデルに端を発する。各フェーズを順次実行し、原則として前のフェーズへの後戻りを許さない。
+The waterfall model originates from a model described by Winston W. Royce in his 1970 paper "Managing the Development of Large Software Systems." Each phase is executed sequentially, and in principle, going back to a previous phase is not permitted.
 
 ```
-ウォーターフォールモデルの構造:
+Structure of the Waterfall Model:
 
-  ┌───────────────┐
-  │  要件定義      │  ← 何を作るかを定義
-  │  (Requirements)│
-  └───────┬───────┘
-          ▼
-  ┌───────────────┐
-  │  システム設計   │  ← どう作るかを設計
-  │  (Design)      │
-  └───────┬───────┘
-          ▼
-  ┌───────────────┐
-  │  実装          │  ← コードを書く
-  │  (Implementation)│
-  └───────┬───────┘
-          ▼
-  ┌───────────────┐
-  │  テスト        │  ← 品質を検証
-  │  (Verification)│
-  └───────┬───────┘
-          ▼
-  ┌───────────────┐
-  │  保守          │  ← 運用・改善
-  │  (Maintenance) │
-  └───────────────┘
+  +------------------+
+  |  Requirements     |  <- Define what to build
+  |  Definition       |
+  +--------+---------+
+           v
+  +------------------+
+  |  System Design    |  <- Design how to build it
+  |                   |
+  +--------+---------+
+           v
+  +------------------+
+  |  Implementation   |  <- Write the code
+  |                   |
+  +--------+---------+
+           v
+  +------------------+
+  |  Testing          |  <- Verify quality
+  |  (Verification)   |
+  +--------+---------+
+           v
+  +------------------+
+  |  Maintenance      |  <- Operate and improve
+  |                   |
+  +------------------+
 ```
 
-重要な歴史的事実として、Royce 自身はこの単純な逐次モデルを「危険で失敗を招く」と述べており、論文の後半では反復的な要素を含む改良版を提案していた。しかし、業界はこの単純な逐次モデルのみを広く採用した。
+An important historical fact is that Royce himself described this simple sequential model as "risky and inviting failure," and in the latter half of his paper, he proposed an improved version that included iterative elements. However, the industry widely adopted only this simple sequential model.
 
-### 2.2 各フェーズの詳細
+### 2.2 Details of Each Phase
 
-#### 要件定義フェーズ
+#### Requirements Definition Phase
 
-要件定義は、システムが「何を」すべきかを明確にするフェーズである。機能要件（システムが提供する機能）と非機能要件（性能、セキュリティ、可用性など）の両方を文書化する。
+Requirements definition is the phase that clarifies "what" the system should do. Both functional requirements (the functions the system provides) and non-functional requirements (performance, security, availability, etc.) are documented.
 
 ```python
-# コード例1: 要件定義を構造化して管理する例
+# Code Example 1: Structuring and managing requirements definitions
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
@@ -149,35 +152,35 @@ import json
 
 
 class RequirementPriority(Enum):
-    """MoSCoW 優先度分類"""
-    MUST = "Must Have"      # 必須要件
-    SHOULD = "Should Have"  # 重要だが必須ではない
-    COULD = "Could Have"    # あれば望ましい
-    WONT = "Won't Have"     # 今回は対象外
+    """MoSCoW Priority Classification"""
+    MUST = "Must Have"      # Mandatory requirement
+    SHOULD = "Should Have"  # Important but not mandatory
+    COULD = "Could Have"    # Nice to have
+    WONT = "Won't Have"     # Out of scope for this release
 
 
 class RequirementType(Enum):
-    FUNCTIONAL = "Functional"          # 機能要件
-    NON_FUNCTIONAL = "Non-Functional"  # 非機能要件
-    CONSTRAINT = "Constraint"          # 制約事項
+    FUNCTIONAL = "Functional"          # Functional requirement
+    NON_FUNCTIONAL = "Non-Functional"  # Non-functional requirement
+    CONSTRAINT = "Constraint"          # Constraint
 
 
 @dataclass
 class Requirement:
-    """要件を表すデータクラス"""
-    id: str                              # 例: "REQ-001"
-    title: str                           # 要件タイトル
-    description: str                     # 詳細説明
-    type: RequirementType                # 要件種別
-    priority: RequirementPriority        # 優先度
-    acceptance_criteria: list[str]       # 受入基準
-    source: str = ""                     # 要件の出所（ステークホルダー名等）
-    dependencies: list[str] = field(default_factory=list)  # 依存する要件ID
+    """Data class representing a requirement"""
+    id: str                              # e.g., "REQ-001"
+    title: str                           # Requirement title
+    description: str                     # Detailed description
+    type: RequirementType                # Requirement type
+    priority: RequirementPriority        # Priority
+    acceptance_criteria: list[str]       # Acceptance criteria
+    source: str = ""                     # Source of the requirement (stakeholder name, etc.)
+    dependencies: list[str] = field(default_factory=list)  # Dependent requirement IDs
     status: str = "Draft"               # Draft / Approved / Implemented / Verified
-    rationale: Optional[str] = None      # この要件が必要な理由
+    rationale: Optional[str] = None      # Reason why this requirement is needed
 
     def is_testable(self) -> bool:
-        """受入基準が定義されているかを検証"""
+        """Verify that acceptance criteria are defined"""
         return len(self.acceptance_criteria) > 0
 
     def to_dict(self) -> dict:
@@ -194,7 +197,7 @@ class Requirement:
 
 
 class RequirementsDocument:
-    """要件定義書を管理するクラス"""
+    """Class for managing requirements documents"""
 
     def __init__(self, project_name: str):
         self.project_name = project_name
@@ -220,18 +223,18 @@ class RequirementsDocument:
         return [r for r in self.requirements.values() if r.priority == priority]
 
     def validate_all(self) -> list[str]:
-        """全要件の整合性を検証"""
+        """Validate consistency of all requirements"""
         issues = []
         for req in self.requirements.values():
             if not req.is_testable():
-                issues.append(f"{req.id}: 受入基準が未定義")
+                issues.append(f"{req.id}: Acceptance criteria not defined")
             for dep in req.dependencies:
                 if dep not in self.requirements:
-                    issues.append(f"{req.id}: 依存先 {dep} が存在しない")
+                    issues.append(f"{req.id}: Dependency {dep} does not exist")
         return issues
 
     def coverage_report(self) -> dict:
-        """要件カバレッジレポートを生成"""
+        """Generate a requirements coverage report"""
         total = len(self.requirements)
         if total == 0:
             return {"total": 0}
@@ -255,185 +258,185 @@ class RequirementsDocument:
         )
 
 
-# 使用例
-doc = RequirementsDocument("ECサイト構築プロジェクト")
+# Usage example
+doc = RequirementsDocument("E-Commerce Site Construction Project")
 
 doc.add_requirement(
-    title="ユーザー登録機能",
-    description="メールアドレスとパスワードでユーザー登録ができる",
+    title="User Registration Feature",
+    description="Users can register with email address and password",
     req_type=RequirementType.FUNCTIONAL,
     priority=RequirementPriority.MUST,
     acceptance_criteria=[
-        "メールアドレスの形式バリデーションが行われる",
-        "パスワードは8文字以上で英数字記号を含む",
-        "登録完了後に確認メールが送信される",
-        "既存メールアドレスでの重複登録はエラーとなる",
+        "Email address format validation is performed",
+        "Password must be at least 8 characters with alphanumeric and special characters",
+        "A confirmation email is sent upon registration completion",
+        "Duplicate registration with an existing email address results in an error",
     ],
-    rationale="サービス利用の前提となる基本機能"
+    rationale="A fundamental feature that is a prerequisite for using the service"
 )
 
 doc.add_requirement(
-    title="レスポンスタイム",
-    description="全ページの表示が2秒以内に完了する",
+    title="Response Time",
+    description="All pages must load within 2 seconds",
     req_type=RequirementType.NON_FUNCTIONAL,
     priority=RequirementPriority.MUST,
     acceptance_criteria=[
-        "95パーセンタイルで応答時間が2秒以内",
-        "同時接続1000ユーザーの負荷下で達成",
+        "Response time at the 95th percentile is within 2 seconds",
+        "Achieved under a load of 1,000 concurrent users",
     ]
 )
 
-# 検証
+# Validation
 issues = doc.validate_all()
 report = doc.coverage_report()
-print(f"要件数: {report['total']}, Must Have: {report['must_have_count']}")
-print(f"検証済み比率: {report['verified_ratio']:.0%}")
+print(f"Requirements count: {report['total']}, Must Have: {report['must_have_count']}")
+print(f"Verified ratio: {report['verified_ratio']:.0%}")
 ```
 
-#### 設計フェーズ
+#### Design Phase
 
-設計フェーズでは、要件を実現するための技術的なアーキテクチャと詳細設計を行う。基本設計（外部設計）と詳細設計（内部設計）に分けるのが一般的である。
+In the design phase, technical architecture and detailed design are created to realize the requirements. It is common to divide this into high-level design (external design) and detailed design (internal design).
 
-基本設計では、システム全体のアーキテクチャ、モジュール分割、インタフェース定義、データベース設計、画面設計を行う。詳細設計では、各モジュールの内部ロジック、クラス設計、アルゴリズムの選択を行う。
+High-level design covers the overall system architecture, module decomposition, interface definitions, database design, and screen design. Detailed design covers internal logic of each module, class design, and algorithm selection.
 
-#### 実装フェーズ
+#### Implementation Phase
 
-実装フェーズでは、設計書に基づいてコードを記述する。コーディング規約の遵守、適切なコメント記述、単体テストの作成が求められる。
+In the implementation phase, code is written based on the design documents. Adherence to coding standards, appropriate commenting, and creation of unit tests are required.
 
-#### テストフェーズ
+#### Testing Phase
 
-テストフェーズでは、単体テスト、結合テスト、システムテスト、受入テストを段階的に実施する。テスト計画書に基づき、各テストレベルで期待される品質基準を満たすことを確認する。
+In the testing phase, unit testing, integration testing, system testing, and acceptance testing are conducted in stages. Based on the test plan, each test level verifies that expected quality criteria are met.
 
-#### 保守フェーズ
+#### Maintenance Phase
 
-リリース後の運用・保守フェーズでは、バグ修正（是正保守）、機能追加（適応保守）、性能改善（完全化保守）、将来の問題予防（予防保守）を継続的に行う。
+In the post-release operations and maintenance phase, bug fixes (corrective maintenance), feature additions (adaptive maintenance), performance improvements (perfective maintenance), and future problem prevention (preventive maintenance) are carried out continuously.
 
-### 2.3 ウォーターフォールの利点と限界
+### 2.3 Advantages and Limitations of Waterfall
 
-**利点:**
+**Advantages:**
 
-- フェーズが明確で進捗管理がしやすい
-- 各フェーズの成果物（ドキュメント）が充実する
-- 大規模プロジェクトの管理に適している
-- 規制産業（医療、航空宇宙、防衛）で求められるトレーサビリティを確保しやすい
-- 新人や経験の浅いチームでも進め方が明確
+- Phases are clear, making progress management easy
+- Deliverables (documents) for each phase are comprehensive
+- Well-suited for managing large-scale projects
+- Facilitates traceability required in regulated industries (medical, aerospace, defense)
+- The approach is clear even for newcomers and less experienced teams
 
-**限界:**
+**Limitations:**
 
-- 要件変更への対応コストが高い（後工程になるほど変更コストが指数的に増大）
-- 動くソフトウェアが最後まで確認できない
-- テストフェーズで重大な問題が発覚した場合の手戻りが大きい
-- 顧客フィードバックが遅い
-- 不確実性の高いプロジェクトには不向き
+- High cost of responding to requirement changes (change costs increase exponentially in later phases)
+- Working software cannot be verified until the very end
+- Major rework if critical issues are discovered during the testing phase
+- Customer feedback is delayed
+- Not suitable for projects with high uncertainty
 
-### 2.4 V 字モデル
+### 2.4 V-Model
 
-V 字モデルは、ウォーターフォールモデルの拡張であり、各開発フェーズに対応するテストフェーズを明示的に対応付ける。
+The V-Model is an extension of the waterfall model that explicitly maps each development phase to a corresponding testing phase.
 
 ```
-V字モデル:
+V-Model:
 
-  要件定義  ─────────────────────────────────────  受入テスト
-       ＼                                       ／
-    基本設計  ───────────────────────────  システムテスト
-         ＼                               ／
-      詳細設計  ───────────────────  結合テスト
-           ＼                       ／
-         コーディング  ─────  単体テスト
+  Requirements Definition  --------------------------------  Acceptance Testing
+       \                                                   /
+    High-Level Design  ----------------------------  System Testing
+         \                                         /
+      Detailed Design  --------------------  Integration Testing
+           \                               /
+         Coding  ----------------  Unit Testing
 
-  ← 開発フェーズ →     ← テストフェーズ →
+  <- Development Phases ->     <- Testing Phases ->
 
-  対応関係:
-    要件定義の検証   → 受入テスト（要件を満たすか）
-    基本設計の検証   → システムテスト（全体として動作するか）
-    詳細設計の検証   → 結合テスト（モジュール間連携が正しいか）
-    コーディングの検証 → 単体テスト（個々の関数/クラスが正しいか）
+  Correspondence:
+    Requirements Definition verification  -> Acceptance Testing (are requirements met?)
+    High-Level Design verification        -> System Testing (does it work as a whole?)
+    Detailed Design verification          -> Integration Testing (is inter-module interaction correct?)
+    Coding verification                   -> Unit Testing (are individual functions/classes correct?)
 ```
 
 ---
 
-## 3. アジャイル開発
+## 3. Agile Development
 
-### 3.1 アジャイルマニフェスト
+### 3.1 The Agile Manifesto
 
-2001 年 2 月、ユタ州スノーバードに 17 名のソフトウェア開発者が集まり、「アジャイルソフトウェア開発宣言」を策定した。この宣言は、従来の重厚長大な開発プロセスに対するアンチテーゼであった。
+In February 2001, 17 software developers gathered in Snowbird, Utah, and drafted the "Manifesto for Agile Software Development." This manifesto was an antithesis to the traditional heavyweight development processes.
 
-**4 つの価値:**
+**4 Values:**
 
-1. **プロセスやツールよりも個人と対話を** -- ツールやプロセスは重要だが、チームメンバー間のコミュニケーションこそが最も価値がある
-2. **包括的なドキュメントよりも動くソフトウェアを** -- ドキュメントは必要だが、実際に動作するソフトウェアこそが進捗の最も確実な尺度である
-3. **契約交渉よりも顧客との協調を** -- 契約は必要だが、顧客と協力して最良のプロダクトを作ることが本質である
-4. **計画に従うことよりも変化への対応を** -- 計画は重要だが、変化に柔軟に対応できることがより重要である
+1. **Individuals and interactions over processes and tools** -- Tools and processes are important, but communication between team members is the most valuable
+2. **Working software over comprehensive documentation** -- Documentation is necessary, but working software is the most reliable measure of progress
+3. **Customer collaboration over contract negotiation** -- Contracts are necessary, but collaborating with customers to build the best product is what matters
+4. **Responding to change over following a plan** -- Plans are important, but being able to respond flexibly to change is more important
 
-**12 の原則（要約）:**
+**12 Principles (Summary):**
 
-1. 顧客満足を最優先し、価値のあるソフトウェアを早く継続的に提供する
-2. 要求変更を歓迎する（開発の後期であっても）
-3. 動くソフトウェアを短い期間で頻繁にリリースする
-4. ビジネス側と開発側は日々協力して作業する
-5. 意欲的な個人を中心にプロジェクトを構成する
-6. 対面での会話が最も効率的な情報伝達手段である
-7. 動くソフトウェアが進捗の最も重要な尺度である
-8. 持続可能な開発ペースを維持する
-9. 技術的卓越性と優れた設計に継続的に注意を払う
-10. シンプルさ（行わない仕事を最大化する技術）が本質である
-11. 最良のアーキテクチャ・要件・設計は自己組織化されたチームから生まれる
-12. チームは定期的に振り返り、自らの行動を調整する
+1. Satisfy the customer through early and continuous delivery of valuable software
+2. Welcome changing requirements, even late in development
+3. Deliver working software frequently, in short cycles
+4. Business people and developers must work together daily
+5. Build projects around motivated individuals
+6. Face-to-face conversation is the most efficient method of conveying information
+7. Working software is the primary measure of progress
+8. Maintain a sustainable pace of development
+9. Continuously pay attention to technical excellence and good design
+10. Simplicity -- the art of maximizing the amount of work not done -- is essential
+11. The best architectures, requirements, and designs emerge from self-organizing teams
+12. The team regularly reflects on how to become more effective and adjusts its behavior
 
-### 3.2 スクラム（Scrum）
+### 3.2 Scrum
 
-スクラムは、最も広く採用されているアジャイルフレームワークである。Ken Schwaber と Jeff Sutherland によって体系化された。
+Scrum is the most widely adopted agile framework. It was formalized by Ken Schwaber and Jeff Sutherland.
 
-#### スクラムの 3 つの役割
+#### Scrum's 3 Roles
 
-| 役割 | 責務 | 具体的な活動 |
-|------|------|-------------|
-| プロダクトオーナー（PO） | プロダクトの価値を最大化する | バックログの優先順位付け、受入基準の定義、ステークホルダーとの調整 |
-| スクラムマスター（SM） | スクラムの実践を支援する | 障害の除去、プロセス改善の促進、チームの自己組織化の支援 |
-| 開発チーム | インクリメントを作成する | 設計、コーディング、テスト、デプロイ（3〜9 名で構成） |
+| Role | Responsibility | Specific Activities |
+|------|---------------|---------------------|
+| Product Owner (PO) | Maximize the value of the product | Prioritizing the backlog, defining acceptance criteria, coordinating with stakeholders |
+| Scrum Master (SM) | Support the practice of Scrum | Removing impediments, facilitating process improvement, supporting team self-organization |
+| Development Team | Create the increment | Design, coding, testing, deployment (composed of 3-9 members) |
 
-#### スクラムの 5 つのイベント
+#### Scrum's 5 Events
 
 ```
-スクラムのスプリントサイクル:
+Scrum Sprint Cycle:
 
-  ┌─────────── スプリント（1〜4週間） ──────────┐
-  │                                              │
-  │  スプリント     デイリー        スプリント      │
-  │  プランニング   スクラム        レビュー        │
-  │  (8h以内)     (15分以内)      (4h以内)       │
-  │    │             │              │             │
-  │    │   ┌─────────┤              │             │
-  │    │   │  毎日    │              │             │
-  │    ▼   ▼  繰返し  ▼              ▼             │
-  │  [計画]→[開発・テスト]→ ··· →[デモ・確認]      │
-  │                                    │          │
-  │                              スプリント        │
-  │                              レトロスペクティブ │
-  │                              (3h以内)         │
-  └──────────────────────────────────────────────┘
-        │                                  │
-        ▼                                  ▼
-  プロダクト                          インクリメント
-  バックログ                         （リリース可能な
-  （優先順位付き）                     成果物）
+  +------------- Sprint (1-4 weeks) -------------+
+  |                                               |
+  |  Sprint         Daily           Sprint        |
+  |  Planning       Scrum           Review        |
+  |  (up to 8h)    (up to 15min)   (up to 4h)    |
+  |    |              |               |            |
+  |    |   +----------+               |            |
+  |    |   |  Daily    |              |            |
+  |    v   v  repeat   v              v            |
+  |  [Plan]->[Develop & Test]-> ... ->[Demo/Review]|
+  |                                    |           |
+  |                              Sprint            |
+  |                              Retrospective     |
+  |                              (up to 3h)        |
+  +------------------------------------------------+
+        |                                  |
+        v                                  v
+  Product                          Increment
+  Backlog                         (Releasable
+  (Prioritized)                    deliverable)
 
-  イベント一覧:
-    1. スプリント        : 開発の時間枠（タイムボックス）
-    2. スプリントプランニング : 何を・どう作るかを計画
-    3. デイリースクラム    : 15分の同期ミーティング
-    4. スプリントレビュー   : 成果物のデモと検査
-    5. スプリントレトロスペクティブ : プロセスの振り返りと改善
+  Event List:
+    1. Sprint              : Development time-box
+    2. Sprint Planning     : Plan what and how to build
+    3. Daily Scrum         : 15-minute sync meeting
+    4. Sprint Review       : Demo and inspection of deliverables
+    5. Sprint Retrospective: Process reflection and improvement
 ```
 
-#### スクラムの 3 つの成果物
+#### Scrum's 3 Artifacts
 
-1. **プロダクトバックログ**: プロダクトに必要な全ての機能・改善の優先順位付きリスト
-2. **スプリントバックログ**: 当該スプリントで実施する項目のリスト + 達成計画
-3. **インクリメント**: スプリントの成果として生み出される「完成」したプロダクトの増分
+1. **Product Backlog**: A prioritized list of all features and improvements needed for the product
+2. **Sprint Backlog**: The list of items to be implemented in the current sprint + the plan for achieving them
+3. **Increment**: The "Done" product increment produced as a result of the sprint
 
 ```python
-# コード例2: スクラムボードのシンプルな実装
+# Code Example 2: A simple Scrum board implementation
 from dataclasses import dataclass, field
 from enum import Enum
 from datetime import datetime, timedelta
@@ -448,7 +451,7 @@ class StoryStatus(Enum):
 
 
 class StorySize(Enum):
-    """ストーリーポイント（フィボナッチ数列）"""
+    """Story Points (Fibonacci sequence)"""
     XS = 1
     S = 2
     M = 3
@@ -459,7 +462,7 @@ class StorySize(Enum):
 
 @dataclass
 class UserStory:
-    """ユーザーストーリー"""
+    """User Story"""
     id: str
     title: str
     description: str        # "As a [user], I want [goal], so that [benefit]"
@@ -480,7 +483,7 @@ class UserStory:
 
     def submit_for_review(self) -> None:
         if self.status != StoryStatus.IN_PROGRESS:
-            raise ValueError("レビュー提出は作業中のストーリーのみ可能")
+            raise ValueError("Only in-progress stories can be submitted for review")
         self.status = StoryStatus.IN_REVIEW
 
     def complete(self) -> None:
@@ -490,7 +493,7 @@ class UserStory:
 
 @dataclass
 class Sprint:
-    """スプリント"""
+    """Sprint"""
     id: str
     goal: str
     start_date: datetime
@@ -511,17 +514,17 @@ class Sprint:
 
     @property
     def velocity(self) -> int:
-        """このスプリントのベロシティ（完了ポイント数）"""
+        """This sprint's velocity (completed story points)"""
         return self.completed_points
 
     def add_story(self, story: UserStory) -> None:
         self.stories.append(story)
 
     def burndown_data(self) -> list[dict]:
-        """バーンダウンチャートのデータを生成"""
+        """Generate burndown chart data"""
         remaining = self.total_points
         data = [{"day": 0, "remaining": remaining, "ideal": remaining}]
-        total_days = self.duration_weeks * 5  # 営業日
+        total_days = self.duration_weeks * 5  # Business days
         daily_ideal = remaining / total_days
 
         completed_stories = sorted(
@@ -548,10 +551,10 @@ class Sprint:
             status_counts[key] = status_counts.get(key, 0) + 1
         lines = [
             f"Sprint: {self.id} - {self.goal}",
-            f"期間: {self.start_date.date()} 〜 {self.end_date.date()}",
-            f"合計ポイント: {self.total_points}, 完了: {self.completed_points}",
-            f"ベロシティ: {self.velocity}",
-            "ステータス別:"
+            f"Duration: {self.start_date.date()} to {self.end_date.date()}",
+            f"Total Points: {self.total_points}, Completed: {self.completed_points}",
+            f"Velocity: {self.velocity}",
+            "By Status:"
         ]
         for status, count in status_counts.items():
             lines.append(f"  {status}: {count}")
@@ -559,7 +562,7 @@ class Sprint:
 
 
 class ScrumBoard:
-    """スクラムボード（複数スプリント管理）"""
+    """Scrum Board (manages multiple sprints)"""
 
     def __init__(self, team_name: str):
         self.team_name = team_name
@@ -576,7 +579,7 @@ class ScrumBoard:
         return sprint
 
     def plan_sprint(self, sprint: Sprint, story_ids: list[str]) -> None:
-        """スプリントプランニング: バックログからストーリーを選択"""
+        """Sprint Planning: Select stories from the backlog"""
         for sid in story_ids:
             for i, story in enumerate(self.product_backlog):
                 if story.id == sid:
@@ -585,84 +588,84 @@ class ScrumBoard:
                     break
 
     def average_velocity(self, last_n: int = 3) -> float:
-        """直近 n スプリントの平均ベロシティ"""
+        """Average velocity of the last n sprints"""
         recent = self.sprints[-last_n:]
         if not recent:
             return 0.0
         return sum(s.velocity for s in recent) / len(recent)
 
 
-# 使用例
-board = ScrumBoard("開発チームA")
+# Usage example
+board = ScrumBoard("Development Team A")
 
-# バックログにストーリーを追加
+# Add stories to the backlog
 stories = [
-    UserStory("US-001", "ログイン機能",
+    UserStory("US-001", "Login Feature",
               "As a user, I want to log in, so that I can access my account",
               StorySize.M,
-              ["メールとパスワードでログインできる", "エラー時にメッセージが表示される"]),
-    UserStory("US-002", "商品検索",
+              ["Can log in with email and password", "Error message is displayed on failure"]),
+    UserStory("US-002", "Product Search",
               "As a user, I want to search products, so that I can find what I need",
               StorySize.L,
-              ["キーワード検索ができる", "カテゴリでフィルタリングできる"]),
-    UserStory("US-003", "カート機能",
+              ["Can search by keyword", "Can filter by category"]),
+    UserStory("US-003", "Cart Feature",
               "As a user, I want to add items to cart, so that I can purchase multiple items",
               StorySize.XL,
-              ["商品をカートに追加できる", "数量を変更できる", "カートから削除できる"]),
+              ["Can add items to cart", "Can change quantity", "Can remove from cart"]),
 ]
 for s in stories:
     board.add_to_backlog(s)
 
-# スプリント作成と計画
-sprint1 = board.create_sprint("Sprint-1", "基本認証機能の実装", datetime.now())
+# Create and plan a sprint
+sprint1 = board.create_sprint("Sprint-1", "Implement Basic Authentication", datetime.now())
 board.plan_sprint(sprint1, ["US-001", "US-002"])
 
-# 作業の進行
-sprint1.stories[0].start("田中")
+# Progress of work
+sprint1.stories[0].start("Tanaka")
 sprint1.stories[0].submit_for_review()
 sprint1.stories[0].complete()
 
 print(sprint1.summary())
 ```
 
-### 3.3 エクストリームプログラミング（XP）
+### 3.3 Extreme Programming (XP)
 
-エクストリームプログラミング（XP）は、Kent Beck によって提唱されたアジャイル開発手法である。ソフトウェア品質を高めるためのエンジニアリングプラクティスを重視する点が特徴である。
+Extreme Programming (XP) is an agile development methodology proposed by Kent Beck. Its distinguishing feature is its emphasis on engineering practices to improve software quality.
 
-#### XP の 5 つの価値
+#### XP's 5 Values
 
-1. **コミュニケーション**: チーム内外の対話を重視
-2. **シンプリシティ**: 必要なもの以外を作らない
-3. **フィードバック**: 素早いフィードバックで軌道修正
-4. **勇気**: 必要な変更を恐れずに行う
-5. **尊重**: チームメンバーを互いに尊重する
+1. **Communication**: Emphasis on dialogue within and outside the team
+2. **Simplicity**: Don't build anything beyond what is needed
+3. **Feedback**: Quick feedback for course correction
+4. **Courage**: Making necessary changes without fear
+5. **Respect**: Mutual respect among team members
 
-#### XP のプラクティス
+#### XP Practices
 
-| プラクティス | 説明 | 効果 |
-|-------------|------|------|
-| ペアプログラミング | 2 人 1 組でコードを書く | コード品質向上、知識共有 |
-| テスト駆動開発（TDD） | テストを先に書く | 設計品質向上、回帰バグ防止 |
-| リファクタリング | コードの内部構造を改善 | 技術的負債の抑制 |
-| 継続的インテグレーション | 頻繁にコードを統合 | 統合問題の早期発見 |
-| 小規模リリース | 小さな単位で頻繁にリリース | リスク低減、早期フィードバック |
-| コーディング規約 | 統一されたコードスタイル | 可読性向上、属人化防止 |
-| 共同所有 | コードは全員の所有物 | ボトルネック解消 |
-| 持続可能なペース | 週 40 時間を基本とする | バーンアウト防止、品質維持 |
-| メタファー | システムを比喩で共有 | 共通理解の促進 |
-| 計画ゲーム | ストーリーカードで見積もり | 現実的な計画策定 |
+| Practice | Description | Effect |
+|----------|------------|--------|
+| Pair Programming | Two people write code together | Improved code quality, knowledge sharing |
+| Test-Driven Development (TDD) | Write tests first | Improved design quality, regression bug prevention |
+| Refactoring | Improve the internal structure of code | Suppression of technical debt |
+| Continuous Integration | Integrate code frequently | Early detection of integration issues |
+| Small Releases | Release frequently in small units | Risk reduction, early feedback |
+| Coding Standards | Unified code style | Improved readability, reduced key-person dependency |
+| Collective Ownership | Code belongs to everyone | Elimination of bottlenecks |
+| Sustainable Pace | Based on a 40-hour work week | Burnout prevention, quality maintenance |
+| Metaphor | Share system understanding through metaphors | Promoting common understanding |
+| Planning Game | Estimate using story cards | Realistic planning |
 
-#### TDD のサイクル
+#### TDD Cycle
 
 ```python
-# コード例3: TDD の Red-Green-Refactor サイクル
+# Code Example 3: TDD's Red-Green-Refactor cycle
 
-# === Step 1: Red（失敗するテストを書く） ===
+# === Step 1: Red (Write a failing test) ===
 import unittest
 
 
 class TestShoppingCart(unittest.TestCase):
-    """ショッピングカートのテスト"""
+    """Shopping cart tests"""
 
     def test_empty_cart_has_zero_total(self):
         cart = ShoppingCart()
@@ -670,35 +673,35 @@ class TestShoppingCart(unittest.TestCase):
 
     def test_add_single_item(self):
         cart = ShoppingCart()
-        cart.add_item("りんご", price=150, quantity=1)
+        cart.add_item("Apple", price=150, quantity=1)
         self.assertEqual(cart.total(), 150)
 
     def test_add_multiple_items(self):
         cart = ShoppingCart()
-        cart.add_item("りんご", price=150, quantity=2)
-        cart.add_item("バナナ", price=100, quantity=3)
+        cart.add_item("Apple", price=150, quantity=2)
+        cart.add_item("Banana", price=100, quantity=3)
         self.assertEqual(cart.total(), 600)  # 150*2 + 100*3
 
     def test_apply_percentage_discount(self):
         cart = ShoppingCart()
-        cart.add_item("りんご", price=1000, quantity=1)
+        cart.add_item("Apple", price=1000, quantity=1)
         cart.apply_discount(percent=10)
         self.assertEqual(cart.total(), 900)
 
     def test_remove_item(self):
         cart = ShoppingCart()
-        cart.add_item("りんご", price=150, quantity=1)
-        cart.remove_item("りんご")
+        cart.add_item("Apple", price=150, quantity=1)
+        cart.remove_item("Apple")
         self.assertEqual(cart.total(), 0)
 
     def test_item_count(self):
         cart = ShoppingCart()
-        cart.add_item("りんご", price=150, quantity=2)
-        cart.add_item("バナナ", price=100, quantity=3)
+        cart.add_item("Apple", price=150, quantity=2)
+        cart.add_item("Banana", price=100, quantity=3)
         self.assertEqual(cart.item_count(), 5)
 
 
-# === Step 2: Green（テストを通す最小限の実装） ===
+# === Step 2: Green (Minimum implementation to make tests pass) ===
 
 @dataclass
 class CartItem:
@@ -727,7 +730,7 @@ class ShoppingCart:
 
     def apply_discount(self, percent: int) -> None:
         if not 0 <= percent <= 100:
-            raise ValueError("割引率は0〜100の範囲で指定")
+            raise ValueError("Discount rate must be between 0 and 100")
         self._discount_percent = percent
 
     def item_count(self) -> int:
@@ -742,132 +745,134 @@ class ShoppingCart:
         return sub - discount
 
 
-# === Step 3: Refactor（コードを改善、テストは通るまま） ===
-# 上記の実装は既にリファクタリング済み:
-# - CartItem を独立したデータクラスに分離
-# - subtotal 計算をプロパティ化
-# - 割引ロジックを明確に分離
+# === Step 3: Refactor (Improve the code while keeping tests green) ===
+# The above implementation is already refactored:
+# - CartItem separated into an independent data class
+# - Subtotal calculation as a property
+# - Discount logic clearly separated
 ```
 
-### 3.4 カンバン（Kanban）
+### 3.4 Kanban
 
-カンバンは、トヨタ生産方式に起源を持つ開発手法で、作業の可視化と WIP（Work In Progress）制限を核としたフロー管理の手法である。スクラムのように固定的なスプリントサイクルを持たず、継続的なフローを重視する。
+Kanban is a development methodology originating from the Toyota Production System that centers on work visualization and WIP (Work In Progress) limits for flow management. Unlike Scrum, it does not have fixed sprint cycles and emphasizes continuous flow.
 
-#### カンバンの原則
+#### Kanban Principles
 
-1. **現在の作業を可視化する**: カンバンボード上で全ての作業を見える化
-2. **WIP を制限する**: 同時進行作業数を制限して効率を上げる
-3. **フローを管理する**: 作業の流れを最適化する
-4. **プロセスポリシーを明示する**: 「完了」の定義などを明文化する
-5. **フィードバックループを実装する**: 定期的な振り返りを行う
-6. **協力的に改善し、実験的に進化する**: チーム全体で改善に取り組む
+1. **Visualize current work**: Make all work visible on the Kanban board
+2. **Limit WIP**: Limit the number of concurrent tasks to improve efficiency
+3. **Manage flow**: Optimize the flow of work
+4. **Make process policies explicit**: Document definitions like "Definition of Done"
+5. **Implement feedback loops**: Conduct regular retrospectives
+6. **Improve collaboratively, evolve experimentally**: The whole team works on improvement
 
-#### カンバンボードの例
+#### Kanban Board Example
 
 ```
-カンバンボード:
+Kanban Board:
 
-  Backlog    │  To Do    │ In Progress │  Review   │   Done
-  (制限なし)  │ (WIP: 5)  │  (WIP: 3)   │ (WIP: 2)  │
-  ───────────┼──────────┼────────────┼──────────┼──────────
-  [検索改善]  │ [API設計] │ [認証実装]  │ [DB移行]  │ [初期設定]
-  [通知機能]  │ [テスト]  │ [画面実装]  │          │ [CI構築]
-  [分析機能]  │          │            │          │ [文書整備]
-  [多言語化]  │          │            │          │
-  ───────────┴──────────┴────────────┴──────────┴──────────
+  Backlog    | To Do     | In Progress | Review    |   Done
+  (No limit) | (WIP: 5)  |  (WIP: 3)   | (WIP: 2)  |
+  -----------+----------+-------------+----------+----------
+  [Search    | [API     | [Auth       | [DB      | [Initial
+   improve]  |  design] |  implement] |  migrate]|  setup]
+  [Notif.    | [Tests]  | [UI         |          | [CI
+   feature]  |          |  implement] |          |  build]
+  [Analytics |          |             |          | [Doc
+   feature]  |          |             |          |  prep]
+  [i18n]     |          |             |          |
+  -----------+----------+-------------+----------+----------
 
-  WIP制限を超えたら → 新しい作業を開始せず、既存の作業を完了させる
+  When WIP limit is exceeded -> Do not start new work, finish existing work first
 
-  リードタイム計測:
-    着手日 → 完了日 の期間を記録
-    ボトルネック（WIPが上限に張り付く列）を特定して改善
+  Lead Time Measurement:
+    Record the period from start date to completion date
+    Identify bottlenecks (columns where WIP is at the limit) and improve
 ```
 
-### 3.5 スクラム・XP・カンバンの比較
+### 3.5 Comparison of Scrum, XP, and Kanban
 
-| 観点 | スクラム | XP | カンバン |
-|------|---------|-----|---------|
-| イテレーション | 固定長スプリント | 固定長 | なし（継続的フロー） |
-| 役割 | PO, SM, 開発チーム | コーチ, 顧客, 開発者 | 特に定めない |
-| 変更の許容 | スプリント中は変更不可 | 柔軟に対応 | いつでも変更可 |
-| 見積もり | ストーリーポイント | ストーリーポイント | 任意 |
-| 計測指標 | ベロシティ | ベロシティ | リードタイム, スループット |
-| 技術プラクティス | 規定しない | TDD, ペアプロ等を重視 | 規定しない |
-| 適用場面 | プロダクト開発 | 技術品質重視 | 保守・運用、サポート業務 |
-| 導入しやすさ | 中程度 | 難しい（規律が必要） | 比較的容易 |
+| Aspect | Scrum | XP | Kanban |
+|--------|-------|-----|--------|
+| Iteration | Fixed-length sprints | Fixed-length | None (continuous flow) |
+| Roles | PO, SM, Dev Team | Coach, Customer, Developers | Not specifically defined |
+| Change Tolerance | No changes during sprint | Flexible | Changes allowed anytime |
+| Estimation | Story points | Story points | Optional |
+| Metrics | Velocity | Velocity | Lead time, throughput |
+| Technical Practices | Not prescribed | Emphasizes TDD, pair programming, etc. | Not prescribed |
+| Use Cases | Product development | Technical quality focus | Maintenance, operations, support |
+| Ease of Adoption | Moderate | Difficult (discipline required) | Relatively easy |
 
 ---
 
-## 4. DevOps と CI/CD
+## 4. DevOps and CI/CD
 
-### 4.1 DevOps の概要
+### 4.1 DevOps Overview
 
-DevOps は、開発（Development）と運用（Operations）の壁を取り払い、ソフトウェアのデリバリーを高速化・高品質化するための文化・プラクティス・ツールの集合体である。2009 年の DevOpsDays カンファレンスを起点として広がった。
+DevOps is a collection of culture, practices, and tools that breaks down the wall between Development and Operations to accelerate and improve the quality of software delivery. It emerged from the DevOpsDays conference in 2009.
 
-DevOps の核心は、開発チームと運用チームの間にある「壁」を壊すことにある。従来、開発チームは「新機能をできるだけ早く届けたい」、運用チームは「システムを安定させたい」という相反する目標を持っていた。DevOps はこの対立を解消し、両者が協力してビジネス価値を継続的に提供する体制を構築する。
+The core of DevOps is breaking down the "wall" between development teams and operations teams. Traditionally, development teams wanted to "deliver new features as quickly as possible" while operations teams wanted to "keep the system stable" -- conflicting goals. DevOps resolves this conflict and builds a system where both collaborate to continuously deliver business value.
 
-#### DevOps の CALMS フレームワーク
+#### The CALMS Framework of DevOps
 
-DevOps の文化的側面を理解するために、CALMS フレームワークが広く使われている。
+The CALMS framework is widely used to understand the cultural aspects of DevOps.
 
-- **C - Culture（文化）**: チーム間の協力、学習する組織
-- **A - Automation（自動化）**: CI/CD、Infrastructure as Code、テスト自動化
-- **L - Lean（リーン）**: 無駄の排除、小さなバッチサイズ、WIP 制限
-- **M - Measurement（計測）**: メトリクスに基づく改善、DORA メトリクス
-- **S - Sharing（共有）**: 知識共有、透明性、ポストモーテム
+- **C - Culture**: Collaboration between teams, learning organization
+- **A - Automation**: CI/CD, Infrastructure as Code, test automation
+- **L - Lean**: Waste elimination, small batch sizes, WIP limits
+- **M - Measurement**: Metrics-driven improvement, DORA metrics
+- **S - Sharing**: Knowledge sharing, transparency, postmortems
 
-#### DORA メトリクス（Four Keys）
+#### DORA Metrics (Four Keys)
 
-DevOps のパフォーマンスを計測するための 4 つの指標として、DORA（DevOps Research and Assessment）メトリクスが広く採用されている。
+The DORA (DevOps Research and Assessment) metrics are widely adopted as four indicators for measuring DevOps performance.
 
-| メトリクス | Elite | High | Medium | Low |
-|-----------|-------|------|--------|-----|
-| デプロイ頻度 | オンデマンド（1日複数回） | 週1〜月1 | 月1〜半年1 | 半年1未満 |
-| リードタイム（コミットからデプロイ） | 1時間未満 | 1日〜1週間 | 1週間〜1ヶ月 | 1ヶ月〜半年 |
-| 変更失敗率 | 0〜15% | 16〜30% | 16〜30% | 46〜60% |
-| 復旧時間（MTTR） | 1時間未満 | 1日未満 | 1日〜1週間 | 半年以上 |
+| Metric | Elite | High | Medium | Low |
+|--------|-------|------|--------|-----|
+| Deployment Frequency | On-demand (multiple times/day) | Weekly to monthly | Monthly to semi-annually | Less than semi-annually |
+| Lead Time (commit to deploy) | Less than 1 hour | 1 day to 1 week | 1 week to 1 month | 1 month to 6 months |
+| Change Failure Rate | 0-15% | 16-30% | 16-30% | 46-60% |
+| Mean Time to Recovery (MTTR) | Less than 1 hour | Less than 1 day | 1 day to 1 week | 6 months or more |
 
-### 4.2 CI/CD パイプライン
+### 4.2 CI/CD Pipeline
 
-CI（Continuous Integration: 継続的インテグレーション）と CD（Continuous Delivery/Deployment: 継続的デリバリー/デプロイメント）は、DevOps の技術的基盤である。
+CI (Continuous Integration) and CD (Continuous Delivery/Deployment) are the technical foundations of DevOps.
 
 ```
-CI/CD パイプラインの全体像:
+CI/CD Pipeline Overview:
 
-  開発者
-    │
-    ▼  git push
-  ┌──────────┐
-  │ ソースコード │
-  │ リポジトリ   │  (GitHub / GitLab)
-  └─────┬────┘
-        ▼  Webhook トリガー
-  ┌──────────────────────────────────────────────┐
-  │              CI パイプライン                     │
-  │                                                │
-  │  ┌────────┐  ┌────────┐  ┌────────┐  ┌──────┐ │
-  │  │ ビルド  │→│ 静的   │→│ 単体   │→│ 統合  │ │
-  │  │        │  │ 解析   │  │ テスト  │  │ テスト │ │
-  │  └────────┘  └────────┘  └────────┘  └──────┘ │
-  │                                                │
-  └────────────────────┬───────────────────────────┘
-                       ▼  成功時
-  ┌──────────────────────────────────────────────┐
-  │              CD パイプライン                     │
-  │                                                │
-  │  ┌────────┐  ┌────────┐  ┌────────┐  ┌──────┐ │
-  │  │アーティ │→│ステージ │→│  E2E   │→│本番   │ │
-  │  │ファクト │  │ング環境 │  │ テスト  │  │デプロイ│ │
-  │  │ 作成   │  │デプロイ  │  │        │  │      │ │
-  │  └────────┘  └────────┘  └────────┘  └──────┘ │
-  │                                     ▲         │
-  │                                承認ゲート       │
-  │                              (手動/自動)        │
-  └──────────────────────────────────────────────┘
+  Developer
+    |
+    v  git push
+  +-------------+
+  | Source Code  |
+  | Repository   |  (GitHub / GitLab)
+  +------+------+
+         v  Webhook Trigger
+  +-----------------------------------------------+
+  |              CI Pipeline                        |
+  |                                                 |
+  |  +--------+  +--------+  +--------+  +--------+|
+  |  | Build  |->| Static |->| Unit   |->| Integ. ||
+  |  |        |  | Analy. |  | Tests  |  | Tests  ||
+  |  +--------+  +--------+  +--------+  +--------+|
+  |                                                 |
+  +---------------------+---------------------------+
+                        v  On success
+  +-----------------------------------------------+
+  |              CD Pipeline                        |
+  |                                                 |
+  |  +--------+  +--------+  +--------+  +--------+|
+  |  |Artifact|->|Staging |->|  E2E   |->| Prod   ||
+  |  | Create |  | Deploy |  | Tests  |  | Deploy ||
+  |  +--------+  +--------+  +--------+  +--------+|
+  |                                     ^           |
+  |                               Approval Gate     |
+  |                             (manual/automatic)  |
+  +-----------------------------------------------+
 ```
 
 ```yaml
-# コード例4: GitHub Actions による CI/CD パイプライン設定
+# Code Example 4: GitHub Actions CI/CD Pipeline Configuration
 name: CI/CD Pipeline
 
 on:
@@ -881,7 +886,7 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  # ===== CI: ビルドとテスト =====
+  # ===== CI: Build and Test =====
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -947,7 +952,7 @@ jobs:
           scan-ref: .
           severity: CRITICAL,HIGH
 
-  # ===== CD: ビルドとデプロイ =====
+  # ===== CD: Build and Deploy =====
   build-and-push:
     needs: [lint, test, security-scan]
     if: github.ref == 'refs/heads/main'
@@ -993,175 +998,176 @@ jobs:
       - name: Deploy to production
         run: |
           echo "Deploying ${{ github.sha }} to production environment"
-          # 本番デプロイのコマンド
+          # Production deployment command
 ```
 
-### 4.3 Infrastructure as Code（IaC）
+### 4.3 Infrastructure as Code (IaC)
 
-Infrastructure as Code は、インフラストラクチャの構成をコードとして管理する手法である。手動設定を排除し、再現性・バージョン管理・自動化を実現する。
+Infrastructure as Code is a methodology for managing infrastructure configuration as code. It eliminates manual configuration and achieves reproducibility, version control, and automation.
 
-主要なツールとして、Terraform（マルチクラウド対応の宣言的 IaC）、AWS CloudFormation（AWS ネイティブ）、Pulumi（汎用プログラミング言語で記述可能）、Ansible（構成管理）などがある。
+Major tools include Terraform (multi-cloud declarative IaC), AWS CloudFormation (AWS native), Pulumi (writable in general-purpose programming languages), and Ansible (configuration management).
 
-### 4.4 モニタリングとオブザーバビリティ
+### 4.4 Monitoring and Observability
 
-DevOps において、システムの状態を把握するためのモニタリングとオブザーバビリティは不可欠である。
+In DevOps, monitoring and observability for understanding the state of systems are essential.
 
-**オブザーバビリティの 3 本柱:**
+**Three Pillars of Observability:**
 
-1. **メトリクス（Metrics）**: 数値的な計測データ（CPU 使用率、レスポンスタイム、エラー率）
-2. **ログ（Logs）**: イベントの時系列記録（アプリケーションログ、アクセスログ）
-3. **トレース（Traces）**: リクエストの処理経路の追跡（分散トレーシング）
+1. **Metrics**: Numerical measurement data (CPU utilization, response time, error rate)
+2. **Logs**: Time-series records of events (application logs, access logs)
+3. **Traces**: Tracking the processing path of requests (distributed tracing)
 
-主要なツールとして、Prometheus + Grafana（メトリクス収集・可視化）、ELK Stack / Loki（ログ管理）、Jaeger / OpenTelemetry（分散トレーシング）、Datadog / New Relic（統合監視 SaaS）がある。
+Major tools include Prometheus + Grafana (metrics collection and visualization), ELK Stack / Loki (log management), Jaeger / OpenTelemetry (distributed tracing), and Datadog / New Relic (integrated monitoring SaaS).
 
 ---
 
-## 5. 要件定義からデプロイまでのフロー
+## 5. Flow from Requirements to Deployment
 
-### 5.1 モダン開発における全体フロー
+### 5.1 Overall Flow in Modern Development
 
-現代のソフトウェア開発では、アジャイルのイテレーティブなアプローチと DevOps の自動化を組み合わせた開発フローが主流となっている。
-
-```
-モダン開発フローの全体像:
-
-  ┌─────────────────────────────────────────────────────────┐
-  │                   プロダクトディスカバリー                    │
-  │  ユーザー調査 → 問題定義 → 仮説設定 → プロトタイプ → 検証     │
-  └───────────────────────┬─────────────────────────────────┘
-                          ▼
-  ┌─────────────────────────────────────────────────────────┐
-  │                   プロダクトバックログ                      │
-  │  優先順位付きのユーザーストーリー / 技術タスク                 │
-  └───────────────────────┬─────────────────────────────────┘
-                          ▼
-  ┌─────── スプリント（2週間） ──────┐
-  │                                  │
-  │  プランニング                      │
-  │    ↓                             │
-  │  設計 → 実装 → コードレビュー       │
-  │    ↓                             │
-  │  テスト（自動 + 手動）             │
-  │    ↓                             │
-  │  レビュー + レトロスペクティブ      │
-  │                                  │
-  └──────────┬───────────────────────┘
-             ▼
-  ┌──────────────────────┐
-  │   CI/CD パイプライン   │
-  │  ビルド → テスト →     │
-  │  デプロイ（自動）      │
-  └──────────┬───────────┘
-             ▼
-  ┌──────────────────────┐
-  │    本番環境            │
-  │  モニタリング          │
-  │  フィードバック収集     │
-  └──────────┬───────────┘
-             │
-             └──→ バックログへフィードバック（ループ）
-```
-
-### 5.2 要件定義のプラクティス
-
-#### ユーザーストーリーマッピング
-
-Jeff Patton が提唱したユーザーストーリーマッピングは、ユーザーの活動を時系列で整理し、優先順位を付ける手法である。
+In modern software development, a development flow that combines agile's iterative approach with DevOps automation has become mainstream.
 
 ```
-ユーザーストーリーマップ（ECサイトの例）:
+Overall Modern Development Flow:
 
-  ユーザーの活動（左から右へ時系列）:
-  ──────────────────────────────────────────────
-  商品を探す    →   商品を選ぶ    →   購入する     →   届くのを待つ
-  ──────────────────────────────────────────────
-  │                │                │               │
-  │ [キーワード検索] │ [商品詳細表示]  │ [カートに追加] │ [注文状況確認]
-  │ [カテゴリ一覧]  │ [レビュー閲覧]  │ [決済処理]    │ [配送追跡]
-  │ [おすすめ表示]  │ [比較機能]     │ [住所入力]    │ [受取確認]
-  │ [フィルタ機能]  │ [お気に入り]   │ [クーポン適用] │ [返品申請]
-  │                │ [在庫確認]     │ [ギフト設定]  │
-  ──────────────────────────────────────────────
-  ▲ MVP ライン（最初のリリースで必要な機能）
-  ──────────────────────────────────────────────
-  ▲ v2.0 ライン
-  ──────────────────────────────────────────────
+  +-----------------------------------------------------------+
+  |                   Product Discovery                        |
+  |  User Research -> Problem Definition -> Hypothesis ->      |
+  |  Prototype -> Validation                                   |
+  +---------------------------+-------------------------------+
+                              v
+  +-----------------------------------------------------------+
+  |                   Product Backlog                           |
+  |  Prioritized user stories / technical tasks                 |
+  +---------------------------+-------------------------------+
+                              v
+  +--------- Sprint (2 weeks) ---------+
+  |                                     |
+  |  Planning                           |
+  |    |                                |
+  |  Design -> Implement -> Code Review |
+  |    |                                |
+  |  Test (automated + manual)          |
+  |    |                                |
+  |  Review + Retrospective             |
+  |                                     |
+  +--------------+---------------------+
+                 v
+  +------------------------+
+  |   CI/CD Pipeline        |
+  |  Build -> Test ->       |
+  |  Deploy (automated)     |
+  +--------------+---------+
+                 v
+  +------------------------+
+  |    Production           |
+  |  Monitoring             |
+  |  Feedback Collection    |
+  +--------------+---------+
+                 |
+                 +---> Feedback to backlog (loop)
 ```
 
-#### イベントストーミング
+### 5.2 Requirements Definition Practices
 
-イベントストーミングは、Alberto Brandolini が考案した、ドメインイベントを中心にシステムの振る舞いを探索するワークショップ手法である。ドメイン駆動設計（DDD）と親和性が高い。
+#### User Story Mapping
 
-### 5.3 設計フェーズのプラクティス
+User Story Mapping, proposed by Jeff Patton, is a technique for organizing user activities chronologically and assigning priorities.
 
-#### アーキテクチャ決定記録（ADR）
+```
+User Story Map (E-Commerce Site Example):
 
-重要なアーキテクチャ上の決定を記録・追跡するために、Architecture Decision Records（ADR）を作成する。
+  User Activities (chronological from left to right):
+  -------------------------------------------------------
+  Find Products   ->  Select Products  ->  Purchase     ->  Wait for Delivery
+  -------------------------------------------------------
+  |                    |                    |                 |
+  | [Keyword Search]   | [Product Detail]  | [Add to Cart]  | [Order Status]
+  | [Category List]    | [Review Browsing] | [Payment]      | [Delivery Track]
+  | [Recommendations]  | [Comparison]      | [Address Input]| [Receipt Confirm]
+  | [Filter Feature]   | [Favorites]       | [Coupon Apply] | [Return Request]
+  |                    | [Stock Check]     | [Gift Setting] |
+  -------------------------------------------------------
+  ^ MVP Line (features needed for the first release)
+  -------------------------------------------------------
+  ^ v2.0 Line
+  -------------------------------------------------------
+```
+
+#### Event Storming
+
+Event Storming is a workshop technique devised by Alberto Brandolini for exploring system behavior centered on domain events. It has high affinity with Domain-Driven Design (DDD).
+
+### 5.3 Design Phase Practices
+
+#### Architecture Decision Records (ADR)
+
+Architecture Decision Records (ADR) are created to record and track important architectural decisions.
 
 ```markdown
-# ADR-001: API 通信に GraphQL を採用する
+# ADR-001: Adopt GraphQL for API Communication
 
-## ステータス
-承認済み（2024-01-15）
+## Status
+Approved (2024-01-15)
 
-## コンテキスト
-フロントエンドが必要とするデータは画面ごとに異なり、
-REST API では過剰取得（Over-fetching）や不足取得（Under-fetching）が
-頻繁に発生している。モバイルアプリも計画されており、
-帯域幅の効率的な利用が求められる。
+## Context
+The data required by the frontend varies by screen,
+and with REST API, over-fetching and under-fetching
+occur frequently. A mobile app is also planned,
+requiring efficient bandwidth utilization.
 
-## 決定
-API 通信プロトコルとして GraphQL を採用する。
-サーバー実装には Apollo Server を使用する。
+## Decision
+Adopt GraphQL as the API communication protocol.
+Use Apollo Server for the server implementation.
 
-## 理由
-- クライアントが必要なデータのみを取得できる
-- 型システムによるスキーマ定義で API の契約が明確になる
-- 複数のデータソースを統合するリゾルバーパターンが使える
-- モバイル・Web で同一の API を効率的に利用できる
+## Rationale
+- Clients can retrieve only the data they need
+- Schema definitions through the type system make the API contract clear
+- Resolver patterns can integrate multiple data sources
+- Mobile and web can efficiently use the same API
 
-## 結果
-- チームは GraphQL の学習コストを負担する必要がある
-- N+1 問題への対策（DataLoader）が必要
-- キャッシュ戦略が REST と異なるため再設計が必要
-- パフォーマンスモニタリングツールの選定が必要
+## Consequences
+- The team will need to invest in learning GraphQL
+- Countermeasures for the N+1 problem (DataLoader) are needed
+- Cache strategy differs from REST and needs redesign
+- Performance monitoring tools need to be selected
 ```
 
-### 5.4 コードレビューのベストプラクティス
+### 5.4 Code Review Best Practices
 
-コードレビューは品質向上と知識共有の両方を実現する重要なプラクティスである。
+Code review is an important practice that achieves both quality improvement and knowledge sharing.
 
-**効果的なコードレビューのポイント:**
+**Key Points for Effective Code Reviews:**
 
-1. **レビューサイズを小さく保つ**: 1 回のプルリクエストは 200〜400 行を目安にする。大きな変更は複数に分割する
-2. **レビュー観点を明確にする**: 機能的正しさ、セキュリティ、パフォーマンス、保守性、テストの網羅性
-3. **建設的なフィードバック**: 問題点の指摘だけでなく、改善案も提示する
-4. **自動化できる部分は自動化する**: フォーマット、リンティング、型チェックは CI で実行し、人間は設計・ロジックの議論に集中する
+1. **Keep review size small**: Target 200-400 lines per pull request. Split large changes into multiple PRs
+2. **Clarify review perspectives**: Functional correctness, security, performance, maintainability, test coverage
+3. **Provide constructive feedback**: Not just pointing out issues, but also suggesting improvements
+4. **Automate what can be automated**: Run formatting, linting, and type checking in CI, and let humans focus on design and logic discussions
 
 ---
 
-## 6. プロジェクト管理手法
+## 6. Project Management Methods
 
-### 6.1 見積もり手法
+### 6.1 Estimation Techniques
 
-ソフトウェア開発における見積もりは最も難しい課題の一つである。主要な手法を比較する。
+Estimation in software development is one of the most challenging tasks. Let's compare the major techniques.
 
-#### プランニングポーカー
+#### Planning Poker
 
-チーム全員がフィボナッチ数列（1, 2, 3, 5, 8, 13, 21）のカードを使い、各ストーリーの相対的な規模を見積もる手法。意見が大きく分かれた場合は議論を行い、再度見積もる。
+A technique where all team members use Fibonacci sequence cards (1, 2, 3, 5, 8, 13, 21) to estimate the relative size of each story. When opinions differ significantly, discussion takes place and re-estimation is done.
 
-#### Tシャツサイジング
+#### T-Shirt Sizing
 
-S, M, L, XL のようなサイズ感で大まかに分類する手法。初期段階のロードマップ作成や、大量のバックログアイテムの素早い分類に適している。
+A technique for rough classification using sizes like S, M, L, XL. Suitable for early-stage roadmap creation and quick classification of large backlogs.
 
-#### 三点見積もり
+#### Three-Point Estimation
 
-楽観値（O）、最頻値（M）、悲観値（P）の 3 つの見積もりから期待値を算出する手法。
+A technique that calculates the expected value from three estimates: optimistic (O), most likely (M), and pessimistic (P).
 
-期待値 = (O + 4M + P) / 6
+Expected Value = (O + 4M + P) / 6
 
 ```python
-# コード例5: プロジェクト管理ツールの実装例
+# Code Example 5: Project management tool implementation
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
@@ -1179,29 +1185,29 @@ class TaskStatus(Enum):
 
 @dataclass
 class ThreePointEstimate:
-    """三点見積もり"""
-    optimistic: float     # 楽観値（日）
-    most_likely: float    # 最頻値（日）
-    pessimistic: float    # 悲観値（日）
+    """Three-Point Estimation"""
+    optimistic: float     # Optimistic value (days)
+    most_likely: float    # Most likely value (days)
+    pessimistic: float    # Pessimistic value (days)
 
     @property
     def expected(self) -> float:
-        """PERT 期待値"""
+        """PERT expected value"""
         return (self.optimistic + 4 * self.most_likely + self.pessimistic) / 6
 
     @property
     def standard_deviation(self) -> float:
-        """標準偏差"""
+        """Standard deviation"""
         return (self.pessimistic - self.optimistic) / 6
 
     @property
     def variance(self) -> float:
-        """分散"""
+        """Variance"""
         return self.standard_deviation ** 2
 
     def confidence_interval(self, confidence: float = 0.95) -> tuple[float, float]:
-        """信頼区間を計算（正規分布近似）"""
-        # 95% 信頼区間 → z = 1.96
+        """Calculate confidence interval (normal distribution approximation)"""
+        # 95% confidence interval -> z = 1.96
         z_values = {0.90: 1.645, 0.95: 1.96, 0.99: 2.576}
         z = z_values.get(confidence, 1.96)
         margin = z * self.standard_deviation
@@ -1210,7 +1216,7 @@ class ThreePointEstimate:
 
 @dataclass
 class Task:
-    """プロジェクトタスク"""
+    """Project Task"""
     id: str
     name: str
     estimate: Optional[ThreePointEstimate] = None
@@ -1227,7 +1233,7 @@ class Task:
 
 
 class ProjectPlanner:
-    """プロジェクト計画ツール"""
+    """Project Planning Tool"""
 
     def __init__(self, project_name: str):
         self.project_name = project_name
@@ -1237,14 +1243,14 @@ class ProjectPlanner:
         self.tasks[task.id] = task
 
     def total_estimate(self) -> ThreePointEstimate:
-        """全タスクの合計見積もり"""
+        """Total estimate for all tasks"""
         total_o = sum(t.estimate.optimistic for t in self.tasks.values() if t.estimate)
         total_m = sum(t.estimate.most_likely for t in self.tasks.values() if t.estimate)
         total_p = sum(t.estimate.pessimistic for t in self.tasks.values() if t.estimate)
         return ThreePointEstimate(total_o, total_m, total_p)
 
     def monte_carlo_simulation(self, iterations: int = 10000) -> dict:
-        """モンテカルロシミュレーションによる完了日予測"""
+        """Completion date prediction via Monte Carlo simulation"""
         import random
 
         results = []
@@ -1254,7 +1260,7 @@ class ProjectPlanner:
             total = 0.0
             for task in tasks_with_estimates:
                 est = task.estimate
-                # PERT 分布を三角分布で近似
+                # Approximate PERT distribution with triangular distribution
                 sample = random.triangular(
                     est.optimistic, est.pessimistic, est.most_likely
                 )
@@ -1275,9 +1281,9 @@ class ProjectPlanner:
 
     def velocity_forecast(self, velocity_history: list[int],
                           remaining_points: int) -> dict:
-        """ベロシティに基づくリリース予測"""
+        """Release forecast based on velocity"""
         if not velocity_history:
-            return {"error": "ベロシティ履歴が必要"}
+            return {"error": "Velocity history is required"}
 
         avg_velocity = sum(velocity_history) / len(velocity_history)
         std_dev = (
@@ -1300,7 +1306,7 @@ class ProjectPlanner:
         }
 
     def progress_report(self) -> dict:
-        """進捗レポート"""
+        """Progress Report"""
         total = len(self.tasks)
         done = sum(1 for t in self.tasks.values() if t.status == TaskStatus.DONE)
         in_progress = sum(1 for t in self.tasks.values() if t.status == TaskStatus.IN_PROGRESS)
@@ -1331,445 +1337,446 @@ class ProjectPlanner:
         }
 
 
-# 使用例
-planner = ProjectPlanner("ECサイトリニューアル")
+# Usage example
+planner = ProjectPlanner("E-Commerce Site Renewal")
 
 planner.add_task(Task(
-    id="T-001", name="認証システム",
+    id="T-001", name="Authentication System",
     estimate=ThreePointEstimate(3, 5, 10),
     status=TaskStatus.DONE, actual_days=6
 ))
 planner.add_task(Task(
-    id="T-002", name="商品検索API",
+    id="T-002", name="Product Search API",
     estimate=ThreePointEstimate(5, 8, 15),
-    status=TaskStatus.IN_PROGRESS, assignee="鈴木"
+    status=TaskStatus.IN_PROGRESS, assignee="Suzuki"
 ))
 planner.add_task(Task(
-    id="T-003", name="決済連携",
+    id="T-003", name="Payment Integration",
     estimate=ThreePointEstimate(8, 12, 20),
     status=TaskStatus.TODO, dependencies=["T-001"]
 ))
 
-# 合計見積もり
+# Total estimate
 total = planner.total_estimate()
-print(f"合計期待値: {total.expected:.1f} 日")
+print(f"Total expected value: {total.expected:.1f} days")
 lower, upper = total.confidence_interval(0.95)
-print(f"95%信頼区間: {lower:.1f} 〜 {upper:.1f} 日")
+print(f"95% confidence interval: {lower:.1f} to {upper:.1f} days")
 
-# モンテカルロシミュレーション
+# Monte Carlo simulation
 mc = planner.monte_carlo_simulation()
-print(f"P85 完了予測: {mc['p85']:.1f} 日")
+print(f"P85 completion forecast: {mc['p85']:.1f} days")
 
-# 進捗レポート
+# Progress report
 report = planner.progress_report()
-print(f"進捗: {report['completion_rate']}")
+print(f"Progress: {report['completion_rate']}")
 ```
 
-### 6.2 リスク管理
+### 6.2 Risk Management
 
-ソフトウェアプロジェクトには多くのリスクが伴う。リスクを特定・評価・対策するプロセスが不可欠である。
+Software projects entail many risks. A process for identifying, assessing, and mitigating risks is essential.
 
-**リスクの分類:**
+**Risk Categories:**
 
-1. **技術リスク**: 未知の技術、パフォーマンス問題、統合の複雑さ
-2. **スケジュールリスク**: 見積もり誤差、依存関係の遅延
-3. **人的リスク**: 主要メンバーの離脱、スキル不足
-4. **要件リスク**: 要件の不明確さ、頻繁な変更
-5. **外部リスク**: ベンダー依存、規制変更、市場変化
+1. **Technical Risk**: Unknown technologies, performance issues, integration complexity
+2. **Schedule Risk**: Estimation errors, dependency delays
+3. **Personnel Risk**: Loss of key members, skill shortages
+4. **Requirements Risk**: Unclear requirements, frequent changes
+5. **External Risk**: Vendor dependency, regulatory changes, market changes
 
-**リスク対応戦略:**
+**Risk Response Strategies:**
 
-- **回避**: リスクの原因を排除する
-- **軽減**: リスクの発生確率や影響度を下げる
-- **転嫁**: リスクを第三者に移転する（保険、外部委託）
-- **受容**: リスクを認識した上で対処しない（コンティンジェンシープラン策定）
+- **Avoidance**: Eliminate the cause of the risk
+- **Mitigation**: Reduce the probability or impact of the risk
+- **Transfer**: Transfer the risk to a third party (insurance, outsourcing)
+- **Acceptance**: Acknowledge the risk and choose not to address it (prepare a contingency plan)
 
-### 6.3 技術的負債の管理
+### 6.3 Technical Debt Management
 
-技術的負債（Technical Debt）は、Ward Cunningham が 1992 年に提唱した概念で、短期的な利益のために技術的に最適でない選択をすることで生じる将来のコストを指す。
+Technical Debt is a concept proposed by Ward Cunningham in 1992 that refers to the future costs incurred by making technically suboptimal choices for short-term benefit.
 
-**技術的負債の種類:**
+**Types of Technical Debt:**
 
-| 種類 | 意図的/無意図的 | 例 |
-|------|---------------|-----|
-| 慎重で意図的 | 意図的 | 「リリース優先で後でリファクタリングする」 |
-| 無謀で意図的 | 意図的 | 「設計する時間がないからこのまま進める」 |
-| 慎重で無意図的 | 無意図的 | 「今ならもっと良い方法がわかる」（学習による気づき） |
-| 無謀で無意図的 | 無意図的 | 「レイヤー化って何？」（知識不足） |
+| Type | Intentional/Unintentional | Example |
+|------|--------------------------|---------|
+| Prudent and Intentional | Intentional | "Prioritize release, refactor later" |
+| Reckless and Intentional | Intentional | "No time for design, just push forward" |
+| Prudent and Unintentional | Unintentional | "Now I know a better way" (realization through learning) |
+| Reckless and Unintentional | Unintentional | "What is layering?" (lack of knowledge) |
 
-技術的負債の管理には、コードメトリクス（循環的複雑度、コード重複率、テストカバレッジ）の継続的な計測と、スプリントごとに一定割合（推奨: 15〜20%）を技術的負債の返済に充てることが有効である。
+For managing technical debt, continuous measurement of code metrics (cyclomatic complexity, code duplication rate, test coverage) and allocating a fixed percentage (recommended: 15-20%) of each sprint to paying down technical debt are effective.
 
 ---
 
-## 7. ブランチ戦略
+## 7. Branch Strategies
 
-### 7.1 主要なブランチ戦略
+### 7.1 Major Branch Strategies
 
-チーム開発における Git ブランチ戦略は、コードの品質と開発効率に大きな影響を与える。
+Git branch strategies in team development have a significant impact on code quality and development efficiency.
 
 #### Git Flow
 
-Vincent Driessen が 2010 年に提唱したブランチモデル。明確な役割を持つブランチを使い分ける。
+A branch model proposed by Vincent Driessen in 2010. It uses branches with clearly defined roles.
 
-- **main**: 本番リリース済みのコード
-- **develop**: 次期リリースの開発ブランチ
-- **feature/\***: 機能開発ブランチ（develop から分岐、develop へマージ）
-- **release/\***: リリース準備ブランチ（develop から分岐、main と develop へマージ）
-- **hotfix/\***: 緊急修正ブランチ（main から分岐、main と develop へマージ）
+- **main**: Code that has been released to production
+- **develop**: Development branch for the next release
+- **feature/\***: Feature development branches (branch from develop, merge into develop)
+- **release/\***: Release preparation branches (branch from develop, merge into main and develop)
+- **hotfix/\***: Emergency fix branches (branch from main, merge into main and develop)
 
-適用場面: 明確なリリースサイクルを持つプロダクト、複数バージョンの並行保守が必要な場合。
+Applicable situations: Products with clear release cycles, cases requiring parallel maintenance of multiple versions.
 
 #### GitHub Flow
 
-GitHub が提唱するシンプルなブランチモデル。main ブランチとフィーチャーブランチのみを使用する。
+A simple branch model proposed by GitHub. Only uses main branch and feature branches.
 
-1. main から feature ブランチを作成
-2. コミットを追加
-3. プルリクエストを作成
-4. レビューとディスカッション
-5. デプロイして検証
-6. main へマージ
+1. Create a feature branch from main
+2. Add commits
+3. Create a pull request
+4. Review and discussion
+5. Deploy and verify
+6. Merge into main
 
-適用場面: 継続的デプロイを行う Web アプリケーション、小規模チーム。
+Applicable situations: Web applications with continuous deployment, small teams.
 
-#### トランクベース開発
+#### Trunk-Based Development
 
-全ての開発者が main（trunk）に直接コミットする、または非常に短命なブランチ（1 日以内）を使用する手法。フィーチャーフラグと組み合わせて使用する。
+A methodology where all developers commit directly to main (trunk), or use very short-lived branches (within 1 day). Used in combination with feature flags.
 
-適用場面: CI/CD が高度に自動化されている環境、高頻度デプロイが求められる場合。
+Applicable situations: Environments with highly automated CI/CD, cases requiring high-frequency deployment.
 
-### 7.2 ブランチ戦略の比較
+### 7.2 Branch Strategy Comparison
 
-| 観点 | Git Flow | GitHub Flow | トランクベース開発 |
-|------|----------|-------------|------------------|
-| 複雑さ | 高い | 低い | 最も低い |
-| リリース頻度 | 低〜中 | 高 | 最も高い |
-| ブランチ寿命 | 長い | 中程度 | 非常に短い |
-| チーム規模 | 大規模向き | 小〜中規模 | あらゆる規模 |
-| 前提条件 | リリース管理体制 | CI/CD | 高度な自動テスト + フィーチャーフラグ |
-| マージコンフリクト | 多い | 中程度 | 少ない |
+| Aspect | Git Flow | GitHub Flow | Trunk-Based Development |
+|--------|----------|-------------|------------------------|
+| Complexity | High | Low | Lowest |
+| Release Frequency | Low to medium | High | Highest |
+| Branch Lifespan | Long | Medium | Very short |
+| Team Size | Large-scale | Small to medium | Any size |
+| Prerequisites | Release management structure | CI/CD | Advanced automated testing + feature flags |
+| Merge Conflicts | Many | Moderate | Few |
 
 ---
 
-## 8. アンチパターン
+## 8. Anti-Patterns
 
-### 8.1 アンチパターン1: カーゴカルトアジャイル
+### 8.1 Anti-Pattern 1: Cargo Cult Agile
 
-**問題**: アジャイルの形式だけを取り入れ、本質を理解しないまま実践すること。デイリースクラムを「進捗報告会」として運用し、スプリントレビューを「上司への報告会」として実施するケースが典型的である。
+**Problem**: Adopting only the forms of agile without understanding its essence. Typical cases include running daily scrums as "progress report meetings" and sprint reviews as "management report sessions."
 
-**症状:**
+**Symptoms:**
 
-- スクラムのイベントを全て実施しているが、チームが自己組織化されていない
-- プロダクトオーナーが実質的な決定権を持っていない
-- スプリントレトロスペクティブで改善アクションが実行されない
-- 「アジャイルだから計画は不要」という誤解がある
-- デイリースクラムが 30 分以上かかる
-- ベロシティが報告のための数値になり、改善の指標として使われていない
+- All Scrum events are held, but the team is not self-organizing
+- The Product Owner has no real decision-making authority
+- Improvement actions from Sprint Retrospectives are never executed
+- The misconception that "agile means no planning is needed"
+- Daily Scrum takes more than 30 minutes
+- Velocity has become a reporting number rather than an improvement metric
 
-**対策:**
+**Countermeasures:**
 
-- アジャイルの 4 つの価値と 12 の原則に立ち返る
-- スクラムマスターが「プロセスの番人」ではなく「サーバントリーダー」として機能する
-- チームが自ら改善策を提案・実行する文化を育てる
-- 外部のアジャイルコーチを招いてチームの状態を客観的に評価する
-- 定量的な指標（ベロシティの安定性、スプリントゴール達成率）でプロセスの健全性を測る
+- Return to the 4 values and 12 principles of agile
+- Ensure the Scrum Master functions as a "servant leader" not a "process guardian"
+- Foster a culture where the team proposes and executes improvement measures themselves
+- Invite an external agile coach to objectively evaluate the team's state
+- Measure process health with quantitative indicators (velocity stability, sprint goal achievement rate)
 
 ```
-カーゴカルトアジャイルの判別:
+Identifying Cargo Cult Agile:
 
-  本質的なアジャイル              カーゴカルト
-  ─────────────────────────────────────────────
-  デイリースクラム:               デイリースクラム:
-  「今日は認証のバグを           「昨日は会議がありました。
-   解決するために鈴木さんと       今日は開発します。
-   ペアプロする予定です」         特に問題ありません」
+  Authentic Agile                    Cargo Cult
+  ---------------------------------------------------
+  Daily Scrum:                       Daily Scrum:
+  "Today I plan to pair with         "Yesterday I had meetings.
+   Suzuki to fix the auth bug"        Today I'll develop.
+                                      No particular issues."
 
-  → 協力と障害除去が目的         → ただの報告義務
+  -> Purpose is collaboration         -> Just a reporting obligation
+     and impediment removal
 
-  レトロスペクティブ:             レトロスペクティブ:
-  「テストの実行時間が長い。       「特に問題ありません」
-   並列化を次スプリントで         （全員沈黙）
-   試してみよう」
+  Retrospective:                     Retrospective:
+  "Test execution time is long.       "No particular issues"
+   Let's try parallelization          (everyone silent)
+   next sprint"
 
-  → 具体的な改善アクション        → 形式的な消化
+  -> Concrete improvement actions     -> Ceremonial going through the motions
 ```
 
-### 8.2 アンチパターン2: ビッグバンインテグレーション
+### 8.2 Anti-Pattern 2: Big Bang Integration
 
-**問題**: 各チームや各開発者が長期間独立して開発を進め、リリース直前に全てのコードを一度に統合しようとすること。
+**Problem**: Each team or developer works independently for an extended period and attempts to integrate all code at once just before release.
 
-**症状:**
+**Symptoms:**
 
-- ブランチが数週間〜数ヶ月にわたって main から分岐したまま
-- マージ時に大量のコンフリクトが発生する
-- 統合テストが最終段階まで実施されない
-- 「統合フェーズ」がスケジュールに組まれている
-- リリース直前に想定外のバグが大量に発覚する
+- Branches have been diverged from main for weeks to months
+- Massive conflicts occur during merging
+- Integration testing is not performed until the final stage
+- An "integration phase" is scheduled
+- Unexpected bugs are discovered in large numbers just before release
 
-**対策:**
+**Countermeasures:**
 
-- 継続的インテグレーション（CI）を導入し、最低でも日次でコードを統合する
-- フィーチャーブランチの寿命を短く保つ（2〜3 日以内を目標）
-- フィーチャーフラグを活用し、未完成の機能を安全に main に統合する
-- 自動テストを充実させ、統合の安全性を担保する
-- トランクベース開発への移行を検討する
+- Introduce Continuous Integration (CI) and integrate code at least daily
+- Keep feature branch lifespans short (target within 2-3 days)
+- Use feature flags to safely integrate incomplete features into main
+- Enhance automated testing to ensure integration safety
+- Consider migrating to trunk-based development
 
-### 8.3 アンチパターン3: ゴールデンハンマー
+### 8.3 Anti-Pattern 3: Golden Hammer
 
-**問題**: 特定の技術やプロセスを全ての問題に適用しようとすること。「全てのプロジェクトにスクラムを適用すべき」「マイクロサービスで全てを解決する」といった思考パターンである。
+**Problem**: Trying to apply a specific technology or process to every problem. Thinking patterns such as "every project should use Scrum" or "microservices solve everything."
 
-**対策:**
+**Countermeasures:**
 
-- プロジェクトの特性（規模、複雑さ、チーム、規制）を分析してからプロセスを選択する
-- 複数のアプローチの利点と限界を理解する
-- 小規模な実験から始め、効果を検証してから本格導入する
-
----
-
-## 9. 演習問題
-
-### 9.1 基礎演習（理解度確認）
-
-**演習 1**: 以下のプロジェクト特性に対して、最適な開発プロセスモデルを選択し、その理由を説明せよ。
-
-(a) 政府機関の税金計算システム。要件は法令で厳密に定義されており、変更は年 1 回の法改正時のみ。監査証跡が必要。
-
-(b) スタートアップの新規 SNS アプリ。ユーザーの反応を見ながら機能を追加・変更したい。チームは 5 名。
-
-(c) 工場の制御システム。安全性が最優先で、24 時間 365 日の稼働が必要。
-
-**模範解答の方向性:**
-
-(a) ウォーターフォール（または V 字モデル）が適切。理由: 要件が明確で安定している、規制産業でトレーサビリティが必要、変更頻度が低い、監査証跡のために詳細なドキュメントが必須。
-
-(b) スクラムが適切。理由: 要件が不確実でフィードバックに基づく変更が多い、小規模チーム、短いサイクルでリリースして市場の反応を見たい、MVP（Minimum Viable Product）からの段階的な成長戦略。
-
-(c) ウォーターフォール + 安全性解析手法（FMEA, FTA）が適切。理由: 安全性が最重要で徹底的な検証が必要、計画的なテストと段階的な品質保証が不可欠。ただし開発効率のためにイテレーティブなアプローチを部分的に取り入れることも有効。
-
-### 9.2 応用演習（設計・実装）
-
-**演習 2**: 以下の要件を持つプロジェクトのスクラムボードを設計し、最初の 2 スプリントの計画を立てよ。
-
-- プロジェクト: 社内タスク管理ツール
-- チーム: 開発者 4 名、PO 1 名、SM 1 名
-- スプリント期間: 2 週間
-- 過去のベロシティ: 25, 30, 28 ストーリーポイント/スプリント
-
-機能要件:
-1. ユーザー認証（ログイン/ログアウト）: 5 ポイント
-2. タスク作成・編集・削除: 8 ポイント
-3. タスクのステータス管理（TODO/進行中/完了）: 5 ポイント
-4. タスクへの担当者割り当て: 3 ポイント
-5. ダッシュボード表示: 8 ポイント
-6. 期限設定とリマインダー: 5 ポイント
-7. タスクへのコメント機能: 5 ポイント
-8. 検索・フィルタリング: 8 ポイント
-9. メール通知: 5 ポイント
-10. チーム管理: 5 ポイント
-
-平均ベロシティ: (25 + 30 + 28) / 3 = 約 28 ポイント
-
-Sprint 1（28 ポイント目標）: 1, 2, 3, 4, 6 = 26 ポイント（基盤機能を優先）
-Sprint 2（28 ポイント目標）: 5, 7, 8, 9 = 26 ポイント（UX 向上機能）
-Sprint 3: 10 + 技術的負債返済 + バグ修正
-
-### 9.3 発展演習（実践・応用）
-
-**演習 3**: 現在のチーム（または想定するチーム）の開発プロセスを分析し、以下を作成せよ。
-
-1. 現在のプロセスの価値ストリームマップ（Value Stream Map）を作成する
-   - コード変更のコミットから本番デプロイまでの全ステップを列挙
-   - 各ステップの所要時間と待機時間を記録
-   - ボトルネックを特定する
-
-2. DORA メトリクスの現在値を測定（または推定）する
-   - デプロイ頻度
-   - リードタイム
-   - 変更失敗率
-   - 復旧時間
-
-3. 改善計画を策定する
-   - 最も大きなボトルネックに対する具体的な改善案を 3 つ提案
-   - 各改善案の実施に必要なコスト（時間・リソース）と期待される効果を見積もる
-   - 優先順位を決定し、最初の 1 つを 2 週間以内に実施する計画を立てる
+- Analyze project characteristics (scale, complexity, team, regulations) before selecting a process
+- Understand the advantages and limitations of multiple approaches
+- Start with small experiments, verify effectiveness, then proceed to full-scale adoption
 
 ---
 
-## 10. FAQ（よくある質問）
+## 9. Exercises
 
-### Q1: アジャイルとウォーターフォール、どちらを採用すべきか
+### 9.1 Basic Exercises (Comprehension Check)
 
-**A**: 「どちらか一方」という二項対立ではなく、プロジェクトの特性に応じて選択することが重要である。要件が明確で変更が少ない規制産業ではウォーターフォールが依然として有効であり、要件の不確実性が高くフィードバックを重視する場合はアジャイルが適している。
+**Exercise 1**: For the following project characteristics, select the optimal development process model and explain the rationale.
 
-実際には、多くの組織が両方の要素を組み合わせた「ハイブリッドアプローチ」を採用している。たとえば、全体の計画策定はウォーターフォール的に行い、各フェーズ内ではアジャイル的に反復開発するといった方法がある。重要なのは、チームとプロジェクトにとって最も効果的なプロセスを見つけ、継続的に改善していくことである。
+(a) A government agency tax calculation system. Requirements are strictly defined by law, and changes occur only during annual law revisions. Audit trails are required.
 
-### Q2: スクラムを導入したが、うまくいかない。何が問題か
+(b) A startup's new SNS app. They want to add and change features based on user feedback. The team has 5 members.
 
-**A**: スクラム導入がうまくいかない典型的な原因は以下の通りである。
+(c) A factory control system. Safety is the top priority, and 24/7/365 operation is required.
 
-1. **経営層のサポート不足**: アジャイルは組織文化の変革を伴う。経営層が理解・支援しないと形骸化する
-2. **プロダクトオーナーの権限不足**: PO が優先順位を決定する権限を持っていないと、スプリント中に横槍が入る
-3. **スクラムマスターの専任不足**: SM がマネージャーと兼任していると、サーバントリーダーとしての機能が果たせない
-4. **チームの自己組織化を許容しない**: マイクロマネジメントが横行する環境ではスクラムは機能しない
-5. **技術的プラクティスの欠如**: テスト自動化、CI/CD が整っていないと、短いサイクルでのリリースが困難
+**Model Answer Direction:**
 
-まずは小さなチーム（3〜5 名）で試験的に導入し、3〜4 スプリント（6〜8 週間）かけてチームを成熟させてから組織全体への展開を検討することを推奨する。
+(a) Waterfall (or V-Model) is appropriate. Reasons: requirements are clear and stable, traceability is required in a regulated industry, change frequency is low, detailed documentation is mandatory for audit trails.
 
-### Q3: DevOps を導入するために最初に何をすべきか
+(b) Scrum is appropriate. Reasons: requirements are uncertain with many feedback-driven changes, small team, want to release in short cycles to gauge market reaction, gradual growth strategy from MVP (Minimum Viable Product).
 
-**A**: DevOps の導入は段階的に進めるべきである。推奨されるステップは以下の通りである。
+(c) Waterfall + safety analysis methods (FMEA, FTA) are appropriate. Reasons: safety is paramount and thorough verification is needed, planned testing and staged quality assurance are essential. However, partially adopting an iterative approach for development efficiency can also be effective.
 
-**ステップ 1（1〜2 週間）: 現状把握**
-- デプロイプロセスの可視化（Value Stream Map の作成）
-- DORA メトリクスの現在値の測定
-- チームの課題と痛みのポイントの特定
+### 9.2 Applied Exercises (Design and Implementation)
 
-**ステップ 2（2〜4 週間）: CI の導入**
-- バージョン管理の統一（Git）
-- 自動ビルドの設定
-- 自動テストの導入（まずはユニットテストから）
-- コードレビュープロセスの確立
+**Exercise 2**: Design a Scrum board for a project with the following requirements and plan the first 2 sprints.
 
-**ステップ 3（1〜2 ヶ月）: CD の導入**
-- ステージング環境の構築
-- デプロイの自動化
-- Infrastructure as Code の導入
+- Project: Internal task management tool
+- Team: 4 developers, 1 PO, 1 SM
+- Sprint duration: 2 weeks
+- Past velocity: 25, 30, 28 story points/sprint
 
-**ステップ 4（継続的）: 文化の醸成**
-- ポストモーテム（障害振り返り）の実施
-- メトリクスに基づく改善サイクルの確立
-- 開発チームと運用チームの協力体制の構築
+Functional requirements:
+1. User authentication (login/logout): 5 points
+2. Task create/edit/delete: 8 points
+3. Task status management (TODO/In Progress/Done): 5 points
+4. Task assignee assignment: 3 points
+5. Dashboard display: 8 points
+6. Deadline setting and reminders: 5 points
+7. Task commenting feature: 5 points
+8. Search and filtering: 8 points
+9. Email notifications: 5 points
+10. Team management: 5 points
 
-最も重要なのは「自動化」から始めるのではなく、「文化」と「計測」から始めることである。何を改善すべきかを理解しないまま自動化を進めても効果は限定的である。
+Average velocity: (25 + 30 + 28) / 3 = approximately 28 points
 
-### Q4: 技術的負債はどこまで許容すべきか
+Sprint 1 (28-point target): 1, 2, 3, 4, 6 = 26 points (prioritize foundational features)
+Sprint 2 (28-point target): 5, 7, 8, 9 = 26 points (UX improvement features)
+Sprint 3: 10 + technical debt repayment + bug fixes
 
-**A**: 技術的負債をゼロにすることは現実的ではなく、また望ましくもない。重要なのは「意識的に管理する」ことである。
+### 9.3 Advanced Exercises (Practice and Application)
 
-以下の基準で判断するとよい。
+**Exercise 3**: Analyze the development process of your current team (or an imagined team) and create the following.
 
-- **即座に返済すべき負債**: セキュリティリスクを伴うもの、システム障害の原因となりうるもの
-- **計画的に返済すべき負債**: 開発速度を低下させているもの、新機能追加の障壁になっているもの
-- **許容できる負債**: 影響範囲が限定的で、コストが低いもの
+1. Create a Value Stream Map of the current process
+   - List all steps from code commit to production deployment
+   - Record the duration and wait time for each step
+   - Identify bottlenecks
 
-スプリントの 15〜20% を技術的負債の返済に充てることが一般的な推奨値である。また、SonarQube などの静的解析ツールで技術的負債の量を定量的に計測し、トレンドを監視することが有効である。
+2. Measure (or estimate) the current DORA metrics values
+   - Deployment frequency
+   - Lead time
+   - Change failure rate
+   - Recovery time
 
-### Q5: リモートチームでアジャイル開発は可能か
+3. Develop an improvement plan
+   - Propose 3 specific improvement measures for the biggest bottleneck
+   - Estimate the cost (time and resources) and expected effect of each improvement measure
+   - Determine priorities and create a plan to implement the first one within 2 weeks
 
-**A**: 可能である。リモートチームでのアジャイル開発は、COVID-19 パンデミック以降に急速に普及し、多くの組織で成功事例が生まれている。
+---
 
-ただし、以下の工夫が必要である。
+## 10. FAQ (Frequently Asked Questions)
 
-1. **非同期コミュニケーションの活用**: Slack/Teams でのアップデート、ドキュメンテーションの充実
-2. **ツールの整備**: デジタルカンバンボード（Jira, Linear）、バーチャルホワイトボード（Miro, FigJam）
-3. **タイムゾーンへの配慮**: オーバーラップする時間帯にミーティングを集中させる
-4. **意図的な雑談の機会**: バーチャルコーヒーブレイク、チームビルディングイベント
-5. **Working Agreement の明文化**: 応答時間の期待値、コアタイム、ミーティングルールの合意
+### Q1: Should I adopt agile or waterfall?
+
+**A**: This is not an "either/or" binary choice; rather, it is important to select based on the characteristics of the project. Waterfall is still effective in regulated industries where requirements are clear and changes are few, while agile is suitable when requirements are highly uncertain and feedback is valued.
+
+In practice, many organizations adopt a "hybrid approach" combining elements of both. For example, overall planning is done in a waterfall style, while iterative development is used within each phase. The key is finding the most effective process for your team and project and continuously improving it.
+
+### Q2: We introduced Scrum but it's not working. What's the problem?
+
+**A**: Typical causes for Scrum introduction failure include:
+
+1. **Lack of management support**: Agile involves organizational culture change. Without management understanding and support, it becomes hollow
+2. **Insufficient Product Owner authority**: If the PO lacks authority to decide priorities, interference enters during sprints
+3. **Scrum Master not dedicated**: If the SM also serves as a manager, they cannot function as a servant leader
+4. **Not allowing team self-organization**: Scrum cannot function in environments where micromanagement prevails
+5. **Lack of technical practices**: Without test automation and CI/CD, releasing in short cycles becomes difficult
+
+It is recommended to start with a small team (3-5 people) as a pilot and mature the team over 3-4 sprints (6-8 weeks) before considering organization-wide rollout.
+
+### Q3: What should be done first to introduce DevOps?
+
+**A**: DevOps adoption should be approached incrementally. The recommended steps are:
+
+**Step 1 (1-2 weeks): Understand the Current State**
+- Visualize the deployment process (create a Value Stream Map)
+- Measure current DORA metrics values
+- Identify the team's challenges and pain points
+
+**Step 2 (2-4 weeks): Introduce CI**
+- Unify version control (Git)
+- Set up automated builds
+- Introduce automated testing (start with unit tests)
+- Establish a code review process
+
+**Step 3 (1-2 months): Introduce CD**
+- Set up a staging environment
+- Automate deployment
+- Introduce Infrastructure as Code
+
+**Step 4 (Continuous): Foster Culture**
+- Conduct postmortems (incident retrospectives)
+- Establish improvement cycles based on metrics
+- Build a collaboration framework between development and operations teams
+
+Most importantly, start with "culture" and "measurement," not "automation." Automating without understanding what needs improvement yields limited results.
+
+### Q4: How much technical debt should be tolerated?
+
+**A**: It is neither realistic nor desirable to eliminate technical debt entirely. What matters is "managing it consciously."
+
+The following criteria can help guide decisions:
+
+- **Debt to repay immediately**: Items with security risks, items that could cause system outages
+- **Debt to repay in a planned manner**: Items slowing down development speed, items blocking new feature additions
+- **Acceptable debt**: Items with limited scope of impact and low cost
+
+Allocating 15-20% of each sprint to paying down technical debt is a generally recommended guideline. Additionally, quantitatively measuring technical debt with static analysis tools like SonarQube and monitoring trends is effective.
+
+### Q5: Is agile development possible with remote teams?
+
+**A**: Yes. Agile development with remote teams has rapidly spread since the COVID-19 pandemic, with many organizations achieving success.
+
+However, the following practices are necessary:
+
+1. **Leverage asynchronous communication**: Updates via Slack/Teams, thorough documentation
+2. **Tool readiness**: Digital Kanban boards (Jira, Linear), virtual whiteboards (Miro, FigJam)
+3. **Time zone considerations**: Concentrate meetings during overlapping time slots
+4. **Intentional casual interaction opportunities**: Virtual coffee breaks, team-building events
+5. **Documented Working Agreements**: Agreed-upon response time expectations, core hours, meeting rules
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point in learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory, but by actually writing code and verifying how it works.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this applied in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## 11. まとめ
-
-### 重要概念の整理
-
-| 概念 | ポイント |
-|------|---------|
-| ウォーターフォール | 順次実行モデル。要件が安定した規制産業向き |
-| V 字モデル | ウォーターフォールの拡張。テストフェーズとの対応関係を明示 |
-| アジャイル | 反復・漸進的開発。変化への適応を重視 |
-| スクラム | 最も普及したアジャイルフレームワーク。役割・イベント・成果物が明確 |
-| XP | エンジニアリングプラクティス重視。TDD・ペアプロが特徴 |
-| カンバン | フロー重視。WIP 制限でボトルネックを可視化 |
-| DevOps | 開発と運用の統合。CALMS フレームワーク |
-| CI/CD | 継続的インテグレーション/デリバリー。自動化が基盤 |
-| DORA メトリクス | DevOps パフォーマンスの 4 指標 |
-| 技術的負債 | 短期的利益のための技術的妥協。計画的に管理する |
-| ブランチ戦略 | Git Flow / GitHub Flow / トランクベース開発 |
-
-### 学習のロードマップ
-
-1. **入門**: アジャイルマニフェストを読む → スクラムガイドを読む
-2. **基礎**: 小規模プロジェクトでスクラムを実践 → CI/CD パイプラインを構築
-3. **応用**: DORA メトリクスを計測・改善 → 技術的負債の管理体制を構築
-4. **発展**: 組織全体へのアジャイル導入 → Platform Engineering の実践
+The knowledge from this topic is frequently used in everyday development work. It becomes particularly important during code reviews and architecture design.
 
 ---
 
-## 12. 発展的トピック
+## 11. Summary
 
-### 12.1 スケーリングアジャイル
+### Key Concept Overview
 
-単一チームでのアジャイル実践が成功すると、組織全体へスケーリングする課題に直面する。複数のスクラムチームが同一プロダクトを開発する場合、チーム間の調整・依存関係の管理・アーキテクチャの一貫性確保が必要になる。
+| Concept | Key Points |
+|---------|-----------|
+| Waterfall | Sequential execution model. Suited for regulated industries with stable requirements |
+| V-Model | Extension of waterfall. Explicitly maps correspondence between test phases |
+| Agile | Iterative and incremental development. Emphasizes adaptation to change |
+| Scrum | Most widely adopted agile framework. Clear roles, events, and artifacts |
+| XP | Emphasis on engineering practices. Characterized by TDD and pair programming |
+| Kanban | Flow-oriented. Visualizes bottlenecks through WIP limits |
+| DevOps | Integration of development and operations. CALMS framework |
+| CI/CD | Continuous Integration/Delivery. Automation as the foundation |
+| DORA Metrics | 4 indicators of DevOps performance |
+| Technical Debt | Technical compromises for short-term gains. Manage systematically |
+| Branch Strategy | Git Flow / GitHub Flow / Trunk-Based Development |
 
-#### SAFe（Scaled Agile Framework）
+### Learning Roadmap
 
-SAFe は、大規模組織向けのスケーリングフレームワークとして最も広く採用されている。チームレベル、プログラムレベル、ラージソリューションレベル、ポートフォリオレベルの 4 階層で構成される。
+1. **Beginner**: Read the Agile Manifesto -> Read the Scrum Guide
+2. **Foundation**: Practice Scrum in a small project -> Build a CI/CD pipeline
+3. **Applied**: Measure and improve DORA metrics -> Build a technical debt management framework
+4. **Advanced**: Organization-wide agile adoption -> Platform Engineering practice
+
+---
+
+## 12. Advanced Topics
+
+### 12.1 Scaling Agile
+
+Once single-team agile practice succeeds, the challenge of scaling to the entire organization arises. When multiple Scrum teams develop the same product, inter-team coordination, dependency management, and ensuring architectural consistency become necessary.
+
+#### SAFe (Scaled Agile Framework)
+
+SAFe is the most widely adopted scaling framework for large organizations. It consists of four tiers: Team Level, Program Level, Large Solution Level, and Portfolio Level.
 
 ```
-SAFe の階層構造:
+SAFe Hierarchy:
 
-  ┌────────────────────────────────────────────────────┐
-  │               ポートフォリオレベル                      │
-  │  戦略テーマ → ポートフォリオバックログ → エピック          │
-  └───────────────────────┬────────────────────────────┘
-                          ▼
-  ┌────────────────────────────────────────────────────┐
-  │            ラージソリューションレベル                    │
-  │  ソリューション列車 → 複数の ART を統合                 │
-  └───────────────────────┬────────────────────────────┘
-                          ▼
-  ┌────────────────────────────────────────────────────┐
-  │              プログラムレベル（ART）                    │
-  │  Agile Release Train = 5〜12 チームの同期              │
-  │  PI Planning（8〜12 週の計画）                         │
-  │  System Demo（2 週ごと）                              │
-  └───────────────────────┬────────────────────────────┘
-                          ▼
-  ┌────────────────────────────────────────────────────┐
-  │               チームレベル                             │
-  │  各チームがスクラム or カンバンで開発                    │
-  │  スプリント = 2 週間                                   │
-  └────────────────────────────────────────────────────┘
+  +---------------------------------------------------+
+  |               Portfolio Level                       |
+  |  Strategic Themes -> Portfolio Backlog -> Epics     |
+  +--------------------------+-------------------------+
+                             v
+  +---------------------------------------------------+
+  |            Large Solution Level                     |
+  |  Solution Train -> Integration of multiple ARTs     |
+  +--------------------------+-------------------------+
+                             v
+  +---------------------------------------------------+
+  |              Program Level (ART)                    |
+  |  Agile Release Train = 5-12 teams synchronized     |
+  |  PI Planning (8-12 week plans)                      |
+  |  System Demo (every 2 weeks)                        |
+  +--------------------------+-------------------------+
+                             v
+  +---------------------------------------------------+
+  |               Team Level                            |
+  |  Each team develops using Scrum or Kanban           |
+  |  Sprint = 2 weeks                                   |
+  +---------------------------------------------------+
 ```
 
-#### LeSS（Large-Scale Scrum）
+#### LeSS (Large-Scale Scrum)
 
-LeSS は、Craig Larman と Bas Vodde が提唱したスケーリングフレームワークで、スクラムをできるだけシンプルに保ちながらスケールすることを目指す。最大 8 チーム向けの Basic LeSS と、それ以上の規模向けの LeSS Huge がある。
+LeSS is a scaling framework proposed by Craig Larman and Bas Vodde that aims to scale while keeping Scrum as simple as possible. It offers Basic LeSS for up to 8 teams and LeSS Huge for larger scales.
 
-LeSS の特徴は「Less is More」の思想にあり、追加のフレームワーク要素を最小限に抑える。全チームが 1 つのプロダクトバックログを共有し、1 人のプロダクトオーナーが管理する。
+The characteristic of LeSS lies in its "Less is More" philosophy, minimizing additional framework elements. All teams share a single Product Backlog managed by one Product Owner.
 
-#### Spotify モデル
+#### Spotify Model
 
-Spotify が自社の開発組織を構造化するために採用したモデル。厳密なフレームワークではなく、組織のデザインパターンとして参照される。
+A model adopted by Spotify to structure their development organization. Rather than a strict framework, it is referenced as an organizational design pattern.
 
-- **Squad（分隊）**: 自律的な小チーム（スクラムチーム相当）
-- **Tribe（部族）**: 関連する Squad の集合（40〜150 名）
-- **Chapter（チャプター）**: 同じ専門性を持つメンバーの横断的グループ
-- **Guild（ギルド）**: 共通の興味を持つメンバーの自発的コミュニティ
+- **Squad**: An autonomous small team (equivalent to a Scrum team)
+- **Tribe**: A collection of related Squads (40-150 people)
+- **Chapter**: A cross-cutting group of members with the same expertise
+- **Guild**: A voluntary community of members with shared interests
 
-### 12.2 フィーチャーフラグ（Feature Flags）
+### 12.2 Feature Flags
 
-フィーチャーフラグ（Feature Toggles とも呼ばれる）は、コードをデプロイした後に機能の有効/無効を動的に切り替える手法である。トランクベース開発やカナリアリリースの基盤技術として不可欠である。
+Feature Flags (also called Feature Toggles) are a technique for dynamically enabling or disabling features after code has been deployed. They are an essential foundation technology for trunk-based development and canary releases.
 
 ```python
-# コード例6: フィーチャーフラグの実装パターン
+# Code Example 6: Feature flag implementation patterns
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
@@ -1778,24 +1785,24 @@ import time
 
 
 class FlagType(Enum):
-    """フィーチャーフラグの種類"""
-    RELEASE = "release"          # リリースフラグ（新機能の段階的公開）
-    EXPERIMENT = "experiment"    # 実験フラグ（A/Bテスト）
-    OPS = "ops"                  # 運用フラグ（機能の緊急停止）
-    PERMISSION = "permission"    # 権限フラグ（特定ユーザーへの公開）
+    """Types of Feature Flags"""
+    RELEASE = "release"          # Release flag (gradual rollout of new features)
+    EXPERIMENT = "experiment"    # Experiment flag (A/B testing)
+    OPS = "ops"                  # Ops flag (emergency feature shutdown)
+    PERMISSION = "permission"    # Permission flag (release to specific users)
 
 
 @dataclass
 class FeatureFlag:
-    """フィーチャーフラグ"""
+    """Feature Flag"""
     name: str
     flag_type: FlagType
     enabled: bool = False
     description: str = ""
-    rollout_percentage: int = 0        # 段階的公開の割合 (0-100)
+    rollout_percentage: int = 0        # Gradual rollout percentage (0-100)
     allowed_users: list[str] = field(default_factory=list)
     created_at: float = field(default_factory=time.time)
-    expires_at: Optional[float] = None  # 有効期限
+    expires_at: Optional[float] = None  # Expiration time
 
     def is_expired(self) -> bool:
         if self.expires_at is None:
@@ -1804,7 +1811,7 @@ class FeatureFlag:
 
 
 class FeatureFlagManager:
-    """フィーチャーフラグ管理"""
+    """Feature Flag Manager"""
 
     def __init__(self):
         self._flags: dict[str, FeatureFlag] = {}
@@ -1813,26 +1820,26 @@ class FeatureFlagManager:
         self._flags[flag.name] = flag
 
     def is_enabled(self, flag_name: str, user_id: Optional[str] = None) -> bool:
-        """指定したフラグが有効かを判定"""
+        """Determine if the specified flag is enabled"""
         flag = self._flags.get(flag_name)
         if flag is None:
             return False
 
-        # 期限切れチェック
+        # Expiration check
         if flag.is_expired():
             return False
 
-        # グローバル無効
+        # Global disable
         if not flag.enabled:
             return False
 
-        # ユーザー固有の判定
+        # User-specific determination
         if user_id:
-            # 許可リストに含まれるユーザーは常に有効
+            # Users in the allow list are always enabled
             if user_id in flag.allowed_users:
                 return True
 
-            # 段階的ロールアウト（ユーザーIDのハッシュで判定）
+            # Gradual rollout (determined by user ID hash)
             if flag.rollout_percentage < 100:
                 hash_val = int(hashlib.md5(
                     f"{flag_name}:{user_id}".encode()
@@ -1842,7 +1849,7 @@ class FeatureFlagManager:
         return True
 
     def get_all_flags(self) -> dict[str, dict]:
-        """全フラグの状態を返す"""
+        """Return the state of all flags"""
         return {
             name: {
                 "enabled": flag.enabled,
@@ -1854,40 +1861,40 @@ class FeatureFlagManager:
         }
 
     def cleanup_expired(self) -> list[str]:
-        """期限切れフラグを除去"""
+        """Remove expired flags"""
         expired = [name for name, f in self._flags.items() if f.is_expired()]
         for name in expired:
             del self._flags[name]
         return expired
 
 
-# 使用例
+# Usage example
 manager = FeatureFlagManager()
 
-# 新機能の段階的公開
+# Gradual rollout of a new feature
 manager.register(FeatureFlag(
     name="new_search_ui",
     flag_type=FlagType.RELEASE,
     enabled=True,
-    description="新しい検索UIを段階的に公開",
-    rollout_percentage=20,  # まず20%のユーザーに公開
+    description="Gradually roll out the new search UI",
+    rollout_percentage=20,  # Initially roll out to 20% of users
 ))
 
-# 緊急停止用フラグ
+# Emergency shutdown flag
 manager.register(FeatureFlag(
     name="payment_processing",
     flag_type=FlagType.OPS,
     enabled=True,
-    description="決済処理の有効/無効切り替え",
+    description="Toggle payment processing on/off",
     rollout_percentage=100,
 ))
 
-# アプリケーションコードでの使用
+# Usage in application code
 def search_handler(user_id: str, query: str):
     if manager.is_enabled("new_search_ui", user_id):
-        return new_search(query)  # 新しい検索ロジック
+        return new_search(query)  # New search logic
     else:
-        return legacy_search(query)  # 既存の検索ロジック
+        return legacy_search(query)  # Existing search logic
 
 def new_search(query: str) -> dict:
     return {"engine": "new", "query": query}
@@ -1895,224 +1902,224 @@ def new_search(query: str) -> dict:
 def legacy_search(query: str) -> dict:
     return {"engine": "legacy", "query": query}
 
-# ユーザーごとに異なる結果
-print(manager.is_enabled("new_search_ui", "user_001"))  # ハッシュ次第でTrue/False
+# Different results per user
+print(manager.is_enabled("new_search_ui", "user_001"))  # True/False depending on hash
 print(manager.is_enabled("new_search_ui", "user_002"))
 ```
 
-### 12.3 デプロイ戦略
+### 12.3 Deployment Strategies
 
-本番環境へのデプロイ方法は、リスクの大きさとロールバックのしやすさに直結する。
+Deployment methods to production environments directly affect the magnitude of risk and the ease of rollback.
 
 ```
-デプロイ戦略の比較:
+Comparison of Deployment Strategies:
 
-  ■ ビッグバンデプロイ（非推奨）
-    旧バージョン: [████████████]
-    新バージョン:              [████████████]  ← 一斉切り替え
-    リスク: 最大。全ユーザーに影響
+  * Big Bang Deploy (Not Recommended)
+    Old version: [============]
+    New version:              [============]  <- All-at-once switch
+    Risk: Maximum. Affects all users
 
-  ■ ローリングアップデート
-    サーバー1: [旧旧旧旧][新新新新新新新新]
-    サーバー2: [旧旧旧旧旧旧][新新新新新新]
-    サーバー3: [旧旧旧旧旧旧旧旧][新新新新]
-    → サーバーを1台ずつ順次更新
+  * Rolling Update
+    Server 1: [OldOldOld][NewNewNewNewNew]
+    Server 2: [OldOldOldOld][NewNewNewNew]
+    Server 3: [OldOldOldOldOld][NewNewNew]
+    -> Servers updated one at a time sequentially
 
-  ■ ブルー/グリーンデプロイ
-    Blue（現行）: [████████████]──┐
-    Green（新規）: [████████████]  │ ← ルーティング切り替え
-    ルーター:     [Blue→→→→→→→Green→→→→→→→]
-    → 2つの環境を用意し、ルーティングで切り替え
+  * Blue/Green Deploy
+    Blue (current): [============]--+
+    Green (new):    [============]  | <- Routing switch
+    Router:         [Blue-------->Green------->]
+    -> Two environments prepared, switch via routing
 
-  ■ カナリアリリース
-    旧バージョン: [████████████████████]  95%
-    新バージョン: [██]                     5% ← 少数のユーザーで検証
-    → 問題なければ徐々に比率を増やす
+  * Canary Release
+    Old version: [===================]  95%
+    New version: [==]                    5% <- Validate with a small set of users
+    -> If no issues, gradually increase the ratio
 
-  ■ A/Bテストデプロイ
-    バージョンA: [████████████]  50%  ← コントロール群
-    バージョンB: [████████████]  50%  ← テスト群
-    → メトリクスを比較して勝者を選択
+  * A/B Test Deploy
+    Version A: [============]  50%  <- Control group
+    Version B: [============]  50%  <- Test group
+    -> Compare metrics and select the winner
 ```
 
-| 戦略 | リスク | ロールバック速度 | インフラコスト | 適用場面 |
-|------|--------|----------------|--------------|---------|
-| ビッグバン | 高 | 遅い | 低 | テスト環境のみ推奨 |
-| ローリング | 中 | 中 | 低 | Kubernetes 標準 |
-| ブルー/グリーン | 低 | 即座 | 高（2倍） | ミッションクリティカル |
-| カナリア | 低 | 即座 | 中 | 大規模 Web サービス |
-| A/B テスト | 低 | 即座 | 中 | UX 改善の検証 |
+| Strategy | Risk | Rollback Speed | Infrastructure Cost | Use Case |
+|----------|------|----------------|--------------------|---------|
+| Big Bang | High | Slow | Low | Recommended for test environments only |
+| Rolling | Medium | Medium | Low | Kubernetes standard |
+| Blue/Green | Low | Instant | High (2x) | Mission-critical |
+| Canary | Low | Instant | Medium | Large-scale web services |
+| A/B Test | Low | Instant | Medium | UX improvement validation |
 
-### 12.4 ポストモーテム文化
+### 12.4 Postmortem Culture
 
-DevOps の重要な文化的側面として、障害発生後のポストモーテム（事後検証）がある。Google の SRE チームが確立した「非難のないポストモーテム（Blameless Postmortem）」は、障害を学習の機会として捉え、個人を責めるのではなくシステムの改善に焦点を当てる。
+As an important cultural aspect of DevOps, postmortems (post-incident reviews) are conducted after incidents. The "Blameless Postmortem" established by Google's SRE team treats incidents as learning opportunities, focusing on system improvements rather than blaming individuals.
 
-**ポストモーテムに含めるべき項目:**
+**Items to Include in a Postmortem:**
 
-1. **インシデント概要**: 発生日時、影響範囲、影響時間
-2. **タイムライン**: 障害の検知から解決までの時系列
-3. **根本原因分析**: 5 Whys またはフィッシュボーン図を用いた原因分析
-4. **対応内容**: 実施した緩和策・修正内容
-5. **影響**: ユーザー影響、ビジネス影響の定量的な評価
-6. **教訓**: 何がうまくいったか、何がうまくいかなかったか
-7. **アクションアイテム**: 再発防止のための具体的な改善策（担当者・期限付き）
+1. **Incident Summary**: Date/time of occurrence, scope of impact, duration of impact
+2. **Timeline**: Chronological sequence from incident detection to resolution
+3. **Root Cause Analysis**: Cause analysis using 5 Whys or fishbone diagrams
+4. **Response Actions**: Mitigation and fix measures taken
+5. **Impact**: Quantitative assessment of user impact and business impact
+6. **Lessons Learned**: What went well, what did not go well
+7. **Action Items**: Specific improvement measures for prevention (with owners and deadlines)
 
 ### 12.5 Platform Engineering
 
-Platform Engineering は、2020 年代に台頭した DevOps の進化形とも言えるアプローチである。開発者の認知負荷を軽減するために、セルフサービス型の内部開発者プラットフォーム（Internal Developer Platform: IDP）を構築・運用する専門チーム（プラットフォームチーム）を設置する。
+Platform Engineering is an approach that emerged in the 2020s and can be considered an evolution of DevOps. It establishes a specialized team (platform team) that builds and operates a self-service Internal Developer Platform (IDP) to reduce cognitive load on developers.
 
-**Platform Engineering が解決する課題:**
+**Problems Platform Engineering Solves:**
 
-- DevOps の「全員が全てを知る」アプローチによる認知負荷の増大
-- ツールチェーンの断片化と標準化の欠如
-- 各チームが独自にインフラを構築することによる重複作業
-- セキュリティ・コンプライアンスの一貫した適用の困難さ
+- Cognitive overload from DevOps' "everyone knows everything" approach
+- Fragmentation of toolchains and lack of standardization
+- Duplicate work from each team independently building infrastructure
+- Difficulty in consistently applying security and compliance
 
-**IDP が提供する典型的な機能:**
+**Typical Capabilities Provided by an IDP:**
 
-- セルフサービスのインフラプロビジョニング
-- 標準化された CI/CD テンプレート
-- 共通のモニタリング・ログ基盤
-- セキュリティスキャンの自動化
-- ドキュメントとサービスカタログ
+- Self-service infrastructure provisioning
+- Standardized CI/CD templates
+- Common monitoring and logging infrastructure
+- Automated security scanning
+- Documentation and service catalogs
 
-### 12.6 メトリクス駆動の改善
+### 12.6 Metrics-Driven Improvement
 
-開発プロセスの改善は、定量的なメトリクスに基づいて行うべきである。DORA メトリクス以外にも、以下のメトリクスが有用である。
+Development process improvements should be based on quantitative metrics. In addition to DORA metrics, the following metrics are useful.
 
-**プロセスメトリクス:**
+**Process Metrics:**
 
-- **サイクルタイム**: 作業着手から完了までの時間
-- **リードタイム**: 要求発生から顧客への提供までの時間
-- **スループット**: 単位時間あたりの完了アイテム数
-- **WIP（仕掛品）数**: 同時に進行中のアイテム数
+- **Cycle Time**: Time from work start to completion
+- **Lead Time**: Time from request origination to customer delivery
+- **Throughput**: Number of completed items per unit of time
+- **WIP (Work In Progress) Count**: Number of items concurrently in progress
 
-**品質メトリクス:**
+**Quality Metrics:**
 
-- **欠陥密度**: コード 1000 行あたりのバグ数
-- **テストカバレッジ**: コードのうちテストでカバーされている割合
-- **技術的負債比率**: 技術的負債の解消に必要な時間 / 新機能開発時間
-- **エスケープ率**: 本番環境に到達したバグの割合
+- **Defect Density**: Number of bugs per 1,000 lines of code
+- **Test Coverage**: Percentage of code covered by tests
+- **Technical Debt Ratio**: Time needed to resolve technical debt / new feature development time
+- **Escape Rate**: Percentage of bugs that reach production
 
-**チームメトリクス:**
+**Team Metrics:**
 
-- **ベロシティ**: スプリントあたりの完了ストーリーポイント
-- **スプリントゴール達成率**: ゴールを達成したスプリントの割合
-- **計画精度**: 見積もりと実績の乖離率
+- **Velocity**: Completed story points per sprint
+- **Sprint Goal Achievement Rate**: Percentage of sprints that achieved their goal
+- **Planning Accuracy**: Deviation rate between estimates and actuals
 
-これらのメトリクスは、チームの改善に使うものであり、個人の評価に使うべきではない。メトリクスが評価に直結すると、数値を操作するインセンティブが生まれ、本来の目的（プロセス改善）が損なわれる。
-
----
-
-## 13. 実世界のケーススタディ
-
-### 13.1 ケース: ウォーターフォールからアジャイルへの移行
-
-ある金融機関の IT 部門（開発者 200 名）が、ウォーターフォールからアジャイルへ移行したケースを考える。
-
-**背景と課題:**
-
-- リリースサイクルが 6 ヶ月で、市場の変化に追従できない
-- 要件確定後に変更が発生すると、大きな手戻りが発生
-- テストフェーズで大量のバグが発覚し、リリースが常に遅延
-- 開発チームと運用チームの間に深い溝がある
-
-**移行アプローチ:**
-
-1. **パイロットチームの選定（1 ヶ月目）**: 志願者を中心に 2 チーム（各 7 名）を選定。比較的リスクの低い社内ツールプロジェクトで試行
-2. **スクラム研修と導入（2〜3 ヶ月目）**: 外部アジャイルコーチを招聘。PO と SM を任命し、2 週間スプリントで開発開始
-3. **CI/CD 基盤の構築（3〜4 ヶ月目）**: Jenkins から GitHub Actions へ移行。テスト自動化率を 30% → 70% に向上
-4. **段階的な展開（5〜12 ヶ月目）**: パイロットの成功事例を社内で共有。追加 4 チームが移行。移行支援チーム（CoE: Center of Excellence）を設置
-5. **組織全体への浸透（13〜24 ヶ月目）**: 残りのチームが段階的に移行。ポートフォリオレベルの計画に SAFe の PI Planning を導入
-
-**成果（2 年後）:**
-
-- リリースサイクル: 6 ヶ月 → 2 週間
-- 本番バグ数: 40% 減少
-- 顧客満足度: 25% 向上
-- 開発者満足度: 30% 向上
-
-**得られた教訓:**
-
-- 経営層の強いコミットメントが不可欠
-- 一斉移行ではなく段階的な導入が成功の鍵
-- 技術的な自動化基盤の整備が先行して必要
-- 文化の変革には時間がかかる（少なくとも 1〜2 年）
-- アジャイルコーチの存在が初期段階で大きな違いを生む
-
-### 13.2 ケース: DevOps 導入によるデプロイ頻度の改善
-
-ある EC サイト運営企業が DevOps を導入し、デプロイ頻度を月 1 回から日次に改善したケースを考える。
-
-**初期状態:**
-
-- デプロイは月 1 回、深夜の手動作業（4 時間）
-- テストは主に手動（回帰テストに 3 日）
-- 開発環境と本番環境の差異が大きい
-- 障害復旧に平均 8 時間
-
-**改善施策:**
-
-1. **コンテナ化**: アプリケーションを Docker コンテナ化し、環境差異を解消
-2. **テスト自動化**: E2E テストを Playwright で自動化（手動 3 日 → 自動 30 分）
-3. **CI パイプライン構築**: プルリクエストごとに自動テスト実行
-4. **CD パイプライン構築**: main ブランチへのマージで自動デプロイ
-5. **カナリアリリース導入**: 全ユーザーへの一斉リリースから段階的リリースへ
-6. **モニタリング強化**: Datadog によるリアルタイム監視と自動アラート
-
-**成果:**
-
-| メトリクス | Before | After | 改善率 |
-|-----------|--------|-------|--------|
-| デプロイ頻度 | 月 1 回 | 日次（10+ 回/日） | 300 倍以上 |
-| リードタイム | 2 ヶ月 | 1 時間 | 99% 削減 |
-| 変更失敗率 | 20% | 3% | 85% 削減 |
-| 復旧時間 | 8 時間 | 15 分 | 97% 削減 |
+These metrics should be used for team improvement and should not be used for individual performance evaluation. When metrics are directly tied to evaluation, incentives arise to manipulate the numbers, undermining the original purpose (process improvement).
 
 ---
 
-## 14. ツールチェーンガイド
+## 13. Real-World Case Studies
 
-### 14.1 開発プロセスを支えるツール
+### 13.1 Case: Migration from Waterfall to Agile
 
-開発プロセスの各段階で使用される主要なツールを整理する。
+Consider a case where a financial institution's IT department (200 developers) migrated from waterfall to agile.
 
-**プロジェクト管理:**
+**Background and Challenges:**
 
-| ツール | 特徴 | 適用場面 |
-|--------|------|---------|
-| Jira | 高機能、カスタマイズ性が高い | 大規模チーム、SAFe |
-| Linear | 高速、開発者向け UX | スタートアップ、小〜中規模 |
-| GitHub Projects | GitHub 統合 | OSS、GitHub 中心の開発 |
-| Notion | 柔軟なドキュメント管理 | ドキュメント重視のチーム |
-| Asana | 直感的 UI | 非技術チームとの協業 |
+- 6-month release cycles could not keep up with market changes
+- Requirement changes after confirmation caused major rework
+- Large numbers of bugs discovered in the testing phase, causing constant release delays
+- A deep divide between development and operations teams
+
+**Migration Approach:**
+
+1. **Pilot Team Selection (Month 1)**: Selected 2 teams (7 members each) centered on volunteers. Piloted on a relatively low-risk internal tool project
+2. **Scrum Training and Introduction (Months 2-3)**: Hired an external agile coach. Appointed PO and SM, started development in 2-week sprints
+3. **CI/CD Infrastructure Build (Months 3-4)**: Migrated from Jenkins to GitHub Actions. Improved test automation rate from 30% to 70%
+4. **Gradual Expansion (Months 5-12)**: Shared pilot success stories internally. 4 additional teams migrated. Established a migration support team (CoE: Center of Excellence)
+5. **Organization-wide Adoption (Months 13-24)**: Remaining teams migrated gradually. Introduced SAFe PI Planning at the portfolio level
+
+**Results (After 2 Years):**
+
+- Release cycle: 6 months -> 2 weeks
+- Production bugs: 40% decrease
+- Customer satisfaction: 25% increase
+- Developer satisfaction: 30% increase
+
+**Lessons Learned:**
+
+- Strong management commitment is essential
+- Gradual adoption, not all-at-once migration, is the key to success
+- Technical automation infrastructure must be prepared in advance
+- Cultural transformation takes time (at least 1-2 years)
+- The presence of an agile coach makes a significant difference in the early stages
+
+### 13.2 Case: Improving Deployment Frequency Through DevOps Adoption
+
+Consider a case where an e-commerce company adopted DevOps and improved deployment frequency from monthly to daily.
+
+**Initial State:**
+
+- Monthly deployment, manual late-night work (4 hours)
+- Testing was primarily manual (regression testing took 3 days)
+- Large discrepancies between development and production environments
+- Average incident recovery time of 8 hours
+
+**Improvement Measures:**
+
+1. **Containerization**: Containerized applications with Docker to eliminate environment discrepancies
+2. **Test Automation**: Automated E2E tests with Playwright (manual 3 days -> automated 30 minutes)
+3. **CI Pipeline Build**: Automated test execution per pull request
+4. **CD Pipeline Build**: Automated deployment on merge to main branch
+5. **Canary Release Introduction**: Shifted from all-at-once releases to gradual releases
+6. **Monitoring Enhancement**: Real-time monitoring and automatic alerting with Datadog
+
+**Results:**
+
+| Metric | Before | After | Improvement |
+|--------|--------|-------|------------|
+| Deployment Frequency | Monthly | Daily (10+ times/day) | 300x+ |
+| Lead Time | 2 months | 1 hour | 99% reduction |
+| Change Failure Rate | 20% | 3% | 85% reduction |
+| Recovery Time | 8 hours | 15 minutes | 97% reduction |
+
+---
+
+## 14. Toolchain Guide
+
+### 14.1 Tools Supporting the Development Process
+
+Let's organize the major tools used at each stage of the development process.
+
+**Project Management:**
+
+| Tool | Features | Use Case |
+|------|----------|----------|
+| Jira | Feature-rich, highly customizable | Large teams, SAFe |
+| Linear | Fast, developer-focused UX | Startups, small to medium scale |
+| GitHub Projects | GitHub integration | OSS, GitHub-centric development |
+| Notion | Flexible document management | Documentation-focused teams |
+| Asana | Intuitive UI | Collaboration with non-technical teams |
 
 **CI/CD:**
 
-| ツール | 特徴 | 適用場面 |
-|--------|------|---------|
-| GitHub Actions | GitHub 統合、マーケットプレイス | GitHub ユーザー |
-| GitLab CI/CD | GitLab 統合、セルフホスト可 | GitLab ユーザー |
-| CircleCI | 高速、Docker 親和性 | コンテナベース開発 |
-| Jenkins | 高いカスタマイズ性 | レガシー環境、特殊要件 |
-| ArgoCD | GitOps ネイティブ | Kubernetes 環境 |
+| Tool | Features | Use Case |
+|------|----------|----------|
+| GitHub Actions | GitHub integration, marketplace | GitHub users |
+| GitLab CI/CD | GitLab integration, self-hostable | GitLab users |
+| CircleCI | Fast, Docker affinity | Container-based development |
+| Jenkins | Highly customizable | Legacy environments, special requirements |
+| ArgoCD | GitOps native | Kubernetes environments |
 
-**コミュニケーション:**
+**Communication:**
 
-| ツール | 特徴 | 適用場面 |
-|--------|------|---------|
-| Slack | 豊富なインテグレーション | テック企業 |
-| Microsoft Teams | Microsoft 365 統合 | エンタープライズ |
-| Discord | 音声チャット充実 | ゲーム開発、コミュニティ |
-
----
-
-## 次に読むべきガイド
-
+| Tool | Features | Use Case |
+|------|----------|----------|
+| Slack | Rich integrations | Tech companies |
+| Microsoft Teams | Microsoft 365 integration | Enterprise |
+| Discord | Rich voice chat | Game development, communities |
 
 ---
 
-## 参考文献
+## Recommended Next Guides
+
+
+---
+
+## References
 
 1. Beck, K. et al. "Manifesto for Agile Software Development." 2001. https://agilemanifesto.org/
 2. Schwaber, K. & Sutherland, J. "The Scrum Guide." 2020. https://scrumguides.org/

@@ -1,1202 +1,1214 @@
-# CPUスケジューリング
+# CPU Scheduling
 
-> スケジューリングとは「どのプロセスに次にCPUを割り当てるか」を決定するアルゴリズムである。
+> Scheduling is the algorithm that determines "which process gets the CPU next."
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] 主要なスケジューリングアルゴリズムを比較できる
-- [ ] プリエンプティブとノンプリエンプティブの違いを説明できる
-- [ ] Linuxのスケジューラの仕組みを知る
-- [ ] マルチコア環境でのスケジューリング戦略を理解する
-- [ ] リアルタイムスケジューリングの要件と実装を説明できる
-- [ ] スケジューリングのパフォーマンス評価指標を計算できる
+- [ ] Compare the major scheduling algorithms
+- [ ] Explain the difference between preemptive and non-preemptive scheduling
+- [ ] Understand how the Linux scheduler works
+- [ ] Understand scheduling strategies in multicore environments
+- [ ] Explain the requirements and implementation of real-time scheduling
+- [ ] Calculate scheduling performance metrics
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, having the following knowledge will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [スレッドと並行性](./01-threads.md) の内容を理解していること
-
----
-
-## 1. スケジューリングの基本
-
-### 1.1 なぜスケジューリングが必要か
-
-```
-マルチプログラミングの本質:
-
-  CPUは1コアあたり同時に1つのプロセスしか実行できない
-  → 複数プロセスが同時にReady状態になった場合、
-    誰を先に実行するかを「公平」かつ「効率的」に決定する必要がある
-
-  現代のシステムでは数百〜数千のプロセス/スレッドが同時存在
-  → スケジューリングの質がシステム全体の応答性・スループットを決定する
-
-CPUバースト と I/Oバースト:
-
-  プロセスの実行パターン:
-  [CPU実行] → [I/O待ち] → [CPU実行] → [I/O待ち] → ...
-
-  CPU-boundプロセス: CPUバーストが長い（科学計算、動画エンコード）
-  I/O-boundプロセス: CPUバーストが短い（Webサーバー、エディタ）
-
-  ┌─────────────────────────────────────────────────┐
-  │ CPU-bound:                                       │
-  │ ████████████░░████████████░░██████████████░░████ │
-  │                                                   │
-  │ I/O-bound:                                        │
-  │ ██░░░░░░██░░░░░░██░░░░░░██░░░░░░██░░░░░░██░░░░  │
-  │                                                   │
-  │ █ = CPU実行  ░ = I/O待ち                          │
-  └─────────────────────────────────────────────────┘
-
-  スケジューラはI/O-boundプロセスを優先すべき:
-  → I/O-boundはCPUをすぐ手放してI/O待ちに入る
-  → 待っている間に他のプロセスがCPUを使える
-  → 全体のスループットが向上する
-```
-
-### 1.2 スケジューラの目標
-
-```
-スケジューラの5つの評価指標:
-
-  1. CPU利用率（CPU Utilization）:
-     CPUをできるだけ忙しく保つ
-     目標: 40%〜90%（システム種別による）
-     100%はオーバーロード、0%はアイドル
-
-  2. スループット（Throughput）:
-     単位時間あたりの完了プロセス数を最大化
-     バッチ処理システムで特に重要
-
-  3. ターンアラウンド時間（Turnaround Time）:
-     投入から完了までの総時間
-     ターンアラウンド = 待ち時間 + 実行時間 + I/O時間
-     バッチ処理で重要
-
-  4. 待ち時間（Waiting Time）:
-     Ready状態で待つ合計時間
-     スケジューリングアルゴリズムが直接影響する唯一の指標
-
-  5. 応答時間（Response Time）:
-     リクエスト送信から最初の応答までの時間
-     対話的システム（GUI、Webサーバー）で最重要
-
-  トレードオフの関係:
-  ┌─────────────────────────────────────────┐
-  │ CPU利用率↑    ⟷  応答時間↑             │
-  │ スループット↑  ⟷  個別の応答時間↑       │
-  │ 公平性↑       ⟷  スループット↓          │
-  │                                         │
-  │ → 万能なアルゴリズムは存在しない         │
-  │ → システムの用途に応じて最適解が異なる   │
-  └─────────────────────────────────────────┘
-
-  システム種別ごとの優先指標:
-  ┌──────────────────┬─────────────────────────┐
-  │ バッチシステム    │ スループット、CPU利用率    │
-  │ 対話的システム    │ 応答時間、公平性          │
-  │ リアルタイム      │ デッドライン遵守          │
-  │ サーバー          │ スループット、応答時間    │
-  │ デスクトップ      │ 応答時間、公平性          │
-  └──────────────────┴─────────────────────────┘
-```
-
-### 1.3 プリエンプティブとノンプリエンプティブ
-
-```
-プリエンプティブ vs ノンプリエンプティブ:
-
-  ノンプリエンプティブ（非横取り）:
-    プロセスが自発的にCPUを手放すまで待つ
-    手放すタイミング:
-    - プロセス終了
-    - I/O要求（ブロック状態に遷移）
-    - yield()（自発的譲渡）
-
-    利点: コンテキストスイッチが少ない、実装が単純
-    欠点: 1プロセスがCPUを独占可能、応答性が悪い
-    例: Windows 3.1、初期のMac OS
-
-  プリエンプティブ（横取り）:
-    OSがタイマー割り込みで強制的にCPUを切り替える
-    切り替えタイミング:
-    - タイムクォンタム（タイムスライス）の消費
-    - より優先度の高いプロセスがReady状態に
-    - 割り込み発生
-
-    利点: 1プロセスの独占を防止、応答性が良い
-    欠点: コンテキストスイッチのオーバーヘッド、同期の複雑化
-    例: 現代の全てのOS（Linux, Windows, macOS）
-
-  コンテキストスイッチのコスト:
-  ┌─────────────────────────────────────────┐
-  │ 1. CPU状態の保存（レジスタ、PC等）       │
-  │ 2. PCB（プロセス制御ブロック）の更新      │
-  │ 3. メモリマップの切り替え                 │
-  │ 4. TLBのフラッシュ                        │
-  │ 5. キャッシュのコールドスタート             │
-  │                                           │
-  │ 典型的なコスト: 1〜10マイクロ秒             │
-  │ キャッシュミス含む実効コスト: 数十マイクロ秒 │
-  └─────────────────────────────────────────┘
-```
-
-### 1.4 スケジューリングの発生タイミング
-
-```
-ディスパッチャが動作する4つのタイミング:
-
-  1. Running → Waiting:
-     プロセスがI/O要求やwait()を呼んだ時
-     → ノンプリエンプティブ（自発的譲渡）
-
-  2. Running → Ready:
-     タイマー割り込みが発生した時
-     → プリエンプティブ（強制切替）
-
-  3. Waiting → Ready:
-     I/O完了割り込みが発生した時
-     → プリエンプティブ（優先度次第で切替）
-
-  4. プロセス終了:
-     exit()が呼ばれた時
-     → ノンプリエンプティブ（必然）
-
-  ディスパッチャの処理:
-  1. 現在のプロセスのコンテキストを保存
-  2. スケジューラが次のプロセスを選択
-  3. 選択されたプロセスのコンテキストを復元
-  4. ユーザーモードに切り替え
-  5. 選択されたプロセスの適切な位置にジャンプ
-
-  ディスパッチレイテンシ:
-  ディスパッチャが1つのプロセスを停止して
-  別のプロセスを開始するまでの時間
-  → できるだけ短くすべき（数マイクロ秒以下が理想）
-```
+- Basic programming knowledge
+- Understanding of related fundamental concepts
+- Familiarity with the content in [Threads and Concurrency](./01-threads.md)
 
 ---
 
-## 2. 主要なスケジューリングアルゴリズム
+## 1. Scheduling Fundamentals
 
-### 2.1 FCFS（First-Come, First-Served）
+### 1.1 Why Scheduling Is Necessary
 
 ```
-FCFS: 到着順に実行。FIFOキュー。最もシンプル。
+The Essence of Multiprogramming:
 
-  到着: P1(24ms) P2(3ms) P3(3ms)
-  ┌────────────────────────┬───┬───┐
-  │        P1 (24ms)       │P2 │P3 │
-  └────────────────────────┴───┴───┘
+  A CPU can execute only one process at a time per core
+  -> When multiple processes are simultaneously in the Ready state,
+     we need to determine "fairly" and "efficiently" who runs first
+
+  Modern systems have hundreds to thousands of processes/threads
+  existing simultaneously
+  -> The quality of scheduling determines the overall system
+     responsiveness and throughput
+
+CPU Bursts and I/O Bursts:
+
+  Process execution pattern:
+  [CPU execution] -> [I/O wait] -> [CPU execution] -> [I/O wait] -> ...
+
+  CPU-bound process: Long CPU bursts (scientific computing, video encoding)
+  I/O-bound process: Short CPU bursts (web servers, editors)
+
+  +---------------------------------------------------+
+  | CPU-bound:                                         |
+  | ████████████░░████████████░░██████████████░░████   |
+  |                                                    |
+  | I/O-bound:                                         |
+  | ██░░░░░░██░░░░░░██░░░░░░██░░░░░░██░░░░░░██░░░░   |
+  |                                                    |
+  | █ = CPU execution  ░ = I/O wait                    |
+  +---------------------------------------------------+
+
+  The scheduler should prioritize I/O-bound processes:
+  -> I/O-bound processes quickly release the CPU and enter I/O wait
+  -> While waiting, other processes can use the CPU
+  -> Overall throughput improves
+```
+
+### 1.2 Scheduler Goals
+
+```
+Five Evaluation Metrics for Schedulers:
+
+  1. CPU Utilization:
+     Keep the CPU as busy as possible
+     Target: 40%-90% (depending on system type)
+     100% is overload, 0% is idle
+
+  2. Throughput:
+     Maximize the number of completed processes per unit time
+     Particularly important in batch processing systems
+
+  3. Turnaround Time:
+     Total time from submission to completion
+     Turnaround = Waiting time + Execution time + I/O time
+     Important for batch processing
+
+  4. Waiting Time:
+     Total time spent waiting in the Ready state
+     The only metric directly affected by the scheduling algorithm
+
+  5. Response Time:
+     Time from request submission to first response
+     Most important for interactive systems (GUI, web servers)
+
+  Trade-off Relationships:
+  +-------------------------------------------+
+  | CPU utilization ↑   <-> Response time ↑   |
+  | Throughput ↑        <-> Individual         |
+  |                         response time ↑    |
+  | Fairness ↑          <-> Throughput ↓       |
+  |                                            |
+  | -> No universal algorithm exists           |
+  | -> The optimal solution differs depending  |
+  |    on system purpose                       |
+  +-------------------------------------------+
+
+  Priority Metrics by System Type:
+  +--------------------+---------------------------+
+  | Batch system       | Throughput, CPU util.     |
+  | Interactive system | Response time, fairness   |
+  | Real-time          | Deadline compliance       |
+  | Server             | Throughput, response time |
+  | Desktop            | Response time, fairness   |
+  +--------------------+---------------------------+
+```
+
+### 1.3 Preemptive vs Non-Preemptive
+
+```
+Preemptive vs Non-Preemptive:
+
+  Non-Preemptive (Cooperative):
+    Waits until the process voluntarily releases the CPU
+    Release timing:
+    - Process termination
+    - I/O request (transition to Blocked state)
+    - yield() (voluntary surrender)
+
+    Advantages: Fewer context switches, simpler implementation
+    Disadvantages: One process can monopolize the CPU, poor responsiveness
+    Examples: Windows 3.1, early Mac OS
+
+  Preemptive:
+    The OS forcibly switches the CPU via timer interrupts
+    Switch timing:
+    - Time quantum (time slice) expiration
+    - A higher-priority process enters the Ready state
+    - Interrupt occurrence
+
+    Advantages: Prevents monopolization by one process, good responsiveness
+    Disadvantages: Context switch overhead, increased synchronization complexity
+    Examples: All modern OSes (Linux, Windows, macOS)
+
+  Context Switch Cost:
+  +-------------------------------------------+
+  | 1. Save CPU state (registers, PC, etc.)   |
+  | 2. Update PCB (Process Control Block)     |
+  | 3. Switch memory map                      |
+  | 4. Flush TLB                              |
+  | 5. Cache cold start                       |
+  |                                           |
+  | Typical cost: 1-10 microseconds           |
+  | Effective cost including cache misses:    |
+  | tens of microseconds                      |
+  +-------------------------------------------+
+```
+
+### 1.4 When Scheduling Occurs
+
+```
+Four Timings When the Dispatcher Operates:
+
+  1. Running -> Waiting:
+     When a process issues an I/O request or calls wait()
+     -> Non-preemptive (voluntary surrender)
+
+  2. Running -> Ready:
+     When a timer interrupt occurs
+     -> Preemptive (forced switch)
+
+  3. Waiting -> Ready:
+     When an I/O completion interrupt occurs
+     -> Preemptive (switch depending on priority)
+
+  4. Process Termination:
+     When exit() is called
+     -> Non-preemptive (inevitable)
+
+  Dispatcher Processing:
+  1. Save the context of the current process
+  2. Scheduler selects the next process
+  3. Restore the context of the selected process
+  4. Switch to user mode
+  5. Jump to the appropriate location in the selected process
+
+  Dispatch Latency:
+  The time it takes for the dispatcher to stop one process
+  and start another
+  -> Should be as short as possible (ideally below a few microseconds)
+```
+
+---
+
+## 2. Major Scheduling Algorithms
+
+### 2.1 FCFS (First-Come, First-Served)
+
+```
+FCFS: Execute in arrival order. FIFO queue. Simplest algorithm.
+
+  Arrivals: P1(24ms) P2(3ms) P3(3ms)
+  +------------------------+---+---+
+  |        P1 (24ms)       |P2 |P3 |
+  +------------------------+---+---+
   0                        24  27  30
 
-  待ち時間: P1=0, P2=24, P3=27
-  平均待ち時間: (0 + 24 + 27) / 3 = 17ms
+  Waiting time: P1=0, P2=24, P3=27
+  Average waiting time: (0 + 24 + 27) / 3 = 17ms
 
-  ターンアラウンド時間: P1=24, P2=27, P3=30
-  平均ターンアラウンド: (24 + 27 + 30) / 3 = 27ms
+  Turnaround time: P1=24, P2=27, P3=30
+  Average turnaround: (24 + 27 + 30) / 3 = 27ms
 
-  もし到着順がP2, P3, P1だったら:
-  ┌───┬───┬────────────────────────┐
-  │P2 │P3 │        P1 (24ms)       │
-  └───┴───┴────────────────────────┘
+  If the arrival order were P2, P3, P1:
+  +---+---+------------------------+
+  |P2 |P3 |        P1 (24ms)       |
+  +---+---+------------------------+
   0   3   6                        30
 
-  待ち時間: P2=0, P3=3, P1=6
-  平均待ち時間: (0 + 3 + 6) / 3 = 3ms
-  → 到着順によって性能が大きく変動する！
+  Waiting time: P2=0, P3=3, P1=6
+  Average waiting time: (0 + 3 + 6) / 3 = 3ms
+  -> Performance varies greatly depending on arrival order!
 
-問題点 — Convoy Effect（護送船団効果）:
-  長いプロセスの後ろに短いプロセスが並ぶと、
-  短いプロセスが不必要に長く待たされる
+Problem - Convoy Effect:
+  When short processes queue behind a long process,
+  the short processes are unnecessarily delayed
 
-  CPU-boundプロセス（長い）がCPUを占有
-  → I/O-boundプロセス（短い）が全てReady queue で待機
-  → I/Oデバイスがアイドル状態
-  → CPU-boundプロセスがI/Oを開始
-  → I/O-boundプロセスがCPUバーストを高速に処理してI/O待ちに
-  → CPUがアイドル
-  → CPU-boundプロセスがI/O完了して戻ってくる
-  → 繰り返し…
+  CPU-bound process (long) occupies the CPU
+  -> I/O-bound processes (short) all wait in the Ready queue
+  -> I/O devices become idle
+  -> CPU-bound process initiates I/O
+  -> I/O-bound processes quickly process CPU bursts and enter I/O wait
+  -> CPU becomes idle
+  -> CPU-bound process returns after I/O completion
+  -> Repeat...
 
-  結果: CPU利用率、I/Oデバイス利用率ともに低下
+  Result: Both CPU utilization and I/O device utilization decrease
 
-特性:
-  - ノンプリエンプティブ
-  - 飢餓なし（全プロセスがいつか実行される）
-  - 実装が最も単純
-  - 平均待ち時間が一般に長い
-  - バッチシステム以外には不向き
+Characteristics:
+  - Non-preemptive
+  - No starvation (all processes eventually execute)
+  - Simplest implementation
+  - Generally long average waiting time
+  - Not suitable for non-batch systems
 ```
 
-### 2.2 SJF（Shortest Job First）
+### 2.2 SJF (Shortest Job First)
 
 ```
-SJF: 実行時間が最も短いプロセスを先に実行
+SJF: Execute the process with the shortest execution time first
 
-  到着: P1(6ms) P2(8ms) P3(7ms) P4(3ms)（全て到着時刻0）
-  ┌───┬──────┬───────┬────────┐
-  │P4 │  P1  │  P3   │   P2   │
-  └───┴──────┴───────┴────────┘
+  Arrivals: P1(6ms) P2(8ms) P3(7ms) P4(3ms) (all arrive at time 0)
+  +---+------+-------+--------+
+  |P4 |  P1  |  P3   |   P2   |
+  +---+------+-------+--------+
   0   3      9      16       24
 
-  待ち時間: P4=0, P1=3, P3=9, P2=16
-  平均待ち時間: (0 + 3 + 9 + 16) / 4 = 7ms
+  Waiting time: P4=0, P1=3, P3=9, P2=16
+  Average waiting time: (0 + 3 + 9 + 16) / 4 = 7ms
 
-  ※FCFSなら: (0 + 6 + 14 + 21) / 4 = 10.25ms
+  *With FCFS: (0 + 6 + 14 + 21) / 4 = 10.25ms
 
-SJFの最適性の証明（直感的理解）:
-  n個のジョブ t1 ≤ t2 ≤ ... ≤ tn がある場合
-  SJF順で実行した時の平均待ち時間:
+Proof of SJF Optimality (Intuitive Understanding):
+  Given n jobs t1 <= t2 <= ... <= tn,
+  Average waiting time when executed in SJF order:
   = (0 + t1 + (t1+t2) + ... + (t1+t2+...+t(n-1))) / n
-  = Σ(n-i)ti / n  (i=1..n)
+  = Sum((n-i)*ti) / n  (i=1..n)
 
-  短いジョブの係数(n-i)が大きくなる → 合計が最小化される
-  → SJFは平均待ち時間を最小化する最適アルゴリズム
+  Shorter jobs have larger coefficients (n-i) -> Total is minimized
+  -> SJF is the optimal algorithm that minimizes average waiting time
 
-問題点:
-  1. 次の実行時間（CPUバースト長）の予測が困難
-     → 過去のバースト長から指数平均で推定
-     τ(n+1) = α * t(n) + (1-α) * τ(n)
-     α = 0なら過去の推定値のみ使用
-     α = 1なら直前の実測値のみ使用
-     典型的にはα = 0.5
+Problems:
+  1. Difficult to predict the next execution time (CPU burst length)
+     -> Estimate using exponential averaging of past burst lengths
+     tau(n+1) = alpha * t(n) + (1-alpha) * tau(n)
+     alpha = 0: Use only past estimates
+     alpha = 1: Use only the most recent measured value
+     Typically alpha = 0.5
 
-  2. 飢餓（Starvation）:
-     短いプロセスが次々到着すると
-     長いプロセスが永遠に実行されない
+  2. Starvation:
+     If short processes keep arriving,
+     long processes may never execute
 
-SRTF（Shortest Remaining Time First）:
-  SJFのプリエンプティブ版
-  → 新しいプロセスが到着した時、
-    残り時間が現在実行中より短ければ切替
+SRTF (Shortest Remaining Time First):
+  Preemptive version of SJF
+  -> When a new process arrives,
+     switch if its remaining time is shorter than the currently running one
 
-  到着: P1(0, 8ms) P2(1, 4ms) P3(2, 9ms) P4(3, 5ms)
-  ┌─┬────┬─────┬──────────┬───────┐
-  │P1│ P2 │ P4  │   P1     │  P3   │
-  └─┴────┴─────┴──────────┴───────┘
-  0 1    5    10       17      26
+  Arrivals: P1(0, 8ms) P2(1, 4ms) P3(2, 9ms) P4(3, 5ms)
+  +--+----+-----+----------+-------+
+  |P1| P2 | P4  |   P1     |  P3   |
+  +--+----+-----+----------+-------+
+  0  1    5    10       17      26
 
-  t=0: P1開始（残り8）
-  t=1: P2到着（残り4 < P1の残り7）→ P2に切替
-  t=2: P3到着（残り9 > P2の残り3）→ P2継続
-  t=3: P4到着（残り5 > P2の残り2）→ P2継続
-  t=5: P2完了、P4(残り5) vs P1(残り7) vs P3(残り9) → P4
-  t=10: P4完了 → P1(残り7)
-  t=17: P1完了 → P3(残り9)
-  t=26: P3完了
+  t=0: P1 starts (remaining 8)
+  t=1: P2 arrives (remaining 4 < P1's remaining 7) -> Switch to P2
+  t=2: P3 arrives (remaining 9 > P2's remaining 3) -> P2 continues
+  t=3: P4 arrives (remaining 5 > P2's remaining 2) -> P2 continues
+  t=5: P2 completes, P4(rem 5) vs P1(rem 7) vs P3(rem 9) -> P4
+  t=10: P4 completes -> P1(remaining 7)
+  t=17: P1 completes -> P3(remaining 9)
+  t=26: P3 completes
 
-  平均待ち時間: (9 + 0 + 15 + 2) / 4 = 6.5ms
+  Average waiting time: (9 + 0 + 15 + 2) / 4 = 6.5ms
 ```
 
-### 2.3 ラウンドロビン（Round Robin）
+### 2.3 Round Robin
 
 ```
-ラウンドロビン: タイムクォンタム（タイムスライス）で交互に実行
+Round Robin: Execute alternately using a time quantum (time slice)
 
-  プロセス: P1(24ms) P2(3ms) P3(3ms)、クォンタム=4ms
+  Processes: P1(24ms) P2(3ms) P3(3ms), Quantum=4ms
 
-  ┌────┬───┬───┬────┬────┬────┬────┬────┬────┐
-  │ P1 │P2 │P3 │ P1 │ P1 │ P1 │ P1 │ P1 │    │
-  └────┴───┴───┴────┴────┴────┴────┴────┴────┘
+  +----+---+---+----+----+----+----+----+----+
+  | P1 |P2 |P3 | P1 | P1 | P1 | P1 | P1 |    |
+  +----+---+---+----+----+----+----+----+----+
   0    4   7  10   14   18   22   26   30
 
-  P1: 0-4(残20), 10-14(残16), 14-18(残12), 18-22(残8), 22-26(残4), 26-30(完了)
-  P2: 4-7(完了、3ms < 4ms クォンタム)
-  P3: 7-10(完了)
+  P1: 0-4(rem 20), 10-14(rem 16), 14-18(rem 12), 18-22(rem 8), 22-26(rem 4), 26-30(done)
+  P2: 4-7(done, 3ms < 4ms quantum)
+  P3: 7-10(done)
 
-  待ち時間: P1 = (10-4) = 6ms（最初の待機のみでも6ms分）
-           ※ 正確には P1の総待ち時間 = 30-24 = 6ms
-           P2 = 4ms, P3 = 7ms
-  平均待ち時間: (6 + 4 + 7) / 3 = 5.67ms
+  Waiting time: P1 = (10-4) = 6ms (just the first wait is 6ms)
+               * More precisely, P1's total waiting time = 30-24 = 6ms
+               P2 = 4ms, P3 = 7ms
+  Average waiting time: (6 + 4 + 7) / 3 = 5.67ms
 
-  応答時間: P1=0, P2=4, P3=7
-  平均応答時間: (0 + 4 + 7) / 3 = 3.67ms
-  → FCFS(応答: 0, 24, 27 = 17ms) より大幅に改善
+  Response time: P1=0, P2=4, P3=7
+  Average response time: (0 + 4 + 7) / 3 = 3.67ms
+  -> Significantly improved over FCFS (response: 0, 24, 27 = 17ms)
 
-タイムクォンタムの影響:
+Impact of Time Quantum:
 
-  クォンタムが短すぎる場合（例: 1ms）:
-  → コンテキストスイッチが頻発
-  → オーバーヘッドでスループットが大幅に低下
-  → 実質的な実行時間が減少
+  When the quantum is too short (e.g., 1ms):
+  -> Context switches occur frequently
+  -> Throughput significantly decreases due to overhead
+  -> Effective execution time decreases
 
-  クォンタムが長すぎる場合（例: 100ms）:
-  → FCFSに退化
-  → 応答時間が悪化
+  When the quantum is too long (e.g., 100ms):
+  -> Degenerates to FCFS
+  -> Response time worsens
 
-  最適なクォンタム:
-  ┌──────────────────────────────────────────┐
-  │ 経験則:                                   │
-  │ - CPUバーストの80%がクォンタム以内に      │
-  │   完了するように設定                       │
-  │ - 典型的には10〜100ms                      │
-  │ - コンテキストスイッチ時間の100倍以上      │
-  │                                            │
-  │ コンテキストスイッチ = 10μsの場合           │
-  │ → クォンタム最低1ms以上（100倍 = 1ms）     │
-  │ → 現実的には10ms程度                       │
-  └──────────────────────────────────────────┘
+  Optimal quantum:
+  +----------------------------------------------+
+  | Rules of thumb:                               |
+  | - Set so that 80% of CPU bursts complete      |
+  |   within the quantum                          |
+  | - Typically 10-100ms                          |
+  | - At least 100x the context switch time       |
+  |                                               |
+  | If context switch = 10us                      |
+  | -> Minimum quantum 1ms (100x = 1ms)           |
+  | -> Practically around 10ms                    |
+  +----------------------------------------------+
 
-  クォンタムと性能の関係:
-  ┌────────────┬──────────┬──────────┬──────────┐
-  │ クォンタム  │ 応答時間 │ スルー   │ コンテキ │
-  │            │          │ プット   │ ストスイッチ│
-  ├────────────┼──────────┼──────────┼──────────┤
-  │ 1ms        │ 最良     │ 最悪     │ 非常に多い│
-  │ 10ms       │ 良       │ 良       │ 適度     │
-  │ 100ms      │ 悪       │ 良       │ 少ない   │
-  │ ∞          │ FCFS     │ FCFS     │ 最少     │
-  └────────────┴──────────┴──────────┴──────────┘
+  Quantum vs Performance:
+  +------------+----------+----------+-------------+
+  | Quantum    | Response | Through- | Context     |
+  |            | Time     | put      | Switches    |
+  +------------+----------+----------+-------------+
+  | 1ms        | Best     | Worst    | Very many   |
+  | 10ms       | Good     | Good     | Moderate    |
+  | 100ms      | Poor     | Good     | Few         |
+  | Infinity   | FCFS     | FCFS     | Fewest      |
+  +------------+----------+----------+-------------+
 
-特性:
-  - プリエンプティブ
-  - 公平（全プロセスが均等にCPU時間を得る）
-  - 飢餓なし
-  - SJFより平均待ち時間は悪いが応答時間は良い
-  - 対話的システムに最適
+Characteristics:
+  - Preemptive
+  - Fair (all processes get equal CPU time)
+  - No starvation
+  - Worse average waiting time than SJF but better response time
+  - Ideal for interactive systems
 ```
 
-### 2.4 優先度スケジューリング
+### 2.4 Priority Scheduling
 
 ```
-優先度スケジューリング: 優先度の高いプロセスを先に実行
+Priority Scheduling: Execute the highest-priority process first
 
-  プロセス  バースト  優先度（小=高）
-  P1        10ms     3
-  P2         1ms     1
-  P3         2ms     4
-  P4         1ms     5
-  P5         5ms     2
+  Process  Burst  Priority (lower = higher)
+  P1       10ms   3
+  P2        1ms   1
+  P3        2ms   4
+  P4        1ms   5
+  P5        5ms   2
 
-  実行順:
-  ┌──┬─────┬──────────┬──┬─┐
-  │P2│ P5  │   P1     │P3│P4│
-  └──┴─────┴──────────┴──┴─┘
+  Execution order:
+  +--+-----+----------+--+-+
+  |P2| P5  |   P1     |P3|P4|
+  +--+-----+----------+--+-+
   0  1     6         16 18 19
 
-  待ち時間: P1=6, P2=0, P3=16, P4=18, P5=1
-  平均待ち時間: (6 + 0 + 16 + 18 + 1) / 5 = 8.2ms
+  Waiting time: P1=6, P2=0, P3=16, P4=18, P5=1
+  Average waiting time: (6 + 0 + 16 + 18 + 1) / 5 = 8.2ms
 
-優先度の決定方法:
+Methods for Determining Priority:
 
-  静的優先度:
-  - プロセス作成時に決定、変更しない
-  - 例: nice値、ユーザーの権限レベル
+  Static Priority:
+  - Determined at process creation, does not change
+  - Examples: nice value, user privilege level
 
-  動的優先度:
-  - 実行状況に応じて変動
-  - 例: I/O待ちからの復帰で優先度上昇
-  - 例: CPU時間消費で優先度降下
+  Dynamic Priority:
+  - Varies based on execution behavior
+  - Example: Priority increases upon return from I/O wait
+  - Example: Priority decreases with CPU time consumption
 
-  内部要因による優先度:
-  - メモリ要求量
-  - ファイルオープン数
-  - CPU/I/Oバースト比
+  Priority Based on Internal Factors:
+  - Memory requirements
+  - Number of open files
+  - CPU/I/O burst ratio
 
-  外部要因による優先度:
-  - プロセスの重要度
-  - 支払い額（クラウド）
-  - 政策的要因
+  Priority Based on External Factors:
+  - Process importance
+  - Payment amount (cloud)
+  - Policy considerations
 
-飢餓（Starvation）問題:
-  低優先度のプロセスが永遠に実行されない
+Starvation Problem:
+  Low-priority processes may never execute
 
-  解決策 — エージング（Aging）:
-  待ち時間に応じて優先度を徐々に上昇させる
+  Solution - Aging:
+  Gradually increase priority based on waiting time
 
-  例: 15秒ごとに優先度を1段上昇
-  ┌──────────┬──────────┬──────────┐
-  │ 時刻     │ 初期優先度│ 実効優先度│
-  ├──────────┼──────────┼──────────┤
-  │  0秒     │   20     │   20     │
-  │ 15秒     │   20     │   19     │
-  │ 30秒     │   20     │   18     │
-  │ ...      │   ...    │   ...    │
-  │300秒     │   20     │    0     │ ← 最高優先度に
-  └──────────┴──────────┴──────────┘
+  Example: Increase priority by 1 level every 15 seconds
+  +----------+----------+----------+
+  | Time     | Initial  | Effective|
+  |          | Priority | Priority |
+  +----------+----------+----------+
+  |  0 sec   |   20     |   20     |
+  | 15 sec   |   20     |   19     |
+  | 30 sec   |   20     |   18     |
+  | ...      |   ...    |   ...    |
+  |300 sec   |   20     |    0     | <- Highest priority
+  +----------+----------+----------+
 
-  → いつかは必ず実行される（飢餓の防止）
+  -> Every process eventually executes (starvation prevention)
 
-優先度の逆転（Priority Inversion）:
-  高優先度プロセスが低優先度プロセスの
-  ロック解放を待つ現象
+Priority Inversion:
+  A phenomenon where a high-priority process waits for
+  a low-priority process to release a lock
 
-  H(高) → ロック待ち
-  M(中) → 実行中（Lをプリエンプト）
-  L(低) → ロック保持中だがプリエンプトされている
+  H(high) -> Waiting for lock
+  M(medium) -> Running (preempted L)
+  L(low) -> Holding lock but preempted
 
-  → Hは事実上Mより低い優先度になる！
+  -> H effectively has lower priority than M!
 
-  解決策:
-  1. 優先度継承（Priority Inheritance）:
-     ロック保持者が待機者の優先度を継承
-     L → 一時的にHの優先度 → ロック解放 → 元の優先度
+  Solutions:
+  1. Priority Inheritance:
+     Lock holder inherits the waiter's priority
+     L -> Temporarily gets H's priority -> Releases lock -> Original priority
 
-  2. 優先度上限（Priority Ceiling）:
-     ロックに最高優先度を設定
-     ロック取得時に即座にその優先度に昇格
+  2. Priority Ceiling:
+     Assign a ceiling priority to the lock
+     Immediately elevate to that priority upon lock acquisition
 
-  実例: Mars Pathfinder（1997年）
-  → 優先度の逆転でシステムリセットが頻発
-  → VxWorksの優先度継承を有効化して解決
+  Real-world example: Mars Pathfinder (1997)
+  -> System resets occurred frequently due to priority inversion
+  -> Resolved by enabling priority inheritance in VxWorks
 ```
 
-### 2.5 マルチレベルキュー
+### 2.5 Multilevel Queue
 
 ```
-マルチレベルキュー:
-  複数の優先度キューを持ち、キュー間にも優先度
+Multilevel Queue:
+  Multiple priority queues with priority ordering between queues
 
-  ┌─────────────────────────────────┐
-  │ [Q0] リアルタイムプロセス       │ ← 最高優先度
-  ├─────────────────────────────────┤
-  │ [Q1] システムプロセス           │
-  ├─────────────────────────────────┤
-  │ [Q2] 対話的プロセス             │
-  ├─────────────────────────────────┤
-  │ [Q3] バッチプロセス             │ ← 最低優先度
-  └─────────────────────────────────┘
+  +---------------------------------+
+  | [Q0] Real-time processes        | <- Highest priority
+  +---------------------------------+
+  | [Q1] System processes           |
+  +---------------------------------+
+  | [Q2] Interactive processes      |
+  +---------------------------------+
+  | [Q3] Batch processes            | <- Lowest priority
+  +---------------------------------+
 
-  各キュー内は独自のスケジューリングアルゴリズム:
-  Q0: FCFS（リアルタイム）
-  Q1: 優先度スケジューリング
-  Q2: ラウンドロビン（クォンタム短い）
+  Each queue has its own scheduling algorithm:
+  Q0: FCFS (real-time)
+  Q1: Priority scheduling
+  Q2: Round robin (short quantum)
   Q3: FCFS
 
-  キュー間のスケジューリング:
-  - 固定優先度: 上位キューが空になるまで下位を実行しない
-    → 下位キューの飢餓の危険
-  - タイムスライス配分: 各キューにCPU時間を割合で配分
+  Inter-queue scheduling:
+  - Fixed priority: Lower queues don't execute until upper queues are empty
+    -> Risk of starvation for lower queues
+  - Time slice allocation: Allocate CPU time proportionally to each queue
     Q0: 10%, Q1: 20%, Q2: 50%, Q3: 20%
 
-  問題: プロセスが固定のキューに留まる
-  → 性質が変わっても適切なキューに移動しない
+  Problem: Processes remain in fixed queues
+  -> Even if behavior changes, processes don't move to appropriate queues
 ```
 
-### 2.6 マルチレベルフィードバックキュー（MLFQ）
+### 2.6 Multilevel Feedback Queue (MLFQ)
 
 ```
-マルチレベルフィードバックキュー:
-  複数の優先度キューを持ち、動的にプロセスを移動
+Multilevel Feedback Queue:
+  Multiple priority queues with dynamic process migration
 
-  ルール:
-  1. 高優先度キューのプロセスを先に実行
-  2. 同一キュー内はラウンドロビン
-  3. タイムクォンタムを使い切ったら降格
-  4. I/O待ちから復帰したら昇格（または維持）
-  5. 一定時間ごとに全プロセスを最高優先度に引き上げ（ブースト）
+  Rules:
+  1. Execute processes in higher-priority queues first
+  2. Within the same queue, use round robin
+  3. Demote if the time quantum is fully consumed
+  4. Promote (or maintain) upon return from I/O wait
+  5. Periodically boost all processes to the highest priority (boost)
 
-  高優先度 [Q0] ─── クォンタム 8ms
-               ↓ タイムアウト（CPU-bound）
-  中優先度 [Q1] ─── クォンタム 16ms
-               ↓ タイムアウト
-  低優先度 [Q2] ─── FCFS
-               ↑ I/O完了で昇格
+  High priority [Q0] --- Quantum 8ms
+                ↓ Timeout (CPU-bound)
+  Mid priority  [Q1] --- Quantum 16ms
+                ↓ Timeout
+  Low priority  [Q2] --- FCFS
+                ↑ Promoted on I/O completion
 
-  動作例:
-  1. 新プロセスはQ0に投入
-  2. 8ms以内に完了 or I/O待ち → Q0に留まる
-  3. 8msを使い切り → Q1に降格
-  4. Q1で16msを使い切り → Q2に降格
-  5. 周期的ブーストで全員Q0に（飢餓防止）
+  Operational Example:
+  1. New processes enter Q0
+  2. Complete or enter I/O wait within 8ms -> Stay in Q0
+  3. Use up 8ms -> Demoted to Q1
+  4. Use up 16ms in Q1 -> Demoted to Q2
+  5. Periodic boost moves everyone back to Q0 (starvation prevention)
 
-  パラメータの設定:
-  ┌──────────────────────────────────────────┐
-  │ 設定すべきパラメータ:                     │
-  │ 1. キューの数                             │
-  │ 2. 各キューのスケジューリングアルゴリズム │
-  │ 3. 各キューのタイムクォンタム             │
-  │ 4. 昇格の条件                             │
-  │ 5. 降格の条件                             │
-  │ 6. 新プロセスの初期キュー                 │
-  │ 7. ブーストの周期                         │
-  │                                            │
-  │ → パラメータが多い = 最も複雑だが最も柔軟│
-  │ → 多くの汎用OSで採用                       │
-  └──────────────────────────────────────────┘
+  Parameters to Configure:
+  +----------------------------------------------+
+  | Parameters to set:                            |
+  | 1. Number of queues                           |
+  | 2. Scheduling algorithm for each queue        |
+  | 3. Time quantum for each queue                |
+  | 4. Promotion conditions                       |
+  | 5. Demotion conditions                        |
+  | 6. Initial queue for new processes            |
+  | 7. Boost period                               |
+  |                                               |
+  | -> Many parameters = most complex but most    |
+  |    flexible                                   |
+  | -> Adopted by many general-purpose OSes       |
+  +----------------------------------------------+
 
-  ゲーミング（Gaming）への対策:
-  悪意あるプロセスがI/Oを意図的に発行して
-  高優先度を維持しようとする行為
+  Gaming Prevention:
+  Malicious processes intentionally issue I/O to
+  maintain high priority
 
-  対策: アカウンティング（accounting）
-  → キュー内での累積CPU使用時間を追跡
-  → 累積時間がしきい値を超えたら降格
-  → I/O直前の自発的放棄も計上
+  Countermeasure: Accounting
+  -> Track cumulative CPU usage time within the queue
+  -> Demote when cumulative time exceeds threshold
+  -> Count voluntary surrenders just before I/O as well
 ```
 
-### 2.7 各アルゴリズムの比較
+### 2.7 Algorithm Comparison
 
 ```
-┌──────────────┬───────────┬───────────┬───────────┬──────────┬──────────┐
-│ アルゴリズム  │ プリエンプ│ 飢餓      │ 平均待ち  │ 応答時間 │ 実装複雑度│
-│              │ ティブ   │           │ 時間      │          │          │
-├──────────────┼───────────┼───────────┼───────────┼──────────┼──────────┤
-│ FCFS         │ No       │ なし      │ 長い      │ 悪い     │ ○ 簡単  │
-│ SJF          │ No       │ あり      │ 最短      │ 中       │ △ 予測  │
-│ SRTF         │ Yes      │ あり      │ 最短      │ 良い     │ △ 予測  │
-│ RR           │ Yes      │ なし      │ 中        │ 良い     │ ○ 簡単  │
-│ 優先度       │ 両方     │ あり      │ 中        │ 良い     │ ○       │
-│ MLFQ         │ Yes      │ なし(※)  │ 短い      │ 良い     │ × 複雑  │
-└──────────────┴───────────┴───────────┴───────────┴──────────┴──────────┘
-※ ブーストにより飢餓を防止
++--------------+-----------+-----------+-----------+----------+----------+
+| Algorithm    | Preemptive| Starvation| Avg Wait  | Response | Impl.    |
+|              |           |           | Time      | Time     | Complexity|
++--------------+-----------+-----------+-----------+----------+----------+
+| FCFS         | No        | None      | Long      | Poor     | O Simple |
+| SJF          | No        | Yes       | Shortest  | Medium   | D Predict|
+| SRTF         | Yes       | Yes       | Shortest  | Good     | D Predict|
+| RR           | Yes       | None      | Medium    | Good     | O Simple |
+| Priority     | Both      | Yes       | Medium    | Good     | O        |
+| MLFQ         | Yes       | None(*)   | Short     | Good     | X Complex|
++--------------+-----------+-----------+-----------+----------+----------+
+* Starvation prevented by boosting
 ```
 
 ---
 
-## 3. Linuxのスケジューラ
+## 3. Linux Schedulers
 
-### 3.1 Linuxスケジューラの歴史
-
-```
-Linux スケジューラの進化:
-
-  Linux 2.4以前: O(n) スケジューラ
-  → Runキュー内の全プロセスを走査して次を選択
-  → プロセス数に比例して遅くなる
-  → SMP対応が不十分
-
-  Linux 2.6.0〜2.6.22: O(1) スケジューラ
-  → 優先度ごとにキューを持つ
-  → Active配列とExpired配列を交互に使用
-  → O(1)で次のプロセスを選択
-  → 対話的プロセスの判定にヒューリスティック使用
-  → 判定が不正確で公平性に問題
-
-  Linux 2.6.23〜6.5: CFS（Completely Fair Scheduler）
-  → Con Kolivas氏のSD/RSDLスケジューラに触発
-  → Ingo Molnár氏が開発
-  → 赤黒木による公平なスケジューリング
-  → 10年以上使用された安定したスケジューラ
-
-  Linux 6.6〜: EEVDF（Earliest Eligible Virtual Deadline First）
-  → Peter Zijlstra氏が開発
-  → CFSの改良版、仮想デッドラインベース
-  → レイテンシの改善とワークロード分離
-
-  ┌──────────┬────────┬──────────────────────┐
-  │ バージョン│ 年代   │ スケジューラ          │
-  ├──────────┼────────┼──────────────────────┤
-  │ 〜2.4    │ 〜2003 │ O(n) スケジューラ     │
-  │ 2.6.0   │ 2003   │ O(1) スケジューラ     │
-  │ 2.6.23  │ 2007   │ CFS                  │
-  │ 6.6     │ 2023   │ EEVDF                │
-  └──────────┴────────┴──────────────────────┘
-```
-
-### 3.2 CFS（Completely Fair Scheduler）
+### 3.1 History of Linux Schedulers
 
 ```
-CFS（Completely Fair Scheduler, 2007〜2023）:
+Evolution of Linux Schedulers:
 
-  原理: 全プロセスに「公平に」CPU時間を分配
-  → 理想: n個のプロセスがそれぞれ1/nのCPU時間を得る
-  → 現実: 1プロセスずつ実行するため完全な公平は不可能
-  → 「最も不公平な状態のプロセス」を次に実行する
+  Linux 2.4 and earlier: O(n) Scheduler
+  -> Scans all processes in the Run queue to select the next
+  -> Slows down proportionally with process count
+  -> Insufficient SMP support
 
-  仮想ランタイム（vruntime）:
-  → プロセスが実行されると vruntime が増加
-  → vruntime が最小のプロセスが「最も不公平な状態」
-  → そのプロセスを次に選択
+  Linux 2.6.0-2.6.22: O(1) Scheduler
+  -> Separate queues per priority level
+  -> Alternates between Active and Expired arrays
+  -> Selects next process in O(1)
+  -> Uses heuristics to identify interactive processes
+  -> Heuristics were inaccurate, causing fairness issues
 
-  vruntimeの計算:
-  vruntime += 実行時間 × (NICE_0_LOAD / weight)
+  Linux 2.6.23-6.5: CFS (Completely Fair Scheduler)
+  -> Inspired by Con Kolivas's SD/RSDL scheduler
+  -> Developed by Ingo Molnar
+  -> Fair scheduling using a red-black tree
+  -> Stable scheduler used for over 10 years
 
-  nice値 → weight → vruntimeの増加速度
-  ┌──────────┬──────────┬───────────────────┐
-  │ nice値   │ weight   │ vruntime速度      │
-  ├──────────┼──────────┼───────────────────┤
-  │ -20      │ 88761    │ 最もゆっくり（多くのCPU時間）│
-  │  -5      │ 3121     │ やや遅い          │
-  │   0      │ 1024     │ 基準（1倍速）     │
-  │   5      │  335     │ やや速い          │
-  │  19      │   15     │ 最も速い（少ないCPU時間）│
-  └──────────┴──────────┴───────────────────┘
+  Linux 6.6+: EEVDF (Earliest Eligible Virtual Deadline First)
+  -> Developed by Peter Zijlstra
+  -> Improved version of CFS, based on virtual deadlines
+  -> Better latency and workload isolation
 
-  nice値が1違うと約1.25倍のCPU時間差
-  → nice 0 vs nice 1: 55% vs 45%（約10%差）
-  → nice 0 vs nice 5: 75% vs 25%（約3倍差）
-
-  データ構造: 赤黒木（Red-Black Tree）
-  → 最小vruntimeのプロセスをO(log n)で取得
-  → 実際にはキャッシュされておりO(1)
-
-  ┌───────────────────────────────────┐
-  │          赤黒木                    │
-  │         ┌───┐                     │
-  │         │ 5 │                     │
-  │        / \                        │
-  │    ┌───┐ ┌───┐                    │
-  │    │ 3 │ │ 8 │                    │
-  │   / \     \                       │
-  │ ┌───┐┌───┐┌───┐                   │
-  │ │ 1 ││ 4 ││ 9 │                   │
-  │ └───┘└───┘└───┘                   │
-  │  ↑ 次に実行                        │
-  │ (最小vruntime)                     │
-  └───────────────────────────────────┘
-
-  最左ノード（min vruntime）がO(1)でキャッシュされている
-  → 実質的にO(1)の選択時間
-
-  スケジューリング粒度:
-  → sched_latency: 全プロセスが一巡する目標時間（デフォルト6ms × プロセス数、上限24ms）
-  → sched_min_granularity: 最小実行時間（デフォルト0.75ms）
-  → nr_running > sched_latency / sched_min_granularity の場合
-    各プロセスにsched_min_granularity を保証
-
-  グループスケジューリング:
-  → cgroup v2によるCPU帯域制御
-  → ユーザーAとユーザーBがそれぞれ公平にCPU使用
-  → ユーザーA(100プロセス) vs ユーザーB(1プロセス)でも50:50
-
-  例（cgroupsでのCPU制御）:
-  ┌──────────────────────────────────────────┐
-  │ /sys/fs/cgroup/                           │
-  │ ├── group_a/                              │
-  │ │   ├── cpu.max = "50000 100000"          │
-  │ │   │   → 100ms中50ms使用可能（50%）      │
-  │ │   └── cgroup.procs = 1234, 1235...      │
-  │ ├── group_b/                              │
-  │ │   ├── cpu.max = "25000 100000"          │
-  │ │   │   → 100ms中25ms使用可能（25%）      │
-  │ │   └── cgroup.procs = 2345, 2346...      │
-  │ └── cpu.max = "max 100000" (ルート)       │
-  └──────────────────────────────────────────┘
+  +----------+--------+----------------------+
+  | Version  | Era    | Scheduler            |
+  +----------+--------+----------------------+
+  | <=2.4    | <=2003 | O(n) Scheduler       |
+  | 2.6.0    | 2003   | O(1) Scheduler       |
+  | 2.6.23   | 2007   | CFS                  |
+  | 6.6      | 2023   | EEVDF                |
+  +----------+--------+----------------------+
 ```
 
-### 3.3 EEVDF（Earliest Eligible Virtual Deadline First）
+### 3.2 CFS (Completely Fair Scheduler)
 
 ```
-EEVDF（Earliest Eligible Virtual Deadline First, Linux 6.6〜）:
+CFS (Completely Fair Scheduler, 2007-2023):
 
-  CFSの後継。CFSの問題点を解決:
+  Principle: Distribute CPU time "fairly" to all processes
+  -> Ideal: n processes each get 1/n of CPU time
+  -> Reality: Since only one process runs at a time, perfect fairness
+     is impossible
+  -> "Run the process in the most unfair state" next
 
-  CFSの問題点:
-  1. レイテンシに敏感なプロセスへの対応が不十分
-  2. スリープしたプロセスへのボーナス処理が複雑
-  3. nice値とレイテンシの関係が直感的でない
-  4. 多くのヒューリスティック（経験則）に依存
+  Virtual Runtime (vruntime):
+  -> vruntime increases as a process executes
+  -> The process with the smallest vruntime is in the "most unfair state"
+  -> Select that process next
 
-  EEVDFの仕組み:
-  → 各プロセスに仮想デッドライン（virtual deadline）を設定
-  → eligible（実行可能）かつ最も早いデッドラインのプロセスを選択
+  vruntime Calculation:
+  vruntime += execution_time * (NICE_0_LOAD / weight)
 
-  仮想デッドライン = 仮想開始時刻 + タイムスライス / weight
+  nice value -> weight -> vruntime increase rate
+  +----------+----------+-------------------+
+  | nice     | weight   | vruntime speed    |
+  +----------+----------+-------------------+
+  | -20      | 88761    | Slowest (most CPU time)   |
+  |  -5      | 3121     | Slightly slow     |
+  |   0      | 1024     | Baseline (1x)     |
+  |   5      |  335     | Slightly fast     |
+  |  19      |   15     | Fastest (least CPU time)  |
+  +----------+----------+-------------------+
 
-  2つの条件:
-  1. Eligible（資格あり）: vruntimeが十分に小さい
-     → CPU時間を「借り過ぎていない」こと
-  2. Earliest Deadline: 仮想デッドラインが最も早い
-     → 早く完了すべきプロセスを優先
+  A difference of 1 in nice value results in ~1.25x CPU time difference
+  -> nice 0 vs nice 1: 55% vs 45% (~10% difference)
+  -> nice 0 vs nice 5: 75% vs 25% (~3x difference)
 
-  ┌──────────────────────────────────────────────┐
-  │ CFS:                                          │
-  │ 「最も少ないCPU時間のプロセス」を選択          │
-  │ → レイテンシの保証なし                         │
-  │                                                │
-  │ EEVDF:                                         │
-  │ 「デッドラインが最も早い資格あるプロセス」を選択│
-  │ → レイテンシが自然に制御される                  │
-  │ → ヒューリスティック不要                        │
-  └──────────────────────────────────────────────┘
+  Data Structure: Red-Black Tree
+  -> Retrieve the process with minimum vruntime in O(log n)
+  -> Actually cached, so effectively O(1)
 
-  利点:
-  - レイテンシに敏感なワークロード（音声、動画）の改善
-  - sleeper bonus等のヒューリスティック排除
-  - よりシンプルで予測可能な動作
-  - タイムスライスの概念がnice値と直結
+  +-------------------------------------+
+  |          Red-Black Tree              |
+  |         +---+                        |
+  |         | 5 |                        |
+  |        / \                           |
+  |    +---+ +---+                       |
+  |    | 3 | | 8 |                       |
+  |   / \     \                          |
+  | +---++---++---+                      |
+  | | 1 || 4 || 9 |                      |
+  | +---++---++---+                      |
+  |  ^ Next to execute                   |
+  | (minimum vruntime)                   |
+  +-------------------------------------+
 
-  sched_ext（Linux 6.11〜）:
-  → BPFプログラムによるカスタムスケジューラ
-  → ユーザー空間からスケジューリングポリシーを定義
-  → 再起動不要でスケジューラを切り替え可能
-  → Meta（Facebook）が開発・活用
-  → ゲーミング、サーバー等用途別に最適化
+  The leftmost node (min vruntime) is cached in O(1)
+  -> Effectively O(1) selection time
+
+  Scheduling Granularity:
+  -> sched_latency: Target time for all processes to run once
+     (default 6ms x process count, max 24ms)
+  -> sched_min_granularity: Minimum execution time (default 0.75ms)
+  -> When nr_running > sched_latency / sched_min_granularity,
+     each process is guaranteed sched_min_granularity
+
+  Group Scheduling:
+  -> CPU bandwidth control via cgroup v2
+  -> User A and User B each get fair CPU usage
+  -> Even User A (100 processes) vs User B (1 process) gets 50:50
+
+  Example (CPU control with cgroups):
+  +----------------------------------------------+
+  | /sys/fs/cgroup/                               |
+  | +-- group_a/                                  |
+  | |   +-- cpu.max = "50000 100000"              |
+  | |   |   -> Can use 50ms out of 100ms (50%)    |
+  | |   +-- cgroup.procs = 1234, 1235...          |
+  | +-- group_b/                                  |
+  | |   +-- cpu.max = "25000 100000"              |
+  | |   |   -> Can use 25ms out of 100ms (25%)    |
+  | |   +-- cgroup.procs = 2345, 2346...          |
+  | +-- cpu.max = "max 100000" (root)             |
+  +----------------------------------------------+
 ```
 
-### 3.4 リアルタイムスケジューリング
+### 3.3 EEVDF (Earliest Eligible Virtual Deadline First)
 
 ```
-Linuxのリアルタイムスケジューリングクラス:
+EEVDF (Earliest Eligible Virtual Deadline First, Linux 6.6+):
 
-  優先度順:
-  1. SCHED_DEADLINE: デッドラインベース（最高優先度）
-  2. SCHED_FIFO: リアルタイムFIFO
-  3. SCHED_RR: リアルタイムラウンドロビン
-  4. SCHED_OTHER（CFS/EEVDF）: 通常プロセス（最低優先度）
-  5. SCHED_BATCH: バッチ処理向け（CPU-bound）
-  6. SCHED_IDLE: 最低優先度（アイドル時のみ実行）
+  Successor to CFS. Addresses CFS's shortcomings:
 
-  リアルタイムプロセスは常に通常プロセスより優先:
-  ┌─────────────────────────────────────────────┐
-  │ 優先度 0〜99:  リアルタイム（FIFO/RR/DEADLINE）│
-  │ 優先度 100〜139: 通常プロセス（CFS/EEVDF）    │
-  │                 nice -20 → 優先度100          │
-  │                 nice   0 → 優先度120          │
-  │                 nice +19 → 優先度139          │
-  └─────────────────────────────────────────────┘
+  CFS Issues:
+  1. Insufficient handling of latency-sensitive processes
+  2. Complex bonus handling for sleeping processes
+  3. Non-intuitive relationship between nice values and latency
+  4. Relies on many heuristics
+
+  How EEVDF Works:
+  -> Assigns a virtual deadline to each process
+  -> Selects the eligible process with the earliest deadline
+
+  Virtual deadline = Virtual start time + Time slice / weight
+
+  Two Conditions:
+  1. Eligible: vruntime is sufficiently small
+     -> Not "over-borrowing" CPU time
+  2. Earliest Deadline: Has the earliest virtual deadline
+     -> Prioritizes processes that should complete sooner
+
+  +------------------------------------------------+
+  | CFS:                                            |
+  | Selects "the process with the least CPU time"   |
+  | -> No latency guarantee                         |
+  |                                                 |
+  | EEVDF:                                          |
+  | Selects "the eligible process with the earliest |
+  | deadline"                                       |
+  | -> Latency is naturally controlled              |
+  | -> No heuristics needed                         |
+  +------------------------------------------------+
+
+  Advantages:
+  - Improved latency-sensitive workloads (audio, video)
+  - Eliminates heuristics like sleeper bonus
+  - Simpler and more predictable behavior
+  - Time slice concept directly tied to nice values
+
+  sched_ext (Linux 6.11+):
+  -> Custom schedulers via BPF programs
+  -> Define scheduling policies from user space
+  -> Switch schedulers without rebooting
+  -> Developed and used by Meta (Facebook)
+  -> Optimized for specific use cases like gaming, servers, etc.
+```
+
+### 3.4 Real-Time Scheduling
+
+```
+Linux Real-Time Scheduling Classes:
+
+  In priority order:
+  1. SCHED_DEADLINE: Deadline-based (highest priority)
+  2. SCHED_FIFO: Real-time FIFO
+  3. SCHED_RR: Real-time round robin
+  4. SCHED_OTHER (CFS/EEVDF): Normal processes (lowest priority)
+  5. SCHED_BATCH: For batch processing (CPU-bound)
+  6. SCHED_IDLE: Lowest priority (runs only when idle)
+
+  Real-time processes always have priority over normal processes:
+  +-----------------------------------------------+
+  | Priority 0-99:   Real-time (FIFO/RR/DEADLINE) |
+  | Priority 100-139: Normal processes (CFS/EEVDF)|
+  |                   nice -20 -> priority 100     |
+  |                   nice   0 -> priority 120     |
+  |                   nice +19 -> priority 139     |
+  +-----------------------------------------------+
 
   SCHED_FIFO:
-  → 同優先度内ではFIFO（先着順）
-  → より高い優先度が来るまでCPUを手放さない
-  → yield()または終了まで実行し続ける
-  → 危険: 暴走するとシステムがハングする
+  -> FIFO (first-come, first-served) within the same priority
+  -> Does not release CPU until a higher priority arrives
+  -> Runs until yield() or termination
+  -> Danger: A runaway process can hang the system
 
   SCHED_RR:
-  → SCHED_FIFOにタイムクォンタムを追加
-  → 同優先度内でラウンドロビン
-  → 高優先度には即座にプリエンプトされる
+  -> SCHED_FIFO with added time quantum
+  -> Round robin within the same priority
+  -> Immediately preempted by higher priority
 
   SCHED_DEADLINE:
-  → EDF（Earliest Deadline First）ベース
-  → 3つのパラメータ: Runtime, Deadline, Period
-  → Runtime: Period内に保証されるCPU時間
-  → Deadline: Runtime分の実行を完了すべき期限
-  → Period: タスクの繰り返し周期
-  → CBS（Constant Bandwidth Server）で帯域を予約
+  -> Based on EDF (Earliest Deadline First)
+  -> Three parameters: Runtime, Deadline, Period
+  -> Runtime: Guaranteed CPU time within each Period
+  -> Deadline: The time by which Runtime must complete
+  -> Period: Task repetition cycle
+  -> Reserves bandwidth via CBS (Constant Bandwidth Server)
 
-  例: 音声処理（5ms/20ms周期）
-  ┌─────────────────────────────────────────┐
-  │ Period = 20ms                            │
-  │ Runtime = 5ms                            │
-  │ Deadline = 20ms                          │
-  │                                          │
-  │ → 20msごとに5msのCPU時間が保証される     │
-  │ → CPU帯域 = 5/20 = 25%                  │
-  │                                          │
-  │ ┌──────────┬────────────────────┐        │
-  │ │Run(5ms) │   Wait(15ms)       │→繰返  │
-  │ └──────────┴────────────────────┘        │
-  │ 0         5                    20        │
-  └─────────────────────────────────────────┘
+  Example: Audio processing (5ms/20ms period)
+  +-------------------------------------------+
+  | Period = 20ms                              |
+  | Runtime = 5ms                              |
+  | Deadline = 20ms                            |
+  |                                            |
+  | -> 5ms of CPU time guaranteed every 20ms   |
+  | -> CPU bandwidth = 5/20 = 25%              |
+  |                                            |
+  | +----------+--------------------+          |
+  | |Run(5ms)  |   Wait(15ms)      |-> Repeat |
+  | +----------+--------------------+          |
+  | 0          5                    20         |
+  +-------------------------------------------+
 ```
 
 ```bash
-# リアルタイムスケジューリングの設定例
+# Real-time scheduling configuration examples
 
-# 現在のスケジューリングポリシーの確認
+# Check current scheduling policy
 chrt -p $$
 
-# SCHED_FIFO（優先度50）で実行
+# Run with SCHED_FIFO (priority 50)
 sudo chrt -f 50 ./realtime_app
 
-# SCHED_RR（優先度30）で実行
+# Run with SCHED_RR (priority 30)
 sudo chrt -r 30 ./realtime_app
 
-# SCHED_DEADLINE で実行
+# Run with SCHED_DEADLINE
 # Runtime=5ms, Deadline=10ms, Period=20ms
 sudo chrt -d --sched-runtime 5000000 \
              --sched-deadline 10000000 \
              --sched-period 20000000 \
              0 ./realtime_app
 
-# リアルタイム帯域の制限（暴走防止）
-# デフォルト: 1秒中950msまでリアルタイムに使用可能
+# Real-time bandwidth limit (runaway prevention)
+# Default: Up to 950ms of real-time usage per 1 second
 cat /proc/sys/kernel/sched_rt_runtime_us   # 950000
 cat /proc/sys/kernel/sched_rt_period_us    # 1000000
 
-# リアルタイム帯域制限を無効化（危険）
+# Disable real-time bandwidth limit (dangerous)
 echo -1 > /proc/sys/kernel/sched_rt_runtime_us
 ```
 
-### 3.5 マルチコアスケジューリング
+### 3.5 Multicore Scheduling
 
 ```
-マルチコアスケジューリングの課題:
+Multicore Scheduling Challenges:
 
-  1. ロードバランシング:
-     各コアに均等にプロセスを分配
+  1. Load Balancing:
+     Distribute processes evenly across cores
 
-     Push migration: 過負荷のコアからプロセスを移動
-     Pull migration: アイドルのコアがプロセスを引き取る
+     Push migration: Move processes from overloaded cores
+     Pull migration: Idle cores pull processes
 
-     ┌─────────┐   ┌─────────┐   ┌─────────┐
-     │ CPU 0   │   │ CPU 1   │   │ CPU 2   │
-     │ [P1,P2, │   │ [P5]    │   │ []      │
-     │  P3,P4] │   │         │   │ idle    │
-     └────┬────┘   └─────────┘   └────┬────┘
-          │ push                      │ pull
-          └───────────→ P3 ←──────────┘
+     +---------+   +---------+   +---------+
+     | CPU 0   |   | CPU 1   |   | CPU 2   |
+     | [P1,P2, |   | [P5]    |   | []      |
+     |  P3,P4] |   |         |   | idle    |
+     +----+----+   +---------+   +----+----+
+          | push                      | pull
+          +-----------> P3 <----------+
 
-  2. キャッシュアフィニティ:
-     プロセスをできるだけ同じコアで実行し続ける
-     → L1/L2キャッシュにデータが残っている
-     → 別コアに移動するとキャッシュミスが発生
+  2. Cache Affinity:
+     Keep processes running on the same core as much as possible
+     -> Data remains in L1/L2 cache
+     -> Moving to another core causes cache misses
 
-     キャッシュのウォームアップコスト:
-     L1キャッシュ: 〜1ns（数サイクル）
-     L2キャッシュ: 〜5ns
-     L3キャッシュ: 〜20ns
-     メインメモリ: 〜100ns
+     Cache warm-up cost:
+     L1 cache: ~1ns (a few cycles)
+     L2 cache: ~5ns
+     L3 cache: ~20ns
+     Main memory: ~100ns
 
-     → 移動のコスト vs バランスの利益を天秤にかける
+     -> Weigh the cost of migration vs the benefit of balance
 
-  3. NUMA（Non-Uniform Memory Access）対応:
-     メモリへのアクセス速度がCPU位置に依存
+  3. NUMA (Non-Uniform Memory Access) Support:
+     Memory access speed depends on CPU location
 
-     ┌──────────────────┐  ┌──────────────────┐
-     │ NUMA Node 0      │  │ NUMA Node 1      │
-     │ ┌──────┐ ┌─────┐│  │┌─────┐ ┌──────┐ │
-     │ │CPU 0-3│ │Mem A││←→││Mem B│ │CPU 4-7│ │
-     │ └──────┘ └─────┘│  │└─────┘ └──────┘ │
-     └──────────────────┘  └──────────────────┘
-       ローカルアクセス      リモートアクセス
-       〜100ns              〜300ns（3倍遅い）
+     +------------------+  +------------------+
+     | NUMA Node 0      |  | NUMA Node 1      |
+     | +------+ +-----+ |  | +-----+ +------+ |
+     | |CPU 0-3| |Mem A| |<->| |Mem B| |CPU 4-7| |
+     | +------+ +-----+ |  | +-----+ +------+ |
+     +------------------+  +------------------+
+       Local access          Remote access
+       ~100ns                ~300ns (3x slower)
 
-     → プロセスはメモリが近いNUMAノードで実行すべき
-     → Linuxはnumactl, libnumaで制御可能
+     -> Processes should run on the NUMA node closest to their memory
+     -> Linux can be controlled with numactl, libnuma
 
-  4. SMT（Simultaneous Multi-Threading / Hyper-Threading）:
-     1つの物理コアに2つ以上の論理コア
-     → 実行ユニットを共有するため、100%の性能向上にはならない
-     → 典型的には20〜30%の性能向上
-     → スケジューラはSMT兄弟の使い方を考慮
+  4. SMT (Simultaneous Multi-Threading / Hyper-Threading):
+     Two or more logical cores per physical core
+     -> Shares execution units, so not 100% performance gain
+     -> Typically 20-30% performance improvement
+     -> Scheduler considers how to use SMT siblings
 
-  Linuxのスケジューリングドメイン:
-  ┌──────────────────────────────────────┐
-  │ SD_LEVEL_0: SMT (ハイパースレッド)   │
-  │ SD_LEVEL_1: MC (マルチコア)         │
-  │ SD_LEVEL_2: PKG (パッケージ/ソケット)│
-  │ SD_LEVEL_3: NUMA (NUMAノード)       │
-  │                                      │
-  │ 各レベルでロードバランシングの頻度と │
-  │ 閾値が異なる:                        │
-  │ - SMT: 高頻度でバランス             │
-  │ - NUMA: 低頻度でバランス（コスト大）│
-  └──────────────────────────────────────┘
+  Linux Scheduling Domains:
+  +--------------------------------------+
+  | SD_LEVEL_0: SMT (Hyper-Threading)    |
+  | SD_LEVEL_1: MC (Multicore)           |
+  | SD_LEVEL_2: PKG (Package/Socket)     |
+  | SD_LEVEL_3: NUMA (NUMA Node)         |
+  |                                      |
+  | Each level has different load        |
+  | balancing frequency and thresholds:  |
+  | - SMT: Balance frequently            |
+  | - NUMA: Balance infrequently (costly)|
+  +--------------------------------------+
 ```
 
 ```bash
-# マルチコアスケジューリングの実践
+# Multicore scheduling in practice
 
-# CPUアフィニティの設定
-taskset -p 0x3 $$              # CPU 0,1に限定（ビットマスク）
-taskset -c 0-3 ./my_program   # CPU 0〜3で実行
+# Set CPU affinity
+taskset -p 0x3 $$              # Restrict to CPU 0,1 (bitmask)
+taskset -c 0-3 ./my_program   # Run on CPU 0-3
 
-# NUMAの確認
-numactl --hardware              # NUMAトポロジの表示
-numactl --membind=0 ./program  # Node 0のメモリに限定
-numactl --cpunodebind=0 --membind=0 ./program  # CPU+メモリをNode 0に
+# Check NUMA
+numactl --hardware              # Display NUMA topology
+numactl --membind=0 ./program  # Restrict to Node 0 memory
+numactl --cpunodebind=0 --membind=0 ./program  # CPU + memory on Node 0
 
-# スケジューリング統計の確認
-cat /proc/schedstat             # グローバル統計
-cat /proc/$$/sched              # プロセス別統計
-cat /proc/$$/status | grep -i cpu  # 実行コア
+# Check scheduling statistics
+cat /proc/schedstat             # Global statistics
+cat /proc/$$/sched              # Per-process statistics
+cat /proc/$$/status | grep -i cpu  # Execution core
 
-# per-CPUのRunキュー長
+# Per-CPU run queue length
 cat /proc/schedstat | awk '{if(NR%3==1) print "CPU"(NR-1)/3": rq_len="$2}'
 
-# CPU使用率のリアルタイム監視
-mpstat -P ALL 1                 # コアごと
-pidstat -u 1                    # プロセスごと
-htop                            # 対話的（CPU棒グラフ表示）
+# Real-time CPU utilization monitoring
+mpstat -P ALL 1                 # Per core
+pidstat -u 1                    # Per process
+htop                            # Interactive (CPU bar graph display)
 ```
 
 ---
 
-## 4. 他のOSのスケジューラ
+## 4. Schedulers in Other OSes
 
-### 4.1 Windows のスケジューラ
+### 4.1 Windows Scheduler
 
 ```
-Windows スケジューラ:
+Windows Scheduler:
 
-  優先度ベースのプリエンプティブスケジューリング
-  32段階の優先度:
-  - 0: ゼロページスレッド（メモリゼロ化専用）
-  - 1-15: 通常プロセス（動的優先度）
-  - 16-31: リアルタイムプロセス（固定優先度）
+  Priority-based preemptive scheduling
+  32 priority levels:
+  - 0: Zero page thread (dedicated to memory zeroing)
+  - 1-15: Normal processes (dynamic priority)
+  - 16-31: Real-time processes (fixed priority)
 
-  優先度クラス × 相対優先度 = 実効優先度:
-  ┌──────────────┬──────┬──────┬──────┬──────┐
-  │ 優先度クラス  │ Low  │Normal│ High │ RT   │
-  ├──────────────┼──────┼──────┼──────┼──────┤
-  │ Idle         │  1   │  1   │  1   │ 16   │
-  │ Below Normal │  5   │  7   │  9   │ 21   │
-  │ Normal       │  6   │  8   │ 10   │ 24   │
-  │ Above Normal │  7   │  9   │ 11   │ 25   │
-  │ High         │ 11   │ 13   │ 15   │ 26   │
-  │ Realtime     │ 16   │ 24   │ 31   │ 31   │
-  └──────────────┴──────┴──────┴──────┴──────┘
+  Priority class x Relative priority = Effective priority:
+  +--------------+------+------+------+------+
+  | Priority     | Low  |Normal| High | RT   |
+  | Class        |      |      |      |      |
+  +--------------+------+------+------+------+
+  | Idle         |  1   |  1   |  1   | 16   |
+  | Below Normal |  5   |  7   |  9   | 21   |
+  | Normal       |  6   |  8   | 10   | 24   |
+  | Above Normal |  7   |  9   | 11   | 25   |
+  | High         | 11   | 13   | 15   | 26   |
+  | Realtime     | 16   | 24   | 31   | 31   |
+  +--------------+------+------+------+------+
 
-  動的優先度ブースト:
-  - フォアグラウンドウィンドウのスレッド: +2
-  - I/O完了: +1〜+8（デバイス種別による）
-  - GUI入力待ちからの復帰: +2
-  → ブースト後は1ずつ元の基本優先度に戻る
+  Dynamic Priority Boost:
+  - Foreground window thread: +2
+  - I/O completion: +1 to +8 (depending on device type)
+  - Return from GUI input wait: +2
+  -> After boost, gradually returns to base priority by 1
 
   Multimedia Class Scheduler Service (MMCSS):
-  → 音声・動画再生のスレッドに自動的に高優先度を付与
-  → 定期的にCPU時間を保証
+  -> Automatically grants high priority to audio/video playback threads
+  -> Periodically guarantees CPU time
 ```
 
-### 4.2 macOS/iOS のスケジューラ
+### 4.2 macOS/iOS Scheduler
 
 ```
-macOS/iOS（XNU Kernel）スケジューラ:
+macOS/iOS (XNU Kernel) Scheduler:
 
-  マルチレベルフィードバックキュー + デケイスケジューリング
+  Multilevel feedback queue + decay scheduling
 
-  スケジューリングバンド:
-  1. RT (リアルタイム): 固定優先度
-  2. System High: カーネルスレッド
-  3. System: カーネルスレッド
-  4. User Initiated: ユーザー操作
-  5. Default: 一般
-  6. Utility: 長時間タスク
-  7. Background: バックグラウンド
-  8. Maintenance: メンテナンス
+  Scheduling Bands:
+  1. RT (Real-time): Fixed priority
+  2. System High: Kernel threads
+  3. System: Kernel threads
+  4. User Initiated: User operations
+  5. Default: General
+  6. Utility: Long-running tasks
+  7. Background: Background tasks
+  8. Maintenance: Maintenance tasks
 
   Quality of Service (QoS):
-  → アプリはQoSクラスを指定して意図を伝える
-  → システムがCPU、I/O、タイマーの優先度を自動調整
+  -> Apps specify a QoS class to communicate their intent
+  -> The system automatically adjusts CPU, I/O, and timer priorities
 
-  GCD（Grand Central Dispatch）連携:
-  → dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{ ... });
-  → スケジューラとGCDが連携してリソースを最適配分
+  GCD (Grand Central Dispatch) Integration:
+  -> dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{ ... });
+  -> Scheduler and GCD cooperate to optimally allocate resources
 
-  Apple Silicon（M1〜）の高効率/高性能コア:
-  → P-core（Performance）: 高優先度タスク
-  → E-core（Efficiency）: 低優先度・バックグラウンドタスク
-  → スケジューラがQoSに基づいて自動振り分け
+  Apple Silicon (M1+) Efficiency/Performance Cores:
+  -> P-core (Performance): High-priority tasks
+  -> E-core (Efficiency): Low-priority / background tasks
+  -> Scheduler automatically assigns based on QoS
 
-  ┌────────────────────────────────────────────┐
-  │ QoS: User Interactive → P-core優先          │
-  │ QoS: Background       → E-core限定          │
-  │ QoS: Default          → 負荷に応じて動的    │
-  └────────────────────────────────────────────┘
+  +--------------------------------------------+
+  | QoS: User Interactive -> P-core priority    |
+  | QoS: Background       -> E-core only       |
+  | QoS: Default          -> Dynamic based on   |
+  |                           load              |
+  +--------------------------------------------+
 ```
 
 ---
 
-## 5. スケジューリングの応用
+## 5. Scheduling Applications
 
-### 5.1 コンテナ環境でのスケジューリング
+### 5.1 Scheduling in Container Environments
 
 ```
-コンテナとCPUスケジューリング:
+Containers and CPU Scheduling:
 
-  Dockerコンテナ:
-  → cgroups v2でCPU帯域を制御
-  → スケジューラはcgroup単位でも公平性を保証
+  Docker Containers:
+  -> Control CPU bandwidth via cgroups v2
+  -> Scheduler guarantees fairness at the cgroup level as well
 
-  CPU制限の設定:
-  # CPUの50%に制限
+  CPU Limit Configuration:
+  # Limit to 50% of CPU
   docker run --cpus="0.5" nginx
 
-  # CPU 0と1のみ使用
+  # Use only CPU 0 and 1
   docker run --cpuset-cpus="0,1" nginx
 
-  # 相対的なCPU weightの設定
-  docker run --cpu-shares=512 app_low    # 通常の半分
-  docker run --cpu-shares=2048 app_high  # 通常の2倍
+  # Set relative CPU weight
+  docker run --cpu-shares=512 app_low    # Half of default
+  docker run --cpu-shares=2048 app_high  # Double the default
 
-  Kubernetes のCPUリソース:
-  ┌──────────────────────────────────────┐
-  │ resources:                           │
-  │   requests:                          │
-  │     cpu: "250m"    # 0.25 CPU保証    │
-  │   limits:                            │
-  │     cpu: "500m"    # 0.5 CPU上限     │
-  │                                      │
-  │ requests → cpu.shares (CFS weight)  │
-  │ limits → cpu.max (帯域制限)          │
-  │                                      │
-  │ 1000m = 1 CPU = 100ms/100ms          │
-  │  500m = 0.5 CPU = 50ms/100ms         │
-  │  250m = 0.25 CPU = 25ms/100ms        │
-  └──────────────────────────────────────┘
+  Kubernetes CPU Resources:
+  +--------------------------------------+
+  | resources:                           |
+  |   requests:                          |
+  |     cpu: "250m"    # 0.25 CPU guar.  |
+  |   limits:                            |
+  |     cpu: "500m"    # 0.5 CPU limit   |
+  |                                      |
+  | requests -> cpu.shares (CFS weight)  |
+  | limits -> cpu.max (bandwidth limit)  |
+  |                                      |
+  | 1000m = 1 CPU = 100ms/100ms          |
+  |  500m = 0.5 CPU = 50ms/100ms         |
+  |  250m = 0.25 CPU = 25ms/100ms        |
+  +--------------------------------------+
 
-  CPU throttling問題:
-  → limits設定時、バースト的なCPU使用でスロットリングが発生
-  → 短時間で大量のCPUを消費するとperiod終了まで待機させられる
-  → レイテンシが急増する原因になる
-  → 対策: limitsを設定しない or 十分に余裕を持たせる
+  CPU Throttling Issue:
+  -> When limits are set, bursty CPU usage triggers throttling
+  -> Heavy short-term CPU consumption forces waiting until the period ends
+  -> Causes latency spikes
+  -> Mitigation: Don't set limits, or set them with ample headroom
 ```
 
-### 5.2 データベースのCPUスケジューリング
+### 5.2 Database CPU Scheduling
 
 ```
-データベースでのスケジューリング考慮事項:
+Scheduling Considerations for Databases:
 
   PostgreSQL:
-  → 各接続が独立したプロセス（fork）
-  → OSスケジューラに依存
-  → hugepages推奨（TLBミス削減）
-  → NUMAローカルメモリ配置が重要
+  -> Each connection is an independent process (fork)
+  -> Relies on the OS scheduler
+  -> hugepages recommended (reduce TLB misses)
+  -> NUMA-local memory placement is important
 
   MySQL (InnoDB):
-  → スレッドプール + ワーカースレッド
-  → innodb_thread_concurrency でスレッド数制御
-  → OSスケジューラに依存するが、内部にも軽量スケジューラ
+  -> Thread pool + worker threads
+  -> Control thread count with innodb_thread_concurrency
+  -> Relies on OS scheduler but also has internal lightweight scheduler
 
-  推奨設定例（Linux）:
-  ┌──────────────────────────────────────────┐
-  │ # CPUアフィニティ                         │
-  │ taskset -c 0-15 postgres                  │
-  │                                            │
-  │ # NUMA ローカルメモリ                      │
-  │ numactl --interleave=all postgres          │
-  │                                            │
-  │ # リアルタイム優先度（注意して使用）       │
-  │ chrt -r 5 postgres                        │
-  │                                            │
-  │ # CPUガバナー（省電力無効化）             │
-  │ cpupower frequency-set -g performance     │
-  │                                            │
-  │ # CPU C-States無効化（レイテンシ削減）    │
-  │ echo 0 > /dev/cpu_dma_latency             │
-  └──────────────────────────────────────────┘
+  Recommended Settings (Linux):
+  +----------------------------------------------+
+  | # CPU Affinity                                |
+  | taskset -c 0-15 postgres                      |
+  |                                               |
+  | # NUMA Local Memory                           |
+  | numactl --interleave=all postgres             |
+  |                                               |
+  | # Real-time priority (use with caution)       |
+  | chrt -r 5 postgres                            |
+  |                                               |
+  | # CPU Governor (disable power saving)         |
+  | cpupower frequency-set -g performance         |
+  |                                               |
+  | # Disable CPU C-States (reduce latency)       |
+  | echo 0 > /dev/cpu_dma_latency                 |
+  +----------------------------------------------+
 ```
 
-### 5.3 仮想化環境でのスケジューリング
+### 5.3 Scheduling in Virtualized Environments
 
 ```
-仮想マシンのスケジューリング:
+Virtual Machine Scheduling:
 
-  2レベルのスケジューリング:
-  1. ハイパーバイザが仮想CPUをスケジュール
-  2. ゲストOSが仮想CPU上でプロセスをスケジュール
+  Two Levels of Scheduling:
+  1. Hypervisor schedules virtual CPUs
+  2. Guest OS schedules processes on virtual CPUs
 
-  ┌───────────────────────────────────────────┐
-  │ ゲストOS A          ゲストOS B            │
-  │ ┌─────────────┐    ┌─────────────┐       │
-  │ │ P1 P2 P3    │    │ P4 P5       │       │
-  │ │ スケジューラ │    │ スケジューラ │       │
-  │ │ vCPU0 vCPU1 │    │ vCPU0 vCPU1 │       │
-  │ └──────┬──────┘    └──────┬──────┘       │
-  │        │                  │               │
-  │ ┌──────┴──────────────────┴──────┐        │
-  │ │     ハイパーバイザスケジューラ   │        │
-  │ │     pCPU 0   pCPU 1   pCPU 2  │        │
-  │ └────────────────────────────────┘        │
-  └───────────────────────────────────────────┘
+  +---------------------------------------------+
+  | Guest OS A          Guest OS B               |
+  | +-------------+    +-------------+           |
+  | | P1 P2 P3    |    | P4 P5       |           |
+  | | Scheduler   |    | Scheduler   |           |
+  | | vCPU0 vCPU1 |    | vCPU0 vCPU1 |           |
+  | +------+------+    +------+------+           |
+  |        |                  |                   |
+  | +------+------------------+------+            |
+  | |    Hypervisor Scheduler        |            |
+  | |    pCPU 0   pCPU 1   pCPU 2   |            |
+  | +--------------------------------+            |
+  +---------------------------------------------+
 
-  問題: Lock Holder Preemption
-  → ゲストOS内でロックを保持しているvCPUが
-    ハイパーバイザにプリエンプトされる
-  → 他のvCPUがロック待ちでスピン
-  → CPU時間の無駄遣い
+  Problem: Lock Holder Preemption
+  -> A vCPU holding a lock in the guest OS gets
+     preempted by the hypervisor
+  -> Other vCPUs spin waiting for the lock
+  -> Wastes CPU time
 
-  対策:
-  - pause loop exiting（Intel VT-x）
-  - halting（スピンを検出してハイパーバイザに通知）
-  - CPU overcommit を避ける（vCPU ≤ pCPU）
+  Mitigations:
+  - Pause loop exiting (Intel VT-x)
+  - Halting (detect spinning and notify hypervisor)
+  - Avoid CPU overcommit (vCPU <= pCPU)
 
   VMware vSphere:
-  → Proportional Share Based Scheduling
-  → CPU shares, reservations, limits でリソース配分
-  → DRS（Distributed Resource Scheduler）でクラスタ間バランス
+  -> Proportional Share Based Scheduling
+  -> Allocate resources via CPU shares, reservations, limits
+  -> DRS (Distributed Resource Scheduler) for cross-cluster balancing
 ```
 
 ---
 
-## 6. 実践演習
+## 6. Practical Exercises
 
-### 演習1: [基礎] — スケジューリングの手計算
+### Exercise 1: [Basic] - Manual Scheduling Calculation
 
 ```
-以下のプロセスをFCFS、SJF、RR(q=2)でスケジュールし、
-平均待ち時間と平均ターンアラウンド時間を比較せよ。
+Schedule the following processes using FCFS, SJF, and RR (q=2),
+and compare the average waiting time and average turnaround time.
 
-| プロセス | 到着時刻 | 実行時間 |
-|---------|---------|---------|
-| P1      | 0       | 6       |
-| P2      | 1       | 3       |
-| P3      | 2       | 1       |
-| P4      | 3       | 4       |
+| Process | Arrival Time | Burst Time |
+|---------|-------------|------------|
+| P1      | 0           | 6          |
+| P2      | 1           | 3          |
+| P3      | 2           | 1          |
+| P4      | 3           | 4          |
 
-解答例（FCFS）:
-┌──────────┬───┬─┬────┐
-│  P1(6)   │P2 │P3│ P4 │
-└──────────┴───┴─┴────┘
+Solution (FCFS):
++----------+---+-+----+
+|  P1(6)   |P2 |P3| P4 |
++----------+---+-+----+
 0          6   9 10   14
 
-待ち時間: P1=0, P2=6-1=5, P3=9-2=7, P4=10-3=7
-平均待ち時間: (0+5+7+7)/4 = 4.75ms
+Waiting time: P1=0, P2=6-1=5, P3=9-2=7, P4=10-3=7
+Average waiting time: (0+5+7+7)/4 = 4.75ms
 
-ターンアラウンド: P1=6, P2=9-1=8, P3=10-2=8, P4=14-3=11
-平均ターンアラウンド: (6+8+8+11)/4 = 8.25ms
+Turnaround: P1=6, P2=9-1=8, P3=10-2=8, P4=14-3=11
+Average turnaround: (6+8+8+11)/4 = 8.25ms
 
-解答例（SJF ノンプリエンプティブ）:
-t=0: P1のみ → P1開始
-t=6: P1完了。Ready: P2(3), P3(1), P4(4) → P3(最短)
-t=7: P3完了。Ready: P2(3), P4(4) → P2
-t=10: P2完了。→ P4
-t=14: P4完了
+Solution (SJF Non-Preemptive):
+t=0: Only P1 -> Start P1
+t=6: P1 completes. Ready: P2(3), P3(1), P4(4) -> P3 (shortest)
+t=7: P3 completes. Ready: P2(3), P4(4) -> P2
+t=10: P2 completes. -> P4
+t=14: P4 completes
 
-┌──────────┬─┬───┬────┐
-│  P1(6)   │P3│P2 │ P4 │
-└──────────┴─┴───┴────┘
++----------+-+---+----+
+|  P1(6)   |P3|P2 | P4 |
++----------+-+---+----+
 0          6 7   10   14
 
-待ち時間: P1=0, P3=7-2-1=4, P2=7-1=6, P4=10-3=7
-→ 修正: P1=0, P3=6-2=4, P2=7-1=6, P4=10-3=7
-平均待ち時間: (0+6+4+7)/4 = 4.25ms
+Waiting time: P1=0, P3=7-2-1=4, P2=7-1=6, P4=10-3=7
+-> Corrected: P1=0, P3=6-2=4, P2=7-1=6, P4=10-3=7
+Average waiting time: (0+6+4+7)/4 = 4.25ms
 
-解答例（RR, q=2）:
-t=0-2:   P1(残4)  → Ready: P2, P1
-t=2-4:   P2(残1)  → Ready: P3, P4, P1, P2
-t=4-5:   P3(完了) → Ready: P4, P1, P2
-t=5-7:   P4(残2)  → Ready: P1, P2, P4
-t=7-9:   P1(残2)  → Ready: P2, P4, P1
-t=9-10:  P2(完了) → Ready: P4, P1
-t=10-12: P4(完了) → Ready: P1
-t=12-14: P1(完了)
+Solution (RR, q=2):
+t=0-2:   P1(rem 4)  -> Ready: P2, P1
+t=2-4:   P2(rem 1)  -> Ready: P3, P4, P1, P2
+t=4-5:   P3(done)   -> Ready: P4, P1, P2
+t=5-7:   P4(rem 2)  -> Ready: P1, P2, P4
+t=7-9:   P1(rem 2)  -> Ready: P2, P4, P1
+t=9-10:  P2(done)   -> Ready: P4, P1
+t=10-12: P4(done)   -> Ready: P1
+t=12-14: P1(done)
 
-待ち時間: P1=14-6=8, P2=10-1-3=6, P3=5-2-1=2, P4=12-3-4=5
-平均待ち時間: (8+6+2+5)/4 = 5.25ms
+Waiting time: P1=14-6=8, P2=10-1-3=6, P3=5-2-1=2, P4=12-3-4=5
+Average waiting time: (8+6+2+5)/4 = 5.25ms
 ```
 
-### 演習2: [応用] — Linuxスケジューラの観察
+### Exercise 2: [Intermediate] - Observing the Linux Scheduler
 
 ```bash
-# プロセスのスケジューリング情報を確認
-chrt -p $$                    # 現在のスケジューリングポリシー
-cat /proc/$$/sched            # スケジューリング統計（Linux）
+# Check process scheduling information
+chrt -p $$                    # Current scheduling policy
+cat /proc/$$/sched            # Scheduling statistics (Linux)
 
-# nice値の変更
-nice -n 10 sleep 100 &        # nice値10で起動
-renice -n 5 -p <PID>          # 実行中のプロセスのnice値変更
+# Change nice value
+nice -n 10 sleep 100 &        # Start with nice value 10
+renice -n 5 -p <PID>          # Change nice value of running process
 
-# CPU使用率の監視
-top                           # リアルタイム監視
-mpstat -P ALL 1               # コアごとの使用率
-pidstat -u 1                  # プロセスごとのCPU使用率
+# Monitor CPU utilization
+top                           # Real-time monitoring
+mpstat -P ALL 1               # Per-core utilization
+pidstat -u 1                  # Per-process CPU utilization
 
-# スケジューリング遅延の測定
-perf sched record sleep 10     # 10秒間のスケジューリングイベント記録
-perf sched latency             # スケジューリング遅延の統計
+# Measure scheduling latency
+perf sched record sleep 10     # Record scheduling events for 10 seconds
+perf sched latency             # Scheduling latency statistics
 
-# スケジューラのデバッグ情報
-cat /proc/sched_debug          # スケジューラの内部状態
-cat /sys/kernel/debug/sched/debug  # デバッグ情報（debugfs）
+# Scheduler debug information
+cat /proc/sched_debug          # Scheduler internal state
+cat /sys/kernel/debug/sched/debug  # Debug info (debugfs)
 
-# CFS パラメータの確認・変更
-cat /proc/sys/kernel/sched_latency_ns          # 目標レイテンシ
-cat /proc/sys/kernel/sched_min_granularity_ns  # 最小粒度
-cat /proc/sys/kernel/sched_wakeup_granularity_ns  # ウェイクアップ粒度
+# Check/modify CFS parameters
+cat /proc/sys/kernel/sched_latency_ns          # Target latency
+cat /proc/sys/kernel/sched_min_granularity_ns  # Minimum granularity
+cat /proc/sys/kernel/sched_wakeup_granularity_ns  # Wakeup granularity
 ```
 
-### 演習3: [応用] — CPUバウンドとI/Oバウンドの違いの体験
+### Exercise 3: [Intermediate] - Experiencing CPU-Bound vs I/O-Bound Differences
 
 ```bash
 #!/bin/bash
-# CPUバウンドプロセスの生成
+# Generate CPU-bound processes
 cpu_bound() {
     echo "CPU-bound (PID: $$) starting with nice $1"
     nice -n $1 dd if=/dev/urandom of=/dev/null bs=1M count=1000 2>&1
 }
 
-# I/Oバウンドプロセスの生成
+# Generate I/O-bound processes
 io_bound() {
     echo "I/O-bound (PID: $$) starting"
     for i in $(seq 1 1000); do
@@ -1205,67 +1217,67 @@ io_bound() {
     done
 }
 
-# 異なるnice値で同時実行して比較
+# Run simultaneously with different nice values and compare
 time nice -n  0 python3 -c "sum(range(10**8))" &
 time nice -n 19 python3 -c "sum(range(10**8))" &
 wait
 
-# 結果: nice 0のプロセスが先に終了する
+# Result: The process with nice 0 finishes first
 ```
 
-### 演習4: [発展] — コンテナのCPU制限
+### Exercise 4: [Advanced] - Container CPU Limits
 
 ```bash
-# Docker でCPU制限のテスト
-# CPUを0.5コアに制限
+# Test CPU limits with Docker
+# Limit to 0.5 cores
 docker run --rm --cpus="0.5" ubuntu:22.04 \
     bash -c "time dd if=/dev/urandom of=/dev/null bs=1M count=500"
 
-# CPU制限なし
+# No CPU limit
 docker run --rm ubuntu:22.04 \
     bash -c "time dd if=/dev/urandom of=/dev/null bs=1M count=500"
 
-# CPU throttling の確認
+# Check CPU throttling
 docker run -d --name test --cpus="0.2" ubuntu:22.04 sleep 3600
-# コンテナのcgroup統計
+# Container cgroup statistics
 cat /sys/fs/cgroup/system.slice/docker-$(docker inspect test --format '{{.Id}}').scope/cpu.stat
-# nr_throttled: スロットリングされた回数
-# throttled_time: スロットリングされた合計時間
+# nr_throttled: Number of times throttled
+# throttled_time: Total time throttled
 
-# クリーンアップ
+# Cleanup
 docker rm -f test
 ```
 
 
 ---
 
-## トラブルシューティング
+## Troubleshooting
 
-### よくあるエラーと解決策
+### Common Errors and Solutions
 
-| エラー | 原因 | 解決策 |
-|--------|------|--------|
-| 初期化エラー | 設定ファイルの不備 | 設定ファイルのパスと形式を確認 |
-| タイムアウト | ネットワーク遅延/リソース不足 | タイムアウト値の調整、リトライ処理の追加 |
-| メモリ不足 | データ量の増大 | バッチ処理の導入、ページネーションの実装 |
-| 権限エラー | アクセス権限の不足 | 実行ユーザーの権限確認、設定の見直し |
-| データ不整合 | 並行処理の競合 | ロック機構の導入、トランザクション管理 |
+| Error | Cause | Solution |
+|-------|-------|----------|
+| Initialization error | Configuration file issues | Verify config file path and format |
+| Timeout | Network latency / resource shortage | Adjust timeout values, add retry logic |
+| Out of memory | Data volume growth | Introduce batch processing, implement pagination |
+| Permission error | Insufficient access rights | Verify execution user permissions, review settings |
+| Data inconsistency | Concurrent processing conflicts | Introduce locking mechanisms, transaction management |
 
-### デバッグの手順
+### Debugging Procedure
 
-1. **エラーメッセージの確認**: スタックトレースを読み、発生箇所を特定する
-2. **再現手順の確立**: 最小限のコードでエラーを再現する
-3. **仮説の立案**: 考えられる原因をリストアップする
-4. **段階的な検証**: ログ出力やデバッガを使って仮説を検証する
-5. **修正と回帰テスト**: 修正後、関連する箇所のテストも実行する
+1. **Check error messages**: Read the stack trace and identify the point of occurrence
+2. **Establish reproduction steps**: Reproduce the error with minimal code
+3. **Formulate hypotheses**: List possible causes
+4. **Verify step by step**: Use logging output or debuggers to test hypotheses
+5. **Fix and regression test**: After fixing, also run tests on related areas
 
 ```python
-# デバッグ用ユーティリティ
+# Debugging utility
 import logging
 import traceback
 from functools import wraps
 
-# ロガーの設定
+# Logger configuration
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
@@ -1273,102 +1285,102 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def debug_decorator(func):
-    """関数の入出力をログ出力するデコレータ"""
+    """Decorator that logs function input/output"""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        logger.debug(f"呼び出し: {func.__name__}(args={args}, kwargs={kwargs})")
+        logger.debug(f"Calling: {func.__name__}(args={args}, kwargs={kwargs})")
         try:
             result = func(*args, **kwargs)
-            logger.debug(f"戻り値: {func.__name__} -> {result}")
+            logger.debug(f"Return value: {func.__name__} -> {result}")
             return result
         except Exception as e:
-            logger.error(f"例外発生: {func.__name__}: {e}")
+            logger.error(f"Exception occurred: {func.__name__}: {e}")
             logger.error(traceback.format_exc())
             raise
     return wrapper
 
 @debug_decorator
 def process_data(items):
-    """データ処理（デバッグ対象）"""
+    """Data processing (debug target)"""
     if not items:
-        raise ValueError("空のデータ")
+        raise ValueError("Empty data")
     return [item * 2 for item in items]
 ```
 
-### パフォーマンス問題の診断
+### Diagnosing Performance Issues
 
-パフォーマンス問題が発生した場合の診断手順:
+Diagnostic procedure when performance issues occur:
 
-1. **ボトルネックの特定**: プロファイリングツールで計測
-2. **メモリ使用量の確認**: メモリリークの有無をチェック
-3. **I/O待ちの確認**: ディスクやネットワークI/Oの状況を確認
-4. **同時接続数の確認**: コネクションプールの状態を確認
+1. **Identify the bottleneck**: Measure with profiling tools
+2. **Check memory usage**: Check for memory leaks
+3. **Check I/O waits**: Examine disk and network I/O status
+4. **Check concurrent connections**: Examine connection pool status
 
-| 問題の種類 | 診断ツール | 対策 |
-|-----------|-----------|------|
-| CPU負荷 | cProfile, py-spy | アルゴリズム改善、並列化 |
-| メモリリーク | tracemalloc, objgraph | 参照の適切な解放 |
-| I/Oボトルネック | strace, iostat | 非同期I/O、キャッシュ |
-| DB遅延 | EXPLAIN, slow query log | インデックス、クエリ最適化 |
+| Issue Type | Diagnostic Tool | Mitigation |
+|-----------|----------------|------------|
+| CPU load | cProfile, py-spy | Algorithm improvement, parallelization |
+| Memory leak | tracemalloc, objgraph | Proper reference release |
+| I/O bottleneck | strace, iostat | Async I/O, caching |
+| DB latency | EXPLAIN, slow query log | Indexes, query optimization |
 
 ---
 
-## 設計判断ガイド
+## Design Decision Guide
 
-### 選択基準マトリクス
+### Selection Criteria Matrix
 
-技術選択を行う際の判断基準を以下にまとめます。
+Summary of decision criteria for making technology choices.
 
-| 判断基準 | 重視する場合 | 妥協できる場合 |
-|---------|------------|-------------|
-| パフォーマンス | リアルタイム処理、大規模データ | 管理画面、バッチ処理 |
-| 保守性 | 長期運用、チーム開発 | プロトタイプ、短期プロジェクト |
-| スケーラビリティ | 成長が見込まれるサービス | 社内ツール、固定ユーザー |
-| セキュリティ | 個人情報、金融データ | 公開データ、社内利用 |
-| 開発速度 | MVP、市場投入スピード | 品質重視、ミッションクリティカル |
+| Criterion | When Prioritized | When Compromisable |
+|-----------|-----------------|-------------------|
+| Performance | Real-time processing, large-scale data | Admin panels, batch processing |
+| Maintainability | Long-term operation, team development | Prototypes, short-term projects |
+| Scalability | Services expected to grow | Internal tools, fixed user base |
+| Security | Personal information, financial data | Public data, internal use |
+| Development speed | MVP, time-to-market | Quality-focused, mission-critical |
 
-### アーキテクチャパターンの選択
+### Architecture Pattern Selection
 
 ```
-┌─────────────────────────────────────────────────┐
-│              アーキテクチャ選択フロー              │
-├─────────────────────────────────────────────────┤
-│                                                 │
-│  ① チーム規模は？                                │
-│    ├─ 小規模（1-5人）→ モノリス                   │
-│    └─ 大規模（10人+）→ ②へ                       │
-│                                                 │
-│  ② デプロイ頻度は？                               │
-│    ├─ 週1回以下 → モノリス + モジュール分割         │
-│    └─ 毎日/複数回 → ③へ                          │
-│                                                 │
-│  ③ チーム間の独立性は？                            │
-│    ├─ 高い → マイクロサービス                      │
-│    └─ 中程度 → モジュラーモノリス                   │
-│                                                 │
-└─────────────────────────────────────────────────┘
++---------------------------------------------------+
+|          Architecture Selection Flow               |
++---------------------------------------------------+
+|                                                    |
+|  (1) Team size?                                    |
+|    +- Small (1-5 people) -> Monolith               |
+|    +- Large (10+ people) -> Go to (2)              |
+|                                                    |
+|  (2) Deployment frequency?                         |
+|    +- Weekly or less -> Monolith + module split     |
+|    +- Daily/multiple times -> Go to (3)            |
+|                                                    |
+|  (3) Team independence?                            |
+|    +- High -> Microservices                        |
+|    +- Medium -> Modular monolith                   |
+|                                                    |
++---------------------------------------------------+
 ```
 
-### トレードオフの分析
+### Trade-off Analysis
 
-技術的な判断には必ずトレードオフが伴います。以下の観点で分析を行いましょう:
+Technical decisions always involve trade-offs. Analyze from the following perspectives:
 
-**1. 短期 vs 長期のコスト**
-- 短期的に速い方法が長期的には技術的負債になることがある
-- 逆に、過剰な設計は短期的なコストが高く、プロジェクトの遅延を招く
+**1. Short-term vs Long-term Cost**
+- A quick short-term approach may become technical debt in the long run
+- Conversely, over-engineering has high short-term costs and can delay the project
 
-**2. 一貫性 vs 柔軟性**
-- 統一された技術スタックは学習コストが低い
-- 多様な技術の採用は適材適所が可能だが、運用コストが増加
+**2. Consistency vs Flexibility**
+- A unified tech stack has lower learning costs
+- Diverse technologies enable best-fit choices but increase operational costs
 
-**3. 抽象化のレベル**
-- 高い抽象化は再利用性が高いが、デバッグが困難になる場合がある
-- 低い抽象化は直感的だが、コードの重複が発生しやすい
+**3. Level of Abstraction**
+- High abstraction offers better reusability but may make debugging harder
+- Low abstraction is more intuitive but tends to produce code duplication
 
 ```python
-# 設計判断の記録テンプレート
+# Design decision recording template
 class ArchitectureDecisionRecord:
-    """ADR (Architecture Decision Record) の作成"""
+    """Create an ADR (Architecture Decision Record)"""
 
     def __init__(self, title: str):
         self.title = title
@@ -1378,17 +1390,17 @@ class ArchitectureDecisionRecord:
         self.alternatives = []
 
     def set_context(self, context: str):
-        """背景と課題の記述"""
+        """Describe the background and problem"""
         self.context = context
         return self
 
     def set_decision(self, decision: str):
-        """決定内容の記述"""
+        """Describe the decision"""
         self.decision = decision
         return self
 
     def add_consequence(self, consequence: str, positive: bool = True):
-        """結果の追加"""
+        """Add a consequence"""
         self.consequences.append({
             'description': consequence,
             'type': 'positive' if positive else 'negative'
@@ -1396,7 +1408,7 @@ class ArchitectureDecisionRecord:
         return self
 
     def add_alternative(self, name: str, reason_rejected: str):
-        """却下した代替案の追加"""
+        """Add a rejected alternative"""
         self.alternatives.append({
             'name': name,
             'reason_rejected': reason_rejected
@@ -1404,15 +1416,15 @@ class ArchitectureDecisionRecord:
         return self
 
     def to_markdown(self) -> str:
-        """Markdown形式で出力"""
+        """Output in Markdown format"""
         md = f"# ADR: {self.title}\n\n"
-        md += f"## 背景\n{self.context}\n\n"
-        md += f"## 決定\n{self.decision}\n\n"
-        md += "## 結果\n"
+        md += f"## Context\n{self.context}\n\n"
+        md += f"## Decision\n{self.decision}\n\n"
+        md += "## Consequences\n"
         for c in self.consequences:
-            icon = "✅" if c['type'] == 'positive' else "⚠️"
+            icon = "+" if c['type'] == 'positive' else "!"
             md += f"- {icon} {c['description']}\n"
-        md += "\n## 却下した代替案\n"
+        md += "\n## Rejected Alternatives\n"
         for a in self.alternatives:
             md += f"- **{a['name']}**: {a['reason_rejected']}\n"
         return md
@@ -1420,53 +1432,53 @@ class ArchitectureDecisionRecord:
 
 ---
 
-## 実務での適用シナリオ
+## Practical Application Scenarios
 
-### シナリオ1: スタートアップでのMVP開発
+### Scenario 1: MVP Development at a Startup
 
-**状況:** 限られたリソースで素早くプロダクトをリリースする必要がある
+**Situation:** Need to quickly release a product with limited resources
 
-**アプローチ:**
-- シンプルなアーキテクチャを選択
-- 必要最小限の機能に集中
-- 自動テストはクリティカルパスのみ
-- モニタリングは早期から導入
+**Approach:**
+- Choose a simple architecture
+- Focus on the minimum necessary features
+- Automated tests only for critical paths
+- Introduce monitoring from the start
 
-**学んだ教訓:**
-- 完璧を求めすぎない（YAGNI原則）
-- ユーザーフィードバックを早期に取得
-- 技術的負債は意識的に管理する
+**Lessons Learned:**
+- Don't aim for perfection (YAGNI principle)
+- Get user feedback early
+- Manage technical debt consciously
 
-### シナリオ2: レガシーシステムのモダナイゼーション
+### Scenario 2: Legacy System Modernization
 
-**状況:** 10年以上運用されているシステムを段階的に刷新する
+**Situation:** Gradually modernize a system that has been running for 10+ years
 
-**アプローチ:**
-- Strangler Fig パターンで段階的に移行
-- 既存のテストがない場合はCharacterization Testを先に作成
-- APIゲートウェイで新旧システムを共存
-- データ移行は段階的に実施
+**Approach:**
+- Use the Strangler Fig pattern for gradual migration
+- Create Characterization Tests first if existing tests are absent
+- Use an API gateway to coexist old and new systems
+- Perform data migration incrementally
 
-| フェーズ | 作業内容 | 期間目安 | リスク |
-|---------|---------|---------|--------|
-| 1. 調査 | 現状分析、依存関係の把握 | 2-4週間 | 低 |
-| 2. 基盤 | CI/CD構築、テスト環境 | 4-6週間 | 低 |
-| 3. 移行開始 | 周辺機能から順次移行 | 3-6ヶ月 | 中 |
-| 4. コア移行 | 中核機能の移行 | 6-12ヶ月 | 高 |
-| 5. 完了 | 旧システム廃止 | 2-4週間 | 中 |
+| Phase | Work Content | Estimated Duration | Risk |
+|-------|-------------|-------------------|------|
+| 1. Investigation | Current state analysis, dependency mapping | 2-4 weeks | Low |
+| 2. Foundation | CI/CD setup, test environment | 4-6 weeks | Low |
+| 3. Migration Start | Migrate peripheral features first | 3-6 months | Medium |
+| 4. Core Migration | Migrate core features | 6-12 months | High |
+| 5. Completion | Decommission legacy system | 2-4 weeks | Medium |
 
-### シナリオ3: 大規模チームでの開発
+### Scenario 3: Development with a Large Team
 
-**状況:** 50人以上のエンジニアが同一プロダクトを開発する
+**Situation:** 50+ engineers developing the same product
 
-**アプローチ:**
-- ドメイン駆動設計で境界を明確化
-- チームごとにオーナーシップを設定
-- 共通ライブラリはInner Source方式で管理
-- APIファーストで設計し、チーム間の依存を最小化
+**Approach:**
+- Define boundaries clearly with Domain-Driven Design
+- Set ownership per team
+- Manage shared libraries using Inner Source approach
+- Design API-first to minimize inter-team dependencies
 
 ```python
-# チーム間のAPI契約定義
+# Inter-team API contract definition
 from dataclasses import dataclass
 from typing import List, Optional
 from enum import Enum
@@ -1479,20 +1491,20 @@ class Priority(Enum):
 
 @dataclass
 class APIContract:
-    """チーム間のAPI契約"""
+    """Inter-team API contract"""
     endpoint: str
     method: str
     owner_team: str
     consumers: List[str]
-    sla_ms: int  # レスポンスタイムSLA
+    sla_ms: int  # Response time SLA
     priority: Priority
 
     def validate_sla(self, actual_ms: int) -> bool:
-        """SLA準拠の確認"""
+        """Check SLA compliance"""
         return actual_ms <= self.sla_ms
 
     def to_openapi(self) -> dict:
-        """OpenAPI形式で出力"""
+        """Output in OpenAPI format"""
         return {
             'path': self.endpoint,
             'method': self.method,
@@ -1501,7 +1513,7 @@ class APIContract:
             'x-sla-ms': self.sla_ms
         }
 
-# 使用例
+# Usage example
 contracts = [
     APIContract(
         endpoint="/api/v1/users",
@@ -1522,102 +1534,102 @@ contracts = [
 ]
 ```
 
-### シナリオ4: パフォーマンスクリティカルなシステム
+### Scenario 4: Performance-Critical System
 
-**状況:** ミリ秒単位のレスポンスが求められるシステム
+**Situation:** A system requiring millisecond-level responses
 
-**最適化ポイント:**
-1. キャッシュ戦略（L1: インメモリ、L2: Redis、L3: CDN）
-2. 非同期処理の活用
-3. コネクションプーリング
-4. クエリ最適化とインデックス設計
+**Optimization Points:**
+1. Cache strategy (L1: In-memory, L2: Redis, L3: CDN)
+2. Leverage async processing
+3. Connection pooling
+4. Query optimization and index design
 
-| 最適化手法 | 効果 | 実装コスト | 適用場面 |
-|-----------|------|-----------|---------|
-| インメモリキャッシュ | 高 | 低 | 頻繁にアクセスされるデータ |
-| CDN | 高 | 低 | 静的コンテンツ |
-| 非同期処理 | 中 | 中 | I/O待ちが多い処理 |
-| DB最適化 | 高 | 高 | クエリが遅い場合 |
-| コード最適化 | 低-中 | 高 | CPU律速の場合 |
+| Optimization Method | Effect | Impl. Cost | Application |
+|--------------------|--------|-----------|-------------|
+| In-memory cache | High | Low | Frequently accessed data |
+| CDN | High | Low | Static content |
+| Async processing | Medium | Medium | I/O-heavy processing |
+| DB optimization | High | High | When queries are slow |
+| Code optimization | Low-Med | High | When CPU-bound |
 ---
 
 ## 7. FAQ
 
-### Q1: タイムクォンタムの最適値は？
+### Q1: What is the optimal time quantum value?
 
-一般的には10〜100ms。短すぎるとコンテキストスイッチのオーバーヘッドが増大、長すぎると応答性が悪化。Linuxのデフォルトは約6ms（CFSの目標レイテンシから算出、sched_latency_ns / プロセス数）。ただしEEVDFでは明示的なタイムスライスの概念がnice値のweightから自然に導出される。
+Generally 10-100ms. Too short increases context switch overhead; too long degrades responsiveness. Linux's default is about 6ms (derived from CFS's target latency, sched_latency_ns / number of processes). However, in EEVDF, the explicit time slice concept is naturally derived from the nice value's weight.
 
-### Q2: リアルタイムOSと汎用OSの違いは？
+### Q2: What is the difference between a real-time OS and a general-purpose OS?
 
-リアルタイムOS（RTOS）は「デッドラインまでに必ず処理を完了する」保証を提供。ハードリアルタイム（航空機制御、ABS）は違反が致命的。ソフトリアルタイム（動画再生、VoIP）は違反が品質低下に留まる。LinuxはCONFIG_PREEMPT_RTパッチで「ほぼリアルタイム」を実現可能（Linux 6.12でメインラインに完全統合）。代表的なRTOSにはVxWorks、FreeRTOS、QNX、Zephyrなどがある。
+A Real-Time OS (RTOS) provides guarantees that "processing must be completed by the deadline." Hard real-time (aircraft control, ABS) means violations are fatal. Soft real-time (video playback, VoIP) means violations only degrade quality. Linux can achieve "near real-time" with the CONFIG_PREEMPT_RT patch (fully merged into mainline in Linux 6.12). Notable RTOSes include VxWorks, FreeRTOS, QNX, and Zephyr.
 
-### Q3: nice値と優先度の違いは？
+### Q3: What is the difference between nice values and priority?
 
-nice値はユーザーが設定する相対的な「親切さ」の度合い（-20〜+19）。高いnice値のプロセスは「他のプロセスに親切」=自分のCPU時間を譲る。OSの内部優先度はnice値から計算されるが、他の要因（I/O待ちからの復帰、リアルタイム優先度など）も加味される。Linuxでは内部優先度100〜139がnice -20〜+19に対応する。一般ユーザーはniceを上げることのみ可能（nice値を下げるにはroot権限が必要）。
+The nice value is a relative "niceness" level set by the user (-20 to +19). A process with a higher nice value is "nicer to other processes" = yields its CPU time. The OS's internal priority is calculated from the nice value, but other factors (return from I/O wait, real-time priority, etc.) are also considered. In Linux, internal priorities 100-139 correspond to nice -20 to +19. Regular users can only increase nice values (root privileges are required to lower them).
 
-### Q4: なぜLinuxはMLFQではなくCFS/EEVDFを採用しているのか？
+### Q4: Why does Linux use CFS/EEVDF instead of MLFQ?
 
-MLFQは多くのパラメータ（キュー数、各キューのクォンタム、昇降格条件など）を適切に設定する必要があり、ワークロードに依存する。CFSは「公平性」という単一の原理に基づき、パラメータが少なく、幅広いワークロードで良好な性能を発揮する。EEVDFはさらにレイテンシの保証を改善し、ヒューリスティックを排除した。ただし、sched_ext（Linux 6.11+）によりBPFベースのカスタムMLFQスケジューラを実装することも可能になった。
+MLFQ requires many parameters (number of queues, quantum for each queue, promotion/demotion conditions, etc.) to be properly configured, and these depend on the workload. CFS is based on the single principle of "fairness," has fewer parameters, and performs well across a wide range of workloads. EEVDF further improves latency guarantees and eliminates heuristics. However, with sched_ext (Linux 6.11+), it's now possible to implement a custom MLFQ scheduler based on BPF.
 
-### Q5: スケジューリングはパフォーマンスにどの程度影響するのか？
+### Q5: How much does scheduling affect performance?
 
-通常のワークロードではスケジューラの選択による影響は数%〜10%程度。しかし、以下の場合は大きな影響がある:
-- レイテンシに敏感なワークロード（ゲーム、音声、HFT）: 数ms〜数十msの差が品質に直結
-- 大量のスレッド（数百〜数千）: スケジューラのオーバーヘッドが顕著に
-- NUMA環境: 不適切なスケジューリングでメモリアクセスが3倍遅くなる
-- コンテナ環境: CPU throttlingにより99パーセンタイルレイテンシが10倍以上に
+For typical workloads, the impact of scheduler choice is a few percent to ~10%. However, the impact is significant in the following cases:
+- Latency-sensitive workloads (games, audio, HFT): Differences of a few ms to tens of ms directly affect quality
+- Large numbers of threads (hundreds to thousands): Scheduler overhead becomes noticeable
+- NUMA environments: Improper scheduling can make memory access 3x slower
+- Container environments: CPU throttling can increase 99th percentile latency by 10x or more
 
-### Q6: コンテキストスイッチを減らすには？
+### Q6: How can you reduce context switches?
 
-1. スレッド数をCPUコア数に合わせる（過剰なスレッド作成を避ける）
-2. I/O多重化（epoll/kqueue/io_uring）でスレッド数を削減
-3. ユーザー空間スケジューリング（goroutine, Tokio, Green Thread）を使用
-4. CPUアフィニティを設定してコア間移動を防止
-5. リアルタイム優先度でプリエンプトを防ぐ（慎重に）
-6. ロックの粒度を適切にしてロック待ちによるスイッチを削減
+1. Match thread count to the number of CPU cores (avoid excessive thread creation)
+2. Reduce thread count with I/O multiplexing (epoll/kqueue/io_uring)
+3. Use user-space scheduling (goroutines, Tokio, green threads)
+4. Set CPU affinity to prevent cross-core migration
+5. Use real-time priority to prevent preemption (with caution)
+6. Use appropriate lock granularity to reduce switches caused by lock contention
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is most important. Understanding deepens not just through theory but by actually writing code and verifying behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this applied in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## 8. まとめ
-
-| アルゴリズム | 特徴 | 用途 |
-|------------|------|------|
-| FCFS | シンプル、Convoy Effect | バッチ処理 |
-| SJF/SRTF | 最適だが予測困難 | 理論的に重要 |
-| ラウンドロビン | 公平、応答性良好 | 対話的システム |
-| 優先度 | 重要なプロセスを優先 | リアルタイム要素あり |
-| MLFQ | 動的優先度、最も柔軟 | 汎用OS |
-| CFS | 仮想ランタイムで公平 | Linux 2.6.23〜6.5 |
-| EEVDF | 仮想デッドラインで改善 | Linux 6.6+ |
+Knowledge of this topic is frequently applied in everyday development work. It becomes particularly important during code reviews and architecture design.
 
 ---
 
-## 次に読むべきガイド
+## 8. Summary
+
+| Algorithm | Characteristics | Use Case |
+|-----------|----------------|----------|
+| FCFS | Simple, Convoy Effect | Batch processing |
+| SJF/SRTF | Optimal but hard to predict | Theoretically important |
+| Round Robin | Fair, good responsiveness | Interactive systems |
+| Priority | Prioritizes important processes | Systems with real-time elements |
+| MLFQ | Dynamic priority, most flexible | General-purpose OSes |
+| CFS | Fair via virtual runtime | Linux 2.6.23-6.5 |
+| EEVDF | Improved via virtual deadlines | Linux 6.6+ |
 
 ---
 
-## 参考文献
+## Recommended Next Guides
+
+---
+
+## References
 1. Silberschatz, A. et al. "Operating System Concepts." 10th Ed, Ch.5, 2018.
 2. Love, R. "Linux Kernel Development." 3rd Ed, Ch.4, 2010.
 3. Arpaci-Dusseau, R. H. & Arpaci-Dusseau, A. C. "Operating Systems: Three Easy Pieces." Ch.7-10, 2018.
-4. Molnár, I. "CFS Scheduler." Linux Kernel Documentation, 2007.
+4. Molnar, I. "CFS Scheduler." Linux Kernel Documentation, 2007.
 5. Zijlstra, P. "EEVDF Scheduler." Linux Kernel Mailing List, 2023.
 6. Corbet, J. "An EEVDF CPU scheduler for Linux." LWN.net, 2023.
 7. Corbet, J. "Extensible scheduling with sched_ext." LWN.net, 2024.

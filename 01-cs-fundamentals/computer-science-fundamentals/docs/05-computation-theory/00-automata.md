@@ -1,129 +1,129 @@
-# オートマトンと形式言語
+# Automata and Formal Languages
 
-> 正規表現、コンパイラ、プロトコル検証——オートマトン理論はCSの理論的基盤であり、実務にも深く浸透している。DFA/NFA の等価性、正規言語のポンピング補題、文脈自由文法の構文解析力、そしてチョムスキー階層による言語クラスの体系的分類を理解することで、計算の本質に迫ることができる。
+> Regular expressions, compilers, protocol verification -- automata theory is a theoretical foundation of CS that also deeply permeates practical applications. By understanding the equivalence of DFA/NFA, the pumping lemma for regular languages, the parsing power of context-free grammars, and the systematic classification of language classes through the Chomsky hierarchy, one can approach the essence of computation.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] 有限オートマトン（DFA/NFA）の定義・構成・等価性を理解する
-- [ ] 正規言語の性質と限界（ポンピング補題）を説明できる
-- [ ] NFA から DFA への部分集合構成法を実装できる
-- [ ] 正規表現とオートマトンの相互変換を行える
-- [ ] 文脈自由文法とプッシュダウンオートマトンの関係を理解する
-- [ ] チョムスキー階層の4つのレベルを比較・説明できる
-- [ ] Python で DFA/NFA シミュレータを実装できる
+- [ ] Understand the definition, construction, and equivalence of finite automata (DFA/NFA)
+- [ ] Explain the properties and limitations of regular languages (pumping lemma)
+- [ ] Implement the subset construction from NFA to DFA
+- [ ] Perform mutual conversions between regular expressions and automata
+- [ ] Understand the relationship between context-free grammars and pushdown automata
+- [ ] Compare and explain the four levels of the Chomsky hierarchy
+- [ ] Implement DFA/NFA simulators in Python
 
-## 前提知識
+## Prerequisites
 
-- 基本的なプログラミング知識（Python の基礎構文）
-- 集合論の基本概念（集合、写像、直積）
-- グラフ理論の基礎（有向グラフ、経路）
+- Basic programming knowledge (Python fundamentals)
+- Basic concepts of set theory (sets, mappings, Cartesian products)
+- Basics of graph theory (directed graphs, paths)
 
 ---
 
-## 1. オートマトンの基礎概念
+## 1. Fundamental Concepts of Automata
 
-### 1.1 オートマトンとは何か
+### 1.1 What Is an Automaton?
 
-オートマトン（automaton、複数形: automata）は、入力記号列を読み取り、内部状態を遷移させながら、最終的にその入力を「受理」するか「拒否」するかを決定する抽象的な計算モデルである。
+An automaton (plural: automata) is an abstract computational model that reads an input string of symbols, transitions through internal states, and ultimately decides whether to "accept" or "reject" the input.
 
-オートマトン理論が重要である理由は以下の通りである。
+The reasons why automata theory is important are as follows:
 
-1. **計算の限界を明確にする**: どのクラスの機械がどのクラスの問題を解けるかを厳密に定義する
-2. **実用的なツールの理論的基盤**: 正規表現エンジン、コンパイラ、プロトコル検証器はすべてオートマトン理論に基づく
-3. **設計の指針を与える**: 問題がどの言語クラスに属するかを知ることで、適切なアルゴリズムを選択できる
+1. **Clarifies the limits of computation**: Rigorously defines which class of machines can solve which class of problems
+2. **Theoretical foundation for practical tools**: Regular expression engines, compilers, and protocol verifiers are all based on automata theory
+3. **Provides design guidance**: Knowing which language class a problem belongs to allows selection of the appropriate algorithm
 
-### 1.2 形式言語の基本用語
+### 1.2 Basic Terminology of Formal Languages
 
-オートマトン理論を学ぶ上で不可欠な用語を定義する。
+We define the essential terminology for studying automata theory.
 
 ```
-用語の定義:
+Terminology Definitions:
 
-  アルファベット（Σ）: 記号の有限集合
-    例: Σ = {0, 1}（2進アルファベット）
-    例: Σ = {a, b, c, ..., z}（英小文字アルファベット）
+  Alphabet (Σ): A finite set of symbols
+    Example: Σ = {0, 1} (binary alphabet)
+    Example: Σ = {a, b, c, ..., z} (lowercase English alphabet)
 
-  文字列（string / word）: アルファベットの記号を並べた有限列
-    例: Σ = {0, 1} のとき、"0101", "111", "0" は文字列
-    空文字列を ε（イプシロン）と書く
+  String (string / word): A finite sequence of symbols from the alphabet
+    Example: When Σ = {0, 1}, "0101", "111", "0" are strings
+    The empty string is written as ε (epsilon)
 
-  文字列の長さ |w|: 文字列 w に含まれる記号の個数
+  String length |w|: The number of symbols in string w
     |"abc"| = 3,  |ε| = 0
 
-  文字列の連結: w₁ · w₂ = w₁w₂
+  String concatenation: w₁ · w₂ = w₁w₂
     "ab" · "cd" = "abcd"
     w · ε = ε · w = w
 
-  Σ*: Σ上のすべての文字列の集合（空文字列を含む）
-    Σ = {0, 1} のとき Σ* = {ε, 0, 1, 00, 01, 10, 11, 000, ...}
+  Σ*: The set of all strings over Σ (including the empty string)
+    When Σ = {0, 1}, Σ* = {ε, 0, 1, 00, 01, 10, 11, 000, ...}
 
-  Σ⁺: Σ* から空文字列を除いた集合  Σ⁺ = Σ* \ {ε}
+  Σ⁺: The set Σ* minus the empty string  Σ⁺ = Σ* \ {ε}
 
-  言語（language）: L ⊆ Σ* （Σ*の部分集合）
-    例: L = {w ∈ {0,1}* | w は偶数個の0を含む}
-    例: L = {aⁿbⁿ | n ≥ 0} = {ε, ab, aabb, aaabbb, ...}
+  Language: L ⊆ Σ* (a subset of Σ*)
+    Example: L = {w ∈ {0,1}* | w contains an even number of 0s}
+    Example: L = {aⁿbⁿ | n ≥ 0} = {ε, ab, aabb, aaabbb, ...}
 ```
 
-### 1.3 オートマトンの分類と計算能力
+### 1.3 Classification and Computational Power of Automata
 
 ```
-オートマトンの分類（計算能力の昇順）:
+Classification of Automata (in ascending order of computational power):
 
   ┌─────────────────────────────────────────────────────────┐
-  │  チューリングマシン (TM)                                  │
+  │  Turing Machine (TM)                                     │
   │  ┌───────────────────────────────────────────────────┐  │
-  │  │  線形有界オートマトン (LBA)                         │  │
+  │  │  Linear Bounded Automaton (LBA)                    │  │
   │  │  ┌─────────────────────────────────────────────┐  │  │
-  │  │  │  プッシュダウンオートマトン (PDA)              │  │  │
+  │  │  │  Pushdown Automaton (PDA)                    │  │  │
   │  │  │  ┌───────────────────────────────────────┐  │  │  │
-  │  │  │  │  有限オートマトン (FA)                  │  │  │  │
+  │  │  │  │  Finite Automaton (FA)                 │  │  │  │
   │  │  │  │  DFA / NFA                             │  │  │  │
-  │  │  │  │  → 正規言語を認識                      │  │  │  │
+  │  │  │  │  → Recognizes regular languages        │  │  │  │
   │  │  │  └───────────────────────────────────────┘  │  │  │
-  │  │  │  → 文脈自由言語を認識                        │  │  │
+  │  │  │  → Recognizes context-free languages         │  │  │
   │  │  └─────────────────────────────────────────────┘  │  │
-  │  │  → 文脈依存言語を認識                              │  │
+  │  │  → Recognizes context-sensitive languages           │  │
   │  └───────────────────────────────────────────────────┘  │
-  │  → 帰納的可算言語を認識                                  │
+  │  → Recognizes recursively enumerable languages           │
   └─────────────────────────────────────────────────────────┘
 
-  各レベルは真の包含関係:
-    正規言語 ⊂ 文脈自由言語 ⊂ 文脈依存言語 ⊂ 帰納的可算言語
+  Each level is a proper inclusion:
+    Regular ⊂ Context-free ⊂ Context-sensitive ⊂ Recursively enumerable
 ```
 
 ---
 
-## 2. 有限オートマトン（DFA と NFA）
+## 2. Finite Automata (DFA and NFA)
 
-### 2.1 DFA（決定性有限オートマトン）の定義
+### 2.1 Definition of DFA (Deterministic Finite Automaton)
 
-DFA は最も基本的なオートマトンであり、各状態において入力記号ごとに遷移先が一意に定まる。
+A DFA is the most fundamental automaton, where the transition destination is uniquely determined for each input symbol at each state.
 
 ```
-DFA の形式的定義:
+Formal Definition of DFA:
   M = (Q, Σ, δ, q₀, F)
 
-  Q : 状態の有限集合
-  Σ : 入力アルファベット（有限集合）
-  δ : 遷移関数  Q × Σ → Q（全域関数）
-  q₀: 初期状態  q₀ ∈ Q
-  F : 受理状態の集合  F ⊆ Q
+  Q : Finite set of states
+  Σ : Input alphabet (finite set)
+  δ : Transition function  Q × Σ → Q (total function)
+  q₀: Initial state  q₀ ∈ Q
+  F : Set of accept states  F ⊆ Q
 
-  動作:
-    1. 初期状態 q₀ から開始
-    2. 入力文字列を左から1文字ずつ読む
-    3. 現在の状態と読んだ文字に応じて δ で遷移
-    4. 入力をすべて読み終えたとき:
-       - 現在の状態 ∈ F → 受理（accept）
-       - 現在の状態 ∉ F → 拒否（reject）
+  Operation:
+    1. Start from initial state q₀
+    2. Read the input string one character at a time from left to right
+    3. Transition according to δ based on current state and character read
+    4. When all input has been read:
+       - Current state ∈ F → accept
+       - Current state ∉ F → reject
 ```
 
-**例: 偶数個の 'a' を含む文字列を受理する DFA**
+**Example: DFA that accepts strings containing an even number of 'a's**
 
 ```
   DFA M₁ = ({q₀, q₁}, {a, b}, δ, q₀, {q₀})
 
-  状態遷移図:
+  State transition diagram:
 
        ┌──b──┐          ┌──b──┐
        │     │          │     │
@@ -132,40 +132,40 @@ DFA の形式的定義:
        ▲              │
        └──────a───────┘
 
-  ((q₀)): 二重丸は受理状態
-  →: 矢印は初期状態
+  ((q₀)): Double circle denotes accept state
+  →: Arrow denotes initial state
 
-  遷移表:
+  Transition table:
   ┌────────┬────────┬────────┐
-  │ 状態   │ a      │ b      │
+  │ State  │ a      │ b      │
   ├────────┼────────┼────────┤
   │ →*q₀   │ q₁     │ q₀     │
   │   q₁   │ q₀     │ q₁     │
   └────────┴────────┴────────┘
-  →: 初期状態  *: 受理状態
+  →: Initial state  *: Accept state
 
-  トレース例:
-  入力 "abba":  q₀ →a→ q₁ →b→ q₁ →b→ q₁ →a→ q₀ → 受理 (q₀ ∈ F)
-  入力 "aba":   q₀ →a→ q₁ →b→ q₁ →a→ q₀         → 受理 (q₀ ∈ F)
-  入力 "a":     q₀ →a→ q₁                          → 拒否 (q₁ ∉ F)
-  入力 "bb":    q₀ →b→ q₀ →b→ q₀                  → 受理 (q₀ ∈ F)
-  入力 ε:       q₀                                   → 受理 (q₀ ∈ F)
+  Trace examples:
+  Input "abba":  q₀ →a→ q₁ →b→ q₁ →b→ q₁ →a→ q₀ → Accept (q₀ ∈ F)
+  Input "aba":   q₀ →a→ q₁ →b→ q₁ →a→ q₀         → Accept (q₀ ∈ F)
+  Input "a":     q₀ →a→ q₁                          → Reject (q₁ ∉ F)
+  Input "bb":    q₀ →b→ q₀ →b→ q₀                  → Accept (q₀ ∈ F)
+  Input ε:       q₀                                   → Accept (q₀ ∈ F)
 ```
 
-### 2.2 DFA の Python 実装
+### 2.2 Python Implementation of DFA
 
 ```python
 """
-DFA（決定性有限オートマトン）シミュレータ
+DFA (Deterministic Finite Automaton) Simulator
 
-任意の DFA を定義し、入力文字列の受理/拒否を判定する。
+Define an arbitrary DFA and determine acceptance/rejection of input strings.
 """
 
 from typing import Dict, Set, Tuple
 
 
 class DFA:
-    """決定性有限オートマトン（DFA）の実装"""
+    """Implementation of a Deterministic Finite Automaton (DFA)"""
 
     def __init__(
         self,
@@ -176,15 +176,15 @@ class DFA:
         accept_states: Set[str],
     ):
         """
-        DFA を初期化する。
+        Initialize the DFA.
 
         Args:
-            states: 状態の集合 Q
-            alphabet: 入力アルファベット Σ
-            transition: 遷移関数 δ を辞書で表現
-                        {(状態, 入力記号): 次の状態}
-            start_state: 初期状態 q₀
-            accept_states: 受理状態の集合 F
+            states: Set of states Q
+            alphabet: Input alphabet Σ
+            transition: Transition function δ represented as a dictionary
+                        {(state, input_symbol): next_state}
+            start_state: Initial state q₀
+            accept_states: Set of accept states F
         """
         self.states = states
         self.alphabet = alphabet
@@ -194,42 +194,42 @@ class DFA:
         self._validate()
 
     def _validate(self) -> None:
-        """DFA の定義が正しいか検証する。"""
-        # 初期状態が状態集合に含まれるか
+        """Verify that the DFA definition is correct."""
+        # Check if initial state is in the state set
         if self.start_state not in self.states:
             raise ValueError(
-                f"初期状態 '{self.start_state}' が状態集合に含まれていない"
+                f"Initial state '{self.start_state}' is not in the state set"
             )
 
-        # 受理状態が状態集合の部分集合か
+        # Check if accept states are a subset of the state set
         if not self.accept_states.issubset(self.states):
             invalid = self.accept_states - self.states
             raise ValueError(
-                f"受理状態 {invalid} が状態集合に含まれていない"
+                f"Accept states {invalid} are not in the state set"
             )
 
-        # 遷移関数が全域関数か（すべての状態×記号の組に対して定義されているか）
+        # Check if transition function is total (defined for all state-symbol pairs)
         for state in self.states:
             for symbol in self.alphabet:
                 if (state, symbol) not in self.transition:
                     raise ValueError(
-                        f"遷移 δ({state}, {symbol}) が未定義"
+                        f"Transition δ({state}, {symbol}) is undefined"
                     )
                 next_state = self.transition[(state, symbol)]
                 if next_state not in self.states:
                     raise ValueError(
-                        f"遷移先 '{next_state}' が状態集合に含まれていない"
+                        f"Transition target '{next_state}' is not in the state set"
                     )
 
     def process(self, input_string: str) -> Tuple[bool, list]:
         """
-        入力文字列を処理し、受理/拒否を返す。
+        Process the input string and return accept/reject.
 
         Args:
-            input_string: 処理する入力文字列
+            input_string: The input string to process
 
         Returns:
-            (受理したか, 状態遷移の履歴)
+            (whether accepted, history of state transitions)
         """
         current = self.start_state
         history = [current]
@@ -237,7 +237,7 @@ class DFA:
         for symbol in input_string:
             if symbol not in self.alphabet:
                 raise ValueError(
-                    f"入力記号 '{symbol}' がアルファベットに含まれていない"
+                    f"Input symbol '{symbol}' is not in the alphabet"
                 )
             current = self.transition[(current, symbol)]
             history.append(current)
@@ -246,12 +246,12 @@ class DFA:
         return accepted, history
 
     def accepts(self, input_string: str) -> bool:
-        """入力文字列を受理するかどうかを返す。"""
+        """Return whether the input string is accepted."""
         accepted, _ = self.process(input_string)
         return accepted
 
     def trace(self, input_string: str) -> str:
-        """入力文字列の処理過程を文字列で返す。"""
+        """Return a string showing the processing trace of the input."""
         accepted, history = self.process(input_string)
         display_input = input_string if input_string else "ε"
         transitions = []
@@ -261,11 +261,11 @@ class DFA:
             else:
                 transitions.append(state)
         path = "".join(transitions)
-        result = "受理" if accepted else "拒否"
-        return f"入力 \"{display_input}\": {path} → {result}"
+        result = "Accept" if accepted else "Reject"
+        return f"Input \"{display_input}\": {path} → {result}"
 
 
-# --- 使用例: 偶数個の 'a' を含む文字列を受理する DFA ---
+# --- Example: DFA that accepts strings with an even number of 'a's ---
 
 dfa_even_a = DFA(
     states={"q0", "q1"},
@@ -280,70 +280,71 @@ dfa_even_a = DFA(
     accept_states={"q0"},
 )
 
-# テスト
+# Test
 test_cases = ["", "a", "b", "aa", "ab", "abba", "aba", "aabba"]
 for tc in test_cases:
     print(dfa_even_a.trace(tc))
 
-# 出力:
-# 入力 "ε": q0 → 受理
-# 入力 "a": q0 →a→ q1 → 拒否
-# 入力 "b": q0 →b→ q0 → 受理
-# 入力 "aa": q0 →a→ q1 →a→ q0 → 受理
-# 入力 "ab": q0 →a→ q1 →b→ q1 → 拒否
-# 入力 "abba": q0 →a→ q1 →b→ q1 →b→ q1 →a→ q0 → 受理
-# 入力 "aba": q0 →a→ q1 →b→ q1 →a→ q0 → 受理
-# 入力 "aabba": q0 →a→ q1 →a→ q0 →b→ q0 →b→ q0 →a→ q1 → 拒否
+# Output:
+# Input "ε": q0 → Accept
+# Input "a": q0 →a→ q1 → Reject
+# Input "b": q0 →b→ q0 → Accept
+# Input "aa": q0 →a→ q1 →a→ q0 → Accept
+# Input "ab": q0 →a→ q1 →b→ q1 → Reject
+# Input "abba": q0 →a→ q1 →b→ q1 →b→ q1 →a→ q0 → Accept
+# Input "aba": q0 →a→ q1 →b→ q1 →a→ q0 → Accept
+# Input "aabba": q0 →a→ q1 →a→ q0 →b→ q0 →b→ q0 →a→ q1 → Reject
 ```
 
-### 2.3 NFA（非決定性有限オートマトン）の定義
+### 2.3 Definition of NFA (Nondeterministic Finite Automaton)
 
-NFA は DFA を拡張したモデルであり、ある状態から同じ入力記号で複数の遷移先が存在してもよく、さらに入力を読まずに遷移する ε 遷移が許される。
+An NFA is an extended model of DFA where multiple transition destinations may exist from a given state for the same input symbol, and furthermore, epsilon transitions that transition without reading input are permitted.
 
 ```
-NFA の形式的定義:
+Formal Definition of NFA:
   N = (Q, Σ, δ, q₀, F)
 
-  Q : 状態の有限集合
-  Σ : 入力アルファベット（有限集合）
-  δ : 遷移関数  Q × (Σ ∪ {ε}) → P(Q)
-      ※ P(Q) は Q のべき集合（すべての部分集合の集合）
-  q₀: 初期状態  q₀ ∈ Q
-  F : 受理状態の集合  F ⊆ Q
+  Q : Finite set of states
+  Σ : Input alphabet (finite set)
+  δ : Transition function  Q × (Σ ∪ {ε}) → P(Q)
+      * P(Q) is the power set of Q (the set of all subsets)
+  q₀: Initial state  q₀ ∈ Q
+  F : Set of accept states  F ⊆ Q
 
-  DFA との違い:
+  Differences from DFA:
   ┌──────────────────┬────────────────────┬───────────────────┐
-  │ 特徴             │ DFA                │ NFA               │
+  │ Feature          │ DFA                │ NFA               │
   ├──────────────────┼────────────────────┼───────────────────┤
-  │ 遷移先の数       │ 各記号に対し正確に1つ│ 0個以上（複数可）  │
-  │ ε遷移           │ 不可               │ 可能              │
-  │ 遷移関数の型     │ Q × Σ → Q          │ Q × (Σ∪{ε}) → P(Q)│
-  │ 受理条件         │ 唯一の計算経路で判定│ いずれかの経路で    │
-  │                  │                    │ 受理状態に到達      │
-  │ 計算能力         │ 正規言語           │ 正規言語（同じ）    │
+  │ Transition count │ Exactly 1 per symbol│ 0 or more (multi) │
+  │ ε-transitions   │ Not allowed         │ Allowed           │
+  │ Transition type  │ Q × Σ → Q          │ Q × (Σ∪{ε}) → P(Q)│
+  │ Accept condition │ Single computation │ Any path reaches   │
+  │                  │ path determines    │ an accept state    │
+  │ Computational    │ Regular languages  │ Regular languages  │
+  │ power            │                    │ (same)             │
   └──────────────────┴────────────────────┴───────────────────┘
 
-  重要な定理: DFA と NFA は計算能力が等価
-  → 任意の NFA に対し、同じ言語を受理する DFA が存在する
-  → ただし DFA の状態数は最悪 2^n（n は NFA の状態数）
+  Important theorem: DFA and NFA are equivalent in computational power
+  → For any NFA, there exists a DFA that accepts the same language
+  → However, the DFA may have up to 2^n states (n = number of NFA states)
 ```
 
-**例: "abb" で終わる文字列を受理する NFA**
+**Example: NFA that accepts strings ending with "abb"**
 
 ```
   NFA N₁ = ({q₀, q₁, q₂, q₃}, {a, b}, δ, q₀, {q₃})
 
-  状態遷移図:
+  State transition diagram:
 
        ┌─a,b─┐
        │     │
        ▼     │
     →( q₀ )──a──→( q₁ )──b──→( q₂ )──b──→(( q₃ ))
-                                            受理状態
+                                            Accept state
 
-  遷移表:
+  Transition table:
   ┌────────┬────────────┬────────────┐
-  │ 状態   │ a          │ b          │
+  │ State  │ a          │ b          │
   ├────────┼────────────┼────────────┤
   │ →q₀    │ {q₀, q₁}  │ {q₀}      │
   │  q₁    │ ∅          │ {q₂}      │
@@ -351,8 +352,8 @@ NFA の形式的定義:
   │ *q₃    │ ∅          │ ∅         │
   └────────┴────────────┴────────────┘
 
-  トレース例（入力 "aabb"）:
-  非決定的に分岐する計算木:
+  Trace example (input "aabb"):
+  Nondeterministically branching computation tree:
                     q₀
                    / \
            a→    /   \  ←a
@@ -361,29 +362,29 @@ NFA の形式的定義:
        a→   /   \    |←b
            q₀   q₁   q₂
            |    |     |
-    b→     |    |←b   |←b (遷移先なし→消滅)
+    b→     |    |←b   |←b (no transition → dies)
            q₀   q₂
            |    |
     b→     |    |←b
-           q₀   q₃ ← 受理状態に到達！
+           q₀   q₃ ← Reached accept state!
 
-  少なくとも1つの経路で受理状態に到達 → "aabb" は受理
+  At least one path reaches an accept state → "aabb" is accepted
 ```
 
-### 2.4 NFA の Python 実装
+### 2.4 Python Implementation of NFA
 
 ```python
 """
-NFA（非決定性有限オートマトン）シミュレータ
+NFA (Nondeterministic Finite Automaton) Simulator
 
-ε遷移をサポートし、部分集合追跡法で受理判定を行う。
+Supports epsilon transitions and performs acceptance checking via subset tracking.
 """
 
 from typing import Dict, FrozenSet, Set, Tuple
 
 
 class NFA:
-    """非決定性有限オートマトン（NFA）の実装"""
+    """Implementation of a Nondeterministic Finite Automaton (NFA)"""
 
     def __init__(
         self,
@@ -394,16 +395,16 @@ class NFA:
         accept_states: Set[str],
     ):
         """
-        NFA を初期化する。
+        Initialize the NFA.
 
         Args:
-            states: 状態の集合 Q
-            alphabet: 入力アルファベット Σ（εを含まない）
-            transition: 遷移関数 δ
-                        {(状態, 入力記号またはε): 次の状態の集合}
-                        ε遷移はキーに ("状態", "") を使用
-            start_state: 初期状態 q₀
-            accept_states: 受理状態の集合 F
+            states: Set of states Q
+            alphabet: Input alphabet Σ (not including ε)
+            transition: Transition function δ
+                        {(state, input_symbol_or_ε): set of next states}
+                        ε-transitions use ("state", "") as key
+            start_state: Initial state q₀
+            accept_states: Set of accept states F
         """
         self.states = states
         self.alphabet = alphabet
@@ -413,16 +414,16 @@ class NFA:
 
     def epsilon_closure(self, states: Set[str]) -> Set[str]:
         """
-        与えられた状態集合の ε 閉包を計算する。
+        Compute the epsilon closure of the given set of states.
 
-        ε遷移のみで到達可能なすべての状態を含む集合を返す。
+        Returns the set containing all states reachable via epsilon transitions only.
         """
         closure = set(states)
         stack = list(states)
 
         while stack:
             state = stack.pop()
-            # ε遷移先を取得（ε遷移は空文字列 "" で表現）
+            # Get epsilon transition targets (epsilon transitions use empty string "")
             epsilon_targets = self.transition.get((state, ""), set())
             for target in epsilon_targets:
                 if target not in closure:
@@ -433,15 +434,15 @@ class NFA:
 
     def process(self, input_string: str) -> Tuple[bool, list]:
         """
-        入力文字列を処理し、受理/拒否を返す。
+        Process the input string and return accept/reject.
 
-        同時に到達可能な状態の集合を追跡する方法で実装する。
-        これは部分集合追跡（on-the-fly subset construction）に相当する。
+        Implemented by tracking the set of simultaneously reachable states.
+        This corresponds to on-the-fly subset construction.
 
         Returns:
-            (受理したか, 各ステップでの状態集合の履歴)
+            (whether accepted, history of state sets at each step)
         """
-        # 初期状態のε閉包から開始
+        # Start from the epsilon closure of the initial state
         current_states = self.epsilon_closure({self.start_state})
         history = [frozenset(current_states)]
 
@@ -450,21 +451,21 @@ class NFA:
             for state in current_states:
                 targets = self.transition.get((state, symbol), set())
                 next_states.update(targets)
-            # 遷移先のε閉包を計算
+            # Compute epsilon closure of transition targets
             current_states = self.epsilon_closure(next_states)
             history.append(frozenset(current_states))
 
-        # 現在の状態集合に受理状態が含まれていれば受理
+        # Accept if the current state set contains an accept state
         accepted = bool(current_states & self.accept_states)
         return accepted, history
 
     def accepts(self, input_string: str) -> bool:
-        """入力文字列を受理するかどうかを返す。"""
+        """Return whether the input string is accepted."""
         accepted, _ = self.process(input_string)
         return accepted
 
     def trace(self, input_string: str) -> str:
-        """入力文字列の処理過程を文字列で返す。"""
+        """Return a string showing the processing trace of the input."""
         accepted, history = self.process(input_string)
         display_input = input_string if input_string else "ε"
         parts = []
@@ -476,11 +477,11 @@ class NFA:
             else:
                 parts.append(states_str)
         path = "".join(parts)
-        result = "受理" if accepted else "拒否"
-        return f"入力 \"{display_input}\": {path} → {result}"
+        result = "Accept" if accepted else "Reject"
+        return f"Input \"{display_input}\": {path} → {result}"
 
 
-# --- 使用例: "abb" で終わる文字列を受理する NFA ---
+# --- Example: NFA that accepts strings ending with "abb" ---
 
 nfa_ends_abb = NFA(
     states={"q0", "q1", "q2", "q3"},
@@ -495,60 +496,60 @@ nfa_ends_abb = NFA(
     accept_states={"q3"},
 )
 
-# テスト
+# Test
 test_cases_nfa = ["abb", "aabb", "babb", "ab", "abab", "aabbabb"]
 for tc in test_cases_nfa:
     print(nfa_ends_abb.trace(tc))
 
-# 出力:
-# 入力 "abb": {q0} →a→ {q0, q1} →b→ {q0, q2} →b→ {q0, q3} → 受理
-# 入力 "aabb": {q0} →a→ {q0, q1} →a→ {q0, q1} →b→ {q0, q2} →b→ {q0, q3} → 受理
-# 入力 "babb": {q0} →b→ {q0} →a→ {q0, q1} →b→ {q0, q2} →b→ {q0, q3} → 受理
-# 入力 "ab": {q0} →a→ {q0, q1} →b→ {q0, q2} → 拒否
-# 入力 "abab": {q0} →a→ {q0, q1} →b→ {q0, q2} →a→ {q0, q1} →b→ {q0, q2} → 拒否
-# 入力 "aabbabb": ... → 受理
+# Output:
+# Input "abb": {q0} →a→ {q0, q1} →b→ {q0, q2} →b→ {q0, q3} → Accept
+# Input "aabb": {q0} →a→ {q0, q1} →a→ {q0, q1} →b→ {q0, q2} →b→ {q0, q3} → Accept
+# Input "babb": {q0} →b→ {q0} →a→ {q0, q1} →b→ {q0, q2} →b→ {q0, q3} → Accept
+# Input "ab": {q0} →a→ {q0, q1} →b→ {q0, q2} → Reject
+# Input "abab": {q0} →a→ {q0, q1} →b→ {q0, q2} →a→ {q0, q1} →b→ {q0, q2} → Reject
+# Input "aabbabb": ... → Accept
 ```
 
-### 2.5 NFA から DFA への変換（部分集合構成法）
+### 2.5 Conversion from NFA to DFA (Subset Construction)
 
-NFA と DFA の等価性を示す構成的証明が部分集合構成法（subset construction）である。NFA の状態集合のべき集合を DFA の状態として使用する。
+The constructive proof of the equivalence of NFA and DFA is the subset construction. The power set of the NFA's state set is used as the DFA's states.
 
 ```
-部分集合構成法のアルゴリズム:
+Subset Construction Algorithm:
 
-  入力: NFA N = (Q_N, Σ, δ_N, q₀_N, F_N)
-  出力: DFA D = (Q_D, Σ, δ_D, q₀_D, F_D)
+  Input: NFA N = (Q_N, Σ, δ_N, q₀_N, F_N)
+  Output: DFA D = (Q_D, Σ, δ_D, q₀_D, F_D)
 
-  手順:
+  Procedure:
     1. q₀_D = ε-closure({q₀_N})
-    2. Q_D = {q₀_D}（作業リストに追加）
-    3. 作業リストが空になるまで繰り返す:
-       a. 作業リストから状態 S を取り出す
-       b. 各入力記号 a ∈ Σ について:
+    2. Q_D = {q₀_D} (add to worklist)
+    3. Repeat until worklist is empty:
+       a. Remove state S from worklist
+       b. For each input symbol a ∈ Σ:
           T = ε-closure(∪{δ_N(s, a) | s ∈ S})
           δ_D(S, a) = T
-          T が Q_D にまだなければ Q_D に追加し作業リストに入れる
+          If T is not yet in Q_D, add to Q_D and worklist
     4. F_D = {S ∈ Q_D | S ∩ F_N ≠ ∅}
 
-  例: "abb" で終わる NFA を DFA に変換
+  Example: Converting the NFA for "ends with abb" to DFA
 
-  NFA の状態: {q₀, q₁, q₂, q₃}
-  （ε遷移なしなので ε-closure は恒等）
+  NFA states: {q₀, q₁, q₂, q₃}
+  (No ε-transitions, so ε-closure is the identity)
 
-  ステップ1: 初期状態 = {q₀}
-  ステップ2:
+  Step 1: Initial state = {q₀}
+  Step 2:
     {q₀} →a→ {q₀,q₁}  →b→ {q₀}
     {q₀,q₁} →a→ {q₀,q₁}  →b→ {q₀,q₂}
     {q₀,q₂} →a→ {q₀,q₁}  →b→ {q₀,q₃}
     {q₀,q₃} →a→ {q₀,q₁}  →b→ {q₀}
 
-  DFA の状態と対応:
+  DFA states and correspondence:
     A = {q₀}       B = {q₀,q₁}
-    C = {q₀,q₂}    D = {q₀,q₃}  ← 受理状態
+    C = {q₀,q₂}    D = {q₀,q₃}  ← Accept state
 
-  DFA の遷移表:
+  DFA transition table:
   ┌────────┬────────┬────────┐
-  │ 状態   │ a      │ b      │
+  │ State  │ a      │ b      │
   ├────────┼────────┼────────┤
   │ →A     │ B      │ A      │
   │  B     │ B      │ C      │
@@ -557,13 +558,13 @@ NFA と DFA の等価性を示す構成的証明が部分集合構成法（subse
   └────────┴────────┴────────┘
 ```
 
-### 2.6 部分集合構成法の Python 実装
+### 2.6 Python Implementation of Subset Construction
 
 ```python
 """
-NFA から DFA への変換（部分集合構成法）
+Conversion from NFA to DFA (Subset Construction)
 
-NFA を等価な DFA に変換するアルゴリズムの実装。
+Implementation of the algorithm that converts an NFA into an equivalent DFA.
 """
 
 from typing import Dict, FrozenSet, Set, Tuple
@@ -571,18 +572,18 @@ from typing import Dict, FrozenSet, Set, Tuple
 
 def nfa_to_dfa(nfa: "NFA") -> "DFA":
     """
-    部分集合構成法で NFA を DFA に変換する。
+    Convert an NFA to a DFA using subset construction.
 
     Args:
-        nfa: 変換元の NFA
+        nfa: The source NFA
 
     Returns:
-        等価な DFA
+        An equivalent DFA
     """
-    # DFA の初期状態 = NFA の初期状態のε閉包
+    # DFA initial state = epsilon closure of NFA initial state
     dfa_start = frozenset(nfa.epsilon_closure({nfa.start_state}))
 
-    # DFA の状態集合と遷移関数を構築
+    # Build DFA state set and transition function
     dfa_states: Set[FrozenSet[str]] = set()
     dfa_transition: Dict[Tuple[FrozenSet[str], str], FrozenSet[str]] = {}
     worklist = [dfa_start]
@@ -592,8 +593,8 @@ def nfa_to_dfa(nfa: "NFA") -> "DFA":
         current = worklist.pop()
 
         for symbol in nfa.alphabet:
-            # 現在の DFA 状態（= NFA 状態の集合）の各 NFA 状態から
-            # symbol で遷移可能な NFA 状態を集め、ε閉包を取る
+            # From each NFA state in the current DFA state (= set of NFA states),
+            # collect NFA states reachable via symbol, then take epsilon closure
             next_nfa_states = set()
             for nfa_state in current:
                 targets = nfa.transition.get((nfa_state, symbol), set())
@@ -608,19 +609,19 @@ def nfa_to_dfa(nfa: "NFA") -> "DFA":
                 dfa_states.add(next_dfa_state)
                 worklist.append(next_dfa_state)
 
-    # DFA の受理状態 = NFA の受理状態を含む DFA 状態
+    # DFA accept states = DFA states that contain NFA accept states
     dfa_accept = {
         s for s in dfa_states
         if s & nfa.accept_states
     }
 
-    # 状態名を読みやすくする
+    # Make state names readable
     state_names = {}
     for i, s in enumerate(sorted(dfa_states, key=lambda x: sorted(x))):
         nfa_label = "{" + ",".join(sorted(s)) + "}"
         state_names[s] = f"S{i}_{nfa_label}"
 
-    # DFA オブジェクトを構築
+    # Build DFA object
     named_states = {state_names[s] for s in dfa_states}
     named_transition = {
         (state_names[s], sym): state_names[t]
@@ -638,9 +639,9 @@ def nfa_to_dfa(nfa: "NFA") -> "DFA":
     )
 
 
-# --- 使用例 ---
+# --- Example ---
 
-# "abb" で終わる文字列を受理する NFA を DFA に変換
+# Convert the NFA that accepts strings ending with "abb" to a DFA
 nfa = NFA(
     states={"q0", "q1", "q2", "q3"},
     alphabet={"a", "b"},
@@ -656,304 +657,304 @@ nfa = NFA(
 
 dfa = nfa_to_dfa(nfa)
 
-print("=== 変換された DFA ===")
-print(f"状態: {dfa.states}")
-print(f"初期状態: {dfa.start_state}")
-print(f"受理状態: {dfa.accept_states}")
-print(f"遷移関数:")
+print("=== Converted DFA ===")
+print(f"States: {dfa.states}")
+print(f"Initial state: {dfa.start_state}")
+print(f"Accept states: {dfa.accept_states}")
+print(f"Transition function:")
 for (state, symbol), target in sorted(dfa.transition.items()):
     print(f"  δ({state}, {symbol}) = {target}")
 
-# 変換後の DFA でテスト
+# Test with the converted DFA
 for tc in ["abb", "aabb", "ab", "babb"]:
     print(dfa.trace(tc))
 ```
 
-### 2.7 DFA の最小化
+### 2.7 DFA Minimization
 
-同じ言語を受理する DFA は複数存在するが、状態数が最小の DFA（最小 DFA）は同型を除いて一意である。最小化アルゴリズムとして Hopcroft のアルゴリズムが知られている。
+Multiple DFAs can accept the same language, but the DFA with the minimum number of states (minimal DFA) is unique up to isomorphism. The Hopcroft algorithm is well known as a minimization algorithm.
 
 ```
-DFA 最小化の基本方針（同値類分割法）:
+Basic approach to DFA minimization (equivalence class partitioning):
 
-  1. 到達不能状態の除去:
-     初期状態から到達できない状態を削除する
+  1. Removal of unreachable states:
+     Remove states unreachable from the initial state
 
-  2. 等価状態の統合:
-     2つの状態 p, q が「区別不能」なら統合する
+  2. Merging equivalent states:
+     If two states p, q are "indistinguishable", merge them
 
-     区別可能の定義:
-       状態 p, q が区別可能 ⟺
-       ある文字列 w が存在し、δ*(p,w) ∈ F かつ δ*(q,w) ∉ F
-       （またはその逆）
+     Definition of distinguishable:
+       States p, q are distinguishable ⟺
+       There exists a string w such that δ*(p,w) ∈ F and δ*(q,w) ∉ F
+       (or vice versa)
 
-  3. テーブル充填法（Table-filling algorithm）:
-     a. すべての状態ペア (p,q) を表にする
-     b. p ∈ F, q ∉ F（またはその逆）のペアを「区別可能」とマーク
-     c. 未マークのペア (p,q) について:
-        ある記号 a で (δ(p,a), δ(q,a)) が区別可能なら
-        (p,q) も区別可能とマーク
-     d. 変更がなくなるまで繰り返す
-     e. 未マークのペアは等価 → 統合
+  3. Table-filling algorithm:
+     a. Create a table of all state pairs (p,q)
+     b. Mark pairs where p ∈ F, q ∉ F (or vice versa) as "distinguishable"
+     c. For unmarked pairs (p,q):
+        If (δ(p,a), δ(q,a)) is distinguishable for some symbol a,
+        mark (p,q) as distinguishable too
+     d. Repeat until no changes occur
+     e. Unmarked pairs are equivalent → merge
 
-  例:
-    最小化前（5状態）→ 最小化後（3状態）
-    等価な状態を発見し統合することで状態数を削減
+  Example:
+    Before minimization (5 states) → After minimization (3 states)
+    Reduce state count by finding and merging equivalent states
 ```
 
 ---
 
-## 3. 正規言語と正規表現
+## 3. Regular Languages and Regular Expressions
 
-### 3.1 正規言語の定義と特徴付け
+### 3.1 Definition and Characterization of Regular Languages
 
-正規言語は最も基本的な言語クラスであり、以下の3つの特徴付けが等価である。これは Kleene の定理として知られている。
-
-```
-正規言語の等価な特徴付け（Kleene の定理）:
-
-  以下の3つは同じ言語クラスを定義する:
-
-  1. DFA が受理する言語
-  2. NFA が受理する言語
-  3. 正規表現が表す言語
-
-  すなわち:
-    L が DFA で受理可能
-    ⟺ L が NFA で受理可能
-    ⟺ L が正規表現で表現可能
-```
-
-### 3.2 正規表現の形式的定義
+Regular languages are the most fundamental language class, and the following three characterizations are equivalent. This is known as Kleene's theorem.
 
 ```
-正規表現の帰納的定義（Σ 上の正規表現）:
+Equivalent characterizations of regular languages (Kleene's theorem):
 
-  基底:
-    1. ∅ は正規表現（空言語 ∅ を表す）
-    2. ε は正規表現（{ε} を表す）
-    3. 各 a ∈ Σ について、a は正規表現（{a} を表す）
+  The following three define the same language class:
 
-  帰納ステップ（R₁, R₂ が正規表現のとき）:
-    4. (R₁ | R₂) は正規表現（和集合: L(R₁) ∪ L(R₂)）
-    5. (R₁ · R₂) は正規表現（連結: L(R₁) · L(R₂)）
-    6. (R₁*) は正規表現（クリーネ閉包: L(R₁)*）
+  1. Languages accepted by DFAs
+  2. Languages accepted by NFAs
+  3. Languages represented by regular expressions
 
-  演算子の優先順位: * > · > |
-    例: ab|c* は (a·b)|(c*) と解釈される
+  That is:
+    L is accepted by a DFA
+    ⟺ L is accepted by an NFA
+    ⟺ L is representable by a regular expression
+```
 
-  正規表現の例と対応する言語:
+### 3.2 Formal Definition of Regular Expressions
+
+```
+Inductive definition of regular expressions (over Σ):
+
+  Base cases:
+    1. ∅ is a regular expression (represents the empty language ∅)
+    2. ε is a regular expression (represents {ε})
+    3. For each a ∈ Σ, a is a regular expression (represents {a})
+
+  Inductive step (when R₁, R₂ are regular expressions):
+    4. (R₁ | R₂) is a regular expression (union: L(R₁) ∪ L(R₂)）
+    5. (R₁ · R₂) is a regular expression (concatenation: L(R₁) · L(R₂)）
+    6. (R₁*) is a regular expression (Kleene closure: L(R₁)*）
+
+  Operator precedence: * > · > |
+    Example: ab|c* is interpreted as (a·b)|(c*)
+
+  Examples of regular expressions and corresponding languages:
   ┌────────────────┬─────────────────────────────┬──────────────────┐
-  │ 正規表現       │ 表す言語                     │ 具体例           │
+  │ Regex          │ Language represented                     │ Examples         │
   ├────────────────┼─────────────────────────────┼──────────────────┤
-  │ a*             │ {ε, a, aa, aaa, ...}        │ 0個以上のa       │
-  │ a⁺ = aa*       │ {a, aa, aaa, ...}           │ 1個以上のa       │
-  │ (a|b)*         │ {a,b}上の全文字列           │ 任意のa,b列      │
-  │ a*b*           │ aが0個以上の後にbが0個以上    │ ε, a, b, aab    │
-  │ (ab)*          │ abの0回以上の繰り返し        │ ε, ab, abab     │
-  │ (a|b)*abb      │ abbで終わる{a,b}上の文字列   │ abb, aabb, babb │
-  │ a(a|b)*a       │ aで始まりaで終わる長さ2以上   │ aa, aba, abba   │
+  │ a*             │ {ε, a, aa, aaa, ...}        │ Zero or more a's │
+  │ a⁺ = aa*       │ {a, aa, aaa, ...}           │ One or more a's  │
+  │ (a|b)*         │ {a,b}all strings over           │ any sequence of a,b      │
+  │ a*b*           │ Zero or more a's followed by zero or more b's    │ ε, a, b, aab    │
+  │ (ab)*          │ Zero or more repetitions of ab        │ ε, ab, abab     │
+  │ (a|b)*abb      │ Strings over {a,b} ending with abb   │ abb, aabb, babb │
+  │ a(a|b)*a       │ Length >= 2, starts and ends with a   │ aa, aba, abba   │
   └────────────────┴─────────────────────────────┴──────────────────┘
 ```
 
-### 3.3 正規表現とオートマトンの相互変換
+### 3.3 Mutual Conversion Between Regular Expressions and Automata
 
 ```
-変換の3つの方向:
+Three directions of conversion:
 
-  正規表現 ──Thompson構成──→ NFA
+  Regex ──Thompson's construction──→ NFA
       ↑                       │
-      │                   部分集合構成法
-  状態除去法                    │
+      │                   Subset construction
+  State elimination              │
       │                       ▼
       └────────────────── DFA
 
-  1. Thompson 構成法（正規表現 → NFA）:
-     正規表現の構造に沿って帰納的に NFA を構築
+  1. Thompson Construction (Regular Expression → NFA):
+     Inductively build an NFA following the structure of the regular expression
 
-     基底:
+     Base cases:
        ε:  →(s)──ε──→((f))
        a:  →(s)──a──→((f))
 
-     和 R₁|R₂:
+     Union R₁|R₂:
                   ┌→ NFA(R₁) ─→┐
        →(s)──ε──┤              ├──ε──→((f))
                   └→ NFA(R₂) ─→┘
 
-     連結 R₁·R₂:
+     Concatenation R₁·R₂:
        →(s)── NFA(R₁) ──ε── NFA(R₂) ──→((f))
 
-     閉包 R₁*:
+     Closure R₁*:
                     ┌──────ε──────┐
                     ↓             │
        →(s)──ε──→ NFA(R₁) ──ε──→((f))
            │                      ↑
            └──────────ε──────────┘
 
-  2. 部分集合構成法（NFA → DFA）:
-     → セクション 2.5 で詳述済み
+  2. Subset Construction (NFA → DFA):
+     → Detailed in Section 2.5
 
-  3. 状態除去法（DFA → 正規表現）:
-     DFA の状態を1つずつ除去し、辺のラベルを正規表現に一般化
-     最終的に初期状態→受理状態の正規表現を得る
+  3. State Elimination Method (DFA → Regular Expression):
+     Remove DFA states one by one, generalizing edge labels to regular expressions
+     Ultimately obtain the regular expression from initial state to accept state
 ```
 
-### 3.4 正規言語の閉包性
+### 3.4 Closure Properties of Regular Languages
 
-正規言語のクラスは多くの演算に対して閉じている（演算の結果も正規言語になる）。
+The class of regular languages is closed under many operations (the result of the operation is also a regular language).
 
 ```
-正規言語の閉包性:
+Closure properties of regular languages:
 
-  L₁, L₂ が正規言語のとき、以下もすべて正規言語:
+  When L₁, L₂ are regular languages, all of the following are also regular:
 
   ┌──────────────────────┬─────────────────┬──────────────────────┐
-  │ 演算                 │ 定義             │ 証明方法            │
+  │ Operation            │ Definition       │ Proof method            │
   ├──────────────────────┼─────────────────┼──────────────────────┤
-  │ 和集合 L₁ ∪ L₂      │ どちらかに属する │ NFA の並列合成       │
-  │ 連結 L₁ · L₂        │ 前後に分割可能   │ NFA の直列合成       │
-  │ クリーネ閉包 L₁*     │ 0回以上の連結    │ NFA にε遷移追加     │
-  │ 補集合 Σ* \ L₁      │ L₁に属さない     │ DFA の受理/拒否反転  │
-  │ 共通部分 L₁ ∩ L₂    │ 両方に属する     │ 積オートマトン       │
-  │ 差集合 L₁ \ L₂      │ L₁のみに属する   │ L₁ ∩ (Σ*\L₂)       │
-  │ 反転 L₁ᴿ             │ 文字列を逆順に   │ NFA の辺を逆向きに  │
-  │ 準同型写像           │ 記号の置換       │ NFA の辺ラベル置換   │
+  │ Union L₁ ∪ L₂      │ Belongs to either │ Parallel composition of NFAs       │
+  │ Concatenation L₁ · L₂        │ Splittable into front and back   │ Series composition of NFAs       │
+  │ Kleene closure L₁*     │ Zero or more concatenations    │ Add ε-transitions to NFA     │
+  │ Complement Σ* \ L₁      │ Not in L₁     │ Swap accept/reject in DFA  │
+  │ Intersection L₁ ∩ L₂    │ Belongs to both     │ Product automaton       │
+  │ Set difference L₁ \ L₂      │ Belongs only to L₁   │ L₁ ∩ (Σ*\L₂)       │
+  │ Reversal L₁ᴿ             │ Reverse the string   │ Reverse NFA edges  │
+  │ Homomorphism          │ Symbol substitution│ Replace NFA edge labels   │
   └──────────────────────┴─────────────────┴──────────────────────┘
 
-  実務での活用:
-  - 補集合の閉包性 → 「マッチしない」パターンも正規表現で表現可能
-  - 共通部分の閉包性 → 複数条件の AND 結合が可能
-  - これらの閉包性により、正規言語の等価性判定が決定可能
+  Practical applications:
+  - Closure under complement → "non-matching" patterns can also be expressed as regular expressions
+  - Closure under intersection → AND combination of multiple conditions is possible
+  - These closure properties make equivalence testing of regular languages decidable
 ```
 
-### 3.5 正規言語のポンピング補題
+### 3.5 Pumping Lemma for Regular Languages
 
-ポンピング補題は、ある言語が正規言語で**ない**ことを証明するための重要なツールである。
+The pumping lemma is an important tool for proving that a language is **not** regular.
 
 ```
-正規言語のポンピング補題:
+Pumping Lemma for Regular Languages:
 
-  L が正規言語ならば、ある定数 p ≥ 1 が存在し、
-  |w| ≥ p を満たすすべての w ∈ L について、
-  w = xyz と分割でき、以下の3条件を満たす:
+  If L is a regular language, then there exists a constant p >= 1 such that
+  |w| ≥ p for all w ∈ L satisfying this,
+  w can be split as w = xyz satisfying the following 3 conditions:
 
-    (1) |y| > 0      （y は空でない）
-    (2) |xy| ≤ p     （xy は先頭 p 文字以内）
-    (3) すべての i ≥ 0 について xy^i z ∈ L
-        （y を何回繰り返しても L に属する）
+    (1) |y| > 0      (y is non-empty)
+    (2) |xy| ≤ p     (xy is within the first p characters)
+    (3) For all i ≥ 0, xy^i z ∈ L
+        (repeating y any number of times remains in L)
 
-  直感的な理解:
-    DFA の状態数が p のとき、長さ p 以上の文字列を処理すると
-    鳩の巣原理により必ずある状態を2回以上通る。
-    その繰り返し部分（ループ）が y に対応する。
+  Intuitive understanding:
+    When the DFA has p states, processing a string of length >= p
+    must visit some state more than once by the pigeonhole principle.
+    That repeated part (loop) corresponds to y.
 
     →(q₀)──x──→(qᵢ)──y──→(qᵢ)──z──→((qf))
                   ↑    ↓
-                  └────┘  ← このループを0回、1回、2回、...
-                             繰り返しても受理される
+                  └────┘  ← This loop repeated 0, 1, 2, ...
+                             times is still accepted
 
-  ポンピング補題の使い方（背理法）:
-    「L が正規言語でない」ことを証明するには:
-    1. L が正規言語だと仮定する
-    2. ポンピング定数 p が存在する
-    3. うまく w ∈ L を選ぶ（|w| ≥ p）
-    4. 任意の分割 w = xyz（条件(1)(2)を満たす）に対し、
-       ある i で xy^i z ∉ L を示す
-    5. 矛盾 → L は正規言語でない
+  How to use the pumping lemma (proof by contradiction):
+    To prove "L is not a regular language":
+    1. Assume L is a regular language
+    2. A pumping constant p exists
+    3. Cleverly choose w ∈ L (|w| >= p)
+    4. For any split w = xyz (satisfying conditions (1)(2)),
+       show xy^i z ∉ L for some i
+    5. Contradiction → L is not a regular language
 ```
 
-**例: L = {aⁿbⁿ | n ≥ 0} が正規言語でないことの証明**
+**Example: Proof that L = {aⁿbⁿ | n ≥ 0} is not a regular language**
 
 ```
-  証明:
-    L = {ε, ab, aabb, aaabbb, ...} が正規言語だと仮定する。
+  Proof:
+    L = {ε, ab, aabb, aaabbb, ...} Assume this is a regular language.
 
-    1. ポンピング定数 p が存在する
-    2. w = aᵖbᵖ を選ぶ（|w| = 2p ≥ p、w ∈ L）
-    3. w = xyz と分割する（|y| > 0, |xy| ≤ p）
-       |xy| ≤ p なので、xy は w の先頭 p 文字以内
-       → x と y は a のみからなる
+    1. A pumping constant p exists
+    2. Choose w = aᵖbᵖ (|w| = 2p >= p, w ∈ L)
+    3. Split w = xyz (|y| > 0, |xy| <= p)
+       |xy| ≤ p so xy is within the first p characters of w
+       → x and y consist only of a's
        x = aˢ, y = aᵗ（t > 0）, z = aᵖ⁻ˢ⁻ᵗbᵖ
-    4. i = 2 のとき:
+    4. When i = 2:
        xy²z = aˢ · a²ᵗ · aᵖ⁻ˢ⁻ᵗbᵖ = aᵖ⁺ᵗbᵖ
-       t > 0 なので p+t > p → a の数 > b の数
+       t > 0 so p+t > p → number of a's > number of b's
        → xy²z ∉ L
-    5. ポンピング補題に矛盾
-       → L は正規言語でない  □
+    5. Contradiction with the pumping lemma
+       → L is not a regular language  □
 
-  この結果の意味:
-    対応する括弧の検証（「(」と「)」の数が等しいか）は
-    有限オートマトンでは不可能 → プッシュダウンオートマトンが必要
+  Significance of this result:
+    Verifying matching parentheses (whether the number of "(" and ")" are equal)
+    is impossible with finite automata → pushdown automata are needed
 ```
 
-### 3.6 正規表現の実務での対応
+### 3.6 Practical Aspects of Regular Expressions
 
 ```
-正規表現エンジンの実装方式と性能:
+Implementation methods and performance of regular expression engines:
 
   ┌──────────────────┬──────────────┬────────────────┬─────────────┐
-  │ 方式             │ 時間計算量   │ 採用言語/エンジン │ 特徴        │
+  │ Method           │ Time complexity│ Languages/Engines │ Features        │
   ├──────────────────┼──────────────┼────────────────┼─────────────┤
-  │ DFA ベース       │ O(n)         │ grep (一部)    │ 高速・省メモリ│
-  │ NFA シミュレーション│ O(n×m)      │ Go, Rust, RE2  │ 安定した性能  │
-  │ バックトラック   │ O(2ⁿ) 最悪   │ Python, JS,    │ 後方参照可能  │
-  │                  │              │ Java, Ruby     │ ReDoS リスク │
+  │ DFA-based        │ O(n)         │ grep (partial)  │ Fast, memory-efficient│
+  │ NFA simulation   │ O(n×m)       │ Go, Rust, RE2   │ Stable performance│
+  │ Backtracking     │ O(2ⁿ) worst  │ Python, JS,     │ Backreferences OK │
+  │                  │              │ Java, Ruby      │ ReDoS risk      │
   └──────────────────┴──────────────┴────────────────┴─────────────┘
 
-  n: 入力文字列の長さ  m: 正規表現パターンの長さ
+  n: input string length  m: regex pattern length
 
   ReDoS（Regular Expression Denial of Service）:
-    バックトラック方式では、特定のパターンと入力の組み合わせで
-    指数的な時間がかかる → サービス拒否攻撃に悪用される
+    With backtracking, certain pattern and input combinations
+    take exponential time → exploited for denial-of-service attacks
 
-    危険なパターン例: (a+)+$
-    入力 "aaaaaaaaaaaaaaaaX" で指数的にバックトラック
+    Dangerous pattern example: (a+)+$
+    Input "aaaaaaaaaaaaaaaaX" causes exponential backtracking
 
-    対策:
-    - NFA ベースのエンジン（RE2, Go の regexp）を使う
-    - タイムアウトを設定する
-    - 入力長を制限する
-    - パターンを見直す（非貪欲量指定子の活用等）
+    Countermeasures:
+    - Use NFA-based engines (RE2, Go's regexp)
+    - Set timeouts
+    - Limit input length
+    - Review patterns (use non-greedy quantifiers, etc.)
 ```
 
 ---
 
-## 4. 文脈自由文法とプッシュダウンオートマトン
+## 4. Context-Free Grammars and Pushdown Automata
 
-### 4.1 文脈自由文法（CFG）の定義
+### 4.1 Definition of Context-Free Grammar (CFG)
 
-文脈自由文法は、プログラミング言語の構文定義に広く使われる形式的な記述方法である。
+Context-free grammars are a formal description method widely used for defining the syntax of programming languages.
 
 ```
-文脈自由文法（CFG）の形式的定義:
+Formal definition of Context-Free Grammar (CFG):
   G = (V, Σ, R, S)
 
-  V : 変数（非終端記号）の有限集合
-  Σ : 終端記号の有限集合（V ∩ Σ = ∅）
-  R : 生成規則の有限集合  A → α（A ∈ V, α ∈ (V ∪ Σ)*）
-  S : 開始記号  S ∈ V
+  V : Finite set of variables (nonterminal symbols)
+  Σ : Finite set of terminal symbols (V ∩ Σ = ∅)
+  R : Finite set of production rules  A → α（A ∈ V, α ∈ (V ∪ Σ)*）
+  S : Start symbol  S ∈ V
 
-  「文脈自由」の意味:
-    生成規則 A → α において、左辺が単一の変数 A のみ
-    → A がどのような文脈（周囲の記号列）に現れても
-      同じ規則で書き換えられる
-    （対比: 文脈依存文法では αAβ → αγβ の形を許す）
+  Meaning of "context-free":
+    In production rule A → α, the left side is only a single variable A
+    → Regardless of the context (surrounding symbols) in which A appears,
+      the same rule can be applied
+    (Contrast: context-sensitive grammars allow the form αAβ → αγβ)
 ```
 
-**例: 対応する括弧の言語**
+**Example: The language of matched parentheses**
 
 ```
-  L = {aⁿbⁿ | n ≥ 0}  の文脈自由文法:
+  L = {aⁿbⁿ | n ≥ 0}  Context-free grammar for:
 
   G₁ = ({S}, {a, b}, R, S)
   R:
-    S → aSb    （a と b を1組追加）
-    S → ε      （基底: 空文字列）
+    S → aSb    (add one pair of a and b)
+    S → ε      (Base case: empty string)
 
-  導出の例（w = "aaabbb"）:
+  Derivation example（w = "aaabbb"）:
     S ⟹ aSb ⟹ aaSbb ⟹ aaaSbbb ⟹ aaabbb
 
-  導出木（構文木）:
+  Derivation tree (parse tree):
            S
          / | \
         a  S  b
@@ -965,16 +966,16 @@ DFA 最小化の基本方針（同値類分割法）:
            ε
 ```
 
-**例: 算術式の文法**
+**Example: Grammar for arithmetic expressions**
 
 ```
   G₂ = ({E, T, F}, {+, *, (, ), id}, R, E)
   R:
-    E → E + T | T        （式は項の加算）
-    T → T * F | F        （項は因子の乗算）
-    F → ( E ) | id       （因子は括弧つき式または識別子）
+    E → E + T | T        (Expression is addition of terms)
+    T → T * F | F        (Term is multiplication of factors)
+    F → ( E ) | id       (Factor is parenthesized expression or identifier)
 
-  導出の例（w = "id + id * id"）:
+  Derivation example（w = "id + id * id"）:
     E ⟹ E + T
       ⟹ T + T
       ⟹ F + T
@@ -984,7 +985,7 @@ DFA 最小化の基本方針（同値類分割法）:
       ⟹ id + id * F
       ⟹ id + id * id
 
-  導出木:
+  Derivation tree:
             E
           / | \
          E  +  T
@@ -995,24 +996,24 @@ DFA 最小化の基本方針（同値類分割法）:
          |  |
         id id
 
-  この導出木は演算子の優先順位を反映:
-  * は + より優先度が高い → * のノードが木の下位に位置
+  This derivation tree reflects operator precedence:
+  * has higher precedence than + → * node is positioned lower in the tree
 ```
 
-### 4.2 曖昧性（Ambiguity）
+### 4.2 Ambiguity
 
 ```
-曖昧な文法（ambiguous grammar）:
+Ambiguous grammar:
 
-  ある文字列 w に対して、2つ以上の異なる導出木が存在する場合、
-  その文法は「曖昧」であるという。
+  When two or more different derivation trees exist for a string w,
+  the grammar is called "ambiguous".
 
-  例: 曖昧な式の文法
+  Example: Ambiguous expression grammar
     E → E + E | E * E | ( E ) | id
 
-  文字列 "id + id * id" に2つの導出木:
+  The string "id + id * id" has two derivation trees:
 
-  導出木1（+ が先）:        導出木2（* が先）:
+  Derivation tree 1 (+ first):        Derivation tree 2 (* first):
         E                         E
       / | \                     / | \
      E  +  E                   E  *  E
@@ -1021,53 +1022,53 @@ DFA 最小化の基本方針（同値類分割法）:
         |     |             |     |
        id    id            id    id
 
-  プログラミング言語では曖昧性は致命的:
-  - "2 + 3 * 4" が 20 にも 14 にもなりうる
-  - 解決方法:
-    a. 文法を書き直して曖昧性を除去（上記 G₂ のように）
-    b. パーサーに優先順位と結合性のルールを追加
+  Ambiguity is fatal in programming languages:
+  - "2 + 3 * 4" could be either 20 or 14
+  - Solutions:
+    a. Rewrite the grammar to eliminate ambiguity (as in G₂ above)
+    b. Add precedence and associativity rules to the parser
 
-  重要な定理: 与えられた CFG が曖昧かどうかは一般に決定不能
+  Important theorem: Whether a given CFG is ambiguous is generally undecidable
 ```
 
-### 4.3 チョムスキー標準形と CYK アルゴリズム
+### 4.3 Chomsky Normal Form and CYK Algorithm
 
 ```
-チョムスキー標準形（Chomsky Normal Form: CNF）:
+Chomsky Normal Form (CNF):
 
-  すべての生成規則が以下のいずれかの形:
-    A → BC    （右辺は2つの変数）
-    A → a     （右辺は1つの終端記号）
-    S → ε     （開始記号のみ ε を生成可能）
+  All production rules are in one of the following forms:
+    A → BC    (right side is two variables)
+    A → a     (right side is one terminal symbol)
+    S → ε     (only the start symbol can produce ε)
 
-  任意の CFG は CNF に変換可能（空言語を除く）
+  Any CFG can be converted to CNF (except for the empty language)
 
-  CNF の利点:
-    - 導出の各ステップで文字列長が高々1増える
-    - 長さ n の文字列の導出はちょうど 2n-1 ステップ
-    - CYK アルゴリズムによる効率的な構文解析が可能
+  Advantages of CNF:
+    - String length increases by at most 1 at each derivation step
+    - Derivation of a string of length n takes exactly 2n-1 steps
+    - Enables efficient parsing via the CYK algorithm
 
-CYK アルゴリズム（Cocke-Younger-Kasami）:
+CYK Algorithm (Cocke-Younger-Kasami):
 
-  CNF の文法に対する O(n³) の構文解析アルゴリズム
+  O(n³) parsing algorithm for CNF grammars
 
-  入力: CNF の文法 G と文字列 w = w₁w₂...wₙ
-  出力: w ∈ L(G) かどうか
+  Input: CNF grammar G and string w = w₁w₂...wₙ
+  Output: Whether w ∈ L(G)
 
-  手法: 動的計画法
-    テーブル T[i][j] = {A ∈ V | A ⟹* wᵢwᵢ₊₁...wⱼ}
+  Method: Dynamic programming
+    Table T[i][j] = {A ∈ V | A ⟹* wᵢwᵢ₊₁...wⱼ}
 
-    基底: T[i][i] = {A | A → wᵢ ∈ R}
-    帰納: T[i][j] = ∪{A | A → BC ∈ R,
+    Base cases: T[i][i] = {A | A → wᵢ ∈ R}
+    Induction: T[i][j] = ∪{A | A → BC ∈ R,
                           B ∈ T[i][k], C ∈ T[k+1][j],
                           i ≤ k < j}
 
-    判定: S ∈ T[1][n] ならば w ∈ L(G)
+    Decision: If S ∈ T[1][n], then w ∈ L(G)
 
-  例: G = ({S, A, B}, {a, b}, R, S)
+  Example: G = ({S, A, B}, {a, b}, R, S)
       R: S → AB, A → a, B → b, S → a
 
-      入力 w = "ab"
+      Input w = "ab"
 
       T[1][1] = {A | A → a} = {A, S}
       T[2][2] = {B | B → b} = {B}
@@ -1077,109 +1078,109 @@ CYK アルゴリズム（Cocke-Younger-Kasami）:
       S ∈ T[1][2] → "ab" ∈ L(G) ✓
 ```
 
-### 4.4 プッシュダウンオートマトン（PDA）
+### 4.4 Pushdown Automaton (PDA)
 
 ```
-PDA の形式的定義:
+Formal definition of PDA:
   P = (Q, Σ, Γ, δ, q₀, Z₀, F)
 
-  Q  : 状態の有限集合
-  Σ  : 入力アルファベット
-  Γ  : スタックアルファベット
-  δ  : 遷移関数  Q × (Σ ∪ {ε}) × Γ → P(Q × Γ*)
-       （現在の状態、入力記号、スタックトップ）→（次の状態、スタック操作）
-  q₀ : 初期状態
-  Z₀ : スタックの初期記号  Z₀ ∈ Γ
-  F  : 受理状態の集合
+  Q  : Finite set of states
+  Σ  : Input alphabet
+  Γ  : Stack alphabet
+  δ  : Transition function  Q × (Σ ∪ {ε}) × Γ → P(Q × Γ*)
+       (current state, input symbol, stack top) → (next state, stack operation)
+  q₀ : Initial state
+  Z₀ : Initial stack symbol  Z₀ ∈ Γ
+  F  : Set of accept states
 
-  PDA = 有限オートマトン + スタック（無限の記憶）
+  PDA = Finite automaton + Stack (unbounded memory)
 
-  有限オートマトンとの違い:
+  Differences from finite automata:
   ┌──────────────────────┬─────────────────┬──────────────────┐
-  │ 特徴                 │ 有限オートマトン │ PDA              │
+  │ Feature              │ Finite Automaton │ PDA              │
   ├──────────────────────┼─────────────────┼──────────────────┤
-  │ 記憶装置             │ なし（状態のみ） │ スタック（LIFO）  │
-  │ 認識する言語クラス   │ 正規言語         │ 文脈自由言語      │
-  │ 典型的な用途         │ 字句解析         │ 構文解析          │
-  │ 括弧の対応チェック   │ 不可能           │ 可能              │
+  │ Memory device        │ None (state only)│ Stack (LIFO)  │
+  │ Recognized lang class│ Regular languages│ Context-free languages      │
+  │ Typical use          │ Lexical analysis │ Parsing          │
+  │ Matching parens check│ Impossible       │ Possible              │
   └──────────────────────┴─────────────────┴──────────────────┘
 ```
 
-**例: L = {aⁿbⁿ | n ≥ 0} を受理する PDA**
+**Example: PDA that accepts L = {aⁿbⁿ | n ≥ 0}**
 
 ```
   PDA P₁:
-    状態: {q₀, q₁, q₂}
-    入力アルファベット: {a, b}
-    スタックアルファベット: {Z₀, A}
-    初期状態: q₀
-    スタック初期記号: Z₀
-    受理状態: {q₂}
+    States: {q₀, q₁, q₂}
+    Input alphabet: {a, b}
+    Stack alphabet: {Z₀, A}
+    Initial state: q₀
+    Initial stack symbol: Z₀
+    Accept states: {q₂}
 
-  遷移規則:
-    δ(q₀, a, Z₀) = {(q₀, AZ₀)}    a を読んで A を push
-    δ(q₀, a, A)  = {(q₀, AA)}      a を読んで A を push
-    δ(q₀, b, A)  = {(q₁, ε)}       b を読んで A を pop
-    δ(q₁, b, A)  = {(q₁, ε)}       b を読んで A を pop
-    δ(q₁, ε, Z₀) = {(q₂, Z₀)}     スタックが空（Z₀のみ）→ 受理
+  Transition rules:
+    δ(q₀, a, Z₀) = {(q₀, AZ₀)}    Read a and push A
+    δ(q₀, a, A)  = {(q₀, AA)}      Read a and push A
+    δ(q₀, b, A)  = {(q₁, ε)}       Read b and pop A
+    δ(q₁, b, A)  = {(q₁, ε)}       Read b and pop A
+    δ(q₁, ε, Z₀) = {(q₂, Z₀)}     Stack is empty (only Z₀) → Accept
 
-  トレース（入力 "aabb"）:
-    状態    残り入力    スタック
+  Trace (input "aabb"):
+    State   Remaining   Stack
     q₀      aabb        Z₀
-    q₀      abb         AZ₀          ← a を読み A を push
-    q₀      bb          AAZ₀         ← a を読み A を push
-    q₁      b           AZ₀          ← b を読み A を pop
-    q₁      ε           Z₀           ← b を読み A を pop
-    q₂      ε           Z₀           ← ε遷移で受理状態へ → 受理！
+    q₀      abb         AZ₀          ← Read a, push A
+    q₀      bb          AAZ₀         ← Read a, push A
+    q₁      b           AZ₀          ← Read b, pop A
+    q₁      ε           Z₀           ← Read b, pop A
+    q₂      ε           Z₀           ← ε-transition to accept state → Accept\!
 
-  トレース（入力 "aab"、拒否される例）:
-    状態    残り入力    スタック
+  Trace (input "aab", rejected example):
+    State   Remaining   Stack
     q₀      aab         Z₀
     q₀      ab          AZ₀
     q₀      b           AAZ₀
-    q₁      ε           AZ₀          ← スタックに A が残る
-    → q₂ へ遷移できない → 拒否
+    q₁      ε           AZ₀          ← A remains on stack
+    → Cannot transition to q₂ → Reject
 ```
 
-### 4.5 CFG と PDA の等価性
+### 4.5 Equivalence of CFG and PDA
 
 ```
-重要な定理:
-  言語 L が文脈自由言語である
-  ⟺ L を受理する PDA が存在する
-  ⟺ L を生成する CFG が存在する
+Important theorem:
+  Language L is a context-free language
+  ⟺ There exists a PDA that accepts L
+  ⟺ There exists a CFG that generates L
 
-  変換方向:
-    CFG → PDA: 各生成規則をスタック操作に変換
-    PDA → CFG: PDA の計算を生成規則でシミュレート
+  Conversion directions:
+    CFG → PDA: Convert each production rule to stack operations
+    PDA → CFG: Simulate PDA computation with production rules
 
-  実務での意味:
-  - コンパイラの構文解析器（パーサー）は PDA の一種
-  - BNF（バッカスナウア記法）は CFG の別表記
-  - yacc/bison, ANTLR 等のパーサージェネレータは
-    CFG の定義から PDA を自動生成する
+  Practical significance:
+  - A compiler's parser is a type of PDA
+  - BNF (Backus-Naur Form) is an alternative notation for CFG
+  - Parser generators such as yacc/bison, ANTLR
+    automatically generate PDAs from CFG definitions
 ```
 
-### 4.6 文脈自由言語のポンピング補題
+### 4.6 Pumping Lemma for Context-Free Languages
 
 ```
-文脈自由言語のポンピング補題:
+Pumping Lemma for Context-Free Languages:
 
-  L が文脈自由言語ならば、ある定数 p ≥ 1 が存在し、
-  |w| ≥ p を満たすすべての w ∈ L について、
-  w = uvxyz と分割でき、以下の3条件を満たす:
+  If L is a context-free language, there exists a constant p >= 1 such that
+  |w| ≥ p for all w ∈ L satisfying this,
+  w can be split as w = uvxyz satisfying the following 3 conditions:
 
-    (1) |vy| > 0        （v と y の少なくとも一方は空でない）
-    (2) |vxy| ≤ p       （中央部分の長さは p 以下）
-    (3) すべての i ≥ 0 について uv^i xy^i z ∈ L
+    (1) |vy| > 0        (at least one of v and y is non-empty)
+    (2) |vxy| ≤ p       (the central part has length at most p)
+    (3) For all i ≥ 0, uv^i xy^i z ∈ L
 
-  正規言語版との違い:
-    正規言語: 3分割 xyz、y をポンプ
-    文脈自由言語: 5分割 uvxyz、v と y を同時にポンプ
+  Differences from the regular language version:
+    Regular: 3-part split xyz, pump y
+    Context-free: 5-part split uvxyz, pump v and y simultaneously
 
-  直感的理解:
-    導出木が十分大きいと、同じ変数が導出経路上に2回現れる。
-    その間の部分を繰り返し展開（ポンプ）できる。
+  Intuitive understanding:
+    When the derivation tree is sufficiently large, the same variable appears twice on a derivation path.
+    The part between them can be repeatedly expanded (pumped).
 
              S
             /|\
@@ -1189,181 +1190,181 @@ PDA の形式的定義:
               /|\
              x
 
-    A → ... A ... の部分を0回、1回、2回、... 繰り返せる
+    A → ... A ... part can be repeated 0, 1, 2, ... times
 
-  例: L = {aⁿbⁿcⁿ | n ≥ 0} が文脈自由言語でないことの証明
+  Example: Proof that L = {aⁿbⁿcⁿ | n ≥ 0} is not a context-free language
 
-    1. L が文脈自由言語だと仮定し、定数 p をとる
-    2. w = aᵖbᵖcᵖ を選ぶ（|w| = 3p ≥ p）
-    3. w = uvxyz（|vy| > 0, |vxy| ≤ p）と分割
-    4. |vxy| ≤ p なので、vxy は a,b,c のうち高々2種類の
-       文字しか含まない
-    5. i = 2 のとき uv²xy²z は、
-       2種類以下の文字の数だけ増えるが残りは変わらない
-       → a,b,c の数が等しくなくなる → uv²xy²z ∉ L
-    6. 矛盾 → L は文脈自由言語でない  □
+    1. Assume L is a context-free language and take constant p
+    2. Choose w = aᵖbᵖcᵖ (|w| = 3p >= p)
+    3. Split w = uvxyz (|vy| > 0, |vxy| <= p)
+    4. Since |vxy| <= p, vxy contains at most 2 types of
+       characters among a, b, c
+    5. When i = 2, uv²xy²z
+       increases the count of at most 2 types while the rest stays the same
+       → the counts of a, b, c become unequal → uv²xy²z ∉ L
+    6. Contradiction → L is not a context-free language  □
 ```
 
 ---
 
-## 5. チョムスキー階層
+## 5. Chomsky Hierarchy
 
-### 5.1 チョムスキー階層の全体像
+### 5.1 Overview of the Chomsky Hierarchy
 
-チョムスキー階層は、ノーム・チョムスキーが1956年に提唱した、形式文法と形式言語の階層的分類体系である。
+The Chomsky hierarchy is a hierarchical classification system of formal grammars and formal languages proposed by Noam Chomsky in 1956.
 
 ```
-チョムスキー階層（Chomsky Hierarchy）:
+Chomsky Hierarchy:
 
   ┌─────────┬───────────────┬───────────────────┬──────────────────┐
-  │ タイプ  │ 文法           │ 認識する機械       │ 言語クラス       │
+  │ Type    │ Grammar        │ Recognizing machine│ Language class       │
   ├─────────┼───────────────┼───────────────────┼──────────────────┤
-  │ Type 0  │ 無制限文法     │ チューリングマシン │ 帰納的可算言語   │
-  │ Type 1  │ 文脈依存文法   │ 線形有界オートマトン│ 文脈依存言語     │
-  │ Type 2  │ 文脈自由文法   │ プッシュダウン     │ 文脈自由言語     │
-  │         │               │ オートマトン       │                  │
-  │ Type 3  │ 正規文法       │ 有限オートマトン   │ 正規言語         │
+  │ Type 0  │ Unrestricted   │ Turing Machine     │ Recursively enumerable   │
+  │ Type 1  │ Context-sensitive│ Linear Bounded Auto│ Context-sensitive     │
+  │ Type 2  │ Context-free   │ Pushdown           │ Context-free     │
+  │         │                │ Automaton          │                  │
+  │ Type 3  │ Regular grammar│ Finite Automaton   │ Regular languages         │
   └─────────┴───────────────┴───────────────────┴──────────────────┘
 
-  包含関係（真の包含）:
-    正規言語 ⊂ 文脈自由言語 ⊂ 文脈依存言語 ⊂ 帰納的可算言語
+  Inclusion relation (proper inclusion):
+    Regular ⊂ Context-free ⊂ Context-sensitive ⊂ Recursively enumerable
 
-  各レベルの境界を示す言語の例:
-    正規: a*b*（有限オートマトンで認識可能）
-    文脈自由だが正規でない: {aⁿbⁿ | n ≥ 0}
-    文脈依存だが文脈自由でない: {aⁿbⁿcⁿ | n ≥ 0}
-    帰納的可算だが文脈依存でない: 停止するTMの符号化の集合
-    帰納的可算ですらない: 停止問題の補集合
+  Examples of languages at each level boundary:
+    Regular: a*b* (recognizable by finite automata)
+    Context-free but not regular: {aⁿbⁿ | n ≥ 0}
+    Context-sensitive but not context-free: {aⁿbⁿcⁿ | n ≥ 0}
+    Recursively enumerable but not context-sensitive: set of encodings of halting TMs
+    Not even recursively enumerable: complement of the halting problem
 ```
 
-### 5.2 各タイプの文法規則の形式
+### 5.2 Forms of Grammar Rules for Each Type
 
 ```
-文法規則の制約による分類:
+Classification by grammar rule constraints:
 
-  Type 0（無制限文法）:
-    規則: α → β（α ∈ (V∪Σ)⁺, β ∈ (V∪Σ)*）
-    制約: なし（左辺に終端記号も含められる）
+  Type 0 (Unrestricted grammar):
+    Rules: α → β（α ∈ (V∪Σ)⁺, β ∈ (V∪Σ)*）
+    Constraints: None (left side can include terminal symbols)
 
-  Type 1（文脈依存文法）:
-    規則: αAβ → αγβ（A ∈ V, α,β ∈ (V∪Σ)*, γ ∈ (V∪Σ)⁺）
-    制約: |α| ≤ |β|（文字列を短くする規則を禁止）
-    意味: A の書き換えが周囲の文脈 α, β に依存する
+  Type 1 (Context-sensitive grammar):
+    Rules: αAβ → αγβ（A ∈ V, α,β ∈ (V∪Σ)*, γ ∈ (V∪Σ)⁺）
+    Constraints: |α| <= |β| (rules that shorten strings are prohibited)
+    Meaning: Rewriting A depends on the surrounding context α, β
 
-  Type 2（文脈自由文法）:
-    規則: A → α（A ∈ V, α ∈ (V∪Σ)*）
-    制約: 左辺は単一の変数のみ
-    意味: A はどの文脈でも同じ規則で書き換えられる
+  Type 2 (Context-free grammar):
+    Rules: A → α（A ∈ V, α ∈ (V∪Σ)*）
+    Constraints: Left side is a single variable only
+    Meaning: The same rule can be applied to A in any context
 
-  Type 3（正規文法）:
-    右線形文法: A → aB | a | ε（A,B ∈ V, a ∈ Σ）
-    左線形文法: A → Ba | a | ε
-    制約: 右辺の変数は1つ以下、かつ端に配置
+  Type 3 (Regular grammar):
+    Right-linear grammar: A → aB | a | ε（A,B ∈ V, a ∈ Σ）
+    Left-linear grammar: A → Ba | a | ε
+    Constraints: At most one variable on the right side, placed at the end
 
-  制約の強さ: Type 3 > Type 2 > Type 1 > Type 0
-  表現力:     Type 3 < Type 2 < Type 1 < Type 0
+  Strength of constraints: Type 3 > Type 2 > Type 1 > Type 0
+  Expressive power:     Type 3 < Type 2 < Type 1 < Type 0
 ```
 
-### 5.3 各レベルの決定可能性
+### 5.3 Decidability at Each Level
 
 ```
-各言語クラスの決定問題:
+Decision problems for each language class:
 
   ┌─────────────────────┬────────┬──────────┬──────────┬────────┐
-  │ 問題                │ 正規   │ 文脈自由 │ 文脈依存 │ Type 0 │
+  │ Problem             │ Regular│ Context-free│ Context-sensitive│ Type 0 │
   ├─────────────────────┼────────┼──────────┼──────────┼────────┤
-  │ 所属問題            │ ○ O(n) │ ○ O(n³)  │ ○        │ ×     │
-  │ w ∈ L?              │        │ CYK      │ PSPACE完全│ 半決定 │
+  │ Membership problem  │ ○ O(n) │ ○ O(n³)  │ ○        │ ×     │
+  │ w ∈ L?              │        │ CYK      │ PSPACE-   │ Semi-decidable │
   ├─────────────────────┼────────┼──────────┼──────────┼────────┤
-  │ 空問題              │ ○      │ ○        │ ×        │ ×     │
+  │ Emptiness problem   │ ○      │ ○        │ ×        │ ×     │
   │ L = ∅?              │        │          │          │        │
   ├─────────────────────┼────────┼──────────┼──────────┼────────┤
-  │ 等価問題            │ ○      │ ×        │ ×        │ ×     │
-  │ L₁ = L₂?            │        │ 決定不能 │ 決定不能 │ 決定不能│
+  │ Equivalence problem │ ○      │ ×        │ ×        │ ×     │
+  │ L₁ = L₂?            │        │ Undecidable │ Undecidable │ Undecidable│
   ├─────────────────────┼────────┼──────────┼──────────┼────────┤
-  │ 包含問題            │ ○      │ ×        │ ×        │ ×     │
+  │ Inclusion problem   │ ○      │ ×        │ ×        │ ×     │
   │ L₁ ⊆ L₂?            │        │          │          │        │
   ├─────────────────────┼────────┼──────────┼──────────┼────────┤
-  │ 有限性問題          │ ○      │ ○        │ ×        │ ×     │
+  │ Finiteness problem  │ ○      │ ○        │ ×        │ ×     │
   │ |L| < ∞?            │        │          │          │        │
   └─────────────────────┴────────┴──────────┴──────────┴────────┘
 
-  ○: 決定可能  ×: 決定不能
+  ○: Decidable  ×: Undecidable
 
-  実務的な意味:
-  - 正規言語は最も扱いやすい（ほぼすべての問題が決定可能）
-  - 文脈自由言語は所属問題・空問題は解けるが等価性は判定不能
-  - Type 0 の所属問題すら決定不能（停止問題に帰着）
+  Practical significance:
+  - Regular languages are the easiest to handle (almost all problems are decidable)
+  - For context-free languages, membership and emptiness are solvable but equivalence is undecidable
+  - Even the membership problem for Type 0 is undecidable (reduces to the halting problem)
 ```
 
-### 5.4 チョムスキー階層と実務の対応
+### 5.4 Chomsky Hierarchy and Practical Correspondence
 
 ```
-チョムスキー階層の実務対応:
+Practical correspondence of the Chomsky hierarchy:
 
   ┌─────────┬──────────────────────────────────────────────────┐
-  │ レベル  │ 実務での対応                                      │
+  │ Level   │ Practical correspondence                                      │
   ├─────────┼──────────────────────────────────────────────────┤
-  │ Type 3  │ ・正規表現によるパターンマッチング                 │
-  │ 正規    │ ・字句解析器（レクサー/トークナイザー）             │
-  │         │ ・入力バリデーション（メールアドレス、電話番号等）   │
-  │         │ ・ネットワークプロトコルの状態管理                  │
-  │         │ ・設定ファイルのキーワード認識                      │
+  │ Type 3  │ - Pattern matching with regular expressions                 │
+  │ Regular │ - Lexical analyzers (lexers/tokenizers)             │
+  │         │ - Input validation (email addresses, phone numbers, etc.)   │
+  │         │ - Network protocol state management                  │
+  │         │ - Configuration file keyword recognition                      │
   ├─────────┼──────────────────────────────────────────────────┤
-  │ Type 2  │ ・プログラミング言語の構文定義（BNF/EBNF）          │
-  │ 文脈自由│ ・構文解析器（パーサー: LL, LR, LALR, PEG）       │
-  │         │ ・XML/HTML/JSON の構造解析                          │
-  │         │ ・数式パーサー                                      │
-  │         │ ・括弧の対応チェック                                │
+  │ Type 2  │ - Programming language syntax definitions (BNF/EBNF)          │
+  │ CF      │ - Parsers (LL, LR, LALR, PEG)       │
+  │         │ - Structural analysis of XML/HTML/JSON                          │
+  │         │ - Mathematical expression parsers                                      │
+  │         │ - Matching parenthesis checking                                │
   ├─────────┼──────────────────────────────────────────────────┤
-  │ Type 1  │ ・型チェック（変数の使用が宣言に依存）              │
-  │ 文脈依存│ ・スコープ解析                                      │
-  │         │ ・C言語の typedef による文脈依存的なパース           │
-  │         │ ・自然言語の一部の構文                              │
+  │ Type 1  │ - Type checking (variable use depends on declaration)              │
+  │ CS      │ - Scope analysis                                      │
+  │         │ - Context-dependent parsing due to C language typedef           │
+  │         │ - Some natural language syntax                              │
   ├─────────┼──────────────────────────────────────────────────┤
-  │ Type 0  │ ・汎用プログラミング（チューリング完全な計算）      │
-  │ 無制限  │ ・意味解析全般                                      │
-  │         │ ・停止性判定 → 決定不能の壁                         │
+  │ Type 0  │ - General-purpose programming (Turing-complete computation)      │
+  │ Unrest. │ - Semantic analysis in general                                      │
+  │         │ - Halting problem → The wall of undecidability          │
   └─────────┴──────────────────────────────────────────────────┘
 ```
 
-### 5.5 コンパイラにおけるチョムスキー階層の適用
+### 5.5 Application of the Chomsky Hierarchy in Compilers
 
 ```
-コンパイラのフロントエンドとチョムスキー階層:
+Compiler frontend and the Chomsky hierarchy:
 
-  ソースコード
+  Source code
     │
     ▼ ┌──────────────────────────────────────────────────────┐
-  字句解析（レクサー）← Type 3: 正規言語（DFA）              │
-    │                  トークンを正規表現で定義               │
-    │                  例: ID = [a-zA-Z_][a-zA-Z0-9_]*       │
-    │                  例: NUM = [0-9]+(\.[0-9]+)?           │
+  Lexical analysis (Lexer) ← Type 3: Regular languages (DFA)              │
+    │                  Tokens are defined by regular expressions               │
+    │                  Example: ID = [a-zA-Z_][a-zA-Z0-9_]*       │
+    │                  Example: NUM = [0-9]+(\.[0-9]+)?           │
     ▼                                                        │
-  トークン列                                                 │
+  Token stream                                                 │
     │                                                        │
     ▼ ┌──────────────────────────────────────────────────────┤
-  構文解析（パーサー）← Type 2: 文脈自由言語（PDA）          │
-    │                  BNF/EBNF で構文規則を定義              │
-    │                  例: if_stmt → 'if' expr 'then' stmt   │
-    │                  LL(k), LR(k), LALR(1) 等の手法        │
+  Parsing (Parser) ← Type 2: Context-free languages (PDA)          │
+    │                  Syntax rules are defined with BNF/EBNF              │
+    │                  Example: if_stmt → 'if' expr 'then' stmt   │
+    │                  Methods such as LL(k), LR(k), LALR(1)        │
     ▼                                                        │
-  構文木（AST）                                              │
+  Parse tree (AST)                                              │
     │                                                        │
     ▼ ┌──────────────────────────────────────────────────────┤
-  意味解析 ← Type 1以上: 文脈依存                             │
-    │        型チェック、スコープ解析、                       │
-    │        オーバーロード解決等                             │
+  Semantic analysis ← Type 1 and above: Context-sensitive                             │
+    │        Type checking, scope analysis,                       │
+    │        overload resolution, etc.                             │
     ▼                                                        │
-  注釈付きAST                                                │
+  Annotated AST                                                │
     │                                                        │
     ▼                                                        │
-  中間コード生成 → 最適化 → コード生成                       │
+  Intermediate code generation → Optimization → Code generation                       │
   └──────────────────────────────────────────────────────────┘
 
-  例: "int x = 3 + 5;" の処理
+  Example: "int x = 3 + 5;" Processing of
 
-  字句解析（Type 3）:
+  Lexical analysis (Type 3):
     "int" → KW_INT
     "x"   → ID("x")
     "="   → ASSIGN
@@ -1372,7 +1373,7 @@ PDA の形式的定義:
     "5"   → INT(5)
     ";"   → SEMICOLON
 
-  構文解析（Type 2）:
+  Parsing (Type 2):
     declaration
     ├── type: int
     ├── name: x
@@ -1381,34 +1382,34 @@ PDA の形式的定義:
             ├── left: 3
             └── right: 5
 
-  意味解析（Type 1以上）:
-    - x の型は int
-    - 3 + 5 は int 型の演算 → 型整合 ✓
-    - x はこのスコープで未宣言 → 新規バインディング作成
+  Semantic analysis (Type 1 and above):
+    - x has type int
+    - 3 + 5 is an int operation → type consistency ✓
+    - x is undeclared in this scope → create new binding
 ```
 
 ---
 
-## 6. 正規表現エンジンの実装
+## 6. Implementation of a Regular Expression Engine
 
-### 6.1 Thompson 構成法による NFA ベースの正規表現エンジン
+### 6.1 NFA-Based Regular Expression Engine via Thompson Construction
 
-以下は、Thompson 構成法を用いて正規表現を NFA に変換し、NFA シミュレーションでマッチングを行うエンジンの実装である。
+The following is an implementation of an engine that converts regular expressions to NFAs using Thompson construction and performs matching via NFA simulation.
 
 ```python
 """
-正規表現エンジン（Thompson 構成法 + NFA シミュレーション）
+Regular Expression Engine (Thompson Construction + NFA Simulation)
 
-対応する正規表現の構文:
-  - 連結:   ab
-  - 選択:   a|b
-  - 閉包:   a*
-  - 1回以上: a+
-  - 0回か1回: a?
-  - 括弧:   (a|b)*
-  - 任意文字: .
+Supported regular expression syntax:
+  - Concatenation:   ab
+  - Alternation:   a|b
+  - Closure:   a*
+  - One or more: a+
+  - Zero or one: a?
+  - Parentheses:   (a|b)*
+  - Any character: .
 
-内部で NFA に変換し、入力文字列を O(n*m) でマッチングする。
+Internally converts to NFA and matches the input string in O(n*m).
 """
 
 from dataclasses import dataclass, field
@@ -1417,38 +1418,38 @@ from typing import List, Optional, Set
 
 @dataclass
 class NFAState:
-    """NFA の状態ノード"""
+    """NFA state node"""
     id: int
     is_accept: bool = False
-    # ε遷移先
+    # Epsilon transition targets
     epsilon: List["NFAState"] = field(default_factory=list)
-    # 文字遷移: {文字: [遷移先状態]}
+    # Character transitions: {character: [target states]}
     transitions: dict = field(default_factory=dict)
 
 
 class NFAFragment:
-    """NFA の断片（開始状態と末尾状態のペア）"""
+    """NFA fragment (pair of start state and accept state)"""
     def __init__(self, start: NFAState, accept: NFAState):
         self.start = start
         self.accept = accept
 
 
 class RegexEngine:
-    """Thompson 構成法ベースの正規表現エンジン"""
+    """Thompson construction-based regular expression engine"""
 
     def __init__(self):
         self._state_counter = 0
 
     def _new_state(self, is_accept: bool = False) -> NFAState:
-        """新しい NFA 状態を生成する。"""
+        """Generate a new NFA state."""
         state = NFAState(id=self._state_counter, is_accept=is_accept)
         self._state_counter += 1
         return state
 
-    # --- パーサー（正規表現 → 構文木） ---
+    # --- Parser (Regular Expression → Syntax Tree) ---
 
     def _parse(self, pattern: str) -> "NFAFragment":
-        """正規表現をパースして NFA を構築する。"""
+        """Parse a regular expression and build an NFA."""
         self._pos = 0
         self._pattern = pattern
         nfa = self._parse_expr()
@@ -1456,7 +1457,7 @@ class RegexEngine:
         return nfa
 
     def _parse_expr(self) -> NFAFragment:
-        """式: term ('|' term)*"""
+        """Expression: term ('|' term)*"""
         left = self._parse_term()
         while self._pos < len(self._pattern) and self._peek() == "|":
             self._consume("|")
@@ -1465,8 +1466,8 @@ class RegexEngine:
         return left
 
     def _parse_term(self) -> NFAFragment:
-        """項: factor*"""
-        # 空の項（ε に対応）
+        """Term: factor*"""
+        # Empty term (corresponding to ε)
         if (self._pos >= len(self._pattern)
                 or self._peek() in ("|", ")")):
             s = self._new_state()
@@ -1480,7 +1481,7 @@ class RegexEngine:
         return left
 
     def _parse_factor(self) -> NFAFragment:
-        """因子: atom ('*' | '+' | '?')?"""
+        """Factor: atom ('*' | '+' | '?')?"""
         atom = self._parse_atom()
         if self._pos < len(self._pattern):
             if self._peek() == "*":
@@ -1495,7 +1496,7 @@ class RegexEngine:
         return atom
 
     def _parse_atom(self) -> NFAFragment:
-        """原子: '(' expr ')' | '.' | 文字"""
+        """Atom: '(' expr ')' | '.' | character"""
         if self._peek() == "(":
             self._consume("(")
             nfa = self._parse_expr()
@@ -1520,27 +1521,27 @@ class RegexEngine:
                 f"Expected '{expected}' at position {self._pos}"
             )
 
-    # --- NFA 構築（Thompson 構成法） ---
+    # --- NFA Construction (Thompson Construction) ---
 
     def _build_char(self, ch: str) -> NFAFragment:
-        """文字リテラルに対応する NFA 断片を構築する。"""
+        """Build an NFA fragment for a character literal."""
         start = self._new_state()
         accept = self._new_state()
         start.transitions[ch] = [accept]
         return NFAFragment(start, accept)
 
     def _build_dot(self) -> NFAFragment:
-        """任意文字 '.' に対応する NFA 断片を構築する。"""
+        """Build an NFA fragment for any-character '.'."""
         start = self._new_state()
         accept = self._new_state()
-        # 特殊キー "ANY" で任意文字マッチを表現
+        # Use special key "ANY" to represent any-character match
         start.transitions["ANY"] = [accept]
         return NFAFragment(start, accept)
 
     def _build_concat(
         self, left: NFAFragment, right: NFAFragment
     ) -> NFAFragment:
-        """連結: left の受理状態から right の開始状態へε遷移。"""
+        """Concatenation: epsilon transition from left accept state to right start state."""
         left.accept.epsilon.append(right.start)
         left.accept.is_accept = False
         return NFAFragment(left.start, right.accept)
@@ -1548,7 +1549,7 @@ class RegexEngine:
     def _build_union(
         self, left: NFAFragment, right: NFAFragment
     ) -> NFAFragment:
-        """選択 (|): 新しい開始状態から左右へε遷移。"""
+        """Alternation (|): ε-transitions from new start state to left and right."""
         start = self._new_state()
         accept = self._new_state()
         start.epsilon.extend([left.start, right.start])
@@ -1559,7 +1560,7 @@ class RegexEngine:
         return NFAFragment(start, accept)
 
     def _build_star(self, inner: NFAFragment) -> NFAFragment:
-        """クリーネ閉包 (*): 0回以上の繰り返し。"""
+        """Kleene closure (*): Zero or more repetitions."""
         start = self._new_state()
         accept = self._new_state()
         start.epsilon.extend([inner.start, accept])
@@ -1568,7 +1569,7 @@ class RegexEngine:
         return NFAFragment(start, accept)
 
     def _build_plus(self, inner: NFAFragment) -> NFAFragment:
-        """1回以上の繰り返し (+): inner · inner*"""
+        """One or more repetitions (+): inner · inner*"""
         start = self._new_state()
         accept = self._new_state()
         start.epsilon.append(inner.start)
@@ -1577,7 +1578,7 @@ class RegexEngine:
         return NFAFragment(start, accept)
 
     def _build_optional(self, inner: NFAFragment) -> NFAFragment:
-        """0回か1回 (?): inner | ε"""
+        """Zero or one (?): inner | ε"""
         start = self._new_state()
         accept = self._new_state()
         start.epsilon.extend([inner.start, accept])
@@ -1585,10 +1586,10 @@ class RegexEngine:
         inner.accept.is_accept = False
         return NFAFragment(start, accept)
 
-    # --- NFA シミュレーション ---
+    # --- NFA Simulation ---
 
     def _epsilon_closure(self, states: Set[NFAState]) -> Set[NFAState]:
-        """ε閉包を計算する。"""
+        """Compute epsilon closure."""
         closure = set(states)
         stack = list(states)
         while stack:
@@ -1602,27 +1603,27 @@ class RegexEngine:
     def _step(
         self, states: Set[NFAState], ch: str
     ) -> Set[NFAState]:
-        """1文字読んで遷移し、ε閉包を返す。"""
+        """Read one character, transition, and return epsilon closure."""
         next_states = set()
         for state in states:
-            # 通常の文字遷移
+            # Regular character transition
             if ch in state.transitions:
                 next_states.update(state.transitions[ch])
-            # 任意文字マッチ
+            # Any-character match
             if "ANY" in state.transitions:
                 next_states.update(state.transitions["ANY"])
         return self._epsilon_closure(next_states)
 
     def match(self, pattern: str, text: str) -> bool:
         """
-        正規表現パターンがテキスト全体にマッチするか判定する。
+        Determine whether the regex pattern matches the entire text.
 
         Args:
-            pattern: 正規表現パターン
-            text: マッチ対象の文字列
+            pattern: Regular expression pattern
+            text: String to match against
 
         Returns:
-            マッチすれば True
+            True if it matches
         """
         self._state_counter = 0
         nfa = self._parse(pattern)
@@ -1637,21 +1638,21 @@ class RegexEngine:
 
     def search(self, pattern: str, text: str) -> Optional[str]:
         """
-        テキスト中で最初にマッチする部分文字列を返す。
+        Return the first matching substring in the text.
 
         Args:
-            pattern: 正規表現パターン
-            text: 検索対象の文字列
+            pattern: Regular expression pattern
+            text: String to search
 
         Returns:
-            最初にマッチした部分文字列、なければ None
+            First matching substring, or None if not found
         """
         self._state_counter = 0
         nfa = self._parse(pattern)
 
         for start_pos in range(len(text)):
             current = self._epsilon_closure({nfa.start})
-            # 開始位置で即座に受理される場合（ε を受理する NFA）
+            # Case where immediately accepted at start position (NFA that accepts ε)
             if any(s.is_accept for s in current):
                 return ""
             for end_pos in range(start_pos, len(text)):
@@ -1664,11 +1665,11 @@ class RegexEngine:
         return None
 
 
-# --- 使用例 ---
+# --- Example Usage ---
 
 engine = RegexEngine()
 
-# 基本的なマッチング
+# Basic matching
 test_patterns = [
     ("abc",      "abc",    True),
     ("a|b",      "a",      True),
@@ -1685,19 +1686,19 @@ test_patterns = [
     (".+",       "hello",  True),
 ]
 
-print("=== 正規表現エンジンのテスト ===")
+print("=== Regular Expression Engine Test ===")
 for pattern, text, expected in test_patterns:
     result = engine.match(pattern, text)
     status = "OK" if result == expected else "NG"
     print(f"  [{status}] match('{pattern}', '{text}') = {result}")
 
-# 検索
-print("\n=== 部分文字列検索 ===")
+# Search
+print("\n=== Substring Search ===")
 found = engine.search("(a|b)+c", "xxxabcyyy")
 print(f"  search('(a|b)+c', 'xxxabcyyy') = '{found}'")
 
-# 出力:
-# === 正規表現エンジンのテスト ===
+# Output:
+# === Regular Expression Engine Test ===
 #   [OK] match('abc', 'abc') = True
 #   [OK] match('a|b', 'a') = True
 #   [OK] match('a|b', 'b') = True
@@ -1712,62 +1713,62 @@ print(f"  search('(a|b)+c', 'xxxabcyyy') = '{found}'")
 #   [OK] match('(a|b)*abb', 'ab') = False
 #   [OK] match('.+', 'hello') = True
 #
-# === 部分文字列検索 ===
+# === Substring Search ===
 #   search('(a|b)+c', 'xxxabcyyy') = 'abc'
 ```
 
-### 6.2 実装方式の比較と性能特性
+### 6.2 Comparison of Implementation Methods and Performance Characteristics
 
 ```
-正規表現エンジンの実装方式比較:
+Comparison of regular expression engine implementation methods:
 
   ┌────────────────────┬────────────────┬──────────────────────┐
-  │ 方式               │ 時間計算量     │ 空間計算量           │
+  │ Method              │ Time complexity│ Space complexity           │
   ├────────────────────┼────────────────┼──────────────────────┤
-  │ NFA シミュレーション│ O(n × m)       │ O(m)                 │
-  │ （上記の実装）     │ n:入力長       │ m:パターンの状態数   │
-  │                    │ m:パターン長   │                      │
+  │ NFA simulation      │ O(n × m)       │ O(m)                 │
+  │ (above impl)        │ n: input len   │ m: pattern states   │
+  │                     │ m: pattern len │                      │
   ├────────────────────┼────────────────┼──────────────────────┤
-  │ DFA 変換後実行     │ O(n)           │ O(2^m) 最悪          │
-  │                    │ マッチング最速 │ 状態爆発のリスク     │
+  │ DFA post-conversion │ O(n)           │ O(2^m) worst          │
+  │                     │ Fastest match  │ State explosion risk     │
   ├────────────────────┼────────────────┼──────────────────────┤
-  │ DFA 遅延構築       │ O(n × m) 平均  │ O(m) 〜 O(2^m)      │
-  │ （RE2 方式）       │ キャッシュ活用 │ キャッシュサイズ制限  │
+  │ Lazy DFA construct  │ O(n × m) avg   │ O(m) to O(2^m)      │
+  │ (RE2 method)        │ Cache-based    │ Cache size limited  │
   ├────────────────────┼────────────────┼──────────────────────┤
-  │ バックトラック     │ O(2^n) 最悪    │ O(n) スタック        │
-  │ （Perl/Python方式）│ 後方参照対応   │ 再帰的               │
+  │ Backtracking        │ O(2^n) worst   │ O(n) stack        │
+  │ (Perl/Python method) │ Backrefs OK    │ Recursive               │
   └────────────────────┴────────────────┴──────────────────────┘
 
-  選択の指針:
-  - 後方参照が不要で安全性重視 → NFA シミュレーション（Go, Rust）
-  - パフォーマンス最優先で小さなパターン → DFA 変換
-  - 後方参照が必要 → バックトラック（ただし ReDoS に注意）
-  - バランス重視 → DFA 遅延構築（RE2）
+  Selection guidelines:
+  - No backreferences needed, safety-focused → NFA simulation (Go, Rust)
+  - Performance priority with small patterns → DFA conversion
+  - Backreferences needed → Backtracking (but beware of ReDoS)
+  - Balance-focused → Lazy DFA construction (RE2)
 ```
 
 ---
 
-## 7. 実務応用とケーススタディ
+## 7. Practical Applications and Case Studies
 
-### 7.1 字句解析器（レクサー）の実装
+### 7.1 Implementation of a Lexical Analyzer (Lexer)
 
-コンパイラやインタプリタの最初の段階である字句解析器は、DFA の直接的な応用である。以下は、簡易プログラミング言語のトークナイザーを DFA ベースで実装した例である。
+The lexical analyzer, the first stage of a compiler or interpreter, is a direct application of DFA. The following is a DFA-based implementation of a tokenizer for a simple programming language.
 
 ```python
 """
-DFA ベースの字句解析器（レクサー / トークナイザー）
+DFA-Based Lexical Analyzer (Lexer / Tokenizer)
 
-簡易プログラミング言語のソースコードをトークン列に分解する。
-各トークンの認識は DFA の原理に基づいている。
+Decomposes source code of a simple programming language into a token stream.
+Each token is recognized based on DFA principles.
 
-対応するトークン:
-  - キーワード: if, else, while, return, int, float
-  - 識別子: [a-zA-Z_][a-zA-Z0-9_]*
-  - 整数リテラル: [0-9]+
-  - 浮動小数点リテラル: [0-9]+\.[0-9]+
-  - 演算子: +, -, *, /, =, ==, !=, <, >, <=, >=
-  - 区切り文字: (, ), {, }, ;, ,
-  - 空白・コメントは読み飛ばす
+Supported tokens:
+  - Keywords: if, else, while, return, int, float
+  - Identifiers: [a-zA-Z_][a-zA-Z0-9_]*
+  - Integer literals: [0-9]+
+  - Floating-point literals: [0-9]+\.[0-9]+
+  - Operators: +, -, *, /, =, ==, !=, <, >, <=, >=
+  - Delimiters: (, ), {, }, ;, ,
+  - Whitespace and comments are skipped
 """
 
 from dataclasses import dataclass
@@ -1776,20 +1777,20 @@ from typing import List, Optional
 
 
 class TokenType(Enum):
-    """トークンの種類"""
-    # キーワード
+    """Token types"""
+    # Keywords
     KW_IF = auto()
     KW_ELSE = auto()
     KW_WHILE = auto()
     KW_RETURN = auto()
     KW_INT = auto()
     KW_FLOAT = auto()
-    # リテラル
+    # Literals
     INT_LITERAL = auto()
     FLOAT_LITERAL = auto()
-    # 識別子
+    # Identifiers
     IDENTIFIER = auto()
-    # 演算子
+    # Operators
     PLUS = auto()
     MINUS = auto()
     STAR = auto()
@@ -1801,21 +1802,21 @@ class TokenType(Enum):
     GT = auto()
     LE = auto()
     GE = auto()
-    # 区切り文字
+    # Delimiters
     LPAREN = auto()
     RPAREN = auto()
     LBRACE = auto()
     RBRACE = auto()
     SEMICOLON = auto()
     COMMA = auto()
-    # 特殊
+    # Special
     EOF = auto()
     ERROR = auto()
 
 
 @dataclass
 class Token:
-    """トークン"""
+    """Token"""
     type: TokenType
     value: str
     line: int
@@ -1825,7 +1826,7 @@ class Token:
         return f"Token({self.type.name}, '{self.value}', L{self.line}:C{self.column})"
 
 
-# キーワードテーブル
+# Keywords table
 KEYWORDS = {
     "if": TokenType.KW_IF,
     "else": TokenType.KW_ELSE,
@@ -1835,7 +1836,7 @@ KEYWORDS = {
     "float": TokenType.KW_FLOAT,
 }
 
-# 単一文字トークン
+# Single character tokens
 SINGLE_CHAR_TOKENS = {
     "+": TokenType.PLUS,
     "-": TokenType.MINUS,
@@ -1851,7 +1852,7 @@ SINGLE_CHAR_TOKENS = {
 
 
 class Lexer:
-    """DFA ベースの字句解析器"""
+    """DFA-based lexical analyzer"""
 
     def __init__(self, source: str):
         self.source = source
@@ -1860,13 +1861,13 @@ class Lexer:
         self.column = 1
 
     def _peek(self) -> Optional[str]:
-        """現在位置の文字を返す（消費しない）。"""
+        """Return the character at current position (without consuming)."""
         if self.pos < len(self.source):
             return self.source[self.pos]
         return None
 
     def _advance(self) -> str:
-        """現在位置の文字を消費して返す。"""
+        """Consume and return the character at current position."""
         ch = self.source[self.pos]
         self.pos += 1
         if ch == "\n":
@@ -1877,14 +1878,14 @@ class Lexer:
         return ch
 
     def _skip_whitespace_and_comments(self) -> None:
-        """空白とコメントを読み飛ばす。"""
+        """Skip whitespace and comments."""
         while self.pos < len(self.source):
             ch = self._peek()
             if ch in (" ", "\t", "\n", "\r"):
                 self._advance()
             elif ch == "/" and self.pos + 1 < len(self.source):
                 if self.source[self.pos + 1] == "/":
-                    # 行コメント
+                    # Line comment
                     while self.pos < len(self.source) and self._peek() != "\n":
                         self._advance()
                 else:
@@ -1894,29 +1895,29 @@ class Lexer:
 
     def _read_number(self) -> Token:
         """
-        数値リテラルを読み取る DFA:
+        DFA for reading numeric literals:
 
-        状態遷移:
+        State transitions:
           START --[0-9]--> INTEGER --[0-9]--> INTEGER
                                    --[.]--> DOT
           DOT --[0-9]--> FLOAT --[0-9]--> FLOAT
 
-        受理状態: INTEGER, FLOAT
+        Accept states: INTEGER, FLOAT
         """
         start_col = self.column
         value = ""
 
-        # 状態: INTEGER（整数部分）
+        # State: INTEGER (integer part)
         while self.pos < len(self.source) and self._peek().isdigit():
             value += self._advance()
 
-        # 小数点チェック
+        # Decimal point check
         if (self.pos < len(self.source)
                 and self._peek() == "."
                 and self.pos + 1 < len(self.source)
                 and self.source[self.pos + 1].isdigit()):
             value += self._advance()  # '.'
-            # 状態: FLOAT（小数部分）
+            # State: FLOAT (decimal part)
             while self.pos < len(self.source) and self._peek().isdigit():
                 value += self._advance()
             return Token(TokenType.FLOAT_LITERAL, value, self.line, start_col)
@@ -1925,13 +1926,13 @@ class Lexer:
 
     def _read_identifier_or_keyword(self) -> Token:
         """
-        識別子/キーワードを読み取る DFA:
+        DFA for reading identifiers/keywords:
 
-        状態遷移:
+        State transitions:
           START --[a-zA-Z_]--> IDENT --[a-zA-Z0-9_]--> IDENT
 
-        受理状態: IDENT
-        受理後にキーワードテーブルを参照して種類を判定
+        Accept state: IDENT
+        After acceptance, consult keyword table to determine type
         """
         start_col = self.column
         value = ""
@@ -1944,7 +1945,7 @@ class Lexer:
         return Token(token_type, value, self.line, start_col)
 
     def next_token(self) -> Token:
-        """次のトークンを返す。"""
+        """Returns the next token."""
         self._skip_whitespace_and_comments()
 
         if self.pos >= len(self.source):
@@ -1953,15 +1954,15 @@ class Lexer:
         start_col = self.column
         ch = self._peek()
 
-        # 数値リテラル
+        # Numeric literal
         if ch.isdigit():
             return self._read_number()
 
-        # 識別子またはキーワード
+        # Identifiers or keywords
         if ch.isalpha() or ch == "_":
             return self._read_identifier_or_keyword()
 
-        # 2文字演算子の処理
+        # Processing of two-character operators
         if ch == "=" and self.pos + 1 < len(self.source) and self.source[self.pos + 1] == "=":
             self._advance()
             self._advance()
@@ -1979,7 +1980,7 @@ class Lexer:
             self._advance()
             return Token(TokenType.GE, ">=", self.line, start_col)
 
-        # 単一文字演算子
+        # Single character operators
         if ch == "=":
             self._advance()
             return Token(TokenType.ASSIGN, "=", self.line, start_col)
@@ -1990,17 +1991,17 @@ class Lexer:
             self._advance()
             return Token(TokenType.GT, ">", self.line, start_col)
 
-        # 単一文字トークン
+        # Single character token
         if ch in SINGLE_CHAR_TOKENS:
             self._advance()
             return Token(SINGLE_CHAR_TOKENS[ch], ch, self.line, start_col)
 
-        # 不正な文字
+        # Invalid character
         self._advance()
         return Token(TokenType.ERROR, ch, self.line, start_col)
 
     def tokenize(self) -> List[Token]:
-        """ソースコード全体をトークン列に変換する。"""
+        """Converts the entire source code into a token stream."""
         tokens = []
         while True:
             token = self.next_token()
@@ -2010,10 +2011,10 @@ class Lexer:
         return tokens
 
 
-# --- 使用例 ---
+# --- Example Usage ---
 
 source_code = """
-// フィボナッチ数列
+// Fibonacci sequence
 int fib(int n) {
     if (n <= 1) {
         return n;
@@ -2025,12 +2026,12 @@ int fib(int n) {
 lexer = Lexer(source_code)
 tokens = lexer.tokenize()
 
-print("=== 字句解析結果 ===")
+print("=== Lexical Analysis Results ===")
 for token in tokens:
     print(f"  {token}")
 
-# 出力:
-# === 字句解析結果 ===
+# Output:
+# === Lexical Analysis Results ===
 #   Token(KW_INT, 'int', L3:C1)
 #   Token(IDENTIFIER, 'fib', L3:C5)
 #   Token(LPAREN, '(', L3:C8)
@@ -2068,17 +2069,17 @@ for token in tokens:
 #   Token(EOF, '', L9:C1)
 ```
 
-### 7.2 プロトコル検証への応用
+### 7.2 Application to Protocol Verification
 
-有限オートマトンは通信プロトコルの状態遷移をモデル化するのに適している。
+Finite automata are well-suited for modeling state transitions of communication protocols.
 
 ```
-TCP コネクション管理の状態遷移（簡略版）:
+TCP Connection Management State Transitions (Simplified):
 
-  状態: {CLOSED, LISTEN, SYN_SENT, SYN_RCVD, ESTABLISHED,
+  States: {CLOSED, LISTEN, SYN_SENT, SYN_RCVD, ESTABLISHED,
          FIN_WAIT_1, FIN_WAIT_2, CLOSE_WAIT, LAST_ACK, TIME_WAIT}
 
-  主要な遷移:
+  Key transitions:
 
     ┌─────────┐   passive open    ┌─────────┐
     │ CLOSED  │──────────────────→│ LISTEN  │
@@ -2094,7 +2095,7 @@ TCP コネクション管理の状態遷移（簡略版）:
          ▼                           ▼
     ┌──────────────────────────────────────┐
     │          ESTABLISHED                  │
-    │    （データ通信が可能な状態）          │
+    │    (State where data communication is possible)          │
     └──────────────────────────────────────┘
          │ close / send FIN          │ recv FIN
          ▼                           │ send ACK
@@ -2113,329 +2114,329 @@ TCP コネクション管理の状態遷移（簡略版）:
     │ TIME_WAIT  │──timeout──→  └─────────┘
     └────────────┘
 
-  プロトコル検証でのオートマトンの活用:
-  - 到達不能状態の検出（デッドロックの発見）
-  - 安全性の検証（禁止状態に到達しないことの確認）
-  - 活性の検証（いずれ目的の状態に到達することの確認）
-  - モデル検査ツール（SPIN, NuSMV 等）はオートマトン理論に基づく
+  Use of automata in protocol verification:
+  - Detection of unreachable states (finding deadlocks)
+  - Safety verification (confirming prohibited states are not reached)
+  - Liveness verification (confirming target states are eventually reached)
+  - Model checking tools (SPIN, NuSMV, etc.) are based on automata theory
 ```
 
-### 7.3 入力バリデーションへの応用
+### 7.3 Application to Input Validation
 
 ```
-実務での入力バリデーション戦略:
+Input validation strategies in practice:
 
-  バリデーション対象と適切な手法:
+  Validation targets and appropriate methods:
 
   ┌──────────────────┬──────────────────┬───────────────────────────┐
-  │ 対象             │ 言語クラス       │ 適切な手法                │
+  │ Target           │ Language class  │ Appropriate method                │
   ├──────────────────┼──────────────────┼───────────────────────────┤
-  │ メールアドレス   │ 正規（簡易版）   │ 正規表現                  │
-  │ (簡易チェック)   │                  │ ^[a-zA-Z0-9.]+@[a-zA-Z0-9.]+$│
+  │ Email address    │ Regular (simple)│ Regular expression                  │
+  │ (simple check)   │                  │ ^[a-zA-Z0-9.]+@[a-zA-Z0-9.]+$│
   ├──────────────────┼──────────────────┼───────────────────────────┤
-  │ 電話番号         │ 正規             │ 正規表現                  │
+  │ Phone number     │ Regular         │ Regular expression                  │
   │                  │                  │ ^\d{2,4}-\d{2,4}-\d{4}$  │
   ├──────────────────┼──────────────────┼───────────────────────────┤
-  │ IP アドレス      │ 正規             │ 正規表現 + 範囲チェック   │
+  │ IP address       │ Regular         │ Regex + range check   │
   ├──────────────────┼──────────────────┼───────────────────────────┤
-  │ JSON             │ 文脈自由         │ パーサー（再帰下降等）    │
-  │                  │                  │ 正規表現では不十分        │
+  │ JSON             │ Context-free    │ Parser (recursive descent, etc.)    │
+  │                  │                 │ Regex is insufficient        │
   ├──────────────────┼──────────────────┼───────────────────────────┤
-  │ XML/HTML         │ 文脈自由         │ パーサー                  │
-  │                  │                  │ 正規表現では不可能        │
+  │ XML/HTML         │ Context-free    │ Parser                  │
+  │                  │                 │ Impossible with regex        │
   ├──────────────────┼──────────────────┼───────────────────────────┤
-  │ プログラムコード │ 文脈依存         │ コンパイラフロントエンド   │
+  │ Program code     │ Context-sensitive│ Compiler frontend   │
   └──────────────────┴──────────────────┴───────────────────────────┘
 
-  重要な原則:
-    正規表現は正規言語のみを正しく処理できる。
-    入れ子構造（括弧の対応、タグの入れ子）は正規言語の範囲外。
-    HTML を正規表現でパースしようとする試みは理論的に不可能であり、
-    実務においても深刻なバグの原因となる。
+  Important principle:
+    Regular expressions can only correctly process regular languages.
+    Nested structures (matching parentheses, nested tags) are outside the scope of regular languages.
+    Attempting to parse HTML with regular expressions is theoretically impossible,
+    and also causes serious bugs in practice.
 ```
 
 ---
 
-## 8. アンチパターンと落とし穴
+## 8. Anti-Patterns and Pitfalls
 
-### 8.1 アンチパターン1: 正規表現で HTML をパースする
+### 8.1 Anti-Pattern 1: Parsing HTML with Regular Expressions
 
 ```
-アンチパターン: 正規表現による HTML パース
+Anti-pattern: Parsing HTML with regular expressions
 
-  誤ったアプローチ:
-    # HTML タグの中身を抽出しようとする正規表現
+  Incorrect approach:
+    # Regular expression attempting to extract HTML tag contents
     pattern = r"<div>(.*)</div>"
 
-  なぜ間違いか:
-    HTML は入れ子構造を持つ → 文脈自由言語
-    正規表現は正規言語しか処理できない
-    → 理論的に正規表現で HTML を正しくパースすることは不可能
+  Why it is wrong:
+    HTML has nested structure → context-free language
+    Regular expressions can only process regular languages
+    → It is theoretically impossible to correctly parse HTML with regex
 
-  具体的な問題例:
+  Concrete problem examples:
 
-    入力: "<div><div>内容</div></div>"
+    Input: "<div><div>content</div></div>"
 
-    pattern = r"<div>(.*)</div>"  に対するマッチ結果:
-      貪欲マッチ: "<div>内容</div>" → 外側のdivの中身全体
-      実際に期待する結果: 入れ子構造を正しく認識したい
-      → 正規表現では入れ子の深さを追跡できない
+    pattern = r"<div>(.*)</div>"  match result for:
+      Greedy match: "<div>content</div>" → Entire contents of the outer div
+      Expected result: Want to correctly recognize the nested structure
+      → Regular expressions cannot track nesting depth
 
-    さらに悪い例:
-      入力: "<div class='x'>内容</div>"
-      pattern = r"<div>(.*)</div>"  → マッチしない（属性がある）
-      pattern = r"<div[^>]*>(.*)</div>" → 入れ子で破綻
+    An even worse example:
+      Input: "<div class='x'>content</div>"
+      pattern = r"<div>(.*)</div>"  → Does not match (has attributes)
+      pattern = r"<div[^>]*>(.*)</div>" → Breaks down with nesting
 
-  正しいアプローチ:
-    - HTML パーサーライブラリを使用する
+  Correct approach:
+    - Use an HTML parser library
       Python: BeautifulSoup, lxml
       JavaScript: DOMParser, cheerio
-    - 理論的根拠: HTML の構造は文脈自由言語以上の表現力が必要
-      → PDA 以上の計算能力を持つパーサーが必要
+    - Theoretical basis: HTML structure requires expressive power beyond context-free languages
+      → A parser with computational power of PDA or above is needed
 
-  チョムスキー階層の観点:
-    正規表現（Type 3）で文脈自由言語（Type 2）の構造を処理しようとする
-    根本的な型の不一致（type mismatch）である。
+  From the perspective of the Chomsky hierarchy:
+    Attempting to process context-free language (Type 2) structures with regular expressions (Type 3)
+    is a fundamental type mismatch.
 ```
 
-### 8.2 アンチパターン2: 脆弱な正規表現パターン（ReDoS）
+### 8.2 Anti-Pattern 2: Vulnerable Regular Expression Patterns (ReDoS)
 
 ```
-アンチパターン: ReDoS（Regular expression Denial of Service）を引き起こすパターン
+Anti-pattern: Patterns that cause ReDoS (Regular expression Denial of Service)
 
-  危険なパターンの特徴:
-    量指定子（+, *）が入れ子になっている:
-      (a+)+      ← 指数的バックトラック
-      (a|aa)+    ← 曖昧な選択の繰り返し
-      (.*a){n}   ← .* と a の境界が曖昧
+  Characteristics of dangerous patterns:
+    Quantifiers (+, *) are nested:
+      (a+)+      ← Exponential backtracking
+      (a|aa)+    ← Repeated ambiguous alternation
+      (.*a){n}   ← Ambiguous boundary between .* and a
 
-  例: メールアドレスの検証
+  Example: Email address validation
 
-    危険な正規表現:
+    Dangerous regular expression:
       ^([a-zA-Z0-9]+\.)+[a-zA-Z]{2,}$
 
-    攻撃入力:
+    Attack input:
       "aaaaaaaaaaaaaaaaaaaaaaaa!"
-      → バックトラック方式のエンジンで指数的に処理時間が増大
-      → サーバーのCPUを100%消費 → サービス停止
+      → Processing time increases exponentially in backtracking engines
+      → Consumes 100% of server CPU → Service outage
 
-    攻撃のメカニズム:
-      1. ([a-zA-Z0-9]+\.)+ の部分で "aaa...a" をマッチさせようとする
-      2. 末尾の "!" でマッチ失敗
-      3. エンジンが a+ の境界を組み換えて再試行
-      4. 組み合わせ数が指数的に増大
+    Attack mechanism:
+      1. ([a-zA-Z0-9]+\.)+ In the part "aaa...a" it tries to match
+      2. The trailing "!" fails to match at
+      3. Engine rearranges a+ boundaries and retries
+      4. Number of combinations grows exponentially
 
-  対策:
-    1. 正規表現の複雑さを制限する
-       - 量指定子の入れ子を避ける
-       - アトミックグループ (?>...) や所有量指定子 a++ を使う
+  Countermeasures:
+    1. Limit the complexity of regular expressions
+       - Avoid nested quantifiers
+       - Use atomic groups (?>...) or possessive quantifiers a++
 
-    2. NFA ベースのエンジンを使用する
-       - Go の regexp パッケージ（RE2 ベース）
-       - Rust の regex クレート
-       - Google の RE2 ライブラリ
-       これらは O(n*m) を保証し、ReDoS が原理的に発生しない
+    2. Use NFA-based engines
+       - Go's regexp package (RE2-based)
+       - Rust's regex crate
+       - Google's RE2 library
+       These guarantee O(n*m) and ReDoS cannot occur in principle
 
-    3. タイムアウトを設定する
-       - Python: regex ライブラリのtimeout パラメータ
+    3. Set timeouts
+       - Python: timeout parameter in the regex library
        - .NET: RegexOptions.Timeout
 
-    4. 入力長を制限する
+    4. Limit input length
 
-    5. 静的解析ツールで検出する
-       - ESLint の no-misleading-character-class
-       - semgrep の ReDoS ルール
+    5. Detect with static analysis tools
+       - ESLint's no-misleading-character-class
+       - semgrep's ReDoS rules
 ```
 
-### 8.3 アンチパターン3: 不完全な DFA 設計
+### 8.3 Anti-Pattern 3: Incomplete DFA Design
 
 ```
-アンチパターン: エラー状態（デッドステート）を考慮しない DFA 設計
+Anti-pattern: DFA design that does not consider error states (dead states)
 
-  問題のある設計:
-    「"abc" を含む文字列を受理する DFA」を設計する際に、
-    マッチしなかった場合の遷移先を定義しない
+  Problematic design:
+    「"abc" When designing a DFA that accepts strings containing
+    not defining transition targets for non-matching cases
 
-  例:
-    不完全な遷移表:
+  Example:
+    Incomplete transition table:
     ┌────────┬────────┬──────────┐
-    │ 状態   │ a      │ b,c,...  │
+    │ State  │ a      │ b,c,...  │
     ├────────┼────────┼──────────┤
-    │ →q0    │ q1     │ ???      │  ← 遷移先未定義
+    │ →q0    │ q1     │ ???      │  ← Transition target undefined
     │  q1    │ ???    │ ???      │
     └────────┴────────┴──────────┘
 
-  正しい設計:
-    - DFA の遷移関数は全域関数（すべての状態×記号の組に定義が必要）
-    - マッチしない遷移はデッドステート（trap state）へ
-    - デッドステートからはどの入力でもデッドステート自身に遷移
+  Correct design:
+    - DFA transition function is a total function (must be defined for all state-symbol pairs)
+    - Non-matching transitions go to a dead state (trap state)
+    - From the dead state, any input transitions to the dead state itself
 
-    完全な遷移表:
+    Complete transition table:
     ┌────────┬────────┬──────────┐
-    │ 状態   │ a      │ other    │
+    │ State  │ a      │ other    │
     ├────────┼────────┼──────────┤
-    │ →q0    │ q1     │ q0      │  ← q0 でリセット
+    │ →q0    │ q1     │ q0      │  ← Reset at q0
     │  q1    │ q1     │ ...     │
-    │  dead  │ dead   │ dead    │  ← デッドステート
+    │  dead  │ dead   │ dead    │  ← Dead state
     └────────┴────────┴──────────┘
 
-  実装上の教訓:
-    - DFA 実装時は必ず検証メソッドを用意し、全域性をチェック
-    - 上記の DFA クラスの _validate メソッドが良い例
+  Implementation lessons:
+    - When implementing a DFA, always provide a validation method to check totality
+    - The _validate method of the DFA class above is a good example
 ```
 
 ---
 
-## 9. オートマトンの比較分析
+## 9. Comparative Analysis of Automata
 
-### 9.1 オートマトンの総合比較
+### 9.1 Comprehensive Comparison of Automata
 
 ```
-オートマトンの総合比較表:
+Comprehensive comparison table of automata:
 
   ┌────────────┬─────────────┬──────────────┬──────────────┬──────────────┐
-  │ 特性       │ DFA         │ NFA          │ PDA          │ TM           │
+  │ Property   │ DFA         │ NFA          │ PDA          │ TM           │
   ├────────────┼─────────────┼──────────────┼──────────────┼──────────────┤
-  │ 記憶装置   │ なし        │ なし         │ スタック     │ テープ       │
-  │            │（状態のみ） │（状態のみ）  │（LIFO）      │（無限）      │
+  │ Memory     │ None        │ None         │ Stack        │ Tape       │
+  │            │(state only) │(state only)  │(LIFO)        │(unbounded)      │
   ├────────────┼─────────────┼──────────────┼──────────────┼──────────────┤
-  │ 非決定性   │ なし        │ あり         │ あり/なし    │ あり/なし    │
+  │ Nondeterm. │ No          │ Yes          │ Yes/No       │ Yes/No    │
   ├────────────┼─────────────┼──────────────┼──────────────┼──────────────┤
-  │ 言語クラス │ 正規        │ 正規         │ 文脈自由     │ 帰納的可算   │
+  │ Lang class │ Regular     │ Regular      │ Context-free │ Rec. enum.   │
   ├────────────┼─────────────┼──────────────┼──────────────┼──────────────┤
-  │ 決定性と   │ 等価        │ 等価         │ DPDA < NPDA │ DTM = NTM    │
-  │ 非決定性   │ DFA = NFA   │              │ （異なる）   │ （等価）     │
+  │ Det. vs    │ Equivalent  │ Equivalent   │ DPDA < NPDA │ DTM = NTM    │
+  │ Nondet.    │ DFA = NFA   │              │ (different)  │ (equivalent)     │
   ├────────────┼─────────────┼──────────────┼──────────────┼──────────────┤
-  │ 閉包性     │ 和,積,補,   │ 和,積,補,    │ 和,連結,     │ 和,積,       │
-  │            │ 連結,閉包   │ 連結,閉包    │ 閉包         │ 連結,閉包    │
-  │            │ すべて閉    │              │ 積,補は非閉  │ 補は非閉     │
+  │ Closure    │ ∪,∩,compl,  │ ∪,∩,compl,   │ ∪,concat,    │ ∪,∩,       │
+  │            │ Concat,closure│ Concat,closure │ Closure      │ Concat,closure │
+  │            │ All closed  │              │ ∩,compl open │ compl open     │
   ├────────────┼─────────────┼──────────────┼──────────────┼──────────────┤
-  │ 所属問題   │ O(n)        │ O(n*m)       │ O(n^3) CYK  │ 決定不能     │
+  │ Membership │ O(n)        │ O(n*m)       │ O(n^3) CYK  │ Undecidable     │
   ├────────────┼─────────────┼──────────────┼──────────────┼──────────────┤
-  │ 等価問題   │ 決定可能    │ 決定可能     │ 決定不能     │ 決定不能     │
+  │ Equivalence│ Decidable   │ Decidable    │ Undecidable     │ Undecidable     │
   ├────────────┼─────────────┼──────────────┼──────────────┼──────────────┤
-  │ 空問題     │ 決定可能    │ 決定可能     │ 決定可能     │ 決定不能     │
+  │ Emptiness  │ Decidable   │ Decidable    │ Decidable    │ Undecidable     │
   ├────────────┼─────────────┼──────────────┼──────────────┼──────────────┤
-  │ 実務用途   │ 正規表現    │ 正規表現     │ 構文解析     │ 汎用計算     │
-  │            │ 字句解析    │ エンジン     │ パーサー     │ プログラム   │
+  │ Practical  │ Regex       │ Regex        │ Parsing      │ General     │
+  │ use        │ Lexing      │ engines      │ Parsers      │ Programs   │
   └────────────┴─────────────┴──────────────┴──────────────┴──────────────┘
 ```
 
-### 9.2 言語クラスの判別フローチャート
+### 9.2 Flowchart for Classifying Language Classes
 
 ```
-与えられた言語がどのクラスに属するかを判別するフロー:
+Flow for determining which class a given language belongs to:
 
-  言語 L が与えられたとき:
+  Given a language L:
 
-  L は有限集合か？
-    ├── Yes → 正規言語（有限言語はすべて正規）
+  Is L a finite set?
+    ├── Yes → Regular language (all finite languages are regular)
     └── No  ↓
 
-  L は正規表現で記述できるか？
-  またはDFA/NFAで認識できるか？
-    ├── Yes → 正規言語
-    └── No / 不明 ↓
+  Can L be described by a regular expression?
+  Or recognized by a DFA/NFA?
+    ├── Yes → Regular language
+    └── No / Unknown ↓
 
-  正規言語のポンピング補題で否定できるか？
-    ├── Yes → 正規言語でない
-    └── No  ↓ （ポンピング補題は必要条件であり十分条件でない）
+  Can it be disproven by the pumping lemma for regular languages?
+    ├── Yes → Not a regular language
+    └── No  ↓ (The pumping lemma is a necessary condition, not sufficient)
 
-  L は CFG で生成できるか？
-  または PDA で認識できるか？
-    ├── Yes → 文脈自由言語
-    └── No / 不明 ↓
+  Can L be generated by a CFG?
+  Or recognized by a PDA?
+    ├── Yes → Context-free language
+    └── No / Unknown ↓
 
-  CFL のポンピング補題で否定できるか？
-    ├── Yes → 文脈自由言語でない
+  Can it be disproven by the pumping lemma for CFLs?
+    ├── Yes → Not a context-free language
     └── No  ↓
 
-  L は文脈依存文法で生成できるか？
-    ├── Yes → 文脈依存言語
+  Can L be generated by a context-sensitive grammar?
+    ├── Yes → Context-sensitive language
     └── No  ↓
 
-  L は TM で認識できるか？
-    ├── Yes → 帰納的言語（決定可能）
+  Can L be recognized by a TM?
+    ├── Yes → Recursive language (decidable)
     └── No  ↓
 
-  L は TM で半決定可能か？
-    ├── Yes → 帰納的可算言語
-    └── No  → 帰納的可算ですらない言語
+  Is L semi-decidable by a TM?
+    ├── Yes → Recursively enumerable language
+    └── No  → Not even recursively enumerable
 
-  よく出る言語の分類:
-    {a^n | n は素数}               → 文脈自由でない、文脈依存
-    {ww | w は任意の文字列}       → 文脈自由でない、文脈依存
-    {w | w は整形式の括弧列}      → 文脈自由言語（正規でない）
-    {a^n b^n | n >= 0}            → 文脈自由言語（正規でない）
-    {a^n b^n c^n | n >= 0}        → 文脈自由でない、文脈依存
-    {a^n | n >= 0}                → 正規言語
+  Commonly encountered language classifications:
+    {a^n | n is prime}              → Not context-free, context-sensitive
+    {ww | w is any string}       → Not context-free, context-sensitive
+    {w | w is a well-formed parenthesis sequence}      → Context-free language (not regular)
+    {a^n b^n | n >= 0}            → Context-free language (not regular)
+    {a^n b^n c^n | n >= 0}        → Not context-free, context-sensitive
+    {a^n | n >= 0}                → Regular language
 ```
 
-### 9.3 パーサー手法の比較
+### 9.3 Comparison of Parsing Methods
 
 ```
-構文解析手法の比較:
+Comparison of parsing methods:
 
   ┌──────────────┬───────────┬───────────┬──────────────────────────┐
-  │ 手法         │ 方向      │ 計算量    │ 特徴                     │
+  │ Method       │ Direction │ Complexity│ Features                     │
   ├──────────────┼───────────┼───────────┼──────────────────────────┤
-  │ 再帰下降     │ トップダウン│ O(n)~    │ 手書きしやすい           │
-  │ (LL)         │ 左から右  │ O(n^3)   │ 左再帰に対応不可         │
+  │ Rec. descent │ Top-down  │ O(n)~    │ Easy to write by hand           │
+  │ (LL)         │ Left-right│ O(n^3)   │ Cannot handle left recursion         │
   ├──────────────┼───────────┼───────────┼──────────────────────────┤
-  │ LL(k)        │ トップダウン│ O(n)    │ k トークン先読み         │
-  │              │           │          │ ANTLR が代表的           │
+  │ LL(k)        │ Top-down  │ O(n)     │ k-token lookahead      │
+  │              │           │          │ ANTLR is representative           │
   ├──────────────┼───────────┼───────────┼──────────────────────────┤
-  │ LR(0)/SLR    │ ボトムアップ│ O(n)   │ シフト還元               │
-  │              │           │          │ 対応文法クラスが狭い     │
+  │ LR(0)/SLR    │ Bottom-up │ O(n)     │ Shift-reduce               │
+  │              │           │          │ Narrow grammar class     │
   ├──────────────┼───────────┼───────────┼──────────────────────────┤
-  │ LALR(1)      │ ボトムアップ│ O(n)   │ yacc/bison が代表的      │
-  │              │           │          │ 実用上十分な表現力       │
+  │ LALR(1)      │ Bottom-up │ O(n)     │ yacc/bison is representative      │
+  │              │           │          │ Sufficient expressive power       │
   ├──────────────┼───────────┼───────────┼──────────────────────────┤
-  │ LR(1)        │ ボトムアップ│ O(n)   │ LALR(1) より強力         │
-  │              │           │          │ テーブルが大きくなる     │
+  │ LR(1)        │ Bottom-up │ O(n)     │ More powerful than LALR(1)         │
+  │              │           │          │ Tables become large     │
   ├──────────────┼───────────┼───────────┼──────────────────────────┤
-  │ Earley       │ 汎用      │ O(n^3)  │ 任意の CFG に対応         │
-  │              │           │          │ 曖昧文法も処理可能       │
+  │ Earley       │ General   │ O(n^3)   │ Handles any CFG         │
+  │              │           │          │ Can handle ambiguous grammars       │
   ├──────────────┼───────────┼───────────┼──────────────────────────┤
-  │ CYK          │ ボトムアップ│ O(n^3) │ CNF が必要               │
-  │              │           │          │ 理論的に重要             │
+  │ CYK          │ Bottom-up │ O(n^3)   │ Requires CNF               │
+  │              │           │          │ Theoretically important             │
   ├──────────────┼───────────┼───────────┼──────────────────────────┤
-  │ PEG          │ トップダウン│ O(n)   │ パックラットパーサー     │
-  │              │           │          │ 優先順位付き選択         │
-  │              │           │          │ 曖昧性が生じない         │
+  │ PEG          │ Top-down  │ O(n)     │ Packrat parser     │
+  │              │           │          │ Ordered choice         │
+  │              │           │          │ No ambiguity         │
   └──────────────┴───────────┴───────────┴──────────────────────────┘
 
-  実務での選択指針:
-  - 小規模な言語（設定ファイル等）→ 手書き再帰下降
-  - 汎用プログラミング言語 → LALR(1) or LR(1) パーサージェネレータ
-  - DSL や拡張が多い言語 → PEG パーサー or LL(k) (ANTLR)
-  - 自然言語処理 → Earley パーサー or GLR
+  Practical selection guidelines:
+  - Small languages (config files, etc.) → Handwritten recursive descent
+  - General-purpose languages → LALR(1) or LR(1) parser generators
+  - DSLs or extensible languages → PEG parser or LL(k) (ANTLR)
+  - Natural language processing → Earley parser or GLR
 ```
 
 ---
 
-## 10. 実践演習
+## 10. Practice Exercises
 
-### 演習1: DFA 設計と実装（基礎）
+### Exercise 1: DFA Design and Implementation (Basics)
 
 ```
-問題:
-  アルファベット Sigma = {0, 1} 上の文字列で、
-  "01" を部分文字列として含む文字列を受理する DFA を設計し、
-  Python で実装せよ。
+Problem:
+  Design a DFA over the alphabet Sigma = {0, 1} that accepts
+  strings containing "01" as a substring,
+  and implement it in Python.
 
-  受理される例: "01", "001", "010", "1101", "0100"
-  拒否される例: "", "0", "1", "00", "11", "10", "110"
+  Accept examples: "01", "001", "010", "1101", "0100"
+  Reject examples: "", "0", "1", "00", "11", "10", "110"
 
-ヒント:
-  3つの状態を使う:
-    q0: まだ "0" を見ていない（初期状態）
-    q1: "0" を見たが、まだ "01" を完成していない
-    q2: "01" を見つけた（受理状態）
+Hint:
+  Use 3 states:
+    q0: Have not yet seen "0" (initial state)
+    q1: Have seen "0" but have not yet completed "01"
+    q2: Found "01" (accept state)
 
-解答:
+Solution:
 
-  状態遷移図:
+  State transition diagram:
        ┌──1──┐          ┌──0──┐
        │     │          │     │
        ▼     │          ▼     │
@@ -2443,11 +2444,11 @@ TCP コネクション管理の状態遷移（簡略版）:
                                 ↑  │
                                 │  │
                                 └──┘
-                              0,1で自己ループ
+                              Self-loop on 0,1
 
-  遷移表:
+  Transition table:
   ┌────────┬────────┬────────┐
-  │ 状態   │ 0      │ 1      │
+  │ State  │ 0      │ 1      │
   ├────────┼────────┼────────┤
   │ →q0    │ q1     │ q0     │
   │  q1    │ q1     │ q2     │
@@ -2456,9 +2457,9 @@ TCP コネクション管理の状態遷移（簡略版）:
 ```
 
 ```python
-"""演習1の解答: "01" を含む文字列を受理する DFA"""
+"""Exercise 1 Solution: DFA that accepts strings containing "01" """
 
-# 上記の DFA クラスを使用
+# Using the DFA class defined above
 dfa_contains_01 = DFA(
     states={"q0", "q1", "q2"},
     alphabet={"0", "1"},
@@ -2474,48 +2475,48 @@ dfa_contains_01 = DFA(
     accept_states={"q2"},
 )
 
-# テスト
+# Test
 accept_cases = ["01", "001", "010", "1101", "0100"]
 reject_cases = ["", "0", "1", "00", "11", "10", "110"]
 
-print("=== 受理されるべきケース ===")
+print("=== Cases that should be accepted ===")
 for tc in accept_cases:
     result = dfa_contains_01.accepts(tc)
     status = "OK" if result else "NG"
     print(f"  [{status}] \"{tc}\": {result}")
 
-print("\n=== 拒否されるべきケース ===")
+print("\n=== Cases that should be rejected ===")
 for tc in reject_cases:
     result = dfa_contains_01.accepts(tc)
     status = "OK" if not result else "NG"
     print(f"  [{status}] \"{tc}\": {result}")
 ```
 
-### 演習2: NFA の設計と DFA 変換（応用）
+### Exercise 2: NFA Design and DFA Conversion (Intermediate)
 
 ```
-問題:
-  正規表現 (a|b)*aba を NFA に変換し、
-  さらに部分集合構成法で DFA に変換せよ。
-  "ababa" が受理されるか、トレースで確認せよ。
+Problem:
+  Convert the regular expression (a|b)*aba to an NFA,
+  then convert it to a DFA using the subset construction.
+  Verify whether "ababa" is accepted by tracing the execution.
 
-ヒント:
-  Thompson 構成法を使ってまず NFA を構築する。
-  (a|b)* の部分は、状態 q0 で a,b のどちらでも q0 に留まる
-  ように簡略化できる。
+Hint:
+  First build the NFA using Thompson's construction.
+  The (a|b)* part can be simplified so that state q0
+  stays in q0 for both a and b.
 
-解答:
+Solution:
 
-  簡略化した NFA:
+  Simplified NFA:
 
        ┌─a,b─┐
        │     │
        ▼     │
     →( q0 )──a──→( q1 )──b──→( q2 )──a──→(( q3 ))
 
-  遷移表:
+  Transition table:
   ┌────────┬────────────┬────────────┐
-  │ 状態   │ a          │ b          │
+  │ State  │ a          │ b          │
   ├────────┼────────────┼────────────┤
   │ →q0    │ {q0, q1}   │ {q0}       │
   │  q1    │ (empty)    │ {q2}       │
@@ -2523,22 +2524,22 @@ for tc in reject_cases:
   │ *q3    │ (empty)    │ (empty)    │
   └────────┴────────────┴────────────┘
 
-  部分集合構成法:
+  Subset construction:
 
-  DFA初期状態: {q0}
+  DFA initial state: {q0}
 
   {q0} →a→ {q0,q1}    →b→ {q0}
   {q0,q1} →a→ {q0,q1}  →b→ {q0,q2}
   {q0,q2} →a→ {q0,q1,q3} →b→ {q0}
   {q0,q1,q3} →a→ {q0,q1} →b→ {q0,q2}
 
-  状態の対応:
+  State mapping:
     A = {q0}         B = {q0,q1}
-    C = {q0,q2}      D = {q0,q1,q3}  ← 受理状態
+    C = {q0,q2}      D = {q0,q1,q3}  ← accept state
 
-  DFA 遷移表:
+  DFA transition table:
   ┌────────┬────────┬────────┐
-  │ 状態   │ a      │ b      │
+  │ State  │ a      │ b      │
   ├────────┼────────┼────────┤
   │ →A     │ B      │ A      │
   │  B     │ B      │ C      │
@@ -2546,34 +2547,34 @@ for tc in reject_cases:
   │ *D     │ B      │ C      │
   └────────┴────────┴────────┘
 
-  トレース（入力 "ababa"）:
-    A →a→ B →b→ C →a→ D →b→ C →a→ D → 受理
+  Trace (input "ababa"):
+    A →a→ B →b→ C →a→ D →b→ C →a→ D → Accept
 ```
 
-### 演習3: CYK アルゴリズムの実装（発展）
+### Exercise 3: CYK Algorithm Implementation (Advanced)
 
 ```
-問題:
-  以下の CNF 文法に対して CYK アルゴリズムを実装し、
-  文字列 "aabb" が生成可能かどうかを判定せよ。
+Problem:
+  Implement the CYK algorithm for the following CNF grammar
+  and determine whether the string "aabb" can be generated.
 
-  文法 G（CNF）:
+  Grammar G (CNF):
     S → AB | BC
     A → BA | a
     B → CC | b
     C → AB | a
 
-  ヒント:
-    CYK テーブル T[i][j] を下三角行列として構築する。
-    T[i][j] は部分文字列 w[i..j] を生成できる変数の集合。
+  Hint:
+    Build the CYK table T[i][j] as a lower triangular matrix.
+    T[i][j] is the set of variables that can generate the substring w[i..j].
 ```
 
 ```python
 """
-演習3の解答: CYK アルゴリズムの実装
+Exercise 3 Solution: CYK Algorithm Implementation
 
-CNF（チョムスキー標準形）の文法に対して、
-与えられた文字列が文法から生成可能かどうかを判定する。
+Determines whether a given string can be generated
+by a grammar in Chomsky Normal Form (CNF).
 """
 
 from typing import Dict, List, Set, Tuple
@@ -2585,41 +2586,41 @@ def cyk_parse(
     input_string: str,
 ) -> bool:
     """
-    CYK アルゴリズムで入力文字列の所属判定を行う。
+    Performs membership testing using the CYK algorithm.
 
     Args:
-        grammar: CNF 文法の生成規則
-                 {変数: [(右辺のタプル), ...]}
-                 例: {"S": [("A", "B"), ("a",)]}
-        start_symbol: 開始記号
-        input_string: 判定する文字列
+        grammar: Production rules in CNF
+                 {variable: [(right-hand side tuple), ...]}
+                 Example: {"S": [("A", "B"), ("a",)]}
+        start_symbol: Start symbol
+        input_string: String to test
 
     Returns:
-        input_string が文法から生成可能なら True
+        True if input_string can be generated by the grammar
     """
     n = len(input_string)
     if n == 0:
-        # 空文字列の場合、S → epsilon が存在するか確認
+        # For empty string, check if S → epsilon exists
         return ("",) in grammar.get(start_symbol, [])
 
-    # CYK テーブル: table[i][j] = w[i..j] を生成できる変数の集合
-    # i, j は 0-indexed
+    # CYK table: table[i][j] = set of variables that can generate w[i..j]
+    # i, j are 0-indexed
     table: List[List[Set[str]]] = [
         [set() for _ in range(n)] for _ in range(n)
     ]
 
-    # 基底ケース: 長さ1の部分文字列
+    # Base case: substrings of length 1
     for i in range(n):
         for var, productions in grammar.items():
             for prod in productions:
                 if len(prod) == 1 and prod[0] == input_string[i]:
                     table[i][i].add(var)
 
-    # 帰納ステップ: 長さ 2 以上の部分文字列
-    for length in range(2, n + 1):       # 部分文字列の長さ
-        for i in range(n - length + 1):  # 開始位置
-            j = i + length - 1           # 終了位置
-            for k in range(i, j):        # 分割点
+    # Inductive step: substrings of length 2 or more
+    for length in range(2, n + 1):       # Substring length
+        for i in range(n - length + 1):  # Start position
+            j = i + length - 1           # End position
+            for k in range(i, j):        # Split point
                 for var, productions in grammar.items():
                     for prod in productions:
                         if (len(prod) == 2
@@ -2627,8 +2628,8 @@ def cyk_parse(
                                 and prod[1] in table[k + 1][j]):
                             table[i][j].add(var)
 
-    # デバッグ出力: CYK テーブルの表示
-    print(f"\n=== CYK テーブル（入力: \"{input_string}\"） ===")
+    # Debug output: Display the CYK table
+    print(f"\n=== CYK Table (input: \"{input_string}\") ===")
     print(f"    ", end="")
     for j in range(n):
         print(f"  {input_string[j]}(j={j})  ", end="")
@@ -2647,9 +2648,9 @@ def cyk_parse(
     return start_symbol in table[0][n - 1]
 
 
-# --- 使用例 ---
+# --- Example Usage ---
 
-# CNF 文法の定義
+# Define the CNF grammar
 grammar = {
     "S": [("A", "B"), ("B", "C")],
     "A": [("B", "A"), ("a",)],
@@ -2657,7 +2658,7 @@ grammar = {
     "C": [("A", "B"), ("a",)],
 }
 
-# テスト
+# Test
 test_strings = ["aabb", "ab", "aab", "b", "aaaa"]
 for s in test_strings:
     result = cyk_parse(grammar, "S", s)
@@ -2666,164 +2667,165 @@ for s in test_strings:
 
 ---
 
-## 11. FAQ（よくある質問と回答）
+## 11. FAQ (Frequently Asked Questions)
 
-### Q1: DFA と NFA は計算能力が同じなのに、なぜ NFA が必要なのか？
-
-```
-回答:
-
-  NFA が実用上重要な理由は主に3つある。
-
-  1. 記述の簡潔さ:
-     NFA は DFA よりも少ない状態数で同じ言語を表現できることが多い。
-     例えば、「末尾から k 番目の文字が a」という言語は:
-       NFA: O(k) 状態
-       DFA: O(2^k) 状態（最悪ケースで指数的に増大）
-
-  2. 構成の容易さ:
-     Thompson 構成法のように、正規表現から NFA を直接構築するのは
-     機械的で簡単だが、DFA を直接構築するのは難しい。
-     和集合、連結、クリーネ閉包の構成が NFA では自然に行える。
-
-  3. 理論的な道具:
-     NFA の非決定性は理論的な証明において強力な道具となる。
-     正規言語の閉包性の多くは NFA を使って簡潔に証明できる。
-
-  実務的には:
-  - NFA で設計 → 部分集合構成法で DFA に変換 → DFA で高速実行
-    という流れが一般的（コンパイラの字句解析器生成等）
-  - あるいは NFA をそのままシミュレートする方式もある
-    （RE2 の遅延 DFA 構築が代表例）
-```
-
-### Q2: 正規表現の後方参照はなぜ理論的な正規表現の能力を超えるのか？
+### Q1: If DFA and NFA have the same computational power, why do we need NFA?
 
 ```
-回答:
+Answer:
 
-  理論的な正規表現（数学的定義）と実用的な正規表現（プログラミング言語の
-  正規表現エンジン）は異なる概念である。
+  There are three main reasons why NFAs are practically important.
 
-  理論的な正規表現:
-    連結、和集合（|）、クリーネ閉包（*）の3つの演算のみ
-    → 正規言語のみを表現できる
+  1. Conciseness of description:
+     NFAs can often represent the same language with fewer states than DFAs.
+     For example, the language "the k-th character from the end is a":
+       NFA: O(k) states
+       DFA: O(2^k) states (exponential growth in the worst case)
 
-  実用的な正規表現（Perl 互換正規表現等）の追加機能:
-    - 後方参照（backreference）: \1, \2, ...
-    - 先読み/後読み: (?=...), (?<=...)
-    - 条件付きパターン
-    等
+  2. Ease of construction:
+     Mechanically building an NFA directly from a regular expression,
+     as in Thompson's construction, is straightforward, whereas building
+     a DFA directly is difficult.
+     Union, concatenation, and Kleene closure are naturally expressed with NFAs.
 
-  後方参照が正規言語の範囲を超える理由:
+  3. Theoretical tool:
+     Nondeterminism in NFAs serves as a powerful tool in theoretical proofs.
+     Many closure properties of regular languages can be proved concisely using NFAs.
 
-    例: パターン (.+)\1
-    これは「任意の文字列 w の後に同じ w」= {ww | w in Sigma+} にマッチ
-    → {ww | w in Sigma+} は正規言語でも文脈自由言語でもない
-      （文脈依存言語に属する）
-
-  結果:
-    後方参照付きの正規表現マッチングは NP 完全問題
-    → バックトラックによる指数時間が本質的に避けられない場合がある
-    → NFA ベースのエンジン（Go, Rust）は後方参照を意図的にサポートしない
+  In practice:
+  - The typical flow is: design with NFA → convert to DFA via subset construction → fast execution with DFA
+    (e.g., compiler lexer generators)
+  - Alternatively, NFAs can be simulated directly
+    (RE2's lazy DFA construction is a representative example)
 ```
 
-### Q3: 文脈自由文法で記述できないプログラミング言語の構文要素はあるか？
+### Q2: Why do backreferences exceed the theoretical power of regular expressions?
 
 ```
-回答:
+Answer:
 
-  現代のプログラミング言語の多くの構文は CFG で記述可能だが、
-  いくつかの要素は文脈自由言語の範囲を超える。
+  Theoretical regular expressions (mathematical definition) and practical
+  regular expressions (regex engines in programming languages) are different concepts.
 
-  CFG で記述できない要素の例:
+  Theoretical regular expressions:
+    Only three operations: concatenation, union (|), and Kleene closure (*)
+    → Can only express regular languages
 
-  1. 変数の宣言と使用の対応:
-     「変数 x は使用前に宣言されていなければならない」
-     → これは {wcw | w は任意} 型の問題（c は区切り）
-     → 文脈依存
+  Additional features in practical regular expressions (Perl-compatible regex, etc.):
+    - Backreferences: \1, \2, ...
+    - Lookahead/lookbehind: (?=...), (?<=...)
+    - Conditional patterns
+    etc.
 
-  2. 関数の引数の数の一致:
-     「関数定義のパラメータ数と呼び出し時の引数の数が一致」
-     → {a^n b^n c^n | n >= 0} 型の問題に帰着可能
-     → 文脈依存
+  Why backreferences exceed the scope of regular languages:
 
-  3. C 言語の typedef:
-     typedef によって識別子が型名として使えるようになる
-     → パース時に識別子か型名かを判断するには文脈が必要
-     → 「レクサーハック」という特殊処理で対応
+    Example: Pattern (.+)\1
+    This matches "any string w followed by the same w" = {ww | w in Sigma+}
+    → {ww | w in Sigma+} is neither a regular language nor a context-free language
+      (it belongs to context-sensitive languages)
 
-  実務での対処法:
-    コンパイラはこれらを2段階で処理する:
-    a. 構文解析（CFG ベース）: 構造だけを解析
-    b. 意味解析: 型チェック、スコープ解析、名前解決等
-       → CFG では表現できない制約をここで検証
-
-    つまり、チョムスキー階層の各レベルの能力を
-    コンパイラの各フェーズに適切に割り当てている。
+  Consequence:
+    Regex matching with backreferences is an NP-complete problem
+    → Exponential time due to backtracking may be inherently unavoidable
+    → NFA-based engines (Go, Rust) intentionally do not support backreferences
 ```
 
-### Q4: 有限オートマトンの状態数の下界はどう求めるか？
+### Q3: Are there programming language syntax elements that cannot be described by context-free grammars?
 
 ```
-回答:
+Answer:
 
-  与えられた正規言語 L を受理する最小 DFA の状態数を求める
-  方法として、Myhill-Nerode の定理がある。
+  While most syntax of modern programming languages can be described by CFGs,
+  some elements exceed the scope of context-free languages.
 
-  Myhill-Nerode の定理:
-    言語 L に対して、同値関係 ≡_L を定義する:
-      x ≡_L y ⟺ すべての z について (xz in L ⟺ yz in L)
+  Examples of elements that cannot be described by CFG:
 
-    定理:
-    1. L が正規言語 ⟺ ≡_L の同値類の数が有限
-    2. 最小 DFA の状態数 = ≡_L の同値類の数
+  1. Correspondence between variable declaration and usage:
+     "Variable x must be declared before use"
+     → This is a {wcw | w is arbitrary} type problem (c is a separator)
+     → Context-sensitive
 
-  例: L = {w in {a,b}* | w は偶数個の a を含む}
+  2. Matching number of function arguments:
+     "The number of parameters in a function definition must match the number of arguments at the call site"
+     → Can be reduced to a {a^n b^n c^n | n >= 0} type problem
+     → Context-sensitive
 
-    同値類を考える:
-      [epsilon] = {w | w は偶数個の a を含む}  （偶数個の a）
-      [a]       = {w | w は奇数個の a を含む}  （奇数個の a）
+  3. C language typedef:
+     typedef allows identifiers to be used as type names
+     → Context is needed to determine whether a token is an identifier or type name during parsing
+     → Handled by a special technique called the "lexer hack"
 
-    これ以上分割できない → 同値類は2つ
-    → 最小 DFA の状態数は 2
+  Practical approach:
+    Compilers handle these in two stages:
+    a. Syntax analysis (CFG-based): Analyze structure only
+    b. Semantic analysis: Type checking, scope analysis, name resolution, etc.
+       → Constraints that cannot be expressed by CFG are verified here
 
-  Myhill-Nerode の定理は以下の用途で有用:
-    - 最小 DFA の状態数の証明
-    - 言語が正規言語でないことの別証明法
-      （同値類が無限なら正規でない）
-    - DFA 最小化の理論的根拠
+    In other words, the capabilities of each level of the Chomsky hierarchy
+    are appropriately assigned to each phase of the compiler.
 ```
 
-### Q5: オートマトン理論は機械学習とどう関係するか？
+### Q4: How do you determine the lower bound on the number of states in a finite automaton?
 
 ```
-回答:
+Answer:
 
-  オートマトン理論と機械学習の接点は複数ある。
+  The Myhill-Nerode theorem provides a method to determine the minimum
+  number of states in a DFA that accepts a given regular language L.
 
-  1. オートマトンの学習（文法推論）:
-     - 正の例と負の例からDFAを学習する問題
-     - RPNI（Regular Positive and Negative Inference）アルゴリズム
-     - L* アルゴリズム（Angluin, 1987）: 質問によるDFA学習
-     - 最小一致DFAの発見はNP完全
+  Myhill-Nerode theorem:
+    Define an equivalence relation ≡_L for language L:
+      x ≡_L y ⟺ for all z, (xz in L ⟺ yz in L)
 
-  2. リカレントニューラルネットワーク（RNN）との関係:
-     - RNN は理論的に有限精度ではDFAに相当
-     - 無限精度ではチューリング完全
-     - RNN からDFA/NFA を抽出する研究が活発
-     - Transformer が正規言語・文脈自由言語をどこまで
-       学習できるかの理論的分析
+    Theorem:
+    1. L is a regular language ⟺ the number of equivalence classes of ≡_L is finite
+    2. Minimum DFA state count = number of equivalence classes of ≡_L
 
-  3. 形式検証と機械学習の融合:
-     - 学習されたモデルの振る舞いをオートマトンで表現
-     - オートマトンの性質を利用して安全性を検証
-     - 敵対的入力の検出
+  Example: L = {w in {a,b}* | w contains an even number of a's}
 
-  4. 自然言語処理:
-     - 有限状態トランスデューサーによる形態素解析
-     - 重み付きオートマトンによる確率的言語モデル
-     - n-gram モデルの有限状態機械としての解釈
+    Consider the equivalence classes:
+      [epsilon] = {w | w contains an even number of a's}  (even number of a's)
+      [a]       = {w | w contains an odd number of a's}   (odd number of a's)
+
+    No further splitting is possible → there are 2 equivalence classes
+    → minimum DFA state count is 2
+
+  The Myhill-Nerode theorem is useful for:
+    - Proving the minimum number of DFA states
+    - An alternative proof method that a language is not regular
+      (if the number of equivalence classes is infinite, it is not regular)
+    - Theoretical foundation for DFA minimization
+```
+
+### Q5: How does automata theory relate to machine learning?
+
+```
+Answer:
+
+  There are multiple intersections between automata theory and machine learning.
+
+  1. Automaton learning (grammar inference):
+     - The problem of learning DFAs from positive and negative examples
+     - RPNI (Regular Positive and Negative Inference) algorithm
+     - L* algorithm (Angluin, 1987): DFA learning through queries
+     - Finding the minimum consistent DFA is NP-complete
+
+  2. Relationship with Recurrent Neural Networks (RNNs):
+     - RNNs with finite precision are theoretically equivalent to DFAs
+     - With infinite precision, they are Turing-complete
+     - Active research on extracting DFA/NFA from RNNs
+     - Theoretical analysis of the extent to which Transformers
+       can learn regular and context-free languages
+
+  3. Fusion of formal verification and machine learning:
+     - Representing learned model behavior as automata
+     - Using automaton properties to verify safety
+     - Detection of adversarial inputs
+
+  4. Natural language processing:
+     - Morphological analysis using finite-state transducers
+     - Probabilistic language models using weighted automata
+     - Interpretation of n-gram models as finite-state machines
 ```
 
 ---
@@ -2831,148 +2833,155 @@ for s in test_strings:
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when studying this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not only through theory but also by actually writing code and verifying its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes that beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the basics and jumping to advanced topics. We recommend thoroughly understanding the fundamental concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this knowledge used in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently applied in everyday development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## 12. まとめと学習ロードマップ
+## 12. Summary and Learning Roadmap
 
-### 12.1 章のまとめ
+### 12.1 Chapter Summary
 
 ```
-この章の重要ポイント:
+Key points of this chapter:
 
-  1. 有限オートマトン（DFA/NFA）:
-     - DFA: 各状態から入力記号ごとに遷移先が一意
-     - NFA: 複数の遷移先やepsilon遷移が許される
-     - DFA と NFA の計算能力は等価（部分集合構成法で変換可能）
-     - ただし状態数は最悪で指数的に増大
+  1. Finite Automata (DFA/NFA):
+     - DFA: Transition destination is unique for each input symbol from each state
+     - NFA: Multiple transition destinations and epsilon transitions are allowed
+     - DFA and NFA have equivalent computational power (convertible via subset construction)
+     - However, state count can grow exponentially in the worst case
 
-  2. 正規言語:
-     - DFA/NFA が受理する言語 = 正規表現で記述できる言語
-     - ポンピング補題で正規言語でないことを証明できる
-     - 多くの演算に対して閉じている（補集合、共通部分も含む）
-     - 実務では字句解析、パターンマッチ、入力検証に使用
+  2. Regular Languages:
+     - Languages accepted by DFA/NFA = languages expressible by regular expressions
+     - The pumping lemma can prove that a language is not regular
+     - Closed under many operations (including complement and intersection)
+     - Used in practice for lexical analysis, pattern matching, and input validation
 
-  3. 文脈自由文法と PDA:
-     - CFG: 左辺が単一変数の生成規則
-     - PDA: 有限オートマトン + スタック
-     - CFG と PDA は計算能力が等価
-     - プログラミング言語の構文定義に広く使用
-     - 正規言語より表現力が高い（括弧の対応等が可能）
+  3. Context-Free Grammars and PDA:
+     - CFG: Production rules with a single variable on the left-hand side
+     - PDA: Finite automaton + stack
+     - CFG and PDA have equivalent computational power
+     - Widely used for programming language syntax definition
+     - More expressive than regular languages (e.g., matching parentheses)
 
-  4. チョムスキー階層:
-     - 4つのレベル: 正規 < 文脈自由 < 文脈依存 < 帰納的可算
-     - 各レベルは対応するオートマトン（計算モデル）を持つ
-     - コンパイラの各フェーズは異なるレベルの能力を活用
+  4. Chomsky Hierarchy:
+     - Four levels: Regular < Context-Free < Context-Sensitive < Recursively Enumerable
+     - Each level has a corresponding automaton (computational model)
+     - Each phase of a compiler leverages capabilities from different levels
 
-  5. 実務応用:
-     - 正規表現エンジンの実装方式（NFA vs バックトラック）
-     - ReDoS のリスクと対策
-     - HTML パースに正規表現を使うべきでない理論的根拠
-     - プロトコル検証への有限オートマトンの応用
+  5. Practical Applications:
+     - Regular expression engine implementation approaches (NFA vs backtracking)
+     - ReDoS risks and countermeasures
+     - Theoretical basis for why regular expressions should not be used for HTML parsing
+     - Application of finite automata to protocol verification
 ```
 
-### 12.2 重要な定理・結果の一覧
+### 12.2 List of Important Theorems and Results
 
 ```
   ┌────┬─────────────────────────────┬──────────────────────────────┐
-  │ No │ 定理・結果                  │ 意義                         │
+  │ No │ Theorem / Result             │ Significance                 │
   ├────┼─────────────────────────────┼──────────────────────────────┤
-  │ 1  │ DFA = NFA（等価性）         │ 非決定性は有限オートマトンの  │
-  │    │                             │ 計算能力を増やさない          │
+  │ 1  │ DFA = NFA (equivalence)     │ Nondeterminism does not      │
+  │    │                             │ increase FA computational    │
+  │    │                             │ power                        │
   ├────┼─────────────────────────────┼──────────────────────────────┤
-  │ 2  │ Kleene の定理               │ DFA/NFA/正規表現は同じ言語   │
-  │    │                             │ クラスを定義する              │
+  │ 2  │ Kleene's theorem            │ DFA/NFA/regex define the     │
+  │    │                             │ same language class           │
   ├────┼─────────────────────────────┼──────────────────────────────┤
-  │ 3  │ 正規言語のポンピング補題    │ 正規言語でないことの          │
-  │    │                             │ 証明ツール                    │
+  │ 3  │ Pumping lemma for regular   │ Proof tool for showing a     │
+  │    │ languages                   │ language is not regular       │
   ├────┼─────────────────────────────┼──────────────────────────────┤
-  │ 4  │ Myhill-Nerode の定理        │ 最小DFAの一意性と             │
-  │    │                             │ 状態数の特徴付け              │
+  │ 4  │ Myhill-Nerode theorem       │ Uniqueness of minimal DFA    │
+  │    │                             │ and state count              │
+  │    │                             │ characterization             │
   ├────┼─────────────────────────────┼──────────────────────────────┤
-  │ 5  │ CFG = PDA（等価性）         │ 文脈自由言語の2つの           │
-  │    │                             │ 特徴付けが等価                │
+  │ 5  │ CFG = PDA (equivalence)     │ Two characterizations of     │
+  │    │                             │ context-free languages       │
+  │    │                             │ are equivalent               │
   ├────┼─────────────────────────────┼──────────────────────────────┤
-  │ 6  │ CFL のポンピング補題        │ 文脈自由言語でないことの      │
-  │    │                             │ 証明ツール                    │
+  │ 6  │ Pumping lemma for CFLs      │ Proof tool for showing a     │
+  │    │                             │ language is not context-free  │
   ├────┼─────────────────────────────┼──────────────────────────────┤
-  │ 7  │ DPDA < NPDA                │ PDA では決定性と非決定性で    │
-  │    │                             │ 計算能力が異なる              │
+  │ 7  │ DPDA < NPDA                │ Determinism and nondetermin- │
+  │    │                             │ ism differ in computational  │
+  │    │                             │ power for PDAs               │
   ├────┼─────────────────────────────┼──────────────────────────────┤
-  │ 8  │ CFG の曖昧性は決定不能     │ 文法設計の本質的な困難さ      │
+  │ 8  │ CFG ambiguity is            │ Inherent difficulty of       │
+  │    │ undecidable                 │ grammar design               │
   ├────┼─────────────────────────────┼──────────────────────────────┤
-  │ 9  │ CFL の等価性は決定不能     │ 2つの CFG が同じ言語を        │
-  │    │                             │ 生成するかは判定できない      │
+  │ 9  │ CFL equivalence is          │ Whether two CFGs generate    │
+  │    │ undecidable                 │ the same language cannot     │
+  │    │                             │ be decided                   │
   ├────┼─────────────────────────────┼──────────────────────────────┤
-  │ 10 │ チョムスキー階層            │ 言語の表現力の体系的分類      │
+  │ 10 │ Chomsky hierarchy           │ Systematic classification    │
+  │    │                             │ of language expressiveness   │
   └────┴─────────────────────────────┴──────────────────────────────┘
 ```
 
-### 12.3 学習ロードマップ
+### 12.3 Learning Roadmap
 
 ```
-推奨される学習順序:
+Recommended learning order:
 
-  Level 1（基礎: 1-2週間）
-  ├── DFA の定義と例の理解
-  ├── 状態遷移図と遷移表の読み書き
-  ├── 簡単な DFA の設計（偶数個、部分文字列含む等）
-  └── 正規表現の基本構文
+  Level 1 (Basics: 1-2 weeks)
+  ├── Understanding DFA definitions and examples
+  ├── Reading and writing state transition diagrams and tables
+  ├── Designing simple DFAs (even count, substring containment, etc.)
+  └── Basic regular expression syntax
 
-  Level 2（応用: 2-3週間）
-  ├── NFA の定義と DFA との違い
-  ├── 部分集合構成法の理解と手計算
-  ├── Thompson 構成法（正規表現 → NFA）
-  ├── ポンピング補題の証明テクニック
-  └── DFA/NFA の Python 実装
+  Level 2 (Intermediate: 2-3 weeks)
+  ├── NFA definition and differences from DFA
+  ├── Understanding and hand-computing subset construction
+  ├── Thompson's construction (regex → NFA)
+  ├── Pumping lemma proof techniques
+  └── Python implementation of DFA/NFA
 
-  Level 3（発展: 3-4週間）
-  ├── 文脈自由文法の定義と導出
-  ├── プッシュダウンオートマトン
-  ├── CFG から PDA への変換
-  ├── CNF への変換と CYK アルゴリズム
-  ├── チョムスキー階層の全体像
-  └── 各レベルの決定可能性
+  Level 3 (Advanced: 3-4 weeks)
+  ├── Context-free grammar definitions and derivations
+  ├── Pushdown automata
+  ├── Conversion from CFG to PDA
+  ├── Conversion to CNF and CYK algorithm
+  ├── Overview of the Chomsky hierarchy
+  └── Decidability at each level
 
-  Level 4（実践: 継続的）
-  ├── 字句解析器の実装
-  ├── 正規表現エンジンの実装
-  ├── ReDoS の理解と安全な正規表現の設計
-  ├── パーサーコンビネータの実装
-  └── コンパイラフロントエンドの設計
+  Level 4 (Practical: Ongoing)
+  ├── Implementing a lexical analyzer
+  ├── Implementing a regular expression engine
+  ├── Understanding ReDoS and designing safe regular expressions
+  ├── Implementing parser combinators
+  └── Designing a compiler frontend
 ```
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Guides
 
 
 ---
 
-## 参考文献
+## References
 
-1. Hopcroft, J. E., Motwani, R., Ullman, J. D. *Introduction to Automata Theory, Languages, and Computation.* 3rd Edition. Pearson, 2006. -- オートマトン理論の定番教科書。DFA/NFA の等価性、正規言語の性質、文脈自由文法、チョムスキー階層を体系的に扱う。数学的厳密性と実例のバランスが優れている。
+1. Hopcroft, J. E., Motwani, R., Ullman, J. D. *Introduction to Automata Theory, Languages, and Computation.* 3rd Edition. Pearson, 2006. -- The standard textbook on automata theory. Systematically covers DFA/NFA equivalence, properties of regular languages, context-free grammars, and the Chomsky hierarchy. Excellent balance between mathematical rigor and practical examples.
 
-2. Sipser, M. *Introduction to the Theory of Computation.* 3rd Edition. Cengage Learning, 2012. -- 計算理論全般をカバーする教科書。オートマトン理論から計算可能性、計算量理論まで統一的に扱う。証明のスタイルが明快で読みやすい。演習問題が豊富。
+2. Sipser, M. *Introduction to the Theory of Computation.* 3rd Edition. Cengage Learning, 2012. -- A textbook covering all of computation theory. Provides unified treatment from automata theory to computability and complexity theory. Clear proof style and highly readable. Rich in exercises.
 
-3. Aho, A. V., Lam, M. S., Sethi, R., Ullman, J. D. *Compilers: Principles, Techniques, and Tools.* 2nd Edition. Pearson, 2006. -- 通称「ドラゴンブック」。コンパイラ設計の古典的教科書。字句解析（DFA）、構文解析（CFG/PDA）の実践的な応用を詳細に解説。
+3. Aho, A. V., Lam, M. S., Sethi, R., Ullman, J. D. *Compilers: Principles, Techniques, and Tools.* 2nd Edition. Pearson, 2006. -- Known as the "Dragon Book." A classic textbook on compiler design. Provides detailed coverage of practical applications of lexical analysis (DFA) and syntactic analysis (CFG/PDA).
 
-4. Cox, R. "Regular Expression Matching Can Be Simple And Fast." 2007. https://swtch.com/~rsc/regexp/regexp1.html -- NFA ベースの正規表現エンジンの実装について解説した記事。Thompson 構成法の実装、DFA 方式との比較、バックトラック方式の問題点（ReDoS）を実例とともに説明。Go の regexp パッケージや RE2 の設計思想の背景。
+4. Cox, R. "Regular Expression Matching Can Be Simple And Fast." 2007. https://swtch.com/~rsc/regexp/regexp1.html -- An article explaining the implementation of NFA-based regular expression engines. Covers Thompson's construction implementation, comparison with DFA approach, and problems with backtracking (ReDoS) through practical examples. Background on the design philosophy of Go's regexp package and RE2.
 
-5. Chomsky, N. "Three Models for the Description of Language." *IRE Transactions on Information Theory.* 2(3):113-124, 1956. -- チョムスキー階層の原論文。形式文法の4つのタイプを定義し、各タイプの表現力の違いを明確にした。計算機科学と言語学の両分野に多大な影響を与えた歴史的文献。
+5. Chomsky, N. "Three Models for the Description of Language." *IRE Transactions on Information Theory.* 2(3):113-124, 1956. -- The original paper on the Chomsky hierarchy. Defined four types of formal grammars and clarified the differences in expressive power of each type. A historic publication that had a profound impact on both computer science and linguistics.
 
-6. Thompson, K. "Programming Techniques: Regular expression search algorithm." *Communications of the ACM.* 11(6):419-422, 1968. -- Thompson 構成法の原論文。正規表現から NFA を構築するアルゴリズムを提案。現代の正規表現エンジンの基盤となっている。
+6. Thompson, K. "Programming Techniques: Regular expression search algorithm." *Communications of the ACM.* 11(6):419-422, 1968. -- The original paper on Thompson's construction. Proposed the algorithm for building NFAs from regular expressions. Forms the foundation of modern regular expression engines.
 
-7. Angluin, D. "Learning Regular Sets from Queries and Counterexamples." *Information and Computation.* 75(2):87-106, 1987. -- L* アルゴリズムの原論文。質問（所属質問と等価質問）を通じて未知の DFA を正確に学習するアルゴリズム。オートマトン学習・文法推論の基礎。
+7. Angluin, D. "Learning Regular Sets from Queries and Counterexamples." *Information and Computation.* 75(2):87-106, 1987. -- The original paper on the L* algorithm. An algorithm for exactly learning unknown DFAs through queries (membership queries and equivalence queries). Foundation of automaton learning and grammar inference.
 
