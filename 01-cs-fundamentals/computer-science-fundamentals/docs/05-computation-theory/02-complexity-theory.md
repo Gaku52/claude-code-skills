@@ -1,153 +1,162 @@
-# 計算複雑性理論
+# Computational Complexity Theory
 
-> P ≠ NP 問題はCS最大の未解決問題であり、その答えは暗号、最適化、AI の基盤を根本から変える可能性がある。
+> The P vs NP problem is the greatest unsolved problem in CS, and its answer has the potential to fundamentally change the foundations of cryptography, optimization, and AI.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] P, NP, NP完全, NP困難の定義を説明できる
-- [ ] P ≠ NP 問題の意味と帰結を理解する
-- [ ] NP完全問題への実務的な対処法を知る
-- [ ] Cook-Levin定理の証明の概略を理解する
-- [ ] 主要な複雑性クラス（PSPACE, BPP, BQP等）を把握する
-- [ ] 近似アルゴリズムと近似困難性を理解する
-- [ ] パラメータ化計算量（FPT）の基本を知る
-- [ ] 空間計算量の概念と重要な定理を理解する
+- [ ] Explain the definitions of P, NP, NP-Complete, and NP-Hard
+- [ ] Understand the meaning and consequences of the P vs NP problem
+- [ ] Know practical approaches for dealing with NP-Complete problems
+- [ ] Understand the outline of the proof of the Cook-Levin theorem
+- [ ] Grasp the major complexity classes (PSPACE, BPP, BQP, etc.)
+- [ ] Understand approximation algorithms and inapproximability
+- [ ] Know the basics of parameterized complexity (FPT)
+- [ ] Understand the concept of space complexity and important theorems
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, having the following knowledge will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [計算可能性](./01-computability.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Understanding of the content in [Computability](./01-computability.md)
 
 ---
 
-## 1. 計算複雑性理論の基礎
+## 1. Foundations of Computational Complexity Theory
 
-### 1.1 なぜ複雑性を考えるのか
+### 1.1 Why Consider Complexity
 
 ```
-計算可能性と計算複雑性の違い:
+Difference between computability and computational complexity:
 
-  計算可能性理論:
-  - 問い: 「この問題は原理的に解けるか？」
-  - 答え: 決定可能 / 決定不能
-  - 時間やメモリの制約は考えない
+  Computability theory:
+  - Question: "Can this problem be solved in principle?"
+  - Answer: Decidable / Undecidable
+  - Does not consider constraints on time or memory
 
-  計算複雑性理論:
-  - 問い: 「この問題は効率的に解けるか？」
-  - 答え: 多項式時間 / 指数時間 / etc.
-  - 計算資源（時間、空間）の制約を考える
+  Computational complexity theory:
+  - Question: "Can this problem be solved efficiently?"
+  - Answer: Polynomial time / Exponential time / etc.
+  - Considers constraints on computational resources (time, space)
 
-  実務的な重要性:
+  Practical importance:
   ┌────────────────────────────────────────────┐
-  │ 問題の大きさ n = 100 の場合:               │
+  │ For problem size n = 100:                  │
   │                                            │
-  │ O(n)      = 100        → 瞬時              │
-  │ O(n²)     = 10,000     → 瞬時              │
-  │ O(n³)     = 1,000,000  → 約0.001秒         │
-  │ O(n⁵)     = 10^10      → 約10秒            │
-  │ O(2^n)    = 10^30      → 宇宙の寿命を超える │
-  │ O(n!)     = 10^158     → 完全に不可能       │
+  │ O(n)      = 100        → Instantaneous     │
+  │ O(n²)     = 10,000     → Instantaneous     │
+  │ O(n³)     = 1,000,000  → About 0.001 sec   │
+  │ O(n⁵)     = 10^10      → About 10 sec      │
+  │ O(2^n)    = 10^30      → Exceeds the age   │
+  │                          of the universe    │
+  │ O(n!)     = 10^158     → Completely         │
+  │                          impossible         │
   └────────────────────────────────────────────┘
 
-  → 多項式時間と指数時間の差は実用上「解ける」と「解けない」の差
+  → The difference between polynomial and exponential time
+    is practically the difference between "solvable" and "unsolvable"
 ```
 
-### 1.2 時間計算量の形式的定義
+### 1.2 Formal Definition of Time Complexity
 
 ```
-時間計算量の形式的定義:
+Formal definition of time complexity:
 
-  定義: チューリングマシンMの時間計算量 f(n):
-  Mが長さnの任意の入力に対して、f(n)ステップ以内に停止する
+  Definition: Time complexity f(n) of a Turing machine M:
+  M halts within f(n) steps for any input of length n
 
-  漸近的評価:
-  - O記法（上界）: f(n) = O(g(n)) ⟺ ∃c,n₀: f(n) ≤ c·g(n) for n ≥ n₀
-  - Ω記法（下界）: f(n) = Ω(g(n)) ⟺ ∃c,n₀: f(n) ≥ c·g(n) for n ≥ n₀
-  - Θ記法（tight）: f(n) = Θ(g(n)) ⟺ f(n) = O(g(n)) かつ f(n) = Ω(g(n))
+  Asymptotic evaluation:
+  - O notation (upper bound): f(n) = O(g(n)) ⟺ ∃c,n₀: f(n) ≤ c·g(n) for n ≥ n₀
+  - Ω notation (lower bound): f(n) = Ω(g(n)) ⟺ ∃c,n₀: f(n) ≥ c·g(n) for n ≥ n₀
+  - Θ notation (tight):       f(n) = Θ(g(n)) ⟺ f(n) = O(g(n)) and f(n) = Ω(g(n))
 
-  時間複雑性クラス:
-  TIME(f(n)) = { L | Lを O(f(n)) 時間で決定するTMが存在する }
+  Time complexity classes:
+  TIME(f(n)) = { L | there exists a TM that decides L in O(f(n)) time }
 
   P = ∪_{k≥0} TIME(n^k)
     = TIME(n) ∪ TIME(n²) ∪ TIME(n³) ∪ ...
 
   EXPTIME = ∪_{k≥0} TIME(2^{n^k})
 
-  注意: 多テープTMの時間計算量は1テープTMの二乗以内
-  → 計算モデルの選択はクラスPに影響しない（多項式の範囲内で吸収）
+  Note: The time complexity of a multi-tape TM is within the square
+  of a single-tape TM
+  → The choice of computational model does not affect class P
+    (absorbed within polynomial bounds)
 ```
 
 ---
 
-## 2. 複雑性クラス
+## 2. Complexity Classes
 
-### 2.1 クラスP
+### 2.1 Class P
 
 ```
-P（Polynomial time）:
-  多項式時間で「解ける」問題のクラス
+P (Polynomial time):
+  The class of problems that can be "solved" in polynomial time
 
-  形式的定義:
-  P = { L | あるk ≥ 0 に対して、L ∈ TIME(n^k) }
+  Formal definition:
+  P = { L | for some k ≥ 0, L ∈ TIME(n^k) }
 
-  Pに属する問題の例:
+  Examples of problems in P:
 
   ┌─────────────────────────────────────────────────┐
-  │ 問題              │ アルゴリズム       │ 計算量     │
+  │ Problem             │ Algorithm          │ Complexity  │
   ├───────────────────┼──────────────────┼──────────┤
-  │ ソート             │ マージソート       │ O(n log n) │
-  │ 最短経路           │ ダイクストラ法     │ O(V² + E)  │
-  │ 最大フロー         │ Ford-Fulkerson    │ O(VE²)     │
-  │ 素数判定           │ AKSアルゴリズム   │ O(n^6)     │
-  │ 線形計画法         │ 楕円体法          │ 多項式      │
-  │ 最大マッチング     │ Edmonds算法       │ O(V³)      │
-  │ 2-SAT             │ 含意グラフ+SCC    │ O(n + m)   │
-  │ 2-彩色判定         │ BFS/DFS          │ O(V + E)   │
-  │ 連結性判定         │ BFS/DFS          │ O(V + E)   │
-  │ 最小全域木         │ Kruskal / Prim   │ O(E log V) │
-  │ 行列式の計算       │ ガウス消去法      │ O(n³)      │
-  │ パターンマッチング │ KMP法            │ O(n + m)   │
+  │ Sorting             │ Merge sort         │ O(n log n) │
+  │ Shortest path       │ Dijkstra's         │ O(V² + E)  │
+  │ Maximum flow        │ Ford-Fulkerson     │ O(VE²)     │
+  │ Primality testing   │ AKS algorithm      │ O(n^6)     │
+  │ Linear programming  │ Ellipsoid method   │ Polynomial │
+  │ Maximum matching    │ Edmonds' algorithm │ O(V³)      │
+  │ 2-SAT              │ Implication        │ O(n + m)   │
+  │                     │ graph + SCC        │            │
+  │ 2-colorability      │ BFS/DFS           │ O(V + E)   │
+  │ Connectivity        │ BFS/DFS           │ O(V + E)   │
+  │ Minimum spanning    │ Kruskal / Prim    │ O(E log V) │
+  │ tree                │                    │            │
+  │ Determinant         │ Gaussian           │ O(n³)      │
+  │ computation         │ elimination        │            │
+  │ Pattern matching    │ KMP algorithm      │ O(n + m)   │
   └─────────────────────────────────────────────────┘
 
-  Pの意味:
-  - 「効率的に解ける」の理論的定義
-  - 実務上は O(n⁵) でも遅すぎることが多い
-  - しかし理論的には多項式と指数の境界が本質的
+  Meaning of P:
+  - Theoretical definition of "efficiently solvable"
+  - In practice, even O(n⁵) is often too slow
+  - However, theoretically the boundary between polynomial
+    and exponential is essential
 ```
 
 ```python
-# Pに属する問題の実装例
+# Implementation examples of problems in P
 
-# 1. 2-SAT（多項式時間で解ける充足可能性問題）
+# 1. 2-SAT (a satisfiability problem solvable in polynomial time)
 from collections import defaultdict
 
 class TwoSAT:
     """
-    2-SAT問題の解法
-    時間計算量: O(n + m)（含意グラフ上のSCC分解）
+    Solution for the 2-SAT problem
+    Time complexity: O(n + m) (SCC decomposition on the implication graph)
 
-    2-SATはPに属する（多項式時間で解ける）
-    一方、3-SATはNP完全
+    2-SAT belongs to P (solvable in polynomial time)
+    whereas 3-SAT is NP-Complete
     """
 
     def __init__(self, n):
-        """n: 変数の数"""
+        """n: number of variables"""
         self.n = n
         self.graph = defaultdict(list)
         self.reverse_graph = defaultdict(list)
 
     def _neg(self, x):
-        """変数xの否定を返す"""
+        """Return the negation of variable x"""
         return x + self.n if x < self.n else x - self.n
 
     def add_clause(self, x, y):
         """
-        節 (x ∨ y) を追加
-        含意: ¬x → y, ¬y → x
+        Add clause (x ∨ y)
+        Implication: ¬x → y, ¬y → x
         """
         neg_x = self._neg(x)
         neg_y = self._neg(y)
@@ -158,12 +167,12 @@ class TwoSAT:
 
     def solve(self):
         """
-        SCC分解による2-SAT解法
+        2-SAT solution using SCC decomposition
 
-        返り値: 充足可能な場合は各変数の真偽値のリスト、
-                充足不可能な場合はNone
+        Returns: List of truth values for each variable if satisfiable,
+                 None if unsatisfiable
         """
-        # Kosarajuのアルゴリズムでトポロジカル順序を求める
+        # Use Kosaraju's algorithm to find topological order
         visited = set()
         order = []
 
@@ -178,7 +187,7 @@ class TwoSAT:
             if v not in visited:
                 dfs1(v)
 
-        # 逆グラフでSCC分解
+        # SCC decomposition on the reverse graph
         comp = [-1] * (2 * self.n)
         comp_id = 0
 
@@ -193,12 +202,12 @@ class TwoSAT:
                 dfs2(v, comp_id)
                 comp_id += 1
 
-        # 充足可能性チェック
+        # Satisfiability check
         for i in range(self.n):
             if comp[i] == comp[i + self.n]:
-                return None  # x と ¬x が同じSCC → 充足不可能
+                return None  # x and ¬x in the same SCC → unsatisfiable
 
-        # 解の構築
+        # Solution construction
         result = []
         for i in range(self.n):
             result.append(comp[i] > comp[i + self.n])
@@ -206,27 +215,27 @@ class TwoSAT:
         return result
 
 
-# 使用例
-sat = TwoSAT(3)  # 3変数: x₀, x₁, x₂
+# Usage example
+sat = TwoSAT(3)  # 3 variables: x₀, x₁, x₂
 # (x₀ ∨ x₁) ∧ (¬x₀ ∨ x₂) ∧ (¬x₁ ∨ ¬x₂)
 sat.add_clause(0, 1)      # x₀ ∨ x₁
 sat.add_clause(3, 2)      # ¬x₀ ∨ x₂  (3 = ¬0)
 sat.add_clause(4, 5)      # ¬x₁ ∨ ¬x₂  (4 = ¬1, 5 = ¬2)
 
 solution = sat.solve()
-print(f"解: {solution}")  # [True, True, False] など
+print(f"Solution: {solution}")  # [True, True, False] etc.
 
 
-# 2. 最大二部マッチング（Hopcroft-Karp）
+# 2. Maximum bipartite matching (Hopcroft-Karp)
 class BipartiteMatching:
     """
-    二部グラフの最大マッチング
-    Hopcroft-Karpアルゴリズム: O(E√V)
-    → Pに属する
+    Maximum matching in a bipartite graph
+    Hopcroft-Karp algorithm: O(E√V)
+    → Belongs to P
     """
 
     def __init__(self, n, m):
-        """n: 左頂点数、m: 右頂点数"""
+        """n: number of left vertices, m: number of right vertices"""
         self.n = n
         self.m = m
         self.graph = defaultdict(list)
@@ -234,11 +243,11 @@ class BipartiteMatching:
         self.match_right = [-1] * m
 
     def add_edge(self, u, v):
-        """左のuから右のvへの辺を追加"""
+        """Add an edge from left vertex u to right vertex v"""
         self.graph[u].append(v)
 
     def bfs(self):
-        """BFSで増加パスの長さを計算"""
+        """Compute augmenting path lengths using BFS"""
         from collections import deque
         dist = [-1] * self.n
         queue = deque()
@@ -263,7 +272,7 @@ class BipartiteMatching:
         return found
 
     def dfs(self, u):
-        """DFSで増加パスを見つけてマッチングを更新"""
+        """Find augmenting paths using DFS and update the matching"""
         for v in self.graph[u]:
             w = self.match_right[v]
             if w == -1 or (self.dist[w] == self.dist[u] + 1 and self.dfs(w)):
@@ -274,7 +283,7 @@ class BipartiteMatching:
         return False
 
     def solve(self):
-        """最大マッチングを求める"""
+        """Find the maximum matching"""
         matching = 0
         while self.bfs():
             for u in range(self.n):
@@ -284,63 +293,68 @@ class BipartiteMatching:
         return matching
 ```
 
-### 2.2 クラスNP
+### 2.2 Class NP
 
 ```
-NP（Nondeterministic Polynomial time）:
-  多項式時間で「解の正しさを検証できる」問題のクラス
+NP (Nondeterministic Polynomial time):
+  The class of problems whose solutions can be "verified in polynomial time"
 
-  形式的定義（検証器ベース）:
-  L ∈ NP ⟺ あるTM V（検証器）と多項式 p が存在して:
-    - w ∈ L ⟺ あるc (|c| ≤ p(|w|)) が存在して V(w, c) = accept
-    - Vは多項式時間で動作する
-    - c は「証拠」「証明書」「witness」と呼ばれる
+  Formal definition (verifier-based):
+  L ∈ NP ⟺ There exists a TM V (verifier) and polynomial p such that:
+    - w ∈ L ⟺ there exists c (|c| ≤ p(|w|)) such that V(w, c) = accept
+    - V runs in polynomial time
+    - c is called a "certificate", "proof", or "witness"
 
-  形式的定義（非決定性TMベース）:
+  Formal definition (nondeterministic TM-based):
   NP = ∪_{k≥0} NTIME(n^k)
-  NTIME(f(n)) = 非決定性TMが f(n) ステップ以内で受理する言語の集合
+  NTIME(f(n)) = set of languages accepted by a nondeterministic TM
+                within f(n) steps
 
-  NPの直感的理解:
+  Intuitive understanding of NP:
   ┌────────────────────────────────────────────────────┐
-  │ 「解を見つけるのは難しいかもしれないが、              │
-  │  解が与えられればそれが正しいかは素早く確認できる」    │
+  │ "Finding a solution may be hard, but given a       │
+  │  solution, verifying its correctness is quick"     │
   │                                                    │
-  │  数独: 解くのは大変だが、完成した盤面の検証は簡単     │
-  │  素因数分解: 因数を見つけるのは大変だが、             │
-  │            掛け算の検証は簡単                        │
-  │  パズル: 解くのは大変だが、正解かの確認は簡単         │
+  │  Sudoku: Solving is hard, but verifying a          │
+  │          completed grid is easy                    │
+  │  Factoring: Finding factors is hard, but           │
+  │            verifying multiplication is easy         │
+  │  Puzzles: Solving is hard, but checking            │
+  │           the answer is easy                       │
   └────────────────────────────────────────────────────┘
 
-  NP に属する問題の例:
+  Examples of problems in NP:
 
-  問題             │ 証拠（witness）         │ 検証方法
+  Problem            │ Witness (certificate)    │ Verification method
   ─────────────────┼────────────────────────┼──────────────
-  SAT              │ 変数の割り当て          │ 各節を評価
-  ハミルトン閉路    │ 頂点の順列             │ 全辺が存在するか確認
-  グラフ彩色        │ 各頂点の色             │ 隣接頂点が同色でないか
-  ナップサック      │ 選んだ品物の集合       │ 重さと価値を合計
-  クリーク          │ 頂点の部分集合         │ 全ペアが辺で結ばれるか
-  巡回セールスマン  │ 都市の訪問順           │ 総距離を計算
-  部分集合和        │ 元の部分集合           │ 和を計算
-  整数計画問題      │ 変数への整数割り当て   │ 制約を確認
+  SAT               │ Variable assignment      │ Evaluate each clause
+  Hamiltonian cycle  │ Permutation of vertices  │ Check all edges exist
+  Graph coloring     │ Color for each vertex    │ No adjacent vertices
+                     │                          │ share a color
+  Knapsack           │ Set of chosen items      │ Sum weights and values
+  Clique             │ Vertex subset            │ All pairs connected
+  TSP                │ City visit order         │ Compute total distance
+  Subset sum         │ Element subset           │ Compute sum
+  Integer program    │ Integer assignment to    │ Check constraints
+                     │ variables                │
 ```
 
 ```python
-# NP問題の検証器の実装例
+# Implementation examples of NP problem verifiers
 
 class NPVerifier:
-    """NP問題の検証器コレクション"""
+    """Collection of verifiers for NP problems"""
 
     @staticmethod
     def verify_sat(formula, assignment):
         """
-        SAT（充足可能性問題）の検証器
-        formula: CNF形式の論理式 [[1, -2, 3], [-1, 3], ...]
-                 正の数 = 変数、負の数 = 否定
-        assignment: {変数番号: True/False}
+        Verifier for SAT (satisfiability problem)
+        formula: CNF formula [[1, -2, 3], [-1, 3], ...]
+                 positive numbers = variables, negative = negation
+        assignment: {variable_number: True/False}
 
-        検証の計算量: O(n × m)（n=変数数、m=節数）
-        → 多項式時間で検証可能 → NPに属する
+        Verification complexity: O(n × m) (n=variables, m=clauses)
+        → Verifiable in polynomial time → belongs to NP
         """
         for clause in formula:
             satisfied = False
@@ -360,21 +374,21 @@ class NPVerifier:
     @staticmethod
     def verify_hamiltonian_cycle(graph, cycle):
         """
-        ハミルトン閉路の検証器
-        graph: 隣接リスト {頂点: [隣接頂点, ...]}
-        cycle: 頂点のリスト
+        Verifier for Hamiltonian cycle
+        graph: adjacency list {vertex: [adjacent vertices, ...]}
+        cycle: list of vertices
 
-        検証: O(V)
+        Verification: O(V)
         """
         n = len(graph)
 
-        # 全頂点を1回ずつ訪問しているか
+        # Check that all vertices are visited exactly once
         if len(cycle) != n:
             return False
         if set(cycle) != set(graph.keys()):
             return False
 
-        # 各辺が存在するか
+        # Check that each edge exists
         for i in range(n):
             u = cycle[i]
             v = cycle[(i + 1) % n]
@@ -386,22 +400,22 @@ class NPVerifier:
     @staticmethod
     def verify_graph_coloring(graph, coloring, k):
         """
-        k-彩色の検証器
-        graph: 隣接リスト
-        coloring: {頂点: 色}
-        k: 使用可能な色の数
+        Verifier for k-coloring
+        graph: adjacency list
+        coloring: {vertex: color}
+        k: number of available colors
 
-        検証: O(V + E)
+        Verification: O(V + E)
         """
-        # 色の数がk以下か
+        # Check that the number of colors is at most k
         if len(set(coloring.values())) > k:
             return False
 
-        # 全頂点に色が割り当てられているか
+        # Check that all vertices are assigned a color
         if set(coloring.keys()) != set(graph.keys()):
             return False
 
-        # 隣接する頂点が同じ色でないか
+        # Check that no adjacent vertices share the same color
         for u in graph:
             for v in graph[u]:
                 if coloring[u] == coloring[v]:
@@ -412,34 +426,34 @@ class NPVerifier:
     @staticmethod
     def verify_subset_sum(numbers, target, subset):
         """
-        部分集合和問題の検証器
-        numbers: 数の集合
-        target: 目標の和
-        subset: 選んだ要素のインデックス集合
+        Verifier for the subset sum problem
+        numbers: set of numbers
+        target: target sum
+        subset: set of indices of chosen elements
 
-        検証: O(n)
+        Verification: O(n)
         """
-        # subsetがnumbersの部分集合か
+        # Check that subset is a valid subset of numbers
         if not all(0 <= i < len(numbers) for i in subset):
             return False
 
-        # 和がtargetに等しいか
+        # Check that the sum equals the target
         return sum(numbers[i] for i in subset) == target
 
     @staticmethod
     def verify_clique(graph, clique, k):
         """
-        k-クリークの検証器
-        graph: 隣接リスト
-        clique: 頂点の集合
-        k: クリークの大きさ
+        Verifier for k-clique
+        graph: adjacency list
+        clique: set of vertices
+        k: clique size
 
-        検証: O(k²)
+        Verification: O(k²)
         """
         if len(clique) != k:
             return False
 
-        # 全ペアが辺で結ばれているか
+        # Check that all pairs are connected by an edge
         clique_list = list(clique)
         for i in range(len(clique_list)):
             for j in range(i + 1, len(clique_list)):
@@ -449,210 +463,217 @@ class NPVerifier:
         return True
 
 
-# 検証の実演
+# Verification demonstration
 verifier = NPVerifier()
 
-# SAT の検証
+# SAT verification
 formula = [[1, -2, 3], [-1, 3], [2, -3]]  # (x₁ ∨ ¬x₂ ∨ x₃) ∧ ...
 assignment = {1: True, 2: False, 3: True}
-print(f"SAT検証: {verifier.verify_sat(formula, assignment)}")  # True
+print(f"SAT verification: {verifier.verify_sat(formula, assignment)}")  # True
 
-# 部分集合和の検証
+# Subset sum verification
 numbers = [3, 7, 1, 8, 4]
 target = 12
 subset = {0, 2, 3}  # 3 + 1 + 8 = 12
-print(f"部分集合和検証: {verifier.verify_subset_sum(numbers, target, subset)}")
+print(f"Subset sum verification: {verifier.verify_subset_sum(numbers, target, subset)}")
 ```
 
-### 2.3 NP完全とNP困難
+### 2.3 NP-Complete and NP-Hard
 
 ```
-NP完全（NP-Complete）:
-  NPの中で「最も難しい」問題のクラス
+NP-Complete:
+  The class of "hardest" problems in NP
 
-  形式的定義:
-  L が NP完全 ⟺
+  Formal definition:
+  L is NP-Complete ⟺
     1. L ∈ NP
-    2. 任意の L' ∈ NP に対して L' ≤ₚ L
-       （全てのNP問題がLに多項式時間帰着可能）
+    2. For every L' ∈ NP, L' ≤ₚ L
+       (all NP problems are polynomial-time reducible to L)
 
-  1つのNP完全問題が多項式時間で解ければ:
-  → 全てのNP問題が多項式時間で解ける → P = NP
+  If one NP-Complete problem can be solved in polynomial time:
+  → All NP problems can be solved in polynomial time → P = NP
 
-  NP困難（NP-Hard）:
-  L が NP困難 ⟺
-    任意の L' ∈ NP に対して L' ≤ₚ L
+  NP-Hard:
+  L is NP-Hard ⟺
+    For every L' ∈ NP, L' ≤ₚ L
 
-  NP完全 = NP ∩ NP困難
+  NP-Complete = NP ∩ NP-Hard
 
   ┌──────────────────────────────────────────────────────┐
   │                                                      │
-  │  P ≠ NP の場合のベン図:                               │
+  │  Venn diagram assuming P ≠ NP:                       │
   │                                                      │
-  │  ┌─────────────── NP困難 ──────────────────────┐     │
-  │  │                                              │     │
-  │  │     ┌──────────── NP ────────────────┐      │     │
-  │  │     │                                │      │     │
-  │  │     │  ┌── P ──┐  ┌─── NP完全 ──┐  │      │     │
-  │  │     │  │ソート   │  │ SAT         │  │      │     │
-  │  │     │  │最短経路 │  │ TSP(判定版) │  │      │     │
-  │  │     │  │素数判定 │  │ グラフ彩色  │  │      │     │
-  │  │     │  └────────┘  └─────────────┘  │      │     │
-  │  │     │     NP中間（存在するなら）      │      │     │
-  │  │     │     ・グラフ同型               │      │     │
-  │  │     │     ・素因数分解               │      │     │
-  │  │     └────────────────────────────────┘      │     │
-  │  │  ┌─── NPに属さないNP困難 ─┐                 │     │
-  │  │  │  停止問題               │                 │     │
-  │  │  │  QBF（PSPACE完全）      │                 │     │
-  │  │  └─────────────────────────┘                 │     │
-  │  └──────────────────────────────────────────────┘     │
+  │  ┌─────────────── NP-Hard ──────────────────────┐   │
+  │  │                                              │   │
+  │  │     ┌──────────── NP ────────────────┐      │   │
+  │  │     │                                │      │   │
+  │  │     │  ┌── P ──┐  ┌─── NP-Complete ─┐│     │   │
+  │  │     │  │Sorting │  │ SAT            ││     │   │
+  │  │     │  │Shortest│  │ TSP (decision) ││     │   │
+  │  │     │  │path    │  │ Graph coloring ││     │   │
+  │  │     │  └────────┘  └────────────────┘│     │   │
+  │  │     │     NP-Intermediate (if exists) │      │   │
+  │  │     │     - Graph isomorphism         │      │   │
+  │  │     │     - Integer factorization     │      │   │
+  │  │     └────────────────────────────────┘      │   │
+  │  │  ┌─── NP-Hard not in NP ─┐                 │   │
+  │  │  │  Halting problem       │                 │   │
+  │  │  │  QBF (PSPACE-Complete) │                 │   │
+  │  │  └───────────────────────┘                  │   │
+  │  └──────────────────────────────────────────────┘   │
   │                                                      │
   └──────────────────────────────────────────────────────┘
 
-  NP中間（NP-Intermediate）:
-  P ≠ NP の場合、NP完全でもPにも属さない問題が存在する（Ladnerの定理）
-  候補:
-  - グラフ同型問題: NP完全かPか未解明
-  - 素因数分解: NP完全とは考えられていない（量子ではP）
-  - 離散対数: 素因数分解と同様の位置づけ
+  NP-Intermediate:
+  If P ≠ NP, there exist problems that are neither NP-Complete
+  nor in P (Ladner's theorem)
+  Candidates:
+  - Graph isomorphism: unknown whether NP-Complete or in P
+  - Integer factorization: not believed to be NP-Complete
+    (in P for quantum computers)
+  - Discrete logarithm: similar status to integer factorization
 ```
 
-### 2.4 Cook-Levin定理
+### 2.4 Cook-Levin Theorem
 
 ```
-Cook-Levin定理:
-  SAT（充足可能性問題）はNP完全である
+Cook-Levin Theorem:
+  SAT (satisfiability problem) is NP-Complete
 
-  意義:
-  - 最初のNP完全問題の証明
-  - 以後、他の問題のNP完全性はSATからの帰着で証明
+  Significance:
+  - First proof of an NP-Complete problem
+  - Afterward, NP-Completeness of other problems is proved by
+    reduction from SAT
 
-  証明の概略:
+  Proof outline:
 
-  1. SAT ∈ NP: 割り当てが与えられれば多項式時間で検証可能 ✓
+  1. SAT ∈ NP: Given an assignment, it can be verified in
+     polynomial time ✓
 
-  2. 任意のNP問題 L について L ≤ₚ SAT を示す:
+  2. Show L ≤ₚ SAT for every NP problem L:
 
-  アイデア:
-  - L ∈ NP なので、多項式時間の検証器 V が存在
-  - V(w, c) の計算過程をブール式として符号化する
-  - 各ステップのテープ内容、ヘッド位置、状態を変数で表現
-  - 遷移関数の制約を節（clause）で表現
+  Idea:
+  - Since L ∈ NP, a polynomial-time verifier V exists
+  - Encode the computation of V(w, c) as a Boolean formula
+  - Represent tape contents, head position, and state at each
+    step as variables
+  - Express transition function constraints as clauses
 
-  構築する変数:
-  - x_{i,j,s}: 時刻iでテープ位置jに記号sがある
-  - h_{i,j}: 時刻iでヘッドが位置jにある
-  - q_{i,s}: 時刻iで状態がsである
+  Variables to construct:
+  - x_{i,j,s}: symbol s is at tape position j at time i
+  - h_{i,j}: head is at position j at time i
+  - q_{i,s}: state is s at time i
 
-  構築する節:
-  - 初期条件: 入力wがテープに書かれている
-  - 遷移条件: 各ステップが遷移関数に従う
-  - 受理条件: 最終的に受理状態に到達する
+  Clauses to construct:
+  - Initial conditions: input w is written on the tape
+  - Transition conditions: each step follows the transition function
+  - Acceptance condition: an accepting state is eventually reached
 
-  結果の論理式のサイズ: O(t(n)² × |Σ|) ← 多項式
+  Size of the resulting formula: O(t(n)² × |Σ|) ← polynomial
 
-  → 任意のNP問題をSATに多項式時間で変換できる
-  → SAT は NP完全 ∎
+  → Any NP problem can be transformed to SAT in polynomial time
+  → SAT is NP-Complete ∎
 ```
 
-### 2.5 代表的なNP完全問題と帰着の連鎖
+### 2.5 Representative NP-Complete Problems and the Chain of Reductions
 
 ```
-NP完全問題の帰着の連鎖:
+Chain of reductions among NP-Complete problems:
 
-  SAT (Cook-Levin定理)
+  SAT (Cook-Levin Theorem)
    │
    ├──→ 3-SAT
    │     │
-   │     ├──→ 独立集合 ──→ 頂点被覆 ──→ 集合被覆
+   │     ├──→ Independent Set ──→ Vertex Cover ──→ Set Cover
    │     │
-   │     ├──→ 3-彩色 ──→ k-彩色 (k ≥ 3)
+   │     ├──→ 3-Coloring ──→ k-Coloring (k ≥ 3)
    │     │
-   │     ├──→ クリーク
+   │     ├──→ Clique
    │     │
-   │     ├──→ ハミルトン閉路 ──→ TSP（判定版）
+   │     ├──→ Hamiltonian Cycle ──→ TSP (decision version)
    │     │
-   │     └──→ 部分集合和 ──→ ナップサック ──→ 分割問題
+   │     └──→ Subset Sum ──→ Knapsack ──→ Partition
    │
-   └──→ 回路充足可能性 (Circuit-SAT)
+   └──→ Circuit Satisfiability (Circuit-SAT)
 
-  帰着のポイント:
-  - A ≤ₚ B（AをBに帰着）: Bが解ければAも解ける
-  - 新しい問題XのNP完全性を示すには:
-    1. X ∈ NP を示す
-    2. 既知のNP完全問題 Y について Y ≤ₚ X を示す
+  Key points about reductions:
+  - A ≤ₚ B (A reduces to B): if B is solvable, then A is also solvable
+  - To show NP-Completeness of a new problem X:
+    1. Show X ∈ NP
+    2. Show Y ≤ₚ X for a known NP-Complete problem Y
 ```
 
 ```python
-# NP完全問題間の帰着の実装例
+# Implementation examples of reductions between NP-Complete problems
 
-# 帰着1: 3-SAT → 独立集合
+# Reduction 1: 3-SAT → Independent Set
 def reduce_3sat_to_independent_set(clauses, num_vars):
     """
-    3-SATを独立集合問題に帰着する
+    Reduce 3-SAT to the independent set problem
 
-    入力: 3-CNF式（各節が最大3リテラル）
-    出力: グラフGと整数k
+    Input: 3-CNF formula (each clause has at most 3 literals)
+    Output: Graph G and integer k
 
     (formula ∈ 3-SAT) ⟺ (G has independent set of size k)
     """
-    # 各節の各リテラルに1つの頂点を作成
+    # Create one vertex for each literal in each clause
     vertices = []
     for i, clause in enumerate(clauses):
         for j, literal in enumerate(clause):
             vertices.append((i, j, literal))
 
-    k = len(clauses)  # 独立集合のサイズ = 節の数
+    k = len(clauses)  # Independent set size = number of clauses
 
-    # 辺の構築
+    # Edge construction
     edges = []
     for idx1, v1 in enumerate(vertices):
         for idx2, v2 in enumerate(vertices):
             if idx1 >= idx2:
                 continue
-            # 同じ節内のリテラル間に辺を引く（1節から1つだけ選ぶ）
+            # Add edge between literals in the same clause
+            # (choose only one from each clause)
             if v1[0] == v2[0]:
                 edges.append((idx1, idx2))
-            # 矛盾するリテラル間に辺を引く（x と ¬x）
+            # Add edge between contradictory literals (x and ¬x)
             elif v1[2] == -v2[2]:
                 edges.append((idx1, idx2))
 
     return vertices, edges, k
 
 
-# 帰着2: 独立集合 → 頂点被覆
+# Reduction 2: Independent Set → Vertex Cover
 def reduce_independent_set_to_vertex_cover(graph, n, k):
     """
-    独立集合を頂点被覆に帰着する
+    Reduce independent set to vertex cover
 
-    Gにサイズkの独立集合がある ⟺ Gにサイズ(n-k)の頂点被覆がある
+    G has an independent set of size k ⟺ G has a vertex cover of size (n-k)
 
-    証明:
-    SがGの独立集合 → V\Sが頂点被覆
-    （SにはS内の2頂点を結ぶ辺がない → 全辺はV\Sの頂点を含む）
+    Proof:
+    S is an independent set of G → V\S is a vertex cover
+    (S has no edge connecting two vertices in S → every edge
+     has at least one endpoint in V\S)
     """
-    # グラフはそのまま、目標サイズを変換
+    # Graph stays the same, transform the target size
     return graph, n - k
 
 
-# 帰着3: 頂点被覆 → 集合被覆
+# Reduction 3: Vertex Cover → Set Cover
 def reduce_vertex_cover_to_set_cover(graph, n, k):
     """
-    頂点被覆を集合被覆に帰着する
+    Reduce vertex cover to set cover
 
-    全体集合U = 辺の集合
-    各頂点vに対して、vに接続する辺の集合Sv
-    k個以下のSvで全辺を被覆 ⟺ サイズk以下の頂点被覆が存在
+    Universe U = set of edges
+    For each vertex v, define Sv as the set of edges incident to v
+    Cover all edges with at most k sets Sv ⟺ vertex cover of size ≤ k exists
     """
-    # 全体集合 = 辺の集合
+    # Universe = set of edges
     universe = set()
     for u in graph:
         for v in graph[u]:
             edge = (min(u, v), max(u, v))
             universe.add(edge)
 
-    # 各頂点の集合
+    # Set for each vertex
     sets = {}
     for u in graph:
         sets[u] = set()
@@ -663,182 +684,192 @@ def reduce_vertex_cover_to_set_cover(graph, n, k):
     return universe, sets, k
 
 
-# 帰着4: 部分集合和 → 分割問題
+# Reduction 4: Subset Sum → Partition
 def reduce_subset_sum_to_partition(numbers, target):
     """
-    部分集合和を分割問題に帰着する
+    Reduce subset sum to the partition problem
 
-    分割問題: 集合Sを2つの部分集合に分割して、
-    両方の和が等しくなるか？
+    Partition problem: Can set S be divided into two subsets
+    such that both have equal sum?
 
-    帰着: S = numbers ∪ {|sum(numbers) - 2*target|}
+    Reduction: S = numbers ∪ {|sum(numbers) - 2*target|}
     """
     total = sum(numbers)
     diff = abs(total - 2 * target)
     new_numbers = numbers + [diff]
 
-    # new_numbersを和が等しい2つに分割可能
-    # ⟺ numbersの部分集合の和がtargetに等しい
+    # new_numbers can be partitioned into two equal-sum subsets
+    # ⟺ a subset of numbers sums to target
     return new_numbers
 ```
 
 ---
 
-## 3. P ≠ NP 問題
+## 3. The P vs NP Problem
 
-### 3.1 問題の意味と帰結
+### 3.1 Meaning and Consequences of the Problem
 
 ```
-P ≠ NP 問題:
+The P vs NP Problem:
 
-  問い: P = NP か？
+  Question: Does P = NP?
 
-  クレイ数学研究所のミレニアム懸賞問題（100万ドル）
+  Clay Mathematics Institute Millennium Prize Problem ($1,000,000)
 
-  もし P = NP が証明されたら:
+  If P = NP were proved:
 
   ┌─────────────────────────────────────────────┐
-  │ 暗号学の崩壊                                 │
-  │ - RSA, 楕円曲線暗号が破れる                  │
-  │ - 全てのオンラインセキュリティが無効に        │
-  │ - 新しい暗号体系の構築が必要                  │
+  │ Collapse of cryptography                     │
+  │ - RSA, elliptic curve cryptography broken    │
+  │ - All online security becomes invalid        │
+  │ - New cryptographic systems needed            │
   ├─────────────────────────────────────────────┤
-  │ 最適化の革命                                 │
-  │ - スケジューリング、経路最適化が完全に解ける  │
-  │ - 創薬：タンパク質構造予測が完璧に            │
-  │ - 物流、製造の完全最適化                      │
+  │ Revolution in optimization                   │
+  │ - Scheduling, route optimization perfectly   │
+  │   solvable                                   │
+  │ - Drug discovery: perfect protein structure  │
+  │   prediction                                 │
+  │ - Complete optimization of logistics and     │
+  │   manufacturing                              │
   ├─────────────────────────────────────────────┤
-  │ AI/数学の飛躍                                │
-  │ - 定理の自動証明が実現                       │
-  │ - NP探索 = 最適な解の発見が容易に             │
-  │ - 創造性の定義が揺らぐ                       │
+  │ Breakthrough in AI/mathematics               │
+  │ - Automatic theorem proving becomes feasible │
+  │ - NP search = finding optimal solutions      │
+  │   becomes easy                               │
+  │ - The definition of creativity is shaken     │
   └─────────────────────────────────────────────┘
 
-  もし P ≠ NP が証明されたら:
+  If P ≠ NP were proved:
 
   ┌─────────────────────────────────────────────┐
-  │ 安心の確認                                   │
-  │ - 暗号は（理論的に）安全                      │
-  │ - NP完全問題には本質的な困難性がある          │
-  │ - 近似・ヒューリスティックの研究が重要に      │
+  │ Reassuring confirmation                      │
+  │ - Cryptography is (theoretically) secure     │
+  │ - NP-Complete problems have inherent         │
+  │   difficulty                                 │
+  │ - Research on approximation and heuristics   │
+  │   becomes important                          │
   ├─────────────────────────────────────────────┤
-  │ 新しい理論的ツール                           │
-  │ - 証明手法が他の未解決問題に応用可能          │
-  │ - 計算複雑性の理論が大きく前進               │
+  │ New theoretical tools                        │
+  │ - Proof techniques applicable to other       │
+  │   unsolved problems                          │
+  │ - Theory of computational complexity         │
+  │   advances greatly                           │
   └─────────────────────────────────────────────┘
 
-  現在の状況:
-  - ほとんどの研究者は P ≠ NP を予想（Gasarchの調査: 約83%）
-  - しかし証明の目処は立っていない
-  - P ≠ NP の証明には新しい数学的手法が必要
-  - 既存の手法（対角化、相対化）では不十分
-    → Baker-Gill-Solovay定理（1975）
-  - 自然な証明（Natural Proofs）も不十分
-    → Razborov-Rudich定理（1997）
+  Current status:
+  - Most researchers expect P ≠ NP (Gasarch's survey: about 83%)
+  - However, there is no clear path to a proof
+  - Proving P ≠ NP requires new mathematical techniques
+  - Existing techniques (diagonalization, relativization) are insufficient
+    → Baker-Gill-Solovay theorem (1975)
+  - Natural proofs are also insufficient
+    → Razborov-Rudich theorem (1997)
 ```
 
-### 3.2 P ≠ NP 証明の壁
+### 3.2 Barriers to Proving P ≠ NP
 
 ```
-P ≠ NP の証明が困難な理由:
+Why proving P ≠ NP is so difficult:
 
-  1. 相対化の壁（Relativization Barrier）
+  1. Relativization Barrier
      Baker-Gill-Solovay (1975):
-     - あるオラクルAに対して P^A = NP^A
-     - 別のオラクルBに対して P^B ≠ NP^B
-     → 対角化のような「相対化する」手法では
-       P ≠ NP を証明も反証もできない
+     - For some oracle A, P^A = NP^A
+     - For another oracle B, P^B ≠ NP^B
+     → "Relativizing" techniques like diagonalization cannot
+       prove or disprove P ≠ NP
 
-  2. 自然な証明の壁（Natural Proofs Barrier）
+  2. Natural Proofs Barrier
      Razborov-Rudich (1997):
-     - 一方向性関数が存在するなら（暗号学的仮定）
-     - 「自然な証明」では回路下界を示せない
-     → 多くの従来の手法が使えない
+     - If one-way functions exist (cryptographic assumption)
+     - "Natural proofs" cannot show circuit lower bounds
+     → Many conventional techniques cannot be used
 
-  3. 代数化の壁（Algebrization Barrier）
+  3. Algebrization Barrier
      Aaronson-Wigderson (2009):
-     - 対角化の拡張（代数的拡張を許す）でも不十分
-     → さらに新しい手法が必要
+     - Even extensions of diagonalization (allowing algebraic
+       extensions) are insufficient
+     → Even newer techniques are needed
 
-  有望なアプローチ:
-  - Geometric Complexity Theory (GCT): 代数幾何を使用
-  - 回路下界の研究: 特定の回路モデルでの下界
-  - 通信計算量: 関連する下界の証明
-  - しかし、完全な証明にはまだ程遠い
+  Promising approaches:
+  - Geometric Complexity Theory (GCT): uses algebraic geometry
+  - Circuit lower bounds research: lower bounds for specific
+    circuit models
+  - Communication complexity: proofs of related lower bounds
+  - However, a complete proof is still far away
 
-  現在の部分的成果:
-  - P ≠ EXPTIME（時間階層定理）
-  - NP ⊄ SIZE(n^k) for any fixed k（Kannan, 1982）
-  - ACC⁰ の回路下界（Williams, 2011）
+  Current partial results:
+  - P ≠ EXPTIME (time hierarchy theorem)
+  - NP ⊄ SIZE(n^k) for any fixed k (Kannan, 1982)
+  - Circuit lower bounds for ACC⁰ (Williams, 2011)
 ```
 
 ---
 
-## 4. その他の複雑性クラス
+## 4. Other Complexity Classes
 
-### 4.1 空間計算量
+### 4.1 Space Complexity
 
 ```
-空間計算量:
+Space complexity:
 
-  SPACE(f(n)) = { L | Lを O(f(n)) 空間で決定するTMが存在する }
-  NSPACE(f(n)) = 非決定性TMでの空間計算量
+  SPACE(f(n)) = { L | there exists a TM that decides L using O(f(n)) space }
+  NSPACE(f(n)) = space complexity for nondeterministic TMs
 
-  主要クラス:
+  Major classes:
   ┌────────────────────────────────────────────────────┐
   │ L (LOGSPACE) = SPACE(log n)                        │
-  │   例: 到達可能性判定（有向グラフ、無向は未解明→解明）│
-  │   例: パターンマッチング                            │
+  │   Example: reachability in directed graphs          │
+  │   Example: pattern matching                         │
   │                                                    │
   │ NL = NSPACE(log n)                                 │
-  │   例: 到達可能性判定（有向グラフ）                   │
-  │   NL = co-NL（Immerman-Szelepcsényi定理）         │
+  │   Example: reachability in directed graphs          │
+  │   NL = co-NL (Immerman-Szelepcsényi theorem)      │
   │                                                    │
   │ PSPACE = ∪_{k≥0} SPACE(n^k)                       │
-  │   例: QBF（量化ブール式）                           │
-  │   例: 一般化されたチェス、囲碁                      │
-  │   PSPACE完全問題: QBF                               │
+  │   Example: QBF (quantified Boolean formulas)        │
+  │   Example: generalized chess, Go                    │
+  │   PSPACE-Complete problem: QBF                      │
   │                                                    │
   │ EXPSPACE = ∪_{k≥0} SPACE(2^{n^k})                 │
   └────────────────────────────────────────────────────┘
 
-  包含関係（分かっていること）:
+  Containment relationships (known):
 
   L ⊆ NL ⊆ P ⊆ NP ⊆ PSPACE ⊆ EXPTIME ⊆ EXPSPACE
 
-  分かっていないこと:
-  - L = NL ? （未解決）
-  - P = NP ? （未解決）
-  - NP = PSPACE ? （未解決）
-  - ただし L ≠ PSPACE と P ≠ EXPTIME は証明済み
+  Unknown:
+  - L = NL? (open)
+  - P = NP? (open)
+  - NP = PSPACE? (open)
+  - However, L ≠ PSPACE and P ≠ EXPTIME have been proved
 
-  Savitchの定理:
+  Savitch's Theorem:
   NSPACE(f(n)) ⊆ SPACE(f(n)²)
-  → 非決定性は空間を二乗にしか増やさない
+  → Nondeterminism only squares the space requirement
   → PSPACE = NPSPACE
 ```
 
 ```python
-# 空間効率的なアルゴリズムの例
+# Examples of space-efficient algorithms
 
-# Savitchの定理に基づく到達可能性判定
+# Reachability test based on Savitch's theorem
 def reachability_savitch(graph, start, end, n):
     """
-    Savitchの定理に基づく到達可能性判定
-    空間計算量: O(log²n)（再帰の深さ × 各レベルの使用量）
+    Reachability test based on Savitch's theorem
+    Space complexity: O(log²n) (recursion depth × space per level)
 
-    アイデア: 「startからendに2^i歩以内で到達できるか？」を
-    中間地点midを全て試して再帰的に判定
+    Idea: "Can we reach from start to end in at most 2^i steps?"
+    Recursively check by trying all intermediate points mid
     """
     def can_reach(u, v, steps):
-        """uからvにstepsステップ以内で到達可能か？"""
+        """Can we reach from u to v in at most steps steps?"""
         if steps == 0:
             return u == v
         if steps == 1:
             return u == v or v in graph.get(u, [])
 
         half = steps // 2
-        # 全ての中間地点を試す
+        # Try all intermediate points
         for mid in range(n):
             if can_reach(u, mid, half) and can_reach(mid, v, steps - half):
                 return True
@@ -847,26 +878,26 @@ def reachability_savitch(graph, start, end, n):
     return can_reach(start, end, n)
 
 
-# PSPACE完全: QBF（量化ブール式）
+# PSPACE-Complete: QBF (Quantified Boolean Formula)
 def solve_qbf(formula):
     """
-    量化ブール式の評価
-    PSPACE完全問題
+    Evaluation of quantified Boolean formulas
+    PSPACE-Complete problem
 
-    例: ∀x ∃y (x ∨ y) ∧ (¬x ∨ ¬y)
+    Example: ∀x ∃y (x ∨ y) ∧ (¬x ∨ ¬y)
 
-    空間効率的に解ける（多項式空間）が
-    時間は指数的になりうる
+    Can be solved in polynomial space (space-efficient)
+    but may take exponential time
     """
     if not formula.quantifiers:
-        # 量化子がなくなったら、ブール式を評価
+        # When no quantifiers remain, evaluate the Boolean expression
         return evaluate_boolean(formula.expression, formula.assignment)
 
     quantifier, variable = formula.quantifiers[0]
     remaining = formula.without_first_quantifier()
 
     if quantifier == 'forall':
-        # ∀x: x=True と x=False の両方で真
+        # ∀x: must be true for both x=True and x=False
         remaining.assignment[variable] = True
         result_true = solve_qbf(remaining)
         remaining.assignment[variable] = False
@@ -874,7 +905,7 @@ def solve_qbf(formula):
         return result_true and result_false
 
     elif quantifier == 'exists':
-        # ∃x: x=True または x=False のどちらかで真
+        # ∃x: must be true for either x=True or x=False
         remaining.assignment[variable] = True
         result_true = solve_qbf(remaining)
         if result_true:
@@ -883,50 +914,52 @@ def solve_qbf(formula):
         return solve_qbf(remaining)
 ```
 
-### 4.2 確率的複雑性クラス
+### 4.2 Probabilistic Complexity Classes
 
 ```
-確率的複雑性クラス:
+Probabilistic complexity classes:
 
-  BPP（Bounded-Error Probabilistic Polynomial time）:
-  - ランダム化TMが多項式時間で解ける
-  - 正答率 ≥ 2/3（定数回繰り返せば指数的に改善可能）
+  BPP (Bounded-Error Probabilistic Polynomial time):
+  - Solvable by a randomized TM in polynomial time
+  - Correct answer probability ≥ 2/3 (can be improved exponentially
+    by repeating a constant number of times)
   - P ⊆ BPP ⊆ PSPACE
 
-  RP（Randomized Polynomial time）:
-  - YES: 確率 ≥ 1/2 で accept
-  - NO: 確率 1 で reject（片側誤りなし）
-  - 例: Miller-Rabin素数判定（合成数を正しく判定）
+  RP (Randomized Polynomial time):
+  - YES: accept with probability ≥ 1/2
+  - NO: reject with probability 1 (no one-sided error)
+  - Example: Miller-Rabin primality test (correctly identifies
+    composite numbers)
 
-  ZPP（Zero-Error Probabilistic Polynomial time）:
-  - 誤りなし、期待実行時間が多項式
+  ZPP (Zero-Error Probabilistic Polynomial time):
+  - No errors, expected running time is polynomial
   - ZPP = RP ∩ co-RP
 
-  PP（Probabilistic Polynomial time）:
-  - 正答率 > 1/2（ギリギリでもOK）
-  - PP は非常に強力（#P ⊆ P^{PP}）
+  PP (Probabilistic Polynomial time):
+  - Correct answer probability > 1/2 (even barely is OK)
+  - PP is very powerful (#P ⊆ P^{PP})
 
-  関係図:
+  Relationship diagram:
   P ⊆ ZPP ⊆ RP ⊆ BPP ⊆ PP ⊆ PSPACE
 
-  実務的な重要性:
-  - 多くの実用的アルゴリズムはBPPに属する
-  - ランダム性が「見かけの計算能力」を増やす
-  - BPP = P と予想されている（derandomization仮説）
+  Practical importance:
+  - Many practical algorithms belong to BPP
+  - Randomness increases "apparent computational power"
+  - It is conjectured that BPP = P (derandomization hypothesis)
 ```
 
 ```python
-# 確率的アルゴリズムの例
+# Examples of probabilistic algorithms
 
 import random
 
-# RP の例: Miller-Rabin素数判定
+# RP example: Miller-Rabin primality test
 def miller_rabin(n, k=20):
     """
-    Miller-Rabin素数判定
-    RPに属する:
-    - n が合成数 → 確率 ≥ 1 - 4^{-k} で「合成数」と答える
-    - n が素数 → 確率 1 で「素数」と答える
+    Miller-Rabin primality test
+    Belongs to RP:
+    - If n is composite → answers "composite" with probability ≥ 1 - 4^{-k}
+    - If n is prime → answers "prime" with probability 1
     """
     if n < 2:
         return False
@@ -935,7 +968,7 @@ def miller_rabin(n, k=20):
     if n % 2 == 0:
         return False
 
-    # n - 1 = 2^r × d (dは奇数)
+    # n - 1 = 2^r × d (d is odd)
     r, d = 0, n - 1
     while d % 2 == 0:
         r += 1
@@ -953,25 +986,25 @@ def miller_rabin(n, k=20):
             if x == n - 1:
                 break
         else:
-            return False  # 合成数
+            return False  # Composite
 
-    return True  # おそらく素数
+    return True  # Probably prime
 
 
-# BPP の例: ランダム化最小カット（Kargerのアルゴリズム）
+# BPP example: Randomized minimum cut (Karger's algorithm)
 def karger_min_cut(graph, n):
     """
-    Kargerのランダム化最小カットアルゴリズム
-    BPPに属する
+    Karger's randomized minimum cut algorithm
+    Belongs to BPP
 
-    1回の実行で最小カットを見つける確率: ≥ 2/n²
-    n²ln(n) 回繰り返せば高確率で正解
+    Probability of finding the minimum cut in one run: ≥ 2/n²
+    Repeating n²ln(n) times gives high probability of success
     """
     import copy
 
-    # 辺の収縮
+    # Edge contraction
     vertices = list(range(n))
-    edges = copy.deepcopy(graph)  # (u, v) のリスト
+    edges = copy.deepcopy(graph)  # List of (u, v)
 
     # Union-Find
     parent = list(range(n))
@@ -988,7 +1021,7 @@ def karger_min_cut(graph, n):
 
     remaining = n
     while remaining > 2:
-        # ランダムに辺を選んで収縮
+        # Randomly select an edge and contract
         while True:
             u, v = random.choice(edges)
             if find(u) != find(v):
@@ -997,7 +1030,7 @@ def karger_min_cut(graph, n):
         union(u, v)
         remaining -= 1
 
-    # 残った2つのスーパー頂点間の辺を数える
+    # Count edges between the remaining 2 super-vertices
     cut_size = 0
     for u, v in edges:
         if find(u) != find(v):
@@ -1006,12 +1039,12 @@ def karger_min_cut(graph, n):
     return cut_size
 
 
-# ZPP の例: ランダム化クイックソート
+# ZPP example: Randomized quicksort
 def randomized_quicksort(arr):
     """
-    ランダム化クイックソート
-    ZPPに属する: 常に正しい結果、期待実行時間 O(n log n)
-    最悪の場合 O(n²) だが確率は非常に低い
+    Randomized quicksort
+    Belongs to ZPP: always correct result, expected O(n log n) time
+    Worst case O(n²) but with very low probability
     """
     if len(arr) <= 1:
         return arr
@@ -1024,26 +1057,26 @@ def randomized_quicksort(arr):
     return randomized_quicksort(left) + middle + randomized_quicksort(right)
 ```
 
-### 4.3 量子複雑性クラス
+### 4.3 Quantum Complexity Classes
 
 ```
-量子複雑性クラス:
+Quantum complexity classes:
 
-  BQP（Bounded-Error Quantum Polynomial time）:
-  - 量子コンピュータで多項式時間、誤り確率 ≤ 1/3
+  BQP (Bounded-Error Quantum Polynomial time):
+  - Polynomial time on a quantum computer, error probability ≤ 1/3
   - P ⊆ BPP ⊆ BQP ⊆ PSPACE
 
-  BQPで効率的に解ける問題:
-  - 素因数分解（ショアのアルゴリズム）
-  - 離散対数
-  - ユニタリ行列のシミュレーション
-  - 特定の代数的問題
+  Problems efficiently solvable in BQP:
+  - Integer factorization (Shor's algorithm)
+  - Discrete logarithm
+  - Simulation of unitary matrices
+  - Certain algebraic problems
 
-  BQPでも効率的に解けないと予想される問題:
-  - NP完全問題（SAT, TSP等）
-  - ただし証明はされていない
+  Problems conjectured to be intractable even in BQP:
+  - NP-Complete problems (SAT, TSP, etc.)
+  - However, this has not been proved
 
-  関係図:
+  Relationship diagram:
   ┌──────────────────────────────────────────┐
   │                PSPACE                     │
   │  ┌────────────────────────────────────┐  │
@@ -1056,85 +1089,92 @@ def randomized_quicksort(arr):
   │  │  └──────────────────────────────┘  │  │
   │  └────────────────────────────────────┘  │
   │                                          │
-  │    NP は BQP と異なる位置にあると予想     │
-  │    NP ⊄ BQP かつ BQP ⊄ NP （予想）     │
+  │    NP is conjectured to be in a different │
+  │    position from BQP                      │
+  │    NP ⊄ BQP and BQP ⊄ NP (conjectured)  │
   └──────────────────────────────────────────┘
 
-  量子超越性（Quantum Supremacy）:
-  - 2019年: Googleが53量子ビットで量子超越性を主張
-  - 特定のタスクで古典コンピュータを超える実験的実証
-  - ただし実用的な問題ではまだ限定的
+  Quantum supremacy:
+  - 2019: Google claimed quantum supremacy with 53 qubits
+  - Experimental demonstration of outperforming classical
+    computers on a specific task
+  - However, still limited for practical problems
 ```
 
-### 4.4 計数問題クラス
+### 4.4 Counting Problem Classes
 
 ```
-計数問題クラス:
+Counting problem classes:
 
   #P (Sharp-P):
-  - NPの判定版ではなく、解の「数」を数える
-  - 例: #SAT = 充足する割り当ての数
-  - 例: 完全マッチングの数（パーマネント計算）
+  - Not the decision version of NP, but counting the "number" of solutions
+  - Example: #SAT = number of satisfying assignments
+  - Example: number of perfect matchings (permanent computation)
 
-  #P完全問題:
-  - パーマネント計算（Valiant, 1979）
+  #P-Complete problems:
+  - Permanent computation (Valiant, 1979)
   - #SAT
-  - グラフの彩色数（多項式の評価）
+  - Graph coloring polynomial (evaluation of chromatic polynomial)
 
-  重要な関係:
+  Important relationships:
   - P ⊆ NP ⊆ P^{#P}
-  - Toda の定理: PH ⊆ P^{#P}
-    → #P は多項式階層全体を含む（非常に強力）
+  - Toda's theorem: PH ⊆ P^{#P}
+    → #P contains the entire polynomial hierarchy (very powerful)
 
-  近似計数:
-  - 完全な計数は困難でも、近似計数は効率的にできることがある
-  - FPRAS（完全多項式ランダム近似スキーム）
-  - 例: DNF充足割り当て数の近似計数
+  Approximate counting:
+  - Even when exact counting is hard, approximate counting can
+    sometimes be done efficiently
+  - FPRAS (Fully Polynomial Randomized Approximation Scheme)
+  - Example: approximate counting of DNF satisfying assignments
 ```
 
 ---
 
-## 5. 実務での対処法
+## 5. Practical Approaches
 
-### 5.1 NP完全問題への対処戦略
+### 5.1 Strategies for Dealing with NP-Complete Problems
 
 ```
-NP完全問題に直面した時の意思決定フロー:
+Decision flow when facing an NP-Complete/NP-Hard problem:
 
   ┌──────────────────────────────┐
-  │ 問題がNP完全/NP困難と判明    │
+  │ Problem identified as        │
+  │ NP-Complete/NP-Hard          │
   └──────────┬───────────────────┘
              ↓
   ┌──────────────────────────────┐
-  │ 入力サイズは小さいか？        │
-  │ (n ≤ 20~25 程度)            │
+  │ Is the input size small?     │
+  │ (n ≤ 20~25 or so)           │
   └────┬──────────┬──────────────┘
        │ YES      │ NO
        ↓          ↓
   ┌─────────┐  ┌──────────────────────────┐
-  │ 厳密解  │  │ 特殊な構造はあるか？      │
-  │ を求める │  └────┬──────────┬───────────┘
+  │ Find    │  │ Is there special         │
+  │ exact   │  │ structure?               │
+  │ solution│  └────┬──────────┬───────────┘
   └─────────┘       │ YES      │ NO
                      ↓          ↓
               ┌───────────┐  ┌──────────────────────┐
-              │ 特殊ケース│  │ 近似保証は必要か？     │
-              │ の効率的  │  └────┬──────────┬────────┘
-              │ アルゴリズム│      │ YES      │ NO
-              └───────────┘      ↓          ↓
-                          ┌───────────┐  ┌──────────┐
-                          │ 近似アルゴ │  │ ヒューリ  │
-                          │ リズム     │  │ スティック │
-                          └───────────┘  └──────────┘
+              │ Efficient │  │ Is an approximation  │
+              │ algorithm │  │ guarantee needed?     │
+              │ for       │  └────┬──────────┬────────┘
+              │ special   │      │ YES      │ NO
+              │ cases     │      ↓          ↓
+              └───────────┘  ┌───────────┐  ┌──────────┐
+                             │Approxima- │  │ Heuristic│
+                             │tion algo- │  │          │
+                             │rithm      │  │          │
+                             └───────────┘  └──────────┘
 ```
 
-### 5.2 厳密解（小規模の場合）
+### 5.2 Exact Solutions (for small-scale instances)
 
 ```python
-# 1. ビット全探索（n ≤ 20）
+# 1. Brute-force bit enumeration (n ≤ 20)
 def knapsack_brute_force(weights, values, capacity):
     """
-    ナップサック問題のビット全探索
-    O(2^n): n ≤ 20 程度まで実用的
+    Knapsack problem via brute-force bit enumeration
+    O(2^n): practical for n ≤ 20 or so
     """
     n = len(weights)
     best_value = 0
@@ -1155,17 +1195,18 @@ def knapsack_brute_force(weights, values, capacity):
     return best_value, best_items
 
 
-# 2. 動的計画法（指数時間だが高速化）
+# 2. Dynamic programming (exponential time but faster)
 def tsp_dp(dist, n):
     """
-    巡回セールスマン問題のDP解法（Held-Karp）
-    O(n² × 2^n): ビット全探索の O(n! × n) より大幅に高速
-    n ≤ 25 程度まで実用的
+    TSP DP solution (Held-Karp)
+    O(n² × 2^n): significantly faster than brute-force O(n! × n)
+    Practical for n ≤ 25 or so
     """
     INF = float('inf')
-    # dp[S][i] = 集合Sの都市を訪問し、最後にiにいる場合の最小コスト
+    # dp[S][i] = minimum cost of visiting the set of cities S,
+    #            ending at city i
     dp = [[INF] * n for _ in range(1 << n)]
-    dp[1][0] = 0  # 都市0から開始
+    dp[1][0] = 0  # Start from city 0
 
     for S in range(1 << n):
         for u in range(n):
@@ -1179,19 +1220,19 @@ def tsp_dp(dist, n):
                 new_S = S | (1 << v)
                 dp[new_S][v] = min(dp[new_S][v], dp[S][u] + dist[u][v])
 
-    # 全都市を訪問して0に戻る
+    # Visit all cities and return to 0
     full = (1 << n) - 1
     result = min(dp[full][i] + dist[i][0] for i in range(1, n))
 
     return result
 
 
-# 3. 分岐限定法（Branch and Bound）
+# 3. Branch and Bound
 def branch_and_bound_tsp(dist, n):
     """
-    TSPの分岐限定法
-    最悪 O(n!), 平均的にはDPより速いことが多い
-    枝刈りの効果で大幅に探索を削減
+    Branch and bound for TSP
+    Worst case O(n!), but often faster than DP on average
+    Pruning significantly reduces the search space
     """
     import heapq
 
@@ -1199,7 +1240,7 @@ def branch_and_bound_tsp(dist, n):
     best = INF
 
     def lower_bound(visited, current, cost):
-        """下界の計算（簡易版: 最小辺の和）"""
+        """Lower bound computation (simplified: sum of minimum edges)"""
         lb = cost
         for i in range(n):
             if i not in visited:
@@ -1207,14 +1248,14 @@ def branch_and_bound_tsp(dist, n):
                 lb += min_edge
         return lb
 
-    # 優先度付きキュー: (下界, コスト, 現在地, 訪問済み)
+    # Priority queue: (lower bound, cost, current city, visited set)
     pq = [(lower_bound({0}, 0, 0), 0, 0, frozenset({0}))]
 
     while pq:
         lb, cost, current, visited = heapq.heappop(pq)
 
         if lb >= best:
-            continue  # 枝刈り
+            continue  # Pruning
 
         if len(visited) == n:
             total = cost + dist[current][0]
@@ -1233,24 +1274,24 @@ def branch_and_bound_tsp(dist, n):
     return best
 ```
 
-### 5.3 近似アルゴリズム
+### 5.3 Approximation Algorithms
 
 ```python
-# 近似アルゴリズムの実装例
+# Implementation examples of approximation algorithms
 
-# 1. 頂点被覆の2-近似
+# 1. 2-approximation for vertex cover
 def vertex_cover_2approx(graph):
     """
-    頂点被覆の2-近似アルゴリズム
+    2-approximation algorithm for vertex cover
 
-    近似比: 2（最適解の2倍以内を保証）
-    時間計算量: O(V + E)
+    Approximation ratio: 2 (guaranteed within 2x of optimal)
+    Time complexity: O(V + E)
 
-    アルゴリズム:
-    1. 辺を1つ選ぶ
-    2. その両端点を被覆に追加
-    3. 追加した頂点に接続する辺を全て削除
-    4. 辺がなくなるまで繰り返す
+    Algorithm:
+    1. Select an edge
+    2. Add both endpoints to the cover
+    3. Remove all edges incident to the added vertices
+    4. Repeat until no edges remain
     """
     cover = set()
     edges = set()
@@ -1263,12 +1304,12 @@ def vertex_cover_2approx(graph):
     remaining_edges = set(edges)
 
     while remaining_edges:
-        # 辺を1つ選ぶ
+        # Select an edge
         u, v = next(iter(remaining_edges))
         cover.add(u)
         cover.add(v)
 
-        # 両端点に接続する辺を削除
+        # Remove edges incident to both endpoints
         remaining_edges = {
             (a, b) for (a, b) in remaining_edges
             if a != u and a != v and b != u and b != v
@@ -1276,37 +1317,39 @@ def vertex_cover_2approx(graph):
 
     return cover
 
-# 証明: 2-近似
-# - 選ばれた辺の集合をMとする（|M|本）
-# - Mの辺は互いに端点を共有しない（マッチング）
-# - cover = 2|M| 頂点
-# - 最適解は各辺から少なくとも1つの端点を含む → OPT ≥ |M|
+# Proof of 2-approximation:
+# - Let M be the set of selected edges (|M| edges)
+# - Edges in M share no endpoints (a matching)
+# - cover = 2|M| vertices
+# - The optimal solution must include at least one endpoint
+#   of each edge → OPT ≥ |M|
 # - cover = 2|M| ≤ 2 × OPT ∎
 
 
-# 2. 集合被覆の貪欲近似（O(log n)-近似）
+# 2. Greedy approximation for set cover (O(log n)-approximation)
 def greedy_set_cover(universe, sets):
     """
-    集合被覆の貪欲アルゴリズム
+    Greedy algorithm for set cover
 
-    近似比: H(n) = Σ_{i=1}^{n} 1/i ≈ ln(n)
-    → これが最善（P ≠ NP なら (1-ε)ln(n) 未満は不可能）
+    Approximation ratio: H(n) = Σ_{i=1}^{n} 1/i ≈ ln(n)
+    → This is the best possible (if P ≠ NP, below (1-ε)ln(n)
+      is impossible)
 
-    時間計算量: O(|universe| × |sets|)
+    Time complexity: O(|universe| × |sets|)
     """
     uncovered = set(universe)
     selected = []
     remaining_sets = list(sets.items())
 
     while uncovered:
-        # 最も多くの未被覆要素をカバーする集合を選ぶ
+        # Select the set covering the most uncovered elements
         best_set = max(
             remaining_sets,
             key=lambda s: len(s[1] & uncovered)
         )
 
         if len(best_set[1] & uncovered) == 0:
-            break  # これ以上カバーできない
+            break  # Cannot cover any more
 
         selected.append(best_set[0])
         uncovered -= best_set[1]
@@ -1315,32 +1358,35 @@ def greedy_set_cover(universe, sets):
     return selected
 
 
-# 3. TSPのChristofides近似（3/2-近似）
+# 3. Christofides' approximation for TSP (3/2-approximation)
 def christofides_tsp(dist, n):
     """
-    Christofides のアルゴリズム（概念的実装）
+    Christofides' algorithm (conceptual implementation)
 
-    三角不等式を満たすTSPに対して 3/2-近似を保証
-    これは多項式時間で達成される最良の近似比
+    Guarantees 3/2-approximation for TSP satisfying the
+    triangle inequality
+    This is the best approximation ratio achievable in
+    polynomial time
 
-    手順:
-    1. 最小全域木Tを求める
-    2. Tの奇数次頂点の最小重み完全マッチングMを求める
-    3. T ∪ M でオイラー閉路を求める
-    4. ショートカットしてハミルトン閉路にする
+    Procedure:
+    1. Find the minimum spanning tree T
+    2. Find the minimum weight perfect matching M on
+       odd-degree vertices of T
+    3. Find an Euler circuit on T ∪ M
+    4. Shortcut to obtain a Hamiltonian cycle
     """
-    # 1. 最小全域木
+    # 1. Minimum spanning tree
     mst = compute_mst(dist, n)
 
-    # 2. 奇数次頂点の最小完全マッチング
+    # 2. Minimum perfect matching on odd-degree vertices
     odd_vertices = [v for v in range(n) if degree(mst, v) % 2 == 1]
     matching = min_weight_perfect_matching(dist, odd_vertices)
 
-    # 3. MST + マッチングでオイラーグラフ
+    # 3. Euler graph from MST + matching
     euler_graph = combine(mst, matching)
     euler_tour = find_euler_tour(euler_graph)
 
-    # 4. ショートカット（重複頂点を飛ばす）
+    # 4. Shortcut (skip duplicate vertices)
     visited = set()
     hamiltonian = []
     for v in euler_tour:
@@ -1350,33 +1396,35 @@ def christofides_tsp(dist, n):
 
     return hamiltonian
 
-# 近似比の証明:
-# MST ≤ OPT（最適TSPから1辺を除くとMSTの上界）
-# マッチング ≤ OPT/2（奇数次頂点上の最適TSPの半分以下）
-# よって: Christofides ≤ MST + Matching ≤ OPT + OPT/2 = 3/2 × OPT
+# Proof of approximation ratio:
+# MST ≤ OPT (removing one edge from optimal TSP gives an upper
+#             bound for MST)
+# Matching ≤ OPT/2 (at most half of optimal TSP on odd-degree vertices)
+# Therefore: Christofides ≤ MST + Matching ≤ OPT + OPT/2 = 3/2 × OPT
 
 
-# 4. ナップサック問題のFPTAS（完全多項式時間近似スキーム）
+# 4. FPTAS for the knapsack problem
+#    (Fully Polynomial-Time Approximation Scheme)
 def knapsack_fptas(weights, values, capacity, epsilon):
     """
-    ナップサック問題のFPTAS
+    FPTAS for the knapsack problem
 
-    任意のε > 0 に対して、(1-ε)-近似を保証
-    時間計算量: O(n² / ε)
+    Guarantees (1-ε)-approximation for any ε > 0
+    Time complexity: O(n² / ε)
 
-    FPTASが存在 → 強いNP困難ではない
+    Existence of FPTAS → not strongly NP-Hard
     """
     n = len(weights)
     v_max = max(values)
 
-    # スケーリング
+    # Scaling
     K = epsilon * v_max / n
     scaled_values = [int(v / K) for v in values]
     V_total = sum(scaled_values)
 
-    # スケールされた値でDP
+    # DP with scaled values
     INF = float('inf')
-    # dp[v] = 価値合計がちょうどvとなる最小重量
+    # dp[v] = minimum weight to achieve exactly value sum v
     dp = [INF] * (V_total + 1)
     dp[0] = 0
 
@@ -1385,68 +1433,71 @@ def knapsack_fptas(weights, values, capacity, epsilon):
             if dp[v - scaled_values[i]] + weights[i] < dp[v]:
                 dp[v] = dp[v - scaled_values[i]] + weights[i]
 
-    # 容量以内で最大の価値を見つける
+    # Find the maximum value within capacity
     best_v = 0
     for v in range(V_total + 1):
         if dp[v] <= capacity:
             best_v = v
 
-    return best_v * K  # 元のスケールに戻す
+    return best_v * K  # Restore to original scale
 ```
 
-### 5.4 近似困難性
+### 5.4 Inapproximability
 
 ```
-近似困難性（Inapproximability）:
+Inapproximability:
 
-  PCP定理（Probabilistically Checkable Proofs, 1992）:
+  PCP Theorem (Probabilistically Checkable Proofs, 1992):
   NP = PCP(log n, 1)
-  → NP問題の証明は、定数個のビットをランダムにチェックするだけで
-    高確率で正しさを検証できる
+  → Proofs of NP problems can be verified with high probability
+    by randomly checking only a constant number of bits
 
-  PCP定理の帰結（近似困難性）:
+  Consequences of the PCP Theorem (inapproximability):
 
   ┌────────────────────────────────────────────────────────┐
-  │ 問題              │ 近似可能          │ 近似困難          │
+  │ Problem              │ Approximable       │ Inapproximable     │
   ├───────────────────┼──────────────────┼──────────────────┤
-  │ 頂点被覆          │ 2-近似（達成）    │ 2-ε は NP困難     │
-  │                   │                  │ (UGC仮定)         │
-  │ 集合被覆          │ ln(n)-近似       │ (1-ε)ln(n) は     │
-  │                   │ （達成）         │ NP困難            │
-  │ MAX-3SAT          │ 7/8-近似（達成） │ 7/8+ε は NP困難   │
-  │ MAX-CLIQUE        │ n^{1-ε}-近似     │ n^{1-ε} 未満は    │
-  │                   │                  │ NP困難            │
-  │ TSP（一般）       │ 近似不可能       │ 定数近似はNP困難   │
-  │ TSP（三角不等式） │ 3/2-近似（達成） │ 220/219 は NP困難  │
-  │ ナップサック       │ FPTAS あり       │ ─                 │
+  │ Vertex cover        │ 2-approx           │ 2-ε is NP-Hard    │
+  │                     │ (achieved)         │ (under UGC)        │
+  │ Set cover           │ ln(n)-approx       │ (1-ε)ln(n) is     │
+  │                     │ (achieved)         │ NP-Hard            │
+  │ MAX-3SAT           │ 7/8-approx         │ 7/8+ε is NP-Hard  │
+  │                     │ (achieved)         │                    │
+  │ MAX-CLIQUE         │ n^{1-ε}-approx     │ Below n^{1-ε} is  │
+  │                     │                    │ NP-Hard            │
+  │ TSP (general)       │ Inapproximable     │ Constant approx    │
+  │                     │                    │ is NP-Hard         │
+  │ TSP (triangle ineq.)│ 3/2-approx        │ 220/219 is NP-Hard │
+  │                     │ (achieved)         │                    │
+  │ Knapsack           │ FPTAS exists        │ ─                  │
   └────────────────────────────────────────────────────────┘
 
-  意味:
-  - MAX-3SAT: 7/8を超える近似は（P ≠ NP なら）不可能
-    → ランダムに割り当てても 7/8 は達成できる
-    → これ以上は本質的に不可能
-  - MAX-CLIQUE: n^{1-ε} 倍以内の近似すら不可能
-    → 極めて近似困難
+  Meaning:
+  - MAX-3SAT: approximation beyond 7/8 is impossible (if P ≠ NP)
+    → Random assignment already achieves 7/8
+    → Going beyond this is fundamentally impossible
+  - MAX-CLIQUE: even n^{1-ε}-factor approximation is impossible
+    → Extremely hard to approximate
 ```
 
-### 5.5 ヒューリスティック
+### 5.5 Heuristics
 
 ```python
-# ヒューリスティックの実装例
+# Implementation examples of heuristics
 
 import random
 import math
 
-# 1. 焼きなまし法（Simulated Annealing）
+# 1. Simulated Annealing
 def simulated_annealing_tsp(dist, n, initial_temp=10000,
                              cooling_rate=0.9995, min_temp=1e-8):
     """
-    TSPの焼きなまし法
+    Simulated annealing for TSP
 
-    保証: なし（ただし実用上は非常に良い解が得られる）
-    実行時間: ユーザーが指定（反復回数 or 温度で制御）
+    Guarantee: none (but practically yields very good solutions)
+    Running time: user-specified (controlled by iterations or temperature)
     """
-    # 初期解: ランダムな順列
+    # Initial solution: random permutation
     current = list(range(n))
     random.shuffle(current)
 
@@ -1459,13 +1510,13 @@ def simulated_annealing_tsp(dist, n, initial_temp=10000,
     temp = initial_temp
 
     while temp > min_temp:
-        # 近傍: 2-opt（2辺を交換）
+        # Neighborhood: 2-opt (swap 2 edges)
         i = random.randint(0, n - 2)
         j = random.randint(i + 1, n - 1)
         neighbor = current[:i] + current[i:j+1][::-1] + current[j+1:]
         neighbor_cost = tour_cost(neighbor)
 
-        # 受理判定
+        # Acceptance criterion
         delta = neighbor_cost - current_cost
         if delta < 0 or random.random() < math.exp(-delta / temp):
             current = neighbor
@@ -1480,18 +1531,18 @@ def simulated_annealing_tsp(dist, n, initial_temp=10000,
     return best, best_cost
 
 
-# 2. 遺伝的アルゴリズム（Genetic Algorithm）
+# 2. Genetic Algorithm
 def genetic_algorithm_tsp(dist, n, pop_size=100, generations=1000,
                           mutation_rate=0.02):
     """
-    TSPの遺伝的アルゴリズム
+    Genetic algorithm for TSP
 
-    構成要素:
-    - 個体: 都市の順列（染色体）
-    - 適応度: 経路長の逆数
-    - 交叉: 順序交叉（OX）
-    - 突然変異: 2-opt
-    - 選択: トーナメント選択
+    Components:
+    - Individual: permutation of cities (chromosome)
+    - Fitness: inverse of tour length
+    - Crossover: Order crossover (OX)
+    - Mutation: 2-opt
+    - Selection: Tournament selection
     """
     def tour_cost(tour):
         return sum(dist[tour[i]][tour[(i+1) % n]] for i in range(n))
@@ -1502,7 +1553,7 @@ def genetic_algorithm_tsp(dist, n, pop_size=100, generations=1000,
         return population[best_idx]
 
     def order_crossover(parent1, parent2):
-        """順序交叉（OX）"""
+        """Order Crossover (OX)"""
         start = random.randint(0, n - 2)
         end = random.randint(start + 1, n - 1)
 
@@ -1520,32 +1571,32 @@ def genetic_algorithm_tsp(dist, n, pop_size=100, generations=1000,
         return child
 
     def mutate(tour):
-        """2-opt突然変異"""
+        """2-opt mutation"""
         if random.random() < mutation_rate:
             i = random.randint(0, n - 2)
             j = random.randint(i + 1, n - 1)
             tour[i:j+1] = reversed(tour[i:j+1])
         return tour
 
-    # 初期集団
+    # Initial population
     population = [random.sample(range(n), n) for _ in range(pop_size)]
 
     best_ever = None
     best_cost_ever = float('inf')
 
     for gen in range(generations):
-        # 適応度計算
+        # Fitness computation
         costs = [tour_cost(ind) for ind in population]
         fitnesses = [1.0 / c for c in costs]
 
-        # 最良個体の更新
+        # Update best individual
         best_idx = min(range(pop_size), key=lambda i: costs[i])
         if costs[best_idx] < best_cost_ever:
             best_cost_ever = costs[best_idx]
             best_ever = population[best_idx][:]
 
-        # 次世代の生成
-        new_population = [best_ever[:]]  # エリート保存
+        # Generate next generation
+        new_population = [best_ever[:]]  # Elitism
 
         while len(new_population) < pop_size:
             p1 = tournament_select(population, fitnesses)
@@ -1559,13 +1610,13 @@ def genetic_algorithm_tsp(dist, n, pop_size=100, generations=1000,
     return best_ever, best_cost_ever
 
 
-# 3. タブー探索
+# 3. Tabu Search
 def tabu_search_tsp(dist, n, max_iter=10000, tabu_size=20):
     """
-    TSPのタブー探索
+    Tabu search for TSP
 
-    直近のtabu_size回の移動を禁止（タブーリスト）
-    → 局所最適解から脱出可能
+    Forbids the last tabu_size moves (tabu list)
+    → Enables escape from local optima
     """
     current = list(range(n))
     random.shuffle(current)
@@ -1579,7 +1630,7 @@ def tabu_search_tsp(dist, n, max_iter=10000, tabu_size=20):
     tabu_list = []
 
     for _ in range(max_iter):
-        # 全ての2-opt近傍を列挙
+        # Enumerate all 2-opt neighborhoods
         best_neighbor = None
         best_neighbor_cost = float('inf')
         best_move = None
@@ -1590,7 +1641,7 @@ def tabu_search_tsp(dist, n, max_iter=10000, tabu_size=20):
                 neighbor = current[:i] + current[i:j+1][::-1] + current[j+1:]
                 nc = tour_cost(neighbor)
 
-                # タブーでない、または最良解を更新する場合
+                # Accept if not tabu, or if it improves the best known solution
                 if (move not in tabu_list or nc < best_cost):
                     if nc < best_neighbor_cost:
                         best_neighbor = neighbor
@@ -1603,7 +1654,7 @@ def tabu_search_tsp(dist, n, max_iter=10000, tabu_size=20):
         current = best_neighbor
         current_cost = best_neighbor_cost
 
-        # タブーリスト更新
+        # Update tabu list
         tabu_list.append(best_move)
         if len(tabu_list) > tabu_size:
             tabu_list.pop(0)
@@ -1615,83 +1666,83 @@ def tabu_search_tsp(dist, n, max_iter=10000, tabu_size=20):
     return best, best_cost
 ```
 
-### 5.6 パラメータ化計算量（FPT）
+### 5.6 Parameterized Complexity (FPT)
 
 ```
-パラメータ化計算量（Fixed-Parameter Tractability）:
+Parameterized Complexity (Fixed-Parameter Tractability):
 
-  アイデア: 入力サイズ n に加えて、パラメータ k を考慮する
+  Idea: Consider a parameter k in addition to input size n
 
-  FPT: O(f(k) × n^c) で解ける問題
-  - f(k): kにのみ依存する（指数的でも可）
-  - n^c: 入力サイズの多項式
-  - kが小さければ実用的に解ける
+  FPT: Problems solvable in O(f(k) × n^c)
+  - f(k): depends only on k (may be exponential)
+  - n^c: polynomial in input size
+  - Practically solvable when k is small
 
-  例: 頂点被覆（パラメータ k = 被覆のサイズ）
-  - 力任せ: O(n^k) — kが大きいと非実用的
-  - FPTアルゴリズム: O(2^k × n) — kが小さければ高速
+  Example: Vertex cover (parameter k = cover size)
+  - Brute force: O(n^k) — impractical for large k
+  - FPT algorithm: O(2^k × n) — fast when k is small
 
-  FPTの階層:
+  FPT hierarchy:
   ┌─────────────────────────────────────────────┐
   │ FPT ⊆ W[1] ⊆ W[2] ⊆ ... ⊆ XP             │
   │                                             │
   │ FPT: f(k) × n^c                            │
-  │ XP: n^{f(k)}（パラメータが指数に入る）       │
+  │ XP: n^{f(k)} (parameter appears in exponent)│
   │                                             │
-  │ FPT ≠ W[1] と予想                          │
-  │ → パラメータ化版のP ≠ NP                    │
+  │ FPT ≠ W[1] is conjectured                  │
+  │ → The parameterized version of P ≠ NP       │
   └─────────────────────────────────────────────┘
 
-  W[1]完全問題の例:
-  - k-クリーク
-  - 独立集合（パラメータ k）
+  Examples of W[1]-Complete problems:
+  - k-Clique
+  - Independent set (parameter k)
 
-  FPTの例:
-  - 頂点被覆（パラメータ k）: O(1.2738^k + kn)
-  - k-パス問題: O(2^k × n)（Color Coding）
-  - 木幅が k のグラフ上のSAT: O(2^k × n)
+  Examples of FPT:
+  - Vertex cover (parameter k): O(1.2738^k + kn)
+  - k-Path problem: O(2^k × n) (Color Coding)
+  - SAT on graphs of treewidth k: O(2^k × n)
 ```
 
 ```python
-# FPTアルゴリズムの例
+# Examples of FPT algorithms
 
-# 頂点被覆のFPTアルゴリズム（分岐限定法）
+# FPT algorithm for vertex cover (branch and bound)
 def vertex_cover_fpt(graph, k):
     """
-    頂点被覆のFPTアルゴリズム
-    時間計算量: O(2^k × (V + E))
+    FPT algorithm for vertex cover
+    Time complexity: O(2^k × (V + E))
 
-    アイデア:
-    辺(u,v)を1つ選ぶ → uを被覆に入れるか、vを入れるかの2択
-    → 深さkの二分木を探索
+    Idea:
+    Select an edge (u,v) → two choices: include u or include v
+    in the cover → search a binary tree of depth k
     """
     def solve(edges, cover, remaining_k):
-        # 辺がなくなったら成功
+        # Success if no edges remain
         if not edges:
             return cover
 
-        # 予算がなくなったら失敗
+        # Failure if budget is exhausted
         if remaining_k == 0:
             return None
 
-        # 辺を1つ選ぶ
+        # Select an edge
         u, v = next(iter(edges))
 
-        # 選択1: uを被覆に入れる
+        # Choice 1: include u in the cover
         new_edges_u = {(a, b) for (a, b) in edges if a != u and b != u}
         result = solve(new_edges_u, cover | {u}, remaining_k - 1)
         if result is not None:
             return result
 
-        # 選択2: vを被覆に入れる
+        # Choice 2: include v in the cover
         new_edges_v = {(a, b) for (a, b) in edges if a != v and b != v}
         result = solve(new_edges_v, cover | {v}, remaining_k - 1)
         if result is not None:
             return result
 
-        return None  # サイズk以下の頂点被覆は存在しない
+        return None  # No vertex cover of size ≤ k exists
 
-    # 辺の集合を構築
+    # Build the edge set
     edges = set()
     for u in graph:
         for v in graph[u]:
@@ -1701,22 +1752,24 @@ def vertex_cover_fpt(graph, k):
     return solve(edges, set(), k)
 
 
-# Color Coding: k-パス問題のFPTアルゴリズム
+# Color Coding: FPT algorithm for the k-path problem
 def color_coding_k_path(graph, n, k):
     """
-    k-パス問題: グラフに長さkのパスが存在するか？
-    FPTアルゴリズム: O(2^k × E) （ランダム化）
+    k-Path problem: Does the graph contain a path of length k?
+    FPT algorithm: O(2^k × E) (randomized)
 
-    アイデア:
-    1. 各頂点にランダムに k 色を割り当て
-    2. 全ての色が使われるカラフルなパスをDPで見つける
-    3. 成功確率 ≥ e^{-k} → O(e^k) 回繰り返せば高確率で見つかる
+    Idea:
+    1. Randomly assign k colors to each vertex
+    2. Find a colorful path (using all colors) via DP
+    3. Success probability ≥ e^{-k} → repeat O(e^k) times
+       for high probability
     """
-    for trial in range(int(2.72 ** k) * 2):  # e^k × 2 回試行
-        # ランダムな彩色
+    for trial in range(int(2.72 ** k) * 2):  # e^k × 2 trials
+        # Random coloring
         colors = [random.randint(0, k - 1) for _ in range(n)]
 
-        # DP: dp[v][S] = 頂点vで終わり、色集合Sを使うカラフルなパスが存在するか
+        # DP: dp[v][S] = does a colorful path ending at vertex v
+        #                using color set S exist?
         dp = [[False] * (1 << k) for _ in range(n)]
 
         for v in range(n):
@@ -1728,10 +1781,10 @@ def color_coding_k_path(graph, n, k):
                     continue
                 for u in graph.get(v, []):
                     c = colors[u]
-                    if not (S & (1 << c)):  # 新しい色
+                    if not (S & (1 << c)):  # New color
                         dp[u][S | (1 << c)] = True
 
-        # 全色を使うパスが見つかったか？
+        # Was a path using all colors found?
         full_set = (1 << k) - 1
         for v in range(n):
             if dp[v][full_set]:
@@ -1742,103 +1795,113 @@ def color_coding_k_path(graph, n, k):
 
 ---
 
-## 6. 重要な定理
+## 6. Important Theorems
 
-### 6.1 時間階層定理と空間階層定理
+### 6.1 Time Hierarchy Theorem and Space Hierarchy Theorem
 
 ```
-時間階層定理（Time Hierarchy Theorem）:
-  f(n) × log(f(n)) = o(g(n)) ならば
+Time Hierarchy Theorem:
+  If f(n) × log(f(n)) = o(g(n)) then
   DTIME(f(n)) ⊊ DTIME(g(n))
 
-  帰結:
-  - P ⊊ EXPTIME（P ≠ EXPTIME）
-  - 時間が十分増えれば、より多くの問題が解ける
+  Consequence:
+  - P ⊊ EXPTIME (P ≠ EXPTIME)
+  - With sufficiently more time, more problems become solvable
 
-空間階層定理（Space Hierarchy Theorem）:
-  f(n) = o(g(n)) ならば
+Space Hierarchy Theorem:
+  If f(n) = o(g(n)) then
   SPACE(f(n)) ⊊ SPACE(g(n))
 
-  帰結:
+  Consequence:
   - L ⊊ PSPACE
-  - 空間が増えれば、より多くの問題が解ける
+  - With more space, more problems become solvable
 
-注意:
-  - P ≠ NP は時間階層定理からは導けない
-  - 階層定理は「同じ計算モデル」内でのみ有効
-  - 決定性 vs 非決定性の比較には使えない
+Note:
+  - P ≠ NP cannot be derived from the time hierarchy theorem
+  - The hierarchy theorems are valid only within the "same
+    computational model"
+  - Cannot be used to compare deterministic vs nondeterministic
 ```
 
-### 6.2 Savitchの定理
+### 6.2 Savitch's Theorem
 
 ```
-Savitchの定理:
+Savitch's Theorem:
   NSPACE(f(n)) ⊆ SPACE(f(n)²)
 
-  帰結:
+  Consequences:
   - NPSPACE = PSPACE
-  - 非決定性は空間を二乗にしか増やさない
-  - 対照的に、非決定性が時間に与える影響は未解明（P vs NP）
+  - Nondeterminism only squares the space requirement
+  - In contrast, the effect of nondeterminism on time is
+    unknown (P vs NP)
 
-  証明のアイデア:
-  NTM の受理計算を、中間地点を全て試すことで
-  空間 O(f(n)²) の決定性TMでシミュレート
+  Proof idea:
+  Simulate the accepting computation of the NTM using a
+  deterministic TM in O(f(n)²) space by trying all
+  intermediate configurations
 
-  実務的意味:
-  - ゲームの最適戦略（PSPACE完全）は、
-    非決定性を使わなくても多項式空間で計算可能
-  - QBF（量化ブール式）も多項式空間で解ける
+  Practical meaning:
+  - Optimal strategies for games (PSPACE-Complete) can be
+    computed in polynomial space without nondeterminism
+  - QBF (quantified Boolean formulas) can also be solved
+    in polynomial space
 ```
 
 ---
 
-## 7. 実践演習
+## 7. Practice Exercises
 
-### 演習1: NP完全の帰着（基礎）
+### Exercise 1: NP-Complete Reduction (Basic)
 
 ```
-問題: 独立集合問題が頂点被覆問題に帰着できることを示せ。
+Problem: Show that the independent set problem can be reduced
+to the vertex cover problem.
 
-定義:
-- 独立集合: どの2頂点も辺で結ばれていない頂点の部分集合
-- 頂点被覆: 全ての辺の少なくとも一端を含む頂点の部分集合
+Definitions:
+- Independent set: a subset of vertices where no two vertices
+  are connected by an edge
+- Vertex cover: a subset of vertices that includes at least
+  one endpoint of every edge
 
-証明:
-  Sが独立集合 ⟺ V \ S が頂点被覆
+Proof:
+  S is an independent set ⟺ V \ S is a vertex cover
 
-  (→) Sが独立集合とする。
-  任意の辺 (u,v) について、u,v の少なくとも一方は S に属さない
-  （両方属していたら独立でない）。
-  よって少なくとも一方は V \ S に属する → V \ S は頂点被覆。
+  (→) Suppose S is an independent set.
+  For any edge (u,v), at least one of u,v is not in S
+  (if both were in S, they would not be independent).
+  Therefore, at least one is in V \ S → V \ S is a vertex cover.
 
-  (←) V \ S が頂点被覆とする。
-  S の任意の2頂点 u,v について、(u,v) は辺でない
-  （辺であれば u,v ∈ S なので V \ S に含まれず被覆にならない）。
-  よって S は独立集合。
+  (←) Suppose V \ S is a vertex cover.
+  For any two vertices u,v in S, (u,v) is not an edge
+  (if it were, then u,v ∈ S means neither is in V \ S,
+   so it wouldn't be a cover).
+  Therefore, S is an independent set.
 
-  帰着: サイズkの独立集合が存在 ⟺ サイズ(n-k)の頂点被覆が存在
+  Reduction: An independent set of size k exists ⟺
+             a vertex cover of size (n-k) exists
 
-  この帰着は O(1) 時間 → 多項式時間帰着 ∎
+  This reduction takes O(1) time → polynomial-time reduction ∎
 ```
 
-### 演習2: 近似アルゴリズム（応用）
+### Exercise 2: Approximation Algorithm (Applied)
 
 ```python
 """
-演習: 貪欲法による集合被覆の近似アルゴリズムを実装し、近似比を実測せよ。
+Exercise: Implement the greedy approximation algorithm for set cover
+and empirically measure the approximation ratio.
 """
 
 import random
 
 def generate_set_cover_instance(n, m, density=0.3):
-    """集合被覆のランダムインスタンス生成"""
+    """Generate a random instance of the set cover problem"""
     universe = set(range(n))
     sets = {}
     for i in range(m):
         size = max(1, int(n * density * random.random()))
         sets[i] = set(random.sample(list(universe), min(size, n)))
 
-    # 全要素が被覆可能であることを保証
+    # Ensure all elements can be covered
     for elem in universe:
         random_set = random.choice(list(sets.keys()))
         sets[random_set].add(elem)
@@ -1847,7 +1910,7 @@ def generate_set_cover_instance(n, m, density=0.3):
 
 
 def optimal_set_cover(universe, sets):
-    """厳密解（小規模用、指数時間）"""
+    """Exact solution (for small instances, exponential time)"""
     n = len(sets)
     keys = list(sets.keys())
     best = None
@@ -1866,7 +1929,7 @@ def optimal_set_cover(universe, sets):
     return best
 
 
-# 実験
+# Experiment
 for n in [10, 15, 20]:
     total_ratio = 0
     trials = 50
@@ -1878,38 +1941,39 @@ for n in [10, 15, 20]:
         total_ratio += ratio
 
     avg_ratio = total_ratio / trials
-    print(f"n={n}: 平均近似比 = {avg_ratio:.3f} (理論上界: {math.log(n):.3f})")
+    print(f"n={n}: Average approximation ratio = {avg_ratio:.3f} "
+          f"(theoretical upper bound: {math.log(n):.3f})")
 ```
 
-### 演習3: SAT ソルバー（実装）
+### Exercise 3: SAT Solver (Implementation)
 
 ```python
 """
-演習: DPLLアルゴリズム（SATソルバーの基礎）を実装せよ。
+Exercise: Implement the DPLL algorithm (the foundation of SAT solvers).
 """
 
 def dpll(clauses, assignment=None):
     """
-    DPLLアルゴリズム — SAT問題の標準的な解法
+    DPLL Algorithm — standard approach for solving SAT
 
-    最悪の場合 O(2^n) だが、実用上は非常に効率的
-    現代のSATソルバー（MiniSat, Z3等）の基礎
+    Worst case O(2^n) but very efficient in practice
+    Foundation of modern SAT solvers (MiniSat, Z3, etc.)
     """
     if assignment is None:
         assignment = {}
 
-    # 充足チェック
+    # Satisfaction check
     clauses = simplify(clauses, assignment)
 
-    # 空の節がある → 充足不可能
+    # An empty clause exists → unsatisfiable
     if any(len(c) == 0 for c in clauses):
         return None
 
-    # 全ての節が除去された → 充足可能
+    # All clauses eliminated → satisfiable
     if len(clauses) == 0:
         return assignment
 
-    # ユニット伝播（Unit Propagation）
+    # Unit Propagation
     unit_clauses = [c for c in clauses if len(c) == 1]
     while unit_clauses:
         literal = unit_clauses[0][0]
@@ -1925,7 +1989,7 @@ def dpll(clauses, assignment=None):
 
         unit_clauses = [c for c in clauses if len(c) == 1]
 
-    # 純リテラル除去（Pure Literal Elimination）
+    # Pure Literal Elimination
     all_literals = set()
     for clause in clauses:
         for lit in clause:
@@ -1940,21 +2004,21 @@ def dpll(clauses, assignment=None):
     if len(clauses) == 0:
         return assignment
 
-    # 分岐（Branching）
+    # Branching
     var = abs(clauses[0][0])
 
-    # True を試す
+    # Try True
     result = dpll(clauses, {**assignment, var: True})
     if result is not None:
         return result
 
-    # False を試す
+    # Try False
     result = dpll(clauses, {**assignment, var: False})
     return result
 
 
 def simplify(clauses, assignment):
-    """割り当てに基づいて節を簡約化"""
+    """Simplify clauses based on the assignment"""
     new_clauses = []
     for clause in clauses:
         new_clause = []
@@ -1965,7 +2029,7 @@ def simplify(clauses, assignment):
                 if (lit > 0) == assignment[var]:
                     satisfied = True
                     break
-                # リテラルがFalseの場合は節から除去
+                # If the literal is False, remove it from the clause
             else:
                 new_clause.append(lit)
         if not satisfied:
@@ -1978,42 +2042,42 @@ def simplify(clauses, assignment):
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when studying this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important. Understanding deepens not only through theory but also by actually writing code and verifying its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What common mistakes do beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## まとめ
-
-| 概念 | ポイント |
-|------|---------|
-| P | 多項式時間で解ける。ソート、最短経路、2-SAT等 |
-| NP | 多項式時間で検証できる。P ⊆ NP |
-| NP完全 | NPで最も難しい。1つ解ければ全NP問題が解ける |
-| NP困難 | NP完全以上に難しい。NPに属さない場合もある |
-| P ≠ NP? | CS最大の未解決問題。暗号の安全性に直結 |
-| PSPACE | 多項式空間。QBFが完全問題。PSPACE = NPSPACE |
-| BPP/BQP | 確率的/量子計算のクラス。BPP = Pが予想される |
-| 近似アルゴリズム | 最適解の定数倍を保証。PCP定理で限界も判明 |
-| FPT | パラメータkが小さい場合に効率的。f(k)×n^c |
-| ヒューリスティック | 保証なしだが実用的。SA, GA, タブー探索等 |
+Knowledge of this topic is frequently applied in everyday development work. It becomes particularly important during code reviews and architecture design.
 
 ---
 
-## 次に読むべきガイド
+## Summary
+
+| Concept | Key Points |
+|---------|-----------|
+| P | Solvable in polynomial time. Sorting, shortest path, 2-SAT, etc. |
+| NP | Verifiable in polynomial time. P ⊆ NP |
+| NP-Complete | Hardest in NP. Solving one solves all NP problems |
+| NP-Hard | At least as hard as NP-Complete. May not belong to NP |
+| P vs NP? | Greatest unsolved problem in CS. Directly tied to cryptographic security |
+| PSPACE | Polynomial space. QBF is the complete problem. PSPACE = NPSPACE |
+| BPP/BQP | Probabilistic/quantum computation classes. BPP = P is conjectured |
+| Approximation algorithms | Guarantee a constant factor of optimal. PCP theorem reveals limits |
+| FPT | Efficient when parameter k is small. f(k)×n^c |
+| Heuristics | No guarantees but practical. SA, GA, tabu search, etc. |
 
 ---
 
-## 参考文献
+## Recommended Next Reading
+
+---
+
+## References
 1. Sipser, M. "Introduction to the Theory of Computation." Chapters 7-8.
 2. Arora, S. & Barak, B. "Computational Complexity: A Modern Approach." Cambridge, 2009.
 3. Cook, S. A. "The Complexity of Theorem-Proving Procedures." STOC, 1971.

@@ -1,664 +1,667 @@
-# アクセス制御
+# Access Control
 
-> OSのセキュリティの基盤は「誰が何にアクセスできるか」を厳密に管理するアクセス制御である。
+> The foundation of OS security is access control, which strictly manages "who can access what."
 
-## この章で学ぶこと
+## Learning Objectives
 
-- [ ] DAC、MAC、RBACの違いを説明できる
-- [ ] Unixパーミッションモデルを理解する
-- [ ] 最小権限の原則を実践できる
-- [ ] ACL（アクセス制御リスト）の設計と運用ができる
-- [ ] SELinux / AppArmor のポリシーを設定できる
-- [ ] Linux Capabilities を活用して権限を最小化できる
-- [ ] ABAC（属性ベースアクセス制御）の概念を理解する
-- [ ] 実務でのアクセス制御監査を行える
+- [ ] Explain the differences between DAC, MAC, and RBAC
+- [ ] Understand the Unix permission model
+- [ ] Apply the principle of least privilege in practice
+- [ ] Design and manage ACLs (Access Control Lists)
+- [ ] Configure SELinux / AppArmor policies
+- [ ] Minimize privileges using Linux Capabilities
+- [ ] Understand the concept of ABAC (Attribute-Based Access Control)
+- [ ] Conduct access control audits in production environments
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, having the following knowledge will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
+- Basic programming knowledge
+- Understanding of related foundational concepts
 
 ---
 
-## 1. アクセス制御モデル
+## 1. Access Control Models
 
-### 1.1 アクセス制御の基本概念
+### 1.1 Fundamental Concepts of Access Control
 
 ```
-アクセス制御の3要素（AAA）:
+The Three Elements of Access Control (AAA):
 
-  1. 認証（Authentication）:
-     「あなたは誰か？」を確認
-     → パスワード、生体認証、証明書、MFA
-     → OS ログイン時の /etc/passwd + /etc/shadow
-     → PAM（Pluggable Authentication Modules）による統一認証
+  1. Authentication:
+     Verifying "Who are you?"
+     → Passwords, biometrics, certificates, MFA
+     → OS login via /etc/passwd + /etc/shadow
+     → Unified authentication through PAM (Pluggable Authentication Modules)
 
-  2. 認可（Authorization）:
-     「あなたは何ができるか？」を判定
-     → パーミッション、ACL、セキュリティポリシー
-     → カーネル内のセキュリティチェック
+  2. Authorization:
+     Determining "What are you allowed to do?"
+     → Permissions, ACLs, security policies
+     → Security checks within the kernel
 
-  3. 監査（Accounting / Auditing）:
-     「あなたは何をしたか？」を記録
+  3. Accounting / Auditing:
+     Recording "What did you do?"
      → auditd, syslog, journald
-     → コンプライアンス要件への対応
+     → Meeting compliance requirements
 
-アクセス制御の判定フロー:
-  ユーザーリクエスト
+Access Control Decision Flow:
+  User Request
        ↓
-  [認証] → 失敗 → アクセス拒否
-       ↓ 成功
-  [認可チェック] → 拒否 → アクセス拒否 + ログ記録
-       ↓ 許可
-  リソースアクセス + 監査ログ記録
+  [Authentication] → Failure → Access Denied
+       ↓ Success
+  [Authorization Check] → Denied → Access Denied + Log Entry
+       ↓ Permitted
+  Resource Access + Audit Log Entry
 
-セキュリティ参照モニタ（Reference Monitor）:
-  カーネル内でアクセス制御を強制する仕組み
-  要件:
-  1. 完全仲介（Complete Mediation）: すべてのアクセスをチェック
-  2. タンパー耐性（Tamper Proof）: 改ざん不可能
-  3. 検証可能性（Verifiable）: 正しさを検証可能
-  → Linuxのセキュリティフック（LSM: Linux Security Modules）が実現
+Security Reference Monitor:
+  A mechanism within the kernel that enforces access control
+  Requirements:
+  1. Complete Mediation: Check every access
+  2. Tamper Proof: Cannot be modified
+  3. Verifiable: Correctness can be verified
+  → Implemented by Linux Security Hooks (LSM: Linux Security Modules)
 ```
 
-### 1.2 主要なアクセス制御モデル
+### 1.2 Major Access Control Models
 
 ```
-3つのアクセス制御モデル:
+Three Access Control Models:
 
-  1. DAC（Discretionary Access Control）— 任意アクセス制御:
-     ファイルの所有者がアクセス権を自由に設定
-     → Unixの標準パーミッション（rwx）
-     → Windows NTFS のACL
-     → 柔軟だが、所有者が誤った設定をすると脆弱
+  1. DAC (Discretionary Access Control):
+     The file owner freely sets access permissions
+     → Standard Unix permissions (rwx)
+     → Windows NTFS ACLs
+     → Flexible, but vulnerable if the owner misconfigures settings
 
-     DAC の特徴:
-     - リソースの所有者がアクセス権を「任意に」設定できる
-     - 所有者は他ユーザーに権限を委譲可能
-     - 権限の伝播が制御困難（コピー問題）
-     - Trojan Horse 攻撃に脆弱
-       → 悪意あるプログラムがユーザーの権限で動作
-       → ユーザーが読めるファイルをすべて盗める
+     Characteristics of DAC:
+     - Resource owners can "discretionally" set access permissions
+     - Owners can delegate permissions to other users
+     - Propagation of permissions is difficult to control (copy problem)
+     - Vulnerable to Trojan Horse attacks
+       → A malicious program runs with the user's permissions
+       → Can steal all files the user can read
 
-     DAC の実装例:
+     DAC Implementation Examples:
      ┌──────────────────────────────────────────────┐
-     │ Unix パーミッション                          │
-     │ → owner / group / other の3段階             │
+     │ Unix Permissions                             │
+     │ → Three levels: owner / group / other        │
      │ → read(4), write(2), execute(1)             │
-     │ → シンプルだが表現力に限界                   │
+     │ → Simple but limited in expressiveness       │
      │                                              │
      │ POSIX ACL                                    │
-     │ → 特定ユーザー/グループに個別権限設定        │
-     │ → Unix パーミッションを拡張                  │
+     │ → Set individual permissions for specific    │
+     │   users/groups                               │
+     │ → Extends Unix permissions                   │
      │                                              │
      │ Windows DACL                                 │
-     │ → セキュリティ記述子による詳細な制御          │
-     │ → ACE（Access Control Entry）の集合          │
-     │ → 継承と拒否ルールのサポート                 │
+     │ → Fine-grained control via security          │
+     │   descriptors                                │
+     │ → Collection of ACEs (Access Control Entries)│
+     │ → Supports inheritance and deny rules        │
      └──────────────────────────────────────────────┘
 
-  2. MAC（Mandatory Access Control）— 強制アクセス制御:
-     システム管理者が定めたポリシーに従う（所有者でも変更不可）
+  2. MAC (Mandatory Access Control):
+     Follows policies defined by the system administrator (cannot be changed even by the owner)
      → SELinux, AppArmor
-     → 軍事・政府システムで必須
-     → Bell-LaPadula モデル: 上位の情報は下位に読めない
+     → Required in military and government systems
+     → Bell-LaPadula model: Lower levels cannot read higher-level information
 
-     MAC の理論的基盤:
+     Theoretical Foundations of MAC:
      ┌──────────────────────────────────────────────────┐
-     │ Bell-LaPadula モデル（機密性重視）:              │
+     │ Bell-LaPadula Model (Confidentiality-focused):   │
      │                                                  │
-     │ セキュリティレベル:                              │
+     │ Security Levels:                                 │
      │   Top Secret > Secret > Confidential > Unclass   │
      │                                                  │
-     │ Simple Security Property（ss-property）:         │
-     │   「No Read Up」: 上位レベルのデータを読めない   │
-     │   → Confidential ユーザーは Secret を読めない   │
+     │ Simple Security Property (ss-property):          │
+     │   "No Read Up": Cannot read higher-level data    │
+     │   → A Confidential user cannot read Secret data  │
      │                                                  │
-     │ *-property（Star Property）:                     │
-     │   「No Write Down」: 下位レベルに書き込めない    │
-     │   → Secret ユーザーは Confidential に書けない   │
-     │   → 情報の漏洩を防止                            │
+     │ *-property (Star Property):                      │
+     │   "No Write Down": Cannot write to lower levels  │
+     │   → A Secret user cannot write to Confidential   │
+     │   → Prevents information leakage                 │
      │                                                  │
      │ Strong Star Property:                            │
-     │   同一レベルのみ読み書き可能                     │
+     │   Can only read/write at the same level          │
      └──────────────────────────────────────────────────┘
 
      ┌──────────────────────────────────────────────────┐
-     │ Biba モデル（完全性重視）:                       │
+     │ Biba Model (Integrity-focused):                  │
      │                                                  │
      │ Simple Integrity Axiom:                          │
-     │   「No Read Down」: 下位レベルのデータを読めない │
-     │   → 信頼性の低いデータによる汚染を防止          │
+     │   "No Read Down": Cannot read lower-level data   │
+     │   → Prevents contamination by untrusted data     │
      │                                                  │
      │ *-Integrity Axiom:                               │
-     │   「No Write Up」: 上位レベルに書き込めない      │
-     │   → 信頼性の低い主体による改ざんを防止          │
+     │   "No Write Up": Cannot write to higher levels   │
+     │   → Prevents tampering by untrusted subjects     │
      │                                                  │
-     │ Bell-LaPadula と Biba は正反対:                  │
-     │   機密性 vs 完全性のトレードオフ                 │
+     │ Bell-LaPadula and Biba are opposites:            │
+     │   Confidentiality vs. integrity trade-off        │
      └──────────────────────────────────────────────────┘
 
      ┌──────────────────────────────────────────────────┐
-     │ Clark-Wilson モデル（商用向け完全性）:           │
+     │ Clark-Wilson Model (Commercial integrity):       │
      │                                                  │
      │ Well-Formed Transaction:                         │
-     │   データは検証済みプログラムのみが変更可能       │
-     │   → 銀行取引、在庫管理など商用システム向け      │
+     │   Data can only be modified by verified programs │
+     │   → Suited for commercial systems like banking   │
+     │     and inventory management                     │
      │                                                  │
      │ Separation of Duty:                              │
-     │   1人のユーザーがすべての処理を行えない          │
-     │   → 不正防止のための職務分離                    │
+     │   A single user cannot perform all operations    │
+     │   → Separation of duties for fraud prevention    │
      └──────────────────────────────────────────────────┘
 
-  3. RBAC（Role-Based Access Control）— ロールベース:
-     ユーザーにロール（役割）を割り当て、ロールに権限を付与
-     → 管理者、開発者、閲覧者 等の役割
+  3. RBAC (Role-Based Access Control):
+     Assign roles to users, grant permissions to roles
+     → Roles such as administrator, developer, viewer
      → AWS IAM, Kubernetes RBAC
-     → 大規模組織の標準
+     → The standard for large organizations
 
-     RBAC のコンポーネント:
+     RBAC Components:
      ┌──────────────────────────────────────────────┐
-     │ User（ユーザー）                             │
-     │   ↓ 割り当て                                │
-     │ Role（ロール）                               │
-     │   ↓ 付与                                    │
-     │ Permission（パーミッション）                  │
-     │   ↓ 適用                                    │
-     │ Object（リソース）                           │
+     │ User                                         │
+     │   ↓ Assignment                               │
+     │ Role                                         │
+     │   ↓ Grant                                    │
+     │ Permission                                   │
+     │   ↓ Apply                                    │
+     │ Object (Resource)                            │
      └──────────────────────────────────────────────┘
 
-     RBAC の階層（RBAC0〜RBAC3）:
-     - RBAC0（Flat RBAC）: 基本的なロール割り当て
-     - RBAC1（Hierarchical RBAC）: ロール継承
-       → 「管理者」は「開発者」の権限を継承
-     - RBAC2（Constrained RBAC）: 制約付き
-       → 相互排他ロール（SoD: Separation of Duties）
-       → 1人が「承認者」と「申請者」を兼ねない
-     - RBAC3: RBAC1 + RBAC2 の統合
+     RBAC Hierarchy (RBAC0-RBAC3):
+     - RBAC0 (Flat RBAC): Basic role assignment
+     - RBAC1 (Hierarchical RBAC): Role inheritance
+       → "Admin" inherits "Developer" permissions
+     - RBAC2 (Constrained RBAC): With constraints
+       → Mutually exclusive roles (SoD: Separation of Duties)
+       → One person cannot be both "approver" and "requester"
+     - RBAC3: Integration of RBAC1 + RBAC2
 
-  比較:
-  ┌──────┬──────────────┬──────────┬──────────────┐
-  │ モデル│ 決定者       │ 柔軟性   │ セキュリティ  │
-  ├──────┼──────────────┼──────────┼──────────────┤
-  │ DAC  │ ファイル所有者│ 高       │ 中            │
-  │ MAC  │ システム管理者│ 低       │ 高            │
-  │ RBAC │ 管理者(ロール)│ 中       │ 高            │
-  └──────┴──────────────┴──────────┴──────────────┘
+  Comparison:
+  ┌──────┬──────────────┬────────────┬──────────────┐
+  │ Model│ Decision By  │ Flexibility│ Security     │
+  ├──────┼──────────────┼────────────┼──────────────┤
+  │ DAC  │ File owner   │ High       │ Medium       │
+  │ MAC  │ Sys admin    │ Low        │ High         │
+  │ RBAC │ Admin (role) │ Medium     │ High         │
+  └──────┴──────────────┴────────────┴──────────────┘
 ```
 
-### 1.3 ABAC（Attribute-Based Access Control）
+### 1.3 ABAC (Attribute-Based Access Control)
 
 ```
-ABAC（属性ベースアクセス制御）:
-  ユーザー、リソース、環境の「属性」に基づいてアクセスを判定
-  → RBAC の拡張として登場
-  → NIST SP 800-162 で標準化
-  → より柔軟できめ細かい制御が可能
+ABAC (Attribute-Based Access Control):
+  Determines access based on "attributes" of users, resources, and the environment
+  → Emerged as an extension of RBAC
+  → Standardized in NIST SP 800-162
+  → Enables more flexible and fine-grained control
 
-  属性の種類:
+  Types of Attributes:
   ┌────────────────────────────────────────────────────┐
-  │ Subject Attributes（主体属性）:                    │
-  │   → 部署、役職、クリアランスレベル、勤続年数      │
+  │ Subject Attributes:                                │
+  │   → Department, title, clearance level, tenure     │
   │                                                    │
-  │ Object Attributes（客体属性）:                     │
-  │   → ファイル種別、機密レベル、作成日時             │
+  │ Object Attributes:                                 │
+  │   → File type, classification level, creation date │
   │                                                    │
-  │ Environment Attributes（環境属性）:                │
-  │   → アクセス時刻、場所（IP）、デバイス種別        │
+  │ Environment Attributes:                            │
+  │   → Access time, location (IP), device type        │
   │                                                    │
-  │ Action Attributes（操作属性）:                     │
-  │   → 読み取り、書き込み、削除、実行                │
+  │ Action Attributes:                                 │
+  │   → Read, write, delete, execute                   │
   └────────────────────────────────────────────────────┘
 
-  ポリシー例:
-  「部署=経理部 AND 役職=マネージャー以上 AND
-   時間=営業時間内 AND 場所=社内ネットワーク
-   → 財務レポートの読み取り/書き込みを許可」
+  Policy Example:
+  "Department=Accounting AND Title=Manager or above AND
+   Time=Business hours AND Location=Internal network
+   → Allow read/write access to financial reports"
 
-  XACML（eXtensible Access Control Markup Language）:
-  ABACポリシーの標準記述言語
+  XACML (eXtensible Access Control Markup Language):
+  Standard language for describing ABAC policies
   ┌──────────────────────────────────────────────────┐
   │ PEP (Policy Enforcement Point):                  │
-  │   アクセス要求を受け取り、判定結果を強制する      │
+  │   Receives access requests and enforces decisions│
   │                                                    │
   │ PDP (Policy Decision Point):                      │
-  │   ポリシーに基づいてアクセスの可否を判定する      │
+  │   Determines access based on policies             │
   │                                                    │
   │ PAP (Policy Administration Point):                │
-  │   ポリシーを管理・配布する                        │
+  │   Manages and distributes policies                │
   │                                                    │
   │ PIP (Policy Information Point):                   │
-  │   属性情報を提供する                              │
+  │   Provides attribute information                  │
   └──────────────────────────────────────────────────┘
 
   ABAC vs RBAC:
-  ┌─────────┬──────────────────┬──────────────────┐
-  │ 項目    │ RBAC             │ ABAC             │
-  ├─────────┼──────────────────┼──────────────────┤
-  │ 粒度    │ ロール単位       │ 属性の組み合わせ │
-  │ 柔軟性  │ 中               │ 高               │
-  │ 管理    │ 比較的容易       │ 複雑             │
-  │ 動的制御│ 限定的           │ リアルタイム     │
-  │ 適用    │ 社内システム     │ クラウド、IoT    │
-  │ 標準    │ NIST SP 800-xx   │ XACML, ALFA     │
-  └─────────┴──────────────────┴──────────────────┘
+  ┌──────────┬──────────────────┬──────────────────┐
+  │ Item     │ RBAC             │ ABAC             │
+  ├──────────┼──────────────────┼──────────────────┤
+  │ Granularity│ Per role       │ Attribute combos │
+  │ Flexibility│ Medium         │ High             │
+  │ Management│ Relatively easy │ Complex          │
+  │ Dynamic  │ Limited          │ Real-time        │
+  │ Use Case │ Internal systems │ Cloud, IoT       │
+  │ Standard │ NIST SP 800-xx   │ XACML, ALFA     │
+  └──────────┴──────────────────┴──────────────────┘
 ```
 
-### 1.4 ReBAC（Relationship-Based Access Control）
+### 1.4 ReBAC (Relationship-Based Access Control)
 
 ```
-ReBAC（関係ベースアクセス制御）:
-  エンティティ間の「関係性」に基づいてアクセスを判定
-  → Google Zanzibar（Google Drive, YouTube の認可基盤）
-  → OpenFGA, SpiceDB が OSS 実装
+ReBAC (Relationship-Based Access Control):
+  Determines access based on "relationships" between entities
+  → Google Zanzibar (authorization platform for Google Drive, YouTube)
+  → OpenFGA, SpiceDB are OSS implementations
 
-  基本概念:
+  Basic Concepts:
   ┌────────────────────────────────────────────────────┐
-  │ Tuple（タプル）:                                   │
+  │ Tuple:                                             │
   │   user:alice → relation:viewer → object:doc:123   │
-  │   「aliceはdoc:123のviewerである」                 │
+  │   "alice is a viewer of doc:123"                   │
   │                                                    │
-  │ 関係の推移:                                        │
+  │ Transitive Relations:                              │
   │   group:engineering#member → relation:viewer       │
   │   → object:folder:shared                           │
   │   user:alice → relation:member → group:engineering│
-  │   ∴ alice は folder:shared の viewer              │
+  │   ∴ alice is a viewer of folder:shared            │
   └────────────────────────────────────────────────────┘
 
-  Zanzibar のアーキテクチャ:
-  - 超大規模対応（Google 全サービスの認可）
-  - 低レイテンシ（99th percentile < 10ms）
-  - 強整合性（New Enemy Problem の解決）
-  - グラフベースの関係探索
+  Zanzibar Architecture:
+  - Handles massive scale (authorization for all Google services)
+  - Low latency (99th percentile < 10ms)
+  - Strong consistency (solves the New Enemy Problem)
+  - Graph-based relationship traversal
 
-  実務での適用:
-  → SNS のフォロー/フォロワー権限
-  → ファイル共有の継承（フォルダ → ファイル）
-  → 組織階層に基づく権限（部門長 → メンバーのリソース）
+  Practical Applications:
+  → SNS follow/follower permissions
+  → File sharing inheritance (folder → file)
+  → Permissions based on organizational hierarchy (department head → member resources)
 ```
 
 ---
 
-## 2. Unixパーミッション
+## 2. Unix Permissions
 
-### 2.1 基本パーミッション
+### 2.1 Basic Permissions
 
 ```
-パーミッションの表示:
+Displaying Permissions:
   $ ls -la
   -rwxr-xr-- 1 user group 4096 Jan 1 file.txt
   │├─┤├─┤├─┤
-  │ │  │  └── other（その他）: r-- (読み取りのみ)
-  │ │  └── group（グループ）: r-x (読取+実行)
-  │ └── owner（所有者）: rwx (読取+書込+実行)
-  └── タイプ: - (ファイル), d (ディレクトリ), l (リンク)
+  │ │  │  └── other: r-- (read only)
+  │ │  └── group: r-x (read + execute)
+  │ └── owner: rwx (read + write + execute)
+  └── Type: - (file), d (directory), l (link)
 
-  ファイルタイプの一覧:
+  File Type Reference:
   ┌──────┬──────────────────────────────────┐
-  │ 記号 │ 種類                             │
+  │ Char │ Type                             │
   ├──────┼──────────────────────────────────┤
-  │ -    │ 通常ファイル                     │
-  │ d    │ ディレクトリ                     │
-  │ l    │ シンボリックリンク               │
-  │ c    │ キャラクターデバイス             │
-  │ b    │ ブロックデバイス                 │
-  │ p    │ 名前付きパイプ（FIFO）           │
-  │ s    │ ソケット                         │
+  │ -    │ Regular file                     │
+  │ d    │ Directory                        │
+  │ l    │ Symbolic link                    │
+  │ c    │ Character device                 │
+  │ b    │ Block device                     │
+  │ p    │ Named pipe (FIFO)                │
+  │ s    │ Socket                           │
   └──────┴──────────────────────────────────┘
 
-  数値表現:
+  Numeric Representation:
   rwx = 4+2+1 = 7
   r-x = 4+0+1 = 5
   r-- = 4+0+0 = 4
   → chmod 754 file.txt
 
-  パーミッションの意味（ファイル vs ディレクトリ）:
+  Permission Meaning (File vs Directory):
   ┌──────┬──────────────────────┬──────────────────────────┐
-  │ 権限 │ ファイル             │ ディレクトリ             │
+  │ Perm │ File                 │ Directory                │
   ├──────┼──────────────────────┼──────────────────────────┤
-  │ r(4) │ ファイル内容の読取   │ ディレクトリ一覧の取得   │
-  │ w(2) │ ファイル内容の変更   │ ファイルの作成/削除/名変 │
-  │ x(1) │ ファイルの実行       │ ディレクトリへのアクセス  │
+  │ r(4) │ Read file contents   │ List directory contents  │
+  │ w(2) │ Modify file contents │ Create/delete/rename     │
+  │ x(1) │ Execute the file     │ Access the directory     │
   └──────┴──────────────────────┴──────────────────────────┘
 
-  重要: ディレクトリの x 権限がないと中のファイルにアクセスできない
-  → chmod 644 dir/ は ls はできるが cd はできない
-  → chmod 711 dir/ は中のファイル名を知っていればアクセス可能
+  Important: Without x permission on a directory, files inside cannot be accessed
+  → chmod 644 dir/ allows ls but not cd
+  → chmod 711 dir/ allows access if you know the filename inside
 ```
 
-### 2.2 chmod の詳細
+### 2.2 chmod in Detail
 
 ```bash
-# シンボリックモード
-chmod u+x file.txt      # 所有者に実行権限を追加
-chmod g-w file.txt      # グループから書込権限を削除
-chmod o=r file.txt      # その他の権限を読取のみに設定
-chmod a+r file.txt      # 全員に読取権限を追加
-chmod u+s file.txt      # SUID を設定
-chmod g+s dir/          # SGID を設定
-chmod +t dir/           # Sticky bit を設定
+# Symbolic mode
+chmod u+x file.txt      # Add execute permission for owner
+chmod g-w file.txt      # Remove write permission from group
+chmod o=r file.txt      # Set other permissions to read only
+chmod a+r file.txt      # Add read permission for everyone
+chmod u+s file.txt      # Set SUID
+chmod g+s dir/          # Set SGID
+chmod +t dir/           # Set Sticky bit
 
-# 数値モード
+# Numeric mode
 chmod 755 file.txt      # rwxr-xr-x
 chmod 644 file.txt      # rw-r--r--
-chmod 600 file.txt      # rw-------（機密ファイル）
-chmod 700 dir/          # rwx------（プライベートディレクトリ）
+chmod 600 file.txt      # rw------- (sensitive files)
+chmod 700 dir/          # rwx------ (private directory)
 chmod 4755 file.txt     # SUID + rwxr-xr-x
 chmod 2755 dir/         # SGID + rwxr-xr-x
 chmod 1777 dir/         # Sticky + rwxrwxrwx
 
-# 再帰的変更
-chmod -R 755 dir/       # ディレクトリ以下すべて（注意が必要）
-# より安全な方法:
-find dir/ -type d -exec chmod 755 {} \;  # ディレクトリのみ
-find dir/ -type f -exec chmod 644 {} \;  # ファイルのみ
+# Recursive change
+chmod -R 755 dir/       # Everything under directory (use with caution)
+# Safer approach:
+find dir/ -type d -exec chmod 755 {} \;  # Directories only
+find dir/ -type f -exec chmod 644 {} \;  # Files only
 ```
 
-### 2.3 特殊パーミッション
+### 2.3 Special Permissions
 
 ```
-特殊パーミッション:
+Special Permissions:
 
-  SUID (4xxx): 実行時に所有者の権限で動作
-  → /usr/bin/passwd は SUID root（一般ユーザーが/etc/shadowを更新）
-  → セキュリティリスクが高いため最小限に
+  SUID (4xxx): Runs with the owner's permissions at execution time
+  → /usr/bin/passwd has SUID root (allows regular users to update /etc/shadow)
+  → Keep to a minimum due to high security risk
 
-  SUID の仕組み:
+  How SUID Works:
   ┌──────────────────────────────────────────────────┐
-  │ 通常の実行:                                      │
+  │ Normal execution:                                │
   │   user(uid=1000) → exec(program) → uid=1000     │
   │                                                    │
-  │ SUID 付きの実行:                                  │
+  │ Execution with SUID:                              │
   │   user(uid=1000) → exec(passwd) → euid=0(root)  │
-  │   → プログラムは root 権限で動作                  │
-  │   → /etc/shadow への書き込みが可能                │
-  │   → プログラム終了後、権限は元に戻る              │
+  │   → Program runs with root privileges            │
+  │   → Can write to /etc/shadow                     │
+  │   → Privileges revert after program exits        │
   └──────────────────────────────────────────────────┘
 
-  SGID (2xxx): 実行時にグループの権限で動作
-  → ファイルの場合: グループ権限での実行
-  → ディレクトリの場合: 作成されるファイルがディレクトリのグループを継承
+  SGID (2xxx): Runs with the group's permissions at execution time
+  → For files: Executes with group permissions
+  → For directories: Newly created files inherit the directory's group
 
-  SGID ディレクトリの実務活用:
+  Practical Use of SGID Directories:
   ┌──────────────────────────────────────────────────┐
-  │ # 共有ディレクトリの作成                          │
-  │ $ sudo mkdir /shared/project                      │
-  │ $ sudo chgrp developers /shared/project           │
-  │ $ sudo chmod 2775 /shared/project                 │
+  │ # Create a shared directory                      │
+  │ $ sudo mkdir /shared/project                     │
+  │ $ sudo chgrp developers /shared/project          │
+  │ $ sudo chmod 2775 /shared/project                │
   │                                                    │
-  │ # alice がファイルを作成すると:                    │
-  │ $ touch /shared/project/code.py                   │
-  │ $ ls -la /shared/project/code.py                  │
-  │ -rw-rw-r-- 1 alice developers ...                 │
-  │                    ↑ ディレクトリのグループを継承  │
-  │ → チームメンバー全員がファイルを編集可能          │
+  │ # When alice creates a file:                      │
+  │ $ touch /shared/project/code.py                  │
+  │ $ ls -la /shared/project/code.py                 │
+  │ -rw-rw-r-- 1 alice developers ...                │
+  │                    ↑ Inherits the directory group │
+  │ → All team members can edit the file             │
   └──────────────────────────────────────────────────┘
 
-  Sticky (1xxx): ディレクトリ内の削除を所有者のみに制限
-  → /tmp は sticky bit が設定されている
-  → 他ユーザーのファイルを削除できない
+  Sticky (1xxx): Restricts deletion within a directory to the owner only
+  → /tmp has the sticky bit set
+  → Cannot delete other users' files
 
-  Sticky bit の仕組み:
+  How the Sticky Bit Works:
   ┌──────────────────────────────────────────────────┐
   │ /tmp (chmod 1777):                                │
-  │   rwxrwxrwt ← 最後の 't' が Sticky bit          │
+  │   rwxrwxrwt ← The trailing 't' is the Sticky bit│
   │                                                    │
-  │ Sticky bit なし:                                   │
-  │   ディレクトリへの w 権限 → 任意のファイル削除可  │
+  │ Without Sticky bit:                               │
+  │   w permission on directory → can delete any file│
   │                                                    │
-  │ Sticky bit あり:                                   │
-  │   ファイルの削除/名前変更は以下のみ可能:          │
-  │   1. ファイルの所有者                              │
-  │   2. ディレクトリの所有者                          │
+  │ With Sticky bit:                                  │
+  │   File deletion/renaming is limited to:           │
+  │   1. The file owner                               │
+  │   2. The directory owner                          │
   │   3. root                                          │
   └──────────────────────────────────────────────────┘
 ```
 
-### 2.4 所有権の管理
+### 2.4 Ownership Management
 
 ```bash
-# 所有者の変更
-chown alice file.txt            # 所有者を alice に変更
-chown alice:developers file.txt # 所有者とグループを変更
-chown :developers file.txt      # グループのみ変更
-chown -R alice:developers dir/  # 再帰的に変更
+# Change owner
+chown alice file.txt            # Change owner to alice
+chown alice:developers file.txt # Change owner and group
+chown :developers file.txt      # Change group only
+chown -R alice:developers dir/  # Change recursively
 
-# グループの変更
-chgrp developers file.txt       # グループを変更
+# Change group
+chgrp developers file.txt       # Change group
 
-# 新規ファイルのデフォルト権限（umask）
-umask                  # 現在の umask を表示（例: 0022）
-umask 0077             # 自分以外のアクセスを禁止
+# Default permissions for new files (umask)
+umask                  # Display current umask (e.g., 0022)
+umask 0077             # Deny all access to others
 
-# umask の計算:
-# ファイルのデフォルト: 666 - umask
-# ディレクトリのデフォルト: 777 - umask
+# umask calculation:
+# Default for files: 666 - umask
+# Default for directories: 777 - umask
 #
-# umask = 0022 の場合:
-# ファイル: 666 - 022 = 644 (rw-r--r--)
-# ディレクトリ: 777 - 022 = 755 (rwxr-xr-x)
+# umask = 0022:
+# Files: 666 - 022 = 644 (rw-r--r--)
+# Directories: 777 - 022 = 755 (rwxr-xr-x)
 #
-# umask = 0077 の場合:
-# ファイル: 666 - 077 = 600 (rw-------)
-# ディレクトリ: 777 - 077 = 700 (rwx------)
+# umask = 0077:
+# Files: 666 - 077 = 600 (rw-------)
+# Directories: 777 - 077 = 700 (rwx------)
 #
-# セキュアなサーバーでは umask 0077 を推奨
+# umask 0077 is recommended for secure servers
 ```
 
-### 2.5 ACL（Access Control List）
+### 2.5 ACL (Access Control List)
 
 ```
-ACL（Access Control List）:
-  標準パーミッションを超える細かい制御
-  → 特定のユーザーやグループに個別の権限を設定
-  → 標準の owner/group/other では不十分な場合に使用
+ACL (Access Control List):
+  Fine-grained control beyond standard permissions
+  → Set individual permissions for specific users or groups
+  → Used when standard owner/group/other is insufficient
 
-  ACL の種類:
-  1. Access ACL: ファイル/ディレクトリへのアクセス制御
-  2. Default ACL: ディレクトリ内に新規作成されるファイルのデフォルトACL
+  Types of ACL:
+  1. Access ACL: Controls access to files/directories
+  2. Default ACL: Default ACL for newly created files within a directory
 
-  ACL が設定されたファイルの見分け方:
+  Identifying files with ACL:
   $ ls -la
   -rw-rwxr--+ 1 user group 4096 Jan 1 file.txt
-             ↑ '+' マークが ACL の存在を示す
+             ↑ The '+' mark indicates the presence of an ACL
 ```
 
 ```bash
-# ACL の確認
+# View ACL
 getfacl file.txt
 # file: file.txt
 # owner: user
 # group: group
 # user::rw-
-# user:alice:rw-          # alice に rw 権限
-# user:bob:r--            # bob に r 権限
+# user:alice:rw-          # rw permissions for alice
+# user:bob:r--            # r permission for bob
 # group::r-x
-# group:devteam:rwx       # devteam グループに rwx 権限
-# mask::rwx               # 有効な最大権限
+# group:devteam:rwx       # rwx permissions for devteam group
+# mask::rwx               # Maximum effective permissions
 # other::r--
 
-# ACL の設定
-setfacl -m u:alice:rw file.txt          # alice に読み書き許可
-setfacl -m u:bob:r file.txt             # bob に読み取りのみ
-setfacl -m g:devteam:rwx file.txt       # devteam に全権限
-setfacl -m o::--- file.txt              # other のアクセスを禁止
+# Set ACL
+setfacl -m u:alice:rw file.txt          # Grant read/write to alice
+setfacl -m u:bob:r file.txt             # Grant read-only to bob
+setfacl -m g:devteam:rwx file.txt       # Grant full permissions to devteam
+setfacl -m o::--- file.txt              # Deny all access for other
 
-# ACL の削除
-setfacl -x u:alice file.txt             # alice の ACL を削除
-setfacl -b file.txt                     # すべての ACL を削除
+# Remove ACL
+setfacl -x u:alice file.txt             # Remove alice's ACL
+setfacl -b file.txt                     # Remove all ACLs
 
-# デフォルト ACL（ディレクトリに対して）
-setfacl -d -m u:alice:rw /shared/       # 新規ファイルに自動適用
+# Default ACL (for directories)
+setfacl -d -m u:alice:rw /shared/       # Auto-apply to new files
 setfacl -d -m g:devteam:rwx /shared/
 
-# ACL のバックアップとリストア
-getfacl -R /shared/ > acl_backup.txt    # バックアップ
-setfacl --restore=acl_backup.txt        # リストア
+# Backup and restore ACL
+getfacl -R /shared/ > acl_backup.txt    # Backup
+setfacl --restore=acl_backup.txt        # Restore
 
-# mask の理解:
-# mask は ACL のユーザー/グループエントリと
-# グループ所有者エントリの有効な最大権限を制限
-# 例: mask::r-- の場合、ACL で rwx を設定しても
-#      実効権限は r-- になる
+# Understanding mask:
+# mask limits the maximum effective permissions for
+# ACL user/group entries and the group owner entry
+# Example: If mask::r--, even if ACL is set to rwx,
+#          effective permissions become r--
 ```
 
-### 2.6 実務でのパーミッション設計パターン
+### 2.6 Permission Design Patterns in Practice
 
 ```
-Webサーバーのパーミッション設計:
+Web Server Permission Design:
   ┌──────────────────────────────────────────────────┐
   │ /var/www/html/                                    │
-  │ 所有者: www-data:www-data                        │
-  │ パーミッション:                                  │
+  │ Owner: www-data:www-data                         │
+  │ Permissions:                                     │
   │                                                    │
-  │ 静的ファイル:                                     │
+  │ Static files:                                     │
   │   chmod 644 *.html *.css *.js                    │
-  │   → Web サーバーが読み取り可能                   │
+  │   → Readable by the web server                   │
   │                                                    │
-  │ 実行スクリプト:                                   │
+  │ Executable scripts:                               │
   │   chmod 755 *.cgi *.sh                           │
-  │   → 実行可能だが変更不可                         │
+  │   → Executable but not modifiable                │
   │                                                    │
-  │ アップロードディレクトリ:                         │
+  │ Upload directory:                                 │
   │   chmod 770 uploads/                              │
-  │   → グループメンバーのみ書き込み可能             │
+  │   → Writable by group members only               │
   │                                                    │
-  │ 設定ファイル:                                     │
+  │ Configuration files:                              │
   │   chmod 600 .env *.conf                          │
-  │   → 所有者のみ読み書き可能                       │
+  │   → Readable/writable by owner only              │
   │                                                    │
-  │ ログディレクトリ:                                 │
+  │ Log directory:                                    │
   │   chmod 750 logs/                                 │
-  │   → グループメンバーは読み取り可能               │
+  │   → Readable by group members                    │
   └──────────────────────────────────────────────────┘
 
-SSH の権限設定:
+SSH Permission Settings:
   ┌──────────────────────────────────────────────────┐
   │ ~/.ssh/                 → chmod 700             │
   │ ~/.ssh/authorized_keys  → chmod 600             │
-  │ ~/.ssh/id_rsa           → chmod 600（秘密鍵）  │
-  │ ~/.ssh/id_rsa.pub       → chmod 644（公開鍵）  │
+  │ ~/.ssh/id_rsa           → chmod 600 (priv key) │
+  │ ~/.ssh/id_rsa.pub       → chmod 644 (pub key)  │
   │ ~/.ssh/config           → chmod 600             │
   │ ~/.ssh/known_hosts      → chmod 644             │
   │                                                    │
-  │ 権限が緩いと SSH が接続を拒否する:               │
+  │ SSH refuses connections if permissions are loose: │
   │ "Permissions 0644 for 'id_rsa' are too open."    │
-  │ → 秘密鍵は所有者のみ読み取り可能にすること      │
+  │ → Private keys must be readable only by owner    │
   └──────────────────────────────────────────────────┘
 
-データベースのパーミッション設計:
+Database Permission Design:
   ┌──────────────────────────────────────────────────┐
   │ PostgreSQL:                                       │
-  │ /var/lib/postgresql/data/  → 所有者: postgres    │
-  │ パーミッション: 700                               │
-  │ → データベースファイルはpostgresユーザーのみ      │
+  │ /var/lib/postgresql/data/  → Owner: postgres     │
+  │ Permissions: 700                                  │
+  │ → Database files accessible only by postgres user│
   │                                                    │
   │ MySQL:                                            │
-  │ /var/lib/mysql/            → 所有者: mysql       │
-  │ パーミッション: 750                               │
+  │ /var/lib/mysql/            → Owner: mysql        │
+  │ Permissions: 750                                  │
   │ /etc/mysql/my.cnf          → chmod 644           │
-  │ → 設定ファイルは読み取り可能だが変更は root のみ │
+  │ → Config file readable, but only root can modify │
   └──────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 3. Linux セキュリティモジュール（LSM）
+## 3. Linux Security Modules (LSM)
 
-### 3.1 LSM アーキテクチャ
+### 3.1 LSM Architecture
 
 ```
-Linux Security Modules (LSM) フレームワーク:
-  Linuxカーネルにセキュリティフックを提供する仕組み
-  → カーネルの各操作ポイントにフックを配置
-  → セキュリティモジュールがフックで判定を行う
+Linux Security Modules (LSM) Framework:
+  A mechanism that provides security hooks for the Linux kernel
+  → Places hooks at various operation points in the kernel
+  → Security modules make decisions at these hooks
 
-  LSM の動作フロー:
-  ユーザープロセス
-       ↓ システムコール
-  カーネル（VFS等）
+  LSM Operation Flow:
+  User Process
+       ↓ System Call
+  Kernel (VFS, etc.)
        ↓
-  DAC チェック → 失敗 → EACCES
-       ↓ 成功
-  LSM フック → SELinux/AppArmor/SMACK がチェック
-       ↓ 許可
-  実際のリソースアクセス
+  DAC Check → Failure → EACCES
+       ↓ Success
+  LSM Hook → SELinux/AppArmor/SMACK performs checks
+       ↓ Permitted
+  Actual Resource Access
 
-  主要な LSM:
+  Major LSMs:
   ┌──────────────┬──────────────────────────────────┐
-  │ モジュール   │ 特徴                             │
+  │ Module       │ Characteristics                  │
   ├──────────────┼──────────────────────────────────┤
-  │ SELinux      │ ラベルベースMAC。最も強力        │
-  │ AppArmor     │ パスベースMAC。設定が容易        │
-  │ SMACK        │ シンプルなMAC。組み込み向け      │
-  │ TOMOYO       │ パスベース。学習モード有り       │
-  │ Yama         │ ptrace制限など補助的セキュリティ │
-  │ LoadPin      │ カーネルモジュール署名検証       │
-  │ Lockdown     │ カーネル機能の制限               │
-  │ BPF          │ BPFプログラムのセキュリティ      │
-  │ Landlock     │ ユーザー空間からのサンドボックス │
+  │ SELinux      │ Label-based MAC. Most powerful   │
+  │ AppArmor     │ Path-based MAC. Easy to configure│
+  │ SMACK        │ Simple MAC. For embedded systems │
+  │ TOMOYO       │ Path-based. Has learning mode    │
+  │ Yama         │ Supplementary (ptrace restrict)  │
+  │ LoadPin      │ Kernel module signature verify   │
+  │ Lockdown     │ Restricts kernel features        │
+  │ BPF          │ BPF program security             │
+  │ Landlock     │ User-space sandboxing            │
   └──────────────┴──────────────────────────────────┘
 
-  LSM スタッキング（Linux 5.1+）:
-  複数のLSMを同時に使用可能
-  → SELinux + Yama + Lockdown の組み合わせ
-  → 「マイナーLSM」は常にスタック可能
-  → 「メジャーLSM」は1つのみ（SELinux or AppArmor）
-    ※ Linux 6.x でメジャーLSMのスタッキングも進展中
+  LSM Stacking (Linux 5.1+):
+  Multiple LSMs can be used simultaneously
+  → Combination of SELinux + Yama + Lockdown
+  → "Minor LSMs" can always be stacked
+  → Only one "major LSM" (SELinux or AppArmor)
+    * Major LSM stacking is progressing in Linux 6.x
 ```
 
 ### 3.2 SELinux
 
 ```
-SELinux（Security-Enhanced Linux, NSA開発）:
-  MAC の実装。全プロセスとファイルにラベルを付与
+SELinux (Security-Enhanced Linux, developed by NSA):
+  MAC implementation. Labels all processes and files
 
-  SELinux コンテキスト:
+  SELinux Context:
   ┌──────────────────────────────────────────────────┐
   │ user:role:type:level                              │
   │                                                    │
-  │ 例: system_u:system_r:httpd_t:s0                  │
-  │     │        │        │      │                    │
-  │     │        │        │      └── MLS レベル       │
-  │     │        │        └── タイプ（最も重要）      │
-  │     │        └── ロール                           │
-  │     └── SELinux ユーザー                          │
+  │ Example: system_u:system_r:httpd_t:s0             │
+  │          │        │        │      │               │
+  │          │        │        │      └── MLS level   │
+  │          │        │        └── Type (most important)│
+  │          │        └── Role                        │
+  │          └── SELinux user                         │
   └──────────────────────────────────────────────────┘
 
-  タイプエンフォースメント（TE）:
-  httpd_t プロセスは httpd_sys_content_t ファイルのみアクセス可能
-  → Webサーバーが乗っ取られても他のファイルにアクセスできない
+  Type Enforcement (TE):
+  An httpd_t process can only access httpd_sys_content_t files
+  → Even if the web server is compromised, it cannot access other files
 
-  TE ルールの書式:
+  TE Rule Format:
   allow source_type target_type : object_class { permissions };
   allow httpd_t httpd_sys_content_t : file { read open getattr };
 
-  モード:
-  - Enforcing: ポリシー違反を拒否+ログ
-  - Permissive: ログのみ（デバッグ用）
-  - Disabled: 無効
+  Modes:
+  - Enforcing: Denies policy violations + logs
+  - Permissive: Logs only (for debugging)
+  - Disabled: Inactive
 
-  基本的な操作:
-  $ getenforce                # 現在のモード確認
-  $ sudo setenforce 0         # Permissive に一時変更
-  $ sudo setenforce 1         # Enforcing に変更
+  Basic Operations:
+  $ getenforce                # Check current mode
+  $ sudo setenforce 0         # Temporarily switch to Permissive
+  $ sudo setenforce 1         # Switch to Enforcing
 
-  コンテキストの確認と変更:
-  $ ls -Z                     # ファイルのコンテキスト
-  $ ps -eZ                    # プロセスのコンテキスト
-  $ id -Z                     # 現在のユーザーコンテキスト
+  Checking and Changing Contexts:
+  $ ls -Z                     # File context
+  $ ps -eZ                    # Process context
+  $ id -Z                     # Current user context
 
   $ sudo chcon -t httpd_sys_content_t /var/www/html/index.html
-  $ sudo restorecon -Rv /var/www/html/   # デフォルトに復元
+  $ sudo restorecon -Rv /var/www/html/   # Restore to default
 ```
 
 ```bash
-# SELinux のトラブルシューティング
+# SELinux Troubleshooting
 
-# 拒否ログの確認
+# Check denial logs
 sudo ausearch -m AVC -ts recent
 # type=AVC msg=audit(1234567890.123:456):
 #   avc: denied { read } for pid=1234 comm="httpd"
@@ -667,83 +670,83 @@ sudo ausearch -m AVC -ts recent
 #   tcontext=unconfined_u:object_r:user_home_t:s0
 #   tclass=file permissive=0
 
-# audit2allow でポリシーモジュールを生成
+# Generate policy module with audit2allow
 sudo ausearch -m AVC -ts recent | audit2allow -M mypolicy
 sudo semodule -i mypolicy.pp
 
-# sealert によるわかりやすい分析
+# User-friendly analysis with sealert
 sudo sealert -a /var/log/audit/audit.log
 
-# Boolean の管理（ポリシーの微調整）
-getsebool -a                                  # 全Boolean一覧
-getsebool httpd_can_network_connect            # 個別確認
-sudo setsebool -P httpd_can_network_connect on # 永続的に有効化
+# Boolean management (fine-tuning policies)
+getsebool -a                                  # List all Booleans
+getsebool httpd_can_network_connect            # Check individual
+sudo setsebool -P httpd_can_network_connect on # Permanently enable
 
-# よく使う Boolean:
-# httpd_can_network_connect      → HTTPDの外部接続
-# httpd_can_sendmail             → HTTPDのメール送信
-# httpd_enable_homedirs          → HTTPDのホームディレクトリアクセス
-# allow_ftpd_full_access         → FTPの全アクセス
-# samba_enable_home_dirs         → Sambaのホームディレクトリ
+# Commonly used Booleans:
+# httpd_can_network_connect      → HTTPD external connections
+# httpd_can_sendmail             → HTTPD mail sending
+# httpd_enable_homedirs          → HTTPD home directory access
+# allow_ftpd_full_access         → FTP full access
+# samba_enable_home_dirs         → Samba home directories
 
-# ファイルコンテキストの永続設定
+# Persistent file context settings
 sudo semanage fcontext -a -t httpd_sys_content_t "/web(/.*)?"
 sudo restorecon -Rv /web/
 
-# ポートの管理
-sudo semanage port -l | grep http              # 許可済みポート一覧
-sudo semanage port -a -t http_port_t -p tcp 8080  # ポート追加
+# Port management
+sudo semanage port -l | grep http              # List allowed ports
+sudo semanage port -a -t http_port_t -p tcp 8080  # Add port
 
-# SELinux ユーザーマッピング
-sudo semanage login -l                         # マッピング一覧
-sudo semanage login -a -s staff_u alice        # ユーザーマッピング
+# SELinux user mapping
+sudo semanage login -l                         # List mappings
+sudo semanage login -a -s staff_u alice        # Map user
 ```
 
 ### 3.3 AppArmor
 
 ```
-AppArmor（Ubuntu デフォルト）:
-  パスベースのMAC。SELinuxより設定が簡単
-  → プロファイルでプロセスのアクセスを制限
-  → /etc/apparmor.d/ にプロファイル
+AppArmor (Ubuntu default):
+  Path-based MAC. Easier to configure than SELinux
+  → Restricts process access via profiles
+  → Profiles stored in /etc/apparmor.d/
 
   AppArmor vs SELinux:
   ┌─────────────┬──────────────────┬──────────────────┐
-  │ 項目        │ SELinux          │ AppArmor         │
+  │ Item        │ SELinux          │ AppArmor         │
   ├─────────────┼──────────────────┼──────────────────┤
-  │ アプローチ  │ ラベルベース     │ パスベース        │
-  │ 学習コスト  │ 高い             │ 低い              │
-  │ 設定の柔軟性│ 非常に高い       │ 中程度            │
-  │ デフォルト  │ RHEL/CentOS      │ Ubuntu/SUSE      │
-  │ ファイル移動│ ラベルが追従     │ パスが変わると    │
-  │             │                  │ ポリシーも変わる  │
-  │ inode依存   │ はい             │ いいえ            │
-  │ ネットワーク│ 詳細制御可能     │ 基本的な制御      │
+  │ Approach    │ Label-based      │ Path-based       │
+  │ Learning    │ High             │ Low              │
+  │ Flexibility │ Very high        │ Moderate         │
+  │ Default on  │ RHEL/CentOS      │ Ubuntu/SUSE      │
+  │ File move   │ Label follows    │ Policy changes   │
+  │             │                  │ when path changes│
+  │ inode dep.  │ Yes              │ No               │
+  │ Network     │ Fine-grained     │ Basic control    │
   └─────────────┴──────────────────┴──────────────────┘
 
-  AppArmor のモード:
-  - Enforce: 違反をブロック+ログ
-  - Complain: ログのみ（学習用）
-  - Unconfined: 制限なし
+  AppArmor Modes:
+  - Enforce: Blocks violations + logs
+  - Complain: Logs only (for learning)
+  - Unconfined: No restrictions
 ```
 
 ```bash
-# AppArmor の基本操作
-sudo aa-status                   # 現在の状態確認
-sudo aa-enforce /etc/apparmor.d/usr.sbin.nginx   # Enforceモード
-sudo aa-complain /etc/apparmor.d/usr.sbin.nginx  # Complainモード
-sudo aa-disable /etc/apparmor.d/usr.sbin.nginx   # 無効化
+# AppArmor basic operations
+sudo aa-status                   # Check current status
+sudo aa-enforce /etc/apparmor.d/usr.sbin.nginx   # Enforce mode
+sudo aa-complain /etc/apparmor.d/usr.sbin.nginx  # Complain mode
+sudo aa-disable /etc/apparmor.d/usr.sbin.nginx   # Disable
 
-# プロファイルの新規作成
-sudo aa-genprof /usr/bin/myapp   # 対話的にプロファイル生成
-# → アプリを操作してログを収集 → ルールを自動生成
+# Create a new profile
+sudo aa-genprof /usr/bin/myapp   # Interactively generate profile
+# → Operate the app to collect logs → Auto-generate rules
 
-# ログの分析（Complainモードで収集した違反）
-sudo aa-logprof                  # ログからルールを提案
+# Analyze logs (violations collected in Complain mode)
+sudo aa-logprof                  # Suggest rules from logs
 ```
 
 ```
-AppArmor プロファイルの例（/etc/apparmor.d/usr.sbin.nginx）:
+AppArmor Profile Example (/etc/apparmor.d/usr.sbin.nginx):
 
   #include <tunables/global>
 
@@ -751,49 +754,49 @@ AppArmor プロファイルの例（/etc/apparmor.d/usr.sbin.nginx）:
     #include <abstractions/base>
     #include <abstractions/nameservice>
 
-    # 実行権限
+    # Execution permissions
     /usr/sbin/nginx mr,
 
-    # 設定ファイル
+    # Configuration files
     /etc/nginx/** r,
     /etc/ssl/certs/** r,
     /etc/ssl/private/** r,
 
-    # Webコンテンツ
+    # Web content
     /var/www/** r,
 
-    # ログ
+    # Logs
     /var/log/nginx/** w,
 
-    # PIDファイル
+    # PID file
     /run/nginx.pid rw,
 
-    # ネットワーク
+    # Network
     network inet stream,
     network inet6 stream,
 
-    # 子プロセス
+    # Child processes
     /usr/sbin/nginx ix,
 
-    # 一時ファイル
+    # Temporary files
     /var/lib/nginx/tmp/** rw,
 
-    # deny ルール（明示的な拒否）
+    # deny rules (explicit denial)
     deny /etc/shadow r,
     deny /root/** rwx,
   }
 
-  プロファイルの権限記号:
+  Profile Permission Symbols:
   ┌──────┬──────────────────────────┐
-  │ 記号 │ 意味                     │
+  │ Sym  │ Meaning                  │
   ├──────┼──────────────────────────┤
-  │ r    │ 読み取り                 │
-  │ w    │ 書き込み                 │
-  │ a    │ 追記                     │
-  │ x    │ 実行                     │
-  │ m    │ メモリマップ             │
-  │ k    │ ファイルロック           │
-  │ l    │ ハードリンク作成         │
+  │ r    │ Read                     │
+  │ w    │ Write                    │
+  │ a    │ Append                   │
+  │ x    │ Execute                  │
+  │ m    │ Memory map               │
+  │ k    │ File lock                │
+  │ l    │ Hard link creation       │
   │ ix   │ Inherit execute          │
   │ px   │ Profile execute          │
   │ cx   │ Child profile execute    │
@@ -801,56 +804,56 @@ AppArmor プロファイルの例（/etc/apparmor.d/usr.sbin.nginx）:
   └──────┴──────────────────────────┘
 ```
 
-### 3.4 seccomp と Landlock
+### 3.4 seccomp and Landlock
 
 ```
-seccomp（Secure Computing Mode）:
-  プロセスが使用できるシステムコールを制限
-  → Dockerコンテナのデフォルトセキュリティ
-  → Chromeのサンドボックスでも使用
+seccomp (Secure Computing Mode):
+  Restricts the system calls a process can use
+  → Default security for Docker containers
+  → Also used in Chrome's sandbox
 
-  seccomp のモード:
-  1. Strict Mode: read, write, _exit, sigreturn のみ許可
-  2. Filter Mode (seccomp-bpf): BPFフィルタで細かく制御
+  seccomp Modes:
+  1. Strict Mode: Only allows read, write, _exit, sigreturn
+  2. Filter Mode (seccomp-bpf): Fine-grained control with BPF filters
 
-  Docker のデフォルト seccomp プロファイル:
+  Docker Default seccomp Profile:
   ┌──────────────────────────────────────────────────┐
-  │ 約300以上のシステムコールのうち約40を制限:        │
+  │ Blocks about 40 of the 300+ system calls:        │
   │                                                    │
-  │ ブロックされるシステムコール例:                   │
-  │ - clone (CLONE_NEWUSER): ユーザーNamespace作成    │
-  │ - mount: ファイルシステムマウント                 │
-  │ - reboot: システム再起動                          │
-  │ - kexec_load: カーネル入れ替え                    │
-  │ - bpf: BPFプログラムのロード                      │
-  │ - unshare: 新しいNamespace作成                    │
-  │ - ptrace: 他プロセスのデバッグ                    │
-  │ - swapon/swapoff: スワップ管理                    │
-  │ - init_module: カーネルモジュールロード            │
+  │ Blocked system call examples:                     │
+  │ - clone (CLONE_NEWUSER): User Namespace creation  │
+  │ - mount: Filesystem mounting                      │
+  │ - reboot: System reboot                           │
+  │ - kexec_load: Kernel replacement                  │
+  │ - bpf: Loading BPF programs                       │
+  │ - unshare: Creating new Namespaces                │
+  │ - ptrace: Debugging other processes               │
+  │ - swapon/swapoff: Swap management                 │
+  │ - init_module: Loading kernel modules             │
   │                                                    │
-  │ カスタムプロファイルの適用:                        │
+  │ Applying a custom profile:                        │
   │ docker run --security-opt seccomp=profile.json    │
   └──────────────────────────────────────────────────┘
 
-Landlock（Linux 5.13+）:
-  非特権プロセスからのサンドボックス化
-  → root権限不要でアクセス制限を設定可能
-  → アプリケーション自身が自分を制限
+Landlock (Linux 5.13+):
+  Sandboxing from unprivileged processes
+  → Can set access restrictions without root privileges
+  → Applications restrict themselves
 
-  Landlock の特徴:
-  - ユーザー空間から LSM を利用可能
-  - プロセスの子孫にも制限が継承される
-  - ファイルシステムアクセスの制限に特化（v1）
-  - ネットワーク制限もサポート（v4, Linux 6.7+）
+  Landlock Characteristics:
+  - Uses LSM from user space
+  - Restrictions are inherited by descendant processes
+  - Specialized for filesystem access restriction (v1)
+  - Network restrictions also supported (v4, Linux 6.7+)
 ```
 
 ```c
-/* Landlock の使用例（C言語） */
+/* Landlock Usage Example (C) */
 #include <linux/landlock.h>
 #include <sys/prctl.h>
 #include <sys/syscall.h>
 
-/* Landlock ルールセットの作成 */
+/* Create a Landlock ruleset */
 struct landlock_ruleset_attr ruleset_attr = {
     .handled_access_fs =
         LANDLOCK_ACCESS_FS_READ_FILE |
@@ -861,7 +864,7 @@ struct landlock_ruleset_attr ruleset_attr = {
 int ruleset_fd = syscall(SYS_landlock_create_ruleset,
     &ruleset_attr, sizeof(ruleset_attr), 0);
 
-/* /tmp への読み書きを許可するルール */
+/* Rule to allow read/write to /tmp */
 struct landlock_path_beneath_attr path_beneath = {
     .allowed_access =
         LANDLOCK_ACCESS_FS_READ_FILE |
@@ -872,52 +875,52 @@ struct landlock_path_beneath_attr path_beneath = {
 syscall(SYS_landlock_add_rule, ruleset_fd,
     LANDLOCK_RULE_PATH_BENEATH, &path_beneath, 0);
 
-/* ルールセットを適用（以降、制限が有効） */
+/* Apply the ruleset (restrictions take effect from here) */
 prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
 syscall(SYS_landlock_restrict_self, ruleset_fd, 0);
 
-/* これ以降、/tmp 以外のファイルアクセスは拒否される */
+/* From this point, file access outside /tmp is denied */
 ```
 
 ---
 
-## 4. 最小権限の原則
+## 4. Principle of Least Privilege
 
-### 4.1 基本概念
+### 4.1 Basic Concept
 
 ```
-最小権限の原則（Principle of Least Privilege）:
-  プロセスやユーザーに必要最小限の権限のみを付与
+Principle of Least Privilege:
+  Grant only the minimum permissions necessary to processes and users
 
-  理論的背景:
-  Saltzer & Schroeder (1975) の "The Protection of Information
-  in Computer Systems" で提唱された8つの設計原則の1つ:
+  Theoretical Background:
+  One of the 8 design principles proposed by Saltzer & Schroeder (1975)
+  in "The Protection of Information in Computer Systems":
 
-  1. Economy of Mechanism: メカニズムは単純に
-  2. Fail-safe Defaults: デフォルトはアクセス拒否
-  3. Complete Mediation: すべてのアクセスをチェック
-  4. Open Design: 設計の秘匿に依存しない
-  5. Separation of Privilege: 権限の分離
-  6. Least Privilege: 最小権限           ← これ
-  7. Least Common Mechanism: 共有メカニズムの最小化
-  8. Psychological Acceptability: 使いやすさ
+  1. Economy of Mechanism: Keep mechanisms simple
+  2. Fail-safe Defaults: Default to access denied
+  3. Complete Mediation: Check every access
+  4. Open Design: Do not rely on design secrecy
+  5. Separation of Privilege: Separate privileges
+  6. Least Privilege: Minimum privileges           ← This one
+  7. Least Common Mechanism: Minimize shared mechanisms
+  8. Psychological Acceptability: Ease of use
 
-  実践例:
+  Practical Examples:
   ┌──────────────────────────────────────────┐
-  │ BAD: root で Web サーバーを実行         │
-  │ GOOD: 専用ユーザー（www-data）で実行    │
+  │ BAD: Run web server as root             │
+  │ GOOD: Run as a dedicated user (www-data)│
   │                                          │
-  │ BAD: chmod 777 で全開放                 │
-  │ GOOD: 必要な権限のみ設定                │
+  │ BAD: chmod 777 for full access          │
+  │ GOOD: Set only required permissions     │
   │                                          │
-  │ BAD: アプリにroot権限を付与             │
-  │ GOOD: capabilities で必要な権限のみ付与 │
+  │ BAD: Grant root to an application       │
+  │ GOOD: Use capabilities for needed perms │
   │                                          │
-  │ BAD: 全員に管理者権限を付与             │
-  │ GOOD: ロールベースで必要な権限のみ      │
+  │ BAD: Give admin access to everyone      │
+  │ GOOD: Role-based, minimum permissions   │
   │                                          │
   │ BAD: sudo ALL=(ALL) NOPASSWD: ALL       │
-  │ GOOD: sudo で特定コマンドのみ許可       │
+  │ GOOD: Allow only specific cmds via sudo │
   └──────────────────────────────────────────┘
 ```
 
@@ -925,61 +928,62 @@ syscall(SYS_landlock_restrict_self, ruleset_fd, 0);
 
 ```
 Linux Capabilities:
-  root の権限を細分化して必要なものだけ付与
-  → 「全か無か」の root 権限を約40の細かい権限に分割
+  Subdivide root privileges and grant only what is needed
+  → Split the "all or nothing" root privilege into ~40 fine-grained capabilities
 
-  主要な Capabilities:
+  Major Capabilities:
   ┌──────────────────────────┬────────────────────────────────┐
-  │ Capability               │ 説明                           │
+  │ Capability               │ Description                    │
   ├──────────────────────────┼────────────────────────────────┤
-  │ CAP_NET_BIND_SERVICE     │ 1024未満のポートにバインド     │
-  │ CAP_NET_RAW              │ RAWソケットの使用              │
-  │ CAP_NET_ADMIN            │ ネットワーク設定の変更         │
-  │ CAP_SYS_PTRACE           │ 他プロセスのデバッグ          │
-  │ CAP_SYS_ADMIN            │ 多数のシステム管理操作        │
-  │ CAP_DAC_OVERRIDE         │ ファイルパーミッション無視    │
-  │ CAP_DAC_READ_SEARCH      │ 読み取りとディレクトリ検索    │
-  │ CAP_CHOWN                │ ファイル所有者の変更          │
-  │ CAP_FOWNER               │ 所有者チェックのバイパス      │
-  │ CAP_KILL                 │ 他ユーザーのプロセスにシグナル│
-  │ CAP_SETUID               │ UID の変更                    │
-  │ CAP_SETGID               │ GID の変更                    │
-  │ CAP_SYS_CHROOT           │ chroot の使用                 │
-  │ CAP_SYS_TIME             │ システム時刻の変更            │
-  │ CAP_AUDIT_WRITE          │ 監査ログへの書き込み          │
-  │ CAP_SYS_RESOURCE         │ リソース制限の変更            │
-  │ CAP_IPC_LOCK             │ メモリのロック（mlock）       │
-  │ CAP_SYS_RAWIO            │ rawI/Oポートの操作            │
+  │ CAP_NET_BIND_SERVICE     │ Bind to ports below 1024       │
+  │ CAP_NET_RAW              │ Use RAW sockets                │
+  │ CAP_NET_ADMIN            │ Modify network configuration   │
+  │ CAP_SYS_PTRACE           │ Debug other processes          │
+  │ CAP_SYS_ADMIN            │ Many system admin operations   │
+  │ CAP_DAC_OVERRIDE         │ Bypass file permissions        │
+  │ CAP_DAC_READ_SEARCH      │ Read and directory search      │
+  │ CAP_CHOWN                │ Change file ownership          │
+  │ CAP_FOWNER               │ Bypass owner checks            │
+  │ CAP_KILL                 │ Signal other users' processes  │
+  │ CAP_SETUID               │ Change UID                     │
+  │ CAP_SETGID               │ Change GID                     │
+  │ CAP_SYS_CHROOT           │ Use chroot                     │
+  │ CAP_SYS_TIME             │ Change system clock            │
+  │ CAP_AUDIT_WRITE          │ Write to audit log             │
+  │ CAP_SYS_RESOURCE         │ Modify resource limits         │
+  │ CAP_IPC_LOCK             │ Lock memory (mlock)            │
+  │ CAP_SYS_RAWIO            │ Perform raw I/O port operations│
   └──────────────────────────┴────────────────────────────────┘
 
-  Capability セット:
+  Capability Sets:
   ┌──────────────────────────────────────────────────────┐
-  │ Permitted:   プロセスが持てる最大の Capabilities    │
-  │ Effective:   現在有効な Capabilities                │
-  │ Inheritable: execve 時に継承される Capabilities     │
-  │ Bounding:    上限セット（これ以上は取得不可）       │
-  │ Ambient:     非特権プログラムに渡される Capabilities│
+  │ Permitted:   Maximum capabilities a process can hold │
+  │ Effective:   Currently active capabilities           │
+  │ Inheritable: Capabilities inherited across execve    │
+  │ Bounding:    Upper limit set (cannot exceed)         │
+  │ Ambient:     Capabilities passed to unprivileged     │
+  │              programs                                │
   └──────────────────────────────────────────────────────┘
 ```
 
 ```bash
-# Capabilities の確認と設定
+# Checking and setting Capabilities
 
-# ファイルの Capabilities 確認
+# Check file Capabilities
 getcap /usr/bin/ping
 # /usr/bin/ping cap_net_raw=ep
 
-# Capabilities の設定
+# Set Capabilities
 sudo setcap cap_net_bind_service=+ep ./server
-# → rootなしで80番ポートにバインド可能
+# → Can bind to port 80 without root
 
-# 複数の Capabilities を設定
+# Set multiple Capabilities
 sudo setcap 'cap_net_bind_service,cap_net_raw=+ep' ./server
 
-# Capabilities の削除
+# Remove Capabilities
 sudo setcap -r ./server
 
-# プロセスの Capabilities 確認
+# Check process Capabilities
 cat /proc/self/status | grep Cap
 # CapInh: 0000000000000000  (Inheritable)
 # CapPrm: 0000000000000000  (Permitted)
@@ -987,242 +991,243 @@ cat /proc/self/status | grep Cap
 # CapBnd: 000001ffffffffff  (Bounding)
 # CapAmb: 0000000000000000  (Ambient)
 
-# 16進数をデコード
+# Decode hex value
 capsh --decode=000001ffffffffff
 
-# 特定の Capabilities でプロセスを起動
+# Launch process with specific Capabilities
 sudo capsh --caps="cap_net_bind_service+eip cap_setpcap,cap_setuid,cap_setgid+ep" \
   --keep=1 --user=www-data --addamb=cap_net_bind_service -- -c ./server
 
-# Docker での Capabilities 管理
+# Capabilities management in Docker
 docker run --cap-drop ALL --cap-add NET_BIND_SERVICE nginx
-# → 全 Capabilities を落としてから必要なものだけ追加
+# → Drop all Capabilities then add only what is needed
 ```
 
-### 4.3 sudo の詳細設定
+### 4.3 Detailed sudo Configuration
 
 ```
-sudo の設定（/etc/sudoers）:
-  visudo コマンドで編集（構文チェック付き）
+sudo Configuration (/etc/sudoers):
+  Edit with visudo command (includes syntax checking)
 
-  基本書式:
-  ユーザー ホスト=(実行ユーザー) コマンド
+  Basic Format:
+  user host=(run_as_user) command
 
-  例:
-  # alice は全ホストで全コマンドを実行可能
+  Examples:
+  # alice can run all commands on all hosts
   alice ALL=(ALL) ALL
 
-  # alice は パスワードなしで nginx の再起動のみ可能
+  # alice can restart nginx without a password
   alice ALL=(root) NOPASSWD: /usr/bin/systemctl restart nginx
 
-  # developers グループは特定コマンドのみ
+  # developers group can only run specific commands
   %developers ALL=(root) /usr/bin/docker, /usr/bin/docker-compose
 
-  # bob は特定コマンドを特定ユーザーとして実行
+  # bob can run specific commands as a specific user
   bob ALL=(www-data) /usr/bin/php, /usr/bin/composer
 
-  セキュアな sudoers 設計:
+  Secure sudoers Design:
   ┌──────────────────────────────────────────────────┐
-  │ 1. NOPASSWD は最小限に:                          │
-  │    → 自動化スクリプト用のみ                      │
-  │    → 対話的な使用では常にパスワード要求          │
+  │ 1. Minimize NOPASSWD:                            │
+  │    → Only for automation scripts                 │
+  │    → Always require password for interactive use │
   │                                                    │
-  │ 2. コマンドは絶対パスで指定:                      │
-  │    → /usr/bin/systemctl（○）                     │
-  │    → systemctl（×: PATH操作で偽物を実行される） │
+  │ 2. Specify commands with absolute paths:          │
+  │    → /usr/bin/systemctl (correct)                │
+  │    → systemctl (wrong: PATH manipulation attack) │
   │                                                    │
-  │ 3. ワイルドカードは避ける:                        │
-  │    → ALL=(ALL) /usr/bin/* は危険                  │
-  │    → 必要なコマンドを個別に列挙                  │
+  │ 3. Avoid wildcards:                               │
+  │    → ALL=(ALL) /usr/bin/* is dangerous           │
+  │    → List required commands individually          │
   │                                                    │
-  │ 4. エイリアスで管理:                              │
-  │    Cmnd_Alias WEBADMIN = /usr/bin/systemctl       │
+  │ 4. Manage with aliases:                           │
+  │    Cmnd_Alias WEBADMIN = /usr/bin/systemctl      │
   │      restart nginx, /usr/bin/certbot              │
   │    %webteam ALL=(root) WEBADMIN                   │
   │                                                    │
-  │ 5. sudo ログの監査:                               │
+  │ 5. Audit sudo logs:                               │
   │    Defaults logfile="/var/log/sudo.log"            │
   │    Defaults log_input, log_output                  │
-  │    → 全セッションを記録                           │
+  │    → Record all sessions                          │
   └──────────────────────────────────────────────────┘
 
-  sudo の危険なパターン:
+  Dangerous sudo Patterns:
   ┌──────────────────────────────────────────────────┐
-  │ 危険: alice ALL=(ALL) /usr/bin/vi                │
-  │ → vi から :!/bin/bash で root シェル取得可能    │
+  │ Dangerous: alice ALL=(ALL) /usr/bin/vi           │
+  │ → Can get root shell via :!/bin/bash in vi      │
   │                                                    │
-  │ 危険: alice ALL=(ALL) /usr/bin/less              │
-  │ → less から !bash で root シェル取得可能        │
+  │ Dangerous: alice ALL=(ALL) /usr/bin/less         │
+  │ → Can get root shell via !bash in less          │
   │                                                    │
-  │ 危険: alice ALL=(ALL) /usr/bin/find              │
-  │ → find -exec /bin/bash で root シェル取得可能   │
+  │ Dangerous: alice ALL=(ALL) /usr/bin/find         │
+  │ → Can get root shell via find -exec /bin/bash   │
   │                                                    │
-  │ 対策: sudoedit を使う、または制限付きコマンドを  │
-  │ 使用する（rnano等のrestricted editor）           │
+  │ Countermeasure: Use sudoedit, or use restricted  │
+  │ commands (rnano, other restricted editors)        │
   └──────────────────────────────────────────────────┘
 ```
 
-### 4.4 PAM（Pluggable Authentication Modules）
+### 4.4 PAM (Pluggable Authentication Modules)
 
 ```
-PAM（Pluggable Authentication Modules）:
-  認証の仕組みをモジュール化して柔軟に組み合わせる
+PAM (Pluggable Authentication Modules):
+  Modularizes authentication mechanisms for flexible combination
 
-  PAM の設定ファイル:
-  /etc/pam.d/ ディレクトリ内にサービスごとの設定
+  PAM Configuration Files:
+  Per-service configuration in the /etc/pam.d/ directory
   → /etc/pam.d/sshd, /etc/pam.d/login, /etc/pam.d/sudo
 
-  設定の書式:
-  タイプ  制御  モジュール  [オプション]
+  Configuration Format:
+  type  control  module  [options]
 
-  タイプ:
+  Types:
   ┌──────────┬──────────────────────────────────────┐
-  │ auth     │ ユーザー認証（パスワード、MFA等）   │
-  │ account  │ アカウント検証（有効期限、時間制限）│
-  │ password │ パスワード変更の処理                │
-  │ session  │ セッション管理（ログ、環境設定）    │
+  │ auth     │ User authentication (password, MFA)  │
+  │ account  │ Account validation (expiry, time)    │
+  │ password │ Password change handling             │
+  │ session  │ Session management (logs, env setup) │
   └──────────┴──────────────────────────────────────┘
 
-  制御:
-  ┌──────────┬──────────────────────────────────────┐
-  │ required │ 失敗しても次のモジュールを実行      │
-  │ requisite│ 失敗したら即座に拒否                │
-  │ sufficient│ 成功したら以降のモジュールをスキップ│
-  │ optional │ 他の結果に影響しない                │
-  │ include  │ 他の設定ファイルをインクルード      │
-  └──────────┴──────────────────────────────────────┘
+  Controls:
+  ┌───────────┬──────────────────────────────────────┐
+  │ required  │ Continues to next module even on fail│
+  │ requisite │ Immediately denies on failure        │
+  │ sufficient│ Skips remaining modules on success   │
+  │ optional  │ Does not affect other results        │
+  │ include   │ Includes another config file         │
+  └───────────┴──────────────────────────────────────┘
 
-  実務的な PAM 設定例:
+  Practical PAM Configuration Example:
 
-  /etc/pam.d/sshd（SSH 認証の強化）:
+  /etc/pam.d/sshd (Hardening SSH Authentication):
   ┌──────────────────────────────────────────────────┐
-  │ # TOTP（Google Authenticator）の追加              │
-  │ auth required pam_google_authenticator.so         │
+  │ # Add TOTP (Google Authenticator)                │
+  │ auth required pam_google_authenticator.so        │
   │                                                    │
-  │ # パスワードの品質要件                            │
-  │ password requisite pam_pwquality.so retry=3       │
-  │   minlen=12 dcredit=-1 ucredit=-1 lcredit=-1     │
-  │   ocredit=-1                                      │
+  │ # Password quality requirements                  │
+  │ password requisite pam_pwquality.so retry=3      │
+  │   minlen=12 dcredit=-1 ucredit=-1 lcredit=-1    │
+  │   ocredit=-1                                     │
   │                                                    │
-  │ # ログイン失敗のロックアウト                      │
-  │ auth required pam_faillock.so                     │
-  │   preauth deny=5 unlock_time=900                  │
+  │ # Login failure lockout                           │
+  │ auth required pam_faillock.so                    │
+  │   preauth deny=5 unlock_time=900                 │
   │                                                    │
-  │ # アクセス時間の制限                              │
-  │ account required pam_time.so                      │
-  │   → /etc/security/time.conf で時間帯を設定      │
+  │ # Access time restriction                         │
+  │ account required pam_time.so                     │
+  │   → Configure time windows in                    │
+  │     /etc/security/time.conf                      │
   │                                                    │
-  │ # ログインセッションのリソース制限                │
-  │ session required pam_limits.so                    │
-  │   → /etc/security/limits.conf でリソース制限    │
+  │ # Login session resource limits                   │
+  │ session required pam_limits.so                   │
+  │   → Resource limits in /etc/security/limits.conf │
   └──────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 5. Windows のアクセス制御
+## 5. Windows Access Control
 
-### 5.1 Windows セキュリティモデル
+### 5.1 Windows Security Model
 
 ```
-Windows のアクセス制御体系:
+Windows Access Control System:
 
-  セキュリティプリンシパル:
+  Security Principals:
   ┌──────────────────────────────────────────────────┐
-  │ - ユーザーアカウント                              │
-  │ - グループ                                        │
-  │ - コンピューターアカウント                        │
-  │ - サービスアカウント                              │
+  │ - User accounts                                   │
+  │ - Groups                                          │
+  │ - Computer accounts                               │
+  │ - Service accounts                                │
   │                                                    │
-  │ 各プリンシパルは SID（Security Identifier）で    │
-  │ 一意に識別される                                  │
-  │ 例: S-1-5-21-3623811015-3361044348-30300820-1013 │
-  │     ↑ ↑ ↑   ↑ ドメイン固有識別子      ↑ RID   │
+  │ Each principal is uniquely identified by a        │
+  │ SID (Security Identifier)                         │
+  │ Example: S-1-5-21-3623811015-3361044348-30300820-1013│
+  │          ↑ ↑ ↑   ↑ Domain-specific ID       ↑ RID│
   └──────────────────────────────────────────────────┘
 
-  アクセストークン:
-  ログイン時に作成され、プロセスに付与される
+  Access Token:
+  Created at login and attached to processes
   ┌──────────────────────────────────────────────────┐
-  │ アクセストークンの内容:                           │
-  │ - ユーザー SID                                    │
-  │ - グループ SID のリスト                           │
-  │ - 特権（Privileges）のリスト                     │
-  │ - 整合性レベル（Integrity Level）                │
-  │ - セッション ID                                   │
+  │ Access Token Contents:                            │
+  │ - User SID                                        │
+  │ - List of group SIDs                              │
+  │ - List of privileges                              │
+  │ - Integrity Level                                 │
+  │ - Session ID                                      │
   └──────────────────────────────────────────────────┘
 
-  セキュリティ記述子（Security Descriptor）:
-  各オブジェクト（ファイル、レジストリ等）に付与
+  Security Descriptor:
+  Attached to each object (files, registry, etc.)
   ┌──────────────────────────────────────────────────┐
-  │ - Owner SID: 所有者                               │
-  │ - Group SID: プライマリグループ                   │
-  │ - DACL: 任意アクセス制御リスト                    │
-  │   → ACE のリスト（Allow/Deny + 権限 + SID）     │
-  │ - SACL: システムアクセス制御リスト                │
-  │   → 監査設定（成功/失敗の記録）                  │
+  │ - Owner SID: The owner                           │
+  │ - Group SID: Primary group                       │
+  │ - DACL: Discretionary Access Control List        │
+  │   → List of ACEs (Allow/Deny + Perms + SID)     │
+  │ - SACL: System Access Control List               │
+  │   → Audit settings (log success/failure)         │
   └──────────────────────────────────────────────────┘
 
-  Windows の整合性レベル（MIC: Mandatory Integrity Control）:
+  Windows Integrity Levels (MIC: Mandatory Integrity Control):
   ┌──────────────────────────────────────────────────┐
-  │ System: サービス、カーネルオブジェクト            │
-  │ High: 管理者プロセス（UAC昇格後）                │
-  │ Medium: 通常のユーザープロセス                    │
-  │ Low: ブラウザのサンドボックス（Internet Explorer）│
-  │ Untrusted: 最低レベル                             │
+  │ System: Services, kernel objects                  │
+  │ High: Admin processes (after UAC elevation)       │
+  │ Medium: Normal user processes                     │
+  │ Low: Browser sandbox (Internet Explorer)          │
+  │ Untrusted: Lowest level                           │
   │                                                    │
-  │ → 低い整合性レベルのプロセスは高いレベルの       │
-  │   オブジェクトに書き込めない（No Write Up）      │
+  │ → Processes with lower integrity levels cannot    │
+  │   write to objects at higher levels (No Write Up) │
   └──────────────────────────────────────────────────┘
 ```
 
 ```powershell
-# Windows のアクセス制御操作（PowerShell）
+# Windows Access Control Operations (PowerShell)
 
-# ファイルの ACL 確認
+# View file ACL
 Get-Acl C:\Data\report.xlsx | Format-List
 
-# ACL の詳細表示
+# Detailed ACL display
 (Get-Acl C:\Data\report.xlsx).Access | Format-Table -AutoSize
 
-# ACL の設定
+# Set ACL
 $acl = Get-Acl C:\Data\report.xlsx
 $rule = New-Object System.Security.AccessControl.FileSystemAccessRule(
     "DOMAIN\alice", "Read", "Allow")
 $acl.SetAccessRule($rule)
 Set-Acl C:\Data\report.xlsx $acl
 
-# 継承の無効化
-$acl.SetAccessRuleProtection($true, $false)  # 継承を切断し、既存ACEを削除
+# Disable inheritance
+$acl.SetAccessRuleProtection($true, $false)  # Break inheritance, remove existing ACEs
 Set-Acl C:\Data\report.xlsx $acl
 
-# icacls コマンド（コマンドライン）
+# icacls command (command line)
 icacls C:\Data\report.xlsx
 icacls C:\Data\report.xlsx /grant "alice:(R)"
 icacls C:\Data\report.xlsx /deny "guest:(W)"
 icacls C:\Data\report.xlsx /remove "bob"
-icacls C:\Data /grant "developers:(OI)(CI)F" /T  # 再帰的に適用
+icacls C:\Data /grant "developers:(OI)(CI)F" /T  # Apply recursively
 ```
 
 ---
 
-## 6. クラウドのアクセス制御
+## 6. Cloud Access Control
 
 ### 6.1 AWS IAM
 
 ```
-AWS IAM（Identity and Access Management）:
-  AWS リソースへのアクセスを制御する中核サービス
+AWS IAM (Identity and Access Management):
+  The core service for controlling access to AWS resources
 
-  IAM の主要コンポーネント:
+  Key IAM Components:
   ┌──────────────────────────────────────────────────┐
-  │ User: 人間のユーザー（長期認証情報）             │
-  │ Group: ユーザーの集合                             │
-  │ Role: 一時的な認証情報（推奨）                   │
-  │ Policy: アクセス許可/拒否のルール                │
-  │ Identity Provider: 外部認証との連携              │
+  │ User: Human users (long-term credentials)        │
+  │ Group: Collection of users                        │
+  │ Role: Temporary credentials (recommended)         │
+  │ Policy: Allow/deny rules for access               │
+  │ Identity Provider: Federation with external auth  │
   └──────────────────────────────────────────────────┘
 
-  IAM ポリシーの構造:
+  IAM Policy Structure:
 ```
 
 ```json
@@ -1260,41 +1265,42 @@ AWS IAM（Identity and Access Management）:
 ```
 
 ```
-  IAM ポリシー評価ロジック:
+  IAM Policy Evaluation Logic:
   ┌──────────────────────────────────────────────────┐
-  │ 1. 明示的 Deny がある → 拒否                    │
-  │ 2. SCP（組織ポリシー）で許可されていない → 拒否 │
-  │ 3. リソースポリシーで許可 → 許可                │
-  │ 4. IAMポリシーで許可 → 許可                     │
-  │ 5. Permission Boundary で許可されていない → 拒否│
-  │ 6. セッションポリシーで許可されていない → 拒否  │
-  │ 7. いずれの許可もない → 暗黙的拒否              │
+  │ 1. Explicit Deny exists → Denied                 │
+  │ 2. Not allowed by SCP (Org policy) → Denied     │
+  │ 3. Allowed by resource policy → Allowed          │
+  │ 4. Allowed by IAM policy → Allowed               │
+  │ 5. Not allowed by Permission Boundary → Denied  │
+  │ 6. Not allowed by session policy → Denied        │
+  │ 7. No allow found → Implicit deny               │
   │                                                    │
-  │ 原則: デフォルト拒否、明示的許可が必要           │
-  │ Deny は Always Win（Denyが最優先）                │
+  │ Principle: Default deny, explicit allow required  │
+  │ Deny Always Wins (Deny takes highest priority)    │
   └──────────────────────────────────────────────────┘
 
-  IAM のベストプラクティス:
+  IAM Best Practices:
   ┌──────────────────────────────────────────────────┐
-  │ 1. root アカウントを日常使用しない               │
-  │ 2. MFA を必須にする                               │
-  │ 3. IAM Role を使用（長期認証情報を避ける）       │
-  │ 4. 最小権限ポリシーを設計                         │
-  │ 5. IAM Access Analyzer で未使用権限を検出        │
-  │ 6. SCP で組織全体のガードレールを設定            │
-  │ 7. タグベースのアクセス制御（ABAC）を活用       │
-  │ 8. 定期的な認証情報のローテーション               │
-  │ 9. CloudTrail で全 API コールを監査              │
-  │ 10. 条件キーで細かくアクセスを制限               │
+  │ 1. Do not use the root account for daily tasks   │
+  │ 2. Require MFA                                    │
+  │ 3. Use IAM Roles (avoid long-term credentials)   │
+  │ 4. Design least-privilege policies                │
+  │ 5. Detect unused permissions with IAM Access      │
+  │    Analyzer                                       │
+  │ 6. Set org-wide guardrails with SCPs              │
+  │ 7. Leverage tag-based access control (ABAC)       │
+  │ 8. Rotate credentials regularly                   │
+  │ 9. Audit all API calls with CloudTrail            │
+  │ 10. Fine-tune access with condition keys          │
   └──────────────────────────────────────────────────┘
 ```
 
 ### 6.2 Kubernetes RBAC
 
 ```yaml
-# Kubernetes RBAC の設定例
+# Kubernetes RBAC Configuration Example
 
-# Role: Namespace内の権限を定義
+# Role: Defines permissions within a Namespace
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -1309,7 +1315,7 @@ rules:
   verbs: ["get"]
 
 ---
-# RoleBinding: ユーザーにRoleを紐付け
+# RoleBinding: Binds a Role to users
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
@@ -1331,7 +1337,7 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
 
 ---
-# ClusterRole: クラスタ全体の権限
+# ClusterRole: Cluster-wide permissions
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -1340,324 +1346,324 @@ rules:
 - apiGroups: [""]
   resources: ["secrets"]
   verbs: ["get", "list"]
-  resourceNames: ["app-config", "tls-cert"]  # 特定リソースのみ
+  resourceNames: ["app-config", "tls-cert"]  # Specific resources only
 ```
 
 ```
-Kubernetes RBAC のベストプラクティス:
+Kubernetes RBAC Best Practices:
 ┌──────────────────────────────────────────────────┐
-│ 1. ClusterRole より Role を優先                  │
-│    → Namespace スコープで権限を最小化            │
+│ 1. Prefer Role over ClusterRole                  │
+│    → Minimize permissions at Namespace scope      │
 │                                                    │
-│ 2. ワイルドカード（*）を避ける                   │
-│    → verbs: ["*"] は危険                          │
+│ 2. Avoid wildcards (*)                            │
+│    → verbs: ["*"] is dangerous                    │
 │                                                    │
-│ 3. ServiceAccount は Pod ごとに分離              │
-│    → デフォルトの ServiceAccount を使わない      │
+│ 3. Isolate ServiceAccount per Pod                 │
+│    → Do not use the default ServiceAccount        │
 │                                                    │
-│ 4. RBAC の監査                                    │
+│ 4. Audit RBAC                                     │
 │    kubectl auth can-i --list --as=alice            │
 │    kubectl auth can-i create pods --as=alice       │
 │                                                    │
-│ 5. Aggregated ClusterRole で管理を簡素化         │
-│    → ラベルベースの自動集約                       │
+│ 5. Simplify management with Aggregated ClusterRole│
+│    → Label-based automatic aggregation            │
 │                                                    │
-│ 6. audit ログで権限使用を監視                     │
-│    → 未使用権限の特定と削除                       │
+│ 6. Monitor permission usage via audit logs         │
+│    → Identify and remove unused permissions        │
 └──────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 7. アクセス制御の監査と運用
+## 7. Access Control Auditing and Operations
 
-### 7.1 監査の仕組み
+### 7.1 Auditing Mechanisms
 
 ```
-Linux auditd（監査デーモン）:
-  カーネルレベルでシステムコールを監視・記録
+Linux auditd (Audit Daemon):
+  Monitors and records system calls at the kernel level
 
-  auditd の設定:
-  /etc/audit/auditd.conf    → デーモンの設定
-  /etc/audit/rules.d/*.rules → 監査ルール
+  auditd Configuration:
+  /etc/audit/auditd.conf    → Daemon configuration
+  /etc/audit/rules.d/*.rules → Audit rules
 
-  監査ルールの例:
+  Audit Rule Examples:
   ┌──────────────────────────────────────────────────┐
-  │ # ファイルの監視（変更を検知）                   │
+  │ # File monitoring (detect changes)               │
   │ -w /etc/passwd -p wa -k user-modify              │
   │ -w /etc/shadow -p wa -k shadow-modify            │
   │ -w /etc/sudoers -p wa -k sudoers-modify          │
   │ -w /etc/ssh/sshd_config -p wa -k sshd-config     │
   │                                                    │
-  │ # ファイルの権限変更を監視                        │
+  │ # Monitor file permission changes                │
   │ -a always,exit -F arch=b64 -S chmod,fchmod        │
   │   -F auid>=1000 -F auid!=4294967295 -k perm-change│
   │                                                    │
-  │ # 特権コマンドの実行を監視                        │
+  │ # Monitor privileged command execution            │
   │ -a always,exit -F path=/usr/bin/sudo -F perm=x    │
   │   -k privileged-cmd                                │
   │                                                    │
-  │ # ユーザー認証イベント                            │
+  │ # User authentication events                      │
   │ -w /var/log/faillog -p wa -k login-failures       │
   │ -w /var/log/lastlog -p wa -k last-login           │
   └──────────────────────────────────────────────────┘
 ```
 
 ```bash
-# 監査ログの検索
-ausearch -k user-modify            # キーで検索
-ausearch -m USER_AUTH -ts today    # 今日の認証イベント
-ausearch -ui 1000 -ts recent       # 特定ユーザーの最近のイベント
+# Search audit logs
+ausearch -k user-modify            # Search by key
+ausearch -m USER_AUTH -ts today    # Today's auth events
+ausearch -ui 1000 -ts recent       # Recent events for a specific user
 
-# 監査レポートの生成
-aureport --summary                 # サマリー
-aureport --auth                    # 認証レポート
-aureport --file --failed           # ファイルアクセス失敗
-aureport --login --failed          # ログイン失敗
+# Generate audit reports
+aureport --summary                 # Summary
+aureport --auth                    # Authentication report
+aureport --file --failed           # Failed file access
+aureport --login --failed          # Failed logins
 
-# リアルタイム監視
+# Real-time monitoring
 tail -f /var/log/audit/audit.log | ausearch --interpret
 ```
 
-### 7.2 セキュリティ監査チェックリスト
+### 7.2 Security Audit Checklist
 
 ```
-定期的なアクセス制御監査チェックリスト:
+Periodic Access Control Audit Checklist:
 
-  [ ] SUID/SGID ファイルの棚卸し
+  [ ] Inventory SUID/SGID files
       find / -perm -4000 -o -perm -2000 -type f 2>/dev/null
-      → 不正な SUID ファイルがないか確認
+      → Check for unauthorized SUID files
 
-  [ ] ワールドライタブルファイルの確認
+  [ ] Check world-writable files
       find / -perm -002 -type f ! -path "/proc/*" 2>/dev/null
-      → 機密データが誰でも書き込み可能になっていないか
+      → Ensure sensitive data is not writable by everyone
 
-  [ ] 所有者なしファイルの確認
+  [ ] Check files with no owner
       find / -nouser -o -nogroup 2>/dev/null
-      → 削除されたユーザーのファイルが残っていないか
+      → Ensure no files remain from deleted users
 
-  [ ] sudo 設定の確認
-      sudo -l                      # 自分の sudo 権限
-      visudo -c                    # sudoers の構文チェック
+  [ ] Review sudo configuration
+      sudo -l                      # Your sudo permissions
+      visudo -c                    # Syntax check sudoers
 
-  [ ] 不要なユーザーアカウントの確認
+  [ ] Check for unnecessary user accounts
       awk -F: '$7 !~ /(nologin|false)$/ {print $1}' /etc/passwd
-      → ログイン可能なアカウントの一覧
+      → List of accounts that can log in
 
-  [ ] パスワードポリシーの確認
-      chage -l username            # パスワード有効期限
-      grep -E '^PASS' /etc/login.defs  # パスワードポリシー
+  [ ] Review password policy
+      chage -l username            # Password expiration
+      grep -E '^PASS' /etc/login.defs  # Password policy
 
-  [ ] SSH 設定の確認
+  [ ] Review SSH configuration
       /etc/ssh/sshd_config:
       - PermitRootLogin no
       - PasswordAuthentication no
       - PubkeyAuthentication yes
       - MaxAuthTries 3
-      - AllowUsers / AllowGroups の設定
+      - AllowUsers / AllowGroups settings
 
-  [ ] ファイアウォールルールの確認
+  [ ] Review firewall rules
       iptables -L -n -v            # iptables
       nft list ruleset             # nftables
       ufw status verbose           # UFW
 
-  [ ] SELinux/AppArmor の状態確認
+  [ ] Check SELinux/AppArmor status
       getenforce                   # SELinux
       aa-status                    # AppArmor
-      → Enforcing/Enforce モードになっているか
+      → Ensure Enforcing/Enforce mode is active
 
-  [ ] ログの確認
-      /var/log/auth.log            # 認証ログ
-      /var/log/secure              # セキュアログ（RHEL系）
-      journalctl -u sshd --since today  # SSH ログ
+  [ ] Review logs
+      /var/log/auth.log            # Auth log
+      /var/log/secure              # Secure log (RHEL-based)
+      journalctl -u sshd --since today  # SSH logs
 ```
 
-### 7.3 コンプライアンス対応
+### 7.3 Compliance
 
 ```
-主要なコンプライアンス規格とアクセス制御要件:
+Major Compliance Standards and Access Control Requirements:
 
-  PCI DSS（クレジットカード業界）:
+  PCI DSS (Payment Card Industry):
   ┌──────────────────────────────────────────────────┐
-  │ Req 7: ビジネスで知る必要のある情報のみアクセス  │
-  │ Req 8: ユーザーの一意識別                        │
-  │ Req 10: ネットワークリソースとカード会員データへ │
-  │         の全アクセスの追跡・監視                  │
+  │ Req 7: Access limited to business need-to-know   │
+  │ Req 8: Unique identification of users             │
+  │ Req 10: Track and monitor all access to network  │
+  │         resources and cardholder data              │
   │                                                    │
-  │ 具体的対応:                                       │
-  │ - ロールベースアクセス制御の実装                  │
-  │ - 共有アカウントの禁止                            │
-  │ - 定期的なアクセス権レビュー（四半期ごと）       │
-  │ - 全アクセスログの1年間保存                      │
+  │ Specific Measures:                                │
+  │ - Implement role-based access control              │
+  │ - Prohibit shared accounts                         │
+  │ - Regular access rights review (quarterly)         │
+  │ - Retain all access logs for one year              │
   └──────────────────────────────────────────────────┘
 
-  SOX（企業改革法）:
+  SOX (Sarbanes-Oxley Act):
   ┌──────────────────────────────────────────────────┐
-  │ 職務分離（Separation of Duties）の実装            │
-  │ → 承認者と実行者を分離                           │
-  │ → 開発者が本番環境に直接アクセスしない           │
+  │ Implement Separation of Duties                    │
+  │ → Separate approvers and executors                │
+  │ → Developers do not directly access production   │
   │                                                    │
-  │ 変更管理プロセスの記録                            │
-  │ → 全変更にチケット番号を紐付け                   │
-  │ → 承認フローの証跡を保存                         │
+  │ Record change management processes                │
+  │ → Associate all changes with ticket numbers       │
+  │ → Retain evidence of approval workflows           │
   └──────────────────────────────────────────────────┘
 
-  GDPR（EU一般データ保護規則）:
+  GDPR (EU General Data Protection Regulation):
   ┌──────────────────────────────────────────────────┐
-  │ データ最小化の原則                                │
-  │ → 必要最小限のデータのみ収集・保持               │
-  │ → アクセス権も最小限に設定                       │
+  │ Data Minimization Principle                       │
+  │ → Collect and retain only the minimum data needed│
+  │ → Set access permissions to minimum as well       │
   │                                                    │
-  │ アクセスログの保持                                │
-  │ → 個人データへのアクセス履歴を記録               │
-  │ → データ主体の要求に応じて開示可能に             │
+  │ Access Log Retention                              │
+  │ → Record access history to personal data          │
+  │ → Make disclosable upon data subject request      │
   └──────────────────────────────────────────────────┘
 
   CIS Benchmarks:
-  → OS のセキュリティ設定ガイドライン
-  → 自動スキャンツール（OpenSCAP, Lynis）で準拠確認
-  → レベル1（基本）とレベル2（強化）の2段階
+  → Security configuration guidelines for OSes
+  → Verify compliance with automated scanning tools (OpenSCAP, Lynis)
+  → Two tiers: Level 1 (basic) and Level 2 (hardened)
 ```
 
 ---
 
-## 実践演習
+## Hands-on Exercises
 
-### 演習1: [基礎] -- パーミッション操作
+### Exercise 1: [Beginner] -- Permission Operations
 
 ```bash
-# ファイルの権限を操作
+# Manipulate file permissions
 touch test.txt
 chmod 644 test.txt && ls -la test.txt
 chmod u+x test.txt && ls -la test.txt
 chmod o-r test.txt && ls -la test.txt
 
-# 所有者変更
+# Change ownership
 sudo chown root:root test.txt
 
-# umask の確認と設定
+# Check and set umask
 umask
 umask 0077
-touch secret.txt && ls -la secret.txt   # rw------- になる
-umask 0022  # 元に戻す
+touch secret.txt && ls -la secret.txt   # Should be rw-------
+umask 0022  # Reset
 ```
 
-### 演習2: [基礎] -- ACL の設定
+### Exercise 2: [Beginner] -- Setting Up ACLs
 
 ```bash
-# ACL の設定と確認
+# Set and verify ACLs
 touch shared.txt
 setfacl -m u:alice:rw shared.txt
 setfacl -m u:bob:r shared.txt
 setfacl -m g:developers:rw shared.txt
 getfacl shared.txt
 
-# デフォルト ACL の設定
+# Set default ACL
 mkdir /tmp/shared_dir
 setfacl -d -m g:developers:rw /tmp/shared_dir
 touch /tmp/shared_dir/newfile.txt
-getfacl /tmp/shared_dir/newfile.txt  # デフォルトACLが適用される
+getfacl /tmp/shared_dir/newfile.txt  # Default ACL should be applied
 ```
 
-### 演習3: [応用] -- セキュリティ監査
+### Exercise 3: [Advanced] -- Security Auditing
 
 ```bash
-# SUID ファイルの検索（セキュリティ監査で重要）
+# Search for SUID files (important for security auditing)
 find / -perm -4000 -type f 2>/dev/null
 
-# 書き込み可能なファイルの検索
+# Search for writable files
 find /etc -writable -type f 2>/dev/null
 
-# 所有者なしファイルの検索
+# Search for files with no owner
 find / -nouser -o -nogroup 2>/dev/null | head -20
 
-# ログイン可能なアカウント一覧
+# List accounts that can log in
 awk -F: '$7 !~ /(nologin|false)$/ {print $1, $7}' /etc/passwd
 
-# パスワードのない（空の）アカウント検索
+# Search for accounts with no password (empty)
 sudo awk -F: '($2 == "" || $2 == "!") {print $1}' /etc/shadow
 
-# 最近変更されたファイルの確認（侵害調査）
+# Check recently modified files (breach investigation)
 find /etc -mtime -1 -type f 2>/dev/null
 find /usr/bin -mtime -1 -type f 2>/dev/null
 ```
 
-### 演習4: [応用] -- Capabilities の活用
+### Exercise 4: [Advanced] -- Using Capabilities
 
 ```bash
-# 特権ポートバインドの設定
+# Configure privileged port binding
 gcc -o webserver webserver.c
 sudo setcap cap_net_bind_service=+ep ./webserver
 getcap ./webserver
-# → root でなくても 80 番ポートでリッスン可能
+# → Can listen on port 80 without root
 
-# 現在の Capabilities 確認
+# Check current Capabilities
 cat /proc/self/status | grep Cap
 capsh --print
 
-# Docker コンテナでの Capabilities 制限
+# Restrict Capabilities in Docker containers
 docker run --cap-drop ALL \
   --cap-add NET_BIND_SERVICE \
   --cap-add CHOWN \
   -p 80:80 nginx
 ```
 
-### 演習5: [実務] -- SELinux トラブルシューティング
+### Exercise 5: [Production] -- SELinux Troubleshooting
 
 ```bash
-# SELinux が有効な環境で Web サーバーのアクセス問題を解決
+# Resolve web server access issues on an SELinux-enabled system
 
-# 1. 問題の確認
+# 1. Identify the problem
 sudo ausearch -m AVC -ts recent
 
-# 2. 詳細な分析
+# 2. Detailed analysis
 sudo sealert -a /var/log/audit/audit.log
 
-# 3. ファイルコンテキストの確認
+# 3. Check file contexts
 ls -Z /var/www/html/
 ls -Z /home/user/public_html/
 
-# 4. 正しいコンテキストの設定
+# 4. Set the correct context
 sudo semanage fcontext -a -t httpd_sys_content_t "/web(/.*)?"
 sudo restorecon -Rv /web/
 
-# 5. Boolean の確認と設定
+# 5. Check and set Booleans
 getsebool httpd_enable_homedirs
 sudo setsebool -P httpd_enable_homedirs on
 ```
 
-### 演習6: [実務] -- 包括的なアクセス制御設計
+### Exercise 6: [Production] -- Comprehensive Access Control Design
 
 ```bash
-# Webアプリケーションサーバーのアクセス制御設計
+# Access control design for a web application server
 
-# 1. 専用ユーザーとグループの作成
+# 1. Create a dedicated user and group
 sudo groupadd webapp
 sudo useradd -r -g webapp -s /sbin/nologin webapp-user
 
-# 2. ディレクトリ構造の作成と権限設定
+# 2. Create directory structure and set permissions
 sudo mkdir -p /opt/webapp/{app,config,data,logs,tmp}
 sudo chown -R webapp-user:webapp /opt/webapp
 sudo chmod 750 /opt/webapp
 sudo chmod 750 /opt/webapp/app
-sudo chmod 700 /opt/webapp/config    # 設定は所有者のみ
-sudo chmod 770 /opt/webapp/data      # グループも書き込み可
-sudo chmod 750 /opt/webapp/logs      # グループは読み取り可
-sudo chmod 700 /opt/webapp/tmp       # 一時ファイルは所有者のみ
+sudo chmod 700 /opt/webapp/config    # Owner only for config
+sudo chmod 770 /opt/webapp/data      # Group can also write
+sudo chmod 750 /opt/webapp/logs      # Group can read
+sudo chmod 700 /opt/webapp/tmp       # Owner only for temp files
 
-# 3. デプロイユーザーの権限設定
+# 3. Set deploy user permissions
 sudo usermod -aG webapp deploy-user
 setfacl -R -m u:deploy-user:rwx /opt/webapp/app
 setfacl -R -d -m u:deploy-user:rwx /opt/webapp/app
 
-# 4. Capabilities の設定（root不要の特権ポートバインド）
+# 4. Set Capabilities (privileged port binding without root)
 sudo setcap cap_net_bind_service=+ep /opt/webapp/app/server
 
-# 5. sudo の設定（デプロイ操作のみ許可）
-# visudo で以下を追加:
+# 5. Configure sudo (allow only deploy operations)
+# Add the following via visudo:
 # deploy-user ALL=(webapp-user) NOPASSWD: /usr/bin/systemctl restart webapp
 
-# 6. 監査ルールの設定
+# 6. Set audit rules
 sudo auditctl -w /opt/webapp/config -p wa -k webapp-config
 sudo auditctl -w /opt/webapp/app -p wa -k webapp-deploy
 ```
@@ -1667,43 +1673,43 @@ sudo auditctl -w /opt/webapp/app -p wa -k webapp-deploy
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when studying this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important. Understanding deepens not just through theory, but by actually writing code and observing how it works.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the basics and jumping to advanced topics. We recommend thoroughly understanding the fundamental concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in real-world practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## まとめ
-
-| 概念 | ポイント |
-|------|---------|
-| DAC | 所有者が権限設定。Unix標準。柔軟だがTrojan Horse攻撃に脆弱 |
-| MAC | 管理者が強制。SELinux, AppArmor。Bell-LaPadula, Bibaモデル |
-| RBAC | ロールベース。AWS IAM, K8s。大規模組織の標準 |
-| ABAC | 属性ベース。XACML。最も柔軟なモデル |
-| ReBAC | 関係ベース。Google Zanzibar。SNS、ファイル共有 |
-| ACL | 標準パーミッション以上の細かい制御。POSIX ACL |
-| Capabilities | root権限の細分化。最小権限の実現 |
-| LSM | SELinux/AppArmorのフレームワーク。カーネルレベルのMAC |
-| PAM | 認証のモジュール化。MFA、ロックアウト、パスワードポリシー |
-| 最小権限 | 必要最小限の権限のみ付与。全セキュリティの基本原則 |
-| 監査 | auditd, CloudTrail。コンプライアンス対応の要 |
+Knowledge of this topic is frequently applied in daily development work. It becomes particularly important during code reviews and architecture design.
 
 ---
 
-## 次に読むべきガイド
+## Summary
+
+| Concept | Key Points |
+|---------|-----------|
+| DAC | Owner sets permissions. Unix standard. Flexible but vulnerable to Trojan Horse attacks |
+| MAC | Enforced by admin. SELinux, AppArmor. Bell-LaPadula, Biba models |
+| RBAC | Role-based. AWS IAM, K8s. Standard for large organizations |
+| ABAC | Attribute-based. XACML. Most flexible model |
+| ReBAC | Relationship-based. Google Zanzibar. SNS, file sharing |
+| ACL | Fine-grained control beyond standard permissions. POSIX ACL |
+| Capabilities | Subdivision of root privileges. Enables least privilege |
+| LSM | Framework for SELinux/AppArmor. Kernel-level MAC |
+| PAM | Modular authentication. MFA, lockout, password policies |
+| Least Privilege | Grant only minimum necessary permissions. Fundamental security principle |
+| Auditing | auditd, CloudTrail. Essential for compliance |
 
 ---
 
-## 参考文献
+## Recommended Next Guides
+
+---
+
+## References
 1. Bishop, M. "Computer Security: Art and Science." 2nd Ed, Addison-Wesley, 2018.
 2. Saltzer, J. H. & Schroeder, M. D. "The Protection of Information in Computer Systems." Proceedings of the IEEE, 1975.
 3. Smalley, S. et al. "Implementing SELinux as a Linux Security Module." NAI Labs Report, 2001.

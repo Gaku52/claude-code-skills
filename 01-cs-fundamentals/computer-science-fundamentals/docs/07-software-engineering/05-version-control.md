@@ -1,114 +1,114 @@
-# バージョン管理
+# Version Control
 
-> Git を使いこなすことは現代のソフトウェアエンジニアにとって「読み書き」と同じレベルの基本スキルである。
+> Mastering Git is a fundamental skill for modern software engineers, on par with reading and writing.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] Gitの内部モデル（DAG）を理解する
-- [ ] ブランチ戦略を説明できる
-- [ ] 実務でのGitワークフローを知る
-- [ ] コミットメッセージの書き方を習得する
-- [ ] マージとリベースの使い分けを理解する
-- [ ] コンフリクト解決の手順を身につける
-- [ ] Git Hooksによる自動化を学ぶ
-- [ ] CI/CDとの連携パターンを理解する
-- [ ] 大規模リポジトリの運用ノウハウを知る
-- [ ] トラブルシューティングの実践的テクニックを習得する
+- [ ] Understand Git's internal model (DAG)
+- [ ] Be able to explain branching strategies
+- [ ] Learn practical Git workflows used in production
+- [ ] Master how to write commit messages
+- [ ] Understand the trade-offs between merge and rebase
+- [ ] Acquire conflict resolution procedures
+- [ ] Learn automation through Git Hooks
+- [ ] Understand CI/CD integration patterns
+- [ ] Learn best practices for managing large-scale repositories
+- [ ] Master practical troubleshooting techniques
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, having the following knowledge will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [システム設計入門](./04-system-design-basics.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Understanding of the content in [Introduction to System Design](./04-system-design-basics.md)
 
 ---
 
-## 1. Gitの内部モデル
+## 1. Git's Internal Model
 
-### 1.1 DAGとオブジェクトモデル
-
-```
-Git = 有向非巡回グラフ（DAG）+ コンテンツアドレスストレージ
-
-  コミット: スナップショット（ファイル全体のツリー）
-  ブランチ: コミットへのポインタ（ただの参照）
-  HEAD: 現在のブランチ/コミットへのポインタ
-
-  DAG構造:
-  C1 ← C2 ← C3 ← C4      main
-                 ↖
-                  C5 ← C6  feature
-
-  各コミットは親コミットのハッシュを保持
-  → 改ざん不可能な履歴チェーン（ブロックチェーンと同原理）
-
-  オブジェクトモデル:
-  - blob: ファイルの内容（SHA-1ハッシュ）
-  - tree: ディレクトリ（blobとtreeへの参照）
-  - commit: ツリー + 親コミット + メタデータ
-  - tag: コミットへの名前付き参照
-```
-
-### 1.2 オブジェクトモデルの詳細
+### 1.1 DAG and Object Model
 
 ```
-Gitの4つのオブジェクト型:
+Git = Directed Acyclic Graph (DAG) + Content-Addressable Storage
 
-  1. blob（Binary Large Object）
-     ┌──────────────────────────────────┐
-     │ blob 15\0Hello, World!\n         │
-     │ SHA-1: af5626b4a114abcb82d63db   │
-     └──────────────────────────────────┘
-     - ファイルの中身そのもの
-     - ファイル名を含まない（名前はtreeが管理）
-     - 同じ内容のファイルは1つのblobを共有
+  Commit: A snapshot (tree of the entire file set)
+  Branch: A pointer to a commit (just a reference)
+  HEAD: A pointer to the current branch/commit
 
-  2. tree（ディレクトリに相当）
-     ┌──────────────────────────────────────────────┐
-     │ tree                                          │
-     │ 100644 blob a1b2c3... README.md               │
-     │ 100644 blob d4e5f6... main.py                 │
-     │ 040000 tree 7a8b9c... src/                    │
-     └──────────────────────────────────────────────┘
-     - ファイル名とモード（パーミッション）を保持
-     - 子のblobやtreeへの参照
+  DAG Structure:
+  C1 <- C2 <- C3 <- C4      main
+                 \
+                  C5 <- C6  feature
+
+  Each commit holds the hash of its parent commit
+  -> Tamper-proof history chain (same principle as blockchain)
+
+  Object Model:
+  - blob: File contents (SHA-1 hash)
+  - tree: Directory (references to blobs and trees)
+  - commit: Tree + parent commit + metadata
+  - tag: Named reference to a commit
+```
+
+### 1.2 Object Model in Detail
+
+```
+Git's Four Object Types:
+
+  1. blob (Binary Large Object)
+     +----------------------------------+
+     | blob 15\0Hello, World!\n         |
+     | SHA-1: af5626b4a114abcb82d63db   |
+     +----------------------------------+
+     - The raw contents of a file
+     - Does not include the file name (names are managed by trees)
+     - Files with identical contents share a single blob
+
+  2. tree (corresponds to a directory)
+     +----------------------------------------------+
+     | tree                                          |
+     | 100644 blob a1b2c3... README.md               |
+     | 100644 blob d4e5f6... main.py                 |
+     | 040000 tree 7a8b9c... src/                    |
+     +----------------------------------------------+
+     - Holds file names and modes (permissions)
+     - References to child blobs and trees
 
   3. commit
-     ┌──────────────────────────────────────────────┐
-     │ commit                                        │
-     │ tree    d8329fc...                             │
-     │ parent  a0b1c2d...                             │
-     │ author  Alice <alice@example.com> 1234567890   │
-     │ committer Alice <alice@example.com> 1234567890 │
-     │                                                │
-     │ Add user authentication feature                │
-     └──────────────────────────────────────────────┘
-     - ルートtreeへの参照
-     - 親コミットへの参照（マージコミットは2つ以上）
-     - 作者とコミッター（別人の場合がある）
-     - コミットメッセージ
+     +----------------------------------------------+
+     | commit                                        |
+     | tree    d8329fc...                             |
+     | parent  a0b1c2d...                             |
+     | author  Alice <alice@example.com> 1234567890   |
+     | committer Alice <alice@example.com> 1234567890 |
+     |                                                |
+     | Add user authentication feature                |
+     +----------------------------------------------+
+     - Reference to the root tree
+     - Reference to parent commit(s) (merge commits have two or more)
+     - Author and committer (may be different people)
+     - Commit message
 
-  4. tag（annotated tag）
-     ┌──────────────────────────────────────────────┐
-     │ tag                                           │
-     │ object  e3f4a5b...                            │
-     │ type    commit                                │
-     │ tag     v1.0.0                                │
-     │ tagger  Alice <alice@example.com> 1234567890  │
-     │                                               │
-     │ Release version 1.0.0                         │
-     └──────────────────────────────────────────────┘
+  4. tag (annotated tag)
+     +----------------------------------------------+
+     | tag                                           |
+     | object  e3f4a5b...                            |
+     | type    commit                                |
+     | tag     v1.0.0                                |
+     | tagger  Alice <alice@example.com> 1234567890  |
+     |                                               |
+     | Release version 1.0.0                         |
+     +----------------------------------------------+
 ```
 
 ```bash
-# オブジェクトモデルを実際に確認するコマンド
-git cat-file -t HEAD        # オブジェクトの型を表示
+# Commands to inspect the object model
+git cat-file -t HEAD        # Display the object type
 # commit
 
-git cat-file -p HEAD        # オブジェクトの中身を表示
+git cat-file -p HEAD        # Display the object contents
 # tree d8329fc...
 # parent a0b1c2d...
 # author Alice <alice@example.com> 1704067200 +0900
@@ -116,755 +116,754 @@ git cat-file -p HEAD        # オブジェクトの中身を表示
 #
 # Add user authentication feature
 
-git cat-file -p HEAD^{tree}  # ルートtreeの中身
+git cat-file -p HEAD^{tree}  # Contents of the root tree
 # 100644 blob af5626b... README.md
 # 040000 tree 7a8b9c0... src
 
-git cat-file -p af5626b      # blobの中身
-# （ファイルの内容が表示される）
+git cat-file -p af5626b      # Contents of a blob
+# (file contents are displayed)
 
-# オブジェクトの格納場所
+# Storage location of objects
 ls .git/objects/
 # af/  7a/  d8/  ...
-# 最初の2文字がディレクトリ名、残りがファイル名
+# First 2 characters are the directory name, the rest is the file name
 ```
 
-### 1.3 参照（References）の仕組み
+### 1.3 How References Work
 
 ```
-参照の種類:
+Types of References:
 
-  1. ブランチ参照
-     .git/refs/heads/main          → コミットハッシュ
-     .git/refs/heads/feature/login → コミットハッシュ
+  1. Branch References
+     .git/refs/heads/main          -> commit hash
+     .git/refs/heads/feature/login -> commit hash
 
-  2. リモート追跡参照
-     .git/refs/remotes/origin/main → コミットハッシュ
+  2. Remote Tracking References
+     .git/refs/remotes/origin/main -> commit hash
 
-  3. タグ参照
-     .git/refs/tags/v1.0.0         → タグオブジェクトのハッシュ
+  3. Tag References
+     .git/refs/tags/v1.0.0         -> tag object hash
 
-  4. HEAD参照
-     .git/HEAD → ref: refs/heads/main（通常）
-     .git/HEAD → a0b1c2d...（detached HEAD）
+  4. HEAD Reference
+     .git/HEAD -> ref: refs/heads/main (normal)
+     .git/HEAD -> a0b1c2d... (detached HEAD)
 
-  5. 特殊参照
-     ORIG_HEAD → merge/rebase/reset前のHEAD
-     MERGE_HEAD → マージ中の相手コミット
-     FETCH_HEAD → 最後のfetchの結果
+  5. Special References
+     ORIG_HEAD  -> HEAD before merge/rebase/reset
+     MERGE_HEAD -> The other commit during a merge
+     FETCH_HEAD -> Result of the last fetch
 
-  参照の相対指定:
-  HEAD~1     → HEADの1つ前の親（= HEAD~）
-  HEAD~2     → HEADの2つ前の親
-  HEAD^1     → HEADの最初の親（通常コミットではHEAD~と同じ）
-  HEAD^2     → HEADの2番目の親（マージコミットの場合のみ意味がある）
+  Relative Reference Notation:
+  HEAD~1     -> 1st parent of HEAD (= HEAD~)
+  HEAD~2     -> 2nd ancestor of HEAD
+  HEAD^1     -> First parent of HEAD (same as HEAD~ for regular commits)
+  HEAD^2     -> Second parent of HEAD (only meaningful for merge commits)
 
-  図で理解する:
-  C1 ← C2 ← C3 ← M（マージコミット、親はC3とC5）
-                 ↖
-                  C4 ← C5
+  Visual Explanation:
+  C1 <- C2 <- C3 <- M (merge commit, parents are C3 and C5)
+                 \
+                  C4 <- C5
 
-  M~1 = C3     （最初の親を辿る）
-  M~2 = C2     （最初の親をさらに辿る）
-  M^1 = C3     （最初の親）
-  M^2 = C5     （2番目の親 = マージ元ブランチ）
+  M~1 = C3     (follow first parent)
+  M~2 = C2     (follow first parent again)
+  M^1 = C3     (first parent)
+  M^2 = C5     (second parent = source branch of merge)
 ```
 
-### 1.4 ステージングエリア（インデックス）
+### 1.4 Staging Area (Index)
 
 ```
-Gitの3つの状態:
+Git's Three States:
 
   Working Directory    Staging Area (Index)    Repository
-  ┌──────────────┐    ┌──────────────────┐    ┌──────────────┐
-  │ 編集中のファイル │    │ コミット予定の変更 │    │ 確定した履歴  │
-  │              │    │                  │    │              │
-  │ file.py      │───→│ file.py          │───→│ commit abc   │
-  │ (modified)   │add │ (staged)         │commit│              │
-  └──────────────┘    └──────────────────┘    └──────────────┘
-        ↑                                          │
-        └──────────────────────────────────────────┘
+  +----------------+  +--------------------+  +----------------+
+  | Edited files   |  | Changes to commit  |  | Committed      |
+  |                |  |                    |  | history        |
+  | file.py        |->| file.py            |->| commit abc     |
+  | (modified)     |add| (staged)          |commit|             |
+  +----------------+  +--------------------+  +----------------+
+        ^                                          |
+        +------------------------------------------+
                         checkout / restore
 
-  なぜステージングエリアがあるのか:
-  1. コミットの粒度を制御できる
-     - 1つのファイルの一部だけをコミット可能（git add -p）
-     - 複数の変更を論理的なコミットに分割
+  Why does the staging area exist:
+  1. Granular control over commits
+     - You can commit only parts of a file (git add -p)
+     - Split multiple changes into logical commits
 
-  2. コミット前のレビューができる
-     - git diff --staged で確定予定の変更を確認
-     - 誤った変更を含まないことを保証
+  2. Review before committing
+     - Verify planned changes with git diff --staged
+     - Ensure no unintended changes are included
 
-  3. マージコンフリクト解決の作業スペース
-     - コンフリクトをステージングで解決してからコミット
+  3. Workspace for merge conflict resolution
+     - Resolve conflicts in staging, then commit
 ```
 
 ```bash
-# ステージングの実践的な使い方
+# Practical staging usage
 
-# ファイル全体をステージング
+# Stage an entire file
 git add file.py
 
-# ハンク（変更の塊）単位で対話的にステージング
+# Interactively stage by hunk (chunk of changes)
 git add -p file.py
-# y: このハンクをステージング
-# n: このハンクをスキップ
-# s: ハンクをさらに分割
-# e: ハンクを手動編集
+# y: stage this hunk
+# n: skip this hunk
+# s: split the hunk further
+# e: manually edit the hunk
 
-# ステージング内容の確認
-git diff --staged     # ステージングされた変更
-git diff              # ステージングされていない変更
-git diff HEAD         # 全ての変更（ステージング + 未ステージング）
+# Verify staging contents
+git diff --staged     # Staged changes
+git diff              # Unstaged changes
+git diff HEAD         # All changes (staged + unstaged)
 
-# ステージングの取り消し
-git restore --staged file.py  # ファイルをアンステージ（変更は保持）
-git restore file.py           # ファイルの変更自体を取り消し（注意!）
+# Undo staging
+git restore --staged file.py  # Unstage a file (changes are preserved)
+git restore file.py           # Discard file changes (caution!)
 ```
 
 ---
 
-## 2. ブランチ戦略
+## 2. Branching Strategies
 
-### 2.1 主要なブランチ戦略
-
-```
-主要なブランチ戦略:
-
-  1. GitHub Flow（シンプル）:
-     main ──●──●──●──●──●──●──
-                ↖     ↗
-     feature    ●──●──●
-
-     → mainは常にデプロイ可能
-     → featureブランチからPRを作成
-     → マージ後にデプロイ
-
-  2. Git Flow（厳格）:
-     main    ──●────────────●──
-     develop ──●──●──●──●──●──
-                ↖  ↗     ↖  ↗
-     feature    ●──●      ●──●
-     release              ●──●──●
-
-     → 開発用(develop), 安定版(main), リリース用(release)
-     → 大規模プロジェクト向け
-
-  3. Trunk-Based Development（モダン）:
-     main ──●──●──●──●──●──●──●──
-               ↖↗  ↖↗
-     short     ●    ●    ← 短命ブランチ（1日以内）
-
-     → mainに頻繁にマージ（1日数回）
-     → フィーチャーフラグで未完成機能を隠蔽
-     → Google, Facebook が採用
-```
-
-### 2.2 各戦略の詳細比較
+### 2.1 Major Branching Strategies
 
 ```
-ブランチ戦略の比較表:
+Major Branching Strategies:
 
-  ┌──────────────────────────────────────────────────────────┐
-  │ 特性           │ GitHub Flow │ Git Flow   │ Trunk-Based │
-  ├──────────────────────────────────────────────────────────┤
-  │ ブランチ数      │ 少ない      │ 多い       │ 最小限      │
-  │ 複雑さ         │ 低い        │ 高い       │ 低い        │
-  │ リリース頻度    │ 高い        │ 低い       │ 最も高い    │
-  │ CI/CD適性      │ 高い        │ 中程度     │ 最も高い    │
-  │ チームサイズ    │ 小〜中      │ 大         │ 小〜大      │
-  │ 学習コスト      │ 低い        │ 高い       │ 低い        │
-  │ コンフリクト    │ 中程度      │ 多い       │ 少ない      │
-  │ ロールバック    │ 容易        │ 容易       │ フラグ切替  │
-  │ 適用環境       │ Web/SaaS   │ パッケージ  │ Web/SaaS   │
-  │ 代表的採用企業  │ GitHub     │ 大企業     │ Google     │
-  └──────────────────────────────────────────────────────────┘
+  1. GitHub Flow (Simple):
+     main --*--*--*--*--*--*--
+                \     /
+     feature    *--*--*
 
-  選択の指針:
-  - Webアプリ・SaaS → GitHub Flow or Trunk-Based
-  - モバイルアプリ（定期リリース）→ Git Flow
-  - CI/CDを完全に構築済み → Trunk-Based
-  - チームがGitに不慣れ → GitHub Flow（最もシンプル）
-  - 複数バージョンの同時サポート → Git Flow
+     -> main is always deployable
+     -> Create PRs from feature branches
+     -> Deploy after merging
+
+  2. Git Flow (Strict):
+     main    --*------------*--
+     develop --*--*--*--*--*--
+                \  /     \  /
+     feature    *--*      *--*
+     release              *--*--*
+
+     -> Separate branches for development (develop), stable (main), and release
+     -> Suited for large-scale projects
+
+  3. Trunk-Based Development (Modern):
+     main --*--*--*--*--*--*--*--
+               \/  \/
+     short     *    *    <- Short-lived branches (within 1 day)
+
+     -> Merge to main frequently (multiple times per day)
+     -> Feature flags hide incomplete features
+     -> Adopted by Google, Facebook
 ```
 
-### 2.3 GitHub Flow の実践
+### 2.2 Detailed Comparison of Each Strategy
+
+```
+Branching Strategy Comparison Table:
+
+  +----------------------------------------------------------+
+  | Attribute       | GitHub Flow | Git Flow   | Trunk-Based  |
+  +----------------------------------------------------------+
+  | Branch count    | Few         | Many       | Minimal      |
+  | Complexity      | Low         | High       | Low          |
+  | Release freq.   | High        | Low        | Highest      |
+  | CI/CD fit       | High        | Moderate   | Highest      |
+  | Team size       | Small-Med   | Large      | Small-Large  |
+  | Learning cost   | Low         | High       | Low          |
+  | Conflicts       | Moderate    | Many       | Few          |
+  | Rollback        | Easy        | Easy       | Flag toggle  |
+  | Target env.     | Web/SaaS   | Packages   | Web/SaaS     |
+  | Notable adopter | GitHub     | Enterprise | Google       |
+  +----------------------------------------------------------+
+
+  Selection Guidelines:
+  - Web apps / SaaS -> GitHub Flow or Trunk-Based
+  - Mobile apps (periodic releases) -> Git Flow
+  - Fully established CI/CD -> Trunk-Based
+  - Team unfamiliar with Git -> GitHub Flow (simplest)
+  - Supporting multiple versions simultaneously -> Git Flow
+```
+
+### 2.3 GitHub Flow in Practice
 
 ```bash
-# --- GitHub Flow のワークフロー ---
+# --- GitHub Flow Workflow ---
 
-# 1. mainブランチから新しいブランチを作成
+# 1. Create a new branch from main
 git switch main
 git pull origin main
 git switch -c feature/add-user-auth
 
-# 2. 開発とコミット
-# ... コードを編集 ...
+# 2. Develop and commit
+# ... edit code ...
 git add src/auth.py tests/test_auth.py
-git commit -m "feat: ログイン認証機能を実装"
+git commit -m "feat: implement login authentication"
 
 git add src/middleware.py
-git commit -m "feat: 認証ミドルウェアを追加"
+git commit -m "feat: add authentication middleware"
 
 git add tests/test_middleware.py
-git commit -m "test: 認証ミドルウェアのテストを追加"
+git commit -m "test: add tests for authentication middleware"
 
-# 3. リモートにプッシュ
+# 3. Push to remote
 git push -u origin feature/add-user-auth
 
-# 4. Pull Request を作成
-gh pr create --title "feat: ユーザー認証機能を追加" --body "
-## 概要
-ログイン認証とミドルウェアを実装しました。
+# 4. Create a Pull Request
+gh pr create --title "feat: add user authentication" --body "
+## Overview
+Implemented login authentication and middleware.
 
-## 変更内容
-- JWT ベースの認証
-- 認証ミドルウェア
-- テスト
+## Changes
+- JWT-based authentication
+- Authentication middleware
+- Tests
 
-## テスト方法
+## How to Test
 \`\`\`bash
 pytest tests/test_auth.py tests/test_middleware.py
 \`\`\`
 "
 
-# 5. レビュー後にマージ
-# （GitHub UI または CLI で実行）
+# 5. Merge after review
+# (via GitHub UI or CLI)
 gh pr merge --squash
 
-# 6. ローカルの片付け
+# 6. Clean up local branches
 git switch main
 git pull origin main
 git branch -d feature/add-user-auth
 ```
 
-### 2.4 Trunk-Based Development の実践
+### 2.4 Trunk-Based Development in Practice
 
 ```bash
-# --- Trunk-Based Development のワークフロー ---
+# --- Trunk-Based Development Workflow ---
 
-# 1. 短命ブランチを作成（1日以内にマージ予定）
+# 1. Create a short-lived branch (to be merged within 1 day)
 git switch main
 git pull origin main
 git switch -c short-lived/add-button
 
-# 2. 小さな変更をコミット
+# 2. Make small commits
 git add src/components/Button.tsx
-git commit -m "feat: 新しいボタンコンポーネントを追加（フラグ付き）"
+git commit -m "feat: add new button component (behind flag)"
 
-# 3. フィーチャーフラグで未完成機能を隠蔽
+# 3. Hide incomplete features with feature flags
 # config/features.py
 # FEATURE_FLAGS = {
-#     "new_button": False,  # 本番ではオフ
+#     "new_button": False,  # Off in production
 # }
 
-# 4. すぐにマージ
+# 4. Merge promptly
 git push -u origin short-lived/add-button
-gh pr create --title "feat: ボタンコンポーネント追加" --body "フラグ: new_button"
+gh pr create --title "feat: add button component" --body "Flag: new_button"
 gh pr merge --squash
 
-# 5. mainを最新にして次の作業へ
+# 5. Update main and move to next task
 git switch main
 git pull origin main
 
-# フィーチャーフラグの段階的ロールアウト:
-# 1. 開発環境: フラグON → テスト
-# 2. ステージング: フラグON → QA
-# 3. 本番: カナリアリリース（1%のユーザーにON）
-# 4. 段階的にONの割合を増加（10% → 50% → 100%）
-# 5. 全ユーザーにON → フラグのコードを削除
+# Gradual feature flag rollout:
+# 1. Dev environment: flag ON -> test
+# 2. Staging: flag ON -> QA
+# 3. Production: canary release (ON for 1% of users)
+# 4. Gradually increase ON percentage (10% -> 50% -> 100%)
+# 5. ON for all users -> remove flag code
 ```
 
 ---
 
-## 3. コミットメッセージ
+## 3. Commit Messages
 
 ### 3.1 Conventional Commits
 
 ```
-Conventional Commits 仕様:
+Conventional Commits Specification:
 
-  フォーマット:
+  Format:
   <type>(<scope>): <description>
 
   <body>
 
   <footer>
 
-  type の種類:
-  ┌──────────────────────────────────────────────────┐
-  │ type     │ 説明                    │ 例           │
-  ├──────────────────────────────────────────────────┤
-  │ feat     │ 新機能                  │ ログイン追加  │
-  │ fix      │ バグ修正                │ NPE修正      │
-  │ docs     │ ドキュメント            │ README更新   │
-  │ style    │ コードスタイル          │ フォーマット   │
-  │ refactor │ リファクタリング        │ 関数分割      │
-  │ perf     │ パフォーマンス改善      │ クエリ最適化   │
-  │ test     │ テスト                  │ テスト追加    │
-  │ build    │ ビルドシステム          │ webpack設定   │
-  │ ci       │ CI設定                  │ GitHub Actions│
-  │ chore    │ その他の雑務            │ 依存関係更新   │
-  │ revert   │ コミットの取り消し      │ 前回の変更戻し │
-  └──────────────────────────────────────────────────┘
+  Type Values:
+  +--------------------------------------------------+
+  | type     | Description             | Example      |
+  +--------------------------------------------------+
+  | feat     | New feature             | Add login    |
+  | fix      | Bug fix                 | Fix NPE      |
+  | docs     | Documentation           | Update README|
+  | style    | Code style              | Formatting   |
+  | refactor | Refactoring             | Split function|
+  | perf     | Performance improvement | Optimize query|
+  | test     | Tests                   | Add tests    |
+  | build    | Build system            | webpack config|
+  | ci       | CI configuration        | GitHub Actions|
+  | chore    | Miscellaneous tasks     | Update deps  |
+  | revert   | Revert a commit         | Revert change|
+  +--------------------------------------------------+
 
-  scope（任意）: 変更の影響範囲
-  → auth, api, ui, db, config 等
+  scope (optional): Area affected by the change
+  -> auth, api, ui, db, config, etc.
 
-  BREAKING CHANGE の明示:
-  → type の後に ! を付ける: feat!: ...
-  → フッターに BREAKING CHANGE: ... を記載
+  Indicating BREAKING CHANGE:
+  -> Append ! after type: feat!: ...
+  -> Add BREAKING CHANGE: ... in the footer
 ```
 
-### 3.2 良いコミットメッセージの書き方
+### 3.2 Writing Good Commit Messages
 
 ```bash
-# --- 良いコミットメッセージの例 ---
+# --- Examples of Good Commit Messages ---
 
-# ✅ 短い1行のメッセージ（シンプルな変更向け）
-git commit -m "fix: ユーザー登録時のメールバリデーションエラーを修正"
+# Good: Short one-line message (for simple changes)
+git commit -m "fix: correct email validation error during user registration"
 
-# ✅ 本文付きのメッセージ（複雑な変更向け）
+# Good: Message with body (for complex changes)
 git commit -m "$(cat <<'EOF'
-feat(auth): JWT ベースの認証機能を実装
+feat(auth): implement JWT-based authentication
 
-パスワード認証に加え、JWTトークンによる認証を追加した。
-トークンの有効期限は24時間で、リフレッシュトークンによる
-自動更新をサポートする。
+Added JWT token authentication in addition to password authentication.
+Token expiration is 24 hours, with automatic renewal via refresh tokens.
 
-- アクセストークンの発行と検証
-- リフレッシュトークンによるローテーション
-- トークン無効化のためのブラックリスト
+- Access token issuance and verification
+- Refresh token rotation
+- Token blacklist for invalidation
 
 Closes #123
 EOF
 )"
 
-# --- 悪いコミットメッセージの例 ---
-# ❌ 何をしたか分からない
+# --- Examples of Bad Commit Messages ---
+# Bad: Unclear what was done
 git commit -m "fix"
 git commit -m "update"
-git commit -m "作業中"
+git commit -m "WIP"
 git commit -m "WIP"
 git commit -m "misc changes"
 
-# ❌ 大きすぎるコミット
-git commit -m "認証機能追加、バグ修正、UIリファクタリング、テスト追加"
-# → 複数のコミットに分割すべき
+# Bad: Commit too large
+git commit -m "add auth, fix bugs, refactor UI, add tests"
+# -> Should be split into multiple commits
 
-# ❌ 実装詳細だけで意図が分からない
-git commit -m "if文を追加"
-git commit -m "変数名をxからuserIdに変更"
+# Bad: Only implementation details, no intent
+git commit -m "add if statement"
+git commit -m "rename variable x to userId"
 ```
 
-### 3.3 コミットの粒度
+### 3.3 Commit Granularity
 
 ```
-適切なコミット粒度:
+Appropriate Commit Granularity:
 
-  原則: 1コミット = 1つの論理的な変更
+  Principle: 1 commit = 1 logical change
 
-  良い粒度の例:
-  1. "feat: ユーザー登録APIを実装"
-  2. "test: ユーザー登録APIのテストを追加"
-  3. "fix: メールアドレスのバリデーションを修正"
-  4. "refactor: UserServiceをリポジトリパターンに変更"
+  Good Granularity Examples:
+  1. "feat: implement user registration API"
+  2. "test: add tests for user registration API"
+  3. "fix: correct email address validation"
+  4. "refactor: convert UserService to repository pattern"
 
-  悪い粒度の例:
-  ❌ 粒度が細かすぎる:
-  1. "関数のシグネチャを定義"
-  2. "関数の本体を実装"
-  3. "テストを1つ追加"
-  4. "テストをもう1つ追加"
+  Bad Granularity Examples:
+  Too Fine-Grained:
+  1. "define function signature"
+  2. "implement function body"
+  3. "add one test"
+  4. "add another test"
 
-  ❌ 粒度が粗すぎる:
-  1. "ユーザー管理機能一式を実装（認証、CRUD、API、テスト、ドキュメント）"
+  Too Coarse-Grained:
+  1. "implement entire user management (auth, CRUD, API, tests, docs)"
 
-  コミットの分割テクニック:
+  Techniques for Splitting Commits:
 
-  1. 変更を分けてステージング
-     git add -p            # ハンク単位で選択
-     git add src/auth.py   # ファイル単位で選択
+  1. Stage changes selectively
+     git add -p            # Select by hunk
+     git add src/auth.py   # Select by file
 
-  2. 作業後に分割
-     git reset HEAD~1      # 最後のコミットを取り消し（変更は保持）
-     git add -p            # 改めてハンク単位でコミット
+  2. Split after working
+     git reset HEAD~1      # Undo last commit (changes preserved)
+     git add -p            # Re-stage by hunk and commit
 
-  3. fixup/squash で整理
-     git commit --fixup HEAD~2   # 2つ前のコミットの修正として
-     git rebase -i HEAD~5        # 対話的リベースで整理
-     # fixup を pick の後に配置して統合
+  3. Clean up with fixup/squash
+     git commit --fixup HEAD~2   # Mark as fix for 2 commits ago
+     git rebase -i HEAD~5        # Interactive rebase to reorganize
+     # Place fixup after the corresponding pick to consolidate
 ```
 
 ---
 
-## 4. マージとリベース
+## 4. Merge and Rebase
 
-### 4.1 マージの種類
+### 4.1 Types of Merges
 
 ```
-マージの3つの方法:
+Three Ways to Merge:
 
-  1. Fast-Forward マージ
+  1. Fast-Forward Merge
      Before:
-     main    A ← B ← C
-     feature           ↖ D ← E
+     main    A <- B <- C
+     feature           \ D <- E
 
      After (git merge feature):
-     main    A ← B ← C ← D ← E
+     main    A <- B <- C <- D <- E
 
-     → mainが遅れている場合に自動的に適用
-     → マージコミットが作られない
-     → 履歴が直線的
+     -> Applied automatically when main is behind
+     -> No merge commit is created
+     -> Linear history
 
-  2. 3-Way マージ（通常のマージ）
+  2. 3-Way Merge (Standard Merge)
      Before:
-     main    A ← B ← C ← F
-     feature           ↖ D ← E
+     main    A <- B <- C <- F
+     feature           \ D <- E
 
      After (git merge feature):
-     main    A ← B ← C ← F ← M
-                       ↖ D ← E ↗
-     → M がマージコミット（2つの親を持つ）
-     → 分岐の履歴が残る
+     main    A <- B <- C <- F <- M
+                       \ D <- E /
+     -> M is a merge commit (has two parents)
+     -> Branch history is preserved
 
-  3. Squash マージ
+  3. Squash Merge
      Before:
-     main    A ← B ← C
-     feature           ↖ D ← E ← F
+     main    A <- B <- C
+     feature           \ D <- E <- F
 
      After (git merge --squash feature && git commit):
-     main    A ← B ← C ← S
-     → S は D+E+F を1つにまとめたコミット
-     → 機能ブランチの細かい履歴を残さない
-     → PRのマージでよく使われる
+     main    A <- B <- C <- S
+     -> S combines D+E+F into a single commit
+     -> Does not preserve the fine-grained history of the feature branch
+     -> Commonly used for PR merges
 ```
 
-### 4.2 リベースの仕組み
+### 4.2 How Rebase Works
 
 ```
-リベース:
+Rebase:
 
   Before:
-  main    A ← B ← C ← D
-  feature       ↖ E ← F ← G
+  main    A <- B <- C <- D
+  feature       \ E <- F <- G
 
   git switch feature
   git rebase main
 
   After:
-  main    A ← B ← C ← D
-  feature                ↖ E' ← F' ← G'
+  main    A <- B <- C <- D
+  feature                \ E' <- F' <- G'
 
-  → E, F, G を D の後に「貼り直す」
-  → E', F', G' は新しいコミット（ハッシュが変わる）
-  → 履歴が直線的になる
+  -> "Replays" E, F, G after D
+  -> E', F', G' are new commits (hashes change)
+  -> History becomes linear
 
-  リベースの利点:
-  - 履歴がきれい（分岐がない直線）
-  - git log が読みやすい
-  - bisect がやりやすい
+  Advantages of Rebase:
+  - Clean history (linear, no branches)
+  - Easier to read git log
+  - Easier to use bisect
 
-  リベースの注意点:
-  - 公開済みのコミットをリベースしない!
-    （他の人が参照しているコミットが消える）
-  - プッシュ済みブランチのリベース後は force push が必要
+  Rebase Caveats:
+  - Never rebase published commits!
+    (Other people's references to those commits will break)
+  - Force push is required after rebasing a pushed branch
     git push --force-with-lease origin feature
-    （--force-with-lease は安全な force push）
+    (--force-with-lease is a safer force push)
 ```
 
-### 4.3 マージ vs リベースの使い分け
+### 4.3 When to Use Merge vs Rebase
 
 ```
-マージとリベースの使い分け:
+Choosing Between Merge and Rebase:
 
-  マージを使う場合:
-  - mainブランチへの統合
-  - 共有ブランチの統合
-  - 履歴を正確に残したい場合
-  - マージの記録（いつ、何を統合したか）を残したい場合
+  Use Merge When:
+  - Integrating into the main branch
+  - Combining shared branches
+  - You want to preserve history accurately
+  - You want to record merges (when and what was integrated)
 
-  リベースを使う場合:
-  - 個人のfeatureブランチをmainの最新に追従させる
-  - コミット履歴をきれいに整理したい場合
-  - PRマージ前のブランチ整理
+  Use Rebase When:
+  - Keeping a personal feature branch up to date with main
+  - Cleaning up commit history
+  - Tidying up a branch before PR merge
 
-  推奨ワークフロー:
-  1. feature ブランチで開発
-  2. main の変更を取り込む: git rebase main
-  3. PR をレビュー
-  4. main にマージ: squash merge（GitHub UI）
+  Recommended Workflow:
+  1. Develop on a feature branch
+  2. Incorporate main changes: git rebase main
+  3. Review the PR
+  4. Merge into main: squash merge (GitHub UI)
 
-  ゴールデンルール:
-  「公開済みの履歴をリベースしない」
-  → 自分だけのブランチ: リベースOK
-  → 共有ブランチ: マージを使う
+  Golden Rule:
+  "Never rebase published history"
+  -> Your own branch: rebase OK
+  -> Shared branch: use merge
 ```
 
-### 4.4 対話的リベース
+### 4.4 Interactive Rebase
 
 ```bash
-# --- 対話的リベース（コミット履歴の整理） ---
+# --- Interactive Rebase (cleaning up commit history) ---
 
-# 最新5コミットを整理
+# Reorganize the latest 5 commits
 git rebase -i HEAD~5
 
-# エディタが開く:
-# pick a1b2c3d feat: ユーザーモデルを追加
-# pick d4e5f6g feat: ユーザーAPIを実装
-# pick 7a8b9c0 fix: typo修正
-# pick 1d2e3f4 feat: バリデーション追加
-# pick 5a6b7c8 fix: バリデーションのバグ修正
+# Editor opens:
+# pick a1b2c3d feat: add user model
+# pick d4e5f6g feat: implement user API
+# pick 7a8b9c0 fix: typo fix
+# pick 1d2e3f4 feat: add validation
+# pick 5a6b7c8 fix: fix validation bug
 
-# 以下のように編集:
-# pick a1b2c3d feat: ユーザーモデルを追加
-# pick d4e5f6g feat: ユーザーAPIを実装
-# fixup 7a8b9c0 fix: typo修正                 ← 上のコミットに統合
-# pick 1d2e3f4 feat: バリデーション追加
-# fixup 5a6b7c8 fix: バリデーションのバグ修正   ← 上のコミットに統合
+# Edit as follows:
+# pick a1b2c3d feat: add user model
+# pick d4e5f6g feat: implement user API
+# fixup 7a8b9c0 fix: typo fix                 <- merge into above commit
+# pick 1d2e3f4 feat: add validation
+# fixup 5a6b7c8 fix: fix validation bug       <- merge into above commit
 
-# リベースコマンド:
-# pick   = そのまま使う
-# reword = コミットメッセージを変更
-# edit   = コミットの内容を編集
-# squash = 上のコミットに統合（メッセージも統合）
-# fixup  = 上のコミットに統合（メッセージは捨てる）
-# drop   = コミットを削除
+# Rebase commands:
+# pick   = use as is
+# reword = change commit message
+# edit   = edit commit contents
+# squash = merge into above commit (combine messages)
+# fixup  = merge into above commit (discard message)
+# drop   = delete commit
 
-# コミットの順序を入れ替えることも可能（行を移動するだけ）
+# You can also reorder commits (just move lines around)
 ```
 
 ---
 
-## 5. コンフリクト解決
+## 5. Conflict Resolution
 
-### 5.1 コンフリクトの発生原因
+### 5.1 Causes of Conflicts
 
 ```
-コンフリクトが発生するケース:
+Cases Where Conflicts Occur:
 
-  1. 同じ行の変更
-     main:    line = "Hello"  → line = "Hello, World!"
-     feature: line = "Hello"  → line = "Hi there!"
+  1. Changes to the same line
+     main:    line = "Hello"  -> line = "Hello, World!"
+     feature: line = "Hello"  -> line = "Hi there!"
 
-  2. 隣接行の変更（場合による）
-     一方がその行を削除し、他方が編集
+  2. Changes to adjacent lines (in some cases)
+     One side deletes the line, the other edits it
 
-  3. ファイルの削除と変更
-     main:    file.py を削除
-     feature: file.py を編集
+  3. File deletion and modification
+     main:    file.py deleted
+     feature: file.py edited
 
-  4. ファイルのリネーム
-     main:    old.py → new.py
-     feature: old.py を編集
+  4. File rename
+     main:    old.py -> new.py
+     feature: old.py edited
 
-  コンフリクトが発生しないケース:
-  - 異なるファイルの変更
-  - 同じファイルの異なる部分の変更
-  - 一方がファイルを追加（既存ファイルと衝突しない）
+  Cases Where Conflicts Do NOT Occur:
+  - Changes to different files
+  - Changes to different parts of the same file
+  - One side adds a file (no conflict with existing files)
 ```
 
-### 5.2 コンフリクト解決の手順
+### 5.2 Conflict Resolution Procedure
 
 ```bash
-# --- コンフリクト解決の手順 ---
+# --- Conflict Resolution Procedure ---
 
-# 1. マージ（またはリベース）を実行
+# 1. Execute merge (or rebase)
 git merge feature
 # Auto-merging src/user.py
 # CONFLICT (content): Merge conflict in src/user.py
 # Automatic merge failed; fix conflicts and then commit the result.
 
-# 2. コンフリクトの状態を確認
+# 2. Check the conflict status
 git status
 # Unmerged paths:
 #   both modified:   src/user.py
 
-# 3. コンフリクトマーカーを確認
-# ファイル内のコンフリクト表示:
+# 3. Inspect conflict markers
+# Conflict markers in the file:
 # <<<<<<< HEAD
 # name = "Hello, World!"
 # =======
 # name = "Hi there!"
 # >>>>>>> feature
 
-# 4. 手動で解決
-# マーカーを削除し、正しい内容に編集:
+# 4. Resolve manually
+# Remove markers and edit to the correct content:
 # name = "Hello, World!"
 
-# 5. 解決をステージング
+# 5. Stage the resolution
 git add src/user.py
 
-# 6. マージコミットを作成
-git commit  # マージの場合はメッセージが自動生成される
+# 6. Create the merge commit
+git commit  # Message is auto-generated for merges
 
-# --- リベース中のコンフリクト解決 ---
+# --- Conflict Resolution During Rebase ---
 git rebase main
 # CONFLICT in src/user.py
 
-# 解決後:
+# After resolving:
 git add src/user.py
-git rebase --continue  # 次のコミットの適用に進む
+git rebase --continue  # Proceed to apply the next commit
 
-# リベースを中断して元に戻す:
+# Abort the rebase and revert:
 git rebase --abort
 ```
 
-### 5.3 コンフリクトを減らす工夫
+### 5.3 Tips to Minimize Conflicts
 
 ```
-コンフリクトを最小限にする方法:
+How to Minimize Conflicts:
 
-  1. 小さいPR を心がける
-     - 変更ファイル数を少なく
-     - 変更行数を少なく（目安: 200-400行以下）
-     - PR のマージを早めに行う
+  1. Keep PRs small
+     - Fewer files changed
+     - Fewer lines changed (target: under 200-400 lines)
+     - Merge PRs promptly
 
-  2. main を頻繁に取り込む
+  2. Incorporate main frequently
      git switch feature
-     git rebase main  # 毎日実行
+     git rebase main  # Run daily
 
-  3. ファイル構造を適切に設計
-     - 1ファイルに多くのコードを詰め込まない
-     - 関心の分離を意識する
+  3. Design file structure appropriately
+     - Avoid cramming too much code into a single file
+     - Be mindful of separation of concerns
 
-  4. チーム内のコミュニケーション
-     - 同じファイルを編集する場合は事前に共有
-     - ペアプログラミングの活用
+  4. Team communication
+     - Share plans when editing the same file
+     - Leverage pair programming
 
-  5. フォーマッターの統一
-     - .editorconfig で設定を共有
-     - Prettier, Black 等を CI で強制
-     - 自動フォーマットによる無意味な差分を排除
+  5. Standardize formatters
+     - Share settings via .editorconfig
+     - Enforce Prettier, Black, etc. in CI
+     - Eliminate meaningless diffs from auto-formatting
 
-  6. ロックファイルのコンフリクト対策
-     # .gitattributes でマージ戦略を指定
+  6. Lock file conflict mitigation
+     # Specify merge strategy in .gitattributes
      package-lock.json merge=ours
      yarn.lock merge=ours
 ```
 
 ---
 
-## 6. 実務のGitコマンド
+## 6. Practical Git Commands
 
-### 6.1 日常コマンド
+### 6.1 Daily Commands
 
 ```bash
-# --- 基本操作 ---
-git status                  # 状態確認
-git add -p                  # 対話的にステージング
-git commit -m "msg"         # コミット
-git push origin branch      # プッシュ
-git pull --rebase           # プル（リベースマージ）
+# --- Basic Operations ---
+git status                  # Check status
+git add -p                  # Interactive staging
+git commit -m "msg"         # Commit
+git push origin branch      # Push
+git pull --rebase           # Pull (rebase merge)
 
-# --- ブランチ操作 ---
-git switch -c feature       # ブランチ作成+切替
-git switch main             # mainに切替
-git branch -d feature       # マージ済みブランチを削除
-git branch -D feature       # 未マージブランチを強制削除
+# --- Branch Operations ---
+git switch -c feature       # Create branch + switch
+git switch main             # Switch to main
+git branch -d feature       # Delete merged branch
+git branch -D feature       # Force-delete unmerged branch
 
-# --- 履歴の確認 ---
-git log --oneline --graph   # グラフ表示
-git log --oneline -20       # 直近20件
-git log --since="2024-01-01" --until="2024-01-31"  # 期間指定
-git log --author="Alice"    # 作者で絞り込み
-git log -p -- path/to/file  # ファイルの変更履歴を差分付きで
-git blame file.py           # 各行の最終変更者
+# --- Viewing History ---
+git log --oneline --graph   # Graph display
+git log --oneline -20       # Last 20 entries
+git log --since="2024-01-01" --until="2024-01-31"  # Date range
+git log --author="Alice"    # Filter by author
+git log -p -- path/to/file  # File change history with diffs
+git blame file.py           # Last author of each line
 
-# --- 差分の確認 ---
-git diff                    # ワーキングツリーの変更
-git diff --staged           # ステージングされた変更
-git diff main..feature      # ブランチ間の差分
-git diff HEAD~3..HEAD       # 直近3コミットの差分
-git diff --stat             # 変更の統計情報
+# --- Viewing Diffs ---
+git diff                    # Working tree changes
+git diff --staged           # Staged changes
+git diff main..feature      # Diff between branches
+git diff HEAD~3..HEAD       # Diff of last 3 commits
+git diff --stat             # Change statistics
 ```
 
-### 6.2 便利なコマンド
+### 6.2 Useful Commands
 
 ```bash
-# --- stash（一時退避）---
-git stash                   # 変更を退避
-git stash push -m "WIP: ログイン機能"  # メッセージ付き退避
-git stash list              # 退避リスト
-git stash pop               # 最新の退避を復元して削除
-git stash apply stash@{1}   # 特定の退避を復元（削除しない）
-git stash drop stash@{0}    # 特定の退避を削除
+# --- stash (temporary shelving) ---
+git stash                   # Shelve changes
+git stash push -m "WIP: login feature"  # Shelve with message
+git stash list              # List shelved items
+git stash pop               # Restore latest and remove
+git stash apply stash@{1}   # Restore specific item (keep it)
+git stash drop stash@{0}    # Delete specific item
 
-# --- cherry-pick（特定のコミットを適用）---
-git cherry-pick abc1234     # 特定のコミットを現在のブランチに適用
-git cherry-pick abc1234..def5678  # 範囲指定
-git cherry-pick --no-commit abc1234  # コミットせずに変更だけ適用
+# --- cherry-pick (apply a specific commit) ---
+git cherry-pick abc1234     # Apply a specific commit to current branch
+git cherry-pick abc1234..def5678  # Range specification
+git cherry-pick --no-commit abc1234  # Apply changes without committing
 
-# --- 特定のファイルを別ブランチから取得 ---
-git checkout main -- path/to/file.py  # mainのファイルを取得
-git restore --source main -- path/to/file.py  # 同上（新しい書式）
+# --- Retrieve a specific file from another branch ---
+git checkout main -- path/to/file.py  # Get file from main
+git restore --source main -- path/to/file.py  # Same (newer syntax)
 
-# --- コミットの修正 ---
-git commit --amend          # 直前のコミットを修正（メッセージ変更）
-git commit --amend --no-edit  # メッセージを変えずにファイルを追加
+# --- Amend commits ---
+git commit --amend          # Amend last commit (change message)
+git commit --amend --no-edit  # Add files without changing the message
 
-# --- タグ ---
-git tag v1.0.0              # 軽量タグ
-git tag -a v1.0.0 -m "Release 1.0.0"  # 注釈付きタグ
-git push origin v1.0.0      # タグをプッシュ
-git push origin --tags       # 全タグをプッシュ
+# --- Tags ---
+git tag v1.0.0              # Lightweight tag
+git tag -a v1.0.0 -m "Release 1.0.0"  # Annotated tag
+git push origin v1.0.0      # Push a tag
+git push origin --tags       # Push all tags
 ```
 
-### 6.3 トラブルシューティング
+### 6.3 Troubleshooting
 
 ```bash
-# --- reflog（HEADの移動履歴）---
+# --- reflog (HEAD movement history) ---
 git reflog
-# abc1234 HEAD@{0}: commit: feat: 新機能追加
+# abc1234 HEAD@{0}: commit: feat: add new feature
 # def5678 HEAD@{1}: rebase finished: ...
 # 7a8b9c0 HEAD@{2}: rebase: starting
 
-# reflog を使った復旧
-git reset --hard HEAD@{2}   # 2操作前の状態に戻る
+# Recovery using reflog
+git reset --hard HEAD@{2}   # Revert to the state 2 operations ago
 
-# --- bisect（バグ導入コミットの特定）---
+# --- bisect (find the commit that introduced a bug) ---
 git bisect start
-git bisect bad              # 現在のコミットはバグあり
-git bisect good v1.0.0      # v1.0.0にはバグなし
-# → Gitが中間のコミットをcheckout
-# テストして good/bad を判定
+git bisect bad              # Current commit has the bug
+git bisect good v1.0.0      # v1.0.0 does not have the bug
+# -> Git checks out a midpoint commit
+# Test and judge good/bad
 git bisect good  # or  git bisect bad
-# → 二分探索で絞り込み
-git bisect reset            # 完了、元のブランチに戻る
+# -> Binary search narrows it down
+git bisect reset            # Done, return to original branch
 
-# 自動化（テストスクリプトで）
+# Automation (with a test script)
 git bisect start HEAD v1.0.0
 git bisect run python -m pytest tests/test_bug.py
 
-# --- 間違ったコミットの取り消し ---
-# 方法1: revert（新しいコミットで取り消し）= 安全
+# --- Undo erroneous commits ---
+# Method 1: revert (undo with a new commit) = safe
 git revert abc1234
-git revert HEAD~3..HEAD     # 直近3コミットを取り消し
+git revert HEAD~3..HEAD     # Revert last 3 commits
 
-# 方法2: reset（履歴を巻き戻し）= 注意が必要
-git reset --soft HEAD~1     # コミットを取消（変更はステージに残る）
-git reset --mixed HEAD~1    # コミットを取消（変更はワーキングツリーに残る）
-git reset --hard HEAD~1     # コミットを取消（変更も全て削除!）
+# Method 2: reset (rewind history) = use with caution
+git reset --soft HEAD~1     # Undo commit (changes remain staged)
+git reset --mixed HEAD~1    # Undo commit (changes remain in working tree)
+git reset --hard HEAD~1     # Undo commit (all changes are deleted!)
 
-# --- 消してしまったブランチの復旧 ---
+# --- Recover a deleted branch ---
 git reflog | grep "feature/important"
 # abc1234 HEAD@{5}: checkout: moving from feature/important to main
-git branch feature/important abc1234  # ブランチを復活
+git branch feature/important abc1234  # Restore the branch
 
-# --- 大きなファイルの誤コミットの修正 ---
-# 履歴から完全に削除（注意: 履歴を書き換える）
+# --- Fix accidentally committed large files ---
+# Completely remove from history (caution: rewrites history)
 git filter-branch --force --tree-filter \
   'rm -f path/to/large-file.zip' HEAD
 
-# より新しいツール: git-filter-repo
+# Newer tool: git-filter-repo
 pip install git-filter-repo
 git filter-repo --path path/to/large-file.zip --invert-paths
 ```
 
-### 6.4 エイリアス設定
+### 6.4 Alias Configuration
 
 ```bash
-# --- 便利なGitエイリアス ---
+# --- Useful Git Aliases ---
 git config --global alias.st "status"
 git config --global alias.co "checkout"
 git config --global alias.sw "switch"
@@ -881,116 +880,116 @@ git config --global alias.tags "tag -l -n1"
 git config --global alias.stashes "stash list"
 git config --global alias.cleanup "!git branch --merged | grep -v '\\*\\|main\\|master\\|develop' | xargs -n 1 git branch -d"
 
-# 使用例
+# Usage examples
 git st           # git status
-git lg           # きれいなグラフ表示
-git undo         # 直前のコミットを取り消し
-git cleanup      # マージ済みブランチを一括削除
+git lg           # Pretty graph display
+git undo         # Undo last commit
+git cleanup      # Batch-delete merged branches
 ```
 
 ---
 
 ## 7. Git Hooks
 
-### 7.1 Git Hooks の種類
+### 7.1 Types of Git Hooks
 
 ```
-Git Hooksの種類:
+Types of Git Hooks:
 
-  クライアントサイドフック（ローカル）:
-  ┌──────────────────────────────────────────────────┐
-  │ フック名             │ タイミング                  │
-  ├──────────────────────────────────────────────────┤
-  │ pre-commit           │ コミット前                  │
-  │ prepare-commit-msg   │ コミットメッセージ編集前      │
-  │ commit-msg           │ コミットメッセージ確定後      │
-  │ post-commit          │ コミット後                  │
-  │ pre-push             │ プッシュ前                  │
-  │ pre-rebase           │ リベース前                  │
-  │ post-checkout        │ チェックアウト後             │
-  │ post-merge           │ マージ後                   │
-  └──────────────────────────────────────────────────┘
+  Client-Side Hooks (Local):
+  +--------------------------------------------------+
+  | Hook Name            | Timing                     |
+  +--------------------------------------------------+
+  | pre-commit           | Before commit              |
+  | prepare-commit-msg   | Before commit message edit |
+  | commit-msg           | After commit message final |
+  | post-commit          | After commit               |
+  | pre-push             | Before push                |
+  | pre-rebase           | Before rebase              |
+  | post-checkout        | After checkout             |
+  | post-merge           | After merge                |
+  +--------------------------------------------------+
 
-  サーバーサイドフック:
-  ┌──────────────────────────────────────────────────┐
-  │ フック名             │ タイミング                  │
-  ├──────────────────────────────────────────────────┤
-  │ pre-receive          │ プッシュ受信前               │
-  │ update               │ 各ブランチ更新前             │
-  │ post-receive         │ プッシュ受信後               │
-  └──────────────────────────────────────────────────┘
+  Server-Side Hooks:
+  +--------------------------------------------------+
+  | Hook Name            | Timing                     |
+  +--------------------------------------------------+
+  | pre-receive          | Before push is received    |
+  | update               | Before each branch update  |
+  | post-receive         | After push is received     |
+  +--------------------------------------------------+
 ```
 
-### 7.2 実用的な Git Hooks の例
+### 7.2 Practical Git Hook Examples
 
 ```bash
 #!/bin/bash
-# .git/hooks/pre-commit（または husky で管理）
+# .git/hooks/pre-commit (or managed via husky)
 
-# --- Lintチェック ---
+# --- Lint Check ---
 echo "Running lint..."
 npm run lint
 if [ $? -ne 0 ]; then
-    echo "❌ Lint errors found. Please fix before committing."
+    echo "Lint errors found. Please fix before committing."
     exit 1
 fi
 
-# --- テスト実行 ---
+# --- Run Tests ---
 echo "Running tests..."
 npm run test -- --bail
 if [ $? -ne 0 ]; then
-    echo "❌ Tests failed. Please fix before committing."
+    echo "Tests failed. Please fix before committing."
     exit 1
 fi
 
-# --- 機密情報の検出 ---
+# --- Detect Secrets ---
 echo "Checking for secrets..."
 PATTERNS="(password|secret|api_key|token)\s*=\s*['\"][^'\"]+['\"]"
 if git diff --cached --name-only | xargs grep -lE "$PATTERNS" 2>/dev/null; then
-    echo "❌ Potential secrets detected. Please review."
+    echo "Potential secrets detected. Please review."
     exit 1
 fi
 
-# --- 大きなファイルの検出 ---
+# --- Detect Large Files ---
 MAX_SIZE=5242880  # 5MB
 for file in $(git diff --cached --name-only); do
     if [ -f "$file" ]; then
         size=$(wc -c < "$file")
         if [ "$size" -gt "$MAX_SIZE" ]; then
-            echo "❌ File $file exceeds 5MB. Use Git LFS instead."
+            echo "File $file exceeds 5MB. Use Git LFS instead."
             exit 1
         fi
     fi
 done
 
-echo "✅ All checks passed."
+echo "All checks passed."
 exit 0
 ```
 
 ```bash
 #!/bin/bash
 # .git/hooks/commit-msg
-# Conventional Commits のフォーマットを強制
+# Enforce Conventional Commits format
 
 commit_msg=$(cat "$1")
 pattern="^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.+\))?(!)?: .{1,72}"
 
 if ! echo "$commit_msg" | head -1 | grep -qE "$pattern"; then
-    echo "❌ Invalid commit message format."
+    echo "Invalid commit message format."
     echo ""
     echo "Expected format: <type>(<scope>): <description>"
     echo "  type: feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert"
     echo "  scope: optional, e.g., (auth), (api)"
     echo "  description: max 72 characters"
     echo ""
-    echo "Example: feat(auth): ログイン認証を実装"
+    echo "Example: feat(auth): implement login authentication"
     exit 1
 fi
 
 exit 0
 ```
 
-### 7.3 husky + lint-staged による自動化
+### 7.3 Automation with husky + lint-staged
 
 ```json
 // package.json
@@ -1015,14 +1014,14 @@ exit 0
 ```
 
 ```bash
-# husky のセットアップ
+# husky setup
 npm install --save-dev husky lint-staged
 npx husky install
 
-# pre-commit フック
+# pre-commit hook
 npx husky add .husky/pre-commit "npx lint-staged"
 
-# commit-msg フック（Conventional Commits チェック）
+# commit-msg hook (Conventional Commits check)
 npm install --save-dev @commitlint/cli @commitlint/config-conventional
 npx husky add .husky/commit-msg 'npx commitlint --edit "$1"'
 ```
@@ -1045,9 +1044,9 @@ module.exports = {
 
 ---
 
-## 8. CI/CDとの連携
+## 8. CI/CD Integration
 
-### 8.1 GitHub Actions の基本
+### 8.1 GitHub Actions Basics
 
 ```yaml
 # .github/workflows/ci.yml
@@ -1117,10 +1116,10 @@ jobs:
           name: build
           path: dist/
       - run: echo "Deploying to production..."
-      # 実際のデプロイコマンド
+      # Actual deployment commands
 ```
 
-### 8.2 Pull Requestの自動化
+### 8.2 Pull Request Automation
 
 ```yaml
 # .github/workflows/pr-checks.yml
@@ -1131,7 +1130,7 @@ on:
     types: [opened, synchronize, reopened]
 
 jobs:
-  # PR のサイズチェック
+  # PR size check
   pr-size:
     runs-on: ubuntu-latest
     steps:
@@ -1146,7 +1145,7 @@ jobs:
             echo "::warning::PR is too large ($LINES_CHANGED lines). Consider splitting."
           fi
 
-  # 自動レビューアサイン
+  # Auto-assign reviewers
   auto-assign:
     runs-on: ubuntu-latest
     steps:
@@ -1154,7 +1153,7 @@ jobs:
         with:
           configuration-path: '.github/auto-assign.yml'
 
-  # ラベル自動付与
+  # Auto-labeling
   labeler:
     runs-on: ubuntu-latest
     steps:
@@ -1163,37 +1162,37 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-### 8.3 セマンティックバージョニングとリリース
+### 8.3 Semantic Versioning and Releases
 
 ```
-セマンティックバージョニング（SemVer）:
+Semantic Versioning (SemVer):
   MAJOR.MINOR.PATCH
 
-  MAJOR: 互換性のない変更
-  MINOR: 後方互換性のある新機能
-  PATCH: 後方互換性のあるバグ修正
+  MAJOR: Incompatible changes
+  MINOR: Backward-compatible new features
+  PATCH: Backward-compatible bug fixes
 
-  例:
-  1.0.0 → 1.0.1  パッチ（バグ修正）
-  1.0.0 → 1.1.0  マイナー（新機能追加）
-  1.0.0 → 2.0.0  メジャー（破壊的変更）
+  Examples:
+  1.0.0 -> 1.0.1  Patch (bug fix)
+  1.0.0 -> 1.1.0  Minor (new feature)
+  1.0.0 -> 2.0.0  Major (breaking change)
 
-  プレリリース:
+  Pre-release:
   2.0.0-alpha.1
   2.0.0-beta.1
-  2.0.0-rc.1（Release Candidate）
+  2.0.0-rc.1 (Release Candidate)
 
-  Conventional Commits との対応:
-  feat: → MINOR バージョンアップ
-  fix:  → PATCH バージョンアップ
-  feat!: または BREAKING CHANGE: → MAJOR バージョンアップ
+  Mapping to Conventional Commits:
+  feat: -> MINOR version bump
+  fix:  -> PATCH version bump
+  feat!: or BREAKING CHANGE: -> MAJOR version bump
 ```
 
 ```bash
-# semantic-release による自動リリース
-# Conventional Commits からバージョンを自動決定
+# Automated releases with semantic-release
+# Automatically determines version from Conventional Commits
 
-# インストール
+# Install
 npm install --save-dev semantic-release @semantic-release/git @semantic-release/changelog
 
 # .releaserc.json
@@ -1215,89 +1214,89 @@ npm install --save-dev semantic-release @semantic-release/git @semantic-release/
 
 ---
 
-## 9. 大規模リポジトリの運用
+## 9. Managing Large-Scale Repositories
 
-### 9.1 モノレポ vs マルチレポ
+### 9.1 Monorepo vs Multirepo
 
 ```
-モノレポ（Monorepo）:
-  1つのリポジトリに全プロジェクト
+Monorepo:
+  All projects in a single repository
 
-  ┌─────────────────────────────────────┐
-  │ monorepo/                           │
-  │ ├── packages/                       │
-  │ │   ├── web/        (フロントエンド)  │
-  │ │   ├── api/        (バックエンド)    │
-  │ │   ├── shared/     (共通ライブラリ)  │
-  │ │   └── mobile/     (モバイルアプリ)  │
-  │ ├── tools/                          │
-  │ ├── package.json                    │
-  │ └── turbo.json (or nx.json)         │
-  └─────────────────────────────────────┘
+  +-------------------------------------+
+  | monorepo/                           |
+  | +-- packages/                       |
+  | |   +-- web/        (frontend)      |
+  | |   +-- api/        (backend)       |
+  | |   +-- shared/     (shared libs)   |
+  | |   +-- mobile/     (mobile app)    |
+  | +-- tools/                          |
+  | +-- package.json                    |
+  | +-- turbo.json (or nx.json)         |
+  +-------------------------------------+
 
-  利点:
-  - コード共有が容易
-  - 原子的な変更（APIとフロントを同時に変更）
-  - 統一されたCI/CD
-  - 依存関係の一元管理
+  Advantages:
+  - Easy code sharing
+  - Atomic changes (modify API and frontend simultaneously)
+  - Unified CI/CD
+  - Centralized dependency management
 
-  欠点:
-  - リポジトリが巨大化
-  - ビルド時間の増加
-  - アクセス制御が難しい
-  - Git操作が遅くなる可能性
+  Disadvantages:
+  - Repository grows large
+  - Build time increases
+  - Access control is difficult
+  - Git operations may slow down
 
-  代表ツール: Turborepo, Nx, Lerna, Bazel
+  Representative Tools: Turborepo, Nx, Lerna, Bazel
 
-マルチレポ（Multirepo）:
-  プロジェクトごとに別リポジトリ
+Multirepo:
+  Separate repositories per project
 
-  利点:
-  - リポジトリが軽量
-  - 独立したCI/CD
-  - 細かいアクセス制御
-  - チームの自律性
+  Advantages:
+  - Lightweight repositories
+  - Independent CI/CD
+  - Fine-grained access control
+  - Team autonomy
 
-  欠点:
-  - コード共有が困難
-  - 横断的な変更が面倒
-  - 依存関係の管理が複雑
-  - バージョンの不整合
+  Disadvantages:
+  - Code sharing is difficult
+  - Cross-cutting changes are cumbersome
+  - Dependency management is complex
+  - Version inconsistencies
 ```
 
-### 9.2 大きなファイルの管理
+### 9.2 Managing Large Files
 
 ```bash
-# --- Git LFS（Large File Storage）---
+# --- Git LFS (Large File Storage) ---
 
-# インストール
+# Install
 git lfs install
 
-# 追跡するファイルパターンを指定
+# Specify file patterns to track
 git lfs track "*.psd"
 git lfs track "*.zip"
 git lfs track "*.mp4"
 git lfs track "assets/images/*.png"
 
-# .gitattributes が自動生成される
+# .gitattributes is auto-generated
 # *.psd filter=lfs diff=lfs merge=lfs -text
 # *.zip filter=lfs diff=lfs merge=lfs -text
 
-# 通常通りadd/commit/push
+# Use add/commit/push as usual
 git add .gitattributes
 git add large-file.psd
-git commit -m "feat: デザインファイルを追加"
+git commit -m "feat: add design file"
 git push origin main
 
-# LFS の状態確認
-git lfs ls-files     # LFS管理ファイル一覧
-git lfs status       # LFS の状態
+# Check LFS status
+git lfs ls-files     # List LFS-managed files
+git lfs status       # LFS status
 ```
 
-### 9.3 .gitignore のベストプラクティス
+### 9.3 .gitignore Best Practices
 
 ```bash
-# --- .gitignore の推奨設定 ---
+# --- Recommended .gitignore Settings ---
 
 # --- OS ---
 .DS_Store
@@ -1305,13 +1304,13 @@ Thumbs.db
 *.swp
 *~
 
-# --- エディタ/IDE ---
+# --- Editor/IDE ---
 .vscode/settings.json
 .idea/
 *.sublime-workspace
 *.code-workspace
 
-# --- 言語/フレームワーク ---
+# --- Language/Framework ---
 # Node.js
 node_modules/
 npm-debug.log*
@@ -1337,14 +1336,14 @@ target/
 # Go
 /vendor/
 
-# --- ビルド成果物 ---
+# --- Build Artifacts ---
 dist/
 build/
 out/
 .next/
 .nuxt/
 
-# --- 環境変数・機密情報 ---
+# --- Environment Variables / Secrets ---
 .env
 .env.local
 .env.production
@@ -1352,333 +1351,333 @@ out/
 *.key
 credentials.json
 
-# --- テスト/カバレッジ ---
+# --- Tests/Coverage ---
 coverage/
 .nyc_output/
 *.lcov
 htmlcov/
 
-# --- ログ ---
+# --- Logs ---
 *.log
 logs/
 
-# --- データベース ---
+# --- Databases ---
 *.sqlite3
 *.db
 
-# グローバル .gitignore（全リポジトリ共通）
+# Global .gitignore (shared across all repositories)
 git config --global core.excludesfile ~/.gitignore_global
 ```
 
 ---
 
-## 10. セキュリティ
+## 10. Security
 
-### 10.1 機密情報の管理
+### 10.1 Managing Sensitive Information
 
 ```
-Gitリポジトリでの機密情報管理:
+Managing Sensitive Information in Git Repositories:
 
-  絶対にコミットしてはいけないもの:
-  - パスワード、APIキー
-  - 秘密鍵（.pem, .key）
-  - .env ファイル（本番環境の値）
+  Items That Must NEVER Be Committed:
+  - Passwords, API keys
+  - Private keys (.pem, .key)
+  - .env files (production values)
   - credentials.json
-  - データベース接続文字列
+  - Database connection strings
 
-  対策:
-  1. .gitignore に追加
-  2. .env.example をコミット（値は空またはダミー）
-  3. git-secrets で事前検出
-  4. 万が一コミットした場合は即座にキーをローテーション
+  Countermeasures:
+  1. Add to .gitignore
+  2. Commit .env.example (with empty or dummy values)
+  3. Pre-detect with git-secrets
+  4. If accidentally committed, immediately rotate the keys
 
-  git-secrets のセットアップ:
+  Setting Up git-secrets:
 ```
 
 ```bash
-# git-secrets のインストールと設定
+# Installing and configuring git-secrets
 brew install git-secrets  # macOS
 
-# リポジトリに設定
+# Configure in a repository
 cd my-project
 git secrets --install
-git secrets --register-aws  # AWSキーパターンを登録
+git secrets --register-aws  # Register AWS key patterns
 
-# カスタムパターンの追加
+# Add custom patterns
 git secrets --add 'password\s*=\s*["\047][^"\047]+["\047]'
 git secrets --add 'PRIVATE[_-]?KEY'
 
-# コミット前に自動チェック（pre-commit hook に追加される）
-git secrets --scan         # リポジトリ全体をスキャン
-git secrets --scan-history # 全履歴をスキャン
+# Automatic checks before commit (added to pre-commit hook)
+git secrets --scan         # Scan entire repository
+git secrets --scan-history # Scan entire history
 ```
 
-### 10.2 GPG署名
+### 10.2 GPG Signing
 
 ```bash
-# --- コミット署名（GPG）---
+# --- Commit Signing (GPG) ---
 
-# GPGキーの生成
+# Generate GPG key
 gpg --full-generate-key
 
-# キーIDの確認
+# Check key ID
 gpg --list-secret-keys --keyid-format=long
 # sec   rsa4096/ABC1234567890DEF 2024-01-01 [SC]
 
-# Gitに設定
+# Configure in Git
 git config --global user.signingkey ABC1234567890DEF
-git config --global commit.gpgsign true  # 全コミットに署名
+git config --global commit.gpgsign true  # Sign all commits
 
-# 署名付きコミット
-git commit -S -m "feat: 署名付きコミット"
+# Signed commit
+git commit -S -m "feat: signed commit"
 
-# 署名の検証
+# Verify signatures
 git log --show-signature
 # gpg: Good signature from "Alice <alice@example.com>"
 
-# GitHubに公開鍵を登録
+# Register public key on GitHub
 gpg --armor --export ABC1234567890DEF
-# → GitHubの Settings → SSH and GPG keys に追加
+# -> Add to GitHub Settings -> SSH and GPG keys
 ```
 
 ---
 
-## 11. Gitの高度なテクニック
+## 11. Advanced Git Techniques
 
-### 11.1 worktree（複数作業ディレクトリ）
+### 11.1 worktree (Multiple Working Directories)
 
 ```bash
 # --- git worktree ---
-# 1つのリポジトリで複数のブランチを同時にチェックアウト
+# Check out multiple branches simultaneously from one repository
 
-# 新しいworktreeを作成
+# Create a new worktree
 git worktree add ../project-hotfix hotfix/critical-bug
 git worktree add ../project-review feature/new-ui
 
-# worktreeの一覧
+# List worktrees
 git worktree list
 # /path/to/project          abc1234 [main]
 # /path/to/project-hotfix   def5678 [hotfix/critical-bug]
 # /path/to/project-review   7a8b9c0 [feature/new-ui]
 
-# worktreeの削除
+# Remove a worktree
 git worktree remove ../project-hotfix
 
-# ユースケース:
-# - 長時間のビルドを別ディレクトリで実行しつつ開発を続ける
-# - コードレビュー用に別ブランチをチェックアウト
-# - 緊急のhotfixを本作業を中断せずに対応
+# Use cases:
+# - Continue development while running a long build in another directory
+# - Check out another branch for code review
+# - Handle an urgent hotfix without interrupting current work
 ```
 
-### 11.2 サブモジュール
+### 11.2 Submodules
 
 ```bash
 # --- git submodule ---
-# 外部リポジトリをサブディレクトリとして含める
+# Include an external repository as a subdirectory
 
-# サブモジュールの追加
+# Add a submodule
 git submodule add https://github.com/example/library.git libs/library
-git commit -m "feat: libraryをサブモジュールとして追加"
+git commit -m "feat: add library as submodule"
 
-# サブモジュール付きリポジトリのクローン
+# Clone a repository with submodules
 git clone --recurse-submodules https://github.com/example/project.git
-# または
+# Or
 git clone https://github.com/example/project.git
 cd project
 git submodule init
 git submodule update
 
-# サブモジュールの更新
-git submodule update --remote  # リモートの最新を取得
+# Update submodules
+git submodule update --remote  # Fetch latest from remote
 cd libs/library
-git checkout v2.0.0            # 特定のバージョンに固定
+git checkout v2.0.0            # Pin to a specific version
 cd ../..
 git add libs/library
-git commit -m "chore: libraryをv2.0.0に更新"
+git commit -m "chore: update library to v2.0.0"
 
-# サブモジュールの注意点:
-# - 複雑さが増す（クローン時に --recurse-submodules が必要）
-# - CIの設定が複雑になる
-# - 代替手段: npm/pip等のパッケージマネージャーを検討
+# Submodule caveats:
+# - Adds complexity (--recurse-submodules required for cloning)
+# - CI configuration becomes more complex
+# - Alternative: consider package managers like npm/pip
 ```
 
-### 11.3 パフォーマンス最適化
+### 11.3 Performance Optimization
 
 ```bash
-# --- 大規模リポジトリのパフォーマンス改善 ---
+# --- Performance Improvements for Large Repositories ---
 
-# シャロークローン（履歴を制限）
+# Shallow clone (limit history)
 git clone --depth 1 https://github.com/large/repo.git
 git clone --depth 100 https://github.com/large/repo.git
 git clone --shallow-since="2024-01-01" https://github.com/large/repo.git
 
-# 部分クローン（blobを遅延取得）
+# Partial clone (lazy fetch blobs)
 git clone --filter=blob:none https://github.com/large/repo.git
 
-# スパースチェックアウト（特定のディレクトリのみ）
+# Sparse checkout (specific directories only)
 git clone --no-checkout https://github.com/large/repo.git
 cd repo
 git sparse-checkout init --cone
 git sparse-checkout set packages/web packages/shared
 git checkout main
-# → packages/web と packages/shared のみがチェックアウトされる
+# -> Only packages/web and packages/shared are checked out
 
-# fsmonitor（ファイル監視デーモン）で高速化
+# Accelerate with fsmonitor (file monitoring daemon)
 git config core.fsmonitor true
 git config core.untrackedcache true
 
-# gc（ガベージコレクション）
-git gc --aggressive  # リポジトリの最適化
-git prune            # 不要オブジェクトの削除
+# gc (garbage collection)
+git gc --aggressive  # Optimize the repository
+git prune            # Remove unreachable objects
 
-# パフォーマンス確認
-git count-objects -vH  # オブジェクト数とサイズ
+# Performance inspection
+git count-objects -vH  # Object count and size
 ```
 
 ---
 
-## 12. チーム開発のベストプラクティス
+## 12. Team Development Best Practices
 
 ### 12.1 CODEOWNERS
 
 ```bash
 # --- .github/CODEOWNERS ---
-# ファイル/ディレクトリごとにレビューアを自動アサイン
+# Auto-assign reviewers per file/directory
 
-# デフォルトのオーナー
+# Default owner
 * @team-lead
 
-# フロントエンド
+# Frontend
 /src/components/ @frontend-team
 /src/pages/ @frontend-team
 *.tsx @frontend-team
 *.css @frontend-team
 
-# バックエンド
+# Backend
 /src/api/ @backend-team
 /src/models/ @backend-team
 /src/services/ @backend-team
 
-# インフラ
+# Infrastructure
 /terraform/ @infra-team
 /docker/ @infra-team
 /.github/workflows/ @infra-team
 Dockerfile @infra-team
 
-# ドキュメント
+# Documentation
 /docs/ @tech-writers
 *.md @tech-writers
 
-# セキュリティ関連
+# Security-related
 /src/auth/ @security-team
 /src/middleware/auth* @security-team
 ```
 
-### 12.2 Pull Request テンプレート
+### 12.2 Pull Request Template
 
 ```markdown
 <!-- .github/pull_request_template.md -->
 
-## 概要
-<!-- この PR で何を変更しましたか？ -->
+## Overview
+<!-- What did you change in this PR? -->
 
-## 変更の種類
-- [ ] 新機能（feat）
-- [ ] バグ修正（fix）
-- [ ] リファクタリング（refactor）
-- [ ] ドキュメント（docs）
-- [ ] テスト（test）
-- [ ] その他
+## Type of Change
+- [ ] New feature (feat)
+- [ ] Bug fix (fix)
+- [ ] Refactoring (refactor)
+- [ ] Documentation (docs)
+- [ ] Tests (test)
+- [ ] Other
 
-## 変更内容
-<!-- 変更の詳細を記載 -->
+## Changes
+<!-- Describe the changes in detail -->
 
-## テスト方法
-<!-- テスト手順を記載 -->
+## How to Test
+<!-- Describe the testing procedure -->
 
-## スクリーンショット
-<!-- UI変更がある場合はスクリーンショットを添付 -->
+## Screenshots
+<!-- Attach screenshots if there are UI changes -->
 
-## チェックリスト
-- [ ] テストを追加/更新した
-- [ ] ドキュメントを更新した
-- [ ] 破壊的変更はない
-- [ ] パフォーマンスへの影響を確認した
-- [ ] セキュリティへの影響を確認した
+## Checklist
+- [ ] Added/updated tests
+- [ ] Updated documentation
+- [ ] No breaking changes
+- [ ] Confirmed performance impact
+- [ ] Confirmed security impact
 
-## 関連Issue
+## Related Issue
 Closes #
 ```
 
-### 12.3 ブランチ保護ルール
+### 12.3 Branch Protection Rules
 
 ```
-推奨するブランチ保護設定（main ブランチ）:
+Recommended Branch Protection Settings (main branch):
 
-  ┌──────────────────────────────────────────────────┐
-  │ 設定項目                   │ 推奨値              │
-  ├──────────────────────────────────────────────────┤
-  │ Require pull request       │ ON                  │
-  │ Required reviewers         │ 1-2人               │
-  │ Dismiss stale reviews      │ ON                  │
-  │ Require status checks      │ ON                  │
-  │ Require branches up to date│ ON                  │
-  │ Require conversation       │ ON                  │
-  │ resolution                 │                     │
-  │ Require signed commits     │ 必要に応じて         │
-  │ Include administrators     │ ON                  │
-  │ Allow force pushes         │ OFF                 │
-  │ Allow deletions            │ OFF                 │
-  └──────────────────────────────────────────────────┘
+  +--------------------------------------------------+
+  | Setting                      | Recommended        |
+  +--------------------------------------------------+
+  | Require pull request         | ON                 |
+  | Required reviewers           | 1-2 people         |
+  | Dismiss stale reviews        | ON                 |
+  | Require status checks        | ON                 |
+  | Require branches up to date  | ON                 |
+  | Require conversation         | ON                 |
+  | resolution                   |                    |
+  | Require signed commits       | As needed          |
+  | Include administrators       | ON                 |
+  | Allow force pushes           | OFF                |
+  | Allow deletions              | OFF                |
+  +--------------------------------------------------+
 
-  必須のステータスチェック:
-  - CI（lint, test, build）
-  - セキュリティスキャン
-  - コードカバレッジ閾値
+  Required Status Checks:
+  - CI (lint, test, build)
+  - Security scan
+  - Code coverage threshold
 ```
 
 
 ---
 
-## 実践演習
+## Hands-On Exercises
 
-### 演習1: 基本的な実装
+### Exercise 1: Basic Implementation
 
-以下の要件を満たすコードを実装してください。
+Implement code that satisfies the following requirements.
 
-**要件:**
-- 入力データの検証を行うこと
-- エラーハンドリングを適切に実装すること
-- テストコードも作成すること
+**Requirements:**
+- Validate input data
+- Implement proper error handling
+- Also create test code
 
 ```python
-# 演習1: 基本実装のテンプレート
+# Exercise 1: Basic implementation template
 class Exercise1:
-    """基本的な実装パターンの演習"""
+    """Exercise for basic implementation patterns"""
 
     def __init__(self):
         self.data = []
 
     def validate_input(self, value):
-        """入力値の検証"""
+        """Validate the input value"""
         if value is None:
-            raise ValueError("入力値がNoneです")
+            raise ValueError("Input value is None")
         return True
 
     def process(self, value):
-        """データ処理のメインロジック"""
+        """Main logic for data processing"""
         self.validate_input(value)
         self.data.append(value)
         return self.data
 
     def get_results(self):
-        """処理結果の取得"""
+        """Retrieve processing results"""
         return {
             'count': len(self.data),
             'data': self.data
         }
 
-# テスト
+# Tests
 def test_exercise1():
     ex = Exercise1()
     assert ex.process(1) == [1]
@@ -1687,26 +1686,26 @@ def test_exercise1():
 
     try:
         ex.process(None)
-        assert False, "例外が発生するべき"
+        assert False, "An exception should have been raised"
     except ValueError:
         pass
 
-    print("全テスト合格!")
+    print("All tests passed!")
 
 test_exercise1()
 ```
 
-### 演習2: 応用パターン
+### Exercise 2: Advanced Patterns
 
-基本実装を拡張して、以下の機能を追加してください。
+Extend the basic implementation to add the following features.
 
 ```python
-# 演習2: 応用パターン
+# Exercise 2: Advanced patterns
 from typing import List, Dict, Optional
 from datetime import datetime
 
 class AdvancedExercise:
-    """応用パターンの演習"""
+    """Exercise for advanced patterns"""
 
     def __init__(self, max_size: int = 100):
         self._items: List[Dict] = []
@@ -1714,7 +1713,7 @@ class AdvancedExercise:
         self._created_at = datetime.now()
 
     def add(self, key: str, value: any) -> bool:
-        """アイテムの追加（サイズ制限付き）"""
+        """Add an item (with size limit)"""
         if len(self._items) >= self._max_size:
             return False
         self._items.append({
@@ -1725,14 +1724,14 @@ class AdvancedExercise:
         return True
 
     def find(self, key: str) -> Optional[Dict]:
-        """キーによる検索"""
+        """Search by key"""
         for item in reversed(self._items):
             if item['key'] == key:
                 return item
         return None
 
     def remove(self, key: str) -> bool:
-        """キーによる削除"""
+        """Delete by key"""
         for i, item in enumerate(self._items):
             if item['key'] == key:
                 self._items.pop(i)
@@ -1740,7 +1739,7 @@ class AdvancedExercise:
         return False
 
     def stats(self) -> Dict:
-        """統計情報"""
+        """Statistics"""
         return {
             'total_items': len(self._items),
             'max_size': self._max_size,
@@ -1748,44 +1747,44 @@ class AdvancedExercise:
             'uptime': str(datetime.now() - self._created_at)
         }
 
-# テスト
+# Tests
 def test_advanced():
     ex = AdvancedExercise(max_size=3)
     assert ex.add("a", 1) == True
     assert ex.add("b", 2) == True
     assert ex.add("c", 3) == True
-    assert ex.add("d", 4) == False  # サイズ制限
+    assert ex.add("d", 4) == False  # Size limit
     assert ex.find("b")['value'] == 2
     assert ex.remove("b") == True
     assert ex.find("b") is None
     stats = ex.stats()
     assert stats['total_items'] == 2
-    print("応用テスト全合格!")
+    print("All advanced tests passed!")
 
 test_advanced()
 ```
 
-### 演習3: パフォーマンス最適化
+### Exercise 3: Performance Optimization
 
-以下のコードのパフォーマンスを改善してください。
+Improve the performance of the following code.
 
 ```python
-# 演習3: パフォーマンス最適化
+# Exercise 3: Performance optimization
 import time
 from functools import lru_cache
 
-# 最適化前（O(n^2)）
+# Before optimization (O(n^2))
 def slow_search(data: list, target: int) -> int:
-    """非効率な検索"""
+    """Inefficient search"""
     for i in range(len(data)):
         for j in range(i + 1, len(data)):
             if data[i] + data[j] == target:
                 return (i, j)
     return (-1, -1)
 
-# 最適化後（O(n)）
+# After optimization (O(n))
 def fast_search(data: list, target: int) -> tuple:
-    """ハッシュマップを使った効率的な検索"""
+    """Efficient search using a hash map"""
     seen = {}
     for i, num in enumerate(data):
         complement = target - num
@@ -1794,7 +1793,7 @@ def fast_search(data: list, target: int) -> tuple:
         seen[num] = i
     return (-1, -1)
 
-# ベンチマーク
+# Benchmark
 def benchmark():
     import random
     data = list(range(5000))
@@ -1809,47 +1808,47 @@ def benchmark():
     result2 = fast_search(data, target)
     fast_time = time.time() - start
 
-    print(f"非効率版: {slow_time:.4f}秒")
-    print(f"効率版:   {fast_time:.6f}秒")
-    print(f"高速化率: {slow_time/fast_time:.0f}倍")
+    print(f"Slow version: {slow_time:.4f} sec")
+    print(f"Fast version: {fast_time:.6f} sec")
+    print(f"Speedup: {slow_time/fast_time:.0f}x")
 
 benchmark()
 ```
 
-**ポイント:**
-- アルゴリズムの計算量を意識する
-- 適切なデータ構造を選択する
-- ベンチマークで効果を測定する
+**Key Points:**
+- Be aware of algorithmic time complexity
+- Choose appropriate data structures
+- Measure the effect with benchmarks
 
 ---
 
-## トラブルシューティング
+## Troubleshooting
 
-### よくあるエラーと解決策
+### Common Errors and Solutions
 
-| エラー | 原因 | 解決策 |
-|--------|------|--------|
-| 初期化エラー | 設定ファイルの不備 | 設定ファイルのパスと形式を確認 |
-| タイムアウト | ネットワーク遅延/リソース不足 | タイムアウト値の調整、リトライ処理の追加 |
-| メモリ不足 | データ量の増大 | バッチ処理の導入、ページネーションの実装 |
-| 権限エラー | アクセス権限の不足 | 実行ユーザーの権限確認、設定の見直し |
-| データ不整合 | 並行処理の競合 | ロック機構の導入、トランザクション管理 |
+| Error | Cause | Solution |
+|-------|-------|---------|
+| Initialization error | Incorrect configuration file | Verify configuration file path and format |
+| Timeout | Network latency / insufficient resources | Adjust timeout values, add retry logic |
+| Out of memory | Increasing data volume | Introduce batch processing, implement pagination |
+| Permission error | Insufficient access rights | Verify execution user permissions, review settings |
+| Data inconsistency | Concurrent processing conflicts | Introduce locking mechanisms, transaction management |
 
-### デバッグの手順
+### Debugging Procedure
 
-1. **エラーメッセージの確認**: スタックトレースを読み、発生箇所を特定する
-2. **再現手順の確立**: 最小限のコードでエラーを再現する
-3. **仮説の立案**: 考えられる原因をリストアップする
-4. **段階的な検証**: ログ出力やデバッガを使って仮説を検証する
-5. **修正と回帰テスト**: 修正後、関連する箇所のテストも実行する
+1. **Check the error message**: Read the stack trace and identify the location of the error
+2. **Establish reproduction steps**: Reproduce the error with minimal code
+3. **Formulate hypotheses**: List possible causes
+4. **Incremental verification**: Verify hypotheses using log output or a debugger
+5. **Fix and regression test**: After fixing, also run tests on related areas
 
 ```python
-# デバッグ用ユーティリティ
+# Debugging utility
 import logging
 import traceback
 from functools import wraps
 
-# ロガーの設定
+# Logger configuration
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
@@ -1857,84 +1856,84 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def debug_decorator(func):
-    """関数の入出力をログ出力するデコレータ"""
+    """Decorator that logs function input/output"""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        logger.debug(f"呼び出し: {func.__name__}(args={args}, kwargs={kwargs})")
+        logger.debug(f"Call: {func.__name__}(args={args}, kwargs={kwargs})")
         try:
             result = func(*args, **kwargs)
-            logger.debug(f"戻り値: {func.__name__} -> {result}")
+            logger.debug(f"Return: {func.__name__} -> {result}")
             return result
         except Exception as e:
-            logger.error(f"例外発生: {func.__name__}: {e}")
+            logger.error(f"Exception: {func.__name__}: {e}")
             logger.error(traceback.format_exc())
             raise
     return wrapper
 
 @debug_decorator
 def process_data(items):
-    """データ処理（デバッグ対象）"""
+    """Data processing (debug target)"""
     if not items:
-        raise ValueError("空のデータ")
+        raise ValueError("Empty data")
     return [item * 2 for item in items]
 ```
 
-### パフォーマンス問題の診断
+### Diagnosing Performance Issues
 
-パフォーマンス問題が発生した場合の診断手順:
+Steps for diagnosing performance issues:
 
-1. **ボトルネックの特定**: プロファイリングツールで計測
-2. **メモリ使用量の確認**: メモリリークの有無をチェック
-3. **I/O待ちの確認**: ディスクやネットワークI/Oの状況を確認
-4. **同時接続数の確認**: コネクションプールの状態を確認
+1. **Identify the bottleneck**: Measure with profiling tools
+2. **Check memory usage**: Check for memory leaks
+3. **Check I/O wait**: Check disk and network I/O conditions
+4. **Check concurrent connections**: Check connection pool status
 
-| 問題の種類 | 診断ツール | 対策 |
-|-----------|-----------|------|
-| CPU負荷 | cProfile, py-spy | アルゴリズム改善、並列化 |
-| メモリリーク | tracemalloc, objgraph | 参照の適切な解放 |
-| I/Oボトルネック | strace, iostat | 非同期I/O、キャッシュ |
-| DB遅延 | EXPLAIN, slow query log | インデックス、クエリ最適化 |
+| Problem Type | Diagnostic Tools | Countermeasures |
+|-------------|-----------------|-----------------|
+| CPU load | cProfile, py-spy | Algorithm improvement, parallelization |
+| Memory leak | tracemalloc, objgraph | Proper release of references |
+| I/O bottleneck | strace, iostat | Async I/O, caching |
+| DB latency | EXPLAIN, slow query log | Indexing, query optimization |
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is paramount. Understanding deepens not just through theory, but by actually writing code and verifying how things work.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the basics and jumping ahead to advanced topics. We recommend thoroughly understanding the fundamental concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in professional practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## まとめ
-
-| 概念 | ポイント |
-|------|---------|
-| Gitの内部 | DAG + コンテンツアドレス。改ざん不可能 |
-| ブランチ | ただのポインタ。軽量に作成・削除 |
-| 戦略 | GitHub Flow(シンプル), Trunk-Based(モダン) |
-| コミット | Conventional Commits、1コミット1論理変更 |
-| マージ vs リベース | 共有ブランチはマージ、個人ブランチはリベース |
-| コンフリクト | 小さいPR + 頻繁なリベースで最小化 |
-| Hooks | pre-commit でリント・テスト・機密情報チェック |
-| CI/CD | GitHub Actions で自動化 |
-| セキュリティ | 機密情報は .gitignore + git-secrets |
-| 必須スキル | rebase, stash, bisect, reflog |
+Knowledge of this topic is frequently applied in daily development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## 次に読むべきガイド
+## Summary
+
+| Concept | Key Point |
+|---------|-----------|
+| Git Internals | DAG + content-addressable. Tamper-proof |
+| Branches | Just pointers. Lightweight to create/delete |
+| Strategy | GitHub Flow (simple), Trunk-Based (modern) |
+| Commits | Conventional Commits, 1 commit = 1 logical change |
+| Merge vs Rebase | Shared branches: merge, personal branches: rebase |
+| Conflicts | Minimize with small PRs + frequent rebases |
+| Hooks | pre-commit for lint, test, and secret detection |
+| CI/CD | Automate with GitHub Actions |
+| Security | Secrets go in .gitignore + git-secrets |
+| Essential Skills | rebase, stash, bisect, reflog |
 
 ---
 
-## 参考文献
+## Recommended Next Guides
+
+---
+
+## References
 1. Chacon, S. & Straub, B. "Pro Git." 2nd Edition, Apress, 2014.
 2. Driessen, V. "A Successful Git Branching Model." 2010.
 3. Conventional Commits Specification. https://www.conventionalcommits.org/

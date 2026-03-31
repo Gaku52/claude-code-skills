@@ -1,321 +1,338 @@
-# 仮想マシンの基礎
+# Virtual Machine Fundamentals
 
-> 仮想化は「1台の物理マシン上で複数の独立した仮想マシンを実行する」技術であり、クラウドコンピューティングの基盤。
+> Virtualization is a technology that "runs multiple independent virtual machines on a single physical machine," forming the foundation of cloud computing.
 
-## この章で学ぶこと
+## Learning Objectives
 
-- [ ] 仮想化の種類を区別できる
-- [ ] ハイパーバイザの仕組みを理解する
-- [ ] 主要な仮想化技術を知る
-- [ ] CPU仮想化・メモリ仮想化・I/O仮想化の仕組みを理解する
-- [ ] KVM/QEMU の構成と運用を実践できる
-- [ ] ライブマイグレーションの仕組みを理解する
-- [ ] 仮想化のパフォーマンスチューニングができる
-- [ ] ネステッド仮想化とその活用を知る
+- [ ] Distinguish between types of virtualization
+- [ ] Understand how hypervisors work
+- [ ] Know the major virtualization technologies
+- [ ] Understand the mechanisms of CPU virtualization, memory virtualization, and I/O virtualization
+- [ ] Practice KVM/QEMU configuration and operations
+- [ ] Understand how live migration works
+- [ ] Perform virtualization performance tuning
+- [ ] Know about nested virtualization and its applications
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, having the following knowledge will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
+- Basic programming knowledge
+- Understanding of related foundational concepts
 
 ---
 
-## 1. 仮想化の歴史と概要
+## 1. History and Overview of Virtualization
 
-### 1.1 仮想化の歴史
+### 1.1 History of Virtualization
 
 ```
-仮想化の歴史:
+History of Virtualization:
 
-  1960年代:
+  1960s:
   ┌──────────────────────────────────────────────────┐
   │ IBM System/360 Model 67 (1966):                   │
-  │ → 世界初の仮想マシンモニター                     │
-  │ → CP-40 / CP-67: VMM の原型                     │
-  │ → 1台のメインフレームで複数のOSを同時実行       │
+  │ → World's first virtual machine monitor           │
+  │ → CP-40 / CP-67: Prototype of the VMM            │
+  │ → Run multiple OSes simultaneously on one         │
+  │   mainframe                                        │
   │                                                    │
   │ IBM VM/370 (1972):                                │
-  │ → 商用の仮想化プラットフォーム                   │
-  │ → 各ユーザーに独立した仮想マシンを提供           │
-  │ → CMS（Conversational Monitor System）を実行     │
+  │ → Commercial virtualization platform              │
+  │ → Provided independent virtual machines to        │
+  │   each user                                        │
+  │ → Ran CMS (Conversational Monitor System)         │
   └──────────────────────────────────────────────────┘
 
-  1990年代〜2000年代:
+  1990s-2000s:
   ┌──────────────────────────────────────────────────┐
-  │ VMware（1999）:                                   │
-  │ → x86アーキテクチャでの仮想化を商用化            │
-  │ → バイナリ変換で特権命令を処理                   │
+  │ VMware (1999):                                    │
+  │ → Commercialized virtualization on x86            │
+  │ → Handled privileged instructions via binary      │
+  │   translation                                      │
   │ → VMware Workstation, ESX Server                  │
   │                                                    │
-  │ Xen（2003）:                                      │
-  │ → ケンブリッジ大学で開発                         │
-  │ → 準仮想化による高性能                           │
-  │ → Amazon EC2 の初期基盤                          │
+  │ Xen (2003):                                       │
+  │ → Developed at the University of Cambridge        │
+  │ → High performance via paravirtualization         │
+  │ → Early foundation of Amazon EC2                  │
   │                                                    │
-  │ Intel VT-x / AMD-V（2005-2006）:                  │
-  │ → ハードウェア支援仮想化                         │
-  │ → CPU に仮想化専用命令を追加                     │
-  │ → 完全仮想化でも高性能を実現                     │
+  │ Intel VT-x / AMD-V (2005-2006):                   │
+  │ → Hardware-assisted virtualization                │
+  │ → Added virtualization-specific instructions      │
+  │   to the CPU                                       │
+  │ → Achieved high performance even with full        │
+  │   virtualization                                   │
   └──────────────────────────────────────────────────┘
 
-  2007年〜現在:
+  2007 to Present:
   ┌──────────────────────────────────────────────────┐
-  │ KVM（2007, Linux 2.6.20）:                        │
-  │ → Linux カーネルモジュールとして実装              │
-  │ → Linux 自体をハイパーバイザに変える             │
-  │ → クラウドの標準的な仮想化基盤に成長             │
+  │ KVM (2007, Linux 2.6.20):                         │
+  │ → Implemented as a Linux kernel module            │
+  │ → Turns Linux itself into a hypervisor            │
+  │ → Grew to be the standard virtualization          │
+  │   platform for the cloud                           │
   │                                                    │
-  │ クラウド時代（2006〜）:                           │
-  │ → AWS EC2（2006）: Xen → Nitro (KVM)            │
+  │ Cloud Era (2006-):                                │
+  │ → AWS EC2 (2006): Xen → Nitro (KVM)             │
   │ → Google Compute Engine: KVM                      │
   │ → Azure: Hyper-V                                  │
-  │ → 仮想化がクラウドコンピューティングの基盤に     │
+  │ → Virtualization became the foundation of cloud   │
+  │   computing                                        │
   │                                                    │
-  │ 軽量仮想化（2018〜）:                             │
-  │ → Firecracker: マイクロVM                        │
-  │ → Cloud Hypervisor: Rust製軽量VMM               │
-  │ → QEMU の代替として高セキュリティ・低オーバーヘッド │
+  │ Lightweight Virtualization (2018-):               │
+  │ → Firecracker: microVM                            │
+  │ → Cloud Hypervisor: Rust-based lightweight VMM   │
+  │ → High security, low overhead as QEMU alternatives│
   └──────────────────────────────────────────────────┘
 ```
 
-### 1.2 Popek & Goldberg の仮想化要件
+### 1.2 Popek & Goldberg Virtualization Requirements
 
 ```
-仮想化の理論的基盤（1974年）:
-  Popek & Goldberg が定義した仮想マシンモニター（VMM）の3要件:
+Theoretical Foundation of Virtualization (1974):
+  Three requirements for a Virtual Machine Monitor (VMM) defined by
+  Popek & Goldberg:
 
-  1. 等価性（Equivalence / Fidelity）:
-     VMM上で実行されるプログラムは、実機と同じ動作をする
-     → 一部の例外: タイミング、リソースの可用性
+  1. Equivalence / Fidelity:
+     Programs running on the VMM behave the same as on bare metal
+     → With some exceptions: timing, resource availability
 
-  2. 効率性（Efficiency）:
-     ゲストの命令の大部分はハードウェア上で直接実行される
-     → エミュレーションではなく、直接実行
+  2. Efficiency:
+     Most guest instructions execute directly on hardware
+     → Direct execution, not emulation
 
-  3. リソース制御（Resource Control / Safety）:
-     VMMはすべてのハードウェアリソースを完全に制御する
-     → ゲストがVMMをバイパスしてリソースにアクセスできない
+  3. Resource Control / Safety:
+     The VMM has complete control over all hardware resources
+     → Guests cannot bypass the VMM to access resources
 
-  x86の仮想化困難性:
+  Difficulty of x86 Virtualization:
   ┌──────────────────────────────────────────────────┐
-  │ 問題: x86 には「センシティブだが特権的でない命令」│
-  │ が存在した                                        │
+  │ Problem: x86 had "sensitive but non-privileged"  │
+  │ instructions                                      │
   │                                                    │
-  │ 特権命令: Ring 0 以外で実行すると例外が発生      │
-  │ → VMM がトラップして処理可能                     │
+  │ Privileged instructions: Cause exceptions when    │
+  │ executed outside Ring 0                            │
+  │ → VMM can trap and handle them                    │
   │                                                    │
-  │ センシティブ命令: システム状態に影響するが        │
-  │ 特権レベルに関係なく実行可能                      │
-  │ → VMM がトラップできない!                        │
+  │ Sensitive instructions: Affect system state but   │
+  │ execute regardless of privilege level              │
+  │ → VMM cannot trap them!                           │
   │                                                    │
-  │ 問題のある命令の例:                                │
-  │ - SGDT/SIDT: ディスクリプタテーブルの読み取り    │
-  │ - SMSW: マシンステータスワードの読み取り         │
-  │ - PUSHF/POPF: フラグレジスタの操作               │
+  │ Examples of problematic instructions:              │
+  │ - SGDT/SIDT: Read descriptor table                │
+  │ - SMSW: Read machine status word                  │
+  │ - PUSHF/POPF: Manipulate flags register           │
   │                                                    │
-  │ 解決策:                                            │
-  │ 1. バイナリ変換（VMware）                         │
-  │ 2. 準仮想化（Xen）                                │
-  │ 3. ハードウェア支援（VT-x/AMD-V）← 根本解決    │
+  │ Solutions:                                         │
+  │ 1. Binary translation (VMware)                    │
+  │ 2. Paravirtualization (Xen)                       │
+  │ 3. Hardware-assisted (VT-x/AMD-V) ← Fundamental  │
+  │    solution                                        │
   └──────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 2. 仮想化の種類
+## 2. Types of Virtualization
 
-### 2.1 完全仮想化
+### 2.1 Full Virtualization
 
 ```
-完全仮想化（Full Virtualization）:
-  ゲストOSを無修正で実行
+Full Virtualization:
+  Runs unmodified guest OSes
 
-  方式1: バイナリ変換（Binary Translation）
+  Method 1: Binary Translation
   ┌──────────────────────────────────────────────────┐
-  │ ゲスト OS のコード                                │
+  │ Guest OS Code                                     │
   │       ↓                                           │
-  │ バイナリ変換エンジン                              │
-  │   → ユーザーモード命令: 直接実行                 │
-  │   → センシティブ命令: 安全な命令列に変換         │
+  │ Binary Translation Engine                         │
+  │   → User-mode instructions: Execute directly     │
+  │   → Sensitive instructions: Translate to safe     │
+  │     instruction sequences                          │
   │       ↓                                           │
-  │ 変換済みコード                                    │
-  │   → キャッシュに保存して再利用                   │
+  │ Translated Code                                   │
+  │   → Cached for reuse                              │
   │       ↓                                           │
-  │ 物理ハードウェア上で実行                          │
+  │ Execute on Physical Hardware                      │
   │                                                    │
-  │ VMware が開発・実用化                             │
-  │ → 性能オーバーヘッド: 10-30%                     │
-  │ → ゲストOSの修正不要が最大のメリット             │
+  │ Developed and commercialized by VMware            │
+  │ → Performance overhead: 10-30%                    │
+  │ → Biggest advantage: No guest OS modification     │
+  │   required                                         │
   └──────────────────────────────────────────────────┘
 
-  方式2: ハードウェア支援仮想化（HW-Assisted）
+  Method 2: Hardware-Assisted Virtualization
   ┌──────────────────────────────────────────────────┐
-  │ CPU に仮想化支援命令を追加:                       │
-  │ → Intel VT-x（VMX: Virtual Machine Extensions）  │
-  │ → AMD-V（SVM: Secure Virtual Machine）           │
+  │ CPU adds virtualization support instructions:     │
+  │ → Intel VT-x (VMX: Virtual Machine Extensions)   │
+  │ → AMD-V (SVM: Secure Virtual Machine)            │
   │                                                    │
-  │ CPU 動作モード:                                   │
+  │ CPU Operating Modes:                              │
   │ ┌─────────────────────────┐                       │
-  │ │ VMX Root Mode（ホスト）│                       │
-  │ │   Ring 0: ハイパーバイザ│                       │
-  │ │   Ring 3: ホストアプリ  │                       │
+  │ │ VMX Root Mode (Host)    │                       │
+  │ │   Ring 0: Hypervisor    │                       │
+  │ │   Ring 3: Host apps     │                       │
   │ └─────────┬───────────────┘                       │
   │           │ VM Entry                              │
   │           ↓                                       │
   │ ┌─────────────────────────┐                       │
-  │ │ VMX Non-Root（ゲスト） │                       │
-  │ │   Ring 0: ゲストカーネル│                       │
-  │ │   Ring 3: ゲストアプリ  │                       │
+  │ │ VMX Non-Root (Guest)    │                       │
+  │ │   Ring 0: Guest kernel  │                       │
+  │ │   Ring 3: Guest apps    │                       │
   │ └─────────┬───────────────┘                       │
-  │           │ VM Exit（特権操作時）                 │
+  │           │ VM Exit (on privileged operations)    │
   │           ↓                                       │
-  │ VMX Root Mode で処理後、VM Entry で復帰          │
+  │ VMX Root Mode handles, then VM Entry to resume    │
   │                                                    │
-  │ VMCS（Virtual Machine Control Structure）:        │
-  │ → ゲスト/ホストの状態を保存する構造体            │
-  │ → VM Entry/Exit 時に自動的にロード/セーブ       │
-  │ → VM Exit の条件を設定可能                       │
+  │ VMCS (Virtual Machine Control Structure):         │
+  │ → Structure that saves guest/host state           │
+  │ → Automatically loaded/saved on VM Entry/Exit    │
+  │ → VM Exit conditions are configurable             │
   └──────────────────────────────────────────────────┘
 ```
 
-### 2.2 準仮想化
+### 2.2 Paravirtualization
 
 ```
-準仮想化（Paravirtualization）:
-  ゲストOSを仮想環境向けに修正
+Paravirtualization:
+  Guest OS is modified for a virtual environment
 
   ┌──────────────────────────────────────────────────┐
-  │ ゲスト OS（修正版）                               │
-  │       ↓ ハイパーコール                           │
-  │ ハイパーバイザ                                    │
-  │       ↓ 実際のハードウェア操作                   │
-  │ 物理ハードウェア                                  │
+  │ Guest OS (Modified)                               │
+  │       ↓ Hypercall                                 │
+  │ Hypervisor                                        │
+  │       ↓ Actual hardware operations                │
+  │ Physical Hardware                                 │
   │                                                    │
-  │ ハイパーコール（Hypercall）:                      │
-  │ → ゲストOSからハイパーバイザへの直接要求         │
-  │ → システムコールのようなインターフェース         │
-  │ → 特権操作をバイナリ変換なしで実行可能           │
+  │ Hypercall:                                        │
+  │ → Direct requests from guest OS to hypervisor    │
+  │ → Interface similar to system calls              │
+  │ → Enables privileged operations without binary   │
+  │   translation                                      │
   │                                                    │
-  │ 利点:                                              │
-  │ - バイナリ変換より高性能                          │
-  │ - 割り込み処理が効率的                            │
-  │ - I/O が高速                                      │
+  │ Advantages:                                       │
+  │ - Higher performance than binary translation     │
+  │ - Efficient interrupt handling                    │
+  │ - Fast I/O                                        │
   │                                                    │
-  │ 欠点:                                              │
-  │ - ゲストOSのカーネル修正が必要                   │
-  │ - Windows等の修正不可能なOSでは使用不可          │
-  │ - ハードウェア支援仮想化の普及で利点が減少       │
+  │ Disadvantages:                                    │
+  │ - Requires guest OS kernel modification          │
+  │ - Cannot be used with unmodifiable OSes like     │
+  │   Windows                                          │
+  │ - Advantages diminished with the spread of       │
+  │   hardware-assisted virtualization                 │
   └──────────────────────────────────────────────────┘
 
-  準仮想化ドライバ（Virtio）:
-  → ゲストOSのカーネル全体を修正せず、
-    ドライバ部分のみ準仮想化する折衷案
-  → 現代の仮想化で広く使用
-  → ネットワーク、ストレージ、メモリバルーンなど
+  Paravirtualized Drivers (Virtio):
+  → A compromise that paravirtualizes only the driver portion
+    instead of the entire guest OS kernel
+  → Widely used in modern virtualization
+  → Network, storage, memory ballooning, etc.
 ```
 
-### 2.3 エミュレーション
+### 2.3 Emulation
 
 ```
-エミュレーション（Emulation）:
-  ハードウェア全体をソフトウェアで模倣
+Emulation:
+  Mimics entire hardware in software
 
   ┌──────────────────────────────────────────────────┐
-  │ エミュレーション vs 仮想化:                       │
+  │ Emulation vs Virtualization:                      │
   │                                                    │
-  │ エミュレーション:                                 │
-  │ → 異なるアーキテクチャをソフトウェアで再現       │
-  │ → 例: x86上でARM、MIPS上でx86                    │
-  │ → 非常に遅い（10-100倍のオーバーヘッド）        │
-  │ → QEMU（JIT変換で高速化）                        │
+  │ Emulation:                                        │
+  │ → Reproduces a different architecture in software│
+  │ → Example: ARM on x86, x86 on MIPS              │
+  │ → Very slow (10-100x overhead)                   │
+  │ → QEMU (accelerated with JIT translation)        │
   │                                                    │
-  │ 仮想化:                                           │
-  │ → 同じアーキテクチャで複数インスタンスを実行     │
-  │ → ゲスト命令を直接CPUで実行                      │
-  │ → ほぼネイティブ性能                             │
-  │ → KVM + QEMU（デバイスエミュレーション部分のみ）│
+  │ Virtualization:                                   │
+  │ → Runs multiple instances on the same            │
+  │   architecture                                     │
+  │ → Guest instructions execute directly on CPU     │
+  │ → Near-native performance                        │
+  │ → KVM + QEMU (only device emulation portion)     │
   │                                                    │
-  │ QEMU の2つのモード:                               │
+  │ Two Modes of QEMU:                                │
   │ 1. Full System Emulation:                         │
-  │    完全なシステムをエミュレート                   │
-  │    → qemu-system-aarch64（ARM システムを模倣）   │
+  │    Emulates an entire system                      │
+  │    → qemu-system-aarch64 (emulates ARM system)   │
   │                                                    │
   │ 2. User Mode Emulation:                           │
-  │    ユーザープログラムのみエミュレート             │
+  │    Emulates only user programs                    │
   │    → qemu-aarch64 ./arm_binary                   │
-  │    → Docker の multi-platform ビルドで使用       │
+  │    → Used in Docker multi-platform builds        │
   └──────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 3. ハイパーバイザのアーキテクチャ
+## 3. Hypervisor Architecture
 
-### 3.1 Type 1 ハイパーバイザ（ベアメタル）
+### 3.1 Type 1 Hypervisor (Bare Metal)
 
 ```
-Type 1（ベアメタル）ハイパーバイザ:
-  ハードウェア上に直接動作
+Type 1 (Bare Metal) Hypervisor:
+  Runs directly on hardware
 
   ┌──────┐ ┌──────┐ ┌──────┐
   │ VM 1 │ │ VM 2 │ │ VM 3 │
   │ OS A │ │ OS B │ │ OS C │
   └──┬───┘ └──┬───┘ └──┬───┘
   ┌──┴────────┴────────┴───┐
-  │ Type 1 Hypervisor      │  ← ハードウェア上に直接
+  │ Type 1 Hypervisor      │  ← Directly on hardware
   └────────────────────────┘
   ┌────────────────────────┐
   │ Hardware               │
   └────────────────────────┘
 
-  主要な Type 1 ハイパーバイザ:
+  Major Type 1 Hypervisors:
   ┌──────────────────────────────────────────────────┐
   │ VMware ESXi:                                      │
-  │ → 商用のエンタープライズ標準                     │
-  │ → vSphere / vCenter で統合管理                   │
-  │ → vMotion によるライブマイグレーション            │
-  │ → DRS（Distributed Resource Scheduler）           │
-  │ → HA（High Availability）                        │
-  │ → 大企業の仮想化基盤として圧倒的シェア          │
+  │ → Commercial enterprise standard                 │
+  │ → Unified management via vSphere / vCenter       │
+  │ → Live migration via vMotion                     │
+  │ → DRS (Distributed Resource Scheduler)            │
+  │ → HA (High Availability)                          │
+  │ → Dominant market share in enterprise             │
+  │   virtualization                                   │
   │                                                    │
   │ Microsoft Hyper-V:                                │
-  │ → Windows Server に統合                          │
-  │ → Azure の基盤技術                               │
-  │ → System Center で管理                           │
-  │ → Windows環境との親和性が高い                    │
-  │ → Generation 2 VM で UEFI, Secure Boot 対応     │
+  │ → Integrated with Windows Server                  │
+  │ → Foundation technology of Azure                  │
+  │ → Managed via System Center                       │
+  │ → High affinity with Windows environments        │
+  │ → Generation 2 VMs with UEFI, Secure Boot        │
   │                                                    │
   │ Xen:                                              │
-  │ → オープンソース                                 │
-  │ → Dom0（特権ドメイン）+ DomU（ゲスト）          │
-  │ → AWS EC2 の初期基盤（現在は Nitro/KVM）        │
-  │ → Citrix Hypervisor（旧 XenServer）              │
-  │ → Qubes OS のセキュリティ基盤                    │
+  │ → Open source                                     │
+  │ → Dom0 (privileged domain) + DomU (guests)       │
+  │ → Early foundation of AWS EC2 (now Nitro/KVM)    │
+  │ → Citrix Hypervisor (formerly XenServer)          │
+  │ → Security foundation of Qubes OS                 │
   │                                                    │
-  │ KVM（Kernel-based Virtual Machine）:              │
-  │ → Linux カーネルモジュール                       │
-  │ → Linux をType 1ハイパーバイザに変える           │
-  │ → QEMU と組み合わせてデバイスエミュレーション    │
-  │ → AWS EC2 (Nitro), GCE, OpenStack の基盤        │
-  │ → 最も広く使われるオープンソースハイパーバイザ   │
+  │ KVM (Kernel-based Virtual Machine):               │
+  │ → Linux kernel module                             │
+  │ → Turns Linux into a Type 1 hypervisor            │
+  │ → Device emulation combined with QEMU            │
+  │ → Foundation of AWS EC2 (Nitro), GCE, OpenStack  │
+  │ → Most widely used open-source hypervisor         │
   └──────────────────────────────────────────────────┘
 ```
 
-### 3.2 Type 2 ハイパーバイザ（ホスト型）
+### 3.2 Type 2 Hypervisor (Hosted)
 
 ```
-Type 2（ホスト型）ハイパーバイザ:
-  ホストOS上のアプリケーションとして動作
+Type 2 (Hosted) Hypervisor:
+  Runs as an application on a host OS
 
   ┌──────┐ ┌──────┐
   │ VM 1 │ │ VM 2 │
   │ OS A │ │ OS B │
   └──┬───┘ └──┬───┘
   ┌──┴────────┴───┐
-  │ Hypervisor    │  ← ホストOS上のアプリケーション
+  │ Hypervisor    │  ← Application on top of host OS
   ├───────────────┤
   │ Host OS       │
   └───────────────┘
@@ -323,299 +340,304 @@ Type 2（ホスト型）ハイパーバイザ:
   │ Hardware      │
   └───────────────┘
 
-  主要な Type 2 ハイパーバイザ:
+  Major Type 2 Hypervisors:
   ┌──────────────────────────────────────────────────┐
-  │ VirtualBox（Oracle）:                             │
-  │ → オープンソース（GPLv2）                        │
-  │ → クロスプラットフォーム（Windows/Mac/Linux）    │
-  │ → 開発・テスト環境で広く使用                     │
-  │ → 簡単なGUI管理                                  │
-  │ → VBoxManage CLI で自動化可能                    │
-  │ → スナップショット、共有フォルダ対応             │
+  │ VirtualBox (Oracle):                              │
+  │ → Open source (GPLv2)                            │
+  │ → Cross-platform (Windows/Mac/Linux)             │
+  │ → Widely used for dev/test environments          │
+  │ → Simple GUI management                          │
+  │ → Automatable via VBoxManage CLI                 │
+  │ → Snapshots, shared folders support              │
   │                                                    │
   │ VMware Workstation / Fusion:                      │
-  │ → 商用（個人利用は無料化）                       │
-  │ → Workstation: Windows/Linux ホスト              │
-  │ → Fusion: macOS ホスト                           │
-  │ → 高性能、エンタープライズ機能                   │
-  │ → Unity モード（ゲストアプリをホストデスクトップに）│
+  │ → Commercial (free for personal use)             │
+  │ → Workstation: Windows/Linux host                │
+  │ → Fusion: macOS host                             │
+  │ → High performance, enterprise features          │
+  │ → Unity mode (guest apps on host desktop)        │
   │                                                    │
   │ Parallels Desktop:                                │
-  │ → macOS 専用                                     │
-  │ → Apple Silicon (M1/M2/M3) ネイティブ対応       │
-  │ → Coherence モード（シームレスな統合）           │
-  │ → 最も高性能なMac仮想化ソリューション           │
+  │ → macOS exclusive                                │
+  │ → Native Apple Silicon (M1/M2/M3) support       │
+  │ → Coherence mode (seamless integration)          │
+  │ → Highest performance Mac virtualization         │
   │                                                    │
   │ QEMU:                                             │
-  │ → オープンソースのエミュレータ/仮想化ツール      │
-  │ → 単体ではエミュレーション                       │
-  │ → KVM と組み合わせてハードウェア支援仮想化       │
-  │ → 多数のアーキテクチャをサポート                 │
-  │ → libvirt / virsh で管理                          │
+  │ → Open source emulator/virtualization tool       │
+  │ → Standalone is emulation only                   │
+  │ → Hardware-assisted virtualization with KVM      │
+  │ → Supports many architectures                    │
+  │ → Managed via libvirt / virsh                    │
   └──────────────────────────────────────────────────┘
 
-  KVM の分類について:
+  On the Classification of KVM:
   ┌──────────────────────────────────────────────────┐
-  │ KVM は厳密には Type 1 と Type 2 の中間:          │
+  │ KVM is strictly between Type 1 and Type 2:       │
   │                                                    │
-  │ → Linux カーネルの一部として動作                 │
-  │   → Linux がハイパーバイザとして機能 (Type 1的) │
-  │ → しかし Linux というフルOSの上で動作            │
-  │   → ホストOS上のモジュール (Type 2的)           │
+  │ → Operates as part of the Linux kernel            │
+  │   → Linux functions as hypervisor (Type 1-like)  │
+  │ → But runs on top of a full OS, Linux            │
+  │   → Module on host OS (Type 2-like)              │
   │                                                    │
-  │ 一般的にはType 1として分類される                  │
-  │ （カーネルモジュールとして直接HWにアクセス）     │
+  │ Generally classified as Type 1                    │
+  │ (directly accesses HW as a kernel module)         │
   └──────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 4. CPU仮想化
+## 4. CPU Virtualization
 
-### 4.1 Intel VT-x の仕組み
+### 4.1 How Intel VT-x Works
 
 ```
-Intel VT-x（Virtual Machine Extensions）:
+Intel VT-x (Virtual Machine Extensions):
 
-  VMX 動作:
+  VMX Operation:
   ┌──────────────────────────────────────────────────┐
-  │ VMXON: VMX モードを有効化                        │
+  │ VMXON: Enable VMX mode                           │
   │       ↓                                           │
-  │ VMCS の作成・設定                                 │
+  │ Create and configure VMCS                         │
   │       ↓                                           │
-  │ VMLAUNCH: ゲストの初回起動                       │
+  │ VMLAUNCH: First guest launch                      │
   │       ↓                                           │
-  │ ┌─── ゲスト実行 ───┐                             │
-  │ │ 通常命令: 直接実行│                             │
-  │ │ 特権操作: VM Exit │                             │
-  │ └────────┬─────────┘                             │
+  │ ┌─── Guest Execution ──┐                          │
+  │ │ Normal instrs: Direct│                          │
+  │ │ Privileged ops: VM   │                          │
+  │ │   Exit               │                          │
+  │ └────────┬─────────────┘                          │
   │          ↓                                        │
-  │ VMM による処理（VM Exit ハンドラ）               │
+  │ VMM handling (VM Exit handler)                    │
   │          ↓                                        │
-  │ VMRESUME: ゲスト実行を再開                       │
+  │ VMRESUME: Resume guest execution                  │
   │          ↓                                        │
-  │ （VM Exit → VMM処理 → VMRESUME のループ）       │
+  │ (Loop: VM Exit → VMM handling → VMRESUME)        │
   │          ↓                                        │
-  │ VMXOFF: VMX モードを無効化                       │
+  │ VMXOFF: Disable VMX mode                          │
   └──────────────────────────────────────────────────┘
 
-  VMCS（Virtual Machine Control Structure）:
+  VMCS (Virtual Machine Control Structure):
   ┌──────────────────────────────────────────────────┐
   │ Guest State Area:                                  │
-  │ → ゲストのCPU状態（レジスタ、CR、MSR等）        │
-  │ → VM Exit 時に自動保存                           │
-  │ → VM Entry 時に自動復元                          │
+  │ → Guest CPU state (registers, CR, MSR, etc.)     │
+  │ → Automatically saved on VM Exit                  │
+  │ → Automatically restored on VM Entry              │
   │                                                    │
   │ Host State Area:                                   │
-  │ → ホスト（VMM）のCPU状態                        │
-  │ → VM Exit 時に自動復元                           │
+  │ → Host (VMM) CPU state                            │
+  │ → Automatically restored on VM Exit               │
   │                                                    │
   │ VM-Execution Control Fields:                       │
-  │ → VM Exit の条件を設定                           │
-  │ → 例: 外部割り込み時にExit, I/Oポートアクセス時にExit │
-  │ → ビットマップで細かく制御可能                   │
+  │ → Configure VM Exit conditions                    │
+  │ → E.g., Exit on external interrupt, I/O port      │
+  │   access                                           │
+  │ → Fine-grained control via bitmaps               │
   │                                                    │
   │ VM-Exit Control Fields:                            │
-  │ → VM Exit 時の動作を設定                         │
+  │ → Configure behavior on VM Exit                   │
   │                                                    │
   │ VM-Entry Control Fields:                           │
-  │ → VM Entry 時の動作を設定                        │
-  │ → 例: 割り込みの注入                             │
+  │ → Configure behavior on VM Entry                  │
+  │ → E.g., interrupt injection                       │
   │                                                    │
   │ VM-Exit Information Fields:                        │
-  │ → VM Exit の理由（Exit Reason）                  │
-  │ → 例: External interrupt, I/O instruction        │
-  │ → 例: EPT violation, CPUID                       │
+  │ → Reason for VM Exit (Exit Reason)               │
+  │ → E.g., External interrupt, I/O instruction      │
+  │ → E.g., EPT violation, CPUID                     │
   └──────────────────────────────────────────────────┘
 
-  主な VM Exit の原因:
+  Major VM Exit Causes:
   ┌────────────────────────┬────────────────────────────┐
-  │ 原因                   │ 説明                       │
+  │ Cause                  │ Description                │
   ├────────────────────────┼────────────────────────────┤
-  │ External interrupt     │ 外部ハードウェア割り込み   │
-  │ HLT                    │ CPU停止命令                │
-  │ I/O instruction        │ IN/OUT命令                 │
-  │ CR access              │ 制御レジスタのアクセス     │
-  │ MSR read/write         │ モデル固有レジスタ操作     │
-  │ CPUID                  │ CPU情報の取得              │
-  │ EPT violation          │ メモリアクセス違反         │
-  │ VMCALL                 │ ハイパーコール              │
-  │ Task switch            │ タスクスイッチ              │
-  │ INVLPG                 │ TLBエントリの無効化        │
+  │ External interrupt     │ External hardware interrupt│
+  │ HLT                    │ CPU halt instruction       │
+  │ I/O instruction        │ IN/OUT instructions        │
+  │ CR access              │ Control register access    │
+  │ MSR read/write         │ Model-specific register op │
+  │ CPUID                  │ CPU information retrieval  │
+  │ EPT violation          │ Memory access violation    │
+  │ VMCALL                 │ Hypercall                  │
+  │ Task switch            │ Task switch                │
+  │ INVLPG                 │ TLB entry invalidation     │
   └────────────────────────┴────────────────────────────┘
 
-  VM Exit のオーバーヘッド:
-  → 1回のVM Exit: 数百〜数千CPU サイクル
-  → VM Exit の削減が仮想化性能チューニングの鍵
-  → Posted Interrupts: 割り込みのExit を削減
-  → APIC Virtualization: APIC操作のExitを削減
+  VM Exit Overhead:
+  → One VM Exit: Hundreds to thousands of CPU cycles
+  → Reducing VM Exits is key to virtualization performance tuning
+  → Posted Interrupts: Reduce interrupt-related Exits
+  → APIC Virtualization: Reduce APIC operation Exits
 ```
 
-### 4.2 AMD-V の特徴
+### 4.2 AMD-V Features
 
 ```
-AMD-V（AMD Virtualization / SVM）:
+AMD-V (AMD Virtualization / SVM):
 
-  Intel VT-x との比較:
+  Comparison with Intel VT-x:
   ┌─────────────────┬────────────────┬────────────────┐
-  │ 機能            │ Intel VT-x     │ AMD-V (SVM)    │
+  │ Feature         │ Intel VT-x     │ AMD-V (SVM)    │
   ├─────────────────┼────────────────┼────────────────┤
-  │ 制御構造体      │ VMCS           │ VMCB           │
+  │ Control struct  │ VMCS           │ VMCB           │
   │ VM Entry        │ VMLAUNCH/      │ VMRUN          │
   │                 │ VMRESUME       │                │
   │ VM Exit         │ VM Exit        │ #VMEXIT        │
-  │ 有効化          │ VMXON          │ EFER.SVME      │
-  │ ネステッド      │ VMCS shadowing │ ネイティブ対応│
+  │ Enable          │ VMXON          │ EFER.SVME      │
+  │ Nested          │ VMCS shadowing │ Native support │
   │ EPT/NPT         │ EPT            │ NPT (RVI)      │
-  │ I/O制御         │ I/O bitmap     │ I/O permission │
-  │ 割り込み        │ Posted Int.    │ AVIC           │
-  │ メモリ暗号化    │ TDX (別機能)   │ SEV-SNP        │
+  │ I/O control     │ I/O bitmap     │ I/O permission │
+  │ Interrupts      │ Posted Int.    │ AVIC           │
+  │ Memory encrypt  │ TDX (separate) │ SEV-SNP        │
   └─────────────────┴────────────────┴────────────────┘
 
-  AMD SEV-SNP（Secure Encrypted Virtualization - SNP）:
-  → VM のメモリを AES-128 で暗号化
-  → 各VMに固有の暗号鍵
-  → ハイパーバイザがゲストメモリを読めない
-  → SNP: ページレベルの整合性保護を追加
-  → クラウドでの Confidential VM の基盤
+  AMD SEV-SNP (Secure Encrypted Virtualization - SNP):
+  → Encrypts VM memory with AES-128
+  → Unique encryption key per VM
+  → Hypervisor cannot read guest memory
+  → SNP: Adds page-level integrity protection
+  → Foundation for Confidential VMs in the cloud
 ```
 
 ---
 
-## 5. メモリ仮想化
+## 5. Memory Virtualization
 
-### 5.1 アドレス変換
+### 5.1 Address Translation
 
 ```
-メモリ仮想化のアドレス空間:
+Memory Virtualization Address Spaces:
 
-  3段階のアドレス変換:
+  Three Stages of Address Translation:
   ┌──────────────────────────────────────────────────┐
-  │ ゲスト仮想アドレス (GVA)                          │
-  │     ↓ ゲストのページテーブル                     │
-  │ ゲスト物理アドレス (GPA)                          │
-  │     ↓ ハイパーバイザの変換                       │
-  │ ホスト物理アドレス (HPA)                          │
+  │ Guest Virtual Address (GVA)                       │
+  │     ↓ Guest page table                           │
+  │ Guest Physical Address (GPA)                      │
+  │     ↓ Hypervisor translation                     │
+  │ Host Physical Address (HPA)                       │
   │     ↓                                             │
-  │ 物理メモリ (DRAM)                                 │
+  │ Physical Memory (DRAM)                            │
   └──────────────────────────────────────────────────┘
 
-  方式1: シャドウページテーブル
+  Method 1: Shadow Page Tables
   ┌──────────────────────────────────────────────────┐
-  │ ハイパーバイザが GVA → HPA の直接マッピングを    │
-  │ シャドウページテーブルとして管理                  │
+  │ Hypervisor maintains a direct GVA → HPA mapping  │
+  │ as shadow page tables                             │
   │                                                    │
-  │ ゲスト PT (GVA→GPA) + VMM 変換 (GPA→HPA)       │
-  │     → シャドウ PT (GVA→HPA)                     │
+  │ Guest PT (GVA→GPA) + VMM translation (GPA→HPA)  │
+  │     → Shadow PT (GVA→HPA)                        │
   │                                                    │
-  │ 問題:                                              │
-  │ - ゲストがページテーブルを変更するたびに          │
-  │   シャドウテーブルの同期が必要                    │
-  │ - VM Exit が頻発して性能低下                     │
-  │ - メモリ消費が増大                                │
-  │ - 実装が複雑                                      │
+  │ Problems:                                          │
+  │ - Shadow table sync needed whenever guest         │
+  │   modifies page tables                             │
+  │ - Frequent VM Exits degrade performance           │
+  │ - Increased memory consumption                    │
+  │ - Complex implementation                          │
   └──────────────────────────────────────────────────┘
 
-  方式2: EPT / NPT（ハードウェア支援）
+  Method 2: EPT / NPT (Hardware-Assisted)
   ┌──────────────────────────────────────────────────┐
   │ Intel EPT (Extended Page Tables):                 │
   │ AMD NPT (Nested Page Tables) / RVI:              │
   │                                                    │
-  │ GVA → ゲストPT → GPA → EPT/NPT → HPA          │
+  │ GVA → Guest PT → GPA → EPT/NPT → HPA           │
   │                                                    │
-  │ → ハードウェアが2段階のアドレス変換を自動実行   │
-  │ → シャドウページテーブル不要                     │
-  │ → VM Exit の大幅削減                             │
-  │ → TLBミス時のペナルティ: 4レベル×4レベル=最大24回│
-  │   のメモリアクセス（ページウォーク）              │
-  │ → VPID（Virtual Processor ID）: TLBフラッシュを  │
-  │   回避してVM切り替え時の性能を改善               │
+  │ → Hardware performs two-stage address translation │
+  │   automatically                                    │
+  │ → No shadow page tables needed                   │
+  │ → Significant reduction in VM Exits              │
+  │ → TLB miss penalty: 4 levels x 4 levels = up to │
+  │   24 memory accesses (page walk)                  │
+  │ → VPID (Virtual Processor ID): Avoids TLB flush │
+  │   to improve performance on VM switches          │
   │                                                    │
-  │ EPT の構造（4レベル）:                            │
-  │ EPT PML4 → EPT PDPT → EPT PD → EPT PT → HPA  │
-  │ → ゲストPTとEPTの両方を辿る必要があるが        │
-  │   ハードウェアが自動で処理                        │
+  │ EPT Structure (4 levels):                         │
+  │ EPT PML4 → EPT PDPT → EPT PD → EPT PT → HPA   │
+  │ → Must traverse both guest PT and EPT, but       │
+  │   hardware handles it automatically              │
   └──────────────────────────────────────────────────┘
 ```
 
-### 5.2 メモリ効率化技術
+### 5.2 Memory Efficiency Techniques
 
 ```
-メモリ効率化:
+Memory Efficiency:
 
-  KSM（Kernel Same-page Merging）:
+  KSM (Kernel Same-page Merging):
   ┌──────────────────────────────────────────────────┐
-  │ 同一内容のメモリページを共有                      │
+  │ Shares memory pages with identical content        │
   │                                                    │
-  │ 動作:                                              │
-  │ 1. ksmd デーモンがページをスキャン               │
-  │ 2. 同一内容のページを発見                         │
-  │ 3. 1つのページを共有（Copy-on-Write）            │
-  │ 4. 書き込み時にコピーを作成                       │
+  │ Operation:                                        │
+  │ 1. ksmd daemon scans pages                       │
+  │ 2. Discovers pages with identical content        │
+  │ 3. Shares one page (Copy-on-Write)               │
+  │ 4. Creates a copy on write                       │
   │                                                    │
-  │ 効果:                                              │
-  │ - 同じOSのVM が多い場合: 30-50% のメモリ節約    │
-  │ - デスクトップVDI環境で特に効果的                 │
-  │ - OS のカーネル、共有ライブラリが共有対象         │
+  │ Effectiveness:                                    │
+  │ - 30-50% memory savings with many same-OS VMs   │
+  │ - Particularly effective in desktop VDI           │
+  │ - OS kernels, shared libraries are sharing targets│
   │                                                    │
-  │ 注意:                                              │
-  │ - CPU オーバーヘッドがある（スキャン処理）       │
-  │ - サイドチャネル攻撃のリスク（タイミング攻撃）   │
-  │ - セキュリティ重視の環境では無効化を推奨         │
+  │ Cautions:                                         │
+  │ - CPU overhead from scanning                     │
+  │ - Side-channel attack risk (timing attacks)      │
+  │ - Recommended to disable in security-sensitive    │
+  │   environments                                     │
   │                                                    │
-  │ 設定:                                              │
+  │ Configuration:                                    │
   │ echo 1 > /sys/kernel/mm/ksm/run                   │
   │ echo 1000 > /sys/kernel/mm/ksm/sleep_millisecs    │
   │ cat /sys/kernel/mm/ksm/pages_sharing              │
   └──────────────────────────────────────────────────┘
 
-  メモリバルーニング（Ballooning）:
+  Memory Ballooning:
   ┌──────────────────────────────────────────────────┐
-  │ ゲストOS内のバルーンドライバがメモリを「膨らます」│
-  │ → ゲストが使用可能なメモリを一時的に減らす       │
-  │ → ホストが回収して他のVMに割り当て               │
+  │ A balloon driver inside the guest OS "inflates"  │
+  │ to claim memory                                    │
+  │ → Temporarily reduces guest available memory     │
+  │ → Host reclaims it for other VMs                 │
   │                                                    │
-  │ 膨張（Inflate）:                                   │
-  │ ゲストのメモリ: [■■■■■□□□□□]                    │
-  │ バルーン膨張:   [■■■■■████□]                    │
-  │ → ■=ゲスト使用, █=バルーン, □=空き              │
-  │ → バルーン分のページをホストが回収               │
+  │ Inflate:                                          │
+  │ Guest memory: [XXXXX     ]                       │
+  │ Balloon inflated: [XXXXXXXXXB]                   │
+  │ → X=Guest use, B=Balloon, space=Free             │
+  │ → Pages in balloon reclaimed by host             │
   │                                                    │
-  │ 収縮（Deflate）:                                   │
-  │ バルーン収縮:   [■■■■■■■□□□]                    │
-  │ → ゲストが再びメモリを使用可能                   │
+  │ Deflate:                                          │
+  │ Balloon deflated: [XXXXXXX   ]                   │
+  │ → Guest can use memory again                     │
   │                                                    │
-  │ 利点:                                              │
-  │ - メモリのオーバーコミットを実現                  │
-  │ - ゲストOSのメモリ管理を尊重                     │
-  │ - ゲストが不要なページを swap out する            │
+  │ Advantages:                                       │
+  │ - Enables memory overcommitment                  │
+  │ - Respects guest OS memory management            │
+  │ - Guest swaps out unnecessary pages              │
   │                                                    │
-  │ virtio-balloon ドライバで実装                     │
+  │ Implemented via virtio-balloon driver             │
   └──────────────────────────────────────────────────┘
 
   Huge Pages:
   ┌──────────────────────────────────────────────────┐
-  │ 通常: 4KB ページ → TLBエントリを大量に消費      │
-  │ Huge Pages: 2MB or 1GB ページ                    │
-  │ → TLB ミスを大幅に削減                           │
-  │ → 特にメモリ集約型のVMで効果的                   │
+  │ Normal: 4KB pages → Consumes many TLB entries    │
+  │ Huge Pages: 2MB or 1GB pages                     │
+  │ → Significantly reduces TLB misses               │
+  │ → Particularly effective for memory-intensive VMs│
   │                                                    │
   │ Transparent Huge Pages (THP):                     │
-  │ → カーネルが自動的に Huge Pages を使用           │
-  │ → VM にも自動適用                                │
+  │ → Kernel automatically uses Huge Pages           │
+  │ → Automatically applied to VMs                   │
   │                                                    │
   │ Static Huge Pages:                                │
-  │ → 事前に予約                                     │
-  │ → QEMU: -mem-path /dev/hugepages -mem-prealloc   │
-  │ → より確実だがメモリの柔軟性が低下               │
+  │ → Reserved in advance                            │
+  │ → QEMU: -mem-path /dev/hugepages -mem-prealloc  │
+  │ → More reliable but reduces memory flexibility   │
   │                                                    │
-  │ 設定:                                              │
-  │ # Huge Pages の予約                               │
+  │ Configuration:                                    │
+  │ # Reserve Huge Pages                              │
   │ echo 1024 > /sys/kernel/mm/hugepages/             │
   │   hugepages-2048kB/nr_hugepages                   │
-  │ # → 1024 × 2MB = 2GB を予約                     │
+  │ # → 1024 x 2MB = 2GB reserved                    │
   │                                                    │
-  │ # 確認                                            │
+  │ # Verify                                          │
   │ cat /proc/meminfo | grep Huge                     │
   │ # HugePages_Total:    1024                        │
   │ # HugePages_Free:     1024                        │
@@ -625,71 +647,71 @@ AMD-V（AMD Virtualization / SVM）:
 
 ---
 
-## 6. I/O仮想化
+## 6. I/O Virtualization
 
-### 6.1 I/O仮想化の方式
+### 6.1 I/O Virtualization Methods
 
 ```
-I/O仮想化の3つの方式:
+Three Methods of I/O Virtualization:
 
-  1. エミュレーション（全仮想化）:
+  1. Emulation (Full Virtualization):
   ┌──────────────────────────────────────────────────┐
-  │ ゲスト → I/O命令 → VM Exit → VMM がエミュレート│
+  │ Guest → I/O instruction → VM Exit → VMM emulates│
   │                                                    │
-  │ 例: QEMU が仮想的な NE2000 NIC をエミュレート    │
-  │ → ゲストは標準のドライバを使用可能               │
-  │ → 非常に遅い（VM Exit が大量発生）               │
-  │ → 互換性は最高                                   │
+  │ Example: QEMU emulates a virtual NE2000 NIC      │
+  │ → Guest can use standard drivers                 │
+  │ → Very slow (massive VM Exits)                   │
+  │ → Highest compatibility                          │
   └──────────────────────────────────────────────────┘
 
-  2. 準仮想化 I/O（Virtio）:
+  2. Paravirtualized I/O (Virtio):
   ┌──────────────────────────────────────────────────┐
-  │ ゲスト → Virtio ドライバ → 共有メモリリング     │
-  │                → VM Exit 最小 → ホスト処理      │
+  │ Guest → Virtio driver → Shared memory ring       │
+  │              → Minimal VM Exits → Host handling  │
   │                                                    │
-  │ Virtio の仕組み:                                  │
+  │ How Virtio Works:                                 │
   │ ┌─────────────────────────────────────┐           │
-  │ │ ゲスト                               │           │
+  │ │ Guest                               │           │
   │ │ ┌─────────────┐                     │           │
   │ │ │ Virtio Driver│                     │           │
   │ │ └──────┬──────┘                     │           │
   │ │        ↓                             │           │
   │ │ ┌──────────────┐                    │           │
-  │ │ │ Virtqueue    │ ← リングバッファ   │           │
+  │ │ │ Virtqueue    │ ← Ring buffer      │           │
   │ │ │ (desc/avail/ │                    │           │
   │ │ │  used ring)  │                    │           │
   │ │ └──────┬──────┘                     │           │
   │ └────────┼────────────────────────────┘           │
-  │          ↓ 共有メモリ                             │
+  │          ↓ Shared memory                          │
   │ ┌────────┼────────────────────────────┐           │
-  │ │ ホスト ↓                             │           │
+  │ │ Host   ↓                             │           │
   │ │ ┌──────────────┐                    │           │
   │ │ │ Virtio Backend│                    │           │
-  │ │ │ (vhost-net等) │                    │           │
+  │ │ │ (vhost-net etc)│                   │           │
   │ │ └──────────────┘                    │           │
   │ └─────────────────────────────────────┘           │
   │                                                    │
-  │ Virtio デバイスの種類:                            │
-  │ - virtio-net: ネットワーク                       │
-  │ - virtio-blk: ブロックストレージ                 │
-  │ - virtio-scsi: SCSI ストレージ                   │
-  │ - virtio-serial: シリアル通信                    │
-  │ - virtio-balloon: メモリバルーニング             │
-  │ - virtio-gpu: グラフィックス                     │
-  │ - virtio-fs: ファイルシステム共有                │
-  │ - virtio-vsock: ホスト-ゲスト通信               │
+  │ Virtio Device Types:                              │
+  │ - virtio-net: Network                             │
+  │ - virtio-blk: Block storage                      │
+  │ - virtio-scsi: SCSI storage                      │
+  │ - virtio-serial: Serial communication            │
+  │ - virtio-balloon: Memory ballooning              │
+  │ - virtio-gpu: Graphics                           │
+  │ - virtio-fs: Filesystem sharing                  │
+  │ - virtio-vsock: Host-guest communication         │
   │                                                    │
-  │ vhost: Virtio バックエンドをカーネル空間に移動   │
-  │ → QEMU のユーザー空間オーバーヘッドを削減       │
-  │ → vhost-net: カーネル内のネットワークバックエンド│
-  │ → vhost-user: DPDKなどのユーザー空間バックエンド│
+  │ vhost: Moves Virtio backend to kernel space      │
+  │ → Reduces QEMU user-space overhead               │
+  │ → vhost-net: In-kernel network backend           │
+  │ → vhost-user: User-space backend (e.g., DPDK)   │
   └──────────────────────────────────────────────────┘
 
-  3. デバイスパススルー（SR-IOV）:
+  3. Device Passthrough (SR-IOV):
   ┌──────────────────────────────────────────────────┐
-  │ SR-IOV（Single Root I/O Virtualization）:         │
+  │ SR-IOV (Single Root I/O Virtualization):          │
   │                                                    │
-  │ 物理デバイス（NIC）:                              │
+  │ Physical Device (NIC):                            │
   │ ┌─────────────────────────────────┐               │
   │ │ PF (Physical Function)          │               │
   │ │ ┌─────┐ ┌─────┐ ┌─────┐       │               │
@@ -701,79 +723,79 @@ I/O仮想化の3つの方式:
   │   │ VM1 │ │ VM2 │ │ VM3 │                       │
   │   └─────┘ └─────┘ └─────┘                       │
   │                                                    │
-  │ PF (Physical Function): 物理デバイスの完全な機能 │
-  │ VF (Virtual Function): 軽量な仮想デバイス        │
+  │ PF (Physical Function): Full physical device      │
+  │ VF (Virtual Function): Lightweight virtual device │
   │                                                    │
-  │ → ハイパーバイザをバイパスして直接アクセス       │
-  │ → ほぼネイティブのI/O性能                        │
-  │ → IOMMU（Intel VT-d / AMD-Vi）でDMAを保護       │
-  │ → ライブマイグレーションが困難（デバイス依存）   │
+  │ → Direct access bypassing the hypervisor         │
+  │ → Near-native I/O performance                    │
+  │ → DMA protected by IOMMU (Intel VT-d / AMD-Vi)  │
+  │ → Live migration is difficult (device-dependent) │
   │                                                    │
-  │ 性能比較:                                         │
+  │ Performance Comparison:                           │
   │ ┌────────────┬──────────┬──────────┐              │
-  │ │ 方式       │ レイテンシ│ スループット│           │
+  │ │ Method     │ Latency  │ Throughput│              │
   │ ├────────────┼──────────┼──────────┤              │
-  │ │ エミュレート│ 高        │ 低         │           │
-  │ │ Virtio     │ 中        │ 高         │           │
-  │ │ SR-IOV     │ 低        │ 非常に高   │           │
-  │ │ ネイティブ │ 最低      │ 最高       │           │
+  │ │ Emulated   │ High     │ Low      │              │
+  │ │ Virtio     │ Medium   │ High     │              │
+  │ │ SR-IOV     │ Low      │ Very High│              │
+  │ │ Native     │ Lowest   │ Highest  │              │
   │ └────────────┴──────────┴──────────┘              │
   └──────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 7. KVM/QEMU の実践
+## 7. KVM/QEMU in Practice
 
-### 7.1 KVM の基本構成
+### 7.1 KVM Architecture
 
 ```
-KVM + QEMU のアーキテクチャ:
+KVM + QEMU Architecture:
 
   ┌──────────────────────────────────────────────────┐
-  │ ゲスト OS                                         │
+  │ Guest OS                                          │
   │ ┌──────────────────┐                              │
-  │ │ アプリケーション  │                              │
-  │ │ ゲストカーネル    │                              │
-  │ │ virtio ドライバ   │                              │
+  │ │ Application       │                              │
+  │ │ Guest Kernel      │                              │
+  │ │ virtio drivers    │                              │
   │ └────────┬─────────┘                              │
   │          │                                         │
-  │ QEMU プロセス（ユーザー空間）                     │
+  │ QEMU Process (User Space)                         │
   │ ┌────────┴─────────┐                              │
-  │ │ デバイスエミュレーション│                       │
-  │ │ (NIC, ディスク, VGA等) │                        │
-  │ │ ioctl(KVM_RUN)         │                        │
-  │ └────────┬───────────────┘                        │
+  │ │ Device Emulation  │                              │
+  │ │ (NIC, Disk, VGA)  │                              │
+  │ │ ioctl(KVM_RUN)    │                              │
+  │ └────────┬──────────┘                              │
   │          │                                         │
-  │ KVM カーネルモジュール                             │
+  │ KVM Kernel Module                                  │
   │ ┌────────┴─────────┐                              │
   │ │ /dev/kvm          │                              │
-  │ │ VMCS管理          │                              │
-  │ │ VM Entry/Exit処理 │                              │
-  │ │ EPT管理           │                              │
+  │ │ VMCS management   │                              │
+  │ │ VM Entry/Exit     │                              │
+  │ │ EPT management    │                              │
   │ └────────┬─────────┘                              │
   │          │                                         │
-  │ ハードウェア（VT-x/AMD-V + VT-d/AMD-Vi）         │
+  │ Hardware (VT-x/AMD-V + VT-d/AMD-Vi)              │
   └──────────────────────────────────────────────────┘
 
-  各コンポーネントの役割:
-  KVM: CPU仮想化、メモリ仮想化（EPT/NPT）
-  QEMU: デバイスエミュレーション、VM管理
-  libvirt: VM管理API（virsh, virt-manager のバックエンド）
+  Role of Each Component:
+  KVM: CPU virtualization, memory virtualization (EPT/NPT)
+  QEMU: Device emulation, VM management
+  libvirt: VM management API (backend for virsh, virt-manager)
 ```
 
-### 7.2 VM の作成と管理
+### 7.2 Creating and Managing VMs
 
 ```bash
-# KVM の確認
+# Verify KVM
 lsmod | grep kvm
 # kvm_intel     xxx  0
 # kvm           xxx  1 kvm_intel
 
-# CPU が仮想化支援をサポートしているか確認
+# Check if CPU supports virtualization
 grep -E 'vmx|svm' /proc/cpuinfo
 
-# QEMU で直接 VM を起動
+# Start a VM directly with QEMU
 qemu-system-x86_64 \
   -enable-kvm \
   -cpu host \
@@ -785,68 +807,68 @@ qemu-system-x86_64 \
   -display none \
   -daemonize
 
-# ディスクイメージの作成
+# Create a disk image
 qemu-img create -f qcow2 disk.qcow2 50G
-# qcow2: Copy-on-Write、スナップショット対応、シンプロビジョニング
+# qcow2: Copy-on-Write, snapshots, thin provisioning
 
-# ディスクイメージの情報
+# Disk image info
 qemu-img info disk.qcow2
 # image: disk.qcow2
 # file format: qcow2
 # virtual size: 50 GiB
-# disk size: 196 MiB  ← 実際のディスク使用量
+# disk size: 196 MiB  ← Actual disk usage
 
-# スナップショット
-qemu-img snapshot -c snap1 disk.qcow2    # 作成
-qemu-img snapshot -l disk.qcow2          # 一覧
-qemu-img snapshot -a snap1 disk.qcow2    # 復元
-qemu-img snapshot -d snap1 disk.qcow2    # 削除
+# Snapshots
+qemu-img snapshot -c snap1 disk.qcow2    # Create
+qemu-img snapshot -l disk.qcow2          # List
+qemu-img snapshot -a snap1 disk.qcow2    # Restore
+qemu-img snapshot -d snap1 disk.qcow2    # Delete
 ```
 
-### 7.3 libvirt / virsh による管理
+### 7.3 Management with libvirt / virsh
 
 ```bash
-# libvirt でのVM管理（推奨）
+# VM management with libvirt (recommended)
 
-# VM の一覧
+# List VMs
 virsh list --all
 
-# VM の起動/停止
+# Start/stop VMs
 virsh start myvm
-virsh shutdown myvm      # ゲストOSに正常終了を要求
-virsh destroy myvm       # 強制停止（電源断に相当）
+virsh shutdown myvm      # Request graceful shutdown from guest OS
+virsh destroy myvm       # Force stop (equivalent to power off)
 virsh reboot myvm
 
-# VM の作成（XML定義）
+# Create a VM (XML definition)
 virsh define myvm.xml
-virsh create myvm.xml    # 定義して即起動
+virsh create myvm.xml    # Define and start immediately
 
-# VM の情報
+# VM information
 virsh dominfo myvm
 virsh vcpuinfo myvm
 virsh domblklist myvm
 virsh domiflist myvm
 
-# コンソール接続
+# Console connection
 virsh console myvm
 
-# スナップショット
+# Snapshots
 virsh snapshot-create-as myvm snap1 "Initial snapshot"
 virsh snapshot-list myvm
 virsh snapshot-revert myvm snap1
 virsh snapshot-delete myvm snap1
 
-# リソースの動的変更
-virsh setmem myvm 8G --live           # メモリ変更（ライブ）
-virsh setvcpus myvm 8 --live          # CPU数変更（ライブ）
+# Dynamic resource changes
+virsh setmem myvm 8G --live           # Change memory (live)
+virsh setvcpus myvm 8 --live          # Change CPU count (live)
 
-# VM のモニタリング
-virsh domstats myvm                    # 統計情報
-virt-top                               # リアルタイムモニタ
+# VM monitoring
+virsh domstats myvm                    # Statistics
+virt-top                               # Real-time monitor
 ```
 
 ```xml
-<!-- VM 定義ファイルの例 (myvm.xml) -->
+<!-- VM Definition File Example (myvm.xml) -->
 <domain type='kvm'>
   <name>myvm</name>
   <memory unit='GiB'>4</memory>
@@ -865,28 +887,28 @@ virt-top                               # リアルタイムモニタ
   </features>
 
   <devices>
-    <!-- Virtio ディスク -->
+    <!-- Virtio disk -->
     <disk type='file' device='disk'>
       <driver name='qemu' type='qcow2' cache='writeback' discard='unmap'/>
       <source file='/var/lib/libvirt/images/myvm.qcow2'/>
       <target dev='vda' bus='virtio'/>
     </disk>
 
-    <!-- Virtio ネットワーク -->
+    <!-- Virtio network -->
     <interface type='network'>
       <source network='default'/>
       <model type='virtio'/>
     </interface>
 
-    <!-- VNC コンソール -->
+    <!-- VNC console -->
     <graphics type='vnc' port='-1' autoport='yes'/>
 
-    <!-- Virtio メモリバルーン -->
+    <!-- Virtio memory balloon -->
     <memballoon model='virtio'>
       <stats period='10'/>
     </memballoon>
 
-    <!-- virtio-serial（ゲストエージェント通信用） -->
+    <!-- virtio-serial (for guest agent communication) -->
     <channel type='unix'>
       <target type='virtio' name='org.qemu.guest_agent.0'/>
     </channel>
@@ -896,138 +918,139 @@ virt-top                               # リアルタイムモニタ
 
 ---
 
-## 8. ライブマイグレーション
+## 8. Live Migration
 
-### 8.1 ライブマイグレーションの仕組み
+### 8.1 How Live Migration Works
 
 ```
-ライブマイグレーション:
-  VMを停止せずに別の物理サーバーに移動する技術
+Live Migration:
+  A technology to move a VM to a different physical server without stopping it
 
-  Pre-copy マイグレーション（最も一般的）:
+  Pre-copy Migration (Most Common):
   ┌──────────────────────────────────────────────────┐
-  │ Phase 1: メモリの一括コピー                       │
-  │   → 全メモリページをコピー先に転送               │
-  │   → VM は稼働中のまま                            │
+  │ Phase 1: Bulk Memory Copy                         │
+  │   → Transfer all memory pages to the destination │
+  │   → VM continues running                         │
   │                                                    │
-  │ Phase 2: 差分コピー（反復）                       │
-  │   → Phase 1 中に変更されたページ（dirty pages）  │
-  │     を転送                                        │
-  │   → 再び変更されたページを転送（繰り返し）       │
-  │   → 差分が十分小さくなるまで繰り返す             │
+  │ Phase 2: Delta Copy (Iterative)                   │
+  │   → Transfer pages changed during Phase 1        │
+  │     (dirty pages)                                  │
+  │   → Transfer pages changed again (repeat)        │
+  │   → Repeat until delta is small enough           │
   │                                                    │
-  │ Phase 3: 最終同期（Stop-and-Copy）                │
-  │   → VM を一時停止                                │
-  │   → 残りの差分ページを転送                       │
-  │   → CPU 状態、デバイス状態を転送                 │
-  │   → 移行先で VM を再開                           │
-  │   → ダウンタイム: 数十ms〜数百ms                 │
+  │ Phase 3: Final Sync (Stop-and-Copy)              │
+  │   → Pause the VM                                 │
+  │   → Transfer remaining dirty pages               │
+  │   → Transfer CPU state, device state             │
+  │   → Resume VM on destination                     │
+  │   → Downtime: tens to hundreds of ms             │
   │                                                    │
-  │ Phase 4: ネットワーク切り替え                     │
-  │   → ARP の更新（RARP パケット送信）              │
-  │   → 外部からは同じIPで到達可能                   │
+  │ Phase 4: Network Switchover                       │
+  │   → Update ARP (send RARP packet)               │
+  │   → Reachable from outside at the same IP       │
   └──────────────────────────────────────────────────┘
 
-  Post-copy マイグレーション:
+  Post-copy Migration:
   ┌──────────────────────────────────────────────────┐
-  │ 1. CPU状態とデバイス状態を先に転送               │
-  │ 2. VM を移行先で即座に起動                       │
-  │ 3. メモリページはアクセス時にオンデマンドで転送  │
-  │    → userfaultfd でページフォールトを処理        │
+  │ 1. Transfer CPU state and device state first     │
+  │ 2. Start VM immediately on destination           │
+  │ 3. Transfer memory pages on-demand when accessed │
+  │    → Handle page faults via userfaultfd          │
   │                                                    │
-  │ 利点: ダウンタイムが非常に短い                    │
-  │ 欠点: ページフォールトによる性能低下              │
-  │       ネットワーク断で VM がクラッシュする        │
-  │ → Pre-copy と Post-copy のハイブリッドも存在     │
+  │ Advantages: Very short downtime                   │
+  │ Disadvantages: Performance degradation from       │
+  │   page faults; VM crashes on network failure     │
+  │ → Hybrid of pre-copy and post-copy also exists   │
   └──────────────────────────────────────────────────┘
 
-  ライブマイグレーションの要件:
+  Live Migration Requirements:
   ┌──────────────────────────────────────────────────┐
-  │ 1. 共有ストレージ（NFS, Ceph, SAN）              │
-  │    → ディスクイメージが両方のホストからアクセス可能│
-  │    → ストレージマイグレーションの場合は不要      │
+  │ 1. Shared storage (NFS, Ceph, SAN)               │
+  │    → Disk image accessible from both hosts       │
+  │    → Not needed for storage migration            │
   │                                                    │
-  │ 2. 同一のCPU機能（または互換性）                  │
-  │    → cpu mode='host-model' で互換性確保          │
-  │    → QEMU の CPU機能マスクで調整                 │
+  │ 2. Same CPU features (or compatible)             │
+  │    → Ensure compatibility with                   │
+  │      cpu mode='host-model'                        │
+  │    → Adjust with QEMU CPU feature masks          │
   │                                                    │
-  │ 3. 十分なネットワーク帯域幅                      │
-  │    → 10Gbps以上推奨                              │
-  │    → dirty page rate < 転送速度 が必要           │
+  │ 3. Sufficient network bandwidth                  │
+  │    → 10Gbps or more recommended                  │
+  │    → dirty page rate < transfer rate is required │
   │                                                    │
-  │ 4. 同一のlibvirt / QEMU バージョン               │
-  │    → プロトコル互換性の確保                      │
+  │ 4. Same libvirt / QEMU versions                  │
+  │    → Ensure protocol compatibility               │
   └──────────────────────────────────────────────────┘
 ```
 
 ```bash
-# ライブマイグレーションの実行
+# Executing Live Migration
 
-# virsh によるマイグレーション
+# Migration with virsh
 virsh migrate --live --verbose myvm \
   qemu+ssh://dest-host/system \
   --migrateuri tcp://dest-host:49152
 
-# 帯域幅制限付きマイグレーション
+# Migration with bandwidth limit
 virsh migrate --live myvm \
   qemu+ssh://dest-host/system \
   --bandwidth 500  # 500 MiB/s
 
-# 圧縮付きマイグレーション（帯域幅の節約）
+# Migration with compression (saves bandwidth)
 virsh migrate --live myvm \
   qemu+ssh://dest-host/system \
   --comp-methods xbzrle
 
-# ストレージマイグレーション（共有ストレージ不要）
+# Storage migration (no shared storage needed)
 virsh migrate --live --copy-storage-all myvm \
   qemu+ssh://dest-host/system
 
-# マイグレーションの進捗確認
+# Check migration progress
 virsh domjobinfo myvm
 
-# マイグレーションのキャンセル
+# Cancel migration
 virsh domjobabort myvm
 ```
 
 ---
 
-## 9. パフォーマンスチューニング
+## 9. Performance Tuning
 
-### 9.1 CPU のチューニング
+### 9.1 CPU Tuning
 
 ```bash
-# CPU ピンニング（vCPU を物理CPUコアに固定）
-virsh vcpupin myvm 0 2    # vCPU 0 → 物理コア 2
-virsh vcpupin myvm 1 3    # vCPU 1 → 物理コア 3
+# CPU Pinning (pin vCPUs to physical CPU cores)
+virsh vcpupin myvm 0 2    # vCPU 0 → Physical core 2
+virsh vcpupin myvm 1 3    # vCPU 1 → Physical core 3
 
-# NUMA ノードへの配置
+# NUMA node placement
 virsh numatune myvm --nodeset 0 --mode strict
-# → NUMA ノード 0 のメモリのみ使用
+# → Use memory only from NUMA node 0
 
-# CPU アフィニティの確認
+# Check CPU affinity
 virsh vcpuinfo myvm
 
-# エミュレータスレッドのピンニング
+# Emulator thread pinning
 virsh emulatorpin myvm 0-1
-# → QEMU のエミュレータスレッドをコア0-1に固定
+# → Pin QEMU emulator threads to cores 0-1
 
-# IOスレッドのピンニング
+# IO thread pinning
 virsh iothreadpin myvm 1 4
-# → IOスレッド1をコア4に固定
+# → Pin IO thread 1 to core 4
 ```
 
-### 9.2 メモリのチューニング
+### 9.2 Memory Tuning
 
 ```bash
-# Huge Pages の使用
-# VM 定義ファイルに追加:
+# Using Huge Pages
+# Add to VM definition file:
 # <memoryBacking>
 #   <hugepages>
 #     <page size='2048' unit='KiB'/>
 #   </hugepages>
 # </memoryBacking>
 
-# NUMA-aware メモリ配置
+# NUMA-aware memory placement
 # <numatune>
 #   <memory mode='strict' nodeset='0'/>
 # </numatune>
@@ -1037,101 +1060,102 @@ virsh iothreadpin myvm 1 4
 #   </numa>
 # </cpu>
 
-# メモリロック（スワップアウト防止）
+# Memory locking (prevent swapout)
 # <memoryBacking>
 #   <locked/>
 # </memoryBacking>
 ```
 
-### 9.3 ストレージのチューニング
+### 9.3 Storage Tuning
 
 ```
-ストレージチューニング:
+Storage Tuning:
 
-  ディスクキャッシュモード:
+  Disk Cache Modes:
   ┌──────────────┬──────────────────────────────────┐
-  │ none         │ ホストキャッシュなし。直接I/O     │
-  │              │ → データの一貫性が最も高い        │
-  │              │ → 推奨（ゲストにキャッシュ任せ）  │
-  │ writethrough │ 読取キャッシュあり、書込は即座    │
-  │              │ → 安全だが書き込みが遅い          │
-  │ writeback    │ 読取/書込キャッシュあり           │
-  │              │ → 高速だがデータ損失リスクあり    │
-  │ unsafe       │ すべてのfsync を無視              │
-  │              │ → テスト環境のみ（データ損失大）  │
-  │ directsync   │ 直接I/O + 同期書き込み           │
-  │              │ → 最も安全だが最も遅い            │
+  │ none         │ No host cache. Direct I/O         │
+  │              │ → Highest data consistency        │
+  │              │ → Recommended (let guest cache)   │
+  │ writethrough │ Read cache, immediate write       │
+  │              │ → Safe but slow writes            │
+  │ writeback    │ Read/write cache                  │
+  │              │ → Fast but risk of data loss      │
+  │ unsafe       │ Ignores all fsync                 │
+  │              │ → Test environments only          │
+  │              │   (high data loss risk)            │
+  │ directsync   │ Direct I/O + synchronous write   │
+  │              │ → Safest but slowest              │
   └──────────────┴──────────────────────────────────┘
 
-  I/Oスケジューラの設定:
+  I/O Scheduler Settings:
   ┌──────────────────────────────────────────────────┐
-  │ ホスト側:                                         │
-  │   SSD: none (noop) が最適                        │
-  │   HDD: mq-deadline が最適                        │
+  │ Host side:                                        │
+  │   SSD: none (noop) is optimal                    │
+  │   HDD: mq-deadline is optimal                    │
   │                                                    │
-  │ ゲスト側:                                         │
-  │   virtio-blk: none (noop) が最適                 │
-  │   → ホスト側でスケジューリングするため          │
+  │ Guest side:                                       │
+  │   virtio-blk: none (noop) is optimal             │
+  │   → Scheduling is done on the host side          │
   └──────────────────────────────────────────────────┘
 
-  ディスクフォーマット:
+  Disk Formats:
   ┌──────────────┬──────────────────────────────────┐
-  │ qcow2        │ スナップショット、圧縮、暗号化対応│
-  │              │ → 柔軟性が高い、やや遅い          │
-  │ raw          │ シンプル。最高性能                  │
-  │              │ → 動的サイズ変更不可               │
-  │ qcow2 +     │ qcow2 の事前割当                   │
-  │ preallocation│ → raw に近い性能                   │
+  │ qcow2        │ Snapshots, compression, encryption│
+  │              │ → High flexibility, slightly slow │
+  │ raw          │ Simple. Highest performance        │
+  │              │ → No dynamic resizing             │
+  │ qcow2 +     │ Pre-allocated qcow2               │
+  │ preallocation│ → Performance close to raw        │
   └──────────────┴──────────────────────────────────┘
 ```
 
 ---
 
-## 10. ネステッド仮想化
+## 10. Nested Virtualization
 
 ```
-ネステッド仮想化（Nested Virtualization）:
-  VM の中で VM を実行する技術
+Nested Virtualization:
+  Running VMs inside VMs
 
   ┌──────────────────────────────────────────────────┐
-  │ L0: 物理ハードウェア + ホスト KVM                │
-  │   └── L1: ゲスト VM（この中でKVMを実行）        │
-  │         └── L2: ネストされた VM                  │
+  │ L0: Physical hardware + Host KVM                 │
+  │   └── L1: Guest VM (running KVM inside)          │
+  │         └── L2: Nested VM                        │
   │                                                    │
-  │ 用途:                                              │
-  │ - クラウド上での仮想化テスト・開発               │
-  │ - CI/CD パイプラインでの VM テスト               │
-  │ - KVM/QEMU の開発・デバッグ                      │
-  │ - ハイパーバイザのセキュリティテスト              │
-  │ - 教育・トレーニング環境                          │
+  │ Use Cases:                                        │
+  │ - Testing and developing virtualization on cloud │
+  │ - VM testing in CI/CD pipelines                  │
+  │ - KVM/QEMU development and debugging             │
+  │ - Hypervisor security testing                    │
+  │ - Education and training environments            │
   │                                                    │
-  │ 性能:                                              │
-  │ → L1 の約 60-80% の性能                          │
-  │ → VM Exit のネストにより追加オーバーヘッド       │
-  │ → VMCS shadowing (Intel) でオーバーヘッド削減    │
+  │ Performance:                                      │
+  │ → About 60-80% of L1 performance                │
+  │ → Additional overhead from nested VM Exits      │
+  │ → VMCS shadowing (Intel) reduces overhead       │
   └──────────────────────────────────────────────────┘
 ```
 
 ```bash
-# ネステッド仮想化の有効化
+# Enabling Nested Virtualization
 
-# Intel の場合
+# For Intel
 cat /sys/module/kvm_intel/parameters/nested
-# N → 無効
+# N → Disabled
 
-# 有効化（一時的）
+# Enable (temporarily)
 sudo modprobe -r kvm_intel
 sudo modprobe kvm_intel nested=1
 
-# 永続的に有効化
+# Enable permanently
 echo "options kvm_intel nested=1" | \
   sudo tee /etc/modprobe.d/kvm-nested.conf
 
-# AMD の場合
+# For AMD
 echo "options kvm_amd nested=1" | \
   sudo tee /etc/modprobe.d/kvm-nested.conf
 
-# VM の CPU設定でVMX/SVMを公開
+# Expose VMX/SVM in VM CPU configuration
 # <cpu mode='host-passthrough'>
 #   <feature policy='require' name='vmx'/>
 # </cpu>
@@ -1139,113 +1163,115 @@ echo "options kvm_amd nested=1" | \
 
 ---
 
-## 11. クラウドの仮想化
+## 11. Cloud Virtualization
 
 ### 11.1 AWS Nitro System
 
 ```
 AWS Nitro System:
-  専用ハードウェアでネットワーク/ストレージ/セキュリティを
-  メインCPUからオフロード
+  Offloads networking, storage, and security from the main CPU
+  to dedicated hardware
 
-  Nitro の構成:
+  Nitro Components:
   ┌──────────────────────────────────────────────────┐
-  │ EC2 インスタンス                                  │
+  │ EC2 Instance                                      │
   │ ┌──────────────────────────────────┐              │
-  │ │ ゲスト VM (Customer Workload)    │              │
-  │ │ → CPU のほぼ100%を使用可能      │              │
+  │ │ Guest VM (Customer Workload)     │              │
+  │ │ → Can use nearly 100% of CPU    │              │
   │ └──────────────────────────────────┘              │
   │                                                    │
-  │ Nitro Cards（専用ASIC）:                          │
+  │ Nitro Cards (Dedicated ASICs):                    │
   │ ┌──────────┐ ┌──────────┐ ┌──────────┐          │
   │ │ Nitro    │ │ Nitro    │ │ Nitro    │          │
   │ │ Network  │ │ EBS      │ │ Security │          │
   │ │ Card     │ │ Card     │ │ Chip     │          │
   │ └──────────┘ └──────────┘ └──────────┘          │
-  │ → VPC、EBS、暗号化をハードウェアで処理          │
-  │ → ホストCPUリソースの消費なし                    │
+  │ → VPC, EBS, encryption handled in hardware       │
+  │ → No host CPU resource consumption               │
   │                                                    │
   │ Nitro Hypervisor:                                 │
-  │ → KVM ベースの軽量ハイパーバイザ                 │
-  │ → 従来の Xen ハイパーバイザを置き換え            │
-  │ → CPU とメモリの仮想化のみ担当                   │
-  │ → I/O は Nitro Cards にオフロード               │
+  │ → KVM-based lightweight hypervisor               │
+  │ → Replaced the legacy Xen hypervisor             │
+  │ → Handles only CPU and memory virtualization     │
+  │ → I/O offloaded to Nitro Cards                   │
   │                                                    │
   │ Nitro Enclaves:                                   │
-  │ → 高度に隔離された計算環境                       │
-  │ → ネットワーク接続なし、永続ストレージなし       │
-  │ → vsock のみで親VMと通信                        │
-  │ → 暗号鍵の管理、機密データの処理に使用          │
+  │ → Highly isolated compute environment            │
+  │ → No network connection, no persistent storage   │
+  │ → Communicates with parent VM via vsock only     │
+  │ → Used for cryptographic key management,          │
+  │   sensitive data processing                        │
   └──────────────────────────────────────────────────┘
 ```
 
-### 11.2 クラウドインスタンスの仕組み
+### 11.2 How Cloud Instances Work
 
 ```
-クラウドインスタンスのライフサイクル:
+Cloud Instance Lifecycle:
 
-  ユーザー → API → コントロールプレーン
-                         │
-                    ┌─────┴─────┐
-                    │ スケジューラ│
-                    └─────┬─────┘
-                          │ VMの配置先を決定
-                    ┌─────┴─────┐
-                    │ 物理サーバー│
-                    │ KVM + QEMU │
-                    │ ┌───┐┌───┐│
-                    │ │VM1││VM2││
-                    │ └───┘└───┘│
-                    └───────────┘
+  User → API → Control Plane
+                     │
+                ┌─────┴─────┐
+                │ Scheduler  │
+                └─────┬─────┘
+                      │ Determines VM placement
+                ┌─────┴─────┐
+                │ Physical   │
+                │ Server     │
+                │ KVM + QEMU │
+                │ ┌───┐┌───┐│
+                │ │VM1││VM2││
+                │ └───┘└───┘│
+                └───────────┘
 
-  スケジューラの配置アルゴリズム:
+  Scheduler Placement Algorithms:
   ┌──────────────────────────────────────────────────┐
-  │ 1. リソースフィルタリング:                        │
-  │    → CPU, メモリ, ストレージの要件を満たすホスト│
+  │ 1. Resource Filtering:                            │
+  │    → Hosts meeting CPU, memory, storage reqs     │
   │                                                    │
-  │ 2. アフィニティ/アンチアフィニティ:              │
-  │    → 特定のVMを同じ/異なるホストに配置           │
+  │ 2. Affinity / Anti-affinity:                      │
+  │    → Place specific VMs on same/different hosts   │
   │                                                    │
-  │ 3. NUMA最適化:                                    │
-  │    → NUMAトポロジに基づく最適配置                │
+  │ 3. NUMA Optimization:                             │
+  │    → Optimal placement based on NUMA topology    │
   │                                                    │
-  │ 4. 可用性ゾーン:                                  │
-  │    → 障害ドメインの分散                           │
+  │ 4. Availability Zones:                            │
+  │    → Distribute across fault domains             │
   │                                                    │
-  │ 5. コスト最適化:                                  │
-  │    → ビンパッキング（効率的なリソース充填）      │
-  │    → or スプレッド（分散配置）                   │
+  │ 5. Cost Optimization:                             │
+  │    → Bin packing (efficient resource filling)    │
+  │    → or Spread (distributed placement)           │
   └──────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 実践演習
+## Hands-on Exercises
 
-### 演習1: [基礎] -- 仮想化支援の確認
+### Exercise 1: [Beginner] -- Verifying Virtualization Support
 
 ```bash
-# CPU の仮想化支援を確認
+# Check CPU virtualization support
 grep -E 'vmx|svm' /proc/cpuinfo | head -1
-# flags : ... vmx ...  → Intel VT-x 対応
+# flags : ... vmx ...  → Intel VT-x supported
 
-# KVM モジュールの確認
+# Check KVM module
 lsmod | grep kvm
 # kvm_intel     xxxxx  0
 # kvm           xxxxx  1 kvm_intel
 
-# /dev/kvm の確認
+# Check /dev/kvm
 ls -la /dev/kvm
 # crw-rw---- 1 root kvm 10, 232 Jan  1 00:00 /dev/kvm
 ```
 
-### 演習2: [基礎] -- QEMU で VM を起動
+### Exercise 2: [Beginner] -- Starting a VM with QEMU
 
 ```bash
-# ディスクイメージの作成
+# Create a disk image
 qemu-img create -f qcow2 test.qcow2 10G
 
-# Ubuntu Server の ISO でインストール
+# Install with Ubuntu Server ISO
 qemu-system-x86_64 \
   -enable-kvm \
   -cpu host \
@@ -1256,7 +1282,7 @@ qemu-system-x86_64 \
   -boot d \
   -vnc :0
 
-# インストール後の起動
+# Boot after installation
 qemu-system-x86_64 \
   -enable-kvm \
   -cpu host \
@@ -1267,14 +1293,14 @@ qemu-system-x86_64 \
   -device virtio-net-pci,netdev=net0 \
   -nographic
 
-# SSH 接続
+# SSH connection
 ssh -p 2222 user@localhost
 ```
 
-### 演習3: [応用] -- virsh による VM 管理
+### Exercise 3: [Advanced] -- VM Management with virsh
 
 ```bash
-# VM の作成
+# Create a VM
 virt-install \
   --name testvm \
   --ram 2048 \
@@ -1285,38 +1311,38 @@ virt-install \
   --network network=default \
   --graphics vnc
 
-# スナップショットの管理
+# Snapshot management
 virsh snapshot-create-as testvm clean-install "Fresh install"
 virsh snapshot-list testvm
 virsh snapshot-revert testvm clean-install
 
-# リソースの動的変更
+# Dynamic resource changes
 virsh setmem testvm 4G --live
 virsh setvcpus testvm 4 --live
 
-# VM の統計情報
+# VM statistics
 virsh domstats testvm
 virt-top
 ```
 
-### 演習4: [応用] -- パフォーマンスチューニング
+### Exercise 4: [Advanced] -- Performance Tuning
 
 ```bash
-# CPU ピンニング
+# CPU pinning
 virsh vcpupin testvm 0 0
 virsh vcpupin testvm 1 1
 
-# Huge Pages の設定
+# Huge Pages setup
 echo 1024 > /sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages
-# VM 定義に hugepages を追加
+# Add hugepages to VM definition
 
-# I/O チューニング
-# ディスクのキャッシュモードを none に変更
+# I/O tuning
+# Change disk cache mode to none
 virsh attach-disk testvm /path/to/disk.qcow2 vdb \
   --driver qemu --subdriver qcow2 --cache none
 
-# パフォーマンス測定
-# ゲスト内で
+# Performance measurement
+# Inside the guest:
 fio --name=seqwrite --rw=write --bs=4k --size=1G --numjobs=4
 sysbench cpu --threads=4 run
 iperf3 -c host-ip
@@ -1327,44 +1353,44 @@ iperf3 -c host-ip
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when studying this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important. Understanding deepens not just through theory, but by actually writing code and observing how it works.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the basics and jumping to advanced topics. We recommend thoroughly understanding the fundamental concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in real-world practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## まとめ
-
-| 概念 | ポイント |
-|------|---------|
-| 完全仮想化 | ゲストOS無修正。バイナリ変換 or HW支援 |
-| 準仮想化 | ゲストOS修正。ハイパーコールで高性能 |
-| Type 1 | ベアメタル。KVM, ESXi, Xen。クラウドの基盤 |
-| Type 2 | ホスト型。VirtualBox, Parallels。開発環境 |
-| VT-x/AMD-V | ハードウェア支援。VMX Root/Non-Root モード |
-| EPT/NPT | ハードウェア支援メモリ仮想化。シャドウPT不要 |
-| Virtio | 準仮想化I/O。ネットワーク、ストレージの高速化 |
-| SR-IOV | デバイスの直接パススルー。ほぼネイティブI/O性能 |
-| ライブマイグレーション | Pre-copy方式。ダウンタイム数十ms |
-| KSM | 同一ページ共有。メモリ効率化 |
-| Nitro | AWS独自。HWオフロード。CPU100%をゲストに |
-| ネステッド仮想化 | VM内でVM。開発・テスト用途 |
+Knowledge of this topic is frequently applied in daily development work. It becomes particularly important during code reviews and architecture design.
 
 ---
 
-## 次に読むべきガイド
+## Summary
+
+| Concept | Key Points |
+|---------|-----------|
+| Full Virtualization | Unmodified guest OS. Binary translation or HW-assisted |
+| Paravirtualization | Modified guest OS. High performance via hypercalls |
+| Type 1 | Bare metal. KVM, ESXi, Xen. Cloud foundation |
+| Type 2 | Hosted. VirtualBox, Parallels. Dev environments |
+| VT-x/AMD-V | Hardware-assisted. VMX Root/Non-Root modes |
+| EPT/NPT | Hardware-assisted memory virtualization. No shadow PT needed |
+| Virtio | Paravirtualized I/O. Network, storage acceleration |
+| SR-IOV | Direct device passthrough. Near-native I/O performance |
+| Live Migration | Pre-copy method. Downtime of tens of ms |
+| KSM | Same-page merging. Memory efficiency |
+| Nitro | AWS proprietary. HW offload. 100% CPU to guest |
+| Nested Virtualization | VM in VM. For development and testing |
 
 ---
 
-## 参考文献
+## Recommended Next Guides
+
+---
+
+## References
 1. Portnoy, M. "Virtualization Essentials." 2nd Ed, Sybex, 2016.
 2. Popek, G. J. & Goldberg, R. P. "Formal Requirements for Virtualizable Third Generation Architectures." Communications of the ACM, 1974.
 3. Agesen, O. et al. "Software and Hardware Techniques for x86 Virtualization." VMware Technical Report, 2012.

@@ -1,176 +1,181 @@
-# サンドボックスと隔離
+# Sandboxing and Isolation
 
-> サンドボックスは「信頼できないコードを安全な砂場に閉じ込めて、システムへの影響を最小化する」技術。
+> A sandbox is a technology that "confines untrusted code in a safe playground to minimize its impact on the system."
 
-## この章で学ぶこと
+## Learning Objectives
 
-- [ ] サンドボックスの概念と設計原則を理解する
-- [ ] 主要な隔離技術を比較できる
-- [ ] Linux Namespaces の各種別を詳細に理解する
-- [ ] cgroups v2 によるリソース制御を実践できる
-- [ ] コンテナの隔離メカニズムを知る
-- [ ] gVisor, Firecracker 等の高度な隔離技術を理解する
-- [ ] ブラウザ・モバイルOS・デスクトップOSのサンドボックスを比較できる
-- [ ] seccomp-bpf のフィルタを設計できる
+- [ ] Understand the concepts and design principles of sandboxing
+- [ ] Compare major isolation technologies
+- [ ] Understand each type of Linux Namespace in detail
+- [ ] Practice resource control using cgroups v2
+- [ ] Know the isolation mechanisms of containers
+- [ ] Understand advanced isolation technologies such as gVisor and Firecracker
+- [ ] Compare sandboxes across browsers, mobile OSes, and desktop OSes
+- [ ] Design seccomp-bpf filters
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, having the following knowledge will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [アクセス制御](./00-access-control.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Understanding of the content in [Access Control](./00-access-control.md)
 
 ---
 
-## 1. サンドボックスの基本概念
+## 1. Fundamental Concepts of Sandboxing
 
-### 1.1 サンドボックスとは
+### 1.1 What is a Sandbox?
 
 ```
-サンドボックス（Sandbox）:
-  信頼境界を設けて、プログラムの実行環境を制限する技術
+Sandbox:
+  A technology that establishes trust boundaries to restrict program execution environments
 
-  設計原則:
+  Design Principles:
   ┌──────────────────────────────────────────────────┐
-  │ 1. 最小権限の原則:                                │
-  │    必要最小限のリソースのみアクセスを許可          │
+  │ 1. Principle of Least Privilege:                  │
+  │    Allow access to only the minimum resources     │
+  │    needed                                         │
   │                                                    │
-  │ 2. 隔離:                                          │
-  │    サンドボックス内のプロセスは外部に影響しない    │
+  │ 2. Isolation:                                     │
+  │    Processes inside the sandbox do not affect      │
+  │    the outside                                     │
   │                                                    │
-  │ 3. 仲介（Mediation）:                             │
-  │    すべてのリソースアクセスをチェックポイントで    │
-  │    検査する                                        │
+  │ 3. Mediation:                                     │
+  │    Inspect all resource access at checkpoints      │
   │                                                    │
-  │ 4. 防御の深層（Defense in Depth）:                 │
-  │    複数の隔離レイヤーを重ねて防御する              │
-  │    → 1つの層が突破されても他の層が防ぐ            │
+  │ 4. Defense in Depth:                               │
+  │    Layer multiple isolation layers for defense      │
+  │    → Even if one layer is breached, others protect │
   └──────────────────────────────────────────────────┘
 
-  サンドボックスの分類:
+  Classification of Sandboxes:
   ┌──────────────────────────────────────────────────┐
-  │ OS レベル:                                        │
+  │ OS Level:                                        │
   │   → Namespaces, cgroups, chroot, jail             │
-  │   → コンテナ（Docker, Podman）                    │
-  │   → VM（KVM, Xen, Hyper-V）                      │
+  │   → Containers (Docker, Podman)                   │
+  │   → VMs (KVM, Xen, Hyper-V)                      │
   │                                                    │
-  │ アプリケーションレベル:                            │
-  │   → ブラウザサンドボックス（Chromium）             │
-  │   → Java SecurityManager（非推奨）                │
+  │ Application Level:                                │
+  │   → Browser sandbox (Chromium)                    │
+  │   → Java SecurityManager (deprecated)             │
   │   → .NET Code Access Security                     │
-  │   → WebAssembly（Wasm）サンドボックス              │
+  │   → WebAssembly (Wasm) sandbox                    │
   │                                                    │
-  │ 言語レベル:                                        │
-  │   → Rust の所有権システム                          │
-  │   → Deno のパーミッションシステム                  │
-  │   → Wasm の線形メモリモデル                        │
+  │ Language Level:                                    │
+  │   → Rust's ownership system                       │
+  │   → Deno's permission system                      │
+  │   → Wasm's linear memory model                    │
   │                                                    │
-  │ ハードウェアレベル:                                │
+  │ Hardware Level:                                    │
   │   → Intel SGX / TDX                               │
   │   → ARM TrustZone / CCA                           │
   │   → AMD SEV-SNP                                   │
   └──────────────────────────────────────────────────┘
 ```
 
-### 1.2 隔離レベルの比較
+### 1.2 Comparison of Isolation Levels
 
 ```
-隔離レベルの比較:
+Comparison of Isolation Levels:
 
-  弱い隔離 ←────────────────────→ 強い隔離
-  プロセス   chroot  namespace   コンテナ   gVisor   VM     TEE
-  分離       分離    + cgroup    (Docker)  (sandbox) (KVM)  (SGX)
+  Weak Isolation ←────────────────────→ Strong Isolation
+  Process    chroot  namespace   Container  gVisor   VM     TEE
+  separation        + cgroup    (Docker)   (sandbox) (KVM)  (SGX)
 
-  各レベルの詳細:
+  Details of Each Level:
   ┌──────────────────────────────────────────────────────────────┐
-  │ レベル      │ 隔離対象           │ 攻撃面     │ 性能影響   │
+  │ Level       │ Isolation Target     │ Attack      │ Perf.    │
+  │             │                      │ Surface     │ Impact   │
   ├─────────────┼────────────────────┼────────────┼────────────┤
-  │ プロセス    │ メモリ空間のみ     │ 非常に広い │ なし       │
-  │ chroot      │ + ファイルシステム │ 広い       │ ほぼなし   │
-  │ Namespace   │ + PID,Net,IPC等    │ 中程度     │ 最小       │
-  │ コンテナ    │ + seccomp,cap      │ 中程度     │ 最小       │
-  │ gVisor      │ + システムコール   │ 狭い       │ 10-30%     │
-  │ microVM     │ + 仮想化           │ 狭い       │ 5-15%      │
-  │ VM          │ ハードウェアレベル │ 非常に狭い │ 5-10%      │
-  │ TEE         │ + 暗号化メモリ     │ 最小       │ 10-30%     │
+  │ Process     │ Memory space only    │ Very wide  │ None       │
+  │ chroot      │ + Filesystem         │ Wide       │ Negligible │
+  │ Namespace   │ + PID,Net,IPC, etc.  │ Moderate   │ Minimal    │
+  │ Container   │ + seccomp,cap        │ Moderate   │ Minimal    │
+  │ gVisor      │ + System calls       │ Narrow     │ 10-30%     │
+  │ microVM     │ + Virtualization     │ Narrow     │ 5-15%      │
+  │ VM          │ Hardware level       │ Very narrow│ 5-10%      │
+  │ TEE         │ + Encrypted memory   │ Minimal    │ 10-30%     │
   └─────────────┴────────────────────┴────────────┴────────────┘
 
-  脱獄（Escape）の難易度:
+  Escape Difficulty:
   ┌──────────────────────────────────────────────────┐
-  │ chroot: 比較的容易                                │
-  │   → chroot 内で root 権限があれば脱獄可能        │
-  │   → mknod, mount, ptrace 等を使った攻撃          │
-  │   → 本格的なセキュリティ境界としては不十分       │
+  │ chroot: Relatively easy                          │
+  │   → Escapable if root privileges exist inside    │
+  │   → Attacks using mknod, mount, ptrace, etc.     │
+  │   → Insufficient as a true security boundary     │
   │                                                    │
-  │ コンテナ: 中程度の難易度                          │
-  │   → カーネルの脆弱性を利用した脱獄事例あり       │
-  │   → CVE-2019-5736 (runc 脆弱性)                  │
-  │   → CVE-2020-15257 (containerd 脆弱性)           │
-  │   → 適切な設定で大幅にリスク軽減可能             │
+  │ Container: Moderate difficulty                    │
+  │   → Escape cases via kernel vulnerabilities exist │
+  │   → CVE-2019-5736 (runc vulnerability)           │
+  │   → CVE-2020-15257 (containerd vulnerability)    │
+  │   → Risk can be significantly reduced with proper │
+  │     configuration                                 │
   │                                                    │
-  │ VM: 非常に困難                                    │
-  │   → ハイパーバイザの脆弱性が必要                 │
-  │   → VENOM (CVE-2015-3456) 等の事例はあるが稀     │
-  │   → 攻撃には高度な技術が必要                     │
+  │ VM: Very difficult                                │
+  │   → Requires a hypervisor vulnerability           │
+  │   → Cases like VENOM (CVE-2015-3456) exist       │
+  │     but are rare                                   │
+  │   → Requires highly advanced techniques           │
   │                                                    │
-  │ TEE: 極めて困難                                   │
-  │   → ハードウェアレベルの保護                     │
-  │   → サイドチャネル攻撃で一部情報漏洩の事例あり   │
-  │   → Spectre/Meltdown 系の攻撃に注意             │
+  │ TEE: Extremely difficult                          │
+  │   → Hardware-level protection                     │
+  │   → Some information leakage via side-channel     │
+  │     attacks has occurred                           │
+  │   → Watch out for Spectre/Meltdown-class attacks │
   └──────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 2. chroot と FreeBSD Jail
+## 2. chroot and FreeBSD Jail
 
 ### 2.1 chroot
 
 ```
-chroot（Change Root）:
-  ファイルシステムのルートを変更
-  → プロセスから見えるファイルを制限
-  → 最も古い隔離技術（1979年, Unix V7）
+chroot (Change Root):
+  Changes the filesystem root
+  → Restricts files visible to a process
+  → The oldest isolation technology (1979, Unix V7)
 
-  chroot の仕組み:
+  How chroot Works:
   ┌──────────────────────────────────────────────────┐
-  │ 通常のプロセス:                                   │
-  │   / (真のルート)                                  │
+  │ Normal process:                                   │
+  │   / (true root)                                  │
   │   ├── etc/                                        │
   │   ├── usr/                                        │
   │   ├── home/                                       │
   │   └── var/                                        │
   │                                                    │
-  │ chroot されたプロセス:                             │
-  │   /srv/jail/ ← これが / に見える                 │
-  │   ├── etc/   (jail内の設定)                       │
-  │   ├── usr/   (最小限のバイナリ)                   │
+  │ chrooted process:                                 │
+  │   /srv/jail/ ← This appears as /                 │
+  │   ├── etc/   (jail-internal config)               │
+  │   ├── usr/   (minimal binaries)                   │
   │   └── tmp/                                        │
-  │   → /srv/jail/ の外は見えない                    │
+  │   → Cannot see outside /srv/jail/                │
   └──────────────────────────────────────────────────┘
 
-  chroot の限界:
-  - root 権限があれば脱獄可能
-  - ネットワーク、プロセス、IPC は隔離されない
-  - /proc, /sys はマウントされていれば見える
-  - セキュリティ機能ではなく、環境分離ツール
+  Limitations of chroot:
+  - Escapable if root privileges are available
+  - Network, process, and IPC are not isolated
+  - /proc, /sys are visible if mounted
+  - An environment isolation tool, not a security feature
 ```
 
 ```bash
-# chroot 環境の構築
+# Building a chroot environment
 
-# 1. ディレクトリ構造の作成
+# 1. Create directory structure
 sudo mkdir -p /srv/jail/{bin,lib,lib64,etc,usr/lib,dev,proc}
 
-# 2. 必要なバイナリのコピー
+# 2. Copy required binaries
 sudo cp /bin/bash /srv/jail/bin/
 sudo cp /bin/ls /srv/jail/bin/
 sudo cp /bin/cat /srv/jail/bin/
 
-# 3. 依存ライブラリのコピー
-# ldd でライブラリを確認してコピー
+# 3. Copy dependency libraries
+# Check libraries with ldd and copy them
 ldd /bin/bash
 # linux-vdso.so.1 (0x00007fff...)
 # libtinfo.so.6 => /lib/x86_64-linux-gnu/libtinfo.so.6
@@ -181,54 +186,54 @@ sudo cp /lib/x86_64-linux-gnu/libtinfo.so.6 /srv/jail/lib/
 sudo cp /lib/x86_64-linux-gnu/libc.so.6 /srv/jail/lib/
 sudo cp /lib64/ld-linux-x86-64.so.2 /srv/jail/lib64/
 
-# 4. chroot に入る
+# 4. Enter the chroot
 sudo chroot /srv/jail /bin/bash
-# → / は /srv/jail を指す
+# → / now points to /srv/jail
 ls /        # bin lib lib64 etc usr dev proc
-# → /srv/jail の外にはアクセスできない
+# → Cannot access outside /srv/jail
 
-# 5. 脱獄の例（root権限がある場合）
-# ※ 教育目的のみ。実際のシステムでは試さないこと
+# 5. Example of escape (when root privileges are available)
+# * For educational purposes only. Do not try on real systems
 mkdir /tmp/escape
 chroot /tmp/escape
-cd ../../../..   # 真のルートに到達
-chroot .         # 真のルートに chroot
-# → chroot はセキュリティ境界としては不十分
+cd ../../../..   # Reach the true root
+chroot .         # chroot to the true root
+# → chroot is insufficient as a security boundary
 
-# chroot の実務的な使い方:
-# - ビルド環境の隔離（debootstrap + chroot）
-# - BIND DNS サーバーの隔離
-# - パッケージのビルド環境
-# - 壊れたシステムの修復（rescue mode）
+# Practical uses of chroot:
+# - Isolating build environments (debootstrap + chroot)
+# - Isolating BIND DNS server
+# - Package build environments
+# - Repairing broken systems (rescue mode)
 ```
 
 ### 2.2 FreeBSD Jail
 
 ```
 FreeBSD Jail:
-  chroot の強化版。プロセス、ネットワーク、ユーザーも隔離
-  → 2000年に導入。コンテナの先駆け
-  → Linux の Namespace + cgroups に相当
+  Enhanced version of chroot. Also isolates processes, network, and users
+  → Introduced in 2000. A precursor to containers
+  → Equivalent to Linux Namespaces + cgroups
 
-  Jail の特徴:
+  Jail Features:
   ┌──────────────────────────────────────────────────┐
-  │ ファイルシステムの隔離:                           │
-  │   → chroot と同様だが脱獄が困難                  │
+  │ Filesystem Isolation:                             │
+  │   → Similar to chroot but escape is much harder  │
   │                                                    │
-  │ プロセスの隔離:                                    │
-  │   → Jail 内のプロセスは Jail 外を見えない        │
-  │   → Jail 内の root でも制限される                │
+  │ Process Isolation:                                │
+  │   → Processes inside Jail cannot see outside      │
+  │   → root inside Jail is restricted                │
   │                                                    │
-  │ ネットワークの隔離:                               │
-  │   → Jail ごとに IP アドレスを割り当て             │
-  │   → VNET（仮想ネットワークスタック）対応          │
+  │ Network Isolation:                                │
+  │   → Each Jail is assigned its own IP address      │
+  │   → VNET (virtual network stack) support          │
   │                                                    │
-  │ ユーザーの隔離:                                    │
-  │   → Jail 内の root は Jail 外にアクセスできない  │
-  │   → securelevel で権限をさらに制限               │
+  │ User Isolation:                                    │
+  │   → root inside Jail cannot access outside        │
+  │   → securelevel further restricts privileges      │
   └──────────────────────────────────────────────────┘
 
-  Jail の設定例（/etc/jail.conf）:
+  Jail Configuration Example (/etc/jail.conf):
   webserver {
       host.hostname = "web.jail.local";
       ip4.addr = "10.0.0.2";
@@ -239,35 +244,35 @@ FreeBSD Jail:
       allow.raw_sockets;
   }
 
-  管理コマンド:
-  # jail -c webserver        # Jail の起動
-  # jls                      # Jail の一覧
-  # jexec webserver /bin/sh  # Jail 内でコマンド実行
+  Management Commands:
+  # jail -c webserver        # Start a Jail
+  # jls                      # List Jails
+  # jexec webserver /bin/sh  # Execute command inside Jail
 ```
 
 ---
 
 ## 3. Linux Namespaces
 
-### 3.1 Namespace の種類と詳細
+### 3.1 Namespace Types and Details
 
 ```
 Linux Namespaces:
-  OSリソースをプロセスごとに分離
-  → コンテナ技術の基盤
+  Isolate OS resources per process
+  → Foundation of container technology
 
-  Namespace の種類:
+  Namespace Types:
   ┌──────────────┬──────────────────────────┬──────────┐
-  │ Namespace    │ 分離対象                  │ カーネル │
+  │ Namespace    │ Isolation Target          │ Kernel   │
   ├──────────────┼──────────────────────────┼──────────┤
-  │ PID          │ プロセスID空間            │ 2.6.24   │
-  │ Network      │ ネットワークスタック      │ 2.6.29   │
-  │ Mount        │ マウントポイント          │ 2.4.19   │
-  │ UTS          │ ホスト名とドメイン名      │ 2.6.19   │
-  │ IPC          │ プロセス間通信            │ 2.6.19   │
-  │ User         │ UID/GID マッピング        │ 3.8      │
-  │ Cgroup       │ cgroupの可視性            │ 4.6      │
-  │ Time         │ システム時刻（CLOCK_*）   │ 5.6      │
+  │ PID          │ Process ID space          │ 2.6.24   │
+  │ Network      │ Network stack             │ 2.6.29   │
+  │ Mount        │ Mount points              │ 2.4.19   │
+  │ UTS          │ Hostname and domain name  │ 2.6.19   │
+  │ IPC          │ Inter-process communic.   │ 2.6.19   │
+  │ User         │ UID/GID mapping           │ 3.8      │
+  │ Cgroup       │ cgroup visibility         │ 4.6      │
+  │ Time         │ System time (CLOCK_*)     │ 5.6      │
   └──────────────┴──────────────────────────┴──────────┘
 ```
 
@@ -275,11 +280,11 @@ Linux Namespaces:
 
 ```
 PID Namespace:
-  プロセスID空間を隔離
-  → Namespace 内では PID 1 から始まる
-  → 外部の PID は見えない
+  Isolates the process ID space
+  → PIDs start from 1 within the Namespace
+  → External PIDs are not visible
 
-  PID Namespace の階層:
+  PID Namespace Hierarchy:
   ┌──────────────────────────────────────────────────┐
   │ Host PID Namespace:                               │
   │   PID 1 (systemd/init)                           │
@@ -291,64 +296,64 @@ PID Namespace:
   │           PID 2 (app process)    ← Host PID 202  │
   │           PID 3 (worker)         ← Host PID 203  │
   │                                                    │
-  │ → 親Namespace からは子の PID が見える            │
-  │ → 子Namespace からは親の PID は見えない          │
-  │ → PID 1 が終了すると、Namespace内の全プロセスが  │
-  │   SIGKILL を受ける                                │
+  │ → Parent Namespace can see child PIDs             │
+  │ → Child Namespace cannot see parent PIDs          │
+  │ → When PID 1 exits, all processes in the          │
+  │   Namespace receive SIGKILL                       │
   └──────────────────────────────────────────────────┘
 
-  PID Namespace の特殊な挙動:
-  - PID 1 はシグナルハンドラを登録していないシグナルを無視
-  - 孤児プロセスは PID 1 に reparent される
-  - /proc のマウントで正確なプロセス情報を表示
+  Special Behaviors of PID Namespace:
+  - PID 1 ignores signals for which no handler is registered
+  - Orphan processes are reparented to PID 1
+  - Mounting /proc displays accurate process info
 ```
 
 ```bash
-# PID Namespace の作成と確認
+# Creating and verifying a PID Namespace
 
-# 新しい PID Namespace でシェルを起動
+# Start a shell in a new PID Namespace
 sudo unshare --pid --fork --mount-proc bash
 echo $$      # PID 1
-ps aux       # Namespace 内のプロセスのみ表示
+ps aux       # Shows only processes within the Namespace
 # USER  PID %CPU %MEM    VSZ   RSS TTY  STAT START   TIME COMMAND
 # root    1  0.0  0.0   8532  5240 pts/0 S   12:00   0:00 bash
 # root    2  0.0  0.0  10068  3456 pts/0 R+  12:00   0:00 ps aux
 
-# 別のターミナルから確認
-ps aux | grep bash  # ホストでは別の PID で見える
+# Verify from another terminal
+ps aux | grep bash  # Visible under a different PID on the host
 
-# --fork が必要な理由:
-# unshare 自体は新しい Namespace に入るが、
-# PID Namespace は子プロセスから有効になるため
-# --fork で新しいプロセスを作成する必要がある
+# Why --fork is needed:
+# unshare itself enters the new Namespace, but
+# PID Namespace takes effect from child processes, so
+# --fork is needed to create a new process
 ```
 
 ### 3.3 Network Namespace
 
 ```
 Network Namespace:
-  ネットワークスタック全体を隔離
-  → インターフェース、ルーティングテーブル、ファイアウォール、ソケット
-  → コンテナのネットワーク隔離の基盤
+  Isolates the entire network stack
+  → Interfaces, routing tables, firewalls, sockets
+  → Foundation of container network isolation
 
-  Network Namespace の構成:
+  Network Namespace Layout:
   ┌──────────────────────────────────────────────────┐
   │ Host Namespace:                                   │
   │   eth0: 192.168.1.100/24                         │
   │   veth-host ──┐                                   │
-  │               │ veth pair（仮想イーサネット）     │
+  │               │ veth pair (virtual ethernet)      │
   │   Container Namespace:                            │
   │   veth-cont ──┘                                   │
   │   eth0: 172.17.0.2/16                            │
   │   lo: 127.0.0.1                                   │
-  │   → 独立したネットワークスタック                 │
+  │   → Independent network stack                    │
   └──────────────────────────────────────────────────┘
 
-  Docker のネットワークモデル:
+  Docker Network Model:
   ┌──────────────────────────────────────────────────┐
-  │ ホスト                                            │
+  │ Host                                              │
   │ ┌──────────────────────────────────┐              │
-  │ │ docker0 ブリッジ (172.17.0.1)   │              │
+  │ │ docker0 bridge (172.17.0.1)     │              │
   │ │  ┌─────────┐  ┌─────────┐       │              │
   │ │  │ veth1   │  │ veth2   │       │              │
   │ │  └────┬────┘  └────┬────┘       │              │
@@ -358,51 +363,51 @@ Network Namespace:
   │    eth0:         eth0:                            │
   │    172.17.0.2    172.17.0.3                       │
   │                                                    │
-  │ → NAT でホストの eth0 経由で外部通信             │
-  │ → iptables の MASQUERADE ルール                  │
+  │ → External communication via NAT through host eth0│
+  │ → iptables MASQUERADE rules                       │
   └──────────────────────────────────────────────────┘
 ```
 
 ```bash
-# Network Namespace の操作
+# Network Namespace Operations
 
-# Namespace の作成
+# Create a Namespace
 sudo ip netns add test-ns
 
-# Namespace の一覧
+# List Namespaces
 ip netns list
 
-# Namespace 内でコマンド実行
+# Execute a command within the Namespace
 sudo ip netns exec test-ns ip addr
-# → lo インターフェースのみ（DOWN状態）
+# → Only the lo interface (DOWN state)
 
-# veth ペアの作成と設定
+# Create and configure a veth pair
 sudo ip link add veth-host type veth peer name veth-ns
 sudo ip link set veth-ns netns test-ns
 
-# ホスト側の設定
+# Host-side configuration
 sudo ip addr add 10.0.0.1/24 dev veth-host
 sudo ip link set veth-host up
 
-# Namespace 側の設定
+# Namespace-side configuration
 sudo ip netns exec test-ns ip addr add 10.0.0.2/24 dev veth-ns
 sudo ip netns exec test-ns ip link set veth-ns up
 sudo ip netns exec test-ns ip link set lo up
 
-# 疎通確認
-ping 10.0.0.2                              # ホスト → Namespace
-sudo ip netns exec test-ns ping 10.0.0.1   # Namespace → ホスト
+# Connectivity test
+ping 10.0.0.2                              # Host → Namespace
+sudo ip netns exec test-ns ping 10.0.0.1   # Namespace → Host
 
-# Namespace からインターネット接続（NAT設定）
+# Internet access from Namespace (NAT configuration)
 sudo ip netns exec test-ns ip route add default via 10.0.0.1
 sudo iptables -t nat -A POSTROUTING -s 10.0.0.0/24 -j MASQUERADE
 sudo sysctl -w net.ipv4.ip_forward=1
 
-# Namespace 内で独立したファイアウォール
+# Independent firewall within the Namespace
 sudo ip netns exec test-ns iptables -A INPUT -p tcp --dport 80 -j ACCEPT
 sudo ip netns exec test-ns iptables -A INPUT -j DROP
 
-# Namespace の削除
+# Delete the Namespace
 sudo ip netns delete test-ns
 ```
 
@@ -410,11 +415,11 @@ sudo ip netns delete test-ns
 
 ```
 Mount Namespace:
-  マウントポイントを隔離
-  → Namespace ごとに異なるファイルシステムビューを持つ
-  → コンテナのファイルシステム隔離の基盤
+  Isolates mount points
+  → Each Namespace has a different filesystem view
+  → Foundation of container filesystem isolation
 
-  Mount Namespace の動作:
+  Mount Namespace Behavior:
   ┌──────────────────────────────────────────────────┐
   │ Host Mount Namespace:                             │
   │   /           (ext4)                              │
@@ -422,138 +427,138 @@ Mount Namespace:
   │   /tmp        (tmpfs)                             │
   │                                                    │
   │ Container Mount Namespace:                        │
-  │   /           (overlay2 - コンテナイメージ)      │
-  │   /etc/hosts  (bind mount - Docker管理)          │
+  │   /           (overlay2 - container image)        │
+  │   /etc/hosts  (bind mount - Docker managed)       │
   │   /proc       (procfs)                            │
-  │   /sys        (sysfs - 読み取り専用)             │
-  │   /dev        (devtmpfs - 制限付き)              │
-  │   /app/data   (volume mount - 永続データ)        │
+  │   /sys        (sysfs - read-only)                 │
+  │   /dev        (devtmpfs - restricted)             │
+  │   /app/data   (volume mount - persistent data)    │
   │                                                    │
-  │ → ホストのファイルシステムとは完全に独立         │
-  │ → 必要なファイルのみ bind mount で共有           │
+  │ → Completely independent from host filesystem     │
+  │ → Share only necessary files via bind mount       │
   └──────────────────────────────────────────────────┘
 
-  Propagation タイプ（マウント伝播）:
+  Propagation Types (Mount Propagation):
   ┌───────────┬──────────────────────────────────────┐
-  │ shared    │ マウントイベントが双方向に伝播       │
-  │ slave     │ 親 → 子 のみ伝播                    │
-  │ private   │ 伝播しない（デフォルト）             │
-  │ unbindable│ private + bind mount 不可            │
+  │ shared    │ Mount events propagate bidirectionally│
+  │ slave     │ Propagates only from parent → child  │
+  │ private   │ No propagation (default)             │
+  │ unbindable│ private + cannot be bind mounted     │
   └───────────┴──────────────────────────────────────┘
 ```
 
 ```bash
-# Mount Namespace の操作
+# Mount Namespace Operations
 
-# 新しい Mount Namespace を作成
+# Create a new Mount Namespace
 sudo unshare --mount bash
 
-# Namespace 内で tmpfs をマウント
+# Mount tmpfs within the Namespace
 mount -t tmpfs tmpfs /mnt
 echo "isolated" > /mnt/test.txt
 cat /mnt/test.txt  # "isolated"
 
-# 別のターミナル（ホスト側）で確認
-ls /mnt/           # 何もない → 隔離されている
+# Verify from another terminal (host side)
+ls /mnt/           # Empty → isolated
 
-# プライベートマウントの設定
+# Set private mount
 mount --make-private /
 
-# Namespace 内で /proc を再マウント（PID Namespace と組み合わせ）
+# Remount /proc inside Namespace (combined with PID Namespace)
 sudo unshare --pid --fork --mount bash
 mount -t proc proc /proc
-ps aux  # Namespace 内のプロセスのみ
+ps aux  # Only processes within the Namespace
 ```
 
 ### 3.5 User Namespace
 
 ```
 User Namespace:
-  UID/GID のマッピングを隔離
-  → Namespace 内で root（UID 0）でも外部では非特権ユーザー
-  → ルートレスコンテナの基盤技術
+  Isolates UID/GID mappings
+  → root (UID 0) inside the Namespace is an unprivileged user outside
+  → Foundation technology for rootless containers
 
-  User Namespace のマッピング:
+  User Namespace Mapping:
   ┌──────────────────────────────────────────────────┐
   │ Host:                                             │
   │   alice (UID 1000)                                │
   │                                                    │
-  │ User Namespace 内:                                │
-  │   root (UID 0) ← 実際には alice (UID 1000)      │
-  │   → Namespace 内では root として動作             │
-  │   → ホストでは alice の権限のみ                  │
-  │   → Namespace 内でファイルを作成すると           │
-  │     ホストでは alice 所有になる                   │
+  │ Inside User Namespace:                            │
+  │   root (UID 0) ← Actually alice (UID 1000)       │
+  │   → Operates as root within the Namespace         │
+  │   → Has only alice's permissions on the host      │
+  │   → Files created in the Namespace are            │
+  │     owned by alice on the host                     │
   └──────────────────────────────────────────────────┘
 
-  /proc/PID/uid_map の内容:
-  # Namespace内UID  ホストUID  マッピング数
+  Contents of /proc/PID/uid_map:
+  # Namespace UID  Host UID  Mapping count
   0                 1000       1
-  → Namespace 内の UID 0 = ホストの UID 1000
+  → UID 0 in the Namespace = UID 1000 on the host
 
-  User Namespace で可能になること:
-  - 非特権ユーザーによる Namespace 作成
-  - Namespace 内での mount 操作
-  - Namespace 内での chroot
-  - Rootless コンテナの実現
-  - → セキュリティ上の利点が大きい
+  What User Namespace Enables:
+  - Namespace creation by unprivileged users
+  - mount operations within the Namespace
+  - chroot within the Namespace
+  - Rootless container implementation
+  - → Significant security benefits
 ```
 
 ```bash
-# User Namespace の操作
+# User Namespace Operations
 
-# User Namespace の作成（非特権ユーザーでも可能）
+# Create a User Namespace (possible even as unprivileged user)
 unshare --user --map-root-user bash
 id
 # uid=0(root) gid=0(root) groups=0(root)
-# → Namespace 内では root に見える
+# → Appears as root within the Namespace
 
-whoami  # root（Namespace内）
+whoami  # root (inside the Namespace)
 
-# UID マッピングの確認
+# Check UID mapping
 cat /proc/self/uid_map
 # 0  1000  1
-# → Namespace内の UID 0 = ホストの UID 1000
+# → UID 0 in the Namespace = UID 1000 on the host
 
-# ファイル作成テスト
+# File creation test
 touch /tmp/test-user-ns
 ls -la /tmp/test-user-ns
-# → ホストでは alice (UID 1000) の所有
+# → On the host, owned by alice (UID 1000)
 
-# Rootless コンテナ（Podman）
+# Rootless container (Podman)
 podman run --rm -it alpine sh
-# → root 権限なしでコンテナを実行
-# → User Namespace で内部は root、外部は一般ユーザー
+# → Run container without root privileges
+# → root inside via User Namespace, regular user outside
 ```
 
-### 3.6 UTS, IPC, Cgroup, Time Namespace
+### 3.6 UTS, IPC, Cgroup, and Time Namespaces
 
 ```
 UTS Namespace:
-  ホスト名とドメイン名を隔離
-  → コンテナごとに異なるホスト名を設定可能
+  Isolates hostname and domain name
+  → Each container can have a different hostname
   → UTS = Unix Time Sharing
 
 IPC Namespace:
-  System V IPC と POSIX メッセージキューを隔離
-  → 共有メモリ、セマフォ、メッセージキュー
-  → Namespace 間でのデータ漏洩を防止
+  Isolates System V IPC and POSIX message queues
+  → Shared memory, semaphores, message queues
+  → Prevents data leakage between Namespaces
 
 Cgroup Namespace:
-  cgroup の可視性を隔離
-  → コンテナ内からは自身の cgroup ツリーのみ見える
-  → ホストの cgroup 構造が隠蔽される
+  Isolates cgroup visibility
+  → Containers see only their own cgroup tree
+  → Host cgroup structure is hidden
 
 Time Namespace (Linux 5.6+):
-  CLOCK_MONOTONIC と CLOCK_BOOTTIME を隔離
-  → コンテナのライブマイグレーション時に有用
-  → ホストの起動時間とコンテナの起動時間を独立にできる
+  Isolates CLOCK_MONOTONIC and CLOCK_BOOTTIME
+  → Useful for live migration of containers
+  → Host boot time and container boot time can be independent
 ```
 
 ```bash
-# 各 Namespace の確認
+# Checking each Namespace
 
-# 現在の Namespace 確認
+# Check current Namespaces
 ls -la /proc/self/ns/
 # lrwxrwxrwx 1 user user 0 Jan 1 12:00 cgroup -> 'cgroup:[4026531835]'
 # lrwxrwxrwx 1 user user 0 Jan 1 12:00 ipc -> 'ipc:[4026531839]'
@@ -563,250 +568,252 @@ ls -la /proc/self/ns/
 # lrwxrwxrwx 1 user user 0 Jan 1 12:00 user -> 'user:[4026531837]'
 # lrwxrwxrwx 1 user user 0 Jan 1 12:00 uts -> 'uts:[4026531838]'
 
-# UTS Namespace（ホスト名の隔離）
+# UTS Namespace (hostname isolation)
 sudo unshare --uts bash
 hostname container-1
 hostname    # container-1
-# 別ターミナルで: hostname → ホスト名は変わらない
+# In another terminal: hostname → Host name is unchanged
 
 # IPC Namespace
 sudo unshare --ipc bash
-ipcs        # IPC リソースは空の状態から開始
-# → ホストの共有メモリやセマフォは見えない
+ipcs        # IPC resources start empty
+# → Host shared memory and semaphores are not visible
 
-# 複数の Namespace を同時に作成
+# Create multiple Namespaces simultaneously
 sudo unshare --pid --fork --mount-proc \
   --net --uts --ipc --user --map-root-user bash
-# → 完全に隔離された環境（≒ コンテナ）
+# → Fully isolated environment (approximately = container)
 ```
 
 ---
 
-## 4. cgroups（Control Groups）
+## 4. cgroups (Control Groups)
 
 ### 4.1 cgroups v1 vs v2
 
 ```
-cgroups（Control Groups）:
-  プロセスのリソース使用量を制限・監視・隔離する仕組み
-  → カーネル 2.6.24 で導入（v1）
-  → カーネル 4.5 で v2 が導入
-  → コンテナのリソース制限の基盤
+cgroups (Control Groups):
+  A mechanism to limit, monitor, and isolate resource usage of processes
+  → Introduced in kernel 2.6.24 (v1)
+  → v2 introduced in kernel 4.5
+  → Foundation of container resource limiting
 
   cgroups v1 vs v2:
   ┌─────────────┬──────────────────┬──────────────────┐
-  │ 項目        │ v1               │ v2               │
+  │ Item        │ v1               │ v2               │
   ├─────────────┼──────────────────┼──────────────────┤
-  │ 階層構造    │ コントローラごと │ 統一された単一   │
-  │             │ に独立した階層   │ 階層             │
-  │ 管理        │ 複雑             │ シンプル         │
-  │ 圧力監視    │ なし             │ PSI 対応        │
-  │ メモリ管理  │ 不正確な場合あり │ 正確             │
-  │ I/O制御     │ blkio            │ io（改善版）     │
-  │ ステータス  │ レガシー         │ 推奨             │
+  │ Hierarchy   │ Independent per  │ Unified single   │
+  │             │ controller       │ hierarchy        │
+  │ Management  │ Complex          │ Simple           │
+  │ Pressure    │ None             │ PSI support      │
+  │ monitoring  │                  │                  │
+  │ Memory mgmt│ Sometimes        │ Accurate         │
+  │             │ inaccurate       │                  │
+  │ I/O control │ blkio            │ io (improved)    │
+  │ Status      │ Legacy           │ Recommended      │
   └─────────────┴──────────────────┴──────────────────┘
 
-  cgroups v2 の階層構造:
-  /sys/fs/cgroup/                   ← ルート cgroup
-  ├── cgroup.controllers            ← 利用可能なコントローラ
-  ├── cgroup.subtree_control        ← サブツリーで有効なコントローラ
-  ├── system.slice/                 ← systemd サービス
+  cgroups v2 Hierarchy:
+  /sys/fs/cgroup/                   ← Root cgroup
+  ├── cgroup.controllers            ← Available controllers
+  ├── cgroup.subtree_control        ← Controllers enabled for subtree
+  ├── system.slice/                 ← systemd services
   │   ├── nginx.service/
-  │   │   ├── cgroup.procs          ← プロセスIDリスト
-  │   │   ├── memory.max            ← メモリ上限
-  │   │   ├── memory.current        ← 現在のメモリ使用量
-  │   │   ├── cpu.max               ← CPU制限
-  │   │   └── io.max                ← I/O制限
+  │   │   ├── cgroup.procs          ← Process ID list
+  │   │   ├── memory.max            ← Memory limit
+  │   │   ├── memory.current        ← Current memory usage
+  │   │   ├── cpu.max               ← CPU limit
+  │   │   └── io.max                ← I/O limit
   │   └── postgresql.service/
-  └── user.slice/                   ← ユーザーセッション
+  └── user.slice/                   ← User sessions
       └── user-1000.slice/
           └── session-1.scope/
 
-  主要なコントローラ（v2）:
+  Major Controllers (v2):
   ┌──────────┬──────────────────────────────────────┐
-  │ cpu      │ CPU 時間の制限と重み付け             │
-  │ cpuset   │ CPU コアとメモリノードの割り当て     │
-  │ memory   │ メモリ使用量の制限と監視             │
-  │ io       │ ブロック I/O の制限                  │
-  │ pids     │ プロセス数の制限                     │
-  │ rdma     │ RDMA リソースの制限                  │
-  │ hugetlb  │ Huge Pages の制限                    │
-  │ misc     │ その他のリソース（DRM等）            │
+  │ cpu      │ CPU time limiting and weighting       │
+  │ cpuset   │ CPU core and memory node assignment   │
+  │ memory   │ Memory usage limiting and monitoring  │
+  │ io       │ Block I/O limiting                    │
+  │ pids     │ Process count limiting                │
+  │ rdma     │ RDMA resource limiting                │
+  │ hugetlb  │ Huge Pages limiting                   │
+  │ misc     │ Other resources (DRM, etc.)           │
   └──────────┴──────────────────────────────────────┘
 ```
 
-### 4.2 cgroups v2 の実践
+### 4.2 cgroups v2 in Practice
 
 ```bash
-# cgroups v2 の確認
+# Verify cgroups v2
 mount | grep cgroup2
 # cgroup2 on /sys/fs/cgroup type cgroup2 (rw,nosuid,nodev,noexec,relatime)
 
-# 利用可能なコントローラの確認
+# Check available controllers
 cat /sys/fs/cgroup/cgroup.controllers
 # cpuset cpu io memory hugetlb pids rdma misc
 
 # ========================================
-# メモリ制限の設定
+# Setting Memory Limits
 # ========================================
 
-# cgroup の作成
+# Create a cgroup
 sudo mkdir /sys/fs/cgroup/myapp
 
-# サブツリーのコントローラを有効化
+# Enable controllers for subtree
 echo "+memory +cpu +io +pids" | \
   sudo tee /sys/fs/cgroup/cgroup.subtree_control
 
-# メモリ制限の設定
+# Set memory limit
 echo 256M | sudo tee /sys/fs/cgroup/myapp/memory.max
 echo 200M | sudo tee /sys/fs/cgroup/myapp/memory.high
-# memory.max: ハード制限（超過するとOOM Killer発動）
-# memory.high: ソフト制限（超過するとスロットリング）
+# memory.max: Hard limit (OOM Killer triggers when exceeded)
+# memory.high: Soft limit (throttling when exceeded)
 
-# スワップの制限
+# Limit swap
 echo 0 | sudo tee /sys/fs/cgroup/myapp/memory.swap.max
 
-# プロセスの追加
+# Add process
 echo $$ | sudo tee /sys/fs/cgroup/myapp/cgroup.procs
 
-# メモリ使用状況の確認
-cat /sys/fs/cgroup/myapp/memory.current    # 現在の使用量
-cat /sys/fs/cgroup/myapp/memory.stat       # 詳細な統計
-cat /sys/fs/cgroup/myapp/memory.events     # OOM等のイベント
+# Check memory usage
+cat /sys/fs/cgroup/myapp/memory.current    # Current usage
+cat /sys/fs/cgroup/myapp/memory.stat       # Detailed stats
+cat /sys/fs/cgroup/myapp/memory.events     # Events like OOM
 
 # ========================================
-# CPU 制限の設定
+# Setting CPU Limits
 # ========================================
 
-# CPU 時間の制限（50%）
+# CPU time limit (50%)
 echo "50000 100000" | sudo tee /sys/fs/cgroup/myapp/cpu.max
-# 100000μsの期間中、50000μsのCPU時間を使用可能 = 50%
+# Can use 50000us of CPU time per 100000us period = 50%
 
-# CPU の重み（相対的な優先度）
+# CPU weight (relative priority)
 echo 100 | sudo tee /sys/fs/cgroup/myapp/cpu.weight
-# デフォルト: 100, 範囲: 1-10000
-# weight=200 のグループは weight=100 の2倍のCPU時間を得る
+# Default: 100, Range: 1-10000
+# A group with weight=200 gets twice the CPU time as weight=100
 
-# CPU コアの割り当て
+# CPU core assignment
 echo "0-1" | sudo tee /sys/fs/cgroup/myapp/cpuset.cpus
-# CPU 0 と CPU 1 のみ使用可能
+# Can only use CPU 0 and CPU 1
 
 # ========================================
-# I/O 制限の設定
+# Setting I/O Limits
 # ========================================
 
-# デバイスの確認
+# Check devices
 lsblk
 # sda  8:0
 
-# I/O 帯域幅の制限
+# I/O bandwidth limit
 echo "8:0 rbps=10485760 wbps=5242880" | \
   sudo tee /sys/fs/cgroup/myapp/io.max
-# sda の読み取り: 10MB/s, 書き込み: 5MB/s
+# sda read: 10MB/s, write: 5MB/s
 
-# I/O の重み
+# I/O weight
 echo "8:0 200" | sudo tee /sys/fs/cgroup/myapp/io.weight
-# デフォルト: 100, 範囲: 1-10000
+# Default: 100, Range: 1-10000
 
 # ========================================
-# PID 数の制限
+# Limiting PID Count
 # ========================================
 
-# プロセス数の制限（fork bomb 対策）
+# Process count limit (fork bomb protection)
 echo 100 | sudo tee /sys/fs/cgroup/myapp/pids.max
-# → 100プロセスまで
+# → Up to 100 processes
 
-# 現在のプロセス数
+# Current process count
 cat /sys/fs/cgroup/myapp/pids.current
 
 # ========================================
-# PSI（Pressure Stall Information）の監視
+# PSI (Pressure Stall Information) Monitoring
 # ========================================
 
-# リソース圧力の確認
+# Check resource pressure
 cat /sys/fs/cgroup/myapp/memory.pressure
 # some avg10=0.00 avg60=0.00 avg300=0.00 total=0
 # full avg10=0.00 avg60=0.00 avg300=0.00 total=0
-# → some: 一部のタスクが待機中, full: すべてのタスクが待機中
+# → some: some tasks are waiting, full: all tasks are waiting
 
 cat /sys/fs/cgroup/myapp/cpu.pressure
 cat /sys/fs/cgroup/myapp/io.pressure
 
-# PSI の通知を設定（メモリ圧力が5秒中500ms超えたら通知）
+# Set PSI notification (notify when memory pressure exceeds 500ms in 5s)
 echo "some 500000 5000000" > /sys/fs/cgroup/myapp/memory.pressure
-# → epoll/poll で監視可能
+# → Monitorable via epoll/poll
 
-# cgroup の削除
-echo $$ | sudo tee /sys/fs/cgroup/cgroup.procs  # プロセスを移動
+# Delete the cgroup
+echo $$ | sudo tee /sys/fs/cgroup/cgroup.procs  # Move process out
 sudo rmdir /sys/fs/cgroup/myapp
 ```
 
-### 4.3 systemd と cgroups
+### 4.3 systemd and cgroups
 
 ```
-systemd は cgroups v2 を使用してサービスのリソースを管理:
+systemd uses cgroups v2 to manage service resources:
 
-  サービスファイルでのリソース制限:
+  Resource Limits in Service Files:
   ┌──────────────────────────────────────────────────┐
   │ /etc/systemd/system/myapp.service                │
   │                                                    │
   │ [Service]                                         │
-  │ # メモリ制限                                      │
-  │ MemoryMax=512M          # ハード制限              │
-  │ MemoryHigh=400M         # ソフト制限              │
-  │ MemorySwapMax=0         # スワップ禁止            │
+  │ # Memory limits                                   │
+  │ MemoryMax=512M          # Hard limit              │
+  │ MemoryHigh=400M         # Soft limit              │
+  │ MemorySwapMax=0         # Disable swap            │
   │                                                    │
-  │ # CPU 制限                                        │
-  │ CPUQuota=200%           # 2コア分のCPU時間        │
-  │ CPUWeight=50            # 低い優先度              │
-  │ AllowedCPUs=0-3         # 使用可能なCPUコア       │
+  │ # CPU limits                                      │
+  │ CPUQuota=200%           # 2 cores worth of CPU    │
+  │ CPUWeight=50            # Low priority             │
+  │ AllowedCPUs=0-3         # Usable CPU cores        │
   │                                                    │
-  │ # I/O 制限                                        │
+  │ # I/O limits                                      │
   │ IOWeight=100                                      │
   │ IOReadBandwidthMax=/dev/sda 50M                   │
   │ IOWriteBandwidthMax=/dev/sda 20M                  │
   │                                                    │
-  │ # プロセス数制限                                  │
+  │ # Process count limit                             │
   │ TasksMax=64                                       │
   │                                                    │
-  │ # セキュリティ強化                                │
-  │ ProtectSystem=strict    # / を読み取り専用に      │
-  │ ProtectHome=true        # /home を隠す            │
-  │ PrivateTmp=true         # 独立した /tmp           │
-  │ NoNewPrivileges=true    # 権限昇格禁止            │
-  │ PrivateDevices=true     # デバイスアクセス制限    │
+  │ # Security hardening                              │
+  │ ProtectSystem=strict    # Make / read-only        │
+  │ ProtectHome=true        # Hide /home              │
+  │ PrivateTmp=true         # Independent /tmp        │
+  │ NoNewPrivileges=true    # Deny privilege escalation│
+  │ PrivateDevices=true     # Restrict device access  │
   └──────────────────────────────────────────────────┘
 ```
 
 ```bash
-# systemd でのリソース監視
-systemd-cgtop                    # cgroup のリソース使用量一覧
-systemctl status myapp.service   # サービスの状態と cgroup 情報
+# Resource monitoring with systemd
+systemd-cgtop                    # cgroup resource usage overview
+systemctl status myapp.service   # Service status and cgroup info
 systemctl show myapp.service --property=MemoryMax
 systemctl show myapp.service --property=CPUQuota
 
-# 実行中のサービスのリソース制限を変更
+# Change resource limits on a running service
 sudo systemctl set-property myapp.service MemoryMax=1G
 sudo systemctl set-property myapp.service CPUQuota=150%
 
-# slice の作成（関連サービスのグループ化）
+# Create a slice (grouping related services)
 # /etc/systemd/system/myapp.slice
 # [Slice]
 # MemoryMax=2G
 # CPUQuota=400%
 #
-# → サービスファイルで Slice=myapp.slice を指定
+# → Specify Slice=myapp.slice in the service file
 ```
 
 ---
 
-## 5. 仮想マシン vs コンテナ
+## 5. Virtual Machines vs Containers
 
-### 5.1 アーキテクチャ比較
+### 5.1 Architecture Comparison
 
 ```
 ┌──────────────────────────────────────────┐
-│ 仮想マシン                                │
+│ Virtual Machine                          │
 │ ┌──────┐ ┌──────┐ ┌──────┐              │
 │ │App A │ │App B │ │App C │              │
 │ │Guest │ │Guest │ │Guest │              │
@@ -818,12 +825,12 @@ sudo systemctl set-property myapp.service CPUQuota=150%
 │ ┌──────────────────────────┐              │
 │ │ Host OS + Hardware       │              │
 │ └──────────────────────────┘              │
-│ → 完全な隔離、異なるOS可能                │
-│ → オーバーヘッド大、起動に秒〜分          │
+│ → Full isolation, different OSes possible │
+│ → Large overhead, boot takes secs to mins │
 └──────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────┐
-│ コンテナ                                  │
+│ Container                                │
 │ ┌──────┐ ┌──────┐ ┌──────┐              │
 │ │App A │ │App B │ │App C │              │
 │ │Libs  │ │Libs  │ │Libs  │              │
@@ -833,258 +840,261 @@ sudo systemctl set-property myapp.service CPUQuota=150%
 │ │ (Docker/containerd)     │              │
 │ └──────────────────────────┘              │
 │ ┌──────────────────────────┐              │
-│ │ Host OS (共有カーネル)    │              │
+│ │ Host OS (shared kernel)  │              │
 │ └──────────────────────────┘              │
-│ → カーネル共有、軽量                      │
-│ → 起動がミリ秒、メモリ効率良              │
+│ → Shared kernel, lightweight              │
+│ → Boots in ms, memory efficient           │
 └──────────────────────────────────────────┘
 
-詳細比較:
+Detailed Comparison:
 ┌────────────┬──────────────────┬──────────────────┐
-│ 項目       │ VM               │ コンテナ         │
+│ Item       │ VM               │ Container        │
 ├────────────┼──────────────────┼──────────────────┤
-│ 隔離       │ 強い(HW分離)     │ 中程度(OS分離)   │
-│ 起動       │ 秒〜分           │ ミリ秒〜秒       │
-│ サイズ     │ GB               │ MB               │
-│ 密度       │ 数十/ホスト      │ 数百〜数千/ホスト│
-│ OS         │ 異なるOS可       │ ホストOS共有     │
-│ カーネル   │ 独立             │ 共有             │
-│ 性能       │ ほぼネイティブ   │ ネイティブ       │
-│ セキュリティ│ 高い            │ 中程度           │
-│ ライブ     │ 可能             │ 困難             │
-│ マイグレーション│              │                  │
-│ 用途       │ マルチテナント   │ マイクロサービス │
-│ 例         │ EC2, GCE         │ ECS, GKE, EKS   │
+│ Isolation  │ Strong (HW sep.) │ Moderate (OS sep)│
+│ Boot       │ Secs to mins     │ ms to secs       │
+│ Size       │ GB               │ MB               │
+│ Density    │ Tens per host    │ 100s-1000s/host  │
+│ OS         │ Different OS ok  │ Shares host OS   │
+│ Kernel     │ Independent      │ Shared           │
+│ Performance│ Near native      │ Native           │
+│ Security   │ High             │ Moderate         │
+│ Live       │ Possible         │ Difficult        │
+│ Migration  │                  │                  │
+│ Use case   │ Multi-tenant     │ Microservices    │
+│ Examples   │ EC2, GCE         │ ECS, GKE, EKS   │
 └────────────┴──────────────────┴──────────────────┘
 ```
 
-### 5.2 中間技術: gVisor, Firecracker, Kata Containers
+### 5.2 Intermediate Technologies: gVisor, Firecracker, Kata Containers
 
 ```
-gVisor（Google）:
-  ユーザー空間カーネル
-  → アプリのシステムコールをユーザー空間で処理
-  → ホストカーネルへの攻撃面を大幅に削減
+gVisor (Google):
+  User-space kernel
+  → Processes application system calls in user space
+  → Significantly reduces the attack surface against the host kernel
 
-  gVisor のアーキテクチャ:
+  gVisor Architecture:
   ┌──────────────────────────────────────────────────┐
-  │ アプリケーション                                  │
-  │       ↓ システムコール                           │
-  │ Sentry（ユーザー空間カーネル）                   │
-  │   → ~200のシステムコールをユーザー空間で実装     │
-  │   → メモリ管理、ファイルシステム、ネットワーク   │
-  │       ↓ 限定的なシステムコール                   │
-  │ Gofer（ファイルシステムプロキシ）                 │
+  │ Application                                      │
+  │       ↓ System call                              │
+  │ Sentry (User-space kernel)                       │
+  │   → Implements ~200 system calls in user space   │
+  │   → Memory management, filesystem, networking    │
+  │       ↓ Limited system calls                     │
+  │ Gofer (Filesystem proxy)                         │
   │       ↓                                           │
-  │ Host Kernel（seccomp で制限された状態）           │
+  │ Host Kernel (restricted with seccomp)            │
   │                                                    │
-  │ 特徴:                                             │
-  │ - Go 言語で実装（メモリ安全）                    │
-  │ - OCI 互換（Docker, K8s で使用可能）              │
-  │ - ptrace または KVM をプラットフォームとして使用  │
-  │ - 性能オーバーヘッド: 10-30%（ワークロード依存）│
-  │ - Google Cloud Run で使用                         │
+  │ Features:                                         │
+  │ - Implemented in Go (memory safe)                │
+  │ - OCI compatible (usable with Docker, K8s)       │
+  │ - Uses ptrace or KVM as platform                 │
+  │ - Performance overhead: 10-30% (workload dep.)   │
+  │ - Used in Google Cloud Run                       │
   └──────────────────────────────────────────────────┘
 
-Firecracker（Amazon）:
-  マイクロVM（超軽量VM）
-  → AWS Lambda, Fargate の基盤
+Firecracker (Amazon):
+  microVM (ultra-lightweight VM)
+  → Foundation of AWS Lambda and Fargate
 
-  Firecracker のアーキテクチャ:
+  Firecracker Architecture:
   ┌──────────────────────────────────────────────────┐
-  │ 特徴:                                             │
-  │ - Rust で実装（メモリ安全）                      │
-  │ - 起動時間: 125ms 以下                           │
-  │ - メモリ: 5MB 以下のオーバーヘッド               │
-  │ - 最小限のデバイスモデル（virtio のみ）          │
-  │ - KVM ベースの完全な VM 隔離                     │
+  │ Features:                                         │
+  │ - Implemented in Rust (memory safe)              │
+  │ - Boot time: under 125ms                         │
+  │ - Memory: under 5MB overhead                     │
+  │ - Minimal device model (virtio only)             │
+  │ - Full VM isolation based on KVM                 │
   │                                                    │
-  │ 通常の VM との違い:                               │
-  │ - BIOS/UEFI なし → 直接カーネルブート            │
-  │ - USB, PCI, グラフィックスなし                    │
-  │ - virtio-net, virtio-block のみ                   │
-  │ - → 攻撃面が非常に小さい                        │
+  │ Differences from regular VMs:                     │
+  │ - No BIOS/UEFI → Direct kernel boot             │
+  │ - No USB, PCI, graphics                          │
+  │ - Only virtio-net, virtio-block                  │
+  │ - → Very small attack surface                    │
   │                                                    │
-  │ 用途:                                             │
-  │ - サーバーレスコンピューティング                  │
-  │ - マルチテナント環境                              │
-  │ - 1ホストに数千のマイクロVMを実行可能             │
+  │ Use Cases:                                        │
+  │ - Serverless computing                            │
+  │ - Multi-tenant environments                       │
+  │ - Can run thousands of microVMs per host         │
   └──────────────────────────────────────────────────┘
 
 Kata Containers:
-  軽量VMの中でコンテナを実行
-  → VM の隔離 + コンテナの互換性
+  Runs containers inside lightweight VMs
+  → VM isolation + container compatibility
 
-  Kata Containers のアーキテクチャ:
+  Kata Containers Architecture:
   ┌──────────────────────────────────────────────────┐
   │ Kubernetes / Docker                               │
   │       ↓ CRI / OCI                                │
   │ Kata Runtime                                      │
   │       ↓                                           │
   │ ┌─────────────────────┐                           │
-  │ │ 軽量 VM (QEMU/CLH)  │                           │
+  │ │ Lightweight VM       │                           │
+  │ │ (QEMU/CLH)           │                           │
   │ │ ┌─────────────────┐ │                           │
   │ │ │ Guest Kernel    │ │                           │
   │ │ │ + kata-agent    │ │                           │
-  │ │ │ + コンテナ      │ │                           │
+  │ │ │ + Container     │ │                           │
   │ │ └─────────────────┘ │                           │
   │ └─────────────────────┘                           │
   │                                                    │
-  │ → Pod ごとに VM を作成                           │
-  │ → コンテナの OCI 互換性を維持                    │
-  │ → Kubernetes からは通常のコンテナに見える        │
-  │ → Cloud Hypervisor (CLH) でさらに軽量化          │
+  │ → Creates a VM per Pod                            │
+  │ → Maintains OCI compatibility for containers     │
+  │ → Appears as a normal container from Kubernetes  │
+  │ → Further lightweight with Cloud Hypervisor (CLH)│
   └──────────────────────────────────────────────────┘
 
-隔離技術の比較:
+Comparison of Isolation Technologies:
 ┌──────────────┬──────────┬──────────┬─────────────┐
-│ 技術         │ 起動時間 │ メモリ   │ セキュリティ│
+│ Technology   │ Boot Time│ Memory   │ Security    │
 ├──────────────┼──────────┼──────────┼─────────────┤
-│ Docker       │ ~100ms   │ ~10MB    │ 中          │
-│ gVisor       │ ~150ms   │ ~30MB    │ 中〜高      │
-│ Firecracker  │ ~125ms   │ ~5MB     │ 高          │
-│ Kata         │ ~500ms   │ ~30MB    │ 高          │
-│ 通常のVM     │ ~5s      │ ~500MB   │ 非常に高    │
+│ Docker       │ ~100ms   │ ~10MB    │ Moderate    │
+│ gVisor       │ ~150ms   │ ~30MB    │ Mod-High    │
+│ Firecracker  │ ~125ms   │ ~5MB     │ High        │
+│ Kata         │ ~500ms   │ ~30MB    │ High        │
+│ Regular VM   │ ~5s      │ ~500MB   │ Very High   │
 └──────────────┴──────────┴──────────┴─────────────┘
 ```
 
 ---
 
-## 6. アプリケーションサンドボックス
+## 6. Application Sandboxes
 
-### 6.1 ブラウザのサンドボックス
+### 6.1 Browser Sandbox
 
 ```
-Chromium のサンドボックスアーキテクチャ:
-  世界で最も広く使われているサンドボックスの1つ
+Chromium Sandbox Architecture:
+  One of the most widely used sandboxes in the world
 
-  マルチプロセスアーキテクチャ:
+  Multi-process Architecture:
   ┌──────────────────────────────────────────────────┐
-  │ Browser Process（特権プロセス）                   │
-  │ → UI、ネットワーク、ファイルアクセスを担当       │
-  │ → 唯一の高権限プロセス                           │
+  │ Browser Process (privileged process)              │
+  │ → Handles UI, network, file access               │
+  │ → The only high-privilege process                 │
   │                                                    │
-  │ Renderer Process（サンドボックス化）              │
-  │ → HTML/CSS/JSのレンダリング                      │
-  │ → サイトごとに独立プロセス（Site Isolation）      │
-  │ → seccomp-bpf でシステムコール制限              │
-  │ → Namespace でファイルシステム分離               │
-  │ → ネットワークアクセス不可（IPC経由で依頼）     │
+  │ Renderer Process (sandboxed)                      │
+  │ → Renders HTML/CSS/JS                            │
+  │ → Independent process per site (Site Isolation)  │
+  │ → System calls restricted via seccomp-bpf        │
+  │ → Filesystem isolated via Namespaces             │
+  │ → No network access (requests via IPC)           │
   │                                                    │
   │ GPU Process                                       │
-  │ → グラフィックス処理を担当                       │
-  │ → 中程度のサンドボックス                         │
+  │ → Handles graphics processing                    │
+  │ → Moderately sandboxed                           │
   │                                                    │
   │ Plugin Process                                    │
-  │ → 拡張機能の実行                                 │
-  │ → 独自のサンドボックス                           │
+  │ → Runs extensions                                │
+  │ → Has its own sandbox                            │
   │                                                    │
   │ Network Service                                   │
-  │ → ネットワーク通信を担当                         │
-  │ → サンドボックス化済み                           │
+  │ → Handles network communication                  │
+  │ → Sandboxed                                      │
   └──────────────────────────────────────────────────┘
 
-  Chromium のサンドボックス層:
+  Chromium Sandbox Layers:
   ┌──────────────────────────────────────────────────┐
   │ Layer 1: Linux Namespace                          │
-  │   → PID Namespace: 他プロセスを見えなくする      │
-  │   → Network Namespace: 直接通信を禁止            │
-  │   → User Namespace: 非特権ユーザーとして実行     │
+  │   → PID Namespace: Hides other processes         │
+  │   → Network Namespace: Blocks direct communication│
+  │   → User Namespace: Runs as unprivileged user    │
   │                                                    │
   │ Layer 2: seccomp-bpf                              │
-  │   → 使用可能なシステムコールを最小限に制限       │
-  │   → open, exec, socket 等を禁止                  │
-  │   → 必要なI/OはIPCで Browser Process に依頼     │
+  │   → Restricts available system calls to minimum  │
+  │   → Blocks open, exec, socket, etc.              │
+  │   → Needed I/O delegated to Browser Process      │
+  │     via IPC                                       │
   │                                                    │
-  │ Layer 3: ファイルシステム制限                     │
+  │ Layer 3: Filesystem Restrictions                  │
   │   → chroot + pivot_root                           │
-  │   → /proc の最小限マウント                       │
+  │   → Minimal /proc mount                          │
   │                                                    │
-  │ Layer 4: プロセスレベル                           │
+  │ Layer 4: Process Level                            │
   │   → No New Privileges (PR_SET_NO_NEW_PRIVS)      │
-  │   → Capabilities のドロップ                      │
+  │   → Capabilities dropped                          │
   │                                                    │
-  │ → 4層の防御で脆弱性の影響を最小化               │
+  │ → 4 layers of defense minimize vulnerability      │
+  │   impact                                           │
   └──────────────────────────────────────────────────┘
 
-  Site Isolation（Spectre対策）:
-  → 異なるサイトは異なるプロセスで実行
-  → サイト間のメモリ空間が完全に分離
-  → Spectre/Meltdown によるクロスサイト攻撃を防止
-  → Chrome 67 以降でデフォルト有効
+  Site Isolation (Spectre Countermeasure):
+  → Different sites run in different processes
+  → Memory spaces between sites are fully separated
+  → Prevents cross-site attacks via Spectre/Meltdown
+  → Enabled by default since Chrome 67
 ```
 
-### 6.2 モバイルOSのサンドボックス
+### 6.2 Mobile OS Sandboxes
 
 ```
-iOS のサンドボックス:
+iOS Sandbox:
   ┌──────────────────────────────────────────────────┐
   │ App Sandbox:                                      │
-  │ → 各アプリが独立したコンテナで実行               │
-  │ → アプリのホームディレクトリ外へのアクセス不可   │
+  │ → Each app runs in an independent container       │
+  │ → Cannot access outside its home directory        │
   │                                                    │
-  │ ディレクトリ構造:                                 │
+  │ Directory Structure:                              │
   │ /var/mobile/Containers/                           │
-  │   Bundle/Application/UUID/        ← アプリバイナリ│
-  │   Data/Application/UUID/          ← アプリデータ │
-  │     ├── Documents/                ← ユーザーデータ│
-  │     ├── Library/                  ← 設定、キャッシュ│
-  │     └── tmp/                      ← 一時ファイル │
+  │   Bundle/Application/UUID/        ← App binary    │
+  │   Data/Application/UUID/          ← App data      │
+  │     ├── Documents/                ← User data     │
+  │     ├── Library/                  ← Config, cache │
+  │     └── tmp/                      ← Temp files    │
   │                                                    │
-  │ セキュリティメカニズム:                           │
-  │ 1. コード署名: すべてのアプリに Apple の署名必要 │
-  │ 2. Entitlements: 機能ごとの権限宣言               │
-  │ 3. Sandbox profiles: TrustedBSD MACベース        │
-  │ 4. ASLR: アドレス空間のランダム化               │
-  │ 5. PAC（Pointer Authentication）: ポインタの署名 │
-  │ 6. MTE（Memory Tagging, A17+）: メモリタグ       │
+  │ Security Mechanisms:                              │
+  │ 1. Code Signing: All apps require Apple signature │
+  │ 2. Entitlements: Per-feature permission declaration│
+  │ 3. Sandbox profiles: TrustedBSD MAC-based        │
+  │ 4. ASLR: Address space randomization             │
+  │ 5. PAC (Pointer Authentication): Pointer signing │
+  │ 6. MTE (Memory Tagging, A17+): Memory tags       │
   │                                                    │
-  │ アプリ間通信:                                     │
+  │ Inter-app Communication:                          │
   │ → URL Scheme, App Extensions, Shared Keychain    │
-  │ → 明示的な許可が必要                             │
+  │ → Requires explicit permission                   │
   └──────────────────────────────────────────────────┘
 
-Android のサンドボックス:
+Android Sandbox:
   ┌──────────────────────────────────────────────────┐
-  │ アプリの隔離:                                     │
-  │ → 各アプリに固有の Linux UID を割り当て          │
-  │ → SELinux のタイプエンフォースメント              │
-  │ → seccomp-bpf でシステムコール制限              │
+  │ App Isolation:                                    │
+  │ → Each app is assigned a unique Linux UID        │
+  │ → SELinux type enforcement                       │
+  │ → seccomp-bpf system call restrictions           │
   │                                                    │
-  │ セキュリティ層:                                   │
-  │ 1. Linux UID 分離: アプリ間のプロセス隔離        │
-  │ 2. SELinux: 強制アクセス制御                     │
-  │ 3. seccomp: システムコール制限                   │
-  │ 4. パーミッションモデル: API アクセスの制御      │
-  │ 5. Verified Boot: ブート完全性の検証              │
-  │ 6. dm-verity: システムパーティションの検証        │
+  │ Security Layers:                                  │
+  │ 1. Linux UID separation: Process isolation        │
+  │ 2. SELinux: Mandatory access control             │
+  │ 3. seccomp: System call restriction              │
+  │ 4. Permission model: API access control          │
+  │ 5. Verified Boot: Boot integrity verification    │
+  │ 6. dm-verity: System partition verification      │
   │                                                    │
-  │ Android のパーミッション:                         │
-  │ - Normal: 自動許可（インターネットアクセス等）    │
-  │ - Dangerous: ユーザーの明示的許可が必要          │
-  │   → カメラ、位置情報、連絡先、ストレージ等     │
-  │ - Signature: 同じ署名のアプリのみ                │
-  │ - Special: システム設定での手動許可              │
+  │ Android Permissions:                              │
+  │ - Normal: Auto-granted (internet access, etc.)   │
+  │ - Dangerous: Requires explicit user permission   │
+  │   → Camera, location, contacts, storage, etc.    │
+  │ - Signature: Only apps with same signature       │
+  │ - Special: Manual permission in system settings  │
   │                                                    │
-  │ Android 10+ のストレージサンドボックス:           │
+  │ Android 10+ Storage Sandbox:                      │
   │ → Scoped Storage                                  │
-  │ → アプリは自身のディレクトリのみ自由にアクセス   │
-  │ → 他のファイルは MediaStore API 経由              │
-  │ → Storage Access Framework で明示的選択          │
+  │ → Apps can freely access only their own directory│
+  │ → Other files accessible via MediaStore API      │
+  │ → Explicit selection via Storage Access Framework│
   └──────────────────────────────────────────────────┘
 ```
 
-### 6.3 デスクトップOSのサンドボックス
+### 6.3 Desktop OS Sandboxes
 
 ```
-macOS のサンドボックス:
+macOS Sandbox:
   ┌──────────────────────────────────────────────────┐
-  │ App Sandbox（App Store アプリは必須）:            │
-  │ → TrustedBSD MAC フレームワークベース            │
-  │ → Entitlements で権限を宣言                      │
+  │ App Sandbox (mandatory for App Store apps):       │
+  │ → Based on TrustedBSD MAC framework              │
+  │ → Declares permissions via Entitlements          │
   │                                                    │
-  │ 主要な Entitlements:                              │
-  │ - com.apple.security.app-sandbox: サンドボックス化│
+  │ Key Entitlements:                                 │
+  │ - com.apple.security.app-sandbox: Sandboxing     │
   │ - com.apple.security.files.user-selected.read-only│
   │ - com.apple.security.network.client               │
   │ - com.apple.security.network.server               │
@@ -1092,92 +1102,94 @@ macOS のサンドボックス:
   │ - com.apple.security.device.microphone            │
   │                                                    │
   │ Gatekeeper:                                       │
-  │ → 署名されていないアプリの実行を防止             │
-  │ → Notarization（Apple による事前スキャン）       │
+  │ → Prevents unsigned apps from running            │
+  │ → Notarization (pre-scan by Apple)               │
   │                                                    │
-  │ SIP（System Integrity Protection）:               │
-  │ → /System, /usr, /bin 等のシステムファイル保護   │
-  │ → root でも変更不可                              │
+  │ SIP (System Integrity Protection):                │
+  │ → Protects system files in /System, /usr, /bin   │
+  │ → Cannot be modified even by root                │
   └──────────────────────────────────────────────────┘
 
-Windows のサンドボックス:
+Windows Sandbox:
   ┌──────────────────────────────────────────────────┐
   │ Windows Sandbox:                                   │
-  │ → 使い捨ての軽量 VM（Windows 10 Pro以上）        │
-  │ → ホストのカーネルを共有（軽量）                 │
-  │ → 閉じるとすべてのデータが消去                   │
-  │ → 疑わしいファイルの検証に有用                   │
+  │ → Disposable lightweight VM (Windows 10 Pro+)    │
+  │ → Shares the host kernel (lightweight)           │
+  │ → All data erased when closed                    │
+  │ → Useful for verifying suspicious files          │
   │                                                    │
-  │ WDAC（Windows Defender Application Control）:     │
-  │ → アプリケーションのホワイトリスト               │
-  │ → コード署名ベースの制御                         │
+  │ WDAC (Windows Defender Application Control):      │
+  │ → Application whitelisting                       │
+  │ → Code signing-based control                     │
   │                                                    │
   │ AppContainer:                                     │
-  │ → UWP アプリのサンドボックス                     │
-  │ → ファイルシステム、レジストリ、ネットワーク制限│
-  │ → Capabilities で権限を宣言                      │
+  │ → Sandbox for UWP apps                           │
+  │ → Filesystem, registry, network restrictions     │
+  │ → Declares permissions via Capabilities          │
   │                                                    │
-  │ Hyper-V ベースの保護:                             │
-  │ → VBS（Virtualization-Based Security）           │
-  │ → HVCI（Hypervisor-protected Code Integrity）    │
-  │ → Credential Guard: 認証情報を隔離VM内で保護    │
+  │ Hyper-V Based Protection:                         │
+  │ → VBS (Virtualization-Based Security)            │
+  │ → HVCI (Hypervisor-protected Code Integrity)     │
+  │ → Credential Guard: Protects credentials in      │
+  │   an isolated VM                                  │
   └──────────────────────────────────────────────────┘
 
-Linux のサンドボックス:
+Linux Sandbox:
   ┌──────────────────────────────────────────────────┐
   │ Flatpak:                                          │
-  │ → デスクトップアプリのサンドボックス化            │
-  │ → bubblewrap（setuid不要のサンドボックス）使用   │
-  │ → Portals: ファイルピッカー等のAPI                │
-  │ → 制限: --filesystem, --device, --socket          │
+  │ → Sandboxing for desktop applications            │
+  │ → Uses bubblewrap (no setuid required)           │
+  │ → Portals: APIs for file pickers, etc.           │
+  │ → Restrictions: --filesystem, --device, --socket │
   │                                                    │
   │ Snap:                                             │
-  │ → Ubuntu のアプリケーション隔離                  │
-  │ → AppArmor プロファイルベース                    │
-  │ → Snap Store からインストール                    │
+  │ → Ubuntu application isolation                   │
+  │ → AppArmor profile-based                         │
+  │ → Installed from Snap Store                      │
   │                                                    │
   │ Firejail:                                         │
-  │ → 既存アプリのサンドボックス化ツール             │
+  │ → Tool for sandboxing existing applications      │
   │ → Namespace + seccomp + Capabilities              │
-  │ → 設定例: firejail --seccomp firefox             │
+  │ → Example: firejail --seccomp firefox            │
   │                                                    │
   │ bubblewrap (bwrap):                               │
-  │ → 低レベルのサンドボックスツール                 │
-  │ → Flatpak, GNOME の基盤                          │
-  │ → User Namespace ベース（setuid不要）            │
+  │ → Low-level sandboxing tool                      │
+  │ → Foundation of Flatpak, GNOME                   │
+  │ → User Namespace-based (no setuid required)      │
   └──────────────────────────────────────────────────┘
 ```
 
-### 6.4 WebAssembly サンドボックス
+### 6.4 WebAssembly Sandbox
 
 ```
-WebAssembly（Wasm）のサンドボックス:
+WebAssembly (Wasm) Sandbox:
   ┌──────────────────────────────────────────────────┐
-  │ ブラウザ内の Wasm:                                │
-  │ → 線形メモリモデル（ホストメモリから隔離）       │
-  │ → 型安全（バッファオーバーフロー耐性）          │
-  │ → ファイルシステム、ネットワーク直接アクセス不可│
-  │ → JavaScript API 経由でのみ外部と通信           │
+  │ Wasm in the Browser:                              │
+  │ → Linear memory model (isolated from host memory)│
+  │ → Type safe (resistant to buffer overflows)      │
+  │ → No direct filesystem or network access         │
+  │ → Communicates externally only via JavaScript API│
   │                                                    │
-  │ WASI（WebAssembly System Interface）:             │
-  │ → Capability-based セキュリティ                  │
-  │ → 明示的に渡されたファイルディスクリプタのみ     │
-  │   アクセス可能                                    │
-  │ → 「コンテナの次」の隔離技術として期待          │
+  │ WASI (WebAssembly System Interface):              │
+  │ → Capability-based security                      │
+  │ → Can only access explicitly provided file       │
+  │   descriptors                                     │
+  │ → Expected as the "next" isolation technology    │
+  │   after containers                                │
   │                                                    │
-  │ Wasm の利点:                                      │
-  │ - 起動時間: マイクロ秒レベル                     │
-  │ - サイズ: キロバイト〜メガバイト                  │
-  │ - ポータビリティ: 任意のプラットフォームで実行   │
-  │ - セキュリティ: デフォルトで最小権限             │
+  │ Wasm Advantages:                                  │
+  │ - Boot time: microsecond level                   │
+  │ - Size: kilobytes to megabytes                   │
+  │ - Portability: Runs on any platform              │
+  │ - Security: Least privilege by default           │
   │                                                    │
-  │ Wasm ランタイム:                                  │
+  │ Wasm Runtimes:                                    │
   │ - Wasmtime (Bytecode Alliance)                    │
   │ - Wasmer                                          │
   │ - WasmEdge (CNCF)                                 │
-  │ - wazero (Go ネイティブ)                          │
+  │ - wazero (Go native)                              │
   │                                                    │
-  │ Solomon Hykes (Docker創設者):                     │
+  │ Solomon Hykes (Docker founder):                   │
   │ "If WASM+WASI existed in 2008, we wouldn't       │
   │  have needed to create Docker."                   │
   └──────────────────────────────────────────────────┘
@@ -1185,34 +1197,34 @@ WebAssembly（Wasm）のサンドボックス:
 
 ---
 
-## 7. seccomp-bpf の詳細
+## 7. seccomp-bpf in Detail
 
-### 7.1 seccomp-bpf フィルタの設計
+### 7.1 Designing seccomp-bpf Filters
 
 ```
 seccomp-bpf:
-  BPF（Berkeley Packet Filter）プログラムで
-  プロセスのシステムコールをフィルタリング
+  Filters process system calls using BPF
+  (Berkeley Packet Filter) programs
 
-  フィルタの動作:
+  Filter Operation:
   ┌──────────────────────────────────────────────────┐
-  │ アプリケーション                                  │
-  │       ↓ システムコール                           │
-  │ seccomp-bpf フィルタ                              │
-  │   → ALLOW: システムコールを許可                  │
-  │   → KILL: プロセスを SIGKILL                     │
-  │   → TRAP: SIGSYS シグナルを送信                  │
-  │   → ERRNO: エラー番号を返す                      │
-  │   → TRACE: ptrace に通知                         │
-  │   → LOG: ログのみ（許可）                        │
-  │   → USER_NOTIF: ユーザー空間に通知              │
+  │ Application                                      │
+  │       ↓ System call                              │
+  │ seccomp-bpf filter                               │
+  │   → ALLOW: Permit the system call               │
+  │   → KILL: SIGKILL the process                   │
+  │   → TRAP: Send SIGSYS signal                    │
+  │   → ERRNO: Return error number                  │
+  │   → TRACE: Notify ptrace                        │
+  │   → LOG: Log only (permit)                      │
+  │   → USER_NOTIF: Notify user space               │
   │       ↓                                           │
-  │ カーネル                                          │
+  │ Kernel                                            │
   └──────────────────────────────────────────────────┘
 ```
 
 ```c
-/* seccomp-bpf フィルタの C 実装例 */
+/* seccomp-bpf filter implementation example in C */
 #include <linux/seccomp.h>
 #include <linux/filter.h>
 #include <linux/audit.h>
@@ -1221,20 +1233,20 @@ seccomp-bpf:
 #include <unistd.h>
 #include <stddef.h>
 
-/* BPF フィルタ: write, exit_group, sigreturn のみ許可 */
+/* BPF filter: Only allow write, exit_group, sigreturn */
 static struct sock_filter filter[] = {
-    /* アーキテクチャの確認 */
+    /* Verify architecture */
     BPF_STMT(BPF_LD | BPF_W | BPF_ABS,
              offsetof(struct seccomp_data, arch)),
     BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K,
              AUDIT_ARCH_X86_64, 1, 0),
     BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_KILL_PROCESS),
 
-    /* システムコール番号を取得 */
+    /* Get system call number */
     BPF_STMT(BPF_LD | BPF_W | BPF_ABS,
              offsetof(struct seccomp_data, nr)),
 
-    /* 許可するシステムコール */
+    /* Allowed system calls */
     BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_write, 0, 1),
     BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
 
@@ -1244,7 +1256,7 @@ static struct sock_filter filter[] = {
     BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_rt_sigreturn, 0, 1),
     BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
 
-    /* それ以外はすべて拒否 */
+    /* Deny everything else */
     BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_KILL_PROCESS),
 };
 
@@ -1254,44 +1266,44 @@ int main() {
         .filter = filter,
     };
 
-    /* NO_NEW_PRIVS を設定（SUID を無効化） */
+    /* Set NO_NEW_PRIVS (disable SUID) */
     prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
 
-    /* seccomp フィルタを適用 */
+    /* Apply seccomp filter */
     prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog);
 
-    /* 以降、write, exit_group, sigreturn のみ実行可能 */
+    /* From here, only write, exit_group, sigreturn are usable */
     write(1, "Hello, sandboxed world!\n", 24);
 
     return 0;
 }
 ```
 
-### 7.2 libseccomp による簡易設定
+### 7.2 Simplified Configuration with libseccomp
 
 ```c
-/* libseccomp を使った設定（より簡単） */
+/* Configuration using libseccomp (simpler) */
 #include <seccomp.h>
 #include <unistd.h>
 
 int main() {
-    /* デフォルトアクション: KILL */
+    /* Default action: KILL */
     scmp_filter_ctx ctx = seccomp_init(SCMP_ACT_KILL_PROCESS);
 
-    /* 許可するシステムコール */
+    /* Allowed system calls */
     seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(write), 0);
     seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(read), 0);
     seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(exit_group), 0);
     seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(rt_sigreturn), 0);
 
-    /* 引数の条件付き許可 */
-    /* write は fd=1 (stdout) と fd=2 (stderr) のみ */
+    /* Conditional allow based on arguments */
+    /* write only to fd=1 (stdout) and fd=2 (stderr) */
     seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(write), 1,
                      SCMP_A0(SCMP_CMP_EQ, STDOUT_FILENO));
     seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(write), 1,
                      SCMP_A0(SCMP_CMP_EQ, STDERR_FILENO));
 
-    /* フィルタをロード */
+    /* Load the filter */
     seccomp_load(ctx);
     seccomp_release(ctx);
 
@@ -1302,73 +1314,74 @@ int main() {
 
 ---
 
-## 8. Confidential Computing（機密計算）
+## 8. Confidential Computing
 
 ```
 Confidential Computing:
-  データを「使用中」も暗号化で保護する技術
-  → 従来: 保存時の暗号化（at rest）+ 転送時の暗号化（in transit）
-  → 追加: 使用中の暗号化（in use）
+  Technology that protects data with encryption even while "in use"
+  → Conventional: Encryption at rest + encryption in transit
+  → Added: Encryption in use
 
-  TEE（Trusted Execution Environment）:
+  TEE (Trusted Execution Environment):
   ┌──────────────────────────────────────────────────┐
-  │ Intel SGX（Software Guard Extensions）:           │
-  │ → Enclave: 暗号化されたメモリ領域               │
-  │ → CPU のみが復号可能                             │
-  │ → OS/ハイパーバイザも読み取り不可               │
-  │ → Remote Attestation で真正性を検証              │
-  │ → 用途: 鍵管理、機械学習モデルの保護            │
+  │ Intel SGX (Software Guard Extensions):            │
+  │ → Enclave: Encrypted memory region               │
+  │ → Only the CPU can decrypt                       │
+  │ → Unreadable by OS/hypervisor                    │
+  │ → Verify authenticity via Remote Attestation     │
+  │ → Use cases: Key management, ML model protection │
   │                                                    │
-  │ Intel TDX（Trust Domain Extensions）:             │
-  │ → VM 全体を暗号化（VM単位のTEE）                │
-  │ → SGX より大きなワークロードに対応              │
-  │ → Azure の Confidential VM で採用               │
+  │ Intel TDX (Trust Domain Extensions):              │
+  │ → Encrypts entire VMs (VM-level TEE)             │
+  │ → Handles larger workloads than SGX              │
+  │ → Adopted in Azure Confidential VMs              │
   │                                                    │
-  │ AMD SEV-SNP（Secure Encrypted Virtualization）:   │
-  │ → VM のメモリを AES で暗号化                    │
-  │ → SNP: Secure Nested Paging（完全性保護追加）   │
-  │ → AWS, Google Cloud で採用                      │
+  │ AMD SEV-SNP (Secure Encrypted Virtualization):    │
+  │ → Encrypts VM memory with AES                    │
+  │ → SNP: Adds integrity protection via Secure      │
+  │   Nested Paging                                    │
+  │ → Adopted by AWS, Google Cloud                    │
   │                                                    │
-  │ ARM CCA（Confidential Compute Architecture）:     │
-  │ → ARMv9 で導入                                   │
-  │ → Realm: 隔離された実行環境                     │
-  │ → モバイル/エッジデバイスの機密計算              │
+  │ ARM CCA (Confidential Compute Architecture):      │
+  │ → Introduced in ARMv9                             │
+  │ → Realm: Isolated execution environment           │
+  │ → Confidential computing for mobile/edge devices │
   └──────────────────────────────────────────────────┘
 
-  活用事例:
-  - マルチパーティ計算: 複数組織のデータを保護しながら共同分析
-  - 医療データ分析: 患者データを復号せずに機械学習
-  - ブロックチェーン: スマートコントラクトの秘匿実行
-  - 金融: 顧客データの安全な処理
+  Use Cases:
+  - Multi-party computation: Joint analysis while protecting data from multiple organizations
+  - Medical data analysis: Machine learning on patient data without decryption
+  - Blockchain: Confidential execution of smart contracts
+  - Finance: Secure processing of customer data
 ```
 
 ---
 
-## 実践演習
+## Hands-on Exercises
 
-### 演習1: [基礎] -- Namespace の確認
+### Exercise 1: [Beginner] -- Verifying Namespaces
 
 ```bash
-# 現在のNamespace確認
+# Check current Namespaces
 ls -la /proc/self/ns/
 
-# 新しいNamespaceでコマンド実行（要root）
+# Execute command in a new Namespace (requires root)
 sudo unshare --pid --fork --mount-proc bash
-ps aux  # PID 1 から始まる別世界
+ps aux  # A separate world starting from PID 1
 
-# Namespace のID比較
+# Compare Namespace IDs
 readlink /proc/self/ns/pid
-# → ホストとNamespace内で異なるID
+# → Different IDs on host vs inside Namespace
 ```
 
-### 演習2: [基礎] -- Network Namespace
+### Exercise 2: [Beginner] -- Network Namespace
 
 ```bash
-# Network Namespace の作成と通信
+# Create and communicate across Network Namespaces
 sudo ip netns add ns1
 sudo ip netns add ns2
 
-# veth ペアで ns1 と ns2 を接続
+# Connect ns1 and ns2 with a veth pair
 sudo ip link add veth1 type veth peer name veth2
 sudo ip link set veth1 netns ns1
 sudo ip link set veth2 netns ns2
@@ -1381,78 +1394,78 @@ sudo ip netns exec ns2 ip addr add 10.0.0.2/24 dev veth2
 sudo ip netns exec ns2 ip link set veth2 up
 sudo ip netns exec ns2 ip link set lo up
 
-# 疎通確認
+# Connectivity test
 sudo ip netns exec ns1 ping -c 3 10.0.0.2
 
-# クリーンアップ
+# Cleanup
 sudo ip netns delete ns1
 sudo ip netns delete ns2
 ```
 
-### 演習3: [応用] -- cgroup でリソース制限
+### Exercise 3: [Advanced] -- Resource Limiting with cgroups
 
 ```bash
-# cgroup v2 でメモリ制限（Linux）
+# Memory limiting with cgroup v2 (Linux)
 sudo mkdir /sys/fs/cgroup/test
 
-# コントローラの有効化
+# Enable controllers
 echo "+memory +pids" | sudo tee /sys/fs/cgroup/cgroup.subtree_control
 
-# メモリ制限
+# Memory limit
 echo 50M | sudo tee /sys/fs/cgroup/test/memory.max
 echo 30M | sudo tee /sys/fs/cgroup/test/memory.high
 
-# PID 数制限
+# PID count limit
 echo 10 | sudo tee /sys/fs/cgroup/test/pids.max
 
-# プロセスを追加
+# Add process
 echo $$ | sudo tee /sys/fs/cgroup/test/cgroup.procs
 
-# メモリ使用量の確認
+# Check memory usage
 cat /sys/fs/cgroup/test/memory.current
 cat /sys/fs/cgroup/test/memory.stat
 
-# ストレステスト
+# Stress test
 python3 -c "
 data = []
 try:
     while True:
-        data.append('x' * 1024 * 1024)  # 1MB ずつ確保
+        data.append('x' * 1024 * 1024)  # Allocate 1MB at a time
 except MemoryError:
     print(f'OOM at {len(data)} MB')
 "
 
-# クリーンアップ
+# Cleanup
 echo $$ | sudo tee /sys/fs/cgroup/cgroup.procs
 sudo rmdir /sys/fs/cgroup/test
 ```
 
-### 演習4: [応用] -- 完全隔離環境の構築
+### Exercise 4: [Advanced] -- Building a Fully Isolated Environment
 
 ```bash
-# Namespace + cgroup で簡易コンテナを作成
+# Create a simple container with Namespace + cgroup
 
-# 1. ルートファイルシステムの準備
+# 1. Prepare root filesystem
 sudo debootstrap --variant=minbase focal /srv/container
 
-# 2. 完全隔離で起動
+# 2. Start with full isolation
 sudo unshare --pid --fork --mount-proc \
   --net --uts --ipc --user --map-root-user \
   --mount \
   chroot /srv/container /bin/bash
 
-# 3. 隔離環境内で確認
+# 3. Verify inside the isolated environment
 hostname isolated-container
-ps aux           # PID 1 のみ
-ip addr          # lo のみ
-whoami           # root（実際は非特権ユーザー）
+ps aux           # Only PID 1
+ip addr          # Only lo
+whoami           # root (actually an unprivileged user)
 cat /etc/os-release  # Ubuntu Focal
 ```
 
-### 演習5: [実務] -- Docker コンテナのセキュリティ強化
+### Exercise 5: [Production] -- Hardening Docker Container Security
 
 ```bash
-# 最小権限のDockerコンテナ
+# Docker container with minimum privileges
 docker run --rm -it \
   --cap-drop ALL \
   --cap-add NET_BIND_SERVICE \
@@ -1467,10 +1480,10 @@ docker run --rm -it \
   --cpus 0.5 \
   nginx:alpine
 
-# gVisor を使用（より強い隔離）
+# Using gVisor (stronger isolation)
 docker run --runtime=runsc --rm -it alpine sh
 
-# rootless Docker
+# Rootless Docker
 dockerd-rootless-setuptool.sh install
 docker context use rootless
 docker run --rm hello-world
@@ -1481,44 +1494,44 @@ docker run --rm hello-world
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when studying this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important. Understanding deepens not just through theory, but by actually writing code and observing how it works.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the basics and jumping to advanced topics. We recommend thoroughly understanding the fundamental concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in real-world practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## まとめ
-
-| 技術 | 隔離レベル | 用途 |
-|------|----------|------|
-| chroot | 弱 | 簡易的なFS隔離、ビルド環境 |
-| FreeBSD Jail | 中 | サーバー隔離（FreeBSD） |
-| Namespace | 中 | コンテナの基盤 |
-| cgroup | リソース制限 | コンテナ、マルチテナント |
-| seccomp-bpf | システムコール制限 | コンテナ、ブラウザ |
-| コンテナ | 中 | マイクロサービス、CI/CD |
-| gVisor | 中〜強 | サーバーレス、マルチテナント |
-| Firecracker | 強 | サーバーレス（Lambda/Fargate） |
-| Kata | 強 | セキュリティ重視のコンテナ |
-| VM | 強 | マルチテナント、異なるOS |
-| TEE | 最強 | 機密計算、金融、医療 |
-| Wasm | 中〜強 | エッジ、プラグイン、ブラウザ |
+Knowledge of this topic is frequently applied in daily development work. It becomes particularly important during code reviews and architecture design.
 
 ---
 
-## 次に読むべきガイド
+## Summary
+
+| Technology | Isolation Level | Use Case |
+|------------|----------------|----------|
+| chroot | Weak | Simple FS isolation, build environments |
+| FreeBSD Jail | Moderate | Server isolation (FreeBSD) |
+| Namespace | Moderate | Foundation of containers |
+| cgroup | Resource limiting | Containers, multi-tenant |
+| seccomp-bpf | System call restriction | Containers, browsers |
+| Container | Moderate | Microservices, CI/CD |
+| gVisor | Moderate-Strong | Serverless, multi-tenant |
+| Firecracker | Strong | Serverless (Lambda/Fargate) |
+| Kata | Strong | Security-focused containers |
+| VM | Strong | Multi-tenant, different OSes |
+| TEE | Strongest | Confidential computing, finance, medical |
+| Wasm | Moderate-Strong | Edge, plugins, browsers |
 
 ---
 
-## 参考文献
+## Recommended Next Guides
+
+---
+
+## References
 1. Lieberman, H. "Container Security." O'Reilly, 2020.
 2. Provos, N. "Preventing Privilege Escalation." USENIX Security, 2003.
 3. Rice, L. "Container Security: Fundamental Technology Concepts that Protect Containerized Applications." O'Reilly, 2020.

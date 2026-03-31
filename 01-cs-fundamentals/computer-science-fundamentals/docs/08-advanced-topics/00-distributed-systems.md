@@ -1,367 +1,365 @@
-# 分散システム
+# Distributed Systems
 
-> 「分散システムとは、あるマシンの障害によって、あなたが存在すら知らなかった別のマシンが使えなくなるシステムのことである」——Leslie Lamport
+> "A distributed system is one in which the failure of a computer you didn't even know existed can render your own computer unusable." -- Leslie Lamport
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] 分散システムの基本概念と、なぜ単一マシンでは限界があるかを理解する
-- [ ] CAP定理を正しく理解し、CP/APの選択基準を説明できる
-- [ ] 一貫性モデルの強弱とその実用上のトレードオフを把握する
-- [ ] Paxos/Raftなどの合意アルゴリズムの原理と使い分けを理解する
-- [ ] レプリケーションとシャーディングの戦略を設計に適用できる
-- [ ] 分散トランザクション（2PC, Saga）の仕組みと限界を説明できる
-- [ ] 論理時計・ベクトル時計による順序付けを実装できる
-- [ ] 障害耐性パターン（Circuit Breaker等）を適切に設計できる
+- [ ] Understand the fundamental concepts of distributed systems and why a single machine has limitations
+- [ ] Correctly understand the CAP theorem and be able to explain CP/AP selection criteria
+- [ ] Grasp the strengths and weaknesses of consistency models and their practical trade-offs
+- [ ] Understand the principles and use cases of consensus algorithms such as Paxos/Raft
+- [ ] Apply replication and sharding strategies to system design
+- [ ] Explain the mechanisms and limitations of distributed transactions (2PC, Saga)
+- [ ] Implement ordering using logical clocks and vector clocks
+- [ ] Properly design fault tolerance patterns (Circuit Breaker, etc.)
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, having the following knowledge will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
+- Basic programming knowledge
+- Understanding of related foundational concepts
 
 ---
 
-## 1. なぜ分散システムが必要か
+## 1. Why Distributed Systems Are Necessary
 
-### 1.1 単一マシンの限界
-
-```
-単一マシンの限界:
-
-  CPU:     ムーアの法則の鈍化（2005年〜）
-           → シングルスレッド性能は頭打ち
-           → マルチコア化しても1台のコア数には上限がある
-
-  メモリ:   1台のRAM上限（数TB）
-           → 全データをメモリに載せたくても物理限界がある
-
-  ストレージ: 1台のディスク上限（数十TB）
-           → ペタバイト級のデータは1台に収まらない
-
-  可用性:   1台が落ちれば全停止（SPOF = Single Point of Failure）
-           → ハードウェア故障は確率的に必ず起きる
-
-  ネットワーク帯域: 1台のNICスループット上限（10-100Gbps）
-           → 大量クライアントからの同時接続をさばけない
-
-  → 複数マシンに分散して処理する必然性がここにある
-```
-
-### 1.2 分散システムの4つの目的
+### 1.1 Limitations of a Single Machine
 
 ```
-分散システムの目的:
+Limitations of a Single Machine:
 
-  1. スケーラビリティ:
-     処理能力の水平拡張（Scale-Out）
-     → マシンを追加するだけで処理能力が線形に向上する
-     → 垂直拡張（Scale-Up）はコスト効率が悪い
-       例: 2倍のCPUのマシンは2倍以上のコストがかかる
+  CPU:     Slowdown of Moore's Law (since ~2005)
+           -> Single-thread performance has plateaued
+           -> Even with multi-core, a single machine has a core count limit
 
-  2. 可用性（Availability）:
-     一部の障害でもサービスを継続できる
-     → 年間稼働率99.99%（= 年間ダウンタイム約52分）を実現
-     → 1台のサーバーの年間故障率は2-4%程度
-       → 1000台なら毎日数台が壊れる計算になる
+  Memory:   RAM limit per machine (several TB)
+           -> Physical limits exist even when wanting to fit all data in memory
 
-  3. レイテンシ:
-     ユーザーに物理的に近い場所で処理する
-     → 光速の限界: 東京〜ニューヨーク間で片道約70ms
-     → CDNやエッジコンピューティングで解決
+  Storage: Disk limit per machine (tens of TB)
+           -> Petabyte-scale data cannot fit on a single machine
 
-  4. データ量:
-     1台に収まらないデータの管理
-     → Googleは数十エクサバイト（EB）のデータを保持
-     → YouTubeには毎分500時間の動画がアップロードされる
+  Availability: If one machine fails, everything stops (SPOF = Single Point of Failure)
+           -> Hardware failures are statistically inevitable
+
+  Network Bandwidth: NIC throughput limit per machine (10-100 Gbps)
+           -> Cannot handle massive concurrent connections from many clients
+
+  -> This is why distributing processing across multiple machines is a necessity
 ```
 
-### 1.3 分散システムの代表的な実例
+### 1.2 Four Objectives of Distributed Systems
 
 ```
-実例とその規模:
+Objectives of Distributed Systems:
 
-  Google検索:
-    数千台のサーバーが協調して1回の検索クエリを処理
-    → MapReduceで大規模インデックス構築
-    → Bigtableで分散ストレージ
-    → Spannerでグローバル分散DB
+  1. Scalability:
+     Horizontal scaling of processing capacity (Scale-Out)
+     -> Processing capacity increases linearly by simply adding machines
+     -> Vertical scaling (Scale-Up) has poor cost efficiency
+       Example: A machine with 2x CPU costs more than 2x the price
+
+  2. Availability:
+     Service continues even when some components fail
+     -> Achieve 99.99% annual uptime (= ~52 minutes downtime per year)
+     -> Annual failure rate of a single server is about 2-4%
+       -> With 1000 servers, several fail every day
+
+  3. Latency:
+     Process data at locations physically close to users
+     -> Speed of light limitation: ~70ms one-way between Tokyo and New York
+     -> Solved with CDNs and edge computing
+
+  4. Data Volume:
+     Managing data that cannot fit on a single machine
+     -> Google holds tens of exabytes (EB) of data
+     -> 500 hours of video are uploaded to YouTube every minute
+```
+
+### 1.3 Representative Real-World Examples of Distributed Systems
+
+```
+Real-World Examples and Their Scale:
+
+  Google Search:
+    Thousands of servers cooperate to process a single search query
+    -> MapReduce for large-scale index construction
+    -> Bigtable for distributed storage
+    -> Spanner for globally distributed DB
 
   Netflix:
-    世界中のCDN + 数百のマイクロサービス群
-    → 1日のトラフィックが全インターネットの約15%
-    → Chaos Monkeyで意図的に障害を起こし耐性をテスト
+    Global CDN + hundreds of microservices
+    -> Daily traffic is about 15% of all internet traffic
+    -> Chaos Monkey intentionally causes failures to test resilience
 
   Bitcoin:
-    数万ノードが合意形成（Proof of Work）
-    → ビザンチン障害耐性を暗号学的手法で実現
-    → 中央管理者なしでの信頼構築
+    Tens of thousands of nodes achieve consensus (Proof of Work)
+    -> Byzantine fault tolerance achieved through cryptographic methods
+    -> Building trust without a central authority
 
   Amazon DynamoDB:
-    数百万テーブル、1日数兆リクエスト
-    → コンシステントハッシュによるデータ分散
-    → 結果整合性と強い一貫性の選択が可能
+    Millions of tables, trillions of requests per day
+    -> Data distribution via consistent hashing
+    -> Choice between eventual consistency and strong consistency
 ```
 
 ---
 
-## 2. 分散システムの8つの誤解
+## 2. The Eight Fallacies of Distributed Systems
 
-### 2.1 Peter Deutschの8つの誤解
-
-```
-Peter Deutsch の「分散コンピューティングの8つの誤解」(1994):
-
-  1. ネットワークは信頼できる
-     → 現実: パケットロス率は0.01%〜1%程度
-     → 海底ケーブル切断、ルーター障害は日常的に起きる
-     → 対策: リトライ、冪等性、タイムアウト設計
-
-  2. レイテンシはゼロである
-     → 現実: 同一DC内でも0.5ms、大陸間は100ms以上
-     → 光速の限界は物理法則であり改善不可
-     → 対策: データの局所性、キャッシュ、非同期処理
-
-  3. 帯域幅は無限である
-     → 現実: ネットワーク飽和は起きる
-     → 大量データ転送はディスクで物理輸送する方が速いことも
-       （AWS Snowballが存在する理由）
-     → 対策: データ圧縮、差分転送、プロトコル最適化
-
-  4. ネットワークは安全である
-     → 現実: 中間者攻撃、盗聴、DNSスプーフィング
-     → ゼロトラストネットワークの台頭
-     → 対策: TLS/mTLS、暗号化、認証
-
-  5. トポロジは変化しない
-     → 現実: サーバー追加/削除、障害によるルート変更
-     → クラウド環境ではIPアドレスが動的に変わる
-     → 対策: サービスディスカバリ、DNS、ロードバランサ
-
-  6. 管理者は1人である
-     → 現実: 複数チーム、複数組織、複数クラウドプロバイダ
-     → 責任境界が曖昧になりやすい
-     → 対策: 明確なAPI契約、SLA定義
-
-  7. 転送コストはゼロである
-     → 現実: シリアライズ/デシリアライズのCPUコスト
-     → クラウドのデータ転送料金（egress費用）
-     → 対策: 効率的なシリアライゼーション（Protocol Buffers等）
-
-  8. ネットワークは均一である
-     → 現実: 異なるハードウェア、OS、プロトコルバージョン
-     → 10Gbpsと1Gbpsのリンクが混在
-     → 対策: 抽象化レイヤー、プロトコルバージョニング
-```
-
-### 2.2 誤解が引き起こす典型的な障害
-
-これらの誤解を前提にシステムを設計すると、以下のような障害が発生する。
-なぜこれらが問題になるかというと、開発環境では再現しにくく本番環境で初めて
-顕在化するためである。
+### 2.1 Peter Deutsch's Eight Fallacies
 
 ```
-誤解1を前提にした場合の障害例:
+Peter Deutsch's "Eight Fallacies of Distributed Computing" (1994):
 
-  開発環境: ローカルネットワークでは99.99%成功
-  本番環境: クラウド間通信でパケットロスが発生
-  結果: リトライ未実装のため、処理が中途半端な状態で放置
-        → データ不整合、顧客からのクレーム
+  1. The network is reliable
+     -> Reality: Packet loss rate is around 0.01% to 1%
+     -> Submarine cable cuts and router failures are routine
+     -> Countermeasures: Retry, idempotency, timeout design
 
-  なぜローカルでは再現しないのか:
-  → ローカルネットワークのパケットロス率は0.0001%未満
-  → WANでは0.01%〜1%に跳ね上がる
-  → 1日100万リクエストなら100〜10000件が失敗する計算
+  2. Latency is zero
+     -> Reality: Even within the same DC it's 0.5ms; inter-continental is 100ms+
+     -> The speed of light limit is a physical law that cannot be improved
+     -> Countermeasures: Data locality, caching, asynchronous processing
+
+  3. Bandwidth is infinite
+     -> Reality: Network saturation does happen
+     -> Physically shipping data on disk can be faster than network transfer
+       (This is why AWS Snowball exists)
+     -> Countermeasures: Data compression, differential transfer, protocol optimization
+
+  4. The network is secure
+     -> Reality: Man-in-the-middle attacks, eavesdropping, DNS spoofing
+     -> Rise of zero-trust networks
+     -> Countermeasures: TLS/mTLS, encryption, authentication
+
+  5. Topology doesn't change
+     -> Reality: Servers added/removed, route changes due to failures
+     -> IP addresses change dynamically in cloud environments
+     -> Countermeasures: Service discovery, DNS, load balancers
+
+  6. There is one administrator
+     -> Reality: Multiple teams, multiple organizations, multiple cloud providers
+     -> Responsibility boundaries easily become ambiguous
+     -> Countermeasures: Clear API contracts, SLA definitions
+
+  7. Transport cost is zero
+     -> Reality: CPU cost of serialization/deserialization
+     -> Cloud data transfer charges (egress costs)
+     -> Countermeasures: Efficient serialization (Protocol Buffers, etc.)
+
+  8. The network is homogeneous
+     -> Reality: Different hardware, OS, protocol versions
+     -> Mix of 10Gbps and 1Gbps links
+     -> Countermeasures: Abstraction layers, protocol versioning
+```
+
+### 2.2 Typical Failures Caused by These Fallacies
+
+Designing systems based on these fallacies leads to the following types of failures. The reason these are problematic is that they are difficult to reproduce in development environments and only manifest in production for the first time.
+
+```
+Example of failure when assuming Fallacy 1:
+
+  Development environment: 99.99% success on local network
+  Production environment: Packet loss occurs in cross-cloud communication
+  Result: Without retry implementation, processing is left in an incomplete state
+        -> Data inconsistency, customer complaints
+
+  Why this is not reproducible locally:
+  -> Local network packet loss rate is under 0.0001%
+  -> On WAN it jumps to 0.01% - 1%
+  -> With 1 million requests per day, 100 to 10,000 will fail
 ```
 
 ---
 
-## 3. CAP定理と一貫性モデル
+## 3. CAP Theorem and Consistency Models
 
-### 3.1 CAP定理の正確な理解
-
-```
-CAP定理（Eric Brewer, 2000 予想 / Gilbert & Lynch, 2002 証明）:
-
-分散データストアは以下の3つの保証のうち、
-ネットワーク分断が発生した場合に同時に2つしか満たせない。
-
-  C — Consistency（一貫性）:
-      全ノードが同時に同じデータを見る
-      → 具体的には「線形化可能性（Linearizability）」を指す
-      → 書き込み完了後、どのノードに読みに行っても最新値が返る
-      → なぜ難しいか: 全ノードの同期に通信が必要だから
-
-  A — Availability（可用性）:
-      障害が起きていないノードは必ず「有効な」レスポンスを返す
-      → タイムアウトやエラーではなく、意味のある応答
-      → なぜ難しいか: 最新データを持っていなくても応答が必要だから
-
-  P — Partition Tolerance（分断耐性）:
-      ネットワーク分断が起きてもシステムが動作し続ける
-      → ノード間の通信が途絶えても停止しない
-      → なぜ必須か: 分散システムではネットワーク分断は必ず起きるから
-
-  ┌─────────────────────────────────────────────┐
-  │              C (一貫性)                       │
-  │             / \                               │
-  │            /   \                              │
-  │           / CP  \ CA                          │
-  │          /  |    \ |                          │
-  │         / HBase   \ 単一ノードRDBMS           │
-  │        / etcd      \(分断が起きない前提)      │
-  │       / ZooKeeper   \                         │
-  │      /_______________\                        │
-  │     A (可用性)    P (分断耐性)                 │
-  │          |                                    │
-  │        AP: Cassandra, DynamoDB, CouchDB       │
-  └─────────────────────────────────────────────┘
-```
-
-### 3.2 なぜ「CA」は実質的に存在しないのか
+### 3.1 Precise Understanding of the CAP Theorem
 
 ```
-CA（一貫性 + 可用性）が実質不可能な理由:
+CAP Theorem (Eric Brewer, 2000 conjecture / Gilbert & Lynch, 2002 proof):
 
-  ネットワーク分断は物理的に避けられない:
-  - ケーブル切断、スイッチ障害、ルーター障害
-  - クラウドプロバイダのAZ（Availability Zone）間障害
-  - 想定される分断発生頻度: 大規模DCで月に数回
+A distributed data store can only satisfy two of the following three guarantees
+simultaneously when a network partition occurs.
 
-  分断が起きた瞬間の二択:
-  ┌──────────────────────────────────────────┐
-  │  Node-A         ×         Node-B         │
-  │  [data=1]    (分断)      [data=1]        │
-  │                                          │
-  │  Client → Node-A: "data=2に更新"         │
-  │                                          │
-  │  Node-A: data=2 に更新                   │
-  │  Node-B: data=1 のまま（通信不可）        │
-  │                                          │
-  │  別のClient → Node-B: "dataを読みたい"   │
-  │                                          │
-  │  選択肢1（CP）: Node-Bはエラーを返す      │
-  │    → 一貫性は保つが可用性を犠牲           │
-  │                                          │
-  │  選択肢2（AP）: Node-Bは data=1 を返す    │
-  │    → 可用性は保つが一貫性を犠牲           │
-  └──────────────────────────────────────────┘
+  C -- Consistency:
+      All nodes see the same data at the same time
+      -> Specifically refers to "Linearizability"
+      -> After a write completes, any node returns the latest value when read
+      -> Why it's hard: Communication is needed to synchronize all nodes
 
-  → 分断が起きた瞬間、CとAの両立は論理的に不可能
-  → 単一ノードRDBMSは「Pを諦めている」のではなく
-    「そもそも分散していない」だけ
+  A -- Availability:
+      Non-failing nodes always return a "valid" response
+      -> A meaningful response, not a timeout or error
+      -> Why it's hard: A response is required even without the latest data
+
+  P -- Partition Tolerance:
+      The system continues to operate even when network partitions occur
+      -> Does not halt even when communication between nodes is severed
+      -> Why it's essential: Network partitions are inevitable in distributed systems
+
+  +---------------------------------------------+
+  |              C (Consistency)                  |
+  |             / \                              |
+  |            /   \                             |
+  |           / CP  \ CA                         |
+  |          /  |    \ |                         |
+  |         / HBase   \ Single-node RDBMS        |
+  |        / etcd      \(assumes no partition)   |
+  |       / ZooKeeper   \                        |
+  |      /_______________\                       |
+  |     A (Availability)    P (Partition Tol.)    |
+  |          |                                   |
+  |        AP: Cassandra, DynamoDB, CouchDB      |
+  +---------------------------------------------+
 ```
 
-### 3.3 CP vs AP の選択基準
+### 3.2 Why "CA" Practically Does Not Exist
 
-| 判断基準 | CP（一貫性優先）を選ぶ場合 | AP（可用性優先）を選ぶ場合 |
+```
+Why CA (Consistency + Availability) is practically impossible:
+
+  Network partitions are physically unavoidable:
+  - Cable cuts, switch failures, router failures
+  - Failures between cloud provider AZs (Availability Zones)
+  - Expected partition frequency: several times per month in large DCs
+
+  The binary choice when a partition occurs:
+  +------------------------------------------+
+  |  Node-A         x         Node-B         |
+  |  [data=1]    (partition)  [data=1]       |
+  |                                          |
+  |  Client -> Node-A: "update data=2"      |
+  |                                          |
+  |  Node-A: updates data=2                 |
+  |  Node-B: remains data=1 (cannot comm.)  |
+  |                                          |
+  |  Another Client -> Node-B: "read data"  |
+  |                                          |
+  |  Choice 1 (CP): Node-B returns error    |
+  |    -> Maintains consistency but           |
+  |       sacrifices availability             |
+  |                                          |
+  |  Choice 2 (AP): Node-B returns data=1   |
+  |    -> Maintains availability but          |
+  |       sacrifices consistency              |
+  +------------------------------------------+
+
+  -> When a partition occurs, C and A are logically incompatible
+  -> A single-node RDBMS is not "giving up P" but
+    "simply not distributed in the first place"
+```
+
+### 3.3 CP vs AP Selection Criteria
+
+| Criterion | Choose CP (Consistency Priority) | Choose AP (Availability Priority) |
 |---------|--------------------------|--------------------------|
-| データの性質 | 金銭、在庫、予約枠など不整合が致命的 | いいね数、閲覧数など多少の誤差が許容 |
-| 不整合時の最悪シナリオ | 二重課金、座席の二重予約 | 古いフォロワー数の表示 |
-| ユーザー体験 | エラーの方がまし | 応答がない方が困る |
-| 整合性の回復コスト | 回復が困難/不可能 | 時間経過で自動回復 |
-| 代表的なシステム | etcd, ZooKeeper, HBase | Cassandra, DynamoDB, CouchDB |
-| 代表的なユースケース | 銀行送金、在庫管理、リーダー選出 | SNS、ショッピングカート、DNS |
+| Nature of data | Money, inventory, bookings -- inconsistency is fatal | Like counts, view counts -- slight errors are tolerable |
+| Worst case of inconsistency | Double charging, double booking a seat | Displaying an outdated follower count |
+| User experience | Errors are preferable | No response is worse |
+| Recovery cost of inconsistency | Recovery is difficult/impossible | Self-recovers over time |
+| Representative systems | etcd, ZooKeeper, HBase | Cassandra, DynamoDB, CouchDB |
+| Representative use cases | Bank transfers, inventory management, leader election | SNS, shopping carts, DNS |
 
-### 3.4 一貫性モデルの詳細
+### 3.4 Consistency Models in Detail
 
 ```
-一貫性の強さ（強い順）:
+Consistency Strength (strongest to weakest):
 
-  1. 線形化可能性（Linearizability）:
-     → 全操作がグローバルな単一の順序で実行されたかのように見える
-     → リアルタイムの順序を尊重する
-     → 「書き込みが完了した瞬間から、全ノードで最新値が読める」
-     → 最も強い保証、最もコストが高い
-     → 実装手法: 合意アルゴリズム（Raft, Paxos）
-     → 例: ZooKeeper, etcd, Spanner
+  1. Linearizability:
+     -> All operations appear to execute in a single global order
+     -> Respects real-time ordering
+     -> "From the moment a write completes, the latest value is readable from any node"
+     -> Strongest guarantee, highest cost
+     -> Implementation: Consensus algorithms (Raft, Paxos)
+     -> Examples: ZooKeeper, etcd, Spanner
 
-  2. 逐次一貫性（Sequential Consistency）:
-     → 全プロセスの操作が何らかの全順序で実行されたかのように見える
-     → 各プロセス内の操作順序は保持される
-     → ただしリアルタイムの順序は保証しない
-     → 線形化可能性との違い: 「壁時計の順序」を尊重しなくてよい
+  2. Sequential Consistency:
+     -> All process operations appear to execute in some total order
+     -> Preserves the order of operations within each process
+     -> However, does not guarantee real-time ordering
+     -> Difference from linearizability: need not respect "wall-clock order"
 
-  3. 因果一貫性（Causal Consistency）:
-     → 因果関係のある操作の順序は全ノードで同一
-     → 因果関係のない操作は異なるノードで異なる順序に見えてよい
-     → 因果関係とは: 「AがBの結果に依存する」関係
-     → 例: SNSで「投稿→その投稿へのコメント」は因果関係あり
-     → 例: MongoDB（デフォルト設定）
+  3. Causal Consistency:
+     -> Order of causally related operations is the same across all nodes
+     -> Operations without causal relationships may appear in different orders on different nodes
+     -> Causal relationship: "A depends on the result of B"
+     -> Example: On SNS, "post -> comment on that post" is causally related
+     -> Example: MongoDB (default setting)
 
-  4. 結果整合性（Eventual Consistency）:
-     → 更新が停止すれば、十分な時間の後に全ノードが一致する
-     → 途中では古いデータが読める可能性がある
-     → 「十分な時間」は通常ミリ秒〜数秒
-     → 例: DynamoDB（デフォルト）, Cassandra, DNS
+  4. Eventual Consistency:
+     -> If updates stop, after sufficient time all nodes will converge
+     -> Stale data may be read in the interim
+     -> "Sufficient time" is typically milliseconds to a few seconds
+     -> Examples: DynamoDB (default), Cassandra, DNS
 
-  強い ←──────────────────────→ 弱い
-  線形化  逐次   因果   結果整合
-  遅い  ────────────────────── 速い
-  高コスト ──────────────── 低コスト
-  実装困難 ──────────────── 実装容易
+  Strong <-----------------------------> Weak
+  Linear.  Sequential  Causal  Eventual
+  Slow   ----------------------------- Fast
+  High cost ----------------------- Low cost
+  Hard to implement ---------- Easy to implement
 ```
 
-### 3.5 一貫性モデルの比較表
+### 3.5 Consistency Model Comparison Table
 
-| モデル | 順序保証 | レイテンシ | 可用性 | 主な用途 | 代表的実装 |
+| Model | Ordering Guarantee | Latency | Availability | Primary Use | Representative Implementation |
 |-------|---------|-----------|-------|---------|-----------|
-| 線形化可能性 | グローバル全順序 | 高（合意が必要） | 低（分断時停止） | 分散ロック、リーダー選出 | etcd, ZooKeeper |
-| 逐次一貫性 | プロセス内順序保持 | 中 | 中 | 共有メモリモデル | CPU/GPUメモリ |
-| 因果一貫性 | 因果関係のみ保持 | 低〜中 | 高 | ソーシャルアプリ、協調編集 | MongoDB |
-| 結果整合性 | 保証なし | 低 | 最高 | キャッシュ、CDN、DNS | DynamoDB, Cassandra |
+| Linearizability | Global total order | High (consensus needed) | Low (halts on partition) | Distributed locks, leader election | etcd, ZooKeeper |
+| Sequential Consistency | Intra-process order preserved | Medium | Medium | Shared memory models | CPU/GPU memory |
+| Causal Consistency | Only causal order preserved | Low-Medium | High | Social apps, collaborative editing | MongoDB |
+| Eventual Consistency | No guarantee | Low | Highest | Caches, CDN, DNS | DynamoDB, Cassandra |
 
-### 3.6 PACELC定理: CAPの拡張
+### 3.6 PACELC Theorem: An Extension of CAP
 
 ```
-PACELC定理（Daniel Abadi, 2012）:
-CAPの「分断時の選択」に加え、「通常時の選択」も考慮する
+PACELC Theorem (Daniel Abadi, 2012):
+In addition to CAP's "choice during partition," also considers "choice during normal operation"
 
-  P(Partition)時 → A(Availability) or C(Consistency)
-  E(Else=通常時) → L(Latency) or C(Consistency)
+  During P(Partition) -> A(Availability) or C(Consistency)
+  E(Else = normal operation) -> L(Latency) or C(Consistency)
 
-  ┌──────────────────────────────────────────────┐
-  │  分断時         通常時            分類         │
-  │  ─────         ──────           ────          │
-  │  PA             EL              PA/EL         │
-  │  (可用性優先)   (低レイテンシ)   → DynamoDB    │
-  │                                 → Cassandra   │
-  │                                               │
-  │  PC             EC              PC/EC         │
-  │  (一貫性優先)   (一貫性優先)     → HBase       │
-  │                                 → VoltDB      │
-  │                                               │
-  │  PA             EC              PA/EC         │
-  │  (可用性優先)   (一貫性優先)     → MongoDB     │
-  │                                               │
-  │  PC             EL              PC/EL         │
-  │  (一貫性優先)   (低レイテンシ)   → PNUTS(Yahoo)│
-  └──────────────────────────────────────────────┘
+  +----------------------------------------------+
+  |  During Partition  Normal Operation  Class    |
+  |  ---------------  ----------------  ------   |
+  |  PA                EL              PA/EL     |
+  |  (Availability)   (Low latency)    -> DynamoDB|
+  |                                    -> Cassandra|
+  |                                              |
+  |  PC                EC              PC/EC     |
+  |  (Consistency)    (Consistency)    -> HBase   |
+  |                                    -> VoltDB  |
+  |                                              |
+  |  PA                EC              PA/EC     |
+  |  (Availability)   (Consistency)    -> MongoDB |
+  |                                              |
+  |  PC                EL              PC/EL     |
+  |  (Consistency)    (Low latency)    -> PNUTS(Yahoo)|
+  +----------------------------------------------+
 
-なぜPACELCがCAPより実用的か:
-→ CAPは「分断時」しか語らないが、分断は稀なイベント
-→ 通常運用時のレイテンシ vs 一貫性のトレードオフの方が
-  日常的な設計判断として重要
-→ 例: DynamoDBの「強い一貫性読み取り」は通常時の
-  レイテンシを犠牲にして一貫性を得るオプション
+Why PACELC is more practical than CAP:
+-> CAP only addresses "during partition," but partitions are rare events
+-> The latency vs consistency trade-off during normal operation is
+  more important as a daily design decision
+-> Example: DynamoDB's "strongly consistent read" is an option that
+  sacrifices normal latency for consistency
 ```
 
-### コード例1: 一貫性モデルのシミュレーション
+### Code Example 1: Consistency Model Simulation
 
-以下のコードは、結果整合性と強い一貫性の動作の違いをシミュレーションする。
-なぜシミュレーションが有用かというと、分散環境の挙動は直感に反することが多く、
-コードで動かして確認することが理解の近道だからである。
+The following code simulates the behavioral differences between eventual consistency and strong consistency. The reason simulation is useful is that distributed system behavior often defies intuition, and running code to verify is the fastest path to understanding.
 
 ```python
 """
-一貫性モデルシミュレーター
+Consistency Model Simulator
 ==========================================
-結果整合性と強い一貫性の振る舞いの違いを
-スレッドを使って再現する。
+Reproduces the behavioral differences between eventual consistency
+and strong consistency using threads.
 
-実行方法: python consistency_simulator.py
-依存: 標準ライブラリのみ
+How to run: python consistency_simulator.py
+Dependencies: Standard library only
 """
 
 import threading
@@ -371,21 +369,21 @@ from typing import Dict, List, Optional, Tuple
 
 
 class Node:
-    """分散システムの1ノードを表現するクラス。
+    """A class representing a single node in a distributed system.
 
-    なぜロックが必要か:
-    Pythonのdictはスレッドセーフではないため、
-    複数スレッドからの同時アクセスでデータ破損が起きうる。
+    Why locks are necessary:
+    Python dicts are not thread-safe, so concurrent access from
+    multiple threads can cause data corruption.
     """
 
     def __init__(self, node_id: str, latency_ms: float = 0):
         self.node_id = node_id
         self.data: Dict[str, Tuple[str, int]] = {}  # key -> (value, version)
         self.lock = threading.Lock()
-        self.latency_ms = latency_ms  # ネットワーク遅延をシミュレート
+        self.latency_ms = latency_ms  # Simulate network latency
 
     def write(self, key: str, value: str, version: int) -> bool:
-        """データを書き込む。versionが古い場合は拒否する。"""
+        """Write data. Rejects if the version is outdated."""
         if self.latency_ms > 0:
             time.sleep(self.latency_ms / 1000.0)
         with self.lock:
@@ -396,7 +394,7 @@ class Node:
             return False
 
     def read(self, key: str) -> Optional[Tuple[str, int]]:
-        """データを読み取る。"""
+        """Read data."""
         if self.latency_ms > 0:
             time.sleep(self.latency_ms / 1000.0)
         with self.lock:
@@ -404,12 +402,12 @@ class Node:
 
 
 class EventuallyConsistentStore:
-    """結果整合性を持つ分散データストア。
+    """A distributed data store with eventual consistency.
 
-    書き込みは1ノードに即座に反映し、他ノードには非同期で伝播する。
-    なぜこの方式を採用するか:
-    → 書き込みレイテンシを最小化できる
-    → 一時的にノード間でデータが不一致になることを許容する
+    Writes are immediately reflected on one node and asynchronously propagated to others.
+    Why this approach is used:
+    -> Minimizes write latency
+    -> Tolerates temporary data inconsistency between nodes
     """
 
     def __init__(self, node_count: int = 3, replication_delay_ms: float = 100):
@@ -427,12 +425,12 @@ class EventuallyConsistentStore:
             return self.version_counter
 
     def write(self, key: str, value: str) -> str:
-        """プライマリノードに書き込み、バックグラウンドで複製する。"""
+        """Write to the primary node and replicate in the background."""
         version = self._get_next_version()
         primary = self.nodes[0]
         primary.write(key, value, version)
 
-        # 非同期レプリケーション（バックグラウンドスレッド）
+        # Asynchronous replication (background thread)
         def replicate():
             time.sleep(self.replication_delay_ms / 1000.0)
             for node in self.nodes[1:]:
@@ -445,7 +443,7 @@ class EventuallyConsistentStore:
         return f"Written to {primary.node_id}: {key}={value} (v{version})"
 
     def read(self, key: str, node_index: Optional[int] = None) -> str:
-        """指定ノード（またはランダムノード）から読み取る。"""
+        """Read from a specified node (or a random node)."""
         if node_index is not None:
             node = self.nodes[node_index]
         else:
@@ -457,15 +455,15 @@ class EventuallyConsistentStore:
 
 
 class StronglyConsistentStore:
-    """強い一貫性（線形化可能性）を持つ分散データストア。
+    """A distributed data store with strong consistency (linearizability).
 
-    書き込みは過半数のノードへの反映を待ってから完了とする。
-    読み取りも過半数のノードから取得し、最新バージョンを返す。
+    Writes wait for reflection on a majority of nodes before completing.
+    Reads also fetch from a majority of nodes and return the latest version.
 
-    なぜ過半数か:
-    → N=3ノード、W=2（書き込みクオラム）、R=2（読み取りクオラム）
-    → W + R > N を満たすため、読み書きのクオラムが必ず重なる
-    → 重なったノードが最新データを持つことが保証される
+    Why a majority (quorum):
+    -> N=3 nodes, W=2 (write quorum), R=2 (read quorum)
+    -> Since W + R > N, the read and write quorums always overlap
+    -> The overlapping node is guaranteed to hold the latest data
     """
 
     def __init__(self, node_count: int = 3):
@@ -483,7 +481,7 @@ class StronglyConsistentStore:
             return self.version_counter
 
     def write(self, key: str, value: str) -> str:
-        """クオラム数のノードに同期的に書き込む。"""
+        """Synchronously write to a quorum of nodes."""
         version = self._get_next_version()
         success_count = 0
         lock = threading.Lock()
@@ -514,7 +512,7 @@ class StronglyConsistentStore:
             )
 
     def read(self, key: str) -> str:
-        """クオラム数のノードから読み取り、最新バージョンを返す。"""
+        """Read from a quorum of nodes and return the latest version."""
         results: List[Optional[Tuple[str, int]]] = []
         read_nodes: List[str] = []
         lock = threading.Lock()
@@ -541,26 +539,26 @@ class StronglyConsistentStore:
 
 
 def demo():
-    """結果整合性と強い一貫性の違いをデモする。"""
+    """Demonstrate the difference between eventual and strong consistency."""
     print("=" * 60)
-    print("結果整合性デモ")
+    print("Eventual Consistency Demo")
     print("=" * 60)
     store = EventuallyConsistentStore(node_count=3, replication_delay_ms=200)
     print(store.write("user:1:name", "Alice"))
-    print("\n--- 書き込み直後（レプリケーション完了前）---")
+    print("\n--- Immediately after write (before replication completes) ---")
     for i in range(3):
         print(store.read("user:1:name", node_index=i))
-    print("\n--- 500ms後（レプリケーション完了後）---")
+    print("\n--- After 500ms (after replication completes) ---")
     time.sleep(0.5)
     for i in range(3):
         print(store.read("user:1:name", node_index=i))
 
     print("\n" + "=" * 60)
-    print("強い一貫性デモ")
+    print("Strong Consistency Demo")
     print("=" * 60)
     store2 = StronglyConsistentStore(node_count=3)
     print(store2.write("user:1:name", "Bob"))
-    print("\n--- 書き込み直後（クオラム読み取り）---")
+    print("\n--- Immediately after write (quorum read) ---")
     for _ in range(3):
         print(store2.read("user:1:name"))
 
@@ -569,30 +567,30 @@ if __name__ == "__main__":
     demo()
 ```
 
-想定される出力:
+Expected output:
 
 ```
 ============================================================
-結果整合性デモ
+Eventual Consistency Demo
 ============================================================
 Written to node-0: user:1:name=Alice (v1)
 
---- 書き込み直後（レプリケーション完了前）---
+--- Immediately after write (before replication completes) ---
 [node-0] user:1:name = Alice (v1)
-[node-1] user:1:name = (not found)      ← まだ伝播していない
-[node-2] user:1:name = (not found)      ← まだ伝播していない
+[node-1] user:1:name = (not found)      <- Not yet propagated
+[node-2] user:1:name = (not found)      <- Not yet propagated
 
---- 500ms後（レプリケーション完了後）---
+--- After 500ms (after replication completes) ---
 [node-0] user:1:name = Alice (v1)
-[node-1] user:1:name = Alice (v1)       ← 伝播完了
-[node-2] user:1:name = Alice (v1)       ← 伝播完了
+[node-1] user:1:name = Alice (v1)       <- Propagation complete
+[node-2] user:1:name = Alice (v1)       <- Propagation complete
 
 ============================================================
-強い一貫性デモ
+Strong Consistency Demo
 ============================================================
 Written to 3/3 nodes: user:1:name=Bob (v1) [COMMITTED]
 
---- 書き込み直後（クオラム読み取り）---
+--- Immediately after write (quorum read) ---
 [quorum=['node-0', 'node-1']] user:1:name = Bob (v1)
 [quorum=['node-0', 'node-1']] user:1:name = Bob (v1)
 [quorum=['node-0', 'node-1']] user:1:name = Bob (v1)
@@ -600,185 +598,183 @@ Written to 3/3 nodes: user:1:name=Bob (v1) [COMMITTED]
 
 ---
 
-## 4. コンセンサスアルゴリズム
+## 4. Consensus Algorithms
 
-### 4.1 コンセンサス問題の本質
+### 4.1 The Essence of the Consensus Problem
 
 ```
-コンセンサス問題:
-  複数のノードが1つの値に合意する
+Consensus Problem:
+  Multiple nodes agree on a single value
 
-  なぜ難しいか:
-  - ノードが故障する可能性がある
-  - メッセージが遅延・消失する可能性がある
-  - ネットワークが分断する可能性がある
-  - ビザンチン障害（悪意あるノード）の可能性がある
+  Why it's difficult:
+  - Nodes can fail
+  - Messages can be delayed or lost
+  - The network can be partitioned
+  - Byzantine failures (malicious nodes) are possible
 
-  コンセンサスが必要な場面:
-  - リーダー選出: 「誰がリーダーか」に全員が合意
-  - アトミックブロードキャスト: 「メッセージの順序」に全員が合意
-  - 分散ロック: 「誰がロックを保持しているか」に全員が合意
-  - 状態機械レプリケーション: 「操作の順序」に全員が合意
+  Situations requiring consensus:
+  - Leader election: Everyone agrees on "who is the leader"
+  - Atomic broadcast: Everyone agrees on "the order of messages"
+  - Distributed locks: Everyone agrees on "who holds the lock"
+  - State machine replication: Everyone agrees on "the order of operations"
 
-FLP不可能性定理（Fischer, Lynch, Paterson, 1985）:
+FLP Impossibility Theorem (Fischer, Lynch, Paterson, 1985):
 
-  定理: 非同期ネットワークで1台でも故障する可能性がある場合、
-        決定的なコンセンサスアルゴリズムは存在しない
+  Theorem: In an asynchronous network where even one node may fail,
+           no deterministic consensus algorithm exists
 
-  なぜ不可能か:
-  → 非同期ネットワークでは「ノードが遅いだけ」と
-    「ノードが故障した」を区別できない
-  → 待ち続ければ応答が来るかもしれない（遅延）
-  → いつまでも来ないかもしれない（故障）
+  Why it's impossible:
+  -> In an asynchronous network, "a node is just slow" and
+    "a node has failed" cannot be distinguished
+  -> Waiting longer might yield a response (delay)
+  -> It might never come (failure)
 
-  実用的な回避策:
-  → タイムアウトを導入（非同期の仮定を緩める）
-  → 確率的手法（ランダム化アルゴリズム）
-  → 障害検出器（不完全でも実用的）
-  → Raftはタイムアウトベースのリーダー選出でFLPを回避
+  Practical workarounds:
+  -> Introduce timeouts (relax the asynchronous assumption)
+  -> Probabilistic methods (randomized algorithms)
+  -> Failure detectors (imperfect but practical)
+  -> Raft uses timeout-based leader election to circumvent FLP
 ```
 
 ### 4.2 Paxos
 
 ```
-Paxos（Leslie Lamport, 1989提案 / 1998公開）:
+Paxos (Leslie Lamport, proposed 1989 / published 1998):
 
-  役割:
-  - Proposer: 値を提案するノード
-  - Acceptor: 提案を受け入れる/拒否するノード（過半数が必要）
-  - Learner:  合意結果を学習するノード
+  Roles:
+  - Proposer: Node that proposes a value
+  - Acceptor: Node that accepts/rejects proposals (majority required)
+  - Learner: Node that learns the agreed-upon result
 
-  2フェーズプロトコル:
+  Two-Phase Protocol:
 
   Phase 1 (Prepare):
-  Proposer          Acceptor (過半数)
+  Proposer          Acceptor (majority)
      |-- Prepare(n) -->|
-     |<-- Promise(n) --|  「n以上の提案番号にしか応答しない」と約束
-                         もし既に別の値を受理済みなら、それを返す
+     |<-- Promise(n) --|  Promises to only respond to proposal numbers >= n
+                         If it has already accepted another value, returns it
 
   Phase 2 (Accept):
      |-- Accept(n,v) -->|
-     |<-- Accepted -----|  過半数がAcceptすれば合意成立
-                          vは: Phase1で受理済みの値があればそれ、
-                          なければProposerが自由に選ぶ
+     |<-- Accepted -----|  If a majority Accepts, consensus is reached
+                          v is: the previously accepted value if one exists,
+                          otherwise the Proposer freely chooses
 
-  なぜ2フェーズが必要か:
-  → Phase 1で「他に合意済みの値がないか」を確認する
-  → 確認せずにいきなり値を提案すると、
-    複数のProposerが異なる値で合意してしまう可能性がある
+  Why two phases are necessary:
+  -> Phase 1 checks whether "another value has already been agreed upon"
+  -> Without checking, multiple Proposers might reach consensus
+    on different values
 
-  具体例:
-  ┌──────────────────────────────────────────────────┐
-  │ Proposer-A: Prepare(1) → 過半数からPromise取得     │
-  │ Proposer-A: Accept(1, "X") → 過半数がAccept       │
-  │ → 合意値 = "X"                                    │
-  │                                                    │
-  │ Proposer-B: Prepare(2) → 過半数からPromise取得     │
-  │   (Acceptorは既にAcceptした "X" を返す)             │
-  │ Proposer-B: Accept(2, "X") → "X"で合意を再確認    │
-  │ → Proposer-Bが異なる値を提案しても "X" が維持される │
-  └──────────────────────────────────────────────────┘
+  Concrete example:
+  +--------------------------------------------------+
+  | Proposer-A: Prepare(1) -> Gets Promise from majority     |
+  | Proposer-A: Accept(1, "X") -> Majority Accepts           |
+  | -> Agreed value = "X"                                     |
+  |                                                           |
+  | Proposer-B: Prepare(2) -> Gets Promise from majority     |
+  |   (Acceptor returns already-accepted "X")                 |
+  | Proposer-B: Accept(2, "X") -> Reconfirms agreement on "X"|
+  | -> Even if Proposer-B proposed a different value, "X" is maintained |
+  +--------------------------------------------------+
 
-  Paxosの問題点:
-  - 実装が非常に複雑（Lamportの原論文は「パート・タイム議会」として
-    書かれ、分かりにくいことで有名）
-  - ライブロック: 複数Proposerが交互にPrepareすると進行しない
-  - Multi-Paxos（連続した値の合意）は論文で曖昧に記述
-  - Google Chubby (2006) で実用化されたが、実装者は苦労を報告
+  Problems with Paxos:
+  - Implementation is extremely complex (Lamport's original paper was written
+    as "The Part-Time Parliament," famously difficult to understand)
+  - Livelock: Multiple Proposers alternately issuing Prepare can stall progress
+  - Multi-Paxos (consensus on a sequence of values) is vaguely described in the paper
+  - Practically implemented in Google Chubby (2006), but implementors reported difficulties
 ```
 
 ### 4.3 Raft
 
 ```
-Raft（Diego Ongaro & John Ousterhout, 2014）:
-  「理解しやすいコンセンサス」を明確な目標として設計された
+Raft (Diego Ongaro & John Ousterhout, 2014):
+  Designed with "understandability" as an explicit goal
 
-  Paxosとの根本的な違い:
-  → Paxosは対称的（どのノードもProposerになれる）
-  → Raftは非対称的（Leaderが全てを制御）
-  → この非対称性が理解しやすさの鍵
+  Fundamental difference from Paxos:
+  -> Paxos is symmetric (any node can be a Proposer)
+  -> Raft is asymmetric (the Leader controls everything)
+  -> This asymmetry is the key to understandability
 
-  役割（3種類のみ）:
-  - Leader:    全ての書き込みを受け付け、ログを複製する
-  - Follower:  Leaderの指示に従い、ログを受け取る
-  - Candidate: Leader選挙に立候補中の状態
+  Roles (only 3 types):
+  - Leader:    Accepts all writes and replicates logs
+  - Follower:  Follows the Leader's instructions and receives logs
+  - Candidate: State of campaigning in a Leader election
 
-  3つのサブ問題に分解:
+  Decomposed into 3 sub-problems:
 
-  1. リーダー選出（Leader Election）:
-     ┌────────────────────────────────────────────┐
-     │  Follower --(タイムアウト)--> Candidate      │
-     │  Candidate --(過半数の投票)--> Leader        │
-     │  Leader --(定期ハートビート)--> 地位を維持    │
-     │  Leader --(障害発生)--> Follower --> ...     │
-     │  Candidate --(より高いTermを発見)--> Follower│
-     └────────────────────────────────────────────┘
+  1. Leader Election:
+     +--------------------------------------------+
+     |  Follower --(timeout)--> Candidate          |
+     |  Candidate --(majority vote)--> Leader      |
+     |  Leader --(periodic heartbeat)--> maintain  |
+     |  Leader --(failure)--> Follower --> ...     |
+     |  Candidate --(discovers higher Term)--> Follower|
+     +--------------------------------------------+
 
-     任期(Term)番号による秩序:
-     → Term番号が大きい方が新しい
-     → 各Termで最大1人のLeader
-     → 古いTermのLeaderは新しいTermを知った瞬間にFollowerに戻る
+     Term numbers provide order:
+     -> Higher Term number is newer
+     -> At most one Leader per Term
+     -> An old-Term Leader instantly reverts to Follower upon learning a new Term
 
-     なぜランダムタイムアウトを使うか:
-     → 全ノードが同時にCandidateになると投票が割れる
-     → 150ms〜300msのランダムな範囲でタイムアウトを設定
-     → 最初にタイムアウトしたノードが選挙を始め、高確率で当選
+     Why random timeouts are used:
+     -> If all nodes become Candidates simultaneously, votes split
+     -> Timeouts are set randomly within a 150ms-300ms range
+     -> The first node to timeout starts the election and wins with high probability
 
-  2. ログ複製（Log Replication）:
-     Client --> Leader --> Follower群に並行して複製
-     過半数が書き込み完了 --> コミット確定
+  2. Log Replication:
+     Client --> Leader --> Replicate to Follower group in parallel
+     Majority write completion --> Commit confirmed
 
-     Leader   [1][2][3][4][5]  ← 全エントリ保持
-     Follow-A [1][2][3][4][5]  ← 完全同期
-     Follow-B [1][2][3]        ← 遅延中（後で追いつく）
-     Follow-C [1][2][3][4]     ← 1つ遅延
+     Leader   [1][2][3][4][5]  <- Holds all entries
+     Follow-A [1][2][3][4][5]  <- Fully synced
+     Follow-B [1][2][3]        <- Lagging (will catch up later)
+     Follow-C [1][2][3][4]     <- 1 entry behind
 
-     過半数（3/5以上）がエントリ[4]を持つ → コミット確定
-     Follow-Bは次のAppendEntriesで[4][5]を受け取る
+     Majority (3/5 or more) have entry [4] -> Commit confirmed
+     Follow-B receives [4][5] in the next AppendEntries
 
-  3. 安全性（Safety）:
-     - コミット済みのエントリは絶対に上書きされない
-     - 最も新しいログを持つノードのみLeaderになれる
-     → なぜか: 古いログのノードがLeaderになると、
-       コミット済みデータが失われる恐れがあるため
+  3. Safety:
+     - Committed entries are never overwritten
+     - Only nodes with the most up-to-date log can become Leader
+     -> Why: If a node with an old log becomes Leader,
+       committed data could be lost
 
-  実装例と用途:
-  - etcd (Kubernetesのクラスタ状態管理)
-  - HashiCorp Consul (サービスディスカバリ)
-  - CockroachDB (分散SQL)
-  - TiKV (TiDBのストレージエンジン)
+  Implementation examples and use cases:
+  - etcd (Kubernetes cluster state management)
+  - HashiCorp Consul (service discovery)
+  - CockroachDB (distributed SQL)
+  - TiKV (TiDB storage engine)
 ```
 
-### 4.4 Paxos vs Raft の比較
+### 4.4 Paxos vs Raft Comparison
 
-| 比較項目 | Paxos | Raft |
+| Comparison Item | Paxos | Raft |
 |---------|-------|------|
-| 設計年 | 1989/1998 | 2014 |
-| 設計思想 | 理論的正しさ重視 | 理解しやすさ重視 |
-| リーダー | 不要（対称的） | 必須（非対称的） |
-| 理解の難易度 | 非常に高い | 中程度 |
-| 実装の難易度 | 非常に高い | 中程度 |
-| ライブロック | 発生しうる | Leader固定で回避 |
-| 性能 | 理論的にはやや有利 | Leaderがボトルネックになりうる |
-| 障害耐性 | N/2未満のクラッシュ | N/2未満のクラッシュ |
-| 代表実装 | Google Chubby | etcd, Consul |
-| 産業での採用 | 減少傾向 | 増加傾向 |
+| Design Year | 1989/1998 | 2014 |
+| Design Philosophy | Theoretical correctness | Understandability |
+| Leader | Not required (symmetric) | Required (asymmetric) |
+| Difficulty to Understand | Very high | Moderate |
+| Difficulty to Implement | Very high | Moderate |
+| Livelock | Can occur | Avoided by fixed Leader |
+| Performance | Theoretically slightly better | Leader can be bottleneck |
+| Fault Tolerance | Tolerates fewer than N/2 crashes | Tolerates fewer than N/2 crashes |
+| Representative Implementation | Google Chubby | etcd, Consul |
+| Industry Adoption | Declining trend | Increasing trend |
 
-### コード例2: 簡易Raftリーダー選出シミュレーション
+### Code Example 2: Simplified Raft Leader Election Simulation
 
-以下のコードはRaftのリーダー選出プロセスをシミュレートする。
-なぜシミュレーションするかというと、分散合意の「タイムアウトとランダム化による
-衝突回避」という概念を、動くコードで体感できるからである。
+The following code simulates the Raft leader election process. The reason for simulating this is that the concept of "collision avoidance through timeouts and randomization" in distributed consensus can be experienced through running code.
 
 ```python
 """
-Raftリーダー選出シミュレーター
+Raft Leader Election Simulator
 ==========================================
-5ノードのRaftクラスタでリーダー選出が行われる様子を
-スレッドベースでシミュレートする。
+Simulates the leader election process in a 5-node Raft cluster
+using a thread-based approach.
 
-実行方法: python raft_election.py
-依存: 標準ライブラリのみ
+How to run: python raft_election.py
+Dependencies: Standard library only
 """
 
 import threading
@@ -795,12 +791,12 @@ class Role(Enum):
 
 
 class RaftNode:
-    """Raftノードのリーダー選出ロジックを実装するクラス。
+    """A class implementing the Raft node's leader election logic.
 
-    なぜ各ノードが独自のタイムアウトを持つか:
-    → 全ノードが同時にCandidateになると投票が分裂する
-    → ランダムなタイムアウトにより、1つのノードが先に
-      選挙を開始する確率が高くなる
+    Why each node has its own timeout:
+    -> If all nodes become Candidates simultaneously, votes split
+    -> Random timeouts make it highly probable that one node
+      starts the election first
     """
 
     def __init__(self, node_id: int, cluster: "RaftCluster"):
@@ -817,11 +813,11 @@ class RaftNode:
         self.votes_received = 0
 
     def request_vote(self, candidate_id: int, term: int) -> bool:
-        """投票リクエストに応答する。
+        """Respond to a vote request.
 
-        なぜTermの比較が必要か:
-        → 古いTermのCandidateに投票すると、
-          既に新しいTermで選出されたLeaderと競合する
+        Why Term comparison is necessary:
+        -> Voting for an old-Term Candidate could conflict
+          with a Leader already elected in a newer Term
         """
         with self.lock:
             if not self.alive:
@@ -839,7 +835,7 @@ class RaftNode:
             return False
 
     def receive_heartbeat(self, leader_id: int, term: int):
-        """Leaderからのハートビートを受信する。"""
+        """Receive a heartbeat from the Leader."""
         with self.lock:
             if not self.alive:
                 return
@@ -851,21 +847,21 @@ class RaftNode:
                 self.last_heartbeat = time.time()
 
     def start_election(self):
-        """選挙を開始する。"""
+        """Start an election."""
         with self.lock:
             if not self.alive or self.role == Role.LEADER:
                 return
             self.current_term += 1
             self.role = Role.CANDIDATE
             self.voted_for = self.node_id
-            self.votes_received = 1  # 自分に投票
+            self.votes_received = 1  # Vote for self
             term = self.current_term
             print(
-                f"  [Node-{self.node_id}] 選挙開始 "
+                f"  [Node-{self.node_id}] Election started "
                 f"(Term={term})"
             )
 
-        # 他の全ノードに投票をリクエスト
+        # Request votes from all other nodes
         for node in self.cluster.nodes.values():
             if node.node_id != self.node_id:
                 if node.request_vote(self.node_id, term):
@@ -880,22 +876,22 @@ class RaftNode:
                             self.leader_id = self.node_id
                             print(
                                 f"  [Node-{self.node_id}] *** "
-                                f"Leader当選 *** "
+                                f"Elected as Leader *** "
                                 f"(Term={self.current_term}, "
-                                f"得票={self.votes_received}/"
+                                f"votes={self.votes_received}/"
                                 f"{len(self.cluster.nodes)})"
                             )
                             self._send_heartbeats()
                             return
 
     def _send_heartbeats(self):
-        """全Followerにハートビートを送信する。"""
+        """Send heartbeats to all Followers."""
         for node in self.cluster.nodes.values():
             if node.node_id != self.node_id:
                 node.receive_heartbeat(self.node_id, self.current_term)
 
     def run_election_timer(self):
-        """選挙タイマーを実行する（バックグラウンドスレッド）。"""
+        """Run the election timer (background thread)."""
         while self.alive:
             time.sleep(0.05)
             with self.lock:
@@ -915,7 +911,7 @@ class RaftNode:
 
 
 class RaftCluster:
-    """Raftクラスタ全体を管理するクラス。"""
+    """A class managing the entire Raft cluster."""
 
     def __init__(self, node_count: int = 5):
         self.nodes: Dict[int, RaftNode] = {}
@@ -923,7 +919,7 @@ class RaftCluster:
             self.nodes[i] = RaftNode(i, self)
 
     def start(self):
-        """全ノードの選挙タイマーを開始する。"""
+        """Start all nodes' election timers."""
         threads = []
         for node in self.nodes.values():
             t = threading.Thread(
@@ -934,12 +930,12 @@ class RaftCluster:
         return threads
 
     def kill_node(self, node_id: int):
-        """ノードを停止する（障害シミュレーション）。"""
+        """Stop a node (failure simulation)."""
         self.nodes[node_id].alive = False
-        print(f"\n  [Node-{node_id}] === 障害発生 ===")
+        print(f"\n  [Node-{node_id}] === Failure occurred ===")
 
     def status(self) -> str:
-        """クラスタの現在の状態を返す。"""
+        """Return the current state of the cluster."""
         lines = []
         for nid, node in sorted(self.nodes.items()):
             status = "DEAD" if not node.alive else node.role.value
@@ -956,23 +952,23 @@ class RaftCluster:
 
 
 def demo():
-    """リーダー選出のデモ。"""
+    """Leader election demo."""
     print("=" * 60)
-    print("Raft リーダー選出シミュレーション（5ノード）")
+    print("Raft Leader Election Simulation (5 nodes)")
     print("=" * 60)
 
     cluster = RaftCluster(node_count=5)
-    print("\n--- 初期状態 ---")
+    print("\n--- Initial state ---")
     print(cluster.status())
 
-    print("\n--- 選挙タイマー開始 ---")
+    print("\n--- Election timer started ---")
     cluster.start()
-    time.sleep(0.5)  # 選挙完了を待つ
+    time.sleep(0.5)  # Wait for election to complete
 
-    print("\n--- 選挙後の状態 ---")
+    print("\n--- State after election ---")
     print(cluster.status())
 
-    # Leaderを障害にする
+    # Cause a failure on the Leader
     leader_id = None
     for nid, node in cluster.nodes.items():
         if node.role == Role.LEADER:
@@ -981,12 +977,12 @@ def demo():
 
     if leader_id is not None:
         cluster.kill_node(leader_id)
-        print("\n--- 新しいLeaderの選出を待機中... ---")
-        time.sleep(0.8)  # 再選挙を待つ
-        print("\n--- 再選挙後の状態 ---")
+        print("\n--- Waiting for new Leader election... ---")
+        time.sleep(0.8)  # Wait for re-election
+        print("\n--- State after re-election ---")
         print(cluster.status())
 
-    # 全ノード停止
+    # Stop all nodes
     for node in cluster.nodes.values():
         node.alive = False
 
@@ -995,38 +991,38 @@ if __name__ == "__main__":
     demo()
 ```
 
-想定される出力:
+Expected output:
 
 ```
 ============================================================
-Raft リーダー選出シミュレーション（5ノード）
+Raft Leader Election Simulation (5 nodes)
 ============================================================
 
---- 初期状態 ---
+--- Initial state ---
     Node-0: Follower   Term=0
     Node-1: Follower   Term=0
     Node-2: Follower   Term=0
     Node-3: Follower   Term=0
     Node-4: Follower   Term=0
 
---- 選挙タイマー開始 ---
-  [Node-2] 選挙開始 (Term=1)
-  [Node-2] *** Leader当選 *** (Term=1, 得票=4/5)
+--- Election timer started ---
+  [Node-2] Election started (Term=1)
+  [Node-2] *** Elected as Leader *** (Term=1, votes=4/5)
 
---- 選挙後の状態 ---
+--- State after election ---
     Node-0: Follower   Term=1 (leader=Node-2)
     Node-1: Follower   Term=1 (leader=Node-2)
     Node-2: Leader     Term=1 (leader=Node-2)
     Node-3: Follower   Term=1 (leader=Node-2)
     Node-4: Follower   Term=1 (leader=Node-2)
 
-  [Node-2] === 障害発生 ===
+  [Node-2] === Failure occurred ===
 
---- 新しいLeaderの選出を待機中... ---
-  [Node-4] 選挙開始 (Term=2)
-  [Node-4] *** Leader当選 *** (Term=2, 得票=3/5)
+--- Waiting for new Leader election... ---
+  [Node-4] Election started (Term=2)
+  [Node-4] *** Elected as Leader *** (Term=2, votes=3/5)
 
---- 再選挙後の状態 ---
+--- State after re-election ---
     Node-0: Follower   Term=2 (leader=Node-4)
     Node-1: Follower   Term=2 (leader=Node-4)
     Node-2: DEAD       Term=1 (leader=Node-2)
@@ -1036,98 +1032,100 @@ Raft リーダー選出シミュレーション（5ノード）
 
 ---
 
-## 5. 分散データストア
+## 5. Distributed Data Stores
 
-### 5.1 データ分散の2つの軸
-
-```
-データ分散の2つの軸:
-
-  1. レプリケーション（複製）:
-     同じデータを複数ノードに複製する
-     → 目的: 可用性向上、読み取りスケールアウト
-     → トレードオフ: 一貫性の確保が難しくなる
-
-     方式:
-     ┌──────────────────────────────────────────────┐
-     │ 同期レプリケーション:                          │
-     │   Master --write--> Slave1 (ACK待ち)          │
-     │                 --> Slave2 (ACK待ち)           │
-     │   全SlaveのACKを待ってからClientに応答          │
-     │   → 強い一貫性が得られる                       │
-     │   → 書き込みレイテンシが高い                   │
-     │   → 1台でも遅いSlaveがあると全体が遅延         │
-     │                                               │
-     │ 非同期レプリケーション:                        │
-     │   Master --write--> Slave1 (ACK待たない)       │
-     │                 --> Slave2 (ACK待たない)        │
-     │   Masterへの書き込み完了で即座にClientに応答    │
-     │   → 書き込みレイテンシが低い                   │
-     │   → Master障害時にデータロスの可能性あり        │
-     │   → Slaveが一時的に古いデータを返す             │
-     │                                               │
-     │ 準同期（Semi-sync）:                           │
-     │   Master --write--> Slave1 (ACK待ち)          │
-     │                 --> Slave2 (ACK待たない)        │
-     │   少なくとも1つのSlaveのACKを待つ               │
-     │   → バランス型: 1コピーは保証される             │
-     │   → MySQLの推奨設定                            │
-     └──────────────────────────────────────────────┘
-
-  2. パーティショニング/シャーディング（分割）:
-     データを複数ノードに分割配置する
-     → 目的: 容量のスケール、書き込みのスケール
-     → トレードオフ: クロスパーティションクエリが高コスト
-
-     分割方式:
-     ┌──────────────────────────────────────────────┐
-     │ 範囲分割（Range Partitioning）:                │
-     │   Shard1: A-G, Shard2: H-N, Shard3: O-Z      │
-     │   → 範囲クエリが効率的（例: 名前がA-Cの全ユーザー）│
-     │   → ホットスポットが発生しやすい                │
-     │     例: 「S」で始まる名前が多く、Shard3に集中    │
-     │                                               │
-     │ ハッシュ分割（Hash Partitioning）:              │
-     │   Shard = hash(key) % N                        │
-     │   → データが均等に分散される                    │
-     │   → 範囲クエリが非効率（全シャードをスキャン）   │
-     │   → ノード追加/削除時に大量の再配置が必要       │
-     │                                               │
-     │ コンシステントハッシュ:                         │
-     │   ノード追加/削除時に影響範囲が1/Nに限定される  │
-     │   → DynamoDB, Cassandraが採用                  │
-     │   → 次節で詳細に解説                           │
-     └──────────────────────────────────────────────┘
-```
-
-### 5.2 コンシステントハッシュの仕組み
+### 5.1 Two Axes of Data Distribution
 
 ```
-なぜ従来のハッシュ（hash(key) % N）が問題か:
+Two Axes of Data Distribution:
 
-  N=3 の場合:
-    hash("user:1") % 3 = 0 → Node-0
-    hash("user:2") % 3 = 1 → Node-1
-    hash("user:3") % 3 = 2 → Node-2
+  1. Replication:
+     Copy the same data to multiple nodes
+     -> Purpose: Improve availability, read scale-out
+     -> Trade-off: Maintaining consistency becomes harder
 
-  N=4 に変更（ノード追加）:
-    hash("user:1") % 4 = 1 → Node-1  ← 移動が必要！
-    hash("user:2") % 4 = 2 → Node-2  ← 移動が必要！
-    hash("user:3") % 4 = 0 → Node-0  ← 移動が必要！
+     Methods:
+     +----------------------------------------------+
+     | Synchronous Replication:                      |
+     |   Master --write--> Slave1 (wait for ACK)    |
+     |                 --> Slave2 (wait for ACK)     |
+     |   Wait for ACK from all Slaves before         |
+     |   responding to Client                        |
+     |   -> Strong consistency achieved              |
+     |   -> High write latency                       |
+     |   -> Even one slow Slave delays everything    |
+     |                                               |
+     | Asynchronous Replication:                     |
+     |   Master --write--> Slave1 (don't wait)       |
+     |                 --> Slave2 (don't wait)        |
+     |   Respond to Client immediately after Master   |
+     |   write completes                             |
+     |   -> Low write latency                        |
+     |   -> Risk of data loss on Master failure      |
+     |   -> Slaves may temporarily return stale data |
+     |                                               |
+     | Semi-synchronous:                             |
+     |   Master --write--> Slave1 (wait for ACK)    |
+     |                 --> Slave2 (don't wait)        |
+     |   Wait for ACK from at least one Slave        |
+     |   -> Balanced: one copy is guaranteed          |
+     |   -> MySQL recommended configuration          |
+     +----------------------------------------------+
 
-  → ノード数変更で全データの再配置が発生
-  → N台のクラスタでは約(N-1)/N = ほぼ全てが移動
+  2. Partitioning/Sharding (splitting):
+     Distribute data across multiple nodes
+     -> Purpose: Capacity scaling, write scaling
+     -> Trade-off: Cross-partition queries are expensive
 
-コンシステントハッシュ:
-  ハッシュ空間を円（リング）として扱う
+     Partitioning methods:
+     +----------------------------------------------+
+     | Range Partitioning:                           |
+     |   Shard1: A-G, Shard2: H-N, Shard3: O-Z     |
+     |   -> Range queries are efficient               |
+     |   -> Hotspots easily occur                     |
+     |     Ex: names starting with "S" are common     |
+     |                                               |
+     | Hash Partitioning:                            |
+     |   Shard = hash(key) % N                       |
+     |   -> Data is evenly distributed                |
+     |   -> Range queries are inefficient             |
+     |   -> Massive redistribution on node add/remove |
+     |                                               |
+     | Consistent Hashing:                           |
+     |   Impact is limited to 1/N on node add/remove |
+     |   -> Used by DynamoDB, Cassandra              |
+     |   -> Detailed explanation in next section     |
+     +----------------------------------------------+
+```
+
+### 5.2 How Consistent Hashing Works
+
+```
+Why traditional hashing (hash(key) % N) is problematic:
+
+  With N=3:
+    hash("user:1") % 3 = 0 -> Node-0
+    hash("user:2") % 3 = 1 -> Node-1
+    hash("user:3") % 3 = 2 -> Node-2
+
+  Changed to N=4 (node added):
+    hash("user:1") % 4 = 1 -> Node-1  <- Needs migration!
+    hash("user:2") % 4 = 2 -> Node-2  <- Needs migration!
+    hash("user:3") % 4 = 0 -> Node-0  <- Needs migration!
+
+  -> Changing node count requires redistributing all data
+  -> In an N-node cluster, approximately (N-1)/N = almost all data moves
+
+Consistent Hashing:
+  Treat the hash space as a ring
 
         0
         |
-   270 -+- 90      ← ハッシュリング（0〜360度）
+   270 -+- 90      <- Hash ring (0-360 degrees)
         |
        180
 
-  ノードをリング上に配置:
+  Place nodes on the ring:
         Node-A (30)
        /
   ----*-------*---- Node-B (120)
@@ -1137,33 +1135,32 @@ Raft リーダー選出シミュレーション（5ノード）
                \
                 Node-D (300)
 
-  キーの配置ルール:
-  → キーのハッシュ値からリング上を時計回りに探索
-  → 最初に見つかるノードに格納
+  Key placement rule:
+  -> From a key's hash value, search clockwise on the ring
+  -> Store at the first node found
 
-  ノード追加時の影響:
-  → Node-E(165)を追加すると、
-    影響を受けるのはNode-B(120)〜Node-E(165)の範囲のみ
-  → 全データの約1/N（= 1/5）だけが移動
+  Impact when adding a node:
+  -> Adding Node-E(165) only affects the range Node-B(120) to Node-E(165)
+  -> Only about 1/N (= 1/5) of all data moves
 
-  仮想ノード（Virtual Node）:
-  → 1つの物理ノードに複数の仮想ノードを割り当てる
-  → 100〜200個の仮想ノードが一般的
-  → なぜ必要か: ノード数が少ないとデータ分布が偏るため
-  → 仮想ノードを増やすことで分布が均一に近づく
+  Virtual Nodes:
+  -> Assign multiple virtual nodes to each physical node
+  -> Typically 100-200 virtual nodes
+  -> Why needed: With few nodes, data distribution becomes skewed
+  -> Increasing virtual nodes makes distribution more uniform
 ```
 
-### コード例3: コンシステントハッシュの実装
+### Code Example 3: Consistent Hash Implementation
 
 ```python
 """
-コンシステントハッシュリングの実装
+Consistent Hash Ring Implementation
 ==========================================
-仮想ノード付きのコンシステントハッシュを実装し、
-ノード追加/削除時のデータ移動量を確認する。
+Implements consistent hashing with virtual nodes and
+verifies data movement during node addition/removal.
 
-実行方法: python consistent_hash.py
-依存: 標準ライブラリのみ
+How to run: python consistent_hash.py
+Dependencies: Standard library only
 """
 
 import hashlib
@@ -1173,17 +1170,17 @@ from typing import Dict, List, Optional
 
 
 class ConsistentHashRing:
-    """コンシステントハッシュリングの実装。
+    """Consistent hash ring implementation.
 
-    なぜbisectを使うか:
-    → リング上のノード探索は二分探索で O(log N) にできる
-    → 線形探索だと O(N) になり、ノード数が多いと遅い
+    Why bisect is used:
+    -> Node lookup on the ring can be done in O(log N) with binary search
+    -> Linear search would be O(N), which is slow with many nodes
 
-    なぜMD5を使うか:
-    → ハッシュ値の均一分布が重要
-    → MD5は暗号学的には破られているが、
-      ハッシュの均一分布性能は十分
-    → SHA-256でも良いが、速度面でMD5が有利
+    Why MD5 is used:
+    -> Uniform distribution of hash values is important
+    -> MD5 is cryptographically broken, but its uniformity
+      properties are sufficient
+    -> SHA-256 could also be used, but MD5 is faster
     """
 
     def __init__(self, virtual_nodes: int = 150):
@@ -1193,17 +1190,17 @@ class ConsistentHashRing:
         self.nodes: set = set()
 
     def _hash(self, key: str) -> int:
-        """キーからハッシュ値を計算する。"""
+        """Compute a hash value from a key."""
         digest = hashlib.md5(key.encode()).hexdigest()
         return int(digest, 16)
 
     def add_node(self, node: str):
-        """ノードをリングに追加する。
+        """Add a node to the ring.
 
-        仮想ノードを使う理由:
-        物理ノード3台をそのまま配置すると、リング上の間隔が
-        偏り、特定ノードにデータが集中する。仮想ノードで
-        リング上にまんべんなく分布させることで解決する。
+        Why virtual nodes are used:
+        Placing just 3 physical nodes directly results in
+        uneven spacing on the ring, concentrating data on
+        certain nodes. Virtual nodes distribute them evenly.
         """
         self.nodes.add(node)
         for i in range(self.virtual_nodes):
@@ -1214,7 +1211,7 @@ class ConsistentHashRing:
         self.sorted_keys.sort()
 
     def remove_node(self, node: str):
-        """ノードをリングから削除する。"""
+        """Remove a node from the ring."""
         self.nodes.discard(node)
         for i in range(self.virtual_nodes):
             virtual_key = f"{node}:vn{i}"
@@ -1224,21 +1221,21 @@ class ConsistentHashRing:
                 self.sorted_keys.remove(h)
 
     def get_node(self, key: str) -> Optional[str]:
-        """キーを担当するノードを返す。
+        """Return the node responsible for a key.
 
-        リング上でキーのハッシュ値から時計回りに探索し、
-        最初に見つかるノードを返す。
+        Search clockwise from the key's hash value on the ring
+        and return the first node found.
         """
         if not self.ring:
             return None
         h = self._hash(key)
         idx = bisect_right(self.sorted_keys, h)
         if idx == len(self.sorted_keys):
-            idx = 0  # リングの末端を超えたら先頭に戻る
+            idx = 0  # Wrap around to the beginning of the ring
         return self.ring[self.sorted_keys[idx]]
 
     def get_distribution(self, keys: List[str]) -> Dict[str, int]:
-        """キーの分布を計算する。"""
+        """Calculate the distribution of keys."""
         dist: Dict[str, int] = defaultdict(int)
         for key in keys:
             node = self.get_node(key)
@@ -1248,29 +1245,29 @@ class ConsistentHashRing:
 
 
 def demo():
-    """コンシステントハッシュの動作デモ。"""
+    """Consistent hash operation demo."""
     print("=" * 60)
-    print("コンシステントハッシュリング デモ")
+    print("Consistent Hash Ring Demo")
     print("=" * 60)
 
-    # テストデータ: 10000個のキー
+    # Test data: 10000 keys
     keys = [f"user:{i}" for i in range(10000)]
 
-    # --- 3ノードでの分布 ---
+    # --- Distribution with 3 nodes ---
     ring = ConsistentHashRing(virtual_nodes=150)
     for node in ["Node-A", "Node-B", "Node-C"]:
         ring.add_node(node)
 
     dist = ring.get_distribution(keys)
-    print("\n--- 3ノード構成 ---")
+    print("\n--- 3-node configuration ---")
     for node, count in sorted(dist.items()):
         bar = "#" * (count // 50)
         print(f"  {node}: {count:5d} keys {bar}")
 
-    # データの配置を記録
+    # Record data placement
     original_mapping = {key: ring.get_node(key) for key in keys}
 
-    # --- ノード追加時の影響 ---
+    # --- Impact of adding a node ---
     ring.add_node("Node-D")
     new_mapping = {key: ring.get_node(key) for key in keys}
 
@@ -1278,16 +1275,16 @@ def demo():
         1 for key in keys
         if original_mapping[key] != new_mapping[key]
     )
-    print(f"\n--- Node-D追加後 ---")
+    print(f"\n--- After adding Node-D ---")
     dist = ring.get_distribution(keys)
     for node, count in sorted(dist.items()):
         bar = "#" * (count // 50)
         print(f"  {node}: {count:5d} keys {bar}")
-    print(f"\n  移動したキー数: {moved}/{len(keys)} "
+    print(f"\n  Keys moved: {moved}/{len(keys)} "
           f"({moved/len(keys)*100:.1f}%)")
-    print(f"  理想値: {100/4:.1f}% (1/N)")
+    print(f"  Ideal: {100/4:.1f}% (1/N)")
 
-    # --- ノード削除時の影響 ---
+    # --- Impact of removing a node ---
     original_mapping_4 = {key: ring.get_node(key) for key in keys}
     ring.remove_node("Node-B")
     after_removal = {key: ring.get_node(key) for key in keys}
@@ -1296,16 +1293,16 @@ def demo():
         1 for key in keys
         if original_mapping_4[key] != after_removal[key]
     )
-    print(f"\n--- Node-B削除後 ---")
+    print(f"\n--- After removing Node-B ---")
     dist = ring.get_distribution(keys)
     for node, count in sorted(dist.items()):
         bar = "#" * (count // 50)
         print(f"  {node}: {count:5d} keys {bar}")
-    print(f"\n  移動したキー数: {moved}/{len(keys)} "
+    print(f"\n  Keys moved: {moved}/{len(keys)} "
           f"({moved/len(keys)*100:.1f}%)")
 
-    # --- 仮想ノード数による分布の違い ---
-    print(f"\n--- 仮想ノード数による分布の標準偏差 ---")
+    # --- Distribution variance by virtual node count ---
+    print(f"\n--- Standard deviation by virtual node count ---")
     for vn_count in [1, 10, 50, 150, 500]:
         r = ConsistentHashRing(virtual_nodes=vn_count)
         for node in ["Node-A", "Node-B", "Node-C"]:
@@ -1318,7 +1315,7 @@ def demo():
         print(
             f"  vn={vn_count:4d}: "
             f"stddev={stddev:7.1f} "
-            f"(偏りの小ささ: "
+            f"(uniformity: "
             f"{'##' * max(1, int(10 - stddev / 50))})"
         )
 
@@ -1327,245 +1324,245 @@ if __name__ == "__main__":
     demo()
 ```
 
-想定される出力:
+Expected output:
 
 ```
 ============================================================
-コンシステントハッシュリング デモ
+Consistent Hash Ring Demo
 ============================================================
 
---- 3ノード構成 ---
+--- 3-node configuration ---
   Node-A:  3342 keys ##################################################################
   Node-B:  3298 keys #################################################################
   Node-C:  3360 keys ###################################################################
 
---- Node-D追加後 ---
+--- After adding Node-D ---
   Node-A:  2510 keys ##################################################
   Node-B:  2485 keys #################################################
   Node-C:  2522 keys ##################################################
   Node-D:  2483 keys #################################################
 
-  移動したキー数: 2483/10000 (24.8%)
-  理想値: 25.0% (1/N)
+  Keys moved: 2483/10000 (24.8%)
+  Ideal: 25.0% (1/N)
 
---- Node-B削除後 ---
+--- After removing Node-B ---
   Node-A:  3356 keys ###################################################################
-  Node-B削除 → Node-Bのデータは隣接ノードに引き継がれる
+  Node-B removed -> Node-B's data is taken over by adjacent nodes
   Node-C:  3322 keys ##################################################################
   Node-D:  3322 keys ##################################################################
 
-  移動したキー数: 2485/10000 (24.9%)
+  Keys moved: 2485/10000 (24.9%)
 
---- 仮想ノード数による分布の標準偏差 ---
-  vn=   1: stddev= 2187.3 (偏りの小ささ: )
-  vn=  10: stddev=  634.2 (偏りの小ささ: ########)
-  vn=  50: stddev=  198.7 (偏りの小ささ: ############)
-  vn= 150: stddev=   55.1 (偏りの小ささ: ##################)
-  vn= 500: stddev=   28.3 (偏りの小ささ: ####################)
+--- Standard deviation by virtual node count ---
+  vn=   1: stddev= 2187.3 (uniformity: )
+  vn=  10: stddev=  634.2 (uniformity: ########)
+  vn=  50: stddev=  198.7 (uniformity: ############)
+  vn= 150: stddev=   55.1 (uniformity: ##################)
+  vn= 500: stddev=   28.3 (uniformity: ####################)
 ```
 
-### 5.3 クオラムによる一貫性制御
+### 5.3 Consistency Control via Quorum
 
 ```
-クオラム（Quorum）:
-  読み書きに必要なノード数を調整して一貫性を制御する
+Quorum:
+  Control consistency by adjusting the number of nodes required for reads and writes
 
-  N = レプリカ数（レプリケーションファクター）
-  W = 書き込み時に確認するノード数（Write Quorum）
-  R = 読み取り時に確認するノード数（Read Quorum）
+  N = Number of replicas (Replication Factor)
+  W = Number of nodes confirmed during write (Write Quorum)
+  R = Number of nodes confirmed during read (Read Quorum)
 
-  一貫性の条件: W + R > N
-  → 読み書きのノード集合が必ず重なる
-  → 重なったノードが最新データを持つ
+  Consistency condition: W + R > N
+  -> Read and write node sets always overlap
+  -> The overlapping node has the latest data
 
-  例: N=3 の場合
+  Example: N=3
 
-  ┌────────────────────────────────────────────┐
-  │ 設定1: W=2, R=2  → 強い一貫性              │
-  │   Write: Node-A, Node-B に書き込み          │
-  │   Read:  Node-B, Node-C から読み取り        │
-  │   → Node-Bが重なる → 最新値が必ず見つかる   │
-  │                                             │
-  │ 設定2: W=3, R=1  → 書き込み重視             │
-  │   Write: 全ノードに書き込み（遅い）          │
-  │   Read:  1ノードから読み取り（速い）          │
-  │   → 読み取り頻度が高い場合に有利             │
-  │                                             │
-  │ 設定3: W=1, R=3  → 読み取り重視             │
-  │   Write: 1ノードに書き込み（速い）           │
-  │   Read:  全ノードから読み取り（遅い）         │
-  │   → 書き込み頻度が高い場合に有利             │
-  │                                             │
-  │ 設定4: W=1, R=1  → 結果整合性               │
-  │   W + R = 2 ≤ N=3 → 重ならない可能性あり    │
-  │   → 読み取り時に古いデータが見える可能性     │
-  │   → 最も高速だが一貫性は弱い                 │
-  └────────────────────────────────────────────┘
+  +--------------------------------------------+
+  | Setting 1: W=2, R=2  -> Strong consistency |
+  |   Write: Write to Node-A, Node-B          |
+  |   Read:  Read from Node-B, Node-C         |
+  |   -> Node-B overlaps -> latest value found |
+  |                                             |
+  | Setting 2: W=3, R=1  -> Write-heavy        |
+  |   Write: Write to all nodes (slow)         |
+  |   Read:  Read from 1 node (fast)           |
+  |   -> Favorable when reads are frequent     |
+  |                                             |
+  | Setting 3: W=1, R=3  -> Read-heavy         |
+  |   Write: Write to 1 node (fast)            |
+  |   Read:  Read from all nodes (slow)        |
+  |   -> Favorable when writes are frequent    |
+  |                                             |
+  | Setting 4: W=1, R=1  -> Eventual consistency|
+  |   W + R = 2 <= N=3 -> may not overlap      |
+  |   -> Stale data may be read                |
+  |   -> Fastest but weakest consistency       |
+  +--------------------------------------------+
 ```
 
 ---
 
-## 6. 分散トランザクション
+## 6. Distributed Transactions
 
-### 6.1 分散環境でのACIDの困難さ
-
-```
-単一DBのACID:
-  A(Atomicity):    全操作が成功するか、全て失敗するか
-  C(Consistency):  制約（外部キー等）を常に満たす
-  I(Isolation):    並行トランザクションが干渉しない
-  D(Durability):   コミットしたデータは永続化される
-
-なぜ分散環境でACIDが困難か:
-
-  Atomicity の問題:
-  → 複数ノードにまたがる操作で、一部だけ成功する可能性
-  → 例: Node-Aでの引き落としは成功、Node-Bへの入金が失敗
-  → 物理的に離れたノード間で「全か無か」を保証するのは高コスト
-
-  Isolation の問題:
-  → 分散ロックのコストが非常に高い
-  → ネットワーク遅延によりロック保持時間が長くなる
-  → デッドロック検出が単一DB以上に複雑
-
-  → これらの問題に対処する2つの主要アプローチ:
-    1. 2フェーズコミット（2PC）: 分散ACIDを実現
-    2. Sagaパターン: ACIDを緩めて実用性を確保
-```
-
-### 6.2 2フェーズコミット（2PC）
+### 6.1 Difficulty of ACID in Distributed Environments
 
 ```
-2フェーズコミット（Two-Phase Commit）:
+Single-DB ACID:
+  A(Atomicity):    All operations succeed or all fail
+  C(Consistency):  Constraints (foreign keys, etc.) are always satisfied
+  I(Isolation):    Concurrent transactions do not interfere
+  D(Durability):   Committed data is persisted
+
+Why ACID is difficult in distributed environments:
+
+  Atomicity problem:
+  -> Operations spanning multiple nodes may partially succeed
+  -> Example: Debit on Node-A succeeds, credit on Node-B fails
+  -> Guaranteeing "all or nothing" across physically distant nodes is costly
+
+  Isolation problem:
+  -> Cost of distributed locks is very high
+  -> Network latency extends lock holding time
+  -> Deadlock detection is far more complex than in a single DB
+
+  -> Two main approaches to address these problems:
+    1. Two-Phase Commit (2PC): Achieves distributed ACID
+    2. Saga Pattern: Relaxes ACID for practicality
+```
+
+### 6.2 Two-Phase Commit (2PC)
+
+```
+Two-Phase Commit:
 
   Coordinator         Participant-A    Participant-B
        |                    |                |
-  Phase 1 (投票フェーズ):
+  Phase 1 (Voting Phase):
        |-- Prepare -------->|                |
        |-- Prepare ----------------------->|
        |<-- Vote YES -------|                |
        |<-- Vote YES ----------------------|
        |                    |                |
-  Phase 2 (決定フェーズ):
+  Phase 2 (Decision Phase):
        |-- Commit --------->|                |
        |-- Commit ------------------------>|
        |<-- ACK ------------|                |
        |<-- ACK ----------------------------|
 
-  各フェーズの意味:
+  Meaning of each phase:
 
   Phase 1 (Prepare):
-  → Coordinatorが「この操作をコミットできるか？」と聞く
-  → Participantは必要なロックを取得し、WALに書き込み
-  → YES（準備完了）またはNO（不可）を返す
-  → YESを返した後は、結果を聞くまでロックを保持し続ける
+  -> Coordinator asks "Can you commit this operation?"
+  -> Participant acquires necessary locks and writes to WAL
+  -> Returns YES (ready) or NO (cannot)
+  -> After returning YES, holds locks until receiving the result
 
   Phase 2 (Commit/Abort):
-  → 全員がYES → Coordinatorが「Commit」を指示
-  → 1人でもNO → Coordinatorが「Abort」を指示
-  → Participantはロックを解放
+  -> If all say YES -> Coordinator instructs "Commit"
+  -> If any says NO -> Coordinator instructs "Abort"
+  -> Participants release locks
 ```
 
-### 6.3 2PCの致命的な問題点
+### 6.3 Critical Problems with 2PC
 
 ```
-2PCの問題:
+Problems with 2PC:
 
-  1. ブロッキング問題:
-     Phase 1でYESを返した後、Phase 2を受け取る前に
-     Coordinatorが障害で停止した場合:
+  1. Blocking Problem:
+     If the Coordinator fails after Phase 1 YES responses
+     but before Phase 2:
 
-     Coordinator   ×  (障害)
-     Participant-A: YES を返した状態でブロック
-     Participant-B: YES を返した状態でブロック
+     Coordinator   x  (failure)
+     Participant-A: Blocked in YES state
+     Participant-B: Blocked in YES state
 
-     → ロックを保持したまま、Commit/Abortのどちらか分からない
-     → Coordinatorが復旧するまで全体がブロック
-     → この間、ロックされたデータに他のトランザクションがアクセスできない
+     -> Holding locks, unable to determine Commit or Abort
+     -> Entire system blocks until Coordinator recovers
+     -> During this time, locked data is inaccessible to other transactions
 
-  2. 性能問題:
-     → 2回のラウンドトリップが必要（Prepare + Commit）
-     → ネットワークレイテンシが2倍
-     → 全Participantの応答を待つため、最も遅いノードに律速される
+  2. Performance Problem:
+     -> Two round trips required (Prepare + Commit)
+     -> Network latency is doubled
+     -> Rate-limited by the slowest responding node
 
-  3. 可用性問題:
-     → Participantの1台でも応答しなければAbort
-     → ノード数が増えるほど障害確率が上がる
-     → 10ノードで各99.9%の可用性 → 全体は99.0%に低下
+  3. Availability Problem:
+     -> If even one Participant doesn't respond, Abort
+     -> Failure probability increases with more nodes
+     -> 10 nodes each at 99.9% availability -> overall 99.0%
 
-  対策: 3フェーズコミット（3PC）
-  → Pre-Commit フェーズを追加してブロッキングを軽減
-  → しかしネットワーク分断には対応できず、実用性は限定的
+  Countermeasure: Three-Phase Commit (3PC)
+  -> Adds a Pre-Commit phase to mitigate blocking
+  -> However, cannot handle network partitions; practical use is limited
 ```
 
-### 6.4 Sagaパターン
+### 6.4 Saga Pattern
 
 ```
-Sagaパターン（Hector Garcia-Molina, 1987）:
+Saga Pattern (Hector Garcia-Molina, 1987):
 
-  基本概念:
-  分散トランザクションを一連のローカルトランザクションに分解し、
-  各ステップに対応する「補償トランザクション」を用意する
+  Basic Concept:
+  Decompose a distributed transaction into a series of local transactions,
+  and prepare a "compensating transaction" for each step
 
-  正常フロー:
-  T1 → T2 → T3 → 完了（成功）
+  Normal flow:
+  T1 -> T2 -> T3 -> Complete (success)
 
-  障害フロー（T3で失敗）:
-  T1 → T2 → T3(失敗) → C2 → C1
-  （Cは補償トランザクション = 取り消し操作）
+  Failure flow (T3 fails):
+  T1 -> T2 -> T3(fails) -> C2 -> C1
+  (C = compensating transaction = undo operation)
 
-  ECサイトの注文処理の例:
-  ┌──────────────────────────────────────────┐
-  │ ステップ     正常操作        補償操作      │
-  │ ──────     ──────────    ──────────     │
-  │ T1         在庫を確保      C1: 在庫を戻す  │
-  │ T2         決済を実行      C2: 返金する    │
-  │ T3         配送を手配      C3: 配送キャンセル│
-  └──────────────────────────────────────────┘
+  E-commerce order processing example:
+  +------------------------------------------+
+  | Step     Normal Operation  Compensating   |
+  | ------   ---------------  -----------    |
+  | T1       Reserve inventory C1: Release   |
+  | T2       Process payment   C2: Refund    |
+  | T3       Schedule shipping C3: Cancel    |
+  +------------------------------------------+
 
-  2つの実装パターン:
+  Two implementation patterns:
 
-  オーケストレーション型:
-  ┌─────────────────────────────────────────────┐
-  │  Saga Orchestrator                           │
-  │       |                                      │
-  │       |--> 在庫Service --> (成功)             │
-  │       |--> 決済Service --> (成功)             │
-  │       |--> 配送Service --> (失敗)             │
-  │       |                                      │
-  │       |--> 決済Service.compensate()          │
-  │       |--> 在庫Service.compensate()          │
-  │                                              │
-  │  利点: フローが1箇所で管理される              │
-  │  欠点: Orchestratorが単一障害点になりうる      │
-  └─────────────────────────────────────────────┘
+  Orchestration:
+  +---------------------------------------------+
+  |  Saga Orchestrator                           |
+  |       |                                      |
+  |       |--> Inventory Service --> (success)   |
+  |       |--> Payment Service --> (success)     |
+  |       |--> Shipping Service --> (failure)    |
+  |       |                                      |
+  |       |--> Payment Service.compensate()      |
+  |       |--> Inventory Service.compensate()    |
+  |                                              |
+  |  Advantage: Flow is managed in one place     |
+  |  Disadvantage: Orchestrator can become SPOF  |
+  +---------------------------------------------+
 
-  コレオグラフィー型:
-  ┌─────────────────────────────────────────────┐
-  │  在庫Service --[在庫確保済]--> Event Bus      │
-  │  決済Service <--[在庫確保済]--                │
-  │  決済Service --[決済完了]--> Event Bus        │
-  │  配送Service <--[決済完了]--                  │
-  │  配送Service --[配送失敗]--> Event Bus        │
-  │  決済Service <--[配送失敗]-- → 返金実行       │
-  │  在庫Service <--[返金完了]-- → 在庫戻し       │
-  │                                              │
-  │  利点: 疎結合、中央管理不要                   │
-  │  欠点: フロー全体の把握が困難、デバッグが難しい│
-  └─────────────────────────────────────────────┘
+  Choreography:
+  +---------------------------------------------+
+  |  Inventory Service --[reserved]--> Event Bus |
+  |  Payment Service <--[reserved]--             |
+  |  Payment Service --[paid]--> Event Bus       |
+  |  Shipping Service <--[paid]--                |
+  |  Shipping Service --[ship_failed]--> Event Bus|
+  |  Payment Service <--[ship_failed]-- -> refund|
+  |  Inventory Service <--[refunded]-- -> release|
+  |                                              |
+  |  Advantage: Loosely coupled, no central mgmt |
+  |  Disadvantage: Hard to see full flow, debug  |
+  +---------------------------------------------+
 ```
 
-### コード例4: Sagaパターンの実装
+### Code Example 4: Saga Pattern Implementation
 
 ```python
 """
-Sagaパターン（オーケストレーション型）の実装
+Saga Pattern (Orchestration) Implementation
 ==========================================
-ECサイトの注文処理をSagaパターンで実装する。
-障害発生時の補償トランザクションの動作を確認できる。
+Implements e-commerce order processing using the Saga pattern.
+Demonstrates compensating transaction behavior on failure.
 
-実行方法: python saga_pattern.py
-依存: 標準ライブラリのみ
+How to run: python saga_pattern.py
+Dependencies: Standard library only
 """
 
 from dataclasses import dataclass, field
@@ -1583,13 +1580,12 @@ class StepStatus(Enum):
 
 @dataclass
 class SagaStep:
-    """Sagaの1ステップを表現する。
+    """Represents a single step of a Saga.
 
-    なぜ正常操作と補償操作をペアにするか:
-    → ステップが失敗した場合、それまでの全ステップを
-      逆順に補償する必要がある
-    → ペアにしておくことで、どの操作をどう取り消すか
-      が明確になる
+    Why normal and compensating operations are paired:
+    -> If a step fails, all preceding steps must be
+      compensated in reverse order
+    -> Pairing makes it clear which operation to undo and how
     """
     name: str
     action: Callable[[], bool]
@@ -1606,12 +1602,12 @@ class SagaResult:
 
 
 class SagaOrchestrator:
-    """Sagaオーケストレータ。
+    """Saga orchestrator.
 
-    ステップを順番に実行し、失敗時は逆順に補償する。
-    なぜ逆順で補償するか:
-    → 後のステップほど前のステップの結果に依存している
-    → 依存関係を壊さないためには、後ろから取り消す必要がある
+    Executes steps in order, compensates in reverse on failure.
+    Why compensate in reverse:
+    -> Later steps depend on the results of earlier steps
+    -> To avoid breaking dependencies, undo from the end
     """
 
     def __init__(self):
@@ -1624,49 +1620,49 @@ class SagaOrchestrator:
         action: Callable[[], bool],
         compensate: Callable[[], bool],
     ):
-        """ステップを追加する。"""
+        """Add a step."""
         self.steps.append(SagaStep(name, action, compensate))
 
     def execute(self) -> SagaResult:
-        """Sagaを実行する。"""
+        """Execute the Saga."""
         completed_steps: List[SagaStep] = []
 
-        self.log.append("=== Saga 実行開始 ===")
+        self.log.append("=== Saga execution started ===")
 
         for step in self.steps:
-            self.log.append(f"  実行中: {step.name}")
+            self.log.append(f"  Executing: {step.name}")
             try:
                 success = step.action()
             except Exception as e:
-                self.log.append(f"  例外発生: {step.name} - {e}")
+                self.log.append(f"  Exception: {step.name} - {e}")
                 success = False
 
             if success:
                 step.status = StepStatus.COMPLETED
                 completed_steps.append(step)
-                self.log.append(f"  完了: {step.name}")
+                self.log.append(f"  Completed: {step.name}")
             else:
                 step.status = StepStatus.FAILED
-                self.log.append(f"  失敗: {step.name}")
-                self.log.append("=== 補償トランザクション開始 ===")
+                self.log.append(f"  Failed: {step.name}")
+                self.log.append("=== Compensating transactions started ===")
 
-                # 逆順に補償
+                # Compensate in reverse order
                 compensated = 0
                 for completed in reversed(completed_steps):
-                    self.log.append(f"  補償中: {completed.name}")
+                    self.log.append(f"  Compensating: {completed.name}")
                     try:
                         completed.compensate()
                         completed.status = StepStatus.COMPENSATED
                         compensated += 1
                         self.log.append(
-                            f"  補償完了: {completed.name}"
+                            f"  Compensation complete: {completed.name}"
                         )
                     except Exception as e:
                         self.log.append(
-                            f"  補償失敗: {completed.name} - {e}"
+                            f"  Compensation failed: {completed.name} - {e}"
                         )
 
-                self.log.append("=== Saga 失敗（ロールバック完了）===")
+                self.log.append("=== Saga failed (rollback complete) ===")
                 return SagaResult(
                     success=False,
                     steps_completed=len(completed_steps),
@@ -1674,7 +1670,7 @@ class SagaOrchestrator:
                     log=self.log,
                 )
 
-        self.log.append("=== Saga 成功 ===")
+        self.log.append("=== Saga succeeded ===")
         return SagaResult(
             success=True,
             steps_completed=len(completed_steps),
@@ -1683,103 +1679,103 @@ class SagaOrchestrator:
         )
 
 
-# --- ECサイト注文処理のシミュレーション ---
+# --- E-commerce Order Processing Simulation ---
 
 class InventoryService:
-    """在庫サービス。"""
+    """Inventory service."""
 
     def __init__(self):
         self.stock = {"item-A": 10, "item-B": 5}
         self.reserved = {}
 
     def reserve(self, item_id: str, qty: int) -> bool:
-        """在庫を確保する。"""
+        """Reserve inventory."""
         if self.stock.get(item_id, 0) >= qty:
             self.stock[item_id] -= qty
             self.reserved[item_id] = (
                 self.reserved.get(item_id, 0) + qty
             )
             print(
-                f"    [在庫] {item_id} x{qty} 確保 "
-                f"(残: {self.stock[item_id]})"
+                f"    [Inventory] {item_id} x{qty} reserved "
+                f"(remaining: {self.stock[item_id]})"
             )
             return True
-        print(f"    [在庫] {item_id} 在庫不足")
+        print(f"    [Inventory] {item_id} insufficient stock")
         return False
 
     def release(self, item_id: str, qty: int) -> bool:
-        """在庫確保を取り消す。"""
+        """Release reserved inventory."""
         self.stock[item_id] = self.stock.get(item_id, 0) + qty
         self.reserved[item_id] = max(
             0, self.reserved.get(item_id, 0) - qty
         )
         print(
-            f"    [在庫] {item_id} x{qty} 戻し "
-            f"(残: {self.stock[item_id]})"
+            f"    [Inventory] {item_id} x{qty} released "
+            f"(remaining: {self.stock[item_id]})"
         )
         return True
 
 
 class PaymentService:
-    """決済サービス。"""
+    """Payment service."""
 
     def __init__(self, fail_probability: float = 0.0):
         self.transactions = []
         self.fail_probability = fail_probability
 
     def charge(self, user_id: str, amount: int) -> bool:
-        """決済を実行する。"""
+        """Process a payment."""
         if random.random() < self.fail_probability:
-            print(f"    [決済] {user_id} ¥{amount} 失敗（残高不足）")
+            print(f"    [Payment] {user_id} {amount} failed (insufficient balance)")
             return False
         self.transactions.append(
             {"user": user_id, "amount": amount, "type": "charge"}
         )
-        print(f"    [決済] {user_id} ¥{amount} 成功")
+        print(f"    [Payment] {user_id} {amount} succeeded")
         return True
 
     def refund(self, user_id: str, amount: int) -> bool:
-        """返金を実行する。"""
+        """Process a refund."""
         self.transactions.append(
             {"user": user_id, "amount": -amount, "type": "refund"}
         )
-        print(f"    [決済] {user_id} ¥{amount} 返金完了")
+        print(f"    [Payment] {user_id} {amount} refunded")
         return True
 
 
 class ShippingService:
-    """配送サービス。"""
+    """Shipping service."""
 
     def __init__(self, fail_probability: float = 0.0):
         self.shipments = []
         self.fail_probability = fail_probability
 
     def schedule(self, order_id: str, address: str) -> bool:
-        """配送を手配する。"""
+        """Schedule a shipment."""
         if random.random() < self.fail_probability:
             print(
-                f"    [配送] 注文{order_id} → {address} "
-                f"手配失敗（配送業者エラー）"
+                f"    [Shipping] Order {order_id} -> {address} "
+                f"scheduling failed (carrier error)"
             )
             return False
         self.shipments.append({"order": order_id, "address": address})
-        print(f"    [配送] 注文{order_id} → {address} 手配完了")
+        print(f"    [Shipping] Order {order_id} -> {address} scheduled")
         return True
 
     def cancel(self, order_id: str) -> bool:
-        """配送をキャンセルする。"""
+        """Cancel a shipment."""
         self.shipments = [
             s for s in self.shipments if s["order"] != order_id
         ]
-        print(f"    [配送] 注文{order_id} キャンセル完了")
+        print(f"    [Shipping] Order {order_id} cancelled")
         return True
 
 
 def demo():
-    """Sagaパターンのデモ。"""
-    # --- 正常ケース ---
+    """Saga pattern demo."""
+    # --- Normal case ---
     print("=" * 60)
-    print("Sagaパターン デモ: 正常ケース")
+    print("Saga Pattern Demo: Normal Case")
     print("=" * 60)
 
     inv = InventoryService()
@@ -1788,239 +1784,239 @@ def demo():
 
     saga = SagaOrchestrator()
     saga.add_step(
-        "在庫確保",
+        "Reserve inventory",
         lambda: inv.reserve("item-A", 2),
         lambda: inv.release("item-A", 2),
     )
     saga.add_step(
-        "決済実行",
+        "Process payment",
         lambda: pay.charge("user-1", 5000),
         lambda: pay.refund("user-1", 5000),
     )
     saga.add_step(
-        "配送手配",
-        lambda: ship.schedule("order-1", "東京都渋谷区..."),
+        "Schedule shipping",
+        lambda: ship.schedule("order-1", "Shibuya, Tokyo..."),
         lambda: ship.cancel("order-1"),
     )
 
     result = saga.execute()
     print("\n".join(result.log))
 
-    # --- 障害ケース（配送失敗） ---
+    # --- Failure case (shipping failure) ---
     print("\n" + "=" * 60)
-    print("Sagaパターン デモ: 配送失敗ケース")
+    print("Saga Pattern Demo: Shipping Failure Case")
     print("=" * 60)
 
     inv2 = InventoryService()
     pay2 = PaymentService()
-    ship2 = ShippingService(fail_probability=1.0)  # 必ず失敗
+    ship2 = ShippingService(fail_probability=1.0)  # Always fails
 
     saga2 = SagaOrchestrator()
     saga2.add_step(
-        "在庫確保",
+        "Reserve inventory",
         lambda: inv2.reserve("item-A", 2),
         lambda: inv2.release("item-A", 2),
     )
     saga2.add_step(
-        "決済実行",
+        "Process payment",
         lambda: pay2.charge("user-2", 3000),
         lambda: pay2.refund("user-2", 3000),
     )
     saga2.add_step(
-        "配送手配",
-        lambda: ship2.schedule("order-2", "大阪市北区..."),
+        "Schedule shipping",
+        lambda: ship2.schedule("order-2", "Kita-ku, Osaka..."),
         lambda: ship2.cancel("order-2"),
     )
 
     result2 = saga2.execute()
     print("\n".join(result2.log))
-    print(f"\n  在庫状態: {inv2.stock}")
-    print(f"  決済履歴: {pay2.transactions}")
+    print(f"\n  Inventory state: {inv2.stock}")
+    print(f"  Payment history: {pay2.transactions}")
 
 
 if __name__ == "__main__":
     demo()
 ```
 
-想定される出力:
+Expected output:
 
 ```
 ============================================================
-Sagaパターン デモ: 正常ケース
+Saga Pattern Demo: Normal Case
 ============================================================
-    [在庫] item-A x2 確保 (残: 8)
-    [決済] user-1 ¥5000 成功
-    [配送] 注文order-1 → 東京都渋谷区... 手配完了
-=== Saga 実行開始 ===
-  実行中: 在庫確保
-  完了: 在庫確保
-  実行中: 決済実行
-  完了: 決済実行
-  実行中: 配送手配
-  完了: 配送手配
-=== Saga 成功 ===
+    [Inventory] item-A x2 reserved (remaining: 8)
+    [Payment] user-1 5000 succeeded
+    [Shipping] Order order-1 -> Shibuya, Tokyo... scheduled
+=== Saga execution started ===
+  Executing: Reserve inventory
+  Completed: Reserve inventory
+  Executing: Process payment
+  Completed: Process payment
+  Executing: Schedule shipping
+  Completed: Schedule shipping
+=== Saga succeeded ===
 
 ============================================================
-Sagaパターン デモ: 配送失敗ケース
+Saga Pattern Demo: Shipping Failure Case
 ============================================================
-    [在庫] item-A x2 確保 (残: 8)
-    [決済] user-2 ¥3000 成功
-    [配送] 注文order-2 → 大阪市北区... 手配失敗（配送業者エラー）
-=== Saga 実行開始 ===
-  実行中: 在庫確保
-  完了: 在庫確保
-  実行中: 決済実行
-  完了: 決済実行
-  実行中: 配送手配
-  失敗: 配送手配
-=== 補償トランザクション開始 ===
-    [決済] user-2 ¥3000 返金完了
-  補償中: 決済実行
-  補償完了: 決済実行
-    [在庫] item-A x2 戻し (残: 10)
-  補償中: 在庫確保
-  補償完了: 在庫確保
-=== Saga 失敗（ロールバック完了）===
+    [Inventory] item-A x2 reserved (remaining: 8)
+    [Payment] user-2 3000 succeeded
+    [Shipping] Order order-2 -> Kita-ku, Osaka... scheduling failed (carrier error)
+=== Saga execution started ===
+  Executing: Reserve inventory
+  Completed: Reserve inventory
+  Executing: Process payment
+  Completed: Process payment
+  Executing: Schedule shipping
+  Failed: Schedule shipping
+=== Compensating transactions started ===
+    [Payment] user-2 3000 refunded
+  Compensating: Process payment
+  Compensation complete: Process payment
+    [Inventory] item-A x2 released (remaining: 10)
+  Compensating: Reserve inventory
+  Compensation complete: Reserve inventory
+=== Saga failed (rollback complete) ===
 
-  在庫状態: {'item-A': 10, 'item-B': 5}   ← 元に戻っている
-  決済履歴: [{'user': 'user-2', 'amount': 3000, 'type': 'charge'},
+  Inventory state: {'item-A': 10, 'item-B': 5}   <- Restored to original
+  Payment history: [{'user': 'user-2', 'amount': 3000, 'type': 'charge'},
              {'user': 'user-2', 'amount': -3000, 'type': 'refund'}]
 ```
 
-### 6.5 2PC vs Saga の比較
+### 6.5 2PC vs Saga Comparison
 
-| 比較項目 | 2PC | Saga |
+| Comparison Item | 2PC | Saga |
 |---------|-----|------|
-| 一貫性 | 強い（ACID） | 結果整合性 |
-| 可用性 | 低い（ブロッキング） | 高い |
-| 性能 | 低い（2RTT + ロック保持） | 高い |
-| 実装複雑度 | 中 | 高（補償ロジックの設計が困難） |
-| 障害耐性 | Coordinator障害に弱い | 各ステップ独立で耐性が高い |
-| 隔離性 | 保証される | 保証されない（ダーティリードの可能性） |
-| 適用場面 | DB間トランザクション | マイクロサービス間の長いトランザクション |
+| Consistency | Strong (ACID) | Eventual consistency |
+| Availability | Low (blocking) | High |
+| Performance | Low (2 RTT + lock holding) | High |
+| Implementation complexity | Medium | High (designing compensation logic is difficult) |
+| Fault tolerance | Weak against Coordinator failure | High, each step is independent |
+| Isolation | Guaranteed | Not guaranteed (dirty reads possible) |
+| Applicable scenarios | Inter-DB transactions | Long transactions between microservices |
 
 ---
 
-## 7. 時間と順序
+## 7. Time and Ordering
 
-### 7.1 分散システムにおける「時間」の問題
-
-```
-なぜ時間の問題が重要か:
-
-  単一マシンでは:
-  → OSのクロックで全イベントに一意のタイムスタンプを付与
-  → イベントの順序は常に明確
-
-  分散システムでは:
-  → 各マシンのクロックがずれている（クロックスキュー）
-  → 時計の進み方が微妙に異なる（クロックドリフト）
-  → NTPの精度は数ms〜数十ms程度
-  → Googleの TrueTime APIでも誤差は数ms
-
-  物理時計だけでイベントの順序を決めるのが危険な例:
-
-  Node-A (時計が10ms進んでいる):
-    10:00:00.010 に write(x, 1) を実行
-
-  Node-B (時計が正確):
-    10:00:00.015 に write(x, 2) を実行
-
-  Node-C (時計が20ms遅れている):
-    09:59:59.995 に read(x) を実行（実際は10:00:00.015）
-
-  → Node-Cのread は実際にはNode-BのwriteよりHOT後だが
-    タイムスタンプ上は最も古い
-  → 物理時計ベースの順序付けでは因果関係が壊れる
-
-  → 解決策: 論理時計（物理時計に依存しない順序付け）
-```
-
-### 7.2 Lamport Clock（論理時計）
+### 7.1 The "Time" Problem in Distributed Systems
 
 ```
-Lamport Clock（Leslie Lamport, 1978）:
+Why the time problem matters:
 
-  各プロセスがスカラーのカウンタを保持する
+  On a single machine:
+  -> OS clock assigns unique timestamps to all events
+  -> Event ordering is always clear
 
-  ルール:
-  1. 内部イベント: カウンタを+1
-  2. メッセージ送信時: カウンタを+1し、メッセージにカウンタ値を付与
-  3. メッセージ受信時: max(自分のカウンタ, 受信したカウンタ) + 1
+  In distributed systems:
+  -> Each machine's clock is off (clock skew)
+  -> Clocks advance at slightly different rates (clock drift)
+  -> NTP accuracy is only several ms to tens of ms
+  -> Even Google's TrueTime API has errors of several ms
 
-  例:
+  Example of why physical clocks alone are dangerous for ordering:
+
+  Node-A (clock 10ms ahead):
+    Executes write(x, 1) at 10:00:00.010
+
+  Node-B (clock is accurate):
+    Executes write(x, 2) at 10:00:00.015
+
+  Node-C (clock 20ms behind):
+    Executes read(x) at 09:59:59.995 (actually 10:00:00.015)
+
+  -> Node-C's read actually occurs after Node-B's write but
+    appears oldest by timestamp
+  -> Physical clock-based ordering breaks causal relationships
+
+  -> Solution: Logical clocks (ordering without depending on physical clocks)
+```
+
+### 7.2 Lamport Clock (Logical Clock)
+
+```
+Lamport Clock (Leslie Lamport, 1978):
+
+  Each process maintains a scalar counter
+
+  Rules:
+  1. Internal event: Increment counter by 1
+  2. Message send: Increment counter by 1 and attach counter value to message
+  3. Message receive: max(own counter, received counter) + 1
+
+  Example:
   Process A:  1 -----> 2 ----------> 5
                        | send     ^ recv
   Process B:       3 -----> 4 --->|
                                   | send
   Process C:           2 -----> 5 -----> 6
 
-  因果関係の保証:
-  → a が b の原因（a → b）ならば、L(a) < L(b)
-  → これは必ず成り立つ
+  Causal relationship guarantee:
+  -> If a caused b (a -> b), then L(a) < L(b)
+  -> This always holds
 
-  限界:
-  → L(a) < L(b) であっても、a → b とは限らない
-  → 並行するイベントを区別できない
-  → 例: Process A の 1 と Process C の 2 は
-    L(A:1) < L(C:2) だが因果関係はない
+  Limitation:
+  -> L(a) < L(b) does NOT necessarily mean a -> b
+  -> Cannot distinguish concurrent events
+  -> Example: Process A's 1 and Process C's 2 have
+    L(A:1) < L(C:2) but are not causally related
 
-  なぜこの限界があるか:
-  → スカラー値1つでは「誰の操作か」の情報が失われるため
-  → これを解決するのがベクトル時計
+  Why this limitation exists:
+  -> A single scalar value loses the information of "whose operation"
+  -> Vector clocks solve this
 ```
 
-### 7.3 ベクトル時計（Vector Clock）
+### 7.3 Vector Clock
 
 ```
-ベクトル時計（Vector Clock）:
+Vector Clock:
 
-  各プロセスが「全プロセス分のカウンタ」を保持する
+  Each process maintains "counters for all processes"
 
-  ルール（N個のプロセスの場合）:
-  1. 内部イベント: 自分のカウンタを+1
-  2. 送信時: 自分のカウンタを+1し、ベクトル全体を送る
-  3. 受信時: 各要素ごとにmax を取り、自分のカウンタを+1
+  Rules (for N processes):
+  1. Internal event: Increment own counter by 1
+  2. Send: Increment own counter by 1 and send the entire vector
+  3. Receive: Take element-wise max and increment own counter by 1
 
-  例（3プロセス [A, B, C]）:
+  Example (3 processes [A, B, C]):
   Process A: [1,0,0] --> [2,0,0] -------> [3,2,0]
                           | send        ^ recv
   Process B:         [0,1,0] --> [0,2,0]--|
                                           | send
   Process C:              [0,0,1] --> [0,0,2] --> [2,2,3]
 
-  因果関係の判定:
+  Determining causal relationships:
 
-  V1 ≤ V2 とは: V1の全要素がV2の対応要素以下
-  V1 → V2（V1がV2の原因）: V1 ≤ V2 かつ V1 ≠ V2
+  V1 <= V2 means: All elements of V1 are <= corresponding elements of V2
+  V1 -> V2 (V1 caused V2): V1 <= V2 and V1 != V2
 
-  並行の判定:
-  V1 || V2: V1 ≤ V2 でも V2 ≤ V1 でもない
+  Detecting concurrency:
+  V1 || V2: Neither V1 <= V2 nor V2 <= V1
 
-  具体例:
-  [1,0,0] と [0,1,0]:
-    → [1,0,0] の A=1 > [0,1,0] の A=0
-    → [0,1,0] の B=1 > [1,0,0] の B=0
-    → どちらも ≤ でない → 並行（因果関係なし）
+  Concrete examples:
+  [1,0,0] and [0,1,0]:
+    -> [1,0,0]'s A=1 > [0,1,0]'s A=0
+    -> [0,1,0]'s B=1 > [1,0,0]'s B=0
+    -> Neither is <= the other -> Concurrent (no causal relationship)
 
-  [1,0,0] と [2,1,0]:
-    → 全要素で [1,0,0] ≤ [2,1,0]
-    → [1,0,0] が因果的に先行
+  [1,0,0] and [2,1,0]:
+    -> All elements of [1,0,0] <= [2,1,0]
+    -> [1,0,0] causally precedes
 
-  用途: DynamoDBの競合検出、分散バージョン管理
+  Uses: DynamoDB conflict detection, distributed version control
 ```
 
-### コード例5: ベクトル時計の実装
+### Code Example 5: Vector Clock Implementation
 
 ```python
 """
-ベクトル時計の実装と因果関係判定
+Vector Clock Implementation and Causal Relationship Determination
 ==========================================
-3プロセス間でのメッセージ送受信をシミュレートし、
-ベクトル時計で因果関係を正確に判定する。
+Simulates message passing between 3 processes and
+uses vector clocks to accurately determine causal relationships.
 
-実行方法: python vector_clock.py
-依存: 標準ライブラリのみ
+How to run: python vector_clock.py
+Dependencies: Standard library only
 """
 
 from typing import Dict, List, Tuple, Optional
@@ -2029,20 +2025,20 @@ from copy import deepcopy
 
 
 class CausalRelation(Enum):
-    """2つのイベント間の因果関係。"""
-    BEFORE = "BEFORE"          # a → b（aがbの原因）
-    AFTER = "AFTER"            # b → a（bがaの原因）
-    CONCURRENT = "CONCURRENT"  # a || b（並行、因果関係なし）
-    EQUAL = "EQUAL"            # a = b（同一イベント）
+    """Causal relationship between two events."""
+    BEFORE = "BEFORE"          # a -> b (a caused b)
+    AFTER = "AFTER"            # b -> a (b caused a)
+    CONCURRENT = "CONCURRENT"  # a || b (concurrent, no causal relationship)
+    EQUAL = "EQUAL"            # a = b (same event)
 
 
 class VectorClock:
-    """ベクトル時計の実装。
+    """Vector clock implementation.
 
-    なぜdictで実装するか:
-    → プロセス数が動的に変化する場合に対応できる
-    → 固定長配列だと、プロセス追加時に全ノードの
-      配列を拡張する必要がある
+    Why implemented with a dict:
+    -> Can handle dynamically changing process counts
+    -> With a fixed-length array, adding a process would
+      require extending all nodes' arrays
     """
 
     def __init__(self, process_id: str):
@@ -2050,30 +2046,30 @@ class VectorClock:
         self.clock: Dict[str, int] = {process_id: 0}
 
     def increment(self) -> "VectorClock":
-        """内部イベント発生時にカウンタをインクリメント。"""
+        """Increment counter on internal event."""
         self.clock[self.process_id] = (
             self.clock.get(self.process_id, 0) + 1
         )
         return self
 
     def send(self) -> Dict[str, int]:
-        """メッセージ送信時: インクリメントしてクロックを返す。
+        """On message send: increment and return the clock.
 
-        なぜ送信時にもインクリメントするか:
-        → 送信イベント自体が1つのイベントだから
-        → インクリメントしないと、内部イベントと送信の
-          順序が区別できなくなる
+        Why increment on send as well:
+        -> The send event itself is an event
+        -> Without incrementing, internal events and sends
+          become indistinguishable in order
         """
         self.increment()
         return deepcopy(self.clock)
 
     def receive(self, other_clock: Dict[str, int]) -> "VectorClock":
-        """メッセージ受信時: 要素ごとのmaxを取る。
+        """On message receive: take element-wise max.
 
-        なぜmaxを取るか:
-        → 送信者が知っている全ての因果情報を取り込むため
-        → maxを取ることで「送信者が見た全てのイベント」が
-          受信者にも反映される
+        Why take the max:
+        -> To incorporate all causal information the sender knows
+        -> Taking max ensures "all events the sender has seen"
+          are reflected in the receiver
         """
         for pid, count in other_clock.items():
             self.clock[pid] = max(
@@ -2085,19 +2081,19 @@ class VectorClock:
         return self
 
     def snapshot(self) -> Dict[str, int]:
-        """現在のクロック状態のスナップショットを返す。"""
+        """Return a snapshot of the current clock state."""
         return deepcopy(self.clock)
 
     @staticmethod
     def compare(
         vc1: Dict[str, int], vc2: Dict[str, int]
     ) -> CausalRelation:
-        """2つのベクトル時計の因果関係を判定する。
+        """Determine the causal relationship between two vector clocks.
 
-        判定ロジック:
-        - 全要素で vc1[i] <= vc2[i] かつ vc1 != vc2 → BEFORE
-        - 全要素で vc1[i] >= vc2[i] かつ vc1 != vc2 → AFTER
-        - 上記どちらでもない → CONCURRENT
+        Determination logic:
+        - All elements vc1[i] <= vc2[i] and vc1 != vc2 -> BEFORE
+        - All elements vc1[i] >= vc2[i] and vc1 != vc2 -> AFTER
+        - Neither of the above -> CONCURRENT
         """
         all_keys = set(vc1.keys()) | set(vc2.keys())
 
@@ -2131,7 +2127,7 @@ class VectorClock:
 
 
 class DistributedSystem:
-    """ベクトル時計を使った分散システムのシミュレータ。"""
+    """Distributed system simulator using vector clocks."""
 
     def __init__(self, process_ids: List[str]):
         self.processes: Dict[str, VectorClock] = {
@@ -2140,7 +2136,7 @@ class DistributedSystem:
         self.events: List[Tuple[str, str, Dict[str, int]]] = []
 
     def local_event(self, pid: str, description: str):
-        """ローカルイベントを発生させる。"""
+        """Trigger a local event."""
         vc = self.processes[pid]
         vc.increment()
         snapshot = vc.snapshot()
@@ -2150,7 +2146,7 @@ class DistributedSystem:
     def send_message(
         self, from_pid: str, to_pid: str, description: str
     ):
-        """メッセージを送受信する。"""
+        """Send and receive a message."""
         sender = self.processes[from_pid]
         receiver = self.processes[to_pid]
 
@@ -2175,8 +2171,8 @@ class DistributedSystem:
         )
 
     def analyze_causality(self):
-        """全イベント間の因果関係を分析する。"""
-        print("\n--- 因果関係分析 ---")
+        """Analyze causal relationships between all events."""
+        print("\n--- Causal Relationship Analysis ---")
         for i in range(len(self.events)):
             for j in range(i + 1, len(self.events)):
                 pid_i, desc_i, vc_i = self.events[i]
@@ -2196,39 +2192,39 @@ class DistributedSystem:
 
 
 def demo():
-    """ベクトル時計のデモ。"""
+    """Vector clock demo."""
     print("=" * 60)
-    print("ベクトル時計デモ")
+    print("Vector Clock Demo")
     print("=" * 60)
     print()
 
     sys = DistributedSystem(["A", "B", "C"])
 
-    # シナリオ: SNSの投稿とコメント
-    sys.local_event("A", "Aが投稿を作成")
-    sys.send_message("A", "B", "投稿を通知")
-    sys.local_event("C", "Cが別の投稿を作成")
-    sys.send_message("B", "C", "コメントを送信")
-    sys.local_event("A", "Aが投稿を編集")
+    # Scenario: SNS posts and comments
+    sys.local_event("A", "A creates a post")
+    sys.send_message("A", "B", "notify post")
+    sys.local_event("C", "C creates another post")
+    sys.send_message("B", "C", "send comment")
+    sys.local_event("A", "A edits the post")
 
     sys.analyze_causality()
 
-    # 競合検出のデモ
+    # Conflict detection demo
     print("\n" + "=" * 60)
-    print("競合検出デモ（同時編集）")
+    print("Conflict Detection Demo (Simultaneous Edits)")
     print("=" * 60)
     print()
 
     sys2 = DistributedSystem(["Editor-A", "Editor-B"])
-    sys2.local_event("Editor-A", "ドキュメントを編集")
-    sys2.local_event("Editor-B", "同じ箇所を編集")
+    sys2.local_event("Editor-A", "Edits document")
+    sys2.local_event("Editor-B", "Edits same section")
 
     vc_a = sys2.events[0][2]
     vc_b = sys2.events[1][2]
     relation = VectorClock.compare(vc_a, vc_b)
-    print(f"\n  判定: {relation.value}")
+    print(f"\n  Determination: {relation.value}")
     if relation == CausalRelation.CONCURRENT:
-        print("  → 競合が発生！マージまたはユーザーに選択を求める必要あり")
+        print("  -> Conflict detected! Merge or user selection required")
 
 
 if __name__ == "__main__":
@@ -2237,51 +2233,51 @@ if __name__ == "__main__":
 
 ---
 
-## 8. 分散アーキテクチャパターン
+## 8. Distributed Architecture Patterns
 
-### 8.1 マイクロサービス
-
-```
-マイクロサービスアーキテクチャ:
-  モノリスを独立したサービスに分割する
-
-  ┌──────────┐  ┌──────────┐  ┌──────────┐
-  │ User     │  │ Order    │  │ Payment  │
-  │ Service  │  │ Service  │  │ Service  │
-  │ (Go)     │  │ (Java)   │  │ (Python) │
-  └────┬─────┘  └────┬─────┘  └────┬─────┘
-       │              │              │
-  ┌────┴──────────────┴──────────────┴────┐
-  │         Message Bus (Kafka)            │
-  └───────────────────────────────────────┘
-
-  利点:
-  - 独立デプロイ: 各サービスを個別にリリース可能
-  - 技術選択の自由: サービスごとに最適な言語/FWを選べる
-  - 障害の局所化: 1サービスの障害が他に波及しにくい
-  - チームの自律性: サービス単位でチームを編成
-
-  課題:
-  - ネットワーク遅延: サービス間通信のオーバーヘッド
-  - データ整合性: 分散トランザクションの複雑さ
-  - 運用複雑性: 数百のサービスの監視・デプロイ
-  - デバッグ困難: リクエストが複数サービスを横断
-```
-
-### 8.2 イベント駆動アーキテクチャとCQRS
+### 8.1 Microservices
 
 ```
-イベント駆動アーキテクチャ:
-  サービス間をイベントで疎結合にする
+Microservice Architecture:
+  Split a monolith into independent services
+
+  +----------+  +----------+  +----------+
+  | User     |  | Order    |  | Payment  |
+  | Service  |  | Service  |  | Service  |
+  | (Go)     |  | (Java)   |  | (Python) |
+  +----+-----+  +----+-----+  +----+-----+
+       |              |              |
+  +----+--------------+--------------+----+
+  |         Message Bus (Kafka)            |
+  +----------------------------------------+
+
+  Advantages:
+  - Independent deployment: Each service can be released individually
+  - Technology freedom: Choose the optimal language/framework per service
+  - Fault isolation: One service's failure is less likely to cascade
+  - Team autonomy: Teams organized around services
+
+  Challenges:
+  - Network latency: Overhead of inter-service communication
+  - Data consistency: Complexity of distributed transactions
+  - Operational complexity: Monitoring and deploying hundreds of services
+  - Debugging difficulty: Requests traverse multiple services
+```
+
+### 8.2 Event-Driven Architecture and CQRS
+
+```
+Event-Driven Architecture:
+  Loosely couple services via events
 
   Producer --> Event Bus --> Consumer A
                          --> Consumer B
                          --> Consumer C
 
   Event Sourcing:
-  状態を直接保存するのではなく、状態変化のイベントを記録する
+  Instead of storing state directly, record events of state changes
 
-  従来: users テーブルに最新状態を保存
+  Traditional: Store latest state in users table
     {name: "Alice", email: "alice@new.com"}
 
   Event Sourcing:
@@ -2289,572 +2285,564 @@ if __name__ == "__main__":
     [EmailChanged {email: "alice@new.com"}]
     [NameChanged {name: "Alice B."}]
 
-  なぜEvent Sourcingが有用か:
-  → 完全な監査証跡（いつ、何が、どう変わったか）
-  → 任意の時点の状態を再構築可能（タイムトラベル）
-  → イベントの再生で新しいビューを構築可能
+  Why Event Sourcing is useful:
+  -> Complete audit trail (when, what, how it changed)
+  -> Can reconstruct state at any point in time (time travel)
+  -> Can build new views by replaying events
 
-CQRS（Command Query Responsibility Segregation）:
-  書き込み（Command）と読み取り（Query）を分離する
+CQRS (Command Query Responsibility Segregation):
+  Separate writes (Command) from reads (Query)
 
   Write Model          Read Model
-  ┌──────────┐        ┌──────────┐
-  │ Command  │--Event->│ Query    │
-  │ Store    │        │ Store    │
-  │ (正規化) │        │ (非正規化)│
-  └──────────┘        └──────────┘
+  +----------+        +----------+
+  | Command  |--Event->| Query    |
+  | Store    |        | Store    |
+  | (normal.)  |       | (denorm.) |
+  +----------+        +----------+
       ^ write              ^ read
       |                    |
   Commands             Queries
 
-  なぜ分離するか:
-  → 書き込みと読み取りで最適なデータモデルが異なる
-  → 書き込み: 正規化してデータの一貫性を保つ
-  → 読み取り: 非正規化してクエリ性能を最適化
-  → 独立にスケール可能（読み取りが多いなら読み取り側を増強）
+  Why separate:
+  -> Optimal data models differ for writes and reads
+  -> Writes: Normalize to maintain data consistency
+  -> Reads: Denormalize to optimize query performance
+  -> Can scale independently (if reads dominate, scale the read side)
 ```
 
 ---
 
-## 9. 障害とリカバリ
+## 9. Failure and Recovery
 
-### 9.1 障害の分類
-
-```
-障害の種類と対策:
-
-  1. クラッシュ障害（Crash Failure）:
-     ノードが完全に停止する
-     → 検出方法: ハートビート + タイムアウト
-     → 対策: レプリカへのフェイルオーバー
-     → 特徴: 検出が比較的容易
-
-  2. ネットワーク障害（Network Failure）:
-     通信が途絶する
-     → 検出方法: タイムアウト（クラッシュと区別困難）
-     → 対策: リトライ + 冪等性の保証
-     → 特徴: 「遅い」と「止まった」の区別ができない
-
-  3. ビザンチン障害（Byzantine Failure）:
-     悪意ある動作や、データ化けなど任意の障害
-     → 検出方法: 暗号学的証明（署名、ハッシュ）
-     → 対策: BFTアルゴリズム
-     → 条件: 悪意あるノードがN/3未満なら耐えられる
-     → 用途: ブロックチェーン、航空宇宙システム
-
-  4. 灰色障害（Gray Failure）:
-     部分的な障害。外から見ると正常に見えるが実は壊れている
-     → 例: レスポンスが極端に遅い、一部リクエストだけ失敗
-     → 最も検出が難しく、最も頻繁に発生する
-     → 対策: 詳細なメトリクス監視、異常検知
-```
-
-### 9.2 障害対策パターン
+### 9.1 Classification of Failures
 
 ```
-Circuit Breaker（遮断器パターン）:
+Types of Failures and Countermeasures:
 
-  なぜ必要か:
-  → 障害のあるサービスへのリクエストを繰り返すと、
-    呼び出し側のスレッド/コネクションが枯渇する
-  → 障害が連鎖的に波及する（カスケード障害）
+  1. Crash Failure:
+     A node stops completely
+     -> Detection: Heartbeat + timeout
+     -> Countermeasure: Failover to replica
+     -> Characteristic: Relatively easy to detect
 
-  ┌─────────┐     ┌──────────┐     ┌──────────┐
-  │ Closed  │--->│  Open    │--->│Half-Open │
-  │(正常通過)│ 失敗│(即座に   │ 一定│(テスト   │
-  │         │ 閾値│ エラー)  │ 時間│ リクエスト)│
-  └─────────┘ 超過└──────────┘ 経過└─────┬────┘
+  2. Network Failure:
+     Communication is severed
+     -> Detection: Timeout (hard to distinguish from crash)
+     -> Countermeasure: Retry + idempotency guarantee
+     -> Characteristic: Cannot distinguish "slow" from "stopped"
+
+  3. Byzantine Failure:
+     Malicious behavior or arbitrary failures like data corruption
+     -> Detection: Cryptographic proofs (signatures, hashes)
+     -> Countermeasure: BFT algorithms
+     -> Condition: Tolerable if malicious nodes are fewer than N/3
+     -> Uses: Blockchain, aerospace systems
+
+  4. Gray Failure:
+     Partial failure. Appears normal from outside but is actually broken
+     -> Example: Extremely slow responses, only some requests fail
+     -> Most difficult to detect, most frequently occurring
+     -> Countermeasure: Detailed metrics monitoring, anomaly detection
+```
+
+### 9.2 Failure Mitigation Patterns
+
+```
+Circuit Breaker Pattern:
+
+  Why it's necessary:
+  -> Repeatedly sending requests to a failing service
+    depletes the caller's threads/connections
+  -> Failures cascade to other services (cascade failure)
+
+  +---------+     +----------+     +----------+
+  | Closed  |---->|  Open    |---->|Half-Open |
+  |(normal  )| fail|(immediate)| wait|(test     )|
+  | pass    )| thresh| error  )| period| request )|
+  +---------+ exceed+----------+ elapsed+-----+----+
        ^                              |
-       +--------- 成功 ---------------+
+       +--------- success -----------+
 
-  Closed: 全リクエストを通過させる
-  → 失敗率が閾値を超えたらOpenに遷移
+  Closed: All requests pass through
+  -> Transition to Open when failure rate exceeds threshold
 
-  Open: 全リクエストを即座にエラーにする
-  → 一定時間経過後にHalf-Openに遷移
-  → なぜ即座にエラーにするか: 障害サービスに負荷をかけず回復を待つ
+  Open: All requests immediately return error
+  -> Transition to Half-Open after a set time period
+  -> Why immediately return error: Let the failing service recover without load
 
-  Half-Open: テストリクエストを1つ通す
-  → 成功すればClosedに戻る
-  → 失敗すればOpenに戻る
+  Half-Open: Pass one test request
+  -> Return to Closed on success
+  -> Return to Open on failure
 
-Bulkhead（隔壁パターン）:
-  障害の影響範囲を限定する
-  → 船の隔壁と同じ発想: 1区画が浸水しても船全体は沈まない
-  → サービスAの障害がサービスBに波及しない
-  → 実装: スレッドプール分離、コネクションプール分離
+Bulkhead Pattern:
+  Limit the blast radius of failures
+  -> Same concept as a ship's bulkheads: one flooded compartment doesn't sink the whole ship
+  -> Service A's failure doesn't cascade to Service B
+  -> Implementation: Thread pool isolation, connection pool isolation
 
 Retry with Exponential Backoff:
-  1回目: 100ms後にリトライ
-  2回目: 200ms後にリトライ
-  3回目: 400ms後にリトライ
-  4回目: 800ms後にリトライ
-  ...上限まで
+  1st: Retry after 100ms
+  2nd: Retry after 200ms
+  3rd: Retry after 400ms
+  4th: Retry after 800ms
+  ...up to a limit
 
-  + ジッター（ランダムな揺らぎ）:
-    なぜジッターが必要か:
-    → 多数のクライアントが同時にリトライすると
-      サーバーに瞬間的な負荷集中が起きる（雷鳴問題）
-    → ジッターで各クライアントのリトライタイミングをずらす
+  + Jitter (random variation):
+    Why jitter is needed:
+    -> When many clients retry simultaneously, an instantaneous
+      load spike hits the server (thundering herd problem)
+    -> Jitter staggers each client's retry timing
 ```
 
 ---
 
-## 10. アンチパターン
+## 10. Anti-Patterns
 
-### アンチパターン1: 分散モノリス
-
-```
-分散モノリス（Distributed Monolith）:
-
-  症状:
-  マイクロサービスに分割したはずが、サービス間の結合が
-  強すぎて「モノリスの欠点 + 分散の複雑さ」の両方を背負う
-
-  ┌──────────────────────────────────────────┐
-  │  Service-A ---同期呼び出し---> Service-B  │
-  │       |                           |       │
-  │       +---同期呼び出し---> Service-C      │
-  │             |                     |       │
-  │             +---共有DB-----------+       │
-  │                                          │
-  │  → 1サービスの変更が他の全サービスに影響   │
-  │  → デプロイも全サービス同時に必要          │
-  │  → モノリスと変わらないのにネットワーク     │
-  │    遅延・障害のリスクが追加されている       │
-  └──────────────────────────────────────────┘
-
-  なぜ発生するか:
-  1. サービス境界の設計が不適切
-     → ドメイン駆動設計（DDD）の境界づけられた文脈を無視
-  2. 共有データベースの使用
-     → サービスの独立性が損なわれる
-  3. 同期通信への過度な依存
-     → 呼び出しチェーンが長くなり、1箇所の障害で全体停止
-
-  回避策:
-  - 各サービスは自分のDBを持つ（Database per Service）
-  - サービス間は非同期メッセージング（イベント駆動）
-  - 同期呼び出しが必要な場合もCircuit Breakerを適用
-  - Martin Fowlerの助言: まずモノリスで始め、境界が明確に
-    なってから分割する（MonolithFirst）
-```
-
-### アンチパターン2: 楽観的すぎるリトライ
+### Anti-Pattern 1: Distributed Monolith
 
 ```
-楽観的すぎるリトライ（Aggressive Retry）:
+Distributed Monolith:
 
-  症状:
-  障害発生時に即座に何度もリトライし、障害を悪化させる
+  Symptoms:
+  Despite splitting into microservices, inter-service coupling is
+  so strong that you bear "the drawbacks of a monolith + the complexity
+  of distribution"
 
-  ┌──────────────────────────────────────────┐
-  │  Client-1 --> Server (障害中)             │
-  │    即座にリトライ x 10                     │
-  │  Client-2 --> Server (障害中)             │
-  │    即座にリトライ x 10                     │
-  │  ... x 1000 clients                      │
-  │                                           │
-  │  → サーバーへの負荷: 通常の10000倍          │
-  │  → 障害が回復どころか悪化する               │
-  │  → 「リトライストーム」と呼ばれる           │
-  └──────────────────────────────────────────┘
+  +------------------------------------------+
+  |  Service-A ---sync call---> Service-B    |
+  |       |                         |        |
+  |       +---sync call---> Service-C       |
+  |             |                   |        |
+  |             +---shared DB------+        |
+  |                                          |
+  |  -> Changes to 1 service affect all      |
+  |  -> Deployment requires all at once      |
+  |  -> Same as a monolith but with added    |
+  |    network latency and failure risk      |
+  +------------------------------------------+
 
-  なぜ発生するか:
-  1. リトライ間隔が固定かつ短い
-  2. リトライ回数の上限がない
-  3. ジッター（ランダムな揺らぎ）がない
-  4. Circuit Breakerが未実装
+  Why it occurs:
+  1. Improper service boundary design
+     -> Ignoring DDD's bounded contexts
+  2. Shared databases
+     -> Service independence is compromised
+  3. Over-reliance on synchronous communication
+     -> Long call chains; one failure stops everything
 
-  正しいリトライ戦略:
-  - Exponential Backoff: 間隔を指数的に増やす
-  - Jitter: ランダムな揺らぎを追加
-  - Max Retries: 上限を設定（通常3-5回）
-  - Circuit Breaker: 失敗が続いたらリトライ自体を停止
-  - 冪等性保証: リトライしても副作用が重複しないこと
+  Avoidance:
+  - Each service owns its own DB (Database per Service)
+  - Asynchronous messaging between services (event-driven)
+  - Apply Circuit Breaker even when sync calls are needed
+  - Martin Fowler's advice: Start with a monolith, split after
+    boundaries become clear (MonolithFirst)
+```
+
+### Anti-Pattern 2: Overly Optimistic Retry
+
+```
+Aggressive Retry:
+
+  Symptoms:
+  Immediately retrying many times on failure, worsening the failure
+
+  +------------------------------------------+
+  |  Client-1 --> Server (failing)           |
+  |    Immediate retry x 10                  |
+  |  Client-2 --> Server (failing)           |
+  |    Immediate retry x 10                  |
+  |  ... x 1000 clients                     |
+  |                                           |
+  |  -> Server load: 10,000x normal          |
+  |  -> Failure worsens instead of recovering|
+  |  -> Known as a "retry storm"             |
+  +------------------------------------------+
+
+  Why it occurs:
+  1. Fixed and short retry intervals
+  2. No upper limit on retry count
+  3. No jitter (random variation)
+  4. Circuit Breaker not implemented
+
+  Correct retry strategy:
+  - Exponential Backoff: Increase interval exponentially
+  - Jitter: Add random variation
+  - Max Retries: Set an upper limit (typically 3-5)
+  - Circuit Breaker: Stop retries entirely when failures persist
+  - Idempotency guarantee: Retries must not cause duplicate side effects
 ```
 
 ---
 
-## 11. エッジケース分析
+## 11. Edge Case Analysis
 
-### エッジケース1: スプリットブレイン
+### Edge Case 1: Split Brain
 
 ```
-スプリットブレイン（Split Brain）:
+Split Brain:
 
-  状況:
-  ネットワーク分断により、クラスタが2つのグループに分かれ、
-  両方のグループが「自分がマスターだ」と認識する
+  Situation:
+  A network partition splits the cluster into two groups,
+  and both groups believe "I am the master"
 
-  ┌───────────────────────────────────────────┐
-  │  Partition A          × Partition B       │
-  │  ┌───────┐    分断    ┌───────┐           │
-  │  │Node-1 │  xxxxxxx  │Node-3 │           │
-  │  │Node-2 │           │Node-4 │           │
-  │  │       │           │Node-5 │           │
-  │  └───────┘           └───────┘           │
-  │  「Node-3,4,5が      「Node-1,2が         │
-  │   落ちた」と認識      落ちた」と認識       │
-  │  新Leader選出         新Leader選出         │
-  │                                           │
-  │  → 2人のLeaderが同時に存在！              │
-  │  → 両方が書き込みを受け付け               │
-  │  → 分断回復後にデータが衝突               │
-  └───────────────────────────────────────────┘
+  +-------------------------------------------+
+  |  Partition A          x Partition B       |
+  |  +-------+    split    +-------+          |
+  |  |Node-1 |  xxxxxxx   |Node-3 |          |
+  |  |Node-2 |            |Node-4 |          |
+  |  |       |            |Node-5 |          |
+  |  +-------+            +-------+          |
+  |  "Node-3,4,5          "Node-1,2          |
+  |   went down"           went down"        |
+  |  Elect new Leader      Elect new Leader  |
+  |                                           |
+  |  -> Two Leaders exist simultaneously!    |
+  |  -> Both accept writes                   |
+  |  -> Data conflicts after partition heals |
+  +-------------------------------------------+
 
-  なぜ危険か:
-  → 両方のパーティションが独立に書き込みを進める
-  → 分断回復後にデータの不整合が発生
-  → 例: 同じ銀行口座に対して両方で引き出しが行われる
+  Why it's dangerous:
+  -> Both partitions independently proceed with writes
+  -> Data inconsistency occurs after partition recovery
+  -> Example: Withdrawals from the same bank account in both partitions
 
-  対策:
-  1. Quorum（過半数）ベースのLeader選出:
-     → 5ノード中3ノード以上の賛同がないとLeaderになれない
-     → Partition A（2ノード）はLeaderを選出できない
-     → Partition B（3ノード）のみがLeaderを持てる
+  Countermeasures:
+  1. Quorum-based Leader election:
+     -> Cannot become Leader without agreement from 3+ of 5 nodes
+     -> Partition A (2 nodes) cannot elect a Leader
+     -> Only Partition B (3 nodes) can have a Leader
 
   2. Fencing Token:
-     → Leaderが操作時にモノトニック増加するトークンを発行
-     → 古いトークンでの操作はストレージ側で拒否
-     → 旧Leaderの書き込みが新Leaderの書き込みを上書きしない
+     -> Leader issues a monotonically increasing token with each operation
+     -> Storage rejects operations with old tokens
+     -> Old Leader's writes cannot overwrite new Leader's writes
 ```
 
-### エッジケース2: 時計の巻き戻り
+### Edge Case 2: Clock Backward Jump
 
 ```
-時計の巻き戻り（Clock Skew / Backward Clock Jump）:
+Clock Backward Jump (Clock Skew):
 
-  状況:
-  NTP同期により、システムクロックが過去に巻き戻る
+  Situation:
+  NTP synchronization causes the system clock to jump backwards
 
-  ┌───────────────────────────────────────────┐
-  │  10:00:00.000  イベントA発生 → timestamp=T1│
-  │  10:00:00.100  NTP同期実行                 │
-  │  09:59:59.900  時計が200ms戻る！           │
-  │  09:59:59.950  イベントB発生 → timestamp=T2│
-  │                                           │
-  │  T2 < T1 だが、実際はBはAの後に発生！      │
-  │                                           │
-  │  影響:                                     │
-  │  - タイムスタンプベースのソートが壊れる     │
-  │  - TTL（有効期限）の計算が狂う             │
-  │  - 分散ロックのリース期限が不正確になる     │
-  │  - ログの順序が前後する                     │
-  └───────────────────────────────────────────┘
+  +-------------------------------------------+
+  |  10:00:00.000  Event A occurs -> timestamp=T1|
+  |  10:00:00.100  NTP sync executes             |
+  |  09:59:59.900  Clock goes back 200ms!        |
+  |  09:59:59.950  Event B occurs -> timestamp=T2|
+  |                                               |
+  |  T2 < T1, but B actually occurred after A!    |
+  |                                               |
+  |  Impact:                                      |
+  |  - Timestamp-based sorting breaks             |
+  |  - TTL (expiration) calculations go wrong     |
+  |  - Distributed lock lease times become wrong  |
+  |  - Log ordering becomes inconsistent          |
+  +-------------------------------------------+
 
-  なぜ発生するか:
-  → NTPは「正しい時刻」に合わせるために時計を調整する
-  → 時計が進みすぎていた場合、過去に戻す（ステップ調整）
-  → Linux のadjtime()は徐々に調整するが、大きなずれでは
-    ステップ調整が行われる
+  Why it occurs:
+  -> NTP adjusts the clock to the "correct time"
+  -> If the clock was ahead, it steps backwards
+  -> Linux adjtime() adjusts gradually, but large skew
+    triggers a step adjustment
 
-  対策:
-  1. 物理時計に依存しない設計:
-     → Lamport Clock / Vector Clock を使う
-     → 物理時計はあくまで補助情報
+  Countermeasures:
+  1. Design that doesn't depend on physical clocks:
+     -> Use Lamport Clock / Vector Clock
+     -> Physical clocks are only supplementary information
 
-  2. モノトニッククロック（CLOCK_MONOTONIC）:
-     → NTP調整の影響を受けない
-     → 経過時間の測定に使う（絶対時刻には使えない）
+  2. Monotonic Clock (CLOCK_MONOTONIC):
+     -> Not affected by NTP adjustments
+     -> Use for measuring elapsed time (not for absolute time)
 
   3. Google TrueTime:
-     → GPSと原子時計を組み合わせた高精度クロック
-     → 誤差範囲を明示的に返す（区間 [earliest, latest]）
-     → Spannerは待機時間を入れて因果順序を保証
+     -> High-precision clock combining GPS and atomic clocks
+     -> Explicitly returns the error range (interval [earliest, latest])
+     -> Spanner inserts wait times to guarantee causal ordering
 ```
 
 ---
 
-## 12. 実践演習
+## 12. Hands-On Exercises
 
-### 演習1: [基礎] CAP定理の適用
-
-```
-問題:
-以下のシステムでCP/APどちらを選ぶべきか、
-「一貫性が崩れた場合の最悪のシナリオ」を考え、理由とともに答えよ。
-
-1. オンライン銀行の残高照会
-2. Twitterのフォロワー数表示
-3. 航空券の座席予約
-4. ニュースサイトのコメント欄
-5. 分散ロック（リーダー選出）
-
-解答例:
-
-1. オンライン銀行の残高照会 → CP
-   最悪シナリオ: 残高0円の口座から引き出しが成功する
-   → 金銭的損失は取り返しがつかない
-   → エラーを返す方が二重引き出しより遥かに安全
-
-2. Twitterのフォロワー数表示 → AP
-   最悪シナリオ: フォロワー数が100人と表示されるが実際は101人
-   → ユーザー体験への影響は軽微
-   → 表示できないよりも少し古い値の方が良い
-
-3. 航空券の座席予約 → CP
-   最悪シナリオ: 同じ座席が2人に販売される
-   → 物理的に同じ座席に2人は座れない
-   → 「一時的に予約できない」の方が二重販売より安全
-
-4. ニュースサイトのコメント欄 → AP
-   最悪シナリオ: 新しいコメントが一時的に見えない
-   → 数秒後には表示される
-   → コメント欄が表示されない方がUX悪い
-
-5. 分散ロック（リーダー選出） → CP
-   最悪シナリオ: 2人のリーダーが同時に存在（スプリットブレイン）
-   → データ不整合、処理の重複
-   → ロック取得失敗の方が二重リーダーより安全
-```
-
-### 演習2: [応用] Raftのシミュレーション
+### Exercise 1: [Basic] Applying the CAP Theorem
 
 ```
-問題:
-5ノードのRaftクラスタで以下の状況をシミュレートせよ。
+Problem:
+For the following systems, determine whether CP or AP should be chosen,
+by considering the "worst-case scenario when consistency breaks," and explain your reasoning.
 
-初期状態: Node-1がLeader (Term=3)
-1. Node-1にネットワーク障害が発生
-2. 残りのノードから新Leaderが選出される過程を追跡
-3. 旧Leader(Node-1)がネットワーク復帰した場合の動作
+1. Online bank balance inquiry
+2. Twitter follower count display
+3. Airline seat reservation
+4. News site comment section
+5. Distributed lock (leader election)
 
-各ステップで以下を書き出すこと:
-- 各ノードの状態（Leader/Follower/Candidate）
-- Term番号
-- 投票の流れ
+Example Answers:
 
-解答例:
+1. Online bank balance inquiry -> CP
+   Worst case: Withdrawal succeeds from a zero-balance account
+   -> Financial loss is irreversible
+   -> Returning an error is far safer than a double withdrawal
 
-Step 0: 初期状態
-  Node-1: Leader    (Term=3) ← 定期的にハートビートを送信
+2. Twitter follower count display -> AP
+   Worst case: Shows 100 followers when the actual count is 101
+   -> Impact on user experience is minimal
+   -> A slightly stale value is better than nothing being displayed
+
+3. Airline seat reservation -> CP
+   Worst case: Same seat sold to two people
+   -> Two people physically cannot sit in the same seat
+   -> "Temporarily unable to book" is safer than double-selling
+
+4. News site comment section -> AP
+   Worst case: New comments temporarily invisible
+   -> They appear a few seconds later
+   -> Not showing the comment section at all is worse UX
+
+5. Distributed lock (leader election) -> CP
+   Worst case: Two leaders exist simultaneously (split brain)
+   -> Data inconsistency, duplicate processing
+   -> Lock acquisition failure is safer than dual leaders
+```
+
+### Exercise 2: [Applied] Raft Simulation
+
+```
+Problem:
+Simulate the following scenario in a 5-node Raft cluster.
+
+Initial state: Node-1 is Leader (Term=3)
+1. Network failure occurs on Node-1
+2. Trace the process of electing a new Leader from remaining nodes
+3. Behavior when the former Leader (Node-1) returns to the network
+
+Write out the following for each step:
+- Each node's state (Leader/Follower/Candidate)
+- Term number
+- Vote flow
+
+Example Answer:
+
+Step 0: Initial state
+  Node-1: Leader    (Term=3) <- Periodically sends heartbeats
   Node-2: Follower  (Term=3)
   Node-3: Follower  (Term=3)
   Node-4: Follower  (Term=3)
   Node-5: Follower  (Term=3)
 
-Step 1: Node-1のネットワーク障害
-  Node-1: Leader    (Term=3) ← ハートビートが届かなくなる
-  Node-2: Follower  (Term=3) ← タイムアウト待ち
-  Node-3: Follower  (Term=3) ← タイムアウト待ち
-  Node-4: Follower  (Term=3) ← タイムアウト待ち
-  Node-5: Follower  (Term=3) ← タイムアウト待ち
+Step 1: Node-1 network failure
+  Node-1: Leader    (Term=3) <- Heartbeats stop arriving
+  Node-2: Follower  (Term=3) <- Waiting for timeout
+  Node-3: Follower  (Term=3) <- Waiting for timeout
+  Node-4: Follower  (Term=3) <- Waiting for timeout
+  Node-5: Follower  (Term=3) <- Waiting for timeout
 
-Step 2: Node-3が最初にタイムアウト（ランダムタイムアウト最短）
-  Node-1: Leader    (Term=3) ← 分断されて孤立
-  Node-3: Candidate (Term=4) ← 自身に投票
-  → Node-2に投票リクエスト: 賛成（Term=4 > 3）
-  → Node-4に投票リクエスト: 賛成
-  → Node-5に投票リクエスト: 賛成
-  → 4票/5ノード → 過半数達成
+Step 2: Node-3 times out first (shortest random timeout)
+  Node-1: Leader    (Term=3) <- Isolated due to partition
+  Node-3: Candidate (Term=4) <- Votes for self
+  -> Vote request to Node-2: Granted (Term=4 > 3)
+  -> Vote request to Node-4: Granted
+  -> Vote request to Node-5: Granted
+  -> 4 votes/5 nodes -> Majority reached
 
-Step 3: 新Leader確定
-  Node-1: Leader    (Term=3) ← まだ自分がLeaderと思っている
+Step 3: New Leader confirmed
+  Node-1: Leader    (Term=3) <- Still thinks it's Leader
   Node-2: Follower  (Term=4, Leader=Node-3)
-  Node-3: Leader    (Term=4) ← 新Leader
+  Node-3: Leader    (Term=4) <- New Leader
   Node-4: Follower  (Term=4, Leader=Node-3)
   Node-5: Follower  (Term=4, Leader=Node-3)
 
-Step 4: Node-1のネットワーク復帰
-  Node-1が他ノードからTerm=4のハートビートを受信
-  → Term=4 > Term=3 なので、自動的にFollowerに降格
-  Node-1: Follower  (Term=4, Leader=Node-3) ← 降格完了
-  → Node-1の未コミットログはNode-3のログで上書きされる
+Step 4: Node-1 network recovery
+  Node-1 receives Term=4 heartbeat from other nodes
+  -> Term=4 > Term=3, so automatically demotes to Follower
+  Node-1: Follower  (Term=4, Leader=Node-3) <- Demotion complete
+  -> Node-1's uncommitted logs are overwritten with Node-3's logs
 ```
 
-### 演習3: [発展] 分散KVストアの設計
+### Exercise 3: [Advanced] Distributed KV Store Design
 
 ```
-問題:
-以下の要件を満たす分散Key-Valueストアを設計せよ。
+Problem:
+Design a distributed Key-Value store that satisfies the following requirements.
 
-要件:
-- 3ノード構成（レプリケーションファクター = 3）
-- GET/PUTの2操作
-- 結果整合性
-- ノード1台の障害に耐える
+Requirements:
+- 3-node configuration (replication factor = 3)
+- Two operations: GET/PUT
+- Eventual consistency
+- Tolerates 1 node failure
 
-設計項目:
-1. データの配置方式
-2. 書き込みのレプリケーション方式
-3. 読み取り時の整合性保証（Quorum: W + R > N）
-4. 障害検出と復旧の仕組み
+Design Items:
+1. Data placement method
+2. Write replication method
+3. Read consistency guarantee (Quorum: W + R > N)
+4. Failure detection and recovery mechanism
 
-W=2, R=2, N=3 の場合の具体的シナリオを記述すること。
+Describe a concrete scenario for W=2, R=2, N=3.
 
-解答の骨子:
+Answer Outline:
 
-1. データ配置:
-   コンシステントハッシュリングを使用
-   仮想ノード数=150で均一分散を実現
-   各キーはリング上の3つのノードに複製
+1. Data placement:
+   Use a consistent hash ring
+   150 virtual nodes for uniform distribution
+   Each key is replicated to 3 nodes on the ring
 
-2. 書き込み（W=2）:
-   Client → Coordinator Node → 3ノードに並行書き込み
-   2ノードからACK受信 → Clientに成功を返す
-   残り1ノードは非同期で追いつく（hinted handoff）
+2. Write (W=2):
+   Client -> Coordinator Node -> Parallel write to 3 nodes
+   Respond success to Client after receiving ACK from 2 nodes
+   Remaining node catches up asynchronously (hinted handoff)
 
-3. 読み取り（R=2）:
-   Coordinator → 3ノードに並行読み取り
-   2ノードからの応答を待ち、最新バージョンを返す
-   バージョン不一致の場合 → Read Repairで古いノードを更新
+3. Read (R=2):
+   Coordinator -> Parallel read from 3 nodes
+   Wait for responses from 2 nodes and return the latest version
+   On version mismatch -> Update stale node via Read Repair
 
-4. 障害検出と復旧:
-   - Gossipプロトコルで障害検出（全ノードが状態を伝播）
-   - Hinted Handoff: 障害ノード宛のデータを一時的に
-     別ノードが保管し、復旧後に転送
-   - Anti-Entropy: 定期的にMerkle Treeでデータ不一致を検出
+4. Failure detection and recovery:
+   - Gossip protocol for failure detection (all nodes propagate state)
+   - Hinted Handoff: Temporarily store data destined for a failed node
+     on another node, transfer after recovery
+   - Anti-Entropy: Periodically detect data inconsistencies using Merkle Trees
 ```
 
 ---
 
 ## 13. FAQ
 
-### Q1: マイクロサービスはいつ採用すべきか？
+### Q1: When should microservices be adopted?
 
-最初からマイクロサービスにするのは**アンチパターン**である（Martin Fowler: "MonolithFirst"）。
-なぜかというと、サービス境界を最初から正しく引くのは困難であり、間違った境界で分割すると
-「分散モノリス」になるからである。
+Starting with microservices from the beginning is an **anti-pattern** (Martin Fowler: "MonolithFirst"). The reason is that drawing service boundaries correctly from the start is difficult, and splitting along wrong boundaries results in a "distributed monolith."
 
-以下の条件が揃ったら分割を検討する:
-- チームが10人以上でコードの競合が頻発している
-- 一部の機能だけ独立にスケールしたい（例: 画像処理だけGPUが必要）
-- 異なる技術スタックが必要な部分がある（例: MLはPython、APIはGo）
-- デプロイ頻度を独立させたい（例: 決済は月1回、UIは毎日）
-- 組織構造がサービス境界と一致している（Conway's Law）
+Consider splitting when the following conditions are met:
+- Team exceeds 10 people and code conflicts are frequent
+- Only some features need to scale independently (e.g., only image processing needs GPUs)
+- Different parts require different technology stacks (e.g., ML in Python, API in Go)
+- You want to make deployment frequency independent (e.g., billing monthly, UI daily)
+- Organizational structure aligns with service boundaries (Conway's Law)
 
-### Q2: 結果整合性はどれくらいの「遅延」があるのか？
+### Q2: How much "delay" does eventual consistency have?
 
-システムと設定によるが、以下が想定される範囲である:
-- **DynamoDB**: 通常1秒未満（ほぼ瞬時）
-- **Cassandra**: ミリ秒〜数秒
-- **DNS**: TTL依存（数分〜数時間）
-- **S3**: 2020年12月以降は即座に強い一貫性を提供
+It depends on the system and configuration, but the following ranges are typical:
+- **DynamoDB**: Usually under 1 second (nearly instant)
+- **Cassandra**: Milliseconds to a few seconds
+- **DNS**: TTL-dependent (minutes to hours)
+- **S3**: Provides strong consistency instantly since December 2020
 
-重要なのは「遅延の長さ」ではなく「遅延がある前提でシステムを設計すること」である。
-なぜなら、「通常は数ミリ秒」であっても、ネットワーク障害時には数秒〜数分に
-延びる可能性があるからである。
+What matters is not "how long the delay is" but "designing the system with the assumption that delays exist." This is because even if it's "normally a few milliseconds," during network failures it can extend to seconds or minutes.
 
-### Q3: CAP定理は古いのか？
+### Q3: Is the CAP theorem outdated?
 
-CAP定理は依然として有効だが、過度に単純化されている面がある。
-PACELC定理がより現実的な枠組みを提供する:
-- **分断時(P)**: AvailabilityかConsistencyを選択
-- **通常時(E)**: LatencyかConsistencyを選択
+The CAP theorem is still valid, but it is overly simplified in some respects. The PACELC theorem provides a more realistic framework:
+- **During partition (P)**: Choose Availability or Consistency
+- **During normal operation (E)**: Choose Latency or Consistency
 
-実際のシステムは「CP or AP」の二択ではなく、**操作ごとに一貫性レベルを調整する**。
-例えばDynamoDBでは、同じテーブルに対して「強い一貫性読み取り」と
-「結果整合性読み取り」を操作単位で使い分けることができる。
+Real systems are not a binary "CP or AP" choice but **adjust consistency levels per operation**. For example, DynamoDB allows you to choose between "strongly consistent reads" and "eventually consistent reads" on a per-operation basis for the same table.
 
-### Q4: コンセンサスアルゴリズムはいつ必要か？
+### Q4: When are consensus algorithms needed?
 
-コンセンサスアルゴリズム（Raft/Paxos）が必要なのは、
-**複数ノードが1つの値に合意する必要がある場合**に限られる。
+Consensus algorithms (Raft/Paxos) are only needed when **multiple nodes must agree on a single value**.
 
-具体的には:
-- リーダー選出（Kubernetesのetcd）
-- 分散ロック（ZooKeeper）
-- 分散設定管理（Consul）
-- ログの複製順序の合意
+Specifically:
+- Leader election (Kubernetes etcd)
+- Distributed locks (ZooKeeper)
+- Distributed configuration management (Consul)
+- Agreement on log replication order
 
-逆に、以下の場合はコンセンサス不要で、より軽量な手法を使える:
-- 結果整合性で十分なデータ → ゴシッププロトコル
-- 読み取りが多い → リードレプリカ + 非同期レプリケーション
-- 順序が重要でない → CRDTs（Conflict-free Replicated Data Types）
+Conversely, lighter-weight methods can be used when:
+- Eventual consistency is sufficient -> Gossip protocol
+- Reads dominate -> Read replicas + asynchronous replication
+- Order doesn't matter -> CRDTs (Conflict-free Replicated Data Types)
 
-### Q5: 分散システムのテストはどうすればよいか？
+### Q5: How should distributed systems be tested?
 
-分散システムのテストは単体テストだけでは不十分である。
-なぜなら、障害やレイテンシは単体テストでは再現できないからである。
+Unit tests alone are insufficient for distributed systems. This is because failures and latency cannot be reproduced in unit tests.
 
-推奨されるテスト手法:
-1. **Chaos Engineering**: 本番環境で意図的に障害を起こす（Netflix Chaos Monkey）
-2. **Jepsen**: 分散システムの線形化可能性をテストするフレームワーク
-3. **Fault Injection**: テスト環境でネットワーク遅延/パケットロスを注入
-4. **Property-based Testing**: ランダムな入力で不変条件をテスト
-5. **Simulation Testing**: FoundationDBが採用する決定的シミュレーション
+Recommended testing approaches:
+1. **Chaos Engineering**: Intentionally cause failures in production (Netflix Chaos Monkey)
+2. **Jepsen**: Framework for testing linearizability of distributed systems
+3. **Fault Injection**: Inject network latency/packet loss in test environments
+4. **Property-based Testing**: Test invariants with random inputs
+5. **Simulation Testing**: Deterministic simulation as adopted by FoundationDB
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is paramount. Understanding deepens not just through theory, but by actually writing code and verifying how things work.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the basics and jumping ahead to advanced topics. We recommend thoroughly understanding the fundamental concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in professional practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently applied in daily development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## 14. まとめ
+## 14. Summary
 
-| 概念 | ポイント | 学習の優先度 |
-|------|---------|------------|
-| CAP定理 | Pは必須。実質CP vs APの選択。PACELCがより実用的 | 最重要 |
-| コンセンサス | Paxos(理論), Raft(実用)。過半数の合意で決定 | 重要 |
-| レプリケーション | 同期(強一貫性) vs 非同期(高性能)。準同期がバランス型 | 重要 |
-| シャーディング | コンシステントハッシュで最小限の再配置。仮想ノードで均一化 | 重要 |
-| 分散トランザクション | 2PC(強いが遅い) vs Saga(柔軟だが複雑) | 中 |
-| 時間と順序 | 物理時計は信頼不可。論理時計/ベクトル時計で因果関係を追跡 | 中 |
-| 障害対策 | Circuit Breaker, Bulkhead, Exponential Backoff + Jitter | 重要 |
-| アーキテクチャ | MonolithFirstの原則。Event Sourcing, CQRS | 応用 |
+| Concept | Key Point | Learning Priority |
+|---------|---------|------------|
+| CAP Theorem | P is essential. Effectively a CP vs AP choice. PACELC is more practical | Highest |
+| Consensus | Paxos (theory), Raft (practice). Decisions by majority agreement | High |
+| Replication | Synchronous (strong consistency) vs Asynchronous (high performance). Semi-sync is balanced | High |
+| Sharding | Consistent hashing minimizes redistribution. Virtual nodes ensure uniformity | High |
+| Distributed Transactions | 2PC (strong but slow) vs Saga (flexible but complex) | Medium |
+| Time and Ordering | Physical clocks are unreliable. Use logical/vector clocks for causal tracking | Medium |
+| Failure Mitigation | Circuit Breaker, Bulkhead, Exponential Backoff + Jitter | High |
+| Architecture | MonolithFirst principle. Event Sourcing, CQRS | Applied |
 
-### 学習のロードマップ
+### Learning Roadmap
 
 ```
-Step 1（基礎）:
-  → CAP定理とCPvsAPの判断基準を理解
-  → 一貫性モデルの強弱を把握
-  → レプリケーションの3方式を理解
+Step 1 (Basics):
+  -> Understand the CAP theorem and CP vs AP decision criteria
+  -> Grasp the strength hierarchy of consistency models
+  -> Understand the 3 replication methods
 
-Step 2（中級）:
-  → Raftの仕組みを論文または可視化ツールで学ぶ
-  → コンシステントハッシュを実装してみる
-  → 2PCとSagaのトレードオフを理解
+Step 2 (Intermediate):
+  -> Study Raft through the paper or visualization tools
+  -> Implement consistent hashing yourself
+  -> Understand the trade-offs between 2PC and Saga
 
-Step 3（上級）:
-  → 「Designing Data-Intensive Applications」を通読
-  → Jepsenのテスト結果を読み、実際のDBの挙動を知る
-  → 小規模な分散KVストアを自作する
-  → Chaos Engineeringを実践する
+Step 3 (Advanced):
+  -> Read through "Designing Data-Intensive Applications"
+  -> Read Jepsen test results to understand real DB behavior
+  -> Build a small distributed KV store yourself
+  -> Practice Chaos Engineering
 ```
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Guides
 
 ---
 
-## 参考文献
+## References
 
 1. Kleppmann, M. *Designing Data-Intensive Applications*. O'Reilly, 2017.
-   分散システムの理論と実践を網羅した名著。本ガイドの多くのトピックはこの本に基づく。
+   A definitive book covering theory and practice of distributed systems. Many topics in this guide are based on this book.
 
 2. Lamport, L. "Time, Clocks, and the Ordering of Events in a Distributed System." *Communications of the ACM*, 1978.
-   論理時計の原論文。分散システム理論の基礎を確立した歴史的論文。
+   The original paper on logical clocks. A historic paper that established the foundations of distributed systems theory.
 
 3. Ongaro, D. & Ousterhout, J. "In Search of an Understandable Consensus Algorithm." *USENIX ATC*, 2014.
-   Raftの原論文。Paxosを理解しやすく再設計したコンセンサスアルゴリズム。
+   The original Raft paper. A consensus algorithm redesigned for understandability from Paxos.
 
 4. Brewer, E. "CAP Twelve Years Later: How the 'Rules' Have Changed." *IEEE Computer*, 2012.
-   CAP定理の提唱者自身による再考と補足。
+   Reconsideration and supplementary notes by the CAP theorem's original proposer.
 
 5. Vogels, W. "Eventually Consistent." *Communications of the ACM*, 2009.
-   Amazon CTOによる結果整合性の解説。DynamoDBの設計思想を理解できる。
+   Explanation of eventual consistency by Amazon's CTO. Provides insight into DynamoDB's design philosophy.
 
 6. Garcia-Molina, H. & Salem, K. "Sagas." *ACM SIGMOD*, 1987.
-   Sagaパターンの原論文。長時間トランザクションの補償ベースの手法。
+   The original paper on the Saga pattern. A compensation-based approach for long-running transactions.
 
 7. DeCandia, G. et al. "Dynamo: Amazon's Highly Available Key-value Store." *SOSP*, 2007.
-   Amazon Dynamoの論文。コンシステントハッシュ、クオラム、ベクトル時計の実践的な適用例。
+   The Amazon Dynamo paper. A practical example of consistent hashing, quorum, and vector clock application.
 
 8. Deutsch, P. "The Eight Fallacies of Distributed Computing." 1994.
-   分散コンピューティングの8つの誤解。25年以上経った今でも完全に有効。
+   The eight fallacies of distributed computing. Still completely valid more than 25 years later.

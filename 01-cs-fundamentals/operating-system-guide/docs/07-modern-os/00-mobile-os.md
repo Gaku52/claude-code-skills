@@ -1,247 +1,252 @@
-# モバイルOS ── iOS・Android アーキテクチャと設計原理の徹底解説
+# Mobile OS -- Comprehensive Guide to iOS and Android Architecture and Design Principles
 
-> **前提知識**: プロセス管理、メモリ管理、ファイルシステムの基礎知識
-> **学習時間目安**: 約 6 時間
-> **難易度**: ★★★☆☆（中級）
+> **Prerequisites**: Basic knowledge of process management, memory management, and file systems
+> **Estimated Study Time**: Approximately 6 hours
+> **Difficulty**: ★★★☆☆ (Intermediate)
 
-モバイルOSは、バッテリー駆動・タッチ操作・多種多様なセンサーという厳しい制約の中で、デスクトップOSに匹敵する処理能力と最高のユーザ体験を両立させるために独自の進化を遂げてきた。本ガイドでは iOS と Android を中心に、モバイルOS のカーネル構造・プロセスモデル・メモリ管理・電力制御・セキュリティモデル・アプリケーションライフサイクルを体系的に解説する。
-
----
-
-## この章で学ぶこと
-
-- [ ] iOS (XNU) と Android (Linux) のカーネルアーキテクチャの違いを図解付きで説明できる
-- [ ] モバイルOS特有のプロセスライフサイクルと優先度モデルを理解する
-- [ ] サンドボックスと権限モデルによるセキュリティ設計を説明できる
-- [ ] 電力管理 (DVFS, Doze, Background App Refresh) の仕組みを理解する
-- [ ] プッシュ通知・センサー統合・IPC の設計原理を把握する
-- [ ] Android の HAL / HIDL と iOS の IOKit ドライバモデルを比較できる
-- [ ] モバイルアプリのビルド・テスト・配布パイプラインを構築できる
-
-
-## 前提知識
-
-このガイドを読む前に、以下の知識があると理解が深まります:
-
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
+Mobile operating systems have undergone unique evolution to achieve processing power rivaling desktop OSes and deliver the best user experience, all within the severe constraints of battery-powered operation, touch-based interaction, and a wide variety of sensors. This guide systematically covers the kernel structure, process model, memory management, power management, security model, and application lifecycle of mobile OSes, focusing on iOS and Android.
 
 ---
 
-## 目次
+## What You Will Learn in This Chapter
 
-1. [モバイルOSの歴史と進化](#1-モバイルosの歴史と進化)
-2. [カーネルアーキテクチャの比較](#2-カーネルアーキテクチャの比較)
-3. [プロセスモデルとアプリケーションライフサイクル](#3-プロセスモデルとアプリケーションライフサイクル)
-4. [メモリ管理と仮想メモリ](#4-メモリ管理と仮想メモリ)
-5. [電力管理とスケジューリング](#5-電力管理とスケジューリング)
-6. [セキュリティモデルとサンドボックス](#6-セキュリティモデルとサンドボックス)
-7. [プロセス間通信とプッシュ通知](#7-プロセス間通信とプッシュ通知)
-8. [センサー・ハードウェア抽象化レイヤ](#8-センサーハードウェア抽象化レイヤ)
-9. [アプリ開発とビルドパイプライン](#9-アプリ開発とビルドパイプライン)
-10. [アンチパターンと設計上の落とし穴](#10-アンチパターンと設計上の落とし穴)
-11. [段階別演習](#11-段階別演習)
-12. [FAQ ── よくある質問](#12-faq--よくある質問)
-13. [まとめと次のステップ](#13-まとめと次のステップ)
-14. [参考文献](#14-参考文献)
+- [ ] Explain the differences between iOS (XNU) and Android (Linux) kernel architectures with diagrams
+- [ ] Understand the process lifecycle and priority models unique to mobile OSes
+- [ ] Explain the security design based on sandboxing and permission models
+- [ ] Understand the mechanisms of power management (DVFS, Doze, Background App Refresh)
+- [ ] Grasp the design principles of push notifications, sensor integration, and IPC
+- [ ] Compare Android's HAL / HIDL with iOS's IOKit driver model
+- [ ] Build mobile app build, test, and distribution pipelines
+
+
+## Prerequisites
+
+Before reading this guide, having the following knowledge will deepen your understanding:
+
+- Basic programming knowledge
+- Understanding of related foundational concepts
 
 ---
 
-## 1. モバイルOSの歴史と進化
+## Table of Contents
 
-### 1.1 モバイルOSの系譜
+1. [History and Evolution of Mobile OS](#1-history-and-evolution-of-mobile-os)
+2. [Kernel Architecture Comparison](#2-kernel-architecture-comparison)
+3. [Process Model and Application Lifecycle](#3-process-model-and-application-lifecycle)
+4. [Memory Management and Virtual Memory](#4-memory-management-and-virtual-memory)
+5. [Power Management and Scheduling](#5-power-management-and-scheduling)
+6. [Security Model and Sandboxing](#6-security-model-and-sandboxing)
+7. [Inter-Process Communication and Push Notifications](#7-inter-process-communication-and-push-notifications)
+8. [Sensors and Hardware Abstraction Layer](#8-sensors-and-hardware-abstraction-layer)
+9. [App Development and Build Pipeline](#9-app-development-and-build-pipeline)
+10. [Anti-Patterns and Design Pitfalls](#10-anti-patterns-and-design-pitfalls)
+11. [Tiered Exercises](#11-tiered-exercises)
+12. [FAQ -- Frequently Asked Questions](#12-faq----frequently-asked-questions)
+13. [Summary and Next Steps](#13-summary-and-next-steps)
+14. [References](#14-references)
 
-モバイルOSの歴史は、1990年代のPDA用OSにまで遡る。Palm OS や Windows CE がその先駆けであり、制約の厳しい組込み環境でGUIを提供するという挑戦であった。
+---
+
+## 1. History and Evolution of Mobile OS
+
+### 1.1 Lineage of Mobile OS
+
+The history of mobile OS dates back to PDA operating systems in the 1990s. Palm OS and Windows CE were pioneers, tackling the challenge of providing a GUI in severely constrained embedded environments.
 
 ```
-モバイルOS の進化タイムライン
+Mobile OS Evolution Timeline
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 1996 ──── Palm OS 1.0
-           │  タッチペン操作、シングルタスク
-           │  16MHz Motorola 68000、128KB RAM
+           │  Stylus operation, single-tasking
+           │  16MHz Motorola 68000, 128KB RAM
            ▼
 2000 ──── Symbian OS (Nokia)
-           │  マルチタスク、C++ ベース
-           │  携帯電話向け初の本格OS
+           │  Multitasking, C++ based
+           │  First full-featured OS for mobile phones
            ▼
 2002 ──── BlackBerry OS
-           │  プッシュメール、企業向けセキュリティ
-           │  QWERTYキーボード特化
+           │  Push email, enterprise security
+           │  Optimized for QWERTY keyboard
            ▼
 2005 ──── Windows Mobile 5.0
            │  .NET Compact Framework
-           │  PocketPC と Smartphone の統合
+           │  Unified PocketPC and Smartphone
            ▼
-2007 ──── iPhone OS 1.0 (後の iOS)  ← 革命的転換点
-           │  マルチタッチ、Safari、Visual Voicemail
-           │  サードパーティアプリなし（Web Apps のみ）
+2007 ──── iPhone OS 1.0 (later iOS)  ← Revolutionary turning point
+           │  Multi-touch, Safari, Visual Voicemail
+           │  No third-party apps (Web Apps only)
            ▼
 2008 ──── Android 1.0 (HTC Dream)
-           │  オープンソース (AOSP)
-           │  Google サービス統合、Android Market
+           │  Open source (AOSP)
+           │  Google services integration, Android Market
            ▼
 2008 ──── iPhone OS 2.0 + App Store
-           │  ネイティブ SDK 公開
-           │  サードパーティアプリのエコシステム開始
+           │  Native SDK released
+           │  Third-party app ecosystem begins
            ▼
 2010 ──── Android 2.2 (Froyo)   / iOS 4
-           │  JIT コンパイル導入      マルチタスク対応
+           │  JIT compilation         Multitasking support
            ▼
 2014 ──── Android 5.0 (Lollipop) / iOS 8
-           │  ART (AOT コンパイル)    Extensions, Metal API
-           │  Material Design          HealthKit, HomeKit
+           │  ART (AOT compilation)   Extensions, Metal API
+           │  Material Design         HealthKit, HomeKit
            ▼
 2017 ──── Android 8.0 (Oreo)     / iOS 11
-           │  Project Treble (HAL分離) ARKit, Core ML
-           │  バックグラウンド制限強化  HEIF/HEVC 標準化
+           │  Project Treble (HAL     ARKit, Core ML
+           │  separation)             HEIF/HEVC standardization
+           │  Background restrictions
            ▼
 2020 ──── Android 11              / iOS 14
-           │  スコープドストレージ強制  App Clips, ウィジェット
-           │  ワンタイム権限            App Library
+           │  Scoped Storage enforced App Clips, Widgets
+           │  One-time permissions    App Library
            ▼
 2023 ──── Android 14              / iOS 17
-           │  大画面対応強化           Interactive Widgets
-           │  Privacy Sandbox          StandBy モード
+           │  Large screen support    Interactive Widgets
+           │  Privacy Sandbox         StandBy mode
            ▼
 2025 ──── Android 16              / iOS 19
-           オンデバイスAI統合、プライバシー強化の最前線
+           On-device AI integration, cutting edge of privacy enhancement
 ```
 
-### 1.2 なぜモバイルOSは特別なのか
+### 1.2 Why Mobile OS is Special
 
-デスクトップOSとモバイルOSの根本的な違いは「制約の厳しさ」にある。
+The fundamental difference between desktop and mobile OSes lies in the "severity of constraints."
 
 ```
-デスクトップ OS vs モバイル OS ── 設計制約の比較
+Desktop OS vs Mobile OS -- Design Constraint Comparison
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
                 Desktop OS              Mobile OS
               ┌──────────────┐       ┌──────────────┐
-  電源        │ AC電源(無限) │       │ バッテリー   │
-              │              │       │ (3000-5000mAh)│
+  Power       │ AC power     │       │ Battery      │
+              │ (unlimited)  │       │ (3000-5000mAh)│
               ├──────────────┤       ├──────────────┤
-  冷却        │ ファン/水冷  │       │ パッシブ冷却 │
-              │ 数百W放熱可  │       │ 数W上限      │
+  Cooling     │ Fan/liquid   │       │ Passive      │
+              │ Hundreds of W│       │ Few W limit  │
               ├──────────────┤       ├──────────────┤
-  メモリ      │ 16-128 GB   │       │ 4-16 GB      │
-              │ スワップ自由 │       │ スワップ制限 │
+  Memory      │ 16-128 GB   │       │ 4-16 GB      │
+              │ Free swapping│       │ Limited swap │
               ├──────────────┤       ├──────────────┤
-  入力        │ キーボード   │       │ タッチ       │
-              │ マウス       │       │ ジェスチャー │
+  Input       │ Keyboard     │       │ Touch        │
+              │ Mouse        │       │ Gestures     │
               ├──────────────┤       ├──────────────┤
-  通信        │ 有線LAN/WiFi │       │ セルラー/WiFi│
-              │ 常時接続     │       │ 断続的接続   │
+  Network     │ Wired/WiFi   │       │ Cellular/WiFi│
+              │ Always-on    │       │ Intermittent │
               ├──────────────┤       ├──────────────┤
-  セキュリティ│ ユーザ信頼型 │       │ ゼロトラスト │
-              │              │       │ アプリ隔離   │
+  Security    │ User trust   │       │ Zero trust   │
+              │ model        │       │ App isolation│
               └──────────────┘       └──────────────┘
 
-  モバイルOSの設計原則:
-  1. 電力効率を最優先 ─ 全ての機能は消費電力の観点で評価される
-  2. 応答性の保証 ─ UIスレッドのブロックは絶対に許容しない
-  3. プライバシー・バイ・デザイン ─ アプリは最小権限で動作する
-  4. 断続的接続の前提 ─ オフラインでも基本機能を維持する
-  5. セキュリティの多層防御 ─ ハードウェアからアプリまで一貫した保護
+  Mobile OS Design Principles:
+  1. Power efficiency first -- Every feature is evaluated from a power consumption perspective
+  2. Responsiveness guarantee -- Blocking the UI thread is absolutely unacceptable
+  3. Privacy by design -- Apps operate with minimum privileges
+  4. Intermittent connectivity assumption -- Basic functions maintained even offline
+  5. Defense in depth security -- Consistent protection from hardware to applications
 ```
 
-### 1.3 市場シェアと影響力
+### 1.3 Market Share and Influence
 
-2025年時点でモバイルOSの市場は実質的に iOS と Android の二極体制である。
+As of 2025, the mobile OS market is effectively a two-platform system of iOS and Android.
 
-| 指標 | iOS | Android | その他 |
-|------|-----|---------|--------|
-| 世界シェア | 約 27% | 約 72% | 約 1% |
-| 北米シェア | 約 55% | 約 44% | 約 1% |
-| 日本シェア | 約 65% | 約 34% | 約 1% |
-| アクティブ端末数 | 約 20 億台 | 約 35 億台 | - |
-| 年間アプリ売上 | 約 850 億ドル | 約 480 億ドル | - |
-| 開発者数 | 約 3,400 万人 | 約 4,000 万人 | - |
+| Metric | iOS | Android | Others |
+|--------|-----|---------|--------|
+| Global share | ~27% | ~72% | ~1% |
+| North America share | ~55% | ~44% | ~1% |
+| Japan share | ~65% | ~34% | ~1% |
+| Active devices | ~2 billion | ~3.5 billion | - |
+| Annual app revenue | ~$85 billion | ~$48 billion | - |
+| Number of developers | ~34 million | ~40 million | - |
 
-> **注目点**: Android は端末数で圧倒するが、アプリ売上では iOS が上回る。これはユーザ層の購買力の違いと、iOS の統一されたエコシステムによるものである。
+> **Note**: While Android dominates in device count, iOS leads in app revenue. This is due to differences in user purchasing power and iOS's unified ecosystem.
 
 ---
 
-## 2. カーネルアーキテクチャの比較
+## 2. Kernel Architecture Comparison
 
-### 2.1 iOS: XNU カーネル
+### 2.1 iOS: XNU Kernel
 
-iOS は Apple の Darwin OS をベースとし、その中核となる XNU (X is Not Unix) カーネルは、Mach マイクロカーネルと FreeBSD のモノリシックカーネルを融合したハイブリッド設計である。
+iOS is based on Apple's Darwin OS, and its core XNU (X is Not Unix) kernel is a hybrid design that fuses the Mach microkernel with FreeBSD's monolithic kernel.
 
 ```
-XNU カーネル アーキテクチャ詳細図
+XNU Kernel Architecture Detailed Diagram
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   ┌─────────────────────────────────────────────────┐
-  │              ユーザ空間 (User Space)             │
+  │              User Space                          │
   │                                                 │
   │  ┌──────────┐ ┌──────────┐ ┌──────────────────┐│
   │  │ UIKit /  │ │ Cocoa    │ │ System Daemons   ││
   │  │ SwiftUI  │ │ Touch    │ │ (launchd,        ││
-  │  │ アプリ   │ │Framework │ │  configd, etc.)  ││
+  │  │ Apps     │ │Framework │ │  configd, etc.)  ││
   │  └────┬─────┘ └────┬─────┘ └────────┬─────────┘│
   │       │            │                │           │
   │  ─────┴────────────┴────────────────┴───────────│
   │       │  libSystem (libc, libdispatch, etc.)    │
   ├───────┼─────────────────────────────────────────┤
-  │       │        カーネル空間 (Kernel Space)       │
+  │       │        Kernel Space                      │
   │       ▼                                         │
   │  ┌──────────────────────────────────────────┐   │
   │  │            BSD Layer                      │   │
   │  │  ┌────────────┬──────────┬─────────────┐ │   │
   │  │  │ POSIX API  │ VFS     │ Networking  │ │   │
-  │  │  │ (syscall)  │(仮想FS) │ (TCP/IP)    │ │   │
-  │  │  │ プロセス   │ HFS+    │ BSD Socket  │ │   │
-  │  │  │ シグナル   │ APFS    │             │ │   │
+  │  │  │ (syscall)  │(Virtual │ (TCP/IP)    │ │   │
+  │  │  │ Process    │  FS)    │ BSD Socket  │ │   │
+  │  │  │ Signals    │ HFS+    │             │ │   │
+  │  │  │            │ APFS    │             │ │   │
   │  │  └────────────┴──────────┴─────────────┘ │   │
   │  ├──────────────────────────────────────────┤   │
   │  │            Mach Layer                     │   │
   │  │  ┌────────────┬──────────┬─────────────┐ │   │
-  │  │  │ タスク     │ IPC     │ スケジューラ│ │   │
-  │  │  │ (プロセス) │ (Mach   │ (優先度     │ │   │
-  │  │  │ スレッド   │  Port)  │  ベース)    │ │   │
-  │  │  │ 仮想メモリ │ MIG     │ リアルタイム│ │   │
+  │  │  │ Tasks      │ IPC     │ Scheduler   │ │   │
+  │  │  │ (Processes)│ (Mach   │ (Priority   │ │   │
+  │  │  │ Threads    │  Port)  │  based)     │ │   │
+  │  │  │ Virtual    │ MIG     │ Real-time   │ │   │
+  │  │  │ Memory     │         │             │ │   │
   │  │  └────────────┴──────────┴─────────────┘ │   │
   │  ├──────────────────────────────────────────┤   │
-  │  │            IOKit (ドライバフレームワーク)  │   │
-  │  │  C++ ベース、オブジェクト指向ドライバモデル│   │
-  │  │  電力管理、ホットプラグ、デバイスツリー     │   │
+  │  │            IOKit (Driver Framework)       │   │
+  │  │  C++ based, object-oriented driver model  │   │
+  │  │  Power management, hot-plug, device tree  │   │
   │  └──────────────────────────────────────────┘   │
   │                                                 │
   │  ┌──────────────────────────────────────────┐   │
   │  │   Secure Enclave Processor (SEP)          │   │
-  │  │   独立プロセッサ / 独自OS (sepOS)         │   │
-  │  │   暗号鍵管理 / 生体認証データ保護          │   │
+  │  │   Independent processor / dedicated OS    │   │
+  │  │   (sepOS)                                 │   │
+  │  │   Cryptographic key management /          │   │
+  │  │   biometric data protection               │   │
   │  └──────────────────────────────────────────┘   │
   └─────────────────────────────────────────────────┘
 ```
 
-**XNU の設計上の特徴:**
+**Key Design Features of XNU:**
 
-- **Mach マイクロカーネル**: タスク管理、スレッド管理、仮想メモリ管理、IPC を担当。Mach ポートによるメッセージパッシングが IPC の基盤
-- **BSD レイヤ**: POSIX 互換 API、ファイルシステム (APFS)、ネットワーキングスタック (TCP/IP)、ユーザ/グループ管理を提供
-- **IOKit**: C++ で記述されたオブジェクト指向ドライバフレームワーク。電力管理やデバイスのホットプラグをサポート
-- **Secure Enclave**: メインプロセッサとは物理的に分離された専用チップで、暗号鍵・生体認証データを管理
+- **Mach Microkernel**: Handles task management, thread management, virtual memory management, and IPC. Mach port message passing is the foundation of IPC
+- **BSD Layer**: Provides POSIX-compatible APIs, file system (APFS), networking stack (TCP/IP), and user/group management
+- **IOKit**: Object-oriented driver framework written in C++. Supports power management and device hot-plugging
+- **Secure Enclave**: A dedicated chip physically separated from the main processor that manages cryptographic keys and biometric authentication data
 
-### 2.2 Android: 修正版 Linux カーネル
+### 2.2 Android: Modified Linux Kernel
 
-Android は Linux カーネルをベースとしているが、標準 Linux とは大きく異なる修正が加えられている。
+Android is based on the Linux kernel, but incorporates significant modifications that differ greatly from standard Linux.
 
 ```
-Android システムアーキテクチャ詳細図
+Android System Architecture Detailed Diagram
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   ┌─────────────────────────────────────────────────┐
-  │          アプリケーション層 (Applications)       │
+  │          Application Layer (Applications)        │
   │  ┌────────┐ ┌────────┐ ┌────────┐ ┌──────────┐ │
-  │  │ 電話   │ │ Chrome │ │カメラ  │ │サードパーティ││
-  │  │        │ │        │ │        │ │ アプリ    ││
+  │  │ Phone  │ │ Chrome │ │Camera  │ │Third-party││
+  │  │        │ │        │ │        │ │ Apps      ││
   │  └───┬────┘ └───┬────┘ └───┬────┘ └────┬─────┘ │
   ├──────┴──────────┴──────────┴────────────┴───────┤
   │        Android Framework (Java/Kotlin API)      │
   │  ┌────────────┬──────────────┬────────────────┐ │
   │  │Activity    │Content       │PackageManager  │ │
-  │  │Manager     │Provider      │(アプリ管理)    │ │
+  │  │Manager     │Provider      │(App management)│ │
   │  ├────────────┼──────────────┼────────────────┤ │
   │  │Window      │Notification  │Telephony       │ │
   │  │Manager     │Manager       │Manager         │ │
@@ -250,14 +255,14 @@ Android システムアーキテクチャ詳細図
   │  │Manager     │Manager       │Manager         │ │
   │  └────────────┴──────────────┴────────────────┘ │
   ├─────────────────────────────────────────────────┤
-  │     Android Runtime (ART) / ネイティブライブラリ │
+  │     Android Runtime (ART) / Native Libraries     │
   │  ┌─────────────────┐  ┌──────────────────────┐ │
-  │  │  ART             │  │ ネイティブライブラリ │ │
-  │  │  ・AOT コンパイル│  │ ・libc (Bionic)     │ │
-  │  │  ・GC (CC)       │  │ ・OpenGL ES / Vulkan│ │
-  │  │  ・JNI           │  │ ・Media Framework   │ │
-  │  │  ・プロファイル   │  │ ・SQLite            │ │
-  │  │    ガイドコンパイル│  │ ・SSL (BoringSSL)  │ │
+  │  │  ART             │  │ Native Libraries     │ │
+  │  │  - AOT compile   │  │ - libc (Bionic)     │ │
+  │  │  - GC (CC)       │  │ - OpenGL ES / Vulkan│ │
+  │  │  - JNI           │  │ - Media Framework   │ │
+  │  │  - Profile       │  │ - SQLite            │ │
+  │  │    Guided Compile│  │ - SSL (BoringSSL)   │ │
   │  └─────────────────┘  └──────────────────────┘ │
   ├─────────────────────────────────────────────────┤
   │        Hardware Abstraction Layer (HAL)          │
@@ -265,128 +270,129 @@ Android システムアーキテクチャ詳細図
   │  │Audio   │Camera  │Sensor  │Graphics│Power   │ │
   │  │HAL     │HAL     │HAL     │HAL     │HAL     │ │
   │  └────────┴────────┴────────┴────────┴────────┘ │
-  │        HIDL/AIDL (HAL インターフェース定義言語)  │
+  │        HIDL/AIDL (HAL Interface Definition Lang) │
   ├─────────────────────────────────────────────────┤
-  │              Linux Kernel (修正版)               │
+  │              Linux Kernel (Modified)              │
   │  ┌──────────┬──────────┬──────────┬───────────┐ │
   │  │ Binder   │ Ashmem / │ wakelocks│ Low Memory│ │
-  │  │ IPC      │ ION      │ (電力)   │ Killer    │ │
-  │  │ ドライバ │ メモリ   │          │ (OOM強化) │ │
+  │  │ IPC      │ ION      │ (power)  │ Killer    │ │
+  │  │ Driver   │ Memory   │          │(Enhanced  │ │
+  │  │          │          │          │ OOM)      │ │
   │  ├──────────┼──────────┼──────────┼───────────┤ │
-  │  │ SELinux  │ cgroups  │ネットワーク│ ファイル │ │
-  │  │ (強制   │ (リソース│ ドライバ  │ システム  │ │
-  │  │  アクセス│  制御)   │           │ (ext4/   │ │
-  │  │  制御)  │          │           │  f2fs)   │ │
+  │  │ SELinux  │ cgroups  │ Network  │ File      │ │
+  │  │(Mandatory│(Resource │ Drivers  │ System    │ │
+  │  │ Access   │ Control) │          │ (ext4/    │ │
+  │  │ Control) │          │          │  f2fs)    │ │
   │  └──────────┴──────────┴──────────┴───────────┘ │
   └─────────────────────────────────────────────────┘
 ```
 
-**Android 固有の Linux カーネル修正:**
+**Android-Specific Linux Kernel Modifications:**
 
-| 機能 | 標準 Linux | Android 修正版 |
-|------|-----------|---------------|
-| IPC | SysV IPC, Unix Socket, D-Bus | Binder (高速 IPC) |
-| メモリ共有 | POSIX shm, tmpfs | Ashmem → memfd (Android 10+) |
-| GPU メモリ | DRM/GEM | ION → DMA-BUF heaps (Android 12+) |
-| OOM 処理 | oom_killer (単純) | LowMemoryKiller (多段階) |
-| 電力管理 | runtime PM | wakelocks (ユーザ空間制御可) |
-| セキュリティ | DAC + AppArmor/SELinux | SELinux 強制 + seccomp |
-| ロギング | syslog / journald | logd (リングバッファ) |
+| Feature | Standard Linux | Android Modified Version |
+|---------|---------------|------------------------|
+| IPC | SysV IPC, Unix Socket, D-Bus | Binder (high-speed IPC) |
+| Shared Memory | POSIX shm, tmpfs | Ashmem -> memfd (Android 10+) |
+| GPU Memory | DRM/GEM | ION -> DMA-BUF heaps (Android 12+) |
+| OOM Handling | oom_killer (simple) | LowMemoryKiller (multi-stage) |
+| Power Management | runtime PM | wakelocks (user-space controllable) |
+| Security | DAC + AppArmor/SELinux | SELinux enforcing + seccomp |
+| Logging | syslog / journald | logd (ring buffer) |
 
-### 2.3 カーネル比較の詳細
+### 2.3 Detailed Kernel Comparison
 
 ```
-XNU vs Linux (Android) ── 設計思想の違い
+XNU vs Linux (Android) -- Differences in Design Philosophy
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ┌────────────────┬───────────────────────┬───────────────────────┐
-│     観点       │   XNU (iOS)           │   Linux (Android)     │
+│     Aspect     │   XNU (iOS)           │   Linux (Android)     │
 ├────────────────┼───────────────────────┼───────────────────────┤
-│ カーネル型     │ ハイブリッド           │ モノリシック(モジュール)│
-│ 設計起源       │ Mach + BSD 融合        │ Linus Torvalds 設計   │
-│ IPC 基盤       │ Mach Port (msg pass)  │ Binder (Android固有)  │
-│ ドライバ       │ IOKit (C++ OOP)       │ カーネルモジュール (C) │
-│ スケジューラ   │ Mach 優先度ベース     │ CFS (Completely Fair) │
-│ ファイルシステム│ APFS                  │ ext4 / f2fs           │
-│ メモリ管理     │ Mach VM + jetsam      │ Linux VM + LMK        │
-│ ライセンス     │ APSL + 非公開部分     │ GPL v2                │
-│ コード行数     │ 約 1,200 万行         │ 約 3,000 万行以上     │
-│ リリースサイクル│ 年1回 (iOS メジャー)  │ 年1回 + セキュリティ月次│
-│ カスタマイズ性 │ Apple のみ            │ 任意のベンダーが可能   │
+│ Kernel Type    │ Hybrid                │ Monolithic (modular)  │
+│ Design Origin  │ Mach + BSD fusion     │ Linus Torvalds design │
+│ IPC Foundation │ Mach Port (msg pass)  │ Binder (Android-spec) │
+│ Drivers        │ IOKit (C++ OOP)       │ Kernel modules (C)    │
+│ Scheduler      │ Mach priority-based   │ CFS (Completely Fair) │
+│ File System    │ APFS                  │ ext4 / f2fs           │
+│ Memory Mgmt    │ Mach VM + jetsam      │ Linux VM + LMK        │
+│ License        │ APSL + closed parts   │ GPL v2                │
+│ Lines of Code  │ ~12 million           │ ~30+ million          │
+│ Release Cycle  │ Annual (iOS major)    │ Annual + monthly sec  │
+│ Customizability│ Apple only            │ Any vendor            │
 └────────────────┴───────────────────────┴───────────────────────┘
 ```
 
-### 2.4 コード例: カーネル情報の取得
+### 2.4 Code Example: Retrieving Kernel Information
 
-**コード例1: iOS (Swift) ── システム情報の取得**
+**Code Example 1: iOS (Swift) -- Retrieving System Information**
 
 ```swift
 import UIKit
 import Darwin
 
-/// iOS デバイスのシステム情報を取得するユーティリティ
+/// Utility for retrieving iOS device system information
 struct SystemInfo {
 
-    /// カーネルバージョンを取得
+    /// Retrieve kernel version
     static func kernelVersion() -> String {
         var size = 0
-        // sysctl で XNU カーネルバージョンを取得
+        // Retrieve XNU kernel version via sysctl
         sysctlbyname("kern.osrelease", nil, &size, nil, 0)
         var version = CChar
         sysctlbyname("kern.osrelease", &version, &size, nil, 0)
         return String(cString: version)
     }
 
-    /// 物理メモリ量を取得
+    /// Retrieve physical memory amount
     static func physicalMemory() -> UInt64 {
         return ProcessInfo.processInfo.physicalMemory
     }
 
-    /// アクティブプロセッサ数を取得
+    /// Retrieve active processor count
     static func processorCount() -> Int {
         return ProcessInfo.processInfo.activeProcessorCount
     }
 
-    /// サーマル状態を監視
+    /// Monitor thermal state
     static func thermalState() -> String {
         switch ProcessInfo.processInfo.thermalState {
-        case .nominal:   return "通常"
-        case .fair:      return "やや高温"
-        case .serious:   return "高温 - パフォーマンス低下中"
-        case .critical:  return "危険 - 緊急スロットリング"
-        @unknown default: return "不明"
+        case .nominal:   return "Normal"
+        case .fair:      return "Slightly warm"
+        case .serious:   return "Hot - Performance throttled"
+        case .critical:  return "Critical - Emergency throttling"
+        @unknown default: return "Unknown"
         }
     }
 
-    /// デバイス情報のサマリー
+    /// Device information summary
     static func summary() -> String {
         """
-        ===== iOS デバイス情報 =====
-        カーネル: Darwin \(kernelVersion())
-        メモリ: \(physicalMemory() / 1_073_741_824) GB
-        プロセッサ数: \(processorCount())
-        サーマル状態: \(thermalState())
+        ===== iOS Device Information =====
+        Kernel: Darwin \(kernelVersion())
+        Memory: \(physicalMemory() / 1_073_741_824) GB
+        Processor Count: \(processorCount())
+        Thermal State: \(thermalState())
         OS: \(UIDevice.current.systemName) \(UIDevice.current.systemVersion)
-        モデル: \(UIDevice.current.model)
+        Model: \(UIDevice.current.model)
         ================================
         """
     }
 }
 
-// 使用例
+// Usage example
 // print(SystemInfo.summary())
-// 出力例:
-// ===== iOS デバイス情報 =====
-// カーネル: Darwin 24.1.0
-// メモリ: 6 GB
-// プロセッサ数: 6
-// サーマル状態: 通常
+// Output example:
+// ===== iOS Device Information =====
+// Kernel: Darwin 24.1.0
+// Memory: 6 GB
+// Processor Count: 6
+// Thermal State: Normal
 // OS: iOS 18.2
-// モデル: iPhone
+// Model: iPhone
 // ================================
 ```
 
-**コード例2: Android (Kotlin) ── システム情報の取得**
+**Code Example 2: Android (Kotlin) -- Retrieving System Information**
 
 ```kotlin
 import android.os.Build
@@ -395,23 +401,23 @@ import android.content.Context
 import java.io.File
 
 /**
- * Android デバイスのシステム情報を取得するユーティリティ
+ * Utility for retrieving Android device system information
  *
- * Android では /proc ファイルシステムを通じて
- * Linux カーネルの情報に直接アクセスできる。
+ * On Android, Linux kernel information can be accessed
+ * directly through the /proc file system.
  */
 object SystemInfoUtil {
 
-    /** Linux カーネルバージョンを取得 */
+    /** Retrieve Linux kernel version */
     fun getKernelVersion(): String {
         return try {
             File("/proc/version").readText().trim()
         } catch (e: Exception) {
-            "取得失敗: ${e.message}"
+            "Retrieval failed: ${e.message}"
         }
     }
 
-    /** CPU 情報を取得 */
+    /** Retrieve CPU information */
     fun getCpuInfo(): Map<String, String> {
         val info = mutableMapOf<String, String>()
         try {
@@ -422,12 +428,12 @@ object SystemInfoUtil {
                 }
             }
         } catch (e: Exception) {
-            info["error"] = e.message ?: "不明なエラー"
+            info["error"] = e.message ?: "Unknown error"
         }
         return info
     }
 
-    /** メモリ情報を取得 */
+    /** Retrieve memory information */
     fun getMemoryInfo(context: Context): String {
         val activityManager = context.getSystemService(
             Context.ACTIVITY_SERVICE
@@ -441,40 +447,40 @@ object SystemInfoUtil {
         val usagePercent = (usedMB.toDouble() / totalMB * 100).toInt()
 
         return """
-            |===== Android メモリ情報 =====
-            |総メモリ: ${totalMB} MB
-            |使用中:   ${usedMB} MB (${usagePercent}%)
-            |空き:     ${availMB} MB
-            |低メモリ状態: ${memInfo.lowMemory}
-            |閾値:     ${memInfo.threshold / (1024 * 1024)} MB
+            |===== Android Memory Information =====
+            |Total Memory: ${totalMB} MB
+            |In Use:       ${usedMB} MB (${usagePercent}%)
+            |Available:    ${availMB} MB
+            |Low Memory:   ${memInfo.lowMemory}
+            |Threshold:    ${memInfo.threshold / (1024 * 1024)} MB
             |==============================
         """.trimMargin()
     }
 
-    /** ビルド情報を取得 */
+    /** Retrieve build information */
     fun getBuildInfo(): String {
         return """
-            |===== Android ビルド情報 =====
-            |デバイス: ${Build.DEVICE}
-            |モデル: ${Build.MODEL}
-            |メーカー: ${Build.MANUFACTURER}
-            |Android バージョン: ${Build.VERSION.RELEASE}
-            |SDK レベル: ${Build.VERSION.SDK_INT}
-            |セキュリティパッチ: ${Build.VERSION.SECURITY_PATCH}
-            |ビルド番号: ${Build.DISPLAY}
+            |===== Android Build Information =====
+            |Device: ${Build.DEVICE}
+            |Model: ${Build.MODEL}
+            |Manufacturer: ${Build.MANUFACTURER}
+            |Android Version: ${Build.VERSION.RELEASE}
+            |SDK Level: ${Build.VERSION.SDK_INT}
+            |Security Patch: ${Build.VERSION.SECURITY_PATCH}
+            |Build Number: ${Build.DISPLAY}
             |ABI: ${Build.SUPPORTED_ABIS.joinToString(", ")}
             |===============================
         """.trimMargin()
     }
 
-    /** SELinux の状態を取得 */
+    /** Retrieve SELinux status */
     fun getSeLinuxStatus(): String {
         return try {
             val process = Runtime.getRuntime().exec("getenforce")
             val result = process.inputStream.bufferedReader().readText().trim()
             "SELinux: $result"  // Enforcing, Permissive, or Disabled
         } catch (e: Exception) {
-            "SELinux: 取得失敗"
+            "SELinux: Retrieval failed"
         }
     }
 }
@@ -482,124 +488,125 @@ object SystemInfoUtil {
 
 ---
 
-## 3. プロセスモデルとアプリケーションライフサイクル
+## 3. Process Model and Application Lifecycle
 
-### 3.1 iOS のプロセスモデル
+### 3.1 iOS Process Model
 
-iOS ではすべてのアプリが独立したプロセスとして動作し、厳格なサンドボックス内で実行される。アプリのライフサイクルは OS によって厳密に管理され、バックグラウンドでの実行は極めて制限される。
+In iOS, every app runs as an independent process within a strict sandbox. The app lifecycle is strictly managed by the OS, and background execution is extremely restricted.
 
 ```
-iOS アプリケーションライフサイクル
+iOS Application Lifecycle
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
                     ┌───────────────┐
-                    │   未起動      │
-                    │ (Not Running) │
+                    │  Not Running  │
+                    │               │
                     └───────┬───────┘
-                            │ ユーザがタップ / システムが起動
+                            │ User taps / System launches
                             ▼
                     ┌───────────────┐
-                    │   非アクティブ │
-                    │  (Inactive)   │◄────── 電話着信、
-                    └───────┬───────┘        通知表示 等
+                    │   Inactive    │◄────── Phone call,
+                    │               │        notification, etc.
+                    └───────┬───────┘
                             │
                             ▼
          ┌──────────────────────────────────────┐
-         │            アクティブ                 │
-         │           (Active)                   │
-         │  ・フォアグラウンドで実行中            │
-         │  ・UIイベントを受信可能               │
-         │  ・全リソースにアクセス可能            │
+         │            Active                    │
+         │                                      │
+         │  - Running in foreground              │
+         │  - Able to receive UI events          │
+         │  - Full resource access               │
          └──────────┬───────────────────────────┘
-                    │ ホームに戻る / アプリ切替
+                    │ Home button / App switch
                     ▼
          ┌──────────────────────────────────────┐
-         │          バックグラウンド              │
-         │        (Background)                  │
-         │  ・約 30 秒間のタスク完了猶予          │
-         │  ・特定API: 音楽再生, 位置情報,       │
-         │    VoIP, Bluetooth, ダウンロード       │
-         │  ・Background App Refresh (任意)      │
+         │          Background                  │
+         │                                      │
+         │  - ~30 second grace period for tasks  │
+         │  - Specific APIs: music playback,     │
+         │    location, VoIP, Bluetooth,         │
+         │    downloads                          │
+         │  - Background App Refresh (optional)  │
          └──────────┬───────────────────────────┘
-                    │ リソース不足 / 一定時間経過
+                    │ Resource shortage / time elapsed
                     ▼
          ┌──────────────────────────────────────┐
-         │           サスペンド                   │
-         │         (Suspended)                  │
-         │  ・メモリ上に残存するが実行されない     │
-         │  ・CPU 時間ゼロ                       │
-         │  ・メモリ不足時に OS が自動終了        │
-         │    (jetsam メカニズム)                 │
+         │           Suspended                  │
+         │                                      │
+         │  - Remains in memory but not executed │
+         │  - Zero CPU time                      │
+         │  - OS auto-terminates on low memory   │
+         │    (jetsam mechanism)                  │
          └──────────────────────────────────────┘
 
-  ※ jetsam: iOS 独自のメモリ回収機構
-     メモリ逼迫時にサスペンド中のアプリから優先的にプロセスを kill
-     アプリごとのメモリ上限 (footprint limit) を超えると即時 kill
+  * jetsam: iOS-specific memory reclamation mechanism
+    Preferentially kills suspended apps when memory is low
+    Immediately kills apps that exceed per-app memory limit (footprint limit)
 ```
 
-### 3.2 Android のプロセスモデル
+### 3.2 Android Process Model
 
-Android はアプリを重要度に応じて 5 段階に分類し、メモリ不足時には低重要度のプロセスから順に終了させる。
+Android classifies apps into 5 importance levels and terminates low-importance processes first when memory is insufficient.
 
 ```
-Android プロセス優先度階層
+Android Process Priority Hierarchy
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  重要度: 高
+  Importance: High
   ┌─────────────────────────────────────────────┐
-  │  1. フォアグラウンドプロセス                  │
-  │     ・ユーザが操作中の Activity               │
-  │     ・onReceive() 実行中の BroadcastReceiver  │
-  │     ・実行中の Service の onCreate/onStart    │
-  │     → 最後まで kill しない                    │
+  │  1. Foreground Process                       │
+  │     - Activity the user is interacting with  │
+  │     - BroadcastReceiver executing onReceive()│
+  │     - Service executing onCreate/onStart     │
+  │     -> Never killed unless last resort        │
   ├─────────────────────────────────────────────┤
-  │  2. 可視プロセス                              │
-  │     ・見えているが操作対象でない Activity      │
-  │     ・foregroundService 実行中の Service      │
-  │     → フォアグラウンド維持に必要なら kill      │
+  │  2. Visible Process                          │
+  │     - Activity visible but not in focus       │
+  │     - Service running as foregroundService    │
+  │     -> Killed only to maintain foreground     │
   ├─────────────────────────────────────────────┤
-  │  3. サービスプロセス                          │
-  │     ・startService() で起動されたサービス     │
-  │     ・音楽再生、データ同期など                 │
-  │     → 30分以上でキャッシュに降格              │
+  │  3. Service Process                          │
+  │     - Service started via startService()      │
+  │     - Music playback, data sync, etc.         │
+  │     -> Demoted to cached after 30+ minutes    │
   ├─────────────────────────────────────────────┤
-  │  4. キャッシュプロセス                        │
-  │     ・非表示の Activity (onStop 済み)         │
-  │     ・LRU リストで管理                        │
-  │     → メモリ不足時に kill 対象               │
+  │  4. Cached Process                           │
+  │     - Hidden Activity (after onStop)          │
+  │     - Managed via LRU list                    │
+  │     -> Kill target on low memory              │
   ├─────────────────────────────────────────────┤
-  │  5. 空プロセス                                │
-  │     ・アクティブなコンポーネントなし           │
-  │     ・キャッシュ目的でのみ保持                │
-  │     → 最初に kill される                     │
+  │  5. Empty Process                            │
+  │     - No active components                    │
+  │     - Retained only for caching purposes      │
+  │     -> Killed first                           │
   └─────────────────────────────────────────────┘
-  重要度: 低
+  Importance: Low
 
-  LowMemoryKiller (LMK) の動作:
-    adj 値    プロセス種別        kill 閾値 (例)
+  LowMemoryKiller (LMK) behavior:
+    adj value  Process type           Kill threshold (example)
     ─────────────────────────────────────────
-    0         フォアグラウンド    kill しない
-    100       可視                72 MB 以下
-    200       サービス            64 MB 以下
-    700       キャッシュ (前回)   56 MB 以下
-    900       キャッシュ (古い)   48 MB 以下
-    906       キャッシュ (空)     40 MB 以下
+    0          Foreground             Not killed
+    100        Visible                Below 72 MB
+    200        Service                Below 64 MB
+    700        Cached (recent)        Below 56 MB
+    900        Cached (old)           Below 48 MB
+    906        Cached (empty)         Below 40 MB
 ```
 
-### 3.3 Android の 4 大コンポーネント
+### 3.3 Android's 4 Major Components
 
-Android アプリは 4 つの基本コンポーネントから構成される。各コンポーネントは独立したエントリーポイントとして機能する。
+Android apps are composed of 4 basic components. Each component functions as an independent entry point.
 
-| コンポーネント | 役割 | ライフサイクル | 使用例 |
-|--------------|------|-------------|--------|
-| **Activity** | UIを持つ画面 | Created→Started→Resumed→Paused→Stopped→Destroyed | メイン画面、設定画面 |
-| **Service** | バックグラウンド処理 | Created→Started→Destroyed / Created→Bound→Destroyed | 音楽再生、同期処理 |
-| **BroadcastReceiver** | システムイベント受信 | onReceive() のみ | バッテリー低下通知、ネットワーク変化 |
-| **ContentProvider** | データ共有 | onCreate() → CRUD操作 | 連絡先、メディアストア |
+| Component | Role | Lifecycle | Usage Example |
+|-----------|------|-----------|---------------|
+| **Activity** | Screen with UI | Created->Started->Resumed->Paused->Stopped->Destroyed | Main screen, settings screen |
+| **Service** | Background processing | Created->Started->Destroyed / Created->Bound->Destroyed | Music playback, sync |
+| **BroadcastReceiver** | System event receiver | onReceive() only | Low battery notification, network changes |
+| **ContentProvider** | Data sharing | onCreate() -> CRUD operations | Contacts, media store |
 
-### 3.4 コード例: ライフサイクル管理
+### 3.4 Code Example: Lifecycle Management
 
-**コード例3: Android (Kotlin) ── Activity ライフサイクルの実装**
+**Code Example 3: Android (Kotlin) -- Activity Lifecycle Implementation**
 
 ```kotlin
 import android.os.Bundle
@@ -611,10 +618,10 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 
 /**
- * Android Activity ライフサイクルの包括的な実装例
+ * Comprehensive Android Activity lifecycle implementation example
  *
- * 各コールバックがいつ呼ばれるかを理解することは、
- * メモリリークやクラッシュを防ぐ上で不可欠である。
+ * Understanding when each callback is invoked is essential
+ * for preventing memory leaks and crashes.
  */
 class MainLifecycleActivity : AppCompatActivity() {
 
@@ -626,91 +633,91 @@ class MainLifecycleActivity : AppCompatActivity() {
     private var counter = 0
 
     // =========================================================
-    // Activity ライフサイクルコールバック
+    // Activity Lifecycle Callbacks
     // =========================================================
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // 状態の復元（画面回転等で再生成された場合）
+        // Restore state (when recreated due to screen rotation, etc.)
         savedInstanceState?.let {
             counter = it.getInt(KEY_COUNTER, 0)
-            Log.d(TAG, "状態復元: counter = $counter")
+            Log.d(TAG, "State restored: counter = $counter")
         }
 
-        // プロセスレベルのライフサイクル監視
+        // Process-level lifecycle monitoring
         ProcessLifecycleOwner.get().lifecycle.addObserver(
             AppLifecycleObserver()
         )
 
-        Log.d(TAG, "onCreate: Activity が生成された")
+        Log.d(TAG, "onCreate: Activity has been created")
     }
 
     override fun onStart() {
         super.onStart()
-        // Activity が画面に表示される直前
-        // ここで UI の更新やセンサーの登録を行う
-        Log.d(TAG, "onStart: Activity が可視状態になった")
+        // Just before Activity becomes visible on screen
+        // Perform UI updates and sensor registration here
+        Log.d(TAG, "onStart: Activity has become visible")
     }
 
     override fun onResume() {
         super.onResume()
-        // Activity がフォアグラウンドに来た
-        // ユーザ操作を受け付ける状態
-        Log.d(TAG, "onResume: Activity がアクティブになった")
+        // Activity has come to the foreground
+        // Ready to accept user input
+        Log.d(TAG, "onResume: Activity has become active")
     }
 
     override fun onPause() {
         super.onPause()
-        // 別の Activity が前面に来た (部分的に見える場合あり)
-        // 重い処理をここで行ってはならない (ANR の原因)
-        Log.d(TAG, "onPause: Activity が一時停止した")
+        // Another Activity has come to the foreground (may be partially visible)
+        // Do not perform heavy operations here (causes ANR)
+        Log.d(TAG, "onPause: Activity has been paused")
     }
 
     override fun onStop() {
         super.onStop()
-        // Activity が完全に非表示になった
-        // データの保存やリソースの解放を行う
-        Log.d(TAG, "onStop: Activity が停止した")
+        // Activity has become completely hidden
+        // Save data and release resources
+        Log.d(TAG, "onStop: Activity has been stopped")
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        // Activity が破棄される
-        // 最終的なクリーンアップ
-        Log.d(TAG, "onDestroy: Activity が破棄された")
+        // Activity is being destroyed
+        // Final cleanup
+        Log.d(TAG, "onDestroy: Activity has been destroyed")
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
-        // 構成変更 (画面回転等) 前に状態を保存
+        // Save state before configuration changes (screen rotation, etc.)
         outState.putInt(KEY_COUNTER, counter)
-        Log.d(TAG, "状態保存: counter = $counter")
+        Log.d(TAG, "State saved: counter = $counter")
     }
 
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
-        // OS からのメモリ解放要求
+        // Memory release request from OS
         when (level) {
             TRIM_MEMORY_UI_HIDDEN ->
-                Log.d(TAG, "UIが非表示 - UIキャッシュを解放可能")
+                Log.d(TAG, "UI hidden - Can release UI cache")
             TRIM_MEMORY_RUNNING_LOW ->
-                Log.w(TAG, "メモリ低下 - 不要なリソースを解放すべき")
+                Log.w(TAG, "Memory low - Should release unnecessary resources")
             TRIM_MEMORY_RUNNING_CRITICAL ->
-                Log.e(TAG, "メモリ危険 - 即座にリソースを解放")
+                Log.e(TAG, "Memory critical - Release resources immediately")
             TRIM_MEMORY_COMPLETE ->
-                Log.e(TAG, "バックグラウンドで最初にkillされる状態")
+                Log.e(TAG, "Will be killed first in background")
         }
     }
 
     // =========================================================
-    // アプリケーション全体のライフサイクル監視
+    // Application-wide Lifecycle Monitoring
     // =========================================================
 
     /**
-     * ProcessLifecycleOwner を使ったアプリ全体のライフサイクル監視
-     * アプリがフォアグラウンド/バックグラウンドに遷移したことを検知する
+     * App-wide lifecycle monitoring using ProcessLifecycleOwner
+     * Detects when the app transitions to foreground/background
      */
     inner class AppLifecycleObserver : LifecycleEventObserver {
         override fun onStateChanged(
@@ -719,10 +726,10 @@ class MainLifecycleActivity : AppCompatActivity() {
         ) {
             when (event) {
                 Lifecycle.Event.ON_START ->
-                    Log.d(TAG, "アプリがフォアグラウンドに遷移")
+                    Log.d(TAG, "App transitioned to foreground")
                 Lifecycle.Event.ON_STOP ->
-                    Log.d(TAG, "アプリがバックグラウンドに遷移")
-                else -> { /* その他のイベント */ }
+                    Log.d(TAG, "App transitioned to background")
+                else -> { /* Other events */ }
             }
         }
     }
@@ -731,126 +738,129 @@ class MainLifecycleActivity : AppCompatActivity() {
 
 ---
 
-## 4. メモリ管理と仮想メモリ
+## 4. Memory Management and Virtual Memory
 
-### 4.1 iOS のメモリ管理: Jetsam
+### 4.1 iOS Memory Management: Jetsam
 
-iOS には従来の意味でのスワップ領域が存在しない。NAND フラッシュへの過度な書き込みはストレージ寿命を短縮するためである。代わりに **jetsam** と呼ばれるメカニズムでメモリを管理する。
+iOS does not have a swap area in the traditional sense. Excessive writes to NAND flash shorten storage lifespan. Instead, it manages memory through a mechanism called **jetsam**.
 
 ```
-iOS Jetsam メモリ管理の概要
+iOS Jetsam Memory Management Overview
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  物理メモリ (例: 6 GB)
+  Physical Memory (e.g., 6 GB)
   ┌─────────────────────────────────────────────────┐
   │████████████████████████░░░░░░░░░░░░░░░░░░░░░░░░│
-  │◄─── カーネル+デーモン ──►◄── アプリ領域 ──────►│
-  │     (約 1-2 GB 固定)      (約 4-5 GB 共有)     │
+  │◄── Kernel+Daemons ───►◄── App Space ──────────►│
+  │     (~1-2 GB fixed)      (~4-5 GB shared)      │
   └─────────────────────────────────────────────────┘
 
-  アプリメモリ制限 (footprint limit):
+  App Memory Limits (footprint limit):
   ┌──────────────┬──────────────┬──────────────────┐
-  │ デバイス     │ 物理RAM      │ アプリ上限 (目安) │
+  │ Device       │ Physical RAM │ App Limit (approx)│
   ├──────────────┼──────────────┼──────────────────┤
-  │ iPhone SE(3) │ 4 GB         │ 約 1.4 GB        │
-  │ iPhone 15    │ 6 GB         │ 約 2.8 GB        │
-  │ iPhone 15 Pro│ 8 GB         │ 約 3.5 GB        │
-  │ iPad Pro M4  │ 16 GB        │ 約 5.0 GB        │
+  │ iPhone SE(3) │ 4 GB         │ ~1.4 GB          │
+  │ iPhone 15    │ 6 GB         │ ~2.8 GB          │
+  │ iPhone 15 Pro│ 8 GB         │ ~3.5 GB          │
+  │ iPad Pro M4  │ 16 GB        │ ~5.0 GB          │
   └──────────────┴──────────────┴──────────────────┘
 
-  Jetsam の動作フロー:
+  Jetsam Operation Flow:
 
-  メモリ使用量増加
+  Memory usage increases
        │
        ▼
   ┌─────────────┐    No     ┌──────────────────┐
-  │ 圧縮可能?   │─────────►│ footprint 超過?  │
-  │ (WK compress)│          └───────┬──────────┘
-  └──────┬──────┘                  │ Yes
-         │ Yes                     ▼
-         ▼                  ┌──────────────────┐
-  ┌─────────────┐          │ 該当アプリを即時  │
-  │ メモリ圧縮  │          │ kill (SIGKILL)    │
-  │ (WKdm/LZ4) │          │ → クラッシュログ  │
+  │ Compressible?│─────────►│ Footprint        │
+  │(WK compress) │          │ exceeded?        │
+  └──────┬──────┘          └───────┬──────────┘
+         │ Yes                     │ Yes
+         ▼                         ▼
+  ┌─────────────┐          ┌──────────────────┐
+  │ Compress    │          │ Immediately kill  │
+  │ Memory      │          │ the app (SIGKILL) │
+  │ (WKdm/LZ4) │          │ -> crash log      │
   └──────┬──────┘          └──────────────────┘
          │
          ▼
   ┌─────────────┐
-  │ まだ不足?   │─── No ──► 通常動作に復帰
+  │ Still       │─── No ──► Resume normal operation
+  │ insufficient?│
   └──────┬──────┘
          │ Yes
          ▼
   ┌───────────────────────────────────────────┐
-  │ 優先度の低いサスペンドアプリから順に kill  │
-  │ (jetsam priority band に基づく)            │
+  │ Kill suspended apps in priority order     │
+  │ (based on jetsam priority band)           │
   │                                           │
-  │ Band 0-10:  バックグラウンドアプリ (最初)  │
-  │ Band 10-20: メール、カレンダーなど          │
-  │ Band 20+:   システムデーモン (最後)        │
+  │ Band 0-10:  Background apps (first)       │
+  │ Band 10-20: Mail, Calendar, etc.          │
+  │ Band 20+:   System daemons (last)         │
   └───────────────────────────────────────────┘
 ```
 
-### 4.2 Android のメモリ管理: LowMemoryKiller と zRAM
+### 4.2 Android Memory Management: LowMemoryKiller and zRAM
 
-Android は Linux の OOM Killer を拡張した LowMemoryKiller を使用し、さらに zRAM によるメモリ圧縮を活用する。
+Android uses LowMemoryKiller, an extension of Linux's OOM Killer, and additionally leverages zRAM for memory compression.
 
 ```
-Android メモリ管理アーキテクチャ
+Android Memory Management Architecture
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  物理メモリ (例: 8 GB)
+  Physical Memory (e.g., 8 GB)
   ┌────────────────────────────────────────────────────────┐
   │███████│██████████│░░░░░░░░░░░░░░░░░░│▓▓▓▓▓▓▓▓▓▓▓▓▓▓│
-  │Kernel │  zRAM    │   アプリ領域      │   ファイル    │
-  │       │(圧縮RAM) │                   │   キャッシュ  │
-  │~1.5GB │ ~2 GB    │    ~3 GB          │   ~1.5 GB     │
+  │Kernel │  zRAM    │   App Space       │   File         │
+  │       │(Compress)│                   │   Cache        │
+  │~1.5GB │ ~2 GB    │    ~3 GB          │   ~1.5 GB      │
   └────────────────────────────────────────────────────────┘
 
-  zRAM: メモリ内圧縮
-  ┌──────────┐ 圧縮    ┌──────────┐
-  │ ページ A │───────►│ 圧縮済A  │  通常 50-70% に圧縮
-  │ (4 KB)   │        │ (~2 KB)  │  ディスクI/Oなし
-  └──────────┘        └──────────┘  ← NAND寿命を保護
+  zRAM: In-memory compression
+  ┌──────────┐ compress ┌──────────┐
+  │ Page A   │────────►│Compressed│  Typically compressed to 50-70%
+  │ (4 KB)   │         │ A (~2KB) │  No disk I/O
+  └──────────┘         └──────────┘  <- Protects NAND lifespan
 
-  LowMemoryKiller (lmkd) デーモン:
+  LowMemoryKiller (lmkd) daemon:
   ┌─────────────────────────────────────────────┐
-  │ 1. /proc/meminfo を定期的に監視             │
-  │ 2. 空きメモリが閾値を下回ったら:            │
-  │    a. oom_adj_score の高い(重要度の低い)     │
-  │       プロセスを特定                         │
-  │    b. PSI (Pressure Stall Information) で   │
-  │       メモリ圧力を測定 (Android 10+)        │
-  │    c. 対象プロセスに SIGKILL を送信          │
-  │ 3. 空きメモリが回復するまで繰り返す          │
+  │ 1. Periodically monitors /proc/meminfo      │
+  │ 2. When free memory drops below threshold:  │
+  │    a. Identify processes with high           │
+  │       oom_adj_score (low importance)         │
+  │    b. Measure memory pressure via PSI        │
+  │       (Pressure Stall Information, Android   │
+  │       10+)                                   │
+  │    c. Send SIGKILL to target process         │
+  │ 3. Repeat until free memory recovers         │
   └─────────────────────────────────────────────┘
 ```
 
-### 4.3 iOS と Android のメモリ管理比較
+### 4.3 iOS vs Android Memory Management Comparison
 
-| 観点 | iOS | Android |
-|------|-----|---------|
-| スワップ | なし (圧縮のみ) | zRAM (メモリ内圧縮) |
-| OOM 対策 | jetsam (proactive kill) | LowMemoryKiller (reactive kill) |
-| 圧縮方式 | WKdm + LZ4 | LZ4 / LZO |
-| GC | ARC (コンパイル時) | Tracing GC (ART) |
-| メモリ警告 | didReceiveMemoryWarning | onTrimMemory / onLowMemory |
-| 共有メモリ | Mach VM (copy-on-write) | Ashmem / mmap |
-| アプリ上限 | footprint limit (厳格) | 設定可能 (largeHeap) |
-| 圧縮比率 | 約 40-60% | 約 30-50% |
+| Aspect | iOS | Android |
+|--------|-----|---------|
+| Swap | None (compression only) | zRAM (in-memory compression) |
+| OOM Countermeasure | jetsam (proactive kill) | LowMemoryKiller (reactive kill) |
+| Compression Algorithm | WKdm + LZ4 | LZ4 / LZO |
+| GC | ARC (compile-time) | Tracing GC (ART) |
+| Memory Warning | didReceiveMemoryWarning | onTrimMemory / onLowMemory |
+| Shared Memory | Mach VM (copy-on-write) | Ashmem / mmap |
+| App Limit | footprint limit (strict) | Configurable (largeHeap) |
+| Compression Ratio | ~40-60% | ~30-50% |
 
-### 4.4 コード例: メモリ監視
+### 4.4 Code Example: Memory Monitoring
 
-**コード例4: iOS (Swift) ── メモリ使用量のモニタリング**
+**Code Example 4: iOS (Swift) -- Memory Usage Monitoring**
 
 ```swift
 import Foundation
 import os.log
 
-/// iOS アプリのメモリ使用量を監視するユーティリティ
+/// Utility for monitoring iOS app memory usage
 ///
-/// jetsam による強制終了を回避するため、
-/// メモリ使用量を定期的に監視し、閾値を超えた場合に
-/// キャッシュの解放等を行う。
+/// To avoid forced termination by jetsam,
+/// periodically monitor memory usage and perform
+/// cache cleanup when thresholds are exceeded.
 class MemoryMonitor {
 
     private let logger = Logger(
@@ -859,14 +869,14 @@ class MemoryMonitor {
     )
 
     private var timer: Timer?
-    private let warningThreshold: UInt64  // バイト単位
+    private let warningThreshold: UInt64  // In bytes
 
-    /// 警告閾値をMB単位で指定して初期化
+    /// Initialize with warning threshold in MB
     init(warningThresholdMB: UInt64 = 200) {
         self.warningThreshold = warningThresholdMB * 1024 * 1024
     }
 
-    /// 現在のアプリメモリ使用量を取得 (バイト)
+    /// Get current app memory usage (bytes)
     func currentMemoryUsage() -> UInt64 {
         var info = mach_task_basic_info()
         var count = mach_msg_type_number_t(
@@ -893,12 +903,12 @@ class MemoryMonitor {
         return info.resident_size
     }
 
-    /// メモリ使用量を MB 単位で返す
+    /// Return memory usage in MB
     func currentMemoryMB() -> Double {
         Double(currentMemoryUsage()) / (1024.0 * 1024.0)
     }
 
-    /// 定期監視を開始 (指定間隔ごとにチェック)
+    /// Start periodic monitoring (check at specified intervals)
     func startMonitoring(intervalSeconds: TimeInterval = 5.0) {
         timer = Timer.scheduledTimer(
             withTimeInterval: intervalSeconds,
@@ -908,328 +918,332 @@ class MemoryMonitor {
             let usage = self.currentMemoryUsage()
             let usageMB = Double(usage) / (1024.0 * 1024.0)
 
-            self.logger.info("メモリ使用量: \(usageMB, format: .fixed(precision: 1)) MB")
+            self.logger.info("Memory usage: \(usageMB, format: .fixed(precision: 1)) MB")
 
             if usage > self.warningThreshold {
                 self.logger.warning(
-                    "メモリ警告: \(usageMB, format: .fixed(precision: 1)) MB " +
-                    "(閾値: \(Double(self.warningThreshold) / (1024.0 * 1024.0)) MB)"
+                    "Memory warning: \(usageMB, format: .fixed(precision: 1)) MB " +
+                    "(threshold: \(Double(self.warningThreshold) / (1024.0 * 1024.0)) MB)"
                 )
-                // キャッシュの解放やリソースの縮小を実行
+                // Perform cache cleanup or resource reduction
                 self.handleMemoryPressure()
             }
         }
     }
 
-    /// 監視を停止
+    /// Stop monitoring
     func stopMonitoring() {
         timer?.invalidate()
         timer = nil
     }
 
-    /// メモリ圧力への対処
+    /// Handle memory pressure
     private func handleMemoryPressure() {
-        // 画像キャッシュのクリア
+        // Clear image cache
         URLCache.shared.removeAllCachedResponses()
 
-        // カスタムキャッシュの解放
+        // Release custom cache
         NotificationCenter.default.post(
             name: .init("MemoryPressureWarning"),
             object: nil
         )
 
-        logger.info("メモリ圧力対応: キャッシュをクリアしました")
+        logger.info("Memory pressure response: Cache cleared")
     }
 }
 
-// 使用例:
+// Usage example:
 // let monitor = MemoryMonitor(warningThresholdMB: 500)
 // monitor.startMonitoring(intervalSeconds: 3.0)
-// print("現在のメモリ: \(monitor.currentMemoryMB()) MB")
+// print("Current memory: \(monitor.currentMemoryMB()) MB")
 ```
 
 ---
 
-## 5. 電力管理とスケジューリング
+## 5. Power Management and Scheduling
 
-### 5.1 モバイルCPUの電力最適化
+### 5.1 Mobile CPU Power Optimization
 
-モバイル端末における最大の制約はバッテリーである。SoC (System on a Chip) は CPU・GPU・NPU・モデム・ISP (Image Signal Processor) を単一チップに統合し、チップ間通信の電力を削減する。
+The biggest constraint for mobile devices is battery life. SoC (System on a Chip) integrates CPU, GPU, NPU, modem, and ISP (Image Signal Processor) into a single chip, reducing inter-chip communication power.
 
 ```
-モバイル SoC アーキテクチャ (例: Apple A17 Pro / Snapdragon 8 Gen 3)
+Mobile SoC Architecture (e.g., Apple A17 Pro / Snapdragon 8 Gen 3)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   ┌─────────────────────────────────────────────────────┐
-  │                    SoC パッケージ                    │
+  │                    SoC Package                       │
   │                                                     │
   │  ┌───────────────────────────────────────────────┐  │
-  │  │              CPU クラスタ                      │  │
+  │  │              CPU Cluster                       │  │
   │  │  ┌─────────────┐  ┌────────────────────────┐  │  │
-  │  │  │ 高性能コア  │  │ 高効率コア             │  │  │
-  │  │  │ (P-core)    │  │ (E-core)               │  │  │
-  │  │  │ 2-4 コア    │  │ 4-6 コア               │  │  │
-  │  │  │ 3-4 GHz     │  │ 1-2 GHz                │  │  │
-  │  │  │ 高IPC       │  │ 低消費電力             │  │  │
+  │  │  │ Performance │  │ Efficiency Cores        │  │  │
+  │  │  │ Cores       │  │ (E-core)               │  │  │
+  │  │  │ (P-core)    │  │ 4-6 cores              │  │  │
+  │  │  │ 2-4 cores   │  │ 1-2 GHz               │  │  │
+  │  │  │ 3-4 GHz     │  │ Low power              │  │  │
+  │  │  │ High IPC    │  │ consumption            │  │  │
   │  │  └─────────────┘  └────────────────────────┘  │  │
   │  └───────────────────────────────────────────────┘  │
   │                                                     │
   │  ┌──────────┐ ┌──────────┐ ┌──────────┐            │
   │  │   GPU    │ │  NPU/    │ │  ISP     │            │
-  │  │  (描画)  │ │  Neural  │ │ (カメラ  │            │
-  │  │          │ │  Engine  │ │  処理)   │            │
+  │  │(Graphics)│ │  Neural  │ │ (Camera  │            │
+  │  │          │ │  Engine  │ │  Proc.)  │            │
   │  └──────────┘ └──────────┘ └──────────┘            │
   │                                                     │
   │  ┌──────────┐ ┌──────────┐ ┌──────────┐            │
-  │  │ モデム   │ │ Secure   │ │ メモリ   │            │
-  │  │ (5G/LTE) │ │ Enclave  │ │コントローラ│            │
+  │  │ Modem   │ │ Secure   │ │ Memory   │            │
+  │  │ (5G/LTE)│ │ Enclave  │ │Controller│            │
   │  └──────────┘ └──────────┘ └──────────┘            │
   └─────────────────────────────────────────────────────┘
 
   DVFS (Dynamic Voltage and Frequency Scaling):
   ─────────────────────────────────────────────
-  負荷に応じて CPU の電圧と周波数を動的に変更する
+  Dynamically adjusts CPU voltage and frequency based on load
 
-  消費電力 ∝ C × V² × f
-    C = キャパシタンス (回路の複雑さ)
-    V = 動作電圧
-    f = クロック周波数
+  Power consumption ∝ C x V^2 x f
+    C = Capacitance (circuit complexity)
+    V = Operating voltage
+    f = Clock frequency
 
-  → 電圧を半分にすれば消費電力は 1/4 に
-  → 軽いタスクは E-core + 低周波数で処理
-  → 重いタスクのみ P-core + 高周波数を使用
+  -> Halving the voltage reduces power consumption to 1/4
+  -> Light tasks use E-core + low frequency
+  -> Only heavy tasks use P-core + high frequency
 ```
 
-### 5.2 iOS の電力管理
+### 5.2 iOS Power Management
 
-iOS は以下の多層的な電力管理メカニズムを実装している。
+iOS implements the following multi-layered power management mechanisms.
 
-| 機能 | 説明 | 効果 |
-|------|------|------|
-| **Background App Refresh** | 使用パターンに基づいてバックグラウンド更新タイミングを最適化 | 不要な起動を排除 |
-| **App Nap** | 非表示のアプリのタイマー・ネットワーク活動を抑制 | CPU 使用を最小化 |
-| **Coalesced Timer** | 複数アプリのタイマーをまとめて処理 | CPU 起床回数を削減 |
-| **Discretionary Background Tasks** | OS が最適な実行タイミングを決定 | 充電中・WiFi 接続時に実行 |
-| **Low Power Mode** | ユーザ操作で省電力モードを有効化 | バックグラウンド停止、描画レート低下、5G無効化 |
-| **Thermal Throttling** | サーマルセンサーに基づく段階的パフォーマンス制限 | 過熱を防止 |
+| Feature | Description | Effect |
+|---------|-------------|--------|
+| **Background App Refresh** | Optimizes background update timing based on usage patterns | Eliminates unnecessary launches |
+| **App Nap** | Suppresses timer and network activity for hidden apps | Minimizes CPU usage |
+| **Coalesced Timer** | Batches timers from multiple apps | Reduces CPU wake-up count |
+| **Discretionary Background Tasks** | OS determines optimal execution timing | Executes during charging / WiFi connection |
+| **Low Power Mode** | User-activated power saving mode | Stops background tasks, reduces frame rate, disables 5G |
+| **Thermal Throttling** | Graduated performance limiting based on thermal sensors | Prevents overheating |
 
-### 5.3 Android の電力管理: Doze と App Standby
+### 5.3 Android Power Management: Doze and App Standby
 
-Android 6.0 で導入された Doze モードは、端末が静止・画面オフ・未充電の状態が続くと段階的に制限を強化する。
+Doze mode, introduced in Android 6.0, progressively strengthens restrictions when the device is stationary, screen-off, and not charging.
 
 ```
-Android Doze モードの段階的制限
+Android Doze Mode Progressive Restrictions
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  画面ON                    画面OFF + 静止 + 未充電
-  ──────►                  ──────────────────────►
-                                    時間経過
+  Screen ON                  Screen OFF + Stationary + Not charging
+  ──────►                   ──────────────────────►
+                                    Time elapsed
   ┌──────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐
-  │通常  │  │ Light    │  │ Deep     │  │ Deep     │
-  │動作  │→│ Doze    │→│ Doze    │→│ Doze    │
-  │      │  │ (軽度)   │  │ (初期)   │  │ (完全)   │
+  │Normal│  │ Light    │  │ Deep     │  │ Deep     │
+  │Opera-│->│ Doze    │->│ Doze    │->│ Doze    │
+  │tion  │  │ (Light)  │  │ (Initial)│  │ (Full)   │
   └──────┘  └──────────┘  └──────────┘  └──────────┘
 
-  Light Doze (数分後):
-  ├── ネットワークアクセス: 制限
-  ├── ジョブ/同期: 延期
-  ├── アラーム: 延期 (setExactAndAllowWhileIdle は許可)
-  └── GPS: 停止
+  Light Doze (after a few minutes):
+  ├── Network access: Restricted
+  ├── Jobs/sync: Deferred
+  ├── Alarms: Deferred (setExactAndAllowWhileIdle allowed)
+  └── GPS: Stopped
 
-  Deep Doze (約30分後):
-  ├── ネットワークアクセス: 停止
-  ├── WiFi スキャン: 停止
-  ├── wakelocks: 無視
-  ├── アラーム: 延期
-  └── ジョブ/同期: すべて延期
+  Deep Doze (after ~30 minutes):
+  ├── Network access: Stopped
+  ├── WiFi scans: Stopped
+  ├── wakelocks: Ignored
+  ├── Alarms: Deferred
+  └── Jobs/sync: All deferred
 
-  メンテナンスウィンドウ:
+  Maintenance Windows:
   ┌───┐     ┌───┐          ┌───┐               ┌───┐
   │   │     │   │          │   │               │   │
-  │処理│     │処理│          │処理│               │処理│
+  │Pro│     │Pro│          │Pro│               │Pro│
+  │ces│     │ces│          │ces│               │ces│
   │   │     │   │          │   │               │   │
   └─┬─┘     └─┬─┘          └─┬─┘               └─┬─┘
     │  Doze    │    Doze      │      Doze          │
     ├─────────┤              │                    │
-    │ 短い間隔 │              │                    │
+    │ Short   │              │                    │
+    │ interval│              │                    │
     ├─────────┴──────────────┤                    │
-    │       間隔が徐々に延びる│                    │
+    │  Intervals gradually   │                    │
+    │  increase              │                    │
     ├────────────────────────┴────────────────────┤
-    │              最大間隔は数時間                │
+    │       Maximum interval is several hours     │
 
   App Standby Buckets (Android 9+):
   ┌───────────┬──────────────┬──────────────────────┐
-  │ バケット   │ ジョブ上限   │ 条件                 │
+  │ Bucket    │ Job Limit    │ Condition             │
   ├───────────┼──────────────┼──────────────────────┤
-  │ Active    │ 制限なし     │ 現在使用中            │
-  │ Working   │ 2時間に1回   │ 頻繁に使用            │
-  │ Frequent  │ 8時間に1回   │ 定期的に使用          │
-  │ Rare      │ 24時間に1回  │ めったに使わない      │
-  │ Restricted│ 1日1回       │ ほぼ使わない(Android12)│
+  │ Active    │ No limit     │ Currently in use      │
+  │ Working   │ Once per 2hr │ Frequently used       │
+  │ Frequent  │ Once per 8hr │ Regularly used        │
+  │ Rare      │ Once per 24hr│ Rarely used           │
+  │ Restricted│ Once per day │ Almost never (And.12) │
   └───────────┴──────────────┴──────────────────────┘
 ```
 
-### 5.4 CPU スケジューリングの比較
+### 5.4 CPU Scheduling Comparison
 
-| 観点 | iOS (XNU) | Android (Linux) |
-|------|-----------|----------------|
-| スケジューラ | Mach 優先度スケジューラ | CFS (Completely Fair Scheduler) |
-| 優先度レベル | 128 段階 (0-127) | nice 値 (-20 to 19) + RT 優先度 |
-| リアルタイム | FIFO / RR (Mach RT threads) | SCHED_FIFO / SCHED_RR |
-| QoS 分類 | UserInteractive, UserInitiated, Utility, Background | THREAD_PRIORITY_* |
-| big.LITTLE 制御 | OS が完全制御 (非公開アルゴリズム) | EAS (Energy Aware Scheduling) |
-| UI 優先 | Main Thread 最高優先度 | RenderThread 優先 (Android 11+) |
+| Aspect | iOS (XNU) | Android (Linux) |
+|--------|-----------|----------------|
+| Scheduler | Mach priority scheduler | CFS (Completely Fair Scheduler) |
+| Priority Levels | 128 levels (0-127) | nice value (-20 to 19) + RT priority |
+| Real-time | FIFO / RR (Mach RT threads) | SCHED_FIFO / SCHED_RR |
+| QoS Classification | UserInteractive, UserInitiated, Utility, Background | THREAD_PRIORITY_* |
+| big.LITTLE Control | Fully OS controlled (proprietary algorithm) | EAS (Energy Aware Scheduling) |
+| UI Priority | Main Thread highest priority | RenderThread priority (Android 11+) |
 
 ---
 
-## 6. セキュリティモデルとサンドボックス
+## 6. Security Model and Sandboxing
 
-### 6.1 多層防御アーキテクチャ
+### 6.1 Defense in Depth Architecture
 
-モバイルOSのセキュリティは、ハードウェアからアプリケーション層まで一貫した多層防御 (Defense in Depth) で設計されている。
+Mobile OS security is designed with consistent defense in depth from hardware to application layers.
 
 ```
-モバイルOS セキュリティ多層防御モデル
+Mobile OS Security Defense in Depth Model
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  攻撃者 ─────────────────────────────────────────────►
+  Attacker ─────────────────────────────────────────────►
 
-  Layer 7: アプリケーション層
+  Layer 7: Application Layer
   ┌─────────────────────────────────────────────────┐
-  │ ・App Store / Play Store 審査                   │
-  │ ・コード署名 (必須)                              │
-  │ ・Runtime 権限チェック                           │
+  │ - App Store / Play Store review                 │
+  │ - Code signing (mandatory)                      │
+  │ - Runtime permission checks                     │
   └─────────────────────────────┬───────────────────┘
-                                │ 突破した場合
-  Layer 6: サンドボックス層      ▼
+                                │ If breached
+  Layer 6: Sandbox Layer        ▼
   ┌─────────────────────────────────────────────────┐
-  │ ・iOS: App Sandbox (Seatbelt)                   │
-  │ ・Android: SELinux + UID 分離 + seccomp-bpf     │
-  │ ・各アプリは隔離された環境で実行                  │
+  │ - iOS: App Sandbox (Seatbelt)                   │
+  │ - Android: SELinux + UID isolation + seccomp-bpf│
+  │ - Each app runs in an isolated environment       │
   └─────────────────────────────┬───────────────────┘
-                                │ 突破した場合
-  Layer 5: ランタイム保護層      ▼
+                                │ If breached
+  Layer 5: Runtime Protection   ▼
   ┌─────────────────────────────────────────────────┐
-  │ ・ASLR (Address Space Layout Randomization)     │
-  │ ・Stack Canary / Stack Protector                │
-  │ ・PAC (Pointer Authentication, ARM v8.3+)       │
-  │ ・MTE (Memory Tagging Extension, Android 14+)   │
-  │ ・CFI (Control Flow Integrity)                  │
+  │ - ASLR (Address Space Layout Randomization)     │
+  │ - Stack Canary / Stack Protector                │
+  │ - PAC (Pointer Authentication, ARM v8.3+)       │
+  │ - MTE (Memory Tagging Extension, Android 14+)   │
+  │ - CFI (Control Flow Integrity)                  │
   └─────────────────────────────┬───────────────────┘
-                                │ 突破した場合
-  Layer 4: カーネル保護層        ▼
+                                │ If breached
+  Layer 4: Kernel Protection    ▼
   ┌─────────────────────────────────────────────────┐
-  │ ・KTRR / CTRR (iOS: カーネルテキスト読取専用)    │
-  │ ・KASLR (カーネル ASLR)                         │
-  │ ・W^X (Write XOR Execute) ポリシー              │
-  │ ・PPL (Page Protection Layer, iOS)              │
+  │ - KTRR / CTRR (iOS: kernel text read-only)      │
+  │ - KASLR (Kernel ASLR)                           │
+  │ - W^X (Write XOR Execute) policy                │
+  │ - PPL (Page Protection Layer, iOS)              │
   └─────────────────────────────┬───────────────────┘
-                                │ 突破した場合
-  Layer 3: ファームウェア層      ▼
+                                │ If breached
+  Layer 3: Firmware Layer       ▼
   ┌─────────────────────────────────────────────────┐
-  │ ・Secure Boot Chain (ブート検証の連鎖)           │
-  │ ・iOS: iBoot → カーネル → kext 全段階で署名検証 │
-  │ ・Android: Verified Boot (AVB 2.0)              │
-  │ ・ブートローダロック                             │
+  │ - Secure Boot Chain (chain of boot verification) │
+  │ - iOS: iBoot -> Kernel -> kext all stages signed │
+  │ - Android: Verified Boot (AVB 2.0)              │
+  │ - Bootloader lock                               │
   └─────────────────────────────┬───────────────────┘
-                                │ 突破した場合
-  Layer 2: ハードウェアセキュリティ ▼
+                                │ If breached
+  Layer 2: Hardware Security    ▼
   ┌─────────────────────────────────────────────────┐
-  │ ・Secure Enclave (iOS) / Titan M (Pixel)        │
-  │ ・TrustZone (ARM)                               │
-  │ ・eFuse (ワンタイムプログラマブル)               │
-  │ ・物理攻撃対策 (tamper detection)                │
+  │ - Secure Enclave (iOS) / Titan M (Pixel)        │
+  │ - TrustZone (ARM)                               │
+  │ - eFuse (one-time programmable)                  │
+  │ - Physical attack countermeasures (tamper detect)│
   └─────────────────────────────┬───────────────────┘
-                                │ 突破した場合
-  Layer 1: 暗号化基盤            ▼
+                                │ If breached
+  Layer 1: Cryptographic Foundation ▼
   ┌─────────────────────────────────────────────────┐
-  │ ・FBE (File-Based Encryption)                   │
-  │ ・AES-256-XTS (ストレージ暗号化)                │
-  │ ・ハードウェアバウンド暗号鍵 (SEPから取得不可)   │
-  │ ・Secure Element (eSIM, NFC決済)                │
+  │ - FBE (File-Based Encryption)                   │
+  │ - AES-256-XTS (storage encryption)              │
+  │ - Hardware-bound keys (non-extractable from SEP)│
+  │ - Secure Element (eSIM, NFC payments)           │
   └─────────────────────────────────────────────────┘
 ```
 
-### 6.2 サンドボックスの実装詳細
+### 6.2 Sandbox Implementation Details
 
-**iOS サンドボックス (Seatbelt / sandbox_init)**
+**iOS Sandbox (Seatbelt / sandbox_init)**
 
-iOS では各アプリに専用のコンテナディレクトリが割り当てられ、そこからの脱出は原則不可能である。
+In iOS, each app is assigned a dedicated container directory, and escaping from it is essentially impossible.
 
 ```
-iOS アプリ サンドボックス構造
+iOS App Sandbox Structure
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   /var/mobile/Containers/
   ├── Bundle/
   │   └── Application/
   │       └── <UUID>/
-  │           └── MyApp.app/     ← 読み取り専用
-  │               ├── MyApp      (実行バイナリ)
+  │           └── MyApp.app/     <- Read-only
+  │               ├── MyApp      (executable binary)
   │               ├── Info.plist
   │               └── Assets/
   │
   └── Data/
       └── Application/
-          └── <UUID>/            ← アプリ固有のデータ領域
-              ├── Documents/     ← ユーザデータ (iCloud同期可)
+          └── <UUID>/            <- App-specific data area
+              ├── Documents/     <- User data (iCloud sync capable)
               ├── Library/
-              │   ├── Caches/    ← キャッシュ (OS削除可)
-              │   └── Preferences/ ← UserDefaults
-              ├── tmp/           ← 一時ファイル (OS削除可)
-              └── SystemData/    ← システム管理データ
+              │   ├── Caches/    <- Cache (OS may delete)
+              │   └── Preferences/ <- UserDefaults
+              ├── tmp/           <- Temporary files (OS may delete)
+              └── SystemData/    <- System-managed data
 
-  アクセス制御:
+  Access Control:
   ┌────────────────────────┬──────────────────────┐
-  │ リソース               │ アクセス              │
+  │ Resource               │ Access               │
   ├────────────────────────┼──────────────────────┤
-  │ 自アプリのコンテナ     │ 読み書き可            │
-  │ 他アプリのコンテナ     │ アクセス不可          │
-  │ システムファイル       │ アクセス不可          │
-  │ カメラ/マイク          │ ユーザ許可が必要      │
-  │ 位置情報              │ ユーザ許可が必要      │
-  │ 連絡先/カレンダー     │ ユーザ許可が必要      │
-  │ ネットワーク          │ 許可制 (iOS 14+)     │
-  │ Bluetooth             │ ユーザ許可が必要      │
-  │ Keychain              │ 同一チームIDのみ共有  │
+  │ Own app container      │ Read/write           │
+  │ Other app containers   │ No access            │
+  │ System files           │ No access            │
+  │ Camera/Microphone      │ User permission req. │
+  │ Location               │ User permission req. │
+  │ Contacts/Calendar      │ User permission req. │
+  │ Network                │ Permission (iOS 14+) │
+  │ Bluetooth              │ User permission req. │
+  │ Keychain               │ Same Team ID only    │
   └────────────────────────┴──────────────────────┘
 ```
 
-**Android のセキュリティ境界**
+**Android Security Boundaries**
 
-Android は Linux の UID ベースの分離と SELinux の強制アクセス制御を組み合わせる。
+Android combines Linux UID-based isolation with SELinux mandatory access control.
 
 ```
-Android アプリ分離モデル
+Android App Isolation Model
 ━━━━━━━━━━━━━━━━━━━━━━━━
 
-  インストール時:
+  At install time:
   ┌──────────────────────────────────────────┐
-  │ PackageManager がアプリに固有の           │
-  │ Linux UID/GID を割り当て                  │
+  │ PackageManager assigns a unique          │
+  │ Linux UID/GID to each app               │
   │                                          │
-  │ com.example.app1 → UID 10045             │
-  │ com.example.app2 → UID 10046             │
-  │ com.example.app3 → UID 10047             │
+  │ com.example.app1 -> UID 10045            │
+  │ com.example.app2 -> UID 10046            │
+  │ com.example.app3 -> UID 10047            │
   └──────────────────────────────────────────┘
 
-  データディレクトリ:
-  /data/data/com.example.app1/   (UID 10045 のみアクセス可)
-  ├── databases/                 (SQLite データベース)
+  Data directories:
+  /data/data/com.example.app1/   (accessible only by UID 10045)
+  ├── databases/                 (SQLite databases)
   ├── shared_prefs/              (SharedPreferences XML)
-  ├── files/                     (内部ストレージ)
-  └── cache/                     (キャッシュ)
+  ├── files/                     (internal storage)
+  └── cache/                     (cache)
 
-  SELinux ポリシー (Android 5.0+):
+  SELinux Policy (Android 5.0+):
   ┌────────────────────────────────────────────────┐
-  │ 全アプリに SELinux コンテキストが割り当てられる │
+  │ All apps are assigned SELinux contexts          │
   │                                                │
-  │ untrusted_app : 通常のサードパーティアプリ      │
-  │ platform_app  : system パーティションのアプリ   │
-  │ priv_app      : 特権アプリ                     │
-  │ isolated_app  : WebView レンダラなど (最小権限) │
+  │ untrusted_app : Normal third-party apps         │
+  │ platform_app  : System partition apps           │
+  │ priv_app      : Privileged apps                 │
+  │ isolated_app  : WebView renderers, etc. (min)   │
   │                                                │
-  │ ポリシー例:                                    │
+  │ Policy example:                                │
   │ allow untrusted_app app_data_file:file          │
   │   { read write create };                       │
   │ neverallow untrusted_app system_data_file:file  │
@@ -1238,58 +1252,60 @@ Android アプリ分離モデル
 
   Scoped Storage (Android 10+):
   ┌────────────────────────────────────────────────┐
-  │ 外部ストレージへのアクセスを MediaStore 経由に  │
-  │ 制限し、他アプリのファイルに直接アクセス不可     │
+  │ Restricts external storage access to           │
+  │ MediaStore, preventing direct access to        │
+  │ other apps' files                              │
   │                                                │
   │ /storage/emulated/0/                           │
-  │ ├── DCIM/     ← MediaStore.Images 経由         │
-  │ ├── Music/    ← MediaStore.Audio 経由          │
-  │ ├── Download/ ← SAF (Storage Access Framework)  │
+  │ ├── DCIM/     <- via MediaStore.Images         │
+  │ ├── Music/    <- via MediaStore.Audio           │
+  │ ├── Download/ <- SAF (Storage Access Framework) │
   │ └── Android/data/com.example.app/              │
-  │               ← アプリ専用 (他からアクセス不可) │
+  │               <- App-exclusive (no other access)│
   └────────────────────────────────────────────────┘
 ```
 
-### 6.3 権限モデルの進化
+### 6.3 Evolution of Permission Models
 
-| バージョン | iOS | Android |
-|-----------|-----|---------|
-| 初期 | インストール時に全権限付与 | インストール時に全権限付与 |
-| 過渡期 | iOS 6: 一部の権限で実行時許可 | Android 6.0: 危険な権限は実行時許可 |
-| 現在 | iOS 14+: 概算位置、限定写真アクセス、Appトラッキング透明性 | Android 12+: 概算位置、近くのデバイス権限、写真ピッカー |
-| 最新 | iOS 17+: 権限のリセット、通信安全性 | Android 14+: 写真/動画の部分アクセス、健康データ専用権限 |
+| Version | iOS | Android |
+|---------|-----|---------|
+| Initial | All permissions at install | All permissions at install |
+| Transitional | iOS 6: Runtime permission for some | Android 6.0: Runtime for dangerous |
+| Current | iOS 14+: Approximate location, limited photo access, App Tracking Transparency | Android 12+: Approximate location, nearby device permission, photo picker |
+| Latest | iOS 17+: Permission reset, communication safety | Android 14+: Partial photo/video access, health data permission |
 
 ---
 
-## 7. プロセス間通信とプッシュ通知
+## 7. Inter-Process Communication and Push Notifications
 
-### 7.1 IPC メカニズムの比較
+### 7.1 IPC Mechanism Comparison
 
 ```
-モバイルOS における IPC メカニズム
+IPC Mechanisms in Mobile OS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  iOS の IPC:
+  iOS IPC:
   ┌────────────────────────────────────────────────────┐
   │                                                    │
   │  ┌─────────┐  Mach Port   ┌─────────┐             │
-  │  │ App A   │─────────────►│ App B   │  限定的     │
-  │  └─────────┘  (カーネル経由)└─────────┘             │
+  │  │ App A   │─────────────►│ App B   │  Limited     │
+  │  └─────────┘  (via kernel) └─────────┘             │
   │                                                    │
-  │  主な IPC 手段:                                    │
-  │  1. XPC Services    ─ 特権分離されたヘルパー        │
-  │  2. URL Scheme      ─ アプリ間のディープリンク       │
-  │  3. Universal Links ─ HTTP URL からのアプリ起動     │
-  │  4. App Groups      ─ 同一開発者のアプリ間データ共有 │
-  │  5. UIPasteboard    ─ クリップボード経由            │
-  │  6. Extensions      ─ Share, Today, Action         │
-  │  7. App Intents     ─ Siri / ショートカット統合     │
+  │  Primary IPC mechanisms:                           │
+  │  1. XPC Services    - Privilege-separated helpers   │
+  │  2. URL Scheme      - Deep links between apps       │
+  │  3. Universal Links - App launch from HTTP URL      │
+  │  4. App Groups      - Data sharing within same dev  │
+  │  5. UIPasteboard    - Via clipboard                 │
+  │  6. Extensions      - Share, Today, Action          │
+  │  7. App Intents     - Siri / Shortcuts integration  │
   │                                                    │
-  │  制約: 任意のアプリ間で直接通信は不可               │
-  │       すべて OS が仲介する                         │
+  │  Constraint: Direct communication between           │
+  │             arbitrary apps is not possible           │
+  │             OS mediates everything                   │
   └────────────────────────────────────────────────────┘
 
-  Android の IPC (Binder):
+  Android IPC (Binder):
   ┌────────────────────────────────────────────────────┐
   │                                                    │
   │  ┌─────────┐   Binder    ┌─────────┐              │
@@ -1298,86 +1314,87 @@ Android アプリ分離モデル
   │  └─────────┘     │       └─────────┘              │
   │                  │                                 │
   │          ┌───────┴───────┐                         │
-  │          │ Binder Driver │  カーネル空間            │
-  │          │ (1回コピー)   │  copy_from_user →       │
-  │          │               │  target の mmap 領域へ   │
+  │          │ Binder Driver │  Kernel space            │
+  │          │ (single copy) │  copy_from_user ->       │
+  │          │               │  target's mmap region    │
   │          └───────────────┘                         │
   │                                                    │
-  │  主な IPC 手段:                                    │
-  │  1. Intent         ─ コンポーネント間メッセージング │
-  │  2. AIDL           ─ プロセス間メソッド呼び出し     │
-  │  3. ContentProvider─ 構造化データの共有             │
-  │  4. Messenger      ─ Handler ベースのメッセージ     │
-  │  5. BroadcastReceiver ─ システムイベント通知        │
-  │  6. FileProvider   ─ ファイル共有 (URI 経由)       │
+  │  Primary IPC mechanisms:                           │
+  │  1. Intent         - Inter-component messaging      │
+  │  2. AIDL           - Cross-process method calls     │
+  │  3. ContentProvider- Structured data sharing        │
+  │  4. Messenger      - Handler-based messaging        │
+  │  5. BroadcastReceiver - System event notification   │
+  │  6. FileProvider   - File sharing (via URI)         │
   │                                                    │
-  │  Binder の特長:                                    │
-  │  ・1回のメモリコピーで転送 (送信→カーネルmmap)     │
-  │  ・呼び出し元の UID/PID を自動検証 (なりすまし防止) │
-  │  ・参照カウント管理 (death notification)            │
-  │  ・16MB のトランザクションバッファ上限              │
+  │  Binder features:                                  │
+  │  - Single memory copy transfer (send->kernel mmap) │
+  │  - Auto-verifies caller UID/PID (anti-spoofing)    │
+  │  - Reference count management (death notification)  │
+  │  - 16MB transaction buffer limit                    │
   └────────────────────────────────────────────────────┘
 ```
 
-### 7.2 プッシュ通知アーキテクチャ
+### 7.2 Push Notification Architecture
 
-プッシュ通知は、各アプリが独自にサーバとの常時接続を維持する代わりに、OS が一元管理する単一の接続を共有する仕組みである。
+Push notifications are a mechanism where, instead of each app maintaining its own persistent server connection, the OS centrally manages a single shared connection.
 
 ```
-プッシュ通知のアーキテクチャ比較
+Push Notification Architecture Comparison
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   iOS (APNs: Apple Push Notification service):
-  ┌──────────┐    HTTPS     ┌──────────┐   TLS 常時接続  ┌──────────┐
-  │ アプリ   │─────────────►│  APNs    │───────────────►│  iOS     │
-  │ サーバ   │  証明書認証   │  サーバ  │  Port 5223     │  デバイス│
-  └──────────┘              └──────────┘                └──────────┘
+  ┌──────────┐    HTTPS     ┌──────────┐   TLS persistent ┌──────────┐
+  │ App      │─────────────►│  APNs    │───────────────►│  iOS     │
+  │ Server   │  Certificate │  Server  │  Port 5223     │  Device  │
+  └──────────┘  auth        └──────────┘                └──────────┘
        │                         │                          │
-       │ 1. デバイストークン取得  │                          │
+       │ 1. Get device token     │                          │
        │◄────────────────────────┤◄─────────────────────────┤
-       │                         │ 2. 通知ペイロード送信     │
-       │────────────────────────►│                          │
-       │                         │ 3. デバイスへ配信         │
+       │                         │ 2. Send notification      │
+       │────────────────────────►│  payload                  │
+       │                         │ 3. Deliver to device      │
        │                         │─────────────────────────►│
-       │                         │                     4. アプリに通知
+       │                         │                     4. Process in app
        │                         │                     UNUserNotification
-       │                         │                     Center で処理
+       │                         │                     Center handles it
 
   Android (FCM: Firebase Cloud Messaging):
   ┌──────────┐    HTTPS     ┌──────────┐   XMPP/HTTPS   ┌──────────┐
-  │ アプリ   │─────────────►│  FCM     │───────────────►│ Android  │
-  │ サーバ   │  APIキー認証  │  サーバ  │  GMS 経由      │  デバイス│
+  │ App      │─────────────►│  FCM     │───────────────►│ Android  │
+  │ Server   │  API key auth│  Server  │  via GMS       │  Device  │
   └──────────┘              └──────────┘                └──────────┘
        │                         │                          │
-       │ 1. 登録トークン取得      │                          │
+       │ 1. Get registration     │                          │
+       │    token                │                          │
        │◄────────────────────────┤◄─────────────────────────┤
-       │                         │ 2. メッセージ送信         │
+       │                         │ 2. Send message          │
        │────────────────────────►│                          │
-       │                         │ 3. GCM Connection        │
-       │                         │    Service 経由で配信     │
+       │                         │ 3. Deliver via GCM       │
+       │                         │    Connection Service     │
        │                         │─────────────────────────►│
        │                         │                     4. onMessageReceived
        │                         │                     FirebaseMessaging
-       │                         │                     Service で処理
+       │                         │                     Service handles it
 
-  比較:
+  Comparison:
   ┌─────────────────┬──────────────────┬──────────────────┐
-  │ 項目            │ APNs (iOS)       │ FCM (Android)    │
+  │ Item            │ APNs (iOS)       │ FCM (Android)    │
   ├─────────────────┼──────────────────┼──────────────────┤
-  │ 接続プロトコル  │ 独自 (TLS)       │ XMPP / HTTP/2    │
-  │ ペイロード上限  │ 4 KB             │ 4 KB (データ)    │
-  │ 優先度          │ 5 (即時) / 1-4   │ High / Normal    │
-  │ トピック購読    │ あり             │ あり             │
-  │ サイレント通知  │ content-available│ data message     │
-  │ Doze 中の配信   │ N/A              │ High のみ配信    │
-  │ GMS 依存        │ なし (OS 内蔵)   │ あり (GMS必須)   │
-  │ 信頼性          │ Best Effort      │ Best Effort      │
+  │ Protocol        │ Proprietary (TLS)│ XMPP / HTTP/2    │
+  │ Payload limit   │ 4 KB             │ 4 KB (data)      │
+  │ Priority        │ 5 (immediate)/1-4│ High / Normal    │
+  │ Topic subscribe │ Yes              │ Yes              │
+  │ Silent notif.   │ content-available│ data message     │
+  │ Doze delivery   │ N/A              │ High only        │
+  │ GMS dependency  │ None (OS built-in)│ Yes (GMS req.)  │
+  │ Reliability     │ Best Effort      │ Best Effort      │
   └─────────────────┴──────────────────┴──────────────────┘
 ```
 
-### 7.3 コード例: プッシュ通知の実装
+### 7.3 Code Example: Push Notification Implementation
 
-**コード例5: Android (Kotlin) ── FCM 通知の受信と処理**
+**Code Example 5: Android (Kotlin) -- FCM Notification Reception and Processing**
 
 ```kotlin
 import android.app.NotificationChannel
@@ -1392,57 +1409,57 @@ import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 
 /**
- * Firebase Cloud Messaging (FCM) の通知受信サービス
+ * Firebase Cloud Messaging (FCM) notification receiver service
  *
- * このサービスは以下の2種類のメッセージを処理する:
- * 1. 通知メッセージ (notification) - OS が自動表示
- * 2. データメッセージ (data) - アプリが処理を制御
+ * This service handles the following two types of messages:
+ * 1. Notification messages (notification) - Automatically displayed by OS
+ * 2. Data messages (data) - App controls the processing
  *
- * Doze モード中でも High Priority メッセージは配信される。
+ * Even during Doze mode, High Priority messages are delivered.
  */
 class AppFirebaseMessagingService : FirebaseMessagingService() {
 
     companion object {
         private const val TAG = "FCMService"
         private const val CHANNEL_ID = "default_channel"
-        private const val CHANNEL_NAME = "一般通知"
+        private const val CHANNEL_NAME = "General Notifications"
     }
 
     /**
-     * FCM トークンが更新された時に呼ばれる
-     * 新しいトークンをアプリサーバに送信する必要がある
+     * Called when the FCM token is refreshed
+     * The new token must be sent to the app server
      */
     override fun onNewToken(token: String) {
         super.onNewToken(token)
-        Log.d(TAG, "FCM トークン更新: $token")
+        Log.d(TAG, "FCM token updated: $token")
         sendTokenToServer(token)
     }
 
     /**
-     * メッセージを受信した時に呼ばれる
+     * Called when a message is received
      *
-     * 注意:
-     * - フォアグラウンド: notification + data 両方ここで処理
-     * - バックグラウンド: notification は OS が表示、data のみここ
+     * Note:
+     * - Foreground: Both notification + data are processed here
+     * - Background: OS displays notification, only data comes here
      */
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
         super.onMessageReceived(remoteMessage)
 
-        Log.d(TAG, "送信元: ${remoteMessage.from}")
-        Log.d(TAG, "メッセージID: ${remoteMessage.messageId}")
+        Log.d(TAG, "From: ${remoteMessage.from}")
+        Log.d(TAG, "Message ID: ${remoteMessage.messageId}")
 
-        // データペイロードの処理
+        // Process data payload
         if (remoteMessage.data.isNotEmpty()) {
-            Log.d(TAG, "データ: ${remoteMessage.data}")
+            Log.d(TAG, "Data: ${remoteMessage.data}")
             handleDataMessage(remoteMessage.data)
         }
 
-        // 通知ペイロードの処理 (フォアグラウンド時)
+        // Process notification payload (when in foreground)
         remoteMessage.notification?.let { notification ->
-            Log.d(TAG, "通知タイトル: ${notification.title}")
-            Log.d(TAG, "通知本文: ${notification.body}")
+            Log.d(TAG, "Notification title: ${notification.title}")
+            Log.d(TAG, "Notification body: ${notification.body}")
             showNotification(
-                title = notification.title ?: "通知",
+                title = notification.title ?: "Notification",
                 body = notification.body ?: "",
                 data = remoteMessage.data
             )
@@ -1450,31 +1467,31 @@ class AppFirebaseMessagingService : FirebaseMessagingService() {
     }
 
     /**
-     * データメッセージの処理
-     * バックグラウンド同期やサイレント更新に使用
+     * Process data messages
+     * Used for background sync and silent updates
      */
     private fun handleDataMessage(data: Map<String, String>) {
         val type = data["type"] ?: return
         when (type) {
             "sync" -> {
-                // バックグラウンドデータ同期をスケジュール
-                Log.d(TAG, "同期リクエスト受信")
+                // Schedule background data sync
+                Log.d(TAG, "Sync request received")
             }
             "update" -> {
-                // アプリ内データの更新
+                // Update in-app data
                 val payload = data["payload"]
-                Log.d(TAG, "更新データ: $payload")
+                Log.d(TAG, "Update data: $payload")
             }
             "silent" -> {
-                // サイレント通知 (UI表示なし)
-                Log.d(TAG, "サイレント処理実行")
+                // Silent notification (no UI display)
+                Log.d(TAG, "Silent processing executed")
             }
         }
     }
 
     /**
-     * 通知の表示
-     * Android 8.0+ では NotificationChannel が必須
+     * Display notification
+     * NotificationChannel is required for Android 8.0+
      */
     private fun showNotification(
         title: String,
@@ -1485,20 +1502,20 @@ class AppFirebaseMessagingService : FirebaseMessagingService() {
             Context.NOTIFICATION_SERVICE
         ) as NotificationManager
 
-        // Android 8.0+ 用の通知チャンネル作成
+        // Create notification channel for Android 8.0+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 CHANNEL_NAME,
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "アプリの一般通知"
+                description = "General app notifications"
                 enableVibration(true)
             }
             notificationManager.createNotificationChannel(channel)
         }
 
-        // タップ時に開くActivityの設定
+        // Set Activity to open on tap
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP
             data.forEach { (key, value) -> putExtra(key, value) }
@@ -1508,7 +1525,7 @@ class AppFirebaseMessagingService : FirebaseMessagingService() {
             PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // 通知の構築と表示
+        // Build and display notification
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
@@ -1524,159 +1541,161 @@ class AppFirebaseMessagingService : FirebaseMessagingService() {
         )
     }
 
-    /** FCM トークンをアプリサーバに送信 */
+    /** Send FCM token to app server */
     private fun sendTokenToServer(token: String) {
-        // 実装: APIサーバにHTTPS POSTで送信
-        // RetrofitやOkHttpを使用するのが一般的
-        Log.d(TAG, "トークンをサーバに送信: $token")
+        // Implementation: Send via HTTPS POST to API server
+        // Typically using Retrofit or OkHttp
+        Log.d(TAG, "Sending token to server: $token")
     }
 }
 ```
 
 ---
 
-## 8. センサー・ハードウェア抽象化レイヤ
+## 8. Sensors and Hardware Abstraction Layer
 
-### 8.1 モバイル端末のセンサー群
+### 8.1 Sensor Array in Mobile Devices
 
-現代のスマートフォンには 10 種類以上のセンサーが搭載されている。これらのセンサーは OS のハードウェア抽象化レイヤ (HAL) を通じてアプリケーションに統一的な API を提供する。
+Modern smartphones are equipped with more than 10 types of sensors. These sensors provide a unified API to applications through the OS's Hardware Abstraction Layer (HAL).
 
 ```
-モバイル端末搭載センサー一覧
+Mobile Device Sensor Inventory
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   ┌──────────────────────────────────────────────────┐
-  │                スマートフォン断面図               │
+  │              Smartphone Cross-Section             │
   │                                                  │
-  │  [前面カメラ] [近接] [環境光] [Face ID/IRドット]  │
+  │  [Front Camera] [Proximity] [Ambient] [Face ID]  │
   │  ┌────────────────────────────────────────────┐  │
   │  │                                            │  │
-  │  │           ディスプレイ                      │  │
-  │  │         (タッチセンサー内蔵)                │  │
-  │  │         (画面内指紋センサー)                │  │
+  │  │           Display                          │  │
+  │  │         (Built-in touch sensor)            │  │
+  │  │         (Under-display fingerprint)        │  │
   │  │                                            │  │
   │  ├────────────────────────────────────────────┤  │
-  │  │  [加速度]  [ジャイロ]  [磁気]  [気圧]     │  │
-  │  │  [GPS/GNSS]  [UWB]  [WiFi RTT]            │  │
-  │  │  [NFC]  [温度]  [マイク x2-4]             │  │
-  │  │  [振動モータ (Haptic Engine)]              │  │
+  │  │  [Accel]  [Gyro]  [Mag]  [Barometer]      │  │
+  │  │  [GPS/GNSS]  [UWB]  [WiFi RTT]           │  │
+  │  │  [NFC]  [Temp]  [Mic x2-4]               │  │
+  │  │  [Vibration Motor (Haptic Engine)]        │  │
   │  ├────────────────────────────────────────────┤  │
-  │  │  [背面カメラ x2-4] [LiDAR] [ToF]          │  │
+  │  │  [Rear Camera x2-4] [LiDAR] [ToF]        │  │
   │  └────────────────────────────────────────────┘  │
   └──────────────────────────────────────────────────┘
 
-  センサー分類:
+  Sensor Classification:
   ┌──────────────┬────────────────────┬───────────────────┐
-  │ カテゴリ     │ センサー           │ 用途               │
+  │ Category     │ Sensor             │ Usage              │
   ├──────────────┼────────────────────┼───────────────────┤
-  │ 動き         │ 加速度計           │ 歩数、傾き検知     │
-  │              │ ジャイロスコープ   │ 回転検知、AR       │
-  │              │ 磁力計             │ コンパス           │
+  │ Motion       │ Accelerometer      │ Step count, tilt   │
+  │              │ Gyroscope          │ Rotation, AR       │
+  │              │ Magnetometer       │ Compass            │
   ├──────────────┼────────────────────┼───────────────────┤
-  │ 環境         │ 気圧計             │ 高度測定、天気     │
-  │              │ 環境光センサー     │ 画面輝度調整       │
-  │              │ 温度センサー       │ バッテリー/SoC温度 │
-  │              │ 湿度センサー       │ 環境モニタリング   │
+  │ Environment  │ Barometer          │ Altitude, weather  │
+  │              │ Ambient light      │ Screen brightness  │
+  │              │ Temperature sensor │ Battery/SoC temp   │
+  │              │ Humidity sensor    │ Env. monitoring    │
   ├──────────────┼────────────────────┼───────────────────┤
-  │ 位置         │ GPS/GNSS           │ 位置測位           │
-  │              │ WiFi RTT           │ 屋内測位           │
-  │              │ UWB                │ 近距離高精度測位   │
+  │ Location     │ GPS/GNSS           │ Positioning        │
+  │              │ WiFi RTT           │ Indoor positioning │
+  │              │ UWB                │ Close-range precise│
   ├──────────────┼────────────────────┼───────────────────┤
-  │ 近接/深度    │ 近接センサー       │ 通話時画面消灯     │
-  │              │ LiDAR/ToF          │ 3D空間スキャン     │
-  │              │ 構造化光 (Face ID) │ 顔認証             │
+  │ Proximity/   │ Proximity sensor   │ Screen off on call │
+  │ Depth        │ LiDAR/ToF          │ 3D spatial scan    │
+  │              │ Structured light   │ Face authentication│
   ├──────────────┼────────────────────┼───────────────────┤
-  │ 生体         │ 指紋センサー       │ 認証               │
-  │              │ TrueDepth カメラ   │ Face ID            │
+  │ Biometric    │ Fingerprint sensor │ Authentication     │
+  │              │ TrueDepth camera   │ Face ID            │
   ├──────────────┼────────────────────┼───────────────────┤
-  │ 通信         │ NFC                │ 非接触決済         │
-  │              │ Bluetooth 5.x     │ 周辺機器接続       │
-  │              │ WiFi 6E/7          │ 高速通信           │
+  │ Communication│ NFC                │ Contactless payment│
+  │              │ Bluetooth 5.x     │ Peripheral connect │
+  │              │ WiFi 6E/7          │ High-speed comm.   │
   └──────────────┴────────────────────┴───────────────────┘
 ```
 
-### 8.2 HAL (Hardware Abstraction Layer) の設計
+### 8.2 HAL (Hardware Abstraction Layer) Design
 
 ```
-iOS IOKit vs Android HAL ── ドライバ抽象化の比較
+iOS IOKit vs Android HAL -- Driver Abstraction Comparison
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   iOS (IOKit):
   ┌─────────────────────────────────────────┐
-  │ アプリケーション (Swift/ObjC)           │
+  │ Application (Swift/ObjC)                │
   ├─────────────────────────────────────────┤
-  │ Framework (CoreMotion, CoreLocation)   │
+  │ Framework (CoreMotion, CoreLocation)    │
   ├─────────────────────────────────────────┤
-  │ IOKit User Client (ユーザ空間ドライバ) │
+  │ IOKit User Client (user-space driver)   │
   ├─────────────────────────────────────────┤
-  │ IOKit Kernel (C++ オブジェクト階層)     │
-  │  IOService → IOHIDDevice               │
-  │           → IOAccelerator              │
-  │           → AppleSensorKit             │
+  │ IOKit Kernel (C++ object hierarchy)     │
+  │  IOService -> IOHIDDevice               │
+  │           -> IOAccelerator              │
+  │           -> AppleSensorKit             │
   ├─────────────────────────────────────────┤
-  │ ハードウェア                            │
+  │ Hardware                                │
   └─────────────────────────────────────────┘
 
-  Android (Project Treble 以降 HIDL/AIDL HAL):
+  Android (Post-Project Treble HIDL/AIDL HAL):
   ┌─────────────────────────────────────────┐
-  │ アプリケーション (Kotlin/Java)          │
+  │ Application (Kotlin/Java)               │
   ├─────────────────────────────────────────┤
-  │ Framework API (SensorManager 等)       │
+  │ Framework API (SensorManager, etc.)     │
   ├─────────────────────────────────────────┤
-  │ System Server (system_server プロセス)  │
+  │ System Server (system_server process)   │
   ├─────────────────────────────────────────┤
   │ HIDL/AIDL HAL Interface                 │
   │  (android.hardware.sensors@2.1)         │
-  │  ← ベンダーとフレームワークの境界       │
+  │  <- Boundary between vendor and framework│
   ├─────────────────────────────────────────┤
-  │ Vendor HAL 実装 (ベンダー提供)          │
-  │  (Qualcomm, Samsung, MediaTek 等)       │
+  │ Vendor HAL Implementation (vendor-      │
+  │  provided: Qualcomm, Samsung, MediaTek) │
   ├─────────────────────────────────────────┤
-  │ カーネルドライバ                        │
+  │ Kernel Driver                           │
   ├─────────────────────────────────────────┤
-  │ ハードウェア                            │
+  │ Hardware                                │
   └─────────────────────────────────────────┘
 
-  Project Treble の意義:
+  Significance of Project Treble:
   ┌──────────────────────────────────────────────┐
   │ Before Treble:                                │
-  │  OS更新 = Google → SoC → OEM → キャリア     │
-  │  各段階でHAL修正が必要 → 更新に数ヶ月〜年    │
+  │  OS update = Google -> SoC -> OEM -> Carrier  │
+  │  HAL modifications needed at each stage       │
+  │  -> Updates took months to years              │
   │                                               │
   │ After Treble:                                 │
-  │  HALインターフェースが安定                     │
-  │  OS更新時にベンダーHALの再コンパイル不要       │
-  │  Generic System Image (GSI) でテスト可能       │
-  │  → 更新速度が大幅に改善                       │
+  │  HAL interface stabilized                      │
+  │  No vendor HAL recompilation on OS update     │
+  │  Testable with Generic System Image (GSI)     │
+  │  -> Update speed significantly improved        │
   └──────────────────────────────────────────────┘
 ```
 
-### 8.3 低消費電力コプロセッサ
+### 8.3 Low-Power Coprocessors
 
-メインCPUを起動せずにセンサーデータを処理する専用チップが、電力効率を大幅に向上させる。
+Dedicated chips that process sensor data without waking the main CPU dramatically improve power efficiency.
 
-| コプロセッサ | プラットフォーム | 機能 | 消費電力 |
-|-------------|----------------|------|---------|
-| Apple Motion Coprocessor (M-series) | iOS | 加速度・ジャイロ・気圧の常時監視、歩数カウント | メインCPUの約 1/100 |
-| Sensor Hub (Qualcomm SSC) | Android (Snapdragon) | Always-on センサー処理、Activity Recognition | 数 mW |
-| Samsung CHUB | Android (Exynos) | 環境センサー処理、ジェスチャー検知 | 数 mW |
-| Google Tensor Context Hub | Android (Pixel) | 顔検知、音楽認識、環境コンテキスト推定 | 数 mW |
+| Coprocessor | Platform | Function | Power Consumption |
+|-------------|----------|----------|-------------------|
+| Apple Motion Coprocessor (M-series) | iOS | Always-on monitoring of accelerometer, gyroscope, barometer; step counting | ~1/100 of main CPU |
+| Sensor Hub (Qualcomm SSC) | Android (Snapdragon) | Always-on sensor processing, Activity Recognition | Few mW |
+| Samsung CHUB | Android (Exynos) | Environmental sensor processing, gesture detection | Few mW |
+| Google Tensor Context Hub | Android (Pixel) | Face detection, music recognition, environmental context inference | Few mW |
 
-### 8.4 コード例: センサーの利用
+### 8.4 Code Example: Sensor Usage
 
-**コード例6: iOS (Swift) ── CoreMotion を用いた動作検知**
+**Code Example 6: iOS (Swift) -- Motion Detection Using CoreMotion**
 
 ```swift
 import CoreMotion
 import Foundation
 
 /**
- * CoreMotion を使ったデバイスの動き検知
+ * Device motion detection using CoreMotion
  *
- * Motion Coprocessor により、アプリがバックグラウンドでも
- * 低消費電力でセンサーデータを収集できる。
+ * The Motion Coprocessor enables low-power sensor data
+ * collection even when the app is in the background.
  *
- * 歩数計測、階段昇降検知、車両乗車検知などに利用する。
+ * Used for step counting, stair climbing detection,
+ * vehicle riding detection, etc.
  */
 class MotionDetector {
 
@@ -1686,16 +1705,16 @@ class MotionDetector {
     private let altimeter = CMAltimeter()
 
     // ===================================================
-    // 加速度・ジャイロの生データ取得
+    // Raw Accelerometer and Gyroscope Data
     // ===================================================
 
-    /// 加速度センサーを開始 (ゲーム、AR 用)
+    /// Start accelerometer (for games, AR)
     func startAccelerometer(
         interval: TimeInterval = 0.1,
         handler: @escaping (CMAccelerometerData) -> Void
     ) {
         guard motionManager.isAccelerometerAvailable else {
-            print("加速度センサーが利用不可")
+            print("Accelerometer not available")
             return
         }
 
@@ -1704,12 +1723,12 @@ class MotionDetector {
             to: .main
         ) { data, error in
             guard let data = data, error == nil else { return }
-            // data.acceleration.x/y/z は重力加速度を含む (-1.0 ~ +1.0 G)
+            // data.acceleration.x/y/z includes gravity (-1.0 ~ +1.0 G)
             handler(data)
         }
     }
 
-    /// デバイスモーション (センサーフュージョン結果)
+    /// Device motion (sensor fusion result)
     func startDeviceMotion(
         interval: TimeInterval = 0.05,
         handler: @escaping (CMDeviceMotion) -> Void
@@ -1722,24 +1741,24 @@ class MotionDetector {
             to: .main
         ) { motion, error in
             guard let motion = motion, error == nil else { return }
-            // motion.attitude    : 姿勢 (roll, pitch, yaw)
-            // motion.rotationRate: 角速度
-            // motion.gravity     : 重力成分
-            // motion.userAcceleration: ユーザの加速度 (重力除去済み)
+            // motion.attitude    : Orientation (roll, pitch, yaw)
+            // motion.rotationRate: Angular velocity
+            // motion.gravity     : Gravity component
+            // motion.userAcceleration: User acceleration (gravity removed)
             handler(motion)
         }
     }
 
     // ===================================================
-    // 歩数計測 (Motion Coprocessor 利用)
+    // Step Counting (Using Motion Coprocessor)
     // ===================================================
 
-    /// 歩数のリアルタイム計測を開始
+    /// Start real-time step counting
     func startPedometer(
         handler: @escaping (Int, Double) -> Void
     ) {
         guard CMPedometer.isStepCountingAvailable() else {
-            print("歩数計測が利用不可")
+            print("Step counting not available")
             return
         }
 
@@ -1752,10 +1771,10 @@ class MotionDetector {
     }
 
     // ===================================================
-    // アクティビティ認識 (歩行/走行/自動車/自転車)
+    // Activity Recognition (Walking/Running/Driving/Cycling)
     // ===================================================
 
-    /// ユーザのアクティビティタイプを検知
+    /// Detect user activity type
     func startActivityRecognition(
         handler: @escaping (String) -> Void
     ) {
@@ -1767,18 +1786,18 @@ class MotionDetector {
             to: .main
         ) { activity in
             guard let activity = activity else { return }
-            var type = "不明"
-            if activity.walking   { type = "歩行" }
-            if activity.running   { type = "走行" }
-            if activity.cycling   { type = "自転車" }
-            if activity.automotive{ type = "自動車" }
-            if activity.stationary{ type = "静止" }
+            var type = "Unknown"
+            if activity.walking   { type = "Walking" }
+            if activity.running   { type = "Running" }
+            if activity.cycling   { type = "Cycling" }
+            if activity.automotive{ type = "Driving" }
+            if activity.stationary{ type = "Stationary" }
             handler(type)
         }
     }
 
     // ===================================================
-    // クリーンアップ
+    // Cleanup
     // ===================================================
 
     func stopAll() {
@@ -1789,19 +1808,19 @@ class MotionDetector {
     }
 }
 
-// 使用例:
+// Usage example:
 // let detector = MotionDetector()
 // detector.startPedometer { steps, distance in
-//     print("歩数: \(steps), 距離: \(distance)m")
+//     print("Steps: \(steps), Distance: \(distance)m")
 // }
 // detector.startActivityRecognition { type in
-//     print("現在の活動: \(type)")
+//     print("Current activity: \(type)")
 // }
 ```
 
-### 8.5 コード例: Android センサーの利用
+### 8.5 Code Example: Android Sensor Usage
 
-**コード例7: Android (Kotlin) ── SensorManager による加速度検知**
+**Code Example 7: Android (Kotlin) -- Acceleration Detection with SensorManager**
 
 ```kotlin
 import android.content.Context
@@ -1813,12 +1832,12 @@ import android.util.Log
 import kotlin.math.sqrt
 
 /**
- * Android SensorManager を使った加速度とシェイク検知
+ * Acceleration and shake detection using Android SensorManager
  *
- * HAL を通じてベンダー固有のセンサーハードウェアに
- * 統一的にアクセスする例を示す。
+ * Demonstrates unified access to vendor-specific sensor
+ * hardware through the HAL.
  *
- * 電力効率のため、不要になったら必ず unregister すること。
+ * Always unregister when not needed for power efficiency.
  */
 class ShakeDetector(
     private val context: Context,
@@ -1836,27 +1855,27 @@ class ShakeDetector(
 
     private var lastShakeTime = 0L
 
-    /** センサーの登録と開始 */
+    /** Register and start sensor */
     fun start() {
         val accelerometer = sensorManager.getDefaultSensor(
-            Sensor.TYPE_LINEAR_ACCELERATION  // 重力成分を除去済み
+            Sensor.TYPE_LINEAR_ACCELERATION  // Gravity component removed
         )
         if (accelerometer != null) {
             sensorManager.registerListener(
                 this,
                 accelerometer,
-                SensorManager.SENSOR_DELAY_UI  // 約60ms間隔
+                SensorManager.SENSOR_DELAY_UI  // ~60ms interval
             )
-            Log.d(TAG, "加速度センサー開始")
+            Log.d(TAG, "Accelerometer started")
         } else {
-            Log.w(TAG, "LINEAR_ACCELERATION センサーが利用不可")
+            Log.w(TAG, "LINEAR_ACCELERATION sensor not available")
         }
     }
 
-    /** センサーの登録解除 */
+    /** Unregister sensor */
     fun stop() {
         sensorManager.unregisterListener(this)
-        Log.d(TAG, "加速度センサー停止")
+        Log.d(TAG, "Accelerometer stopped")
     }
 
     override fun onSensorChanged(event: SensorEvent) {
@@ -1864,24 +1883,24 @@ class ShakeDetector(
         val y = event.values[1]
         val z = event.values[2]
 
-        // 3軸の合成加速度を計算
+        // Calculate composite acceleration from 3 axes
         val magnitude = sqrt(x * x + y * y + z * z)
 
         if (magnitude > SHAKE_THRESHOLD) {
             val now = System.currentTimeMillis()
             if (now - lastShakeTime > MIN_TIME_BETWEEN_SHAKES) {
                 lastShakeTime = now
-                Log.d(TAG, "シェイク検知: 加速度 = $magnitude m/s^2")
+                Log.d(TAG, "Shake detected: acceleration = $magnitude m/s^2")
                 onShake()
             }
         }
     }
 
     override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) {
-        Log.d(TAG, "精度変更: ${sensor.name} → $accuracy")
+        Log.d(TAG, "Accuracy changed: ${sensor.name} -> $accuracy")
     }
 
-    /** 利用可能な全センサーを列挙 */
+    /** Enumerate all available sensors */
     fun listAllSensors(): List<String> {
         return sensorManager.getSensorList(Sensor.TYPE_ALL).map {
             "${it.name} (type=${it.type}, vendor=${it.vendor}, " +
@@ -1890,9 +1909,9 @@ class ShakeDetector(
     }
 }
 
-// 使用例 (Activity 内):
+// Usage example (inside Activity):
 // val shakeDetector = ShakeDetector(this) {
-//     Toast.makeText(this, "シェイクを検知しました", Toast.LENGTH_SHORT).show()
+//     Toast.makeText(this, "Shake detected!", Toast.LENGTH_SHORT).show()
 // }
 // override fun onResume() { super.onResume(); shakeDetector.start() }
 // override fun onPause() { super.onPause(); shakeDetector.stop() }
@@ -1900,93 +1919,94 @@ class ShakeDetector(
 
 ---
 
-## 9. アプリ開発とビルドパイプライン
+## 9. App Development and Build Pipeline
 
-### 9.1 開発環境の比較
+### 9.1 Development Environment Comparison
 
-| 項目 | iOS | Android |
+| Item | iOS | Android |
 |------|-----|---------|
-| 公式 IDE | Xcode | Android Studio |
-| ビルドシステム | xcodebuild / Swift Package Manager | Gradle (Kotlin DSL) |
-| 言語 | Swift (主流), Objective-C (レガシー) | Kotlin (主流), Java (レガシー) |
-| UI フレームワーク | SwiftUI (宣言的), UIKit (命令的) | Jetpack Compose (宣言的), View (命令的) |
-| テスト | XCTest, XCUITest | JUnit, Espresso, Compose Testing |
-| プロファイラ | Instruments | Android Profiler (CPU, Memory, Network) |
-| パッケージ管理 | SPM, CocoaPods | Gradle dependencies, Maven Central |
+| Official IDE | Xcode | Android Studio |
+| Build System | xcodebuild / Swift Package Manager | Gradle (Kotlin DSL) |
+| Language | Swift (mainstream), Objective-C (legacy) | Kotlin (mainstream), Java (legacy) |
+| UI Framework | SwiftUI (declarative), UIKit (imperative) | Jetpack Compose (declarative), View (imperative) |
+| Testing | XCTest, XCUITest | JUnit, Espresso, Compose Testing |
+| Profiler | Instruments | Android Profiler (CPU, Memory, Network) |
+| Package Management | SPM, CocoaPods | Gradle dependencies, Maven Central |
 | CI/CD | Xcode Cloud, Fastlane | GitHub Actions, Fastlane |
-| 配布 | App Store Connect, TestFlight | Google Play Console, Firebase App Distribution |
-| コード署名 | 必須 (Provisioning Profile + Certificate) | 必須 (APK/AAB 署名) |
-| 最小ターゲット | 通常 iOS N-2 (現在は iOS 16+) | minSdk 24+ (Android 7.0) が一般的 |
+| Distribution | App Store Connect, TestFlight | Google Play Console, Firebase App Distribution |
+| Code Signing | Required (Provisioning Profile + Certificate) | Required (APK/AAB signing) |
+| Minimum Target | Typically iOS N-2 (currently iOS 16+) | minSdk 24+ (Android 7.0) is common |
 
-### 9.2 ビルドパイプラインの全体像
+### 9.2 Build Pipeline Overview
 
 ```
-モバイルアプリ CI/CD パイプライン
+Mobile App CI/CD Pipeline
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  開発者
+  Developer
     │
     ├── git push
     │
     ▼
   ┌──────────────────────────────────────────────────────┐
-  │                  CI サーバ                           │
+  │                  CI Server                            │
   │                                                      │
-  │  1. ソースコード取得 (git clone)                     │
+  │  1. Fetch source code (git clone)                    │
   │     ▼                                                │
-  │  2. 依存関係解決                                     │
+  │  2. Resolve dependencies                             │
   │     iOS:  swift package resolve / pod install        │
   │     Android: ./gradlew dependencies                  │
   │     ▼                                                │
-  │  3. 静的解析                                         │
+  │  3. Static analysis                                  │
   │     iOS:  SwiftLint, SwiftFormat                     │
   │     Android: ktlint, detekt, Android Lint            │
   │     ▼                                                │
-  │  4. 単体テスト                                       │
+  │  4. Unit tests                                       │
   │     iOS:  xcodebuild test -scheme MyApp              │
   │     Android: ./gradlew testDebugUnitTest             │
   │     ▼                                                │
-  │  5. ビルド                                           │
-  │     iOS:  xcodebuild archive → .xcarchive           │
-  │     Android: ./gradlew assembleRelease → .apk/.aab  │
+  │  5. Build                                            │
+  │     iOS:  xcodebuild archive -> .xcarchive           │
+  │     Android: ./gradlew assembleRelease -> .apk/.aab  │
   │     ▼                                                │
-  │  6. コード署名                                       │
+  │  6. Code signing                                     │
   │     iOS:  Provisioning Profile + Distribution Cert   │
-  │     Android: Keystore による APK/AAB 署名            │
+  │     Android: Keystore-based APK/AAB signing          │
   │     ▼                                                │
-  │  7. UIテスト / E2Eテスト                             │
-  │     iOS:  XCUITest (Simulator / Device Farm)        │
-  │     Android: Espresso (Emulator / Firebase Test Lab)│
+  │  7. UI test / E2E test                               │
+  │     iOS:  XCUITest (Simulator / Device Farm)         │
+  │     Android: Espresso (Emulator / Firebase Test Lab) │
   │     ▼                                                │
-  │  8. 配布                                             │
+  │  8. Distribution                                     │
   │     ┌──────────────────┬──────────────────────┐      │
-  │     │ テスト配布        │ 本番配布             │      │
+  │     │ Test distribution │ Production           │      │
   │     │ TestFlight       │ App Store            │      │
   │     │ Firebase App Dist│ Google Play          │      │
-  │     │ DeployGate       │ (段階的公開 10→100%) │      │
+  │     │ DeployGate       │ (staged rollout      │      │
+  │     │                  │  10->100%)           │      │
   │     └──────────────────┴──────────────────────┘      │
   └──────────────────────────────────────────────────────┘
 ```
 
-### 9.3 クロスプラットフォーム開発
+### 9.3 Cross-Platform Development
 
-iOS と Android の両方を単一のコードベースで開発するアプローチも広く採用されている。
+Approaches to developing for both iOS and Android from a single codebase are widely adopted.
 
-| フレームワーク | 言語 | レンダリング方式 | パフォーマンス | 採用企業例 |
-|--------------|------|---------------|-------------|-----------|
-| **Flutter** | Dart | 独自エンジン (Skia/Impeller) | 高 (ネイティブ同等) | Google, BMW, Alibaba |
-| **React Native** | JavaScript/TypeScript | ネイティブUI (Bridge/JSI) | 中〜高 | Meta, Microsoft, Shopify |
-| **Kotlin Multiplatform** | Kotlin | ネイティブUI (各プラットフォーム) | 高 (ロジック共有) | Netflix, VMware, Philips |
-| **MAUI (.NET)** | C# | ネイティブUI (Handlers) | 中 | Microsoft, UPS |
-| **Capacitor/Ionic** | Web (HTML/CSS/JS) | WebView | 低〜中 | Burger King, Sanvello |
+| Framework | Language | Rendering | Performance | Adopters |
+|-----------|----------|-----------|-------------|----------|
+| **Flutter** | Dart | Custom engine (Skia/Impeller) | High (native-equivalent) | Google, BMW, Alibaba |
+| **React Native** | JavaScript/TypeScript | Native UI (Bridge/JSI) | Medium-High | Meta, Microsoft, Shopify |
+| **Kotlin Multiplatform** | Kotlin | Native UI (per platform) | High (shared logic) | Netflix, VMware, Philips |
+| **MAUI (.NET)** | C# | Native UI (Handlers) | Medium | Microsoft, UPS |
+| **Capacitor/Ionic** | Web (HTML/CSS/JS) | WebView | Low-Medium | Burger King, Sanvello |
 
-### 9.4 コード例: Gradle ビルド設定
+### 9.4 Code Example: Gradle Build Configuration
 
-**コード例8: Android (Kotlin DSL) ── build.gradle.kts の設定例**
+**Code Example 8: Android (Kotlin DSL) -- build.gradle.kts Configuration**
 
 ```kotlin
 // app/build.gradle.kts
-// Android アプリのビルド設定
+// Android app build configuration
 
 plugins {
     alias(libs.plugins.android.application)
@@ -2002,22 +2022,22 @@ android {
 
     defaultConfig {
         applicationId = "com.example.mobileapp"
-        minSdk = 26          // Android 8.0 以上
-        targetSdk = 35       // 最新 API レベル
+        minSdk = 26          // Android 8.0 and above
+        targetSdk = 35       // Latest API level
         versionCode = 1
         versionName = "1.0.0"
 
         testInstrumentationRunner =
             "androidx.test.runner.AndroidJUnitRunner"
 
-        // BuildConfig にビルド情報を埋め込む
+        // Embed build information in BuildConfig
         buildConfigField(
             "String", "BUILD_TIME",
             "\"${java.time.Instant.now()}\""
         )
     }
 
-    // ビルドバリアント: debug / staging / release
+    // Build variants: debug / staging / release
     buildTypes {
         debug {
             isDebuggable = true
@@ -2034,8 +2054,8 @@ android {
             )
         }
         release {
-            isMinifyEnabled = true    // R8 によるコード縮小
-            isShrinkResources = true  // 未使用リソース削除
+            isMinifyEnabled = true    // Code shrinking with R8
+            isShrinkResources = true  // Remove unused resources
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -2043,7 +2063,7 @@ android {
         }
     }
 
-    // Jetpack Compose 設定
+    // Jetpack Compose configuration
     buildFeatures {
         compose = true
         buildConfig = true
@@ -2065,7 +2085,7 @@ dependencies {
     implementation(libs.compose.material3)
     implementation(libs.compose.navigation)
 
-    // ライフサイクル
+    // Lifecycle
     implementation(libs.lifecycle.viewmodel.compose)
     implementation(libs.lifecycle.runtime.compose)
 
@@ -2073,11 +2093,11 @@ dependencies {
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
 
-    // ネットワーク
+    // Network
     implementation(libs.retrofit)
     implementation(libs.okhttp)
 
-    // テスト
+    // Testing
     testImplementation(libs.junit)
     testImplementation(libs.mockk)
     androidTestImplementation(libs.compose.ui.test)
@@ -2086,371 +2106,371 @@ dependencies {
 
 ---
 
-## 10. アンチパターンと設計上の落とし穴
+## 10. Anti-Patterns and Design Pitfalls
 
-### 10.1 アンチパターン1: メインスレッドでの重い処理
+### 10.1 Anti-Pattern 1: Heavy Processing on the Main Thread
 
-**問題**: UIスレッド (メインスレッド) でネットワーク通信やディスクI/O、重い計算を行うと、UIがフリーズ (Application Not Responding = ANR) する。
+**Problem**: Performing network communication, disk I/O, or heavy computation on the UI thread (main thread) causes the UI to freeze (Application Not Responding = ANR).
 
 ```
-アンチパターン: メインスレッドブロック
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Anti-Pattern: Main Thread Blocking
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  時間軸 ────────────────────────────────────►
+  Timeline ────────────────────────────────────►
 
-  メインスレッド:
+  Main Thread:
   ┌─────┐  ┌───────────────────────────┐  ┌─────┐
-  │ UI  │  │  ネットワーク通信 (3秒)   │  │ UI  │
-  │描画 │  │  ← この間UIがフリーズ →  │  │描画 │
+  │ UI  │  │  Network request (3 sec)  │  │ UI  │
+  │Draw │  │  <- UI frozen during ->   │  │Draw │
   └─────┘  └───────────────────────────┘  └─────┘
-  16ms      ← ANR発生 (Android: 5秒 / iOS: watchdog) →
+  16ms      <- ANR triggered (Android: 5s / iOS: watchdog) ->
 
-  正しいパターン: バックグラウンドスレッドに委譲
+  Correct Pattern: Delegate to background thread
   ┌─────┐  ┌─────┐  ┌─────┐  ┌─────┐  ┌─────┐
   │ UI  │  │ UI  │  │ UI  │  │ UI  │  │ UI  │
-  │描画 │  │描画 │  │描画 │  │描画 │  │更新 │
+  │Draw │  │Draw │  │Draw │  │Draw │  │Updt │
   └─────┘  └─────┘  └─────┘  └─────┘  └─────┘
-  メインスレッドは常に応答可能
+  Main thread always responsive
 
-  バックグラウンド:
+  Background:
   ┌───────────────────────────┐
-  │  ネットワーク通信 (3秒)   │ → 完了後にメインスレッドに通知
+  │  Network request (3 sec)  │ -> Notify main thread on completion
   └───────────────────────────┘
 ```
 
-**悪い例 (Android / Kotlin)**:
+**Bad Example (Android / Kotlin)**:
 ```kotlin
-// NG: メインスレッドでネットワーク通信
-// Android では NetworkOnMainThreadException が発生する
+// NG: Network communication on main thread
+// Android throws NetworkOnMainThreadException
 fun loadDataBad() {
     val url = URL("https://api.example.com/data")
-    val data = url.readText()  // メインスレッドをブロック
+    val data = url.readText()  // Blocks main thread
     textView.text = data
 }
 ```
 
-**良い例 (Android / Kotlin)**:
+**Good Example (Android / Kotlin)**:
 ```kotlin
-// OK: コルーチンでバックグラウンド処理
+// OK: Background processing with coroutines
 fun loadDataGood() {
     viewModelScope.launch {
         val data = withContext(Dispatchers.IO) {
-            // IO ディスパッチャでネットワーク通信
+            // Network communication on IO dispatcher
             repository.fetchData()
         }
-        // メインスレッドで UI 更新 (自動的に Dispatchers.Main)
+        // UI update on main thread (automatically Dispatchers.Main)
         _uiState.value = UiState.Success(data)
     }
 }
 ```
 
-### 10.2 アンチパターン2: メモリリークの放置
+### 10.2 Anti-Pattern 2: Ignoring Memory Leaks
 
-**問題**: Activity やContext の参照を長寿命オブジェクトが保持し続けると、GC で回収できずメモリリークが発生する。画面回転のたびに Activity が再生成されるため、短時間でメモリが枯渇する。
+**Problem**: When long-lived objects hold references to Activity or Context, GC cannot reclaim them, causing memory leaks. Since Activity is recreated on every screen rotation, memory is exhausted in a short time.
 
 ```
-メモリリークのパターンと対策
+Memory Leak Patterns and Countermeasures
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  典型的なメモリリーク:
+  Typical memory leak:
 
   ┌─────────────────────────────────────────────────┐
   │                                                 │
   │  static / companion object                      │
   │  ┌───────────────┐                              │
-  │  │ リスナー/     │──── 強参照 ───► Activity A   │
-  │  │ コールバック  │              (画面回転で破棄  │
-  │  │ (長寿命)      │               されるべき)     │
-  │  └───────────────┘                              │
+  │  │ Listener/     │── strong ref ──► Activity A  │
+  │  │ Callback      │             (should be       │
+  │  │ (long-lived)  │              destroyed on     │
+  │  └───────────────┘              rotation)        │
   │                                                 │
-  │  Activity A は GC 対象にならない → メモリリーク │
-  │  画面回転のたびに新しい Activity が生成され      │
-  │  古い Activity が蓄積していく                    │
+  │  Activity A cannot be GC'd -> Memory leak       │
+  │  New Activity created each rotation              │
+  │  Old Activities accumulate                       │
   └─────────────────────────────────────────────────┘
 
-  対策:
+  Countermeasures:
 
-  1. WeakReference を使用
+  1. Use WeakReference
      val activityRef = WeakReference(activity)
 
-  2. ライフサイクルに連動してリスナーを解除
+  2. Unregister listeners in sync with lifecycle
      override fun onDestroy() {
          listener.unregister()
          super.onDestroy()
      }
 
-  3. ViewModel + LiveData / StateFlow を使用
-     ViewModel は構成変更 (画面回転) で生存するため、
-     Activity への直接参照が不要
+  3. Use ViewModel + LiveData / StateFlow
+     ViewModel survives configuration changes (rotation),
+     eliminating need for direct Activity references
 
-  4. LeakCanary で検出
+  4. Detect with LeakCanary
      debugImplementation("com.squareup.leakcanary:leakcanary-android:2.x")
-     → ビルド時に自動でメモリリークを検出・通知
+     -> Automatically detects and reports memory leaks at build time
 ```
 
-### 10.3 アンチパターン3: 過剰なバックグラウンド処理
+### 10.3 Anti-Pattern 3: Excessive Background Processing
 
-**問題**: 不要なバックグラウンドサービスやアラームを多用すると、バッテリーを急速に消耗させる。Android 8.0 以降ではバックグラウンドサービスの起動が制限されており、違反するとシステムが強制停止する。
+**Problem**: Overusing unnecessary background services and alarms rapidly drains battery. Since Android 8.0, background service launches are restricted, and violations result in system-forced termination.
 
-**対策**: WorkManager を使用して OS が最適なタイミングで実行することを許可する。即時性が不要な処理は `Constraints` を指定して充電中・WiFi 接続時に限定する。
-
----
-
-## 11. 段階別演習
-
-### 演習1: 初級 ── システム情報の収集と表示
-
-**目標**: iOS または Android で端末のシステム情報を収集し、画面に表示するアプリを作成する。
-
-**要件**:
-1. OS バージョン、デバイスモデル、メモリ量、CPU コア数を取得する
-2. バッテリー残量と充電状態をリアルタイムで表示する
-3. ストレージの使用量と空き容量を円グラフで表示する
-
-**確認項目**:
-- [ ] sysctl (iOS) または /proc (Android) から情報を正しく取得できた
-- [ ] バッテリー状態の変化をリアルタイムで反映できた
-- [ ] メモリ使用量の変化を監視できた
-
-**ヒント**:
-- iOS: `ProcessInfo`, `UIDevice`, `FileManager` を使用
-- Android: `Build`, `ActivityManager`, `BatteryManager`, `StatFs` を使用
+**Countermeasure**: Use WorkManager to let the OS execute at optimal timing. For non-urgent tasks, specify `Constraints` to limit execution to charging and WiFi-connected states.
 
 ---
 
-### 演習2: 中級 ── バックグラウンドタスクと通知
+## 11. Tiered Exercises
 
-**目標**: バックグラウンドで定期的にデータを取得し、条件に応じてローカル通知を送信するアプリを作成する。
+### Exercise 1: Beginner -- System Information Collection and Display
 
-**要件**:
-1. 15分間隔でバックグラウンドタスクを実行する
-2. 天気APIからデータを取得し、ローカルDBに保存する
-3. 雨の予報があればローカル通知でユーザに知らせる
-4. Doze モード / Background App Refresh を考慮した設計にする
+**Goal**: Create an app for iOS or Android that collects and displays device system information.
 
-**確認項目**:
-- [ ] バックグラウンドタスクが正しくスケジュールされた
-- [ ] Doze モード復帰後にタスクが実行された (Android)
-- [ ] Background App Refresh 無効時の挙動を確認した (iOS)
-- [ ] 通知の権限リクエストを適切に実装した
-- [ ] バッテリー消費が過大でないことをプロファイラで確認した
+**Requirements**:
+1. Retrieve OS version, device model, memory amount, and CPU core count
+2. Display battery level and charging status in real-time
+3. Display storage usage and free space as a pie chart
 
-**ヒント**:
-- iOS: `BGTaskScheduler`, `UNUserNotificationCenter` を使用
-- Android: `WorkManager` + `NotificationCompat` を使用
+**Verification Items**:
+- [ ] Successfully retrieved information from sysctl (iOS) or /proc (Android)
+- [ ] Battery state changes reflected in real-time
+- [ ] Memory usage changes monitored successfully
+
+**Hints**:
+- iOS: Use `ProcessInfo`, `UIDevice`, `FileManager`
+- Android: Use `Build`, `ActivityManager`, `BatteryManager`, `StatFs`
 
 ---
 
-### 演習3: 上級 ── セキュアなデータストレージとIPC
+### Exercise 2: Intermediate -- Background Tasks and Notifications
 
-**目標**: 生体認証で保護されたセキュアストレージを実装し、別のアプリ/Extension とデータを共有する。
+**Goal**: Create an app that periodically fetches data in the background and sends local notifications based on conditions.
 
-**要件**:
-1. 生体認証 (Face ID / 指紋認証) によるロック解除を実装する
-2. 機密データを Keychain (iOS) / EncryptedSharedPreferences (Android) に保存する
-3. Widget / App Extension とデータを共有する (App Groups / ContentProvider)
-4. アプリ改竄検知 (Jailbreak/Root 検知) を実装する
-5. SSL Pinning でネットワーク通信を保護する
+**Requirements**:
+1. Execute background tasks at 15-minute intervals
+2. Fetch weather API data and save to local DB
+3. Notify the user with a local notification when rain is forecast
+4. Design considering Doze mode / Background App Refresh
 
-**確認項目**:
-- [ ] 生体認証失敗時のフォールバック (パスコード入力) が動作する
-- [ ] Keychain / EncryptedSharedPreferences に正しく保存された
-- [ ] Widget / Extension からデータを読み取れた
-- [ ] Root / Jailbreak 環境で検知メッセージが表示された
-- [ ] Charles Proxy 等の中間者でSSLを傍受できないことを確認した
+**Verification Items**:
+- [ ] Background task correctly scheduled
+- [ ] Task executed after Doze mode recovery (Android)
+- [ ] Verified behavior when Background App Refresh is disabled (iOS)
+- [ ] Notification permission request properly implemented
+- [ ] Confirmed battery consumption is not excessive via profiler
 
-**ヒント**:
+**Hints**:
+- iOS: Use `BGTaskScheduler`, `UNUserNotificationCenter`
+- Android: Use `WorkManager` + `NotificationCompat`
+
+---
+
+### Exercise 3: Advanced -- Secure Data Storage and IPC
+
+**Goal**: Implement secure storage protected by biometric authentication and share data with another app/Extension.
+
+**Requirements**:
+1. Implement biometric authentication (Face ID / fingerprint) unlock
+2. Store sensitive data in Keychain (iOS) / EncryptedSharedPreferences (Android)
+3. Share data with Widget / App Extension (App Groups / ContentProvider)
+4. Implement app tampering detection (Jailbreak/Root detection)
+5. Protect network communication with SSL Pinning
+
+**Verification Items**:
+- [ ] Fallback (passcode input) works on biometric authentication failure
+- [ ] Data correctly stored in Keychain / EncryptedSharedPreferences
+- [ ] Data readable from Widget / Extension
+- [ ] Detection message displayed on Root / Jailbreak environment
+- [ ] Confirmed SSL cannot be intercepted by MITM tools like Charles Proxy
+
+**Hints**:
 - iOS: `LAContext` (LocalAuthentication), `Keychain Services`, `App Groups`
 - Android: `BiometricPrompt`, `EncryptedSharedPreferences`, `ContentProvider`
 
 ---
 
-## 12. FAQ ── よくある質問
+## 12. FAQ -- Frequently Asked Questions
 
-### Q1: iOS はなぜスワップを使わないのか?
+### Q1: Why doesn't iOS use swap?
 
-**A**: iOS がスワップ (ディスクへのページアウト) を使用しない理由は主に3つある。
+**A**: There are three main reasons iOS does not use swap (paging out to disk).
 
-1. **NAND フラッシュの寿命**: スワップによる大量の書き込みは NAND フラッシュの書き換え回数を急速に消費する。モバイル端末のストレージは交換不可能であり、寿命の低下は端末の使用期間を直接短縮する。
+1. **NAND Flash Lifespan**: Massive writes from swapping rapidly consume NAND flash write cycles. Mobile device storage is non-replaceable, and reduced lifespan directly shortens device usable life.
 
-2. **レイテンシ**: NAND フラッシュのランダムリード/ライトは DRAM と比較して 100-1000 倍遅い。スワップ発生時のパフォーマンス低下はモバイルの応答性要求と相容れない。
+2. **Latency**: NAND flash random read/write is 100-1000x slower than DRAM. Performance degradation from swap is incompatible with mobile responsiveness requirements.
 
-3. **電力消費**: ストレージI/Oは CPU の idle 状態より消費電力が大きく、バッテリー駆動のモバイル端末には不適切である。
+3. **Power Consumption**: Storage I/O consumes more power than CPU idle state, making it unsuitable for battery-powered mobile devices.
 
-代替手段として、iOS はメモリ圧縮 (WKdm/LZ4 アルゴリズム) と jetsam によるプロセス終了を組み合わせている。圧縮により物理メモリの実効容量を約 1.5-2 倍に拡大し、それでも不足する場合は優先度の低いプロセスを終了する。
+As alternatives, iOS combines memory compression (WKdm/LZ4 algorithms) with process termination via jetsam. Compression effectively expands physical memory capacity by approximately 1.5-2x, and when that is still insufficient, it terminates lower-priority processes.
 
-### Q2: Android のフラグメンテーション問題はどの程度深刻か?
+### Q2: How severe is Android's fragmentation problem?
 
-**A**: Android のフラグメンテーション (断片化) とは、市場に存在する端末の OS バージョン、画面サイズ、ハードウェア構成が極めて多様であるという問題を指す。
+**A**: Android fragmentation refers to the extreme diversity of OS versions, screen sizes, and hardware configurations among devices on the market.
 
-**主な課題と対策:**
+**Key Challenges and Countermeasures:**
 
-- **OS バージョンの断片化**: 2025年時点で Android 10-15 がそれぞれ 5-20% のシェアを持つ。Google は Jetpack ライブラリで後方互換性を提供し、新機能を古い OS バージョンでも利用可能にしている。
+- **OS Version Fragmentation**: As of 2025, Android 10-15 each hold 5-20% market share. Google provides backward compatibility through Jetpack libraries, making new features available on older OS versions.
 
-- **画面サイズの多様性**: 4インチのスマートフォンから 13インチのタブレット、折りたたみ端末まで対応が必要。Jetpack Compose の `WindowSizeClass` や Material Design の Adaptive Layout で対応する。
+- **Screen Size Diversity**: Support needed from 4-inch smartphones to 13-inch tablets and foldable devices. Address with Jetpack Compose's `WindowSizeClass` and Material Design's Adaptive Layout.
 
-- **セキュリティパッチの遅延**: Project Treble (Android 8.0) と Project Mainline (Android 10) により、Google がセキュリティモジュールを Play Store 経由で直接更新できるようになり、OEMのパッチ適用遅延を部分的に解消した。
+- **Security Patch Delays**: Project Treble (Android 8.0) and Project Mainline (Android 10) allow Google to update security modules directly through the Play Store, partially resolving OEM patch delay issues.
 
-- **ハードウェアの多様性**: 数千種類の端末が存在するが、CTS (Compatibility Test Suite) により最低限の互換性は保証される。Firebase Test Lab などの端末ファームでの自動テストが推奨される。
+- **Hardware Diversity**: Thousands of device types exist, but CTS (Compatibility Test Suite) ensures minimum compatibility. Automated testing on device farms like Firebase Test Lab is recommended.
 
-### Q3: モバイルアプリの実行時パーミッション設計のベストプラクティスは?
+### Q3: What are best practices for runtime permission design in mobile apps?
 
-**A**: 権限リクエストのタイミングと方法はユーザ体験に大きく影響する。以下のベストプラクティスに従うべきである。
+**A**: The timing and method of permission requests significantly impact user experience. Follow these best practices:
 
-1. **必要な時に必要な権限だけ要求する**: アプリ起動直後にすべての権限をまとめて要求してはならない。カメラを使う機能を開いた時にカメラ権限を、地図を表示する時に位置情報権限を要求する。
+1. **Request only needed permissions when needed**: Do not request all permissions at once on app launch. Request camera permission when opening a camera feature, location permission when displaying a map.
 
-2. **事前説明を表示する**: OS の権限ダイアログを表示する前に、なぜその権限が必要かをアプリ内で説明する画面を表示する。特に iOS では一度拒否すると再リクエストできないため、事前説明が重要である。
+2. **Show pre-explanation**: Before displaying the OS permission dialog, show an in-app screen explaining why the permission is needed. This is especially important on iOS where re-requesting after denial is not possible.
 
-3. **権限なしでも動作する設計にする**: 位置情報が拒否されても手動で住所を入力できる、カメラが拒否されてもギャラリーから選択できる、といったフォールバックを用意する。
+3. **Design to work without permissions**: Provide fallbacks such as manual address input when location is denied, or gallery selection when camera is denied.
 
-4. **最小限の精度で運用する**: 正確な位置情報が不要な場合は概算位置 (approximate location) を使用する。継続的なバックグラウンド位置情報の取得は、ユーザの信頼を損なうためごく限られたユースケースに留める。
+4. **Operate with minimum precision**: Use approximate location when precise location is unnecessary. Continuous background location tracking should be limited to very specific use cases as it erodes user trust.
 
-### Q4: iOS と Android でアプリのサイズを削減するには?
+### Q4: How can app size be reduced for iOS and Android?
 
-**A**: アプリサイズの削減は、ダウンロード率と初回起動率に直接影響するため重要である。
+**A**: App size reduction is important as it directly impacts download rates and first-launch rates.
 
-| 手法 | iOS | Android |
-|------|-----|---------|
-| コード縮小 | Swift Compiler 最適化 (-Osize) | R8 / ProGuard (isMinifyEnabled) |
-| リソース削減 | Asset Catalog (1x/2x/3x 自動選択) | isShrinkResources + WebP 変換 |
-| アプリ分割 | App Thinning (Slicing + ODR) | App Bundle (.aab) + Dynamic Delivery |
-| 動的配信 | On-Demand Resources | Dynamic Feature Modules |
-| 画像形式 | HEIF, WebP | WebP, AVIF |
-| ネイティブライブラリ | arm64 のみ (Universal Binary 不要) | ABI Split (arm64-v8a のみ) |
+| Method | iOS | Android |
+|--------|-----|---------|
+| Code shrinking | Swift Compiler optimization (-Osize) | R8 / ProGuard (isMinifyEnabled) |
+| Resource reduction | Asset Catalog (auto 1x/2x/3x selection) | isShrinkResources + WebP conversion |
+| App splitting | App Thinning (Slicing + ODR) | App Bundle (.aab) + Dynamic Delivery |
+| Dynamic delivery | On-Demand Resources | Dynamic Feature Modules |
+| Image format | HEIF, WebP | WebP, AVIF |
+| Native libraries | arm64 only (no Universal Binary) | ABI Split (arm64-v8a only) |
 
-### Q5: Kotlin Multiplatform (KMP) と Flutter のどちらを選ぶべきか?
+### Q5: Should I choose Kotlin Multiplatform (KMP) or Flutter?
 
-**A**: 以下の基準で判断する。
+**A**: Decide based on the following criteria:
 
-- **KMP が適するケース**: ビジネスロジック (データ処理、API通信、ローカルDB) を共有しつつ、UIは各プラットフォームのネイティブで実装したい場合。既にKotlinの知見があるチームに適する。
+- **KMP is suitable when**: You want to share business logic (data processing, API communication, local DB) while implementing UI natively for each platform. Suitable for teams with existing Kotlin expertise.
 
-- **Flutter が適するケース**: UI も含めて完全に統一したい場合。高いパフォーマンスのカスタムUIが必要で、Web版やデスクトップ版にも展開したい場合。Dart の学習コストを受容できるチームに適する。
+- **Flutter is suitable when**: You want fully unified UI across platforms. When high-performance custom UI is needed and you also want to expand to web and desktop. Suitable for teams that can accept the Dart learning cost.
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point in learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important. Understanding deepens not just from theory, but from actually writing and running code.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What common mistakes do beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping fundamentals to jump into applications. We recommend thoroughly understanding the basic concepts explained in this guide before moving to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this applied in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently applied in daily development work. It becomes particularly important during code reviews and architecture design.
 
 ---
 
-## 13. まとめと次のステップ
+## 13. Summary and Next Steps
 
-### 13.1 総合比較表
+### 13.1 Comprehensive Comparison Table
 
-| 項目 | iOS | Android |
+| Item | iOS | Android |
 |------|-----|---------|
-| カーネル | XNU (Mach + BSD ハイブリッド) | Linux (モノリシック + モジュール) |
+| Kernel | XNU (Mach + BSD hybrid) | Linux (monolithic + modular) |
 | IPC | Mach Port, XPC | Binder |
-| メモリ管理 | Jetsam + メモリ圧縮 | LMK + zRAM |
-| スワップ | なし | zRAM (メモリ内圧縮) |
-| GC / メモリ解放 | ARC (コンパイル時参照カウント) | Tracing GC (ART の Concurrent Copying) |
-| ファイルシステム | APFS | ext4 / f2fs |
-| セキュリティ | Sandbox + KTRR + SEP | SELinux + seccomp + TrustZone |
-| 電力管理 | Background App Refresh, App Nap | Doze, App Standby Buckets |
-| プッシュ通知 | APNs | FCM |
-| ドライバ | IOKit (C++) | HAL/HIDL/AIDL + Linux Driver |
-| 更新方式 | 全端末一斉 (Apple 管理) | Project Mainline + OEM 依存 |
-| 開発言語 | Swift / Objective-C | Kotlin / Java |
-| UI 宣言的 | SwiftUI | Jetpack Compose |
-| アプリ配布 | App Store (審査あり) | Play Store + サイドロード |
-| ソースコード | 非公開 (Darwin 除く) | AOSP (オープンソース) |
+| Memory Management | Jetsam + memory compression | LMK + zRAM |
+| Swap | None | zRAM (in-memory compression) |
+| GC / Memory Release | ARC (compile-time reference counting) | Tracing GC (ART Concurrent Copying) |
+| File System | APFS | ext4 / f2fs |
+| Security | Sandbox + KTRR + SEP | SELinux + seccomp + TrustZone |
+| Power Management | Background App Refresh, App Nap | Doze, App Standby Buckets |
+| Push Notifications | APNs | FCM |
+| Drivers | IOKit (C++) | HAL/HIDL/AIDL + Linux Driver |
+| Update Method | All devices simultaneously (Apple managed) | Project Mainline + OEM dependent |
+| Dev Language | Swift / Objective-C | Kotlin / Java |
+| Declarative UI | SwiftUI | Jetpack Compose |
+| App Distribution | App Store (with review) | Play Store + sideloading |
+| Source Code | Closed (except Darwin) | AOSP (open source) |
 
-### 13.2 今後のトレンド
+### 13.2 Future Trends
 
-1. **オンデバイス AI の統合**: Apple Intelligence, Google Gemini Nano がOS レベルで統合され、テキスト生成、画像認識、音声理解がローカルで完結する方向に進んでいる。NPU (Neural Processing Unit) の性能が急速に向上しており、クラウドに依存しない AI 体験が標準となりつつある。
+1. **On-Device AI Integration**: Apple Intelligence and Google Gemini Nano are being integrated at the OS level, with text generation, image recognition, and speech understanding heading toward local completion. NPU (Neural Processing Unit) performance is rapidly improving, and cloud-independent AI experiences are becoming standard.
 
-2. **プライバシー強化の深化**: App Tracking Transparency (iOS), Privacy Sandbox (Android) に続き、広告 ID の廃止、IP アドレスの秘匿化、オンデバイス機械学習による個人化など、プライバシーを保ちながらパーソナライゼーションを実現する技術が進化している。
+2. **Deepening Privacy Enhancement**: Following App Tracking Transparency (iOS) and Privacy Sandbox (Android), technologies are evolving to achieve personalization while preserving privacy, including advertising ID deprecation, IP address obfuscation, and on-device machine learning-based personalization.
 
-3. **空間コンピューティング**: Apple Vision Pro (visionOS), Android XR により、モバイル OS の概念が 2D 画面から 3D 空間に拡張されつつある。ARKit / ARCore の技術がヘッドマウントディスプレイ向けに発展し、新しい入力パラダイム (視線追跡、ハンドジェスチャー) が導入されている。
+3. **Spatial Computing**: Apple Vision Pro (visionOS) and Android XR are extending mobile OS concepts from 2D screens to 3D space. ARKit / ARCore technologies are evolving for head-mounted displays, introducing new input paradigms (eye tracking, hand gestures).
 
-4. **衛星通信の統合**: iOS 14 以降の衛星SOS、Android 15 の衛星メッセージング対応により、セルラー圏外でも基本的な通信機能が利用可能になる。これに伴い、OS レベルでの通信スタック設計が拡張されている。
+4. **Satellite Communication Integration**: With satellite SOS since iOS 14 and Android 15's satellite messaging support, basic communication becomes available outside cellular coverage. The OS-level communication stack design is being expanded accordingly.
 
-5. **セキュリティの進化**: MTE (Memory Tagging Extension) のハードウェアサポート拡大、PAC (Pointer Authentication Code) の普及により、メモリ安全性が OS レベルで強化されている。ゼロデイ攻撃の難易度が年々上昇している。
+5. **Security Evolution**: With expanding hardware support for MTE (Memory Tagging Extension) and PAC (Pointer Authentication Code) proliferation, memory safety is being strengthened at the OS level. Zero-day attack difficulty continues to increase year over year.
 
-### 13.3 学習ロードマップ
+### 13.3 Learning Roadmap
 
 ```
-モバイルOS 学習ロードマップ
+Mobile OS Learning Roadmap
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  入門 ─────────────────────────────────
-  │ OS の基本概念 (プロセス、メモリ、FS)
-  │ Swift / Kotlin の文法
-  │ 公式チュートリアルでアプリ作成
+  Beginner ─────────────────────────────────
+  │ OS fundamentals (processes, memory, FS)
+  │ Swift / Kotlin syntax
+  │ Create app with official tutorials
   ▼
-  中級 ─────────────────────────────────
-  │ ライフサイクル管理
-  │ バックグラウンド処理と電力管理
-  │ セキュリティモデルの理解
-  │ パフォーマンスプロファイリング
+  Intermediate ─────────────────────────────
+  │ Lifecycle management
+  │ Background processing and power management
+  │ Understanding security models
+  │ Performance profiling
   ▼
-  上級 ─────────────────────────────────
-  │ カーネル内部構造の理解
-  │ IPC の設計と実装
-  │ ドライバ / HAL の仕組み
-  │ セキュリティ研究 (脆弱性分析)
+  Advanced ─────────────────────────────────
+  │ Kernel internals understanding
+  │ IPC design and implementation
+  │ Driver / HAL mechanisms
+  │ Security research (vulnerability analysis)
   ▼
-  専門家 ────────────────────────────────
-    OS カスタマイズ (AOSP ビルド)
-    カーネルモジュール開発
-    リバースエンジニアリング
-    セキュリティ監査
+  Expert ────────────────────────────────
+    OS customization (AOSP builds)
+    Kernel module development
+    Reverse engineering
+    Security auditing
 ```
 
 ---
 
-## 次に読むべきガイド
+## Next Guides to Read
 
 
 ---
 
-## 14. 参考文献
+## 14. References
 
-### 書籍
+### Books
 
-1. Levin, J. *"\*OS Internals, Volume I: User Mode"*. Technologeeks Press, 2017. -- iOS/macOS のユーザ空間アーキテクチャを体系的に解説した決定版。XNU カーネルの上に構築されたフレームワーク群の内部構造を詳述する。
+1. Levin, J. *"\*OS Internals, Volume I: User Mode"*. Technologeeks Press, 2017. -- The definitive systematic guide to iOS/macOS user-space architecture. Details the internal structure of frameworks built on the XNU kernel.
 
-2. Levin, J. *"\*OS Internals, Volume II: Kernel Mode"*. Technologeeks Press, 2019. -- XNU カーネルの内部構造 (Mach, BSD, IOKit) を深く掘り下げた上級者向けの参考書。jetsam, sandbox, コード署名の実装詳細を含む。
+2. Levin, J. *"\*OS Internals, Volume II: Kernel Mode"*. Technologeeks Press, 2019. -- Advanced reference that deeply explores XNU kernel internals (Mach, BSD, IOKit). Includes implementation details of jetsam, sandbox, and code signing.
 
-3. Levin, J. *"\*OS Internals, Volume III: Security & Insecurity"*. Technologeeks Press, 2020. -- iOS/macOS のセキュリティアーキテクチャを網羅的に解説。Secure Enclave, コード署名チェーン、AMFI, サンドボックスプロファイルの詳細を含む。
+3. Levin, J. *"\*OS Internals, Volume III: Security & Insecurity"*. Technologeeks Press, 2020. -- Comprehensive coverage of iOS/macOS security architecture. Includes details on Secure Enclave, code signing chain, AMFI, and sandbox profiles.
 
-4. Yaghmour, K. *"Embedded Android: Porting, Extending, and Customizing"*. O'Reilly Media, 2013. -- AOSP のビルドシステム、HAL の実装、カーネルカスタマイズの実践ガイド。
+4. Yaghmour, K. *"Embedded Android: Porting, Extending, and Customizing"*. O'Reilly Media, 2013. -- Practical guide to AOSP build system, HAL implementation, and kernel customization.
 
-5. Gargenta, M. and Nakamura, M. *"Learning Android"*. O'Reilly Media, 2014. -- Android アプリ開発の基礎からシステムサービスの利用まで体系的に学べる入門書。
+5. Gargenta, M. and Nakamura, M. *"Learning Android"*. O'Reilly Media, 2014. -- Systematic introduction from Android app development basics to using system services.
 
-### 公式ドキュメント
+### Official Documentation
 
-6. Apple Inc. *"Apple Platform Security Guide"*. 2024. https://support.apple.com/guide/security/ -- iOS, iPadOS, macOS のセキュリティ設計を Apple が公式に解説した文書。ハードウェアセキュリティ、暗号化、認証の仕組みを網羅する。
+6. Apple Inc. *"Apple Platform Security Guide"*. 2024. https://support.apple.com/guide/security/ -- Official Apple documentation explaining iOS, iPadOS, and macOS security design. Covers hardware security, encryption, and authentication mechanisms.
 
-7. Android Open Source Project. *"Android Architecture"*. https://source.android.com/docs/core/architecture -- AOSP の公式アーキテクチャドキュメント。HAL, Treble, AIDL の設計と実装ガイドラインを含む。
+7. Android Open Source Project. *"Android Architecture"*. https://source.android.com/docs/core/architecture -- Official AOSP architecture documentation. Includes design and implementation guidelines for HAL, Treble, and AIDL.
 
-8. Google. *"Android Developer Documentation"*. https://developer.android.com/docs -- Android アプリ開発の公式リファレンス。API ガイド、ベストプラクティス、コードラボを含む。
+8. Google. *"Android Developer Documentation"*. https://developer.android.com/docs -- Official Android app development reference. Includes API guides, best practices, and codelabs.
 
-9. Apple Inc. *"iOS App Dev Tutorials"*. https://developer.apple.com/tutorials/app-dev-training -- SwiftUI を使った iOS アプリ開発の公式チュートリアル。
+9. Apple Inc. *"iOS App Dev Tutorials"*. https://developer.apple.com/tutorials/app-dev-training -- Official iOS app development tutorials using SwiftUI.
 
-### 学術論文・技術文書
+### Academic Papers and Technical Documents
 
-10. Felt, A. P., et al. "Android Permissions Demystified". *ACM CCS*, 2011. -- Android の権限モデルの設計と実際の使われ方を分析した先駆的な論文。
+10. Felt, A. P., et al. "Android Permissions Demystified". *ACM CCS*, 2011. -- Pioneering paper analyzing the design and actual usage of the Android permission model.
 
-11. Enck, W., et al. "TaintDroid: An Information-Flow Tracking System for Realtime Privacy Monitoring on Smartphones". *OSDI*, 2010. -- モバイルアプリにおけるプライバシー情報の流出を追跡するシステムの提案。
+11. Enck, W., et al. "TaintDroid: An Information-Flow Tracking System for Realtime Privacy Monitoring on Smartphones". *OSDI*, 2010. -- Proposal for a system to track privacy information leakage in mobile apps.
 
-12. Singh, A. *"Mac OS X Internals: A Systems Approach"*. Addison-Wesley, 2006. -- XNU カーネルの歴史的背景と設計原理を理解するための古典的参考書。Darwin の BSD/Mach 統合の経緯を詳述する。
+12. Singh, A. *"Mac OS X Internals: A Systems Approach"*. Addison-Wesley, 2006. -- Classic reference for understanding the historical background and design principles of the XNU kernel. Details the BSD/Mach integration history of Darwin.
 
 ---
 
-## 参考文献
+## References
 
-- [MDN Web Docs](https://developer.mozilla.org/) - Web技術のリファレンス
-- [Wikipedia](https://ja.wikipedia.org/) - 技術概念の概要
+- [MDN Web Docs](https://developer.mozilla.org/) - Web technology reference
+- [Wikipedia](https://ja.wikipedia.org/) - Technology concept overviews

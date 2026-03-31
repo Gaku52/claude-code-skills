@@ -1,656 +1,675 @@
-# I/Oスケジューリング
+# I/O Scheduling
 
-> I/Oスケジューラはディスクへのリクエストを並べ替え、ヘッドの移動距離を最小化してスループットを向上させる。
+> The I/O scheduler reorders requests to the disk, minimizing head movement distance to improve throughput.
 
-## この章で学ぶこと
+## Learning Objectives
 
-- [ ] I/Oスケジューリングの必要性を理解する
-- [ ] 主要なスケジューラの違いを知る
-- [ ] SSD時代のI/O最適化を理解する
-- [ ] Linuxブロックレイヤーの構造を把握する
-- [ ] io_uring を含む非同期I/O技術を理解する
-- [ ] 実務でのI/Oチューニング手法を習得する
+- [ ] Understand the necessity of I/O scheduling
+- [ ] Know the differences between major schedulers
+- [ ] Understand I/O optimization in the SSD era
+- [ ] Grasp the structure of the Linux block layer
+- [ ] Understand asynchronous I/O technologies including io_uring
+- [ ] Master practical I/O tuning techniques
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, having the following knowledge will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [主要ファイルシステム実装](./01-fs-implementations.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Understanding of [Major File System Implementations](./01-fs-implementations.md)
 
 ---
 
-## 1. なぜI/Oスケジューリングが必要か
+## 1. Why I/O Scheduling Is Necessary
 
-### 1.1 HDDのアクセス特性
-
-```
-HDD のアクセス時間の構成:
-
-  全体のアクセス時間 = シーク時間 + 回転待ち + 転送時間
-
-  シーク時間 (Seek Time):
-    ヘッドの移動にかかる時間
-    → 3〜10ms（平均）、最悪 15ms以上
-    → 隣接トラック: 0.5ms〜1ms
-    → 全ストローク: 10ms〜20ms
-    ← I/O性能の最大のボトルネック
-
-  回転待ち (Rotational Latency):
-    目的のセクタがヘッド下に来るまでの待ち時間
-    → 回転速度に依存
-    → 7200 RPM: 平均 4.17ms（1回転 = 8.33ms の半分）
-    → 15000 RPM: 平均 2.0ms
-    → 5400 RPM: 平均 5.56ms
-
-  転送時間 (Transfer Time):
-    データの実際の読み書き
-    → 通常 < 1ms（数十〜数百MB/s）
-    → 全体に占める割合は小さい
-
-  具体的な計算例:
-  7200RPM HDD で 4KB のランダム読み取り:
-    シーク: 8ms（平均）
-    回転待ち: 4.17ms（平均）
-    転送: 0.01ms（4KB / 200MB/s）
-    合計: ≈ 12.18ms
-
-  → 1秒間に約82回のランダムI/O = 82 IOPS
-  → シーケンシャル読み取りなら 200MB/s 以上
-
-  比較: SSD のランダム読み取り:
-    レイテンシ: 0.05〜0.1ms
-    → 10,000〜100,000+ IOPS
-    → HDDの100〜1000倍以上
-```
-
-### 1.2 スケジューリングの効果
+### 1.1 HDD Access Characteristics
 
 ```
-リクエストの順序最適化でシーク時間を大幅に削減:
+HDD access time components:
 
-  ディスク上のトラック位置:
+  Total access time = Seek time + Rotational latency + Transfer time
+
+  Seek Time:
+    Time for head movement
+    -> 3-10ms (average), worst case 15ms+
+    -> Adjacent track: 0.5ms-1ms
+    -> Full stroke: 10ms-20ms
+    <- The biggest bottleneck for I/O performance
+
+  Rotational Latency:
+    Wait time for the target sector to arrive under the head
+    -> Depends on rotation speed
+    -> 7200 RPM: average 4.17ms (half of 1 rotation = 8.33ms)
+    -> 15000 RPM: average 2.0ms
+    -> 5400 RPM: average 5.56ms
+
+  Transfer Time:
+    Actual data read/write
+    -> Typically < 1ms (tens to hundreds of MB/s)
+    -> Small proportion of total time
+
+  Concrete calculation example:
+  Random 4KB read on 7200RPM HDD:
+    Seek: 8ms (average)
+    Rotational latency: 4.17ms (average)
+    Transfer: 0.01ms (4KB / 200MB/s)
+    Total: ~ 12.18ms
+
+  -> ~82 random I/Os per second = 82 IOPS
+  -> Sequential reads can exceed 200MB/s
+
+  Comparison: SSD random read:
+    Latency: 0.05-0.1ms
+    -> 10,000-100,000+ IOPS
+    -> 100-1000x faster than HDD
+```
+
+### 1.2 Effect of Scheduling
+
+```
+Optimizing request order dramatically reduces seek time:
+
+  Track positions on disk:
   0     50    100   150   200   250   300
-  |─────|─────|─────|─────|─────|─────|
+  |-----|-----|-----|-----|-----|-----|
 
-  リクエストキュー（到着順）:
-  位置: 98, 183, 37, 122, 14, 124, 65, 67
+  Request queue (arrival order):
+  Positions: 98, 183, 37, 122, 14, 124, 65, 67
 
-  現在のヘッド位置: 53
+  Current head position: 53
 
-  ■ FCFS（先着順処理、何もしない場合）:
-  53 → 98 → 183 → 37 → 122 → 14 → 124 → 65 → 67
-  移動: 45 + 85 + 146 + 85 + 108 + 110 + 59 + 2 = 640
+  * FCFS (First Come First Served, no optimization):
+  53 -> 98 -> 183 -> 37 -> 122 -> 14 -> 124 -> 65 -> 67
+  Movement: 45 + 85 + 146 + 85 + 108 + 110 + 59 + 2 = 640
 
-  53──→98──────→183
-            ←──37──→122
-       ←──14──→124
-           ←──65→67
+  53-->98------>183
+            <--37-->122
+       <--14-->124
+           <--65>67
 
-  ■ SSTF（最短シーク時間優先）:
-  53 → 65 → 67 → 37 → 14 → 98 → 122 → 124 → 183
-  移動: 12 + 2 + 30 + 23 + 84 + 24 + 2 + 59 = 236
-  → FCFS比 63% 削減！
+  * SSTF (Shortest Seek Time First):
+  53 -> 65 -> 67 -> 37 -> 14 -> 98 -> 122 -> 124 -> 183
+  Movement: 12 + 2 + 30 + 23 + 84 + 24 + 2 + 59 = 236
+  -> 63% reduction compared to FCFS!
 
-  問題: 飢餓（starvation）
-  → ヘッドの現在位置から遠いリクエストは永遠に処理されない可能性
+  Problem: Starvation
+  -> Requests far from the current head position may never be serviced
 
-  ■ SCAN（エレベータアルゴリズム）:
-  ヘッドを一方向に移動しながら処理、端に達したら反転
-  53 → 37 → 14 → [0] → 65 → 67 → 98 → 122 → 124 → 183
-  移動: 16 + 23 + 14 + 65 + 2 + 31 + 24 + 2 + 59 = 236
-  → 飢餓を防止
+  * SCAN (Elevator Algorithm):
+  Head moves in one direction while servicing, reverses at the end
+  53 -> 37 -> 14 -> [0] -> 65 -> 67 -> 98 -> 122 -> 124 -> 183
+  Movement: 16 + 23 + 14 + 65 + 2 + 31 + 24 + 2 + 59 = 236
+  -> Prevents starvation
 
-  ■ C-SCAN（サーキュラーSCAN）:
-  一方向のみ処理、端に達したら反対の端にジャンプ
-  → より均等な待ち時間
+  * C-SCAN (Circular SCAN):
+  Services in one direction only, jumps to opposite end at boundary
+  -> More uniform wait times
 
-  ■ LOOK / C-LOOK:
-  SCAN/C-SCANの改良版
-  → ディスクの端まで行かず、最後のリクエスト位置で反転
-  → 無駄な移動を削減
+  * LOOK / C-LOOK:
+  Improved versions of SCAN/C-SCAN
+  -> Reverses at the last request position instead of disk edge
+  -> Reduces unnecessary movement
 
-  各アルゴリズムの比較:
-  ┌──────────┬──────────┬──────────┬──────────┐
-  │ アルゴリズム│ 移動距離 │ 飢餓     │ 待ち時間 │
-  ├──────────┼──────────┼──────────┼──────────┤
-  │ FCFS     │ 最大     │ なし     │ 不均等   │
-  │ SSTF     │ 小       │ あり     │ 不均等   │
-  │ SCAN     │ 中       │ なし     │ やや均等 │
-  │ C-SCAN   │ 中       │ なし     │ 均等     │
-  │ LOOK     │ 小       │ なし     │ やや均等 │
-  │ C-LOOK   │ 小       │ なし     │ 均等     │
-  └──────────┴──────────┴──────────┴──────────┘
+  Algorithm comparison:
+  +----------+----------+----------+----------+
+  | Algorithm| Movement | Starvation| Wait Time|
+  +----------+----------+----------+----------+
+  | FCFS     | Maximum  | None     | Uneven   |
+  | SSTF     | Small    | Possible | Uneven   |
+  | SCAN     | Medium   | None     | Somewhat |
+  |          |          |          | even     |
+  | C-SCAN   | Medium   | None     | Even     |
+  | LOOK     | Small    | None     | Somewhat |
+  |          |          |          | even     |
+  | C-LOOK   | Small    | None     | Even     |
+  +----------+----------+----------+----------+
 ```
 
-### 1.3 I/Oスケジューリングの位置づけ
+### 1.3 Position of I/O Scheduling in the Stack
 
 ```
-Linux I/Oスタックにおけるスケジューラの位置:
+Position of the scheduler in the Linux I/O stack:
 
-  アプリケーション
-     │ read() / write()
-     ↓
+  Application
+     | read() / write()
+     v
   VFS (Virtual File System)
-     │
-     ↓
-  ファイルシステム (ext4, XFS, Btrfs)
-     │ ブロックI/Oリクエスト生成
-     ↓
-  ページキャッシュ
-     │ キャッシュヒット → ここで完了
-     │ キャッシュミス ↓
-     ↓
-  ┌─────────────────────────────────────┐
-  │ ブロックレイヤー                     │
-  │ ┌─────────────────────────────────┐ │
-  │ │ I/Oスケジューラ                  │ │
-  │ │ → リクエストの並べ替え・マージ    │ │
-  │ └─────────────────────────────────┘ │
-  │ ┌─────────────────────────────────┐ │
-  │ │ マルチキューブロックレイヤー      │ │
-  │ │ (blk-mq)                        │ │
-  │ └─────────────────────────────────┘ │
-  └─────────────────────────────────────┘
-     │
-     ↓
-  デバイスドライバ
-     │
-     ↓
-  ハードウェア（HDD / SSD / NVMe）
+     |
+     v
+  File System (ext4, XFS, Btrfs)
+     | Block I/O request generation
+     v
+  Page Cache
+     | Cache hit -> completes here
+     | Cache miss v
+     v
+  +-------------------------------------+
+  | Block Layer                          |
+  | +----------------------------------+|
+  | | I/O Scheduler                    ||
+  | | -> Request reordering & merging  ||
+  | +----------------------------------+|
+  | +----------------------------------+|
+  | | Multi-Queue Block Layer          ||
+  | | (blk-mq)                        ||
+  | +----------------------------------+|
+  +-------------------------------------+
+     |
+     v
+  Device Driver
+     |
+     v
+  Hardware (HDD / SSD / NVMe)
 ```
 
 ---
 
-## 2. Linuxの I/Oスケジューラ
+## 2. Linux I/O Schedulers
 
-### 2.1 レガシーシングルキュースケジューラ（カーネル4.x以前）
+### 2.1 Legacy Single-Queue Schedulers (Pre-Kernel 4.x)
 
 ```
-旧世代のI/Oスケジューラ（参考）:
+Legacy I/O schedulers (for reference):
 
   1. noop:
-     スケジューリングなし（FIFO）
-     → マージのみ実行、並べ替えなし
-     → SSD、仮想環境向け
+     No scheduling (FIFO)
+     -> Only merging performed, no reordering
+     -> For SSDs, virtual environments
 
   2. deadline:
-     各リクエストにデッドライン（期限）を設定
-     → 読み取り: 500ms、書き込み: 5000ms
-     → デッドライン超過のリクエストを優先
-     → 飢餓防止と応答性のバランス
+     Assigns a deadline to each request
+     -> Read: 500ms, Write: 5000ms
+     -> Prioritizes requests that exceed their deadline
+     -> Balances starvation prevention and responsiveness
 
   3. CFQ (Completely Fair Queuing):
-     プロセスごとにキューを作成し公平にディスパッチ
-     → Linux 2.6.18〜4.x のデフォルト
-     → デスクトップ向け
-     → シングルキューのためSSD性能を活かせない
+     Creates a queue per process for fair dispatching
+     -> Linux 2.6.18-4.x default
+     -> For desktops
+     -> Cannot leverage SSD performance due to single queue
 
-  シングルキューの問題点:
-  ┌──────────────────────────────────────────┐
-  │                                          │
-  │   CPU0 ─┐                               │
-  │   CPU1 ─┤── 単一のリクエストキュー ──→ デバイス│
-  │   CPU2 ─┤     ↑ ロック競合              │
-  │   CPU3 ─┘                               │
-  │                                          │
-  │ → マルチコア環境でスケーラビリティが低い  │
-  │ → NVMe等の高速デバイスでボトルネックに    │
-  └──────────────────────────────────────────┘
+  Problems with single queue:
+  +----------------------------------------------+
+  |                                              |
+  |   CPU0 -+                                    |
+  |   CPU1 -+-- Single request queue --> Device  |
+  |   CPU2 -+     ^ Lock contention              |
+  |   CPU3 -+                                    |
+  |                                              |
+  | -> Low scalability in multi-core environments|
+  | -> Bottleneck with fast devices like NVMe    |
+  +----------------------------------------------+
 ```
 
-### 2.2 マルチキューブロックレイヤー（blk-mq）
+### 2.2 Multi-Queue Block Layer (blk-mq)
 
 ```
 blk-mq (Multi-Queue Block Layer, Linux 3.13+):
 
-  設計思想:
-  → マルチコアCPU + 高速ストレージ（NVMe）に対応
-  → CPUコアごとにソフトウェアキューを配置
-  → ハードウェアキューへの効率的なマッピング
-  → ロック競合の大幅削減
+  Design philosophy:
+  -> Support multi-core CPUs + high-speed storage (NVMe)
+  -> Place a software queue per CPU core
+  -> Efficient mapping to hardware queues
+  -> Significant reduction of lock contention
 
-  ┌──────────────────────────────────────────────────┐
-  │ blk-mq の構造                                    │
-  │                                                   │
-  │  CPU0 → [SW Queue 0]─┐                           │
-  │  CPU1 → [SW Queue 1]─┤── [HW Queue 0] → デバイス│
-  │  CPU2 → [SW Queue 2]─┤── [HW Queue 1] → デバイス│
-  │  CPU3 → [SW Queue 3]─┘── [HW Queue N] → デバイス│
-  │                                                   │
-  │  SW Queue: CPUローカル（ロック不要）               │
-  │  HW Queue: デバイスのハードウェアキューに対応       │
-  │  → NVMe: 最大64K個のHWキュー                      │
-  │  → SATA: 通常1個のHWキュー                        │
-  └──────────────────────────────────────────────────┘
+  +------------------------------------------------------+
+  | blk-mq structure                                      |
+  |                                                       |
+  |  CPU0 -> [SW Queue 0]-+                               |
+  |  CPU1 -> [SW Queue 1]-+-- [HW Queue 0] -> Device     |
+  |  CPU2 -> [SW Queue 2]-+-- [HW Queue 1] -> Device     |
+  |  CPU3 -> [SW Queue 3]-+-- [HW Queue N] -> Device     |
+  |                                                       |
+  |  SW Queue: CPU-local (no lock needed)                 |
+  |  HW Queue: Corresponds to device hardware queues      |
+  |  -> NVMe: up to 64K HW queues                        |
+  |  -> SATA: typically 1 HW queue                        |
+  +------------------------------------------------------+
 
-  blk-mq のメリット:
-  - CPUコアごとの独立したキューでロック競合なし
-  - NVMe の並列性を完全に活用
-  - NUMA ノードに配慮した配置
-  - 低レイテンシ（ポーリングモード対応）
+  Benefits of blk-mq:
+  - No lock contention with independent queues per CPU core
+  - Fully utilizes NVMe parallelism
+  - NUMA-node-aware placement
+  - Low latency (polling mode support)
 
-  Linux 5.0 以降:
-  → 旧シングルキュースケジューラは完全削除
-  → 全デバイスが blk-mq ベースに移行
+  Linux 5.0 and later:
+  -> Legacy single-queue schedulers completely removed
+  -> All devices migrated to blk-mq base
 ```
 
-### 2.3 現在のLinux I/Oスケジューラ
+### 2.3 Current Linux I/O Schedulers
 
 ```
-現在のLinux I/Oスケジューラ（blk-mq ベース）:
+Current Linux I/O schedulers (blk-mq based):
 
-  1. mq-deadline（マルチキューデッドライン）:
-  ┌──────────────────────────────────────────────┐
-  │ 概要:                                         │
-  │ - 旧 deadline スケジューラの blk-mq 版        │
-  │ - リクエストにデッドラインを設定               │
-  │ - 読み取り優先（500ms）、書き込み（5000ms）   │
-  │                                               │
-  │ 動作:                                         │
-  │ 1. リクエストを2つのキューで管理               │
-  │    - ソートキュー: セクタ番号順（SCAN風）     │
-  │    - デッドラインキュー: 期限順               │
-  │ 2. 通常はソートキューから処理（シーク最適化）  │
-  │ 3. デッドライン超過のリクエストがあれば優先    │
-  │ 4. 読み取りを書き込みより優先（対話性向上）   │
-  │                                               │
-  │ パラメータ:                                    │
-  │ /sys/block/sda/queue/iosched/                  │
-  │   read_expire:     500  (ms, 読み取り期限)    │
-  │   write_expire:    5000 (ms, 書き込み期限)    │
-  │   writes_starved:  2    (読み取り優先度)       │
-  │   fifo_batch:      16   (バッチサイズ)        │
-  │   front_merges:    1    (フロントマージ有効)   │
-  │                                               │
-  │ 用途: HDD 全般、DB サーバー、仮想化ホスト      │
-  │ 特に適する: レイテンシ保証が重要な場合          │
-  └──────────────────────────────────────────────┘
+  1. mq-deadline (Multi-Queue Deadline):
+  +----------------------------------------------+
+  | Overview:                                     |
+  | - blk-mq version of the legacy deadline       |
+  |   scheduler                                   |
+  | - Assigns deadlines to requests               |
+  | - Read priority (500ms), write (5000ms)       |
+  |                                               |
+  | Operation:                                    |
+  | 1. Manages requests in 2 queues               |
+  |    - Sort queue: by sector number (SCAN-like) |
+  |    - Deadline queue: by expiration time        |
+  | 2. Normally processes from sort queue          |
+  |    (seek optimization)                        |
+  | 3. Prioritizes requests past deadline          |
+  | 4. Prioritizes reads over writes               |
+  |    (improves interactivity)                   |
+  |                                               |
+  | Parameters:                                   |
+  | /sys/block/sda/queue/iosched/                 |
+  |   read_expire:     500  (ms, read deadline)   |
+  |   write_expire:    5000 (ms, write deadline)  |
+  |   writes_starved:  2    (read priority)       |
+  |   fifo_batch:      16   (batch size)          |
+  |   front_merges:    1    (front merge enabled) |
+  |                                               |
+  | Use cases: General HDD, DB servers,           |
+  |            virtualization hosts                |
+  | Best for: When latency guarantee is important |
+  +----------------------------------------------+
 
-  2. BFQ（Budget Fair Queueing）:
-  ┌──────────────────────────────────────────────┐
-  │ 概要:                                         │
-  │ - CFQ の後継（blk-mq ベース）                 │
-  │ - プロセスごとに I/O 「予算」を割り当て       │
-  │ - 帯域幅とレイテンシの公平な分配               │
-  │                                               │
-  │ 動作:                                         │
-  │ 1. 各プロセスにキューを割り当て               │
-  │ 2. 「予算」（処理可能なセクタ数）を設定       │
-  │ 3. 予算消費 → 次のプロセスに切り替え          │
-  │ 4. 対話的プロセスを自動検出して優先           │
-  │ 5. 重み付けによる優先度制御                   │
-  │                                               │
-  │ パラメータ:                                    │
-  │ /sys/block/sda/queue/iosched/                  │
-  │   slice_idle:     8 (ms, アイドル待ち時間)    │
-  │   low_latency:    1 (低レイテンシモード)      │
-  │   timeout_sync:   125 (ms, 同期タイムアウト)  │
-  │   max_budget:     0 (0=自動、セクタ数)        │
-  │   strict_guarantees: 0                        │
-  │                                               │
-  │ cgroup 連携:                                   │
-  │ → I/O コントローラーとの統合                   │
-  │ → コンテナごとの I/O 帯域制限                  │
-  │ → 比例配分（weight ベース）                    │
-  │                                               │
-  │ 用途: デスクトップ、マルチメディア             │
-  │ 特に適する: 対話性が重要で低速ストレージの場合 │
-  │                                               │
-  │ 注意: CPU オーバーヘッドが高い                  │
-  │ → 高速 NVMe では none の方が適切              │
-  └──────────────────────────────────────────────┘
+  2. BFQ (Budget Fair Queueing):
+  +----------------------------------------------+
+  | Overview:                                     |
+  | - Successor to CFQ (blk-mq based)            |
+  | - Allocates I/O "budget" per process          |
+  | - Fair distribution of bandwidth and latency  |
+  |                                               |
+  | Operation:                                    |
+  | 1. Assigns a queue to each process            |
+  | 2. Sets "budget" (serviceable sector count)   |
+  | 3. Budget consumed -> switch to next process  |
+  | 4. Auto-detects interactive processes and     |
+  |    prioritizes them                           |
+  | 5. Priority control via weighting             |
+  |                                               |
+  | Parameters:                                   |
+  | /sys/block/sda/queue/iosched/                 |
+  |   slice_idle:     8 (ms, idle wait time)      |
+  |   low_latency:    1 (low latency mode)        |
+  |   timeout_sync:   125 (ms, sync timeout)      |
+  |   max_budget:     0 (0=auto, sector count)    |
+  |   strict_guarantees: 0                        |
+  |                                               |
+  | cgroup integration:                           |
+  | -> Integration with I/O controller            |
+  | -> I/O bandwidth limitation per container     |
+  | -> Proportional allocation (weight-based)     |
+  |                                               |
+  | Use cases: Desktop, multimedia                |
+  | Best for: Interactivity-critical with slow    |
+  |           storage                             |
+  |                                               |
+  | Note: CPU overhead is high                    |
+  | -> For fast NVMe, none is more appropriate    |
+  +----------------------------------------------+
 
-  3. none（noop）:
-  ┌──────────────────────────────────────────────┐
-  │ 概要:                                         │
-  │ - スケジューリングなし                         │
-  │ - リクエストの並べ替えを行わない               │
-  │ - マージのみ実行（隣接リクエストの結合）       │
-  │                                               │
-  │ 動作:                                         │
-  │ → リクエストをそのまま FIFO で処理            │
-  │ → 隣接ブロックのリクエストはマージ             │
-  │ → CPUオーバーヘッドが最小                      │
-  │                                               │
-  │ 用途:                                         │
-  │ - SSD / NVMe（物理的なシークがない）          │
-  │ - 仮想マシン（ホストOSがスケジュール済み）    │
-  │ - ソフトウェアRAID（RAIDコントローラが最適化） │
-  │ - ハードウェアRAID（RAIDカードが最適化）       │
-  │                                               │
-  │ → 高速デバイスではスケジューラのCPUオーバー    │
-  │   ヘッドがボトルネックになりうる               │
-  │ → none が最も高いスループットを達成            │
-  └──────────────────────────────────────────────┘
+  3. none (noop):
+  +----------------------------------------------+
+  | Overview:                                     |
+  | - No scheduling                               |
+  | - No reordering of requests                   |
+  | - Only merging (combining adjacent requests)  |
+  |                                               |
+  | Operation:                                    |
+  | -> Processes requests as-is in FIFO order     |
+  | -> Merges adjacent block requests             |
+  | -> Minimal CPU overhead                       |
+  |                                               |
+  | Use cases:                                    |
+  | - SSD / NVMe (no physical seeks)             |
+  | - Virtual machines (host OS already schedules)|
+  | - Software RAID (RAID controller optimizes)   |
+  | - Hardware RAID (RAID card optimizes)         |
+  |                                               |
+  | -> For fast devices, scheduler CPU overhead   |
+  |    can become a bottleneck                    |
+  | -> none achieves the highest throughput       |
+  +----------------------------------------------+
 ```
 
-### 2.4 スケジューラの設定と確認
+### 2.4 Configuring and Checking Schedulers
 
 ```bash
-# 現在のスケジューラ確認
+# Check current scheduler
 cat /sys/block/sda/queue/scheduler
 # [mq-deadline] bfq none
-# → [] で囲まれているのが現在のスケジューラ
+# -> The one in [] is the current scheduler
 
-# 全ブロックデバイスのスケジューラ確認
+# Check scheduler for all block devices
 for dev in /sys/block/*/queue/scheduler; do
   echo "$(dirname $(dirname $dev) | xargs basename): $(cat $dev)"
 done
 # sda: [mq-deadline] bfq none
 # nvme0n1: [none] mq-deadline bfq
 
-# スケジューラ変更（一時的）
+# Change scheduler (temporary)
 echo "mq-deadline" | sudo tee /sys/block/sda/queue/scheduler
 echo "none" | sudo tee /sys/block/nvme0n1/queue/scheduler
 
-# スケジューラ変更（永続化、udevルール）
+# Change scheduler (persistent, udev rules)
 # /etc/udev/rules.d/60-ioschedulers.rules
-# HDD向け
+# For HDDs
 ACTION=="add|change", KERNEL=="sd[a-z]", ATTR{queue/rotational}=="1", \
   ATTR{queue/scheduler}="mq-deadline"
 
-# SSD向け
+# For SSDs
 ACTION=="add|change", KERNEL=="sd[a-z]", ATTR{queue/rotational}=="0", \
   ATTR{queue/scheduler}="none"
 
-# NVMe向け
+# For NVMe
 ACTION=="add|change", KERNEL=="nvme[0-9]*", \
   ATTR{queue/scheduler}="none"
 
-# udevルールのリロード
+# Reload udev rules
 sudo udevadm control --reload-rules
 sudo udevadm trigger
 
-# 回転デバイスかどうかの確認
+# Check if device is rotational
 cat /sys/block/sda/queue/rotational
-# 1 = HDD（回転ディスク）
-# 0 = SSD（非回転）
+# 1 = HDD (rotational disk)
+# 0 = SSD (non-rotational)
 
-# スケジューラのパラメータ確認
+# Check scheduler parameters
 ls /sys/block/sda/queue/iosched/
-# → read_expire, write_expire, writes_starved, ...
+# -> read_expire, write_expire, writes_starved, ...
 
-# パラメータの変更
+# Change parameters
 echo 300 | sudo tee /sys/block/sda/queue/iosched/read_expire
 echo 3000 | sudo tee /sys/block/sda/queue/iosched/write_expire
 ```
 
-### 2.5 SSD時代のI/Oスケジューリング
+### 2.5 I/O Scheduling in the SSD Era
 
 ```
-SSD/NVMe の特性とスケジューリング:
+SSD/NVMe characteristics and scheduling:
 
-  HDD vs SSD の I/O 特性:
-  ┌──────────────────┬──────────────────┬──────────────────┐
-  │ 項目              │ HDD              │ SSD (NVMe)       │
-  ├──────────────────┼──────────────────┼──────────────────┤
-  │ ランダム読み取り │ 100-200 IOPS     │ 100K-1M+ IOPS   │
-  │ シーケンシャル読み│ 100-200 MB/s     │ 3-7 GB/s        │
-  │ レイテンシ       │ 5-15 ms          │ 0.02-0.1 ms     │
-  │ 並列度           │ 1（物理ヘッド1つ）│ 最大4M（64K×64K）│
-  │ シーク影響       │ 大きい           │ なし             │
-  │ 推奨スケジューラ │ mq-deadline      │ none             │
-  └──────────────────┴──────────────────┴──────────────────┘
+  HDD vs SSD I/O characteristics:
+  +------------------+------------------+------------------+
+  | Item             | HDD              | SSD (NVMe)       |
+  +------------------+------------------+------------------+
+  | Random read      | 100-200 IOPS     | 100K-1M+ IOPS   |
+  | Sequential read  | 100-200 MB/s     | 3-7 GB/s         |
+  | Latency          | 5-15 ms          | 0.02-0.1 ms      |
+  | Parallelism      | 1 (single head)  | Up to 4M(64Kx64K)|
+  | Seek impact      | Large            | None             |
+  | Recommended      | mq-deadline      | none             |
+  | scheduler        |                  |                  |
+  +------------------+------------------+------------------+
 
-  NVMe の並列I/O構造:
-  ┌──────────────────────────────────────────┐
-  │ NVMe の構造                               │
-  │                                           │
-  │ NVMe コントローラ                          │
-  │ ├── Submission Queue 0 ─→ Completion Queue 0│
-  │ ├── Submission Queue 1 ─→ Completion Queue 1│
-  │ ├── Submission Queue 2 ─→ Completion Queue 2│
-  │ ├── ...                                    │
-  │ └── SQ 65535 ────────→ CQ 65535            │
-  │                                           │
-  │ 各キューに最大 65536 個のコマンド          │
-  │ → 理論最大: 64K × 64K = 約40億の並列I/O   │
-  │                                           │
-  │ 実際の利用:                                │
-  │ → CPU コアごとに 1 つのキューペア          │
-  │ → 8コアCPU → 8 キューペア                 │
-  │ → 各キューに 1024 エントリ程度             │
-  └──────────────────────────────────────────┘
+  NVMe parallel I/O structure:
+  +------------------------------------------+
+  | NVMe structure                            |
+  |                                           |
+  | NVMe Controller                           |
+  | +-- Submission Queue 0 -> Completion Queue 0|
+  | +-- Submission Queue 1 -> Completion Queue 1|
+  | +-- Submission Queue 2 -> Completion Queue 2|
+  | +-- ...                                   |
+  | +-- SQ 65535 ---------> CQ 65535          |
+  |                                           |
+  | Up to 65536 commands per queue            |
+  | -> Theoretical max: 64K x 64K = ~4B      |
+  |    parallel I/Os                          |
+  |                                           |
+  | Actual usage:                             |
+  | -> 1 queue pair per CPU core              |
+  | -> 8-core CPU -> 8 queue pairs            |
+  | -> ~1024 entries per queue                |
+  +------------------------------------------+
 
-  なぜ SSD では none が最適か:
-  1. 物理的なシークがない → 並べ替えの意味がない
-  2. 超高並列 → キュー内の順序は性能に影響しない
-  3. スケジューラの CPU オーバーヘッドが相対的に大きくなる
-  4. デバイス側で独自のスケジューリング（FTL）を実行
-  5. スケジューラの遅延がデバイスの低レイテンシを相殺
+  Why none is optimal for SSDs:
+  1. No physical seeks -> reordering is meaningless
+  2. Ultra-high parallelism -> queue order doesn't affect performance
+  3. Scheduler CPU overhead becomes relatively large
+  4. Device performs its own scheduling (FTL)
+  5. Scheduler delay offsets the device's low latency
 
-  ただし例外:
-  - SATA SSD（キュー深度32が上限）: mq-deadline も有効な場合あり
-  - デスクトップで BFQ を使う場合:
-    → バックグラウンドの大量 I/O が対話性を妨げないようにする
-    → 例: 巨大ファイルコピー中のアプリ起動速度
+  Exceptions:
+  - SATA SSDs (queue depth limited to 32): mq-deadline may be effective
+  - Using BFQ on desktop:
+    -> Prevents heavy background I/O from hurting interactivity
+    -> Example: Application launch speed during large file copy
 ```
 
 ---
 
-## 3. I/O最適化テクニック
+## 3. I/O Optimization Techniques
 
-### 3.1 ページキャッシュ
+### 3.1 Page Cache
 
 ```
-ページキャッシュ (Page Cache):
-  読み込んだディスクデータをメモリにキャッシュする仕組み
-  → 2回目以降のアクセスはメモリから読み取り（超高速）
-  → Linux はメモリの大半をページキャッシュに使用
+Page Cache:
+  Mechanism to cache read disk data in memory
+  -> Subsequent accesses read from memory (ultra-fast)
+  -> Linux uses most of memory for page cache
 
-  動作原理:
-  ┌──────────────────────────────────────────┐
-  │ read() の処理フロー:                      │
-  │                                           │
-  │ 1. ページキャッシュを検索                  │
-  │    ├── ヒット → メモリから直接返す（μs）  │
-  │    └── ミス  → ディスクから読み込み（ms）  │
-  │               └── キャッシュに格納         │
-  │                  └── データを返す          │
-  │                                           │
-  │ write() の処理フロー:                     │
-  │                                           │
-  │ 1. ページキャッシュに書き込み              │
-  │ 2. ページを「dirty」にマーク              │
-  │ 3. write() はすぐにリターン               │
-  │ 4. カーネルスレッド（pdflush/writeback）が │
-  │    バックグラウンドでディスクに書き出し     │
-  └──────────────────────────────────────────┘
+  Operating principle:
+  +------------------------------------------+
+  | read() processing flow:                   |
+  |                                           |
+  | 1. Search page cache                      |
+  |    +-- Hit -> Return directly from memory |
+  |    |          (us)                        |
+  |    +-- Miss -> Read from disk (ms)        |
+  |               +-- Store in cache          |
+  |                  +-- Return data          |
+  |                                           |
+  | write() processing flow:                  |
+  |                                           |
+  | 1. Write to page cache                    |
+  | 2. Mark page as "dirty"                   |
+  | 3. write() returns immediately            |
+  | 4. Kernel thread (pdflush/writeback)      |
+  |    writes to disk in background           |
+  +------------------------------------------+
 
-  ページキャッシュの管理:
-  ┌──────────────────────────────────────────┐
-  │ メモリの使い方（4GB RAMの例）             │
-  │                                          │
-  │ ┌────────────────────────────────────┐   │
-  │ │ アプリケーション使用: 1.5GB        │   │
-  │ ├────────────────────────────────────┤   │
-  │ │ ページキャッシュ: 2.0GB            │   │
-  │ ├────────────────────────────────────┤   │
-  │ │ カーネル/予約: 0.5GB              │   │
-  │ └────────────────────────────────────┘   │
-  │                                          │
-  │ → "free" コマンドで Available が少なくても│
-  │   ページキャッシュが多い場合は問題なし    │
-  │ → アプリがメモリを要求すれば             │
-  │   キャッシュは自動的に解放される         │
-  └──────────────────────────────────────────┘
+  Page cache management:
+  +------------------------------------------+
+  | Memory usage (4GB RAM example)            |
+  |                                          |
+  | +------------------------------------+   |
+  | | Application usage: 1.5GB           |   |
+  | +------------------------------------+   |
+  | | Page cache: 2.0GB                  |   |
+  | +------------------------------------+   |
+  | | Kernel/reserved: 0.5GB             |   |
+  | +------------------------------------+   |
+  |                                          |
+  | -> Even if "free" command shows low      |
+  |    Available, it's fine if page cache    |
+  |    is large                              |
+  | -> Cache is automatically released       |
+  |    when apps request memory              |
+  +------------------------------------------+
 ```
 
 ```bash
-# ページキャッシュの状態確認
+# Check page cache status
 free -h
 # total   used   free   shared  buff/cache  available
 # 16Gi   4.5Gi  1.2Gi  256Mi   10.3Gi       11.0Gi
-# → buff/cache の 10.3GB がページキャッシュ + バッファ
-# → available の 11.0GB が実際に使えるメモリ
+# -> buff/cache of 10.3GB is page cache + buffers
+# -> available of 11.0GB is actually usable memory
 
-# より詳細な情報
+# More detailed information
 cat /proc/meminfo | grep -E "^(MemTotal|MemFree|Buffers|Cached|Dirty|Writeback)"
 # MemTotal:       16384000 kB
 # MemFree:         1200000 kB
 # Buffers:          256000 kB
-# Cached:         10000000 kB   ← ページキャッシュ
-# Dirty:             32000 kB   ← 未書き出しデータ
-# Writeback:             0 kB   ← 書き出し中データ
+# Cached:         10000000 kB   <- Page cache
+# Dirty:             32000 kB   <- Data not yet written to disk
+# Writeback:             0 kB   <- Data being written
 
-# ページキャッシュのクリア（テスト・ベンチマーク用）
-# 注意: 本番環境では実行しないこと！
-sudo sync                                    # dirty ページを書き出し
-echo 1 | sudo tee /proc/sys/vm/drop_caches  # ページキャッシュクリア
-echo 2 | sudo tee /proc/sys/vm/drop_caches  # dentry/inodeキャッシュ
-echo 3 | sudo tee /proc/sys/vm/drop_caches  # 両方クリア
+# Clear page cache (for testing/benchmarking)
+# Warning: Do not run in production!
+sudo sync                                    # Write dirty pages
+echo 1 | sudo tee /proc/sys/vm/drop_caches  # Clear page cache
+echo 2 | sudo tee /proc/sys/vm/drop_caches  # Clear dentry/inode cache
+echo 3 | sudo tee /proc/sys/vm/drop_caches  # Clear both
 
-# ダーティページの設定（書き出しタイミング制御）
-# ダーティ比率（全メモリに対するダーティページの割合）
-cat /proc/sys/vm/dirty_ratio           # デフォルト: 20
-cat /proc/sys/vm/dirty_background_ratio # デフォルト: 10
-cat /proc/sys/vm/dirty_expire_centisecs # デフォルト: 3000 (30秒)
-cat /proc/sys/vm/dirty_writeback_centisecs # デフォルト: 500 (5秒)
+# Dirty page settings (control write-out timing)
+# Dirty ratio (proportion of dirty pages to total memory)
+cat /proc/sys/vm/dirty_ratio           # Default: 20
+cat /proc/sys/vm/dirty_background_ratio # Default: 10
+cat /proc/sys/vm/dirty_expire_centisecs # Default: 3000 (30 seconds)
+cat /proc/sys/vm/dirty_writeback_centisecs # Default: 500 (5 seconds)
 
-# dirty_ratio: この割合を超えるとwrite()がブロック
-# dirty_background_ratio: この割合を超えるとバックグラウンド書き出し開始
+# dirty_ratio: write() blocks when this ratio is exceeded
+# dirty_background_ratio: background write-out starts when this ratio is exceeded
 
-# DB サーバー向け設定（より頻繁に書き出し）
+# DB server settings (write out more frequently)
 sudo sysctl -w vm.dirty_ratio=5
 sudo sysctl -w vm.dirty_background_ratio=2
 sudo sysctl -w vm.dirty_expire_centisecs=500
 
-# 大容量メモリサーバー向け（バイト単位で指定）
+# Large memory server settings (specify in bytes)
 sudo sysctl -w vm.dirty_bytes=268435456           # 256MB
 sudo sysctl -w vm.dirty_background_bytes=67108864 # 64MB
 ```
 
-### 3.2 先読み（Read-ahead）
+### 3.2 Read-ahead
 
 ```
-先読み（Read-ahead）:
-  連続読み取りを検知して先にデータを読む
-  → アプリケーションが要求する前にデータを準備
-  → シーケンシャル読み取りの大幅な高速化
+Read-ahead:
+  Detects sequential reads and pre-reads data
+  -> Prepares data before the application requests it
+  -> Dramatically speeds up sequential reads
 
-  動作原理:
-  ┌──────────────────────────────────────────┐
-  │ アプリケーションの読み取りパターン:        │
-  │                                          │
-  │ 時刻1: read(offset=0, size=4KB)         │
-  │ 時刻2: read(offset=4KB, size=4KB)       │
-  │ 時刻3: read(offset=8KB, size=4KB)       │
-  │   ↑ シーケンシャルパターンを検出！        │
-  │                                          │
-  │ カーネルの先読み:                         │
-  │ → offset=12KB から 128KB を先行読み込み  │
-  │ → アプリの次の read() はキャッシュヒット  │
-  │                                          │
-  │ 適応的先読み:                             │
-  │ - 先読みサイズを動的に調整               │
-  │ - 初期: 小さなサイズ                     │
-  │ - シーケンシャル確認後: 段階的に拡大      │
-  │ - 最大: readahead_kb の値まで            │
-  └──────────────────────────────────────────┘
+  Operating principle:
+  +------------------------------------------+
+  | Application read pattern:                 |
+  |                                          |
+  | Time 1: read(offset=0, size=4KB)         |
+  | Time 2: read(offset=4KB, size=4KB)       |
+  | Time 3: read(offset=8KB, size=4KB)       |
+  |   ^ Sequential pattern detected!         |
+  |                                          |
+  | Kernel read-ahead:                        |
+  | -> Pre-read 128KB from offset=12KB       |
+  | -> Next read() from app hits cache       |
+  |                                          |
+  | Adaptive read-ahead:                      |
+  | - Dynamically adjusts read-ahead size    |
+  | - Initially: small size                  |
+  | - After confirming sequential: gradually  |
+  |   increase                               |
+  | - Maximum: up to readahead_kb value      |
+  +------------------------------------------+
 ```
 
 ```bash
-# 先読みサイズの確認
+# Check read-ahead size
 cat /sys/block/sda/queue/read_ahead_kb
-# デフォルト: 128 (128KB)
+# Default: 128 (128KB)
 
-# 先読みサイズの変更
+# Change read-ahead size
 echo 256 | sudo tee /sys/block/sda/queue/read_ahead_kb   # 256KB
 echo 2048 | sudo tee /sys/block/sda/queue/read_ahead_kb  # 2MB
 
-# 推奨設定:
-# HDD: 256〜1024KB（シーケンシャル読み取りが多い場合）
-# SSD: 128〜256KB（デフォルトで十分）
-# RAID: 1024〜4096KB（ストライプサイズに合わせる）
-# データベース: 小さめ（ランダムI/Oが多い）
+# Recommended settings:
+# HDD: 256-1024KB (when sequential reads are frequent)
+# SSD: 128-256KB (default is sufficient)
+# RAID: 1024-4096KB (match stripe size)
+# Database: smaller (frequent random I/O)
 
-# blockdev での設定
-sudo blockdev --getra /dev/sda    # 先読みサイズ取得（セクタ単位）
-sudo blockdev --setra 512 /dev/sda # 256KB（512セクタ×512B）
+# Setting with blockdev
+sudo blockdev --getra /dev/sda    # Get read-ahead size (in sectors)
+sudo blockdev --setra 512 /dev/sda # 256KB (512 sectors x 512B)
 
-# アプリケーション単位の先読み制御
-# posix_fadvise() システムコール
-# POSIX_FADV_SEQUENTIAL: シーケンシャルアクセスを宣言
-# POSIX_FADV_RANDOM:     ランダムアクセスを宣言
-# POSIX_FADV_WILLNEED:   近い将来アクセスする
-# POSIX_FADV_DONTNEED:   もうアクセスしない（キャッシュ解放ヒント）
+# Per-application read-ahead control
+# posix_fadvise() system call
+# POSIX_FADV_SEQUENTIAL: Declare sequential access
+# POSIX_FADV_RANDOM:     Declare random access
+# POSIX_FADV_WILLNEED:   Will access in near future
+# POSIX_FADV_DONTNEED:   No longer need (cache release hint)
 ```
 
-### 3.3 io_uring（Linux 5.1+）
+### 3.3 io_uring (Linux 5.1+)
 
 ```
-io_uring: 高性能非同期I/Oインターフェース
+io_uring: High-performance asynchronous I/O interface
 
-  従来の非同期I/O方式との比較:
-  ┌──────────────┬────────────────────────────────────┐
-  │ 方式          │ 特徴                                │
-  ├──────────────┼────────────────────────────────────┤
-  │ 同期I/O      │ read()/write() がブロック            │
-  │ (blocking)   │ 単純だが並列性が低い                 │
-  ├──────────────┼────────────────────────────────────┤
-  │ select/poll  │ FD の準備状態を確認                  │
-  │              │ FD 数に応じて O(n) のオーバーヘッド   │
-  ├──────────────┼────────────────────────────────────┤
-  │ epoll        │ イベント駆動型                       │
-  │              │ O(1) で準備完了 FD を取得            │
-  │              │ ただし read/write 自体は同期         │
-  ├──────────────┼────────────────────────────────────┤
-  │ aio          │ カーネル非同期I/O                    │
-  │ (Linux AIO)  │ Direct I/O のみ対応                 │
-  │              │ バッファードI/O非対応                 │
-  │              │ API が複雑                          │
-  ├──────────────┼────────────────────────────────────┤
-  │ io_uring     │ 完全非同期I/O                       │
-  │ (Linux 5.1+) │ システムコールオーバーヘッド最小     │
-  │              │ バッファードI/O対応                   │
-  │              │ ゼロコピー対応                       │
-  │              │ ポーリングモード対応                 │
-  │              │ → 最高性能の I/O インターフェース    │
-  └──────────────┴────────────────────────────────────┘
+  Comparison with traditional async I/O methods:
+  +--------------+------------------------------------+
+  | Method       | Characteristics                     |
+  +--------------+------------------------------------+
+  | Synchronous  | read()/write() blocks              |
+  | I/O          | Simple but low parallelism         |
+  | (blocking)   |                                    |
+  +--------------+------------------------------------+
+  | select/poll  | Check FD readiness                 |
+  |              | O(n) overhead proportional to FD    |
+  |              | count                              |
+  +--------------+------------------------------------+
+  | epoll        | Event-driven                       |
+  |              | O(1) to get ready FDs              |
+  |              | But read/write itself is synchronous|
+  +--------------+------------------------------------+
+  | aio          | Kernel async I/O                   |
+  | (Linux AIO)  | Only supports Direct I/O           |
+  |              | Buffered I/O not supported         |
+  |              | Complex API                        |
+  +--------------+------------------------------------+
+  | io_uring     | Fully async I/O                    |
+  | (Linux 5.1+) | Minimal system call overhead       |
+  |              | Buffered I/O supported             |
+  |              | Zero-copy support                  |
+  |              | Polling mode support               |
+  |              | -> Highest performance I/O          |
+  |              |    interface                       |
+  +--------------+------------------------------------+
 
-  io_uring の仕組み:
-  ┌──────────────────────────────────────────────────┐
-  │                                                   │
-  │  ユーザ空間          カーネル空間                   │
-  │                                                   │
-  │  ┌──────────────┐   ┌──────────────┐              │
-  │  │ Submission   │   │              │              │
-  │  │ Queue (SQ)   │──→│  I/O 処理    │              │
-  │  │  リクエスト   │   │  エンジン    │              │
-  │  │  を投入      │   │              │              │
-  │  └──────────────┘   └──────┬───────┘              │
-  │                            │                      │
-  │  ┌──────────────┐          │                      │
-  │  │ Completion   │←─────────┘                      │
-  │  │ Queue (CQ)   │                                 │
-  │  │  完了通知     │                                 │
-  │  │  を受け取り   │                                 │
-  │  └──────────────┘                                 │
-  │                                                   │
-  │  SQ と CQ はカーネルとユーザ空間で共有メモリ      │
-  │  → システムコールなしでリクエスト投入・結果取得    │
-  │  → io_uring_enter() は必要時のみ（ポーリング時不要）│
-  └──────────────────────────────────────────────────┘
+  How io_uring works:
+  +------------------------------------------------------+
+  |                                                       |
+  |  User space          Kernel space                     |
+  |                                                       |
+  |  +--------------+   +--------------+                  |
+  |  | Submission   |   |              |                  |
+  |  | Queue (SQ)   |-->|  I/O         |                  |
+  |  |  Submit      |   |  Processing  |                  |
+  |  |  requests    |   |  Engine      |                  |
+  |  +--------------+   +------+-------+                  |
+  |                            |                          |
+  |  +--------------+          |                          |
+  |  | Completion   |<---------+                          |
+  |  | Queue (CQ)   |                                    |
+  |  |  Receive     |                                    |
+  |  |  completions |                                    |
+  |  +--------------+                                    |
+  |                                                       |
+  |  SQ and CQ are shared memory between kernel and      |
+  |  user space                                           |
+  |  -> Submit requests and get results without system    |
+  |     calls                                             |
+  |  -> io_uring_enter() only when needed (not needed     |
+  |     in polling mode)                                  |
+  +------------------------------------------------------+
 
-  io_uring の主な機能（Linux バージョン別）:
-  5.1:  基本的な読み書き
-  5.4:  ネットワーク I/O (accept, connect, recv, send)
+  io_uring features (by Linux version):
+  5.1:  Basic read/write
+  5.4:  Network I/O (accept, connect, recv, send)
   5.5:  splice, tee
-  5.6:  固定バッファ登録、IO ポーリング最適化
-  5.7:  リンクされた操作、タイムアウト
-  5.10: 制限モード、パーミッション制御
+  5.6:  Fixed buffer registration, IO polling optimization
+  5.7:  Linked operations, timeouts
+  5.10: Restricted mode, permission control
   5.11: shutdown, renameat, unlinkat
   5.12: mkdirat, symlinkat
-  5.15: sendmsg_zc（ゼロコピー送信）
+  5.15: sendmsg_zc (zero-copy send)
   6.0:  send_zc, recv_zc
-  6.1:  futex 操作
+  6.1:  futex operations
 ```
 
 ```c
-// io_uring の基本的な使用例（C言語）
+// Basic io_uring usage example (C language)
 #include <liburing.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -663,295 +682,295 @@ int main() {
     char buf[4096];
     int fd;
 
-    // io_uring の初期化（キュー深度128）
+    // Initialize io_uring (queue depth 128)
     io_uring_queue_init(128, &ring, 0);
 
-    // ファイルオープン
+    // Open file
     fd = open("test.txt", O_RDONLY);
 
-    // Submission Queue Entry を取得
+    // Get a Submission Queue Entry
     sqe = io_uring_get_sqe(&ring);
 
-    // 読み取りリクエストを準備
+    // Prepare a read request
     io_uring_prep_read(sqe, fd, buf, sizeof(buf), 0);
 
-    // リクエストを投入
+    // Submit the request
     io_uring_submit(&ring);
 
-    // 完了待ち
+    // Wait for completion
     io_uring_wait_cqe(&ring, &cqe);
 
     printf("Read %d bytes\n", cqe->res);
 
-    // 完了エントリを消費
+    // Consume the completion entry
     io_uring_cqe_seen(&ring, cqe);
 
-    // クリーンアップ
+    // Cleanup
     close(fd);
     io_uring_queue_exit(&ring);
     return 0;
 }
 
-// コンパイル: gcc -o io_uring_example io_uring_example.c -luring
+// Compile: gcc -o io_uring_example io_uring_example.c -luring
 ```
 
 ### 3.4 Direct I/O
 
 ```
 Direct I/O:
-  ページキャッシュをバイパスしてディスクに直接アクセス
+  Access disk directly bypassing the page cache
 
-  通常のI/O（Buffered I/O）:
-  アプリ → ページキャッシュ → ディスク
-  → カーネルがキャッシュ管理
-  → 大部分のアプリに最適
+  Normal I/O (Buffered I/O):
+  App -> Page Cache -> Disk
+  -> Kernel manages cache
+  -> Optimal for most applications
 
   Direct I/O:
-  アプリ → ディスク（ページキャッシュをバイパス）
-  → アプリが独自のキャッシュを管理
-  → データベースが主な利用者
+  App -> Disk (bypassing page cache)
+  -> Application manages its own cache
+  -> Databases are the primary users
 
-  ┌────────────────────────────────────────────┐
-  │ Buffered I/O:                               │
-  │ App → [Page Cache] → Disk                  │
-  │       キャッシュで高速化                     │
-  │       ダブルバッファリング（アプリ＋OS）     │
-  │                                             │
-  │ Direct I/O:                                 │
-  │ App → → → → → → Disk                      │
-  │       キャッシュなし                         │
-  │       アプリが自前でキャッシュ管理           │
-  └────────────────────────────────────────────┘
+  +--------------------------------------------+
+  | Buffered I/O:                               |
+  | App -> [Page Cache] -> Disk                 |
+  |       Accelerated by cache                  |
+  |       Double buffering (app + OS)           |
+  |                                             |
+  | Direct I/O:                                 |
+  | App -> -> -> -> -> -> Disk                  |
+  |       No cache                              |
+  |       Application manages its own cache     |
+  +--------------------------------------------+
 
-  使用条件:
-  - open() に O_DIRECT フラグを指定
-  - バッファのアドレスがブロックサイズにアライン
-  - 読み書きサイズがブロックサイズの倍数
-  - ファイルオフセットがブロックサイズの倍数
+  Requirements:
+  - Specify O_DIRECT flag to open()
+  - Buffer address must be aligned to block size
+  - Read/write size must be multiple of block size
+  - File offset must be multiple of block size
 
-  主な利用者:
+  Primary users:
   - MySQL InnoDB (innodb_flush_method = O_DIRECT)
-  - PostgreSQL (効果は限定的、通常は不使用)
+  - PostgreSQL (limited effectiveness, usually not used)
   - Oracle Database
-  - QEMU/KVM（仮想ディスクI/O）
+  - QEMU/KVM (virtual disk I/O)
 
-  設定例:
+  Configuration examples:
   # MySQL
   [mysqld]
   innodb_flush_method = O_DIRECT
 
   # QEMU
   qemu-system-x86_64 -drive file=disk.img,cache=none
-  # cache=none: O_DIRECT を使用
-  # cache=writeback: ページキャッシュを使用
-  # cache=writethrough: 同期書き込み
+  # cache=none: Uses O_DIRECT
+  # cache=writeback: Uses page cache
+  # cache=writethrough: Synchronous writes
 ```
 
 ### 3.5 mmap I/O
 
 ```
-mmap（メモリマップドI/O）:
-  ファイルをプロセスのアドレス空間にマッピング
+mmap (Memory-Mapped I/O):
+  Map a file into the process address space
 
-  ┌────────────────────────────────────────────┐
-  │ read/write vs mmap:                         │
-  │                                             │
-  │ read():                                     │
-  │ 1. システムコール発行                       │
-  │ 2. カーネル空間にデータコピー               │
-  │ 3. ユーザ空間にデータコピー                 │
-  │ → 2回のデータコピー                         │
-  │                                             │
-  │ mmap():                                     │
-  │ 1. ページテーブルを設定（初回のみ）         │
-  │ 2. アクセス時にページフォルト発生           │
-  │ 3. ページキャッシュのページを直接マッピング │
-  │ → データコピーなし                          │
-  └────────────────────────────────────────────┘
+  +--------------------------------------------+
+  | read/write vs mmap:                         |
+  |                                             |
+  | read():                                     |
+  | 1. Issue system call                        |
+  | 2. Copy data to kernel space                |
+  | 3. Copy data to user space                  |
+  | -> 2 data copies                            |
+  |                                             |
+  | mmap():                                     |
+  | 1. Set up page table (first time only)      |
+  | 2. Page fault on access                     |
+  | 3. Directly map page cache pages            |
+  | -> No data copy                             |
+  +--------------------------------------------+
 
-  mmap の利点:
-  - データコピーが不要（ゼロコピー）
-  - ランダムアクセスが効率的
-  - 複数プロセスで共有可能（MAP_SHARED）
-  - 実行ファイルのロード
+  Advantages of mmap:
+  - No data copy required (zero-copy)
+  - Efficient random access
+  - Shareable across processes (MAP_SHARED)
+  - Executable file loading
 
-  mmap の欠点:
-  - ページフォルトのオーバーヘッド
-  - 大きなファイルの一部だけアクセスする場合に非効率
-  - エラーハンドリングが難しい（SIGBUS）
-  - TLB ミスのオーバーヘッド
+  Disadvantages of mmap:
+  - Page fault overhead
+  - Inefficient when accessing only part of a large file
+  - Error handling is difficult (SIGBUS)
+  - TLB miss overhead
 
-  使用例:
-  - データベース（LMDB, SQLite mmap mode）
-  - 実行ファイルのロード（ELF テキストセグメント）
-  - 共有メモリ（IPC）
-  - 設定ファイルの読み込み
+  Use cases:
+  - Databases (LMDB, SQLite mmap mode)
+  - Executable file loading (ELF text segment)
+  - Shared memory (IPC)
+  - Configuration file reading
 ```
 
-### 3.6 I/O優先度とcgroup
+### 3.6 I/O Priority and cgroup
 
 ```
-I/O 優先度制御:
+I/O priority control:
 
-  ionice コマンド:
-  → プロセスの I/O スケジューリングクラスと優先度を設定
+  ionice command:
+  -> Set the I/O scheduling class and priority of a process
 
-  クラス:
-  1 (Realtime):  最優先。starvation のリスクあり
-  2 (Best-effort): デフォルト。優先度 0-7（0が最高）
-  3 (Idle):       他にI/Oがない場合のみ処理
+  Classes:
+  1 (Realtime):  Highest priority. Risk of starvation
+  2 (Best-effort): Default. Priority 0-7 (0 is highest)
+  3 (Idle):       Processed only when no other I/O exists
 
-  使用例:
-  # 低優先度でバックアップ実行
+  Usage examples:
+  # Run backup at low priority
   ionice -c 3 rsync -a /data /backup/
 
-  # 高優先度でデータベース実行
+  # Run database at high priority
   ionice -c 1 -n 0 mysqld
 
-  # 現在の I/O 優先度を確認
+  # Check current I/O priority
   ionice -p $(pgrep -f mysqld)
 
-  # 実行中のプロセスの優先度変更
+  # Change priority of a running process
   ionice -c 2 -n 4 -p 1234
 
-cgroup v2 によるI/O制御:
-  → コンテナ/プロセスグループ単位でのI/O制限
+cgroup v2 I/O control:
+  -> I/O limitation per container/process group
 
-  # I/O 帯域幅制限
+  # I/O bandwidth limit
   # cgroup v2 (systemd)
   systemctl set-property myservice.service IOWriteBandwidthMax="/dev/sda 50M"
   systemctl set-property myservice.service IOReadBandwidthMax="/dev/sda 100M"
 
-  # I/O ウエイト（比例配分）
+  # I/O weight (proportional allocation)
   systemctl set-property myservice.service IOWeight=100
-  # 範囲: 1-10000、デフォルト: 100
+  # Range: 1-10000, default: 100
 
-  # Docker での I/O 制限
+  # Docker I/O limits
   docker run --device-write-bps /dev/sda:50mb \
              --device-read-bps /dev/sda:100mb \
              --blkio-weight 500 \
              myapp
 
-  # Kubernetes での I/O 制限（cgroup v2 必要）
-  # Guaranteed QoS クラスで制御
+  # Kubernetes I/O limits (requires cgroup v2)
+  # Controlled via Guaranteed QoS class
 ```
 
 ---
 
-## 4. I/Oモニタリングとトラブルシューティング
+## 4. I/O Monitoring and Troubleshooting
 
-### 4.1 I/Oモニタリングツール
+### 4.1 I/O Monitoring Tools
 
 ```bash
-# === iostat: デバイスレベルの I/O 統計 ===
-iostat -x 1 5     # 拡張統計、1秒間隔、5回
+# === iostat: Device-level I/O statistics ===
+iostat -x 1 5     # Extended stats, 1-second interval, 5 times
 # Device  r/s   w/s   rkB/s  wkB/s  rrqm/s  wrqm/s  %util  await
 # sda     50.0  30.0  200.0  120.0  5.0     10.0    45.0   8.50
 
-# 主要な指標:
-# r/s, w/s:      読み取り/書き込みの IOPS
-# rkB/s, wkB/s:  読み取り/書き込みのスループット
-# await:         I/O の平均待ち時間（ms）
-# %util:         デバイスの稼働率（100%に近いと飽和）
-# avgqu-sz:      平均キュー長
-# svctm:         平均サービス時間（非推奨、不正確）
+# Key metrics:
+# r/s, w/s:      Read/write IOPS
+# rkB/s, wkB/s:  Read/write throughput
+# await:         Average I/O wait time (ms)
+# %util:         Device utilization (near 100% means saturated)
+# avgqu-sz:      Average queue length
+# svctm:         Average service time (deprecated, inaccurate)
 
-# === iotop: プロセスレベルの I/O 統計 ===
-sudo iotop -o     # I/O を行っているプロセスのみ表示
-sudo iotop -b     # バッチモード（スクリプト用）
-sudo iotop -a     # 累積表示
+# === iotop: Process-level I/O statistics ===
+sudo iotop -o     # Show only processes performing I/O
+sudo iotop -b     # Batch mode (for scripts)
+sudo iotop -a     # Cumulative display
 
-# === blktrace: ブロックレベルの詳細トレース ===
-# トレースの開始
+# === blktrace: Block-level detailed trace ===
+# Start trace
 sudo blktrace -d /dev/sda -o trace
 
-# トレースの解析
+# Analyze trace
 blkparse -i trace -d output.bin
 
-# BPF ベースのトレース（より軽量）
-sudo biosnoop-bpfcc             # I/O レイテンシの表示
-sudo biotop-bpfcc               # I/O のトップ表示
-sudo biolatency-bpfcc           # I/O レイテンシのヒストグラム
+# BPF-based tracing (lighter weight)
+sudo biosnoop-bpfcc             # Display I/O latency
+sudo biotop-bpfcc               # Top display of I/O
+sudo biolatency-bpfcc           # I/O latency histogram
 
-# === pidstat: プロセスごとの I/O 統計 ===
-pidstat -d 1      # I/O 統計、1秒間隔
+# === pidstat: Per-process I/O statistics ===
+pidstat -d 1      # I/O stats, 1-second interval
 # PID   kB_rd/s  kB_wr/s  kB_ccwr/s  Command
 # 1234  500.0    200.0    0.0        mysqld
 
-# === vmstat: システム全体の I/O 概要 ===
+# === vmstat: System-wide I/O overview ===
 vmstat 1
-# bi: ブロック入力（読み取り、blocks/s）
-# bo: ブロック出力（書き込み、blocks/s）
-# wa: I/O 待ち時間の割合（%）
+# bi: Block input (reads, blocks/s)
+# bo: Block output (writes, blocks/s)
+# wa: I/O wait time percentage (%)
 ```
 
-### 4.2 I/Oパフォーマンス問題の診断
+### 4.2 Diagnosing I/O Performance Problems
 
 ```
-I/O 性能問題の診断フロー:
+I/O performance problem diagnosis flow:
 
-  1. 症状の確認:
-  ┌──────────────────────────────────────────┐
-  │ $ iostat -x 1                             │
-  │                                           │
-  │ %util > 90%                               │
-  │ → デバイスが飽和状態                       │
-  │                                           │
-  │ await > 50ms (HDD) / > 5ms (SSD)         │
-  │ → I/O レイテンシが高い                     │
-  │                                           │
-  │ avgqu-sz > 10                             │
-  │ → キューが長い（処理が追いつかない）       │
-  └──────────────────────────────────────────┘
+  1. Symptom check:
+  +------------------------------------------+
+  | $ iostat -x 1                             |
+  |                                           |
+  | %util > 90%                               |
+  | -> Device is saturated                    |
+  |                                           |
+  | await > 50ms (HDD) / > 5ms (SSD)         |
+  | -> High I/O latency                       |
+  |                                           |
+  | avgqu-sz > 10                             |
+  | -> Long queue (processing can't keep up)  |
+  +------------------------------------------+
 
-  2. 原因の特定:
-  ┌──────────────────────────────────────────┐
-  │ $ iotop -o                                │
-  │ → I/O を大量に行っているプロセスを特定     │
-  │                                           │
-  │ $ sudo biosnoop-bpfcc                     │
-  │ → 個々の I/O リクエストの詳細              │
-  │                                           │
-  │ $ cat /proc/<pid>/io                      │
-  │ → 特定プロセスの I/O 統計                  │
-  │   rchar: 読み取り要求バイト数              │
-  │   wchar: 書き込み要求バイト数              │
-  │   syscr: read システムコール数             │
-  │   syscw: write システムコール数            │
-  │   read_bytes: 実際のディスク読み取り       │
-  │   write_bytes: 実際のディスク書き込み      │
-  └──────────────────────────────────────────┘
+  2. Identify the cause:
+  +------------------------------------------+
+  | $ iotop -o                                |
+  | -> Identify processes performing heavy I/O|
+  |                                           |
+  | $ sudo biosnoop-bpfcc                     |
+  | -> Details of individual I/O requests     |
+  |                                           |
+  | $ cat /proc/<pid>/io                      |
+  | -> I/O statistics for a specific process  |
+  |   rchar: Read request byte count          |
+  |   wchar: Write request byte count         |
+  |   syscr: read system call count           |
+  |   syscw: write system call count          |
+  |   read_bytes: Actual disk reads           |
+  |   write_bytes: Actual disk writes         |
+  +------------------------------------------+
 
-  3. 対処法:
-  ┌──────────────────────────────────────────┐
-  │ ランダム I/O が多い場合:                   │
-  │ → SSD/NVMe へのアップグレード              │
-  │ → メモリ増設（ページキャッシュ拡大）       │
-  │ → アプリケーションのアクセスパターン最適化 │
-  │                                           │
-  │ シーケンシャル I/O が遅い場合:             │
-  │ → read_ahead_kb の増加                    │
-  │ → ストライプサイズの最適化（RAID）         │
-  │ → ブロックサイズの調整                     │
-  │                                           │
-  │ 書き込みが溜まっている場合:                │
-  │ → dirty_ratio / dirty_bytes の調整        │
-  │ → ジャーナルサイズの確認                   │
-  │ → fsync の頻度の確認                       │
-  │                                           │
-  │ 特定プロセスが I/O を独占:                 │
-  │ → ionice で優先度を下げる                  │
-  │ → cgroup で帯域を制限                      │
-  │ → BFQ スケジューラの使用                   │
-  └──────────────────────────────────────────┘
+  3. Remediation:
+  +------------------------------------------+
+  | Heavy random I/O:                         |
+  | -> Upgrade to SSD/NVMe                    |
+  | -> Add memory (expand page cache)         |
+  | -> Optimize application access patterns   |
+  |                                           |
+  | Slow sequential I/O:                      |
+  | -> Increase read_ahead_kb                 |
+  | -> Optimize stripe size (RAID)            |
+  | -> Adjust block size                      |
+  |                                           |
+  | Write backlog:                            |
+  | -> Adjust dirty_ratio / dirty_bytes       |
+  | -> Check journal size                     |
+  | -> Check fsync frequency                  |
+  |                                           |
+  | Specific process monopolizing I/O:        |
+  | -> Lower priority with ionice             |
+  | -> Limit bandwidth with cgroup            |
+  | -> Use BFQ scheduler                      |
+  +------------------------------------------+
 ```
 
-### 4.3 I/Oベンチマーク
+### 4.3 I/O Benchmarks
 
 ```bash
-# === fio: 標準的なストレージベンチマークツール ===
+# === fio: Standard storage benchmark tool ===
 
-# シーケンシャル読み取り
+# Sequential read
 fio --name=seq_read \
     --rw=read \
     --bs=1M \
@@ -963,7 +982,7 @@ fio --name=seq_read \
     --direct=1 \
     --iodepth=64
 
-# ランダム読み取り（4K、データベースワークロード模擬）
+# Random read (4K, simulating database workload)
 fio --name=rand_read_4k \
     --rw=randread \
     --bs=4k \
@@ -976,7 +995,7 @@ fio --name=rand_read_4k \
     --iodepth=32 \
     --group_reporting
 
-# ランダム書き込み（4K）
+# Random write (4K)
 fio --name=rand_write_4k \
     --rw=randwrite \
     --bs=4k \
@@ -989,7 +1008,7 @@ fio --name=rand_write_4k \
     --iodepth=32 \
     --group_reporting
 
-# 混合ワークロード（70% 読み取り / 30% 書き込み）
+# Mixed workload (70% read / 30% write)
 fio --name=mixed \
     --rw=randrw \
     --rwmixread=70 \
@@ -1003,7 +1022,7 @@ fio --name=mixed \
     --iodepth=32 \
     --group_reporting
 
-# io_uring エンジンの使用（Linux 5.1+）
+# Using io_uring engine (Linux 5.1+)
 fio --name=io_uring_test \
     --rw=randread \
     --bs=4k \
@@ -1018,7 +1037,7 @@ fio --name=io_uring_test \
     --registerfiles=1 \
     --sqthread_poll=1
 
-# レイテンシ分布の確認
+# Check latency distribution
 fio --name=latency \
     --rw=randread \
     --bs=4k \
@@ -1032,187 +1051,192 @@ fio --name=latency \
     --lat_percentiles=1 \
     --percentile_list=50:90:95:99:99.9:99.99
 
-# 結果の読み方:
-# IOPS:     1秒あたりのI/O操作数
-# BW:       帯域幅（スループット）
-# lat:      レイテンシ（avg, min, max, percentiles）
-# clat:     完了レイテンシ
-# slat:     提出レイテンシ
+# How to read results:
+# IOPS:     I/O operations per second
+# BW:       Bandwidth (throughput)
+# lat:      Latency (avg, min, max, percentiles)
+# clat:     Completion latency
+# slat:     Submission latency
 ```
 
 ---
 
-## 5. 高度なI/O技術
+## 5. Advanced I/O Technologies
 
-### 5.1 ゼロコピー
+### 5.1 Zero-Copy
 
 ```
-ゼロコピー (Zero-Copy):
-  データの不要なコピーを排除して効率化
+Zero-Copy:
+  Eliminate unnecessary data copies for efficiency
 
-  通常のファイル転送（sendfile以前）:
-  ┌──────────────────────────────────────────┐
-  │ read(fd, buf, size):                      │
-  │ ディスク → カーネルバッファ → ユーザバッファ│
-  │                                           │
-  │ write(sockfd, buf, size):                 │
-  │ ユーザバッファ → カーネルバッファ → NIC    │
-  │                                           │
-  │ → 4回のコピー、2回のコンテキストスイッチ  │
-  └──────────────────────────────────────────┘
+  Traditional file transfer (before sendfile):
+  +------------------------------------------+
+  | read(fd, buf, size):                      |
+  | Disk -> Kernel buffer -> User buffer      |
+  |                                           |
+  | write(sockfd, buf, size):                 |
+  | User buffer -> Kernel buffer -> NIC       |
+  |                                           |
+  | -> 4 copies, 2 context switches           |
+  +------------------------------------------+
 
-  sendfile() によるゼロコピー:
-  ┌──────────────────────────────────────────┐
-  │ sendfile(sockfd, fd, offset, size):       │
-  │ ディスク → カーネルバッファ → NIC          │
-  │                                           │
-  │ → 2回のコピー（DMA）、ユーザ空間経由なし  │
-  │ → 1回のシステムコール                     │
-  └──────────────────────────────────────────┘
+  Zero-copy with sendfile():
+  +------------------------------------------+
+  | sendfile(sockfd, fd, offset, size):       |
+  | Disk -> Kernel buffer -> NIC              |
+  |                                           |
+  | -> 2 copies (DMA), no user space transit  |
+  | -> 1 system call                          |
+  +------------------------------------------+
 
   splice() / tee():
-  → パイプを使ったゼロコピーデータ転送
-  → カーネル内でページ参照を転送（データコピーなし）
+  -> Zero-copy data transfer using pipes
+  -> Transfer page references within kernel (no data copy)
 
-  io_uring のゼロコピー送信:
-  → send_zc 操作で完全なゼロコピー
-  → ページピンニングによりカーネルがユーザバッファを直接参照
+  io_uring zero-copy send:
+  -> Complete zero-copy with send_zc operation
+  -> Kernel directly references user buffer via page pinning
 
-  活用例:
-  - Nginx: sendfile on; (静的ファイル配信)
-  - Kafka: ゼロコピーによるメッセージ配信
-  - 動画ストリーミングサーバー
+  Usage examples:
+  - Nginx: sendfile on; (static file serving)
+  - Kafka: Zero-copy message delivery
+  - Video streaming servers
 ```
 
-### 5.2 I/Oポーリング
+### 5.2 I/O Polling
 
 ```
-I/Oポーリング:
-  割り込みの代わりにCPUがI/O完了をポーリング
+I/O Polling:
+  CPU polls for I/O completion instead of interrupts
 
-  割り込み方式:
-  CPU ─── 他の仕事 ──── ←割り込み── 処理
-  → コンテキストスイッチのオーバーヘッド
-  → 高IOPS時に割り込み処理が過大に
+  Interrupt method:
+  CPU --- Other work ---- <-Interrupt-- Process
+  -> Context switch overhead
+  -> Interrupt processing becomes excessive at high IOPS
 
-  ポーリング方式:
-  CPU ─── ポーリング ── 完了検出 ── 処理
-  → コンテキストスイッチなし
-  → レイテンシが最小
-  → CPU使用率は100%に近づく
+  Polling method:
+  CPU --- Polling --- Completion detected --- Process
+  -> No context switch
+  -> Minimal latency
+  -> CPU usage approaches 100%
 
-  io_uring のポーリングモード:
-  ┌──────────────────────────────────────────┐
-  │ IORING_SETUP_IOPOLL:                      │
-  │ → デバイスの完了をポーリング              │
-  │ → NVMe で最大の効果                       │
-  │ → Direct I/O 必須                         │
-  │                                           │
-  │ IORING_SETUP_SQPOLL:                      │
-  │ → カーネルスレッドがSQをポーリング        │
-  │ → アプリはシステムコールなしでI/O発行     │
-  │ → 完全にユーザ空間で完結                  │
-  │                                           │
-  │ 両方を組み合わせ:                          │
-  │ → 最高のI/O性能（ただしCPU消費大）        │
-  └──────────────────────────────────────────┘
+  io_uring polling modes:
+  +------------------------------------------+
+  | IORING_SETUP_IOPOLL:                      |
+  | -> Polls for device completion            |
+  | -> Most effective with NVMe               |
+  | -> Requires Direct I/O                    |
+  |                                           |
+  | IORING_SETUP_SQPOLL:                      |
+  | -> Kernel thread polls the SQ             |
+  | -> App issues I/O without system calls    |
+  | -> Entirely in user space                 |
+  |                                           |
+  | Combining both:                           |
+  | -> Maximum I/O performance (but high CPU) |
+  +------------------------------------------+
 
-  NVMe のポーリングモード:
-  # カーネルパラメータで有効化
+  NVMe polling mode:
+  # Enable via kernel parameter
   # /sys/block/nvme0n1/queue/io_poll
   echo 1 | sudo tee /sys/block/nvme0n1/queue/io_poll
 
-  # ポーリング遅延の設定
+  # Set polling delay
   echo 0 | sudo tee /sys/block/nvme0n1/queue/io_poll_delay
-  # -1: 無効、0: 即座にポーリング、>0: 遅延後ポーリング（ns）
+  # -1: Disabled, 0: Poll immediately, >0: Delay then poll (ns)
 ```
 
-### 5.3 I/Oのバリアとフラッシュ
+### 5.3 I/O Barriers and Flushes
 
 ```
-書き込みバリアとデータの永続化:
+Write barriers and data persistence:
 
-  問題:
-  → ディスクには書き込みキャッシュがある
-  → OS がディスクに書き込んでも、キャッシュに留まる可能性
-  → 電源断でキャッシュ内データが消失
-  → ジャーナリングの整合性が壊れる可能性
+  Problem:
+  -> Disks have write caches
+  -> Even if OS writes to disk, data may remain in cache
+  -> Power loss can lose data in cache
+  -> Journal integrity can be corrupted
 
-  解決策:
-  1. 書き込みバリア（Write Barrier）:
-     → バリア前の書き込みがディスクに到達したことを保証
-     → バリア後の書き込みはバリア前の後に実行される
+  Solutions:
+  1. Write Barrier:
+     -> Guarantees writes before barrier have reached disk
+     -> Writes after barrier execute after those before barrier
 
-  2. FUA（Force Unit Access）:
-     → 特定の書き込みをディスクキャッシュをバイパスして直接書き込み
-     → NVMe/SAS で対応
+  2. FUA (Force Unit Access):
+     -> Specific writes bypass disk cache and write directly
+     -> Supported on NVMe/SAS
 
   3. fsync() / fdatasync():
-     → ファイルのデータをディスクに永続化
-     → fsync: データ + メタデータ
-     → fdatasync: データ + 必要なメタデータのみ
+     -> Persist file data to disk
+     -> fsync: data + metadata
+     -> fdatasync: data + only necessary metadata
 
   4. sync():
-     → 全ファイルのダーティページをディスクに書き出し
+     -> Write all dirty pages from all files to disk
 
-  ┌──────────────────────────────────────────┐
-  │ 永続化の保証レベル:                       │
-  │                                          │
-  │ write()        : ページキャッシュまで     │
-  │                  → 電源断でデータ消失可能│
-  │                                          │
-  │ fdatasync()    : ディスクキャッシュまで   │
-  │                  → BBU付きなら安全       │
-  │                                          │
-  │ fsync()        : ディスクまで（メタデータ含む）│
-  │                  → 最も安全              │
-  │                                          │
-  │ O_SYNC         : 毎回の write() で fsync │
-  │                  → 性能低下が大きい      │
-  │                                          │
-  │ O_DSYNC        : 毎回の write() で fdatasync│
-  │                  → O_SYNC より高速       │
-  └──────────────────────────────────────────┘
+  +------------------------------------------+
+  | Persistence guarantee levels:             |
+  |                                          |
+  | write()        : Up to page cache        |
+  |                  -> Data loss possible    |
+  |                     on power failure      |
+  |                                          |
+  | fdatasync()    : Up to disk cache        |
+  |                  -> Safe with BBU         |
+  |                                          |
+  | fsync()        : To disk (incl. metadata)|
+  |                  -> Most secure           |
+  |                                          |
+  | O_SYNC         : fsync on every write()  |
+  |                  -> Large performance hit |
+  |                                          |
+  | O_DSYNC        : fdatasync on every      |
+  |                  write()                  |
+  |                  -> Faster than O_SYNC    |
+  +------------------------------------------+
 
-  バリアの制御:
-  # バリア有効（デフォルト、推奨）
+  Barrier control:
+  # Barrier enabled (default, recommended)
   mount -o barrier=1 /dev/sda1 /mnt
 
-  # バリア無効（BBU付きRAIDコントローラの場合のみ）
+  # Barrier disabled (only for RAID controllers with BBU)
   mount -o barrier=0 /dev/sda1 /mnt
-  # → BBU（バッテリーバックアップユニット）がキャッシュを保護
+  # -> BBU (Battery Backup Unit) protects cache
 
-  # ディスクの書き込みキャッシュ確認
+  # Check disk write cache
   sudo hdparm -W /dev/sda
   # /dev/sda: write-caching = 1 (on)
 
-  # 書き込みキャッシュの無効化（安全性重視）
+  # Disable write cache (safety-focused)
   sudo hdparm -W 0 /dev/sda
 ```
 
 ---
 
-## 実践演習
+## Practical Exercises
 
-### 演習1: [基礎] -- I/Oスケジューラの確認と変更
+### Exercise 1: [Basic] -- Check and Change I/O Schedulers
 
 ```bash
-# 全デバイスのスケジューラ確認
+# Check current scheduler
+cat /sys/block/sda/queue/scheduler
+
+# Check all devices' schedulers
 for dev in /sys/block/*/queue/scheduler; do
   echo "$(dirname $(dirname $dev) | xargs basename): $(cat $dev)"
 done
 
-# スケジューラの変更（一時的）
+# Change scheduler (temporary)
 echo "bfq" | sudo tee /sys/block/sda/queue/scheduler
 cat /sys/block/sda/queue/scheduler
 
-# スケジューラパラメータの確認
+# Check scheduler parameters
 ls /sys/block/sda/queue/iosched/
 for param in /sys/block/sda/queue/iosched/*; do
   echo "$(basename $param): $(cat $param)"
 done
 
-# デバイス種別の確認
+# Check device type
 for dev in /sys/block/*/queue/rotational; do
   name=$(dirname $(dirname $dev) | xargs basename)
   type=$(cat $dev)
@@ -1220,77 +1244,77 @@ for dev in /sys/block/*/queue/rotational; do
 done
 ```
 
-### 演習2: [応用] -- ページキャッシュの効果測定
+### Exercise 2: [Intermediate] -- Measure Page Cache Effectiveness
 
 ```bash
-# テスト用の大きなファイルを作成
+# Create a large test file
 dd if=/dev/urandom of=/tmp/testfile bs=1M count=512
 
-# キャッシュクリア
+# Clear cache
 sudo sync
 echo 3 | sudo tee /proc/sys/vm/drop_caches
 
-# 1回目の読み取り（ディスクから）
-echo "=== 1回目（ディスクから）==="
+# First read (from disk)
+echo "=== First read (from disk) ==="
 time dd if=/tmp/testfile of=/dev/null bs=1M
-# → 数秒かかる
+# -> Takes several seconds
 
-# 2回目の読み取り（ページキャッシュから）
-echo "=== 2回目（キャッシュから）==="
+# Second read (from page cache)
+echo "=== Second read (from cache) ==="
 time dd if=/tmp/testfile of=/dev/null bs=1M
-# → 1秒未満
+# -> Under 1 second
 
-# キャッシュ状態の確認
+# Check cache status
 cat /proc/meminfo | grep -E "^(Cached|Buffers)"
 
-# 特定ファイルのキャッシュ状態確認（fincore, Linux 4.2+）
+# Check cache status for a specific file (fincore, Linux 4.2+)
 fincore /tmp/testfile
-# → RES: キャッシュに載っているサイズ
-# → PAGES: キャッシュされたページ数
+# -> RES: Size cached
+# -> PAGES: Number of cached pages
 
-# クリーンアップ
+# Cleanup
 rm /tmp/testfile
 ```
 
-### 演習3: [上級] -- I/Oパフォーマンス分析
+### Exercise 3: [Advanced] -- I/O Performance Analysis
 
 ```bash
-# iostat で I/O 状況をモニタリング
-# ターミナル1: I/O 負荷の発生
+# Monitor I/O situation with iostat
+# Terminal 1: Generate I/O load
 fio --name=load --rw=randrw --bs=4k --size=1G \
     --numjobs=4 --runtime=60 --time_based \
     --ioengine=libaio --direct=1 --iodepth=32
 
-# ターミナル2: モニタリング
+# Terminal 2: Monitoring
 iostat -x 1 | tee /tmp/iostat.log
 
-# 主要指標の解析
-# await が高い → I/O レイテンシ問題
-# %util が 100% に近い → デバイス飽和
-# avgqu-sz が大きい → キューが長い
-# rrqm/s, wrqm/s → I/O マージの効果
+# Analyze key metrics
+# High await -> I/O latency problem
+# %util near 100% -> Device saturated
+# Large avgqu-sz -> Long queue
+# rrqm/s, wrqm/s -> I/O merge effectiveness
 
-# iotop でプロセスレベルの分析
+# Process-level analysis with iotop
 sudo iotop -o -d 1
 
-# BPF ツールによる詳細分析（bcc-tools パッケージ）
-# I/O レイテンシのヒストグラム
+# Detailed analysis with BPF tools (bcc-tools package)
+# I/O latency histogram
 sudo biolatency-bpfcc 10 1
-# → レイテンシの分布を確認
+# -> Check latency distribution
 
-# 個々のI/Oリクエストの詳細
+# Details of individual I/O requests
 sudo biosnoop-bpfcc
 # TIME     COMM     PID  DISK  T  SECTOR  BYTES  LAT(ms)
 
-# I/O パターンの可視化
+# I/O pattern visualization
 sudo bitesize-bpfcc
-# → I/O サイズの分布を確認
+# -> Check I/O size distribution
 ```
 
-### 演習4: [上級] -- スケジューラの性能比較
+### Exercise 4: [Advanced] -- Scheduler Performance Comparison
 
 ```bash
-# 各スケジューラでのベンチマーク比較
+# Benchmark comparison across schedulers
 for sched in mq-deadline bfq none; do
   echo "=== Scheduler: $sched ==="
   echo "$sched" | sudo tee /sys/block/sda/queue/scheduler
@@ -1310,33 +1334,33 @@ done
 
 ---
 
-## トラブルシューティング
+## Troubleshooting
 
-### よくあるエラーと解決策
+### Common Errors and Solutions
 
-| エラー | 原因 | 解決策 |
+| Error | Cause | Solution |
 |--------|------|--------|
-| 初期化エラー | 設定ファイルの不備 | 設定ファイルのパスと形式を確認 |
-| タイムアウト | ネットワーク遅延/リソース不足 | タイムアウト値の調整、リトライ処理の追加 |
-| メモリ不足 | データ量の増大 | バッチ処理の導入、ページネーションの実装 |
-| 権限エラー | アクセス権限の不足 | 実行ユーザーの権限確認、設定の見直し |
-| データ不整合 | 並行処理の競合 | ロック機構の導入、トランザクション管理 |
+| Initialization error | Configuration file issues | Check configuration file path and format |
+| Timeout | Network latency/resource shortage | Adjust timeout values, add retry logic |
+| Out of memory | Data volume growth | Introduce batch processing, implement pagination |
+| Permission error | Insufficient access permissions | Check execution user permissions, review settings |
+| Data inconsistency | Concurrent processing conflicts | Introduce locking mechanisms, transaction management |
 
-### デバッグの手順
+### Debugging Procedure
 
-1. **エラーメッセージの確認**: スタックトレースを読み、発生箇所を特定する
-2. **再現手順の確立**: 最小限のコードでエラーを再現する
-3. **仮説の立案**: 考えられる原因をリストアップする
-4. **段階的な検証**: ログ出力やデバッガを使って仮説を検証する
-5. **修正と回帰テスト**: 修正後、関連する箇所のテストも実行する
+1. **Check error messages**: Read stack traces to identify the location of occurrence
+2. **Establish reproduction steps**: Reproduce the error with minimal code
+3. **Formulate hypotheses**: List possible causes
+4. **Stepwise verification**: Verify hypotheses using log output and debuggers
+5. **Fix and regression test**: After fixing, also run tests on related areas
 
 ```python
-# デバッグ用ユーティリティ
+# Debugging utility
 import logging
 import traceback
 from functools import wraps
 
-# ロガーの設定
+# Logger configuration
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
@@ -1344,102 +1368,102 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def debug_decorator(func):
-    """関数の入出力をログ出力するデコレータ"""
+    """Decorator to log function inputs and outputs"""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        logger.debug(f"呼び出し: {func.__name__}(args={args}, kwargs={kwargs})")
+        logger.debug(f"Call: {func.__name__}(args={args}, kwargs={kwargs})")
         try:
             result = func(*args, **kwargs)
-            logger.debug(f"戻り値: {func.__name__} -> {result}")
+            logger.debug(f"Return: {func.__name__} -> {result}")
             return result
         except Exception as e:
-            logger.error(f"例外発生: {func.__name__}: {e}")
+            logger.error(f"Exception: {func.__name__}: {e}")
             logger.error(traceback.format_exc())
             raise
     return wrapper
 
 @debug_decorator
 def process_data(items):
-    """データ処理（デバッグ対象）"""
+    """Data processing (debug target)"""
     if not items:
-        raise ValueError("空のデータ")
+        raise ValueError("Empty data")
     return [item * 2 for item in items]
 ```
 
-### パフォーマンス問題の診断
+### Diagnosing Performance Problems
 
-パフォーマンス問題が発生した場合の診断手順:
+When performance problems occur, follow this diagnostic procedure:
 
-1. **ボトルネックの特定**: プロファイリングツールで計測
-2. **メモリ使用量の確認**: メモリリークの有無をチェック
-3. **I/O待ちの確認**: ディスクやネットワークI/Oの状況を確認
-4. **同時接続数の確認**: コネクションプールの状態を確認
+1. **Identify bottlenecks**: Measure with profiling tools
+2. **Check memory usage**: Check for memory leaks
+3. **Check I/O waits**: Examine disk and network I/O status
+4. **Check concurrent connections**: Examine connection pool status
 
-| 問題の種類 | 診断ツール | 対策 |
+| Problem Type | Diagnostic Tool | Countermeasure |
 |-----------|-----------|------|
-| CPU負荷 | cProfile, py-spy | アルゴリズム改善、並列化 |
-| メモリリーク | tracemalloc, objgraph | 参照の適切な解放 |
-| I/Oボトルネック | strace, iostat | 非同期I/O、キャッシュ |
-| DB遅延 | EXPLAIN, slow query log | インデックス、クエリ最適化 |
+| CPU load | cProfile, py-spy | Algorithm improvement, parallelization |
+| Memory leak | tracemalloc, objgraph | Proper reference release |
+| I/O bottleneck | strace, iostat | Async I/O, caching |
+| DB latency | EXPLAIN, slow query log | Indexing, query optimization |
 
 ---
 
-## 設計判断ガイド
+## Design Decision Guide
 
-### 選択基準マトリクス
+### Selection Criteria Matrix
 
-技術選択を行う際の判断基準を以下にまとめます。
+Below is a summary of decision criteria for technology selection.
 
-| 判断基準 | 重視する場合 | 妥協できる場合 |
+| Criterion | When prioritized | When acceptable to compromise |
 |---------|------------|-------------|
-| パフォーマンス | リアルタイム処理、大規模データ | 管理画面、バッチ処理 |
-| 保守性 | 長期運用、チーム開発 | プロトタイプ、短期プロジェクト |
-| スケーラビリティ | 成長が見込まれるサービス | 社内ツール、固定ユーザー |
-| セキュリティ | 個人情報、金融データ | 公開データ、社内利用 |
-| 開発速度 | MVP、市場投入スピード | 品質重視、ミッションクリティカル |
+| Performance | Real-time processing, large-scale data | Admin screens, batch processing |
+| Maintainability | Long-term operation, team development | Prototypes, short-term projects |
+| Scalability | Growing services | Internal tools, fixed users |
+| Security | Personal data, financial data | Public data, internal use |
+| Development speed | MVP, time-to-market | Quality-focused, mission-critical |
 
-### アーキテクチャパターンの選択
+### Architecture Pattern Selection
 
 ```
-┌─────────────────────────────────────────────────┐
-│              アーキテクチャ選択フロー              │
-├─────────────────────────────────────────────────┤
-│                                                 │
-│  ① チーム規模は？                                │
-│    ├─ 小規模（1-5人）→ モノリス                   │
-│    └─ 大規模（10人+）→ ②へ                       │
-│                                                 │
-│  ② デプロイ頻度は？                               │
-│    ├─ 週1回以下 → モノリス + モジュール分割         │
-│    └─ 毎日/複数回 → ③へ                          │
-│                                                 │
-│  ③ チーム間の独立性は？                            │
-│    ├─ 高い → マイクロサービス                      │
-│    └─ 中程度 → モジュラーモノリス                   │
-│                                                 │
-└─────────────────────────────────────────────────┘
++-----------------------------------------------------+
+|           Architecture Selection Flow                |
++-----------------------------------------------------+
+|                                                      |
+|  (1) Team size?                                      |
+|    +-- Small (1-5 people) -> Monolith                |
+|    +-- Large (10+ people) -> Go to (2)               |
+|                                                      |
+|  (2) Deployment frequency?                           |
+|    +-- Weekly or less -> Monolith + module separation |
+|    +-- Daily/multiple -> Go to (3)                   |
+|                                                      |
+|  (3) Team independence?                              |
+|    +-- High -> Microservices                         |
+|    +-- Medium -> Modular monolith                    |
+|                                                      |
++-----------------------------------------------------+
 ```
 
-### トレードオフの分析
+### Trade-off Analysis
 
-技術的な判断には必ずトレードオフが伴います。以下の観点で分析を行いましょう:
+Technical decisions always involve trade-offs. Analyze from the following perspectives:
 
-**1. 短期 vs 長期のコスト**
-- 短期的に速い方法が長期的には技術的負債になることがある
-- 逆に、過剰な設計は短期的なコストが高く、プロジェクトの遅延を招く
+**1. Short-term vs Long-term Cost**
+- A method that is fast in the short term may become technical debt long-term
+- Conversely, excessive design incurs high short-term costs and delays projects
 
-**2. 一貫性 vs 柔軟性**
-- 統一された技術スタックは学習コストが低い
-- 多様な技術の採用は適材適所が可能だが、運用コストが増加
+**2. Consistency vs Flexibility**
+- A unified technology stack has low learning costs
+- Diverse technology adoption enables best-fit solutions but increases operational costs
 
-**3. 抽象化のレベル**
-- 高い抽象化は再利用性が高いが、デバッグが困難になる場合がある
-- 低い抽象化は直感的だが、コードの重複が発生しやすい
+**3. Level of Abstraction**
+- High abstraction offers high reusability but can make debugging difficult
+- Low abstraction is intuitive but prone to code duplication
 
 ```python
-# 設計判断の記録テンプレート
+# Design decision recording template
 class ArchitectureDecisionRecord:
-    """ADR (Architecture Decision Record) の作成"""
+    """Create an ADR (Architecture Decision Record)"""
 
     def __init__(self, title: str):
         self.title = title
@@ -1449,17 +1473,17 @@ class ArchitectureDecisionRecord:
         self.alternatives = []
 
     def set_context(self, context: str):
-        """背景と課題の記述"""
+        """Describe background and challenges"""
         self.context = context
         return self
 
     def set_decision(self, decision: str):
-        """決定内容の記述"""
+        """Describe the decision"""
         self.decision = decision
         return self
 
     def add_consequence(self, consequence: str, positive: bool = True):
-        """結果の追加"""
+        """Add a consequence"""
         self.consequences.append({
             'description': consequence,
             'type': 'positive' if positive else 'negative'
@@ -1467,7 +1491,7 @@ class ArchitectureDecisionRecord:
         return self
 
     def add_alternative(self, name: str, reason_rejected: str):
-        """却下した代替案の追加"""
+        """Add a rejected alternative"""
         self.alternatives.append({
             'name': name,
             'reason_rejected': reason_rejected
@@ -1475,15 +1499,15 @@ class ArchitectureDecisionRecord:
         return self
 
     def to_markdown(self) -> str:
-        """Markdown形式で出力"""
+        """Output in Markdown format"""
         md = f"# ADR: {self.title}\n\n"
-        md += f"## 背景\n{self.context}\n\n"
-        md += f"## 決定\n{self.decision}\n\n"
-        md += "## 結果\n"
+        md += f"## Context\n{self.context}\n\n"
+        md += f"## Decision\n{self.decision}\n\n"
+        md += "## Consequences\n"
         for c in self.consequences:
-            icon = "✅" if c['type'] == 'positive' else "⚠️"
+            icon = "+" if c['type'] == 'positive' else "!"
             md += f"- {icon} {c['description']}\n"
-        md += "\n## 却下した代替案\n"
+        md += "\n## Rejected Alternatives\n"
         for a in self.alternatives:
             md += f"- **{a['name']}**: {a['reason_rejected']}\n"
         return md
@@ -1493,44 +1517,44 @@ class ArchitectureDecisionRecord:
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point in learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory, but by actually writing code and verifying behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What mistakes do beginners commonly make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before proceeding to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this applied in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently applied in daily development work. It becomes particularly important during code reviews and architecture design.
 
 ---
 
-## まとめ
+## Summary
 
-| スケジューラ | 特徴 | 用途 |
+| Scheduler | Characteristics | Use Cases |
 |------------|------|------|
-| mq-deadline | デッドライン保証、飢餓防止 | HDD、DB サーバー |
-| BFQ | 公平性重視、対話性優先 | デスクトップ、マルチメディア |
-| none | スケジューリングなし、最小オーバーヘッド | SSD/NVMe、仮想マシン |
+| mq-deadline | Deadline guarantee, starvation prevention | HDD, DB servers |
+| BFQ | Fairness-focused, interactivity priority | Desktop, multimedia |
+| none | No scheduling, minimal overhead | SSD/NVMe, virtual machines |
 
-| I/O技術 | 特徴 | 用途 |
+| I/O Technology | Characteristics | Use Cases |
 |---------|------|------|
-| ページキャッシュ | 読み取りデータのメモリキャッシュ | 全般 |
-| 先読み | シーケンシャル読み取りの先行読み込み | ログ処理、ストリーミング |
-| io_uring | 高性能非同期I/O | 高IOPS アプリケーション |
-| Direct I/O | ページキャッシュバイパス | データベース |
-| ゼロコピー | データコピーの排除 | Web サーバー、ストリーミング |
-| ポーリング | 割り込みなしI/O完了検出 | 超低レイテンシ要件 |
+| Page cache | Memory cache of read data | General |
+| Read-ahead | Pre-reading for sequential reads | Log processing, streaming |
+| io_uring | High-performance async I/O | High-IOPS applications |
+| Direct I/O | Page cache bypass | Databases |
+| Zero-copy | Eliminate data copies | Web servers, streaming |
+| Polling | I/O completion detection without interrupts | Ultra-low latency requirements |
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Guides
 
 ---
 
-## 参考文献
+## References
 1. Love, R. "Linux Kernel Development." 3rd Ed, Ch.14, 2010.
 2. Bovet, D. & Cesati, M. "Understanding the Linux Kernel." 3rd Ed, O'Reilly, 2005.
 3. Axboe, J. "Efficient IO with io_uring." Kernel.dk, 2019.
@@ -1539,4 +1563,4 @@ class ArchitectureDecisionRecord:
 6. Gregg, B. "BPF Performance Tools." Addison-Wesley, 2019.
 7. Linux Block Layer Documentation. https://www.kernel.org/doc/html/latest/block/
 8. io_uring Documentation. https://kernel.dk/io_uring.pdf
-9. Bjørling, M. et al. "Linux Block IO: Introducing Multi-queue SSD Access on Multi-core Systems." SYSTOR, 2013.
+9. Bjorling, M. et al. "Linux Block IO: Introducing Multi-queue SSD Access on Multi-core Systems." SYSTOR, 2013.

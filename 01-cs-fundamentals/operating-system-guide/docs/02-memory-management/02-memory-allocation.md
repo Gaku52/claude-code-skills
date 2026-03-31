@@ -1,185 +1,187 @@
-# メモリ割り当て戦略 (Memory Allocation Strategies)
+# Memory Allocation Strategies
 
-> **メモリアロケータの設計は、システム全体のスループット・レイテンシ・安定性を左右する最も重要な基盤技術の一つである。**
-> 本章では、動的メモリ割り当ての原理からプロダクションレベルのアロケータ内部構造、ガベージコレクション、メモリリーク解析まで、包括的に解説する。
-
----
-
-## この章で学ぶこと
-
-- [ ] スタック / ヒープの構造的差異とメモリレイアウトを正確に説明できる
-- [ ] First Fit / Best Fit / Worst Fit / Buddy System 等の割り当てアルゴリズムを比較できる
-- [ ] ptmalloc2, jemalloc, tcmalloc, mimalloc の内部アーキテクチャを理解する
-- [ ] ガベージコレクションの主要アルゴリズム（マーク&スイープ、世代別、参照カウント）を実装レベルで把握する
-- [ ] メモリリーク・断片化の検出と対策を実践できる
-- [ ] Rust の所有権モデルがなぜメモリ安全性を保証するかコンパイラ視点で理解する
-- [ ] カーネルレベルのメモリ管理（sbrk, mmap, SLAB アロケータ）と連携を説明できる
-- [ ] リアルタイムシステムや組み込み環境でのメモリ割り当て制約を理解する
-
-
-## 前提知識
-
-このガイドを読む前に、以下の知識があると理解が深まります:
-
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [ページング ── 仮想メモリ・ページテーブル・TLB・ページ置換・スワッピング](./01-paging.md) の内容を理解していること
+> **The design of a memory allocator is one of the most critical foundational technologies that determines the overall throughput, latency, and stability of a system.**
+> This chapter provides a comprehensive explanation covering everything from the principles of dynamic memory allocation to the internal architecture of production-level allocators, garbage collection, and memory leak analysis.
 
 ---
 
-## 目次
+## Learning Objectives
 
-1. [プロセスのメモリレイアウト](#1-プロセスのメモリレイアウト)
-2. [動的メモリ割り当ての基礎](#2-動的メモリ割り当ての基礎)
-3. [割り当てアルゴリズム詳解](#3-割り当てアルゴリズム詳解)
-4. [主要なメモリアロケータ](#4-主要なメモリアロケータ)
-5. [カーネルレベルのメモリ管理](#5-カーネルレベルのメモリ管理)
-6. [ガベージコレクション深掘り](#6-ガベージコレクション深掘り)
-7. [メモリ断片化と最適化](#7-メモリ断片化と最適化)
-8. [メモリリークとデバッグ](#8-メモリリークとデバッグ)
-9. [言語ランタイムとメモリモデル](#9-言語ランタイムとメモリモデル)
-10. [アンチパターンと設計原則](#10-アンチパターンと設計原則)
-11. [実践演習（3段階）](#11-実践演習3段階)
+- [ ] Accurately explain the structural differences between stack and heap and their memory layout
+- [ ] Compare allocation algorithms including First Fit / Best Fit / Worst Fit / Buddy System
+- [ ] Understand the internal architecture of ptmalloc2, jemalloc, tcmalloc, and mimalloc
+- [ ] Grasp the major garbage collection algorithms (Mark & Sweep, Generational, Reference Counting) at the implementation level
+- [ ] Practice detection and mitigation of memory leaks and fragmentation
+- [ ] Understand from a compiler perspective why Rust's ownership model guarantees memory safety
+- [ ] Explain kernel-level memory management (sbrk, mmap, SLAB allocator) and their interactions
+- [ ] Understand memory allocation constraints in real-time systems and embedded environments
+
+
+## Prerequisites
+
+Before reading this guide, having the following knowledge will deepen your understanding:
+
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Understanding of [Paging -- Virtual Memory, Page Tables, TLB, Page Replacement, Swapping](./01-paging.md)
+
+---
+
+## Table of Contents
+
+1. [Process Memory Layout](#1-process-memory-layout)
+2. [Fundamentals of Dynamic Memory Allocation](#2-fundamentals-of-dynamic-memory-allocation)
+3. [Allocation Algorithms in Detail](#3-allocation-algorithms-in-detail)
+4. [Major Memory Allocators](#4-major-memory-allocators)
+5. [Kernel-Level Memory Management](#5-kernel-level-memory-management)
+6. [Deep Dive into Garbage Collection](#6-deep-dive-into-garbage-collection)
+7. [Memory Fragmentation and Optimization](#7-memory-fragmentation-and-optimization)
+8. [Memory Leaks and Debugging](#8-memory-leaks-and-debugging)
+9. [Language Runtimes and Memory Models](#9-language-runtimes-and-memory-models)
+10. [Anti-Patterns and Design Principles](#10-anti-patterns-and-design-principles)
+11. [Practical Exercises (3 Levels)](#11-practical-exercises-3-levels)
 12. [FAQ](#12-faq)
-13. [まとめ](#13-まとめ)
-14. [参考文献](#14-参考文献)
+13. [Summary](#13-summary)
+14. [References](#14-references)
 
 ---
 
-## 1. プロセスのメモリレイアウト
+## 1. Process Memory Layout
 
-### 1.1 仮想アドレス空間の全体像
+### 1.1 Overview of the Virtual Address Space
 
-すべてのプロセスは、OSから独立した仮想アドレス空間を与えられる。典型的な Linux x86-64 プロセスのメモリレイアウトは以下のとおりである。
+Every process is given an independent virtual address space by the OS. A typical Linux x86-64 process memory layout is as follows.
 
 ```
-  仮想アドレス空間（Linux x86-64, 48ビット）
+  Virtual Address Space (Linux x86-64, 48-bit)
 
-  高位アドレス (0x7FFF_FFFF_FFFF)
-  ┌─────────────────────────────────────────┐
-  │           カーネル空間                    │  ← ユーザプロセスからアクセス不可
-  │       (上位半分, 約128TB)                │
-  ├─────────────────────────────────────────┤  0x7FFF_FFFF_FFFF
-  │                                         │
-  │           スタック (Stack)               │  ← 高位→低位方向に成長
-  │           [ローカル変数, 引数,           │     デフォルト上限: 8MB (ulimit -s)
-  │            リターンアドレス]              │
-  │              ↓ 成長方向                  │
-  ├─────────────────────────────────────────┤
-  │                                         │
-  │        メモリマップ領域                   │  ← mmap(), 共有ライブラリ,
-  │        (Memory-Mapped Region)            │     大きなmalloc (>128KB)
-  │                                         │
-  ├─────────────────────────────────────────┤
-  │              ↑ 成長方向                  │
-  │           ヒープ (Heap)                  │  ← malloc/free で管理
-  │           [動的に確保されるデータ]        │     brk/sbrk で拡張
-  ├─────────────────────────────────────────┤  ← Program Break
-  │           BSS セグメント                 │  ← 未初期化グローバル/静的変数
-  │           (ゼロ初期化)                   │
-  ├─────────────────────────────────────────┤
-  │           データセグメント               │  ← 初期化済みグローバル/静的変数
-  │           (初期化済みデータ)              │
-  ├─────────────────────────────────────────┤
-  │           テキストセグメント             │  ← 実行可能コード (読み取り専用)
-  │           (プログラムコード)              │     文字列リテラルもここ
-  ├─────────────────────────────────────────┤  0x0000_0040_0000 (典型的な開始点)
-  │           NULL ガードページ              │  ← NULLポインタ参照を検出
-  └─────────────────────────────────────────┘
-  低位アドレス (0x0000_0000_0000)
+  High Address (0x7FFF_FFFF_FFFF)
+  +---------------------------------------------+
+  |           Kernel Space                       |  <- Inaccessible from user processes
+  |       (Upper half, ~128TB)                   |
+  +---------------------------------------------+  0x7FFF_FFFF_FFFF
+  |                                              |
+  |           Stack                              |  <- Grows from high to low addresses
+  |           [Local variables, arguments,       |     Default limit: 8MB (ulimit -s)
+  |            return addresses]                 |
+  |              v Growth direction              |
+  +---------------------------------------------+
+  |                                              |
+  |        Memory-Mapped Region                  |  <- mmap(), shared libraries,
+  |        (Memory-Mapped Region)                |     large malloc (>128KB)
+  |                                              |
+  +---------------------------------------------+
+  |              ^ Growth direction              |
+  |           Heap                               |  <- Managed by malloc/free
+  |           [Dynamically allocated data]       |     Extended by brk/sbrk
+  +---------------------------------------------+  <- Program Break
+  |           BSS Segment                        |  <- Uninitialized global/static variables
+  |           (Zero-initialized)                 |
+  +---------------------------------------------+
+  |           Data Segment                       |  <- Initialized global/static variables
+  |           (Initialized data)                 |
+  +---------------------------------------------+
+  |           Text Segment                       |  <- Executable code (read-only)
+  |           (Program code)                     |     String literals are stored here too
+  +---------------------------------------------+  0x0000_0040_0000 (typical start address)
+  |           NULL Guard Page                    |  <- Detects NULL pointer dereferences
+  +---------------------------------------------+
+  Low Address (0x0000_0000_0000)
 ```
 
-### 1.2 各セグメントの詳細特性
+### 1.2 Detailed Characteristics of Each Segment
 
-| セグメント | 内容 | 権限 | サイズ | ライフタイム |
+| Segment | Contents | Permissions | Size | Lifetime |
 |:---:|:---|:---:|:---:|:---:|
-| テキスト | 機械語命令, 文字列リテラル | R-X | 固定 | プロセス全体 |
-| データ | 初期化済みグローバル/静的変数 | RW- | 固定 | プロセス全体 |
-| BSS | 未初期化グローバル/静的変数 | RW- | 固定 | プロセス全体 |
-| ヒープ | malloc/new で動的確保 | RW- | 可変 | 明示的解放まで |
-| mmap | 共有ライブラリ, 大きな割り当て | 可変 | 可変 | munmap まで |
-| スタック | ローカル変数, 引数, 戻りアドレス | RW- | 制限付き | 関数スコープ |
+| Text | Machine instructions, string literals | R-X | Fixed | Entire process |
+| Data | Initialized global/static variables | RW- | Fixed | Entire process |
+| BSS | Uninitialized global/static variables | RW- | Fixed | Entire process |
+| Heap | Dynamically allocated via malloc/new | RW- | Variable | Until explicitly freed |
+| mmap | Shared libraries, large allocations | Variable | Variable | Until munmap |
+| Stack | Local variables, arguments, return addresses | RW- | Limited | Function scope |
 
-### 1.3 スタックとヒープの構造的差異
+### 1.3 Structural Differences Between Stack and Heap
 
-スタックとヒープはともに実行時にデータを格納するが、その管理方式は根本的に異なる。
+Both the stack and heap store data at runtime, but their management mechanisms are fundamentally different.
 
 ```
-  ┌─────────── スタック ─────────────┐    ┌─────────── ヒープ ──────────────┐
-  │                                  │    │                                 │
-  │  ┌──────────────────────┐       │    │  フリーリスト管理:               │
-  │  │ main() のフレーム     │ ←SP  │    │                                 │
-  │  │  local_a = 10        │       │    │  ┌────┐  ┌──────┐  ┌────┐     │
-  │  │  local_b = 20        │       │    │  │使用│→│ 空き │→│使用│→... │
-  │  ├──────────────────────┤       │    │  │ 8B │  │ 64B  │  │32B │     │
-  │  │ foo() のフレーム      │       │    │  └────┘  └──────┘  └────┘     │
-  │  │  buf[256]            │       │    │                                 │
-  │  │  saved_rbp           │       │    │  malloc(24) の要求:              │
-  │  │  return_addr         │       │    │  → 64B の空きブロックを分割     │
-  │  ├──────────────────────┤       │    │  → 24B+8B(ヘッダ)=32Bを割当   │
-  │  │ bar() のフレーム      │       │    │  → 残り 32B が新しい空きに     │
-  │  │  tmp = 99            │       │    │                                 │
-  │  └──────────────────────┘       │    │  free() の操作:                 │
-  │         ↓ 成長方向              │    │  → ブロックを空きリストに返却   │
-  │                                  │    │  → 隣接する空きと結合(coalesce)│
-  │  操作: push/pop (O(1))          │    │                                 │
-  │  管理: ハードウェア(SP レジスタ)  │    │  操作: 探索+分割/結合           │
-  │  断片化: 発生しない              │    │  管理: ソフトウェア(アロケータ)  │
-  │  速度: 極めて高速               │    │  断片化: 発生する               │
-  └──────────────────────────────────┘    └─────────────────────────────────┘
+  +----------- Stack ---------------+    +----------- Heap ----------------+
+  |                                 |    |                                 |
+  |  +----------------------+      |    |  Free list management:          |
+  |  | main() frame         | <-SP |    |                                 |
+  |  |  local_a = 10        |      |    |  +----+  +------+  +----+      |
+  |  |  local_b = 20        |      |    |  |Used|->| Free |->|Used|->... |
+  |  +----------------------+      |    |  | 8B |  | 64B  |  |32B |      |
+  |  | foo() frame           |      |    |  +----+  +------+  +----+      |
+  |  |  buf[256]            |      |    |                                 |
+  |  |  saved_rbp           |      |    |  malloc(24) request:            |
+  |  |  return_addr         |      |    |  -> Split the 64B free block    |
+  |  +----------------------+      |    |  -> Allocate 24B+8B(header)=32B |
+  |  | bar() frame           |      |    |  -> Remaining 32B becomes new  |
+  |  |  tmp = 99            |      |    |     free block                  |
+  |  +----------------------+      |    |                                 |
+  |         v Growth direction     |    |  free() operation:              |
+  |                                 |    |  -> Return block to free list  |
+  |  Operations: push/pop (O(1))   |    |  -> Coalesce with adjacent     |
+  |  Managed by: Hardware (SP reg) |    |     free blocks                 |
+  |  Fragmentation: Does not occur |    |                                 |
+  |  Speed: Extremely fast         |    |  Operations: Search+split/merge |
+  +---------------------------------+    |  Managed by: Software (allocator)|
+                                         |  Fragmentation: Occurs          |
+                                         +---------------------------------+
 ```
 
-**性能比較表: スタック vs ヒープ**
+**Performance Comparison: Stack vs Heap**
 
-| 特性 | スタック | ヒープ |
+| Property | Stack | Heap |
 |:---|:---:|:---:|
-| 割り当て速度 | ~1 ns（SP移動のみ） | ~50-200 ns（探索+管理） |
-| 解放速度 | ~1 ns（SP復帰のみ） | ~50-100 ns（リスト操作） |
-| 最大サイズ | 1-8 MB（OS設定依存） | 物理メモリ+スワップまで |
-| 断片化 | 発生しない | 外部/内部断片化が発生 |
-| スレッド安全性 | 各スレッド独立 | 同期が必要（ロック等） |
-| キャッシュ効率 | 極めて高い（局所性良好） | 低い（散在しやすい） |
-| ライフタイム | 関数スコープに自動連動 | プログラマが明示管理 |
-| オーバーフロー | スタックオーバーフロー | OOM（Out of Memory） |
+| Allocation speed | ~1 ns (SP move only) | ~50-200 ns (search+management) |
+| Deallocation speed | ~1 ns (SP restore only) | ~50-100 ns (list operation) |
+| Maximum size | 1-8 MB (OS configuration dependent) | Up to physical memory + swap |
+| Fragmentation | Does not occur | External/internal fragmentation occurs |
+| Thread safety | Independent per thread | Synchronization required (locks, etc.) |
+| Cache efficiency | Extremely high (good locality) | Low (tends to be scattered) |
+| Lifetime | Automatically tied to function scope | Explicitly managed by programmer |
+| Overflow | Stack overflow | OOM (Out of Memory) |
 
-### 1.4 コード例: メモリ配置の確認
+### 1.4 Code Example: Verifying Memory Placement
 
 ```c
-/* コード例1: プロセスメモリレイアウトの確認 (Linux) */
+/* Code Example 1: Verifying process memory layout (Linux) */
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 
-/* グローバル変数 → データセグメント or BSS */
-int initialized_global = 42;       /* データセグメント（初期化済み） */
-int uninitialized_global;          /* BSS セグメント（ゼロ初期化） */
-const char *string_literal = "Hello, Memory!";  /* テキストセグメント */
+/* Global variables -> Data segment or BSS */
+int initialized_global = 42;       /* Data segment (initialized) */
+int uninitialized_global;          /* BSS segment (zero-initialized) */
+const char *string_literal = "Hello, Memory!";  /* Text segment */
 
 void demonstrate_layout(void) {
-    /* ローカル変数 → スタック */
+    /* Local variables -> Stack */
     int stack_var = 100;
     char stack_array[64];
 
-    /* 動的割り当て → ヒープ */
+    /* Dynamic allocation -> Heap */
     int *heap_var = (int *)malloc(sizeof(int) * 256);
     if (!heap_var) {
         perror("malloc failed");
         return;
     }
 
-    /* 静的ローカル変数 → データセグメント */
+    /* Static local variable -> Data segment */
     static int static_local = 55;
 
-    printf("=== メモリレイアウト確認 ===\n");
-    printf("テキスト (関数アドレス):       %p\n", (void *)demonstrate_layout);
-    printf("テキスト (文字列リテラル):     %p\n", (void *)string_literal);
-    printf("データ  (初期化済みグローバル): %p\n", (void *)&initialized_global);
-    printf("データ  (静的ローカル):         %p\n", (void *)&static_local);
-    printf("BSS    (未初期化グローバル):   %p\n", (void *)&uninitialized_global);
-    printf("ヒープ  (malloc):              %p\n", (void *)heap_var);
-    printf("スタック (ローカル変数):        %p\n", (void *)&stack_var);
-    printf("スタック (配列):               %p\n", (void *)stack_array);
-    printf("Program Break (brk):           %p\n", sbrk(0));
+    printf("=== Memory Layout Verification ===\n");
+    printf("Text  (function address):          %p\n", (void *)demonstrate_layout);
+    printf("Text  (string literal):            %p\n", (void *)string_literal);
+    printf("Data  (initialized global):        %p\n", (void *)&initialized_global);
+    printf("Data  (static local):              %p\n", (void *)&static_local);
+    printf("BSS   (uninitialized global):      %p\n", (void *)&uninitialized_global);
+    printf("Heap  (malloc):                    %p\n", (void *)heap_var);
+    printf("Stack (local variable):            %p\n", (void *)&stack_var);
+    printf("Stack (array):                     %p\n", (void *)stack_array);
+    printf("Program Break (brk):               %p\n", sbrk(0));
 
     free(heap_var);
 }
@@ -187,8 +189,8 @@ void demonstrate_layout(void) {
 int main(void) {
     demonstrate_layout();
 
-    /* /proc/self/maps で詳細なメモリマップを確認 */
-    printf("\n=== /proc/self/maps (抜粋) ===\n");
+    /* Check detailed memory map via /proc/self/maps */
+    printf("\n=== /proc/self/maps (excerpt) ===\n");
     char cmd[64];
     snprintf(cmd, sizeof(cmd), "cat /proc/%d/maps | head -20", getpid());
     system(cmd);
@@ -197,107 +199,107 @@ int main(void) {
 }
 ```
 
-**実行結果例（アドレスは環境により異なる）:**
+**Example output (addresses vary by environment):**
 
 ```
-=== メモリレイアウト確認 ===
-テキスト (関数アドレス):       0x55a3b2c01169
-テキスト (文字列リテラル):     0x55a3b2c02008
-データ  (初期化済みグローバル): 0x55a3b2c04010
-データ  (静的ローカル):         0x55a3b2c04018
-BSS    (未初期化グローバル):   0x55a3b2c04014
-ヒープ  (malloc):              0x55a3b3a092a0
-スタック (ローカル変数):        0x7ffd2e4b3c5c
-スタック (配列):               0x7ffd2e4b3c10
-Program Break (brk):           0x55a3b3a2a000
+=== Memory Layout Verification ===
+Text  (function address):          0x55a3b2c01169
+Text  (string literal):            0x55a3b2c02008
+Data  (initialized global):        0x55a3b2c04010
+Data  (static local):              0x55a3b2c04018
+BSS   (uninitialized global):      0x55a3b2c04014
+Heap  (malloc):                    0x55a3b3a092a0
+Stack (local variable):            0x7ffd2e4b3c5c
+Stack (array):                     0x7ffd2e4b3c10
+Program Break (brk):               0x55a3b3a2a000
 ```
 
-アドレスの大小関係から、テキスト < データ < BSS < ヒープ << スタック の配置順序が確認できる。ASLR (Address Space Layout Randomization) が有効な場合、毎回アドレスは変化するが、相対的な位置関係は保たれる。
+From the relative ordering of addresses, you can confirm the layout order: Text < Data < BSS < Heap << Stack. When ASLR (Address Space Layout Randomization) is enabled, the addresses change with each execution, but the relative positional relationships are preserved.
 
 ---
 
-## 2. 動的メモリ割り当ての基礎
+## 2. Fundamentals of Dynamic Memory Allocation
 
-### 2.1 システムコールインタフェース
+### 2.1 System Call Interface
 
-ユーザ空間のメモリアロケータは、最終的にカーネルのシステムコールを通じて物理メモリを確保する。Linux における主要なインタフェースは `brk`/`sbrk` と `mmap` の2種類である。
+User-space memory allocators ultimately acquire physical memory through kernel system calls. The two primary interfaces in Linux are `brk`/`sbrk` and `mmap`.
 
 **brk / sbrk:**
 
 ```c
-/* brk(): Program Break を指定アドレスに設定 */
+/* brk(): Set the Program Break to the specified address */
 int brk(void *addr);
 
-/* sbrk(): Program Break を increment バイト移動し、旧アドレスを返す */
+/* sbrk(): Move the Program Break by increment bytes and return the old address */
 void *sbrk(intptr_t increment);
 ```
 
-`brk`/`sbrk` はヒープ領域の末尾（Program Break）を移動することで連続した仮想アドレス空間を拡張する。glibc の `malloc` は小〜中サイズの割り当てに `sbrk` を使用する。
+`brk`/`sbrk` extend the contiguous virtual address space by moving the end of the heap region (Program Break). glibc's `malloc` uses `sbrk` for small to medium-sized allocations.
 
 **mmap:**
 
 ```c
-/* mmap(): 仮想アドレス空間に新しいマッピングを作成 */
+/* mmap(): Create a new mapping in the virtual address space */
 void *mmap(void *addr, size_t length, int prot, int flags,
            int fd, off_t offset);
 
-/* munmap(): マッピングを解放 */
+/* munmap(): Release a mapping */
 int munmap(void *addr, size_t length);
 ```
 
-`mmap` は独立した仮想メモリ領域を確保する。glibc の `malloc` ではデフォルトで 128KB (MMAP_THRESHOLD) を超える割り当てに `mmap(MAP_ANONYMOUS)` を使用する。`mmap` の利点は、`munmap` で即座にカーネルへメモリを返却できることである（`sbrk` はヒープ末尾からしか縮小できない）。
+`mmap` allocates an independent virtual memory region. glibc's `malloc` uses `mmap(MAP_ANONYMOUS)` by default for allocations exceeding 128KB (MMAP_THRESHOLD). The advantage of `mmap` is that memory can be immediately returned to the kernel via `munmap` (whereas `sbrk` can only shrink from the end of the heap).
 
-### 2.2 malloc/free の内部動作
+### 2.2 Internal Operation of malloc/free
 
 ```c
-/* コード例2: malloc/free のヘッダ構造（簡略版） */
+/* Code Example 2: malloc/free header structure (simplified) */
 
 /*
- * malloc が返すポインタの直前に、管理用ヘッダが置かれる。
- * このヘッダには、ブロックサイズや使用/空きフラグが格納される。
+ * A management header is placed immediately before the pointer returned by malloc.
+ * This header stores the block size and used/free flags.
  *
- *    malloc(24) が返すメモリブロック:
+ *    Memory block returned by malloc(24):
  *
- *    ┌──────────────────┬───────────────────────────┐
- *    │  ヘッダ (8-16B)  │    ユーザデータ (24B)      │
- *    │  size | flags    │    ← malloc() の戻り値    │
- *    └──────────────────┴───────────────────────────┘
- *    ↑                  ↑
- *    実際の開始位置       ユーザに返されるポインタ
+ *    +------------------+---------------------------+
+ *    |  Header (8-16B)  |    User data (24B)        |
+ *    |  size | flags    |    <- malloc() return val  |
+ *    +------------------+---------------------------+
+ *    ^                  ^
+ *    Actual start       Pointer returned to user
  */
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
 
-/* 簡易アロケータのブロックヘッダ */
+/* Simple allocator block header */
 typedef struct block_header {
-    size_t size;              /* ブロックサイズ（ヘッダ含む） */
-    int is_free;              /* 0: 使用中, 1: 空き */
-    struct block_header *next; /* 次のブロックへのポインタ */
+    size_t size;              /* Block size (including header) */
+    int is_free;              /* 0: in use, 1: free */
+    struct block_header *next; /* Pointer to next block */
 } block_header_t;
 
 #define HEADER_SIZE sizeof(block_header_t)
-#define ALIGN(size) (((size) + 7) & ~7)  /* 8バイトアラインメント */
+#define ALIGN(size) (((size) + 7) & ~7)  /* 8-byte alignment */
 
 static block_header_t *free_list_head = NULL;
 
-/* 簡易 malloc 実装 (First Fit) */
+/* Simple malloc implementation (First Fit) */
 void *simple_malloc(size_t size) {
     if (size == 0) return NULL;
 
     size_t aligned_size = ALIGN(size);
     size_t total_size = HEADER_SIZE + aligned_size;
 
-    /* フリーリストから適切なブロックを探索 (First Fit) */
+    /* Search the free list for a suitable block (First Fit) */
     block_header_t *current = free_list_head;
     block_header_t *prev = NULL;
 
     while (current != NULL) {
         if (current->is_free && current->size >= total_size) {
-            /* 十分な大きさの空きブロックを発見 */
+            /* Found a free block of sufficient size */
 
-            /* 分割可能なら分割する */
+            /* Split if possible */
             if (current->size >= total_size + HEADER_SIZE + 8) {
                 block_header_t *new_block =
                     (block_header_t *)((char *)current + total_size);
@@ -316,10 +318,10 @@ void *simple_malloc(size_t size) {
         current = current->next;
     }
 
-    /* フリーリストに適切なブロックがない → sbrk で拡張 */
+    /* No suitable block in free list -> extend with sbrk */
     block_header_t *new_block = (block_header_t *)sbrk(total_size);
     if (new_block == (void *)-1) {
-        return NULL;  /* メモリ不足 */
+        return NULL;  /* Out of memory */
     }
 
     new_block->size = total_size;
@@ -335,7 +337,7 @@ void *simple_malloc(size_t size) {
     return (void *)((char *)new_block + HEADER_SIZE);
 }
 
-/* 簡易 free 実装 */
+/* Simple free implementation */
 void simple_free(void *ptr) {
     if (ptr == NULL) return;
 
@@ -343,43 +345,43 @@ void simple_free(void *ptr) {
         (block_header_t *)((char *)ptr - HEADER_SIZE);
     header->is_free = 1;
 
-    /* 隣接する空きブロックの結合 (Coalescing) */
+    /* Coalescing adjacent free blocks */
     block_header_t *current = free_list_head;
     while (current != NULL) {
         if (current->is_free && current->next != NULL
             && current->next->is_free) {
-            /* 隣接する2つの空きブロックを結合 */
+            /* Merge two adjacent free blocks */
             current->size += current->next->size;
             current->next = current->next->next;
-            continue;  /* さらに結合できる可能性 */
+            continue;  /* Possibility of further merging */
         }
         current = current->next;
     }
 }
 ```
 
-### 2.3 アラインメント要件
+### 2.3 Alignment Requirements
 
-現代のプロセッサは、データが特定のバイト境界に配置されていることを要求する。不適切なアラインメントはパフォーマンス低下やハードウェア例外を引き起こす。
+Modern processors require data to be placed on specific byte boundaries. Improper alignment causes performance degradation or hardware exceptions.
 
-| データ型 | 一般的なアラインメント | 理由 |
+| Data Type | Typical Alignment | Reason |
 |:---|:---:|:---|
-| char | 1 バイト | バイト単位でアクセス |
-| short | 2 バイト | 16ビットバス幅 |
-| int, float | 4 バイト | 32ビットレジスタ |
-| long, double, ポインタ | 8 バイト | 64ビットレジスタ |
-| SSE/AVX ベクトル | 16 / 32 バイト | SIMD 命令要件 |
-| キャッシュライン | 64 バイト | False Sharing 防止 |
+| char | 1 byte | Byte-level access |
+| short | 2 bytes | 16-bit bus width |
+| int, float | 4 bytes | 32-bit register |
+| long, double, pointer | 8 bytes | 64-bit register |
+| SSE/AVX vector | 16 / 32 bytes | SIMD instruction requirements |
+| Cache line | 64 bytes | False sharing prevention |
 
-`malloc` が返すポインタは、プラットフォームの最大アラインメント要件（通常 16 バイト）を満たすように調整される。C11 の `aligned_alloc` や POSIX の `posix_memalign` を使えば、任意のアラインメント（2のべき乗）を指定可能である。
+The pointer returned by `malloc` is adjusted to meet the platform's maximum alignment requirement (typically 16 bytes). C11's `aligned_alloc` or POSIX's `posix_memalign` can be used to specify arbitrary alignment (powers of 2).
 
 ```c
-/* アラインメントを指定した割り当て */
+/* Allocation with specified alignment */
 #include <stdlib.h>
 #include <stdio.h>
 
 int main(void) {
-    /* 64バイトアラインメント（キャッシュライン境界） */
+    /* 64-byte alignment (cache line boundary) */
     void *ptr = NULL;
     int ret = posix_memalign(&ptr, 64, 1024);
     if (ret != 0) {
@@ -390,7 +392,7 @@ int main(void) {
            ptr, (unsigned long)ptr % 64);
     free(ptr);
 
-    /* C11 aligned_alloc (サイズはアラインメントの倍数であること) */
+    /* C11 aligned_alloc (size must be a multiple of alignment) */
     void *ptr2 = aligned_alloc(32, 1024);
     printf("32-byte aligned pointer: %p (%%32 == %lu)\n",
            ptr2, (unsigned long)ptr2 % 32);
@@ -402,210 +404,210 @@ int main(void) {
 
 ---
 
-## 3. 割り当てアルゴリズム詳解
+## 3. Allocation Algorithms in Detail
 
-### 3.1 フリーリストベースのアルゴリズム
+### 3.1 Free List-Based Algorithms
 
-フリーリストは、未使用のメモリブロックを連結リストで管理するデータ構造である。新しい割り当て要求が来たとき、フリーリストからどのブロックを選ぶかが各アルゴリズムの差異となる。
+A free list is a data structure that manages unused memory blocks as a linked list. The difference between each algorithm lies in which block is selected from the free list when a new allocation request arrives.
 
 ```
-  フリーリストの状態（各数字はブロックサイズ）:
+  Free list state (numbers represent block sizes):
 
-  HEAD → [32B 空き] → [64B 使用] → [128B 空き] → [16B 空き] → [256B 空き] → NULL
+  HEAD -> [32B free] -> [64B used] -> [128B free] -> [16B free] -> [256B free] -> NULL
 
-  malloc(50) を要求した場合:
+  When malloc(50) is requested:
 
-  ■ First Fit:  [128B 空き] を選択 ← 先頭から探索し最初に適合するブロック
-  ■ Best Fit:   [64B ...] をスキップ → [128B 空き] ではなく... 全探索
-                 適合する最小 = [128B 空き] を選択
-  ■ Worst Fit:  [256B 空き] を選択 ← 最大の空きブロックを選択
-  ■ Next Fit:   前回の探索終了位置から開始
+  * First Fit:  Selects [128B free] <- First fitting block found from the beginning
+  * Best Fit:   Skips [64B ...] -> Not [128B free]... full search
+                  Smallest fitting = [128B free] selected
+  * Worst Fit:  Selects [256B free] <- Selects the largest free block
+  * Next Fit:   Starts from where the previous search ended
 
-  First Fit の動作:
-  ┌────┐    ┌────┐    ┌──────────┐    ┌────┐    ┌────────┐
-  │32B │ →  │64B │ →  │  128B    │ →  │16B │ →  │ 256B   │
-  │空き│    │使用│    │  空き    │    │空き│    │ 空き   │
-  └────┘    └────┘    └──────────┘    └────┘    └────────┘
-                          ↑
-                      ここを分割!
-                      50B→使用 | 78B→空き
+  First Fit operation:
+  +----+    +----+    +----------+    +----+    +--------+
+  |32B | -> |64B | -> |  128B    | -> |16B | -> | 256B   |
+  |free|    |used|    |  free    |    |free|    | free   |
+  +----+    +----+    +----------+    +----+    +--------+
+                          ^
+                      Split here!
+                      50B->used | 78B->free
 ```
 
-### 3.2 アルゴリズム比較表
+### 3.2 Algorithm Comparison Table
 
-| アルゴリズム | 探索時間 | 外部断片化 | 内部断片化 | 実装複雑度 | 特徴 |
+| Algorithm | Search Time | External Fragmentation | Internal Fragmentation | Implementation Complexity | Characteristics |
 |:---:|:---:|:---:|:---:|:---:|:---|
-| First Fit | O(n) 平均高速 | 中 | 低 | 低 | リスト先頭に小ブロックが蓄積 |
-| Next Fit | O(n) 分散 | 高 | 低 | 低 | 探索が分散するが断片化悪化 |
-| Best Fit | O(n) 全探索 | 低 | 高 (小残片) | 低 | 微小な空きブロックが大量発生 |
-| Worst Fit | O(n) 全探索 | 高 | 低 | 低 | 大ブロックがすぐ枯渇 |
-| Buddy System | O(log n) | 中 | 高 (2のべき乗) | 中 | 結合が高速、Linux カーネル採用 |
-| Segregated Fit | O(1) 同サイズ | 低 | 中 | 高 | サイズクラスごとにリスト管理 |
-| TLSF | O(1) 保証 | 低 | 中 | 高 | リアルタイムシステム向け |
+| First Fit | O(n) avg fast | Medium | Low | Low | Small blocks accumulate at the head of list |
+| Next Fit | O(n) distributed | High | Low | Low | Search is distributed but fragmentation worsens |
+| Best Fit | O(n) full search | Low | High (small remnants) | Low | Many tiny free blocks are generated |
+| Worst Fit | O(n) full search | High | Low | Low | Large blocks are exhausted quickly |
+| Buddy System | O(log n) | Medium | High (powers of 2) | Medium | Fast coalescing, adopted by Linux kernel |
+| Segregated Fit | O(1) same-size | Low | Medium | High | Separate lists per size class |
+| TLSF | O(1) guaranteed | Low | Medium | High | For real-time systems |
 
-### 3.3 Buddy System（バディシステム）
+### 3.3 Buddy System
 
-Buddy System は Linux カーネルの物理ページアロケータで採用されている。メモリを2のべき乗サイズのブロックに分割して管理する。
-
-```
-  Buddy System: 128B のメモリプールから 20B を割り当てる例
-
-  初期状態:
-  ┌───────────────────────────────────────────────────┐
-  │                   128B (order 7)                   │
-  └───────────────────────────────────────────────────┘
-
-  ステップ1: 128B → 64B + 64B に分割
-  ┌─────────────────────────┬─────────────────────────┐
-  │       64B (order 6)     │       64B (order 6)     │
-  └─────────────────────────┴─────────────────────────┘
-
-  ステップ2: 左の64B → 32B + 32B に分割
-  ┌────────────┬────────────┬─────────────────────────┐
-  │ 32B (o5)   │ 32B (o5)   │       64B (order 6)     │
-  └────────────┴────────────┴─────────────────────────┘
-
-  ステップ3: 左の32Bを割り当て (20Bの要求に対し32Bを割り当て)
-  ┌────────────┬────────────┬─────────────────────────┐
-  │■ 32B 使用 ■│ 32B 空き   │       64B 空き           │
-  └────────────┴────────────┴─────────────────────────┘
-  ← 20B に対して 32B → 内部断片化 12B (37.5%)
-
-  解放時: バディ（隣接する同サイズブロック）が空きなら結合
-  32B + 32B → 64B → 64B + 64B → 128B （完全に元に戻る）
-```
-
-**Buddy System の長所と短所:**
-
-- 長所: 結合が O(1) で高速（バディのアドレスはビット演算で算出可能）
-- 長所: 外部断片化が限定的（同サイズのバディ単位で管理）
-- 短所: 内部断片化が大きい（要求サイズを2のべき乗に切り上げ）
-- 短所: 33B の割り当てに 64B 必要（内部断片化 ~48%）
-
-### 3.4 Segregated Free Lists（分離フリーリスト）
-
-現代の高性能アロケータの多くが採用する手法。サイズクラスごとに個別のフリーリストを持つ。
+The Buddy System is employed by the Linux kernel's physical page allocator. It manages memory by dividing it into blocks of power-of-2 sizes.
 
 ```
-  Segregated Free Lists の構造:
+  Buddy System: Allocating 20B from a 128B memory pool
 
-  サイズクラス    フリーリスト
-  ┌──────────┐
-  │   8B     │ → [空き] → [空き] → [空き] → NULL
-  ├──────────┤
-  │  16B     │ → [空き] → [空き] → NULL
-  ├──────────┤
-  │  32B     │ → NULL  (空きなし → 上位クラスから分割)
-  ├──────────┤
-  │  64B     │ → [空き] → [空き] → [空き] → [空き] → NULL
-  ├──────────┤
-  │  128B    │ → [空き] → NULL
-  ├──────────┤
-  │  256B    │ → [空き] → NULL
-  ├──────────┤
-  │  512B    │ → NULL
-  ├──────────┤
-  │  ...     │
-  ├──────────┤
-  │  large   │ → ツリーまたはソートリストで管理
-  └──────────┘
+  Initial state:
+  +---------------------------------------------------+
+  |                   128B (order 7)                    |
+  +---------------------------------------------------+
 
-  malloc(20) の場合:
-  → サイズクラス 32B のリストから取得 (O(1))
-  → リストが空なら 64B クラスから1つ取って分割
+  Step 1: Split 128B -> 64B + 64B
+  +-------------------------+-------------------------+
+  |       64B (order 6)     |       64B (order 6)     |
+  +-------------------------+-------------------------+
+
+  Step 2: Split left 64B -> 32B + 32B
+  +------------+------------+-------------------------+
+  | 32B (o5)   | 32B (o5)   |       64B (order 6)     |
+  +------------+------------+-------------------------+
+
+  Step 3: Allocate left 32B (allocate 32B for a 20B request)
+  +------------+------------+-------------------------+
+  |# 32B used #| 32B free   |       64B free           |
+  +------------+------------+-------------------------+
+  <- 32B for 20B -> internal fragmentation 12B (37.5%)
+
+  On deallocation: If buddy (adjacent same-size block) is free, merge
+  32B + 32B -> 64B -> 64B + 64B -> 128B (fully restored)
+```
+
+**Buddy System Advantages and Disadvantages:**
+
+- Advantage: Coalescing is O(1) fast (buddy address can be calculated via bit operations)
+- Advantage: External fragmentation is limited (managed in buddy-sized units)
+- Disadvantage: Internal fragmentation is large (request size rounded up to power of 2)
+- Disadvantage: 33B allocation requires 64B (internal fragmentation ~48%)
+
+### 3.4 Segregated Free Lists
+
+A technique adopted by most modern high-performance allocators. Maintains individual free lists for each size class.
+
+```
+  Segregated Free Lists structure:
+
+  Size class    Free list
+  +----------+
+  |   8B     | -> [free] -> [free] -> [free] -> NULL
+  +----------+
+  |  16B     | -> [free] -> [free] -> NULL
+  +----------+
+  |  32B     | -> NULL  (no free blocks -> split from upper class)
+  +----------+
+  |  64B     | -> [free] -> [free] -> [free] -> [free] -> NULL
+  +----------+
+  |  128B    | -> [free] -> NULL
+  +----------+
+  |  256B    | -> [free] -> NULL
+  +----------+
+  |  512B    | -> NULL
+  +----------+
+  |  ...     |
+  +----------+
+  |  large   | -> Managed by tree or sorted list
+  +----------+
+
+  For malloc(20):
+  -> Retrieve from size class 32B list (O(1))
+  -> If list is empty, take one from 64B class and split
 ```
 
 ---
 
-## 4. 主要なメモリアロケータ
+## 4. Major Memory Allocators
 
-### 4.1 ptmalloc2（glibc 標準アロケータ）
+### 4.1 ptmalloc2 (glibc Standard Allocator)
 
-ptmalloc2 は Doug Lea の dlmalloc をマルチスレッド対応に拡張したもので、ほぼ全ての Linux ディストリビューションのデフォルトアロケータである。
+ptmalloc2 is a multi-threaded extension of Doug Lea's dlmalloc and serves as the default allocator in nearly all Linux distributions.
 
-**内部アーキテクチャ:**
+**Internal Architecture:**
 
 ```
-  ptmalloc2 の構造:
+  ptmalloc2 structure:
 
-  ┌─────────────────────────────────────────────────────┐
-  │                   ptmalloc2                          │
-  │                                                      │
-  │  ┌──────────┐  ┌──────────┐  ┌──────────┐          │
-  │  │ Arena 0  │  │ Arena 1  │  │ Arena N  │  ...     │
-  │  │ (main)   │  │ (thread) │  │ (thread) │          │
-  │  │          │  │          │  │          │          │
-  │  │ ┌──────┐ │  │ ┌──────┐ │  │ ┌──────┐ │          │
-  │  │ │fast  │ │  │ │fast  │ │  │ │fast  │ │          │
-  │  │ │bins  │ │  │ │bins  │ │  │ │bins  │ │          │
-  │  │ │(LIFO)│ │  │ │(LIFO)│ │  │ │(LIFO)│ │          │
-  │  │ ├──────┤ │  │ ├──────┤ │  │ ├──────┤ │          │
-  │  │ │small │ │  │ │small │ │  │ │small │ │          │
-  │  │ │bins  │ │  │ │bins  │ │  │ │bins  │ │          │
-  │  │ │(FIFO)│ │  │ │(FIFO)│ │  │ │(FIFO)│ │          │
-  │  │ ├──────┤ │  │ ├──────┤ │  │ ├──────┤ │          │
-  │  │ │large │ │  │ │large │ │  │ │large │ │          │
-  │  │ │bins  │ │  │ │bins  │ │  │ │bins  │ │          │
-  │  │ │(sort)│ │  │ │(sort)│ │  │ │(sort)│ │          │
-  │  │ ├──────┤ │  │ ├──────┤ │  │ ├──────┤ │          │
-  │  │ │unsort│ │  │ │unsort│ │  │ │unsort│ │          │
-  │  │ │bin   │ │  │ │bin   │ │  │ │bin   │ │          │
-  │  │ └──────┘ │  │ └──────┘ │  │ └──────┘ │          │
-  │  └──────────┘  └──────────┘  └──────────┘          │
-  │                                                      │
-  │  サイズ閾値:                                          │
-  │    fastbin:  ≤ 160B (64bit)  → LIFO, ロック不要     │
-  │    smallbin: ≤ 512B          → FIFO, 正確なサイズ   │
-  │    largebin: > 512B          → ソートツリー          │
-  │    mmap:     > 128KB         → mmap() で直接確保    │
-  └─────────────────────────────────────────────────────┘
+  +-----------------------------------------------------+
+  |                   ptmalloc2                          |
+  |                                                      |
+  |  +----------+  +----------+  +----------+          |
+  |  | Arena 0  |  | Arena 1  |  | Arena N  |  ...     |
+  |  | (main)   |  | (thread) |  | (thread) |          |
+  |  |          |  |          |  |          |          |
+  |  | +------+ |  | +------+ |  | +------+ |          |
+  |  | |fast  | |  | |fast  | |  | |fast  | |          |
+  |  | |bins  | |  | |bins  | |  | |bins  | |          |
+  |  | |(LIFO)| |  | |(LIFO)| |  | |(LIFO)| |          |
+  |  | +------+ |  | +------+ |  | +------+ |          |
+  |  | |small | |  | |small | |  | |small | |          |
+  |  | |bins  | |  | |bins  | |  | |bins  | |          |
+  |  | |(FIFO)| |  | |(FIFO)| |  | |(FIFO)| |          |
+  |  | +------+ |  | +------+ |  | +------+ |          |
+  |  | |large | |  | |large | |  | |large | |          |
+  |  | |bins  | |  | |bins  | |  | |bins  | |          |
+  |  | |(sort)| |  | |(sort)| |  | |(sort)| |          |
+  |  | +------+ |  | +------+ |  | +------+ |          |
+  |  | |unsort| |  | |unsort| |  | |unsort| |          |
+  |  | |bin   | |  | |bin   | |  | |bin   | |          |
+  |  | +------+ |  | +------+ |  | +------+ |          |
+  |  +----------+  +----------+  +----------+          |
+  |                                                      |
+  |  Size thresholds:                                    |
+  |    fastbin:  <= 160B (64bit)  -> LIFO, lock-free    |
+  |    smallbin: <= 512B          -> FIFO, exact size   |
+  |    largebin: > 512B           -> Sorted tree        |
+  |    mmap:     > 128KB          -> Directly via mmap()|
+  +-----------------------------------------------------+
 ```
 
-**ptmalloc2 の割り当てフロー:**
+**ptmalloc2 Allocation Flow:**
 
-1. サイズが fastbin 範囲内 → fastbin から取得（ロック不要、最速）
-2. サイズが smallbin 範囲内 → smallbin から取得
-3. unsorted bin を走査 → 適切なブロックがあれば取得、なければ分類
-4. largebin から Best Fit で取得
-5. top chunk から分割
-6. sbrk() でヒープ拡張、または mmap() で直接確保
+1. Size is within fastbin range -> Retrieve from fastbin (lock-free, fastest)
+2. Size is within smallbin range -> Retrieve from smallbin
+3. Scan unsorted bin -> Retrieve if suitable block found, otherwise classify
+4. Retrieve from largebin using Best Fit
+5. Split from top chunk
+6. Extend heap with sbrk(), or directly allocate via mmap()
 
-### 4.2 jemalloc（FreeBSD / Redis / Firefox）
+### 4.2 jemalloc (FreeBSD / Redis / Firefox)
 
-Jason Evans が FreeBSD 向けに設計したアロケータ。断片化の低さとスレッドスケーラビリティに優れる。
+An allocator designed by Jason Evans for FreeBSD. Excels in low fragmentation and thread scalability.
 
-**主要な設計特徴:**
+**Key Design Features:**
 
-- **スレッドキャッシュ (tcache):** 各スレッドがローカルキャッシュを持ち、小さい割り当てはロック不要
-- **アリーナ (arena):** 通常 CPU コア数 × 4 のアリーナを作成し、スレッドを分散配置
-- **サイズクラス:** Small (≤14336B), Large (≤4MB), Huge (>4MB) の3段階
-- **エクステント (extent):** メモリ管理の基本単位。ページ単位で管理
-- **統計機能:** `malloc_stats_print()` で詳細なメモリ使用統計を取得可能
+- **Thread cache (tcache):** Each thread has a local cache, so small allocations require no locks
+- **Arenas:** Typically creates CPU cores x 4 arenas, distributing threads across them
+- **Size classes:** Three tiers: Small (<=14336B), Large (<=4MB), Huge (>4MB)
+- **Extents:** Basic unit of memory management. Managed at page granularity
+- **Statistics:** Detailed memory usage statistics available via `malloc_stats_print()`
 
 ```c
-/* コード例3: jemalloc の統計情報取得 */
+/* Code Example 3: Retrieving jemalloc statistics */
 #include <jemalloc/jemalloc.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 int main(void) {
-    /* 様々なサイズのメモリを確保 */
+    /* Allocate memory of various sizes */
     void *ptrs[1000];
     for (int i = 0; i < 1000; i++) {
         ptrs[i] = malloc(rand() % 4096 + 1);
     }
 
-    /* 半分を解放（断片化を発生させる） */
+    /* Free half (to induce fragmentation) */
     for (int i = 0; i < 1000; i += 2) {
         free(ptrs[i]);
         ptrs[i] = NULL;
     }
 
-    /* jemalloc の統計情報を出力 */
+    /* Output jemalloc statistics */
     malloc_stats_print(NULL, NULL, NULL);
 
-    /* 特定の統計値を取得 */
+    /* Retrieve specific statistics */
     size_t allocated, active, resident;
     size_t sz = sizeof(size_t);
 
@@ -613,410 +615,411 @@ int main(void) {
     mallctl("stats.active", &active, &sz, NULL, 0);
     mallctl("stats.resident", &resident, &sz, NULL, 0);
 
-    printf("\n=== メモリ使用状況 ===\n");
-    printf("割り当て済み (allocated): %zu bytes\n", allocated);
-    printf("アクティブ   (active):    %zu bytes\n", active);
-    printf("常駐         (resident):  %zu bytes\n", resident);
-    printf("断片化率: %.2f%%\n",
+    printf("\n=== Memory Usage ===\n");
+    printf("Allocated: %zu bytes\n", allocated);
+    printf("Active:    %zu bytes\n", active);
+    printf("Resident:  %zu bytes\n", resident);
+    printf("Fragmentation rate: %.2f%%\n",
            (1.0 - (double)allocated / active) * 100);
 
-    /* 残りを解放 */
+    /* Free the rest */
     for (int i = 1; i < 1000; i += 2) {
         free(ptrs[i]);
     }
 
     return 0;
 }
-/* コンパイル: gcc -o test test.c -ljemalloc */
+/* Compile: gcc -o test test.c -ljemalloc */
 ```
 
-### 4.3 tcmalloc（Google）
+### 4.3 tcmalloc (Google)
 
-Google が開発した Thread-Caching Malloc。小オブジェクトの高速割り当てに特化している。
+Thread-Caching Malloc developed by Google. Specializes in fast allocation of small objects.
 
-**アーキテクチャ:**
+**Architecture:**
 
 ```
-  tcmalloc のアーキテクチャ:
+  tcmalloc architecture:
 
-  ┌──────────────────────────────────────────────────┐
-  │                   tcmalloc                        │
-  │                                                    │
-  │  ┌─────────────┐ ┌─────────────┐ ┌────────────┐ │
-  │  │ Thread Cache │ │ Thread Cache │ │Thread Cache│ │
-  │  │  (per-thread)│ │  (per-thread)│ │(per-thread)│ │
-  │  │  ロック不要   │ │  ロック不要   │ │ロック不要  │ │
-  │  └──────┬──────┘ └──────┬──────┘ └─────┬──────┘ │
-  │         │               │              │         │
-  │         ▼               ▼              ▼         │
-  │  ┌──────────────────────────────────────────┐    │
-  │  │         Central Free List                │    │
-  │  │     (サイズクラスごとにリスト管理)         │    │
-  │  │     スピンロックで保護                    │    │
-  │  └────────────────────┬─────────────────────┘    │
-  │                       │                          │
-  │                       ▼                          │
-  │  ┌──────────────────────────────────────────┐    │
-  │  │         Page Heap                        │    │
-  │  │     (ページ単位の大きなブロック管理)       │    │
-  │  │     span: 連続ページの集まり              │    │
-  │  └──────────────────────────────────────────┘    │
-  │                                                    │
-  │  小オブジェクト (≤256KB):                          │
-  │    Thread Cache → Central List → Page Heap        │
-  │  大オブジェクト (>256KB):                          │
-  │    Page Heap から直接割り当て                       │
-  └──────────────────────────────────────────────────┘
+  +----------------------------------------------------+
+  |                   tcmalloc                          |
+  |                                                     |
+  |  +-------------+ +-------------+ +------------+   |
+  |  | Thread Cache | | Thread Cache | |Thread Cache|   |
+  |  |  (per-thread)| |  (per-thread)| |(per-thread)|   |
+  |  |  Lock-free   | |  Lock-free   | |Lock-free   |   |
+  |  +------+------+ +------+------+ +-----+------+   |
+  |         |               |              |            |
+  |         v               v              v            |
+  |  +--------------------------------------------+    |
+  |  |         Central Free List                   |    |
+  |  |     (Separate list per size class)          |    |
+  |  |     Protected by spinlock                   |    |
+  |  +--------------------+------------------------+    |
+  |                       |                             |
+  |                       v                             |
+  |  +--------------------------------------------+    |
+  |  |         Page Heap                           |    |
+  |  |     (Page-level large block management)     |    |
+  |  |     span: collection of contiguous pages    |    |
+  |  +--------------------------------------------+    |
+  |                                                     |
+  |  Small objects (<=256KB):                           |
+  |    Thread Cache -> Central List -> Page Heap        |
+  |  Large objects (>256KB):                            |
+  |    Allocated directly from Page Heap                |
+  +----------------------------------------------------+
 ```
 
-### 4.4 mimalloc（Microsoft Research）
+### 4.4 mimalloc (Microsoft Research)
 
-Microsoft Research が 2019 年に公開した最新のアロケータ。ベンチマークで他のアロケータを上回る性能を示している。
+A state-of-the-art allocator released by Microsoft Research in 2019. Demonstrates performance exceeding other allocators in benchmarks.
 
-**設計上の特徴:**
+**Key Design Features:**
 
-- **セグメント方式:** 大きなメモリブロック（セグメント）を取得し、内部でページに分割
-- **フリーリストのシャーディング:** ローカルフリーリストとスレッドフリーリストを分離
-- **ページ内管理:** 同一サイズクラスのオブジェクトを同一ページに配置
-- **遅延フリー:** 他スレッドからの `free` はスレッドフリーリストに追加され、所有スレッドが後で処理
+- **Segment-based:** Acquires large memory blocks (segments) and internally divides them into pages
+- **Free list sharding:** Separates local free lists from thread free lists
+- **Intra-page management:** Places objects of the same size class on the same page
+- **Deferred free:** `free` calls from other threads are added to the thread free list and processed later by the owning thread
 
-### 4.5 アロケータ総合比較表
+### 4.5 Allocator Comprehensive Comparison
 
-| 特性 | ptmalloc2 | jemalloc | tcmalloc | mimalloc |
+| Property | ptmalloc2 | jemalloc | tcmalloc | mimalloc |
 |:---|:---:|:---:|:---:|:---:|
-| 開発元 | glibc | FreeBSD/Meta | Google | Microsoft |
-| スレッドキャッシュ | アリーナ単位 | tcache | Thread Cache | ローカルリスト |
-| 小オブジェクト速度 | 中 | 高 | 極めて高 | 極めて高 |
-| 大オブジェクト速度 | 中 | 高 | 中 | 高 |
-| メモリ使用効率 | 中 | 高 | 中 | 高 |
-| 断片化耐性 | 低-中 | 高 | 中 | 極めて高 |
-| 統計/デバッグ | 限定的 | 非常に充実 | 充実 | 充実 |
-| メモリ返却 | 遅い | 良好 | 良好 | 良好 |
-| 主な採用例 | Linux 標準 | Redis, Firefox | Chrome, gRPC | .NET, 研究 |
-| ライセンス | LGPL | BSD-2 | Apache 2.0 | MIT |
-| リアルタイム適性 | 低 | 中 | 中 | 中-高 |
+| Developer | glibc | FreeBSD/Meta | Google | Microsoft |
+| Thread cache | Per-arena | tcache | Thread Cache | Local list |
+| Small object speed | Medium | High | Extremely high | Extremely high |
+| Large object speed | Medium | High | Medium | High |
+| Memory usage efficiency | Medium | High | Medium | High |
+| Fragmentation resistance | Low-Medium | High | Medium | Extremely high |
+| Statistics/Debug | Limited | Very comprehensive | Comprehensive | Comprehensive |
+| Memory return to OS | Slow | Good | Good | Good |
+| Notable adopters | Linux standard | Redis, Firefox | Chrome, gRPC | .NET, Research |
+| License | LGPL | BSD-2 | Apache 2.0 | MIT |
+| Real-time suitability | Low | Medium | Medium | Medium-High |
 
-**アロケータの選択指針:**
+**Allocator Selection Guidelines:**
 
-- **デフォルト（特に理由がない場合）:** ptmalloc2（OS標準をそのまま使用）
-- **Redis のように大量の小オブジェクト:** jemalloc（断片化が少ない）
-- **マルチスレッドで小オブジェクト中心:** tcmalloc（スレッドキャッシュが効く）
-- **最新のベンチマーク性能を求める場合:** mimalloc（全体的に高性能）
-- **メモリ使用量の可視化が必要:** jemalloc（統計機能が最も充実）
+- **Default (no specific reason):** ptmalloc2 (use the OS standard as-is)
+- **Many small objects like Redis:** jemalloc (less fragmentation)
+- **Multi-threaded with primarily small objects:** tcmalloc (thread cache is effective)
+- **Latest benchmark performance:** mimalloc (high performance overall)
+- **Memory usage visualization needed:** jemalloc (most comprehensive statistics)
 
 ---
 
-## 5. カーネルレベルのメモリ管理
+## 5. Kernel-Level Memory Management
 
-### 5.1 物理ページアロケータ（Buddy Allocator）
+### 5.1 Physical Page Allocator (Buddy Allocator)
 
-Linux カーネルは物理メモリをページ（通常 4KB）単位で管理する。Buddy Allocator は 2^0 〜 2^10 ページ（4KB〜4MB）の連続した物理ページブロックを管理する。
+The Linux kernel manages physical memory in page units (typically 4KB). The Buddy Allocator manages contiguous physical page blocks from 2^0 to 2^10 pages (4KB to 4MB).
 
 ```
-  Linux Buddy Allocator の構造 (/proc/buddyinfo):
+  Linux Buddy Allocator structure (/proc/buddyinfo):
 
   Order:    0     1     2     3     4     5     6     7     8     9    10
   Size:    4KB   8KB  16KB  32KB  64KB 128KB 256KB 512KB  1MB   2MB   4MB
-          ┌─────┬─────┬─────┬─────┬─────┬─────┬─────┬─────┬─────┬─────┬─────┐
-  Zone    │     │     │     │     │     │     │     │     │     │     │     │
-  DMA     │  3  │  1  │  0  │  0  │  2  │  1  │  0  │  1  │  1  │  1  │  3  │
-          ├─────┼─────┼─────┼─────┼─────┼─────┼─────┼─────┼─────┼─────┼─────┤
-  DMA32   │ 12  │  8  │  6  │  4  │  3  │  2  │  1  │  1  │  0  │  0  │  1  │
-          ├─────┼─────┼─────┼─────┼─────┼─────┼─────┼─────┼─────┼─────┼─────┤
-  Normal  │1024 │ 512 │ 256 │ 128 │  64 │  32 │  16 │   8 │   4 │   2 │   1 │
-          └─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┘
+          +-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+
+  Zone    |     |     |     |     |     |     |     |     |     |     |     |
+  DMA     |  3  |  1  |  0  |  0  |  2  |  1  |  0  |  1  |  1  |  1  |  3  |
+          +-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+
+  DMA32   | 12  |  8  |  6  |  4  |  3  |  2  |  1  |  1  |  0  |  0  |  1  |
+          +-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+
+  Normal  |1024 | 512 | 256 | 128 |  64 |  32 |  16 |   8 |   4 |   2 |   1 |
+          +-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+
 
-  割り当て要求: 32KB (order 3) が必要
-  1. order 3 のフリーリストを確認
-  2. 空きがなければ order 4 (64KB) を取得して分割
-  3. 64KB → 32KB + 32KB (片方が割り当て、片方がorder 3のフリーリストへ)
+  Allocation request: 32KB (order 3) needed
+  1. Check the free list for order 3
+  2. If none available, take a 64KB (order 4) block and split
+  3. 64KB -> 32KB + 32KB (one allocated, one goes to order 3 free list)
 
-  解放時:
-  1. バディ（同じ親から分割されたペア）が空きか確認
-  2. 空きなら結合して上位orderへ → 再帰的に結合を試行
+  On deallocation:
+  1. Check if buddy (pair split from the same parent) is free
+  2. If free, merge to higher order -> recursively attempt merging
 ```
 
-### 5.2 SLAB アロケータ
+### 5.2 SLAB Allocator
 
-Buddy Allocator はページ単位（最小 4KB）の管理であり、カーネル内部で頻繁に使用される小さいオブジェクト（数十〜数百バイトの構造体）の管理には無駄が多い。SLAB アロケータはこの問題を解決するために Bonwick (1994) が設計した。
+The Buddy Allocator manages memory at page granularity (minimum 4KB), which is wasteful for the small objects (tens to hundreds of bytes of structures) frequently used within the kernel. The SLAB Allocator was designed by Bonwick (1994) to solve this problem.
 
 ```
-  SLAB アロケータの3層構造:
+  SLAB Allocator's 3-layer structure:
 
-  ┌────────────────────────────────────────────────────────┐
-  │                    Cache                                │
-  │  (オブジェクト型ごとに1つ: task_struct, inode, dentry等) │
-  │                                                         │
-  │  ┌─────────────────────────────────────────────┐       │
-  │  │  slabs_full     (全オブジェクト使用中)        │       │
-  │  │  ┌──────┐ ┌──────┐ ┌──────┐                │       │
-  │  │  │ slab │→│ slab │→│ slab │→ ...           │       │
-  │  │  └──────┘ └──────┘ └──────┘                │       │
-  │  ├─────────────────────────────────────────────┤       │
-  │  │  slabs_partial  (一部オブジェクト使用中)     │       │
-  │  │  ┌──────┐ ┌──────┐                         │       │
-  │  │  │ slab │→│ slab │→ ...  ← 割り当てはここ │       │
-  │  │  └──────┘ └──────┘                         │       │
-  │  ├─────────────────────────────────────────────┤       │
-  │  │  slabs_empty    (全オブジェクト空き)         │       │
-  │  │  ┌──────┐                                   │       │
-  │  │  │ slab │→ ...  ← メモリ圧迫時に回収      │       │
-  │  │  └──────┘                                   │       │
-  │  └─────────────────────────────────────────────┘       │
-  │                                                         │
-  │  1つのSLABの内部構造:                                   │
-  │  ┌────┬────┬────┬────┬────┬────┬────┬────┐             │
-  │  │obj │obj │obj │obj │ ...│obj │obj │管理│             │
-  │  │ 0  │ 1  │ 2  │ 3  │    │n-1 │ n  │情報│             │
-  │  └────┴────┴────┴────┴────┴────┴────┴────┘             │
-  │  ← 1ページ (4KB) or 複数ページ →                        │
-  │  各objは同一サイズ（例: task_struct = 約6KB）            │
-  └────────────────────────────────────────────────────────┘
+  +------------------------------------------------------------+
+  |                    Cache                                    |
+  |  (One per object type: task_struct, inode, dentry, etc.)   |
+  |                                                             |
+  |  +---------------------------------------------+           |
+  |  |  slabs_full     (All objects in use)         |           |
+  |  |  +------+ +------+ +------+                 |           |
+  |  |  | slab |>| slab |>| slab |> ...            |           |
+  |  |  +------+ +------+ +------+                 |           |
+  |  +---------------------------------------------+           |
+  |  |  slabs_partial  (Some objects in use)        |           |
+  |  |  +------+ +------+                          |           |
+  |  |  | slab |>| slab |> ...  <- Allocate here   |           |
+  |  |  +------+ +------+                          |           |
+  |  +---------------------------------------------+           |
+  |  |  slabs_empty    (All objects free)           |           |
+  |  |  +------+                                    |           |
+  |  |  | slab |> ...  <- Reclaimed under memory    |           |
+  |  |  +------+          pressure                  |           |
+  |  +---------------------------------------------+           |
+  |                                                             |
+  |  Internal structure of a single SLAB:                      |
+  |  +----+----+----+----+----+----+----+----+                 |
+  |  |obj |obj |obj |obj | ...|obj |obj |mgmt|                 |
+  |  | 0  | 1  | 2  | 3  |    |n-1 | n  |info|                 |
+  |  +----+----+----+----+----+----+----+----+                 |
+  |  <- 1 page (4KB) or multiple pages ->                      |
+  |  Each obj is the same size (e.g., task_struct ~ 6KB)       |
+  +------------------------------------------------------------+
 ```
 
-Linux カーネルでは SLAB の後継として **SLUB**（Unqueued SLAB、2.6.22以降のデフォルト）と **SLOB**（組み込み向けの簡易版）が存在する。
+The Linux kernel has successors to SLAB: **SLUB** (Unqueued SLAB, default since 2.6.22) and **SLOB** (simplified version for embedded systems).
 
-| 実装 | 特徴 | 用途 |
+| Implementation | Features | Use Case |
 |:---:|:---|:---|
-| SLAB | 元祖。オブジェクト着色、per-CPU キャッシュ | 従来のサーバ |
-| SLUB | シンプルな設計、メタデータをオブジェクト内に格納 | 現在のデフォルト |
-| SLOB | 最小限のメモリオーバーヘッド | 組み込み（数MB RAM） |
+| SLAB | Original. Object coloring, per-CPU cache | Legacy servers |
+| SLUB | Simple design, metadata stored within objects | Current default |
+| SLOB | Minimal memory overhead | Embedded (few MB RAM) |
 
-### 5.3 /proc によるカーネルメモリの観察
+### 5.3 Observing Kernel Memory via /proc
 
 ```bash
-# コード例4: カーネルメモリ情報の確認コマンド集
+# Code Example 4: Commands for checking kernel memory information
 
-# --- 物理メモリ全体の状態 ---
+# --- Overall physical memory status ---
 cat /proc/meminfo
-# MemTotal:       16384000 kB    ← 物理メモリ総量
-# MemFree:         2048000 kB    ← 完全に空きのメモリ
-# MemAvailable:    8192000 kB    ← 利用可能（キャッシュ含む）
-# Buffers:          512000 kB    ← ブロックデバイスバッファ
-# Cached:          4096000 kB    ← ページキャッシュ
-# Slab:             256000 kB    ← SLABアロケータ合計
+# MemTotal:       16384000 kB    <- Total physical memory
+# MemFree:         2048000 kB    <- Completely free memory
+# MemAvailable:    8192000 kB    <- Available (including cache)
+# Buffers:          512000 kB    <- Block device buffers
+# Cached:          4096000 kB    <- Page cache
+# Slab:             256000 kB    <- SLAB allocator total
 
-# --- Buddy Allocator の状態 ---
+# --- Buddy Allocator status ---
 cat /proc/buddyinfo
 # Node 0, zone   Normal  1024  512  256  128  64  32  16  8  4  2  1
 
-# --- SLAB の詳細統計 ---
+# --- SLAB detailed statistics ---
 cat /proc/slabinfo | head -20
 # name            <active_objs> <num_objs> <objsize> ...
 # task_struct          512        520       6016     ...
 # inode_cache         2048       2060        592     ...
 # dentry              4096       4100        192     ...
 
-# --- プロセスごとのメモリマップ ---
+# --- Per-process memory map ---
 cat /proc/self/maps | head -10
-# 55a3b2c00000-55a3b2c02000 r--p  ... /path/to/binary   (テキスト)
-# 55a3b2c02000-55a3b2c04000 r-xp  ... /path/to/binary   (コード)
-# 7ffd2e490000-7ffd2e4b2000 rw-p  ... [stack]           (スタック)
+# 55a3b2c00000-55a3b2c02000 r--p  ... /path/to/binary   (text)
+# 55a3b2c02000-55a3b2c04000 r-xp  ... /path/to/binary   (code)
+# 7ffd2e490000-7ffd2e4b2000 rw-p  ... [stack]           (stack)
 
-# --- メモリ使用量トップ10プロセス ---
+# --- Top 10 processes by memory usage ---
 ps aux --sort=-%mem | head -11
 
-# --- vmstat でメモリ活動をモニタ ---
+# --- Monitor memory activity with vmstat ---
 vmstat 1 5
 # procs ---memory--- ---swap-- -----io---- -system-- ------cpu-----
 #  r  b   swpd   free   buff  cache   si   so    bi    bo   in   cs ...
 ```
 
-### 5.4 Demand Paging とオーバーコミット
+### 5.4 Demand Paging and Overcommit
 
-Linux はデフォルトでメモリのオーバーコミットを許可する。`malloc` が成功しても、実際の物理ページは書き込み時に初めて割り当てられる（Demand Paging）。物理メモリが枯渇すると OOM Killer がプロセスを強制終了する。
+Linux permits memory overcommit by default. Even if `malloc` succeeds, the actual physical page is not allocated until the first write (Demand Paging). When physical memory is exhausted, the OOM Killer forcibly terminates a process.
 
 ```
-  Demand Paging の流れ:
+  Demand Paging flow:
 
   malloc(4096)
-       │
-       ▼
-  仮想ページが確保される（物理ページはまだ割り当てなし）
-  ページテーブルエントリ: Present=0
-       │
-       ▼
-  *ptr = 42;  ← 最初の書き込み
-       │
-       ▼
-  ページフォルト発生 (Present=0)
-       │
-       ▼
-  カーネルが物理ページを割り当て
-  ページテーブルを更新: Present=1, PFN=物理フレーム番号
-       │
-       ▼
-  書き込みが完了
+       |
+       v
+  Virtual page is reserved (no physical page allocated yet)
+  Page table entry: Present=0
+       |
+       v
+  *ptr = 42;  <- First write
+       |
+       v
+  Page fault occurs (Present=0)
+       |
+       v
+  Kernel allocates a physical page
+  Updates page table: Present=1, PFN=physical frame number
+       |
+       v
+  Write completes
 
-  vm.overcommit_memory の設定:
-  0 (デフォルト): ヒューリスティックなオーバーコミット
-  1: 常にオーバーコミットを許可（malloc は常に成功）
-  2: オーバーコミット禁止（swap + RAM × ratio が上限）
+  vm.overcommit_memory settings:
+  0 (default): Heuristic overcommit
+  1: Always allow overcommit (malloc always succeeds)
+  2: Disallow overcommit (limit is swap + RAM x ratio)
 ```
 
 ---
 
-## 6. ガベージコレクション深掘り
+## 6. Deep Dive into Garbage Collection
 
-### 6.1 GC の基本分類
+### 6.1 Basic Classification of GC
 
-ガベージコレクション（GC）は、プログラムが使用しなくなったメモリを自動的に回収する仕組みである。手動のメモリ管理（malloc/free）では避けられないメモリリーク・ダブルフリー・Use-After-Free などのバグを根本的に防ぐ。
+Garbage Collection (GC) is a mechanism that automatically reclaims memory no longer used by a program. It fundamentally prevents bugs such as memory leaks, double-free, and Use-After-Free that are unavoidable with manual memory management (malloc/free).
 
-**GC の基本分類表:**
+**GC Basic Classification Table:**
 
-| 分類軸 | 選択肢 | 説明 |
+| Classification Axis | Options | Description |
 |:---|:---|:---|
-| 回収タイミング | Stop-the-World / Concurrent / Incremental | アプリ停止の有無・程度 |
-| 到達性判定 | トレーシング / 参照カウント | ゴミの判定方法 |
-| 移動の有無 | Compacting (移動あり) / Non-compacting | 断片化への対応 |
-| 世代管理 | 世代別 / 非世代別 | オブジェクト寿命の活用 |
-| 対象範囲 | 全体GC / 部分GC (Minor/Major) | 回収範囲の粒度 |
+| Collection timing | Stop-the-World / Concurrent / Incremental | Presence/extent of application pause |
+| Reachability determination | Tracing / Reference counting | Method of determining garbage |
+| Movement | Compacting (with movement) / Non-compacting | Handling of fragmentation |
+| Generational management | Generational / Non-generational | Exploiting object lifetime |
+| Target scope | Full GC / Partial GC (Minor/Major) | Granularity of collection scope |
 
-### 6.2 マーク & スイープ（Mark and Sweep）
+### 6.2 Mark & Sweep
 
-最も基本的なトレーシング GC アルゴリズム。
+The most fundamental tracing GC algorithm.
 
 ```
-  マーク & スイープ の動作:
+  Mark & Sweep operation:
 
-  【マークフェーズ】
-  ルートセット（スタック, グローバル変数, レジスタ）から
-  到達可能な全オブジェクトにマークを付ける
+  [Mark Phase]
+  Mark all objects reachable from the root set
+  (stack, global variables, registers)
 
-  ルート
-   │
-   ▼
-  [A]──→[B]──→[C]      [G]──→[H]
-   │      │                     ↑
-   ▼      ▼                     │
-  [D]    [E]──→[F]      [I]──→[J]
-                          ↑
-  ルートから到達可能:       到達不能（ゴミ）:
+  Root
+   |
+   v
+  [A]-->[B]-->[C]      [G]-->[H]
+   |      |                     ^
+   v      v                     |
+  [D]    [E]-->[F]      [I]-->[J]
+                          ^
+  Reachable from root:     Unreachable (garbage):
   A, B, C, D, E, F        G, H, I, J
 
-  マーク後:
-  [A✓]──→[B✓]──→[C✓]   [G ]──→[H ]
-   │       │                     ↑
-   ▼       ▼                     │
-  [D✓]   [E✓]──→[F✓]   [I ]──→[J ]
+  After marking:
+  [A+]-->[B+]-->[C+]   [G ]-->[H ]
+   |       |                     ^
+   v       v                     |
+  [D+]   [E+]-->[F+]   [I ]-->[J ]
 
-  【スイープフェーズ】
-  ヒープ全体を走査し、マークされていないオブジェクトを回収
+  [Sweep Phase]
+  Scan the entire heap and reclaim unmarked objects
 
-  ┌────┬────┬────┬────┬────┬────┬────┬────┬────┬────┐
-  │ A✓ │ G  │ B✓ │ H  │ D✓ │ I  │ E✓ │ J  │ C✓ │ F✓ │
-  └────┴────┴────┴────┴────┴────┴────┴────┴────┴────┘
-                     ↓ スイープ
-  ┌────┬────┬────┬────┬────┬────┬────┬────┬────┬────┐
-  │ A  │空き│ B  │空き│ D  │空き│ E  │空き│ C  │ F  │
-  └────┴────┴────┴────┴────┴────┴────┴────┴────┴────┘
-  ※ マークをクリア、未マークを空きリストに追加
+  +----+----+----+----+----+----+----+----+----+----+
+  | A+ | G  | B+ | H  | D+ | I  | E+ | J  | C+ | F+ |
+  +----+----+----+----+----+----+----+----+----+----+
+                     v Sweep
+  +----+----+----+----+----+----+----+----+----+----+
+  | A  |free| B  |free| D  |free| E  |free| C  | F  |
+  +----+----+----+----+----+----+----+----+----+----+
+  * Clear marks, add unmarked to free list
 
-  問題点:
-  - Stop-the-World: マーク中はアプリケーション停止
-  - 断片化: 回収後のメモリが散在（→ Compaction で対策）
-  - 全ヒープ走査: ヒープが大きいとスイープに時間がかかる
+  Issues:
+  - Stop-the-World: Application pauses during marking
+  - Fragmentation: Reclaimed memory is scattered (-> mitigated by Compaction)
+  - Full heap scan: Sweep takes time if heap is large
 ```
 
-### 6.3 世代別 GC（Generational GC）
+### 6.3 Generational GC
 
-**弱い世代仮説（Weak Generational Hypothesis）:** ほとんどのオブジェクトは若くして死ぬ。この仮説に基づき、オブジェクトを世代（Generation）で分けて管理する。
+**Weak Generational Hypothesis:** Most objects die young. Based on this hypothesis, objects are managed by generation.
 
 ```
-  世代別 GC の構造（Java HotSpot JVM の例）:
+  Generational GC structure (Java HotSpot JVM example):
 
-  ┌────────────────────────────────────────────────────────────┐
-  │                     Java ヒープ                             │
-  │                                                             │
-  │  ┌──────────────────────────────┐  ┌───────────────────┐  │
-  │  │       Young Generation       │  │  Old Generation   │  │
-  │  │         (若い世代)            │  │   (古い世代)       │  │
-  │  │  ┌───────┬───────┬────────┐ │  │                   │  │
-  │  │  │ Eden  │  S0   │   S1   │ │  │  テニュア世代     │  │
-  │  │  │       │(From) │  (To)  │ │  │  (長寿オブジェクト)│  │
-  │  │  │ 新規  │Survivor│Survivor│ │  │                   │  │
-  │  │  │ 割当  │       │        │ │  │                   │  │
-  │  │  └───────┴───────┴────────┘ │  │                   │  │
-  │  │   ← Minor GC (高頻度, 高速) │  │  ← Major GC      │  │
-  │  └──────────────────────────────┘  │    (低頻度, 遅い) │  │
-  │                                     └───────────────────┘  │
-  │                                                             │
-  │  オブジェクトのライフサイクル:                                │
-  │  1. Eden で生まれる                                         │
-  │  2. Minor GC で生き残り → Survivor (S0/S1 間を往復)        │
-  │  3. 一定回数の Minor GC を生存 → Old Generation に昇格      │
-  │  4. Old Generation が満杯 → Major GC (Full GC)             │
-  └────────────────────────────────────────────────────────────┘
+  +------------------------------------------------------------+
+  |                     Java Heap                               |
+  |                                                             |
+  |  +------------------------------+  +-------------------+  |
+  |  |       Young Generation       |  |  Old Generation   |  |
+  |  |                              |  |                   |  |
+  |  |  +-------+-------+--------+ |  |                   |  |
+  |  |  | Eden  |  S0   |   S1   | |  |  Tenured gen.     |  |
+  |  |  |       |(From) |  (To)  | |  |  (long-lived obj.)|  |
+  |  |  | New   |Survivor|Survivor| |  |                   |  |
+  |  |  | alloc |       |        | |  |                   |  |
+  |  |  +-------+-------+--------+ |  |                   |  |
+  |  |   <- Minor GC (frequent,   |  |  <- Major GC      |  |
+  |  |      fast)                  |  |    (infrequent,   |  |
+  |  +------------------------------+  |     slow)        |  |
+  |                                     +-------------------+  |
+  |                                                             |
+  |  Object lifecycle:                                         |
+  |  1. Born in Eden                                           |
+  |  2. Survives Minor GC -> Survivor (alternates between S0/S1)|
+  |  3. Survives a certain number of Minor GCs -> Promoted to Old|
+  |  4. Old Generation becomes full -> Major GC (Full GC)      |
+  +------------------------------------------------------------+
 
-  ライトバリア (Write Barrier):
-  Old → Young への参照が書き込まれたとき記録
-  → Minor GC 時に Old 全体をスキャンせずに済む
-  → Card Table や Remembered Set で管理
+  Write Barrier:
+  Records when a reference from Old -> Young is written
+  -> Avoids scanning the entire Old during Minor GC
+  -> Managed via Card Table or Remembered Set
 ```
 
-**Java GC の進化:**
+**Evolution of Java GC:**
 
-| GC 実装 | 世代 | 停止時間 | スループット | 特徴 |
+| GC Implementation | Generational | Pause Time | Throughput | Features |
 |:---|:---:|:---:|:---:|:---|
-| Serial GC | あり | 長い | 低 | シングルスレッド、小規模向け |
-| Parallel GC | あり | 中 | 高 | マルチスレッドで並列回収 |
-| CMS | あり | 短い | 中 | Concurrent Mark Sweep、JDK 14で廃止 |
-| G1 GC | リージョン | 短い | 高 | リージョン単位、JDK 9以降デフォルト |
-| ZGC | リージョン | 極短(<1ms) | 高 | カラーポインタ、TB級ヒープ対応 |
-| Shenandoah | リージョン | 極短 | 高 | Red Hat 開発、並行コンパクション |
+| Serial GC | Yes | Long | Low | Single-threaded, for small-scale |
+| Parallel GC | Yes | Medium | High | Multi-threaded parallel collection |
+| CMS | Yes | Short | Medium | Concurrent Mark Sweep, removed in JDK 14 |
+| G1 GC | Region | Short | High | Region-based, default since JDK 9 |
+| ZGC | Region | Ultra-short (<1ms) | High | Colored pointers, TB-scale heap support |
+| Shenandoah | Region | Ultra-short | High | Red Hat developed, concurrent compaction |
 
-### 6.4 参照カウント（Reference Counting）
+### 6.4 Reference Counting
 
-各オブジェクトが「自分を参照しているポインタの数」を保持する方式。参照数が 0 になったら即座に回収できる。
+Each object maintains a count of "the number of pointers referencing it." When the count reaches 0, the object can be immediately reclaimed.
 
 ```python
-# コード例5: Python における参照カウントと循環参照
+# Code Example 5: Reference counting and circular references in Python
 
 import sys
 import gc
 
-# --- 参照カウントの確認 ---
+# --- Checking reference counts ---
 a = [1, 2, 3]
-print(f"参照カウント: {sys.getrefcount(a)}")  # 2 (a + getrefcount引数)
+print(f"Reference count: {sys.getrefcount(a)}")  # 2 (a + getrefcount argument)
 
-b = a  # 参照を追加
-print(f"参照カウント: {sys.getrefcount(a)}")  # 3
+b = a  # Add a reference
+print(f"Reference count: {sys.getrefcount(a)}")  # 3
 
-del b  # 参照を削除
-print(f"参照カウント: {sys.getrefcount(a)}")  # 2
+del b  # Remove a reference
+print(f"Reference count: {sys.getrefcount(a)}")  # 2
 
-# --- 循環参照の問題 ---
+# --- Circular reference problem ---
 class Node:
     def __init__(self, name):
         self.name = name
         self.ref = None
     def __del__(self):
-        print(f"  Node({self.name}) が回収されました")
+        print(f"  Node({self.name}) was collected")
 
-# 循環参照を作成
+# Create circular reference
 node_a = Node("A")
 node_b = Node("B")
-node_a.ref = node_b  # A → B
-node_b.ref = node_a  # B → A  ← 循環参照!
+node_a.ref = node_b  # A -> B
+node_b.ref = node_a  # B -> A  <- Circular reference!
 
-# 外部参照を削除しても参照カウントは 0 にならない
+# Even after removing external references, reference count won't reach 0
 del node_a
 del node_b
-# → 参照カウントだけでは回収されない!
+# -> Not collected by reference counting alone!
 
-# Python の GC (世代別トレーシング) が循環参照を検出して回収
-print("gc.collect() 呼び出し前:")
+# Python's GC (generational tracing) detects and collects circular references
+print("Before gc.collect():")
 collected = gc.collect()
-print(f"gc.collect() で回収されたオブジェクト: {collected}")
+print(f"Objects collected by gc.collect(): {collected}")
 
-# --- gc の世代別統計 ---
-print(f"\nGC 世代別閾値: {gc.get_threshold()}")  # (700, 10, 10)
-print(f"GC 世代別カウント: {gc.get_count()}")
-# 第0世代: 700 割り当て後に GC
-# 第1世代: 第0世代 GC 10回ごとに GC
-# 第2世代: 第1世代 GC 10回ごとに GC
+# --- GC generational statistics ---
+print(f"\nGC generational thresholds: {gc.get_threshold()}")  # (700, 10, 10)
+print(f"GC generational counts: {gc.get_count()}")
+# Generation 0: GC after 700 allocations
+# Generation 1: GC every 10 generation 0 GCs
+# Generation 2: GC every 10 generation 1 GCs
 
-# --- 弱参照による循環参照の回避 ---
+# --- Avoiding circular references with weak references ---
 import weakref
 
 class SafeNode:
@@ -1037,159 +1040,159 @@ class SafeNode:
 safe_a = SafeNode("A")
 safe_b = SafeNode("B")
 safe_a.ref = safe_b
-safe_b.ref = safe_a  # 弱参照なので循環参照にならない
+safe_b.ref = safe_a  # Weak reference so no circular reference
 
-del safe_a  # safe_b._ref() は None を返すようになる
+del safe_a  # safe_b._ref() now returns None
 ```
 
-### 6.5 Go の GC（Tri-color Mark and Sweep）
+### 6.5 Go's GC (Tri-color Mark and Sweep)
 
-Go は非世代別の並行トレーシング GC を採用している。三色マーキングアルゴリズムにより、アプリケーションの停止時間を最小化する。
-
-```
-  三色マーキング (Tri-color Marking):
-
-  白: 未訪問（GC完了後に回収対象）
-  灰: 訪問済みだが子を未探索
-  黒: 訪問済みで子もすべて探索済み
-
-  初期状態: 全オブジェクトが白
-  ┌──┐  ┌──┐  ┌──┐  ┌──┐  ┌──┐  ┌──┐
-  │A○│→│B○│→│C○│  │D○│  │E○│→│F○│
-  └──┘  └──┘  └──┘  └──┘  └──┘  └──┘
-  ルート: A, E
-
-  ステップ1: ルートを灰色に
-  ┌──┐  ┌──┐  ┌──┐  ┌──┐  ┌──┐  ┌──┐
-  │A◐│→│B○│→│C○│  │D○│  │E◐│→│F○│
-  └──┘  └──┘  └──┘  └──┘  └──┘  └──┘
-
-  ステップ2: 灰色オブジェクトの子を灰色に、自身を黒に
-  ┌──┐  ┌──┐  ┌──┐  ┌──┐  ┌──┐  ┌──┐
-  │A●│→│B◐│→│C○│  │D○│  │E●│→│F◐│
-  └──┘  └──┘  └──┘  └──┘  └──┘  └──┘
-
-  ステップ3: 繰り返し
-  ┌──┐  ┌──┐  ┌──┐  ┌──┐  ┌──┐  ┌──┐
-  │A●│→│B●│→│C◐│  │D○│  │E●│→│F●│
-  └──┘  └──┘  └──┘  └──┘  └──┘  └──┘
-
-  最終: 灰色がなくなったら完了
-  ┌──┐  ┌──┐  ┌──┐  ┌──┐  ┌──┐  ┌──┐
-  │A●│→│B●│→│C●│  │D○│  │E●│→│F●│
-  └──┘  └──┘  └──┘  └──┘  └──┘  └──┘
-  白(D)を回収!  ○=白(回収) ◐=灰 ●=黒(生存)
-
-  Go GC の特徴:
-  - Stop-the-World は数十μs〜数百μs
-  - ライトバリアで並行マーキング中の整合性を保持
-  - GOGC 環境変数でGC頻度を調整（デフォルト100 = ヒープ2倍で発火）
-```
-
-### 6.6 Rust の所有権モデル
-
-Rust は GC を使わず、コンパイル時の所有権（Ownership）と借用（Borrowing）ルールによってメモリ安全性を保証する。
+Go employs a non-generational concurrent tracing GC. The tri-color marking algorithm minimizes application pause times.
 
 ```
-  Rust 所有権の3つのルール:
+  Tri-color Marking:
 
-  1. 各値には唯一の所有者（Owner）が存在する
-  2. 所有者がスコープを抜けると値は自動的にドロップされる
-  3. 所有権は移動（Move）するか、借用（Borrow）される
+  White: Unvisited (collection target after GC completes)
+  Gray:  Visited but children not yet explored
+  Black: Visited and all children explored
 
-  所有権の移動 (Move):
-  ┌──────────┐          ┌──────────┐
-  │ let s1 = │          │ let s2 = │
-  │ String:: │          │ s1;      │
-  │ from("hi")          │          │
-  └────┬─────┘          └────┬─────┘
-       │                     │
-       │  move               │
-       ▼                     ▼
-  ┌──────────┐          ┌──────────┐
-  │ s1 (無効) │          │ s2 (有効) │
-  │ ptr: ──  │          │ ptr: ──┐ │
-  │ len: 2   │          │ len: 2 │ │
-  │ cap: 2   │          │ cap: 2 │ │
-  └──────────┘          └────────┼─┘
-                                 │
-                                 ▼
-                          ┌──────────┐
-                          │ ヒープ    │
-                          │ "hi"     │
-                          └──────────┘
+  Initial state: All objects are white
+  +--+  +--+  +--+  +--+  +--+  +--+
+  |Aw|->|Bw|->|Cw|  |Dw|  |Ew|->|Fw|
+  +--+  +--+  +--+  +--+  +--+  +--+
+  Roots: A, E
 
-  借用 (Borrow):
-  - 不変借用 (&T): 複数同時OK、変更不可
-  - 可変借用 (&mut T): 1つだけ、変更可能
-  - 不変借用と可変借用は同時に存在できない
-  → コンパイル時にデータ競合を防止
+  Step 1: Color roots gray
+  +--+  +--+  +--+  +--+  +--+  +--+
+  |Ag|->|Bw|->|Cw|  |Dw|  |Eg|->|Fw|
+  +--+  +--+  +--+  +--+  +--+  +--+
+
+  Step 2: Color gray objects' children gray, self becomes black
+  +--+  +--+  +--+  +--+  +--+  +--+
+  |Ab|->|Bg|->|Cw|  |Dw|  |Eb|->|Fg|
+  +--+  +--+  +--+  +--+  +--+  +--+
+
+  Step 3: Repeat
+  +--+  +--+  +--+  +--+  +--+  +--+
+  |Ab|->|Bb|->|Cg|  |Dw|  |Eb|->|Fb|
+  +--+  +--+  +--+  +--+  +--+  +--+
+
+  Final: Complete when no gray remains
+  +--+  +--+  +--+  +--+  +--+  +--+
+  |Ab|->|Bb|->|Cb|  |Dw|  |Eb|->|Fb|
+  +--+  +--+  +--+  +--+  +--+  +--+
+  Collect white(D)!  w=white(collect) g=gray b=black(alive)
+
+  Go GC characteristics:
+  - Stop-the-World is tens of us to hundreds of us
+  - Write barrier maintains consistency during concurrent marking
+  - GOGC environment variable adjusts GC frequency (default 100 = fires when heap doubles)
+```
+
+### 6.6 Rust's Ownership Model
+
+Rust guarantees memory safety through compile-time Ownership and Borrowing rules without using GC.
+
+```
+  Rust's 3 Ownership Rules:
+
+  1. Each value has a single owner
+  2. When the owner goes out of scope, the value is automatically dropped
+  3. Ownership is either moved or borrowed
+
+  Ownership Move:
+  +----------+          +----------+
+  | let s1 = |          | let s2 = |
+  | String:: |          | s1;      |
+  | from("hi")          |          |
+  +----+-----+          +----+-----+
+       |                     |
+       |  move               |
+       v                     v
+  +----------+          +----------+
+  | s1 (invalid)|       | s2 (valid) |
+  | ptr: --  |          | ptr: --+ |
+  | len: 2   |          | len: 2 | |
+  | cap: 2   |          | cap: 2 | |
+  +----------+          +--------+-+
+                                 |
+                                 v
+                          +----------+
+                          | Heap     |
+                          | "hi"     |
+                          +----------+
+
+  Borrowing:
+  - Immutable borrow (&T): Multiple simultaneous OK, no modification
+  - Mutable borrow (&mut T): Only one, modification allowed
+  - Immutable and mutable borrows cannot coexist
+  -> Prevents data races at compile time
 ```
 
 ---
 
-## 7. メモリ断片化と最適化
+## 7. Memory Fragmentation and Optimization
 
-### 7.1 外部断片化 vs 内部断片化
+### 7.1 External Fragmentation vs Internal Fragmentation
 
 ```
-  【外部断片化 (External Fragmentation)】
-  空きメモリの合計は十分だが、連続した領域が不足
+  [External Fragmentation]
+  Total free memory is sufficient, but contiguous space is lacking
 
-  malloc(120) を要求:
-  ┌────┬────────┬────┬──────┬────┬──────────┐
-  │使用│空き 64B│使用│空き  │使用│空き 80B  │
-  │    │        │    │48B  │    │          │
-  └────┴────────┴────┴──────┴────┴──────────┘
-  空き合計: 64 + 48 + 80 = 192B >= 120B だが
-  連続した 120B の空きがない → 割り当て失敗!
+  malloc(120) request:
+  +----+--------+----+------+----+----------+
+  |Used| Free   |Used| Free |Used| Free     |
+  |    | 64B    |    | 48B  |    | 80B      |
+  +----+--------+----+------+----+----------+
+  Free total: 64 + 48 + 80 = 192B >= 120B but
+  no contiguous 120B available -> allocation fails!
 
-  【内部断片化 (Internal Fragmentation)】
-  割り当てたブロック内部の無駄な余り
+  [Internal Fragmentation]
+  Wasted space within an allocated block
 
-  malloc(20) を要求 → アロケータは 32B のブロックを割り当て
-  ┌────────────────────────────────┐
-  │ ユーザデータ 20B │ 余り 12B    │  ← 12B が無駄（内部断片化）
-  └────────────────────────────────┘
+  malloc(20) request -> Allocator assigns a 32B block
+  +--------------------------------+
+  | User data 20B | Remainder 12B  |  <- 12B is wasted (internal fragmentation)
+  +--------------------------------+
 
-  Buddy System の場合:
-  malloc(33) → 64B を割り当て → 31B の無駄 (48% の内部断片化)
+  Buddy System case:
+  malloc(33) -> 64B allocated -> 31B wasted (48% internal fragmentation)
 ```
 
-### 7.2 コンパクション（Compaction）
+### 7.2 Compaction
 
-外部断片化を解消するために、使用中のオブジェクトを移動して連続した空き領域を作る技術。GC を持つ言語ランタイム（Java, .NET, Go）で広く使用される。
+A technique that resolves external fragmentation by moving in-use objects to create contiguous free space. Widely used in language runtimes with GC (Java, .NET, Go).
 
-**コンパクションの種類:**
+**Types of Compaction:**
 
-| 方式 | 説明 | 長所 | 短所 |
+| Method | Description | Advantages | Disadvantages |
 |:---|:---|:---|:---|
-| 任意移動 | オブジェクトを任意の位置に移動 | 最適配置可能 | 参照の更新コスト大 |
-| スライド | オブジェクトを一方向にスライド | 相対順序を保持 | 2パス必要 |
-| コピー | 生存オブジェクトを別領域にコピー | 高速（1パス） | 2倍のメモリが必要 |
+| Arbitrary relocation | Move objects to any position | Optimal placement possible | High reference update cost |
+| Sliding | Slide objects in one direction | Preserves relative order | Requires 2 passes |
+| Copying | Copy live objects to a different region | Fast (1 pass) | Requires 2x memory |
 
-### 7.3 メモリプールパターン
+### 7.3 Memory Pool Pattern
 
-高頻度の割り当て/解放が発生する場面では、汎用アロケータではなく専用のメモリプールを使うことで性能を大幅に向上できる。
+In scenarios with frequent allocation/deallocation, using a dedicated memory pool instead of a general-purpose allocator can significantly improve performance.
 
 ```c
-/* コード例6: 固定サイズメモリプール実装 */
+/* Code Example 6: Fixed-size memory pool implementation */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
 
 typedef struct memory_pool {
-    size_t block_size;      /* 各ブロックのサイズ */
-    size_t pool_size;       /* プール内のブロック数 */
-    uint8_t *memory;        /* メモリ領域 */
-    uint8_t *free_list;     /* フリーリストの先頭 */
-    size_t allocated_count; /* 割り当て済みブロック数 */
+    size_t block_size;      /* Size of each block */
+    size_t pool_size;       /* Number of blocks in the pool */
+    uint8_t *memory;        /* Memory region */
+    uint8_t *free_list;     /* Head of the free list */
+    size_t allocated_count; /* Number of allocated blocks */
 } memory_pool_t;
 
-/* プール初期化 */
+/* Pool initialization */
 memory_pool_t *pool_create(size_t block_size, size_t pool_size) {
-    /* ブロックサイズはポインタサイズ以上が必要 */
+    /* Block size must be at least pointer size */
     if (block_size < sizeof(void *)) {
         block_size = sizeof(void *);
     }
@@ -1199,26 +1202,26 @@ memory_pool_t *pool_create(size_t block_size, size_t pool_size) {
     pool->pool_size = pool_size;
     pool->allocated_count = 0;
 
-    /* 連続したメモリ領域を確保 */
+    /* Allocate a contiguous memory region */
     pool->memory = (uint8_t *)malloc(block_size * pool_size);
 
-    /* フリーリストを構築（各ブロックの先頭に次のブロックへのポインタ） */
+    /* Build the free list (pointer to next block at the head of each block) */
     pool->free_list = pool->memory;
     for (size_t i = 0; i < pool_size - 1; i++) {
         uint8_t *current = pool->memory + i * block_size;
         uint8_t *next = pool->memory + (i + 1) * block_size;
         *(uint8_t **)current = next;
     }
-    /* 最後のブロックの次は NULL */
+    /* The last block's next is NULL */
     *(uint8_t **)(pool->memory + (pool_size - 1) * block_size) = NULL;
 
     return pool;
 }
 
-/* ブロック取得 O(1) */
+/* Block acquisition O(1) */
 void *pool_alloc(memory_pool_t *pool) {
     if (pool->free_list == NULL) {
-        return NULL;  /* プール枯渇 */
+        return NULL;  /* Pool exhausted */
     }
     void *block = pool->free_list;
     pool->free_list = *(uint8_t **)pool->free_list;
@@ -1226,20 +1229,20 @@ void *pool_alloc(memory_pool_t *pool) {
     return block;
 }
 
-/* ブロック返却 O(1) */
+/* Block return O(1) */
 void pool_free(memory_pool_t *pool, void *block) {
     *(uint8_t **)block = pool->free_list;
     pool->free_list = (uint8_t *)block;
     pool->allocated_count--;
 }
 
-/* プール破棄 */
+/* Pool destruction */
 void pool_destroy(memory_pool_t *pool) {
     free(pool->memory);
     free(pool);
 }
 
-/* 使用例: ゲームエンジンのパーティクルシステム */
+/* Usage example: Game engine particle system */
 typedef struct particle {
     float x, y, z;
     float vx, vy, vz;
@@ -1248,14 +1251,14 @@ typedef struct particle {
 } particle_t;
 
 int main(void) {
-    /* 10000 個のパーティクル用プールを作成 */
+    /* Create a pool for 10000 particles */
     memory_pool_t *particle_pool =
         pool_create(sizeof(particle_t), 10000);
 
-    printf("プール作成: ブロックサイズ=%zu, 容量=%zu\n",
+    printf("Pool created: block_size=%zu, capacity=%zu\n",
            particle_pool->block_size, particle_pool->pool_size);
 
-    /* パーティクルを高速に割り当て */
+    /* Rapidly allocate particles */
     particle_t *particles[100];
     for (int i = 0; i < 100; i++) {
         particles[i] = (particle_t *)pool_alloc(particle_pool);
@@ -1263,81 +1266,81 @@ int main(void) {
         particles[i]->active = 1;
     }
 
-    printf("割り当て済み: %zu\n", particle_pool->allocated_count);
+    printf("Allocated: %zu\n", particle_pool->allocated_count);
 
-    /* パーティクルを返却 */
+    /* Return particles */
     for (int i = 0; i < 100; i++) {
         pool_free(particle_pool, particles[i]);
     }
 
-    printf("返却後: %zu\n", particle_pool->allocated_count);
+    printf("After return: %zu\n", particle_pool->allocated_count);
 
     pool_destroy(particle_pool);
     return 0;
 }
 ```
 
-### 7.4 Huge Pages（大ページ）
+### 7.4 Huge Pages
 
-通常の 4KB ページでは、大量のメモリを使用するアプリケーション（データベース、JVM）で TLB ミスが頻発する。Huge Pages（2MB / 1GB）を使うことで TLB エントリ数を削減し、アドレス変換のオーバーヘッドを軽減できる。
+With standard 4KB pages, applications that use large amounts of memory (databases, JVM) suffer frequent TLB misses. Huge Pages (2MB / 1GB) reduce the number of TLB entries needed, mitigating address translation overhead.
 
 ```bash
-# Huge Pages の確認と設定
+# Checking and configuring Huge Pages
 cat /proc/meminfo | grep Huge
 # HugePages_Total:     128
 # HugePages_Free:       64
 # HugePages_Rsvd:       32
 # Hugepagesize:       2048 kB
 
-# Transparent Huge Pages (THP) の状態確認
+# Check Transparent Huge Pages (THP) status
 cat /sys/kernel/mm/transparent_hugepage/enabled
 # [always] madvise never
 
-# データベース（Redis, PostgreSQL）では THP を無効にすることが多い
-# → レイテンシのばらつき（THP のコンパクション処理）を避けるため
+# Databases (Redis, PostgreSQL) often disable THP
+# -> To avoid latency variance (from THP compaction processing)
 ```
 
-| 項目 | 通常ページ (4KB) | Huge Page (2MB) | Giant Page (1GB) |
+| Item | Regular Page (4KB) | Huge Page (2MB) | Giant Page (1GB) |
 |:---|:---:|:---:|:---:|
-| ページサイズ | 4 KB | 2 MB | 1 GB |
-| TLB エントリ 1つで | 4 KB をカバー | 2 MB をカバー | 1 GB をカバー |
-| 1GB をマップ | 262,144 エントリ | 512 エントリ | 1 エントリ |
-| 用途 | 汎用 | DB, JVM | HPC, 大規模DB |
+| Page size | 4 KB | 2 MB | 1 GB |
+| 1 TLB entry covers | 4 KB | 2 MB | 1 GB |
+| Entries to map 1GB | 262,144 | 512 | 1 |
+| Use case | General purpose | DB, JVM | HPC, large-scale DB |
 
 ---
 
-## 8. メモリリークとデバッグ
+## 8. Memory Leaks and Debugging
 
-### 8.1 メモリリークの分類
+### 8.1 Classification of Memory Leaks
 
-メモリリークは「割り当てたメモリへの参照を失い、解放できなくなる」現象である。長時間実行されるサーバプロセスでは致命的な問題となる。
+A memory leak is a phenomenon where "the reference to allocated memory is lost, making it impossible to free." This becomes a critical issue for long-running server processes.
 
-| リークの種類 | 原因 | 検出難易度 | 言語 |
+| Leak Type | Cause | Detection Difficulty | Languages |
 |:---|:---|:---:|:---|
-| 直接リーク | free/delete の呼び忘れ | 低 | C, C++ |
-| 間接リーク | リーク済みポインタ経由の到達不能メモリ | 中 | C, C++ |
-| 循環参照 | 相互参照でカウントが0にならない | 中 | Python, Swift, JS |
-| イベントリスナリーク | removeEventListener の未呼び出し | 高 | JavaScript |
-| クロージャリーク | クロージャが大きなスコープをキャプチャ | 高 | JS, Python, Go |
-| キャッシュリーク | 無制限にデータを蓄積するキャッシュ | 高 | 全言語 |
-| スレッドローカルリーク | スレッドプール内で蓄積 | 高 | Java, Go |
+| Direct leak | Forgetting free/delete | Low | C, C++ |
+| Indirect leak | Unreachable memory via leaked pointer | Medium | C, C++ |
+| Circular reference | Mutual references prevent count from reaching 0 | Medium | Python, Swift, JS |
+| Event listener leak | Missing removeEventListener call | High | JavaScript |
+| Closure leak | Closure captures large scope | High | JS, Python, Go |
+| Cache leak | Cache that accumulates data without limit | High | All languages |
+| Thread-local leak | Accumulation within thread pools | High | Java, Go |
 
-### 8.2 Valgrind / AddressSanitizer による検出
+### 8.2 Detection with Valgrind / AddressSanitizer
 
 ```c
-/* リーク検出対象のサンプルコード (leak_example.c) */
+/* Sample code for leak detection (leak_example.c) */
 #include <stdlib.h>
 #include <string.h>
 
 void direct_leak(void) {
-    /* 直接リーク: malloc したが free しない */
+    /* Direct leak: malloc without free */
     int *data = (int *)malloc(sizeof(int) * 100);
     data[0] = 42;
-    /* free(data) を忘れている! */
+    /* Forgot free(data)! */
 }
 
 void indirect_leak(void) {
-    /* 間接リーク: リンクリストのヘッドを失う */
+    /* Indirect leak: losing the head of a linked list */
     struct node {
         int value;
         struct node *next;
@@ -1349,9 +1352,9 @@ void indirect_leak(void) {
     head->next->value = 2;
     head->next->next = NULL;
 
-    /* head のみ free → head->next がリーク */
-    /* 正しくは: リスト全体をトラバースして free */
-    free(head);  /* head->next は間接リーク */
+    /* Only free head -> head->next leaks */
+    /* Correct: traverse the entire list and free */
+    free(head);  /* head->next is an indirect leak */
 }
 
 int main(void) {
@@ -1362,11 +1365,11 @@ int main(void) {
 ```
 
 ```bash
-# --- Valgrind でメモリリーク検出 ---
+# --- Detect memory leaks with Valgrind ---
 gcc -g -O0 leak_example.c -o leak_example
 valgrind --leak-check=full --show-leak-kinds=all ./leak_example
 
-# Valgrind 出力例:
+# Valgrind output example:
 # ==12345== HEAP SUMMARY:
 # ==12345==   in use at exit: 416 bytes in 2 blocks
 # ==12345==   total heap usage: 3 allocs, 1 frees, 432 bytes allocated
@@ -1380,25 +1383,25 @@ valgrind --leak-check=full --show-leak-kinds=all ./leak_example
 # ==12345==    at 0x4C2FB0F: malloc (in /usr/lib/valgrind/...)
 # ==12345==    by 0x401178: indirect_leak (leak_example.c:17)
 
-# --- AddressSanitizer (ASan) でメモリエラー検出 ---
+# --- Detect memory errors with AddressSanitizer (ASan) ---
 gcc -fsanitize=address -fno-omit-frame-pointer -g leak_example.c -o leak_asan
 ./leak_asan
 
-# --- LeakSanitizer を単独で使用 ---
+# --- Use LeakSanitizer standalone ---
 gcc -fsanitize=leak -g leak_example.c -o leak_lsan
 ./leak_lsan
 ```
 
-### 8.3 JavaScript のメモリリークパターン
+### 8.3 JavaScript Memory Leak Patterns
 
 ```javascript
-// コード例7: JavaScript における典型的なメモリリークパターン
+// Code Example 7: Typical memory leak patterns in JavaScript
 
-// --- パターン1: イベントリスナーの未解除 ---
+// --- Pattern 1: Unremoved event listeners ---
 class LeakyComponent {
     constructor() {
-        this.data = new Array(1000000).fill('x'); // 大きなデータ
-        // イベントリスナーを登録
+        this.data = new Array(1000000).fill('x'); // Large data
+        // Register event listener
         this.handler = () => this.handleResize();
         window.addEventListener('resize', this.handler);
     }
@@ -1407,35 +1410,35 @@ class LeakyComponent {
         console.log('resize', this.data.length);
     }
 
-    // destroy を呼び忘れるとリーク
+    // Leak if destroy is not called
     destroy() {
         window.removeEventListener('resize', this.handler);
     }
 }
 
-// --- パターン2: クロージャによるキャプチャ ---
+// --- Pattern 2: Capture by closure ---
 function createLeak() {
     const hugeArray = new Array(1000000).fill('leak');
 
-    // この関数が生きている限り hugeArray も保持される
+    // hugeArray is retained as long as this function lives
     return function() {
-        // hugeArray を直接使わなくても、
-        // 同じスコープの変数がキャプチャされることがある
+        // Even without directly using hugeArray,
+        // variables in the same scope may be captured
         console.log('closure alive');
     };
 }
 
-// --- パターン3: 無制限キャッシュ ---
+// --- Pattern 3: Unbounded cache ---
 const cache = new Map();
 function addToCache(key, value) {
-    // キャッシュが無限に成長する
+    // Cache grows indefinitely
     cache.set(key, value);
 }
 
-// 修正: WeakMap または LRU キャッシュを使用
-const weakCache = new WeakMap(); // キーがGCされるとエントリも消える
+// Fix: Use WeakMap or LRU cache
+const weakCache = new WeakMap(); // Entry disappears when key is GC'd
 
-// 修正: LRU キャッシュ（最大サイズ制限付き）
+// Fix: LRU cache (with maximum size limit)
 class LRUCache {
     constructor(maxSize) {
         this.maxSize = maxSize;
@@ -1446,7 +1449,7 @@ class LRUCache {
         if (this.cache.has(key)) {
             const value = this.cache.get(key);
             this.cache.delete(key);
-            this.cache.set(key, value); // 末尾に移動
+            this.cache.set(key, value); // Move to end
             return value;
         }
         return undefined;
@@ -1456,7 +1459,7 @@ class LRUCache {
         if (this.cache.has(key)) {
             this.cache.delete(key);
         } else if (this.cache.size >= this.maxSize) {
-            // 最も古いエントリを削除
+            // Delete the oldest entry
             const oldestKey = this.cache.keys().next().value;
             this.cache.delete(oldestKey);
         }
@@ -1464,36 +1467,36 @@ class LRUCache {
     }
 }
 
-// --- Chrome DevTools でのデバッグ手順 ---
-// 1. Memory タブ → "Take heap snapshot"
-// 2. 操作を実行
-// 3. 再度スナップショット取得
-// 4. "Comparison" ビューで差分を確認
-// 5. Retainers パネルで何がオブジェクトを保持しているか特定
+// --- Debugging steps with Chrome DevTools ---
+// 1. Memory tab -> "Take heap snapshot"
+// 2. Perform operations
+// 3. Take another snapshot
+// 4. Check differences in "Comparison" view
+// 5. Identify what is retaining objects in the Retainers panel
 ```
 
-### 8.4 Go の pprof によるメモリプロファイリング
+### 8.4 Memory Profiling with Go's pprof
 
 ```go
-// コード例8: Go のメモリプロファイリング
+// Code Example 8: Go memory profiling
 package main
 
 import (
     "fmt"
     "net/http"
-    _ "net/http/pprof" // pprof エンドポイントを有効化
+    _ "net/http/pprof" // Enable pprof endpoints
     "runtime"
     "time"
 )
 
-// 意図的にメモリを蓄積するキャッシュ
+// Cache that intentionally accumulates memory
 var leakyCache = make(map[string][]byte)
 
 func simulateWork() {
     for i := 0; ; i++ {
-        // キャッシュに無制限追加（リークの原因）
+        // Unlimited addition to cache (cause of leak)
         key := fmt.Sprintf("key-%d", i)
-        leakyCache[key] = make([]byte, 1024) // 1KB ずつ蓄積
+        leakyCache[key] = make([]byte, 1024) // Accumulates 1KB at a time
 
         if i%1000 == 0 {
             var m runtime.MemStats
@@ -1509,7 +1512,7 @@ func simulateWork() {
 }
 
 func main() {
-    // pprof HTTP サーバを起動
+    // Start pprof HTTP server
     go func() {
         fmt.Println("pprof: http://localhost:6060/debug/pprof/")
         http.ListenAndServe(":6060", nil)
@@ -1518,39 +1521,39 @@ func main() {
     simulateWork()
 }
 
-// プロファイリングコマンド:
+// Profiling commands:
 // go tool pprof http://localhost:6060/debug/pprof/heap
-// (pprof) top 10        ← メモリ使用量トップ10
-// (pprof) web           ← グラフをブラウザで表示
-// (pprof) list main     ← ソースコード注釈付き表示
+// (pprof) top 10        <- Top 10 by memory usage
+// (pprof) web           <- Display graph in browser
+// (pprof) list main     <- Source code annotated display
 ```
 
 ---
 
-## 9. 言語ランタイムとメモリモデル
+## 9. Language Runtimes and Memory Models
 
-### 9.1 各言語のメモリ管理方式比較
+### 9.1 Memory Management Approach Comparison by Language
 
-プログラミング言語ごとにメモリ管理のアプローチは大きく異なる。以下に主要言語の比較を示す。
+Memory management approaches differ significantly by programming language. Below is a comparison of major languages.
 
-| 言語 | 管理方式 | ヒープ割り当て | 解放タイミング | スタック割り当て | 安全性保証 |
+| Language | Management Method | Heap Allocation | Deallocation Timing | Stack Allocation | Safety Guarantee |
 |:---|:---|:---|:---|:---|:---|
-| C | 手動 (malloc/free) | 明示的 | 明示的 (free) | 自動 | なし |
-| C++ | 手動 + RAII | new/make_unique | デストラクタ | 自動 | RAII で部分的 |
-| Rust | 所有権 + 借用 | Box, Vec 等 | スコープ終了時 | 自動 | コンパイル時保証 |
-| Java | 世代別 GC | new | GC が回収 | JIT が最適化 | ランタイム保証 |
-| Go | 並行 GC | make, new | GC が回収 | エスケープ解析 | ランタイム保証 |
-| Python | 参照カウント + GC | 暗黙的 | 参照カウント=0 or GC | なし（全てヒープ） | ランタイム保証 |
-| JavaScript | 世代別 GC (V8) | 暗黙的 | GC が回収 | JIT が最適化 | ランタイム保証 |
-| Swift | ARC | 暗黙的 | 参照カウント=0 | 値型はスタック | コンパイル時 ARC |
-| Zig | 手動 + アロケータ抽象 | アロケータ経由 | 明示的 (defer) | 自動 | コンパイル時チェック |
+| C | Manual (malloc/free) | Explicit | Explicit (free) | Automatic | None |
+| C++ | Manual + RAII | new/make_unique | Destructor | Automatic | Partial via RAII |
+| Rust | Ownership + Borrowing | Box, Vec, etc. | On scope exit | Automatic | Compile-time guarantee |
+| Java | Generational GC | new | GC collects | JIT-optimized | Runtime guarantee |
+| Go | Concurrent GC | make, new | GC collects | Escape analysis | Runtime guarantee |
+| Python | Ref counting + GC | Implicit | Ref count=0 or GC | None (all heap) | Runtime guarantee |
+| JavaScript | Generational GC (V8) | Implicit | GC collects | JIT-optimized | Runtime guarantee |
+| Swift | ARC | Implicit | Ref count=0 | Value types on stack | Compile-time ARC |
+| Zig | Manual + Allocator abstraction | Via allocator | Explicit (defer) | Automatic | Compile-time checks |
 
-### 9.2 C++ の RAII とスマートポインタ
+### 9.2 C++ RAII and Smart Pointers
 
-C++ は RAII（Resource Acquisition Is Initialization）パターンにより、手動メモリ管理の安全性を向上させる。
+C++ improves the safety of manual memory management through the RAII (Resource Acquisition Is Initialization) pattern.
 
 ```cpp
-// コード例9: C++ スマートポインタによるメモリ管理
+// Code Example 9: Memory management with C++ smart pointers
 #include <memory>
 #include <vector>
 #include <iostream>
@@ -1569,50 +1572,50 @@ private:
 };
 
 void demonstrate_smart_pointers() {
-    // --- unique_ptr: 排他的所有権（コピー不可、ムーブのみ） ---
+    // --- unique_ptr: Exclusive ownership (no copy, move only) ---
     {
         auto r1 = std::make_unique<Resource>(1);
         r1->use();
-        // スコープ終了時に自動解放
-        // auto r2 = r1;  // コンパイルエラー! コピー不可
-        auto r2 = std::move(r1);  // ムーブは可能
-        // r1 は nullptr になる
-    } // r2 のデストラクタが Resource を解放
+        // Automatically freed at scope exit
+        // auto r2 = r1;  // Compile error! Cannot copy
+        auto r2 = std::move(r1);  // Move is possible
+        // r1 is now nullptr
+    } // r2's destructor releases the Resource
 
-    // --- shared_ptr: 共有所有権（参照カウント） ---
+    // --- shared_ptr: Shared ownership (reference counting) ---
     {
         auto r3 = std::make_shared<Resource>(3);
         std::cout << "ref count: " << r3.use_count() << "\n"; // 1
 
         {
-            auto r4 = r3;  // 共有
+            auto r4 = r3;  // Share
             std::cout << "ref count: " << r3.use_count() << "\n"; // 2
-        } // r4 スコープ終了: カウント 2→1
+        } // r4 scope ends: count 2->1
 
         std::cout << "ref count: " << r3.use_count() << "\n"; // 1
-    } // r3 スコープ終了: カウント 1→0 → 解放
+    } // r3 scope ends: count 1->0 -> released
 
-    // --- weak_ptr: 循環参照の防止 ---
+    // --- weak_ptr: Preventing circular references ---
     {
         auto parent = std::make_shared<Resource>(5);
         std::weak_ptr<Resource> weak_ref = parent;
 
         if (auto locked = weak_ref.lock()) {
-            locked->use();  // まだ有効
+            locked->use();  // Still valid
         }
 
-        parent.reset();  // 解放
+        parent.reset();  // Release
 
         if (auto locked = weak_ref.lock()) {
-            locked->use();  // ここには到達しない
+            locked->use();  // Won't reach here
         } else {
             std::cout << "Resource already released\n";
         }
     }
 
-    // --- unique_ptr + カスタムデリータ ---
+    // --- unique_ptr + custom deleter ---
     {
-        auto file_deleter =  {
+        auto file_deleter = [](FILE *f) {
             if (f) {
                 std::cout << "Closing file\n";
                 fclose(f);
@@ -1623,7 +1626,7 @@ void demonstrate_smart_pointers() {
         if (file) {
             fprintf(file.get(), "Hello RAII\n");
         }
-    } // ファイルは自動でクローズされる
+    } // File is automatically closed
 }
 
 int main() {
@@ -1632,85 +1635,85 @@ int main() {
 }
 ```
 
-### 9.3 Go のエスケープ解析
+### 9.3 Go's Escape Analysis
 
-Go コンパイラはエスケープ解析（Escape Analysis）により、変数をスタックに配置するかヒープに配置するかを自動的に決定する。
+The Go compiler uses Escape Analysis to automatically determine whether a variable should be placed on the stack or the heap.
 
 ```go
-// Go エスケープ解析の例
+// Go escape analysis examples
 package main
 
 import "fmt"
 
-// スタックに配置される（関数外に参照が漏れない）
+// Placed on stack (reference doesn't escape the function)
 func stackAlloc() int {
     x := 42
-    return x  // 値コピー → x はスタックに留まる
+    return x  // Value copy -> x stays on stack
 }
 
-// ヒープに配置される（ポインタが関数外に漏れる = エスケープ）
+// Placed on heap (pointer escapes the function = escape)
 func heapAlloc() *int {
     x := 42
-    return &x  // ポインタが外に漏れる → x はヒープに配置
+    return &x  // Pointer escapes -> x placed on heap
 }
 
-// インタフェース経由でエスケープ
+// Escapes via interface
 func interfaceEscape() {
     x := 42
-    fmt.Println(x)  // Println(interface{}) → x がエスケープ
+    fmt.Println(x)  // Println(interface{}) -> x escapes
 }
 
-// エスケープ解析の確認コマンド:
+// Command to check escape analysis:
 // go build -gcflags="-m -m" main.go
 // ./main.go:13:2: x escapes to heap:
 // ./main.go:13:2:   flow: ~r0 = &x:
 // ./main.go:13:2:     from &x (address-of) at ./main.go:14:9
 ```
 
-### 9.4 リアルタイムシステムにおけるメモリ割り当て
+### 9.4 Memory Allocation in Real-Time Systems
 
-リアルタイムシステムでは、メモリ割り当ての最悪実行時間（WCET: Worst-Case Execution Time）が保証されなければならない。
+In real-time systems, the Worst-Case Execution Time (WCET) of memory allocation must be guaranteed.
 
-| 要件 | 汎用システム | リアルタイムシステム |
+| Requirement | General-Purpose System | Real-Time System |
 |:---|:---|:---|
-| 割り当て時間 | 平均的に高速であればよい | 最悪時間が保証されること |
-| GC ポーズ | 許容される | 許容されない |
-| メモリ断片化 | 徐々に増加しても再起動で対応 | 長時間運用で断片化ゼロが必要 |
-| 使用アロケータ | malloc, jemalloc 等 | メモリプール, TLSF |
-| 障害時の挙動 | OOM Killer 等 | フェイルセーフ動作が必須 |
+| Allocation time | Average high speed is sufficient | Worst-case time must be guaranteed |
+| GC pauses | Tolerable | Intolerable |
+| Memory fragmentation | Gradual increase acceptable, reboot to recover | Zero fragmentation required for long-term operation |
+| Allocator used | malloc, jemalloc, etc. | Memory pool, TLSF |
+| Behavior on failure | OOM Killer, etc. | Fail-safe operation is mandatory |
 
-**TLSF（Two-Level Segregated Fit）:**
+**TLSF (Two-Level Segregated Fit):**
 
-リアルタイムシステム向けに設計されたアロケータで、割り当て・解放ともに O(1) が保証される。ビットマップとセグメントリストの2レベル索引により、フリーリスト探索を定数時間で実行する。航空宇宙、自動車、医療機器などのミッションクリティカルシステムで採用されている。
+An allocator designed for real-time systems where both allocation and deallocation are guaranteed O(1). It performs free list search in constant time using a two-level index of bitmaps and segment lists. Adopted in mission-critical systems such as aerospace, automotive, and medical devices.
 
 ---
 
-## 10. アンチパターンと設計原則
+## 10. Anti-Patterns and Design Principles
 
-### 10.1 アンチパターン1: 「malloc して忘れる」パターン
+### 10.1 Anti-Pattern 1: The "malloc and forget" Pattern
 
-**問題:** 関数内で動的にメモリを確保し、エラーパス等で解放を忘れる。
+**Problem:** Dynamically allocating memory within a function and forgetting to free it on error paths, etc.
 
 ```c
-/* アンチパターン: 複数リソースの獲得と不完全な解放 */
+/* Anti-pattern: Acquiring multiple resources with incomplete release */
 int process_data_BAD(const char *filename) {
     FILE *file = fopen(filename, "r");
     if (!file) return -1;
 
     char *buffer = (char *)malloc(4096);
     if (!buffer) {
-        /* file のクローズを忘れている! */
+        /* Forgot to close file! */
         return -1;
     }
 
     int *results = (int *)malloc(sizeof(int) * 1000);
     if (!results) {
-        /* buffer の free を忘れている! */
-        /* file のクローズも忘れている! */
+        /* Forgot to free buffer! */
+        /* Also forgot to close file! */
         return -1;
     }
 
-    /* ... 処理 ... */
+    /* ... processing ... */
 
     free(results);
     free(buffer);
@@ -1718,7 +1721,7 @@ int process_data_BAD(const char *filename) {
     return 0;
 }
 
-/* 修正: goto による統一的なクリーンアップ（Linux カーネルスタイル） */
+/* Fix: Unified cleanup using goto (Linux kernel style) */
 int process_data_GOOD(const char *filename) {
     int ret = -1;
     FILE *file = NULL;
@@ -1734,128 +1737,128 @@ int process_data_GOOD(const char *filename) {
     results = (int *)malloc(sizeof(int) * 1000);
     if (!results) goto cleanup;
 
-    /* ... 処理 ... */
+    /* ... processing ... */
     ret = 0;
 
 cleanup:
-    free(results);   /* free(NULL) は安全 */
-    free(buffer);    /* free(NULL) は安全 */
+    free(results);   /* free(NULL) is safe */
+    free(buffer);    /* free(NULL) is safe */
     if (file) fclose(file);
     return ret;
 }
 ```
 
-**教訓:**
-- C 言語では `goto cleanup` パターンが推奨される（Linux カーネルのコーディング規約でも採用）
-- C++ では RAII（スマートポインタ、ファイルストリーム）を使えば自動的に解決
-- `free(NULL)` は C 標準で安全と定義されているため、NULL チェック不要
+**Lessons:**
+- In C, the `goto cleanup` pattern is recommended (also adopted in Linux kernel coding conventions)
+- In C++, RAII (smart pointers, file streams) solves this automatically
+- `free(NULL)` is defined as safe by the C standard, so NULL checks are unnecessary
 
-### 10.2 アンチパターン2: 「巨大な一時バッファを毎回 malloc」パターン
+### 10.2 Anti-Pattern 2: The "malloc a large temp buffer every iteration" Pattern
 
-**問題:** ループ内で毎回大きなバッファを malloc/free し、不要なオーバーヘッドを発生させる。
+**Problem:** Calling malloc/free for a large buffer in every loop iteration, causing unnecessary overhead.
 
 ```c
-/* アンチパターン: ループ内での繰り返し割り当て */
+/* Anti-pattern: Repeated allocation within a loop */
 void process_items_BAD(int *items, int count) {
     for (int i = 0; i < count; i++) {
-        /* 毎回 4KB の一時バッファを確保・解放 */
+        /* Allocate and free 4KB temp buffer each time */
         char *tmp = (char *)malloc(4096);
         snprintf(tmp, 4096, "Processing item %d", items[i]);
-        /* ... tmp を使った処理 ... */
+        /* ... processing using tmp ... */
         free(tmp);
-        /* → count が 100万回なら、malloc/free が 100万回呼ばれる */
+        /* -> If count is 1 million, malloc/free is called 1 million times */
     }
 }
 
-/* 修正1: ループ外で一度だけ確保 */
+/* Fix 1: Allocate once outside the loop */
 void process_items_GOOD1(int *items, int count) {
     char *tmp = (char *)malloc(4096);
     if (!tmp) return;
 
     for (int i = 0; i < count; i++) {
         snprintf(tmp, 4096, "Processing item %d", items[i]);
-        /* ... tmp を使った処理 ... */
+        /* ... processing using tmp ... */
     }
     free(tmp);
 }
 
-/* 修正2: サイズが固定なら VLA またはスタックを使用 */
+/* Fix 2: Use VLA or stack for fixed sizes */
 void process_items_GOOD2(int *items, int count) {
-    char tmp[4096];  /* スタック上に確保（固定サイズ） */
+    char tmp[4096];  /* Allocated on stack (fixed size) */
 
     for (int i = 0; i < count; i++) {
         snprintf(tmp, sizeof(tmp), "Processing item %d", items[i]);
-        /* ... tmp を使った処理 ... */
+        /* ... processing using tmp ... */
     }
-    /* 自動的に解放される */
+    /* Automatically freed */
 }
 ```
 
-**教訓:**
-- ループ内の malloc/free は大きなオーバーヘッド（システムコール、ロック競合、断片化）
-- 可能ならバッファをループ外で一度だけ確保する
-- 固定サイズの小バッファ（~数 KB）はスタックに置く方が高速
-- 大きなバッファが必要な場合はメモリプールを検討する
+**Lessons:**
+- malloc/free in loops incurs significant overhead (system calls, lock contention, fragmentation)
+- Allocate buffers once outside the loop when possible
+- Small fixed-size buffers (~few KB) are faster on the stack
+- Consider memory pools when large buffers are needed
 
-### 10.3 設計原則まとめ
+### 10.3 Design Principles Summary
 
-| 原則 | 説明 | 適用場面 |
+| Principle | Description | Applicable Scenarios |
 |:---|:---|:---|
-| RAII | リソース獲得をオブジェクト初期化に結びつける | C++, Rust |
-| 所有権の明確化 | メモリの所有者を1つに限定 | 全言語 |
-| バッファ再利用 | 頻繁な割り当てを避けてバッファを使い回す | ホットパス |
-| メモリプール | 同一サイズの割り当てを専用プールで管理 | ゲーム, サーバ |
-| アリーナアロケータ | フェーズ単位でまとめて確保・一括解放 | コンパイラ, パーサ |
-| コピーオンライト | 実際に変更が発生するまでメモリ共有 | fork, 文字列 |
-| ゼロコピー | データのコピーを避けて参照を渡す | ネットワーク, I/O |
+| RAII | Tie resource acquisition to object initialization | C++, Rust |
+| Clear ownership | Limit memory ownership to a single owner | All languages |
+| Buffer reuse | Avoid frequent allocations by reusing buffers | Hot paths |
+| Memory pool | Manage same-size allocations in a dedicated pool | Games, servers |
+| Arena allocator | Bulk allocate per phase, bulk deallocate | Compilers, parsers |
+| Copy-on-write | Share memory until actual modification occurs | fork, strings |
+| Zero-copy | Pass references instead of copying data | Network, I/O |
 
 ---
 
-## 11. 実践演習（3段階）
+## 11. Practical Exercises (3 Levels)
 
-### 演習1: [基礎] メモリレイアウトの確認
+### Exercise 1: [Basic] Verifying Memory Layout
 
-**課題:** 以下の C プログラムの各変数がどのメモリセグメントに配置されるか答えよ。
+**Task:** Identify which memory segment each variable in the following C program is placed in.
 
 ```c
 #include <stdlib.h>
 #include <string.h>
 
-int global_initialized = 42;        /* → ? */
-int global_uninitialized;           /* → ? */
-const char *literal = "hello";      /* → ? (ポインタ自体は?) */
+int global_initialized = 42;        /* -> ? */
+int global_uninitialized;           /* -> ? */
+const char *literal = "hello";      /* -> ? (what about the pointer itself?) */
 
-void function_example(int param) {  /* param → ? */
-    int local = 10;                 /* → ? */
-    static int persistent = 5;     /* → ? */
-    int *dynamic = malloc(100);    /* dynamic → ?, *dynamic → ? */
-    char buf[256];                 /* → ? */
+void function_example(int param) {  /* param -> ? */
+    int local = 10;                 /* -> ? */
+    static int persistent = 5;     /* -> ? */
+    int *dynamic = malloc(100);    /* dynamic -> ?, *dynamic -> ? */
+    char buf[256];                 /* -> ? */
 
     free(dynamic);
 }
 ```
 
 <details>
-<summary>解答を表示</summary>
+<summary>Show Answer</summary>
 
-| 変数 | セグメント | 理由 |
+| Variable | Segment | Reason |
 |:---|:---|:---|
-| `global_initialized` | データ | 初期化済みグローバル変数 |
-| `global_uninitialized` | BSS | 未初期化グローバル変数（ゼロ初期化） |
-| `literal` (ポインタ自体) | データ | 初期化済みグローバルポインタ |
-| `"hello"` (文字列本体) | テキスト(rodata) | 文字列リテラル（読み取り専用） |
-| `param` | スタック | 関数引数 |
-| `local` | スタック | ローカル変数 |
-| `persistent` | データ | static 変数（初期化済み） |
-| `dynamic` (ポインタ自体) | スタック | ローカル変数 |
-| `*dynamic` (指す先) | ヒープ | malloc で動的確保 |
-| `buf[256]` | スタック | ローカル配列 |
+| `global_initialized` | Data | Initialized global variable |
+| `global_uninitialized` | BSS | Uninitialized global variable (zero-initialized) |
+| `literal` (pointer itself) | Data | Initialized global pointer |
+| `"hello"` (string body) | Text (rodata) | String literal (read-only) |
+| `param` | Stack | Function argument |
+| `local` | Stack | Local variable |
+| `persistent` | Data | Static variable (initialized) |
+| `dynamic` (pointer itself) | Stack | Local variable |
+| `*dynamic` (pointed-to data) | Heap | Dynamically allocated via malloc |
+| `buf[256]` | Stack | Local array |
 
 </details>
 
-### 演習2: [応用] メモリリークの検出と修正
+### Exercise 2: [Intermediate] Detecting and Fixing Memory Leaks
 
-**課題:** 以下のコードにはメモリリークが3箇所ある。全て特定し修正せよ。
+**Task:** There are 3 memory leaks in the following code. Identify and fix all of them.
 
 ```c
 #include <stdlib.h>
@@ -1880,19 +1883,19 @@ void process_students(void) {
     Student *alice = create_student("Alice", 5);
     Student *bob = create_student("Bob", 3);
 
-    /* Alice のスコアを設定 */
+    /* Set Alice's scores */
     for (int i = 0; i < alice->score_count; i++) {
         alice->scores[i] = 80 + i;
     }
 
-    /* エラーが発生した場合の早期リターン */
+    /* Early return if error occurs */
     if (alice->scores[0] < 50) {
-        free(alice);  /* リーク! name と scores を free していない */
-        return;       /* bob もリーク! */
+        free(alice);  /* Leak! name and scores not freed */
+        return;       /* bob also leaks! */
     }
 
-    /* Bob の名前を変更 */
-    bob->name = strdup("Robert");  /* リーク! 元の "Bob" が漏れる */
+    /* Change Bob's name */
+    bob->name = strdup("Robert");  /* Leak! Original "Bob" is lost */
 
     free(alice->scores);
     free(alice->name);
@@ -1904,15 +1907,15 @@ void process_students(void) {
 ```
 
 <details>
-<summary>解答を表示</summary>
+<summary>Show Answer</summary>
 
-**リーク箇所:**
+**Leak locations:**
 
-1. **早期リターン時に `alice->name` と `alice->scores` を free していない**
-2. **早期リターン時に `bob` 全体（name, scores, 本体）を free していない**
-3. **`bob->name = strdup("Robert")` で元の `"Bob"` の領域が漏れる**
+1. **On early return, `alice->name` and `alice->scores` are not freed**
+2. **On early return, all of `bob` (name, scores, body) is not freed**
+3. **`bob->name = strdup("Robert")` causes the original `"Bob"` memory to leak**
 
-**修正版:**
+**Fixed version:**
 
 ```c
 void destroy_student(Student *s) {
@@ -1932,12 +1935,12 @@ void process_students_fixed(void) {
     }
 
     if (alice->scores[0] < 50) {
-        destroy_student(alice);  /* 修正1: 完全に解放 */
-        destroy_student(bob);    /* 修正2: bob も解放 */
+        destroy_student(alice);  /* Fix 1: Fully release */
+        destroy_student(bob);    /* Fix 2: Release bob too */
         return;
     }
 
-    /* 修正3: 元の name を先に free してから差し替え */
+    /* Fix 3: Free original name before replacement */
     free(bob->name);
     bob->name = strdup("Robert");
 
@@ -1948,21 +1951,21 @@ void process_students_fixed(void) {
 
 </details>
 
-### 演習3: [発展] カスタムアロケータの設計
+### Exercise 3: [Advanced] Designing a Custom Allocator
 
-**課題:** 以下の要件を満たすアリーナアロケータを設計・実装せよ。
+**Task:** Design and implement an arena allocator that satisfies the following requirements.
 
-**要件:**
-1. 初期化時に大きなメモリブロック（アリーナ）を一括確保する
-2. `arena_alloc(size)` でアリーナからメモリを「バンプ」割り当てする（ポインタを進めるだけ）
-3. 個別の `free` は不要。`arena_reset()` で全体を一括リセットする
-4. `arena_destroy()` でアリーナ全体を解放する
-5. アラインメント（8バイト境界）を保証する
+**Requirements:**
+1. Allocate a large memory block (arena) in bulk during initialization
+2. `arena_alloc(size)` performs "bump" allocation from the arena (just advance a pointer)
+3. Individual `free` is unnecessary. `arena_reset()` resets the entire arena at once
+4. `arena_destroy()` releases the entire arena
+5. Guarantee alignment (8-byte boundary)
 
-**ヒント:** このパターンはコンパイラの AST 構築やリクエスト単位のサーバ処理で広く使用される。
+**Hint:** This pattern is widely used in compiler AST construction and per-request server processing.
 
 <details>
-<summary>解答例を表示</summary>
+<summary>Show Sample Answer</summary>
 
 ```c
 #include <stdio.h>
@@ -1974,12 +1977,12 @@ void process_students_fixed(void) {
 #define ALIGN_UP(x, a) (((x) + (a) - 1) & ~((a) - 1))
 
 typedef struct arena {
-    uint8_t *base;      /* アリーナの先頭 */
-    size_t size;        /* アリーナの総サイズ */
-    size_t offset;      /* 次の割り当て位置 */
+    uint8_t *base;      /* Base of the arena */
+    size_t size;        /* Total size of the arena */
+    size_t offset;      /* Next allocation position */
 } arena_t;
 
-/* アリーナ初期化 */
+/* Arena initialization */
 arena_t *arena_create(size_t size) {
     arena_t *arena = (arena_t *)malloc(sizeof(arena_t));
     if (!arena) return NULL;
@@ -1994,23 +1997,23 @@ arena_t *arena_create(size_t size) {
     return arena;
 }
 
-/* バンプ割り当て O(1) */
+/* Bump allocation O(1) */
 void *arena_alloc(arena_t *arena, size_t size) {
     size_t aligned_offset = ALIGN_UP(arena->offset, ARENA_ALIGN);
     if (aligned_offset + size > arena->size) {
-        return NULL;  /* アリーナ枯渇 */
+        return NULL;  /* Arena exhausted */
     }
     void *ptr = arena->base + aligned_offset;
     arena->offset = aligned_offset + size;
     return ptr;
 }
 
-/* 全体リセット O(1) — 個別 free は不要 */
+/* Full reset O(1) -- no individual free needed */
 void arena_reset(arena_t *arena) {
     arena->offset = 0;
 }
 
-/* アリーナ破棄 */
+/* Arena destruction */
 void arena_destroy(arena_t *arena) {
     if (arena) {
         free(arena->base);
@@ -2018,7 +2021,7 @@ void arena_destroy(arena_t *arena) {
     }
 }
 
-/* 使用例: コンパイラの AST 構築 */
+/* Usage example: Compiler AST construction */
 typedef struct ast_node {
     int type;
     struct ast_node *left;
@@ -2027,33 +2030,33 @@ typedef struct ast_node {
 } ast_node_t;
 
 int main(void) {
-    arena_t *arena = arena_create(1024 * 1024); /* 1MB アリーナ */
+    arena_t *arena = arena_create(1024 * 1024); /* 1MB arena */
 
-    /* AST ノードをアリーナから高速割り当て */
+    /* Rapidly allocate AST nodes from the arena */
     ast_node_t *root = (ast_node_t *)arena_alloc(arena, sizeof(ast_node_t));
     root->type = 1;
     root->value = 42;
     root->left = (ast_node_t *)arena_alloc(arena, sizeof(ast_node_t));
     root->right = (ast_node_t *)arena_alloc(arena, sizeof(ast_node_t));
 
-    printf("使用量: %zu / %zu bytes (%.1f%%)\n",
+    printf("Usage: %zu / %zu bytes (%.1f%%)\n",
            arena->offset, arena->size,
            (double)arena->offset / arena->size * 100);
 
-    /* リクエスト処理完了 → 一括リセット（個別 free 不要!） */
+    /* Request processing complete -> bulk reset (no individual free needed!) */
     arena_reset(arena);
-    printf("リセット後: %zu / %zu bytes\n", arena->offset, arena->size);
+    printf("After reset: %zu / %zu bytes\n", arena->offset, arena->size);
 
     arena_destroy(arena);
     return 0;
 }
 ```
 
-**アリーナアロケータの利点:**
-- 割り当て: ポインタの加算のみ → O(1)、ロック不要
-- 解放: 一括リセットのみ → O(1)、個別 free 不要
-- 断片化: 発生しない（連続領域をシーケンシャルに使用）
-- キャッシュ効率: 極めて高い（連続メモリアクセス）
+**Arena Allocator Advantages:**
+- Allocation: Pointer addition only -> O(1), lock-free
+- Deallocation: Bulk reset only -> O(1), no individual free needed
+- Fragmentation: Does not occur (sequential use of contiguous space)
+- Cache efficiency: Extremely high (contiguous memory access)
 
 </details>
 
@@ -2061,39 +2064,39 @@ int main(void) {
 
 ## 12. FAQ
 
-### Q1: malloc はスレッドセーフか?
+### Q1: Is malloc thread-safe?
 
-glibc の ptmalloc2 はスレッドセーフである。内部でミューテックスを使用してアリーナ（メモリプール）を保護し、スレッドごとに異なるアリーナを割り当てることでロック競合を減らしている。ただし、高スレッド数環境ではアリーナの競合がボトルネックになることがある。jemalloc や tcmalloc はスレッドローカルキャッシュにより、大部分の割り当て操作をロック不要で実行でき、高い並行性を実現する。性能が問題になる場合は `LD_PRELOAD` でアロケータを差し替えることが可能である。
+glibc's ptmalloc2 is thread-safe. It uses mutexes internally to protect arenas (memory pools) and reduces lock contention by assigning different arenas to different threads. However, in high-thread-count environments, arena contention can become a bottleneck. jemalloc and tcmalloc can execute most allocation operations lock-free through thread-local caches, achieving high concurrency. If performance is an issue, the allocator can be swapped using `LD_PRELOAD`.
 
 ```bash
-# jemalloc に差し替えて実行
+# Run with jemalloc
 LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libjemalloc.so ./my_program
 
-# tcmalloc に差し替えて実行
+# Run with tcmalloc
 LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libtcmalloc.so ./my_program
 ```
 
-### Q2: Rust の所有権でメモリリークは完全に防げるか?
+### Q2: Can Rust's ownership completely prevent memory leaks?
 
-いいえ。Rust でもメモリリークは発生し得る。`Rc<T>` の循環参照、`std::mem::forget` による意図的なドロップ抑制、`Box::leak` による明示的なリーク、終了しないスレッドが保持するメモリなど、リークが起こるパターンは複数ある。ただし、Rust が保証するのは **メモリ安全性**（Use-After-Free、ダブルフリー、データ競合の防止）であり、メモリリークは安全性の問題ではないと位置づけられている。循環参照は `Weak<T>` を使って対策する。
+No. Memory leaks can still occur in Rust. There are multiple patterns that cause leaks, including circular references with `Rc<T>`, intentional drop suppression with `std::mem::forget`, explicit leaking with `Box::leak`, and memory held by non-terminating threads. However, what Rust guarantees is **memory safety** (prevention of Use-After-Free, double-free, and data races). Memory leaks are not classified as a safety issue. Circular references should be addressed using `Weak<T>`.
 
-### Q3: GC のある言語で明示的にメモリを解放する方法はあるか?
+### Q3: Is there a way to explicitly free memory in GC languages?
 
-多くの GC 言語では、GC の実行をヒントとして要求することはできるが、即座の解放を保証することはできない。Java の `System.gc()` は「GC を実行してほしい」というヒントに過ぎず、JVM は無視する場合がある。Go の `runtime.GC()` は同期的に GC を実行するが、日常的に呼ぶべきではない。Python の `gc.collect()` は循環参照を回収するが、参照カウントが 0 のオブジェクトは `del` 時点で即座に回収される。実践的には、大きなオブジェクトへの参照を `null` / `None` / `nil` にセットし、GC が回収可能な状態にすることが推奨される。
+In most GC languages, you can request GC execution as a hint, but immediate deallocation cannot be guaranteed. Java's `System.gc()` is merely a hint "please run GC," and the JVM may ignore it. Go's `runtime.GC()` executes GC synchronously, but should not be called routinely. Python's `gc.collect()` collects circular references, but objects with a reference count of 0 are immediately collected at the point of `del`. In practice, setting references to large objects to `null` / `None` / `nil` to make them GC-collectible is recommended.
 
-### Q4: mmap と brk/sbrk の使い分けの基準は何か?
+### Q4: What is the criterion for choosing between mmap and brk/sbrk?
 
-glibc の malloc はデフォルトで `MMAP_THRESHOLD`（128KB）を閾値として使い分ける。128KB 以下の割り当ては `sbrk` でヒープを拡張し、128KB を超える割り当ては `mmap(MAP_ANONYMOUS)` で独立した仮想メモリ領域を確保する。`mmap` の利点は、`munmap` で即座にカーネルへメモリを返却できることである。一方 `sbrk` で拡張されたヒープは、末尾の空きブロックからしか縮小できないため、途中のブロックが使用中だとメモリがカーネルに返却されない。この閾値は `mallopt(M_MMAP_THRESHOLD, size)` で変更可能である。
+glibc's malloc uses `MMAP_THRESHOLD` (128KB) as the default threshold. Allocations of 128KB or less extend the heap with `sbrk`, while allocations exceeding 128KB allocate an independent virtual memory region with `mmap(MAP_ANONYMOUS)`. The advantage of `mmap` is that memory can be immediately returned to the kernel via `munmap`. On the other hand, heap space extended by `sbrk` can only shrink from the end; if blocks in the middle are in use, memory cannot be returned to the kernel. This threshold can be changed with `mallopt(M_MMAP_THRESHOLD, size)`.
 
-### Q5: OOM Killer はどのプロセスを終了させるか?
+### Q5: Which process does the OOM Killer terminate?
 
-Linux の OOM Killer は `/proc/[pid]/oom_score` に基づいてプロセスを選択する。スコアが高いほど終了されやすい。スコアは主にプロセスのメモリ使用量に基づくが、`oom_score_adj`（-1000〜+1000）で調整可能である。重要なプロセス（データベース等）は `oom_score_adj = -1000` に設定して OOM Killer の対象外にすることができる。ただし、過度に多くのプロセスを保護すると、OOM 発生時に適切なプロセスを終了できず、システム全体がハングする可能性がある。
+Linux's OOM Killer selects a process based on `/proc/[pid]/oom_score`. Higher scores mean higher likelihood of being terminated. The score is primarily based on the process's memory usage, but can be adjusted via `oom_score_adj` (-1000 to +1000). Critical processes (databases, etc.) can be set to `oom_score_adj = -1000` to exclude them from the OOM Killer. However, protecting too many processes may prevent the OOM Killer from terminating appropriate processes during an OOM event, potentially causing the entire system to hang.
 
 ```bash
-# 現在のプロセスの OOM スコアを確認
+# Check the current process's OOM score
 cat /proc/self/oom_score
 
-# 重要なプロセスを OOM Killer から保護
+# Protect an important process from OOM Killer
 echo -1000 > /proc/$(pidof my_database)/oom_score_adj
 ```
 
@@ -2102,92 +2105,92 @@ echo -1000 > /proc/$(pidof my_database)/oom_score_adj
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point in learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory, but by actually writing code and verifying behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What mistakes do beginners commonly make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before proceeding to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this applied in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently applied in daily development work. It becomes particularly important during code reviews and architecture design.
 
 ---
 
-## 13. まとめ
+## 13. Summary
 
-### 全体概要
+### Overall Overview
 
-本章では、メモリ割り当て戦略をプロセスのメモリレイアウトから始まり、アルゴリズム、プロダクションレベルのアロケータ、カーネルの物理メモリ管理、ガベージコレクション、断片化対策、デバッグ手法、言語ランタイムごとの特徴まで包括的に解説した。
+This chapter comprehensively covered memory allocation strategies, starting from process memory layout, through algorithms, production-level allocators, kernel physical memory management, garbage collection, fragmentation countermeasures, debugging techniques, and the characteristics of each language runtime.
 
-### 重要概念の総整理
+### Comprehensive Concept Summary
 
-| 概念 | 要点 |
+| Concept | Key Points |
 |:---|:---|
-| メモリレイアウト | テキスト, データ, BSS, ヒープ, mmap, スタックの6領域 |
-| スタック vs ヒープ | スタック: O(1) 割り当て, 自動解放 / ヒープ: 柔軟だが管理コスト大 |
-| 割り当てアルゴリズム | First Fit(高速), Best Fit(断片化少), Buddy(カーネル), Segregated(現代的) |
-| ptmalloc2 | Linux 標準。アリーナ + fastbin/smallbin/largebin の階層構造 |
-| jemalloc | 低断片化 + 充実した統計機能。Redis, Firefox が採用 |
-| tcmalloc | スレッドキャッシュで小オブジェクト割り当てが極めて高速。Chrome が採用 |
-| mimalloc | セグメントベース + フリーリストシャーディング。全体的に高性能 |
-| Buddy Allocator | 2のべき乗ブロック管理。Linux カーネルの物理ページ割り当て |
-| SLAB/SLUB | カーネル内小オブジェクト管理。オブジェクト型ごとにキャッシュ |
-| マーク & スイープ | ルートからの到達性でゴミ判定。基本だが STW が発生 |
-| 世代別 GC | 弱い世代仮説に基づく。Minor GC(高頻度) + Major GC(低頻度) |
-| 参照カウント | 即時回収可能だが循環参照に弱い。Python, Swift(ARC) が採用 |
-| 三色マーキング | 並行 GC の基盤。白/灰/黒でマーキング。Go が採用 |
-| Rust 所有権 | GC なし。コンパイル時にメモリ安全性を保証。ゼロコスト |
-| 外部断片化 | 空き合計は十分だが連続領域が不足。コンパクションで対策 |
-| 内部断片化 | 割り当てブロック内の無駄。サイズクラスの細分化で軽減 |
-| メモリプール | 固定サイズ割り当てを O(1) で実行。ゲーム、サーバ向け |
-| アリーナアロケータ | バンプ割り当て + 一括解放。コンパイラ、リクエスト処理向け |
-| RAII | リソースの獲得と解放をオブジェクトのライフタイムに結びつける |
-| Demand Paging | 実際のアクセス時まで物理ページ割り当てを遅延 |
+| Memory layout | 6 regions: text, data, BSS, heap, mmap, stack |
+| Stack vs Heap | Stack: O(1) allocation, auto-release / Heap: flexible but high management cost |
+| Allocation algorithms | First Fit (fast), Best Fit (less fragmentation), Buddy (kernel), Segregated (modern) |
+| ptmalloc2 | Linux standard. Arena + hierarchy of fastbin/smallbin/largebin |
+| jemalloc | Low fragmentation + comprehensive statistics. Adopted by Redis, Firefox |
+| tcmalloc | Extremely fast small object allocation via thread cache. Adopted by Chrome |
+| mimalloc | Segment-based + free list sharding. High overall performance |
+| Buddy Allocator | Power-of-2 block management. Linux kernel physical page allocation |
+| SLAB/SLUB | Kernel small object management. Cache per object type |
+| Mark & Sweep | Determine garbage by reachability from root. Basic but causes STW |
+| Generational GC | Based on weak generational hypothesis. Minor GC (frequent) + Major GC (infrequent) |
+| Reference counting | Immediate reclamation possible but weak against circular references. Adopted by Python, Swift (ARC) |
+| Tri-color marking | Foundation of concurrent GC. White/gray/black marking. Adopted by Go |
+| Rust ownership | No GC. Compile-time memory safety guarantee. Zero cost |
+| External fragmentation | Total free sufficient but contiguous space lacking. Mitigated by compaction |
+| Internal fragmentation | Waste within allocated blocks. Mitigated by fine-grained size classes |
+| Memory pool | O(1) fixed-size allocation. For games, servers |
+| Arena allocator | Bump allocation + bulk deallocation. For compilers, request processing |
+| RAII | Tie resource acquisition and release to object lifetime |
+| Demand Paging | Defer physical page allocation until actual access |
 
-### 次のステップ
+### Next Steps
 
-メモリ割り当ての知識をさらに深めるために、以下のトピックに進むことを推奨する:
+To further deepen your knowledge of memory allocation, we recommend proceeding to the following topics:
 
-- **仮想メモリとページング:** ページテーブル、TLB、ページ置換アルゴリズム
-- **メモリマップドI/O:** mmap によるファイルアクセスの高速化
-- **NUMA アーキテクチャ:** マルチソケットシステムでのメモリ配置最適化
-- **永続メモリ (PMEM):** Intel Optane 等の不揮発メモリプログラミング
-
----
-
-## 次に読むべきガイド
-
+- **Virtual Memory and Paging:** Page tables, TLB, page replacement algorithms
+- **Memory-Mapped I/O:** Accelerating file access via mmap
+- **NUMA Architecture:** Optimizing memory placement in multi-socket systems
+- **Persistent Memory (PMEM):** Non-volatile memory programming with Intel Optane, etc.
 
 ---
 
-## 14. 参考文献
+## Recommended Next Guides
 
-1. Silberschatz, A., Galvin, P. B., & Gagne, G. *Operating System Concepts*, 10th Edition, Chapter 9: Main Memory. Wiley, 2018. --- メモリ管理の教科書的な解説。連続割り当て、ページング、セグメンテーションを体系的にカバー。
-
-2. Tanenbaum, A. S., & Bos, H. *Modern Operating Systems*, 4th Edition, Chapter 3: Memory Management. Pearson, 2014. --- Buddy System、SLAB アロケータ、仮想メモリの詳細な解説。
-
-3. Evans, J. "A Scalable Concurrent malloc(3) Implementation for FreeBSD." BSDCan, 2006. --- jemalloc の設計思想と実装の詳細を解説した原論文。
-
-4. Ghemawat, S. & Menage, P. "TCMalloc: Thread-Caching Malloc." Google Performance Tools Documentation. --- tcmalloc のアーキテクチャ、スレッドキャッシュとページヒープの設計。
-
-5. Leijen, D., Zorn, B., & de Moura, L. "Mimalloc: Free List Sharding in Action." Microsoft Research, 2019. --- mimalloc の設計原理、フリーリストシャーディングの効果を示したベンチマーク。
-
-6. Bonwick, J. "The Slab Allocator: An Object-Caching Kernel Memory Allocator." USENIX Summer 1994 Technical Conference. --- SLAB アロケータの原論文。オブジェクトキャッシングの概念を提唱。
-
-7. Jones, R., Hosking, A., & Moss, E. *The Garbage Collection Handbook: The Art of Automatic Memory Management*. CRC Press, 2011. --- GC アルゴリズムの包括的な参考書。マーク&スイープ、世代別、並行GC を網羅。
-
-8. Klabnik, S. & Nichols, C. *The Rust Programming Language*. No Starch Press, 2019. Chapter 4: Understanding Ownership. --- Rust の所有権、借用、ライフタイムの公式解説。
-
-9. Love, R. *Linux Kernel Development*, 3rd Edition, Chapter 12: Memory Management. Addison-Wesley, 2010. --- Linux カーネルの Buddy Allocator、SLAB、vmalloc の解説。
-
-10. Masmano, M., Ripoll, I., Crespo, A., & Real, J. "TLSF: A New Dynamic Memory Allocator for Real-Time Systems." 16th Euromicro Conference on Real-Time Systems (ECRTS), 2004. --- TLSF アロケータの原論文。O(1) 保証の割り当てアルゴリズム。
 
 ---
 
-## 参考文献
+## 14. References
 
-- [MDN Web Docs](https://developer.mozilla.org/) - Web技術のリファレンス
-- [Wikipedia](https://ja.wikipedia.org/) - 技術概念の概要
+1. Silberschatz, A., Galvin, P. B., & Gagne, G. *Operating System Concepts*, 10th Edition, Chapter 9: Main Memory. Wiley, 2018. --- Textbook-level explanation of memory management. Systematically covers contiguous allocation, paging, and segmentation.
+
+2. Tanenbaum, A. S., & Bos, H. *Modern Operating Systems*, 4th Edition, Chapter 3: Memory Management. Pearson, 2014. --- Detailed explanation of Buddy System, SLAB allocator, and virtual memory.
+
+3. Evans, J. "A Scalable Concurrent malloc(3) Implementation for FreeBSD." BSDCan, 2006. --- Original paper detailing jemalloc's design philosophy and implementation.
+
+4. Ghemawat, S. & Menage, P. "TCMalloc: Thread-Caching Malloc." Google Performance Tools Documentation. --- tcmalloc architecture, thread cache and page heap design.
+
+5. Leijen, D., Zorn, B., & de Moura, L. "Mimalloc: Free List Sharding in Action." Microsoft Research, 2019. --- mimalloc design principles and benchmarks demonstrating the effectiveness of free list sharding.
+
+6. Bonwick, J. "The Slab Allocator: An Object-Caching Kernel Memory Allocator." USENIX Summer 1994 Technical Conference. --- Original SLAB allocator paper. Proposed the concept of object caching.
+
+7. Jones, R., Hosking, A., & Moss, E. *The Garbage Collection Handbook: The Art of Automatic Memory Management*. CRC Press, 2011. --- Comprehensive reference on GC algorithms. Covers mark & sweep, generational, and concurrent GC.
+
+8. Klabnik, S. & Nichols, C. *The Rust Programming Language*. No Starch Press, 2019. Chapter 4: Understanding Ownership. --- Official explanation of Rust ownership, borrowing, and lifetimes.
+
+9. Love, R. *Linux Kernel Development*, 3rd Edition, Chapter 12: Memory Management. Addison-Wesley, 2010. --- Explanation of Linux kernel's Buddy Allocator, SLAB, and vmalloc.
+
+10. Masmano, M., Ripoll, I., Crespo, A., & Real, J. "TLSF: A New Dynamic Memory Allocator for Real-Time Systems." 16th Euromicro Conference on Real-Time Systems (ECRTS), 2004. --- Original TLSF allocator paper. O(1) guaranteed allocation algorithm.
+
+---
+
+## References
+
+- [MDN Web Docs](https://developer.mozilla.org/) - Web technology reference
+- [Wikipedia](https://ja.wikipedia.org/) - Overview of technical concepts
