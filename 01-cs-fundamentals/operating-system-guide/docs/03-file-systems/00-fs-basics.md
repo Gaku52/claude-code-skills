@@ -1,518 +1,525 @@
-# ファイルシステムの基礎
+# File System Fundamentals
 
-> ファイルシステムは「ディスク上のバイト列を、人間が理解できるファイルとディレクトリの階層構造に変換する」仕組み。
+> A file system is a mechanism that "converts a sequence of bytes on a disk into a hierarchical structure of files and directories that humans can understand."
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] ファイルシステムの基本構造を理解する
-- [ ] inodeとディレクトリの仕組みを説明できる
-- [ ] ジャーナリングの必要性を知る
-- [ ] VFSの仕組みと重要性を理解する
-- [ ] ファイルシステムの整合性維持メカニズムを把握する
-- [ ] 実務でのファイルシステム操作に習熟する
+- [ ] Understand the basic structure of file systems
+- [ ] Be able to explain how inodes and directories work
+- [ ] Understand the need for journaling
+- [ ] Understand the mechanism and importance of VFS
+- [ ] Grasp file system consistency maintenance mechanisms
+- [ ] Become proficient in practical file system operations
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Having the following knowledge will deepen your understanding before reading this guide:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
+- Basic programming knowledge
+- Understanding of related fundamental concepts
 
 ---
 
-## 1. ファイルシステムの構造
+## 1. File System Structure
 
-### 1.1 物理構造から論理構造への変換
+### 1.1 Converting Physical Structure to Logical Structure
 
 ```
-ディスクの物理構造 → ファイルシステムの論理構造:
+Physical structure of disk -> Logical structure of file system:
 
-  物理: セクタ(512B/4KB)の連続
-  ┌──┬──┬──┬──┬──┬──┬──┬──┬──┬──┐
-  │S0│S1│S2│S3│S4│S5│S6│S7│S8│S9│...
-  └──┴──┴──┴──┴──┴──┴──┴──┴──┴──┘
+  Physical: Contiguous sectors (512B/4KB)
+  +--+--+--+--+--+--+--+--+--+--+
+  |S0|S1|S2|S3|S4|S5|S6|S7|S8|S9|...
+  +--+--+--+--+--+--+--+--+--+--+
 
-  論理: ファイルとディレクトリの階層
+  Logical: Hierarchical files and directories
   /
-  ├── home/
-  │   └── user/
-  │       ├── document.txt
-  │       └── photo.jpg
-  ├── etc/
-  │   └── config.yaml
-  └── var/
-      └── log/
-          ├── syslog
-          └── auth.log
+  +-- home/
+  |   +-- user/
+  |       +-- document.txt
+  |       +-- photo.jpg
+  +-- etc/
+  |   +-- config.yaml
+  +-- var/
+      +-- log/
+          +-- syslog
+          +-- auth.log
 ```
 
-ファイルシステムの根本的な役割は、ディスク上のセクタの羅列を、人間が直感的に扱えるファイルとディレクトリの階層構造に変換することである。この変換は以下の複数のレイヤーで実現される。
+The fundamental role of a file system is to convert the sequence of sectors on a disk into a hierarchical structure of files and directories that humans can intuitively work with. This conversion is achieved through multiple layers.
 
 ```
-変換レイヤーの構造:
+Conversion layer structure:
 
-  ユーザ空間:  open("/home/user/doc.txt", O_RDONLY)
-      │
-      ↓
-  VFS層:       パス名解決 → dentry キャッシュ参照
-      │
-      ↓
-  FS固有層:    ext4_lookup() → inode 取得
-      │
-      ↓
-  ブロック層:  ブロック番号 → セクタ番号に変換
-      │
-      ↓
-  デバイス層:  I/Oリクエスト発行 → ディスクコントローラ
-      │
-      ↓
-  物理層:      ヘッド移動 → セクタ読み取り（HDD）
-              NANDフラッシュアクセス（SSD）
+  User space:  open("/home/user/doc.txt", O_RDONLY)
+      |
+      v
+  VFS layer:   Path name resolution -> dentry cache lookup
+      |
+      v
+  FS-specific:  ext4_lookup() -> inode retrieval
+      |
+      v
+  Block layer:  Block number -> sector number conversion
+      |
+      v
+  Device layer: I/O request issuance -> disk controller
+      |
+      v
+  Physical:     Head movement -> sector read (HDD)
+                NAND flash access (SSD)
 ```
 
-### 1.2 ブロックとセクタの関係
+### 1.2 Relationship Between Blocks and Sectors
 
 ```
-セクタ（Sector）:
-  - ディスクの最小物理単位
-  - 伝統的に512バイト
-  - Advanced Format（AF）ドライブでは4096バイト（4Kn）
-  - 512eドライブ: 物理4KB、論理512Bエミュレーション
+Sector:
+  - Smallest physical unit of a disk
+  - Traditionally 512 bytes
+  - Advanced Format (AF) drives use 4096 bytes (4Kn)
+  - 512e drives: physical 4KB, logical 512B emulation
 
-ブロック（Block）:
-  - ファイルシステムの最小論理単位
-  - 通常1KB〜4KB（ext4デフォルトは4KB）
-  - 1ブロック = N セクタ
+Block:
+  - Smallest logical unit of a file system
+  - Typically 1KB to 4KB (ext4 default is 4KB)
+  - 1 block = N sectors
 
-  ブロックサイズの選択:
-  ┌──────────┬──────────────────────────────────┐
-  │ 小さい   │ 内部断片化が少ない                │
-  │ ブロック │ メタデータのオーバーヘッドが大きい  │
-  │ (1KB)    │ 小さなファイルが多い場合に有利     │
-  ├──────────┼──────────────────────────────────┤
-  │ 大きい   │ 内部断片化が多い                  │
-  │ ブロック │ メタデータのオーバーヘッドが少ない  │
-  │ (4KB)    │ 大きなファイルの転送効率が良い     │
-  └──────────┴──────────────────────────────────┘
+  Block size selection:
+  +----------+----------------------------------+
+  | Small    | Less internal fragmentation      |
+  | block    | Higher metadata overhead         |
+  | (1KB)    | Advantageous for many small files |
+  +----------+----------------------------------+
+  | Large    | More internal fragmentation      |
+  | block    | Lower metadata overhead          |
+  | (4KB)    | Better transfer efficiency for   |
+  |          | large files                      |
+  +----------+----------------------------------+
 
-  例: 1バイトのファイルでも1ブロック（4KB）消費
-  → 内部断片化（internal fragmentation）
+  Example: Even a 1-byte file consumes 1 block (4KB)
+  -> Internal fragmentation
 
-  ブロックサイズの確認:
+  Check block size:
   $ tune2fs -l /dev/sda1 | grep "Block size"
   Block size:               4096
 
   $ stat -f / | grep "Block size"  # macOS
 ```
 
-### 1.3 ext4の基本レイアウト
+### 1.3 Basic Layout of ext4
 
 ```
-ext4のディスクレイアウト:
+ext4 disk layout:
 
-  ┌──────┬──────────┬──────────┬──────────┬──────┐
-  │Boot  │ Block    │ inode    │ inode    │Data  │
-  │Block │ Group    │ Table    │ Bitmap   │Blocks│
-  │      │Descriptor│          │ + Block  │      │
-  │      │          │          │ Bitmap   │      │
-  └──────┴──────────┴──────────┴──────────┴──────┘
+  +------+----------+----------+----------+------+
+  |Boot  | Block    | inode    | inode    |Data  |
+  |Block | Group    | Table    | Bitmap   |Blocks|
+  |      |Descriptor|          | + Block  |      |
+  |      |          |          | Bitmap   |      |
+  +------+----------+----------+----------+------+
 
-  詳細なブロックグループ構造:
-  ┌─────────────────────────────────────────────────────┐
-  │                    ブロックグループ 0                  │
-  ├──────┬──────┬──────┬──────┬──────┬─────────────────┤
-  │Super │Group │Block │inode │inode │    Data         │
-  │block │Desc. │Bitmap│Bitmap│Table │    Blocks       │
-  │(1blk)│(Nblk)│(1blk)│(1blk)│(Nblk)│  (残り全部)    │
-  └──────┴──────┴──────┴──────┴──────┴─────────────────┘
+  Detailed block group structure:
+  +-----------------------------------------------------+
+  |                    Block Group 0                      |
+  +------+------+------+------+------+-----------------+
+  |Super |Group |Block |inode |inode |    Data         |
+  |block |Desc. |Bitmap|Bitmap|Table |    Blocks       |
+  |(1blk)|(Nblk)|(1blk)|(1blk)|(Nblk)|  (all remaining)|
+  +------+------+------+------+------+-----------------+
 
-  ブロックグループ 1, 2, ... も同様の構造
-  （Superblockはバックアップのため一部のグループにも格納）
+  Block Groups 1, 2, ... have the same structure
+  (Superblock is stored in some groups as backup)
 ```
 
-**Superblock（スーパーブロック）** はファイルシステム全体のメタデータを保持する最重要構造体である。
+**Superblock** is the most critical structure that holds metadata for the entire file system.
 
 ```
-Superblock の主要フィールド:
+Major fields of the Superblock:
 
-  s_inodes_count       : inode の総数
-  s_blocks_count       : ブロックの総数
-  s_free_blocks_count  : 空きブロック数
-  s_free_inodes_count  : 空き inode 数
-  s_log_block_size     : ブロックサイズ（2の累乗で表現）
-  s_blocks_per_group   : ブロックグループあたりのブロック数
-  s_inodes_per_group   : ブロックグループあたりの inode 数
-  s_magic              : ファイルシステム識別子（ext4 = 0xEF53）
-  s_state              : ファイルシステムの状態（クリーン/エラー）
-  s_feature_compat     : 互換性のある機能フラグ
-  s_feature_incompat   : 非互換の機能フラグ
-  s_feature_ro_compat  : 読み取り専用互換の機能フラグ
-  s_uuid               : ファイルシステムの UUID
-  s_volume_name        : ボリューム名
-  s_last_mounted       : 最後にマウントされたパス
+  s_inodes_count       : Total number of inodes
+  s_blocks_count       : Total number of blocks
+  s_free_blocks_count  : Number of free blocks
+  s_free_inodes_count  : Number of free inodes
+  s_log_block_size     : Block size (expressed as a power of 2)
+  s_blocks_per_group   : Number of blocks per block group
+  s_inodes_per_group   : Number of inodes per block group
+  s_magic              : File system identifier (ext4 = 0xEF53)
+  s_state              : File system state (clean/error)
+  s_feature_compat     : Compatible feature flags
+  s_feature_incompat   : Incompatible feature flags
+  s_feature_ro_compat  : Read-only compatible feature flags
+  s_uuid               : File system UUID
+  s_volume_name        : Volume name
+  s_last_mounted       : Last mounted path
 
-Superblock のバックアップ:
-  - ブロックグループ 0, 1, 3, 5, 7, 9, 25, 27, ... に格納
-  - 3, 5, 7 の累乗のグループに格納（sparse superblock）
-  - メインの Superblock が破損しても復旧可能
+Superblock backups:
+  - Stored in block groups 0, 1, 3, 5, 7, 9, 25, 27, ...
+  - Stored in groups that are powers of 3, 5, 7 (sparse superblock)
+  - Recovery is possible even if the main Superblock is corrupted
 
-  復旧例:
-  $ sudo mke2fs -n /dev/sda1  # バックアップ位置を確認
+  Recovery example:
+  $ sudo mke2fs -n /dev/sda1  # Check backup locations
   Superblock backups stored on blocks:
     32768, 98304, 163840, 229376, ...
 
-  $ sudo e2fsck -b 32768 /dev/sda1  # バックアップから修復
+  $ sudo e2fsck -b 32768 /dev/sda1  # Repair from backup
 ```
 
-### 1.4 ブロックグループデスクリプタ
+### 1.4 Block Group Descriptor
 
 ```
-Block Group Descriptor（BGD）の内容:
+Block Group Descriptor (BGD) contents:
 
-  bg_block_bitmap      : ブロックビットマップの位置
-  bg_inode_bitmap      : inode ビットマップの位置
-  bg_inode_table       : inode テーブルの開始位置
-  bg_free_blocks_count : グループ内の空きブロック数
-  bg_free_inodes_count : グループ内の空き inode 数
-  bg_used_dirs_count   : グループ内のディレクトリ数
+  bg_block_bitmap      : Location of block bitmap
+  bg_inode_bitmap      : Location of inode bitmap
+  bg_inode_table       : Start position of inode table
+  bg_free_blocks_count : Number of free blocks in group
+  bg_free_inodes_count : Number of free inodes in group
+  bg_used_dirs_count   : Number of directories in group
 
-ビットマップの仕組み:
-  ブロックビットマップ:
-  各ビットが1ブロックに対応（使用中=1, 空き=0）
+Bitmap mechanism:
+  Block bitmap:
+  Each bit corresponds to one block (in use=1, free=0)
 
-  例: 8ブロック分のビットマップ
-  ┌─┬─┬─┬─┬─┬─┬─┬─┐
-  │1│1│0│1│0│0│1│0│
-  └─┴─┴─┴─┴─┴─┴─┴─┘
+  Example: Bitmap for 8 blocks
+  +-+-+-+-+-+-+-+-+
+  |1|1|0|1|0|0|1|0|
+  +-+-+-+-+-+-+-+-+
    B0 B1 B2 B3 B4 B5 B6 B7
-   使 使 空 使 空 空 使 空
+   U  U  F  U  F  F  U  F
+   (U=Used, F=Free)
 
-  1ブロック（4KB）のビットマップで管理できるブロック数:
-  4096 × 8 = 32768 ブロック
-  32768 × 4KB = 128MB
+  Number of blocks manageable with 1 block (4KB) bitmap:
+  4096 x 8 = 32768 blocks
+  32768 x 4KB = 128MB
 
-  → 1つのブロックグループは最大128MB
+  -> One block group can manage up to 128MB
 ```
 
-### 1.5 Flex Block Groups（ext4の拡張）
+### 1.5 Flex Block Groups (ext4 Extension)
 
 ```
 Flex Block Groups:
-  複数のブロックグループのメタデータをまとめて配置
-  → メタデータの局所性が向上し、シーク回数を削減
+  Consolidates metadata from multiple block groups into one location
+  -> Improves metadata locality and reduces seek count
 
-  通常のレイアウト:
-  ┌────────┐┌────────┐┌────────┐┌────────┐
-  │meta data││meta data││meta data││meta data│
-  │ + data ││ + data ││ + data ││ + data │
-  └────────┘└────────┘└────────┘└────────┘
+  Standard layout:
+  +--------++--------++--------++--------+
+  |metadata||metadata||metadata||metadata|
+  | + data || + data || + data || + data |
+  +--------++--------++--------++--------+
    BG0       BG1       BG2       BG3
 
   Flex Block Groups:
-  ┌──────────────────┐┌──────┐┌──────┐┌──────┐
-  │ meta0+meta1+     ││ data ││ data ││ data │
-  │ meta2+meta3      ││      ││      ││      │
-  └──────────────────┘└──────┘└──────┘└──────┘
-   Flex BG 0 (メタデータ集約)     データ領域
+  +------------------++------++------++------+
+  | meta0+meta1+     || data || data || data |
+  | meta2+meta3      ||      ||      ||      |
+  +------------------++------++------++------+
+   Flex BG 0 (consolidated metadata)   Data area
 
-  → メタデータの読み取りが高速化
-  → 大容量ファイルシステムで効果的
+  -> Faster metadata reads
+  -> Effective for large file systems
 ```
 
 ---
 
-## 2. inodeとディレクトリ
+## 2. Inodes and Directories
 
-### 2.1 inodeの構造
-
-```
-inode（index node）:
-  ファイルのメタデータを格納する構造体
-  ※ ファイル名は含まれない！名前はディレクトリが管理
-
-  ┌──────────────────────────────────┐
-  │ inode #12345                     │
-  ├──────────────────────────────────┤
-  │ ファイルタイプ: 通常ファイル     │
-  │ パーミッション: rwxr-xr-x       │
-  │ 所有者: uid=1000                │
-  │ グループ: gid=1000              │
-  │ サイズ: 4096 bytes              │
-  │ タイムスタンプ:                 │
-  │   atime: 最終アクセス時刻       │
-  │   mtime: 最終変更時刻           │
-  │   ctime: メタデータ変更時刻     │
-  │   crtime: 作成時刻（ext4拡張）  │
-  │ リンク数: 1                     │
-  │ ブロック数: 8 (512B単位)        │
-  │ フラグ: 0x80000 (extents使用)   │
-  │ データブロックポインタ:          │
-  │   直接: [B1][B2]...[B12]       │
-  │   間接: [→ ブロック群]          │
-  │   二重間接: [→→ ブロック群]     │
-  │   三重間接: [→→→ ...]          │
-  └──────────────────────────────────┘
-```
-
-### 2.2 データブロックポインタの仕組み
+### 2.1 Inode Structure
 
 ```
-従来のブロックポインタ方式（ext2/ext3）:
+inode (index node):
+  A structure that stores file metadata
+  * File name is NOT included! Names are managed by directories
 
-  inode のデータポインタ:
-  ┌──────────────┐
-  │ 直接ポインタ  │ ×12個 → 12 × 4KB = 48KB
-  │ [0]-[11]     │
-  ├──────────────┤
-  │ 間接ポインタ  │ ×1個 → 1024 × 4KB = 4MB
-  │ [12]         │
-  ├──────────────┤
-  │ 二重間接      │ ×1個 → 1024² × 4KB = 4GB
-  │ [13]         │
-  ├──────────────┤
-  │ 三重間接      │ ×1個 → 1024³ × 4KB = 4TB
-  │ [14]         │
-  └──────────────┘
-
-  間接ポインタの展開:
-  inode[12] → ┌──────┐
-              │ B100 │
-              │ B101 │
-              │ B102 │
-              │ ...  │ (1024エントリ)
-              │ B1123│
-              └──────┘
-
-  問題点:
-  - 大きなファイルでは多段参照が必要
-  - 連続ブロックでも個別にポインタを保持 → メタデータが肥大化
-  - 例: 1GBの連続ファイル → 262,144個のブロックポインタが必要
+  +----------------------------------+
+  | inode #12345                     |
+  +----------------------------------+
+  | File type: regular file          |
+  | Permissions: rwxr-xr-x          |
+  | Owner: uid=1000                  |
+  | Group: gid=1000                  |
+  | Size: 4096 bytes                 |
+  | Timestamps:                      |
+  |   atime: last access time        |
+  |   mtime: last modification time  |
+  |   ctime: metadata change time    |
+  |   crtime: creation time (ext4)   |
+  | Link count: 1                    |
+  | Block count: 8 (in 512B units)   |
+  | Flags: 0x80000 (extents used)    |
+  | Data block pointers:             |
+  |   Direct: [B1][B2]...[B12]      |
+  |   Indirect: [-> block group]     |
+  |   Double indirect: [->> blocks]  |
+  |   Triple indirect: [--->> ...]   |
+  +----------------------------------+
 ```
 
-### 2.3 エクステント（ext4）
+### 2.2 Data Block Pointer Mechanism
 
 ```
-ext4のエクステント:
-  連続するブロックを「開始ブロック + ブロック数」で表現
-  → メタデータの大幅削減
+Traditional block pointer scheme (ext2/ext3):
 
-  エクステント構造:
-  ┌────────────────────────────────┐
-  │ ee_block: 論理ブロック番号      │
-  │ ee_len:   ブロック数            │
-  │ ee_start: 物理ブロック番号      │
-  └────────────────────────────────┘
+  inode data pointers:
+  +--------------+
+  | Direct       | x12 -> 12 x 4KB = 48KB
+  | pointers     |
+  | [0]-[11]     |
+  +--------------+
+  | Indirect     | x1 -> 1024 x 4KB = 4MB
+  | pointer      |
+  | [12]         |
+  +--------------+
+  | Double       | x1 -> 1024^2 x 4KB = 4GB
+  | indirect     |
+  | [13]         |
+  +--------------+
+  | Triple       | x1 -> 1024^3 x 4KB = 4TB
+  | indirect     |
+  | [14]         |
+  +--------------+
 
-  例: 1GB の連続ファイル
-  従来: 262,144個のブロックポインタ
-  エクステント: 1個のエクステント（開始 + 長さ）
+  Expansion of indirect pointers:
+  inode[12] -> +------+
+               | B100 |
+               | B101 |
+               | B102 |
+               | ...  | (1024 entries)
+               | B1123|
+               +------+
 
-  エクステントツリー:
-  ┌──────────────────┐
-  │ inode            │
-  │ ┌──────────────┐ │
-  │ │ ヘッダ       │ │
-  │ │ エクステント1 │ │ → ブロック 0-99   → 物理 1000-1099
-  │ │ エクステント2 │ │ → ブロック 100-299 → 物理 2000-2199
-  │ │ エクステント3 │ │ → ブロック 300-599 → 物理 5000-5299
-  │ │ インデックス  │ │ → 追加のツリーノード
-  │ └──────────────┘ │
-  └──────────────────┘
-
-  inodeに直接格納できるエクステントは4個まで
-  → それ以上はB木構造で管理（エクステントツリー）
-
-  利点:
-  - 連続アロケーションの効率的な表現
-  - メタデータの大幅削減
-  - 大ファイルの処理が高速
-  - 断片化が少ない場合に特に効果的
+  Problems:
+  - Multi-level references needed for large files
+  - Individual pointers maintained even for contiguous blocks -> metadata bloat
+  - Example: 1GB contiguous file -> 262,144 block pointers needed
 ```
 
-### 2.4 ディレクトリの実装
+### 2.3 Extents (ext4)
 
 ```
-ディレクトリ:
-  ファイル名とinode番号の対応表
+ext4 extents:
+  Represent contiguous blocks as "start block + block count"
+  -> Significant metadata reduction
 
-  /home/user/ のディレクトリエントリ:
-  ┌──────────────┬──────────┬──────────┬──────────┐
-  │ ファイル名    │ inode番号│ エントリ長│ タイプ   │
-  ├──────────────┼──────────┼──────────┼──────────┤
-  │ .            │ 201      │ 12       │ DIR      │
-  │ ..           │ 100      │ 12       │ DIR      │
-  │ document.txt │ 12345    │ 20       │ REG      │
-  │ photo.jpg    │ 12346    │ 16       │ REG      │
-  │ scripts/     │ 12400    │ 16       │ DIR      │
-  └──────────────┴──────────┴──────────┴──────────┘
+  Extent structure:
+  +--------------------------------+
+  | ee_block: logical block number  |
+  | ee_len:   block count           |
+  | ee_start: physical block number |
+  +--------------------------------+
 
-  ext4のディレクトリ実装方式:
+  Example: 1GB contiguous file
+  Traditional: 262,144 block pointers
+  Extents: 1 extent (start + length)
 
-  1. リニアディレクトリ:
-     - エントリを順番に格納
-     - 小さなディレクトリ向け
-     - 検索: O(n)
+  Extent tree:
+  +------------------+
+  | inode            |
+  | +--------------+ |
+  | | Header       | |
+  | | Extent 1     | | -> Blocks 0-99   -> Physical 1000-1099
+  | | Extent 2     | | -> Blocks 100-299 -> Physical 2000-2199
+  | | Extent 3     | | -> Blocks 300-599 -> Physical 5000-5299
+  | | Index        | | -> Additional tree nodes
+  | +--------------+ |
+  +------------------+
 
-  2. HTree（ハッシュツリー）ディレクトリ:
-     - ファイル名のハッシュでB木を構成
-     - 大きなディレクトリ向け（数万ファイル以上）
-     - 検索: O(log n)
-     - デフォルトで有効
+  Up to 4 extents can be stored directly in the inode
+  -> Beyond that, managed with a B-tree structure (extent tree)
 
-  HTreeの構造:
-  ┌─────────────────────────────┐
-  │ ルートノード                 │
-  │ hash < 0x4000 → ブロック5   │
-  │ hash < 0x8000 → ブロック12  │
-  │ hash < 0xC000 → ブロック18  │
-  │ hash >= 0xC000 → ブロック25 │
-  └─────┬───────┬───────┬───────┘
-        ↓       ↓       ↓
-    ┌──────┐┌──────┐┌──────┐
-    │エントリ││エントリ││エントリ│
-    │の一覧 ││の一覧 ││の一覧 │
-    └──────┘└──────┘└──────┘
+  Advantages:
+  - Efficient representation of contiguous allocation
+  - Significant metadata reduction
+  - Faster processing of large files
+  - Especially effective when fragmentation is low
 ```
 
-### 2.5 パス名解決（Path Resolution）
+### 2.4 Directory Implementation
 
 ```
-open("/home/user/document.txt") の処理:
+Directory:
+  A mapping table between file names and inode numbers
 
-  ステップ1: "/" を解決
-  → ルートディレクトリの inode（通常 inode 2）を取得
-  → dentryキャッシュを確認
+  Directory entries for /home/user/:
+  +--------------+----------+----------+----------+
+  | File name    | inode #  | Entry len| Type     |
+  +--------------+----------+----------+----------+
+  | .            | 201      | 12       | DIR      |
+  | ..           | 100      | 12       | DIR      |
+  | document.txt | 12345    | 20       | REG      |
+  | photo.jpg    | 12346    | 16       | REG      |
+  | scripts/     | 12400    | 16       | DIR      |
+  +--------------+----------+----------+----------+
 
-  ステップ2: "home" を解決
-  → "/" の inode からディレクトリエントリを検索
-  → "home" に対応する inode 番号を取得（例: 100）
-  → inode 100 のパーミッションチェック（x ビット）
+  ext4 directory implementation methods:
 
-  ステップ3: "user" を解決
-  → inode 100 のディレクトリエントリから "user" を検索
-  → inode 201 を取得
-  → パーミッションチェック
+  1. Linear directory:
+     - Entries stored sequentially
+     - For small directories
+     - Lookup: O(n)
 
-  ステップ4: "document.txt" を解決
-  → inode 201 のディレクトリエントリから "document.txt" を検索
-  → inode 12345 を取得
-  → パーミッションチェック（r ビット）
+  2. HTree (Hash Tree) directory:
+     - B-tree constructed from file name hashes
+     - For large directories (tens of thousands of files or more)
+     - Lookup: O(log n)
+     - Enabled by default
 
-  ステップ5: ファイルオープン
-  → inode 12345 をメモリにロード
-  → ファイルディスクリプタを割り当て
-  → file 構造体を作成して返す
-
-  重要: 各ステップでパーミッションチェックが行われる
-  → ディレクトリの "x"（実行）ビットが必要
-  → "x" がないとディレクトリ内のファイルにアクセスできない
-
-  パス名解決の最適化:
-  - dentryキャッシュ: 解決済みのパス→inodeマッピングをメモリに保持
-  - 否定dentry: 存在しないパスも記録（不要な検索を回避）
-  - RCU（Read-Copy-Update）: ロックなしの並行アクセス
+  HTree structure:
+  +-----------------------------+
+  | Root node                   |
+  | hash < 0x4000 -> block 5   |
+  | hash < 0x8000 -> block 12  |
+  | hash < 0xC000 -> block 18  |
+  | hash >= 0xC000 -> block 25 |
+  +-----+-------+-------+-----+
+        v       v       v
+    +------++------++------+
+    |entry ||entry ||entry |
+    |list  ||list  ||list  |
+    +------++------++------+
 ```
 
-### 2.6 ハードリンクとシンボリックリンク
+### 2.5 Path Name Resolution
 
 ```
-ハードリンク:
-  同じinodeを指す別名
+Processing of open("/home/user/document.txt"):
+
+  Step 1: Resolve "/"
+  -> Get the root directory inode (usually inode 2)
+  -> Check dentry cache
+
+  Step 2: Resolve "home"
+  -> Search directory entries from "/" inode
+  -> Get inode number corresponding to "home" (e.g., 100)
+  -> Permission check on inode 100 (x bit)
+
+  Step 3: Resolve "user"
+  -> Search for "user" in directory entries of inode 100
+  -> Get inode 201
+  -> Permission check
+
+  Step 4: Resolve "document.txt"
+  -> Search for "document.txt" in directory entries of inode 201
+  -> Get inode 12345
+  -> Permission check (r bit)
+
+  Step 5: Open file
+  -> Load inode 12345 into memory
+  -> Assign a file descriptor
+  -> Create and return a file structure
+
+  Important: Permission checks are performed at each step
+  -> Directory "x" (execute) bit is required
+  -> Without "x", files within the directory cannot be accessed
+
+  Path name resolution optimization:
+  - dentry cache: Keeps resolved path->inode mappings in memory
+  - Negative dentry: Records non-existent paths (avoids unnecessary lookups)
+  - RCU (Read-Copy-Update): Lock-free concurrent access
+```
+
+### 2.6 Hard Links and Symbolic Links
+
+```
+Hard link:
+  Another name pointing to the same inode
 
   $ echo "hello" > original.txt   # inode 12345
-  $ ln original.txt link.txt       # inode 12345 (同一)
+  $ ln original.txt link.txt       # inode 12345 (same)
 
-  ┌──────────────┐     ┌──────────────┐
-  │ original.txt │────→│  inode       │
-  └──────────────┘     │  #12345      │
-  ┌──────────────┐     │  links: 2   │
-  │ link.txt     │────→│  data: ...   │
-  └──────────────┘     └──────────────┘
+  +--------------+     +--------------+
+  | original.txt |---->|  inode       |
+  +--------------+     |  #12345      |
+  +--------------+     |  links: 2    |
+  | link.txt     |---->|  data: ...   |
+  +--------------+     +--------------+
 
-  特徴:
-  - inode番号が同一
-  - リンクカウントが増加
-  - どちらからアクセスしても同じデータ
-  - 片方を削除してもデータは残る（リンクカウント > 0 の間）
-  - リンクカウントが0になるとデータ領域が解放
+  Characteristics:
+  - Same inode number
+  - Link count increases
+  - Same data accessed from either name
+  - Data persists even if one is deleted (while link count > 0)
+  - Data blocks freed when link count reaches 0
 
-  制約:
-  - ディレクトリのハードリンクは不可（ループ防止）
-    → 「.」と「..」のみ例外（カーネルが管理）
-  - パーティション/ファイルシステム境界を跨げない
-    → inodeはFS内でのみ一意
+  Constraints:
+  - Hard links to directories are not allowed (to prevent loops)
+    -> "." and ".." are exceptions (managed by the kernel)
+  - Cannot cross partition/file system boundaries
+    -> Inodes are unique only within a file system
 
-シンボリックリンク（シムリンク）:
-  パスを格納する特別なファイル
+Symbolic link (symlink):
+  A special file that stores a path
 
   $ ln -s /path/to/original symlink
 
-  ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-  │ symlink      │────→│ inode #99999 │     │ inode #12345 │
-  └──────────────┘     │ type: LINK   │     │ type: REG    │
-                       │ data:        │────→│ data: ...    │
-                       │"/path/to/    │     └──────────────┘
-                       │ original"    │
-                       └──────────────┘
+  +--------------+     +--------------+     +--------------+
+  | symlink      |---->| inode #99999 |     | inode #12345 |
+  +--------------+     | type: LINK   |     | type: REG    |
+                       | data:        |---->| data: ...    |
+                       |"/path/to/    |     +--------------+
+                       | original"    |
+                       +--------------+
 
-  特徴:
-  - 別のinodeを持つ
-  - パス文字列を格納（60バイト以下ならinode内に直接格納）
-  - ディレクトリへのリンクが可能
-  - パーティション境界を跨げる
-  - リンク先が削除されるとダングリングリンク（壊れたリンク）
+  Characteristics:
+  - Has a separate inode
+  - Stores a path string (stored directly in the inode if 60 bytes or less)
+  - Can link to directories
+  - Can cross partition boundaries
+  - Becomes a dangling link (broken link) if the target is deleted
 
-  ファストシムリンク（ext4）:
-  - パスが60バイト以下の場合、inode内のデータポインタ領域に直接格納
-  - ディスクブロックを追加消費しない
-  - → 大部分のシムリンクがファストシムリンク
+  Fast symlink (ext4):
+  - If path is 60 bytes or less, stored directly in the data pointer area of the inode
+  - No additional disk blocks consumed
+  - -> Most symlinks are fast symlinks
 
-  比較表:
-  ┌──────────────┬──────────────┬──────────────┐
-  │              │ ハードリンク │ シムリンク   │
-  ├──────────────┼──────────────┼──────────────┤
-  │ inode        │ 同一         │ 別           │
-  │ FS跨ぎ       │ 不可         │ 可能         │
-  │ ディレクトリ │ 不可         │ 可能         │
-  │ リンク先削除 │ データ存続   │ ダングリング │
-  │ ディスク消費 │ なし         │ inode1個     │
-  │ パス更新     │ 不要         │ 必要な場合   │
-  └──────────────┴──────────────┴──────────────┘
+  Comparison table:
+  +--------------+--------------+--------------+
+  |              | Hard link    | Symlink      |
+  +--------------+--------------+--------------+
+  | inode        | Same         | Different    |
+  | Cross FS     | Not possible | Possible     |
+  | Directories  | Not possible | Possible     |
+  | Target       | Data         | Dangling     |
+  | deleted      | persists     | link         |
+  | Disk usage   | None         | 1 inode      |
+  | Path update  | Not needed   | May be needed|
+  +--------------+--------------+--------------+
 ```
 
-### 2.7 特殊ファイル
+### 2.7 Special Files
 
 ```
-Linuxにおける特殊ファイル:
+Special files in Linux:
 
-  1. デバイスファイル:
-     - キャラクタデバイス (c): /dev/tty, /dev/null
-     - ブロックデバイス (b): /dev/sda, /dev/nvme0n1
-     - メジャー番号 + マイナー番号でデバイスを識別
+  1. Device files:
+     - Character device (c): /dev/tty, /dev/null
+     - Block device (b): /dev/sda, /dev/nvme0n1
+     - Identified by major number + minor number
 
-  2. 名前付きパイプ (FIFO):
+  2. Named pipe (FIFO):
      - mkfifo /tmp/mypipe
-     - プロセス間通信に使用
-     - 一方が書き込み、他方が読み取り
+     - Used for inter-process communication
+     - One side writes, the other reads
 
-  3. UNIXドメインソケット:
-     - ローカルプロセス間のネットワーク風通信
+  3. UNIX domain socket:
+     - Network-style local inter-process communication
      - /var/run/docker.sock, /tmp/.X11-unix/X0
 
-  4. 特殊な仮想ファイル:
-     /dev/null   : 書き込みを破棄。読み取りは即EOF
-     /dev/zero   : 無限のゼロバイトを生成
-     /dev/random : 暗号学的に安全な乱数（エントロピー枯渇時ブロック）
-     /dev/urandom: 非ブロッキング疑似乱数
-     /dev/full   : 書き込みで ENOSPC エラーを返す（テスト用）
+  4. Special virtual files:
+     /dev/null   : Discards writes. Reads return immediate EOF
+     /dev/zero   : Generates infinite zero bytes
+     /dev/random : Cryptographically secure random numbers (blocks on entropy exhaustion)
+     /dev/urandom: Non-blocking pseudo-random numbers
+     /dev/full   : Returns ENOSPC error on writes (for testing)
 
-  ファイルタイプの確認:
+  Check file types:
   $ ls -la /dev/null /dev/sda /tmp/mypipe
-  crw-rw-rw- 1 root root 1, 3 ... /dev/null     # c=キャラクタ
-  brw-rw---- 1 root disk 8, 0 ... /dev/sda       # b=ブロック
-  prw-r--r-- 1 user user 0    ... /tmp/mypipe    # p=パイプ
-  srwxrwxrwx 1 root root 0    ... /var/run/docker.sock  # s=ソケット
+  crw-rw-rw- 1 root root 1, 3 ... /dev/null     # c=character
+  brw-rw---- 1 root disk 8, 0 ... /dev/sda       # b=block
+  prw-r--r-- 1 user user 0    ... /tmp/mypipe    # p=pipe
+  srwxrwxrwx 1 root root 0    ... /var/run/docker.sock  # s=socket
 
   $ stat --format '%F' /dev/null
   character special file
@@ -520,131 +527,131 @@ Linuxにおける特殊ファイル:
 
 ---
 
-## 3. ジャーナリング
+## 3. Journaling
 
-### 3.1 クラッシュ一貫性問題
-
-```
-問題: 書き込み中に電源断が発生したら？
-
-  ファイル作成の手順:
-  1. inodeビットマップで空きinodeを見つけて確保
-  2. inodeにメタデータを書き込み
-  3. ディレクトリにエントリ追加
-  4. ブロックビットマップで空きブロックを確保
-  5. データブロックにデータを書き込み
-
-  電源断が発生した場合の不整合パターン:
-
-  ケース1: ステップ2の後に電源断
-  → inodeは確保されたがディレクトリエントリがない
-  → inodeは存在するがアクセス不可 = orphan inode
-  → inode がリーク（使用中だが参照されない）
-
-  ケース2: ステップ3の後に電源断
-  → ディレクトリエントリはあるがデータがない
-  → ファイルは見えるが中身がゴミデータ
-
-  ケース3: ステップ4の後に電源断
-  → ブロックは確保されたがデータが書かれていない
-  → 前のファイルのデータが見える可能性（セキュリティリスク）
-
-  ケース4: ファイル追記中に電源断
-  → inodeのサイズ更新とデータ書き込みが不一致
-  → ファイルの末尾にゴミデータ
-
-  これらの問題を解決する手段:
-  1. fsck（ファイルシステムチェック）: 起動時に全データを検査
-     → 大容量ディスクでは数時間〜数十時間かかる
-  2. ジャーナリング: 変更を先にログに記録
-     → 起動時はジャーナルだけ確認すればよい（秒単位）
-  3. CoW: データを上書きせず新しい場所に書く
-     → 原理的にクラッシュ一貫性を保証
-```
-
-### 3.2 ジャーナリングの仕組み
+### 3.1 Crash Consistency Problem
 
 ```
-ジャーナリング:
-  変更を「ジャーナル（ログ）」に先に書き込む
+Problem: What happens if a power failure occurs during a write?
 
-  ┌──────────────────────────────────────────────┐
-  │ 1. トランザクション開始                       │
-  │    → 変更内容を記述したログレコードを作成      │
-  │ 2. ジャーナルにログを書き込み                  │
-  │    → 変更前のデータ + 変更後のデータ           │
-  │ 3. ジャーナルをコミット                        │
-  │    → コミットブロックを書き込み                │
-  │ 4. 実際のデータ領域に書き込み（チェックポイント）│
-  │ 5. ジャーナルのログを無効化                    │
-  └──────────────────────────────────────────────┘
+  Steps to create a file:
+  1. Find and allocate a free inode in the inode bitmap
+  2. Write metadata to the inode
+  3. Add an entry to the directory
+  4. Allocate a free block in the block bitmap
+  5. Write data to the data block
 
-  ジャーナル領域の構造:
-  ┌──────┬──────┬──────┬──────┬──────┬──────┬──────┐
-  │ Desc │ Data │ Data │Commit│ Desc │ Data │Commit│
-  │ Block│ Log1 │ Log2 │ Block│ Block│ Log3 │ Block│
-  └──────┴──────┴──────┴──────┴──────┴──────┴──────┘
-  ←──── トランザクション1 ────→←── トランザクション2 ──→
+  Inconsistency patterns when power failure occurs:
 
-  電源断が発生した場合:
-  ケース1: ジャーナル書き込み中に電源断
-  → コミットブロックがない
-  → トランザクション全体を破棄（ロールフォワードしない）
-  → データ領域は変更されていないので一貫性維持
+  Case 1: Power failure after step 2
+  -> Inode is allocated but no directory entry exists
+  -> Inode exists but is inaccessible = orphan inode
+  -> Inode leak (in use but not referenced)
 
-  ケース2: コミット後、実データ書き込み中に電源断
-  → コミットブロックがある
-  → ジャーナルのログを使ってリプレイ（再実行）
-  → データ領域を正しい状態に復旧
+  Case 2: Power failure after step 3
+  -> Directory entry exists but no data
+  -> File is visible but contains garbage data
 
-  ケース3: 正常完了後
-  → ジャーナルのログは不要になり無効化
+  Case 3: Power failure after step 4
+  -> Block is allocated but data is not written
+  -> Previous file's data may be visible (security risk)
+
+  Case 4: Power failure during file append
+  -> Inode size update and data write are inconsistent
+  -> Garbage data at the end of the file
+
+  Means to solve these problems:
+  1. fsck (File System Check): Inspects all data at boot time
+     -> Can take hours to tens of hours for large disks
+  2. Journaling: Records changes to a log first
+     -> Only need to check the journal at boot (seconds)
+  3. CoW: Writes data to a new location instead of overwriting
+     -> Guarantees crash consistency by design
 ```
 
-### 3.3 ジャーナリングモード（ext4）
+### 3.2 How Journaling Works
 
 ```
-ext4のジャーナリングモード:
+Journaling:
+  Write changes to the "journal (log)" first
 
-  1. journal モード:
-     - データ + メタデータの両方をジャーナリング
-     - 最も安全だが最も遅い
-     - データを2回書き込む（ジャーナル + 実領域）
-     - 用途: 極めて高い信頼性が求められる場合
+  +----------------------------------------------+
+  | 1. Begin transaction                          |
+  |    -> Create a log record describing changes  |
+  | 2. Write log to journal                       |
+  |    -> Pre-change data + post-change data      |
+  | 3. Commit the journal                         |
+  |    -> Write the commit block                  |
+  | 4. Write to actual data area (checkpoint)     |
+  | 5. Invalidate the journal log                 |
+  +----------------------------------------------+
 
-  2. ordered モード（デフォルト）:
-     - メタデータのみジャーナリング
-     - データはメタデータのコミット前に書き込み
-     - 保証: メタデータが更新される時、データは既に書かれている
-     - 用途: 大多数の用途で最適なバランス
+  Structure of the journal area:
+  +------+------+------+------+------+------+------+
+  | Desc | Data | Data |Commit| Desc | Data |Commit|
+  | Block| Log1 | Log2 | Block| Block| Log3 | Block|
+  +------+------+------+------+------+------+------+
+  <---- Transaction 1 ------><-- Transaction 2 -->
 
-  3. writeback モード:
-     - メタデータのみジャーナリング
-     - データの書き込み順序は保証しない
-     - 最速だがデータ消失のリスクあり
-     - 用途: 一時ファイル、再生成可能なデータ
+  When power failure occurs:
+  Case 1: Power failure during journal write
+  -> No commit block
+  -> Discard entire transaction (do not roll forward)
+  -> Data area is unchanged, so consistency is maintained
 
-  パフォーマンス比較（相対値）:
-  ┌──────────┬──────┬──────┬──────┐
-  │ モード    │ 安全性│ 読み込み│ 書き込み│
-  ├──────────┼──────┼──────┼──────┤
-  │ journal  │ ◎   │ 100  │  60  │
-  │ ordered  │ ○   │ 100  │  85  │
-  │ writeback│ △   │ 100  │ 100  │
-  └──────────┴──────┴──────┴──────┘
+  Case 2: Power failure after commit, during actual data write
+  -> Commit block exists
+  -> Replay (re-execute) using journal log
+  -> Recover data area to correct state
 
-  設定方法:
+  Case 3: After normal completion
+  -> Journal log is no longer needed and is invalidated
+```
+
+### 3.3 Journaling Modes (ext4)
+
+```
+ext4 journaling modes:
+
+  1. journal mode:
+     - Journals both data + metadata
+     - Safest but slowest
+     - Data written twice (journal + actual area)
+     - Use case: When extremely high reliability is required
+
+  2. ordered mode (default):
+     - Journals only metadata
+     - Data is written before metadata commit
+     - Guarantee: When metadata is updated, data is already written
+     - Use case: Optimal balance for the vast majority of use cases
+
+  3. writeback mode:
+     - Journals only metadata
+     - Does not guarantee data write order
+     - Fastest but risk of data loss
+     - Use case: Temporary files, regeneratable data
+
+  Performance comparison (relative values):
+  +----------+------+------+------+
+  | Mode     |Safety| Read | Write|
+  +----------+------+------+------+
+  | journal  | Best | 100  |  60  |
+  | ordered  | Good | 100  |  85  |
+  | writeback| Fair | 100  | 100  |
+  +----------+------+------+------+
+
+  Configuration:
   # /etc/fstab
   /dev/sda1  /  ext4  data=ordered  0  1
 
-  # マウント時に指定
+  # Specify at mount time
   $ sudo mount -o data=journal /dev/sda1 /mnt
 
-  # 現在のモードを確認
+  # Check current mode
   $ cat /proc/fs/ext4/sda1/options | grep data
   data=ordered
 
-  # ジャーナルの状態確認
+  # Check journal status
   $ sudo dumpe2fs /dev/sda1 | grep -i journal
   Journal inode:            8
   Journal backup:           inode blocks
@@ -654,187 +661,193 @@ ext4のジャーナリングモード:
   Journal sequence:         0x000c3a10
 ```
 
-### 3.4 チェックポイントとジャーナルの管理
+### 3.4 Checkpointing and Journal Management
 
 ```
-チェックポイント:
-  ジャーナルのログを実データ領域に反映する処理
+Checkpoint:
+  The process of applying journal logs to the actual data area
 
-  ┌───────────┐     ┌───────────┐     ┌───────────┐
-  │ アプリ     │     │ ジャーナル │     │ データ    │
-  │ write()   │────→│ ログ記録  │────→│ 実反映    │
-  └───────────┘     └───────────┘     └───────────┘
-                    ← 高速書き込み →  ← バックグラウンド →
+  +-----------+     +-----------+     +-----------+
+  | App       |     | Journal   |     | Data      |
+  | write()   |---->| Log entry |---->| Actual    |
+  +-----------+     +-----------+     | write     |
+                    <- Fast write ->  +-----------+
+                                      <- Background ->
 
-  ジャーナルの循環バッファ:
-  ┌──────────────────────────────────────┐
-  │                                      │
-  │  ┌──┬──┬──┬──┬──┬──┬──┬──┬──┐      │
-  │  │T1│T2│  │  │T5│T6│T7│  │  │      │
-  │  └──┴──┴──┴──┴──┴──┴──┴──┴──┘      │
-  │       ↑              ↑               │
-  │    チェックポイント  最新コミット      │
-  │    済み位置           位置            │
-  └──────────────────────────────────────┘
+  Journal circular buffer:
+  +--------------------------------------+
+  |                                      |
+  |  +--+--+--+--+--+--+--+--+--+      |
+  |  |T1|T2|  |  |T5|T6|T7|  |  |      |
+  |  +--+--+--+--+--+--+--+--+--+      |
+  |       ^              ^               |
+  |    Checkpoint       Latest commit    |
+  |    completed        position         |
+  |    position                          |
+  +--------------------------------------+
 
-  T1, T2: チェックポイント完了 → 空き領域として再利用可能
-  T5-T7: まだ実データに反映されていない
+  T1, T2: Checkpoint completed -> can be reused as free space
+  T5-T7: Not yet applied to actual data
 
-  ジャーナルが満杯になった場合:
-  → 新しいトランザクションをブロック
-  → チェックポイントを強制実行
-  → ジャーナルサイズの適切な設定が重要
+  When journal becomes full:
+  -> Block new transactions
+  -> Force checkpoint execution
+  -> Proper journal size configuration is important
 
-  ジャーナルサイズの推奨値:
-  - 小規模（< 100GB）: 64MB
-  - 中規模（100GB-1TB）: 128MB（デフォルト）
-  - 大規模（> 1TB）: 256MB-1GB
+  Recommended journal sizes:
+  - Small (< 100GB): 64MB
+  - Medium (100GB-1TB): 128MB (default)
+  - Large (> 1TB): 256MB-1GB
 
-  $ sudo tune2fs -J size=256 /dev/sda1  # ジャーナルサイズ変更
+  $ sudo tune2fs -J size=256 /dev/sda1  # Change journal size
 ```
 
-### 3.5 Copy-on-Write（CoW）ファイルシステム
+### 3.5 Copy-on-Write (CoW) File Systems
 
 ```
-CoW（Copy-on-Write）ファイルシステム:
-  Btrfs, ZFS はジャーナルの代わりにCoWを使用
-  → データを上書きせず、新しい場所に書き込み
-  → アトミックな更新、スナップショットが高速
+CoW (Copy-on-Write) file systems:
+  Btrfs, ZFS use CoW instead of journaling
+  -> Write to a new location instead of overwriting data
+  -> Atomic updates, fast snapshots
 
-  CoW の仕組み:
-  ┌──────────────────────────────────────────────┐
-  │ 更新前:                                       │
-  │   Root → Node A → [Leaf 1] [Leaf 2] [Leaf 3]│
-  │                                              │
-  │ Leaf 2 を更新する場合:                        │
-  │ 1. Leaf 2 のコピーを新しい場所に作成          │
-  │ 2. コピーにデータを書き込み                    │
-  │ 3. Node A のコピーを作成（新Leaf 2を指す）     │
-  │ 4. Root のコピーを作成（新Node Aを指す）       │
-  │ 5. Superblock を新Root に更新（アトミック操作）│
-  │                                              │
-  │ 更新後:                                       │
-  │   Root' → Node A' → [Leaf 1] [Leaf 2'] [Leaf 3]│
-  │                                              │
-  │ 旧 Root, Node A, Leaf 2 は解放可能           │
-  │ （スナップショットが参照中なら保持）           │
-  └──────────────────────────────────────────────┘
+  How CoW works:
+  +----------------------------------------------+
+  | Before update:                                |
+  |   Root -> Node A -> [Leaf 1] [Leaf 2] [Leaf 3]|
+  |                                               |
+  | When updating Leaf 2:                         |
+  | 1. Create a copy of Leaf 2 in a new location  |
+  | 2. Write data to the copy                     |
+  | 3. Create a copy of Node A (pointing to new   |
+  |    Leaf 2)                                    |
+  | 4. Create a copy of Root (pointing to new     |
+  |    Node A)                                    |
+  | 5. Update Superblock to new Root (atomic op)  |
+  |                                               |
+  | After update:                                 |
+  |   Root' -> Node A' -> [Leaf 1] [Leaf 2'] [Leaf 3]|
+  |                                               |
+  | Old Root, Node A, Leaf 2 can be freed         |
+  | (retained if referenced by a snapshot)        |
+  +----------------------------------------------+
 
-  CoW の利点:
-  - クラッシュ一貫性が原理的に保証される
-  - スナップショットが瞬時に作成可能（旧データを保持するだけ）
-  - ロールバックが容易
+  CoW advantages:
+  - Crash consistency is guaranteed by design
+  - Snapshots can be created instantly (just keep old data)
+  - Easy rollback
 
-  CoW の欠点:
-  - 書き込み増幅（小さな変更でもツリー全体のパスをコピー）
-  - 断片化しやすい（データが分散配置される）
-  - ランダム書き込みのパフォーマンスが低下する場合がある
+  CoW disadvantages:
+  - Write amplification (even small changes copy entire tree path)
+  - Prone to fragmentation (data placed in scattered locations)
+  - Random write performance may degrade
 
-  ジャーナリング vs CoW:
-  ┌──────────────┬─────────────────┬─────────────────┐
-  │              │ ジャーナリング  │ CoW            │
-  ├──────────────┼─────────────────┼─────────────────┤
-  │ 整合性保証   │ ログベース      │ 構造的保証      │
-  │ スナップショット│ 非対応         │ 瞬時に作成     │
-  │ 書き込み増幅 │ 2倍（ログ+実） │ パスコピー分    │
-  │ 断片化       │ 少ない          │ 多い            │
-  │ 実装         │ ext4, XFS      │ Btrfs, ZFS     │
-  └──────────────┴─────────────────┴─────────────────┘
+  Journaling vs CoW:
+  +--------------+-----------------+-----------------+
+  |              | Journaling      | CoW             |
+  +--------------+-----------------+-----------------+
+  | Consistency  | Log-based       | Structural      |
+  | guarantee    |                 |                 |
+  | Snapshots    | Not supported   | Instant creation|
+  | Write        | 2x (log+actual) | Path copy cost  |
+  | amplification|                 |                 |
+  | Fragmentation| Low             | High            |
+  | Implementations| ext4, XFS    | Btrfs, ZFS      |
+  +--------------+-----------------+-----------------+
 ```
 
 ---
 
-## 4. VFS（Virtual File System）
+## 4. VFS (Virtual File System)
 
-### 4.1 VFSの概要
+### 4.1 VFS Overview
 
 ```
-VFS: Linuxの統一ファイルシステムインターフェース
+VFS: Linux's unified file system interface
 
-  アプリケーション
-     │ open(), read(), write(), close()
-     ↓
-  ┌──────────────────────────────────────────┐
-  │ VFS (Virtual File System)                │
-  │ → 統一API                                │
-  │ → dentryキャッシュ                        │
-  │ → inodeキャッシュ                         │
-  │ → ページキャッシュ                        │
-  └──┬────┬────┬────┬────┬────┬────┬────────┘
-     ↓    ↓    ↓    ↓    ↓    ↓    ↓
+  Application
+     | open(), read(), write(), close()
+     v
+  +------------------------------------------+
+  | VFS (Virtual File System)                |
+  | -> Unified API                           |
+  | -> dentry cache                          |
+  | -> inode cache                           |
+  | -> page cache                            |
+  +--+----+----+----+----+----+----+--------+
+     v    v    v    v    v    v    v
    ext4  XFS  Btrfs NTFS  NFS  procfs tmpfs
-   (実際のファイルシステム実装)
+   (Actual file system implementations)
 
-  VFS の目的:
-  - アプリケーションはファイルシステムの種類を意識する必要がない
-  - 同じ open()/read()/write() で全FSにアクセス可能
-  - 新しいFSの追加が容易（VFSインターフェースを実装するだけ）
-  - ファイルシステム間でデータをコピーする際もシームレス
+  Purpose of VFS:
+  - Applications need not be aware of file system types
+  - Same open()/read()/write() can access all file systems
+  - Easy to add new file systems (just implement the VFS interface)
+  - Seamless data copy between file systems
 ```
 
-### 4.2 VFSの4つの主要オブジェクト
+### 4.2 Four Main VFS Objects
 
 ```
-VFS の主要データ構造:
+Main VFS data structures:
 
-  1. struct super_block（スーパーブロック）:
-     マウントされたファイルシステムの情報
-     ┌────────────────────────────────┐
-     │ s_dev:     デバイス識別子       │
-     │ s_type:    ファイルシステム型    │
-     │ s_op:      操作関数テーブル     │
-     │ s_flags:   マウントフラグ       │
-     │ s_root:    ルート dentry        │
-     │ s_fs_info: FS固有のデータ       │
-     └────────────────────────────────┘
+  1. struct super_block:
+     Information about a mounted file system
+     +--------------------------------+
+     | s_dev:     Device identifier    |
+     | s_type:    File system type     |
+     | s_op:      Operations table     |
+     | s_flags:   Mount flags          |
+     | s_root:    Root dentry          |
+     | s_fs_info: FS-specific data     |
+     +--------------------------------+
 
-  2. struct inode（inodeオブジェクト）:
-     個々のファイルの情報（メモリ上の表現）
-     ┌────────────────────────────────┐
-     │ i_ino:     inode番号           │
-     │ i_mode:    アクセス権限         │
-     │ i_uid:     所有者ID            │
-     │ i_gid:     グループID          │
-     │ i_size:    ファイルサイズ       │
-     │ i_op:      inode操作テーブル    │
-     │ i_fop:     ファイル操作テーブル │
-     │ i_sb:      所属するスーパーブロック│
-     │ i_mapping: ページキャッシュ     │
-     └────────────────────────────────┘
+  2. struct inode (inode object):
+     Information about an individual file (in-memory representation)
+     +--------------------------------+
+     | i_ino:     inode number         |
+     | i_mode:    Access permissions   |
+     | i_uid:     Owner ID             |
+     | i_gid:     Group ID             |
+     | i_size:    File size            |
+     | i_op:      inode operations     |
+     | i_fop:     File operations      |
+     | i_sb:      Owning superblock    |
+     | i_mapping: Page cache           |
+     +--------------------------------+
 
-  3. struct dentry（ディレクトリエントリ）:
-     パス名の各コンポーネントの情報
-     ┌────────────────────────────────┐
-     │ d_name:    名前                │
-     │ d_inode:   対応する inode       │
-     │ d_parent:  親 dentry           │
-     │ d_subdirs: 子 dentry リスト     │
-     │ d_op:      dentry操作テーブル   │
-     │ d_flags:   状態フラグ          │
-     └────────────────────────────────┘
+  3. struct dentry (directory entry):
+     Information about each component of a path name
+     +--------------------------------+
+     | d_name:    Name                 |
+     | d_inode:   Associated inode     |
+     | d_parent:  Parent dentry        |
+     | d_subdirs: Child dentry list    |
+     | d_op:      dentry operations    |
+     | d_flags:   Status flags         |
+     +--------------------------------+
 
-     dentry キャッシュ:
-     - ディスクI/Oなしでパス名を解決
-     - LRUで管理、メモリ圧迫時に縮小
-     - 否定dentry: 存在しないパスも記録
+     dentry cache:
+     - Resolves path names without disk I/O
+     - Managed by LRU, shrinks under memory pressure
+     - Negative dentry: Also records non-existent paths
 
-  4. struct file（ファイルオブジェクト）:
-     プロセスが開いているファイルの状態
-     ┌────────────────────────────────┐
-     │ f_path:    パス情報             │
-     │ f_inode:   対応する inode       │
-     │ f_op:      ファイル操作テーブル │
-     │ f_pos:     現在のオフセット     │
-     │ f_flags:   オープンフラグ       │
-     │ f_mode:    アクセスモード       │
-     │ f_count:   参照カウント         │
-     └────────────────────────────────┘
+  4. struct file (file object):
+     State of a file opened by a process
+     +--------------------------------+
+     | f_path:    Path information     |
+     | f_inode:   Associated inode     |
+     | f_op:      File operations      |
+     | f_pos:     Current offset       |
+     | f_flags:   Open flags           |
+     | f_mode:    Access mode          |
+     | f_count:   Reference count      |
+     +--------------------------------+
 ```
 
-### 4.3 VFS操作テーブル
+### 4.3 VFS Operations Tables
 
 ```c
-// ファイル操作テーブル（file_operations）:
+// File operations table (file_operations):
 struct file_operations {
     loff_t (*llseek)(struct file *, loff_t, int);
     ssize_t (*read)(struct file *, char __user *, size_t, loff_t *);
@@ -846,7 +859,7 @@ struct file_operations {
     // ...
 };
 
-// inode操作テーブル（inode_operations）:
+// inode operations table (inode_operations):
 struct inode_operations {
     struct dentry *(*lookup)(struct inode *, struct dentry *, unsigned int);
     int (*create)(struct user_namespace *, struct inode *, struct dentry *,
@@ -862,8 +875,8 @@ struct inode_operations {
     // ...
 };
 
-// 各ファイルシステムが独自の実装を提供:
-// ext4の場合:
+// Each file system provides its own implementation:
+// For ext4:
 const struct file_operations ext4_file_operations = {
     .llseek    = ext4_llseek,
     .read_iter = ext4_file_read_iter,
@@ -875,52 +888,52 @@ const struct file_operations ext4_file_operations = {
 };
 ```
 
-### 4.4 マウントとアンマウント
+### 4.4 Mount and Unmount
 
 ```
-マウント: ファイルシステムをディレクトリツリーに接合する操作
+Mount: The operation of attaching a file system to the directory tree
 
   $ mount /dev/sda1 /mnt
 
-  マウント前:
+  Before mount:
   /
-  ├── home/
-  ├── mnt/        ← 空のディレクトリ
-  └── tmp/
+  +-- home/
+  +-- mnt/        <- empty directory
+  +-- tmp/
 
-  マウント後:
+  After mount:
   /
-  ├── home/
-  ├── mnt/        ← /dev/sda1 の内容が見える
-  │   ├── data/
-  │   └── config.txt
-  └── tmp/
+  +-- home/
+  +-- mnt/        <- contents of /dev/sda1 are visible
+  |   +-- data/
+  |   +-- config.txt
+  +-- tmp/
 
-  マウント処理の内部:
-  1. ファイルシステムのsuperblockを読み込み
-  2. struct super_block を作成
-  3. ルート inode を読み込み
-  4. マウントポイントの dentry に紐付け
-  5. mount構造体を vfsmount ツリーに追加
+  Internal mount processing:
+  1. Read the file system superblock
+  2. Create struct super_block
+  3. Read the root inode
+  4. Associate with the mount point dentry
+  5. Add mount structure to vfsmount tree
 
-  マウントオプション:
-  ┌────────────┬──────────────────────────────────────┐
-  │ オプション  │ 説明                                  │
-  ├────────────┼──────────────────────────────────────┤
-  │ ro         │ 読み取り専用                          │
-  │ rw         │ 読み書き可能                          │
-  │ noatime    │ アクセス時刻を更新しない（性能向上）   │
-  │ relatime   │ 条件付きでatime更新（デフォルト）     │
-  │ nosuid     │ SUID/SGID ビットを無視               │
-  │ noexec     │ 実行権限を無視                        │
-  │ nodev      │ デバイスファイルを無視                │
-  │ sync       │ 同期書き込み（性能低下）              │
-  │ data=      │ ジャーナリングモード指定              │
-  │ discard    │ TRIM/UNMAP コマンド発行（SSD向け）    │
-  │ barrier=   │ 書き込みバリア制御                    │
-  └────────────┴──────────────────────────────────────┘
+  Mount options:
+  +------------+--------------------------------------+
+  | Option     | Description                          |
+  +------------+--------------------------------------+
+  | ro         | Read-only                            |
+  | rw         | Read-write                           |
+  | noatime    | Do not update access time (perf gain)|
+  | relatime   | Conditionally update atime (default) |
+  | nosuid     | Ignore SUID/SGID bits                |
+  | noexec     | Ignore execute permissions           |
+  | nodev      | Ignore device files                  |
+  | sync       | Synchronous writes (performance hit) |
+  | data=      | Specify journaling mode              |
+  | discard    | Issue TRIM/UNMAP commands (for SSDs) |
+  | barrier=   | Write barrier control                |
+  +------------+--------------------------------------+
 
-  /etc/fstab の例:
+  /etc/fstab example:
   # <device>      <mount>  <type>  <options>              <dump> <fsck>
   /dev/sda1       /        ext4    defaults,noatime       0      1
   /dev/sda2       /home    ext4    defaults,nosuid        0      2
@@ -928,272 +941,272 @@ const struct file_operations ext4_file_operations = {
   tmpfs           /tmp     tmpfs   defaults,size=4G       0      0
   UUID=xxxx-yyyy  /boot    ext4    defaults               0      2
 
-  UUID でのマウント（推奨）:
-  → デバイス名は変わる可能性がある（/dev/sda → /dev/sdb）
-  → UUID はファイルシステム固有で変わらない
-  $ blkid  # UUID の確認
+  Mounting by UUID (recommended):
+  -> Device names can change (/dev/sda -> /dev/sdb)
+  -> UUID is unique to the file system and does not change
+  $ blkid  # Check UUID
 ```
 
-### 4.5 ファイルディスクリプタ
+### 4.5 File Descriptors
 
 ```
-ファイルディスクリプタ（FD）:
-  プロセスがオープンしたファイルへの参照（整数値）
+File descriptor (FD):
+  A reference (integer value) to a file opened by a process
 
-  標準的な FD:
-  0: stdin  (標準入力)
-  1: stdout (標準出力)
-  2: stderr (標準エラー出力)
-  3〜: ユーザがオープンしたファイル
+  Standard FDs:
+  0: stdin  (standard input)
+  1: stdout (standard output)
+  2: stderr (standard error)
+  3+: Files opened by the user
 
-  データ構造の関係:
-  ┌─────────────────────────────────────────────────┐
-  │ プロセスの task_struct                           │
-  │ ┌───────────────────┐                           │
-  │ │ files_struct       │                           │
-  │ │ ┌───────────────┐ │                           │
-  │ │ │ fd_array       │ │                           │
-  │ │ │ [0] → file A  │─┼──→ struct file ──→ inode  │
-  │ │ │ [1] → file B  │─┼──→ struct file ──→ inode  │
-  │ │ │ [2] → file C  │─┼──→ struct file ──→ inode  │
-  │ │ │ [3] → file D  │─┼──→ struct file ──→ inode  │
-  │ │ └───────────────┘ │                           │
-  │ └───────────────────┘                           │
-  └─────────────────────────────────────────────────┘
+  Relationship of data structures:
+  +-------------------------------------------------+
+  | Process task_struct                              |
+  | +-------------------+                           |
+  | | files_struct       |                           |
+  | | +---------------+ |                           |
+  | | | fd_array       | |                           |
+  | | | [0] -> file A  |-|-->  struct file --> inode  |
+  | | | [1] -> file B  |-|-->  struct file --> inode  |
+  | | | [2] -> file C  |-|-->  struct file --> inode  |
+  | | | [3] -> file D  |-|-->  struct file --> inode  |
+  | | +---------------+ |                           |
+  | +-------------------+                           |
+  +-------------------------------------------------+
 
-  fork() 時の FD 共有:
-  親プロセスの FD テーブルがコピーされる
-  → 同じ struct file を共有（参照カウント+1）
-  → ファイルオフセットも共有される
+  FD sharing during fork():
+  The parent process FD table is copied
+  -> Same struct file is shared (reference count +1)
+  -> File offset is also shared
 
-  FD の上限:
-  $ ulimit -n              # ソフトリミット確認（通常1024）
-  $ ulimit -Hn             # ハードリミット確認
-  $ cat /proc/sys/fs/file-max  # システム全体の上限
+  FD limits:
+  $ ulimit -n              # Check soft limit (typically 1024)
+  $ ulimit -Hn             # Check hard limit
+  $ cat /proc/sys/fs/file-max  # System-wide limit
 
-  # リミット変更
-  $ ulimit -n 65536        # セッション内で変更
-  # /etc/security/limits.conf で恒久設定
+  # Change limit
+  $ ulimit -n 65536        # Change within session
+  # /etc/security/limits.conf for persistent settings
   * soft nofile 65536
   * hard nofile 65536
 ```
 
 ---
 
-## 5. ファイルシステムの整合性とメンテナンス
+## 5. File System Integrity and Maintenance
 
-### 5.1 fsck（File System Check）
+### 5.1 fsck (File System Check)
 
 ```
-fsck: ファイルシステムの整合性チェックと修復ツール
+fsck: File system integrity check and repair tool
 
-  チェック項目:
-  1. スーパーブロックの整合性
-  2. ブロックビットマップとinodeビットマップの正確性
-  3. inodeのリンクカウント
-  4. ディレクトリ構造の整合性
-  5. 孤立inode（参照されていないinode）の検出
-  6. 不正なブロックポインタの検出
-  7. 重複割り当てブロックの検出
+  Items checked:
+  1. Superblock consistency
+  2. Accuracy of block bitmap and inode bitmap
+  3. Inode link counts
+  4. Directory structure consistency
+  5. Detection of orphan inodes (unreferenced inodes)
+  6. Detection of invalid block pointers
+  7. Detection of duplicate block allocations
 
-  使用方法:
-  # 注意: アンマウント状態またはリードオンリーで実行すること！
+  Usage:
+  # Warning: Must be run with the filesystem unmounted or read-only!
   $ sudo umount /dev/sda1
   $ sudo fsck /dev/sda1
 
-  # ext4 専用
-  $ sudo e2fsck -f /dev/sda1       # 強制チェック
-  $ sudo e2fsck -p /dev/sda1       # 自動修復
-  $ sudo e2fsck -y /dev/sda1       # 全質問にyes
+  # ext4 specific
+  $ sudo e2fsck -f /dev/sda1       # Force check
+  $ sudo e2fsck -p /dev/sda1       # Automatic repair
+  $ sudo e2fsck -y /dev/sda1       # Answer yes to all questions
 
-  # XFS 専用
+  # XFS specific
   $ sudo xfs_repair /dev/sda1
 
   # Btrfs
   $ sudo btrfs check /dev/sda1
-  $ sudo btrfs scrub start /mnt    # オンラインチェック
+  $ sudo btrfs scrub start /mnt    # Online check
 
-  ジャーナリング FS での fsck:
-  → 通常は不要（ジャーナルのリプレイで復旧）
-  → ジャーナルが破損した場合のみ必要
-  → 大容量ディスクでも秒単位で復旧
+  fsck on journaling file systems:
+  -> Usually not needed (recovery via journal replay)
+  -> Only needed if the journal itself is corrupted
+  -> Recovery in seconds even on large disks
 
-  非ジャーナリング FS での fsck:
-  → 起動時に毎回実行する必要がある場合あり
-  → 大容量ディスクでは数時間〜数十時間
-  → ext2 時代の悩みの種だった
+  fsck on non-journaling file systems:
+  -> May need to be run at every boot
+  -> Can take hours to tens of hours on large disks
+  -> Was the bane of the ext2 era
 ```
 
-### 5.2 TRIMとSSDの考慮事項
+### 5.2 TRIM and SSD Considerations
 
 ```
-SSD固有のファイルシステム考慮事項:
+SSD-specific file system considerations:
 
-  TRIM（UNMAP）:
-  → 削除されたブロックをSSDに通知
-  → SSDのガベージコレクションを効率化
-  → 書き込み性能の維持に重要
+  TRIM (UNMAP):
+  -> Notifies the SSD of deleted blocks
+  -> Improves SSD garbage collection efficiency
+  -> Important for maintaining write performance
 
-  仕組み:
-  ファイル削除時:
-  1. 従来: ファイルシステムはブロックを「空き」にマーク
-           → SSDはまだ「使用中」と認識
-  2. TRIM: ファイルシステムがSSDに「このブロックは不要」と通知
-           → SSDがバックグラウンドで消去（次回書き込みが高速化）
+  Mechanism:
+  When a file is deleted:
+  1. Traditional: File system marks block as "free"
+           -> SSD still considers it "in use"
+  2. TRIM: File system notifies SSD "this block is no longer needed"
+           -> SSD erases in background (faster next write)
 
-  設定方法:
-  # /etc/fstab に discard オプション追加（連続TRIM）
+  Configuration:
+  # Add discard option to /etc/fstab (continuous TRIM)
   /dev/sda1  /  ext4  defaults,discard  0  1
 
-  # 定期的なバッチTRIM（推奨、性能への影響が少ない）
-  $ sudo fstrim /                   # 手動実行
-  $ sudo fstrim -v /                # 詳細表示
+  # Periodic batch TRIM (recommended, less performance impact)
+  $ sudo fstrim /                   # Manual execution
+  $ sudo fstrim -v /                # Verbose output
 
-  # systemd タイマーで定期実行
-  $ sudo systemctl enable fstrim.timer  # 週1回実行
+  # Schedule periodic execution with systemd timer
+  $ sudo systemctl enable fstrim.timer  # Runs weekly
 
-  # TRIM 対応の確認
+  # Verify TRIM support
   $ lsblk --discard
   NAME   DISC-ALN DISC-GRAN DISC-MAX DISC-ZERO
   sda           0      512B       2G         0
   nvme0n1       0      512B       2T         0
 
-  SSD のアライメント:
-  → パーティション開始位置を物理ページサイズに合わせる
-  → 最近のツール（fdisk, parted）はデフォルトで対処
-  → 不適切なアライメントは性能低下の原因
+  SSD alignment:
+  -> Align partition start to physical page size
+  -> Modern tools (fdisk, parted) handle this by default
+  -> Improper alignment causes performance degradation
 
   $ sudo parted /dev/sda align-check optimal 1
   1 aligned
 
-  noatime の推奨:
-  → ファイル読み取りのたびにatime更新 = 不要な書き込み
-  → SSD の寿命に影響
-  → noatime または relatime を推奨
+  noatime recommendation:
+  -> Updating atime on every file read = unnecessary writes
+  -> Impacts SSD lifespan
+  -> noatime or relatime recommended
 ```
 
-### 5.3 ファイルシステムのデフラグメンテーション
+### 5.3 File System Defragmentation
 
 ```
-断片化（Fragmentation）:
+Fragmentation:
 
-  外部断片化:
-  ファイルのブロックが非連続に配置される
-  → HDD: シーク時間増加 → 性能低下
-  → SSD: 影響は小さいが完全にゼロではない
+  External fragmentation:
+  File blocks placed non-contiguously
+  -> HDD: Increased seek time -> performance degradation
+  -> SSD: Impact is small but not completely zero
 
-  断片化の例:
-  ブロック配置:
-  ┌──┬──┬──┬──┬──┬──┬──┬──┬──┬──┐
-  │A1│B1│A2│C1│A3│B2│C2│A4│B3│C3│
-  └──┴──┴──┴──┴──┴──┴──┴──┴──┴──┘
-  ファイルA: ブロック 0, 2, 4, 7 → 断片化
-  ファイルB: ブロック 1, 5, 8 → 断片化
-  ファイルC: ブロック 3, 6, 9 → 断片化
+  Fragmentation example:
+  Block layout:
+  +--+--+--+--+--+--+--+--+--+--+
+  |A1|B1|A2|C1|A3|B2|C2|A4|B3|C3|
+  +--+--+--+--+--+--+--+--+--+--+
+  File A: blocks 0, 2, 4, 7 -> fragmented
+  File B: blocks 1, 5, 8 -> fragmented
+  File C: blocks 3, 6, 9 -> fragmented
 
-  デフラグ後:
-  ┌──┬──┬──┬──┬──┬──┬──┬──┬──┬──┐
-  │A1│A2│A3│A4│B1│B2│B3│C1│C2│C3│
-  └──┴──┴──┴──┴──┴──┴──┴──┴──┴──┘
-  → 連続配置で読み取り性能向上
+  After defragmentation:
+  +--+--+--+--+--+--+--+--+--+--+
+  |A1|A2|A3|A4|B1|B2|B3|C1|C2|C3|
+  +--+--+--+--+--+--+--+--+--+--+
+  -> Contiguous placement improves read performance
 
-  各FSのデフラグツール:
+  Defragmentation tools for each FS:
   # ext4
-  $ sudo e4defrag /path/to/file    # 特定ファイル
-  $ sudo e4defrag /mount/point     # マウントポイント全体
-  $ sudo e4defrag -c /mount/point  # 断片化状況の確認
+  $ sudo e4defrag /path/to/file    # Specific file
+  $ sudo e4defrag /mount/point     # Entire mount point
+  $ sudo e4defrag -c /mount/point  # Check fragmentation status
 
   # XFS
-  $ sudo xfs_fsr /dev/sda1         # オンラインデフラグ
-  $ sudo xfs_db -r /dev/sda1       # 断片化状況の確認
+  $ sudo xfs_fsr /dev/sda1         # Online defragmentation
+  $ sudo xfs_db -r /dev/sda1       # Check fragmentation status
 
   # Btrfs
-  $ sudo btrfs filesystem defragment /path  # オンラインデフラグ
-  $ sudo btrfs filesystem defragment -r /mount  # 再帰的
+  $ sudo btrfs filesystem defragment /path  # Online defragmentation
+  $ sudo btrfs filesystem defragment -r /mount  # Recursive
 
-  断片化を防ぐ工夫:
-  - 遅延アロケーション（ext4のdelalloc）
-  - プリアロケーション（fallocate）
-  - 十分な空き容量の確保（10%以上推奨）
+  Techniques to prevent fragmentation:
+  - Delayed allocation (ext4's delalloc)
+  - Preallocation (fallocate)
+  - Maintaining sufficient free space (10% or more recommended)
 ```
 
 ---
 
-## 6. 高度なファイルシステムの概念
+## 6. Advanced File System Concepts
 
-### 6.1 拡張属性（Extended Attributes, xattr）
+### 6.1 Extended Attributes (xattr)
 
 ```
-拡張属性:
-  通常のパーミッション以外の追加メタデータを格納
+Extended attributes:
+  Store additional metadata beyond normal permissions
 
-  名前空間:
-  - user.*    : ユーザ定義の属性
-  - system.*  : システム用（ACL等）
-  - security.*: セキュリティモジュール用（SELinux等）
-  - trusted.* : 特権プロセス用
+  Namespaces:
+  - user.*    : User-defined attributes
+  - system.*  : System use (ACLs, etc.)
+  - security.*: Security module use (SELinux, etc.)
+  - trusted.* : For privileged processes
 
-  操作コマンド:
-  # 属性の設定
+  Operation commands:
+  # Set an attribute
   $ setfattr -n user.description -v "Important document" file.txt
 
-  # 属性の取得
+  # Get an attribute
   $ getfattr -n user.description file.txt
   # file: file.txt
   user.description="Important document"
 
-  # 全属性の一覧
+  # List all attributes
   $ getfattr -d file.txt
 
-  # 属性の削除
+  # Delete an attribute
   $ setfattr -x user.description file.txt
 
-  # SELinux コンテキスト（security名前空間）
+  # SELinux context (security namespace)
   $ ls -Z file.txt
   unconfined_u:object_r:user_home_t:s0 file.txt
 
-  ACL（Access Control List）:
-  → POSIX ACL は拡張属性として格納される
-  → system.posix_acl_access, system.posix_acl_default
+  ACL (Access Control List):
+  -> POSIX ACLs are stored as extended attributes
+  -> system.posix_acl_access, system.posix_acl_default
 
-  # ACL の設定
-  $ setfacl -m u:john:rw file.txt   # john に rw 権限
-  $ setfacl -m g:dev:rx dir/        # dev グループに rx 権限
-  $ getfacl file.txt                # ACL の確認
+  # Set ACL
+  $ setfacl -m u:john:rw file.txt   # Grant rw permission to john
+  $ setfacl -m g:dev:rx dir/        # Grant rx permission to dev group
+  $ getfacl file.txt                # Check ACL
 ```
 
-### 6.2 クォータ（Quota）
+### 6.2 Quotas
 
 ```
-ディスククォータ:
-  ユーザ/グループごとのディスク使用量制限
+Disk quotas:
+  Disk usage limits per user/group
 
-  クォータの種類:
-  - ブロッククォータ: 使用容量の制限
-  - inodeクォータ: ファイル数の制限
-  - ソフトリミット: 猶予期間内は超過可能
-  - ハードリミット: 絶対に超えられない上限
+  Types of quotas:
+  - Block quota: Limit on usage capacity
+  - inode quota: Limit on number of files
+  - Soft limit: Can be exceeded within a grace period
+  - Hard limit: Absolute upper limit that cannot be exceeded
 
-  設定手順:
-  # 1. マウントオプションにクォータを有効化
+  Setup procedure:
+  # 1. Enable quotas in mount options
   $ sudo mount -o remount,usrquota,grpquota /home
 
-  # 2. クォータファイルの作成
-  $ sudo quotacheck -cum /home     # ユーザクォータ
-  $ sudo quotacheck -cgm /home     # グループクォータ
+  # 2. Create quota files
+  $ sudo quotacheck -cum /home     # User quotas
+  $ sudo quotacheck -cgm /home     # Group quotas
 
-  # 3. クォータの有効化
+  # 3. Enable quotas
   $ sudo quotaon /home
 
-  # 4. ユーザクォータの設定
+  # 4. Set user quotas
   $ sudo edquota -u username
-  # ソフトリミット: 5GB, ハードリミット: 10GB
+  # Soft limit: 5GB, Hard limit: 10GB
 
-  # 5. 使用状況の確認
-  $ sudo repquota -a               # 全ユーザの使用状況
-  $ quota -u username               # 特定ユーザの状況
+  # 5. Check usage
+  $ sudo repquota -a               # Usage for all users
+  $ quota -u username               # Usage for specific user
 
-  ext4 プロジェクトクォータ（ディレクトリ単位）:
+  ext4 project quotas (per-directory):
   # /etc/projects
   1:/home/project_a
   2:/home/project_b
@@ -1202,38 +1215,38 @@ SSD固有のファイルシステム考慮事項:
   project_a:1
   project_b:2
 
-  $ sudo tune2fs -O project /dev/sda1  # プロジェクト機能有効化
+  $ sudo tune2fs -O project /dev/sda1  # Enable project feature
   $ sudo mount -o prjquota /dev/sda1 /home
 ```
 
-### 6.3 スパースファイルとホール
+### 6.3 Sparse Files and Holes
 
 ```
-スパースファイル:
-  実際にデータが書かれたブロックのみディスクを消費
-  → 論理サイズ > 物理サイズ
+Sparse files:
+  Only blocks with actual data consume disk space
+  -> Logical size > Physical size
 
-  例: 1TBのスパースファイル作成
+  Example: Creating a 1TB sparse file
   $ truncate -s 1T sparse_file.img
   $ ls -lh sparse_file.img
-  -rw-r--r-- 1 user user 1.0T ... sparse_file.img  # 論理1TB
+  -rw-r--r-- 1 user user 1.0T ... sparse_file.img  # logical 1TB
   $ du -h sparse_file.img
-  0       sparse_file.img                            # 物理0
+  0       sparse_file.img                            # physical 0
 
-  ホール（穴）の仕組み:
-  ┌──────────────────────────────────────┐
-  │ 論理ブロック:                        │
-  │ [0] [1] [2] [3] [4] [5] [6] [7]    │
-  │  ↓       ↓               ↓         │
-  │  データ   データ            データ    │
-  │          ↓                          │
-  │ ブロック 3-5 はホール（未割り当て）  │
-  │ → 読み取ると 0x00 が返る            │
-  │ → ディスクブロックは消費しない      │
-  └──────────────────────────────────────┘
+  Hole mechanism:
+  +--------------------------------------+
+  | Logical blocks:                      |
+  | [0] [1] [2] [3] [4] [5] [6] [7]    |
+  |  v       v               v          |
+  |  data    data             data       |
+  |          v                           |
+  | Blocks 3-5 are holes (unallocated)  |
+  | -> Reading returns 0x00             |
+  | -> No disk blocks consumed          |
+  +--------------------------------------+
 
-  ホールの検出と操作:
-  # SEEK_HOLE / SEEK_DATA でホールを検出
+  Detecting and operating on holes:
+  # Detect holes using SEEK_HOLE / SEEK_DATA
   $ python3 -c "
   import os
   fd = os.open('sparse_file.img', os.O_RDONLY)
@@ -1242,320 +1255,320 @@ SSD固有のファイルシステム考慮事項:
   os.close(fd)
   "
 
-  # cp でスパースファイルを効率的にコピー
+  # Efficiently copy sparse files with cp
   $ cp --sparse=always source dest
 
-  # tar でスパースファイルを効率的にアーカイブ
+  # Efficiently archive sparse files with tar
   $ tar -cSf archive.tar sparse_file.img
 
-  用途:
-  - 仮想マシンのディスクイメージ（qcow2, VMDK）
-  - データベースのプリアロケーション
-  - コアダンプファイル
+  Use cases:
+  - Virtual machine disk images (qcow2, VMDK)
+  - Database preallocation
+  - Core dump files
 ```
 
-### 6.4 メモリマップドファイル（mmap）
+### 6.4 Memory-Mapped Files (mmap)
 
 ```
 mmap:
-  ファイルの内容を仮想メモリ空間に直接マッピング
+  Map file contents directly to virtual memory space
 
-  通常の read/write:
-  アプリ → read() → カーネル → ページキャッシュ → ディスク
-  データがカーネル空間 → ユーザ空間にコピーされる
+  Normal read/write:
+  App -> read() -> kernel -> page cache -> disk
+  Data is copied from kernel space -> user space
 
   mmap:
-  アプリの仮想アドレスが直接ページキャッシュを指す
-  → コピーが不要 → 高速
+  App's virtual address directly points to the page cache
+  -> No copy needed -> fast
 
-  ┌──────────────────────────────────────┐
-  │ プロセスの仮想アドレス空間           │
-  │                                      │
-  │ ┌────────────────┐                   │
-  │ │ text segment   │                   │
-  │ ├────────────────┤                   │
-  │ │ data segment   │                   │
-  │ ├────────────────┤                   │
-  │ │ mmap 領域      │───→ ページキャッシュ → ディスク
-  │ │ (ファイル内容) │                   │
-  │ ├────────────────┤                   │
-  │ │ heap           │                   │
-  │ ├────────────────┤                   │
-  │ │ stack          │                   │
-  │ └────────────────┘                   │
-  └──────────────────────────────────────┘
+  +--------------------------------------+
+  | Process virtual address space        |
+  |                                      |
+  | +----------------+                   |
+  | | text segment   |                   |
+  | +----------------+                   |
+  | | data segment   |                   |
+  | +----------------+                   |
+  | | mmap region    |---> page cache -> disk
+  | | (file content) |                   |
+  | +----------------+                   |
+  | | heap           |                   |
+  | +----------------+                   |
+  | | stack          |                   |
+  | +----------------+                   |
+  +--------------------------------------+
 
-  フラグ:
-  - MAP_SHARED:  変更がファイルに反映される
-  - MAP_PRIVATE: CoW。変更はプロセス内のみ
-  - MAP_ANONYMOUS: ファイルなし（メモリ確保用）
+  Flags:
+  - MAP_SHARED:  Changes are reflected to the file
+  - MAP_PRIVATE: CoW. Changes are process-local only
+  - MAP_ANONYMOUS: No file (used for memory allocation)
 
-  用途:
-  - 大きなファイルの効率的な読み書き
-  - プロセス間共有メモリ
-  - 実行可能ファイルのロード（テキストセグメント）
-  - データベースのバッファ管理
+  Use cases:
+  - Efficient read/write of large files
+  - Inter-process shared memory
+  - Loading executable files (text segment)
+  - Database buffer management
 
-  注意点:
-  - ファイルサイズを超えた書き込みは SIGBUS
-  - 32bit環境ではアドレス空間の制約
-  - msync() でディスクへの明示的な同期
-  - munmap() でマッピング解除
+  Caveats:
+  - Writing beyond file size causes SIGBUS
+  - Address space limitations on 32-bit environments
+  - msync() for explicit sync to disk
+  - munmap() to release the mapping
 ```
 
 ---
 
-## 実践演習
+## Practical Exercises
 
-### 演習1: [基礎] -- inode の確認
+### Exercise 1: [Basic] -- Examining Inodes
 
 ```bash
-# inodeの確認
-ls -li                        # inode番号表示
-stat filename                 # 詳細なメタデータ
-df -i                         # inode使用状況
+# Examine inodes
+ls -li                        # Display inode numbers
+stat filename                 # Detailed metadata
+df -i                         # inode usage
 
-# ハードリンクとシンボリックリンク
+# Hard links and symbolic links
 echo "hello" > original.txt
 ln original.txt hardlink.txt
 ln -s original.txt symlink.txt
 ls -li original.txt hardlink.txt symlink.txt
-# → hardlinkはinode同一、symlinkは異なるinode
+# -> hardlink has same inode, symlink has a different inode
 
-# リンクカウントの確認
+# Check link count
 stat original.txt | grep Links
-# Links: 2  ← ハードリンクがあるため
+# Links: 2  <- because there is a hard link
 
-# シンボリックリンクの先を確認
+# Check symbolic link target
 readlink symlink.txt
-readlink -f symlink.txt       # 絶対パスで表示
+readlink -f symlink.txt       # Display as absolute path
 
-# ダングリングリンクの確認
+# Check for dangling links
 rm original.txt
-cat symlink.txt               # エラー（リンク先がない）
-cat hardlink.txt              # 正常に読める（データはまだ存在）
+cat symlink.txt               # Error (target does not exist)
+cat hardlink.txt              # Reads normally (data still exists)
 ```
 
-### 演習2: [応用] -- ファイルシステムの調査
+### Exercise 2: [Intermediate] -- Investigating File Systems
 
 ```bash
-# マウントされたファイルシステムの確認
+# Check mounted file systems
 mount | column -t
-df -Th                        # タイプ付きで表示
-findmnt                       # ツリー表示
-findmnt -t ext4               # ext4のみ表示
+df -Th                        # Display with type
+findmnt                       # Tree display
+findmnt -t ext4               # Show only ext4
 
-# ファイルシステムの詳細情報（Linux, ext4）
+# Detailed file system information (Linux, ext4)
 sudo dumpe2fs /dev/sda1 | head -30
-sudo tune2fs -l /dev/sda1     # superblock情報
+sudo tune2fs -l /dev/sda1     # Superblock information
 
-# ブロックグループの情報
+# Block group information
 sudo dumpe2fs /dev/sda1 | grep -A 5 "Group 0"
 
-# ジャーナルの情報
+# Journal information
 sudo dumpe2fs /dev/sda1 | grep -i journal
 
-# inodeの使用状況
-df -i /                       # inode使用率
+# inode usage
+df -i /                       # inode utilization
 for dir in /*; do echo "$(find "$dir" -xdev 2>/dev/null | wc -l) $dir"; done | sort -rn | head
 
-# ブロックサイズの確認
+# Check block size
 sudo tune2fs -l /dev/sda1 | grep "Block size"
-stat -f /                     # ファイルシステム情報
+stat -f /                     # File system information
 ```
 
-### 演習3: [応用] -- ファイルシステムの作成とマウント
+### Exercise 3: [Intermediate] -- Creating and Mounting a File System
 
 ```bash
-# テスト用のループバックファイルシステム作成
-# 1. ファイルを作成
+# Create a test loopback file system
+# 1. Create a file
 dd if=/dev/zero of=/tmp/testfs.img bs=1M count=100
 
-# 2. ext4ファイルシステムを作成
+# 2. Create ext4 file system
 mkfs.ext4 /tmp/testfs.img
 
-# 3. マウント
+# 3. Mount
 sudo mkdir -p /mnt/testfs
 sudo mount -o loop /tmp/testfs.img /mnt/testfs
 
-# 4. 確認
+# 4. Verify
 df -Th /mnt/testfs
 ls -la /mnt/testfs
 sudo dumpe2fs /tmp/testfs.img | head -20
 
-# 5. テスト書き込み
+# 5. Test write
 sudo touch /mnt/testfs/testfile
 sudo ls -li /mnt/testfs/
 
-# 6. アンマウント
+# 6. Unmount
 sudo umount /mnt/testfs
 
-# XFS ファイルシステムの作成
+# XFS file system creation
 dd if=/dev/zero of=/tmp/testxfs.img bs=1M count=100
 mkfs.xfs /tmp/testxfs.img
 sudo mount -o loop /tmp/testxfs.img /mnt/testfs
 xfs_info /mnt/testfs
 
-# Btrfs ファイルシステムの作成
+# Btrfs file system creation
 dd if=/dev/zero of=/tmp/testbtrfs.img bs=1M count=256
 mkfs.btrfs /tmp/testbtrfs.img
 sudo mount -o loop /tmp/testbtrfs.img /mnt/testfs
 btrfs filesystem show /mnt/testfs
 ```
 
-### 演習4: [上級] -- ファイルシステムのパフォーマンス測定
+### Exercise 4: [Advanced] -- File System Performance Measurement
 
 ```bash
-# fio を使ったI/Oベンチマーク
-# シーケンシャル読み取り
+# I/O benchmark using fio
+# Sequential read
 fio --name=seqread --rw=read --bs=4k --size=1G \
     --numjobs=1 --runtime=30 --time_based
 
-# ランダム読み取り
+# Random read
 fio --name=randread --rw=randread --bs=4k --size=1G \
     --numjobs=4 --runtime=30 --time_based
 
-# シーケンシャル書き込み
+# Sequential write
 fio --name=seqwrite --rw=write --bs=4k --size=1G \
     --numjobs=1 --runtime=30 --time_based
 
-# ランダム書き込み
+# Random write
 fio --name=randwrite --rw=randwrite --bs=4k --size=1G \
     --numjobs=4 --runtime=30 --time_based
 
-# dd を使った簡易ベンチマーク
-# 書き込み速度
+# Simple benchmark using dd
+# Write speed
 dd if=/dev/zero of=/tmp/testfile bs=1M count=1024 conv=fdatasync
 
-# 読み取り速度（キャッシュクリア後）
+# Read speed (after clearing cache)
 sudo sh -c "echo 3 > /proc/sys/vm/drop_caches"
 dd if=/tmp/testfile of=/dev/null bs=1M
 
-# ページキャッシュの効果を確認
-# 1回目（ディスクから読み取り）
+# Verify page cache effectiveness
+# First read (from disk)
 time cat /tmp/testfile > /dev/null
-# 2回目（ページキャッシュから読み取り）
+# Second read (from page cache)
 time cat /tmp/testfile > /dev/null
 ```
 
-### 演習5: [上級] -- スパースファイルとエクステントの確認
+### Exercise 5: [Advanced] -- Verifying Sparse Files and Extents
 
 ```bash
-# スパースファイルの作成と確認
+# Create and verify sparse files
 truncate -s 10G /tmp/sparse_test
-ls -lh /tmp/sparse_test       # 論理サイズ: 10G
-du -h /tmp/sparse_test        # 実際のディスク使用: 0
+ls -lh /tmp/sparse_test       # Logical size: 10G
+du -h /tmp/sparse_test        # Actual disk usage: 0
 
-# 一部にデータを書き込み
+# Write data to some portions
 dd if=/dev/urandom of=/tmp/sparse_test bs=4K count=1 seek=1000
 dd if=/dev/urandom of=/tmp/sparse_test bs=4K count=1 seek=2000
 
-du -h /tmp/sparse_test        # 8K のみ使用
+du -h /tmp/sparse_test        # Only 8K used
 
-# エクステント情報の確認（ext4）
-# filefrag: ファイルの断片化とエクステント情報を表示
+# Check extent information (ext4)
+# filefrag: Display file fragmentation and extent information
 filefrag -v /tmp/sparse_test
 
-# debugfs で inode を直接確認
+# Directly inspect inode with debugfs
 sudo debugfs -R "stat <$(stat -c %i /path/to/file)>" /dev/sda1
 
-# hdparm でディスクキャッシュの確認
-sudo hdparm -t /dev/sda       # バッファなし読み取り速度
-sudo hdparm -T /dev/sda       # バッファキャッシュ読み取り速度
+# Check disk cache with hdparm
+sudo hdparm -t /dev/sda       # Unbuffered read speed
+sudo hdparm -T /dev/sda       # Buffer cache read speed
 ```
 
 ---
 
-## 7. ファイルシステムのトラブルシューティング
+## 7. File System Troubleshooting
 
-### 7.1 よくある問題と対処法
-
-```
-問題1: "No space left on device" だがdfでは空きがある
-  原因: inode枯渇
-  確認: $ df -i
-  対処: 小さなファイルの大量削除、またはinodeを増やしてFS再作成
-
-問題2: ファイルを削除してもディスク容量が減らない
-  原因: プロセスがファイルをオープン中
-  確認: $ lsof +D /path/to/dir | grep deleted
-  対処: プロセスを再起動、または /proc/<pid>/fd/ からFDを特定
-
-問題3: ファイルシステムが読み取り専用になった
-  原因: ファイルシステムエラー検出による自動保護
-  確認: $ dmesg | grep -i "remount"
-  対処: $ sudo fsck /dev/sda1 → 修復後再マウント
-
-問題4: マウントできない
-  原因: スーパーブロック破損
-  確認: $ sudo file -s /dev/sda1
-  対処: $ sudo e2fsck -b 32768 /dev/sda1  # バックアップSBで修復
-
-問題5: パフォーマンスが著しく低下
-  原因: 断片化、ジャーナル飽和、キャッシュ不足
-  確認:
-  $ sudo e4defrag -c /mount/point   # 断片化率
-  $ vmstat 1                         # I/O待ち確認
-  $ iostat -x 1                      # デバイスI/O詳細
-  対処: デフラグ、ジャーナルサイズ調整、メモリ増設
-```
-
-### 7.2 データ復旧
+### 7.1 Common Problems and Solutions
 
 ```
-削除されたファイルの復旧:
+Problem 1: "No space left on device" but df shows free space
+  Cause: inode exhaustion
+  Check: $ df -i
+  Fix: Delete large quantities of small files, or recreate FS with more inodes
 
-  なぜ復旧可能なのか:
-  → ファイル削除 = ディレクトリエントリの削除 + inode解放
-  → データブロック自体はすぐには上書きされない
-  → 新しいデータが書き込まれるまで復旧の可能性あり
+Problem 2: Deleting files does not reduce disk usage
+  Cause: A process still has the file open
+  Check: $ lsof +D /path/to/dir | grep deleted
+  Fix: Restart the process, or identify the FD via /proc/<pid>/fd/
 
-  復旧ツール:
+Problem 3: File system has become read-only
+  Cause: Automatic protection triggered by file system error detection
+  Check: $ dmesg | grep -i "remount"
+  Fix: $ sudo fsck /dev/sda1 -> remount after repair
+
+Problem 4: Cannot mount
+  Cause: Superblock corruption
+  Check: $ sudo file -s /dev/sda1
+  Fix: $ sudo e2fsck -b 32768 /dev/sda1  # Repair with backup superblock
+
+Problem 5: Significant performance degradation
+  Cause: Fragmentation, journal saturation, cache shortage
+  Check:
+  $ sudo e4defrag -c /mount/point   # Fragmentation rate
+  $ vmstat 1                         # Check I/O wait
+  $ iostat -x 1                      # Detailed device I/O
+  Fix: Defragment, adjust journal size, add memory
+```
+
+### 7.2 Data Recovery
+
+```
+Recovering deleted files:
+
+  Why recovery is possible:
+  -> File deletion = directory entry deletion + inode deallocation
+  -> Data blocks themselves are not immediately overwritten
+  -> Recovery is possible until new data is written over them
+
+  Recovery tools:
   # ext4
   $ sudo extundelete /dev/sda1 --restore-all
   $ sudo ext4magic /dev/sda1 -r -d /tmp/recovered
 
-  # 汎用
-  $ sudo testdisk /dev/sda1       # パーティション復旧
-  $ sudo photorec /dev/sda1       # ファイル復旧
+  # General purpose
+  $ sudo testdisk /dev/sda1       # Partition recovery
+  $ sudo photorec /dev/sda1       # File recovery
 
-  予防策:
-  - 定期的なバックアップ（3-2-1ルール）
-  - ゴミ箱の使用（trash-cli パッケージ）
-  - rm の代わりに trash-put を使用
-  - Btrfs/ZFS のスナップショットを定期取得
+  Preventive measures:
+  - Regular backups (3-2-1 rule)
+  - Use a trash can (trash-cli package)
+  - Use trash-put instead of rm
+  - Take regular Btrfs/ZFS snapshots
 ```
 
 
 ---
 
-## トラブルシューティング
+## Troubleshooting
 
-### よくあるエラーと解決策
+### Common Errors and Solutions
 
-| エラー | 原因 | 解決策 |
-|--------|------|--------|
-| 初期化エラー | 設定ファイルの不備 | 設定ファイルのパスと形式を確認 |
-| タイムアウト | ネットワーク遅延/リソース不足 | タイムアウト値の調整、リトライ処理の追加 |
-| メモリ不足 | データ量の増大 | バッチ処理の導入、ページネーションの実装 |
-| 権限エラー | アクセス権限の不足 | 実行ユーザーの権限確認、設定の見直し |
-| データ不整合 | 並行処理の競合 | ロック機構の導入、トランザクション管理 |
+| Error | Cause | Solution |
+|-------|-------|----------|
+| Initialization error | Configuration file issues | Verify configuration file path and format |
+| Timeout | Network latency / resource shortage | Adjust timeout values, add retry logic |
+| Out of memory | Growing data volume | Introduce batch processing, implement pagination |
+| Permission error | Insufficient access rights | Verify execution user permissions, review settings |
+| Data inconsistency | Concurrency conflicts | Introduce locking mechanisms, implement transaction management |
 
-### デバッグの手順
+### Debugging Procedure
 
-1. **エラーメッセージの確認**: スタックトレースを読み、発生箇所を特定する
-2. **再現手順の確立**: 最小限のコードでエラーを再現する
-3. **仮説の立案**: 考えられる原因をリストアップする
-4. **段階的な検証**: ログ出力やデバッガを使って仮説を検証する
-5. **修正と回帰テスト**: 修正後、関連する箇所のテストも実行する
+1. **Check error messages**: Read stack traces to identify the location of occurrence
+2. **Establish reproduction steps**: Reproduce the error with minimal code
+3. **Formulate hypotheses**: List possible causes
+4. **Incremental verification**: Verify hypotheses using log output and debuggers
+5. **Fix and regression test**: After fixing, also run tests on related areas
 
 ```python
-# デバッグ用ユーティリティ
+# Debugging utility
 import logging
 import traceback
 from functools import wraps
 
-# ロガーの設定
+# Logger configuration
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
@@ -1563,104 +1576,104 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def debug_decorator(func):
-    """関数の入出力をログ出力するデコレータ"""
+    """Decorator that logs function input and output"""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        logger.debug(f"呼び出し: {func.__name__}(args={args}, kwargs={kwargs})")
+        logger.debug(f"Call: {func.__name__}(args={args}, kwargs={kwargs})")
         try:
             result = func(*args, **kwargs)
-            logger.debug(f"戻り値: {func.__name__} -> {result}")
+            logger.debug(f"Return: {func.__name__} -> {result}")
             return result
         except Exception as e:
-            logger.error(f"例外発生: {func.__name__}: {e}")
+            logger.error(f"Exception: {func.__name__}: {e}")
             logger.error(traceback.format_exc())
             raise
     return wrapper
 
 @debug_decorator
 def process_data(items):
-    """データ処理（デバッグ対象）"""
+    """Data processing (debug target)"""
     if not items:
-        raise ValueError("空のデータ")
+        raise ValueError("Empty data")
     return [item * 2 for item in items]
 ```
 
-### パフォーマンス問題の診断
+### Diagnosing Performance Issues
 
-パフォーマンス問題が発生した場合の診断手順:
+Diagnostic procedure when performance issues occur:
 
-1. **ボトルネックの特定**: プロファイリングツールで計測
-2. **メモリ使用量の確認**: メモリリークの有無をチェック
-3. **I/O待ちの確認**: ディスクやネットワークI/Oの状況を確認
-4. **同時接続数の確認**: コネクションプールの状態を確認
+1. **Identify the bottleneck**: Measure using profiling tools
+2. **Check memory usage**: Check for memory leaks
+3. **Check I/O wait**: Verify disk and network I/O status
+4. **Check concurrent connections**: Verify connection pool status
 
-| 問題の種類 | 診断ツール | 対策 |
-|-----------|-----------|------|
-| CPU負荷 | cProfile, py-spy | アルゴリズム改善、並列化 |
-| メモリリーク | tracemalloc, objgraph | 参照の適切な解放 |
-| I/Oボトルネック | strace, iostat | 非同期I/O、キャッシュ |
-| DB遅延 | EXPLAIN, slow query log | インデックス、クエリ最適化 |
+| Problem type | Diagnostic tools | Countermeasures |
+|-------------|-----------------|-----------------|
+| CPU load | cProfile, py-spy | Algorithm improvement, parallelization |
+| Memory leak | tracemalloc, objgraph | Proper reference release |
+| I/O bottleneck | strace, iostat | Async I/O, caching |
+| DB latency | EXPLAIN, slow query log | Indexing, query optimization |
 ---
 
 ## FAQ
 
-### Q1: なぜinodeが枯渇するのか？
+### Q1: Why do inodes get exhausted?
 
-小さなファイルが大量にある場合、ディスク容量に余裕があってもinode数が上限に達することがある（例: メールサーバーの大量メール、npm の node_modules）。`df -i` で確認可能。ext4ではmkfs時のオプションで初期inode数を指定できる。
+When there are a large number of small files, the inode limit can be reached even though there is plenty of disk capacity (e.g., a mail server with massive amounts of mail, npm's node_modules). Check with `df -i`. In ext4, the initial inode count can be specified with mkfs options.
 
 ```bash
-# inode枯渇の確認
+# Check for inode exhaustion
 $ df -i /
 Filesystem     Inodes  IUsed  IFree IUse% Mounted on
 /dev/sda1      655360 655350     10  100% /
 
-# inode を多く確保してFS作成
-$ mkfs.ext4 -N 2000000 /dev/sda1   # 200万inodeを確保
+# Create FS with more inodes
+$ mkfs.ext4 -N 2000000 /dev/sda1   # Allocate 2 million inodes
 
-# inode使用量の多いディレクトリを特定
+# Identify directories with high inode usage
 $ for d in /*; do echo "$(find "$d" -xdev 2>/dev/null | wc -l) $d"; done | sort -rn | head -10
 ```
 
-### Q2: ext4, XFS, Btrfsの選び方は？
+### Q2: How to choose between ext4, XFS, and Btrfs?
 
-- **ext4**: 最も安定。デスクトップ、一般サーバーに最適。最大16TBファイル。Ubuntu デフォルト。枯れた技術で信頼性が高い
-- **XFS**: 大ファイル、高並列I/Oに強い。RHELのデフォルト。オンライン拡張可能だが縮小不可
-- **Btrfs**: スナップショット、圧縮、RAID機能内蔵。SUSEのデフォルト。NAS用途に最適だがRAID5/6は未成熟
+- **ext4**: Most stable. Ideal for desktops and general servers. Max 16TB file size. Ubuntu default. Mature technology with high reliability
+- **XFS**: Strong for large files and high-concurrency I/O. RHEL default. Online expansion possible but cannot shrink
+- **Btrfs**: Built-in snapshot, compression, and RAID features. SUSE default. Ideal for NAS use, but RAID5/6 is immature
 
-### Q3: noatime と relatime の違いは？
+### Q3: What is the difference between noatime and relatime?
 
 ```
-atime（アクセス時刻）の更新ポリシー:
+atime (access time) update policies:
 
-  atime（デフォルト、旧方式）:
-  → ファイル読み取りのたびにatime更新
-  → 読み取りだけで書き込みI/Oが発生
-  → SSDの寿命に悪影響
+  atime (default, legacy method):
+  -> Updates atime on every file read
+  -> Read operations cause write I/O
+  -> Negatively impacts SSD lifespan
 
   noatime:
-  → atimeを一切更新しない
-  → 最もI/O効率が良い
-  → メールの既読/未読判定がatime依存のソフトで問題
+  -> Never updates atime
+  -> Most I/O efficient
+  -> Issues with software that depends on atime for read/unread detection (e.g., mail)
 
-  relatime（現在のデフォルト）:
-  → atime < mtime の場合のみ更新
-  → または前回更新から24時間以上経過した場合に更新
-  → atime依存ソフトとの互換性を維持しつつI/O削減
-  → ほとんどの用途で最適
+  relatime (current default):
+  -> Updates only when atime < mtime
+  -> Or when more than 24 hours have passed since last update
+  -> Maintains compatibility with atime-dependent software while reducing I/O
+  -> Optimal for most use cases
 ```
 
-### Q4: ファイルシステムのUUIDとは？
+### Q4: What is a file system UUID?
 
 ```
-UUID（Universally Unique Identifier）:
-  ファイルシステム作成時にランダム生成される128bit識別子
+UUID (Universally Unique Identifier):
+  A 128-bit identifier randomly generated when a file system is created
 
-  利点:
-  - デバイス名（/dev/sda1）はハードウェア構成変更で変わる
-  - UUIDは不変
-  - /etc/fstab でUUIDを使うことで安定したマウントが可能
+  Advantages:
+  - Device names (/dev/sda1) can change with hardware configuration changes
+  - UUID is immutable
+  - Using UUID in /etc/fstab enables stable mounting
 
-  確認方法:
+  How to check:
   $ blkid
   /dev/sda1: UUID="a1b2c3d4-e5f6-7890-abcd-ef1234567890" TYPE="ext4"
 
@@ -1668,59 +1681,59 @@ UUID（Universally Unique Identifier）:
 
   $ lsblk -o NAME,UUID
 
-  UUIDの再生成:
+  Regenerating UUID:
   $ sudo tune2fs -U random /dev/sda1  # ext4
   $ sudo xfs_admin -U generate /dev/sda1  # XFS
 ```
 
-### Q5: ファイルの完全削除（安全消去）はどうするか？
+### Q5: How to perform complete file deletion (secure erase)?
 
 ```
-通常の削除:
-  → データブロックは残る（復旧可能）
+Normal deletion:
+  -> Data blocks remain (recovery possible)
 
-安全な削除:
-  # shred: データを上書き
+Secure deletion:
+  # shred: Overwrite data
   $ shred -vfz -n 3 sensitive_file
-  # -v: 詳細表示, -f: 強制, -z: 最後にゼロで上書き, -n: 上書き回数
+  # -v: verbose, -f: force, -z: overwrite with zeros at end, -n: number of passes
 
-  注意: SSD では shred は信頼できない
-  → FTL（Flash Translation Layer）がデータを別の場所に保持
-  → TRIM + 暗号化消去（Secure Erase）を使用
+  Note: shred is not reliable on SSDs
+  -> FTL (Flash Translation Layer) retains data in other locations
+  -> Use TRIM + secure erase
 
-  SSD の安全消去:
+  SSD secure erase:
   $ sudo hdparm --security-set-pass password /dev/sda
   $ sudo hdparm --security-erase password /dev/sda
 
-  推奨アプローチ:
-  → 最初からフルディスク暗号化（LUKS, BitLocker）を使用
-  → 廃棄時に暗号鍵を破棄するだけでデータは解読不可に
+  Recommended approach:
+  -> Use full disk encryption (LUKS, BitLocker) from the start
+  -> At disposal, simply destroying the encryption key renders data unreadable
 ```
 
 ---
 
-## まとめ
+## Summary
 
-| 概念 | ポイント |
-|------|---------|
-| ブロック/セクタ | FSの最小単位。ブロックサイズは性能と空間効率のトレードオフ |
-| inode | ファイルのメタデータ。名前は含まない。エクステントで効率化 |
-| ディレクトリ | 名前→inode番号の対応表。HTTreeで高速検索 |
-| ジャーナリング | 不整合防止。電源断からの高速復旧。3つのモード |
-| CoW | 上書きしない方式。スナップショット対応。Btrfs/ZFS |
-| VFS | 統一API。4つの主要オブジェクト。異なるFSを透過的にアクセス |
-| ファイルディスクリプタ | プロセスごとのファイル参照。上限設定に注意 |
-| mmap | ファイルを仮想メモリにマッピング。コピー不要で高速 |
-| TRIM | SSD向け。削除ブロックの通知。性能維持に重要 |
-| xattr | 拡張属性。ACL、SELinuxコンテキスト等を格納 |
-
----
-
-## 次に読むべきガイド
+| Concept | Key Points |
+|---------|-----------|
+| Block/Sector | Smallest FS unit. Block size is a trade-off between performance and space efficiency |
+| inode | File metadata. Does not contain name. Optimized with extents |
+| Directory | Name-to-inode-number mapping. Fast lookup with HTree |
+| Journaling | Prevents inconsistency. Fast recovery from power failure. Three modes |
+| CoW | Non-overwriting approach. Supports snapshots. Btrfs/ZFS |
+| VFS | Unified API. Four main objects. Transparent access to different file systems |
+| File descriptor | Per-process file reference. Pay attention to limit settings |
+| mmap | Maps files to virtual memory. Fast without copying |
+| TRIM | For SSDs. Notifies deleted blocks. Important for performance maintenance |
+| xattr | Extended attributes. Stores ACLs, SELinux contexts, etc. |
 
 ---
 
-## 参考文献
+## Recommended Next Guides
+
+---
+
+## References
 1. Silberschatz, A. et al. "Operating System Concepts." 10th Ed, Ch.13-15, 2018.
 2. Love, R. "Linux Kernel Development." 3rd Ed, Ch.13, 2010.
 3. Bovet, D. & Cesati, M. "Understanding the Linux Kernel." 3rd Ed, O'Reilly, 2005.

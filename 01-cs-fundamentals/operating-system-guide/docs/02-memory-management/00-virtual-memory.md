@@ -1,591 +1,594 @@
-# 仮想メモリ
+# Virtual Memory
 
-> 仮想メモリは「物理メモリの限界を超え、各プロセスに独立した広大なアドレス空間を提供する」OSの最も重要な抽象化の一つ。
+> Virtual memory is one of the most important OS abstractions, "going beyond physical memory limits to provide each process with an independent, vast address space."
 
-## この章で学ぶこと
+## Learning Objectives
 
-- [ ] 仮想メモリの必要性と仕組みを理解する
-- [ ] アドレス変換（MMU、ページテーブル）を説明できる
-- [ ] TLBの役割と最適化手法を知る
-- [ ] ページフォルトとデマンドページングの動作を追える
-- [ ] ページ置換アルゴリズムを比較・評価できる
-- [ ] Linuxの仮想メモリ管理の全体像を把握する
-- [ ] 仮想メモリのパフォーマンスチューニングを実施できる
+- [ ] Understand the necessity and mechanisms of virtual memory
+- [ ] Explain address translation (MMU, page tables)
+- [ ] Know the role of the TLB and optimization techniques
+- [ ] Trace the operation of page faults and demand paging
+- [ ] Compare and evaluate page replacement algorithms
+- [ ] Grasp the overall picture of Linux virtual memory management
+- [ ] Perform virtual memory performance tuning
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Understanding will deepen if you have the following knowledge before reading this guide:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
+- Basic programming knowledge
+- Understanding of related foundational concepts
 
 ---
 
-## 1. なぜ仮想メモリが必要か
+## 1. Why Virtual Memory Is Needed
 
-### 1.1 仮想メモリがない世界の問題
-
-```
-仮想メモリ以前のメモリ管理:
-
-  1950〜1960年代:
-  → プログラムは物理アドレスを直接使用
-  → 1つのプログラムだけがメモリ全体を使用
-  → マルチプログラミング不可
-
-  1960年代 ベースレジスタ方式:
-  → プロセスごとにベースアドレスを設定
-  → アドレス = ベース + オフセット
-  → 問題: メモリの断片化、保護が不十分
-
-  仮想メモリがない場合の5つの問題:
-
-  問題1: メモリ不足
-  ┌──────────────────────────────────────┐
-  │ 物理メモリ: 4GB                       │
-  │ プロセスA: 3GB必要                    │
-  │ プロセスB: 2GB必要                    │
-  │ → 同時に実行できない！               │
-  │                                        │
-  │ 仮想メモリなら:                        │
-  │ 各プロセスに仮想的に8GBの空間を提供   │
-  │ 実際に使う部分だけ物理メモリに配置    │
-  │ 残りはディスク（スワップ）に退避      │
-  └──────────────────────────────────────┘
-
-  問題2: メモリの断片化
-  ┌────┐  ┌──┐  ┌──────┐  ┌────┐  ┌──┐
-  │ A  │  │空│  │  B   │  │ C  │  │空│
-  └────┘  └──┘  └──────┘  └────┘  └──┘
-          ↑ この隙間                ↑ ここも
-  → 合計の空きは十分でも連続領域が不足
-
-  問題3: メモリ保護の欠如
-  → プロセスAが誤ったアドレスに書き込み
-  → プロセスBのメモリを破壊
-  → システム全体がクラッシュ
-
-  問題4: プログラムの再配置
-  → プログラムは特定のアドレスにロードされることを想定
-  → 複数プログラムのアドレスが衝突
-  → プログラマがアドレスを管理する必要
-
-  問題5: メモリ効率
-  → 同じライブラリを使う100個のプロセス
-  → 100コピーが物理メモリに存在（無駄）
-  → 仮想メモリなら1コピーを共有可能
-```
-
-### 1.2 仮想メモリの解決策
+### 1.1 Problems in a World Without Virtual Memory
 
 ```
-仮想メモリの基本概念:
-  各プロセスに独立した仮想アドレス空間を提供
-  → 物理メモリの配置を意識する必要なし
-  → MMU（Memory Management Unit）がアドレス変換を担当
+Memory management before virtual memory:
+
+  1950s-1960s:
+  -> Programs used physical addresses directly
+  -> Only one program could use the entire memory
+  -> Multiprogramming was impossible
+
+  1960s Base Register Approach:
+  -> Set a base address for each process
+  -> Address = Base + Offset
+  -> Problem: Memory fragmentation, insufficient protection
+
+  5 problems without virtual memory:
+
+  Problem 1: Insufficient Memory
+  +--------------------------------------+
+  | Physical Memory: 4GB                 |
+  | Process A: Needs 3GB                 |
+  | Process B: Needs 2GB                 |
+  | -> Cannot run simultaneously!        |
+  |                                      |
+  | With virtual memory:                 |
+  | Provide each process with 8GB of     |
+  | virtual space                        |
+  | Only actually used portions placed   |
+  | in physical memory                   |
+  | The rest is swapped out to disk      |
+  +--------------------------------------+
+
+  Problem 2: Memory Fragmentation
+  +----+  +--+  +------+  +----+  +--+
+  | A  |  |  |  |  B   |  | C  |  |  |
+  +----+  +--+  +------+  +----+  +--+
+          ^ this gap               ^ here too
+  -> Total free space is sufficient but contiguous regions are lacking
+
+  Problem 3: Lack of Memory Protection
+  -> Process A writes to an incorrect address
+  -> Corrupts Process B's memory
+  -> Entire system crashes
+
+  Problem 4: Program Relocation
+  -> Programs assume they will be loaded at specific addresses
+  -> Address conflicts between multiple programs
+  -> Programmers need to manage addresses manually
+
+  Problem 5: Memory Efficiency
+  -> 100 processes using the same library
+  -> 100 copies exist in physical memory (wasteful)
+  -> With virtual memory, a single copy can be shared
+```
+
+### 1.2 Virtual Memory Solution
+
+```
+Basic concept of virtual memory:
+  Provide each process with an independent virtual address space
+  -> No need to be aware of physical memory layout
+  -> MMU (Memory Management Unit) handles address translation
 
   Process A           Process B
-  ┌──────────┐       ┌──────────┐
-  │仮想アドレス│       │仮想アドレス│
-  │0x0000    │       │0x0000    │  ← 同じアドレスだが
-  │  :       │       │  :       │    別の物理メモリ
-  │0xFFFF    │       │0xFFFF    │
-  └────┬─────┘       └────┬─────┘
-       │ MMU             │ MMU
-       ↓                  ↓
-  ┌──────────────────────────────┐
-  │     物理メモリ（RAM）          │
-  │ [A's data][B's data][空き]    │
-  └──────────────────────────────┘
-       ↕ スワップ
-  ┌──────────────────────────────┐
-  │     ディスク（スワップ領域）   │
-  └──────────────────────────────┘
+  +----------+       +----------+
+  |Virt Addr |       |Virt Addr |
+  |0x0000    |       |0x0000    |  <- Same address but
+  |  :       |       |  :       |    different physical memory
+  |0xFFFF    |       |0xFFFF    |
+  +----+-----+       +----+-----+
+       | MMU             | MMU
+       v                  v
+  +------------------------------+
+  |     Physical Memory (RAM)     |
+  | [A's data][B's data][free]    |
+  +------------------------------+
+       | Swap
+  +------------------------------+
+  |     Disk (Swap Area)          |
+  +------------------------------+
 
-  仮想メモリの4つの重要な機能:
+  4 important functions of virtual memory:
 
-  1. アドレス変換（Address Translation）:
-     仮想アドレス → 物理アドレスのマッピング
-     → ページテーブルによる管理
-     → MMUがハードウェアで高速変換
+  1. Address Translation:
+     Virtual address -> Physical address mapping
+     -> Managed by page tables
+     -> MMU performs fast hardware translation
 
-  2. メモリ保護（Memory Protection）:
-     プロセス間の完全な分離
-     → プロセスAはプロセスBのメモリにアクセス不可
-     → 各ページに読み/書き/実行の権限設定
-     → カーネル空間とユーザー空間の分離
+  2. Memory Protection:
+     Complete isolation between processes
+     -> Process A cannot access Process B's memory
+     -> Read/Write/Execute permissions set per page
+     -> Separation of kernel space and user space
 
-  3. デマンドページング（Demand Paging）:
-     必要な時だけ物理メモリに読み込む
-     → プログラム起動時に全コードを読み込まない
-     → アクセスされたページだけ物理メモリに配置
-     → メモリの効率的な使用
+  3. Demand Paging:
+     Load into physical memory only when needed
+     -> Do not load all code at program startup
+     -> Only accessed pages are placed in physical memory
+     -> Efficient use of memory
 
-  4. メモリ共有（Memory Sharing）:
-     複数プロセスが同じ物理ページを共有
-     → 共有ライブラリ（libc等）の共有
-     → Copy-on-Write（fork時の最適化）
-     → 明示的な共有メモリ（IPC）
+  4. Memory Sharing:
+     Multiple processes share the same physical pages
+     -> Shared libraries (libc, etc.)
+     -> Copy-on-Write (optimization during fork)
+     -> Explicit shared memory (IPC)
 
-  仮想アドレス空間のレイアウト（x86-64 Linux）:
-  ┌──────────────────────────────────────────────────┐
-  │ 0xFFFFFFFFFFFFFFFF                                │
-  │ ┌────────────────────────────────────────────┐   │
-  │ │ カーネル空間（上位半分）                    │   │
-  │ │ → ユーザーからアクセス不可                  │   │
-  │ │ → 全プロセスで共通のマッピング              │   │
-  │ ├────────────────────────────────────────────┤   │
-  │ │ 0xFFFF800000000000 ─── カーネル開始         │   │
-  │ │                                              │   │
-  │ │ 非正規アドレス領域（使用不可）              │   │
-  │ │                                              │   │
-  │ │ 0x00007FFFFFFFFFFF ─── ユーザー空間上限     │   │
-  │ ├────────────────────────────────────────────┤   │
-  │ │ スタック（↓ 下向きに成長）                  │   │
-  │ │ ↓                                            │   │
-  │ │                                              │   │
-  │ │ ↑                                            │   │
-  │ │ mmap領域（共有ライブラリ、大きなmalloc）    │   │
-  │ │ ↑                                            │   │
-  │ │                                              │   │
-  │ │ ↑                                            │   │
-  │ │ ヒープ（↑ 上向きに成長）                    │   │
-  │ │ ─── brk                                      │   │
-  │ │ BSS（未初期化データ）                        │   │
-  │ │ データセグメント（初期化済みグローバル変数） │   │
-  │ │ テキストセグメント（プログラムコード）       │   │
-  │ │ 0x0000000000400000 ─── プログラム開始        │   │
-  │ │                                              │   │
-  │ │ NULL ポインタトラップ領域                    │   │
-  │ └────────────────────────────────────────────┘   │
-  │ 0x0000000000000000                                │
-  └──────────────────────────────────────────────────┘
+  Virtual address space layout (x86-64 Linux):
+  +--------------------------------------------------+
+  | 0xFFFFFFFFFFFFFFFF                                |
+  | +--------------------------------------------+   |
+  | | Kernel Space (upper half)                  |   |
+  | | -> Not accessible from user mode           |   |
+  | | -> Common mapping across all processes      |   |
+  | +--------------------------------------------+   |
+  | | 0xFFFF800000000000 --- Kernel start         |   |
+  | |                                              |   |
+  | | Non-canonical address region (unusable)      |   |
+  | |                                              |   |
+  | | 0x00007FFFFFFFFFFF --- User space upper limit|   |
+  | +--------------------------------------------+   |
+  | | Stack (grows downward)                      |   |
+  | | v                                            |   |
+  | |                                              |   |
+  | | ^                                            |   |
+  | | mmap region (shared libraries, large malloc) |   |
+  | | ^                                            |   |
+  | |                                              |   |
+  | | ^                                            |   |
+  | | Heap (grows upward)                          |   |
+  | | --- brk                                      |   |
+  | | BSS (uninitialized data)                     |   |
+  | | Data segment (initialized global variables)  |   |
+  | | Text segment (program code)                  |   |
+  | | 0x0000000000400000 --- Program start         |   |
+  | |                                              |   |
+  | | NULL pointer trap region                     |   |
+  | +--------------------------------------------+   |
+  | 0x0000000000000000                                |
+  +--------------------------------------------------+
 
-  ユーザー空間: 128TB（47ビット）
-  カーネル空間: 128TB（47ビット）
-  → 5レベルページテーブル有効時: 各64PB（56ビット）
+  User space: 128TB (47 bits)
+  Kernel space: 128TB (47 bits)
+  -> With 5-level page tables enabled: 64PB each (56 bits)
 ```
 
-### 1.3 ASLR（Address Space Layout Randomization）
+### 1.3 ASLR (Address Space Layout Randomization)
 
 ```
-ASLR: アドレス空間レイアウトのランダム化
+ASLR: Randomization of address space layout
 
-  目的:
-  → セキュリティ攻撃（バッファオーバーフロー等）の防止
-  → スタック、ヒープ、ライブラリのアドレスを起動ごとに変更
-  → 攻撃者が特定のアドレスを予測できなくする
+  Purpose:
+  -> Prevent security attacks (buffer overflow, etc.)
+  -> Change stack, heap, and library addresses at each startup
+  -> Make it impossible for attackers to predict specific addresses
 
-  ランダム化される領域:
-  ┌──────────────────────────────────────────┐
-  │ スタック:     約8MBのランダムオフセット  │
-  │ mmap領域:     約1TBの範囲でランダム      │
-  │ ヒープ:       約2MBのランダムオフセット  │
-  │ プログラム本体: PIE（Position Independent │
-  │                 Executable）有効時のみ    │
-  └──────────────────────────────────────────┘
+  Randomized regions:
+  +------------------------------------------+
+  | Stack:     ~8MB random offset            |
+  | mmap area: Randomized within ~1TB range  |
+  | Heap:      ~2MB random offset            |
+  | Program:   Only when PIE (Position       |
+  |            Independent Executable) is on  |
+  +------------------------------------------+
 
-  確認方法:
+  How to check:
   $ cat /proc/sys/kernel/randomize_va_space
-  0 = 無効
-  1 = スタック、mmap のみ
-  2 = 全て（デフォルト）
+  0 = Disabled
+  1 = Stack and mmap only
+  2 = All (default)
 
-  $ cat /proc/self/maps    # 実行するたびにアドレスが変わる
+  $ cat /proc/self/maps    # Addresses change with each execution
 
-  PIE（Position Independent Executable）:
-  → -fPIE -pie でコンパイル
-  → 実行ファイル本体のアドレスもランダム化
-  → GCC 6+/Ubuntu 17.10+ ではデフォルト有効
+  PIE (Position Independent Executable):
+  -> Compile with -fPIE -pie
+  -> Randomizes the executable's own address
+  -> Enabled by default since GCC 6+ / Ubuntu 17.10+
 
-  KASLR（Kernel ASLR）:
-  → カーネルのロードアドレスもランダム化
-  → カーネルの脆弱性攻撃を困難に
-  → Linux 4.12+ でデフォルト有効
+  KASLR (Kernel ASLR):
+  -> Randomizes the kernel load address
+  -> Makes kernel vulnerability exploitation harder
+  -> Enabled by default since Linux 4.12+
 ```
 
 ---
 
-## 2. ページングの仕組み
+## 2. How Paging Works
 
-### 2.1 ページとフレーム
-
-```
-ページング:
-  仮想メモリを固定サイズの「ページ」に分割
-  物理メモリを同じサイズの「フレーム」に分割
-
-  ページ（仮想メモリ側） → フレーム（物理メモリ側）
-
-  一般的なページサイズ:
-  ┌──────────────┬──────────────┬──────────────────────┐
-  │ ページサイズ │ アーキテクチャ│ 用途                  │
-  ├──────────────┼──────────────┼──────────────────────┤
-  │ 4KB          │ x86, ARM     │ 標準（デフォルト）    │
-  │ 16KB         │ ARM64(選択可)│ Apple Silicon         │
-  │ 64KB         │ ARM64(選択可)│ 一部のARM Linux      │
-  │ 2MB          │ x86(hugepage)│ ラージページ（DB、JVM）│
-  │ 1GB          │ x86(hugepage)│ 超大規模メモリ        │
-  └──────────────┴──────────────┴──────────────────────┘
-
-  なぜ4KBか？
-  - 小さすぎると: ページテーブルが巨大になる
-  - 大きすぎると: 内部断片化が増大
-  - 4KBは歴史的にバランスが良い（1980年代のVAXから）
-  - ディスクのセクタサイズ（512B→4KB）とも合致
-
-  Apple Silicon (M1以降) のページサイズ:
-  → macOSは16KBページを採用
-  → iOSも16KBページ
-  → 4KBの4倍のTLBカバレッジ
-  → x86からの移植時にアライメント注意
-```
-
-### 2.2 アドレス変換
+### 2.1 Pages and Frames
 
 ```
-仮想アドレス → 物理アドレスの変換:
+Paging:
+  Divides virtual memory into fixed-size "pages"
+  Divides physical memory into same-size "frames"
 
-  仮想アドレス（例: 32bit）:
-  ┌──────────────┬───────────┐
-  │ ページ番号    │ オフセット │
-  │ (20bit)      │ (12bit)   │
-  └──────┬───────┴─────┬─────┘
-         │              │
-         ↓              │
-  ┌──────────────┐      │
-  │ ページテーブル │      │
-  │ [0] → フレーム5│     │
-  │ [1] → フレーム2│     │
-  │ [2] → ディスク │     │ ← ページフォルト
-  │ [3] → フレーム8│     │
-  └──────┬───────┘      │
-         │              │
-         ↓              ↓
-  ┌──────────────┬───────────┐
-  │ フレーム番号  │ オフセット │
-  └──────────────┴───────────┘
-  = 物理アドレス
+  Page (virtual memory side) -> Frame (physical memory side)
 
-  計算例:
-  仮想アドレス = 0x00003A7F
-  ページサイズ = 4KB = 2^12 = 4096バイト
+  Common page sizes:
+  +--------------+--------------+----------------------+
+  | Page Size    | Architecture | Use Case             |
+  +--------------+--------------+----------------------+
+  | 4KB          | x86, ARM     | Standard (default)   |
+  | 16KB         | ARM64(opt.)  | Apple Silicon         |
+  | 64KB         | ARM64(opt.)  | Some ARM Linux        |
+  | 2MB          | x86(hugepage)| Large pages (DB, JVM) |
+  | 1GB          | x86(hugepage)| Very large memory     |
+  +--------------+--------------+----------------------+
 
-  ページ番号 = 0x00003A7F >> 12 = 0x3 = 3
-  オフセット = 0x00003A7F & 0xFFF = 0xA7F
+  Why 4KB?
+  - Too small: Page table becomes enormous
+  - Too large: Internal fragmentation increases
+  - 4KB is a historically good balance (from VAX in the 1980s)
+  - Matches disk sector size (512B -> 4KB)
 
-  ページテーブル: ページ3 → フレーム8
-  物理アドレス = (8 << 12) | 0xA7F = 0x8A7F
-
-ページテーブルエントリ（PTE）:
-  ┌──────────────────────────────────────────────┐
-  │ ビットフィールド:                             │
-  │                                                │
-  │ [63]    NX (No Execute): 実行禁止             │
-  │ [62:52] 予約 / ソフトウェア用                 │
-  │ [51:12] 物理フレーム番号（40ビット）          │
-  │ [11:9]  ソフトウェア用                        │
-  │ [8]     G (Global): TLBフラッシュ時に保持     │
-  │ [7]     PS/PAT: ページサイズ / PAT            │
-  │ [6]     D (Dirty): 書き込み済みフラグ         │
-  │ [5]     A (Accessed): 参照済みフラグ          │
-  │ [4]     PCD: キャッシュ無効化                  │
-  │ [3]     PWT: ライトスルーキャッシュ            │
-  │ [2]     U/S (User/Supervisor): ユーザー/カーネル│
-  │ [1]     R/W (Read/Write): 読み書き権限        │
-  │ [0]     P (Present): ページが物理メモリに存在 │
-  └──────────────────────────────────────────────┘
-
-  重要なフラグの用途:
-  P=0: ページフォルトが発生
-       → デマンドページング、スワップアウト
-  R/W=0: 書き込み試行でページフォルト
-       → Copy-on-Write の実装
-  U/S=0: ユーザーモードからのアクセスで例外
-       → カーネルメモリの保護
-  NX=1: 実行試行で例外
-       → DEP（Data Execution Prevention）
-       → スタック上のシェルコード実行を防止
-  D=1: ページが変更された
-       → スワップアウト時にディスクに書き戻しが必要
-  A=1: ページが参照された
-       → ページ置換アルゴリズムで使用
+  Apple Silicon (M1 and later) page size:
+  -> macOS uses 16KB pages
+  -> iOS also uses 16KB pages
+  -> 4x TLB coverage compared to 4KB
+  -> Watch for alignment when porting from x86
 ```
 
-### 2.3 多階層ページテーブル
+### 2.2 Address Translation
 
 ```
-なぜ多階層が必要か:
+Virtual address -> Physical address translation:
 
-  1階層ページテーブル（32bit、4KBページ）:
-  → 2^20 = 約100万エントリ
-  → 各エントリ4バイト → 4MBのテーブル
-  → プロセスごとに4MB（多数プロセスで膨大に）
-  → しかもほとんどのエントリは使われない
-     （通常のプロセスは数MB〜数百MB程度しか使わない）
+  Virtual address (e.g., 32-bit):
+  +--------------+-----------+
+  | Page Number  | Offset    |
+  | (20 bits)    | (12 bits) |
+  +------+-------+-----+-----+
+         |              |
+         v              |
+  +--------------+      |
+  | Page Table   |      |
+  | [0] -> Frame 5|     |
+  | [1] -> Frame 2|     |
+  | [2] -> Disk   |     | <- Page fault
+  | [3] -> Frame 8|     |
+  +------+-------+      |
+         |              |
+         v              v
+  +--------------+-----------+
+  | Frame Number | Offset    |
+  +--------------+-----------+
+  = Physical address
 
-  2階層ページテーブル（32bit）:
-  ┌────────┬────────┬───────────┐
-  │ PD(10) │ PT(10) │Offset(12) │
-  └───┬────┴───┬────┴───────────┘
-      │        │
-      ↓        ↓
-  [ページディレクトリ] → [ページテーブル] → 物理フレーム
+  Calculation example:
+  Virtual address = 0x00003A7F
+  Page size = 4KB = 2^12 = 4096 bytes
 
-  → 使用していない領域のページテーブルは作らない
-  → 1MBしか使わないプロセスは少数のページテーブルで済む
+  Page number = 0x00003A7F >> 12 = 0x3 = 3
+  Offset = 0x00003A7F & 0xFFF = 0xA7F
 
-x86-64の4階層ページテーブル:
+  Page table: Page 3 -> Frame 8
+  Physical address = (8 << 12) | 0xA7F = 0x8A7F
 
-  仮想アドレス(48bit):
-  ┌─────┬─────┬─────┬─────┬────────────┐
-  │PML4 │PDPT │ PD  │ PT  │ Offset     │
-  │(9)  │(9)  │(9)  │(9)  │(12)        │
-  └──┬──┴──┬──┴──┬──┴──┬──┴────────────┘
-     │     │     │     │
-     ↓     ↓     ↓     ↓
-  [PML4]→[PDPT]→[PD]→[PT]→ 物理フレーム
+Page Table Entry (PTE):
+  +----------------------------------------------+
+  | Bit fields:                                   |
+  |                                                |
+  | [63]    NX (No Execute): Execution prohibited |
+  | [62:52] Reserved / Software use               |
+  | [51:12] Physical frame number (40 bits)       |
+  | [11:9]  Software use                          |
+  | [8]     G (Global): Retained during TLB flush |
+  | [7]     PS/PAT: Page size / PAT               |
+  | [6]     D (Dirty): Written flag               |
+  | [5]     A (Accessed): Referenced flag          |
+  | [4]     PCD: Cache disable                     |
+  | [3]     PWT: Write-through cache               |
+  | [2]     U/S (User/Supervisor): User/Kernel     |
+  | [1]     R/W (Read/Write): Read/Write permission|
+  | [0]     P (Present): Page exists in phys. mem  |
+  +----------------------------------------------+
 
-  各レベル: 512エントリ（9ビット、8バイト/エントリ → 4KB/テーブル）
-  → 512 × 512 × 512 × 512 × 4KB = 256TB の仮想空間
+  Key flag purposes:
+  P=0: Page fault occurs
+       -> Demand paging, swap out
+  R/W=0: Page fault on write attempt
+       -> Copy-on-Write implementation
+  U/S=0: Exception on user-mode access
+       -> Kernel memory protection
+  NX=1: Exception on execution attempt
+       -> DEP (Data Execution Prevention)
+       -> Prevents shellcode execution on the stack
+  D=1: Page has been modified
+       -> Needs to be written back to disk on swap out
+  A=1: Page has been referenced
+       -> Used in page replacement algorithms
+```
 
-  階層ごとの役割:
-  ┌───────┬──────────────────────────────────────┐
-  │ PML4  │ 最上位。CR3レジスタが指す。            │
-  │       │ 512エントリ → 最大512個のPDPT          │
-  │       │ 各エントリが512GBの範囲をカバー        │
-  ├───────┼──────────────────────────────────────┤
-  │ PDPT  │ 512エントリ → 最大512個のPD            │
-  │       │ 各エントリが1GBの範囲をカバー          │
-  │       │ 1GBラージページも可能                  │
-  ├───────┼──────────────────────────────────────┤
-  │ PD    │ 512エントリ → 最大512個のPT            │
-  │       │ 各エントリが2MBの範囲をカバー          │
-  │       │ 2MBラージページも可能                  │
-  ├───────┼──────────────────────────────────────┤
-  │ PT    │ 512エントリ → 最大512個の物理フレーム  │
-  │       │ 各エントリが4KBのページ                │
-  └───────┴──────────────────────────────────────┘
+### 2.3 Multi-level Page Tables
 
-  メモリ節約の例:
-  100MBを使用するプロセス:
-  → 4階層: PML4(1) + PDPT(1) + PD(1) + PT(25) = 28テーブル = 112KB
-  → 1階層: 256TB/4KB = 640億エントリ × 8B = 512GB（不可能）
+```
+Why multi-level is needed:
 
-5階層ページテーブル（Intel LA57, Linux 4.14+）:
+  Single-level page table (32-bit, 4KB pages):
+  -> 2^20 = ~1 million entries
+  -> 4 bytes per entry -> 4MB table
+  -> 4MB per process (enormous with many processes)
+  -> Most entries are unused
+     (Typical processes use only a few MB to a few hundred MB)
 
-  仮想アドレス(57bit):
-  ┌─────┬─────┬─────┬─────┬─────┬────────────┐
-  │PML5 │PML4 │PDPT │ PD  │ PT  │ Offset     │
-  │(9)  │(9)  │(9)  │(9)  │(9)  │(12)        │
-  └─────┴─────┴─────┴─────┴─────┴────────────┘
+  Two-level page table (32-bit):
+  +--------+--------+-----------+
+  | PD(10) | PT(10) |Offset(12) |
+  +---+----+---+----+-----------+
+      |        |
+      v        v
+  [Page Directory] -> [Page Table] -> Physical frame
 
-  → 128PB（ペタバイト）の仮想アドレス空間
-  → サーバー用の巨大メモリ環境向け
-  → 一般用途ではまだ不要
+  -> Page tables are not created for unused regions
+  -> A process using only 1MB needs just a few page tables
+
+x86-64 four-level page table:
+
+  Virtual address (48-bit):
+  +-----+-----+-----+-----+------------+
+  |PML4 |PDPT | PD  | PT  | Offset     |
+  |(9)  |(9)  |(9)  |(9)  |(12)        |
+  +--+--+--+--+--+--+--+--+------------+
+     |     |     |     |
+     v     v     v     v
+  [PML4]->[PDPT]->[PD]->[PT]-> Physical frame
+
+  Each level: 512 entries (9 bits, 8 bytes/entry -> 4KB/table)
+  -> 512 x 512 x 512 x 512 x 4KB = 256TB virtual space
+
+  Role of each level:
+  +-------+--------------------------------------+
+  | PML4  | Top level. Pointed to by CR3 register|
+  |       | 512 entries -> up to 512 PDPTs       |
+  |       | Each entry covers 512GB range         |
+  +-------+--------------------------------------+
+  | PDPT  | 512 entries -> up to 512 PDs          |
+  |       | Each entry covers 1GB range           |
+  |       | 1GB large pages are possible           |
+  +-------+--------------------------------------+
+  | PD    | 512 entries -> up to 512 PTs           |
+  |       | Each entry covers 2MB range            |
+  |       | 2MB large pages are possible           |
+  +-------+--------------------------------------+
+  | PT    | 512 entries -> up to 512 phys. frames  |
+  |       | Each entry is a 4KB page               |
+  +-------+--------------------------------------+
+
+  Memory saving example:
+  Process using 100MB:
+  -> 4-level: PML4(1) + PDPT(1) + PD(1) + PT(25) = 28 tables = 112KB
+  -> 1-level: 256TB/4KB = 64 billion entries x 8B = 512GB (impossible)
+
+5-level page table (Intel LA57, Linux 4.14+):
+
+  Virtual address (57-bit):
+  +-----+-----+-----+-----+-----+------------+
+  |PML5 |PML4 |PDPT | PD  | PT  | Offset     |
+  |(9)  |(9)  |(9)  |(9)  |(9)  |(12)        |
+  +-----+-----+-----+-----+-----+------------+
+
+  -> 128PB (petabytes) virtual address space
+  -> For server environments with huge memory
+  -> Not yet needed for general-purpose use
 ```
 
 ---
 
-## 3. TLB（Translation Lookaside Buffer）
+## 3. TLB (Translation Lookaside Buffer)
 
-### 3.1 TLBの基本
-
-```
-問題: 毎回ページテーブルを辿ると遅い
-  → 4階層 = 4回のメモリアクセス
-  → 通常のメモリアクセス1回が5回に！（400%のオーバーヘッド）
-
-TLB: ページテーブルのキャッシュ（CPU内蔵のハードウェア）
-
-  仮想アドレス
-       │
-       ├──→ [TLB] ──→ ヒット! → 物理アドレス（1サイクル）
-       │        │
-       │     ミス
-       │        ↓
-       └──→ [ページテーブルウォーク] → 物理アドレス + TLBに登録
-            （4回のメモリアクセス、数百サイクル）
-
-  TLBの内部構造:
-  ┌──────────────────────────────────────────────────┐
-  │ TLBエントリ:                                      │
-  │ ┌──────────┬──────────┬───────┬────────┐          │
-  │ │ 仮想PN   │ 物理FN   │ ASID  │ フラグ │          │
-  │ │ (タグ)   │ (データ) │       │ R/W/X  │          │
-  │ └──────────┴──────────┴───────┴────────┘          │
-  │                                                    │
-  │ 連想記憶（Content-Addressable Memory）:            │
-  │ → 仮想PN で全エントリを同時検索                   │
-  │ → 1サイクルで結果を返す                            │
-  │ → ハードウェアコストが高い（エントリ数制限）       │
-  └──────────────────────────────────────────────────┘
-
-  TLBの典型的なサイズ:
-  ┌──────────────────────────────────────────────────┐
-  │ Intel Core i7:                                    │
-  │   L1 iTLB: 128エントリ（4KBページ）、8-way        │
-  │   L1 dTLB: 64エントリ（4KBページ）、4-way         │
-  │   L2 sTLB: 1536エントリ（4KBページ）、12-way      │
-  │   + ラージページTLB（2MB/1GB）: 数十エントリ      │
-  │                                                    │
-  │ Apple M1:                                          │
-  │   L1 iTLB: 192エントリ（16KBページ）               │
-  │   L1 dTLB: 160エントリ（16KBページ）               │
-  │   L2 TLB: 3072エントリ                             │
-  │                                                    │
-  │ → 非常に小さい（数百〜数千エントリ）               │
-  │ → それでもヒット率99%以上（局所性の恩恵）          │
-  └──────────────────────────────────────────────────┘
-
-  TLBカバレッジ:
-  L1 dTLB 64エントリ × 4KB = 256KB
-  L2 sTLB 1536エントリ × 4KB = 6MB
-  → ワーキングセットが6MBを超えるとTLBミスが増加
-
-  ラージページ（2MB）の場合:
-  L1 dTLB 32エントリ × 2MB = 64MB
-  → TLBカバレッジが大幅に拡大！
-```
-
-### 3.2 TLBの管理
+### 3.1 TLB Basics
 
 ```
-TLBミスのコスト:
-  ヒット: 1サイクル（〜0.3ns @3GHz）
-  L2 TLBヒット: 〜5サイクル（〜1.5ns）
-  ミス（ページテーブルウォーク）:
-    ページテーブルがL1キャッシュに: 〜20サイクル
-    ページテーブルがL2キャッシュに: 〜50サイクル
-    ページテーブルがメモリに: 〜200-400サイクル
+Problem: Walking the page table every time is slow
+  -> 4 levels = 4 memory accesses
+  -> A single memory access becomes 5 times! (400% overhead)
 
-  → TLBヒット率を保つことがパフォーマンスの鍵
+TLB: A cache of the page table (CPU-integrated hardware)
 
-コンテキストスイッチとTLB:
+  Virtual address
+       |
+       +---> [TLB] ---> Hit! -> Physical address (1 cycle)
+       |        |
+       |     Miss
+       |        v
+       +---> [Page table walk] -> Physical address + Register in TLB
+            (4 memory accesses, hundreds of cycles)
 
-  問題: プロセスAのTLBエントリはプロセスBでは無効
-  → コンテキストスイッチ時にTLBを無効化する必要
+  TLB internal structure:
+  +--------------------------------------------------+
+  | TLB Entry:                                        |
+  | +----------+----------+-------+--------+          |
+  | | Virt PN  | Phys FN  | ASID  | Flags  |          |
+  | | (tag)    | (data)   |       | R/W/X  |          |
+  | +----------+----------+-------+--------+          |
+  |                                                    |
+  | Associative memory (Content-Addressable Memory):   |
+  | -> Searches all entries simultaneously by Virt PN  |
+  | -> Returns result in 1 cycle                       |
+  | -> High hardware cost (limits entry count)         |
+  +--------------------------------------------------+
 
-  方法1: TLBフラッシュ（全エントリ無効化）
-  → 単純だが、スイッチ後にTLBミスが頻発
-  → コンテキストスイッチのコストが増大
+  Typical TLB sizes:
+  +--------------------------------------------------+
+  | Intel Core i7:                                    |
+  |   L1 iTLB: 128 entries (4KB pages), 8-way         |
+  |   L1 dTLB: 64 entries (4KB pages), 4-way          |
+  |   L2 sTLB: 1536 entries (4KB pages), 12-way       |
+  |   + Large page TLB (2MB/1GB): dozens of entries   |
+  |                                                    |
+  | Apple M1:                                          |
+  |   L1 iTLB: 192 entries (16KB pages)                |
+  |   L1 dTLB: 160 entries (16KB pages)                |
+  |   L2 TLB: 3072 entries                             |
+  |                                                    |
+  | -> Very small (hundreds to thousands of entries)   |
+  | -> Yet hit rate exceeds 99% (benefit of locality)  |
+  +--------------------------------------------------+
 
-  方法2: ASID（Address Space Identifier）
-  → 各TLBエントリにプロセスのIDを付与
-  → 異なるASIDのエントリは自動的に無視
-  → TLBフラッシュ不要!
-  → x86ではPCID（Process Context Identifier）と呼ぶ
-  → Linux 4.14+でPCIDを活用
+  TLB Coverage:
+  L1 dTLB 64 entries x 4KB = 256KB
+  L2 sTLB 1536 entries x 4KB = 6MB
+  -> TLB misses increase when working set exceeds 6MB
 
-  ┌──────────────────────────────────────────────┐
-  │ TLBフラッシュなし（PCID有効）:                 │
-  │ Process A(PCID=1): [VPN=3→PFN=5, PCID=1]    │
-  │ Process B(PCID=2): [VPN=3→PFN=8, PCID=2]    │
-  │                                                │
-  │ → 同じVPN=3でもPCIDで区別される               │
-  │ → コンテキストスイッチ時にTLBが保持される     │
-  │ → Spectre/Meltdown対策でPCIDの重要性が増大   │
-  └──────────────────────────────────────────────┘
-
-KPTI（Kernel Page Table Isolation）:
-  Meltdown脆弱性（2018年）への対策
-  → ユーザーモードではカーネルのページマッピングを削除
-  → コンテキストスイッチ時にページテーブルを切り替え
-  → TLBフラッシュが必要 → PCIDで緩和
-  → パフォーマンス影響: 0.1%〜5%（ワークロード依存）
+  With large pages (2MB):
+  L1 dTLB 32 entries x 2MB = 64MB
+  -> TLB coverage expands significantly!
 ```
 
-### 3.3 ラージページ（Huge Pages）
+### 3.2 TLB Management
 
 ```
-ラージページの利点:
+TLB miss cost:
+  Hit: 1 cycle (~0.3ns @3GHz)
+  L2 TLB hit: ~5 cycles (~1.5ns)
+  Miss (page table walk):
+    Page table in L1 cache: ~20 cycles
+    Page table in L2 cache: ~50 cycles
+    Page table in memory: ~200-400 cycles
 
-  4KBページ:
-  4GBメモリ = 1,048,576 ページ = 100万TLBエントリが必要
-  → TLBはせいぜい数千エントリ → ミスが頻発
+  -> Maintaining TLB hit rate is the key to performance
 
-  2MBラージページ:
-  4GBメモリ = 2,048 ページ = 2千TLBエントリで済む
-  → TLBミスが大幅に減少（約500分の1）
+Context switch and TLB:
 
-  1GBラージページ:
-  4GBメモリ = 4 ページ = 4TLBエントリで済む
-  → TLBミスがほぼゼロ
+  Problem: Process A's TLB entries are invalid for Process B
+  -> TLB needs to be invalidated during context switch
 
-  パフォーマンス向上:
-  ┌──────────────────────────────────────────────┐
-  │ ワークロード        │ 4KB     │ 2MB(huge)   │
-  ├──────────────────────┼─────────┼─────────────┤
-  │ PostgreSQL (大規模DB)│ 基準    │ 5〜15%向上  │
-  │ Redis (メモリDB)     │ 基準    │ 3〜8%向上   │
-  │ JVM (大規模ヒープ)   │ 基準    │ 10〜20%向上 │
-  │ 科学計算             │ 基準    │ 5〜30%向上  │
-  │ DPDK(ネットワーク)   │ 基準    │ 必須        │
-  └──────────────────────┴─────────┴─────────────┘
+  Method 1: TLB Flush (invalidate all entries)
+  -> Simple but TLB misses are frequent after switch
+  -> Increases context switch cost
 
-  Linuxでのラージページ設定:
+  Method 2: ASID (Address Space Identifier)
+  -> Assign a process ID to each TLB entry
+  -> Entries with different ASIDs are automatically ignored
+  -> No TLB flush needed!
+  -> Called PCID (Process Context Identifier) on x86
+  -> Linux 4.14+ leverages PCID
+
+  +----------------------------------------------+
+  | No TLB flush (PCID enabled):                  |
+  | Process A(PCID=1): [VPN=3->PFN=5, PCID=1]    |
+  | Process B(PCID=2): [VPN=3->PFN=8, PCID=2]    |
+  |                                                |
+  | -> Same VPN=3 but distinguished by PCID        |
+  | -> TLB is preserved during context switch      |
+  | -> PCID importance increased due to             |
+  |    Spectre/Meltdown mitigations                |
+  +----------------------------------------------+
+
+KPTI (Kernel Page Table Isolation):
+  Countermeasure for Meltdown vulnerability (2018)
+  -> Remove kernel page mappings in user mode
+  -> Switch page tables during context switch
+  -> TLB flush required -> Mitigated by PCID
+  -> Performance impact: 0.1%-5% (workload dependent)
+```
+
+### 3.3 Large Pages (Huge Pages)
+
+```
+Advantages of large pages:
+
+  4KB pages:
+  4GB memory = 1,048,576 pages = 1 million TLB entries needed
+  -> TLB has at most a few thousand entries -> Frequent misses
+
+  2MB large pages:
+  4GB memory = 2,048 pages = 2 thousand TLB entries sufficient
+  -> TLB misses dramatically reduced (~1/500)
+
+  1GB large pages:
+  4GB memory = 4 pages = 4 TLB entries sufficient
+  -> TLB misses almost zero
+
+  Performance improvement:
+  +----------------------------------------------+
+  | Workload             | 4KB     | 2MB(huge)   |
+  +----------------------+---------+-------------+
+  | PostgreSQL (large DB)| Baseline| 5-15% better|
+  | Redis (in-memory DB) | Baseline| 3-8% better |
+  | JVM (large heap)     | Baseline| 10-20% better|
+  | Scientific computing | Baseline| 5-30% better|
+  | DPDK (networking)    | Baseline| Required    |
+  +----------------------+---------+-------------+
+
+  Large page configuration on Linux:
 
   1. Transparent Huge Pages (THP):
-     → カーネルが自動的にラージページを使用
-     → アプリケーションの変更不要
+     -> Kernel automatically uses large pages
+     -> No application changes required
 
-  2. HugePages (静的):
-     → 事前にラージページを予約
-     → hugetlbfsを使用
-     → データベースで推奨
+  2. HugePages (static):
+     -> Reserve large pages in advance
+     -> Uses hugetlbfs
+     -> Recommended for databases
 ```
 
 ```bash
-# ラージページの設定と確認
+# Large page configuration and verification
 
-# Transparent Huge Pagesの状態確認
+# Check Transparent Huge Pages status
 cat /sys/kernel/mm/transparent_hugepage/enabled
 # [always] madvise never
 
-# THP を madvise モードに（推奨）
+# Set THP to madvise mode (recommended)
 echo madvise > /sys/kernel/mm/transparent_hugepage/enabled
-# → アプリが明示的に要求した場合のみラージページ使用
+# -> Use large pages only when explicitly requested by application
 
-# 静的HugePagesの予約
-echo 1024 > /proc/sys/vm/nr_hugepages        # 2MB × 1024 = 2GB予約
+# Reserve static HugePages
+echo 1024 > /proc/sys/vm/nr_hugepages        # 2MB x 1024 = 2GB reserved
 cat /proc/meminfo | grep -i huge
 # HugePages_Total:    1024
 # HugePages_Free:     1024
 # HugePages_Rsvd:        0
 # Hugepagesize:       2048 kB
 
-# 1GB HugePagesの予約（ブート時パラメータ）
+# Reserve 1GB HugePages (boot parameter)
 # GRUB_CMDLINE_LINUX="hugepagesz=1G hugepages=4"
-# → 1GB × 4 = 4GBの1GBラージページを予約
+# -> 1GB x 4 = 4GB of 1GB large pages reserved
 
-# hugetlbfsのマウント
+# Mount hugetlbfs
 mount -t hugetlbfs none /mnt/huge
 
-# PostgreSQL でのHugePages使用
+# Using HugePages with PostgreSQL
 # postgresql.conf:
 # huge_pages = try
 # shared_buffers = 8GB
 ```
 
 ```c
-// madviseによるTransparent Huge Pages の要求
+// Requesting Transparent Huge Pages via madvise
 #include <sys/mman.h>
 #include <string.h>
 
 int main() {
     size_t size = 256 * 1024 * 1024;  // 256MB
 
-    // 2MB境界にアライメントされた領域を確保
+    // Allocate a region aligned to 2MB boundary
     void *ptr = mmap(NULL, size,
                     PROT_READ | PROT_WRITE,
                     MAP_PRIVATE | MAP_ANONYMOUS,
                     -1, 0);
 
-    // カーネルにラージページの使用を要求
+    // Request the kernel to use large pages
     madvise(ptr, size, MADV_HUGEPAGE);
 
-    // メモリ使用...
+    // Use memory...
     memset(ptr, 0, size);
 
     munmap(ptr, size);
@@ -595,435 +598,438 @@ int main() {
 
 ---
 
-## 4. ページフォルトとデマンドページング
+## 4. Page Faults and Demand Paging
 
-### 4.1 デマンドページングの仕組み
-
-```
-デマンドページング:
-  プログラム起動時に全ページを読み込まない
-  → アクセスされた時に初めて物理メモリに配置
-  → 「怠惰な」メモリ管理（Lazy Allocation）
-
-  プログラム起動時:
-  1. ELFヘッダを読み、仮想アドレスマッピングを設定
-  2. 実際のページは物理メモリに配置しない（PTEのP=0）
-  3. プログラムカウンタをエントリポイントに設定
-  4. 最初の命令フェッチでページフォルト発生
-  5. カーネルがそのページをディスクから読み込み
-  6. 以降、アクセスごとに必要なページだけ読み込み
-
-  利点:
-  - 起動が高速（全コードを読まなくてよい）
-  - メモリ効率が良い（使わないページは物理メモリを消費しない）
-  - 大きなプログラムでも少ないメモリで実行可能
-
-  100MBのプログラムで実際に使うのが20MBなら:
-  → 物理メモリ20MBだけで実行可能
-  → 残り80MBは物理メモリを消費しない
-```
-
-### 4.2 ページフォルトの種類と処理
+### 4.1 How Demand Paging Works
 
 ```
-ページフォルトの処理フロー:
+Demand Paging:
+  Do not load all pages when a program starts
+  -> Place in physical memory only when first accessed
+  -> "Lazy" memory management (Lazy Allocation)
 
-  1. CPUが仮想アドレスにアクセス
-  2. MMUがページテーブルを参照
-  3. PTEの Present ビットが 0（またはアクセス権限違反）
-  4. ページフォルト例外（#PF）が発生
-  5. CPUがフォルトアドレスをCR2レジスタに保存
-  6. カーネルのページフォルトハンドラが呼ばれる
+  At program startup:
+  1. Read ELF header and set up virtual address mappings
+  2. Do not actually place pages in physical memory (PTE P=0)
+  3. Set program counter to entry point
+  4. Page fault occurs on first instruction fetch
+  5. Kernel loads that page from disk
+  6. From then on, only necessary pages are loaded per access
 
-  ページフォルトの3種類:
+  Advantages:
+  - Fast startup (no need to load all code)
+  - Good memory efficiency (unused pages don't consume physical memory)
+  - Large programs can run with little memory
 
-  1. マイナーページフォルト（Minor / Soft）:
-     → ディスクI/Oが不要
-     → 新しい物理ページの割り当てとゼロクリアのみ
-     → 例: mallocで確保した領域への初回アクセス
-     → コスト: 〜1μs
-
-  2. メジャーページフォルト（Major / Hard）:
-     → ディスクI/Oが必要
-     → スワップ領域やファイルからの読み込み
-     → 例: スワップアウトされたページへのアクセス
-     → コスト: 〜1-10ms（HDD）、〜0.1ms（SSD）
-
-  3. 不正アクセス（Invalid）:
-     → アクセス権限違反またはマッピングされていないアドレス
-     → カーネルがSIGSEGV（Segmentation Fault）を送信
-     → プロセスがクラッシュ
-
-  カーネルの判断フロー:
-  ┌─────────────────────────────────────────────────┐
-  │ ページフォルト発生                                │
-  │    │                                              │
-  │    ├─ アドレスがVMA（仮想メモリ領域）内か？       │
-  │    │  NO → SIGSEGV（不正アクセス）                │
-  │    │  YES ↓                                       │
-  │    ├─ アクセス権限は正しいか？                    │
-  │    │  NO → SIGSEGV（権限違反）                    │
-  │    │  YES ↓                                       │
-  │    ├─ ページは初めてアクセスされた？              │
-  │    │  YES → 新しいフレームを割り当て（Minor）     │
-  │    │  NO ↓                                        │
-  │    ├─ ページはスワップに退避されている？          │
-  │    │  YES → スワップから読み込み（Major）         │
-  │    │  NO ↓                                        │
-  │    ├─ Copy-on-Write ページへの書き込み？          │
-  │    │  YES → ページをコピー（Minor）               │
-  │    │  NO ↓                                        │
-  │    └─ ファイルマッピングのページ？                │
-  │       YES → ファイルから読み込み（Major）         │
-  └─────────────────────────────────────────────────┘
+  If a 100MB program actually uses only 20MB:
+  -> Can run with only 20MB of physical memory
+  -> Remaining 80MB doesn't consume physical memory
 ```
 
-### 4.3 Copy-on-Write（COW）
+### 4.2 Types and Handling of Page Faults
+
+```
+Page fault processing flow:
+
+  1. CPU accesses a virtual address
+  2. MMU references the page table
+  3. PTE Present bit is 0 (or access permission violation)
+  4. Page fault exception (#PF) is raised
+  5. CPU saves fault address to CR2 register
+  6. Kernel's page fault handler is invoked
+
+  3 types of page faults:
+
+  1. Minor Page Fault (Minor / Soft):
+     -> No disk I/O required
+     -> Only allocation and zero-clearing of a new physical page
+     -> Example: First access to malloc-allocated region
+     -> Cost: ~1us
+
+  2. Major Page Fault (Major / Hard):
+     -> Disk I/O required
+     -> Read from swap area or file
+     -> Example: Access to a swapped-out page
+     -> Cost: ~1-10ms (HDD), ~0.1ms (SSD)
+
+  3. Invalid Access:
+     -> Access permission violation or unmapped address
+     -> Kernel sends SIGSEGV (Segmentation Fault)
+     -> Process crashes
+
+  Kernel decision flow:
+  +-----------------------------------------------------+
+  | Page fault occurs                                    |
+  |    |                                                 |
+  |    +- Is address within VMA (Virtual Memory Area)?   |
+  |    |  NO -> SIGSEGV (invalid access)                 |
+  |    |  YES v                                          |
+  |    +- Are access permissions correct?                |
+  |    |  NO -> SIGSEGV (permission violation)            |
+  |    |  YES v                                          |
+  |    +- Is the page being accessed for the first time? |
+  |    |  YES -> Allocate a new frame (Minor)            |
+  |    |  NO v                                           |
+  |    +- Is the page swapped out?                       |
+  |    |  YES -> Read from swap (Major)                  |
+  |    |  NO v                                           |
+  |    +- Write to a Copy-on-Write page?                 |
+  |    |  YES -> Copy the page (Minor)                   |
+  |    |  NO v                                           |
+  |    +- File-mapped page?                              |
+  |       YES -> Read from file (Major)                  |
+  +-----------------------------------------------------+
+```
+
+### 4.3 Copy-on-Write (COW)
 
 ```
 Copy-on-Write:
-  fork() の最適化。親子プロセスが同じ物理ページを共有し、
-  書き込みが発生した時だけコピーする。
+  An optimization for fork(). Parent and child processes share
+  the same physical pages, and copying occurs only when a
+  write happens.
 
-  fork() 直後:
+  Immediately after fork():
   Parent                 Child
-  ┌──────────┐          ┌──────────┐
-  │ VPN 0 ───│──┐  ┌───│── VPN 0  │
-  │ VPN 1 ───│──┼──┼───│── VPN 1  │
-  │ VPN 2 ───│──┼──┼───│── VPN 2  │
-  └──────────┘  │  │   └──────────┘
-                ↓  ↓
-              ┌──────────┐
-              │ 物理メモリ│ ← 共有（read-only に設定）
-              │ FN 5     │
-              │ FN 8     │
-              │ FN 12    │
-              └──────────┘
+  +----------+          +----------+
+  | VPN 0 ---|--+  +---|-- VPN 0  |
+  | VPN 1 ---|--+--+---|-- VPN 1  |
+  | VPN 2 ---|--+--+---|-- VPN 2  |
+  +----------+  |  |   +----------+
+                v  v
+              +----------+
+              |Phys. Mem.| <- Shared (set to read-only)
+              | FN 5     |
+              | FN 8     |
+              | FN 12    |
+              +----------+
 
-  子プロセスがVPN 1に書き込み:
-  1. ページフォルト発生（read-only ページへの書き込み）
-  2. カーネルが Copy-on-Write と判断
-  3. 新しい物理フレームを確保
-  4. 元のページの内容をコピー
-  5. 子プロセスのPTEを新しいフレームに変更
-  6. 両方のPTEをread/writeに戻す
-  7. 書き込みを再実行
+  Child process writes to VPN 1:
+  1. Page fault occurs (write to read-only page)
+  2. Kernel determines it is Copy-on-Write
+  3. Allocates a new physical frame
+  4. Copies contents of original page
+  5. Updates child process PTE to new frame
+  6. Restores both PTEs to read/write
+  7. Re-executes the write
 
   Parent                 Child
-  ┌──────────┐          ┌──────────┐
-  │ VPN 0 ───│──┐  ┌───│── VPN 0  │  ← まだ共有
-  │ VPN 1 ───│──┼──│───│── VPN 1  │  ← コピーされた
-  │ VPN 2 ───│──┼──┼───│── VPN 2  │  ← まだ共有
-  └──────────┘  │  │   └──────────┘
-                ↓  ↓        │
-              ┌──────────┐  │
-              │ FN 5     │  │  ← 共有中
-              │ FN 8     │  │  ← 親のみ
-              │ FN 12    │  │  ← 共有中
-              └──────────┘  │
-                            ↓
-                         ┌──────────┐
-                         │ FN 20    │  ← 子のVPN 1用コピー
-                         └──────────┘
+  +----------+          +----------+
+  | VPN 0 ---|--+  +---|-- VPN 0  |  <- Still shared
+  | VPN 1 ---|--+--|---|-- VPN 1  |  <- Copied
+  | VPN 2 ---|--+--+---|-- VPN 2  |  <- Still shared
+  +----------+  |  |   +----------+
+                v  v        |
+              +----------+  |
+              | FN 5     |  |  <- Shared
+              | FN 8     |  |  <- Parent only
+              | FN 12    |  |  <- Shared
+              +----------+  |
+                            v
+                         +----------+
+                         | FN 20    |  <- Copy for child's VPN 1
+                         +----------+
 
-  利点:
-  - fork() がほぼ瞬時（ページテーブルのコピーだけ）
-  - fork() + exec() パターンで不必要なコピーを回避
-  - 読み取り専用データは永続的に共有
+  Advantages:
+  - fork() is nearly instantaneous (only page table copy)
+  - Avoids unnecessary copies in fork() + exec() pattern
+  - Read-only data is permanently shared
 ```
 
-### 4.4 ページ置換アルゴリズム
+### 4.4 Page Replacement Algorithms
 
 ```
-物理メモリが満杯の時:
-→ どのページを追い出す（evict）か？
-→ ページ置換アルゴリズムの出番
+When physical memory is full:
+-> Which page to evict?
+-> Page replacement algorithms come into play
 
-1. FIFO（First-In, First-Out）:
-   最も古いページを追い出す
-   → 実装が簡単
-   → 欠点: 頻繁に使うページも古ければ追い出す
-   → Béládyの異常: メモリを増やすとフォルト増加
+1. FIFO (First-In, First-Out):
+   Evict the oldest page
+   -> Simple to implement
+   -> Drawback: Frequently used pages are evicted if old
+   -> Belady's Anomaly: Faults increase with more memory
 
-   Béládyの異常の例:
-   参照列: 1 2 3 4 1 2 5 1 2 3 4 5
-   3フレーム: 9回のページフォルト
-   4フレーム: 10回のページフォルト ← メモリ増やしたのに悪化！
+   Example of Belady's Anomaly:
+   Reference string: 1 2 3 4 1 2 5 1 2 3 4 5
+   3 frames: 9 page faults
+   4 frames: 10 page faults <- Worse despite more memory!
 
-2. OPT（最適アルゴリズム / Bélády's Algorithm）:
-   将来最も遅く使われるページを追い出す
-   → 理論上最適だが未来予知が必要で実装不可能
-   → 他のアルゴリズムの性能評価のベースラインとして使用
+2. OPT (Optimal Algorithm / Belady's Algorithm):
+   Evict the page that will be used furthest in the future
+   -> Theoretically optimal but requires future knowledge, so not implementable
+   -> Used as a baseline for evaluating other algorithms
 
-3. LRU（Least Recently Used）:
-   最も長い間使われていないページを追い出す
-   → 時間的局所性に基づく（最近使ったものは再び使われる）
-   → OPTに近い性能
-   → 実装コストが高い（完全なLRUにはタイムスタンプかスタックが必要）
+3. LRU (Least Recently Used):
+   Evict the page that has not been used for the longest time
+   -> Based on temporal locality (recently used items will be used again)
+   -> Performance close to OPT
+   -> High implementation cost (exact LRU needs timestamps or a stack)
 
-   完全LRUの実装コスト:
-   方法1: タイムスタンプ
-   → 毎アクセスでタイムスタンプ更新 → オーバーヘッド大
-   方法2: スタック
-   → アクセスのたびにスタックの先頭に移動 → O(n)
-   → いずれもハードウェアで実装が困難
+   Implementation cost of exact LRU:
+   Method 1: Timestamps
+   -> Update timestamp on every access -> High overhead
+   Method 2: Stack
+   -> Move to top of stack on every access -> O(n)
+   -> Both are difficult to implement in hardware
 
-4. Clock（時計アルゴリズム / Second Chance）:
-   LRUの近似。Accessedビットを使用。
+4. Clock (Clock Algorithm / Second Chance):
+   Approximation of LRU. Uses the Accessed bit.
 
-   ┌───┐   ┌───┐   ┌───┐   ┌───┐
-   │P1 │──→│P2 │──→│P3 │──→│P4 │──→...
-   │A=1│   │A=0│   │A=1│   │A=0│
-   └───┘   └───┘   └───┘   └───┘
-     ↑ clock hand
+   +---+   +---+   +---+   +---+
+   |P1 |-->|P2 |-->|P3 |-->|P4 |-->...
+   |A=1|   |A=0|   |A=1|   |A=0|
+   +---+   +---+   +---+   +---+
+     ^ clock hand
 
-   アルゴリズム:
-   1. clock hand が指すページの Accessed ビットを確認
-   2. A=1 → A=0 にして次へ（セカンドチャンス）
-   3. A=0 → そのページを追い出す
+   Algorithm:
+   1. Check Accessed bit of page at clock hand
+   2. A=1 -> Set A=0 and move to next (second chance)
+   3. A=0 -> Evict that page
 
-   → Linuxが採用（改良版：2つのリスト active/inactive）
+   -> Adopted by Linux (improved version: two lists active/inactive)
 
-5. LFU（Least Frequently Used）:
-   最も使用頻度が低いページを追い出す
-   → カウンタベース
-   → 一時的に多く使われたページが残り続ける問題
-   → 減衰カウンタで対策
+5. LFU (Least Frequently Used):
+   Evict the page with the lowest access frequency
+   -> Counter-based
+   -> Problem: Temporarily heavily used pages remain
+   -> Addressed with decaying counters
 
-6. Working Set アルゴリズム:
-   ワーキングセット（最近一定時間内にアクセスされたページ集合）
-   をメモリに保持
-   → ワーキングセット外のページを追い出す
-   → スラッシング防止に効果的
+6. Working Set Algorithm:
+   Keep the working set (set of pages accessed within a recent
+   time window) in memory
+   -> Evict pages outside the working set
+   -> Effective for preventing thrashing
 
-比較:
-┌──────────────┬──────────┬──────────┬──────────┬──────────┐
-│ アルゴリズム  │ ページ   │ 実装     │ Béládyの │ 実用     │
-│              │ フォルト │ コスト   │ 異常     │          │
-├──────────────┼──────────┼──────────┼──────────┼──────────┤
-│ OPT         │ 最少     │ 不可能   │ なし     │ ベンチ   │
-│ LRU         │ 少ない   │ 高い     │ なし     │ 近似版   │
-│ Clock       │ やや少   │ 低い     │ なし     │ Linux    │
-│ FIFO        │ 多い     │ 最低     │ あり     │ 教育用   │
-│ LFU         │ 少ない   │ 中       │ なし     │ キャッシュ│
-└──────────────┴──────────┴──────────┴──────────┴──────────┘
+Comparison:
++--------------+----------+----------+----------+----------+
+| Algorithm    | Page     | Impl.    | Belady's | Practical|
+|              | Faults   | Cost     | Anomaly  |          |
++--------------+----------+----------+----------+----------+
+| OPT         | Minimum  | Impossible| None    | Benchmark|
+| LRU         | Low      | High     | None     | Approx.  |
+| Clock       | Somewhat | Low      | None     | Linux    |
+|             | low      |          |          |          |
+| FIFO        | High     | Lowest   | Yes      | Educational|
+| LFU         | Low      | Medium   | None     | Caching  |
++--------------+----------+----------+----------+----------+
 ```
 
-### 4.5 Linuxのページ回収
+### 4.5 Linux Page Reclaim
 
 ```
-Linuxのページ回収（Page Reclaim）:
+Linux Page Reclaim:
 
-  2つのLRUリスト:
-  ┌──────────────────────────────────────────────┐
-  │ Active List:                                   │
-  │ → 最近アクセスされたページ                    │
-  │ → ここにあるページは基本的に追い出さない      │
-  │                                                │
-  │ Inactive List:                                 │
-  │ → しばらくアクセスされていないページ           │
-  │ → ここから追い出しの候補を選ぶ                │
-  │                                                │
-  │ ページの流れ:                                  │
-  │ 新規 → Inactive → アクセス → Active           │
-  │                 → 長期間未アクセス → 追い出し │
-  │                                                │
-  │ Active → 長期間未アクセス → Inactive           │
-  └──────────────────────────────────────────────┘
+  Two LRU lists:
+  +----------------------------------------------+
+  | Active List:                                   |
+  | -> Recently accessed pages                     |
+  | -> Pages here are basically not evicted        |
+  |                                                |
+  | Inactive List:                                 |
+  | -> Pages not accessed for a while              |
+  | -> Eviction candidates are selected from here  |
+  |                                                |
+  | Page flow:                                     |
+  | New -> Inactive -> Access -> Active            |
+  |                 -> Long-term unaccessed -> Evict|
+  |                                                |
+  | Active -> Long-term unaccessed -> Inactive      |
+  +----------------------------------------------+
 
-  さらに4つのリスト（Linux 2.6.28+）:
-  - Active Anonymous:   スタック、ヒープ（スワップ対象）
-  - Inactive Anonymous: 同上（追い出し候補）
-  - Active File:        ファイルキャッシュ（ファイルに書き戻し）
-  - Inactive File:      同上（追い出し候補）
+  Further split into 4 lists (Linux 2.6.28+):
+  - Active Anonymous:   Stack, heap (swap target)
+  - Inactive Anonymous: Same (eviction candidates)
+  - Active File:        File cache (written back to file)
+  - Inactive File:      Same (eviction candidates)
 
   kswapd:
-  → バックグラウンドのページ回収デーモン
-  → 空きページが low watermark を下回ると起動
-  → Inactive リストからページを回収
-  → high watermark まで回収したら休止
+  -> Background page reclaim daemon
+  -> Starts when free pages fall below low watermark
+  -> Reclaims pages from Inactive list
+  -> Sleeps after reclaiming up to high watermark
 
   Direct Reclaim:
-  → ページ割り当て時に空きがない場合
-  → プロセス自身がページ回収を実行（ブロック）
-  → パフォーマンスに大きな影響
+  -> When no free pages available during allocation
+  -> Process itself performs page reclaim (blocking)
+  -> Significant performance impact
 
-  ウォーターマーク:
-  ┌──────────────────────────────────────────────┐
-  │ 空きメモリ量                                   │
-  │ ┃                                              │
-  │ ┃                                              │
-  │ ┃ ─── high watermark ─── kswapd停止           │
-  │ ┃                                              │
-  │ ┃ ─── low watermark ─── kswapd起動            │
-  │ ┃                                              │
-  │ ┃ ─── min watermark ─── direct reclaim開始    │
-  │ ┃                                              │
-  │ ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━              │
-  └──────────────────────────────────────────────┘
+  Watermarks:
+  +----------------------------------------------+
+  | Free memory amount                             |
+  | |                                              |
+  | |                                              |
+  | | --- high watermark --- kswapd stops          |
+  | |                                              |
+  | | --- low watermark --- kswapd starts          |
+  | |                                              |
+  | | --- min watermark --- direct reclaim starts  |
+  | |                                              |
+  | +                                              |
+  +----------------------------------------------+
 
-  vm.swappiness パラメータ:
-  → Anonymous ページ vs File ページの回収比率を制御
-  → 0: できるだけスワップしない（File優先回収）
-  → 60: デフォルト（バランス）
-  → 100: Anonymous と File を同等に扱う
-  → 200: Anonymous を積極的にスワップ（zswap使用時）
+  vm.swappiness parameter:
+  -> Controls reclaim ratio of Anonymous vs File pages
+  -> 0: Avoid swapping as much as possible (prefer File reclaim)
+  -> 60: Default (balanced)
+  -> 100: Treat Anonymous and File equally
+  -> 200: Aggressively swap Anonymous (when using zswap)
 ```
 
 ---
 
-## 5. スラッシングとOOM
+## 5. Thrashing and OOM
 
-### 5.1 スラッシング
+### 5.1 Thrashing
 
 ```
-スラッシング（Thrashing）:
-  物理メモリが極端に不足し、ページフォルトが頻発する状態
-  → 多くの時間がページI/Oに費やされる
-  → CPU利用率が極端に低下
-  → システムが事実上停止する
+Thrashing:
+  A state where physical memory is extremely insufficient
+  and page faults occur frequently
+  -> Most time is spent on page I/O
+  -> CPU utilization drops extremely low
+  -> System effectively halts
 
-  スラッシングの悪循環:
-  1. 物理メモリ不足
-  2. ページフォルトが頻発
-  3. I/O待ち時間が増大
-  4. CPU利用率が低下
-  5. OSが「CPUが暇→もっとプロセスを投入しよう」と判断
-  6. さらにメモリが不足
-  7. さらにページフォルトが増加
-  8. → 悪化の一途
+  Vicious cycle of thrashing:
+  1. Physical memory shortage
+  2. Page faults become frequent
+  3. I/O wait time increases
+  4. CPU utilization drops
+  5. OS decides "CPU is idle -> let's add more processes"
+  6. Memory becomes even more insufficient
+  7. Page faults increase further
+  8. -> Continuous deterioration
 
-  ┌────────────────────────────────────────┐
-  │ CPU利用率                               │
-  │ ┃          ╱╲                          │
-  │ ┃         ╱  ╲                         │
-  │ ┃        ╱    ╲                        │
-  │ ┃       ╱      ╲  ← スラッシング開始  │
-  │ ┃      ╱        ╲                      │
-  │ ┃     ╱          ╲                     │
-  │ ┃    ╱            ╲                    │
-  │ ┃   ╱              ╲                   │
-  │ ┃──╱────────────────╲──────            │
-  │ ┗━━━━━━━━━━━━━━━━━━━━━━━              │
-  │   少ない    多い    非常に多い          │
-  │           プロセス数                    │
-  └────────────────────────────────────────┘
+  +----------------------------------------+
+  | CPU Utilization                         |
+  | |          /\                           |
+  | |         /  \                          |
+  | |        /    \                         |
+  | |       /      \  <- Thrashing begins   |
+  | |      /        \                       |
+  | |     /          \                      |
+  | |    /            \                     |
+  | |   /              \                    |
+  | |--/----------------\------            |
+  | +                                      |
+  |   Few     Many    Very many            |
+  |          Number of processes            |
+  +----------------------------------------+
 
-  対策:
-  1. メモリの追加（根本対策）
-  2. スワップの最適化（SSD使用、zswap/zram）
-  3. プロセス数の制限
-  4. OOM Killer によるメモリ解放
-  5. ワーキングセットの監視と制御
-  6. cgroups でのメモリ制限
+  Countermeasures:
+  1. Add memory (fundamental solution)
+  2. Optimize swap (use SSD, zswap/zram)
+  3. Limit number of processes
+  4. Free memory via OOM Killer
+  5. Monitor and control working sets
+  6. Memory limits with cgroups
 ```
 
 ### 5.2 OOM Killer
 
 ```
-OOM Killer（Out-Of-Memory Killer）:
-  メモリが完全に枯渇した時に、プロセスを強制終了して
-  空きメモリを確保するLinuxの仕組み
+OOM Killer (Out-Of-Memory Killer):
+  A Linux mechanism that forcibly terminates processes to
+  free memory when memory is completely exhausted
 
-  発動条件:
-  → 物理メモリ + スワップが全て使い切られた
-  → ページ回収が十分なメモリを確保できない
-  → カーネルがメモリ確保に失敗
+  Trigger conditions:
+  -> Physical memory + swap are completely used up
+  -> Page reclaim cannot secure enough memory
+  -> Kernel fails to allocate memory
 
-  OOM Scoreの計算:
-  ┌──────────────────────────────────────────────┐
-  │ /proc/<pid>/oom_score:                         │
-  │ 0〜1000の値。高いほど kill されやすい          │
-  │                                                │
-  │ 考慮される要因:                                │
-  │ - メモリ使用量（最も重要）                     │
-  │ - スワップ使用量                               │
-  │ - プロセスの存在時間                           │
-  │ - root権限（-30のボーナス）                    │
-  │ - oom_score_adj による調整                     │
-  │                                                │
-  │ /proc/<pid>/oom_score_adj:                     │
-  │ -1000〜+1000 でスコアを調整                    │
-  │ -1000: OOM Killer対象外（DBサーバー等に設定）  │
-  │ +1000: 最優先でkill                            │
-  │     0: デフォルト                               │
-  └──────────────────────────────────────────────┘
+  OOM Score calculation:
+  +----------------------------------------------+
+  | /proc/<pid>/oom_score:                         |
+  | Value 0-1000. Higher = more likely to be killed|
+  |                                                |
+  | Factors considered:                            |
+  | - Memory usage (most important)                |
+  | - Swap usage                                   |
+  | - Process lifetime                             |
+  | - root privileges (-30 bonus)                  |
+  | - Adjustment via oom_score_adj                  |
+  |                                                |
+  | /proc/<pid>/oom_score_adj:                     |
+  | Adjust score from -1000 to +1000               |
+  | -1000: Exempt from OOM Killer (for DB servers) |
+  | +1000: Kill with highest priority               |
+  |     0: Default                                  |
+  +----------------------------------------------+
 
-  重要プロセスの保護:
-  # PostgreSQL を OOM Killer から保護
+  Protecting important processes:
+  # Protect PostgreSQL from OOM Killer
   echo -1000 > /proc/$(pidof postgres)/oom_score_adj
 
-  # systemd でのOOM設定
+  # OOM configuration in systemd
   # /etc/systemd/system/myservice.service
   [Service]
   OOMScoreAdjust=-900
   MemoryMax=4G
   MemoryHigh=3G
 
-  OOM発生の確認:
-  # dmesg でOOM Killerのログを確認
+  Checking OOM events:
+  # Check OOM Killer logs in dmesg
   dmesg | grep -i "out of memory"
   dmesg | grep -i "oom"
   # "Out of memory: Kill process 1234 (java) score 850"
 ```
 
 ```bash
-# メモリ管理の監視コマンド
+# Memory management monitoring commands
 
-# メモリ使用状況の概要
+# Memory usage overview
 free -h
 # total        used        free      shared  buff/cache   available
 # Mem:   32Gi       8.0Gi       2.0Gi       256Mi        22Gi        23Gi
 # Swap:  8.0Gi       0B        8.0Gi
 
-# available: 新しいプロセスが使えるメモリ量
-# → free + buff/cache（回収可能分）
+# available: Amount of memory available for new processes
+# -> free + buff/cache (reclaimable portion)
 
-# 詳細なメモリ情報
+# Detailed memory information
 cat /proc/meminfo
 
-# 重要な項目:
-# MemTotal:       メモリ総量
-# MemFree:        完全に空いているメモリ
-# MemAvailable:   利用可能なメモリ（推定値）
-# Buffers:        ブロックデバイスのバッファ
-# Cached:         ページキャッシュ
-# SwapTotal:      スワップ総量
-# SwapFree:       スワップ空き
-# Active:         Activeリスト
-# Inactive:       Inactiveリスト
-# AnonPages:      Anonymous ページ
-# Mapped:         mmapされたページ
-# Shmem:          共有メモリ
-# HugePages_Total: ラージページ数
+# Important fields:
+# MemTotal:       Total memory
+# MemFree:        Completely free memory
+# MemAvailable:   Available memory (estimated)
+# Buffers:        Block device buffers
+# Cached:         Page cache
+# SwapTotal:      Total swap
+# SwapFree:       Free swap
+# Active:         Active list
+# Inactive:       Inactive list
+# AnonPages:      Anonymous pages
+# Mapped:         mmap'ed pages
+# Shmem:          Shared memory
+# HugePages_Total: Number of large pages
 
-# ページフォルトの確認
+# Check page faults
 /usr/bin/time -v ls 2>&1 | grep "page faults"
 # Minor (reclaiming a frame): 234
 # Major (requiring I/O): 0
 
-# プロセスのメモリ情報
+# Process memory information
 cat /proc/self/status | grep -E "^(Vm|Rss|Threads)"
-# VmPeak:     最大仮想メモリサイズ
-# VmSize:     現在の仮想メモリサイズ
-# VmRSS:      常駐メモリ（実際に使用中の物理メモリ）
-# VmSwap:     スワップ使用量
+# VmPeak:     Maximum virtual memory size
+# VmSize:     Current virtual memory size
+# VmRSS:      Resident memory (physical memory actually in use)
+# VmSwap:     Swap usage
 
-# プロセスのメモリマップ
+# Process memory map
 cat /proc/self/maps
-pmap -x $$          # 拡張情報付き
+pmap -x $$          # With extended information
 ```
 
 ---
 
-## 6. 仮想メモリの実践
+## 6. Virtual Memory in Practice
 
-### 6.1 メモリ使用量の確認
+### 6.1 Checking Memory Usage
 
 ```bash
-# プロセスのメモリマップ詳細
+# Detailed process memory map
 cat /proc/self/maps
-# アドレス範囲          権限   オフセット  デバイス inode パス
+# Address range          Perms  Offset  Device inode Path
 # 55a0b1200000-55a0b1201000 r--p  00000000 08:01 123   /usr/bin/bash
 # 55a0b1201000-55a0b12e8000 r-xp  00001000 08:01 123   /usr/bin/bash
 # 55a0b12e8000-55a0b1320000 r--p  000e8000 08:01 123   /usr/bin/bash
@@ -1036,275 +1042,275 @@ cat /proc/self/maps
 # 7fff45764000-7fff45768000 r--p  00000000 00:00 0     [vvar]
 # 7fff45768000-7fff4576a000 r-xp  00000000 00:00 0     [vdso]
 
-# 権限の意味:
+# Permission meanings:
 # r = read, w = write, x = execute
 # p = private (COW), s = shared
 
-# macOS の場合
-vmmap $$                     # プロセスのメモリマップ
-vm_stat                      # システム全体のメモリ統計
+# For macOS
+vmmap $$                     # Process memory map
+vm_stat                      # System-wide memory statistics
 
-# smaps: 詳細なメモリ使用情報（Linux）
+# smaps: Detailed memory usage information (Linux)
 cat /proc/self/smaps_rollup
-# Rss:               1234 kB    # 物理メモリ使用量
-# Pss:                890 kB    # 共有を按分した使用量
+# Rss:               1234 kB    # Physical memory usage
+# Pss:                890 kB    # Proportional share of shared memory
 # Pss_Anon:           456 kB    # Anonymous
-# Pss_File:           434 kB    # ファイルマッピング
-# Referenced:        1200 kB    # 参照されたページ
-# Swap:                 0 kB    # スワップ使用量
+# Pss_File:           434 kB    # File mapping
+# Referenced:        1200 kB    # Referenced pages
+# Swap:                 0 kB    # Swap usage
 ```
 
-### 6.2 アドレス変換の手計算
+### 6.2 Manual Address Translation Calculation
 
 ```
-演習: ページサイズ4KB、32bit仮想アドレス空間で:
+Exercise: With 4KB page size and 32-bit virtual address space:
 
-仮想アドレス 0x00003A7F のアクセス:
+Virtual address 0x00003A7F access:
 
-Step 1: ページ番号とオフセットに分割
-  4KB = 2^12 → オフセット12ビット
-  仮想アドレス = 0x00003A7F = 0000 0000 0000 0000 0011 1010 0111 1111
+Step 1: Split into page number and offset
+  4KB = 2^12 -> Offset is 12 bits
+  Virtual address = 0x00003A7F = 0000 0000 0000 0000 0011 1010 0111 1111
 
-  ページ番号 = 上位20ビット = 0x00003 = 3
-  オフセット = 下位12ビット = 0xA7F = 2687
+  Page number = upper 20 bits = 0x00003 = 3
+  Offset = lower 12 bits = 0xA7F = 2687
 
-Step 2: ページテーブル参照
-  ページ3 → フレーム7
-  物理アドレス = (7 << 12) | 0xA7F = 0x7A7F
+Step 2: Page table lookup
+  Page 3 -> Frame 7
+  Physical address = (7 << 12) | 0xA7F = 0x7A7F
 
-Step 3: TLBにこのエントリがない場合の処理
-  1. TLBミス発生
-  2. MMUがページテーブルウォークを開始
-  3. CR3レジスタからPML4テーブルのアドレスを取得（x86-64の場合）
-  4. 各レベルのテーブルを辿って物理フレーム番号を取得
-  5. TLBに新しいエントリを登録
-  6. 必要に応じて古いTLBエントリを追い出す
-  7. 物理アドレスでメモリアクセスを再実行
+Step 3: Processing when this entry is not in TLB
+  1. TLB miss occurs
+  2. MMU starts page table walk
+  3. Obtain PML4 table address from CR3 register (for x86-64)
+  4. Traverse each level's table to get physical frame number
+  5. Register new entry in TLB
+  6. Evict old TLB entry if necessary
+  7. Re-execute memory access with physical address
 
-演習2: 64bitアドレス変換（x86-64）
+Exercise 2: 64-bit address translation (x86-64)
 
-  仮想アドレス: 0x00007F5C2A001234
+  Virtual address: 0x00007F5C2A001234
 
-  48ビット仮想アドレス: 0x7F5C2A001234
-  ビット分割:
-  PML4  = ビット47-39 = 0x0FE = 254
-  PDPT  = ビット38-30 = 0x170 = 368
-  PD    = ビット29-21 = 0x150 = 336
-  PT    = ビット20-12 = 0x001 = 1
-  Offset = ビット11-0  = 0x234 = 564
+  48-bit virtual address: 0x7F5C2A001234
+  Bit decomposition:
+  PML4  = bits 47-39 = 0x0FE = 254
+  PDPT  = bits 38-30 = 0x170 = 368
+  PD    = bits 29-21 = 0x150 = 336
+  PT    = bits 20-12 = 0x001 = 1
+  Offset = bits 11-0  = 0x234 = 564
 
-  → PML4[254] → PDPT[368] → PD[336] → PT[1] → 物理フレーム → + 0x234
+  -> PML4[254] -> PDPT[368] -> PD[336] -> PT[1] -> Physical frame -> + 0x234
 ```
 
-### 6.3 パフォーマンスチューニング
+### 6.3 Performance Tuning
 
 ```bash
-# 仮想メモリのチューニングパラメータ
+# Virtual memory tuning parameters
 
-# スワップの積極性（0=最小、100=最大、200=zswap時最大）
-cat /proc/sys/vm/swappiness          # デフォルト: 60
-echo 10 > /proc/sys/vm/swappiness   # DB サーバー推奨値
+# Swap aggressiveness (0=minimum, 100=maximum, 200=maximum with zswap)
+cat /proc/sys/vm/swappiness          # Default: 60
+echo 10 > /proc/sys/vm/swappiness   # Recommended value for DB servers
 
-# ダーティページの書き込みタイミング
-cat /proc/sys/vm/dirty_ratio              # デフォルト: 20（%）
-cat /proc/sys/vm/dirty_background_ratio   # デフォルト: 10（%）
-# dirty_background_ratio: バックグラウンド書き込み開始
-# dirty_ratio: 同期書き込み強制（プロセスがブロック）
+# Dirty page write timing
+cat /proc/sys/vm/dirty_ratio              # Default: 20 (%)
+cat /proc/sys/vm/dirty_background_ratio   # Default: 10 (%)
+# dirty_background_ratio: Background write starts
+# dirty_ratio: Synchronous write forced (process blocks)
 
-# 推奨設定（SSD、大メモリの場合）
+# Recommended settings (SSD, large memory)
 echo 5 > /proc/sys/vm/dirty_background_ratio
 echo 10 > /proc/sys/vm/dirty_ratio
 
-# オーバーコミット制御
+# Overcommit control
 cat /proc/sys/vm/overcommit_memory
-# 0: ヒューリスティック（デフォルト）
-# 1: 常にオーバーコミット許可
-# 2: オーバーコミット禁止（swap + ratio × physical）
-cat /proc/sys/vm/overcommit_ratio   # デフォルト: 50（%）
+# 0: Heuristic (default)
+# 1: Always allow overcommit
+# 2: Disable overcommit (swap + ratio x physical)
+cat /proc/sys/vm/overcommit_ratio   # Default: 50 (%)
 
-# ウォーターマークの調整
-cat /proc/sys/vm/min_free_kbytes     # 最小空きメモリ
-echo 262144 > /proc/sys/vm/min_free_kbytes  # 256MBに設定
+# Watermark adjustment
+cat /proc/sys/vm/min_free_kbytes     # Minimum free memory
+echo 262144 > /proc/sys/vm/min_free_kbytes  # Set to 256MB
 
-# THP の設定
+# THP configuration
 cat /sys/kernel/mm/transparent_hugepage/enabled
 echo madvise > /sys/kernel/mm/transparent_hugepage/enabled
 cat /sys/kernel/mm/transparent_hugepage/defrag
 echo defer+madvise > /sys/kernel/mm/transparent_hugepage/defrag
 
-# NUMA のメモリポリシー
-numactl --hardware      # NUMAトポロジの確認
-numactl --interleave=all ./my_program    # メモリを均等配置
-numactl --membind=0 --cpunodebind=0 ./my_program  # ノード0に固定
+# NUMA memory policy
+numactl --hardware      # Check NUMA topology
+numactl --interleave=all ./my_program    # Distribute memory evenly
+numactl --membind=0 --cpunodebind=0 ./my_program  # Pin to node 0
 
-# zswap（圧縮スワップキャッシュ）
+# zswap (compressed swap cache)
 echo 1 > /sys/module/zswap/parameters/enabled
 echo lz4 > /sys/module/zswap/parameters/compressor
 echo 20 > /sys/module/zswap/parameters/max_pool_percent
 
-# zram（圧縮RAMディスクのスワップ）
+# zram (compressed RAM disk swap)
 modprobe zram
 echo 4G > /sys/block/zram0/disksize
 mkswap /dev/zram0
-swapon -p 100 /dev/zram0   # 高優先度でスワップに追加
+swapon -p 100 /dev/zram0   # Add to swap with high priority
 ```
 
 ---
 
-## 7. 仮想メモリの高度なトピック
+## 7. Advanced Topics in Virtual Memory
 
-### 7.1 メモリオーバーコミット
-
-```
-Linuxのメモリオーバーコミット:
-
-  malloc() 成功 ≠ 物理メモリ確保
-
-  ┌──────────────────────────────────────────────┐
-  │ Process A: malloc(1GB) → 成功（仮想メモリのみ）│
-  │ Process B: malloc(1GB) → 成功（仮想メモリのみ）│
-  │ Process C: malloc(1GB) → 成功（仮想メモリのみ）│
-  │                                                │
-  │ 物理メモリ: 2GBしかない                        │
-  │ → 3GB分のmalloc が成功している！               │
-  │                                                │
-  │ 実際にアクセスするまで物理メモリは割り当てない │
-  │ → 全プロセスが1GBずつ使おうとすると...         │
-  │ → OOM Killer 発動                              │
-  └──────────────────────────────────────────────┘
-
-  なぜオーバーコミットするのか？
-  - 多くのプログラムはmalloc した分を全て使わない
-  - fork() 時に親プロセスのメモリを全コピーしなくて済む（COW）
-  - 実際の使用パターンではうまく機能する
-
-  オーバーコミットが問題になるケース:
-  - Java: 起動時に大きなヒープを確保（-Xmx8g等）
-  - Redis: fork + COW（バックグラウンド保存時）
-  - 科学計算: 大きな配列の一括確保
-
-  overcommit_memory の設定:
-  0（デフォルト）: ヒューリスティック判定
-    → 明らかに不合理な要求は拒否
-    → 「空きメモリ + スワップ」より大きい要求は拒否の可能性
-  1: 常に許可
-    → JVM等で使用（起動時の大きなmalloc用）
-  2: 厳密な制限
-    → CommitLimit = swap + physical × ratio
-    → Committed_AS がこれを超えるとmallocが失敗
-    → OOM Killerが発動しない保証
-```
-
-### 7.2 KSM（Kernel Same-page Merging）
+### 7.1 Memory Overcommit
 
 ```
-KSM: 同一内容のページを自動的に共有
-  → 仮想化環境で特に効果的（複数VMが同じOSを実行）
-  → メモリの重複排除
+Linux memory overcommit:
 
-  ┌──────────────────────────────────────────────┐
-  │ KSM前:                                        │
-  │ VM1: [Page A: "Hello"] [Page B: "World"]     │
-  │ VM2: [Page C: "Hello"] [Page D: "Linux"]     │
-  │ → 4ページ分の物理メモリ使用                  │
-  │                                                │
-  │ KSM後:                                        │
-  │ VM1: [Page A: "Hello" ─┐ [Page B: "World"]  │
-  │ VM2: [Page C: "Hello" ─┘ [Page D: "Linux"]  │
-  │ → 3ページ分（"Hello"は共有）                  │
-  │                                                │
-  │ 書き込み時: COWでコピーが発生                  │
-  └──────────────────────────────────────────────┘
+  malloc() success != physical memory allocation
 
-  設定:
+  +----------------------------------------------+
+  | Process A: malloc(1GB) -> Success (virtual only)|
+  | Process B: malloc(1GB) -> Success (virtual only)|
+  | Process C: malloc(1GB) -> Success (virtual only)|
+  |                                                |
+  | Physical memory: Only 2GB                      |
+  | -> 3GB of malloc succeeded!                    |
+  |                                                |
+  | Physical memory is not allocated until accessed|
+  | -> If all processes try to use 1GB each...     |
+  | -> OOM Killer activates                        |
+  +----------------------------------------------+
+
+  Why overcommit?
+  - Many programs don't use all their malloc'd memory
+  - No need to fully copy parent process memory during fork() (COW)
+  - Works well with actual usage patterns
+
+  Cases where overcommit is problematic:
+  - Java: Allocates large heap at startup (-Xmx8g, etc.)
+  - Redis: fork + COW (during background saves)
+  - Scientific computing: Bulk allocation of large arrays
+
+  overcommit_memory settings:
+  0 (default): Heuristic determination
+    -> Obviously unreasonable requests are rejected
+    -> Requests larger than "free memory + swap" may be rejected
+  1: Always allow
+    -> Used by JVM, etc. (for large malloc at startup)
+  2: Strict limit
+    -> CommitLimit = swap + physical x ratio
+    -> malloc fails when Committed_AS exceeds this
+    -> Guarantees OOM Killer won't fire
+```
+
+### 7.2 KSM (Kernel Same-page Merging)
+
+```
+KSM: Automatically shares pages with identical content
+  -> Especially effective in virtualization environments (multiple VMs running same OS)
+  -> Memory deduplication
+
+  +----------------------------------------------+
+  | Before KSM:                                    |
+  | VM1: [Page A: "Hello"] [Page B: "World"]      |
+  | VM2: [Page C: "Hello"] [Page D: "Linux"]      |
+  | -> 4 pages of physical memory used             |
+  |                                                |
+  | After KSM:                                     |
+  | VM1: [Page A: "Hello" -+  [Page B: "World"]   |
+  | VM2: [Page C: "Hello" -+  [Page D: "Linux"]   |
+  | -> 3 pages ("Hello" is shared)                 |
+  |                                                |
+  | On write: COW creates a copy                   |
+  +----------------------------------------------+
+
+  Configuration:
   echo 1 > /sys/kernel/mm/ksm/run
-  cat /sys/kernel/mm/ksm/pages_shared       # 共有されたページ数
-  cat /sys/kernel/mm/ksm/pages_sharing      # 共有に参加しているページ数
-  cat /sys/kernel/mm/ksm/pages_unshared     # ユニークなページ数
+  cat /sys/kernel/mm/ksm/pages_shared       # Number of shared pages
+  cat /sys/kernel/mm/ksm/pages_sharing      # Number of pages participating in sharing
+  cat /sys/kernel/mm/ksm/pages_unshared     # Number of unique pages
 
-  注意: KSMはCPU負荷がある（定期的にページを比較するため）
-  → サイドチャネル攻撃のリスクもある（タイミング攻撃）
-  → クラウド環境ではセキュリティ上無効化されることも
+  Note: KSM has CPU overhead (periodically compares pages)
+  -> There is also a side-channel attack risk (timing attacks)
+  -> May be disabled for security in cloud environments
 ```
 
-### 7.3 MGLRU（Multi-generational LRU, Linux 6.1+）
+### 7.3 MGLRU (Multi-generational LRU, Linux 6.1+)
 
 ```
-MGLRU: 新しいページ回収フレームワーク
+MGLRU: New page reclaim framework
 
-  従来のActive/Inactiveリスト問題:
-  → 2つのリストだけでは精度が不足
-  → ページの「温度」（アクセス頻度）を2段階でしか区別できない
-  → スキャンのオーバーヘッドが大きい
+  Problems with traditional Active/Inactive lists:
+  -> Two lists alone lack precision
+  -> Can only distinguish page "temperature" (access frequency) in 2 levels
+  -> Scanning overhead is large
 
-  MGLRUの改善:
-  → 4世代のリスト（gen0〜gen3）で管理
-  → ページの「温度」をより細かく追跡
-  → 効率的なスキャン（ページテーブルウォークによる参照確認）
+  MGLRU improvements:
+  -> Manages with 4 generation lists (gen0-gen3)
+  -> Tracks page "temperature" more granularly
+  -> Efficient scanning (reference checking via page table walks)
 
-  ┌──────────────────────────────────────────────┐
-  │ Gen 3 (最新): 最近アクセスされたページ        │
-  │ Gen 2:        少し前にアクセスされたページ    │
-  │ Gen 1:        かなり前にアクセスされたページ  │
-  │ Gen 0 (最古): 長期間アクセスされていないページ│
-  │                → 回収候補                      │
-  │                                                │
-  │ アクセスごとにページが上の世代に昇格           │
-  │ 時間経過で全ページが下の世代に降格             │
-  └──────────────────────────────────────────────┘
+  +----------------------------------------------+
+  | Gen 3 (newest): Recently accessed pages        |
+  | Gen 2:          Pages accessed a bit ago       |
+  | Gen 1:          Pages accessed quite a while ago|
+  | Gen 0 (oldest): Pages not accessed for a long time|
+  |                  -> Reclaim candidates           |
+  |                                                |
+  | Pages are promoted to higher generations on access|
+  | All pages are demoted to lower generations over time|
+  +----------------------------------------------+
 
-  有効化:
+  Enabling:
   echo Y > /sys/kernel/mm/lru_gen/enabled
 
-  パフォーマンス向上:
-  → Chrome OS で開発・テスト
-  → メモリ逼迫時のパフォーマンスが大幅改善
-  → 特にメモリが少ない環境（4GB以下）で効果的
-  → Android でも採用
+  Performance improvements:
+  -> Developed and tested on Chrome OS
+  -> Significant performance improvement under memory pressure
+  -> Especially effective in low-memory environments (4GB or less)
+  -> Also adopted by Android
 ```
 
 
 ---
 
-## 実践演習
+## Practical Exercises
 
-### 演習1: 基本的な実装
+### Exercise 1: Basic Implementation
 
-以下の要件を満たすコードを実装してください。
+Implement code that meets the following requirements.
 
-**要件:**
-- 入力データの検証を行うこと
-- エラーハンドリングを適切に実装すること
-- テストコードも作成すること
+**Requirements:**
+- Validate input data
+- Implement proper error handling
+- Also create test code
 
 ```python
-# 演習1: 基本実装のテンプレート
+# Exercise 1: Basic implementation template
 class Exercise1:
-    """基本的な実装パターンの演習"""
+    """Exercise for basic implementation patterns"""
 
     def __init__(self):
         self.data = []
 
     def validate_input(self, value):
-        """入力値の検証"""
+        """Validate input value"""
         if value is None:
-            raise ValueError("入力値がNoneです")
+            raise ValueError("Input value is None")
         return True
 
     def process(self, value):
-        """データ処理のメインロジック"""
+        """Main logic for data processing"""
         self.validate_input(value)
         self.data.append(value)
         return self.data
 
     def get_results(self):
-        """処理結果の取得"""
+        """Retrieve processing results"""
         return {
             'count': len(self.data),
             'data': self.data
         }
 
-# テスト
+# Tests
 def test_exercise1():
     ex = Exercise1()
     assert ex.process(1) == [1]
@@ -1313,26 +1319,26 @@ def test_exercise1():
 
     try:
         ex.process(None)
-        assert False, "例外が発生するべき"
+        assert False, "An exception should have been raised"
     except ValueError:
         pass
 
-    print("全テスト合格!")
+    print("All tests passed!")
 
 test_exercise1()
 ```
 
-### 演習2: 応用パターン
+### Exercise 2: Advanced Patterns
 
-基本実装を拡張して、以下の機能を追加してください。
+Extend the basic implementation with the following features.
 
 ```python
-# 演習2: 応用パターン
+# Exercise 2: Advanced patterns
 from typing import List, Dict, Optional
 from datetime import datetime
 
 class AdvancedExercise:
-    """応用パターンの演習"""
+    """Exercise for advanced patterns"""
 
     def __init__(self, max_size: int = 100):
         self._items: List[Dict] = []
@@ -1340,7 +1346,7 @@ class AdvancedExercise:
         self._created_at = datetime.now()
 
     def add(self, key: str, value: any) -> bool:
-        """アイテムの追加（サイズ制限付き）"""
+        """Add an item (with size limit)"""
         if len(self._items) >= self._max_size:
             return False
         self._items.append({
@@ -1351,14 +1357,14 @@ class AdvancedExercise:
         return True
 
     def find(self, key: str) -> Optional[Dict]:
-        """キーによる検索"""
+        """Search by key"""
         for item in reversed(self._items):
             if item['key'] == key:
                 return item
         return None
 
     def remove(self, key: str) -> bool:
-        """キーによる削除"""
+        """Delete by key"""
         for i, item in enumerate(self._items):
             if item['key'] == key:
                 self._items.pop(i)
@@ -1366,7 +1372,7 @@ class AdvancedExercise:
         return False
 
     def stats(self) -> Dict:
-        """統計情報"""
+        """Statistics information"""
         return {
             'total_items': len(self._items),
             'max_size': self._max_size,
@@ -1374,44 +1380,44 @@ class AdvancedExercise:
             'uptime': str(datetime.now() - self._created_at)
         }
 
-# テスト
+# Tests
 def test_advanced():
     ex = AdvancedExercise(max_size=3)
     assert ex.add("a", 1) == True
     assert ex.add("b", 2) == True
     assert ex.add("c", 3) == True
-    assert ex.add("d", 4) == False  # サイズ制限
+    assert ex.add("d", 4) == False  # Size limit
     assert ex.find("b")['value'] == 2
     assert ex.remove("b") == True
     assert ex.find("b") is None
     stats = ex.stats()
     assert stats['total_items'] == 2
-    print("応用テスト全合格!")
+    print("All advanced tests passed!")
 
 test_advanced()
 ```
 
-### 演習3: パフォーマンス最適化
+### Exercise 3: Performance Optimization
 
-以下のコードのパフォーマンスを改善してください。
+Improve the performance of the following code.
 
 ```python
-# 演習3: パフォーマンス最適化
+# Exercise 3: Performance optimization
 import time
 from functools import lru_cache
 
-# 最適化前（O(n^2)）
+# Before optimization (O(n^2))
 def slow_search(data: list, target: int) -> int:
-    """非効率な検索"""
+    """Inefficient search"""
     for i in range(len(data)):
         for j in range(i + 1, len(data)):
             if data[i] + data[j] == target:
                 return (i, j)
     return (-1, -1)
 
-# 最適化後（O(n)）
+# After optimization (O(n))
 def fast_search(data: list, target: int) -> tuple:
-    """ハッシュマップを使った効率的な検索"""
+    """Efficient search using a hash map"""
     seen = {}
     for i, num in enumerate(data):
         complement = target - num
@@ -1420,7 +1426,7 @@ def fast_search(data: list, target: int) -> tuple:
         seen[num] = i
     return (-1, -1)
 
-# ベンチマーク
+# Benchmark
 def benchmark():
     import random
     data = list(range(5000))
@@ -1435,47 +1441,47 @@ def benchmark():
     result2 = fast_search(data, target)
     fast_time = time.time() - start
 
-    print(f"非効率版: {slow_time:.4f}秒")
-    print(f"効率版:   {fast_time:.6f}秒")
-    print(f"高速化率: {slow_time/fast_time:.0f}倍")
+    print(f"Inefficient version: {slow_time:.4f}s")
+    print(f"Efficient version:   {fast_time:.6f}s")
+    print(f"Speedup:             {slow_time/fast_time:.0f}x")
 
 benchmark()
 ```
 
-**ポイント:**
-- アルゴリズムの計算量を意識する
-- 適切なデータ構造を選択する
-- ベンチマークで効果を測定する
+**Key Points:**
+- Be conscious of algorithm computational complexity
+- Choose appropriate data structures
+- Measure effectiveness with benchmarks
 
 ---
 
-## トラブルシューティング
+## Troubleshooting
 
-### よくあるエラーと解決策
+### Common Errors and Solutions
 
-| エラー | 原因 | 解決策 |
-|--------|------|--------|
-| 初期化エラー | 設定ファイルの不備 | 設定ファイルのパスと形式を確認 |
-| タイムアウト | ネットワーク遅延/リソース不足 | タイムアウト値の調整、リトライ処理の追加 |
-| メモリ不足 | データ量の増大 | バッチ処理の導入、ページネーションの実装 |
-| 権限エラー | アクセス権限の不足 | 実行ユーザーの権限確認、設定の見直し |
-| データ不整合 | 並行処理の競合 | ロック機構の導入、トランザクション管理 |
+| Error | Cause | Solution |
+|-------|-------|----------|
+| Initialization error | Configuration file issues | Verify configuration file path and format |
+| Timeout | Network latency / insufficient resources | Adjust timeout values, add retry logic |
+| Out of memory | Data volume growth | Introduce batch processing, implement pagination |
+| Permission error | Insufficient access rights | Check execution user permissions, review settings |
+| Data inconsistency | Concurrent processing conflicts | Introduce locking mechanisms, transaction management |
 
-### デバッグの手順
+### Debugging Procedure
 
-1. **エラーメッセージの確認**: スタックトレースを読み、発生箇所を特定する
-2. **再現手順の確立**: 最小限のコードでエラーを再現する
-3. **仮説の立案**: 考えられる原因をリストアップする
-4. **段階的な検証**: ログ出力やデバッガを使って仮説を検証する
-5. **修正と回帰テスト**: 修正後、関連する箇所のテストも実行する
+1. **Check error messages**: Read the stack trace and identify the occurrence location
+2. **Establish reproduction steps**: Reproduce the error with minimal code
+3. **Formulate hypotheses**: List possible causes
+4. **Step-by-step verification**: Use log output and debuggers to verify hypotheses
+5. **Fix and regression test**: After fixing, also run tests on related areas
 
 ```python
-# デバッグ用ユーティリティ
+# Debugging utilities
 import logging
 import traceback
 from functools import wraps
 
-# ロガーの設定
+# Logger configuration
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
@@ -1483,125 +1489,125 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def debug_decorator(func):
-    """関数の入出力をログ出力するデコレータ"""
+    """Decorator that logs function input/output"""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        logger.debug(f"呼び出し: {func.__name__}(args={args}, kwargs={kwargs})")
+        logger.debug(f"Call: {func.__name__}(args={args}, kwargs={kwargs})")
         try:
             result = func(*args, **kwargs)
-            logger.debug(f"戻り値: {func.__name__} -> {result}")
+            logger.debug(f"Return: {func.__name__} -> {result}")
             return result
         except Exception as e:
-            logger.error(f"例外発生: {func.__name__}: {e}")
+            logger.error(f"Exception: {func.__name__}: {e}")
             logger.error(traceback.format_exc())
             raise
     return wrapper
 
 @debug_decorator
 def process_data(items):
-    """データ処理（デバッグ対象）"""
+    """Data processing (debug target)"""
     if not items:
-        raise ValueError("空のデータ")
+        raise ValueError("Empty data")
     return [item * 2 for item in items]
 ```
 
-### パフォーマンス問題の診断
+### Diagnosing Performance Problems
 
-パフォーマンス問題が発生した場合の診断手順:
+Steps for diagnosing performance issues:
 
-1. **ボトルネックの特定**: プロファイリングツールで計測
-2. **メモリ使用量の確認**: メモリリークの有無をチェック
-3. **I/O待ちの確認**: ディスクやネットワークI/Oの状況を確認
-4. **同時接続数の確認**: コネクションプールの状態を確認
+1. **Identify bottlenecks**: Measure with profiling tools
+2. **Check memory usage**: Check for memory leaks
+3. **Check I/O waits**: Examine disk and network I/O conditions
+4. **Check concurrent connections**: Check connection pool status
 
-| 問題の種類 | 診断ツール | 対策 |
-|-----------|-----------|------|
-| CPU負荷 | cProfile, py-spy | アルゴリズム改善、並列化 |
-| メモリリーク | tracemalloc, objgraph | 参照の適切な解放 |
-| I/Oボトルネック | strace, iostat | 非同期I/O、キャッシュ |
-| DB遅延 | EXPLAIN, slow query log | インデックス、クエリ最適化 |
+| Problem Type | Diagnostic Tool | Countermeasure |
+|-------------|-----------------|----------------|
+| CPU load | cProfile, py-spy | Algorithm improvement, parallelization |
+| Memory leak | tracemalloc, objgraph | Proper reference release |
+| I/O bottleneck | strace, iostat | Async I/O, caching |
+| DB delay | EXPLAIN, slow query log | Indexes, query optimization |
 ---
 
 ## 8. FAQ
 
-### Q1: スワップとは何か？
+### Q1: What is swap?
 
-物理メモリが不足した時に、使用頻度の低いページをディスク（スワップ領域）に退避すること。これによりプロセスは物理メモリ以上のメモリを使用できるが、ディスクI/Oは非常に遅い（RAMの10万倍遅い：RAM 100ns vs HDD 10ms）。SSDで10〜100倍改善されるが、根本的にはRAMを増やすべき。最近はzswap（圧縮キャッシュ）やzram（圧縮RAMディスク）でスワップの影響を軽減する手法が普及している。
+When physical memory is insufficient, swap moves infrequently used pages to disk (swap area). This allows processes to use more memory than physical RAM, but disk I/O is extremely slow (100,000x slower than RAM: RAM 100ns vs HDD 10ms). SSDs improve this by 10-100x, but fundamentally you should add more RAM. Recently, techniques like zswap (compressed cache) and zram (compressed RAM disk) have become widespread for mitigating swap impact.
 
-### Q2: OOM Killerとは？
+### Q2: What is the OOM Killer?
 
-Linux Out-Of-Memory Killer。メモリが完全に枯渇した時に、OSがプロセスを強制終了して空きメモリを確保する仕組み。各プロセスにoom_score（0〜1000）が付与され、スコアが高いプロセスが優先的にkillされる。`/proc/<pid>/oom_score_adj`で-1000〜+1000の範囲で調整可能。-1000に設定するとOOM Killer対象外になる（データベースサーバー等に推奨）。systemdではOOMScoreAdjustディレクティブで設定。
+Linux Out-Of-Memory Killer. A mechanism where the OS forcibly terminates processes to free memory when memory is completely exhausted. Each process is assigned an oom_score (0-1000), and processes with higher scores are killed first. Adjustable from -1000 to +1000 via `/proc/<pid>/oom_score_adj`. Setting -1000 exempts from OOM Killer (recommended for database servers, etc.). Configurable via OOMScoreAdjust directive in systemd.
 
-### Q3: なぜ64bitでも48bitしかアドレスを使わないのか？
+### Q3: Why do 64-bit systems only use 48 bits for addresses?
 
-現在のx86-64は48bit仮想アドレス空間（256TB）を使用。64bit全て（16EB = 16エクサバイト）は現時点で必要なく、ページテーブルの階層が深くなりすぎる（6〜7階層）。Intel 5-Level Paging（LA57）で57bit（128PB）に拡張可能で、Linux 4.14+でサポートされている。需要に応じて段階的に拡張される設計。AMD もSVME（Secure Virtual Machine Extensions）で5レベルページングをサポート。
+Current x86-64 uses a 48-bit virtual address space (256TB). The full 64 bits (16EB = 16 exabytes) is not currently needed, and the page table hierarchy would become too deep (6-7 levels). Intel 5-Level Paging (LA57) can extend to 57 bits (128PB), supported since Linux 4.14+. The design allows for gradual expansion as demand grows. AMD also supports 5-level paging through SVME (Secure Virtual Machine Extensions).
 
-### Q4: RSS、VSS、PSS の違いは？
+### Q4: What is the difference between RSS, VSS, and PSS?
 
-- VSS（Virtual Set Size）: プロセスの仮想メモリ全体。mallocしたが使っていない領域も含む。
-- RSS（Resident Set Size）: 物理メモリに存在するページの合計。共有ライブラリを二重計上。
-- PSS（Proportional Set Size）: 共有ページをプロセス数で按分。最も正確な「実使用量」。
-- USS（Unique Set Size）: そのプロセス固有のページのみ。プロセス終了で解放される量。
+- VSS (Virtual Set Size): The entire virtual memory of a process. Includes malloc'd but unused regions.
+- RSS (Resident Set Size): Total pages present in physical memory. Double-counts shared libraries.
+- PSS (Proportional Set Size): Divides shared pages by the number of processes. The most accurate "actual usage."
+- USS (Unique Set Size): Only pages unique to that process. The amount freed when the process terminates.
 
-例: libc.soを10プロセスが共有、libc = 2MB
-- RSS: 各プロセスに2MBを計上（合計20MB）
-- PSS: 各プロセスに200KB（2MB/10）を計上（合計2MB）
+Example: 10 processes sharing libc.so, libc = 2MB
+- RSS: 2MB counted for each process (total 20MB)
+- PSS: 200KB per process (2MB/10) counted (total 2MB)
 
-### Q5: なぜDockerコンテナにもメモリ制限を設定すべきなのか？
+### Q5: Why should memory limits be set for Docker containers?
 
-コンテナはデフォルトでホストの全メモリを使用可能。メモリ制限なしだと、1つのコンテナがメモリを使い切ってOOM Killerが他のコンテナを強制終了する可能性がある。cgroupsのmemory.maxで制限を設定し、memory.highで早期の警告と回収を促すのが推奨。Kubernetesではresources.limitsで設定する。制限を超えたコンテナは即座にOOM killされるため、適切な値の設定が重要。
+Containers can use all host memory by default. Without memory limits, one container can exhaust memory and OOM Killer may forcibly terminate other containers. It is recommended to set limits with cgroups memory.max and use memory.high for early warning and reclaim. In Kubernetes, set via resources.limits. Containers exceeding limits are immediately OOM killed, so setting appropriate values is important.
 
-### Q6: メモリリークと仮想メモリの関係は？
+### Q6: What is the relationship between memory leaks and virtual memory?
 
-メモリリークが発生すると、使われないメモリが解放されずに蓄積する。仮想メモリの観点では:
-1. VSSが増加し続ける（mallocが成功し続ける）
-2. 実際にアクセスされるとRSSも増加
-3. 物理メモリを圧迫→スワップ増加→性能低下
-4. 最終的にOOM Killerが発動
-仮想メモリのオーバーコミットにより、リークの初期段階ではmallocが成功し続けるため問題の発見が遅れることがある。
+When a memory leak occurs, unused memory accumulates without being freed. From a virtual memory perspective:
+1. VSS keeps increasing (malloc continues to succeed)
+2. RSS also increases when accessed
+3. Physical memory pressure increases -> Swap increases -> Performance degrades
+4. Eventually OOM Killer activates
+Due to virtual memory overcommit, malloc continues to succeed during early leak stages, which can delay problem discovery.
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point in learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is most important. Understanding deepens not just through theory, but by actually writing code and verifying behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## 9. まとめ
-
-| 概念 | ポイント |
-|------|---------|
-| 仮想メモリ | プロセスごとに独立したアドレス空間を提供 |
-| ページング | 4KB単位で仮想→物理をマッピング |
-| 多階層ページテーブル | x86-64は4階層（48bit）、5階層（57bit）|
-| TLB | ページテーブルのキャッシュ。ヒット率99%+ |
-| ラージページ | 2MB/1GBでTLBカバレッジ拡大 |
-| デマンドページング | 必要時にのみ物理メモリに配置 |
-| Copy-on-Write | fork時の最適化。書き込み時にコピー |
-| ページ置換 | Clock（近似LRU）。Linux はActive/Inactive リスト |
-| スラッシング | メモリ不足でページフォルト頻発 |
-| OOM Killer | メモリ枯渇時にプロセスを強制終了 |
-| オーバーコミット | malloc成功≠物理メモリ確保 |
+Knowledge of this topic is frequently used in daily development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## 次に読むべきガイド
+## 9. Summary
+
+| Concept | Key Point |
+|---------|-----------|
+| Virtual Memory | Provides each process with an independent address space |
+| Paging | Maps virtual to physical in 4KB units |
+| Multi-level Page Table | x86-64 uses 4 levels (48-bit), 5 levels (57-bit) |
+| TLB | Page table cache. Hit rate 99%+ |
+| Large Pages | Expand TLB coverage with 2MB/1GB |
+| Demand Paging | Place in physical memory only when needed |
+| Copy-on-Write | Optimization during fork. Copy on write |
+| Page Replacement | Clock (approximate LRU). Linux uses Active/Inactive lists |
+| Thrashing | Frequent page faults from memory shortage |
+| OOM Killer | Forcibly terminates processes when memory is exhausted |
+| Overcommit | malloc success != physical memory allocation |
 
 ---
 
-## 参考文献
+## Recommended Next Guides
+
+---
+
+## References
 1. Silberschatz, A. et al. "Operating System Concepts." 10th Ed, Ch.9-10, 2018.
 2. Gorman, M. "Understanding the Linux Virtual Memory Manager." Prentice Hall, 2004.
 3. Arpaci-Dusseau, R. H. & Arpaci-Dusseau, A. C. "Operating Systems: Three Easy Pieces." Ch.13-24, 2018.

@@ -1,156 +1,158 @@
-# デザインパターン
+# Design Patterns
 
-> デザインパターンは「先人の知恵の結晶」であり、共通の問題に対する再利用可能な解決策である。
-> パターンを知ることで、設計の語彙が増え、チームのコミュニケーションが円滑になる。
+> Design patterns are "crystallized wisdom of predecessors" -- reusable solutions to common problems.
+> Knowing patterns expands your design vocabulary and facilitates smoother team communication.
 
-## この章で学ぶこと
+## Learning Objectives
 
-- [ ] GoF パターン 23 種の分類と代表的パターンの意図を説明できる
-- [ ] 生成・構造・振る舞いの各カテゴリからパターンを選択し実装できる
-- [ ] アーキテクチャパターン（MVC / MVVM / Repository）を比較できる
-- [ ] アンチパターンを認識し、回避策を提示できる
-- [ ] 実際のコードベースでパターンの適用判断ができる
+- [ ] Explain the classification and intent of all 23 GoF patterns
+- [ ] Select and implement patterns from the Creational, Structural, and Behavioral categories
+- [ ] Compare architecture patterns (MVC / MVVM / Repository)
+- [ ] Recognize anti-patterns and propose countermeasures
+- [ ] Make informed decisions about pattern application in real codebases
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Having the following knowledge will deepen your understanding before reading this guide:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [ソフトウェアテスト](./01-testing.md) の内容を理解していること
-
----
-
-## 1. デザインパターンの意義
-
-### 1.1 デザインパターンとは何か
-
-デザインパターンとは、ソフトウェア設計において繰り返し現れる問題と、
-その問題に対する汎用的な解決策を体系化したものである。
-1994 年に Erich Gamma、Richard Helm、Ralph Johnson、John Vlissides の
-4 名（通称 Gang of Four、略称 GoF）が著書
-"Design Patterns: Elements of Reusable Object-Oriented Software" で
-23 のパターンを整理したことが出発点となった。
-
-デザインパターンは「車輪の再発明」を防ぎ、検証済みの設計を再利用するための道具である。
-ただし、パターンはそのままコピーするものではなく、
-問題の文脈に合わせて適用するテンプレートとして理解すべきである。
-
-### 1.2 パターンを学ぶ 3 つの利点
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│              デザインパターンを学ぶ 3 つの利点                │
-├──────────────────────────────────────────────────────────────┤
-│                                                              │
-│  1. 共通語彙の獲得                                           │
-│     「ここは Observer で実装しよう」と言えば                  │
-│     チーム全員が設計意図を即座に理解できる                    │
-│                                                              │
-│  2. 設計判断の高速化                                         │
-│     問題を見た瞬間に適切な構造が浮かぶようになる              │
-│     ゼロから考える時間を大幅に短縮できる                      │
-│                                                              │
-│  3. 保守性・拡張性の向上                                     │
-│     パターンに沿った設計は変更に強い                          │
-│     SOLID 原則と自然に整合する                                │
-│                                                              │
-└──────────────────────────────────────────────────────────────┘
-```
-
-### 1.3 GoF パターンの分類
-
-GoF の 23 パターンは、目的に応じて 3 つのカテゴリに分類される。
-
-| カテゴリ | 目的 | パターン数 | 代表例 |
-|----------|------|-----------|--------|
-| 生成（Creational） | オブジェクト生成の仕組みを柔軟にする | 5 | Singleton, Factory Method, Abstract Factory, Builder, Prototype |
-| 構造（Structural） | クラスやオブジェクトの構成を整理する | 7 | Adapter, Bridge, Composite, Decorator, Facade, Flyweight, Proxy |
-| 振る舞い（Behavioral） | オブジェクト間の責務分担と通信を整理する | 11 | Observer, Strategy, Command, Iterator, State, Template Method, Visitor, Chain of Responsibility, Mediator, Memento, Interpreter |
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    GoF 23 パターン 全体図                    │
-├───────────────┬────────────────┬────────────────────────────┤
-│   生成 (5)    │   構造 (7)     │      振る舞い (11)         │
-├───────────────┼────────────────┼────────────────────────────┤
-│ Singleton     │ Adapter        │ Chain of Responsibility    │
-│ Factory Method│ Bridge         │ Command                    │
-│ Abstract Fctry│ Composite      │ Interpreter                │
-│ Builder       │ Decorator      │ Iterator                   │
-│ Prototype     │ Facade         │ Mediator                   │
-│               │ Flyweight      │ Memento                    │
-│               │ Proxy          │ Observer                   │
-│               │                │ State                      │
-│               │                │ Strategy                   │
-│               │                │ Template Method            │
-│               │                │ Visitor                    │
-└───────────────┴────────────────┴────────────────────────────┘
-```
-
-### 1.4 パターンの構成要素
-
-各パターンは以下の 4 つの要素で記述される。
-
-1. **パターン名（Name）**: 設計の語彙となる名前
-2. **問題（Problem）**: どのような状況で使うのか
-3. **解決策（Solution）**: 要素間の関係、責務、協調の記述
-4. **結果（Consequences）**: パターン適用のトレードオフ
-
-この章では、各パターンについてこの 4 要素を明示しながら解説を進める。
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Understanding of [Software Testing](./01-testing.md)
 
 ---
 
-## 2. 生成パターン（Creational Patterns）
+## 1. The Significance of Design Patterns
 
-生成パターンは、オブジェクトの生成プロセスを抽象化し、
-システムがどのようにオブジェクトを作成・構成・表現するかを柔軟にするパターン群である。
-直接 `new`（Python では `ClassName()`）を呼び出す代わりに、
-生成ロジックを分離することで、変更に強い設計を実現する。
+### 1.1 What Are Design Patterns?
 
-### 2.1 Singleton パターン
+Design patterns are systematic catalogings of recurring problems in software design
+and their general-purpose solutions.
+In 1994, Erich Gamma, Richard Helm, Ralph Johnson, and John Vlissides
+(commonly known as the Gang of Four, abbreviated GoF) organized
+23 patterns in their book
+"Design Patterns: Elements of Reusable Object-Oriented Software,"
+which became the starting point.
 
-#### 意図
+Design patterns prevent "reinventing the wheel" and serve as tools for reusing proven designs.
+However, patterns should not be copied verbatim;
+they should be understood as templates to be adapted to the context of the problem.
 
-あるクラスのインスタンスがシステム全体でただ 1 つであることを保証し、
-そのインスタンスへのグローバルなアクセスポイントを提供する。
-
-#### 問題
-
-データベース接続プール、ログマネージャ、設定オブジェクトなど、
-複数のインスタンスが存在すると不整合やリソースの浪費が発生する場合がある。
-こうしたオブジェクトは、アプリケーション全体で 1 つだけ存在すべきである。
-
-#### 解決策
+### 1.2 Three Benefits of Learning Patterns
 
 ```
-┌─────────────────────────────────┐
-│         Singleton               │
-├─────────────────────────────────┤
-│ - _instance: Singleton = None   │
-├─────────────────────────────────┤
-│ + __new__(cls): Singleton       │
-│ + get_instance(): Singleton     │
-│ + operation(): void             │
-└─────────────────────────────────┘
-         ▲
-         │ 唯一のインスタンス
-         │
++--------------------------------------------------------------+
+|          Three Benefits of Learning Design Patterns           |
++--------------------------------------------------------------+
+|                                                              |
+|  1. Acquiring a Common Vocabulary                            |
+|     By saying "Let's implement this with Observer,"          |
+|     every team member instantly understands the design intent |
+|                                                              |
+|  2. Faster Design Decisions                                  |
+|     The appropriate structure comes to mind the moment        |
+|     you see a problem, greatly reducing time spent            |
+|     thinking from scratch                                    |
+|                                                              |
+|  3. Improved Maintainability and Extensibility               |
+|     Designs that follow patterns are resilient to change      |
+|     They naturally align with the SOLID principles           |
+|                                                              |
++--------------------------------------------------------------+
+```
+
+### 1.3 Classification of GoF Patterns
+
+The 23 GoF patterns are classified into 3 categories based on their purpose.
+
+| Category | Purpose | Count | Examples |
+|----------|---------|-------|----------|
+| Creational | Make object creation mechanisms flexible | 5 | Singleton, Factory Method, Abstract Factory, Builder, Prototype |
+| Structural | Organize the composition of classes and objects | 7 | Adapter, Bridge, Composite, Decorator, Facade, Flyweight, Proxy |
+| Behavioral | Organize responsibility distribution and communication between objects | 11 | Observer, Strategy, Command, Iterator, State, Template Method, Visitor, Chain of Responsibility, Mediator, Memento, Interpreter |
+
+```
++-------------------------------------------------------------+
+|                   GoF 23 Patterns Overview                   |
++---------------+----------------+----------------------------+
+| Creational(5) | Structural(7)  |     Behavioral(11)         |
++---------------+----------------+----------------------------+
+| Singleton     | Adapter        | Chain of Responsibility    |
+| Factory Method| Bridge         | Command                    |
+| Abstract Fctry| Composite      | Interpreter                |
+| Builder       | Decorator      | Iterator                   |
+| Prototype     | Facade         | Mediator                   |
+|               | Flyweight      | Memento                    |
+|               | Proxy          | Observer                   |
+|               |                | State                      |
+|               |                | Strategy                   |
+|               |                | Template Method            |
+|               |                | Visitor                    |
++---------------+----------------+----------------------------+
+```
+
+### 1.4 Components of a Pattern
+
+Each pattern is described by the following 4 elements:
+
+1. **Name**: The name that becomes part of the design vocabulary
+2. **Problem**: In what situations should it be used
+3. **Solution**: Description of relationships, responsibilities, and collaboration between elements
+4. **Consequences**: Trade-offs of applying the pattern
+
+This chapter will explain each pattern while explicitly stating these 4 elements.
+
+---
+
+## 2. Creational Patterns
+
+Creational patterns abstract the object creation process,
+making systems flexible in how objects are created, composed, and represented.
+Instead of calling `new` (or `ClassName()` in Python) directly,
+separating the creation logic achieves designs that are resilient to change.
+
+### 2.1 Singleton Pattern
+
+#### Intent
+
+Ensure that a class has only one instance across the entire system,
+and provide a global access point to that instance.
+
+#### Problem
+
+With database connection pools, log managers, configuration objects, etc.,
+having multiple instances can cause inconsistencies or resource waste.
+Such objects should exist only once across the entire application.
+
+#### Solution
+
+```
++---------------------------------+
+|         Singleton               |
++---------------------------------+
+| - _instance: Singleton = None   |
++---------------------------------+
+| + __new__(cls): Singleton       |
+| + get_instance(): Singleton     |
+| + operation(): void             |
++---------------------------------+
+         ^
+         | sole instance
+         |
     client code
 ```
 
-#### Python 実装
+#### Python Implementation
 
 ```python
 import threading
 
 
 class DatabaseConnection:
-    """スレッドセーフな Singleton パターンの実装例。
+    """Thread-safe Singleton pattern implementation example.
 
-    __new__ メソッドをオーバーライドし、Lock を使って
-    マルチスレッド環境でも安全にインスタンスを1つに制限する。
+    Overrides the __new__ method and uses a Lock to ensure
+    that only one instance is created even in multi-threaded environments.
     """
 
     _instance = None
@@ -159,7 +161,7 @@ class DatabaseConnection:
     def __new__(cls, *args, **kwargs):
         if cls._instance is None:
             with cls._lock:
-                # ダブルチェックロッキング
+                # Double-checked locking
                 if cls._instance is None:
                     cls._instance = super().__new__(cls)
                     cls._instance._initialized = False
@@ -181,105 +183,105 @@ class DatabaseConnection:
         self.connection = None
 
 
-# 使用例
+# Usage example
 db1 = DatabaseConnection("db.example.com", 5432)
 db2 = DatabaseConnection("other.host.com", 3306)
 
-assert db1 is db2               # 同一インスタンス
-assert db1.host == "db.example.com"  # 最初の初期化値が保持される
+assert db1 is db2               # Same instance
+assert db1.host == "db.example.com"  # The first initialization value is preserved
 
 db1.connect()
 print(db2.connection)  # "Connected to db.example.com:5432"
 ```
 
-#### Python でのより実用的な Singleton: モジュールレベル変数
+#### More Practical Singleton in Python: Module-Level Variables
 
-Python では、モジュール自体が Singleton として機能する。
-そのため、以下のようにモジュールレベルで設定を管理するのが最も自然な方法である。
+In Python, the module itself acts as a Singleton.
+Therefore, managing configuration at the module level as shown below is the most natural approach.
 
 ```python
-# config.py — モジュール自体が Singleton
+# config.py -- The module itself is a Singleton
 _settings: dict = {}
 
 
 def load(path: str) -> None:
-    """設定ファイルを読み込む。"""
+    """Load a configuration file."""
     import json
     with open(path) as f:
         _settings.update(json.load(f))
 
 
 def get(key: str, default=None):
-    """設定値を取得する。"""
+    """Retrieve a configuration value."""
     return _settings.get(key, default)
 ```
 
-#### 結果（トレードオフ）
+#### Consequences (Trade-offs)
 
-| メリット | デメリット |
-|---------|----------|
-| インスタンスの一意性を保証 | グローバル状態を導入するためテストが困難になりやすい |
-| 遅延初期化が可能 | マルチスレッドでの競合に注意が必要 |
-| メモリ使用量の削減 | 依存関係が暗黙的になりやすい |
+| Advantages | Disadvantages |
+|-----------|--------------|
+| Guarantees instance uniqueness | Introduces global state, making testing difficult |
+| Enables lazy initialization | Requires caution for multi-thread race conditions |
+| Reduces memory usage | Dependencies tend to become implicit |
 
-#### Singleton を避けるべき場合
+#### When to Avoid Singleton
 
-Singleton は便利だが、濫用するとグローバル変数と同じ問題を引き起こす。
-テスタビリティを重視する場合は、依存性注入（Dependency Injection）を優先し、
-DI コンテナ側でライフタイムを「シングルトン」として管理する方が望ましい。
+Singleton is convenient, but overuse introduces the same problems as global variables.
+When testability is important, prefer Dependency Injection (DI)
+and manage the lifetime as "singleton" on the DI container side.
 
 ---
 
-### 2.2 Factory Method パターン
+### 2.2 Factory Method Pattern
 
-#### 意図
+#### Intent
 
-オブジェクトの生成をサブクラスに委譲し、
-どのクラスをインスタンス化するかを動的に決定できるようにする。
+Delegate object creation to subclasses,
+allowing dynamic determination of which class to instantiate.
 
-#### 問題
+#### Problem
 
-通知システムを例に考える。メール通知、SMS 通知、プッシュ通知など、
-通知の種類が増えるたびに生成ロジックを変更するのは Open-Closed 原則に反する。
-新しい通知タイプを追加するときに既存コードを修正せずに済む仕組みが必要である。
+Consider a notification system as an example. Email notifications, SMS notifications, push notifications --
+changing the creation logic every time a new notification type is added violates the Open-Closed Principle.
+A mechanism is needed so that existing code does not need to be modified when adding new notification types.
 
-#### 解決策
+#### Solution
 
 ```
-┌──────────────────────┐
-│   NotificationFactory │  (Creator)
-│   <<abstract>>       │
-├──────────────────────┤
-│ + create(): Notif.   │ ← Factory Method
-│ + send(msg): void    │
-└──────┬───────────────┘
-       │ 継承
-  ┌────┴──────┬────────────────┐
-  ▼           ▼                ▼
-┌──────┐  ┌───────┐  ┌─────────────┐
-│Email │  │ SMS   │  │ Push        │
-│Fctry │  │ Fctry │  │ Fctry       │
-└──┬───┘  └──┬────┘  └──┬──────────┘
-   │ 生成    │ 生成     │ 生成
-   ▼         ▼          ▼
-┌──────┐  ┌───────┐  ┌─────────────┐
-│Email │  │ SMS   │  │ Push        │
-│Notif │  │ Notif │  │ Notification│
-└──────┘  └───────┘  └─────────────┘
++----------------------+
+|   NotificationFactory |  (Creator)
+|   <<abstract>>       |
++----------------------+
+| + create(): Notif.   | <- Factory Method
+| + send(msg): void    |
++------+---------------+
+       | inheritance
+  +----+------+----------------+
+  v           v                v
++------+  +-------+  +-------------+
+|Email |  | SMS   |  | Push        |
+|Fctry |  | Fctry |  | Fctry       |
++--+---+  +--+----+  +--+----------+
+   | create  | create   | create
+   v         v          v
++------+  +-------+  +-------------+
+|Email |  | SMS   |  | Push        |
+|Notif |  | Notif |  | Notification|
++------+  +-------+  +-------------+
 ```
 
-#### Python 実装
+#### Python Implementation
 
 ```python
 from abc import ABC, abstractmethod
 
 
 class Notification(ABC):
-    """通知の基底クラス。"""
+    """Base class for notifications."""
 
     @abstractmethod
     def send(self, message: str) -> str:
-        """メッセージを送信する。"""
+        """Send a message."""
         ...
 
 
@@ -308,22 +310,22 @@ class PushNotification(Notification):
 
 
 class NotificationFactory:
-    """Factory Method パターンによる通知オブジェクト生成。
+    """Notification object creation using the Factory Method pattern.
 
-    辞書ベースのレジストリで拡張性を確保する。
-    新しい通知タイプを追加するには register() を呼ぶだけでよい。
+    Uses a dictionary-based registry to ensure extensibility.
+    To add a new notification type, simply call register().
     """
 
     _creators: dict[str, type[Notification]] = {}
 
     @classmethod
     def register(cls, notification_type: str, creator: type[Notification]) -> None:
-        """通知タイプを登録する。"""
+        """Register a notification type."""
         cls._creators[notification_type] = creator
 
     @classmethod
     def create(cls, notification_type: str, **kwargs) -> Notification:
-        """登録済みの通知タイプからインスタンスを生成する。"""
+        """Create an instance from a registered notification type."""
         creator = cls._creators.get(notification_type)
         if creator is None:
             raise ValueError(
@@ -333,44 +335,44 @@ class NotificationFactory:
         return creator(**kwargs)
 
 
-# タイプの登録
+# Register types
 NotificationFactory.register("email", EmailNotification)
 NotificationFactory.register("sms", SMSNotification)
 NotificationFactory.register("push", PushNotification)
 
-# 使用例
+# Usage example
 notif = NotificationFactory.create("email", recipient="user@example.com")
 print(notif.send("Hello!"))  # "Email to user@example.com: Hello!"
 
 notif2 = NotificationFactory.create("sms", phone_number="+81-90-1234-5678")
-print(notif2.send("確認コード: 1234"))
+print(notif2.send("Verification code: 1234"))
 ```
 
-#### 結果（トレードオフ）
+#### Consequences (Trade-offs)
 
-| メリット | デメリット |
-|---------|----------|
-| 生成と利用の分離（疎結合） | クラス数が増加する |
-| Open-Closed 原則に適合 | 単純なケースでは過剰設計になる |
-| テスト時にモックへの差し替えが容易 | 間接層が増えて追跡が難しくなる |
+| Advantages | Disadvantages |
+|-----------|--------------|
+| Separation of creation and usage (loose coupling) | Number of classes increases |
+| Conforms to the Open-Closed Principle | Can be over-engineering for simple cases |
+| Easy to swap in mocks during testing | Increased indirection makes tracing harder |
 
 ---
 
-### 2.3 Builder パターン
+### 2.3 Builder Pattern
 
-#### 意図
+#### Intent
 
-複雑なオブジェクトの構築過程を分離し、
-同じ構築過程で異なる表現を生成できるようにする。
+Separate the construction process of complex objects,
+enabling different representations to be produced from the same construction process.
 
-#### 問題
+#### Problem
 
-コンストラクタの引数が多いオブジェクト（例: HTTP リクエスト、SQL クエリ、
-UI コンポーネント）は、引数の順序を間違えやすく可読性も低い。
-また、オプション引数が多い場合、コンストラクタのオーバーロードが爆発的に増える
-（Telescoping Constructor 問題）。
+Objects with many constructor arguments (e.g., HTTP requests, SQL queries,
+UI components) are prone to argument ordering mistakes and poor readability.
+Additionally, when there are many optional arguments, constructor overloads
+explode (the Telescoping Constructor problem).
 
-#### Python 実装
+#### Python Implementation
 
 ```python
 from dataclasses import dataclass, field
@@ -378,7 +380,7 @@ from dataclasses import dataclass, field
 
 @dataclass
 class HttpRequest:
-    """構築済みの HTTP リクエストオブジェクト。"""
+    """A constructed HTTP request object."""
     method: str = "GET"
     url: str = ""
     headers: dict[str, str] = field(default_factory=dict)
@@ -389,10 +391,10 @@ class HttpRequest:
 
 
 class HttpRequestBuilder:
-    """Builder パターンによる HTTP リクエスト構築。
+    """HTTP request construction using the Builder pattern.
 
-    メソッドチェーンで段階的にリクエストを組み立て、
-    build() で最終的な HttpRequest オブジェクトを返す。
+    Builds the request step by step via method chaining,
+    and returns the final HttpRequest object with build().
     """
 
     def __init__(self):
@@ -448,7 +450,7 @@ class HttpRequestBuilder:
         )
 
 
-# 使用例: メソッドチェーンで読みやすく構築
+# Usage example: Build readably via method chaining
 request = (
     HttpRequestBuilder()
     .method("POST")
@@ -467,35 +469,35 @@ print(request.headers)  # {"Content-Type": "application/json", "Authorization": 
 print(request.retries)  # 3
 
 
-# 比較: Builder を使わない場合（可読性が低い）
+# Comparison: Without a Builder (poor readability)
 # request = HttpRequest("POST", "https://api.example.com/users",
 #     {"Content-Type": "application/json", "Authorization": "Bearer my-secret-token"},
 #     '{"name": "Alice", "age": 30}', 10, 3, "my-secret-token")
 ```
 
-#### 結果（トレードオフ）
+#### Consequences (Trade-offs)
 
-| メリット | デメリット |
-|---------|----------|
-| 複雑なオブジェクトを段階的に構築できる | Builder クラス分のコード量が増える |
-| メソッドチェーンで可読性が高い | 単純なオブジェクトには過剰 |
-| バリデーションを build() に集約できる | イミュータブル設計との組合せに工夫が要る |
+| Advantages | Disadvantages |
+|-----------|--------------|
+| Enables step-by-step construction of complex objects | Increases code due to the Builder class |
+| High readability with method chaining | Overkill for simple objects |
+| Validation can be centralized in build() | Requires ingenuity when combined with immutable design |
 
 ---
 
-### 2.4 Prototype パターン
+### 2.4 Prototype Pattern
 
-#### 意図
+#### Intent
 
-既存のオブジェクトをコピー（クローン）して新しいオブジェクトを生成する。
-生成コストが高いオブジェクトや、設定が複雑なオブジェクトの複製に有効である。
+Create new objects by copying (cloning) existing objects.
+Effective for objects that are expensive to create or have complex configurations.
 
-#### 問題
+#### Problem
 
-ゲームで大量の敵キャラクターを生成する場合、毎回ゼロから構築するのは非効率である。
-テンプレートとなるオブジェクトをコピーし、必要な部分だけ変更する方が効率的である。
+When generating a large number of enemy characters in a game, building from scratch each time is inefficient.
+It is more efficient to copy a template object and modify only the necessary parts.
 
-#### Python 実装
+#### Python Implementation
 
 ```python
 import copy
@@ -504,7 +506,7 @@ from dataclasses import dataclass, field
 
 @dataclass
 class GameCharacter:
-    """ゲームキャラクターのプロトタイプ。"""
+    """Game character prototype."""
     name: str
     hp: int
     attack: int
@@ -513,11 +515,11 @@ class GameCharacter:
     position: dict[str, int] = field(default_factory=lambda: {"x": 0, "y": 0})
 
     def clone(self) -> "GameCharacter":
-        """ディープコピーで完全な複製を作成する。"""
+        """Create a complete copy via deep copy."""
         return copy.deepcopy(self)
 
 
-# テンプレートの作成
+# Create a template
 goblin_template = GameCharacter(
     name="Goblin",
     hp=50,
@@ -526,7 +528,7 @@ goblin_template = GameCharacter(
     skills=["slash", "dodge"],
 )
 
-# プロトタイプからクローンを生成
+# Generate clones from the prototype
 goblin1 = goblin_template.clone()
 goblin1.name = "Goblin A"
 goblin1.position = {"x": 10, "y": 20}
@@ -534,62 +536,63 @@ goblin1.position = {"x": 10, "y": 20}
 goblin2 = goblin_template.clone()
 goblin2.name = "Goblin B"
 goblin2.position = {"x": 30, "y": 40}
-goblin2.skills.append("poison")  # テンプレートには影響しない
+goblin2.skills.append("poison")  # Does not affect the template
 
 print(goblin_template.skills)  # ["slash", "dodge"]
 print(goblin2.skills)          # ["slash", "dodge", "poison"]
 ```
 
-#### 結果（トレードオフ）
+#### Consequences (Trade-offs)
 
-| メリット | デメリット |
-|---------|----------|
-| 複雑なオブジェクトの生成を簡略化 | ディープコピーのコストに注意 |
-| 実行時に動的にプロトタイプを変更可能 | 循環参照のあるオブジェクトでは注意が必要 |
-| サブクラス不要で多様なオブジェクトを生成 | コピー後の独立性保証が必要 |
+| Advantages | Disadvantages |
+|-----------|--------------|
+| Simplifies creation of complex objects | Beware of deep copy costs |
+| Prototypes can be modified dynamically at runtime | Requires caution with objects that have circular references |
+| Generates diverse objects without subclassing | Must ensure independence after copying |
 
-### 2.5 生成パターンの比較表
+### 2.5 Creational Patterns Comparison
 
-| パターン | 主な目的 | 適用場面 | Python での典型実装 |
-|---------|---------|---------|-------------------|
-| Singleton | インスタンスを 1 つに制限 | DB 接続、設定、ログ | `__new__` / モジュール変数 |
-| Factory Method | 生成を委譲・抽象化 | 通知、ドキュメント、UI部品 | レジストリ辞書 + `create()` |
-| Abstract Factory | 関連オブジェクト群を一括生成 | GUI テーマ、DB ドライバ群 | 抽象基底クラス群 |
-| Builder | 複雑なオブジェクトを段階構築 | HTTP リクエスト、SQL、設定 | メソッドチェーン + `build()` |
-| Prototype | 既存オブジェクトをコピーして生成 | ゲームキャラ、設定テンプレート | `copy.deepcopy()` |
+| Pattern | Primary Purpose | Use Case | Typical Python Implementation |
+|---------|----------------|----------|------------------------------|
+| Singleton | Restrict to a single instance | DB connections, config, logging | `__new__` / module variables |
+| Factory Method | Delegate/abstract creation | Notifications, documents, UI components | Registry dict + `create()` |
+| Abstract Factory | Create families of related objects at once | GUI themes, DB driver groups | Abstract base class groups |
+| Builder | Step-by-step construction of complex objects | HTTP requests, SQL, config | Method chaining + `build()` |
+| Prototype | Create by copying existing objects | Game characters, config templates | `copy.deepcopy()` |
 
 ---
 
-## 3. 構造パターン（Structural Patterns）
+## 3. Structural Patterns
 
-構造パターンは、クラスやオブジェクトを組み合わせてより大きな構造を形成する方法を扱う。
-インターフェースの不一致を解消したり、新しい機能を動的に追加したり、
-複雑なサブシステムを単純なインターフェースで包んだりする。
+Structural patterns deal with how to compose classes and objects to form larger structures.
+They resolve interface mismatches, add new functionality dynamically,
+or wrap complex subsystems with simple interfaces.
 
-### 3.1 Adapter パターン
+### 3.1 Adapter Pattern
 
-#### 意図
+#### Intent
 
-既存クラスのインターフェースを、クライアントが期待する別のインターフェースに変換する。
-互換性のないインターフェース同士を協調させるための「変換器」である。
+Convert the interface of an existing class into another interface that the client expects.
+It is a "converter" that enables incompatible interfaces to work together.
 
-#### 問題
+#### Problem
 
-レガシーシステムの API は XML を返すが、新しいシステムは JSON を期待している。
-レガシーシステムを書き換えずに、新旧を接続したい。
+A legacy system's API returns XML, but the new system expects JSON.
+You want to connect old and new without rewriting the legacy system.
 
-#### 解決策
+#### Solution
 
 ```
-┌──────────┐       ┌──────────────┐       ┌──────────┐
-│  Client  │──────▶│   Adapter    │──────▶│  Adaptee │
-│          │       │ (変換層)     │       │ (既存API) │
-│ JSON を  │       │ XML→JSON    │       │ XML を    │
-│ 期待     │       │ 変換する     │       │ 返す     │
-└──────────┘       └──────────────┘       └──────────┘
++----------+       +--------------+       +----------+
+|  Client  |------>|   Adapter    |------>|  Adaptee |
+|          |       | (conversion  |       | (existing|
+| expects  |       |  layer)      |       |  API)    |
+| JSON     |       | XML->JSON    |       | returns  |
+|          |       | conversion   |       | XML      |
++----------+       +--------------+       +----------+
 ```
 
-#### Python 実装
+#### Python Implementation
 
 ```python
 from abc import ABC, abstractmethod
@@ -598,7 +601,7 @@ from xml.etree import ElementTree as ET
 
 
 class ModernAPI(ABC):
-    """新しいシステムが期待する JSON インターフェース。"""
+    """JSON interface expected by the new system."""
 
     @abstractmethod
     def get_data(self) -> dict:
@@ -606,7 +609,7 @@ class ModernAPI(ABC):
 
 
 class LegacyXMLService:
-    """レガシーシステム: XML でデータを返す。"""
+    """Legacy system: returns data as XML."""
 
     def fetch_xml(self) -> str:
         return """
@@ -624,10 +627,10 @@ class LegacyXMLService:
 
 
 class XMLToJSONAdapter(ModernAPI):
-    """Adapter: XML を返すレガシーサービスを JSON インターフェースに適合させる。
+    """Adapter: Adapts a legacy XML service to the JSON interface.
 
-    Adaptee（LegacyXMLService）を内部に保持し、
-    クライアントが期待する ModernAPI インターフェースを実装する。
+    Holds the Adaptee (LegacyXMLService) internally
+    and implements the ModernAPI interface expected by the client.
     """
 
     def __init__(self, legacy_service: LegacyXMLService):
@@ -645,7 +648,7 @@ class XMLToJSONAdapter(ModernAPI):
         return {"users": users, "count": len(users)}
 
 
-# 使用例
+# Usage example
 legacy = LegacyXMLService()
 adapter = XMLToJSONAdapter(legacy)
 data = adapter.get_data()
@@ -659,63 +662,63 @@ print(json.dumps(data, indent=2))
 # }
 ```
 
-#### 結果（トレードオフ）
+#### Consequences (Trade-offs)
 
-| メリット | デメリット |
-|---------|----------|
-| 既存コードを変更せずに互換性を確保 | Adapter クラスが増える |
-| 単一責任原則に沿った変換の分離 | 過度な適用はラッパー地獄を招く |
-| テスト時にレガシー部分を差し替え可能 | パフォーマンスオーバーヘッドがわずかに発生 |
+| Advantages | Disadvantages |
+|-----------|--------------|
+| Ensures compatibility without modifying existing code | Adapter classes increase in number |
+| Separates conversion in line with the Single Responsibility Principle | Excessive use leads to wrapper hell |
+| Allows swapping out the legacy part during testing | Slight performance overhead |
 
 ---
 
-### 3.2 Decorator パターン
+### 3.2 Decorator Pattern
 
-#### 意図
+#### Intent
 
-オブジェクトに動的に新しい責務を追加する。
-サブクラス化による機能拡張の代替手段であり、
-単一責任原則を守りながら柔軟に機能を組み合わせられる。
+Dynamically add new responsibilities to an object.
+An alternative to subclassing for extending functionality,
+allowing flexible combination of features while respecting the Single Responsibility Principle.
 
-#### 問題
+#### Problem
 
-コーヒーショップのシステムを考える。ベースのコーヒーにミルク、砂糖、
-ホイップクリームなどのトッピングを自由に組み合わせたい。
-サブクラスで全組み合わせを作ると、クラスの爆発的増加が起きる
-（CoffeeWithMilk, CoffeeWithSugar, CoffeeWithMilkAndSugar, ...）。
+Consider a coffee shop system. You want to freely combine toppings like milk, sugar,
+and whipped cream with a base coffee.
+Creating subclasses for all combinations leads to a class explosion
+(CoffeeWithMilk, CoffeeWithSugar, CoffeeWithMilkAndSugar, ...).
 
-#### 解決策
+#### Solution
 
 ```
-┌─────────────────────┐
-│  Component (ABC)    │
-│  + cost(): float    │
-│  + description(): str│
-└─────┬───────────────┘
-      │
-  ┌───┴──────────────────┐
-  ▼                      ▼
-┌───────────┐   ┌──────────────────┐
-│ Concrete  │   │ Decorator (ABC)  │
-│ Coffee    │   │ wraps Component  │
-└───────────┘   └──┬───────────────┘
-                   │
-          ┌────────┼──────────┐
-          ▼        ▼          ▼
-       ┌──────┐ ┌──────┐ ┌────────┐
-       │ Milk │ │Sugar │ │Whipped │
-       │ Dec. │ │ Dec. │ │Cream D.│
-       └──────┘ └──────┘ └────────┘
++---------------------+
+|  Component (ABC)    |
+|  + cost(): float    |
+|  + description(): str|
++-----+---------------+
+      |
+  +---+--------------+
+  v                   v
++-----------+   +------------------+
+| Concrete  |   | Decorator (ABC)  |
+| Coffee    |   | wraps Component  |
++-----------+   +--+---------------+
+                   |
+          +--------+----------+
+          v        v          v
+       +------+ +------+ +--------+
+       | Milk | |Sugar | |Whipped |
+       | Dec. | | Dec. | |Cream D.|
+       +------+ +------+ +--------+
 ```
 
-#### Python 実装
+#### Python Implementation
 
 ```python
 from abc import ABC, abstractmethod
 
 
 class Beverage(ABC):
-    """飲み物の基底クラス。"""
+    """Base class for beverages."""
 
     @abstractmethod
     def cost(self) -> float:
@@ -727,7 +730,7 @@ class Beverage(ABC):
 
 
 class Coffee(Beverage):
-    """ベースとなるコーヒー。"""
+    """Base coffee."""
 
     def cost(self) -> float:
         return 300.0
@@ -737,7 +740,7 @@ class Coffee(Beverage):
 
 
 class Espresso(Beverage):
-    """ベースとなるエスプレッソ。"""
+    """Base espresso."""
 
     def cost(self) -> float:
         return 350.0
@@ -747,7 +750,7 @@ class Espresso(Beverage):
 
 
 class BeverageDecorator(Beverage):
-    """Decorator の基底クラス。内部に Beverage を保持する。"""
+    """Base class for Decorators. Holds a Beverage internally."""
 
     def __init__(self, beverage: Beverage):
         self._beverage = beverage
@@ -777,26 +780,26 @@ class WhippedCreamDecorator(BeverageDecorator):
         return self._beverage.description() + " + Whipped Cream"
 
 
-# 使用例: Decorator を自由に組み合わせる
+# Usage example: Freely combine Decorators
 order = Coffee()
 order = MilkDecorator(order)
 order = SugarDecorator(order)
 order = WhippedCreamDecorator(order)
 
 print(order.description())  # "Coffee + Milk + Sugar + Whipped Cream"
-print(f"合計: {order.cost()}円")  # "合計: 460.0円"
+print(f"Total: {order.cost()} yen")  # "Total: 460.0 yen"
 
-# Python のデコレータ構文 (@decorator) との関係:
-# Python の @decorator は関数/クラスのラッピング機能であり、
-# GoF の Decorator パターンとは概念的に類似するが別物である。
-# ただし、@decorator を使って GoF の Decorator パターンを実装することもできる。
+# Relationship with Python's decorator syntax (@decorator):
+# Python's @decorator is a function/class wrapping feature,
+# which is conceptually similar to but distinct from the GoF Decorator pattern.
+# However, you can use @decorator to implement the GoF Decorator pattern.
 ```
 
-#### Python デコレータ（@）を使った Decorator パターン
+#### Python Decorator (@) Used for the Decorator Pattern
 
 ```python
 def logging_decorator(func):
-    """関数呼び出しのログを自動追加する Python デコレータ。"""
+    """A Python decorator that automatically adds logging to function calls."""
     def wrapper(*args, **kwargs):
         print(f"[LOG] Calling {func.__name__} with args={args}, kwargs={kwargs}")
         result = func(*args, **kwargs)
@@ -806,7 +809,7 @@ def logging_decorator(func):
 
 
 def retry_decorator(max_retries: int = 3):
-    """リトライ機能を追加する Python デコレータ。"""
+    """A Python decorator that adds retry functionality."""
     def decorator(func):
         def wrapper(*args, **kwargs):
             for attempt in range(max_retries):
@@ -828,45 +831,45 @@ def fetch_data(url: str) -> str:
 
 ---
 
-### 3.3 Facade パターン
+### 3.3 Facade Pattern
 
-#### 意図
+#### Intent
 
-複雑なサブシステムに対して、統一された簡潔なインターフェースを提供する。
-クライアントはサブシステムの詳細を知る必要がなくなる。
+Provide a unified and simplified interface to a complex subsystem.
+Clients no longer need to know the details of the subsystem.
 
-#### 問題
+#### Problem
 
-オンラインショップの注文処理には、在庫確認、決済処理、配送手配、
-メール通知など複数のサブシステムが関わる。
-クライアントコードがこれらすべてを直接操作すると、
-密結合になり変更が困難になる。
+Order processing in an online shop involves multiple subsystems such as
+inventory checking, payment processing, shipping arrangement, and email notification.
+If client code directly manipulates all of these,
+it becomes tightly coupled and difficult to change.
 
-#### 解決策
+#### Solution
 
 ```
-                  ┌─────────────────────┐
-  Client ────────▶│   OrderFacade       │
-                  │ place_order()       │
-                  └──┬──────┬──────┬────┘
-                     │      │      │
-           ┌─────────┘      │      └──────────┐
-           ▼                ▼                  ▼
-   ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
-   │  Inventory   │ │  Payment     │ │  Shipping    │
-   │  Service     │ │  Service     │ │  Service     │
-   └──────────────┘ └──────────────┘ └──────────────┘
+                  +---------------------+
+  Client -------->|   OrderFacade       |
+                  | place_order()       |
+                  +--+------+------+---+
+                     |      |      |
+           +---------+      |      +----------+
+           v                v                  v
+   +--------------+ +--------------+ +--------------+
+   |  Inventory   | |  Payment     | |  Shipping    |
+   |  Service     | |  Service     | |  Service     |
+   +--------------+ +--------------+ +--------------+
 ```
 
-#### Python 実装
+#### Python Implementation
 
 ```python
 class InventoryService:
-    """在庫管理サブシステム。"""
+    """Inventory management subsystem."""
 
     def check_stock(self, product_id: str) -> bool:
         print(f"[Inventory] Checking stock for {product_id}")
-        return True  # 在庫あり
+        return True  # In stock
 
     def reserve(self, product_id: str, qty: int) -> str:
         print(f"[Inventory] Reserved {qty} units of {product_id}")
@@ -874,7 +877,7 @@ class InventoryService:
 
 
 class PaymentService:
-    """決済サブシステム。"""
+    """Payment subsystem."""
 
     def authorize(self, amount: float, card_token: str) -> str:
         print(f"[Payment] Authorized {amount} yen with card {card_token[:4]}****")
@@ -886,7 +889,7 @@ class PaymentService:
 
 
 class ShippingService:
-    """配送サブシステム。"""
+    """Shipping subsystem."""
 
     def calculate_cost(self, address: str) -> float:
         print(f"[Shipping] Calculating cost to {address}")
@@ -898,17 +901,17 @@ class ShippingService:
 
 
 class NotificationService:
-    """通知サブシステム。"""
+    """Notification subsystem."""
 
     def send_confirmation(self, email: str, order_id: str) -> None:
         print(f"[Notification] Sent confirmation for {order_id} to {email}")
 
 
 class OrderFacade:
-    """Facade: 注文処理の複雑さを隠蔽する統一インターフェース。
+    """Facade: A unified interface that hides the complexity of order processing.
 
-    クライアントは place_order() を呼ぶだけでよい。
-    内部では 4 つのサブシステムが協調して動作する。
+    Clients only need to call place_order().
+    Internally, 4 subsystems cooperate.
     """
 
     def __init__(self):
@@ -925,25 +928,25 @@ class OrderFacade:
         address: str,
         email: str,
     ) -> dict:
-        # Step 1: 在庫確認
+        # Step 1: Check inventory
         if not self._inventory.check_stock(product_id):
             raise RuntimeError(f"Product {product_id} is out of stock")
 
-        # Step 2: 在庫予約
+        # Step 2: Reserve inventory
         reservation = self._inventory.reserve(product_id, qty)
 
-        # Step 3: 配送料計算
+        # Step 3: Calculate shipping cost
         shipping_cost = self._shipping.calculate_cost(address)
 
-        # Step 4: 決済
-        total = qty * 1000 + shipping_cost  # 仮の単価 1000 円
+        # Step 4: Process payment
+        total = qty * 1000 + shipping_cost  # Assumed unit price of 1000 yen
         auth_id = self._payment.authorize(total, card_token)
         self._payment.capture(auth_id)
 
-        # Step 5: 配送手配
+        # Step 5: Arrange shipping
         shipment_id = self._shipping.create_shipment(product_id, address)
 
-        # Step 6: 確認メール送信
+        # Step 6: Send confirmation email
         order_id = f"ORDER-{reservation}-{shipment_id}"
         self._notification.send_confirmation(email, order_id)
 
@@ -954,59 +957,59 @@ class OrderFacade:
         }
 
 
-# 使用例: クライアントは Facade だけを知ればよい
+# Usage example: The client only needs to know the Facade
 facade = OrderFacade()
 result = facade.place_order(
     product_id="ITEM-001",
     qty=2,
     card_token="tok_visa_4242424242424242",
-    address="東京都渋谷区...",
+    address="Shibuya, Tokyo...",
     email="customer@example.com",
 )
-print(f"注文完了: {result['order_id']}")
+print(f"Order complete: {result['order_id']}")
 ```
 
 ---
 
-### 3.4 Composite パターン
+### 3.4 Composite Pattern
 
-#### 意図
+#### Intent
 
-オブジェクトをツリー構造に組み立て、個々のオブジェクトとその集合を
-同一のインターフェースで扱えるようにする。
+Compose objects into tree structures and allow individual objects
+and their collections to be treated through the same interface.
 
-#### 問題
+#### Problem
 
-ファイルシステムでは、ファイル（葉）とディレクトリ（枝）を
-統一的に扱いたい。ディレクトリの中にはファイルもディレクトリも入る。
-サイズの計算や表示を再帰的に行いたいが、
-ファイルとディレクトリで異なるインターフェースだと扱いにくい。
+In a file system, you want to treat files (leaves) and directories (branches)
+uniformly. Directories can contain both files and directories.
+You want to perform size calculations and display recursively,
+but different interfaces for files and directories make handling cumbersome.
 
-#### Python 実装
+#### Python Implementation
 
 ```python
 from abc import ABC, abstractmethod
 
 
 class FileSystemNode(ABC):
-    """ファイルシステムのノード（Component）。"""
+    """File system node (Component)."""
 
     def __init__(self, name: str):
         self.name = name
 
     @abstractmethod
     def size(self) -> int:
-        """サイズをバイト単位で返す。"""
+        """Return the size in bytes."""
         ...
 
     @abstractmethod
     def display(self, indent: int = 0) -> str:
-        """ツリー表示用の文字列を返す。"""
+        """Return a string for tree display."""
         ...
 
 
 class File(FileSystemNode):
-    """ファイル（Leaf）。"""
+    """File (Leaf)."""
 
     def __init__(self, name: str, size_bytes: int):
         super().__init__(name)
@@ -1020,7 +1023,7 @@ class File(FileSystemNode):
 
 
 class Directory(FileSystemNode):
-    """ディレクトリ（Composite）。子要素を持つ。"""
+    """Directory (Composite). Has child elements."""
 
     def __init__(self, name: str):
         super().__init__(name)
@@ -1042,7 +1045,7 @@ class Directory(FileSystemNode):
         return "\n".join(lines)
 
 
-# 使用例
+# Usage example
 root = Directory("project")
 src = Directory("src")
 src.add(File("main.py", 2048))
@@ -1067,60 +1070,60 @@ print(root.display())
 print(f"Total size: {root.size()} bytes")  # 3840
 ```
 
-### 3.5 構造パターンの比較表
+### 3.5 Structural Patterns Comparison
 
-| パターン | 主な目的 | 適用場面 | キーワード |
-|---------|---------|---------|-----------|
-| Adapter | インターフェース変換 | レガシー統合、外部 API 連携 | ラッパー、変換 |
-| Bridge | 抽象と実装の分離 | プラットフォーム独立、ドライバ | 分離、独立変化 |
-| Composite | ツリー構造の統一操作 | ファイルシステム、UI ツリー、組織図 | 再帰、部分-全体 |
-| Decorator | 動的な機能追加 | ストリーム、ミドルウェア、ログ付加 | ラッピング、重ね掛け |
-| Facade | 複雑さの隠蔽 | サブシステム統合、API ゲートウェイ | 簡略化、統一窓口 |
-| Flyweight | メモリ共有 | 文字描画、ゲームのタイル | 共有、軽量化 |
-| Proxy | アクセス制御・代理 | キャッシュ、遅延読込、認可チェック | 代理、制御 |
+| Pattern | Primary Purpose | Use Case | Keywords |
+|---------|----------------|----------|----------|
+| Adapter | Interface conversion | Legacy integration, external API integration | Wrapper, conversion |
+| Bridge | Separation of abstraction and implementation | Platform independence, drivers | Separation, independent variation |
+| Composite | Unified operations on tree structures | File systems, UI trees, organization charts | Recursion, part-whole |
+| Decorator | Dynamic feature addition | Streams, middleware, logging | Wrapping, layering |
+| Facade | Hiding complexity | Subsystem integration, API gateways | Simplification, unified entry point |
+| Flyweight | Memory sharing | Character rendering, game tiles | Sharing, lightweight |
+| Proxy | Access control / proxy | Cache, lazy loading, authorization checks | Proxy, control |
 
 ---
 
-## 4. 振る舞いパターン（Behavioral Patterns）
+## 4. Behavioral Patterns
 
-振る舞いパターンは、オブジェクト間の通信や責務の分担方法を扱う。
-アルゴリズムの切り替え、イベント通知、コマンドの実行と取り消しなど、
-オブジェクト同士がどのように協調するかを整理するパターン群である。
+Behavioral patterns deal with communication between objects and how responsibilities are distributed.
+They cover algorithm switching, event notifications, command execution and cancellation,
+and organize how objects cooperate with each other.
 
-### 4.1 Observer パターン
+### 4.1 Observer Pattern
 
-#### 意図
+#### Intent
 
-オブジェクト間に一対多の依存関係を定義し、
-あるオブジェクトの状態が変化したときに、
-依存する全てのオブジェクトに自動的に通知・更新を行う。
+Define a one-to-many dependency between objects so that
+when one object changes state,
+all dependent objects are automatically notified and updated.
 
-#### 問題
+#### Problem
 
-株価監視システムで、株価が変化するたびに
-チャート表示、アラート通知、ログ記録などの複数のコンポーネントを更新したい。
-各コンポーネントを直接呼び出すと密結合になり、
-新しいコンポーネントの追加が困難になる。
+In a stock monitoring system, you want to update multiple components
+such as chart display, alert notifications, and log recording whenever stock prices change.
+Directly calling each component creates tight coupling,
+making it difficult to add new components.
 
-#### 解決策
+#### Solution
 
 ```
-┌───────────────────┐       ┌────────────────────┐
-│   Subject         │       │   Observer (ABC)   │
-│ (Observable)      │       │                    │
-├───────────────────┤       ├────────────────────┤
-│ - observers: list │◆─────▶│ + update(data)     │
-│ + attach(obs)     │  1..*  └────────┬───────────┘
-│ + detach(obs)     │                 │
-│ + notify()        │         ┌───────┼──────────┐
-└───────────────────┘         ▼       ▼          ▼
-                          ┌──────┐ ┌──────┐ ┌──────┐
-                          │Chart │ │Alert │ │Logger│
-                          │Obs.  │ │Obs.  │ │Obs.  │
-                          └──────┘ └──────┘ └──────┘
++-------------------+       +--------------------+
+|   Subject         |       |   Observer (ABC)   |
+| (Observable)      |       |                    |
++-------------------+       +--------------------+
+| - observers: list |<>---->| + update(data)     |
+| + attach(obs)     |  1..* +--------+-----------+
+| + detach(obs)     |                |
+| + notify()        |        +-------+----------+
++-------------------+        v       v          v
+                          +------+ +------+ +------+
+                          |Chart | |Alert | |Logger|
+                          |Obs.  | |Obs.  | |Obs.  |
+                          +------+ +------+ +------+
 ```
 
-#### Python 実装
+#### Python Implementation
 
 ```python
 from abc import ABC, abstractmethod
@@ -1129,7 +1132,7 @@ from typing import Any
 
 
 class Observer(ABC):
-    """Observer インターフェース。"""
+    """Observer interface."""
 
     @abstractmethod
     def update(self, event: str, data: Any) -> None:
@@ -1137,26 +1140,26 @@ class Observer(ABC):
 
 
 class EventEmitter:
-    """汎用的な Observable（Subject）の実装。
+    """A generic Observable (Subject) implementation.
 
-    イベント名ごとに Observer を管理し、
-    特定のイベントが発生したときに該当する Observer のみに通知する。
+    Manages Observers per event name,
+    notifying only the relevant Observers when a specific event occurs.
     """
 
     def __init__(self):
         self._observers: dict[str, list[Observer]] = {}
 
     def on(self, event: str, observer: Observer) -> None:
-        """イベントに Observer を登録する。"""
+        """Register an Observer for an event."""
         self._observers.setdefault(event, []).append(observer)
 
     def off(self, event: str, observer: Observer) -> None:
-        """イベントから Observer を解除する。"""
+        """Unregister an Observer from an event."""
         if event in self._observers:
             self._observers[event].remove(observer)
 
     def emit(self, event: str, data: Any = None) -> None:
-        """イベントを発火し、登録済みの全 Observer に通知する。"""
+        """Fire an event and notify all registered Observers."""
         for observer in self._observers.get(event, []):
             observer.update(event, data)
 
@@ -1169,16 +1172,16 @@ class StockPrice:
 
 
 class ChartObserver(Observer):
-    """チャート表示の更新。"""
+    """Updates the chart display."""
 
     def update(self, event: str, data: Any) -> None:
         if isinstance(data, StockPrice):
-            direction = "▲" if data.change > 0 else "▼"
+            direction = "^" if data.change > 0 else "v"
             print(f"[Chart] {data.symbol}: {data.price:.2f} {direction}")
 
 
 class AlertObserver(Observer):
-    """価格アラートの通知。"""
+    """Price alert notification."""
 
     def __init__(self, threshold: float):
         self.threshold = threshold
@@ -1189,7 +1192,7 @@ class AlertObserver(Observer):
 
 
 class LogObserver(Observer):
-    """取引ログの記録。"""
+    """Trade log recording."""
 
     def __init__(self):
         self.log: list[str] = []
@@ -1201,7 +1204,7 @@ class LogObserver(Observer):
             print(f"[Log] Recorded: {entry}")
 
 
-# 使用例
+# Usage example
 stock_feed = EventEmitter()
 
 chart = ChartObserver()
@@ -1212,33 +1215,34 @@ stock_feed.on("price_update", chart)
 stock_feed.on("price_update", alert)
 stock_feed.on("price_update", logger)
 
-# 株価更新をシミュレーション
+# Simulate stock price updates
 stock_feed.emit("price_update", StockPrice("AAPL", 178.50, +1.2))
-# [Chart] AAPL: 178.50 ▲
+# [Chart] AAPL: 178.50 ^
 # [Log] Recorded: AAPL,178.5,1.2
 
 stock_feed.emit("price_update", StockPrice("GOOG", 141.80, -3.5))
-# [Chart] GOOG: 141.80 ▼
+# [Chart] GOOG: 141.80 v
 # [ALERT] GOOG moved -3.50% !
 # [Log] Recorded: GOOG,141.8,-3.5
 ```
 
 ---
 
-### 4.2 Strategy パターン
+### 4.2 Strategy Pattern
 
-#### 意図
+#### Intent
 
-アルゴリズムのファミリーを定義し、それぞれをカプセル化して交換可能にする。
-クライアントコードを変更せずにアルゴリズムを切り替えられる。
+Define a family of algorithms, encapsulate each one, and make them interchangeable.
+Algorithms can be switched without changing client code.
 
-#### 問題
+#### Problem
 
-E コマースサイトの割引計算で、通常割引、会員割引、季節割引など
-複数の割引ルールがある。`if-elif` の連鎖で実装すると、
-新しい割引ルールの追加や変更のたびに既存コードを修正する必要がある。
+In an e-commerce site's discount calculation, there are multiple discount rules
+such as regular discount, member discount, and seasonal discount.
+Implementing with an `if-elif` chain requires modifying existing code
+every time a new discount rule is added or changed.
 
-#### Python 実装
+#### Python Implementation
 
 ```python
 from abc import ABC, abstractmethod
@@ -1246,16 +1250,16 @@ from dataclasses import dataclass
 
 
 class DiscountStrategy(ABC):
-    """割引戦略の基底クラス。"""
+    """Base class for discount strategies."""
 
     @abstractmethod
     def calculate(self, price: float) -> float:
-        """割引後の価格を返す。"""
+        """Return the price after discount."""
         ...
 
     @abstractmethod
     def description(self) -> str:
-        """戦略の説明を返す。"""
+        """Return a description of the strategy."""
         ...
 
 
@@ -1264,7 +1268,7 @@ class NoDiscount(DiscountStrategy):
         return price
 
     def description(self) -> str:
-        return "割引なし"
+        return "No discount"
 
 
 class PercentageDiscount(DiscountStrategy):
@@ -1286,11 +1290,11 @@ class FixedAmountDiscount(DiscountStrategy):
         return max(0, price - self._amount)
 
     def description(self) -> str:
-        return f"{self._amount}円引き"
+        return f"{self._amount} yen off"
 
 
 class BuyNGetFreeDiscount(DiscountStrategy):
-    """N 個買うと 1 個無料。"""
+    """Buy N, get 1 free."""
 
     def __init__(self, buy_count: int):
         self._buy = buy_count
@@ -1299,18 +1303,18 @@ class BuyNGetFreeDiscount(DiscountStrategy):
         return price * self._buy / (self._buy + 1)
 
     def description(self) -> str:
-        return f"{self._buy} 個買うと 1 個無料"
+        return f"Buy {self._buy}, get 1 free"
 
 
 @dataclass
 class ShoppingCart:
-    """Strategy パターンで割引戦略を切り替え可能なカート。"""
+    """A cart with swappable discount strategies using the Strategy pattern."""
 
     items: list[tuple[str, float]]
     strategy: DiscountStrategy
 
     def set_strategy(self, strategy: DiscountStrategy) -> None:
-        """割引戦略を動的に変更する。"""
+        """Dynamically change the discount strategy."""
         self.strategy = strategy
 
     def subtotal(self) -> float:
@@ -1320,40 +1324,40 @@ class ShoppingCart:
         return self.strategy.calculate(self.subtotal())
 
     def receipt(self) -> str:
-        lines = ["--- レシート ---"]
+        lines = ["--- Receipt ---"]
         for name, price in self.items:
-            lines.append(f"  {name}: {price:.0f}円")
-        lines.append(f"  小計: {self.subtotal():.0f}円")
+            lines.append(f"  {name}: {price:.0f} yen")
+        lines.append(f"  Subtotal: {self.subtotal():.0f} yen")
         lines.append(f"  {self.strategy.description()}")
-        lines.append(f"  合計: {self.total():.0f}円")
+        lines.append(f"  Total: {self.total():.0f} yen")
         return "\n".join(lines)
 
 
-# 使用例
+# Usage example
 cart = ShoppingCart(
-    items=[("Python入門書", 3000), ("ノート", 500), ("ペン", 200)],
+    items=[("Python Textbook", 3000), ("Notebook", 500), ("Pen", 200)],
     strategy=NoDiscount(),
 )
 print(cart.receipt())
-# 合計: 3700円
+# Total: 3700 yen
 
 cart.set_strategy(PercentageDiscount(20))
 print(cart.receipt())
-# 20% OFF → 合計: 2960円
+# 20% OFF -> Total: 2960 yen
 
 cart.set_strategy(FixedAmountDiscount(500))
 print(cart.receipt())
-# 500円引き → 合計: 3200円
+# 500 yen off -> Total: 3200 yen
 ```
 
-#### Strategy パターンと関数型アプローチの比較
+#### Comparing the Strategy Pattern with a Functional Approach
 
-Python では、Strategy パターンをクラスではなく関数で実現することもできる。
+In Python, the Strategy pattern can also be implemented using functions instead of classes.
 
 ```python
 from typing import Callable
 
-# 関数型 Strategy
+# Functional Strategy
 DiscountFunc = Callable[[float], float]
 
 def no_discount(price: float) -> float:
@@ -1365,36 +1369,36 @@ def percentage_off(pct: float) -> DiscountFunc:
 def fixed_off(amount: float) -> DiscountFunc:
     return lambda price: max(0, price - amount)
 
-# 使用例
+# Usage example
 apply_discount: DiscountFunc = percentage_off(15)
 print(apply_discount(1000))  # 850.0
 ```
 
-クラスベースと関数ベースの使い分けは以下の通りである。
+The following table shows when to use the class-based vs. function-based approach.
 
-| 観点 | クラスベース | 関数ベース |
-|------|------------|-----------|
-| 状態の保持 | フィールドで自然に保持 | クロージャで保持可能 |
-| 説明文の付与 | description() メソッド | docstring または別途管理 |
-| テスト容易性 | モックが容易 | 同程度に容易 |
-| 拡張性 | 新メソッドの追加が容易 | 新関数の追加が容易 |
-| 推奨場面 | 複雑な戦略、複数メソッド | 単純な変換、ワンライナー |
+| Aspect | Class-based | Function-based |
+|--------|-----------|----------------|
+| State retention | Naturally held in fields | Can be held via closures |
+| Adding descriptions | description() method | docstring or managed separately |
+| Testability | Easy to mock | Equally easy |
+| Extensibility | Easy to add new methods | Easy to add new functions |
+| Recommended for | Complex strategies, multiple methods | Simple transformations, one-liners |
 
 ---
 
-### 4.3 Command パターン
+### 4.3 Command Pattern
 
-#### 意図
+#### Intent
 
-リクエストをオブジェクトとしてカプセル化し、
-操作の実行・取り消し・やり直し・キューイングを可能にする。
+Encapsulate requests as objects, enabling
+execution, cancellation, redo, and queuing of operations.
 
-#### 問題
+#### Problem
 
-テキストエディタで Undo/Redo 機能を実装したい。
-操作ごとに「何をしたか」を記録し、逆操作を実行できるようにしたい。
+You want to implement Undo/Redo functionality in a text editor.
+You need to record "what was done" for each operation and be able to execute the reverse operation.
 
-#### Python 実装
+#### Python Implementation
 
 ```python
 from abc import ABC, abstractmethod
@@ -1402,7 +1406,7 @@ from dataclasses import dataclass, field
 
 
 class Command(ABC):
-    """コマンドの基底クラス。"""
+    """Base class for commands."""
 
     @abstractmethod
     def execute(self) -> None:
@@ -1418,7 +1422,7 @@ class Command(ABC):
 
 
 class TextEditor:
-    """テキストエディタの本体（Receiver）。"""
+    """The text editor body (Receiver)."""
 
     def __init__(self):
         self.content: str = ""
@@ -1472,7 +1476,7 @@ class DeleteCommand(Command):
 
 
 class CommandHistory:
-    """Undo/Redo を管理する Invoker。"""
+    """Invoker that manages Undo/Redo."""
 
     def __init__(self):
         self._undo_stack: list[Command] = []
@@ -1481,7 +1485,7 @@ class CommandHistory:
     def execute(self, command: Command) -> None:
         command.execute()
         self._undo_stack.append(command)
-        self._redo_stack.clear()  # 新しい操作後は redo 履歴をクリア
+        self._redo_stack.clear()  # Clear redo history after a new operation
 
     def undo(self) -> None:
         if not self._undo_stack:
@@ -1502,7 +1506,7 @@ class CommandHistory:
         print(f"Redo: {command.description()}")
 
 
-# 使用例
+# Usage example
 editor = TextEditor()
 history = CommandHistory()
 
@@ -1527,22 +1531,22 @@ print(editor)  # TextEditor("Hello World")
 
 ---
 
-### 4.4 Iterator パターン
+### 4.4 Iterator Pattern
 
-#### 意図
+#### Intent
 
-コレクションの内部構造を公開せずに、要素に順番にアクセスする方法を提供する。
+Provide a way to access the elements of a collection sequentially without exposing its internal structure.
 
-#### 問題
+#### Problem
 
-二分探索木やグラフなどのデータ構造を走査するとき、
-走査のロジック（深さ優先、幅優先、中順など）をデータ構造自体に持たせると、
-単一責任原則に反する。走査方法を外部化したい。
+When traversing data structures like binary search trees or graphs,
+embedding traversal logic (depth-first, breadth-first, in-order, etc.) into the data structure itself
+violates the Single Responsibility Principle. We want to externalize traversal methods.
 
-#### Python 実装
+#### Python Implementation
 
-Python では `__iter__` と `__next__` を実装することで、
-Iterator パターンを言語レベルでサポートしている。
+Python supports the Iterator pattern at the language level
+through implementation of `__iter__` and `__next__`.
 
 ```python
 from collections import deque
@@ -1552,7 +1556,7 @@ T = TypeVar("T")
 
 
 class BinaryTreeNode(Generic[T]):
-    """二分木のノード。"""
+    """Binary tree node."""
 
     def __init__(self, value: T):
         self.value = value
@@ -1561,7 +1565,7 @@ class BinaryTreeNode(Generic[T]):
 
 
 class InOrderIterator:
-    """中順走査（左 → 根 → 右）の Iterator。"""
+    """In-order traversal (left -> root -> right) Iterator."""
 
     def __init__(self, root: BinaryTreeNode | None):
         self._stack: list[BinaryTreeNode] = []
@@ -1584,7 +1588,7 @@ class InOrderIterator:
 
 
 class BreadthFirstIterator:
-    """幅優先走査の Iterator。"""
+    """Breadth-first traversal Iterator."""
 
     def __init__(self, root: BinaryTreeNode | None):
         self._queue: deque[BinaryTreeNode] = deque()
@@ -1606,7 +1610,7 @@ class BreadthFirstIterator:
 
 
 class BinaryTree(Generic[T]):
-    """複数の走査方法を提供する二分木。"""
+    """A binary tree that provides multiple traversal methods."""
 
     def __init__(self, root: BinaryTreeNode[T] | None = None):
         self.root = root
@@ -1621,7 +1625,7 @@ class BinaryTree(Generic[T]):
         return self.in_order()
 
 
-# 使用例: ツリーの構築
+# Usage example: Build a tree
 #       4
 #      / \
 #     2   6
@@ -1643,115 +1647,116 @@ print("In-order:", list(tree.in_order()))
 print("BFS:", list(tree.breadth_first()))
 # BFS: [4, 2, 6, 1, 3, 5, 7]
 
-# for ループでも使える（__iter__ が in_order を返す）
+# Can also be used in a for loop (__iter__ returns in_order)
 for value in tree:
     print(value, end=" ")
 # 1 2 3 4 5 6 7
 ```
 
-### 4.5 振る舞いパターンの比較表
+### 4.5 Behavioral Patterns Comparison
 
-| パターン | 主な目的 | 適用場面 | キーワード |
-|---------|---------|---------|-----------|
-| Observer | 状態変化の通知 | イベント、PubSub、リアクティブ | 通知、購読、一対多 |
-| Strategy | アルゴリズムの交換 | 割引計算、ソート、認証方式 | 交換可能、ポリシー |
-| Command | 操作のオブジェクト化 | Undo/Redo、キューイング、マクロ | 実行、取消、履歴 |
-| Iterator | 順次アクセス | コレクション走査、ストリーム | 走査、カーソル |
-| State | 状態に応じた振る舞い変更 | ワークフロー、TCP接続、UI状態 | 状態遷移、有限オートマトン |
-| Template Method | 処理の骨格を定義 | フレームワーク、ETL、テスト | 骨格、フック、継承 |
-| Chain of Responsibility | 処理の連鎖 | ミドルウェア、認可チェーン | 連鎖、パイプライン |
-| Mediator | オブジェクト間の仲介 | チャットルーム、管制塔 | 仲介、ハブ |
-| Memento | 状態の保存と復元 | スナップショット、チェックポイント | 保存、復元 |
-| Visitor | データ構造と処理の分離 | AST 走査、レポート生成 | ダブルディスパッチ |
+| Pattern | Primary Purpose | Use Case | Keywords |
+|---------|----------------|----------|----------|
+| Observer | Notification of state changes | Events, PubSub, reactive | Notification, subscription, one-to-many |
+| Strategy | Algorithm interchange | Discount calculation, sorting, authentication methods | Interchangeable, policy |
+| Command | Objectification of operations | Undo/Redo, queuing, macros | Execute, undo, history |
+| Iterator | Sequential access | Collection traversal, streams | Traversal, cursor |
+| State | Behavior change based on state | Workflows, TCP connections, UI state | State transition, finite automaton |
+| Template Method | Define the skeleton of processing | Frameworks, ETL, tests | Skeleton, hook, inheritance |
+| Chain of Responsibility | Chain of processing | Middleware, authorization chains | Chain, pipeline |
+| Mediator | Mediation between objects | Chat rooms, control towers | Mediation, hub |
+| Memento | Save and restore state | Snapshots, checkpoints | Save, restore |
+| Visitor | Separation of data structures and processing | AST traversal, report generation | Double dispatch |
 
 ---
 
-## 5. アーキテクチャパターン
+## 5. Architecture Patterns
 
-GoF のデザインパターンがクラスレベルの設計を扱うのに対し、
-アーキテクチャパターンはアプリケーション全体の構造を扱う。
-ここでは代表的な 3 つのパターンを解説する。
+While GoF design patterns deal with class-level design,
+architecture patterns deal with the overall structure of an application.
+Here we will explain 3 representative patterns.
 
-### 5.1 MVC（Model-View-Controller）
+### 5.1 MVC (Model-View-Controller)
 
-#### 概要
+#### Overview
 
-アプリケーションを 3 つの役割に分離する。
+Separates an application into 3 roles:
 
-- **Model**: ビジネスロジックとデータ
-- **View**: ユーザーインターフェース（表示）
-- **Controller**: ユーザー入力を受け取り、Model と View を仲介する
-
-```
-┌──────────┐     ユーザー操作     ┌──────────────┐
-│          │ ──────────────────▶ │              │
-│   View   │                     │  Controller  │
-│ (表示)   │ ◀────────────────── │  (制御)      │
-│          │     表示の更新       │              │
-└────┬─────┘                     └──────┬───────┘
-     │                                  │
-     │  データの参照                     │ Model の操作
-     │                                  │
-     │         ┌──────────────┐         │
-     └────────▶│    Model     │◀────────┘
-               │ (データ/      │
-               │  ビジネス     │
-               │  ロジック)    │
-               └──────────────┘
-```
-
-#### 特徴
-
-- Web フレームワーク（Django、Ruby on Rails、Spring MVC）で広く採用
-- Model と View の分離により、同じデータを複数の View で表示可能
-- テスト時に View を差し替えて Model のロジックを単体テスト可能
-
-### 5.2 MVVM（Model-View-ViewModel）
-
-#### 概要
-
-MVC の派生形で、データバインディングを活用して View と ViewModel を同期する。
-
-- **Model**: データとビジネスロジック
-- **View**: UI の表示
-- **ViewModel**: View に表示するデータの変換・管理。View の状態を保持する
+- **Model**: Business logic and data
+- **View**: User interface (display)
+- **Controller**: Receives user input and mediates between Model and View
 
 ```
-┌──────────┐     データバインディング     ┌──────────────┐
-│          │ ◀═══════════════════════▶ │              │
-│   View   │     (双方向同期)           │  ViewModel   │
-│          │                            │              │
-└──────────┘                            └──────┬───────┘
-                                               │
-                                               │ データ操作
-                                               ▼
-                                        ┌──────────────┐
-                                        │    Model     │
-                                        └──────────────┘
++----------+     User actions      +--------------+
+|          | --------------------> |              |
+|   View   |                      |  Controller  |
+| (display)|  <------------------ |  (control)   |
+|          |     Update display    |              |
++----+-----+                      +------+-------+
+     |                                   |
+     |  Reference data                   | Operate Model
+     |                                   |
+     |         +--------------+          |
+     +-------->|    Model     |<---------+
+               | (data /      |
+               |  business    |
+               |  logic)      |
+               +--------------+
 ```
 
-#### 特徴
+#### Characteristics
 
-- フロントエンドフレームワーク（Vue.js、SwiftUI、WPF）で広く採用
-- データバインディングにより View の手動更新が不要
-- ViewModel は View に依存しないためテストが容易
+- Widely adopted in web frameworks (Django, Ruby on Rails, Spring MVC)
+- Separation of Model and View enables displaying the same data in multiple Views
+- Model logic can be unit tested by swapping the View during testing
 
-### 5.3 Repository パターン
+### 5.2 MVVM (Model-View-ViewModel)
 
-#### 概要
+#### Overview
 
-データアクセスロジックを抽象化し、ドメインモデルとデータベースの間に
-仲介層を設ける。ビジネスロジックはデータの取得・保存方法の詳細を知る必要がなくなる。
+A derivative of MVC that leverages data binding to synchronize View and ViewModel.
+
+- **Model**: Data and business logic
+- **View**: UI display
+- **ViewModel**: Transforms and manages data for display in the View. Holds View state
 
 ```
-┌───────────────┐     ┌────────────────────┐     ┌──────────────┐
-│  Business     │────▶│   Repository       │────▶│  Database    │
-│  Logic        │     │   (Interface)      │     │  / ORM /     │
-│               │◀────│                    │◀────│  API / File  │
-└───────────────┘     └────────────────────┘     └──────────────┘
++----------+     Data binding          +--------------+
+|          | <========================>|              |
+|   View   |     (Two-way sync)        |  ViewModel   |
+|          |                           |              |
++----------+                           +------+-------+
+                                              |
+                                              | Data operations
+                                              v
+                                       +--------------+
+                                       |    Model     |
+                                       +--------------+
 ```
 
-#### Python 実装
+#### Characteristics
+
+- Widely adopted in frontend frameworks (Vue.js, SwiftUI, WPF)
+- Data binding eliminates the need for manual View updates
+- ViewModel does not depend on the View, making it easy to test
+
+### 5.3 Repository Pattern
+
+#### Overview
+
+Abstracts data access logic and creates an intermediary layer between
+the domain model and the database. Business logic no longer needs to know
+the details of how data is retrieved or stored.
+
+```
++---------------+     +--------------------+     +--------------+
+|  Business     |---->|   Repository       |---->|  Database    |
+|  Logic        |     |   (Interface)      |     |  / ORM /     |
+|               |<----|                    |<----|  API / File  |
++---------------+     +--------------------+     +--------------+
+```
+
+#### Python Implementation
 
 ```python
 from abc import ABC, abstractmethod
@@ -1769,7 +1774,7 @@ class User:
 
 
 class UserRepository(ABC):
-    """ユーザーリポジトリのインターフェース。"""
+    """User repository interface."""
 
     @abstractmethod
     def find_by_id(self, user_id: int) -> User | None:
@@ -1793,7 +1798,7 @@ class UserRepository(ABC):
 
 
 class InMemoryUserRepository(UserRepository):
-    """テスト用のインメモリ実装。"""
+    """In-memory implementation for testing."""
 
     def __init__(self):
         self._store: dict[int, User] = {}
@@ -1818,7 +1823,7 @@ class InMemoryUserRepository(UserRepository):
 
 
 class UserService:
-    """ビジネスロジック層。Repository に依存する。"""
+    """Business logic layer. Depends on Repository."""
 
     def __init__(self, repo: UserRepository):
         self._repo = repo
@@ -1838,7 +1843,7 @@ class UserService:
         return user
 
 
-# 使用例
+# Usage example
 repo = InMemoryUserRepository()
 service = UserService(repo)
 
@@ -1848,100 +1853,103 @@ bob = service.register(2, "Bob", "bob@example.com")
 print(service.get_user(1))   # User(id=1, name='Alice', email='alice@example.com')
 print(repo.find_all())       # [User(...), User(...)]
 
-# テスト時は InMemoryUserRepository を使い、
-# 本番では SQLAlchemyUserRepository 等に差し替える
+# Use InMemoryUserRepository for testing,
+# swap to SQLAlchemyUserRepository etc. for production
 ```
 
-### 5.4 アーキテクチャパターンの比較表
+### 5.4 Architecture Patterns Comparison
 
-| パターン | View と Logic の結合度 | データ同期 | 主な適用先 | テスト容易性 |
-|---------|----------------------|-----------|-----------|------------|
-| MVC | Controller が仲介 | 手動（Controller経由） | Web（Django、Rails） | Model のテスト容易 |
-| MVVM | データバインディング | 自動（双方向バインド） | SPA（Vue）、モバイル（SwiftUI） | ViewModel のテスト容易 |
-| MVP | Presenter が仲介 | 手動（Presenter経由） | Android（旧来）、デスクトップ | Presenter のテスト容易 |
-| Repository | 関心の分離 | Repository 経由 | DDD、Clean Architecture | Repository 差し替えで容易 |
+| Pattern | View-Logic Coupling | Data Sync | Primary Use | Testability |
+|---------|-------------------|-----------|-------------|-------------|
+| MVC | Controller mediates | Manual (via Controller) | Web (Django, Rails) | Easy to test Model |
+| MVVM | Data binding | Automatic (two-way binding) | SPA (Vue), Mobile (SwiftUI) | Easy to test ViewModel |
+| MVP | Presenter mediates | Manual (via Presenter) | Android (legacy), Desktop | Easy to test Presenter |
+| Repository | Separation of concerns | Via Repository | DDD, Clean Architecture | Easy by swapping Repository |
 
 ---
 
-## 6. パターンの選び方
+## 6. How to Choose Patterns
 
-### 6.1 判断フローチャート
+### 6.1 Decision Flowchart
 
-パターンの選択は、直面している問題の性質から判断する。
+Pattern selection is determined by the nature of the problem you face.
 
 ```
-問題の種類は？
-│
-├── オブジェクトの「生成」に関する問題
-│   ├── インスタンスを 1 つに制限したい → Singleton
-│   ├── 生成するクラスを動的に決めたい → Factory Method
-│   ├── 関連オブジェクト群を一括生成   → Abstract Factory
-│   ├── 複雑なオブジェクトを段階構築   → Builder
-│   └── 既存オブジェクトをコピーしたい → Prototype
-│
-├── クラス/オブジェクトの「構造」に関する問題
-│   ├── インターフェースの不一致を解消 → Adapter
-│   ├── 機能を動的に追加したい       → Decorator
-│   ├── 複雑さを隠蔽したい           → Facade
-│   ├── ツリー構造を統一的に扱いたい → Composite
-│   └── アクセスを制御・代理したい   → Proxy
-│
-└── オブジェクト間の「振る舞い」に関する問題
-    ├── 状態変化を複数に通知したい   → Observer
-    ├── アルゴリズムを交換可能にしたい → Strategy
-    ├── 操作の実行/取消を管理したい   → Command
-    ├── コレクションを走査したい     → Iterator
-    └── 状態に応じて振る舞いを変えたい → State
+What is the type of problem?
+|
++-- Problems related to object "creation"
+|   +-- Want to restrict to a single instance    -> Singleton
+|   +-- Want to dynamically decide which class   -> Factory Method
+|   +-- Need to create related object groups     -> Abstract Factory
+|   +-- Need step-by-step construction of        -> Builder
+|   |   complex objects
+|   +-- Want to copy an existing object           -> Prototype
+|
++-- Problems related to class/object "structure"
+|   +-- Need to resolve interface mismatches      -> Adapter
+|   +-- Want to add features dynamically          -> Decorator
+|   +-- Want to hide complexity                   -> Facade
+|   +-- Want to treat tree structures uniformly   -> Composite
+|   +-- Want to control/proxy access              -> Proxy
+|
++-- Problems related to "behavior" between objects
+    +-- Want to notify multiple objects of         -> Observer
+    |   state changes
+    +-- Want to make algorithms interchangeable    -> Strategy
+    +-- Want to manage execution/undo of           -> Command
+    |   operations
+    +-- Want to traverse a collection              -> Iterator
+    +-- Want to change behavior based on state     -> State
 ```
 
-### 6.2 パターン選択の原則
+### 6.2 Principles for Pattern Selection
 
-1. **問題先行**: パターンありきで設計しない。問題を明確にしてからパターンを探す
-2. **最小適用**: 必要最小限のパターンを適用する。複数パターンの組み合わせは慎重に
-3. **YAGNI**: 将来の拡張のためにパターンを適用するのは避ける。今必要なものだけ
-4. **チームの理解度**: チームメンバーが理解できないパターンは保守コストを増大させる
-5. **言語の特性**: Python のダックタイピング、ファーストクラス関数などを活かし、過度なクラス階層を避ける
+1. **Problem-first**: Do not design with patterns in mind. Clarify the problem first, then search for patterns
+2. **Minimal application**: Apply the minimum necessary patterns. Be cautious when combining multiple patterns
+3. **YAGNI**: Avoid applying patterns for future extensibility. Only what is needed now
+4. **Team understanding**: Patterns that team members cannot understand increase maintenance costs
+5. **Language characteristics**: Leverage Python's duck typing, first-class functions, etc., and avoid excessive class hierarchies
 
-### 6.3 Python におけるパターンの簡略化
+### 6.3 Simplification of Patterns in Python
 
-Python の動的型付けとファーストクラス関数により、
-Java/C++ で必要だったクラス階層が不要になるケースがある。
+Python's dynamic typing and first-class functions make some class hierarchies
+that were necessary in Java/C++ unnecessary.
 
-| GoF パターン | Java での実装 | Python での簡略化 |
-|-------------|-------------|------------------|
-| Strategy | インターフェース + 実装クラス群 | 関数を引数として渡す |
-| Command | Command インターフェース + 実装 | 関数/lambda + リスト |
-| Observer | Observer インターフェース + Subject | コールバック関数のリスト |
-| Singleton | private コンストラクタ + static | モジュールレベル変数 |
-| Factory Method | 抽象クラス + サブクラス群 | 辞書 + 関数/クラス |
-| Iterator | Iterator インターフェース実装 | `__iter__` / `__next__` / ジェネレータ |
-| Template Method | 抽象クラス + 継承 | 高階関数またはミックスイン |
+| GoF Pattern | Java Implementation | Python Simplification |
+|-------------|--------------------|-----------------------|
+| Strategy | Interface + implementation classes | Pass functions as arguments |
+| Command | Command interface + implementation | Function/lambda + list |
+| Observer | Observer interface + Subject | List of callback functions |
+| Singleton | Private constructor + static | Module-level variable |
+| Factory Method | Abstract class + subclasses | Dictionary + function/class |
+| Iterator | Iterator interface implementation | `__iter__` / `__next__` / generators |
+| Template Method | Abstract class + inheritance | Higher-order functions or mixins |
 
 ---
 
-## 7. アンチパターン
+## 7. Anti-Patterns
 
-### 7.1 God Object（神オブジェクト）
+### 7.1 God Object
 
-#### 説明
+#### Description
 
-1 つのクラスがシステムの大部分の機能を担当し、
-あらゆることを知り、あらゆることを行うクラスのことである。
-単一責任原則（SRP）に完全に違反している。
+A class where one class handles most of the system's functionality,
+knowing everything and doing everything.
+It completely violates the Single Responsibility Principle (SRP).
 
-#### 症状
+#### Symptoms
 
-- クラスのコードが数百行〜数千行に膨らんでいる
-- メソッド数が 20 以上ある
-- 異なるドメインの責務が 1 つのクラスに混在している
-- 変更のたびにそのクラスを修正する必要がある
+- The class code grows to hundreds or thousands of lines
+- Has 20 or more methods
+- Responsibilities from different domains are mixed in a single class
+- Every change requires modifying that class
 
-#### 悪い例
+#### Bad Example
 
 ```python
-# アンチパターン: God Object
+# Anti-pattern: God Object
 class Application:
-    """何でもやるクラス（やってはいけない例）。"""
+    """A class that does everything (example of what NOT to do)."""
 
     def __init__(self):
         self.users = []
@@ -1968,62 +1976,63 @@ class Application:
     def export_to_csv(self, data): ...
     def clear_cache(self): ...
     def write_log(self, message): ...
-    # ... 延々と続く
+    # ... goes on and on
 ```
 
-#### 改善策
+#### Improvement
 
-責務ごとにクラスを分割し、それぞれを疎結合に連携させる。
+Split classes by responsibility and have them collaborate loosely.
 
 ```python
-# 改善: 責務ごとにクラスを分割
+# Improved: Split classes by responsibility
 class UserService:
-    """ユーザー管理に特化。"""
+    """Specialized for user management."""
     def create(self, name: str, email: str) -> "User": ...
     def authenticate(self, email: str, password: str) -> bool: ...
 
 class ProductService:
-    """商品管理に特化。"""
+    """Specialized for product management."""
     def add(self, name: str, price: float) -> "Product": ...
     def search(self, query: str) -> list["Product"]: ...
 
 class OrderService:
-    """注文管理に特化。"""
+    """Specialized for order management."""
     def create(self, user_id: int, items: list) -> "Order": ...
     def process_payment(self, order_id: int, card: str) -> bool: ...
 
 class NotificationService:
-    """通知に特化。"""
+    """Specialized for notifications."""
     def send_confirmation(self, user_id: int, order_id: int) -> None: ...
 ```
 
 ---
 
-### 7.2 Golden Hammer（金のハンマー）
+### 7.2 Golden Hammer
 
-#### 説明
+#### Description
 
-「ハンマーしか持っていなければ、すべてが釘に見える」という格言に由来する。
-特定のパターンや技術に習熟すると、あらゆる問題にそのパターンを適用しようとする傾向のこと。
+Derived from the saying "If all you have is a hammer, everything looks like a nail."
+When you become proficient with a specific pattern or technology,
+you tend to apply that pattern to every problem.
 
-#### 症状
+#### Symptoms
 
-- 単純な問題に対して過度に複雑なパターンを適用している
-- 「念のため」Strategy パターンを使っているが、戦略が 1 つしかない
-- Factory を使っているが、生成するクラスが 1 種類しかない
-- Observer を使っているが、Observer が 1 つしかない
+- Applying overly complex patterns to simple problems
+- Using the Strategy pattern "just in case," but there is only one strategy
+- Using a Factory, but there is only one class to create
+- Using Observer, but there is only one Observer
 
-#### 対策
+#### Countermeasures
 
-1. **問題の複雑さに見合った解決策を選ぶ**: パターンの適用は問題が複雑な場合のみ
-2. **YAGNI を守る**: 将来のために今パターンを入れるのは避ける
-3. **リファクタリングで導入**: 最初はシンプルに実装し、必要になった時点でパターンを導入する
+1. **Choose solutions proportionate to the problem's complexity**: Apply patterns only when the problem is complex
+2. **Follow YAGNI**: Avoid adding patterns now for the future
+3. **Introduce through refactoring**: Implement simply first, then introduce patterns when the need arises
 
 ```python
-# Golden Hammer の例: 不要な Factory
-# 生成するクラスが 1 種類なら Factory は不要
+# Example of Golden Hammer: Unnecessary Factory
+# If there's only one class to create, a Factory is unnecessary
 
-# 過剰設計（やりすぎ）
+# Over-engineering (overkill)
 class LoggerFactory:
     @staticmethod
     def create(logger_type: str):
@@ -2031,93 +2040,93 @@ class LoggerFactory:
             return ConsoleLogger()
         raise ValueError(f"Unknown: {logger_type}")
 
-logger = LoggerFactory.create("console")  # 常に console しか使わない
+logger = LoggerFactory.create("console")  # Always only "console"
 
-# 適切（シンプル）
-logger = ConsoleLogger()  # 直接生成で十分
+# Appropriate (simple)
+logger = ConsoleLogger()  # Direct instantiation is sufficient
 ```
 
 ---
 
-### 7.3 Cargo Cult Programming（カーゴカルト プログラミング）
+### 7.3 Cargo Cult Programming
 
-#### 説明
+#### Description
 
-パターンやプラクティスの意図を理解せず、
-「有名プロジェクトで使われているから」「先輩が書いたから」という理由だけで
-盲目的にコピーすること。表面的には正しく見えるが、本質的な理解が欠けている。
+Blindly copying patterns and practices without understanding their intent,
+simply because "it was used in a famous project" or "a senior wrote it."
+It may look correct on the surface, but lacks fundamental understanding.
 
-#### 症状
+#### Symptoms
 
-- パターンの「形」だけ真似して、解決すべき問題がない
-- 全クラスにインターフェースを定義しているが、実装が常に 1 つ
-- デザインパターンの名前だけ知っていて、トレードオフを説明できない
+- Mimicking only the "form" of a pattern without having a problem to solve
+- Defining interfaces for every class, but there is always only one implementation
+- Knowing the names of design patterns but being unable to explain their trade-offs
 
-#### 対策
+#### Countermeasures
 
-1. パターンを適用する前に「なぜ」を自問する
-2. パターンのトレードオフ（メリットとデメリットの両方）を理解する
-3. パターンなしで書いた場合と比較し、パターンの価値を確認する
+1. Ask "why" before applying a pattern
+2. Understand the trade-offs (both advantages and disadvantages) of the pattern
+3. Compare with the version written without the pattern and confirm the pattern's value
 
 ---
 
-## 8. 演習問題
+## 8. Exercises
 
-### 8.1 基礎レベル（Beginner）
+### 8.1 Beginner Level
 
-**問題 1**: 以下の要件に対して、どのデザインパターンが適切か答えよ。理由も述べよ。
+**Problem 1**: For the following requirements, identify which design pattern is appropriate and explain why.
 
-(a) アプリケーション全体で設定ファイルの内容を共有したい
-(b) ログの出力先をファイル、コンソール、リモートサーバーから選択したい
-(c) 外部ライブラリのインターフェースが自社システムと合わないので変換したい
+(a) You want to share configuration file contents across the entire application
+(b) You want to choose the log output destination from file, console, or remote server
+(c) An external library's interface does not match your system, so you need to convert it
 
 <details>
-<summary>解答例</summary>
+<summary>Example Answer</summary>
 
-(a) **Singleton パターン**（またはモジュールレベル変数）。
-設定オブジェクトはアプリケーション全体で 1 つであるべきであり、
-どこからでも同じ設定にアクセスする必要があるため。
-Python ではモジュールレベル変数で十分なことが多い。
+(a) **Singleton Pattern** (or module-level variables).
+The configuration object should be unique across the application,
+and the same configuration needs to be accessed from anywhere.
+In Python, module-level variables are often sufficient.
 
-(b) **Strategy パターン**。
-ログ出力のアルゴリズム（出力先）を交換可能にすることで、
-実行時に出力先を切り替えられる。
-Python では logging モジュールの Handler がまさにこの構造。
+(b) **Strategy Pattern**.
+By making the logging algorithm (output destination) interchangeable,
+the destination can be switched at runtime.
+In Python, the logging module's Handler follows exactly this structure.
 
-(c) **Adapter パターン**。
-既存のライブラリを変更せずに、自社システムが期待するインターフェースに
-変換するラッパーを作成する。
+(c) **Adapter Pattern**.
+Create a wrapper that converts to the interface your system expects
+without modifying the existing library.
 
 </details>
 
-**問題 2**: Singleton パターンの問題点を 3 つ挙げ、それぞれの対策を述べよ。
+**Problem 2**: List 3 problems with the Singleton pattern and describe countermeasures for each.
 
 <details>
-<summary>解答例</summary>
+<summary>Example Answer</summary>
 
-1. **テストが困難**: グローバル状態を持つため、テスト間で状態が共有される
-   → 対策: 依存性注入（DI）を使い、テスト時にモックを渡す
+1. **Difficult to test**: State is shared between tests due to global state
+   -> Countermeasure: Use Dependency Injection (DI) and pass mocks during testing
 
-2. **マルチスレッドの競合**: 複数スレッドが同時にインスタンス生成を試みる可能性
-   → 対策: Lock によるダブルチェックロッキング、またはモジュールレベル変数の使用
+2. **Multi-thread race conditions**: Multiple threads may attempt instance creation simultaneously
+   -> Countermeasure: Double-checked locking with a Lock, or use module-level variables
 
-3. **隠れた依存関係**: Singleton を直接参照するコードは暗黙の依存を持つ
-   → 対策: コンストラクタインジェクションで明示的に依存を宣言する
+3. **Hidden dependencies**: Code that directly references a Singleton has implicit dependencies
+   -> Countermeasure: Use constructor injection to explicitly declare dependencies
 
 </details>
 
-### 8.2 中級レベル（Intermediate）
+### 8.2 Intermediate Level
 
-**問題 3**: 以下の仕様を満たすログシステムを、Decorator パターンを使って実装せよ。
+**Problem 3**: Implement a logging system using the Decorator pattern that satisfies the following specifications:
 
-- ベースのログ出力（コンソールに文字列を表示）
-- タイムスタンプを付加する Decorator
-- ログレベル（INFO, WARN, ERROR）を付加する Decorator
-- JSON 形式に変換する Decorator
-- これらを自由に組み合わせ可能
+- Base log output (display strings to the console)
+- A Decorator that adds timestamps
+- A Decorator that adds log levels (INFO, WARN, ERROR)
+- A Decorator that converts to JSON format
+- These can be freely combined
 
 <details>
-<summary>解答例</summary>
+<summary>Example Answer</summary>
 
 ```python
 from abc import ABC, abstractmethod
@@ -2163,7 +2172,7 @@ class JsonDecorator(LogDecorator):
         return self._logger.log(payload)
 
 
-# 組み合わせ例
+# Combination example
 logger = ConsoleLogger()
 logger = TimestampDecorator(logger)
 logger = LevelDecorator(logger, "ERROR")
@@ -2173,11 +2182,11 @@ logger.log("Database connection failed")
 
 </details>
 
-**問題 4**: Command パターンを使って、簡単な計算機（四則演算）に
-Undo/Redo 機能を実装せよ。
+**Problem 4**: Use the Command pattern to implement Undo/Redo functionality
+for a simple calculator (four arithmetic operations).
 
 <details>
-<summary>解答例</summary>
+<summary>Example Answer</summary>
 
 ```python
 from abc import ABC, abstractmethod
@@ -2258,22 +2267,22 @@ calc.redo()                            # 15.0
 
 </details>
 
-### 8.3 上級レベル（Advanced）
+### 8.3 Advanced Level
 
-**問題 5**: 以下の要件を満たすプラグインシステムを設計・実装せよ。
-複数のデザインパターンを組み合わせること。
+**Problem 5**: Design and implement a plugin system that satisfies the following requirements.
+Combine multiple design patterns.
 
-要件:
-- プラグインの動的な登録・解除ができる（Factory + Registry）
-- プラグインの実行順序を制御できる（Chain of Responsibility）
-- プラグインの実行結果をログに記録できる（Observer）
-- 全プラグインの実行を 1 つのコマンドで行える（Facade）
+Requirements:
+- Dynamic registration and unregistration of plugins (Factory + Registry)
+- Control over plugin execution order (Chain of Responsibility)
+- Logging of plugin execution results (Observer)
+- Execute all plugins with a single command (Facade)
 
-ヒント: まず各コンポーネントのインターフェースを設計し、
-次にパターンを組み合わせて全体を構成する。
+Hint: First design the interface for each component,
+then combine patterns to compose the whole.
 
 <details>
-<summary>設計の方向性</summary>
+<summary>Design Direction</summary>
 
 ```python
 from abc import ABC, abstractmethod
@@ -2281,7 +2290,7 @@ from typing import Any
 
 
 class Plugin(ABC):
-    """プラグインの基底クラス。"""
+    """Base class for plugins."""
     @abstractmethod
     def name(self) -> str: ...
     @abstractmethod
@@ -2291,7 +2300,7 @@ class Plugin(ABC):
 
 
 class PluginRegistry:
-    """Factory + Registry: プラグインの登録・生成管理。"""
+    """Factory + Registry: Manages plugin registration and creation."""
     _plugins: dict[str, type[Plugin]] = {}
 
     @classmethod
@@ -2310,7 +2319,7 @@ class PluginRegistry:
 
 
 class PluginEventBus:
-    """Observer: プラグイン実行イベントを通知。"""
+    """Observer: Notifies plugin execution events."""
     _listeners: list = []
 
     @classmethod
@@ -2324,7 +2333,7 @@ class PluginEventBus:
 
 
 class PluginEngine:
-    """Facade: プラグインシステムの統一窓口。"""
+    """Facade: Unified entry point for the plugin system."""
     def __init__(self):
         self._plugins = PluginRegistry.create_all()
 
@@ -2336,196 +2345,196 @@ class PluginEngine:
         return context
 ```
 
-具体的なプラグインの実装とテストコードは、読者の演習として残す。
-重要なのは、各パターンが独立した責務を持ち、
-組み合わせることで柔軟なシステムが構築できる点を理解することである。
+The implementation of concrete plugins and test code is left as an exercise for the reader.
+The important point is understanding that each pattern has an independent responsibility,
+and that combining them enables building flexible systems.
 
 </details>
 
 ---
 
-## 9. よくある質問（FAQ）
+## 9. Frequently Asked Questions (FAQ)
 
-### Q1: デザインパターンはいつ学ぶべきか？
+### Q1: When should I learn design patterns?
 
-デザインパターンの学習に最適な時期は、ある程度のコーディング経験を積んだ後である。
-目安として、以下の条件を満たしていると効果的に学べる。
+The optimal time to learn design patterns is after gaining some coding experience.
+As a guideline, you can learn effectively if you meet the following conditions:
 
-- オブジェクト指向プログラミングの基礎（クラス、継承、ポリモーフィズム）を理解している
-- 数千行以上のプログラムを書いた経験がある
-- 「このコード、もっとうまく構造化できないか」と感じたことがある
+- You understand the basics of object-oriented programming (classes, inheritance, polymorphism)
+- You have experience writing programs of several thousand lines or more
+- You have felt "Could this code be better structured?"
 
-初学者がパターンだけを暗記しても実践では活かしにくい。
-まずコードを書いて「痛み」を経験し、
-その痛みを解決する手段としてパターンを学ぶのが効果的である。
+Even if beginners memorize patterns, they are hard to apply in practice.
+First, write code and experience the "pain,"
+then learn patterns as a means to solve that pain -- this is the most effective approach.
 
-### Q2: 全 23 パターンを覚える必要があるか？
+### Q2: Do I need to memorize all 23 patterns?
 
-全てを暗記する必要はない。重要なのは以下の点である。
+You do not need to memorize all of them. What matters is the following:
 
-1. **カテゴリの理解**: 生成・構造・振る舞いの 3 分類を理解する
-2. **頻出パターンの習熟**: 以下の 8〜10 パターンは実務で頻繁に出現する
-   - Singleton, Factory Method, Builder（生成）
-   - Adapter, Decorator, Facade（構造）
-   - Observer, Strategy, Command, Iterator（振る舞い）
-3. **引き出しとしての認識**: 残りのパターンは「こういう問題にはこういう解決策がある」と知っておき、必要になったときに詳細を調べられればよい
+1. **Understanding the categories**: Understand the 3 categories -- Creational, Structural, Behavioral
+2. **Mastery of frequently used patterns**: The following 8-10 patterns appear frequently in practice
+   - Singleton, Factory Method, Builder (Creational)
+   - Adapter, Decorator, Facade (Structural)
+   - Observer, Strategy, Command, Iterator (Behavioral)
+3. **Awareness as a toolkit**: For the remaining patterns, know that "for this kind of problem, this kind of solution exists" and be able to look up details when needed
 
-### Q3: Python ではパターンは不要と聞いたが本当か？
+### Q3: I heard patterns are unnecessary in Python -- is that true?
 
-半分正しく、半分間違いである。
+It is half right and half wrong.
 
-Python の動的型付け、ダックタイピング、ファーストクラス関数、デコレータ構文により、
-Java/C++ で必要だった「ボイラープレートとしてのパターン」は確かに不要になる場合がある。
-例えば、Strategy パターンはクラスを作らずに関数を渡すだけで実現できる。
+Python's dynamic typing, duck typing, first-class functions, and decorator syntax
+do make "boilerplate patterns" that were necessary in Java/C++ unnecessary in some cases.
+For example, the Strategy pattern can be achieved by simply passing functions instead of creating classes.
 
-しかし、パターンの本質は「実装方法」ではなく「設計の意図」である。
-「ここは Strategy の考え方で設計している」と伝えることで、
-チームメンバーは設計意図を即座に理解できる。
-言語が変わっても、パターンの「概念」は有効であり続ける。
+However, the essence of patterns is not "implementation methods" but "design intent."
+By conveying "this is designed with the Strategy concept,"
+team members can instantly understand the design intent.
+Even when the language changes, the "concepts" of patterns remain valid.
 
-Python で重要なのは、パターンの意図を理解した上で、
-Python らしい（Pythonic な）方法で実装することである。
-Java のパターン実装をそのまま Python に持ち込むのは避けるべきである。
+What matters in Python is to understand the intent of patterns
+and implement them in a Pythonic way.
+Avoid directly porting Java pattern implementations to Python.
 
-### Q4: パターンの適用判断で迷ったらどうするか？
+### Q4: What should I do when I am unsure about applying a pattern?
 
-迷った場合は、以下のステップで判断するとよい。
+When in doubt, the following steps can help:
 
-1. **まずシンプルに書く**: パターンなしで実装する
-2. **痛みを感じたらリファクタリング**: 重複、条件分岐の増加、変更の困難さを感じたら
-3. **パターンの意図と照合**: 感じた痛みがどのパターンの「問題」に該当するか確認
-4. **トレードオフを評価**: パターン適用による複雑さの増加と、得られる柔軟性を天秤にかける
-5. **チームと相談**: パターンの適用はチームの理解度に合わせる
+1. **Write it simply first**: Implement without patterns
+2. **Refactor when you feel pain**: When you notice duplication, growing conditional branches, or difficulty making changes
+3. **Match against pattern intents**: Check which pattern's "problem" corresponds to the pain you felt
+4. **Evaluate trade-offs**: Weigh the increased complexity from applying the pattern against the flexibility gained
+5. **Discuss with the team**: Adapt pattern application to the team's understanding level
 
-「迷ったらシンプルに」が最も安全な原則である。
+"When in doubt, keep it simple" is the safest principle.
 
-### Q5: マイクロサービスではデザインパターンはどう変わるか？
+### Q5: How do design patterns change with microservices?
 
-マイクロサービスアーキテクチャでは、GoF パターンに加えて
-分散システム固有のパターンが重要になる。
+In microservice architectures, distributed system-specific patterns
+become important in addition to GoF patterns:
 
-- **Circuit Breaker**: 障害のあるサービスへの呼び出しを遮断し、連鎖障害を防ぐ
-- **Saga**: 分散トランザクションを一連のローカルトランザクションとして管理する
-- **CQRS**: コマンド（書き込み）とクエリ（読み取り）のモデルを分離する
-- **Event Sourcing**: 状態の変更をイベントのシーケンスとして記録する
-- **API Gateway**: 複数のマイクロサービスへのアクセスを統合する（Facade の分散版）
-- **Sidecar**: サービスに付随するプロセスで横断的関心事を処理する
+- **Circuit Breaker**: Block calls to failing services to prevent cascading failures
+- **Saga**: Manage distributed transactions as a series of local transactions
+- **CQRS**: Separate command (write) and query (read) models
+- **Event Sourcing**: Record state changes as a sequence of events
+- **API Gateway**: Integrate access to multiple microservices (distributed version of Facade)
+- **Sidecar**: Handle cross-cutting concerns in a process attached to the service
 
-GoF パターンは「クラス内・プロセス内」の設計であり、
-分散パターンは「サービス間・プロセス間」の設計である。
-両者は排他的ではなく、階層が異なるだけである。
+GoF patterns are "intra-class/intra-process" designs,
+while distributed patterns are "inter-service/inter-process" designs.
+They are not mutually exclusive; they simply operate at different layers.
 
 ---
 
-## 10. パターンの組み合わせと実践的ガイドライン
+## 10. Pattern Combinations and Practical Guidelines
 
-### 10.1 よく使われるパターンの組み合わせ
+### 10.1 Commonly Used Pattern Combinations
 
-実際のプロジェクトでは、複数のパターンを組み合わせて使うことが多い。
-以下は代表的な組み合わせである。
+In real projects, multiple patterns are often combined.
+Below are representative combinations.
 
-| 組み合わせ | 典型的な用途 | 説明 |
-|-----------|------------|------|
-| Factory + Strategy | プラグインシステム | Factory で Strategy を生成し、実行時に切り替え |
-| Observer + Command | イベント駆動 UI | イベント（Observer）でコマンド（Command）を発火 |
-| Composite + Iterator | ツリー走査 | Composite 構造を Iterator で順次処理 |
-| Facade + Adapter | レガシー統合 | Adapter で変換し、Facade で統一窓口を提供 |
-| Builder + Factory | 複雑なオブジェクト群 | Factory がどの Builder を使うかを決定 |
-| Decorator + Strategy | ミドルウェアパイプライン | Decorator で重ね掛けし、各層が Strategy で処理 |
+| Combination | Typical Use | Description |
+|-------------|-----------|-------------|
+| Factory + Strategy | Plugin systems | Factory creates Strategies, switched at runtime |
+| Observer + Command | Event-driven UI | Events (Observer) trigger commands (Command) |
+| Composite + Iterator | Tree traversal | Iterate over Composite structures sequentially |
+| Facade + Adapter | Legacy integration | Adapter converts, Facade provides unified entry point |
+| Builder + Factory | Complex object groups | Factory decides which Builder to use |
+| Decorator + Strategy | Middleware pipeline | Layer with Decorators, each layer processes with Strategy |
 
-### 10.2 リファクタリングでパターンを導入するタイミング
+### 10.2 When to Introduce Patterns Through Refactoring
 
-パターンは「最初から入れる」のではなく「必要になったら入れる」が原則である。
-以下のシグナルが現れたらパターン導入を検討する。
+The principle is "introduce when needed" rather than "include from the start."
+Consider introducing patterns when the following signals appear:
 
-1. **同じ条件分岐が複数箇所に出現** → Strategy / State
-2. **新しい型の追加で既存コードの修正が必要** → Factory Method
-3. **オブジェクト間の通知が複雑化** → Observer / Mediator
-4. **Undo 機能の要求** → Command / Memento
-5. **外部 API との接続が増加** → Adapter / Facade
-6. **コンストラクタの引数が 5 個以上** → Builder
+1. **Same conditional branches appear in multiple places** -> Strategy / State
+2. **Adding a new type requires modifying existing code** -> Factory Method
+3. **Notifications between objects become complex** -> Observer / Mediator
+4. **Undo functionality is requested** -> Command / Memento
+5. **External API connections increase** -> Adapter / Facade
+6. **Constructor has 5 or more arguments** -> Builder
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point in learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Building practical experience is most important. Understanding deepens not just through theory, but by actually writing and running code.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the basics and jumping to advanced topics. We recommend solidly understanding the fundamental concepts explained in this guide before moving to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in professional practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+The knowledge of this topic is frequently used in day-to-day development work. It becomes particularly important during code reviews and architecture design.
 
 ---
 
-## 11. まとめ
+## 11. Summary
 
-### 11.1 この章で学んだこと
+### 11.1 What You Learned in This Chapter
 
-| カテゴリ | 学習したパターン | 核心 |
-|---------|---------------|------|
-| 生成 | Singleton, Factory Method, Builder, Prototype | オブジェクト生成の柔軟性と制御 |
-| 構造 | Adapter, Decorator, Facade, Composite | 構造の組み合わせと複雑さの管理 |
-| 振る舞い | Observer, Strategy, Command, Iterator | 責務の分担と通信の整理 |
-| アーキテクチャ | MVC, MVVM, Repository | アプリケーション全体の構造化 |
+| Category | Patterns Learned | Core Concept |
+|----------|-----------------|--------------|
+| Creational | Singleton, Factory Method, Builder, Prototype | Flexibility and control over object creation |
+| Structural | Adapter, Decorator, Facade, Composite | Composition of structures and managing complexity |
+| Behavioral | Observer, Strategy, Command, Iterator | Responsibility distribution and communication organization |
+| Architecture | MVC, MVVM, Repository | Structuring the entire application |
 
-### 11.2 パターン習得のロードマップ
+### 11.2 Pattern Mastery Roadmap
 
 ```
-Phase 1: 基礎理解（この章の内容）
-  ├── GoF の 3 分類を理解する
-  ├── 頻出 8〜10 パターンの意図を説明できる
-  └── Python での実装例を写経する
+Phase 1: Foundational Understanding (content of this chapter)
+  +-- Understand the 3 GoF categories
+  +-- Be able to explain the intent of 8-10 frequently used patterns
+  +-- Transcribe Python implementation examples
 
-Phase 2: 実践適用
-  ├── 既存コードからパターンを発見する
-  ├── リファクタリングでパターンを導入する
-  └── パターンの組み合わせを経験する
+Phase 2: Practical Application
+  +-- Discover patterns in existing code
+  +-- Introduce patterns through refactoring
+  +-- Experience combining patterns
 
-Phase 3: 設計判断
-  ├── 問題に対して適切なパターンを選択できる
-  ├── パターンの適用/不適用をトレードオフで判断できる
-  └── チームにパターンの意図を説明できる
+Phase 3: Design Judgment
+  +-- Select appropriate patterns for problems
+  +-- Judge application/non-application of patterns based on trade-offs
+  +-- Explain the intent of patterns to the team
 
-Phase 4: 応用・発展
-  ├── 分散システムパターンを理解する
-  ├── ドメイン駆動設計（DDD）のパターンを学ぶ
-  └── 関数型プログラミングのパターンと比較する
+Phase 4: Application and Advanced Topics
+  +-- Understand distributed system patterns
+  +-- Learn Domain-Driven Design (DDD) patterns
+  +-- Compare with functional programming patterns
 ```
 
-### 11.3 設計における心構え
+### 11.3 Mindset for Design
 
-1. **パターンは目的ではなく手段である**: パターンを使うこと自体が目的にならないよう注意する
-2. **シンプルさを優先する**: 最もシンプルな設計が最良の設計であることが多い
-3. **問題を理解してからパターンを探す**: パターンカタログを眺めて適用先を探すのは本末転倒
-4. **トレードオフを常に意識する**: どのパターンにもメリットとデメリットがある
-5. **チームの文脈に合わせる**: チームの技術力、プロジェクトの規模、保守期間を考慮する
-
----
-
-## 次に読むべきガイド
+1. **Patterns are means, not ends**: Be careful that using patterns does not become a goal in itself
+2. **Prioritize simplicity**: The simplest design is often the best design
+3. **Understand the problem before searching for patterns**: Browsing pattern catalogs to find application targets is putting the cart before the horse
+4. **Always be aware of trade-offs**: Every pattern has both advantages and disadvantages
+5. **Adapt to the team's context**: Consider the team's technical ability, project size, and maintenance period
 
 ---
 
-## 参考文献
+## Recommended Next Reading
+
+---
+
+## References
 
 1. Gamma, E., Helm, R., Johnson, R., & Vlissides, J. (1994). *Design Patterns: Elements of Reusable Object-Oriented Software*. Addison-Wesley.
-   - GoF デザインパターンの原典。23 パターンの定義と C++/Smalltalk での実装例を収録。
+   - The original work on GoF design patterns. Contains definitions and C++/Smalltalk implementation examples for 23 patterns.
 
 2. Freeman, E., Robson, E., Bates, B., & Sierra, K. (2020). *Head First Design Patterns* (2nd Edition). O'Reilly Media.
-   - 図解と対話形式でパターンを学べる入門書。Java ベースだが概念の理解に最適。
+   - An introductory book that teaches patterns through illustrations and dialogue. Java-based but ideal for conceptual understanding.
 
 3. Fowler, M. (2002). *Patterns of Enterprise Application Architecture*. Addison-Wesley.
-   - エンタープライズアプリケーションにおけるアーキテクチャパターン集。Repository、Unit of Work、Data Mapper などを体系化。
+   - A collection of architecture patterns for enterprise applications. Systematizes Repository, Unit of Work, Data Mapper, etc.
 
 4. Martin, R. C. (2017). *Clean Architecture: A Craftsman's Guide to Software Structure and Design*. Prentice Hall.
-   - SOLID 原則とアーキテクチャパターンの関係を解説。依存性逆転の原則とパターンの適用判断に有用。
+   - Explains the relationship between SOLID principles and architecture patterns. Useful for the Dependency Inversion Principle and pattern application judgment.
 
 5. Buschmann, F. et al. (1996). *Pattern-Oriented Software Architecture Volume 1: A System of Patterns*. Wiley.
-   - アーキテクチャレベルのパターン（MVC、Pipes and Filters、Broker 等）を体系化した書籍。
+   - A book that systematizes architecture-level patterns (MVC, Pipes and Filters, Broker, etc.).
