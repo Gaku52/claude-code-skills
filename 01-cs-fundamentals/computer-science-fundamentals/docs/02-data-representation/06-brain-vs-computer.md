@@ -1,1314 +1,1530 @@
-# 脳とコンピュータの比較
+# Brain vs. Computer
 
-> 人間の脳は約86兆のシナプス結合を持つ超並列コンピュータだが、コンピュータとは根本的に異なるアーキテクチャで動作する。
+> The human brain possesses approximately 86 trillion synaptic connections, functioning as a massively parallel computer, yet it operates on a fundamentally different architecture from conventional computers.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] 脳とコンピュータの構造的な違いを説明できる
-- [ ] 各アーキテクチャの得意・不得意を理解する
-- [ ] ニューロモーフィックコンピューティングの可能性を知る
-- [ ] 情報処理の観点から脳とコンピュータを定量的に比較できる
-- [ ] 脳科学の知見がコンピュータサイエンスにどう応用されているかを理解する
+- [ ] Explain the structural differences between the brain and computers
+- [ ] Understand the strengths and weaknesses of each architecture
+- [ ] Learn about the potential of neuromorphic computing
+- [ ] Quantitatively compare the brain and computers from an information processing perspective
+- [ ] Understand how findings from neuroscience are applied to computer science
 
-## 前提知識
+## Prerequisites
 
-
----
-
-## 1. 構造の比較
-
-### 1.1 基本スペック
-
-```
-脳 vs コンピュータ の基本仕様:
-
-  ┌──────────────────┬─────────────────┬─────────────────┐
-  │ 特性             │ 人間の脳         │ 現代のPC        │
-  ├──────────────────┼─────────────────┼─────────────────┤
-  │ 処理ユニット      │ 860億ニューロン   │ 数十億トランジスタ│
-  │ 接続数           │ 約86兆シナプス   │ 配線で接続       │
-  │ 動作周波数       │ 〜1kHz           │ 〜5GHz          │
-  │ 消費電力         │ 約20W           │ 約200-500W      │
-  │ 重量             │ 約1.4kg         │ 数kg〜数十kg    │
-  │ 動作電圧         │ 約70mV          │ 約1V            │
-  │ 信号方式         │ 電気化学パルス   │ 電気信号(0/1)   │
-  │ 記憶の仕組み     │ シナプス結合強度  │ 磁気/電荷/光    │
-  │ 学習方式         │ ヘブ則/報酬学習  │ プログラム変更   │
-  │ 故障耐性         │ 高い(優雅な劣化) │ 低い(1ビットで停止)│
-  │ 並列性           │ 超大規模並列     │ 数〜数千コア    │
-  │ 計算精度         │ 曖昧・確率的     │ 正確・決定的    │
-  │ 自己修復能力     │ 部分的に可能     │ 基本的に不可    │
-  │ 進化速度         │ 数百万年単位     │ ムーアの法則(2年) │
-  │ エネルギー源     │ グルコース(糖)   │ 電力            │
-  └──────────────────┴─────────────────┴─────────────────┘
-```
-
-### 1.2 アーキテクチャの違い
-
-```
-フォン・ノイマン型 vs ニューラルネットワーク型:
-
-  フォン・ノイマン型コンピュータ:
-  ┌──────────┐    バス    ┌──────────┐
-  │  CPU     │←─────────→│ メモリ    │
-  │(逐次処理)│           │(データ保存)│
-  └──────────┘           └──────────┘
-
-  特徴:
-  - 演算と記憶が分離（フォン・ノイマンボトルネック）
-  - 逐次的に命令を実行
-  - 正確で再現性がある
-  - プログラム可能（汎用的）
-
-  脳のアーキテクチャ:
-  ┌─────┐  ┌─────┐  ┌─────┐  ┌─────┐
-  │ N   │──│ N   │──│ N   │──│ N   │
-  │     │╲│     │╲│     │╲│     │
-  └──┬──┘ └──┬──┘ └──┬──┘ └──┬──┘
-     │╲   ╱│╲   ╱│╲   ╱│
-  ┌──┴──┐ ┌──┴──┐ ┌──┴──┐ ┌──┴──┐
-  │ N   │──│ N   │──│ N   │──│ N   │
-  └─────┘  └─────┘  └─────┘  └─────┘
-  N = ニューロン、線 = シナプス結合
-
-  特徴:
-  - 演算と記憶が一体化（シナプス結合 = 記憶）
-  - 超大規模並列処理
-  - ノイズに強い、確率的
-  - 学習によって自己変更
-```
-
-### 1.3 フォン・ノイマンボトルネックの詳細
-
-```
-フォン・ノイマンボトルネック（von Neumann bottleneck）:
-
-  問題:
-  CPUとメモリが1つのバスで接続されているため、
-  データ転送速度がシステム全体のボトルネックになる
-
-  ┌──────┐  ←── この細いパイプが制約 ──→  ┌──────┐
-  │ CPU  │━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━│メモリ │
-  │ 5GHz │  バス帯域: 〜50GB/s             │ TB級  │
-  └──────┘                                └──────┘
-
-  具体的な数値:
-  - CPUの演算能力: 1TFLOPS（1秒に1兆回の浮動小数点演算）
-  - メモリ帯域: 50GB/s
-  - 1回の演算に8バイト必要とすると: 50GB/8B = 62.5億回/秒
-  - → CPUの能力の1/160しか活用できない！
-
-  対策の歴史:
-  1. キャッシュ階層（L1/L2/L3）
-     → 頻繁にアクセスするデータをCPU近くに
-  2. アウトオブオーダー実行
-     → メモリ待ちの間に他の命令を実行
-  3. プリフェッチ
-     → 必要になる前にデータを読み込み
-  4. SIMD命令
-     → 1命令で複数データを処理
-
-  脳はこの問題が存在しない:
-  → 演算（ニューロンの発火）と記憶（シナプス結合）が同じ場所にある
-  → 「データを転送する」必要がない
-  → これが「インメモリコンピューティング」の原点
-```
-
-### 1.4 信号伝達メカニズムの比較
-
-```
-コンピュータの信号伝達:
-  ┌─────────────────────────────────────────────┐
-  │ トランジスタのスイッチング                      │
-  │                                               │
-  │   電圧 High (1V) = 1                          │
-  │   電圧 Low  (0V) = 0                          │
-  │                                               │
-  │   ┌──┐  ┌──┐     ┌──┐  ┌──┐                 │
-  │   │  │  │  │     │  │  │  │  ← デジタル信号  │
-  │ ──┘  └──┘  └─────┘  └──┘  └──                │
-  │                                               │
-  │   特徴:                                       │
-  │   - 0か1の二値のみ                             │
-  │   - ノイズマージンがある（閾値で判定）           │
-  │   - 伝搬速度: 光速の50-70%（銅線）             │
-  │   - 減衰なし（デジタル再生）                    │
-  │   - エネルギー: スイッチングのたびに消費         │
-  └─────────────────────────────────────────────┘
-
-脳の信号伝達:
-  ┌─────────────────────────────────────────────┐
-  │ ニューロンの活動電位（スパイク）                 │
-  │                                               │
-  │   膜電位                                      │
-  │    +40mV ┌──┐                                │
-  │         │  │         ← 活動電位（スパイク）    │
-  │   -70mV─┘  └──────── ← 静止膜電位            │
-  │                                               │
-  │   伝達プロセス:                                │
-  │   1. 樹状突起で入力信号を受信                   │
-  │   2. 細胞体で入力を統合（時間的・空間的加算）    │
-  │   3. 閾値を超えると活動電位を発生               │
-  │   4. 軸索を通じて伝搬（〜100m/s）              │
-  │   5. シナプスで次のニューロンに化学的に伝達      │
-  │                                               │
-  │   特徴:                                       │
-  │   - All-or-Nothing（発火するかしないか）        │
-  │   - 発火頻度（〜1000Hz）で情報を符号化          │
-  │   - 伝搬速度: 1-100 m/s（コンピュータの1000万分の1）│
-  │   - シナプス伝達は確率的（失敗する場合もある）    │
-  │   - 神経伝達物質: グルタミン酸（興奮性）、       │
-  │     GABA（抑制性）など多種多様                   │
-  └─────────────────────────────────────────────┘
-
-  比較まとめ:
-  ┌─────────────┬──────────────────┬──────────────────┐
-  │ 特性        │ コンピュータ       │ 脳               │
-  ├─────────────┼──────────────────┼──────────────────┤
-  │ 信号の種類  │ 電圧（デジタル）   │ 電気化学パルス   │
-  │ 伝搬速度    │ 光速の〜60%       │ 1-100 m/s       │
-  │ 精度        │ 完全にデジタル     │ 確率的・ノイズ含む│
-  │ 情報量/信号 │ 1ビット/線         │ 発火率+タイミング│
-  │ エネルギー  │ スイッチング毎     │ ATP加水分解      │
-  │ 減衰        │ なし（再生器）     │ あり（減衰する）  │
-  └─────────────┴──────────────────┴──────────────────┘
-```
 
 ---
 
-## 2. 得意分野の比較
+## 1. Structural Comparison
 
-### 2.1 コンピュータが得意なこと
-
-```
-コンピュータの圧倒的優位:
-
-  1. 正確な計算
-     → 1兆回の加算でも1回もミスしない
-     → 人間: 100回の加算でもミスする
-
-  2. 速度
-     → 1秒間に数十億回の演算
-     → 人間: 1秒間に数回の簡単な計算
-
-  3. 記憶の正確性
-     → 保存したデータは完全に再現
-     → 人間: 記憶は変質し、忘れる
-
-  4. 繰り返し作業
-     → 同じ処理を何十億回でも正確に
-     → 人間: 飽きる、疲れる、ミスが増える
-
-  5. 大量データ検索
-     → テラバイトの中から0.001秒で検索
-     → 人間: 書類の山から探すのに数時間
-
-  6. 通信
-     → 光速で世界中と通信
-     → 人間: 言語、距離の制約
-
-  7. マルチタスク（定義された範囲内で）
-     → 何千ものプロセスを同時管理
-     → 人間: 2-3個の認知タスクが限界
-
-  8. 再現性
-     → 同じプログラムは同じ結果を常に返す
-     → 人間: 同じ判断でも状況によって変動
-```
-
-### 2.2 脳が得意なこと
+### 1.1 Basic Specifications
 
 ```
-脳の圧倒的優位:
+Brain vs. Computer — Basic Specifications:
 
-  1. パターン認識
-     → 一度見た顔を別の角度・照明でも認識
-     → コンピュータ: 2012年まで猫の認識すら困難だった
-     → ※ 2024年: AIが人間を超えた分野も増加
-
-  2. 言語理解と常識推論
-     → 「銀行に行く」が金融機関か川岸かを文脈で判断
-     → 曖昧な指示を適切に解釈
-     → ※ LLMが急速に追い上げ中
-
-  3. エネルギー効率
-     → 20Wで高度な認知処理
-     → GPT-4の学習: 推定50GWh以上
-     → 人間の脳を1年動かすエネルギー: 約175kWh
-
-  4. 少数データからの学習
-     → 犬を3匹見れば「犬」の概念を獲得
-     → AI: 数千〜数百万の画像が必要（改善中）
-
-  5. 創造性と類推
-     → 「原子 = 太陽系のミニチュア」のような異分野の類推
-     → 全く新しいアイデアの創出
-
-  6. 感情・共感・意識
-     → 他者の感情を直感的に理解
-     → コンピュータ: 意識の再現は未知の領域
-
-  7. 適応性と汎用知能
-     → 一つの脳で音楽、数学、スポーツ、社交全てに対応
-     → 予期しない状況にも柔軟に適応
-     → AI: 特定タスクでは超人的だが、汎用知能は未達成
-
-  8. 身体性と環境理解
-     → 重力、空間、物理法則を直感的に理解
-     → コップの水が溢れそう→自然に手を出す
-     → ロボティクス: まだ人間の身体操作には及ばない
+  +--------------------+-------------------+-------------------+
+  | Property           | Human Brain       | Modern PC         |
+  +--------------------+-------------------+-------------------+
+  | Processing Units   | 86 billion        | Billions of       |
+  |                    | neurons           | transistors       |
+  | Connections        | ~86 trillion      | Connected         |
+  |                    | synapses          | via wiring        |
+  | Clock Frequency    | ~1 kHz            | ~5 GHz            |
+  | Power Consumption  | ~20 W             | ~200-500 W        |
+  | Weight             | ~1.4 kg           | Several to tens   |
+  |                    |                   | of kg             |
+  | Operating Voltage  | ~70 mV            | ~1 V              |
+  | Signal Type        | Electrochemical   | Electrical        |
+  |                    | pulses            | signals (0/1)     |
+  | Memory Mechanism   | Synaptic          | Magnetic/Charge/  |
+  |                    | connection        | Optical           |
+  |                    | strength          |                   |
+  | Learning Method    | Hebbian/Reward    | Program changes   |
+  |                    | learning          |                   |
+  | Fault Tolerance    | High (graceful    | Low (halts on     |
+  |                    | degradation)      | a single bit)     |
+  | Parallelism        | Massively         | Several to        |
+  |                    | parallel          | thousands of cores|
+  | Computational      | Approximate/      | Precise/          |
+  | Precision          | Probabilistic     | Deterministic     |
+  | Self-Repair        | Partially         | Essentially       |
+  |                    | possible          | impossible        |
+  | Evolutionary Speed | Millions of years | Moore's Law       |
+  |                    |                   | (~2 years)        |
+  | Energy Source      | Glucose (sugar)   | Electricity       |
+  +--------------------+-------------------+-------------------+
 ```
 
-### 2.3 認知バイアスと計算エラー
+### 1.2 Architectural Differences
 
 ```
-脳の「バグ」— 認知バイアス:
+von Neumann Architecture vs. Neural Network Architecture:
 
-  人間の脳はパターン認識に最適化されているが、
-  それが原因でシステマティックなエラーを起こす
+  von Neumann Computer:
+  +----------+    Bus    +----------+
+  |  CPU     |<--------->| Memory   |
+  |(Sequential|          |(Data     |
+  | Processing)|         | Storage) |
+  +----------+           +----------+
 
-  ┌──────────────────┬────────────────────────────────┐
-  │ バイアス         │ 説明                            │
-  ├──────────────────┼────────────────────────────────┤
-  │ 確証バイアス     │ 自分の信念を支持する情報ばかり    │
-  │                  │ 集めてしまう                     │
-  │ アンカリング     │ 最初に提示された数値に引きずら    │
-  │                  │ れる                            │
-  │ 利用可能性       │ 思い出しやすい事例を過大評価する  │
-  │ ヒューリスティック│                                 │
-  │ ギャンブラーの    │ 「赤が5回続いたから次は黒」と    │
-  │ 誤謬            │ 独立事象を誤って判断する          │
-  │ ダニング・       │ 能力が低い人ほど自分の能力を     │
-  │ クルーガー効果   │ 過大評価する                     │
-  │ 生存者バイアス   │ 生き残った成功例だけに注目し     │
-  │                  │ 失敗例を無視する                 │
-  │ フレーミング効果 │ 同じ情報でも提示方法で判断が      │
-  │                  │ 変わる（90%成功 vs 10%失敗）     │
-  └──────────────────┴────────────────────────────────┘
+  Characteristics:
+  - Computation and memory are separated (von Neumann bottleneck)
+  - Instructions are executed sequentially
+  - Precise and reproducible
+  - Programmable (general-purpose)
 
-  コンピュータの「バグ」— 計算エラー:
+  Brain Architecture:
+  +-----+  +-----+  +-----+  +-----+
+  | N   |--| N   |--| N   |--| N   |
+  |     |\ |     |\ |     |\ |     |
+  +--+--+  +--+--+  +--+--+  +--+--+
+     |\ ./ |\ ./ |\ ./ |
+  +--+--+  +--+--+  +--+--+  +--+--+
+  | N   |--| N   |--| N   |--| N   |
+  +-----+  +-----+  +-----+  +-----+
+  N = Neuron, Lines = Synaptic connections
 
-  ┌──────────────────┬────────────────────────────────┐
-  │ エラーの種類     │ 説明                            │
-  ├──────────────────┼────────────────────────────────┤
-  │ 浮動小数点誤差   │ 0.1 + 0.2 ≠ 0.3 (IEEE 754)    │
-  │ オーバーフロー   │ 整数の範囲を超えた計算           │
-  │ ゼロ除算         │ 0で割ると未定義                  │
-  │ 丸め誤差の蓄積   │ 長時間の計算で誤差が蓄積         │
-  │ 並行処理の競合   │ 複数スレッドのデータ競合         │
-  │ メモリリーク     │ 不要メモリの未解放               │
-  │ ビット反転       │ 宇宙線によるメモリのビットフリップ│
-  └──────────────────┴────────────────────────────────┘
+  Characteristics:
+  - Computation and memory are unified (synaptic connections = memory)
+  - Massively parallel processing
+  - Noise-tolerant and probabilistic
+  - Self-modifying through learning
+```
 
-  教訓:
-  - 脳のバイアスは「進化の副産物」（生存に有利だった）
-  - コンピュータのエラーは「設計上の制約」
-  - 両者の弱点を理解して補い合うことが重要
+### 1.3 The von Neumann Bottleneck in Detail
+
+```
+von Neumann Bottleneck:
+
+  Problem:
+  Because the CPU and memory are connected by a single bus,
+  data transfer speed becomes the bottleneck for the entire system.
+
+  +------+  <-- This narrow pipe is the constraint -->  +------+
+  | CPU  |==========================================| Memory |
+  | 5GHz |  Bus bandwidth: ~50 GB/s                 | TB-class|
+  +------+                                          +------+
+
+  Concrete numbers:
+  - CPU computing capacity: 1 TFLOPS (1 trillion floating-point ops/second)
+  - Memory bandwidth: 50 GB/s
+  - If each operation requires 8 bytes: 50 GB / 8 B = 6.25 billion ops/sec
+  - -> Only 1/160 of the CPU's capacity is utilized!
+
+  Historical countermeasures:
+  1. Cache hierarchy (L1/L2/L3)
+     -> Keep frequently accessed data close to the CPU
+  2. Out-of-order execution
+     -> Execute other instructions while waiting for memory
+  3. Prefetching
+     -> Load data before it is needed
+  4. SIMD instructions
+     -> Process multiple data elements with a single instruction
+
+  The brain does not have this problem:
+  -> Computation (neuron firing) and memory (synaptic connections) are co-located
+  -> There is no need to "transfer data"
+  -> This is the origin of "in-memory computing"
+```
+
+### 1.4 Signal Transmission Mechanisms Compared
+
+```
+Computer Signal Transmission:
+  +---------------------------------------------+
+  | Transistor Switching                         |
+  |                                              |
+  |   Voltage High (1V) = 1                      |
+  |   Voltage Low  (0V) = 0                      |
+  |                                              |
+  |   +--+  +--+     +--+  +--+                  |
+  |   |  |  |  |     |  |  |  |  <- Digital      |
+  | --+  +--+  +-----+  +--+  +--   signal       |
+  |                                              |
+  |   Characteristics:                           |
+  |   - Binary values only (0 or 1)              |
+  |   - Noise margin (threshold-based detection) |
+  |   - Propagation speed: 50-70% of the speed   |
+  |     of light (copper wire)                   |
+  |   - No attenuation (digital regeneration)    |
+  |   - Energy: consumed with each switching     |
+  |     event                                    |
+  +---------------------------------------------+
+
+Brain Signal Transmission:
+  +---------------------------------------------+
+  | Neuron Action Potential (Spike)               |
+  |                                              |
+  |   Membrane potential                         |
+  |    +40mV +--+                                |
+  |          |  |         <- Action potential     |
+  |   -70mV--+  +--------   (spike)              |
+  |                       <- Resting membrane    |
+  |                          potential           |
+  |                                              |
+  |   Transmission process:                      |
+  |   1. Receive input signals at dendrites      |
+  |   2. Integrate inputs at the cell body       |
+  |      (temporal and spatial summation)         |
+  |   3. Generate an action potential if          |
+  |      threshold is exceeded                   |
+  |   4. Propagate along the axon (~100 m/s)     |
+  |   5. Chemically transmit to the next neuron  |
+  |      at the synapse                          |
+  |                                              |
+  |   Characteristics:                           |
+  |   - All-or-Nothing (fires or does not fire)  |
+  |   - Information encoded by firing rate       |
+  |     (~1000 Hz)                               |
+  |   - Propagation speed: 1-100 m/s             |
+  |     (1/10,000,000 of a computer)             |
+  |   - Synaptic transmission is probabilistic   |
+  |     (can fail)                               |
+  |   - Neurotransmitters: glutamate (excitatory)|
+  |     GABA (inhibitory), and many others       |
+  +---------------------------------------------+
+
+  Summary Comparison:
+  +---------------+------------------+------------------+
+  | Property      | Computer         | Brain            |
+  +---------------+------------------+------------------+
+  | Signal type   | Voltage (digital)| Electrochemical  |
+  |               |                  | pulse            |
+  | Propagation   | ~60% of the speed| 1-100 m/s       |
+  | speed         | of light         |                  |
+  | Precision     | Fully digital    | Probabilistic/   |
+  |               |                  | noisy            |
+  | Info/signal   | 1 bit/wire       | Firing rate +    |
+  |               |                  | timing           |
+  | Energy        | Per switching    | ATP hydrolysis   |
+  |               | event            |                  |
+  | Attenuation   | None (repeaters) | Present (decays) |
+  +---------------+------------------+------------------+
 ```
 
 ---
 
-## 3. 処理速度の逆説
+## 2. Strengths Comparison
 
-### 3.1 100ステップルール
-
-```
-100ステップルール（Feldman, 1985）:
-
-  脳のニューロンの発火頻度: 最大 約1,000Hz
-  人間が画像を認識する時間: 約100ms
-
-  → 100ms × 1,000Hz = 100ステップ以内で処理完了
-
-  つまり:
-  - 脳は深さ100ステップ以下のアルゴリズムで画像認識を行っている
-  - 通常のプログラムは数十億ステップの逐次処理
-
-  秘密: 超大規模並列処理
-  - 860億ニューロンが同時に処理
-  - 各ニューロンは単純だが、並列度が圧倒的
-  - 深さ100 × 幅数十億 = 膨大な計算能力
-
-  → コンピュータの「深くて狭い」処理 vs 脳の「浅くて広い」処理
-```
-
-### 3.2 演算数での比較
+### 2.1 What Computers Excel At
 
 ```
-脳の計算能力の推定:
+Areas of Overwhelming Computer Advantage:
 
-  ニューロン数:     860億
-  シナプス数:       約86兆
-  シナプス伝達速度:  約200回/秒（平均的な発火率 × 処理）
+  1. Precise Calculation
+     -> Zero errors in 1 trillion additions
+     -> Humans: make mistakes even in 100 additions
 
-  推定演算能力:     86兆 × 200 = 約1.7 × 10^16 ops/秒
-                   ≈ 17 PFLOPS
+  2. Speed
+     -> Billions of operations per second
+     -> Humans: a few simple calculations per second
 
-  比較:
-  ┌─────────────────┬──────────────────┐
-  │ システム         │ 演算能力          │
-  ├─────────────────┼──────────────────┤
-  │ 人間の脳        │ 〜17 PFLOPS (推定)│
-  │ Apple M4 Max    │ 〜10 TFLOPS      │
-  │ NVIDIA H100     │ 〜2 PFLOPS (FP16)│
-  │ Frontier (TOP1) │ 1.2 EFLOPS       │
-  │ 全世界のPC      │ 〜10 EFLOPS      │
-  └─────────────────┴──────────────────┘
+  3. Memory Accuracy
+     -> Stored data is perfectly reproduced
+     -> Humans: memories degrade and are forgotten
 
-  ※ 脳の「FLOPS」はアナログ計算であり、
-     デジタルFLOPSとの直接比較は困難
-  ※ エネルギー効率では脳が圧倒的:
-     脳: 17 PFLOPS / 20W = 850 TFLOPS/W
-     H100: 2 PFLOPS / 700W = 2.86 TFLOPS/W
-     → 脳は約300倍エネルギー効率が良い
+  4. Repetitive Tasks
+     -> Performs the same process billions of times with precision
+     -> Humans: get bored, fatigued, and error-prone
+
+  5. Large-Scale Data Search
+     -> Searches through terabytes in 0.001 seconds
+     -> Humans: hours to search through a pile of documents
+
+  6. Communication
+     -> Communicates worldwide at the speed of light
+     -> Humans: limited by language and distance
+
+  7. Multitasking (within defined scope)
+     -> Manages thousands of processes simultaneously
+     -> Humans: limited to 2-3 cognitive tasks
+
+  8. Reproducibility
+     -> The same program always returns the same result
+     -> Humans: decisions vary depending on the situation
 ```
 
-### 3.3 並列処理のパラダイムの違い
+### 2.2 What the Brain Excels At
 
 ```
-コンピュータの並列処理:
+Areas of Overwhelming Brain Advantage:
 
-  1. データ並列（SIMD / GPU）
-     ┌──────────────────────────────────┐
-     │ 同じ命令を異なるデータに同時適用   │
-     │                                   │
-     │  データ1 → [命令A] → 結果1         │
-     │  データ2 → [命令A] → 結果2         │
-     │  データ3 → [命令A] → 結果3         │
-     │  データ4 → [命令A] → 結果4         │
-     │                                   │
-     │  例: GPUの行列演算、画像フィルタ    │
-     └──────────────────────────────────┘
+  1. Pattern Recognition
+     -> Recognizes a face once seen from different angles and lighting
+     -> Computers: could not even recognize cats until 2012
+     -> * 2024: AI has surpassed humans in an increasing number of areas
 
-  2. タスク並列（マルチコア）
-     ┌──────────────────────────────────┐
-     │ 異なる命令を異なるデータに適用      │
-     │                                   │
-     │  コア1: [タスクA] → 結果A          │
-     │  コア2: [タスクB] → 結果B          │
-     │  コア3: [タスクC] → 結果C          │
-     │                                   │
-     │  問題: 同期、データ共有、デッドロック│
-     └──────────────────────────────────┘
+  2. Language Understanding and Common-Sense Reasoning
+     -> Distinguishes from context whether "go to the bank"
+        means a financial institution or a riverbank
+     -> Appropriately interprets ambiguous instructions
+     -> * LLMs are rapidly catching up
 
-  3. パイプライン並列
-     ┌──────────────────────────────────┐
-     │ 処理をステージに分割               │
-     │                                   │
-     │  時刻1: [取得] → [解読] → [実行]   │
-     │  時刻2: [取得] → [解読] → [実行]   │
-     │  → 各ステージが同時に動作           │
-     └──────────────────────────────────┘
+  3. Energy Efficiency
+     -> 20 W for sophisticated cognitive processing
+     -> GPT-4 training: estimated 50+ GWh
+     -> Running the human brain for 1 year: ~175 kWh
 
-脳の並列処理:
+  4. Learning from Few Examples
+     -> Sees 3 dogs and acquires the concept of "dog"
+     -> AI: requires thousands to millions of images (improving)
 
-  1. 大規模並列処理
-     ┌──────────────────────────────────┐
-     │ 860億ニューロンが同時に処理        │
-     │                                   │
-     │  視覚野: 色、形、動き、奥行きを     │
-     │          同時に処理                 │
-     │  聴覚野: 音高、リズム、音源方向を   │
-     │          同時に処理                 │
-     │  前頭葉: 計画、判断を並行処理       │
-     │                                   │
-     │  特徴:                             │
-     │  - 明示的な同期メカニズム不要       │
-     │  - 部分的な故障でも全体は機能       │
-     │  - 競合やデッドロックが起きない     │
-     └──────────────────────────────────┘
+  5. Creativity and Analogical Reasoning
+     -> Analogies across domains like "the atom = a miniature solar system"
+     -> Generating entirely novel ideas
 
-  2. 階層的並列処理
-     ┌──────────────────────────────────┐
-     │ 低レベル → 高レベルの階層構造       │
-     │                                   │
-     │  網膜 → V1（エッジ検出）            │
-     │       → V2（形状認識）              │
-     │       → V4（色・形の統合）           │
-     │       → IT（物体認識）              │
-     │                                   │
-     │  各層は並列に動作しつつ、           │
-     │  上位層にフィードバックも送信       │
-     └──────────────────────────────────┘
+  6. Emotion, Empathy, and Consciousness
+     -> Intuitively understands others' emotions
+     -> Computers: reproducing consciousness remains unexplored territory
 
-  コンピュータが脳の並列性に学んだもの:
-  - ニューラルネットワーク（Deep Learning）
-  - メモリ一体型プロセッサ（PIM: Processing-in-Memory）
-  - データフロー・アーキテクチャ
-  - イベント駆動型プロセッサ
+  7. Adaptability and General Intelligence
+     -> A single brain handles music, math, sports, and socializing
+     -> Flexibly adapts to unexpected situations
+     -> AI: superhuman at specific tasks, but general intelligence not yet achieved
+
+  8. Embodiment and Environmental Understanding
+     -> Intuitively understands gravity, space, and physical laws
+     -> Naturally reaches out when a cup of water is about to spill
+     -> Robotics: still cannot match human bodily manipulation
 ```
 
----
-
-## 4. 記憶の仕組み
-
-### 4.1 メモリアーキテクチャの比較
+### 2.3 Cognitive Biases and Computational Errors
 
 ```
-コンピュータのメモリ:
-  ┌──────────────────────────────────────────┐
-  │ アドレス → データ                          │
-  │ 0x0000: 01001010                          │
-  │ 0x0001: 11001100                          │
-  │ ...                                       │
-  │ ・明示的なアドレスで直接アクセス             │
-  │ ・読み取りは完全に正確（1ビットも違わない）   │
-  │ ・書き込みは前の内容を完全に上書き           │
-  │ ・電源を切ると消える（揮発性メモリ）         │
-  └──────────────────────────────────────────┘
+The Brain's "Bugs" — Cognitive Biases:
 
-脳の記憶:
-  ┌──────────────────────────────────────────┐
-  │ 内容アドレス記憶（Content-Addressable）     │
-  │ 「赤い」→ りんご、ポスト、夕焼け...         │
-  │ 「丸い」→ りんご、ボール、地球...           │
-  │ 「りんご」← 赤い + 丸い + 甘い + ...       │
-  │                                           │
-  │ ・内容（パターン）で検索                    │
-  │ ・部分一致で想起可能（連想記憶）             │
-  │ ・読み取りのたびに微妙に変化（再固定化）     │
-  │ ・感情と結びついた記憶は強化される           │
-  │ ・使わない記憶は自然に薄れる（忘却）         │
-  │ ・睡眠中に整理・統合される                  │
-  └──────────────────────────────────────────┘
+  The human brain is optimized for pattern recognition,
+  but this causes systematic errors.
 
-  記憶の種類:
-  ┌──────────┬──────────────────┬──────────────┐
-  │ 脳の記憶  │ コンピュータの対応│ 保持時間     │
-  ├──────────┼──────────────────┼──────────────┤
-  │ 感覚記憶  │ 入力バッファ     │ 〜0.5秒     │
-  │ 短期記憶  │ レジスタ/キャッシュ│ 〜30秒      │
-  │ ワーキング│ RAM             │ 操作中      │
-  │ 長期記憶  │ SSD/HDD         │ 永続的(理論上)│
-  │ 手続き記憶│ ファームウェア   │ 永続的      │
-  └──────────┴──────────────────┴──────────────┘
-```
+  +--------------------+--------------------------------+
+  | Bias               | Description                    |
+  +--------------------+--------------------------------+
+  | Confirmation Bias  | Tendency to gather only         |
+  |                    | information that supports       |
+  |                    | one's beliefs                   |
+  | Anchoring          | Being influenced by the first   |
+  |                    | number presented                |
+  | Availability       | Overestimating easily recalled  |
+  | Heuristic          | examples                        |
+  | Gambler's Fallacy  | "Red came up 5 times in a row,  |
+  |                    | so black is next" — misjudging  |
+  |                    | independent events              |
+  | Dunning-Kruger     | Less competent individuals      |
+  | Effect             | overestimate their own ability   |
+  | Survivorship Bias  | Focusing only on surviving       |
+  |                    | successes while ignoring         |
+  |                    | failures                         |
+  | Framing Effect     | Judgments change based on how    |
+  |                    | information is presented         |
+  |                    | (90% success vs. 10% failure)    |
+  +--------------------+--------------------------------+
 
-### 4.2 脳の記憶容量
+  The Computer's "Bugs" — Computational Errors:
 
-```
-脳の記憶容量の推定:
+  +--------------------+--------------------------------+
+  | Error Type         | Description                    |
+  +--------------------+--------------------------------+
+  | Floating-Point     | 0.1 + 0.2 != 0.3 (IEEE 754)   |
+  | Error              |                                |
+  | Overflow           | Computation exceeding integer   |
+  |                    | range                           |
+  | Division by Zero   | Division by 0 is undefined     |
+  | Rounding Error     | Errors accumulate over long     |
+  | Accumulation       | computations                    |
+  | Concurrency Race   | Data races among multiple       |
+  | Conditions         | threads                         |
+  | Memory Leak        | Unreleased unused memory        |
+  | Bit Flip           | Memory bit flips caused by      |
+  |                    | cosmic rays                     |
+  +--------------------+--------------------------------+
 
-  シナプスの数: 約86兆
-  各シナプスの情報量: 推定4.7ビット (Bartol et al., 2015)
-
-  総容量: 86兆 × 4.7ビット ≈ 約1ペタバイト
-
-  ただし:
-  - デジタルストレージとは質的に異なる
-  - 同じシナプスが複数の記憶に関与（分散表現）
-  - 圧縮・抽象化されて格納される
-  - 単純なバイト数では比較困難
-
-  実感としての比較:
-  - 人生で見る全ての映像を記憶するのに必要: 約3PB（推定）
-  - 実際に記憶しているのはごく一部（選択と圧縮）
-  - しかし「知恵」や「直感」として統合されている
-```
-
-### 4.3 記憶の符号化と検索の違い
-
-```
-コンピュータの記憶操作:
-
-  書き込み（Write）:
-  ┌──────────────────────────────────────┐
-  │ 1. アドレスを指定                      │
-  │ 2. データをそのまま保存                 │
-  │ 3. 完了（確実に保存される）             │
-  │ 4. 前の内容は完全に上書き               │
-  └──────────────────────────────────────┘
-
-  読み取り（Read）:
-  ┌──────────────────────────────────────┐
-  │ 1. アドレスを指定                      │
-  │ 2. データをそのまま返す                 │
-  │ 3. 何回読んでも同じ結果                 │
-  │ 4. 読み取りはデータを変更しない          │
-  └──────────────────────────────────────┘
-
-脳の記憶操作:
-
-  符号化（Encoding）:
-  ┌──────────────────────────────────────┐
-  │ 1. 感覚情報を受信                      │
-  │ 2. 注意のフィルタリング（重要なものだけ）│
-  │ 3. 海馬で短期記憶として処理             │
-  │ 4. 感情的な重要性で重み付け             │
-  │ 5. 既存の知識ネットワークに統合          │
-  │ 6. 睡眠中に長期記憶に固定（記憶の固定化）│
-  │ 7. 反復で強化、不使用で弱体化           │
-  └──────────────────────────────────────┘
-
-  想起（Retrieval）:
-  ┌──────────────────────────────────────┐
-  │ 1. 手がかり（部分的な情報）から検索      │
-  │ 2. 関連する記憶が活性化（連想）          │
-  │ 3. 再構成（完全な再生ではなく再構築）    │
-  │ 4. 想起のたびに記憶が修正される（再固定化）│
-  │ 5. 文脈（場所、気分）が想起に影響       │
-  │ 6. 複数の記憶が混合・干渉することがある  │
-  └──────────────────────────────────────┘
-
-  重要な違い:
-  - コンピュータ: 「保存→取り出し」（忠実なコピー）
-  - 脳: 「符号化→再構成」（創造的な再構築）
-  - 脳の記憶は「読む」たびに「書き換わる」！
-  - これが目撃証言の信頼性問題の原因
-```
-
-### 4.4 忘却とガベージコレクション
-
-```
-コンピュータのメモリ管理:
-
-  手動管理（C/C++）:
-  ┌──────────────────────────────────────┐
-  │ malloc() → 使用 → free()              │
-  │ free()忘れ → メモリリーク              │
-  │ 二重free() → クラッシュ               │
-  └──────────────────────────────────────┘
-
-  ガベージコレクション（Java/Python/Go）:
-  ┌──────────────────────────────────────┐
-  │ 参照されなくなったオブジェクトを自動回収│
-  │ - 参照カウント方式                     │
-  │ - マーク＆スイープ方式                 │
-  │ - 世代別GC                            │
-  │ 問題: GCパウズ（一時停止）             │
-  └──────────────────────────────────────┘
-
-脳の「忘却」:
-
-  ┌──────────────────────────────────────┐
-  │ エビングハウスの忘却曲線:               │
-  │                                       │
-  │ 保持率                                │
-  │ 100%│╲                               │
-  │  80%│  ╲                             │
-  │  60%│    ╲                           │
-  │  40%│      ╲_                        │
-  │  20%│         ╲___________            │
-  │   0%└──────────────────────           │
-  │     0  20分 1時間 1日 1週間 1ヶ月      │
-  │                                       │
-  │ 20分後: 約58%を保持                    │
-  │ 1時間後: 約44%を保持                   │
-  │ 1日後: 約26%を保持                     │
-  │ 1ヶ月後: 約21%を保持                   │
-  └──────────────────────────────────────┘
-
-  忘却のメカニズム:
-  1. 減衰理論: 使わないシナプス結合が弱まる
-  2. 干渉理論: 新しい記憶が古い記憶を妨害
-  3. 検索失敗: 記憶はあるが手がかりが見つからない
-  4. 動機づけ忘却: 不快な記憶の抑圧
-
-  忘却の利点（脳のGC）:
-  - 不要な詳細を削除して抽象概念を形成
-  - 注意力のリソースを効率的に配分
-  - 類似パターンの一般化を促進
-  - 精神的健康の維持（トラウマからの回復）
-
-  → 脳の忘却 ≈ コンピュータのGC + データ圧縮 + 正則化
+  Lessons:
+  - The brain's biases are "by-products of evolution" (were advantageous for survival)
+  - Computer errors are "design constraints"
+  - Understanding both weaknesses and complementing each other is key
 ```
 
 ---
 
-## 5. 学習メカニズムの比較
+## 3. The Processing Speed Paradox
 
-### 5.1 脳の学習原理
-
-```
-ヘブの法則（1949）:
-  「一緒に発火するニューロンは一緒に配線される」
-  (Neurons that fire together, wire together)
-
-  ┌──────────────────────────────────────┐
-  │ ニューロンAとBが同時に活性化            │
-  │ → A-B間のシナプス結合が強化される       │
-  │                                       │
-  │ 繰り返し同時活性化                      │
-  │ → 結合がさらに強化（長期増強: LTP）     │
-  │                                       │
-  │ 長期間同時活性化しない                   │
-  │ → 結合が弱化（長期抑圧: LTD）           │
-  └──────────────────────────────────────┘
-
-  具体例:
-  - ベルの音（聴覚ニューロン）+ 食事（味覚ニューロン）
-    → 繰り返しの対提示で結合が強化
-    → ベルだけで唾液分泌（パブロフの条件反射）
-
-報酬学習:
-  ┌──────────────────────────────────────┐
-  │ ドーパミン系による強化学習               │
-  │                                       │
-  │ 行動 → 良い結果 → ドーパミン放出        │
-  │                 → その行動パターンを強化 │
-  │                                       │
-  │ 行動 → 悪い結果 → ドーパミン抑制        │
-  │                 → その行動パターンを抑制 │
-  │                                       │
-  │ 予測誤差信号:                           │
-  │ δ = 実際の報酬 − 予測した報酬            │
-  │ → これがまさにAIの強化学習のTD誤差！     │
-  └──────────────────────────────────────┘
-
-  シナプス可塑性の種類:
-  ┌──────────────┬──────────────────────────┐
-  │ 種類         │ 説明                       │
-  ├──────────────┼──────────────────────────┤
-  │ 短期可塑性   │ 数秒〜数分持続する変化       │
-  │ LTP         │ 長期増強（結合の強化）        │
-  │ LTD         │ 長期抑圧（結合の弱化）        │
-  │ スパイク     │ 発火タイミングに依存した      │
-  │ タイミング   │ 可塑性（STDP）               │
-  │ メタ可塑性   │ 可塑性の閾値自体が変化        │
-  │ 構造的可塑性 │ シナプスの生成・消滅          │
-  └──────────────┴──────────────────────────┘
-```
-
-### 5.2 コンピュータの学習（機械学習）
+### 3.1 The 100-Step Rule
 
 ```
-機械学習の主要パラダイム:
+The 100-Step Rule (Feldman, 1985):
 
-  1. 教師あり学習
-  ┌──────────────────────────────────────┐
-  │ 入力データ + 正解ラベル → モデル学習    │
-  │                                       │
-  │ 損失関数: L = Σ(予測 − 正解)²          │
-  │ 勾配降下: θ = θ − α × ∂L/∂θ           │
-  │                                       │
-  │ 脳との対応:                            │
-  │ - 正解ラベル ≈ 教師からのフィードバック  │
-  │ - 勾配降下 ≈ 誤差修正学習               │
-  │ - ※ 脳が逆伝播をしているかは議論中     │
-  └──────────────────────────────────────┘
+  Neuron firing frequency in the brain: max ~1,000 Hz
+  Time for a human to recognize an image: ~100 ms
 
-  2. 強化学習
-  ┌──────────────────────────────────────┐
-  │ エージェントが環境と相互作用して学習     │
-  │                                       │
-  │ Q(s,a) ← Q(s,a) + α[r + γ max Q(s',a') - Q(s,a)]│
-  │                                       │
-  │ 脳との対応:                            │
-  │ - TD誤差 ≈ ドーパミンの予測誤差信号     │
-  │ - 報酬 ≈ 快感・満足感                   │
-  │ - 割引率γ ≈ 将来報酬の時間割引          │
-  │ → 強化学習は脳科学から直接着想された     │
-  └──────────────────────────────────────┘
+  -> 100 ms x 1,000 Hz = processing completes within 100 steps
 
-  3. 自己教師あり学習
-  ┌──────────────────────────────────────┐
-  │ データ自体から教師信号を生成             │
-  │                                       │
-  │ 例: マスク言語モデル（BERT）            │
-  │ 「私は[MASK]が好きです」               │
-  │ → 隠された単語を予測する学習            │
-  │                                       │
-  │ 脳との対応:                            │
-  │ - 予測符号化（Predictive Coding）       │
-  │ - 脳は常に次の入力を予測し、             │
-  │   予測誤差を最小化するように学習         │
-  │ → 現在最も脳に近い学習パラダイムと考え   │
-  │   られている                            │
-  └──────────────────────────────────────┘
+  This means:
+  - The brain performs image recognition with an algorithm of depth 100 steps or fewer
+  - Typical programs involve billions of sequential processing steps
 
-  比較:
-  ┌─────────────┬──────────────────┬──────────────────┐
-  │ 特性        │ 脳の学習          │ 機械学習          │
-  ├─────────────┼──────────────────┼──────────────────┤
-  │ データ量    │ 少数で学習可能     │ 大量データが必要   │
-  │ 学習速度    │ 瞬時〜数年        │ 数分〜数ヶ月      │
-  │ 汎化能力    │ 非常に高い        │ ドメイン依存      │
-  │ 連続学習    │ 自然にできる      │ 破滅的忘却問題     │
-  │ 転移学習    │ 自然にできる      │ 追加訓練が必要     │
-  │ エネルギー  │ 20W             │ 数kW〜数MW       │
-  │ ハードウェア│ 生体組織          │ GPU/TPU          │
-  └─────────────┴──────────────────┴──────────────────┘
+  The secret: massively parallel processing
+  - 86 billion neurons process simultaneously
+  - Each neuron is simple, but the degree of parallelism is overwhelming
+  - Depth 100 x width of billions = enormous computational power
+
+  -> Computer's "deep and narrow" processing vs. Brain's "shallow and wide" processing
 ```
 
-### 5.3 破滅的忘却問題
+### 3.2 Comparison by Number of Operations
 
 ```
-破滅的忘却（Catastrophic Forgetting）:
+Estimating the Brain's Computational Capacity:
 
-  機械学習のモデルが新しいタスクを学ぶと、
-  以前のタスクの知識を忘れてしまう問題
+  Number of neurons:      86 billion
+  Number of synapses:     ~86 trillion
+  Synaptic transmission rate: ~200 ops/sec (average firing rate x processing)
 
-  ┌──────────────────────────────────────┐
-  │ タスクA学習: 犬と猫の分類 → 精度95%   │
-  │ タスクB学習: 車とバイクの分類           │
-  │ → タスクAの精度が30%に低下！           │
-  │                                       │
-  │ 原因: 重みの上書き                     │
-  │ タスクBの学習で変更された重みが         │
-  │ タスクAに重要な重みだった               │
-  └──────────────────────────────────────┘
+  Estimated computing power: 86 trillion x 200 = ~1.7 x 10^16 ops/sec
+                             ~ 17 PFLOPS
 
-  脳はなぜ忘れない:
-  1. 睡眠中のメモリ固定化（オフライン再生）
-  2. 相補的学習システム
-     - 海馬: 新しい記憶の高速学習（エピソード記憶）
-     - 大脳皮質: 緩やかな統合学習（意味記憶）
-  3. シナプスの選択的保護
-     - 重要なシナプスの安定化
-  4. 神経新生
-     - 海馬での新しいニューロンの生成
+  Comparison:
+  +-------------------+--------------------+
+  | System            | Computing Power    |
+  +-------------------+--------------------+
+  | Human brain       | ~17 PFLOPS (est.)  |
+  | Apple M4 Max      | ~10 TFLOPS         |
+  | NVIDIA H100       | ~2 PFLOPS (FP16)   |
+  | Frontier (TOP1)   | 1.2 EFLOPS         |
+  | All PCs worldwide | ~10 EFLOPS         |
+  +-------------------+--------------------+
 
-  AI研究での対策:
-  ┌─────────────────┬────────────────────────┐
-  │ 手法            │ 概要                    │
-  ├─────────────────┼────────────────────────┤
-  │ EWC             │ 重要パラメータの変化に    │
-  │ (Elastic Weight │ ペナルティを課す          │
-  │  Consolidation) │ （脳のシナプス安定化模倣）│
-  │ Progressive     │ タスクごとにモジュールを  │
-  │ Neural Networks │ 追加                     │
-  │ Replay Buffer  │ 過去データを再生          │
-  │                 │ （脳のオフライン再生模倣）│
-  │ PackNet        │ パラメータのサブセットを   │
-  │                 │ タスクごとに固定          │
-  └─────────────────┴────────────────────────┘
+  * The brain's "FLOPS" involve analog computation,
+    making direct comparison with digital FLOPS difficult.
+  * In energy efficiency, the brain is overwhelmingly superior:
+    Brain: 17 PFLOPS / 20 W = 850 TFLOPS/W
+    H100:  2 PFLOPS / 700 W = 2.86 TFLOPS/W
+    -> The brain is approximately 300x more energy-efficient
+```
+
+### 3.3 Different Paradigms of Parallel Processing
+
+```
+Computer Parallel Processing:
+
+  1. Data Parallelism (SIMD / GPU)
+     +--------------------------------------+
+     | Apply the same instruction to         |
+     | different data simultaneously         |
+     |                                      |
+     |  Data 1 -> [Instruction A] -> Result 1|
+     |  Data 2 -> [Instruction A] -> Result 2|
+     |  Data 3 -> [Instruction A] -> Result 3|
+     |  Data 4 -> [Instruction A] -> Result 4|
+     |                                      |
+     |  Examples: GPU matrix operations,     |
+     |  image filters                        |
+     +--------------------------------------+
+
+  2. Task Parallelism (Multi-core)
+     +--------------------------------------+
+     | Apply different instructions to       |
+     | different data                        |
+     |                                      |
+     |  Core 1: [Task A] -> Result A         |
+     |  Core 2: [Task B] -> Result B         |
+     |  Core 3: [Task C] -> Result C         |
+     |                                      |
+     |  Challenges: synchronization, data    |
+     |  sharing, deadlock                    |
+     +--------------------------------------+
+
+  3. Pipeline Parallelism
+     +--------------------------------------+
+     | Divide processing into stages         |
+     |                                      |
+     |  Time 1: [Fetch] -> [Decode] -> [Exec]|
+     |  Time 2: [Fetch] -> [Decode] -> [Exec]|
+     |  -> Each stage operates simultaneously|
+     +--------------------------------------+
+
+Brain Parallel Processing:
+
+  1. Massive Parallelism
+     +--------------------------------------+
+     | 86 billion neurons process            |
+     | simultaneously                        |
+     |                                      |
+     |  Visual cortex: color, shape, motion, |
+     |    depth processed simultaneously     |
+     |  Auditory cortex: pitch, rhythm,      |
+     |    sound source direction processed   |
+     |    simultaneously                     |
+     |  Prefrontal cortex: planning and      |
+     |    decision-making in parallel        |
+     |                                      |
+     |  Characteristics:                     |
+     |  - No explicit synchronization needed |
+     |  - System functions despite partial   |
+     |    failures                           |
+     |  - No races or deadlocks              |
+     +--------------------------------------+
+
+  2. Hierarchical Parallel Processing
+     +--------------------------------------+
+     | Low-level -> High-level hierarchical  |
+     | structure                             |
+     |                                      |
+     |  Retina -> V1 (edge detection)        |
+     |         -> V2 (shape recognition)     |
+     |         -> V4 (color + shape          |
+     |            integration)               |
+     |         -> IT (object recognition)    |
+     |                                      |
+     |  Each layer operates in parallel      |
+     |  while also sending feedback to       |
+     |  higher layers                        |
+     +--------------------------------------+
+
+  What computers learned from the brain's parallelism:
+  - Neural networks (Deep Learning)
+  - Processing-in-Memory (PIM) processors
+  - Dataflow architectures
+  - Event-driven processors
 ```
 
 ---
 
-## 6. AIと脳の融合
+## 4. Memory Mechanisms
 
-### 6.1 ニューロモーフィックコンピューティング
-
-```
-ニューロモーフィックチップ:
-  脳の構造を模倣した専用ハードウェア
-
-  ┌──────────────┬──────────────┬───────────────┐
-  │ チップ        │ 開発元       │ 特徴          │
-  ├──────────────┼──────────────┼───────────────┤
-  │ TrueNorth    │ IBM          │ 100万ニューロン│
-  │ Loihi 2     │ Intel        │ スパイキングNN │
-  │ SpiNNaker 2 │ マンチェスター │ 100万コア    │
-  │ Akida       │ BrainChip    │ エッジAI      │
-  └──────────────┴──────────────┴───────────────┘
-
-  利点:
-  - 超低消費電力（脳に近いエネルギー効率）
-  - イベント駆動（常時計算しない）
-  - 学習と推論を同時実行可能
-
-  課題:
-  - プログラミングモデルが確立していない
-  - 汎用計算には不向き
-  - ソフトウェアエコシステムが未成熟
-
-スパイキングニューラルネットワーク（SNN）:
-  ┌──────────────────────────────────────┐
-  │ 従来のANN:                            │
-  │   入力 → 重み付き和 → 活性化関数 → 出力│
-  │   → 値は連続的な実数                   │
-  │                                       │
-  │ SNN:                                  │
-  │   入力スパイク → 膜電位の蓄積 → 閾値超過│
-  │   → 出力スパイク（タイミングが情報）    │
-  │                                       │
-  │ SNNの利点:                             │
-  │ 1. 脳の動作により忠実                   │
-  │ 2. 時間的な情報を自然に扱える            │
-  │ 3. スパースな活性化 → 省電力            │
-  │ 4. イベント駆動でアイドル時消費電力ゼロ  │
-  │                                       │
-  │ SNNの課題:                             │
-  │ 1. 効率的な学習アルゴリズムが未確立      │
-  │ 2. 逆伝播法が直接適用できない           │
-  │ 3. フレームワーク・ツールが不足          │
-  │ 4. 従来のANNとの性能差がまだ大きい      │
-  └──────────────────────────────────────┘
-```
-
-### 6.2 脳-コンピュータインターフェース（BCI）
+### 4.1 Memory Architecture Comparison
 
 ```
-BCI（Brain-Computer Interface）:
+Computer Memory:
+  +--------------------------------------------+
+  | Address -> Data                             |
+  | 0x0000: 01001010                            |
+  | 0x0001: 11001100                            |
+  | ...                                         |
+  | - Direct access via explicit address        |
+  | - Reads are perfectly accurate (not a single|
+  |   bit differs)                              |
+  | - Writes completely overwrite previous      |
+  |   contents                                  |
+  | - Lost when power is off (volatile memory)  |
+  +--------------------------------------------+
 
-  非侵襲型:
-  - EEG（脳波計）: 頭皮上のセンサーで脳波を読み取り
-  - 解像度は低いが安全
-  - 用途: 意思伝達装置、簡単なゲーム操作
-  - fNIRS（機能的近赤外分光法）: 脳血流をモニタリング
+Brain Memory:
+  +--------------------------------------------+
+  | Content-Addressable Memory                  |
+  | "Red" -> apple, postbox, sunset...          |
+  | "Round" -> apple, ball, Earth...            |
+  | "Apple" <- red + round + sweet + ...        |
+  |                                             |
+  | - Search by content (pattern)               |
+  | - Partial-match recall possible             |
+  |   (associative memory)                      |
+  | - Slightly changes with each recall         |
+  |   (reconsolidation)                         |
+  | - Memories linked to emotion are            |
+  |   strengthened                              |
+  | - Unused memories naturally fade            |
+  |   (forgetting)                              |
+  | - Organized and consolidated during sleep   |
+  +--------------------------------------------+
 
-  侵襲型:
-  - Neuralink (Elon Musk): 脳に電極を埋め込み
-  - Utah Array: 96チャネルの神経信号記録
-  - 解像度が高く、精密な制御が可能
-  - 用途: 四肢麻痺患者のカーソル操作、義肢制御
-
-  現状 (2024-2025):
-  - Neuralink: 初の人体臨床試験で成功例
-  - 思考でカーソル操作、テキスト入力が可能に
-  - 読み取りは進んでいるが、書き込み（脳への入力）は初歩的
-
-  BCIの応用シナリオ:
-  ┌──────────────────┬────────────────────────────┐
-  │ 分野             │ 応用例                      │
-  ├──────────────────┼────────────────────────────┤
-  │ 医療             │ 麻痺患者の運動機能回復       │
-  │                  │ てんかんの検出と抑制         │
-  │                  │ うつ病の脳深部刺激治療       │
-  │ コミュニケーション│ ALS患者の意思疎通           │
-  │                  │ 思考によるテキスト入力       │
-  │ エンターテインメント│ 没入型VR/AR体験            │
-  │                  │ 脳波ゲームコントロール       │
-  │ 能力拡張         │ 記憶力の増強                │
-  │                  │ 学習速度の向上              │
-  │                  │ AI との直接インターフェース  │
-  └──────────────────┴────────────────────────────┘
-
-  倫理的課題:
-  - プライバシー（思考の読み取り）
-  - セキュリティ（脳のハッキング？）
-  - 格差（拡張された人間 vs そうでない人間）
-  - アイデンティティ（自分の思考かAIの思考か）
-  - インフォームドコンセント（脳への介入の同意）
-  - 依存性（BCIなしでは機能しない状態）
+  Types of Memory:
+  +------------+------------------+--------------+
+  | Brain      | Computer         | Retention    |
+  | Memory     | Equivalent       | Duration     |
+  +------------+------------------+--------------+
+  | Sensory    | Input buffer     | ~0.5 seconds |
+  | memory     |                  |              |
+  | Short-term | Register/Cache   | ~30 seconds  |
+  | memory     |                  |              |
+  | Working    | RAM              | During       |
+  | memory     |                  | operation    |
+  | Long-term  | SSD/HDD          | Permanent    |
+  | memory     |                  | (in theory)  |
+  | Procedural | Firmware         | Permanent    |
+  | memory     |                  |              |
+  +------------+------------------+--------------+
 ```
 
-### 6.3 人工汎用知能（AGI）への道
+### 4.2 Brain Storage Capacity
 
 ```
-AGI（Artificial General Intelligence）:
+Estimating the Brain's Storage Capacity:
 
-  現在のAI（特化型AI / Narrow AI）:
-  ┌──────────────────────────────────────┐
-  │ チェス: 人間を超えた（Deep Blue, 1997）│
-  │ 囲碁: 人間を超えた（AlphaGo, 2016）   │
-  │ 画像認識: 人間を超えた（2015年〜）     │
-  │ 言語生成: 人間に匹敵（GPT-4, 2023〜） │
-  │                                       │
-  │ しかし:                               │
-  │ - チェスAIは囲碁を打てない             │
-  │ - 画像認識AIは文章を書けない           │
-  │ - LLMは身体的な操作ができない          │
-  │ → 各タスクに特化した「道具」           │
-  └──────────────────────────────────────┘
+  Number of synapses: ~86 trillion
+  Information per synapse: estimated 4.7 bits (Bartol et al., 2015)
 
-  AGI = 人間のような汎用知能:
-  ┌──────────────────────────────────────┐
-  │ 要件:                                 │
-  │ 1. 転移学習: ある分野の知識を別分野に   │
-  │    応用できる                          │
-  │ 2. 常識推論: 明示されない知識を使える   │
-  │ 3. 自律学習: 自分で学習目標を設定できる │
-  │ 4. 創造性: 既存の概念を組み合わせて     │
-  │    新しいアイデアを生み出す             │
-  │ 5. 適応性: 未知の状況に対応できる       │
-  │ 6. 身体性: 物理世界を理解し操作できる   │
-  │                                       │
-  │ 現状のアプローチ:                      │
-  │ - 大規模言語モデル（LLM）の拡張         │
-  │ - マルチモーダルAI（視覚+言語+音声）    │
-  │ - 世界モデル（環境のシミュレーション）   │
-  │ - エンボディドAI（ロボット+AI）         │
-  │ - 脳の逆工学（Whole Brain Emulation）  │
-  └──────────────────────────────────────┘
+  Total capacity: 86 trillion x 4.7 bits ~ approximately 1 petabyte
 
-  脳科学からAGIへの貢献:
-  ┌──────────────────────┬───────────────────────┐
-  │ 脳の特徴              │ AIへの応用              │
-  ├──────────────────────┼───────────────────────┤
-  │ 階層的処理            │ ディープラーニング       │
-  │ 報酬系               │ 強化学習                │
-  │ 注意メカニズム        │ Transformerの            │
-  │                      │ Self-Attention           │
-  │ 海馬の記憶固定化      │ Experience Replay       │
-  │ 予測符号化            │ 自己教師あり学習         │
-  │ 神経可塑性            │ メタ学習                │
-  │ モジュール構造        │ Mixture of Experts      │
-  │ 睡眠中の再生          │ オフラインバッチ学習     │
-  └──────────────────────┴───────────────────────┘
+  However:
+  - Qualitatively different from digital storage
+  - The same synapse participates in multiple memories (distributed representation)
+  - Stored in compressed and abstracted form
+  - Simple byte comparison is not meaningful
+
+  Intuitive comparison:
+  - Storage required for every visual experience in a lifetime: ~3 PB (est.)
+  - Only a fraction is actually remembered (selection and compression)
+  - Yet it is integrated as "wisdom" and "intuition"
+```
+
+### 4.3 Differences in Memory Encoding and Retrieval
+
+```
+Computer Memory Operations:
+
+  Write:
+  +--------------------------------------+
+  | 1. Specify an address                |
+  | 2. Store data as-is                  |
+  | 3. Complete (reliably stored)        |
+  | 4. Previous contents fully           |
+  |    overwritten                       |
+  +--------------------------------------+
+
+  Read:
+  +--------------------------------------+
+  | 1. Specify an address                |
+  | 2. Return data as-is                 |
+  | 3. Same result no matter how many    |
+  |    times read                        |
+  | 4. Reading does not modify the data  |
+  +--------------------------------------+
+
+Brain Memory Operations:
+
+  Encoding:
+  +--------------------------------------+
+  | 1. Receive sensory information       |
+  | 2. Filter by attention (important    |
+  |    items only)                       |
+  | 3. Process as short-term memory      |
+  |    in the hippocampus                |
+  | 4. Weight by emotional significance  |
+  | 5. Integrate into existing knowledge |
+  |    network                           |
+  | 6. Consolidate into long-term memory |
+  |    during sleep (memory              |
+  |    consolidation)                    |
+  | 7. Strengthen with repetition,       |
+  |    weaken with disuse                |
+  +--------------------------------------+
+
+  Retrieval:
+  +--------------------------------------+
+  | 1. Search from cues (partial         |
+  |    information)                      |
+  | 2. Related memories are activated    |
+  |    (association)                     |
+  | 3. Reconstruct (not perfect replay   |
+  |    but creative rebuilding)          |
+  | 4. Memory is modified with each      |
+  |    recall (reconsolidation)          |
+  | 5. Context (location, mood) affects  |
+  |    retrieval                         |
+  | 6. Multiple memories can mix and     |
+  |    interfere                         |
+  +--------------------------------------+
+
+  Key Differences:
+  - Computer: "Store -> Retrieve" (faithful copy)
+  - Brain: "Encode -> Reconstruct" (creative rebuilding)
+  - Brain memory is "rewritten" every time it is "read"!
+  - This is why eyewitness testimony is unreliable
+```
+
+### 4.4 Forgetting and Garbage Collection
+
+```
+Computer Memory Management:
+
+  Manual Management (C/C++):
+  +--------------------------------------+
+  | malloc() -> use -> free()            |
+  | Forgetting free() -> memory leak     |
+  | Double free() -> crash               |
+  +--------------------------------------+
+
+  Garbage Collection (Java/Python/Go):
+  +--------------------------------------+
+  | Automatically reclaims objects no    |
+  | longer referenced                    |
+  | - Reference counting                 |
+  | - Mark & Sweep                       |
+  | - Generational GC                    |
+  | Problem: GC pause (stop-the-world)   |
+  +--------------------------------------+
+
+Brain's "Forgetting":
+
+  +--------------------------------------+
+  | Ebbinghaus Forgetting Curve:         |
+  |                                      |
+  | Retention                            |
+  | 100%|\                               |
+  |  80%|  \                             |
+  |  60%|    \                           |
+  |  40%|      \_                        |
+  |  20%|         \___________           |
+  |   0%+------------------------        |
+  |     0  20min 1hr 1day 1wk 1month     |
+  |                                      |
+  | After 20 minutes: ~58% retained      |
+  | After 1 hour:     ~44% retained      |
+  | After 1 day:      ~26% retained      |
+  | After 1 month:    ~21% retained      |
+  +--------------------------------------+
+
+  Mechanisms of Forgetting:
+  1. Decay theory: unused synaptic connections weaken
+  2. Interference theory: new memories interfere with old ones
+  3. Retrieval failure: the memory exists but the cue cannot be found
+  4. Motivated forgetting: suppression of unpleasant memories
+
+  Benefits of Forgetting (the brain's GC):
+  - Deletes unnecessary details to form abstract concepts
+  - Efficiently allocates attentional resources
+  - Promotes generalization of similar patterns
+  - Maintains mental health (recovery from trauma)
+
+  -> Brain's forgetting ~ Computer's GC + data compression + regularization
 ```
 
 ---
 
-## 7. 脳に学ぶコンピュータ設計の具体例
+## 5. Learning Mechanisms Compared
 
-### 7.1 ディープラーニングと視覚野
-
-```
-人間の視覚系:
-
-  網膜 → LGN → V1 → V2 → V4 → IT → 前頭葉
-          ↓     ↓     ↓     ↓     ↓
-        明暗  エッジ  形状  色+形 物体認識  判断
-
-  各層で抽出される特徴:
-  V1: 方位選択性（特定角度のエッジに反応するニューロン）
-  V2: 輪郭の統合、テクスチャ境界
-  V4: 色と形の組み合わせ、幾何学的パターン
-  IT: 物体のカテゴリ（顔、手、動物など）
-
-畳み込みニューラルネットワーク（CNN）:
-
-  入力画像 → Conv1 → Conv2 → Conv3 → FC → 出力
-              ↓       ↓       ↓
-            エッジ   パーツ   物体
-
-  CNNの各層が学習する特徴（可視化結果）:
-  Layer 1: エッジ、色のグラデーション → V1に対応
-  Layer 2: コーナー、テクスチャ → V2に対応
-  Layer 3: パーツ（目、車輪など） → V4に対応
-  Layer 4-5: 物体全体の特徴 → ITに対応
-
-  Hubel & Wiesel（1962年、ノーベル賞）:
-  - 猫の視覚野の実験で発見
-  - 「単純細胞」→ 特定方位のエッジに反応
-  - 「複雑細胞」→ 位置に依存しない応答
-  - → CNNのConvolution + Poolingの直接的な着想源
-
-  具体的な対応:
-  ┌──────────────┬──────────────────┬──────────────────┐
-  │ 脳の構造     │ CNNの構造         │ 機能              │
-  ├──────────────┼──────────────────┼──────────────────┤
-  │ 単純細胞     │ 畳み込み層        │ 特徴の検出        │
-  │ 複雑細胞     │ プーリング層      │ 位置不変性        │
-  │ 側方抑制     │ 局所正規化        │ コントラスト増強  │
-  │ 階層構造     │ 深い層の積み重ね  │ 抽象度の段階的上昇│
-  │ トップダウン │ Skip Connection   │ 高次情報の        │
-  │ フィードバック│ (ResNet)          │ フィードバック    │
-  └──────────────┴──────────────────┴──────────────────┘
-```
-
-### 7.2 Transformerと注意メカニズム
+### 5.1 The Brain's Learning Principles
 
 ```
-脳の注意メカニズム:
+Hebb's Rule (1949):
+  "Neurons that fire together, wire together"
 
-  選択的注意:
-  ┌──────────────────────────────────────┐
-  │ 騒がしいパーティー会場で...            │
-  │                                       │
-  │ 雑音 雑音 雑音「あなたの名前」雑音     │
-  │                 ↑                      │
-  │           自分の名前に即座に反応        │
-  │           （カクテルパーティー効果）     │
-  │                                       │
-  │ 脳の処理:                              │
-  │ 1. 全ての音声を並列に低レベル処理       │
-  │ 2. 重要な信号を検出                    │
-  │ 3. 注意を向けた信号を増幅              │
-  │ 4. 無関係な信号を抑制                  │
-  └──────────────────────────────────────┘
+  +--------------------------------------+
+  | When neurons A and B activate         |
+  | simultaneously                        |
+  | -> Synaptic connection between A-B    |
+  |    is strengthened                    |
+  |                                      |
+  | Repeated co-activation               |
+  | -> Connection further strengthened    |
+  |    (Long-Term Potentiation: LTP)     |
+  |                                      |
+  | Prolonged absence of co-activation   |
+  | -> Connection weakened               |
+  |    (Long-Term Depression: LTD)       |
+  +--------------------------------------+
 
-  TransformerのSelf-Attention:
-  ┌──────────────────────────────────────┐
-  │ 入力: "The cat sat on the mat"       │
-  │                                       │
-  │ 各単語が他の全単語との関連度を計算:     │
-  │   Attention(Q, K, V) = softmax(QK^T/√d)V│
-  │                                       │
-  │ "cat"に注目する時:                     │
-  │   "The" → 低い注意                    │
-  │   "sat" → 高い注意（猫の動作）         │
-  │   "on"  → 中程度の注意                │
-  │   "mat" → 高い注意（猫がいる場所）     │
-  │                                       │
-  │ → 文脈に応じて「何に注目すべきか」を    │
-  │   動的に学習する                       │
-  └──────────────────────────────────────┘
+  Concrete example:
+  - Bell sound (auditory neurons) + food (taste neurons)
+    -> Repeated pairing strengthens the connection
+    -> Bell alone triggers salivation (Pavlov's conditioned reflex)
 
-  脳とTransformerの対応:
-  ┌──────────────────┬────────────────────────┐
-  │ 脳               │ Transformer             │
-  ├──────────────────┼────────────────────────┤
-  │ 選択的注意       │ Self-Attention          │
-  │ ワーキングメモリ │ KV Cache               │
-  │ 多感覚統合       │ Multi-Head Attention    │
-  │ トップダウン注意 │ Cross-Attention         │
-  │ 注意の絞り込み   │ Sparse Attention        │
-  │ 予測符号化       │ Next Token Prediction   │
-  └──────────────────┴────────────────────────┘
+Reward Learning:
+  +--------------------------------------+
+  | Reinforcement learning via the       |
+  | dopamine system                      |
+  |                                      |
+  | Action -> Good outcome -> Dopamine   |
+  |           release                    |
+  |           -> Reinforce that behavior |
+  |              pattern                 |
+  |                                      |
+  | Action -> Bad outcome -> Dopamine    |
+  |           suppression                |
+  |           -> Suppress that behavior  |
+  |              pattern                 |
+  |                                      |
+  | Prediction error signal:             |
+  | delta = actual reward - predicted    |
+  |         reward                       |
+  | -> This is exactly the TD error in   |
+  |    AI's reinforcement learning!      |
+  +--------------------------------------+
+
+  Types of Synaptic Plasticity:
+  +--------------+--------------------------+
+  | Type         | Description              |
+  +--------------+--------------------------+
+  | Short-term   | Changes lasting seconds  |
+  | plasticity   | to minutes               |
+  | LTP          | Long-Term Potentiation   |
+  |              | (strengthening)          |
+  | LTD          | Long-Term Depression     |
+  |              | (weakening)              |
+  | Spike-Timing | Plasticity dependent on  |
+  | Dependent    | firing timing (STDP)     |
+  | Plasticity   |                          |
+  | Metaplasticity| The threshold for       |
+  |              | plasticity itself changes |
+  | Structural   | Creation and elimination |
+  | plasticity   | of synapses              |
+  +--------------+--------------------------+
 ```
 
-### 7.3 海馬と経験再生
+### 5.2 Computer Learning (Machine Learning)
 
 ```
-脳の海馬（Hippocampus）:
+Major Paradigms of Machine Learning:
 
-  ┌──────────────────────────────────────┐
-  │ 役割: 新しいエピソード記憶の形成       │
-  │                                       │
-  │ 1. 日中: 新しい体験を高速記録          │
-  │ 2. 睡眠中: 記録した体験を「再生」      │
-  │    → 大脳皮質に転送して長期記憶に固定   │
-  │ 3. 再生パターン:                       │
-  │    - 実際の体験を時間圧縮して再生       │
-  │    - 異なる体験を組み合わせて再生       │
-  │    → 般化と創造的問題解決に寄与        │
-  └──────────────────────────────────────┘
+  1. Supervised Learning
+  +--------------------------------------+
+  | Input data + ground truth labels     |
+  | -> Model training                    |
+  |                                      |
+  | Loss function: L = Sum(prediction    |
+  |                - ground truth)^2     |
+  | Gradient descent: theta = theta      |
+  |                 - alpha * dL/dtheta  |
+  |                                      |
+  | Correspondence with the brain:       |
+  | - Ground truth labels ~ feedback     |
+  |   from a teacher                     |
+  | - Gradient descent ~ error-correcting|
+  |   learning                           |
+  | - * Whether the brain performs       |
+  |   backpropagation is still debated   |
+  +--------------------------------------+
 
-  強化学習のExperience Replay:
-  ┌──────────────────────────────────────┐
-  │ DQN (DeepMind, 2013):                 │
-  │                                       │
-  │ 1. 体験(s, a, r, s')をバッファに保存   │
-  │ 2. ランダムにミニバッチをサンプリング   │
-  │ 3. サンプルで学習                      │
-  │                                       │
-  │ 利点:                                  │
-  │ - データの相関を破壊                    │
-  │ - 稀な体験を繰り返し学習              │
-  │ - サンプル効率の向上                   │
-  │                                       │
-  │ → 海馬の「睡眠中の再生」と同じ原理！    │
-  └──────────────────────────────────────┘
+  2. Reinforcement Learning
+  +--------------------------------------+
+  | Agent learns by interacting with     |
+  | the environment                      |
+  |                                      |
+  | Q(s,a) <- Q(s,a) + alpha[r + gamma  |
+  |   max Q(s',a') - Q(s,a)]            |
+  |                                      |
+  | Correspondence with the brain:       |
+  | - TD error ~ dopamine prediction     |
+  |   error signal                       |
+  | - Reward ~ pleasure/satisfaction     |
+  | - Discount rate gamma ~ temporal     |
+  |   discounting of future rewards      |
+  | -> Reinforcement learning was         |
+  |    directly inspired by neuroscience |
+  +--------------------------------------+
+
+  3. Self-Supervised Learning
+  +--------------------------------------+
+  | Generate supervisory signals from    |
+  | the data itself                      |
+  |                                      |
+  | Example: Masked Language Model (BERT)|
+  | "I [MASK] apples"                    |
+  | -> Learn by predicting the masked    |
+  |    word                              |
+  |                                      |
+  | Correspondence with the brain:       |
+  | - Predictive Coding                  |
+  | - The brain constantly predicts the  |
+  |   next input and learns to minimize  |
+  |   prediction error                   |
+  | -> Considered the learning paradigm  |
+  |    closest to the brain today        |
+  +--------------------------------------+
+
+  Comparison:
+  +---------------+------------------+------------------+
+  | Property      | Brain Learning   | Machine Learning |
+  +---------------+------------------+------------------+
+  | Data volume   | Can learn from   | Requires massive |
+  |               | few examples     | data             |
+  | Learning      | Instant to years | Minutes to months|
+  | speed         |                  |                  |
+  | Generalization| Very high        | Domain-dependent |
+  | Continual     | Naturally        | Catastrophic     |
+  | learning      | possible         | forgetting       |
+  | Transfer      | Naturally        | Requires         |
+  | learning      | possible         | additional       |
+  |               |                  | training         |
+  | Energy        | 20 W             | kW to MW         |
+  | Hardware      | Biological tissue| GPU/TPU          |
+  +---------------+------------------+------------------+
+```
+
+### 5.3 The Catastrophic Forgetting Problem
+
+```
+Catastrophic Forgetting:
+
+  When a machine learning model learns a new task,
+  it forgets the knowledge of previous tasks.
+
+  +--------------------------------------+
+  | Task A training: dog vs. cat         |
+  |   classification -> 95% accuracy     |
+  | Task B training: car vs. motorcycle  |
+  |   classification                     |
+  | -> Task A accuracy drops to 30%!     |
+  |                                      |
+  | Cause: weight overwriting            |
+  | The weights modified during Task B   |
+  | training were critical for Task A    |
+  +--------------------------------------+
+
+  Why the brain does not forget like this:
+  1. Memory consolidation during sleep (offline replay)
+  2. Complementary learning systems
+     - Hippocampus: rapid learning of new memories
+       (episodic memory)
+     - Neocortex: gradual integrative learning
+       (semantic memory)
+  3. Selective protection of synapses
+     - Stabilization of important synapses
+  4. Neurogenesis
+     - Generation of new neurons in the hippocampus
+
+  Countermeasures in AI research:
+  +-------------------+------------------------+
+  | Method            | Overview               |
+  +-------------------+------------------------+
+  | EWC               | Penalizes changes to   |
+  | (Elastic Weight   | important parameters   |
+  |  Consolidation)   | (mimics brain's        |
+  |                   | synapse stabilization)  |
+  | Progressive       | Adds modules for each  |
+  | Neural Networks   | new task               |
+  | Replay Buffer     | Replays past data      |
+  |                   | (mimics brain's        |
+  |                   | offline replay)        |
+  | PackNet           | Fixes a subset of      |
+  |                   | parameters per task    |
+  +-------------------+------------------------+
+```
+
+---
+
+## 6. Convergence of AI and the Brain
+
+### 6.1 Neuromorphic Computing
+
+```
+Neuromorphic Chips:
+  Specialized hardware that mimics the structure of the brain.
+
+  +--------------+--------------+---------------+
+  | Chip         | Developer    | Features      |
+  +--------------+--------------+---------------+
+  | TrueNorth    | IBM          | 1 million     |
+  |              |              | neurons       |
+  | Loihi 2      | Intel        | Spiking NN    |
+  | SpiNNaker 2  | University of| 1 million     |
+  |              | Manchester   | cores         |
+  | Akida        | BrainChip    | Edge AI       |
+  +--------------+--------------+---------------+
+
+  Advantages:
+  - Ultra-low power consumption (energy efficiency close to the brain)
+  - Event-driven (no continuous computation)
+  - Can perform learning and inference simultaneously
+
+  Challenges:
+  - Programming models are not yet established
+  - Not suited for general-purpose computation
+  - Software ecosystem is immature
+
+Spiking Neural Networks (SNN):
+  +--------------------------------------+
+  | Traditional ANN:                     |
+  |   Input -> Weighted sum ->           |
+  |   Activation function -> Output      |
+  |   -> Values are continuous real      |
+  |      numbers                         |
+  |                                      |
+  | SNN:                                 |
+  |   Input spikes -> Membrane potential |
+  |   accumulation -> Threshold exceeded |
+  |   -> Output spike (timing carries    |
+  |      information)                    |
+  |                                      |
+  | Advantages of SNN:                   |
+  | 1. More faithful to brain operation  |
+  | 2. Naturally handles temporal        |
+  |    information                       |
+  | 3. Sparse activation -> low power    |
+  | 4. Event-driven: zero power when idle|
+  |                                      |
+  | Challenges of SNN:                   |
+  | 1. Efficient learning algorithms not |
+  |    yet established                   |
+  | 2. Backpropagation cannot be         |
+  |    directly applied                  |
+  | 3. Frameworks and tools are lacking  |
+  | 4. Performance gap with conventional |
+  |    ANNs is still significant         |
+  +--------------------------------------+
+```
+
+### 6.2 Brain-Computer Interface (BCI)
+
+```
+BCI (Brain-Computer Interface):
+
+  Non-invasive:
+  - EEG (Electroencephalography): reads brain waves via scalp sensors
+  - Low resolution but safe
+  - Applications: communication devices, simple game control
+  - fNIRS (Functional Near-Infrared Spectroscopy): monitors cerebral blood flow
+
+  Invasive:
+  - Neuralink (Elon Musk): electrodes implanted in the brain
+  - Utah Array: 96-channel neural signal recording
+  - High resolution, enabling precise control
+  - Applications: cursor control for quadriplegic patients, prosthetic limb control
+
+  Current Status (2024-2025):
+  - Neuralink: successful results from first human clinical trial
+  - Thought-based cursor control and text input now possible
+  - Reading progressing, but writing (input to the brain) is rudimentary
+
+  BCI Application Scenarios:
+  +--------------------+----------------------------+
+  | Field              | Application                |
+  +--------------------+----------------------------+
+  | Medical            | Motor function recovery    |
+  |                    | for paralyzed patients     |
+  |                    | Epilepsy detection and     |
+  |                    | suppression                |
+  |                    | Deep brain stimulation     |
+  |                    | for depression             |
+  | Communication      | Communication for ALS      |
+  |                    | patients                   |
+  |                    | Thought-based text input   |
+  | Entertainment      | Immersive VR/AR            |
+  |                    | experiences                |
+  |                    | Brainwave game control     |
+  | Capability         | Memory enhancement         |
+  | Enhancement        | Accelerated learning       |
+  |                    | Direct interface with AI   |
+  +--------------------+----------------------------+
+
+  Ethical Challenges:
+  - Privacy (reading of thoughts)
+  - Security (brain hacking?)
+  - Inequality (enhanced humans vs. unenhanced humans)
+  - Identity (one's own thoughts vs. AI's thoughts)
+  - Informed consent (consent for brain intervention)
+  - Dependence (inability to function without BCI)
+```
+
+### 6.3 The Road to Artificial General Intelligence (AGI)
+
+```
+AGI (Artificial General Intelligence):
+
+  Current AI (Narrow AI / Specialized AI):
+  +--------------------------------------+
+  | Chess: surpassed humans              |
+  |   (Deep Blue, 1997)                  |
+  | Go: surpassed humans                 |
+  |   (AlphaGo, 2016)                   |
+  | Image recognition: surpassed humans  |
+  |   (2015~)                            |
+  | Language generation: rivals humans    |
+  |   (GPT-4, 2023~)                     |
+  |                                      |
+  | However:                             |
+  | - A chess AI cannot play Go          |
+  | - An image recognition AI cannot     |
+  |   write text                         |
+  | - LLMs cannot physically manipulate  |
+  |   objects                            |
+  | -> Each is a specialized "tool"      |
+  +--------------------------------------+
+
+  AGI = Human-like general intelligence:
+  +--------------------------------------+
+  | Requirements:                        |
+  | 1. Transfer learning: apply          |
+  |    knowledge from one domain to      |
+  |    another                           |
+  | 2. Common-sense reasoning: use       |
+  |    knowledge that is not explicit    |
+  | 3. Autonomous learning: set learning |
+  |    goals independently               |
+  | 4. Creativity: combine existing      |
+  |    concepts to generate new ideas    |
+  | 5. Adaptability: handle unknown      |
+  |    situations                        |
+  | 6. Embodiment: understand and        |
+  |    manipulate the physical world     |
+  |                                      |
+  | Current approaches:                  |
+  | - Scaling large language models (LLM)|
+  | - Multimodal AI (vision + language   |
+  |   + audio)                           |
+  | - World models (environment          |
+  |   simulation)                        |
+  | - Embodied AI (robotics + AI)        |
+  | - Reverse-engineering the brain      |
+  |   (Whole Brain Emulation)            |
+  +--------------------------------------+
+
+  Neuroscience Contributions to AGI:
+  +------------------------+-----------------------+
+  | Brain Feature          | AI Application        |
+  +------------------------+-----------------------+
+  | Hierarchical           | Deep Learning         |
+  | processing             |                       |
+  | Reward system          | Reinforcement         |
+  |                        | Learning              |
+  | Attention mechanisms   | Transformer's         |
+  |                        | Self-Attention        |
+  | Hippocampal memory     | Experience Replay     |
+  | consolidation          |                       |
+  | Predictive coding      | Self-supervised       |
+  |                        | learning              |
+  | Neural plasticity      | Meta-learning         |
+  | Modular structure      | Mixture of Experts    |
+  | Replay during sleep    | Offline batch         |
+  |                        | learning              |
+  +------------------------+-----------------------+
+```
+
+---
+
+## 7. Concrete Examples of Computer Design Inspired by the Brain
+
+### 7.1 Deep Learning and the Visual Cortex
+
+```
+The Human Visual System:
+
+  Retina -> LGN -> V1 -> V2 -> V4 -> IT -> Prefrontal cortex
+            |      |      |      |     |
+          Light  Edges  Shapes Color+ Object   Judgment
+          /dark                shape recognition
+
+  Features extracted at each layer:
+  V1: Orientation selectivity (neurons responsive to edges at specific angles)
+  V2: Contour integration, texture boundaries
+  V4: Combinations of color and shape, geometric patterns
+  IT: Object categories (faces, hands, animals, etc.)
+
+Convolutional Neural Network (CNN):
+
+  Input image -> Conv1 -> Conv2 -> Conv3 -> FC -> Output
+                  |        |        |
+                Edges    Parts   Objects
+
+  Features learned at each CNN layer (visualization results):
+  Layer 1: Edges, color gradients           -> corresponds to V1
+  Layer 2: Corners, textures                -> corresponds to V2
+  Layer 3: Parts (eyes, wheels, etc.)       -> corresponds to V4
+  Layer 4-5: Whole-object features          -> corresponds to IT
+
+  Hubel & Wiesel (1962, Nobel Prize):
+  - Discovered through experiments on cat visual cortex
+  - "Simple cells" -> respond to edges at specific orientations
+  - "Complex cells" -> position-invariant responses
+  - -> Direct inspiration for CNN's Convolution + Pooling
+
+  Detailed correspondence:
+  +--------------+------------------+------------------+
+  | Brain         | CNN Structure    | Function         |
+  | Structure     |                  |                  |
+  +--------------+------------------+------------------+
+  | Simple cells  | Convolutional    | Feature          |
+  |               | layers           | detection        |
+  | Complex cells | Pooling layers   | Position         |
+  |               |                  | invariance       |
+  | Lateral       | Local            | Contrast         |
+  | inhibition    | normalization    | enhancement      |
+  | Hierarchical  | Deep layer       | Gradual increase |
+  | structure     | stacking         | in abstraction   |
+  | Top-down      | Skip Connection  | High-level       |
+  | feedback      | (ResNet)         | information      |
+  |               |                  | feedback         |
+  +--------------+------------------+------------------+
+```
+
+### 7.2 Transformer and Attention Mechanisms
+
+```
+The Brain's Attention Mechanism:
+
+  Selective Attention:
+  +--------------------------------------+
+  | At a noisy party venue...            |
+  |                                      |
+  | noise noise noise "your name" noise  |
+  |                    ^                 |
+  |            Instantly respond to your |
+  |            own name                  |
+  |            (Cocktail Party Effect)   |
+  |                                      |
+  | Brain processing:                    |
+  | 1. Low-level processing of all audio |
+  |    in parallel                       |
+  | 2. Detect important signals          |
+  | 3. Amplify the attended signal       |
+  | 4. Suppress irrelevant signals       |
+  +--------------------------------------+
+
+  Transformer's Self-Attention:
+  +--------------------------------------+
+  | Input: "The cat sat on the mat"      |
+  |                                      |
+  | Each word computes relevance to      |
+  | every other word:                    |
+  |   Attention(Q, K, V) =              |
+  |     softmax(QK^T / sqrt(d)) V       |
+  |                                      |
+  | When focusing on "cat":              |
+  |   "The" -> low attention             |
+  |   "sat" -> high attention            |
+  |            (the cat's action)        |
+  |   "on"  -> moderate attention        |
+  |   "mat" -> high attention            |
+  |            (where the cat is)        |
+  |                                      |
+  | -> Dynamically learns "what to       |
+  |    attend to" based on context       |
+  +--------------------------------------+
+
+  Correspondence between the brain and Transformer:
+  +--------------------+------------------------+
+  | Brain              | Transformer            |
+  +--------------------+------------------------+
+  | Selective attention| Self-Attention         |
+  | Working memory     | KV Cache               |
+  | Multisensory       | Multi-Head Attention   |
+  | integration        |                        |
+  | Top-down attention | Cross-Attention        |
+  | Attention narrowing| Sparse Attention       |
+  | Predictive coding  | Next Token Prediction  |
+  +--------------------+------------------------+
+```
+
+### 7.3 The Hippocampus and Experience Replay
+
+```
+The Brain's Hippocampus:
+
+  +--------------------------------------+
+  | Role: Formation of new episodic      |
+  |       memories                       |
+  |                                      |
+  | 1. Daytime: rapidly records new      |
+  |    experiences                       |
+  | 2. During sleep: "replays" recorded  |
+  |    experiences                       |
+  |    -> Transfers to the neocortex for |
+  |       long-term memory consolidation |
+  | 3. Replay patterns:                  |
+  |    - Time-compressed replay of       |
+  |      actual experiences              |
+  |    - Replay combining different      |
+  |      experiences                     |
+  |    -> Contributes to generalization  |
+  |       and creative problem-solving   |
+  +--------------------------------------+
+
+  Experience Replay in Reinforcement Learning:
+  +--------------------------------------+
+  | DQN (DeepMind, 2013):                |
+  |                                      |
+  | 1. Store experiences (s, a, r, s')   |
+  |    in a buffer                       |
+  | 2. Randomly sample mini-batches      |
+  | 3. Learn from the samples            |
+  |                                      |
+  | Advantages:                          |
+  | - Breaks temporal correlations in    |
+  |   data                               |
+  | - Repeatedly learns from rare        |
+  |   experiences                        |
+  | - Improves sample efficiency         |
+  |                                      |
+  | -> Same principle as the hippocampus |
+  |    "replay during sleep"!            |
+  +--------------------------------------+
 
   Prioritized Experience Replay:
-  ┌──────────────────────────────────────┐
-  │ 重要な体験を優先的に再生               │
-  │ → TD誤差が大きい体験 = より学習価値が高い│
-  │ → 脳の「感情的に重要な記憶ほど再生される」│
-  │   に対応                               │
-  └──────────────────────────────────────┘
+  +--------------------------------------+
+  | Preferentially replays important     |
+  | experiences                          |
+  | -> Experiences with large TD error = |
+  |    higher learning value             |
+  | -> Corresponds to the brain's        |
+  |    "emotionally significant memories |
+  |    are replayed more"                |
+  +--------------------------------------+
 ```
 
 ---
 
-## 8. 量子コンピュータと脳の比較
+## 8. Quantum Computers and the Brain
 
-### 8.1 量子コンピュータの概要
-
-```
-量子コンピュータ:
-
-  古典コンピュータ:
-  - ビット: 0 または 1
-  - 決定的な計算
-
-  量子コンピュータ:
-  - 量子ビット（qubit）: 0と1の重ね合わせ状態
-  - |ψ⟩ = α|0⟩ + β|1⟩ （|α|² + |β|² = 1）
-  - n量子ビット = 2^n 個の状態を同時に保持
-
-  ┌──────────────────┬──────────────┬──────────────┬──────────────┐
-  │ 特性             │ 古典         │ 量子         │ 脳           │
-  ├──────────────────┼──────────────┼──────────────┼──────────────┤
-  │ 基本単位         │ ビット       │ 量子ビット   │ ニューロン   │
-  │ 状態             │ 0 or 1      │ 重ね合わせ   │ 連続的発火率  │
-  │ 並列性           │ コア数依存   │ 指数的       │ 超大規模     │
-  │ 得意な問題       │ 古典的計算   │ 最適化/暗号  │ パターン認識  │
-  │ エラー率         │ 極めて低い   │ まだ高い     │ ノイズに強い  │
-  │ 動作温度         │ 室温         │ 極低温(mK)   │ 37℃         │
-  │ 消費電力         │ 〜500W      │ 〜数MW       │ 〜20W        │
-  └──────────────────┴──────────────┴──────────────┴──────────────┘
-
-  量子脳仮説（Penrose-Hameroff）:
-  - 脳のニューロン内の微小管（マイクロチューブル）で
-    量子計算が行われている可能性を提唱
-  - 科学的コンセンサスは得られていない
-  - 脳の温度（37℃）で量子コヒーレンスを維持するのは困難
-  - しかし、一部の生物学的プロセス（光合成等）で
-    量子効果の関与が示唆されている
-```
-
----
-
-## 9. 実務への示唆
-
-### 9.1 脳の知見を活かしたシステム設計
+### 8.1 Overview of Quantum Computing
 
 ```
-脳のアーキテクチャから学ぶ設計原則:
+Quantum Computers:
 
-  1. 冗長性と耐障害性
-  ┌──────────────────────────────────────┐
-  │ 脳: ニューロンが日々死んでも機能を維持  │
-  │ 応用: マイクロサービス、レプリケーション  │
-  │       Graceful Degradation の設計       │
-  │                                        │
-  │ 例: Netflix のカオスエンジニアリング     │
-  │    → 意図的に障害を発生させて耐性を検証 │
-  └──────────────────────────────────────┘
+  Classical computers:
+  - Bit: 0 or 1
+  - Deterministic computation
 
-  2. 階層的キャッシング
-  ┌──────────────────────────────────────┐
-  │ 脳: 感覚記憶→短期記憶→長期記憶の階層   │
-  │ 応用: L1/L2/L3キャッシュ、CDN、          │
-  │       分散キャッシュ（Redis等）          │
-  │                                        │
-  │ 設計パターン:                            │
-  │ - 頻繁にアクセスするデータは近くに       │
-  │ - 低頻度データは遠くの大容量ストアに     │
-  │ - 不要なデータは自動的に退避（LRU等）    │
-  └──────────────────────────────────────┘
+  Quantum computers:
+  - Qubit: superposition of 0 and 1
+  - |psi> = alpha|0> + beta|1>  (|alpha|^2 + |beta|^2 = 1)
+  - n qubits = simultaneously hold 2^n states
 
-  3. イベント駆動アーキテクチャ
-  ┌──────────────────────────────────────┐
-  │ 脳: スパイク（発火）のみで信号伝達       │
-  │     → 発火しない時は消費電力ゼロ         │
-  │ 応用: イベント駆動マイクロサービス        │
-  │       Apache Kafka, AWS Lambda等        │
-  │                                        │
-  │ 利点:                                   │
-  │ - 無活動時のリソース消費が少ない          │
-  │ - スケーラビリティが高い                 │
-  │ - 疎結合で変更に強い                     │
-  └──────────────────────────────────────┘
+  +--------------------+--------------+--------------+--------------+
+  | Property           | Classical    | Quantum      | Brain        |
+  +--------------------+--------------+--------------+--------------+
+  | Basic unit         | Bit          | Qubit        | Neuron       |
+  | State              | 0 or 1       | Superposition| Continuous   |
+  |                    |              |              | firing rate  |
+  | Parallelism        | Core-count   | Exponential  | Massively    |
+  |                    | dependent    |              | parallel     |
+  | Suited problems    | Classical    | Optimization/| Pattern      |
+  |                    | computation  | Cryptography | recognition  |
+  | Error rate         | Extremely    | Still high   | Noise-       |
+  |                    | low          |              | tolerant     |
+  | Operating temp.    | Room temp.   | Cryogenic    | 37 C         |
+  |                    |              | (mK)         |              |
+  | Power consumption  | ~500 W       | ~several MW  | ~20 W        |
+  +--------------------+--------------+--------------+--------------+
 
-  4. 連想検索
-  ┌──────────────────────────────────────┐
-  │ 脳: 内容ベースの連想記憶                 │
-  │ 応用: ベクトルデータベース（Pinecone等）  │
-  │       セマンティック検索                 │
-  │       レコメンドエンジン                 │
-  │                                        │
-  │ 例: 「りんご」で検索                     │
-  │ 従来: 文字列「りんご」の完全一致          │
-  │ 連想: 「果物」「赤い」「健康」も関連付け  │
-  │ → Embedding + ANN（近似最近傍探索）      │
-  └──────────────────────────────────────┘
-
-  5. 注意メカニズムの応用
-  ┌──────────────────────────────────────┐
-  │ 脳: 重要な情報に注意を集中               │
-  │ 応用: ログ監視の異常検知                 │
-  │       ユーザーの関心推定                 │
-  │       情報のフィルタリング               │
-  │                                        │
-  │ 設計パターン:                            │
-  │ - 全データを均等に処理しない             │
-  │ - 異常値・重要イベントに計算リソースを集中│
-  │ - 優先度に基づくキュー管理               │
-  └──────────────────────────────────────┘
-```
-
-### 9.2 プログラマーとしての脳の活用法
-
-```
-脳の特性を理解したプログラミング:
-
-  1. ワーキングメモリの限界
-  ┌──────────────────────────────────────┐
-  │ マジカルナンバー7±2（Miller, 1956）    │
-  │ → 一度に保持できる情報は7個程度         │
-  │                                       │
-  │ 実務での対策:                           │
-  │ - 関数は1つの責務に限定（SRP）          │
-  │ - 変数の数を最小限に                    │
-  │ - ネストを浅く（3段まで）               │
-  │ - コードをモジュール化                  │
-  │ - 命名を分かりやすく（脳の負荷軽減）    │
-  └──────────────────────────────────────┘
-
-  2. チャンキング（情報のまとめ）
-  ┌──────────────────────────────────────┐
-  │ 電話番号: 090-1234-5678               │
-  │ → 11桁を3チャンクに分割して記憶         │
-  │                                       │
-  │ コードでの応用:                         │
-  │ - 抽象化（詳細を隠蔽）                  │
-  │ - デザインパターン（既知のチャンク）      │
-  │ - ライブラリの活用（機能のチャンク化）    │
-  └──────────────────────────────────────┘
-
-  3. 睡眠と問題解決
-  ┌──────────────────────────────────────┐
-  │ 難しいバグに数時間悩む                   │
-  │ → 翌朝起きたら解決策が浮かぶ            │
-  │                                       │
-  │ 科学的根拠:                             │
-  │ - 睡眠中に海馬が情報を再生・統合         │
-  │ - 新しい結合パターンが形成される         │
-  │ - → 意識的に考えていない時も脳は処理中   │
-  │                                       │
-  │ 実践:                                   │
-  │ - 難問は寝る前に整理してから就寝         │
-  │ - 十分な睡眠を確保する                  │
-  │ - 散歩やシャワーも同様の効果がある       │
-  └──────────────────────────────────────┘
-
-  4. フロー状態の活用
-  ┌──────────────────────────────────────┐
-  │ フロー（ゾーン）: 高い集中状態            │
-  │ → 前頭前野の一部が抑制され、              │
-  │   自己批判が減って生産性が向上            │
-  │                                        │
-  │ フローに入る条件:                        │
-  │ - 適度な難易度（簡単すぎず難しすぎず）    │
-  │ - 明確な目標                            │
-  │ - 即座のフィードバック                   │
-  │ - 中断のない集中時間（最低25分）          │
-  │                                        │
-  │ プログラマーの実践:                      │
-  │ - Slackの通知をオフ                      │
-  │ - ポモドーロテクニック（25分集中+5分休憩） │
-  │ - テスト駆動開発（即座のフィードバック）   │
-  │ - ペアプログラミング（適度な緊張感）      │
-  └──────────────────────────────────────┘
+  Quantum Brain Hypothesis (Penrose-Hameroff):
+  - Proposes that quantum computation occurs in
+    microtubules within brain neurons
+  - Has not achieved scientific consensus
+  - Maintaining quantum coherence at brain temperature (37 C) is difficult
+  - However, involvement of quantum effects in some biological
+    processes (e.g., photosynthesis) has been suggested
 ```
 
 ---
 
-## 10. 実践演習
+## 9. Practical Implications
 
-### 演習1: 比較表の作成（基礎）
-脳とコンピュータの違いを10項目以上で比較する表を作成せよ。各項目について「どちらが優れているか」とその理由を述べよ。
+### 9.1 System Design Inspired by Brain Architecture
 
-### 演習2: ボトルネック分析（応用）
-フォン・ノイマンボトルネックと脳の100ステップルールについて、それぞれのアーキテクチャがなぜそのような制約を持つか分析せよ。
+```
+Design Principles Learned from the Brain's Architecture:
 
-### 演習3: ニューロモーフィック設計（応用）
-以下の要件を持つシステムについて、脳のアーキテクチャから着想を得た設計案を提案せよ:
-- IoTセンサー100万個からのリアルタイムデータ処理
-- 異常検知（通常パターンからの逸脱を検出）
-- 消費電力を最小限に抑える
+  1. Redundancy and Fault Tolerance
+  +----------------------------------------+
+  | Brain: maintains function even as       |
+  |   neurons die daily                     |
+  | Application: microservices, replication,|
+  |   Graceful Degradation design           |
+  |                                         |
+  | Example: Netflix's Chaos Engineering    |
+  |   -> Intentionally injects failures to  |
+  |      verify resilience                  |
+  +----------------------------------------+
 
-### 演習4: 認知バイアスとバグの分析（応用）
-過去に経験した（または文献で読んだ）ソフトウェアバグについて、人間の認知バイアスがどのように関与していたか分析せよ。例えば、確証バイアスによるテスト不足、正常性バイアスによるエラー無視など。
+  2. Hierarchical Caching
+  +----------------------------------------+
+  | Brain: hierarchy of sensory memory ->   |
+  |   short-term memory -> long-term memory |
+  | Application: L1/L2/L3 cache, CDN,      |
+  |   distributed cache (Redis, etc.)       |
+  |                                         |
+  | Design patterns:                        |
+  | - Keep frequently accessed data nearby  |
+  | - Store infrequently accessed data in   |
+  |   distant high-capacity stores          |
+  | - Automatically evict unneeded data     |
+  |   (LRU, etc.)                           |
+  +----------------------------------------+
 
-### 演習5: 未来予測（発展）
-2040年のコンピュータと脳の関係について、以下の観点から予測レポートを書け:
-1. AIは人間の知能を超えるか
-2. ニューロモーフィックコンピューティングの普及度
-3. BCIの実用化レベル
-4. 脳とAIの協調はどのような形態になるか
+  3. Event-Driven Architecture
+  +----------------------------------------+
+  | Brain: signal transmission only via     |
+  |   spikes (firing)                       |
+  |   -> Zero power when not firing         |
+  | Application: event-driven               |
+  |   microservices                         |
+  |   Apache Kafka, AWS Lambda, etc.        |
+  |                                         |
+  | Advantages:                             |
+  | - Low resource consumption during       |
+  |   inactivity                            |
+  | - High scalability                      |
+  | - Loose coupling and resilience to      |
+  |   change                                |
+  +----------------------------------------+
 
-### 演習6: 学習アルゴリズムの比較（発展）
-以下の学習メカニズムについて、脳とAIの類似点と相違点を詳細に比較せよ:
-1. ヘブ学習 vs 誤差逆伝播法
-2. 脳の報酬系 vs 強化学習のTD誤差
-3. 脳の予測符号化 vs Transformerの自己回帰生成
+  4. Associative Search
+  +----------------------------------------+
+  | Brain: content-based associative memory |
+  | Application: vector databases           |
+  |   (Pinecone, etc.)                      |
+  |   Semantic search                       |
+  |   Recommendation engines                |
+  |                                         |
+  | Example: searching for "apple"          |
+  | Traditional: exact string match "apple" |
+  | Associative: also relates "fruit,"      |
+  |   "red," "health"                       |
+  | -> Embedding + ANN (Approximate         |
+  |    Nearest Neighbor search)             |
+  +----------------------------------------+
+
+  5. Applications of Attention Mechanisms
+  +----------------------------------------+
+  | Brain: focuses attention on important   |
+  |   information                           |
+  | Application: anomaly detection in       |
+  |   log monitoring                        |
+  |   User interest estimation              |
+  |   Information filtering                 |
+  |                                         |
+  | Design patterns:                        |
+  | - Do not process all data equally       |
+  | - Concentrate compute resources on      |
+  |   anomalies and critical events         |
+  | - Priority-based queue management       |
+  +----------------------------------------+
+```
+
+### 9.2 Leveraging the Brain as a Programmer
+
+```
+Programming with an Understanding of Brain Characteristics:
+
+  1. Working Memory Limitations
+  +--------------------------------------+
+  | The Magical Number 7 +/- 2           |
+  | (Miller, 1956)                       |
+  | -> Can hold ~7 items at once         |
+  |                                      |
+  | Practical countermeasures:            |
+  | - Limit each function to a single    |
+  |   responsibility (SRP)               |
+  | - Minimize the number of variables   |
+  | - Keep nesting shallow (3 levels max)|
+  | - Modularize code                    |
+  | - Use clear naming (reduce cognitive |
+  |   load)                              |
+  +--------------------------------------+
+
+  2. Chunking (Grouping Information)
+  +--------------------------------------+
+  | Phone number: 090-1234-5678          |
+  | -> 11 digits divided into 3 chunks   |
+  |    for memorization                  |
+  |                                      |
+  | Application in code:                 |
+  | - Abstraction (hide details)         |
+  | - Design patterns (known chunks)     |
+  | - Library usage (chunked             |
+  |   functionality)                     |
+  +--------------------------------------+
+
+  3. Sleep and Problem Solving
+  +--------------------------------------+
+  | Spend hours struggling with a tough  |
+  | bug                                  |
+  | -> Wake up the next morning with     |
+  |    the solution                      |
+  |                                      |
+  | Scientific basis:                    |
+  | - During sleep, the hippocampus      |
+  |   replays and integrates information |
+  | - New connection patterns are formed |
+  | - -> The brain is processing even    |
+  |   when you are not consciously       |
+  |   thinking                           |
+  |                                      |
+  | Practices:                           |
+  | - Organize the problem before bed    |
+  | - Ensure adequate sleep              |
+  | - Walking and showers have similar   |
+  |   effects                            |
+  +--------------------------------------+
+
+  4. Leveraging Flow State
+  +--------------------------------------+
+  | Flow (Zone): a state of deep         |
+  | concentration                        |
+  | -> Parts of the prefrontal cortex    |
+  |   are suppressed, reducing self-     |
+  |   criticism and boosting productivity|
+  |                                      |
+  | Conditions for entering flow:        |
+  | - Moderate difficulty (neither too   |
+  |   easy nor too hard)                 |
+  | - Clear goals                        |
+  | - Immediate feedback                 |
+  | - Uninterrupted focus time           |
+  |   (at least 25 minutes)             |
+  |                                      |
+  | Programmer practices:                |
+  | - Turn off Slack notifications       |
+  | - Pomodoro Technique (25 min focus   |
+  |   + 5 min break)                     |
+  | - Test-driven development (immediate |
+  |   feedback)                          |
+  | - Pair programming (moderate tension)|
+  +--------------------------------------+
+```
+
+---
+
+## 10. Practice Exercises
+
+### Exercise 1: Create a Comparison Table (Basics)
+Create a table comparing the brain and computers across at least 10 items. For each item, state which is superior and explain why.
+
+### Exercise 2: Bottleneck Analysis (Intermediate)
+Analyze the von Neumann bottleneck and the brain's 100-step rule, explaining why each architecture has such constraints.
+
+### Exercise 3: Neuromorphic Design (Intermediate)
+Propose a design inspired by brain architecture for a system with the following requirements:
+- Real-time data processing from 1 million IoT sensors
+- Anomaly detection (detecting deviations from normal patterns)
+- Minimizing power consumption
+
+### Exercise 4: Cognitive Biases and Bug Analysis (Intermediate)
+Analyze a software bug you have experienced (or read about) and explain how human cognitive biases contributed. For example, insufficient testing due to confirmation bias, or error dismissal due to normalcy bias.
+
+### Exercise 5: Future Prediction (Advanced)
+Write a prediction report on the relationship between computers and the brain in 2040, addressing:
+1. Will AI surpass human intelligence?
+2. How widespread will neuromorphic computing be?
+3. What level of practicality will BCI achieve?
+4. What forms will brain-AI collaboration take?
+
+### Exercise 6: Learning Algorithm Comparison (Advanced)
+Compare the following learning mechanisms in detail, identifying similarities and differences between the brain and AI:
+1. Hebbian learning vs. backpropagation
+2. The brain's reward system vs. reinforcement learning's TD error
+3. The brain's predictive coding vs. Transformer's autoregressive generation
 
 
 ---
 
-## トラブルシューティング
+## Troubleshooting
 
-### よくあるエラーと解決策
+### Common Errors and Solutions
 
-| エラー | 原因 | 解決策 |
-|--------|------|--------|
-| 初期化エラー | 設定ファイルの不備 | 設定ファイルのパスと形式を確認 |
-| タイムアウト | ネットワーク遅延/リソース不足 | タイムアウト値の調整、リトライ処理の追加 |
-| メモリ不足 | データ量の増大 | バッチ処理の導入、ページネーションの実装 |
-| 権限エラー | アクセス権限の不足 | 実行ユーザーの権限確認、設定の見直し |
-| データ不整合 | 並行処理の競合 | ロック機構の導入、トランザクション管理 |
+| Error | Cause | Solution |
+|-------|-------|----------|
+| Initialization error | Configuration file issues | Verify configuration file path and format |
+| Timeout | Network latency / insufficient resources | Adjust timeout values, add retry logic |
+| Out of memory | Increased data volume | Introduce batch processing, implement pagination |
+| Permission error | Insufficient access privileges | Check user permissions, review settings |
+| Data inconsistency | Concurrency conflicts | Introduce locking mechanisms, manage transactions |
 
-### デバッグの手順
+### Debugging Procedure
 
-1. **エラーメッセージの確認**: スタックトレースを読み、発生箇所を特定する
-2. **再現手順の確立**: 最小限のコードでエラーを再現する
-3. **仮説の立案**: 考えられる原因をリストアップする
-4. **段階的な検証**: ログ出力やデバッガを使って仮説を検証する
-5. **修正と回帰テスト**: 修正後、関連する箇所のテストも実行する
+1. **Check the error message**: Read the stack trace and identify the location of the error
+2. **Establish reproduction steps**: Reproduce the error with minimal code
+3. **Formulate hypotheses**: List possible causes
+4. **Verify incrementally**: Use log output and debuggers to test hypotheses
+5. **Fix and regression test**: After the fix, run tests on related areas as well
 
 ```python
-# デバッグ用ユーティリティ
+# Debugging utility
 import logging
 import traceback
 from functools import wraps
 
-# ロガーの設定
+# Logger configuration
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
@@ -1316,102 +1532,102 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def debug_decorator(func):
-    """関数の入出力をログ出力するデコレータ"""
+    """Decorator that logs function inputs and outputs"""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        logger.debug(f"呼び出し: {func.__name__}(args={args}, kwargs={kwargs})")
+        logger.debug(f"Call: {func.__name__}(args={args}, kwargs={kwargs})")
         try:
             result = func(*args, **kwargs)
-            logger.debug(f"戻り値: {func.__name__} -> {result}")
+            logger.debug(f"Return: {func.__name__} -> {result}")
             return result
         except Exception as e:
-            logger.error(f"例外発生: {func.__name__}: {e}")
+            logger.error(f"Exception in: {func.__name__}: {e}")
             logger.error(traceback.format_exc())
             raise
     return wrapper
 
 @debug_decorator
 def process_data(items):
-    """データ処理（デバッグ対象）"""
+    """Data processing (debug target)"""
     if not items:
-        raise ValueError("空のデータ")
+        raise ValueError("Empty data")
     return [item * 2 for item in items]
 ```
 
-### パフォーマンス問題の診断
+### Diagnosing Performance Issues
 
-パフォーマンス問題が発生した場合の診断手順:
+Steps for diagnosing performance issues:
 
-1. **ボトルネックの特定**: プロファイリングツールで計測
-2. **メモリ使用量の確認**: メモリリークの有無をチェック
-3. **I/O待ちの確認**: ディスクやネットワークI/Oの状況を確認
-4. **同時接続数の確認**: コネクションプールの状態を確認
+1. **Identify the bottleneck**: Measure using profiling tools
+2. **Check memory usage**: Check for memory leaks
+3. **Check I/O waits**: Examine disk and network I/O status
+4. **Check concurrent connections**: Examine the state of connection pools
 
-| 問題の種類 | 診断ツール | 対策 |
-|-----------|-----------|------|
-| CPU負荷 | cProfile, py-spy | アルゴリズム改善、並列化 |
-| メモリリーク | tracemalloc, objgraph | 参照の適切な解放 |
-| I/Oボトルネック | strace, iostat | 非同期I/O、キャッシュ |
-| DB遅延 | EXPLAIN, slow query log | インデックス、クエリ最適化 |
+| Issue Type | Diagnostic Tools | Countermeasures |
+|------------|-----------------|-----------------|
+| CPU load | cProfile, py-spy | Algorithm improvement, parallelization |
+| Memory leak | tracemalloc, objgraph | Proper release of references |
+| I/O bottleneck | strace, iostat | Asynchronous I/O, caching |
+| DB latency | EXPLAIN, slow query log | Indexes, query optimization |
 
 ---
 
-## 設計判断ガイド
+## Design Decision Guide
 
-### 選択基準マトリクス
+### Selection Criteria Matrix
 
-技術選択を行う際の判断基準を以下にまとめます。
+The following summarizes the criteria for making technology choices.
 
-| 判断基準 | 重視する場合 | 妥協できる場合 |
-|---------|------------|-------------|
-| パフォーマンス | リアルタイム処理、大規模データ | 管理画面、バッチ処理 |
-| 保守性 | 長期運用、チーム開発 | プロトタイプ、短期プロジェクト |
-| スケーラビリティ | 成長が見込まれるサービス | 社内ツール、固定ユーザー |
-| セキュリティ | 個人情報、金融データ | 公開データ、社内利用 |
-| 開発速度 | MVP、市場投入スピード | 品質重視、ミッションクリティカル |
+| Criterion | Prioritize When | Acceptable to Compromise When |
+|-----------|----------------|-------------------------------|
+| Performance | Real-time processing, large-scale data | Admin dashboards, batch processing |
+| Maintainability | Long-term operation, team development | Prototypes, short-term projects |
+| Scalability | Services expected to grow | Internal tools, fixed user base |
+| Security | Personal data, financial data | Public data, internal use |
+| Development speed | MVP, time-to-market | Quality-focused, mission-critical |
 
-### アーキテクチャパターンの選択
+### Architecture Pattern Selection
 
 ```
-┌─────────────────────────────────────────────────┐
-│              アーキテクチャ選択フロー              │
-├─────────────────────────────────────────────────┤
-│                                                 │
-│  ① チーム規模は？                                │
-│    ├─ 小規模（1-5人）→ モノリス                   │
-│    └─ 大規模（10人+）→ ②へ                       │
-│                                                 │
-│  ② デプロイ頻度は？                               │
-│    ├─ 週1回以下 → モノリス + モジュール分割         │
-│    └─ 毎日/複数回 → ③へ                          │
-│                                                 │
-│  ③ チーム間の独立性は？                            │
-│    ├─ 高い → マイクロサービス                      │
-│    └─ 中程度 → モジュラーモノリス                   │
-│                                                 │
-└─────────────────────────────────────────────────┘
++---------------------------------------------------+
+|          Architecture Selection Flow               |
++---------------------------------------------------+
+|                                                   |
+|  (1) Team size?                                   |
+|    +-- Small (1-5 people) -> Monolith             |
+|    +-- Large (10+ people) -> Go to (2)            |
+|                                                   |
+|  (2) Deploy frequency?                            |
+|    +-- Weekly or less -> Monolith + module split   |
+|    +-- Daily / multiple times -> Go to (3)        |
+|                                                   |
+|  (3) Team independence?                           |
+|    +-- High -> Microservices                      |
+|    +-- Moderate -> Modular Monolith               |
+|                                                   |
++---------------------------------------------------+
 ```
 
-### トレードオフの分析
+### Trade-Off Analysis
 
-技術的な判断には必ずトレードオフが伴います。以下の観点で分析を行いましょう:
+Technical decisions always involve trade-offs. Analyze them from the following perspectives:
 
-**1. 短期 vs 長期のコスト**
-- 短期的に速い方法が長期的には技術的負債になることがある
-- 逆に、過剰な設計は短期的なコストが高く、プロジェクトの遅延を招く
+**1. Short-Term vs. Long-Term Cost**
+- A short-term fast approach may become technical debt in the long run
+- Conversely, over-engineering incurs high short-term costs and delays projects
 
-**2. 一貫性 vs 柔軟性**
-- 統一された技術スタックは学習コストが低い
-- 多様な技術の採用は適材適所が可能だが、運用コストが増加
+**2. Consistency vs. Flexibility**
+- A unified technology stack lowers the learning curve
+- Adopting diverse technologies enables the right tool for the job but increases operational costs
 
-**3. 抽象化のレベル**
-- 高い抽象化は再利用性が高いが、デバッグが困難になる場合がある
-- 低い抽象化は直感的だが、コードの重複が発生しやすい
+**3. Level of Abstraction**
+- Higher abstraction increases reusability but can make debugging harder
+- Lower abstraction is more intuitive but increases code duplication
 
 ```python
-# 設計判断の記録テンプレート
+# Design decision recording template
 class ArchitectureDecisionRecord:
-    """ADR (Architecture Decision Record) の作成"""
+    """Create an ADR (Architecture Decision Record)"""
 
     def __init__(self, title: str):
         self.title = title
@@ -1421,17 +1637,17 @@ class ArchitectureDecisionRecord:
         self.alternatives = []
 
     def set_context(self, context: str):
-        """背景と課題の記述"""
+        """Describe the background and problem"""
         self.context = context
         return self
 
     def set_decision(self, decision: str):
-        """決定内容の記述"""
+        """Describe the decision"""
         self.decision = decision
         return self
 
     def add_consequence(self, consequence: str, positive: bool = True):
-        """結果の追加"""
+        """Add a consequence"""
         self.consequences.append({
             'description': consequence,
             'type': 'positive' if positive else 'negative'
@@ -1439,7 +1655,7 @@ class ArchitectureDecisionRecord:
         return self
 
     def add_alternative(self, name: str, reason_rejected: str):
-        """却下した代替案の追加"""
+        """Add a rejected alternative"""
         self.alternatives.append({
             'name': name,
             'reason_rejected': reason_rejected
@@ -1447,15 +1663,15 @@ class ArchitectureDecisionRecord:
         return self
 
     def to_markdown(self) -> str:
-        """Markdown形式で出力"""
+        """Output in Markdown format"""
         md = f"# ADR: {self.title}\n\n"
-        md += f"## 背景\n{self.context}\n\n"
-        md += f"## 決定\n{self.decision}\n\n"
-        md += "## 結果\n"
+        md += f"## Context\n{self.context}\n\n"
+        md += f"## Decision\n{self.decision}\n\n"
+        md += "## Consequences\n"
         for c in self.consequences:
-            icon = "✅" if c['type'] == 'positive' else "⚠️"
-            md += f"- {icon} {c['description']}\n"
-        md += "\n## 却下した代替案\n"
+            icon = "+" if c['type'] == 'positive' else "!"
+            md += f"- [{icon}] {c['description']}\n"
+        md += "\n## Rejected Alternatives\n"
         for a in self.alternatives:
             md += f"- **{a['name']}**: {a['reason_rejected']}\n"
         return md
@@ -1464,47 +1680,47 @@ class ArchitectureDecisionRecord:
 
 ## FAQ
 
-### Q1: コンピュータは意識を持てますか？
-**A**: 現在の科学では未解決の問題。意識の定義自体が確立していない。チューリングテストに合格するAI（行動的に区別できない）は実現しつつあるが、「主観的経験（クオリア）」を持つかは別問題。中国語の部屋の議論（Searle, 1980）が示すように、振る舞いの模倣と理解は異なる可能性がある。統合情報理論（IIT）は意識の数学的尺度Φ（ファイ）を提案しているが、実用的な測定方法はまだ確立していない。
+### Q1: Can computers have consciousness?
+**A**: This remains an unsolved problem in current science. The very definition of consciousness has not been established. AI that passes the Turing test (behaviorally indistinguishable) is becoming a reality, but whether it possesses "subjective experience (qualia)" is a separate question. As the Chinese Room argument (Searle, 1980) illustrates, mimicking behavior and actual understanding may differ. Integrated Information Theory (IIT) proposes a mathematical measure of consciousness, Phi, but practical measurement methods have not yet been established.
 
-### Q2: 脳のシミュレーションにはどの程度のコンピュータが必要？
-**A**: ニューロン単位の完全シミュレーション（Blue Brain Project等）では、1万ニューロンに現代のスーパーコンピュータが必要。860億ニューロン全体のシミュレーションには、現在の計算能力の約100万倍が必要と推定。エクサスケールコンピュータでも不十分。ただし、抽象度を上げれば（例: 大脳皮質の機能的モデル）、必要な計算量は大幅に削減できる。
+### Q2: How much computing power is needed to simulate the brain?
+**A**: In full neuron-level simulation (e.g., Blue Brain Project), approximately 10,000 neurons require a modern supercomputer. A complete simulation of all 86 billion neurons would require an estimated 1 million times current computing capacity. Even exascale computers would be insufficient. However, raising the level of abstraction (e.g., functional models of the cerebral cortex) can significantly reduce the required computation.
 
-### Q3: 人間はコンピュータと競争すべきですか？
-**A**: 競争ではなく補完の関係。コンピュータの強み（速度、正確性、忍耐力）と人間の強み（創造性、共感、適応力）を組み合わせるのが最善。AIツールを使いこなすリテラシーが重要。「AIに置き換えられる仕事」ではなく「AIを使いこなす人材」が求められる。
+### Q3: Should humans compete with computers?
+**A**: The relationship should be complementary, not competitive. Combining computers' strengths (speed, accuracy, endurance) with humans' strengths (creativity, empathy, adaptability) is the best approach. AI literacy -- the ability to effectively use AI tools -- is what matters. The demand is not for "jobs that AI can replace" but for "people who can harness AI."
 
-### Q4: 脳の研究はAI研究にどの程度貢献していますか？
-**A**: 歴史的に極めて大きな貢献をしている。ニューラルネットワーク自体が脳の模倣から始まり、CNNは視覚野の研究から、強化学習はドーパミン系の研究から着想された。最近ではTransformerの注意メカニズムも脳の選択的注意との類似性が議論されている。一方で、現代のAI技術は脳から離れた独自の方向にも進化しており、バックプロパゲーションのように脳では起きないメカニズムも多い。
+### Q4: How much has brain research contributed to AI research?
+**A**: Historically, the contribution has been enormous. Neural networks themselves originated from brain mimicry. CNNs were inspired by visual cortex research, and reinforcement learning was inspired by dopamine system research. Recently, the Transformer's attention mechanism has been discussed in terms of its similarity to the brain's selective attention. On the other hand, modern AI technology has also evolved in directions independent of the brain, with many mechanisms like backpropagation that do not occur in the brain.
 
-### Q5: ニューロモーフィックコンピューティングは実用化されますか？
-**A**: 特定のニッチ（エッジAI、IoT、低電力環境）では実用化が進む可能性が高い。汎用コンピュータを完全に置き換えることは当面ない。Intel Loihi 2やBrainChip Akidaなどが商用製品として出始めている。自動運転、ドローン、ウェアラブルデバイスなど、低消費電力でリアルタイム処理が求められる分野が有望。
+### Q5: Will neuromorphic computing become practical?
+**A**: It is likely to become practical in specific niches (edge AI, IoT, low-power environments). It will not replace general-purpose computers in the foreseeable future. Products such as Intel Loihi 2 and BrainChip Akida are emerging commercially. Promising domains include autonomous driving, drones, and wearable devices -- areas where low power consumption and real-time processing are required.
 
-### Q6: 脳の計算モデルで最も有力なものは？
-**A**: 現在最も注目されているのは「予測符号化（Predictive Coding）」フレームワーク。脳は常に外界の状態を予測し、予測と実際の入力の差（予測誤差）を最小化するように動作するという理論。これは自由エネルギー原理（Karl Friston）として統一的に定式化されている。知覚、学習、行動の全てを「予測誤差の最小化」で説明できる可能性がある。
-
----
-
-## まとめ
-
-| 概念 | ポイント |
-|------|---------|
-| 構造 | 脳は超並列・低速、コンピュータは逐次・高速 |
-| 得意分野 | 脳:パターン認識・創造性、PC:正確な計算・大量処理 |
-| エネルギー | 脳は20Wで驚異的な効率。PCの300倍効率的 |
-| 記憶 | 脳は連想記憶(約1PB)、PCはアドレス記憶 |
-| 学習 | 脳は少数データで学習可能、AIは大量データが必要 |
-| 並列性 | 脳は浅くて広い並列処理、PCは深くて狭い逐次処理 |
-| 認知バイアス | 脳は進化の副産物としてバイアスを持つ |
-| 未来 | ニューロモーフィック、BCIで脳とPCの融合が進む |
-| 実務応用 | 脳の設計原則（冗長性、階層化、イベント駆動等）をシステムに活用 |
+### Q6: What is the most promising computational model of the brain?
+**A**: The most notable framework currently is "Predictive Coding." This theory posits that the brain constantly predicts the state of the external world and operates to minimize the difference (prediction error) between predictions and actual inputs. This has been formulated as the Free Energy Principle (Karl Friston) in a unified manner. It may be possible to explain perception, learning, and behavior all as "minimization of prediction error."
 
 ---
 
-## 次に読むべきガイド
+## Summary
+
+| Concept | Key Point |
+|---------|-----------|
+| Structure | Brain: massively parallel, slow. Computer: sequential, fast |
+| Strengths | Brain: pattern recognition, creativity. PC: precise calculation, mass processing |
+| Energy | Brain achieves remarkable efficiency at 20 W -- 300x more efficient than PCs |
+| Memory | Brain: associative memory (~1 PB). PC: address-based memory |
+| Learning | Brain can learn from few examples. AI requires massive data |
+| Parallelism | Brain: shallow and wide parallel processing. PC: deep and narrow sequential processing |
+| Cognitive biases | Brain possesses biases as by-products of evolution |
+| Future | Neuromorphic computing and BCI are driving brain-PC convergence |
+| Practical application | Apply brain design principles (redundancy, hierarchical caching, event-driven, etc.) to systems |
 
 ---
 
-## 参考文献
+## Recommended Next Guides
+
+---
+
+## References
 1. Herculano-Houzel, S. "The Human Advantage: A New Understanding of How Our Brain Became Remarkable." MIT Press, 2016.
 2. Bartol, T. M. et al. "Nanoconnectomic upper bound on the variability of synaptic plasticity." eLife, 2015.
 3. Feldman, J. A. "Connectionist Models and Their Properties." Cognitive Science, 1982.
