@@ -1,174 +1,174 @@
-# 計算可能性
+# Computability
 
-> 「全ての問題がコンピュータで解けるわけではない」——この事実はCS最大の発見の一つであり、停止問題の決定不能性がその象徴である。
+> "Not every problem can be solved by a computer" -- this fact is one of the greatest discoveries in CS, and the undecidability of the halting problem is its hallmark.
 
-## この章で学ぶこと
+## Learning Objectives
 
-- [ ] チューリングマシンの概念と各種変種を説明できる
-- [ ] 停止問題が決定不能であることを理解し、証明を再現できる
-- [ ] 決定可能と決定不能の境界を理解する
-- [ ] 帰着（Reduction）の概念を使って決定不能性を証明できる
-- [ ] チャーチ=チューリングの提唱の意味と限界を理解する
-- [ ] 計算可能性理論の実務への影響を説明できる
-- [ ] 再帰定理とライスの定理を理解する
-- [ ] 計算可能性の歴史的背景と動機を把握する
+- [ ] Explain the concept of Turing machines and their various variants
+- [ ] Understand and reproduce the proof that the halting problem is undecidable
+- [ ] Understand the boundary between decidable and undecidable problems
+- [ ] Prove undecidability using the concept of reduction
+- [ ] Understand the meaning and limitations of the Church-Turing thesis
+- [ ] Explain the practical impact of computability theory
+- [ ] Understand the recursion theorem and Rice's theorem
+- [ ] Grasp the historical background and motivation of computability theory
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Having the following knowledge will deepen your understanding before reading this guide:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [オートマトンと形式言語](./00-automata.md) の内容を理解していること
-
----
-
-## 1. 歴史的背景と動機
-
-### 1.1 ヒルベルトの計画と決定問題
-
-```
-ヒルベルトの計画（1900年〜1930年代）:
-
-  ダヴィッド・ヒルベルトの3つの問い:
-  1. 完全性: 数学の全ての真なる命題は証明可能か？
-  2. 無矛盾性: 数学は矛盾を含まないか？
-  3. 決定可能性: 任意の数学的命題の真偽を機械的に判定できるか？（Entscheidungsproblem）
-
-  ゲーデルの不完全性定理（1931年）:
-  - 第一不完全性定理: 十分に強い無矛盾な形式体系には、
-    証明も反証もできない命題が存在する
-  - 第二不完全性定理: 十分に強い無矛盾な形式体系は、
-    自身の無矛盾性を証明できない
-
-  チューリングの回答（1936年）:
-  - 決定問題に対する否定的回答
-  - 「計算」の概念を厳密に定義するためにチューリングマシンを考案
-  - 停止問題の決定不能性を証明
-
-  同時期の貢献:
-  - アロンゾ・チャーチ: λ計算（1936年）
-  - エミール・ポスト: ポスト生成系（1936年）
-  - スティーヴン・クリーネ: 再帰関数（1936年）
-  → 全て同等の計算能力を持つことが後に証明された
-```
-
-### 1.2 「計算」とは何か
-
-```
-「計算可能」の直感的理解:
-
-  日常の「計算」:
-  - 足し算、掛け算 → 明らかに計算可能
-  - ソート → 明らかに計算可能
-  - 素数判定 → 計算可能
-
-  微妙な「計算」:
-  - 「この数学の命題は真か？」 → 一般には計算不可能
-  - 「このプログラムは停止するか？」 → 計算不可能
-  - 「この暗号は安全か？」 → 一般には計算不可能
-
-  計算可能性理論の目的:
-  → 「原理的に解ける問題」と「原理的に解けない問題」の境界を見極める
-
-  実務への影響:
-  - 解けない問題を解こうとする無駄を避ける
-  - 近似解や制限付き解法へのアプローチを導く
-  - ソフトウェア検証の限界を理解する
-```
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Understanding of the content in [Automata and Formal Languages](./00-automata.md)
 
 ---
 
-## 2. チューリングマシン
+## 1. Historical Background and Motivation
 
-### 2.1 形式的定義
-
-```
-チューリングマシン: 計算の理論的モデル
-
-  構成:
-  ┌──────────────────────────────────────────────┐
-  │ ... │ B │ 1 │ 0 │ 1 │ 1 │ B │ B │ ...      │ ← 無限テープ
-  └──────────────────────────────────────────────┘
-                    ↑
-                 ヘッド（読み書き）
-                 ┌─────┐
-                 │ 状態q│ ← 有限制御
-                 └─────┘
-
-  形式的定義 M = (Q, Σ, Γ, δ, q₀, q_accept, q_reject):
-
-  Q: 状態の有限集合
-  Σ: 入力アルファベット（空白記号Bを含まない）
-  Γ: テープアルファベット（Σ ⊂ Γ、B ∈ Γ）
-  δ: Q × Γ → Q × Γ × {L, R}  遷移関数
-  q₀: 開始状態（q₀ ∈ Q）
-  q_accept: 受理状態（q_accept ∈ Q）
-  q_reject: 拒否状態（q_reject ∈ Q、q_accept ≠ q_reject）
-
-  動作: (現在の状態, 読んだ記号) → (書く記号, ヘッド移動, 次の状態)
-
-  計算の過程:
-  1. 入力文字列がテープに書かれる
-  2. ヘッドは最左の記号の上に位置する
-  3. 遷移関数に従って動作を繰り返す
-  4. 受理状態に到達 → 入力を「受理」
-  5. 拒否状態に到達 → 入力を「拒否」
-  6. 永遠に停止しない場合もある → 「ループ」
-```
-
-### 2.2 具体例: 回文判定チューリングマシン
+### 1.1 Hilbert's Program and the Decision Problem
 
 ```
-問題: 入力文字列 w ∈ {0, 1}* が回文かどうかを判定する
+Hilbert's Program (1900s-1930s):
 
-アルゴリズム:
-1. 最初の文字を読んで記憶し、Xで上書き
-2. テープ末尾に移動
-3. 末尾の文字が記憶した文字と一致するか確認
-4. 一致すればXで上書きし、テープ先頭に戻る
-5. 全ての文字がXになれば受理
+  David Hilbert's three questions:
+  1. Completeness: Can all true mathematical propositions be proven?
+  2. Consistency: Is mathematics free of contradictions?
+  3. Decidability: Can the truth of any mathematical proposition be mechanically determined? (Entscheidungsproblem)
 
-状態:
-  q₀: 開始状態
-  q₁: 最初の文字が0だった場合、右端へ移動中
-  q₂: 最初の文字が1だった場合、右端へ移動中
-  q₃: 右端で0を確認後、左端へ移動中
-  q₄: 右端で1を確認後、左端へ移動中
-  q₅: 左端に戻る途中
-  q_accept: 受理
-  q_reject: 拒否
+  Godel's Incompleteness Theorems (1931):
+  - First Incompleteness Theorem: In any sufficiently strong consistent formal system,
+    there exist propositions that can be neither proved nor disproved
+  - Second Incompleteness Theorem: A sufficiently strong consistent formal system
+    cannot prove its own consistency
 
-遷移表の一部:
-  δ(q₀, 0) = (q₁, X, R)    -- 最初が0、記憶してXで上書き
-  δ(q₀, 1) = (q₂, X, R)    -- 最初が1、記憶してXで上書き
-  δ(q₀, X) = (q₀, X, R)    -- Xをスキップ
-  δ(q₀, B) = (q_accept, B, R)  -- 全てXになった、受理
+  Turing's Answer (1936):
+  - A negative answer to the decision problem
+  - Invented the Turing machine to rigorously define the concept of "computation"
+  - Proved the undecidability of the halting problem
 
-  δ(q₁, 0) = (q₁, 0, R)    -- 右端へ移動中
-  δ(q₁, 1) = (q₁, 1, R)
-  δ(q₁, X) = (q₁, X, R)
-  δ(q₁, B) = (q₃, B, L)    -- 右端に到達、確認へ
-
-  δ(q₃, X) = (q₃, X, L)    -- Xをスキップ
-  δ(q₃, 0) = (q₅, X, L)    -- 0が一致、Xで上書き
-  δ(q₃, 1) = (q_reject, 1, R)  -- 不一致、拒否
-
-実行例: 入力 "0110"
-  ステップ1: [0]110B → X[1]10B  (q₀ → q₁, 0を記憶)
-  ステップ2: X[1]10B → X1[1]0B → X11[0]B → X110[B]
-  ステップ3: X110[B] → X11[0]B  (q₁ → q₃, 右端到達)
-  ステップ4: X11[0]B → X1[1]XB  (0一致、Xで上書き)
-  ステップ5: ... (左端に戻り、繰り返す)
-  最終的に受理
+  Contemporary Contributions:
+  - Alonzo Church: Lambda calculus (1936)
+  - Emil Post: Post production system (1936)
+  - Stephen Kleene: Recursive functions (1936)
+  -> All were later proven to have equivalent computational power
 ```
 
-### 2.3 チューリングマシンのシミュレーション（Python）
+### 1.2 What is "Computation"?
+
+```
+Intuitive Understanding of "Computable":
+
+  Everyday "computation":
+  - Addition, multiplication -> Clearly computable
+  - Sorting -> Clearly computable
+  - Primality testing -> Computable
+
+  Subtle "computation":
+  - "Is this mathematical proposition true?" -> Generally not computable
+  - "Does this program halt?" -> Not computable
+  - "Is this cipher secure?" -> Generally not computable
+
+  Purpose of computability theory:
+  -> Identify the boundary between "problems solvable in principle" and "problems unsolvable in principle"
+
+  Practical implications:
+  - Avoid wasting effort trying to solve unsolvable problems
+  - Guide approaches toward approximations or restricted solutions
+  - Understand the limits of software verification
+```
+
+---
+
+## 2. Turing Machines
+
+### 2.1 Formal Definition
+
+```
+Turing Machine: A theoretical model of computation
+
+  Components:
+  +----------------------------------------------+
+  | ... | B | 1 | 0 | 1 | 1 | B | B | ...      | <- Infinite tape
+  +----------------------------------------------+
+                    ^
+                 Head (read/write)
+                 +-------+
+                 | State q| <- Finite control
+                 +-------+
+
+  Formal definition M = (Q, Sigma, Gamma, delta, q0, q_accept, q_reject):
+
+  Q: Finite set of states
+  Sigma: Input alphabet (does not include blank symbol B)
+  Gamma: Tape alphabet (Sigma subset of Gamma, B in Gamma)
+  delta: Q x Gamma -> Q x Gamma x {L, R}  Transition function
+  q0: Start state (q0 in Q)
+  q_accept: Accept state (q_accept in Q)
+  q_reject: Reject state (q_reject in Q, q_accept != q_reject)
+
+  Operation: (current state, symbol read) -> (symbol to write, head movement, next state)
+
+  Computation process:
+  1. The input string is written on the tape
+  2. The head is positioned over the leftmost symbol
+  3. Operations are repeated according to the transition function
+  4. Reaching the accept state -> "accept" the input
+  5. Reaching the reject state -> "reject" the input
+  6. May never halt -> "loop"
+```
+
+### 2.2 Concrete Example: Palindrome Detection Turing Machine
+
+```
+Problem: Determine whether an input string w in {0, 1}* is a palindrome
+
+Algorithm:
+1. Read the first character, remember it, and overwrite with X
+2. Move to the end of the tape
+3. Check if the last character matches the remembered character
+4. If it matches, overwrite with X and return to the beginning of the tape
+5. If all characters become X, accept
+
+States:
+  q0: Start state
+  q1: First character was 0, moving to the right end
+  q2: First character was 1, moving to the right end
+  q3: After confirming 0 at the right end, moving to the left end
+  q4: After confirming 1 at the right end, moving to the left end
+  q5: Returning to the left end
+  q_accept: Accept
+  q_reject: Reject
+
+Partial transition table:
+  delta(q0, 0) = (q1, X, R)    -- First is 0, remember and overwrite with X
+  delta(q0, 1) = (q2, X, R)    -- First is 1, remember and overwrite with X
+  delta(q0, X) = (q0, X, R)    -- Skip X
+  delta(q0, B) = (q_accept, B, R)  -- All became X, accept
+
+  delta(q1, 0) = (q1, 0, R)    -- Moving to the right end
+  delta(q1, 1) = (q1, 1, R)
+  delta(q1, X) = (q1, X, R)
+  delta(q1, B) = (q3, B, L)    -- Reached the right end, proceed to check
+
+  delta(q3, X) = (q3, X, L)    -- Skip X
+  delta(q3, 0) = (q5, X, L)    -- 0 matches, overwrite with X
+  delta(q3, 1) = (q_reject, 1, R)  -- Mismatch, reject
+
+Execution example: Input "0110"
+  Step 1: [0]110B -> X[1]10B  (q0 -> q1, remember 0)
+  Step 2: X[1]10B -> X1[1]0B -> X11[0]B -> X110[B]
+  Step 3: X110[B] -> X11[0]B  (q1 -> q3, reached right end)
+  Step 4: X11[0]B -> X1[1]XB  (0 matches, overwrite with X)
+  Step 5: ... (return to left end, repeat)
+  Eventually accepted
+```
+
+### 2.3 Turing Machine Simulation (Python)
 
 ```python
 class TuringMachine:
-    """チューリングマシンのシミュレータ"""
+    """Turing machine simulator"""
 
     def __init__(self, states, input_alphabet, tape_alphabet,
                  transition_function, start_state,
@@ -182,8 +182,8 @@ class TuringMachine:
         self.reject_state = reject_state
 
     def run(self, input_string, max_steps=10000):
-        """入力文字列に対してTMを実行する"""
-        # テープの初期化
+        """Run the TM on an input string"""
+        # Initialize the tape
         tape = list(input_string) + ['B']
         head = 0
         state = self.start_state
@@ -192,7 +192,7 @@ class TuringMachine:
         history = []
 
         while steps < max_steps:
-            # 現在の設定を記録
+            # Record the current configuration
             history.append({
                 'step': steps,
                 'state': state,
@@ -200,20 +200,20 @@ class TuringMachine:
                 'tape': ''.join(tape)
             })
 
-            # 受理・拒否の判定
+            # Check for accept/reject
             if state == self.accept_state:
                 return 'accept', history
             if state == self.reject_state:
                 return 'reject', history
 
-            # テープの拡張（必要に応じて）
+            # Extend the tape if necessary
             if head < 0:
                 tape.insert(0, 'B')
                 head = 0
             if head >= len(tape):
                 tape.append('B')
 
-            # 遷移の実行
+            # Execute the transition
             current_symbol = tape[head]
             key = (state, current_symbol)
 
@@ -226,31 +226,31 @@ class TuringMachine:
             head += 1 if direction == 'R' else -1
             steps += 1
 
-        return 'loop', history  # max_steps超過
+        return 'loop', history  # Exceeded max_steps
 
 
-# 具体例: 2進数を1増やすチューリングマシン
+# Concrete example: Turing machine that increments a binary number
 def create_binary_increment_tm():
-    """2進数のインクリメントを行うTM"""
+    """TM that performs binary increment"""
     states = {'q0', 'q1', 'q2', 'q_accept'}
     input_alphabet = {'0', '1'}
     tape_alphabet = {'0', '1', 'B'}
 
-    # q0: 右端に移動
-    # q1: 右端から左へ、繰り上がり処理
-    # q2: 繰り上がり完了、左端に戻る
+    # q0: Move to the right end
+    # q1: From right end leftward, carry processing
+    # q2: Carry complete, return to left end
     transition = {
-        # 右端まで移動
+        # Move to the right end
         ('q0', '0'): ('q0', '0', 'R'),
         ('q0', '1'): ('q0', '1', 'R'),
         ('q0', 'B'): ('q1', 'B', 'L'),
 
-        # インクリメント処理（右から左へ）
-        ('q1', '1'): ('q1', '0', 'L'),  # 繰り上がり
-        ('q1', '0'): ('q2', '1', 'L'),  # 繰り上がり停止
-        ('q1', 'B'): ('q_accept', '1', 'R'),  # 先頭に繰り上がり
+        # Increment processing (right to left)
+        ('q1', '1'): ('q1', '0', 'L'),  # Carry
+        ('q1', '0'): ('q2', '1', 'L'),  # Carry stops
+        ('q1', 'B'): ('q_accept', '1', 'R'),  # Carry to the front
 
-        # 完了、左端に戻る
+        # Complete, return to left end
         ('q2', '0'): ('q2', '0', 'L'),
         ('q2', '1'): ('q2', '1', 'L'),
         ('q2', 'B'): ('q_accept', 'B', 'R'),
@@ -262,83 +262,83 @@ def create_binary_increment_tm():
     )
 
 
-# 実行例
+# Execution example
 tm = create_binary_increment_tm()
 
 test_cases = ['0', '1', '10', '11', '101', '111', '1111']
 for tc in test_cases:
     result, history = tm.run(tc)
     final_tape = history[-1]['tape'].rstrip('B')
-    print(f"  {tc} → {final_tape} ({result})")
+    print(f"  {tc} -> {final_tape} ({result})")
 
-# 出力:
-#   0 → 1 (accept)
-#   1 → 10 (accept)
-#   10 → 11 (accept)
-#   11 → 100 (accept)
-#   101 → 110 (accept)
-#   111 → 1000 (accept)
-#   1111 → 10000 (accept)
+# Output:
+#   0 -> 1 (accept)
+#   1 -> 10 (accept)
+#   10 -> 11 (accept)
+#   11 -> 100 (accept)
+#   101 -> 110 (accept)
+#   111 -> 1000 (accept)
+#   1111 -> 10000 (accept)
 ```
 
-### 2.4 チューリングマシンの変種
+### 2.4 Variants of Turing Machines
 
 ```
-チューリングマシンには多くの変種があるが、全て計算能力は同等:
+There are many variants of Turing machines, but all have equivalent computational power:
 
-  1. 多テープチューリングマシン
-     ┌───────────────────┐  テープ1（入力用）
-     └───────────────────┘
-              ↑
-     ┌───────────────────┐  テープ2（作業用）
-     └───────────────────┘
-              ↑
-     ┌───────────────────┐  テープ3（出力用）
-     └───────────────────┘
-              ↑
-           ┌─────┐
-           │ 状態q│
-           └─────┘
-     → 1テープで多テープをシミュレート可能（O(t²)ステップ）
-     → プログラミングで言えば複数の変数を使うのと同等
+  1. Multi-tape Turing Machine
+     +-------------------+  Tape 1 (input)
+     +-------------------+
+              ^
+     +-------------------+  Tape 2 (working)
+     +-------------------+
+              ^
+     +-------------------+  Tape 3 (output)
+     +-------------------+
+              ^
+           +-------+
+           | State q|
+           +-------+
+     -> Can simulate multi-tape with a single tape (O(t^2) steps)
+     -> Equivalent to using multiple variables in programming
 
-  2. 非決定性チューリングマシン (NTM)
-     δ: Q × Γ → P(Q × Γ × {L, R})
-     → 遷移先が集合（複数の選択肢）
-     → 「正しい選択」が存在すれば受理
-     → 決定性TMでシミュレート可能（指数的な時間増加）
-     → NP問題との関係が深い
+  2. Nondeterministic Turing Machine (NTM)
+     delta: Q x Gamma -> P(Q x Gamma x {L, R})
+     -> Transition targets are sets (multiple choices)
+     -> Accepts if a "correct choice" exists
+     -> Can be simulated by a deterministic TM (exponential time increase)
+     -> Closely related to NP problems
 
-  3. 列挙器（Enumerator）
-     → 言語の全ての文字列を出力する
-     → チューリング認識可能な言語と等価
+  3. Enumerator
+     -> Outputs all strings in a language
+     -> Equivalent to Turing-recognizable languages
 
-  4. 万能チューリングマシン (UTM)
-     → 任意のTMの記述と入力を受け取り、そのTMをシミュレートする
-     → 現代のコンピュータの概念的な原型
-     → プログラム内蔵方式の理論的基礎
+  4. Universal Turing Machine (UTM)
+     -> Takes the description of any TM and its input, simulates that TM
+     -> Conceptual prototype of modern computers
+     -> Theoretical foundation of the stored-program concept
 
-  5. 制限付きチューリングマシン
-     - 線形有界オートマトン (LBA): テープ長が入力長に比例
-       → 文脈依存言語を認識
-     - プッシュダウンオートマトン (PDA): スタックのみ使用可能
-       → 文脈自由言語を認識
-     - 有限オートマトン (FA): 内部記憶なし
-       → 正規言語を認識
+  5. Restricted Turing Machines
+     - Linear Bounded Automaton (LBA): Tape length proportional to input length
+       -> Recognizes context-sensitive languages
+     - Pushdown Automaton (PDA): Can only use a stack
+       -> Recognizes context-free languages
+     - Finite Automaton (FA): No internal memory
+       -> Recognizes regular languages
 ```
 
-### 2.5 万能チューリングマシンの詳細
+### 2.5 Details of the Universal Turing Machine
 
 ```python
 class UniversalTuringMachine:
-    """万能チューリングマシンの概念的実装"""
+    """Conceptual implementation of a Universal Turing Machine"""
 
     def __init__(self):
         pass
 
     def encode_tm(self, tm):
-        """チューリングマシンをエンコードする（ゲーデル数化）"""
-        # 状態、アルファベット、遷移関数をシリアライズ
+        """Encode a Turing machine (Godel numbering)"""
+        # Serialize states, alphabet, and transition function
         encoding = {
             'states': list(tm.states),
             'input_alphabet': list(tm.input_alphabet),
@@ -360,8 +360,8 @@ class UniversalTuringMachine:
         return encoding
 
     def simulate(self, encoded_tm, input_string, max_steps=10000):
-        """エンコードされたTMを入力文字列上でシミュレートする"""
-        # デコード
+        """Simulate an encoded TM on an input string"""
+        # Decode
         transitions = {}
         for key, value in encoded_tm['transitions'].items():
             state, symbol = key.split(',')
@@ -371,7 +371,7 @@ class UniversalTuringMachine:
                 value['direction']
             )
 
-        # シミュレーション
+        # Simulation
         tape = list(input_string) + ['B']
         head = 0
         state = encoded_tm['start_state']
@@ -397,70 +397,70 @@ class UniversalTuringMachine:
             state = new_state
             head += 1 if direction == 'R' else -1
 
-        return 'timeout'  # ステップ数超過（停止しない可能性）
+        return 'timeout'  # Step count exceeded (may not halt)
 
 
-# 万能TMの意義:
-# 1. 一つのマシンで全てのプログラムを実行できる
-# 2. 現代のコンピュータ（ノイマン型）の理論的基礎
-# 3. 「プログラムもデータとして扱える」という概念の原型
-# 4. コンパイラ、インタプリタの理論的正当化
+# Significance of the Universal TM:
+# 1. A single machine can execute all programs
+# 2. Theoretical foundation of modern computers (von Neumann architecture)
+# 3. Prototype of the concept that "programs can be treated as data"
+# 4. Theoretical justification for compilers and interpreters
 ```
 
-### 2.6 チューリング完全性
+### 2.6 Turing Completeness
 
 ```
-チューリング完全性: 計算システムがチューリングマシンと同等の計算能力を持つこと
+Turing Completeness: A computational system having the same computational power as a Turing machine
 
-  チューリング完全なシステムの例:
-  ┌─────────────────────────────────────────────┐
-  │ プログラミング言語                             │
-  │  - Python, Java, C, C++, Rust, Go            │
-  │  - JavaScript, TypeScript, Ruby, PHP         │
-  │  - Haskell, OCaml, Lisp, Scheme              │
-  │  - アセンブリ言語                              │
-  └─────────────────────────────────────────────┘
+  Examples of Turing-complete systems:
+  +---------------------------------------------+
+  | Programming Languages                        |
+  |  - Python, Java, C, C++, Rust, Go            |
+  |  - JavaScript, TypeScript, Ruby, PHP         |
+  |  - Haskell, OCaml, Lisp, Scheme              |
+  |  - Assembly language                          |
+  +---------------------------------------------+
 
-  ┌─────────────────────────────────────────────┐
-  │ 意外なチューリング完全システム                  │
-  │  - CSS（アニメーション + 条件分岐の組合せ）       │
-  │  - SQL（再帰CTEを使用）                        │
-  │  - Excel（数式のみ）                           │
-  │  - PowerPoint（アニメーション）                  │
-  │  - マインクラフト（レッドストーン回路）            │
-  │  - ライフゲーム（Conway's Game of Life）        │
-  │  - LaTeX（マクロシステム）                      │
-  │  - sed（ストリームエディタ）                     │
-  │  - sendmail.cf（設定ファイル）                   │
-  │  - TypeScript の型システム                     │
-  └─────────────────────────────────────────────┘
+  +---------------------------------------------+
+  | Surprising Turing-complete systems            |
+  |  - CSS (combination of animations + conditionals) |
+  |  - SQL (using recursive CTEs)                 |
+  |  - Excel (formulas only)                      |
+  |  - PowerPoint (animations)                    |
+  |  - Minecraft (redstone circuits)              |
+  |  - Game of Life (Conway's Game of Life)       |
+  |  - LaTeX (macro system)                       |
+  |  - sed (stream editor)                        |
+  |  - sendmail.cf (configuration file)           |
+  |  - TypeScript's type system                   |
+  +---------------------------------------------+
 
-  チューリング完全に必要な最小要件:
-  1. 条件分岐（if-then-else）
-  2. 無限の記憶領域（任意の量のデータ保存）
-  3. 状態の読み書き
-  4. 繰り返し（ループまたは再帰）
+  Minimum requirements for Turing completeness:
+  1. Conditional branching (if-then-else)
+  2. Infinite memory (ability to store arbitrary amounts of data)
+  3. Read/write state
+  4. Repetition (loops or recursion)
 
-  チューリング完全でないシステムの例:
-  - 正規表現（標準的な定義）
-  - 有限オートマトン
-  - 全域再帰関数（Total recursive functions）
-  - LOOP言語（原始再帰関数のみ）
+  Examples of non-Turing-complete systems:
+  - Regular expressions (standard definition)
+  - Finite automata
+  - Total recursive functions
+  - LOOP language (primitive recursive functions only)
 ```
 
 ```python
-# チューリング完全性の最小例: BFインタプリタ
-# BFは8命令のみでチューリング完全
+# Minimal example of Turing completeness: BF interpreter
+# BF is Turing-complete with only 8 instructions
 
 def bf_interpreter(code, input_data=""):
-    """Brainf*ckインタプリタ — チューリング完全な最小言語"""
+    """Brainf*ck interpreter -- a minimal Turing-complete language"""
     tape = [0] * 30000
     ptr = 0
     pc = 0
     input_pos = 0
     output = []
 
-    # ブラケットの対応表を構築
+    # Build bracket matching table
     brackets = {}
     stack = []
     for i, c in enumerate(code):
@@ -515,318 +515,318 @@ hello_bf = (
 )
 print(bf_interpreter(hello_bf))  # "Hello World!\n"
 
-# BFがチューリング完全である理由:
-# - 無限（十分に大きい）テープ → 任意の記憶
-# - ループ構造 ([...]) → 繰り返し
-# - 条件分岐 ([]でゼロチェック) → 条件
-# - データの読み書き (+, -, >, <) → 状態操作
+# Why BF is Turing-complete:
+# - Infinite (sufficiently large) tape -> Arbitrary memory
+# - Loop structure ([...]) -> Repetition
+# - Conditional branching ([] for zero check) -> Conditionals
+# - Data read/write (+, -, >, <) -> State manipulation
 ```
 
 ---
 
-## 3. チャーチ=チューリングの提唱
+## 3. The Church-Turing Thesis
 
-### 3.1 提唱の内容
-
-```
-チャーチ=チューリングの提唱（Church-Turing Thesis）:
-
-  定義:
-  「直感的に計算可能な関数は、チューリングマシンで計算可能な関数と
-   正確に一致する」
-
-  注意: これは数学的定理ではなく「提唱」（仮説）である
-  → 反証は可能だが、これまで反例は見つかっていない
-
-  等価であることが証明されたモデル:
-  ┌─────────────────────────────────────────┐
-  │                                         │
-  │  チューリングマシン ←→ λ計算             │
-  │       ↕                  ↕              │
-  │  帰納的関数 ←───→ ポスト生成系           │
-  │       ↕                  ↕              │
-  │  レジスタマシン ←→ マルコフアルゴリズム   │
-  │                                         │
-  └─────────────────────────────────────────┘
-
-  全て同じ計算能力を持つ → 計算可能性の「ロバスト性」
-```
-
-### 3.2 物理的チャーチ=チューリングの提唱
+### 3.1 Content of the Thesis
 
 ```
-物理的チャーチ=チューリングの提唱:
+Church-Turing Thesis:
 
-  「物理的に実現可能な全ての計算デバイスは、
-   チューリングマシンでシミュレート可能である」
+  Definition:
+  "The intuitively computable functions are exactly those functions
+   computable by a Turing machine"
 
-  これに対する議論:
+  Note: This is a "thesis" (hypothesis), not a mathematical theorem
+  -> It can be refuted, but no counterexample has been found so far
 
-  賛成派の主張:
-  - 量子コンピュータもチューリングマシンでシミュレート可能
-    （効率は悪いが、計算能力は同等）
-  - 今のところ反例となる物理デバイスは見つかっていない
+  Models proven to be equivalent:
+  +---------------------------------------------+
+  |                                             |
+  |  Turing Machine <-> Lambda Calculus         |
+  |       |                  |                  |
+  |  Recursive Functions <-> Post Production System |
+  |       |                  |                  |
+  |  Register Machine <-> Markov Algorithm      |
+  |                                             |
+  +---------------------------------------------+
 
-  反対・疑問派の主張:
-  - 超計算（Hypercomputation）の可能性
-    → ゼノンマシン（無限のステップを有限時間で実行）
-    → ブラックホールコンピュータ
-    → アナログ計算の無限精度
-  - しかし、これらは物理的に実現不可能と考えられている
-
-  実務的な意味:
-  - プログラミング言語の選択は「計算能力」に影響しない
-  - 全てのプログラミング言語はチューリング完全なら等価
-  - 言語の違いは「表現力」「効率」「安全性」のみ
+  All have the same computational power -> "Robustness" of computability
 ```
 
-### 3.3 強いチャーチ=チューリングの提唱
+### 3.2 Physical Church-Turing Thesis
 
 ```
-強いチャーチ=チューリングの提唱（Extended Church-Turing Thesis）:
+Physical Church-Turing Thesis:
 
-  「効率的に計算可能な関数は、確率的チューリングマシンで
-   多項式時間で計算可能な関数と一致する」
+  "All physically realizable computing devices can be
+   simulated by a Turing machine"
 
-  量子コンピュータによる挑戦:
-  - ショアのアルゴリズム: 素因数分解を多項式時間で解く
-  - 古典的に多項式時間で解けるかは未解明
-  → 強い提唱は量子コンピュータにより崩れる可能性がある
+  Arguments for and against:
 
-  しかし:
-  - 量子コンピュータでもNP完全問題は効率的に解けないと予想
-  - BQP ⊂ PSPACE は証明済み
-  → 量子でも「計算可能性」の境界は変わらない
+  Arguments in favor:
+  - Quantum computers can also be simulated by Turing machines
+    (inefficiently, but with equivalent computational power)
+  - No physical device serving as a counterexample has been found so far
+
+  Arguments against / skepticism:
+  - Possibility of hypercomputation
+    -> Zeno machines (executing infinite steps in finite time)
+    -> Black hole computers
+    -> Infinite precision of analog computation
+  - However, these are considered physically unrealizable
+
+  Practical meaning:
+  - The choice of programming language does not affect "computational power"
+  - All Turing-complete programming languages are equivalent
+  - The only differences between languages are "expressiveness," "efficiency," and "safety"
+```
+
+### 3.3 Strong Church-Turing Thesis
+
+```
+Strong Church-Turing Thesis (Extended Church-Turing Thesis):
+
+  "The efficiently computable functions are exactly those functions
+   computable in polynomial time by a probabilistic Turing machine"
+
+  Challenge from quantum computers:
+  - Shor's algorithm: Solves integer factorization in polynomial time
+  - Whether this is classically solvable in polynomial time is unknown
+  -> The strong thesis may be broken by quantum computers
+
+  However:
+  - Quantum computers are also not expected to solve NP-complete problems efficiently
+  - BQP subset of PSPACE has been proven
+  -> Even with quantum, the boundary of "computability" does not change
 ```
 
 ---
 
-## 4. 停止問題
+## 4. The Halting Problem
 
-### 4.1 停止問題の形式的定義
-
-```
-停止問題（Halting Problem）:
-
-  入力: チューリングマシンMの記述 ⟨M⟩ と入力文字列 w
-  出力: Mがwに対して停止するか？
-
-  形式的に:
-  HALT = { ⟨M, w⟩ | Mは入力wで停止する }
-
-  定理: HALTは決定不能（undecidable）である
-
-  直感的理解:
-  - 「このプログラムは停止するか？」に常に正しく答える
-    プログラムは存在しない
-  - 個別のプログラムについては判定できることもある
-  - しかし「全ての」プログラムに対して判定する万能の方法はない
-```
-
-### 4.2 決定不能の証明（詳細版）
+### 4.1 Formal Definition of the Halting Problem
 
 ```
-停止問題の決定不能性の証明（対角線論法による）:
+Halting Problem:
 
-  定理: HALT = { ⟨M, w⟩ | Mは入力wで停止する } は決定不能
+  Input: Description <M> of a Turing machine M and input string w
+  Output: Does M halt on w?
 
-  証明:
-  仮定: 停止判定プログラム H が存在するとする
-    H(⟨M⟩, w) = accept  (Mがwで停止する場合)
-    H(⟨M⟩, w) = reject  (Mがwで停止しない場合)
+  Formally:
+  HALT = { <M, w> | M halts on input w }
 
-  矛盾の構築:
-  プログラム D を以下のように定義する:
+  Theorem: HALT is undecidable
 
-    D(⟨M⟩):
-      H(⟨M⟩, ⟨M⟩) を実行
-      if H が accept を返す:
-        while True: pass    # 無限ループ
+  Intuitive understanding:
+  - A program that always correctly answers "Does this program halt?"
+    does not exist
+  - For individual programs, it may be possible to determine
+  - But there is no universal method to determine for "all" programs
+```
+
+### 4.2 Proof of Undecidability (Detailed Version)
+
+```
+Proof of the undecidability of the halting problem (by diagonalization):
+
+  Theorem: HALT = { <M, w> | M halts on input w } is undecidable
+
+  Proof:
+  Assumption: Suppose a halting decision program H exists
+    H(<M>, w) = accept  (if M halts on w)
+    H(<M>, w) = reject  (if M does not halt on w)
+
+  Constructing the contradiction:
+  Define program D as follows:
+
+    D(<M>):
+      Run H(<M>, <M>)
+      if H returns accept:
+        while True: pass    # Infinite loop
       else:
-        return              # 停止する
+        return              # Halt
 
-  D に自身の記述 ⟨D⟩ を入力する:
+  Give D its own description <D> as input:
 
-  場合1: D(⟨D⟩) が停止すると仮定
-    → H(⟨D⟩, ⟨D⟩) = accept
-    → Dの定義により、Dは無限ループに入る
-    → D(⟨D⟩) は停止しない
-    → 矛盾！
+  Case 1: Assume D(<D>) halts
+    -> H(<D>, <D>) = accept
+    -> By D's definition, D enters an infinite loop
+    -> D(<D>) does not halt
+    -> Contradiction!
 
-  場合2: D(⟨D⟩) が停止しないと仮定
-    → H(⟨D⟩, ⟨D⟩) = reject
-    → Dの定義により、Dはreturnで停止する
-    → D(⟨D⟩) は停止する
-    → 矛盾！
+  Case 2: Assume D(<D>) does not halt
+    -> H(<D>, <D>) = reject
+    -> By D's definition, D halts with return
+    -> D(<D>) halts
+    -> Contradiction!
 
-  両方の場合で矛盾が生じる
-  → 仮定「Hが存在する」が誤り
-  → HALTは決定不能 ∎
+  Both cases lead to contradictions
+  -> The assumption "H exists" is false
+  -> HALT is undecidable QED
 
-  この証明のポイント:
-  1. 自己参照（D が自分自身を入力に取る）
-  2. 対角線論法（カントールの対角線論法と同型）
-  3. パラドックス的構造（「嘘つきのパラドックス」に類似）
+  Key points of this proof:
+  1. Self-reference (D takes itself as input)
+  2. Diagonalization (isomorphic to Cantor's diagonal argument)
+  3. Paradoxical structure (similar to the "Liar's Paradox")
 ```
 
 ```python
-# 停止問題の不可能性を示すPython風の疑似コード
+# Python-style pseudocode demonstrating the impossibility of the halting problem
 
 def hypothetical_halts(program_source, input_data):
-    """仮に存在するとする停止判定関数（実際には存在しない）"""
-    # program_source をinput_data で実行した場合に
-    # 停止するかどうかを判定する
-    # ... 魔法の実装 ...
+    """A hypothetical halting decision function (does not actually exist)"""
+    # Determines whether program_source halts
+    # when executed with input_data
+    # ... magical implementation ...
     pass
 
 def diagonal(program_source):
-    """矛盾を引き起こすプログラム"""
+    """A program that creates a contradiction"""
     if hypothetical_halts(program_source, program_source):
-        # 停止すると判定されたら、無限ループ
+        # If determined to halt, enter an infinite loop
         while True:
             pass
     else:
-        # 停止しないと判定されたら、停止
+        # If determined not to halt, halt
         return
 
-# diagonal のソースコードを取得
+# Get the source code of diagonal
 diagonal_source = inspect.getsource(diagonal)
 
-# diagonal(diagonal_source) を実行するとどうなるか？
+# What happens when we run diagonal(diagonal_source)?
 #
-# 場合1: hypothetical_halts(diagonal_source, diagonal_source) == True
-#   → diagonal は停止すると判定された
-#   → しかしdiagonalは無限ループに入る
-#   → 停止しない → 矛盾
+# Case 1: hypothetical_halts(diagonal_source, diagonal_source) == True
+#   -> diagonal is determined to halt
+#   -> But diagonal enters an infinite loop
+#   -> Does not halt -> Contradiction
 #
-# 場合2: hypothetical_halts(diagonal_source, diagonal_source) == False
-#   → diagonal は停止しないと判定された
-#   → しかしdiagonalはreturnで停止する
-#   → 停止する → 矛盾
+# Case 2: hypothetical_halts(diagonal_source, diagonal_source) == False
+#   -> diagonal is determined not to halt
+#   -> But diagonal halts with return
+#   -> Halts -> Contradiction
 #
-# どちらの場合も矛盾 → hypothetical_halts は存在し得ない
+# Both cases lead to contradiction -> hypothetical_halts cannot exist
 ```
 
-### 4.3 カントールの対角線論法との関係
+### 4.3 Relationship with Cantor's Diagonal Argument
 
 ```
-カントールの対角線論法（1891年）と停止問題の証明の構造的類似:
+Structural similarity between Cantor's diagonal argument (1891) and the halting problem proof:
 
-  カントール: 実数の集合は自然数の集合より「大きい」
+  Cantor: The set of real numbers is "larger" than the set of natural numbers
 
-  自然数と実数の対応表（仮定）:
-  n | 実数の小数展開
-  ──┼─────────────
+  Correspondence table between natural numbers and reals (assumption):
+  n | Decimal expansion of real number
+  --+-------------------
   1 | 0.5 2 3 1 7 ...
   2 | 0.3 1 4 1 5 ...
   3 | 0.7 7 7 8 2 ...
   4 | 0.1 4 9 3 6 ...
   5 | 0.8 2 0 5 1 ...
-      ↓ ↓ ↓ ↓ ↓
-  対角線: 0.5 1 7 3 1 ...
-  新しい数: 0.6 2 8 4 2 ... （各桁を+1）
-  → この数は表のどの行とも異なる → 矛盾
+      v v v v v
+  Diagonal: 0.5 1 7 3 1 ...
+  New number: 0.6 2 8 4 2 ... (add 1 to each digit)
+  -> This number differs from every row in the table -> Contradiction
 
-  停止問題の証明:
+  Halting problem proof:
 
-  プログラムとその入力の対応表（仮定）:
-        | P₁    P₂    P₃    P₄   ...
-  ──────┼────────────────────────
-  P₁    | 停止  停止  ループ 停止 ...
-  P₂    | ループ 停止  停止  ループ ...
-  P₃    | 停止  ループ ループ 停止 ...
-  P₄    | 停止  停止  停止  ループ ...
+  Correspondence table of programs and their inputs (assumption):
+        | P1    P2    P3    P4   ...
+  ------+----------------------------
+  P1    | Halt  Halt  Loop  Halt ...
+  P2    | Loop  Halt  Halt  Loop ...
+  P3    | Halt  Loop  Loop  Halt ...
+  P4    | Halt  Halt  Halt  Loop ...
 
-  D(Pᵢ) = 対角線の反転:
-  D(P₁): ループ（停止の反転）
-  D(P₂): ループ（停止の反転）
-  D(P₃): 停止（ループの反転）
-  D(P₄): 停止（ループの反転）
-  → Dはどの行とも異なる → 矛盾
+  D(Pi) = inversion of the diagonal:
+  D(P1): Loop (inversion of Halt)
+  D(P2): Loop (inversion of Halt)
+  D(P3): Halt (inversion of Loop)
+  D(P4): Halt (inversion of Loop)
+  -> D differs from every row -> Contradiction
 
-  共通の構造:
-  1. 全てを列挙できると仮定
-  2. 対角線を取る
-  3. 対角線を反転させた新しいものを構築
-  4. それが列挙に含まれないことを示す → 矛盾
+  Common structure:
+  1. Assume everything can be enumerated
+  2. Take the diagonal
+  3. Construct a new element by inverting the diagonal
+  4. Show that it is not included in the enumeration -> Contradiction
 ```
 
-### 4.4 停止問題の実務的帰結
+### 4.4 Practical Consequences of the Halting Problem
 
 ```
-停止問題が決定不能であることの実務的な意味:
+Practical implications of the halting problem being undecidable:
 
-  1. 完璧なバグ検出器は存在しない
-     ┌──────────────────────────────────────────┐
-     │ 「全てのバグを検出する静的解析ツール」は     │
-     │ 原理的に不可能                              │
-     │                                            │
-     │ 理由: 「このプログラムにバグがあるか？」は   │
-     │ 停止問題に帰着できる                        │
-     │                                            │
-     │ 実務的対処:                                 │
-     │ - 保守的な近似（誤検出あり、見逃しなし）     │
-     │ - 楽観的な近似（誤検出なし、見逃しあり）     │
-     │ - テストによる検証（有限のケースのみ）       │
-     └──────────────────────────────────────────┘
+  1. A perfect bug detector does not exist
+     +--------------------------------------------+
+     | A "static analysis tool that detects all    |
+     | bugs" is impossible in principle            |
+     |                                            |
+     | Reason: "Does this program have a bug?" is  |
+     | reducible to the halting problem            |
+     |                                            |
+     | Practical approaches:                       |
+     | - Conservative approximation (false positives allowed, no false negatives) |
+     | - Optimistic approximation (no false positives, false negatives allowed)   |
+     | - Testing (only finite cases)               |
+     +--------------------------------------------+
 
-  2. 完璧なウイルス検出器は存在しない
-     - マルウェアの全パターンを検出することは不可能
-     - ヒューリスティックとシグネチャベースの組み合わせ
-     - 行動ベースの検出で補完
+  2. A perfect virus detector does not exist
+     - Detecting all malware patterns is impossible
+     - Combination of heuristic and signature-based detection
+     - Supplemented by behavior-based detection
 
-  3. 完璧なデッドコード除去は不可能
-     - 「この分岐が実行されることはあるか？」は一般に決定不能
-     - コンパイラの最適化には限界がある
+  3. Perfect dead code elimination is impossible
+     - "Will this branch ever be executed?" is generally undecidable
+     - Compiler optimizations have limits
 
-  4. 完璧な型チェッカーは存在しない
-     - 全ての型エラーを検出しつつ、正しいプログラムを
-       全て受理する型システムは不可能
-     - 実用的な型システムは保守的（型安全だが制限的）
+  4. A perfect type checker does not exist
+     - A type system that detects all type errors while accepting
+       all correct programs is impossible
+     - Practical type systems are conservative (type-safe but restrictive)
 
-  5. 完璧なリソースリーク検出は不可能
-     - メモリリーク、ファイルハンドルリーク等の完全検出は不可能
-     - 所有権システム（Rust）は保守的なアプローチの好例
+  5. Perfect resource leak detection is impossible
+     - Complete detection of memory leaks, file handle leaks, etc. is impossible
+     - Ownership systems (Rust) are a good example of a conservative approach
 ```
 
 ```python
-# 停止問題の帰結を示す具体例
+# Concrete examples demonstrating consequences of the halting problem
 
-# 例1: デッドコード検出の限界
+# Example 1: Limits of dead code detection
 def is_dead_code(function_body, line_number):
     """
-    指定行が到達不能かを完全に判定することは不可能
+    Completely determining whether a given line is unreachable is impossible
 
-    理由: 以下のようなコードを考える
+    Reason: Consider code like the following
     """
     pass
 
 def example_with_undecidable_reachability():
-    """到達可能性が決定不能な例"""
-    x = compute_goldbach()  # ゴールドバッハ予想が真なら停止
+    """Example where reachability is undecidable"""
+    x = compute_goldbach()  # Halts if Goldbach's conjecture is true
     if x:
-        print("この行は到達可能か？")  # 未解決の数学的問題に依存
-        # → デッドコードかどうかを判定することは
-        #   ゴールドバッハ予想を証明/反証することに等しい
+        print("Is this line reachable?")  # Depends on an unsolved mathematical problem
+        # -> Determining whether this is dead code is
+        #   equivalent to proving/disproving Goldbach's conjecture
 
 def compute_goldbach():
-    """ゴールドバッハ予想の反例を探す"""
+    """Search for a counterexample to Goldbach's conjecture"""
     n = 4
     while True:
         if n % 2 == 0 and not is_sum_of_two_primes(n):
-            return n  # 反例が見つかれば停止
+            return n  # Halt if a counterexample is found
         n += 2
-    # 反例がなければ永遠に停止しない
+    # Never halts if no counterexample exists
 
 def is_sum_of_two_primes(n):
-    """nが2つの素数の和で表せるかチェック"""
+    """Check if n can be expressed as the sum of two primes"""
     for i in range(2, n):
         if is_prime(i) and is_prime(n - i):
             return True
     return False
 
 def is_prime(n):
-    """素数判定"""
+    """Primality test"""
     if n < 2:
         return False
     for i in range(2, int(n**0.5) + 1):
@@ -835,17 +835,17 @@ def is_prime(n):
     return True
 
 
-# 例2: 静的解析の保守的近似
+# Example 2: Conservative approximation in static analysis
 class ConservativeAnalyzer:
-    """保守的な静的解析器の例"""
+    """Example of a conservative static analyzer"""
 
     def check_division_by_zero(self, code_ast):
         """
-        ゼロ除算の可能性を保守的にチェック
+        Conservative check for potential division by zero
 
-        完璧な検出は不可能なので:
-        - 偽陽性（false positive）は許容する
-        - 偽陰性（false negative）は許容しない
+        Since perfect detection is impossible:
+        - False positives are tolerated
+        - False negatives are not tolerated
         """
         warnings = []
 
@@ -853,84 +853,84 @@ class ConservativeAnalyzer:
             if self.is_division(node):
                 divisor = self.get_divisor(node)
                 if not self.can_prove_nonzero(divisor):
-                    # ゼロでないことを証明できない → 警告
-                    # （実際にはゼロにならないかもしれないが）
-                    warnings.append(f"Line {node.line}: 潜在的なゼロ除算")
+                    # Cannot prove nonzero -> Warning
+                    # (may not actually be zero in practice)
+                    warnings.append(f"Line {node.line}: Potential division by zero")
 
         return warnings
 
     def can_prove_nonzero(self, expr):
-        """式がゼロでないことを証明できるか（保守的）"""
-        # 定数の場合
+        """Can we prove the expression is nonzero? (conservative)"""
+        # Constant case
         if self.is_constant(expr) and self.eval_constant(expr) != 0:
             return True
-        # abs(x) > 0 のようなパターン
+        # Patterns like abs(x) > 0
         if self.matches_positive_pattern(expr):
             return True
-        # それ以外は証明できない（保守的にFalse）
+        # Otherwise cannot prove (conservatively return False)
         return False
 ```
 
 ---
 
-## 5. 決定可能と決定不能
+## 5. Decidable and Undecidable
 
-### 5.1 問題の分類体系
+### 5.1 Classification System for Problems
 
 ```
-言語（問題）の階層:
+Hierarchy of languages (problems):
 
-  ┌─────────────────────────────────────────────────┐
-  │               全ての言語                         │
-  │  ┌──────────────────────────────────────────┐   │
-  │  │         チューリング認識可能               │   │
-  │  │  ┌──────────────────────────────────┐    │   │
-  │  │  │         決定可能                  │    │   │
-  │  │  │  ┌────────────────────────┐      │    │   │
-  │  │  │  │    文脈自由             │      │    │   │
-  │  │  │  │  ┌──────────────┐     │      │    │   │
-  │  │  │  │  │   正規        │     │      │    │   │
-  │  │  │  │  └──────────────┘     │      │    │   │
-  │  │  │  └────────────────────────┘      │    │   │
-  │  │  └──────────────────────────────────┘    │   │
-  │  │     半決定可能（RE）                       │   │
-  │  └──────────────────────────────────────────┘   │
-  │    チューリング認識不能も含む（co-RE の補集合等）  │
-  └─────────────────────────────────────────────────┘
+  +-----------------------------------------------------+
+  |               All languages                          |
+  |  +----------------------------------------------+   |
+  |  |         Turing-recognizable                   |   |
+  |  |  +--------------------------------------+    |   |
+  |  |  |         Decidable                     |    |   |
+  |  |  |  +----------------------------+      |    |   |
+  |  |  |  |    Context-free             |      |    |   |
+  |  |  |  |  +------------------+      |      |    |   |
+  |  |  |  |  |   Regular        |      |      |    |   |
+  |  |  |  |  +------------------+      |      |    |   |
+  |  |  |  +----------------------------+      |    |   |
+  |  |  +--------------------------------------+    |   |
+  |  |     Semi-decidable (RE)                       |   |
+  |  +----------------------------------------------+   |
+  |    Includes Turing-unrecognizable (complement of co-RE, etc.) |
+  +-----------------------------------------------------+
 
-  各クラスの特徴:
+  Characteristics of each class:
 
-  正規言語 (REG):
-  - 有限オートマトンで認識可能
-  - 正規表現で記述可能
-  - 例: メールアドレスの形式チェック、識別子のパターン
+  Regular Languages (REG):
+  - Recognizable by finite automata
+  - Describable by regular expressions
+  - Examples: Email address format checking, identifier patterns
 
-  文脈自由言語 (CFL):
-  - プッシュダウンオートマトンで認識可能
-  - 文脈自由文法で記述可能
-  - 例: プログラミング言語の構文、括弧の対応
+  Context-Free Languages (CFL):
+  - Recognizable by pushdown automata
+  - Describable by context-free grammars
+  - Examples: Programming language syntax, matching parentheses
 
-  決定可能言語 (R):
-  - 停止するチューリングマシンで認識可能
-  - 必ず有限時間で答えが出る
-  - 例: 素数判定、グラフの連結性判定
+  Decidable Languages (R):
+  - Recognizable by a halting Turing machine
+  - Always produces an answer in finite time
+  - Examples: Primality testing, graph connectivity
 
-  チューリング認識可能言語 (RE):
-  - チューリングマシンで認識可能（ただし停止しない場合あり）
-  - 属する場合は有限時間で検出可能
-  - 属さない場合は永遠に待つかもしれない
-  - 例: 停止問題（停止する場合は検出可能）
+  Turing-Recognizable Languages (RE):
+  - Recognizable by a Turing machine (but may not halt)
+  - If a string belongs, it can be detected in finite time
+  - If a string does not belong, it may wait forever
+  - Example: Halting problem (halting cases are detectable)
 ```
 
-### 5.2 決定可能な問題の具体例
+### 5.2 Concrete Examples of Decidable Problems
 
 ```python
-# 決定可能な問題の例
+# Examples of decidable problems
 
-# 1. 有限オートマトンの受理問題
-# A_DFA = { ⟨B, w⟩ | DFA Bが文字列wを受理する }
+# 1. Acceptance problem for finite automata
+# A_DFA = { <B, w> | DFA B accepts string w }
 class DFA:
-    """決定性有限オートマトン"""
+    """Deterministic Finite Automaton"""
     def __init__(self, states, alphabet, transitions, start, accepts):
         self.states = states
         self.alphabet = alphabet
@@ -939,7 +939,7 @@ class DFA:
         self.accepts = accepts
 
     def accepts_string(self, w):
-        """O(|w|) で判定可能 — 常に停止する"""
+        """Decidable in O(|w|) -- always halts"""
         state = self.start
         for symbol in w:
             state = self.transitions.get((state, symbol))
@@ -948,25 +948,25 @@ class DFA:
         return state in self.accepts
 
 
-# 2. 文脈自由文法の所属判定
-# A_CFG = { ⟨G, w⟩ | CFG Gが文字列wを生成する }
+# 2. Membership testing for context-free grammars
+# A_CFG = { <G, w> | CFG G generates string w }
 def cyk_algorithm(grammar, string):
-    """CYKアルゴリズム — O(n³|G|) で判定可能"""
+    """CYK algorithm -- decidable in O(n^3|G|)"""
     n = len(string)
     if n == 0:
         return grammar.start in grammar.nullable
 
-    # 初期化
+    # Initialization
     table = [[set() for _ in range(n)] for _ in range(n)]
 
-    # 長さ1の部分文字列
+    # Substrings of length 1
     for i in range(n):
         for lhs, rhs_list in grammar.rules.items():
             for rhs in rhs_list:
                 if len(rhs) == 1 and rhs[0] == string[i]:
                     table[i][i].add(lhs)
 
-    # 長さ2以上の部分文字列
+    # Substrings of length 2 or more
     for length in range(2, n + 1):
         for i in range(n - length + 1):
             j = i + length - 1
@@ -981,21 +981,21 @@ def cyk_algorithm(grammar, string):
     return grammar.start in table[0][n-1]
 
 
-# 3. 有限オートマトンの等価性判定
-# EQ_DFA = { ⟨A, B⟩ | DFA AとBが同じ言語を認識する }
+# 3. Equivalence testing for finite automata
+# EQ_DFA = { <A, B> | DFA A and B recognize the same language }
 def dfa_equivalence(dfa_a, dfa_b):
     """
-    2つのDFAが等価かどうかを判定
-    積オートマトンを構成し、対称差が空かチェック
-    常に停止する — 決定可能
+    Determine whether two DFAs are equivalent
+    Construct the product automaton and check if the symmetric difference is empty
+    Always halts -- decidable
     """
-    # 対称差 = (L(A) - L(B)) ∪ (L(B) - L(A))
-    # 対称差が空 ↔ L(A) = L(B)
+    # Symmetric difference = (L(A) - L(B)) union (L(B) - L(A))
+    # Symmetric difference is empty <-> L(A) = L(B)
     symmetric_diff = construct_symmetric_difference(dfa_a, dfa_b)
     return is_empty(symmetric_diff)
 
 def is_empty(dfa):
-    """DFAの言語が空かどうかをBFSで判定"""
+    """Determine if the DFA's language is empty using BFS"""
     visited = set()
     queue = [dfa.start]
     visited.add(dfa.start)
@@ -1003,19 +1003,19 @@ def is_empty(dfa):
     while queue:
         state = queue.pop(0)
         if state in dfa.accepts:
-            return False  # 受理状態に到達可能 → 空でない
+            return False  # Accept state reachable -> Not empty
         for symbol in dfa.alphabet:
             next_state = dfa.transitions.get((state, symbol))
             if next_state and next_state not in visited:
                 visited.add(next_state)
                 queue.append(next_state)
 
-    return True  # 受理状態に到達不能 → 空
+    return True  # Accept state unreachable -> Empty
 
 
-# 4. グラフの連結性判定
+# 4. Graph connectivity
 def is_connected(graph):
-    """グラフが連結かどうかを判定 — O(V + E)"""
+    """Determine if a graph is connected -- O(V + E)"""
     if not graph:
         return True
 
@@ -1032,59 +1032,59 @@ def is_connected(graph):
     return len(visited) == len(graph)
 ```
 
-### 5.3 決定不能な問題の具体例
+### 5.3 Concrete Examples of Undecidable Problems
 
 ```
-決定不能な問題（代表的なもの）:
+Undecidable problems (representative examples):
 
-  1. 停止問題 (HALT)
-     入力: プログラムPと入力x
-     問い: Pはxで停止するか？
-     → 決定不能
+  1. Halting Problem (HALT)
+     Input: Program P and input x
+     Question: Does P halt on x?
+     -> Undecidable
 
-  2. 全域性問題 (TOTAL)
-     入力: プログラムP
-     問い: Pは全ての入力で停止するか？
-     → 決定不能（停止問題よりさらに難しい）
+  2. Totality Problem (TOTAL)
+     Input: Program P
+     Question: Does P halt on all inputs?
+     -> Undecidable (even harder than the halting problem)
 
-  3. 等価性問題 (EQ_TM)
-     入力: チューリングマシンM₁とM₂
-     問い: L(M₁) = L(M₂) か？
-     → 決定不能
+  3. Equivalence Problem (EQ_TM)
+     Input: Turing machines M1 and M2
+     Question: Is L(M1) = L(M2)?
+     -> Undecidable
 
-  4. ポスト対応問題 (PCP)
-     入力: ドミノの集合 {(u₁,v₁), (u₂,v₂), ..., (uₙ,vₙ)}
-     問い: i₁, i₂, ..., iₖ が存在して
-           u_{i₁}u_{i₂}...u_{iₖ} = v_{i₁}v_{i₂}...v_{iₖ} か？
-     → 決定不能
+  4. Post Correspondence Problem (PCP)
+     Input: Set of dominoes {(u1,v1), (u2,v2), ..., (un,vn)}
+     Question: Do i1, i2, ..., ik exist such that
+               u_{i1}u_{i2}...u_{ik} = v_{i1}v_{i2}...v_{ik}?
+     -> Undecidable
 
-  5. タイリング問題
-     入力: タイルの集合
-     問い: 無限平面をタイルで隙間なく敷き詰められるか？
-     → 決定不能
+  5. Tiling Problem
+     Input: Set of tiles
+     Question: Can the infinite plane be tiled without gaps?
+     -> Undecidable
 
-  6. ディオファントス方程式（ヒルベルトの第10問題）
-     入力: 整数係数の多変数多項式
-     問い: 整数解は存在するか？
-     → 決定不能（マチャセビッチの定理、1970年）
+  6. Diophantine Equations (Hilbert's Tenth Problem)
+     Input: Multivariate polynomial with integer coefficients
+     Question: Does an integer solution exist?
+     -> Undecidable (Matiyasevich's theorem, 1970)
 
-  7. モータルマトリクス問題
-     入力: 行列の集合
-     問い: それらの積で零行列になる組み合わせがあるか？
-     → 決定不能
+  7. Mortality of Matrices Problem
+     Input: Set of matrices
+     Question: Is there a combination whose product is the zero matrix?
+     -> Undecidable
 ```
 
 ```python
-# ポスト対応問題（PCP）の具体例
+# Concrete example of the Post Correspondence Problem (PCP)
 
 def pcp_brute_force(dominoes, max_length=10):
     """
-    PCPを力任せに探索する（一般には停止しない可能性がある）
+    Brute-force search for PCP (may not halt in general)
 
-    ドミノの例:
+    Domino example:
     [(ab, b), (b, ab), (a, aa)]
 
-    解: 1,2,1,3 → ababba = ababba ✓
+    Solution: 1,2,1,3 -> ababba = ababba (check)
     """
     from itertools import product
 
@@ -1095,74 +1095,74 @@ def pcp_brute_force(dominoes, max_length=10):
             if top == bottom:
                 return list(combo), top
 
-    return None  # max_length以内では解が見つからない
+    return None  # No solution found within max_length
 
-# 実行例
+# Execution example
 dominoes = [('ab', 'b'), ('b', 'ab'), ('a', 'aa')]
 result = pcp_brute_force(dominoes, max_length=8)
 if result:
     indices, matched = result
-    print(f"解: {indices}")
-    print(f"一致文字列: {matched}")
+    print(f"Solution: {indices}")
+    print(f"Matched string: {matched}")
 
-# PCPが決定不能である意味:
-# - 解があるかどうかを判定するアルゴリズムは存在しない
-# - 解がある場合は力任せ探索で見つかる（半決定可能）
-# - 解がない場合は永遠に探索が終わらない
+# What it means that PCP is undecidable:
+# - No algorithm exists to determine whether a solution exists
+# - If a solution exists, brute-force search can find it (semi-decidable)
+# - If no solution exists, the search never terminates
 ```
 
-### 5.4 半決定可能性
+### 5.4 Semi-decidability
 
 ```
-半決定可能（Semi-decidable / Recursively Enumerable）:
+Semi-decidable (Recursively Enumerable):
 
-  定義: 言語Lが半決定可能 ⟺
-    w ∈ L の場合は有限時間で「はい」と答える
-    w ∉ L の場合は永遠に答えないかもしれない
+  Definition: Language L is semi-decidable <=>
+    If w in L, answer "yes" in finite time
+    If w not in L, may never answer
 
-  例:
-  ┌────────────────────────────────────────────────────┐
-  │ 停止問題は半決定可能                                 │
-  │                                                    │
-  │ 方法: プログラムPを入力xで実際に実行する             │
-  │ - 停止した → 「はい、停止します」                    │
-  │ - 停止しない → 永遠に待ち続ける（答えられない）       │
-  └────────────────────────────────────────────────────┘
+  Example:
+  +----------------------------------------------------+
+  | The halting problem is semi-decidable               |
+  |                                                    |
+  | Method: Actually run program P on input x           |
+  | - If it halts -> "Yes, it halts"                   |
+  | - If it doesn't halt -> Wait forever (cannot answer)|
+  +----------------------------------------------------+
 
-  重要な性質:
-  - Lが決定可能 ⟺ LとL̄（補集合）がともに半決定可能
-  - Lが半決定可能でL̄が半決定可能でない → Lは決定不能
-  - 停止問題の補集合（非停止問題）は半決定可能でない
+  Important properties:
+  - L is decidable <=> Both L and L-bar (complement) are semi-decidable
+  - If L is semi-decidable but L-bar is not semi-decidable -> L is undecidable
+  - The complement of the halting problem (non-halting problem) is not semi-decidable
 
-  証明: Lが決定可能 ⟺ LとL̄がともに半決定可能
+  Proof: L is decidable <=> Both L and L-bar are semi-decidable
 
-  (→) Lが決定可能ならば、Lを判定するTM Mが存在。
-      Mは常に停止するので、LもL̄も半決定可能。
+  (=>) If L is decidable, then a TM M that decides L exists.
+      Since M always halts, both L and L-bar are semi-decidable.
 
-  (←) LとL̄がともに半決定可能ならば、
-      Lの認識器M₁とL̄の認識器M₂が存在。
-      入力wに対してM₁とM₂を並列実行すれば、
-      必ずどちらかが停止する。
-      → M₁が停止すれば受理、M₂が停止すれば拒否
-      → 常に停止する → Lは決定可能 ∎
+  (<=) If both L and L-bar are semi-decidable, then
+      recognizers M1 for L and M2 for L-bar exist.
+      Running M1 and M2 in parallel on input w,
+      one of them must halt.
+      -> If M1 halts, accept; if M2 halts, reject
+      -> Always halts -> L is decidable QED
 ```
 
 ```python
-# 半決定可能性の実装例
+# Implementation examples of semi-decidability
 
 import threading
 import time
 
 class SemiDecider:
-    """半決定的判定器"""
+    """Semi-decision procedure"""
 
     def check_halts(self, program, input_data, timeout=None):
         """
-        プログラムが停止するかをチェック（半決定的）
+        Check if a program halts (semi-decidable)
 
-        - 停止する場合: True を返す（有限時間で）
-        - 停止しない場合: timeout まで待って None を返す
-          （timeout なしなら永遠に待つ）
+        - If it halts: Returns True (in finite time)
+        - If it doesn't halt: Returns None after timeout
+          (waits forever without timeout)
         """
         result = [None]
         error = [None]
@@ -1173,7 +1173,7 @@ class SemiDecider:
                 result[0] = True
             except Exception as e:
                 error[0] = e
-                result[0] = True  # 例外で終了 = 停止した
+                result[0] = True  # Terminated with exception = halted
 
         thread = threading.Thread(target=run_program)
         thread.daemon = True
@@ -1181,27 +1181,27 @@ class SemiDecider:
         thread.join(timeout=timeout)
 
         if thread.is_alive():
-            return None  # タイムアウト（停止するかどうか不明）
+            return None  # Timeout (unknown whether it halts)
         return result[0]
 
 
-# 並列実行による決定可能化の例
+# Example of making something decidable through parallel execution
 def parallel_decide(recognizer_l, recognizer_l_complement, input_data):
     """
-    LとL̄の両方の認識器がある場合、決定器を構築できる
+    When recognizers for both L and L-bar exist, a decider can be constructed
 
-    前提: LとL̄がともに半決定可能
-    結論: Lは決定可能
+    Premise: Both L and L-bar are semi-decidable
+    Conclusion: L is decidable
     """
     result = [None]
 
     def run_l():
         if recognizer_l(input_data):
-            result[0] = True  # w ∈ L
+            result[0] = True  # w in L
 
     def run_l_complement():
         if recognizer_l_complement(input_data):
-            result[0] = False  # w ∉ L
+            result[0] = False  # w not in L
 
     t1 = threading.Thread(target=run_l)
     t2 = threading.Thread(target=run_l_complement)
@@ -1210,7 +1210,7 @@ def parallel_decide(recognizer_l, recognizer_l_complement, input_data):
     t1.start()
     t2.start()
 
-    # どちらかが停止するまで待つ（必ずどちらかは停止する）
+    # Wait until one of them halts (one must halt)
     while result[0] is None:
         time.sleep(0.001)
 
@@ -1219,348 +1219,349 @@ def parallel_decide(recognizer_l, recognizer_l_complement, input_data):
 
 ---
 
-## 6. 帰着（Reduction）
+## 6. Reduction
 
-### 6.1 帰着の概念
+### 6.1 Concept of Reduction
 
 ```
-帰着（Reduction）: 問題Aの解法を問題Bの解法に変換すること
+Reduction: Converting a solution for problem A into a solution for problem B
 
-  A ≤ B: 「AはBに帰着可能」
+  A <= B: "A is reducible to B"
 
-  意味:
-  - Bが解ければAも解ける
-  - Aが解けなければBも解けない（対偶）
+  Meaning:
+  - If B is solvable, then A is also solvable
+  - If A is unsolvable, then B is also unsolvable (contrapositive)
 
-  図式:
+  Diagram:
 
-  入力 w → [変換 f] → f(w) → [Bの判定器] → 答え
+  Input w -> [Transformation f] -> f(w) -> [Decider for B] -> Answer
 
-  w ∈ A ⟺ f(w) ∈ B
+  w in A <=> f(w) in B
 
-  帰着の種類:
+  Types of reduction:
 
-  1. 写像帰着（Mapping Reduction / Many-One Reduction）
-     - 計算可能な関数fが存在して w ∈ A ⟺ f(w) ∈ B
-     - A ≤ₘ B と書く
+  1. Mapping Reduction (Many-One Reduction)
+     - A computable function f exists such that w in A <=> f(w) in B
+     - Written as A <=_m B
 
-  2. チューリング帰着（Turing Reduction）
-     - Bを「オラクル」（神託）として使い、Aを決定する
-     - A ≤ᵀ B と書く
-     - 写像帰着より強力
+  2. Turing Reduction
+     - Decide A using B as an "oracle"
+     - Written as A <=_T B
+     - More powerful than mapping reduction
 
-  帰着の使い方:
+  Using reduction:
 
-  既知: HALTは決定不能
+  Known: HALT is undecidable
 
-  新問題Xが決定不能であることを示すには:
-  1. HALT ≤ₘ X を示す
-  2. つまり停止問題をXに変換できることを示す
-  3. Xが決定可能なら停止問題も決定可能になる → 矛盾
-  → Xは決定不能 ∎
+  To show that a new problem X is undecidable:
+  1. Show HALT <=_m X
+  2. That is, show that the halting problem can be transformed into X
+  3. If X were decidable, the halting problem would also be decidable -> Contradiction
+  -> X is undecidable QED
 ```
 
-### 6.2 帰着の具体例
+### 6.2 Concrete Examples of Reduction
 
 ```python
-# 帰着の具体例: 停止問題 → 全域性問題
+# Concrete examples of reduction: Halting problem -> Totality problem
 
-# 全域性問題: プログラムPが全ての入力で停止するか？
-# TOTAL = { ⟨P⟩ | Pは全ての入力で停止する }
+# Totality problem: Does program P halt on all inputs?
+# TOTAL = { <P> | P halts on all inputs }
 
-# 定理: TOTAL は決定不能
+# Theorem: TOTAL is undecidable
 
-# 証明: HALT ≤ₘ TOTAL̄ を示す（TOTALの補集合に帰着）
+# Proof: Show HALT <=_m TOTAL-bar (reduce to complement of TOTAL)
 
 def reduce_halt_to_total(program_p, input_w):
     """
-    停止問題のインスタンス (P, w) を
-    全域性問題のインスタンス Q に変換する
+    Transform a halting problem instance (P, w) into
+    a totality problem instance Q
     """
-    # 新しいプログラムQを構築:
-    # Q(x) = P(w) を実行して停止したら停止、
-    #         xは無視する
+    # Construct new program Q:
+    # Q(x) = run P(w) and halt if it halts;
+    #         x is ignored
 
     q_source = f"""
 def Q(x):
-    # xは無視して、P(w)を実行する
+    # Ignore x and run P(w)
     {program_p}({input_w})
-    return  # P(w)が停止すればQも停止
+    return  # If P(w) halts, Q also halts
 """
 
-    # P(w)が停止する → Q(x)は全ての入力xで停止 → Q ∈ TOTAL
-    # P(w)が停止しない → Q(x)はどの入力でも停止しない → Q ∉ TOTAL
+    # P(w) halts -> Q(x) halts on all inputs x -> Q in TOTAL
+    # P(w) doesn't halt -> Q(x) doesn't halt on any input -> Q not in TOTAL
 
-    # つまり: (P, w) ∈ HALT ⟺ Q ∈ TOTAL
+    # Therefore: (P, w) in HALT <=> Q in TOTAL
 
     return q_source
 
 
-# 帰着の例2: 停止問題 → 等価性問題
+# Reduction example 2: Halting problem -> Equivalence problem
 
-# 等価性問題: 2つのTMが同じ言語を認識するか？
-# EQ_TM = { ⟨M₁, M₂⟩ | L(M₁) = L(M₂) }
+# Equivalence problem: Do two TMs recognize the same language?
+# EQ_TM = { <M1, M2> | L(M1) = L(M2) }
 
 def reduce_halt_to_eq(program_p, input_w):
     """
-    停止問題のインスタンス (P, w) を
-    等価性問題のインスタンス (M₁, M₂) に変換する
+    Transform a halting problem instance (P, w) into
+    an equivalence problem instance (M1, M2)
     """
-    # M₁: 全ての入力を拒否する（空言語）
+    # M1: Reject all inputs (empty language)
     m1 = lambda x: False
 
-    # M₂: P(w)を実行し、停止したら全ての入力を拒否
-    #      停止しなければループ
+    # M2: Run P(w); if it halts, reject all inputs
+    #      If it doesn't halt, loop
     def m2(x):
-        # P(w) を実行
+        # Run P(w)
         exec(program_p, {'input': input_w})
-        # P(w)が停止した場合のみここに到達
-        return False  # 拒否
+        # Only reaches here if P(w) halts
+        return False  # Reject
 
-    # P(w)が停止する → L(M₂) = ∅ = L(M₁) → (M₁,M₂) ∈ EQ_TM
-    # P(w)が停止しない → M₂は全入力でループ → L(M₂)は認識不能
-    #                   → L(M₁) ≠ L(M₂) → (M₁,M₂) ∉ EQ_TM
+    # P(w) halts -> L(M2) = empty = L(M1) -> (M1,M2) in EQ_TM
+    # P(w) doesn't halt -> M2 loops on all inputs -> L(M2) is unrecognizable
+    #                   -> L(M1) != L(M2) -> (M1,M2) not in EQ_TM
 
     return m1, m2
 ```
 
-### 6.3 帰着の階層
+### 6.3 Hierarchy of Reductions
 
 ```
-決定不能問題の難しさの階層（算術的階層）:
+Hierarchy of difficulty for undecidable problems (arithmetical hierarchy):
 
-  Σ₀⁰ = Π₀⁰ = 決定可能問題
+  Sigma_0^0 = Pi_0^0 = Decidable problems
 
-  Σ₁⁰: 半決定可能（RE）
-    例: HALT（停止問題）
-    → 「停止する」場合は検出可能
+  Sigma_1^0: Semi-decidable (RE)
+    Example: HALT (halting problem)
+    -> Can detect when "it halts"
 
-  Π₁⁰: co-RE（REの補集合）
-    例: HALT̄（非停止問題）
-    → 「停止しない」場合を検出可能
+  Pi_1^0: co-RE (complement of RE)
+    Example: HALT-bar (non-halting problem)
+    -> Can detect when "it doesn't halt"
 
-  Σ₂⁰:
-    例: TOTAL（全域性問題）
-    → 「全ての入力で停止するか」
+  Sigma_2^0:
+    Example: TOTAL (totality problem)
+    -> "Does it halt on all inputs?"
 
-  Π₂⁰:
-    例: TOTAL̄
-    → 「ある入力で停止しないか」
+  Pi_2^0:
+    Example: TOTAL-bar
+    -> "Does it fail to halt on some input?"
 
-  Σ₃⁰, Π₃⁰, ... と無限に続く
+  Sigma_3^0, Pi_3^0, ... continues infinitely
 
-  階層の図示:
+  Diagram of the hierarchy:
 
-  難しさ →
-  ──────────────────────────────────────→
-  Σ₀⁰    Σ₁⁰    Σ₂⁰    Σ₃⁰    ...
-  (決定可能) (RE)  (TOTAL等)
+  Difficulty ->
+  ------------------------------------------->
+  Sigma_0^0    Sigma_1^0    Sigma_2^0    Sigma_3^0    ...
+  (Decidable)   (RE)      (TOTAL etc.)
 
-  各レベルで「本質的に難しい」問題が存在
-  → 帰着で互いの難しさを比較できる
+  At each level, "inherently difficult" problems exist
+  -> Their difficulty can be compared through reductions
 ```
 
 ---
 
-## 7. ライスの定理
+## 7. Rice's Theorem
 
-### 7.1 ライスの定理の内容
-
-```
-ライスの定理（Rice's Theorem）:
-
-  定理: チューリングマシンが計算する関数に関する
-  非自明な性質は、全て決定不能である
-
-  形式的に:
-  Pをチューリング認識可能な言語の性質とする
-  （Pは言語の集合の部分集合）
-
-  Pが非自明（P ≠ ∅ かつ P ≠ 全ての言語）ならば、
-  { ⟨M⟩ | L(M) ∈ P } は決定不能
-
-  直感的に:
-  - 「このプログラムは何を計算するか？」に関する
-    非自明な質問には、一般的なアルゴリズムでは答えられない
-
-  具体例（全て決定不能）:
-
-  1. 「TMが空言語を認識するか？」
-     → P = {∅}（空言語のみ）: 非自明
-
-  2. 「TMが正規言語を認識するか？」
-     → P = 正規言語の集合: 非自明
-
-  3. 「TMが少なくとも一つの文字列を受理するか？」
-     → P = {L | L ≠ ∅}: 非自明
-
-  4. 「TMが全ての文字列を受理するか？」
-     → P = {Σ*}: 非自明
-
-  5. 「TMが特定の文字列 w を受理するか？」
-     → P = {L | w ∈ L}: 非自明
-
-  ライスの定理が適用されない例:
-
-  1. 「TMが100以下の状態を持つか？」
-     → これはTMの構造に関する性質（計算する関数ではない）
-     → 決定可能（TMの記述を調べれば分かる）
-
-  2. 「TMが入力なしで5ステップ以内に停止するか？」
-     → シミュレーションで判定可能
-     → しかし「任意のステップ数で停止するか」は決定不能
-```
-
-### 7.2 ライスの定理の証明
+### 7.1 Content of Rice's Theorem
 
 ```
-ライスの定理の証明:
+Rice's Theorem:
 
-  前提:
-  - Pを非自明な言語の性質とする
-  - P ≠ ∅ かつ P ≠ 全ての言語
-  - 空言語 ∅ ∉ P と仮定する（∅ ∈ P の場合はPの補集合で議論）
+  Theorem: All nontrivial properties of the function
+  computed by a Turing machine are undecidable
 
-  証明:
+  Formally:
+  Let P be a property of Turing-recognizable languages
+  (P is a subset of the set of all languages)
 
-  Pが非自明なので、L₀ ∈ P となる言語L₀が存在する
-  L₀を認識するTM M₀ が存在する
+  If P is nontrivial (P != empty and P != all languages), then
+  { <M> | L(M) in P } is undecidable
 
-  停止問題をライスに帰着する:
+  Intuitively:
+  - No general algorithm can answer nontrivial questions about
+    "what does this program compute?"
 
-  入力 ⟨M, w⟩（Mがwで停止するか？）に対して、
-  新しいTM M'を構築:
+  Concrete examples (all undecidable):
+
+  1. "Does the TM recognize the empty language?"
+     -> P = {empty} (only the empty language): Nontrivial
+
+  2. "Does the TM recognize a regular language?"
+     -> P = set of regular languages: Nontrivial
+
+  3. "Does the TM accept at least one string?"
+     -> P = {L | L != empty}: Nontrivial
+
+  4. "Does the TM accept all strings?"
+     -> P = {Sigma*}: Nontrivial
+
+  5. "Does the TM accept a specific string w?"
+     -> P = {L | w in L}: Nontrivial
+
+  Examples where Rice's theorem does NOT apply:
+
+  1. "Does the TM have 100 or fewer states?"
+     -> This is a property of the TM's structure (not of the computed function)
+     -> Decidable (can be determined by examining the TM's description)
+
+  2. "Does the TM accept the empty input within 5 steps?"
+     -> Determinable by simulation
+     -> Decidable
+     -> However, "Does it halt in an arbitrary number of steps?" is undecidable
+```
+
+### 7.2 Proof of Rice's Theorem
+
+```
+Proof of Rice's Theorem:
+
+  Premises:
+  - Let P be a nontrivial property of languages
+  - P != empty and P != all languages
+  - Assume empty language not in P (if empty in P, argue with complement of P)
+
+  Proof:
+
+  Since P is nontrivial, there exists a language L0 in P
+  There exists a TM M0 that recognizes L0
+
+  Reduce the halting problem to Rice's:
+
+  For input <M, w> (does M halt on w?),
+  construct a new TM M':
 
   M'(x):
-    1. Mをwで実行する
-    2. もしMが停止したら、M₀をxで実行し結果を返す
-    3. もしMが停止しなければ、M'も停止しない
+    1. Run M on w
+    2. If M halts, run M0 on x and return the result
+    3. If M doesn't halt, M' also doesn't halt
 
-  分析:
-  - Mがwで停止する → M'はM₀と同じ動作 → L(M') = L₀ ∈ P
-  - Mがwで停止しない → M'は何も受理しない → L(M') = ∅ ∉ P
+  Analysis:
+  - M halts on w -> M' behaves like M0 -> L(M') = L0 in P
+  - M doesn't halt on w -> M' accepts nothing -> L(M') = empty not in P
 
-  つまり: (M, w) ∈ HALT ⟺ L(M') ∈ P
+  Therefore: (M, w) in HALT <=> L(M') in P
 
-  { ⟨M'⟩ | L(M') ∈ P } が決定可能なら、
-  HALT も決定可能になる → 矛盾
+  If { <M'> | L(M') in P } were decidable,
+  HALT would also be decidable -> Contradiction
 
-  → { ⟨M⟩ | L(M) ∈ P } は決定不能 ∎
+  -> { <M> | L(M) in P } is undecidable QED
 ```
 
 ```python
-# ライスの定理の実務的意味
+# Practical implications of Rice's theorem
 
 class ProgramAnalyzer:
     """
-    ライスの定理により、以下の分析は全て一般には不可能
+    By Rice's theorem, all of the following analyses are generally impossible
     """
 
     def does_program_always_return_positive(self, program):
-        """プログラムが常に正の値を返すか？ → 決定不能"""
-        raise UndecidableError("ライスの定理により不可能")
+        """Does the program always return a positive value? -> Undecidable"""
+        raise UndecidableError("Impossible by Rice's theorem")
 
     def does_program_use_network(self, program):
         """
-        プログラムがネットワークにアクセスするか？
+        Does the program access the network?
 
-        注意: これは「構文的」にチェックすれば決定可能
-        （importやsocket呼び出しの有無を確認）
+        Note: This is decidable if checked "syntactically"
+        (check for imports or socket calls)
 
-        しかし「意味的」にチェックは決定不能
-        （動的生成されたコードがネットワークアクセスする場合）
+        However, "semantic" checking is undecidable
+        (when dynamically generated code accesses the network)
         """
-        # 構文的チェック（保守的な近似）は可能
+        # Syntactic checking (conservative approximation) is possible
         return 'socket' in program or 'requests' in program
 
     def is_program_equivalent_to(self, program_a, program_b):
-        """2つのプログラムが同じ関数を計算するか？ → 決定不能"""
-        raise UndecidableError("ライスの定理により不可能")
+        """Do two programs compute the same function? -> Undecidable"""
+        raise UndecidableError("Impossible by Rice's theorem")
 
     def does_program_terminate_for_all_inputs(self, program):
-        """プログラムが全入力で停止するか？ → 決定不能"""
-        raise UndecidableError("ライスの定理により不可能")
+        """Does the program halt on all inputs? -> Undecidable"""
+        raise UndecidableError("Impossible by Rice's theorem")
 
 
 class UndecidableError(Exception):
-    """決定不能な問題に対するエラー"""
+    """Error for undecidable problems"""
     pass
 
 
-# 実務での対処法:
+# Practical approaches:
 #
-# 1. 保守的近似（Sound but Incomplete）
-#    - 「安全でない可能性がある」 → 警告を出す
-#    - 偽陽性はあるが、見逃しはない
-#    例: Rust の借用チェッカー
+# 1. Conservative Approximation (Sound but Incomplete)
+#    - "May be unsafe" -> Issue a warning
+#    - May have false positives, but no false negatives
+#    Example: Rust's borrow checker
 #
-# 2. 楽観的近似（Complete but Unsound）
-#    - 「おそらく安全」 → 通す
-#    - 見逃しはあるが、偽陽性はない
-#    例: 動的型付き言語の実行時チェック
+# 2. Optimistic Approximation (Complete but Unsound)
+#    - "Probably safe" -> Pass it
+#    - May have false negatives, but no false positives
+#    Example: Runtime checks in dynamically typed languages
 #
-# 3. 制限付き正確解
-#    - 問題の範囲を制限して、その範囲では正確に判定
-#    例: 有界モデル検査（bounded model checking）
+# 3. Restricted Exact Solutions
+#    - Restrict the scope and determine accurately within that scope
+#    Example: Bounded model checking
 #
-# 4. 対話的検証
-#    - ユーザーにヒントや証明を提供してもらう
-#    例: 対話型定理証明器（Coq, Isabelle, Lean）
+# 4. Interactive Verification
+#    - Have the user provide hints or proofs
+#    Example: Interactive theorem provers (Coq, Isabelle, Lean)
 ```
 
 ---
 
-## 8. 再帰定理
+## 8. The Recursion Theorem
 
-### 8.1 再帰定理の内容
+### 8.1 Content of the Recursion Theorem
 
 ```
-再帰定理（Recursion Theorem / Fixed Point Theorem）:
+Recursion Theorem (Fixed Point Theorem):
 
-  定理: 任意の計算可能な変換 t に対して、
-  チューリングマシン M が存在し、
-  t(⟨M⟩) と M は同じ言語を認識する
+  Theorem: For any computable transformation t,
+  there exists a Turing machine M such that
+  t(<M>) and M recognize the same language
 
-  直感的に:
-  「任意のプログラム変換に対して、その変換で不動点となる
-   プログラムが存在する」
+  Intuitively:
+  "For any program transformation, there exists a program
+   that is a fixed point of that transformation"
 
-  クリーネの不動点定理とも呼ばれる:
-  任意の計算可能関数 f に対して、
-  プログラム e が存在して φ_e = φ_{f(e)}
-  （eの計算する関数 = f(e)の計算する関数）
+  Also known as Kleene's Fixed Point Theorem:
+  For any computable function f,
+  there exists a program e such that phi_e = phi_{f(e)}
+  (the function computed by e = the function computed by f(e))
 
-  意味:
-  - プログラムは「自分自身のソースコード」を知ることができる
-  - クワイン（自分自身を出力するプログラム）の存在を保証
-  - コンピュータウイルスの自己複製の理論的基礎
-  - ゲーデルの不完全性定理の対角化補題の計算論版
+  Meaning:
+  - Programs can "know their own source code"
+  - Guarantees the existence of quines (programs that output themselves)
+  - Theoretical foundation for self-replication in computer viruses
+  - Computational version of the diagonalization lemma in Godel's incompleteness theorem
 ```
 
-### 8.2 クワイン（自己出力プログラム）
+### 8.2 Quines (Self-Outputting Programs)
 
 ```python
-# クワイン: 自分自身のソースコードを出力するプログラム
-# 再帰定理の構成的証明の具体例
+# Quine: A program that outputs its own source code
+# A constructive proof example of the recursion theorem
 
-# Python のクワイン（最小版）
+# Python quine (minimal version)
 s='s=%r;print(s%%s)';print(s%s)
 
-# より読みやすい版
+# More readable version
 def quine():
     """
-    再帰定理により、任意のプログラミング言語で
-    クワインを構築できることが保証されている
+    By the recursion theorem, the construction of a quine
+    is guaranteed in any programming language
     """
-    # 2部構成: データ部（A）とコード部（B）
-    # A = Bのテキスト表現
-    # B = Aを使って全体を再構成するコード
+    # Two-part construction: Data part (A) and Code part (B)
+    # A = Text representation of B
+    # B = Code that reconstructs the whole using A
 
     A = 'def quine():\n    A = %r\n    B = A %% A\n    print(B)\nquine()'
     B = A % A
     print(B)
 
-# 各言語のクワインの例:
+# Quine examples in various languages:
 
 # JavaScript
 js_quine = '(function q(){console.log("("+q+")()")})()'
@@ -1568,570 +1569,573 @@ js_quine = '(function q(){console.log("("+q+")()")})()'
 # Ruby
 ruby_quine = 's="s=%p;puts s%%s";puts s%s'
 
-# C言語
+# C
 c_quine = '''
 #include <stdio.h>
 int main(){char*s="#include <stdio.h>%cint main(){char*s=%c%s%c;printf(s,10,34,s,34);}";printf(s,10,34,s,34);}
 '''
 
-# クワインの構造:
-# 1. データ部: プログラム全体のテンプレート（一部が空白）
-# 2. コード部: 空白部分にデータ部自身を埋め込んで出力
+# Structure of a quine:
+# 1. Data part: A template of the entire program (with some blanks)
+# 2. Code part: Output by embedding the data part itself into the blanks
 #
-# 再帰定理はこの構成が常に可能であることを保証する
+# The recursion theorem guarantees that this construction is always possible
 ```
 
 ---
 
-## 9. 計算可能性と実務
+## 9. Computability and Practice
 
-### 9.1 ソフトウェア検証への影響
+### 9.1 Impact on Software Verification
 
 ```
-計算可能性理論がソフトウェア開発に与える影響:
+Impact of computability theory on software development:
 
-  ┌─────────────────────────────────────────────────┐
-  │ 完璧な自動検証は不可能 → 実用的なアプローチ      │
-  └─────────────────────────────────────────────────┘
+  +-----------------------------------------------------+
+  | Perfect automated verification is impossible -> Practical approaches |
+  +-----------------------------------------------------+
 
-  1. 型システム（保守的近似の代表例）
+  1. Type Systems (a representative example of conservative approximation)
 
-     TypeScript の例:
+     TypeScript example:
      ```
      function divide(a: number, b: number): number {
-       return a / b;  // b=0 のチェックなし
+       return a / b;  // No check for b=0
      }
-     // TypeScript: 型エラーにはならない
-     // → 「全てのランタイムエラーを型で検出」は決定不能
+     // TypeScript: No type error
+     // -> "Detecting all runtime errors via types" is undecidable
 
-     // より安全なアプローチ:
+     // Safer approach:
      function safeDivide(a: number, b: NonZero<number>): number {
        return a / b;
      }
-     // → 型レベルでゼロ除算を排除（依存型的アプローチ）
+     // -> Eliminate division by zero at the type level (dependent type approach)
      ```
 
-  2. 静的解析ツール（保守的 / 楽観的）
+  2. Static Analysis Tools (Conservative / Optimistic)
 
-     ESLint, Pylint, Clippy などの lint ツール:
-     - 構文パターンベース → 決定可能な部分のみ
-     - 誤検出（false positive）を許容
-     - 見逃し（false negative）も存在
+     Lint tools such as ESLint, Pylint, Clippy:
+     - Syntax pattern-based -> Only decidable portions
+     - Tolerates false positives
+     - False negatives also exist
 
-     高度な静的解析:
-     - Coverity, PVS-Studio: パスセンシティブ解析
-     - Abstract Interpretation: 抽象解釈による近似
-     - 依然として完璧ではない（ライスの定理）
+     Advanced static analysis:
+     - Coverity, PVS-Studio: Path-sensitive analysis
+     - Abstract Interpretation: Approximation through abstract interpretation
+     - Still not perfect (Rice's theorem)
 
-  3. テスト（有限サンプリング）
+  3. Testing (Finite Sampling)
 
-     テストの本質的限界:
-     - 「テストはバグの存在を示せるが、不在は示せない」
-       （ダイクストラ）
-     - 無限の入力空間を有限のテストケースでカバー
-     - プロパティベーステスト（QuickCheck等）で改善可能
+     Fundamental limits of testing:
+     - "Testing can show the presence of bugs, but not their absence"
+       (Dijkstra)
+     - Covering an infinite input space with finite test cases
+     - Improvable with property-based testing (QuickCheck, etc.)
 
-  4. 形式検証（制限付き正確解）
+  4. Formal Verification (Restricted Exact Solutions)
 
-     モデル検査（Model Checking）:
-     - 有限状態の場合は完全に検証可能
-     - 無限状態 → 抽象化で有限に近似
-     - SPIN, TLA+, Alloy など
+     Model Checking:
+     - Completely verifiable for finite-state cases
+     - Infinite states -> Approximate with abstraction to finite
+     - SPIN, TLA+, Alloy, etc.
 
-     定理証明（Theorem Proving）:
-     - 人間が証明をガイド
+     Theorem Proving:
+     - Humans guide the proof
      - Coq, Isabelle, Lean, Agda
-     - seL4マイクロカーネル: 機能正当性の完全証明
+     - seL4 microkernel: Complete proof of functional correctness
 ```
 
-### 9.2 プログラミング言語設計への影響
+### 9.2 Impact on Programming Language Design
 
 ```python
-# 計算可能性理論がプログラミング言語設計に与える影響
+# Impact of computability theory on programming language design
 
-# 1. 全域性の保証 vs チューリング完全性
-#    全ての入力で停止することを保証する言語は
-#    チューリング完全ではない
+# 1. Totality Guarantees vs Turing Completeness
+#    A language that guarantees halting on all inputs
+#    is not Turing-complete
 
-# Agda（全域関数型言語）の例（概念的）:
-# - 全ての関数は停止が保証される
-# - 再帰は構造的に減少する引数が必要
-# - チューリング完全ではないが、実用上は十分
+# Example from Agda (a total functional language) (conceptual):
+# - All functions are guaranteed to terminate
+# - Recursion requires structurally decreasing arguments
+# - Not Turing-complete, but sufficient for practical purposes
 
-# 概念的な全域再帰の例
+# Conceptual example of total recursion
 def structural_recursion(n: int) -> int:
-    """構造的再帰: 引数が必ず減少する → 停止が保証"""
+    """Structural recursion: argument always decreases -> termination guaranteed"""
     if n <= 0:
         return 0
-    return 1 + structural_recursion(n - 1)  # n は必ず減少
+    return 1 + structural_recursion(n - 1)  # n always decreases
 
 def non_structural(n: int) -> int:
-    """非構造的再帰: 停止が保証されない"""
+    """Non-structural recursion: termination not guaranteed"""
     if n == 1:
         return 0
     if n % 2 == 0:
         return 1 + non_structural(n // 2)
     else:
-        return 1 + non_structural(3 * n + 1)  # コラッツ予想
-    # 全ての入力で停止するかは未解明！
+        return 1 + non_structural(3 * n + 1)  # Collatz conjecture
+    # Whether it halts on all inputs is unknown!
 
 
-# 2. 型推論の決定可能性
+# 2. Decidability of Type Inference
 #
-# Hindley-Milner型推論（ML, Haskell98）: 決定可能
-# - 主要型（principal type）が存在
-# - 完全な型推論が可能
+# Hindley-Milner type inference (ML, Haskell98): Decidable
+# - A principal type exists
+# - Complete type inference is possible
 #
-# System F（多相λ計算）の型推論: 決定不能
-# - 明示的な型注釈が必要
-# - Haskell の一部の拡張機能で該当
+# Type inference for System F (polymorphic lambda calculus): Undecidable
+# - Explicit type annotations are needed
+# - Applies to some Haskell extensions
 #
-# TypeScript の型推論: 意図的にチューリング完全
-# - 条件型（Conditional Types）+ 再帰型 = チューリング完全
-# - 型チェックが停止しない型定義が書ける
+# TypeScript's type inference: Intentionally Turing-complete
+# - Conditional Types + Recursive Types = Turing-complete
+# - Type definitions that cause the type checker to loop forever can be written
 
-# TypeScript の型レベル計算の例（概念的）:
+# TypeScript type-level computation example (conceptual):
 # type Fibonacci<N extends number> = ...
-# → 型チェッカーが無限ループする可能性
+# -> The type checker may enter an infinite loop
 
 
-# 3. マクロシステムと計算可能性
+# 3. Macro Systems and Computability
 #
-# C のプリプロセッサ: チューリング完全ではない
-# → マクロ展開は必ず停止する
+# C preprocessor: Not Turing-complete
+# -> Macro expansion always terminates
 #
-# Rust のマクロ: 制限的なチューリング完全性
-# → 再帰深度の制限あり（#![recursion_limit = "..."]）
+# Rust macros: Limited Turing completeness
+# -> Recursion depth limit (#![recursion_limit = "..."])
 #
-# Template Haskell: チューリング完全
-# → コンパイル時に任意の計算が可能
+# Template Haskell: Turing-complete
+# -> Arbitrary computation possible at compile time
 #
-# Lisp マクロ: チューリング完全
-# → コンパイル時（マクロ展開時）にループ可能
+# Lisp macros: Turing-complete
+# -> Can loop at compile time (macro expansion time)
 ```
 
-### 9.3 コンパイラ最適化の限界
+### 9.3 Limits of Compiler Optimization
 
 ```python
-# コンパイラ最適化と計算可能性の限界
+# Compiler optimization and the limits of computability
 
 class CompilerOptimizer:
-    """コンパイラ最適化の限界を示す例"""
+    """Examples showing the limits of compiler optimization"""
 
     def dead_code_elimination(self, code):
         """
-        デッドコード除去
+        Dead Code Elimination
 
-        完璧なデッドコード除去は決定不能（ライスの定理）
-        実用的なコンパイラは保守的な近似を使用
+        Perfect dead code elimination is undecidable (Rice's theorem)
+        Practical compilers use conservative approximations
         """
-        # 到達不能なコード:
-        # - 常にFalseの条件分岐 → 検出可能（定数畳み込み）
-        # - 関数の戻り値に依存する条件 → 一般には検出不能
+        # Unreachable code:
+        # - Always-false conditional branch -> Detectable (constant folding)
+        # - Condition depending on function return value -> Generally undetectable
         pass
 
     def constant_propagation(self, code):
         """
-        定数伝播
+        Constant Propagation
 
-        「この変数は常に定数値か？」は一般に決定不能
-        しかし、多くの実用的なケースでは判定可能
+        "Is this variable always a constant value?" is generally undecidable
+        However, many practical cases can be determined
         """
         pass
 
     def loop_optimization(self, code):
         """
-        ループ最適化
+        Loop Optimization
 
-        「このループは有限回で終了するか？」は決定不能
-        → ループ不変式の自動発見にも限界がある
+        "Does this loop terminate in a finite number of iterations?" is undecidable
+        -> There are also limits to automatic discovery of loop invariants
 
-        しかし:
-        - for i in range(n): ... → 明らかに有限
-        - while condition: ... → 一般には不明
+        However:
+        - for i in range(n): ... -> Clearly finite
+        - while condition: ... -> Generally unknown
         """
         pass
 
     def alias_analysis(self, code):
         """
-        エイリアス解析
+        Alias Analysis
 
-        「この2つのポインタは同じメモリを指すか？」
-        → 完璧な解析は決定不能
-        → 保守的な近似（Andersen, Steensgaard等）
+        "Do these two pointers point to the same memory?"
+        -> Perfect analysis is undecidable
+        -> Conservative approximations (Andersen, Steensgaard, etc.)
 
-        実務的影響:
-        - Cの restrict キーワード: プログラマがヒントを提供
-        - Rust の借用規則: コンパイラが安全に追跡可能
+        Practical impact:
+        - C's restrict keyword: Programmer provides hints
+        - Rust's borrowing rules: Compiler can safely track
         """
         pass
 
 
-# 最適化の実例: GCC vs 計算可能性の限界
+# Optimization example: GCC vs. computability limits
 
-# 以下のコードのデッドコード除去:
+# Dead code elimination of the following code:
 def optimization_example():
-    x = complex_computation()  # 副作用があるか不明
+    x = complex_computation()  # Unknown whether it has side effects
     if x > 0:
         print("positive")
     else:
         print("non-positive")
 
-    # コンパイラが知りたいこと:
-    # 1. complex_computation() は常に正の値を返すか？ → 決定不能
-    # 2. complex_computation() に副作用はあるか？ → 決定不能
-    # 3. このif文はどちらの分岐が取られるか？ → 決定不能
+    # What the compiler wants to know:
+    # 1. Does complex_computation() always return a positive value? -> Undecidable
+    # 2. Does complex_computation() have side effects? -> Undecidable
+    # 3. Which branch of this if statement is taken? -> Undecidable
 
-    # 結果: コンパイラは両方の分岐を残す（保守的）
+    # Result: The compiler keeps both branches (conservative)
 ```
 
-### 9.4 セキュリティへの影響
+### 9.4 Impact on Security
 
 ```
-計算可能性理論のセキュリティへの影響:
+Impact of computability theory on security:
 
-  1. 完璧なマルウェア検出は不可能
-     ┌──────────────────────────────────────────┐
-     │ 定理: 全てのマルウェアを正確に検出する      │
-     │ プログラムは存在しない                      │
-     │                                            │
-     │ 証明: マルウェア検出を停止問題に帰着        │
-     │ 任意のプログラムPについて:                  │
-     │ 「Pは悪意ある動作をするか？」              │
-     │ は非自明な性質 → ライスの定理により決定不能  │
-     └──────────────────────────────────────────┘
+  1. Perfect malware detection is impossible
+     +--------------------------------------------+
+     | Theorem: A program that accurately detects  |
+     | all malware does not exist                  |
+     |                                            |
+     | Proof: Reduce malware detection to the      |
+     | halting problem                             |
+     | For any program P:                          |
+     | "Does P perform malicious behavior?"        |
+     | is a nontrivial property -> Undecidable by  |
+     | Rice's theorem                              |
+     +--------------------------------------------+
 
-  2. 完璧な情報フロー解析は不可能
-     - 「このプログラムは機密データを漏洩するか？」
-     - 非自明な意味的性質 → 決定不能
-     - 対策: タイントトラッキング（保守的近似）
+  2. Perfect information flow analysis is impossible
+     - "Does this program leak confidential data?"
+     - Nontrivial semantic property -> Undecidable
+     - Countermeasure: Taint tracking (conservative approximation)
 
-  3. 難読化の限界
-     - Barak et al. (2001): 完璧な一般的難読化は不可能
-     - 「プログラムの実装を完全に隠す」ことは理論的に不可能
-     - しかし特定のクラスの難読化（iO等）は可能かもしれない
+  3. Limits of obfuscation
+     - Barak et al. (2001): Perfect general obfuscation is impossible
+     - "Completely hiding the implementation of a program" is theoretically impossible
+     - However, specific classes of obfuscation (iO, etc.) may be possible
 
-  4. 実務的な対処
-     - シグネチャベース検出: 既知のパターンのみ
-     - ヒューリスティック検出: 保守的な近似
-     - サンドボックス実行: 実際の動作を観察
-     - 形式検証: 限定された性質を正確に検証
-```
-
----
-
-## 10. 計算モデルの等価性
-
-### 10.1 各計算モデルの関係
-
-```
-主要な計算モデルとその等価性:
-
-  ┌────────────────────────────────────────────────────┐
-  │           チューリング等価な計算モデル               │
-  ├────────────────────────────────────────────────────┤
-  │                                                    │
-  │  チューリングマシン (TM)                            │
-  │    - 最も標準的なモデル                             │
-  │    - テープ + ヘッド + 有限制御                     │
-  │                                                    │
-  │  λ計算 (Lambda Calculus)                           │
-  │    - チャーチが考案                                 │
-  │    - 関数の抽象と適用のみ                           │
-  │    - 関数型プログラミングの理論的基礎               │
-  │    → 詳細は 05-lambda-calculus.md を参照            │
-  │                                                    │
-  │  帰納的関数 (Recursive Functions)                   │
-  │    - 原始再帰 + μ演算子                            │
-  │    - 数学的に最も自然な定式化                       │
-  │                                                    │
-  │  レジスタマシン (Register Machine)                  │
-  │    - 有限個のレジスタ + カウンタ                    │
-  │    - 実際のCPUに近いモデル                         │
-  │                                                    │
-  │  タグシステム (Tag System)                          │
-  │    - ポストが考案                                   │
-  │    - 文字列の先頭を読んで末尾に追加                │
-  │    - 非常に単純だがチューリング完全                 │
-  │                                                    │
-  │  セルオートマトン (Cellular Automata)               │
-  │    - ライフゲーム（ルール110等）                    │
-  │    - 格子状のセルが局所規則で変化                   │
-  │    - 自然の計算過程のモデル                        │
-  │                                                    │
-  └────────────────────────────────────────────────────┘
-
-  等価性の証明方法:
-
-  A → B: AをBでシミュレートできることを示す
-  B → A: BをAでシミュレートできることを示す
-  → A ≡ B（計算能力が等価）
-
-  実際の等価性証明の連鎖:
-
-  TM → λ計算:
-    TMの状態遷移をλ式の簡約として表現
-
-  λ計算 → TM:
-    β簡約をTMの操作として実装
-
-  TM → レジスタマシン:
-    テープの内容をレジスタにエンコード
-
-  レジスタマシン → TM:
-    レジスタの値をテープ上に記録
-```
-
-### 10.2 計算の限界を超える試み
-
-```
-超計算（Hypercomputation）— チューリングマシンを超える試み:
-
-  1. オラクルマシン（Oracle Machine）
-     - 停止問題のオラクルを持つTM
-     - HALT を O(1) で判定可能
-     - しかしオラクルの実現方法が不明
-     - 理論的ツールとしては有用（相対的計算可能性）
-
-  2. 加速マシン（Accelerating Machine）
-     - ステップnに 1/2ⁿ 秒かかる → 全ステップが1秒で完了
-     - 物理的には実現不可能（光速の制限、量子効果等）
-
-  3. 超限チューリングマシン
-     - 超限順序数までのステップを実行
-     - 数学的には定義可能だが物理的に実現不可能
-
-  4. アナログ計算の無限精度
-     - 実数の無限精度を利用
-     - 実際には測定の精度に限界がある
-
-  現在の合意:
-  → 物理的に実現可能な計算デバイスは
-    チューリングマシンの計算能力を超えないと考えられている
-  → 量子コンピュータも例外ではない
-    （計算「能力」は同等、計算「効率」が異なるだけ）
+  4. Practical approaches
+     - Signature-based detection: Known patterns only
+     - Heuristic detection: Conservative approximation
+     - Sandbox execution: Observe actual behavior
+     - Formal verification: Verify limited properties accurately
 ```
 
 ---
 
-## 11. 実践演習
+## 10. Equivalence of Computational Models
 
-### 演習1: チューリングマシンの設計（基礎）
-
-```
-問題: 2進数を1増やすチューリングマシンの遷移表を設計せよ。
-
-入力例: 1011 → 出力: 1100
-入力例: 1111 → 出力: 10000
-
-ヒント:
-1. まず右端に移動する
-2. 右端から左に向かって繰り上がり処理を行う
-3. 全ての桁が繰り上がった場合、先頭に1を追加する
-
-解答例:
-  状態: {q_start, q_right, q_carry, q_done, q_accept}
-
-  遷移表:
-  (q_start, 0) → (q_right, 0, R)  // 右端へ移動
-  (q_start, 1) → (q_right, 1, R)
-  (q_right, 0) → (q_right, 0, R)
-  (q_right, 1) → (q_right, 1, R)
-  (q_right, B) → (q_carry, B, L)  // 右端到達、繰り上がり開始
-  (q_carry, 0) → (q_done, 1, L)   // 0→1で繰り上がり終了
-  (q_carry, 1) → (q_carry, 0, L)  // 1→0で繰り上がり継続
-  (q_carry, B) → (q_accept, 1, R) // 先頭に繰り上がり
-  (q_done, 0) → (q_done, 0, L)    // 左端へ戻る
-  (q_done, 1) → (q_done, 1, L)
-  (q_done, B) → (q_accept, B, R)  // 完了
-```
-
-### 演習2: 停止問題の帰着（応用）
+### 10.1 Relationships Among Computational Models
 
 ```
-問題: 「全ての入力に対して正しい出力を返すか」を自動判定する
-ツールが不可能であることを、停止問題への帰着で証明せよ。
+Major computational models and their equivalence:
 
-証明:
-  CORRECT = { ⟨P, S⟩ | プログラムPが仕様Sに対して
-                        全ての入力で正しい }
+  +----------------------------------------------------+
+  |           Turing-equivalent computational models     |
+  +----------------------------------------------------+
+  |                                                    |
+  |  Turing Machine (TM)                               |
+  |    - The most standard model                       |
+  |    - Tape + Head + Finite control                  |
+  |                                                    |
+  |  Lambda Calculus                                    |
+  |    - Invented by Church                            |
+  |    - Only function abstraction and application      |
+  |    - Theoretical foundation of functional programming |
+  |    -> See 05-lambda-calculus.md for details          |
+  |                                                    |
+  |  Recursive Functions                                |
+  |    - Primitive recursion + mu-operator              |
+  |    - The most natural mathematical formulation      |
+  |                                                    |
+  |  Register Machine                                   |
+  |    - Finite number of registers + counters          |
+  |    - A model closer to actual CPUs                  |
+  |                                                    |
+  |  Tag System                                         |
+  |    - Invented by Post                              |
+  |    - Read from the head and append to the tail      |
+  |    - Very simple but Turing-complete               |
+  |                                                    |
+  |  Cellular Automata                                  |
+  |    - Game of Life (Rule 110, etc.)                 |
+  |    - Grid cells change according to local rules     |
+  |    - Model of natural computational processes       |
+  |                                                    |
+  +----------------------------------------------------+
 
-  HALT ≤ₘ CORRECT を示す:
+  Method for proving equivalence:
 
-  任意の (M, w)（Mがwで停止するか？）に対して、
-  プログラム P' と仕様 S' を構築:
+  A -> B: Show that A can be simulated by B
+  B -> A: Show that B can be simulated by A
+  -> A == B (equivalent computational power)
+
+  Chain of actual equivalence proofs:
+
+  TM -> Lambda Calculus:
+    Express TM state transitions as lambda reductions
+
+  Lambda Calculus -> TM:
+    Implement beta reduction as TM operations
+
+  TM -> Register Machine:
+    Encode tape contents in registers
+
+  Register Machine -> TM:
+    Record register values on the tape
+```
+
+### 10.2 Attempts to Exceed the Limits of Computation
+
+```
+Hypercomputation -- Attempts to go beyond Turing machines:
+
+  1. Oracle Machine
+     - TM with an oracle for the halting problem
+     - Can decide HALT in O(1)
+     - However, no known way to realize the oracle
+     - Useful as a theoretical tool (relative computability)
+
+  2. Accelerating Machine
+     - Step n takes 1/2^n seconds -> All steps complete in 1 second
+     - Physically unrealizable (speed of light limit, quantum effects, etc.)
+
+  3. Transfinite Turing Machine
+     - Executes steps up to transfinite ordinals
+     - Mathematically definable but physically unrealizable
+
+  4. Infinite Precision Analog Computation
+     - Exploits infinite precision of real numbers
+     - In practice, measurement precision is limited
+
+  Current consensus:
+  -> Physically realizable computing devices are believed
+    not to exceed the computational power of Turing machines
+  -> Quantum computers are no exception
+    (Computational "power" is equivalent; only computational "efficiency" differs)
+```
+
+---
+
+## 11. Practice Exercises
+
+### Exercise 1: Designing a Turing Machine (Basic)
+
+```
+Problem: Design the transition table of a Turing machine that increments a binary number by 1.
+
+Input example: 1011 -> Output: 1100
+Input example: 1111 -> Output: 10000
+
+Hints:
+1. First move to the right end
+2. Perform carry processing from the right end leftward
+3. If all digits carry over, add a 1 at the front
+
+Solution:
+  States: {q_start, q_right, q_carry, q_done, q_accept}
+
+  Transition table:
+  (q_start, 0) -> (q_right, 0, R)  // Move to the right end
+  (q_start, 1) -> (q_right, 1, R)
+  (q_right, 0) -> (q_right, 0, R)
+  (q_right, 1) -> (q_right, 1, R)
+  (q_right, B) -> (q_carry, B, L)  // Reached right end, start carry
+  (q_carry, 0) -> (q_done, 1, L)   // 0->1, carry stops
+  (q_carry, 1) -> (q_carry, 0, L)  // 1->0, carry continues
+  (q_carry, B) -> (q_accept, 1, R) // Carry to the front
+  (q_done, 0) -> (q_done, 0, L)    // Return to left end
+  (q_done, 1) -> (q_done, 1, L)
+  (q_done, B) -> (q_accept, B, R)  // Complete
+```
+
+### Exercise 2: Reduction from the Halting Problem (Advanced)
+
+```
+Problem: Prove that automatically determining "whether a tool returns correct output
+for all inputs" is impossible, using reduction from the halting problem.
+
+Proof:
+  CORRECT = { <P, S> | Program P is correct for specification S
+                        on all inputs }
+
+  Show HALT <=_m CORRECT:
+
+  For any (M, w) (does M halt on w?),
+  construct program P' and specification S':
 
   P'(x):
-    1. Mをwで実行する（xは無視）
-    2. Mが停止したら、0を返す
+    1. Run M on w (ignore x)
+    2. If M halts, return 0
 
-  S': 「全ての入力に対して0を返す」
+  S': "Returns 0 for all inputs"
 
-  分析:
-  - Mがwで停止する → P'は全入力で0を返す → (P', S') ∈ CORRECT
-  - Mがwで停止しない → P'は全入力でループ → (P', S') ∉ CORRECT
+  Analysis:
+  - M halts on w -> P' returns 0 on all inputs -> (P', S') in CORRECT
+  - M doesn't halt on w -> P' loops on all inputs -> (P', S') not in CORRECT
 
-  CORRECTが決定可能なら、HALTも決定可能 → 矛盾
-  → CORRECT は決定不能 ∎
+  If CORRECT were decidable, HALT would also be decidable -> Contradiction
+  -> CORRECT is undecidable QED
 ```
 
-### 演習3: ライスの定理の適用（発展）
+### Exercise 3: Applying Rice's Theorem (Advanced)
 
 ```
-問題: 以下の各問題について、ライスの定理が適用できるかどうかを
-判定し、適用できる場合は非自明な性質であることを示せ。
+Problem: For each of the following problems, determine whether Rice's theorem
+applies, and if so, show that it is a nontrivial property.
 
-1. 「TM Mが空文字列εを受理するか？」
-   → ライスの定理適用可能
-   → P = {L | ε ∈ L}: 非自明（εを受理する言語もしない言語もある）
-   → 決定不能
+1. "Does TM M accept the empty string epsilon?"
+   -> Rice's theorem applies
+   -> P = {L | epsilon in L}: Nontrivial (languages that accept epsilon and those that don't both exist)
+   -> Undecidable
 
-2. 「TM Mが100個以上の状態を持つか？」
-   → ライスの定理適用不可
-   → これはTMの「構造的」性質（計算する関数の性質ではない）
-   → 決定可能（TMの記述を調べれば判定できる）
+2. "Does TM M have 100 or more states?"
+   -> Rice's theorem does not apply
+   -> This is a "structural" property of the TM (not a property of the computed function)
+   -> Decidable (can be determined by examining the TM's description)
 
-3. 「TM Mが認識する言語が正規言語か？」
-   → ライスの定理適用可能
-   → P = {L | Lは正規言語}: 非自明
-   → 決定不能
+3. "Is the language recognized by TM M a regular language?"
+   -> Rice's theorem applies
+   -> P = {L | L is a regular language}: Nontrivial
+   -> Undecidable
 
-4. 「TM Mが入力 "hello" を10ステップ以内に受理するか？」
-   → ライスの定理適用不可
-   → 有限ステップのシミュレーションで判定可能
-   → 決定可能
+4. "Does TM M accept input 'hello' within 10 steps?"
+   -> Rice's theorem does not apply
+   -> Determinable by simulating a finite number of steps
+   -> Decidable
 
-5. 「TM Mが計算する関数が全域か？」（全入力で停止するか）
-   → ライスの定理適用可能
-   → P = {L | Lは決定可能}: 非自明
-   → 決定不能（TOTAL問題と同値）
+5. "Is the function computed by TM M total?" (Does it halt on all inputs?)
+   -> Rice's theorem applies
+   -> P = {L | L is decidable}: Nontrivial
+   -> Undecidable (equivalent to the TOTAL problem)
 ```
 
-### 演習4: クワインの構築（実装）
+### Exercise 4: Constructing a Quine (Implementation)
 
 ```python
 """
-演習: Pythonでクワインを構築せよ。
+Exercise: Construct a quine in Python.
 
-条件:
-1. 外部ファイルを読まない
-2. 空のプログラムではない
-3. 自分自身のソースコードを正確に出力する
+Conditions:
+1. Does not read external files
+2. Is not an empty program
+3. Outputs its own source code exactly
 
-ヒント: 2部構成（データ部 + コード部）を使う
+Hint: Use a two-part construction (data part + code part)
 
-解答例:
+Solution:
 """
 
-# 方法1: %r フォーマットを使用
+# Method 1: Using %r format
 s='s=%r;print(s%%s)';print(s%s)
 
-# 方法2: f-stringを使用（Python 3.12+）
+# Method 2: Using f-strings (Python 3.12+)
 # exec(s:="print(f'exec(s:={chr(34)}{s}{chr(34)})')")
 
-# 方法3: 理解しやすい版
+# Method 3: More understandable version
 def make_quine():
-    """クワインの構造を理解するための段階的構築"""
+    """Step-by-step construction for understanding quine structure"""
 
-    # ステップ1: テンプレート（自分自身の骨格）
+    # Step 1: Template (skeleton of itself)
     template = 'template = {!r}\nprint(template.format(template))'
 
-    # ステップ2: テンプレートに自身を埋め込んで出力
+    # Step 2: Output by embedding itself into the template
     print(template.format(template))
 
-# 出力結果が入力と同じであることを確認
+# Verify that the output matches the input
 make_quine()
 ```
 
-### 演習5: 帰着の実践（発展）
+### Exercise 5: Practicing Reduction (Advanced)
 
 ```
-問題: 以下の問題が決定不能であることを、適切な帰着を用いて証明せよ。
+Problem: Prove that the following problem is undecidable using an appropriate reduction.
 
-問題: EMPTY = { ⟨M⟩ | L(M) = ∅ }（TMが空言語を認識するか）
+Problem: EMPTY = { <M> | L(M) = empty } (Does the TM recognize the empty language?)
 
-証明方法1: ライスの定理による
-  P = {∅}（空言語のみからなる性質）
-  空言語は RE に属するが、全ての RE 言語が空ではない → P は非自明
-  → ライスの定理により決定不能 ∎
+Proof Method 1: By Rice's theorem
+  P = {empty} (property consisting of only the empty language)
+  The empty language is in RE, but not all RE languages are empty -> P is nontrivial
+  -> Undecidable by Rice's theorem QED
 
-証明方法2: 停止問題からの帰着
-  HALT ≤ₘ EMPTȲ を示す（EMPTYの補集合に帰着）
+Proof Method 2: Reduction from the halting problem
+  Show HALT <=_m EMPTY-bar (reduce to the complement of EMPTY)
 
-  入力: (M, w)
-  構築するTM M':
+  Input: (M, w)
+  Construct TM M':
 
   M'(x):
-    1. Mをwで実行する
-    2. Mが停止したら受理
+    1. Run M on w
+    2. If M halts, accept
 
-  分析:
-  - Mがwで停止する → M'は全ての入力を受理 → L(M') = Σ* ≠ ∅ → M' ∉ EMPTY
-  - Mがwで停止しない → M'は何も受理しない → L(M') = ∅ → M' ∈ EMPTY
+  Analysis:
+  - M halts on w -> M' accepts all inputs -> L(M') = Sigma* != empty -> M' not in EMPTY
+  - M doesn't halt on w -> M' accepts nothing -> L(M') = empty -> M' in EMPTY
 
-  つまり: (M, w) ∈ HALT ⟺ ⟨M'⟩ ∉ EMPTY
+  Therefore: (M, w) in HALT <=> <M'> not in EMPTY
 
-  EMPTY が決定可能なら HALT も決定可能 → 矛盾
-  → EMPTY は決定不能 ∎
+  If EMPTY were decidable, HALT would also be decidable -> Contradiction
+  -> EMPTY is undecidable QED
 ```
 
 ---
 
-## 12. 計算可能性と現代の話題
+## 12. Computability and Modern Topics
 
-### 12.1 機械学習と計算可能性
+### 12.1 Machine Learning and Computability
 
 ```
-機械学習における計算可能性の問題:
+Computability issues in machine learning:
 
-  1. 学習可能性（PAC学習）
-     - 「あるクラスの関数は学習可能か？」
-     - 一部の問題は計算可能性の壁に直面する
+  1. Learnability (PAC Learning)
+     - "Can a certain class of functions be learned?"
+     - Some problems face computability barriers
      - Ben-David et al. (2019):
-       特定の学習問題は集合論の公理に依存（ZFCから独立）
+       Certain learning problems depend on set-theoretic axioms (independent of ZFC)
 
-  2. ニューラルネットワークの検証
-     - 「このNNは全ての入力に対して安全か？」
-     - 一般的なNNの性質検証は決定不能
-     - ReLUネットワークの特定の性質は判定可能
+  2. Neural Network Verification
+     - "Is this NN safe for all inputs?"
+     - General property verification of NNs is undecidable
+     - Specific properties of ReLU networks are decidable
 
-  3. AutoML と Neural Architecture Search
-     - 「最適なアーキテクチャを自動で見つける」
-     - 無限の探索空間 → ヒューリスティックによる近似
-     - No Free Lunch定理との関連
+  3. AutoML and Neural Architecture Search
+     - "Automatically find the optimal architecture"
+     - Infinite search space -> Approximation by heuristics
+     - Connection to the No Free Lunch theorem
 
-  4. LLM（大規模言語モデル）
-     - LLMはチューリング完全か？
-     - 有限の文脈長 → 厳密にはチューリング完全ではない
-     - しかし実用上は非常に広い計算能力を持つ
-     - 外部ツール（コード実行等）と組み合わせればチューリング完全に
+  4. LLMs (Large Language Models)
+     - Are LLMs Turing-complete?
+     - Finite context length -> Strictly not Turing-complete
+     - However, they have very broad computational capabilities in practice
+     - Combined with external tools (code execution, etc.), they become Turing-complete
 ```
 
-### 12.2 量子計算と計算可能性
+### 12.2 Quantum Computing and Computability
 
 ```
-量子コンピュータと計算可能性:
+Quantum computers and computability:
 
-  重要な結論:
-  ┌───────────────────────────────────────────────────┐
-  │ 量子コンピュータはチューリングマシンの計算「能力」を │
-  │ 超えない。しかし計算「効率」は超える可能性がある    │
-  └───────────────────────────────────────────────────┘
+  Key conclusion:
+  +-------------------------------------------------------+
+  | Quantum computers do not exceed the computational      |
+  | "power" of Turing machines. However, they may exceed   |
+  | computational "efficiency"                             |
+  +-------------------------------------------------------+
 
-  量子で高速化される問題:
-  - 素因数分解: O(n³) [量子] vs O(exp(n^{1/3})) [古典]
-  - 非構造化探索: O(√N) [量子] vs O(N) [古典]
-  - 量子シミュレーション: 指数的高速化
+  Problems accelerated by quantum:
+  - Integer factorization: O(n^3) [quantum] vs O(exp(n^{1/3})) [classical]
+  - Unstructured search: O(sqrt(N)) [quantum] vs O(N) [classical]
+  - Quantum simulation: Exponential speedup
 
-  量子でも解けない問題:
-  - 停止問題 → 依然として決定不能
-  - NP完全問題 → おそらく多項式時間では解けない
-    （BQP ⊄ NP は未証明だが、予想されている）
+  Problems unsolvable even by quantum:
+  - Halting problem -> Still undecidable
+  - NP-complete problems -> Probably not solvable in polynomial time
+    (BQP not subset of NP is unproven but conjectured)
 
-  計算可能性への影響:
-  - 決定可能/決定不能の境界は変わらない
-  - 変わるのは効率（多項式 vs 指数）の部分のみ
-  - 計算複雑性理論の一部が変わる可能性
+  Impact on computability:
+  - The boundary between decidable/undecidable does not change
+  - What changes is only the efficiency aspect (polynomial vs exponential)
+  - Parts of computational complexity theory may change
 ```
 
 ---
@@ -2139,46 +2143,46 @@ make_quine()
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point in learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important aspect. Understanding deepens not just through theory, but by actually writing and testing code.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the basics and jumping to applications. We recommend thoroughly understanding the fundamental concepts explained in this guide before moving to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this applied in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently utilized in day-to-day development work. It becomes particularly important during code reviews and architecture design.
 
 ---
 
-## まとめ
+## Summary
 
-| 概念 | ポイント |
+| Concept | Key Points |
 |------|---------|
-| チューリングマシン | 計算の理論的モデル。テープ+ヘッド+有限制御で全ての計算を表現 |
-| チャーチ=チューリングの提唱 | 計算可能 = チューリングマシンで計算可能。反例は見つかっていない |
-| 停止問題 | 決定不能の代表例。完璧なバグ検出器は存在しない |
-| 帰着 | 問題AをBに変換。決定不能性の証明に使用 |
-| ライスの定理 | プログラムの意味的性質は全て決定不能 |
-| 再帰定理 | プログラムは自身を参照可能。クワインの理論的保証 |
-| 決定可能性の階層 | 正規 ⊂ CFL ⊂ 決定可能 ⊂ RE ⊂ 全言語 |
-| 実務的影響 | 完璧は不可能→保守的/楽観的な近似を使い分ける |
+| Turing Machine | Theoretical model of computation. Represents all computation with tape + head + finite control |
+| Church-Turing Thesis | Computable = computable by a Turing machine. No counterexample has been found |
+| Halting Problem | Representative example of undecidability. A perfect bug detector does not exist |
+| Reduction | Transform problem A into B. Used to prove undecidability |
+| Rice's Theorem | All semantic properties of programs are undecidable |
+| Recursion Theorem | Programs can refer to themselves. Theoretical guarantee of quines |
+| Decidability Hierarchy | Regular subset CFL subset Decidable subset RE subset All languages |
+| Practical Impact | Perfection is impossible -> Use conservative/optimistic approximations appropriately |
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Guides
 
 ---
 
-## 参考文献
+## References
 1. Sipser, M. "Introduction to the Theory of Computation." Chapters 3-5.
 2. Turing, A. M. "On Computable Numbers, with an Application to the Entscheidungsproblem." 1936.
 3. Church, A. "An Unsolvable Problem of Elementary Number Theory." 1936.
 4. Rice, H. G. "Classes of Recursively Enumerable Sets and Their Decision Problems." 1953.
 5. Kleene, S. C. "Introduction to Metamathematics." 1952.
-6. Gödel, K. "Über formal unentscheidbare Sätze der Principia Mathematica und verwandter Systeme I." 1931.
+6. Godel, K. "Uber formal unentscheidbare Satze der Principia Mathematica und verwandter Systeme I." 1931.
 7. Davis, M. "Computability and Unsolvability." 1958.
 8. Rogers, H. "Theory of Recursive Functions and Effective Computability." 1967.
 9. Cutland, N. "Computability: An Introduction to Recursive Function Theory." 1980.

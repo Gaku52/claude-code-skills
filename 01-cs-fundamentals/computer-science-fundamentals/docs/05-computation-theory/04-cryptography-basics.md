@@ -1,64 +1,64 @@
-# 暗号の基礎
+# Fundamentals of Cryptography
 
-> 現代の暗号はCSの計算複雑性理論に基づいており、「解くのが困難な問題」の存在が安全性を保証する。暗号技術は情報化社会の根幹を支えるインフラであり、通信の秘匿性、データの完全性、そして本人性の検証を可能にする。
+> Modern cryptography is grounded in the computational complexity theory of computer science, and the existence of "hard-to-solve problems" guarantees its security. Cryptographic technology is the infrastructure underpinning the information-based society, enabling confidentiality of communications, data integrity, and identity verification.
 
-## この章で学ぶこと
+## Learning Objectives
 
-- [ ] 暗号の歴史的発展と古典暗号から現代暗号への転換を説明できる
-- [ ] 共通鍵暗号と公開鍵暗号の違いを数学的根拠とともに説明できる
-- [ ] ハッシュ関数の性質と用途を理解する
-- [ ] TLS/HTTPS の仕組みを概要レベルで説明できる
-- [ ] デジタル署名の仕組みと信頼モデルを理解する
-- [ ] 暗号の安全性を計算複雑性の観点から評価できる
-- [ ] ポスト量子暗号の必要性と主要候補を説明できる
-- [ ] 暗号実装におけるアンチパターンを回避できる
+- [ ] Explain the historical development of cryptography and the transition from classical to modern cryptography
+- [ ] Explain the differences between symmetric-key and public-key cryptography along with their mathematical foundations
+- [ ] Understand the properties and applications of hash functions
+- [ ] Explain the mechanism of TLS/HTTPS at an overview level
+- [ ] Understand the mechanism and trust model of digital signatures
+- [ ] Evaluate cryptographic security from a computational complexity perspective
+- [ ] Explain the necessity and major candidates for post-quantum cryptography
+- [ ] Avoid anti-patterns in cryptographic implementations
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Having the following knowledge before reading this guide will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [情報理論](./03-information-theory.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Understanding of the content in [Information Theory](./03-information-theory.md)
 
 ---
 
-## 1. 暗号の歴史と発展
+## 1. History and Development of Cryptography
 
-暗号（cryptography）の語源はギリシャ語の kryptos（隠された）と graphein（書く）である。暗号技術は数千年の歴史を持ち、軍事・外交通信から現代のインターネットセキュリティに至るまで、情報を守る手段として進化を続けてきた。
+Cryptography derives from the Greek words kryptos (hidden) and graphein (to write). Cryptographic technology has a history spanning thousands of years, evolving as a means of protecting information from military and diplomatic communications to modern internet security.
 
-### 1.1 古典暗号
+### 1.1 Classical Cryptography
 
-古典暗号とは、コンピュータが存在しない時代に使われていた暗号方式の総称である。多くは「文字の置換」や「文字の転置」に基づいている。
+Classical cryptography is a collective term for cryptographic methods used before the existence of computers. Most are based on "character substitution" or "character transposition."
 
-#### シーザー暗号（紀元前1世紀）
+#### Caesar Cipher (1st Century BC)
 
-ガイウス・ユリウス・カエサルが軍事通信に用いたとされる最も単純な換字式暗号である。アルファベットを固定のシフト数だけずらして暗号化する。
-
-```
-シーザー暗号の仕組み:
-
-  シフト数 = 3 の場合:
-
-  平文:   A B C D E F G H I J K L M N O P Q R S T U V W X Y Z
-  暗号文: D E F G H I J K L M N O P Q R S T U V W X Y Z A B C
-
-  暗号化: HELLO → KHOOR
-  復号:   KHOOR → HELLO（逆方向に3ずらす）
-
-  弱点: 鍵空間がわずか25通り → 全探索で即座に解読可能
-```
-
-#### ヴィジュネル暗号（16世紀）
-
-シーザー暗号の弱点を克服するため、複数のシフト数を鍵として使用する多表式暗号である。鍵の文字列を繰り返し適用することで、同じ平文文字が異なる暗号文字に変換される。
+The simplest substitution cipher, said to have been used by Gaius Julius Caesar for military communications. It encrypts by shifting the alphabet by a fixed number of positions.
 
 ```
-ヴィジュネル暗号:
+How the Caesar Cipher works:
 
-  鍵: KEY
-  平文: HELLOWORLD
+  With shift = 3:
+
+  Plaintext:  A B C D E F G H I J K L M N O P Q R S T U V W X Y Z
+  Ciphertext: D E F G H I J K L M N O P Q R S T U V W X Y Z A B C
+
+  Encryption: HELLO -> KHOOR
+  Decryption: KHOOR -> HELLO (shift 3 positions in reverse)
+
+  Weakness: Key space is only 25 possibilities -> instantly breakable by brute force
+```
+
+#### Vigenere Cipher (16th Century)
+
+A polyalphabetic cipher that uses multiple shift values as a key to overcome the weakness of the Caesar cipher. By repeatedly applying the key string, the same plaintext character is converted to different ciphertext characters.
+
+```
+Vigenere Cipher:
+
+  Key: KEY
+  Plaintext: HELLOWORLD
 
   H + K(10) = R
   E + E(4)  = I
@@ -71,304 +71,305 @@
   L + Y(24) = J
   D + K(10) = N
 
-  暗号文: RIJVSUYV JN
+  Ciphertext: RIJVSUYV JN
 
-  弱点: 鍵長が判明すると頻度分析で解読可能（カシスキー法）
+  Weakness: Once the key length is known, it can be broken by frequency analysis (Kasiski method)
 ```
 
-#### エニグマ暗号機（20世紀）
+#### Enigma Cipher Machine (20th Century)
 
-第二次世界大戦でドイツ軍が使用した電気機械式暗号装置である。ローター（回転子）を複数組み合わせ、1文字暗号化するたびにローターが回転することで、事実上の多表式暗号を実現した。鍵空間は約 1.59 × 10^20 に達し、当時としては極めて強固だった。
+An electromechanical cipher device used by the German military during World War II. By combining multiple rotors, with each rotor rotating after encrypting one character, it effectively achieved a polyalphabetic cipher. The key space reached approximately 1.59 x 10^20, making it extremely strong for its time.
 
-しかし、アラン・チューリングらの暗号解読チームがポーランドの先行研究を基に Bombe（ボンベ）と呼ばれる解読装置を開発し、構造的弱点を突いてエニグマの解読に成功した。この成功は連合国の勝利に大きく貢献したとされる。
-
-```
-エニグマの構造（簡略化）:
-
-  入力 → プラグボード → ローター1 → ローター2 → ローター3
-                                                      ↓
-                                                  反転器（UKW）
-                                                      ↓
-       ← プラグボード ← ローター1 ← ローター2 ← ローター3
-  出力
-
-  特徴:
-  - 1文字ごとにローター1が1ステップ回転（オドメーター式）
-  - 同じ文字が自分自身に暗号化されない（構造的弱点）
-  - 日替わりの鍵設定（ローター選択、初期位置、プラグ配線）
-```
-
-### 1.2 現代暗号への転換
-
-古典暗号から現代暗号への転換点は、1949年のクロード・シャノンによる「Communication Theory of Secrecy Systems」と、1976年のディフィーとヘルマンによる「New Directions in Cryptography」である。
-
-**シャノンの情報理論的安全性（1949年）**
-
-シャノンはワンタイムパッド（鍵が平文と同じ長さのランダムな文字列で、一度しか使わない）が情報理論的に安全であることを証明した。これは鍵の長さが十分であれば、暗号文からいかなる計算能力をもってしても平文の情報を得られないことを意味する。しかし、鍵の長さが平文と同じになるため実用性に乏しい。
-
-**ケルクホフスの原理（1883年提唱、現代でも適用）**
-
-暗号システムの安全性は、アルゴリズムの秘密性ではなく、鍵の秘密性のみに依存すべきである。現代の暗号アルゴリズム（AES、RSA など）は全て公開されており、その安全性は鍵の秘匿に基づいている。
+However, Alan Turing's codebreaking team, building on prior Polish research, developed a decryption device called Bombe and exploited structural weaknesses to successfully break Enigma. This success is said to have significantly contributed to the Allied victory.
 
 ```
-暗号の発展年表:
+Structure of Enigma (simplified):
 
-  紀元前     シーザー暗号（換字式）
-     |
-  16世紀     ヴィジュネル暗号（多表式）
-     |
-  1883年     ケルクホフスの原理
-     |
-  1918年     ワンタイムパッド（バーナム暗号）
-     |
-  1940年代   エニグマ解読（チューリング）
-     |
-  1949年     シャノンの秘匿通信理論
-     |
-  1976年     Diffie-Hellman 鍵交換
-     |
-  1977年     DES（共通鍵暗号の標準）/ RSA（公開鍵暗号）
-     |
-  1991年     PGP（Pretty Good Privacy）
-     |
-  2000年     AES（DES の後継として標準化）
-     |
-  2008年     Bitcoin（暗号技術の応用）
-     |
-  2018年     TLS 1.3（現代的プロトコル）
-     |
-  2024年     NIST ポスト量子暗号標準 発表
+  Input -> Plugboard -> Rotor 1 -> Rotor 2 -> Rotor 3
+                                                    |
+                                                Reflector (UKW)
+                                                    |
+       <- Plugboard <- Rotor 1 <- Rotor 2 <- Rotor 3
+  Output
+
+  Features:
+  - Rotor 1 advances one step per character (odometer-style)
+  - A character is never encrypted to itself (structural weakness)
+  - Daily key settings (rotor selection, initial position, plug wiring)
 ```
 
-### 1.3 暗号の基本概念と用語
+### 1.2 Transition to Modern Cryptography
 
-暗号を学ぶうえで不可欠な基本用語を整理する。
+The turning points from classical to modern cryptography were Claude Shannon's "Communication Theory of Secrecy Systems" in 1949 and Diffie and Hellman's "New Directions in Cryptography" in 1976.
 
-| 用語 | 定義 | 具体例 |
-|------|------|--------|
-| 平文 (plaintext) | 暗号化前の元のデータ | "Hello, World!" |
-| 暗号文 (ciphertext) | 暗号化後のデータ | "7f83b1657ff1fc..." |
-| 鍵 (key) | 暗号化・復号に使用する秘密のパラメータ | 256ビットのランダムバイト列 |
-| 暗号化 (encryption) | 平文を暗号文に変換する操作 | AES-256-GCM で暗号化 |
-| 復号 (decryption) | 暗号文を平文に戻す操作 | 正しい鍵で復号 |
-| 暗号アルゴリズム | 暗号化・復号の手順 | AES, RSA, ChaCha20 |
-| 鍵空間 (key space) | 可能な鍵の総数 | AES-256: 2^256 通り |
-| 暗号スイート | 複数の暗号アルゴリズムの組み合わせ | TLS_AES_256_GCM_SHA384 |
+**Shannon's Information-Theoretic Security (1949)**
+
+Shannon proved that the one-time pad (where the key is a random string of the same length as the plaintext, used only once) is information-theoretically secure. This means that if the key is sufficiently long, no amount of computational power can extract plaintext information from the ciphertext. However, it is impractical because the key must be as long as the plaintext.
+
+**Kerckhoffs's Principle (proposed in 1883, still applicable today)**
+
+The security of a cryptographic system should depend only on the secrecy of the key, not on the secrecy of the algorithm. All modern cryptographic algorithms (AES, RSA, etc.) are publicly available, and their security is based on key secrecy.
 
 ```
-暗号システムの基本モデル:
+Timeline of Cryptographic Development:
 
-  送信者（Alice）                         受信者（Bob）
-  ┌──────────┐                          ┌──────────┐
-  │  平文 M   │                          │  平文 M   │
-  │     ↓     │                          │     ↑     │
-  │ 暗号化    │      ┌───────────┐      │  復号     │
-  │ E(K, M)   │─────→│  暗号文 C  │─────→│ D(K, C)   │
-  │     ↓     │      └───────────┘      │     ↑     │
-  │  鍵 K     │                          │  鍵 K     │
-  └──────────┘                          └──────────┘
+  Ancient       Caesar Cipher (substitution)
+     |
+  16th Century  Vigenere Cipher (polyalphabetic)
+     |
+  1883          Kerckhoffs's Principle
+     |
+  1918          One-Time Pad (Vernam Cipher)
+     |
+  1940s         Enigma decryption (Turing)
+     |
+  1949          Shannon's secrecy communication theory
+     |
+  1976          Diffie-Hellman Key Exchange
+     |
+  1977          DES (symmetric cipher standard) / RSA (public-key cryptography)
+     |
+  1991          PGP (Pretty Good Privacy)
+     |
+  2000          AES (standardized as DES successor)
+     |
+  2008          Bitcoin (application of cryptographic technology)
+     |
+  2018          TLS 1.3 (modern protocol)
+     |
+  2024          NIST Post-Quantum Cryptography Standards announced
+```
 
-  攻撃者（Eve）は暗号文 C を傍受できるが、
-  鍵 K を知らなければ平文 M を復元できない
+### 1.3 Basic Concepts and Terminology of Cryptography
 
-  正しさの条件: D(K, E(K, M)) = M
+Essential basic terminology for studying cryptography is organized below.
+
+| Term | Definition | Example |
+|------|-----------|---------|
+| Plaintext | Original data before encryption | "Hello, World!" |
+| Ciphertext | Data after encryption | "7f83b1657ff1fc..." |
+| Key | Secret parameter used for encryption/decryption | 256-bit random byte sequence |
+| Encryption | Operation that converts plaintext to ciphertext | Encrypt with AES-256-GCM |
+| Decryption | Operation that restores ciphertext to plaintext | Decrypt with the correct key |
+| Cipher algorithm | Procedure for encryption/decryption | AES, RSA, ChaCha20 |
+| Key space | Total number of possible keys | AES-256: 2^256 possibilities |
+| Cipher suite | Combination of multiple cryptographic algorithms | TLS_AES_256_GCM_SHA384 |
+
+```
+Basic Model of a Cryptographic System:
+
+  Sender (Alice)                             Receiver (Bob)
+  +------------+                          +------------+
+  | Plaintext M |                          | Plaintext M |
+  |      |      |                          |      ^      |
+  | Encryption  |      +-----------+      | Decryption  |
+  | E(K, M)     |----->| Ciphertext C|----->| D(K, C)     |
+  |      |      |      +-----------+      |      ^      |
+  |  Key K      |                          |  Key K      |
+  +------------+                          +------------+
+
+  Attacker (Eve) can intercept ciphertext C,
+  but cannot recover plaintext M without knowing key K
+
+  Correctness condition: D(K, E(K, M)) = M
 ```
 
 ---
 
-## 2. 共通鍵暗号（対称鍵暗号）
+## 2. Symmetric-Key Cryptography
 
-共通鍵暗号（symmetric-key cryptography）は、暗号化と復号に同一の鍵を使用する暗号方式である。公開鍵暗号と比較して計算コストが低く、大量のデータを高速に暗号化できるため、データの暗号化には現在でも主に共通鍵暗号が使われている。
+Symmetric-key cryptography uses the same key for both encryption and decryption. Compared to public-key cryptography, it has lower computational cost and can encrypt large amounts of data at high speed, making it the primary method still used today for data encryption.
 
-### 2.1 ブロック暗号とストリーム暗号
+### 2.1 Block Ciphers and Stream Ciphers
 
-共通鍵暗号は大きく「ブロック暗号」と「ストリーム暗号」に分類される。
-
-```
-分類:
-
-  共通鍵暗号
-  ├── ブロック暗号: 固定長ブロック単位で処理
-  │   ├── DES（56ビット鍵、非推奨）
-  │   ├── 3DES（112ビット相当、非推奨）
-  │   └── AES（128/192/256ビット鍵、現行標準）
-  │
-  └── ストリーム暗号: 1バイトまたは1ビット単位で処理
-      ├── RC4（非推奨、TLS で禁止）
-      └── ChaCha20（現行推奨、TLS 1.3 採用）
-```
-
-**ブロック暗号**は平文を固定サイズのブロック（例: AES では 128 ビット）に分割し、各ブロックを暗号化する。ブロック長より長いデータを扱うには「暗号利用モード」が必要になる。
-
-**ストリーム暗号**は鍵から疑似乱数列（キーストリーム）を生成し、平文と XOR 演算して暗号化する。リアルタイム通信に適している。
-
-### 2.2 AES（Advanced Encryption Standard）
-
-AES は 2001 年に NIST が標準化したブロック暗号であり、ベルギーの暗号学者 Joan Daemen と Vincent Rijmen が設計した Rijndael アルゴリズムが選ばれた。現在、世界で最も広く使われている共通鍵暗号アルゴリズムである。
+Symmetric-key cryptography is broadly classified into "block ciphers" and "stream ciphers."
 
 ```
-AES の基本パラメータ:
+Classification:
 
-  ┌────────────────┬──────────┬──────────┬──────────┐
-  │                │ AES-128  │ AES-192  │ AES-256  │
-  ├────────────────┼──────────┼──────────┼──────────┤
-  │ 鍵長           │ 128 bit  │ 192 bit  │ 256 bit  │
-  │ ブロック長     │ 128 bit  │ 128 bit  │ 128 bit  │
-  │ ラウンド数     │ 10       │ 12       │ 14       │
-  │ 鍵空間         │ 2^128    │ 2^192    │ 2^256    │
-  └────────────────┴──────────┴──────────┴──────────┘
-
-  1ラウンドの処理（4ステップ）:
-  1. SubBytes   — S-Box による非線形バイト置換
-  2. ShiftRows  — 行単位の巡回シフト
-  3. MixColumns — 列単位のガロア体演算（最終ラウンド以外）
-  4. AddRoundKey — ラウンド鍵との XOR
+  Symmetric-Key Cryptography
+  +-- Block Cipher: Processes in fixed-length blocks
+  |   +-- DES (56-bit key, deprecated)
+  |   +-- 3DES (equivalent to 112-bit, deprecated)
+  |   +-- AES (128/192/256-bit key, current standard)
+  |
+  +-- Stream Cipher: Processes in 1-byte or 1-bit units
+      +-- RC4 (deprecated, prohibited in TLS)
+      +-- ChaCha20 (currently recommended, adopted in TLS 1.3)
 ```
 
-#### AES の1ラウンドの処理
+**Block ciphers** divide the plaintext into fixed-size blocks (e.g., 128 bits for AES) and encrypt each block. A "mode of operation" is needed to handle data longer than the block length.
+
+**Stream ciphers** generate a pseudorandom sequence (keystream) from the key and encrypt by XORing it with the plaintext. They are suitable for real-time communication.
+
+### 2.2 AES (Advanced Encryption Standard)
+
+AES is a block cipher standardized by NIST in 2001, based on the Rijndael algorithm designed by Belgian cryptographers Joan Daemen and Vincent Rijmen. It is currently the most widely used symmetric-key cipher algorithm in the world.
 
 ```
-AES ラウンド処理の流れ:
+AES Basic Parameters:
 
-  ┌──────────────────┐
-  │   入力ブロック    │  4x4 バイト行列（State）
-  │  (128 bits)      │
-  └────────┬─────────┘
-           ↓
-  ┌──────────────────┐
-  │    SubBytes      │  各バイトを S-Box で非線形変換
-  │  (非線形置換)    │  → 線形解析攻撃への耐性
-  └────────┬─────────┘
-           ↓
-  ┌──────────────────┐
-  │    ShiftRows     │  行0: シフトなし
-  │  (行シフト)      │  行1: 左に1バイト巡回
-  │                  │  行2: 左に2バイト巡回
-  │                  │  行3: 左に3バイト巡回
-  └────────┬─────────┘
-           ↓
-  ┌──────────────────┐
-  │   MixColumns     │  各列を GF(2^8) 上の
-  │  (列混合)        │  行列乗算で変換
-  │                  │  → 拡散（diffusion）を実現
-  └────────┬─────────┘
-           ↓
-  ┌──────────────────┐
-  │   AddRoundKey    │  ラウンド鍵との XOR
-  │  (鍵加算)        │
-  └────────┬─────────┘
-           ↓
-  ┌──────────────────┐
-  │   出力ブロック    │
-  └──────────────────┘
+  +----------------+----------+----------+----------+
+  |                | AES-128  | AES-192  | AES-256  |
+  +----------------+----------+----------+----------+
+  | Key length     | 128 bit  | 192 bit  | 256 bit  |
+  | Block length   | 128 bit  | 128 bit  | 128 bit  |
+  | Number of rounds| 10      | 12       | 14       |
+  | Key space      | 2^128    | 2^192    | 2^256    |
+  +----------------+----------+----------+----------+
+
+  Processing per round (4 steps):
+  1. SubBytes   -- Non-linear byte substitution via S-Box
+  2. ShiftRows  -- Cyclic shift by row
+  3. MixColumns -- Galois field arithmetic by column (except final round)
+  4. AddRoundKey -- XOR with the round key
 ```
 
-### 2.3 暗号利用モード
-
-ブロック暗号を実際に使用するには、ブロック長を超えるデータをどのように処理するかを定める「暗号利用モード」が不可欠である。モードの選択は安全性に直結するため、正しい理解が求められる。
-
-#### ECB モード（Electronic Codebook）--- 使用禁止
-
-ECB は各ブロックを独立に暗号化する最も単純なモードだが、同一の平文ブロックが同一の暗号文ブロックになるため、パターンが漏洩する。これは重大な脆弱性であり、実用的な暗号化に ECB を使用してはならない。
+#### AES Round Processing
 
 ```
-ECB モードの問題（ペンギン問題）:
+AES Round Processing Flow:
 
-  元画像（ビットマップ）       ECB 暗号化後             CBC 暗号化後
-  ┌───────────────┐          ┌───────────────┐        ┌───────────────┐
-  │   ▓▓▓▓▓▓▓    │          │   ▓▓▓▓▓▓▓    │        │ ░▒▓█░▒▓█░▒▓  │
-  │  ▓▓████▓▓▓   │          │  ▓▓████▓▓▓   │        │ █▒░▓▒█░▓█▒░  │
-  │ ▓▓██████▓▓   │          │ ▓▓██████▓▓   │        │ ░▓█▒░▓█▒░▓█  │
-  │  ▓▓████▓▓    │          │  ▓▓████▓▓    │        │ ▒█░▓█▒░▓█▒░  │
-  │   ▓▓▓▓▓▓     │          │   ▓▓▓▓▓▓     │        │ ▓█▒░▓█▒░▓█▒  │
-  └───────────────┘          └───────────────┘        └───────────────┘
-  ペンギンの形が見える        形がそのまま残る!          完全にランダム化
-
-  → ECB では同じ色のブロックが同じ暗号文になるため、
-    画像の輪郭が暗号化後も保存されてしまう
+  +------------------+
+  |   Input Block    |  4x4 byte matrix (State)
+  |  (128 bits)      |
+  +--------+---------+
+           |
+  +------------------+
+  |    SubBytes      |  Non-linear transformation of each byte via S-Box
+  |  (Non-linear     |  -> Resistance to linear cryptanalysis
+  |   substitution)  |
+  +--------+---------+
+           |
+  +------------------+
+  |    ShiftRows     |  Row 0: No shift
+  |  (Row shift)     |  Row 1: Cyclic left shift by 1 byte
+  |                  |  Row 2: Cyclic left shift by 2 bytes
+  |                  |  Row 3: Cyclic left shift by 3 bytes
+  +--------+---------+
+           |
+  +------------------+
+  |   MixColumns     |  Transform each column via
+  |  (Column mixing) |  matrix multiplication over GF(2^8)
+  |                  |  -> Achieves diffusion
+  +--------+---------+
+           |
+  +------------------+
+  |   AddRoundKey    |  XOR with the round key
+  |  (Key addition)  |
+  +--------+---------+
+           |
+  +------------------+
+  |   Output Block   |
+  +------------------+
 ```
 
-#### CBC モード（Cipher Block Chaining）
+### 2.3 Modes of Operation
 
-各ブロックの暗号化前に、前のブロックの暗号文と XOR をとる。最初のブロックには初期化ベクトル（IV）を使用する。同一の平文でも異なる IV により異なる暗号文が生成される。
+To actually use a block cipher, a "mode of operation" that defines how to process data exceeding the block length is essential. The choice of mode directly affects security, so correct understanding is required.
 
-```
-CBC モード:
+#### ECB Mode (Electronic Codebook) --- Do NOT Use
 
-  IV ─┐
-       ↓
-  P1 ─⊕─→ E(K) ─→ C1 ─┐
-                          ↓
-              P2 ─────⊕─→ E(K) ─→ C2 ─┐
-                                          ↓
-                              P3 ─────⊕─→ E(K) ─→ C3
-
-  暗号化: Ci = E(K, Pi ⊕ C_{i-1}),  C0 = IV
-  復号:   Pi = D(K, Ci) ⊕ C_{i-1}
-
-  注意: パディングオラクル攻撃に脆弱な場合がある
-```
-
-#### GCM モード（Galois/Counter Mode）--- 現行推奨
-
-GCM は CTR（カウンタ）モードと GHASH（ガロアハッシュ）を組み合わせた認証付き暗号（AEAD: Authenticated Encryption with Associated Data）である。暗号化と同時にデータの改竄検知が可能であり、TLS 1.3 で標準的に使用される。
+ECB is the simplest mode that encrypts each block independently, but since identical plaintext blocks always produce identical ciphertext blocks, patterns are leaked. This is a critical vulnerability, and ECB must never be used for practical encryption.
 
 ```
-GCM モード（AEAD）:
+ECB Mode Problem (Penguin Problem):
 
-  鍵 K, IV（96bit推奨）, 平文 P, 関連データ A
+  Original image (bitmap)     After ECB encryption      After CBC encryption
+  +---------------+          +---------------+        +---------------+
+  |   #######     |          |   #######     |        | @$#!@$#!@$#   |
+  |  ##!!!!###    |          |  ##!!!!###    |        | !$@#$!@#!$@   |
+  | ##!!!!!!##    |          | ##!!!!!!##    |        | @#!$@#!$@#!   |
+  |  ##!!!!##     |          |  ##!!!!##     |        | $!@#!$@#!$@   |
+  |   ######      |          |   ######      |        | #!$@#!$@#!$   |
+  +---------------+          +---------------+        +---------------+
+  Penguin shape visible       Shape remains intact!     Completely randomized
 
-  ┌─────────────────────────────────────────┐
-  │  CTR モードで暗号化:                     │
-  │    Counter = IV || 0...01                │
-  │    Ci = Pi ⊕ E(K, Counter + i)          │
-  │                                          │
-  │  GHASH で認証タグ生成:                   │
-  │    T = GHASH(H, A, C) ⊕ E(K, IV||0..0)  │
-  │    H = E(K, 0^128)                       │
-  └─────────────────────────────────────────┘
+  -> In ECB, blocks of the same color produce the same ciphertext,
+    so the image outline is preserved even after encryption
+```
 
-  出力: (暗号文 C, 認証タグ T)
+#### CBC Mode (Cipher Block Chaining)
 
-  復号時: 認証タグを検証してから復号
-  → 改竄された暗号文を復号しない（安全）
+Before encrypting each block, it is XORed with the ciphertext of the previous block. An initialization vector (IV) is used for the first block. The same plaintext produces different ciphertext with different IVs.
+
+```
+CBC Mode:
+
+  IV -+
+      |
+  P1 -XOR-> E(K) --> C1 -+
+                           |
+              P2 -----XOR-> E(K) --> C2 -+
+                                          |
+                              P3 -----XOR-> E(K) --> C3
+
+  Encryption: Ci = E(K, Pi XOR C_{i-1}),  C0 = IV
+  Decryption: Pi = D(K, Ci) XOR C_{i-1}
+
+  Note: May be vulnerable to padding oracle attacks
+```
+
+#### GCM Mode (Galois/Counter Mode) --- Currently Recommended
+
+GCM is an authenticated encryption (AEAD: Authenticated Encryption with Associated Data) that combines CTR (Counter) mode with GHASH (Galois Hash). It can detect data tampering simultaneously with encryption and is used as standard in TLS 1.3.
+
+```
+GCM Mode (AEAD):
+
+  Key K, IV (96-bit recommended), Plaintext P, Associated Data A
+
+  +---------------------------------------------+
+  |  Encrypt with CTR mode:                      |
+  |    Counter = IV || 0...01                    |
+  |    Ci = Pi XOR E(K, Counter + i)             |
+  |                                              |
+  |  Generate authentication tag with GHASH:     |
+  |    T = GHASH(H, A, C) XOR E(K, IV||0..0)    |
+  |    H = E(K, 0^128)                           |
+  +---------------------------------------------+
+
+  Output: (Ciphertext C, Authentication Tag T)
+
+  During decryption: Verify authentication tag before decrypting
+  -> Does not decrypt tampered ciphertext (secure)
 ```
 
 ### 2.4 ChaCha20-Poly1305
 
-ChaCha20 は Daniel J. Bernstein が設計したストリーム暗号であり、Poly1305 と組み合わせて AEAD を実現する。AES-GCM と同等の安全性を持ちながら、AES ハードウェアアクセラレーション（AES-NI）を持たない環境（モバイル端末など）でも高速に動作する。TLS 1.3 で AES-256-GCM と並んで採用されている。
+ChaCha20 is a stream cipher designed by Daniel J. Bernstein, combined with Poly1305 to achieve AEAD. It provides security equivalent to AES-GCM while operating at high speed even in environments without AES hardware acceleration (AES-NI), such as mobile devices. It is adopted alongside AES-256-GCM in TLS 1.3.
 
 ```
-ChaCha20 の特徴:
+ChaCha20 Features:
 
-  - 256ビット鍵 + 96ビットノンス + 32ビットカウンタ
-  - 20ラウンドの Quarter Round 演算
-  - 加算・XOR・ローテーションのみで構成（ARX構造）
-    → サイドチャネル攻撃に対してタイミング一定
-  - ソフトウェア実装でも高速
+  - 256-bit key + 96-bit nonce + 32-bit counter
+  - 20 rounds of Quarter Round operations
+  - Composed only of addition, XOR, and rotation (ARX structure)
+    -> Constant timing against side-channel attacks
+  - Fast even in software implementation
 
   AES-GCM vs ChaCha20-Poly1305:
 
-  ┌──────────────────┬─────────────┬────────────────────┐
-  │                  │ AES-256-GCM │ ChaCha20-Poly1305  │
-  ├──────────────────┼─────────────┼────────────────────┤
-  │ 鍵長             │ 256 bit     │ 256 bit            │
-  │ ノンス長         │ 96 bit      │ 96 bit             │
-  │ HW加速あり       │ 非常に高速  │ 高速               │
-  │ HW加速なし       │ 低速        │ 高速（差が出ない） │
-  │ TLS 1.3          │ 標準        │ 標準               │
-  │ タイミング安全性 │ 実装依存    │ 構造的に安全       │
-  └──────────────────┴─────────────┴────────────────────┘
+  +------------------+-------------+--------------------+
+  |                  | AES-256-GCM | ChaCha20-Poly1305  |
+  +------------------+-------------+--------------------+
+  | Key length       | 256 bit     | 256 bit            |
+  | Nonce length     | 96 bit      | 96 bit             |
+  | With HW accel.   | Very fast   | Fast               |
+  | Without HW accel.| Slow        | Fast (no difference)|
+  | TLS 1.3          | Standard    | Standard           |
+  | Timing safety    | Impl. dep.  | Structurally safe  |
+  +------------------+-------------+--------------------+
 ```
 
-### 2.5 Python で学ぶ共通鍵暗号
+### 2.5 Learning Symmetric-Key Cryptography with Python
 
-以下のコードは Python の `cryptography` ライブラリを用いた AES-256-GCM による暗号化・復号の完全な実装例である。
+The following code is a complete implementation example of AES-256-GCM encryption/decryption using Python's `cryptography` library.
 
 ```python
 """
-AES-256-GCM による暗号化・復号のデモ
-依存ライブラリ: pip install cryptography
+AES-256-GCM encryption/decryption demo
+Dependency: pip install cryptography
 """
 import os
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -376,74 +377,74 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 def encrypt_aes_gcm(plaintext: bytes, key: bytes, aad: bytes = b"") -> tuple[bytes, bytes]:
     """
-    AES-256-GCM で平文を暗号化する。
+    Encrypt plaintext with AES-256-GCM.
 
     Args:
-        plaintext: 暗号化する平文データ
-        key: 256ビット（32バイト）の鍵
-        aad: 関連データ（暗号化しないが認証に含める）
+        plaintext: Plaintext data to encrypt
+        key: 256-bit (32-byte) key
+        aad: Associated data (not encrypted but included in authentication)
 
     Returns:
-        (nonce, ciphertext): ノンスと暗号文+認証タグの組
+        (nonce, ciphertext): Tuple of nonce and ciphertext+authentication tag
     """
-    # ノンスは暗号化ごとに一意でなければならない（96ビット推奨）
-    nonce = os.urandom(12)  # 96ビット = 12バイト
+    # Nonce must be unique per encryption (96-bit recommended)
+    nonce = os.urandom(12)  # 96 bits = 12 bytes
     aesgcm = AESGCM(key)
-    # 暗号文には自動的に認証タグ（16バイト）が付加される
+    # Authentication tag (16 bytes) is automatically appended to ciphertext
     ciphertext = aesgcm.encrypt(nonce, plaintext, aad)
     return nonce, ciphertext
 
 
 def decrypt_aes_gcm(nonce: bytes, ciphertext: bytes, key: bytes, aad: bytes = b"") -> bytes:
     """
-    AES-256-GCM で暗号文を復号する。
+    Decrypt ciphertext with AES-256-GCM.
 
     Args:
-        nonce: 暗号化時に使用したノンス
-        ciphertext: 暗号文+認証タグ
-        key: 256ビット（32バイト）の鍵
-        aad: 暗号化時と同じ関連データ
+        nonce: Nonce used during encryption
+        ciphertext: Ciphertext + authentication tag
+        key: 256-bit (32-byte) key
+        aad: Same associated data used during encryption
 
     Returns:
-        復号された平文
+        Decrypted plaintext
 
     Raises:
-        cryptography.exceptions.InvalidTag: 認証タグが不正な場合
+        cryptography.exceptions.InvalidTag: If the authentication tag is invalid
     """
     aesgcm = AESGCM(key)
     return aesgcm.decrypt(nonce, ciphertext, aad)
 
 
 def main():
-    # 256ビット鍵を安全に生成
+    # Securely generate a 256-bit key
     key = AESGCM.generate_key(bit_length=256)
-    print(f"鍵 (hex): {key.hex()}")
-    print(f"鍵長: {len(key) * 8} bits")
+    print(f"Key (hex): {key.hex()}")
+    print(f"Key length: {len(key) * 8} bits")
 
-    # 平文と関連データ
-    plaintext = "暗号学は情報セキュリティの基盤である。".encode("utf-8")
+    # Plaintext and associated data
+    plaintext = "Cryptography is the foundation of information security.".encode("utf-8")
     aad = b"metadata:version=1"
 
-    # 暗号化
+    # Encryption
     nonce, ciphertext = encrypt_aes_gcm(plaintext, key, aad)
-    print(f"\nノンス (hex): {nonce.hex()}")
-    print(f"暗号文 (hex): {ciphertext.hex()}")
-    print(f"暗号文長: {len(ciphertext)} bytes (平文 {len(plaintext)} + タグ 16)")
+    print(f"\nNonce (hex): {nonce.hex()}")
+    print(f"Ciphertext (hex): {ciphertext.hex()}")
+    print(f"Ciphertext length: {len(ciphertext)} bytes (plaintext {len(plaintext)} + tag 16)")
 
-    # 復号
+    # Decryption
     decrypted = decrypt_aes_gcm(nonce, ciphertext, key, aad)
-    print(f"\n復号結果: {decrypted.decode('utf-8')}")
-    assert decrypted == plaintext, "復号結果が元の平文と一致しない"
+    print(f"\nDecrypted: {decrypted.decode('utf-8')}")
+    assert decrypted == plaintext, "Decrypted result does not match original plaintext"
 
-    # 改竄検知のデモ: 暗号文を1バイト変更
+    # Tampering detection demo: modify 1 byte of ciphertext
     tampered = bytearray(ciphertext)
-    tampered[0] ^= 0xFF  # 最初のバイトを反転
+    tampered[0] ^= 0xFF  # Flip the first byte
     try:
         decrypt_aes_gcm(nonce, bytes(tampered), key, aad)
-        print("エラー: 改竄が検知されなかった")
+        print("Error: Tampering was not detected")
     except Exception as e:
-        print(f"\n改竄検知成功: {type(e).__name__}")
-        print("→ GCM の認証タグにより、暗号文の改竄を検出した")
+        print(f"\nTampering detected: {type(e).__name__}")
+        print("-> GCM's authentication tag detected ciphertext tampering")
 
 
 if __name__ == "__main__":
@@ -451,176 +452,177 @@ if __name__ == "__main__":
 ```
 
 ```
-実行結果の例:
+Example output:
 
-  鍵 (hex): a1b2c3d4e5f6...（64文字の16進数）
-  鍵長: 256 bits
+  Key (hex): a1b2c3d4e5f6...(64 hex characters)
+  Key length: 256 bits
 
-  ノンス (hex): 1a2b3c4d5e6f7a8b9c0d1e2f
-  暗号文 (hex): 8f3a2b1c4d5e...（平文+16バイトのタグ）
-  暗号文長: 70 bytes (平文 54 + タグ 16)
+  Nonce (hex): 1a2b3c4d5e6f7a8b9c0d1e2f
+  Ciphertext (hex): 8f3a2b1c4d5e...(plaintext + 16-byte tag)
+  Ciphertext length: 70 bytes (plaintext 54 + tag 16)
 
-  復号結果: 暗号学は情報セキュリティの基盤である。
+  Decrypted: Cryptography is the foundation of information security.
 
-  改竄検知成功: InvalidTag
-  → GCM の認証タグにより、暗号文の改竄を検出した
+  Tampering detected: InvalidTag
+  -> GCM's authentication tag detected ciphertext tampering
 ```
 
 ---
 
-## 3. 公開鍵暗号（非対称鍵暗号）
+## 3. Public-Key Cryptography (Asymmetric Cryptography)
 
-公開鍵暗号（public-key cryptography / asymmetric cryptography）は、1976年にホイットフィールド・ディフィーとマーティン・ヘルマンが発表した革命的な概念である。暗号化と復号に異なる鍵を使用し、共通鍵暗号の最大の課題であった「鍵配送問題」を解決した。
+Public-key cryptography (asymmetric cryptography) is a revolutionary concept published by Whitfield Diffie and Martin Hellman in 1976. It uses different keys for encryption and decryption, solving the greatest challenge of symmetric-key cryptography: the "key distribution problem."
 
-### 3.1 鍵配送問題と公開鍵暗号の誕生
+### 3.1 The Key Distribution Problem and the Birth of Public-Key Cryptography
 
-共通鍵暗号では、通信相手と安全に同じ鍵を共有する必要がある。しかし、安全な通信路がないからこそ暗号を使いたいのであり、これは鶏と卵の問題である。
-
-```
-鍵配送問題:
-
-  n 人が相互に暗号通信するために必要な鍵の数:
-
-  共通鍵暗号: n(n-1)/2 個の鍵が必要
-    2人 →   1鍵
-    10人 →  45鍵
-    100人 → 4,950鍵
-    1000人 → 499,500鍵
-
-  公開鍵暗号: 各人が鍵ペア1組（公開鍵+秘密鍵）を持てばよい
-    2人 →   2鍵ペア
-    10人 →  10鍵ペア
-    100人 → 100鍵ペア
-    1000人 → 1,000鍵ペア
-
-  → 鍵管理の計算量が O(n^2) から O(n) に改善
-```
-
-### 3.2 RSA 暗号
-
-RSA は 1977 年に Ron Rivest、Adi Shamir、Leonard Adleman の3名が発表した最初の実用的な公開鍵暗号アルゴリズムであり、大きな整数の素因数分解の困難性に安全性の根拠を置く。
+In symmetric-key cryptography, both communicating parties need to securely share the same key. However, they want to use encryption precisely because there is no secure communication channel -- a chicken-and-egg problem.
 
 ```
-RSA の鍵生成と暗号化（概要）:
+Key Distribution Problem:
 
-  鍵生成:
-  1. 大きな素数 p, q を選ぶ（各1024ビット以上）
-  2. n = p × q を計算
-  3. φ(n) = (p-1)(q-1) を計算（オイラーのトーシェント関数）
-  4. gcd(e, φ(n)) = 1 を満たす e を選ぶ（通常 e = 65537）
-  5. e × d ≡ 1 (mod φ(n)) を満たす d を求める
+  Number of keys needed for n parties to communicate with each other:
 
-  公開鍵: (n, e)
-  秘密鍵: (n, d)
+  Symmetric-key: n(n-1)/2 keys needed
+    2 people ->   1 key
+    10 people ->  45 keys
+    100 people -> 4,950 keys
+    1000 people -> 499,500 keys
 
-  暗号化: c = m^e mod n
-  復号:   m = c^d mod n
+  Public-key: Each person only needs 1 key pair (public key + private key)
+    2 people ->   2 key pairs
+    10 people ->  10 key pairs
+    100 people -> 100 key pairs
+    1000 people -> 1,000 key pairs
 
-  安全性の根拠:
-  - n から p, q を求めること（素因数分解）が計算的に困難
-  - RSA-2048: n は約617桁の整数
-  - 現在の古典コンピュータでは分解不可能
+  -> Key management complexity improved from O(n^2) to O(n)
 ```
 
-#### RSA の数値例（教育用の小さな値）
+### 3.2 RSA Cryptography
+
+RSA was the first practical public-key cryptographic algorithm, published in 1977 by Ron Rivest, Adi Shamir, and Leonard Adleman. Its security is based on the difficulty of factoring large integers.
 
 ```
-RSA の数値例:
+RSA Key Generation and Encryption (Overview):
 
-  1. 素数の選択: p = 61, q = 53
-  2. n = 61 × 53 = 3233
-  3. φ(n) = (61-1)(53-1) = 60 × 52 = 3120
-  4. e = 17  (gcd(17, 3120) = 1 を確認)
-  5. d = 2753  (17 × 2753 = 46801 = 15 × 3120 + 1)
+  Key Generation:
+  1. Choose large primes p, q (at least 1024 bits each)
+  2. Compute n = p x q
+  3. Compute phi(n) = (p-1)(q-1) (Euler's totient function)
+  4. Choose e satisfying gcd(e, phi(n)) = 1 (typically e = 65537)
+  5. Find d satisfying e x d = 1 (mod phi(n))
 
-  公開鍵: (3233, 17)
-  秘密鍵: (3233, 2753)
+  Public key: (n, e)
+  Private key: (n, d)
 
-  暗号化 (m = 65 = 'A'):
+  Encryption: c = m^e mod n
+  Decryption: m = c^d mod n
+
+  Security basis:
+  - Finding p, q from n (integer factorization) is computationally hard
+  - RSA-2048: n is approximately a 617-digit integer
+  - Cannot be factored with current classical computers
+```
+
+#### RSA Numerical Example (small values for educational purposes)
+
+```
+RSA Numerical Example:
+
+  1. Prime selection: p = 61, q = 53
+  2. n = 61 x 53 = 3233
+  3. phi(n) = (61-1)(53-1) = 60 x 52 = 3120
+  4. e = 17  (verify gcd(17, 3120) = 1)
+  5. d = 2753  (17 x 2753 = 46801 = 15 x 3120 + 1)
+
+  Public key: (3233, 17)
+  Private key: (3233, 2753)
+
+  Encryption (m = 65 = 'A'):
     c = 65^17 mod 3233 = 2790
 
-  復号:
+  Decryption:
     m = 2790^2753 mod 3233 = 65
 
-  ※ 実際の RSA では n は2048ビット（617桁）以上を使用
+  * In practice, RSA uses n of 2048 bits (617+ digits) or more
 ```
 
-### 3.3 楕円曲線暗号（ECC）
+### 3.3 Elliptic Curve Cryptography (ECC)
 
-楕円曲線暗号（Elliptic Curve Cryptography）は、楕円曲線上の離散対数問題の困難性に基づく暗号方式である。RSA と比較して同等の安全性をはるかに短い鍵長で実現でき、計算効率も良いため、現代のシステムで広く採用されている。
+Elliptic Curve Cryptography is a cryptographic scheme based on the difficulty of the discrete logarithm problem on elliptic curves. It achieves equivalent security to RSA with much shorter key lengths and better computational efficiency, making it widely adopted in modern systems.
 
 ```
-楕円曲線の方程式:
+Elliptic Curve Equation:
 
   y^2 = x^3 + ax + b  (mod p)
 
-  曲線上の点の加算（P + Q = R）:
-  - 2点 P, Q を通る直線と曲線の第3の交点を x軸で反転
+  Point addition on the curve (P + Q = R):
+  - The line through points P and Q intersects the curve at a third point,
+    which is reflected across the x-axis
 
-  スカラー倍算:
-  - nP = P + P + ... + P（n回の加算）
+  Scalar multiplication:
+  - nP = P + P + ... + P (n additions)
 
-  楕円曲線離散対数問題（ECDLP）:
-  - Q = nP が与えられた時、n を求めることが計算的に困難
-  - これが安全性の根拠
+  Elliptic Curve Discrete Logarithm Problem (ECDLP):
+  - Given Q = nP, finding n is computationally hard
+  - This is the security basis
 
-  鍵長の比較:
-  ┌─────────────┬──────────┬──────────┬────────────────┐
-  │ セキュリティ │ RSA鍵長  │ ECC鍵長  │ 比率           │
-  │ レベル       │          │          │ (RSA/ECC)      │
-  ├─────────────┼──────────┼──────────┼────────────────┤
-  │  80 bit      │ 1024 bit │ 160 bit  │ 6.4倍          │
-  │ 112 bit      │ 2048 bit │ 224 bit  │ 9.1倍          │
-  │ 128 bit      │ 3072 bit │ 256 bit  │ 12倍           │
-  │ 192 bit      │ 7680 bit │ 384 bit  │ 20倍           │
-  │ 256 bit      │15360 bit │ 521 bit  │ 29.5倍         │
-  └─────────────┴──────────┴──────────┴────────────────┘
+  Key Length Comparison:
+  +-------------+----------+----------+----------------+
+  | Security    | RSA key  | ECC key  | Ratio          |
+  | Level       | length   | length   | (RSA/ECC)      |
+  +-------------+----------+----------+----------------+
+  |  80 bit     | 1024 bit | 160 bit  | 6.4x           |
+  | 112 bit     | 2048 bit | 224 bit  | 9.1x           |
+  | 128 bit     | 3072 bit | 256 bit  | 12x            |
+  | 192 bit     | 7680 bit | 384 bit  | 20x            |
+  | 256 bit     |15360 bit | 521 bit  | 29.5x          |
+  +-------------+----------+----------+----------------+
 
-  代表的な曲線:
-  - P-256 (secp256r1): NIST 推奨、TLS で広く使用
-  - Curve25519: Daniel Bernstein 設計、SSH/Signal で使用
-  - secp256k1: Bitcoin で使用
+  Representative Curves:
+  - P-256 (secp256r1): NIST recommended, widely used in TLS
+  - Curve25519: Designed by Daniel Bernstein, used in SSH/Signal
+  - secp256k1: Used in Bitcoin
 ```
 
-### 3.4 Diffie-Hellman 鍵交換
+### 3.4 Diffie-Hellman Key Exchange
 
-Diffie-Hellman（DH）鍵交換は、安全でない通信路上で2者が共通の秘密鍵を共有するためのプロトコルである。暗号化そのものを行うのではなく、共通鍵暗号で使う鍵の素材を安全に生成する仕組みである。
+Diffie-Hellman (DH) key exchange is a protocol for two parties to share a common secret key over an insecure communication channel. It does not perform encryption itself, but rather securely generates key material for use with symmetric-key cryptography.
 
 ```
-Diffie-Hellman 鍵交換:
+Diffie-Hellman Key Exchange:
 
-  公開パラメータ: 素数 p, 生成元 g
+  Public parameters: Prime p, Generator g
 
   Alice                                   Bob
-  ┌───────────────────┐                 ┌───────────────────┐
-  │ 秘密の値 a を選択  │                 │ 秘密の値 b を選択  │
-  │ A = g^a mod p      │                 │ B = g^b mod p      │
-  │                    │                 │                    │
-  │         ─── A を送信 ──────→         │
-  │         ←── B を送信 ──────          │
-  │                    │                 │                    │
-  │ s = B^a mod p      │                 │ s = A^b mod p      │
-  │   = (g^b)^a mod p  │                 │   = (g^a)^b mod p  │
-  │   = g^(ab) mod p   │                 │   = g^(ab) mod p   │
-  └───────────────────┘                 └───────────────────┘
+  +-------------------+                 +-------------------+
+  | Choose secret a    |                 | Choose secret b    |
+  | A = g^a mod p      |                 | B = g^b mod p      |
+  |                    |                 |                    |
+  |         --- Send A ---------->       |
+  |         <-- Send B ----------        |
+  |                    |                 |                    |
+  | s = B^a mod p      |                 | s = A^b mod p      |
+  |   = (g^b)^a mod p  |                 |   = (g^a)^b mod p  |
+  |   = g^(ab) mod p   |                 |   = g^(ab) mod p   |
+  +-------------------+                 +-------------------+
 
-  共通秘密: s = g^(ab) mod p（一致する）
+  Shared secret: s = g^(ab) mod p (they match)
 
-  攻撃者は A = g^a mod p と B = g^b mod p を知っていても、
-  a や b を効率的に求められない（離散対数問題）
+  The attacker knows A = g^a mod p and B = g^b mod p,
+  but cannot efficiently determine a or b (discrete logarithm problem)
 
-  現代の実装: ECDH（楕円曲線 Diffie-Hellman）
-  → TLS 1.3 の鍵交換は ECDH（X25519 または P-256）を使用
+  Modern implementation: ECDH (Elliptic Curve Diffie-Hellman)
+  -> TLS 1.3 key exchange uses ECDH (X25519 or P-256)
 ```
 
-### 3.5 Python で学ぶ公開鍵暗号
+### 3.5 Learning Public-Key Cryptography with Python
 
-以下のコードは、楕円曲線 Diffie-Hellman（ECDH）による鍵交換のデモである。
+The following code demonstrates Elliptic Curve Diffie-Hellman (ECDH) key exchange.
 
 ```python
 """
-ECDH 鍵交換と HKDF による鍵導出のデモ
-依存ライブラリ: pip install cryptography
+ECDH key exchange and key derivation with HKDF demo
+Dependency: pip install cryptography
 """
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
 from cryptography.hazmat.primitives import hashes
@@ -629,28 +631,28 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 def ecdh_key_exchange():
     """
-    X25519 を使用した ECDH 鍵交換のデモ。
-    Alice と Bob が安全でない通信路上で共通鍵を生成する。
+    Demo of ECDH key exchange using X25519.
+    Alice and Bob generate a shared key over an insecure communication channel.
     """
-    # Alice の鍵ペア生成
+    # Generate Alice's key pair
     alice_private = X25519PrivateKey.generate()
     alice_public = alice_private.public_key()
 
-    # Bob の鍵ペア生成
+    # Generate Bob's key pair
     bob_private = X25519PrivateKey.generate()
     bob_public = bob_private.public_key()
 
-    # 鍵交換: 相手の公開鍵と自分の秘密鍵から共有秘密を導出
+    # Key exchange: Derive shared secret from partner's public key and own private key
     alice_shared = alice_private.exchange(bob_public)
     bob_shared = bob_private.exchange(alice_public)
 
-    # 両者の共有秘密が一致することを確認
-    assert alice_shared == bob_shared, "共有秘密が一致しない"
-    print(f"共有秘密 (hex): {alice_shared.hex()}")
-    print(f"共有秘密の長さ: {len(alice_shared)} bytes (256 bits)")
+    # Verify that both shared secrets match
+    assert alice_shared == bob_shared, "Shared secrets do not match"
+    print(f"Shared secret (hex): {alice_shared.hex()}")
+    print(f"Shared secret length: {len(alice_shared)} bytes (256 bits)")
 
-    # HKDF で共有秘密から暗号鍵を導出
-    # 共有秘密をそのまま鍵として使うのではなく、KDF を通すのがベストプラクティス
+    # Derive encryption key from shared secret using HKDF
+    # Best practice: Use a KDF rather than using the shared secret directly as a key
     derived_key_alice = HKDF(
         algorithm=hashes.SHA256(),
         length=32,
@@ -666,9 +668,9 @@ def ecdh_key_exchange():
     ).derive(bob_shared)
 
     assert derived_key_alice == derived_key_bob
-    print(f"\n導出鍵 (hex): {derived_key_alice.hex()}")
-    print(f"導出鍵の長さ: {len(derived_key_alice)} bytes")
-    print("→ この鍵を AES-256-GCM 等の共通鍵暗号で使用する")
+    print(f"\nDerived key (hex): {derived_key_alice.hex()}")
+    print(f"Derived key length: {len(derived_key_alice)} bytes")
+    print("-> Use this key with symmetric-key ciphers such as AES-256-GCM")
 
 
 if __name__ == "__main__":
@@ -676,168 +678,169 @@ if __name__ == "__main__":
 ```
 
 ```
-実行結果の例:
+Example output:
 
-  共有秘密 (hex): 3a1b4c2d5e6f...（64文字の16進数）
-  共有秘密の長さ: 32 bytes (256 bits)
+  Shared secret (hex): 3a1b4c2d5e6f...(64 hex characters)
+  Shared secret length: 32 bytes (256 bits)
 
-  導出鍵 (hex): 7f8e9d0a1b2c...（64文字の16進数）
-  導出鍵の長さ: 32 bytes
-  → この鍵を AES-256-GCM 等の共通鍵暗号で使用する
+  Derived key (hex): 7f8e9d0a1b2c...(64 hex characters)
+  Derived key length: 32 bytes
+  -> Use this key with symmetric-key ciphers such as AES-256-GCM
 ```
 
 ---
 
-## 4. ハッシュ関数
+## 4. Hash Functions
 
-暗号学的ハッシュ関数（cryptographic hash function）は、任意長の入力データを固定長のハッシュ値（ダイジェスト）に変換する一方向関数である。暗号化とは異なり、ハッシュ値から元のデータを復元することは計算的に不可能であり、データの完全性検証、パスワード保管、デジタル署名の基盤として広く使われる。
+A cryptographic hash function is a one-way function that transforms arbitrary-length input data into a fixed-length hash value (digest). Unlike encryption, it is computationally infeasible to recover the original data from a hash value, and it is widely used as the foundation for data integrity verification, password storage, and digital signatures.
 
-### 4.1 ハッシュ関数の必須性質
+### 4.1 Required Properties of Hash Functions
 
-暗号学的ハッシュ関数が満たすべき3つの主要な性質がある。
-
-```
-ハッシュ関数の3つの安全性要件:
-
-  1. 原像耐性（preimage resistance）
-     ハッシュ値 h が与えられた時、H(m) = h を満たす m を
-     見つけることが計算的に困難
-
-     h → m を見つけられない（一方向性）
-
-  2. 第二原像耐性（second preimage resistance）
-     メッセージ m1 が与えられた時、H(m1) = H(m2) を満たす
-     m1 ≠ m2 な m2 を見つけることが計算的に困難
-
-     m1 が既知でも、同じハッシュの m2 を見つけられない
-
-  3. 衝突耐性（collision resistance）
-     H(m1) = H(m2) かつ m1 ≠ m2 を満たす任意の
-     (m1, m2) の組を見つけることが計算的に困難
-
-     ※ 誕生日攻撃: n ビットハッシュの衝突を O(2^(n/2)) で発見可能
-       → SHA-256 の衝突耐性は 128 ビット相当
-
-  追加の望ましい性質:
-  - 雪崩効果（avalanche effect）: 入力の1ビット変化で出力の約50%が変化
-  - 効率性: ハッシュ計算が高速であること
-```
-
-### 4.2 主要なハッシュアルゴリズム
+There are three main properties that a cryptographic hash function must satisfy.
 
 ```
-ハッシュアルゴリズムの比較:
+Three Security Requirements of Hash Functions:
 
-  ┌──────────┬────────────┬──────────┬──────────────────────────┐
-  │ アルゴリズム │ 出力長     │ 状態     │ 主な用途                 │
-  ├──────────┼────────────┼──────────┼──────────────────────────┤
-  │ MD5      │ 128 bit    │ 非推奨   │ レガシーシステム         │
-  │ SHA-1    │ 160 bit    │ 非推奨   │ Git（互換性理由で残存）  │
-  │ SHA-256  │ 256 bit    │ 推奨     │ TLS, Bitcoin, 汎用       │
-  │ SHA-384  │ 384 bit    │ 推奨     │ 高セキュリティ要件       │
-  │ SHA-512  │ 512 bit    │ 推奨     │ 高セキュリティ要件       │
-  │ SHA3-256 │ 256 bit    │ 推奨     │ SHA-2 の代替             │
-  │ BLAKE3   │ 256 bit    │ 推奨     │ 高速用途                 │
-  └──────────┴────────────┴──────────┴──────────────────────────┘
+  1. Preimage resistance
+     Given a hash value h, it is computationally hard
+     to find m such that H(m) = h
 
-  非推奨の理由:
-  - MD5: 2004年に衝突攻撃が実証。数秒で衝突ペアを生成可能
-  - SHA-1: 2017年に Google が SHAttered 攻撃で衝突を実証
+     Cannot find m from h (one-wayness)
+
+  2. Second preimage resistance
+     Given a message m1, it is computationally hard
+     to find m2 != m1 such that H(m1) = H(m2)
+
+     Even knowing m1, cannot find m2 with the same hash
+
+  3. Collision resistance
+     It is computationally hard to find any pair
+     (m1, m2) such that H(m1) = H(m2) and m1 != m2
+
+     * Birthday attack: Can find collisions for n-bit hash in O(2^(n/2))
+       -> Collision resistance of SHA-256 is equivalent to 128 bits
+
+  Additional desirable properties:
+  - Avalanche effect: A 1-bit change in input changes approximately 50% of the output
+  - Efficiency: Hash computation should be fast
 ```
 
-#### SHA-256 の構造（Merkle-Damgard 構造）
+### 4.2 Major Hash Algorithms
 
 ```
-SHA-256 の処理フロー:
+Hash Algorithm Comparison:
 
-  入力メッセージ
-       ↓
-  パディング（メッセージ長が 512 の倍数になるよう調整）
-       ↓
-  512ビットブロックに分割: M1, M2, ..., Mn
-       ↓
-  ┌──────────────────────────────────────────────┐
-  │                                              │
-  │  IV ─→ [圧縮関数] ─→ [圧縮関数] ─→ ... ─→ ハッシュ値
-  │            ↑              ↑                  │
-  │           M1             M2                  │
-  │                                              │
-  │  Merkle-Damgard 構造:                        │
-  │  H0 = IV                                     │
-  │  Hi = f(H_{i-1}, Mi)  (圧縮関数)             │
-  │  ハッシュ値 = Hn                              │
-  └──────────────────────────────────────────────┘
+  +------------+------------+----------+--------------------------+
+  | Algorithm  | Output len | Status   | Primary use              |
+  +------------+------------+----------+--------------------------+
+  | MD5        | 128 bit    | Deprecated| Legacy systems          |
+  | SHA-1      | 160 bit    | Deprecated| Git (remains for compat.)|
+  | SHA-256    | 256 bit    | Recommended| TLS, Bitcoin, general  |
+  | SHA-384    | 384 bit    | Recommended| High-security req.     |
+  | SHA-512    | 512 bit    | Recommended| High-security req.     |
+  | SHA3-256   | 256 bit    | Recommended| SHA-2 alternative      |
+  | BLAKE3     | 256 bit    | Recommended| High-speed use cases   |
+  +------------+------------+----------+--------------------------+
 
-  SHA-256 圧縮関数:
-  - 8つの32ビットワーキング変数 (a, b, c, d, e, f, g, h)
-  - 64ラウンドの演算
-  - 各ラウンドで加算、ローテーション、論理演算を使用
+  Reasons for deprecation:
+  - MD5: Collision attacks demonstrated in 2004. Can generate collision pairs in seconds
+  - SHA-1: Google demonstrated collision with SHAttered attack in 2017
 ```
 
-### 4.3 パスワードハッシュ
-
-パスワードの保存には、汎用ハッシュ関数（SHA-256 など）ではなく、専用のパスワードハッシュ関数を使用しなければならない。汎用ハッシュ関数は「高速であること」が求められるが、パスワードハッシュでは逆に「意図的に低速であること」が重要である。これは、攻撃者のブルートフォース攻撃を遅延させるためである。
+#### SHA-256 Structure (Merkle-Damgard Construction)
 
 ```
-パスワードハッシュの要件:
+SHA-256 Processing Flow:
+
+  Input Message
+       |
+  Padding (adjust message length to a multiple of 512)
+       |
+  Split into 512-bit blocks: M1, M2, ..., Mn
+       |
+  +----------------------------------------------+
+  |                                              |
+  |  IV --> [Compression] --> [Compression] --> ... --> Hash value
+  |              ^                ^              |
+  |             M1               M2              |
+  |                                              |
+  |  Merkle-Damgard Construction:                |
+  |  H0 = IV                                    |
+  |  Hi = f(H_{i-1}, Mi)  (compression function)|
+  |  Hash value = Hn                             |
+  +----------------------------------------------+
+
+  SHA-256 Compression Function:
+  - 8 32-bit working variables (a, b, c, d, e, f, g, h)
+  - 64 rounds of operations
+  - Each round uses addition, rotation, and logical operations
+```
+
+### 4.3 Password Hashing
+
+For password storage, dedicated password hash functions must be used instead of general-purpose hash functions (such as SHA-256). General-purpose hash functions are designed to be "fast," but for password hashing, being "intentionally slow" is important. This is to delay brute-force attacks by attackers.
+
+```
+Password Hashing Requirements:
 
   NG: SHA-256(password)
-  → GPU で毎秒数十億回のハッシュ計算が可能
-  → レインボーテーブル（事前計算済みハッシュ辞書）で即座に解読
+  -> GPU can compute billions of hashes per second
+  -> Instantly cracked with rainbow tables (precomputed hash dictionaries)
 
   NG: SHA-256(password + salt)
-  → ソルトでレインボーテーブルは防げるが、高速すぎる
+  -> Salt prevents rainbow tables, but still too fast
 
-  OK: 専用パスワードハッシュ関数
-  - bcrypt:  Blowfish ベース、コストパラメータで速度調整
-  - scrypt:  メモリ消費を要求（GPU/ASIC 耐性）
-  - Argon2:  2015年 PHC 優勝、最新推奨
-    - Argon2id: サイドチャネル耐性 + GPU耐性（推奨）
+  OK: Dedicated password hash functions
+  - bcrypt:  Blowfish-based, speed adjustable via cost parameter
+  - scrypt:  Requires memory consumption (GPU/ASIC resistant)
+  - Argon2:  2015 PHC winner, latest recommendation
+    - Argon2id: Side-channel resistant + GPU resistant (recommended)
 
-  ┌────────────┬──────────────┬──────────────┬──────────────┐
-  │            │ bcrypt       │ scrypt       │ Argon2id     │
-  ├────────────┼──────────────┼──────────────┼──────────────┤
-  │ 設計年     │ 1999         │ 2009         │ 2015         │
-  │ CPU耐性    │ ○           │ ○           │ ◎           │
-  │ GPU耐性    │ △           │ ○           │ ◎           │
-  │ メモリ要求 │ 4KB固定      │ 可変         │ 可変         │
-  │ 推奨       │ レガシー対応 │ 十分安全     │ 最推奨       │
-  └────────────┴──────────────┴──────────────┴──────────────┘
+  +------------+--------------+--------------+--------------+
+  |            | bcrypt       | scrypt       | Argon2id     |
+  +------------+--------------+--------------+--------------+
+  | Year       | 1999         | 2009         | 2015         |
+  | CPU resist.| Good         | Good         | Excellent    |
+  | GPU resist.| Fair         | Good         | Excellent    |
+  | Memory req.| 4KB fixed    | Variable     | Variable     |
+  | Recommend. | Legacy compat| Sufficiently | Most         |
+  |            |              | secure       | recommended  |
+  +------------+--------------+--------------+--------------+
 ```
 
-### 4.4 HMAC（Hash-based Message Authentication Code）
+### 4.4 HMAC (Hash-based Message Authentication Code)
 
-HMAC はハッシュ関数と秘密鍵を組み合わせてメッセージ認証コード（MAC）を生成する方式である。データの完全性と真正性を同時に検証でき、API 認証（AWS Signature V4 など）で広く使われている。
+HMAC is a method that combines a hash function with a secret key to generate a message authentication code (MAC). It can simultaneously verify data integrity and authenticity, and is widely used in API authentication (e.g., AWS Signature V4).
 
 ```
-HMAC の構造:
+HMAC Structure:
 
-  HMAC(K, m) = H((K' ⊕ opad) || H((K' ⊕ ipad) || m))
+  HMAC(K, m) = H((K' XOR opad) || H((K' XOR ipad) || m))
 
-  K' = 鍵（ブロックサイズに調整）
-  opad = 0x5c を繰り返したブロック
-  ipad = 0x36 を繰り返したブロック
+  K' = Key (adjusted to block size)
+  opad = Block of repeated 0x5c
+  ipad = Block of repeated 0x36
 
-  ┌─────────────────────────────┐
-  │ 内部ハッシュ:               │
-  │   inner = H((K' ⊕ ipad) || m) │
-  │                             │
-  │ 外部ハッシュ:               │
-  │   HMAC = H((K' ⊕ opad) || inner) │
-  └─────────────────────────────┘
+  +-----------------------------+
+  | Inner hash:                 |
+  |   inner = H((K' XOR ipad) || m) |
+  |                             |
+  | Outer hash:                 |
+  |   HMAC = H((K' XOR opad) || inner) |
+  +-----------------------------+
 
-  特徴:
-  - 単純な H(K || m) や H(m || K) より安全
-  - 長さ拡張攻撃（length extension attack）を防止
-  - TLS, IPsec, JWT (HS256) 等で広く使用
+  Features:
+  - More secure than simple H(K || m) or H(m || K)
+  - Prevents length extension attacks
+  - Widely used in TLS, IPsec, JWT (HS256), etc.
 ```
 
-### 4.5 Python で学ぶハッシュ関数
+### 4.5 Learning Hash Functions with Python
 
 ```python
 """
-ハッシュ関数と HMAC のデモ
-依存ライブラリ: 標準ライブラリのみ（hashlib, hmac）
+Hash function and HMAC demo
+Dependencies: Standard library only (hashlib, hmac)
 """
 import hashlib
 import hmac
@@ -845,62 +848,62 @@ import os
 
 
 def hash_demo():
-    """SHA-256 のハッシュ計算と雪崩効果のデモ。"""
-    # 基本的なハッシュ計算
+    """Demo of SHA-256 hash computation and avalanche effect."""
+    # Basic hash computation
     message = "Hello, Cryptography!"
     hash_value = hashlib.sha256(message.encode()).hexdigest()
-    print(f"入力:    '{message}'")
+    print(f"Input:   '{message}'")
     print(f"SHA-256: {hash_value}")
-    print(f"出力長:  {len(hash_value)} 文字 = {len(hash_value) * 4} bits")
+    print(f"Output length: {len(hash_value)} chars = {len(hash_value) * 4} bits")
 
-    # 雪崩効果: 1文字だけ変更
-    message_modified = "Hello, Cryptography?"  # '!' → '?'
+    # Avalanche effect: change just 1 character
+    message_modified = "Hello, Cryptography?"  # '!' -> '?'
     hash_modified = hashlib.sha256(message_modified.encode()).hexdigest()
-    print(f"\n入力:    '{message_modified}'")
+    print(f"\nInput:   '{message_modified}'")
     print(f"SHA-256: {hash_modified}")
 
-    # ビット単位で異なるビット数を計算
+    # Calculate number of differing bits
     original_bits = bin(int(hash_value, 16))[2:].zfill(256)
     modified_bits = bin(int(hash_modified, 16))[2:].zfill(256)
     diff_bits = sum(a != b for a, b in zip(original_bits, modified_bits))
-    print(f"\n異なるビット数: {diff_bits} / 256 ({diff_bits/256*100:.1f}%)")
-    print("→ 1文字の変更で約半数のビットが変化（雪崩効果）")
+    print(f"\nDiffering bits: {diff_bits} / 256 ({diff_bits/256*100:.1f}%)")
+    print("-> A single character change alters approximately half the bits (avalanche effect)")
 
 
 def hmac_demo():
-    """HMAC-SHA256 の計算と検証のデモ。"""
-    # HMAC 鍵の生成
+    """Demo of HMAC-SHA256 computation and verification."""
+    # Generate HMAC key
     key = os.urandom(32)
     message = b"Transfer $100 to Bob"
 
-    # HMAC 計算
+    # HMAC computation
     mac = hmac.new(key, message, hashlib.sha256).hexdigest()
-    print(f"\nメッセージ: {message.decode()}")
+    print(f"\nMessage: {message.decode()}")
     print(f"HMAC-SHA256: {mac}")
 
-    # 検証: 正しいメッセージ
+    # Verification: correct message
     mac_verify = hmac.new(key, message, hashlib.sha256).hexdigest()
     is_valid = hmac.compare_digest(mac, mac_verify)
-    print(f"\n検証（正しいメッセージ）: {'OK' if is_valid else 'NG'}")
+    print(f"\nVerification (correct message): {'OK' if is_valid else 'NG'}")
 
-    # 検証: 改竄されたメッセージ
+    # Verification: tampered message
     tampered_message = b"Transfer $900 to Bob"
     mac_tampered = hmac.new(key, tampered_message, hashlib.sha256).hexdigest()
     is_valid_tampered = hmac.compare_digest(mac, mac_tampered)
-    print(f"検証（改竄メッセージ）:   {'OK' if is_valid_tampered else 'NG（改竄検知）'}")
+    print(f"Verification (tampered message): {'OK' if is_valid_tampered else 'NG (tampering detected)'}")
 
-    # compare_digest はタイミング安全な比較を行う
-    # 文字列の == 比較はタイミングサイドチャネル攻撃に脆弱
-    print("\n注: hmac.compare_digest() はタイミング攻撃に安全な比較を使用")
+    # compare_digest performs timing-safe comparison
+    # String == comparison is vulnerable to timing side-channel attacks
+    print("\nNote: hmac.compare_digest() uses timing-safe comparison")
 
 
 def multiple_hash_algorithms():
-    """複数のハッシュアルゴリズムの比較。"""
+    """Comparison of multiple hash algorithms."""
     data = b"The quick brown fox jumps over the lazy dog"
     algorithms = ["md5", "sha1", "sha256", "sha384", "sha512", "sha3_256"]
 
-    print(f"\n入力: {data.decode()}\n")
-    print(f"{'アルゴリズム':<12} {'出力長':>6}  ハッシュ値（先頭32文字）")
+    print(f"\nInput: {data.decode()}\n")
+    print(f"{'Algorithm':<12} {'Output':>6}  Hash value (first 32 chars)")
     print("-" * 70)
 
     for algo_name in algorithms:
@@ -917,29 +920,29 @@ if __name__ == "__main__":
 ```
 
 ```
-実行結果の例:
+Example output:
 
-  入力:    'Hello, Cryptography!'
+  Input:   'Hello, Cryptography!'
   SHA-256: 2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e7...
-  出力長:  64 文字 = 256 bits
+  Output length: 64 chars = 256 bits
 
-  入力:    'Hello, Cryptography?'
+  Input:   'Hello, Cryptography?'
   SHA-256: 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd...
 
-  異なるビット数: 131 / 256 (51.2%)
-  → 1文字の変更で約半数のビットが変化（雪崩効果）
+  Differing bits: 131 / 256 (51.2%)
+  -> A single character change alters approximately half the bits (avalanche effect)
 
-  メッセージ: Transfer $100 to Bob
+  Message: Transfer $100 to Bob
   HMAC-SHA256: 5d41402abc4b2a76b9719d911017c592ae2...
 
-  検証（正しいメッセージ）: OK
-  検証（改竄メッセージ）:   NG（改竄検知）
+  Verification (correct message): OK
+  Verification (tampered message): NG (tampering detected)
 
-  注: hmac.compare_digest() はタイミング攻撃に安全な比較を使用
+  Note: hmac.compare_digest() uses timing-safe comparison
 
-  入力: The quick brown fox jumps over the lazy dog
+  Input: The quick brown fox jumps over the lazy dog
 
-  アルゴリズム   出力長  ハッシュ値（先頭32文字）
+  Algorithm    Output  Hash value (first 32 chars)
   ----------------------------------------------------------------------
   md5           128bit  9e107d9d372bb6826bd81d3542a419d6...
   sha1          160bit  2fd4e1c67a2d28fced849ee1bb76e739...
@@ -951,89 +954,89 @@ if __name__ == "__main__":
 
 ---
 
-## 5. TLS/HTTPS の仕組み
+## 5. How TLS/HTTPS Works
 
-TLS（Transport Layer Security）は、インターネット上の通信を暗号化し、盗聴・改竄・なりすましを防止するプロトコルである。Web ブラウジング（HTTPS）、メール（SMTPS/IMAPS）、VPN など、現代のインターネット通信のほぼ全てが TLS に依存している。
+TLS (Transport Layer Security) is a protocol that encrypts communication over the Internet, preventing eavesdropping, tampering, and impersonation. Nearly all modern Internet communications depend on TLS, including web browsing (HTTPS), email (SMTPS/IMAPS), and VPNs.
 
-### 5.1 TLS の目的と提供する保証
+### 5.1 Purpose and Guarantees of TLS
 
-TLS は以下の3つのセキュリティ目標を達成する。
-
-```
-TLS が提供する3つの保証:
-
-  1. 機密性（Confidentiality）
-     → 通信内容を第三者が読めない
-     → AES-256-GCM / ChaCha20-Poly1305 で実現
-
-  2. 完全性（Integrity）
-     → 通信内容が改竄されていないことを保証
-     → HMAC / AEAD の認証タグで実現
-
-  3. 真正性（Authenticity）
-     → 通信相手が本物であることを保証
-     → X.509 証明書 + デジタル署名で実現
-
-  プロトコルスタック上の位置:
-
-  ┌─────────────────────┐
-  │  HTTP / SMTP / ...  │  アプリケーション層
-  ├─────────────────────┤
-  │       TLS 1.3       │  ← ここで暗号化
-  ├─────────────────────┤
-  │        TCP          │  トランスポート層
-  ├─────────────────────┤
-  │        IP           │  ネットワーク層
-  └─────────────────────┘
-```
-
-### 5.2 TLS 1.3 ハンドシェイク
-
-TLS 1.3 は 2018 年に RFC 8446 として標準化された最新の TLS バージョンであり、TLS 1.2 から大幅に簡素化・高速化された。
+TLS achieves the following three security objectives.
 
 ```
-TLS 1.3 フルハンドシェイク（1-RTT）:
+Three Guarantees Provided by TLS:
 
-  クライアント                              サーバー
-  │                                        │
-  │  ClientHello                           │
-  │  ├ 対応暗号スイート一覧                │
-  │  ├ 対応グループ (X25519, P-256等)      │
-  │  ├ key_share (ECDH 公開鍵)             │
-  │  └ supported_versions (TLS 1.3)        │
-  │─────────────────────────────────────→  │
-  │                                        │
-  │                         ServerHello    │
-  │                  ├ 選択した暗号スイート │
-  │                  └ key_share (ECDH公開鍵)│
-  │  ←─────────────────────────────────────│
-  │                                        │
-  │  [ここで共有秘密を導出]                │
-  │  shared_secret = ECDH(私鍵, 相手公開鍵)│
-  │  → handshake_keys を導出               │
-  │                                        │
-  │  {EncryptedExtensions}                 │
-  │  {Certificate}        (サーバー証明書) │
-  │  {CertificateVerify}  (署名)           │
-  │  {Finished}           (MAC)            │
-  │  ←═══════════════════════════════════  │
-  │  (以降 {} 内は暗号化されている)         │
-  │                                        │
-  │  {Finished}                            │
-  │  ═══════════════════════════════════→  │
-  │                                        │
-  │  ←═══ 暗号化されたアプリケーションデータ ═══→ │
-  │                                        │
+  1. Confidentiality
+     -> Third parties cannot read the communication content
+     -> Achieved with AES-256-GCM / ChaCha20-Poly1305
 
-  TLS 1.3 で削除されたもの（安全性向上）:
-  - RSA 鍵交換（前方秘匿性がない）
-  - 静的 DH（前方秘匿性がない）
-  - CBC モード暗号（パディングオラクル攻撃のリスク）
+  2. Integrity
+     -> Guarantees that communication content has not been tampered with
+     -> Achieved with HMAC / AEAD authentication tags
+
+  3. Authenticity
+     -> Guarantees that the communication partner is genuine
+     -> Achieved with X.509 certificates + digital signatures
+
+  Position in the Protocol Stack:
+
+  +---------------------+
+  |  HTTP / SMTP / ...  |  Application Layer
+  +---------------------+
+  |       TLS 1.3       |  <- Encryption happens here
+  +---------------------+
+  |        TCP          |  Transport Layer
+  +---------------------+
+  |        IP           |  Network Layer
+  +---------------------+
+```
+
+### 5.2 TLS 1.3 Handshake
+
+TLS 1.3, standardized as RFC 8446 in 2018, is the latest TLS version, significantly simplified and accelerated compared to TLS 1.2.
+
+```
+TLS 1.3 Full Handshake (1-RTT):
+
+  Client                                   Server
+  |                                        |
+  |  ClientHello                           |
+  |  +- Supported cipher suites           |
+  |  +- Supported groups (X25519, P-256)   |
+  |  +- key_share (ECDH public key)        |
+  |  +- supported_versions (TLS 1.3)       |
+  |------------------------------------>   |
+  |                                        |
+  |                         ServerHello    |
+  |                  +- Selected cipher suite|
+  |                  +- key_share (ECDH key)|
+  |  <------------------------------------|
+  |                                        |
+  |  [Derive shared secret here]           |
+  |  shared_secret = ECDH(my_key, peer_key)|
+  |  -> Derive handshake_keys              |
+  |                                        |
+  |  {EncryptedExtensions}                 |
+  |  {Certificate}        (server cert)    |
+  |  {CertificateVerify}  (signature)      |
+  |  {Finished}           (MAC)            |
+  |  <===================================  |
+  |  (hereafter, {} content is encrypted)  |
+  |                                        |
+  |  {Finished}                            |
+  |  ===================================> |
+  |                                        |
+  |  <=== Encrypted application data ===>  |
+  |                                        |
+
+  Removed in TLS 1.3 (security improvements):
+  - RSA key exchange (no forward secrecy)
+  - Static DH (no forward secrecy)
+  - CBC mode ciphers (padding oracle attack risk)
   - RC4, DES, 3DES, MD5, SHA-1
-  - 圧縮（CRIME 攻撃）
-  - 再ネゴシエーション
+  - Compression (CRIME attack)
+  - Renegotiation
 
-  TLS 1.3 の暗号スイート（5つのみ）:
+  TLS 1.3 Cipher Suites (only 5):
   - TLS_AES_256_GCM_SHA384
   - TLS_AES_128_GCM_SHA256
   - TLS_CHACHA20_POLY1305_SHA256
@@ -1041,222 +1044,226 @@ TLS 1.3 フルハンドシェイク（1-RTT）:
   - TLS_AES_128_CCM_8_SHA256
 ```
 
-### 5.3 前方秘匿性（Forward Secrecy）
+### 5.3 Forward Secrecy
 
-前方秘匿性（Perfect Forward Secrecy, PFS）とは、長期的な秘密鍵が将来漏洩しても、過去の通信内容が解読されないことを保証する性質である。
-
-```
-前方秘匿性の仕組み:
-
-  RSA 鍵交換（TLS 1.2 以前、前方秘匿性なし）:
-  ┌────────────────────────────────────────┐
-  │ クライアントがプリマスタシークレットを   │
-  │ サーバーの RSA 公開鍵で暗号化して送信   │
-  │                                        │
-  │ 問題: サーバーの秘密鍵が漏洩すると、   │
-  │ 過去に記録した全通信を復号可能          │
-  └────────────────────────────────────────┘
-
-  ECDHE 鍵交換（TLS 1.3、前方秘匿性あり）:
-  ┌────────────────────────────────────────┐
-  │ 毎回の接続で新しい一時的な ECDH 鍵ペア │
-  │ を生成して鍵交換                        │
-  │                                        │
-  │ 利点: 長期秘密鍵が漏洩しても、         │
-  │ 各セッション固有の一時鍵は復元不可能   │
-  │ → 過去の通信は安全                     │
-  └────────────────────────────────────────┘
-
-  "E" = Ephemeral（一時的）
-  ECDHE の "E" が前方秘匿性を実現
-```
-
-### 5.4 X.509 証明書と信頼の連鎖
-
-TLS では X.509 証明書を使用してサーバーの身元を検証する。証明書は認証局（CA: Certificate Authority）によって署名され、信頼の連鎖（Chain of Trust）を形成する。
+Forward secrecy (Perfect Forward Secrecy, PFS) is the property that guarantees past communications cannot be decrypted even if the long-term secret key is compromised in the future.
 
 ```
-証明書チェーン（信頼の連鎖）:
+How Forward Secrecy Works:
 
-  ┌───────────────────────────────┐
-  │  ルート CA 証明書              │ ← OS/ブラウザに事前搭載
-  │  (自己署名)                   │    約100-150の信頼済みルート
-  │  例: DigiCert Global Root G2  │
-  └───────────┬───────────────────┘
-              │ 署名
-              ↓
-  ┌───────────────────────────────┐
-  │  中間 CA 証明書               │ ← ルート CA が署名
-  │  例: DigiCert SHA2 Secure     │
-  │       Server CA               │
-  └───────────┬───────────────────┘
-              │ 署名
-              ↓
-  ┌───────────────────────────────┐
-  │  サーバー証明書（リーフ証明書）│ ← 中間 CA が署名
-  │  例: www.example.com          │
-  │  含まれる情報:                 │
-  │  - ドメイン名（SAN）          │
-  │  - 公開鍵                     │
-  │  - 有効期間                   │
-  │  - 発行者（中間CA）の署名     │
-  └───────────────────────────────┘
+  RSA Key Exchange (TLS 1.2 and earlier, no forward secrecy):
+  +----------------------------------------+
+  | Client encrypts pre-master secret      |
+  | with server's RSA public key and sends |
+  |                                        |
+  | Problem: If server's private key leaks,|
+  | all previously recorded communications |
+  | can be decrypted                       |
+  +----------------------------------------+
 
-  検証プロセス:
-  1. サーバー証明書の署名を中間 CA の公開鍵で検証
-  2. 中間 CA 証明書の署名をルート CA の公開鍵で検証
-  3. ルート CA がトラストストアに存在することを確認
-  4. 証明書が有効期限内であることを確認
-  5. 証明書が失効していないことを確認（CRL/OCSP）
-  6. ドメイン名がリクエストと一致することを確認
+  ECDHE Key Exchange (TLS 1.3, with forward secrecy):
+  +----------------------------------------+
+  | Generate new ephemeral ECDH key pair   |
+  | for each connection and exchange keys  |
+  |                                        |
+  | Advantage: Even if long-term key leaks,|
+  | session-specific ephemeral keys cannot |
+  | be recovered                           |
+  | -> Past communications remain secure   |
+  +----------------------------------------+
+
+  "E" = Ephemeral
+  The "E" in ECDHE provides forward secrecy
 ```
 
-### 5.5 0-RTT 再接続
+### 5.4 X.509 Certificates and Chain of Trust
 
-TLS 1.3 では、過去に接続したサーバーへの再接続時に 0-RTT（Zero Round Trip Time）で暗号化データを送信できる機能がある。
+TLS uses X.509 certificates to verify the server's identity. Certificates are signed by Certificate Authorities (CAs), forming a Chain of Trust.
 
 ```
-0-RTT 再接続:
+Certificate Chain (Chain of Trust):
 
-  初回接続後にサーバーから PSK（Pre-Shared Key）を受信
+  +-------------------------------+
+  |  Root CA Certificate          | <- Pre-installed in OS/Browser
+  |  (Self-signed)                |    ~100-150 trusted roots
+  |  e.g.: DigiCert Global Root G2|
+  +-----------+-------------------+
+              | Signs
+              v
+  +-------------------------------+
+  |  Intermediate CA Certificate  | <- Signed by Root CA
+  |  e.g.: DigiCert SHA2 Secure  |
+  |       Server CA               |
+  +-----------+-------------------+
+              | Signs
+              v
+  +-------------------------------+
+  |  Server Certificate (leaf)    | <- Signed by Intermediate CA
+  |  e.g.: www.example.com       |
+  |  Contains:                    |
+  |  - Domain name (SAN)         |
+  |  - Public key                |
+  |  - Validity period           |
+  |  - Issuer (Intermediate CA)  |
+  |    signature                  |
+  +-------------------------------+
 
-  再接続時:
-  クライアント                     サーバー
-  │  ClientHello                  │
-  │  + early_data (0-RTT データ)  │
-  │────────────────────────────→  │  ← 最初のメッセージで
-  │                               │     アプリデータ送信可能
-  │         ServerHello           │
-  │  ←────────────────────────── │
-  │                               │
-  │  ←══ 暗号化通信 ══→           │
+  Verification Process:
+  1. Verify server certificate signature with intermediate CA's public key
+  2. Verify intermediate CA certificate signature with root CA's public key
+  3. Confirm root CA exists in the trust store
+  4. Confirm certificate is within its validity period
+  5. Confirm certificate has not been revoked (CRL/OCSP)
+  6. Confirm domain name matches the request
+```
 
-  利点: レイテンシ削減（初回メッセージでデータ送信）
-  リスク: リプレイ攻撃の可能性
-  → 冪等な操作（GET リクエスト等）にのみ使用すべき
+### 5.5 0-RTT Reconnection
+
+TLS 1.3 includes a feature that enables sending encrypted data with 0-RTT (Zero Round Trip Time) when reconnecting to a previously connected server.
+
+```
+0-RTT Reconnection:
+
+  Receive PSK (Pre-Shared Key) from server after initial connection
+
+  On reconnection:
+  Client                        Server
+  |  ClientHello               |
+  |  + early_data (0-RTT data) |
+  |----------------------------> | <- Can send app data
+  |                              |    with the first message
+  |         ServerHello          |
+  |  <------------------------  |
+  |                              |
+  |  <=== Encrypted comm. ===>  |
+
+  Advantage: Reduced latency (data sent with first message)
+  Risk: Possibility of replay attack
+  -> Should only be used for idempotent operations (GET requests, etc.)
 ```
 
 ---
 
-## 6. デジタル署名
+## 6. Digital Signatures
 
-デジタル署名は、メッセージの真正性（送信者の身元確認）と完全性（改竄がないこと）を数学的に保証する技術である。手書きの署名と異なり、メッセージ内容に依存するため偽造が極めて困難であり、否認防止（non-repudiation）を実現する。
+Digital signatures are a technology that mathematically guarantees the authenticity (identity of the sender) and integrity (no tampering) of a message. Unlike handwritten signatures, they depend on the message content, making forgery extremely difficult and enabling non-repudiation.
 
-### 6.1 デジタル署名の仕組み
-
-```
-デジタル署名の処理フロー:
-
-  署名（送信者）:
-  ┌──────────────────────────────────────────────┐
-  │                                              │
-  │  メッセージ M                                │
-  │       ↓                                      │
-  │  ハッシュ計算: h = H(M)                       │
-  │       ↓                                      │
-  │  秘密鍵で署名: σ = Sign(秘密鍵, h)           │
-  │       ↓                                      │
-  │  (M, σ) を送信                               │
-  │                                              │
-  └──────────────────────────────────────────────┘
-
-  検証（受信者）:
-  ┌──────────────────────────────────────────────┐
-  │                                              │
-  │  (M, σ) を受信                               │
-  │       ↓                                      │
-  │  ハッシュ計算: h = H(M)                       │
-  │       ↓                                      │
-  │  公開鍵で検証: Verify(公開鍵, h, σ) → true/false │
-  │       ↓                                      │
-  │  true: 署名は正当（送信者が本物 & 未改竄）    │
-  │  false: 署名は不正（偽造 or 改竄）            │
-  │                                              │
-  └──────────────────────────────────────────────┘
-
-  暗号化との違い:
-  - 暗号化: 公開鍵で暗号化 → 秘密鍵で復号
-  - デジタル署名: 秘密鍵で署名 → 公開鍵で検証
-  → 鍵の使用方向が逆
-```
-
-### 6.2 主要な署名アルゴリズム
+### 6.1 How Digital Signatures Work
 
 ```
-署名アルゴリズムの比較:
+Digital Signature Processing Flow:
 
-  ┌────────────┬──────────────┬───────────┬──────────────────┐
-  │ アルゴリズム │ 安全性根拠   │ 鍵長      │ 用途             │
-  ├────────────┼──────────────┼───────────┼──────────────────┤
-  │ RSA-PSS    │ 素因数分解   │ 2048+ bit │ TLS, コード署名  │
-  │ ECDSA      │ ECDLP        │ 256 bit   │ TLS, Bitcoin     │
-  │ Ed25519    │ ECDLP        │ 256 bit   │ SSH, Signal      │
-  │ Ed448      │ ECDLP        │ 448 bit   │ 高セキュリティ   │
-  └────────────┴──────────────┴───────────┴──────────────────┘
+  Signing (Sender):
+  +----------------------------------------------+
+  |                                              |
+  |  Message M                                   |
+  |       |                                      |
+  |  Compute hash: h = H(M)                      |
+  |       |                                      |
+  |  Sign with private key: s = Sign(privkey, h)  |
+  |       |                                      |
+  |  Send (M, s)                                  |
+  |                                              |
+  +----------------------------------------------+
 
-  Ed25519 の特徴:
-  - Curve25519 上の Edwards 曲線を使用
-  - 決定論的署名（同じメッセージ+鍵で常に同じ署名）
-    → 乱数生成の品質に依存しない（ECDSA の脆弱性回避）
-  - 高速: 署名 ~50μs, 検証 ~100μs（一般的なCPU）
-  - コンパクト: 署名 64バイト, 公開鍵 32バイト
+  Verification (Receiver):
+  +----------------------------------------------+
+  |                                              |
+  |  Receive (M, s)                               |
+  |       |                                      |
+  |  Compute hash: h = H(M)                      |
+  |       |                                      |
+  |  Verify with public key: Verify(pubkey, h, s) -> true/false |
+  |       |                                      |
+  |  true: Signature is valid (sender is genuine & not tampered) |
+  |  false: Signature is invalid (forged or tampered)            |
+  |                                              |
+  +----------------------------------------------+
+
+  Difference from encryption:
+  - Encryption: Encrypt with public key -> Decrypt with private key
+  - Digital signature: Sign with private key -> Verify with public key
+  -> Key usage direction is reversed
 ```
 
-### 6.3 Python で学ぶデジタル署名
+### 6.2 Major Signature Algorithms
+
+```
+Signature Algorithm Comparison:
+
+  +------------+--------------+-----------+------------------+
+  | Algorithm  | Security     | Key       | Use              |
+  |            | Basis        | Length    |                  |
+  +------------+--------------+-----------+------------------+
+  | RSA-PSS    | Factoring    | 2048+ bit | TLS, code signing|
+  | ECDSA      | ECDLP        | 256 bit   | TLS, Bitcoin     |
+  | Ed25519    | ECDLP        | 256 bit   | SSH, Signal      |
+  | Ed448      | ECDLP        | 448 bit   | High security    |
+  +------------+--------------+-----------+------------------+
+
+  Ed25519 Features:
+  - Uses Edwards curve on Curve25519
+  - Deterministic signatures (same message+key always produces same signature)
+    -> Does not depend on random number quality (avoids ECDSA vulnerability)
+  - Fast: Signing ~50us, Verification ~100us (typical CPU)
+  - Compact: Signature 64 bytes, Public key 32 bytes
+```
+
+### 6.3 Learning Digital Signatures with Python
 
 ```python
 """
-Ed25519 デジタル署名のデモ
-依存ライブラリ: pip install cryptography
+Ed25519 digital signature demo
+Dependency: pip install cryptography
 """
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.exceptions import InvalidSignature
 
 
 def digital_signature_demo():
-    """Ed25519 による署名と検証のデモ。"""
-    # 鍵ペア生成
+    """Demo of signing and verification with Ed25519."""
+    # Generate key pair
     private_key = Ed25519PrivateKey.generate()
     public_key = private_key.public_key()
 
-    # 公開鍵のバイト表現（32バイト）
+    # Byte representation of public key (32 bytes)
     from cryptography.hazmat.primitives.serialization import (
         Encoding, PublicFormat,
     )
     pub_bytes = public_key.public_bytes(Encoding.Raw, PublicFormat.Raw)
-    print(f"公開鍵 (hex): {pub_bytes.hex()}")
-    print(f"公開鍵の長さ: {len(pub_bytes)} bytes")
+    print(f"Public key (hex): {pub_bytes.hex()}")
+    print(f"Public key length: {len(pub_bytes)} bytes")
 
-    # メッセージに署名
-    message = "この文書は改竄されていません。".encode("utf-8")
+    # Sign a message
+    message = "This document has not been tampered with.".encode("utf-8")
     signature = private_key.sign(message)
-    print(f"\nメッセージ: {message.decode()}")
-    print(f"署名 (hex): {signature.hex()}")
-    print(f"署名の長さ: {len(signature)} bytes")
+    print(f"\nMessage: {message.decode()}")
+    print(f"Signature (hex): {signature.hex()}")
+    print(f"Signature length: {len(signature)} bytes")
 
-    # 署名の検証（正常系）
+    # Signature verification (normal case)
     try:
         public_key.verify(signature, message)
-        print("\n署名検証: OK（正当な署名）")
+        print("\nSignature verification: OK (valid signature)")
     except InvalidSignature:
-        print("\n署名検証: NG")
+        print("\nSignature verification: NG")
 
-    # 署名の検証（改竄検知）
-    tampered_message = "この文書は改竄されています。".encode("utf-8")
+    # Signature verification (tampering detection)
+    tampered_message = "This document has been tampered with.".encode("utf-8")
     try:
         public_key.verify(signature, tampered_message)
-        print("署名検証: OK（改竄が検知されなかった — エラー）")
+        print("Signature verification: OK (tampering not detected -- error)")
     except InvalidSignature:
-        print("署名検証: NG（改竄を検知 — 正常動作）")
+        print("Signature verification: NG (tampering detected -- correct behavior)")
 
-    # 別の秘密鍵で署名した場合（なりすまし検知）
+    # Verification with a different private key (impersonation detection)
     fake_private_key = Ed25519PrivateKey.generate()
     fake_signature = fake_private_key.sign(message)
     try:
         public_key.verify(fake_signature, message)
-        print("署名検証: OK（なりすましが検知されなかった — エラー）")
+        print("Signature verification: OK (impersonation not detected -- error)")
     except InvalidSignature:
-        print("署名検証: NG（なりすましを検知 — 正常動作）")
+        print("Signature verification: NG (impersonation detected -- correct behavior)")
 
 
 if __name__ == "__main__":
@@ -1264,267 +1271,278 @@ if __name__ == "__main__":
 ```
 
 ```
-実行結果の例:
+Example output:
 
-  公開鍵 (hex): 7d4a3b2c1e0f...（64文字の16進数）
-  公開鍵の長さ: 32 bytes
+  Public key (hex): 7d4a3b2c1e0f...(64 hex characters)
+  Public key length: 32 bytes
 
-  メッセージ: この文書は改竄されていません。
-  署名 (hex): 8f3a2b1c4d5e6f...（128文字の16進数）
-  署名の長さ: 64 bytes
+  Message: This document has not been tampered with.
+  Signature (hex): 8f3a2b1c4d5e6f...(128 hex characters)
+  Signature length: 64 bytes
 
-  署名検証: OK（正当な署名）
-  署名検証: NG（改竄を検知 — 正常動作）
-  署名検証: NG（なりすましを検知 — 正常動作）
+  Signature verification: OK (valid signature)
+  Signature verification: NG (tampering detected -- correct behavior)
+  Signature verification: NG (impersonation detected -- correct behavior)
 ```
 
-### 6.4 デジタル署名の応用
+### 6.4 Applications of Digital Signatures
 
-デジタル署名は単なるメッセージ認証を超え、現代のソフトウェアエコシステム全体に浸透している。
+Digital signatures go beyond simple message authentication and permeate the entire modern software ecosystem.
 
 ```
-デジタル署名の主要な応用:
+Major Applications of Digital Signatures:
 
-  1. コード署名（Code Signing）
-     - OS がアプリケーションの出自を検証
-     - Apple: コード署名必須、公証（Notarization）
-     - Windows: Authenticode 署名
-     - Android: APK 署名
+  1. Code Signing
+     - OS verifies the origin of applications
+     - Apple: Code signing required, Notarization
+     - Windows: Authenticode signing
+     - Android: APK signing
 
-  2. パッケージマネージャ
-     - apt/yum: GPG 署名でリポジトリの真正性を検証
-     - npm/PyPI: Sigstore による署名が普及中
-     - Docker: コンテナイメージの署名（Cosign/Notation）
+  2. Package Managers
+     - apt/yum: Verify repository authenticity with GPG signatures
+     - npm/PyPI: Sigstore-based signing is growing
+     - Docker: Container image signing (Cosign/Notation)
 
-  3. Git コミット署名
-     - GPG または SSH 鍵でコミットに署名
-     - GitHub: "Verified" バッジの表示
+  3. Git Commit Signing
+     - Sign commits with GPG or SSH keys
+     - GitHub: Displays "Verified" badge
      - git commit -S -m "signed commit"
 
-  4. 電子契約・電子署名
-     - PDF 文書のデジタル署名
-     - 各国の電子署名法に基づく法的効力
+  4. Electronic Contracts / Digital Signatures
+     - Digital signatures on PDF documents
+     - Legal validity based on e-signature laws in various countries
 
-  5. ブロックチェーン
-     - トランザクションの署名（ECDSA / Ed25519）
-     - Bitcoin: secp256k1 曲線の ECDSA
-     - Ethereum: 同上 + EIP-712 typed data signing
+  5. Blockchain
+     - Transaction signing (ECDSA / Ed25519)
+     - Bitcoin: ECDSA on secp256k1 curve
+     - Ethereum: Same + EIP-712 typed data signing
 
-  6. JWT（JSON Web Token）
+  6. JWT (JSON Web Token)
      - RS256: RSA-PSS + SHA-256
      - ES256: ECDSA P-256 + SHA-256
-     - EdDSA: Ed25519（RFC 8037）
+     - EdDSA: Ed25519 (RFC 8037)
 ```
 
 ---
 
-## 7. 暗号と計算複雑性
+## 7. Cryptography and Computational Complexity
 
-暗号の安全性は、計算複雑性理論における「困難な問題」の存在に依拠している。この節では、暗号学と計算複雑性理論の関係を掘り下げ、なぜ特定のアルゴリズムが安全であると考えられるのかを理解する。
+The security of cryptography relies on the existence of "hard problems" in computational complexity theory. This section delves into the relationship between cryptography and computational complexity theory, understanding why certain algorithms are considered secure.
 
-### 7.1 計算量的安全性と情報理論的安全性
-
-```
-安全性の2つの定義:
-
-  情報理論的安全性（無条件安全性）:
-  ┌────────────────────────────────────────────┐
-  │ 無限の計算能力を持つ攻撃者でも解読不可能   │
-  │ 例: ワンタイムパッド                        │
-  │ 条件: 鍵の長さが平文以上、完全なランダム鍵、│
-  │       鍵の使い回しなし                      │
-  │ → 実用上は鍵配送が非現実的                 │
-  └────────────────────────────────────────────┘
-
-  計算量的安全性:
-  ┌────────────────────────────────────────────┐
-  │ 多項式時間で動作する攻撃者には解読不可能    │
-  │ 例: AES-256, RSA-2048, ECDSA P-256         │
-  │ 根拠: 特定の数学的問題が「困難」であるという│
-  │       仮定（証明されていない場合が多い）    │
-  │ → 現代暗号の標準的な安全性モデル           │
-  └────────────────────────────────────────────┘
-```
-
-### 7.2 暗号の基盤となる困難な問題
+### 7.1 Computational Security vs Information-Theoretic Security
 
 ```
-暗号学で重要な困難問題:
+Two Definitions of Security:
 
-  1. 素因数分解問題（Integer Factorization Problem）
-     ┌──────────────────────────────────────────┐
-     │ 与えられた合成数 N = p * q に対し、      │
-     │ 素因数 p, q を効率的に求めよ             │
-     │                                          │
-     │ 最良の古典アルゴリズム:                  │
-     │   一般数体ふるい法                       │
-     │   → 準指数時間（多項式でも指数でもない） │
-     │                                          │
-     │ 依存する暗号: RSA                        │
-     └──────────────────────────────────────────┘
+  Information-Theoretic Security (Unconditional Security):
+  +--------------------------------------------+
+  | Cannot be broken even with infinite         |
+  | computational power                         |
+  | Example: One-Time Pad                       |
+  | Requirements: Key length >= plaintext,      |
+  | completely random key, no key reuse         |
+  | -> Key distribution is impractical          |
+  +--------------------------------------------+
 
-  2. 離散対数問題（Discrete Logarithm Problem, DLP）
-     ┌──────────────────────────────────────────┐
-     │ 素数 p と生成元 g に対し、               │
-     │ g^x = h (mod p) を満たす x を求めよ      │
-     │                                          │
-     │ 最良の古典アルゴリズム:                  │
-     │   数体ふるい法（素因数分解と同等）       │
-     │                                          │
-     │ 依存する暗号: Diffie-Hellman, DSA        │
-     └──────────────────────────────────────────┘
-
-  3. 楕円曲線離散対数問題（ECDLP）
-     ┌──────────────────────────────────────────┐
-     │ 楕円曲線 E 上の点 P と Q = nP に対し、   │
-     │ スカラー n を求めよ                       │
-     │                                          │
-     │ 最良の古典アルゴリズム:                  │
-     │   Pollard rho 法 — O(sqrt(n))            │
-     │   → DLP より効率的な攻撃が知られていない │
-     │   → 短い鍵で高い安全性を実現             │
-     │                                          │
-     │ 依存する暗号: ECDH, ECDSA, Ed25519       │
-     └──────────────────────────────────────────┘
-
-  4. 格子問題（Lattice Problems）
-     ┌──────────────────────────────────────────┐
-     │ Learning With Errors (LWE):              │
-     │   As + e = b (mod q) から s を求めよ      │
-     │   A: 公開行列, e: 小さなエラーベクトル   │
-     │                                          │
-     │ 最良の古典/量子アルゴリズム:              │
-     │   指数時間（量子コンピュータでも困難）    │
-     │                                          │
-     │ 依存する暗号: ML-KEM, ML-DSA（ポスト量子）│
-     └──────────────────────────────────────────┘
+  Computational Security:
+  +--------------------------------------------+
+  | Cannot be broken by polynomial-time         |
+  | attackers                                   |
+  | Examples: AES-256, RSA-2048, ECDSA P-256    |
+  | Basis: Assumption that certain mathematical |
+  | problems are "hard" (often unproven)        |
+  | -> Standard security model for modern       |
+  |    cryptography                             |
+  +--------------------------------------------+
 ```
 
-### 7.3 セキュリティレベルと鍵長
-
-セキュリティレベルは、暗号を破るために必要な計算量をビット数で表現したものである。n ビットセキュリティとは、最良の攻撃に 2^n 回の演算が必要であることを意味する。
+### 7.2 Hard Problems Underlying Cryptography
 
 ```
-セキュリティレベル対応表:
+Important Hard Problems in Cryptography:
 
-  ┌──────────────┬──────────┬──────────┬──────────┬──────────┐
-  │ セキュリティ │ 共通鍵   │ RSA      │ ECC      │ ハッシュ │
-  │ レベル       │ (AES)    │          │          │ (衝突)   │
-  ├──────────────┼──────────┼──────────┼──────────┼──────────┤
-  │  128 bit     │ AES-128  │ RSA-3072 │ P-256    │ SHA-256  │
-  │  192 bit     │ AES-192  │ RSA-7680 │ P-384    │ SHA-384  │
-  │  256 bit     │ AES-256  │ RSA-15360│ P-521    │ SHA-512  │
-  └──────────────┴──────────┴──────────┴──────────┴──────────┘
+  1. Integer Factorization Problem
+     +----------------------------------------------+
+     | Given a composite number N = p * q,           |
+     | efficiently find the prime factors p, q       |
+     |                                              |
+     | Best classical algorithm:                     |
+     |   General Number Field Sieve                  |
+     |   -> Sub-exponential time (neither polynomial |
+     |      nor exponential)                         |
+     |                                              |
+     | Dependent cryptography: RSA                   |
+     +----------------------------------------------+
 
-  解読に必要な時間の目安（128ビットセキュリティ）:
-  - 2^128 は約 3.4 * 10^38 回の演算に相当
-  - 全世界のスパコン（約10^18 ops/s）を全て投入しても
-    約 10^13 年（宇宙年齢の約700倍）が必要
+  2. Discrete Logarithm Problem (DLP)
+     +----------------------------------------------+
+     | Given prime p and generator g,                |
+     | find x satisfying g^x = h (mod p)            |
+     |                                              |
+     | Best classical algorithm:                     |
+     |   Number Field Sieve (equivalent to           |
+     |   factorization)                              |
+     |                                              |
+     | Dependent cryptography: Diffie-Hellman, DSA   |
+     +----------------------------------------------+
+
+  3. Elliptic Curve Discrete Logarithm Problem (ECDLP)
+     +----------------------------------------------+
+     | Given point P and Q = nP on elliptic curve E, |
+     | find scalar n                                 |
+     |                                              |
+     | Best classical algorithm:                     |
+     |   Pollard rho method -- O(sqrt(n))            |
+     |   -> No more efficient attack known than DLP  |
+     |   -> Achieves high security with short keys   |
+     |                                              |
+     | Dependent cryptography: ECDH, ECDSA, Ed25519  |
+     +----------------------------------------------+
+
+  4. Lattice Problems
+     +----------------------------------------------+
+     | Learning With Errors (LWE):                   |
+     |   As + e = b (mod q), find s                  |
+     |   A: public matrix, e: small error vector     |
+     |                                              |
+     | Best classical/quantum algorithm:             |
+     |   Exponential time (hard even for quantum     |
+     |   computers)                                  |
+     |                                              |
+     | Dependent cryptography: ML-KEM, ML-DSA        |
+     | (post-quantum)                                |
+     +----------------------------------------------+
+```
+
+### 7.3 Security Levels and Key Lengths
+
+The security level expresses the computational effort needed to break a cipher in bits. n-bit security means that the best attack requires 2^n operations.
+
+```
+Security Level Correspondence Table:
+
+  +--------------+----------+----------+----------+----------+
+  | Security     | Symmetric| RSA      | ECC      | Hash     |
+  | Level        | (AES)    |          |          |(collision)|
+  +--------------+----------+----------+----------+----------+
+  |  128 bit     | AES-128  | RSA-3072 | P-256    | SHA-256  |
+  |  192 bit     | AES-192  | RSA-7680 | P-384    | SHA-384  |
+  |  256 bit     | AES-256  | RSA-15360| P-521    | SHA-512  |
+  +--------------+----------+----------+----------+----------+
+
+  Estimated time to break (128-bit security):
+  - 2^128 corresponds to approximately 3.4 * 10^38 operations
+  - Even deploying all the world's supercomputers (~10^18 ops/s)
+    would require approximately 10^13 years (~700x the age of the universe)
 ```
 
 ---
 
-## 8. ポスト量子暗号（PQC）
+## 8. Post-Quantum Cryptography (PQC)
 
-### 8.1 量子コンピュータの脅威
+### 8.1 The Quantum Computing Threat
 
-量子コンピュータは、量子力学の原理（重ね合わせ、エンタングルメント）を利用し、特定の問題に対して古典コンピュータを圧倒的に上回る計算能力を発揮する。暗号学にとって特に脅威となるのが、Shor のアルゴリズムと Grover のアルゴリズムである。
-
-```
-量子アルゴリズムの暗号への影響:
-
-  Shor のアルゴリズム（1994年）:
-  ┌──────────────────────────────────────────────┐
-  │ 素因数分解と離散対数を多項式時間で解く       │
-  │                                              │
-  │ 影響を受ける暗号:                            │
-  │ - RSA → 完全に破壊                           │
-  │ - DH/DSA → 完全に破壊                        │
-  │ - ECDH/ECDSA → 完全に破壊                    │
-  │                                              │
-  │ 必要な量子ビット数（論理qubit）:               │
-  │ - RSA-2048: 約 4,000 論理qubit                │
-  │ - ECC-256: 約 2,500 論理qubit                 │
-  │ （物理qubitはエラー訂正で100-1000倍必要）     │
-  └──────────────────────────────────────────────┘
-
-  Grover のアルゴリズム（1996年）:
-  ┌──────────────────────────────────────────────┐
-  │ 探索問題を O(sqrt(N)) に高速化               │
-  │                                              │
-  │ 影響:                                        │
-  │ - 共通鍵暗号の安全性を半減                   │
-  │   AES-128 → 64ビット相当（不十分）           │
-  │   AES-256 → 128ビット相当（十分安全）        │
-  │ - ハッシュ関数の原像耐性を低下              │
-  │   SHA-256 → 128ビット相当（十分安全）        │
-  │                                              │
-  │ 対策: 鍵長を2倍にすれば十分                  │
-  └──────────────────────────────────────────────┘
-
-  量子コンピュータのタイムライン（推定）:
-  ┌──────┬──────────────────────────────┐
-  │ 2024 │ 約1,000 物理qubit（ノイズ多）│
-  │ 2030 │ 約10,000 物理qubit（推定）   │
-  │ 2035+│ 暗号学的脅威レベル（推定）   │
-  └──────┴──────────────────────────────┘
-
-  「Harvest Now, Decrypt Later」攻撃:
-  - 現在の暗号化通信を記録・保存
-  - 将来、量子コンピュータで復号
-  - 長期秘匿が必要なデータは今から対策が必要
-```
-
-### 8.2 NIST ポスト量子暗号標準
-
-NIST は 2016 年からポスト量子暗号の標準化プロセスを進め、2024 年に最初の標準を発表した。
+Quantum computers leverage principles of quantum mechanics (superposition, entanglement) to deliver computational power that overwhelmingly exceeds classical computers for certain problems. The particular threats to cryptography are Shor's algorithm and Grover's algorithm.
 
 ```
-NIST PQC 標準（2024年発表）:
+Impact of Quantum Algorithms on Cryptography:
 
-  鍵カプセル化メカニズム（KEM）:
-  ┌────────────┬──────────┬──────────┬──────────┬────────────┐
-  │ 名称       │ 基盤問題 │ 公開鍵長 │ 暗号文長 │ セキュリティ│
-  ├────────────┼──────────┼──────────┼──────────┼────────────┤
-  │ ML-KEM-512 │ MLWE     │ 800 B    │ 768 B    │ 128 bit    │
-  │ ML-KEM-768 │ MLWE     │ 1184 B   │ 1088 B   │ 192 bit    │
-  │ ML-KEM-1024│ MLWE     │ 1568 B   │ 1568 B   │ 256 bit    │
-  └────────────┴──────────┴──────────┴──────────┴────────────┘
-  ML-KEM = Module Lattice KEM（旧称 CRYSTALS-Kyber）
+  Shor's Algorithm (1994):
+  +----------------------------------------------+
+  | Solves factoring and discrete logarithm      |
+  | in polynomial time                           |
+  |                                              |
+  | Affected cryptography:                       |
+  | - RSA -> Completely broken                   |
+  | - DH/DSA -> Completely broken                |
+  | - ECDH/ECDSA -> Completely broken            |
+  |                                              |
+  | Required qubits (logical):                   |
+  | - RSA-2048: ~4,000 logical qubits            |
+  | - ECC-256: ~2,500 logical qubits             |
+  | (Physical qubits need 100-1000x for error    |
+  |  correction)                                 |
+  +----------------------------------------------+
 
-  デジタル署名:
-  ┌────────────────┬──────────┬──────────┬──────────┬──────────┐
-  │ 名称           │ 基盤問題 │ 公開鍵長 │ 署名長   │ セキュリティ│
-  ├────────────────┼──────────┼──────────┼──────────┼──────────┤
-  │ ML-DSA-44      │ MLWE     │ 1312 B   │ 2420 B   │ 128 bit  │
-  │ ML-DSA-65      │ MLWE     │ 1952 B   │ 3293 B   │ 192 bit  │
-  │ ML-DSA-87      │ MLWE     │ 2592 B   │ 4595 B   │ 256 bit  │
-  │ SLH-DSA-128s   │ ハッシュ │ 32 B     │ 7856 B   │ 128 bit  │
-  │ SLH-DSA-128f   │ ハッシュ │ 32 B     │ 17088 B  │ 128 bit  │
-  └────────────────┴──────────┴──────────┴──────────┴──────────┘
-  ML-DSA = Module Lattice DSA（旧称 CRYSTALS-Dilithium）
-  SLH-DSA = Stateless Hash-based DSA（旧称 SPHINCS+）
+  Grover's Algorithm (1996):
+  +----------------------------------------------+
+  | Speeds up search problems to O(sqrt(N))      |
+  |                                              |
+  | Impact:                                      |
+  | - Halves symmetric cipher security           |
+  |   AES-128 -> 64-bit equivalent (insufficient)|
+  |   AES-256 -> 128-bit equivalent (sufficiently|
+  |   secure)                                    |
+  | - Reduces hash function preimage resistance  |
+  |   SHA-256 -> 128-bit equivalent (sufficiently|
+  |   secure)                                    |
+  |                                              |
+  | Countermeasure: Doubling key length suffices  |
+  +----------------------------------------------+
 
-  従来方式との鍵サイズ比較:
-  ┌────────────────────┬────────────┬──────────────────┐
-  │                    │ 公開鍵長   │ 安全性根拠       │
-  ├────────────────────┼────────────┼──────────────────┤
-  │ RSA-2048           │ 256 B      │ 素因数分解       │
-  │ ECDSA P-256        │ 64 B       │ ECDLP            │
-  │ Ed25519            │ 32 B       │ ECDLP            │
-  │ ML-KEM-768 (PQC)   │ 1184 B     │ 格子問題 (MLWE)  │
-  │ ML-DSA-65 (PQC)    │ 1952 B     │ 格子問題 (MLWE)  │
-  └────────────────────┴────────────┴──────────────────┘
+  Quantum Computer Timeline (estimated):
+  +------+------------------------------+
+  | 2024 | ~1,000 physical qubits (noisy)|
+  | 2030 | ~10,000 physical qubits (est.)|
+  | 2035+| Cryptographic threat level (est.)|
+  +------+------------------------------+
 
-  → PQC は鍵サイズが大きくなるが、量子耐性を獲得
+  "Harvest Now, Decrypt Later" Attack:
+  - Record and store current encrypted communications
+  - Decrypt in the future with quantum computers
+  - Data requiring long-term secrecy needs countermeasures now
 ```
 
-### 8.3 格子暗号の直観的理解
+### 8.2 NIST Post-Quantum Cryptography Standards
+
+NIST has been advancing the post-quantum cryptography standardization process since 2016 and announced the first standards in 2024.
 
 ```
-格子暗号の基本アイデア（Learning With Errors: LWE）:
+NIST PQC Standards (announced 2024):
 
-  2次元の格子点を例にした直観:
+  Key Encapsulation Mechanism (KEM):
+  +------------+----------+----------+----------+------------+
+  | Name       | Basis    | Pub. key | Cipher.  | Security   |
+  +------------+----------+----------+----------+------------+
+  | ML-KEM-512 | MLWE     | 800 B    | 768 B    | 128 bit    |
+  | ML-KEM-768 | MLWE     | 1184 B   | 1088 B   | 192 bit    |
+  | ML-KEM-1024| MLWE     | 1568 B   | 1568 B   | 256 bit    |
+  +------------+----------+----------+----------+------------+
+  ML-KEM = Module Lattice KEM (formerly CRYSTALS-Kyber)
+
+  Digital Signatures:
+  +----------------+----------+----------+----------+----------+
+  | Name           | Basis    | Pub. key | Sig. len | Security |
+  +----------------+----------+----------+----------+----------+
+  | ML-DSA-44      | MLWE     | 1312 B   | 2420 B   | 128 bit  |
+  | ML-DSA-65      | MLWE     | 1952 B   | 3293 B   | 192 bit  |
+  | ML-DSA-87      | MLWE     | 2592 B   | 4595 B   | 256 bit  |
+  | SLH-DSA-128s   | Hash     | 32 B     | 7856 B   | 128 bit  |
+  | SLH-DSA-128f   | Hash     | 32 B     | 17088 B  | 128 bit  |
+  +----------------+----------+----------+----------+----------+
+  ML-DSA = Module Lattice DSA (formerly CRYSTALS-Dilithium)
+  SLH-DSA = Stateless Hash-based DSA (formerly SPHINCS+)
+
+  Key Size Comparison with Traditional Methods:
+  +--------------------+------------+------------------+
+  |                    | Pub. key   | Security basis   |
+  +--------------------+------------+------------------+
+  | RSA-2048           | 256 B      | Factoring        |
+  | ECDSA P-256        | 64 B       | ECDLP            |
+  | Ed25519            | 32 B       | ECDLP            |
+  | ML-KEM-768 (PQC)   | 1184 B     | Lattice (MLWE)   |
+  | ML-DSA-65 (PQC)    | 1952 B     | Lattice (MLWE)   |
+  +--------------------+------------+------------------+
+
+  -> PQC has larger key sizes but gains quantum resistance
+```
+
+### 8.3 Intuitive Understanding of Lattice Cryptography
+
+```
+Basic Idea of Lattice Cryptography (Learning With Errors: LWE):
+
+  Intuition using 2-dimensional lattice points:
 
   y
   |    .     .     .     .     .
@@ -1537,11 +1555,11 @@ NIST PQC 標準（2024年発表）:
   |
   +-------------------------------------> x
 
-  格子点（正確に等間隔に配置された点の集合）
+  Lattice points (set of points arranged at exactly equal intervals)
 
-  LWE 問題:
-  1. 格子点に「小さなノイズ」を加えた点が与えられる
-  2. そこから元の格子の構造（秘密鍵）を復元せよ
+  LWE Problem:
+  1. You are given points with "small noise" added to lattice points
+  2. Recover the original lattice structure (secret key) from these
 
   y
   |    x   x     x     x   x
@@ -1554,69 +1572,71 @@ NIST PQC 標準（2024年発表）:
   |
   +-------------------------------------> x
 
-  x: ノイズが加わった点（位置がわずかにずれている）
+  x: Points with added noise (positions slightly shifted)
 
-  → ノイズが十分大きいと、元の格子を推定するのが極めて困難
-  → 量子コンピュータでも効率的に解けないと考えられている
+  -> When noise is sufficiently large, estimating the original lattice
+     is extremely difficult
+  -> Believed to be hard even for quantum computers
 ```
 
-### 8.4 ハイブリッド方式と移行戦略
+### 8.4 Hybrid Approach and Migration Strategy
 
-現在のポスト量子暗号への移行では、「ハイブリッド方式」が推奨されている。これは従来の暗号と PQC を組み合わせて使用する方法であり、いずれか一方が破られても安全性が保たれる。
+The current migration to post-quantum cryptography recommends a "hybrid approach." This combines traditional cryptography with PQC, maintaining security even if one of them is broken.
 
 ```
-ハイブリッド鍵交換（TLS での例）:
+Hybrid Key Exchange (Example in TLS):
 
-  クライアント → サーバー:
-    X25519 の公開鍵 + ML-KEM-768 の公開鍵
+  Client -> Server:
+    X25519 public key + ML-KEM-768 public key
 
-  サーバー → クライアント:
-    X25519 の公開鍵 + ML-KEM-768 のカプセル化
+  Server -> Client:
+    X25519 public key + ML-KEM-768 encapsulation
 
-  共有秘密 = KDF(X25519共有秘密 || ML-KEM共有秘密)
+  Shared secret = KDF(X25519 shared secret || ML-KEM shared secret)
 
-  → X25519 が量子コンピュータで破られても ML-KEM で保護
-  → ML-KEM に未知の脆弱性があっても X25519 で保護
+  -> Even if X25519 is broken by quantum computers, ML-KEM provides protection
+  -> Even if ML-KEM has unknown vulnerabilities, X25519 provides protection
 
-  導入例:
-  - Chrome/Firefox: X25519Kyber768 をデフォルト有効化
-  - AWS: s2n-tls で ML-KEM ハイブリッドをサポート
-  - Signal: PQXDH プロトコル（X25519 + ML-KEM）
+  Deployment examples:
+  - Chrome/Firefox: X25519Kyber768 enabled by default
+  - AWS: ML-KEM hybrid support in s2n-tls
+  - Signal: PQXDH protocol (X25519 + ML-KEM)
 ```
 
 ---
 
-## 9. 暗号の実装とベストプラクティス
+## 9. Cryptographic Implementation and Best Practices
 
-暗号アルゴリズムの数学的安全性と、その実装の安全性は別物である。理論的に安全なアルゴリズムであっても、実装の誤りが致命的な脆弱性を生むことは珍しくない。
+The mathematical security of a cryptographic algorithm and the security of its implementation are separate matters. Even theoretically secure algorithms can harbor critical vulnerabilities due to implementation errors.
 
-### 9.1 安全な乱数生成
+### 9.1 Secure Random Number Generation
 
-暗号における乱数の品質は安全性の根幹である。予測可能な乱数を使用すると、鍵やノンスが予測され、暗号全体が破壊される。
+The quality of randomness in cryptography is fundamental to security. Using predictable random numbers allows keys and nonces to be predicted, destroying the entire cryptographic system.
 
 ```
-乱数生成の階層:
+Random Number Generation Hierarchy:
 
-  ┌─────────────────────────────────────────┐
-  │ CSPRNG（暗号論的疑似乱数生成器）        │ ← 暗号用途
-  │ os.urandom(), /dev/urandom              │
-  │ secrets モジュール（Python）             │
-  ├─────────────────────────────────────────┤
-  │ PRNG（疑似乱数生成器）                  │ ← シミュレーション等
-  │ random モジュール（Python）              │
-  │ Math.random()（JavaScript）             │
-  │ ※ 暗号には絶対に使用禁止               │
-  ├─────────────────────────────────────────┤
-  │ TRNG（真性乱数生成器）                  │ ← ハードウェア
-  │ Intel RDRAND/RDSEED                     │
-  │ 物理現象（放射性崩壊、熱雑音等）       │
-  └─────────────────────────────────────────┘
+  +---------------------------------------------+
+  | CSPRNG (Cryptographically Secure PRNG)       | <- For cryptographic use
+  | os.urandom(), /dev/urandom                   |
+  | secrets module (Python)                      |
+  +---------------------------------------------+
+  | PRNG (Pseudorandom Number Generator)         | <- For simulations, etc.
+  | random module (Python)                       |
+  | Math.random() (JavaScript)                   |
+  | * NEVER use for cryptography                 |
+  +---------------------------------------------+
+  | TRNG (True Random Number Generator)          | <- Hardware
+  | Intel RDRAND/RDSEED                          |
+  | Physical phenomena (radioactive decay,       |
+  | thermal noise, etc.)                         |
+  +---------------------------------------------+
 ```
 
 ```python
 """
-安全な乱数生成と危険な乱数生成の比較
-依存ライブラリ: 標準ライブラリのみ
+Comparison of secure and insecure random number generation
+Dependencies: Standard library only
 """
 import secrets
 import random
@@ -1624,205 +1644,214 @@ import os
 
 
 def secure_random_demo():
-    """暗号に安全な乱数生成のデモ。"""
-    # --- 安全な方法 ---
-    # secrets モジュール（Python 3.6+、暗号用に設計）
-    secure_token = secrets.token_hex(32)  # 256ビットのランダムトークン
+    """Demo of cryptographically secure random number generation."""
+    # --- Secure methods ---
+    # secrets module (Python 3.6+, designed for cryptographic use)
+    secure_token = secrets.token_hex(32)  # 256-bit random token
     print(f"secrets.token_hex(32): {secure_token}")
 
-    # os.urandom（OS のエントロピープールから取得）
+    # os.urandom (obtained from OS entropy pool)
     secure_bytes = os.urandom(32)
     print(f"os.urandom(32):        {secure_bytes.hex()}")
 
-    # 安全なランダム整数
+    # Secure random integer
     secure_int = secrets.randbelow(2**256)
     print(f"secrets.randbelow():   {secure_int}")
 
-    # --- 危険な方法（暗号に使用禁止）---
-    # random モジュールは Mersenne Twister を使用
-    # 624個の出力から内部状態を完全に復元可能
-    random.seed(42)  # シードが予測可能 → 出力も予測可能
+    # --- Insecure methods (NEVER use for cryptography) ---
+    # random module uses Mersenne Twister
+    # Internal state can be fully recovered from 624 outputs
+    random.seed(42)  # Predictable seed -> predictable output
     insecure = random.getrandbits(256)
     print(f"\nrandom.getrandbits(): {insecure}")
-    print("  上記は暗号に使用禁止（Mersenne Twister は暗号学的に安全でない）")
-    print("  624個の出力を観測するだけで内部状態を完全復元可能")
+    print("  The above MUST NOT be used for cryptography (Mersenne Twister is not cryptographically secure)")
+    print("  Internal state can be fully recovered by observing just 624 outputs")
 
 
 if __name__ == "__main__":
     secure_random_demo()
 ```
 
-### 9.2 鍵管理のベストプラクティス
+### 9.2 Key Management Best Practices
 
 ```
-鍵管理の原則:
+Key Management Principles:
 
-  1. 鍵の生成
-     - 常に CSPRNG を使用
-     - 十分な鍵長を選択（AES-256, Ed25519 等）
-     - パスワードから鍵を導出する場合は KDF を使用
-       （PBKDF2, scrypt, Argon2id）
+  1. Key Generation
+     - Always use CSPRNG
+     - Choose sufficient key length (AES-256, Ed25519, etc.)
+     - When deriving keys from passwords, use a KDF
+       (PBKDF2, scrypt, Argon2id)
 
-  2. 鍵の保管
-     - メモリ内の鍵は使用後にゼロクリア
-     - ディスク上の鍵は暗号化して保管
-     - HSM（Hardware Security Module）の活用
-     - 環境変数やソースコードに鍵を直接埋め込まない
-     - クラウド: AWS KMS, GCP Cloud KMS, Azure Key Vault
+  2. Key Storage
+     - Zero-clear keys in memory after use
+     - Store keys on disk in encrypted form
+     - Utilize HSMs (Hardware Security Modules)
+     - Never embed keys directly in environment variables or source code
+     - Cloud: AWS KMS, GCP Cloud KMS, Azure Key Vault
 
-  3. 鍵のローテーション
-     - 定期的に鍵を更新（例: 年1回）
-     - 鍵が漏洩した場合の即座のローテーション
-     - 旧データの再暗号化計画
+  3. Key Rotation
+     - Update keys periodically (e.g., annually)
+     - Immediate rotation if a key is compromised
+     - Plan for re-encryption of old data
 
-  4. 鍵の廃棄
-     - 不要になった鍵は安全に破壊
-     - 暗号消去（crypto-erase）: 鍵を破壊してデータを読めなくする
+  4. Key Destruction
+     - Securely destroy keys that are no longer needed
+     - Crypto-erase: Destroy the key to make data unreadable
 ```
 
-### 9.3 サイドチャネル攻撃
+### 9.3 Side-Channel Attacks
 
-暗号の安全性は、アルゴリズムの数学的性質だけでなく、実装の物理的な振る舞いにも依存する。サイドチャネル攻撃は、暗号の計算過程で漏洩する物理情報を利用して秘密鍵を推定する攻撃手法である。
-
-```
-主なサイドチャネル攻撃:
-
-  1. タイミング攻撃
-     ┌──────────────────────────────────────┐
-     │ 処理時間の差から秘密情報を推定       │
-     │                                      │
-     │ 例: パスワード比較で先頭から照合し、 │
-     │ 一致しない位置で即座に false を返す   │
-     │ → 処理時間から一致文字数がわかる     │
-     │                                      │
-     │ 対策: 定数時間比較を使用             │
-     │ Python: hmac.compare_digest()        │
-     │ Node.js: crypto.timingSafeEqual()    │
-     └──────────────────────────────────────┘
-
-  2. 電力解析攻撃
-     ┌──────────────────────────────────────┐
-     │ 暗号処理中の消費電力パターンから     │
-     │ 秘密鍵を推定                        │
-     │                                      │
-     │ 対策: マスキング（ランダム値を加えて │
-     │ 中間値を隠す）                       │
-     └──────────────────────────────────────┘
-
-  3. キャッシュタイミング攻撃
-     ┌──────────────────────────────────────┐
-     │ CPU キャッシュのヒット/ミスから       │
-     │ メモリアクセスパターンを推定         │
-     │                                      │
-     │ 例: AES の T-Table 実装に対する攻撃  │
-     │ 対策: AES-NI（ハードウェア命令）使用 │
-     │ または bitsliced 実装                │
-     └──────────────────────────────────────┘
-
-  4. Spectre/Meltdown 系攻撃
-     ┌──────────────────────────────────────┐
-     │ 投機的実行の副作用からデータを漏洩   │
-     │ 対策: OS/ハードウェアレベルの緩和策  │
-     └──────────────────────────────────────┘
-```
-
----
-
-## 10. 暗号方式の比較分析
-
-### 10.1 共通鍵暗号 vs 公開鍵暗号
+The security of cryptography depends not only on the mathematical properties of the algorithm but also on the physical behavior of its implementation. Side-channel attacks exploit physical information leaked during cryptographic computation to infer the secret key.
 
 ```
-総合比較表:
+Major Side-Channel Attacks:
 
-  ┌──────────────────┬───────────────────────┬───────────────────────┐
-  │                  │ 共通鍵暗号            │ 公開鍵暗号            │
-  │                  │ (対称暗号)            │ (非対称暗号)          │
-  ├──────────────────┼───────────────────────┼───────────────────────┤
-  │ 鍵の数           │ 1つ（共通鍵）         │ 2つ（公開鍵+秘密鍵） │
-  │ 速度             │ 高速（数 GB/s）       │ 低速（100-1000倍遅い）│
-  │ 鍵長（128bit相当）│ 128 bit              │ RSA: 3072 bit         │
-  │                  │                       │ ECC: 256 bit          │
-  │ 鍵配送           │ 事前共有が必要        │ 公開鍵は公開可能      │
-  │ スケーラビリティ │ O(n^2) 鍵ペア        │ O(n) 鍵ペア           │
-  │ 用途             │ データ暗号化          │ 鍵交換、署名、認証    │
-  │ 代表例           │ AES, ChaCha20         │ RSA, ECDH, Ed25519    │
-  │ 量子耐性         │ 鍵長2倍で対応         │ Shor で完全に破壊     │
-  └──────────────────┴───────────────────────┴───────────────────────┘
+  1. Timing Attack
+     +--------------------------------------+
+     | Infer secret information from        |
+     | processing time differences          |
+     |                                      |
+     | Example: Password comparison that    |
+     | checks from the beginning and        |
+     | immediately returns false on mismatch|
+     | -> Processing time reveals the number|
+     |    of matching characters            |
+     |                                      |
+     | Countermeasure: Use constant-time    |
+     | comparison                           |
+     | Python: hmac.compare_digest()        |
+     | Node.js: crypto.timingSafeEqual()    |
+     +--------------------------------------+
 
-  実際の運用（ハイブリッド方式）:
-  1. 公開鍵暗号（ECDH）で共通鍵を安全に交換
-  2. 共通鍵暗号（AES-256-GCM）でデータを暗号化
-  → 両方の長所を組み合わせる
-```
+  2. Power Analysis Attack
+     +--------------------------------------+
+     | Infer secret key from power          |
+     | consumption patterns during          |
+     | cryptographic processing             |
+     |                                      |
+     | Countermeasure: Masking (add random  |
+     | values to hide intermediate values)  |
+     +--------------------------------------+
 
-### 10.2 暗号スイートの選択指針
+  3. Cache Timing Attack
+     +--------------------------------------+
+     | Infer memory access patterns from    |
+     | CPU cache hit/miss                   |
+     |                                      |
+     | Example: Attack on AES T-Table impl. |
+     | Countermeasure: Use AES-NI (hardware |
+     | instructions) or bitsliced impl.     |
+     +--------------------------------------+
 
-```
-推奨される暗号構成（2025年時点）:
-
-  ┌───────────────┬──────────────────────────────────────┐
-  │ 用途          │ 推奨構成                              │
-  ├───────────────┼──────────────────────────────────────┤
-  │ データ暗号化  │ AES-256-GCM または ChaCha20-Poly1305  │
-  │ 鍵交換        │ X25519 (ECDH) + ML-KEM-768 (PQC)     │
-  │ デジタル署名  │ Ed25519 または ECDSA P-256            │
-  │ ハッシュ      │ SHA-256 / SHA-384 / SHA3-256          │
-  │ パスワード保存│ Argon2id                              │
-  │ MAC           │ HMAC-SHA256 / Poly1305                │
-  │ KDF           │ HKDF-SHA256 / Argon2id                │
-  │ TLS           │ TLS 1.3 のみ（1.2以前は非推奨）      │
-  └───────────────┴──────────────────────────────────────┘
-
-  避けるべき構成:
-  - DES / 3DES / RC4（脆弱）
-  - RSA 鍵交換（前方秘匿性なし）
-  - MD5 / SHA-1（衝突耐性が破られている）
-  - CBC モード単体（パディングオラクル攻撃のリスク）
-  - ECB モード（パターンが漏洩）
-  - 1024ビット以下の RSA/DH
+  4. Spectre/Meltdown Family Attacks
+     +--------------------------------------+
+     | Leak data via side effects of        |
+     | speculative execution                |
+     | Countermeasure: OS/hardware-level    |
+     | mitigations                          |
+     +--------------------------------------+
 ```
 
 ---
 
-## 11. アンチパターン
+## 10. Comparative Analysis of Cryptographic Methods
 
-暗号の実装では、一見正しそうに見えても致命的な脆弱性を生むパターンが数多く存在する。以下に代表的なアンチパターンを示す。
+### 10.1 Symmetric-Key vs Public-Key Cryptography
 
-### 11.1 アンチパターン1: ECB モードの使用
+```
+Comprehensive Comparison Table:
 
-**問題:** ECB（Electronic Codebook）モードは、同一の平文ブロックを常に同一の暗号文ブロックに変換する。これにより、平文の構造パターンが暗号文に保存され、機密性が大きく損なわれる。
+  +------------------+-----------------------+-----------------------+
+  |                  | Symmetric-Key         | Public-Key            |
+  |                  | (Symmetric)           | (Asymmetric)          |
+  +------------------+-----------------------+-----------------------+
+  | Number of keys   | 1 (shared key)        | 2 (public + private)  |
+  | Speed            | Fast (several GB/s)   | Slow (100-1000x slower)|
+  | Key length       | 128 bit               | RSA: 3072 bit         |
+  | (128-bit equiv.) |                       | ECC: 256 bit          |
+  | Key distribution | Pre-sharing required  | Public key is public  |
+  | Scalability      | O(n^2) key pairs      | O(n) key pairs        |
+  | Use              | Data encryption       | Key exchange, signing,|
+  |                  |                       | authentication        |
+  | Examples         | AES, ChaCha20         | RSA, ECDH, Ed25519   |
+  | Quantum resist.  | Double key length     | Completely broken     |
+  |                  |                       | by Shor               |
+  +------------------+-----------------------+-----------------------+
+
+  Practical Operation (Hybrid Approach):
+  1. Public-key crypto (ECDH) securely exchanges shared key
+  2. Symmetric-key crypto (AES-256-GCM) encrypts data
+  -> Combines the strengths of both
+```
+
+### 10.2 Cipher Suite Selection Guidelines
+
+```
+Recommended Cryptographic Configurations (as of 2025):
+
+  +---------------+--------------------------------------+
+  | Use           | Recommended Configuration             |
+  +---------------+--------------------------------------+
+  | Data encrypt. | AES-256-GCM or ChaCha20-Poly1305     |
+  | Key exchange  | X25519 (ECDH) + ML-KEM-768 (PQC)     |
+  | Digital sig.  | Ed25519 or ECDSA P-256               |
+  | Hash          | SHA-256 / SHA-384 / SHA3-256          |
+  | Password store| Argon2id                              |
+  | MAC           | HMAC-SHA256 / Poly1305                |
+  | KDF           | HKDF-SHA256 / Argon2id                |
+  | TLS           | TLS 1.3 only (1.2 and earlier depr.)  |
+  +---------------+--------------------------------------+
+
+  Configurations to avoid:
+  - DES / 3DES / RC4 (weak)
+  - RSA key exchange (no forward secrecy)
+  - MD5 / SHA-1 (collision resistance broken)
+  - CBC mode alone (padding oracle attack risk)
+  - ECB mode (pattern leakage)
+  - RSA/DH with 1024 bits or less
+```
+
+---
+
+## 11. Anti-Patterns
+
+Many patterns exist in cryptographic implementations that appear correct but create critical vulnerabilities. Below are representative anti-patterns.
+
+### 11.1 Anti-Pattern 1: Using ECB Mode
+
+**Problem:** ECB (Electronic Codebook) mode always converts identical plaintext blocks to identical ciphertext blocks. This preserves structural patterns of the plaintext in the ciphertext, greatly compromising confidentiality.
 
 ```python
 """
-アンチパターン: ECB モードの危険性デモ
-依存ライブラリ: pip install cryptography
+Anti-pattern: Demo of ECB mode danger
+Dependency: pip install cryptography
 """
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 import os
 
 
 def demonstrate_ecb_weakness():
-    """ECB モードで同一ブロックが同一暗号文になることを示す。"""
+    """Show that identical blocks produce identical ciphertext in ECB mode."""
     key = os.urandom(32)  # AES-256
 
-    # 同じ16バイトブロックを繰り返す平文
-    block = b"AAAAAAAAAAAAAAAA"  # 16バイト = 1 AES ブロック
-    plaintext = block * 4  # 同じブロックを4回繰り返し
+    # Plaintext with repeated identical 16-byte blocks
+    block = b"AAAAAAAAAAAAAAAA"  # 16 bytes = 1 AES block
+    plaintext = block * 4  # Same block repeated 4 times
 
-    # --- ECB モード（危険）---
+    # --- ECB mode (DANGEROUS) ---
     cipher_ecb = Cipher(algorithms.AES(key), modes.ECB())
     encryptor_ecb = cipher_ecb.encryptor()
     ciphertext_ecb = encryptor_ecb.update(plaintext) + encryptor_ecb.finalize()
 
-    # ECB: 同一ブロックが同一暗号文になる
+    # ECB: identical blocks produce identical ciphertext
     blocks_ecb = [ciphertext_ecb[i:i+16] for i in range(0, len(ciphertext_ecb), 16)]
     print("ECB mode (INSECURE):")
     for i, b in enumerate(blocks_ecb):
         print(f"  Block {i+1}: {b.hex()}")
     print(f"  All blocks identical: {len(set(blocks_ecb)) == 1}")
 
-    # --- GCM モード（安全）---
+    # --- GCM mode (SECURE) ---
     nonce = os.urandom(12)
     cipher_gcm = Cipher(algorithms.AES(key), modes.GCM(nonce))
     encryptor_gcm = cipher_gcm.encryptor()
@@ -1841,327 +1870,328 @@ if __name__ == "__main__":
 ```
 
 ```
-実行結果の例:
+Example output:
 
   ECB mode (INSECURE):
     Block 1: 8a2e1f3b4c5d6e7f...
-    Block 2: 8a2e1f3b4c5d6e7f...  ← 同一
-    Block 3: 8a2e1f3b4c5d6e7f...  ← 同一
-    Block 4: 8a2e1f3b4c5d6e7f...  ← 同一
+    Block 2: 8a2e1f3b4c5d6e7f...  <- Identical
+    Block 3: 8a2e1f3b4c5d6e7f...  <- Identical
+    Block 4: 8a2e1f3b4c5d6e7f...  <- Identical
     All blocks identical: True
 
   GCM mode (SECURE):
     Block 1: 3f7a9c2e1d4b8f6a...
-    Block 2: 5e8b1d3f7a9c2e4b...  ← 異なる
-    Block 3: 2d4b8f6a3f7a9c1e...  ← 異なる
-    Block 4: 9c2e4b5e8b1d3f7a...  ← 異なる
+    Block 2: 5e8b1d3f7a9c2e4b...  <- Different
+    Block 3: 2d4b8f6a3f7a9c1e...  <- Different
+    Block 4: 9c2e4b5e8b1d3f7a...  <- Different
     All blocks identical: False
 ```
 
-**対策:** 常に認証付き暗号モード（AES-GCM または ChaCha20-Poly1305）を使用する。ECB モードを使用する正当な理由は存在しない。
+**Countermeasure:** Always use authenticated encryption modes (AES-GCM or ChaCha20-Poly1305). There is no legitimate reason to use ECB mode.
 
-### 11.2 アンチパターン2: 自作暗号アルゴリズムの使用
+### 11.2 Anti-Pattern 2: Using Custom Cryptographic Algorithms
 
-**問題:** 暗号アルゴリズムを自作することは、専門の暗号学者であっても極めてリスクが高い。暗号の安全性は長年の公開検証（cryptanalysis）を経て初めて信頼できるものになるため、未検証の独自アルゴリズムは事実上「安全でない」と見なすべきである。
+**Problem:** Creating custom cryptographic algorithms is extremely risky even for professional cryptographers. The security of cryptography becomes trustworthy only after years of public cryptanalysis, so unverified custom algorithms should be considered "insecure" by default.
 
 ```
-自作暗号が危険な理由:
+Why Custom Cryptography is Dangerous:
 
-  1. Schneier's Law（シュナイアーの法則）:
-     「誰でも自分では破れない暗号を作れるが、
-       それは安全であることを意味しない」
+  1. Schneier's Law:
+     "Anyone can create a cipher that they themselves cannot break,
+      but that doesn't mean it is secure"
 
-  2. 暗号は「使えている」ことと「安全である」ことが
-     まったく異なる。暗号化・復号ができても安全とは限らない。
+  2. Being able to "use" encryption and it being "secure"
+     are completely different things. Being able to encrypt and
+     decrypt does not imply security.
 
-  3. AES の標準化プロセスを振り返ると:
-     - 15のアルゴリズムが候補として提出
-     - 3年以上の公開解析
-     - 世界中の暗号学者が攻撃を試みた
-     - 最終的に Rijndael が選定
+  3. Looking back at the AES standardization process:
+     - 15 algorithms submitted as candidates
+     - Over 3 years of public analysis
+     - Cryptographers worldwide attempted attacks
+     - Rijndael was ultimately selected
 
-  4. 代替案:
-     - 既存の標準化されたアルゴリズムを使用
-     - 信頼できるライブラリを使用
+  4. Alternatives:
+     - Use existing standardized algorithms
+     - Use trusted libraries
        Python: cryptography, PyCryptodome
        Go: crypto/*, golang.org/x/crypto
        Rust: ring, RustCrypto
        C: OpenSSL, libsodium (NaCl)
-     - libsodium/NaCl の高レベル API が最も安全
+     - libsodium/NaCl high-level API is the safest
 
-  NG の例:
-  ┌──────────────────────────────────────────┐
-  │ def my_encrypt(data, key):               │
-  │     return bytes(d ^ k for d, k          │
-  │                  in zip(data, cycle(key)))│
-  │                                          │
-  │ → 単純な XOR 暗号。既知平文攻撃で        │
-  │   鍵が即座に復元される。                  │
-  │   鍵の繰り返し使用はヴィジュネル暗号     │
-  │   と同等の弱さ。                          │
-  └──────────────────────────────────────────┘
+  NG example:
+  +----------------------------------------------+
+  | def my_encrypt(data, key):                   |
+  |     return bytes(d ^ k for d, k              |
+  |                  in zip(data, cycle(key)))    |
+  |                                              |
+  | -> Simple XOR cipher. Key is instantly        |
+  |   recovered via known-plaintext attack.       |
+  |   Key repetition makes it as weak as the     |
+  |   Vigenere cipher.                           |
+  +----------------------------------------------+
 
-  OK の例:
-  ┌──────────────────────────────────────────┐
-  │ from cryptography.hazmat.primitives      │
-  │     .ciphers.aead import AESGCM          │
-  │                                          │
-  │ key = AESGCM.generate_key(bit_length=256)│
-  │ nonce = os.urandom(12)                   │
-  │ ct = AESGCM(key).encrypt(nonce, data, ad)│
-  └──────────────────────────────────────────┘
+  OK example:
+  +----------------------------------------------+
+  | from cryptography.hazmat.primitives          |
+  |     .ciphers.aead import AESGCM              |
+  |                                              |
+  | key = AESGCM.generate_key(bit_length=256)    |
+  | nonce = os.urandom(12)                       |
+  | ct = AESGCM(key).encrypt(nonce, data, ad)    |
+  +----------------------------------------------+
 ```
 
-### 11.3 アンチパターン3: ノンス/IV の再利用
+### 11.3 Anti-Pattern 3: Nonce/IV Reuse
 
-**問題:** GCM モードや ChaCha20-Poly1305 でノンス（Number used ONCE）を同じ鍵で再利用すると、暗号文の XOR から平文の XOR が得られ、さらに認証タグの偽造も可能になる。これは壊滅的な脆弱性である。
+**Problem:** Reusing a nonce (Number used ONCE) with the same key in GCM mode or ChaCha20-Poly1305 allows the XOR of plaintexts to be obtained from the XOR of ciphertexts, and also enables authentication tag forgery. This is a catastrophic vulnerability.
 
 ```
-ノンス再利用の破壊力:
+Destructive Power of Nonce Reuse:
 
-  同一鍵 K、同一ノンス N で2つの平文を暗号化:
+  Encrypting two plaintexts with the same key K and same nonce N:
 
   C1 = P1 XOR E(K, N)
   C2 = P2 XOR E(K, N)
 
-  攻撃者は C1 XOR C2 を計算:
+  Attacker computes C1 XOR C2:
   C1 XOR C2 = (P1 XOR E(K,N)) XOR (P2 XOR E(K,N))
             = P1 XOR P2
 
-  → 2つの平文の XOR が判明
-  → 一方の平文が既知または推測可能なら、他方も判明
+  -> XOR of the two plaintexts is revealed
+  -> If one plaintext is known or guessable, the other is also revealed
 
-  GCM の場合はさらに深刻:
-  - 認証鍵 H が漏洩
-  - 任意のメッセージの認証タグを偽造可能
+  For GCM it's even worse:
+  - Authentication key H is leaked
+  - Authentication tags for arbitrary messages can be forged
 
-  対策:
-  - 96ビットノンスをカウンタで管理（再利用を防止）
-  - ランダムノンス使用時は暗号化回数を 2^32 以下に制限
-    （誕生日パラドクスによる衝突確率を無視できるレベルに）
-  - XChaCha20-Poly1305: 192ビットノンスでランダム生成が安全
+  Countermeasures:
+  - Manage 96-bit nonces with a counter (prevent reuse)
+  - When using random nonces, limit encryptions to 2^32 or fewer
+    (to keep collision probability negligible via birthday paradox)
+  - XChaCha20-Poly1305: 192-bit nonce makes random generation safe
 ```
 
-### 11.4 アンチパターン4: 暗号化だけで認証なし
+### 11.4 Anti-Pattern 4: Encryption Without Authentication
 
-**問題:** 暗号化のみを行い、メッセージ認証を省略すると、暗号文の改竄を検知できない。攻撃者が暗号文を操作し、復号結果を意図的に変化させるビット反転攻撃やパディングオラクル攻撃が可能になる。
+**Problem:** Performing only encryption without message authentication makes it impossible to detect ciphertext tampering. Attackers can manipulate ciphertext to intentionally alter decryption results through bit-flipping attacks and padding oracle attacks.
 
 ```
-暗号化のみ（Encrypt-only）の危険性:
+Danger of Encrypt-only:
 
-  CTR モード（認証なし）:
+  CTR mode (no authentication):
   C = P XOR E(K, Counter)
 
-  攻撃者が C の特定ビットを反転:
+  Attacker flips specific bits of C:
   C' = C XOR Delta
 
-  復号すると:
+  Decryption yields:
   P' = C' XOR E(K, Counter)
      = (C XOR Delta) XOR E(K, Counter)
      = P XOR Delta
 
-  → 平文の特定ビットが予測可能に反転される
+  -> Specific bits of plaintext are predictably flipped
 
-  例: 金額 "$100" → "$900" のようなビット操作が可能
+  Example: Bit manipulation like "$100" -> "$900" is possible
 
-  対策:
-  - 常に AEAD を使用（AES-GCM, ChaCha20-Poly1305）
-  - Encrypt-then-MAC パターンを使用
-  - 認証タグの検証を復号前に必ず行う
+  Countermeasures:
+  - Always use AEAD (AES-GCM, ChaCha20-Poly1305)
+  - Use the Encrypt-then-MAC pattern
+  - Always verify authentication tags before decryption
 ```
 
 ---
 
-## 12. 演習問題
+## 12. Exercises
 
-### 12.1 基礎演習（Beginner）
+### 12.1 Beginner Exercises
 
-**演習1: ハッシュの雪崩効果を確認する**
+**Exercise 1: Verify the Avalanche Effect of Hashes**
 
-SHA-256 を使用して以下を確認せよ。
+Use SHA-256 to verify the following.
 
-1. 文字列 "Hello" の SHA-256 ハッシュ値を計算する
-2. 文字列 "hello"（先頭を小文字に変更）の SHA-256 ハッシュ値を計算する
-3. 2つのハッシュ値をビット単位で比較し、異なるビットの割合を計算する
-4. 結果が約50%であることを確認し、これが雪崩効果と呼ばれる理由を説明する
+1. Compute the SHA-256 hash of the string "Hello"
+2. Compute the SHA-256 hash of the string "hello" (changed first letter to lowercase)
+3. Compare the two hash values bit by bit and calculate the percentage of differing bits
+4. Verify that the result is approximately 50% and explain why this is called the avalanche effect
 
 ```python
-# ヒント
+# Hint
 import hashlib
 
 h1 = hashlib.sha256(b"Hello").hexdigest()
 h2 = hashlib.sha256(b"hello").hexdigest()
-# ビット比較は int(h, 16) でバイナリに変換して比較
+# For bit comparison, convert to binary using int(h, 16) and compare
 ```
 
-**演習2: シーザー暗号の実装と解読**
+**Exercise 2: Implement and Break the Caesar Cipher**
 
-1. シーザー暗号の暗号化・復号関数を Python で実装する
-2. 暗号文 "KHOOR ZRUOG" を全26通りのシフトで復号し、意味のある平文を見つける（ブルートフォース攻撃）
-3. この攻撃が可能な理由（鍵空間の小ささ）を説明する
+1. Implement Caesar cipher encryption and decryption functions in Python
+2. Decrypt the ciphertext "KHOOR ZRUOG" with all 26 shifts and find the meaningful plaintext (brute-force attack)
+3. Explain why this attack is possible (small key space)
 
-### 12.2 応用演習（Intermediate）
+### 12.2 Intermediate Exercises
 
-**演習3: Diffie-Hellman 鍵交換の手計算**
+**Exercise 3: Manual Calculation of Diffie-Hellman Key Exchange**
 
-以下の小さなパラメータで DH 鍵交換を手計算せよ。
+Perform a DH key exchange by hand with the following small parameters.
 
 ```
-公開パラメータ: p = 23, g = 5
+Public parameters: p = 23, g = 5
 
-Alice: 秘密の値 a = 6
+Alice: secret value a = 6
   A = g^a mod p = 5^6 mod 23 = ?
 
-Bob: 秘密の値 b = 15
+Bob: secret value b = 15
   B = g^b mod p = 5^15 mod 23 = ?
 
-共有秘密:
+Shared secret:
   Alice: s = B^a mod p = ?
   Bob:   s = A^b mod p = ?
 
-確認: Alice と Bob の共有秘密が一致するか?
+Verify: Do Alice and Bob's shared secrets match?
 ```
 
-**演習4: AES-GCM による安全なファイル暗号化**
+**Exercise 4: Secure File Encryption with AES-GCM**
 
-以下の要件を満たすファイル暗号化プログラムを実装せよ。
+Implement a file encryption program that meets the following requirements.
 
-1. パスワードから Argon2id で鍵を導出する
-2. AES-256-GCM でファイルを暗号化する
-3. ソルト + ノンス + 暗号文 + タグ を出力ファイルに保存する
-4. 復号時にパスワードから鍵を再導出し、復号と認証を行う
+1. Derive a key from a password using Argon2id
+2. Encrypt the file with AES-256-GCM
+3. Save salt + nonce + ciphertext + tag to the output file
+4. During decryption, re-derive the key from the password, then decrypt and authenticate
 
-### 12.3 発展演習（Advanced）
+### 12.3 Advanced Exercises
 
-**演習5: TLS 1.3 ハンドシェイクの観察**
+**Exercise 5: Observing the TLS 1.3 Handshake**
 
-1. `openssl s_client -connect example.com:443 -tls1_3` を実行し、ハンドシェイクのログを観察する
-2. 使用された暗号スイート、鍵交換アルゴリズム、証明書チェーンを特定する
-3. Wireshark で TLS 1.3 のハンドシェイクをキャプチャし、ClientHello/ServerHello の構造を分析する
-4. TLS 1.2 との違い（RTT 数、暗号化の開始タイミング）を比較レポートとしてまとめる
+1. Run `openssl s_client -connect example.com:443 -tls1_3` and observe the handshake log
+2. Identify the cipher suite used, key exchange algorithm, and certificate chain
+3. Capture a TLS 1.3 handshake with Wireshark and analyze the ClientHello/ServerHello structure
+4. Write a comparison report on differences from TLS 1.2 (number of RTTs, timing of encryption start)
 
-**演習6: ポスト量子暗号の鍵サイズ影響分析**
+**Exercise 6: Analysis of Post-Quantum Cryptography Key Size Impact**
 
-1. ML-KEM-768 の公開鍵（1184バイト）と X25519 の公開鍵（32バイト）のサイズ差を計算する
-2. TLS ハンドシェイクにおけるハイブリッド鍵交換（X25519 + ML-KEM-768）のデータ量増加を見積もる
-3. モバイルネットワーク（帯域制限のある環境）での影響を考察する
+1. Calculate the size difference between ML-KEM-768 public key (1184 bytes) and X25519 public key (32 bytes)
+2. Estimate the data volume increase for hybrid key exchange (X25519 + ML-KEM-768) in a TLS handshake
+3. Consider the impact on mobile networks (bandwidth-constrained environments)
 
 ---
 
-## 13. よくある質問（FAQ）
+## 13. Frequently Asked Questions (FAQ)
 
-### Q1: AES-128 と AES-256 のどちらを使うべきか?
+### Q1: Should I use AES-128 or AES-256?
 
-**A:** 一般的な用途では AES-256 を推奨する。理由は以下の通りである。
+**A:** AES-256 is generally recommended. The reasons are as follows.
 
-- AES-128 は理論的に 128 ビットセキュリティを提供し、古典コンピュータに対しては十分安全である
-- しかし、Grover のアルゴリズムにより量子コンピュータでは 64 ビット相当に低下する
-- AES-256 は量子環境下でも 128 ビット相当を維持する
-- AES-256 の速度低下は約 40%（14ラウンド vs 10ラウンド）だが、AES-NI ハードウェア加速がある環境ではほぼ無視できる
-- 長期保存データ（10年以上）には AES-256 が必須である
+- AES-128 theoretically provides 128-bit security and is sufficiently secure against classical computers
+- However, Grover's algorithm reduces it to the equivalent of 64 bits on quantum computers
+- AES-256 maintains 128-bit equivalent security even in a quantum environment
+- The speed reduction of AES-256 is about 40% (14 rounds vs 10 rounds), but this is negligible in environments with AES-NI hardware acceleration
+- AES-256 is essential for long-term data storage (10+ years)
 
-### Q2: HTTPS であれば通信は完全に安全か?
+### Q2: Is communication completely secure if it uses HTTPS?
 
-**A:** HTTPS（TLS）は通信路の暗号化を提供するが、「完全に安全」とは言えない。以下の点に注意が必要である。
+**A:** HTTPS (TLS) provides communication channel encryption, but cannot be said to be "completely secure." The following points require attention.
 
-- **通信路は保護される:** 盗聴者は暗号文しか見えない
-- **エンドポイントは保護されない:** サーバー側でデータを保管する際の暗号化は別問題
-- **サーバーの信頼性は別問題:** 悪意のあるサーバーにはデータが平文で渡る
-- **証明書の信頼モデルの限界:** CA が不正な証明書を発行した事例がある（DigiNotar 事件, 2011年）
-- **TLS のバージョンと設定が重要:** TLS 1.0/1.1 は非推奨。TLS 1.3 を推奨
-- **0-RTT のリプレイリスク:** 0-RTT データは再送攻撃の対象になりうる
+- **The communication channel is protected:** Eavesdroppers can only see ciphertext
+- **Endpoints are not protected:** Encryption for server-side data storage is a separate matter
+- **Server trustworthiness is a separate issue:** Data is available in plaintext to malicious servers
+- **Limitations of the certificate trust model:** There have been cases of CAs issuing fraudulent certificates (DigiNotar incident, 2011)
+- **TLS version and configuration matter:** TLS 1.0/1.1 are deprecated. TLS 1.3 is recommended
+- **0-RTT replay risk:** 0-RTT data can be subject to replay attacks
 
-### Q3: パスワードのハッシュ化に SHA-256 を使ってはいけないのか?
+### Q3: Should I not use SHA-256 for password hashing?
 
-**A:** パスワード保存に SHA-256 を単独で使用してはならない。理由は以下の通りである。
+**A:** SHA-256 must not be used alone for password storage. The reasons are as follows.
 
-- SHA-256 は汎用ハッシュであり、高速であることが設計目標
-- GPU を用いると毎秒数十億回の SHA-256 計算が可能
-- これは攻撃者がブルートフォースやディクショナリ攻撃を極めて短時間で実行できることを意味する
-- パスワードハッシュには意図的に低速な専用関数（Argon2id、bcrypt、scrypt）を使用する
-- これらは計算コスト（CPU時間、メモリ使用量）をパラメータで調整できる
-- さらに、ソルト（各パスワード固有のランダム値）を付加することで、事前計算攻撃（レインボーテーブル）を防ぐ
+- SHA-256 is a general-purpose hash designed to be fast
+- GPUs can compute billions of SHA-256 hashes per second
+- This means attackers can execute brute-force and dictionary attacks in extremely short time
+- Use dedicated slow functions for password hashing (Argon2id, bcrypt, scrypt)
+- These allow tuning computational cost (CPU time, memory usage) via parameters
+- Additionally, adding a salt (unique random value per password) prevents precomputation attacks (rainbow tables)
 
-### Q4: RSA はもう使うべきではないのか?
+### Q4: Should RSA no longer be used?
 
-**A:** RSA は依然として広く使われているが、新規設計では楕円曲線暗号（ECC）を優先すべきである。
+**A:** RSA is still widely used, but elliptic curve cryptography (ECC) should be preferred for new designs.
 
-- RSA-2048 は古典コンピュータに対しては依然として安全
-- しかし、量子コンピュータの Shor のアルゴリズムで破壊される
-- 鍵サイズが ECC と比較して非常に大きい（RSA-3072 vs P-256: 約12倍）
-- 計算速度も ECC のほうが高速
-- TLS 1.3 では RSA 鍵交換が廃止されている（署名用途のみ残存）
-- 新規開発では Ed25519（署名）+ X25519（鍵交換）が推奨される
+- RSA-2048 remains secure against classical computers
+- However, it will be broken by Shor's algorithm on quantum computers
+- Key size is much larger compared to ECC (RSA-3072 vs P-256: ~12x)
+- ECC is also faster computationally
+- RSA key exchange has been removed in TLS 1.3 (only remaining for signature use)
+- For new development, Ed25519 (signing) + X25519 (key exchange) is recommended
 
-### Q5: 暗号化したデータのバックアップはどうすべきか?
+### Q5: How should encrypted data be backed up?
 
-**A:** 暗号化データのバックアップでは、鍵の管理が最大の課題である。
+**A:** Key management is the biggest challenge in backing up encrypted data.
 
-- 暗号化データと鍵は必ず別の場所に保管する
-- 鍵を紛失するとデータは永久に復元不可能（これは意図した動作）
-- 鍵のバックアップ戦略:
-  - 鍵分割（Shamir's Secret Sharing）: n人中k人が集まれば鍵を復元可能
-  - HSM（Hardware Security Module）での鍵保管
-  - マスターキーで暗号化した鍵ファイルのバックアップ
-- 鍵のローテーション時に旧鍵で暗号化されたデータの扱いを計画する
+- Encrypted data and keys must be stored in separate locations
+- Losing a key makes data permanently unrecoverable (this is the intended behavior)
+- Key backup strategies:
+  - Key splitting (Shamir's Secret Sharing): Key can be recovered when k of n people gather
+  - Key storage in HSM (Hardware Security Module)
+  - Backup of key files encrypted with a master key
+- Plan for handling data encrypted with old keys during key rotation
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point in learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just from theory alone, but by actually writing code and confirming how it works.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## 14. まとめ
-
-| 概念 | ポイント |
-|------|---------|
-| 古典暗号 | シーザー暗号、ヴィジュネル暗号、エニグマ。鍵空間の小ささや構造的弱点で解読された |
-| 共通鍵暗号 | 高速。AES-256-GCM が現行標準。鍵共有が課題（公開鍵暗号で解決） |
-| 公開鍵暗号 | 鍵配送問題を解決。RSA は素因数分解、ECC は楕円曲線離散対数に基づく |
-| ハッシュ関数 | 一方向。SHA-256 が標準。パスワード保存には Argon2id を使用 |
-| HMAC | ハッシュ + 秘密鍵でメッセージ認証。API 認証に広く使用 |
-| TLS 1.3 | 1-RTT ハンドシェイク、ECDHE + AEAD、前方秘匿性必須 |
-| デジタル署名 | 秘密鍵で署名、公開鍵で検証。Ed25519 が現行推奨 |
-| 計算複雑性 | 暗号の安全性は「困難な問題」の仮定に基づく。128ビットセキュリティが標準 |
-| ポスト量子暗号 | 格子暗号（ML-KEM, ML-DSA）が NIST 標準。ハイブリッド方式で移行中 |
-| アンチパターン | ECB 禁止、自作暗号禁止、ノンス再利用禁止、暗号化のみ（認証なし）禁止 |
-| 鍵管理 | CSPRNG で生成、HSM/KMS で保管、定期ローテーション、安全な破棄 |
-| サイドチャネル | タイミング攻撃、電力解析。定数時間実装とハードウェア加速で対策 |
-
-### 学習の次のステップ
-
-1. **手を動かす**: セクション12の演習を実際にコードとして実装する
-2. **TLS を観察する**: Wireshark で自分のブラウザの TLS 通信をキャプチャし分析する
-3. **ポスト量子暗号を試す**: liboqs（Open Quantum Safe）で PQC アルゴリズムを体験する
-4. **CTF に挑戦する**: CryptoHack (cryptohack.org) で暗号解読の演習を行う
-5. **論文を読む**: NIST PQC 標準化の最終レポートを通読する
+Knowledge of this topic is frequently utilized in daily development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## 次に読むべきガイド
+## 14. Summary
+
+| Concept | Key Point |
+|---------|----------|
+| Classical cryptography | Caesar cipher, Vigenere cipher, Enigma. Broken due to small key spaces or structural weaknesses |
+| Symmetric-key crypto | Fast. AES-256-GCM is the current standard. Key sharing is the challenge (solved by public-key crypto) |
+| Public-key crypto | Solves the key distribution problem. RSA is based on factoring, ECC on elliptic curve discrete logarithm |
+| Hash functions | One-way. SHA-256 is standard. Use Argon2id for password storage |
+| HMAC | Hash + secret key for message authentication. Widely used in API authentication |
+| TLS 1.3 | 1-RTT handshake, ECDHE + AEAD, forward secrecy required |
+| Digital signatures | Sign with private key, verify with public key. Ed25519 is currently recommended |
+| Computational complexity | Cryptographic security is based on assumptions of "hard problems." 128-bit security is standard |
+| Post-quantum crypto | Lattice cryptography (ML-KEM, ML-DSA) is the NIST standard. Migrating via hybrid approach |
+| Anti-patterns | ECB prohibited, custom crypto prohibited, nonce reuse prohibited, encryption-only (no auth) prohibited |
+| Key management | Generate with CSPRNG, store in HSM/KMS, rotate periodically, destroy securely |
+| Side channels | Timing attacks, power analysis. Countermeasures include constant-time implementations and hardware acceleration |
+
+### Next Steps for Learning
+
+1. **Get hands-on**: Implement the exercises in Section 12 as actual code
+2. **Observe TLS**: Capture your browser's TLS communications with Wireshark and analyze them
+3. **Try post-quantum crypto**: Experience PQC algorithms with liboqs (Open Quantum Safe)
+4. **Challenge CTFs**: Practice cryptanalysis at CryptoHack (cryptohack.org)
+5. **Read papers**: Read through the NIST PQC standardization final report
 
 ---
 
-## 参考文献
+## Recommended Next Guides
 
-1. Ferguson, N. & Schneier, B. *Cryptography Engineering: Design Principles and Practical Applications*. Wiley, 2010. -- 暗号工学の包括的な教科書であり、アルゴリズムの設計原則から安全な実装方法まで網羅している。
-2. Katz, J. & Lindell, Y. *Introduction to Modern Cryptography*. 3rd ed. CRC Press, 2020. -- 現代暗号の理論的基盤を厳密に解説した標準的教科書。計算量的安全性の定義から具体的な構成法までを体系的に扱う。
-3. NIST. "Post-Quantum Cryptography Standardization." 2024. https://csrc.nist.gov/projects/post-quantum-cryptography -- NIST によるポスト量子暗号の標準化プロジェクト。ML-KEM、ML-DSA、SLH-DSA の最終標準文書を公開している。
-4. Bernstein, D. J. & Lange, T. "Post-quantum cryptography." *Nature*, 549(7671), 188-194, 2017. -- ポスト量子暗号の概要を分かりやすく解説した Nature 論文。格子暗号、符号暗号、多変数多項式暗号、ハッシュベース署名の各アプローチを比較している。
-5. Rescorla, E. "The Transport Layer Security (TLS) Protocol Version 1.3." RFC 8446, 2018. https://datatracker.ietf.org/doc/html/rfc8446 -- TLS 1.3 の公式仕様。ハンドシェイクプロトコル、レコードプロトコル、暗号スイートの詳細が定義されている。
-6. Boneh, D. & Shoup, V. *A Graduate Course in Applied Cryptography*. 2023. https://toc.cryptobook.us/ -- スタンフォード大学の暗号学講義に基づく教科書。無料でオンライン公開されており、理論と実践の両面を深くカバーしている。
-7. Aumasson, J.-P. *Serious Cryptography: A Practical Introduction to Modern Encryption*. 2nd ed. No Starch Press, 2024. -- 暗号の実践的な入門書。各アルゴリズムの内部構造をコードレベルで解説し、実装上の注意点を豊富に扱う。
+---
+
+## References
+
+1. Ferguson, N. & Schneier, B. *Cryptography Engineering: Design Principles and Practical Applications*. Wiley, 2010. -- A comprehensive textbook on cryptographic engineering covering design principles to secure implementation methods.
+2. Katz, J. & Lindell, Y. *Introduction to Modern Cryptography*. 3rd ed. CRC Press, 2020. -- A standard textbook rigorously explaining the theoretical foundations of modern cryptography, systematically covering definitions of computational security through concrete constructions.
+3. NIST. "Post-Quantum Cryptography Standardization." 2024. https://csrc.nist.gov/projects/post-quantum-cryptography -- NIST's post-quantum cryptography standardization project, publishing final standard documents for ML-KEM, ML-DSA, and SLH-DSA.
+4. Bernstein, D. J. & Lange, T. "Post-quantum cryptography." *Nature*, 549(7671), 188-194, 2017. -- A Nature paper providing an accessible overview of post-quantum cryptography, comparing lattice, code-based, multivariate polynomial, and hash-based signature approaches.
+5. Rescorla, E. "The Transport Layer Security (TLS) Protocol Version 1.3." RFC 8446, 2018. https://datatracker.ietf.org/doc/html/rfc8446 -- The official TLS 1.3 specification, defining the handshake protocol, record protocol, and cipher suite details.
+6. Boneh, D. & Shoup, V. *A Graduate Course in Applied Cryptography*. 2023. https://toc.cryptobook.us/ -- A textbook based on Stanford University's cryptography course, freely available online, deeply covering both theory and practice.
+7. Aumasson, J.-P. *Serious Cryptography: A Practical Introduction to Modern Encryption*. 2nd ed. No Starch Press, 2024. -- A practical introduction to cryptography, explaining the internal structure of each algorithm at the code level with extensive coverage of implementation considerations.
 

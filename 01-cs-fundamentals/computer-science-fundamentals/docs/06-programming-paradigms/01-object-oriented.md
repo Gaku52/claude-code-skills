@@ -1,98 +1,98 @@
-# オブジェクト指向プログラミング
+# Object-Oriented Programming
 
-> OOPの本質は「カプセル化」「継承」「ポリモーフィズム」「抽象化」の4本柱であり、大規模ソフトウェアの複雑さを管理する手法である。適切に使えばコードの再利用性・保守性・拡張性が飛躍的に向上するが、乱用すると逆に複雑さを増す諸刃の剣でもある。
+> The essence of OOP lies in the four pillars of "Encapsulation," "Inheritance," "Polymorphism," and "Abstraction" -- a methodology for managing the complexity of large-scale software. When used appropriately, it dramatically improves code reusability, maintainability, and extensibility, but when overused, it becomes a double-edged sword that increases complexity.
 
-## この章で学ぶこと
+## Learning Objectives
 
-- [ ] OOPの4大原則を説明し、それぞれの実装パターンを示せる
-- [ ] SOLID原則を理解し、違反パターンと改善方法を説明できる
-- [ ] 継承よりコンポジションを選ぶべき理由を具体例で示せる
-- [ ] デザインパターンの代表例を実装できる
-- [ ] OOPと他のパラダイムの融合手法を理解できる
-- [ ] 実務でのクラス設計のベストプラクティスを適用できる
+- [ ] Explain the four fundamental principles of OOP and demonstrate implementation patterns for each
+- [ ] Understand the SOLID principles and explain violation patterns and improvement methods
+- [ ] Demonstrate with concrete examples why composition should be preferred over inheritance
+- [ ] Implement representative design patterns
+- [ ] Understand approaches for blending OOP with other paradigms
+- [ ] Apply best practices for class design in real-world projects
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, having the following knowledge will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [命令型プログラミング（Imperative Programming）](./00-imperative.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Understanding of the content in [Imperative Programming](./00-imperative.md)
 
 ---
 
-## 1. OOPの歴史と背景
+## 1. History and Background of OOP
 
-### 1.1 OOPの誕生と発展
+### 1.1 Birth and Evolution of OOP
 
-オブジェクト指向プログラミングは1960年代のSimulaに端を発し、1970年代のSmalltalkで本格的に体系化された。その後、C++、Java、C#、Python、Ruby等の主要言語に採用され、現在のソフトウェア開発の主流パラダイムとなっている。
+Object-oriented programming originated in Simula in the 1960s and was formally systematized with Smalltalk in the 1970s. It was subsequently adopted by major languages such as C++, Java, C#, Python, and Ruby, becoming the dominant paradigm in modern software development.
 
 ```
-OOPの歴史年表:
+OOP Historical Timeline:
 
-1967年  Simula 67
-        - Ole-Johan Dahl と Kristen Nygaard が開発
-        - クラスとオブジェクトの概念を初めて導入
-        - シミュレーション用言語として設計
+1967    Simula 67
+        - Developed by Ole-Johan Dahl and Kristen Nygaard
+        - First introduction of the concepts of classes and objects
+        - Designed as a simulation language
 
-1972年  Smalltalk
-        - Alan Kay が Xerox PARC で開発
-        - 「すべてがオブジェクト」という純粋OOP
-        - メッセージパッシングモデル
-        - GUIの概念もここから
+1972    Smalltalk
+        - Developed by Alan Kay at Xerox PARC
+        - Pure OOP where "everything is an object"
+        - Message passing model
+        - The concept of GUI also originated here
 
-1979年  C++
-        - Bjarne Stroustrup が開発
-        - C言語にOOP機能を追加
-        - 多重継承、テンプレート
-        - 産業界で広く普及
+1979    C++
+        - Developed by Bjarne Stroustrup
+        - Added OOP features to the C language
+        - Multiple inheritance, templates
+        - Widely adopted in industry
 
-1995年  Java
+1995    Java
         - Sun Microsystems (James Gosling)
-        - 「Write Once, Run Anywhere」
-        - 単一継承 + インターフェース
-        - ガベージコレクション
+        - "Write Once, Run Anywhere"
+        - Single inheritance + interfaces
+        - Garbage collection
 
-1995年  JavaScript
-        - Brendan Eich が開発
-        - プロトタイプベースOOP
-        - クラスベースとは異なるアプローチ
+1995    JavaScript
+        - Developed by Brendan Eich
+        - Prototype-based OOP
+        - A different approach from class-based OOP
 
-2000年  C#
+2000    C#
         - Microsoft (.NET Framework)
-        - Java に影響を受けた設計
-        - プロパティ、イベント、デリゲート
+        - Design influenced by Java
+        - Properties, events, delegates
 
-2004年  Scala
-        - OOPと関数型の融合
-        - トレイト（ミックスイン）
+2004    Scala
+        - Fusion of OOP and functional programming
+        - Traits (mixins)
 
-2014年  Swift
-        - Apple が開発
-        - プロトコル指向プログラミング
-        - 値型（struct）を重視
+2014    Swift
+        - Developed by Apple
+        - Protocol-oriented programming
+        - Emphasis on value types (struct)
 ```
 
-### 1.2 OOPの基本的な考え方
+### 1.2 Fundamental Concepts of OOP
 
-OOPの核心は「現実世界のモデリング」にある。現実の物事をオブジェクトとして表現し、オブジェクト同士の相互作用としてプログラムを構築する。
+The core of OOP is "modeling the real world." Programs are constructed by representing real-world entities as objects and defining the interactions between those objects.
 
 ```python
-# OOPの根本的な考え方: 現実世界をモデル化する
+# Fundamental concept of OOP: modeling the real world
 
-# 例: ECサイトのドメインモデル
-# 現実世界の概念をクラスとして表現する
+# Example: Domain model for an e-commerce site
+# Represent real-world concepts as classes
 
 class Customer:
-    """顧客 - 商品を購入する人"""
+    """Customer - a person who purchases products"""
     def __init__(self, name: str, email: str):
         self.name = name
         self.email = email
         self._orders: list['Order'] = []
 
     def place_order(self, cart: 'ShoppingCart') -> 'Order':
-        """カートの中身から注文を作成する"""
+        """Create an order from the cart contents"""
         order = Order(customer=self, items=cart.items.copy())
         self._orders.append(order)
         cart.clear()
@@ -103,7 +103,7 @@ class Customer:
         return self._orders.copy()
 
 class Product:
-    """商品 - 販売される物"""
+    """Product - an item for sale"""
     def __init__(self, name: str, price: int, stock: int):
         self.name = name
         self.price = price
@@ -114,17 +114,17 @@ class Product:
 
     def reduce_stock(self, quantity: int) -> None:
         if quantity > self._stock:
-            raise ValueError(f"在庫不足: 残り{self._stock}個")
+            raise ValueError(f"Insufficient stock: {self._stock} remaining")
         self._stock -= quantity
 
 class ShoppingCart:
-    """買い物カゴ - 購入前の一時的な商品の集まり"""
+    """Shopping cart - a temporary collection of products before purchase"""
     def __init__(self):
         self.items: list[tuple[Product, int]] = []
 
     def add(self, product: Product, quantity: int = 1) -> None:
         if not product.is_available():
-            raise ValueError(f"{product.name}は在庫切れです")
+            raise ValueError(f"{product.name} is out of stock")
         self.items.append((product, quantity))
 
     @property
@@ -135,7 +135,7 @@ class ShoppingCart:
         self.items.clear()
 
 class Order:
-    """注文 - 確定した購入"""
+    """Order - a confirmed purchase"""
     _next_id = 1
 
     def __init__(self, customer: Customer, items: list):
@@ -149,97 +149,97 @@ class Order:
     def total(self) -> int:
         return sum(p.price * q for p, q in self.items)
 
-# 使用例
-customer = Customer("田中太郎", "tanaka@example.com")
-laptop = Product("ノートPC", 150000, 10)
-mouse = Product("マウス", 3000, 50)
+# Usage example
+customer = Customer("Taro Tanaka", "tanaka@example.com")
+laptop = Product("Laptop", 150000, 10)
+mouse = Product("Mouse", 3000, 50)
 
 cart = ShoppingCart()
 cart.add(laptop, 1)
 cart.add(mouse, 2)
-print(f"カート合計: {cart.total}円")  # 156000円
+print(f"Cart total: {cart.total} yen")  # 156000 yen
 
 order = customer.place_order(cart)
-print(f"注文ID: {order.order_id}, 合計: {order.total}円")
+print(f"Order ID: {order.order_id}, Total: {order.total} yen")
 ```
 
 ---
 
-## 2. OOPの4大原則
+## 2. The Four Pillars of OOP
 
-### 2.1 カプセル化（Encapsulation）
+### 2.1 Encapsulation
 
-カプセル化とは、データ（状態）とそれを操作するメソッド（振る舞い）をひとまとめにし、外部からの不正なアクセスを制限する仕組みである。情報隠蔽（Information Hiding）とも呼ばれる。
+Encapsulation is the mechanism of bundling data (state) and the methods (behavior) that operate on that data into a single unit, while restricting unauthorized external access. It is also known as Information Hiding.
 
 ```python
-# === カプセル化の基本 ===
+# === Encapsulation Basics ===
 
-# ❌ カプセル化なし: データが剥き出し
+# Bad: No encapsulation - data is fully exposed
 class BadBankAccount:
     def __init__(self):
-        self.balance = 0  # 誰でもアクセスし放題
+        self.balance = 0  # Anyone can access freely
         self.transactions = []
 
-# 外部から直接変更できてしまう
+# External code can directly modify state
 account = BadBankAccount()
-account.balance = -1000000  # 不正な状態！
-account.transactions = []    # 履歴を消去！
+account.balance = -1000000  # Invalid state!
+account.transactions = []    # History wiped!
 
 
-# ✅ カプセル化あり: データを保護
+# Good: With encapsulation - data is protected
 class BankAccount:
-    """銀行口座 - 内部状態を適切に保護"""
+    """Bank account - internal state is properly protected"""
 
     def __init__(self, account_number: str, initial_balance: int = 0):
-        self._account_number = account_number  # protected（慣習）
-        self.__balance = initial_balance        # private（name mangling）
+        self._account_number = account_number  # protected (by convention)
+        self.__balance = initial_balance        # private (name mangling)
         self.__transactions: list[dict] = []
         self.__is_frozen = False
 
     @property
     def balance(self) -> int:
-        """残高の読み取り専用プロパティ"""
+        """Read-only property for balance"""
         return self.__balance
 
     @property
     def account_number(self) -> str:
-        """口座番号の読み取り専用プロパティ"""
+        """Read-only property for account number"""
         return self._account_number
 
     def deposit(self, amount: int, description: str = "") -> bool:
-        """入金処理"""
+        """Deposit processing"""
         if self.__is_frozen:
-            raise RuntimeError("口座が凍結されています")
+            raise RuntimeError("Account is frozen")
         if amount <= 0:
-            raise ValueError("入金額は正の値である必要があります")
+            raise ValueError("Deposit amount must be positive")
 
         self.__balance += amount
         self.__record_transaction("deposit", amount, description)
         return True
 
     def withdraw(self, amount: int, description: str = "") -> bool:
-        """出金処理"""
+        """Withdrawal processing"""
         if self.__is_frozen:
-            raise RuntimeError("口座が凍結されています")
+            raise RuntimeError("Account is frozen")
         if amount <= 0:
-            raise ValueError("出金額は正の値である必要があります")
+            raise ValueError("Withdrawal amount must be positive")
         if amount > self.__balance:
-            raise ValueError(f"残高不足（残高: {self.__balance}円）")
+            raise ValueError(f"Insufficient balance (balance: {self.__balance} yen)")
 
         self.__balance -= amount
         self.__record_transaction("withdrawal", amount, description)
         return True
 
     def get_statement(self, last_n: int = 10) -> list[dict]:
-        """取引明細を取得（直近N件）"""
-        return self.__transactions[-last_n:].copy()  # コピーを返す
+        """Get transaction statement (last N transactions)"""
+        return self.__transactions[-last_n:].copy()  # Return a copy
 
     def freeze(self) -> None:
-        """口座を凍結"""
+        """Freeze the account"""
         self.__is_frozen = True
 
     def __record_transaction(self, tx_type: str, amount: int, desc: str):
-        """内部メソッド: 取引を記録"""
+        """Internal method: record a transaction"""
         from datetime import datetime
         self.__transactions.append({
             "type": tx_type,
@@ -249,25 +249,25 @@ class BankAccount:
             "balance_after": self.__balance
         })
 
-# 使用例
+# Usage example
 account = BankAccount("1234-5678", 100000)
-account.deposit(50000, "給与振込")
-account.withdraw(30000, "家賃")
-print(f"残高: {account.balance}円")  # 120000円
+account.deposit(50000, "Salary deposit")
+account.withdraw(30000, "Rent")
+print(f"Balance: {account.balance} yen")  # 120000 yen
 
-# 不正操作は不可能
+# Unauthorized operations are not possible
 # account.__balance = -1000000  # AttributeError
-# account.balance = 0           # プロパティのため設定不可
+# account.balance = 0           # Cannot set via property
 ```
 
 ```java
-// Java でのカプセル化（アクセス修飾子）
+// Encapsulation in Java (access modifiers)
 public class Employee {
-    // アクセス修飾子の4段階
-    // private:   クラス内部のみ
-    // (default): 同一パッケージ内
-    // protected: 同一パッケージ + サブクラス
-    // public:    どこからでもアクセス可能
+    // Four levels of access modifiers
+    // private:   within the class only
+    // (default): within the same package
+    // protected: same package + subclasses
+    // public:    accessible from anywhere
 
     private String id;
     private String name;
@@ -280,30 +280,30 @@ public class Employee {
         setSalary(salary);
     }
 
-    // ゲッター: 読み取りアクセスを提供
+    // Getter: provides read access
     public String getId() { return id; }
     public String getName() { return name; }
     public int getSalary() { return salary; }
 
-    // セッター: バリデーション付きで書き込みアクセスを制御
+    // Setter: controls write access with validation
     public void setName(String name) {
         if (name == null || name.trim().isEmpty()) {
-            throw new IllegalArgumentException("名前は必須です");
+            throw new IllegalArgumentException("Name is required");
         }
         this.name = name.trim();
     }
 
     public void setSalary(int salary) {
         if (salary < 0) {
-            throw new IllegalArgumentException("給与は0以上である必要があります");
+            throw new IllegalArgumentException("Salary must be 0 or greater");
         }
         this.salary = salary;
     }
 
-    // ビジネスロジック
+    // Business logic
     public void raiseSalary(double percentage) {
         if (percentage < 0 || percentage > 50) {
-            throw new IllegalArgumentException("昇給率は0-50%の範囲です");
+            throw new IllegalArgumentException("Raise percentage must be between 0-50%");
         }
         this.salary = (int)(this.salary * (1 + percentage / 100));
     }
@@ -311,7 +311,7 @@ public class Employee {
 ```
 
 ```typescript
-// TypeScript でのカプセル化
+// Encapsulation in TypeScript
 class UserAccount {
     private _email: string;
     private _passwordHash: string;
@@ -326,16 +326,16 @@ class UserAccount {
         this.createdAt = new Date();
     }
 
-    // getアクセサ（読み取り専用）
+    // get accessor (read-only)
     get email(): string { return this._email; }
     get isLocked(): boolean { return this._isLocked; }
 
-    // パスワードのハッシュは外部に公開しない
-    // get passwordHash は定義しない
+    // Do not expose the password hash
+    // get passwordHash is intentionally not defined
 
     changeEmail(newEmail: string, currentPassword: string): void {
         if (!this.verifyPassword(currentPassword)) {
-            throw new Error("現在のパスワードが正しくありません");
+            throw new Error("Current password is incorrect");
         }
         this.validateEmail(newEmail);
         this._email = newEmail;
@@ -343,7 +343,7 @@ class UserAccount {
 
     login(password: string): boolean {
         if (this._isLocked) {
-            throw new Error("アカウントがロックされています");
+            throw new Error("Account is locked");
         }
 
         if (this.verifyPassword(password)) {
@@ -361,12 +361,12 @@ class UserAccount {
     private validateEmail(email: string): void {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(email)) {
-            throw new Error("無効なメールアドレス形式です");
+            throw new Error("Invalid email address format");
         }
     }
 
     private hashPassword(password: string): string {
-        // 実際にはbcrypt等を使用
+        // In practice, use bcrypt or similar
         return `hashed_${password}`;
     }
 
@@ -376,21 +376,21 @@ class UserAccount {
 }
 ```
 
-### 2.2 継承（Inheritance）
+### 2.2 Inheritance
 
-継承は既存クラス（親クラス/スーパークラス）の機能を引き継いで新しいクラス（子クラス/サブクラス）を作成する仕組みである。コードの再利用と「is-a」関係のモデリングに使用する。
+Inheritance is the mechanism of creating a new class (child class/subclass) by inheriting the functionality of an existing class (parent class/superclass). It is used for code reuse and modeling "is-a" relationships.
 
 ```python
-# === 継承の基本パターン ===
+# === Basic Inheritance Patterns ===
 
 from abc import ABC, abstractmethod
 from datetime import datetime, date
 from typing import Optional
 
 
-# 基底クラス（親クラス）
+# Base class (parent class)
 class Employee(ABC):
-    """従業員の基底クラス"""
+    """Base class for employees"""
 
     _next_id = 1
 
@@ -403,17 +403,17 @@ class Employee(ABC):
 
     @property
     def years_of_service(self) -> int:
-        """勤続年数"""
+        """Years of service"""
         return (date.today() - self.hire_date).days // 365
 
     @abstractmethod
     def calculate_pay(self) -> int:
-        """月給を計算する（サブクラスで実装必須）"""
+        """Calculate monthly salary (must be implemented by subclasses)"""
         pass
 
     @abstractmethod
     def get_role(self) -> str:
-        """役職名を返す"""
+        """Return the job title"""
         pass
 
     def __str__(self) -> str:
@@ -423,9 +423,9 @@ class Employee(ABC):
         return f"{self.__class__.__name__}(name={self.name!r}, id={self.employee_id})"
 
 
-# 正社員
+# Full-time employee
 class FullTimeEmployee(Employee):
-    """正社員"""
+    """Full-time employee"""
 
     def __init__(self, name: str, hire_date: date, base_salary: int,
                  bonus_rate: float = 0.1):
@@ -433,21 +433,21 @@ class FullTimeEmployee(Employee):
         self.bonus_rate = bonus_rate
 
     def calculate_pay(self) -> int:
-        # 勤続年数に応じた昇給込み
+        # Including seniority-based raise
         seniority_bonus = self.years_of_service * 5000
         return self._base_salary + seniority_bonus
 
     def calculate_annual_bonus(self) -> int:
-        """年間ボーナスを計算"""
+        """Calculate annual bonus"""
         return int(self._base_salary * 12 * self.bonus_rate)
 
     def get_role(self) -> str:
-        return "正社員"
+        return "Full-time Employee"
 
 
-# 契約社員
+# Contract employee
 class ContractEmployee(Employee):
-    """契約社員"""
+    """Contract employee"""
 
     def __init__(self, name: str, hire_date: date, base_salary: int,
                  contract_end: date):
@@ -461,12 +461,12 @@ class ContractEmployee(Employee):
         return date.today() <= self.contract_end
 
     def get_role(self) -> str:
-        return "契約社員"
+        return "Contract Employee"
 
 
-# パートタイム
+# Part-time employee
 class PartTimeEmployee(Employee):
-    """パートタイム従業員"""
+    """Part-time employee"""
 
     def __init__(self, name: str, hire_date: date, hourly_rate: int,
                  hours_per_month: int):
@@ -478,12 +478,12 @@ class PartTimeEmployee(Employee):
         return self.hourly_rate * self.hours_per_month
 
     def get_role(self) -> str:
-        return "パートタイム"
+        return "Part-time Employee"
 
 
-# マネージャー（正社員の拡張）
+# Manager (extension of full-time employee)
 class Manager(FullTimeEmployee):
-    """マネージャー - 正社員に管理機能を追加"""
+    """Manager - adds management capabilities to full-time employee"""
 
     def __init__(self, name: str, hire_date: date, base_salary: int,
                  management_allowance: int = 50000):
@@ -502,35 +502,35 @@ class Manager(FullTimeEmployee):
         return self._subordinates.copy()
 
     def get_role(self) -> str:
-        return "マネージャー"
+        return "Manager"
 
 
-# ポリモーフィズムの活用
+# Leveraging polymorphism
 def print_payroll(employees: list[Employee]) -> None:
-    """全従業員の給与明細を出力 - 型に関係なく統一的に処理"""
+    """Print payroll for all employees - processes uniformly regardless of type"""
     total = 0
     for emp in employees:
         pay = emp.calculate_pay()
         total += pay
-        print(f"  {emp} → 月給: {pay:,}円")
+        print(f"  {emp} -> Monthly salary: {pay:,} yen")
     print(f"  {'─' * 40}")
-    print(f"  合計: {total:,}円")
+    print(f"  Total: {total:,} yen")
 
 
-# 使用例
+# Usage example
 employees = [
-    Manager("佐藤部長", date(2015, 4, 1), 500000),
-    FullTimeEmployee("田中一郎", date(2020, 4, 1), 300000),
-    ContractEmployee("鈴木二郎", date(2024, 4, 1), 350000, date(2026, 3, 31)),
-    PartTimeEmployee("山田花子", date(2023, 10, 1), 1200, 80),
+    Manager("Director Sato", date(2015, 4, 1), 500000),
+    FullTimeEmployee("Ichiro Tanaka", date(2020, 4, 1), 300000),
+    ContractEmployee("Jiro Suzuki", date(2024, 4, 1), 350000, date(2026, 3, 31)),
+    PartTimeEmployee("Hanako Yamada", date(2023, 10, 1), 1200, 80),
 ]
 print_payroll(employees)
 ```
 
 ```java
-// Java での継承とインターフェース
+// Inheritance and interfaces in Java
 
-// インターフェース: 契約（何ができるか）を定義
+// Interface: defines a contract (what can be done)
 interface Payable {
     int calculatePay();
 }
@@ -539,7 +539,7 @@ interface Reportable {
     String generateReport();
 }
 
-// 抽象クラス: 共通実装を提供
+// Abstract class: provides common implementation
 abstract class Employee implements Payable, Reportable {
     protected final String name;
     protected final String employeeId;
@@ -551,27 +551,27 @@ abstract class Employee implements Payable, Reportable {
         this.baseSalary = baseSalary;
     }
 
-    // テンプレートメソッドパターン
+    // Template Method pattern
     @Override
     public final String generateReport() {
         StringBuilder sb = new StringBuilder();
-        sb.append("=== 従業員レポート ===\n");
-        sb.append("名前: ").append(name).append("\n");
+        sb.append("=== Employee Report ===\n");
+        sb.append("Name: ").append(name).append("\n");
         sb.append("ID: ").append(employeeId).append("\n");
-        sb.append("月給: ").append(calculatePay()).append("円\n");
-        appendExtraInfo(sb);  // サブクラスでカスタマイズ可能
+        sb.append("Monthly salary: ").append(calculatePay()).append(" yen\n");
+        appendExtraInfo(sb);  // Customizable by subclasses
         return sb.toString();
     }
 
-    // サブクラスがオーバーライドしてレポートに情報を追加
+    // Subclasses can override to add information to the report
     protected void appendExtraInfo(StringBuilder sb) {
-        // デフォルトでは何もしない
+        // Default does nothing
     }
 
     public abstract String getRole();
 }
 
-// 具象クラス
+// Concrete class
 class FullTimeEmployee extends Employee {
     private double bonusRate;
 
@@ -590,38 +590,38 @@ class FullTimeEmployee extends Employee {
     }
 
     @Override
-    public String getRole() { return "正社員"; }
+    public String getRole() { return "Full-time Employee"; }
 
     @Override
     protected void appendExtraInfo(StringBuilder sb) {
-        sb.append("年間ボーナス: ").append(calculateAnnualBonus()).append("円\n");
+        sb.append("Annual bonus: ").append(calculateAnnualBonus()).append(" yen\n");
     }
 }
 ```
 
-### 2.3 ポリモーフィズム（Polymorphism）
+### 2.3 Polymorphism
 
-ポリモーフィズムとは「多態性」のことで、同じインターフェースに対して異なる実装を提供する仕組みである。コンパイル時ポリモーフィズム（メソッドオーバーロード）と実行時ポリモーフィズム（メソッドオーバーライド）の2種類がある。
+Polymorphism means "many forms" -- it is the mechanism of providing different implementations for the same interface. There are two types: compile-time polymorphism (method overloading) and runtime polymorphism (method overriding).
 
 ```python
-# === ポリモーフィズムの実践例 ===
+# === Practical Examples of Polymorphism ===
 
 from abc import ABC, abstractmethod
 from typing import Protocol
 
 
-# 1. 抽象基底クラスによるポリモーフィズム
+# 1. Polymorphism via abstract base classes
 class NotificationSender(ABC):
-    """通知送信の抽象インターフェース"""
+    """Abstract interface for sending notifications"""
 
     @abstractmethod
     def send(self, recipient: str, message: str) -> bool:
-        """通知を送信する"""
+        """Send a notification"""
         pass
 
     @abstractmethod
     def get_channel_name(self) -> str:
-        """チャネル名を返す"""
+        """Return the channel name"""
         pass
 
 
@@ -630,12 +630,12 @@ class EmailSender(NotificationSender):
         self.smtp_server = smtp_server
 
     def send(self, recipient: str, message: str) -> bool:
-        print(f"[Email] {recipient} に送信: {message}")
-        # SMTP送信処理...
+        print(f"[Email] Sending to {recipient}: {message}")
+        # SMTP send processing...
         return True
 
     def get_channel_name(self) -> str:
-        return "メール"
+        return "Email"
 
 
 class SlackSender(NotificationSender):
@@ -643,8 +643,8 @@ class SlackSender(NotificationSender):
         self.webhook_url = webhook_url
 
     def send(self, recipient: str, message: str) -> bool:
-        print(f"[Slack] #{recipient} に送信: {message}")
-        # Webhook POST処理...
+        print(f"[Slack] Sending to #{recipient}: {message}")
+        # Webhook POST processing...
         return True
 
     def get_channel_name(self) -> str:
@@ -656,8 +656,8 @@ class SMSSender(NotificationSender):
         self.api_key = api_key
 
     def send(self, recipient: str, message: str) -> bool:
-        print(f"[SMS] {recipient} に送信: {message}")
-        # SMS API呼び出し...
+        print(f"[SMS] Sending to {recipient}: {message}")
+        # SMS API call...
         return True
 
     def get_channel_name(self) -> str:
@@ -669,16 +669,16 @@ class LineSender(NotificationSender):
         self.channel_token = channel_token
 
     def send(self, recipient: str, message: str) -> bool:
-        print(f"[LINE] {recipient} に送信: {message}")
+        print(f"[LINE] Sending to {recipient}: {message}")
         return True
 
     def get_channel_name(self) -> str:
         return "LINE"
 
 
-# ポリモーフィズムを活用する通知サービス
+# Notification service that leverages polymorphism
 class NotificationService:
-    """通知の送信を統一的に管理"""
+    """Manages notification sending uniformly"""
 
     def __init__(self):
         self._senders: list[NotificationSender] = []
@@ -687,7 +687,7 @@ class NotificationService:
         self._senders.append(sender)
 
     def broadcast(self, message: str, recipients: dict[str, str]) -> dict:
-        """全チャネルで通知を送信"""
+        """Send notifications via all channels"""
         results = {}
         for sender in self._senders:
             channel = sender.get_channel_name()
@@ -697,7 +697,7 @@ class NotificationService:
         return results
 
 
-# 使用例: 送信者の具体的な型を知らなくても動作する
+# Usage example: works without knowing the specific type of sender
 service = NotificationService()
 service.register_sender(EmailSender("smtp.example.com"))
 service.register_sender(SlackSender("https://hooks.slack.com/xxx"))
@@ -705,9 +705,9 @@ service.register_sender(SMSSender("api-key-123"))
 service.register_sender(LineSender("channel-token-abc"))
 
 results = service.broadcast(
-    "サーバー障害が発生しました",
+    "A server failure has occurred",
     {
-        "メール": "admin@example.com",
+        "Email": "admin@example.com",
         "Slack": "alerts",
         "SMS": "090-1234-5678",
         "LINE": "U1234567890"
@@ -716,26 +716,26 @@ results = service.broadcast(
 ```
 
 ```python
-# 2. Protocol（構造的部分型）によるポリモーフィズム（Python 3.8+）
+# 2. Polymorphism via Protocol (structural subtyping, Python 3.8+)
 
 from typing import Protocol, runtime_checkable
 
 
 @runtime_checkable
 class Serializable(Protocol):
-    """シリアライズ可能なオブジェクトのプロトコル"""
+    """Protocol for serializable objects"""
     def to_dict(self) -> dict: ...
     def to_json(self) -> str: ...
 
 
 @runtime_checkable
 class Validatable(Protocol):
-    """バリデーション可能なオブジェクトのプロトコル"""
+    """Protocol for validatable objects"""
     def validate(self) -> list[str]: ...
     def is_valid(self) -> bool: ...
 
 
-# Protocol を満たすクラス（明示的な継承は不要）
+# Class satisfying the Protocol (no explicit inheritance needed)
 class UserProfile:
     def __init__(self, name: str, age: int, email: str):
         self.name = name
@@ -752,43 +752,43 @@ class UserProfile:
     def validate(self) -> list[str]:
         errors = []
         if not self.name:
-            errors.append("名前は必須です")
+            errors.append("Name is required")
         if self.age < 0 or self.age > 150:
-            errors.append("年齢が不正です")
+            errors.append("Age is invalid")
         if "@" not in self.email:
-            errors.append("メールアドレスが不正です")
+            errors.append("Email address is invalid")
         return errors
 
     def is_valid(self) -> bool:
         return len(self.validate()) == 0
 
 
-# Protocol を使った汎用関数
+# Generic functions using Protocol
 def save_to_file(obj: Serializable, filepath: str) -> None:
-    """Serializableなオブジェクトをファイルに保存"""
+    """Save a Serializable object to a file"""
     with open(filepath, 'w') as f:
         f.write(obj.to_json())
 
 def validate_and_report(obj: Validatable) -> None:
-    """Validatableなオブジェクトを検証してレポート"""
+    """Validate a Validatable object and report"""
     errors = obj.validate()
     if errors:
-        print(f"バリデーションエラー: {', '.join(errors)}")
+        print(f"Validation errors: {', '.join(errors)}")
     else:
-        print("バリデーション成功")
+        print("Validation successful")
 
-# 使用例
-user = UserProfile("田中太郎", 30, "tanaka@example.com")
-print(isinstance(user, Serializable))   # True（構造的部分型）
+# Usage example
+user = UserProfile("Taro Tanaka", 30, "tanaka@example.com")
+print(isinstance(user, Serializable))   # True (structural subtyping)
 print(isinstance(user, Validatable))    # True
 save_to_file(user, "/tmp/user.json")
 validate_and_report(user)
 ```
 
 ```typescript
-// TypeScript でのポリモーフィズム（構造的部分型が標準）
+// Polymorphism in TypeScript (structural subtyping is standard)
 
-// インターフェース定義
+// Interface definitions
 interface Shape {
     area(): number;
     perimeter(): number;
@@ -799,7 +799,7 @@ interface Drawable {
     draw(ctx: CanvasRenderingContext2D): void;
 }
 
-// 複数のインターフェースを実装
+// Implementing multiple interfaces
 class Circle implements Shape, Drawable {
     constructor(
         public readonly centerX: number,
@@ -816,7 +816,7 @@ class Circle implements Shape, Drawable {
     }
 
     describe(): string {
-        return `円（半径: ${this.radius}）`;
+        return `Circle (radius: ${this.radius})`;
     }
 
     draw(ctx: CanvasRenderingContext2D): void {
@@ -843,7 +843,7 @@ class Rectangle implements Shape, Drawable {
     }
 
     describe(): string {
-        return `長方形（${this.width} x ${this.height}）`;
+        return `Rectangle (${this.width} x ${this.height})`;
     }
 
     draw(ctx: CanvasRenderingContext2D): void {
@@ -859,7 +859,7 @@ class Triangle implements Shape {
     ) {}
 
     area(): number {
-        // ヘロンの公式
+        // Heron's formula
         const s = (this.a + this.b + this.c) / 2;
         return Math.sqrt(s * (s - this.a) * (s - this.b) * (s - this.c));
     }
@@ -869,14 +869,14 @@ class Triangle implements Shape {
     }
 
     describe(): string {
-        return `三角形（辺: ${this.a}, ${this.b}, ${this.c}）`;
+        return `Triangle (sides: ${this.a}, ${this.b}, ${this.c})`;
     }
 }
 
-// ポリモーフィズムを活用した関数
+// Functions leveraging polymorphism
 function printShapeInfo(shapes: Shape[]): void {
     for (const shape of shapes) {
-        console.log(`${shape.describe()}: 面積=${shape.area().toFixed(2)}, 周長=${shape.perimeter().toFixed(2)}`);
+        console.log(`${shape.describe()}: area=${shape.area().toFixed(2)}, perimeter=${shape.perimeter().toFixed(2)}`);
     }
 }
 
@@ -885,12 +885,12 @@ function totalArea(shapes: Shape[]): number {
 }
 ```
 
-### 2.4 抽象化（Abstraction）
+### 2.4 Abstraction
 
-抽象化は、複雑な実装の詳細を隠蔽し、本質的なインターフェースだけを公開する概念である。利用者は「何ができるか」だけを知っていればよく、「どのように実現するか」は知る必要がない。
+Abstraction is the concept of hiding complex implementation details and exposing only the essential interface. Users only need to know "what can be done," not "how it is achieved."
 
 ```python
-# === 抽象化の実践例: データベースアクセス層 ===
+# === Practical Example of Abstraction: Database Access Layer ===
 
 from abc import ABC, abstractmethod
 from typing import Any, Optional
@@ -899,50 +899,50 @@ from dataclasses import dataclass
 
 @dataclass
 class QueryResult:
-    """クエリ結果の抽象表現"""
+    """Abstract representation of query results"""
     rows: list[dict[str, Any]]
     row_count: int
     affected_rows: int = 0
 
 
 class DatabaseConnection(ABC):
-    """データベース接続の抽象インターフェース
+    """Abstract interface for database connections
 
-    利用者はこのインターフェースだけを知っていれば、
-    具体的なDB（PostgreSQL、MySQL、SQLite等）を意識する必要がない。
+    Users only need to know this interface and don't need to
+    be aware of the specific DB (PostgreSQL, MySQL, SQLite, etc.).
     """
 
     @abstractmethod
     def connect(self) -> None:
-        """データベースに接続する"""
+        """Connect to the database"""
         pass
 
     @abstractmethod
     def disconnect(self) -> None:
-        """接続を切断する"""
+        """Disconnect from the database"""
         pass
 
     @abstractmethod
     def execute(self, query: str, params: Optional[tuple] = None) -> QueryResult:
-        """SQLクエリを実行する"""
+        """Execute an SQL query"""
         pass
 
     @abstractmethod
     def begin_transaction(self) -> None:
-        """トランザクションを開始する"""
+        """Begin a transaction"""
         pass
 
     @abstractmethod
     def commit(self) -> None:
-        """トランザクションをコミットする"""
+        """Commit a transaction"""
         pass
 
     @abstractmethod
     def rollback(self) -> None:
-        """トランザクションをロールバックする"""
+        """Roll back a transaction"""
         pass
 
-    # コンテキストマネージャとしても使える（テンプレートメソッド）
+    # Can also be used as a context manager (template method)
     def __enter__(self):
         self.connect()
         return self
@@ -955,7 +955,7 @@ class DatabaseConnection(ABC):
 
 
 class PostgreSQLConnection(DatabaseConnection):
-    """PostgreSQLの具体的な実装"""
+    """Concrete implementation for PostgreSQL"""
 
     def __init__(self, host: str, port: int, dbname: str, user: str, password: str):
         self.host = host
@@ -999,7 +999,7 @@ class PostgreSQLConnection(DatabaseConnection):
 
 
 class SQLiteConnection(DatabaseConnection):
-    """SQLiteの具体的な実装"""
+    """Concrete implementation for SQLite"""
 
     def __init__(self, db_path: str):
         self.db_path = db_path
@@ -1035,12 +1035,12 @@ class SQLiteConnection(DatabaseConnection):
         self._conn.rollback()
 
 
-# 抽象化されたインターフェースを使うリポジトリ
+# Repository using the abstracted interface
 class UserRepository:
-    """ユーザーリポジトリ - 具体的なDBに依存しない"""
+    """User repository - not dependent on a specific DB"""
 
     def __init__(self, db: DatabaseConnection):
-        self._db = db  # 抽象に依存（DI）
+        self._db = db  # Depends on abstraction (DI)
 
     def find_by_id(self, user_id: int) -> Optional[dict]:
         result = self._db.execute(
@@ -1060,121 +1060,121 @@ class UserRepository:
         return result.rows[0]["id"]
 
 
-# 使用例: DB実装を切り替え可能
-# 開発環境
+# Usage example: DB implementation is interchangeable
+# Development environment
 # db = SQLiteConnection(":memory:")
-# 本番環境
+# Production environment
 # db = PostgreSQLConnection("db.example.com", 5432, "myapp", "user", "pass")
 # repo = UserRepository(db)
 ```
 
 ---
 
-## 3. SOLID原則
+## 3. SOLID Principles
 
-SOLID原則はRobert C. Martin（Uncle Bob）が提唱した5つのオブジェクト指向設計原則である。保守性・拡張性・テスト容易性の高いソフトウェアを作るための指針となる。
+The SOLID principles are five object-oriented design principles proposed by Robert C. Martin (Uncle Bob). They serve as guidelines for building software with high maintainability, extensibility, and testability.
 
-### 3.1 S — Single Responsibility Principle（単一責任原則）
+### 3.1 S -- Single Responsibility Principle (SRP)
 
 ```
-単一責任原則（SRP）:
-  「クラスが変更される理由は、ただ1つであるべき」
+Single Responsibility Principle (SRP):
+  "A class should have only one reason to change"
 
-  より正確には:
-  「クラスは1つのアクターに対してのみ責任を持つべき」
-  （アクター = そのクラスの変更を要求する人や組織）
+  More precisely:
+  "A class should be responsible to only one actor"
+  (Actor = a person or organization that requests changes to the class)
 ```
 
 ```python
-# ❌ SRP違反: 1つのクラスが複数の責任を持っている
+# Bad: SRP violation - one class has multiple responsibilities
 class User:
     def __init__(self, name: str, email: str):
         self.name = name
         self.email = email
 
     def save_to_database(self):
-        """データベースに保存 → 永続化の責任"""
+        """Save to database -> persistence responsibility"""
         pass
 
     def send_welcome_email(self):
-        """ウェルカムメールを送信 → 通知の責任"""
+        """Send welcome email -> notification responsibility"""
         pass
 
     def generate_report(self):
-        """レポートを生成 → レポーティングの責任"""
+        """Generate report -> reporting responsibility"""
         pass
 
     def validate(self):
-        """バリデーション → 検証の責任"""
+        """Validation -> validation responsibility"""
         pass
 
 
-# ✅ SRP準拠: 各クラスが1つの責任のみ持つ
+# Good: SRP compliant - each class has only one responsibility
 class User:
-    """ユーザーのドメインモデル（ビジネスルールのみ）"""
+    """User domain model (business rules only)"""
     def __init__(self, name: str, email: str):
         self.name = name
         self.email = email
 
 
 class UserValidator:
-    """ユーザーデータのバリデーション"""
+    """User data validation"""
     @staticmethod
     def validate(user: User) -> list[str]:
         errors = []
         if not user.name or len(user.name) < 2:
-            errors.append("名前は2文字以上必要です")
+            errors.append("Name must be at least 2 characters")
         if "@" not in user.email:
-            errors.append("有効なメールアドレスを入力してください")
+            errors.append("Please enter a valid email address")
         return errors
 
 
 class UserRepository:
-    """ユーザーの永続化"""
+    """User persistence"""
     def __init__(self, db_connection):
         self._db = db_connection
 
     def save(self, user: User) -> int:
-        # DB保存処理
+        # DB save processing
         pass
 
     def find_by_email(self, email: str) -> Optional[User]:
-        # DB検索処理
+        # DB search processing
         pass
 
 
 class UserNotifier:
-    """ユーザーへの通知"""
+    """User notifications"""
     def __init__(self, email_service):
         self._email_service = email_service
 
     def send_welcome(self, user: User) -> None:
         self._email_service.send(
             to=user.email,
-            subject="ようこそ！",
-            body=f"{user.name}様、会員登録ありがとうございます。"
+            subject="Welcome!",
+            body=f"Dear {user.name}, thank you for registering."
         )
 
 
 class UserReportGenerator:
-    """ユーザー関連レポートの生成"""
+    """User-related report generation"""
     def generate_activity_report(self, user: User) -> str:
-        # レポート生成処理
+        # Report generation processing
         pass
 ```
 
-### 3.2 O — Open/Closed Principle（開放/閉鎖原則）
+### 3.2 O -- Open/Closed Principle (OCP)
 
 ```
-開放/閉鎖原則（OCP）:
-  「ソフトウェアエンティティは拡張に対して開いており、
-   修正に対して閉じているべき」
+Open/Closed Principle (OCP):
+  "Software entities should be open for extension
+   and closed for modification"
 
-  → 新しい機能を追加する際に、既存のコードを変更する必要がないように設計する
+  -> Design so that existing code does not need to be modified when adding new features
 ```
 
 ```python
-# ❌ OCP違反: 新しい割引タイプを追加するたびに既存コードを修正
+# Bad: OCP violation - existing code must be modified every time a new discount type is added
 class DiscountCalculator:
     def calculate(self, order_total: int, discount_type: str) -> int:
         if discount_type == "percentage":
@@ -1183,14 +1183,14 @@ class DiscountCalculator:
             return order_total - 1000
         elif discount_type == "member":
             return int(order_total * 0.85)
-        # 新しい割引を追加するたびにここに elif を追加...
+        # Add an elif here every time a new discount is added...
         else:
             return order_total
 
 
-# ✅ OCP準拠: 新しい割引を追加しても既存コードは変更不要
+# Good: OCP compliant - no need to modify existing code when adding new discounts
 class DiscountStrategy(ABC):
-    """割引戦略の抽象基底クラス"""
+    """Abstract base class for discount strategies"""
 
     @abstractmethod
     def apply(self, order_total: int) -> int:
@@ -1209,7 +1209,7 @@ class PercentageDiscount(DiscountStrategy):
         return int(order_total * (1 - self.rate))
 
     def description(self) -> str:
-        return f"{int(self.rate * 100)}%割引"
+        return f"{int(self.rate * 100)}% discount"
 
 
 class FixedAmountDiscount(DiscountStrategy):
@@ -1220,7 +1220,7 @@ class FixedAmountDiscount(DiscountStrategy):
         return max(0, order_total - self.amount)
 
     def description(self) -> str:
-        return f"{self.amount}円引き"
+        return f"{self.amount} yen off"
 
 
 class MemberDiscount(DiscountStrategy):
@@ -1233,12 +1233,12 @@ class MemberDiscount(DiscountStrategy):
         return int(order_total * (1 - rate))
 
     def description(self) -> str:
-        return f"会員割引（{self.member_rank}）"
+        return f"Member discount ({self.member_rank})"
 
 
-# 新しい割引を追加しても既存コードは一切変更不要
+# Adding new discounts requires no changes to existing code
 class CouponDiscount(DiscountStrategy):
-    """クーポン割引 - 後から追加"""
+    """Coupon discount - added later"""
     def __init__(self, coupon_code: str, discount_rate: float):
         self.coupon_code = coupon_code
         self.discount_rate = discount_rate
@@ -1247,11 +1247,11 @@ class CouponDiscount(DiscountStrategy):
         return int(order_total * (1 - self.discount_rate))
 
     def description(self) -> str:
-        return f"クーポン {self.coupon_code}"
+        return f"Coupon {self.coupon_code}"
 
 
 class TimeLimitedDiscount(DiscountStrategy):
-    """期間限定割引 - さらに後から追加"""
+    """Time-limited discount - added even later"""
     def __init__(self, name: str, rate: float, end_date: date):
         self._name = name
         self._rate = rate
@@ -1263,34 +1263,34 @@ class TimeLimitedDiscount(DiscountStrategy):
         return order_total
 
     def description(self) -> str:
-        return f"期間限定: {self._name}"
+        return f"Limited-time: {self._name}"
 
 
-# 割引を適用するコード（変更不要）
+# Code that applies discounts (no modification needed)
 class OrderProcessor:
     def apply_discount(self, total: int, strategy: DiscountStrategy) -> int:
         discounted = strategy.apply(total)
-        print(f"  {strategy.description()}: {total:,}円 → {discounted:,}円")
+        print(f"  {strategy.description()}: {total:,} yen -> {discounted:,} yen")
         return discounted
 
     def apply_best_discount(self, total: int, strategies: list[DiscountStrategy]) -> int:
-        """最もお得な割引を適用"""
+        """Apply the best discount"""
         best = min(strategies, key=lambda s: s.apply(total))
         return self.apply_discount(total, best)
 ```
 
-### 3.3 L — Liskov Substitution Principle（リスコフの置換原則）
+### 3.3 L -- Liskov Substitution Principle (LSP)
 
 ```
-リスコフの置換原則（LSP）:
-  「サブタイプはそのベースタイプと置換可能でなければならない」
+Liskov Substitution Principle (LSP):
+  "Subtypes must be substitutable for their base types"
 
-  → 親クラスを使っている箇所で、子クラスに置き換えても
-    プログラムの正しさが保たれること
+  -> When replacing a parent class with a child class in any part
+    of the program, the program's correctness must be preserved
 ```
 
 ```python
-# ❌ LSP違反: 典型的な「正方形・長方形」問題
+# Bad: LSP violation - classic "Square-Rectangle" problem
 class Rectangle:
     def __init__(self, width: int, height: int):
         self._width = width
@@ -1317,29 +1317,29 @@ class Rectangle:
 
 
 class Square(Rectangle):
-    """正方形 - 幅と高さが常に等しい"""
+    """Square - width and height are always equal"""
     def __init__(self, side: int):
         super().__init__(side, side)
 
     @Rectangle.width.setter
     def width(self, value: int):
         self._width = value
-        self._height = value  # 高さも変更！
+        self._height = value  # Height also changes!
 
     @Rectangle.height.setter
     def height(self, value: int):
-        self._width = value  # 幅も変更！
+        self._width = value  # Width also changes!
         self._height = value
 
 
-# この関数は Rectangle の契約を前提としている
+# This function assumes the Rectangle contract
 def test_rectangle(rect: Rectangle):
     rect.width = 5
     rect.height = 10
-    assert rect.area() == 50  # Square を渡すと失敗！（area = 100）
+    assert rect.area() == 50  # Fails when Square is passed! (area = 100)
 
 
-# ✅ LSP準拠: 共通のインターフェースで設計
+# Good: LSP compliant - designed with a common interface
 class Shape(ABC):
     @abstractmethod
     def area(self) -> float:
@@ -1362,17 +1362,17 @@ class Square(Shape):
 ```
 
 ```python
-# ❌ LSP違反: もう1つの典型例
+# Bad: LSP violation - another classic example
 class Bird:
     def fly(self):
-        print("飛びます")
+        print("Flying")
 
 class Penguin(Bird):
     def fly(self):
-        raise NotImplementedError("ペンギンは飛べません！")
+        raise NotImplementedError("Penguins cannot fly!")
 
 
-# ✅ LSP準拠: インターフェースを適切に分離
+# Good: LSP compliant - properly separated interfaces
 class Bird(ABC):
     @abstractmethod
     def move(self) -> str:
@@ -1380,17 +1380,17 @@ class Bird(ABC):
 
 class FlyingBird(Bird):
     def move(self) -> str:
-        return "空を飛びます"
+        return "Flies through the sky"
 
     def fly(self) -> str:
-        return "羽ばたいて飛行"
+        return "Flapping wings to fly"
 
 class SwimmingBird(Bird):
     def move(self) -> str:
-        return "水中を泳ぎます"
+        return "Swims through water"
 
     def swim(self) -> str:
-        return "水中を泳ぐ"
+        return "Swimming underwater"
 
 class Sparrow(FlyingBird):
     pass
@@ -1398,23 +1398,23 @@ class Sparrow(FlyingBird):
 class Penguin(SwimmingBird):
     pass
 
-# Bird のリストとして統一的に扱える
+# Can be handled uniformly as a list of Birds
 birds: list[Bird] = [Sparrow(), Penguin()]
 for bird in birds:
-    print(bird.move())  # すべて正常に動作
+    print(bird.move())  # All work correctly
 ```
 
-### 3.4 I — Interface Segregation Principle（インターフェース分離原則）
+### 3.4 I -- Interface Segregation Principle (ISP)
 
 ```
-インターフェース分離原則（ISP）:
-  「クライアントに不要なメソッドへの依存を強制してはならない」
+Interface Segregation Principle (ISP):
+  "Clients should not be forced to depend on methods they do not use"
 
-  → 大きなインターフェースを、用途ごとに小さなインターフェースに分割する
+  -> Split large interfaces into smaller interfaces based on usage
 ```
 
 ```python
-# ❌ ISP違反: 巨大なインターフェース
+# Bad: ISP violation - a monolithic interface
 class Machine(ABC):
     @abstractmethod
     def print_document(self, doc): pass
@@ -1429,22 +1429,22 @@ class Machine(ABC):
     def staple_pages(self, pages): pass
 
 
-# シンプルなプリンタでも全メソッドの実装を強制される
+# Even a simple printer is forced to implement all methods
 class SimplePrinter(Machine):
     def print_document(self, doc):
-        print("印刷中...")
+        print("Printing...")
 
     def scan_document(self, doc):
-        raise NotImplementedError("スキャン非対応")  # 不要な実装
+        raise NotImplementedError("Scanning not supported")  # Unnecessary implementation
 
     def fax_document(self, doc):
-        raise NotImplementedError("FAX非対応")  # 不要な実装
+        raise NotImplementedError("Fax not supported")  # Unnecessary implementation
 
     def staple_pages(self, pages):
-        raise NotImplementedError("ステープラー非対応")  # 不要な実装
+        raise NotImplementedError("Stapling not supported")  # Unnecessary implementation
 
 
-# ✅ ISP準拠: 小さなインターフェースに分割
+# Good: ISP compliant - split into small interfaces
 class Printer(ABC):
     @abstractmethod
     def print_document(self, doc) -> None: pass
@@ -1462,55 +1462,55 @@ class Stapler(ABC):
     def staple_pages(self, pages) -> None: pass
 
 
-# 必要なインターフェースだけを実装
+# Implement only the necessary interfaces
 class SimplePrinter(Printer):
     def print_document(self, doc) -> None:
-        print("印刷中...")
+        print("Printing...")
 
 class MultiFunctionPrinter(Printer, Scanner, Fax):
     def print_document(self, doc) -> None:
-        print("印刷中...")
+        print("Printing...")
 
     def scan_document(self, doc) -> bytes:
         return b"scanned_data"
 
     def fax_document(self, doc, number: str) -> bool:
-        print(f"FAX送信中... {number}")
+        print(f"Sending fax... {number}")
         return True
 
-# 関数もピンポイントな型で受け取れる
+# Functions can accept precisely-typed parameters
 def do_printing(printer: Printer, doc) -> None:
-    printer.print_document(doc)  # SimplePrinter でも MultiFunctionPrinter でもOK
+    printer.print_document(doc)  # Works with both SimplePrinter and MultiFunctionPrinter
 ```
 
-### 3.5 D — Dependency Inversion Principle（依存性逆転原則）
+### 3.5 D -- Dependency Inversion Principle (DIP)
 
 ```
-依存性逆転原則（DIP）:
-  「高レベルモジュールは低レベルモジュールに依存してはならない。
-   両方とも抽象に依存すべきである」
+Dependency Inversion Principle (DIP):
+  "High-level modules should not depend on low-level modules.
+   Both should depend on abstractions"
 
-  → 具体的な実装ではなく、抽象（インターフェース）に依存する
+  -> Depend on abstractions (interfaces), not on concrete implementations
 ```
 
 ```python
-# ❌ DIP違反: 高レベルモジュールが低レベルモジュールに直接依存
+# Bad: DIP violation - high-level module directly depends on low-level module
 class MySQLDatabase:
     def query(self, sql: str) -> list:
-        # MySQL固有の処理
+        # MySQL-specific processing
         pass
 
 class UserService:
     def __init__(self):
-        self.db = MySQLDatabase()  # 具体クラスに直接依存！
+        self.db = MySQLDatabase()  # Direct dependency on concrete class!
 
     def get_user(self, user_id: int):
         return self.db.query(f"SELECT * FROM users WHERE id = {user_id}")
 
 
-# ✅ DIP準拠: 抽象に依存し、依存性注入（DI）を使う
+# Good: DIP compliant - depends on abstraction, uses dependency injection (DI)
 class Database(ABC):
-    """データベースの抽象インターフェース"""
+    """Abstract interface for database"""
     @abstractmethod
     def query(self, sql: str, params: tuple = ()) -> list: pass
 
@@ -1523,7 +1523,7 @@ class MySQLDatabase(Database):
         self._conn_str = connection_string
 
     def query(self, sql: str, params: tuple = ()) -> list:
-        # MySQL固有の処理
+        # MySQL-specific processing
         pass
 
     def execute(self, sql: str, params: tuple = ()) -> int:
@@ -1535,7 +1535,7 @@ class PostgreSQLDatabase(Database):
         self._conn_str = connection_string
 
     def query(self, sql: str, params: tuple = ()) -> list:
-        # PostgreSQL固有の処理
+        # PostgreSQL-specific processing
         pass
 
     def execute(self, sql: str, params: tuple = ()) -> int:
@@ -1543,7 +1543,7 @@ class PostgreSQLDatabase(Database):
 
 
 class InMemoryDatabase(Database):
-    """テスト用のインメモリDB"""
+    """In-memory DB for testing"""
     def __init__(self):
         self._data: dict[str, list] = {}
 
@@ -1555,9 +1555,9 @@ class InMemoryDatabase(Database):
 
 
 class UserService:
-    """ユーザーサービス - 抽象に依存"""
+    """User service - depends on abstraction"""
 
-    def __init__(self, db: Database):  # 抽象型で受け取る（DI）
+    def __init__(self, db: Database):  # Receives abstract type (DI)
         self._db = db
 
     def get_user(self, user_id: int) -> dict:
@@ -1573,7 +1573,7 @@ class UserService:
         )
 
 
-# 環境に応じてDIで切り替え
+# Switch via DI based on environment
 import os
 def create_user_service() -> UserService:
     env = os.getenv("APP_ENV", "development")
@@ -1590,27 +1590,27 @@ def create_user_service() -> UserService:
 
 ---
 
-## 4. 継承 vs コンポジション
+## 4. Inheritance vs Composition
 
-### 4.1 継承の問題点
+### 4.1 Problems with Inheritance
 
 ```python
-# === 継承の乱用による問題 ===
+# === Problems caused by overuse of inheritance ===
 
-# ❌ 深い継承ツリー（Fragile Base Class Problem）
+# Bad: Deep inheritance tree (Fragile Base Class Problem)
 class Animal: pass
 class Mammal(Animal): pass
 class DomesticMammal(Mammal): pass
 class Dog(DomesticMammal): pass
-class GuideDog(Dog): pass  # 5段階の継承！
+class GuideDog(Dog): pass  # 5 levels of inheritance!
 
-# 問題点:
-# 1. 親クラスの変更が全子クラスに波及（脆い基底クラス問題）
-# 2. 理解するために全階層を読む必要がある
-# 3. 新しい分類が困難（泳ぐ犬? → SwimmingDog をどこに置く?）
+# Problems:
+# 1. Changes to the parent class propagate to all child classes (fragile base class problem)
+# 2. Must read all levels to understand the hierarchy
+# 3. Difficult to add new classifications (a swimming dog? Where does SwimmingDog go?)
 
 
-# ❌ 多重継承のダイヤモンド問題（Python）
+# Bad: Diamond problem with multiple inheritance (Python)
 class A:
     def method(self):
         print("A")
@@ -1623,36 +1623,36 @@ class C(A):
     def method(self):
         print("C")
 
-class D(B, C):  # B と C の両方から継承
+class D(B, C):  # Inherits from both B and C
     pass
 
 d = D()
-d.method()  # "B" が呼ばれる（MROに基づく）
-# → 予測困難な振る舞い
-print(D.__mro__)  # メソッド解決順序を確認できる
+d.method()  # "B" is called (based on MRO)
+# -> Unpredictable behavior
+print(D.__mro__)  # Can check the Method Resolution Order
 ```
 
-### 4.2 コンポジションの利点
+### 4.2 Advantages of Composition
 
 ```python
-# ✅ コンポジション: 機能をパーツとして組み合わせる
+# Good: Composition - combine functionality as parts
 
-# 能力をクラスとして定義
+# Define abilities as classes
 class WalkAbility:
     def walk(self, distance: int) -> str:
-        return f"{distance}m 歩きました"
+        return f"Walked {distance}m"
 
 class SwimAbility:
     def swim(self, distance: int) -> str:
-        return f"{distance}m 泳ぎました"
+        return f"Swam {distance}m"
 
 class FlyAbility:
     def fly(self, distance: int) -> str:
-        return f"{distance}m 飛びました"
+        return f"Flew {distance}m"
 
 class BarkAbility:
     def bark(self) -> str:
-        return "ワンワン！"
+        return "Woof woof!"
 
 class GuideAbility:
     def __init__(self):
@@ -1663,32 +1663,32 @@ class GuideAbility:
 
     def guide(self, destination: str) -> str:
         if not self._is_trained:
-            raise RuntimeError("訓練が完了していません")
-        return f"{destination}まで案内します"
+            raise RuntimeError("Training not completed")
+        return f"Guiding to {destination}"
 
 
-# 動物クラスは能力をコンポジションで持つ
+# Animal classes hold abilities via composition
 class Dog:
-    """犬 - 歩行と吠えの能力を持つ"""
+    """Dog - has walking and barking abilities"""
     def __init__(self, name: str):
         self.name = name
         self.walker = WalkAbility()
         self.barker = BarkAbility()
-        self.swimmer: SwimAbility | None = None  # オプション
-        self.guide: GuideAbility | None = None     # オプション
+        self.swimmer: SwimAbility | None = None  # Optional
+        self.guide: GuideAbility | None = None     # Optional
 
     def make_guide_dog(self) -> None:
-        """盲導犬にする"""
+        """Make into a guide dog"""
         self.guide = GuideAbility()
         self.guide.train()
 
     def make_swimmer(self) -> None:
-        """泳げるようにする"""
+        """Enable swimming"""
         self.swimmer = SwimAbility()
 
 
 class Duck:
-    """鴨 - 歩行、飛行、泳ぎの能力を持つ"""
+    """Duck - has walking, flying, and swimming abilities"""
     def __init__(self, name: str):
         self.name = name
         self.walker = WalkAbility()
@@ -1696,55 +1696,54 @@ class Duck:
         self.swimmer = SwimAbility()
 
 
-# 使用例
-dog = Dog("ポチ")
-print(dog.walker.walk(100))    # 100m 歩きました
-print(dog.barker.bark())       # ワンワン！
+# Usage example
+dog = Dog("Pochi")
+print(dog.walker.walk(100))    # Walked 100m
+print(dog.barker.bark())       # Woof woof!
 
 dog.make_guide_dog()
-print(dog.guide.guide("駅"))   # 駅まで案内します
+print(dog.guide.guide("the station"))   # Guiding to the station
 
-duck = Duck("ガーコ")
-print(duck.walker.walk(50))    # 50m 歩きました
-print(duck.flyer.fly(200))     # 200m 飛びました
-print(duck.swimmer.swim(30))   # 30m 泳ぎました
+duck = Duck("Quackers")
+print(duck.walker.walk(50))    # Walked 50m
+print(duck.flyer.fly(200))     # Flew 200m
+print(duck.swimmer.swim(30))   # Swam 30m
 ```
 
-### 4.3 継承とコンポジションの使い分け
+### 4.3 When to Use Inheritance vs Composition
 
 ```
-継承 vs コンポジション: 使い分けの指針
+Inheritance vs Composition: Guidelines for Choosing
 
-  継承を使うべき場面:
-  ┌────────────────────────────────────────────────────┐
-  │ ✅ 明確な「is-a」関係がある                        │
-  │    → Dog is an Animal（犬は動物である）            │
-  │ ✅ リスコフの置換原則を満たせる                    │
-  │    → サブクラスは親の契約を完全に守る              │
-  │ ✅ 継承階層が浅い（2-3段まで）                     │
-  │ ✅ フレームワークが要求する場合                    │
-  │    → Django の Model, View 等                      │
-  └────────────────────────────────────────────────────┘
+  When to use inheritance:
+  +----------------------------------------------------+
+  | When there is a clear "is-a" relationship           |
+  |    -> Dog is an Animal                              |
+  | When the Liskov Substitution Principle can be met   |
+  |    -> Subclass fully honors the parent's contract   |
+  | When the inheritance hierarchy is shallow (2-3 levels)|
+  | When required by a framework                        |
+  |    -> Django's Model, View, etc.                    |
+  +----------------------------------------------------+
 
-  コンポジションを使うべき場面:
-  ┌────────────────────────────────────────────────────┐
-  │ ✅ 「has-a」関係がある                              │
-  │    → Car has an Engine（車はエンジンを持つ）       │
-  │ ✅ 複数の機能を組み合わせたい                      │
-  │ ✅ 実行時に動的に振る舞いを変えたい                │
-  │ ✅ テスト時にモックに差し替えたい                  │
-  │ ✅ 継承階層が深くなりそうな場合                    │
-  └────────────────────────────────────────────────────┘
+  When to use composition:
+  +----------------------------------------------------+
+  | When there is a "has-a" relationship                |
+  |    -> Car has an Engine                             |
+  | When combining multiple functionalities             |
+  | When behavior needs to change dynamically at runtime|
+  | When you want to swap in mocks for testing          |
+  | When the inheritance hierarchy would become deep    |
+  +----------------------------------------------------+
 
-  迷ったらコンポジションを選べ（GoFの格言）:
-  「継承よりコンポジションを好め」
-  （Favor composition over inheritance）
+  When in doubt, choose composition (GoF maxim):
+  "Favor composition over inheritance"
 ```
 
-### 4.4 ミックスイン/トレイトパターン
+### 4.4 Mixin/Trait Pattern
 
 ```python
-# ミックスイン: 継承とコンポジションの中間的なアプローチ
+# Mixin: an intermediate approach between inheritance and composition
 
 import json
 import logging
@@ -1752,7 +1751,7 @@ from datetime import datetime
 
 
 class TimestampMixin:
-    """タイムスタンプ機能を付与するミックスイン"""
+    """Mixin that provides timestamp functionality"""
     created_at: datetime
     updated_at: datetime
 
@@ -1761,12 +1760,12 @@ class TimestampMixin:
         self.updated_at = datetime.now()
 
     def touch(self):
-        """更新日時を現在時刻に更新"""
+        """Update the updated_at timestamp to the current time"""
         self.updated_at = datetime.now()
 
 
 class SerializableMixin:
-    """JSON シリアライズ機能を付与するミックスイン"""
+    """Mixin that provides JSON serialization functionality"""
 
     def to_dict(self) -> dict:
         result = {}
@@ -1790,7 +1789,7 @@ class SerializableMixin:
 
 
 class LoggableMixin:
-    """ロギング機能を付与するミックスイン"""
+    """Mixin that provides logging functionality"""
 
     @property
     def _logger(self):
@@ -1804,7 +1803,7 @@ class LoggableMixin:
 
 
 class ValidatableMixin:
-    """バリデーション機能を付与するミックスイン"""
+    """Mixin that provides validation functionality"""
 
     def validate(self) -> list[str]:
         errors = []
@@ -1820,64 +1819,64 @@ class ValidatableMixin:
         return len(self.validate()) == 0
 
 
-# ミックスインを組み合わせて使う
+# Combining mixins
 class Article(TimestampMixin, SerializableMixin, LoggableMixin, ValidatableMixin):
     def __init__(self, title: str, content: str, author: str):
         self.title = title
         self.content = content
         self.author = author
         self.init_timestamps()
-        self.log_info(f"記事「{title}」を作成")
+        self.log_info(f"Created article '{title}'")
 
     def validate_title(self) -> str | None:
         if not self.title or len(self.title) < 5:
-            return "タイトルは5文字以上必要です"
+            return "Title must be at least 5 characters"
         return None
 
     def validate_content(self) -> str | None:
         if not self.content or len(self.content) < 100:
-            return "本文は100文字以上必要です"
+            return "Content must be at least 100 characters"
         return None
 
 
-# 使用例
-article = Article("Python入門", "Python is..." * 50, "田中太郎")
+# Usage example
+article = Article("Python Intro", "Python is..." * 50, "Taro Tanaka")
 print(article.to_json())           # SerializableMixin
 print(article.is_valid())          # ValidatableMixin
 article.touch()                     # TimestampMixin
-article.log_info("記事を更新")     # LoggableMixin
+article.log_info("Article updated") # LoggableMixin
 ```
 
 ---
 
-## 5. 実務でのクラス設計パターン
+## 5. Practical Class Design Patterns
 
-### 5.1 Value Object（値オブジェクト）
+### 5.1 Value Object
 
 ```python
 from dataclasses import dataclass
 
 
-@dataclass(frozen=True)  # 不変オブジェクト
+@dataclass(frozen=True)  # Immutable object
 class Money:
-    """金額を表す値オブジェクト"""
+    """Value object representing an amount of money"""
     amount: int
     currency: str = "JPY"
 
     def __post_init__(self):
         if self.amount < 0:
-            raise ValueError("金額は0以上である必要があります")
+            raise ValueError("Amount must be 0 or greater")
         if self.currency not in ("JPY", "USD", "EUR"):
-            raise ValueError(f"未対応の通貨: {self.currency}")
+            raise ValueError(f"Unsupported currency: {self.currency}")
 
     def __add__(self, other: 'Money') -> 'Money':
         if self.currency != other.currency:
-            raise ValueError("異なる通貨は加算できません")
+            raise ValueError("Cannot add different currencies")
         return Money(self.amount + other.amount, self.currency)
 
     def __sub__(self, other: 'Money') -> 'Money':
         if self.currency != other.currency:
-            raise ValueError("異なる通貨は減算できません")
+            raise ValueError("Cannot subtract different currencies")
         return Money(self.amount - other.amount, self.currency)
 
     def __mul__(self, factor: int | float) -> 'Money':
@@ -1885,22 +1884,22 @@ class Money:
 
     def format(self) -> str:
         if self.currency == "JPY":
-            return f"¥{self.amount:,}"
+            return f"\u00a5{self.amount:,}"
         elif self.currency == "USD":
             return f"${self.amount / 100:.2f}"
         elif self.currency == "EUR":
-            return f"€{self.amount / 100:.2f}"
+            return f"\u20ac{self.amount / 100:.2f}"
         return f"{self.amount} {self.currency}"
 
 
 @dataclass(frozen=True)
 class EmailAddress:
-    """メールアドレスの値オブジェクト"""
+    """Value object for email addresses"""
     value: str
 
     def __post_init__(self):
         if not self._is_valid_email(self.value):
-            raise ValueError(f"無効なメールアドレス: {self.value}")
+            raise ValueError(f"Invalid email address: {self.value}")
 
     @staticmethod
     def _is_valid_email(email: str) -> bool:
@@ -1919,13 +1918,13 @@ class EmailAddress:
 
 @dataclass(frozen=True)
 class DateRange:
-    """日付範囲の値オブジェクト"""
+    """Value object for date ranges"""
     start: date
     end: date
 
     def __post_init__(self):
         if self.start > self.end:
-            raise ValueError("開始日は終了日より前である必要があります")
+            raise ValueError("Start date must be before end date")
 
     @property
     def days(self) -> int:
@@ -1938,11 +1937,11 @@ class DateRange:
         return self.start <= other.end and other.start <= self.end
 
 
-# 使用例
+# Usage example
 price = Money(1500)
 tax = price * 0.1
 total = price + tax
-print(total.format())  # ¥1,650
+print(total.format())  # \u00a51,650
 
 email = EmailAddress("user@example.com")
 print(email.domain)  # example.com
@@ -1952,7 +1951,7 @@ print(period.days)  # 364
 print(period.contains(date(2025, 6, 15)))  # True
 ```
 
-### 5.2 Entity（エンティティ）
+### 5.2 Entity
 
 ```python
 from dataclasses import dataclass, field
@@ -1961,7 +1960,7 @@ from uuid import UUID, uuid4
 
 @dataclass
 class OrderItem:
-    """注文明細"""
+    """Order line item"""
     product_name: str
     unit_price: Money
     quantity: int
@@ -1973,7 +1972,7 @@ class OrderItem:
 
 @dataclass
 class Order:
-    """注文エンティティ - IDで同一性を判断"""
+    """Order entity - identity is determined by ID"""
     id: UUID = field(default_factory=uuid4)
     customer_name: str = ""
     items: list[OrderItem] = field(default_factory=list)
@@ -1982,13 +1981,13 @@ class Order:
 
     def add_item(self, product_name: str, unit_price: int, quantity: int) -> None:
         if self.status != "draft":
-            raise RuntimeError("確定済みの注文には商品を追加できません")
+            raise RuntimeError("Cannot add items to a confirmed order")
         item = OrderItem(product_name, Money(unit_price), quantity)
         self.items.append(item)
 
     def remove_item(self, index: int) -> None:
         if self.status != "draft":
-            raise RuntimeError("確定済みの注文からは商品を削除できません")
+            raise RuntimeError("Cannot remove items from a confirmed order")
         self.items.pop(index)
 
     @property
@@ -1997,22 +1996,22 @@ class Order:
 
     def confirm(self) -> None:
         if not self.items:
-            raise ValueError("商品がない注文は確定できません")
+            raise ValueError("Cannot confirm an order with no items")
         if not self.customer_name:
-            raise ValueError("顧客名が設定されていません")
+            raise ValueError("Customer name is not set")
         self.status = "confirmed"
 
     def cancel(self) -> None:
         if self.status == "shipped":
-            raise RuntimeError("発送済みの注文はキャンセルできません")
+            raise RuntimeError("Cannot cancel a shipped order")
         self.status = "cancelled"
 
     def ship(self) -> None:
         if self.status != "confirmed":
-            raise RuntimeError("確定済みの注文のみ発送できます")
+            raise RuntimeError("Only confirmed orders can be shipped")
         self.status = "shipped"
 
-    # エンティティの同一性は ID で判断
+    # Entity identity is determined by ID
     def __eq__(self, other) -> bool:
         if not isinstance(other, Order):
             return False
@@ -2022,20 +2021,20 @@ class Order:
         return hash(self.id)
 
 
-# 使用例
-order = Order(customer_name="田中太郎")
-order.add_item("ノートPC", 150000, 1)
-order.add_item("マウス", 3000, 2)
-print(f"合計: {order.total.format()}")  # ¥156,000
+# Usage example
+order = Order(customer_name="Taro Tanaka")
+order.add_item("Laptop", 150000, 1)
+order.add_item("Mouse", 3000, 2)
+print(f"Total: {order.total.format()}")  # \u00a5156,000
 order.confirm()
 order.ship()
 ```
 
-### 5.3 Service（サービスクラス）
+### 5.3 Service Class
 
 ```python
 class OrderService:
-    """注文に関するビジネスロジック"""
+    """Business logic related to orders"""
 
     def __init__(
         self,
@@ -2050,14 +2049,14 @@ class OrderService:
         self._notification = notification_service
 
     def place_order(self, customer_id: str, cart_items: list[dict]) -> Order:
-        """注文を確定する"""
-        # 1. 在庫チェック
+        """Confirm an order"""
+        # 1. Stock check
         for item in cart_items:
             product = self._product_repo.find_by_id(item['product_id'])
             if not product or product.stock < item['quantity']:
-                raise ValueError(f"在庫不足: {item['product_id']}")
+                raise ValueError(f"Insufficient stock: {item['product_id']}")
 
-        # 2. 注文作成
+        # 2. Create order
         order = Order(customer_name=customer_id)
         for item in cart_items:
             product = self._product_repo.find_by_id(item['product_id'])
@@ -2065,27 +2064,27 @@ class OrderService:
 
         order.confirm()
 
-        # 3. 決済処理
+        # 3. Payment processing
         payment_result = self._payment.charge(
             customer_id=customer_id,
             amount=order.total.amount
         )
         if not payment_result.success:
-            raise RuntimeError(f"決済失敗: {payment_result.error}")
+            raise RuntimeError(f"Payment failed: {payment_result.error}")
 
-        # 4. 在庫を減らす
+        # 4. Reduce stock
         for item in cart_items:
             product = self._product_repo.find_by_id(item['product_id'])
             product.reduce_stock(item['quantity'])
             self._product_repo.save(product)
 
-        # 5. 注文を保存
+        # 5. Save order
         self._order_repo.save(order)
 
-        # 6. 通知
+        # 6. Notification
         self._notification.send(
             customer_id,
-            f"ご注文ありがとうございます。注文ID: {order.id}"
+            f"Thank you for your order. Order ID: {order.id}"
         )
 
         return order
@@ -2093,16 +2092,16 @@ class OrderService:
 
 ---
 
-## 6. 現代のOOP
+## 6. Modern OOP
 
-### 6.1 データクラスとイミュータビリティ
+### 6.1 Data Classes and Immutability
 
 ```python
 # Python dataclass
 from dataclasses import dataclass, field, replace
 
 
-@dataclass(frozen=True)  # frozen=True で不変に
+@dataclass(frozen=True)  # frozen=True makes it immutable
 class Point:
     x: float
     y: float
@@ -2111,20 +2110,20 @@ class Point:
         return ((self.x - other.x) ** 2 + (self.y - other.y) ** 2) ** 0.5
 
     def translate(self, dx: float, dy: float) -> 'Point':
-        """移動した新しいPointを返す（元は変更しない）"""
+        """Return a new Point with the translation applied (original is unchanged)"""
         return replace(self, x=self.x + dx, y=self.y + dy)
 
 
 @dataclass(frozen=True)
 class Config:
-    """アプリケーション設定（不変）"""
+    """Application configuration (immutable)"""
     database_url: str
     debug: bool = False
     max_connections: int = 10
     allowed_origins: tuple[str, ...] = ("http://localhost:3000",)
 
     def with_debug(self, debug: bool) -> 'Config':
-        """デバッグ設定を変更した新しいConfigを返す"""
+        """Return a new Config with the debug setting changed"""
         return replace(self, debug=debug)
 
     def with_max_connections(self, n: int) -> 'Config':
@@ -2139,21 +2138,21 @@ data class User(
     val email: String,
     val role: Role = Role.USER
 ) {
-    // data class は equals, hashCode, toString, copy を自動生成
+    // data class auto-generates equals, hashCode, toString, copy
 
     fun withRole(newRole: Role): User = copy(role = newRole)
 }
 
 enum class Role { USER, ADMIN, MODERATOR }
 
-// 使用例
-val user = User(1, "田中太郎", "tanaka@example.com")
-val admin = user.copy(role = Role.ADMIN)  // 不変的な更新
-println(admin)  // User(id=1, name=田中太郎, email=tanaka@example.com, role=ADMIN)
+// Usage example
+val user = User(1, "Taro Tanaka", "tanaka@example.com")
+val admin = user.copy(role = Role.ADMIN)  // Immutable update
+println(admin)  // User(id=1, name=Taro Tanaka, email=tanaka@example.com, role=ADMIN)
 ```
 
 ```typescript
-// TypeScript での不変オブジェクト
+// Immutable objects in TypeScript
 interface UserData {
     readonly id: string;
     readonly name: string;
@@ -2174,7 +2173,7 @@ class ImmutableUser implements UserData {
         this.createdAt = data.createdAt;
     }
 
-    // 変更時は新しいインスタンスを返す
+    // Returns a new instance on modification
     withName(name: string): ImmutableUser {
         return new ImmutableUser({ ...this, name });
     }
@@ -2185,17 +2184,17 @@ class ImmutableUser implements UserData {
 }
 ```
 
-### 6.2 OOPと関数型の融合
+### 6.2 Blending OOP and Functional Programming
 
 ```python
-# 現代のOOP: 関数型プログラミングとの融合
+# Modern OOP: blending with functional programming
 
 from dataclasses import dataclass
 from typing import Callable
 from functools import reduce
 
 
-# 1. データクラス + 純粋関数
+# 1. Data classes + pure functions
 @dataclass(frozen=True)
 class Transaction:
     amount: int
@@ -2204,12 +2203,12 @@ class Transaction:
     is_income: bool
 
 
-# ビジネスロジックを純粋関数として定義
+# Define business logic as pure functions
 def total_by_category(
     transactions: list[Transaction],
     category: str
 ) -> int:
-    """指定カテゴリの合計金額を計算する純粋関数"""
+    """Pure function that calculates the total for a specified category"""
     return sum(
         t.amount if t.is_income else -t.amount
         for t in transactions
@@ -2221,12 +2220,12 @@ def filter_transactions(
     transactions: list[Transaction],
     predicate: Callable[[Transaction], bool]
 ) -> list[Transaction]:
-    """条件に合う取引を抽出する高階関数"""
+    """Higher-order function that extracts transactions matching a condition"""
     return [t for t in transactions if predicate(t)]
 
 
 def summarize(transactions: list[Transaction]) -> dict[str, int]:
-    """カテゴリ別集計"""
+    """Summary by category"""
     categories = set(t.category for t in transactions)
     return {
         cat: total_by_category(transactions, cat)
@@ -2234,9 +2233,9 @@ def summarize(transactions: list[Transaction]) -> dict[str, int]:
     }
 
 
-# 2. メソッドチェーン（Fluent Interface）
+# 2. Method chaining (Fluent Interface)
 class TransactionQuery:
-    """取引データに対するクエリビルダー"""
+    """Query builder for transaction data"""
 
     def __init__(self, transactions: list[Transaction]):
         self._transactions = transactions
@@ -2263,27 +2262,27 @@ class TransactionQuery:
         return self._transactions.copy()
 
 
-# 使用例: メソッドチェーンで直感的なクエリ
+# Usage example: intuitive queries with method chaining
 transactions = [
-    Transaction(300000, "給与", "月給", True),
-    Transaction(80000, "家賃", "マンション", False),
-    Transaction(5000, "食費", "スーパー", False),
-    Transaction(3000, "食費", "コンビニ", False),
-    Transaction(50000, "副業", "フリーランス", True),
+    Transaction(300000, "Salary", "Monthly salary", True),
+    Transaction(80000, "Rent", "Apartment", False),
+    Transaction(5000, "Food", "Supermarket", False),
+    Transaction(3000, "Food", "Convenience store", False),
+    Transaction(50000, "Side job", "Freelance", True),
 ]
 
 query = TransactionQuery(transactions)
-food_total = query.expense_only().by_category("食費").total()
-print(f"食費合計: {food_total}円")  # 8000円
+food_total = query.expense_only().by_category("Food").total()
+print(f"Food total: {food_total} yen")  # 8000 yen
 
 large_expenses = query.expense_only().above(10000).count()
-print(f"1万円以上の支出: {large_expenses}件")  # 1件
+print(f"Expenses over 10,000 yen: {large_expenses}")  # 1
 ```
 
-### 6.3 プロトコル指向プログラミング（Swift流）
+### 6.3 Protocol-Oriented Programming (Swift-style)
 
 ```python
-# Protocol Oriented Programming（POP）のPython実装
+# Protocol Oriented Programming (POP) implementation in Python
 
 from typing import Protocol, runtime_checkable
 
@@ -2313,7 +2312,7 @@ class Persistable(Protocol):
     def from_dict(cls, data: dict) -> 'Persistable': ...
 
 
-# プロトコルに準拠するクラス（明示的な継承なし）
+# Class conforming to protocols (no explicit inheritance)
 @dataclass(frozen=True)
 class Temperature:
     celsius: float
@@ -2323,7 +2322,7 @@ class Temperature:
         return self.celsius * 9 / 5 + 32
 
     def display(self) -> str:
-        return f"{self.celsius}°C ({self.fahrenheit:.1f}°F)"
+        return f"{self.celsius}\u00b0C ({self.fahrenheit:.1f}\u00b0F)"
 
     def __lt__(self, other: 'Temperature') -> bool:
         return self.celsius < other.celsius
@@ -2339,7 +2338,7 @@ class Temperature:
         return cls(celsius=data["celsius"])
 
 
-# プロトコルベースの汎用関数
+# Protocol-based generic functions
 def find_max(items: list[Comparable]) -> Comparable:
     return max(items)
 
@@ -2350,55 +2349,55 @@ def display_all(items: list[Displayable]) -> None:
 temps = [Temperature(20), Temperature(35), Temperature(-5)]
 display_all(temps)
 hottest = find_max(temps)
-print(f"最高気温: {hottest.display()}")
+print(f"Highest temperature: {hottest.display()}")
 ```
 
 ---
 
-## 7. OOPのアンチパターンと回避策
+## 7. OOP Anti-patterns and How to Avoid Them
 
-### 7.1 避けるべきパターン
+### 7.1 Patterns to Avoid
 
 ```
-OOPのアンチパターン一覧:
+OOP Anti-pattern List:
 
-1. God Object（神クラス）
-   ❌ 1つのクラスがすべてを管理する
-   ✅ 責任ごとにクラスを分割
+1. God Object
+   Bad: One class manages everything
+   Good: Split classes by responsibility
 
-2. Anemic Domain Model（貧血ドメインモデル）
-   ❌ ゲッター/セッターだけのデータ入れ物
-   ✅ ビジネスロジックをエンティティ内に持たせる
+2. Anemic Domain Model
+   Bad: Data containers with only getters/setters
+   Good: Include business logic within the entity
 
-3. Feature Envy（特性の横恋慕）
-   ❌ あるクラスが別クラスのデータに過度にアクセス
-   ✅ データを持つクラスにメソッドを移動
+3. Feature Envy
+   Bad: A class excessively accesses another class's data
+   Good: Move methods to the class that owns the data
 
-4. Shotgun Surgery（散弾銃手術）
-   ❌ 1つの変更が多数のクラスに波及
-   ✅ 関連する責任を1つのクラスに集約
+4. Shotgun Surgery
+   Bad: One change propagates to many classes
+   Good: Consolidate related responsibilities into one class
 
-5. Inappropriate Intimacy（不適切な親密さ）
-   ❌ クラス間が密結合で内部詳細に依存
-   ✅ インターフェースを通じた疎結合
+5. Inappropriate Intimacy
+   Bad: Tight coupling between classes that depend on internal details
+   Good: Loose coupling through interfaces
 
-6. Dead Code（死んだコード）
-   ❌ 使われていないクラスやメソッドの放置
-   ✅ 定期的に未使用コードを削除
+6. Dead Code
+   Bad: Leaving unused classes or methods in the codebase
+   Good: Regularly remove unused code
 
-7. Premature Abstraction（早すぎる抽象化）
-   ❌ 将来の拡張を見越した過度な抽象化
-   ✅ YAGNI原則: 現在必要なものだけを実装
+7. Premature Abstraction
+   Bad: Excessive abstraction anticipating future extensions
+   Good: YAGNI principle: implement only what is needed now
 
-8. Parallel Inheritance Hierarchies（並行継承階層）
-   ❌ あるクラスを追加すると別の階層にもクラスが必要
-   ✅ コンポジションで統合
+8. Parallel Inheritance Hierarchies
+   Bad: Adding a class to one hierarchy requires adding one to another
+   Good: Consolidate with composition
 ```
 
 ```python
-# ❌ Anemic Domain Model（貧血ドメインモデル）
+# Bad: Anemic Domain Model
 class UserAnemic:
-    """ただのデータ入れ物 - ビジネスロジックがない"""
+    """Just a data container - no business logic"""
     def __init__(self):
         self.name = ""
         self.email = ""
@@ -2406,7 +2405,7 @@ class UserAnemic:
         self.login_count = 0
         self.last_login = None
 
-# ロジックがサービス層に散在
+# Logic is scattered across the service layer
 class UserServiceAnemic:
     def activate_user(self, user: UserAnemic):
         if user.status == "pending":
@@ -2420,9 +2419,9 @@ class UserServiceAnemic:
         return user.status == "active"
 
 
-# ✅ Rich Domain Model（リッチドメインモデル）
+# Good: Rich Domain Model
 class UserRich:
-    """ビジネスロジックを内包するリッチなドメインモデル"""
+    """Rich domain model that encapsulates business logic"""
 
     def __init__(self, name: str, email: str):
         self._name = name
@@ -2440,21 +2439,21 @@ class UserRich:
         return self._status == "active"
 
     def activate(self) -> None:
-        """アカウントを有効化する"""
+        """Activate the account"""
         if self._status != "pending":
-            raise RuntimeError(f"ステータス '{self._status}' からは有効化できません")
+            raise RuntimeError(f"Cannot activate from status '{self._status}'")
         self._status = "active"
 
     def deactivate(self, reason: str) -> None:
-        """アカウントを無効化する"""
+        """Deactivate the account"""
         if self._status != "active":
-            raise RuntimeError("アクティブなアカウントのみ無効化できます")
+            raise RuntimeError("Only active accounts can be deactivated")
         self._status = "inactive"
 
     def login(self) -> None:
-        """ログイン処理"""
+        """Login processing"""
         if not self.is_active:
-            raise PermissionError("非アクティブなアカウントではログインできません")
+            raise PermissionError("Cannot login with an inactive account")
         self._login_count += 1
         self._last_login = datetime.now()
 
@@ -2464,61 +2463,61 @@ class UserRich:
 
 ---
 
-## 8. 言語別OOPの特徴比較
+## 8. Language-specific OOP Feature Comparison
 
 ```
-言語別OOPの特徴:
+Language-specific OOP Features:
 
-┌──────────────┬───────────┬──────────┬──────────────┬────────────┐
-│              │ Python    │ Java     │ TypeScript   │ Go         │
-├──────────────┼───────────┼──────────┼──────────────┼────────────┤
-│ クラス       │ あり      │ あり     │ あり         │ struct     │
-│ 継承         │ 多重継承  │ 単一継承 │ 単一継承     │ なし       │
-│ インター     │ ABC/      │ interface│ interface    │ interface  │
-│ フェース     │ Protocol  │          │              │ (暗黙的)   │
-│ アクセス制御 │ 慣習(_)   │ 4段階    │ 3段階        │ 大文字/    │
-│              │           │          │ (public等)   │ 小文字     │
-│ ジェネリクス │ typing    │ あり     │ あり         │ あり(1.18) │
-│ データクラス │ dataclass │ record   │ N/A          │ struct     │
-│ Null安全性   │ Optional  │ Optional │ strictNull   │ nil + err  │
-│ 不変性       │ frozen    │ final    │ readonly     │ N/A        │
-│ パターン     │ match     │ sealed   │ discriminated│ switch     │
-│ マッチ       │ (3.10+)   │ (21+)    │ union        │ type       │
-└──────────────┴───────────┴──────────┴──────────────┴────────────┘
++----------------+-----------+----------+--------------+------------+
+|                | Python    | Java     | TypeScript   | Go         |
++----------------+-----------+----------+--------------+------------+
+| Classes        | Yes       | Yes      | Yes          | struct     |
+| Inheritance    | Multiple  | Single   | Single       | None       |
+| Interfaces     | ABC/      | interface| interface    | interface  |
+|                | Protocol  |          |              | (implicit) |
+| Access control | Convention| 4 levels | 3 levels     | Upper/     |
+|                | (_)       |          | (public etc) | lowercase  |
+| Generics       | typing    | Yes      | Yes          | Yes(1.18)  |
+| Data classes   | dataclass | record   | N/A          | struct     |
+| Null safety    | Optional  | Optional | strictNull   | nil + err  |
+| Immutability   | frozen    | final    | readonly     | N/A        |
+| Pattern        | match     | sealed   | discriminated| switch     |
+| matching       | (3.10+)   | (21+)    | union        | type       |
++----------------+-----------+----------+--------------+------------+
 
-特筆事項:
-- Go はクラスがなく、struct + interface + composition で OOP を実現
-- Rust は trait ベースで、クラス継承はない
-- Swift は Protocol-Oriented Programming を推奨
-- Kotlin は data class + sealed class + delegation で簡潔な OOP
+Notable points:
+- Go has no classes; it achieves OOP through struct + interface + composition
+- Rust uses traits; it has no class inheritance
+- Swift recommends Protocol-Oriented Programming
+- Kotlin provides concise OOP with data class + sealed class + delegation
 ```
 
 ---
 
-## 9. テスト容易性を考慮したOOP設計
+## 9. OOP Design for Testability
 
 ```python
-# テスタブルなクラス設計
+# Testable class design
 
 from abc import ABC, abstractmethod
 from typing import Protocol
 
 
-# === 依存性注入でテスト容易に ===
+# === Dependency injection for testability ===
 
 class Clock(Protocol):
-    """時計のプロトコル"""
+    """Clock protocol"""
     def now(self) -> datetime: ...
 
 
 class RealClock:
-    """本番用の時計"""
+    """Production clock"""
     def now(self) -> datetime:
         return datetime.now()
 
 
 class FakeClock:
-    """テスト用のフェイク時計"""
+    """Fake clock for testing"""
     def __init__(self, fixed_time: datetime):
         self._time = fixed_time
 
@@ -2531,10 +2530,10 @@ class FakeClock:
 
 
 class SessionManager:
-    """セッション管理 - テスト容易な設計"""
+    """Session management - designed for testability"""
 
     def __init__(self, clock: Clock, timeout_minutes: int = 30):
-        self._clock = clock  # 時計を注入
+        self._clock = clock  # Inject the clock
         self._timeout_minutes = timeout_minutes
         self._sessions: dict[str, datetime] = {}
 
@@ -2558,42 +2557,42 @@ class SessionManager:
             self._sessions[session_id] = self._clock.now()
 
 
-# テスト例
+# Test example
 def test_session_expiry():
-    """セッションの有効期限をテスト"""
+    """Test session expiration"""
     fake_clock = FakeClock(datetime(2025, 1, 1, 12, 0, 0))
     manager = SessionManager(clock=fake_clock, timeout_minutes=30)
 
     session_id = manager.create_session("user-1")
 
-    # セッション作成直後は有効
+    # Session is valid immediately after creation
     assert manager.is_valid(session_id) == True
 
-    # 29分後はまだ有効
+    # Still valid after 29 minutes
     fake_clock.advance(29 * 60)
     assert manager.is_valid(session_id) == True
 
-    # 31分後は期限切れ
+    # Expired after 31 minutes
     fake_clock.advance(2 * 60)
     assert manager.is_valid(session_id) == False
-    print("テスト通過: セッション有効期限")
+    print("Test passed: Session expiration")
 
 
 def test_session_refresh():
-    """セッションのリフレッシュをテスト"""
+    """Test session refresh"""
     fake_clock = FakeClock(datetime(2025, 1, 1, 12, 0, 0))
     manager = SessionManager(clock=fake_clock, timeout_minutes=30)
 
     session_id = manager.create_session("user-1")
 
-    # 25分後にリフレッシュ
+    # Refresh after 25 minutes
     fake_clock.advance(25 * 60)
     manager.refresh(session_id)
 
-    # リフレッシュから10分後はまだ有効
+    # Still valid 10 minutes after refresh
     fake_clock.advance(10 * 60)
     assert manager.is_valid(session_id) == True
-    print("テスト通過: セッションリフレッシュ")
+    print("Test passed: Session refresh")
 
 
 test_session_expiry()
@@ -2602,41 +2601,41 @@ test_session_refresh()
 
 ---
 
-## 10. OOPを使わない方が良い場面
+## 10. When Not to Use OOP
 
 ```
-OOPが適さないケース:
+Cases where OOP is not suitable:
 
-1. 小規模スクリプト:
-   → 手続き型で関数をいくつか定義するだけで十分
-   → クラス設計はオーバーヘッド
+1. Small scripts:
+   -> Defining a few functions procedurally is sufficient
+   -> Class design is overhead
 
-2. データ変換パイプライン:
-   → 関数型（map/filter/reduce）が適切
-   → 状態を持たない変換処理の連鎖
+2. Data transformation pipelines:
+   -> Functional style (map/filter/reduce) is appropriate
+   -> A chain of stateless transformations
 
-3. 数値計算・科学計算:
-   → NumPy等の配列操作が主体
-   → OOPの抽象化は性能上のオーバーヘッド
+3. Numerical/scientific computing:
+   -> Primarily array operations with NumPy, etc.
+   -> OOP abstraction adds performance overhead
 
-4. シンプルなCLIツール:
-   → 引数をパースして処理を実行するだけ
-   → クラスは不要な複雑さ
+4. Simple CLI tools:
+   -> Just parse arguments and execute processing
+   -> Classes add unnecessary complexity
 
-5. 設定ファイルの処理:
-   → 辞書（dict）やdataclassで十分
-   → メソッドが不要ならクラスにしない
+5. Configuration file processing:
+   -> Dictionaries (dict) or dataclasses are sufficient
+   -> Don't make a class if methods aren't needed
 
-6. ワンショットのデータ処理:
-   → スクリプトとして書いた方が明確
-   → 再利用性が不要なら抽象化しない
+6. One-shot data processing:
+   -> Writing it as a script is clearer
+   -> Don't abstract if reusability isn't needed
 
-判断基準:
-  - 状態管理が必要 → OOP検討
-  - 複数の型に共通の振る舞い → OOP（ポリモーフィズム）
-  - データ変換が主体 → 関数型
-  - 小規模・使い捨て → 手続き型
-  - 並行処理が主体 → アクターモデルや CSP
+Decision criteria:
+  - State management needed -> Consider OOP
+  - Shared behavior across multiple types -> OOP (polymorphism)
+  - Primarily data transformation -> Functional style
+  - Small-scale / disposable -> Procedural style
+  - Primarily concurrent processing -> Actor model or CSP
 ```
 
 ---
@@ -2644,45 +2643,45 @@ OOPが適さないケース:
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point in learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory, but by actually writing code and verifying how it works.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the basics and jumping to advanced topics. We recommend thoroughly understanding the fundamental concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this applied in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## まとめ
-
-| 概念 | ポイント |
-|------|---------|
-| 4大原則 | カプセル化、継承、ポリモーフィズム、抽象化 |
-| SOLID | 5つの設計原則。保守性と拡張性を向上 |
-| SRP | 1クラス1責任。変更の理由は1つだけ |
-| OCP | 拡張に開き、修正に閉じる。Strategy パターン等で実現 |
-| LSP | サブタイプは親と置換可能でなければならない |
-| ISP | クライアントに不要なメソッドへの依存を強制しない |
-| DIP | 抽象に依存し、具体に依存しない。DIで実現 |
-| 継承 vs コンポジション | 「継承よりコンポジション」。柔軟性と疎結合を重視 |
-| 値オブジェクト | 不変、等価性で比較、ドメインの概念を表現 |
-| エンティティ | ID で識別、状態を持つ、ライフサイクルがある |
-| 現代OOP | 関数型との融合、不変性重視、軽量データクラス |
-| テスト容易性 | DI、Protocol、テストダブルで検証しやすい設計 |
-| アンチパターン | God Object、Anemic Model、Feature Envy を避ける |
+Knowledge of this topic is frequently used in everyday development work. It becomes particularly important during code reviews and architecture design.
 
 ---
 
-## 次に読むべきガイド
+## Summary
+
+| Concept | Key Points |
+|---------|-----------|
+| Four Pillars | Encapsulation, Inheritance, Polymorphism, Abstraction |
+| SOLID | Five design principles. Improve maintainability and extensibility |
+| SRP | One class, one responsibility. Only one reason to change |
+| OCP | Open for extension, closed for modification. Achieved via Strategy pattern, etc. |
+| LSP | Subtypes must be substitutable for their base types |
+| ISP | Don't force clients to depend on methods they don't use |
+| DIP | Depend on abstractions, not on concrete implementations. Achieved via DI |
+| Inheritance vs Composition | "Favor composition over inheritance." Prioritize flexibility and loose coupling |
+| Value Object | Immutable, compared by equality, represents domain concepts |
+| Entity | Identified by ID, has state, has a lifecycle |
+| Modern OOP | Blending with functional, emphasis on immutability, lightweight data classes |
+| Testability | DI, Protocol, test doubles for easily verifiable designs |
+| Anti-patterns | Avoid God Object, Anemic Model, Feature Envy |
 
 ---
 
-## 参考文献
+## Recommended Next Guides
+
+---
+
+## References
 1. Martin, R. C. "Clean Architecture." Prentice Hall, 2017.
 2. Gamma, E. et al. "Design Patterns: Elements of Reusable Object-Oriented Software (GoF)." Addison-Wesley, 1994.
 3. Bloch, J. "Effective Java." 3rd Edition, Addison-Wesley, 2018.

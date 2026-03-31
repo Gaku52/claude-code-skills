@@ -1,962 +1,1004 @@
-# OSの歴史と進化
+# History and Evolution of Operating Systems
 
-> OSの歴史は「抽象化の積み重ね」の歴史である -- ハードウェアの複雑さから人間を解放する戦いの記録。
+> The history of operating systems is a history of "layered abstraction" -- a record of the struggle to free humans from the complexity of hardware.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] OSの進化の主要なマイルストーンを知る
-- [ ] バッチ処理→タイムシェアリング→GUIの流れを理解する
-- [ ] 現代OSのルーツを辿れる
-- [ ] 各時代のOS設計思想がなぜ生まれたかを理解する
-- [ ] Unix/Linux/Windowsの歴史的背景を詳しく知る
+- [ ] Learn the major milestones in the evolution of operating systems
+- [ ] Understand the progression from batch processing to time-sharing to GUI
+- [ ] Trace the roots of modern operating systems
+- [ ] Understand why the design philosophies of each era emerged
+- [ ] Gain detailed knowledge of the historical background of Unix/Linux/Windows
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Having the following knowledge will deepen your understanding before reading this guide:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [OSとは何か](./00-what-is-os.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Understanding of the content in [What is an OS](./00-what-is-os.md)
 
 ---
 
-## 1. OSの進化年表
+## 1. Timeline of OS Evolution
 
-### 1.1 1940-1950年代: OS以前の時代
-
-```
-コンピュータの黎明期:
-
-  1943-1945: ENIAC（Electronic Numerical Integrator and Computer）
-  ┌──────────────────────────────────────────────┐
-  │ - 世界初の汎用電子コンピュータ（米陸軍）      │
-  │ - 重量30トン、18,000本の真空管                │
-  │ - プログラミング = 配線を物理的に変更         │
-  │ - OSという概念は存在しない                    │
-  │ - オペレーター（多くは女性数学者）が手動操作  │
-  └──────────────────────────────────────────────┘
-
-  1949: EDSAC（Electronic Delay Storage Automatic Calculator）
-  → ストアードプログラム方式の実用化
-  → プログラムをメモリに格納して実行
-  → フォン・ノイマン・アーキテクチャの実装
-
-  1950年代前半の典型的なコンピュータ利用:
-  ┌──────────────────────────────────────────────┐
-  │ 1. プログラマがパンチカードにプログラムを記述 │
-  │ 2. オペレーターにカードの束を渡す             │
-  │ 3. オペレーターがカードをリーダーに投入       │
-  │ 4. コンピュータが1つのジョブを実行           │
-  │ 5. 結果がプリンターに出力                     │
-  │ 6. 次のジョブの準備（テープ交換等）に数分     │
-  │ 7. この間、高価なCPUは完全にアイドル状態     │
-  │                                              │
-  │ 問題: CPUの利用効率が極めて低い              │
-  │ → 1秒1ドル相当の高価なマシンが遊んでいる    │
-  │ → 人間の作業がボトルネック                   │
-  └──────────────────────────────────────────────┘
-
-  この問題を解決するために、最初のOSが生まれた。
-```
-
-### 1.2 1950年代後半: バッチ処理の時代
+### 1.1 1940s-1950s: The Pre-OS Era
 
 ```
-1950年代: バッチ処理の時代
-  ┌──────────────────────────────────────────┐
-  │ パンチカード → コンピュータ → 結果出力    │
-  │ 人間がプログラムを1つずつ投入             │
-  │ OSは存在しない（オペレータが手動管理）    │
-  │                                          │
-  │ 1956: GM-NAA I/O（最初のOS）             │
-  │ → IBM 704用のバッチ処理システム           │
-  │ → ゼネラルモーターズとノースアメリカン航空が共同開発│
-  │ → ジョブを自動的に次々実行               │
-  │ → 人間の介入なしにジョブを切り替え       │
-  └──────────────────────────────────────────┘
+The Dawn of Computing:
 
-  バッチ処理OSの仕組み:
-  ┌──────────────────────────────────────────────┐
-  │ ┌─────────┐  ┌─────────┐  ┌─────────┐      │
-  │ │ Job 1   │→│ Job 2   │→│ Job 3   │→ ... │
-  │ │(FORTRAN)│  │(COBOL)  │  │(Assemb.)│      │
-  │ └─────────┘  └─────────┘  └─────────┘      │
-  │                                              │
-  │ 常駐モニタ（Resident Monitor）:              │
-  │ - メモリに常駐する小さなプログラム           │
-  │ - ジョブの読み込みと実行を自動化             │
-  │ - JCL（Job Control Language）でジョブを記述  │
-  │                                              │
-  │ JCLの例:                                     │
-  │ $JOB                                         │
-  │ $FORTRAN                                     │
-  │ (FORTRANソースコード)                        │
-  │ $LOAD                                        │
-  │ $RUN                                         │
-  │ (入力データ)                                 │
-  │ $END                                         │
-  └──────────────────────────────────────────────┘
+  1943-1945: ENIAC (Electronic Numerical Integrator and Computer)
+  +----------------------------------------------+
+  | - World's first general-purpose electronic    |
+  |   computer (US Army)                          |
+  | - Weighed 30 tons, 18,000 vacuum tubes        |
+  | - Programming = physically rewiring           |
+  | - The concept of an OS did not exist           |
+  | - Operators (many were female mathematicians)  |
+  |   operated it manually                         |
+  +----------------------------------------------+
+
+  1949: EDSAC (Electronic Delay Storage Automatic Calculator)
+  -> Practical implementation of stored-program concept
+  -> Programs stored in memory and executed
+  -> Implementation of von Neumann architecture
+
+  Typical computer usage in the early 1950s:
+  +----------------------------------------------+
+  | 1. Programmer writes program on punch cards    |
+  | 2. Hands the card deck to the operator         |
+  | 3. Operator feeds cards into the reader         |
+  | 4. Computer executes one job                    |
+  | 5. Results printed on printer                   |
+  | 6. Preparation for next job (tape swap, etc.)   |
+  |    takes several minutes                        |
+  | 7. During this time, the expensive CPU          |
+  |    is completely idle                            |
+  |                                                |
+  | Problem: Extremely low CPU utilization           |
+  | -> An expensive machine worth $1/second sits idle|
+  | -> Human operations are the bottleneck           |
+  +----------------------------------------------+
+
+  The first OS was born to solve this problem.
+```
+
+### 1.2 Late 1950s: The Era of Batch Processing
+
+```
+1950s: The Era of Batch Processing
+  +------------------------------------------+
+  | Punch cards -> Computer -> Output results  |
+  | Humans feed programs one by one             |
+  | No OS (operator manages manually)           |
+  |                                            |
+  | 1956: GM-NAA I/O (the first OS)           |
+  | -> Batch processing system for IBM 704     |
+  | -> Jointly developed by General Motors      |
+  |    and North American Aviation              |
+  | -> Automatically executes jobs sequentially |
+  | -> Switches jobs without human intervention |
+  +------------------------------------------+
+
+  How a batch processing OS works:
+  +----------------------------------------------+
+  | +---------+  +---------+  +---------+        |
+  | | Job 1   |->| Job 2   |->| Job 3   |-> ...  |
+  | |(FORTRAN)|  |(COBOL)  |  |(Assemb.)|        |
+  | +---------+  +---------+  +---------+        |
+  |                                              |
+  | Resident Monitor:                            |
+  | - A small program residing in memory          |
+  | - Automates job loading and execution         |
+  | - Jobs described in JCL (Job Control Language)|
+  |                                              |
+  | JCL example:                                 |
+  | $JOB                                         |
+  | $FORTRAN                                     |
+  | (FORTRAN source code)                        |
+  | $LOAD                                        |
+  | $RUN                                         |
+  | (input data)                                 |
+  | $END                                         |
+  +----------------------------------------------+
 
   1959: SHARE Operating System (SOS)
-  → IBM 709用のバッチ処理OS
-  → ユーザーコミュニティSHAREが開発
+  -> Batch processing OS for IBM 709
+  -> Developed by user community SHARE
 
-  バッチ処理OSの限界:
-  - CPUがI/O待ちの間、完全にアイドル
-  - 対話的な操作が不可能
-  - デバッグが極めて困難（結果は翌日返却）
-  → これを解決するのがマルチプログラミング
+  Limitations of batch processing OS:
+  - CPU completely idle during I/O wait
+  - No interactive operation possible
+  - Debugging extremely difficult (results returned the next day)
+  -> Multiprogramming was developed to solve this
 ```
 
-### 1.3 1960年代: マルチプログラミングとタイムシェアリング
+### 1.3 1960s: Multiprogramming and Time-Sharing
 
 ```
-1960年代: マルチプログラミングとタイムシェアリング
-  ┌──────────────────────────────────────────┐
-  │ 1961: CTSS（Compatible Time-Sharing System）│
-  │ → MIT。最初のタイムシェアリングOS         │
-  │ → 複数ユーザーが同時にコンピュータを使用  │
-  │ → Fernando Corbatóが開発                  │
-  │ → Corbatóは2014年にチューリング賞受賞     │
-  │                                          │
-  │ CTSSの革新:                               │
-  │ - 端末から対話的にプログラミング可能       │
-  │ - エラーをその場で修正できる               │
-  │ - ファイルシステムの原型                   │
-  │ - メールシステムの原型                     │
-  └──────────────────────────────────────────┘
+1960s: Multiprogramming and Time-Sharing
+  +------------------------------------------+
+  | 1961: CTSS (Compatible Time-Sharing System)|
+  | -> MIT. The first time-sharing OS          |
+  | -> Multiple users using a computer         |
+  |    simultaneously                          |
+  | -> Developed by Fernando Corbato           |
+  | -> Corbato received the Turing Award in 2014|
+  |                                            |
+  | Innovations of CTSS:                       |
+  | - Interactive programming from terminals    |
+  | - Errors could be fixed on the spot         |
+  | - Prototype of file systems                 |
+  | - Prototype of email systems                |
+  +------------------------------------------+
 
-  マルチプログラミングの原理:
-  ┌──────────────────────────────────────────────┐
-  │ 問題: Job AがI/O待ちの間、CPUは何もしていない│
-  │                                              │
-  │ 従来（シングルプログラミング）:              │
-  │ Job A: ██████░░░░░░██████░░░░░░              │
-  │ CPU:   ██████______██████______              │
-  │ (░=I/O待ち  _=CPU空き)                       │
-  │                                              │
-  │ マルチプログラミング:                        │
-  │ Job A: ██████░░░░░░██████░░░░░░              │
-  │ Job B: ______██████░░░░░░██████              │
-  │ CPU:   ████████████████████████ ← 常に稼働！ │
-  │                                              │
-  │ → CPUの利用率が飛躍的に向上                  │
-  │ → 複数のジョブをメモリに同時に保持           │
-  │ → メモリ保護が必要になる（ジョブ間の隔離）   │
-  └──────────────────────────────────────────────┘
+  Principle of multiprogramming:
+  +----------------------------------------------+
+  | Problem: While Job A waits for I/O,           |
+  |          the CPU does nothing                  |
+  |                                              |
+  | Traditional (single programming):             |
+  | Job A: ######______######______              |
+  | CPU:   ######______######______              |
+  | (#=I/O wait  _=CPU idle)                      |
+  |                                              |
+  | Multiprogramming:                             |
+  | Job A: ######______######______              |
+  | Job B: ______######______######              |
+  | CPU:   ######################## <- Always busy!|
+  |                                              |
+  | -> CPU utilization dramatically improved       |
+  | -> Multiple jobs held in memory simultaneously |
+  | -> Memory protection becomes necessary         |
+  |    (isolation between jobs)                    |
+  +----------------------------------------------+
 
-  1964: Multics（MULTiplexed Information and Computing Service）
-  ┌──────────────────────────────────────────────────┐
-  │ → MIT + Bell Labs + GE の共同プロジェクト        │
-  │ → 野心的すぎて商業的には失敗                     │
-  │ → しかしUnixに多大な影響を与えた                 │
-  │                                                  │
-  │ Multicsの革新的な概念:                           │
-  │ - 仮想メモリ: セグメンテーション+ページング       │
-  │ - ダイナミックリンク: 共有ライブラリの原型        │
-  │ - 階層的ファイルシステム: ディレクトリの木構造    │
-  │ - アクセス制御リスト（ACL）: セキュリティモデル  │
-  │ - リング構造の保護: Ring 0-7の権限レベル         │
-  │ - PLANプログラミング言語: PL/Iベースのシステム言語│
-  │                                                  │
-  │ 失敗の原因:                                      │
-  │ - 過度に複雑な設計                               │
-  │ - ハードウェア（GE 645）の性能不足               │
-  │ - プロジェクト管理の問題                         │
-  │ - Bell Labsが1969年に離脱                        │
-  │   → Thompson & Ritchieが「シンプルなMultics」を構想│
-  │   → これがUnixの誕生につながる                   │
-  └──────────────────────────────────────────────────┘
+  1964: Multics (MULTiplexed Information and Computing Service)
+  +----------------------------------------------------+
+  | -> Joint project by MIT + Bell Labs + GE            |
+  | -> Too ambitious, commercially unsuccessful         |
+  | -> However, had enormous influence on Unix           |
+  |                                                    |
+  | Innovative concepts of Multics:                     |
+  | - Virtual memory: segmentation + paging              |
+  | - Dynamic linking: prototype of shared libraries     |
+  | - Hierarchical file system: tree structure of dirs   |
+  | - Access Control Lists (ACL): security model         |
+  | - Ring-based protection: Ring 0-7 privilege levels   |
+  | - PLAN language: PL/I-based system language          |
+  |                                                    |
+  | Reasons for failure:                                |
+  | - Excessively complex design                         |
+  | - Insufficient hardware performance (GE 645)         |
+  | - Project management issues                          |
+  | - Bell Labs withdrew in 1969                         |
+  |   -> Thompson & Ritchie envisioned a "simple Multics"|
+  |   -> This led to the birth of Unix                   |
+  +----------------------------------------------------+
 
   1964: IBM OS/360
-  ┌──────────────────────────────────────────┐
-  │ → 最初の汎用OS（複数機種で共通）         │
-  │ → IBM System/360ファミリー全体で動作      │
-  │ → Fred Brooks "Mythical Man-Month"の題材 │
-  │                                          │
-  │ OS/360の教訓:                             │
-  │ - 「人月の神話」: 遅れたプロジェクトに    │
-  │   人を追加するとさらに遅れる             │
-  │ - 数百万行のコード、数千人の開発者       │
-  │ - ソフトウェア工学の重要性を認識させた   │
-  │ - バグだらけだったが、商業的には大成功   │
-  │                                          │
-  │ IBMの互換性戦略:                          │
-  │ - 1つのOSで小型機から大型機まで対応       │
-  │ - 「ソフトウェアの互換性」という概念の確立│
-  │ - 現在のx86互換性の先駆け                │
-  └──────────────────────────────────────────┘
+  +------------------------------------------+
+  | -> First general-purpose OS (common across |
+  |    multiple machine models)                |
+  | -> Ran on the entire IBM System/360 family |
+  | -> Subject of Fred Brooks' "Mythical       |
+  |    Man-Month"                              |
+  |                                            |
+  | Lessons from OS/360:                       |
+  | - "The Mythical Man-Month": Adding people  |
+  |   to a late project makes it later         |
+  | - Millions of lines of code, thousands     |
+  |   of developers                            |
+  | - Made the importance of software           |
+  |   engineering recognized                    |
+  | - Full of bugs, but commercially            |
+  |   very successful                           |
+  |                                            |
+  | IBM's compatibility strategy:              |
+  | - One OS covering small to large machines   |
+  | - Established the concept of "software      |
+  |   compatibility"                            |
+  | - Predecessor of today's x86 compatibility  |
+  +------------------------------------------+
 
-  1965: THE（Technische Hogeschool Eindhoven）
-  → Dijkstraによる階層構造OS
-  → セマフォの発明（同期プリミティブ）
-  → 構造化プログラミングの提唱
-  → OSの設計をソフトウェア工学的に捉えた最初の例
+  1965: THE (Technische Hogeschool Eindhoven)
+  -> Hierarchically structured OS by Dijkstra
+  -> Invention of semaphores (synchronization primitives)
+  -> Advocacy for structured programming
+  -> The first example of treating OS design as software engineering
 ```
 
-### 1.4 1970年代: Unixの誕生
+### 1.4 1970s: The Birth of Unix
 
 ```
-1970年代: Unixの誕生
-  ┌──────────────────────────────────────────┐
-  │ 1969: Unix（Ken Thompson & Dennis Ritchie）│
-  │ → Multicsの反省から「シンプル」を追求     │
-  │ → 最初はPDP-7上でアセンブラで記述        │
-  │                                          │
-  │ 1971: Unix Version 1 (PDP-11)            │
-  │ → テキスト処理のためにBell Labsの特許部門に導入│
-  │                                          │
-  │ 1973: C言語でUnixを書き直し              │
-  │ → 「OSを高級言語で書く」革命的な発想     │
-  │ → 移植性が飛躍的に向上                   │
-  │ → Dennis RitchieがC言語を設計            │
-  │                                          │
-  │ 1974: "The UNIX Time-Sharing System"論文  │
-  │ → ACM Communications に掲載              │
-  │ → 学術界に大きな反響                     │
-  │                                          │
-  │ Unix哲学:                                │
-  │ 1. 1つのことをうまくやる                 │
-  │ 2. テキストストリームで連携              │
-  │ 3. 小さなツールを組み合わせる            │
-  │ 4. できるだけ早くプロトタイプを作る       │
-  │ 5. 移植性を重視する                      │
-  └──────────────────────────────────────────┘
+1970s: The Birth of Unix
+  +------------------------------------------+
+  | 1969: Unix (Ken Thompson & Dennis Ritchie) |
+  | -> Pursued "simplicity" as a reaction to   |
+  |    Multics                                 |
+  | -> Initially written in assembly for PDP-7  |
+  |                                            |
+  | 1971: Unix Version 1 (PDP-11)             |
+  | -> Deployed to Bell Labs' patent department |
+  |    for text processing                      |
+  |                                            |
+  | 1973: Unix rewritten in C                  |
+  | -> Revolutionary idea: "writing an OS in    |
+  |    a high-level language"                   |
+  | -> Portability dramatically improved         |
+  | -> Dennis Ritchie designed the C language    |
+  |                                            |
+  | 1974: "The UNIX Time-Sharing System" paper  |
+  | -> Published in ACM Communications          |
+  | -> Huge impact on academia                   |
+  |                                            |
+  | Unix Philosophy:                           |
+  | 1. Do one thing well                        |
+  | 2. Communicate via text streams             |
+  | 3. Combine small tools                      |
+  | 4. Build prototypes as early as possible     |
+  | 5. Prioritize portability                    |
+  +------------------------------------------+
 
-  Unixの分裂（Unix Wars）:
-  ┌──────────────────────────────────────────────────┐
-  │ 1977: BSD（Berkeley Software Distribution）      │
-  │ → カリフォルニア大学バークレー校                 │
-  │ → Bill Joy（後のSun共同創設者）が中心            │
-  │ → TCP/IPネットワーキングの実装（DARPA資金）      │
-  │ → vi エディタ、csh シェルの開発                  │
-  │ → 仮想メモリの改良（ページドVM）                 │
-  │                                                  │
-  │ 1983: System V Release 1 (AT&T)                  │
-  │ → AT&Tの商用Unix                                 │
-  │ → System V vs BSD の「Unix戦争」                 │
-  │                                                  │
-  │ 2つの系統の違い:                                 │
-  │ ┌──────────────┬──────────────────┐              │
-  │ │ BSD          │ System V         │              │
-  │ ├──────────────┼──────────────────┤              │
-  │ │ TCP/IPネット │ STREAMS          │              │
-  │ │ csh          │ sh (Bourne Shell)│              │
-  │ │ vi           │ ed               │              │
-  │ │ 仮想メモリ改良│ IPC (msg, shm)  │              │
-  │ │ BSDライセンス│ 商用ライセンス   │              │
-  │ └──────────────┴──────────────────┘              │
-  │                                                  │
-  │ → 最終的にPOSIXで標準化（1988年）               │
-  │ → 両方の良い部分を統合                           │
-  └──────────────────────────────────────────────────┘
+  The Unix Split (Unix Wars):
+  +----------------------------------------------------+
+  | 1977: BSD (Berkeley Software Distribution)          |
+  | -> University of California, Berkeley               |
+  | -> Led by Bill Joy (later Sun co-founder)           |
+  | -> TCP/IP networking implementation (DARPA funded)  |
+  | -> Developed vi editor and csh shell                |
+  | -> Improved virtual memory (paged VM)               |
+  |                                                    |
+  | 1983: System V Release 1 (AT&T)                    |
+  | -> AT&T's commercial Unix                           |
+  | -> System V vs BSD "Unix Wars"                      |
+  |                                                    |
+  | Differences between the two lineages:               |
+  | +--------------+------------------+                |
+  | | BSD          | System V         |                |
+  | +--------------+------------------+                |
+  | | TCP/IP net   | STREAMS          |                |
+  | | csh          | sh (Bourne Shell)|                |
+  | | vi           | ed               |                |
+  | | Improved VM  | IPC (msg, shm)   |                |
+  | | BSD License  | Commercial License|               |
+  | +--------------+------------------+                |
+  |                                                    |
+  | -> Eventually standardized by POSIX (1988)          |
+  | -> Integrated the best parts of both                |
+  +----------------------------------------------------+
 
   1979: Unix Version 7
-  → 「最後の真のUnix」と呼ばれる
-  → 最も影響力のあるバージョン
-  → awk, make, tar, cpio 等のツールを含む
-  → 多くのUnix系OSの基盤となった
+  -> Called "the last true Unix"
+  -> The most influential version
+  -> Included tools like awk, make, tar, cpio
+  -> Became the foundation for many Unix-like OSes
 ```
 
-### 1.5 1980年代: PCとGUI
+### 1.5 1980s: PCs and GUIs
 
 ```
-1980年代: PCとGUI
-  ┌──────────────────────────────────────────┐
-  │ 1981: MS-DOS（Microsoft）                │
-  │ → IBM PC用。コマンドライン               │
-  │ → Tim Patersonが開発した QDOS を買収     │
-  │ → CP/M（Gary Kildall）の互換OS          │
-  │ → シングルタスク、メモリ保護なし         │
-  │ → しかし IBM PCの普及とともに支配的に    │
-  │                                          │
-  │ 1983: GNU プロジェクト（Richard Stallman）│
-  │ → 自由なUnix互換OSを目指す               │
-  │ → GNUコンパイラ (gcc)                    │
-  │ → GNUユーティリティ (coreutils)          │
-  │ → Emacs エディタ                         │
-  │ → GPLライセンスの創設                    │
-  │ → カーネル (GNU Hurd) は完成せず         │
-  │ → Linuxカーネルと組み合わさってGNU/Linux │
-  │                                          │
-  │ 1984: Macintosh（Apple）                 │
-  │ → 初の商業的成功を収めたGUI OS           │
-  │ → Xerox PARCのAltoに着想                 │
-  │ → Steve Jobsが PARC を訪問して着想を得る│
-  │ → マウス操作、ウィンドウ、アイコン       │
-  │ → 128KBメモリ、9インチモノクロ画面       │
-  │ → 「1984」のスーパーボウル CM            │
-  │                                          │
-  │ 1987: MINIX（Andrew Tanenbaum）          │
-  │ → 教育用マイクロカーネルOS               │
-  │ → 教科書 "Operating Systems: Design and  │
-  │   Implementation" の付録                 │
-  │ → Linusに影響を与えた                    │
-  │ → Tanenbaum-Torvalds議論（1992年）:     │
-  │   「Linuxはモノリシックで時代遅れ」      │
-  │   → 結果的にLinuxが世界を席巻            │
-  └──────────────────────────────────────────┘
+1980s: PCs and GUIs
+  +------------------------------------------+
+  | 1981: MS-DOS (Microsoft)                  |
+  | -> For IBM PC. Command line                |
+  | -> Acquired QDOS developed by Tim Paterson |
+  | -> CP/M-compatible OS (Gary Kildall)       |
+  | -> Single-tasking, no memory protection     |
+  | -> However, became dominant along with      |
+  |    the spread of IBM PCs                    |
+  |                                            |
+  | 1983: GNU Project (Richard Stallman)       |
+  | -> Aimed to create a free Unix-compatible OS|
+  | -> GNU Compiler (gcc)                       |
+  | -> GNU Utilities (coreutils)                |
+  | -> Emacs editor                             |
+  | -> Creation of the GPL license              |
+  | -> Kernel (GNU Hurd) was never completed    |
+  | -> Combined with Linux kernel to form       |
+  |    GNU/Linux                                |
+  |                                            |
+  | 1984: Macintosh (Apple)                    |
+  | -> First commercially successful GUI OS     |
+  | -> Inspired by Xerox PARC's Alto            |
+  | -> Steve Jobs visited PARC and got the idea |
+  | -> Mouse operation, windows, icons          |
+  | -> 128KB memory, 9-inch monochrome display  |
+  | -> "1984" Super Bowl commercial             |
+  |                                            |
+  | 1987: MINIX (Andrew Tanenbaum)             |
+  | -> Educational microkernel OS               |
+  | -> Appendix to the textbook "Operating      |
+  |    Systems: Design and Implementation"      |
+  | -> Influenced Linus                         |
+  | -> Tanenbaum-Torvalds debate (1992):       |
+  |    "Linux is monolithic and obsolete"        |
+  |    -> Ultimately Linux conquered the world   |
+  +------------------------------------------+
 
-  GUIの系譜:
-  ┌──────────────────────────────────────────────────┐
-  │ 1973: Xerox Alto                                  │
-  │ → 世界初のGUIコンピュータ                         │
-  │ → マウス、ウィンドウ、WYSIWYG、イーサネット      │
-  │ → 商業化されず（研究用）                          │
-  │                                                  │
-  │ 1981: Xerox Star (8010)                           │
-  │ → Altoの商業版だが価格が高すぎて失敗             │
-  │                                                  │
-  │ 1984: Apple Macintosh                             │
-  │ → GUIを一般消費者に普及させた最初のPC            │
-  │                                                  │
-  │ 1985: Windows 1.0 (Microsoft)                     │
-  │ → MS-DOS上のGUIシェル                             │
-  │ → タイル型ウィンドウ（重ね合わせ不可）           │
-  │ → 商業的にはほぼ失敗                             │
-  │                                                  │
-  │ 1987: Windows 2.0                                 │
-  │ → 重ね合わせウィンドウを実現                     │
-  │ → Apple が著作権侵害で訴訟                       │
-  │                                                  │
-  │ 1990: Windows 3.0                                 │
-  │ → 初めて商業的に成功したWindows                   │
-  │ → 386プロテクトモード対応                        │
-  │ → 「Solitaire」が搭載                            │
-  └──────────────────────────────────────────────────┘
+  Genealogy of GUIs:
+  +----------------------------------------------------+
+  | 1973: Xerox Alto                                    |
+  | -> World's first GUI computer                        |
+  | -> Mouse, windows, WYSIWYG, Ethernet                |
+  | -> Not commercialized (research use only)            |
+  |                                                    |
+  | 1981: Xerox Star (8010)                             |
+  | -> Commercial version of Alto, but too expensive     |
+  |    and failed                                        |
+  |                                                    |
+  | 1984: Apple Macintosh                               |
+  | -> First PC to popularize GUI for consumers          |
+  |                                                    |
+  | 1985: Windows 1.0 (Microsoft)                       |
+  | -> GUI shell on top of MS-DOS                        |
+  | -> Tiled windows (no overlapping)                    |
+  | -> Commercially almost a failure                     |
+  |                                                    |
+  | 1987: Windows 2.0                                   |
+  | -> Achieved overlapping windows                      |
+  | -> Apple sued for copyright infringement             |
+  |                                                    |
+  | 1990: Windows 3.0                                   |
+  | -> First commercially successful Windows             |
+  | -> 386 protected mode support                        |
+  | -> "Solitaire" included                              |
+  +----------------------------------------------------+
 ```
 
-### 1.6 1990年代: Linux, Windows, Web
+### 1.6 1990s: Linux, Windows, Web
 
 ```
-1990年代: Linux, Windows, Web
-  ┌──────────────────────────────────────────┐
-  │ 1991: Linux（Linus Torvalds）            │
-  │ → 「趣味のOS」として開始                 │
-  │ → フィンランドのヘルシンキ大学の学生     │
-  │ → GPLライセンスでオープンソース           │
-  │ → 世界中の開発者が貢献                   │
-  │                                          │
-  │ Linuxの最初の投稿（1991年8月25日）:      │
-  │ "Hello everybody out there using minix - │
-  │  I'm doing a (free) operating system     │
-  │  (just a hobby, won't be big and         │
-  │  professional like gnu) for 386(486) AT  │
-  │  clones."                                │
-  │                                          │
-  │ Linuxの急成長:                            │
-  │ 1991: v0.01（10,000行）                  │
-  │ 1994: v1.0（176,000行）                  │
-  │ 1996: v2.0（マルチプロセッサ対応）       │
-  │ 2003: v2.6（数百万行）                   │
-  │ 2025: v6.x（約3,000万行）               │
-  └──────────────────────────────────────────┘
+1990s: Linux, Windows, Web
+  +------------------------------------------+
+  | 1991: Linux (Linus Torvalds)              |
+  | -> Started as a "hobby OS"                 |
+  | -> Student at University of Helsinki,      |
+  |    Finland                                 |
+  | -> Open source under GPL license           |
+  | -> Developers worldwide contributed         |
+  |                                            |
+  | Linux's first post (August 25, 1991):     |
+  | "Hello everybody out there using minix -   |
+  |  I'm doing a (free) operating system       |
+  |  (just a hobby, won't be big and           |
+  |  professional like gnu) for 386(486) AT    |
+  |  clones."                                  |
+  |                                            |
+  | Rapid growth of Linux:                     |
+  | 1991: v0.01 (10,000 lines)                |
+  | 1994: v1.0 (176,000 lines)                |
+  | 1996: v2.0 (multiprocessor support)        |
+  | 2003: v2.6 (millions of lines)             |
+  | 2025: v6.x (approximately 30 million lines)|
+  +------------------------------------------+
 
-  ┌──────────────────────────────────────────┐
-  │ 1993: Windows NT                         │
-  │ → 本格的な32bit OS（Dave Cutler設計）    │
-  │ → 現在のWindowsの基盤                    │
-  │ → VMS設計者による「正しいOS」の設計      │
-  │                                          │
-  │ Windows NTの設計目標:                     │
-  │ - 完全な32bitアーキテクチャ              │
-  │ - メモリ保護（プロセス隔離）             │
-  │ - プリエンプティブマルチタスク            │
-  │ - マルチプロセッサ対応                    │
-  │ - ポータビリティ（x86, Alpha, MIPS, PPC）│
-  │ - POSIX, OS/2サブシステム対応            │
-  │ - NTFS（ジャーナリングファイルシステム）  │
-  │ - Win32 API                               │
-  └──────────────────────────────────────────┘
+  +------------------------------------------+
+  | 1993: Windows NT                          |
+  | -> Full 32-bit OS (designed by Dave Cutler)|
+  | -> Foundation of modern Windows             |
+  | -> "Proper OS" design by VMS architect      |
+  |                                            |
+  | Design goals of Windows NT:                |
+  | - Complete 32-bit architecture              |
+  | - Memory protection (process isolation)     |
+  | - Preemptive multitasking                   |
+  | - Multiprocessor support                    |
+  | - Portability (x86, Alpha, MIPS, PPC)       |
+  | - POSIX, OS/2 subsystem support             |
+  | - NTFS (journaling file system)             |
+  | - Win32 API                                 |
+  +------------------------------------------+
 
-  ┌──────────────────────────────────────────┐
-  │ 1995: Windows 95                         │
-  │ → GUIの普及、Start Menu                  │
-  │ → PCの一般家庭への普及                   │
-  │ → プラグ＆プレイ                         │
-  │ → 長いファイル名のサポート               │
-  │ → 発売日に行列ができるほどの社会現象     │
-  │ → ローリングストーンズ "Start Me Up"     │
-  │                                          │
-  │ 1998: Windows 98                         │
-  │ → USB対応、Internet Explorer 4統合       │
-  │ → まだDOSベース（不安定）                │
-  │                                          │
-  │ 2000: Windows 2000 / Windows Me          │
-  │ → NT系: 安定、企業向け                   │
-  │ → Me系: DOS系最後、不安定で悪評          │
-  │                                          │
-  │ 2001: Windows XP                         │
-  │ → NT系とDOS系の統合                      │
-  │ → 消費者向けでもNTカーネルに             │
-  │ → 13年間サポート（2014年まで）           │
-  │ → 史上最も長く使われたWindows            │
-  └──────────────────────────────────────────┘
+  +------------------------------------------+
+  | 1995: Windows 95                          |
+  | -> Popularized GUIs, Start Menu            |
+  | -> Brought PCs to ordinary households       |
+  | -> Plug & Play                              |
+  | -> Long filename support                    |
+  | -> A cultural phenomenon with lines on      |
+  |    launch day                               |
+  | -> Rolling Stones "Start Me Up"             |
+  |                                            |
+  | 1998: Windows 98                           |
+  | -> USB support, Internet Explorer 4         |
+  |    integration                              |
+  | -> Still DOS-based (unstable)               |
+  |                                            |
+  | 2000: Windows 2000 / Windows Me            |
+  | -> NT line: stable, enterprise-oriented     |
+  | -> Me line: last DOS-based, notoriously     |
+  |    unstable                                 |
+  |                                            |
+  | 2001: Windows XP                           |
+  | -> Merger of NT and DOS lines               |
+  | -> NT kernel even for consumers             |
+  | -> 13 years of support (until 2014)         |
+  | -> The longest-used version of Windows      |
+  +------------------------------------------+
 
-  1990年代のオープンソース運動:
-  ┌──────────────────────────────────────────────┐
-  │ 1991: Linux カーネル (GPL)                    │
-  │ 1993: Debian プロジェクト発足                 │
-  │ 1993: FreeBSD 1.0 リリース                    │
-  │ 1994: Red Hat Linux 1.0                       │
-  │ 1995: Apache HTTP Server                      │
-  │ 1998: "Open Source" 用語の創出                │
-  │ 1998: Netscapeがソースコード公開 → Mozilla    │
-  │ 1999: GNOME 1.0, KDE 1.0                     │
-  │                                               │
-  │ 「大聖堂とバザール」(Eric Raymond, 1997):    │
-  │ → 大聖堂方式: 少数の設計者が閉鎖的に開発    │
-  │ → バザール方式: 多数の開発者がオープンに開発 │
-  │ → Linuxはバザール方式の成功例                │
-  │ → "Given enough eyeballs, all bugs are shallow"│
-  │   （十分な目があれば、どんなバグも浅い）     │
-  └──────────────────────────────────────────────┘
+  1990s Open Source Movement:
+  +----------------------------------------------+
+  | 1991: Linux Kernel (GPL)                      |
+  | 1993: Debian Project launched                  |
+  | 1993: FreeBSD 1.0 released                    |
+  | 1994: Red Hat Linux 1.0                       |
+  | 1995: Apache HTTP Server                      |
+  | 1998: "Open Source" term coined                |
+  | 1998: Netscape open-sourced -> Mozilla         |
+  | 1999: GNOME 1.0, KDE 1.0                     |
+  |                                               |
+  | "The Cathedral and the Bazaar"                |
+  | (Eric Raymond, 1997):                         |
+  | -> Cathedral model: A few designers develop    |
+  |    in a closed manner                          |
+  | -> Bazaar model: Many developers develop openly|
+  | -> Linux is a success story of the bazaar model|
+  | -> "Given enough eyeballs, all bugs are shallow"|
+  +----------------------------------------------+
 ```
 
-### 1.7 2000年代以降: モバイルとクラウド
+### 1.7 2000s Onward: Mobile and Cloud
 
 ```
-2000年代〜: モバイルとクラウド
-  ┌──────────────────────────────────────────┐
-  │ 2001: Mac OS X（macOS）                  │
-  │ → NeXTSTEP + FreeBSD = Darwin            │
-  │ → Unix基盤の商用デスクトップOS           │
-  │ → Aqua GUI（水面のような美しいUI）       │
-  │ → Terminal.appでUnixコマンドが使える     │
-  │ → 正式なUNIX 03認証を取得               │
-  │                                          │
-  │ Apple の OS 戦略:                         │
-  │ 1997: NeXT買収、Steve Jobs復帰           │
-  │ 2001: Mac OS X 10.0 "Cheetah"           │
-  │ 2001-2019: 大型ネコ科の名前（→ 地名に変更）│
-  │ 2020: macOS Big Sur (macOS 11)           │
-  │ 2020: Apple Silicon (M1) 対応            │
-  └──────────────────────────────────────────┘
+2000s~: Mobile and Cloud
+  +------------------------------------------+
+  | 2001: Mac OS X (macOS)                    |
+  | -> NeXTSTEP + FreeBSD = Darwin             |
+  | -> Unix-based commercial desktop OS         |
+  | -> Aqua GUI (beautiful water-like UI)       |
+  | -> Unix commands available via Terminal.app  |
+  | -> Officially obtained UNIX 03 certification|
+  |                                            |
+  | Apple's OS Strategy:                       |
+  | 1997: NeXT acquisition, Steve Jobs returns  |
+  | 2001: Mac OS X 10.0 "Cheetah"             |
+  | 2001-2019: Big cat names (-> changed to     |
+  |            place names)                     |
+  | 2020: macOS Big Sur (macOS 11)             |
+  | 2020: Apple Silicon (M1) support           |
+  +------------------------------------------+
 
-  ┌──────────────────────────────────────────┐
-  │ 2007: iPhone OS（iOS）                   │
-  │ → モバイルOS時代の幕開け                 │
-  │ → マルチタッチインターフェース           │
-  │ → App Storeエコシステム（2008年〜）      │
-  │ → スマートフォン革命の引き金             │
-  │                                          │
-  │ iOSの技術的特徴:                          │
-  │ - XNUカーネル（macOSと共通基盤）         │
-  │ - サンドボックスモデル（アプリ隔離）     │
-  │ - Objective-C → Swift                    │
-  │ - Metal GPU API（OpenGL ES → Metal）     │
-  │ - Core ML（オンデバイスAI推論）          │
-  └──────────────────────────────────────────┘
+  +------------------------------------------+
+  | 2007: iPhone OS (iOS)                     |
+  | -> Dawn of the mobile OS era               |
+  | -> Multi-touch interface                    |
+  | -> App Store ecosystem (from 2008)          |
+  | -> Trigger for the smartphone revolution    |
+  |                                            |
+  | Technical features of iOS:                 |
+  | - XNU kernel (shared foundation with macOS) |
+  | - Sandbox model (app isolation)             |
+  | - Objective-C -> Swift                      |
+  | - Metal GPU API (OpenGL ES -> Metal)        |
+  | - Core ML (on-device AI inference)          |
+  +------------------------------------------+
 
-  ┌──────────────────────────────────────────┐
-  │ 2008: Android                            │
-  │ → Linux カーネル上に構築                  │
-  │ → 世界最大のモバイルOS                   │
-  │ → Googleが2005年にAndroid社を買収        │
-  │ → オープンソース（AOSP）                 │
-  │                                          │
-  │ Androidのアーキテクチャ:                  │
-  │ ┌────────────────────────────┐           │
-  │ │ Applications               │           │
-  │ │ (Java/Kotlin → APK)       │           │
-  │ ├────────────────────────────┤           │
-  │ │ Android Framework          │           │
-  │ │ (Activity, Service等)      │           │
-  │ ├────────────────────────────┤           │
-  │ │ ART (Android Runtime)      │           │
-  │ │ (Dalvik VM → ART)         │           │
-  │ ├────────────────────────────┤           │
-  │ │ HAL (Hardware Abstraction) │           │
-  │ ├────────────────────────────┤           │
-  │ │ Linux Kernel               │           │
-  │ │ (Binder IPC, ashmem等拡張) │           │
-  │ └────────────────────────────┘           │
-  └──────────────────────────────────────────┘
+  +------------------------------------------+
+  | 2008: Android                             |
+  | -> Built on the Linux kernel                |
+  | -> World's largest mobile OS                |
+  | -> Google acquired Android, Inc. in 2005    |
+  | -> Open source (AOSP)                       |
+  |                                            |
+  | Android Architecture:                      |
+  | +----------------------------+             |
+  | | Applications               |             |
+  | | (Java/Kotlin -> APK)       |             |
+  | +----------------------------+             |
+  | | Android Framework          |             |
+  | | (Activity, Service, etc.)  |             |
+  | +----------------------------+             |
+  | | ART (Android Runtime)      |             |
+  | | (Dalvik VM -> ART)         |             |
+  | +----------------------------+             |
+  | | HAL (Hardware Abstraction)  |             |
+  | +----------------------------+             |
+  | | Linux Kernel               |             |
+  | | (Binder IPC, ashmem, etc.) |             |
+  | +----------------------------+             |
+  +------------------------------------------+
 
-  ┌──────────────────────────────────────────────┐
-  │ 2013: Docker                                  │
-  │ → コンテナ技術でOS仮想化を革新               │
-  │ → Solomon HykesがdotCloudで開発              │
-  │ → Linuxのnamespace + cgroups を使いやすく    │
-  │                                              │
-  │ Dockerの影響:                                 │
-  │ - 「Build, Ship, Run Anywhere」              │
-  │ - DevOpsの加速                               │
-  │ - マイクロサービスアーキテクチャの普及       │
-  │ - Kubernetesの登場（2014年、Google）         │
-  │ - クラウドネイティブ開発の標準に             │
-  │                                              │
-  │ 2014: Kubernetes (K8s)                       │
-  │ → Googleの社内システム Borg/Omega がルーツ   │
-  │ → コンテナオーケストレーションの標準に       │
-  │ → CNCF（Cloud Native Computing Foundation）  │
-  └──────────────────────────────────────────────┘
+  +----------------------------------------------+
+  | 2013: Docker                                  |
+  | -> Revolutionized OS virtualization with       |
+  |    container technology                        |
+  | -> Developed by Solomon Hykes at dotCloud       |
+  | -> Made Linux namespace + cgroups user-friendly |
+  |                                               |
+  | Impact of Docker:                              |
+  | - "Build, Ship, Run Anywhere"                  |
+  | - Accelerated DevOps                            |
+  | - Popularized microservice architecture         |
+  | - Emergence of Kubernetes (2014, Google)        |
+  | - Became the standard for cloud-native          |
+  |   development                                   |
+  |                                               |
+  | 2014: Kubernetes (K8s)                         |
+  | -> Rooted in Google's internal systems          |
+  |    Borg/Omega                                   |
+  | -> Became the standard for container             |
+  |    orchestration                                 |
+  | -> CNCF (Cloud Native Computing Foundation)     |
+  +----------------------------------------------+
 
-  ┌──────────────────────────────────────────┐
-  │ 2020: Apple Silicon（M1）                │
-  │ → ARM + macOS でPC性能の常識を覆す       │
-  │ → 高性能 + 低消費電力の両立             │
-  │ → x86からARM移行の成功例                │
-  │ → Rosetta 2でx86バイナリを変換実行      │
-  │ → 統合メモリアーキテクチャ               │
-  │                                          │
-  │ 2024-2025: AI PCの時代                   │
-  │ → NPU（Neural Processing Unit）内蔵PC   │
-  │ → Apple M4, Qualcomm Snapdragon X Elite │
-  │ → Intel Meteor Lake / Arrow Lake         │
-  │ → OSレベルでのAI機能統合                │
-  │ → Windows: Copilot, Recall              │
-  │ → macOS: Apple Intelligence             │
-  └──────────────────────────────────────────┘
-```
-
----
-
-## 2. 重要な概念の進化
-
-### 2.1 マルチタスクの進化
-
-```
-マルチタスクの進化:
-
-  バッチ処理（1950s）:
-  Job1 ──────→ Job2 ──────→ Job3
-  → 1つずつ順番に実行
-
-  マルチプログラミング（1960s）:
-  Job1 ██░░██░░██
-  Job2 ░░██░░██░░
-  → I/O待ちの間に他のジョブを実行
-
-  タイムシェアリング（1960s）:
-  User1 █░░█░░█░░
-  User2 ░█░░█░░█░
-  User3 ░░█░░█░░█
-  → 各ユーザーに短い時間を交互に割り当て
-
-  協調的マルチタスク（1980s-90s）:
-  → プロセスが自発的にCPUを譲る
-  → Windows 3.x, Classic Mac OS
-  → 1プロセスが暴走すると全体がフリーズ
-
-  プリエンプティブマルチタスク（1990s〜）:
-  → OSがプロセスを強制的に切り替え
-  → 1つのプロセスが暴走しても他に影響しない
-  → 現代の標準
-  → Unix (1969), Windows NT (1993), macOS (2001)
-
-  リアルタイムマルチタスク:
-  → 期限（デッドライン）内に確実にタスクを完了
-  → Rate Monotonic Scheduling, Earliest Deadline First
-  → VxWorks, QNX, FreeRTOS
-```
-
-### 2.2 メモリ管理の進化
-
-```
-メモリ管理の進化:
-
-  1. 固定パーティション（1950s-60s）:
-     ┌────────────────┐
-     │ OS             │ 固定サイズ
-     ├────────────────┤
-     │ パーティション1│ 32KB
-     ├────────────────┤
-     │ パーティション2│ 64KB
-     ├────────────────┤
-     │ パーティション3│ 128KB
-     └────────────────┘
-     → ジョブをサイズに合うパーティションに配置
-     → 内部フラグメンテーション（余った部分が無駄）
-
-  2. 可変パーティション（1960s）:
-     → ジョブのサイズに合わせてパーティションを動的に作成
-     → 外部フラグメンテーション（隙間が散在）
-     → コンパクション（ジョブを詰め直す）で解決
-
-  3. ページング（1960s-70s）:
-     ┌──────────────────────────────────────────┐
-     │ 仮想アドレス空間    物理メモリ            │
-     │ ┌────┐              ┌────┐               │
-     │ │Page0│ ──────────→ │Frame5│             │
-     │ ├────┤              ├────┤               │
-     │ │Page1│ ──────────→ │Frame2│             │
-     │ ├────┤              ├────┤               │
-     │ │Page2│ ──→ ディスク │Frame8│             │
-     │ ├────┤              └────┘               │
-     │ │Page3│ ──────────→ Frame12             │
-     │ └────┘                                   │
-     │ → 4KBのページ単位で管理                  │
-     │ → 連続した仮想アドレスが不連続な物理メモリに│
-     │ → ページテーブルで変換                    │
-     └──────────────────────────────────────────┘
-
-  4. 仮想メモリ（1960s〜現在）:
-     → 物理メモリ + ディスク（スワップ）= 巨大なアドレス空間
-     → デマンドページング: 使われたページだけメモリに読む
-     → ページフォルト: アクセスされたページが物理メモリにない
-       → OSがディスクから読み込んで続行
-     → 各プロセスが独立した広大なアドレス空間を持つ
-
-  5. 現代のメモリ管理技術:
-     ┌──────────────────────────────────────────────┐
-     │ Huge Pages: 2MB/1GBの大きなページ            │
-     │ → TLBミスを減らす（データベース、VM向け）     │
-     │                                               │
-     │ NUMA-aware: メモリの物理的位置を意識          │
-     │ → マルチソケットサーバーで重要                │
-     │                                               │
-     │ Memory Ballooning: VMのメモリを動的に調整     │
-     │ → 仮想化環境でのメモリ効率化                 │
-     │                                               │
-     │ KSM (Kernel Same-page Merging):               │
-     │ → 同一内容のページを統合                      │
-     │ → 仮想化環境でのメモリ節約                   │
-     │                                               │
-     │ zram/zswap: メモリ内圧縮スワップ              │
-     │ → ディスクI/Oなしでメモリを節約              │
-     └──────────────────────────────────────────────┘
-```
-
-### 2.3 ファイルシステムの進化
-
-```
-ファイルシステムの進化:
-
-  1950s: 磁気テープ（シーケンシャルアクセスのみ）
-  1960s: FAT（Floppy Disk用、フラットな構造）
-  1970s: Unix File System（inode、階層構造）
-  1980s: FAT16（MS-DOS）、HFS（Macintosh）
-  1990s: ext2（Linux）、NTFS（Windows NT）
-  2000s: ext3/ext4（ジャーナリング）、ZFS（Sun）
-  2010s: Btrfs（Linux）、APFS（Apple）
-  2020s: bcachefs（Linux 6.7で統合）
-
-  ジャーナリングファイルシステムの革新:
-  ┌──────────────────────────────────────────────┐
-  │ 問題: 書き込み中に電源断 → ファイルシステム破損│
-  │                                               │
-  │ 解決: ジャーナル（変更ログ）を先に書く         │
-  │ 1. ジャーナルに変更内容を記録                  │
-  │ 2. 実際のデータを書き込み                      │
-  │ 3. ジャーナルのエントリを完了マーク             │
-  │                                               │
-  │ 電源断時:                                      │
-  │ - ジャーナルを再生して一貫性を回復             │
-  │ - fsck不要（起動が高速）                       │
-  │                                               │
-  │ ext3/ext4, NTFS, XFS, JFS がジャーナリング対応 │
-  └──────────────────────────────────────────────┘
-
-  Copy-on-Write (CoW) ファイルシステム:
-  ┌──────────────────────────────────────────────┐
-  │ ZFS, Btrfs, APFS:                             │
-  │ - 上書きせず、新しい場所に書く                │
-  │ - 一貫性が常に保たれる                        │
-  │ - スナップショットが瞬時に作成可能            │
-  │ - データの重複排除が可能                      │
-  │ - チェックサムでデータの破損を検出            │
-  │                                               │
-  │ ZFSの特徴（企業向けストレージの決定版）:     │
-  │ - 128bitアドレス空間（事実上無限の容量）     │
-  │ - RAID-Z（パリティベースの冗長化）           │
-  │ - オンラインデータ圧縮                       │
-  │ - ARC（Adaptive Replacement Cache）          │
-  │ - 暗号化、重複排除、スナップショット         │
-  └──────────────────────────────────────────────┘
-```
-
-### 2.4 セキュリティの進化
-
-```
-OSセキュリティの進化:
-
-  1960s: パスワード認証（CTSS で初めて導入）
-  1970s: Unix権限モデル（owner/group/other、rwx）
-  1980s: アクセス制御リスト（ACL）
-  1990s: ファイアウォール、暗号化ファイルシステム
-  2000s: SELinux（NSA）、ASLR、DEP/NX
-  2010s: サンドボックス、コンテナ隔離、UEFI Secure Boot
-  2020s: ゼロトラスト、eBPF によるセキュリティ監視
-
-  現代OSのセキュリティ機能:
-  ┌──────────────────────────────────────────────────┐
-  │ ASLR (Address Space Layout Randomization):       │
-  │ → メモリアドレスをランダム化                     │
-  │ → バッファオーバーフロー攻撃を困難に             │
-  │                                                  │
-  │ DEP/NX (Data Execution Prevention):              │
-  │ → データ領域でのコード実行を禁止                 │
-  │ → スタック上のシェルコード実行を防止             │
-  │                                                  │
-  │ Stack Canary:                                    │
-  │ → スタック上にカナリア値を配置                   │
-  │ → バッファオーバーフローを検出                   │
-  │                                                  │
-  │ Secure Boot:                                     │
-  │ → ブートプロセスの各段階で署名を検証             │
-  │ → ブートキット（起動時のマルウェア）を防止       │
-  │                                                  │
-  │ eBPF:                                            │
-  │ → カーネル内で安全にプログラムを実行             │
-  │ → ネットワーク、セキュリティ、トレーシング       │
-  │ → Cilium, Falco 等のセキュリティツールの基盤     │
-  └──────────────────────────────────────────────────┘
+  +------------------------------------------+
+  | 2020: Apple Silicon (M1)                  |
+  | -> ARM + macOS overturns PC performance    |
+  |    expectations                            |
+  | -> Achieves both high performance and low  |
+  |    power consumption                       |
+  | -> Success story of x86 to ARM migration   |
+  | -> Rosetta 2 translates and runs x86       |
+  |    binaries                                |
+  | -> Unified memory architecture              |
+  |                                            |
+  | 2024-2025: The AI PC Era                   |
+  | -> PCs with built-in NPU (Neural           |
+  |    Processing Unit)                         |
+  | -> Apple M4, Qualcomm Snapdragon X Elite   |
+  | -> Intel Meteor Lake / Arrow Lake           |
+  | -> OS-level AI feature integration          |
+  | -> Windows: Copilot, Recall                |
+  | -> macOS: Apple Intelligence               |
+  +------------------------------------------+
 ```
 
 ---
 
-## 3. OSの系譜図
+## 2. Evolution of Key Concepts
+
+### 2.1 Evolution of Multitasking
+
+```
+Evolution of Multitasking:
+
+  Batch Processing (1950s):
+  Job1 -------> Job2 -------> Job3
+  -> Execute one at a time, sequentially
+
+  Multiprogramming (1960s):
+  Job1 ##__##__##
+  Job2 __##__##__
+  -> Execute other jobs during I/O wait
+
+  Time-Sharing (1960s):
+  User1 #__#__#__
+  User2 _#__#__#_
+  User3 __#__#__#
+  -> Alternately assign short time slices to each user
+
+  Cooperative Multitasking (1980s-90s):
+  -> Processes voluntarily yield the CPU
+  -> Windows 3.x, Classic Mac OS
+  -> If one process runs away, the entire system freezes
+
+  Preemptive Multitasking (1990s~):
+  -> OS forcibly switches processes
+  -> A runaway process does not affect others
+  -> The modern standard
+  -> Unix (1969), Windows NT (1993), macOS (2001)
+
+  Real-Time Multitasking:
+  -> Guarantee task completion within a deadline
+  -> Rate Monotonic Scheduling, Earliest Deadline First
+  -> VxWorks, QNX, FreeRTOS
+```
+
+### 2.2 Evolution of Memory Management
+
+```
+Evolution of Memory Management:
+
+  1. Fixed Partitions (1950s-60s):
+     +----------------+
+     | OS             | Fixed size
+     +----------------+
+     | Partition 1    | 32KB
+     +----------------+
+     | Partition 2    | 64KB
+     +----------------+
+     | Partition 3    | 128KB
+     +----------------+
+     -> Place jobs in partitions that match their size
+     -> Internal fragmentation (wasted unused portions)
+
+  2. Variable Partitions (1960s):
+     -> Dynamically create partitions to match job size
+     -> External fragmentation (scattered gaps)
+     -> Solved by compaction (rearranging jobs)
+
+  3. Paging (1960s-70s):
+     +------------------------------------------+
+     | Virtual Address Space  Physical Memory    |
+     | +----+               +----+              |
+     | |Page0| -----------> |Frame5|            |
+     | +----+               +----+              |
+     | |Page1| -----------> |Frame2|            |
+     | +----+               +----+              |
+     | |Page2| --> Disk      |Frame8|            |
+     | +----+               +----+              |
+     | |Page3| -----------> Frame12            |
+     | +----+                                  |
+     | -> Managed in 4KB page units              |
+     | -> Contiguous virtual addresses map to     |
+     |    non-contiguous physical memory           |
+     | -> Translation via page table               |
+     +------------------------------------------+
+
+  4. Virtual Memory (1960s~present):
+     -> Physical memory + disk (swap) = huge address space
+     -> Demand paging: only read pages into memory when used
+     -> Page fault: accessed page is not in physical memory
+       -> OS reads from disk and continues
+     -> Each process has an independent, vast address space
+
+  5. Modern Memory Management Techniques:
+     +----------------------------------------------+
+     | Huge Pages: Large 2MB/1GB pages                |
+     | -> Reduce TLB misses (for databases, VMs)      |
+     |                                               |
+     | NUMA-aware: Conscious of physical memory       |
+     |   location                                     |
+     | -> Important for multi-socket servers           |
+     |                                               |
+     | Memory Ballooning: Dynamically adjust VM memory|
+     | -> Memory efficiency in virtualized environments|
+     |                                               |
+     | KSM (Kernel Same-page Merging):               |
+     | -> Merge pages with identical content           |
+     | -> Memory savings in virtualized environments   |
+     |                                               |
+     | zram/zswap: In-memory compressed swap           |
+     | -> Save memory without disk I/O                 |
+     +----------------------------------------------+
+```
+
+### 2.3 Evolution of File Systems
+
+```
+Evolution of File Systems:
+
+  1950s: Magnetic tape (sequential access only)
+  1960s: FAT (for floppy disks, flat structure)
+  1970s: Unix File System (inodes, hierarchical structure)
+  1980s: FAT16 (MS-DOS), HFS (Macintosh)
+  1990s: ext2 (Linux), NTFS (Windows NT)
+  2000s: ext3/ext4 (journaling), ZFS (Sun)
+  2010s: Btrfs (Linux), APFS (Apple)
+  2020s: bcachefs (merged into Linux 6.7)
+
+  The Innovation of Journaling File Systems:
+  +----------------------------------------------+
+  | Problem: Power loss during write              |
+  |   -> File system corruption                    |
+  |                                               |
+  | Solution: Write the journal (change log) first |
+  | 1. Record changes in the journal               |
+  | 2. Write actual data                           |
+  | 3. Mark journal entry as complete               |
+  |                                               |
+  | On power loss:                                 |
+  | - Replay journal to restore consistency         |
+  | - No fsck needed (fast boot)                    |
+  |                                               |
+  | ext3/ext4, NTFS, XFS, JFS support journaling   |
+  +----------------------------------------------+
+
+  Copy-on-Write (CoW) File Systems:
+  +----------------------------------------------+
+  | ZFS, Btrfs, APFS:                             |
+  | - Write to a new location instead of overwriting|
+  | - Consistency is always maintained              |
+  | - Snapshots can be created instantly            |
+  | - Data deduplication is possible                |
+  | - Checksums detect data corruption              |
+  |                                               |
+  | ZFS Features (definitive enterprise storage):  |
+  | - 128-bit address space (virtually unlimited)   |
+  | - RAID-Z (parity-based redundancy)              |
+  | - Online data compression                       |
+  | - ARC (Adaptive Replacement Cache)              |
+  | - Encryption, deduplication, snapshots           |
+  +----------------------------------------------+
+```
+
+### 2.4 Evolution of Security
+
+```
+Evolution of OS Security:
+
+  1960s: Password authentication (first introduced in CTSS)
+  1970s: Unix permission model (owner/group/other, rwx)
+  1980s: Access Control Lists (ACL)
+  1990s: Firewalls, encrypted file systems
+  2000s: SELinux (NSA), ASLR, DEP/NX
+  2010s: Sandboxing, container isolation, UEFI Secure Boot
+  2020s: Zero trust, security monitoring with eBPF
+
+  Modern OS Security Features:
+  +----------------------------------------------------+
+  | ASLR (Address Space Layout Randomization):          |
+  | -> Randomize memory addresses                        |
+  | -> Make buffer overflow attacks more difficult        |
+  |                                                    |
+  | DEP/NX (Data Execution Prevention):                 |
+  | -> Prohibit code execution in data regions           |
+  | -> Prevent shellcode execution on the stack          |
+  |                                                    |
+  | Stack Canary:                                       |
+  | -> Place a canary value on the stack                 |
+  | -> Detect buffer overflows                           |
+  |                                                    |
+  | Secure Boot:                                        |
+  | -> Verify signatures at each stage of boot process   |
+  | -> Prevent bootkits (malware at boot time)           |
+  |                                                    |
+  | eBPF:                                               |
+  | -> Safely execute programs within the kernel         |
+  | -> Networking, security, tracing                     |
+  | -> Foundation for security tools like Cilium, Falco  |
+  +----------------------------------------------------+
+```
+
+---
+
+## 3. OS Genealogy Chart
 
 ```
   Multics (1964)
-    │
-    ├──→ Unix (1969) ──────────────────────────────────┐
-    │      ├── BSD (1977) ──→ FreeBSD ──→ macOS/iOS   │
-    │      │                 → OpenBSD（セキュリティ重視）
-    │      │                 → NetBSD（移植性重視）     │
-    │      ├── System V ──→ Solaris, AIX, HP-UX       │
-    │      └── Philosophy ──→ GNU (1983)               │
-    │                          └── + Linux (1991)      │
-    │                               ├── Ubuntu         │
-    │                               ├── RHEL           │
-    │                               ├── Android        │
-    │                               ├── Chrome OS      │
-    │                               └── SteamOS        │
-    │
-  CP/M (1974) ──→ MS-DOS (1981) ──→ Windows 95/98/Me │
-                                                       │
-  VMS (1977) ──→ Windows NT (1993) ──→ Win 2000/XP    │
-                                    ──→ Win 7/10/11    │
-                                                       │
-  Xerox Alto (1973) ──→ Macintosh (1984)               │
-                    ──→ Windows GUI                     │
-                                                       │
-  NeXTSTEP (1989) ──→ Mac OS X (2001) ──→ macOS       │
-                                                       │
-  新しい流れ:                                          │
-  Linux Kernel ──→ Android (2008)                      │
-  Linux Kernel ──→ Chrome OS (2011)                    │
-  Zircon (μkernel) ──→ Fuchsia (Google, 2016-)        │
-  Redox (Rust) ──→ 次世代Unix-likeOS                   │
+    |
+    +---> Unix (1969) ------------------------------------+
+    |      +-- BSD (1977) --> FreeBSD --> macOS/iOS       |
+    |      |                -> OpenBSD (security-focused)
+    |      |                -> NetBSD (portability-focused)|
+    |      +-- System V --> Solaris, AIX, HP-UX          |
+    |      +-- Philosophy --> GNU (1983)                  |
+    |                          +-- + Linux (1991)         |
+    |                               +-- Ubuntu            |
+    |                               +-- RHEL              |
+    |                               +-- Android           |
+    |                               +-- Chrome OS         |
+    |                               +-- SteamOS           |
+    |
+  CP/M (1974) --> MS-DOS (1981) --> Windows 95/98/Me     |
+                                                         |
+  VMS (1977) --> Windows NT (1993) --> Win 2000/XP       |
+                                   --> Win 7/10/11       |
+                                                         |
+  Xerox Alto (1973) --> Macintosh (1984)                  |
+                    --> Windows GUI                       |
+                                                         |
+  NeXTSTEP (1989) --> Mac OS X (2001) --> macOS          |
+                                                         |
+  Emerging trends:                                        |
+  Linux Kernel --> Android (2008)                         |
+  Linux Kernel --> Chrome OS (2011)                       |
+  Zircon (microkernel) --> Fuchsia (Google, 2016-)        |
+  Redox (Rust) --> Next-generation Unix-like OS            |
 
-各OSの影響関係:
-┌────────────────────────────────────────────────────┐
-│ Multics → Unix: シンプルさの追求                    │
-│ Unix → BSD: 学術的改良、ネットワーキング            │
-│ Unix → Linux: オープンソースでの再実装              │
-│ BSD → macOS: NeXTSTEP経由でAppleに                 │
-│ VMS → Windows NT: Dave Cutlerが設計思想を持ち込む  │
-│ Xerox Alto → Mac, Windows: GUIの概念               │
-│ Plan 9 → Linux /proc, /sys: 仮想ファイルシステム   │
-│ MINIX → Linux: Linusの出発点                       │
-│ Linux → Docker/K8s: コンテナ技術の基盤             │
-│ Linux → Android: モバイルOSの基盤                  │
-└────────────────────────────────────────────────────┘
+Influence relationships between OSes:
++----------------------------------------------------+
+| Multics -> Unix: Pursuit of simplicity               |
+| Unix -> BSD: Academic improvements, networking        |
+| Unix -> Linux: Reimplementation as open source        |
+| BSD -> macOS: To Apple via NeXTSTEP                   |
+| VMS -> Windows NT: Dave Cutler brought design ideas   |
+| Xerox Alto -> Mac, Windows: GUI concepts              |
+| Plan 9 -> Linux /proc, /sys: Virtual file systems     |
+| MINIX -> Linux: Linus's starting point                |
+| Linux -> Docker/K8s: Foundation for container tech     |
+| Linux -> Android: Foundation for mobile OS             |
++----------------------------------------------------+
 ```
 
 ---
 
-## 4. OSの未来
+## 4. The Future of Operating Systems
 
 ```
-現在進行中の変革:
+Ongoing Transformations:
 
-  1. AI統合OS:
-     ┌──────────────────────────────────────────────┐
-     │ - Windows: Copilot, Windows Recall           │
-     │ - macOS: Apple Intelligence                  │
-     │ - Linux: ML推論の最適化（CUDA, ROCm統合）    │
-     │                                              │
-     │ OSレベルのAI機能:                            │
-     │ - 自然言語でのシステム操作                    │
-     │ - インテリジェントな通知管理                  │
-     │ - アプリ横断的なコンテキスト理解             │
-     │ - 予測的なリソース管理                       │
-     └──────────────────────────────────────────────┘
+  1. AI-Integrated OS:
+     +----------------------------------------------+
+     | - Windows: Copilot, Windows Recall             |
+     | - macOS: Apple Intelligence                    |
+     | - Linux: ML inference optimization             |
+     |   (CUDA, ROCm integration)                     |
+     |                                               |
+     | OS-level AI features:                          |
+     | - System operation via natural language         |
+     | - Intelligent notification management           |
+     | - Cross-app context understanding               |
+     | - Predictive resource management                |
+     +----------------------------------------------+
 
-  2. Rust製OS:
-     ┌──────────────────────────────────────────────┐
-     │ - LinuxカーネルにRustサポート追加（6.1〜）    │
-     │ - Redox OS: Rustで書かれたマイクロカーネルOS │
-     │ - Android: 新コードの一部がRustに移行        │
-     │ → メモリ安全性の根本的改善                   │
-     │ → C言語のメモリバグ（70%が脆弱性の原因）を排除│
-     └──────────────────────────────────────────────┘
+  2. Rust-based OS:
+     +----------------------------------------------+
+     | - Rust support added to Linux kernel (6.1+)    |
+     | - Redox OS: Microkernel OS written in Rust      |
+     | - Android: Some new code migrating to Rust      |
+     | -> Fundamental improvement in memory safety     |
+     | -> Eliminates C memory bugs (cause of 70%       |
+     |    of vulnerabilities)                           |
+     +----------------------------------------------+
 
   3. WebAssembly (Wasm) OS:
-     ┌──────────────────────────────────────────────┐
-     │ - WASIがPOSIXの後継になる可能性              │
-     │ - コンテナの代替としてのWasm                 │
-     │ - Fermyon Spin, Wasmtime                     │
-     │ → ポータブルで軽量なアプリケーション環境     │
-     └──────────────────────────────────────────────┘
+     +----------------------------------------------+
+     | - WASI may become the successor to POSIX       |
+     | - Wasm as an alternative to containers          |
+     | - Fermyon Spin, Wasmtime                        |
+     | -> Portable and lightweight application          |
+     |    environment                                   |
+     +----------------------------------------------+
 
-  4. Unikernel と MicroVM:
-     ┌──────────────────────────────────────────────┐
-     │ - AWS Firecracker: MicroVM（Lambda/Fargate）  │
-     │ - gVisor: ユーザー空間カーネル（Google）      │
-     │ - Kata Containers: VMベースのコンテナ         │
-     │ → セキュリティと効率性の新しいバランス        │
-     └──────────────────────────────────────────────┘
+  4. Unikernels and MicroVMs:
+     +----------------------------------------------+
+     | - AWS Firecracker: MicroVM (Lambda/Fargate)    |
+     | - gVisor: User-space kernel (Google)            |
+     | - Kata Containers: VM-based containers          |
+     | -> New balance between security and efficiency   |
+     +----------------------------------------------+
 ```
 
 ---
 
-## 実践演習
+## Hands-On Exercises
 
-### 演習1: [基礎] -- OS情報の確認
+### Exercise 1: [Basic] -- Checking OS Information
 
 ```bash
-# 自分のOSの情報を確認
+# Check your OS information
 # Linux:
 uname -a
 cat /etc/os-release
 cat /proc/version
-hostnamectl  # systemd環境
+hostnamectl  # systemd environment
 
 # macOS:
 sw_vers
 uname -a
 system_profiler SPSoftwareDataType
 
-# カーネルバージョン、ビルド日、アーキテクチャを記録せよ
+# Record the kernel version, build date, and architecture
 
-# カーネルの設定を確認（Linux）
+# Check kernel configuration (Linux)
 cat /boot/config-$(uname -r) | grep CONFIG_PREEMPT
-# → プリエンプションモデルの確認
+# -> Check the preemption model
 
-# ブートログの確認
+# Check boot logs
 dmesg | head -50
-journalctl -b | head -50  # systemd環境
+journalctl -b | head -50  # systemd environment
 
-# ハードウェア情報
-lscpu          # CPU情報
-lsblk          # ブロックデバイス
-lspci          # PCIデバイス
-lsusb          # USBデバイス
+# Hardware information
+lscpu          # CPU info
+lsblk          # Block devices
+lspci          # PCI devices
+lsusb          # USB devices
 ```
 
-### 演習2: [応用] -- Unix哲学の実践
+### Exercise 2: [Applied] -- Practicing Unix Philosophy
 
 ```bash
-# パイプで小さなツールを組み合わせて以下を実現せよ:
+# Combine small tools with pipes to accomplish the following:
 
-# 1. /etc/passwdからシェルの使用統計を取る
+# 1. Get shell usage statistics from /etc/passwd
 cat /etc/passwd | cut -d: -f7 | sort | uniq -c | sort -rn
 
-# 2. アクセスログからステータスコード別の集計
+# 2. Aggregate access log by status code
 cat access.log | awk '{print $9}' | sort | uniq -c | sort -rn
 
-# 3. ディレクトリ内のファイルサイズトップ10
+# 3. Top 10 file sizes in a directory
 du -sh * 2>/dev/null | sort -rh | head -10
 
-# 4. プロセスのメモリ使用量ランキング
+# 4. Process memory usage ranking
 ps aux --sort=-%mem | awk 'NR<=11{printf "%-10s %5s %s\n", $1, $4, $11}'
 
-# 5. ネットワーク接続の状態別カウント（Linux）
+# 5. Network connection state counts (Linux)
 ss -tan | awk 'NR>1{print $1}' | sort | uniq -c | sort -rn
 
-# 6. 自分で同様のパイプラインを3つ考えて実行せよ
-# ヒント: ps, netstat, df, du, wc, grep, awk, find, xargs を活用
+# 6. Come up with and execute 3 similar pipelines of your own
+# Hint: Use ps, netstat, df, du, wc, grep, awk, find, xargs
 ```
 
-### 演習3: [応用] -- OS歴史の調査レポート
+### Exercise 3: [Applied] -- OS History Research Report
 
 ```
-以下のいずれかのテーマについて、2000字以上のレポートを書け:
+Write a report of 2000+ words on one of the following topics:
 
-1. Unix戦争（BSD vs System V）の経緯と影響
-   - 技術的な違い
-   - ライセンスの問題
-   - POSIXによる統一
-   - 現代への影響
+1. The Unix Wars (BSD vs System V): background and impact
+   - Technical differences
+   - Licensing issues
+   - Unification through POSIX
+   - Impact on the modern era
 
-2. Linux vs MINIX 議論（Tanenbaum-Torvalds debate）
-   - モノリシック vs マイクロカーネルの議論
-   - 両者の主張
-   - 30年後の評価
-   - 現代のOS設計への影響
+2. The Linux vs MINIX debate (Tanenbaum-Torvalds debate)
+   - Monolithic vs microkernel debate
+   - Arguments from both sides
+   - Evaluation 30 years later
+   - Impact on modern OS design
 
-3. Windowsの進化（MS-DOS → Windows 11）
-   - アーキテクチャの変遷
-   - GUI の進化
-   - NT カーネルの設計思想
-   - WSL2 による Linux との融合
+3. The evolution of Windows (MS-DOS -> Windows 11)
+   - Architecture transitions
+   - GUI evolution
+   - NT kernel design philosophy
+   - Convergence with Linux through WSL2
 
-4. Apple のOS戦略（Classic Mac OS → macOS → iOS）
-   - NeXT買収の意義
-   - Unix基盤への移行
-   - iOSとmacOSの統合（Apple Silicon）
-   - エコシステムの強さ
+4. Apple's OS strategy (Classic Mac OS -> macOS -> iOS)
+   - Significance of the NeXT acquisition
+   - Transition to Unix foundation
+   - Integration of iOS and macOS (Apple Silicon)
+   - Strength of the ecosystem
 ```
 
-### 演習4: [発展] -- 各世代のOSをエミュレータで体験
+### Exercise 4: [Advanced] -- Experiencing Each Generation of OS via Emulators
 
 ```
-以下のOSをエミュレータで体験し、操作感の変化を記録せよ:
+Experience the following OSes via emulators and record
+the changes in user experience:
 
-1. SIMH（System Simulator）:
-   → PDP-11上のUnix V6を体験
-   → ed エディタでのファイル編集
-   → シェルの操作（Thompson shell）
+1. SIMH (System Simulator):
+   -> Experience Unix V6 on PDP-11
+   -> File editing with the ed editor
+   -> Shell operations (Thompson shell)
 
 2. DOSBox:
-   → MS-DOS 6.22を体験
-   → コマンドライン操作（dir, copy, type, edit）
-   → 640KBメモリの制約を体感
+   -> Experience MS-DOS 6.22
+   -> Command-line operations (dir, copy, type, edit)
+   -> Feel the 640KB memory constraint
 
 3. PCem / 86Box:
-   → Windows 3.1 の GUI を体験
-   → ファイルマネージャ、ペイントブラシ
+   -> Experience the Windows 3.1 GUI
+   -> File Manager, Paintbrush
 
 4. QEMU:
-   → Linuxの初期バージョン（0.01は無理だが1.0系）を起動
-   → 最小構成のLinuxの動作を確認
+   -> Boot an early version of Linux (v0.01 is impractical,
+      but 1.0 series)
+   -> Verify the operation of a minimal Linux configuration
 
-5. ブラウザベースのエミュレータ:
-   → copy.sh/v86/ でWindows 95, Linux等を体験
-   → archive.org の各種OSエミュレーション
+5. Browser-based emulators:
+   -> Experience Windows 95, Linux, etc. at copy.sh/v86/
+   -> Various OS emulations at archive.org
 
-各OSについて以下を記録:
-- 起動にかかる時間
-- 利用可能なコマンド/操作
-- メモリ管理の違い
-- マルチタスクの有無
-- 現代のOSとの比較
+For each OS, record:
+- Boot time
+- Available commands/operations
+- Differences in memory management
+- Presence or absence of multitasking
+- Comparison with modern OSes
 ```
 
 
 ---
 
-## トラブルシューティング
+## Troubleshooting
 
-### よくあるエラーと解決策
+### Common Errors and Solutions
 
-| エラー | 原因 | 解決策 |
-|--------|------|--------|
-| 初期化エラー | 設定ファイルの不備 | 設定ファイルのパスと形式を確認 |
-| タイムアウト | ネットワーク遅延/リソース不足 | タイムアウト値の調整、リトライ処理の追加 |
-| メモリ不足 | データ量の増大 | バッチ処理の導入、ページネーションの実装 |
-| 権限エラー | アクセス権限の不足 | 実行ユーザーの権限確認、設定の見直し |
-| データ不整合 | 並行処理の競合 | ロック機構の導入、トランザクション管理 |
+| Error | Cause | Solution |
+|-------|-------|----------|
+| Initialization error | Configuration file issues | Verify configuration file path and format |
+| Timeout | Network latency/resource shortage | Adjust timeout values, add retry logic |
+| Out of memory | Data volume growth | Introduce batch processing, implement pagination |
+| Permission error | Insufficient access permissions | Check execution user permissions, review settings |
+| Data inconsistency | Concurrency conflicts | Introduce locking mechanisms, manage transactions |
 
-### デバッグの手順
+### Debugging Procedure
 
-1. **エラーメッセージの確認**: スタックトレースを読み、発生箇所を特定する
-2. **再現手順の確立**: 最小限のコードでエラーを再現する
-3. **仮説の立案**: 考えられる原因をリストアップする
-4. **段階的な検証**: ログ出力やデバッガを使って仮説を検証する
-5. **修正と回帰テスト**: 修正後、関連する箇所のテストも実行する
+1. **Check error messages**: Read the stack trace and identify the location of the error
+2. **Establish reproduction steps**: Reproduce the error with minimal code
+3. **Formulate hypotheses**: List possible causes
+4. **Incremental verification**: Verify hypotheses using log output or debuggers
+5. **Fix and regression test**: After fixing, run tests on related areas as well
 
 ```python
-# デバッグ用ユーティリティ
+# Debugging utility
 import logging
 import traceback
 from functools import wraps
 
-# ロガーの設定
+# Logger configuration
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
@@ -964,102 +1006,102 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def debug_decorator(func):
-    """関数の入出力をログ出力するデコレータ"""
+    """Decorator that logs function inputs and outputs"""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        logger.debug(f"呼び出し: {func.__name__}(args={args}, kwargs={kwargs})")
+        logger.debug(f"Call: {func.__name__}(args={args}, kwargs={kwargs})")
         try:
             result = func(*args, **kwargs)
-            logger.debug(f"戻り値: {func.__name__} -> {result}")
+            logger.debug(f"Return: {func.__name__} -> {result}")
             return result
         except Exception as e:
-            logger.error(f"例外発生: {func.__name__}: {e}")
+            logger.error(f"Exception: {func.__name__}: {e}")
             logger.error(traceback.format_exc())
             raise
     return wrapper
 
 @debug_decorator
 def process_data(items):
-    """データ処理（デバッグ対象）"""
+    """Data processing (debug target)"""
     if not items:
-        raise ValueError("空のデータ")
+        raise ValueError("Empty data")
     return [item * 2 for item in items]
 ```
 
-### パフォーマンス問題の診断
+### Diagnosing Performance Issues
 
-パフォーマンス問題が発生した場合の診断手順:
+Steps for diagnosing performance issues:
 
-1. **ボトルネックの特定**: プロファイリングツールで計測
-2. **メモリ使用量の確認**: メモリリークの有無をチェック
-3. **I/O待ちの確認**: ディスクやネットワークI/Oの状況を確認
-4. **同時接続数の確認**: コネクションプールの状態を確認
+1. **Identify bottlenecks**: Measure with profiling tools
+2. **Check memory usage**: Check for memory leaks
+3. **Check I/O waits**: Check disk and network I/O conditions
+4. **Check concurrent connections**: Check connection pool status
 
-| 問題の種類 | 診断ツール | 対策 |
-|-----------|-----------|------|
-| CPU負荷 | cProfile, py-spy | アルゴリズム改善、並列化 |
-| メモリリーク | tracemalloc, objgraph | 参照の適切な解放 |
-| I/Oボトルネック | strace, iostat | 非同期I/O、キャッシュ |
-| DB遅延 | EXPLAIN, slow query log | インデックス、クエリ最適化 |
+| Problem Type | Diagnostic Tools | Countermeasures |
+|-------------|-----------------|-----------------|
+| CPU load | cProfile, py-spy | Algorithm improvement, parallelization |
+| Memory leak | tracemalloc, objgraph | Proper release of references |
+| I/O bottleneck | strace, iostat | Async I/O, caching |
+| DB latency | EXPLAIN, slow query log | Indexing, query optimization |
 
 ---
 
-## 設計判断ガイド
+## Design Decision Guide
 
-### 選択基準マトリクス
+### Selection Criteria Matrix
 
-技術選択を行う際の判断基準を以下にまとめます。
+The following summarizes the criteria for making technology selections.
 
-| 判断基準 | 重視する場合 | 妥協できる場合 |
-|---------|------------|-------------|
-| パフォーマンス | リアルタイム処理、大規模データ | 管理画面、バッチ処理 |
-| 保守性 | 長期運用、チーム開発 | プロトタイプ、短期プロジェクト |
-| スケーラビリティ | 成長が見込まれるサービス | 社内ツール、固定ユーザー |
-| セキュリティ | 個人情報、金融データ | 公開データ、社内利用 |
-| 開発速度 | MVP、市場投入スピード | 品質重視、ミッションクリティカル |
+| Criteria | Prioritize When | Acceptable to Compromise When |
+|---------|----------------|------------------------------|
+| Performance | Real-time processing, large-scale data | Admin panels, batch processing |
+| Maintainability | Long-term operation, team development | Prototypes, short-term projects |
+| Scalability | Services expected to grow | Internal tools, fixed users |
+| Security | Personal data, financial data | Public data, internal use |
+| Development speed | MVP, time-to-market | Quality-focused, mission-critical |
 
-### アーキテクチャパターンの選択
+### Choosing an Architecture Pattern
 
 ```
-┌─────────────────────────────────────────────────┐
-│              アーキテクチャ選択フロー              │
-├─────────────────────────────────────────────────┤
-│                                                 │
-│  ① チーム規模は？                                │
-│    ├─ 小規模（1-5人）→ モノリス                   │
-│    └─ 大規模（10人+）→ ②へ                       │
-│                                                 │
-│  ② デプロイ頻度は？                               │
-│    ├─ 週1回以下 → モノリス + モジュール分割         │
-│    └─ 毎日/複数回 → ③へ                          │
-│                                                 │
-│  ③ チーム間の独立性は？                            │
-│    ├─ 高い → マイクロサービス                      │
-│    └─ 中程度 → モジュラーモノリス                   │
-│                                                 │
-└─────────────────────────────────────────────────┘
++---------------------------------------------------+
+|          Architecture Selection Flow                |
++---------------------------------------------------+
+|                                                   |
+|  (1) Team size?                                    |
+|    +- Small (1-5 people) -> Monolith               |
+|    +- Large (10+ people) -> Go to (2)              |
+|                                                   |
+|  (2) Deployment frequency?                         |
+|    +- Weekly or less -> Monolith + module split     |
+|    +- Daily/multiple times -> Go to (3)            |
+|                                                   |
+|  (3) Independence between teams?                   |
+|    +- High -> Microservices                         |
+|    +- Moderate -> Modular monolith                  |
+|                                                   |
++---------------------------------------------------+
 ```
 
-### トレードオフの分析
+### Trade-off Analysis
 
-技術的な判断には必ずトレードオフが伴います。以下の観点で分析を行いましょう:
+Technical decisions always involve trade-offs. Analyze from the following perspectives:
 
-**1. 短期 vs 長期のコスト**
-- 短期的に速い方法が長期的には技術的負債になることがある
-- 逆に、過剰な設計は短期的なコストが高く、プロジェクトの遅延を招く
+**1. Short-term vs Long-term Cost**
+- A quick short-term approach may become technical debt in the long run
+- Conversely, over-engineering has high short-term costs and may delay the project
 
-**2. 一貫性 vs 柔軟性**
-- 統一された技術スタックは学習コストが低い
-- 多様な技術の採用は適材適所が可能だが、運用コストが増加
+**2. Consistency vs Flexibility**
+- A unified technology stack has lower learning costs
+- Adopting diverse technologies enables the right tool for the job but increases operational costs
 
-**3. 抽象化のレベル**
-- 高い抽象化は再利用性が高いが、デバッグが困難になる場合がある
-- 低い抽象化は直感的だが、コードの重複が発生しやすい
+**3. Level of Abstraction**
+- Higher abstraction provides better reusability but can make debugging more difficult
+- Lower abstraction is more intuitive but tends to produce code duplication
 
 ```python
-# 設計判断の記録テンプレート
+# Design decision recording template
 class ArchitectureDecisionRecord:
-    """ADR (Architecture Decision Record) の作成"""
+    """Create an ADR (Architecture Decision Record)"""
 
     def __init__(self, title: str):
         self.title = title
@@ -1069,17 +1111,17 @@ class ArchitectureDecisionRecord:
         self.alternatives = []
 
     def set_context(self, context: str):
-        """背景と課題の記述"""
+        """Describe the background and challenges"""
         self.context = context
         return self
 
     def set_decision(self, decision: str):
-        """決定内容の記述"""
+        """Describe the decision"""
         self.decision = decision
         return self
 
     def add_consequence(self, consequence: str, positive: bool = True):
-        """結果の追加"""
+        """Add a consequence"""
         self.consequences.append({
             'description': consequence,
             'type': 'positive' if positive else 'negative'
@@ -1087,7 +1129,7 @@ class ArchitectureDecisionRecord:
         return self
 
     def add_alternative(self, name: str, reason_rejected: str):
-        """却下した代替案の追加"""
+        """Add a rejected alternative"""
         self.alternatives.append({
             'name': name,
             'reason_rejected': reason_rejected
@@ -1095,15 +1137,15 @@ class ArchitectureDecisionRecord:
         return self
 
     def to_markdown(self) -> str:
-        """Markdown形式で出力"""
+        """Output in Markdown format"""
         md = f"# ADR: {self.title}\n\n"
-        md += f"## 背景\n{self.context}\n\n"
-        md += f"## 決定\n{self.decision}\n\n"
-        md += "## 結果\n"
+        md += f"## Context\n{self.context}\n\n"
+        md += f"## Decision\n{self.decision}\n\n"
+        md += "## Consequences\n"
         for c in self.consequences:
-            icon = "✅" if c['type'] == 'positive' else "⚠️"
+            icon = "+" if c['type'] == 'positive' else "!"
             md += f"- {icon} {c['description']}\n"
-        md += "\n## 却下した代替案\n"
+        md += "\n## Rejected Alternatives\n"
         for a in self.alternatives:
             md += f"- **{a['name']}**: {a['reason_rejected']}\n"
         return md
@@ -1111,53 +1153,53 @@ class ArchitectureDecisionRecord:
 
 ---
 
-## 実務での適用シナリオ
+## Practical Application Scenarios
 
-### シナリオ1: スタートアップでのMVP開発
+### Scenario 1: MVP Development at a Startup
 
-**状況:** 限られたリソースで素早くプロダクトをリリースする必要がある
+**Situation:** Need to release a product quickly with limited resources
 
-**アプローチ:**
-- シンプルなアーキテクチャを選択
-- 必要最小限の機能に集中
-- 自動テストはクリティカルパスのみ
-- モニタリングは早期から導入
+**Approach:**
+- Choose a simple architecture
+- Focus on the minimum necessary features
+- Automated testing only for the critical path
+- Introduce monitoring from the early stages
 
-**学んだ教訓:**
-- 完璧を求めすぎない（YAGNI原則）
-- ユーザーフィードバックを早期に取得
-- 技術的負債は意識的に管理する
+**Lessons Learned:**
+- Do not aim for perfection (YAGNI principle)
+- Obtain user feedback early
+- Manage technical debt consciously
 
-### シナリオ2: レガシーシステムのモダナイゼーション
+### Scenario 2: Legacy System Modernization
 
-**状況:** 10年以上運用されているシステムを段階的に刷新する
+**Situation:** Gradually modernize a system that has been in operation for over 10 years
 
-**アプローチ:**
-- Strangler Fig パターンで段階的に移行
-- 既存のテストがない場合はCharacterization Testを先に作成
-- APIゲートウェイで新旧システムを共存
-- データ移行は段階的に実施
+**Approach:**
+- Migrate incrementally using the Strangler Fig pattern
+- If there are no existing tests, create Characterization Tests first
+- Use an API gateway to allow new and old systems to coexist
+- Perform data migration in stages
 
-| フェーズ | 作業内容 | 期間目安 | リスク |
-|---------|---------|---------|--------|
-| 1. 調査 | 現状分析、依存関係の把握 | 2-4週間 | 低 |
-| 2. 基盤 | CI/CD構築、テスト環境 | 4-6週間 | 低 |
-| 3. 移行開始 | 周辺機能から順次移行 | 3-6ヶ月 | 中 |
-| 4. コア移行 | 中核機能の移行 | 6-12ヶ月 | 高 |
-| 5. 完了 | 旧システム廃止 | 2-4週間 | 中 |
+| Phase | Work Content | Estimated Duration | Risk |
+|-------|-------------|-------------------|------|
+| 1. Investigation | Current state analysis, dependency mapping | 2-4 weeks | Low |
+| 2. Foundation | CI/CD setup, test environment | 4-6 weeks | Low |
+| 3. Start Migration | Migrate peripheral features sequentially | 3-6 months | Medium |
+| 4. Core Migration | Migrate core features | 6-12 months | High |
+| 5. Completion | Decommission legacy system | 2-4 weeks | Medium |
 
-### シナリオ3: 大規模チームでの開発
+### Scenario 3: Development with a Large Team
 
-**状況:** 50人以上のエンジニアが同一プロダクトを開発する
+**Situation:** 50+ engineers developing the same product
 
-**アプローチ:**
-- ドメイン駆動設計で境界を明確化
-- チームごとにオーナーシップを設定
-- 共通ライブラリはInner Source方式で管理
-- APIファーストで設計し、チーム間の依存を最小化
+**Approach:**
+- Clarify boundaries with Domain-Driven Design
+- Set ownership for each team
+- Manage shared libraries using Inner Source approach
+- Design API-first to minimize inter-team dependencies
 
 ```python
-# チーム間のAPI契約定義
+# API contract definition between teams
 from dataclasses import dataclass
 from typing import List, Optional
 from enum import Enum
@@ -1170,20 +1212,20 @@ class Priority(Enum):
 
 @dataclass
 class APIContract:
-    """チーム間のAPI契約"""
+    """API contract between teams"""
     endpoint: str
     method: str
     owner_team: str
     consumers: List[str]
-    sla_ms: int  # レスポンスタイムSLA
+    sla_ms: int  # Response time SLA
     priority: Priority
 
     def validate_sla(self, actual_ms: int) -> bool:
-        """SLA準拠の確認"""
+        """Check SLA compliance"""
         return actual_ms <= self.sla_ms
 
     def to_openapi(self) -> dict:
-        """OpenAPI形式で出力"""
+        """Output in OpenAPI format"""
         return {
             'path': self.endpoint,
             'method': self.method,
@@ -1192,7 +1234,7 @@ class APIContract:
             'x-sla-ms': self.sla_ms
         }
 
-# 使用例
+# Usage example
 contracts = [
     APIContract(
         endpoint="/api/v1/users",
@@ -1213,79 +1255,79 @@ contracts = [
 ]
 ```
 
-### シナリオ4: パフォーマンスクリティカルなシステム
+### Scenario 4: Performance-Critical Systems
 
-**状況:** ミリ秒単位のレスポンスが求められるシステム
+**Situation:** A system requiring millisecond-level response times
 
-**最適化ポイント:**
-1. キャッシュ戦略（L1: インメモリ、L2: Redis、L3: CDN）
-2. 非同期処理の活用
-3. コネクションプーリング
-4. クエリ最適化とインデックス設計
+**Optimization Points:**
+1. Caching strategy (L1: in-memory, L2: Redis, L3: CDN)
+2. Leverage asynchronous processing
+3. Connection pooling
+4. Query optimization and index design
 
-| 最適化手法 | 効果 | 実装コスト | 適用場面 |
-|-----------|------|-----------|---------|
-| インメモリキャッシュ | 高 | 低 | 頻繁にアクセスされるデータ |
-| CDN | 高 | 低 | 静的コンテンツ |
-| 非同期処理 | 中 | 中 | I/O待ちが多い処理 |
-| DB最適化 | 高 | 高 | クエリが遅い場合 |
-| コード最適化 | 低-中 | 高 | CPU律速の場合 |
+| Optimization Method | Effect | Implementation Cost | Application |
+|--------------------|--------|-------------------|-------------|
+| In-memory cache | High | Low | Frequently accessed data |
+| CDN | High | Low | Static content |
+| Asynchronous processing | Medium | Medium | I/O-heavy processing |
+| DB optimization | High | High | When queries are slow |
+| Code optimization | Low-Medium | High | When CPU-bound |
 ---
 
 ## FAQ
 
-### Q1: なぜLinuxには多くのディストリビューションがあるのか？
+### Q1: Why are there so many Linux distributions?
 
-Linuxカーネルはオープンソースであるため、誰でもカーネル+独自のパッケージ管理+独自の設定を組み合わせてディストリビューションを作れる。目的に応じた最適化が異なるため多様性が生まれた（サーバー向けRHEL、デスクトップ向けUbuntu、セキュリティ向けKali、教育向けEdubuntu等）。これは「自由」の証であり、同時に初心者を混乱させる原因でもある。主要なディストリビューションは10程度に集約されつつある。
+Since the Linux kernel is open source, anyone can create a distribution by combining the kernel with their own package management and configuration. Diversity emerged because optimizations differ depending on the purpose (RHEL for servers, Ubuntu for desktops, Kali for security, Edubuntu for education, etc.). This is proof of "freedom" and simultaneously a source of confusion for beginners. Major distributions are consolidating to around 10.
 
-### Q2: macOSはなぜUnixベースなのか？
+### Q2: Why is macOS Unix-based?
 
-Apple がNeXT社を買収（1997年）した際に、Steve Jobsが開発したNeXTSTEP（Mach+BSD）が基盤となった。Darwin（macOSのカーネル）はMachマイクロカーネル+FreeBSDコンポーネントで構成され、正式にUNIX 03認証を取得している。Classic Mac OS（System 1-9）は独自OSだったが、モダンなメモリ保護やプリエンプティブマルチタスクを持たず限界があった。NeXTSTEPの採用により、macOSは安定したUnix基盤と美しいGUIを両立できるようになった。
+When Apple acquired NeXT (1997), NeXTSTEP (Mach + BSD), developed by Steve Jobs, became the foundation. Darwin (the macOS kernel) consists of the Mach microkernel + FreeBSD components and has officially obtained UNIX 03 certification. Classic Mac OS (System 1-9) was a proprietary OS, but it lacked modern memory protection and preemptive multitasking and had reached its limits. By adopting NeXTSTEP, macOS was able to achieve both a stable Unix foundation and a beautiful GUI.
 
-### Q3: Windows NTとWindows 95は何が違ったのか？
+### Q3: What was the difference between Windows NT and Windows 95?
 
-Windows 95はMS-DOS上に構築された16/32bitハイブリッドで不安定だった。一方Windows NTはVMS設計者Dave Cutlerがゼロから設計した完全な32bit OSで、メモリ保護、プリエンプティブマルチタスク、NTFSを備えた。NT系は企業向け（NT 4.0, 2000）として位置づけられ、コンシューマー向け（95, 98, Me）と別ラインだった。Windows XP（2001年）でこの2つのラインが統合され、コンシューマーもNTカーネルの恩恵を受けるようになった。
+Windows 95 was a 16/32-bit hybrid built on MS-DOS and was unstable. Windows NT, on the other hand, was a full 32-bit OS designed from scratch by VMS architect Dave Cutler, with memory protection, preemptive multitasking, and NTFS. The NT line was positioned for enterprise use (NT 4.0, 2000), while the consumer line (95, 98, Me) was separate. Windows XP (2001) merged these two lines, bringing the benefits of the NT kernel to consumers.
 
-### Q4: BSDとLinuxは何が違うのか？
+### Q4: What is the difference between BSD and Linux?
 
-技術的には両方ともUnix系OSだが、主要な違いは以下の通り:
-1. **カーネル**: BSDはカーネル+ユーザーランドが一体開発。Linuxはカーネルのみ（ユーザーランドはGNU等）
-2. **ライセンス**: BSDライセンス（寛容）vs GPL（コピーレフト）
-3. **開発モデル**: BSDはコア開発チームが統制。Linuxは分散的（Linusが最終決定）
-4. **ドライバ**: Linuxの方がハードウェアサポートが豊富
-5. **用途**: FreeBSDはネットワーク機器（Netflix, WhatsApp）、OpenBSDはセキュリティが重要な用途に強い
+Technically, both are Unix-like OSes, but the main differences are:
+1. **Kernel**: BSD develops the kernel and userland as a unified whole. Linux is kernel-only (userland comes from GNU and others)
+2. **License**: BSD License (permissive) vs GPL (copyleft)
+3. **Development Model**: BSD has a controlled core development team. Linux is distributed (Linus makes final decisions)
+4. **Drivers**: Linux has more extensive hardware support
+5. **Use Cases**: FreeBSD excels for network appliances (Netflix, WhatsApp), OpenBSD for security-critical applications
 
-### Q5: 次世代のOSはどのようなものになるか？
+### Q5: What will the next generation of OS look like?
 
-いくつかの方向性が議論されている:
-1. **マイクロカーネルの復権**: seL4（形式検証）、Fuchsia（Zircon）
-2. **Rust製OS**: メモリ安全性を言語レベルで保証
-3. **AI統合**: OSがユーザーの意図を理解し、自律的に最適化
-4. **Wasm OS**: WebAssemblyベースのポータブルなOS環境
-5. **量子OS**: 量子コンピュータのリソースを管理するOS（研究段階）
-6. **脳コンピュータOS**: BCIからの入力を処理するOS（将来）
-
----
-
-## まとめ
-
-| 時代 | 革新 | 代表OS | 設計思想 |
-|------|------|--------|----------|
-| 1950s | バッチ処理 | GM-NAA I/O | CPU利用率の向上 |
-| 1960s | タイムシェアリング | Multics, CTSS | 対話的コンピューティング |
-| 1970s | Unix誕生、C言語 | Unix | シンプルさ、移植性 |
-| 1980s | PC、GUI | MS-DOS, Macintosh | 個人用コンピュータ |
-| 1990s | オープンソース | Linux, Windows NT | 自由、堅牢性 |
-| 2000s | モバイル、クラウド | iOS, Android, Docker | ユビキタス、仮想化 |
-| 2020s | AI統合、ARM | Apple Silicon, AI PC | 効率性、知能化 |
+Several directions are being discussed:
+1. **Revival of microkernels**: seL4 (formally verified), Fuchsia (Zircon)
+2. **Rust-based OS**: Memory safety guaranteed at the language level
+3. **AI integration**: OS understands user intent and optimizes autonomously
+4. **Wasm OS**: Portable OS environments based on WebAssembly
+5. **Quantum OS**: OS for managing quantum computer resources (research stage)
+6. **Brain-computer OS**: OS for processing input from BCI (future)
 
 ---
 
-## 次に読むべきガイド
+## Summary
+
+| Era | Innovation | Representative OS | Design Philosophy |
+|-----|-----------|-------------------|-------------------|
+| 1950s | Batch processing | GM-NAA I/O | Improve CPU utilization |
+| 1960s | Time-sharing | Multics, CTSS | Interactive computing |
+| 1970s | Birth of Unix, C language | Unix | Simplicity, portability |
+| 1980s | PCs, GUIs | MS-DOS, Macintosh | Personal computing |
+| 1990s | Open source | Linux, Windows NT | Freedom, robustness |
+| 2000s | Mobile, cloud | iOS, Android, Docker | Ubiquity, virtualization |
+| 2020s | AI integration, ARM | Apple Silicon, AI PC | Efficiency, intelligence |
 
 ---
 
-## 参考文献
+## Recommended Next Reading
+
+---
+
+## References
 1. Ritchie, D. & Thompson, K. "The UNIX Time-Sharing System." CACM, 1974.
 2. Raymond, E. "The Art of Unix Programming." Addison-Wesley, 2003.
 3. Campbell-Kelly, M. "From Airline Reservations to Sonic the Hedgehog: A History of the Software Industry." MIT Press, 2003.

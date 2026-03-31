@@ -1,147 +1,151 @@
-# 機械学習の基礎
+# Fundamentals of Machine Learning
 
-> 「機械学習とは、明示的にプログラムすることなく、コンピュータに学習する能力を与える研究分野である」——Arthur Samuel (1959)
+> "Machine learning is the field of study that gives computers the ability to learn without being explicitly programmed." -- Arthur Samuel (1959)
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] 機械学習の全体像と3つの学習パラダイムを区別できる
-- [ ] 教師あり学習の主要アルゴリズム（線形回帰、ロジスティック回帰、決定木、SVM）を理解し実装できる
-- [ ] 教師なし学習（クラスタリング、次元削減、異常検知）の原理と適用場面を説明できる
-- [ ] ニューラルネットワークの構造、活性化関数、逆伝播法を数式とコードの両面で理解できる
-- [ ] 深層学習の主要アーキテクチャ（CNN、RNN/LSTM、Transformer）の違いを区別できる
-- [ ] 評価指標（Accuracy、Precision、Recall、F1、AUC-ROC、MSE、R²）を正しく使い分けられる
-- [ ] 過学習・未学習の診断と対策を実践できる
-- [ ] scikit-learn / NumPy を用いた機械学習パイプラインを構築できる
+- [ ] Distinguish the overall landscape of machine learning and its three learning paradigms
+- [ ] Understand and implement major supervised learning algorithms (linear regression, logistic regression, decision trees, SVM)
+- [ ] Explain the principles and application scenarios of unsupervised learning (clustering, dimensionality reduction, anomaly detection)
+- [ ] Understand neural network structure, activation functions, and backpropagation from both mathematical and coding perspectives
+- [ ] Distinguish the differences among major deep learning architectures (CNN, RNN/LSTM, Transformer)
+- [ ] Properly use evaluation metrics (Accuracy, Precision, Recall, F1, AUC-ROC, MSE, R-squared)
+- [ ] Diagnose and address overfitting and underfitting in practice
+- [ ] Build a machine learning pipeline using scikit-learn / NumPy
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Having the following knowledge will deepen your understanding before reading this guide:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [分散システム](./00-distributed-systems.md) の内容を理解していること
-
----
-
-## 目次
-
-1. [機械学習とは何か](#1-機械学習とは何か)
-2. [教師あり学習](#2-教師あり学習supervised-learning)
-3. [教師なし学習](#3-教師なし学習unsupervised-learning)
-4. [強化学習の概要](#4-強化学習の概要)
-5. [ニューラルネットワークの基礎](#5-ニューラルネットワークの基礎)
-6. [深層学習とアーキテクチャ](#6-深層学習とアーキテクチャ)
-7. [評価指標の体系](#7-評価指標の体系)
-8. [過学習と正則化](#8-過学習と正則化)
-9. [特徴量エンジニアリング](#9-特徴量エンジニアリング)
-10. [機械学習の実践パイプライン](#10-機械学習の実践パイプライン)
-11. [生成AIと大規模言語モデル](#11-生成aiと大規模言語モデル)
-12. [アンチパターン集](#12-アンチパターン集)
-13. [実践演習（3段階）](#13-実践演習3段階)
-14. [FAQ（よくある質問）](#14-faqよくある質問)
-15. [まとめと比較表](#15-まとめと比較表)
-16. [参考文献](#16-参考文献)
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Familiarity with the content of [Distributed Systems](./00-distributed-systems.md)
 
 ---
 
-## 1. 機械学習とは何か
+## Table of Contents
 
-### 1.1 従来のプログラミングとの対比
+1. [What Is Machine Learning](#1-what-is-machine-learning)
+2. [Supervised Learning](#2-supervised-learning)
+3. [Unsupervised Learning](#3-unsupervised-learning)
+4. [Overview of Reinforcement Learning](#4-overview-of-reinforcement-learning)
+5. [Fundamentals of Neural Networks](#5-fundamentals-of-neural-networks)
+6. [Deep Learning and Architectures](#6-deep-learning-and-architectures)
+7. [System of Evaluation Metrics](#7-system-of-evaluation-metrics)
+8. [Overfitting and Regularization](#8-overfitting-and-regularization)
+9. [Feature Engineering](#9-feature-engineering)
+10. [Practical Machine Learning Pipeline](#10-practical-machine-learning-pipeline)
+11. [Generative AI and Large Language Models](#11-generative-ai-and-large-language-models)
+12. [Anti-Pattern Collection](#12-anti-pattern-collection)
+13. [Practical Exercises (3 Levels)](#13-practical-exercises-3-levels)
+14. [FAQ (Frequently Asked Questions)](#14-faq-frequently-asked-questions)
+15. [Summary and Comparison Tables](#15-summary-and-comparison-tables)
+16. [References](#16-references)
 
-ソフトウェア開発において、従来のアプローチとMLアプローチは根本的に異なる。
+---
+
+## 1. What Is Machine Learning
+
+### 1.1 Comparison with Traditional Programming
+
+In software development, the traditional approach and the ML approach are fundamentally different.
 
 ```
-従来のプログラミング vs 機械学習:
+Traditional Programming vs Machine Learning:
 
-  従来のプログラミング:
+  Traditional Programming:
   ┌──────────┐   ┌──────────┐   ┌──────────┐
-  │  ルール   │ + │  データ   │ → │   結果    │
-  │(人が記述) │   │ (入力値)  │   │  (出力値) │
+  │  Rules    │ + │  Data    │ → │  Results  │
+  │(written  │   │ (input)  │   │ (output)  │
+  │ by human)│   │          │   │           │
   └──────────┘   └──────────┘   └──────────┘
 
-  機械学習:
+  Machine Learning:
   ┌──────────┐   ┌──────────┐   ┌──────────┐
-  │  データ   │ + │   結果    │ → │  ルール   │
-  │ (入力値)  │   │(正解ラベル)│   │ (モデル)  │
+  │  Data    │ + │  Results  │ → │  Rules    │
+  │ (input)  │   │ (labels)  │   │ (model)   │
   └──────────┘   └──────────┘   └──────────┘
 ```
 
-この違いは本質的だ。従来のプログラミングでは、開発者が条件分岐やロジックを全て手動で記述する。一方、機械学習では「データと正解のペア」からアルゴリズムがルール（モデル）を自動的に獲得する。
+This difference is fundamental. In traditional programming, developers manually write all conditional branches and logic. In machine learning, the algorithm automatically acquires rules (a model) from "data and correct answer pairs."
 
-**例: スパムフィルター**
+**Example: Spam Filter**
 
-| アプローチ | 方法 | 課題 |
-|-----------|------|------|
-| 従来型 | `if "当選" in email → spam` のようにルールを手動記述 | 新手のスパムに対応できない |
-| ML型 | 大量のスパム/非スパムメールから自動的にパターンを学習 | データが必要 |
+| Approach | Method | Challenge |
+|----------|--------|-----------|
+| Traditional | Manually write rules like `if "winner" in email → spam` | Cannot handle new types of spam |
+| ML-based | Automatically learn patterns from large volumes of spam/non-spam emails | Requires data |
 
-### 1.2 機械学習が有効な4つの場面
+### 1.2 Four Scenarios Where Machine Learning Is Effective
 
-1. **ルールが複雑すぎて手動記述が困難**：画像認識（猫と犬を区別するルールを言語化できるか？）
-2. **ルールが常に変化する**：スパム検出（攻撃者は常に新しい手法を開発する）
-3. **大量データからのパターン発見**：レコメンデーション、需要予測
-4. **人間の直感が及ばない領域**：タンパク質構造予測（AlphaFold）、材料設計
+1. **Rules are too complex to write manually**: Image recognition (can you articulate the rules for distinguishing cats from dogs?)
+2. **Rules constantly change**: Spam detection (attackers constantly develop new techniques)
+3. **Pattern discovery from large data**: Recommendations, demand forecasting
+4. **Domains beyond human intuition**: Protein structure prediction (AlphaFold), materials design
 
-### 1.3 機械学習の数学的定義
+### 1.3 Mathematical Definition of Machine Learning
 
-Tom Mitchellによる厳密な定義（1997）:
+Tom Mitchell's formal definition (1997):
 
-> コンピュータプログラムが、タスク T に関して、性能指標 P で測定された性能が、経験 E によって改善されるとき、そのプログラムはタスク T と性能指標 P に関して経験 E から「学習した」という。
+> A computer program is said to learn from experience E with respect to some class of tasks T and performance measure P, if its performance at tasks in T, as measured by P, improves with experience E.
 
-具体例で理解する:
+Understanding through a concrete example:
 
-- **タスク T**: メールのスパム分類
-- **性能指標 P**: 分類の正解率（Accuracy）
-- **経験 E**: ラベル付きメールデータセット（スパム/非スパム）
+- **Task T**: Email spam classification
+- **Performance measure P**: Classification accuracy
+- **Experience E**: Labeled email dataset (spam/non-spam)
 
-### 1.4 機械学習の3大カテゴリ
+### 1.4 Three Major Categories of Machine Learning
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                     機械学習                              │
+│                   Machine Learning                       │
 ├──────────────────┬──────────────────┬──────────────────┤
-│   教師あり学習     │   教師なし学習    │    強化学習       │
-│   Supervised      │   Unsupervised   │  Reinforcement   │
+│   Supervised     │   Unsupervised   │  Reinforcement   │
+│   Learning       │   Learning       │  Learning        │
 ├──────────────────┼──────────────────┼──────────────────┤
-│ 入力 + 正解ラベル  │ 入力のみ         │ 状態 + 報酬      │
-│                   │                  │                  │
-│ ■ 分類:           │ ■ クラスタリング: │ ■ 方策学習:      │
-│   スパム判定      │   顧客セグメント │   ゲームAI       │
-│   画像分類        │   遺伝子分類     │   ロボット制御    │
-│   疾患診断        │                  │                  │
-│                   │ ■ 次元削減:      │ ■ 探索と活用:    │
-│ ■ 回帰:           │   PCA            │   AlphaGo        │
-│   価格予測        │   t-SNE          │   自動運転        │
-│   気温予測        │   UMAP           │   広告最適化      │
-│   売上予測        │                  │                  │
-│                   │ ■ 異常検知:      │ ■ 多腕バンディット│
-│                   │   不正取引検出   │   A/Bテスト最適化│
-│                   │   製造品質管理   │                  │
+│ Input + Labels   │ Input only       │ State + Reward   │
+│                  │                  │                  │
+│ ■ Classification:│ ■ Clustering:    │ ■ Policy         │
+│   Spam detection │   Customer       │   Learning:      │
+│   Image classif. │   segmentation   │   Game AI        │
+│   Disease diagn. │   Gene classif.  │   Robot control  │
+│                  │                  │                  │
+│ ■ Regression:    │ ■ Dimensionality │ ■ Exploration    │
+│   Price predict. │   Reduction:     │   & Exploitation:│
+│   Temperature    │   PCA            │   AlphaGo        │
+│   Sales forecast │   t-SNE          │   Self-driving   │
+│                  │   UMAP           │   Ad optimization│
+│                  │                  │                  │
+│                  │ ■ Anomaly Det.:  │ ■ Multi-Armed    │
+│                  │   Fraud detect.  │   Bandit:        │
+│                  │   Manufacturing  │   A/B test       │
+│                  │   quality control│   optimization   │
 └──────────────────┴──────────────────┴──────────────────┘
 ```
 
 ---
 
-## 2. 教師あり学習（Supervised Learning）
+## 2. Supervised Learning
 
-教師あり学習は、入力 X と正解ラベル y のペアから、未知のデータに対する予測関数 f: X → y を学習するアプローチだ。機械学習の中で最も広く使われている。
+Supervised learning is an approach that learns a prediction function f: X → y from pairs of input X and correct labels y, to make predictions on unseen data. It is the most widely used type of machine learning.
 
-### 2.1 分類（Classification）
+### 2.1 Classification
 
-分類は、入力データを離散的なカテゴリのいずれかに割り当てるタスクだ。
+Classification is the task of assigning input data to one of several discrete categories.
 
-**二値分類**: 出力が2クラス（例: スパム/非スパム、陽性/陰性）
-**多クラス分類**: 出力が3クラス以上（例: 画像を猫/犬/鳥/魚に分類）
+**Binary classification**: Output is 2 classes (e.g., spam/non-spam, positive/negative)
+**Multi-class classification**: Output is 3 or more classes (e.g., classifying images as cat/dog/bird/fish)
 
-#### 2.1.1 ロジスティック回帰（Logistic Regression）
+#### 2.1.1 Logistic Regression
 
-「回帰」と名前がついているが、実際には分類アルゴリズムだ。線形結合の出力をシグモイド関数で 0〜1 の確率に変換する。
+Despite the name "regression," this is actually a classification algorithm. It transforms the output of a linear combination into a probability between 0 and 1 using the sigmoid function.
 
 ```
-モデル: P(y=1|x) = σ(wᵀx + b) = 1 / (1 + e^(-(wᵀx + b)))
+Model: P(y=1|x) = σ(wᵀx + b) = 1 / (1 + e^(-(wᵀx + b)))
 
-シグモイド関数の形状:
+Shape of the sigmoid function:
 
   P(y=1)
   1.0 │                    ●●●●●
@@ -152,21 +156,21 @@ Tom Mitchellによる厳密な定義（1997）:
       └──────────────────────── z = wᵀx + b
      -5                0                5
 
-  z が大きい → P(y=1) ≈ 1（陽性と予測）
-  z が小さい → P(y=1) ≈ 0（陰性と予測）
-  z = 0     → P(y=1) = 0.5（決定境界）
+  Large z → P(y=1) ≈ 1 (predicted positive)
+  Small z → P(y=1) ≈ 0 (predicted negative)
+  z = 0   → P(y=1) = 0.5 (decision boundary)
 ```
 
-損失関数には**交差エントロピー（Cross-Entropy Loss）**を用いる:
+The **Cross-Entropy Loss** is used as the loss function:
 
 ```
 L = -1/n Σ [yᵢ log(ŷᵢ) + (1-yᵢ) log(1-ŷᵢ)]
 
-  yᵢ=1 の場合: L = -log(ŷᵢ)  → ŷᵢ が1に近いほど損失小
-  yᵢ=0 の場合: L = -log(1-ŷᵢ) → ŷᵢ が0に近いほど損失小
+  When yᵢ=1: L = -log(ŷᵢ)  → Loss decreases as ŷᵢ approaches 1
+  When yᵢ=0: L = -log(1-ŷᵢ) → Loss decreases as ŷᵢ approaches 0
 ```
 
-**コード例1: scikit-learn によるロジスティック回帰**
+**Code Example 1: Logistic Regression with scikit-learn**
 
 ```python
 import numpy as np
@@ -175,140 +179,140 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.datasets import load_breast_cancer
 
-# 乳がん診断データセットの読み込み
+# Load the breast cancer diagnosis dataset
 data = load_breast_cancer()
-X, y = data.data, data.target  # 569サンプル, 30特徴量, 2クラス
+X, y = data.data, data.target  # 569 samples, 30 features, 2 classes
 
-# 訓練データとテストデータに分割（8:2）
+# Split into training and test data (80:20)
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, random_state=42, stratify=y
 )
 
-# モデルの学習
+# Train the model
 model = LogisticRegression(max_iter=10000, random_state=42)
 model.fit(X_train, y_train)
 
-# テストデータで予測
+# Predict on test data
 y_pred = model.predict(X_test)
 
-# 評価
-print("混同行列:")
+# Evaluate
+print("Confusion Matrix:")
 print(confusion_matrix(y_test, y_pred))
-print("\n分類レポート:")
+print("\nClassification Report:")
 print(classification_report(y_test, y_pred,
                             target_names=data.target_names))
 
-# 出力例:
-# 混同行列:
+# Example output:
+# Confusion Matrix:
 # [[39  4]
 #  [ 1 70]]
 #
-# 分類レポート:
+# Classification Report:
 #               precision    recall  f1-score   support
 #    malignant       0.97      0.91      0.94        43
 #       benign       0.95      0.99      0.97        71
 #     accuracy                           0.96       114
 ```
 
-#### 2.1.2 サポートベクターマシン（SVM）
+#### 2.1.2 Support Vector Machine (SVM)
 
-SVMは、クラス間の**マージン（境界までの距離）を最大化**する超平面を見つけるアルゴリズムだ。
+SVM is an algorithm that finds the hyperplane that **maximizes the margin (distance to the boundary)** between classes.
 
 ```
-マージン最大化の直感:
+Intuition behind margin maximization:
 
     ●                    ●
-      ●    マージン         ●   マージン
+      ●    Margin           ●   Margin
         ● |←──→|            ● |←──────→|
   --------+--------    ------+--------+------
-          |              サポートベクター
+          |              Support Vectors
         ○ |←──→|            ○ |←──────→|
       ○                   ○
     ○                    ○
 
-    狭いマージン           広いマージン（SVM が目指す）
-    → 汎化性能が低い       → 汎化性能が高い
+    Narrow margin           Wide margin (what SVM aims for)
+    → Low generalization    → High generalization
 ```
 
-**カーネルトリック**: 線形分離不可能なデータに対して、カーネル関数を用いて高次元空間に写像し、線形分離を可能にする。
+**Kernel Trick**: For data that is not linearly separable, a kernel function maps the data to a higher-dimensional space where linear separation becomes possible.
 
-| カーネル | 数式 | 適用場面 |
-|---------|------|---------|
-| 線形 | K(x,z) = xᵀz | 線形分離可能な場合 |
-| RBF（ガウシアン） | K(x,z) = exp(-γ‖x-z‖²) | 汎用的（デフォルト推奨） |
-| 多項式 | K(x,z) = (γxᵀz + r)^d | 特徴量間の相互作用を考慮 |
+| Kernel | Formula | Use Case |
+|--------|---------|----------|
+| Linear | K(x,z) = xᵀz | When linearly separable |
+| RBF (Gaussian) | K(x,z) = exp(-γ‖x-z‖²) | General purpose (recommended default) |
+| Polynomial | K(x,z) = (γxᵀz + r)^d | Considering feature interactions |
 
-### 2.2 回帰（Regression）
+### 2.2 Regression
 
-回帰は、連続値を予測するタスクだ。
+Regression is the task of predicting continuous values.
 
-#### 2.2.1 線形回帰（Linear Regression）
+#### 2.2.1 Linear Regression
 
-最もシンプルかつ基礎的な回帰アルゴリズムだ。
+The simplest and most fundamental regression algorithm.
 
 ```
-単変量線形回帰:
-  モデル: y = wx + b
-  w: 重み（傾き）, b: バイアス（切片）
+Simple linear regression:
+  Model: y = wx + b
+  w: weight (slope), b: bias (intercept)
 
-  目標: 予測値と正解の差（損失）を最小化
-  損失関数: MSE = (1/n) Σ(yᵢ - ŷᵢ)²
+  Goal: Minimize the difference (loss) between predicted and actual values
+  Loss function: MSE = (1/n) Σ(yᵢ - ŷᵢ)²
 
-  勾配降下法によるパラメータ更新:
+  Parameter update via gradient descent:
   w ← w - α × ∂L/∂w = w - α × (-2/n) Σ xᵢ(yᵢ - ŷᵢ)
   b ← b - α × ∂L/∂b = b - α × (-2/n) Σ (yᵢ - ŷᵢ)
-  α: 学習率（ステップサイズ）
+  α: learning rate (step size)
 
   y │       ●
-    │     ●   ━━━━━━ 回帰直線 (y = wx + b)
+    │     ●   ━━━━━━ Regression line (y = wx + b)
     │   ●  ●╱
     │    ╱●
     │  ╱●
     │╱●
     └──────────── x
 
-  多変量線形回帰:
+  Multiple linear regression:
   y = w₁x₁ + w₂x₂ + ... + wₙxₙ + b
-  行列表記: y = Xw + b
-  正規方程式による解析解: w = (XᵀX)⁻¹Xᵀy
+  Matrix notation: y = Xw + b
+  Analytical solution via normal equation: w = (XᵀX)⁻¹Xᵀy
 ```
 
-**コード例2: NumPy で勾配降下法をゼロから実装**
+**Code Example 2: Implementing Gradient Descent from Scratch with NumPy**
 
 ```python
 import numpy as np
 
-# === 勾配降下法による線形回帰の実装 ===
+# === Linear regression implementation with gradient descent ===
 
-# サンプルデータ生成
+# Generate sample data
 np.random.seed(42)
-X = 2 * np.random.rand(100, 1)        # 0〜2 の一様分布
-y = 4 + 3 * X + np.random.randn(100, 1) * 0.5  # y = 4 + 3x + ノイズ
+X = 2 * np.random.rand(100, 1)        # Uniform distribution from 0 to 2
+y = 4 + 3 * X + np.random.randn(100, 1) * 0.5  # y = 4 + 3x + noise
 
-# パラメータの初期化
-w = np.random.randn(1, 1)  # 重み
-b = np.zeros((1, 1))       # バイアス
+# Initialize parameters
+w = np.random.randn(1, 1)  # Weight
+b = np.zeros((1, 1))       # Bias
 
-# ハイパーパラメータ
+# Hyperparameters
 learning_rate = 0.1
 n_epochs = 100
-m = len(X)  # サンプル数
+m = len(X)  # Number of samples
 
-# 学習ループ
+# Training loop
 losses = []
 for epoch in range(n_epochs):
-    # 順伝播: 予測値の計算
+    # Forward pass: compute predictions
     y_pred = X @ w + b
 
-    # 損失計算 (MSE)
+    # Compute loss (MSE)
     loss = np.mean((y - y_pred) ** 2)
     losses.append(loss)
 
-    # 勾配計算
+    # Compute gradients
     dw = (-2 / m) * (X.T @ (y - y_pred))   # ∂L/∂w
     db = (-2 / m) * np.sum(y - y_pred)      # ∂L/∂b
 
-    # パラメータ更新
+    # Update parameters
     w -= learning_rate * dw
     b -= learning_rate * db
 
@@ -316,160 +320,160 @@ for epoch in range(n_epochs):
         print(f"Epoch {epoch:3d}: Loss = {loss:.4f}, "
               f"w = {w[0,0]:.4f}, b = {b[0,0]:.4f}")
 
-# 最終結果の表示
-print(f"\n学習結果: y = {w[0,0]:.4f}x + {b[0,0]:.4f}")
-print(f"真のモデル: y = 3.0000x + 4.0000")
+# Display final results
+print(f"\nLearned model: y = {w[0,0]:.4f}x + {b[0,0]:.4f}")
+print(f"True model: y = 3.0000x + 4.0000")
 
-# 出力例:
+# Example output:
 # Epoch   0: Loss = 18.2341, w = 1.2345, b = 0.3456
 # Epoch  20: Loss = 0.3012, w = 2.8901, b = 3.9123
 # Epoch  40: Loss = 0.2534, w = 2.9678, b = 4.0234
 # Epoch  60: Loss = 0.2498, w = 2.9890, b = 4.0312
 # Epoch  80: Loss = 0.2495, w = 2.9956, b = 4.0345
 #
-# 学習結果: y = 2.9956x + 4.0345
-# 真のモデル: y = 3.0000x + 4.0000
+# Learned model: y = 2.9956x + 4.0345
+# True model: y = 3.0000x + 4.0000
 ```
 
-#### 2.2.2 多項式回帰と正則化
+#### 2.2.2 Polynomial Regression and Regularization
 
-線形回帰では表現力に限界がある。データが非線形の関係を持つ場合、多項式特徴量を導入する。
-
-```
-多項式回帰:
-  次数1: y = w₁x + b
-  次数2: y = w₁x + w₂x² + b
-  次数3: y = w₁x + w₂x² + w₃x³ + b
-
-  しかし、次数を上げすぎると過学習が起こる:
-
-  次数1（未学習）     次数3（適切）      次数15（過学習）
-  y │  ──────       y │  ～～～        y │  ∿∿∿∿∿∿
-    │ ●   ●          │ ●～～●          │ ●∿∿∿∿●
-    │●  ●             │● �            │●∿   ∿
-    │  ●              │  ●              │  ●
-    └──── x           └──── x           └──── x
-  バイアス高          バイアス/         バリアンス高
-  バリアンス低        バリアンス均衡    バイアス低
-```
-
-**正則化**は過学習を防ぐために、損失関数にパラメータの大きさへのペナルティを追加する手法だ。
-
-| 正則化手法 | 損失関数 | 効果 |
-|-----------|---------|------|
-| L1（Lasso） | MSE + λΣ\|wᵢ\| | スパースな解（一部の重みが0になる） → 特徴量選択 |
-| L2（Ridge） | MSE + λΣwᵢ² | 重みが全体的に小さくなる → 滑らかな予測 |
-| ElasticNet | MSE + λ₁Σ\|wᵢ\| + λ₂Σwᵢ² | L1とL2の組み合わせ |
-
-### 2.3 決定木（Decision Tree）
-
-決定木は、条件分岐の連鎖によってデータを分類・回帰する。人間にとって最も解釈しやすいアルゴリズムの一つだ。
+Linear regression has limited expressiveness. When data has a nonlinear relationship, polynomial features can be introduced.
 
 ```
-例: ローン審査の決定木
+Polynomial regression:
+  Degree 1: y = w₁x + b
+  Degree 2: y = w₁x + w₂x² + b
+  Degree 3: y = w₁x + w₂x² + w₃x³ + b
 
-              ┌──────────────┐
-              │ 年収 > 500万? │
-              └───┬──────┬───┘
+  However, increasing the degree too much causes overfitting:
+
+  Degree 1 (underfitting)  Degree 3 (appropriate)  Degree 15 (overfitting)
+  y │  ──────            y │  ～～～             y │  ∿∿∿∿∿∿
+    │ ●   ●               │ ●～～●               │ ●∿∿∿∿●
+    │●  ●                  │●  ●                  │●∿   ∿
+    │  ●                   │  ●                   │  ●
+    └──── x                └──── x                └──── x
+  High bias              Bias/Variance           High variance
+  Low variance           balanced                Low bias
+```
+
+**Regularization** prevents overfitting by adding a penalty on parameter magnitude to the loss function.
+
+| Regularization | Loss Function | Effect |
+|---------------|--------------|--------|
+| L1 (Lasso) | MSE + λΣ\|wᵢ\| | Sparse solutions (some weights become 0) → Feature selection |
+| L2 (Ridge) | MSE + λΣwᵢ² | Weights shrink overall → Smoother predictions |
+| ElasticNet | MSE + λ₁Σ\|wᵢ\| + λ₂Σwᵢ² | Combination of L1 and L2 |
+
+### 2.3 Decision Tree
+
+Decision trees classify or regress data through a chain of conditional splits. They are among the most interpretable algorithms for humans.
+
+```
+Example: Loan approval decision tree
+
+              ┌──────────────────┐
+              │ Income > 50K?     │
+              └───┬──────┬───────┘
               Yes │      │ No
           ┌───────┘      └───────┐
-     ┌────┴─────┐          ┌─────┴────┐
-     │勤続 > 3年?│          │  却下 ✗   │
-     └──┬────┬──┘          └──────────┘
+     ┌────┴──────┐         ┌─────┴────┐
+     │Tenure > 3y?│         │ Reject ✗  │
+     └──┬────┬───┘         └──────────┘
      Yes│    │No
     ┌───┘    └───┐
-┌───┴───┐  ┌────┴────┐
-│承認 ✓  │  │負債>200万?│
-└────────┘  └──┬───┬──┘
+┌───┴───┐  ┌────┴─────┐
+│Approve ✓│  │Debt > 20K?│
+└────────┘  └──┬───┬───┘
             Yes│   │No
            ┌──┘   └──┐
       ┌────┴───┐ ┌───┴────┐
-      │ 却下 ✗  │ │ 承認 ✓  │
+      │ Reject ✗│ │Approve ✓│
       └────────┘ └────────┘
 ```
 
-**分割基準の詳細**:
+**Details on Split Criteria**:
 
-**ジニ不純度（Gini Impurity）**:
+**Gini Impurity**:
 
 ```
 Gini(t) = 1 - Σ p(i|t)²
 
-例: ノードに [猫: 40, 犬: 60] の100サンプルがある場合
+Example: A node has 100 samples [Cat: 40, Dog: 60]
 Gini = 1 - (0.4² + 0.6²) = 1 - (0.16 + 0.36) = 0.48
 
-完全に純粋なノード（全て猫）:
+Completely pure node (all cats):
 Gini = 1 - 1² = 0
 
-最大不純度（猫50%, 犬50%）:
+Maximum impurity (50% cat, 50% dog):
 Gini = 1 - (0.5² + 0.5²) = 0.5
 ```
 
-**情報利得（Information Gain）**:
+**Information Gain**:
 
 ```
-エントロピー: H(t) = -Σ p(i|t) log₂ p(i|t)
-情報利得: IG = H(parent) - Σ (|child_k| / |parent|) × H(child_k)
+Entropy: H(t) = -Σ p(i|t) log₂ p(i|t)
+Information Gain: IG = H(parent) - Σ (|child_k| / |parent|) × H(child_k)
 
-エントロピーが最も減少する特徴量・閾値で分割する。
+Split on the feature and threshold that reduces entropy the most.
 ```
 
-### 2.4 アンサンブル学習
+### 2.4 Ensemble Learning
 
-複数の弱い学習器（weak learner）を組み合わせて、単体より高い性能を実現する手法群だ。
+A family of methods that combine multiple weak learners to achieve higher performance than any single learner.
 
-#### ランダムフォレスト（Random Forest）
+#### Random Forest
 
 ```
-バギング（Bootstrap Aggregating）+ 特徴量のランダム選択
+Bagging (Bootstrap Aggregating) + Random feature selection
 
-  元データ
+  Original data
   ┌────────┐
-  │ D全体   │
+  │ Full D  │
   └──┬─┬─┬─┘
-     │ │ │   ブートストラップサンプリング
-     ▼ ▼ ▼   （復元抽出）
+     │ │ │   Bootstrap sampling
+     ▼ ▼ ▼   (with replacement)
   ┌──┐┌──┐┌──┐
-  │D₁││D₂││D₃│  各サブセットで独立に学習
+  │D₁││D₂││D₃│  Each subset is trained independently
   └┬─┘└┬─┘└┬─┘
    ▼   ▼   ▼
-  木₁  木₂  木₃   各木は特徴量のサブセットで分割
+  Tree₁ Tree₂ Tree₃  Each tree splits on a feature subset
    │   │   │
    ▼   ▼   ▼
-  猫   犬   猫   → 多数決 → 猫（最終予測）
+  Cat  Dog  Cat  → Majority vote → Cat (final prediction)
 ```
 
-特徴:
-- 各木はデータの約63.2%で学習（残り36.8%はOOB: Out-of-Bag）
-- 特徴量もランダムに選択（通常 √p 個、p=総特徴数）
-- 並列学習が可能で高速
-- 過学習しにくい
+Characteristics:
+- Each tree trains on about 63.2% of data (remaining 36.8% is OOB: Out-of-Bag)
+- Features are also randomly selected (typically √p, where p = total features)
+- Parallelizable for fast training
+- Resistant to overfitting
 
-#### 勾配ブースティング（Gradient Boosting）
+#### Gradient Boosting
 
 ```
-弱い学習器を逐次的に追加し、前の誤差（残差）を修正していく
+Sequentially adds weak learners that correct the errors (residuals) of the previous ones
 
   f(x) = f₁(x) + η・f₂(x) + η・f₃(x) + ...
-  η: 学習率（shrinkage）
+  η: learning rate (shrinkage)
 
-  Step 1: f₁ を学習（初期モデル）
-  Step 2: 残差 r₁ = y - f₁(x) を計算
-  Step 3: f₂ で r₁ を学習
-  Step 4: 残差 r₂ = y - (f₁ + η・f₂) を計算
-  Step 5: f₃ で r₂ を学習
-  ...繰り返し
+  Step 1: Train f₁ (initial model)
+  Step 2: Compute residuals r₁ = y - f₁(x)
+  Step 3: Train f₂ on r₁
+  Step 4: Compute residuals r₂ = y - (f₁ + η・f₂)
+  Step 5: Train f₃ on r₂
+  ...repeat
 ```
 
-主要な実装:
+Major implementations:
 
-| ライブラリ | 特徴 | 主な用途 |
-|-----------|------|---------|
-| XGBoost | 正則化付き勾配ブースティング、並列化 | Kaggle競技の定番 |
-| LightGBM | ヒストグラムベース、高速・省メモリ | 大規模データ |
-| CatBoost | カテゴリ変数の自動処理、順序ブースティング | カテゴリ変数が多いデータ |
+| Library | Features | Primary Use |
+|---------|----------|-------------|
+| XGBoost | Regularized gradient boosting, parallelization | Kaggle competition standard |
+| LightGBM | Histogram-based, fast and memory-efficient | Large-scale data |
+| CatBoost | Automatic categorical variable handling, ordered boosting | Data with many categorical variables |
 
-**コード例3: scikit-learn によるランダムフォレストと勾配ブースティングの比較**
+**Code Example 3: Comparing Random Forest and Gradient Boosting with scikit-learn**
 
 ```python
 import numpy as np
@@ -481,280 +485,284 @@ from sklearn.ensemble import (
 )
 from sklearn.tree import DecisionTreeClassifier
 
-# 合成データの生成（1000サンプル、20特徴量、2クラス）
+# Generate synthetic data (1000 samples, 20 features, 2 classes)
 X, y = make_classification(
     n_samples=1000, n_features=20,
     n_informative=10, n_redundant=5,
     random_state=42
 )
 
-# 3つのモデルを比較
+# Compare three models
 models = {
-    "決定木（単体）": DecisionTreeClassifier(random_state=42),
-    "ランダムフォレスト": RandomForestClassifier(
+    "Decision Tree (single)": DecisionTreeClassifier(random_state=42),
+    "Random Forest": RandomForestClassifier(
         n_estimators=100, random_state=42
     ),
-    "勾配ブースティング": GradientBoostingClassifier(
+    "Gradient Boosting": GradientBoostingClassifier(
         n_estimators=100, learning_rate=0.1, random_state=42
     ),
 }
 
-print("5分割交差検証による精度比較:")
+print("Accuracy comparison with 5-fold cross-validation:")
 print("-" * 50)
 for name, model in models.items():
     scores = cross_val_score(model, X, y, cv=5, scoring='accuracy')
     print(f"{name:20s}: {scores.mean():.4f} (+/- {scores.std():.4f})")
 
-# 出力例:
-# 5分割交差検証による精度比較:
+# Example output:
+# Accuracy comparison with 5-fold cross-validation:
 # --------------------------------------------------
-# 決定木（単体）         : 0.8560 (+/- 0.0234)
-# ランダムフォレスト      : 0.9320 (+/- 0.0187)
-# 勾配ブースティング      : 0.9420 (+/- 0.0156)
+# Decision Tree (single) : 0.8560 (+/- 0.0234)
+# Random Forest           : 0.9320 (+/- 0.0187)
+# Gradient Boosting       : 0.9420 (+/- 0.0156)
 ```
 
-### 2.5 k近傍法（k-Nearest Neighbors: kNN）
+### 2.5 k-Nearest Neighbors (kNN)
 
-kNNは「怠惰学習（lazy learning）」の代表例で、学習フェーズが事実上存在しない。予測時に、入力に最も近い k 個の訓練サンプルを探し、多数決（分類）または平均（回帰）で予測する。
+kNN is a representative example of "lazy learning," where there is virtually no training phase. At prediction time, it finds the k closest training samples to the input and predicts by majority vote (classification) or average (regression).
 
 ```
-k=3 の場合:
+When k=3:
 
       ○ ○
-    ○   ★←新しいデータ点
+    ○   ★ ← New data point
       ● ○
     ●
   ●   ●
 
-  ★に最も近い3点: ○, ○, ○ → ○クラスと予測
+  3 closest points to ★: ○, ○, ○ → Predicted as class ○
 
-k の選択:
-  k が小さすぎる → ノイズに敏感（過学習）
-  k が大きすぎる → 決定境界が平滑化しすぎる（未学習）
-  → 交差検証で最適な k を選択する
+Choice of k:
+  k too small → Sensitive to noise (overfitting)
+  k too large → Decision boundary becomes overly smooth (underfitting)
+  → Select optimal k using cross-validation
 ```
 
 ---
 
-## 3. 教師なし学習（Unsupervised Learning）
+## 3. Unsupervised Learning
 
-教師なし学習は、正解ラベルなしでデータの構造やパターンを発見する手法だ。
+Unsupervised learning is a set of methods for discovering structure and patterns in data without correct labels.
 
-### 3.1 クラスタリング
+### 3.1 Clustering
 
-#### K-Means法
+#### K-Means
 
-最も広く使われるクラスタリングアルゴリズムだ。
-
-```
-K-Means のアルゴリズム:
-
-  Step 1: K個の中心点（セントロイド）をランダムに配置
-  Step 2: 各データ点を最も近い中心点のクラスタに割当
-  Step 3: 各クラスタの中心点を再計算（クラスタ内の平均）
-  Step 4: 収束するまで Step 2-3 を繰り返す
-
-  反復の様子 (K=3):
-
-  初期状態          反復1            反復2（収束）
-  ・・ ★₁          ●● ★₁          ●● ★₁
-  ・ ・            ● ●              ● ●
-  ・  ★₂・         ○  ★₂○          ○  ★₂○
-   ・・             ○○               ○○
-  ・ ★₃ ・         △ ★₃ △          △ ★₃ △
-   ・ ・             △ △              △ △
-
-  ★: 中心点の位置
-  各シンボル: そのクラスタに割り当てられたデータ点
-```
-
-**K の決定方法: エルボー法**
+The most widely used clustering algorithm.
 
 ```
-SSE（Sum of Squared Errors）を K の値ごとにプロットする:
+K-Means algorithm:
+
+  Step 1: Randomly place K centroids
+  Step 2: Assign each data point to the nearest centroid's cluster
+  Step 3: Recompute each centroid (mean of the cluster)
+  Step 4: Repeat Steps 2-3 until convergence
+
+  Iteration progression (K=3):
+
+  Initial state        Iteration 1        Iteration 2 (converged)
+  ・・ ★₁              ●● ★₁              ●● ★₁
+  ・ ・                ● ●                ● ●
+  ・  ★₂・            ○  ★₂○             ○  ★₂○
+   ・・                 ○○                  ○○
+  ・ ★₃ ・            △ ★₃ △             △ ★₃ △
+   ・ ・                △ △                 △ △
+
+  ★: Centroid position
+  Each symbol: Data point assigned to that cluster
+```
+
+**Determining K: The Elbow Method**
+
+```
+Plot SSE (Sum of Squared Errors) for each value of K:
 
   SSE
    │╲
    │  ╲
-   │   ╲___       ← エルボーポイント（K=3）
+   │   ╲___       ← Elbow point (K=3)
    │       ╲___
    │           ╲___
    └──────────────── K
    1  2  3  4  5  6
 
-  SSE が急激に減少しなくなる点（肘）が最適な K
+  The point where SSE stops decreasing sharply (the elbow) is the optimal K
 ```
 
-K-Meansの制約:
-- クラスタ数 K を事前に指定する必要がある
-- 球形のクラスタを仮定している（非球形は苦手）
-- 初期値に敏感（K-Means++ で改善）
-- 外れ値に弱い
+Limitations of K-Means:
+- The number of clusters K must be specified in advance
+- Assumes spherical clusters (struggles with non-spherical shapes)
+- Sensitive to initialization (improved with K-Means++)
+- Sensitive to outliers
 
-#### DBSCAN（Density-Based Spatial Clustering）
+#### DBSCAN (Density-Based Spatial Clustering)
 
-密度ベースのクラスタリングで、K-Meansの弱点を補完する。
-
-```
-DBSCANのパラメータ:
-  - ε (eps): 近傍の半径
-  - MinPts: コアポイントと判定する最小サンプル数
-
-  点の分類:
-  ● コアポイント: ε内にMinPts以上の点がある
-  ◐ ボーダーポイント: コアポイントのε内にあるがMinPts未満
-  ○ ノイズ: どのクラスタにも属さない
-
-  利点:
-  - クラスタ数を自動決定
-  - 任意形状のクラスタを検出
-  - 外れ値を自動的に除外
-
-  欠点:
-  - 密度が異なるクラスタの検出が苦手
-  - ε と MinPts の設定に依存
-```
-
-### 3.2 次元削減
-
-高次元データを低次元に圧縮し、可視化や計算効率の向上を図る。
-
-#### 主成分分析（PCA: Principal Component Analysis）
+A density-based clustering method that addresses K-Means' weaknesses.
 
 ```
-PCAの直感:
+DBSCAN parameters:
+  - ε (eps): Neighborhood radius
+  - MinPts: Minimum number of samples to be classified as a core point
 
-  データの分散が最大となる方向（主成分）を見つける
+  Point classification:
+  ● Core point: Has MinPts or more points within ε
+  ◐ Border point: Within ε of a core point but fewer than MinPts
+  ○ Noise: Does not belong to any cluster
 
-  2D → 1D の例:
+  Advantages:
+  - Automatically determines the number of clusters
+  - Detects clusters of arbitrary shape
+  - Automatically excludes outliers
+
+  Disadvantages:
+  - Struggles with clusters of varying density
+  - Depends on the ε and MinPts settings
+```
+
+### 3.2 Dimensionality Reduction
+
+Compresses high-dimensional data to lower dimensions for visualization and computational efficiency.
+
+#### Principal Component Analysis (PCA)
+
+```
+Intuition behind PCA:
+
+  Find the direction (principal component) that maximizes data variance
+
+  2D → 1D example:
   y │    ●  ●
-    │  ●  ●      第1主成分（分散最大方向）
+    │  ●  ●      First principal component (max variance direction)
     │ ● ●    ╱
     │●  ●  ╱
     │ ●  ╱
     │  ╱
     └──────── x
 
-  アルゴリズム:
-  1. データを標準化（平均0、分散1）
-  2. 共分散行列を計算
-  3. 固有値分解（固有値の大きい順が主成分）
-  4. 上位 k 個の固有ベクトルで射影
+  Algorithm:
+  1. Standardize data (mean 0, variance 1)
+  2. Compute covariance matrix
+  3. Eigenvalue decomposition (largest eigenvalues = principal components)
+  4. Project onto top k eigenvectors
 
-  寄与率:
-  第1主成分が全分散の70%を説明
-  第2主成分が全分散の20%を説明
-  → 2次元で90%の情報を保持可能
+  Explained variance ratio:
+  First principal component explains 70% of total variance
+  Second principal component explains 20% of total variance
+  → 90% of information retained in 2 dimensions
 ```
 
-#### t-SNE と UMAP
+#### t-SNE and UMAP
 
-| 手法 | 原理 | 速度 | グローバル構造 | 主な用途 |
-|------|------|------|--------------|---------|
-| PCA | 線形射影（分散最大化） | 高速 | 保持 | 前処理、特徴抽出 |
-| t-SNE | 確率分布間のKLダイバージェンス最小化 | 低速 | 弱い | 可視化（2D/3D） |
-| UMAP | トポロジカルデータ分析 | 中速 | 強い | 可視化 + 下流タスク |
+| Method | Principle | Speed | Global Structure | Primary Use |
+|--------|-----------|-------|-----------------|-------------|
+| PCA | Linear projection (variance maximization) | Fast | Preserved | Preprocessing, feature extraction |
+| t-SNE | KL divergence minimization between distributions | Slow | Weak | Visualization (2D/3D) |
+| UMAP | Topological data analysis | Medium | Strong | Visualization + downstream tasks |
 
-### 3.3 異常検知（Anomaly Detection）
+### 3.3 Anomaly Detection
 
-正常データのパターンを学習し、そこから逸脱するデータを検出する。
+Learns patterns of normal data and detects data that deviates from them.
 
-主な手法:
-- **Isolation Forest**: ランダムな分割で「早く孤立する点」を異常と判定
-- **One-Class SVM**: 正常データの境界を学習
-- **Autoencoder**: 再構成誤差が大きいデータを異常と判定
-- **統計的手法**: Zスコア、IQR（四分位範囲）
+Main methods:
+- **Isolation Forest**: Identifies points that are "quickly isolated" by random splits as anomalies
+- **One-Class SVM**: Learns the boundary of normal data
+- **Autoencoder**: Identifies data with high reconstruction error as anomalies
+- **Statistical methods**: Z-score, IQR (Interquartile Range)
 
-適用例:
-- クレジットカード不正検出
-- ネットワーク侵入検知
-- 製造ラインの品質管理
-- システム監視（CPU/メモリの異常検知）
+Applications:
+- Credit card fraud detection
+- Network intrusion detection
+- Manufacturing quality control
+- System monitoring (CPU/memory anomaly detection)
 
 ---
 
-## 4. 強化学習の概要
+## 4. Overview of Reinforcement Learning
 
-強化学習は、エージェントが環境との対話を通じて、累積報酬を最大化する行動方策を学習するフレームワークだ。
+Reinforcement learning is a framework where an agent learns a behavioral policy that maximizes cumulative reward through interaction with an environment.
 
 ```
-強化学習のフレームワーク:
+Reinforcement learning framework:
 
-  ┌────────────┐         行動 aₜ         ┌────────────┐
-  │            │───────────────────────→│            │
-  │   Agent    │                          │ Environment│
-  │  （方策π）  │←───────────────────────│ （状態遷移） │
-  │            │    状態 sₜ₊₁ + 報酬 rₜ   │            │
-  └────────────┘                          └────────────┘
+  ┌────────────┐         Action aₜ          ┌────────────┐
+  │            │───────────────────────────→│            │
+  │   Agent    │                             │ Environment│
+  │  (Policy π)│←───────────────────────────│ (State      │
+  │            │    State sₜ₊₁ + Reward rₜ  │ transition) │
+  └────────────┘                             └────────────┘
 
-  マルコフ決定過程（MDP）:
-  - S: 状態の集合
-  - A: 行動の集合
-  - P(s'|s,a): 状態遷移確率
-  - R(s,a): 報酬関数
-  - γ: 割引率（0 < γ ≤ 1、将来の報酬の割引）
+  Markov Decision Process (MDP):
+  - S: Set of states
+  - A: Set of actions
+  - P(s'|s,a): State transition probability
+  - R(s,a): Reward function
+  - γ: Discount factor (0 < γ ≤ 1, discounts future rewards)
 
-  目標: 累積割引報酬 G = Σ γᵗ rₜ を最大化する方策 π* を学習
+  Goal: Learn the policy π* that maximizes cumulative discounted reward G = Σ γᵗ rₜ
 ```
 
-**探索と活用のジレンマ（Exploration-Exploitation Trade-off）**:
+**Exploration-Exploitation Trade-off**:
 
-- **探索（Exploration）**: 未知の行動を試す → 長期的に良い方策を発見する可能性
-- **活用（Exploitation）**: 現時点で最善と思われる行動を取る → 短期的な報酬最大化
+- **Exploration**: Try unknown actions → Possibility of discovering better policies in the long run
+- **Exploitation**: Take the action believed to be best → Maximize short-term reward
 
-代表的な戦略:
-- **ε-greedy**: 確率 ε で探索（ランダム行動）、確率 1-ε で活用（最善行動）
-- **UCB（Upper Confidence Bound）**: 不確実性が高い行動を優先的に探索
-- **ボルツマン探索**: 行動価値に比例した確率で行動を選択
+Representative strategies:
+- **ε-greedy**: Explore (random action) with probability ε, exploit (best action) with probability 1-ε
+- **UCB (Upper Confidence Bound)**: Preferentially explore actions with high uncertainty
+- **Boltzmann exploration**: Select actions with probability proportional to action values
 
-**主要アルゴリズム**:
+**Major Algorithms**:
 
-| アルゴリズム | タイプ | 特徴 |
-|------------|--------|------|
-| Q-Learning | 価値ベース | Q(s,a) テーブルを学習。オフポリシー |
-| SARSA | 価値ベース | Q(s,a) テーブルを学習。オンポリシー |
-| DQN | 価値ベース + 深層学習 | Q関数をNNで近似。Atariゲーム |
-| Policy Gradient | 方策ベース | 方策 π(a\|s) を直接学習 |
-| PPO | Actor-Critic | 安定した学習。ChatGPTのRLHFに使用 |
-| SAC | Actor-Critic | 最大エントロピー。ロボット制御 |
+| Algorithm | Type | Features |
+|-----------|------|----------|
+| Q-Learning | Value-based | Learns Q(s,a) table. Off-policy |
+| SARSA | Value-based | Learns Q(s,a) table. On-policy |
+| DQN | Value-based + Deep Learning | Approximates Q function with NN. Atari games |
+| Policy Gradient | Policy-based | Directly learns policy π(a\|s) |
+| PPO | Actor-Critic | Stable training. Used in ChatGPT's RLHF |
+| SAC | Actor-Critic | Maximum entropy. Robot control |
 
 ---
 
-## 5. ニューラルネットワークの基礎
+## 5. Fundamentals of Neural Networks
 
-### 5.1 パーセプトロン（単一ニューロン）
+### 5.1 Perceptron (Single Neuron)
 
 ```
-入力信号が重み付き和され、活性化関数を通過して出力される:
+Input signals are weighted, summed, and passed through an activation function:
 
   x₁ ──w₁──┐
              │
   x₂ ──w₂──┼──→ Σ ──→ σ(z) ──→ y
              │        ↑
-  x₃ ──w₃──┘        b（バイアス）
+  x₃ ──w₃──┘        b (bias)
 
-  z = w₁x₁ + w₂x₂ + w₃x₃ + b  （重み付き和）
-  y = σ(z)                       （活性化関数の適用）
+  z = w₁x₁ + w₂x₂ + w₃x₃ + b  (weighted sum)
+  y = σ(z)                       (activation function applied)
 ```
 
-### 5.2 活性化関数の詳細
+### 5.2 Activation Functions in Detail
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│ 関数名      │ 定義                │ 範囲      │ 特徴      │
+│ Name        │ Definition            │ Range     │ Feature │
 ├──────────────────────────────────────────────────────────┤
-│ Sigmoid     │ 1/(1+e⁻ᶻ)          │ (0, 1)   │ 確率解釈  │
-│ tanh        │ (eᶻ-e⁻ᶻ)/(eᶻ+e⁻ᶻ) │ (-1, 1)  │ 零中心   │
-│ ReLU        │ max(0, z)           │ [0, ∞)   │ 現代標準  │
-│ Leaky ReLU  │ max(αz, z), α=0.01 │ (-∞, ∞)  │ 死んだ    │
-│             │                     │          │ ニューロン│
-│             │                     │          │ 回避      │
-│ GELU        │ z・Φ(z)             │ (-∞, ∞)  │ Transformer│
-│ Softmax     │ eᶻⁱ/Σeᶻʲ           │ (0, 1)   │ 多クラス  │
-│             │                     │ 合計=1   │ 出力層    │
+│ Sigmoid     │ 1/(1+e⁻ᶻ)            │ (0, 1)   │ Prob.   │
+│             │                       │          │ interp. │
+│ tanh        │ (eᶻ-e⁻ᶻ)/(eᶻ+e⁻ᶻ)   │ (-1, 1)  │ Zero-   │
+│             │                       │          │ centered│
+│ ReLU        │ max(0, z)             │ [0, ∞)   │ Modern  │
+│             │                       │          │ standard│
+│ Leaky ReLU  │ max(αz, z), α=0.01   │ (-∞, ∞)  │ Avoids  │
+│             │                       │          │ dead    │
+│             │                       │          │ neurons │
+│ GELU        │ z・Φ(z)               │ (-∞, ∞)  │Transformer│
+│ Softmax     │ eᶻⁱ/Σeᶻʲ             │ (0, 1)   │ Multi-  │
+│             │                       │ sum=1    │ class   │
+│             │                       │          │ output  │
 └──────────────────────────────────────────────────────────┘
 
-各活性化関数の形状:
+Shape of each activation function:
 
   Sigmoid:               ReLU:                Leaky ReLU:
   1 │      ●●●●          │    ╱              │    ╱
@@ -765,87 +773,87 @@ PCAの直感:
     └──────── z           └──────── z      ╱  └──── z
 ```
 
-**なぜ活性化関数が必要なのか？**
+**Why Are Activation Functions Necessary?**
 
-活性化関数がなければ、多層ネットワークは単なる線形変換の合成に過ぎず、1層の線形モデルと等価になる:
+Without activation functions, a multi-layer network is merely a composition of linear transformations, equivalent to a single-layer linear model:
 
 ```
-活性化関数なし:
+Without activation functions:
   y = W₂(W₁x + b₁) + b₂ = (W₂W₁)x + (W₂b₁ + b₂) = W'x + b'
-  → どれだけ層を重ねても線形モデル
+  → No matter how many layers, it remains a linear model
 
-活性化関数あり:
+With activation functions:
   y = W₂ σ(W₁x + b₁) + b₂
-  → 非線形変換により複雑な関数を近似可能
-  → 万能近似定理（Universal Approximation Theorem）
+  → Nonlinear transformations enable approximation of complex functions
+  → Universal Approximation Theorem
 ```
 
-### 5.3 多層ニューラルネットワーク
+### 5.3 Multi-Layer Neural Networks
 
 ```
-全結合ニューラルネットワーク（Fully Connected Neural Network）:
+Fully Connected Neural Network:
 
-  入力層      隠れ層1     隠れ層2      出力層
-  (特徴量)    (128ユニット) (64ユニット)  (クラス数)
+  Input Layer   Hidden Layer 1  Hidden Layer 2   Output Layer
+  (Features)    (128 units)     (64 units)       (# classes)
 
   ○──┐    ┌──○──┐    ┌──○──┐    ┌──○
   ○──┼────┼──○──┼────┼──○──┼────┼──○
   ○──┼────┼──○──┼────┼──○──┼────┤
   ○──┘    └──○──┘    └──○──┘    └──○
 
-  各接続に重み w があり、各ユニットにバイアス b がある
-  → パラメータ数: (入力数×128) + (128×64) + (64×出力数) + バイアス
+  Each connection has a weight w, and each unit has a bias b
+  → Number of parameters: (input×128) + (128×64) + (64×output) + biases
 ```
 
-### 5.4 逆伝播法（Backpropagation）
+### 5.4 Backpropagation
 
-ニューラルネットワークの学習は、**逆伝播法**によって実現される。連鎖律（chain rule）を用いて、出力層から入力層に向かって勾配を効率的に計算する。
+Neural network training is achieved through **backpropagation**. Using the chain rule, gradients are efficiently computed from the output layer back to the input layer.
 
 ```
-逆伝播法の手順:
+Backpropagation procedure:
 
-  1. 順伝播（Forward Pass）:
-     入力 x → 隠れ層 h = σ(W₁x + b₁) → 出力 ŷ = σ(W₂h + b₂)
+  1. Forward Pass:
+     Input x → Hidden h = σ(W₁x + b₁) → Output ŷ = σ(W₂h + b₂)
 
-  2. 損失計算:
+  2. Loss computation:
      L = Loss(y, ŷ)
 
-  3. 逆伝播（Backward Pass）:
-     ∂L/∂W₂ = ∂L/∂ŷ × ∂ŷ/∂z₂ × ∂z₂/∂W₂   （出力層の勾配）
+  3. Backward Pass:
+     ∂L/∂W₂ = ∂L/∂ŷ × ∂ŷ/∂z₂ × ∂z₂/∂W₂   (output layer gradient)
      ∂L/∂W₁ = ∂L/∂ŷ × ∂ŷ/∂z₂ × ∂z₂/∂h × ∂h/∂z₁ × ∂z₁/∂W₁
-                                               （隠れ層の勾配）
-     ↑ 連鎖律（Chain Rule）で分解して計算
+                                               (hidden layer gradient)
+     ↑ Decomposed and computed using the Chain Rule
 
-  4. パラメータ更新:
+  4. Parameter update:
      W₁ ← W₁ - α × ∂L/∂W₁
      W₂ ← W₂ - α × ∂L/∂W₂
      b₁ ← b₁ - α × ∂L/∂b₁
      b₂ ← b₂ - α × ∂L/∂b₂
 ```
 
-### 5.5 最適化アルゴリズム
+### 5.5 Optimization Algorithms
 
-単純な勾配降下法（SGD）には課題がある。学習率の設定が難しく、局所最適解に陥りやすい。これを改善する様々な最適化アルゴリズムが開発されている。
+Simple gradient descent (SGD) has challenges: setting the learning rate is difficult and it can get stuck in local optima. Various optimization algorithms have been developed to address this.
 
-| オプティマイザ | 特徴 | 使い分け |
-|-------------|------|---------|
-| SGD | 基本的な勾配降下法 | 理論的に最良解に収束しやすい |
-| SGD + Momentum | 慣性を利用して振動を抑制 | SGDの改良版 |
-| AdaGrad | パラメータごとに学習率を適応 | スパースなデータ |
-| RMSprop | AdaGradの学習率減衰問題を修正 | RNN学習に有効 |
-| Adam | Momentum + RMSprop | 最も広く使われるデフォルト |
-| AdamW | Adam + Weight Decay | Transformer学習の標準 |
+| Optimizer | Features | When to Use |
+|-----------|----------|-------------|
+| SGD | Basic gradient descent | Theoretically converges to best solution |
+| SGD + Momentum | Uses inertia to reduce oscillation | Improved SGD |
+| AdaGrad | Adapts learning rate per parameter | Sparse data |
+| RMSprop | Fixes AdaGrad's learning rate decay issue | Effective for RNN training |
+| Adam | Momentum + RMSprop | Most widely used default |
+| AdamW | Adam + Weight Decay | Standard for Transformer training |
 
-**コード例4: NumPy でニューラルネットワークをゼロから実装**
+**Code Example 4: Implementing a Neural Network from Scratch with NumPy**
 
 ```python
 import numpy as np
 
 class SimpleNeuralNetwork:
-    """2層ニューラルネットワーク（隠れ層1つ）"""
+    """2-layer neural network (1 hidden layer)"""
 
     def __init__(self, input_size, hidden_size, output_size):
-        # Xavierの初期化
+        # Xavier initialization
         self.W1 = np.random.randn(input_size, hidden_size) * np.sqrt(2.0 / input_size)
         self.b1 = np.zeros((1, hidden_size))
         self.W2 = np.random.randn(hidden_size, output_size) * np.sqrt(2.0 / hidden_size)
@@ -861,17 +869,17 @@ class SimpleNeuralNetwork:
         return 1 / (1 + np.exp(-np.clip(z, -500, 500)))
 
     def forward(self, X):
-        """順伝播"""
+        """Forward pass"""
         self.z1 = X @ self.W1 + self.b1
-        self.a1 = self.relu(self.z1)           # 隠れ層: ReLU
+        self.a1 = self.relu(self.z1)           # Hidden layer: ReLU
         self.z2 = self.a1 @ self.W2 + self.b2
-        self.a2 = self.sigmoid(self.z2)         # 出力層: Sigmoid
+        self.a2 = self.sigmoid(self.z2)         # Output layer: Sigmoid
         return self.a2
 
     def compute_loss(self, y, y_pred):
-        """二値交差エントロピー損失"""
+        """Binary cross-entropy loss"""
         m = y.shape[0]
-        epsilon = 1e-8  # log(0) 防止
+        epsilon = 1e-8  # Prevent log(0)
         loss = -np.mean(
             y * np.log(y_pred + epsilon) +
             (1 - y) * np.log(1 - y_pred + epsilon)
@@ -879,28 +887,28 @@ class SimpleNeuralNetwork:
         return loss
 
     def backward(self, X, y, y_pred, learning_rate=0.01):
-        """逆伝播"""
+        """Backward pass"""
         m = X.shape[0]
 
-        # 出力層の勾配
+        # Output layer gradients
         dz2 = y_pred - y                        # (m, output_size)
         dW2 = (self.a1.T @ dz2) / m
         db2 = np.sum(dz2, axis=0, keepdims=True) / m
 
-        # 隠れ層の勾配（連鎖律）
+        # Hidden layer gradients (chain rule)
         da1 = dz2 @ self.W2.T
         dz1 = da1 * self.relu_derivative(self.z1)
         dW1 = (X.T @ dz1) / m
         db1 = np.sum(dz1, axis=0, keepdims=True) / m
 
-        # パラメータ更新
+        # Parameter update
         self.W2 -= learning_rate * dW2
         self.b2 -= learning_rate * db2
         self.W1 -= learning_rate * dW1
         self.b1 -= learning_rate * db1
 
     def train(self, X, y, epochs=1000, learning_rate=0.01):
-        """学習ループ"""
+        """Training loop"""
         for epoch in range(epochs):
             y_pred = self.forward(X)
             loss = self.compute_loss(y, y_pred)
@@ -912,115 +920,121 @@ class SimpleNeuralNetwork:
                       f"Accuracy={accuracy:.4f}")
 
 
-# --- XOR問題（線形分離不可能）の学習 ---
+# --- Learning the XOR problem (not linearly separable) ---
 X = np.array([[0,0], [0,1], [1,0], [1,1]])
 y = np.array([[0], [1], [1], [0]])  # XOR
 
 nn = SimpleNeuralNetwork(input_size=2, hidden_size=8, output_size=1)
 nn.train(X, y, epochs=2000, learning_rate=0.5)
 
-# 予測
+# Predictions
 predictions = nn.forward(X)
-print("\n予測結果:")
+print("\nPrediction results:")
 for i in range(len(X)):
-    print(f"  入力: {X[i]} → 予測: {predictions[i,0]:.4f} "
-          f"(真値: {y[i,0]})")
+    print(f"  Input: {X[i]} → Prediction: {predictions[i,0]:.4f} "
+          f"(True value: {y[i,0]})")
 
-# 出力例:
+# Example output:
 # Epoch    0: Loss=0.6931, Accuracy=0.5000
 # Epoch  200: Loss=0.5234, Accuracy=0.7500
 # Epoch  400: Loss=0.1456, Accuracy=1.0000
 # Epoch  600: Loss=0.0423, Accuracy=1.0000
 # ...
-# 予測結果:
-#   入力: [0 0] → 予測: 0.0312 (真値: 0)
-#   入力: [0 1] → 予測: 0.9678 (真値: 1)
-#   入力: [1 0] → 予測: 0.9701 (真値: 1)
-#   入力: [1 1] → 予測: 0.0298 (真値: 0)
+# Prediction results:
+#   Input: [0 0] → Prediction: 0.0312 (True value: 0)
+#   Input: [0 1] → Prediction: 0.9678 (True value: 1)
+#   Input: [1 0] → Prediction: 0.9701 (True value: 1)
+#   Input: [1 1] → Prediction: 0.0298 (True value: 0)
 ```
 
 ---
 
-## 6. 深層学習とアーキテクチャ
+## 6. Deep Learning and Architectures
 
-深層学習（Deep Learning）は、多数の隠れ層を持つニューラルネットワークだ。2012年のAlexNetがImageNetコンペで圧勝したことを契機に、爆発的に発展した。
+Deep learning uses neural networks with many hidden layers. It saw explosive growth after AlexNet's overwhelming victory in the ImageNet competition in 2012.
 
-### 6.1 深層学習の3要素
+### 6.1 Three Key Elements of Deep Learning
 
 ```
-なぜ2012年に爆発的に進化したか:
+Why did deep learning explode in 2012:
 
   ┌──────────────────────────────────────────────┐
-  │ 1. 大量のデータ                                │
-  │    ImageNet: 1400万枚のラベル付き画像           │
-  │    インターネットの普及でデータ収集が容易に       │
-  │                                                │
-  │ 2. 計算能力の向上                               │
-  │    GPU: 並列行列演算に最適                      │
-  │    NVIDIA CUDA → 学習速度を10〜100倍に          │
-  │                                                │
-  │ 3. アルゴリズムの改善                           │
-  │    ReLU: 勾配消失問題を軽減                     │
-  │    Dropout: 過学習を防止                        │
-  │    BatchNorm: 学習を安定化・高速化              │
-  │    残差接続: 非常に深いネットワークを可能に       │
+  │ 1. Massive amounts of data                    │
+  │    ImageNet: 14 million labeled images        │
+  │    Internet proliferation made data collection │
+  │    easy                                       │
+  │                                               │
+  │ 2. Improved computational power               │
+  │    GPU: Optimal for parallel matrix operations│
+  │    NVIDIA CUDA → 10-100x faster training      │
+  │                                               │
+  │ 3. Algorithm improvements                     │
+  │    ReLU: Mitigated vanishing gradient problem │
+  │    Dropout: Prevented overfitting             │
+  │    BatchNorm: Stabilized and sped up training │
+  │    Residual connections: Enabled very deep     │
+  │    networks                                   │
   └──────────────────────────────────────────────┘
 ```
 
-### 6.2 CNN（畳み込みニューラルネットワーク）
+### 6.2 CNN (Convolutional Neural Network)
 
-画像認識に特化したアーキテクチャ。局所的な特徴を階層的に抽出する。
+An architecture specialized for image recognition. Extracts local features hierarchically.
 
 ```
-CNNのアーキテクチャ:
+CNN architecture:
 
   ┌────────┐  ┌────────┐  ┌────────┐  ┌──────┐  ┌────┐
-  │入力画像 │→│畳み込み │→│プーリング│→│畳み込み│→│全結合│→ 分類
-  │(HxWxC) │  │+ReLU   │  │(縮小)   │  │+ReLU  │  │+Soft│
-  │        │  │        │  │        │  │       │  │max │
+  │Input   │→│Convolu- │→│Pooling  │→│Convo- │→│Fully│→ Classification
+  │Image   │  │tion     │  │(shrink) │  │lution │  │Con- │
+  │(HxWxC) │  │+ReLU    │  │         │  │+ReLU  │  │nect │
+  │        │  │         │  │         │  │       │  │+Soft│
+  │        │  │         │  │         │  │       │  │max  │
   └────────┘  └────────┘  └────────┘  └──────┘  └────┘
 
-  畳み込み演算:
-  入力画像(5x5)     フィルタ(3x3)     出力(3x3)
-  ┌─┬─┬─┬─┬─┐     ┌─┬─┬─┐         ┌─┬─┬─┐
-  │1│0│1│0│1│     │1│0│1│         │4│3│4│
-  ├─┼─┼─┼─┼─┤     ├─┼─┼─┤    *    ├─┼─┼─┤
-  │0│1│0│1│0│  ×  │0│1│0│   =    │2│4│3│
-  ├─┼─┼─┼─┼─┤     ├─┼─┼─┤         ├─┼─┼─┤
-  │1│0│1│0│1│     │1│0│1│         │4│3│4│
-  ├─┼─┼─┼─┼─┤     └─┴─┴─┘         └─┴─┴─┘
+  Convolution operation:
+  Input image (5x5)    Filter (3x3)       Output (3x3)
+  ┌─┬─┬─┬─┬─┐     ┌─┬─┬─┐           ┌─┬─┬─┐
+  │1│0│1│0│1│     │1│0│1│           │4│3│4│
+  ├─┼─┼─┼─┼─┤     ├─┼─┼─┤    *     ├─┼─┼─┤
+  │0│1│0│1│0│  ×  │0│1│0│   =     │2│4│3│
+  ├─┼─┼─┼─┼─┤     ├─┼─┼─┤          ├─┼─┼─┤
+  │1│0│1│0│1│     │1│0│1│          │4│3│4│
+  ├─┼─┼─┼─┼─┤     └─┴─┴─┘          └─┴─┴─┘
   │0│1│0│1│0│
   ├─┼─┼─┼─┼─┤
   │1│0│1│0│1│
   └─┴─┴─┴─┴─┘
 
-  層が深くなるほど抽象的な特徴を学習:
+  Deeper layers learn more abstract features:
   ┌─────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐
-  │ 第1層    │→│  第2層    │→│  第3層    │→│  第4層    │
-  │エッジ、色│  │テクスチャ │  │部品（目、│  │オブジェクト│
-  │          │  │パターン   │  │鼻、車輪）│  │全体       │
+  │ Layer 1  │→│  Layer 2  │→│  Layer 3  │→│  Layer 4  │
+  │Edges,    │  │Textures,  │  │Parts     │  │Whole      │
+  │colors    │  │patterns   │  │(eyes,    │  │objects    │
+  │          │  │           │  │nose,     │  │           │
+  │          │  │           │  │wheels)   │  │           │
   └─────────┘  └──────────┘  └──────────┘  └──────────┘
 ```
 
-主要なCNNアーキテクチャの進化:
+Evolution of major CNN architectures:
 
-| モデル | 年 | 層数 | ImageNet Top-5 | 革新点 |
-|--------|-----|------|---------------|--------|
-| AlexNet | 2012 | 8 | 15.3% | GPU学習、ReLU、Dropout |
-| VGGNet | 2014 | 19 | 7.3% | 小さいフィルタ(3x3)の積み重ね |
-| GoogLeNet | 2014 | 22 | 6.7% | Inceptionモジュール |
-| ResNet | 2015 | 152 | 3.6% | 残差接続（Skip Connection） |
-| EfficientNet | 2019 | - | 2.9% | 幅・深さ・解像度の複合スケーリング |
+| Model | Year | Layers | ImageNet Top-5 | Innovation |
+|-------|------|--------|---------------|------------|
+| AlexNet | 2012 | 8 | 15.3% | GPU training, ReLU, Dropout |
+| VGGNet | 2014 | 19 | 7.3% | Stacking small (3x3) filters |
+| GoogLeNet | 2014 | 22 | 6.7% | Inception module |
+| ResNet | 2015 | 152 | 3.6% | Residual connections (Skip Connection) |
+| EfficientNet | 2019 | - | 2.9% | Compound scaling of width, depth, resolution |
 
 ### 6.3 RNN / LSTM / GRU
 
-系列データ（テキスト、音声、時系列）を処理するアーキテクチャ。
+Architectures for processing sequential data (text, audio, time series).
 
 ```
-RNN（Recurrent Neural Network）:
+RNN (Recurrent Neural Network):
 
   ┌────┐  ┌────┐  ┌────┐  ┌────┐
-  │ h₁ │→│ h₂ │→│ h₃ │→│ h₄ │→ 出力
+  │ h₁ │→│ h₂ │→│ h₃ │→│ h₄ │→ Output
   └──┬─┘  └──┬─┘  └──┬─┘  └──┬─┘
      ↑       ↑       ↑       ↑
     x₁      x₂      x₃      x₄
@@ -1028,33 +1042,33 @@ RNN（Recurrent Neural Network）:
 
   hₜ = σ(Wₕhₜ₋₁ + Wₓxₜ + b)
 
-  問題: 勾配消失 → 長い系列で過去の情報を忘れる
+  Problem: Vanishing gradients → Forgets past information in long sequences
 
-LSTM（Long Short-Term Memory）:
-  ゲート機構で長期記憶と短期記憶を制御
+LSTM (Long Short-Term Memory):
+  Controls long-term and short-term memory through gating mechanisms
 
   ┌─────────────────────────────────────┐
-  │ LSTM セル                            │
+  │ LSTM Cell                            │
   │                                      │
-  │  忘却ゲート: fₜ = σ(Wf[hₜ₋₁,xₜ]+bf)│ ← 何を忘れるか
-  │  入力ゲート: iₜ = σ(Wi[hₜ₋₁,xₜ]+bi)│ ← 何を記憶するか
-  │  出力ゲート: oₜ = σ(Wo[hₜ₋₁,xₜ]+bo)│ ← 何を出力するか
+  │  Forget gate: fₜ = σ(Wf[hₜ₋₁,xₜ]+bf)│ ← What to forget
+  │  Input gate:  iₜ = σ(Wi[hₜ₋₁,xₜ]+bi)│ ← What to remember
+  │  Output gate: oₜ = σ(Wo[hₜ₋₁,xₜ]+bo)│ ← What to output
   │                                      │
-  │  セル状態: Cₜ = fₜ⊙Cₜ₋₁ + iₜ⊙C̃ₜ    │ ← 長期記憶
-  │  隠れ状態: hₜ = oₜ⊙tanh(Cₜ)         │ ← 短期記憶
+  │  Cell state: Cₜ = fₜ⊙Cₜ₋₁ + iₜ⊙C̃ₜ  │ ← Long-term memory
+  │  Hidden state: hₜ = oₜ⊙tanh(Cₜ)     │ ← Short-term memory
   └─────────────────────────────────────┘
 
-GRU（Gated Recurrent Unit）:
-  LSTMの簡略版。パラメータが少なく学習が速い。
-  ゲートが2つ（リセットゲート、更新ゲート）。
+GRU (Gated Recurrent Unit):
+  Simplified version of LSTM. Fewer parameters and faster training.
+  Has 2 gates (reset gate, update gate).
 ```
 
 ### 6.4 Transformer
 
-2017年の論文 "Attention Is All You Need" で提案された、現代AIの基盤アーキテクチャ。
+The foundational architecture of modern AI, proposed in the 2017 paper "Attention Is All You Need."
 
 ```
-Transformer のアーキテクチャ:
+Transformer architecture:
 
   ┌──────────────────────────────────────┐
   │           Transformer                 │
@@ -1073,100 +1087,100 @@ Transformer のアーキテクチャ:
   │                    └─────────────┘    │
   └──────────────────────────────────────┘
 
-Self-Attention の仕組み:
+Self-Attention mechanism:
 
-  入力: "The cat sat on the mat"
+  Input: "The cat sat on the mat"
 
-  各トークンについて Query(Q), Key(K), Value(V) を計算:
+  For each token, compute Query(Q), Key(K), Value(V):
   Q = XWq, K = XWk, V = XWv
 
   Attention(Q,K,V) = softmax(QKᵀ / √dₖ) V
 
-  "cat" のAttention重み:
+  Attention weights for "cat":
    The  cat  sat  on  the  mat
   [0.05 0.40 0.15 0.05 0.05 0.30]
         ↑                    ↑
-   自分自身に注目         "mat"にも注目
+   Attends to itself     Also attends to "mat"
 
-  → RNNと違い、全トークンを並列処理できる
-  → 長距離の依存関係を直接捉えられる
+  → Unlike RNN, all tokens can be processed in parallel
+  → Long-range dependencies are captured directly
 ```
 
 **Multi-Head Attention**:
 
-複数のAttentionヘッドを並列に計算し、異なる観点からの注目を捉える。
+Computes multiple attention heads in parallel to capture attention from different perspectives.
 
 ```
 MultiHead(Q,K,V) = Concat(head₁, ..., headₕ) Wᴼ
   where headᵢ = Attention(QWᵢQ, KWᵢK, VWᵢV)
 
-  ヘッド1: 構文的な関係に注目（主語-動詞）
-  ヘッド2: 意味的な関係に注目（同義語）
-  ヘッド3: 位置的な関係に注目（近接する単語）
-  → 複数の観点を統合
+  Head 1: Focuses on syntactic relations (subject-verb)
+  Head 2: Focuses on semantic relations (synonyms)
+  Head 3: Focuses on positional relations (adjacent words)
+  → Multiple perspectives are integrated
 ```
 
-Transformerから派生したモデル群:
+Model families derived from Transformer:
 
-| モデル | 構造 | 学習方法 | 代表例 |
-|--------|------|---------|--------|
-| Encoder-only | Encoderのみ | マスク言語モデリング | BERT, RoBERTa |
-| Decoder-only | Decoderのみ | 次トークン予測 | GPT, Claude, LLaMA |
-| Encoder-Decoder | 両方 | Seq2Seq | T5, BART |
+| Model | Structure | Training Method | Examples |
+|-------|-----------|-----------------|----------|
+| Encoder-only | Encoder only | Masked language modeling | BERT, RoBERTa |
+| Decoder-only | Decoder only | Next-token prediction | GPT, Claude, LLaMA |
+| Encoder-Decoder | Both | Seq2Seq | T5, BART |
 
 ---
 
-## 7. 評価指標の体系
+## 7. System of Evaluation Metrics
 
-モデルの性能を正しく評価することは、機械学習プロジェクトの成否を左右する最重要スキルの一つだ。
+Correctly evaluating model performance is one of the most critical skills that determines the success or failure of a machine learning project.
 
-### 7.1 分類タスクの評価指標
+### 7.1 Classification Metrics
 
-#### 混同行列（Confusion Matrix）
+#### Confusion Matrix
 
 ```
-                    予測
-                 陽性    陰性
+                    Predicted
+                 Positive  Negative
            ┌────────┬────────┐
-  実際 陽性 │  TP     │  FN     │  ← 偽陰性（見逃し）
+  Actual P │  TP     │  FN     │  ← False Negative (miss)
            ├────────┼────────┤
-       陰性 │  FP     │  TN     │  ← 偽陽性（誤検出）
+       N   │  FP     │  TN     │  ← False Positive (false alarm)
            └────────┴────────┘
               ↑
-        偽陽性（冤罪）
+        False Positive (false accusation)
 
-  TP (True Positive):  陽性を正しく陽性と予測
-  FP (False Positive): 陰性を誤って陽性と予測（第一種の過誤）
-  FN (False Negative): 陽性を誤って陰性と予測（第二種の過誤）
-  TN (True Negative):  陰性を正しく陰性と予測
+  TP (True Positive):  Correctly predicted positive as positive
+  FP (False Positive): Incorrectly predicted negative as positive (Type I error)
+  FN (False Negative): Incorrectly predicted positive as negative (Type II error)
+  TN (True Negative):  Correctly predicted negative as negative
 ```
 
-#### 主要な指標
+#### Key Metrics
 
 ```
-正解率（Accuracy）: (TP + TN) / (TP + FP + FN + TN)
-  → 全体のうち正しく分類した割合
-  → 不均衡データでは危険（99%が陰性なら常に陰性と答えてAcc=99%）
+Accuracy: (TP + TN) / (TP + FP + FN + TN)
+  → Proportion correctly classified out of the total
+  → Dangerous with imbalanced data (if 99% is negative, always predicting negative gives Acc=99%)
 
-適合率（Precision）: TP / (TP + FP)
-  → 「陽性」と予測したもののうち、本当に陽性だった割合
-  → 「冤罪を減らしたい」場合に重視
-  → スパムフィルタ: 正常メールをスパムと誤判定したくない
+Precision: TP / (TP + FP)
+  → Of those predicted as positive, what proportion was actually positive
+  → Important when you want to "reduce false accusations"
+  → Spam filter: Don't want to misclassify legitimate emails as spam
 
-再現率（Recall / Sensitivity）: TP / (TP + FN)
-  → 実際の陽性のうち、正しく検出できた割合
-  → 「見逃しを減らしたい」場合に重視
-  → がん検診: がん患者を見逃したくない
+Recall (Sensitivity): TP / (TP + FN)
+  → Of actual positives, what proportion was correctly detected
+  → Important when you want to "reduce misses"
+  → Cancer screening: Don't want to miss cancer patients
 
-F1スコア: 2 × (Precision × Recall) / (Precision + Recall)
-  → PrecisionとRecallの調和平均
-  → 不均衡データでAccuracyの代わりに使用
+F1 Score: 2 × (Precision × Recall) / (Precision + Recall)
+  → Harmonic mean of Precision and Recall
+  → Used instead of Accuracy for imbalanced data
 ```
 
-**Precision と Recall のトレードオフ**:
+**Precision-Recall Trade-off**:
 
 ```
-閾値を変えると Precision と Recall のバランスが変わる:
+Changing the threshold changes the balance between Precision and Recall:
 
   Precision
   1.0│╲
@@ -1179,285 +1193,299 @@ F1スコア: 2 × (Precision × Recall) / (Precision + Recall)
     0.0  0.5  1.0
          Recall
 
-  閾値を高くする → Precision↑, Recall↓（確信度が高いものだけ検出）
-  閾値を低くする → Precision↓, Recall↑（多く検出するが誤検出も増加）
+  Higher threshold → Precision↑, Recall↓ (detect only high-confidence cases)
+  Lower threshold  → Precision↓, Recall↑ (detect more but increase false positives)
 ```
 
-#### AUC-ROC曲線
+#### AUC-ROC Curve
 
 ```
-ROC曲線: 閾値を変化させたときのTPR vs FPR のプロット
+ROC Curve: Plot of TPR vs FPR as the threshold varies
 
-  TPR（True Positive Rate = Recall）
+  TPR (True Positive Rate = Recall)
   1.0│    ●●●●●●●
      │  ●●
-     │ ●         ← 良いモデル（AUC ≈ 0.9）
+     │ ●         ← Good model (AUC ≈ 0.9)
      │●
-  0.5│─ ─ ─ ─ ─ ← ランダム分類器（AUC = 0.5）
+  0.5│─ ─ ─ ─ ─ ← Random classifier (AUC = 0.5)
      │╱
      │
   0.0│
      └──────────
     0.0  0.5  1.0
-     FPR（False Positive Rate）
+     FPR (False Positive Rate)
 
-  AUC（Area Under the Curve）: ROC曲線の下の面積
-  - AUC = 1.0: 完璧な分類
-  - AUC = 0.5: ランダム分類（モデルに学習能力なし）
-  - AUC < 0.5: ランダムより悪い（ラベルが逆転している可能性）
+  AUC (Area Under the Curve): Area under the ROC curve
+  - AUC = 1.0: Perfect classification
+  - AUC = 0.5: Random classification (model has no learning ability)
+  - AUC < 0.5: Worse than random (labels may be inverted)
 ```
 
-### 7.2 回帰タスクの評価指標
+### 7.2 Regression Metrics
 
-| 指標 | 定義 | 特徴 |
-|------|------|------|
-| MSE | (1/n)Σ(yᵢ-ŷᵢ)² | 大きな誤差を強く罰する |
-| RMSE | √MSE | 元の単位と同じスケール |
-| MAE | (1/n)Σ\|yᵢ-ŷᵢ\| | 外れ値に頑健 |
-| R² | 1 - Σ(yᵢ-ŷᵢ)² / Σ(yᵢ-ȳ)² | モデルが説明する分散の割合（1に近いほど良い） |
-| MAPE | (100/n)Σ\|yᵢ-ŷᵢ\|/\|yᵢ\| | パーセンテージ誤差（解釈しやすい） |
+| Metric | Definition | Characteristics |
+|--------|-----------|-----------------|
+| MSE | (1/n)Σ(yᵢ-ŷᵢ)² | Penalizes large errors heavily |
+| RMSE | √MSE | Same scale as the original units |
+| MAE | (1/n)Σ\|yᵢ-ŷᵢ\| | Robust to outliers |
+| R² | 1 - Σ(yᵢ-ŷᵢ)² / Σ(yᵢ-ȳ)² | Proportion of variance explained by the model (closer to 1 is better) |
+| MAPE | (100/n)Σ\|yᵢ-ŷᵢ\|/\|yᵢ\| | Percentage error (easy to interpret) |
 
-### 7.3 評価指標の使い分け
+### 7.3 Choosing the Right Metric
 
 ```
-タスクに応じた指標の選択:
+Selecting metrics based on the task:
 
   ┌──────────────────────────────────────────────────┐
-  │ タスク              │ 推奨指標      │ 理由        │
+  │ Task                │ Recommended   │ Reason      │
   ├──────────────────────────────────────────────────┤
-  │ 均衡二値分類        │ Accuracy, F1  │ 素直に評価  │
-  │ 不均衡二値分類      │ F1, AUC-ROC   │ Acc は不適切│
-  │ 医療診断            │ Recall重視    │ 見逃し防止  │
-  │ スパム検出          │ Precision重視 │ 誤検出防止  │
-  │ 多クラス分類        │ Macro-F1      │ クラス間均等│
-  │ ランキング          │ NDCG, MAP     │ 順序を評価  │
-  │ 回帰（一般）        │ RMSE, R²      │ 標準的指標  │
-  │ 回帰（外れ値あり）  │ MAE           │ 頑健性重視  │
+  │ Balanced binary     │ Accuracy, F1  │ Straightfor-│
+  │ classification      │               │ ward eval   │
+  │ Imbalanced binary   │ F1, AUC-ROC   │ Acc is      │
+  │ classification      │               │ unsuitable  │
+  │ Medical diagnosis   │ Recall-focus  │ Prevent     │
+  │                     │               │ misses      │
+  │ Spam detection      │ Precision-    │ Prevent     │
+  │                     │ focus         │ false alarms│
+  │ Multi-class classif.│ Macro-F1      │ Equal across│
+  │                     │               │ classes     │
+  │ Ranking             │ NDCG, MAP     │ Evaluates   │
+  │                     │               │ ordering    │
+  │ Regression (general)│ RMSE, R²      │ Standard    │
+  │                     │               │ metrics     │
+  │ Regression (with    │ MAE           │ Robustness- │
+  │ outliers)           │               │ focused     │
   └──────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 8. 過学習と正則化
+## 8. Overfitting and Regularization
 
-### 8.1 バイアス-バリアンス トレードオフ
-
-```
-モデルの予測誤差 = バイアス² + バリアンス + 既約誤差
-
-  誤差│
-     │╲ バリアンス          ╱ バイアス²
-     │  ╲                 ╱
-     │    ╲    ╱─────╲  ╱  ← 総誤差
-     │      ╲╱         ╲
-     │       │
-     └───────┼──────────── モデルの複雑さ
-           最適点
-
-  バイアス: モデルの仮定の強さ（単純すぎると高い）
-  バリアンス: データへの感度（複雑すぎると高い）
-  → 両者のバランスが最適なモデルを選ぶ
-```
-
-### 8.2 過学習の診断
+### 8.1 Bias-Variance Trade-off
 
 ```
-学習曲線（Learning Curve）:
+Model prediction error = Bias² + Variance + Irreducible Error
 
-  損失│
-     │ ╲  訓練損失
-     │   ╲─────────────── ← 過学習: 訓練とテストの乖離
+  Error│
+      │╲ Variance              ╱ Bias²
+      │  ╲                   ╱
+      │    ╲    ╱─────╲    ╱  ← Total error
+      │      ╲╱         ╲
+      │       │
+      └───────┼──────────── Model complexity
+            Optimal point
+
+  Bias: Strength of model assumptions (too simple → high)
+  Variance: Sensitivity to data (too complex → high)
+  → Choose the model that balances both
+```
+
+### 8.2 Diagnosing Overfitting
+
+```
+Learning Curve:
+
+  Loss│
+     │ ╲  Training loss
+     │   ╲─────────────── ← Overfitting: gap between training and test
      │
-     │   ╱─────────────── ← テスト損失
+     │   ╱─────────────── ← Test loss
      │  ╱
      │╱
-     └──────────────────── エポック
+     └──────────────────── Epoch
 
-  過学習の兆候:
-  - 訓練損失は下がり続けるが、テスト損失が上昇に転じる
-  - 訓練精度 >> テスト精度（差が大きい）
+  Signs of overfitting:
+  - Training loss keeps decreasing, but test loss starts increasing
+  - Training accuracy >> Test accuracy (large gap)
 ```
 
-### 8.3 過学習対策の体系
+### 8.3 Systematic Approaches to Preventing Overfitting
 
 ```
-過学習対策の全体像:
+Overview of overfitting countermeasures:
 
   ┌─────────────────────────────────────────────┐
-  │  1. データ量を増やす                          │
-  │     - データ収集                              │
-  │     - データ拡張（画像の回転・反転・クロップ）  │
-  │                                               │
-  │  2. モデルの複雑さを制限する                   │
-  │     - L1/L2 正則化                            │
-  │     - Dropout                                 │
-  │     - モデルのサイズを小さくする               │
-  │                                               │
-  │  3. 学習プロセスの制御                         │
-  │     - 早期打ち切り（Early Stopping）           │
-  │     - 学習率スケジューリング                   │
-  │     - バッチ正規化（Batch Normalization）      │
-  │                                               │
-  │  4. 評価の厳密化                              │
-  │     - 交差検証（Cross Validation）             │
-  │     - ホールドアウト法                         │
+  │  1. Increase data volume                     │
+  │     - Data collection                        │
+  │     - Data augmentation (rotation, flip,     │
+  │       crop for images)                       │
+  │                                              │
+  │  2. Limit model complexity                   │
+  │     - L1/L2 regularization                   │
+  │     - Dropout                                │
+  │     - Reduce model size                      │
+  │                                              │
+  │  3. Control the training process             │
+  │     - Early Stopping                         │
+  │     - Learning rate scheduling               │
+  │     - Batch Normalization                    │
+  │                                              │
+  │  4. Rigorous evaluation                      │
+  │     - Cross Validation                       │
+  │     - Holdout method                         │
   └─────────────────────────────────────────────┘
 ```
 
-**Dropout の仕組み**:
+**How Dropout Works**:
 
 ```
-学習時に、ランダムにニューロンを「無効化」する:
+During training, randomly "deactivate" neurons:
 
-  通常のネットワーク:       Dropout適用後（p=0.5）:
+  Normal network:          After Dropout (p=0.5):
   ○──○──○──○              ○──○  ×  ○
   ○──○──○──○              ×  ○──○  ×
   ○──○──○──○              ○  ×  ○──○
 
-  × = 無効化されたニューロン（出力を0にする）
+  × = Deactivated neuron (output set to 0)
 
-  効果:
-  - 特定のニューロンへの依存を防ぐ
-  - アンサンブル効果（異なるサブネットワークの学習）
-  - 推論時は全ニューロンを使用（出力をpで掛ける）
+  Effects:
+  - Prevents dependence on specific neurons
+  - Ensemble effect (learning different sub-networks)
+  - At inference, all neurons are used (output multiplied by p)
 ```
 
-**交差検証（Cross Validation）**:
+**Cross Validation**:
 
 ```
-K分割交差検証（K-Fold Cross Validation）:
+K-Fold Cross Validation:
 
-  K=5 の場合:
+  For K=5:
 
-  Fold 1: [テスト | 訓練 | 訓練 | 訓練 | 訓練 ] → スコア₁
-  Fold 2: [訓練 | テスト | 訓練 | 訓練 | 訓練 ] → スコア₂
-  Fold 3: [訓練 | 訓練 | テスト | 訓練 | 訓練 ] → スコア₃
-  Fold 4: [訓練 | 訓練 | 訓練 | テスト | 訓練 ] → スコア₄
-  Fold 5: [訓練 | 訓練 | 訓練 | 訓練 | テスト ] → スコア₅
+  Fold 1: [Test | Train | Train | Train | Train ] → Score₁
+  Fold 2: [Train | Test | Train | Train | Train ] → Score₂
+  Fold 3: [Train | Train | Test | Train | Train ] → Score₃
+  Fold 4: [Train | Train | Train | Test | Train ] → Score₄
+  Fold 5: [Train | Train | Train | Train | Test ] → Score₅
 
-  最終スコア = (スコア₁ + ... + スコア₅) / 5
+  Final score = (Score₁ + ... + Score₅) / 5
 
-  利点:
-  - 全データを訓練とテストの両方に使用
-  - 性能の分散を推定できる
-  - データが少ない場合に特に有効
+  Advantages:
+  - All data is used for both training and testing
+  - Can estimate performance variance
+  - Especially effective when data is limited
 ```
 
 ---
 
-## 9. 特徴量エンジニアリング
+## 9. Feature Engineering
 
-特徴量エンジニアリングは、生データからモデルが学習しやすい特徴量を設計・抽出するプロセスだ。「データの質 = モデルの質（Garbage In, Garbage Out）」という原則の体現である。
+Feature engineering is the process of designing and extracting features from raw data that are easy for a model to learn. It embodies the principle "data quality = model quality (Garbage In, Garbage Out)."
 
-### 9.1 数値特徴量の前処理
+### 9.1 Preprocessing Numerical Features
 
 ```
-標準化（Standardization）:
-  z = (x - μ) / σ  →  平均0、標準偏差1
-  → 勾配降下法ベースのアルゴリズムに有効
+Standardization:
+  z = (x - μ) / σ  →  Mean 0, standard deviation 1
+  → Effective for gradient descent-based algorithms
 
-正規化（Min-Max Normalization）:
-  x' = (x - x_min) / (x_max - x_min)  →  0〜1に変換
-  → ニューラルネットワーク、画像データに有効
+Normalization (Min-Max):
+  x' = (x - x_min) / (x_max - x_min)  →  Scales to 0-1
+  → Effective for neural networks and image data
 
-対数変換:
+Log transformation:
   x' = log(1 + x)
-  → 右に裾が長い分布（所得、人口）を正規分布に近づける
+  → Makes right-skewed distributions (income, population) closer to normal
 ```
 
-### 9.2 カテゴリ特徴量のエンコーディング
+### 9.2 Encoding Categorical Features
 
-| 手法 | 説明 | 適用場面 |
-|------|------|---------|
-| Label Encoding | カテゴリを整数に変換（A=0, B=1, C=2） | 決定木系のモデル |
-| One-Hot Encoding | カテゴリをバイナリベクトルに変換 | 線形モデル、NN |
-| Target Encoding | カテゴリを目的変数の平均値に変換 | 高カーディナリティ |
-| Ordinal Encoding | 順序関係を保持した整数エンコーディング | 順序カテゴリ（低/中/高） |
+| Method | Description | Use Case |
+|--------|-------------|----------|
+| Label Encoding | Convert categories to integers (A=0, B=1, C=2) | Tree-based models |
+| One-Hot Encoding | Convert categories to binary vectors | Linear models, NNs |
+| Target Encoding | Convert categories to target variable mean | High cardinality |
+| Ordinal Encoding | Integer encoding preserving ordinal relationships | Ordinal categories (low/medium/high) |
 
-### 9.3 欠損値の処理
+### 9.3 Handling Missing Values
 
 ```
-欠損値の処理戦略:
+Missing value strategies:
 
-  1. 削除:
-     - リストワイズ削除（欠損を含む行を削除）
-     - 欠損率が低い場合のみ有効（< 5%）
+  1. Deletion:
+     - Listwise deletion (remove rows with missing values)
+     - Only effective when missing rate is low (< 5%)
 
-  2. 補完:
-     - 平均値/中央値/最頻値で補完
-     - 前方/後方補完（時系列データ）
-     - KNN補完（類似データの値で補完）
-     - 多重代入法（MICE）
+  2. Imputation:
+     - Fill with mean/median/mode
+     - Forward/backward fill (time series data)
+     - KNN imputation (fill with similar data values)
+     - Multiple imputation (MICE)
 
-  3. 指示変数の追加:
-     - 「欠損であるかどうか」を新しい特徴量として追加
-     - 欠損自体が情報を持つ場合に有効
+  3. Adding indicator variables:
+     - Add "whether missing or not" as a new feature
+     - Effective when missingness itself carries information
 ```
 
 ---
 
-## 10. 機械学習の実践パイプライン
+## 10. Practical Machine Learning Pipeline
 
-### 10.1 MLプロジェクトのライフサイクル
+### 10.1 ML Project Lifecycle
 
 ```
-MLプロジェクトの全体フロー:
+Overall flow of an ML project:
 
   ┌──────────────┐
-  │ 1. 問題定義   │ ← 「何を予測するか」「KPIは何か」を明確化
+  │ 1. Problem    │ ← Clarify "what to predict" and "what is the KPI"
+  │    Definition │
   └──────┬───────┘
          ▼
   ┌──────────────┐
-  │ 2. データ収集  │ ← API、DB、スクレイピング、外部データセット
+  │ 2. Data       │ ← API, DB, scraping, external datasets
+  │    Collection │
   └──────┬───────┘
          ▼
   ┌──────────────┐
-  │ 3. EDA       │ ← 探索的データ分析（可視化、統計量、相関）
-  │ (探索的分析)  │
+  │ 3. EDA        │ ← Exploratory Data Analysis (visualization,
+  │ (Exploratory  │    statistics, correlations)
+  │  Analysis)    │
   └──────┬───────┘
          ▼
   ┌──────────────┐
-  │ 4. 前処理     │ ← 欠損値処理、エンコーディング、スケーリング
-  │ 特徴量設計   │    特徴量エンジニアリング
+  │ 4. Preprocess-│ ← Missing values, encoding, scaling
+  │ ing & Feature │    Feature engineering
+  │ Engineering   │
   └──────┬───────┘
          ▼
   ┌──────────────┐
-  │ 5. モデル選択 │ ← ベースライン → 複雑なモデルへ段階的に
-  │    学習       │    ハイパーパラメータチューニング
+  │ 5. Model      │ ← Baseline → progressively complex models
+  │ Selection &   │    Hyperparameter tuning
+  │ Training      │
   └──────┬───────┘
          ▼
   ┌──────────────┐
-  │ 6. 評価      │ ← 交差検証、テストセットでの最終評価
+  │ 6. Evaluation │ ← Cross-validation, final evaluation on test set
   └──────┬───────┘
          ▼
   ┌──────────────┐
-  │ 7. デプロイ   │ ← REST API化、バッチ推論、エッジ推論
-  │    監視       │    データドリフト検知、モデルの再学習
+  │ 7. Deployment │ ← REST API, batch inference, edge inference
+  │ & Monitoring  │    Data drift detection, model retraining
   └──────────────┘
 ```
 
-### 10.2 データ分割の原則
+### 10.2 Data Splitting Principles
 
 ```
-データ分割の基本パターン:
+Basic data splitting pattern:
 
   ┌────────────────────────────────────────────┐
-  │             全データ                         │
+  │             All Data                        │
   ├────────────────────────┬─────────┬─────────┤
-  │     訓練データ (60%)    │検証(20%)│テスト(20%)│
+  │  Training Data (60%)   │Val (20%)│Test (20%)│
   └────────────────────────┴─────────┴─────────┘
 
-  訓練データ:  モデルのパラメータを学習
-  検証データ:  ハイパーパラメータの調整、モデル選択
-  テストデータ: 最終的な性能評価（1回だけ使用）
+  Training data:  Learns model parameters
+  Validation data: Adjusts hyperparameters, model selection
+  Test data:      Final performance evaluation (use only once)
 
-  注意:
-  - テストデータは「最後の切り札」。何度も使うと情報漏洩
-  - 時系列データは時間順に分割（未来のデータで訓練しない）
-  - 層化抽出（stratify）でクラス比率を保持
+  Cautions:
+  - Test data is the "last resort." Using it repeatedly causes information leakage
+  - Time series data must be split chronologically (don't train on future data)
+  - Use stratified sampling (stratify) to maintain class ratios
 ```
 
-**コード例5: scikit-learn による完全なMLパイプラインの実装**
+**Code Example 5: Complete ML Pipeline Implementation with scikit-learn**
 
 ```python
 import numpy as np
@@ -1470,24 +1498,24 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.metrics import mean_squared_error, r2_score
 
-# === 1. データの読み込み ===
+# === 1. Load Data ===
 data = fetch_california_housing()
 X, y = data.data, data.target
 feature_names = data.feature_names
-print(f"データサイズ: {X.shape}")
-print(f"特徴量: {feature_names}")
+print(f"Data size: {X.shape}")
+print(f"Features: {feature_names}")
 
-# === 2. データ分割 ===
+# === 2. Split Data ===
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, random_state=42
 )
-print(f"訓練: {X_train.shape[0]}件, テスト: {X_test.shape[0]}件")
+print(f"Training: {X_train.shape[0]} samples, Test: {X_test.shape[0]} samples")
 
-# === 3. パイプライン構築 ===
-# 前処理とモデルを一つのパイプラインにまとめる
+# === 3. Build Pipeline ===
+# Combine preprocessing and model into a single pipeline
 pipeline = Pipeline([
-    ('scaler', StandardScaler()),          # 標準化
-    ('model', GradientBoostingRegressor(   # 勾配ブースティング
+    ('scaler', StandardScaler()),          # Standardization
+    ('model', GradientBoostingRegressor(   # Gradient Boosting
         n_estimators=200,
         max_depth=5,
         learning_rate=0.1,
@@ -1495,14 +1523,14 @@ pipeline = Pipeline([
     ))
 ])
 
-# === 4. 交差検証でモデルを評価 ===
+# === 4. Evaluate Model with Cross-Validation ===
 cv_scores = cross_val_score(
     pipeline, X_train, y_train,
     cv=5, scoring='r2'
 )
-print(f"\n交差検証 R²: {cv_scores.mean():.4f} (+/- {cv_scores.std():.4f})")
+print(f"\nCross-validation R²: {cv_scores.mean():.4f} (+/- {cv_scores.std():.4f})")
 
-# === 5. ハイパーパラメータチューニング ===
+# === 5. Hyperparameter Tuning ===
 param_grid = {
     'model__n_estimators': [100, 200, 300],
     'model__max_depth': [3, 5, 7],
@@ -1515,10 +1543,10 @@ grid_search = GridSearchCV(
     n_jobs=-1, verbose=0
 )
 grid_search.fit(X_train, y_train)
-print(f"最良パラメータ: {grid_search.best_params_}")
-print(f"最良交差検証 R²: {grid_search.best_score_:.4f}")
+print(f"Best parameters: {grid_search.best_params_}")
+print(f"Best CV R²: {grid_search.best_score_:.4f}")
 
-# === 6. テストデータでの最終評価 ===
+# === 6. Final Evaluation on Test Data ===
 best_model = grid_search.best_estimator_
 y_pred = best_model.predict(X_test)
 
@@ -1526,31 +1554,31 @@ mse = mean_squared_error(y_test, y_pred)
 rmse = np.sqrt(mse)
 r2 = r2_score(y_test, y_pred)
 
-print(f"\n=== テストセットでの最終評価 ===")
+print(f"\n=== Final Evaluation on Test Set ===")
 print(f"RMSE: {rmse:.4f}")
 print(f"R²:   {r2:.4f}")
 
-# === 7. 特徴量の重要度 ===
+# === 7. Feature Importance ===
 importances = best_model.named_steps['model'].feature_importances_
 sorted_idx = np.argsort(importances)[::-1]
 
-print(f"\n特徴量の重要度:")
+print(f"\nFeature Importance:")
 for i in sorted_idx:
     print(f"  {feature_names[i]:15s}: {importances[i]:.4f}")
 
-# 出力例:
-# データサイズ: (20640, 8)
-# 訓練: 16512件, テスト: 4128件
+# Example output:
+# Data size: (20640, 8)
+# Training: 16512 samples, Test: 4128 samples
 #
-# 交差検証 R²: 0.7823 (+/- 0.0134)
-# 最良パラメータ: {'model__learning_rate': 0.1, ...}
-# 最良交差検証 R²: 0.7956
+# Cross-validation R²: 0.7823 (+/- 0.0134)
+# Best parameters: {'model__learning_rate': 0.1, ...}
+# Best CV R²: 0.7956
 #
-# === テストセットでの最終評価 ===
+# === Final Evaluation on Test Set ===
 # RMSE: 0.5234
 # R²:   0.8012
 #
-# 特徴量の重要度:
+# Feature Importance:
 #   MedInc         : 0.4512
 #   AveOccup       : 0.1234
 #   Latitude       : 0.1123
@@ -1560,502 +1588,508 @@ for i in sorted_idx:
 
 ---
 
-## 11. 生成AIと大規模言語モデル
+## 11. Generative AI and Large Language Models
 
-### 11.1 大規模言語モデル（LLM）
+### 11.1 Large Language Models (LLM)
 
 ```
-LLMの基本原理: 次のトークンを予測する
+Basic principle of LLMs: Predict the next token
 
-  入力: "The cat sat on the"
-  出力確率分布:
-    "mat"  → 0.35
+  Input: "The cat sat on the"
+  Output probability distribution:
+    "mat"   → 0.35
     "floor" → 0.20
     "bed"   → 0.15
     ...
 
-  パラメータ数の推移:
+  Progression of parameter counts:
   ┌─────────────────────────────────────────────┐
-  │ モデル              │ パラメータ数            │
+  │ Model               │ Parameters            │
   ├─────────────────────────────────────────────┤
-  │ GPT-1  (2018)       │         1.17 億        │
-  │ GPT-2  (2019)       │          15 億         │
-  │ GPT-3  (2020)       │       1,750 億         │
-  │ GPT-4  (2023)       │ 非公開（推定 1兆以上）  │
-  │ Claude Opus (2025)  │ 非公開                 │
-  │ LLaMA 3 (2024)      │     70〜405 億         │
+  │ GPT-1  (2018)       │        117 million    │
+  │ GPT-2  (2019)       │        1.5 billion    │
+  │ GPT-3  (2020)       │        175 billion    │
+  │ GPT-4  (2023)       │ Undisclosed (est. 1T+)│
+  │ Claude Opus (2025)  │ Undisclosed           │
+  │ LLaMA 3 (2024)      │    7B to 405B         │
   └─────────────────────────────────────────────┘
 
-  スケーリング則（Scaling Law）:
-  モデルサイズ↑ + データ量↑ + 計算量↑
-  → 予測精度が滑らかに向上（べき乗則）
-  → 十分なスケールで「創発能力（Emergent Abilities）」が出現
-     （CoT推論、少数ショット学習、コード生成 など）
+  Scaling Laws:
+  Model size↑ + Data volume↑ + Compute↑
+  → Prediction accuracy improves smoothly (power law)
+  → At sufficient scale, "Emergent Abilities" appear
+     (CoT reasoning, few-shot learning, code generation, etc.)
 ```
 
-### 11.2 LLMの学習プロセス
+### 11.2 LLM Training Process
 
 ```
-3段階の学習:
+3-stage training:
 
   ┌────────────────────────────────────────────────┐
-  │ Stage 1: 事前学習（Pre-training）                │
-  │  - 大量のテキストで「次のトークン予測」を学習     │
-  │  - 数千GPU × 数ヶ月の計算                        │
-  │  - 世界知識、言語能力、推論能力を獲得             │
+  │ Stage 1: Pre-training                           │
+  │  - Learns "next token prediction" on massive    │
+  │    text                                         │
+  │  - Thousands of GPUs × several months           │
+  │  - Acquires world knowledge, language ability,  │
+  │    and reasoning ability                        │
   └─────────────────────┬──────────────────────────┘
                          ▼
   ┌────────────────────────────────────────────────┐
-  │ Stage 2: 教師ありファインチューニング（SFT）     │
-  │  - 人間が作成した高品質な対話データで微調整       │
-  │  - 指示に従う能力を獲得                          │
+  │ Stage 2: Supervised Fine-Tuning (SFT)           │
+  │  - Fine-tuned on high-quality dialogue data     │
+  │    created by humans                            │
+  │  - Acquires ability to follow instructions      │
   └─────────────────────┬──────────────────────────┘
                          ▼
   ┌────────────────────────────────────────────────┐
   │ Stage 3: RLHF / RLAIF                           │
-  │  - 人間/AIのフィードバックに基づく強化学習       │
-  │  - 報酬モデルが「良い応答」を評価                │
-  │  - PPOで方策を最適化                             │
-  │  → 有用で安全かつ誠実な応答を学習                │
+  │  - Reinforcement learning based on human/AI     │
+  │    feedback                                     │
+  │  - A reward model evaluates "good responses"    │
+  │  - Policy optimized with PPO                    │
+  │  → Learns to produce helpful, safe, and honest  │
+  │    responses                                    │
   └────────────────────────────────────────────────┘
 ```
 
-### 11.3 画像生成と拡散モデル
+### 11.3 Image Generation and Diffusion Models
 
 ```
-拡散モデル（Diffusion Model）の仕組み:
+How Diffusion Models work:
 
-  順方向過程（Forward Process）: 画像にノイズを段階的に追加
-  画像 → ノイズ画像 → ... → 純粋なノイズ
+  Forward Process: Gradually add noise to an image
+  Image → Noisy image → ... → Pure noise
 
-  逆方向過程（Reverse Process）: ノイズを段階的に除去して画像を生成
-  ノイズ → [denoise] → [denoise] → ... → 画像
-  (ガウシアン)                          (鮮明)
+  Reverse Process: Gradually remove noise to generate an image
+  Noise → [denoise] → [denoise] → ... → Image
+  (Gaussian)                          (sharp)
 
-  テキスト条件付き生成:
-  "A cat sitting on a rainbow" → テキストエンコーダ → 条件ベクトル
-  ノイズ + 条件ベクトル → 逆拡散 → 虹の上に座る猫の画像
+  Text-conditioned generation:
+  "A cat sitting on a rainbow" → Text encoder → Condition vector
+  Noise + Condition vector → Reverse diffusion → Image of a cat on a rainbow
 ```
 
-### 11.4 RAG（Retrieval-Augmented Generation）
+### 11.4 RAG (Retrieval-Augmented Generation)
 
-外部知識を検索してLLMの回答を強化する手法だ。
+A method that retrieves external knowledge to enhance LLM responses.
 
 ```
-RAGのアーキテクチャ:
+RAG architecture:
 
-  質問 → [エンベディング] → [ベクトル検索] → 関連文書 Top-K
+  Query → [Embedding] → [Vector search] → Relevant docs Top-K
                                                    │
                            ┌───────────────────────┘
                            ▼
-  プロンプト: 「以下の文書を参考に質問に回答してください:
-               {関連文書}
-               質問: {ユーザーの質問}」
+  Prompt: "Answer the question using the following documents
+           as reference:
+               {relevant documents}
+               Question: {user's question}"
                            │
                            ▼
-                      [LLM] → 回答
+                      [LLM] → Answer
 
-  利点:
-  - ハルシネーション（捏造）の軽減
-  - 最新情報の反映（LLMの学習データ以降の情報）
-  - 出典を明示できる（信頼性の向上）
-  - 専門ドメインの知識を注入
+  Advantages:
+  - Reduces hallucination (fabrication)
+  - Reflects up-to-date information (beyond LLM training data)
+  - Can cite sources (improved reliability)
+  - Inject domain-specific knowledge
 ```
 
 ---
 
-## 12. アンチパターン集
+## 12. Anti-Pattern Collection
 
-### アンチパターン1: データリーケージ（Data Leakage）
+### Anti-Pattern 1: Data Leakage
 
-**問題**: テストデータの情報が訓練プロセスに漏洩し、過度に楽観的な評価結果を出す。
+**Problem**: Information from the test data leaks into the training process, producing overly optimistic evaluation results.
 
 ```
-典型的なリーケージの例:
+Typical leakage examples:
 
-  NG: 全データでスケーリング → 分割
+  BAD: Scale all data → Split
   ┌──────────────────────────┐
-  │    全データを標準化        │  ← テストの統計量が訓練に混入!
+  │    Standardize all data   │  ← Test statistics leak into training!
   │    ↓                      │
-  │    訓練 / テストに分割     │
+  │    Split into train/test  │
   └──────────────────────────┘
 
-  OK: 分割 → 訓練データのみでスケーリング
+  OK: Split → Scale using training data only
   ┌──────────────────────────┐
-  │    訓練 / テストに分割     │
+  │    Split into train/test  │
   │    ↓                      │
-  │    訓練データでfit         │
-  │    テストデータはtransform │  ← 訓練の統計量のみ使用
+  │    Fit on training data   │
+  │    Transform test data    │  ← Only training statistics are used
   └──────────────────────────┘
 ```
 
-**他のリーケージ例**:
-- 未来の情報を特徴量に含める（時系列データで翌日の値を使用）
-- IDや行番号がターゲットと相関している
-- 重複データが訓練とテストの両方に含まれる
+**Other leakage examples**:
+- Including future information as features (using next day's values in time series data)
+- IDs or row numbers correlating with the target
+- Duplicate data appearing in both training and test sets
 
-**対策**:
-- `sklearn.pipeline.Pipeline` を使い、前処理とモデルを一体化する
-- 特徴量作成時に「この情報は予測時点で利用可能か？」を常に確認する
-- テストデータは最後まで触らない（目視確認もしない）
+**Countermeasures**:
+- Use `sklearn.pipeline.Pipeline` to integrate preprocessing and model
+- Always ask "Is this information available at prediction time?" when creating features
+- Don't touch test data until the end (not even for visual inspection)
 
-### アンチパターン2: 不均衡データの無視
+### Anti-Pattern 2: Ignoring Imbalanced Data
 
-**問題**: クラス間のサンプル数に大きな偏りがある場合に、何も対策せずにモデルを学習する。
+**Problem**: Training a model without any countermeasures when there is a large imbalance in sample counts between classes.
 
 ```
-例: クレジットカード不正検出
-  正常取引:  99.7% (99,700件)
-  不正取引:   0.3% (   300件)
+Example: Credit card fraud detection
+  Normal transactions:  99.7% (99,700 cases)
+  Fraudulent:            0.3% (   300 cases)
 
-  何もしないモデル:
-  → 全て「正常」と予測してもAccuracy = 99.7%
-  → しかし不正は1件も検出できない（Recall = 0%）
+  Model without countermeasures:
+  → Predicting everything as "normal" gives Accuracy = 99.7%
+  → But detects zero fraud (Recall = 0%)
 ```
 
-**対策の体系**:
+**Systematic countermeasures**:
 
-| レベル | 手法 | 説明 |
-|--------|------|------|
-| データレベル | オーバーサンプリング（SMOTE） | 少数クラスの合成データを生成 |
-| データレベル | アンダーサンプリング | 多数クラスのデータを削減 |
-| アルゴリズムレベル | クラス重み付け | `class_weight='balanced'` |
-| 評価レベル | 適切な指標 | Accuracy ではなく F1 / AUC-ROC |
-| 閾値レベル | 閾値調整 | デフォルトの0.5を変更 |
+| Level | Method | Description |
+|-------|--------|-------------|
+| Data level | Oversampling (SMOTE) | Generate synthetic data for minority class |
+| Data level | Undersampling | Reduce majority class data |
+| Algorithm level | Class weighting | `class_weight='balanced'` |
+| Evaluation level | Appropriate metrics | F1 / AUC-ROC instead of Accuracy |
+| Threshold level | Threshold adjustment | Change the default 0.5 |
 
 ```python
-# 不均衡データへの対策例
+# Example of handling imbalanced data
 from sklearn.ensemble import RandomForestClassifier
 
-# クラス重み付けで少数クラスを重視
+# Weight minority class more heavily using class weights
 model = RandomForestClassifier(
-    class_weight='balanced',  # 自動的にクラス比率の逆数で重み付け
+    class_weight='balanced',  # Automatically weights by inverse class ratio
     random_state=42
 )
 ```
 
-### アンチパターン3: ハイパーパラメータの手動調整
+### Anti-Pattern 3: Manual Hyperparameter Tuning
 
-**問題**: ハイパーパラメータを勘で設定し、体系的な探索を行わない。
+**Problem**: Setting hyperparameters by intuition without systematic exploration.
 
-**対策**:
+**Countermeasures**:
 
 ```
-探索手法の比較:
+Comparison of search methods:
 
-  グリッドサーチ:
-  全ての組み合わせを網羅的に試す
-  → 確実だが計算コストが高い（次元の呪い）
+  Grid Search:
+  Exhaustively try all combinations
+  → Guaranteed but computationally expensive (curse of dimensionality)
 
-  ランダムサーチ:
-  パラメータ空間からランダムにサンプリング
-  → 同じ計算予算でより広い探索が可能
+  Random Search:
+  Randomly sample from parameter space
+  → Explores a wider area with the same computational budget
 
-  ベイズ最適化（Optuna, HyperOpt）:
-  過去の結果から有望な領域を推定して探索
-  → 最も効率的。大規模な探索に推奨
+  Bayesian Optimization (Optuna, HyperOpt):
+  Estimates promising regions from past results
+  → Most efficient. Recommended for large-scale exploration
 ```
 
 ---
 
-## 13. 実践演習（3段階）
+## 13. Practical Exercises (3 Levels)
 
-### 演習1: [基礎] — 分類タスクの直感と手計算
-
-```
-以下のデータで「合格/不合格」を分類する決定木を手動で構築せよ:
-
-| 勉強時間(h) | 睡眠時間(h) | 出席率(%) | 結果    |
-|------------|------------|----------|---------|
-| 10         | 8          | 90       | 合格    |
-| 3          | 5          | 50       | 不合格  |
-| 8          | 7          | 85       | 合格    |
-| 2          | 4          | 40       | 不合格  |
-| 6          | 6          | 70       | 合格    |
-| 1          | 3          | 30       | 不合格  |
-
-課題:
-1. 各特徴量について、適切な閾値でのジニ不純度を計算し、
-   最も有効な最初の分割基準を決定せよ。
-
-   ヒント: 勉強時間=4.5h で分割した場合:
-   左（≤4.5h）: [不合格, 不合格, 不合格] → Gini = 0
-   右（>4.5h）: [合格, 合格, 合格]       → Gini = 0
-   情報利得 = 元のGini(0.5) - 加重平均(0) = 0.5
-
-2. 完成した決定木の深さと葉ノードの数を答えよ。
-
-3. 新しいデータ（勉強5h, 睡眠6h, 出席60%）を分類せよ。
-   また、なぜその予測になるか、決定木のパスを説明せよ。
-
-4. この決定木の限界は何か？（データ数、特徴量の関係性、
-   過学習リスクの観点から考察せよ）
-```
-
-### 演習2: [応用] — 勾配降下法の手計算とコード実装
+### Exercise 1: [Beginner] -- Classification Intuition and Manual Calculation
 
 ```
-Part A: 手計算
-線形回帰 y = wx + b で以下のデータを学習:
+Manually construct a decision tree to classify "Pass/Fail" using the following data:
 
-データ: (1, 2), (2, 4), (3, 6)
-初期値: w=0, b=0, 学習率α=0.1
+| Study Hours | Sleep Hours | Attendance(%) | Result |
+|-------------|-------------|--------------|--------|
+| 10          | 8           | 90           | Pass   |
+| 3           | 5           | 50           | Fail   |
+| 8           | 7           | 85           | Pass   |
+| 2           | 4           | 40           | Fail   |
+| 6           | 6           | 70           | Pass   |
+| 1           | 3           | 30           | Fail   |
 
-1. 初期予測値 ŷ₁, ŷ₂, ŷ₃ を計算
-2. MSE損失を計算
-3. ∂L/∂w と ∂L/∂b を計算
+Tasks:
+1. Calculate the Gini impurity for appropriate thresholds of each feature
+   and determine the most effective first split criterion.
+
+   Hint: Splitting at study hours = 4.5h:
+   Left (≤4.5h): [Fail, Fail, Fail] → Gini = 0
+   Right (>4.5h): [Pass, Pass, Pass] → Gini = 0
+   Information gain = Original Gini(0.5) - Weighted average(0) = 0.5
+
+2. State the depth and number of leaf nodes of the completed decision tree.
+
+3. Classify new data (study 5h, sleep 6h, attendance 60%).
+   Explain why that prediction is made by tracing the decision tree path.
+
+4. What are the limitations of this decision tree? (Discuss from the
+   perspectives of data size, feature relationships, and overfitting risk)
+```
+
+### Exercise 2: [Intermediate] -- Manual Gradient Descent Calculation and Code Implementation
+
+```
+Part A: Manual Calculation
+Learn the following data using linear regression y = wx + b:
+
+Data: (1, 2), (2, 4), (3, 6)
+Initial values: w=0, b=0, learning rate α=0.1
+
+1. Calculate initial predictions ŷ₁, ŷ₂, ŷ₃
+2. Calculate MSE loss
+3. Calculate ∂L/∂w and ∂L/∂b
    ∂L/∂w = (-2/3) × [x₁(y₁-ŷ₁) + x₂(y₂-ŷ₂) + x₃(y₃-ŷ₃)]
    ∂L/∂b = (-2/3) × [(y₁-ŷ₁) + (y₂-ŷ₂) + (y₃-ŷ₃)]
-4. パラメータを1回更新（w_new, b_new）
-5. 3回の更新後の w, b, 損失を追跡し、表にまとめよ
+4. Update parameters once (w_new, b_new)
+5. Track w, b, and loss after 3 updates, and summarize in a table
 
-Part B: コード実装
-上記の手計算をPythonで検証せよ。さらに以下を実装:
-- 学習率を 0.01, 0.1, 0.5 で比較し、収束速度の違いを観察
-- 学習率 1.0 で発散する様子を確認
-- 100エポック後の w, b を「真の値」w=2, b=0 と比較
+Part B: Code Implementation
+Verify the manual calculations above in Python. Additionally implement:
+- Compare learning rates 0.01, 0.1, 0.5 and observe convergence speed differences
+- Confirm divergence behavior with learning rate 1.0
+- Compare w, b after 100 epochs with the "true values" w=2, b=0
 
-Part C: 発展
-- L2正則化（Ridge）を追加した場合の勾配を導出せよ
+Part C: Advanced
+- Derive the gradient with L2 regularization (Ridge) added
   L = MSE + λ||w||²
   ∂L/∂w = ∂MSE/∂w + 2λw
-- λ=0.1 で正則化あり/なしの結果を比較せよ
+- Compare results with and without regularization at λ=0.1
 ```
 
-### 演習3: [発展] — エンドツーエンドのMLシステム設計
+### Exercise 3: [Advanced] -- End-to-End ML System Design
 
 ```
-テーマ: ECサイトの商品レコメンデーションシステム
+Theme: Product Recommendation System for an E-Commerce Site
 
-要件:
-- DAU（日間アクティブユーザー）: 100万人
-- 商品数: 1,000万点
-- レスポンス: 100ms以内
-- パーソナライズ: ユーザーの行動履歴に基づく推薦
-- コールドスタート: 新規ユーザー、新商品への対応
+Requirements:
+- DAU (Daily Active Users): 1 million
+- Number of products: 10 million
+- Response time: Under 100ms
+- Personalization: Recommendations based on user behavior history
+- Cold start: Handling new users and new products
 
-設計項目（各項目について具体的な選択と理由を述べよ）:
+Design items (provide specific choices and reasoning for each):
 
-1. アルゴリズム選択
-   - 協調フィルタリング vs コンテンツベース vs ハイブリッド
-   - 深層学習ベース（Two-Tower Model, DIN）の検討
-   - リアルタイム vs バッチ推薦のアーキテクチャ
+1. Algorithm Selection
+   - Collaborative filtering vs content-based vs hybrid
+   - Consideration of deep learning-based approaches (Two-Tower Model, DIN)
+   - Real-time vs batch recommendation architecture
 
-2. 特徴量設計
-   - ユーザー特徴量: 年齢、性別、閲覧履歴、購入履歴、...
-   - 商品特徴量: カテゴリ、価格帯、レビュースコア、...
-   - コンテキスト特徴量: 時間帯、曜日、デバイス、...
-   - クロス特徴量: ユーザー×商品の相互作用
+2. Feature Design
+   - User features: Age, gender, browsing history, purchase history, ...
+   - Product features: Category, price range, review score, ...
+   - Context features: Time of day, day of week, device, ...
+   - Cross features: User × Product interactions
 
-3. システムアーキテクチャ
-   - 候補生成（Recall）→ ランキング（Precision）の2段階構成
-   - ANN（近似最近傍）による候補生成の高速化
-   - 特徴量ストア（Feature Store）の設計
+3. System Architecture
+   - Two-stage design: Candidate generation (Recall) → Ranking (Precision)
+   - ANN (Approximate Nearest Neighbor) for fast candidate generation
+   - Feature Store design
 
-4. 評価とテスト
-   - オフライン評価: Hit Rate, NDCG, MAP
-   - オンライン評価: A/Bテストの設計（統計的有意性の判定）
-   - ガードレール指標: クリック率だけでなく購入率、多様性
+4. Evaluation and Testing
+   - Offline evaluation: Hit Rate, NDCG, MAP
+   - Online evaluation: A/B test design (statistical significance testing)
+   - Guardrail metrics: Not just CTR but also purchase rate, diversity
 
-5. 運用と監視
-   - データドリフトの検知（入力分布の変化）
-   - モデルの再学習頻度とトリガー
-   - フィードバックループの管理（人気バイアスの抑制）
+5. Operations and Monitoring
+   - Data drift detection (changes in input distribution)
+   - Model retraining frequency and triggers
+   - Feedback loop management (suppressing popularity bias)
 
-6. 倫理的配慮
-   - フィルターバブルの防止
-   - 公平性（特定属性による差別的推薦の防止）
-   - 透明性（なぜこの商品を推薦したかの説明）
+6. Ethical Considerations
+   - Preventing filter bubbles
+   - Fairness (preventing discriminatory recommendations by specific attributes)
+   - Transparency (explaining why a product was recommended)
 ```
 
 ---
 
-## 14. FAQ（よくある質問）
+## 14. FAQ (Frequently Asked Questions)
 
-### Q1: プログラマにとって機械学習の知識はなぜ必要か？
+### Q1: Why is machine learning knowledge necessary for programmers?
 
-現代のソフトウェア開発では、ML機能の統合が日常的になっている:
+In modern software development, integrating ML features has become routine:
 
-- 検索のランキング最適化
-- レコメンデーションエンジン
-- 不正検出・異常検知
-- 自然言語処理（チャットボット、翻訳、要約）
-- コード補完（GitHub Copilot、Claude）
-- 画像・音声の認識と生成
+- Search ranking optimization
+- Recommendation engines
+- Fraud detection and anomaly detection
+- Natural language processing (chatbots, translation, summarization)
+- Code completion (GitHub Copilot, Claude)
+- Image and speech recognition and generation
 
-MLエンジニアでなくても、**MLの概念を理解し、適切にAPIを呼び出し、結果を正しく解釈するスキル**が求められる。特に重要なのは:
+Even if you are not an ML engineer, **the skill to understand ML concepts, call APIs appropriately, and correctly interpret results** is required. Particularly important are:
 
-1. **どのタスクにMLが有効かを判断できること**（全てにMLが必要なわけではない）
-2. **モデルの限界を理解していること**（100%の精度は存在しない）
-3. **評価指標を正しく解釈できること**（Accuracy 99% が必ずしも良いモデルとは限らない）
-4. **データの品質がモデルの品質を決定することを理解していること**
+1. **Being able to judge which tasks ML is effective for** (not everything needs ML)
+2. **Understanding the limitations of models** (100% accuracy does not exist)
+3. **Being able to correctly interpret evaluation metrics** (Accuracy 99% is not necessarily a good model)
+4. **Understanding that data quality determines model quality**
 
-### Q2: 機械学習を始めるのに数学はどこまで必要か？
+### Q2: How much math is needed to get started with machine learning?
 
-必要な数学は段階的に深めていくのが効果的だ:
+It is effective to gradually deepen the required math:
 
-**レベル1（まず始める）**: scikit-learn を使って動かす
-- 四則演算、基本的な統計（平均、分散、相関）
-- 行列の概念（データを表として捉えられれば十分）
+**Level 1 (Just get started)**: Use scikit-learn to run things
+- Arithmetic, basic statistics (mean, variance, correlation)
+- Concept of matrices (sufficient if you can think of data as tables)
 
-**レベル2（仕組みを理解する）**: アルゴリズムの直感を得る
-- **線形代数**: ベクトル、行列の積、固有値・固有ベクトル
-- **微積分**: 偏微分、勾配の概念
-- **確率・統計**: 確率分布（正規分布）、ベイズの定理、最尤推定
+**Level 2 (Understand the mechanisms)**: Gain intuition about algorithms
+- **Linear algebra**: Vectors, matrix multiplication, eigenvalues and eigenvectors
+- **Calculus**: Partial derivatives, concept of gradients
+- **Probability & Statistics**: Probability distributions (normal distribution), Bayes' theorem, maximum likelihood estimation
 
-**レベル3（研究・論文を読む）**: 新しい手法を理解・実装する
-- 最適化理論（凸最適化、ラグランジュの未定乗数法）
-- 情報理論（エントロピー、KLダイバージェンス）
-- 確率論（確率過程、測度論）
+**Level 3 (Read research papers)**: Understand and implement new methods
+- Optimization theory (convex optimization, Lagrange multipliers)
+- Information theory (entropy, KL divergence)
+- Probability theory (stochastic processes, measure theory)
 
-実務では scikit-learn、PyTorch、TensorFlow 等のライブラリが数学的詳細を抽象化しているため、**レベル2の直感的理解があれば多くのタスクに対応できる**。
+In practice, libraries like scikit-learn, PyTorch, and TensorFlow abstract away mathematical details, so **an intuitive understanding at Level 2 is sufficient for many tasks**.
 
-### Q3: テーブルデータと画像/テキストで最適なアルゴリズムは異なるか？
+### Q3: Do optimal algorithms differ between tabular data and image/text?
 
-大きく異なる。データの種類に応じた選択指針は以下の通り:
+They differ significantly. Here are selection guidelines based on data type:
 
-| データ種類 | 推奨アルゴリズム | 理由 |
-|-----------|----------------|------|
-| テーブルデータ（構造化） | 勾配ブースティング（XGBoost, LightGBM） | 特徴量の相互作用を効率的に学習。前処理が少なくて済む |
-| 画像 | CNN（ResNet, EfficientNet） | 局所的なパターンの階層的な抽出に特化 |
-| テキスト | Transformer（BERT, GPT） | Self-Attentionで文脈を効果的に捉える |
-| 時系列 | LSTM / Transformer / Prophet | 時間的依存関係のモデリング |
-| グラフ | GNN（Graph Neural Network） | ノード間の関係を考慮 |
+| Data Type | Recommended Algorithm | Reason |
+|-----------|----------------------|--------|
+| Tabular (structured) | Gradient boosting (XGBoost, LightGBM) | Efficiently learns feature interactions. Requires minimal preprocessing |
+| Images | CNN (ResNet, EfficientNet) | Specialized for hierarchical extraction of local patterns |
+| Text | Transformer (BERT, GPT) | Self-Attention effectively captures context |
+| Time series | LSTM / Transformer / Prophet | Modeling temporal dependencies |
+| Graphs | GNN (Graph Neural Network) | Considers relationships between nodes |
 
-テーブルデータにおいて、深層学習は勾配ブースティングに勝つことが難しい。2022年のベンチマーク研究（Grinsztajn et al.）でも、テーブルデータではツリーベースのモデルがNNに対して優位であることが確認されている。
+For tabular data, deep learning has difficulty outperforming gradient boosting. A 2022 benchmark study (Grinsztajn et al.) confirmed that tree-based models remain superior to NNs for tabular data.
 
-### Q4: 大規模言語モデル（LLM）はどのように学習されているか？
+### Q4: How are Large Language Models (LLMs) trained?
 
-3段階のプロセスで学習される:
+They are trained through a 3-stage process:
 
-1. **事前学習（Pre-training）**: インターネット上の大量テキスト（数兆トークン）で「次の単語を予測する」タスクを学習する。数千台のGPUを数ヶ月稼働させる。この段階で世界知識、言語能力、論理的推論能力の基盤を獲得する。
+1. **Pre-training**: Learns the "next word prediction" task on massive text (trillions of tokens) from the internet. Runs thousands of GPUs for months. At this stage, the foundation for world knowledge, language ability, and logical reasoning is acquired.
 
-2. **教師ありファインチューニング（SFT: Supervised Fine-Tuning）**: 人間のアノテーターが作成した高品質な指示-応答のペアデータで微調整する。この段階で「指示に従って応答を生成する」能力を獲得する。
+2. **Supervised Fine-Tuning (SFT)**: Fine-tuned on high-quality instruction-response pair data created by human annotators. At this stage, the ability to "generate responses following instructions" is acquired.
 
-3. **RLHF / RLAIF**: 人間やAIのフィードバックに基づく強化学習だ。複数の応答を生成し、どれが「より良い」かを評価する報酬モデルを学習し、PPO等のアルゴリズムで方策を最適化する。この段階で有用性、安全性、誠実性のバランスを調整する。
+3. **RLHF / RLAIF**: Reinforcement learning based on human or AI feedback. Generates multiple responses, trains a reward model that evaluates which is "better," and optimizes the policy using algorithms like PPO. At this stage, the balance of helpfulness, safety, and honesty is adjusted.
 
-### Q5: 機械学習モデルの運用で最も重要なことは何か？
+### Q5: What is the most important thing in operating machine learning models?
 
-**データドリフトの監視**だ。モデルは学習時のデータ分布を前提に予測を行う。しかし、現実世界のデータ分布は時間とともに変化する（コンセプトドリフト）。
+**Monitoring data drift**. Models make predictions based on the assumption of the data distribution at training time. However, real-world data distributions change over time (concept drift).
 
-例:
-- COVID-19の影響で購買行動が激変し、レコメンドモデルが機能しなくなった
-- 季節変動により、夏に学習したモデルが冬に精度低下
-- 新商品の登場により、既存の特徴量空間でカバーできなくなった
+Examples:
+- COVID-19's impact drastically changed purchasing behavior, causing recommendation models to fail
+- Seasonal variation caused a model trained in summer to degrade in winter
+- The appearance of new products made existing feature spaces inadequate
 
-対策:
-1. **入力データの分布監視**: KS検定やPSI（Population Stability Index）で分布変化を検知
-2. **予測性能の定期評価**: 実際のラベルが得られたら性能を再評価
-3. **自動再学習パイプライン**: 性能が閾値を下回ったらモデルを自動再学習
-4. **A/Bテストの常時実施**: 新旧モデルの比較を継続的に行う
+Countermeasures:
+1. **Monitor input data distribution**: Detect distribution changes with KS tests or PSI (Population Stability Index)
+2. **Periodic performance evaluation**: Re-evaluate performance when actual labels become available
+3. **Automated retraining pipeline**: Automatically retrain the model when performance falls below a threshold
+4. **Continuous A/B testing**: Continuously compare old and new models
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point in learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory but by actually writing code and verifying behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to applications. We recommend thoroughly understanding the basic concepts explained in this guide before moving to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## 15. まとめと比較表
-
-### 機械学習アルゴリズム比較表
-
-| アルゴリズム | タイプ | 解釈性 | 精度 | 学習速度 | 主な用途 |
-|------------|--------|--------|------|---------|---------|
-| 線形回帰 | 回帰 | 高 | 低〜中 | 非常に速い | ベースライン、解釈重視 |
-| ロジスティック回帰 | 分類 | 高 | 低〜中 | 非常に速い | 二値分類、確率推定 |
-| 決定木 | 分類/回帰 | 非常に高 | 低〜中 | 速い | 解釈性が必要な場合 |
-| ランダムフォレスト | 分類/回帰 | 中 | 中〜高 | 中 | 汎用的な第一候補 |
-| 勾配ブースティング | 分類/回帰 | 低〜中 | 高 | 中 | テーブルデータ最強 |
-| SVM | 分類/回帰 | 低 | 中〜高 | 遅い | 高次元、小〜中データ |
-| kNN | 分類/回帰 | 中 | 中 | 推論時遅い | 小データ、非パラメトリック |
-| ニューラルネット | 分類/回帰 | 低 | 高 | 遅い | 大データ、複雑なパターン |
-| CNN | 画像分類等 | 低 | 非常に高 | 遅い | 画像認識 |
-| RNN/LSTM | 系列分類等 | 低 | 高 | 遅い | 時系列、テキスト |
-| Transformer | 多目的 | 低 | 非常に高 | 非常に遅い | NLP、CV、マルチモーダル |
-
-### 学習パラダイム比較表
-
-| 項目 | 教師あり学習 | 教師なし学習 | 強化学習 |
-|------|------------|------------|---------|
-| 入力 | X + y（ラベル付き） | X のみ | 状態 s |
-| 出力 | 予測値 ŷ | クラスタ、潜在表現 | 行動 a |
-| 目的関数 | 予測誤差の最小化 | データ構造の発見 | 累積報酬の最大化 |
-| データ量 | 中〜大（ラベル必要） | 大（ラベル不要） | 環境との対話 |
-| 代表手法 | 回帰、分類、SVM、RF | K-Means、PCA、AE | Q-Learning、PPO |
-| 典型的応用 | スパム検出、予測 | 顧客分類、可視化 | ゲームAI、ロボット |
-| 難しい点 | ラベル取得コスト | 評価が主観的 | 報酬設計、学習不安定 |
-
-### コア概念のまとめ
-
-| 概念 | 要点 |
-|------|------|
-| バイアス-バリアンス | モデルの単純さと複雑さのトレードオフ |
-| 過学習 | 訓練データに特化しすぎて汎化性能が低下する現象 |
-| 正則化 | L1/L2ペナルティ、Dropout等で過学習を防止 |
-| 交差検証 | データを繰り返し分割して性能を安定的に評価 |
-| 特徴量エンジニアリング | ドメイン知識を活かしてデータを加工する技術 |
-| データリーケージ | テスト情報が訓練に漏洩する致命的なミス |
-| 評価指標 | タスクに適した指標の選択が最重要 |
-| データドリフト | 運用中にデータ分布が変化し性能が劣化する問題 |
+Knowledge of this topic is frequently used in day-to-day development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## 次に読むべきガイド
+## 15. Summary and Comparison Tables
+
+### Machine Learning Algorithm Comparison Table
+
+| Algorithm | Type | Interpretability | Accuracy | Training Speed | Primary Use |
+|-----------|------|------------------|----------|---------------|-------------|
+| Linear Regression | Regression | High | Low-Med | Very fast | Baseline, interpretability focus |
+| Logistic Regression | Classification | High | Low-Med | Very fast | Binary classification, probability estimation |
+| Decision Tree | Classif./Regr. | Very high | Low-Med | Fast | When interpretability is needed |
+| Random Forest | Classif./Regr. | Medium | Med-High | Medium | General-purpose first choice |
+| Gradient Boosting | Classif./Regr. | Low-Med | High | Medium | Best for tabular data |
+| SVM | Classif./Regr. | Low | Med-High | Slow | High-dimensional, small-medium data |
+| kNN | Classif./Regr. | Medium | Medium | Slow at inference | Small data, nonparametric |
+| Neural Network | Classif./Regr. | Low | High | Slow | Large data, complex patterns |
+| CNN | Image classif. etc. | Low | Very high | Slow | Image recognition |
+| RNN/LSTM | Sequence classif. | Low | High | Slow | Time series, text |
+| Transformer | Multi-purpose | Low | Very high | Very slow | NLP, CV, multimodal |
+
+### Learning Paradigm Comparison Table
+
+| Item | Supervised Learning | Unsupervised Learning | Reinforcement Learning |
+|------|--------------------|-----------------------|----------------------|
+| Input | X + y (labeled) | X only | State s |
+| Output | Predicted value ŷ | Clusters, latent repr. | Action a |
+| Objective | Minimize prediction error | Discover data structure | Maximize cumulative reward |
+| Data volume | Med-Large (labels needed) | Large (no labels needed) | Environment interaction |
+| Representative methods | Regression, Classif., SVM, RF | K-Means, PCA, AE | Q-Learning, PPO |
+| Typical applications | Spam detection, prediction | Customer segmentation, visualization | Game AI, robotics |
+| Difficult aspects | Label acquisition cost | Evaluation is subjective | Reward design, training instability |
+
+### Core Concepts Summary
+
+| Concept | Key Point |
+|---------|-----------|
+| Bias-Variance | Trade-off between model simplicity and complexity |
+| Overfitting | The phenomenon where a model over-specializes on training data, reducing generalization |
+| Regularization | L1/L2 penalties, Dropout, etc. to prevent overfitting |
+| Cross Validation | Repeatedly split data to stably evaluate performance |
+| Feature Engineering | The art of transforming data using domain knowledge |
+| Data Leakage | A critical mistake where test information leaks into training |
+| Evaluation Metrics | Choosing the right metric for the task is paramount |
+| Data Drift | The problem of data distribution changing during operation, degrading performance |
+
+---
+
+## Recommended Next Guides
 
 
 ---
 
-## 16. 参考文献
+## 16. References
 
-### 書籍
+### Books
 
 1. **Goodfellow, I., Bengio, Y., & Courville, A.** "Deep Learning." MIT Press, 2016.
-   - 深層学習の理論的基盤を体系的にまとめた教科書。無料でオンライン公開されている。数学的な基礎から最新のアーキテクチャまで網羅。
+   - A textbook that systematically covers the theoretical foundations of deep learning. Available for free online. Covers from mathematical foundations to state-of-the-art architectures.
 
 2. **Bishop, C. M.** "Pattern Recognition and Machine Learning." Springer, 2006.
-   - 機械学習の古典的名著。ベイズ的アプローチを中心に、確率論的な観点から機械学習を解説する。理論的な深さを求める読者に推奨。
+   - A classic masterpiece of machine learning. Explains machine learning from a probabilistic perspective centered on a Bayesian approach. Recommended for readers seeking theoretical depth.
 
 3. **Hastie, T., Tibshirani, R., & Friedman, J.** "The Elements of Statistical Learning." Springer, 2009.
-   - 統計的学習理論の百科事典的著作。無料でオンライン公開。統計学とMLの橋渡しとなる重要文献。
+   - An encyclopedic work on statistical learning theory. Available for free online. An important bridge between statistics and ML.
 
-### 論文
+### Papers
 
 4. **Vaswani, A. et al.** "Attention Is All You Need." NeurIPS, 2017.
-   - Transformerアーキテクチャを提案した画期的な論文。現代のLLM（GPT、Claude、LLaMA等）全ての基盤。
+   - The groundbreaking paper that proposed the Transformer architecture. The foundation of all modern LLMs (GPT, Claude, LLaMA, etc.).
 
 5. **He, K. et al.** "Deep Residual Learning for Image Recognition." CVPR, 2016.
-   - ResNet（残差接続）を提案した論文。深層ネットワークの学習を可能にした重要な技術的ブレークスルー。
+   - The paper proposing ResNet (residual connections). An important technical breakthrough that enabled training of deep networks.
 
 6. **Grinsztajn, L. et al.** "Why do tree-based models still outperform deep learning on typical tabular data?" NeurIPS, 2022.
-   - テーブルデータにおける勾配ブースティングとNNの性能比較。テーブルデータではツリーベースが依然優位であることを実証。
+   - Performance comparison of gradient boosting and NNs on tabular data. Demonstrates that tree-based models remain superior on tabular data.
 
-### オンラインリソース
+### Online Resources
 
 7. **Andrew Ng.** "Machine Learning Yearning." 2018.
-   - ML プロジェクトの戦略と意思決定に関する実践的なガイド。無料公開。
+   - A practical guide on strategy and decision-making for ML projects. Free publication.
 
-8. **scikit-learn 公式ドキュメント** — https://scikit-learn.org/stable/
-   - アルゴリズムの使い方だけでなく、理論的背景も丁寧に解説されている。
+8. **scikit-learn Official Documentation** -- https://scikit-learn.org/stable/
+   - Not only explains how to use algorithms but also provides thorough explanations of theoretical background.
 
-9. **Google Machine Learning Crash Course** — https://developers.google.com/machine-learning/crash-course
-   - Googleが提供する無料のML入門コース。実践的な演習を含む。
+9. **Google Machine Learning Crash Course** -- https://developers.google.com/machine-learning/crash-course
+   - A free introductory ML course provided by Google. Includes practical exercises.
 
 ---
 
-## 参考文献
+## References
 
-- [MDN Web Docs](https://developer.mozilla.org/) - Web技術のリファレンス
-- [Wikipedia](https://ja.wikipedia.org/) - 技術概念の概要
+- [MDN Web Docs](https://developer.mozilla.org/) - Web technology reference
+- [Wikipedia](https://en.wikipedia.org/) - Overview of technical concepts

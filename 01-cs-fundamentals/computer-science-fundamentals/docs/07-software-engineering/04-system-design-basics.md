@@ -1,139 +1,139 @@
-# システム設計入門
+# Introduction to System Design
 
-> システム設計は「正解のない」問題であり、トレードオフの中で最善の選択をする技術である。
+> System design is a "no single right answer" problem — it is the art of making the best choices among trade-offs.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] スケーラビリティの基本概念を理解する
-- [ ] CAP定理を説明できる
-- [ ] 主要なシステム設計パターンを知る
-- [ ] ロードバランシングの仕組みと種類を理解する
-- [ ] キャッシング戦略を適切に選択できる
-- [ ] データベースの設計パターンを学ぶ
-- [ ] メッセージキューの活用方法を理解する
-- [ ] マイクロサービスアーキテクチャの長所と短所を把握する
-- [ ] APIの設計原則を学ぶ
-- [ ] 可用性と信頼性の設計手法を身につける
-- [ ] 実践的なシステム設計の見積もり手法を習得する
+- [ ] Understand the basic concepts of scalability
+- [ ] Be able to explain the CAP theorem
+- [ ] Know the major system design patterns
+- [ ] Understand the mechanisms and types of load balancing
+- [ ] Be able to appropriately choose caching strategies
+- [ ] Learn database design patterns
+- [ ] Understand how to use message queues
+- [ ] Grasp the advantages and disadvantages of microservices architecture
+- [ ] Learn API design principles
+- [ ] Acquire design techniques for availability and reliability
+- [ ] Master practical estimation techniques for system design
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Understanding the following topics beforehand will help you get more out of this guide:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [クリーンコード](./03-clean-code.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Familiarity with the content of [Clean Code](./03-clean-code.md)
 
 ---
 
-## 1. スケーラビリティ
+## 1. Scalability
 
-### 1.1 スケールの方向
-
-```
-スケールの2つの方向:
-
-  垂直スケーリング（スケールアップ）:
-  → マシンを強化（CPU, RAM追加）
-  → 限界あり、ダウンタイムが発生
-  → 単純だが高価
-
-  水平スケーリング（スケールアウト）:
-  → マシンを追加
-  → 理論上無限にスケール
-  → 複雑だがコスト効率が良い
-
-  典型的なWebアーキテクチャ:
-  ┌────────┐   ┌──────────────┐   ┌──────────┐
-  │ Client │──→│ Load Balancer│──→│ Web x N  │
-  └────────┘   └──────────────┘   └────┬─────┘
-                                       │
-                              ┌────────┼────────┐
-                              ▼        ▼        ▼
-                          ┌──────┐ ┌──────┐ ┌──────┐
-                          │Cache │ │ DB   │ │Queue │
-                          │Redis │ │Master│ │SQS   │
-                          └──────┘ │Slave │ └──────┘
-                                   └──────┘
-```
-
-### 1.2 垂直スケーリングの実際
+### 1.1 Directions of Scaling
 
 ```
-垂直スケーリング（スケールアップ）の特徴:
+Two directions of scaling:
 
-  利点:
-  - 実装が最も簡単（アプリケーション変更不要）
-  - 分散システムの複雑さを回避できる
-  - 単一ノードなのでデータ一貫性が自然に保たれる
-  - 運用が容易（監視対象が少ない）
+  Vertical Scaling (Scale-Up):
+  -> Enhance the machine (add CPU, RAM)
+  -> Has limits, causes downtime
+  -> Simple but expensive
 
-  限界:
-  - ハードウェアの物理的限界がある
-    - CPU: 最大 128〜256 コア
-    - RAM: 最大 6〜12 TB
-    - ストレージ: IOPS の上限
-  - コストが指数関数的に増加
-    - 2倍の性能 ≠ 2倍のコスト、通常は3〜5倍
-  - 単一障害点（SPOF）になる
-  - スケールアップ時にダウンタイムが発生する
+  Horizontal Scaling (Scale-Out):
+  -> Add more machines
+  -> Theoretically infinite scaling
+  -> Complex but cost-effective
 
-  適用すべき場面:
-  - トラフィックが比較的小さい場合（QPS < 1,000 程度）
-  - プロジェクト初期でまだ規模が読めない場合
-  - データベースの一時的なパフォーマンス改善
-  - 短期的なトラフィック増加への対応
-
-  具体例:
-  - AWS EC2: t3.micro → m5.24xlarge（96 vCPU, 384 GB RAM）
-  - RDS: db.t3.micro → db.r5.24xlarge
-  - Azure: Standard_B1s → Standard_M128ms（128 vCPU, 3.8 TB RAM）
+  Typical Web Architecture:
+  +--------+   +--------------+   +----------+
+  | Client |-->| Load Balancer|-->| Web x N  |
+  +--------+   +--------------+   +----+-----+
+                                       |
+                              +--------+--------+
+                              v        v        v
+                          +------+ +------+ +------+
+                          |Cache | | DB   | |Queue |
+                          |Redis | |Master| |SQS   |
+                          +------+ |Slave | +------+
+                                   +------+
 ```
 
-### 1.3 水平スケーリングの実際
+### 1.2 Vertical Scaling in Practice
 
 ```
-水平スケーリング（スケールアウト）の特徴:
+Characteristics of Vertical Scaling (Scale-Up):
 
-  利点:
-  - 理論上無限にスケール可能
-  - コスト効率が良い（コモディティハードウェアを使用）
-  - 耐障害性が高い（1台が落ちても他が動作）
-  - ダウンタイムなしでスケール変更可能
+  Advantages:
+  - Easiest to implement (no application changes required)
+  - Avoids the complexity of distributed systems
+  - Data consistency is naturally maintained on a single node
+  - Easy to operate (fewer monitoring targets)
 
-  課題:
-  - 分散システムの複雑さ
-    - データの一貫性の保証
-    - 分散トランザクション
-    - ネットワーク障害の対応
-  - ステートの管理
-    - セッション管理（Sticky Session vs 共有ストア）
-    - キャッシュの一貫性
-  - デプロイとオペレーションの複雑化
+  Limitations:
+  - Hardware has physical limits
+    - CPU: up to 128-256 cores
+    - RAM: up to 6-12 TB
+    - Storage: IOPS ceiling
+  - Cost increases exponentially
+    - 2x performance != 2x cost; typically 3-5x
+  - Becomes a Single Point of Failure (SPOF)
+  - Downtime occurs during scale-up
 
-  スケールアウトで考慮すべきこと:
-  ┌──────────────────────────────────────────────────┐
-  │ レイヤー       │ 対策                             │
-  ├──────────────────────────────────────────────────┤
-  │ Web/API       │ ステートレス化 + LB               │
-  │ セッション     │ Redis/Memcached に外出し          │
-  │ データベース   │ Read Replica + シャーディング       │
-  │ ファイル       │ S3/GCS 等のオブジェクトストレージ   │
-  │ タスク処理     │ メッセージキュー + ワーカー         │
-  │ 検索           │ Elasticsearch/Solr               │
-  └──────────────────────────────────────────────────┘
+  When to use:
+  - When traffic is relatively small (QPS < ~1,000)
+  - Early in a project when scale is unknown
+  - Temporary database performance improvements
+  - Short-term traffic spikes
+
+  Examples:
+  - AWS EC2: t3.micro -> m5.24xlarge (96 vCPU, 384 GB RAM)
+  - RDS: db.t3.micro -> db.r5.24xlarge
+  - Azure: Standard_B1s -> Standard_M128ms (128 vCPU, 3.8 TB RAM)
 ```
 
-### 1.4 ステートレスアーキテクチャ
+### 1.3 Horizontal Scaling in Practice
+
+```
+Characteristics of Horizontal Scaling (Scale-Out):
+
+  Advantages:
+  - Theoretically infinite scalability
+  - Cost-effective (uses commodity hardware)
+  - High fault tolerance (other nodes continue if one goes down)
+  - Scale changes possible without downtime
+
+  Challenges:
+  - Distributed system complexity
+    - Ensuring data consistency
+    - Distributed transactions
+    - Handling network failures
+  - State management
+    - Session management (Sticky Session vs shared store)
+    - Cache consistency
+  - Increased deployment and operational complexity
+
+  Considerations for scaling out:
+  +--------------------------------------------------+
+  | Layer          | Strategy                         |
+  +--------------------------------------------------+
+  | Web/API       | Make stateless + LB               |
+  | Session       | Externalize to Redis/Memcached    |
+  | Database      | Read Replica + Sharding           |
+  | Files         | Object storage like S3/GCS        |
+  | Task Processing| Message Queue + Workers          |
+  | Search        | Elasticsearch/Solr                |
+  +--------------------------------------------------+
+```
+
+### 1.4 Stateless Architecture
 
 ```python
-# --- ステートフル vs ステートレスサーバー ---
+# --- Stateful vs Stateless Servers ---
 
-# ❌ ステートフル（スケールアウトが困難）
+# Bad: Stateful (difficult to scale out)
 class StatefulServer:
     def __init__(self):
-        self.sessions = {}  # セッションをサーバーメモリに保持
+        self.sessions = {}  # Stores sessions in server memory
 
     def login(self, user_id, password):
         session_id = generate_session_id()
@@ -144,16 +144,16 @@ class StatefulServer:
         return session_id
 
     def get_user(self, session_id):
-        # このサーバーにしかセッション情報がない!
+        # Session info only exists on THIS server!
         session = self.sessions.get(session_id)
         if not session:
             raise AuthenticationError("Invalid session")
         return session["user_id"]
 
-# ✅ ステートレス（自由にスケールアウト可能）
+# Good: Stateless (can freely scale out)
 class StatelessServer:
     def __init__(self, session_store):
-        # セッションは外部ストア（Redis等）に保存
+        # Sessions stored in an external store (e.g., Redis)
         self.session_store = session_store
 
     def login(self, user_id, password):
@@ -161,11 +161,11 @@ class StatelessServer:
         self.session_store.set(session_id, {
             "user_id": user_id,
             "login_time": datetime.now().isoformat()
-        }, ttl=3600)  # 1時間で期限切れ
+        }, ttl=3600)  # Expires in 1 hour
         return session_id
 
     def get_user(self, session_id):
-        # どのサーバーからでもセッションを参照可能
+        # Session can be accessed from any server
         session = self.session_store.get(session_id)
         if not session:
             raise AuthenticationError("Invalid session")
@@ -173,223 +173,227 @@ class StatelessServer:
 ```
 
 ```
-ステートレス化のためのパターン:
+Patterns for achieving statelessness:
 
-  1. セッション外部化
-     - Redis/Memcached にセッションを保存
-     - JWT トークンでサーバー側にセッション不要に
+  1. Session Externalization
+     - Store sessions in Redis/Memcached
+     - Use JWT tokens to eliminate server-side sessions
 
-  2. ファイルストレージの外部化
-     - ユーザーアップロードは S3/GCS に保存
-     - ローカルディスクに依存しない
+  2. File Storage Externalization
+     - Store user uploads in S3/GCS
+     - Do not depend on local disk
 
-  3. 設定の外部化
-     - 環境変数
-     - Consul, etcd 等の設定サービス
+  3. Configuration Externalization
+     - Environment variables
+     - Configuration services like Consul, etcd
      - AWS Parameter Store / Secrets Manager
 
-  4. キャッシュの外部化
-     - Redis/Memcached をキャッシュレイヤーに
-     - ローカルキャッシュは揮発性データのみに使用
+  4. Cache Externalization
+     - Use Redis/Memcached as a cache layer
+     - Use local cache only for volatile data
 
-  ┌─────────────────────────────────────────────┐
-  │              Load Balancer                   │
-  │   ┌─────────┬─────────┬─────────┐           │
-  │   │ Server1 │ Server2 │ Server3 │ ← 任意に  │
-  │   │ (無状態) │ (無状態) │ (無状態) │   追加可能 │
-  │   └────┬────┴────┬────┴────┬────┘           │
-  │        └─────────┼─────────┘                 │
-  │                  ▼                           │
-  │         ┌──────────────┐                     │
-  │         │ Redis/共有DB  │ ← 状態はここに集約   │
-  │         └──────────────┘                     │
-  └─────────────────────────────────────────────┘
+  +---------------------------------------------+
+  |              Load Balancer                   |
+  |   +---------+---------+---------+           |
+  |   | Server1 | Server2 | Server3 | <- Can be |
+  |   |(no state)|(no state)|(no state)|  added   |
+  |   +----+----+----+----+----+----+ freely    |
+  |        +---------+---------+                 |
+  |                  v                           |
+  |         +--------------+                     |
+  |         | Redis/Shared | <- State is         |
+  |         |     DB       |    centralized here |
+  |         +--------------+                     |
+  +---------------------------------------------+
 ```
 
 ---
 
-## 2. CAP定理
+## 2. CAP Theorem
 
-### 2.1 CAP定理の基本
-
-```
-CAP定理: 分散システムは3つのうち2つしか同時に保証できない
-
-  C — Consistency（一貫性）: 全ノードが同時に同じデータを見る
-  A — Availability（可用性）: 全リクエストがレスポンスを返す
-  P — Partition Tolerance（分断耐性）: ネットワーク分断でも動作
-
-  ネットワーク分断は避けられない → 実質 CP or AP の選択
-
-  CP（一貫性優先）: 分断時にエラーを返す
-  → 銀行送金、在庫管理
-  → PostgreSQL, MongoDB(デフォルト), ZooKeeper
-
-  AP（可用性優先）: 分断時に古いデータを返す可能性
-  → SNSのタイムライン、ショッピングカート
-  → Cassandra, DynamoDB, CouchDB
-
-  PACELC定理（CAP拡張）:
-  分断時(P): AかCを選択
-  通常時(E): Latency(L)かConsistency(C)を選択
-```
-
-### 2.2 一貫性モデルの詳細
+### 2.1 CAP Theorem Basics
 
 ```
-一貫性モデルの種類（強い順）:
+CAP Theorem: A distributed system can only guarantee two out of three simultaneously
 
-  1. 線形化可能性（Linearizability）
-     - 最も強い一貫性保証
-     - 全操作が単一のグローバルな順序で実行されたかのように見える
-     - 書き込み直後にどのノードからでも読める
-     - 例: Zookeeper, etcd
-     - コスト: レイテンシーが最も高い
+  C -- Consistency: All nodes see the same data at the same time
+  A -- Availability: Every request receives a response
+  P -- Partition Tolerance: System operates even during network partitions
 
-  2. 逐次一貫性（Sequential Consistency）
-     - 各プロセスの操作順序は維持される
-     - プロセス間の順序は保証しない
-     - 例: 分散キュー
+  Network partitions are unavoidable -> Effectively a choice between CP or AP
 
-  3. 因果一貫性（Causal Consistency）
-     - 因果関係のある操作は順序が保証される
-     - 因果関係のない操作は任意の順序で見える
-     - 例: メッセージアプリ（返信は元メッセージの後に見える）
+  CP (Consistency Priority): Returns an error during partitions
+  -> Bank transfers, inventory management
+  -> PostgreSQL, MongoDB (default), ZooKeeper
 
-  4. 結果整合性（Eventual Consistency）
-     - 最も弱い保証
-     - 書き込みが停止すれば、いずれ全ノードが同じ値に収束
-     - 読み取り時に古い値が返る可能性がある
-     - 例: DNS, S3, DynamoDB（デフォルト設定）
-     - コスト: レイテンシーが最も低い
+  AP (Availability Priority): May return stale data during partitions
+  -> Social media timelines, shopping carts
+  -> Cassandra, DynamoDB, CouchDB
 
-  実務での選択指針:
-  ┌──────────────────────────────────────────────────┐
-  │ ユースケース           │ 推奨一貫性モデル          │
-  ├──────────────────────────────────────────────────┤
-  │ 銀行振込              │ 線形化可能性（強一貫性）   │
-  │ 在庫管理              │ 線形化可能性 or 因果一貫性 │
-  │ ユーザープロフィール    │ 結果整合性               │
-  │ SNSのいいね数          │ 結果整合性               │
-  │ メッセージ送信         │ 因果一貫性               │
-  │ ECの注文処理           │ 線形化可能性             │
-  │ 検索インデックス更新    │ 結果整合性               │
-  │ リーダー選出           │ 線形化可能性             │
-  └──────────────────────────────────────────────────┘
+  PACELC Theorem (CAP Extension):
+  During Partition (P): Choose A or C
+  During normal operation (E): Choose Latency (L) or Consistency (C)
 ```
 
-### 2.3 データレプリケーション
+### 2.2 Consistency Models in Detail
 
 ```
-レプリケーション戦略:
+Types of consistency models (from strongest to weakest):
 
-  1. シングルリーダー（Single-Leader）
-     ┌──────────┐    ┌───────────┐
-     │  Leader   │───→│ Follower1 │  書き込みはLeaderのみ
-     │ (Master)  │───→│ Follower2 │  読み取りはどこからでも
-     └──────────┘    │ Follower3 │
-                     └───────────┘
-     - 利点: 一貫性が保ちやすい
-     - 欠点: Leaderが単一障害点、書き込みスケール不可
-     - 例: MySQL, PostgreSQL, MongoDB
+  1. Linearizability
+     - Strongest consistency guarantee
+     - All operations appear to execute in a single global order
+     - Readable from any node immediately after write
+     - Example: Zookeeper, etcd
+     - Cost: Highest latency
 
-  2. マルチリーダー（Multi-Leader）
-     ┌──────────┐    ┌──────────┐
-     │  Leader1  │←──→│  Leader2  │  どのリーダーにも書き込み可能
-     │ (Tokyo)   │    │ (US-East) │
-     └──────────┘    └──────────┘
-     - 利点: 書き込みの可用性向上、低レイテンシー
-     - 欠点: コンフリクト解決が必要
-     - 例: CouchDB, Galera Cluster
+  2. Sequential Consistency
+     - Operation order within each process is maintained
+     - Order between processes is not guaranteed
+     - Example: Distributed queues
 
-  3. リーダーレス（Leaderless）
-     ┌──────┐  ┌──────┐  ┌──────┐
-     │Node1 │  │Node2 │  │Node3 │  全ノードが対等
-     └──────┘  └──────┘  └──────┘
-     - Quorum: W + R > N で一貫性を確保
-       - W=書き込みノード数, R=読み取りノード数, N=総ノード数
-       - 例: N=3, W=2, R=2 → 書き込み2台成功で完了、読み取り2台から取得
-     - 利点: 高可用性、単一障害点なし
-     - 欠点: 実装が複雑、コンフリクト解決が必要
-     - 例: Cassandra, DynamoDB, Riak
+  3. Causal Consistency
+     - Causally related operations are guaranteed to be ordered
+     - Causally unrelated operations may appear in any order
+     - Example: Messaging apps (replies always appear after the original message)
 
-  コンフリクト解決戦略:
+  4. Eventual Consistency
+     - Weakest guarantee
+     - If writes stop, all nodes will eventually converge to the same value
+     - Stale values may be returned during reads
+     - Example: DNS, S3, DynamoDB (default setting)
+     - Cost: Lowest latency
+
+  Practical selection guidelines:
+  +--------------------------------------------------+
+  | Use Case                 | Recommended Model      |
+  +--------------------------------------------------+
+  | Bank transfers           | Linearizability        |
+  | Inventory management     | Linearizability or     |
+  |                          | Causal Consistency     |
+  | User profiles            | Eventual Consistency   |
+  | Social media likes count | Eventual Consistency   |
+  | Message delivery         | Causal Consistency     |
+  | E-commerce order processing | Linearizability     |
+  | Search index updates     | Eventual Consistency   |
+  | Leader election          | Linearizability        |
+  +--------------------------------------------------+
+```
+
+### 2.3 Data Replication
+
+```
+Replication strategies:
+
+  1. Single-Leader
+     +----------+    +-----------+
+     |  Leader   |--->| Follower1 |  Writes go to Leader only
+     | (Master)  |--->| Follower2 |  Reads from anywhere
+     +----------+    | Follower3 |
+                     +-----------+
+     - Advantage: Easy to maintain consistency
+     - Disadvantage: Leader is a single point of failure, writes don't scale
+     - Example: MySQL, PostgreSQL, MongoDB
+
+  2. Multi-Leader
+     +----------+    +----------+
+     |  Leader1  |<-->|  Leader2  |  Writes can go to any leader
+     | (Tokyo)   |    | (US-East) |
+     +----------+    +----------+
+     - Advantage: Improved write availability, low latency
+     - Disadvantage: Conflict resolution required
+     - Example: CouchDB, Galera Cluster
+
+  3. Leaderless
+     +------+  +------+  +------+
+     |Node1 |  |Node2 |  |Node3 |  All nodes are equal
+     +------+  +------+  +------+
+     - Quorum: W + R > N ensures consistency
+       - W=write node count, R=read node count, N=total node count
+       - Example: N=3, W=2, R=2 -> Write completes when 2 succeed, read from 2
+     - Advantage: High availability, no single point of failure
+     - Disadvantage: Complex implementation, conflict resolution needed
+     - Example: Cassandra, DynamoDB, Riak
+
+  Conflict resolution strategies:
   1. Last Write Wins (LWW)
-     - タイムスタンプが最新の書き込みが勝つ
-     - シンプルだがデータ損失の可能性
-  2. マージ
-     - 両方の変更を保持して結合
-     - CRDTs（Conflict-free Replicated Data Types）が有効
-  3. アプリケーションレベル解決
-     - コンフリクトをユーザーに提示して選択させる
-     - 例: Google Docs の共同編集
+     - The write with the latest timestamp wins
+     - Simple but risk of data loss
+  2. Merge
+     - Retain and combine both changes
+     - CRDTs (Conflict-free Replicated Data Types) are effective
+  3. Application-level resolution
+     - Present conflicts to the user for selection
+     - Example: Google Docs collaborative editing
 ```
 
 ---
 
-## 3. ロードバランシング
+## 3. Load Balancing
 
-### 3.1 ロードバランシングの基本
+### 3.1 Load Balancing Basics
 
 ```
-ロードバランサーの設置場所:
+Load balancer placement:
 
-  Client ─→ [LB1] ─→ Web Server ─→ [LB2] ─→ App Server ─→ [LB3] ─→ DB
+  Client -> [LB1] -> Web Server -> [LB2] -> App Server -> [LB3] -> DB
 
-  L4（トランスポート層）ロードバランサー:
-  - TCP/UDPレベルで分散
-  - パケットの中身を見ない
-  - 高速、低オーバーヘッド
-  - 例: AWS NLB, HAProxy(L4モード), Linux IPVS
+  L4 (Transport Layer) Load Balancer:
+  - Distributes at TCP/UDP level
+  - Does not inspect packet contents
+  - Fast, low overhead
+  - Examples: AWS NLB, HAProxy (L4 mode), Linux IPVS
 
-  L7（アプリケーション層）ロードバランサー:
-  - HTTP/HTTPSレベルで分散
-  - URLパス、ヘッダー、Cookie 等で振り分け可能
-  - SSL終端、圧縮、キャッシュ等の機能
-  - 例: AWS ALB, Nginx, HAProxy(L7モード), Envoy
+  L7 (Application Layer) Load Balancer:
+  - Distributes at HTTP/HTTPS level
+  - Can route based on URL path, headers, cookies, etc.
+  - SSL termination, compression, caching features
+  - Examples: AWS ALB, Nginx, HAProxy (L7 mode), Envoy
 
-  分散アルゴリズム:
-  ┌──────────────────────────────────────────────────┐
-  │ アルゴリズム         │ 説明                        │
-  ├──────────────────────────────────────────────────┤
-  │ ラウンドロビン       │ 順番に振り分け               │
-  │ 加重ラウンドロビン   │ 重みに応じて振り分け         │
-  │ 最小接続数           │ 接続数が最も少ないサーバーへ  │
-  │ 最短応答時間         │ レスポンスが最も速いサーバーへ │
-  │ IPハッシュ           │ クライアントIPで固定         │
-  │ コンシステントハッシュ│ ノード追加/削除時の影響を最小化│
-  └──────────────────────────────────────────────────┘
+  Distribution Algorithms:
+  +--------------------------------------------------+
+  | Algorithm              | Description              |
+  +--------------------------------------------------+
+  | Round Robin            | Distributes in sequence  |
+  | Weighted Round Robin   | Distributes by weight    |
+  | Least Connections      | Routes to server with    |
+  |                        | fewest connections        |
+  | Shortest Response Time | Routes to fastest server |
+  | IP Hash                | Fixed by client IP       |
+  | Consistent Hashing     | Minimizes impact of      |
+  |                        | node addition/removal     |
+  +--------------------------------------------------+
 ```
 
-### 3.2 コンシステントハッシュ
+### 3.2 Consistent Hashing
 
 ```python
 import hashlib
 from bisect import bisect_right
 
 class ConsistentHash:
-    """コンシステントハッシュの実装例"""
+    """Example implementation of consistent hashing"""
 
     def __init__(self, nodes=None, replicas=150):
         """
         Args:
-            nodes: 初期ノードのリスト
-            replicas: 各ノードの仮想ノード数（多いほど均一に分散）
+            nodes: List of initial nodes
+            replicas: Number of virtual nodes per node (more = more uniform distribution)
         """
         self.replicas = replicas
-        self.ring = {}       # ハッシュ値 → ノード名
-        self.sorted_keys = []  # ソート済みハッシュ値リスト
+        self.ring = {}       # hash value -> node name
+        self.sorted_keys = []  # sorted list of hash values
 
         if nodes:
             for node in nodes:
                 self.add_node(node)
 
     def _hash(self, key: str) -> int:
-        """キーのハッシュ値を計算"""
+        """Compute hash value for a key"""
         return int(hashlib.md5(key.encode()).hexdigest(), 16)
 
     def add_node(self, node: str):
-        """ノードを追加"""
+        """Add a node"""
         for i in range(self.replicas):
             virtual_key = f"{node}:{i}"
             hash_value = self._hash(virtual_key)
@@ -398,7 +402,7 @@ class ConsistentHash:
         self.sorted_keys.sort()
 
     def remove_node(self, node: str):
-        """ノードを削除"""
+        """Remove a node"""
         for i in range(self.replicas):
             virtual_key = f"{node}:{i}"
             hash_value = self._hash(virtual_key)
@@ -406,49 +410,49 @@ class ConsistentHash:
             self.sorted_keys.remove(hash_value)
 
     def get_node(self, key: str) -> str:
-        """キーが属するノードを取得"""
+        """Get the node responsible for a key"""
         if not self.ring:
             raise ValueError("No nodes available")
 
         hash_value = self._hash(key)
         idx = bisect_right(self.sorted_keys, hash_value)
         if idx == len(self.sorted_keys):
-            idx = 0  # リングを一周
+            idx = 0  # Wrap around the ring
         return self.ring[self.sorted_keys[idx]]
 
-# 使用例
+# Usage example
 ch = ConsistentHash(["server-1", "server-2", "server-3"])
 
-# データの割り当て
+# Data assignment
 for key in ["user:1001", "user:1002", "user:1003", "order:5001"]:
     node = ch.get_node(key)
-    print(f"{key} → {node}")
+    print(f"{key} -> {node}")
 
-# ノード追加 → 影響を受けるキーは約 1/N のみ
+# Adding a node -> only ~1/N of keys are affected
 ch.add_node("server-4")
 
-# ノード削除 → 影響を受けるキーは約 1/N のみ
+# Removing a node -> only ~1/N of keys are affected
 ch.remove_node("server-2")
 ```
 
-### 3.3 ヘルスチェックとフェイルオーバー
+### 3.3 Health Checks and Failover
 
 ```
-ヘルスチェックの種類:
+Types of health checks:
 
-  1. パッシブヘルスチェック
-     - 実際のリクエストの結果を監視
-     - エラー率が閾値を超えたらノードを除外
-     - 追加のトラフィックが不要
+  1. Passive Health Check
+     - Monitors the results of actual requests
+     - Excludes a node when error rate exceeds threshold
+     - No additional traffic required
 
-  2. アクティブヘルスチェック
-     - 定期的に専用のエンドポイントにリクエスト
-     - /health や /ready エンドポイント
-     - より早く障害を検知可能
+  2. Active Health Check
+     - Periodically sends requests to a dedicated endpoint
+     - /health or /ready endpoints
+     - Can detect failures faster
 ```
 
 ```python
-# ヘルスチェックエンドポイントの実装例
+# Example implementation of a health check endpoint
 from flask import Flask, jsonify
 import psycopg2
 import redis
@@ -457,15 +461,15 @@ app = Flask(__name__)
 
 @app.route("/health")
 def health_check():
-    """簡易ヘルスチェック（サーバーが動いているか）"""
+    """Basic health check (is the server running?)"""
     return jsonify({"status": "ok"}), 200
 
 @app.route("/health/detailed")
 def detailed_health_check():
-    """詳細ヘルスチェック（依存サービスの状態も確認）"""
+    """Detailed health check (also checks dependent services)"""
     checks = {}
 
-    # データベースの疎通確認
+    # Database connectivity check
     try:
         conn = psycopg2.connect("postgresql://localhost/myapp")
         conn.execute("SELECT 1")
@@ -474,7 +478,7 @@ def detailed_health_check():
     except Exception as e:
         checks["database"] = {"status": "unhealthy", "error": str(e)}
 
-    # Redisの疎通確認
+    # Redis connectivity check
     try:
         r = redis.Redis()
         r.ping()
@@ -482,7 +486,7 @@ def detailed_health_check():
     except Exception as e:
         checks["cache"] = {"status": "unhealthy", "error": str(e)}
 
-    # ディスク容量の確認
+    # Disk space check
     import shutil
     usage = shutil.disk_usage("/")
     free_percent = usage.free / usage.total * 100
@@ -491,7 +495,7 @@ def detailed_health_check():
     else:
         checks["disk"] = {"status": "warning", "free_percent": round(free_percent, 1)}
 
-    # 全体のステータス判定
+    # Overall status determination
     overall = "healthy"
     for check in checks.values():
         if check["status"] == "unhealthy":
@@ -505,63 +509,63 @@ def detailed_health_check():
 ```
 
 ```
-フェイルオーバーパターン:
+Failover patterns:
 
-  1. アクティブ-パッシブ（Active-Passive）
-     ┌──────────┐    ┌──────────┐
-     │  Active   │    │ Passive  │  Heartbeat で監視
-     │ (稼働中)  │───→│ (待機中)  │  Active が落ちたら
-     └──────────┘    └──────────┘  Passive が昇格
-     - メリット: シンプル、データ一貫性が高い
-     - デメリット: パッシブ側のリソースが無駄
+  1. Active-Passive
+     +----------+    +----------+
+     |  Active   |    | Passive  |  Monitored via Heartbeat
+     | (running) |--->| (standby)|  If Active goes down,
+     +----------+    +----------+  Passive takes over
+     - Pros: Simple, high data consistency
+     - Cons: Passive resources are idle
 
-  2. アクティブ-アクティブ（Active-Active）
-     ┌──────────┐    ┌──────────┐
-     │ Active-1  │←──→│ Active-2  │  両方がリクエストを処理
-     │ (稼働中)  │    │ (稼働中)  │  1台が落ちても継続
-     └──────────┘    └──────────┘
-     - メリット: リソース効率が良い、高可用性
-     - デメリット: データ同期が複雑
+  2. Active-Active
+     +----------+    +----------+
+     | Active-1  |<-->| Active-2  |  Both handle requests
+     | (running) |    | (running) |  Continues if one goes down
+     +----------+    +----------+
+     - Pros: Resource efficient, high availability
+     - Cons: Complex data synchronization
 ```
 
 ---
 
-## 4. キャッシング
+## 4. Caching
 
-### 4.1 キャッシュの階層
+### 4.1 Cache Hierarchy
 
 ```
-キャッシュの階層構造（上ほどクライアントに近い）:
+Cache hierarchy (closer to client at the top):
 
-  ┌─────────────────────────────────────────────────┐
-  │  クライアントキャッシュ                            │
-  │  - ブラウザキャッシュ（Cache-Control, ETag）      │
-  │  - モバイルアプリのローカルストレージ               │
-  │  - レイテンシー: 0ms（ネットワーク不要）            │
-  ├─────────────────────────────────────────────────┤
-  │  CDNキャッシュ                                    │
-  │  - CloudFront, Cloudflare, Fastly                │
-  │  - 地理的に分散したエッジサーバー                   │
-  │  - レイテンシー: 1-10ms                           │
-  ├─────────────────────────────────────────────────┤
-  │  アプリケーションキャッシュ                         │
-  │  - Redis, Memcached                              │
-  │  - インメモリでサブミリ秒アクセス                   │
-  │  - レイテンシー: 1-5ms                            │
-  ├─────────────────────────────────────────────────┤
-  │  データベースキャッシュ                             │
-  │  - クエリキャッシュ                                │
-  │  - バッファプール（InnoDB Buffer Pool等）          │
-  │  - レイテンシー: 1-10ms                           │
-  ├─────────────────────────────────────────────────┤
-  │  ディスクキャッシュ                                │
-  │  - OS ページキャッシュ                             │
-  │  - SSDのキャッシュ                                │
-  │  - レイテンシー: 0.1-1ms                          │
-  └─────────────────────────────────────────────────┘
+  +-----------------------------------------------------+
+  |  Client Cache                                        |
+  |  - Browser cache (Cache-Control, ETag)               |
+  |  - Mobile app local storage                          |
+  |  - Latency: 0ms (no network needed)                  |
+  +-----------------------------------------------------+
+  |  CDN Cache                                           |
+  |  - CloudFront, Cloudflare, Fastly                    |
+  |  - Geographically distributed edge servers           |
+  |  - Latency: 1-10ms                                   |
+  +-----------------------------------------------------+
+  |  Application Cache                                   |
+  |  - Redis, Memcached                                  |
+  |  - In-memory sub-millisecond access                  |
+  |  - Latency: 1-5ms                                    |
+  +-----------------------------------------------------+
+  |  Database Cache                                      |
+  |  - Query cache                                       |
+  |  - Buffer pool (InnoDB Buffer Pool, etc.)            |
+  |  - Latency: 1-10ms                                   |
+  +-----------------------------------------------------+
+  |  Disk Cache                                          |
+  |  - OS page cache                                     |
+  |  - SSD cache                                         |
+  |  - Latency: 0.1-1ms                                  |
+  +-----------------------------------------------------+
 ```
 
-### 4.2 キャッシュ戦略
+### 4.2 Caching Strategies
 
 ```python
 import redis
@@ -570,187 +574,188 @@ from datetime import timedelta
 
 r = redis.Redis()
 
-# --- 1. Cache-Aside（Lazy Loading） ---
-# アプリケーションがキャッシュの読み書きを制御
-# 最も一般的なパターン
+# --- 1. Cache-Aside (Lazy Loading) ---
+# Application controls cache reads and writes
+# Most common pattern
 
 def get_user_cache_aside(user_id: str) -> dict:
-    """Cache-Aside: まずキャッシュを確認、なければDBから取得してキャッシュ"""
+    """Cache-Aside: Check cache first, if miss then fetch from DB and cache"""
     cache_key = f"user:{user_id}"
 
-    # 1. キャッシュを確認
+    # 1. Check cache
     cached = r.get(cache_key)
     if cached:
-        return json.loads(cached)  # キャッシュヒット
+        return json.loads(cached)  # Cache hit
 
-    # 2. キャッシュミス → DBから取得
+    # 2. Cache miss -> Fetch from DB
     user = db.find_user(user_id)
     if user is None:
         return None
 
-    # 3. キャッシュに保存（TTL付き）
+    # 3. Store in cache (with TTL)
     r.setex(cache_key, timedelta(hours=1), json.dumps(user.to_dict()))
 
     return user.to_dict()
 
 def update_user_cache_aside(user_id: str, data: dict):
-    """更新時はキャッシュを無効化"""
+    """Invalidate cache on update"""
     db.update_user(user_id, data)
-    r.delete(f"user:{user_id}")  # キャッシュを削除
+    r.delete(f"user:{user_id}")  # Delete cache
 
 
 # --- 2. Write-Through ---
-# 書き込み時にキャッシュとDBを同時更新
+# Update cache and DB simultaneously on write
 
 def save_user_write_through(user_id: str, data: dict):
-    """Write-Through: DBとキャッシュを同時に更新"""
-    # DBに書き込み
+    """Write-Through: Update DB and cache simultaneously"""
+    # Write to DB
     db.save_user(user_id, data)
 
-    # キャッシュにも書き込み
+    # Also write to cache
     cache_key = f"user:{user_id}"
     r.setex(cache_key, timedelta(hours=1), json.dumps(data))
 
 
-# --- 3. Write-Behind（Write-Back） ---
-# まずキャッシュに書き込み、非同期でDBに反映
+# --- 3. Write-Behind (Write-Back) ---
+# Write to cache first, then asynchronously persist to DB
 
 class WriteBehindCache:
     def __init__(self):
         self.write_queue = []
 
     def save(self, user_id: str, data: dict):
-        """まずキャッシュに書き込み"""
+        """Write to cache first"""
         cache_key = f"user:{user_id}"
         r.setex(cache_key, timedelta(hours=1), json.dumps(data))
 
-        # 書き込みキューに追加（非同期でDBに反映）
+        # Add to write queue (asynchronously persisted to DB)
         self.write_queue.append(("user", user_id, data))
 
     def flush(self):
-        """キューの内容をDBに一括書き込み"""
+        """Batch write queue contents to DB"""
         while self.write_queue:
             entity_type, entity_id, data = self.write_queue.pop(0)
             db.save(entity_type, entity_id, data)
 
 
 # --- 4. Read-Through ---
-# キャッシュ自体がDBからの読み込みを管理
+# Cache itself manages loading from DB
 
 class ReadThroughCache:
     def __init__(self, loader):
-        self.loader = loader  # データ取得関数
+        self.loader = loader  # Data retrieval function
 
     def get(self, key: str) -> dict:
         cached = r.get(key)
         if cached:
             return json.loads(cached)
 
-        # キャッシュが自動的にDBから取得
+        # Cache automatically fetches from DB
         data = self.loader(key)
         if data:
             r.setex(key, timedelta(hours=1), json.dumps(data))
         return data
 
-# 使用例
+# Usage example
 user_cache = ReadThroughCache(loader=lambda key: db.find_user(key.split(":")[1]))
 user = user_cache.get("user:1001")
 ```
 
 ```
-キャッシュ戦略の比較:
+Comparison of caching strategies:
 
-  ┌────────────────────────────────────────────────────────┐
-  │ 戦略          │ 利点              │ 欠点              │
-  ├────────────────────────────────────────────────────────┤
-  │ Cache-Aside   │ シンプル、汎用的   │ キャッシュミス時     │
-  │               │                   │ のレイテンシー増大   │
-  ├────────────────────────────────────────────────────────┤
-  │ Write-Through │ 一貫性が高い       │ 書き込みが遅い      │
-  │               │                   │ (2箇所に書く)       │
-  ├────────────────────────────────────────────────────────┤
-  │ Write-Behind  │ 書き込みが速い     │ データ損失リスク    │
-  │               │ バッチ最適化可能   │ 実装が複雑          │
-  ├────────────────────────────────────────────────────────┤
-  │ Read-Through  │ アプリコードが     │ カスタマイズ性      │
-  │               │ シンプルに         │ が低い場合がある    │
-  └────────────────────────────────────────────────────────┘
+  +--------------------------------------------------------+
+  | Strategy      | Advantages        | Disadvantages       |
+  +--------------------------------------------------------+
+  | Cache-Aside   | Simple, versatile | Increased latency   |
+  |               |                   | on cache miss        |
+  +--------------------------------------------------------+
+  | Write-Through | High consistency  | Slow writes          |
+  |               |                   | (writes to 2 places) |
+  +--------------------------------------------------------+
+  | Write-Behind  | Fast writes       | Risk of data loss    |
+  |               | Batch optimization| Complex              |
+  |               | possible          | implementation       |
+  +--------------------------------------------------------+
+  | Read-Through  | Simplifies        | May have limited     |
+  |               | application code  | customizability      |
+  +--------------------------------------------------------+
 ```
 
-### 4.3 キャッシュの課題と対策
+### 4.3 Cache Challenges and Countermeasures
 
 ```
-キャッシュの一般的な課題:
+Common cache challenges:
 
-  1. キャッシュスタンピード（Cache Stampede / Thundering Herd）
-     - 人気のあるキーのキャッシュが期限切れ
-     - 大量のリクエストが同時にDBへ → DB過負荷
-     対策:
-     - ロック: 1つのリクエストのみDBアクセス、他は待機
-     - 確率的早期更新: TTL期限前にランダムに更新
-     - 二重キャッシュ: 主キャッシュの裏にバックアップキャッシュ
+  1. Cache Stampede (Thundering Herd)
+     - A popular key's cache expires
+     - Massive requests simultaneously hit the DB -> DB overload
+     Countermeasures:
+     - Locking: Only one request accesses DB, others wait
+     - Probabilistic early renewal: Randomly refresh before TTL expires
+     - Double caching: Backup cache behind the primary cache
 
-  2. キャッシュペネトレーション（Cache Penetration）
-     - 存在しないキーへの大量リクエスト
-     - 常にキャッシュミス → 毎回DBアクセス
-     対策:
-     - ネガティブキャッシュ: 存在しないキーもキャッシュ（短いTTL）
-     - ブルームフィルタ: 存在チェックを高速に行う
+  2. Cache Penetration
+     - Massive requests for non-existent keys
+     - Always cache miss -> DB hit every time
+     Countermeasures:
+     - Negative caching: Cache non-existent keys too (with short TTL)
+     - Bloom filter: Fast existence check
 
-  3. キャッシュ雪崩（Cache Avalanche）
-     - 多くのキーが同時に期限切れ
-     - 一斉にDBアクセスが発生
-     対策:
-     - TTLにランダムなジッター（揺らぎ）を追加
-     - キャッシュの段階的ウォームアップ
+  3. Cache Avalanche
+     - Many keys expire at the same time
+     - Simultaneous DB access surge
+     Countermeasures:
+     - Add random jitter to TTL
+     - Gradual cache warm-up
 
-  4. データの不整合
-     - DBを更新したのにキャッシュが古い
-     対策:
-     - Write-Through/Write-Behind で整合性を確保
-     - キャッシュの無効化パターン
-     - 短いTTLの設定
+  4. Data Inconsistency
+     - DB is updated but cache is stale
+     Countermeasures:
+     - Ensure consistency with Write-Through/Write-Behind
+     - Cache invalidation patterns
+     - Set short TTLs
 ```
 
 ```python
-# キャッシュスタンピード対策の実装例
+# Implementation example for cache stampede protection
 import time
 import threading
 
 class StampedeProtectedCache:
-    """キャッシュスタンピード対策付きキャッシュ"""
+    """Cache with stampede protection"""
 
     def __init__(self):
-        self.locks = {}  # キーごとのロック
+        self.locks = {}  # Lock per key
         self.lock_manager = threading.Lock()
 
     def get_or_compute(self, key: str, compute_fn, ttl_seconds: int = 3600):
-        """キャッシュ取得。ミス時はロックを取得して1リクエストのみDB問い合わせ"""
-        # まずキャッシュを確認
+        """Get from cache. On miss, acquire lock so only 1 request queries DB"""
+        # Check cache first
         cached = r.get(key)
         if cached:
             return json.loads(cached)
 
-        # ロックを取得（同一キーは1リクエストのみ）
+        # Acquire lock (only 1 request per key)
         lock = self._get_lock(key)
         acquired = lock.acquire(timeout=5)
 
         if not acquired:
-            # ロック取得失敗 → 少し待ってリトライ
+            # Lock acquisition failed -> wait briefly and retry
             time.sleep(0.1)
             cached = r.get(key)
             return json.loads(cached) if cached else None
 
         try:
-            # ダブルチェック（ロック取得中に別スレッドがキャッシュした可能性）
+            # Double-check (another thread may have cached during lock wait)
             cached = r.get(key)
             if cached:
                 return json.loads(cached)
 
-            # DBから取得してキャッシュ
+            # Fetch from DB and cache
             value = compute_fn()
             if value is not None:
-                # TTLにジッターを追加（雪崩防止）
+                # Add jitter to TTL (avalanche prevention)
                 import random
                 jitter = random.randint(0, ttl_seconds // 10)
                 r.setex(key, ttl_seconds + jitter, json.dumps(value))
@@ -767,195 +772,198 @@ class StampedeProtectedCache:
 
 ---
 
-## 5. データベース設計
+## 5. Database Design
 
-### 5.1 RDB vs NoSQL の選択
-
-```
-データベースの選択基準:
-
-  RDB（リレーショナルDB）を選ぶべき場合:
-  - データ間の関係が重要（JOINが必要）
-  - トランザクション（ACID）が必要
-  - スキーマが安定している
-  - 複雑なクエリが必要
-  - データの一貫性が重要
-  例: ユーザー管理、注文管理、会計システム
-
-  NoSQL を選ぶべき場合:
-  - 超大規模なデータ量
-  - 高い書き込みスループットが必要
-  - スキーマが頻繁に変わる
-  - 地理的に分散したデータ
-  - 柔軟なデータモデルが必要
-  例: ログ保存、IoTデータ、コンテンツ管理
-
-  NoSQL の種類:
-  ┌────────────────────────────────────────────────────┐
-  │ 種類              │ 特徴              │ 代表例       │
-  ├────────────────────────────────────────────────────┤
-  │ Key-Value         │ 高速、シンプル     │ Redis,       │
-  │                   │                   │ DynamoDB     │
-  ├────────────────────────────────────────────────────┤
-  │ ドキュメント       │ 柔軟なスキーマ     │ MongoDB,     │
-  │                   │ JSONライク        │ CouchDB      │
-  ├────────────────────────────────────────────────────┤
-  │ カラムファミリー    │ 大規模分析向け    │ Cassandra,   │
-  │                   │ 書き込みが高速    │ HBase        │
-  ├────────────────────────────────────────────────────┤
-  │ グラフ            │ 関係性の探索      │ Neo4j,       │
-  │                   │ 推薦、SNS向け     │ Neptune      │
-  ├────────────────────────────────────────────────────┤
-  │ 時系列            │ 時系列データ特化   │ InfluxDB,    │
-  │                   │ IoT、メトリクス   │ TimescaleDB  │
-  └────────────────────────────────────────────────────┘
-```
-
-### 5.2 シャーディング
+### 5.1 RDB vs NoSQL Selection
 
 ```
-シャーディング（水平分割）:
-  - データを複数のデータベースに分散
-  - 各シャードは独立したデータベースインスタンス
+Database selection criteria:
 
-  シャーディング戦略:
+  When to choose RDB (Relational DB):
+  - Relationships between data are important (JOINs needed)
+  - Transactions (ACID) are required
+  - Schema is stable
+  - Complex queries are needed
+  - Data consistency is critical
+  Examples: User management, order management, accounting systems
 
-  1. レンジシャーディング
-     - キーの範囲で分割
-     例: user_id 1-1000 → Shard1, 1001-2000 → Shard2
-     - 利点: 範囲クエリが効率的
-     - 欠点: ホットスポットが発生しやすい
+  When to choose NoSQL:
+  - Very large data volumes
+  - High write throughput needed
+  - Schema changes frequently
+  - Geographically distributed data
+  - Flexible data model needed
+  Examples: Log storage, IoT data, content management
 
-  2. ハッシュシャーディング
-     - キーのハッシュ値で分割
-     例: hash(user_id) % 4 → Shard番号
-     - 利点: 均一に分散される
-     - 欠点: 範囲クエリが非効率
-
-  3. ディレクトリベースシャーディング
-     - ルックアップサービスがシャードを決定
-     - 利点: 柔軟な割り当て
-     - 欠点: ルックアップサービスが単一障害点
-
-  シャーディングの課題:
-  ┌──────────────────────────────────────────────────┐
-  │ 課題              │ 対策                          │
-  ├──────────────────────────────────────────────────┤
-  │ JOINの困難        │ アプリケーション側でJOIN       │
-  │                   │ データの非正規化               │
-  ├──────────────────────────────────────────────────┤
-  │ トランザクション   │ 2フェーズコミット              │
-  │ の困難            │ サガパターン                   │
-  ├──────────────────────────────────────────────────┤
-  │ リシャーディング    │ コンシステントハッシュ          │
-  │ （再分割）         │ Vitess 等のシャーディング      │
-  │                   │ ミドルウェアの活用             │
-  ├──────────────────────────────────────────────────┤
-  │ ホットスポット     │ シャードキーの慎重な選択       │
-  │                   │ ソルティング（saltの追加）      │
-  └──────────────────────────────────────────────────┘
+  Types of NoSQL:
+  +----------------------------------------------------+
+  | Type              | Characteristics   | Examples     |
+  +----------------------------------------------------+
+  | Key-Value         | Fast, simple      | Redis,       |
+  |                   |                   | DynamoDB     |
+  +----------------------------------------------------+
+  | Document          | Flexible schema   | MongoDB,     |
+  |                   | JSON-like         | CouchDB      |
+  +----------------------------------------------------+
+  | Column Family     | For large-scale   | Cassandra,   |
+  |                   | analytics,        | HBase        |
+  |                   | fast writes       |              |
+  +----------------------------------------------------+
+  | Graph             | Relationship      | Neo4j,       |
+  |                   | traversal,        | Neptune      |
+  |                   | for recommendations, SNS |       |
+  +----------------------------------------------------+
+  | Time Series       | Specialized for   | InfluxDB,    |
+  |                   | time-series data, | TimescaleDB  |
+  |                   | IoT, metrics      |              |
+  +----------------------------------------------------+
 ```
 
-### 5.3 データベースのインデックス設計
+### 5.2 Sharding
+
+```
+Sharding (Horizontal Partitioning):
+  - Distributes data across multiple databases
+  - Each shard is an independent database instance
+
+  Sharding strategies:
+
+  1. Range Sharding
+     - Split by key range
+     Example: user_id 1-1000 -> Shard1, 1001-2000 -> Shard2
+     - Advantage: Range queries are efficient
+     - Disadvantage: Hotspots are likely
+
+  2. Hash Sharding
+     - Split by hash value of key
+     Example: hash(user_id) % 4 -> Shard number
+     - Advantage: Uniform distribution
+     - Disadvantage: Range queries are inefficient
+
+  3. Directory-Based Sharding
+     - A lookup service determines the shard
+     - Advantage: Flexible assignment
+     - Disadvantage: Lookup service is a single point of failure
+
+  Sharding challenges:
+  +--------------------------------------------------+
+  | Challenge          | Countermeasure               |
+  +--------------------------------------------------+
+  | Difficulty with    | Application-side JOIN        |
+  | JOINs              | Data denormalization         |
+  +--------------------------------------------------+
+  | Transaction        | Two-phase commit             |
+  | difficulty         | Saga pattern                 |
+  +--------------------------------------------------+
+  | Resharding         | Consistent hashing           |
+  | (repartitioning)   | Sharding middleware like     |
+  |                    | Vitess                       |
+  +--------------------------------------------------+
+  | Hotspots           | Careful shard key selection  |
+  |                    | Salting (adding salt)        |
+  +--------------------------------------------------+
+```
+
+### 5.3 Database Index Design
 
 ```sql
--- インデックスの基本原則
+-- Basic principles of indexing
 
--- 1. プライマリキーは自動的にインデックスが作成される
+-- 1. Primary key automatically creates an index
 CREATE TABLE users (
-    id BIGINT PRIMARY KEY,         -- 自動インデックス
+    id BIGINT PRIMARY KEY,         -- Auto-indexed
     email VARCHAR(255) NOT NULL,
     name VARCHAR(100) NOT NULL,
     status VARCHAR(20) NOT NULL,
     created_at TIMESTAMP NOT NULL
 );
 
--- 2. 検索条件に使うカラムにインデックスを作成
+-- 2. Create indexes on columns used in search conditions
 CREATE INDEX idx_users_email ON users (email);
 CREATE INDEX idx_users_status ON users (status);
 
--- 3. 複合インデックス（カラムの順序が重要）
--- WHERE status = 'active' AND created_at > '2024-01-01' をサポート
+-- 3. Composite index (column order matters)
+-- Supports WHERE status = 'active' AND created_at > '2024-01-01'
 CREATE INDEX idx_users_status_created ON users (status, created_at);
--- 左端のカラムから使われる（Leftmost Prefix Rule）
--- ✅ WHERE status = 'active' → 使われる
--- ✅ WHERE status = 'active' AND created_at > ... → 使われる
--- ❌ WHERE created_at > ... → 使われない（status が先頭）
+-- Used from the leftmost column (Leftmost Prefix Rule)
+-- OK:  WHERE status = 'active' -> used
+-- OK:  WHERE status = 'active' AND created_at > ... -> used
+-- NG:  WHERE created_at > ... -> NOT used (status is the leading column)
 
--- 4. カバリングインデックス（必要な全カラムがインデックスに含まれる）
+-- 4. Covering index (all needed columns included in the index)
 -- SELECT email, name FROM users WHERE status = 'active';
 CREATE INDEX idx_users_covering ON users (status, email, name);
--- テーブルデータへのアクセス不要 → 非常に高速
+-- No need to access table data -> very fast
 
--- 5. ユニークインデックス（一意制約）
+-- 5. Unique index (uniqueness constraint)
 CREATE UNIQUE INDEX idx_users_email_unique ON users (email);
 
--- インデックスを作りすぎない注意点:
--- - INSERT/UPDATE/DELETE が遅くなる（インデックスも更新が必要）
--- - ストレージを消費する
--- - 目安: テーブルあたり5-10個まで
+-- Notes on not over-indexing:
+-- - INSERT/UPDATE/DELETE become slower (indexes need updating too)
+-- - Consumes storage
+-- - Guideline: up to 5-10 indexes per table
 ```
 
 ---
 
-## 6. メッセージキュー
+## 6. Message Queues
 
-### 6.1 メッセージキューの基本
+### 6.1 Message Queue Basics
 
 ```
-メッセージキューの用途:
+Use cases for message queues:
 
-  1. 非同期処理
-     - メール送信、画像処理、レポート生成
-     - ユーザーの待ち時間を短縮
+  1. Asynchronous Processing
+     - Sending emails, image processing, report generation
+     - Reduces user wait time
 
-  2. ピーク負荷の平準化
-     - 急激なリクエスト増加をキューで吸収
-     - ワーカーが一定のペースで処理
+  2. Peak Load Leveling
+     - Absorbs sudden request spikes with the queue
+     - Workers process at a constant pace
 
-  3. サービス間の疎結合
-     - サービスAがキューにメッセージを送信
-     - サービスBがキューからメッセージを受信
-     - AとBは直接通信しない
+  3. Loose Coupling Between Services
+     - Service A sends a message to the queue
+     - Service B receives the message from the queue
+     - A and B do not communicate directly
 
-  4. イベント通知
-     - 注文完了 → 在庫更新、メール送信、ポイント付与
-     - 各サービスが独立にイベントを処理
+  4. Event Notification
+     - Order completed -> Inventory update, email, loyalty points
+     - Each service independently processes events
 
-  アーキテクチャ:
-  ┌──────────┐    ┌──────────┐    ┌──────────┐
-  │ Producer │───→│  Queue   │───→│ Consumer │
-  │ (送信者) │    │ (キュー)  │    │ (受信者) │
-  └──────────┘    └──────────┘    └──────────┘
+  Architecture:
+  +----------+    +----------+    +----------+
+  | Producer |-->|  Queue   |-->| Consumer |
+  | (sender) |    | (queue)  |    | (receiver)|
+  +----------+    +----------+    +----------+
 
-  主要なメッセージングパターン:
-  ┌─────────────────────────────────────────────┐
-  │ パターン         │ 説明                       │
-  ├─────────────────────────────────────────────┤
-  │ Point-to-Point  │ 1メッセージ → 1コンシューマ  │
-  │ (キュー)         │ タスクの分散処理             │
-  ├─────────────────────────────────────────────┤
-  │ Pub/Sub          │ 1メッセージ → 複数の         │
-  │ (トピック)       │ サブスクライバー             │
-  ├─────────────────────────────────────────────┤
-  │ Request-Reply    │ リクエストを送信し           │
-  │                  │ 返信を待つ                  │
-  └─────────────────────────────────────────────┘
+  Major messaging patterns:
+  +---------------------------------------------+
+  | Pattern          | Description               |
+  +---------------------------------------------+
+  | Point-to-Point   | 1 message -> 1 consumer   |
+  | (Queue)          | Distributed task processing|
+  +---------------------------------------------+
+  | Pub/Sub          | 1 message -> multiple      |
+  | (Topic)          | subscribers                |
+  +---------------------------------------------+
+  | Request-Reply    | Send a request and         |
+  |                  | wait for a reply           |
+  +---------------------------------------------+
 ```
 
-### 6.2 メッセージキューの実装例
+### 6.2 Message Queue Implementation Example
 
 ```python
-# --- SQS + Pythonの例 ---
+# --- SQS + Python example ---
 import boto3
 import json
 
 sqs = boto3.client("sqs", region_name="ap-northeast-1")
 QUEUE_URL = "https://sqs.ap-northeast-1.amazonaws.com/123456789/my-queue"
 
-# プロデューサー（メッセージ送信）
+# Producer (send messages)
 def send_email_task(to: str, subject: str, body: str):
-    """メール送信タスクをキューに投入"""
+    """Submit an email task to the queue"""
     message = {
         "task": "send_email",
         "payload": {
@@ -968,18 +976,18 @@ def send_email_task(to: str, subject: str, body: str):
     sqs.send_message(
         QueueUrl=QUEUE_URL,
         MessageBody=json.dumps(message),
-        MessageGroupId="email-tasks"  # FIFOキューの場合
+        MessageGroupId="email-tasks"  # For FIFO queues
     )
 
-# コンシューマー（メッセージ処理）
+# Consumer (process messages)
 def process_messages():
-    """キューからメッセージを取得して処理"""
+    """Retrieve and process messages from the queue"""
     while True:
         response = sqs.receive_message(
             QueueUrl=QUEUE_URL,
             MaxNumberOfMessages=10,
-            WaitTimeSeconds=20,  # ロングポーリング
-            VisibilityTimeout=60  # 処理中は他のワーカーから見えない
+            WaitTimeSeconds=20,  # Long polling
+            VisibilityTimeout=60  # Hidden from other workers during processing
         )
 
         messages = response.get("Messages", [])
@@ -988,17 +996,17 @@ def process_messages():
                 task = json.loads(msg["Body"])
                 handle_task(task)
 
-                # 処理完了 → メッセージ削除
+                # Processing complete -> Delete message
                 sqs.delete_message(
                     QueueUrl=QUEUE_URL,
                     ReceiptHandle=msg["ReceiptHandle"]
                 )
             except Exception as e:
                 logger.error(f"Failed to process message: {e}")
-                # 削除しない → VisibilityTimeout後に再処理される
+                # Not deleted -> Will be reprocessed after VisibilityTimeout
 
 def handle_task(task: dict):
-    """タスクの種類に応じて処理"""
+    """Process based on task type"""
     if task["task"] == "send_email":
         payload = task["payload"]
         email_service.send(payload["to"], payload["subject"], payload["body"])
@@ -1008,135 +1016,136 @@ def handle_task(task: dict):
         logger.warning(f"Unknown task type: {task['task']}")
 ```
 
-### 6.3 メッセージングプラットフォームの比較
+### 6.3 Messaging Platform Comparison
 
 ```
-主要メッセージングプラットフォームの比較:
+Comparison of major messaging platforms:
 
-  ┌─────────────────────────────────────────────────────────┐
-  │ 製品         │ 特徴                │ ユースケース        │
-  ├─────────────────────────────────────────────────────────┤
-  │ Amazon SQS   │ フルマネージド       │ シンプルな          │
-  │              │ 無限スケール        │ タスクキュー        │
-  │              │ FIFOキュー対応      │                    │
-  ├─────────────────────────────────────────────────────────┤
-  │ RabbitMQ     │ 豊富なルーティング   │ 複雑なルーティング   │
-  │              │ プロトコル標準準拠   │ エンタープライズ     │
-  │              │ (AMQP)             │ 統合                │
-  ├─────────────────────────────────────────────────────────┤
-  │ Apache Kafka │ 超高スループット     │ イベントストリーム   │
-  │              │ ログベース          │ リアルタイム分析     │
-  │              │ リプレイ可能        │ マイクロサービス     │
-  ├─────────────────────────────────────────────────────────┤
-  │ Redis Streams│ 低レイテンシー       │ リアルタイム        │
-  │              │ シンプル            │ メッセージング       │
-  │              │ Redis内蔵          │ チャット            │
-  ├─────────────────────────────────────────────────────────┤
-  │ Google       │ フルマネージド       │ GCPエコシステム     │
-  │ Pub/Sub      │ グローバル分散      │ イベント駆動        │
-  └─────────────────────────────────────────────────────────┘
+  +---------------------------------------------------------+
+  | Product      | Features              | Use Cases         |
+  +---------------------------------------------------------+
+  | Amazon SQS   | Fully managed         | Simple            |
+  |              | Infinite scale        | task queues       |
+  |              | FIFO queue support    |                   |
+  +---------------------------------------------------------+
+  | RabbitMQ     | Rich routing          | Complex routing   |
+  |              | Protocol standard     | Enterprise        |
+  |              | (AMQP)               | integration       |
+  +---------------------------------------------------------+
+  | Apache Kafka | Ultra-high throughput | Event streams     |
+  |              | Log-based             | Real-time         |
+  |              | Replayable            | analytics,        |
+  |              |                       | microservices     |
+  +---------------------------------------------------------+
+  | Redis Streams| Low latency           | Real-time         |
+  |              | Simple                | messaging,        |
+  |              | Built into Redis      | chat              |
+  +---------------------------------------------------------+
+  | Google       | Fully managed         | GCP ecosystem     |
+  | Pub/Sub      | Globally distributed  | Event-driven      |
+  +---------------------------------------------------------+
 ```
 
 ---
 
-## 7. マイクロサービスアーキテクチャ
+## 7. Microservices Architecture
 
-### 7.1 モノリス vs マイクロサービス
-
-```
-モノリスアーキテクチャ:
-  ┌─────────────────────────────────┐
-  │           モノリス               │
-  │  ┌─────┬──────┬──────┬─────┐   │
-  │  │ UI  │ 認証 │ 注文 │ 決済 │   │
-  │  └─────┴──────┴──────┴─────┘   │
-  │          1つのデプロイ単位        │
-  └─────────────────────────────────┘
-  利点:
-  - 開発・テストが容易
-  - デプロイが単純
-  - プロセス内通信で高速
-  - トランザクションが容易
-
-  欠点:
-  - 部分的なスケーリングが困難
-  - 技術スタックの固定
-  - チーム間の調整が必要
-  - コードベースが肥大化
-
-マイクロサービスアーキテクチャ:
-  ┌──────┐  ┌──────┐  ┌──────┐  ┌──────┐
-  │ 認証  │  │ 注文 │  │ 決済 │  │ 通知 │
-  │サービス│  │サービス│  │サービス│  │サービス│
-  │      │  │      │  │      │  │      │
-  │ DB   │  │ DB   │  │ DB   │  │ DB   │
-  └──────┘  └──────┘  └──────┘  └──────┘
-  利点:
-  - 独立したデプロイ
-  - 独立したスケーリング
-  - 技術選択の自由
-  - チームの自律性
-
-  欠点:
-  - 運用の複雑さ（分散システム）
-  - ネットワーク通信のオーバーヘッド
-  - データの一貫性確保が困難
-  - デバッグが困難
-
-判断基準:
-  スタートアップ → モノリスから始める
-  チーム10人以下 → モノリスで十分
-  明確な境界がある → マイクロサービス検討
-  独立スケールが必要 → マイクロサービス検討
-  「モノリスファースト」アプローチが推奨
-```
-
-### 7.2 サービス間通信
+### 7.1 Monolith vs Microservices
 
 ```
-サービス間通信パターン:
+Monolith Architecture:
+  +---------------------------------+
+  |           Monolith               |
+  |  +-----+------+------+-----+   |
+  |  | UI  | Auth | Order| Pay  |   |
+  |  +-----+------+------+-----+   |
+  |        Single deployment unit    |
+  +---------------------------------+
+  Advantages:
+  - Easy to develop and test
+  - Simple deployment
+  - Fast in-process communication
+  - Easy transactions
 
-  1. 同期通信（REST/gRPC）
-     ┌─────────┐   HTTP/gRPC   ┌─────────┐
-     │ Service │──────────────→│ Service │
-     │    A    │←──────────────│    B    │
-     └─────────┘   Response    └─────────┘
-     - 利点: 直感的、レスポンスが即座
-     - 欠点: 結合度が高い、連鎖障害のリスク
+  Disadvantages:
+  - Difficult to partially scale
+  - Technology stack is fixed
+  - Coordination between teams required
+  - Codebase becomes bloated
 
-  2. 非同期通信（メッセージキュー）
-     ┌─────────┐    ┌───────┐    ┌─────────┐
-     │ Service │──→│ Queue │──→│ Service │
-     │    A    │   └───────┘   │    B    │
-     └─────────┘               └─────────┘
-     - 利点: 疎結合、耐障害性が高い
-     - 欠点: 結果をすぐに得られない、デバッグが困難
+Microservices Architecture:
+  +------+  +------+  +------+  +------+
+  | Auth |  | Order|  | Pay  |  |Notify|
+  | Svc  |  | Svc  |  | Svc  |  | Svc  |
+  |      |  |      |  |      |  |      |
+  | DB   |  | DB   |  | DB   |  | DB   |
+  +------+  +------+  +------+  +------+
+  Advantages:
+  - Independent deployment
+  - Independent scaling
+  - Technology choice freedom
+  - Team autonomy
 
-  3. イベント駆動
-     ┌─────────┐    ┌────────────┐    ┌─────────┐
-     │ Service │──→│ Event Bus  │──→│ Service │
-     │    A    │   │ (Kafka等)  │──→│ Service │
-     └─────────┘   └────────────┘──→│ Service │
-                                     └─────────┘
-     - 利点: 完全な疎結合、新サービスの追加が容易
-     - 欠点: イベント順序の保証、デバッグの困難さ
+  Disadvantages:
+  - Operational complexity (distributed systems)
+  - Network communication overhead
+  - Difficult to ensure data consistency
+  - Difficult to debug
+
+Decision criteria:
+  Startup -> Start with a monolith
+  Team under 10 -> Monolith is sufficient
+  Clear boundaries -> Consider microservices
+  Independent scaling needed -> Consider microservices
+  "Monolith First" approach is recommended
+```
+
+### 7.2 Inter-Service Communication
+
+```
+Inter-service communication patterns:
+
+  1. Synchronous Communication (REST/gRPC)
+     +---------+   HTTP/gRPC   +---------+
+     | Service |-------------->| Service |
+     |    A    |<--------------+    B    |
+     +---------+   Response    +---------+
+     - Advantage: Intuitive, immediate response
+     - Disadvantage: High coupling, risk of cascading failures
+
+  2. Asynchronous Communication (Message Queue)
+     +---------+    +-------+    +---------+
+     | Service |-->| Queue |-->| Service |
+     |    A    |   +-------+   |    B    |
+     +---------+               +---------+
+     - Advantage: Loose coupling, high fault tolerance
+     - Disadvantage: Cannot get results immediately, difficult to debug
+
+  3. Event-Driven
+     +---------+    +------------+    +---------+
+     | Service |-->| Event Bus  |-->| Service |
+     |    A    |   | (Kafka,etc)|-->| Service |
+     +---------+   +------------+-->| Service |
+                                     +---------+
+     - Advantage: Fully decoupled, easy to add new services
+     - Disadvantage: Event ordering guarantees, debugging difficulty
 ```
 
 ```python
-# --- サービス間通信の実装例 ---
+# --- Inter-service communication implementation examples ---
 
-# 1. REST API 呼び出し（サーキットブレーカー付き）
+# 1. REST API call (with circuit breaker)
 import requests
 from circuitbreaker import circuit
 
 @circuit(failure_threshold=5, recovery_timeout=30)
 def call_payment_service(order_id: str, amount: float) -> dict:
-    """決済サービスを呼び出す（サーキットブレーカー付き）"""
+    """Call payment service (with circuit breaker)"""
     try:
         response = requests.post(
             "http://payment-service/api/v1/charge",
             json={"order_id": order_id, "amount": amount},
-            timeout=5  # タイムアウト設定は必須
+            timeout=5  # Timeout setting is essential
         )
         response.raise_for_status()
         return response.json()
@@ -1145,28 +1154,28 @@ def call_payment_service(order_id: str, amount: float) -> dict:
     except requests.ConnectionError:
         raise PaymentServiceUnavailable("Payment service is unavailable")
 
-# 2. サガパターン（分散トランザクション）
+# 2. Saga Pattern (distributed transactions)
 class OrderSaga:
-    """注文処理のサガ（各ステップに補償トランザクションを用意）"""
+    """Order processing saga (compensation transactions for each step)"""
 
     def execute(self, order):
         try:
-            # Step 1: 在庫を予約
+            # Step 1: Reserve inventory
             reservation = inventory_service.reserve(order.items)
 
             try:
-                # Step 2: 決済処理
+                # Step 2: Process payment
                 payment = payment_service.charge(order.amount)
 
                 try:
-                    # Step 3: 配送手配
+                    # Step 3: Arrange shipping
                     shipping = shipping_service.schedule(order)
                 except Exception:
-                    # Step 3 失敗 → Step 2 の補償（返金）
+                    # Step 3 failed -> Compensate Step 2 (refund)
                     payment_service.refund(payment.transaction_id)
                     raise
             except Exception:
-                # Step 2 失敗 → Step 1 の補償（在庫解放）
+                # Step 2 failed -> Compensate Step 1 (release inventory)
                 inventory_service.cancel_reservation(reservation.id)
                 raise
         except Exception as e:
@@ -1178,32 +1187,32 @@ class OrderSaga:
         return order
 ```
 
-### 7.3 API Gateway パターン
+### 7.3 API Gateway Pattern
 
 ```
-API Gatewayの役割:
+Roles of an API Gateway:
 
-  ┌────────┐
-  │ Client │
-  └───┬────┘
-      │
-  ┌───▼──────────────────────────┐
-  │        API Gateway            │
-  │  - ルーティング                │
-  │  - 認証・認可                 │
-  │  - レート制限                 │
-  │  - リクエスト/レスポンス変換    │
-  │  - ロギング・モニタリング       │
-  │  - キャッシュ                  │
-  │  - サーキットブレーカー         │
-  └───┬──────┬──────┬────────────┘
-      │      │      │
-  ┌───▼─┐┌──▼──┐┌──▼──┐
-  │認証  ││注文 ││商品 │
-  │サービス││サービス││サービス│
-  └─────┘└─────┘└─────┘
+  +--------+
+  | Client |
+  +---+----+
+      |
+  +---v------------------------------+
+  |        API Gateway                |
+  |  - Routing                        |
+  |  - Authentication & Authorization |
+  |  - Rate Limiting                  |
+  |  - Request/Response Transformation|
+  |  - Logging & Monitoring           |
+  |  - Caching                        |
+  |  - Circuit Breaker                |
+  +---+------+------+--------------+
+      |      |      |
+  +---v-++--v--++--v--+
+  |Auth |||Order|||Product|
+  | Svc |||Svc  ||| Svc   |
+  +-----++-----++-------+
 
-  代表的な実装:
+  Common implementations:
   - AWS API Gateway
   - Kong
   - Envoy + Istio
@@ -1213,67 +1222,67 @@ API Gatewayの役割:
 
 ---
 
-## 8. API設計
+## 8. API Design
 
-### 8.1 RESTful API設計
+### 8.1 RESTful API Design
 
 ```
-REST API 設計原則:
+REST API Design Principles:
 
-  1. リソース指向
-     - URL はリソース（名詞）を表す
-     - HTTPメソッドで操作を表す
+  1. Resource-Oriented
+     - URLs represent resources (nouns)
+     - HTTP methods represent operations
 
-  ┌────────────────────────────────────────────────────┐
-  │ 操作      │ メソッド │ URL例                        │
-  ├────────────────────────────────────────────────────┤
-  │ 一覧取得   │ GET     │ /api/v1/users               │
-  │ 詳細取得   │ GET     │ /api/v1/users/123           │
-  │ 作成       │ POST    │ /api/v1/users               │
-  │ 全体更新   │ PUT     │ /api/v1/users/123           │
-  │ 部分更新   │ PATCH   │ /api/v1/users/123           │
-  │ 削除       │ DELETE  │ /api/v1/users/123           │
-  │ サブリソース│ GET     │ /api/v1/users/123/orders    │
-  └────────────────────────────────────────────────────┘
+  +----------------------------------------------------+
+  | Operation    | Method | URL Example                  |
+  +----------------------------------------------------+
+  | List         | GET    | /api/v1/users               |
+  | Detail       | GET    | /api/v1/users/123           |
+  | Create       | POST   | /api/v1/users               |
+  | Full Update  | PUT    | /api/v1/users/123           |
+  | Partial Update| PATCH | /api/v1/users/123           |
+  | Delete       | DELETE | /api/v1/users/123           |
+  | Sub-resource | GET    | /api/v1/users/123/orders    |
+  +----------------------------------------------------+
 
-  2. ステータスコード
-  ┌────────────────────────────────────────────────────┐
-  │ コード │ 意味              │ 使用場面               │
-  ├────────────────────────────────────────────────────┤
-  │ 200    │ OK               │ 正常レスポンス          │
-  │ 201    │ Created          │ リソース作成成功         │
-  │ 204    │ No Content       │ 成功（レスポンスなし）   │
-  │ 400    │ Bad Request      │ クライアントエラー       │
-  │ 401    │ Unauthorized     │ 認証失敗               │
-  │ 403    │ Forbidden        │ 認可失敗               │
-  │ 404    │ Not Found        │ リソースが存在しない     │
-  │ 409    │ Conflict         │ 競合（重複等）          │
-  │ 422    │ Unprocessable    │ バリデーションエラー     │
-  │ 429    │ Too Many Requests│ レート制限超過          │
-  │ 500    │ Internal Error   │ サーバーエラー          │
-  │ 503    │ Service Unavail. │ サービス一時停止         │
-  └────────────────────────────────────────────────────┘
+  2. Status Codes
+  +----------------------------------------------------+
+  | Code   | Meaning          | Usage                   |
+  +----------------------------------------------------+
+  | 200    | OK               | Normal response          |
+  | 201    | Created          | Resource created         |
+  | 204    | No Content       | Success (no response body)|
+  | 400    | Bad Request      | Client error             |
+  | 401    | Unauthorized     | Authentication failed    |
+  | 403    | Forbidden        | Authorization failed     |
+  | 404    | Not Found        | Resource doesn't exist   |
+  | 409    | Conflict         | Conflict (duplicate, etc.)|
+  | 422    | Unprocessable    | Validation error         |
+  | 429    | Too Many Requests| Rate limit exceeded      |
+  | 500    | Internal Error   | Server error             |
+  | 503    | Service Unavail. | Service temporarily down |
+  +----------------------------------------------------+
 
-  3. ページネーション
-  - カーソルベース（推奨）: /api/v1/users?cursor=abc123&limit=20
-  - オフセットベース: /api/v1/users?page=3&per_page=20
+  3. Pagination
+  - Cursor-based (recommended): /api/v1/users?cursor=abc123&limit=20
+  - Offset-based: /api/v1/users?page=3&per_page=20
 
-  4. フィルタリング・ソート
+  4. Filtering & Sorting
   - /api/v1/users?status=active&sort=created_at&order=desc
   - /api/v1/products?min_price=1000&max_price=5000&category=electronics
 
-  5. バージョニング
-  - URLパス: /api/v1/users（最も一般的）
-  - ヘッダー: Accept: application/vnd.myapi.v1+json
-  - クエリパラメータ: /api/users?version=1
+  5. Versioning
+  - URL path: /api/v1/users (most common)
+  - Header: Accept: application/vnd.myapi.v1+json
+  - Query parameter: /api/users?version=1
 ```
 
-### 8.2 API レスポンス設計
+### 8.2 API Response Design
 
 ```python
-# --- 統一されたレスポンスフォーマット ---
+# --- Unified response format ---
 
-# 成功レスポンス
+# Success response
 {
     "status": "success",
     "data": {
@@ -1284,7 +1293,7 @@ REST API 設計原則:
     }
 }
 
-# 一覧レスポンス（ページネーション付き）
+# List response (with pagination)
 {
     "status": "success",
     "data": [
@@ -1300,36 +1309,36 @@ REST API 設計原則:
     }
 }
 
-# エラーレスポンス
+# Error response
 {
     "status": "error",
     "error": {
         "code": "VALIDATION_ERROR",
-        "message": "入力値に問題があります",
+        "message": "There are issues with the input values",
         "details": [
             {
                 "field": "email",
-                "message": "メールアドレスの形式が正しくありません"
+                "message": "Email address format is invalid"
             },
             {
                 "field": "password",
-                "message": "パスワードは8文字以上で入力してください"
+                "message": "Password must be at least 8 characters"
             }
         ]
     }
 }
 ```
 
-### 8.3 レート制限
+### 8.3 Rate Limiting
 
 ```python
-# --- レート制限の実装パターン ---
+# --- Rate limiting implementation patterns ---
 
-# 1. 固定ウィンドウカウンター
+# 1. Fixed Window Counter
 import time
 
 class FixedWindowRateLimiter:
-    """固定ウィンドウ方式のレート制限"""
+    """Fixed window rate limiter"""
 
     def __init__(self, max_requests: int, window_seconds: int):
         self.max_requests = max_requests
@@ -1345,9 +1354,9 @@ class FixedWindowRateLimiter:
 
         return count <= self.max_requests
 
-# 2. スライディングウィンドウログ
+# 2. Sliding Window Log
 class SlidingWindowLogRateLimiter:
-    """スライディングウィンドウログ方式"""
+    """Sliding window log rate limiter"""
 
     def __init__(self, max_requests: int, window_seconds: int):
         self.max_requests = max_requests
@@ -1358,10 +1367,10 @@ class SlidingWindowLogRateLimiter:
         window_start = now - self.window_seconds
         key = f"rate_limit:{client_id}"
 
-        # 古いエントリを削除
+        # Remove old entries
         r.zremrangebyscore(key, 0, window_start)
 
-        # 現在のウィンドウ内のリクエスト数をカウント
+        # Count requests within current window
         count = r.zcard(key)
 
         if count < self.max_requests:
@@ -1371,15 +1380,15 @@ class SlidingWindowLogRateLimiter:
 
         return False
 
-# 3. トークンバケット
+# 3. Token Bucket
 class TokenBucketRateLimiter:
-    """トークンバケット方式"""
+    """Token bucket rate limiter"""
 
     def __init__(self, capacity: int, refill_rate: float):
         """
         Args:
-            capacity: バケットの最大トークン数
-            refill_rate: 1秒あたりに補充されるトークン数
+            capacity: Maximum number of tokens in the bucket
+            refill_rate: Tokens replenished per second
         """
         self.capacity = capacity
         self.refill_rate = refill_rate
@@ -1388,10 +1397,10 @@ class TokenBucketRateLimiter:
         key = f"token_bucket:{client_id}"
         now = time.time()
 
-        # 現在のトークン数と最終更新時刻を取得
+        # Get current token count and last update time
         data = r.hgetall(key)
         if not data:
-            # 初回: バケットを満タンにして1トークン消費
+            # First time: Fill bucket and consume 1 token
             r.hset(key, mapping={
                 "tokens": str(self.capacity - tokens_needed),
                 "last_refill": str(now)
@@ -1402,7 +1411,7 @@ class TokenBucketRateLimiter:
         current_tokens = float(data[b"tokens"])
         last_refill = float(data[b"last_refill"])
 
-        # 時間経過分のトークンを補充
+        # Replenish tokens based on elapsed time
         elapsed = now - last_refill
         new_tokens = min(
             self.capacity,
@@ -1418,8 +1427,8 @@ class TokenBucketRateLimiter:
 
         return False
 
-# 使い方
-limiter = TokenBucketRateLimiter(capacity=100, refill_rate=10)  # 100リクエスト/バースト、10リクエスト/秒
+# Usage
+limiter = TokenBucketRateLimiter(capacity=100, refill_rate=10)  # 100 requests/burst, 10 requests/sec
 if limiter.is_allowed("user:123"):
     process_request()
 else:
@@ -1428,71 +1437,72 @@ else:
 
 ---
 
-## 9. 可用性と信頼性
+## 9. Availability and Reliability
 
-### 9.1 可用性の計算
-
-```
-可用性（Availability）:
-  SLA（Service Level Agreement）で目標を定める
-
-  ┌──────────────────────────────────────────┐
-  │ 可用性    │ ダウンタイム/年  │ よく言う呼び方 │
-  ├──────────────────────────────────────────┤
-  │ 99%       │ 3.65 日         │ ツーナイン     │
-  │ 99.9%     │ 8.76 時間       │ スリーナイン   │
-  │ 99.95%    │ 4.38 時間       │               │
-  │ 99.99%    │ 52.6 分         │ フォーナイン   │
-  │ 99.999%   │ 5.26 分         │ ファイブナイン │
-  └──────────────────────────────────────────┘
-
-  直列構成の可用性:
-  A → B → C
-  全体の可用性 = Aの可用性 × Bの可用性 × Cの可用性
-  例: 99.9% × 99.9% × 99.9% = 99.7% (8.76時間→26.3時間のダウンタイム)
-
-  並列構成の可用性:
-  A ─→ ┐
-       ├─→ 出力
-  B ─→ ┘
-  全体の可用性 = 1 - (1 - Aの可用性) × (1 - Bの可用性)
-  例: 1 - (0.001 × 0.001) = 99.9999% (31.5秒のダウンタイム)
-```
-
-### 9.2 信頼性パターン
+### 9.1 Calculating Availability
 
 ```
-信頼性を向上させるパターン:
+Availability:
+  Targets are defined by SLA (Service Level Agreement)
 
-  1. リトライ（Retry）
-     - 一時的な障害からの回復
-     - 指数バックオフで再試行間隔を広げる
-     - 最大リトライ回数を設定
+  +------------------------------------------+
+  | Availability  | Downtime/Year | Common Name |
+  +------------------------------------------+
+  | 99%           | 3.65 days     | Two nines   |
+  | 99.9%         | 8.76 hours    | Three nines |
+  | 99.95%        | 4.38 hours    |             |
+  | 99.99%        | 52.6 minutes  | Four nines  |
+  | 99.999%       | 5.26 minutes  | Five nines  |
+  +------------------------------------------+
 
-  2. サーキットブレーカー（Circuit Breaker）
-     ┌──────────┐  失敗増加  ┌──────────┐ タイムアウト ┌──────────┐
-     │  Closed  │ ────────→ │   Open   │ ──────────→│Half-Open │
-     │ (正常)   │           │ (遮断)   │            │ (試行)   │
-     └──────────┘ ←──────── └──────────┘ ←────────── └──────────┘
-                   成功増加                   失敗
+  Serial configuration availability:
+  A -> B -> C
+  Overall availability = A's availability x B's x C's
+  Example: 99.9% x 99.9% x 99.9% = 99.7% (8.76h -> 26.3h downtime)
 
-  3. バルクヘッド（Bulkhead）
-     - リソースを分離して障害の波及を防ぐ
-     - 例: スレッドプールの分離、接続プールの分離
+  Parallel configuration availability:
+  A --> +
+       +--> Output
+  B --> +
+  Overall availability = 1 - (1 - A's availability) x (1 - B's availability)
+  Example: 1 - (0.001 x 0.001) = 99.9999% (31.5 seconds downtime)
+```
 
-  4. タイムアウト（Timeout）
-     - 全てのネットワーク呼び出しにタイムアウトを設定
-     - デフォルトのタイムアウトに依存しない
+### 9.2 Reliability Patterns
 
-  5. フォールバック（Fallback）
-     - 主要な処理が失敗した場合の代替手段
-     - キャッシュからのデータ提供
-     - デフォルト値の返却
-     - 縮退運転
+```
+Patterns to improve reliability:
+
+  1. Retry
+     - Recovery from transient failures
+     - Increase retry intervals with exponential backoff
+     - Set a maximum retry count
+
+  2. Circuit Breaker
+     +----------+ Failures  +----------+ Timeout   +----------+
+     |  Closed  | increase  |   Open   | expires   |Half-Open |
+     | (normal) | --------> | (blocked)| --------->| (testing)|
+     +----------+           +----------+           +-----+----+
+          ^                                              |
+          +---------- Success -------------------------+
+
+  3. Bulkhead
+     - Isolate resources to prevent failure propagation
+     - Examples: Thread pool isolation, connection pool isolation
+
+  4. Timeout
+     - Set timeouts for all network calls
+     - Do not rely on default timeouts
+
+  5. Fallback
+     - Alternative when the primary process fails
+     - Serve data from cache
+     - Return default values
+     - Graceful degradation
 ```
 
 ```python
-# --- リトライ with 指数バックオフ ---
+# --- Retry with Exponential Backoff ---
 import time
 import random
 
@@ -1503,17 +1513,17 @@ def retry_with_exponential_backoff(
     max_delay: float = 60.0,
     jitter: bool = True
 ):
-    """指数バックオフ付きリトライ"""
+    """Retry with exponential backoff"""
     for attempt in range(max_retries + 1):
         try:
             return func()
         except (ConnectionError, TimeoutError) as e:
             if attempt == max_retries:
-                raise  # 最後のリトライでも失敗 → 例外を上げる
+                raise  # Last retry also failed -> raise exception
 
             delay = min(base_delay * (2 ** attempt), max_delay)
             if jitter:
-                delay = delay * (0.5 + random.random())  # 0.5〜1.5倍のジッター
+                delay = delay * (0.5 + random.random())  # 0.5x-1.5x jitter
 
             logger.warning(
                 f"Attempt {attempt + 1}/{max_retries} failed: {e}. "
@@ -1521,7 +1531,7 @@ def retry_with_exponential_backoff(
             )
             time.sleep(delay)
 
-# 使用例
+# Usage example
 result = retry_with_exponential_backoff(
     lambda: external_api.fetch_data("user-001"),
     max_retries=3,
@@ -1529,18 +1539,18 @@ result = retry_with_exponential_backoff(
 )
 
 
-# --- サーキットブレーカーの実装 ---
+# --- Circuit Breaker Implementation ---
 import time
 import threading
 from enum import Enum
 
 class CircuitState(Enum):
-    CLOSED = "closed"        # 正常: リクエストを通す
-    OPEN = "open"            # 遮断: リクエストを即座に拒否
-    HALF_OPEN = "half_open"  # 試行: 1リクエストだけ通す
+    CLOSED = "closed"        # Normal: pass requests through
+    OPEN = "open"            # Blocked: immediately reject requests
+    HALF_OPEN = "half_open"  # Testing: allow only 1 request through
 
 class CircuitBreaker:
-    """サーキットブレーカーの実装"""
+    """Circuit Breaker implementation"""
 
     def __init__(
         self,
@@ -1603,194 +1613,194 @@ class CircuitBreaker:
 
 ---
 
-## 10. 数字で考える（Back-of-the-Envelope Estimation）
+## 10. Back-of-the-Envelope Estimation
 
-### 10.1 レイテンシーの基礎知識
-
-```
-各種操作のレイテンシー概算:
-
-  ┌──────────────────────────────────────────────────┐
-  │ 操作                        │ レイテンシー        │
-  ├──────────────────────────────────────────────────┤
-  │ L1 キャッシュ参照             │ 0.5 ns            │
-  │ L2 キャッシュ参照             │ 7 ns              │
-  │ メインメモリ参照              │ 100 ns             │
-  │ SSD ランダムリード            │ 150 μs            │
-  │ HDD ランダムリード            │ 10 ms              │
-  │ 同一DC内ラウンドトリップ       │ 0.5 ms            │
-  │ Redis GET                   │ 0.1-1 ms           │
-  │ MySQL クエリ（インデックス）   │ 1-10 ms            │
-  │ 東京-大阪 ラウンドトリップ     │ 5-10 ms            │
-  │ 東京-US ラウンドトリップ       │ 100-200 ms         │
-  │ TCP接続確立                   │ 50-150 ms          │
-  │ TLSハンドシェイク             │ 100-300 ms         │
-  └──────────────────────────────────────────────────┘
-
-  1秒 = 1,000 ms = 1,000,000 μs = 1,000,000,000 ns
-```
-
-### 10.2 概算計算の実践
+### 10.1 Latency Fundamentals
 
 ```
-システム設計の概算:
+Approximate latency for various operations:
 
-  DAU 100万人のSNS:
-  - ピークQPS: 100万 / 86400 × 3 ≈ 35 QPS (書込)
-  - 読み取りQPS: 35 × 100 = 3,500 QPS
-  - 1台のWebサーバー: 1,000〜10,000 QPS → 1-4台で足りる
-  - DBは読み取りレプリカ + キャッシュで対応可能
+  +--------------------------------------------------+
+  | Operation                      | Latency          |
+  +--------------------------------------------------+
+  | L1 cache reference             | 0.5 ns           |
+  | L2 cache reference             | 7 ns             |
+  | Main memory reference          | 100 ns           |
+  | SSD random read                | 150 us           |
+  | HDD random read                | 10 ms            |
+  | Same-DC round trip             | 0.5 ms           |
+  | Redis GET                      | 0.1-1 ms         |
+  | MySQL query (indexed)          | 1-10 ms          |
+  | Tokyo-Osaka round trip         | 5-10 ms          |
+  | Tokyo-US round trip            | 100-200 ms       |
+  | TCP connection establishment   | 50-150 ms        |
+  | TLS handshake                  | 100-300 ms       |
+  +--------------------------------------------------+
 
-  DAU 1億人:
-  - 書込QPS: 3,500
-  - 読み取りQPS: 350,000
-  - Webサーバー: 数十台
-  - DBシャーディング必須
-  - CDN + Redis 必須
-
-ストレージ見積もりの例:
-  DAU 100万人のチャットアプリ:
-  - 1ユーザーあたり1日50メッセージ
-  - 1メッセージ平均200バイト
-  - 1日のメッセージ数: 100万 × 50 = 5,000万
-  - 1日のデータ量: 5,000万 × 200B = 10 GB/日
-  - 1年のデータ量: 10 GB × 365 = 3.65 TB/年
-  - 5年保持: 約 18 TB（レプリケーション込みで 54 TB）
-
-帯域幅の見積もり:
-  動画ストリーミングサービス:
-  - DAU 500万人
-  - 平均視聴時間: 1時間/日
-  - 動画ビットレート: 5 Mbps
-  - ピーク時同時視聴者: DAU × 10% = 50万人
-  - ピーク帯域幅: 50万 × 5 Mbps = 2.5 Tbps
-  - CDN分散後の1拠点あたり: 2.5 Tbps / 10 = 250 Gbps
-
-QPS計算のテンプレート:
-  DAU × アクション数/日 ÷ 86400 = 平均QPS
-  平均QPS × ピーク倍率(2〜5) = ピークQPS
-  ピークQPS × 安全率(1.5〜2) = 必要キャパシティ
+  1 second = 1,000 ms = 1,000,000 us = 1,000,000,000 ns
 ```
 
-### 10.3 実践的な見積もり例
+### 10.2 Practical Estimation
 
 ```
-Twitter風サービスの設計見積もり:
+System design estimation:
 
-  前提:
-  - MAU: 3億
-  - DAU: 1.5億（MAUの50%）
-  - 1ユーザーあたりの投稿: 2ツイート/日
-  - 1ユーザーあたりの閲覧: 200ツイート/日
-  - 1ツイート: 平均300バイト（テキスト）
-  - 画像添付率: 20%、画像平均サイズ: 500KB
+  SNS with 1 million DAU:
+  - Peak QPS: 1M / 86400 x 3 ~ 35 QPS (writes)
+  - Read QPS: 35 x 100 = 3,500 QPS
+  - 1 web server: 1,000-10,000 QPS -> 1-4 servers suffice
+  - DB can be handled with read replicas + caching
+
+  100 million DAU:
+  - Write QPS: 3,500
+  - Read QPS: 350,000
+  - Web servers: dozens
+  - DB sharding required
+  - CDN + Redis required
+
+Storage estimation example:
+  Chat app with 1 million DAU:
+  - 50 messages per user per day
+  - Average 200 bytes per message
+  - Daily messages: 1M x 50 = 50 million
+  - Daily data: 50M x 200B = 10 GB/day
+  - Annual data: 10 GB x 365 = 3.65 TB/year
+  - 5-year retention: ~18 TB (54 TB with replication)
+
+Bandwidth estimation:
+  Video streaming service:
+  - 5 million DAU
+  - Average viewing: 1 hour/day
+  - Video bitrate: 5 Mbps
+  - Peak concurrent viewers: DAU x 10% = 500,000
+  - Peak bandwidth: 500K x 5 Mbps = 2.5 Tbps
+  - Per CDN site after distribution: 2.5 Tbps / 10 = 250 Gbps
+
+QPS calculation template:
+  DAU x actions/day / 86400 = average QPS
+  Average QPS x peak multiplier (2-5) = peak QPS
+  Peak QPS x safety factor (1.5-2) = required capacity
+```
+
+### 10.3 Practical Estimation Example
+
+```
+Twitter-like service design estimation:
+
+  Assumptions:
+  - MAU: 300 million
+  - DAU: 150 million (50% of MAU)
+  - Posts per user: 2 tweets/day
+  - Views per user: 200 tweets/day
+  - 1 tweet: average 300 bytes (text)
+  - Image attachment rate: 20%, average image size: 500KB
 
   QPS:
-  - 書き込み: 1.5億 × 2 / 86400 ≈ 3,500 QPS
-  - 読み取り: 1.5億 × 200 / 86400 ≈ 350,000 QPS
-  - ピーク読み取り: 350,000 × 3 ≈ 1,000,000 QPS（100万QPS!）
+  - Write: 150M x 2 / 86400 ~ 3,500 QPS
+  - Read: 150M x 200 / 86400 ~ 350,000 QPS
+  - Peak read: 350,000 x 3 ~ 1,000,000 QPS (1 million QPS!)
 
-  ストレージ:
-  - テキスト: 1.5億 × 2 × 300B = 90 GB/日 → 33 TB/年
-  - 画像: 1.5億 × 2 × 0.2 × 500KB = 30 TB/日 → 10.8 PB/年
-  - 5年保持: テキスト165TB + 画像54PB
+  Storage:
+  - Text: 150M x 2 x 300B = 90 GB/day -> 33 TB/year
+  - Images: 150M x 2 x 0.2 x 500KB = 30 TB/day -> 10.8 PB/year
+  - 5-year retention: Text 165TB + Images 54PB
 
-  設計上の考慮:
-  - 読み取りが圧倒的に多い → キャッシュが最重要
-  - タイムラインは事前計算（Fan-out on write）が有効
-  - 画像はCDN + オブジェクトストレージ
-  - ホットユーザー（フォロワー数百万）は特別扱い
+  Design considerations:
+  - Reads vastly outnumber writes -> Caching is most important
+  - Timeline pre-computation (Fan-out on write) is effective
+  - Images via CDN + object storage
+  - Hot users (millions of followers) need special handling
 ```
 
 ---
 
-## 11. 実践的なシステム設計の例
+## 11. Practical System Design Examples
 
-### 11.1 URL短縮サービスの設計
+### 11.1 URL Shortener Design
 
 ```
-要件:
-  - 長いURLを短いURLに変換
-  - 短いURLにアクセスすると元のURLにリダイレクト
-  - DAU: 1,000万人
-  - 短縮URL生成: 1日1億件
-  - 読み取り/書き込み比: 100:1
+Requirements:
+  - Convert long URLs to short URLs
+  - Accessing a short URL redirects to the original URL
+  - DAU: 10 million
+  - Short URL generation: 100 million per day
+  - Read/write ratio: 100:1
 
-設計:
+Design:
 
   API:
   - POST /api/v1/shorten {"url": "https://very-long-url.com/..."}
-    → {"short_url": "https://tny.io/a1b2c3"}
-  - GET /a1b2c3 → 301 Redirect
+    -> {"short_url": "https://tny.io/a1b2c3"}
+  - GET /a1b2c3 -> 301 Redirect
 
-  データモデル:
-  ┌───────────────────────────────────┐
-  │ short_urls テーブル                │
-  ├───────────────────────────────────┤
-  │ id (PK)          │ BIGINT         │
-  │ short_key         │ VARCHAR(7)     │
-  │ original_url      │ TEXT           │
-  │ created_at        │ TIMESTAMP      │
-  │ expires_at        │ TIMESTAMP      │
-  │ click_count       │ BIGINT         │
-  └───────────────────────────────────┘
+  Data Model:
+  +-----------------------------------+
+  | short_urls table                   |
+  +-----------------------------------+
+  | id (PK)          | BIGINT         |
+  | short_key         | VARCHAR(7)     |
+  | original_url      | TEXT           |
+  | created_at        | TIMESTAMP      |
+  | expires_at        | TIMESTAMP      |
+  | click_count       | BIGINT         |
+  +-----------------------------------+
 
-  短縮キー生成方法:
-  - Base62エンコード: [a-zA-Z0-9] = 62文字
-  - 7文字: 62^7 = 3.5兆通り（十分なキー空間）
-  - 方法1: カウンターベース（IDをBase62変換）
-  - 方法2: ハッシュベース（MD5/SHA256の先頭7文字）
-  - 方法3: 事前生成キーサービス（Key Generation Service）
+  Short key generation methods:
+  - Base62 encoding: [a-zA-Z0-9] = 62 characters
+  - 7 characters: 62^7 = 3.5 trillion combinations (sufficient key space)
+  - Method 1: Counter-based (convert ID to Base62)
+  - Method 2: Hash-based (first 7 chars of MD5/SHA256)
+  - Method 3: Pre-generated Key Generation Service
 
-  アーキテクチャ:
-  ┌────────┐   ┌──────┐   ┌──────┐   ┌──────┐
-  │ Client │──→│ LB   │──→│ API  │──→│ Cache│
-  └────────┘   └──────┘   │Server│   │Redis │
-                           └──┬───┘   └──┬───┘
-                              │          │
-                           ┌──▼──────────▼───┐
-                           │    Database      │
-                           │   (Sharded)      │
-                           └─────────────────┘
+  Architecture:
+  +--------+   +------+   +------+   +------+
+  | Client |-->| LB   |-->| API  |-->| Cache|
+  +--------+   +------+   |Server|   |Redis |
+                           +--+---+   +--+---+
+                              |          |
+                           +--v----------v---+
+                           |    Database      |
+                           |   (Sharded)      |
+                           +-----------------+
 
-  キャッシュ戦略:
-  - 読み取りが100倍多い → Cache-Aside で Redis にキャッシュ
-  - 人気のあるURL: TTL = 24時間
-  - 全体のキャッシュヒット率: 80%以上を目標
+  Cache strategy:
+  - Reads are 100x more frequent -> Cache-Aside with Redis
+  - Popular URLs: TTL = 24 hours
+  - Target overall cache hit rate: 80%+
 ```
 
-### 11.2 通知システムの設計
+### 11.2 Notification System Design
 
 ```
-要件:
-  - プッシュ通知、SMS、メールの3チャネル
-  - 1日1億件の通知送信
-  - ユーザーごとの通知設定（オプトイン/アウト）
-  - 配信保証（少なくとも1回配信）
+Requirements:
+  - 3 channels: push notifications, SMS, email
+  - 100 million notifications per day
+  - Per-user notification settings (opt-in/out)
+  - Delivery guarantee (at least once delivery)
 
-アーキテクチャ:
-  ┌──────────┐   ┌────────────┐
-  │ Service A │──→│            │
-  │ Service B │──→│ Notification│──→ ┌────────┐ ──→ APNs
-  │ Service C │──→│  Service    │    │ Queue  │ ──→ FCM
-  │ Scheduler │──→│            │──→ │ (Kafka)│ ──→ SMS Gateway
-  └──────────┘   └────────────┘    └────────┘ ──→ Email(SES)
+Architecture:
+  +----------+   +------------+
+  | Service A |-->|            |
+  | Service B |-->| Notification|--> +--------+ --> APNs
+  | Service C |-->|  Service    |    | Queue  | --> FCM
+  | Scheduler |-->|            |--> | (Kafka)| --> SMS Gateway
+  +----------+   +------------+    +--------+ --> Email(SES)
 
-  処理フロー:
-  1. サービスが通知リクエストを送信
-  2. 通知サービスが受信
-     - ユーザーの通知設定を確認
-     - レート制限を適用
-     - テンプレートを適用
-  3. チャネルごとのキューに投入
-  4. ワーカーが各プロバイダーに送信
-  5. 配信結果をログに記録
+  Processing flow:
+  1. Service sends notification request
+  2. Notification service receives it
+     - Check user's notification settings
+     - Apply rate limiting
+     - Apply template
+  3. Enqueue to channel-specific queue
+  4. Workers send to each provider
+  5. Log delivery results
 
-  考慮事項:
-  - 冪等性: 同じ通知を2回送らないための重複排除
-  - 優先度: 緊急通知は優先キューで処理
-  - バッチ処理: 大量送信はバッチで効率化
-  - フォールバック: プッシュ通知失敗 → メールにフォールバック
+  Considerations:
+  - Idempotency: Deduplication to avoid sending the same notification twice
+  - Priority: Urgent notifications processed via priority queue
+  - Batch processing: Mass sends optimized via batching
+  - Fallback: Push notification failure -> Fallback to email
 ```
 
 ---
@@ -1798,42 +1808,42 @@ Twitter風サービスの設計見積もり:
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory, but by actually writing code and verifying how things work.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What common mistakes do beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in professional practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## まとめ
-
-| 概念 | ポイント |
-|------|---------|
-| スケーリング | 垂直(強化) vs 水平(追加)。水平が主流 |
-| CAP定理 | CP(一貫性) vs AP(可用性)。用途で選択 |
-| ロードバランシング | L4/L7、コンシステントハッシュ |
-| キャッシュ | Cache-Aside が最も一般的。スタンピード対策必須 |
-| データベース | RDB vs NoSQL の使い分け。シャーディング |
-| メッセージキュー | 非同期処理。サービス間の疎結合 |
-| マイクロサービス | モノリスファーストで始める |
-| API設計 | RESTful原則、統一レスポンス、レート制限 |
-| 可用性 | サーキットブレーカー、リトライ、フォールバック |
-| 見積もり | DAU → QPS → サーバー台数の概算 |
+The knowledge from this topic is frequently applied in daily development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## 次に読むべきガイド
+## Summary
+
+| Concept | Key Points |
+|---------|-----------|
+| Scaling | Vertical (enhance) vs Horizontal (add). Horizontal is mainstream |
+| CAP Theorem | CP (consistency) vs AP (availability). Choose based on use case |
+| Load Balancing | L4/L7, Consistent Hashing |
+| Cache | Cache-Aside is most common. Stampede protection is essential |
+| Database | RDB vs NoSQL selection. Sharding |
+| Message Queue | Asynchronous processing. Loose coupling between services |
+| Microservices | Start with Monolith First |
+| API Design | RESTful principles, unified responses, rate limiting |
+| Availability | Circuit Breaker, Retry, Fallback |
+| Estimation | DAU -> QPS -> Number of servers estimation |
 
 ---
 
-## 参考文献
+## Recommended Next Guides
+
+---
+
+## References
 1. Kleppmann, M. "Designing Data-Intensive Applications." O'Reilly, 2017.
 2. Alex Xu. "System Design Interview." 2020.
 3. Alex Xu. "System Design Interview Vol. 2." 2022.
