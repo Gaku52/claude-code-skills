@@ -1,142 +1,142 @@
-# 連結リスト（Linked List）
+# Linked Lists
 
-> 連結リストは「ポインタ」の概念を学ぶ最良の教材であり、多くのデータ構造の基盤となる。
-> 配列とは対照的なメモリモデルを理解することで、データ構造設計の本質が見えてくる。
+> Linked lists are the best teaching material for learning the concept of "pointers" and serve as the foundation for many data structures.
+> By understanding a memory model that contrasts with arrays, you gain insight into the essence of data structure design.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] 単方向・双方向・循環連結リストの仕組みを理解する
-- [ ] 各種操作の計算量を正確に把握する
-- [ ] 配列との使い分けを判断できる
-- [ ] 連結リストの典型問題（反転、サイクル検出、マージ等）を解ける
-- [ ] LRUキャッシュなど実践的なデータ構造を実装できる
+- [ ] Understand the mechanics of singly, doubly, and circular linked lists
+- [ ] Accurately grasp the time complexity of each operation
+- [ ] Make informed decisions about when to use linked lists versus arrays
+- [ ] Solve classic linked list problems (reversal, cycle detection, merging, etc.)
+- [ ] Implement practical data structures such as LRU caches
 
-## 前提知識
+## Prerequisites
 
-- Python の基本的なクラス定義（`__init__`, `self`）
-- ポインタ／参照の概念（C言語の経験があると理解が深まるが必須ではない）
+- Basic Python class definitions (`__init__`, `self`)
+- Concept of pointers/references (experience with C helps deepen understanding but is not required)
 
 ---
 
-## 1. なぜ連結リストが必要か — 配列の限界
+## 1. Why Linked Lists Are Needed -- The Limitations of Arrays
 
-### 1.1 配列が抱える構造的制約
+### 1.1 Structural Constraints of Arrays
 
-配列（array）は最も基本的なデータ構造であり、多くの場面で優れた性能を発揮する。しかし、配列には本質的な制約がいくつか存在する。
+Arrays are the most fundamental data structure and deliver excellent performance in many scenarios. However, arrays have several inherent constraints.
 
-**制約1: 連続メモリの必要性**
+**Constraint 1: Requirement for Contiguous Memory**
 
-配列は要素をメモリ上に連続して配置する。これはランダムアクセスを O(1) で実現するために不可欠な性質だが、大きな配列を確保するには同じサイズの連続した空き領域が必要になる。メモリが断片化（フラグメンテーション）している環境では、十分な合計空き容量があっても配列を確保できない場合がある。
-
-```
-配列のメモリレイアウト（連続領域が必須）:
-
-アドレス: 0x100  0x104  0x108  0x10C  0x110  0x114
-         ┌──────┬──────┬──────┬──────┬──────┬──────┐
-         │  10  │  20  │  30  │  40  │  50  │  60  │
-         └──────┴──────┴──────┴──────┴──────┴──────┘
-         ←────────── 連続した24バイト必要 ──────────→
-
-断片化されたメモリでは確保に失敗する可能性:
-
-         ┌──────┐      ┌──────┐      ┌──────┐
-  空き:  │ 8B   │ 使用 │ 12B  │ 使用 │ 8B   │ ...
-         └──────┘      └──────┘      └──────┘
-         合計28Bの空きがあるが、連続24Bは取れない
-```
-
-**制約2: 挿入と削除のコスト**
-
-配列の中間に要素を挿入したり、中間の要素を削除したりするには、後続の全要素をシフトする必要がある。要素数を n とすると、最悪ケースで O(n) の時間がかかる。
+Arrays place elements contiguously in memory. This property is essential for achieving O(1) random access, but allocating a large array requires a single contiguous free region of the same size. In environments where memory is fragmented, it may be impossible to allocate an array even when sufficient total free space exists.
 
 ```
-配列の中間挿入（インデックス2に「25」を挿入する場合）:
+Array memory layout (contiguous region required):
+
+Address: 0x100  0x104  0x108  0x10C  0x110  0x114
+         +------+------+------+------+------+------+
+         |  10  |  20  |  30  |  40  |  50  |  60  |
+         +------+------+------+------+------+------+
+         <---------- 24 contiguous bytes needed ---------->
+
+Fragmented memory may cause allocation failure:
+
+         +------+      +------+      +------+
+  Free:  | 8B   | Used | 12B  | Used | 8B   | ...
+         +------+      +------+      +------+
+         28B total free, but cannot obtain 24 contiguous bytes
+```
+
+**Constraint 2: Cost of Insertion and Deletion**
+
+Inserting into or deleting from the middle of an array requires shifting all subsequent elements. With n elements, this takes O(n) time in the worst case.
+
+```
+Middle insertion in an array (inserting "25" at index 2):
 
 Before: [10, 20, 30, 40, 50]
-                ↑ ここに25を入れたい
+                ^ Want to insert 25 here
 
-Step 1: 後ろの要素を1つずつ右にシフト
-        [10, 20, 30, 30, 40, 50]  ← 50を右へ
-        [10, 20, 30, 30, 40, 50]  ← 40を右へ
-        [10, 20, 30, 30, 40, 50]  ← 30を右へ（空きができる）
+Step 1: Shift trailing elements one position to the right
+        [10, 20, 30, 30, 40, 50]  <- Shift 50 right
+        [10, 20, 30, 30, 40, 50]  <- Shift 40 right
+        [10, 20, 30, 30, 40, 50]  <- Shift 30 right (gap created)
 
-Step 2: 空いた位置に挿入
+Step 2: Insert into the vacated position
         [10, 20, 25, 30, 40, 50]
 
-→ n=5 の配列に対して最大 n-1 回のコピーが発生
+-> Up to n-1 copies for an array of n=5 elements
 ```
 
-**制約3: サイズ変更のオーバーヘッド**
+**Constraint 3: Overhead of Resizing**
 
-静的配列はサイズが固定されている。動的配列（Python の `list`、Java の `ArrayList`）はサイズを自動拡張するが、内部的には新しいメモリ領域を確保してデータ全体をコピーする処理が発生する。償却計算量は O(1) だが、リサイズが発生するタイミングでは O(n) の遅延が生じる。リアルタイム性が要求されるシステムでは、この一時的な遅延が問題になることがある。
+Static arrays have a fixed size. Dynamic arrays (Python's `list`, Java's `ArrayList`) automatically expand, but internally they allocate a new memory region and copy all existing data. The amortized complexity is O(1), but at the moment resizing occurs, an O(n) delay is incurred. In systems requiring real-time guarantees, this transient delay can be problematic.
 
-### 1.2 連結リストという解決策
+### 1.2 Linked Lists as a Solution
 
-連結リストは、これらの制約を根本的に異なるアプローチで解決する。
+Linked lists solve these constraints through a fundamentally different approach.
 
 ```
-連結リストのメモリレイアウト（非連続でよい）:
+Linked list memory layout (non-contiguous is fine):
 
-アドレス 0x200        アドレス 0x350        アドレス 0x120
-┌─────────────┐      ┌─────────────┐      ┌─────────────┐
-│ val: 10     │      │ val: 20     │      │ val: 30     │
-│ next: 0x350 │─────→│ next: 0x120 │─────→│ next: None  │
-└─────────────┘      └─────────────┘      └─────────────┘
-メモリ上でバラバラに配置されていても問題ない
+Address 0x200        Address 0x350        Address 0x120
++-------------+      +-------------+      +-------------+
+| val: 10     |      | val: 20     |      | val: 30     |
+| next: 0x350 |----->| next: 0x120 |----->| next: None  |
++-------------+      +-------------+      +-------------+
+Nodes can be scattered across memory without issue
 ```
 
-各要素（ノード）は「データ」と「次のノードへの参照（ポインタ）」を保持する。ノード間はポインタで接続されるため、メモリ上で連続している必要がない。挿入や削除はポインタの付け替えだけで完了するため、要素のシフトは不要である。
+Each element (node) holds "data" and a "reference (pointer) to the next node." Since nodes are connected via pointers, they do not need to be contiguous in memory. Insertions and deletions are completed simply by reassigning pointers, eliminating the need to shift elements.
 
-### 1.3 連結リストの本質的な強みと弱み
+### 1.3 Fundamental Strengths and Weaknesses of Linked Lists
 
-連結リストは万能ではない。配列と相補的な性質を持つデータ構造であり、それぞれ得意な場面が異なる。
+Linked lists are not a panacea. They are complementary to arrays, with each excelling in different scenarios.
 
-**強み:**
-- 先頭への挿入・削除が O(1)
-- 任意の位置（ポインタが既知の場合）への挿入・削除が O(1)
-- サイズの動的変更にリサイズコピーが不要
-- 連続メモリ領域が不要
+**Strengths:**
+- Insertion/deletion at the head in O(1)
+- Insertion/deletion at any position (when the pointer is known) in O(1)
+- Dynamic resizing without resize-copy overhead
+- No contiguous memory region required
 
-**弱み:**
-- ランダムアクセスが O(n)（インデックスによる直接アクセス不可）
-- 各ノードにポインタ分の追加メモリが必要
-- キャッシュ局所性が低い（CPU キャッシュの恩恵を受けにくい）
-- 参照の間接化によるオーバーヘッド
+**Weaknesses:**
+- Random access is O(n) (no direct access by index)
+- Each node requires extra memory for the pointer
+- Poor cache locality (less benefit from CPU caches)
+- Overhead from pointer indirection
 
-この章では、連結リストの種類（単方向、双方向、循環）ごとに構造と操作を詳細に学び、配列との適切な使い分けができるようになることを目指す。
+This chapter covers the structure and operations of each linked list variant (singly, doubly, circular) in detail, aiming to equip you with the ability to choose appropriately between linked lists and arrays.
 
 ---
 
-## 2. 単方向連結リスト（Singly Linked List）
+## 2. Singly Linked List
 
-### 2.1 基本構造
+### 2.1 Basic Structure
 
-単方向連結リストは、連結リストの最もシンプルな形態である。各ノードは「データ」と「次のノードへのポインタ」の2つのフィールドを持つ。
+A singly linked list is the simplest form of linked list. Each node has two fields: "data" and a "pointer to the next node."
 
 ```
-単方向連結リストの構造:
+Structure of a singly linked list:
 
   head
-   │
-   ▼
-┌───────────┐    ┌───────────┐    ┌───────────┐    ┌───────────┐
-│ val: "A"  │    │ val: "B"  │    │ val: "C"  │    │ val: "D"  │
-│ next: ─────┼──→│ next: ─────┼──→│ next: ─────┼──→│ next: None│
-└───────────┘    └───────────┘    └───────────┘    └───────────┘
+   |
+   v
++-----------+    +-----------+    +-----------+    +-----------+
+| val: "A"  |    | val: "B"  |    | val: "C"  |    | val: "D"  |
+| next: -----+-->| next: -----+-->| next: -----+-->| next: None|
++-----------+    +-----------+    +-----------+    +-----------+
 
-特徴:
-- 各ノードは next ポインタのみ保持（一方向にしか辿れない）
-- リストの先頭を指す head ポインタが入口
-- 最後のノードの next は None（NULL）
-- 逆方向への走査は不可能
+Characteristics:
+- Each node holds only a next pointer (traversal in one direction only)
+- The head pointer serves as the entry point to the list
+- The last node's next is None (NULL)
+- Reverse traversal is impossible
 ```
 
-**ノードクラスの定義:**
+**Node class definition:**
 
 ```python
 class ListNode:
-    """単方向連結リストのノード"""
-    __slots__ = ('val', 'next')  # メモリ効率のためスロットを使用
+    """Node for a singly linked list"""
+    __slots__ = ('val', 'next')  # Use slots for memory efficiency
 
     def __init__(self, val=0, next=None):
         self.val = val
@@ -146,132 +146,132 @@ class ListNode:
         return f"ListNode({self.val})"
 ```
 
-`__slots__` を指定することで、Python のデフォルトの `__dict__` による属性管理を抑制し、ノード1個あたりのメモリ使用量を削減できる。大量のノードを生成する連結リストでは、この最適化が効果的である。
+By specifying `__slots__`, we suppress Python's default `__dict__`-based attribute management, reducing memory usage per node. This optimization is effective for linked lists that generate large numbers of nodes.
 
-### 2.2 基本操作
+### 2.2 Basic Operations
 
-#### 2.2.1 先頭への挿入（prepend）
+#### 2.2.1 Insertion at the Head (prepend)
 
 ```
-先頭への挿入操作（O(1)):
+Head insertion operation (O(1)):
 
 Before:
   head
-   │
-   ▼
-  [B] → [C] → [D] → None
+   |
+   v
+  [B] -> [C] -> [D] -> None
 
-「A」を先頭に挿入:
+Insert "A" at the head:
 
-Step 1: 新しいノードを作成し、next を現在の head に設定
+Step 1: Create a new node and set its next to the current head
   new_node        head
-     │              │
-     ▼              ▼
-    [A] ─────────→ [B] → [C] → [D] → None
+     |              |
+     v              v
+    [A] ----------> [B] -> [C] -> [D] -> None
 
-Step 2: head を新しいノードに更新
+Step 2: Update head to the new node
   head
-   │
-   ▼
-  [A] → [B] → [C] → [D] → None
+   |
+   v
+  [A] -> [B] -> [C] -> [D] -> None
 
-→ ポインタの付け替え2回のみ。リスト長に依存しない O(1)
+-> Only 2 pointer reassignments. O(1), independent of list length
 ```
 
-#### 2.2.2 末尾への挿入（append）
+#### 2.2.2 Insertion at the Tail (append)
 
 ```
-末尾への挿入操作（O(n)):
+Tail insertion operation (O(n)):
 
 Before:
   head
-   │
-   ▼
-  [A] → [B] → [C] → None
+   |
+   v
+  [A] -> [B] -> [C] -> None
 
-「D」を末尾に挿入:
+Insert "D" at the tail:
 
-Step 1: 末尾ノードまで走査（O(n)）
+Step 1: Traverse to the last node (O(n))
   head
-   │
-   ▼
-  [A] → [B] → [C] → None
-                ↑
-              curr（末尾ノードを発見）
+   |
+   v
+  [A] -> [B] -> [C] -> None
+                ^
+              curr (last node found)
 
-Step 2: 末尾ノードの next を新しいノードに設定
+Step 2: Set the last node's next to the new node
   head
-   │
-   ▼
-  [A] → [B] → [C] → [D] → None
+   |
+   v
+  [A] -> [B] -> [C] -> [D] -> None
 
-→ 末尾までの走査に O(n) が必要
-→ tail ポインタを別途保持すれば O(1) に改善可能
+-> O(n) traversal to reach the tail
+-> Can be improved to O(1) by maintaining a separate tail pointer
 ```
 
-#### 2.2.3 指定値の削除（delete）
+#### 2.2.3 Deletion by Value (delete)
 
 ```
-中間ノードの削除操作（O(n)):
+Middle node deletion operation (O(n)):
 
 Before:
   head
-   │
-   ▼
-  [A] → [B] → [C] → [D] → None
+   |
+   v
+  [A] -> [B] -> [C] -> [D] -> None
 
-「C」を削除:
+Delete "C":
 
-Step 1: 削除対象の直前のノードまで走査
+Step 1: Traverse to the node immediately before the target
   head
-   │
-   ▼
-  [A] → [B] → [C] → [D] → None
-          ↑     ↑
+   |
+   v
+  [A] -> [B] -> [C] -> [D] -> None
+          ^     ^
          prev  target
 
-Step 2: prev.next を target.next に付け替え
+Step 2: Reassign prev.next to target.next
   head
-   │
-   ▼                ┌───────────┐
-  [A] → [B] ────────┤→ [D] → None
-                    │
-          [C] ──────┘  ← 参照が切れてGC対象に
+   |
+   v                +-----------+
+  [A] -> [B] -------+-> [D] -> None
+                    |
+          [C] -----+  <- Reference broken; eligible for GC
 
-→ 走査に O(n)、ポインタの付け替え自体は O(1)
+-> O(n) for traversal; the pointer reassignment itself is O(1)
 ```
 
-#### 2.2.4 ダミーヘッド（番兵ノード）テクニック
+#### 2.2.4 Dummy Head (Sentinel Node) Technique
 
-先頭ノードの削除はエッジケースになりやすい。ダミーヘッド（番兵ノード）を導入すると、すべてのノードに「前のノード」が存在するため、場合分けが不要になる。
+Deleting the head node is a common edge case. By introducing a dummy head (sentinel node), every node has a "preceding node," eliminating the need for special-case handling.
 
 ```
-ダミーヘッドを使う場合:
+Using a dummy head:
 
   dummy    head
-   │        │
-   ▼        ▼
-  [0] ──→ [A] → [B] → [C] → None
-   ↑
- 値は使わない（番兵）
+   |        |
+   v        v
+  [0] --> [A] -> [B] -> [C] -> None
+   ^
+ Value unused (sentinel)
 
-「A」（先頭）を削除する場合も特別扱い不要:
+Deleting "A" (the head) requires no special treatment:
 
   dummy
-   │
-   ▼           ┌──────────┐
-  [0] ─────────┤→ [B] → [C] → None
-               │
-     [A] ──────┘
+   |
+   v           +----------+
+  [0] ---------+-> [B] -> [C] -> None
+               |
+     [A] -----+
 
-最後に dummy.next を返せばよい
+Simply return dummy.next at the end
 ```
 
-### 2.3 完全実装
+### 2.3 Complete Implementation
 
 ```python
 class ListNode:
-    """単方向連結リストのノード"""
+    """Node for a singly linked list"""
     __slots__ = ('val', 'next')
 
     def __init__(self, val=0, next=None):
@@ -283,7 +283,7 @@ class ListNode:
 
 
 class SinglyLinkedList:
-    """単方向連結リストの完全実装"""
+    """Complete implementation of a singly linked list"""
 
     def __init__(self):
         self.head = None
@@ -293,7 +293,7 @@ class SinglyLinkedList:
         return self._size
 
     def __iter__(self):
-        """イテレータプロトコルの実装"""
+        """Implementation of the iterator protocol"""
         curr = self.head
         while curr:
             yield curr.val
@@ -303,7 +303,7 @@ class SinglyLinkedList:
         values = []
         curr = self.head
         count = 0
-        while curr and count < 20:  # 無限ループ防止
+        while curr and count < 20:  # Prevent infinite loops
             values.append(str(curr.val))
             curr = curr.next
             count += 1
@@ -313,16 +313,16 @@ class SinglyLinkedList:
         return f"SinglyLinkedList([{chain}])"
 
     def is_empty(self):
-        """空リスト判定: O(1)"""
+        """Check if the list is empty: O(1)"""
         return self.head is None
 
     def prepend(self, val):
-        """先頭に挿入: O(1)"""
+        """Insert at the head: O(1)"""
         self.head = ListNode(val, self.head)
         self._size += 1
 
     def append(self, val):
-        """末尾に挿入: O(n)"""
+        """Insert at the tail: O(n)"""
         new_node = ListNode(val)
         if not self.head:
             self.head = new_node
@@ -334,14 +334,14 @@ class SinglyLinkedList:
         self._size += 1
 
     def insert_at(self, index, val):
-        """指定インデックスに挿入: O(n)
+        """Insert at a specified index: O(n)
 
         Args:
-            index: 挿入位置（0-based）。0 なら先頭、size なら末尾。
-            val: 挿入する値
+            index: Insertion position (0-based). 0 for head, size for tail.
+            val: Value to insert
 
         Raises:
-            IndexError: インデックスが範囲外の場合
+            IndexError: If the index is out of range
         """
         if index < 0 or index > self._size:
             raise IndexError(f"Index {index} out of range [0, {self._size}]")
@@ -355,15 +355,15 @@ class SinglyLinkedList:
         self._size += 1
 
     def delete(self, val):
-        """指定値の最初の出現を削除: O(n)
+        """Delete the first occurrence of a value: O(n)
 
         Args:
-            val: 削除する値
+            val: Value to delete
 
         Returns:
-            bool: 削除に成功した場合 True、値が見つからなかった場合 False
+            bool: True if deletion succeeded, False if value not found
         """
-        # ダミーヘッドテクニックで先頭削除の特殊ケースを回避
+        # Use the dummy head technique to avoid the special case of head deletion
         dummy = ListNode(0, self.head)
         curr = dummy
         while curr.next:
@@ -376,16 +376,16 @@ class SinglyLinkedList:
         return False
 
     def delete_at(self, index):
-        """指定インデックスの要素を削除: O(n)
+        """Delete the element at a specified index: O(n)
 
         Args:
-            index: 削除位置（0-based）
+            index: Deletion position (0-based)
 
         Returns:
-            削除された値
+            The deleted value
 
         Raises:
-            IndexError: インデックスが範囲外の場合
+            IndexError: If the index is out of range
         """
         if index < 0 or index >= self._size:
             raise IndexError(f"Index {index} out of range [0, {self._size - 1}]")
@@ -403,10 +403,10 @@ class SinglyLinkedList:
         return val
 
     def search(self, val):
-        """値の検索: O(n)
+        """Search for a value: O(n)
 
         Returns:
-            int: 値が見つかった場合そのインデックス、見つからない場合 -1
+            int: The index where the value is found, or -1 if not found
         """
         curr = self.head
         index = 0
@@ -418,16 +418,16 @@ class SinglyLinkedList:
         return -1
 
     def get(self, index):
-        """インデックスでアクセス: O(n)
+        """Access by index: O(n)
 
         Args:
-            index: 取得位置（0-based）
+            index: Position to retrieve (0-based)
 
         Returns:
-            指定位置の値
+            The value at the specified position
 
         Raises:
-            IndexError: インデックスが範囲外の場合
+            IndexError: If the index is out of range
         """
         if index < 0 or index >= self._size:
             raise IndexError(f"Index {index} out of range [0, {self._size - 1}]")
@@ -437,7 +437,7 @@ class SinglyLinkedList:
         return curr.val
 
     def reverse(self):
-        """リストを反転（in-place）: O(n)"""
+        """Reverse the list (in-place): O(n)"""
         prev = None
         curr = self.head
         while curr:
@@ -448,18 +448,18 @@ class SinglyLinkedList:
         self.head = prev
 
     def to_list(self):
-        """Python リストに変換: O(n)"""
+        """Convert to a Python list: O(n)"""
         return list(self)
 
     @classmethod
     def from_list(cls, values):
-        """Python リストから連結リストを構築: O(n)
+        """Build a linked list from a Python list: O(n)
 
         Args:
-            values: イテラブルな値の列
+            values: An iterable sequence of values
 
         Returns:
-            SinglyLinkedList: 構築された連結リスト
+            SinglyLinkedList: The constructed linked list
         """
         ll = cls()
         for val in reversed(values):
@@ -467,97 +467,97 @@ class SinglyLinkedList:
         return ll
 
 
-# --- 動作確認 ---
+# --- Verification ---
 if __name__ == "__main__":
-    # 構築
+    # Construction
     ll = SinglyLinkedList.from_list([1, 2, 3, 4, 5])
     print(ll)                   # SinglyLinkedList([1 -> 2 -> 3 -> 4 -> 5])
     print(f"Length: {len(ll)}")  # Length: 5
 
-    # 挿入
+    # Insertion
     ll.prepend(0)
     ll.append(6)
     ll.insert_at(3, 99)
     print(ll)  # SinglyLinkedList([0 -> 1 -> 2 -> 99 -> 3 -> 4 -> 5 -> 6])
 
-    # 検索
+    # Search
     print(f"Search 99: index {ll.search(99)}")  # Search 99: index 3
     print(f"Get index 3: {ll.get(3)}")          # Get index 3: 99
 
-    # 削除
+    # Deletion
     ll.delete(99)
     deleted = ll.delete_at(0)
     print(f"Deleted: {deleted}")  # Deleted: 0
     print(ll)                     # SinglyLinkedList([1 -> 2 -> 3 -> 4 -> 5 -> 6])
 
-    # 反転
+    # Reversal
     ll.reverse()
     print(ll)  # SinglyLinkedList([6 -> 5 -> 4 -> 3 -> 2 -> 1])
 
-    # イテレーション
+    # Iteration
     for val in ll:
         print(val, end=" ")  # 6 5 4 3 2 1
     print()
 ```
 
-### 2.4 計算量まとめ
+### 2.4 Complexity Summary
 
-| 操作 | 時間計算量 | 空間計算量 | 備考 |
-|------|-----------|-----------|------|
-| `prepend` | O(1) | O(1) | 先頭挿入。最も効率的な操作 |
-| `append` | O(n) | O(1) | 末尾走査が必要。tail 保持で O(1) に改善可 |
-| `insert_at(i)` | O(i) | O(1) | 挿入位置まで走査。先頭なら O(1) |
-| `delete(val)` | O(n) | O(1) | 値の検索に O(n) |
-| `delete_at(i)` | O(i) | O(1) | 位置までの走査に O(i) |
-| `search` | O(n) | O(1) | 線形探索 |
-| `get(i)` | O(i) | O(1) | ランダムアクセス不可 |
-| `reverse` | O(n) | O(1) | in-place で反転 |
-| `from_list` | O(n) | O(n) | リストからの構築 |
+| Operation | Time Complexity | Space Complexity | Notes |
+|-----------|----------------|-----------------|-------|
+| `prepend` | O(1) | O(1) | Head insertion. The most efficient operation |
+| `append` | O(n) | O(1) | Requires tail traversal. Can be improved to O(1) with a tail pointer |
+| `insert_at(i)` | O(i) | O(1) | Traversal to insertion point. O(1) if inserting at head |
+| `delete(val)` | O(n) | O(1) | O(n) for searching the value |
+| `delete_at(i)` | O(i) | O(1) | O(i) for traversal to the position |
+| `search` | O(n) | O(1) | Linear search |
+| `get(i)` | O(i) | O(1) | No random access |
+| `reverse` | O(n) | O(1) | In-place reversal |
+| `from_list` | O(n) | O(n) | Construction from a list |
 
-### 2.5 重要なテクニック
+### 2.5 Important Techniques
 
-#### 2.5.1 リストの反転
+#### 2.5.1 List Reversal
 
-連結リストの反転は、面接問題として最も頻出するテーマの一つである。反復版と再帰版の両方を理解しておくことが重要である。
+Reversing a linked list is one of the most frequently asked interview topics. It is important to understand both the iterative and recursive versions.
 
 ```python
 def reverse_iterative(head):
-    """連結リストの反転（反復版）: O(n) 時間, O(1) 空間
+    """Reverse a linked list (iterative): O(n) time, O(1) space
 
-    3つのポインタ（prev, curr, next_node）を使って
-    各ノードの next を前のノードに付け替える。
+    Uses three pointers (prev, curr, next_node) to
+    reassign each node's next to point to the previous node.
     """
     prev = None
     curr = head
     while curr:
-        next_node = curr.next   # 次のノードを退避
-        curr.next = prev        # ポインタを反転
-        prev = curr             # prev を進める
-        curr = next_node        # curr を進める
-    return prev  # 新しい先頭
+        next_node = curr.next   # Save the next node
+        curr.next = prev        # Reverse the pointer
+        prev = curr             # Advance prev
+        curr = next_node        # Advance curr
+    return prev  # New head
 
 
 def reverse_recursive(head):
-    """連結リストの反転（再帰版）: O(n) 時間, O(n) 空間
+    """Reverse a linked list (recursive): O(n) time, O(n) space
 
-    再帰でリストの末尾に到達し、戻りながらポインタを反転する。
-    コールスタックに O(n) の空間を使う点に注意。
+    Recurse to the tail of the list and reverse pointers on the way back.
+    Note that this uses O(n) space on the call stack.
     """
-    # ベースケース: 空リストまたは1ノード
+    # Base case: empty list or single node
     if not head or not head.next:
         return head
-    # 再帰: head.next 以降を反転
+    # Recurse: reverse everything after head.next
     new_head = reverse_recursive(head.next)
-    # head.next のノードが head を指すようにする
+    # Make head.next's node point back to head
     head.next.next = head
     head.next = None
     return new_head
 ```
 
 ```
-反復版の動作を追跡:
+Tracing the iterative version:
 
-初期状態: 1 -> 2 -> 3 -> None
+Initial state: 1 -> 2 -> 3 -> None
          prev=None, curr=1
 
 Step 1: next_node=2, 1.next=None, prev=1, curr=2
@@ -569,19 +569,19 @@ Step 2: next_node=3, 2.next=1, prev=2, curr=3
 Step 3: next_node=None, 3.next=2, prev=3, curr=None
         None <- 1 <- 2 <- 3
 
-結果: 3 -> 2 -> 1 -> None （prev が新しい head）
+Result: 3 -> 2 -> 1 -> None (prev is the new head)
 ```
 
-#### 2.5.2 Floyd のサイクル検出（亀とウサギ）
+#### 2.5.2 Floyd's Cycle Detection (Tortoise and Hare)
 
-連結リストにサイクル（循環）が存在するかどうかを検出するアルゴリズム。2つのポインタを異なる速度で進めることで、O(1) の追加空間でサイクルを検出する。
+An algorithm for detecting whether a cycle exists in a linked list. By advancing two pointers at different speeds, it detects cycles using O(1) extra space.
 
 ```python
 def has_cycle(head):
-    """サイクルの存在判定: O(n) 時間, O(1) 空間
+    """Determine if a cycle exists: O(n) time, O(1) space
 
-    slow（亀）は1ステップずつ、fast（ウサギ）は2ステップずつ進む。
-    サイクルがあれば必ず出会い、なければ fast が末尾に到達する。
+    slow (tortoise) advances 1 step at a time, fast (hare) advances 2 steps.
+    If a cycle exists, they will eventually meet; otherwise, fast reaches the tail.
     """
     slow = fast = head
     while fast and fast.next:
@@ -593,23 +593,24 @@ def has_cycle(head):
 
 
 def detect_cycle_start(head):
-    """サイクルの開始ノードを特定: O(n) 時間, O(1) 空間
+    """Identify the starting node of a cycle: O(n) time, O(1) space
 
-    Phase 1: slow と fast が出会う地点を見つける
-    Phase 2: head と出会い地点から同速度で進め、合流点がサイクル開始
+    Phase 1: Find the meeting point of slow and fast
+    Phase 2: Advance from head and the meeting point at equal speed;
+             the convergence point is the cycle start
     """
     slow = fast = head
 
-    # Phase 1: 出会い地点を見つける
+    # Phase 1: Find the meeting point
     while fast and fast.next:
         slow = slow.next
         fast = fast.next.next
         if slow == fast:
             break
     else:
-        return None  # サイクルなし
+        return None  # No cycle
 
-    # Phase 2: サイクル開始ノードを特定
+    # Phase 2: Identify the cycle start node
     slow = head
     while slow != fast:
         slow = slow.next
@@ -618,52 +619,53 @@ def detect_cycle_start(head):
 ```
 
 ```
-Floyd のサイクル検出 — なぜ正しく動作するか:
+Floyd's cycle detection -- Why it works correctly:
 
-サイクルありの場合:
-  head → [1] → [2] → [3] → [4] → [5]
-                       ↑              │
-                       └──────────────┘
+With a cycle:
+  head -> [1] -> [2] -> [3] -> [4] -> [5]
+                         ^              |
+                         +--------------+
 
   slow: 1, 2, 3, 4, 5, 3, 4, ...
   fast: 1, 3, 5, 4, 3, 5, 4, ...
 
   Step 1: slow=2, fast=3
   Step 2: slow=3, fast=5
-  Step 3: slow=4, fast=4  ← 出会った！（サイクルあり）
+  Step 3: slow=4, fast=4  <- They meet! (cycle exists)
 
-サイクルなしの場合:
-  head → [1] → [2] → [3] → [4] → None
+Without a cycle:
+  head -> [1] -> [2] -> [3] -> [4] -> None
 
   Step 1: slow=2, fast=3
-  Step 2: slow=3, fast=None ← fast が None に到達（サイクルなし）
+  Step 2: slow=3, fast=None <- fast reaches None (no cycle)
 
-サイクル開始ノード特定の数学的証明:
-  F = head からサイクル開始までの距離
-  C = サイクルの長さ
-  出会い地点はサイクル開始から a ノード先とする
+Mathematical proof for identifying the cycle start node:
+  F = distance from head to cycle start
+  C = cycle length
+  Let the meeting point be a nodes past the cycle start
 
-  slow の移動距離: F + a
-  fast の移動距離: F + a + kC（k はサイクルを回った回数）
+  Distance traveled by slow: F + a
+  Distance traveled by fast: F + a + kC (k = number of full cycles)
 
-  fast は slow の2倍進むので:
+  Since fast travels twice as far as slow:
   2(F + a) = F + a + kC
   F + a = kC
   F = kC - a
 
-  つまり head から F ステップ進むと、出会い地点から F ステップ進んだ点
-  （= kC - a ステップ = サイクル開始地点）に到達する。
+  Thus, advancing F steps from head arrives at the same point
+  as advancing F steps from the meeting point
+  (= kC - a steps = the cycle start).
 ```
 
-#### 2.5.3 Fast/Slow ポインタ（中間ノードの検出）
+#### 2.5.3 Fast/Slow Pointer (Finding the Middle Node)
 
 ```python
 def find_middle(head):
-    """中間ノードを検出: O(n) 時間, O(1) 空間
+    """Find the middle node: O(n) time, O(1) space
 
-    slow は1歩、fast は2歩ずつ進む。
-    fast がリストの末尾に到達したとき、slow は中間にいる。
-    偶数長の場合、2つの中間ノードのうち後者を返す。
+    slow advances 1 step, fast advances 2 steps.
+    When fast reaches the end, slow is at the middle.
+    For even-length lists, returns the second of the two middle nodes.
     """
     slow = fast = head
     while fast and fast.next:
@@ -673,11 +675,11 @@ def find_middle(head):
 
 
 def find_middle_first(head):
-    """中間ノードを検出（偶数長の場合は前者を返す）
+    """Find the middle node (returns the first middle for even-length lists)
 
-    偶数長のリスト [1, 2, 3, 4] に対して:
-    - find_middle は 3 を返す（後者の中間）
-    - find_middle_first は 2 を返す（前者の中間）
+    For an even-length list [1, 2, 3, 4]:
+    - find_middle returns 3 (the second middle)
+    - find_middle_first returns 2 (the first middle)
     """
     slow = fast = head
     while fast and fast.next and fast.next.next:
@@ -687,74 +689,74 @@ def find_middle_first(head):
 ```
 
 ```
-中間ノード検出の動作例:
+Middle node detection examples:
 
-奇数長: 1 -> 2 -> 3 -> 4 -> 5
+Odd length: 1 -> 2 -> 3 -> 4 -> 5
   Step 0: slow=1, fast=1
   Step 1: slow=2, fast=3
-  Step 2: slow=3, fast=5  ← fast.next=None で終了
-  結果: slow=3 （正確な中間）
+  Step 2: slow=3, fast=5  <- fast.next=None, loop ends
+  Result: slow=3 (exact middle)
 
-偶数長: 1 -> 2 -> 3 -> 4
+Even length: 1 -> 2 -> 3 -> 4
   Step 0: slow=1, fast=1
   Step 1: slow=2, fast=3
-  Step 2: slow=3, fast=None ← fast が None で終了
-  結果: slow=3 （後者の中間）
+  Step 2: slow=3, fast=None <- fast is None, loop ends
+  Result: slow=3 (second middle)
 
-  find_middle_first の場合:
+  With find_middle_first:
   Step 0: slow=1, fast=1
-  Step 1: slow=2, fast=3  ← fast.next.next=None で終了
-  結果: slow=2 （前者の中間）
+  Step 1: slow=2, fast=3  <- fast.next.next=None, loop ends
+  Result: slow=2 (first middle)
 ```
 
 ---
 
-## 3. 双方向連結リスト（Doubly Linked List）
+## 3. Doubly Linked List
 
-### 3.1 基本構造
+### 3.1 Basic Structure
 
-双方向連結リストでは、各ノードが「前のノードへのポインタ（prev）」と「次のノードへのポインタ（next）」の両方を持つ。これにより、任意のノードから前後両方向に走査できる。
+In a doubly linked list, each node holds both a "pointer to the previous node (prev)" and a "pointer to the next node (next)." This allows traversal in both directions from any node.
 
 ```
-双方向連結リストの構造:
+Structure of a doubly linked list:
 
   head                                                    tail
-   │                                                       │
-   ▼                                                       ▼
-┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐
-│ prev:None│    │ prev: ←──┼────│ prev: ←──┼────│ prev: ←──┤
-│ val: "A" │    │ val: "B" │    │ val: "C" │    │ val: "D" │
-│ next: ───┼──→ │ next: ───┼──→ │ next: ───┼──→ │ next:None│
-└──────────┘    └──────────┘    └──────────┘    └──────────┘
+   |                                                       |
+   v                                                       v
++----------+    +----------+    +----------+    +----------+
+| prev:None|    | prev: <--+----| prev: <--+----| prev: <--|
+| val: "A" |    | val: "B" |    | val: "C" |    | val: "D" |
+| next: ---+--> | next: ---+--> | next: ---+--> | next:None|
++----------+    +----------+    +----------+    +----------+
 
-  None ← [A] ⇌ [B] ⇌ [C] ⇌ [D] → None
+  None <- [A] <=> [B] <=> [C] <=> [D] -> None
 
-特徴:
-- 各ノードは prev と next の2つのポインタを保持
-- head と tail の両端からアクセス可能
-- 双方向に走査できる
-- ポインタが2つあるため、単方向リストよりメモリを多く使う
+Characteristics:
+- Each node holds two pointers: prev and next
+- Accessible from both ends via head and tail
+- Bidirectional traversal is possible
+- Uses more memory per node than a singly linked list due to two pointers
 ```
 
-### 3.2 単方向リストとの比較
+### 3.2 Comparison with Singly Linked Lists
 
-| 特性 | 単方向リスト | 双方向リスト |
-|------|------------|------------|
-| ノードあたりのポインタ数 | 1（next のみ） | 2（prev + next） |
-| 逆方向走査 | 不可（O(n) で反転が必要） | O(1) で prev を辿る |
-| 末尾からの削除 | O(n)（直前ノードの探索が必要） | O(1)（tail.prev で直前ノードにアクセス） |
-| 任意ノードの削除 | O(n)（直前ノードの探索が必要） | O(1)（ノード参照があれば prev で直前にアクセス） |
-| メモリ使用量 | 少ない | ポインタ1本分多い |
-| 実装の複雑さ | シンプル | prev の管理で複雑化 |
-| 主な用途 | スタック、シンプルなキュー | LRU キャッシュ、テキストエディタ、ブラウザ履歴 |
+| Property | Singly Linked List | Doubly Linked List |
+|----------|-------------------|-------------------|
+| Pointers per node | 1 (next only) | 2 (prev + next) |
+| Reverse traversal | Not possible (requires O(n) reversal) | O(1) by following prev |
+| Deletion from the tail | O(n) (must find predecessor) | O(1) (access predecessor via tail.prev) |
+| Deletion of an arbitrary node | O(n) (must find predecessor) | O(1) (if you have the node reference, access predecessor via prev) |
+| Memory usage | Less | One extra pointer per node |
+| Implementation complexity | Simple | More complex due to prev management |
+| Primary use cases | Stacks, simple queues | LRU caches, text editors, browser history |
 
-双方向リストの最大の利点は「任意のノードを O(1) で削除できる」ことである。単方向リストではノードを削除するために直前のノードを知る必要があり、それには先頭からの走査（O(n)）が不可避である。双方向リストでは `node.prev` で直前のノードに即座にアクセスできる。
+The greatest advantage of doubly linked lists is the ability to delete any node in O(1). In a singly linked list, deleting a node requires knowing the predecessor, which necessitates an O(n) traversal from the head. In a doubly linked list, the predecessor is immediately accessible via `node.prev`.
 
-### 3.3 完全実装
+### 3.3 Complete Implementation
 
 ```python
 class DListNode:
-    """双方向連結リストのノード"""
+    """Node for a doubly linked list"""
     __slots__ = ('val', 'prev', 'next')
 
     def __init__(self, val=0, prev=None, next=None):
@@ -767,17 +769,17 @@ class DListNode:
 
 
 class DoublyLinkedList:
-    """双方向連結リストの完全実装
+    """Complete implementation of a doubly linked list
 
-    番兵ノード（sentinel）を使用して実装を簡潔にする。
-    head_sentinel と tail_sentinel は常に存在し、実データは持たない。
+    Uses sentinel nodes to simplify the implementation.
+    head_sentinel and tail_sentinel always exist and hold no actual data.
 
-    構造:
-    head_sentinel ⇌ [data1] ⇌ [data2] ⇌ ... ⇌ tail_sentinel
+    Structure:
+    head_sentinel <=> [data1] <=> [data2] <=> ... <=> tail_sentinel
     """
 
     def __init__(self):
-        # 番兵ノードの初期化
+        # Initialize sentinel nodes
         self._head = DListNode(0)  # head sentinel
         self._tail = DListNode(0)  # tail sentinel
         self._head.next = self._tail
@@ -788,14 +790,14 @@ class DoublyLinkedList:
         return self._size
 
     def __iter__(self):
-        """前方向イテレータ"""
+        """Forward iterator"""
         curr = self._head.next
         while curr != self._tail:
             yield curr.val
             curr = curr.next
 
     def __reversed__(self):
-        """逆方向イテレータ"""
+        """Reverse iterator"""
         curr = self._tail.prev
         while curr != self._head:
             yield curr.val
@@ -806,13 +808,13 @@ class DoublyLinkedList:
         return f"DoublyLinkedList({values})"
 
     def is_empty(self):
-        """空リスト判定: O(1)"""
+        """Check if the list is empty: O(1)"""
         return self._size == 0
 
     def _insert_between(self, val, predecessor, successor):
-        """2つのノードの間に新しいノードを挿入: O(1)
+        """Insert a new node between two nodes: O(1)
 
-        内部ヘルパーメソッド。全ての挿入操作はこれに帰着する。
+        Internal helper method. All insertion operations reduce to this.
         """
         new_node = DListNode(val, predecessor, successor)
         predecessor.next = new_node
@@ -821,40 +823,40 @@ class DoublyLinkedList:
         return new_node
 
     def _remove_node(self, node):
-        """指定ノードを削除: O(1)
+        """Remove a specified node: O(1)
 
-        内部ヘルパーメソッド。全ての削除操作はこれに帰着する。
-        番兵ノードは削除しない。
+        Internal helper method. All deletion operations reduce to this.
+        Sentinel nodes are never removed.
         """
         predecessor = node.prev
         successor = node.next
         predecessor.next = successor
         successor.prev = predecessor
         self._size -= 1
-        node.prev = node.next = None  # 参照をクリア
+        node.prev = node.next = None  # Clear references
         return node.val
 
     def prepend(self, val):
-        """先頭に挿入: O(1)"""
+        """Insert at the head: O(1)"""
         return self._insert_between(val, self._head, self._head.next)
 
     def append(self, val):
-        """末尾に挿入: O(1)
+        """Insert at the tail: O(1)
 
-        双方向リストでは tail sentinel の prev に挿入するだけ。
-        単方向リストの O(n) と比較して大きな改善。
+        In a doubly linked list, simply insert before the tail sentinel.
+        A significant improvement over the O(n) of singly linked lists.
         """
         return self._insert_between(val, self._tail.prev, self._tail)
 
     def insert_at(self, index, val):
-        """指定インデックスに挿入: O(min(i, n-i))
+        """Insert at a specified index: O(min(i, n-i))
 
-        先頭と末尾のどちらに近いかに応じて走査方向を選択。
+        Chooses the traversal direction based on proximity to head or tail.
         """
         if index < 0 or index > self._size:
             raise IndexError(f"Index {index} out of range [0, {self._size}]")
 
-        # 先頭に近いか末尾に近いかで走査方向を決定
+        # Determine traversal direction based on proximity to head or tail
         if index <= self._size // 2:
             curr = self._head.next
             for _ in range(index):
@@ -867,30 +869,30 @@ class DoublyLinkedList:
             self._insert_between(val, curr, curr.next)
 
     def pop_front(self):
-        """先頭を削除して値を返す: O(1)
+        """Remove and return the head value: O(1)
 
         Raises:
-            IndexError: リストが空の場合
+            IndexError: If the list is empty
         """
         if self.is_empty():
             raise IndexError("pop from empty list")
         return self._remove_node(self._head.next)
 
     def pop_back(self):
-        """末尾を削除して値を返す: O(1)
+        """Remove and return the tail value: O(1)
 
         Raises:
-            IndexError: リストが空の場合
+            IndexError: If the list is empty
         """
         if self.is_empty():
             raise IndexError("pop from empty list")
         return self._remove_node(self._tail.prev)
 
     def delete(self, val):
-        """指定値の最初の出現を削除: O(n)
+        """Delete the first occurrence of a value: O(n)
 
         Returns:
-            bool: 削除に成功した場合 True
+            bool: True if deletion succeeded
         """
         curr = self._head.next
         while curr != self._tail:
@@ -901,10 +903,11 @@ class DoublyLinkedList:
         return False
 
     def get(self, index):
-        """インデックスでアクセス: O(min(i, n-i))
+        """Access by index: O(min(i, n-i))
 
-        双方向の走査を活用し、先頭と末尾のどちらに近いかで方向を選択。
-        単方向リストの O(i) に対し、最悪ケースが O(n/2) に改善。
+        Leverages bidirectional traversal, choosing direction based on
+        proximity to head or tail.
+        Worst case improves to O(n/2) compared to O(i) in singly linked lists.
         """
         if index < 0 or index >= self._size:
             raise IndexError(f"Index {index} out of range [0, {self._size - 1}]")
@@ -920,186 +923,186 @@ class DoublyLinkedList:
         return curr.val
 
     def front(self):
-        """先頭の値を参照（削除しない）: O(1)"""
+        """Peek at the head value (without removal): O(1)"""
         if self.is_empty():
             raise IndexError("front from empty list")
         return self._head.next.val
 
     def back(self):
-        """末尾の値を参照（削除しない）: O(1)"""
+        """Peek at the tail value (without removal): O(1)"""
         if self.is_empty():
             raise IndexError("back from empty list")
         return self._tail.prev.val
 
     def reverse(self):
-        """リストを反転（in-place）: O(n)
+        """Reverse the list (in-place): O(n)
 
-        全ノードの prev と next を入れ替える。
+        Swaps prev and next for every node.
         """
         curr = self._head
         while curr:
             curr.prev, curr.next = curr.next, curr.prev
-            curr = curr.prev  # prev と next が入れ替わったので prev 方向に進む
-        # 番兵ノードを入れ替え
+            curr = curr.prev  # prev and next are swapped, so advance via prev
+        # Swap sentinel nodes
         self._head, self._tail = self._tail, self._head
 
     def to_list(self):
-        """Python リストに変換: O(n)"""
+        """Convert to a Python list: O(n)"""
         return list(self)
 
     @classmethod
     def from_list(cls, values):
-        """Python リストから構築: O(n)"""
+        """Build from a Python list: O(n)"""
         dll = cls()
         for val in values:
             dll.append(val)
         return dll
 
 
-# --- 動作確認 ---
+# --- Verification ---
 if __name__ == "__main__":
     dll = DoublyLinkedList.from_list([1, 2, 3, 4, 5])
     print(dll)                     # DoublyLinkedList([1, 2, 3, 4, 5])
     print(f"Length: {len(dll)}")    # Length: 5
 
-    # 両端操作
+    # Operations at both ends
     dll.prepend(0)
     dll.append(6)
     print(dll)                     # DoublyLinkedList([0, 1, 2, 3, 4, 5, 6])
     print(f"Front: {dll.front()}")  # Front: 0
     print(f"Back: {dll.back()}")    # Back: 6
 
-    # 両端からの削除
+    # Deletion from both ends
     dll.pop_front()
     dll.pop_back()
     print(dll)  # DoublyLinkedList([1, 2, 3, 4, 5])
 
-    # 逆方向走査
+    # Reverse traversal
     print("Reversed:", list(reversed(dll)))  # Reversed: [5, 4, 3, 2, 1]
 
-    # 反転
+    # Reversal
     dll.reverse()
     print(dll)  # DoublyLinkedList([5, 4, 3, 2, 1])
 ```
 
-### 3.4 番兵ノードの設計意図
+### 3.4 Design Intent of Sentinel Nodes
 
-番兵ノード（sentinel node）を使う設計には明確な利点がある。
+The design using sentinel nodes has clear advantages.
 
 ```
-番兵なしの場合:
+Without sentinels:
 
   head                    tail
-   │                       │
-   ▼                       ▼
-  [A] ⇌ [B] ⇌ [C] ⇌ [D]
+   |                       |
+   v                       v
+  [A] <=> [B] <=> [C] <=> [D]
 
-先頭に挿入する場合:
-  if self.head is None:       # 空リストの場合
+Inserting at the head:
+  if self.head is None:       # Empty list case
       self.head = self.tail = new_node
-  else:                        # 非空リストの場合
+  else:                        # Non-empty list case
       new_node.next = self.head
       self.head.prev = new_node
       self.head = new_node
 
-番兵ありの場合:
+With sentinels:
 
   head_sentinel              tail_sentinel
-       │                          │
-       ▼                          ▼
-      [S] ⇌ [A] ⇌ [B] ⇌ [C] ⇌ [S]
+       |                          |
+       v                          v
+      [S] <=> [A] <=> [B] <=> [C] <=> [S]
 
-先頭に挿入する場合（常に同じコード）:
+Inserting at the head (always the same code):
   self._insert_between(val, self._head, self._head.next)
 
-→ 空リストの場合分けが不要
-→ バグの温床となるエッジケースが消える
-→ 代償: ノード2個分のメモリオーバーヘッド（通常は無視できる）
+-> No need to handle the empty list case separately
+-> Eliminates edge cases that are breeding grounds for bugs
+-> Trade-off: Memory overhead of 2 extra nodes (usually negligible)
 ```
 
-### 3.5 計算量まとめ
+### 3.5 Complexity Summary
 
-| 操作 | 時間計算量 | 単方向リストとの比較 |
-|------|-----------|-------------------|
-| `prepend` | O(1) | 同じ |
-| `append` | O(1) | 単方向: O(n) → 大幅改善 |
-| `insert_at(i)` | O(min(i, n-i)) | 単方向: O(i) → 改善 |
-| `pop_front` | O(1) | 同じ |
-| `pop_back` | O(1) | 単方向: O(n) → 大幅改善 |
-| `delete(node)` | O(1) | 単方向: O(n) → 大幅改善 |
-| `get(i)` | O(min(i, n-i)) | 単方向: O(i) → 改善 |
-| `reverse` | O(n) | 同じ |
+| Operation | Time Complexity | Comparison with Singly Linked List |
+|-----------|----------------|-----------------------------------|
+| `prepend` | O(1) | Same |
+| `append` | O(1) | Singly: O(n) -> Major improvement |
+| `insert_at(i)` | O(min(i, n-i)) | Singly: O(i) -> Improved |
+| `pop_front` | O(1) | Same |
+| `pop_back` | O(1) | Singly: O(n) -> Major improvement |
+| `delete(node)` | O(1) | Singly: O(n) -> Major improvement |
+| `get(i)` | O(min(i, n-i)) | Singly: O(i) -> Improved |
+| `reverse` | O(n) | Same |
 
 ---
 
-## 4. 循環連結リスト（Circular Linked List）
+## 4. Circular Linked List
 
-### 4.1 基本構造
+### 4.1 Basic Structure
 
-循環連結リストでは、最後のノードの `next` が先頭ノードを指す。これにより、リストの末尾から先頭への遷移がシームレスに行える。単方向循環リストと双方向循環リストの両方が存在する。
+In a circular linked list, the last node's `next` points to the head node. This enables seamless transition from the tail back to the head. Both singly circular and doubly circular linked lists exist.
 
 ```
-単方向循環連結リスト:
+Singly circular linked list:
 
   head
-   │
-   ▼
-  [A] → [B] → [C] → [D] ─┐
-   ↑                       │
-   └───────────────────────┘
+   |
+   v
+  [A] -> [B] -> [C] -> [D] --+
+   ^                           |
+   +---------------------------+
 
-  最後のノード D の next が先頭の A を指す
-  → None が存在しない
-  → どのノードからでもリスト全体を走査可能
+  The last node D's next points to the head A
+  -> None does not exist
+  -> The entire list is traversable from any node
 
-双方向循環連結リスト:
+Doubly circular linked list:
 
   head
-   │
-   ▼
-  [A] ⇌ [B] ⇌ [C] ⇌ [D]
-   ↑                    │
-   │    ←────────────── │ (prev)
-   └──────────────────→   (next)
+   |
+   v
+  [A] <=> [B] <=> [C] <=> [D]
+   ^                        |
+   |    <------------------ | (prev)
+   +--------------------->    (next)
 
   A.prev = D, D.next = A
-  → 先頭と末尾の区別が曖昧になる
-  → リングバッファ的な用途に適する
+  -> The distinction between head and tail becomes ambiguous
+  -> Well-suited for ring buffer-like applications
 ```
 
-### 4.2 循環リストの用途
+### 4.2 Use Cases for Circular Lists
 
-循環リストが特に有効な場面を示す。
+Here are scenarios where circular lists are particularly effective.
 
-**1. ラウンドロビンスケジューリング**
-OS のプロセススケジューラでは、各プロセスに均等に CPU 時間を割り当てるラウンドロビン方式がよく使われる。循環リストを使えば、最後のプロセスの次に自然に最初のプロセスに戻る。
+**1. Round-Robin Scheduling**
+OS process schedulers commonly use round-robin scheduling to allocate equal CPU time to each process. With a circular list, the transition from the last process naturally returns to the first.
 
-**2. 循環バッファ（リングバッファ）**
-固定サイズのバッファで、末尾に達したら先頭に戻って上書きする。ストリーミングデータの処理やログの保持に使われる。
+**2. Circular Buffer (Ring Buffer)**
+A fixed-size buffer that wraps around to the beginning when the end is reached, overwriting old data. Used for streaming data processing and log retention.
 
-**3. マルチプレイヤーゲーム**
-複数プレイヤーが順番にアクションを行うターン制ゲームで、最後のプレイヤーの次に最初のプレイヤーに戻る。
+**3. Multiplayer Games**
+In turn-based games where multiple players take actions in sequence, the turn naturally returns to the first player after the last.
 
-**4. ジョセフス問題**
-n 人が円形に並び、m 番目の人を順に除外していく古典的な問題。循環リストで自然にモデル化できる。
+**4. Josephus Problem**
+A classic problem where n people stand in a circle and every m-th person is eliminated in sequence. It can be naturally modeled with a circular list.
 
-### 4.3 完全実装
+### 4.3 Complete Implementation
 
 ```python
 class CircularLinkedList:
-    """単方向循環連結リスト
+    """Singly circular linked list
 
-    tail ポインタのみを保持する設計。
-    head は tail.next で O(1) アクセス可能。
+    Design that maintains only a tail pointer.
+    head is accessible in O(1) via tail.next.
 
-    空リスト: tail = None
-    1ノード:  tail → [A] → (自分自身に戻る)
-    複数:     tail → [C] → [A] → [B] → [C]（tail に戻る）
+    Empty list: tail = None
+    1 node:     tail -> [A] -> (points back to itself)
+    Multiple:   tail -> [C] -> [A] -> [B] -> [C] (returns to tail)
 
-    tail を保持する理由:
-    - head は tail.next で取得可能
-    - 末尾への挿入が O(1) で可能（tail の直後に挿入し tail を更新）
-    - head のみ保持する場合、末尾挿入に O(n) の走査が必要
+    Reason for maintaining tail:
+    - head is obtainable via tail.next
+    - Tail insertion is O(1) (insert right after tail and update tail)
+    - If only head is maintained, tail insertion requires O(n) traversal
     """
 
     def __init__(self):
@@ -1112,7 +1115,7 @@ class CircularLinkedList:
     def __iter__(self):
         if not self.tail:
             return
-        curr = self.tail.next  # head から開始
+        curr = self.tail.next  # Start from head
         for _ in range(self._size):
             yield curr.val
             curr = curr.next
@@ -1124,41 +1127,41 @@ class CircularLinkedList:
         return f"CircularLinkedList({values}, circular)"
 
     def is_empty(self):
-        """空リスト判定: O(1)"""
+        """Check if the list is empty: O(1)"""
         return self.tail is None
 
     def prepend(self, val):
-        """先頭に挿入: O(1)"""
+        """Insert at the head: O(1)"""
         new_node = ListNode(val)
         if not self.tail:
-            new_node.next = new_node  # 自分自身を指す
+            new_node.next = new_node  # Points to itself
             self.tail = new_node
         else:
-            new_node.next = self.tail.next  # 新ノード → 旧 head
-            self.tail.next = new_node       # tail → 新ノード（新 head）
+            new_node.next = self.tail.next  # New node -> old head
+            self.tail.next = new_node       # tail -> new node (new head)
         self._size += 1
 
     def append(self, val):
-        """末尾に挿入: O(1)
+        """Insert at the tail: O(1)
 
-        tail の直後に挿入して tail を更新する。
+        Insert right after tail and update tail.
         """
-        self.prepend(val)       # 先頭に挿入
-        self.tail = self.tail.next  # tail を新ノードに移動 → 実質的に末尾挿入
-        self._size += 0  # prepend で既にインクリメント済み
+        self.prepend(val)       # Insert at the head
+        self.tail = self.tail.next  # Move tail to the new node -> effectively a tail insertion
+        self._size += 0  # Already incremented in prepend
 
     def pop_front(self):
-        """先頭を削除して値を返す: O(1)
+        """Remove and return the head value: O(1)
 
         Raises:
-            IndexError: リストが空の場合
+            IndexError: If the list is empty
         """
         if self.is_empty():
             raise IndexError("pop from empty circular list")
         head = self.tail.next
         val = head.val
         if self.tail == head:
-            # ノードが1つだけ
+            # Only one node
             self.tail = None
         else:
             self.tail.next = head.next
@@ -1166,9 +1169,9 @@ class CircularLinkedList:
         return val
 
     def rotate(self, k=1):
-        """リストを k 回転（先頭が末尾に移動）: O(k)
+        """Rotate the list k times (head moves to tail): O(k)
 
-        ラウンドロビンスケジューリングの次のプロセスへの移動に相当。
+        Corresponds to moving to the next process in round-robin scheduling.
         """
         if self.is_empty() or k == 0:
             return
@@ -1176,10 +1179,10 @@ class CircularLinkedList:
             self.tail = self.tail.next
 
     def search(self, val):
-        """値の検索: O(n)
+        """Search for a value: O(n)
 
         Returns:
-            bool: 値が見つかった場合 True
+            bool: True if the value is found
         """
         if self.is_empty():
             return False
@@ -1191,13 +1194,13 @@ class CircularLinkedList:
         return False
 
     def josephus(self, step):
-        """ジョセフス問題を解く
+        """Solve the Josephus problem
 
         Args:
-            step: 除外する間隔（m 番目を除外）
+            step: Elimination interval (every m-th person is eliminated)
 
         Returns:
-            list: 除外された順序のリスト
+            list: Elimination order
         """
         if self.is_empty():
             return []
@@ -1207,14 +1210,14 @@ class CircularLinkedList:
         remaining = self._size
 
         while remaining > 0:
-            # step - 1 回進む（step 番目のノードの直前に移動）
+            # Advance step - 1 times (move to just before the step-th node)
             for _ in range(step - 1):
                 curr = curr.next
-            # curr.next を除外
+            # Eliminate curr.next
             eliminated = curr.next
             elimination_order.append(eliminated.val)
             if curr == eliminated:
-                # 最後の1人
+                # Last person
                 curr = None
             else:
                 curr.next = eliminated.next
@@ -1225,19 +1228,19 @@ class CircularLinkedList:
         return elimination_order
 
 
-# --- 動作確認 ---
+# --- Verification ---
 if __name__ == "__main__":
-    # 基本操作
+    # Basic operations
     cl = CircularLinkedList()
     for i in range(1, 6):
         cl.append(i)
     print(cl)  # CircularLinkedList([1, 2, 3, 4, 5], circular)
 
-    # 回転
+    # Rotation
     cl.rotate(2)
     print(cl)  # CircularLinkedList([3, 4, 5, 1, 2], circular)
 
-    # ジョセフス問題: 7人が円形に並び、3番目ごとに除外
+    # Josephus problem: 7 people in a circle, every 3rd person eliminated
     josephus = CircularLinkedList()
     for i in range(1, 8):
         josephus.append(i)
@@ -1246,69 +1249,69 @@ if __name__ == "__main__":
     # [3, 6, 2, 7, 5, 1, 4]
 ```
 
-### 4.4 循環リスト特有の注意点
+### 4.4 Special Considerations for Circular Lists
 
-循環リストを扱う際に最も危険なのは、**無限ループ**である。通常の連結リストでは `while curr:` や `while curr is not None:` でループを終了できるが、循環リストでは `None` に到達しないため、この条件では永遠にループが続く。
+The most dangerous aspect of working with circular lists is **infinite loops**. In a normal linked list, you can terminate a loop with `while curr:` or `while curr is not None:`, but in a circular list, `None` is never reached, so such conditions loop forever.
 
 ```
-無限ループの危険:
+Danger of infinite loops:
 
-  ✗ 間違ったコード:
+  X Incorrect code:
     curr = head
-    while curr:          # ← 循環リストでは永遠に True
+    while curr:          # <- Always True in a circular list
         process(curr)
         curr = curr.next
 
-  ○ 正しいコード（カウンタ方式）:
+  O Correct code (counter-based):
     curr = head
-    for _ in range(size):  # ← サイズ分だけ回る
+    for _ in range(size):  # <- Iterate exactly size times
         process(curr)
         curr = curr.next
 
-  ○ 正しいコード（開始地点との比較）:
+  O Correct code (comparison with starting point):
     curr = head
     while True:
         process(curr)
         curr = curr.next
-        if curr == head:   # ← 開始地点に戻ったら終了
+        if curr == head:   # <- Stop when back at the starting point
             break
 ```
 
-### 4.5 3種類のリスト比較
+### 4.5 Comparison of the Three List Types
 
-| 特性 | 単方向リスト | 双方向リスト | 循環リスト |
-|------|------------|------------|-----------|
-| ノードのポインタ | next のみ | prev + next | next（+ prev） |
-| 末尾 → 先頭 | 不可（O(n)） | 不可（O(n)） | O(1) |
-| 先頭 → 末尾 | O(n) | O(1)（tail あり） | O(1)（tail あり） |
-| メモリ/ノード | 小 | 中 | 小〜中 |
-| 走査方向 | 前方のみ | 双方向 | 前方（循環） |
-| 末尾の判定 | next == None | next == sentinel | next == head |
-| 無限ループリスク | 低い | 低い | 高い（要注意） |
-| 代表的な用途 | スタック、単純なリスト | LRU キャッシュ、Deque | ラウンドロビン、ジョセフス |
-| 実装難度 | 易 | 中 | 中 |
+| Property | Singly Linked List | Doubly Linked List | Circular Linked List |
+|----------|-------------------|-------------------|---------------------|
+| Node pointers | next only | prev + next | next (+ prev) |
+| Tail -> Head | Not possible (O(n)) | Not possible (O(n)) | O(1) |
+| Head -> Tail | O(n) | O(1) (with tail) | O(1) (with tail) |
+| Memory/node | Low | Medium | Low to Medium |
+| Traversal direction | Forward only | Bidirectional | Forward (circular) |
+| End detection | next == None | next == sentinel | next == head |
+| Infinite loop risk | Low | Low | High (caution required) |
+| Typical use cases | Stacks, simple lists | LRU caches, Deques | Round-robin, Josephus |
+| Implementation difficulty | Easy | Medium | Medium |
 
 ---
 
-## 5. 実装パターンと典型アルゴリズム
+## 5. Implementation Patterns and Classic Algorithms
 
-### 5.1 2つのソート済みリストのマージ
+### 5.1 Merging Two Sorted Lists
 
-ソート済みの2つの連結リストを1つのソート済みリストにマージする。マージソートの部品として使われるほか、単独でも頻出する面接問題である。
+Merging two sorted linked lists into a single sorted list. Used as a building block for merge sort and also frequently appears as a standalone interview problem.
 
 ```python
 def merge_sorted_lists(l1, l2):
-    """2つのソート済み連結リストをマージ: O(n + m) 時間, O(1) 空間
+    """Merge two sorted linked lists: O(n + m) time, O(1) space
 
-    ダミーヘッドを使って簡潔に実装する。
-    新しいノードは作成せず、既存のノードをつなぎ替える。
+    Uses a dummy head for a concise implementation.
+    Does not create new nodes; reconnects existing nodes.
 
     Args:
-        l1: ソート済みリストの head
-        l2: ソート済みリストの head
+        l1: Head of the first sorted list
+        l2: Head of the second sorted list
 
     Returns:
-        マージ後のリストの head
+        Head of the merged list
     """
     dummy = ListNode(0)
     curr = dummy
@@ -1322,64 +1325,64 @@ def merge_sorted_lists(l1, l2):
             l2 = l2.next
         curr = curr.next
 
-    # 残りをそのまま接続
+    # Attach the remaining nodes
     curr.next = l1 if l1 else l2
     return dummy.next
 ```
 
 ```
-マージの動作:
+Merge operation trace:
 
-l1: 1 → 3 → 5 → None
-l2: 2 → 4 → 6 → None
+l1: 1 -> 3 -> 5 -> None
+l2: 2 -> 4 -> 6 -> None
 
-dummy → ?
+dummy -> ?
 
-Step 1: 1 <= 2 → dummy → 1, l1 = 3
-Step 2: 3 > 2  → dummy → 1 → 2, l2 = 4
-Step 3: 3 <= 4 → dummy → 1 → 2 → 3, l1 = 5
-Step 4: 5 > 4  → dummy → 1 → 2 → 3 → 4, l2 = 6
-Step 5: 5 <= 6 → dummy → 1 → 2 → 3 → 4 → 5, l1 = None
-残り:           → dummy → 1 → 2 → 3 → 4 → 5 → 6
+Step 1: 1 <= 2 -> dummy -> 1, l1 = 3
+Step 2: 3 > 2  -> dummy -> 1 -> 2, l2 = 4
+Step 3: 3 <= 4 -> dummy -> 1 -> 2 -> 3, l1 = 5
+Step 4: 5 > 4  -> dummy -> 1 -> 2 -> 3 -> 4, l2 = 6
+Step 5: 5 <= 6 -> dummy -> 1 -> 2 -> 3 -> 4 -> 5, l1 = None
+Remaining:      -> dummy -> 1 -> 2 -> 3 -> 4 -> 5 -> 6
 
-結果: 1 → 2 → 3 → 4 → 5 → 6
+Result: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 ```
 
-### 5.2 連結リストのソート（マージソート）
+### 5.2 Sorting a Linked List (Merge Sort)
 
-連結リストに対するソートでは、マージソートが最適である。配列で高効率なクイックソートは、連結リストではランダムアクセスの欠如により性能が劣化する。一方、マージソートはシーケンシャルアクセスのみで動作するため、連結リストと相性がよい。
+For sorting linked lists, merge sort is optimal. Quicksort, which performs well on arrays, suffers from the lack of random access in linked lists. Merge sort, on the other hand, operates using only sequential access, making it a natural fit for linked lists.
 
 ```python
 def sort_linked_list(head):
-    """連結リストのマージソート: O(n log n) 時間, O(log n) 空間
+    """Merge sort for a linked list: O(n log n) time, O(log n) space
 
-    1. リストの中間点で2分割
-    2. 各半分を再帰的にソート
-    3. ソート済みの2リストをマージ
+    1. Split the list in half at the midpoint
+    2. Recursively sort each half
+    3. Merge the two sorted lists
 
-    空間計算量の O(log n) は再帰スタックの深さ。
-    配列のマージソートと異なり、追加の配列は不要。
+    The O(log n) space complexity comes from the recursion stack depth.
+    Unlike array merge sort, no additional arrays are needed.
     """
-    # ベースケース: 0ノードまたは1ノード
+    # Base case: 0 or 1 node
     if not head or not head.next:
         return head
 
-    # 中間点で分割
-    mid = find_middle_first(head)  # 前者の中間を取得
+    # Split at the midpoint
+    mid = find_middle_first(head)  # Get the first middle
     second_half = mid.next
-    mid.next = None  # リストを切断
+    mid.next = None  # Cut the list
 
-    # 再帰的にソート
+    # Recursively sort
     left = sort_linked_list(head)
     right = sort_linked_list(second_half)
 
-    # マージ
+    # Merge
     return merge_sorted_lists(left, right)
 
 
-# --- 動作確認 ---
+# --- Verification ---
 if __name__ == "__main__":
-    # ソートのテスト
+    # Sort test
     def build_list(values):
         dummy = ListNode(0)
         curr = dummy
@@ -1404,34 +1407,34 @@ if __name__ == "__main__":
     print_list(sorted_head)  # 1 -> 2 -> 3 -> 4 -> 5
 ```
 
-### 5.3 回文判定
+### 5.3 Palindrome Detection
 
-連結リストが回文（前から読んでも後ろから読んでも同じ）かどうかを判定する。
+Determine whether a linked list is a palindrome (reads the same forward and backward).
 
 ```python
 def is_palindrome(head):
-    """連結リストの回文判定: O(n) 時間, O(1) 空間
+    """Palindrome check for a linked list: O(n) time, O(1) space
 
-    1. Fast/Slow ポインタで中間点を見つける
-    2. 後半を反転する
-    3. 前半と後半を比較する
-    4. 後半を元に戻す（リストを破壊しない）
+    1. Find the midpoint using Fast/Slow pointers
+    2. Reverse the second half
+    3. Compare the first half with the second half
+    4. Restore the second half (avoid destroying the list)
     """
     if not head or not head.next:
         return True
 
-    # Step 1: 中間点を見つける
+    # Step 1: Find the midpoint
     slow = fast = head
     while fast.next and fast.next.next:
         slow = slow.next
         fast = fast.next.next
 
-    # Step 2: 後半を反転
+    # Step 2: Reverse the second half
     second_half = reverse_iterative(slow.next)
 
-    # Step 3: 比較
+    # Step 3: Compare
     first_half = head
-    second_half_copy = second_half  # 後で元に戻すために保存
+    second_half_copy = second_half  # Save for restoration later
     is_palin = True
 
     while second_half:
@@ -1441,124 +1444,124 @@ def is_palindrome(head):
         first_half = first_half.next
         second_half = second_half.next
 
-    # Step 4: 後半を元に戻す
+    # Step 4: Restore the second half
     slow.next = reverse_iterative(second_half_copy)
 
     return is_palin
 ```
 
 ```
-回文判定の動作例:
+Palindrome detection example:
 
-リスト: 1 → 2 → 3 → 2 → 1
+List: 1 -> 2 -> 3 -> 2 -> 1
 
-Step 1: 中間点 = 3（slow が 3 を指す）
-  前半: 1 → 2 → 3
-  後半: 2 → 1
+Step 1: Midpoint = 3 (slow points to 3)
+  First half:  1 -> 2 -> 3
+  Second half: 2 -> 1
 
-Step 2: 後半を反転
-  後半: 1 → 2
+Step 2: Reverse the second half
+  Second half: 1 -> 2
 
-Step 3: 比較
-  前半: 1, 2  ←→  後半: 1, 2  ✓ 一致
+Step 3: Compare
+  First half: 1, 2  <->  Second half: 1, 2  Match
 
-結果: True（回文）
+Result: True (palindrome)
 ```
 
-### 5.4 交差するリストの交点検出
+### 5.4 Finding the Intersection of Two Lists
 
-2つの単方向リストが途中から合流している場合、合流ノードを見つける。
+When two singly linked lists merge at some point, find the merge node.
 
 ```python
 def find_intersection(headA, headB):
-    """2つのリストの交点を検出: O(n + m) 時間, O(1) 空間
+    """Detect the intersection of two lists: O(n + m) time, O(1) space
 
-    ポインタ A と B を使う。A がリスト A の末尾に達したら
-    リスト B の先頭に移動し、B も同様にする。
-    両方のポインタは同じ合計距離を進むため、交点で出会う。
+    Uses pointers A and B. When A reaches the end of list A, it moves
+    to the head of list B, and vice versa for B.
+    Since both pointers travel the same total distance, they meet at the intersection.
 
-    交差がない場合、両方とも None に到達して終了する。
+    If there is no intersection, both reach None and the loop terminates.
     """
     if not headA or not headB:
         return None
 
     a, b = headA, headB
 
-    # 両方のポインタが出会うか、両方 None になるまで
+    # Continue until both pointers meet or both become None
     while a != b:
         a = a.next if a else headB
         b = b.next if b else headA
 
-    return a  # 交点ノード、または None（交差なし）
+    return a  # Intersection node, or None (no intersection)
 ```
 
 ```
-交点検出の動作:
+Intersection detection trace:
 
-リスト A: 1 → 2 ┐
-                  ├→ 8 → 9 → None
-リスト B: 3 → 4 → 5 ┘
+List A: 1 -> 2 -+
+                 +-> 8 -> 9 -> None
+List B: 3 -> 4 -> 5 -+
 
-長さ: A = 4, B = 5
+Length: A = 4, B = 5
 
-ポインタ A の経路: 1→2→8→9→(B開始)→3→4→5→8
-ポインタ B の経路: 3→4→5→8→9→(A開始)→1→2→8
+Pointer A's path: 1->2->8->9->(B start)->3->4->5->8
+Pointer B's path: 3->4->5->8->9->(A start)->1->2->8
 
-両方が8（交点）で出会う。
-合計移動距離: A = 4 + 4 = 8, B = 5 + 3 = 8（同じ！）
+Both meet at 8 (the intersection).
+Total distance traveled: A = 4 + 4 = 8, B = 5 + 3 = 8 (equal!)
 
-数学的根拠:
-  A の独自部分の長さ: a
-  B の独自部分の長さ: b
-  共通部分の長さ: c
+Mathematical basis:
+  Length of A's unique part: a
+  Length of B's unique part: b
+  Length of the shared part: c
 
-  ポインタ A の合計距離: a + c + b
-  ポインタ B の合計距離: b + c + a
-  → 常に等しいため、交点で出会う
+  Total distance for pointer A: a + c + b
+  Total distance for pointer B: b + c + a
+  -> Always equal, so they meet at the intersection
 ```
 
 ---
 
-## 6. 応用: 実践的なデータ構造
+## 6. Applications: Practical Data Structures
 
-### 6.1 LRU キャッシュ（Least Recently Used Cache）
+### 6.1 LRU Cache (Least Recently Used Cache)
 
-LRU キャッシュは、双方向連結リストとハッシュマップを組み合わせた実践的なデータ構造であり、面接でも頻出する。キャッシュ容量を超えた場合、最も長い間使われていない（Least Recently Used）エントリを削除する。
+An LRU cache is a practical data structure combining a doubly linked list with a hash map, and is a frequent interview topic. When the cache exceeds its capacity, it evicts the least recently used entry.
 
 ```
-LRU キャッシュの構造:
+LRU Cache structure:
 
-  ┌─────────────────────────────────────────────┐
-  │  HashMap: key → DListNode                    │
-  │  ┌──────┬──────┬──────┬──────┐              │
-  │  │ k1→  │ k2→  │ k3→  │ k4→  │              │
-  │  └──┼───┴──┼───┴──┼───┴──┼───┘              │
-  │     │      │      │      │                   │
-  │     ▼      ▼      ▼      ▼                   │
-  │  [head] ⇌ [k1] ⇌ [k2] ⇌ [k3] ⇌ [k4] ⇌ [tail]  │
-  │  sentinel  ← 最近使われた ─── 古い →  sentinel │
-  │                                               │
-  │  ・get/put のたびに該当ノードを先頭に移動     │
-  │  ・容量超過時は tail 側（最も古い）を削除      │
-  └─────────────────────────────────────────────┘
+  +---------------------------------------------+
+  |  HashMap: key -> DListNode                    |
+  |  +------+------+------+------+              |
+  |  | k1-> | k2-> | k3-> | k4-> |              |
+  |  +--+---+--+---+--+---+--+---+              |
+  |     |      |      |      |                   |
+  |     v      v      v      v                   |
+  |  [head] <=> [k1] <=> [k2] <=> [k3] <=> [k4] <=> [tail]  |
+  |  sentinel  <- most recent --- oldest ->  sentinel |
+  |                                               |
+  |  - On every get/put, move the accessed node to the front |
+  |  - On capacity overflow, remove from the tail side (oldest) |
+  +---------------------------------------------+
 
-  全操作 O(1):
-  - get: HashMap で O(1) 検索 + O(1) でノードを先頭に移動
-  - put: HashMap で O(1) 挿入 + O(1) で先頭にノード追加
-  - evict: O(1) で tail 側から削除 + O(1) で HashMap から削除
+  All operations O(1):
+  - get: O(1) lookup via HashMap + O(1) move node to front
+  - put: O(1) insertion via HashMap + O(1) add node at front
+  - evict: O(1) removal from tail side + O(1) deletion from HashMap
 ```
 
 ```python
 class LRUCache:
-    """LRU キャッシュ: 双方向連結リスト + ハッシュマップ
+    """LRU Cache: Doubly linked list + Hash map
 
-    全操作（get, put）が O(1) で動作する。
+    All operations (get, put) run in O(1).
 
     Attributes:
-        capacity: キャッシュの最大容量
-        cache: key から DListNode へのマッピング
-        _head: 番兵ノード（最新側）
-        _tail: 番兵ノード（最古側）
+        capacity: Maximum cache capacity
+        cache: Mapping from key to DListNode
+        _head: Sentinel node (most recent side)
+        _tail: Sentinel node (oldest side)
     """
 
     class _Node:
@@ -1573,49 +1576,49 @@ class LRUCache:
     def __init__(self, capacity):
         """
         Args:
-            capacity: キャッシュの最大容量（1以上）
+            capacity: Maximum cache capacity (must be >= 1)
 
         Raises:
-            ValueError: capacity が1未満の場合
+            ValueError: If capacity is less than 1
         """
         if capacity < 1:
             raise ValueError("Capacity must be at least 1")
         self.capacity = capacity
         self.cache = {}  # key -> Node
 
-        # 番兵ノード
+        # Sentinel nodes
         self._head = self._Node()
         self._tail = self._Node()
         self._head.next = self._tail
         self._tail.prev = self._head
 
     def _remove(self, node):
-        """ノードをリストから除去: O(1)"""
+        """Remove a node from the list: O(1)"""
         node.prev.next = node.next
         node.next.prev = node.prev
 
     def _add_to_front(self, node):
-        """ノードをリスト先頭（head の直後）に追加: O(1)"""
+        """Add a node to the front of the list (right after head): O(1)"""
         node.next = self._head.next
         node.prev = self._head
         self._head.next.prev = node
         self._head.next = node
 
     def _move_to_front(self, node):
-        """ノードをリスト先頭に移動: O(1)"""
+        """Move a node to the front of the list: O(1)"""
         self._remove(node)
         self._add_to_front(node)
 
     def get(self, key):
-        """キーに対応する値を取得: O(1)
+        """Retrieve the value for a key: O(1)
 
-        見つかった場合、そのエントリを「最近使用」として先頭に移動する。
+        If found, the entry is moved to the front as "most recently used."
 
         Args:
-            key: 検索キー
+            key: The lookup key
 
         Returns:
-            値。キーが存在しない場合は -1
+            The value. Returns -1 if the key does not exist.
         """
         if key in self.cache:
             node = self.cache[key]
@@ -1624,29 +1627,29 @@ class LRUCache:
         return -1
 
     def put(self, key, value):
-        """キーと値のペアを挿入/更新: O(1)
+        """Insert or update a key-value pair: O(1)
 
-        既存のキーの場合は値を更新し先頭に移動。
-        新しいキーの場合は先頭に挿入し、容量超過なら最古を削除。
+        For existing keys, updates the value and moves to front.
+        For new keys, inserts at the front and evicts the oldest if over capacity.
 
         Args:
-            key: キー
-            value: 値
+            key: The key
+            value: The value
         """
         if key in self.cache:
-            # 既存のキー: 値を更新して先頭に移動
+            # Existing key: update value and move to front
             node = self.cache[key]
             node.val = value
             self._move_to_front(node)
         else:
-            # 新しいキー
+            # New key
             if len(self.cache) >= self.capacity:
-                # 容量超過: 最古のエントリ（tail の直前）を削除
+                # Over capacity: evict the oldest entry (just before tail)
                 lru_node = self._tail.prev
                 self._remove(lru_node)
                 del self.cache[lru_node.key]
 
-            # 新しいノードを先頭に追加
+            # Add new node at the front
             new_node = self._Node(key, value)
             self.cache[key] = new_node
             self._add_to_front(new_node)
@@ -1660,7 +1663,7 @@ class LRUCache:
         return f"LRUCache({' -> '.join(items)}, cap={self.capacity})"
 
 
-# --- 動作確認 ---
+# --- Verification ---
 if __name__ == "__main__":
     lru = LRUCache(3)
 
@@ -1669,30 +1672,30 @@ if __name__ == "__main__":
     lru.put("c", 3)
     print(lru)  # LRUCache(c:3 -> b:2 -> a:1, cap=3)
 
-    # "a" にアクセス → 先頭に移動
+    # Access "a" -> moves to front
     print(lru.get("a"))  # 1
     print(lru)  # LRUCache(a:1 -> c:3 -> b:2, cap=3)
 
-    # 新しいキー "d" を追加 → 最古の "b" が削除される
+    # Add new key "d" -> oldest "b" is evicted
     lru.put("d", 4)
     print(lru)  # LRUCache(d:4 -> a:1 -> c:3, cap=3)
 
-    # 削除された "b" にアクセス → -1
+    # Access evicted "b" -> -1
     print(lru.get("b"))  # -1
 ```
 
-### 6.2 多項式の表現と演算
+### 6.2 Polynomial Representation and Arithmetic
 
-連結リストは多項式の表現にも適している。各項（係数と指数）をノードとして保持し、項の追加や削除をポインタ操作で行える。
+Linked lists are also suitable for representing polynomials. Each term (coefficient and exponent) is held as a node, and adding or removing terms can be performed via pointer operations.
 
 ```python
 class TermNode:
-    """多項式の項を表すノード"""
+    """Node representing a polynomial term"""
     __slots__ = ('coef', 'exp', 'next')
 
     def __init__(self, coef, exp, next=None):
-        self.coef = coef  # 係数
-        self.exp = exp    # 指数
+        self.coef = coef  # Coefficient
+        self.exp = exp    # Exponent
         self.next = next
 
     def __repr__(self):
@@ -1705,37 +1708,37 @@ class TermNode:
 
 
 class Polynomial:
-    """多項式クラス（連結リストで実装）
+    """Polynomial class (implemented with a linked list)
 
-    各項は指数の降順でソートされている。
-    例: 3x^3 + 2x^2 + 5x + 1
-        → [3,3] → [2,2] → [5,1] → [1,0] → None
+    Terms are sorted in descending order of exponents.
+    Example: 3x^3 + 2x^2 + 5x + 1
+        -> [3,3] -> [2,2] -> [5,1] -> [1,0] -> None
     """
 
     def __init__(self):
         self.head = None
 
     def add_term(self, coef, exp):
-        """項を追加（指数の降順を維持）"""
+        """Add a term (maintaining descending exponent order)"""
         if coef == 0:
             return
 
         new_node = TermNode(coef, exp)
 
-        # 空リストまたは先頭に挿入
+        # Empty list or insert at the head
         if not self.head or self.head.exp < exp:
             new_node.next = self.head
             self.head = new_node
             return
 
-        # 同じ指数の項が存在する場合は係数を加算
+        # If a term with the same exponent exists, add coefficients
         if self.head.exp == exp:
             self.head.coef += coef
             if self.head.coef == 0:
                 self.head = self.head.next
             return
 
-        # 挿入位置を探索
+        # Search for the insertion position
         curr = self.head
         while curr.next and curr.next.exp > exp:
             curr = curr.next
@@ -1749,7 +1752,7 @@ class Polynomial:
             curr.next = new_node
 
     def __add__(self, other):
-        """多項式の加算: O(n + m)"""
+        """Polynomial addition: O(n + m)"""
         result = Polynomial()
         p1, p2 = self.head, other.head
 
@@ -1777,7 +1780,7 @@ class Polynomial:
         return result
 
     def evaluate(self, x):
-        """多項式に x を代入して評価: O(n)"""
+        """Evaluate the polynomial by substituting x: O(n)"""
         result = 0
         curr = self.head
         while curr:
@@ -1796,7 +1799,7 @@ class Polynomial:
         return " + ".join(terms)
 
 
-# --- 動作確認 ---
+# --- Verification ---
 if __name__ == "__main__":
     # p1 = 3x^3 + 2x^2 + 5
     p1 = Polynomial()
@@ -1812,256 +1815,257 @@ if __name__ == "__main__":
     p2.add_term(2, 0)
     print(f"p2 = {p2}")  # p2 = 1x^3 + 4x + 2
 
-    # 加算
+    # Addition
     p3 = p1 + p2
     print(f"p1 + p2 = {p3}")  # p1 + p2 = 4x^3 + 2x^2 + 4x + 7
 
-    # 評価
+    # Evaluation
     print(f"p3(2) = {p3.evaluate(2)}")  # p3(2) = 4*8 + 2*4 + 4*2 + 7 = 55
 ```
 
-### 6.3 スキップリスト（Skip List）の概念
+### 6.3 Skip List Concept
 
-スキップリストは、連結リストに複数レベルの「高速道路」を追加することで、検索を O(log n) に高速化したデータ構造である。平衡二分探索木の代替として使われ、Redis の Sorted Set などの実装で採用されている。
-
-```
-スキップリストの構造（概念図）:
-
-Level 3: head ─────────────────────────────────── 9 → None
-Level 2: head ────────── 3 ─────────────── 7 ─── 9 → None
-Level 1: head ──── 2 ── 3 ──── 5 ──── 7 ──── 9 → None
-Level 0: head → 1, 2, 3, 4, 5, 6, 7, 8, 9 → None
-         (全要素を含む通常の連結リスト)
-
-検索例: 値 6 を探す
-  Level 3: head → 9（大きすぎる。下へ）
-  Level 2: head → 3（OK）→ 7（大きすぎる。下へ）
-  Level 1: 3 → 5（OK）→ 7（大きすぎる。下へ）
-  Level 0: 5 → 6（見つかった！）
-
-→ 全ノードを順に辿る O(n) ではなく、スキップにより O(log n)
-→ 各ノードのレベルはランダムに決定（確率的データ構造）
-```
-
-スキップリストの詳細実装はこの章の範囲を超えるが、連結リストの発展形として知っておくことは重要である。連結リストの弱点であるランダムアクセスの遅さを、確率的な階層構造によって克服するという発想は示唆に富む。
-
-### 6.4 XOR 連結リスト（メモリ効率の最適化）
-
-XOR 連結リストは、双方向連結リストのメモリ使用量を削減するための工夫である。各ノードが prev と next の2つのポインタの代わりに、`prev XOR next` という1つの値のみを保持する。
+A skip list is a data structure that adds multiple levels of "express lanes" to a linked list, speeding up search to O(log n). It is used as an alternative to balanced binary search trees and is employed in implementations such as Redis's Sorted Set.
 
 ```
-XOR 連結リストの原理:
+Skip list structure (conceptual diagram):
 
-通常の双方向リスト（ポインタ2本/ノード）:
-  [A] ⇌ [B] ⇌ [C] ⇌ [D]
+Level 3: head ------------------------------------------- 9 -> None
+Level 2: head ---------- 3 ------------------- 7 --- 9 -> None
+Level 1: head ---- 2 -- 3 ---- 5 ---- 7 ---- 9 -> None
+Level 0: head -> 1, 2, 3, 4, 5, 6, 7, 8, 9 -> None
+         (a regular linked list containing all elements)
+
+Search example: searching for value 6
+  Level 3: head -> 9 (too large; go down)
+  Level 2: head -> 3 (OK) -> 7 (too large; go down)
+  Level 1: 3 -> 5 (OK) -> 7 (too large; go down)
+  Level 0: 5 -> 6 (found!)
+
+-> O(log n) via skipping, rather than O(n) sequential traversal
+-> Each node's level is determined randomly (probabilistic data structure)
+```
+
+A detailed skip list implementation is beyond the scope of this chapter, but it is important to be aware of it as an extension of linked lists. The idea of overcoming the weakness of linked lists -- slow random access -- through a probabilistic hierarchical structure is highly instructive.
+
+### 6.4 XOR Linked List (Memory Optimization)
+
+An XOR linked list is an optimization to reduce the memory usage of doubly linked lists. Instead of storing two pointers (prev and next) per node, each node stores only a single value: `prev XOR next`.
+
+```
+XOR linked list principle:
+
+Regular doubly linked list (2 pointers per node):
+  [A] <=> [B] <=> [C] <=> [D]
   B.prev = addr(A), B.next = addr(C)
 
-XOR 連結リスト（ポインタ1本/ノード）:
+XOR linked list (1 pointer per node):
   [A] - [B] - [C] - [D]
   B.npx = addr(A) XOR addr(C)
 
-走査の仕組み（A から C 方向に進む場合）:
-  前のノードのアドレス: addr(A) が既知
+Traversal mechanism (moving from A toward C):
+  Previous node's address: addr(A) is known
   B.npx = addr(A) XOR addr(C)
-  addr(C) = B.npx XOR addr(A)  ← XOR の性質: a XOR b XOR a = b
+  addr(C) = B.npx XOR addr(A)  <- XOR property: a XOR b XOR a = b
 
-メモリ節約: ポインタ1本分/ノード
-代償: ガベージコレクタとの相性が悪い（Python, Java では実用的でない）
-    → C/C++ でのみ実用的な手法
+Memory savings: 1 pointer per node
+Trade-off: Poor compatibility with garbage collectors (not practical in Python, Java)
+    -> Only practical in C/C++
 ```
 
-XOR 連結リストは Python のような言語では実装が困難（アドレスを直接操作できないため）だが、C/C++ では実用的なテクニックである。概念として知っておくことで、メモリ最適化の発想を広げられる。
+XOR linked lists are difficult to implement in languages like Python (since direct address manipulation is unavailable), but they are a practical technique in C/C++. Knowing the concept broadens your thinking about memory optimization.
 
-### 6.5 自己組織化リスト
+### 6.5 Self-Organizing Lists
 
-自己組織化リスト（Self-Organizing List）は、アクセスパターンに基づいてノードの順序を動的に変更することで、頻繁にアクセスされる要素への検索時間を短縮するリストである。
+A self-organizing list dynamically changes the order of nodes based on access patterns, reducing search time for frequently accessed elements.
 
 ```
-自己組織化リストの主要戦略:
+Primary strategies for self-organizing lists:
 
-1. Move-to-Front（MTF）: アクセスされたノードを先頭に移動
-   Before: [D] → [B] → [A] → [C]
+1. Move-to-Front (MTF): Move the accessed node to the front
+   Before: [D] -> [B] -> [A] -> [C]
    Access A:
-   After:  [A] → [D] → [B] → [C]
-   → LRU キャッシュと同じ発想
+   After:  [A] -> [D] -> [B] -> [C]
+   -> Same idea as an LRU cache
 
-2. Transpose: アクセスされたノードを1つ前に移動
-   Before: [D] → [B] → [A] → [C]
+2. Transpose: Move the accessed node one position forward
+   Before: [D] -> [B] -> [A] -> [C]
    Access A:
-   After:  [D] → [A] → [B] → [C]
-   → MTF より穏やかな再配置
+   After:  [D] -> [A] -> [B] -> [C]
+   -> Gentler reorganization than MTF
 
-3. Count: アクセス回数でソート
-   Before: [D:3] → [B:1] → [A:5] → [C:2]
-   Access A (count 5→6):
-   After:  [A:6] → [D:3] → [C:2] → [B:1]
-   → 最も正確だが、カウンタの管理が必要
+3. Count: Sort by access frequency
+   Before: [D:3] -> [B:1] -> [A:5] -> [C:2]
+   Access A (count 5->6):
+   After:  [A:6] -> [D:3] -> [C:2] -> [B:1]
+   -> Most accurate but requires counter management
 ```
 
-LRU キャッシュは Move-to-Front 戦略の応用例であり、実用上もっとも広く使われている戦略である。
+The LRU cache is an application of the Move-to-Front strategy and is the most widely used strategy in practice.
 
 ---
 
-## 7. 配列との比較分析
+## 7. Comparison Analysis with Arrays
 
-### 7.1 計算量の総合比較
-
-```
-┌─────────────────────┬──────────────┬──────────────┬────────────────┐
-│ 操作                │ 配列         │ 単方向リスト  │ 双方向リスト    │
-│                     │ (動的配列)   │              │                │
-├─────────────────────┼──────────────┼──────────────┼────────────────┤
-│ 先頭に挿入          │ O(n)         │ O(1)  ★     │ O(1)  ★       │
-│ 末尾に挿入          │ O(1) 償却 ★ │ O(n)         │ O(1)  ★       │
-│ 中間に挿入          │ O(n)         │ O(n)         │ O(n)           │
-│ 中間に挿入          │ O(n)         │ O(1)*        │ O(1)*  ★      │
-│ (位置が既知)        │              │              │                │
-│ 先頭を削除          │ O(n)         │ O(1)  ★     │ O(1)  ★       │
-│ 末尾を削除          │ O(1) ★      │ O(n)         │ O(1)  ★       │
-│ 任意ノードを削除    │ O(n)         │ O(n)         │ O(1)*  ★      │
-│ (参照が既知)        │              │              │                │
-│ インデックスアクセス │ O(1)  ★     │ O(n)         │ O(min(i,n-i))  │
-│ 値の検索            │ O(n)         │ O(n)         │ O(n)           │
-│ 値の検索(ソート済み) │ O(log n) ★  │ O(n)         │ O(n)           │
-│ メモリ効率          │ 良い ★      │ やや悪い     │ 悪い           │
-│ キャッシュ局所性    │ 良い ★      │ 悪い         │ 悪い           │
-└─────────────────────┴──────────────┴──────────────┴────────────────┘
-
-★ = 優位な操作
-* = 挿入/削除位置のポインタが既に分かっている場合
-```
-
-### 7.2 メモリ使用量の詳細比較
-
-データの型と要素数に応じたメモリ使用量を分析する。
+### 7.1 Comprehensive Complexity Comparison
 
 ```
-64ビット環境での整数値 n 個の格納に必要なメモリ:
++---------------------+--------------+--------------+----------------+
+| Operation           | Array        | Singly       | Doubly         |
+|                     | (dynamic)    | Linked List  | Linked List    |
++---------------------+--------------+--------------+----------------+
+| Insert at head      | O(n)         | O(1)  *      | O(1)  *        |
+| Insert at tail      | O(1) amort * | O(n)         | O(1)  *        |
+| Insert at middle    | O(n)         | O(n)         | O(n)           |
+| Insert at middle    | O(n)         | O(1)*        | O(1)*  *       |
+| (position known)    |              |              |                |
+| Delete from head    | O(n)         | O(1)  *      | O(1)  *        |
+| Delete from tail    | O(1) *       | O(n)         | O(1)  *        |
+| Delete arbitrary    | O(n)         | O(n)         | O(1)*  *       |
+| node (ref known)    |              |              |                |
+| Index access        | O(1)  *      | O(n)         | O(min(i,n-i))  |
+| Search by value     | O(n)         | O(n)         | O(n)           |
+| Search (sorted)     | O(log n) *   | O(n)         | O(n)           |
+| Memory efficiency   | Good *       | Somewhat poor| Poor           |
+| Cache locality      | Good *       | Poor         | Poor           |
++---------------------+--------------+--------------+----------------+
 
-配列（Python list）:
-  オーバーヘッド: 56 バイト（リストオブジェクト）
-  各要素: 8 バイト（ポインタ）+ 28 バイト（int オブジェクト）= 36 バイト
-  合計: 56 + 36n バイト
-  ※ 実際はオーバーアロケーション（1.125倍程度）がある
-
-単方向連結リスト:
-  各ノード: 28 バイト（int）+ 8 バイト（next ポインタ）
-           + オブジェクトヘッダ 56 バイト（__slots__ 使用時は少ない）
-  合計: 約 72n バイト（__slots__ 未使用時はさらに増加）
-
-双方向連結リスト:
-  各ノード: 28 バイト（int）+ 16 バイト（prev + next ポインタ）
-           + オブジェクトヘッダ
-  合計: 約 80n バイト + 番兵2個分
-
-n = 1,000,000（100万要素）の場合:
-  配列:        約 36 MB
-  単方向リスト: 約 72 MB（配列の約2倍）
-  双方向リスト: 約 80 MB（配列の約2.2倍）
+* = superior operation
+* = when the pointer to the insertion/deletion position is already known
 ```
 
-### 7.3 キャッシュ局所性の影響
+### 7.2 Detailed Memory Usage Comparison
 
-現代のプロセッサでは、CPU キャッシュの活用が性能に大きく影響する。配列はメモリ上で連続しているため、一度のキャッシュラインの読み込みで複数の要素にアクセスできる。一方、連結リストのノードはメモリ上に散在しているため、ノードごとにキャッシュミスが発生する可能性が高い。
+Analyzing memory usage based on data type and element count.
 
 ```
-キャッシュ局所性の比較:
+Memory required to store n integer values on a 64-bit system:
 
-配列（連続メモリ）:
-  キャッシュライン（64バイト）に8個の int が収まる
-  ┌─────────────────────────────────────────┐
-  │ [1] [2] [3] [4] [5] [6] [7] [8]        │ ← 1回のロードで8要素
-  └─────────────────────────────────────────┘
-  次のキャッシュラインも連続 → プリフェッチ可能
+Array (Python list):
+  Overhead: 56 bytes (list object)
+  Per element: 8 bytes (pointer) + 28 bytes (int object) = 36 bytes
+  Total: 56 + 36n bytes
+  * Actual implementation includes over-allocation (approximately 1.125x)
 
-連結リスト（分散メモリ）:
-  キャッシュライン1: [Node A: val=1, next=0x...]  ← 1回で1ノードのみ
-  キャッシュライン2: [別のデータ]                  ← キャッシュミス
-  キャッシュライン3: [Node B: val=2, next=0x...]  ← キャッシュミス
-  キャッシュライン4: [別のデータ]                  ← キャッシュミス
+Singly linked list:
+  Per node: 28 bytes (int) + 8 bytes (next pointer)
+           + 56 bytes object header (less with __slots__)
+  Total: approximately 72n bytes (more without __slots__)
+
+Doubly linked list:
+  Per node: 28 bytes (int) + 16 bytes (prev + next pointers)
+           + object header
+  Total: approximately 80n bytes + 2 sentinel nodes
+
+For n = 1,000,000 (1 million elements):
+  Array:              approximately 36 MB
+  Singly linked list: approximately 72 MB (about 2x the array)
+  Doubly linked list:  approximately 80 MB (about 2.2x the array)
+```
+
+### 7.3 Impact of Cache Locality
+
+In modern processors, CPU cache utilization has a significant impact on performance. Arrays are contiguous in memory, so a single cache line load provides access to multiple elements. Linked list nodes, on the other hand, are scattered throughout memory, resulting in a high probability of cache misses for each node access.
+
+```
+Cache locality comparison:
+
+Array (contiguous memory):
+  A cache line (64 bytes) can hold 8 ints
+  +------------------------------------------+
+  | [1] [2] [3] [4] [5] [6] [7] [8]         | <- 8 elements in one load
+  +------------------------------------------+
+  Next cache line is also contiguous -> prefetchable
+
+Linked list (scattered memory):
+  Cache line 1: [Node A: val=1, next=0x...]  <- Only 1 node per load
+  Cache line 2: [other data]                  <- Cache miss
+  Cache line 3: [Node B: val=2, next=0x...]  <- Cache miss
+  Cache line 4: [other data]                  <- Cache miss
   ...
 
-  → 同じ n 要素の走査でも、実測性能は数倍〜10倍以上の差になりうる
-  → O(n) vs O(n) でも定数因子が大きく異なる
+  -> Even for traversing the same n elements, measured performance
+     can differ by 5x to 10x or more
+  -> O(n) vs O(n) but with vastly different constant factors
 
-例外: メモリプール（同じ領域から連続してノードを割り当てる）を
-      使用すれば、ある程度キャッシュ局所性を改善できる
+Exception: Using a memory pool (allocating nodes from the same region
+      consecutively) can improve cache locality to some extent
 ```
 
-### 7.4 使い分けの指針
+### 7.4 Guidelines for Choosing Between Arrays and Linked Lists
 
 ```
-配列を使うべき場面:
-  ✓ ランダムアクセスが頻繁
-  ✓ 末尾への追加・削除が主要操作
-  ✓ データサイズが既知または変動が小さい
-  ✓ 検索操作が多い（特にソート済みの場合）
-  ✓ キャッシュ効率が重要
-  ✓ メモリ使用量を最小化したい
-  → 多くのケースでは配列が最適解
+When to use arrays:
+  V Frequent random access
+  V Append/delete at the tail is the primary operation
+  V Data size is known or varies little
+  V Frequent search operations (especially on sorted data)
+  V Cache efficiency is important
+  V Minimizing memory usage
+  -> Arrays are the optimal solution in most cases
 
-連結リストを使うべき場面:
-  ✓ 先頭への挿入・削除が頻繁
-  ✓ 中間の挿入・削除が頻繁かつ位置が既知
-  ✓ 最悪ケースの時間保証が必要（動的配列のリサイズを避けたい）
-  ✓ 他のデータ構造の内部構造として（LRU キャッシュ、ハッシュテーブルの連鎖法等）
-  ✓ 要素の順序変更が頻繁
-  → 特定のユースケースに限って有利
+When to use linked lists:
+  V Frequent insertion/deletion at the head
+  V Frequent insertion/deletion at known middle positions
+  V Worst-case time guarantees are needed (avoiding dynamic array resizing)
+  V As an internal structure for other data structures (LRU cache, hash table chaining, etc.)
+  V Frequent reordering of elements
+  -> Advantageous only in specific use cases
 
-実務での経験則:
-  → 「まず配列で実装し、プロファイリングで問題が見つかったら連結リストを検討する」
-  → 連結リストが最適なケースは全体の5-10%程度
-  → ただし、そのケースでは連結リストが圧倒的に有利
+Practical rule of thumb:
+  -> "Start with an array, and consider a linked list only if profiling reveals a problem"
+  -> Linked lists are optimal in roughly 5-10% of cases
+  -> In those cases, however, linked lists offer overwhelming advantages
 ```
 
-### 7.5 各言語の標準ライブラリにおける連結リスト
+### 7.5 Linked Lists in Standard Libraries of Various Languages
 
 ```
-各言語における連結リストの提供状況:
+Availability of linked lists across languages:
 
-┌──────────┬─────────────────┬──────────────────────────────┐
-│ 言語     │ クラス名         │ 備考                         │
-├──────────┼─────────────────┼──────────────────────────────┤
-│ Python   │ collections.deque│ 双方向リスト。list は動的配列 │
-│ Java     │ LinkedList      │ 双方向リスト。List/Deque 実装 │
-│ C++      │ std::list       │ 双方向リスト                 │
-│          │ std::forward_list│ 単方向リスト（C++11〜）      │
-│ C#       │ LinkedList<T>   │ 双方向リスト                 │
-│ Go       │ container/list  │ 双方向リスト                 │
-│ Rust     │ std::collections│ LinkedList（双方向）         │
-│          │ ::LinkedList    │ ※ 非推奨に近い扱い           │
-│ Haskell  │ [ ] (リスト)    │ 単方向リスト。言語の根幹      │
-└──────────┴─────────────────┴──────────────────────────────┘
++----------+-----------------+------------------------------+
+| Language | Class Name      | Notes                        |
++----------+-----------------+------------------------------+
+| Python   | collections.deque| Doubly linked. list is dynamic array |
+| Java     | LinkedList      | Doubly linked. Implements List/Deque |
+| C++      | std::list       | Doubly linked                |
+|          | std::forward_list| Singly linked (C++11+)       |
+| C#       | LinkedList<T>   | Doubly linked                |
+| Go       | container/list  | Doubly linked                |
+| Rust     | std::collections| LinkedList (doubly linked)   |
+|          | ::LinkedList    | * Practically discouraged    |
+| Haskell  | [ ] (list)      | Singly linked. Core language feature |
++----------+-----------------+------------------------------+
 
-注目点:
-- Python は明示的な LinkedList クラスを提供していない
-  → deque が内部的に双方向リストを使用
-  → 多くの場面で list（動的配列）が推奨される
-- Rust は LinkedList の使用を推奨しておらず、Vec を優先する
-  → キャッシュ局所性の観点から
-- Haskell ではリスト（単方向連結リスト）が最も基本的なデータ構造
-  → 関数型プログラミングでは不変リストが自然な選択
+Notable points:
+- Python does not provide an explicit LinkedList class
+  -> deque uses a doubly linked list internally
+  -> list (dynamic array) is recommended in most scenarios
+- Rust discourages the use of LinkedList, favoring Vec
+  -> Due to cache locality considerations
+- In Haskell, lists (singly linked lists) are the most fundamental data structure
+  -> Immutable lists are a natural choice in functional programming
 ```
 
 ---
 
-## 8. アンチパターン
+## 8. Anti-Patterns
 
-### 8.1 アンチパターン1: 不要な連結リストの使用
+### 8.1 Anti-Pattern 1: Unnecessary Use of Linked Lists
 
-**問題:**
-配列で十分な場面で連結リストを使ってしまうパターン。「連結リストの方が挿入・削除が速い」という表面的な理解に基づく誤った選択。
+**Problem:**
+Using a linked list in scenarios where an array would suffice. This is a misguided choice based on the superficial understanding that "linked lists are faster for insertion and deletion."
 
 ```python
-# ✗ アンチパターン: 末尾追加と走査だけなら配列で十分
+# X Anti-pattern: An array is sufficient for tail appends and traversals
 class BadLogBuffer:
-    """ログバッファとして連結リストを使用（非推奨）"""
+    """Using a linked list as a log buffer (not recommended)"""
     def __init__(self):
         self.head = None
         self.tail = None
 
     def add_log(self, message):
-        """ログを末尾に追加"""
+        """Append a log to the tail"""
         node = ListNode(message)
         if not self.tail:
             self.head = self.tail = node
@@ -2070,7 +2074,7 @@ class BadLogBuffer:
             self.tail = node
 
     def get_all_logs(self):
-        """全ログを取得"""
+        """Retrieve all logs"""
         logs = []
         curr = self.head
         while curr:
@@ -2079,52 +2083,51 @@ class BadLogBuffer:
         return logs
 
 
-# ○ 正しいアプローチ: 配列（リスト）を使用
+# O Correct approach: Use an array (list)
 class GoodLogBuffer:
-    """ログバッファとして配列を使用（推奨）"""
+    """Using an array as a log buffer (recommended)"""
     def __init__(self):
         self.logs = []
 
     def add_log(self, message):
-        """ログを末尾に追加: O(1) 償却"""
+        """Append a log to the tail: O(1) amortized"""
         self.logs.append(message)
 
     def get_all_logs(self):
-        """全ログを取得: O(n)、キャッシュ効率良好"""
+        """Retrieve all logs: O(n), good cache efficiency"""
         return list(self.logs)
 
     def get_log(self, index):
-        """特定のログを取得: O(1)"""
+        """Retrieve a specific log: O(1)"""
         return self.logs[index]
 ```
 
-**なぜ配列の方が適切か:**
-- 主な操作が「末尾追加」と「全走査」 → 配列は両方とも効率的
-- ランダムアクセス（特定のログの参照）が O(1) で可能
-- キャッシュ局所性により走査が高速
-- メモリ使用量が少ない
-- コードがシンプル
+**Why an array is more appropriate:**
+- The primary operations are "tail append" and "full traversal" -- both are efficient with arrays
+- Random access (referencing a specific log) is O(1)
+- Cache locality makes traversal fast
+- Less memory usage
+- Simpler code
 
-**連結リストを選ぶべき判断基準:**
-1. 先頭や中間への挿入・削除が頻繁か？
-2. 挿入・削除位置のポインタを別途保持しているか？
-3. 最悪ケースの時間保証が必要か？
+**Criteria for choosing a linked list:**
+1. Are insertions/deletions at the head or middle frequent?
+2. Do you have a pointer to the insertion/deletion position?
+3. Do you need worst-case time guarantees?
 
-3つすべてに「いいえ」なら、配列を選ぶべきである。
+If the answer to all three is "no," choose an array.
 
-### 8.2 アンチパターン2: メモリリークとダングリングポインタ
+### 8.2 Anti-Pattern 2: Memory Leaks and Dangling Pointers
 
-**問題:**
-ノードを削除する際にポインタの後始末を怠り、ガベージコレクションが効かない参照が残るパターン。Python ではガベージコレクタが多くのケースをカバーするが、循環参照がある場合は注意が必要。
+**Problem:**
+Failing to clean up pointers when deleting nodes, leaving references that prevent garbage collection. In Python, the garbage collector covers most cases, but caution is needed with circular references.
 
 ```python
-# ✗ アンチパターン: 循環参照によるメモリリーク
+# X Anti-pattern: Memory leak from circular references
 class BadNode:
     def __init__(self, val):
         self.val = val
         self.next = None
-        self.parent_list = None  # リストへの逆参照
-
+        self.parent_list = None  # Back-reference to the list
 
 class BadLinkedList:
     def __init__(self):
@@ -2132,7 +2135,7 @@ class BadLinkedList:
 
     def append(self, val):
         node = BadNode(val)
-        node.parent_list = self  # 循環参照を形成！
+        node.parent_list = self  # Creates a circular reference!
         if not self.head:
             self.head = node
         else:
@@ -2142,93 +2145,93 @@ class BadLinkedList:
             curr.next = node
 
     def clear(self):
-        """リストをクリア（メモリリークの可能性）"""
+        """Clear the list (potential memory leak)"""
         self.head = None
-        # ← 各ノードが self（リスト）を参照しているため
-        # ← ノード ↔ リスト の循環参照が GC で回収されない可能性
+        # <- Each node still references self (the list)
+        # <- The node <-> list circular reference may not be collected by GC
 
 
-# ○ 正しいアプローチ: 循環参照を避ける、または明示的にクリア
+# O Correct approach: Avoid circular references, or explicitly clear
 class GoodLinkedList:
     def __init__(self):
         self.head = None
 
     def clear(self):
-        """メモリリークを防ぐクリア"""
+        """Clear with memory leak prevention"""
         curr = self.head
         while curr:
             next_node = curr.next
-            curr.next = None       # 参照をクリア
+            curr.next = None       # Clear reference
             curr = next_node
         self.head = None
 ```
 
-**教訓:**
-- ノードからリスト本体への逆参照は循環参照を生む
-- 双方向リストの `prev`/`next` も技術的には循環参照だが、Python の世代別 GC で通常は回収される
-- 大規模なリストを頻繁に生成・破棄する場合は、明示的な参照のクリアが安全
-- C/C++ では手動メモリ管理のため、この問題がさらに深刻になる
+**Lessons:**
+- Back-references from nodes to the list object create circular references
+- `prev`/`next` in doubly linked lists are technically circular references, but Python's generational GC normally collects them
+- For large lists that are frequently created and destroyed, explicitly clearing references is safer
+- In C/C++, where memory is manually managed, this problem becomes even more severe
 
-### 8.3 アンチパターン3: O(n) 操作の繰り返しによる O(n^2) 化
+### 8.3 Anti-Pattern 3: O(n^2) from Repeated O(n) Operations
 
-**問題:**
-連結リストの get(i) が O(n) であることを忘れ、ループ内でインデックスアクセスを繰り返すパターン。
+**Problem:**
+Forgetting that `get(i)` is O(n) on a linked list and repeatedly performing index-based access in a loop.
 
 ```python
-# ✗ アンチパターン: O(n^2) になるインデックスベースのアクセス
+# X Anti-pattern: O(n^2) from index-based access
 def print_all_bad(linked_list):
-    """全要素を表示（非推奨: O(n^2)）"""
+    """Print all elements (not recommended: O(n^2))"""
     for i in range(len(linked_list)):
-        # get(i) は毎回 head から i 回辿る → O(i)
-        # 合計: 0 + 1 + 2 + ... + (n-1) = O(n^2)
+        # get(i) traverses from head i times each call -> O(i)
+        # Total: 0 + 1 + 2 + ... + (n-1) = O(n^2)
         print(linked_list.get(i))
 
 
-# ○ 正しいアプローチ: イテレータを使用して O(n) で走査
+# O Correct approach: Use an iterator for O(n) traversal
 def print_all_good(linked_list):
-    """全要素を表示（推奨: O(n)）"""
-    for val in linked_list:  # __iter__ で順次走査
+    """Print all elements (recommended: O(n))"""
+    for val in linked_list:  # Sequential traversal via __iter__
         print(val)
 
 
-# ○ 正しいアプローチ: ノードポインタを直接使用
+# O Correct approach: Use node pointers directly
 def print_all_direct(head):
-    """全要素を表示（推奨: O(n)）"""
+    """Print all elements (recommended: O(n))"""
     curr = head
     while curr:
         print(curr.val)
         curr = curr.next
 ```
 
-**教訓:**
-- 連結リストにインデックスでアクセスするたびに O(n) の走査が発生する
-- 配列の感覚で `for i in range(n): list.get(i)` とすると O(n^2) になる
-- 連結リストの走査はイテレータまたはポインタの直接走査で行う
-- この罠は Java の `LinkedList` でも同様であり、`for (int i = 0; i < list.size(); i++)` ではなく `for (T item : list)` を使うべきである
+**Lessons:**
+- Every index-based access on a linked list incurs an O(n) traversal
+- Using `for i in range(n): list.get(i)` with array thinking results in O(n^2)
+- Traverse linked lists using iterators or direct pointer traversal
+- This same trap exists in Java's `LinkedList`: use `for (T item : list)` instead of `for (int i = 0; i < list.size(); i++)`
 
-### 8.4 アンチパターン4: スレッドセーフティの欠如
+### 8.4 Anti-Pattern 4: Lack of Thread Safety
 
-**問題:**
-マルチスレッド環境で連結リストを共有する際に、適切な同期機構を設けないパターン。
+**Problem:**
+Sharing a linked list across multiple threads without proper synchronization mechanisms.
 
 ```python
 import threading
 
-# ✗ アンチパターン: スレッドセーフでないリスト操作
+# X Anti-pattern: Non-thread-safe list operations
 class UnsafeSharedList:
     def __init__(self):
         self.head = None
 
     def prepend(self, val):
-        # スレッドAとBが同時にprependすると:
+        # If threads A and B prepend simultaneously:
         # A: new_node.next = self.head  (head = [1])
-        # B: new_node.next = self.head  (head = [1])  ← 同じ head を読む
+        # B: new_node.next = self.head  (head = [1])  <- Both read the same head
         # A: self.head = new_node_A     (head = [A, 1])
-        # B: self.head = new_node_B     (head = [B, 1])  ← A のノードが失われる！
+        # B: self.head = new_node_B     (head = [B, 1])  <- A's node is lost!
         self.head = ListNode(val, self.head)
 
 
-# ○ 正しいアプローチ: ロックで保護
+# O Correct approach: Protect with a lock
 class ThreadSafeList:
     def __init__(self):
         self.head = None
@@ -2249,23 +2252,23 @@ class ThreadSafeList:
 
 ---
 
-## 9. 演習問題
+## 9. Exercises
 
-### 9.1 基礎レベル
+### 9.1 Fundamentals
 
-**演習1: 連結リストの基本操作**
+**Exercise 1: Basic Linked List Operations**
 
-以下の操作を持つ単方向連結リストを実装せよ。
+Implement a singly linked list with the following operations:
 
-- `prepend(val)`: 先頭に値を挿入
-- `append(val)`: 末尾に値を挿入
-- `delete(val)`: 指定値の最初の出現を削除
-- `search(val)`: 値が存在するか判定
-- `__len__()`: リストの長さを返す
-- `to_list()`: Python リストに変換
+- `prepend(val)`: Insert a value at the head
+- `append(val)`: Insert a value at the tail
+- `delete(val)`: Delete the first occurrence of a value
+- `search(val)`: Determine if a value exists
+- `__len__()`: Return the length of the list
+- `to_list()`: Convert to a Python list
 
 ```python
-# テストケース
+# Test cases
 ll = SinglyLinkedList()
 ll.append(1)
 ll.append(2)
@@ -2279,16 +2282,16 @@ ll.delete(2)
 assert ll.to_list() == [0, 1, 3]
 ```
 
-**ヒント:** ダミーヘッド（番兵ノード）を使うと、先頭ノードの削除を特別扱いする必要がなくなる。
+**Hint:** Using a dummy head (sentinel node) eliminates the need to treat head node deletion as a special case.
 
 ---
 
-**演習2: 連結リストの反転**
+**Exercise 2: Linked List Reversal**
 
-与えられた単方向連結リストを反転する関数を、反復版と再帰版の2通りで実装せよ。
+Implement a function that reverses a given singly linked list, in both iterative and recursive versions.
 
 ```python
-# テストケース
+# Test cases
 head = build_list([1, 2, 3, 4, 5])
 reversed_head = reverse_iterative(head)
 assert list_to_array(reversed_head) == [5, 4, 3, 2, 1]
@@ -2297,50 +2300,50 @@ head2 = build_list([1, 2, 3, 4, 5])
 reversed_head2 = reverse_recursive(head2)
 assert list_to_array(reversed_head2) == [5, 4, 3, 2, 1]
 
-# エッジケース
-assert reverse_iterative(None) is None  # 空リスト
-assert reverse_iterative(ListNode(42)).val == 42  # 1要素
+# Edge cases
+assert reverse_iterative(None) is None  # Empty list
+assert reverse_iterative(ListNode(42)).val == 42  # Single element
 ```
 
-**ヒント（反復版）:** 3つのポインタ `prev`, `curr`, `next_node` を使い、各ステップで `curr.next` を `prev` に付け替える。
+**Hint (iterative):** Use three pointers `prev`, `curr`, `next_node`, and at each step reassign `curr.next` to `prev`.
 
-**ヒント（再帰版）:** ベースケースは「空リストまたは1ノード」。再帰で末尾まで進み、戻りながらポインタを付け替える。
+**Hint (recursive):** The base case is "empty list or single node." Recurse to the tail and reverse pointers on the way back.
 
 ---
 
-**演習3: 末尾から N 番目のノードを削除**
+**Exercise 3: Remove the N-th Node from the End**
 
-単方向連結リストの末尾から N 番目のノードを削除する関数を実装せよ。1パスで解くこと（リストを2回走査しない）。
+Implement a function that removes the N-th node from the end of a singly linked list. Solve it in a single pass (do not traverse the list twice).
 
 ```python
-# テストケース
+# Test cases
 head = build_list([1, 2, 3, 4, 5])
-# 末尾から2番目（=4）を削除
+# Remove 2nd from end (= 4)
 new_head = remove_nth_from_end(head, 2)
 assert list_to_array(new_head) == [1, 2, 3, 5]
 
-# エッジケース: 先頭を削除
+# Edge case: Remove the head
 head2 = build_list([1, 2])
 new_head2 = remove_nth_from_end(head2, 2)
 assert list_to_array(new_head2) == [2]
 ```
 
-**ヒント:** 2つのポインタ `fast` と `slow` を使う。まず `fast` を N 回進めてから、`fast` と `slow` を同時に進める。`fast` がリスト末尾に到達したとき、`slow` が削除対象の直前にいる。
+**Hint:** Use two pointers `fast` and `slow`. First advance `fast` by N steps, then advance both `fast` and `slow` simultaneously. When `fast` reaches the end, `slow` is just before the node to be removed.
 
-### 9.2 応用レベル
+### 9.2 Intermediate
 
-**演習4: 2つのソート済みリストのマージ**
+**Exercise 4: Merge Two Sorted Lists**
 
-2つのソート済み単方向リストを、1つのソート済みリストにマージする関数を実装せよ。新しいノードは作成せず、既存のノードをつなぎ替えること。
+Implement a function that merges two sorted singly linked lists into a single sorted list. Do not create new nodes; reconnect the existing ones.
 
 ```python
-# テストケース
+# Test cases
 l1 = build_list([1, 3, 5, 7])
 l2 = build_list([2, 4, 6, 8])
 merged = merge_sorted(l1, l2)
 assert list_to_array(merged) == [1, 2, 3, 4, 5, 6, 7, 8]
 
-# エッジケース
+# Edge case
 l3 = build_list([1, 2, 3])
 merged2 = merge_sorted(l3, None)
 assert list_to_array(merged2) == [1, 2, 3]
@@ -2348,41 +2351,41 @@ assert list_to_array(merged2) == [1, 2, 3]
 
 ---
 
-**演習5: サイクル検出とサイクル開始ノードの特定**
+**Exercise 5: Cycle Detection and Cycle Start Identification**
 
-以下の2つの関数を実装せよ。
-1. `has_cycle(head)`: サイクルが存在するか判定
-2. `find_cycle_start(head)`: サイクルの開始ノードを返す（サイクルがなければ None）
+Implement the following two functions:
+1. `has_cycle(head)`: Determine whether a cycle exists
+2. `find_cycle_start(head)`: Return the starting node of the cycle (or None if no cycle)
 
-追加空間は O(1) とすること（ハッシュセットの使用は不可）。
+Use O(1) extra space (hash set usage is not allowed).
 
 ```python
-# テストケース
-# 1 → 2 → 3 → 4 → 5 → 3（サイクル）
+# Test cases
+# 1 -> 2 -> 3 -> 4 -> 5 -> 3 (cycle)
 nodes = [ListNode(i) for i in range(1, 6)]
 for i in range(4):
     nodes[i].next = nodes[i + 1]
-nodes[4].next = nodes[2]  # 5 → 3 でサイクル
+nodes[4].next = nodes[2]  # 5 -> 3 creates a cycle
 
 assert has_cycle(nodes[0]) is True
 assert find_cycle_start(nodes[0]).val == 3
 
-# サイクルなし
+# No cycle
 normal = build_list([1, 2, 3])
 assert has_cycle(normal) is False
 assert find_cycle_start(normal) is None
 ```
 
-**ヒント:** Floyd のサイクル検出アルゴリズム（亀とウサギ）を使う。サイクル開始ノードの特定には、出会い地点と head から同速度で進めるテクニックを使う。
+**Hint:** Use Floyd's cycle detection algorithm (tortoise and hare). To identify the cycle start node, use the technique of advancing from both the meeting point and head at equal speed.
 
 ---
 
-**演習6: 連結リストの回文判定**
+**Exercise 6: Linked List Palindrome Check**
 
-単方向連結リストが回文かどうかを判定する関数を実装せよ。O(n) 時間、O(1) 追加空間で解くこと。
+Implement a function that determines whether a singly linked list is a palindrome. Solve it in O(n) time and O(1) extra space.
 
 ```python
-# テストケース
+# Test cases
 assert is_palindrome(build_list([1, 2, 3, 2, 1])) is True
 assert is_palindrome(build_list([1, 2, 2, 1])) is True
 assert is_palindrome(build_list([1, 2, 3])) is False
@@ -2390,39 +2393,39 @@ assert is_palindrome(build_list([1])) is True
 assert is_palindrome(None) is True
 ```
 
-**ヒント:** (1) 中間点を見つけ、(2) 後半を反転し、(3) 前半と後半を比較する。リストを元に戻すために、比較後に後半を再反転する。
+**Hint:** (1) Find the midpoint, (2) reverse the second half, (3) compare the first and second halves. After comparison, re-reverse the second half to restore the list.
 
-### 9.3 発展レベル
+### 9.3 Advanced
 
-**演習7: LRU キャッシュの実装**
+**Exercise 7: LRU Cache Implementation**
 
-双方向連結リストとハッシュマップを使って、以下の操作がすべて O(1) で動作する LRU キャッシュを実装せよ。
+Using a doubly linked list and hash map, implement an LRU cache where all operations run in O(1).
 
-- `get(key)`: キーに対応する値を返す。キーが存在しなければ -1 を返す。アクセスしたエントリを「最近使用」にする。
-- `put(key, value)`: キーと値のペアを挿入する。キーが既に存在すれば値を更新する。容量を超える場合は最も古いエントリを削除する。
+- `get(key)`: Return the value for the key. Return -1 if the key does not exist. Mark the accessed entry as "most recently used."
+- `put(key, value)`: Insert a key-value pair. If the key already exists, update the value. If the capacity is exceeded, evict the oldest entry.
 
 ```python
-# テストケース
+# Test cases
 cache = LRUCache(2)
 cache.put(1, 1)
 cache.put(2, 2)
-assert cache.get(1) == 1       # 1 にアクセス（最近使用に）
-cache.put(3, 3)                 # 容量超過 → 2 が削除される
-assert cache.get(2) == -1       # 2 は削除済み
-cache.put(4, 4)                 # 容量超過 → 1 が削除される
-assert cache.get(1) == -1       # 1 は削除済み
+assert cache.get(1) == 1       # Access 1 (becomes most recently used)
+cache.put(3, 3)                 # Over capacity -> 2 is evicted
+assert cache.get(2) == -1       # 2 has been evicted
+cache.put(4, 4)                 # Over capacity -> 1 is evicted
+assert cache.get(1) == -1       # 1 has been evicted
 assert cache.get(3) == 3
 assert cache.get(4) == 4
 ```
 
 ---
 
-**演習8: K 個のソート済みリストのマージ**
+**Exercise 8: Merge K Sorted Lists**
 
-K 個のソート済みリストを1つのソート済みリストにマージせよ。全リストの合計要素数を N とするとき、O(N log K) の時間計算量で解くこと。
+Merge K sorted lists into a single sorted list. Given N as the total number of elements across all lists, solve it in O(N log K) time.
 
 ```python
-# テストケース
+# Test cases
 lists = [
     build_list([1, 4, 7]),
     build_list([2, 5, 8]),
@@ -2432,24 +2435,24 @@ merged = merge_k_sorted(lists)
 assert list_to_array(merged) == [1, 2, 3, 4, 5, 6, 7, 8, 9]
 ```
 
-**ヒント:** 最小ヒープ（priority queue）を使う。各リストの先頭要素をヒープに入れ、最小値を取り出して結果に追加し、取り出したリストの次の要素をヒープに追加する。
+**Hint:** Use a min-heap (priority queue). Insert the head element of each list into the heap, extract the minimum, add it to the result, and insert the next element from that list into the heap.
 
 ---
 
-**演習9: 連結リストを使ったテキストエディタバッファ**
+**Exercise 9: Text Editor Buffer Using a Linked List**
 
-双方向連結リストを使って、以下の操作を持つシンプルなテキストエディタバッファを実装せよ。
+Using a doubly linked list, implement a simple text editor buffer with the following operations:
 
-- `insert(char)`: カーソル位置に文字を挿入し、カーソルを右に移動
-- `delete()`: カーソルの左の文字を削除
-- `move_left()`: カーソルを左に1つ移動
-- `move_right()`: カーソルを右に1つ移動
-- `get_text()`: バッファの全テキストを文字列として返す
+- `insert(char)`: Insert a character at the cursor position and move the cursor right
+- `delete()`: Delete the character to the left of the cursor
+- `move_left()`: Move the cursor one position left
+- `move_right()`: Move the cursor one position right
+- `get_text()`: Return all text in the buffer as a string
 
-すべての操作を O(1) で実装すること。
+All operations must be O(1).
 
 ```python
-# テストケース
+# Test cases
 editor = TextEditor()
 editor.insert('H')
 editor.insert('l')
@@ -2468,196 +2471,196 @@ editor.insert('!')
 assert editor.get_text() == "Hello!"
 ```
 
-**ヒント:** カーソルの位置を「あるノードの直後」として管理する。番兵ノードをカーソルの基準点にすると実装が簡潔になる。
+**Hint:** Manage the cursor position as "immediately after a certain node." Using a sentinel node as the cursor's reference point simplifies the implementation.
 
 ---
 
-## 10. FAQ（よくある質問）
+## 10. FAQ (Frequently Asked Questions)
 
-### Q1: Python の `list` は内部的に連結リストですか？
+### Q1: Is Python's `list` internally a linked list?
 
-**A:** いいえ。Python の `list` は**動的配列**（dynamic array）で実装されている。内部的には C の配列（ポインタの配列）であり、メモリ上に連続して配置されている。そのため、インデックスアクセスが O(1)、末尾への追加が O(1) 償却で動作する。
+**A:** No. Python's `list` is implemented as a **dynamic array**. Internally, it is a C array (an array of pointers) stored contiguously in memory. As a result, index access is O(1) and appending to the tail is O(1) amortized.
 
-Python で連結リスト的な操作が必要な場合は `collections.deque` が代替になる。`deque` は双方向連結リストに基づいた実装（正確にはブロック連結リスト）であり、両端での追加・削除が O(1) で動作する。
+When linked list-like operations are needed in Python, `collections.deque` serves as an alternative. `deque` is based on a doubly linked list implementation (more precisely, a block-linked list) and provides O(1) additions and removals at both ends.
 
 ```python
 from collections import deque
 
 d = deque([1, 2, 3])
-d.appendleft(0)  # 先頭に追加: O(1)
-d.append(4)      # 末尾に追加: O(1)
-d.popleft()      # 先頭から削除: O(1)
-d.pop()          # 末尾から削除: O(1)
+d.appendleft(0)  # Add to front: O(1)
+d.append(4)      # Add to back: O(1)
+d.popleft()      # Remove from front: O(1)
+d.pop()          # Remove from back: O(1)
 
-# ただし、中間のインデックスアクセスは O(n)
-# d[i] は deque でも O(n)
+# However, middle index access is O(n)
+# d[i] is also O(n) for deque
 ```
 
-### Q2: 面接で連結リストの問題を解くコツはありますか？
+### Q2: Are there tips for solving linked list problems in interviews?
 
-**A:** 以下のテクニックを覚えておくと、多くの問題に対応できる。
+**A:** Knowing the following techniques will help you handle a wide variety of problems.
 
-**1. ダミーヘッド（番兵ノード）**
-先頭ノードの操作でエッジケースを回避する。マージ、削除、挿入など幅広い問題で有効。
+**1. Dummy Head (Sentinel Node)**
+Avoids edge cases when operating on the head node. Effective for merging, deletion, insertion, and many other problems.
 
-**2. Fast/Slow ポインタ**
-- 中間ノードの検出
-- サイクル検出
-- 回文判定
-- 末尾から N 番目のノード
+**2. Fast/Slow Pointer**
+- Finding the middle node
+- Cycle detection
+- Palindrome check
+- N-th node from the end
 
-**3. 再帰的思考**
-連結リストは再帰的な構造（head + 残りのリスト）であるため、再帰で自然に処理できる。ただし、スタックオーバーフローに注意（O(n) の空間使用）。
+**3. Recursive Thinking**
+Linked lists have a recursive structure (head + rest of the list), making them naturally amenable to recursive processing. However, beware of stack overflow (O(n) space usage).
 
-**4. 図を描く**
-ポインタの操作は頭の中だけで追うと間違えやすい。必ず紙に図を描いてポインタの付け替えを確認する。
+**4. Draw Diagrams**
+Pointer manipulations are error-prone when tracked only mentally. Always draw diagrams on paper to verify pointer reassignments.
 
-**5. よくあるエッジケース**
-- 空リスト（head = None）
-- 1ノードのリスト
-- 2ノードのリスト
-- 先頭ノードが対象の場合
-- 末尾ノードが対象の場合
+**5. Common Edge Cases**
+- Empty list (head = None)
+- Single-node list
+- Two-node list
+- When the head node is the target
+- When the tail node is the target
 
-### Q3: 連結リストはガベージコレクションにどう影響しますか？
+### Q3: How do linked lists affect garbage collection?
 
-**A:** 連結リストはガベージコレクション（GC）にいくつかの影響を与える。
+**A:** Linked lists have several impacts on garbage collection (GC).
 
-**1. 参照追跡のコスト**
-GC はポインタを辿って到達可能なオブジェクトをマークする（Mark & Sweep）。連結リストのノードはメモリ上に分散しているため、GC がノードを辿る際にキャッシュミスが多発し、GC 停止時間が長くなる傾向がある。
+**1. Cost of Reference Tracing**
+GC follows pointers to mark reachable objects (Mark & Sweep). Since linked list nodes are scattered in memory, tracing them causes frequent cache misses, leading to longer GC pause times.
 
-**2. 循環参照の問題**
-双方向リストのノードは `prev` と `next` で相互参照している。Python の参照カウント方式だけでは回収できないが、世代別 GC が循環参照を検出して回収する。ただし、`__del__` メソッドを持つオブジェクトが循環参照に含まれると、回収が遅れたり失敗したりする場合がある。
+**2. Circular Reference Problem**
+Nodes in a doubly linked list mutually reference each other via `prev` and `next`. Python's reference counting alone cannot collect these, but the generational GC detects and collects circular references. However, if objects with `__del__` methods are part of the circular reference chain, collection may be delayed or fail.
 
-**3. メモリの断片化**
-多数の小さなノードオブジェクトの割り当てと解放を繰り返すと、メモリが断片化する。配列は大きな連続領域を使うため断片化しにくい。
+**3. Memory Fragmentation**
+Repeatedly allocating and deallocating many small node objects causes memory fragmentation. Arrays use large contiguous regions, making them less susceptible to fragmentation.
 
-**対策:**
-- `__slots__` を使ってノードのメモリフットプリントを削減する
-- 不要になったリストは明示的にクリア（参照を None に設定）する
-- 大規模なデータには配列ベースのデータ構造を検討する
+**Countermeasures:**
+- Use `__slots__` to reduce the memory footprint of nodes
+- Explicitly clear lists that are no longer needed (set references to None)
+- Consider array-based data structures for large-scale data
 
-### Q4: 関数型プログラミングにおける連結リストの役割は？
+### Q4: What role do linked lists play in functional programming?
 
-**A:** 関数型プログラミングでは、**不変（immutable）の単方向連結リスト**が最も基本的なデータ構造として使われる。Haskell のリスト `[1, 2, 3]` は内部的には `1 : (2 : (3 : []))` という連結リストである。
+**A:** In functional programming, **immutable singly linked lists** are used as the most fundamental data structure. Haskell's list `[1, 2, 3]` is internally `1 : (2 : (3 : []))`, a linked list.
 
-不変リストの利点は「構造共有（structural sharing）」にある。既存のリストの先頭に要素を追加しても、元のリストは変更されず、新しいリストは元のリストの tail を共有する。
+The advantage of immutable lists is "structural sharing." Even when you prepend an element to an existing list, the original list is unchanged, and the new list shares the tail of the original.
 
 ```
-構造共有の例:
+Structural sharing example:
 
 xs = [2, 3, 4]
-ys = 1 : xs     ← xs の先頭に 1 を追加
+ys = 1 : xs     <- Prepend 1 to xs
 
-メモリ上:
-ys: [1] ──┐
-          ▼
-xs:      [2] → [3] → [4] → []
+In memory:
+ys: [1] --+
+          v
+xs:      [2] -> [3] -> [4] -> []
 
-xs と ys が [2, 3, 4] を共有している
-→ コピーのコストがゼロ
-→ 並行処理でも安全（データ競合が起きない）
+xs and ys share [2, 3, 4]
+-> Zero copy cost
+-> Safe for concurrent processing (no data races)
 ```
 
-### Q5: 配列と連結リストの境界はどこにあるのですか？
+### Q5: Where is the boundary between arrays and linked lists?
 
-**A:** 理論的な計算量だけでなく、実装のコンテキストを含めて判断する必要がある。
+**A:** The decision must consider not only theoretical complexity but also the implementation context.
 
-**配列が有利な境界条件:**
-- 要素数が少ない場合（数百程度まで）は、キャッシュ効率の優位性により配列が圧倒的に速い
-- 挿入・削除が全操作の10-20%未満の場合は配列が有利
-- メモリが限られた組み込みシステムでは配列が有利
+**Boundary conditions favoring arrays:**
+- For small element counts (up to a few hundred), arrays are overwhelmingly faster due to cache efficiency
+- When insertions/deletions are less than 10-20% of all operations, arrays are advantageous
+- In memory-constrained embedded systems, arrays are preferred
 
-**連結リストが有利な境界条件:**
-- 先頭への挿入・削除が操作の大半を占める場合
-- ノードの移動（あるリストから別のリストへ）が頻繁な場合（O(1) の splice 操作）
-- 最悪ケースの時間保証が必要なリアルタイムシステム
-- ハッシュマップと組み合わせて O(1) の削除を実現する場合（LRU キャッシュ等）
+**Boundary conditions favoring linked lists:**
+- When insertions/deletions at the head dominate operations
+- When node transfers between lists are frequent (O(1) splice operations)
+- In real-time systems requiring worst-case time guarantees
+- When combined with hash maps to achieve O(1) deletion (LRU caches, etc.)
 
-現代のハードウェアでは、CPU キャッシュの影響が非常に大きいため、理論上同じ O(n) でも配列の走査が連結リストの走査より5倍〜20倍速いことがある。この定数因子の差を考慮すると、「連結リストが有利になるのは、理論的な計算量が配列よりも明確に良い場合に限られる」と言える。
+On modern hardware, the impact of CPU caches is enormous. Even when both are theoretically O(n), array traversal can be 5x to 20x faster than linked list traversal. Considering this constant factor difference, it can be said that "linked lists are advantageous only when their theoretical complexity is clearly better than that of arrays."
 
-### Q6: なぜ面接では連結リストの問題が頻出するのですか？
+### Q6: Why are linked list problems so common in interviews?
 
-**A:** 連結リストの問題が面接で頻出する理由は複数ある。
+**A:** There are several reasons why linked list problems frequently appear in interviews.
 
-1. **ポインタ操作の理解度を測れる**: ポインタの付け替えはバグを生みやすく、正確に操作できるかが基本的なプログラミング力の指標になる。
+1. **They test understanding of pointer operations**: Pointer reassignment is error-prone, and the ability to perform it accurately is an indicator of fundamental programming skill.
 
-2. **エッジケースの処理能力を測れる**: 空リスト、1ノード、先頭・末尾の操作など、場合分けが多く、注意深さが要求される。
+2. **They test edge case handling ability**: Empty lists, single nodes, head/tail operations, and other cases require careful attention to branching.
 
-3. **アルゴリズムの知識を測れる**: Fast/Slow ポインタ、再帰、分割統治など、多くのアルゴリズミックな考え方を連結リストの問題で出題できる。
+3. **They test algorithmic knowledge**: Many algorithmic concepts -- Fast/Slow pointers, recursion, divide and conquer -- can be tested through linked list problems.
 
-4. **コードが短い**: ホワイトボードや制限時間のある面接に適した長さのコードで解答できる。
+4. **Code is short**: Solutions can be written in a length suitable for whiteboard or time-constrained interview settings.
 
-5. **空間計算量の意識を測れる**: 「追加空間 O(1) で解け」という制約を課すことで、空間効率への意識を評価できる。
+5. **They test awareness of space complexity**: By imposing constraints like "solve with O(1) extra space," interviewers can evaluate awareness of space efficiency.
 
 ---
 
-## 11. 実務での連結リスト
+## 11. Linked Lists in Practice
 
-### 11.1 実際に使われている場面
+### 11.1 Real-World Usage
 
-連結リストは理論的な学習対象として見られがちだが、実際のソフトウェアシステムでも重要な役割を果たしている。
-
-```
-連結リストが実際に使われている場面:
-
-1. OS カーネル:
-   - Linux カーネルの list.h: 双方向循環リストのマクロ群
-   - プロセスリスト、デバイスドライバリスト
-   - メモリのフリーリスト管理
-
-2. キャッシュシステム:
-   - LRU キャッシュ（Redis, Memcached, ブラウザキャッシュ）
-   - LFU (Least Frequently Used) キャッシュ
-
-3. テキストエディタ:
-   - Emacs: テキストをギャップバッファ（配列ベース）+ 連結リストで管理
-   - VS Code: ピーステーブル（piece table）で行リストを管理
-
-4. ハッシュテーブル:
-   - チェイニング法（衝突解決）で各バケットにリストを使用
-   - Java の HashMap は要素数が多いとリスト → 赤黒木に変換
-
-5. メモリアロケータ:
-   - フリーリスト: 空きメモリブロックを連結リストで管理
-   - バディアロケータ: 各サイズクラスのフリーリスト
-
-6. ブロックチェーン:
-   - 各ブロックが前のブロックのハッシュを保持
-   - 概念的には単方向連結リスト
-
-7. 関数型言語:
-   - Haskell, Clojure, Erlang: 不変の連結リストが言語の基本構造
-   - 構造共有による効率的なデータ操作
-
-8. ネットワーキング:
-   - Linux のパケットキュー (sk_buff): 双方向リスト
-   - TCP の送信/受信バッファ管理
-```
-
-### 11.2 Python での実践的な選択
-
-Python で連結リストに相当する機能が必要な場合、まず標準ライブラリの `collections.deque` を検討すべきである。自前で連結リストを実装するのは、以下の場合に限定される。
+While linked lists are often seen as primarily theoretical learning material, they play important roles in actual software systems.
 
 ```
-Python での選択指針:
+Real-world applications of linked lists:
 
-list（動的配列）を使う場合:
-  - ランダムアクセスが必要
-  - 末尾への追加が主要操作
-  - スライス操作が必要
-  - 大半のユースケース → まずこれを試す
+1. OS Kernels:
+   - Linux kernel's list.h: Macros for doubly circular linked lists
+   - Process lists, device driver lists
+   - Free list management for memory
 
-collections.deque を使う場合:
-  - 両端からの追加・削除が必要
-  - FIFO キューとして使う
-  - 固定長のスライディングウィンドウ（maxlen パラメータ）
+2. Cache Systems:
+   - LRU caches (Redis, Memcached, browser caches)
+   - LFU (Least Frequently Used) caches
 
-自前の連結リストを実装する場合:
-  - ハッシュマップとの組み合わせ（LRU キャッシュ等）
-  - ノード単位の操作が必要（ノードの移動、スプライシング）
-  - 教育目的やアルゴリズム問題の解法
-  - 特殊なデータ構造の基盤として
+3. Text Editors:
+   - Emacs: Manages text with gap buffers (array-based) + linked lists
+   - VS Code: Manages line lists with piece tables
+
+4. Hash Tables:
+   - Chaining method (collision resolution) uses lists for each bucket
+   - Java's HashMap converts from list to red-black tree when element count is high
+
+5. Memory Allocators:
+   - Free lists: Manage free memory blocks as linked lists
+   - Buddy allocators: Free lists for each size class
+
+6. Blockchain:
+   - Each block holds the hash of the previous block
+   - Conceptually a singly linked list
+
+7. Functional Languages:
+   - Haskell, Clojure, Erlang: Immutable linked lists as fundamental language structures
+   - Efficient data operations through structural sharing
+
+8. Networking:
+   - Linux packet queues (sk_buff): Doubly linked lists
+   - TCP send/receive buffer management
+```
+
+### 11.2 Practical Choices in Python
+
+When linked list-like functionality is needed in Python, `collections.deque` from the standard library should be considered first. Implementing a linked list from scratch should be limited to the following cases:
+
+```
+Decision guidelines for Python:
+
+Use list (dynamic array) when:
+  - Random access is needed
+  - Tail appends are the primary operation
+  - Slice operations are needed
+  - Most use cases -> try this first
+
+Use collections.deque when:
+  - Additions/removals at both ends are needed
+  - Using as a FIFO queue
+  - Fixed-length sliding window (maxlen parameter)
+
+Implement a custom linked list when:
+  - Combining with a hash map (LRU cache, etc.)
+  - Node-level operations are needed (node movement, splicing)
+  - For educational purposes or algorithm problem solutions
+  - As the foundation for specialized data structures
 ```
 
 ---
@@ -2665,59 +2668,59 @@ collections.deque を使う場合:
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point for learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory but by actually writing code and verifying its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What mistakes do beginners commonly make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## 12. まとめ
-
-### 12.1 重要概念の整理
-
-| 概念 | ポイント |
-|------|---------|
-| 単方向リスト | next ポインタのみ。先頭挿入 O(1)。逆走査不可。最もシンプル |
-| 双方向リスト | prev + next。両端操作 O(1)。任意ノードの削除 O(1)。LRU キャッシュの基盤 |
-| 循環リスト | 末尾 → 先頭が循環。ラウンドロビン、ジョセフス問題。無限ループに注意 |
-| vs 配列 | キャッシュ効率で配列が圧勝。連結リストは挿入・削除とポインタ操作で優位 |
-| ダミーヘッド | 番兵ノードでエッジケースを排除。コードの簡潔化と正確性に貢献 |
-| Fast/Slow | 中間点検出、サイクル検出、回文判定。2ポインタテクニックの代表 |
-| LRU キャッシュ | 双方向リスト + ハッシュマップ。全操作 O(1)。面接頻出 |
-| 反転 | 反復版: O(1) 空間。再帰版: O(n) 空間。最頻出の面接問題 |
-
-### 12.2 チェックリスト
-
-この章の学習を終えたら、以下の項目を確認しよう。
-
-- [ ] 単方向・双方向・循環リストの構造と違いを説明できる
-- [ ] 各操作（挿入、削除、検索、反転）の計算量を正確に答えられる
-- [ ] ダミーヘッドを使って挿入・削除を実装できる
-- [ ] Fast/Slow ポインタで中間ノードとサイクルを検出できる
-- [ ] LRU キャッシュを双方向リスト + ハッシュマップで実装できる
-- [ ] 配列と連結リストの使い分けを適切に判断できる
-- [ ] 連結リストのアンチパターンを認識し回避できる
+Knowledge of this topic is frequently applied in everyday development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## 次に読むべきガイド
+## 12. Summary
+
+### 12.1 Key Concept Review
+
+| Concept | Key Points |
+|---------|-----------|
+| Singly linked list | next pointer only. Head insertion O(1). No reverse traversal. Simplest form |
+| Doubly linked list | prev + next. Both-end operations O(1). Arbitrary node deletion O(1). Foundation for LRU caches |
+| Circular linked list | Tail -> Head is circular. Round-robin, Josephus problem. Watch out for infinite loops |
+| vs Arrays | Arrays dominate in cache efficiency. Linked lists excel at insertion/deletion and pointer operations |
+| Dummy head | Sentinel nodes eliminate edge cases. Contribute to code simplicity and correctness |
+| Fast/Slow | Middle node detection, cycle detection, palindrome check. The quintessential two-pointer technique |
+| LRU Cache | Doubly linked list + hash map. All operations O(1). Interview favorite |
+| Reversal | Iterative: O(1) space. Recursive: O(n) space. The most frequently asked interview problem |
+
+### 12.2 Checklist
+
+After completing this chapter, verify the following items:
+
+- [ ] Can explain the structure and differences of singly, doubly, and circular linked lists
+- [ ] Can accurately state the complexity of each operation (insertion, deletion, search, reversal)
+- [ ] Can implement insertion and deletion using a dummy head
+- [ ] Can detect middle nodes and cycles using Fast/Slow pointers
+- [ ] Can implement an LRU cache using a doubly linked list + hash map
+- [ ] Can make appropriate decisions about when to use arrays versus linked lists
+- [ ] Can recognize and avoid linked list anti-patterns
+
+---
+
+## Recommended Next Guides
 
 
 ---
 
-## 参考文献
+## References
 
-1. Cormen, T. H., Leiserson, C. E., Rivest, R. L., & Stein, C. (2022). "Introduction to Algorithms." 4th Edition, MIT Press. Chapter 10: Elementary Data Structures — 連結リストの理論的基盤と操作の解説。
-2. Sedgewick, R. & Wayne, K. (2011). "Algorithms." 4th Edition, Addison-Wesley. Chapter 1.3: Bags, Queues, and Stacks — 連結リストを用いたスタック・キューの実装。
-3. Skiena, S. S. (2020). "The Algorithm Design Manual." 3rd Edition, Springer. Chapter 3: Data Structures — 連結リストの実践的な使い分けと設計判断。
-4. Knuth, D. E. (1997). "The Art of Computer Programming, Volume 1: Fundamental Algorithms." 3rd Edition, Addison-Wesley. Section 2.2: Linear Lists — 連結リストの古典的な解説と数学的分析。
-5. Python Documentation. "collections.deque." https://docs.python.org/3/library/collections.html#collections.deque — Python 標準ライブラリにおける連結リストベースのデータ構造。
-6. Pugh, W. (1990). "Skip Lists: A Probabilistic Alternative to Balanced Trees." Communications of the ACM, 33(6), 668-676. — スキップリストの原論文。連結リストの発展形として重要。
+1. Cormen, T. H., Leiserson, C. E., Rivest, R. L., & Stein, C. (2022). "Introduction to Algorithms." 4th Edition, MIT Press. Chapter 10: Elementary Data Structures -- Theoretical foundations and operations of linked lists.
+2. Sedgewick, R. & Wayne, K. (2011). "Algorithms." 4th Edition, Addison-Wesley. Chapter 1.3: Bags, Queues, and Stacks -- Stack and queue implementations using linked lists.
+3. Skiena, S. S. (2020). "The Algorithm Design Manual." 3rd Edition, Springer. Chapter 3: Data Structures -- Practical usage and design decisions for linked lists.
+4. Knuth, D. E. (1997). "The Art of Computer Programming, Volume 1: Fundamental Algorithms." 3rd Edition, Addison-Wesley. Section 2.2: Linear Lists -- Classic exposition and mathematical analysis of linked lists.
+5. Python Documentation. "collections.deque." https://docs.python.org/3/library/collections.html#collections.deque -- Linked list-based data structures in the Python standard library.
+6. Pugh, W. (1990). "Skip Lists: A Probabilistic Alternative to Balanced Trees." Communications of the ACM, 33(6), 668-676. -- The original skip list paper. Important as an extension of linked lists.

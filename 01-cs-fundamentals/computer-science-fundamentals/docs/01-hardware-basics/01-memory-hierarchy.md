@@ -1,560 +1,564 @@
-# メモリ階層
+# Memory Hierarchy
 
-> 「メモリは速いが小さく、ストレージは大きいが遅い」--- この制約がコンピュータアーキテクチャの全てを支配する。
+> "Memory is fast but small; storage is large but slow" -- this constraint governs all of computer architecture.
 
-## この章で学ぶこと
+## Learning Objectives
 
-- [ ] メモリ階層の各レベルの特性（速度・容量・コスト）を体系的に説明できる
-- [ ] キャッシュのマッピング方式・置換アルゴリズム・書き込みポリシーを理解する
-- [ ] 局所性の原理を活かしたキャッシュフレンドリーなプログラミングを実践できる
-- [ ] 仮想メモリ・ページング・TLBの動作原理を説明できる
-- [ ] NUMA・Huge Pages・メモリプロファイリングの実務知識を習得する
-- [ ] ストレージ階層（SSD/HDD）の内部構造とアクセス特性を理解する
+- [ ] Systematically explain the characteristics (speed, capacity, cost) of each level of the memory hierarchy
+- [ ] Understand cache mapping schemes, replacement algorithms, and write policies
+- [ ] Practice cache-friendly programming that leverages the principle of locality
+- [ ] Explain the operating principles of virtual memory, paging, and the TLB
+- [ ] Acquire practical knowledge of NUMA, Huge Pages, and memory profiling
+- [ ] Understand the internal structure and access characteristics of the storage hierarchy (SSD/HDD)
 
-## 前提知識
+## Prerequisites
 
-- 2進数の基本的な理解（ビット、バイト、アドレス表現）
-- C言語またはPythonの基礎的な読解力
+- Basic understanding of binary (bits, bytes, address representation)
+- Basic reading ability in C or Python
 
 ---
 
-## 1. メモリ階層ピラミッド
+## 1. The Memory Hierarchy Pyramid
 
-### 1.1 全体像
+### 1.1 Overview
 
-コンピュータのメモリシステムは、速度・容量・コストのトレードオフに基づく階層構造で構成される。上位に行くほど高速・小容量・高コスト、下位に行くほど低速・大容量・低コストとなる。この設計は、プログラムが示す「局所性」の性質を活用し、少量の高速メモリで大容量のメモリシステムを「見かけ上」高速に動作させるためのものである。
+A computer's memory system is organized as a hierarchical structure based on tradeoffs among speed, capacity, and cost. Higher levels are faster, smaller, and more expensive; lower levels are slower, larger, and cheaper. This design exploits the "locality" property exhibited by programs, enabling a small amount of fast memory to make a large memory system "appear" to operate at high speed.
 
 ```
-メモリ階層ピラミッド（2025年時点の代表的なスペック）:
+Memory hierarchy pyramid (representative specs as of 2025):
 
-  速い・高い・小さい
-  ▲
-  │  ┌─────────────────┐
-  │  │   レジスタ        │ ← ~0.3ns, ~1KB, CPU内部
-  │  │   (Register)      │    整数用16本(x86-64) + SIMD用
-  │  ├─────────────────┤
-  │  │  L1キャッシュ      │ ← ~1ns (3-4 cycles), 64KB×2
-  │  │  (L1i/L1d)        │    命令キャッシュとデータキャッシュに分離
-  │  ├─────────────────┤
-  │  │  L2キャッシュ      │ ← ~3-10ns (10-20 cycles), 256KB-2MB
-  │  │  (L2 Unified)     │    コアごとに専用
-  │  ├─────────────────┤
-  │  │  L3キャッシュ      │ ← ~10-30ns (30-70 cycles), 8-96MB
-  │  │  (L3/LLC)         │    全コア共有、インクルーシブまたは非インクルーシブ
-  │  ├─────────────────┤
-  │  │  メインメモリ      │ ← ~50-100ns, 8-256GB, DDR5-5600等
-  │  │  (DRAM/RAM)       │    揮発性、ランダムアクセス可能
-  │  ├─────────────────┤
-  │  │  NVMe SSD         │ ← ~10-100μs, 256GB-8TB
-  │  │  (Flash NAND)     │    不揮発性、ブロック単位でアクセス
-  │  ├─────────────────┤
-  │  │  SATA SSD / HDD   │ ← ~50μs-10ms, 256GB-20TB
-  │  │                    │    HDDは機械的シーク遅延が支配的
-  │  ├─────────────────┤
-  │  │  テープ / クラウド  │ ← ~秒-分, PB級, アーカイブ用途
-  │  │  (Cold Storage)    │    最低コスト、オフラインアクセス
-  │  └─────────────────┘
-  ▼
-  遅い・安い・大きい
+  Fast, Expensive, Small
+  ^
+  |  +-----------------+
+  |  |   Register      | <- ~0.3ns, ~1KB, inside CPU
+  |  |                 |    16 integer regs (x86-64) + SIMD
+  |  +-----------------+
+  |  |  L1 Cache       | <- ~1ns (3-4 cycles), 64KB x 2
+  |  |  (L1i/L1d)      |    Split into instruction and data caches
+  |  +-----------------+
+  |  |  L2 Cache       | <- ~3-10ns (10-20 cycles), 256KB-2MB
+  |  |  (L2 Unified)   |    Dedicated per core
+  |  +-----------------+
+  |  |  L3 Cache       | <- ~10-30ns (30-70 cycles), 8-96MB
+  |  |  (L3/LLC)       |    Shared across all cores, inclusive or non-inclusive
+  |  +-----------------+
+  |  |  Main Memory    | <- ~50-100ns, 8-256GB, DDR5-5600, etc.
+  |  |  (DRAM/RAM)     |    Volatile, random-access capable
+  |  +-----------------+
+  |  |  NVMe SSD       | <- ~10-100us, 256GB-8TB
+  |  |  (Flash NAND)   |    Non-volatile, block-level access
+  |  +-----------------+
+  |  |  SATA SSD / HDD | <- ~50us-10ms, 256GB-20TB
+  |  |                  |    HDD dominated by mechanical seek latency
+  |  +-----------------+
+  |  |  Tape / Cloud   | <- ~seconds-minutes, PB-scale, archival
+  |  |  (Cold Storage)  |    Lowest cost, offline access
+  |  +-----------------+
+  v
+  Slow, Cheap, Large
 ```
 
-この階層構造がなぜ「うまくいく」のかを理解するために、次の直感的な比喩を考えてみよう。自宅のデスクで仕事をしている場面を想像する。
+To understand why this hierarchical structure "works," consider the following intuitive analogy. Imagine yourself working at a desk at home.
 
-- **レジスタ** = 手に持っている書類（即座にアクセスできるが、同時に持てる枚数は限られる）
-- **L1キャッシュ** = デスクの上の書類（手を伸ばせばすぐ取れる）
-- **L2キャッシュ** = デスクの引き出し（少し探す必要があるが、すぐ見つかる）
-- **L3キャッシュ** = 同じ部屋の本棚（立ち上がって取りに行く必要がある）
-- **DRAM** = 隣の部屋の書庫（歩いて取りに行く）
-- **SSD** = 同じ建物内の資料室（エレベーターで移動する必要がある）
-- **HDD** = 隣の建物の倉庫（外に出て移動する必要がある）
-- **テープ** = 別の都市にある倉庫（郵送で取り寄せる）
+- **Registers** = Documents in your hand (instant access, but you can only hold a few)
+- **L1 Cache** = Papers on your desk (reach out and grab them)
+- **L2 Cache** = Desk drawer (requires a little searching, but quick to find)
+- **L3 Cache** = Bookshelf in the same room (need to stand up and walk over)
+- **DRAM** = Filing cabinet in the next room (walk over to retrieve)
+- **SSD** = Document room in the same building (need to take the elevator)
+- **HDD** = Warehouse in an adjacent building (need to go outside)
+- **Tape** = Warehouse in another city (request by mail)
 
-### 1.2 レイテンシ比較（Jeff Dean の数値 --- 2025年改訂版）
+### 1.2 Latency Comparison (Jeff Dean's Numbers -- 2025 Revised)
 
-| 操作 | レイテンシ | 人間スケール換算（L1=1秒基準） |
-|------|----------|------|
-| L1キャッシュ参照 | 1 ns | 1秒 |
-| 分岐予測ミス | 3 ns | 3秒 |
-| L2キャッシュ参照 | 4 ns | 4秒 |
-| L3キャッシュ参照 | 12 ns | 12秒 |
-| ミューテックスロック/アンロック | 17 ns | 17秒 |
-| DRAM参照（メインメモリ） | 100 ns | 1分40秒 |
-| 1KBをZstd圧縮 | 3 μs | 50分 |
-| 1KBを1Gbpsネットワークで送信 | 10 μs | 2.8時間 |
-| NVMe SSDランダム4KB読み出し | 16 μs | 4.4時間 |
-| NVMe SSDから1MB連続読み出し | 49 μs | 13.6時間 |
-| HDD シーク | 2 ms | 23.1日 |
-| HDDから1MB連続読み出し | 825 μs | 9.5日 |
-| TCPパケット往復（同一DC内） | 500 μs | 5.8日 |
-| TCPパケット往復（東京→米西海岸） | 150 ms | 4.8年 |
+| Operation | Latency | Human-Scale Equivalent (L1 = 1 second) |
+|-----------|---------|----------------------------------------|
+| L1 cache reference | 1 ns | 1 second |
+| Branch mispredict | 3 ns | 3 seconds |
+| L2 cache reference | 4 ns | 4 seconds |
+| L3 cache reference | 12 ns | 12 seconds |
+| Mutex lock/unlock | 17 ns | 17 seconds |
+| DRAM reference (main memory) | 100 ns | 1 min 40 sec |
+| Compress 1KB with Zstd | 3 us | 50 minutes |
+| Send 1KB over 1 Gbps network | 10 us | 2.8 hours |
+| NVMe SSD random 4KB read | 16 us | 4.4 hours |
+| Read 1MB sequentially from NVMe SSD | 49 us | 13.6 hours |
+| HDD seek | 2 ms | 23.1 days |
+| Read 1MB sequentially from HDD | 825 us | 9.5 days |
+| TCP packet round trip (same DC) | 500 us | 5.8 days |
+| TCP packet round trip (Tokyo to US West Coast) | 150 ms | 4.8 years |
 
-> **重要な洞察**: メインメモリ（DRAM）はL1キャッシュの約100倍遅い。HDDに至ってはL1の約200万倍遅い。この巨大な速度差こそが、メモリ階層設計の根本的な動機である。
+> **Key insight**: Main memory (DRAM) is roughly 100x slower than L1 cache. An HDD is approximately 2 million times slower than L1. This enormous speed gap is the fundamental motivation behind memory hierarchy design.
 
-### 1.3 帯域幅（Bandwidth）の比較
+### 1.3 Bandwidth Comparison
 
-レイテンシ（1回のアクセスにかかる時間）とともに、帯域幅（単位時間あたりに転送できるデータ量）も重要な性能指標である。
+Along with latency (time per access), bandwidth (data transferred per unit time) is an important performance metric.
 
-| レベル | レイテンシ | 帯域幅 | 容量（典型値） | 1GBあたりのコスト目安 |
-|--------|----------|--------|------|---------------|
-| レジスタ | ~0.3ns (1 cycle) | CPU内部バス幅依存 | ~1KB | --- |
-| L1 Cache | 1ns (3-4 cycles) | ~1TB/s | 64KB×2 | --- |
-| L2 Cache | 3-10ns (10-20 cycles) | ~500GB/s | 256KB-2MB | --- |
-| L3 Cache | 10-30ns (30-70 cycles) | ~200GB/s | 8-96MB | --- |
-| DDR5-5600 DRAM | 50-100ns | 45-90GB/s（デュアルチャネル） | 16-256GB | ~$2.5 |
-| NVMe SSD (PCIe 4.0) | 10-100μs | 3.5-7GB/s | 256GB-8TB | ~$0.07 |
-| NVMe SSD (PCIe 5.0) | 10-80μs | 10-14GB/s | 512GB-4TB | ~$0.10 |
-| SATA SSD | 50-100μs | ~560MB/s | 256GB-4TB | ~$0.05 |
+| Level | Latency | Bandwidth | Typical Capacity | Approx. Cost per GB |
+|-------|---------|-----------|-----------------|---------------------|
+| Register | ~0.3ns (1 cycle) | Depends on CPU internal bus width | ~1KB | -- |
+| L1 Cache | 1ns (3-4 cycles) | ~1TB/s | 64KB x 2 | -- |
+| L2 Cache | 3-10ns (10-20 cycles) | ~500GB/s | 256KB-2MB | -- |
+| L3 Cache | 10-30ns (30-70 cycles) | ~200GB/s | 8-96MB | -- |
+| DDR5-5600 DRAM | 50-100ns | 45-90GB/s (dual-channel) | 16-256GB | ~$2.5 |
+| NVMe SSD (PCIe 4.0) | 10-100us | 3.5-7GB/s | 256GB-8TB | ~$0.07 |
+| NVMe SSD (PCIe 5.0) | 10-80us | 10-14GB/s | 512GB-4TB | ~$0.10 |
+| SATA SSD | 50-100us | ~560MB/s | 256GB-4TB | ~$0.05 |
 | HDD (7200rpm) | 3-10ms | 100-250MB/s | 1-20TB | ~$0.015 |
-| テープ (LTO-9) | 秒-分 | 400MB/s (連続) | 18TB/本 | ~$0.004 |
+| Tape (LTO-9) | sec-min | 400MB/s (sequential) | 18TB/cartridge | ~$0.004 |
 
-### 1.4 なぜ階層構造が「経済的」なのか
+### 1.4 Why the Hierarchical Structure Is "Economical"
 
-仮に全てのメモリをL1キャッシュ相当のSRAMで構成しようとすると、128GBのメモリシステムは数十万ドルのコストになる。一方、階層構造を採用することで、わずかな量のSRAM（数十MB）と大量の安価なDRAM（数十GB）の組み合わせにより、コストを数百ドルに抑えつつ、ほとんどのアクセスをキャッシュで高速に処理できる。
+If the entire memory system were built from L1 cache-equivalent SRAM, a 128GB memory system would cost hundreds of thousands of dollars. By adopting a hierarchical structure, a small amount of SRAM (tens of MB) combined with a large amount of inexpensive DRAM (tens of GB) keeps costs to a few hundred dollars while handling most accesses at cache speed.
 
-これが成立するのは、プログラムの挙動が「局所的」であるためだ。典型的なプログラムでは、全アドレス空間のうち、ある短い時間に実際にアクセスされるのはごく一部（ワーキングセット）であり、そのワーキングセットがキャッシュに収まっている限り、システム全体はキャッシュの速度で動作しているように見える。
-
----
-
-## 2. レジスタとSRAM
-
-### 2.1 レジスタ --- CPUの最高速メモリ
-
-レジスタはCPU内部に直接組み込まれた最小・最速の記憶素子である。ALU（算術論理演算装置）と直接接続されており、ワイヤ遅延なしでデータの読み書きが可能である。
-
-**x86-64アーキテクチャの主要レジスタ構成:**
-
-```
-汎用レジスタ（64ビット × 16本）:
-┌─────────────────────────────────────────────────┐
-│ RAX  RBX  RCX  RDX  RSI  RDI  RBP  RSP         │
-│ R8   R9   R10  R11  R12  R13  R14  R15          │
-├─────────────────────────────────────────────────┤
-│ SIMD/ベクトルレジスタ:                            │
-│ XMM0-XMM15  (128ビット × 16本) ... SSE           │
-│ YMM0-YMM15  (256ビット × 16本) ... AVX/AVX2      │
-│ ZMM0-ZMM31  (512ビット × 32本) ... AVX-512       │
-├─────────────────────────────────────────────────┤
-│ 特殊レジスタ:                                     │
-│ RIP (命令ポインタ)                                │
-│ RFLAGS (フラグレジスタ)                           │
-│ CR0-CR4 (制御レジスタ)                            │
-│ CS, DS, SS, ES, FS, GS (セグメントレジスタ)      │
-└─────────────────────────────────────────────────┘
-
-合計容量: 汎用16×8B=128B + SIMD(AVX-512) 32×64B=2048B + 特殊 ≈ 数KB
-```
-
-**ARM (AArch64) アーキテクチャとの比較:**
-
-| 特性 | x86-64 | AArch64 (ARM v8) |
-|------|--------|------------------|
-| 汎用レジスタ数 | 16本 | 31本 |
-| レジスタ幅 | 64ビット | 64ビット |
-| SIMDレジスタ | ZMM 32本 (AVX-512) | V0-V31 32本 (NEON/SVE) |
-| 特徴 | CISC、可変長命令 | RISC、固定長命令 |
-
-### 2.2 SRAM vs DRAM --- 2つのメモリ技術
-
-キャッシュに使用されるSRAM（Static RAM）とメインメモリに使用されるDRAM（Dynamic RAM）は、根本的に異なるセル構造を持つ。
-
-```
-SRAMセル（6トランジスタ構成）:
-┌─────────────────────────────┐
-│       VDD                    │
-│    ┌──┴──┐                  │
-│  ┌─┤ P1  ├─┐  ┌─┤ P2 ├─┐  │
-│  │ └─────┘ │  │ └─────┘ │  │
-│  │         │  │         │  │
-│  ├─┤ N1 ├──┼──┼─┤ N2 ├──┤  │
-│  │ └─────┘ │  │ └─────┘ │  │
-│  │         │  │         │  │
-│  │    GND  │  │    GND  │  │
-│  │         │  │         │  │
-│ BL   ┌────┘  └────┐   BL' │
-│  │   │ Access     │   │   │
-│  └───┤ Transistor ├───┘   │
-│      └──────┬─────┘       │
-│         Word Line          │
-└─────────────────────────────┘
-- 6個のトランジスタで1ビットを保持
-- 電源が供給される限りデータは安定
-- リフレッシュ不要 → 高速アクセス可能
-- セルサイズが大きい → 容量あたりのコストが高い
-
-DRAMセル（1トランジスタ + 1キャパシタ）:
-┌─────────────────────────────┐
-│  Bit Line                    │
-│     │                        │
-│  ┌──┴──┐                    │
-│  │ Access│                   │
-│  │ Trans.│                   │
-│  └──┬──┘                    │
-│     │                        │
-│  ┌──┴──┐                    │
-│  │ Cap  │ ← 電荷でビットを表現│
-│  │  C   │   (充電=1, 放電=0) │
-│  └──┬──┘                    │
-│    GND                       │
-└─────────────────────────────┘
-- 1トランジスタ+1キャパシタで1ビット
-- キャパシタの電荷は時間とともに漏れる
-- 定期的なリフレッシュが必要（~64ms周期）
-- セルサイズが小さい → 大容量化が容易
-```
-
-**SRAMとDRAMの比較表:**
-
-| 特性 | SRAM | DRAM |
-|------|------|------|
-| セル構成 | 6トランジスタ | 1トランジスタ + 1キャパシタ |
-| アクセス速度 | ~1-2ns | ~50-100ns |
-| リフレッシュ | 不要 | 必要（~64ms周期） |
-| 集積密度 | 低い（セルが大きい） | 高い（セルが小さい） |
-| 消費電力 | 低い（スタンバイ時） | リフレッシュで電力消費 |
-| コスト/ビット | 高い（DRAMの~30-50倍） | 低い |
-| 主な用途 | CPUキャッシュ (L1/L2/L3) | メインメモリ |
-| 製造プロセス | ロジックプロセスと互換 | 専用プロセス |
+This works because program behavior is "local." In a typical program, only a small portion of the entire address space (the working set) is actually accessed during any short time period, and as long as that working set fits in the cache, the entire system appears to operate at cache speed.
 
 ---
 
-## 3. キャッシュの仕組み
+## 2. Registers and SRAM
 
-### 3.1 なぜキャッシュが必要か --- メモリウォール問題
+### 2.1 Registers -- The CPU's Fastest Memory
 
-CPUの処理速度とメモリの応答速度の間には、年を追うごとに広がる深刻なギャップが存在する。これを「メモリウォール問題」(Memory Wall Problem) と呼ぶ。
+Registers are the smallest and fastest storage elements built directly into the CPU. They are connected directly to the ALU (Arithmetic Logic Unit), enabling data reads and writes with no wire delay.
+
+**x86-64 Architecture Register Layout:**
 
 ```
-CPUとメモリの速度ギャップ（メモリウォール問題）:
+General-purpose registers (64-bit x 16):
++---------------------------------------------------+
+| RAX  RBX  RCX  RDX  RSI  RDI  RBP  RSP           |
+| R8   R9   R10  R11  R12  R13  R14  R15            |
++---------------------------------------------------+
+| SIMD/Vector registers:                            |
+| XMM0-XMM15  (128-bit x 16) ... SSE               |
+| YMM0-YMM15  (256-bit x 16) ... AVX/AVX2          |
+| ZMM0-ZMM31  (512-bit x 32) ... AVX-512           |
++---------------------------------------------------+
+| Special registers:                                |
+| RIP (instruction pointer)                         |
+| RFLAGS (flags register)                           |
+| CR0-CR4 (control registers)                       |
+| CS, DS, SS, ES, FS, GS (segment registers)       |
++---------------------------------------------------+
 
-  相対性能
-  │
-  │   CPU性能         ／
-  │              ／
-  │          ／        ← 年 ~50-60% 向上（ムーアの法則時代）
-  │        ／              2010年代以降は鈍化、~20%/年
-  │      ／
-  │    ／
-  │  ／     ←──── このギャップが「メモリウォール」
-  │／
-  │─ ─ ─ ─ ─ ─ ─ メモリ帯域
-  │──────────────── メモリレイテンシ ← 年 ~7% 改善
-  │
-  └──────────────────────────────────────── 年
+Total capacity: GP 16x8B=128B + SIMD(AVX-512) 32x64B=2048B + special ~ a few KB
+```
+
+**Comparison with ARM (AArch64) Architecture:**
+
+| Feature | x86-64 | AArch64 (ARM v8) |
+|---------|--------|------------------|
+| GP registers | 16 | 31 |
+| Register width | 64-bit | 64-bit |
+| SIMD registers | ZMM 32 (AVX-512) | V0-V31 32 (NEON/SVE) |
+| Characteristics | CISC, variable-length instructions | RISC, fixed-length instructions |
+
+### 2.2 SRAM vs DRAM -- Two Memory Technologies
+
+SRAM (Static RAM) used in caches and DRAM (Dynamic RAM) used for main memory have fundamentally different cell structures.
+
+```
+SRAM cell (6-transistor configuration):
++-----------------------------+
+|       VDD                    |
+|    +--+--+                   |
+|  +-| P1  |-+  +-| P2 |-+    |
+|  | +-----+ |  | +-----+ |   |
+|  |         |  |         |   |
+|  +-| N1 |--+--+-| N2 |--+   |
+|  | +-----+ |  | +-----+ |   |
+|  |         |  |         |   |
+|  |    GND  |  |    GND  |   |
+|  |         |  |         |   |
+| BL   +----+  +----+   BL'  |
+|  |   | Access     |   |    |
+|  +---| Transistor |---+    |
+|      +------+-----+        |
+|         Word Line           |
++-----------------------------+
+- 6 transistors hold 1 bit
+- Data is stable as long as power is supplied
+- No refresh required -> fast access possible
+- Large cell size -> high cost per bit
+
+DRAM cell (1 transistor + 1 capacitor):
++-----------------------------+
+|  Bit Line                    |
+|     |                        |
+|  +--+--+                     |
+|  | Access|                   |
+|  | Trans.|                   |
+|  +--+--+                     |
+|     |                        |
+|  +--+--+                     |
+|  | Cap  | <- Bit represented |
+|  |  C   |   by charge        |
+|  +--+--+   (charged=1,       |
+|    GND      discharged=0)    |
++-----------------------------+
+- 1 transistor + 1 capacitor per bit
+- Capacitor charge leaks over time
+- Periodic refresh required (~64ms interval)
+- Small cell size -> easy to scale to large capacity
+```
+
+**SRAM vs DRAM Comparison:**
+
+| Feature | SRAM | DRAM |
+|---------|------|------|
+| Cell structure | 6 transistors | 1 transistor + 1 capacitor |
+| Access speed | ~1-2ns | ~50-100ns |
+| Refresh | Not required | Required (~64ms interval) |
+| Density | Low (large cell) | High (small cell) |
+| Power consumption | Low (standby) | Consumes power for refresh |
+| Cost/bit | High (~30-50x DRAM) | Low |
+| Primary use | CPU caches (L1/L2/L3) | Main memory |
+| Manufacturing process | Compatible with logic process | Dedicated process |
+
+---
+
+## 3. How Caches Work
+
+### 3.1 Why Caches Are Needed -- The Memory Wall Problem
+
+A serious and widening gap exists between CPU processing speed and memory response time. This is known as the "Memory Wall Problem."
+
+```
+CPU-memory speed gap (Memory Wall Problem):
+
+  Relative
+  performance
+  |
+  |   CPU performance     /
+  |                  /
+  |              /        <- ~50-60% per year (Moore's Law era)
+  |            /              Slowed to ~20%/year since 2010s
+  |          /
+  |        /
+  |      /
+  |    /     <---- This gap is the "Memory Wall"
+  |  /
+  |/
+  |-- -- -- -- -- -- Memory bandwidth
+  |---------------- Memory latency <- ~7% improvement per year
+  |
+  +------------------------------------------------ Year
    1980        1990        2000        2010        2025
 
-  1980年: CPU 1サイクル ≈ メモリ 1サイクル
-  2000年: CPU 1サイクル ≈ メモリ 100サイクル
-  2025年: CPU 1サイクル ≈ メモリ 200-300サイクル
+  1980: 1 CPU cycle ~ 1 memory cycle
+  2000: 1 CPU cycle ~ 100 memory cycles
+  2025: 1 CPU cycle ~ 200-300 memory cycles
 
-  → キャッシュなしではCPUが99%以上の時間をメモリ待ちに費やす
+  -> Without caches, the CPU would spend >99% of its time waiting for memory
 ```
 
-この問題の本質は、DRAMのレイテンシ改善がCPU速度の向上に追いついていないことにある。DRAMの帯域幅は比較的改善されているが（DDR5は DDR4比で約2倍）、レイテンシの改善は微小である。キャッシュは、この速度ギャップを「局所性」を利用して隠蔽するための仕組みである。
+The essence of this problem is that DRAM latency improvements have not kept up with CPU speed gains. DRAM bandwidth has improved relatively well (DDR5 is roughly 2x DDR4), but latency improvement is minimal. Caches are a mechanism to "hide" this speed gap by exploiting locality.
 
-### 3.2 キャッシュの基本動作
+### 3.2 Basic Cache Operation
 
-キャッシュは、メインメモリの部分的なコピーを高速なSRAMに保持する仕組みである。CPUがメモリアドレスにアクセスする際、まずキャッシュを確認し、データが存在すれば（キャッシュヒット）高速に取得し、存在しなければ（キャッシュミス）下位の階層からデータを取得してキャッシュに格納する。
-
-```
-キャッシュの基本動作フロー:
-
-  CPU がアドレス A のデータを要求
-  │
-  ▼
-  L1 キャッシュを検索
-  │
-  ├── ヒット → データを CPU に返す（~1ns）
-  │              ★ 最も高速なパス
-  │
-  └── ミス → L2 キャッシュを検索
-              │
-              ├── ヒット → データを L1 に格納し CPU に返す（~4ns）
-              │
-              └── ミス → L3 キャッシュを検索
-                          │
-                          ├── ヒット → データを L2, L1 に格納し返す（~12ns）
-                          │
-                          └── ミス → DRAM にアクセス
-                                      │
-                                      └── データを L3, L2, L1 に格納し返す（~100ns）
-                                           ★ L1 の約100倍のペナルティ
-```
-
-### 3.3 キャッシュライン --- データ転送の最小単位
-
-キャッシュとメモリ間のデータ転送は、1バイト単位ではなく、「キャッシュライン」と呼ばれる固定サイズのブロック（通常64バイト）単位で行われる。
+A cache holds partial copies of main memory in fast SRAM. When the CPU accesses a memory address, it first checks the cache; if the data is present (cache hit), it is retrieved quickly; if absent (cache miss), data is fetched from a lower level and stored in the cache.
 
 ```
-キャッシュラインの構造（64バイトの場合）:
+Basic cache operation flow:
 
-  1本のキャッシュライン:
-  ┌──────┬───────┬─────────────────────────────────────────────┐
-  │Valid │ Tag   │              Data (64 bytes)                 │
-  │ (1b) │(上位) │ byte0  byte1  byte2  ...  byte62  byte63    │
-  └──────┴───────┴─────────────────────────────────────────────┘
-
-  メモリアドレスの分解（64バイトライン、256セットの8-Wayキャッシュの場合）:
-  ┌───────────────────┬──────────┬──────────┐
-  │       Tag          │  Index   │  Offset  │
-  │  (残りの上位ビット) │ (8ビット) │ (6ビット) │
-  └───────────────────┴──────────┴──────────┘
-                         │           │
-                         │           └─ キャッシュライン内のバイト位置
-                         │              (64バイト = 2^6 → 6ビット)
-                         │
-                         └─ どのセットに格納するか
-                            (256セット = 2^8 → 8ビット)
-
-  例: int 配列 a[16] がメモリ上で連続している場合
-  ┌────┬────┬────┬────┬────┬────┬────┬────┬────┬────┬────┬────┬────┬────┬────┬────┐
-  │a[0]│a[1]│a[2]│a[3]│a[4]│a[5]│a[6]│a[7]│a[8]│a[9]│... │... │... │... │... │a[15]│
-  └────┴────┴────┴────┴────┴────┴────┴────┴────┴────┴────┴────┴────┴────┴────┴────┘
-  |←────────── 1キャッシュライン (64B) ──────────→|←────── 次のキャッシュライン ──→|
-  int は 4 バイトなので、1キャッシュラインに 16 個の int が格納される
-  → a[0] にアクセスすると a[0]~a[15] が一度にキャッシュに読み込まれる
-  → 以降の a[1]~a[15] へのアクセスは全てキャッシュヒット
+  CPU requests data at address A
+  |
+  v
+  Search L1 cache
+  |
+  +-- Hit -> Return data to CPU (~1ns)
+  |           * Fastest path
+  |
+  +-- Miss -> Search L2 cache
+              |
+              +-- Hit -> Store in L1 and return to CPU (~4ns)
+              |
+              +-- Miss -> Search L3 cache
+                          |
+                          +-- Hit -> Store in L2, L1 and return (~12ns)
+                          |
+                          +-- Miss -> Access DRAM
+                                      |
+                                      +-- Store in L3, L2, L1 and return (~100ns)
+                                           * ~100x penalty compared to L1
 ```
 
-### 3.4 キャッシュのマッピング方式
+### 3.3 Cache Lines -- The Minimum Unit of Data Transfer
 
-メモリアドレスをキャッシュのどの位置に格納するかを決定する方式には、以下の3種類がある。
-
-```
-3つのキャッシュマッピング方式:
-
-1. ダイレクトマップ（Direct-Mapped）:
-   各メモリアドレスが格納できるキャッシュラインは1箇所のみ
-
-   メモリブロック:  0  1  2  3  4  5  6  7  8  9 10 11
-   キャッシュライン: ┌──┐
-                    │ 0│ ← ブロック 0, 4, 8, ... が格納される
-                    │ 1│ ← ブロック 1, 5, 9, ...
-                    │ 2│ ← ブロック 2, 6, 10, ...
-                    │ 3│ ← ブロック 3, 7, 11, ...
-                    └──┘
-   格納先 = ブロック番号 mod キャッシュライン数
-
-   長所: インデックス計算が単純で高速、ハードウェアが小さい
-   短所: 衝突ミスが多い（例: ブロック0と4が交互にアクセスされると
-         毎回キャッシュミスが発生 = スラッシング）
-
-2. フルアソシアティブ（Fully Associative）:
-   任意のメモリブロックをキャッシュの任意の位置に格納可能
-
-   キャッシュライン: ┌──┐
-                    │  │ ← どのブロックでも格納可能
-                    │  │ ← どのブロックでも格納可能
-                    │  │ ← どのブロックでも格納可能
-                    │  │ ← どのブロックでも格納可能
-                    └──┘
-   長所: 衝突ミスが発生しない
-   短所: 全ラインのタグを同時に比較する必要がある
-         → 回路面積・消費電力が大きく、大容量キャッシュでは非現実的
-   用途: TLB（エントリ数が少ない）、一部の小容量キャッシュ
-
-3. セットアソシアティブ（Set-Associative）: ★ 現代CPUの標準
-   キャッシュを複数のセットに分割し、各セットに N 本のライン（Way）を持つ
-   格納先のセットはアドレスで決定、セット内のどのWayに入れるかは自由
-
-   8-Way Set-Associative の例:
-   ┌──────────────────────────────────────────────────┐
-   │Set 0: [Way0][Way1][Way2][Way3][Way4][Way5][Way6][Way7]│
-   │Set 1: [Way0][Way1][Way2][Way3][Way4][Way5][Way6][Way7]│
-   │Set 2: [Way0][Way1][Way2][Way3][Way4][Way5][Way6][Way7]│
-   │  ...                                                   │
-   │Set N: [Way0][Way1][Way2][Way3][Way4][Way5][Way6][Way7]│
-   └──────────────────────────────────────────────────┘
-
-   格納先セット = ブロック番号 mod セット数
-   セット内のどのWayに格納するかは置換ポリシー（LRU等）で決定
-
-   長所: ダイレクトマップの速さとフルアソシアティブの柔軟性のバランス
-   現代CPUの典型値:
-     L1: 8-Way, 64セット (64×8×64B = 32KB)
-     L2: 4-8-Way
-     L3: 12-16-Way
-```
-
-### 3.5 キャッシュの置換ポリシー
-
-キャッシュが満杯のとき、新しいデータを格納するためにどのラインを追い出すかを決定するアルゴリズムが「置換ポリシー」である。
-
-| ポリシー | 仕組み | 長所 | 短所 | 使用例 |
-|----------|--------|------|------|--------|
-| **LRU** (Least Recently Used) | 最も長く使われていないラインを追い出す | 時間的局所性に効果的 | Way数が多いとハードウェアコスト大 | L1/L2 (Way数が少ない場合) |
-| **Pseudo-LRU** | ツリー構造で近似LRUを実現 | LRUより低コスト | 厳密なLRUではない | L1/L2/L3 (現代CPUで主流) |
-| **RRIP** (Re-Reference Interval Prediction) | 再参照間隔を予測して追い出し | スキャン耐性がある | 実装がやや複雑 | L3 (Intel) |
-| **Random** | ランダムに選択 | 最もシンプル | 最適からは遠い | 一部のARMプロセッサ |
-| **FIFO** | 最も古いラインを追い出す | シンプル | 最近使ったデータも追い出す | ソフトウェアキャッシュ |
-
-### 3.6 キャッシュの書き込みポリシー
-
-データを書き込む際のメインメモリとの整合性の取り方には2つのポリシーがある。
+Data transfer between cache and memory occurs not byte by byte but in fixed-size blocks called "cache lines" (typically 64 bytes).
 
 ```
-書き込みポリシー:
+Cache line structure (64 bytes):
 
-1. ライトスルー（Write-Through）:
-   書き込み時に、キャッシュとメインメモリの両方に即座に反映
+  One cache line:
+  +------+-------+---------------------------------------------+
+  |Valid | Tag   |              Data (64 bytes)                 |
+  | (1b) |(upper)|  byte0  byte1  byte2  ...  byte62  byte63   |
+  +------+-------+---------------------------------------------+
 
-   CPU → Write → [L1 Cache] → 同時に → [DRAM]
-                  (更新)                  (更新)
+  Memory address decomposition (64-byte line, 256-set, 8-way cache):
+  +-------------------+----------+----------+
+  |       Tag          |  Index   |  Offset  |
+  |  (remaining upper  | (8 bits) | (6 bits) |
+  |   bits)            |          |          |
+  +-------------------+----------+----------+
+                         |           |
+                         |           +- Byte position within the cache line
+                         |              (64 bytes = 2^6 -> 6 bits)
+                         |
+                         +- Which set to store in
+                            (256 sets = 2^8 -> 8 bits)
 
-   長所: メモリとキャッシュが常に一致（整合性が保証される）
-   短所: 書き込みのたびにメモリアクセスが発生（遅い）
-   対策: ライトバッファ（Write Buffer）で書き込みを一時的にバッファリング
-
-2. ライトバック（Write-Back）: ★ 現代CPUの主流
-   書き込み時にキャッシュのみ更新し、追い出し時にメインメモリに反映
-
-   CPU → Write → [L1 Cache] (Dirty bit = 1 に設定)
-                  (更新)
-
-   追い出し時:
-   [L1 Cache] (Dirty bit == 1) → [DRAM] に書き戻し
-
-   長所: 書き込み頻度が高い場合にメモリアクセスを大幅に削減
-   短所: キャッシュとメモリの内容が一時的に不一致になる
-         マルチコアでのキャッシュコヒーレンシが複雑
+  Example: int array a[16] contiguous in memory
+  +----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+------+
+  |a[0]|a[1]|a[2]|a[3]|a[4]|a[5]|a[6]|a[7]|a[8]|a[9]|... |... |... |... |... |a[15]|
+  +----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+------+
+  |<------------ 1 cache line (64B) ----------->|<------- next cache line -------->|
+  int is 4 bytes, so 16 ints fit in 1 cache line
+  -> Accessing a[0] loads a[0]-a[15] into the cache at once
+  -> Subsequent accesses to a[1]-a[15] are all cache hits
 ```
 
-### 3.7 キャッシュコヒーレンシ --- マルチコア時代の課題
+### 3.4 Cache Mapping Schemes
 
-マルチコアプロセッサでは、各コアが独自のL1/L2キャッシュを持つため、同一メモリアドレスのデータが複数のキャッシュに異なる値で存在する可能性がある。この問題を「キャッシュコヒーレンシ問題」と呼ぶ。
+There are three schemes that determine where in the cache a memory address is stored.
 
 ```
-キャッシュコヒーレンシ問題の例:
+Three cache mapping schemes:
+
+1. Direct-Mapped:
+   Each memory address can only be stored in one specific cache line
+
+   Memory blocks:  0  1  2  3  4  5  6  7  8  9 10 11
+   Cache lines:    +--+
+                   | 0| <- blocks 0, 4, 8, ... stored here
+                   | 1| <- blocks 1, 5, 9, ...
+                   | 2| <- blocks 2, 6, 10, ...
+                   | 3| <- blocks 3, 7, 11, ...
+                   +--+
+   Location = block number mod number of cache lines
+
+   Pros: Simple and fast index computation, small hardware
+   Cons: High conflict misses (e.g., alternating access to blocks 0 and 4
+         causes a cache miss every time = thrashing)
+
+2. Fully Associative:
+   Any memory block can be stored in any cache location
+
+   Cache lines:    +--+
+                   |  | <- any block can go here
+                   |  | <- any block can go here
+                   |  | <- any block can go here
+                   |  | <- any block can go here
+                   +--+
+   Pros: No conflict misses
+   Cons: Must compare all tags simultaneously
+         -> Large circuit area and power; impractical for large caches
+   Use cases: TLB (small number of entries), some small caches
+
+3. Set-Associative: * The modern CPU standard
+   Cache is divided into multiple sets, each with N lines (ways)
+   The set is determined by the address; which way within the set is flexible
+
+   8-Way Set-Associative example:
+   +------------------------------------------------------+
+   |Set 0: [Way0][Way1][Way2][Way3][Way4][Way5][Way6][Way7]|
+   |Set 1: [Way0][Way1][Way2][Way3][Way4][Way5][Way6][Way7]|
+   |Set 2: [Way0][Way1][Way2][Way3][Way4][Way5][Way6][Way7]|
+   |  ...                                                   |
+   |Set N: [Way0][Way1][Way2][Way3][Way4][Way5][Way6][Way7]|
+   +------------------------------------------------------+
+
+   Target set = block number mod number of sets
+   Which way within the set is determined by the replacement policy (LRU, etc.)
+
+   Pros: Balance between direct-mapped speed and fully associative flexibility
+   Typical values in modern CPUs:
+     L1: 8-way, 64 sets (64 x 8 x 64B = 32KB)
+     L2: 4-8-way
+     L3: 12-16-way
+```
+
+### 3.5 Cache Replacement Policies
+
+When the cache is full, the algorithm that determines which line to evict to make room for new data is called the "replacement policy."
+
+| Policy | Mechanism | Pros | Cons | Use Cases |
+|--------|-----------|------|------|-----------|
+| **LRU** (Least Recently Used) | Evict the least recently used line | Effective for temporal locality | High hardware cost with many ways | L1/L2 (with few ways) |
+| **Pseudo-LRU** | Approximate LRU using a tree structure | Lower cost than LRU | Not strictly LRU | L1/L2/L3 (mainstream in modern CPUs) |
+| **RRIP** (Re-Reference Interval Prediction) | Predict re-reference interval for eviction | Scan-resistant | Slightly complex implementation | L3 (Intel) |
+| **Random** | Select randomly | Simplest | Far from optimal | Some ARM processors |
+| **FIFO** | Evict the oldest line | Simple | May evict recently used data | Software caches |
+
+### 3.6 Cache Write Policies
+
+There are two policies for maintaining consistency between cache and main memory on writes.
+
+```
+Write policies:
+
+1. Write-Through:
+   On write, both cache and main memory are updated immediately
+
+   CPU -> Write -> [L1 Cache] -> simultaneously -> [DRAM]
+                   (update)                        (update)
+
+   Pros: Cache and memory always agree (consistency guaranteed)
+   Cons: Memory access on every write (slow)
+   Mitigation: Write buffer temporarily buffers writes
+
+2. Write-Back: * The mainstream in modern CPUs
+   On write, only the cache is updated; main memory is updated on eviction
+
+   CPU -> Write -> [L1 Cache] (dirty bit = 1)
+                   (update)
+
+   On eviction:
+   [L1 Cache] (dirty bit == 1) -> write back to [DRAM]
+
+   Pros: Significantly reduces memory accesses for write-heavy workloads
+   Cons: Cache and memory temporarily out of sync
+         Complex cache coherency in multicore systems
+```
+
+### 3.7 Cache Coherency -- A Multicore Challenge
+
+In multicore processors, each core has its own L1/L2 cache, so the same memory address may exist in multiple caches with different values. This is called the "cache coherency problem."
+
+```
+Cache coherency problem example:
 
   Core 0                    Core 1
-  ┌──────────┐              ┌──────────┐
-  │ L1 Cache │              │ L1 Cache │
-  │ X = 42   │              │ X = 42   │  ← 初期状態: 両方とも X=42
-  └────┬─────┘              └────┬─────┘
-       │                         │
-       │  Core 0 が X = 100 に更新
-       │  ┌──────────┐
-       │  │ X = 100  │ ← Core 0 のキャッシュは更新済み
-       │  └──────────┘
-       │                    ┌──────────┐
-       │                    │ X = 42   │ ← Core 1 は古い値を保持！
-       │                    └──────────┘
-       │                         │
-       └────────┬────────────────┘
-                │
-  ┌─────────────────────────┐
-  │ メインメモリ: X = 42     │ ← ライトバックなのでまだ古い値
-  └─────────────────────────┘
+  +----------+              +----------+
+  | L1 Cache |              | L1 Cache |
+  | X = 42   |              | X = 42   |  <- Initial state: both have X=42
+  +----+-----+              +----+-----+
+       |                         |
+       |  Core 0 updates X = 100
+       |  +----------+
+       |  | X = 100  | <- Core 0's cache is updated
+       |  +----------+
+       |                    +----------+
+       |                    | X = 42   | <- Core 1 still holds the old value!
+       |                    +----------+
+       |                         |
+       +--------+----------------+
+                |
+  +-------------------------+
+  | Main memory: X = 42     | <- Write-back, so still the old value
+  +-------------------------+
 
-  → Core 1 が X を読むと 42（古い値）が返る = データ不整合！
+  -> Core 1 reading X returns 42 (stale value) = data inconsistency!
 ```
 
-この問題を解決するために、**MESIプロトコル**（およびその拡張版）が使用される。
+The **MESI protocol** (and its extensions) is used to solve this problem.
 
-| 状態 | 名前 | 意味 |
-|------|------|------|
-| **M** | Modified | このキャッシュのみが最新値を持ち、メモリの値は古い |
-| **E** | Exclusive | このキャッシュのみがコピーを持ち、メモリと一致 |
-| **S** | Shared | 複数のキャッシュがコピーを持ち、メモリと一致 |
-| **I** | Invalid | このキャッシュラインは無効（使用不可） |
+| State | Name | Meaning |
+|-------|------|---------|
+| **M** | Modified | Only this cache has the latest value; memory is stale |
+| **E** | Exclusive | Only this cache has a copy; matches memory |
+| **S** | Shared | Multiple caches have copies; matches memory |
+| **I** | Invalid | This cache line is invalid (unusable) |
 
-MESIプロトコルでは、あるコアがShared状態のデータを書き換える際、他の全コアの該当キャッシュラインをInvalidに変更する（インバリデーション）。これにより整合性が保たれるが、マルチコア環境でのバス通信（スヌーピング）のオーバーヘッドが発生する。
+In the MESI protocol, when a core writes to data in Shared state, it invalidates the corresponding cache lines in all other cores (invalidation). This maintains consistency but incurs overhead from bus communication (snooping) in multicore environments.
 
-> **False Sharing（偽の共有）**: 異なるコアが「異なる変数」にアクセスしていても、それらが同じキャッシュラインに乗っている場合、MESIプロトコルによる不要なインバリデーションが発生し、性能が大幅に低下する。これはマルチスレッドプログラミングにおける重要なアンチパターンである（後述のアンチパターンセクションで詳述）。
+> **False Sharing**: Even when different cores access "different variables," if those variables reside on the same cache line, the MESI protocol triggers unnecessary invalidations, causing severe performance degradation. This is an important anti-pattern in multithreaded programming (detailed in the Anti-Patterns section below).
 
 ---
 
-## 4. 局所性の原理
+## 4. The Principle of Locality
 
-### 4.1 概要
+### 4.1 Overview
 
-メモリ階層が効率的に機能する理由は、プログラムのメモリアクセスパターンが「局所的」であることに依存している。この性質を「局所性の原理」(Principle of Locality) と呼ぶ。局所性には2つの形態がある。
+The memory hierarchy works efficiently because program memory access patterns are "local." This property is called the "Principle of Locality." There are two forms of locality.
 
-### 4.2 時間的局所性（Temporal Locality）
+### 4.2 Temporal Locality
 
-「最近アクセスしたデータは、近い将来また使われる可能性が高い」
+"Data accessed recently is likely to be accessed again in the near future."
 
 ```python
-# 時間的局所性の例: ループカウンタと累算変数
+# Temporal locality example: loop counters and accumulator variables
 def compute_sum(data: list[int]) -> int:
-    total = 0                      # total: 非常に高い時間的局所性
-    count = 0                      # count: 非常に高い時間的局所性
-    for i in range(len(data)):     # i: 高い時間的局所性
+    total = 0                      # total: very high temporal locality
+    count = 0                      # count: very high temporal locality
+    for i in range(len(data)):     # i: high temporal locality
         total += data[i]
         count += 1
     return total // count if count > 0 else 0
-    # total, count, i はループの全反復で繰り返しアクセスされる
-    # → コンパイラはこれらをレジスタに割り当てる（レジスタ割り当て最適化）
-    # → レジスタに収まらない場合でも L1 キャッシュに保持される
+    # total, count, i are accessed repeatedly across all loop iterations
+    # -> The compiler assigns them to registers (register allocation optimization)
+    # -> If they don't fit in registers, they remain in L1 cache
 ```
 
-時間的局所性が高いデータの例:
-- ループカウンタ、累算変数
-- 頻繁に呼ばれる関数のコード
-- グローバル変数、頻繁にアクセスされるデータ構造のルートノード
+Examples of data with high temporal locality:
+- Loop counters, accumulator variables
+- Code of frequently called functions
+- Global variables, root nodes of frequently accessed data structures
 
-### 4.3 空間的局所性（Spatial Locality）
+### 4.3 Spatial Locality
 
-「あるアドレスにアクセスしたら、近くのアドレスも近い将来使われる可能性が高い」
+"After accessing a given address, nearby addresses are likely to be accessed in the near future."
 
 ```python
-# 空間的局所性の例: 配列の連続アクセス
+# Spatial locality example: sequential array access
 def process_image(pixels: list[int], width: int, height: int) -> None:
-    # 行優先で連続アクセス → 高い空間的局所性
+    # Row-major sequential access -> high spatial locality
     for y in range(height):
         for x in range(width):
             pixels[y * width + x] = transform(pixels[y * width + x])
-    # pixels[0], pixels[1], pixels[2], ... はメモリ上で連続
-    # → 1回のキャッシュラインロード（64B）で int 16個分をカバー
-    # → キャッシュミス率 = 1/16 = 6.25%（理論値）
+    # pixels[0], pixels[1], pixels[2], ... are contiguous in memory
+    # -> One cache line load (64B) covers 16 ints
+    # -> Cache miss rate = 1/16 = 6.25% (theoretical)
 ```
 
-空間的局所性が高いアクセスパターンの例:
-- 配列の順次走査
-- 構造体のフィールドアクセス（フィールドはメモリ上で連続）
-- 命令の逐次実行（プログラムカウンタのインクリメント）
+Examples of access patterns with high spatial locality:
+- Sequential array traversal
+- Struct field access (fields are contiguous in memory)
+- Sequential instruction execution (program counter increment)
 
-### 4.4 キャッシュミスの3C分類
+### 4.4 The 3C Classification of Cache Misses
 
-キャッシュミスは発生原因に基づいて3つに分類される（3C分類: Compulsory, Capacity, Conflict）。
+Cache misses are classified into three categories by cause (3C classification: Compulsory, Capacity, Conflict).
 
-| 種類 | 英語名 | 原因 | 対策 |
-|------|--------|------|------|
-| **義務ミス（コールドミス）** | Compulsory (Cold) Miss | そのデータへの初めてのアクセス。キャッシュにデータが存在しない | ハードウェアプリフェッチ、ソフトウェアプリフェッチ命令 |
-| **容量ミス** | Capacity Miss | ワーキングセットがキャッシュ容量を超えている | ワーキングセットの縮小、データ構造の最適化、キャッシュブロッキング |
-| **競合ミス** | Conflict Miss | 異なるアドレスが同一セットにマッピングされ、互いを追い出し合う | アソシアティビティの向上、データ配置の工夫、パディング |
+| Type | English Name | Cause | Countermeasure |
+|------|-------------|-------|----------------|
+| **Compulsory (Cold) Miss** | Compulsory (Cold) Miss | First access to that data. Data does not exist in the cache | Hardware prefetching, software prefetch instructions |
+| **Capacity Miss** | Capacity Miss | Working set exceeds cache capacity | Reduce working set, optimize data structures, cache blocking |
+| **Conflict Miss** | Conflict Miss | Different addresses map to the same set and evict each other | Increase associativity, adjust data placement, padding |
 
-### 4.5 局所性を定量的に理解するコード例
+### 4.5 Code Example: Quantifying Locality
 
 ```c
-/* 行優先 vs 列優先アクセスによるキャッシュミス率の違い */
+/* Row-major vs. column-major access: cache miss rate differences */
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 
-#define N 4096  /* 4096 x 4096 = 16M 要素, 64MB (int) */
+#define N 4096  /* 4096 x 4096 = 16M elements, 64MB (int) */
 
 int matrix[N][N];
 
-/* 行優先アクセス（空間的局所性あり） */
+/* Row-major access (spatial locality present) */
 long long sum_row_major(void) {
     long long sum = 0;
     for (int i = 0; i < N; i++)
         for (int j = 0; j < N; j++)
-            sum += matrix[i][j];   /* matrix[i][0], [i][1], [i][2]... は連続 */
-    return sum;                     /* キャッシュミス率: ~1/16 = 6.25% */
+            sum += matrix[i][j];   /* matrix[i][0], [i][1], [i][2]... are contiguous */
+    return sum;                     /* Cache miss rate: ~1/16 = 6.25% */
 }
 
-/* 列優先アクセス（空間的局所性なし） */
+/* Column-major access (no spatial locality) */
 long long sum_col_major(void) {
     long long sum = 0;
     for (int j = 0; j < N; j++)
         for (int i = 0; i < N; i++)
-            sum += matrix[i][j];   /* matrix[0][j], [1][j], [2][j]... はストライド N */
-    return sum;                     /* キャッシュミス率: ~100%（Nが大きい場合） */
+            sum += matrix[i][j];   /* matrix[0][j], [1][j], [2][j]... stride N */
+    return sum;                     /* Cache miss rate: ~100% (for large N) */
 }
 
 int main(void) {
-    /* 配列を初期化 */
+    /* Initialize array */
     srand(42);
     for (int i = 0; i < N; i++)
         for (int j = 0; j < N; j++)
@@ -574,10 +578,10 @@ int main(void) {
     printf("Col-major: sum=%lld, time=%.3fs\n",
            s2, (double)(end - start) / CLOCKS_PER_SEC);
 
-    /* 典型的な結果:
+    /* Typical results:
      * Row-major: ~0.05s
-     * Col-major: ~0.30s (6倍遅い)
-     * N が大きくなるほど差が広がる（L3キャッシュを超えるため）
+     * Col-major: ~0.30s (6x slower)
+     * The gap widens as N grows (exceeding L3 cache)
      */
     return 0;
 }
@@ -585,344 +589,347 @@ int main(void) {
 
 ---
 
-## 5. 仮想メモリ
+## 5. Virtual Memory
 
-### 5.1 概要と目的
+### 5.1 Overview and Purpose
 
-仮想メモリは、各プロセスに独立した連続アドレス空間を提供し、物理メモリの効率的な管理とプロセス間の保護を実現するOS/ハードウェア協調の仕組みである。
+Virtual memory is an OS/hardware-cooperative mechanism that provides each process with an independent, contiguous address space, enabling efficient physical memory management and inter-process protection.
 
-仮想メモリの3つの主要な目的:
+Three primary purposes of virtual memory:
 
-1. **抽象化**: 各プロセスは自分だけの広大な連続アドレス空間を持っているかのように振る舞える
-2. **保護**: あるプロセスが別のプロセスのメモリを読み書きすることを防ぐ
-3. **効率化**: 物理メモリの断片化を隠蔽し、実際に使用しているページのみに物理メモリを割り当てる
-
-```
-仮想メモリの概念図:
-
-  プロセスA の仮想アドレス空間         物理メモリ (RAM)
-  ┌──────────────────────────┐       ┌──────────────────┐
-  │ 0x0000_0000: コード(.text)│──────→│ Frame 5: ...      │
-  │ 0x0040_0000: データ(.data)│──────→│ Frame 8: ...      │
-  │ 0x0080_0000: ヒープ       │──────→│ Frame 12: ...     │
-  │ 0x00C0_0000: (未割当)     │       │ Frame 13: (空き)  │
-  │ ...                       │       │ Frame 14: ...     │
-  │ 0x7FFF_0000: スタック     │──────→│ Frame 20: ...     │
-  └──────────────────────────┘       │                    │
-                                      │                    │
-  プロセスB の仮想アドレス空間         │                    │
-  ┌──────────────────────────┐       │                    │
-  │ 0x0000_0000: コード(.text)│──────→│ Frame 2: ...      │
-  │ 0x0040_0000: データ(.data)│──────→│ Frame 7: ...      │
-  │ 0x0080_0000: ヒープ       │──────→│ Frame 15: ...     │
-  │ ...                       │       │                    │
-  │ 0x7FFF_0000: スタック     │──────→│ Frame 22: ...     │
-  └──────────────────────────┘       └──────────────────┘
-                                              │
-  両プロセスとも同じ仮想アドレス              │
-  (0x0000_0000) を使うが、                    ▼
-  物理的には異なるフレームにマッピング    ┌──────────┐
-                                          │ SSD/HDD  │
-  物理メモリが不足 → ページアウト ────→   │ (Swap)   │
-                                          └──────────┘
-```
-
-### 5.2 ページングの仕組み
-
-仮想アドレス空間と物理メモリは、ともに「ページ」と呼ばれる固定サイズのブロック（通常4KB）に分割される。仮想ページを物理フレーム（物理ページ）に対応付ける情報を保持するのが「ページテーブル」である。
+1. **Abstraction**: Each process behaves as if it has its own vast, contiguous address space
+2. **Protection**: Prevents one process from reading or writing another process's memory
+3. **Efficiency**: Hides physical memory fragmentation and allocates physical memory only to pages actually in use
 
 ```
-x86-64 の 4段階ページテーブル:
+Virtual memory conceptual diagram:
 
-仮想アドレス（48ビット有効）:
-┌─────────┬─────────┬─────────┬─────────┬──────────────┐
-│ PML4    │  PDPT   │   PD    │   PT    │  Page Offset │
-│ (9bit)  │ (9bit)  │ (9bit)  │ (9bit)  │   (12bit)    │
-│ [47:39] │ [38:30] │ [29:21] │ [20:12] │   [11:0]     │
-└────┬────┴────┬────┴────┬────┴────┬────┴──────────────┘
-     │         │         │         │
-     ▼         ▼         ▼         ▼
-  ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐
-  │PML4  │→│PDPT  │→│Page  │→│Page  │→ 物理フレーム
-  │Table │ │Table │ │Dir   │ │Table │   + Offset
-  │(512  │ │(512  │ │(512  │ │(512  │
-  │entries)│entries)│entries)│entries)
-  └──────┘ └──────┘ └──────┘ └──────┘
-
-  各テーブル: 512エントリ × 8バイト = 4KB (1ページに収まる)
-  仮想アドレス空間: 2^48 = 256TB
-  物理ページサイズ: 4KB (2^12)
-
-  ページテーブルウォークのコスト:
-  最大4回のメモリアクセスが必要 = 4 × 100ns = 400ns
-  → これでは遅すぎるため TLB で高速化する
+  Process A's virtual address space        Physical memory (RAM)
+  +----------------------------+       +--------------------+
+  | 0x0000_0000: Code (.text)  |------>| Frame 5: ...       |
+  | 0x0040_0000: Data (.data)  |------>| Frame 8: ...       |
+  | 0x0080_0000: Heap          |------>| Frame 12: ...      |
+  | 0x00C0_0000: (unmapped)    |       | Frame 13: (free)   |
+  | ...                        |       | Frame 14: ...      |
+  | 0x7FFF_0000: Stack         |------>| Frame 20: ...      |
+  +----------------------------+       |                     |
+                                       |                     |
+  Process B's virtual address space    |                     |
+  +----------------------------+       |                     |
+  | 0x0000_0000: Code (.text)  |------>| Frame 2: ...       |
+  | 0x0040_0000: Data (.data)  |------>| Frame 7: ...       |
+  | 0x0080_0000: Heap          |------>| Frame 15: ...      |
+  | ...                        |       |                     |
+  | 0x7FFF_0000: Stack         |------>| Frame 22: ...      |
+  +----------------------------+       +--------------------+
+                                              |
+  Both processes use the same virtual         |
+  address (0x0000_0000), but they are         v
+  mapped to different physical frames     +----------+
+                                          | SSD/HDD  |
+  When physical memory runs out           | (Swap)   |
+  -> page out --------------------------> +----------+
 ```
 
-### 5.3 TLB（Translation Lookaside Buffer）
+### 5.2 How Paging Works
 
-TLBは、仮想ページ番号(VPN)から物理フレーム番号(PFN)への変換結果をキャッシュする、専用の高速連想メモリである。
-
-```
-アドレス変換の仕組み:
-
-  仮想アドレス
-  ┌──────────────────┬────────────┐
-  │ 仮想ページ番号    │ オフセット │
-  │ (VPN)             │ (12bit)    │
-  └──────┬───────────┴────────────┘
-         │
-         ▼
-  ┌──────────────┐    TLBミス    ┌──────────────────────┐
-  │     TLB       │ ──────────→ │ ページテーブルウォーク │
-  │  (高速連想    │              │ (4段階のメモリ参照)   │
-  │   メモリ)     │              │                      │
-  │               │              │ 結果をTLBに格納      │
-  │  L1 iTLB:     │              └──────────┬───────────┘
-  │   64-128      │                         │
-  │   エントリ    │                         │
-  │  L1 dTLB:     │  ページフォルト          │
-  │   64-128      │  (ページが物理メモリに   │
-  │   エントリ    │   存在しない場合)        │
-  │  L2 TLB:      │         │               │
-  │   1024-2048   │         ▼               │
-  │   エントリ    │  OSがディスクから       │
-  └──────┬───────┘  ページを読み込む        │
-         │ TLBヒット                        │
-         ▼                                  ▼
-  物理アドレス
-  ┌──────────────────┬────────────┐
-  │ 物理フレーム番号  │ オフセット │
-  │ (PFN)             │ (12bit)    │
-  └──────────────────┴────────────┘
-
-  TLBヒットのコスト: ~1ns（パイプラインに統合）
-  TLBミスのコスト: ~10-100ns（ページテーブルウォーク）
-  ページフォルトのコスト: ~1ms (SSD) / ~10ms (HDD)
-
-  TLBカバレッジ = TLBエントリ数 × ページサイズ
-  例: 1024エントリ × 4KB = 4MB
-  例: 1024エントリ × 2MB(Huge Pages) = 2GB ← 大幅に改善
-```
-
-### 5.4 ページフォルト
-
-ページフォルトは、仮想ページに対応する物理フレームが存在しない場合に発生する例外（ハードウェア割り込み）である。
+Both the virtual address space and physical memory are divided into fixed-size blocks called "pages" (typically 4KB). The "page table" holds the mapping from virtual pages to physical frames.
 
 ```
-ページフォルトの処理フロー:
+x86-64 4-level page table:
 
-  1. CPU が仮想アドレス VA にアクセス
-  2. TLB ミス → ページテーブルウォーク
-  3. ページテーブルエントリの Present ビット = 0
-  4. ★ ページフォルト例外が発生
-  5. CPU は現在の命令実行を中断し、OS のページフォルトハンドラに制御を移す
-  6. OS は以下を判定:
-     ├── 不正アクセス（セグメンテーション違反）
-     │   → SIGSEGV を送信してプロセスを終了
-     │
-     ├── デマンドページング（初回アクセス）
-     │   → 新しい物理フレームを割り当て、ゼロクリアして返す
-     │
-     ├── ページがスワップアウトされている
-     │   → ディスクからページを読み込む（~1ms SSD / ~10ms HDD）
-     │
-     └── Copy-on-Write (CoW)
-         → ページをコピーして書き込み可能にする
-  7. ページテーブルを更新（Present=1, PFN を設定）
-  8. TLB に新しいエントリを追加
-  9. 中断した命令を再実行
+Virtual address (48 bits effective):
++---------+---------+---------+---------+--------------+
+| PML4    |  PDPT   |   PD    |   PT    |  Page Offset |
+| (9bit)  | (9bit)  | (9bit)  | (9bit)  |   (12bit)    |
+| [47:39] | [38:30] | [29:21] | [20:12] |   [11:0]     |
++----+----+----+----+----+----+----+----+--------------+
+     |         |         |         |
+     v         v         v         v
+  +------+ +------+ +------+ +------+
+  |PML4  |>|PDPT  |>|Page  |>|Page  |> Physical frame
+  |Table | |Table | |Dir   | |Table |   + Offset
+  |(512  | |(512  | |(512  | |(512  |
+  |entries| |entries| |entries| |entries|
+  +------+ +------+ +------+ +------+
 
-  コスト分析:
-  - マイナーページフォルト（ディスクI/Oなし）: ~1-10μs
-  - メジャーページフォルト（ディスクI/Oあり）: ~1ms (SSD) / ~10ms (HDD)
-  → メジャーページフォルトは通常のメモリアクセスの 10,000~100,000 倍遅い
-  → 頻繁なページフォルト（スラッシング）はシステムを実質的に停止させる
+  Each table: 512 entries x 8 bytes = 4KB (fits in one page)
+  Virtual address space: 2^48 = 256TB
+  Physical page size: 4KB (2^12)
+
+  Cost of a page table walk:
+  Up to 4 memory accesses = 4 x 100ns = 400ns
+  -> Too slow, so the TLB is used to accelerate this
 ```
 
-### 5.5 ページ置換アルゴリズム
+### 5.3 TLB (Translation Lookaside Buffer)
 
-物理メモリが満杯のとき、新しいページを読み込むためにどのページをスワップアウトするかを決定するのがページ置換アルゴリズムである。
+The TLB is a dedicated, fast associative memory that caches the translation results from virtual page numbers (VPN) to physical frame numbers (PFN).
 
-| アルゴリズム | 概要 | 特徴 |
-|-------------|------|------|
-| **OPT** (Optimal) | 将来最も長く使われないページを追い出す | 理論上最適だが実装不可能。性能比較の基準として使用 |
-| **LRU** (Least Recently Used) | 最も長い間参照されていないページを追い出す | 時間的局所性を活用。厳密な実装はコストが高い |
-| **Clock** (Second Chance) | 参照ビット付きの循環リスト。参照ビットが0のページを追い出す | LRUの近似。Linux等で広く使用 |
-| **LFU** (Least Frequently Used) | 最も参照回数が少ないページを追い出す | 長期的な頻度を考慮。古いが頻繁だったページが残る問題 |
+```
+Address translation mechanism:
+
+  Virtual address
+  +------------------+------------+
+  | Virtual Page #   | Offset     |
+  | (VPN)            | (12bit)    |
+  +------+-----------+------------+
+         |
+         v
+  +--------------+    TLB miss    +----------------------+
+  |     TLB      | ------------> | Page table walk       |
+  |  (fast       |               | (4-level memory refs) |
+  |  associative |               |                       |
+  |  memory)     |               | Result stored in TLB  |
+  |              |               +----------+-----------+
+  |  L1 iTLB:   |                          |
+  |   64-128    |                          |
+  |   entries   |                          |
+  |  L1 dTLB:   |  Page fault              |
+  |   64-128    |  (page not in            |
+  |   entries   |   physical memory)       |
+  |  L2 TLB:    |         |                |
+  |   1024-2048 |         v                |
+  |   entries   |  OS loads page from      |
+  +------+------+  disk                    |
+         | TLB hit                         |
+         v                                 v
+  Physical address
+  +------------------+------------+
+  | Physical Frame # | Offset     |
+  | (PFN)            | (12bit)    |
+  +------------------+------------+
+
+  TLB hit cost: ~1ns (integrated into the pipeline)
+  TLB miss cost: ~10-100ns (page table walk)
+  Page fault cost: ~1ms (SSD) / ~10ms (HDD)
+
+  TLB coverage = TLB entries x page size
+  Example: 1024 entries x 4KB = 4MB
+  Example: 1024 entries x 2MB (Huge Pages) = 2GB <- significant improvement
+```
+
+### 5.4 Page Faults
+
+A page fault is an exception (hardware interrupt) that occurs when there is no physical frame corresponding to a virtual page.
+
+```
+Page fault handling flow:
+
+  1. CPU accesses virtual address VA
+  2. TLB miss -> page table walk
+  3. Page table entry's Present bit = 0
+  4. * Page fault exception occurs
+  5. CPU suspends current instruction and transfers control to the OS
+     page fault handler
+  6. OS determines:
+     +-- Invalid access (segmentation fault)
+     |   -> Send SIGSEGV and terminate the process
+     |
+     +-- Demand paging (first access)
+     |   -> Allocate a new physical frame, zero-fill, and return
+     |
+     +-- Page has been swapped out
+     |   -> Load page from disk (~1ms SSD / ~10ms HDD)
+     |
+     +-- Copy-on-Write (CoW)
+         -> Copy the page and make it writable
+  7. Update the page table (Present=1, set PFN)
+  8. Add new entry to the TLB
+  9. Re-execute the suspended instruction
+
+  Cost analysis:
+  - Minor page fault (no disk I/O): ~1-10us
+  - Major page fault (disk I/O required): ~1ms (SSD) / ~10ms (HDD)
+  -> A major page fault is 10,000-100,000x slower than a normal memory access
+  -> Frequent page faults (thrashing) effectively halt the system
+```
+
+### 5.5 Page Replacement Algorithms
+
+When physical memory is full, page replacement algorithms determine which page to swap out to make room for a new one.
+
+| Algorithm | Overview | Characteristics |
+|-----------|----------|-----------------|
+| **OPT** (Optimal) | Evict the page that will not be used for the longest time in the future | Theoretically optimal but impossible to implement. Used as a benchmark |
+| **LRU** (Least Recently Used) | Evict the page not referenced for the longest time | Exploits temporal locality. Exact implementation is expensive |
+| **Clock** (Second Chance) | Circular list with reference bits. Evict pages with reference bit = 0 | LRU approximation. Widely used in Linux, etc. |
+| **LFU** (Least Frequently Used) | Evict the page with the fewest references | Considers long-term frequency. Old-but-once-frequent pages may persist |
 
 ---
 
-## 6. ストレージ階層: SSD と HDD
+## 6. Storage Hierarchy: SSD and HDD
 
-### 6.1 HDD（Hard Disk Drive）の構造と特性
+### 6.1 HDD (Hard Disk Drive) Structure and Characteristics
 
-HDDは磁気ディスク上にデータを記録する機械式ストレージデバイスである。
-
-```
-HDDの内部構造:
-
-  ┌─────────────────────────────────┐
-  │         スピンドルモーター        │
-  │              │                   │
-  │    ┌─────────┼─────────┐        │
-  │    │    ┌────┴────┐    │        │
-  │    │    │ プラッタ │    │ ← 磁気ディスク（複数枚）
-  │    │    │ (回転)   │    │    7200rpm = 120回転/秒
-  │    │    └─────────┘    │        │
-  │    │         ↑          │        │
-  │    │    ┌────┴────┐    │        │
-  │    │    │ ヘッド   │    │ ← 読み書きヘッド
-  │    │    └─────────┘    │        │
-  │    │         ↑          │        │
-  │    │    ┌────┴────┐    │        │
-  │    │    │ アーム   │────┘        │
-  │    │    └─────────┘              │
-  │    │         ↑                   │
-  │    │    アクチュエータ            │
-  │    └─────────────────────────────│
-  └─────────────────────────────────┘
-
-  アクセス時間の構成:
-  ┌──────────────────────────────────────┐
-  │ シーク時間     │ 回転待ち    │ 転送時間 │
-  │ (ヘッド移動)   │ (回転遅延)  │ (データ) │
-  │ ~3-10ms        │ ~2-4ms     │ ~0.01ms  │
-  │ ★支配的       │ ★重要     │ 比較的小 │
-  └──────────────────────────────────────┘
-
-  7200rpm HDD の場合:
-  - 平均シーク時間: ~4-8ms
-  - 平均回転待ち: 1/(7200/60)/2 = ~4.17ms
-  - 平均アクセス時間: ~8-12ms
-  - 連続読み出し帯域: 100-250MB/s
-  - ランダム4KB読み出し: ~100 IOPS
-```
-
-### 6.2 SSD（Solid State Drive）の構造と特性
-
-SSDはNANDフラッシュメモリを使用した半導体ストレージデバイスである。可動部品がないため、HDDに比べてランダムアクセスが桁違いに速い。
+An HDD is a mechanical storage device that records data on magnetic disks.
 
 ```
-SSDの内部アーキテクチャ:
+HDD internal structure:
 
-  ┌──────────────────────────────────────────┐
-  │                SSD コントローラ            │
-  │  ┌────────┐ ┌────────┐ ┌──────────────┐  │
-  │  │ FTL    │ │ Wear   │ │ ECC エンジン │  │
-  │  │(Flash  │ │Leveling│ │              │  │
-  │  │Transl.)│ │        │ │              │  │
-  │  └────────┘ └────────┘ └──────────────┘  │
-  │                │                           │
-  │    ┌───────────┼───────────┐               │
-  │    │           │           │               │
-  │  ┌─┴──┐     ┌─┴──┐     ┌─┴──┐            │
-  │  │Ch 0│     │Ch 1│     │Ch N│  ← チャネル │
-  │  └─┬──┘     └─┬──┘     └─┬──┘            │
-  │    │           │           │               │
-  │  ┌─┴──┐     ┌─┴──┐     ┌─┴──┐            │
-  │  │NAND│     │NAND│     │NAND│  ← NANDチップ│
-  │  │Die │     │Die │     │Die │             │
-  │  └────┘     └────┘     └────┘             │
-  └──────────────────────────────────────────┘
+  +----------------------------------+
+  |         Spindle motor            |
+  |              |                   |
+  |    +---------+---------+         |
+  |    |    +----+----+    |         |
+  |    |    | Platter  |    | <- Magnetic disks (multiple platters)
+  |    |    | (rotates)|    |    7200rpm = 120 rotations/sec
+  |    |    +----------+    |         |
+  |    |         ^          |         |
+  |    |    +----+----+    |         |
+  |    |    |  Head    |    | <- Read/write head
+  |    |    +----------+    |         |
+  |    |         ^          |         |
+  |    |    +----+----+    |         |
+  |    |    |   Arm    |----+         |
+  |    |    +----------+              |
+  |    |         ^                    |
+  |    |    Actuator                  |
+  |    +------------------------------
+  +----------------------------------+
 
-  NANDフラッシュの特性:
-  - 読み出し: ページ単位（4-16KB）
-  - 書き込み: ページ単位（4-16KB）
-  - 消去: ブロック単位（256KB-数MB） ★ 読み書きより大きい単位
-  - 消去回数に上限あり（TLC: ~1000-3000回、QLC: ~100-1000回）
+  Access time breakdown:
+  +--------------------------------------+
+  | Seek time     | Rotational | Transfer |
+  | (head move)   | latency    | time     |
+  | ~3-10ms       | ~2-4ms     | ~0.01ms  |
+  | * dominant    | * important| relatively|
+  |               |            | small     |
+  +--------------------------------------+
 
-  Write Amplification (書き込み増幅):
-  - 4KB の論理書き込みに対して、ブロック消去+再書き込みで
-    256KB 以上の物理書き込みが発生する可能性
-  - FTL（Flash Translation Layer）がこれを最小化する
+  For a 7200rpm HDD:
+  - Average seek time: ~4-8ms
+  - Average rotational latency: 1/(7200/60)/2 = ~4.17ms
+  - Average access time: ~8-12ms
+  - Sequential read bandwidth: 100-250MB/s
+  - Random 4KB read: ~100 IOPS
 ```
 
-**SSD vs HDD 比較表:**
+### 6.2 SSD (Solid State Drive) Structure and Characteristics
 
-| 特性 | NVMe SSD (PCIe 4.0) | SATA SSD | HDD (7200rpm) |
-|------|---------------------|----------|---------------|
-| ランダム読み出し | ~16μs | ~50μs | ~8ms |
-| ランダム書き込み | ~16μs | ~50μs | ~8ms |
-| 連続読み出し | ~7GB/s | ~560MB/s | ~200MB/s |
-| 連続書き込み | ~5GB/s | ~530MB/s | ~200MB/s |
-| ランダム4K IOPS (読み) | ~500K-1M | ~90K | ~100 |
-| ランダム4K IOPS (書き) | ~500K-1M | ~80K | ~100 |
-| 消費電力（アクティブ） | 5-10W | 2-5W | 5-10W |
-| 消費電力（アイドル） | ~30mW | ~30mW | 3-6W |
-| 耐振動性 | 高い | 高い | 低い（可動部品あり） |
-| 寿命 | TBW依存 | TBW依存 | MTBF ~100万時間 |
-| 1TBあたりの価格 | ~$70-100 | ~$50-70 | ~$15-25 |
+An SSD is a semiconductor storage device using NAND flash memory. With no moving parts, random access is orders of magnitude faster than HDD.
+
+```
+SSD internal architecture:
+
+  +----------------------------------------------+
+  |                SSD Controller                 |
+  |  +--------+ +--------+ +--------------+      |
+  |  | FTL    | | Wear   | | ECC Engine   |      |
+  |  |(Flash  | |Leveling| |              |      |
+  |  |Transl.)| |        | |              |      |
+  |  +--------+ +--------+ +--------------+      |
+  |                |                              |
+  |    +-----------+----------+                   |
+  |    |           |          |                   |
+  |  +-+--+     +-+--+    +-+--+                  |
+  |  |Ch 0|    |Ch 1|    |Ch N|  <- Channels      |
+  |  +-+--+    +-+--+    +-+--+                   |
+  |    |          |          |                     |
+  |  +-+--+    +-+--+    +-+--+                   |
+  |  |NAND|    |NAND|    |NAND|  <- NAND chips     |
+  |  |Die |    |Die |    |Die |                    |
+  |  +----+    +----+    +----+                    |
+  +----------------------------------------------+
+
+  NAND flash characteristics:
+  - Read: page-level (4-16KB)
+  - Write: page-level (4-16KB)
+  - Erase: block-level (256KB-several MB) * larger unit than reads/writes
+  - Limited erase cycles (TLC: ~1000-3000, QLC: ~100-1000)
+
+  Write Amplification:
+  - A 4KB logical write may require a block erase + rewrite of
+    256KB+ of physical writes
+  - The FTL (Flash Translation Layer) minimizes this
+```
+
+**SSD vs HDD Comparison:**
+
+| Feature | NVMe SSD (PCIe 4.0) | SATA SSD | HDD (7200rpm) |
+|---------|---------------------|----------|---------------|
+| Random read | ~16us | ~50us | ~8ms |
+| Random write | ~16us | ~50us | ~8ms |
+| Sequential read | ~7GB/s | ~560MB/s | ~200MB/s |
+| Sequential write | ~5GB/s | ~530MB/s | ~200MB/s |
+| Random 4K IOPS (read) | ~500K-1M | ~90K | ~100 |
+| Random 4K IOPS (write) | ~500K-1M | ~80K | ~100 |
+| Power (active) | 5-10W | 2-5W | 5-10W |
+| Power (idle) | ~30mW | ~30mW | 3-6W |
+| Vibration resistance | High | High | Low (moving parts) |
+| Lifespan | TBW-dependent | TBW-dependent | MTBF ~1M hours |
+| Price per 1TB | ~$70-100 | ~$50-70 | ~$15-25 |
 
 ---
 
-## 7. NUMA（Non-Uniform Memory Access）
+## 7. NUMA (Non-Uniform Memory Access)
 
-### 7.1 NUMAアーキテクチャの概要
+### 7.1 NUMA Architecture Overview
 
-マルチソケットサーバーでは、各CPUソケットが自身の「ローカルメモリ」を持ち、他のソケットのメモリへのアクセス（リモートアクセス）はインターコネクト経由で行われるため遅延が増加する。このような非均一なメモリアクセス特性を持つアーキテクチャをNUMAと呼ぶ。
+In multi-socket servers, each CPU socket has its own "local memory," and accessing another socket's memory (remote access) incurs additional latency via the interconnect. An architecture with such non-uniform memory access characteristics is called NUMA.
 
 ```
-NUMAアーキテクチャ（2ソケットサーバーの例）:
+NUMA architecture (2-socket server example):
 
-  ┌───────────────────────────┐    ┌───────────────────────────┐
-  │       NUMA Node 0         │    │       NUMA Node 1         │
-  │                           │    │                           │
-  │  ┌──────┐  ┌──────┐      │    │  ┌──────┐  ┌──────┐      │
-  │  │Core0 │  │Core1 │      │    │  │Core8 │  │Core9 │      │
-  │  │ L1/L2│  │ L1/L2│      │    │  │ L1/L2│  │ L1/L2│      │
-  │  └──┬───┘  └──┬───┘      │    │  └──┬───┘  └──┬───┘      │
-  │     │         │           │    │     │         │           │
-  │  ┌──────┐  ┌──────┐      │    │  ┌──────┐  ┌──────┐      │
-  │  │Core2 │  │Core3 │      │    │  │Core10│  │Core11│      │
-  │  │ L1/L2│  │ L1/L2│      │    │  │ L1/L2│  │ L1/L2│      │
-  │  └──┬───┘  └──┬───┘      │    │  └──┬───┘  └──┬───┘      │
-  │     └────┬─────┘          │    │     └────┬─────┘          │
-  │          │                │    │          │                │
-  │     ┌────┴────┐           │    │     ┌────┴────┐           │
-  │     │ L3 Cache│           │    │     │ L3 Cache│           │
-  │     │ (共有)  │           │    │     │ (共有)  │           │
-  │     └────┬────┘           │    │     └────┬────┘           │
-  │          │                │    │          │                │
-  │  ┌───────┴───────┐        │    │  ┌───────┴───────┐        │
-  │  │ Local Memory  │        │    │  │ Local Memory  │        │
-  │  │ DDR5 128GB    │        │    │  │ DDR5 128GB    │        │
-  │  │ アクセス: ~80ns│        │    │  │ アクセス: ~80ns│        │
-  │  └───────┬───────┘        │    │  └───────┬───────┘        │
-  └──────────┼────────────────┘    └──────────┼────────────────┘
-             │      UPI / CXL リンク         │
-             └───────────────────────────────┘
-                リモートアクセス: ~130-160ns
-                (ローカルの約1.5-2倍の遅延)
+  +---------------------------+    +---------------------------+
+  |       NUMA Node 0         |    |       NUMA Node 1         |
+  |                           |    |                           |
+  |  +------+  +------+      |    |  +------+  +------+      |
+  |  |Core0 |  |Core1 |      |    |  |Core8 |  |Core9 |      |
+  |  | L1/L2|  | L1/L2|      |    |  | L1/L2|  | L1/L2|      |
+  |  +--+---+  +--+---+      |    |  +--+---+  +--+---+      |
+  |     |         |           |    |     |         |           |
+  |  +------+  +------+      |    |  +------+  +------+      |
+  |  |Core2 |  |Core3 |      |    |  |Core10|  |Core11|      |
+  |  | L1/L2|  | L1/L2|      |    |  | L1/L2|  | L1/L2|      |
+  |  +--+---+  +--+---+      |    |  +--+---+  +--+---+      |
+  |     +----+-----+          |    |     +----+-----+          |
+  |          |                |    |          |                |
+  |     +----+----+           |    |     +----+----+           |
+  |     | L3 Cache|           |    |     | L3 Cache|           |
+  |     | (shared)|           |    |     | (shared)|           |
+  |     +----+----+           |    |     +----+----+           |
+  |          |                |    |          |                |
+  |  +-------+-------+       |    |  +-------+-------+       |
+  |  | Local Memory  |       |    |  | Local Memory  |       |
+  |  | DDR5 128GB    |       |    |  | DDR5 128GB    |       |
+  |  | Access: ~80ns |       |    |  | Access: ~80ns |       |
+  |  +-------+-------+       |    |  +-------+-------+       |
+  +----------+----------------+    +----------+----------------+
+             |      UPI / CXL link          |
+             +------------------------------+
+                Remote access: ~130-160ns
+                (~1.5-2x the latency of local access)
 ```
 
-### 7.2 NUMA対応のプログラミング
+### 7.2 NUMA-Aware Programming
 
 ```c
-/* Linux での NUMA-aware メモリ割り当て */
+/* Linux NUMA-aware memory allocation */
 #include <numa.h>
 #include <numaif.h>
 
 void numa_aware_allocation(void) {
-    /* NUMA が利用可能か確認 */
+    /* Check if NUMA is available */
     if (numa_available() < 0) {
         fprintf(stderr, "NUMA is not available\n");
         return;
     }
 
-    /* ノード数を確認 */
+    /* Check number of nodes */
     int num_nodes = numa_max_node() + 1;
     printf("NUMA nodes: %d\n", num_nodes);
 
-    /* 特定のNUMAノードにメモリを割り当て */
+    /* Allocate memory on a specific NUMA node */
     size_t size = 1024 * 1024 * 1024;  /* 1GB */
-    void *local_mem = numa_alloc_onnode(size, 0);  /* ノード0に割り当て */
+    void *local_mem = numa_alloc_onnode(size, 0);  /* Allocate on node 0 */
 
-    /* このスレッドをノード0のCPUにバインド */
+    /* Bind this thread to node 0's CPUs */
     struct bitmask *cpumask = numa_allocate_cpumask();
     numa_node_to_cpus(0, cpumask);
     numa_sched_setaffinity(0, cpumask);
 
-    /* local_mem へのアクセスはローカル速度（~80ns） */
+    /* Accesses to local_mem are at local speed (~80ns) */
     memset(local_mem, 0, size);
 
     numa_free(local_mem, size);
@@ -932,39 +939,39 @@ void numa_aware_allocation(void) {
 
 ---
 
-## 8. Huge Pages とメモリ管理の実践
+## 8. Huge Pages and Practical Memory Management
 
-### 8.1 Huge Pages の必要性
+### 8.1 The Need for Huge Pages
 
-通常の4KBページでは、大容量メモリをカバーするために膨大な数のTLBエントリが必要になる。Huge Pages（2MBまたは1GB）を使用することで、同じTLBエントリ数でより広いメモリ範囲をカバーできる。
+With standard 4KB pages, an enormous number of TLB entries are needed to cover large amounts of memory. Using Huge Pages (2MB or 1GB) allows a wider memory range to be covered with the same number of TLB entries.
 
 ```
-TLBカバレッジの比較:
+TLB coverage comparison:
 
-  通常ページ（4KB）の場合:
-  TLBエントリ 1024個 × 4KB = 4MB のカバレッジ
-  → 64GBのメモリ空間に対して TLBミス率が高い
+  Standard pages (4KB):
+  1024 TLB entries x 4KB = 4MB coverage
+  -> High TLB miss rate against a 64GB memory space
 
-  Huge Pages（2MB）の場合:
-  TLBエントリ 1024個 × 2MB = 2GB のカバレッジ
-  → 64GBのメモリ空間でも TLBミス率が大幅に低下
+  Huge Pages (2MB):
+  1024 TLB entries x 2MB = 2GB coverage
+  -> Significantly reduced TLB miss rate even with 64GB
 
-  Huge Pages（1GB）の場合:
-  TLBエントリ 4個 × 1GB = 4GB のカバレッジ
-  → データベースやHPCワークロードに最適
+  Huge Pages (1GB):
+  4 TLB entries x 1GB = 4GB coverage
+  -> Optimal for database and HPC workloads
 ```
 
-### 8.2 Linux での Huge Pages 設定
+### 8.2 Configuring Huge Pages on Linux
 
 ```bash
-# Transparent Huge Pages (THP) の状態確認
+# Check Transparent Huge Pages (THP) status
 cat /sys/kernel/mm/transparent_hugepage/enabled
 # [always] madvise never
 
-# 明示的な Huge Pages の予約（2MB × 1024 = 2GB）
+# Reserve explicit Huge Pages (2MB x 1024 = 2GB)
 echo 1024 > /proc/sys/vm/nr_hugepages
 
-# Huge Pages の使用状況確認
+# Check Huge Pages usage
 cat /proc/meminfo | grep -i huge
 # HugePages_Total:    1024
 # HugePages_Free:     1024
@@ -974,7 +981,7 @@ cat /proc/meminfo | grep -i huge
 ```
 
 ```c
-/* C言語での Huge Pages 利用例 */
+/* Using Huge Pages in C */
 #include <sys/mman.h>
 #include <stdio.h>
 
@@ -982,7 +989,7 @@ int main(void) {
     size_t huge_page_size = 2 * 1024 * 1024;  /* 2MB */
     size_t alloc_size = 256 * huge_page_size;   /* 512MB */
 
-    /* MAP_HUGETLB で Huge Pages を要求 */
+    /* Request Huge Pages with MAP_HUGETLB */
     void *ptr = mmap(NULL, alloc_size,
                      PROT_READ | PROT_WRITE,
                      MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB,
@@ -990,7 +997,7 @@ int main(void) {
 
     if (ptr == MAP_FAILED) {
         perror("mmap with MAP_HUGETLB failed");
-        /* フォールバック: 通常のページで割り当て */
+        /* Fallback: allocate with standard pages */
         ptr = mmap(NULL, alloc_size,
                    PROT_READ | PROT_WRITE,
                    MAP_PRIVATE | MAP_ANONYMOUS,
@@ -999,13 +1006,13 @@ int main(void) {
             perror("mmap fallback failed");
             return 1;
         }
-        /* madvise で THP を要求 */
+        /* Request THP via madvise */
         madvise(ptr, alloc_size, MADV_HUGEPAGE);
     }
 
     printf("Allocated %zu MB with Huge Pages\n", alloc_size / (1024 * 1024));
 
-    /* 使用 */
+    /* Use the memory */
     memset(ptr, 0, alloc_size);
 
     munmap(ptr, alloc_size);
@@ -1015,82 +1022,82 @@ int main(void) {
 
 ---
 
-## 9. キャッシュフレンドリーなプログラミング
+## 9. Cache-Friendly Programming
 
-### 9.1 データ構造のレイアウト: AoS vs SoA
+### 9.1 Data Structure Layout: AoS vs SoA
 
-データ構造のメモリレイアウトは、キャッシュ効率に決定的な影響を与える。「必要なデータだけがキャッシュラインに乗る」レイアウトを選択することが重要である。
+The memory layout of data structures has a decisive impact on cache efficiency. It is important to choose a layout where "only the needed data ends up in the cache line."
 
 ```c
 /*
  * AoS (Array of Structures) vs SoA (Structure of Arrays)
- * ゲームエンジンにおけるパーティクルシステムの例
+ * Example: Particle system in a game engine
  */
 
 /* ===== AoS: Array of Structures ===== */
 struct ParticleAoS {
-    float x, y, z;        /* 位置: 12バイト（よく使う） */
-    float vx, vy, vz;     /* 速度: 12バイト（よく使う） */
-    float r, g, b, a;     /* 色:   16バイト（描画時のみ） */
-    float lifetime;        /* 寿命: 4バイト（たまに使う） */
-    int   texture_id;      /* テクスチャ: 4バイト（描画時のみ） */
-    char  name[16];        /* 名前: 16バイト（デバッグ時のみ） */
-};  /* 合計: 64バイト = ちょうど1キャッシュライン */
+    float x, y, z;        /* Position: 12 bytes (frequently used) */
+    float vx, vy, vz;     /* Velocity: 12 bytes (frequently used) */
+    float r, g, b, a;     /* Color:    16 bytes (rendering only) */
+    float lifetime;        /* Lifetime: 4 bytes  (occasional) */
+    int   texture_id;      /* Texture:  4 bytes  (rendering only) */
+    char  name[16];        /* Name:     16 bytes (debug only) */
+};  /* Total: 64 bytes = exactly 1 cache line */
 
 struct ParticleAoS particles_aos[100000];
 
-/* 位置の更新処理: */
+/* Position update: */
 void update_positions_aos(int n, float dt) {
     for (int i = 0; i < n; i++) {
         particles_aos[i].x += particles_aos[i].vx * dt;
         particles_aos[i].y += particles_aos[i].vy * dt;
         particles_aos[i].z += particles_aos[i].vz * dt;
     }
-    /* 問題: 各パーティクルが64バイト。位置と速度の更新に必要なのは
-     * x,y,z,vx,vy,vz の 24バイトだけなのに、name や texture_id など
-     * 不要な40バイトもキャッシュラインに乗ってしまう。
-     * → キャッシュの利用効率: 24/64 = 37.5%
+    /* Problem: Each particle is 64 bytes. The position update only needs
+     * x,y,z,vx,vy,vz = 24 bytes, but the unnecessary 40 bytes of
+     * name, texture_id, etc. also occupy the cache line.
+     * -> Cache utilization: 24/64 = 37.5%
      */
 }
 
 /* ===== SoA: Structure of Arrays ===== */
 struct ParticleSystemSoA {
-    float *x,  *y,  *z;       /* 位置 */
-    float *vx, *vy, *vz;      /* 速度 */
-    float *r,  *g,  *b, *a;   /* 色 */
-    float *lifetime;           /* 寿命 */
-    int   *texture_id;         /* テクスチャ */
-    /* name は別途管理 */
+    float *x,  *y,  *z;       /* Position */
+    float *vx, *vy, *vz;      /* Velocity */
+    float *r,  *g,  *b, *a;   /* Color */
+    float *lifetime;           /* Lifetime */
+    int   *texture_id;         /* Texture */
+    /* name managed separately */
 };
 
 struct ParticleSystemSoA psys;
 
-/* 位置の更新処理: */
+/* Position update: */
 void update_positions_soa(int n, float dt) {
     for (int i = 0; i < n; i++) {
         psys.x[i] += psys.vx[i] * dt;
         psys.y[i] += psys.vy[i] * dt;
         psys.z[i] += psys.vz[i] * dt;
     }
-    /* 利点: x[], vx[] は連続メモリ。キャッシュラインに float 16個が乗る。
-     * 不要な color, name, texture_id はキャッシュに乗らない。
-     * → キャッシュの利用効率: ほぼ100%
-     * → SIMD (AVX2/AVX-512) でベクトル化も容易
+    /* Advantage: x[], vx[] are in contiguous memory. 16 floats fit in one
+     * cache line. Unnecessary color, name, texture_id don't enter the cache.
+     * -> Cache utilization: nearly 100%
+     * -> Also easy to vectorize with SIMD (AVX2/AVX-512)
      */
 }
 ```
 
-### 9.2 ループのブロッキング（タイリング）
+### 9.2 Loop Blocking (Tiling)
 
-大規模な行列演算では、ナイーブな実装ではキャッシュに収まらないストライドアクセスが発生する。ブロッキング（タイリング）は、データをキャッシュに収まるサイズのブロックに分割して処理する手法である。
+In large-scale matrix operations, naive implementations produce strided accesses that don't fit in the cache. Blocking (tiling) divides data into cache-sized blocks for processing.
 
 ```c
 /*
- * 行列乗算 C = A × B のキャッシュ最適化
- * N×N 行列（float、Row-Major格納）
+ * Cache-optimized matrix multiplication C = A x B
+ * NxN matrices (float, row-major storage)
  */
 
-/* ===== ナイーブ実装（キャッシュミス多発） ===== */
+/* ===== Naive implementation (frequent cache misses) ===== */
 void matmul_naive(int N, float *A, float *B, float *C) {
     for (int i = 0; i < N; i++)
         for (int j = 0; j < N; j++) {
@@ -1098,29 +1105,29 @@ void matmul_naive(int N, float *A, float *B, float *C) {
             for (int k = 0; k < N; k++)
                 sum += A[i*N + k] * B[k*N + j];
                 /*     ^^^^^^^^^^   ^^^^^^^^^^
-                 *     行方向:OK    列方向:NG!
+                 *     Row-wise:OK  Col-wise:BAD!
                  *
-                 * A[i*N+k]: k が1増えると隣のfloat → 空間的局所性あり
-                 * B[k*N+j]: k が1増えると N 個先のfloat → ストライドアクセス
-                 *   N=1024 の場合、ストライド = 4096バイト = 64キャッシュライン分
-                 *   → B へのアクセスはほぼ毎回キャッシュミス
+                 * A[i*N+k]: k increments by 1 -> adjacent float -> spatial locality
+                 * B[k*N+j]: k increments by N -> stride N floats -> strided access
+                 *   For N=1024, stride = 4096 bytes = 64 cache lines
+                 *   -> Nearly every B access is a cache miss
                  */
             C[i*N + j] = sum;
         }
 }
 
-/* ===== ブロッキング（タイリング）実装 ===== */
+/* ===== Blocked (tiled) implementation ===== */
 void matmul_blocked(int N, float *A, float *B, float *C) {
-    /* ブロックサイズ: L1キャッシュ（32KB）に3つのブロックが収まるサイズ
-     * BLOCK^2 × 4bytes × 3行列 ≤ 32KB
-     * BLOCK ≈ sqrt(32768 / 12) ≈ 52 → 64に丸める */
+    /* Block size: 3 blocks must fit in L1 cache (32KB)
+     * BLOCK^2 x 4bytes x 3 matrices <= 32KB
+     * BLOCK ~ sqrt(32768 / 12) ~ 52 -> round to 64 */
     int BLOCK = 64;
 
     for (int ii = 0; ii < N; ii += BLOCK)
         for (int jj = 0; jj < N; jj += BLOCK)
             for (int kk = 0; kk < N; kk += BLOCK)
-                /* 内側ループ: BLOCK×BLOCK のサブ行列同士の乗算
-                 * A, B, C の各サブブロックがL1キャッシュに収まる */
+                /* Inner loop: multiply BLOCK x BLOCK sub-matrices
+                 * Sub-blocks of A, B, C fit in L1 cache */
                 for (int i = ii; i < ii+BLOCK && i < N; i++)
                     for (int j = jj; j < jj+BLOCK && j < N; j++) {
                         float sum = C[i*N + j];
@@ -1128,22 +1135,22 @@ void matmul_blocked(int N, float *A, float *B, float *C) {
                             sum += A[i*N+k] * B[k*N+j];
                         C[i*N + j] = sum;
                     }
-    /* N=1024 での性能改善: ナイーブ比で 3-8 倍高速
-     * N=4096 での性能改善: ナイーブ比で 5-15 倍高速
-     * キャッシュミス率: ナイーブ ~25% → ブロッキング ~1-3%
+    /* Performance improvement for N=1024: 3-8x faster than naive
+     * Performance improvement for N=4096: 5-15x faster than naive
+     * Cache miss rate: naive ~25% -> blocked ~1-3%
      */
 }
 ```
 
-### 9.3 プリフェッチ
+### 9.3 Prefetching
 
-ハードウェアプリフェッチャーは、連続的なアクセスパターンを検出して事前にデータをキャッシュにロードする。しかし、不規則なアクセスパターンに対しては、明示的なソフトウェアプリフェッチが有効である。
+Hardware prefetchers detect sequential access patterns and preload data into the cache. However, for irregular access patterns, explicit software prefetching can be effective.
 
 ```c
-/* ソフトウェアプリフェッチの例 */
+/* Software prefetch example */
 #include <immintrin.h>  /* _mm_prefetch */
 
-/* リンクリストの走査にプリフェッチを適用 */
+/* Applying prefetch to linked list traversal */
 struct Node {
     int data;
     struct Node *next;
@@ -1153,7 +1160,7 @@ long long sum_list_prefetch(struct Node *head) {
     long long sum = 0;
     struct Node *curr = head;
     while (curr != NULL) {
-        /* 2ノード先をプリフェッチ（レイテンシを隠蔽） */
+        /* Prefetch 2 nodes ahead (hide latency) */
         if (curr->next && curr->next->next) {
             _mm_prefetch((const char *)curr->next->next, _MM_HINT_T0);
         }
@@ -1161,163 +1168,163 @@ long long sum_list_prefetch(struct Node *head) {
         curr = curr->next;
     }
     return sum;
-    /* プリフェッチなし: ノードごとに ~100ns (DRAMレイテンシ)
-     * プリフェッチあり: プリフェッチが間に合えば大幅に改善
-     * ただし効果はノード間の距離とアクセスパターンに依存 */
+    /* Without prefetch: ~100ns per node (DRAM latency)
+     * With prefetch: significant improvement if prefetch completes in time
+     * However, effectiveness depends on inter-node distance and access patterns */
 }
 ```
 
-### 9.4 データ構造のキャッシュ効率比較
+### 9.4 Cache Efficiency Comparison of Data Structures
 
-プログラムで使用するデータ構造の選択は、キャッシュ性能に直接的な影響を与える。以下に主要なデータ構造のキャッシュ特性を比較する。
+The choice of data structure directly impacts cache performance. Here is a comparison of cache characteristics for major data structures.
 
-| データ構造 | メモリレイアウト | 空間的局所性 | キャッシュ効率 | 用途の指針 |
-|------------|----------------|-------------|--------------|------------|
-| 配列 / std::vector | 連続 | 非常に高い | 最良 | 順次アクセスが主の場合に第一選択 |
-| std::deque | ブロック連続 | 高い | 良好 | 両端への挿入・削除が必要な場合 |
-| B-Tree / B+Tree | ノード内連続 | 中~高 | 良好 | ディスクベースのインデックス、大規模ソート済みデータ |
-| ハッシュテーブル(open addressing) | 連続 | 中~高 | 良好 | 高速なキー検索が必要な場合 |
-| ハッシュテーブル(chaining) | 分散 | 低い | 不良 | チェーンのポインタ追跡でキャッシュミス多発 |
-| 赤黒木 / std::map | 分散 | 低い | 不良 | ポインタ追跡が多い。ソート済み配列+二分探索で代替可能か検討 |
-| リンクリスト / std::list | 分散 | 非常に低い | 最悪 | 現代のハードウェアではほぼ使用すべきでない |
+| Data Structure | Memory Layout | Spatial Locality | Cache Efficiency | Usage Guidelines |
+|----------------|--------------|-----------------|-----------------|-----------------|
+| Array / std::vector | Contiguous | Very high | Best | First choice when sequential access dominates |
+| std::deque | Block-contiguous | High | Good | When insertion/deletion at both ends is needed |
+| B-Tree / B+Tree | Contiguous within nodes | Medium-high | Good | Disk-based indexes, large sorted data |
+| Hash table (open addressing) | Contiguous | Medium-high | Good | When fast key lookup is needed |
+| Hash table (chaining) | Scattered | Low | Poor | Pointer chasing in chains causes frequent misses |
+| Red-black tree / std::map | Scattered | Low | Poor | Heavy pointer chasing. Consider sorted array + binary search instead |
+| Linked list / std::list | Scattered | Very low | Worst | Should almost never be used on modern hardware |
 
 ```c
 /*
- * キャッシュ効率を考慮したデータ構造選択の指針:
+ * Guidelines for cache-efficient data structure selection:
  *
- * 1. 順次アクセスが主 → 配列/vector を第一選択
- *    std::list は「ほぼ使わない」が現代のベストプラクティス
+ * 1. Sequential access dominant -> array/vector as first choice
+ *    std::list is a "rarely use" best practice on modern hardware
  *
- * 2. 検索が主 → ソート済み配列 + 二分探索 or ハッシュ(open addressing)
- *    std::map (赤黒木) はポインタ追跡でキャッシュ効率が悪い
+ * 2. Search dominant -> sorted array + binary search or hash (open addressing)
+ *    std::map (red-black tree) has poor cache efficiency due to pointer chasing
  *
- * 3. ノードサイズ ≤ キャッシュラインサイズ (64B) に収める
- *    不要なフィールドは別構造体に分離する (Hot/Cold splitting)
+ * 3. Keep node size <= cache line size (64B)
+ *    Separate unnecessary fields into a separate struct (Hot/Cold splitting)
  *
- * 4. メモリプールで同種オブジェクトを近接配置する
- *    malloc のフラグメンテーションによる局所性低下を防ぐ
+ * 4. Use memory pools to place objects of the same type in proximity
+ *    Prevents locality degradation from malloc fragmentation
  */
 ```
 
-### 9.5 メモリアライメントとパディング
+### 9.5 Memory Alignment and Padding
 
-構造体のフィールド配置順序とアライメントは、キャッシュ効率とメモリ使用量に影響する。
+Struct field ordering and alignment affect cache efficiency and memory usage.
 
 ```c
-/* 構造体のパディングによるメモリ浪費の例 */
+/* Examples of memory waste from struct padding */
 
-/* 悪い配置: パディングが多い */
+/* Bad layout: excessive padding */
 struct BadLayout {
-    char   a;       /* 1バイト + 7バイトのパディング */
-    double b;       /* 8バイト */
-    char   c;       /* 1バイト + 3バイトのパディング */
-    int    d;       /* 4バイト */
-    char   e;       /* 1バイト + 7バイトのパディング */
-    double f;       /* 8バイト */
+    char   a;       /* 1 byte + 7 bytes padding */
+    double b;       /* 8 bytes */
+    char   c;       /* 1 byte + 3 bytes padding */
+    int    d;       /* 4 bytes */
+    char   e;       /* 1 byte + 7 bytes padding */
+    double f;       /* 8 bytes */
 };
-/* sizeof(BadLayout) = 40バイト（実データは23バイト、パディング17バイト） */
+/* sizeof(BadLayout) = 40 bytes (actual data 23 bytes, padding 17 bytes) */
 
-/* 良い配置: サイズの大きい順に並べる */
+/* Good layout: order by size descending */
 struct GoodLayout {
-    double b;       /* 8バイト */
-    double f;       /* 8バイト */
-    int    d;       /* 4バイト */
-    char   a;       /* 1バイト */
-    char   c;       /* 1バイト */
-    char   e;       /* 1バイト + 1バイトのパディング */
+    double b;       /* 8 bytes */
+    double f;       /* 8 bytes */
+    int    d;       /* 4 bytes */
+    char   a;       /* 1 byte */
+    char   c;       /* 1 byte */
+    char   e;       /* 1 byte + 1 byte padding */
 };
-/* sizeof(GoodLayout) = 24バイト（実データは23バイト、パディング1バイト） */
+/* sizeof(GoodLayout) = 24 bytes (actual data 23 bytes, padding 1 byte) */
 
 /*
- * 10万個の構造体配列の場合:
- * BadLayout:  40 × 100,000 = 4,000,000バイト (3.81MB)
- * GoodLayout: 24 × 100,000 = 2,400,000バイト (2.29MB)
- * → 40%のメモリ節約 + キャッシュラインに多くの要素が乗る
+ * For an array of 100,000 structs:
+ * BadLayout:  40 x 100,000 = 4,000,000 bytes (3.81MB)
+ * GoodLayout: 24 x 100,000 = 2,400,000 bytes (2.29MB)
+ * -> 40% memory savings + more elements per cache line
  *
- * 確認方法:
- * gcc/clang: -Wpadded オプションでパディング警告を出力
- * pahole コマンド: 構造体のレイアウトを可視化
+ * How to check:
+ * gcc/clang: -Wpadded option outputs padding warnings
+ * pahole command: visualizes struct layout
  */
 ```
 
-### 9.6 ループ展開とキャッシュの相互作用
+### 9.6 Loop Unrolling and Cache Interaction
 
-ループ展開（Loop Unrolling）はCPUパイプラインとキャッシュの両方に影響を与える最適化手法である。
+Loop unrolling is an optimization technique that affects both the CPU pipeline and the cache.
 
 ```c
-/* ループ展開によるパイプライン効率改善の例 */
+/* Loop unrolling for pipeline efficiency improvement */
 
-/* 展開なし */
+/* Without unrolling */
 float dot_product_basic(float *a, float *b, int n) {
     float sum = 0.0f;
     for (int i = 0; i < n; i++) {
-        sum += a[i] * b[i];  /* 依存チェーン: sum の更新が毎回直列 */
+        sum += a[i] * b[i];  /* Dependency chain: sum update serialized every iteration */
     }
     return sum;
 }
 
-/* 4倍展開: 依存チェーンを4本に分割 */
+/* 4x unrolled: split dependency chain into 4 */
 float dot_product_unrolled(float *a, float *b, int n) {
     float sum0 = 0.0f, sum1 = 0.0f, sum2 = 0.0f, sum3 = 0.0f;
     int i;
     for (i = 0; i + 3 < n; i += 4) {
-        sum0 += a[i]   * b[i];    /* 独立した4つの累積加算 */
-        sum1 += a[i+1] * b[i+1];  /* → CPUが4つを並列実行可能 */
+        sum0 += a[i]   * b[i];    /* 4 independent accumulations */
+        sum1 += a[i+1] * b[i+1];  /* -> CPU can execute all 4 in parallel */
         sum2 += a[i+2] * b[i+2];
         sum3 += a[i+3] * b[i+3];
     }
     float sum = sum0 + sum1 + sum2 + sum3;
-    for (; i < n; i++) sum += a[i] * b[i]; /* 残余ループ */
+    for (; i < n; i++) sum += a[i] * b[i]; /* Remainder loop */
     return sum;
     /*
-     * 効果:
-     * 1. ループオーバーヘッド（分岐, カウンタ更新）を 1/4 に削減
-     * 2. 4本の独立した依存チェーンによりパイプライン効率向上
-     * 3. プリフェッチャーのストリーム検出がしやすくなる
+     * Benefits:
+     * 1. Loop overhead (branch, counter update) reduced to 1/4
+     * 2. 4 independent dependency chains improve pipeline efficiency
+     * 3. Prefetcher's stream detection becomes easier
      *
-     * 注意: 現代のコンパイラ (-O2/-O3) は自動展開を行う
-     *       手動展開はプロファイリング結果に基づいて判断する
+     * Note: Modern compilers (-O2/-O3) perform automatic unrolling
+     *       Manual unrolling should be based on profiling results
      */
 }
 ```
 
 ---
 
-## 10. メモリアロケータとキャッシュ
+## 10. Memory Allocators and the Cache
 
-### 10.1 標準アロケータ（malloc/free）の問題点
+### 10.1 Problems with Standard Allocators (malloc/free)
 
-標準の `malloc`/`free` は汎用的なメモリアロケータだが、長時間稼働するプログラムではメモリのフラグメンテーションが進行し、空間的局所性が低下する。
+Standard `malloc`/`free` is a general-purpose memory allocator, but in long-running programs, memory fragmentation progresses and spatial locality degrades.
 
 ```
-mallocの一般的な動作とフラグメンテーション:
+malloc behavior and fragmentation over time:
 
-  時間が経つにつれてメモリがフラグメント化:
-  ┌────┬──┬────┬──┬────┬──┬────┬──┬────┐
-  │使用│空│使用│空│使用│空│使用│空│使用│
-  └────┴──┴────┴──┴────┴──┴────┴──┴────┘
-  → 関連するオブジェクトがメモリ上でバラバラに配置
-  → 空間的局所性が低下 → キャッシュ効率が悪化
+  Memory becomes fragmented over time:
+  +----+--+----+--+----+--+----+--+----+
+  |Used|  |Used|  |Used|  |Used|  |Used|
+  +----+--+----+--+----+--+----+--+----+
+  -> Related objects are scattered across memory
+  -> Spatial locality degrades -> cache efficiency worsens
 
-  対策: 用途別のメモリアロケータを使用する
+  Countermeasure: Use purpose-specific memory allocators
 ```
 
-### 10.2 アリーナアロケータ（プールアロケータ）
+### 10.2 Arena Allocators (Pool Allocators)
 
-ゲームエンジンやデータベースエンジンでは、キャッシュ効率を高めるために専用のメモリアロケータを使用する。
+Game engines and database engines use specialized memory allocators to improve cache efficiency.
 
 ```c
 /*
- * シンプルなアリーナアロケータの実装例
- * 同種のオブジェクトを連続メモリに配置し、空間的局所性を最大化する
+ * Simple arena allocator implementation example
+ * Places objects of the same type in contiguous memory to maximize spatial locality
  */
 #include <stdlib.h>
 #include <stdint.h>
 
 typedef struct Arena {
-    uint8_t *memory;     /* 確保済みメモリブロック */
-    size_t   capacity;   /* 全体サイズ */
-    size_t   offset;     /* 次の割り当て位置 */
+    uint8_t *memory;     /* Allocated memory block */
+    size_t   capacity;   /* Total size */
+    size_t   offset;     /* Next allocation position */
 } Arena;
 
 Arena arena_create(size_t capacity) {
@@ -1329,7 +1336,7 @@ Arena arena_create(size_t capacity) {
 }
 
 void *arena_alloc(Arena *arena, size_t size) {
-    size_t aligned_size = (size + 7) & ~7;  /* 8バイト境界アライメント */
+    size_t aligned_size = (size + 7) & ~7;  /* 8-byte boundary alignment */
     if (arena->offset + aligned_size > arena->capacity) return NULL;
     void *ptr = arena->memory + arena->offset;
     arena->offset += aligned_size;
@@ -1337,7 +1344,7 @@ void *arena_alloc(Arena *arena, size_t size) {
 }
 
 void arena_reset(Arena *arena) {
-    arena->offset = 0;  /* 全オブジェクトを一括解放 O(1) */
+    arena->offset = 0;  /* Free all objects at once O(1) */
 }
 
 void arena_destroy(Arena *arena) {
@@ -1345,45 +1352,45 @@ void arena_destroy(Arena *arena) {
 }
 
 /*
- * 利点:
- * 1. 連続メモリに配置 → 空間的局所性が最大化
- * 2. free が不要 → フラグメンテーションなし
- * 3. arena_reset で O(1) 一括解放
+ * Advantages:
+ * 1. Placed in contiguous memory -> maximized spatial locality
+ * 2. No free needed -> no fragmentation
+ * 3. arena_reset for O(1) bulk deallocation
  *
- * 用途: ゲームのフレーム単位メモリ、パーサーのAST構築、
- *       Webサーバーのリクエスト単位メモリ管理
+ * Use cases: Per-frame memory in games, AST construction in parsers,
+ *            Per-request memory management in web servers
  */
 ```
 
 ---
 
-## 11. メモリプロファイリングの実践
+## 11. Memory Profiling in Practice
 
-### 11.1 Linux perfによるキャッシュミスの計測
+### 11.1 Measuring Cache Misses with Linux perf
 
 ```bash
-# キャッシュミスの統計情報を取得
+# Get cache miss statistics
 perf stat -e cache-references,cache-misses,L1-dcache-loads,L1-dcache-load-misses \
          ./my_program
 
-# 出力例:
+# Example output:
 #  1,234,567,890  cache-references
 #     12,345,678  cache-misses       #  1.00% of all cache refs
 #  5,678,901,234  L1-dcache-loads
 #    567,890,123  L1-dcache-load-misses  # 10.00% of all L1-dcache loads
 
-# キャッシュミスが発生するコード位置を特定
+# Identify code locations where cache misses occur
 perf record -e cache-misses ./my_program
 perf report
 ```
 
-### 11.2 Valgrind (Cachegrind) によるシミュレーション
+### 11.2 Simulation with Valgrind (Cachegrind)
 
 ```bash
-# Cachegrind でキャッシュ動作をシミュレーション
+# Simulate cache behavior with Cachegrind
 valgrind --tool=cachegrind ./my_program
 
-# 出力例:
+# Example output:
 # ==12345== I   refs:      1,234,567,890
 # ==12345== I1  misses:          123,456
 # ==12345== LLi misses:           12,345
@@ -1396,20 +1403,20 @@ valgrind --tool=cachegrind ./my_program
 # ==12345== D1  miss rate:           10.0% (       10.0%   +        10.0%)
 # ==12345== LLd miss rate:            1.0% (        1.0%   +         1.0%)
 
-# ソースコード行ごとのキャッシュミス情報
+# Per-source-line cache miss information
 cg_annotate cachegrind.out.12345
 ```
 
 ---
 
-## 12. アンチパターン
+## 12. Anti-Patterns
 
-### 12.1 アンチパターン1: False Sharing（偽の共有）
+### 12.1 Anti-Pattern 1: False Sharing
 
-False Sharing は、マルチスレッドプログラムにおいて、論理的に独立した変数が同一キャッシュラインに配置されることで、MESIプロトコルによる不要なキャッシュラインの無効化が発生し、性能が大幅に低下する現象である。
+False Sharing is a phenomenon in multithreaded programs where logically independent variables are placed on the same cache line, causing unnecessary invalidation via the MESI protocol and severely degrading performance.
 
 ```c
-/* ===== False Sharing のアンチパターン ===== */
+/* ===== False Sharing Anti-Pattern ===== */
 #include <pthread.h>
 #include <stdio.h>
 #include <time.h>
@@ -1417,17 +1424,17 @@ False Sharing は、マルチスレッドプログラムにおいて、論理的
 #define NUM_THREADS 4
 #define ITERATIONS 100000000
 
-/* 悪い例: カウンタが同じキャッシュラインに乗る */
+/* Bad example: counters on the same cache line */
 struct BadCounters {
-    long count[NUM_THREADS];  /* 4つの long が連続 = 32バイト < 64バイト
-                               * → 全て同じキャッシュラインに入る */
+    long count[NUM_THREADS];  /* 4 longs contiguous = 32 bytes < 64 bytes
+                               * -> All on the same cache line */
 };
 
-/* 良い例: パディングでキャッシュラインを分離 */
+/* Good example: padding separates cache lines */
 struct GoodCounters {
     struct {
         long count;
-        char padding[64 - sizeof(long)];  /* 64バイトアラインメント */
+        char padding[64 - sizeof(long)];  /* 64-byte alignment */
     } per_thread[NUM_THREADS];
 };
 
@@ -1438,10 +1445,10 @@ void *bad_worker(void *arg) {
     int id = *(int *)arg;
     for (long i = 0; i < ITERATIONS; i++) {
         bad_counters.count[id]++;
-        /* Thread 0 が count[0] を更新
-         * → count[1], [2], [3] も同じキャッシュラインなので
-         *   Thread 1,2,3 のキャッシュラインが無効化される
-         * → 全スレッドが毎回L3またはDRAMからリロード */
+        /* Thread 0 updates count[0]
+         * -> count[1], [2], [3] are on the same cache line, so
+         *   Thread 1,2,3's cache lines are invalidated
+         * -> All threads reload from L3 or DRAM every time */
     }
     return NULL;
 }
@@ -1450,85 +1457,85 @@ void *good_worker(void *arg) {
     int id = *(int *)arg;
     for (long i = 0; i < ITERATIONS; i++) {
         good_counters.per_thread[id].count++;
-        /* 各スレッドのカウンタは別のキャッシュラインにある
-         * → 他スレッドのキャッシュラインに影響しない
-         * → 各スレッドが独立してL1キャッシュで動作 */
+        /* Each thread's counter is on a separate cache line
+         * -> No impact on other threads' cache lines
+         * -> Each thread operates independently from L1 cache */
     }
     return NULL;
 }
 
-/* 典型的な性能差:
- * Bad  (False Sharing あり): ~8秒 (4スレッド)
- * Good (False Sharing なし): ~0.5秒 (4スレッド)
- * → 16倍の性能差！
- * スレッド数が増えるほど差は拡大する
+/* Typical performance difference:
+ * Bad  (with False Sharing): ~8 seconds (4 threads)
+ * Good (no False Sharing):   ~0.5 seconds (4 threads)
+ * -> 16x performance difference!
+ * The gap widens as thread count increases
  */
 ```
 
-### 12.2 アンチパターン2: ポインタ追跡（Pointer Chasing）
+### 12.2 Anti-Pattern 2: Pointer Chasing
 
-リンクリストやツリー構造のような、ポインタを辿ってメモリのランダムな位置にアクセスするパターンは、空間的局所性が低く、キャッシュ効率が極めて悪い。
+Access patterns that follow pointers to random memory locations, such as linked lists and tree structures, have low spatial locality and extremely poor cache efficiency.
 
 ```c
-/* ===== ポインタ追跡のアンチパターン ===== */
+/* ===== Pointer Chasing Anti-Pattern ===== */
 
-/* 悪い例: リンクリストの走査 */
+/* Bad example: linked list traversal */
 struct LinkedNode {
     int value;
-    struct LinkedNode *next;  /* ヒープ上のランダムな位置を指す */
+    struct LinkedNode *next;  /* Points to random heap locations */
 };
 
 long long sum_linked_list(struct LinkedNode *head) {
     long long sum = 0;
     struct LinkedNode *curr = head;
     while (curr) {
-        sum += curr->value;  /* ← ほぼ毎回キャッシュミス (~100ns) */
-        curr = curr->next;   /*   next が指す先はメモリ上でバラバラ */
+        sum += curr->value;  /* <- Nearly every access is a cache miss (~100ns) */
+        curr = curr->next;   /*   next points to scattered memory locations */
     }
     return sum;
-    /* 100万要素の場合:
-     * 最悪: 100万 × 100ns = 100ms（全てDRAMアクセス）
-     * 配列なら: 100万 × 4B = 4MB → L3に収まり ~5ms
+    /* For 1 million elements:
+     * Worst case: 1M x 100ns = 100ms (all DRAM accesses)
+     * Array: 1M x 4B = 4MB -> fits in L3, ~5ms
      */
 }
 
-/* 良い例: 配列ベースの連続データ構造 */
+/* Good example: array-based contiguous data structure */
 long long sum_array(int *data, int n) {
     long long sum = 0;
     for (int i = 0; i < n; i++) {
-        sum += data[i];  /* ← 16回に1回だけキャッシュミス */
+        sum += data[i];  /* <- Cache miss only once every 16 accesses */
     }
     return sum;
-    /* 100万要素: ~5ms（キャッシュに収まる場合はさらに高速） */
+    /* 1 million elements: ~5ms (even faster if it fits in cache) */
 }
 
-/* 妥協案: Unrolled Linked List（連結配列リスト） */
+/* Compromise: Unrolled Linked List */
 #define BLOCK_SIZE 256
 struct UnrolledNode {
-    int values[BLOCK_SIZE];    /* ブロック内は連続アクセス → 局所性高い */
+    int values[BLOCK_SIZE];    /* Contiguous access within block -> high locality */
     int count;
-    struct UnrolledNode *next; /* ブロック間のみポインタ追跡 */
+    struct UnrolledNode *next; /* Pointer chasing only between blocks */
 };
-/* キャッシュミスは BLOCK_SIZE 要素に1回に抑えられる */
+/* Cache misses reduced to once per BLOCK_SIZE elements */
 ```
 
-### 12.3 アンチパターン3: 巨大なワーキングセット
+### 12.3 Anti-Pattern 3: Oversized Working Set
 
-ワーキングセット（短時間に実際にアクセスされるメモリ領域）がキャッシュ容量を大幅に超えると、容量ミスが多発して性能が劇的に低下する。
+When the working set (the memory region actually accessed in a short time) greatly exceeds cache capacity, capacity misses become frequent and performance degrades dramatically.
 
 ```python
-# ===== ワーキングセット超過の影響 =====
+# ===== Impact of working set overflow =====
 
 import time
 import array
 
 def benchmark_working_set(sizes_mb):
-    """異なるサイズのワーキングセットでの性能を比較"""
+    """Compare performance with different working set sizes"""
     for size_mb in sizes_mb:
-        n = size_mb * 1024 * 1024 // 4  # int は 4バイト
+        n = size_mb * 1024 * 1024 // 4  # int is 4 bytes
         data = array.array('i', range(n))
 
-        # ランダムアクセス（最悪ケース）
+        # Random access (worst case)
         import random
         indices = list(range(n))
         random.shuffle(indices)
@@ -1543,213 +1550,213 @@ def benchmark_working_set(sizes_mb):
         ns_per_access = elapsed * 1e9 / len(sample)
         print(f"  {size_mb:6d} MB: {ns_per_access:8.1f} ns/access")
 
-# 典型的な出力:
-#       1 MB:      3.5 ns/access  ← L2 キャッシュに収まる
-#       4 MB:      5.2 ns/access  ← L3 キャッシュに収まる
-#      32 MB:     12.0 ns/access  ← L3 キャッシュの容量付近
-#     128 MB:     85.0 ns/access  ← DRAM アクセスが支配的
-#    1024 MB:    110.0 ns/access  ← 完全に DRAM 依存
+# Typical output:
+#       1 MB:      3.5 ns/access  <- Fits in L2 cache
+#       4 MB:      5.2 ns/access  <- Fits in L3 cache
+#      32 MB:     12.0 ns/access  <- Near L3 cache capacity
+#     128 MB:     85.0 ns/access  <- DRAM access dominant
+#    1024 MB:    110.0 ns/access  <- Fully DRAM-dependent
 #
-# → L3 キャッシュ容量を超えた途端に性能が急激に悪化する
-#   これが「キャッシュの崖」(Cache Cliff) と呼ばれる現象
+# -> Performance drops sharply once L3 cache capacity is exceeded
+#   This is the phenomenon known as the "Cache Cliff"
 ```
 
 ---
 
-## 13. 実践演習
+## 13. Practical Exercises
 
-### 演習1（基礎）: レイテンシの直感を養う
+### Exercise 1 (Fundamentals): Developing Latency Intuition
 
-Jeff Deanの数値を使い、以下の処理にかかる概算時間を計算せよ。
+Using Jeff Dean's numbers, estimate the approximate time for the following operations.
 
-**問題:**
+**Problems:**
 
-1. 1000要素の int 配列（4KB）をL1キャッシュ内で線形探索する場合の合計レイテンシ
-2. 100万要素のソート済み配列をL3キャッシュ内で二分探索する場合のレイテンシ（比較回数 × L3レイテンシ）
-3. NVMe SSD から 100MB のファイルを連続読み出しする場合の所要時間
-4. 同じ 100MB を HDD から連続読み出しする場合の所要時間
+1. Linear search through a 1000-element int array (4KB) within L1 cache: total latency
+2. Binary search on a 1-million-element sorted array within L3 cache: latency (comparisons x L3 latency)
+3. Sequential read of a 100MB file from NVMe SSD: elapsed time
+4. Sequential read of the same 100MB from HDD: elapsed time
 
-**解答の目安:**
+**Approximate answers:**
 
-1. 1000要素がL1に収まる → 1000 × 1ns = 1μs。ただし分岐予測ミスの影響で実際は2-3μs程度
-2. log2(1,000,000) ≈ 20回の比較。各比較でL3アクセスが発生すると仮定 → 20 × 12ns = 240ns。実際にはTLBミスや分岐予測ミスで500ns-1μs程度
-3. 100MB ÷ 7GB/s(PCIe 4.0) ≈ 14ms。初回シーク16μsを加えても約14ms
-4. 100MB ÷ 200MB/s ≈ 500ms。初回シーク8msを加えて約508ms
+1. 1000 elements fit in L1 -> 1000 x 1ns = 1us. With branch misprediction effects, actually ~2-3us
+2. log2(1,000,000) ~ 20 comparisons. Assuming L3 access per comparison -> 20 x 12ns = 240ns. With TLB misses and branch mispredictions, actually ~500ns-1us
+3. 100MB / 7GB/s (PCIe 4.0) ~ 14ms. Adding initial seek of 16us, approximately 14ms
+4. 100MB / 200MB/s ~ 500ms. Adding initial seek of 8ms, approximately 508ms
 
-### 演習2（応用）: キャッシュ効率の測定
+### Exercise 2 (Application): Measuring Cache Efficiency
 
-好きなプログラミング言語で以下を実装し、性能差を比較せよ。
+Implement the following in your preferred programming language and compare performance differences.
 
-**問題:**
+**Problems:**
 
-1. N×N 行列の行優先合計 vs 列優先合計を実装し、N=1000, 4000, 8000 で実行時間を比較せよ
-2. 連続メモリの配列（ArrayList/Vector）とリンクリストで、100万要素の走査速度を比較せよ
-3. AoS と SoA のレイアウトで、「位置のみ更新」処理の速度を比較せよ
+1. Implement row-major sum vs. column-major sum on an NxN matrix and compare execution times for N=1000, 4000, 8000
+2. Compare traversal speed of 1 million elements between a contiguous-memory array (ArrayList/Vector) and a linked list
+3. Compare the speed of a "position-only update" process between AoS and SoA layouts
 
-**計測のポイント:**
-- 少なくとも5回測定して中央値を使用する
-- JIT言語（Java、C#等）ではウォームアップを十分に行う
-- 可能であれば `perf stat` でキャッシュミス率を確認する
+**Measurement tips:**
+- Take at least 5 measurements and use the median
+- For JIT languages (Java, C#, etc.), provide sufficient warmup
+- If possible, check cache miss rates with `perf stat`
 
-### 演習3（発展）: システム全体のメモリ分析
+### Exercise 3 (Advanced): System-Wide Memory Analysis
 
-自分が開発しているアプリケーション（またはオープンソースのアプリケーション）について以下を調査せよ。
+Investigate the following about an application you are developing (or an open-source application).
 
-**問題:**
+**Problems:**
 
-1. アプリケーションのワーキングセットサイズを推定せよ（`top`、`ps`、`/proc/[pid]/smaps` 等を使用）
-2. ワーキングセットがL3キャッシュに収まるか判定し、収まらない場合の影響を考察せよ
-3. `perf stat` でL1/L2/L3キャッシュミス率とTLBミス率を計測せよ
-4. ページフォルトが発生しうる場面を特定し、Huge Pages の適用効果を考察せよ
-5. マルチスレッド部分がある場合、False Sharing の可能性を検証せよ
+1. Estimate the application's working set size (using `top`, `ps`, `/proc/[pid]/smaps`, etc.)
+2. Determine whether the working set fits in L3 cache, and discuss the impact if it doesn't
+3. Measure L1/L2/L3 cache miss rates and TLB miss rates with `perf stat`
+4. Identify scenarios where page faults may occur and discuss the potential impact of applying Huge Pages
+5. If there are multithreaded sections, investigate the possibility of False Sharing
 
 ---
 
 ## 14. FAQ
 
-### Q1: GC（ガベージコレクション）はキャッシュにどう影響しますか？
+### Q1: How does GC (garbage collection) affect the cache?
 
-**A**: GCはキャッシュ効率に大きな影響を与える。主な影響は以下の通り。
+**A**: GC has a significant impact on cache efficiency. The main effects are as follows.
 
-- **マーク&スイープGC**: 到達可能な全オブジェクトを走査するため、ヒープ全体をスキャンする。この過程でキャッシュの内容がほぼ全て入れ替わる（キャッシュポリューション）。ワーキングセットが大きいほど影響が深刻
-- **世代別GC**: 若い世代（Young Generation）のみを頻繁に回収し、古い世代は稀にしか回収しない。若い世代は通常小さいため（数MB-数十MB）、L3キャッシュに収まることが多く、キャッシュへの影響は限定的
-- **コンパクションGC**: オブジェクトをメモリ上で移動させてフラグメンテーションを解消する。移動直後は参照の局所性が向上する可能性があるが、移動中はキャッシュが汚染される
-- **並行GC（ZGC、Shenandoah等）**: GCスレッドがアプリケーションスレッドと並行して動作するため、GCスレッドのメモリアクセスがアプリケーションのキャッシュを汚染する。ただし、Stop-the-World時間が短いためレイテンシジッターは小さい
+- **Mark & Sweep GC**: Scans all reachable objects, traversing the entire heap. This process replaces nearly all cache contents (cache pollution). The larger the working set, the more severe the impact
+- **Generational GC**: Frequently collects only the young generation, rarely collecting the old generation. The young generation is typically small (a few MB to tens of MB) and often fits in L3 cache, so cache impact is limited
+- **Compaction GC**: Moves objects in memory to eliminate fragmentation. Locality of references may improve immediately after compaction, but the cache is polluted during the move
+- **Concurrent GC (ZGC, Shenandoah, etc.)**: GC threads run concurrently with application threads, so GC thread memory accesses can pollute the application's cache. However, Stop-the-World time is short, so latency jitter is small
 
-### Q2: 仮想メモリは常にパフォーマンスに悪影響ですか？
+### Q2: Does virtual memory always hurt performance?
 
-**A**: 通常の状態では、仮想メモリのオーバーヘッドはTLBにより隠蔽されるため、ほぼ無視できる。問題になるケースは以下の通り。
+**A**: Under normal conditions, virtual memory overhead is hidden by the TLB and is essentially negligible. Problematic cases include:
 
-- **TLBミスの多発**: ワーキングセットがTLBカバレッジ（4KB × 1024エントリ = 4MB）を超えると、TLBミスが増加する。対策として、Huge Pages（2MB/1GB）の使用が効果的
-- **ページフォルト（スラッシング）**: 物理メモリが不足してページフォルトが頻発する状態（スラッシング）は、システムを実質的に停止させる。対策は物理メモリの増設が最も確実
-- **多段ページテーブルウォーク**: x86-64の4段階ページテーブルでは、TLBミス時に最大4回のメモリアクセスが必要。これ自体はハードウェアPTW(Page Table Walker)で高速化されている
-- **mmap の罠**: 大きなファイルを mmap すると、初回アクセス時にマイナーページフォルトが発生する。MAP_POPULATE フラグや madvise(MADV_WILLNEED) で事前読み込みすることで回避可能
+- **Frequent TLB misses**: When the working set exceeds TLB coverage (4KB x 1024 entries = 4MB), TLB misses increase. Using Huge Pages (2MB/1GB) is an effective countermeasure
+- **Page faults (thrashing)**: A state where frequent page faults effectively halt the system. Adding physical memory is the most reliable solution
+- **Multi-level page table walks**: x86-64's 4-level page table requires up to 4 memory accesses on TLB miss. This is accelerated by the hardware PTW (Page Table Walker)
+- **The mmap trap**: mmap-ing a large file causes minor page faults on first access. These can be avoided with the MAP_POPULATE flag or madvise(MADV_WILLNEED)
 
-### Q3: Apple Silicon の統合メモリ（Unified Memory）はなぜ速いのですか？
+### Q3: Why is Apple Silicon's Unified Memory so fast?
 
-**A**: 従来のPCアーキテクチャでは、CPU用のDDR DRAMとGPU用のGDDR/HBMが物理的に分離されており、CPU-GPU間のデータ転送にはPCIeバス（~32GB/s）を経由する必要があった。
+**A**: In traditional PC architecture, CPU-dedicated DDR DRAM and GPU-dedicated GDDR/HBM are physically separate, requiring data transfer between CPU and GPU via the PCIe bus (~32GB/s).
 
-Apple Silicon（M1/M2/M3/M4シリーズ）の統合メモリアーキテクチャでは:
+Apple Silicon (M1/M2/M3/M4 series) unified memory architecture:
 
-- CPU、GPU、Neural Engine（NPU）が同一のLPDDR5メモリを直接参照する（コピー不要）
-- LPDDR5の全帯域（~200-400GB/s）を全コンポーネントが共有する
-- CPUの計算結果をGPUがゼロコピーで利用できるため、CPU→GPU間のデータ転送レイテンシが実質ゼロ
-- AI推論ワークロード（LLM等）では、モデル全体をメモリに保持したままCPU/GPU/NPUで分担処理できる
+- CPU, GPU, and Neural Engine (NPU) all directly reference the same LPDDR5 memory (no copying required)
+- All components share the full LPDDR5 bandwidth (~200-400GB/s)
+- CPU computation results can be used by the GPU with zero copy, making CPU-to-GPU data transfer latency effectively zero
+- For AI inference workloads (LLMs, etc.), the entire model can be kept in memory and processed cooperatively across CPU/GPU/NPU
 
-### Q4: DDR5 と DDR4 の違いは何ですか？
+### Q4: What is the difference between DDR5 and DDR4?
 
-**A**: DDR5はDDR4の後継規格であり、主に帯域幅が大幅に向上している。
+**A**: DDR5 is the successor to DDR4, with significantly improved bandwidth.
 
-| 特性 | DDR4-3200 | DDR5-5600 |
-|------|-----------|-----------|
-| 動作クロック | 1600MHz | 2800MHz |
-| データレート | 3200MT/s | 5600MT/s |
-| 帯域幅（1チャネル） | 25.6GB/s | 44.8GB/s |
-| チャネル構成 | 1チャネル/DIMM | 2チャネル/DIMM |
-| 電圧 | 1.2V | 1.1V |
-| バースト長 | 8 | 16 |
-| レイテンシ(CAS) | CL22 (~13.75ns) | CL36 (~12.86ns) |
+| Feature | DDR4-3200 | DDR5-5600 |
+|---------|-----------|-----------|
+| Clock speed | 1600MHz | 2800MHz |
+| Data rate | 3200MT/s | 5600MT/s |
+| Bandwidth (1 channel) | 25.6GB/s | 44.8GB/s |
+| Channel config | 1 channel/DIMM | 2 channels/DIMM |
+| Voltage | 1.2V | 1.1V |
+| Burst length | 8 | 16 |
+| Latency (CAS) | CL22 (~13.75ns) | CL36 (~12.86ns) |
 
-レイテンシ（CASレイテンシ）はほぼ同等だが、帯域幅は約1.75倍に向上している。「DRAMのレイテンシはほとんど改善されない」というメモリウォール問題の本質を体現している。
+Latency (CAS latency) is nearly the same, but bandwidth has improved by approximately 1.75x. This embodies the essence of the Memory Wall problem: "DRAM latency hardly improves."
 
-### Q5: キャッシュのウォームアップとは何ですか？
+### Q5: What is cache warmup?
 
-**A**: アプリケーション起動直後やコンテキストスイッチ直後は、キャッシュの内容が無効（コールド状態）であるため、初期のメモリアクセスは全てキャッシュミスとなる。キャッシュのウォームアップとは、ワーキングセットのデータがキャッシュに読み込まれ、ヒット率が定常状態に達するまでの過程を指す。
+**A**: Immediately after application startup or a context switch, cache contents are invalid (cold state), so all initial memory accesses result in cache misses. Cache warmup refers to the process during which working set data is loaded into the cache and the hit rate reaches a steady state.
 
-ベンチマーク測定においては、ウォームアップフェーズを設けてキャッシュ状態を安定させてから計測を開始することが重要である。ウォームアップなしの測定は、コールドミスの影響を含むため、定常状態の性能を正しく反映しない。
+In benchmark measurement, it is important to include a warmup phase to stabilize the cache state before starting measurement. Measurements without warmup include the effects of cold misses and do not accurately reflect steady-state performance.
 
 ---
 
-## 15. 発展トピック
+## 15. Advanced Topics
 
-### 15.1 メモリ技術の最新動向
+### 15.1 Latest Trends in Memory Technology
 
-| 技術 | 概要 | 用途 |
-|------|------|------|
-| **HBM (High Bandwidth Memory)** | DRAMダイをTSV(Through-Silicon Via)で積層。~1TB/sの帯域幅 | GPU (H100/A100)、HPC |
-| **CXL (Compute Express Link)** | PCIeベースのメモリプロトコル。メモリプーリングを実現 | データセンター、メモリ拡張 |
-| **Persistent Memory (Intel Optane)** | DRAMに近い速度の不揮発性メモリ。バイトアドレッサブル | データベース、ログ |
-| **MRAM (Magnetoresistive RAM)** | 磁気抵抗を利用した不揮発性メモリ。SRAMに近い速度 | 組み込みキャッシュ |
-| **Processing-in-Memory (PIM)** | メモリ内で演算を実行。データ移動を最小化 | AI推論、グラフ処理 |
+| Technology | Overview | Use Cases |
+|------------|----------|-----------|
+| **HBM (High Bandwidth Memory)** | DRAM dies stacked with TSV (Through-Silicon Via). ~1TB/s bandwidth | GPUs (H100/A100), HPC |
+| **CXL (Compute Express Link)** | PCIe-based memory protocol. Enables memory pooling | Data centers, memory expansion |
+| **Persistent Memory (Intel Optane)** | Non-volatile memory with near-DRAM speed. Byte-addressable | Databases, logging |
+| **MRAM (Magnetoresistive RAM)** | Non-volatile memory using magnetoresistance. Near-SRAM speed | Embedded caches |
+| **Processing-in-Memory (PIM)** | Computation executed within memory. Minimizes data movement | AI inference, graph processing |
 
-### 15.2 キャッシュ階層の将来
+### 15.2 The Future of Cache Hierarchies
 
-現代のプロセッサでは、L1/L2/L3の3階層が標準だが、以下のような変化が進行している。
+Modern processors use a standard 3-level L1/L2/L3 hierarchy, but the following changes are underway.
 
-- **L4キャッシュの登場**: Intel Meteor LakeではeDRAMベースのL4キャッシュ（128MB）を搭載。GPUとCPUで共有
-- **3D V-Cache**: AMDの3D V-Cache技術では、L3キャッシュをダイの上に積層し、最大128MBのL3キャッシュを実現。ゲーム等のキャッシュ感応的なワークロードで大幅な性能向上
-- **適応型キャッシュポリシー**: 機械学習ベースの動的キャッシュ置換ポリシーの研究が進んでいる
+- **L4 cache emergence**: Intel Meteor Lake includes an eDRAM-based L4 cache (128MB) shared between GPU and CPU
+- **3D V-Cache**: AMD's 3D V-Cache technology stacks L3 cache on top of the die, achieving up to 128MB of L3 cache. Significant performance improvement for cache-sensitive workloads like gaming
+- **Adaptive cache policies**: Research into machine learning-based dynamic cache replacement policies is progressing
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when studying this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory but by actually writing code and verifying behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this knowledge applied in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## 16. まとめ
-
-| 概念 | 要点 |
-|------|------|
-| メモリ階層 | レジスタ → L1 → L2 → L3 → DRAM → SSD → HDD（速度と容量のトレードオフ） |
-| SRAM vs DRAM | SRAMは6T構成で高速（キャッシュ用）、DRAMは1T1C構成で大容量（メインメモリ用） |
-| キャッシュライン | 64バイト単位でのデータ転送。空間的局所性を活用する基本単位 |
-| マッピング方式 | セットアソシアティブ方式が現代の標準（ダイレクトマップとフルアソシアティブの折衷） |
-| 書き込みポリシー | ライトバックが主流。キャッシュコヒーレンシにはMESIプロトコルを使用 |
-| 局所性の原理 | 時間的（最近使ったデータ）+ 空間的（近くのデータ）がキャッシュ効率の鍵 |
-| 3C分類 | Compulsory（義務）/ Capacity（容量）/ Conflict（競合）の3種類のキャッシュミス |
-| 仮想メモリ | プロセス分離 + 物理メモリの効率的管理。ページテーブル+TLBで実装 |
-| Huge Pages | 2MB/1GBページでTLBカバレッジを拡大。大規模アプリケーションで効果的 |
-| NUMA | マルチソケットサーバーではメモリ配置を意識しないと性能が50%以上低下 |
-| AoS vs SoA | データアクセスパターンに応じたレイアウト選択がキャッシュ効率を決定 |
-| ブロッキング | 行列演算等をキャッシュサイズのブロックに分割して処理する最適化手法 |
-| False Sharing | マルチスレッドの隠れた性能低下原因。キャッシュラインパディングで回避 |
+The knowledge from this topic is frequently applied in daily development work. It becomes particularly important during code reviews and architecture design.
 
 ---
 
-## 17. 次に読むべきガイド
+## 16. Summary
+
+| Concept | Key Points |
+|---------|------------|
+| Memory hierarchy | Register -> L1 -> L2 -> L3 -> DRAM -> SSD -> HDD (speed vs. capacity tradeoff) |
+| SRAM vs DRAM | SRAM is 6T, fast (for caches); DRAM is 1T1C, large capacity (for main memory) |
+| Cache line | 64-byte unit data transfer. The fundamental unit for exploiting spatial locality |
+| Mapping scheme | Set-associative is the modern standard (compromise between direct-mapped and fully associative) |
+| Write policy | Write-back is mainstream. MESI protocol used for cache coherency |
+| Principle of locality | Temporal (recently used data) + spatial (nearby data) are the keys to cache efficiency |
+| 3C classification | Compulsory / Capacity / Conflict -- three types of cache misses |
+| Virtual memory | Process isolation + efficient physical memory management. Implemented with page tables + TLB |
+| Huge Pages | 2MB/1GB pages expand TLB coverage. Effective for large-scale applications |
+| NUMA | In multi-socket servers, ignoring memory placement can cause 50%+ performance degradation |
+| AoS vs SoA | Choosing a layout based on data access patterns determines cache efficiency |
+| Blocking | An optimization technique that processes matrix operations in cache-sized blocks |
+| False Sharing | A hidden cause of performance degradation in multithreading. Avoided with cache line padding |
+
+---
+
+## 17. Recommended Next Guides
 
 
 ---
 
-## 18. 参考文献
+## 18. References
 
 1. Bryant, R. E. & O'Hallaron, D. R. *Computer Systems: A Programmer's Perspective.* 3rd Edition, Pearson, 2015.
-   - メモリ階層・仮想メモリの包括的な解説。学部レベルの標準的教科書
+   - Comprehensive coverage of memory hierarchy and virtual memory. The standard undergraduate textbook
 2. Hennessy, J. L. & Patterson, D. A. *Computer Architecture: A Quantitative Approach.* 6th Edition, Morgan Kaufmann, 2017.
-   - キャッシュ設計・メモリ技術の定量的分析。大学院レベルの標準的教科書
+   - Quantitative analysis of cache design and memory technology. The standard graduate-level textbook
 3. Drepper, U. "What Every Programmer Should Know About Memory." 2007. https://people.freebsd.org/~lstewart/articles/cpumemory.pdf
-   - DRAM・キャッシュ・NUMA・プロファイリングの実践的ガイド。必読文献
+   - A practical guide to DRAM, caches, NUMA, and profiling. Essential reading
 4. Dean, J. & Barroso, L. A. "The Tail at Scale." *Communications of the ACM*, 56(2):74-80, 2013.
-   - 大規模分散システムにおけるレイテンシの影響を考察。"Numbers Everyone Should Know" の原典
+   - Examines the impact of latency in large-scale distributed systems. The source of "Numbers Everyone Should Know"
 5. Intel Corporation. *Intel 64 and IA-32 Architectures Optimization Reference Manual.* 2024.
-   - x86プロセッサのキャッシュ・メモリ最適化の公式リファレンス
+   - The official reference for cache and memory optimization on x86 processors
 6. Levinthal, D. *Performance Analysis Guide for Intel Core i7 Processor and Intel Xeon 5500 Processors.* Intel, 2009.
-   - perfカウンタを用いたキャッシュ性能分析の実践ガイド
+   - A practical guide to cache performance analysis using perf counters
 7. Fog, A. "Optimizing software in C++: An optimization guide for Windows, Linux and Mac platforms." https://www.agner.org/optimize/
-   - データ構造レイアウト・キャッシュ最適化の実践的テクニック集
+   - A practical collection of data structure layout and cache optimization techniques
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Guides
 
-- [ストレージシステム](./02-storage-systems.md) - 次のトピックへ進む
+- [Storage Systems](./02-storage-systems.md) - Proceed to the next topic
 
 ---
 
-## 参考文献
+## References
 
-- [MDN Web Docs](https://developer.mozilla.org/) - Web技術のリファレンス
-- [Wikipedia](https://ja.wikipedia.org/) - 技術概念の概要
+- [MDN Web Docs](https://developer.mozilla.org/) - Web technology reference
+- [Wikipedia](https://ja.wikipedia.org/) - Technical concept overviews

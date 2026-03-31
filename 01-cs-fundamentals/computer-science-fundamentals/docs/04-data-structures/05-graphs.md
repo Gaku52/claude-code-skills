@@ -1,103 +1,103 @@
-# グラフ（データ構造としての）
+# Graphs (as a Data Structure)
 
-> グラフはノードとエッジの集合であり、木、リンクリスト、さらには配列までもがグラフの特殊ケースである。
+> A graph is a collection of nodes and edges; trees, linked lists, and even arrays are all special cases of graphs.
 
-## この章で学ぶこと
+## Learning Objectives
 
-- [ ] グラフの表現方法（隣接リスト、隣接行列）を実装できる
-- [ ] 重み付き/有向/無向グラフの違いを理解する
-- [ ] 実務でのグラフ表現パターンを知る
-- [ ] BFS/DFSの実装と応用を習得する
-- [ ] Union-Find（素集合データ構造）を理解する
-- [ ] 最短経路・最小全域木のアルゴリズムを実装できる
-- [ ] トポロジカルソートの仕組みと応用を把握する
+- [ ] Implement graph representations (adjacency list, adjacency matrix)
+- [ ] Understand the differences between weighted/directed/undirected graphs
+- [ ] Know graph representation patterns used in practice
+- [ ] Master BFS/DFS implementations and applications
+- [ ] Understand Union-Find (disjoint set data structure)
+- [ ] Implement shortest path and minimum spanning tree algorithms
+- [ ] Grasp the mechanism and applications of topological sort
 
-## 前提知識
+## Prerequisites
 
 
 ---
 
-## 1. グラフの基礎概念
+## 1. Graph Fundamentals
 
-### 1.1 グラフの種類
+### 1.1 Types of Graphs
 
 ```
-グラフの分類:
+Graph classification:
 
-  1. 方向による分類:
-     無向グラフ: エッジに方向がない
-       A ─── B    友人関係、道路ネットワーク
-       │     │
-       C ─── D
+  1. By direction:
+     Undirected graph: Edges have no direction
+       A --- B    Friend relationships, road networks
+       |     |
+       C --- D
 
-     有向グラフ（ダイグラフ）: エッジに方向がある
-       A ──→ B    フォロー関係、依存関係
-       ↑     ↓
-       C ←── D
+     Directed graph (digraph): Edges have a direction
+       A --> B    Follow relationships, dependencies
+       ^     |
+       C <-- D
 
-  2. 重みの有無:
-     重みなし: エッジに重みがない（すべて等しい）
-     重み付き: エッジに数値（距離、コスト等）が付く
-       A ─(5)─ B
-       │       │
+  2. By weight:
+     Unweighted: Edges have no weight (all equal)
+     Weighted: Edges carry a numerical value (distance, cost, etc.)
+       A -(5)- B
+       |       |
       (3)     (2)
-       │       │
-       C ─(7)─ D
+       |       |
+       C -(7)- D
 
-  3. その他の分類:
-     単純グラフ: 自己ループ・多重辺がない
-     多重グラフ: 2頂点間に複数の辺がある
-     完全グラフ: すべての頂点間に辺がある（Kn）
-     二部グラフ: 頂点を2つのグループに分けて同グループ間に辺がない
-     DAG: 有向非巡回グラフ（Directed Acyclic Graph）
-     連結グラフ: すべての頂点間にパスがある
+  3. Other classifications:
+     Simple graph: No self-loops or multi-edges
+     Multigraph: Multiple edges between two vertices
+     Complete graph: An edge between every pair of vertices (Kn)
+     Bipartite graph: Vertices split into 2 groups with no edges within the same group
+     DAG: Directed Acyclic Graph
+     Connected graph: A path exists between all pairs of vertices
 
-  グラフの基本量:
-     V: 頂点数（vertices/nodes）
-     E: 辺数（edges/arcs）
-     次数（degree）: ノードに接続する辺の数
-     入次数（in-degree）: 有向グラフでそのノードに入る辺の数
-     出次数（out-degree）: 有向グラフでそのノードから出る辺の数
+  Basic graph quantities:
+     V: Number of vertices (nodes)
+     E: Number of edges (arcs)
+     Degree: Number of edges connected to a node
+     In-degree: Number of incoming edges in a directed graph
+     Out-degree: Number of outgoing edges in a directed graph
 
-  重要な定理:
-     無向グラフ: Σ degree(v) = 2|E|（すべての次数の和 = 辺数の2倍）
-     有向グラフ: Σ in-degree(v) = Σ out-degree(v) = |E|
-     完全グラフ K_n の辺数: n(n-1)/2
-     木の辺数: V - 1
+  Important theorems:
+     Undirected graph: Sum of degree(v) = 2|E| (sum of all degrees = twice the edge count)
+     Directed graph: Sum of in-degree(v) = Sum of out-degree(v) = |E|
+     Complete graph K_n edge count: n(n-1)/2
+     Tree edge count: V - 1
 ```
 
-### 1.2 グラフの用語
+### 1.2 Graph Terminology
 
 ```
-グラフの重要用語:
+Important graph terms:
 
-  パス(Path): 頂点の列 v1, v2, ..., vk（各隣接頂点間に辺がある）
-  単純パス: 同じ頂点を2度通らないパス
-  サイクル(Cycle): 始点と終点が同じパス
-  DAG: サイクルのない有向グラフ
+  Path: A sequence of vertices v1, v2, ..., vk (an edge exists between each adjacent pair)
+  Simple path: A path that does not visit the same vertex twice
+  Cycle: A path where the start and end vertices are the same
+  DAG: A directed graph with no cycles
 
-  連結(Connected): 無向グラフで任意の2頂点間にパスがある
-  強連結(Strongly Connected): 有向グラフで任意の2頂点間に双方向のパスがある
-  連結成分(Connected Component): 連結な部分グラフの最大のもの
+  Connected: In an undirected graph, a path exists between any two vertices
+  Strongly connected: In a directed graph, a bidirectional path exists between any two vertices
+  Connected component: A maximal connected subgraph
 
-  カット頂点(Articulation Point): 除去するとグラフが非連結になる頂点
-  ブリッジ(Bridge): 除去するとグラフが非連結になる辺
+  Articulation point (cut vertex): A vertex whose removal disconnects the graph
+  Bridge: An edge whose removal disconnects the graph
 
-  クリーク(Clique): 完全グラフである部分グラフ
-  独立集合(Independent Set): 辺で接続されていない頂点の集合
+  Clique: A subgraph that is a complete graph
+  Independent set: A set of vertices with no edges between them
 
-  疎(Sparse): E ≪ V² のグラフ
-  密(Dense): E ≈ V² のグラフ
+  Sparse: A graph where E << V^2
+  Dense: A graph where E ~ V^2
 ```
 
 ---
 
-## 2. グラフの表現
+## 2. Graph Representations
 
-### 2.1 隣接リスト
+### 2.1 Adjacency List
 
 ```python
-# 無向グラフ
+# Undirected graph
 from collections import defaultdict
 
 class Graph:
@@ -106,27 +106,27 @@ class Graph:
 
     def add_edge(self, u, v, weight=1):
         self.adj[u].append((v, weight))
-        self.adj[v].append((u, weight))  # 無向グラフ
+        self.adj[v].append((u, weight))  # Undirected graph
 
     def neighbors(self, u):
         return self.adj[u]
 
-# 空間: O(V + E)
-# 辺の追加: O(1)
-# 辺の存在確認: O(degree)
-# 全辺の列挙: O(V + E)
-# → 疎なグラフ（辺が少ない）に最適
+# Space: O(V + E)
+# Edge addition: O(1)
+# Edge existence check: O(degree)
+# Enumerate all edges: O(V + E)
+# -> Optimal for sparse graphs (few edges)
 ```
 
-### 2.2 有向グラフの隣接リスト
+### 2.2 Directed Graph Adjacency List
 
 ```python
 class DirectedGraph:
-    """有向グラフの隣接リスト表現"""
+    """Adjacency list representation of a directed graph"""
 
     def __init__(self):
-        self.adj = defaultdict(list)        # 出辺
-        self.reverse_adj = defaultdict(list) # 入辺（逆グラフ）
+        self.adj = defaultdict(list)        # Outgoing edges
+        self.reverse_adj = defaultdict(list) # Incoming edges (reverse graph)
         self.vertices = set()
 
     def add_edge(self, u, v, weight=1):
@@ -136,11 +136,11 @@ class DirectedGraph:
         self.vertices.add(v)
 
     def out_neighbors(self, u):
-        """出辺の隣接ノード"""
+        """Adjacent nodes via outgoing edges"""
         return self.adj[u]
 
     def in_neighbors(self, v):
-        """入辺の隣接ノード"""
+        """Adjacent nodes via incoming edges"""
         return self.reverse_adj[v]
 
     def out_degree(self, u):
@@ -157,14 +157,14 @@ class DirectedGraph:
         self.reverse_adj[v] = [(node, w) for node, w in self.reverse_adj[v] if node != u]
 
     def get_all_edges(self):
-        """全辺のリストを返す"""
+        """Return a list of all edges"""
         edges = []
         for u in self.adj:
             for v, w in self.adj[u]:
                 edges.append((u, v, w))
         return edges
 
-# 使用例
+# Usage example
 g = DirectedGraph()
 g.add_edge("A", "B", 5)
 g.add_edge("A", "C", 3)
@@ -178,7 +178,7 @@ print(g.out_degree("A"))     # 2
 print(g.in_degree("D"))      # 2
 ```
 
-### 2.3 隣接行列
+### 2.3 Adjacency Matrix
 
 ```python
 class GraphMatrix:
@@ -188,23 +188,23 @@ class GraphMatrix:
 
     def add_edge(self, u, v, weight=1):
         self.matrix[u][v] = weight
-        self.matrix[v][u] = weight  # 無向グラフ
+        self.matrix[v][u] = weight  # Undirected graph
 
     def has_edge(self, u, v):
         return self.matrix[u][v] != 0
 
-# 空間: O(V²)
-# 辺の追加: O(1)
-# 辺の存在確認: O(1)
-# → 密なグラフ（辺が多い）に最適
-# → フロイドワーシャルに適する
+# Space: O(V^2)
+# Edge addition: O(1)
+# Edge existence check: O(1)
+# -> Optimal for dense graphs (many edges)
+# -> Suitable for Floyd-Warshall
 ```
 
-### 2.4 エッジリスト
+### 2.4 Edge List
 
 ```python
 class EdgeListGraph:
-    """エッジリスト表現: (u, v, weight) のリスト"""
+    """Edge list representation: list of (u, v, weight)"""
 
     def __init__(self):
         self.edges = []
@@ -216,52 +216,54 @@ class EdgeListGraph:
         self.vertices.add(v)
 
     def sort_by_weight(self):
-        """重みでソート（クラスカル法に使用）"""
+        """Sort by weight (used in Kruskal's algorithm)"""
         self.edges.sort(key=lambda e: e[2])
 
-# 空間: O(E)
-# 辺の追加: O(1)
-# 辺の存在確認: O(E)
-# → クラスカル法、ベルマンフォード法に最適
+# Space: O(E)
+# Edge addition: O(1)
+# Edge existence check: O(E)
+# -> Optimal for Kruskal's algorithm, Bellman-Ford algorithm
 ```
 
-### 2.5 どちらを選ぶか
+### 2.5 Choosing Between Representations
 
 ```
-選択基準:
+Selection criteria:
 
-  ┌────────────────┬──────────────┬──────────────┐
-  │ 条件           │ 隣接リスト   │ 隣接行列     │
-  ├────────────────┼──────────────┼──────────────┤
-  │ 疎なグラフ     │ ✅ 省メモリ  │ ❌ 無駄多い  │
-  │ 密なグラフ     │ △          │ ✅ 効率的    │
-  │ 辺の存在確認   │ O(degree)   │ O(1) ✅     │
-  │ 全隣接ノード   │ O(degree) ✅│ O(V)        │
-  │ メモリ         │ O(V+E) ✅   │ O(V²)       │
-  │ BFS/DFS        │ O(V+E) ✅   │ O(V²)       │
-  │ フロイド       │ O(V³)       │ O(V³) ✅    │
-  │ 辺の追加       │ O(1)        │ O(1)         │
-  │ 辺の削除       │ O(E)        │ O(1) ✅     │
-  └────────────────┴──────────────┴──────────────┘
+  +------------------+--------------+--------------+
+  | Condition        | Adjacency    | Adjacency    |
+  |                  | List         | Matrix       |
+  +------------------+--------------+--------------+
+  | Sparse graph     | OK (saves    | NG (wasteful)|
+  |                  | memory)      |              |
+  | Dense graph      | Fair         | OK (efficient|
+  | Edge existence   | O(degree)    | O(1) OK      |
+  | All neighbors    | O(degree) OK | O(V)         |
+  | Memory           | O(V+E) OK    | O(V^2)       |
+  | BFS/DFS          | O(V+E) OK    | O(V^2)       |
+  | Floyd-Warshall   | O(V^3)       | O(V^3) OK    |
+  | Edge addition    | O(1)         | O(1)         |
+  | Edge removal     | O(E)         | O(1) OK      |
+  +------------------+--------------+--------------+
 
-  実務での目安:
-  - ほとんどの場合: 隣接リスト（グラフは通常疎）
-  - V < 1000 かつ密なグラフ: 隣接行列も検討
-  - SNS(数億ノード): 隣接リスト一択
-  - 最短経路（全頂点間）: 隣接行列 + フロイドワーシャル
+  Practical guidelines:
+  - Most cases: Adjacency list (graphs are usually sparse)
+  - V < 1000 and dense graph: Consider adjacency matrix
+  - Social networks (hundreds of millions of nodes): Adjacency list only
+  - All-pairs shortest paths: Adjacency matrix + Floyd-Warshall
 ```
 
 ---
 
-## 3. グラフの走査
+## 3. Graph Traversal
 
-### 3.1 BFS（幅優先探索）
+### 3.1 BFS (Breadth-First Search)
 
 ```python
 from collections import deque
 
 def bfs(graph, start):
-    """幅優先探索: O(V + E)"""
+    """Breadth-first search: O(V + E)"""
     visited = set()
     queue = deque([start])
     visited.add(start)
@@ -279,9 +281,9 @@ def bfs(graph, start):
     return order
 
 
-# BFS による最短経路（重みなし）
+# BFS shortest path (unweighted)
 def bfs_shortest_path(graph, start, end):
-    """重みなしグラフの最短経路: O(V + E)"""
+    """Shortest path in an unweighted graph: O(V + E)"""
     if start == end:
         return [start]
 
@@ -297,12 +299,12 @@ def bfs_shortest_path(graph, start, end):
                 visited.add(neighbor)
                 queue.append((neighbor, path + [neighbor]))
 
-    return None  # パスが存在しない
+    return None  # No path exists
 
 
-# BFS による全最短距離
+# BFS all shortest distances
 def bfs_distances(graph, start):
-    """startから全ノードへの最短距離: O(V + E)"""
+    """Shortest distances from start to all nodes: O(V + E)"""
     distances = {start: 0}
     queue = deque([start])
 
@@ -316,9 +318,9 @@ def bfs_distances(graph, start):
     return distances
 
 
-# レベルごとのBFS
+# BFS by levels
 def bfs_levels(graph, start):
-    """各レベルのノードをグループ化"""
+    """Group nodes by level"""
     visited = {start}
     queue = deque([start])
     levels = []
@@ -338,12 +340,12 @@ def bfs_levels(graph, start):
     return levels
 ```
 
-### 3.2 DFS（深さ優先探索）
+### 3.2 DFS (Depth-First Search)
 
 ```python
-# 再帰的DFS
+# Recursive DFS
 def dfs_recursive(graph, start, visited=None):
-    """深さ優先探索（再帰）: O(V + E)"""
+    """Depth-first search (recursive): O(V + E)"""
     if visited is None:
         visited = set()
 
@@ -357,9 +359,9 @@ def dfs_recursive(graph, start, visited=None):
     return order
 
 
-# 反復的DFS（スタック使用）
+# Iterative DFS (using a stack)
 def dfs_iterative(graph, start):
-    """深さ優先探索（反復）: O(V + E)"""
+    """Depth-first search (iterative): O(V + E)"""
     visited = set()
     stack = [start]
     order = []
@@ -371,7 +373,7 @@ def dfs_iterative(graph, start):
         visited.add(node)
         order.append(node)
 
-        # 隣接ノードを逆順でスタックに追加
+        # Add neighbors in reverse order to the stack
         for neighbor, _ in reversed(graph.adj[node]):
             if neighbor not in visited:
                 stack.append(neighbor)
@@ -379,9 +381,9 @@ def dfs_iterative(graph, start):
     return order
 
 
-# DFS によるパス検索
+# DFS path search
 def dfs_all_paths(graph, start, end):
-    """start から end への全パスを探索"""
+    """Find all paths from start to end"""
     result = []
 
     def backtrack(node, path, visited):
@@ -401,9 +403,9 @@ def dfs_all_paths(graph, start, end):
     return result
 
 
-# DFS による連結成分の検出
+# DFS connected component detection
 def find_connected_components(graph, all_vertices):
-    """全連結成分を検出: O(V + E)"""
+    """Detect all connected components: O(V + E)"""
     visited = set()
     components = []
 
@@ -425,25 +427,25 @@ def find_connected_components(graph, all_vertices):
     return components
 ```
 
-### 3.3 サイクル検出
+### 3.3 Cycle Detection
 
 ```python
-# 有向グラフのサイクル検出（DFS + 3色法）
+# Cycle detection in directed graphs (DFS + 3-color method)
 def has_cycle_directed(graph, all_vertices):
-    """有向グラフにサイクルがあるか判定: O(V + E)"""
+    """Determine if a directed graph has a cycle: O(V + E)"""
     WHITE, GRAY, BLACK = 0, 1, 2
     color = {v: WHITE for v in all_vertices}
 
     def dfs(node):
-        color[node] = GRAY  # 探索中
+        color[node] = GRAY  # Currently being explored
 
         for neighbor, _ in graph.adj[node]:
             if color[neighbor] == GRAY:
-                return True  # 後退辺 → サイクル
+                return True  # Back edge -> Cycle
             if color[neighbor] == WHITE and dfs(neighbor):
                 return True
 
-        color[node] = BLACK  # 探索完了
+        color[node] = BLACK  # Exploration complete
         return False
 
     for v in all_vertices:
@@ -454,9 +456,9 @@ def has_cycle_directed(graph, all_vertices):
     return False
 
 
-# 無向グラフのサイクル検出
+# Cycle detection in undirected graphs
 def has_cycle_undirected(graph, all_vertices):
-    """無向グラフにサイクルがあるか判定: O(V + E)"""
+    """Determine if an undirected graph has a cycle: O(V + E)"""
     visited = set()
 
     def dfs(node, parent):
@@ -466,7 +468,7 @@ def has_cycle_undirected(graph, all_vertices):
                 if dfs(neighbor, node):
                     return True
             elif neighbor != parent:
-                return True  # 親以外の訪問済みノード → サイクル
+                return True  # Visited node other than parent -> Cycle
         return False
 
     for v in all_vertices:
@@ -477,9 +479,9 @@ def has_cycle_undirected(graph, all_vertices):
     return False
 
 
-# サイクルの検出と復元
+# Cycle detection and reconstruction
 def find_cycle(graph, all_vertices):
-    """サイクルを見つけて返す（有向グラフ）"""
+    """Find and return a cycle (directed graph)"""
     WHITE, GRAY, BLACK = 0, 1, 2
     color = {v: WHITE for v in all_vertices}
     parent = {}
@@ -506,7 +508,7 @@ def find_cycle(graph, all_vertices):
     for v in all_vertices:
         if color[v] == WHITE:
             if dfs(v):
-                # サイクルを復元
+                # Reconstruct the cycle
                 cycle = [cycle_start]
                 current = cycle_end
                 while current != cycle_start:
@@ -515,18 +517,18 @@ def find_cycle(graph, all_vertices):
                 cycle.reverse()
                 return cycle
 
-    return None  # サイクルなし
+    return None  # No cycle
 ```
 
 ---
 
-## 4. トポロジカルソート
+## 4. Topological Sort
 
-### 4.1 DFS ベース
+### 4.1 DFS-Based
 
 ```python
 def topological_sort_dfs(graph, all_vertices):
-    """DFS ベースのトポロジカルソート: O(V + E)"""
+    """DFS-based topological sort: O(V + E)"""
     visited = set()
     order = []
 
@@ -535,7 +537,7 @@ def topological_sort_dfs(graph, all_vertices):
         for neighbor, _ in graph.adj[node]:
             if neighbor not in visited:
                 dfs(neighbor)
-        order.append(node)  # 後処理で追加
+        order.append(node)  # Add during post-processing
 
     for v in all_vertices:
         if v not in visited:
@@ -545,22 +547,22 @@ def topological_sort_dfs(graph, all_vertices):
     return order
 ```
 
-### 4.2 カーンのアルゴリズム（BFS ベース）
+### 4.2 Kahn's Algorithm (BFS-Based)
 
 ```python
 from collections import deque
 
 def topological_sort_kahn(graph, all_vertices):
-    """カーンのアルゴリズム: O(V + E)
-    サイクル検出も同時に行える"""
+    """Kahn's algorithm: O(V + E)
+    Can also detect cycles simultaneously"""
 
-    # 入次数を計算
+    # Calculate in-degrees
     in_degree = {v: 0 for v in all_vertices}
     for u in all_vertices:
         for v, _ in graph.adj[u]:
             in_degree[v] = in_degree.get(v, 0) + 1
 
-    # 入次数0のノードをキューに追加
+    # Add nodes with in-degree 0 to the queue
     queue = deque([v for v in all_vertices if in_degree[v] == 0])
     order = []
 
@@ -574,12 +576,12 @@ def topological_sort_kahn(graph, all_vertices):
                 queue.append(neighbor)
 
     if len(order) != len(all_vertices):
-        raise ValueError("グラフにサイクルが存在します")
+        raise ValueError("The graph contains a cycle")
 
     return order
 
 
-# 使用例: タスクの依存関係
+# Usage example: Task dependencies
 g = DirectedGraph()
 g.add_edge("compile", "link")
 g.add_edge("compile", "test")
@@ -588,17 +590,17 @@ g.add_edge("test", "deploy")
 g.add_edge("init", "compile")
 
 order = topological_sort_kahn(g, g.vertices)
-print(order)  # ['init', 'compile', 'link', 'test', 'deploy'] など
+print(order)  # ['init', 'compile', 'link', 'test', 'deploy'] etc.
 ```
 
-### 4.3 トポロジカルソートの応用
+### 4.3 Applications of Topological Sort
 
 ```python
-# 1. コースの履修順序
+# 1. Course enrollment order
 def find_course_order(num_courses, prerequisites):
     """
     prerequisites: [(course, prerequisite), ...]
-    返り値: 履修順序のリスト（不可能な場合は空リスト）
+    Returns: List representing enrollment order (empty list if impossible)
     """
     graph = defaultdict(list)
     in_degree = [0] * num_courses
@@ -620,16 +622,16 @@ def find_course_order(num_courses, prerequisites):
 
     return order if len(order) == num_courses else []
 
-# 使用例
+# Usage example
 print(find_course_order(4, [(1,0), (2,0), (3,1), (3,2)]))
 # [0, 1, 2, 3] or [0, 2, 1, 3]
 
 
-# 2. ビルドシステムの依存関係解決
+# 2. Build system dependency resolution
 def resolve_dependencies(packages):
     """
     packages: {name: [dependencies]}
-    返り値: インストール順序
+    Returns: Installation order
     """
     graph = defaultdict(list)
     all_pkgs = set()
@@ -656,11 +658,11 @@ def resolve_dependencies(packages):
                 queue.append(dependent)
 
     if len(order) != len(all_pkgs):
-        raise ValueError("循環依存を検出しました")
+        raise ValueError("Circular dependency detected")
 
     return order
 
-# 使用例
+# Usage example
 packages = {
     "app": ["framework", "database"],
     "framework": ["utils", "logging"],
@@ -674,35 +676,35 @@ print(resolve_dependencies(packages))
 
 ---
 
-## 5. Union-Find（素集合データ構造）
+## 5. Union-Find (Disjoint Set Data Structure)
 
-### 5.1 基本実装
+### 5.1 Basic Implementation
 
 ```python
 class UnionFind:
-    """Union-Find（素集合データ構造）
-    経路圧縮 + ランクによる統合で O(α(n)) ≈ O(1)"""
+    """Union-Find (Disjoint Set Data Structure)
+    With path compression + union by rank: O(alpha(n)) ~ O(1)"""
 
     def __init__(self, n):
         self.parent = list(range(n))
         self.rank = [0] * n
-        self.count = n  # 連結成分の数
+        self.count = n  # Number of connected components
 
     def find(self, x):
-        """根を見つける（経路圧縮付き）"""
+        """Find root (with path compression)"""
         if self.parent[x] != x:
-            self.parent[x] = self.find(self.parent[x])  # 経路圧縮
+            self.parent[x] = self.find(self.parent[x])  # Path compression
         return self.parent[x]
 
     def union(self, x, y):
-        """2つの集合を統合（ランクによる統合）"""
+        """Merge two sets (union by rank)"""
         root_x = self.find(x)
         root_y = self.find(y)
 
         if root_x == root_y:
-            return False  # 既に同じ集合
+            return False  # Already in the same set
 
-        # ランクの低い方を高い方の下に接続
+        # Attach the lower-rank tree under the higher-rank tree
         if self.rank[root_x] < self.rank[root_y]:
             self.parent[root_x] = root_y
         elif self.rank[root_x] > self.rank[root_y]:
@@ -715,43 +717,43 @@ class UnionFind:
         return True
 
     def connected(self, x, y):
-        """同じ集合に属するか判定"""
+        """Check if they belong to the same set"""
         return self.find(x) == self.find(y)
 
     def get_count(self):
-        """連結成分の数を返す"""
+        """Return the number of connected components"""
         return self.count
 
 
-# 使用例
+# Usage example
 uf = UnionFind(10)
 uf.union(0, 1)
 uf.union(2, 3)
 uf.union(1, 3)
-print(uf.connected(0, 3))  # True（0-1-3-2 が同じ集合）
+print(uf.connected(0, 3))  # True (0-1-3-2 are in the same set)
 print(uf.connected(0, 5))  # False
-print(uf.get_count())       # 7（{0,1,2,3}, {4}, {5}, ..., {9}）
+print(uf.get_count())       # 7 ({0,1,2,3}, {4}, {5}, ..., {9})
 ```
 
-### 5.2 Union-Find の応用
+### 5.2 Union-Find Applications
 
 ```python
-# 1. 冗長な辺の検出
+# 1. Detecting redundant edges
 def find_redundant_connection(edges):
-    """無向グラフからサイクルを作る辺を見つける"""
+    """Find the edge that creates a cycle in an undirected graph"""
     n = len(edges)
     uf = UnionFind(n + 1)
 
     for u, v in edges:
         if not uf.union(u, v):
-            return [u, v]  # この辺でサイクルが形成される
+            return [u, v]  # This edge creates a cycle
 
     return []
 
 
-# 2. 島の数のカウント（2Dグリッド）
+# 2. Counting islands (2D grid)
 def num_islands(grid):
-    """'1'の連結成分の数を数える"""
+    """Count the number of connected components of '1's"""
     if not grid:
         return 0
 
@@ -764,7 +766,7 @@ def num_islands(grid):
             if grid[r][c] == '0':
                 water_count += 1
                 continue
-            # 右と下の隣接セルと統合
+            # Merge with right and bottom adjacent cells
             for dr, dc in [(0, 1), (1, 0)]:
                 nr, nc = r + dr, c + dc
                 if 0 <= nr < rows and 0 <= nc < cols and grid[nr][nc] == '1':
@@ -773,9 +775,9 @@ def num_islands(grid):
     return uf.get_count() - water_count
 
 
-# 3. アカウントの統合
+# 3. Account merging
 def accounts_merge(accounts):
-    """同じメールアドレスを持つアカウントを統合"""
+    """Merge accounts that share the same email address"""
     email_to_id = {}
     email_to_name = {}
     uf = UnionFind(len(accounts))
@@ -788,7 +790,7 @@ def accounts_merge(accounts):
                 uf.union(i, email_to_id[email])
             email_to_id[email] = i
 
-    # 統合されたアカウントのメールをグループ化
+    # Group emails by merged accounts
     groups = defaultdict(set)
     for email, account_id in email_to_id.items():
         root = uf.find(account_id)
@@ -802,10 +804,10 @@ def accounts_merge(accounts):
     return result
 
 
-# 4. 最小全域木（クラスカル法）
+# 4. Minimum spanning tree (Kruskal's algorithm)
 def kruskal_mst(n, edges):
-    """クラスカル法で最小全域木を求める: O(E log E)"""
-    # 辺を重みでソート
+    """Find the minimum spanning tree using Kruskal's algorithm: O(E log E)"""
+    # Sort edges by weight
     edges.sort(key=lambda e: e[2])
 
     uf = UnionFind(n)
@@ -819,11 +821,11 @@ def kruskal_mst(n, edges):
             total_weight += weight
 
             if len(mst) == n - 1:
-                break  # 全頂点が接続
+                break  # All vertices connected
 
     return mst, total_weight
 
-# 使用例
+# Usage example
 edges = [
     (0, 1, 4), (0, 7, 8),
     (1, 2, 8), (1, 7, 11),
@@ -834,33 +836,33 @@ edges = [
     (6, 8, 6), (7, 8, 7),
 ]
 mst, weight = kruskal_mst(9, edges)
-print(f"MST重み: {weight}")  # 37
-print(f"MST辺: {mst}")
+print(f"MST weight: {weight}")  # 37
+print(f"MST edges: {mst}")
 ```
 
 ---
 
-## 6. 最短経路アルゴリズム
+## 6. Shortest Path Algorithms
 
-### 6.1 ダイクストラ法
+### 6.1 Dijkstra's Algorithm
 
 ```python
 import heapq
 
 def dijkstra(graph, start):
-    """ダイクストラ法: O((V + E) log V)
-    重みが非負のグラフの単一始点最短経路"""
+    """Dijkstra's algorithm: O((V + E) log V)
+    Single-source shortest paths for graphs with non-negative weights"""
 
     distances = {v: float('inf') for v in graph.adj}
     distances[start] = 0
     predecessors = {v: None for v in graph.adj}
-    pq = [(0, start)]  # (距離, ノード)
+    pq = [(0, start)]  # (distance, node)
 
     while pq:
         dist, node = heapq.heappop(pq)
 
         if dist > distances[node]:
-            continue  # 古いエントリをスキップ
+            continue  # Skip outdated entries
 
         for neighbor, weight in graph.adj[node]:
             new_dist = dist + weight
@@ -873,7 +875,7 @@ def dijkstra(graph, start):
 
 
 def reconstruct_path(predecessors, start, end):
-    """最短経路を復元"""
+    """Reconstruct the shortest path"""
     path = []
     current = end
     while current is not None:
@@ -883,7 +885,7 @@ def reconstruct_path(predecessors, start, end):
     return path if path[0] == start else []
 
 
-# 使用例
+# Usage example
 g = Graph()
 g.add_edge("A", "B", 4)
 g.add_edge("A", "C", 2)
@@ -897,18 +899,18 @@ print(distances)  # {'A': 0, 'B': 3, 'C': 2, 'D': 3, 'E': 8}
 print(reconstruct_path(preds, "A", "E"))  # ['A', 'C', 'D', 'E']
 ```
 
-### 6.2 ベルマンフォード法
+### 6.2 Bellman-Ford Algorithm
 
 ```python
 def bellman_ford(vertices, edges, start):
-    """ベルマンフォード法: O(V * E)
-    負の辺も扱える。負の閉路を検出可能"""
+    """Bellman-Ford algorithm: O(V * E)
+    Handles negative edges. Can detect negative cycles"""
 
     distances = {v: float('inf') for v in vertices}
     distances[start] = 0
     predecessors = {v: None for v in vertices}
 
-    # V-1 回の緩和
+    # V-1 relaxation passes
     for i in range(len(vertices) - 1):
         updated = False
         for u, v, w in edges:
@@ -917,40 +919,40 @@ def bellman_ford(vertices, edges, start):
                 predecessors[v] = u
                 updated = True
         if not updated:
-            break  # 早期終了
+            break  # Early termination
 
-    # 負の閉路の検出
+    # Negative cycle detection
     for u, v, w in edges:
         if distances[u] + w < distances[v]:
-            raise ValueError("負の閉路が検出されました")
+            raise ValueError("Negative cycle detected")
 
     return distances, predecessors
 
-# 使用例
+# Usage example
 vertices = ["A", "B", "C", "D"]
 edges = [
     ("A", "B", 4),
     ("A", "C", 2),
     ("B", "D", 3),
-    ("C", "B", -1),  # 負の辺
+    ("C", "B", -1),  # Negative edge
     ("C", "D", 5),
 ]
 distances, _ = bellman_ford(vertices, edges, "A")
 print(distances)  # {'A': 0, 'B': 1, 'C': 2, 'D': 4}
 ```
 
-### 6.3 フロイドワーシャル法
+### 6.3 Floyd-Warshall Algorithm
 
 ```python
 def floyd_warshall(n, edges):
-    """フロイドワーシャル法: O(V³)
-    全頂点間の最短経路"""
+    """Floyd-Warshall algorithm: O(V^3)
+    All-pairs shortest paths"""
 
     INF = float('inf')
     dist = [[INF] * n for _ in range(n)]
     next_node = [[None] * n for _ in range(n)]
 
-    # 初期化
+    # Initialization
     for i in range(n):
         dist[i][i] = 0
 
@@ -958,7 +960,7 @@ def floyd_warshall(n, edges):
         dist[u][v] = w
         next_node[u][v] = v
 
-    # 動的計画法
+    # Dynamic programming
     for k in range(n):
         for i in range(n):
             for j in range(n):
@@ -966,16 +968,16 @@ def floyd_warshall(n, edges):
                     dist[i][j] = dist[i][k] + dist[k][j]
                     next_node[i][j] = next_node[i][k]
 
-    # 負の閉路の検出
+    # Negative cycle detection
     for i in range(n):
         if dist[i][i] < 0:
-            raise ValueError("負の閉路が検出されました")
+            raise ValueError("Negative cycle detected")
 
     return dist, next_node
 
 
 def reconstruct_fw_path(next_node, u, v):
-    """フロイドワーシャルのパス復元"""
+    """Path reconstruction for Floyd-Warshall"""
     if next_node[u][v] is None:
         return []
     path = [u]
@@ -985,17 +987,17 @@ def reconstruct_fw_path(next_node, u, v):
     return path
 ```
 
-### 6.4 A*アルゴリズム
+### 6.4 A* Algorithm
 
 ```python
 import heapq
 
 def a_star(graph, start, goal, heuristic):
-    """A*アルゴリズム: O((V + E) log V)
-    ヒューリスティック関数で探索を効率化
+    """A* algorithm: O((V + E) log V)
+    Optimizes search using a heuristic function
 
-    heuristic(node): ノードからゴールまでの推定コスト
-    ヒューリスティックが admissible（過大評価しない）なら最適解を保証
+    heuristic(node): Estimated cost from node to goal
+    Guarantees optimal solution if the heuristic is admissible (never overestimates)
     """
 
     open_set = [(0 + heuristic(start), 0, start)]  # (f, g, node)
@@ -1006,7 +1008,7 @@ def a_star(graph, start, goal, heuristic):
         f, g, current = heapq.heappop(open_set)
 
         if current == goal:
-            # パスを復元
+            # Reconstruct path
             path = [current]
             while current in came_from:
                 current = came_from[current]
@@ -1022,15 +1024,15 @@ def a_star(graph, start, goal, heuristic):
                 f = tentative_g + heuristic(neighbor)
                 heapq.heappush(open_set, (f, tentative_g, neighbor))
 
-    return None, float('inf')  # パスが見つからない
+    return None, float('inf')  # No path found
 
 
-# 使用例: 2Dグリッドでの経路探索
+# Usage example: Pathfinding on a 2D grid
 def grid_a_star(grid, start, goal):
-    """2Dグリッドでの A* 経路探索"""
+    """A* pathfinding on a 2D grid"""
 
     def heuristic(pos):
-        """マンハッタン距離"""
+        """Manhattan distance"""
         return abs(pos[0] - goal[0]) + abs(pos[1] - goal[1])
 
     rows, cols = len(grid), len(grid[0])
@@ -1060,9 +1062,9 @@ def grid_a_star(grid, start, goal):
                     f = tentative_g + heuristic(neighbor)
                     heapq.heappush(open_set, (f, tentative_g, neighbor))
 
-    return None  # パスなし
+    return None  # No path
 
-# 使用例
+# Usage example
 grid = [
     [0, 0, 0, 0, 0],
     [0, 1, 1, 0, 0],
@@ -1076,13 +1078,13 @@ print(path)  # [(0,0), (0,1), (0,2), (0,3), (1,3), (2,3), (2,4), (3,4), (4,4)]
 
 ---
 
-## 7. 高度なグラフアルゴリズム
+## 7. Advanced Graph Algorithms
 
-### 7.1 二部グラフ判定
+### 7.1 Bipartite Graph Detection
 
 ```python
 def is_bipartite(graph, all_vertices):
-    """グラフが二部グラフかどうかをBFSで判定: O(V + E)"""
+    """Determine if a graph is bipartite using BFS: O(V + E)"""
     color = {}
 
     for start in all_vertices:
@@ -1099,23 +1101,23 @@ def is_bipartite(graph, all_vertices):
                     color[neighbor] = 1 - color[node]
                     queue.append(neighbor)
                 elif color[neighbor] == color[node]:
-                    return False  # 同じ色の隣接ノード → 二部グラフでない
+                    return False  # Adjacent nodes with same color -> Not bipartite
 
     return True
 
-# 二部グラフの応用:
-# - マッチング問題（求人と求職者の最適マッチング）
-# - 2色塗り分け問題
-# - 偶数長のサイクルのみを持つグラフの検出
+# Bipartite graph applications:
+# - Matching problems (optimal matching of job seekers and positions)
+# - 2-coloring problems
+# - Detecting graphs with only even-length cycles
 ```
 
-### 7.2 強連結成分（Kosaraju のアルゴリズム）
+### 7.2 Strongly Connected Components (Kosaraju's Algorithm)
 
 ```python
 def kosaraju_scc(graph, all_vertices):
-    """Kosaraju のアルゴリズムで強連結成分を求める: O(V + E)"""
+    """Find strongly connected components using Kosaraju's algorithm: O(V + E)"""
 
-    # パス1: 元のグラフでDFS、終了順を記録
+    # Pass 1: DFS on original graph, record finish order
     visited = set()
     finish_order = []
 
@@ -1130,13 +1132,13 @@ def kosaraju_scc(graph, all_vertices):
         if v not in visited:
             dfs1(v)
 
-    # 逆グラフを構築
+    # Build reverse graph
     reverse_graph = defaultdict(list)
     for u in graph.adj:
         for v, w in graph.adj[u]:
             reverse_graph[v].append((u, w))
 
-    # パス2: 逆グラフで終了順の逆順にDFS
+    # Pass 2: DFS on reverse graph in reverse finish order
     visited = set()
     sccs = []
 
@@ -1155,20 +1157,20 @@ def kosaraju_scc(graph, all_vertices):
 
     return sccs
 
-# 使用例: Webページのリンク構造分析
-# 強連結成分 = 互いにリンクで到達可能なページのグループ
+# Usage example: Analyzing link structures of web pages
+# Strongly connected components = groups of pages mutually reachable via links
 ```
 
-### 7.3 最小全域木（プリム法）
+### 7.3 Minimum Spanning Tree (Prim's Algorithm)
 
 ```python
 def prim_mst(graph, start):
-    """プリム法で最小全域木を求める: O((V + E) log V)"""
+    """Find the minimum spanning tree using Prim's algorithm: O((V + E) log V)"""
     visited = set()
     mst = []
     total_weight = 0
 
-    # (重み, 現在のノード, 親ノード)
+    # (weight, current node, parent node)
     pq = [(0, start, None)]
 
     while pq:
@@ -1191,45 +1193,45 @@ def prim_mst(graph, start):
 
 ---
 
-## 8. 実務でのグラフ
+## 8. Graphs in Practice
 
-### 8.1 実世界のグラフ問題
+### 8.1 Real-World Graph Problems
 
 ```
-実務でのグラフ表現と応用:
+Graph representations and applications in practice:
 
-  1. RDB: テーブル間のリレーション → 暗黙のグラフ
-     users, follows テーブル → ソーシャルグラフ
+  1. RDB: Relations between tables -> Implicit graph
+     users, follows tables -> Social graph
 
-  2. Neo4j: グラフDB
+  2. Neo4j: Graph database
      Cypher: MATCH (a)-[:FOLLOWS]->(b) WHERE a.name = 'Alice'
 
-  3. GraphQL: APIのグラフ構造
+  3. GraphQL: Graph structure of APIs
 
-  4. npm/pip: パッケージ依存関係グラフ（DAG）
+  4. npm/pip: Package dependency graph (DAG)
 
-  5. Kubernetes: サービス間通信（サービスメッシュ）
+  5. Kubernetes: Inter-service communication (service mesh)
 
-  6. Google Maps: 道路ネットワーク → ダイクストラ/A*
+  6. Google Maps: Road network -> Dijkstra/A*
 
-  7. SNS: フォロー/フレンド関係 → ソーシャルグラフ
+  7. Social networks: Follow/friend relationships -> Social graph
 
-  8. 推薦システム: ユーザー×アイテムの二部グラフ
+  8. Recommendation systems: User x item bipartite graph
 
-  9. コンパイラ: 制御フローグラフ（CFG）
+  9. Compilers: Control flow graph (CFG)
 
-  10. CI/CD: パイプラインのタスク依存関係（DAG）
+  10. CI/CD: Pipeline task dependencies (DAG)
       GitHub Actions, Airflow, Terraform
 ```
 
-### 8.2 グラフデータベースとクエリ
+### 8.2 Graph Databases and Queries
 
 ```python
-# NetworkX を使ったグラフ分析（Python の標準的なグラフライブラリ）
+# Graph analysis with NetworkX (Python's standard graph library)
 import networkx as nx
 
-# グラフの作成
-G = nx.DiGraph()  # 有向グラフ
+# Create a graph
+G = nx.DiGraph()  # Directed graph
 G.add_weighted_edges_from([
     ("Alice", "Bob", 1),
     ("Alice", "Charlie", 1),
@@ -1238,12 +1240,12 @@ G.add_weighted_edges_from([
     ("David", "Eve", 1),
 ])
 
-# 基本的な分析
-print(f"ノード数: {G.number_of_nodes()}")
-print(f"辺数: {G.number_of_edges()}")
-print(f"次数: {dict(G.degree())}")
+# Basic analysis
+print(f"Node count: {G.number_of_nodes()}")
+print(f"Edge count: {G.number_of_edges()}")
+print(f"Degrees: {dict(G.degree())}")
 
-# 最短経路
+# Shortest path
 print(nx.shortest_path(G, "Alice", "Eve"))
 # ['Alice', 'Bob', 'David', 'Eve']
 
@@ -1251,41 +1253,41 @@ print(nx.shortest_path(G, "Alice", "Eve"))
 pr = nx.pagerank(G)
 print(f"PageRank: {pr}")
 
-# 中心性分析
+# Centrality analysis
 betweenness = nx.betweenness_centrality(G)
-print(f"媒介中心性: {betweenness}")
+print(f"Betweenness centrality: {betweenness}")
 
-# 連結成分
+# Connected components
 components = list(nx.weakly_connected_components(G))
-print(f"弱連結成分数: {len(components)}")
+print(f"Weakly connected components: {len(components)}")
 
 
-# Neo4j Cypher クエリの例
+# Neo4j Cypher query examples
 """
-// フォロワーのフォロワーを検索（2ホップ）
+// Search followers of followers (2 hops)
 MATCH (a:User {name: 'Alice'})-[:FOLLOWS]->(b)-[:FOLLOWS]->(c)
 WHERE a <> c
 RETURN c.name AS recommended_friend
 
-// 最短経路
+// Shortest path
 MATCH path = shortestPath(
   (a:User {name: 'Alice'})-[:FOLLOWS*..10]-(b:User {name: 'Eve'})
 )
 RETURN path
 
-// コミュニティ検出
+// Community detection
 CALL gds.louvain.stream('social-graph')
 YIELD nodeId, communityId
 RETURN gds.util.asNode(nodeId).name AS name, communityId
 """
 ```
 
-### 8.3 グラフを使ったシステム設計
+### 8.3 System Design with Graphs
 
 ```python
-# 1. タスクスケジューラ（DAG ベース）
+# 1. Task scheduler (DAG-based)
 class TaskScheduler:
-    """依存関係を考慮したタスクスケジューラ"""
+    """Task scheduler with dependency awareness"""
 
     def __init__(self):
         self.tasks = {}      # task_name -> callable
@@ -1298,8 +1300,8 @@ class TaskScheduler:
                 self.deps[name].append(dep)
 
     def execute(self):
-        """トポロジカル順序でタスクを実行"""
-        # 入次数の計算
+        """Execute tasks in topological order"""
+        # Calculate in-degrees
         in_degree = {task: 0 for task in self.tasks}
         graph = defaultdict(list)
         for task, deps in self.deps.items():
@@ -1307,13 +1309,13 @@ class TaskScheduler:
                 graph[dep].append(task)
                 in_degree[task] += 1
 
-        # BFS でトポロジカルソート
+        # BFS topological sort
         queue = deque([t for t in self.tasks if in_degree[t] == 0])
         results = {}
 
         while queue:
             task = queue.popleft()
-            print(f"実行中: {task}")
+            print(f"Executing: {task}")
             results[task] = self.tasks[task]()
             for dependent in graph[task]:
                 in_degree[dependent] -= 1
@@ -1323,9 +1325,9 @@ class TaskScheduler:
         return results
 
 
-# 2. ソーシャルグラフの分析
+# 2. Social graph analysis
 class SocialGraph:
-    """ソーシャルネットワークのグラフ分析"""
+    """Graph analysis for social networks"""
 
     def __init__(self):
         self.graph = defaultdict(set)  # user -> set of friends
@@ -1335,23 +1337,23 @@ class SocialGraph:
         self.graph[user2].add(user1)
 
     def mutual_friends(self, user1, user2):
-        """共通の友人を取得"""
+        """Get mutual friends"""
         return self.graph[user1] & self.graph[user2]
 
     def friend_recommendations(self, user, top_n=5):
-        """友人の友人から推薦（共通友人数でランク）"""
+        """Recommend friends-of-friends (ranked by mutual friend count)"""
         scores = defaultdict(int)
         friends = self.graph[user]
 
         for friend in friends:
             for fof in self.graph[friend]:
                 if fof != user and fof not in friends:
-                    scores[fof] += 1  # 共通友人数をスコアに
+                    scores[fof] += 1  # Mutual friend count as score
 
         return sorted(scores.items(), key=lambda x: -x[1])[:top_n]
 
     def degrees_of_separation(self, user1, user2):
-        """2人のユーザー間の隔たり（最短距離）"""
+        """Separation between two users (shortest distance)"""
         if user1 == user2:
             return 0
 
@@ -1367,27 +1369,27 @@ class SocialGraph:
                     visited.add(friend)
                     queue.append((friend, dist + 1))
 
-        return -1  # 到達不可能
+        return -1  # Unreachable
 
     def clustering_coefficient(self, user):
-        """クラスタリング係数: 友人同士の結びつきの度合い"""
+        """Clustering coefficient: Degree of interconnection among friends"""
         friends = list(self.graph[user])
         if len(friends) < 2:
             return 0.0
 
-        # 友人間の辺の数を数える
+        # Count edges among friends
         edges = 0
         for i in range(len(friends)):
             for j in range(i + 1, len(friends)):
                 if friends[j] in self.graph[friends[i]]:
                     edges += 1
 
-        # 可能な辺の最大数
+        # Maximum possible edges
         max_edges = len(friends) * (len(friends) - 1) / 2
         return edges / max_edges if max_edges > 0 else 0.0
 
 
-# 使用例
+# Usage example
 sg = SocialGraph()
 sg.add_friendship("Alice", "Bob")
 sg.add_friendship("Alice", "Charlie")
@@ -1399,16 +1401,16 @@ sg.add_friendship("David", "Eve")
 print(sg.mutual_friends("Alice", "David"))    # {'Bob'}
 print(sg.friend_recommendations("Alice"))     # [('David', 1), ('Eve', 1)]
 print(sg.degrees_of_separation("Alice", "Eve"))  # 2
-print(sg.clustering_coefficient("Alice"))      # 1.0（友人同士が全員結びついている）
+print(sg.clustering_coefficient("Alice"))      # 1.0 (all friends are connected)
 
 
-# 3. ルートプランナー
+# 3. Route planner
 class RoutePlanner:
-    """重み付きグラフによる経路計画"""
+    """Route planning with weighted graphs"""
 
     def __init__(self):
         self.graph = defaultdict(list)
-        self.coordinates = {}  # ノード → (lat, lon)
+        self.coordinates = {}  # node -> (lat, lon)
 
     def add_road(self, city1, city2, distance):
         self.graph[city1].append((city2, distance))
@@ -1418,7 +1420,7 @@ class RoutePlanner:
         self.coordinates[city] = (lat, lon)
 
     def shortest_route(self, start, end):
-        """ダイクストラ法で最短ルートを計算"""
+        """Calculate the shortest route using Dijkstra's algorithm"""
         distances = {start: 0}
         predecessors = {start: None}
         pq = [(0, start)]
@@ -1436,7 +1438,7 @@ class RoutePlanner:
                     predecessors[neighbor] = city
                     heapq.heappush(pq, (new_dist, neighbor))
 
-        # パス復元
+        # Path reconstruction
         if end not in predecessors:
             return None, float('inf')
 
@@ -1448,7 +1450,7 @@ class RoutePlanner:
         path.reverse()
         return path, distances[end]
 
-# 使用例
+# Usage example
 planner = RoutePlanner()
 planner.add_road("Tokyo", "Yokohama", 30)
 planner.add_road("Tokyo", "Chiba", 40)
@@ -1457,23 +1459,23 @@ planner.add_road("Chiba", "Nagoya", 380)
 planner.add_road("Nagoya", "Osaka", 180)
 
 path, dist = planner.shortest_route("Tokyo", "Osaka")
-print(f"ルート: {' → '.join(path)}")   # Tokyo → Yokohama → Nagoya → Osaka
-print(f"総距離: {dist}km")              # 560km
+print(f"Route: {' -> '.join(path)}")   # Tokyo -> Yokohama -> Nagoya -> Osaka
+print(f"Total distance: {dist}km")     # 560km
 ```
 
 ---
 
-## 9. グラフの視覚化
+## 9. Graph Visualization
 
 ```python
-# matplotlib + networkx によるグラフの描画
+# Graph drawing with matplotlib + networkx
 import matplotlib
-matplotlib.use('Agg')  # 非GUIバックエンド
+matplotlib.use('Agg')  # Non-GUI backend
 import matplotlib.pyplot as plt
 import networkx as nx
 
 def visualize_graph(edges, directed=False, weighted=True):
-    """グラフをPNG画像として保存"""
+    """Save graph as a PNG image"""
     G = nx.DiGraph() if directed else nx.Graph()
 
     for u, v, w in edges:
@@ -1500,84 +1502,84 @@ def visualize_graph(edges, directed=False, weighted=True):
     plt.savefig("graph.png", dpi=150)
     plt.close()
 
-# ASCII でのグラフ表示
+# ASCII graph display
 def print_graph_ascii(graph):
-    """隣接リストをASCIIで表示"""
+    """Display adjacency list in ASCII"""
     for node in sorted(graph.adj.keys()):
         neighbors = [(n, w) for n, w in graph.adj[node]]
         neighbor_str = ", ".join(f"{n}({w})" for n, w in sorted(neighbors))
-        print(f"  {node} → [{neighbor_str}]")
+        print(f"  {node} -> [{neighbor_str}]")
 ```
 
 ---
 
-## 10. 実践演習
+## 10. Practice Exercises
 
-### 演習1: グラフ構築（基礎）
-隣接リストと隣接行列の両方でグラフを実装し、BFS/DFSを実行せよ。以下の操作を含むこと:
-- 頂点と辺の追加・削除
-- 辺の存在確認
-- 全隣接ノードの取得
-- BFS/DFS による走査
+### Exercise 1: Graph Construction (Basic)
+Implement a graph using both adjacency list and adjacency matrix representations, and execute BFS/DFS. Include the following operations:
+- Add and remove vertices and edges
+- Check edge existence
+- Get all neighboring nodes
+- BFS/DFS traversal
 
-### 演習2: 二部グラフ判定（応用）
-グラフが二部グラフかどうかをBFSで判定する関数を実装せよ。さらに、二部グラフであれば2つのグループを返すようにせよ。
+### Exercise 2: Bipartite Graph Detection (Intermediate)
+Implement a function that determines whether a graph is bipartite using BFS. If it is bipartite, return the two groups.
 
-### 演習3: 最小全域木（発展）
-クラスカル法とプリム法の両方で最小全域木を求める関数を実装し、結果が一致することを検証せよ。
+### Exercise 3: Minimum Spanning Tree (Advanced)
+Implement minimum spanning tree computation using both Kruskal's and Prim's algorithms, and verify that the results match.
 
-### 演習4: ダイクストラ法（応用）
-重み付きグラフでダイクストラ法を実装し、最短経路と距離を返す関数を作成せよ。負の辺がある場合にベルマンフォード法に切り替える機能も実装すること。
+### Exercise 4: Dijkstra's Algorithm (Intermediate)
+Implement Dijkstra's algorithm on a weighted graph, returning the shortest path and distance. Also implement the ability to switch to the Bellman-Ford algorithm when negative edges are present.
 
-### 演習5: トポロジカルソート（応用）
-大学のカリキュラムを有向グラフで表現し、以下を実装せよ:
-- 全科目の履修順序をトポロジカルソートで決定
-- 循環依存の検出と報告
-- 並列に履修可能な科目のグループ化
+### Exercise 5: Topological Sort (Intermediate)
+Represent a university curriculum as a directed graph and implement the following:
+- Determine the course enrollment order via topological sort
+- Detect and report circular dependencies
+- Group courses that can be taken concurrently
 
-### 演習6: ソーシャルグラフ分析（発展）
-ソーシャルネットワークのグラフを構築し、以下を実装せよ:
-- 共通の友人の検索
-- 友人推薦（友人の友人をスコアリング）
-- 六次の隔たりの計算
-- コミュニティ検出（連結成分の分析）
+### Exercise 6: Social Graph Analysis (Advanced)
+Build a social network graph and implement the following:
+- Search for mutual friends
+- Friend recommendations (score friends-of-friends)
+- Compute degrees of separation
+- Community detection (connected component analysis)
 
-### 演習7: A*アルゴリズム（発展）
-2Dグリッド上の障害物を避けた最短経路をA*アルゴリズムで求めよ:
-- マンハッタン距離とユークリッド距離のヒューリスティック比較
-- BFS/ダイクストラとの性能比較
-- 結果のグリッド上への可視化
+### Exercise 7: A* Algorithm (Advanced)
+Find the shortest path on a 2D grid with obstacles using the A* algorithm:
+- Compare Manhattan distance and Euclidean distance heuristics
+- Performance comparison with BFS/Dijkstra
+- Visualize the result on the grid
 
 
 ---
 
-## トラブルシューティング
+## Troubleshooting
 
-### よくあるエラーと解決策
+### Common Errors and Solutions
 
-| エラー | 原因 | 解決策 |
-|--------|------|--------|
-| 初期化エラー | 設定ファイルの不備 | 設定ファイルのパスと形式を確認 |
-| タイムアウト | ネットワーク遅延/リソース不足 | タイムアウト値の調整、リトライ処理の追加 |
-| メモリ不足 | データ量の増大 | バッチ処理の導入、ページネーションの実装 |
-| 権限エラー | アクセス権限の不足 | 実行ユーザーの権限確認、設定の見直し |
-| データ不整合 | 並行処理の競合 | ロック機構の導入、トランザクション管理 |
+| Error | Cause | Solution |
+|-------|-------|----------|
+| Initialization error | Configuration file issues | Check configuration file path and format |
+| Timeout | Network latency / insufficient resources | Adjust timeout values, add retry logic |
+| Out of memory | Data volume growth | Introduce batch processing, implement pagination |
+| Permission error | Insufficient access rights | Verify user permissions, review settings |
+| Data inconsistency | Concurrency conflicts | Introduce locking mechanisms, transaction management |
 
-### デバッグの手順
+### Debugging Steps
 
-1. **エラーメッセージの確認**: スタックトレースを読み、発生箇所を特定する
-2. **再現手順の確立**: 最小限のコードでエラーを再現する
-3. **仮説の立案**: 考えられる原因をリストアップする
-4. **段階的な検証**: ログ出力やデバッガを使って仮説を検証する
-5. **修正と回帰テスト**: 修正後、関連する箇所のテストも実行する
+1. **Check error messages**: Read the stack trace to identify where the error occurred
+2. **Establish reproduction steps**: Reproduce the error with minimal code
+3. **Formulate hypotheses**: List possible causes
+4. **Verify incrementally**: Use log output or a debugger to test hypotheses
+5. **Fix and regression test**: After fixing, also run tests on related areas
 
 ```python
-# デバッグ用ユーティリティ
+# Debugging utilities
 import logging
 import traceback
 from functools import wraps
 
-# ロガーの設定
+# Logger configuration
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
@@ -1585,102 +1587,102 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def debug_decorator(func):
-    """関数の入出力をログ出力するデコレータ"""
+    """Decorator that logs function input/output"""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        logger.debug(f"呼び出し: {func.__name__}(args={args}, kwargs={kwargs})")
+        logger.debug(f"Call: {func.__name__}(args={args}, kwargs={kwargs})")
         try:
             result = func(*args, **kwargs)
-            logger.debug(f"戻り値: {func.__name__} -> {result}")
+            logger.debug(f"Return: {func.__name__} -> {result}")
             return result
         except Exception as e:
-            logger.error(f"例外発生: {func.__name__}: {e}")
+            logger.error(f"Exception in {func.__name__}: {e}")
             logger.error(traceback.format_exc())
             raise
     return wrapper
 
 @debug_decorator
 def process_data(items):
-    """データ処理（デバッグ対象）"""
+    """Data processing (debug target)"""
     if not items:
-        raise ValueError("空のデータ")
+        raise ValueError("Empty data")
     return [item * 2 for item in items]
 ```
 
-### パフォーマンス問題の診断
+### Diagnosing Performance Issues
 
-パフォーマンス問題が発生した場合の診断手順:
+Steps for diagnosing performance issues:
 
-1. **ボトルネックの特定**: プロファイリングツールで計測
-2. **メモリ使用量の確認**: メモリリークの有無をチェック
-3. **I/O待ちの確認**: ディスクやネットワークI/Oの状況を確認
-4. **同時接続数の確認**: コネクションプールの状態を確認
+1. **Identify bottlenecks**: Measure with profiling tools
+2. **Check memory usage**: Look for memory leaks
+3. **Check I/O wait**: Examine disk and network I/O conditions
+4. **Check concurrent connections**: Inspect connection pool status
 
-| 問題の種類 | 診断ツール | 対策 |
-|-----------|-----------|------|
-| CPU負荷 | cProfile, py-spy | アルゴリズム改善、並列化 |
-| メモリリーク | tracemalloc, objgraph | 参照の適切な解放 |
-| I/Oボトルネック | strace, iostat | 非同期I/O、キャッシュ |
-| DB遅延 | EXPLAIN, slow query log | インデックス、クエリ最適化 |
+| Problem Type | Diagnostic Tools | Countermeasures |
+|-------------|-----------------|-----------------|
+| CPU load | cProfile, py-spy | Algorithm improvement, parallelization |
+| Memory leak | tracemalloc, objgraph | Proper reference release |
+| I/O bottleneck | strace, iostat | Async I/O, caching |
+| DB latency | EXPLAIN, slow query log | Indexing, query optimization |
 
 ---
 
-## 設計判断ガイド
+## Design Decision Guide
 
-### 選択基準マトリクス
+### Selection Criteria Matrix
 
-技術選択を行う際の判断基準を以下にまとめます。
+The following summarizes decision criteria for technical choices.
 
-| 判断基準 | 重視する場合 | 妥協できる場合 |
-|---------|------------|-------------|
-| パフォーマンス | リアルタイム処理、大規模データ | 管理画面、バッチ処理 |
-| 保守性 | 長期運用、チーム開発 | プロトタイプ、短期プロジェクト |
-| スケーラビリティ | 成長が見込まれるサービス | 社内ツール、固定ユーザー |
-| セキュリティ | 個人情報、金融データ | 公開データ、社内利用 |
-| 開発速度 | MVP、市場投入スピード | 品質重視、ミッションクリティカル |
+| Criterion | When to prioritize | When compromise is acceptable |
+|-----------|-------------------|------------------------------|
+| Performance | Real-time processing, large-scale data | Admin dashboards, batch processing |
+| Maintainability | Long-term operation, team development | Prototypes, short-term projects |
+| Scalability | Growing services | Internal tools, fixed users |
+| Security | Personal data, financial data | Public data, internal use |
+| Development speed | MVP, time-to-market | Quality-focused, mission-critical |
 
-### アーキテクチャパターンの選択
+### Architecture Pattern Selection
 
 ```
-┌─────────────────────────────────────────────────┐
-│              アーキテクチャ選択フロー              │
-├─────────────────────────────────────────────────┤
-│                                                 │
-│  ① チーム規模は？                                │
-│    ├─ 小規模（1-5人）→ モノリス                   │
-│    └─ 大規模（10人+）→ ②へ                       │
-│                                                 │
-│  ② デプロイ頻度は？                               │
-│    ├─ 週1回以下 → モノリス + モジュール分割         │
-│    └─ 毎日/複数回 → ③へ                          │
-│                                                 │
-│  ③ チーム間の独立性は？                            │
-│    ├─ 高い → マイクロサービス                      │
-│    └─ 中程度 → モジュラーモノリス                   │
-│                                                 │
-└─────────────────────────────────────────────────┘
++--------------------------------------------------+
+|            Architecture Selection Flow            |
++--------------------------------------------------+
+|                                                  |
+|  1. Team size?                                   |
+|    +-- Small (1-5) -> Monolith                   |
+|    +-- Large (10+) -> Go to 2                    |
+|                                                  |
+|  2. Deployment frequency?                        |
+|    +-- Weekly or less -> Monolith + modules      |
+|    +-- Daily/multiple -> Go to 3                 |
+|                                                  |
+|  3. Team independence?                           |
+|    +-- High -> Microservices                     |
+|    +-- Moderate -> Modular monolith              |
+|                                                  |
++--------------------------------------------------+
 ```
 
-### トレードオフの分析
+### Trade-off Analysis
 
-技術的な判断には必ずトレードオフが伴います。以下の観点で分析を行いましょう:
+Technical decisions always involve trade-offs. Analyze from the following perspectives:
 
-**1. 短期 vs 長期のコスト**
-- 短期的に速い方法が長期的には技術的負債になることがある
-- 逆に、過剰な設計は短期的なコストが高く、プロジェクトの遅延を招く
+**1. Short-term vs. Long-term Cost**
+- A short-term fast approach can become technical debt in the long run
+- Conversely, over-engineering carries high short-term costs and can delay the project
 
-**2. 一貫性 vs 柔軟性**
-- 統一された技術スタックは学習コストが低い
-- 多様な技術の採用は適材適所が可能だが、運用コストが増加
+**2. Consistency vs. Flexibility**
+- A unified technology stack has lower learning costs
+- Adopting diverse technologies enables the right tool for each job but increases operational costs
 
-**3. 抽象化のレベル**
-- 高い抽象化は再利用性が高いが、デバッグが困難になる場合がある
-- 低い抽象化は直感的だが、コードの重複が発生しやすい
+**3. Level of Abstraction**
+- High abstraction offers high reusability but can make debugging difficult
+- Low abstraction is intuitive but tends to produce code duplication
 
 ```python
-# 設計判断の記録テンプレート
+# Design decision record template
 class ArchitectureDecisionRecord:
-    """ADR (Architecture Decision Record) の作成"""
+    """Create an ADR (Architecture Decision Record)"""
 
     def __init__(self, title: str):
         self.title = title
@@ -1690,17 +1692,17 @@ class ArchitectureDecisionRecord:
         self.alternatives = []
 
     def set_context(self, context: str):
-        """背景と課題の記述"""
+        """Describe background and challenges"""
         self.context = context
         return self
 
     def set_decision(self, decision: str):
-        """決定内容の記述"""
+        """Describe the decision"""
         self.decision = decision
         return self
 
     def add_consequence(self, consequence: str, positive: bool = True):
-        """結果の追加"""
+        """Add a consequence"""
         self.consequences.append({
             'description': consequence,
             'type': 'positive' if positive else 'negative'
@@ -1708,7 +1710,7 @@ class ArchitectureDecisionRecord:
         return self
 
     def add_alternative(self, name: str, reason_rejected: str):
-        """却下した代替案の追加"""
+        """Add a rejected alternative"""
         self.alternatives.append({
             'name': name,
             'reason_rejected': reason_rejected
@@ -1716,15 +1718,15 @@ class ArchitectureDecisionRecord:
         return self
 
     def to_markdown(self) -> str:
-        """Markdown形式で出力"""
+        """Output in Markdown format"""
         md = f"# ADR: {self.title}\n\n"
-        md += f"## 背景\n{self.context}\n\n"
-        md += f"## 決定\n{self.decision}\n\n"
-        md += "## 結果\n"
+        md += f"## Context\n{self.context}\n\n"
+        md += f"## Decision\n{self.decision}\n\n"
+        md += "## Consequences\n"
         for c in self.consequences:
-            icon = "✅" if c['type'] == 'positive' else "⚠️"
+            icon = "+" if c['type'] == 'positive' else "!"
             md += f"- {icon} {c['description']}\n"
-        md += "\n## 却下した代替案\n"
+        md += "\n## Rejected Alternatives\n"
         for a in self.alternatives:
             md += f"- **{a['name']}**: {a['reason_rejected']}\n"
         return md
@@ -1734,48 +1736,48 @@ class ArchitectureDecisionRecord:
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when studying this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just from theory, but by actually writing code and verifying its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts covered in this guide before moving on.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this applied in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## まとめ
-
-| 表現方法 | 空間 | 辺の確認 | 最適場面 |
-|---------|------|---------|---------|
-| 隣接リスト | O(V+E) | O(degree) | 疎グラフ、一般用途 |
-| 隣接行列 | O(V^2) | O(1) | 密グラフ、小規模 |
-| エッジリスト | O(E) | O(E) | クラスカル法 |
-
-| アルゴリズム | 計算量 | 用途 |
-|-------------|--------|------|
-| BFS | O(V+E) | 最短経路（重みなし）、レベル走査 |
-| DFS | O(V+E) | サイクル検出、トポロジカルソート |
-| ダイクストラ | O((V+E)log V) | 最短経路（非負重み） |
-| ベルマンフォード | O(VE) | 最短経路（負の辺あり） |
-| フロイドワーシャル | O(V^3) | 全点間最短経路 |
-| A* | O((V+E)log V) | ヒューリスティック付き最短経路 |
-| クラスカル | O(E log E) | 最小全域木 |
-| プリム | O((V+E)log V) | 最小全域木 |
-| カーン | O(V+E) | トポロジカルソート |
-| コサラジュ | O(V+E) | 強連結成分 |
+Knowledge of this topic is frequently used in everyday development work. It is particularly important during code reviews and architecture design.
 
 ---
 
-## 次に読むべきガイド
+## Summary
+
+| Representation | Space | Edge Check | Best For |
+|---------------|-------|-----------|----------|
+| Adjacency list | O(V+E) | O(degree) | Sparse graphs, general use |
+| Adjacency matrix | O(V^2) | O(1) | Dense graphs, small scale |
+| Edge list | O(E) | O(E) | Kruskal's algorithm |
+
+| Algorithm | Complexity | Use Case |
+|-----------|-----------|----------|
+| BFS | O(V+E) | Shortest path (unweighted), level traversal |
+| DFS | O(V+E) | Cycle detection, topological sort |
+| Dijkstra | O((V+E)log V) | Shortest path (non-negative weights) |
+| Bellman-Ford | O(VE) | Shortest path (negative edges allowed) |
+| Floyd-Warshall | O(V^3) | All-pairs shortest paths |
+| A* | O((V+E)log V) | Shortest path with heuristic |
+| Kruskal | O(E log E) | Minimum spanning tree |
+| Prim | O((V+E)log V) | Minimum spanning tree |
+| Kahn | O(V+E) | Topological sort |
+| Kosaraju | O(V+E) | Strongly connected components |
 
 ---
 
-## 参考文献
+## Recommended Next Reading
+
+---
+
+## References
 1. Cormen, T. H. "Introduction to Algorithms." Chapters 22-26.
 2. Sedgewick, R. "Algorithms." Chapter 4.1-4.4.
 3. Kleinberg, J., Tardos, E. "Algorithm Design." Chapters 3-7.

@@ -1,260 +1,271 @@
-# アルゴリズムとは何か
+# What Is an Algorithm?
 
-> アルゴリズムとは「問題を解くための明確な手順」であり、プログラミングの本質はアルゴリズムの設計と実装である。
+> An algorithm is "a well-defined set of steps for solving a problem." The essence of programming lies in the design and implementation of algorithms.
 
-## この章で学ぶこと
+## Learning Objectives
 
-- [ ] アルゴリズムの定義と5つの条件を説明できる
-- [ ] 良いアルゴリズムと悪いアルゴリズムの違いを理解する
-- [ ] 問題→アルゴリズム→コードの思考プロセスを身につける
-- [ ] 主要なアルゴリズム設計戦略を使い分けられる
-- [ ] アルゴリズムの正しさを証明する基本的な手法を理解する
+- [ ] Explain the definition of an algorithm and its five essential properties
+- [ ] Understand the difference between good and bad algorithms
+- [ ] Develop the thought process of problem → algorithm → code
+- [ ] Be able to choose among major algorithm design strategies
+- [ ] Understand basic techniques for proving the correctness of algorithms
 
-## 前提知識
+## Prerequisites
 
-- 基本的なプログラミング経験
+- Basic programming experience
 
 ---
 
-## 1. アルゴリズムの定義
+## 1. Definition of an Algorithm
 
-### 1.1 アルゴリズムの5つの条件
-
-```
-アルゴリズム (Algorithm):
-  有限の手順で問題を解決する、明確に定義された計算手続き
-
-  5つの条件（Knuth, 1968）:
-
-  1. 入力 (Input):
-     → 0個以上の外部データを受け取る
-     → 例: ソート → 数値の配列
-
-  2. 出力 (Output):
-     → 1個以上の結果を生成する
-     → 例: ソート → 並べ替えた配列
-
-  3. 明確性 (Definiteness):
-     → 各ステップが曖昧さなく定義されている
-     → ❌「適当にいい感じに並べる」
-     → ✅「隣接する要素を比較し、左が大きければ交換する」
-
-  4. 有限性 (Finiteness):
-     → 有限回のステップで必ず終了する
-     → 無限ループはアルゴリズムではない
-
-  5. 有効性 (Effectiveness):
-     → 各ステップが十分に基本的で、実行可能である
-     → 「素数を全て列挙する」は無限なのでNG
-     → 「N以下の素数を列挙する」はOK
-```
-
-### 1.2 アルゴリズムの語源と歴史
+### 1.1 The Five Properties of an Algorithm
 
 ```
-アルゴリズムの歴史:
+Algorithm:
+  A well-defined computational procedure that solves a problem
+  in a finite number of steps.
 
-  語源:
-  - 9世紀のペルシャの数学者 アル・フワーリズミー（al-Khwārizmī）
-  - 彼の名前のラテン語訳「Algoritmi」が由来
-  - 著書『インドの計算法について』で十進法の計算手順を紹介
+  Five Properties (Knuth, 1968):
 
-  歴史上の重要なアルゴリズム:
-  ┌────────────────┬──────┬─────────────────────────────┐
-  │ アルゴリズム     │ 年代  │ 概要                         │
-  ├────────────────┼──────┼─────────────────────────────┤
-  │ ユークリッドの   │ BC300│ 2数の最大公約数を求める        │
-  │ 互除法          │      │ → 現存する最古のアルゴリズム    │
-  │ エラトステネスの │ BC200│ 素数をふるいにかけて列挙       │
-  │ ふるい          │      │                              │
-  │ アル・フワーリズミ│ 830  │ 一次/二次方程式の解法         │
-  │ の代数学        │      │ → 「代数学」の語源にもなった   │
-  │ ニュートン法    │ 1669 │ 方程式の近似解を反復で求める   │
-  │ ガウスの消去法  │ 1809 │ 連立一次方程式の解法          │
-  │ バベッジの      │ 1837 │ 機械的な計算手順の概念        │
-  │ 解析機関       │      │ → プログラムの原型            │
-  │ チューリングマシン│ 1936│ 計算可能性の理論的基盤        │
-  │ フォン・ノイマン │ 1945 │ プログラム内蔵方式            │
-  │ マージソート    │ 1945 │ フォン・ノイマンが考案         │
-  └────────────────┴──────┴─────────────────────────────┘
+  1. Input:
+     → Receives zero or more external data
+     → Example: Sorting → an array of numbers
 
-  「アルゴリズム」が現代的な意味を持つようになった転機:
-  - 1936年: チューリングが「計算可能」を厳密に定義
-  - 1945年: フォン・ノイマンがプログラム内蔵方式を提案
-  - 1960年代: Knuthが『The Art of Computer Programming』を出版
-  - → アルゴリズム解析が独立した研究分野に
+  2. Output:
+     → Produces one or more results
+     → Example: Sorting → a sorted array
+
+  3. Definiteness:
+     → Each step is unambiguously defined
+     → Bad: "Sort them in a nice way somehow"
+     → Good: "Compare adjacent elements and swap if the left is greater"
+
+  4. Finiteness:
+     → Terminates after a finite number of steps
+     → An infinite loop is not an algorithm
+
+  5. Effectiveness:
+     → Each step is sufficiently basic and executable
+     → "List all prime numbers" is invalid (infinite)
+     → "List all prime numbers up to N" is valid
 ```
 
-### 1.3 日常のアルゴリズム
+### 1.2 Etymology and History of Algorithms
 
 ```
-料理のレシピ = アルゴリズム:
+History of Algorithms:
 
-  カレーの作り方:
-  入力: 玉ねぎ2個, 肉300g, カレールー1箱, 水800ml
-  出力: カレー4人前
+  Etymology:
+  - Named after the 9th-century Persian mathematician al-Khwarizmi
+  - His name was Latinized as "Algoritmi"
+  - His work "On the Calculation with Hindu Numerals" introduced
+    decimal arithmetic procedures
 
-  1. 玉ねぎを薄切りにする
-  2. 鍋に油を入れ、中火で加熱する
-  3. 玉ねぎを飴色になるまで炒める（約10分）
-  4. 肉を加え、色が変わるまで炒める
-  5. 水800mlを加え、沸騰させる
-  6. 弱火で20分煮る
-  7. 火を止め、ルーを割り入れて溶かす
-  8. 弱火で5分煮る
-  → 完成
+  Historically Important Algorithms:
+  +--------------------+------+--------------------------------------+
+  | Algorithm          | Era  | Overview                             |
+  +--------------------+------+--------------------------------------+
+  | Euclidean          | 300  | Finds the GCD of two numbers         |
+  | Algorithm          | BC   | → The oldest known algorithm          |
+  | Sieve of           | 200  | Enumerates primes by sieving         |
+  | Eratosthenes       | BC   |                                      |
+  | al-Khwarizmi's     | 830  | Solutions for linear/quadratic       |
+  | Algebra            |      | equations → Origin of "algebra"      |
+  | Newton's Method    | 1669 | Iteratively finds approximate roots  |
+  | Gaussian           | 1809 | Solves systems of linear equations   |
+  | Elimination        |      |                                      |
+  | Babbage's          | 1837 | The concept of mechanical            |
+  | Analytical Engine  |      | computation → Prototype of programs  |
+  | Turing Machine     | 1936 | Theoretical foundation of            |
+  |                    |      | computability                        |
+  | Von Neumann        | 1945 | Stored-program architecture          |
+  | Merge Sort         | 1945 | Invented by von Neumann              |
+  +--------------------+------+--------------------------------------+
 
-  これはアルゴリズムの5条件を全て満たす:
-  ✅ 入力: 食材
-  ✅ 出力: カレー
-  ✅ 明確性: 各ステップが具体的
-  ✅ 有限性: 8ステップで終了
-  ✅ 有効性: 各ステップは実行可能
+  Turning points when "algorithm" acquired its modern meaning:
+  - 1936: Turing rigorously defined "computable"
+  - 1945: Von Neumann proposed the stored-program architecture
+  - 1960s: Knuth published "The Art of Computer Programming"
+  - → Algorithm analysis became an independent field of research
+```
+
+### 1.3 Algorithms in Everyday Life
+
+```
+A Cooking Recipe = An Algorithm:
+
+  How to Make Curry:
+  Input: 2 onions, 300g meat, 1 box curry roux, 800ml water
+  Output: 4 servings of curry
+
+  1. Slice the onions thinly
+  2. Add oil to a pot and heat on medium
+  3. Saute the onions until golden brown (about 10 minutes)
+  4. Add the meat and stir-fry until it changes color
+  5. Add 800ml of water and bring to a boil
+  6. Simmer on low heat for 20 minutes
+  7. Turn off the heat, break in the roux and dissolve it
+  8. Simmer on low heat for 5 minutes
+  → Done
+
+  This satisfies all five properties of an algorithm:
+  Input: Ingredients
+  Output: Curry
+  Definiteness: Each step is specific
+  Finiteness: Completes in 8 steps
+  Effectiveness: Each step is executable
 ```
 
 ```
-日常のアルゴリズムの他の例:
+Other Everyday Examples of Algorithms:
 
-  1. 辞書で単語を引く（二分探索）:
-  ┌──────────────────────────────────────┐
-  │ 入力: 辞書、探す単語                    │
-  │ 出力: 単語の意味                        │
-  │                                        │
-  │ 1. 辞書のだいたい真ん中を開く            │
-  │ 2. 開いたページの単語と探す単語を比較     │
-  │ 3. 探す単語が「前」なら前半を探す         │
-  │ 4. 探す単語が「後」なら後半を探す         │
-  │ 5. 見つかるまで2-4を繰り返す             │
-  │                                        │
-  │ → 1000ページの辞書でも約10回で見つかる！  │
-  └──────────────────────────────────────┘
+  1. Looking up a word in a dictionary (Binary Search):
+  +----------------------------------------------+
+  | Input: A dictionary, the word to look up     |
+  | Output: The meaning of the word              |
+  |                                              |
+  | 1. Open the dictionary roughly to the middle |
+  | 2. Compare the word on the page with the     |
+  |    target word                               |
+  | 3. If the target comes "before," search the  |
+  |    first half                                |
+  | 4. If the target comes "after," search the   |
+  |    second half                               |
+  | 5. Repeat steps 2-4 until found              |
+  |                                              |
+  | → Even a 1000-page dictionary takes only     |
+  |   about 10 lookups!                          |
+  +----------------------------------------------+
 
-  2. トランプの手札を並べ替える（挿入ソート）:
-  ┌──────────────────────────────────────┐
-  │ 入力: 手持ちのカード                    │
-  │ 出力: 番号順に並んだカード               │
-  │                                        │
-  │ 1. 2枚目のカードを取り出す              │
-  │ 2. 左側のカードと比較                   │
-  │ 3. 正しい位置に挿入                     │
-  │ 4. 次のカードで2-3を繰り返す             │
-  │                                        │
-  │ → 人間が自然にやるソート方法！           │
-  └──────────────────────────────────────┘
+  2. Sorting a hand of playing cards (Insertion Sort):
+  +----------------------------------------------+
+  | Input: Cards in your hand                    |
+  | Output: Cards sorted by number               |
+  |                                              |
+  | 1. Take the second card                      |
+  | 2. Compare it with cards to its left         |
+  | 3. Insert it at the correct position         |
+  | 4. Repeat steps 2-3 for the next card        |
+  |                                              |
+  | → The sorting method humans naturally use!   |
+  +----------------------------------------------+
 
-  3. 迷路を解く（深さ優先探索 / 壁伝い法）:
-  ┌──────────────────────────────────────┐
-  │ 入力: 迷路（入口と出口がある）           │
-  │ 出力: 入口から出口への経路               │
-  │                                        │
-  │ 壁伝い法:                               │
-  │ 1. 右手を壁に付ける                     │
-  │ 2. 壁に沿って歩く                       │
-  │ 3. 出口に到達するまで繰り返す            │
-  │                                        │
-  │ → 単純だが確実に出口に到達する           │
-  │   （単連結の迷路の場合）                 │
-  └──────────────────────────────────────┘
+  3. Solving a maze (DFS / Wall-Following):
+  +----------------------------------------------+
+  | Input: A maze (with an entrance and exit)    |
+  | Output: A path from entrance to exit         |
+  |                                              |
+  | Wall-following method:                       |
+  | 1. Place your right hand on the wall         |
+  | 2. Walk along the wall                       |
+  | 3. Repeat until you reach the exit           |
+  |                                              |
+  | → Simple but guaranteed to reach the exit    |
+  |   (for simply connected mazes)               |
+  +----------------------------------------------+
 
-  4. お釣りを計算する（貪欲法）:
-  ┌──────────────────────────────────────┐
-  │ 入力: お釣りの金額                      │
-  │ 出力: 最少枚数の硬貨の組み合わせ         │
-  │                                        │
-  │ 1. 最も大きい硬貨から使えるだけ使う       │
-  │    500円 → 100円 → 50円 → 10円          │
-  │    → 5円 → 1円                          │
-  │ 2. 残金が0になるまで繰り返す             │
-  │                                        │
-  │ 例: 680円のお釣り                       │
-  │ 500円×1, 100円×1, 50円×1, 10円×3       │
-  │ = 合計6枚                               │
-  │                                        │
-  │ → 日本の硬貨体系では最適解が得られる     │
-  │   （常にそうとは限らない点が重要）       │
-  └──────────────────────────────────────┘
+  4. Making change (Greedy Algorithm):
+  +----------------------------------------------+
+  | Input: The amount of change                  |
+  | Output: The minimum number of coins          |
+  |                                              |
+  | 1. Use the largest coin denomination first,  |
+  |    as many as possible                       |
+  |    500 yen → 100 yen → 50 yen → 10 yen      |
+  |    → 5 yen → 1 yen                           |
+  | 2. Repeat until the remaining amount is 0    |
+  |                                              |
+  | Example: 680 yen in change                   |
+  | 500 yen x1, 100 yen x1, 50 yen x1,          |
+  | 10 yen x3 = 6 coins total                   |
+  |                                              |
+  | → Produces optimal results with the Japanese |
+  |   coin system (but not always in general)    |
+  +----------------------------------------------+
 ```
 
-### 1.4 アルゴリズムでないものの例
+### 1.4 Examples of Things That Are Not Algorithms
 
 ```
-アルゴリズムではないもの:
+Things That Are NOT Algorithms:
 
-  1. 「なんとなく並べ替える」
-     → 明確性の欠如
-     → 「何を基準に」「どう並べ替えるか」が不明
+  1. "Sort them somehow"
+     → Lacks definiteness
+     → "By what criterion?" and "How to sort?" are unclear
 
-  2. 「素数を全て列挙せよ」
-     → 有限性の違反
-     → 素数は無限に存在するため終了しない
+  2. "List all prime numbers"
+     → Violates finiteness
+     → Prime numbers are infinite, so it never terminates
 
-  3. 「配列の中から最適な要素を直感で選ぶ」
-     → 有効性の欠如
-     → 「直感」は計算手順として実行不可能
+  3. "Intuitively pick the best element from the array"
+     → Lacks effectiveness
+     → "Intuition" is not an executable computational step
 
   4. while True: print("Hello")
-     → 有限性の違反
-     → 永遠に終了しない
+     → Violates finiteness
+     → Never terminates
 
-  注意: アルゴリズムと「プログラム」の違い
-  ┌──────────────────────────────────────┐
-  │ アルゴリズム:                           │
-  │ - 必ず有限時間で終了する                │
-  │ - 言語に依存しない抽象的な手順          │
-  │                                        │
-  │ プログラム:                             │
-  │ - 終了しなくてもよい（OSやサーバー等）   │
-  │ - 特定のプログラミング言語で記述         │
-  │                                        │
-  │ → 全てのアルゴリズムはプログラムにできるが│
-  │   全てのプログラムがアルゴリズムではない  │
-  └──────────────────────────────────────┘
+  Note: The difference between an algorithm and a "program"
+  +----------------------------------------------+
+  | Algorithm:                                   |
+  | - Must terminate in finite time              |
+  | - An abstract procedure independent of       |
+  |   programming language                       |
+  |                                              |
+  | Program:                                     |
+  | - Need not terminate (e.g., OS, servers)     |
+  | - Written in a specific programming language |
+  |                                              |
+  | → Every algorithm can be made into a program,|
+  |   but not every program is an algorithm      |
+  +----------------------------------------------+
 ```
 
 ---
 
-## 2. アルゴリズムの設計戦略
+## 2. Algorithm Design Strategies
 
-### 2.1 主要な設計パターン
+### 2.1 Major Design Patterns
 
 ```
-アルゴリズム設計の7大戦略:
+Seven Major Algorithm Design Strategies:
 
-  ┌─────────────────┬──────────────────────────────────────┐
-  │ 戦略            │ 概要                                  │
-  ├─────────────────┼──────────────────────────────────────┤
-  │ 全探索          │ 全ての可能性を試す（ブルートフォース） │
-  │ 分割統治        │ 問題を分割→各個解決→結合              │
-  │ 動的計画法      │ 部分問題の解を記憶して再利用           │
-  │ 貪欲法          │ 各ステップで局所最適な選択をする       │
-  │ バックトラック   │ 探索を進め、行き詰まったら戻る        │
-  │ 二分探索        │ 範囲を半分に絞りながら探索             │
-  │ グラフ探索      │ BFS/DFSで状態空間を探索               │
-  └─────────────────┴──────────────────────────────────────┘
+  +-------------------+----------------------------------------------+
+  | Strategy          | Overview                                     |
+  +-------------------+----------------------------------------------+
+  | Brute Force       | Try all possibilities (exhaustive search)    |
+  | Divide & Conquer  | Divide → solve individually → combine        |
+  | Dynamic           | Memoize and reuse solutions to subproblems   |
+  | Programming       |                                              |
+  | Greedy            | Make the locally optimal choice at each step |
+  | Backtracking      | Explore, then backtrack when stuck           |
+  | Binary Search     | Narrow the range by half at each step        |
+  | Graph Search      | Explore the state space with BFS/DFS         |
+  +-------------------+----------------------------------------------+
 ```
 
-### 2.2 全探索（ブルートフォース）
+### 2.2 Brute Force
 
 ```python
-# 全探索: 全ての可能性を愚直に試す
-# 長所: 確実に正解が得られる、実装が簡単
-# 短所: 計算量が大きい
+# Brute Force: Naively try all possibilities
+# Pros: Guaranteed to find the correct answer, simple to implement
+# Cons: High computational complexity
 
-# 例1: パスワードの総当たり（4桁数字）
+# Example 1: PIN brute-force attack (4-digit number)
 def brute_force_pin():
-    """4桁のPINコードを全て試す"""
+    """Try all 4-digit PINs"""
     for pin in range(10000):  # 0000-9999
         if try_pin(f"{pin:04d}"):
             return f"{pin:04d}"
     return None
-# 計算量: O(10^4) = O(10000)
+# Complexity: O(10^4) = O(10000)
 
-# 例2: 部分和問題
+# Example 2: Subset Sum Problem
 def subset_sum(nums, target):
-    """numsの部分集合で合計がtargetになるものがあるか"""
+    """Check if any subset of nums sums to target"""
     n = len(nums)
-    # ビットマスクで全部分集合を列挙
-    for mask in range(1 << n):  # 2^n 通り
+    # Enumerate all subsets using bitmasks
+    for mask in range(1 << n):  # 2^n subsets
         total = 0
         for i in range(n):
             if mask & (1 << i):
@@ -262,11 +273,11 @@ def subset_sum(nums, target):
         if total == target:
             return True
     return False
-# 計算量: O(n × 2^n)
+# Complexity: O(n * 2^n)
 
-# 例3: 文字列のアナグラム判定（素朴な方法）
+# Example 3: Anagram check (naive approach)
 def is_anagram_brute(s1, s2):
-    """s1とs2がアナグラムかを全順列で確認"""
+    """Check if s1 and s2 are anagrams by examining all permutations"""
     from itertools import permutations
     if len(s1) != len(s2):
         return False
@@ -274,40 +285,40 @@ def is_anagram_brute(s1, s2):
         if ''.join(perm) == s2:
             return True
     return False
-# 計算量: O(n! × n) — 非常に非効率！
+# Complexity: O(n! * n) — extremely inefficient!
 
-# 改善版: ソートで比較
+# Improved version: Compare using sorting
 def is_anagram_sort(s1, s2):
     return sorted(s1) == sorted(s2)
-# 計算量: O(n log n) — 大幅に改善
+# Complexity: O(n log n) — significantly improved
 
-# さらに改善: ハッシュマップで比較
+# Further improved: Compare using a hash map
 from collections import Counter
 def is_anagram_hash(s1, s2):
     return Counter(s1) == Counter(s2)
-# 計算量: O(n) — 最適
+# Complexity: O(n) — optimal
 
-# → 全探索は出発点。ここから効率の良い方法を考える。
+# → Brute force is the starting point. From here, consider more efficient methods.
 ```
 
-### 2.3 分割統治法
+### 2.3 Divide and Conquer
 
 ```python
-# 分割統治法: 問題を小さく分割→各個解決→結合
-# 3つのステップ: Divide → Conquer → Combine
+# Divide and Conquer: Split the problem → solve each part → combine
+# Three steps: Divide → Conquer → Combine
 
-# 代表例1: マージソート
+# Classic Example 1: Merge Sort
 def merge_sort(arr):
-    """分割→ソート→結合"""
+    """Divide → Sort → Combine"""
     if len(arr) <= 1:
         return arr
 
-    # Divide: 半分に分割
+    # Divide: Split in half
     mid = len(arr) // 2
     left = merge_sort(arr[:mid])    # Conquer
     right = merge_sort(arr[mid:])   # Conquer
 
-    # Combine: マージ
+    # Combine: Merge
     return merge(left, right)
 
 def merge(left, right):
@@ -325,25 +336,25 @@ def merge(left, right):
     return result
 # T(n) = 2T(n/2) + O(n) → O(n log n)
 
-# 代表例2: 最近点対問題
+# Classic Example 2: Closest Pair of Points
 def closest_pair(points):
-    """2次元平面上のn個の点から最も近い2点を見つける
+    """Find the two closest points among n points on a 2D plane
 
-    全探索: O(n²) — 全ペアを調べる
-    分割統治: O(n log n)
+    Brute force: O(n^2) — check all pairs
+    Divide and conquer: O(n log n)
 
-    1. x座標でソート
-    2. 中央で左右に分割
-    3. 左右それぞれで最近点対を再帰的に求める
-    4. 左右にまたがるペアも確認（ストリップ領域）
-    5. 最小を返す
+    1. Sort by x-coordinate
+    2. Split into left and right halves at the center
+    3. Recursively find the closest pair in each half
+    4. Also check pairs that span the dividing line (strip region)
+    5. Return the minimum
     """
-    # 詳細な実装は省略（概念の説明が目的）
+    # Detailed implementation omitted (focus is on the concept)
     pass
 
-# 代表例3: カラツバ法（高速乗算）
+# Classic Example 3: Karatsuba Algorithm (fast multiplication)
 def karatsuba(x, y):
-    """通常のO(n²)をO(n^1.585)に改善する乗算"""
+    """Improves multiplication from O(n^2) to O(n^1.585)"""
     if x < 10 or y < 10:
         return x * y
 
@@ -355,39 +366,39 @@ def karatsuba(x, y):
     a, b = divmod(x, 10**m)
     c, d = divmod(y, 10**m)
 
-    # 3回の再帰（通常は4回）
+    # 3 recursive calls (instead of the usual 4)
     ac = karatsuba(a, c)
     bd = karatsuba(b, d)
     ad_bc = karatsuba(a + b, c + d) - ac - bd
 
     return ac * 10**(2*m) + ad_bc * 10**m + bd
-# T(n) = 3T(n/2) + O(n) → O(n^log₂3) ≈ O(n^1.585)
-# → 4回の乗算を3回に減らしたのがポイント
+# T(n) = 3T(n/2) + O(n) → O(n^log_2(3)) ≈ O(n^1.585)
+# → The key insight is reducing 4 multiplications to 3
 
-# 分割統治が有効な条件:
-# 1. 問題を同じ種類の小さい問題に分割できる
-# 2. 小さい問題を独立に解ける
-# 3. 部分解を効率的に結合できる
-# 4. 基底ケースが自明に解ける
+# Conditions for divide and conquer to be effective:
+# 1. The problem can be split into smaller problems of the same type
+# 2. The smaller problems can be solved independently
+# 3. Partial solutions can be combined efficiently
+# 4. The base case is trivially solvable
 ```
 
-### 2.4 動的計画法（DP）
+### 2.4 Dynamic Programming (DP)
 
 ```python
-# 動的計画法: 部分問題の解を記憶して再利用
-# 2つの条件:
-# 1. 最適部分構造: 最適解が部分問題の最適解から構成される
-# 2. 重複部分問題: 同じ部分問題が繰り返し現れる
+# Dynamic Programming: Memoize and reuse solutions to subproblems
+# Two conditions:
+# 1. Optimal substructure: The optimal solution is composed of optimal subproblem solutions
+# 2. Overlapping subproblems: The same subproblems are solved repeatedly
 
-# 典型例: フィボナッチ数列
+# Classic Example: Fibonacci Sequence
 
-# ❌ 素朴な再帰: O(2^n) — 同じ計算を何度も繰り返す
+# Bad: Naive recursion O(2^n) — repeats the same computation many times
 def fib_naive(n):
     if n <= 1:
         return n
     return fib_naive(n-1) + fib_naive(n-2)
 
-# 再帰ツリー（n=5の場合）:
+# Recursion tree (for n=5):
 #                fib(5)
 #              /        \
 #           fib(4)      fib(3)
@@ -395,9 +406,9 @@ def fib_naive(n):
 #       fib(3) fib(2) fib(2) fib(1)
 #       /  \
 #    fib(2) fib(1)
-# → fib(2)が3回、fib(3)が2回計算される！
+# → fib(2) is computed 3 times, fib(3) is computed 2 times!
 
-# ✅ メモ化（トップダウンDP）: O(n)
+# Good: Memoization (Top-Down DP): O(n)
 def fib_memo(n, memo={}):
     if n in memo:
         return memo[n]
@@ -406,7 +417,7 @@ def fib_memo(n, memo={}):
     memo[n] = fib_memo(n-1, memo) + fib_memo(n-2, memo)
     return memo[n]
 
-# ✅ テーブル（ボトムアップDP）: O(n)
+# Good: Tabulation (Bottom-Up DP): O(n)
 def fib_table(n):
     if n <= 1:
         return n
@@ -416,7 +427,7 @@ def fib_table(n):
         dp[i] = dp[i-1] + dp[i-2]
     return dp[n]
 
-# ✅ 空間最適化: O(n) 時間, O(1) 空間
+# Good: Space-optimized: O(n) time, O(1) space
 def fib_optimal(n):
     if n <= 1:
         return n
@@ -425,102 +436,102 @@ def fib_optimal(n):
         a, b = b, a + b
     return b
 
-# DPの実用例: ナップサック問題
+# Practical DP Example: Knapsack Problem
 def knapsack(weights, values, capacity):
-    """重さ制限内で価値を最大化する"""
+    """Maximize value within a weight constraint"""
     n = len(weights)
-    # dp[i][w] = 最初のi個のアイテムで重さw以内の最大価値
+    # dp[i][w] = maximum value using the first i items with weight limit w
     dp = [[0] * (capacity + 1) for _ in range(n + 1)]
 
     for i in range(1, n + 1):
         for w in range(capacity + 1):
-            # アイテムiを入れない場合
+            # Do not include item i
             dp[i][w] = dp[i-1][w]
-            # アイテムiを入れる場合
+            # Include item i
             if weights[i-1] <= w:
                 dp[i][w] = max(dp[i][w],
                     dp[i-1][w - weights[i-1]] + values[i-1])
 
     return dp[n][capacity]
-# 計算量: O(n × capacity)
+# Complexity: O(n * capacity)
 ```
 
-### 2.5 貪欲法
+### 2.5 Greedy Algorithms
 
 ```python
-# 貪欲法: 各ステップで「その時点での最善」を選ぶ
-# 長所: 高速、実装が簡単
-# 短所: 必ずしも最適解が得られない
+# Greedy Algorithm: Choose "the best option at each step"
+# Pros: Fast, simple to implement
+# Cons: Does not always yield the optimal solution
 
-# 貪欲法で最適解が得られる例:
+# Examples where greedy yields the optimal solution:
 
-# 1. 活動選択問題
+# 1. Activity Selection Problem
 def activity_selection(activities):
-    """重ならない最大数の活動を選択
+    """Select the maximum number of non-overlapping activities
     activities = [(start, end), ...]
     """
-    # 終了時刻でソート（貪欲の選択基準）
+    # Sort by end time (greedy selection criterion)
     sorted_activities = sorted(activities, key=lambda x: x[1])
 
     selected = [sorted_activities[0]]
     for activity in sorted_activities[1:]:
-        if activity[0] >= selected[-1][1]:  # 重なっていない
+        if activity[0] >= selected[-1][1]:  # No overlap
             selected.append(activity)
 
     return selected
-# 計算量: O(n log n) (ソート) + O(n) = O(n log n)
-# → 貪欲法で最適解が得られることが証明されている
+# Complexity: O(n log n) (sort) + O(n) = O(n log n)
+# → The greedy approach is proven to yield the optimal solution
 
-# 2. ハフマン符号化
+# 2. Huffman Coding
 import heapq
 def huffman_encoding(freq):
-    """文字の出現頻度から最適な可変長符号を生成
+    """Generate optimal variable-length codes from character frequencies
 
-    例: {'a': 5, 'b': 9, 'c': 12, 'd': 13, 'e': 16, 'f': 45}
+    Example: {'a': 5, 'b': 9, 'c': 12, 'd': 13, 'e': 16, 'f': 45}
     """
-    # 最小ヒープを構築
+    # Build a min-heap
     heap = [(f, c) for c, f in freq.items()]
     heapq.heapify(heap)
 
     while len(heap) > 1:
-        # 最小の2つを取り出して結合（貪欲な選択）
+        # Extract and combine the two smallest (greedy choice)
         freq1, node1 = heapq.heappop(heap)
         freq2, node2 = heapq.heappop(heap)
         heapq.heappush(heap, (freq1 + freq2, (node1, node2)))
 
     return heap[0]
-# → 最適な接頭符号が得られる（情報理論で証明済み）
+# → Produces an optimal prefix code (proven by information theory)
 
-# 貪欲法で最適解が得られない例:
+# Example where greedy does NOT yield the optimal solution:
 
-# お釣り問題（特殊な硬貨体系）
-# 硬貨: [1, 3, 4]、お釣り: 6
-# 貪欲法: 4 + 1 + 1 = 3枚
-# 最適解: 3 + 3 = 2枚！
-# → この場合はDPが必要
+# Change-making problem (special coin system)
+# Coins: [1, 3, 4], Change: 6
+# Greedy: 4 + 1 + 1 = 3 coins
+# Optimal: 3 + 3 = 2 coins!
+# → DP is needed in this case
 
-# 貪欲法が使える条件:
-# 1. 貪欲選択性質: 局所最適な選択が大局最適につながる
-# 2. 最適部分構造: 残りの部分問題も同じ方法で解ける
-# → この2つを証明する必要がある
+# Conditions for greedy to work:
+# 1. Greedy choice property: A locally optimal choice leads to a globally optimal solution
+# 2. Optimal substructure: The remaining subproblem can be solved in the same way
+# → Both properties need to be proven
 ```
 
-### 2.6 バックトラッキング
+### 2.6 Backtracking
 
 ```python
-# バックトラッキング: 探索 + 行き詰まったら戻る
-# 「系統的な試行錯誤」
+# Backtracking: Explore + backtrack when stuck
+# "Systematic trial and error"
 
-# 典型例1: N-Queens問題
+# Classic Example 1: N-Queens Problem
 def solve_n_queens(n):
-    """N×Nチェスボードにn個のクイーンを互いに攻撃し合わないように配置"""
+    """Place n queens on an N×N chessboard so that no two attack each other"""
     solutions = []
     board = [-1] * n  # board[row] = col
 
     def is_safe(row, col):
         for prev_row in range(row):
             prev_col = board[prev_row]
-            # 同じ列または対角線上にないか確認
+            # Check if same column or diagonal
             if prev_col == col or \
                abs(prev_col - col) == abs(prev_row - row):
                 return False
@@ -533,19 +544,19 @@ def solve_n_queens(n):
 
         for col in range(n):
             if is_safe(row, col):
-                board[row] = col        # 選択
-                backtrack(row + 1)      # 探索
-                board[row] = -1         # 元に戻す（バックトラック）
+                board[row] = col        # Choose
+                backtrack(row + 1)      # Explore
+                board[row] = -1         # Undo (backtrack)
 
     backtrack(0)
     return solutions
 
-# 8-Queens: 解は92通り（回転・反転を区別する場合）
-# 計算量: 最悪 O(n!)、枝刈りで大幅に削減
+# 8-Queens: 92 solutions (when distinguishing rotations and reflections)
+# Complexity: Worst case O(n!), significantly reduced by pruning
 
-# 典型例2: 数独ソルバー
+# Classic Example 2: Sudoku Solver
 def solve_sudoku(board):
-    """9×9の数独を解く"""
+    """Solve a 9x9 Sudoku puzzle"""
     def find_empty():
         for i in range(9):
             for j in range(9):
@@ -555,13 +566,13 @@ def solve_sudoku(board):
 
     def is_valid(num, pos):
         row, col = pos
-        # 行チェック
+        # Row check
         if num in board[row]:
             return False
-        # 列チェック
+        # Column check
         if num in [board[i][col] for i in range(9)]:
             return False
-        # 3×3ボックスチェック
+        # 3x3 box check
         box_row, box_col = 3 * (row // 3), 3 * (col // 3)
         for i in range(box_row, box_row + 3):
             for j in range(box_col, box_col + 3):
@@ -571,127 +582,127 @@ def solve_sudoku(board):
 
     empty = find_empty()
     if not empty:
-        return True  # 全マス埋まった → 完成
+        return True  # All cells filled → complete
 
     row, col = empty
     for num in range(1, 10):
         if is_valid(num, (row, col)):
-            board[row][col] = num       # 選択
-            if solve_sudoku(board):     # 探索
+            board[row][col] = num       # Choose
+            if solve_sudoku(board):     # Explore
                 return True
-            board[row][col] = 0         # バックトラック
+            board[row][col] = 0         # Backtrack
 
-    return False  # この状態からは解なし
+    return False  # No solution from this state
 ```
 
-### 2.7 問題解決のフレームワーク
+### 2.7 Problem-Solving Framework
 
 ```
-問題→アルゴリズム→コードの思考プロセス:
+Problem → Algorithm → Code Thought Process:
 
-  ステップ1: 問題を理解する
-  ─────────────────────────
-  - 入力は何か？出力は何か？
-  - 制約条件は？（データサイズ、時間制限）
-  - エッジケースは？
+  Step 1: Understand the Problem
+  ─────────────────────────────
+  - What is the input? What is the output?
+  - What are the constraints? (data size, time limits)
+  - What are the edge cases?
 
-  ステップ2: 手作業で例を解く
-  ─────────────────────────
-  - 具体的な小さい例で手を動かす
-  - パターンを見つける
-  - 自分がどういう手順で解いているか意識する
+  Step 2: Solve Examples by Hand
+  ─────────────────────────────
+  - Work through small, concrete examples manually
+  - Look for patterns
+  - Be conscious of the procedure you are following
 
-  ステップ3: アルゴリズムを設計する
-  ─────────────────────────
-  - 手順を言葉で書き出す
-  - 計算量を見積もる
-  - もっと良い方法がないか検討する
+  Step 3: Design the Algorithm
+  ─────────────────────────────
+  - Write out the steps in words
+  - Estimate the computational complexity
+  - Consider if there is a better approach
 
-  ステップ4: コードに変換する
-  ─────────────────────────
-  - 擬似コード → 実際のコード
-  - エッジケースの処理を追加
+  Step 4: Convert to Code
+  ─────────────────────────────
+  - Pseudocode → actual code
+  - Add edge case handling
 
-  ステップ5: テストと検証
-  ─────────────────────────
-  - 正常系: 基本的な入力
-  - 境界値: 空、1要素、最大値
-  - 異常系: 不正な入力
+  Step 5: Test and Verify
+  ─────────────────────────────
+  - Normal cases: basic inputs
+  - Boundary values: empty, single element, maximum values
+  - Error cases: invalid inputs
 ```
 
 ```
-設計戦略の選択フローチャート:
+Design Strategy Selection Flowchart:
 
-  問題を見たとき → まず全探索を考える（O(n!)? O(2^n)?）
+  When you see a problem → First consider brute force (O(n!)? O(2^n)?)
 
-  制約を確認:
-  ├─ n ≤ 10      → 全探索でOK
-  ├─ n ≤ 20      → ビット全探索、バックトラック
-  ├─ n ≤ 500     → O(n³) DP
-  ├─ n ≤ 5000    → O(n²) DP、全ペア
-  ├─ n ≤ 10^6    → O(n log n) ソート+二分探索、分割統治
-  └─ n ≤ 10^8    → O(n) 線形走査、貪欲法
+  Check the constraints:
+  +-- n <= 10      → Brute force is fine
+  +-- n <= 20      → Bitmask enumeration, backtracking
+  +-- n <= 500     → O(n^3) DP
+  +-- n <= 5000    → O(n^2) DP, all pairs
+  +-- n <= 10^6    → O(n log n) sort + binary search, divide & conquer
+  +-- n <= 10^8    → O(n) linear scan, greedy
 
-  問題の性質を確認:
-  ├─ 最適化問題（最大/最小）
-  │   ├─ 部分問題に分解可能 → DP
-  │   ├─ 局所最適=大域最適が証明可能 → 貪欲法
-  │   └─ 答えの二分探索が可能 → 二分探索 + 判定関数
-  ├─ 探索問題（存在するか/列挙）
-  │   ├─ グラフ/ツリー構造 → BFS/DFS
-  │   ├─ 制約充足 → バックトラック
-  │   └─ 全パターン列挙 → 再帰/ビット全探索
-  └─ 変換問題（AをBに変換）
-      ├─ 最小手数 → BFS
-      └─ 可能性の判定 → DFS/DP
+  Check the nature of the problem:
+  +-- Optimization problem (max/min)
+  |   +-- Decomposable into subproblems → DP
+  |   +-- Local optimum = global optimum (provable) → Greedy
+  |   +-- Binary search on the answer is possible → Binary search + predicate
+  +-- Search problem (existence/enumeration)
+  |   +-- Graph/tree structure → BFS/DFS
+  |   +-- Constraint satisfaction → Backtracking
+  |   +-- Enumerate all patterns → Recursion/bitmask enumeration
+  +-- Transformation problem (convert A to B)
+      +-- Minimum steps → BFS
+      +-- Feasibility check → DFS/DP
 ```
 
-### 2.8 具体例: 配列の最大値を見つける
+### 2.8 Concrete Example: Finding the Maximum Value in an Array
 
 ```python
-# 問題: 配列の中で最大の値を見つける
-# 入力: 整数の配列 (空でない)
-# 出力: 最大の値
+# Problem: Find the maximum value in an array
+# Input: An array of integers (non-empty)
+# Output: The maximum value
 
-# 方法1: 全探索（ブルートフォース）
+# Method 1: Brute force
 def find_max_brute(arr):
-    """全ての要素を1つずつ確認"""
+    """Check every element one by one"""
     max_val = arr[0]
     for i in range(1, len(arr)):
         if arr[i] > max_val:
             max_val = arr[i]
     return max_val
-# 計算量: O(n) — これ以上改善できない（全要素を見る必要がある）
+# Complexity: O(n) — cannot be improved (every element must be examined)
 
-# 方法2: 分割統治
+# Method 2: Divide and conquer
 def find_max_divide(arr, left, right):
-    """配列を半分に分割して各最大値を比較"""
+    """Split the array in half and compare the max of each half"""
     if left == right:
         return arr[left]
     mid = (left + right) // 2
     left_max = find_max_divide(arr, left, mid)
     right_max = find_max_divide(arr, mid + 1, right)
     return max(left_max, right_max)
-# 計算量: O(n) — 同じだが、並列化に適している
+# Complexity: O(n) — same, but well-suited for parallelization
 
-# 方法3: Python組み込み
-max_val = max(arr)  # 内部的に方法1と同じ O(n)
+# Method 3: Python built-in
+max_val = max(arr)  # Internally same as Method 1: O(n)
 
-# この問題ではO(n)が最適（下界）
-# → 全ての要素を少なくとも1回は見なければ最大値は分からない
-# → これを「情報理論的下界」と呼ぶ
+# For this problem, O(n) is optimal (lower bound)
+# → Every element must be examined at least once to determine the maximum
+# → This is called an "information-theoretic lower bound"
 ```
 
-### 2.9 具体例: 二数の合計問題（Two Sum）
+### 2.9 Concrete Example: Two Sum
 
 ```python
-# 問題: 配列から合計が target になる2つの要素のインデックスを返す
-# 入力: nums = [2, 7, 11, 15], target = 9
-# 出力: [0, 1] (nums[0] + nums[1] = 2 + 7 = 9)
+# Problem: Return indices of two elements that sum to target
+# Input: nums = [2, 7, 11, 15], target = 9
+# Output: [0, 1] (nums[0] + nums[1] = 2 + 7 = 9)
 
-# 方法1: 全探索 O(n²)
+# Method 1: Brute force O(n^2)
 def two_sum_brute(nums, target):
-    """全てのペアを試す"""
+    """Try all pairs"""
     n = len(nums)
     for i in range(n):
         for j in range(i + 1, n):
@@ -699,10 +710,10 @@ def two_sum_brute(nums, target):
                 return [i, j]
     return []
 
-# 方法2: ハッシュマップ O(n)
+# Method 2: Hash map O(n)
 def two_sum_hash(nums, target):
-    """見た値を記録して補数を探す"""
-    seen = {}  # 値 → インデックス
+    """Record seen values and look for the complement"""
+    seen = {}  # value → index
     for i, num in enumerate(nums):
         complement = target - num
         if complement in seen:
@@ -710,9 +721,9 @@ def two_sum_hash(nums, target):
         seen[num] = i
     return []
 
-# 方法3: ソート + 二分探索 O(n log n)
+# Method 3: Sort + binary search O(n log n)
 def two_sum_sort(nums, target):
-    """ソートして両端から探す"""
+    """Sort and search from both ends"""
     indexed = sorted(enumerate(nums), key=lambda x: x[1])
     left, right = 0, len(indexed) - 1
     while left < right:
@@ -725,336 +736,346 @@ def two_sum_sort(nums, target):
             right -= 1
     return []
 
-# 比較:
-# ┌─────────────┬───────────┬───────────┬────────────────┐
-# │ 方法        │ 時間      │ 空間      │ 備考            │
-# ├─────────────┼───────────┼───────────┼────────────────┤
-# │ 全探索      │ O(n²)    │ O(1)     │ 最も単純        │
-# │ ハッシュ    │ O(n)     │ O(n)     │ 最速、空間と引替│
-# │ ソート+二分 │ O(n log n)│ O(n)     │ 中間的な選択    │
-# └─────────────┴───────────┴───────────┴────────────────┘
+# Comparison:
+# +-------------+-----------+-----------+-------------------+
+# | Method      | Time      | Space     | Notes             |
+# +-------------+-----------+-----------+-------------------+
+# | Brute force | O(n^2)    | O(1)      | Simplest          |
+# | Hash map    | O(n)      | O(n)      | Fastest, trades   |
+# |             |           |           | space for speed   |
+# | Sort+search | O(n log n)| O(n)      | Middle ground     |
+# +-------------+-----------+-----------+-------------------+
 
-# → 要件に応じて最適な方法を選択する
-# - 速度重視 → ハッシュマップ
-# - メモリ制約 → 全探索（インデックス不要なら方法3）
-# - 複数回の検索 → ソート（前処理の後、各検索はO(log n)）
+# → Choose the best method based on requirements
+# - Speed priority → Hash map
+# - Memory constraint → Brute force (or Method 3 if indices not needed)
+# - Multiple queries → Sort (after preprocessing, each search is O(log n))
 ```
 
 ---
 
-## 3. アルゴリズムの正しさの証明
+## 3. Proving Algorithm Correctness
 
-### 3.1 ループ不変条件
+### 3.1 Loop Invariants
 
 ```python
-# ループ不変条件（Loop Invariant）:
-# ループの各反復の前に成り立つ性質
+# Loop Invariant:
+# A property that holds true before each iteration of a loop
 
 def insertion_sort(arr):
-    """挿入ソート"""
+    """Insertion Sort"""
     for i in range(1, len(arr)):
-        # ループ不変条件: arr[0:i] はソート済み
+        # Loop invariant: arr[0:i] is sorted
         key = arr[i]
         j = i - 1
         while j >= 0 and arr[j] > key:
             arr[j + 1] = arr[j]
             j -= 1
         arr[j + 1] = key
-        # ループ不変条件: arr[0:i+1] はソート済み
-    # 終了時: i = len(arr) なので arr[0:len(arr)] がソート済み ✓
+        # Loop invariant: arr[0:i+1] is sorted
+    # At termination: i = len(arr), so arr[0:len(arr)] is sorted
 
-# ループ不変条件の3つの性質:
-# 1. 初期化: ループ開始前に成り立つ（arr[0:1]は自明にソート済み）
-# 2. 維持:   反復のたびに維持される（各ステップでソート範囲が拡大）
-# 3. 終了:   ループ終了時に目的の性質が成り立つ（全体がソート済み）
+# Three properties of a loop invariant:
+# 1. Initialization: Holds before the loop starts (arr[0:1] is trivially sorted)
+# 2. Maintenance: Maintained at each iteration (sorted range expands each step)
+# 3. Termination: When the loop ends, the desired property holds (entire array is sorted)
 ```
 
 ```python
-# もう一つの例: 線形探索の正しさの証明
+# Another example: Proving correctness of linear search
 
 def linear_search(arr, target):
-    """線形探索"""
+    """Linear Search"""
     for i in range(len(arr)):
-        # ループ不変条件: arr[0:i] に target は存在しない
+        # Loop invariant: target does not exist in arr[0:i]
         if arr[i] == target:
             return i
-    # 終了時: arr[0:len(arr)] に target は存在しない
+    # At termination: target does not exist in arr[0:len(arr)]
     return -1
 
-# 証明:
-# 初期化: i=0 の時、arr[0:0]（空集合）に target はない → 自明に成立 ✓
-# 維持: 反復 i で arr[i] != target なら、arr[0:i+1] にも target はない
-#        → 不変条件が i+1 でも成立 ✓
-# 終了: i = len(arr) なら arr 全体に target がないことが証明済み
-#        return -1 は正しい ✓
-#        途中で arr[i] == target を見つけたら return i も正しい ✓
+# Proof:
+# Initialization: When i=0, arr[0:0] (empty set) does not contain target → trivially true
+# Maintenance: At iteration i, if arr[i] != target, then arr[0:i+1] also does not contain target
+#              → invariant holds for i+1
+# Termination: If i = len(arr), the entire arr does not contain target
+#              → return -1 is correct
+#              If arr[i] == target is found mid-loop, return i is also correct
 ```
 
-### 3.2 再帰の正しさ — 帰納法
+### 3.2 Correctness of Recursion — Mathematical Induction
 
 ```python
-# 数学的帰納法によるアルゴリズムの正しさの証明
+# Proving algorithm correctness using mathematical induction
 
 def factorial(n):
-    """n! を再帰的に計算"""
-    if n <= 1:    # 基底ケース
+    """Compute n! recursively"""
+    if n <= 1:    # Base case
         return 1
-    return n * factorial(n - 1)  # 再帰ケース
+    return n * factorial(n - 1)  # Recursive case
 
-# 証明:
-# 基底ケース: n=0, n=1 の時、1を返す → 0!=1, 1!=1 ✓
-# 帰納ステップ:
-#   factorial(k) = k! が正しいと仮定する（帰納法の仮定）
-#   factorial(k+1) = (k+1) * factorial(k) = (k+1) * k! = (k+1)! ✓
-# よって全ての n≥0 に対して factorial(n) = n! ✓
+# Proof:
+# Base case: For n=0, n=1, returns 1 → 0!=1, 1!=1
+# Inductive step:
+#   Assume factorial(k) = k! is correct (inductive hypothesis)
+#   factorial(k+1) = (k+1) * factorial(k) = (k+1) * k! = (k+1)!
+# Therefore factorial(n) = n! for all n >= 0
 ```
 
 ```python
-# より複雑な例: マージソートの正しさの証明
+# More complex example: Proving correctness of merge sort
 
 def merge_sort(arr):
     if len(arr) <= 1:
-        return arr  # 基底ケース
+        return arr  # Base case
     mid = len(arr) // 2
     left = merge_sort(arr[:mid])
     right = merge_sort(arr[mid:])
     return merge(left, right)
 
-# 証明（強帰納法）:
+# Proof (strong induction):
 #
-# 命題: 長さnの任意の配列に対して、merge_sort(arr)は
-#        arrと同じ要素を持つソート済み配列を返す
+# Proposition: For any array of length n, merge_sort(arr) returns a
+#              sorted array containing the same elements as arr
 #
-# 基底ケース: n=0 または n=1
-#   → 配列はそのまま返される → 自明にソート済み ✓
+# Base case: n=0 or n=1
+#   → The array is returned as-is → trivially sorted
 #
-# 帰納ステップ: n>1 として、n未満の全ての入力で正しいと仮定
-#   1. arr[:mid] の長さは n/2 < n → 帰納法の仮定より left はソート済み
-#   2. arr[mid:] の長さは n-n/2 < n → 帰納法の仮定より right はソート済み
+# Inductive step: Assume correctness for all inputs of size less than n, where n > 1
+#   1. arr[:mid] has length n/2 < n → by inductive hypothesis, left is sorted
+#   2. arr[mid:] has length n - n/2 < n → by inductive hypothesis, right is sorted
 #   3. merge(left, right):
-#      - left, right は共にソート済み
-#      - merge は各ステップで小さい方を選ぶ
-#      - → 結果はソート済み ✓
-#      - 要素は追加も削除もされない
-#      - → 元の要素が全て含まれる ✓
+#      - Both left and right are sorted
+#      - merge picks the smaller element at each step
+#      - → the result is sorted
+#      - No elements are added or removed
+#      - → all original elements are included
 #
-# よって全ての n≥0 に対して merge_sort は正しい ✓
+# Therefore merge_sort is correct for all n >= 0
 ```
 
-### 3.3 背理法による正しさの証明
+### 3.3 Proof by Contradiction
 
 ```python
-# 背理法: 仮に正しくないと仮定して矛盾を導く
+# Proof by Contradiction: Assume incorrectness and derive a contradiction
 
-# 例: ダイクストラ法の正しさ（概略）
+# Example: Correctness of Dijkstra's algorithm (sketch)
 #
-# 命題: ダイクストラ法は非負重みグラフの最短経路を正しく求める
+# Proposition: Dijkstra's algorithm correctly finds shortest paths in
+#              non-negative-weight graphs
 #
-# 証明（概略）:
-# 背理法として、ダイクストラ法が最初に間違った最短距離を
-# 確定するノード v が存在すると仮定する
+# Proof (sketch):
+# Assume, for contradiction, that there exists a node v for which
+# Dijkstra's first assigns an incorrect shortest distance
 #
-# d[v] = ダイクストラが求めた距離
-# δ(v) = 真の最短距離
-# 仮定より d[v] > δ(v)
+# d[v] = distance computed by Dijkstra
+# delta(v) = true shortest distance
+# By assumption: d[v] > delta(v)
 #
-# 真の最短経路 s → ... → u → v を考える
-# u は v の直前のノード
+# Consider the true shortest path s → ... → u → v
+# u is the node immediately before v on this path
 #
-# u は v より先に処理されているので d[u] = δ(u)（v が「最初の」間違い）
-# d[v] ≤ d[u] + w(u,v)  （ダイクストラの緩和操作より）
-#      = δ(u) + w(u,v)   （d[u] = δ(u) より）
-#      = δ(v)            （u→v は最短経路の一部より）
+# Since u was processed before v: d[u] = delta(u) (v is the "first" mistake)
+# d[v] <= d[u] + w(u,v)  (by Dijkstra's relaxation step)
+#       = delta(u) + w(u,v)   (since d[u] = delta(u))
+#       = delta(v)            (since u→v is part of the shortest path)
 #
-# よって d[v] ≤ δ(v) だが、d[v] ≥ δ(v) は自明
-# → d[v] = δ(v) で矛盾！
+# Therefore d[v] <= delta(v), but d[v] >= delta(v) is trivially true
+# → d[v] = delta(v), which is a contradiction!
 #
-# よってダイクストラ法は正しい ✓
+# Therefore Dijkstra's algorithm is correct
 ```
 
 ---
 
-## 4. アルゴリズムの分類
+## 4. Classification of Algorithms
 
-### 4.1 問題の種類別
-
-```
-問題の分類とアルゴリズム:
-
-  ┌─────────────┬──────────────────┬─────────────────┐
-  │ 問題の種類   │ 代表的アルゴリズム │ 実務での例       │
-  ├─────────────┼──────────────────┼─────────────────┤
-  │ 探索        │ 二分探索, ハッシュ │ DB検索, 辞書引き │
-  │ ソート      │ クイックソート,    │ ランキング,      │
-  │             │ マージソート       │ データ整理       │
-  │ グラフ      │ BFS, DFS,        │ 経路探索,        │
-  │             │ ダイクストラ       │ SNSの友達推薦    │
-  │ 文字列      │ KMP, Rabin-Karp  │ 全文検索,        │
-  │             │                  │ テキストエディタ  │
-  │ 最適化      │ DP, 貪欲法       │ スケジューリング, │
-  │             │                  │ リソース配分     │
-  │ 数値計算    │ ニュートン法,     │ 科学シミュレーション│
-  │             │ FFT              │ 信号処理         │
-  │ 暗号        │ RSA, AES,        │ HTTPS,          │
-  │             │ SHA-256          │ 電子署名         │
-  │ 機械学習    │ 勾配降下法,       │ 推薦,           │
-  │             │ 逆伝播           │ 画像認識         │
-  └─────────────┴──────────────────┴─────────────────┘
-```
-
-### 4.2 計算可能性の観点から
+### 4.1 By Problem Type
 
 ```
-問題の難しさの分類:
+Problem Classification and Algorithms:
 
-  ┌──────────────────────────────────────────────────┐
-  │ P（Polynomial）: 多項式時間で解ける問題            │
-  │ 例: ソート O(n log n)、最短経路 O(V+E)            │
-  │                                                   │
-  │ NP: 「解の検証」が多項式時間で可能な問題            │
-  │ 例: 巡回セールスマン問題の解は検証は簡単（O(n)）   │
-  │     だが「求める」のは困難                         │
-  │                                                   │
-  │ NP困難: NP以上に難しい問題                         │
-  │ NP完全: NPかつNP困難                               │
-  │                                                   │
-  │ 未解決問題: P = NP か P ≠ NP か？                  │
-  │ → CS最大の未解決問題（100万ドルのミレニアム賞金問題）│
-  └──────────────────────────────────────────────────┘
-
-  実務への影響:
-  ┌──────────┬───────────────┬──────────────────────┐
-  │ 分類     │ 意味          │ 対処法                │
-  ├──────────┼───────────────┼──────────────────────┤
-  │ P       │ 効率的に解ける │ そのまま実装          │
-  │ NP完全  │ 効率解は多分   │ 近似アルゴリズム、     │
-  │          │ 見つからない  │ ヒューリスティック    │
-  │ 決定不能 │ 解けない      │ 制限を加えて部分解決  │
-  └──────────┴───────────────┴──────────────────────┘
-
-  NP完全問題の実例:
-  - 巡回セールスマン問題（TSP）: 配送ルート最適化
-  - グラフ彩色: スケジューリング、レジスタ割り当て
-  - 充足可能性問題（SAT）: 論理回路の検証
-  - ナップサック問題: リソース割り当て
-  - ハミルトン路: 回路設計
-
-  NP完全と分かったら:
-  1. 入力サイズが小さいなら全探索でOK
-  2. 近似アルゴリズム（最適の1.5倍以内の保証等）
-  3. ヒューリスティック（遺伝的アルゴリズム、焼きなまし法）
-  4. 特殊ケースを見つける（制約の追加で P になる場合）
+  +-------------+------------------+-----------------------+
+  | Problem Type| Representative   | Practical Examples    |
+  |             | Algorithms       |                       |
+  +-------------+------------------+-----------------------+
+  | Search      | Binary search,   | DB queries, dictionary|
+  |             | hashing          | lookups               |
+  | Sorting     | Quicksort,       | Rankings,             |
+  |             | merge sort       | data organization     |
+  | Graph       | BFS, DFS,        | Route finding,        |
+  |             | Dijkstra         | SNS friend suggestion |
+  | String      | KMP, Rabin-Karp  | Full-text search,     |
+  |             |                  | text editors          |
+  | Optimization| DP, greedy       | Scheduling,           |
+  |             |                  | resource allocation   |
+  | Numerical   | Newton's method, | Scientific simulation,|
+  |             | FFT              | signal processing     |
+  | Cryptography| RSA, AES,        | HTTPS,                |
+  |             | SHA-256          | digital signatures    |
+  | Machine     | Gradient descent,| Recommendations,      |
+  | Learning    | backpropagation  | image recognition     |
+  +-------------+------------------+-----------------------+
 ```
 
-### 4.3 実務で頻出するアルゴリズムパターン
+### 4.2 From the Perspective of Computability
 
 ```
-実務でよく使うアルゴリズムパターン:
+Classification of Problem Difficulty:
 
-  1. 二分探索パターン
-  ┌──────────────────────────────────────┐
-  │ 場面: ソート済みデータでの検索         │
-  │ 例: APIレート制限の閾値検索            │
-  │     バージョン管理でのバグ導入コミット  │
-  │     設定値の最適パラメータ探索         │
-  └──────────────────────────────────────┘
+  +----------------------------------------------------------+
+  | P (Polynomial): Problems solvable in polynomial time     |
+  | Examples: Sorting O(n log n), shortest path O(V+E)       |
+  |                                                          |
+  | NP: Problems whose solutions can be verified in          |
+  |     polynomial time                                      |
+  | Example: A TSP solution is easy to verify (O(n)),        |
+  |          but hard to "find"                              |
+  |                                                          |
+  | NP-hard: Problems at least as hard as NP                 |
+  | NP-complete: Both NP and NP-hard                         |
+  |                                                          |
+  | Open problem: Is P = NP or P != NP?                      |
+  | → The greatest unsolved problem in CS                    |
+  |   ($1M Millennium Prize Problem)                         |
+  +----------------------------------------------------------+
 
-  2. ハッシュマップパターン
-  ┌──────────────────────────────────────┐
-  │ 場面: O(1)ルックアップが必要           │
-  │ 例: キャッシュ、重複排除              │
-  │     カウンティング、グルーピング       │
-  │     Two Sum のような探索最適化        │
-  └──────────────────────────────────────┘
+  Practical Implications:
+  +----------+----------------+-----------------------------+
+  | Class    | Meaning        | Approach                    |
+  +----------+----------------+-----------------------------+
+  | P        | Efficiently    | Implement directly          |
+  |          | solvable       |                             |
+  | NP-      | Efficient      | Approximation algorithms,   |
+  | complete | solution       | heuristics                  |
+  |          | likely doesn't |                             |
+  |          | exist          |                             |
+  | Undeci-  | Unsolvable     | Add constraints to solve    |
+  | dable    |                | a restricted version        |
+  +----------+----------------+-----------------------------+
 
-  3. スタック/キューパターン
-  ┌──────────────────────────────────────┐
-  │ 場面: 順序制約のある処理               │
-  │ 例: 括弧の整合性チェック              │
-  │     タスクのスケジューリング           │
-  │     BFS/DFS                          │
-  └──────────────────────────────────────┘
+  Real-world NP-complete problems:
+  - Traveling Salesman Problem (TSP): Delivery route optimization
+  - Graph coloring: Scheduling, register allocation
+  - Boolean Satisfiability (SAT): Logic circuit verification
+  - Knapsack problem: Resource allocation
+  - Hamiltonian path: Circuit design
 
-  4. 二ポインタ/スライディングウィンドウ
-  ┌──────────────────────────────────────┐
-  │ 場面: 配列/文字列の部分列処理          │
-  │ 例: 連続部分配列の最大和              │
-  │     重複なしの最長部分文字列          │
-  │     マージ操作                        │
-  └──────────────────────────────────────┘
+  When a problem is known to be NP-complete:
+  1. If the input size is small, brute force is acceptable
+  2. Use approximation algorithms (guaranteed within 1.5x of optimal, etc.)
+  3. Use heuristics (genetic algorithms, simulated annealing)
+  4. Find special cases (where adding constraints makes it P)
+```
 
-  5. グラフ探索パターン
-  ┌──────────────────────────────────────┐
-  │ 場面: 関係性の探索                     │
-  │ 例: 依存関係の解決（ビルド順序）       │
-  │     ソーシャルグラフの分析            │
-  │     到達可能性の判定                  │
-  └──────────────────────────────────────┘
+### 4.3 Common Algorithm Patterns in Practice
 
-  6. DPパターン
-  ┌──────────────────────────────────────┐
-  │ 場面: 最適化問題                       │
-  │ 例: 最長共通部分列（diff）            │
-  │     編集距離（あいまい検索）           │
-  │     経路数のカウント                  │
-  └──────────────────────────────────────┘
+```
+Algorithm Patterns Frequently Used in Practice:
+
+  1. Binary Search Pattern
+  +----------------------------------------------+
+  | Context: Searching in sorted data            |
+  | Examples: API rate limit threshold search     |
+  |          Finding the bug-introducing commit  |
+  |          Optimal parameter search             |
+  +----------------------------------------------+
+
+  2. Hash Map Pattern
+  +----------------------------------------------+
+  | Context: O(1) lookups needed                 |
+  | Examples: Caching, deduplication             |
+  |          Counting, grouping                  |
+  |          Search optimization (like Two Sum)  |
+  +----------------------------------------------+
+
+  3. Stack/Queue Pattern
+  +----------------------------------------------+
+  | Context: Processing with ordering constraints|
+  | Examples: Parenthesis matching               |
+  |          Task scheduling                     |
+  |          BFS/DFS                             |
+  +----------------------------------------------+
+
+  4. Two Pointers / Sliding Window
+  +----------------------------------------------+
+  | Context: Array/string subsequence processing |
+  | Examples: Maximum subarray sum               |
+  |          Longest substring without repeats   |
+  |          Merge operations                    |
+  +----------------------------------------------+
+
+  5. Graph Search Pattern
+  +----------------------------------------------+
+  | Context: Exploring relationships             |
+  | Examples: Dependency resolution (build order)|
+  |          Social graph analysis               |
+  |          Reachability determination           |
+  +----------------------------------------------+
+
+  6. DP Pattern
+  +----------------------------------------------+
+  | Context: Optimization problems               |
+  | Examples: Longest Common Subsequence (diff)  |
+  |          Edit distance (fuzzy search)        |
+  |          Counting paths                      |
+  +----------------------------------------------+
 ```
 
 ---
 
-## 5. 擬似コードの書き方
+## 5. Writing Pseudocode
 
-### 5.1 擬似コードの記法
+### 5.1 Pseudocode Notation
 
 ```
-擬似コード（Pseudocode）:
-  特定のプログラミング言語に依存しない、
-  アルゴリズムの手順を自然言語に近い形で記述したもの
+Pseudocode:
+  A description of an algorithm's procedure in a form close to
+  natural language, independent of any specific programming language.
 
-基本的な記法:
-  ┌──────────────────────────────────────────┐
-  │ ■ 代入:       x ← 値                     │
-  │ ■ 条件分岐:   if 条件 then ... else ...   │
-  │ ■ ループ:     for i ← 1 to n do ...      │
-  │               while 条件 do ...           │
-  │ ■ 配列:       A[i] で i番目の要素          │
-  │ ■ 関数:       function 名前(引数) → 戻り値│
-  │ ■ コメント:   // この行はコメント          │
-  │ ■ 入力:       read(x)                     │
-  │ ■ 出力:       print(x)                    │
-  │ ■ 戻り値:     return 値                   │
-  └──────────────────────────────────────────┘
+Basic notation:
+  +----------------------------------------------+
+  | Assignment:   x <- value                     |
+  | Conditional:  if condition then ... else ...  |
+  | Loop:         for i <- 1 to n do ...         |
+  |               while condition do ...          |
+  | Array:        A[i] for the i-th element      |
+  | Function:     function name(params) -> return |
+  | Comment:      // This line is a comment      |
+  | Input:        read(x)                        |
+  | Output:       print(x)                       |
+  | Return value: return value                   |
+  +----------------------------------------------+
 
-例: 二分探索の擬似コード
+Example: Pseudocode for Binary Search
 
   function BINARY-SEARCH(A, target)
-    left ← 0
-    right ← length(A) - 1
+    left <- 0
+    right <- length(A) - 1
 
-    while left ≤ right do
-      mid ← ⌊(left + right) / 2⌋
+    while left <= right do
+      mid <- floor((left + right) / 2)
 
       if A[mid] = target then
         return mid
       else if A[mid] < target then
-        left ← mid + 1
+        left <- mid + 1
       else
-        right ← mid - 1
+        right <- mid - 1
 
     return -1  // not found
 ```
 
-### 5.2 擬似コードからコードへの変換
+### 5.2 Converting Pseudocode to Code
 
 ```python
-# 擬似コードをPython、Java、Go、TypeScriptに変換する例
+# Converting pseudocode to Python, Java, Go, and TypeScript
 
-# 擬似コード:
+# Pseudocode:
 # function GCD(a, b)
-#   while b ≠ 0 do
-#     temp ← b
-#     b ← a mod b
-#     a ← temp
+#   while b != 0 do
+#     temp <- b
+#     b <- a mod b
+#     a <- temp
 #   return a
 
 # Python:
@@ -1098,154 +1119,156 @@ function gcd(a: number, b: number): number {
 
 ---
 
-## 6. アルゴリズムの評価基準
+## 6. Evaluation Criteria for Algorithms
 
-### 6.1 時間計算量以外の評価基準
-
-```
-アルゴリズムの評価基準（包括的）:
-
-  1. 時間計算量（Time Complexity）
-     → 入力サイズに対する実行時間の成長率
-     → 最悪 / 平均 / 最良ケース
-
-  2. 空間計算量（Space Complexity）
-     → 追加で必要なメモリ量
-     → 入力データ自体を含めるか含めないか注意
-
-  3. 正しさ（Correctness）
-     → 全ての有効な入力に対して正しい出力を返すか
-     → 証明方法: ループ不変条件、帰納法、背理法
-
-  4. 安定性（Stability）
-     → ソートアルゴリズム特有: 同値要素の相対順序を保持するか
-
-  5. 適応性（Adaptivity）
-     → 入力の特性（ほぼソート済み等）に応じて性能が改善するか
-     → 例: 挿入ソートはほぼソート済みデータに O(n)
-
-  6. オンライン性（Online）
-     → データが逐次到着しても処理できるか
-     → 例: 挿入ソートはオンライン、マージソートはオフライン
-
-  7. 並列化可能性（Parallelizability）
-     → マルチコア/GPUで効率的に並列化できるか
-     → 例: マージソートは並列化に適する
-
-  8. キャッシュ効率（Cache Efficiency）
-     → CPUキャッシュを効率的に利用できるか
-     → 例: クイックソートはキャッシュ効率が良い
-
-  9. 実装の容易さ（Simplicity）
-     → コードの複雑さ、バグの入りやすさ
-     → 実務では重要な考慮点
-
-  10. 定数倍の小ささ（Constant Factor）
-      → Big-O が同じでも定数倍で実際の速度が異なる
-      → 例: O(n) でも 2n と 100n では50倍の差
-```
-
-### 6.2 アルゴリズム選択の実務的判断
+### 6.1 Evaluation Criteria Beyond Time Complexity
 
 ```
-実務でのアルゴリズム選択の指針:
+Comprehensive Evaluation Criteria for Algorithms:
 
-  ┌──────────────────────────────────────────────┐
-  │ まず動くものを作れ。次に正しくしろ。           │
-  │ 最後に速くしろ。                               │
-  │                           — Kent Beck           │
-  └──────────────────────────────────────────────┘
+  1. Time Complexity
+     → Growth rate of execution time relative to input size
+     → Worst / average / best case
 
-  1. 「十分に速い」を定義する
-     - Webアプリ: 200ms以内のレスポンス
-     - バッチ処理: SLA内で完了すること
-     - リアルタイム: 16ms以内（60fps）
+  2. Space Complexity
+     → Amount of additional memory required
+     → Note whether the input data itself is included
 
-  2. 「最適なアルゴリズム」が最善とは限らない
-     - n=100の時、O(n²)とO(n log n)の差は軽微
-     - 読みやすさ・保守性も重要な評価基準
-     - 標準ライブラリの実装を使えるなら使う
+  3. Correctness
+     → Does it return the correct output for all valid inputs?
+     → Proof methods: Loop invariants, induction, proof by contradiction
 
-  3. プロファイリングしてからの最適化
-     - 推測ではなく計測で判断（premature optimizationの回避）
-     - ボトルネックを特定してから改善
+  4. Stability
+     → Specific to sorting algorithms: Does it preserve the relative
+        order of equal elements?
 
-  4. トレードオフの意識
-     - 時間 vs 空間
-     - 正確性 vs 速度
-     - 実装コスト vs 性能改善
+  5. Adaptivity
+     → Does performance improve based on input characteristics
+        (e.g., nearly sorted)?
+     → Example: Insertion sort runs in O(n) on nearly sorted data
 
-  判断フロー:
-  ┌──────────────────────────────────────┐
-  │ 1. 標準ライブラリに実装はあるか？      │
-  │    → Yes → 使う                       │
-  │    → No → 2へ                         │
-  │                                       │
-  │ 2. 最も単純な実装で十分速いか？         │
-  │    → Yes → 使う                       │
-  │    → No → 3へ                         │
-  │                                       │
-  │ 3. ボトルネックは計算量か定数倍か？     │
-  │    → 計算量 → より良いアルゴリズムを選択│
-  │    → 定数倍 → キャッシュ最適化等       │
-  └──────────────────────────────────────┘
+  6. Online Property
+     → Can it process data as it arrives incrementally?
+     → Example: Insertion sort is online; merge sort is offline
+
+  7. Parallelizability
+     → Can it be efficiently parallelized on multi-core/GPU?
+     → Example: Merge sort is well-suited for parallelization
+
+  8. Cache Efficiency
+     → Does it use the CPU cache efficiently?
+     → Example: Quicksort has good cache efficiency
+
+  9. Implementation Simplicity
+     → Code complexity, susceptibility to bugs
+     → An important consideration in practice
+
+  10. Constant Factor
+      → Even with the same Big-O, actual speed differs by constant factors
+      → Example: O(n) with factor 2n vs 100n is a 50x difference
+```
+
+### 6.2 Practical Judgment for Algorithm Selection
+
+```
+Guidelines for Algorithm Selection in Practice:
+
+  +----------------------------------------------------+
+  | "Make it work. Make it right. Make it fast."        |
+  |                           — Kent Beck               |
+  +----------------------------------------------------+
+
+  1. Define "fast enough"
+     - Web apps: Response within 200ms
+     - Batch processing: Complete within SLA
+     - Real-time: Within 16ms (60fps)
+
+  2. The "optimal algorithm" is not always the best choice
+     - For n=100, the difference between O(n^2) and O(n log n) is negligible
+     - Readability and maintainability are also important criteria
+     - Use standard library implementations when available
+
+  3. Optimize after profiling
+     - Make decisions based on measurement, not guessing
+       (avoid premature optimization)
+     - Identify the bottleneck before improving
+
+  4. Be aware of trade-offs
+     - Time vs. space
+     - Accuracy vs. speed
+     - Implementation cost vs. performance gain
+
+  Decision flow:
+  +----------------------------------------------+
+  | 1. Is there a standard library implementation?|
+  |    → Yes → Use it                            |
+  |    → No → Go to 2                            |
+  |                                              |
+  | 2. Is the simplest implementation fast enough?|
+  |    → Yes → Use it                            |
+  |    → No → Go to 3                            |
+  |                                              |
+  | 3. Is the bottleneck asymptotic or constant? |
+  |    → Asymptotic → Choose a better algorithm  |
+  |    → Constant → Cache optimization, etc.     |
+  +----------------------------------------------+
 ```
 
 ---
 
-## 7. 実践演習
+## 7. Exercises
 
-### 演習1: 日常のアルゴリズム（基礎）
-以下の日常作業をアルゴリズムとして記述せよ（5条件を満たすように）:
-1. 本棚で特定の本を探す
-2. トランプを並べ替える
-3. 自動販売機でお釣りを出すプロセス
+### Exercise 1: Everyday Algorithms (Basic)
+Describe the following everyday tasks as algorithms (satisfying all five properties):
+1. Finding a specific book on a bookshelf
+2. Sorting playing cards
+3. The process of dispensing change from a vending machine
 
-### 演習2: 問題解決プロセス（応用）
-「配列から重複する要素を全て取り除く」問題を、3つの異なる方法で解き、各計算量を比較せよ。
+### Exercise 2: Problem-Solving Process (Intermediate)
+Solve the problem "Remove all duplicate elements from an array" using three different methods, and compare the complexity of each.
 
-### 演習3: 設計戦略の選択（応用）
-以下の各問題に最も適したアルゴリズム設計戦略を選び、理由と共に擬似コードを書け:
-1. N人の中からK人を選ぶ全ての組み合わせを列挙
-2. 連続する部分配列の中で最大の合計値を求める
-3. グラフの全ての頂点を訪問する最短ルート（TSP）
+### Exercise 3: Choosing a Design Strategy (Intermediate)
+For each of the following problems, choose the most suitable algorithm design strategy and write pseudocode with justification:
+1. Enumerate all combinations of choosing K people from N
+2. Find the maximum sum of a contiguous subarray
+3. Find the shortest route visiting all vertices in a graph (TSP)
 
-### 演習4: 正しさの証明（発展）
-二分探索アルゴリズムの正しさをループ不変条件を用いて証明せよ。ループ不変条件として「targetが配列に存在するならば、arr[left]〜arr[right]の範囲内に存在する」を使用せよ。
+### Exercise 4: Proof of Correctness (Advanced)
+Prove the correctness of the binary search algorithm using loop invariants. Use the invariant: "If the target exists in the array, it exists within the range arr[left]...arr[right]."
 
-### 演習5: アルゴリズムの比較（発展）
-同じ問題を3つの異なる設計戦略（全探索、DP、貪欲法）で解き、それぞれの利点・欠点を実測データと共に報告せよ。問題例: コイン問題（最少枚数で目標金額を作る）。
+### Exercise 5: Comparing Algorithms (Advanced)
+Solve the same problem using three different design strategies (brute force, DP, greedy) and report the advantages and disadvantages of each with empirical data. Example problem: The coin problem (make a target amount with the minimum number of coins).
 
 
 ---
 
-## トラブルシューティング
+## Troubleshooting
 
-### よくあるエラーと解決策
+### Common Errors and Solutions
 
-| エラー | 原因 | 解決策 |
-|--------|------|--------|
-| 初期化エラー | 設定ファイルの不備 | 設定ファイルのパスと形式を確認 |
-| タイムアウト | ネットワーク遅延/リソース不足 | タイムアウト値の調整、リトライ処理の追加 |
-| メモリ不足 | データ量の増大 | バッチ処理の導入、ページネーションの実装 |
-| 権限エラー | アクセス権限の不足 | 実行ユーザーの権限確認、設定の見直し |
-| データ不整合 | 並行処理の競合 | ロック機構の導入、トランザクション管理 |
+| Error | Cause | Solution |
+|-------|-------|----------|
+| Initialization error | Configuration file issues | Verify configuration file path and format |
+| Timeout | Network latency / resource shortage | Adjust timeout values, add retry logic |
+| Out of memory | Data volume growth | Introduce batch processing, implement pagination |
+| Permission error | Insufficient access rights | Verify user permissions, review settings |
+| Data inconsistency | Concurrency conflicts | Introduce locking mechanisms, transaction management |
 
-### デバッグの手順
+### Debugging Procedure
 
-1. **エラーメッセージの確認**: スタックトレースを読み、発生箇所を特定する
-2. **再現手順の確立**: 最小限のコードでエラーを再現する
-3. **仮説の立案**: 考えられる原因をリストアップする
-4. **段階的な検証**: ログ出力やデバッガを使って仮説を検証する
-5. **修正と回帰テスト**: 修正後、関連する箇所のテストも実行する
+1. **Check error messages**: Read the stack trace to identify the location
+2. **Establish reproduction steps**: Reproduce the error with minimal code
+3. **Formulate hypotheses**: List possible causes
+4. **Verify incrementally**: Use log output or a debugger to test hypotheses
+5. **Fix and regression test**: After fixing, run tests on related areas as well
 
 ```python
-# デバッグ用ユーティリティ
+# Debugging utility
 import logging
 import traceback
 from functools import wraps
 
-# ロガーの設定
+# Logger configuration
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
@@ -1253,102 +1276,102 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def debug_decorator(func):
-    """関数の入出力をログ出力するデコレータ"""
+    """A decorator that logs function inputs and outputs"""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        logger.debug(f"呼び出し: {func.__name__}(args={args}, kwargs={kwargs})")
+        logger.debug(f"Call: {func.__name__}(args={args}, kwargs={kwargs})")
         try:
             result = func(*args, **kwargs)
-            logger.debug(f"戻り値: {func.__name__} -> {result}")
+            logger.debug(f"Return: {func.__name__} -> {result}")
             return result
         except Exception as e:
-            logger.error(f"例外発生: {func.__name__}: {e}")
+            logger.error(f"Exception in {func.__name__}: {e}")
             logger.error(traceback.format_exc())
             raise
     return wrapper
 
 @debug_decorator
 def process_data(items):
-    """データ処理（デバッグ対象）"""
+    """Data processing (debug target)"""
     if not items:
-        raise ValueError("空のデータ")
+        raise ValueError("Empty data")
     return [item * 2 for item in items]
 ```
 
-### パフォーマンス問題の診断
+### Diagnosing Performance Issues
 
-パフォーマンス問題が発生した場合の診断手順:
+Steps for diagnosing performance issues:
 
-1. **ボトルネックの特定**: プロファイリングツールで計測
-2. **メモリ使用量の確認**: メモリリークの有無をチェック
-3. **I/O待ちの確認**: ディスクやネットワークI/Oの状況を確認
-4. **同時接続数の確認**: コネクションプールの状態を確認
+1. **Identify the bottleneck**: Measure with profiling tools
+2. **Check memory usage**: Look for memory leaks
+3. **Check I/O waits**: Examine disk and network I/O conditions
+4. **Check concurrent connections**: Examine connection pool status
 
-| 問題の種類 | 診断ツール | 対策 |
-|-----------|-----------|------|
-| CPU負荷 | cProfile, py-spy | アルゴリズム改善、並列化 |
-| メモリリーク | tracemalloc, objgraph | 参照の適切な解放 |
-| I/Oボトルネック | strace, iostat | 非同期I/O、キャッシュ |
-| DB遅延 | EXPLAIN, slow query log | インデックス、クエリ最適化 |
+| Issue Type | Diagnostic Tools | Countermeasures |
+|-----------|-----------------|-----------------|
+| CPU load | cProfile, py-spy | Algorithm improvement, parallelization |
+| Memory leak | tracemalloc, objgraph | Proper reference release |
+| I/O bottleneck | strace, iostat | Async I/O, caching |
+| DB latency | EXPLAIN, slow query log | Indexing, query optimization |
 
 ---
 
-## 設計判断ガイド
+## Design Decision Guide
 
-### 選択基準マトリクス
+### Selection Criteria Matrix
 
-技術選択を行う際の判断基準を以下にまとめます。
+The following summarizes the decision criteria for making technology choices.
 
-| 判断基準 | 重視する場合 | 妥協できる場合 |
-|---------|------------|-------------|
-| パフォーマンス | リアルタイム処理、大規模データ | 管理画面、バッチ処理 |
-| 保守性 | 長期運用、チーム開発 | プロトタイプ、短期プロジェクト |
-| スケーラビリティ | 成長が見込まれるサービス | 社内ツール、固定ユーザー |
-| セキュリティ | 個人情報、金融データ | 公開データ、社内利用 |
-| 開発速度 | MVP、市場投入スピード | 品質重視、ミッションクリティカル |
+| Criterion | Prioritize When | Acceptable to Compromise When |
+|-----------|----------------|-------------------------------|
+| Performance | Real-time processing, large-scale data | Admin panels, batch processing |
+| Maintainability | Long-term operation, team development | Prototypes, short-term projects |
+| Scalability | Growing services | Internal tools, fixed user base |
+| Security | Personal data, financial data | Public data, internal use |
+| Development speed | MVP, time-to-market | Quality-critical, mission-critical |
 
-### アーキテクチャパターンの選択
+### Architecture Pattern Selection
 
 ```
-┌─────────────────────────────────────────────────┐
-│              アーキテクチャ選択フロー              │
-├─────────────────────────────────────────────────┤
-│                                                 │
-│  ① チーム規模は？                                │
-│    ├─ 小規模（1-5人）→ モノリス                   │
-│    └─ 大規模（10人+）→ ②へ                       │
-│                                                 │
-│  ② デプロイ頻度は？                               │
-│    ├─ 週1回以下 → モノリス + モジュール分割         │
-│    └─ 毎日/複数回 → ③へ                          │
-│                                                 │
-│  ③ チーム間の独立性は？                            │
-│    ├─ 高い → マイクロサービス                      │
-│    └─ 中程度 → モジュラーモノリス                   │
-│                                                 │
-└─────────────────────────────────────────────────┘
++-----------------------------------------------------+
+|          Architecture Selection Flow                 |
++-----------------------------------------------------+
+|                                                     |
+|  (1) Team size?                                     |
+|    +-- Small (1-5) → Monolith                       |
+|    +-- Large (10+) → Go to (2)                      |
+|                                                     |
+|  (2) Deployment frequency?                          |
+|    +-- Once a week or less → Monolith + module split|
+|    +-- Daily / multiple times → Go to (3)           |
+|                                                     |
+|  (3) Team independence?                             |
+|    +-- High → Microservices                         |
+|    +-- Medium → Modular monolith                    |
+|                                                     |
++-----------------------------------------------------+
 ```
 
-### トレードオフの分析
+### Trade-off Analysis
 
-技術的な判断には必ずトレードオフが伴います。以下の観点で分析を行いましょう:
+Technical decisions always involve trade-offs. Analyze from the following perspectives:
 
-**1. 短期 vs 長期のコスト**
-- 短期的に速い方法が長期的には技術的負債になることがある
-- 逆に、過剰な設計は短期的なコストが高く、プロジェクトの遅延を招く
+**1. Short-term vs. Long-term Cost**
+- A quick approach may become technical debt in the long run
+- Conversely, over-engineering incurs high short-term costs and delays projects
 
-**2. 一貫性 vs 柔軟性**
-- 統一された技術スタックは学習コストが低い
-- 多様な技術の採用は適材適所が可能だが、運用コストが増加
+**2. Consistency vs. Flexibility**
+- A unified tech stack has lower learning costs
+- Diverse technologies enable best-fit choices but increase operational costs
 
-**3. 抽象化のレベル**
-- 高い抽象化は再利用性が高いが、デバッグが困難になる場合がある
-- 低い抽象化は直感的だが、コードの重複が発生しやすい
+**3. Level of Abstraction**
+- High abstraction offers reusability but can make debugging difficult
+- Low abstraction is intuitive but prone to code duplication
 
 ```python
-# 設計判断の記録テンプレート
+# Template for recording design decisions
 class ArchitectureDecisionRecord:
-    """ADR (Architecture Decision Record) の作成"""
+    """Create an ADR (Architecture Decision Record)"""
 
     def __init__(self, title: str):
         self.title = title
@@ -1358,17 +1381,17 @@ class ArchitectureDecisionRecord:
         self.alternatives = []
 
     def set_context(self, context: str):
-        """背景と課題の記述"""
+        """Describe the background and problem"""
         self.context = context
         return self
 
     def set_decision(self, decision: str):
-        """決定内容の記述"""
+        """Describe the decision"""
         self.decision = decision
         return self
 
     def add_consequence(self, consequence: str, positive: bool = True):
-        """結果の追加"""
+        """Add a consequence"""
         self.consequences.append({
             'description': consequence,
             'type': 'positive' if positive else 'negative'
@@ -1376,7 +1399,7 @@ class ArchitectureDecisionRecord:
         return self
 
     def add_alternative(self, name: str, reason_rejected: str):
-        """却下した代替案の追加"""
+        """Add a rejected alternative"""
         self.alternatives.append({
             'name': name,
             'reason_rejected': reason_rejected
@@ -1384,15 +1407,15 @@ class ArchitectureDecisionRecord:
         return self
 
     def to_markdown(self) -> str:
-        """Markdown形式で出力"""
+        """Output in Markdown format"""
         md = f"# ADR: {self.title}\n\n"
-        md += f"## 背景\n{self.context}\n\n"
-        md += f"## 決定\n{self.decision}\n\n"
-        md += "## 結果\n"
+        md += f"## Context\n{self.context}\n\n"
+        md += f"## Decision\n{self.decision}\n\n"
+        md += "## Consequences\n"
         for c in self.consequences:
-            icon = "✅" if c['type'] == 'positive' else "⚠️"
+            icon = "+" if c['type'] == 'positive' else "!"
             md += f"- {icon} {c['description']}\n"
-        md += "\n## 却下した代替案\n"
+        md += "\n## Rejected Alternatives\n"
         for a in self.alternatives:
             md += f"- **{a['name']}**: {a['reason_rejected']}\n"
         return md
@@ -1400,53 +1423,53 @@ class ArchitectureDecisionRecord:
 
 ---
 
-## 実務での適用シナリオ
+## Practical Application Scenarios
 
-### シナリオ1: スタートアップでのMVP開発
+### Scenario 1: MVP Development at a Startup
 
-**状況:** 限られたリソースで素早くプロダクトをリリースする必要がある
+**Situation:** Need to release a product quickly with limited resources
 
-**アプローチ:**
-- シンプルなアーキテクチャを選択
-- 必要最小限の機能に集中
-- 自動テストはクリティカルパスのみ
-- モニタリングは早期から導入
+**Approach:**
+- Choose a simple architecture
+- Focus on the minimum viable features
+- Automated tests only for the critical path
+- Introduce monitoring from the start
 
-**学んだ教訓:**
-- 完璧を求めすぎない（YAGNI原則）
-- ユーザーフィードバックを早期に取得
-- 技術的負債は意識的に管理する
+**Lessons Learned:**
+- Do not pursue perfection (YAGNI principle)
+- Get user feedback early
+- Manage technical debt consciously
 
-### シナリオ2: レガシーシステムのモダナイゼーション
+### Scenario 2: Modernizing a Legacy System
 
-**状況:** 10年以上運用されているシステムを段階的に刷新する
+**Situation:** Incrementally modernize a system that has been running for 10+ years
 
-**アプローチ:**
-- Strangler Fig パターンで段階的に移行
-- 既存のテストがない場合はCharacterization Testを先に作成
-- APIゲートウェイで新旧システムを共存
-- データ移行は段階的に実施
+**Approach:**
+- Use the Strangler Fig pattern for incremental migration
+- If existing tests are absent, create Characterization Tests first
+- Use an API gateway to have old and new systems coexist
+- Perform data migration in stages
 
-| フェーズ | 作業内容 | 期間目安 | リスク |
-|---------|---------|---------|--------|
-| 1. 調査 | 現状分析、依存関係の把握 | 2-4週間 | 低 |
-| 2. 基盤 | CI/CD構築、テスト環境 | 4-6週間 | 低 |
-| 3. 移行開始 | 周辺機能から順次移行 | 3-6ヶ月 | 中 |
-| 4. コア移行 | 中核機能の移行 | 6-12ヶ月 | 高 |
-| 5. 完了 | 旧システム廃止 | 2-4週間 | 中 |
+| Phase | Work Content | Estimated Duration | Risk |
+|-------|-------------|-------------------|------|
+| 1. Investigation | Current state analysis, dependency mapping | 2-4 weeks | Low |
+| 2. Foundation | CI/CD setup, test environment | 4-6 weeks | Low |
+| 3. Migration start | Migrate peripheral features first | 3-6 months | Medium |
+| 4. Core migration | Migrate core functionality | 6-12 months | High |
+| 5. Completion | Decommission old system | 2-4 weeks | Medium |
 
-### シナリオ3: 大規模チームでの開発
+### Scenario 3: Large-Scale Team Development
 
-**状況:** 50人以上のエンジニアが同一プロダクトを開発する
+**Situation:** 50+ engineers developing the same product
 
-**アプローチ:**
-- ドメイン駆動設計で境界を明確化
-- チームごとにオーナーシップを設定
-- 共通ライブラリはInner Source方式で管理
-- APIファーストで設計し、チーム間の依存を最小化
+**Approach:**
+- Use domain-driven design to clarify boundaries
+- Assign ownership per team
+- Manage shared libraries using an Inner Source model
+- Design API-first to minimize cross-team dependencies
 
 ```python
-# チーム間のAPI契約定義
+# API contract definition between teams
 from dataclasses import dataclass
 from typing import List, Optional
 from enum import Enum
@@ -1459,20 +1482,20 @@ class Priority(Enum):
 
 @dataclass
 class APIContract:
-    """チーム間のAPI契約"""
+    """API contract between teams"""
     endpoint: str
     method: str
     owner_team: str
     consumers: List[str]
-    sla_ms: int  # レスポンスタイムSLA
+    sla_ms: int  # Response time SLA
     priority: Priority
 
     def validate_sla(self, actual_ms: int) -> bool:
-        """SLA準拠の確認"""
+        """Check SLA compliance"""
         return actual_ms <= self.sla_ms
 
     def to_openapi(self) -> dict:
-        """OpenAPI形式で出力"""
+        """Output in OpenAPI format"""
         return {
             'path': self.endpoint,
             'method': self.method,
@@ -1481,7 +1504,7 @@ class APIContract:
             'x-sla-ms': self.sla_ms
         }
 
-# 使用例
+# Usage example
 contracts = [
     APIContract(
         endpoint="/api/v1/users",
@@ -1502,104 +1525,104 @@ contracts = [
 ]
 ```
 
-### シナリオ4: パフォーマンスクリティカルなシステム
+### Scenario 4: Performance-Critical Systems
 
-**状況:** ミリ秒単位のレスポンスが求められるシステム
+**Situation:** A system requiring millisecond-level response times
 
-**最適化ポイント:**
-1. キャッシュ戦略（L1: インメモリ、L2: Redis、L3: CDN）
-2. 非同期処理の活用
-3. コネクションプーリング
-4. クエリ最適化とインデックス設計
+**Optimization Points:**
+1. Caching strategy (L1: in-memory, L2: Redis, L3: CDN)
+2. Leverage asynchronous processing
+3. Connection pooling
+4. Query optimization and index design
 
-| 最適化手法 | 効果 | 実装コスト | 適用場面 |
-|-----------|------|-----------|---------|
-| インメモリキャッシュ | 高 | 低 | 頻繁にアクセスされるデータ |
-| CDN | 高 | 低 | 静的コンテンツ |
-| 非同期処理 | 中 | 中 | I/O待ちが多い処理 |
-| DB最適化 | 高 | 高 | クエリが遅い場合 |
-| コード最適化 | 低-中 | 高 | CPU律速の場合 |
-
----
-
-## チーム開発での活用
-
-### コードレビューのチェックリスト
-
-このトピックに関連するコードレビューで確認すべきポイント:
-
-- [ ] 命名規則が一貫しているか
-- [ ] エラーハンドリングが適切か
-- [ ] テストカバレッジは十分か
-- [ ] パフォーマンスへの影響はないか
-- [ ] セキュリティ上の問題はないか
-- [ ] ドキュメントは更新されているか
-
-### ナレッジ共有のベストプラクティス
-
-| 方法 | 頻度 | 対象 | 効果 |
-|------|------|------|------|
-| ペアプログラミング | 随時 | 複雑なタスク | 即時のフィードバック |
-| テックトーク | 週1回 | チーム全体 | 知識の水平展開 |
-| ADR (設計記録) | 都度 | 将来のメンバー | 意思決定の透明性 |
-| 振り返り | 2週間ごと | チーム全体 | 継続的改善 |
-| モブプログラミング | 月1回 | 重要な設計 | 合意形成 |
-
-### 技術的負債の管理
-
-```
-優先度マトリクス:
-
-        影響度 高
-          │
-    ┌─────┼─────┐
-    │ 計画 │ 即座 │
-    │ 的に │ に   │
-    │ 対応 │ 対応 │
-    ├─────┼─────┤
-    │ 記録 │ 次の │
-    │ のみ │ Sprint│
-    │     │ で   │
-    └─────┼─────┘
-          │
-        影響度 低
-    発生頻度 低  発生頻度 高
-```
+| Optimization Technique | Effect | Implementation Cost | Applicable Scenario |
+|----------------------|--------|-------------------|-------------------|
+| In-memory cache | High | Low | Frequently accessed data |
+| CDN | High | Low | Static content |
+| Async processing | Medium | Medium | I/O-heavy processing |
+| DB optimization | High | High | Slow queries |
+| Code optimization | Low-Medium | High | CPU-bound cases |
 
 ---
 
-## セキュリティの考慮事項
+## Leveraging in Team Development
 
-### 一般的な脆弱性と対策
+### Code Review Checklist
 
-| 脆弱性 | リスクレベル | 対策 | 検出方法 |
-|--------|------------|------|---------|
-| インジェクション攻撃 | 高 | 入力値のバリデーション・パラメータ化クエリ | SAST/DAST |
-| 認証の不備 | 高 | 多要素認証・セッション管理の強化 | ペネトレーションテスト |
-| 機密データの露出 | 高 | 暗号化・アクセス制御 | セキュリティ監査 |
-| 設定の不備 | 中 | セキュリティヘッダー・最小権限の原則 | 構成スキャン |
-| ログの不足 | 中 | 構造化ログ・監査証跡 | ログ分析 |
+Key points to check in code reviews related to this topic:
 
-### セキュアコーディングのベストプラクティス
+- [ ] Naming conventions are consistent
+- [ ] Error handling is appropriate
+- [ ] Test coverage is sufficient
+- [ ] There is no performance impact
+- [ ] There are no security issues
+- [ ] Documentation has been updated
+
+### Best Practices for Knowledge Sharing
+
+| Method | Frequency | Target | Effect |
+|--------|-----------|--------|--------|
+| Pair programming | As needed | Complex tasks | Immediate feedback |
+| Tech talks | Weekly | Entire team | Horizontal knowledge spread |
+| ADR (Decision Records) | Per decision | Future team members | Decision transparency |
+| Retrospectives | Biweekly | Entire team | Continuous improvement |
+| Mob programming | Monthly | Important designs | Consensus building |
+
+### Managing Technical Debt
+
+```
+Priority Matrix:
+
+        High Impact
+          |
+    +-----+-----+
+    | Plan | Act  |
+    | for  | imme-|
+    | later| diately|
+    +-----+-----+
+    | Record| Next |
+    | only | Sprint|
+    |      |      |
+    +-----+-----+
+          |
+        Low Impact
+    Low Frequency  High Frequency
+```
+
+---
+
+## Security Considerations
+
+### Common Vulnerabilities and Countermeasures
+
+| Vulnerability | Risk Level | Countermeasure | Detection Method |
+|--------------|-----------|----------------|-----------------|
+| Injection attacks | High | Input validation, parameterized queries | SAST/DAST |
+| Authentication flaws | High | MFA, session management hardening | Penetration testing |
+| Sensitive data exposure | High | Encryption, access control | Security audit |
+| Misconfiguration | Medium | Security headers, principle of least privilege | Configuration scan |
+| Insufficient logging | Medium | Structured logging, audit trails | Log analysis |
+
+### Secure Coding Best Practices
 
 ```python
-# セキュアコーディング例
+# Secure coding examples
 import hashlib
 import secrets
 import hmac
 from typing import Optional
 
 class SecurityUtils:
-    """セキュリティユーティリティ"""
+    """Security utilities"""
 
     @staticmethod
     def generate_token(length: int = 32) -> str:
-        """暗号学的に安全なトークン生成"""
+        """Generate a cryptographically secure token"""
         return secrets.token_urlsafe(length)
 
     @staticmethod
     def hash_password(password: str, salt: Optional[str] = None) -> tuple:
-        """パスワードのハッシュ化"""
+        """Hash a password"""
         if salt is None:
             salt = secrets.token_hex(16)
         hashed = hashlib.pbkdf2_hmac(
@@ -1612,50 +1635,50 @@ class SecurityUtils:
 
     @staticmethod
     def verify_password(password: str, hashed: str, salt: str) -> bool:
-        """パスワードの検証"""
+        """Verify a password"""
         new_hash, _ = SecurityUtils.hash_password(password, salt)
         return hmac.compare_digest(new_hash, hashed)
 
     @staticmethod
     def sanitize_input(value: str) -> str:
-        """入力値のサニタイズ"""
+        """Sanitize input values"""
         dangerous_chars = ['<', '>', '"', "'", '&', '\\']
         result = value
         for char in dangerous_chars:
             result = result.replace(char, '')
         return result.strip()
 
-# 使用例
+# Usage example
 token = SecurityUtils.generate_token()
 hashed, salt = SecurityUtils.hash_password("my_password")
 is_valid = SecurityUtils.verify_password("my_password", hashed, salt)
 ```
 
-### セキュリティチェックリスト
+### Security Checklist
 
-- [ ] 全ての入力値がバリデーションされている
-- [ ] 機密情報がログに出力されていない
-- [ ] HTTPS が強制されている
-- [ ] CORS ポリシーが適切に設定されている
-- [ ] 依存パッケージの脆弱性スキャンが実施されている
-- [ ] エラーメッセージに内部情報が含まれていない
+- [ ] All input values are validated
+- [ ] Sensitive information is not output in logs
+- [ ] HTTPS is enforced
+- [ ] CORS policy is properly configured
+- [ ] Dependency vulnerability scanning has been performed
+- [ ] Error messages do not contain internal information
 
 ---
 
-## マイグレーションガイド
+## Migration Guide
 
-### バージョンアップ時の注意点
+### Notes for Version Upgrades
 
-| バージョン | 主な変更点 | 移行作業 | 影響範囲 |
-|-----------|-----------|---------|---------|
-| v1.x → v2.x | API設計の刷新 | エンドポイント変更 | 全クライアント |
-| v2.x → v3.x | 認証方式の変更 | トークン形式更新 | 認証関連 |
-| v3.x → v4.x | データモデル変更 | マイグレーションスクリプト実行 | DB関連 |
+| Version | Major Changes | Migration Work | Impact Scope |
+|---------|--------------|---------------|-------------|
+| v1.x → v2.x | API redesign | Endpoint changes | All clients |
+| v2.x → v3.x | Authentication method change | Token format update | Auth-related |
+| v3.x → v4.x | Data model change | Run migration scripts | DB-related |
 
-### 段階的移行の手順
+### Incremental Migration Procedure
 
 ```python
-# マイグレーションスクリプトのテンプレート
+# Migration script template
 import json
 import logging
 from pathlib import Path
@@ -1665,7 +1688,7 @@ from typing import List, Dict, Callable
 logger = logging.getLogger(__name__)
 
 class MigrationRunner:
-    """段階的マイグレーション実行エンジン"""
+    """Incremental migration execution engine"""
 
     def __init__(self, migration_dir: str):
         self.migration_dir = Path(migration_dir)
@@ -1674,7 +1697,7 @@ class MigrationRunner:
 
     def register(self, version: str, description: str,
                  up: Callable, down: Callable):
-        """マイグレーションの登録"""
+        """Register a migration"""
         self.migrations.append({
             'version': version,
             'description': description,
@@ -1684,35 +1707,35 @@ class MigrationRunner:
         })
 
     def run_up(self, target_version: str = None):
-        """マイグレーションの実行（アップグレード）"""
+        """Execute migrations (upgrade)"""
         for migration in self.migrations:
             if migration['version'] in self.completed:
                 continue
-            logger.info(f"実行中: {migration['version']} - "
+            logger.info(f"Running: {migration['version']} - "
                        f"{migration['description']}")
             try:
                 migration['up']()
                 self.completed.append(migration['version'])
-                logger.info(f"完了: {migration['version']}")
+                logger.info(f"Completed: {migration['version']}")
             except Exception as e:
-                logger.error(f"失敗: {migration['version']}: {e}")
+                logger.error(f"Failed: {migration['version']}: {e}")
                 raise
             if target_version and migration['version'] == target_version:
                 break
 
     def run_down(self, target_version: str):
-        """マイグレーションのロールバック"""
+        """Rollback migrations"""
         for migration in reversed(self.migrations):
             if migration['version'] not in self.completed:
                 continue
             if migration['version'] == target_version:
                 break
-            logger.info(f"ロールバック: {migration['version']}")
+            logger.info(f"Rolling back: {migration['version']}")
             migration['down']()
             self.completed.remove(migration['version'])
 
     def status(self) -> Dict:
-        """マイグレーション状態の確認"""
+        """Check migration status"""
         return {
             'total': len(self.migrations),
             'completed': len(self.completed),
@@ -1725,55 +1748,55 @@ class MigrationRunner:
         }
 ```
 
-### ロールバック計画
+### Rollback Plan
 
-移行作業には必ずロールバック計画を準備してください:
+Always prepare a rollback plan for migration work:
 
-1. **データのバックアップ**: 移行前に完全バックアップを取得
-2. **テスト環境での検証**: 本番と同等の環境で事前検証
-3. **段階的なロールアウト**: カナリアリリースで段階的に展開
-4. **監視の強化**: 移行中はメトリクスの監視間隔を短縮
-5. **判断基準の明確化**: ロールバックを判断する基準を事前に定義
+1. **Data backup**: Take a full backup before migration
+2. **Test environment verification**: Pre-verify in an environment equivalent to production
+3. **Staged rollout**: Deploy incrementally using canary releases
+4. **Enhanced monitoring**: Shorten monitoring intervals during migration
+5. **Clear decision criteria**: Define rollback criteria in advance
 ---
 
 ## FAQ
 
-### Q1: アルゴリズムとデータ構造の関係は？
-**A**: 密接に関連している。適切なデータ構造を選ぶことでアルゴリズムの効率が劇的に変わる。例: 探索→配列(O(n)) vs ハッシュテーブル(O(1))。「アルゴリズム + データ構造 = プログラム」（Wirth, 1976）。データ構造は「情報の整理方法」、アルゴリズムは「情報の処理手順」であり、車の両輪のような関係。
+### Q1: What is the relationship between algorithms and data structures?
+**A**: They are closely related. Choosing the right data structure can dramatically change algorithm efficiency. For example: Search → Array (O(n)) vs. Hash table (O(1)). "Algorithms + Data Structures = Programs" (Wirth, 1976). Data structures are "how information is organized," and algorithms are "procedures for processing information" — they are like two wheels of the same cart.
 
-### Q2: アルゴリズムを学ぶとどんな実務に役立ちますか？
-**A**: 直接的にはパフォーマンス最適化、システム設計、コーディング面接。間接的には問題分解力、論理的思考力、「計算量の感覚」が身につき、日常的なコーディングの質が向上する。具体例: データベースのインデックス設計にはB-Treeの知識が、キャッシュ戦略にはLRUアルゴリズムの知識が、検索機能の実装には文字列マッチングの知識が不可欠。
+### Q2: How does studying algorithms benefit practical work?
+**A**: Directly, it helps with performance optimization, system design, and coding interviews. Indirectly, it develops problem decomposition skills, logical thinking, and a "sense of computational complexity," improving the quality of everyday coding. Specific examples: B-Tree knowledge is essential for database index design, LRU algorithm knowledge for caching strategies, and string matching knowledge for search feature implementation.
 
-### Q3: 全てのアルゴリズムを暗記する必要がありますか？
-**A**: いいえ。重要なのは「設計パターン」と「計算量の感覚」を身につけること。具体的な実装は必要な時に調べればよい。ただし基本的なソート・探索・グラフアルゴリズムは理解しておくべき。暗記ではなく「この問題にはどのパターンが使えそうか」を判断できる力が重要。
+### Q3: Do I need to memorize all algorithms?
+**A**: No. What matters is developing an understanding of "design patterns" and a "sense of computational complexity." You can look up specific implementations when needed. However, you should understand basic sorting, search, and graph algorithms. The important skill is not memorization but the ability to judge "which pattern might apply to this problem."
 
-### Q4: アルゴリズムの問題が解けない時はどうすればよいですか？
-**A**: いくつかのアプローチがある。(1) まず手作業で小さい例を解いてみる。(2) 問題を簡略化して解いてみる（制約を緩める）。(3) 似た問題に帰着できないか考える。(4) 逆から考える（出力から入力を逆算）。(5) 計算量の目標から逆算して使えるアルゴリズムを絞る。(6) 一度離れて別のことをする（脳の潜在的処理に任せる）。
+### Q4: What should I do when I cannot solve an algorithm problem?
+**A**: There are several approaches. (1) Try solving a small example by hand first. (2) Simplify the problem and solve that (relax constraints). (3) Consider whether it can be reduced to a similar problem. (4) Think in reverse (work backward from the output to the input). (5) Estimate the target complexity and narrow down applicable algorithms. (6) Take a break and do something else (let the brain process subconsciously).
 
-### Q5: 競技プログラミングと実務でのアルゴリズムは違いますか？
-**A**: 根本的には同じだが、重点が異なる。競技プログラミングは計算量の最適化と実装速度が重視される。実務では可読性、保守性、テスト容易性も重要。また実務では既存ライブラリの活用、チーム開発、段階的な改善が現実的なアプローチ。ただし競技プログラミングで鍛えたアルゴリズム思考力は実務でも大いに役立つ。
-
----
-
-## まとめ
-
-| 概念 | ポイント |
-|------|---------|
-| 定義 | 有限の明確な手順で問題を解く計算手続き |
-| 5条件 | 入力、出力、明確性、有限性、有効性 |
-| 設計戦略 | 全探索、分割統治、DP、貪欲法、バックトラック、二分探索、グラフ探索 |
-| 正しさ | ループ不変条件、数学的帰納法、背理法で証明 |
-| 思考法 | 理解→手計算→設計→実装→テスト |
-| 分類 | P、NP、NP完全による問題の難しさの分類 |
-| 実務 | 正しさ→可読性→性能の順で最適化 |
+### Q5: Are competitive programming algorithms different from practical algorithms?
+**A**: They are fundamentally the same, but the emphasis differs. Competitive programming focuses on complexity optimization and implementation speed. In practice, readability, maintainability, and testability are also important. Additionally, leveraging existing libraries, team development, and incremental improvement are realistic approaches in practice. That said, the algorithmic thinking honed through competitive programming is highly valuable in real-world work.
 
 ---
 
-## 次に読むべきガイド
+## Summary
+
+| Concept | Key Points |
+|---------|-----------|
+| Definition | A computational procedure that solves a problem in finite, well-defined steps |
+| Five Properties | Input, output, definiteness, finiteness, effectiveness |
+| Design Strategies | Brute force, divide & conquer, DP, greedy, backtracking, binary search, graph search |
+| Correctness | Proven via loop invariants, mathematical induction, proof by contradiction |
+| Thought Process | Understand → hand-calculate → design → implement → test |
+| Classification | P, NP, NP-complete: classification of problem difficulty |
+| Practice | Optimize in order: correctness → readability → performance |
 
 ---
 
-## 参考文献
+## Recommended Next Guides
+
+---
+
+## References
 1. Cormen, T. H. et al. "Introduction to Algorithms (CLRS)." 4th Edition, MIT Press, 2022.
 2. Knuth, D. E. "The Art of Computer Programming." Addison-Wesley, 1968-2022.
 3. Skiena, S. S. "The Algorithm Design Manual." 3rd Edition, Springer, 2020.

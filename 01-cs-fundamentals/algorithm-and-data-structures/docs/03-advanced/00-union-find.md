@@ -1,36 +1,36 @@
-# Union-Find（素集合データ構造）
+# Union-Find (Disjoint Set Data Structure)
 
-> 要素のグループ化と所属判定を準定数時間で行うデータ構造を、経路圧縮・ランク付き合併・Kruskal応用を通じて理解する
+> Understand the data structure that performs element grouping and membership queries in nearly constant time, through path compression, union by rank, and Kruskal's algorithm applications
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-1. **Union-Find の2操作**（Find/Union）の原理と、経路圧縮・ランク付き合併による最適化を実装できる
-2. **逆アッカーマン関数**α(n) による準定数時間の計算量を理解する
-3. **Kruskal法・連結成分・等価クラス分け**など実用的な応用パターンを使いこなせる
-4. **重み付きUnion-Find・永続Union-Find**などの発展的なバリエーションを理解する
-5. **実務におけるクラスタリング・ネットワーク管理**への応用を実装できる
+1. **The two operations of Union-Find** (Find/Union) and their optimization via path compression and union by rank
+2. **The inverse Ackermann function** alpha(n) and the nearly constant-time complexity it yields
+3. **Practical application patterns** such as Kruskal's algorithm, connected components, and equivalence class partitioning
+4. **Advanced variants** including weighted Union-Find and persistent Union-Find
+5. **Real-world applications** in clustering and network management
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, the following knowledge will help deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
+- Basic programming knowledge
+- Understanding of related foundational concepts
 
 ---
 
-## 1. Union-Find の概念
+## 1. Concept of Union-Find
 
-Union-Find（素集合データ構造、Disjoint Set Union: DSU）は、要素の集合を互いに素な（重なりのない）部分集合に分割して管理するデータ構造である。主に以下の2つの操作を提供する。
+Union-Find (Disjoint Set Union: DSU) is a data structure that manages a collection of elements partitioned into non-overlapping (disjoint) subsets. It primarily provides the following two operations:
 
-- **Find(x)**: 要素 x が属する集合の代表元（根）を返す
-- **Union(x, y)**: 要素 x と y が属する集合を統合する
+- **Find(x)**: Returns the representative (root) of the set to which element x belongs
+- **Union(x, y)**: Merges the sets containing elements x and y
 
 ```
-Union-Find = 素集合の森（Disjoint Set Forest）
+Union-Find = Disjoint Set Forest
 
-初期状態（各要素が独立）:
+Initial state (each element is independent):
   {0} {1} {2} {3} {4} {5} {6} {7}
 
 Union(0,1), Union(2,3), Union(4,5):
@@ -42,117 +42,117 @@ Union(0,2), Union(4,6):
 Union(0,4):
   {0,1,2,3,4,5,6} {7}
 
-Find(5) → 0（代表元）
-Find(7) → 7（代表元）
-Find(5) == Find(3) → True（同じ集合）
-Find(5) == Find(7) → False（異なる集合）
+Find(5) → 0 (representative)
+Find(7) → 7 (representative)
+Find(5) == Find(3) → True  (same set)
+Find(5) == Find(7) → False (different sets)
 ```
 
-### なぜ Union-Find が重要か
+### Why Union-Find Matters
 
-Union-Find は一見単純なデータ構造だが、以下のような場面で極めて強力である。
+Despite its apparent simplicity, Union-Find is an extremely powerful data structure in the following scenarios:
 
-1. **動的な連結性判定**: グラフに辺が逐次追加される状況で「頂点 u と v は連結か？」をほぼ O(1) で回答
-2. **最小全域木 (MST)**: Kruskal法のサイクル検出に不可欠
-3. **等価クラス管理**: 同値関係の推移的閉包を効率的に管理
-4. **画像処理**: ラベリング（連結成分の識別）
-5. **ネットワーク設計**: 回線の冗長性判定、ルーティング
+1. **Dynamic connectivity queries**: When edges are added incrementally to a graph, answering "Are vertices u and v connected?" in nearly O(1)
+2. **Minimum Spanning Tree (MST)**: Essential for cycle detection in Kruskal's algorithm
+3. **Equivalence class management**: Efficiently maintaining the transitive closure of equivalence relations
+4. **Image processing**: Labeling (identifying connected components)
+5. **Network design**: Link redundancy verification, routing
 
 ```
-実世界の例:
+Real-world examples:
 
-1. ソーシャルネットワーク
-   「AさんとBさんは（友達の友達を辿って）繋がっているか？」
-   → Union-Find で友達関係を管理 → Find で O(α(n)) ≈ O(1) 判定
+1. Social networks
+   "Are person A and person B connected (via friends of friends)?"
+   → Manage friendships with Union-Find → O(alpha(n)) ≈ O(1) query with Find
 
-2. コンピュータネットワーク
-   「マシンXとマシンYは通信可能か？」
-   → ケーブルの接続をUnionで登録、到達可能性をFindで判定
+2. Computer networks
+   "Can machine X communicate with machine Y?"
+   → Register cable connections with Union → Check reachability with Find
 
-3. 数独の領域管理
-   「セルAとセルBは同じブロックに属するか？」
+3. Sudoku region management
+   "Do cell A and cell B belong to the same block?"
 
-4. コンパイラの型推論
-   「型変数αと型変数βは同じ型に解決されるか？」
+4. Compiler type inference
+   "Do type variables alpha and beta resolve to the same type?"
 ```
 
 ---
 
-## 2. 木構造による表現
+## 2. Tree-Based Representation
 
-Union-Find は内部的に森（木の集合）として表現される。各集合は1つの木に対応し、木の根がその集合の代表元となる。
+Internally, Union-Find is represented as a forest (a collection of trees). Each set corresponds to one tree, and the root of the tree serves as the representative of that set.
 
 ```
-ナイーブな実装（木が偏る）:
+Naive implementation (tree becomes skewed):
 
 Union(0,1): 1→0      Union(0,1,2,3,4):
 Union(0,2): 2→0          0
 Union(0,3): 3→0         /|\ \
-Union(0,4): 4→0        1 2 3 4    ← バランスが良い
+Union(0,4): 4→0        1 2 3 4    ← Well balanced
 
-最悪ケース（チェーン状）:
+Worst case (chain-shaped):
   Union(0,1), Union(1,2), Union(2,3), Union(3,4)
-    0 ← 1 ← 2 ← 3 ← 4    ← Find(4) が O(n)!
+    0 ← 1 ← 2 ← 3 ← 4    ← Find(4) is O(n)!
 
-経路圧縮後:
+After path compression:
          0
        / | \ \
-      1  2  3  4    ← Find(4) が O(1)!
+      1  2  3  4    ← Find(4) is O(1)!
 ```
 
-### 配列による表現
+### Array Representation
 
-Union-Find は `parent` 配列で表現する。`parent[i]` は要素 i の親を格納し、根の場合は `parent[i] = i` とする。
+Union-Find is represented using a `parent` array. `parent[i]` stores the parent of element i, and for roots, `parent[i] = i`.
 
 ```
-配列表現の例:
+Array representation example:
 
-集合 {0,1,2,3} と {4,5,6} を管理:
+Managing sets {0,1,2,3} and {4,5,6}:
 
 parent: [0, 0, 0, 0, 4, 4, 4]
          ↑     ↑           ↑
-         根    0の子       根
+        root  child of 0  root
 
-木構造:
+Tree structure:
     0       4
    /|\     / \
   1 2 3   5   6
 
-Find(3) → parent[3] = 0 → parent[0] = 0 → 根は 0
-Find(6) → parent[6] = 4 → parent[4] = 4 → 根は 4
+Find(3) → parent[3] = 0 → parent[0] = 0 → root is 0
+Find(6) → parent[6] = 4 → parent[4] = 4 → root is 4
 ```
 
 ---
 
-## 3. 基本実装
+## 3. Basic Implementation
 
 ```python
 class UnionFind:
-    """Union-Find（素集合データ構造）
-    経路圧縮 + ランク付き合併で O(α(n)) ≈ O(1)
+    """Union-Find (Disjoint Set Data Structure)
+    Path compression + union by rank for O(alpha(n)) ≈ O(1)
     """
 
     def __init__(self, n: int):
-        self.parent = list(range(n))  # 各要素の親
-        self.rank = [0] * n           # 木の高さの上界
-        self.size = [1] * n           # 各集合のサイズ
-        self.count = n                # 集合の数
+        self.parent = list(range(n))  # Parent of each element
+        self.rank = [0] * n           # Upper bound on tree height
+        self.size = [1] * n           # Size of each set
+        self.count = n                # Number of sets
 
     def find(self, x: int) -> int:
-        """x の代表元（根）を返す - 経路圧縮付き"""
+        """Returns the representative (root) of x - with path compression"""
         if self.parent[x] != x:
-            self.parent[x] = self.find(self.parent[x])  # 経路圧縮
+            self.parent[x] = self.find(self.parent[x])  # Path compression
         return self.parent[x]
 
     def union(self, x: int, y: int) -> bool:
-        """x と y の集合を合併 - ランク付き合併
-        返り値: 合併が行われたか（既に同じ集合ならFalse）
+        """Merges the sets of x and y - union by rank
+        Returns: Whether a merge was performed (False if already in the same set)
         """
         px, py = self.find(x), self.find(y)
         if px == py:
             return False
 
-        # ランクが低い方を高い方の子にする
+        # Attach the tree with lower rank under the one with higher rank
         if self.rank[px] < self.rank[py]:
             px, py = py, px
 
@@ -166,15 +166,15 @@ class UnionFind:
         return True
 
     def connected(self, x: int, y: int) -> bool:
-        """x と y が同じ集合に属するか"""
+        """Whether x and y belong to the same set"""
         return self.find(x) == self.find(y)
 
     def get_size(self, x: int) -> int:
-        """x が属する集合のサイズ"""
+        """Size of the set containing x"""
         return self.size[self.find(x)]
 
     def get_groups(self) -> dict:
-        """全グループを辞書として返す {代表元: [要素リスト]}"""
+        """Returns all groups as a dictionary {representative: [element list]}"""
         groups = {}
         for i in range(len(self.parent)):
             root = self.find(i)
@@ -183,7 +183,7 @@ class UnionFind:
             groups[root].append(i)
         return groups
 
-# 使用例
+# Usage example
 uf = UnionFind(8)
 uf.union(0, 1)
 uf.union(2, 3)
@@ -191,11 +191,11 @@ uf.union(0, 2)
 print(uf.connected(1, 3))  # True
 print(uf.connected(0, 5))  # False
 print(uf.get_size(0))      # 4
-print(uf.count)             # 5 (集合数)
+print(uf.count)             # 5 (number of sets)
 print(uf.get_groups())     # {0: [0, 1, 2, 3], 4: [4], 5: [5], 6: [6], 7: [7]}
 ```
 
-### C++ 実装
+### C++ Implementation
 
 ```cpp
 #include <vector>
@@ -212,7 +212,7 @@ public:
 
     int find(int x) {
         if (parent[x] != x)
-            parent[x] = find(parent[x]);  // 経路圧縮
+            parent[x] = find(parent[x]);  // Path compression
         return parent[x];
     }
 
@@ -233,7 +233,7 @@ public:
     int getCount() const { return count_; }
 };
 
-// 使用例
+// Usage example
 // UnionFind uf(8);
 // uf.unite(0, 1);
 // uf.unite(2, 3);
@@ -242,7 +242,7 @@ public:
 // cout << uf.connected(1, 3) << endl;  // 1 (true)
 ```
 
-### TypeScript 実装
+### TypeScript Implementation
 
 ```typescript
 class UnionFind {
@@ -294,12 +294,12 @@ class UnionFind {
 
 ---
 
-## 4. 経路圧縮の詳細
+## 4. Path Compression in Detail
 
-経路圧縮（Path Compression）は Find 操作時に、パス上のすべてのノードを直接根に接続する最適化技法である。これにより、次回以降の Find が高速化される。
+Path compression is an optimization technique applied during the Find operation that directly connects all nodes along the path to the root. This speeds up subsequent Find operations.
 
 ```
-Find(7) の経路圧縮:
+Path compression during Find(7):
 
 Before:           After:
     0                 0
@@ -312,57 +312,57 @@ Before:           After:
     |
     7
 
-Find(7): 7→5→3→1→0  (根を発見)
-圧縮:   7→0, 5→0, 3→0, 1→0  (全ノードを根の直下に)
+Find(7): 7→5→3→1→0  (root found)
+Compress: 7→0, 5→0, 3→0, 1→0  (all nodes directly under root)
 ```
 
 ```python
-# 経路圧縮の3つの方法
+# Three methods of path compression
 
-# 方法1: 再帰（上記の実装）- 完全な経路圧縮
+# Method 1: Recursive (implementation above) - full path compression
 def find_recursive(self, x):
     if self.parent[x] != x:
         self.parent[x] = self.find(self.parent[x])
     return self.parent[x]
 
-# 方法2: 反復（スタックオーバーフロー回避）- 完全な経路圧縮
+# Method 2: Iterative (avoids stack overflow) - full path compression
 def find_iterative(self, x):
     root = x
     while self.parent[root] != root:
         root = self.parent[root]
-    # 経路上の全ノードを根に直接接続
+    # Connect all nodes along the path directly to the root
     while self.parent[x] != root:
         next_x = self.parent[x]
         self.parent[x] = root
         x = next_x
     return root
 
-# 方法3: パス分割（Path Splitting）- 実装が簡潔
+# Method 3: Path splitting - concise implementation
 def find_splitting(self, x):
     while self.parent[x] != x:
-        self.parent[x] = self.parent[self.parent[x]]  # 祖父に接続
+        self.parent[x] = self.parent[self.parent[x]]  # Connect to grandparent
         x = self.parent[x]
     return x
 
-# 方法4: パス半分化（Path Halving）- パス分割の変種
+# Method 4: Path halving - variant of path splitting
 def find_halving(self, x):
     while self.parent[x] != x:
-        self.parent[x] = self.parent[self.parent[x]]  # 祖父に接続
-        x = self.parent[x]  # 2つ先に進む
+        self.parent[x] = self.parent[self.parent[x]]  # Connect to grandparent
+        x = self.parent[x]  # Advance two steps
     return x
 ```
 
-### 経路圧縮の効果の可視化
+### Visualizing the Effect of Path Compression
 
 ```python
 def visualize_compression():
-    """経路圧縮の効果を可視化するデモ"""
+    """Demo to visualize the effect of path compression"""
     uf = UnionFind(10)
 
-    # チェーン状の木を作成
+    # Create a chain-shaped tree
     # 0 ← 1 ← 2 ← 3 ← 4 ← 5 ← 6 ← 7 ← 8 ← 9
     for i in range(9):
-        uf.parent[i + 1] = i  # 強制的にチェーンを作る
+        uf.parent[i + 1] = i  # Forcibly create a chain
     uf.rank[0] = 9
     uf.count = 1
     for i in range(10):
@@ -373,24 +373,24 @@ def visualize_compression():
     print(f"  parent = {uf.parent}")
     # [0, 0, 1, 2, 3, 4, 5, 6, 7, 8]
 
-    # Find(9) で経路圧縮が発動
+    # Path compression triggered by Find(9)
     root = uf.find(9)
     print(f"\nAfter find(9):")
     print(f"  root = {root}")
     print(f"  parent = {uf.parent}")
     # [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-    # すべてのノードが直接根に接続された
+    # All nodes are now directly connected to the root
 
 visualize_compression()
 ```
 
 ---
 
-## 5. ランク付き合併とサイズ付き合併
+## 5. Union by Rank and Union by Size
 
-### ランク付き合併（Union by Rank）
+### Union by Rank
 
-木の高さ（ランク）を基準に、低い方を高い方の子にする。木の高さが O(log n) に抑えられる。
+Uses tree height (rank) as the criterion, attaching the shorter tree under the taller one. This keeps the tree height bounded at O(log n).
 
 ```python
 def union_by_rank(self, x, y):
@@ -398,20 +398,20 @@ def union_by_rank(self, x, y):
     if px == py:
         return False
 
-    # ランクが低い方を高い方の子にする
+    # Attach the tree with lower rank under the one with higher rank
     if self.rank[px] < self.rank[py]:
-        px, py = py, px  # px が高い方
+        px, py = py, px  # px has the higher rank
 
     self.parent[py] = px
     if self.rank[px] == self.rank[py]:
-        self.rank[px] += 1  # ランクが同じなら +1
+        self.rank[px] += 1  # Increment rank when equal
 
     return True
 ```
 
-### サイズ付き合併（Union by Size）
+### Union by Size
 
-集合のサイズを基準に、小さい方を大きい方の子にする。実装がシンプルで実用上はランクと同等の性能。
+Uses set size as the criterion, attaching the smaller set under the larger one. The implementation is simpler and provides equivalent practical performance to union by rank.
 
 ```python
 def union_by_size(self, x, y):
@@ -419,9 +419,9 @@ def union_by_size(self, x, y):
     if px == py:
         return False
 
-    # サイズが小さい方を大きい方の子にする
+    # Attach the smaller set under the larger one
     if self.size[px] < self.size[py]:
-        px, py = py, px  # px が大きい方
+        px, py = py, px  # px is the larger one
 
     self.parent[py] = px
     self.size[px] += self.size[py]
@@ -429,63 +429,63 @@ def union_by_size(self, x, y):
     return True
 ```
 
-### 合併戦略の比較
+### Comparison of Merge Strategies
 
 ```
-ランク付き合併 vs サイズ付き合併:
+Union by Rank vs Union by Size:
 
-       ランク付き合併              サイズ付き合併
-  木の高さを基準に合併        集合のサイズを基準に合併
-  rank 配列が必要             size 配列が必要（他の用途にも有用）
-  理論的に最適                実用上は同等の性能
+       Union by Rank               Union by Size
+  Merges based on tree height   Merges based on set size
+  Requires rank array           Requires size array (useful for other purposes too)
+  Theoretically optimal         Equivalent practical performance
 
-  推奨: サイズ付き合併
-  理由: size 配列は「集合の要素数は？」というクエリにも使える
+  Recommendation: Union by Size
+  Reason: The size array also supports queries like "How many elements are in this set?"
 ```
 
 ---
 
-## 6. Kruskal法への応用
+## 6. Application to Kruskal's Algorithm
 
-Union-Find は Kruskal の最小全域木アルゴリズムで不可欠。サイクル判定を O(α(n)) で行うことで、全体として O(E log E) を実現する。
+Union-Find is essential for Kruskal's minimum spanning tree algorithm. By performing cycle detection in O(alpha(n)), the overall complexity is O(E log E).
 
 ```python
 def kruskal_mst(n: int, edges: list) -> tuple:
-    """Kruskal法 - Union-Find使用 - O(E log E)
+    """Kruskal's Algorithm - Using Union-Find - O(E log E)
     edges: [(weight, u, v), ...]
     returns: (mst_edges, mst_weight)
     """
-    edges.sort()  # 重みでソート
+    edges.sort()  # Sort by weight
     uf = UnionFind(n)
     mst_edges = []
     mst_weight = 0
 
     for weight, u, v in edges:
-        if not uf.connected(u, v):  # サイクル判定
+        if not uf.connected(u, v):  # Cycle detection
             uf.union(u, v)
             mst_edges.append((u, v, weight))
             mst_weight += weight
 
             if len(mst_edges) == n - 1:
-                break  # MST完成
+                break  # MST complete
 
     return mst_edges, mst_weight
 
-# 使用例
-# 頂点: 0-4, 辺: (重み, 始点, 終点)
+# Usage example
+# Vertices: 0-4, Edges: (weight, source, destination)
 edges = [
     (1, 0, 1), (4, 0, 2), (3, 1, 2),
     (2, 1, 3), (5, 2, 3), (7, 2, 4), (6, 3, 4)
 ]
 mst, total = kruskal_mst(5, edges)
-print(f"MST辺: {mst}")        # [(0, 1, 1), (1, 3, 2), (1, 2, 3), (3, 4, 6)]
-print(f"合計重み: {total}")    # 12
+print(f"MST edges: {mst}")        # [(0, 1, 1), (1, 3, 2), (1, 2, 3), (3, 4, 6)]
+print(f"Total weight: {total}")    # 12
 ```
 
-### Kruskal法の動作を詳細にトレース
+### Detailed Trace of Kruskal's Algorithm
 
 ```
-グラフ:
+Graph:
     0 ---1--- 1
     |  \      |  \
     4   3     2    2
@@ -494,29 +494,29 @@ print(f"合計重み: {total}")    # 12
               |
               7
               |
-              4（辺2-4の重み）
+              4 (weight of edge 2-4)
 
-辺をソート: (1,0,1) (2,1,3) (3,1,2) (4,0,2) (5,2,3) (6,3,4) (7,2,4)
+Sorted edges: (1,0,1) (2,1,3) (3,1,2) (4,0,2) (5,2,3) (6,3,4) (7,2,4)
 
-Step 1: (1, 0, 1)  → 0-1 は非連結 → Union(0,1) ✓  MST: {(0,1,1)}
-Step 2: (2, 1, 3)  → 1-3 は非連結 → Union(1,3) ✓  MST: {(0,1,1), (1,3,2)}
-Step 3: (3, 1, 2)  → 1-2 は非連結 → Union(1,2) ✓  MST: {(0,1,1), (1,3,2), (1,2,3)}
-Step 4: (4, 0, 2)  → 0-2 は連結   → スキップ ✗   （サイクルを形成）
-Step 5: (5, 2, 3)  → 2-3 は連結   → スキップ ✗   （サイクルを形成）
-Step 6: (6, 3, 4)  → 3-4 は非連結 → Union(3,4) ✓  MST: + (3,4,6)
+Step 1: (1, 0, 1)  → 0-1 not connected → Union(0,1) ✓  MST: {(0,1,1)}
+Step 2: (2, 1, 3)  → 1-3 not connected → Union(1,3) ✓  MST: {(0,1,1), (1,3,2)}
+Step 3: (3, 1, 2)  → 1-2 not connected → Union(1,2) ✓  MST: {(0,1,1), (1,3,2), (1,2,3)}
+Step 4: (4, 0, 2)  → 0-2 connected     → Skip ✗       (would create a cycle)
+Step 5: (5, 2, 3)  → 2-3 connected     → Skip ✗       (would create a cycle)
+Step 6: (6, 3, 4)  → 3-4 not connected → Union(3,4) ✓  MST: + (3,4,6)
 
-結果: MST重み = 1 + 2 + 3 + 6 = 12
+Result: MST weight = 1 + 2 + 3 + 6 = 12
 ```
 
 ---
 
-## 7. 応用パターン
+## 7. Application Patterns
 
-### 連結成分の数（グラフ）
+### Number of Connected Components (Graph)
 
 ```python
 def count_components(n: int, edges: list) -> int:
-    """グラフの連結成分数"""
+    """Number of connected components in a graph"""
     uf = UnionFind(n)
     for u, v in edges:
         uf.union(u, v)
@@ -525,11 +525,11 @@ def count_components(n: int, edges: list) -> int:
 print(count_components(5, [(0,1), (2,3)]))  # 3 ({0,1}, {2,3}, {4})
 ```
 
-### 友達の友達（SNSグラフ）
+### Friends of Friends (Social Network Graph)
 
 ```python
 def friend_groups(n: int, friendships: list) -> list:
-    """友達グループの一覧を返す"""
+    """Returns a list of friend groups"""
     uf = UnionFind(n)
     for a, b in friendships:
         uf.union(a, b)
@@ -548,11 +548,11 @@ print(friend_groups(6, friends))
 # [[0, 1, 2], [3, 4], [5]]
 ```
 
-### 島の数（グリッド問題）
+### Number of Islands (Grid Problem)
 
 ```python
 def num_islands(grid: list) -> int:
-    """2Dグリッドの島の数をUnion-Findで求める"""
+    """Count the number of islands in a 2D grid using Union-Find"""
     if not grid:
         return 0
 
@@ -566,7 +566,7 @@ def num_islands(grid: list) -> int:
                 water += 1
                 continue
 
-            # 右と下の隣接セルとUnion
+            # Union with right and bottom adjacent cells
             for dr, dc in [(0, 1), (1, 0)]:
                 nr, nc = r + dr, c + dc
                 if (0 <= nr < rows and 0 <= nc < cols
@@ -584,11 +584,11 @@ grid = [
 print(num_islands(grid))  # 3
 ```
 
-### 冗長な接続の検出
+### Detecting Redundant Connections
 
 ```python
 def find_redundant_connection(edges: list) -> tuple:
-    """木に1本余分な辺が追加されたグラフで、その余分な辺を見つける
+    """Find the extra edge in a graph that is a tree with one extra edge added
     LeetCode 684: Redundant Connection
     """
     n = len(edges)
@@ -596,7 +596,7 @@ def find_redundant_connection(edges: list) -> tuple:
 
     for u, v in edges:
         if uf.connected(u, v):
-            return (u, v)  # この辺がサイクルを作る＝冗長
+            return (u, v)  # This edge creates a cycle = redundant
         uf.union(u, v)
 
     return None
@@ -608,15 +608,15 @@ edges = [(1,2), (2,3), (3,4), (1,4), (1,5)]
 print(find_redundant_connection(edges))  # (1, 4)
 ```
 
-### 最大辺の最小化（ボトルネック最短路）
+### Minimizing the Maximum Edge (Bottleneck Shortest Path)
 
 ```python
 def min_bottleneck_path(n: int, edges: list, s: int, t: int) -> int:
-    """s から t へのパスにおいて、最大辺の重みを最小化する
-    Kruskal法的なアプローチ: 辺を重みの小さい順に追加し、
-    s-t が連結になった時点の辺の重みが答え
+    """Minimize the maximum edge weight on a path from s to t
+    Kruskal-like approach: add edges in order of increasing weight,
+    and the weight of the edge when s-t become connected is the answer
     """
-    edges.sort(key=lambda e: e[2])  # 重みでソート
+    edges.sort(key=lambda e: e[2])  # Sort by weight
     uf = UnionFind(n)
 
     for u, v, w in edges:
@@ -624,17 +624,17 @@ def min_bottleneck_path(n: int, edges: list, s: int, t: int) -> int:
         if uf.connected(s, t):
             return w
 
-    return -1  # s-t が到達不能
+    return -1  # s-t are unreachable
 
 edges = [(0, 1, 3), (0, 2, 5), (1, 2, 1), (1, 3, 4), (2, 3, 2)]
-print(min_bottleneck_path(4, edges, 0, 3))  # 3 (0→1→3, 最大辺=max(3,4)=4 ではなく 0→2→3 の max(5,2)=5 でもなく、0→1→2→3 の max(3,1,2)=3)
+print(min_bottleneck_path(4, edges, 0, 3))  # 3 (0→1→2→3, max edge = max(3,1,2) = 3)
 ```
 
-### 動的連結性とオフラインクエリ
+### Dynamic Connectivity and Offline Queries
 
 ```python
 def process_connectivity_queries(n: int, operations: list) -> list:
-    """オフラインで連結性クエリを処理する
+    """Process connectivity queries offline
     operations: [('union', u, v), ('query', u, v), ...]
     """
     uf = UnionFind(n)
@@ -661,16 +661,16 @@ ops = [
     ('query', 0, 3),   # True
     ('size', 0, None),  # 4
 ]
-# 結果: [False, True, 4]
+# Result: [False, True, 4]
 ```
 
-### 等価クラス分け（文字列の等価判定）
+### Equivalence Class Partitioning (String Equivalence)
 
 ```python
 def equivalent_strings(pairs: list, s1: str, s2: str) -> bool:
-    """文字の等価関係に基づいて2つの文字列が等価か判定
-    LeetCode 839的なアプローチ
-    pairs: [(a, b), ...] は 文字a と文字b が等価であることを意味
+    """Determine if two strings are equivalent based on character equivalence relations
+    LeetCode 839-style approach
+    pairs: [(a, b), ...] means character a is equivalent to character b
     """
     uf = UnionFind(26)  # a-z
 
@@ -686,7 +686,7 @@ def equivalent_strings(pairs: list, s1: str, s2: str) -> bool:
 
     return True
 
-# 'a' と 'b' が等価, 'c' と 'd' が等価
+# 'a' is equivalent to 'b', 'c' is equivalent to 'd'
 pairs = [('a', 'b'), ('c', 'd')]
 print(equivalent_strings(pairs, "abc", "bac"))  # True
 print(equivalent_strings(pairs, "abc", "bae"))  # False
@@ -694,26 +694,26 @@ print(equivalent_strings(pairs, "abc", "bae"))  # False
 
 ---
 
-## 8. 最適化の効果比較表
+## 8. Optimization Effect Comparison Table
 
-| 最適化 | Find | Union | 備考 |
+| Optimization | Find | Union | Notes |
 |:---|:---|:---|:---|
-| ナイーブ（配列） | O(1) | O(n) | Quick-Find |
-| ナイーブ（木） | O(n) | O(n) | 最悪ケース |
-| 経路圧縮のみ | 償却 O(log n) | O(log n) | 大幅改善 |
-| ランク付き合併のみ | O(log n) | O(log n) | 木の高さ制限 |
-| 両方（最適） | 償却 O(α(n)) | 償却 O(α(n)) | 実質 O(1) |
+| Naive (array) | O(1) | O(n) | Quick-Find |
+| Naive (tree) | O(n) | O(n) | Worst case |
+| Path compression only | Amortized O(log n) | O(log n) | Significant improvement |
+| Union by rank only | O(log n) | O(log n) | Tree height bounded |
+| Both (optimal) | Amortized O(alpha(n)) | Amortized O(alpha(n)) | Effectively O(1) |
 
-### Quick-Find と Quick-Union
+### Quick-Find and Quick-Union
 
-Union-Find の基本的な実装方式として Quick-Find と Quick-Union がある。
+Quick-Find and Quick-Union are the fundamental implementation approaches for Union-Find.
 
 ```python
 class QuickFind:
-    """Quick-Find: Find は O(1) だが Union が O(n)"""
+    """Quick-Find: Find is O(1) but Union is O(n)"""
 
     def __init__(self, n: int):
-        self.id = list(range(n))  # 各要素の所属グループID
+        self.id = list(range(n))  # Group ID of each element
         self.n = n
 
     def find(self, x: int) -> int:
@@ -723,44 +723,44 @@ class QuickFind:
         px, py = self.id[x], self.id[y]
         if px == py:
             return
-        # px に属する全要素を py に変更 → O(n)
+        # Change all elements belonging to px to py → O(n)
         for i in range(self.n):
             if self.id[i] == px:
                 self.id[i] = py
 
 class QuickUnion:
-    """Quick-Union: 単純な木構造（最適化なし）"""
+    """Quick-Union: Simple tree structure (no optimizations)"""
 
     def __init__(self, n: int):
         self.parent = list(range(n))
 
     def find(self, x: int) -> int:
         while self.parent[x] != x:
-            x = self.parent[x]  # O(n) 最悪
+            x = self.parent[x]  # O(n) worst case
         return x
 
     def union(self, x: int, y: int) -> None:
-        self.parent[self.find(x)] = self.find(y)  # O(n) 最悪
+        self.parent[self.find(x)] = self.find(y)  # O(n) worst case
 ```
 
-## Union-Find vs 他の手法
+## Union-Find vs Other Approaches
 
-| 手法 | 連結判定 | 合併 | 全成分列挙 | 用途 |
+| Approach | Connectivity Query | Merge | List All Components | Use Case |
 |:---|:---|:---|:---|:---|
-| Union-Find | O(α(n)) | O(α(n)) | O(n) | 動的連結性 |
-| BFS/DFS | O(V+E) | - | O(V+E) | 静的グラフ |
-| 隣接行列 | O(1) | O(n) | O(n^2) | 密グラフ |
+| Union-Find | O(alpha(n)) | O(alpha(n)) | O(n) | Dynamic connectivity |
+| BFS/DFS | O(V+E) | - | O(V+E) | Static graphs |
+| Adjacency matrix | O(1) | O(n) | O(n^2) | Dense graphs |
 
-### パフォーマンスベンチマーク
+### Performance Benchmark
 
 ```python
 import time
 
 def benchmark_union_find(n: int, ops: int):
-    """Union-Find の性能を計測"""
+    """Measure Union-Find performance"""
     import random
 
-    # Union-Find（最適化あり）
+    # Union-Find (optimized)
     uf_good = UnionFind(n)
     start = time.time()
     for _ in range(ops):
@@ -772,27 +772,27 @@ def benchmark_union_find(n: int, ops: int):
     good_time = time.time() - start
 
     print(f"n={n}, ops={ops}")
-    print(f"  最適化あり: {good_time:.3f}秒")
+    print(f"  Optimized: {good_time:.3f}s")
 
 # benchmark_union_find(1_000_000, 2_000_000)
-# 結果例: n=1000000, ops=2000000 → 最適化あり: 1.2秒
+# Example result: n=1000000, ops=2000000 → Optimized: 1.2s
 ```
 
 ---
 
-## 9. 重み付き Union-Find
+## 9. Weighted Union-Find
 
-重み付き Union-Find は、要素間の相対的な重み（距離・差分）を管理するデータ構造である。「AとBの差は5」「BとCの差は3」→「AとCの差は8」のような推移的な関係を効率的に管理できる。
+Weighted Union-Find is a data structure that manages relative weights (distances/differences) between elements. It can efficiently handle transitive relations such as "The difference between A and B is 5" and "The difference between B and C is 3" implying "The difference between A and C is 8."
 
 ```python
 class WeightedUnionFind:
-    """重み付きUnion-Find
-    要素間の相対的な重み（距離/差分）を管理
+    """Weighted Union-Find
+    Manages relative weights (distances/differences) between elements
     """
     def __init__(self, n):
         self.parent = list(range(n))
         self.rank = [0] * n
-        self.weight = [0] * n  # 親との重みの差
+        self.weight = [0] * n  # Weight difference from parent
 
     def find(self, x):
         if self.parent[x] != x:
@@ -802,23 +802,23 @@ class WeightedUnionFind:
         return self.parent[x]
 
     def get_weight(self, x):
-        """根からxまでの累積重み"""
-        self.find(x)  # 経路圧縮
+        """Cumulative weight from the root to x"""
+        self.find(x)  # Path compression
         return self.weight[x]
 
     def diff(self, x, y):
         """weight(y) - weight(x)"""
         if self.find(x) != self.find(y):
-            return None  # 異なる集合
+            return None  # Different sets
         return self.get_weight(y) - self.get_weight(x)
 
     def union(self, x, y, w):
-        """weight(y) - weight(x) = w という関係を追加
+        """Add the relation: weight(y) - weight(x) = w
         Returns: True if successfully merged, False if contradiction
         """
         px, py = self.find(x), self.find(y)
         if px == py:
-            # 既に同じ集合 → 矛盾チェック
+            # Already in the same set → check for contradiction
             return self.diff(x, y) == w
 
         w = w + self.weight[x] - self.weight[y]
@@ -834,20 +834,20 @@ class WeightedUnionFind:
 
         return True
 
-# 使用例: A - B = 3, B - C = 5 → A - C = 8
+# Usage example: A - B = 3, B - C = 5 → A - C = 8
 wuf = WeightedUnionFind(3)
 wuf.union(0, 1, 3)  # weight[1] - weight[0] = 3
 wuf.union(1, 2, 5)  # weight[2] - weight[1] = 5
 print(wuf.diff(0, 2))  # 8 (weight[2] - weight[0] = 3+5)
 ```
 
-### 重み付き Union-Find の応用例: 人の身長差
+### Weighted Union-Find Application: Height Differences
 
 ```python
 def solve_height_differences(n: int, relations: list, queries: list) -> list:
-    """身長差の問題
-    relations: [(i, j, diff), ...] → 人jは人iより diff cm 高い
-    queries: [(i, j), ...] → 人jは人iより何cm高いか？
+    """Height difference problem
+    relations: [(i, j, diff), ...] → person j is diff cm taller than person i
+    queries: [(i, j), ...] → How many cm taller is person j than person i?
     """
     wuf = WeightedUnionFind(n)
 
@@ -858,36 +858,36 @@ def solve_height_differences(n: int, relations: list, queries: list) -> list:
     for i, j in queries:
         d = wuf.diff(i, j)
         if d is None:
-            results.append("不明")
+            results.append("Unknown")
         else:
             results.append(f"{d}cm")
 
     return results
 
-# 人0, 1, 2, 3, 4
-# 人1は人0より10cm高い
-# 人2は人1より5cm高い
-# 人4は人3より8cm高い
+# Persons 0, 1, 2, 3, 4
+# Person 1 is 10cm taller than person 0
+# Person 2 is 5cm taller than person 1
+# Person 4 is 8cm taller than person 3
 relations = [(0, 1, 10), (1, 2, 5), (3, 4, 8)]
 queries = [(0, 2), (0, 4), (3, 4)]
 print(solve_height_differences(5, relations, queries))
-# ['15cm', '不明', '8cm']
+# ['15cm', 'Unknown', '8cm']
 ```
 
-### 重み付き Union-Find の応用例: オンラインジャッジの相対評価
+### Weighted Union-Find Application: Relative Scoring in Online Judges
 
 ```python
 def relative_scoring(n: int, comparisons: list) -> list:
-    """相対評価の矛盾検出
-    comparisons: [(i, j, diff), ...] → スコアj - スコアi = diff
-    矛盾があるペアのインデックスを返す
+    """Contradiction detection in relative evaluation
+    comparisons: [(i, j, diff), ...] → score_j - score_i = diff
+    Returns the indices of contradictory pairs
     """
     wuf = WeightedUnionFind(n)
     contradictions = []
 
     for idx, (i, j, diff) in enumerate(comparisons):
         if not wuf.union(i, j, diff):
-            # 矛盾を検出
+            # Contradiction detected
             actual_diff = wuf.diff(i, j)
             contradictions.append({
                 'index': idx,
@@ -899,9 +899,9 @@ def relative_scoring(n: int, comparisons: list) -> list:
     return contradictions
 
 comparisons = [
-    (0, 1, 3),   # スコア1 - スコア0 = 3
-    (1, 2, 5),   # スコア2 - スコア1 = 5
-    (0, 2, 7),   # スコア2 - スコア0 = 7 ← 3+5=8 と矛盾!
+    (0, 1, 3),   # score_1 - score_0 = 3
+    (1, 2, 5),   # score_2 - score_1 = 5
+    (0, 2, 7),   # score_2 - score_0 = 7 ← contradicts 3+5=8!
 ]
 result = relative_scoring(3, comparisons)
 print(result)
@@ -910,24 +910,24 @@ print(result)
 
 ---
 
-## 10. 永続 Union-Find
+## 10. Persistent Union-Find
 
-永続データ構造版の Union-Find は、過去の任意の状態にアクセスできる。タイムトラベルクエリに対応する。
+The persistent data structure version of Union-Find allows access to any past state, supporting time-travel queries.
 
 ```python
 class PersistentUnionFind:
-    """永続Union-Find（簡易版: ロールバック対応）
-    操作の取り消し（ロールバック）が可能
-    注意: 経路圧縮を使わない（ランク付き合併のみ）
+    """Persistent Union-Find (simplified version: rollback support)
+    Supports undo (rollback) of operations
+    Note: Does not use path compression (union by rank only)
     """
 
     def __init__(self, n: int):
         self.parent = list(range(n))
         self.rank = [0] * n
-        self.history = []  # (操作前の状態を記録)
+        self.history = []  # Records state before each operation
 
     def find(self, x: int) -> int:
-        """経路圧縮なしの Find（永続性のため）"""
+        """Find without path compression (for persistence)"""
         while self.parent[x] != x:
             x = self.parent[x]
         return x
@@ -935,13 +935,13 @@ class PersistentUnionFind:
     def union(self, x: int, y: int) -> bool:
         px, py = self.find(x), self.find(y)
         if px == py:
-            self.history.append(None)  # 何もしなかった記録
+            self.history.append(None)  # Record that nothing was done
             return False
 
         if self.rank[px] < self.rank[py]:
             px, py = py, px
 
-        # 操作前の状態を保存
+        # Save state before the operation
         self.history.append((py, self.parent[py], self.rank[px]))
 
         self.parent[py] = px
@@ -951,13 +951,13 @@ class PersistentUnionFind:
         return True
 
     def rollback(self):
-        """直前の union 操作を取り消す"""
+        """Undo the most recent union operation"""
         if not self.history:
             return
 
         record = self.history.pop()
         if record is None:
-            return  # 何もしなかった操作
+            return  # Operation that did nothing
 
         py, old_parent, old_rank_px = record
         px = self.parent[py]
@@ -965,15 +965,15 @@ class PersistentUnionFind:
         self.rank[px] = old_rank_px
 
     def save(self) -> int:
-        """現在の状態のスナップショットID（履歴の長さ）"""
+        """Snapshot ID of the current state (length of history)"""
         return len(self.history)
 
     def restore(self, snapshot: int):
-        """指定したスナップショットまでロールバック"""
+        """Rollback to the specified snapshot"""
         while len(self.history) > snapshot:
             self.rollback()
 
-# 使用例
+# Usage example
 puf = PersistentUnionFind(5)
 snap0 = puf.save()
 
@@ -985,29 +985,29 @@ puf.union(0, 2)
 print(puf.find(0) == puf.find(3))  # True
 
 puf.restore(snap1)
-print(puf.find(0) == puf.find(3))  # False（ロールバック後）
+print(puf.find(0) == puf.find(3))  # False (after rollback)
 
 puf.restore(snap0)
-print(puf.find(0) == puf.find(1))  # False（完全にロールバック）
+print(puf.find(0) == puf.find(1))  # False (fully rolled back)
 ```
 
 ---
 
-## 11. Union-Find の実務応用
+## 11. Practical Applications of Union-Find
 
-### ネットワーク障害検出
+### Network Failure Detection
 
 ```python
 def detect_network_partitions(n_servers: int, connections: list,
                                failures: list) -> dict:
-    """ネットワーク障害時のパーティション検出
-    connections: [(server_a, server_b), ...] 全接続リスト
-    failures: [(server_a, server_b), ...] 障害が発生した接続
+    """Detect network partitions during failures
+    connections: [(server_a, server_b), ...] full connection list
+    failures: [(server_a, server_b), ...] failed connections
     """
     failure_set = set((min(a,b), max(a,b)) for a, b in failures)
     uf = UnionFind(n_servers)
 
-    # 障害のない接続のみでUnion
+    # Union only non-failed connections
     for a, b in connections:
         key = (min(a,b), max(a,b))
         if key not in failure_set:
@@ -1025,23 +1025,23 @@ def detect_network_partitions(n_servers: int, connections: list,
 connections = [(0,1), (1,2), (2,3), (3,4), (0,4), (2,5), (5,6)]
 failures = [(2,3), (2,5)]
 result = detect_network_partitions(7, connections, failures)
-print(f"パーティション数: {result['num_partitions']}")
-print(f"パーティション: {result['partitions']}")
-print(f"孤立サーバ: {result['isolated_servers']}")
+print(f"Number of partitions: {result['num_partitions']}")
+print(f"Partitions: {result['partitions']}")
+print(f"Isolated servers: {result['isolated_servers']}")
 ```
 
-### 画像の連結成分ラベリング
+### Connected Component Labeling in Images
 
 ```python
 def label_connected_components(image: list) -> list:
-    """二値画像の連結成分ラベリング
-    image: 2D配列（1=前景, 0=背景）
-    返り値: 各ピクセルのラベル（0=背景）
+    """Connected component labeling for binary images
+    image: 2D array (1=foreground, 0=background)
+    Returns: Label for each pixel (0=background)
     """
     rows, cols = len(image), len(image[0])
     uf = UnionFind(rows * cols)
 
-    # 4連結で隣接する前景ピクセルを Union
+    # Union adjacent foreground pixels using 4-connectivity
     for r in range(rows):
         for c in range(cols):
             if image[r][c] == 0:
@@ -1051,7 +1051,7 @@ def label_connected_components(image: list) -> list:
                 if 0 <= nr < rows and 0 <= nc < cols and image[nr][nc] == 1:
                     uf.union(r * cols + c, nr * cols + nc)
 
-    # ラベルの割り当て
+    # Assign labels
     label_map = {}
     label_counter = 1
     labels = [[0] * cols for _ in range(rows)]
@@ -1083,19 +1083,19 @@ for row in labels:
 # [3, 3, 0, 0, 0]
 ```
 
-### クラスタリングへの応用
+### Application to Clustering
 
 ```python
 def single_linkage_clustering(points: list, k: int) -> list:
-    """単連結クラスタリング
+    """Single-linkage clustering
     points: [(x, y), ...]
-    k: 目標クラスタ数
-    返り値: 各点のクラスタラベル
+    k: Target number of clusters
+    Returns: Cluster label for each point
     """
     import math
     n = len(points)
 
-    # 全ペア間の距離を計算
+    # Compute distances between all pairs
     edges = []
     for i in range(n):
         for j in range(i + 1, n):
@@ -1104,17 +1104,17 @@ def single_linkage_clustering(points: list, k: int) -> list:
             dist = math.sqrt(dx * dx + dy * dy)
             edges.append((dist, i, j))
 
-    edges.sort()  # 距離でソート
+    edges.sort()  # Sort by distance
 
     uf = UnionFind(n)
 
-    # クラスタ数が k になるまで統合
+    # Merge until the number of clusters reaches k
     for dist, i, j in edges:
         if uf.count <= k:
             break
         uf.union(i, j)
 
-    # クラスタラベルの割り当て
+    # Assign cluster labels
     label_map = {}
     label_counter = 0
     labels = []
@@ -1134,25 +1134,25 @@ print(labels)  # [0, 0, 0, 1, 1, 1]
 
 ---
 
-## 12. 高度なバリエーション
+## 12. Advanced Variants
 
-### 部分永続 Union-Find
+### Partially Persistent Union-Find
 
 ```python
 class PartiallyPersistentUnionFind:
-    """部分永続 Union-Find
-    過去の任意の時刻での connected クエリに O(log n) で回答
+    """Partially Persistent Union-Find
+    Answers connected queries at any past time in O(log n)
     """
 
     def __init__(self, n: int):
         self.parent = list(range(n))
         self.rank = [0] * n
-        self.time = [float('inf')] * n  # 根でなくなった時刻
-        self.size_history = [[(0, 1)] for _ in range(n)]  # (時刻, サイズ)
+        self.time = [float('inf')] * n  # Time when the node ceased to be a root
+        self.size_history = [[(0, 1)] for _ in range(n)]  # (time, size)
         self.now = 0
 
     def find(self, x: int, t: int = None) -> int:
-        """時刻 t での代表元"""
+        """Representative at time t"""
         if t is None:
             t = self.now
         while self.time[x] <= t:
@@ -1184,21 +1184,21 @@ class PartiallyPersistentUnionFind:
         return self.find(x, t) == self.find(y, t)
 ```
 
-### Union-Find with Undo（巻き戻し対応）
+### Union-Find with Undo (Rollback Support)
 
-分割統治法と組み合わせて使われることが多い。オフラインの辺の追加・削除を扱える。
+Often used in combination with divide and conquer. Handles offline edge additions and deletions.
 
 ```python
 class UnionFindWithUndo:
-    """Undo 対応 Union-Find
-    経路圧縮を使わず、ランク付き合併のみで O(log n)
-    undo 操作でスタックに積んだ操作を巻き戻す
+    """Union-Find with Undo
+    Uses only union by rank (no path compression) for O(log n)
+    Undo operation rolls back operations stored on a stack
     """
 
     def __init__(self, n: int):
         self.parent = list(range(n))
         self.rank = [0] * n
-        self.stack = []  # 操作の記録スタック
+        self.stack = []  # Operation recording stack
 
     def find(self, x: int) -> int:
         while self.parent[x] != x:
@@ -1233,66 +1233,66 @@ class UnionFindWithUndo:
 
 ---
 
-## 13. 逆アッカーマン関数の理論
+## 13. Theory of the Inverse Ackermann Function
 
-逆アッカーマン関数 α(n) は Union-Find の計算量解析で登場する関数である。
+The inverse Ackermann function alpha(n) appears in the complexity analysis of Union-Find.
 
 ```
-アッカーマン関数 A(m, n):
+Ackermann function A(m, n):
   A(0, n) = n + 1
   A(m, 0) = A(m-1, 1)
   A(m, n) = A(m-1, A(m, n-1))
 
-急激に成長する:
+Grows extremely rapidly:
   A(0, 0) = 1
   A(1, 1) = 3
   A(2, 2) = 7
   A(3, 3) = 61
-  A(4, 4) = 2^(2^(2^...)) - 3  (65536回のべき乗タワー)
+  A(4, 4) = 2^(2^(2^...)) - 3  (a power tower of height 65536)
 
-逆アッカーマン関数 α(n):
-  α(n) = min{k : A(k, k) ≥ n}
+Inverse Ackermann function alpha(n):
+  alpha(n) = min{k : A(k, k) >= n}
 
-  α(1) = 0
-  α(4) = 2
-  α(65536) = 3
-  α(2^65536) = 4
-  α(A(4,4)) = 5
+  alpha(1) = 0
+  alpha(4) = 2
+  alpha(65536) = 3
+  alpha(2^65536) = 4
+  alpha(A(4,4)) = 5
 
-  実用上の全ての入力 (n ≤ 10^80) に対して α(n) ≤ 4
+  For all practical inputs (n <= 10^80), alpha(n) <= 4
 
-→ O(α(n)) は実質的に O(1)
+→ O(alpha(n)) is effectively O(1)
 ```
 
-### Tarjan の証明の概要
+### Overview of Tarjan's Proof
 
-1975年にTarjanが証明した定理:
+Theorem proved by Tarjan in 1975:
 
-> 経路圧縮とランク付き合併を併用した Union-Find に対して、m 回の操作（Find と Union の混合）の合計計算量は O(m * α(n)) である。
+> For Union-Find with path compression and union by rank, the total complexity of m operations (a mix of Find and Union) is O(m * alpha(n)).
 
-さらに1984年にTarjan と van Leeuwen が、これが漸近的に最適であることを証明した。つまり、Union-Find の問題に対して O(m * α(n)) より良いアルゴリズムは（ある計算モデルにおいて）存在しない。
+Furthermore, in 1984, Tarjan and van Leeuwen proved that this is asymptotically optimal. That is, no algorithm for the Union-Find problem can do better than O(m * alpha(n)) (in a certain computational model).
 
 ---
 
-## 14. アンチパターン
+## 14. Anti-Patterns
 
-### アンチパターン1: 経路圧縮・ランク付き合併を省略
+### Anti-Pattern 1: Omitting Path Compression and Union by Rank
 
 ```python
-# BAD: ナイーブなUnion-Find → Find が O(n) に退化
+# BAD: Naive Union-Find → Find degrades to O(n)
 class BadUnionFind:
     def __init__(self, n):
         self.parent = list(range(n))
 
     def find(self, x):
         while self.parent[x] != x:
-            x = self.parent[x]  # 経路圧縮なし!
+            x = self.parent[x]  # No path compression!
         return x
 
     def union(self, x, y):
-        self.parent[self.find(x)] = self.find(y)  # ランク考慮なし!
+        self.parent[self.find(x)] = self.find(y)  # No rank consideration!
 
-# GOOD: 両方の最適化を適用
+# GOOD: Apply both optimizations
 class GoodUnionFind:
     def __init__(self, n):
         self.parent = list(range(n))
@@ -1300,48 +1300,48 @@ class GoodUnionFind:
 
     def find(self, x):
         if self.parent[x] != x:
-            self.parent[x] = self.find(self.parent[x])  # 経路圧縮
+            self.parent[x] = self.find(self.parent[x])  # Path compression
         return self.parent[x]
-    # ... ランク付き合併も実装
+    # ... also implement union by rank
 ```
 
-### アンチパターン2: 毎回 O(n) で連結判定
+### Anti-Pattern 2: O(n) Connectivity Check Every Time
 
 ```python
-# BAD: 辺の追加のたびに BFS/DFS で連結判定 → O(E * (V+E))
+# BAD: BFS/DFS for connectivity check after every edge addition → O(E * (V+E))
 for u, v in edges:
     graph[u].append(v)
-    if bfs_connected(graph, 0, target):  # O(V+E) が毎回
+    if bfs_connected(graph, 0, target):  # O(V+E) every time
         ...
 
-# GOOD: Union-Find で O(E * α(n)) ≈ O(E)
+# GOOD: Union-Find for O(E * alpha(n)) ≈ O(E)
 uf = UnionFind(n)
 for u, v in edges:
     uf.union(u, v)
-    if uf.connected(0, target):  # O(α(n)) ≈ O(1)
+    if uf.connected(0, target):  # O(alpha(n)) ≈ O(1)
         ...
 ```
 
-### アンチパターン3: Union-Find で辺の削除をしようとする
+### Anti-Pattern 3: Attempting Edge Deletion with Union-Find
 
 ```python
-# BAD: Union-Find で辺の削除は効率的にできない
-# Union-Find は「集合の統合」に特化しており、分割はサポートしない
+# BAD: Union-Find cannot efficiently handle edge deletion
+# Union-Find specializes in set merging and does not support splitting
 
-# GOOD: 辺の削除が必要な場合のアプローチ
-# 方法1: オフライン処理（逆順に辺を追加）
-# 方法2: Link-Cut Tree を使う
-# 方法3: 永続Union-Findのロールバック（操作順の逆順のみ）
+# GOOD: Approaches when edge deletion is needed
+# Method 1: Offline processing (add edges in reverse order)
+# Method 2: Use a Link-Cut Tree
+# Method 3: Rollback with Persistent Union-Find (only in reverse order of operations)
 ```
 
-### アンチパターン4: 再帰の深さを考慮しない
+### Anti-Pattern 4: Not Considering Recursion Depth
 
 ```python
-# BAD: n が大きい場合に再帰的な Find でスタックオーバーフロー
+# BAD: Recursive Find causes stack overflow for large n
 import sys
-# sys.setrecursionlimit(10**6) を設定しても危険
+# Even sys.setrecursionlimit(10**6) is risky
 
-# GOOD: 反復版の Find を使う
+# GOOD: Use iterative Find
 def find_iterative(self, x):
     root = x
     while self.parent[root] != root:
@@ -1353,33 +1353,33 @@ def find_iterative(self, x):
     return root
 ```
 
-### アンチパターン5: 0-indexed と 1-indexed の混在
+### Anti-Pattern 5: Mixing 0-indexed and 1-indexed
 
 ```python
-# BAD: 問題の頂点番号が1-indexedなのにUnion-Findを0-indexedで作成
+# BAD: Problem uses 1-indexed vertices but Union-Find is created with 0-indexed
 n = int(input())
 uf = UnionFind(n)  # 0 ~ n-1
 for _ in range(m):
     u, v = map(int, input().split())
-    uf.union(u, v)  # u, v は 1 ~ n → IndexError!
+    uf.union(u, v)  # u, v are 1 ~ n → IndexError!
 
-# GOOD: サイズを n+1 にするか、入力時に -1 する
-uf = UnionFind(n + 1)  # 0 ~ n（0は未使用）
+# GOOD: Use size n+1 or subtract 1 from input
+uf = UnionFind(n + 1)  # 0 ~ n (0 is unused)
 for _ in range(m):
     u, v = map(int, input().split())
-    uf.union(u, v)  # 1-indexed のまま使える
+    uf.union(u, v)  # Can use 1-indexed as-is
 ```
 
 ---
 
-## 15. 競技プログラミングでの Union-Find テンプレート
+## 15. Union-Find Template for Competitive Programming
 
 ```python
 import sys
 input = sys.stdin.readline
 
 class UnionFind:
-    """競技プログラミング用 Union-Find テンプレート"""
+    """Union-Find template for competitive programming"""
     __slots__ = ['parent', 'rank', 'size', 'count']
 
     def __init__(self, n: int):
@@ -1389,7 +1389,7 @@ class UnionFind:
         self.count = n
 
     def find(self, x: int) -> int:
-        # 反復版（スタックオーバーフロー回避）
+        # Iterative version (avoids stack overflow)
         root = x
         while self.parent[root] != root:
             root = self.parent[root]
@@ -1416,20 +1416,20 @@ class UnionFind:
     def get_size(self, x: int) -> int:
         return self.size[self.find(x)]
 
-# AtCoder ABC 典型問題の解法テンプレート
+# Typical AtCoder ABC solution template
 def solve():
     N, M = map(int, input().split())
     uf = UnionFind(N)
 
     for _ in range(M):
         a, b = map(int, input().split())
-        a -= 1; b -= 1  # 0-indexed
+        a -= 1; b -= 1  # Convert to 0-indexed
         uf.union(a, b)
 
-    # 連結成分数
+    # Number of connected components
     print(uf.count)
 
-    # 最大の連結成分のサイズ
+    # Size of the largest connected component
     max_size = max(uf.get_size(i) for i in range(N))
     print(max_size)
 ```
@@ -1437,45 +1437,45 @@ def solve():
 
 ---
 
-## 実践演習
+## Practical Exercises
 
-### 演習1: 基本的な実装
+### Exercise 1: Basic Implementation
 
-以下の要件を満たすコードを実装してください。
+Implement code that satisfies the following requirements.
 
-**要件:**
-- 入力データの検証を行うこと
-- エラーハンドリングを適切に実装すること
-- テストコードも作成すること
+**Requirements:**
+- Validate input data
+- Implement proper error handling
+- Include test code
 
 ```python
-# 演習1: 基本実装のテンプレート
+# Exercise 1: Basic implementation template
 class Exercise1:
-    """基本的な実装パターンの演習"""
+    """Exercise for basic implementation patterns"""
 
     def __init__(self):
         self.data = []
 
     def validate_input(self, value):
-        """入力値の検証"""
+        """Validate input value"""
         if value is None:
-            raise ValueError("入力値がNoneです")
+            raise ValueError("Input value is None")
         return True
 
     def process(self, value):
-        """データ処理のメインロジック"""
+        """Main processing logic"""
         self.validate_input(value)
         self.data.append(value)
         return self.data
 
     def get_results(self):
-        """処理結果の取得"""
+        """Retrieve processing results"""
         return {
             'count': len(self.data),
             'data': self.data
         }
 
-# テスト
+# Tests
 def test_exercise1():
     ex = Exercise1()
     assert ex.process(1) == [1]
@@ -1484,26 +1484,26 @@ def test_exercise1():
 
     try:
         ex.process(None)
-        assert False, "例外が発生するべき"
+        assert False, "Exception should have been raised"
     except ValueError:
         pass
 
-    print("全テスト合格!")
+    print("All tests passed!")
 
 test_exercise1()
 ```
 
-### 演習2: 応用パターン
+### Exercise 2: Applied Patterns
 
-基本実装を拡張して、以下の機能を追加してください。
+Extend the basic implementation to add the following features.
 
 ```python
-# 演習2: 応用パターン
+# Exercise 2: Applied patterns
 from typing import List, Dict, Optional
 from datetime import datetime
 
 class AdvancedExercise:
-    """応用パターンの演習"""
+    """Exercise for applied patterns"""
 
     def __init__(self, max_size: int = 100):
         self._items: List[Dict] = []
@@ -1511,7 +1511,7 @@ class AdvancedExercise:
         self._created_at = datetime.now()
 
     def add(self, key: str, value: any) -> bool:
-        """アイテムの追加（サイズ制限付き）"""
+        """Add an item (with size limit)"""
         if len(self._items) >= self._max_size:
             return False
         self._items.append({
@@ -1522,14 +1522,14 @@ class AdvancedExercise:
         return True
 
     def find(self, key: str) -> Optional[Dict]:
-        """キーによる検索"""
+        """Search by key"""
         for item in reversed(self._items):
             if item['key'] == key:
                 return item
         return None
 
     def remove(self, key: str) -> bool:
-        """キーによる削除"""
+        """Delete by key"""
         for i, item in enumerate(self._items):
             if item['key'] == key:
                 self._items.pop(i)
@@ -1537,7 +1537,7 @@ class AdvancedExercise:
         return False
 
     def stats(self) -> Dict:
-        """統計情報"""
+        """Statistics"""
         return {
             'total_items': len(self._items),
             'max_size': self._max_size,
@@ -1545,44 +1545,44 @@ class AdvancedExercise:
             'uptime': str(datetime.now() - self._created_at)
         }
 
-# テスト
+# Tests
 def test_advanced():
     ex = AdvancedExercise(max_size=3)
     assert ex.add("a", 1) == True
     assert ex.add("b", 2) == True
     assert ex.add("c", 3) == True
-    assert ex.add("d", 4) == False  # サイズ制限
+    assert ex.add("d", 4) == False  # Size limit
     assert ex.find("b")['value'] == 2
     assert ex.remove("b") == True
     assert ex.find("b") is None
     stats = ex.stats()
     assert stats['total_items'] == 2
-    print("応用テスト全合格!")
+    print("All applied tests passed!")
 
 test_advanced()
 ```
 
-### 演習3: パフォーマンス最適化
+### Exercise 3: Performance Optimization
 
-以下のコードのパフォーマンスを改善してください。
+Improve the performance of the following code.
 
 ```python
-# 演習3: パフォーマンス最適化
+# Exercise 3: Performance optimization
 import time
 from functools import lru_cache
 
-# 最適化前（O(n^2)）
+# Before optimization (O(n^2))
 def slow_search(data: list, target: int) -> int:
-    """非効率な検索"""
+    """Inefficient search"""
     for i in range(len(data)):
         for j in range(i + 1, len(data)):
             if data[i] + data[j] == target:
                 return (i, j)
     return (-1, -1)
 
-# 最適化後（O(n)）
+# After optimization (O(n))
 def fast_search(data: list, target: int) -> tuple:
-    """ハッシュマップを使った効率的な検索"""
+    """Efficient search using a hash map"""
     seen = {}
     for i, num in enumerate(data):
         complement = target - num
@@ -1591,7 +1591,7 @@ def fast_search(data: list, target: int) -> tuple:
         seen[num] = i
     return (-1, -1)
 
-# ベンチマーク
+# Benchmark
 def benchmark():
     import random
     data = list(range(5000))
@@ -1606,47 +1606,47 @@ def benchmark():
     result2 = fast_search(data, target)
     fast_time = time.time() - start
 
-    print(f"非効率版: {slow_time:.4f}秒")
-    print(f"効率版:   {fast_time:.6f}秒")
-    print(f"高速化率: {slow_time/fast_time:.0f}倍")
+    print(f"Inefficient: {slow_time:.4f}s")
+    print(f"Efficient:   {fast_time:.6f}s")
+    print(f"Speedup:     {slow_time/fast_time:.0f}x")
 
 benchmark()
 ```
 
-**ポイント:**
-- アルゴリズムの計算量を意識する
-- 適切なデータ構造を選択する
-- ベンチマークで効果を測定する
+**Key Points:**
+- Be mindful of algorithmic complexity
+- Select appropriate data structures
+- Measure effectiveness with benchmarks
 
 ---
 
-## トラブルシューティング
+## Troubleshooting
 
-### よくあるエラーと解決策
+### Common Errors and Solutions
 
-| エラー | 原因 | 解決策 |
+| Error | Cause | Solution |
 |--------|------|--------|
-| 初期化エラー | 設定ファイルの不備 | 設定ファイルのパスと形式を確認 |
-| タイムアウト | ネットワーク遅延/リソース不足 | タイムアウト値の調整、リトライ処理の追加 |
-| メモリ不足 | データ量の増大 | バッチ処理の導入、ページネーションの実装 |
-| 権限エラー | アクセス権限の不足 | 実行ユーザーの権限確認、設定の見直し |
-| データ不整合 | 並行処理の競合 | ロック機構の導入、トランザクション管理 |
+| Initialization error | Missing or incorrect config file | Check config file path and format |
+| Timeout | Network latency / insufficient resources | Adjust timeout values, add retry logic |
+| Out of memory | Growing data volume | Introduce batch processing, implement pagination |
+| Permission error | Insufficient access rights | Verify executing user permissions, review settings |
+| Data inconsistency | Concurrency conflicts | Introduce locking mechanisms, manage transactions |
 
-### デバッグの手順
+### Debugging Procedure
 
-1. **エラーメッセージの確認**: スタックトレースを読み、発生箇所を特定する
-2. **再現手順の確立**: 最小限のコードでエラーを再現する
-3. **仮説の立案**: 考えられる原因をリストアップする
-4. **段階的な検証**: ログ出力やデバッガを使って仮説を検証する
-5. **修正と回帰テスト**: 修正後、関連する箇所のテストも実行する
+1. **Check the error message**: Read the stack trace and identify the location
+2. **Establish reproduction steps**: Reproduce the error with minimal code
+3. **Formulate hypotheses**: List possible causes
+4. **Verify step by step**: Use log output and debuggers to test hypotheses
+5. **Fix and regression test**: After fixing, run tests on related areas
 
 ```python
-# デバッグ用ユーティリティ
+# Debugging utilities
 import logging
 import traceback
 from functools import wraps
 
-# ロガーの設定
+# Logger configuration
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
@@ -1654,120 +1654,120 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def debug_decorator(func):
-    """関数の入出力をログ出力するデコレータ"""
+    """Decorator that logs function input and output"""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        logger.debug(f"呼び出し: {func.__name__}(args={args}, kwargs={kwargs})")
+        logger.debug(f"Call: {func.__name__}(args={args}, kwargs={kwargs})")
         try:
             result = func(*args, **kwargs)
-            logger.debug(f"戻り値: {func.__name__} -> {result}")
+            logger.debug(f"Return: {func.__name__} -> {result}")
             return result
         except Exception as e:
-            logger.error(f"例外発生: {func.__name__}: {e}")
+            logger.error(f"Exception in {func.__name__}: {e}")
             logger.error(traceback.format_exc())
             raise
     return wrapper
 
 @debug_decorator
 def process_data(items):
-    """データ処理（デバッグ対象）"""
+    """Data processing (debug target)"""
     if not items:
-        raise ValueError("空のデータ")
+        raise ValueError("Empty data")
     return [item * 2 for item in items]
 ```
 
-### パフォーマンス問題の診断
+### Diagnosing Performance Issues
 
-パフォーマンス問題が発生した場合の診断手順:
+Steps for diagnosing performance issues:
 
-1. **ボトルネックの特定**: プロファイリングツールで計測
-2. **メモリ使用量の確認**: メモリリークの有無をチェック
-3. **I/O待ちの確認**: ディスクやネットワークI/Oの状況を確認
-4. **同時接続数の確認**: コネクションプールの状態を確認
+1. **Identify the bottleneck**: Measure with profiling tools
+2. **Check memory usage**: Look for memory leaks
+3. **Check I/O waits**: Monitor disk and network I/O status
+4. **Check concurrent connections**: Verify connection pool state
 
-| 問題の種類 | 診断ツール | 対策 |
+| Problem Type | Diagnostic Tool | Countermeasure |
 |-----------|-----------|------|
-| CPU負荷 | cProfile, py-spy | アルゴリズム改善、並列化 |
-| メモリリーク | tracemalloc, objgraph | 参照の適切な解放 |
-| I/Oボトルネック | strace, iostat | 非同期I/O、キャッシュ |
-| DB遅延 | EXPLAIN, slow query log | インデックス、クエリ最適化 |
+| CPU load | cProfile, py-spy | Algorithm improvement, parallelization |
+| Memory leak | tracemalloc, objgraph | Proper reference cleanup |
+| I/O bottleneck | strace, iostat | Async I/O, caching |
+| DB latency | EXPLAIN, slow query log | Index optimization, query optimization |
 ---
 
 ## 16. FAQ
 
-### Q1: 逆アッカーマン関数 α(n) とは何か？
+### Q1: What is the inverse Ackermann function alpha(n)?
 
-**A:** α(n) はアッカーマン関数の逆関数で、実用上の全ての入力（宇宙の原子数 ~10^80 まで）に対して 5 以下。つまり O(α(n)) は実質的に O(1)。経路圧縮とランク付き合併を併用した場合に得られる計算量。1975年にTarjanが証明した。
+**A:** alpha(n) is the inverse of the Ackermann function. For all practical inputs (up to the number of atoms in the universe, ~10^80), it is at most 5. This means O(alpha(n)) is effectively O(1). This complexity is achieved when using both path compression and union by rank. It was proved by Tarjan in 1975.
 
-### Q2: Union-Find で要素の削除はできるか？
+### Q2: Can elements be deleted from Union-Find?
 
-**A:** 標準的な Union-Find では要素の削除やグループの分割（Split）は効率的にできない。必要な場合は (1) 削除済みフラグで論理削除し新しい要素で代替、(2) Link-Cut Tree などの高度なデータ構造を使う、(3) 全体を再構築する、のいずれかを検討する。
+**A:** Standard Union-Find cannot efficiently delete elements or split groups. When needed, consider: (1) logical deletion using a "deleted" flag and substituting with a new element, (2) using advanced data structures like Link-Cut Trees, or (3) rebuilding the entire structure.
 
-### Q3: Union-Find はオンライン問題に強いか？
+### Q3: Is Union-Find effective for online problems?
 
-**A:** はい。辺が動的に追加される状況（オンラインクエリ）で連結性を管理するのに最適。BFS/DFS は辺が追加されるたびに再計算が必要だが、Union-Find は O(α(n)) で逐次的に処理できる。
+**A:** Yes. It is ideal for managing connectivity in situations where edges are dynamically added (online queries). While BFS/DFS requires recomputation whenever an edge is added, Union-Find handles updates incrementally in O(alpha(n)).
 
-### Q4: ランク付き合併とサイズ付き合併のどちらを使うべきか？
+### Q4: Should I use union by rank or union by size?
 
-**A:** 理論的にはどちらも同じ計算量 O(α(n)) を達成する。実用上はサイズ付き合併が推奨される。理由は、サイズ情報は「この集合の要素数は？」という追加クエリに直接使えるため。ランクは木の高さの上界であり、直接的な意味を持たない。
+**A:** Theoretically, both achieve the same complexity O(alpha(n)). In practice, union by size is recommended because the size information directly supports additional queries like "How many elements are in this set?" Rank is merely an upper bound on tree height and has no direct semantic meaning.
 
-### Q5: Union-Find の空間計算量は？
+### Q5: What is the space complexity of Union-Find?
 
-**A:** O(n)。parent 配列、rank（またはsize）配列が必要で、それぞれ n 要素。追加のデータ構造（重み付き、永続など）を使う場合はその分増加する。
+**A:** O(n). Both the parent array and the rank (or size) array are needed, each containing n elements. Space increases when using additional data structures (weighted, persistent, etc.).
 
-### Q6: グラフの辺が削除される場合はどうするか？
+### Q6: What if edges in the graph are being deleted?
 
-**A:** Union-Find は辺の削除に対応していない。対処法は: (1) オフライン処理で辺の追加の逆順に処理する（逆から見れば辺の削除は辺の追加）、(2) Link-Cut Tree（Euler Tour Tree）を使う（オンラインで辺の追加・削除に対応、O(log n) per operation）、(3) 分割統治+Union-Find with Undo。
+**A:** Union-Find does not support edge deletion. Workarounds include: (1) offline processing where edge additions are processed in reverse order (from the perspective of reversal, edge deletion becomes edge addition), (2) using Link-Cut Trees (Euler Tour Trees) which handle online edge additions and deletions in O(log n) per operation, (3) divide and conquer + Union-Find with Undo.
 
-### Q7: Union-Find は並列処理に適しているか？
+### Q7: Is Union-Find suitable for parallel processing?
 
-**A:** 標準的な Union-Find はスレッドセーフではない。並列版としては Wait-Free Union-Find（CAS操作ベース）が研究されている。実用上はロックを使うか、各スレッドで部分的な Union-Find を作り、最後にマージする方法がある。
+**A:** Standard Union-Find is not thread-safe. Wait-Free Union-Find (based on CAS operations) has been studied as a parallel variant. In practice, you can either use locks or create partial Union-Find structures in each thread and merge them at the end.
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when studying this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important aspect. Understanding deepens not just through theory alone, but by actually writing code and verifying its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping into advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before proceeding to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently utilized in day-to-day development work. It becomes particularly important during code reviews and architecture design.
 
 ---
 
-## 17. まとめ
+## 17. Summary
 
-| 項目 | 要点 |
+| Item | Key Points |
 |:---|:---|
-| 基本操作 | Find（代表元の取得）と Union（集合の合併） |
-| 経路圧縮 | Find 時に全ノードを根に直接接続 → 木を平坦化 |
-| ランク付き合併 | 低い木を高い木の子に → 木の高さを制限 |
-| 計算量 | 両方の最適化で O(α(n)) ≈ 実質 O(1) |
-| Kruskal応用 | サイクル判定に使用。O(E log E) で MST |
-| 重み付き拡張 | 要素間の相対重みを管理 |
-| 永続版 | ロールバック対応（経路圧縮なし） |
-| 実務応用 | ネットワーク管理、画像処理、クラスタリング |
+| Basic operations | Find (get representative) and Union (merge sets) |
+| Path compression | Connect all nodes directly to root during Find → flatten the tree |
+| Union by rank | Attach shorter tree under taller tree → bound tree height |
+| Complexity | Both optimizations yield O(alpha(n)) ≈ effectively O(1) |
+| Kruskal application | Used for cycle detection. O(E log E) for MST |
+| Weighted extension | Manages relative weights between elements |
+| Persistent version | Rollback support (no path compression) |
+| Practical applications | Network management, image processing, clustering |
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Guides
 
-- [グラフ走査](../02-algorithms/02-graph-traversal.md) -- 連結成分の別アプローチ（BFS/DFS）
-- [貪欲法](../02-algorithms/05-greedy.md) -- Kruskal法の詳細
-- [セグメント木](./01-segment-tree.md) -- 別の高度データ構造
+- [Graph Traversal](../02-algorithms/02-graph-traversal.md) -- Alternative approach (BFS/DFS) for connected components
+- [Greedy Algorithms](../02-algorithms/05-greedy.md) -- Details on Kruskal's algorithm
+- [Segment Tree](./01-segment-tree.md) -- Another advanced data structure
 
 ---
 
-## 参考文献
+## References
 
-1. Cormen, T. H. et al. (2022). *Introduction to Algorithms* (4th ed.). MIT Press. -- 第19章
+1. Cormen, T. H. et al. (2022). *Introduction to Algorithms* (4th ed.). MIT Press. -- Chapter 19
 2. Tarjan, R. E. (1975). "Efficiency of a Good But Not Linear Set Union Algorithm." *JACM*.
 3. Tarjan, R. E. & van Leeuwen, J. (1984). "Worst-case Analysis of Set Union Algorithms." *JACM*.
 4. Sedgewick, R. & Wayne, K. (2011). *Algorithms* (4th ed.). Addison-Wesley. -- 1.5 Union-Find

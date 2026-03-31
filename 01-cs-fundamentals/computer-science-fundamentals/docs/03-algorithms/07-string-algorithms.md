@@ -1,29 +1,29 @@
-# 文字列アルゴリズム
+# String Algorithms
 
-> テキスト検索は最も身近なアルゴリズムの1つ。ブラウザのCtrl+F、grepコマンド、IDEの検索——全てが文字列マッチングに依存している。
+> Text search is one of the most familiar algorithms. Browser Ctrl+F, the grep command, IDE search — all of them rely on string matching.
 
-## この章で学ぶこと
+## Learning Objectives
 
-- [ ] ナイーブな文字列検索の問題点を理解する
-- [ ] KMP法の原理を説明できる
-- [ ] Rabin-Karp法のローリングハッシュを理解する
-- [ ] Boyer-Moore法のスキップ戦略を理解する
-- [ ] Trie、サフィックス配列などの文字列データ構造を実装できる
-- [ ] 正規表現とオートマトンの関係を理解する
-- [ ] 実務での文字列処理の最適化手法を習得する
+- [ ] Understand the problems with naive string search
+- [ ] Explain the principles of the KMP algorithm
+- [ ] Understand rolling hashes in the Rabin-Karp algorithm
+- [ ] Understand the skip strategy in the Boyer-Moore algorithm
+- [ ] Implement string data structures such as Tries and suffix arrays
+- [ ] Understand the relationship between regular expressions and automata
+- [ ] Master practical string processing optimization techniques
 
-## 前提知識
+## Prerequisites
 
 
 ---
 
-## 1. 文字列マッチング
+## 1. String Matching
 
-### 1.1 ナイーブ法
+### 1.1 Naive Method
 
 ```python
 def naive_search(text, pattern):
-    """テキスト中のパターンの出現位置を全て返す"""
+    """Return all occurrence positions of the pattern in the text"""
     n, m = len(text), len(pattern)
     positions = []
     for i in range(n - m + 1):
@@ -31,22 +31,22 @@ def naive_search(text, pattern):
             positions.append(i)
     return positions
 
-# 計算量: O(n × m) — 最悪ケース
-# 例: text="AAAAAB", pattern="AAB"
-# 毎回ほぼm文字比較してから不一致を検出
+# Complexity: O(n * m) — worst case
+# Example: text="AAAAAB", pattern="AAB"
+# Almost m characters are compared each time before a mismatch is detected
 
-# 最悪ケースの例:
+# Worst-case example:
 # text = "A" * 1000000 + "B"
 # pattern = "A" * 999 + "B"
-# → 約100万回 × 1000文字比較 = 10億回の比較
+# -> ~1 million * 1000 character comparisons = 1 billion comparisons
 ```
 
-### 1.2 KMP法（Knuth-Morris-Pratt）
+### 1.2 KMP Algorithm (Knuth-Morris-Pratt)
 
 ```python
 def kmp_search(text, pattern):
-    """失敗関数を使って無駄な比較を省く"""
-    # 失敗関数（部分一致テーブル）の構築
+    """Eliminate redundant comparisons using the failure function"""
+    # Build the failure function (partial match table)
     m = len(pattern)
     failure = [0] * m
     j = 0
@@ -57,12 +57,12 @@ def kmp_search(text, pattern):
             j += 1
         failure[i] = j
 
-    # 検索
+    # Search
     positions = []
     j = 0
     for i in range(len(text)):
         while j > 0 and text[i] != pattern[j]:
-            j = failure[j - 1]  # 失敗関数でジャンプ
+            j = failure[j - 1]  # Jump using failure function
         if text[i] == pattern[j]:
             j += 1
         if j == m:
@@ -71,26 +71,26 @@ def kmp_search(text, pattern):
 
     return positions
 
-# 計算量: O(n + m) — 線形時間！
-# 失敗関数の構築: O(m)
-# 検索: O(n)
+# Complexity: O(n + m) — linear time!
+# Failure function construction: O(m)
+# Search: O(n)
 
-# KMPの核心:
-# 不一致が起きた時、パターンの「接頭辞と接尾辞の一致」を利用して
-# テキストのポインタを戻さずにパターンのポインタだけを調整する
+# Core idea of KMP:
+# When a mismatch occurs, leverage the "prefix-suffix match" of the pattern
+# to adjust only the pattern pointer without backtracking the text pointer
 ```
 
-#### KMPの失敗関数の詳細解説
+#### Detailed Explanation of the KMP Failure Function
 
 ```python
 def build_failure_function(pattern):
-    """失敗関数を構築し、各ステップを可視化"""
+    """Build the failure function and visualize each step"""
     m = len(pattern)
     failure = [0] * m
     j = 0
 
-    print(f"パターン: {pattern}")
-    print(f"{'i':>3} {'pattern[i]':>10} {'j':>3} {'一致?':>5} {'failure[i]':>10}")
+    print(f"Pattern: {pattern}")
+    print(f"{'i':>3} {'pattern[i]':>10} {'j':>3} {'Match?':>6} {'failure[i]':>10}")
     print("-" * 40)
 
     for i in range(1, m):
@@ -102,29 +102,29 @@ def build_failure_function(pattern):
             j += 1
 
         failure[i] = j
-        print(f"{i:>3} {pattern[i]:>10} {j:>3} {'YES' if match else 'NO':>5} {failure[i]:>10}")
+        print(f"{i:>3} {pattern[i]:>10} {j:>3} {'YES' if match else 'NO':>6} {failure[i]:>10}")
 
     return failure
 
-# 例: パターン "ABABAC"
+# Example: pattern "ABABAC"
 # failure = [0, 0, 1, 2, 3, 0]
 #
-# 解釈:
-# failure[i] = pattern[0:i+1] の最長の「一致する接頭辞と接尾辞」の長さ
+# Interpretation:
+# failure[i] = length of the longest matching proper prefix and suffix of pattern[0:i+1]
 #
-# i=0: "A"       → 0 (自明)
-# i=1: "AB"      → 0 (接頭辞 "A" ≠ 接尾辞 "B")
-# i=2: "ABA"     → 1 (接頭辞 "A" = 接尾辞 "A")
-# i=3: "ABAB"    → 2 (接頭辞 "AB" = 接尾辞 "AB")
-# i=4: "ABABA"   → 3 (接頭辞 "ABA" = 接尾辞 "ABA")
-# i=5: "ABABAC"  → 0 (一致なし)
+# i=0: "A"       -> 0 (trivial)
+# i=1: "AB"      -> 0 (prefix "A" != suffix "B")
+# i=2: "ABA"     -> 1 (prefix "A" = suffix "A")
+# i=3: "ABAB"    -> 2 (prefix "AB" = suffix "AB")
+# i=4: "ABABA"   -> 3 (prefix "ABA" = suffix "ABA")
+# i=5: "ABABAC"  -> 0 (no match)
 ```
 
-#### KMP法の動作可視化
+#### Visualization of KMP Algorithm Execution
 
 ```python
 def kmp_search_verbose(text, pattern):
-    """KMP法の動作を可視化"""
+    """Visualize the KMP algorithm execution"""
     m = len(pattern)
     failure = [0] * m
     j = 0
@@ -135,8 +135,8 @@ def kmp_search_verbose(text, pattern):
             j += 1
         failure[i] = j
 
-    print(f"失敗関数: {failure}")
-    print(f"テキスト:   {text}")
+    print(f"Failure function: {failure}")
+    print(f"Text:   {text}")
     print()
 
     positions = []
@@ -145,8 +145,8 @@ def kmp_search_verbose(text, pattern):
 
     for i in range(len(text)):
         while j > 0 and text[i] != pattern[j]:
-            print(f"  不一致 text[{i}]='{text[i]}' vs pattern[{j}]='{pattern[j]}'"
-                  f" → j を {failure[j-1]} に巻き戻し")
+            print(f"  Mismatch text[{i}]='{text[i]}' vs pattern[{j}]='{pattern[j]}'"
+                  f" -> rewind j to {failure[j-1]}")
             j = failure[j - 1]
             comparisons += 1
 
@@ -155,29 +155,29 @@ def kmp_search_verbose(text, pattern):
             j += 1
             if j == m:
                 positions.append(i - m + 1)
-                print(f"  ★ マッチ！ 位置 {i - m + 1}")
+                print(f"  * Match found! Position {i - m + 1}")
                 j = failure[j - 1]
         else:
             pass
 
-    print(f"\n比較回数: {comparisons}")
-    print(f"ナイーブ法の最悪: {len(text) * len(pattern)}")
+    print(f"\nComparisons: {comparisons}")
+    print(f"Naive worst case: {len(text) * len(pattern)}")
     return positions
 
-# 使用例
+# Usage example
 kmp_search_verbose("ABABDABABABABAC", "ABABAC")
 ```
 
-### 1.3 Rabin-Karp法
+### 1.3 Rabin-Karp Algorithm
 
 ```python
 def rabin_karp(text, pattern):
-    """ローリングハッシュで高速なパターンマッチング"""
+    """Fast pattern matching using rolling hash"""
     n, m = len(text), len(pattern)
     base, mod = 256, 10**9 + 7
     positions = []
 
-    # パターンのハッシュ値
+    # Hash value of the pattern
     pattern_hash = 0
     text_hash = 0
     h = pow(base, m - 1, mod)
@@ -188,7 +188,7 @@ def rabin_karp(text, pattern):
 
     for i in range(n - m + 1):
         if text_hash == pattern_hash:
-            if text[i:i+m] == pattern:  # ハッシュ衝突チェック
+            if text[i:i+m] == pattern:  # Hash collision check
                 positions.append(i)
         if i < n - m:
             text_hash = ((text_hash - ord(text[i]) * h) * base
@@ -196,39 +196,39 @@ def rabin_karp(text, pattern):
 
     return positions
 
-# 計算量: O(n + m) 期待 / O(nm) 最悪（ハッシュ衝突時）
-# 利点: 複数パターンの同時検索に強い
+# Complexity: O(n + m) expected / O(nm) worst case (on hash collisions)
+# Advantage: efficient for simultaneous multi-pattern search
 ```
 
-#### 複数パターンの同時検索
+#### Simultaneous Multi-Pattern Search
 
 ```python
 def rabin_karp_multi(text, patterns):
-    """複数パターンを同時に検索"""
+    """Search for multiple patterns simultaneously"""
     n = len(text)
     base, mod = 256, 10**9 + 7
     results = {p: [] for p in patterns}
 
-    # パターンを長さごとにグループ化
+    # Group patterns by length
     by_length = {}
     for p in patterns:
         m = len(p)
         if m not in by_length:
             by_length[m] = {}
-        # ハッシュ値を計算
+        # Compute hash value
         h = 0
         for c in p:
             h = (h * base + ord(c)) % mod
         by_length[m][h] = by_length[m].get(h, []) + [p]
 
-    # 各長さグループごとに検索
+    # Search for each length group
     for m, hash_to_patterns in by_length.items():
         if m > n:
             continue
 
         h_pow = pow(base, m - 1, mod)
 
-        # テキストのハッシュ値
+        # Text hash value
         text_hash = 0
         for i in range(m):
             text_hash = (text_hash * base + ord(text[i])) % mod
@@ -245,84 +245,84 @@ def rabin_karp_multi(text, patterns):
 
     return results
 
-# 使用例
+# Usage example
 text = "she sells seashells by the seashore"
 patterns = ["she", "sea", "sell", "shore"]
 result = rabin_karp_multi(text, patterns)
 # {'she': [0, 15], 'sea': [10, 27], 'sell': [4], 'shore': [30]}
 ```
 
-### 1.4 Boyer-Moore法
+### 1.4 Boyer-Moore Algorithm
 
 ```python
 def boyer_moore(text, pattern):
-    """Boyer-Moore法: パターン末尾から比較し、不一致時に大きくスキップ"""
+    """Boyer-Moore: compare from pattern end, skip large distances on mismatch"""
     n, m = len(text), len(pattern)
     if m > n:
         return []
 
-    # Bad Character テーブルの構築
+    # Build Bad Character table
     bad_char = {}
     for i in range(m):
-        bad_char[pattern[i]] = i  # 各文字のパターン内での最後の出現位置
+        bad_char[pattern[i]] = i  # Last occurrence position of each character in the pattern
 
     positions = []
-    i = 0  # テキスト上の位置
+    i = 0  # Position in the text
 
     while i <= n - m:
-        j = m - 1  # パターン末尾から比較
+        j = m - 1  # Compare from pattern end
 
         while j >= 0 and pattern[j] == text[i + j]:
             j -= 1
 
         if j < 0:
-            # マッチ！
+            # Match!
             positions.append(i)
-            # 次のマッチを探す
+            # Look for the next match
             i += (m - bad_char.get(text[i + m], -1) if i + m < n else 1)
         else:
-            # Bad Characterルール
+            # Bad Character rule
             bad_pos = bad_char.get(text[i + j], -1)
             shift = max(1, j - bad_pos)
             i += shift
 
     return positions
 
-# Boyer-Mooreの特徴:
-# - パターン末尾から比較（右→左）
-# - 不一致文字がパターンに含まれなければ、パターン長分スキップ
-# - 最善ケース: O(n/m) — パターンが長いほど高速！
-# - 最悪ケース: O(nm) — Good Suffixルールを追加するとO(n)に改善
-# - 実用上最も高速な文字列検索アルゴリズム（GNU grepが採用）
+# Characteristics of Boyer-Moore:
+# - Compares from pattern end (right to left)
+# - If the mismatched character is not in the pattern, skip by the pattern length
+# - Best case: O(n/m) — longer patterns run faster!
+# - Worst case: O(nm) — improves to O(n) with the Good Suffix rule
+# - Practically the fastest string search algorithm (used by GNU grep)
 
-# Boyer-Mooreの動作例:
+# Boyer-Moore execution example:
 # text = "HERE IS A SIMPLE EXAMPLE"
 # pattern = "EXAMPLE"
 #
-# ステップ1: E と S を比較 → 不一致、Sはパターンに無い → 7文字スキップ
-# ステップ2: 次の位置で比較 → ...
-# → ナイーブ法より大幅に少ない比較回数で済む
+# Step 1: Compare E and S -> mismatch, S is not in pattern -> skip 7 characters
+# Step 2: Compare at next position -> ...
+# -> Far fewer comparisons than the naive method
 ```
 
-#### Good Suffix ルールの実装
+#### Good Suffix Rule Implementation
 
 ```python
 def boyer_moore_full(text, pattern):
-    """Boyer-Moore法のフル実装（Bad Character + Good Suffix）"""
+    """Full Boyer-Moore implementation (Bad Character + Good Suffix)"""
     n, m = len(text), len(pattern)
     if m > n:
         return []
 
-    # Bad Character テーブル
+    # Bad Character table
     bad_char = [-1] * 256
     for i in range(m):
         bad_char[ord(pattern[i])] = i
 
-    # Good Suffix テーブル
+    # Good Suffix table
     good_suffix = [0] * (m + 1)
     border = [0] * (m + 1)
 
-    # Case 1: パターン内にgood suffixの一致がある場合
+    # Case 1: A match for the good suffix exists within the pattern
     i = m
     j = m + 1
     border[i] = j
@@ -335,7 +335,7 @@ def boyer_moore_full(text, pattern):
         j -= 1
         border[i] = j
 
-    # Case 2: good suffixの接頭辞がパターンの接頭辞に一致する場合
+    # Case 2: A prefix of the good suffix matches a prefix of the pattern
     j = border[0]
     for i in range(m + 1):
         if good_suffix[i] == 0:
@@ -343,7 +343,7 @@ def boyer_moore_full(text, pattern):
         if i == j:
             j = border[j]
 
-    # 検索
+    # Search
     positions = []
     i = 0
     while i <= n - m:
@@ -361,17 +361,17 @@ def boyer_moore_full(text, pattern):
 
     return positions
 
-# 計算量: O(n + m) 前処理 + O(n) 検索
-# 最善: O(n/m) — パターンが長いほど高速
+# Complexity: O(n + m) preprocessing + O(n) search
+# Best case: O(n/m) — longer patterns run faster
 ```
 
-### 1.5 Aho-Corasick法
+### 1.5 Aho-Corasick Algorithm
 
 ```python
 from collections import deque
 
 class AhoCorasick:
-    """Aho-Corasick法: 複数パターンの同時検索（線形時間）"""
+    """Aho-Corasick: simultaneous multi-pattern search in linear time"""
 
     def __init__(self):
         self.goto = [{}]
@@ -379,7 +379,7 @@ class AhoCorasick:
         self.output = [[]]
 
     def add_pattern(self, pattern, idx):
-        """パターンを追加"""
+        """Add a pattern"""
         state = 0
         for char in pattern:
             if char not in self.goto[state]:
@@ -391,10 +391,10 @@ class AhoCorasick:
         self.output[state].append(idx)
 
     def build(self):
-        """失敗関数を構築（BFS）"""
+        """Build the failure function (BFS)"""
         queue = deque()
 
-        # 深さ1のノードの失敗関数は0（ルート）
+        # Failure function for depth-1 nodes is 0 (root)
         for char, state in self.goto[0].items():
             queue.append(state)
 
@@ -403,7 +403,7 @@ class AhoCorasick:
             for char, v in self.goto[u].items():
                 queue.append(v)
 
-                # 失敗関数の計算
+                # Compute failure function
                 state = self.failure[u]
                 while state != 0 and char not in self.goto[state]:
                     state = self.failure[state]
@@ -411,11 +411,11 @@ class AhoCorasick:
                 if self.failure[v] == v:
                     self.failure[v] = 0
 
-                # 出力関数の更新
+                # Update output function
                 self.output[v] = self.output[v] + self.output[self.failure[v]]
 
     def search(self, text):
-        """テキスト内のパターンを全て検索"""
+        """Search for all patterns in the text"""
         results = []
         state = 0
 
@@ -429,7 +429,7 @@ class AhoCorasick:
 
         return results
 
-# 使用例
+# Usage example
 ac = AhoCorasick()
 patterns = ["he", "she", "his", "hers"]
 for i, p in enumerate(patterns):
@@ -440,22 +440,22 @@ text = "ahishers"
 results = ac.search(text)
 for pos, idx in results:
     p = patterns[idx]
-    print(f"パターン '{p}' が位置 {pos - len(p) + 1} で発見")
+    print(f"Pattern '{p}' found at position {pos - len(p) + 1}")
 
-# 計算量: O(n + m + z)
-#   n: テキスト長、m: 全パターンの総文字数、z: マッチ数
-# 用途:
-# - ウイルススキャナ（シグネチャの検索）
-# - ネットワークIDSのパケット検査
-# - テキストフィルタリング（NGワード検出）
-# - DNA配列の複数モチーフ検索
+# Complexity: O(n + m + z)
+#   n: text length, m: total character count of all patterns, z: number of matches
+# Applications:
+# - Virus scanners (signature search)
+# - Network IDS packet inspection
+# - Text filtering (banned word detection)
+# - DNA sequence multi-motif search
 ```
 
 ### 1.6 Z-Algorithm
 
 ```python
 def z_function(s):
-    """Z配列を計算: z[i] = s[i:]とs[0:]の最長共通接頭辞の長さ"""
+    """Compute Z-array: z[i] = length of the longest common prefix of s[i:] and s[0:]"""
     n = len(s)
     z = [0] * n
     z[0] = n
@@ -472,8 +472,8 @@ def z_function(s):
     return z
 
 def z_search(text, pattern):
-    """Z-Algorithmを使ったパターンマッチング"""
-    # パターン$テキスト を連結
+    """Pattern matching using the Z-Algorithm"""
+    # Concatenate pattern$text
     concat = pattern + "$" + text
     z = z_function(concat)
     m = len(pattern)
@@ -485,13 +485,13 @@ def z_search(text, pattern):
 
     return positions
 
-# 計算量: O(n + m)
-# KMPと同じ線形時間だが、実装が直感的
-# Z配列は文字列の繰り返しパターンの検出にも有用
+# Complexity: O(n + m)
+# Same linear time as KMP, but the implementation is more intuitive
+# The Z-array is also useful for detecting repeating patterns in strings
 
-# Z配列の使用例: 最小周期の検出
+# Z-array application: finding the minimum period
 def min_period(s):
-    """文字列の最小周期を求める"""
+    """Find the minimum period of a string"""
     z = z_function(s)
     n = len(s)
     for period in range(1, n + 1):
@@ -499,26 +499,26 @@ def min_period(s):
             return period
     return n
 
-# 例: "abcabc" → 最小周期 3 ("abc")
-# 例: "abab" → 最小周期 2 ("ab")
-# 例: "abcde" → 最小周期 5 (全体)
+# Example: "abcabc" -> minimum period 3 ("abc")
+# Example: "abab" -> minimum period 2 ("ab")
+# Example: "abcde" -> minimum period 5 (entire string)
 ```
 
 ---
 
-## 2. 文字列データ構造
+## 2. String Data Structures
 
-### 2.1 Trie（トライ木）
+### 2.1 Trie
 
 ```python
 class TrieNode:
     def __init__(self):
         self.children = {}
         self.is_end = False
-        self.count = 0  # この接頭辞を持つ単語の数
+        self.count = 0  # Number of words with this prefix
 
 class Trie:
-    """前置木 — 文字列の集合を効率的に管理"""
+    """Prefix tree — efficiently manages a set of strings"""
     def __init__(self):
         self.root = TrieNode()
 
@@ -548,7 +548,7 @@ class Trie:
         return True
 
     def count_prefix(self, prefix):
-        """prefixで始まる単語の数"""
+        """Number of words starting with prefix"""
         node = self.root
         for char in prefix:
             if char not in node.children:
@@ -557,7 +557,7 @@ class Trie:
         return node.count
 
     def autocomplete(self, prefix, limit=10):
-        """オートコンプリート: prefixで始まる単語を返す"""
+        """Autocomplete: return words starting with prefix"""
         node = self.root
         for char in prefix:
             if char not in node.children:
@@ -577,7 +577,7 @@ class Trie:
             self._collect_words(node.children[char], current + char, results, limit)
 
     def delete(self, word):
-        """単語を削除"""
+        """Delete a word"""
         def _delete(node, word, depth):
             if depth == len(word):
                 if not node.is_end:
@@ -600,16 +600,16 @@ class Trie:
 
         _delete(self.root, word, 0)
 
-# 用途:
-# - オートコンプリート（検索候補の表示）
-# - スペルチェック
-# - IPルーティング（最長前置一致）
-# - 辞書の高速検索
-# - 電話番号検索
-# 計算量: 挿入/検索 O(m) — mは文字列長
-# 空間: O(Σ × N) — Σはアルファベットサイズ、Nはノード数
+# Applications:
+# - Autocomplete (search suggestions)
+# - Spell checking
+# - IP routing (longest prefix match)
+# - Fast dictionary lookup
+# - Phone number search
+# Complexity: Insert/Search O(m) — m is the string length
+# Space: O(Sigma * N) — Sigma is the alphabet size, N is the number of nodes
 
-# 使用例: オートコンプリート
+# Usage example: Autocomplete
 trie = Trie()
 words = ["apple", "application", "apply", "ape", "banana", "band", "bank"]
 for w in words:
@@ -620,17 +620,17 @@ print(trie.count_prefix("app"))  # 3
 print(trie.count_prefix("ban"))  # 3
 ```
 
-#### 圧縮Trie（Patricia Trie / Radix Tree）
+#### Compressed Trie (Patricia Trie / Radix Tree)
 
 ```python
 class CompressedTrieNode:
     def __init__(self, label=""):
-        self.label = label       # 辺のラベル（複数文字可能）
+        self.label = label       # Edge label (can be multiple characters)
         self.children = {}
         self.is_end = False
 
 class CompressedTrie:
-    """圧縮Trie: 1文字ずつでなく、共通接頭辞をまとめる"""
+    """Compressed Trie: groups common prefixes instead of individual characters"""
 
     def __init__(self):
         self.root = CompressedTrieNode()
@@ -651,18 +651,18 @@ class CompressedTrie:
             child = node.children[first_char]
             label = child.label
 
-            # 共通接頭辞の長さを求める
+            # Find the length of the common prefix
             j = 0
             while j < len(label) and i + j < len(word) and label[j] == word[i + j]:
                 j += 1
 
             if j == len(label):
-                # ラベル全体が一致 → 子ノードへ
+                # Entire label matches -> proceed to child node
                 i += j
                 node = child
             else:
-                # 途中で分岐 → ノードを分割
-                # 共通部分の新ノード
+                # Branch in the middle -> split the node
+                # New node for the common part
                 split = CompressedTrieNode(label[:j])
                 split.children[label[j]] = child
                 child.label = label[j:]
@@ -699,24 +699,24 @@ class CompressedTrie:
 
         return node.is_end
 
-# 通常のTrie vs 圧縮Trie:
-# 通常: "application" → a → p → p → l → i → c → a → t → i → o → n (11ノード)
-# 圧縮: "application" → "application" (1ノード)
-# 空間効率が大幅に改善される（特にキーが長い場合）
+# Standard Trie vs Compressed Trie:
+# Standard: "application" -> a -> p -> p -> l -> i -> c -> a -> t -> i -> o -> n (11 nodes)
+# Compressed: "application" -> "application" (1 node)
+# Significantly improved space efficiency (especially for long keys)
 ```
 
-### 2.2 サフィックス配列
+### 2.2 Suffix Array
 
 ```python
 def build_suffix_array(s):
-    """サフィックス配列を構築（O(n log^2 n) 版）"""
+    """Build a suffix array (O(n log^2 n) version)"""
     n = len(s)
-    # 各接尾辞を(ランク, 次のランク, 位置)でソート
+    # Sort each suffix by (rank, next rank, position)
     suffixes = [(ord(s[i]), ord(s[i + 1]) if i + 1 < n else -1, i)
                 for i in range(n)]
     suffixes.sort()
 
-    # ランクの更新
+    # Update ranks
     rank = [0] * n
     rank[suffixes[0][2]] = 0
     for i in range(1, n):
@@ -726,7 +726,7 @@ def build_suffix_array(s):
 
     k = 2
     while k < n:
-        # (rank[i], rank[i+k]) でソート
+        # Sort by (rank[i], rank[i+k])
         suffixes = [(rank[i], rank[i + k] if i + k < n else -1, i)
                     for i in range(n)]
         suffixes.sort()
@@ -742,15 +742,15 @@ def build_suffix_array(s):
 
     return [s[2] for s in suffixes]
 
-# サフィックス配列の使用例
+# Suffix array usage example
 s = "banana"
 sa = build_suffix_array(s)
-print(f"サフィックス配列: {sa}")
-# [5, 3, 1, 0, 4, 2] → a, ana, anana, banana, na, nana
+print(f"Suffix array: {sa}")
+# [5, 3, 1, 0, 4, 2] -> a, ana, anana, banana, na, nana
 
-# パターン検索: 二分探索で O(m log n)
+# Pattern search: O(m log n) with binary search
 def search_with_suffix_array(text, sa, pattern):
-    """サフィックス配列でパターンを検索"""
+    """Search for a pattern using a suffix array"""
     n = len(text)
     m = len(pattern)
     lo, hi = 0, n - 1
@@ -760,7 +760,7 @@ def search_with_suffix_array(text, sa, pattern):
         suffix = text[sa[mid]:sa[mid] + m]
 
         if suffix == pattern:
-            # マッチ → 全ての出現を探す
+            # Match -> find all occurrences
             start = end = mid
             while start > 0 and text[sa[start-1]:sa[start-1]+m] == pattern:
                 start -= 1
@@ -774,9 +774,9 @@ def search_with_suffix_array(text, sa, pattern):
 
     return []
 
-# LCP配列（Longest Common Prefix）
+# LCP Array (Longest Common Prefix)
 def build_lcp_array(text, sa):
-    """Kasaiのアルゴリズムで LCP 配列を構築 O(n)"""
+    """Build LCP array using Kasai's algorithm O(n)"""
     n = len(text)
     rank = [0] * n
     lcp = [0] * n
@@ -798,110 +798,113 @@ def build_lcp_array(text, sa):
 
     return lcp
 
-# LCP配列の用途:
-# - 最長反復部分文字列の検出: max(lcp)
-# - 異なる部分文字列の数: n*(n+1)/2 - sum(lcp)
-# - 最長共通部分文字列（2つの文字列を結合してSA+LCPを構築）
+# Applications of the LCP array:
+# - Finding the longest repeated substring: max(lcp)
+# - Counting distinct substrings: n*(n+1)/2 - sum(lcp)
+# - Longest common substring (concatenate two strings and build SA + LCP)
 ```
 
 ```
-サフィックス配列: 全ての接尾辞をソートした配列
+Suffix array: an array of all suffixes sorted lexicographically
 
-  文字列: "banana"
-  接尾辞:           ソート後:
-  0: banana         5: a
-  1: anana          3: ana
-  2: nana           1: anana
-  3: ana            0: banana
-  4: na             4: na
-  5: a              2: nana
+  String: "banana"
+  Suffixes:            After sorting:
+  0: banana           5: a
+  1: anana            3: ana
+  2: nana             1: anana
+  3: ana              0: banana
+  4: na               4: na
+  5: a                2: nana
 
-  サフィックス配列: [5, 3, 1, 0, 4, 2]
+  Suffix array: [5, 3, 1, 0, 4, 2]
 
-  パターン検索: 二分探索で O(m log n)
-  構築: O(n) (SA-IS アルゴリズム)
+  Pattern search: O(m log n) with binary search
+  Construction: O(n) (SA-IS algorithm)
 
-  用途:
-  - 全文検索エンジン
-  - DNA配列の解析
-  - データ圧縮（BWT: Burrows-Wheeler変換）
-  - 最長反復部分文字列
-  - 異なる部分文字列のカウント
+  Applications:
+  - Full-text search engines
+  - DNA sequence analysis
+  - Data compression (BWT: Burrows-Wheeler Transform)
+  - Longest repeated substring
+  - Counting distinct substrings
 ```
 
-### 2.3 サフィックスツリー（概要）
+### 2.3 Suffix Tree (Overview)
 
 ```
-サフィックスツリー: 全ての接尾辞を圧縮Trieに格納
+Suffix tree: stores all suffixes in a compressed Trie
 
-  文字列 "banana$" のサフィックスツリー:
+  Suffix tree for string "banana$":
 
   root
-  ├── "a" ── "na" ── "na$"
-  │          └── "$"
-  ├── "banana$"
-  ├── "na" ── "na$"
-  │          └── "$"
-  └── "$"
+  |-- "a" -- "na" -- "na$"
+  |          +-- "$"
+  |-- "banana$"
+  |-- "na" -- "na$"
+  |          +-- "$"
+  +-- "$"
 
-  特徴:
-  - 構築: O(n) (Ukkonenのアルゴリズム)
-  - パターン検索: O(m)
-  - 最長反復部分文字列: O(n)
-  - 最長共通部分文字列: O(n + m)
+  Characteristics:
+  - Construction: O(n) (Ukkonen's algorithm)
+  - Pattern search: O(m)
+  - Longest repeated substring: O(n)
+  - Longest common substring: O(n + m)
 
-  サフィックスツリー vs サフィックス配列:
-  ┌───────────────┬──────────────────┬──────────────────┐
-  │ 特性           │ サフィックスツリー │ サフィックス配列 │
-  ├───────────────┼──────────────────┼──────────────────┤
-  │ 空間           │ O(n) だが定数大   │ O(n) で効率的    │
-  │ 構築           │ O(n) Ukkonen     │ O(n) SA-IS      │
-  │ パターン検索   │ O(m)             │ O(m log n)       │
-  │ 実装の複雑さ   │ 高い              │ 中程度           │
-  │ キャッシュ効率 │ 低い              │ 高い             │
-  └───────────────┴──────────────────┴──────────────────┘
+  Suffix tree vs Suffix array:
+  +----------------+------------------+------------------+
+  | Property       | Suffix tree      | Suffix array     |
+  +----------------+------------------+------------------+
+  | Space          | O(n) but large   | O(n) efficient   |
+  |                | constant         |                  |
+  | Construction   | O(n) Ukkonen     | O(n) SA-IS       |
+  | Pattern search | O(m)             | O(m log n)       |
+  | Implementation | High complexity  | Moderate         |
+  | complexity     |                  |                  |
+  | Cache          | Low              | High             |
+  | efficiency     |                  |                  |
+  +----------------+------------------+------------------+
 
-  実務的にはサフィックス配列 + LCP配列が主流
+  In practice, suffix array + LCP array is the mainstream approach
 ```
 
 ---
 
-## 3. 正規表現とオートマトン
+## 3. Regular Expressions and Automata
 
-### 3.1 正規表現の内部
+### 3.1 Internals of Regular Expressions
 
 ```
-正規表現の実行方式:
+Regular expression execution modes:
 
-  1. NFA（非決定性有限オートマトン）方式
-     → 正規表現 → NFA → 文字列をシミュレート
-     → 計算量: O(n × m) — nは文字列長、mは正規表現長
-     → Go, Rust, RE2 が採用
+  1. NFA (Nondeterministic Finite Automaton) mode
+     -> Regex -> NFA -> Simulate on string
+     -> Complexity: O(n * m) — n is string length, m is regex length
+     -> Used by Go, Rust, RE2
 
-  2. バックトラック方式
-     → 正規表現をバックトラックで直接実行
-     → 計算量: O(2^n) 最悪（指数時間！）
-     → Python, JavaScript, Java, Ruby, Perl が採用
-     → 「壊滅的バックトラック」の危険
+  2. Backtracking mode
+     -> Execute regex directly with backtracking
+     -> Complexity: O(2^n) worst case (exponential time!)
+     -> Used by Python, JavaScript, Java, Ruby, Perl
+     -> Risk of "catastrophic backtracking"
 
-  壊滅的バックトラック (ReDoS) の例:
-  パターン: (a+)+b
-  入力: "aaaaaaaaaaaaaaaaaaaac"
-  → バックトラック方式: 指数時間で応答なし！
-  → NFA方式: 線形時間で不一致を判定
+  Catastrophic backtracking (ReDoS) example:
+  Pattern: (a+)+b
+  Input: "aaaaaaaaaaaaaaaaaaaac"
+  -> Backtracking mode: exponential time, no response!
+  -> NFA mode: determines mismatch in linear time
 
-  対策:
-  - 正規表現のタイムアウト設定
-  - RE2/Go正規表現エンジンの使用
-  - 正規表現の静的解析ツール
+  Countermeasures:
+  - Set regex execution timeouts
+  - Use RE2/Go regex engine
+  - Use static analysis tools for regex
 ```
 
-### 3.2 有限オートマトンの基礎
+### 3.2 Fundamentals of Finite Automata
 
 ```python
-# DFA（決定性有限オートマトン）の実装
+# DFA (Deterministic Finite Automaton) implementation
 class DFA:
-    """決定性有限オートマトン"""
+    """Deterministic Finite Automaton"""
     def __init__(self, states, alphabet, transitions, start, accepts):
         self.states = states
         self.alphabet = alphabet
@@ -918,7 +921,7 @@ class DFA:
             state = self.transitions[key]
         return state in self.accepts
 
-# 例: "ab" を含む文字列を受理するDFA
+# Example: DFA that accepts strings containing "ab"
 dfa = DFA(
     states={0, 1, 2},
     alphabet={'a', 'b'},
@@ -935,23 +938,23 @@ print(dfa.accepts_string("aab"))     # True
 print(dfa.accepts_string("ba"))      # False
 print(dfa.accepts_string("bab"))     # True
 
-# NFA → DFA変換（部分集合構成法）
-# 理論的には状態数が指数的に増加する可能性がある
-# 実用的にはほとんどの場合、管理可能なサイズ
+# NFA -> DFA conversion (subset construction)
+# Theoretically, the number of states can grow exponentially
+# In practice, it is manageable in most cases
 ```
 
-### 3.3 簡易正規表現エンジン
+### 3.3 Simple Regular Expression Engine
 
 ```python
 class SimpleRegex:
-    """簡易正規表現エンジン（Thompson NFA構成法）
-    サポート: リテラル文字, '.', '*', '+', '?', '|', '(', ')'
+    """Simple regex engine (Thompson NFA construction)
+    Supports: literal characters, '.', '*', '+', '?', '|', '(', ')'
     """
 
     class State:
         def __init__(self):
             self.transitions = {}  # char -> [State]
-            self.epsilon = []      # epsilon遷移
+            self.epsilon = []      # Epsilon transitions
             self.is_accept = False
 
     class NFA:
@@ -961,7 +964,7 @@ class SimpleRegex:
 
     @staticmethod
     def char_nfa(c):
-        """単一文字のNFA"""
+        """NFA for a single character"""
         start = SimpleRegex.State()
         accept = SimpleRegex.State()
         accept.is_accept = True
@@ -970,14 +973,14 @@ class SimpleRegex:
 
     @staticmethod
     def concat(nfa1, nfa2):
-        """連結"""
+        """Concatenation"""
         nfa1.accept.is_accept = False
         nfa1.accept.epsilon.append(nfa2.start)
         return SimpleRegex.NFA(nfa1.start, nfa2.accept)
 
     @staticmethod
     def union(nfa1, nfa2):
-        """選択（|）"""
+        """Alternation (|)"""
         start = SimpleRegex.State()
         accept = SimpleRegex.State()
         accept.is_accept = True
@@ -992,7 +995,7 @@ class SimpleRegex:
 
     @staticmethod
     def star(nfa):
-        """クリーネ閉包（*）"""
+        """Kleene closure (*)"""
         start = SimpleRegex.State()
         accept = SimpleRegex.State()
         accept.is_accept = True
@@ -1005,7 +1008,7 @@ class SimpleRegex:
 
     @staticmethod
     def match(nfa, text):
-        """NFAシミュレーションで文字列をマッチ"""
+        """Match a string using NFA simulation"""
         def epsilon_closure(states):
             stack = list(states)
             closure = set(states)
@@ -1024,59 +1027,59 @@ class SimpleRegex:
             for state in current:
                 if char in state.transitions:
                     next_states.update(state.transitions[char])
-                if '.' in state.transitions:  # ワイルドカード
+                if '.' in state.transitions:  # Wildcard
                     next_states.update(state.transitions['.'])
             current = epsilon_closure(next_states)
 
         return any(state.is_accept for state in current)
 
-# Thompson NFA の利点:
-# - 常に O(n × m) の計算量（バックトラックなし）
-# - 壊滅的バックトラックが起きない
-# - RE2, Go の正規表現エンジンが採用
+# Advantages of Thompson NFA:
+# - Always O(n * m) complexity (no backtracking)
+# - No catastrophic backtracking
+# - Used by RE2, Go regex engine
 ```
 
-### 3.4 危険な正規表現パターン（ReDoS）
+### 3.4 Dangerous Regex Patterns (ReDoS)
 
 ```python
 import re
 import time
 
-# ReDoS（正規表現サービス拒否攻撃）の例
+# ReDoS (Regular Expression Denial of Service) examples
 
-# 危険なパターン: ネストした量詞
+# Dangerous patterns: nested quantifiers
 dangerous_patterns = [
-    r"(a+)+b",           # ネストした繰り返し
-    r"(a|aa)+b",         # 選択 + 繰り返し
-    r"(.*a){x}",         # .* + 繰り返し
-    r"([a-zA-Z]+)*@",    # 文字クラス + ネスト
+    r"(a+)+b",           # Nested repetition
+    r"(a|aa)+b",         # Alternation + repetition
+    r"(.*a){x}",         # .* + repetition
+    r"([a-zA-Z]+)*@",    # Character class + nesting
 ]
 
-# 安全なパターンへの書き換え例:
-# 危険: (a+)+b   → 安全: a+b
-# 危険: (a|aa)+b → 安全: a+b
-# 危険: ([a-zA-Z]+)*@ → 安全: [a-zA-Z]+@
+# Examples of rewriting to safe patterns:
+# Dangerous: (a+)+b   -> Safe: a+b
+# Dangerous: (a|aa)+b -> Safe: a+b
+# Dangerous: ([a-zA-Z]+)*@ -> Safe: [a-zA-Z]+@
 
-# ReDoSの検出チェックリスト:
-# 1. ネストした量詞 (X+)+ や (X*)*
-# 2. 重なりのある選択肢 (a|a)+ や (a|ab)+
-# 3. 量詞の後に失敗しやすいパターン
-# 4. バックリファレンスの多用
+# ReDoS detection checklist:
+# 1. Nested quantifiers (X+)+ or (X*)*
+# 2. Overlapping alternatives (a|a)+ or (a|ab)+
+# 3. Quantifiers followed by patterns that easily fail
+# 4. Heavy use of backreferences
 
-# 対策:
-# 1. 正規表現のタイムアウト設定
-# 2. 入力の長さ制限
-# 3. RE2 や Go の正規表現エンジンを使用
-# 4. 正規表現の静的解析ツール（redos-checker等）
-# 5. 可能であれば正規表現を使わない文字列処理に置き換え
+# Countermeasures:
+# 1. Set regex execution timeouts
+# 2. Limit input length
+# 3. Use RE2 or Go regex engine
+# 4. Use static analysis tools for regex (e.g., redos-checker)
+# 5. Replace regex with non-regex string processing where possible
 
-# Pythonでのタイムアウト付き正規表現
+# Regex with timeout in Python
 import signal
 
 def regex_with_timeout(pattern, text, timeout=1):
-    """タイムアウト付き正規表現マッチ（Unix系のみ）"""
+    """Regex match with timeout (Unix-like systems only)"""
     def handler(signum, frame):
-        raise TimeoutError("正規表現の実行がタイムアウトしました")
+        raise TimeoutError("Regex execution timed out")
 
     signal.signal(signal.SIGALRM, handler)
     signal.alarm(timeout)
@@ -1089,29 +1092,29 @@ def regex_with_timeout(pattern, text, timeout=1):
         return None
 ```
 
-### 3.5 実務での文字列処理
+### 3.5 Practical String Processing
 
 ```python
-# 実務でよく使う文字列操作の計算量
+# Complexity of commonly used string operations in practice
 
 s = "Hello, World!"
 
-# O(n) 操作:
-s.find("World")      # 線形検索
-s.replace("o", "0")  # 全置換
-s.split(",")          # 分割
-"".join(parts)        # 結合
+# O(n) operations:
+s.find("World")      # Linear search
+s.replace("o", "0")  # Replace all
+s.split(",")          # Split
+"".join(parts)        # Join
 
-# 注意: 文字列の連結
-# ❌ O(n^2): ループ内で文字列連結
+# Caution: String concatenation
+# Bad: O(n^2): String concatenation inside a loop
 result = ""
 for word in words:
-    result += word  # 毎回新しい文字列を生成 → O(n^2)
+    result += word  # Creates a new string each time -> O(n^2)
 
-# ✅ O(n): joinを使用
+# Good: O(n): Use join
 result = "".join(words)
 
-# ✅ O(n): io.StringIO
+# Good: O(n): io.StringIO
 from io import StringIO
 buf = StringIO()
 for word in words:
@@ -1119,50 +1122,50 @@ for word in words:
 result = buf.getvalue()
 ```
 
-#### 文字列処理のベストプラクティス
+#### String Processing Best Practices
 
 ```python
 import re
 
-# 1. 正規表現のプリコンパイル
-# ❌ 毎回コンパイル
+# 1. Precompile regex patterns
+# Bad: Compiles every time
 for line in lines:
     if re.match(r"\d{3}-\d{4}", line):
         pass
 
-# ✅ プリコンパイル
+# Good: Precompile
 pattern = re.compile(r"\d{3}-\d{4}")
 for line in lines:
     if pattern.match(line):
         pass
 
-# 2. 文字列のフォーマット
+# 2. String formatting
 name = "World"
-# ❌ 遅い
+# Bad: Slow
 result = "Hello, " + name + "!"
-# ✅ f-string（Python 3.6+、最も高速）
+# Good: f-string (Python 3.6+, fastest)
 result = f"Hello, {name}!"
 
-# 3. 大量の文字列操作
-# ❌ 文字列の繰り返し連結
+# 3. Bulk string operations
+# Bad: Repeated string concatenation
 s = ""
 for i in range(10000):
     s += str(i)
 
-# ✅ リストに溜めてjoin
+# Good: Accumulate in a list and join
 parts = []
 for i in range(10000):
     parts.append(str(i))
 s = "".join(parts)
 
-# ✅ ジェネレータ式
+# Good: Generator expression
 s = "".join(str(i) for i in range(10000))
 
-# 4. 文字列のスライスは新しいオブジェクトを生成する
-# Python: s[i:j] はコピー O(j-i)
-# 大量のスライスを避ける → memoryview や index で対処
+# 4. String slicing creates a new object
+# Python: s[i:j] is a copy O(j-i)
+# Avoid heavy slicing -> use memoryview or index-based processing
 
-# 5. 各言語での文字列ビルダー
+# 5. String builders in each language
 # Python: "".join(list) or io.StringIO
 # Java: StringBuilder
 # C#: StringBuilder
@@ -1171,109 +1174,109 @@ s = "".join(str(i) for i in range(10000))
 # JavaScript: Array.join() or template literals
 ```
 
-#### Unicode文字列の扱い
+#### Handling Unicode Strings
 
 ```python
-# Unicodeの注意点
+# Unicode considerations
 
-# 1. 文字数 vs バイト数
+# 1. Character count vs byte count
 s = "こんにちは"
-print(len(s))                    # 5（文字数）
-print(len(s.encode('utf-8')))    # 15（UTF-8バイト数）
-print(len(s.encode('utf-16')))   # 12（UTF-16バイト数、BOM含む）
+print(len(s))                    # 5 (character count)
+print(len(s.encode('utf-8')))    # 15 (UTF-8 byte count)
+print(len(s.encode('utf-16')))   # 12 (UTF-16 byte count, including BOM)
 
-# 2. サロゲートペア
+# 2. Surrogate pairs
 emoji = "😀"
-print(len(emoji))                        # 1（Python）
-# JavaScriptでは: "😀".length = 2（UTF-16サロゲートペア）
+print(len(emoji))                        # 1 (Python)
+# In JavaScript: "😀".length = 2 (UTF-16 surrogate pair)
 
-# 3. 結合文字（Combining Characters）
-# "が" = "か" + "゛" の場合がある
+# 3. Combining Characters
+# "が" = "か" + "゛" in some cases
 import unicodedata
-s1 = "が"                              # 1文字
-s2 = "か\u3099"                        # か + 濁点 = が
+s1 = "が"                              # 1 character
+s2 = "か\u3099"                        # か + dakuten = が
 print(s1 == s2)                         # False!
 print(unicodedata.normalize('NFC', s1) ==
       unicodedata.normalize('NFC', s2)) # True
 
-# 4. 文字列の比較は正規化後に行う
+# 4. Compare strings after normalization
 def safe_compare(s1, s2):
     return unicodedata.normalize('NFC', s1) == unicodedata.normalize('NFC', s2)
 
-# 5. 書記素クラスタ（Grapheme Cluster）
-# "👨‍👩‍👧‍👦" は1つの絵文字だが、内部的には複数のコードポイント
+# 5. Grapheme Clusters
+# "👨‍👩‍👧‍👦" is a single emoji, but internally consists of multiple code points
 family = "👨‍👩‍👧‍👦"
-print(len(family))  # 7（Python）— ZWJ (Zero Width Joiner) を含む
-# 正しく1文字として扱うには grapheme ライブラリが必要
+print(len(family))  # 7 (Python) — includes ZWJ (Zero Width Joiner)
+# The grapheme library is needed to correctly treat this as 1 character
 ```
 
 ---
 
-## 4. 高度な文字列アルゴリズム
+## 4. Advanced String Algorithms
 
-### 4.1 Manacher法（最長回文部分文字列）
+### 4.1 Manacher's Algorithm (Longest Palindromic Substring)
 
 ```python
 def manacher(s):
-    """全ての位置を中心とする最長回文を O(n) で求める"""
-    # 文字間に'#'を挿入: "abc" → "#a#b#c#"
+    """Find the longest palindrome centered at each position in O(n)"""
+    # Insert '#' between characters: "abc" -> "#a#b#c#"
     t = '#' + '#'.join(s) + '#'
     n = len(t)
-    p = [0] * n  # p[i] = 位置iを中心とする回文の半径
+    p = [0] * n  # p[i] = radius of the palindrome centered at position i
 
-    center = right = 0  # 最も右まで届いている回文
+    center = right = 0  # Palindrome extending furthest to the right
     for i in range(n):
-        # ミラーを利用
+        # Leverage the mirror
         mirror = 2 * center - i
         if i < right:
             p[i] = min(right - i, p[mirror])
 
-        # 拡張を試みる
+        # Attempt to expand
         while (i + p[i] + 1 < n and i - p[i] - 1 >= 0 and
                t[i + p[i] + 1] == t[i - p[i] - 1]):
             p[i] += 1
 
-        # 右端を更新
+        # Update the right boundary
         if i + p[i] > right:
             center = i
             right = i + p[i]
 
-    # 最長回文を見つける
+    # Find the longest palindrome
     max_len = max(p)
     max_center = p.index(max_len)
     start = (max_center - max_len) // 2
 
     return s[start:start + max_len]
 
-# 例:
+# Examples:
 print(manacher("babad"))    # "bab" or "aba"
 print(manacher("cbbd"))     # "bb"
 print(manacher("racecar"))  # "racecar"
 
-# 計算量: O(n) — ナイーブ法の O(n^2) から大幅改善
-# ミラー利用が計算量削減の鍵
+# Complexity: O(n) — significant improvement over the O(n^2) naive method
+# Mirror utilization is the key to reducing complexity
 ```
 
-### 4.2 Burrows-Wheeler変換（BWT）
+### 4.2 Burrows-Wheeler Transform (BWT)
 
 ```python
 def bwt_encode(s):
-    """Burrows-Wheeler変換（圧縮のための前処理）"""
-    s = s + '$'  # 終端文字を追加
+    """Burrows-Wheeler Transform (preprocessing for compression)"""
+    s = s + '$'  # Append sentinel character
     n = len(s)
 
-    # 全ての巡回シフトをソート
+    # Sort all cyclic rotations
     rotations = sorted(range(n), key=lambda i: s[i:] + s[:i])
 
-    # 最後の列を取得
+    # Extract the last column
     bwt = ''.join(s[(i - 1) % n] for i in rotations)
-    # 元の文字列の位置
+    # Position of the original string
     original_idx = rotations.index(0)
 
     return bwt, original_idx
 
 def bwt_decode(bwt, idx):
-    """BWT逆変換"""
+    """Inverse BWT"""
     n = len(bwt)
     table = [''] * n
 
@@ -1284,32 +1287,32 @@ def bwt_decode(bwt, idx):
         if row.endswith('$'):
             return row[:-1]
 
-# 使用例
+# Usage example
 text = "banana"
 encoded, idx = bwt_encode(text)
 print(f"BWT: {encoded}")  # "annb$aa"
 decoded = bwt_decode(encoded, idx)
-print(f"復元: {decoded}")  # "banana"
+print(f"Decoded: {decoded}")  # "banana"
 
-# BWTの用途:
-# - bzip2 圧縮の核心技術
-# - FM-Index（全文検索のインデックス）
-# - DNA配列のアラインメント（BWA, Bowtie）
-# BWTは同じ文字を近くに集める効果がある → Run-Length Encoding で効率的に圧縮
+# Applications of BWT:
+# - Core technology in bzip2 compression
+# - FM-Index (full-text search index)
+# - DNA sequence alignment (BWA, Bowtie)
+# BWT clusters identical characters together -> efficiently compressed with Run-Length Encoding
 ```
 
-### 4.3 文字列ハッシュの応用
+### 4.3 Applications of String Hashing
 
 ```python
 class RollingHash:
-    """ローリングハッシュ: 部分文字列のハッシュを O(1) で計算"""
+    """Rolling Hash: compute substring hash in O(1)"""
 
     def __init__(self, s, base=131, mod=10**18 + 9):
         self.n = len(s)
         self.base = base
         self.mod = mod
 
-        # 前処理: ハッシュ値と基数のべき乗を計算
+        # Preprocessing: compute hash values and base powers
         self.hash = [0] * (self.n + 1)
         self.power = [1] * (self.n + 1)
 
@@ -1318,21 +1321,21 @@ class RollingHash:
             self.power[i + 1] = (self.power[i] * base) % mod
 
     def get_hash(self, l, r):
-        """部分文字列 s[l:r] のハッシュ値を O(1) で返す"""
+        """Return the hash of substring s[l:r] in O(1)"""
         return (self.hash[r] - self.hash[l] * self.power[r - l]) % self.mod
 
     def is_equal(self, l1, r1, l2, r2):
-        """s[l1:r1] == s[l2:r2] を O(1) で判定（確率的）"""
+        """Check s[l1:r1] == s[l2:r2] in O(1) (probabilistic)"""
         return self.get_hash(l1, r1) == self.get_hash(l2, r2)
 
-# 使用例: 最長反復部分文字列
+# Usage example: Longest repeated substring
 def longest_repeated_substring(s):
-    """二分探索 + ローリングハッシュで最長反復部分文字列を求める"""
+    """Find the longest repeated substring using binary search + rolling hash"""
     rh = RollingHash(s)
     n = len(s)
 
     def has_repeat(length):
-        """長さlengthの反復部分文字列が存在するか"""
+        """Check if a repeated substring of the given length exists"""
         seen = set()
         for i in range(n - length + 1):
             h = rh.get_hash(i, i + length)
@@ -1355,48 +1358,48 @@ def longest_repeated_substring(s):
 
     return best
 
-# 計算量: O(n log n) — 期待値
-# 使用例
+# Complexity: O(n log n) — expected
+# Usage example
 print(longest_repeated_substring("banana"))  # "ana"
 print(longest_repeated_substring("abcabc"))  # "abc"
 ```
 
 ---
 
-## 5. 実務での文字列処理
+## 5. Practical String Processing
 
-### 5.1 テキスト処理のパイプライン
+### 5.1 Text Processing Pipeline
 
 ```python
-# 実務的なテキスト処理パイプラインの例
+# Example of a practical text processing pipeline
 
 import re
 from collections import Counter
 
 def text_processing_pipeline(text):
-    """テキストを前処理して単語頻度を計算"""
-    # 1. 正規化
+    """Preprocess text and compute word frequency"""
+    # 1. Normalization
     text = text.lower()
 
-    # 2. 特殊文字の除去
+    # 2. Remove special characters
     text = re.sub(r'[^\w\s]', '', text)
 
-    # 3. トークン化
+    # 3. Tokenization
     words = text.split()
 
-    # 4. ストップワードの除去
+    # 4. Remove stop words
     stop_words = {'the', 'a', 'an', 'is', 'are', 'was', 'were',
                   'in', 'on', 'at', 'to', 'of', 'and', 'or', 'for'}
     words = [w for w in words if w not in stop_words]
 
-    # 5. 頻度カウント
+    # 5. Frequency counting
     freq = Counter(words)
 
     return freq.most_common(10)
 
-# ファジーマッチング（あいまい検索）
+# Fuzzy matching (approximate search)
 def fuzzy_search(query, candidates, max_distance=2):
-    """編集距離がmax_distance以内の候補を返す"""
+    """Return candidates within max_distance edit distance"""
     results = []
 
     for candidate in candidates:
@@ -1423,44 +1426,44 @@ def edit_distance(s1, s2):
 
     return dp[n]
 
-# 使用例
+# Usage example
 words = ["apple", "application", "apply", "maple", "ape",
          "banana", "bandana", "band"]
 results = fuzzy_search("aple", words, max_distance=2)
 # [('apple', 1), ('ape', 2), ('maple', 2)]
 ```
 
-### 5.2 全文検索エンジンの仕組み
+### 5.2 How Full-Text Search Engines Work
 
 ```python
-# 転置インデックス（Inverted Index）の簡易実装
+# Simple implementation of an Inverted Index
 
 class InvertedIndex:
-    """全文検索のための転置インデックス"""
+    """Inverted index for full-text search"""
 
     def __init__(self):
-        self.index = {}        # 単語 → [(doc_id, position), ...]
-        self.documents = {}    # doc_id → 原文
+        self.index = {}        # word -> [(doc_id, position), ...]
+        self.documents = {}    # doc_id -> original text
 
     def add_document(self, doc_id, text):
-        """ドキュメントをインデックスに追加"""
+        """Add a document to the index"""
         self.documents[doc_id] = text
         words = text.lower().split()
 
         for pos, word in enumerate(words):
-            # ステミング（簡易版: 末尾のsを除去）
+            # Stemming (simple version: remove trailing 's')
             word = word.strip('.,!?;:')
             if word not in self.index:
                 self.index[word] = []
             self.index[word].append((doc_id, pos))
 
     def search(self, query):
-        """単語を含むドキュメントを検索"""
+        """Search for documents containing the word"""
         query = query.lower()
         if query not in self.index:
             return []
 
-        # TF-IDF的なスコアリング（簡易版）
+        # Simple TF-IDF-like scoring
         import math
         total_docs = len(self.documents)
         results = {}
@@ -1478,19 +1481,19 @@ class InvertedIndex:
         return sorted(scored, key=lambda x: x[1], reverse=True)
 
     def phrase_search(self, phrase):
-        """フレーズ検索（連続する単語の検索）"""
+        """Phrase search (search for consecutive words)"""
         words = phrase.lower().split()
         if not words or words[0] not in self.index:
             return []
 
-        # 最初の単語の出現位置
+        # Occurrence positions of the first word
         candidates = {}
         for doc_id, pos in self.index[words[0]]:
             if doc_id not in candidates:
                 candidates[doc_id] = []
             candidates[doc_id].append(pos)
 
-        # 後続の単語が連続しているか確認
+        # Check if subsequent words appear consecutively
         for i, word in enumerate(words[1:], 1):
             if word not in self.index:
                 return []
@@ -1513,7 +1516,7 @@ class InvertedIndex:
 
         return list(candidates.keys())
 
-# 使用例
+# Usage example
 idx = InvertedIndex()
 idx.add_document(1, "The quick brown fox jumps over the lazy dog")
 idx.add_document(2, "A quick brown dog outpaces the fox")
@@ -1525,62 +1528,62 @@ print(idx.phrase_search("quick brown"))  # [1, 2]
 
 ---
 
-## 6. 実践演習
+## 6. Practice Exercises
 
-### 演習1: パターンマッチング（基礎）
-KMP法の失敗関数を手計算で求めよ（パターン: "ABABC"）。
+### Exercise 1: Pattern Matching (Basic)
+Manually compute the KMP failure function for the pattern "ABABC".
 
-### 演習2: Trie（応用）
-Trieを使ってオートコンプリート機能を実装せよ。入力された接頭辞に対して、辞書内の候補を最大10個返すようにせよ。
+### Exercise 2: Trie (Applied)
+Implement an autocomplete feature using a Trie. Given an input prefix, return up to 10 candidates from the dictionary.
 
-### 演習3: Boyer-Moore（応用）
-Boyer-Moore法の Bad Character ルールを実装し、ナイーブ法との比較回数の差を計測せよ。
+### Exercise 3: Boyer-Moore (Applied)
+Implement the Bad Character rule of the Boyer-Moore algorithm and measure the difference in comparison count compared to the naive method.
 
-### 演習4: 全文検索（応用）
-転置インデックスを実装し、AND/OR検索に対応させよ。TF-IDFによるランキングも実装せよ。
+### Exercise 4: Full-Text Search (Applied)
+Implement an inverted index that supports AND/OR search. Also implement TF-IDF ranking.
 
-### 演習5: 正規表現エンジン（発展）
-NFA方式の簡易正規表現エンジン（., *, | のみサポート）を実装せよ。
+### Exercise 5: Regex Engine (Advanced)
+Implement a simple NFA-based regex engine (supporting only `.`, `*`, and `|`).
 
-### 演習6: 回文検出（発展）
-Manacher法を実装し、文字列中の全ての回文部分文字列を列挙せよ。
+### Exercise 6: Palindrome Detection (Advanced)
+Implement Manacher's algorithm and enumerate all palindromic substrings in a string.
 
-### 演習7: サフィックス配列（発展）
-サフィックス配列 + LCP配列を構築し、テキスト中の最長反復部分文字列を見つけよ。
+### Exercise 7: Suffix Array (Advanced)
+Build a suffix array + LCP array and find the longest repeated substring in a text.
 
-### 演習8: 文字列ハッシュ（発展）
-ローリングハッシュを使って、2つの文字列の最長共通部分文字列を O(n log n) で求めよ。
+### Exercise 8: String Hashing (Advanced)
+Find the longest common substring of two strings in O(n log n) using rolling hash.
 
 
 ---
 
-## トラブルシューティング
+## Troubleshooting
 
-### よくあるエラーと解決策
+### Common Errors and Solutions
 
-| エラー | 原因 | 解決策 |
-|--------|------|--------|
-| 初期化エラー | 設定ファイルの不備 | 設定ファイルのパスと形式を確認 |
-| タイムアウト | ネットワーク遅延/リソース不足 | タイムアウト値の調整、リトライ処理の追加 |
-| メモリ不足 | データ量の増大 | バッチ処理の導入、ページネーションの実装 |
-| 権限エラー | アクセス権限の不足 | 実行ユーザーの権限確認、設定の見直し |
-| データ不整合 | 並行処理の競合 | ロック機構の導入、トランザクション管理 |
+| Error | Cause | Solution |
+|-------|-------|----------|
+| Initialization error | Configuration file issues | Verify configuration file path and format |
+| Timeout | Network latency / insufficient resources | Adjust timeout values, add retry logic |
+| Out of memory | Increased data volume | Introduce batch processing, implement pagination |
+| Permission error | Insufficient access privileges | Verify execution user permissions, review settings |
+| Data inconsistency | Concurrency conflicts | Introduce locking mechanisms, manage transactions |
 
-### デバッグの手順
+### Debugging Procedure
 
-1. **エラーメッセージの確認**: スタックトレースを読み、発生箇所を特定する
-2. **再現手順の確立**: 最小限のコードでエラーを再現する
-3. **仮説の立案**: 考えられる原因をリストアップする
-4. **段階的な検証**: ログ出力やデバッガを使って仮説を検証する
-5. **修正と回帰テスト**: 修正後、関連する箇所のテストも実行する
+1. **Check error messages**: Read the stack trace and identify the location of the error
+2. **Establish reproduction steps**: Reproduce the error with minimal code
+3. **Formulate hypotheses**: List possible causes
+4. **Incremental verification**: Verify hypotheses using log output and debuggers
+5. **Fix and regression test**: After fixing, run tests on related areas as well
 
 ```python
-# デバッグ用ユーティリティ
+# Debugging utilities
 import logging
 import traceback
 from functools import wraps
 
-# ロガーの設定
+# Logger configuration
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
@@ -1588,89 +1591,89 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def debug_decorator(func):
-    """関数の入出力をログ出力するデコレータ"""
+    """Decorator that logs function input/output"""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        logger.debug(f"呼び出し: {func.__name__}(args={args}, kwargs={kwargs})")
+        logger.debug(f"Call: {func.__name__}(args={args}, kwargs={kwargs})")
         try:
             result = func(*args, **kwargs)
-            logger.debug(f"戻り値: {func.__name__} -> {result}")
+            logger.debug(f"Return: {func.__name__} -> {result}")
             return result
         except Exception as e:
-            logger.error(f"例外発生: {func.__name__}: {e}")
+            logger.error(f"Exception in {func.__name__}: {e}")
             logger.error(traceback.format_exc())
             raise
     return wrapper
 
 @debug_decorator
 def process_data(items):
-    """データ処理（デバッグ対象）"""
+    """Data processing (debug target)"""
     if not items:
-        raise ValueError("空のデータ")
+        raise ValueError("Empty data")
     return [item * 2 for item in items]
 ```
 
-### パフォーマンス問題の診断
+### Diagnosing Performance Issues
 
-パフォーマンス問題が発生した場合の診断手順:
+Steps for diagnosing performance problems:
 
-1. **ボトルネックの特定**: プロファイリングツールで計測
-2. **メモリ使用量の確認**: メモリリークの有無をチェック
-3. **I/O待ちの確認**: ディスクやネットワークI/Oの状況を確認
-4. **同時接続数の確認**: コネクションプールの状態を確認
+1. **Identify bottlenecks**: Measure using profiling tools
+2. **Check memory usage**: Check for memory leaks
+3. **Check I/O waits**: Examine disk and network I/O status
+4. **Check concurrent connections**: Inspect connection pool status
 
-| 問題の種類 | 診断ツール | 対策 |
-|-----------|-----------|------|
-| CPU負荷 | cProfile, py-spy | アルゴリズム改善、並列化 |
-| メモリリーク | tracemalloc, objgraph | 参照の適切な解放 |
-| I/Oボトルネック | strace, iostat | 非同期I/O、キャッシュ |
-| DB遅延 | EXPLAIN, slow query log | インデックス、クエリ最適化 |
+| Problem Type | Diagnostic Tool | Countermeasure |
+|-------------|----------------|----------------|
+| CPU load | cProfile, py-spy | Algorithm improvement, parallelization |
+| Memory leak | tracemalloc, objgraph | Proper release of references |
+| I/O bottleneck | strace, iostat | Asynchronous I/O, caching |
+| DB latency | EXPLAIN, slow query log | Indexing, query optimization |
 ---
 
 ## FAQ
 
-### Q1: grep は内部的に何を使っていますか？
-**A**: GNU grep は Boyer-Moore アルゴリズムがベース。長いパターンに強く、パターン末尾から比較してスキップ量を最大化する。正規表現モードでは DFA/NFA を使用。fgrep（固定文字列検索）では Aho-Corasick が使われることもある。
+### Q1: What does grep use internally?
+**A**: GNU grep is based on the Boyer-Moore algorithm. It excels with long patterns, maximizing skip distance by comparing from the pattern end. In regex mode, it uses DFA/NFA. fgrep (fixed-string search) sometimes uses Aho-Corasick.
 
-### Q2: 全文検索エンジン（Elasticsearch等）の内部は？
-**A**: 転置インデックス + BM25スコアリング。各単語の出現位置をインデックス化し、検索時はインデックスのマージで候補を絞る。日本語はMeCab/kuromoji等で形態素解析してからインデックス構築。N-gramインデックスを併用する場合もある。
+### Q2: What is inside a full-text search engine (e.g., Elasticsearch)?
+**A**: Inverted index + BM25 scoring. It indexes the occurrence positions of each word and narrows candidates by merging indices at search time. For Japanese text, morphological analysis using MeCab/kuromoji is performed before building the index. N-gram indices are sometimes used in conjunction.
 
-### Q3: 文字列処理で最も重要な最適化は？
-**A**: (1)文字列連結の回避（joinを使う） (2)正規表現のプリコンパイル(re.compile) (3)不要なコピーの回避（スライスは新しい文字列を生成する） (4)適切なデータ構造の選択（Trie、ハッシュマップ等） (5)Unicode正規化の一貫性
+### Q3: What is the most important optimization for string processing?
+**A**: (1) Avoid string concatenation (use join) (2) Precompile regex (re.compile) (3) Avoid unnecessary copies (slicing creates a new string) (4) Choose appropriate data structures (Trie, hashmap, etc.) (5) Consistency in Unicode normalization
 
-### Q4: KMP法とBoyer-Moore法はどちらが速いですか？
-**A**: 一般的にBoyer-Moore法の方が実用上高速。特にアルファベットが大きく（ASCII等）パターンが長い場合に有利。最善ケースでは O(n/m) と、テキスト全体を読まずに済む。一方、KMP法は最悪ケースでも O(n+m) が保証され、実装も比較的単純。バイナリデータや小さいアルファベット（DNA等）ではKMP法が有利な場合もある。
+### Q4: Which is faster, KMP or Boyer-Moore?
+**A**: Generally, Boyer-Moore is faster in practice. It is especially advantageous when the alphabet is large (e.g., ASCII) and the pattern is long. In the best case, it achieves O(n/m), meaning it can complete without even reading the entire text. On the other hand, KMP guarantees O(n+m) even in the worst case and has a relatively simpler implementation. KMP may be advantageous for binary data or small alphabets (e.g., DNA).
 
-### Q5: Aho-Corasick法はどういう場面で使いますか？
-**A**: 複数のパターンを同時に検索する場面。例: ウイルススキャナ（数万のシグネチャを同時検索）、ネットワークIDS、テキストフィルタリング（NGワードリスト）、辞書ベースの形態素解析。単一パターンならKMPやBoyer-Mooreの方が効率的。
+### Q5: In what situations is Aho-Corasick used?
+**A**: When searching for multiple patterns simultaneously. Examples: virus scanners (searching tens of thousands of signatures simultaneously), network IDS, text filtering (banned word lists), dictionary-based morphological analysis. For single-pattern search, KMP or Boyer-Moore is more efficient.
 
-### Q6: サフィックス配列とサフィックスツリーの使い分けは？
-**A**: 実務的にはほぼサフィックス配列 + LCP配列で十分。サフィックスツリーは理論的には強力だが、メモリ消費が大きく（20n バイト程度）、実装が複雑。サフィックス配列は 5n バイト程度で、キャッシュ効率も良い。ただし、オンラインで文字を追加しながらインデックスを構築する必要がある場合はサフィックスツリー（Ukkonen法）が適している。
-
----
-
-## まとめ
-
-| アルゴリズム | 計算量 | 用途 |
-|------------|--------|------|
-| ナイーブ | O(nm) | 短いテキスト |
-| KMP | O(n+m) | 単一パターン検索 |
-| Boyer-Moore | O(n/m)最善, O(n+m) | 実用最速の単一パターン検索 |
-| Rabin-Karp | O(n+m)期待 | 複数パターン |
-| Aho-Corasick | O(n+m+z) | 複数パターン同時検索 |
-| Z-Algorithm | O(n+m) | パターン検索、周期検出 |
-| Trie | O(m) | 辞書、オートコンプリート |
-| サフィックス配列 | O(m log n) | 全文検索 |
-| Manacher | O(n) | 回文検出 |
-| ローリングハッシュ | O(1) per query | 部分文字列の比較 |
+### Q6: When should you use a suffix array vs a suffix tree?
+**A**: In practice, suffix array + LCP array is almost always sufficient. Suffix trees are theoretically powerful but consume more memory (~20n bytes) and are complex to implement. Suffix arrays use about 5n bytes and have better cache efficiency. However, suffix trees (Ukkonen's algorithm) are more suitable when you need to build an index online while incrementally adding characters.
 
 ---
 
-## 次に読むべきガイド
+## Summary
+
+| Algorithm | Complexity | Application |
+|-----------|-----------|-------------|
+| Naive | O(nm) | Short texts |
+| KMP | O(n+m) | Single pattern search |
+| Boyer-Moore | O(n/m) best, O(n+m) | Practically fastest single pattern search |
+| Rabin-Karp | O(n+m) expected | Multiple patterns |
+| Aho-Corasick | O(n+m+z) | Simultaneous multi-pattern search |
+| Z-Algorithm | O(n+m) | Pattern search, period detection |
+| Trie | O(m) | Dictionary, autocomplete |
+| Suffix Array | O(m log n) | Full-text search |
+| Manacher | O(n) | Palindrome detection |
+| Rolling Hash | O(1) per query | Substring comparison |
 
 ---
 
-## 参考文献
+## Recommended Next Guides
+
+---
+
+## References
 1. Cormen, T. H. et al. "Introduction to Algorithms." Chapter 32: String Matching.
 2. Knuth, D. E., Morris, J. H., Pratt, V. R. "Fast Pattern Matching in Strings." 1977.
 3. Cox, R. "Regular Expression Matching Can Be Simple And Fast." 2007.

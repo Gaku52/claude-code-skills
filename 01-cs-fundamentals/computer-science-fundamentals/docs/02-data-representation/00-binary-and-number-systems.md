@@ -1,166 +1,166 @@
-# 2進数と数値表現
+# Binary and Number Systems
 
-> コンピュータの世界では全てが0と1で表現される。この「制約」こそが、デジタル技術の信頼性と普遍性を生み出す源泉である。
+> In the world of computers, everything is represented with 0s and 1s. This very "constraint" is the source of digital technology's reliability and universality.
 
-## この章で学ぶこと
+## Learning Objectives
 
-- [ ] 2進数、8進数、16進数の変換ができる
-- [ ] ビット演算（AND, OR, XOR, NOT, シフト）を使いこなせる
-- [ ] なぜコンピュータが2進数を採用しているか説明できる
-- [ ] 各基数間の変換を高速に行う手法を身につける
-- [ ] ビット演算を実務で活用するパターンを理解する
-- [ ] 数値リテラルを各プログラミング言語で正しく表記できる
+- [ ] Perform conversions between binary, octal, and hexadecimal
+- [ ] Master bitwise operations (AND, OR, XOR, NOT, shift)
+- [ ] Explain why computers use the binary system
+- [ ] Acquire techniques for rapid base conversion
+- [ ] Understand practical patterns for applying bitwise operations
+- [ ] Correctly write numeric literals in various programming languages
 
-## 前提知識
+## Prerequisites
 
-- 基本的な数学（四則演算）
+- Basic mathematics (arithmetic operations)
 
 ---
 
-## 1. なぜ2進数か
+## 1. Why Binary?
 
-### 1.1 物理的な理由
-
-```
-トランジスタ = スイッチ:
-
-  ON  = 電圧高い = 1
-  OFF = 電圧低い = 0
-
-  2つの状態しかないので「2進数」が自然
-
-  もし3進数を使おうとすると:
-  - 電圧を3段階に正確に区別する必要がある
-  - ノイズに弱くなる（境界が2箇所）
-  - 回路が複雑化
-
-  2進数の利点:
-  - ノイズに強い（しきい値が1つだけ）
-  - 回路が単純（ON/OFFだけ）
-  - 論理演算とビット演算が直接対応
-```
-
-### 1.2 歴史的背景
-
-コンピュータが2進数を採用するに至った歴史的背景は、数学・物理学・工学の交差点にある。
+### 1.1 Physical Reasons
 
 ```
-年代別の重要な出来事:
+Transistor = Switch:
 
-  1679年  ライプニッツが2進法の体系を発表
-          - 「0と1による普遍的な計算」を提唱
-          - 中国の易経（陰陽思想）からの影響も指摘される
+  ON  = High voltage = 1
+  OFF = Low voltage  = 0
 
-  1847年  ジョージ・ブールがブール代数を考案
-          - 論理をTRUE/FALSEの2値で数学的に表現
-          - AND, OR, NOT の基本演算を定式化
+  With only two states, "binary" is natural
 
-  1937年  クロード・シャノンの修士論文
-          - 「リレー回路とスイッチング回路の記号的解析」
-          - ブール代数と電気回路の対応関係を証明
-          - デジタル回路設計の理論的基盤を確立
+  If we tried to use ternary:
+  - We would need to precisely distinguish three voltage levels
+  - More susceptible to noise (two boundaries)
+  - Circuit complexity increases
 
-  1945年  フォン・ノイマンのEDVAC報告書
-          - 2進数ベースの stored-program 方式を提案
-          - 「2進表現は回路設計を大幅に簡素化する」
-
-  1947年  トランジスタの発明（ベル研究所）
-          - 真空管に代わる高信頼・小型のスイッチング素子
-          - ON/OFF の2状態が極めて安定
-
-  1958年  集積回路（IC）の発明
-          - トランジスタを大量に集積可能に
-          - 2進数の並列処理が実用的になる
+  Advantages of binary:
+  - Noise-resistant (only one threshold)
+  - Simple circuits (just ON/OFF)
+  - Direct correspondence with logic and bitwise operations
 ```
 
-### 1.3 情報理論からの視点
+### 1.2 Historical Background
+
+The historical path to computers adopting binary lies at the intersection of mathematics, physics, and engineering.
 
 ```
-シャノンの情報理論（1948年）:
+Key events by era:
 
-  情報量の基本単位 = bit（binary digit）
+  1679  Leibniz publishes a systematic treatise on binary
+        - Advocates "universal computation with 0 and 1"
+        - Also noted to be influenced by the Chinese I Ching (yin-yang philosophy)
 
-  1 bit = 「2つの等確率の選択肢から1つを選ぶ」のに必要な情報量
+  1847  George Boole devises Boolean algebra
+        - Expresses logic mathematically with two values: TRUE/FALSE
+        - Formalizes the basic operations AND, OR, NOT
 
-  情報エントロピー H = -Σ p(x) log₂ p(x)
+  1937  Claude Shannon's master's thesis
+        - "A Symbolic Analysis of Relay and Switching Circuits"
+        - Proves the correspondence between Boolean algebra and electrical circuits
+        - Establishes the theoretical foundation for digital circuit design
 
-  例: コイン投げ（表/裏が等確率）
-    H = -(0.5 × log₂(0.5) + 0.5 × log₂(0.5))
-    H = -(0.5 × (-1) + 0.5 × (-1))
+  1945  Von Neumann's EDVAC report
+        - Proposes a binary-based stored-program architecture
+        - "Binary representation greatly simplifies circuit design"
+
+  1947  Invention of the transistor (Bell Labs)
+        - A highly reliable, compact switching element replacing vacuum tubes
+        - ON/OFF two-state operation is extremely stable
+
+  1958  Invention of the integrated circuit (IC)
+        - Enables mass integration of transistors
+        - Makes parallel processing in binary practical
+```
+
+### 1.3 Perspective from Information Theory
+
+```
+Shannon's Information Theory (1948):
+
+  The fundamental unit of information = bit (binary digit)
+
+  1 bit = the amount of information needed to "choose one from two equally probable alternatives"
+
+  Information entropy H = -Sigma p(x) log2 p(x)
+
+  Example: Coin toss (heads/tails equally probable)
+    H = -(0.5 x log2(0.5) + 0.5 x log2(0.5))
+    H = -(0.5 x (-1) + 0.5 x (-1))
     H = 1 bit
 
-  例: 8面サイコロ（各面が等確率）
-    H = -8 × (1/8 × log₂(1/8))
-    H = -8 × (1/8 × (-3))
+  Example: 8-sided die (each face equally probable)
+    H = -8 x (1/8 x log2(1/8))
+    H = -8 x (1/8 x (-3))
     H = 3 bits
 
-  → 2進数は情報の「最小単位」を直接表現する
+  -> Binary directly represents the "smallest unit" of information
 ```
 
-### 1.4 なぜ10進数ではないのか
+### 1.4 Why Not Decimal?
 
 ```
-10進数コンピュータの問題点:
+Problems with decimal computers:
 
-  1. 回路の複雑さ
-     - 10状態を区別する回路は、2状態の回路より遥かに複雑
-     - エラー率が桁違いに高くなる
+  1. Circuit complexity
+     - A circuit distinguishing 10 states is far more complex than one for 2 states
+     - Error rate becomes orders of magnitude higher
 
-  2. 論理演算との不整合
-     - ブール論理（TRUE/FALSE）は自然に2進数と対応
-     - 10進数では論理演算が非効率
+  2. Incompatibility with logic operations
+     - Boolean logic (TRUE/FALSE) naturally maps to binary
+     - Logic operations are inefficient in decimal
 
-  3. 歴史的な試み
-     - ENIAC（1946年）は10進数ベースだった
-     - 10進数の加算器は2進数の約3倍の回路が必要
-     - EDVAC以降、2進数に移行
+  3. Historical attempts
+     - ENIAC (1946) was decimal-based
+     - A decimal adder requires about 3 times the circuitry of a binary one
+     - From EDVAC onward, the shift to binary began
 
-  実際の比較（加算器の回路規模）:
-     2進数 全加算器: ANDゲート2個 + XORゲート2個 + ORゲート1個
-     10進数 加算器: 数十個のゲートが必要 + 繰り上がり処理が複雑
+  Actual comparison (adder circuit scale):
+     Binary full adder: 2 AND gates + 2 XOR gates + 1 OR gate
+     Decimal adder: Tens of gates required + complex carry handling
 ```
 
 ---
 
-## 2. 基数と位取り記数法
+## 2. Radix and Positional Notation
 
-### 2.1 位取り記数法の一般理論
+### 2.1 General Theory of Positional Notation
 
 ```
-N進法（基数N）の一般形:
+Base-N notation (radix N), general form:
 
-  数値 = Σ(i=0 to n) d_i × N^i
+  Value = Sigma(i=0 to n) d_i x N^i
 
-  ここで d_i は各桁の数字（0 ≦ d_i < N）
+  Where d_i is the digit at each position (0 <= d_i < N)
 
-  例: 10進数 4273
-    = 4×10³ + 2×10² + 7×10¹ + 3×10⁰
+  Example: Decimal 4273
+    = 4x10^3 + 2x10^2 + 7x10^1 + 3x10^0
     = 4000  + 200   + 70    + 3
     = 4273
 
-  例: 2進数 1101
-    = 1×2³ + 1×2² + 0×2¹ + 1×2⁰
+  Example: Binary 1101
+    = 1x2^3 + 1x2^2 + 0x2^1 + 1x2^0
     = 8    + 4    + 0    + 1
-    = 13 (10進)
+    = 13 (decimal)
 
-  例: 16進数 0x2AF
-    = 2×16² + A(10)×16¹ + F(15)×16⁰
+  Example: Hexadecimal 0x2AF
+    = 2x16^2 + A(10)x16^1 + F(15)x16^0
     = 512   + 160       + 15
-    = 687 (10進)
+    = 687 (decimal)
 
-  例: 8進数 0o755
-    = 7×8² + 5×8¹ + 5×8⁰
+  Example: Octal 0o755
+    = 7x8^2 + 5x8^1 + 5x8^0
     = 448   + 40   + 5
-    = 493 (10進)
+    = 493 (decimal)
 ```
 
-### 2.2 基数変換
+### 2.2 Base Conversion
 
 ```
-10進数 ⇔ 2進数 ⇔ 16進数:
+Decimal <-> Binary <-> Hexadecimal:
 
-  10進数  2進数          16進数   8進数
-  ──────────────────────────────────────
+  Decimal  Binary          Hex      Octal
+  ------------------------------------------
      0    0000 0000      0x00     000
      1    0000 0001      0x01     001
     10    0000 1010      0x0A     012
@@ -170,108 +170,108 @@ N進法（基数N）の一般形:
    255    1111 1111      0xFF     377
    256    1 0000 0000    0x100    400
 
-  変換方法（10進→2進）: 2で割り続けて余りを逆から並べる
-  42 ÷ 2 = 21 余り 0
-  21 ÷ 2 = 10 余り 1
-  10 ÷ 2 =  5 余り 0
-   5 ÷ 2 =  2 余り 1
-   2 ÷ 2 =  1 余り 0
-   1 ÷ 2 =  0 余り 1
-  → 101010 (2) = 42 (10) ✓
+  Conversion method (decimal -> binary): Repeatedly divide by 2, read remainders in reverse
+  42 / 2 = 21 remainder 0
+  21 / 2 = 10 remainder 1
+  10 / 2 =  5 remainder 0
+   5 / 2 =  2 remainder 1
+   2 / 2 =  1 remainder 0
+   1 / 2 =  0 remainder 1
+  -> 101010 (2) = 42 (10) check
 
-  16進数は2進数の4ビットまとめ:
-  0010 1010 → 2  A → 0x2A ✓
+  Hexadecimal groups 4 bits of binary:
+  0010 1010 -> 2  A -> 0x2A check
 ```
 
-### 2.3 10進数から各基数への変換（詳細手順）
+### 2.3 Decimal to Other Bases (Detailed Procedure)
 
 ```
-【方法1: 除算法（10進 → N進）】
+[Method 1: Division Method (Decimal -> Base N)]
 
-  10進数 173 → 2進数:
-  173 ÷ 2 = 86 余り 1
-   86 ÷ 2 = 43 余り 0
-   43 ÷ 2 = 21 余り 1
-   21 ÷ 2 = 10 余り 1
-   10 ÷ 2 =  5 余り 0
-    5 ÷ 2 =  2 余り 1
-    2 ÷ 2 =  1 余り 0
-    1 ÷ 2 =  0 余り 1
-  → 10101101 (2) ✓
+  Decimal 173 -> Binary:
+  173 / 2 = 86 remainder 1
+   86 / 2 = 43 remainder 0
+   43 / 2 = 21 remainder 1
+   21 / 2 = 10 remainder 1
+   10 / 2 =  5 remainder 0
+    5 / 2 =  2 remainder 1
+    2 / 2 =  1 remainder 0
+    1 / 2 =  0 remainder 1
+  -> 10101101 (2) check
 
-  10進数 173 → 16進数:
-  173 ÷ 16 = 10 余り 13 (D)
-   10 ÷ 16 =  0 余り 10 (A)
-  → 0xAD ✓
+  Decimal 173 -> Hexadecimal:
+  173 / 16 = 10 remainder 13 (D)
+   10 / 16 =  0 remainder 10 (A)
+  -> 0xAD check
 
-  検算: 0xAD = 10×16 + 13 = 160 + 13 = 173 ✓
+  Verification: 0xAD = 10x16 + 13 = 160 + 13 = 173 check
 
-  10進数 4096 → 8進数:
-  4096 ÷ 8 = 512 余り 0
-   512 ÷ 8 =  64 余り 0
-    64 ÷ 8 =   8 余り 0
-     8 ÷ 8 =   1 余り 0
-     1 ÷ 8 =   0 余り 1
-  → 0o10000 ✓ (= 8⁴ = 4096)
+  Decimal 4096 -> Octal:
+  4096 / 8 = 512 remainder 0
+   512 / 8 =  64 remainder 0
+    64 / 8 =   8 remainder 0
+     8 / 8 =   1 remainder 0
+     1 / 8 =   0 remainder 1
+  -> 0o10000 check (= 8^4 = 4096)
 
 
-【方法2: 減算法（10進 → 2進）】
+[Method 2: Subtraction Method (Decimal -> Binary)]
 
-  2のべき乗の表を使う（暗記推奨）:
-  2⁰=1, 2¹=2, 2²=4, 2³=8, 2⁴=16, 2⁵=32, 2⁶=64, 2⁷=128, 2⁸=256
+  Use a table of powers of 2 (recommended to memorize):
+  2^0=1, 2^1=2, 2^2=4, 2^3=8, 2^4=16, 2^5=32, 2^6=64, 2^7=128, 2^8=256
 
-  10進数 173 を2進に変換:
-  173 ≧ 128 → 1 (173-128=45)
-   45 ≧  64 → × → 0
-   45 ≧  32 → 1 (45-32=13)
-   13 ≧  16 → × → 0
-   13 ≧   8 → 1 (13-8=5)
-    5 ≧   4 → 1 (5-4=1)
-    1 ≧   2 → × → 0
-    1 ≧   1 → 1 (1-1=0)
-  → 10101101 (2) ✓
+  Convert decimal 173 to binary:
+  173 >= 128 -> 1 (173-128=45)
+   45 >=  64 -> x -> 0
+   45 >=  32 -> 1 (45-32=13)
+   13 >=  16 -> x -> 0
+   13 >=   8 -> 1 (13-8=5)
+    5 >=   4 -> 1 (5-4=1)
+    1 >=   2 -> x -> 0
+    1 >=   1 -> 1 (1-1=0)
+  -> 10101101 (2) check
 
-  この方法は慣れると除算法より速い
+  This method is faster than the division method once you get used to it
 ```
 
-### 2.4 2進数と16進数の相互変換（高速法）
+### 2.4 Binary-Hexadecimal Interconversion (Fast Method)
 
 ```
-2進数 → 16進数: 右から4ビットずつ区切って変換
+Binary -> Hexadecimal: Group into 4-bit chunks from right to left
 
-  暗記すべき対応表:
+  Correspondence table to memorize:
   0000=0  0001=1  0010=2  0011=3
   0100=4  0101=5  0110=6  0111=7
   1000=8  1001=9  1010=A  1011=B
   1100=C  1101=D  1110=E  1111=F
 
-  例: 1011 1110 0100 1101
-      B    E    4    D
-  → 0xBE4D
+  Example: 1011 1110 0100 1101
+           B    E    4    D
+  -> 0xBE4D
 
-  16進数 → 2進数: 各桁を4ビットに展開
+  Hexadecimal -> Binary: Expand each digit to 4 bits
 
-  例: 0xCAFE
-      C    A    F    E
-      1100 1010 1111 1110
-  → 1100 1010 1111 1110
-
-
-2進数 → 8進数: 右から3ビットずつ区切って変換
-
-  例: 10 101 101
-      2  5   5
-  → 0o255
-
-  8進数 → 2進数: 各桁を3ビットに展開
-
-  例: 0o755
-      7   5   5
-      111 101 101
-  → 111 101 101
+  Example: 0xCAFE
+           C    A    F    E
+           1100 1010 1111 1110
+  -> 1100 1010 1111 1110
 
 
-実務でよく見る変換パターン:
+Binary -> Octal: Group into 3-bit chunks from right to left
+
+  Example: 10 101 101
+           2  5   5
+  -> 0o255
+
+  Octal -> Binary: Expand each digit to 3 bits
+
+  Example: 0o755
+           7   5   5
+           111 101 101
+  -> 111 101 101
+
+
+Commonly seen conversion patterns in practice:
   0xFF     = 1111 1111               = 255
   0xFFFF   = 1111 1111 1111 1111     = 65535
   0xDEAD   = 1101 1110 1010 1101     = 57005
@@ -280,189 +280,189 @@ N進法（基数N）の一般形:
   0xC0FFEE = 1100 0000 1111 1111 1110 1110 = 12648430
 ```
 
-### 2.5 小数の基数変換
+### 2.5 Fractional Base Conversion
 
 ```
-10進小数 → 2進小数: 2を掛けて整数部を取り出す
+Decimal fraction -> Binary fraction: Multiply by 2 and extract the integer part
 
-  0.625 を2進数に変換:
-  0.625 × 2 = 1.25  → 整数部 1
-  0.25  × 2 = 0.5   → 整数部 0
-  0.5   × 2 = 1.0   → 整数部 1
-  0.0   → 終了
-  → 0.101 (2) ✓
+  Convert 0.625 to binary:
+  0.625 x 2 = 1.25  -> integer part 1
+  0.25  x 2 = 0.5   -> integer part 0
+  0.5   x 2 = 1.0   -> integer part 1
+  0.0   -> done
+  -> 0.101 (2) check
 
-  検算: 0.101 = 1×2⁻¹ + 0×2⁻² + 1×2⁻³
-              = 0.5   + 0     + 0.125
-              = 0.625 ✓
+  Verification: 0.101 = 1x2^-1 + 0x2^-2 + 1x2^-3
+                       = 0.5   + 0     + 0.125
+                       = 0.625 check
 
 
-  0.1 を2進数に変換（循環小数になる例）:
-  0.1 × 2 = 0.2  → 0
-  0.2 × 2 = 0.4  → 0
-  0.4 × 2 = 0.8  → 0
-  0.8 × 2 = 1.6  → 1
-  0.6 × 2 = 1.2  → 1
-  0.2 × 2 = 0.4  → 0  ← ここから繰り返し
-  0.4 × 2 = 0.8  → 0
+  Convert 0.1 to binary (example of a repeating fraction):
+  0.1 x 2 = 0.2  -> 0
+  0.2 x 2 = 0.4  -> 0
+  0.4 x 2 = 0.8  -> 0
+  0.8 x 2 = 1.6  -> 1
+  0.6 x 2 = 1.2  -> 1
+  0.2 x 2 = 0.4  -> 0  <- repeats from here
+  0.4 x 2 = 0.8  -> 0
   ...
-  → 0.0001100110011... (2) = 0.0(0011)の循環
+  -> 0.0001100110011... (2) = 0.0(0011) repeating
 
-  これが「0.1 + 0.2 ≠ 0.3」問題の根本原因!
-  → 03-floating-point.md で詳細を解説
+  This is the root cause of the "0.1 + 0.2 != 0.3" problem!
+  -> See 03-floating-point.md for details
 
 
-2進小数 → 10進小数:
-  0.1101 (2) = 1×2⁻¹ + 1×2⁻² + 0×2⁻³ + 1×2⁻⁴
-             = 0.5   + 0.25  + 0     + 0.0625
-             = 0.8125 (10)
+Binary fraction -> Decimal fraction:
+  0.1101 (2) = 1x2^-1 + 1x2^-2 + 0x2^-3 + 1x2^-4
+              = 0.5   + 0.25  + 0     + 0.0625
+              = 0.8125 (10)
 ```
 
 ---
 
-## 3. ビット演算
+## 3. Bitwise Operations
 
-### 3.1 基本演算
+### 3.1 Basic Operations
 
 ```python
-# Pythonでのビット演算
+# Bitwise operations in Python
 
-# AND: 両方1なら1
+# AND: 1 only if both are 1
 a = 0b1100  # 12
 b = 0b1010  # 10
 print(bin(a & b))   # 0b1000 = 8
 
-# OR: どちらか1なら1
+# OR: 1 if either is 1
 print(bin(a | b))   # 0b1110 = 14
 
-# XOR: 異なれば1
+# XOR: 1 if different
 print(bin(a ^ b))   # 0b0110 = 6
 
-# NOT: ビット反転
-print(bin(~a & 0xFF))  # 0b11110011 = 243 (8ビットの場合)
+# NOT: Bit inversion
+print(bin(~a & 0xFF))  # 0b11110011 = 243 (for 8 bits)
 
-# 左シフト: 2倍（各ビットを左にずらす）
-print(bin(a << 1))  # 0b11000 = 24 (12 × 2)
-print(bin(a << 3))  # 0b1100000 = 96 (12 × 8)
+# Left shift: Multiply by 2 (shift each bit left)
+print(bin(a << 1))  # 0b11000 = 24 (12 x 2)
+print(bin(a << 3))  # 0b1100000 = 96 (12 x 8)
 
-# 右シフト: 半分（各ビットを右にずらす）
-print(bin(a >> 1))  # 0b110 = 6 (12 ÷ 2)
+# Right shift: Divide by 2 (shift each bit right)
+print(bin(a >> 1))  # 0b110 = 6 (12 / 2)
 ```
 
-### 3.2 真理値表
+### 3.2 Truth Tables
 
 ```
-AND演算（論理積）: 両方1のときだけ1
-  A  B  │ A & B
-  ───────┼──────
-  0  0  │  0
-  0  1  │  0
-  1  0  │  0
-  1  1  │  1
+AND (Logical Conjunction): 1 only when both are 1
+  A  B  | A & B
+  ------+------
+  0  0  |  0
+  0  1  |  0
+  1  0  |  0
+  1  1  |  1
 
-  用途: ビットマスク（特定ビットの抽出）
-  例: 0b1011_0110 & 0b0000_1111 = 0b0000_0110（下位4ビットを抽出）
-
-
-OR演算（論理和）: どちらか1なら1
-  A  B  │ A | B
-  ───────┼──────
-  0  0  │  0
-  0  1  │  1
-  1  0  │  1
-  1  1  │  1
-
-  用途: フラグのセット（特定ビットを1にする）
-  例: 0b0000_0001 | 0b0000_0100 = 0b0000_0101（ビット0とビット2をセット）
+  Use: Bit masking (extracting specific bits)
+  Example: 0b1011_0110 & 0b0000_1111 = 0b0000_0110 (extract lower 4 bits)
 
 
-XOR演算（排他的論理和）: 異なるとき1
-  A  B  │ A ^ B
-  ───────┼──────
-  0  0  │  0
-  0  1  │  1
-  1  0  │  1
-  1  1  │  0
+OR (Logical Disjunction): 1 if either is 1
+  A  B  | A | B
+  ------+------
+  0  0  |  0
+  0  1  |  1
+  1  0  |  1
+  1  1  |  1
 
-  XORの重要な性質:
-  - A ^ A = 0（自分自身とのXORは0）
-  - A ^ 0 = A（0とのXORは元の値）
-  - A ^ B ^ B = A（2回XORすると元に戻る → 暗号で利用）
-  - 交換法則: A ^ B = B ^ A
-  - 結合法則: (A ^ B) ^ C = A ^ (B ^ C)
+  Use: Setting flags (setting specific bits to 1)
+  Example: 0b0000_0001 | 0b0000_0100 = 0b0000_0101 (set bits 0 and 2)
 
 
-NOT演算（ビット反転）:
-  A  │ ~A
-  ───┼────
-  0  │  1
-  1  │  0
+XOR (Exclusive OR): 1 when different
+  A  B  | A ^ B
+  ------+------
+  0  0  |  0
+  0  1  |  1
+  1  0  |  1
+  1  1  |  0
 
-  注意: Pythonでは ~n = -(n+1) （2の補数表現）
-  8ビットの場合: ~0b0000_1111 = 0b1111_0000
+  Important properties of XOR:
+  - A ^ A = 0 (XOR with itself is 0)
+  - A ^ 0 = A (XOR with 0 is the original value)
+  - A ^ B ^ B = A (XORing twice restores the original -> used in cryptography)
+  - Commutative: A ^ B = B ^ A
+  - Associative: (A ^ B) ^ C = A ^ (B ^ C)
 
 
-NAND演算（否定論理積）:
-  A  B  │ ~(A & B)
-  ───────┼─────────
-  0  0  │  1
-  0  1  │  1
-  1  0  │  1
-  1  1  │  0
+NOT (Bit Inversion):
+  A  | ~A
+  ---+----
+  0  |  1
+  1  |  0
 
-  NANDはユニバーサルゲート: NANDだけで全ての論理演算を構成可能
+  Note: In Python, ~n = -(n+1) (two's complement representation)
+  For 8 bits: ~0b0000_1111 = 0b1111_0000
+
+
+NAND (Negated AND):
+  A  B  | ~(A & B)
+  ------+---------
+  0  0  |  1
+  0  1  |  1
+  1  0  |  1
+  1  1  |  0
+
+  NAND is a universal gate: all logic operations can be constructed from NAND alone
   - NOT(A) = NAND(A, A)
   - AND(A, B) = NOT(NAND(A, B))
   - OR(A, B) = NAND(NOT(A), NOT(B))
 ```
 
-### 3.3 シフト演算の詳細
+### 3.3 Shift Operations in Detail
 
 ```
-左シフト（<<）: ビットを左にずらし、右端に0を埋める
+Left Shift (<<): Shifts bits left, fills right end with 0s
 
-  0b0000_1100 << 1 = 0b0001_1000  (12 → 24 = 12 × 2¹)
-  0b0000_1100 << 2 = 0b0011_0000  (12 → 48 = 12 × 2²)
-  0b0000_1100 << 3 = 0b0110_0000  (12 → 96 = 12 × 2³)
+  0b0000_1100 << 1 = 0b0001_1000  (12 -> 24 = 12 x 2^1)
+  0b0000_1100 << 2 = 0b0011_0000  (12 -> 48 = 12 x 2^2)
+  0b0000_1100 << 3 = 0b0110_0000  (12 -> 96 = 12 x 2^3)
 
-  一般則: x << n = x × 2ⁿ（オーバーフローしない場合）
-
-
-論理右シフト（>>>）: ビットを右にずらし、左端に0を埋める
-  - Java, JavaScriptの >>> 演算子
-  - 符号なし整数として扱う
-
-  0b1000_0000 >>> 1 = 0b0100_0000  (128 → 64)
-  0b1000_0000 >>> 2 = 0b0010_0000  (128 → 32)
+  General rule: x << n = x x 2^n (when no overflow occurs)
 
 
-算術右シフト（>>）: ビットを右にずらし、左端に符号ビットを埋める
-  - C, Python, Javaの >> 演算子（符号付き整数）
-  - 負の数の場合、左端に1が埋まる
+Logical Right Shift (>>>): Shifts bits right, fills left end with 0s
+  - Java, JavaScript's >>> operator
+  - Treats the value as an unsigned integer
 
-  正の数の場合:
-  0b0110_0000 >> 1 = 0b0011_0000  (96 → 48)
-
-  負の数の場合（8ビット符号付き）:
-  0b1100_0000 >> 1 = 0b1110_0000  (-64 → -32)
-  0b1100_0000 >> 2 = 0b1111_0000  (-64 → -16)
-
-  一般則: x >> n = x ÷ 2ⁿ（負の無限大方向への丸め）
+  0b1000_0000 >>> 1 = 0b0100_0000  (128 -> 64)
+  0b1000_0000 >>> 2 = 0b0010_0000  (128 -> 32)
 
 
-シフト演算 vs 乗除算のパフォーマンス:
-  - 現代のCPUでは乗算もほぼ同速度（1クロック）
-  - コンパイラが最適化で自動的にシフトに置き換える
-  - 可読性を優先して x * 2 と書いても問題ない
-  - ただし組み込みシステムでは依然としてシフトが有利な場合あり
+Arithmetic Right Shift (>>): Shifts bits right, fills left end with the sign bit
+  - C, Python, Java's >> operator (for signed integers)
+  - For negative numbers, the left end is filled with 1
+
+  Positive numbers:
+  0b0110_0000 >> 1 = 0b0011_0000  (96 -> 48)
+
+  Negative numbers (8-bit signed):
+  0b1100_0000 >> 1 = 0b1110_0000  (-64 -> -32)
+  0b1100_0000 >> 2 = 0b1111_0000  (-64 -> -16)
+
+  General rule: x >> n = x / 2^n (rounds toward negative infinity)
+
+
+Shift Operations vs Multiplication/Division Performance:
+  - On modern CPUs, multiplication is nearly as fast (1 clock cycle)
+  - Compilers automatically replace with shifts during optimization
+  - It is fine to write x * 2 for readability
+  - However, shifts are still advantageous in embedded systems in some cases
 ```
 
-### 3.4 ビット演算の実務応用
+### 3.4 Practical Applications of Bitwise Operations
 
 ```python
-# ビット演算の実務的なユースケース
+# Practical use cases for bitwise operations
 
-# 1. フラグ管理（ビットフィールド）
+# 1. Flag management (bitfields)
 READ    = 0b001  # 1
 WRITE   = 0b010  # 2
 EXECUTE = 0b100  # 4
@@ -471,35 +471,35 @@ permissions = READ | WRITE  # 0b011 = 3
 has_read = bool(permissions & READ)     # True
 has_execute = bool(permissions & EXECUTE)  # False
 
-# ファイルパーミッション: chmod 755 = rwxr-xr-x
+# File permissions: chmod 755 = rwxr-xr-x
 # 7 = 111, 5 = 101, 5 = 101
 
-# 2. 偶奇判定（最下位ビット）
-is_even = (n & 1) == 0  # n % 2 == 0 と同じだが高速
+# 2. Even/odd check (least significant bit)
+is_even = (n & 1) == 0  # Same as n % 2 == 0 but faster
 
-# 3. 2の冪乗判定
+# 3. Power-of-2 check
 is_power_of_2 = n > 0 and (n & (n - 1)) == 0
-# 8 = 1000, 7 = 0111 → 1000 & 0111 = 0000 → True
-# 6 = 0110, 5 = 0101 → 0110 & 0101 = 0100 → False
+# 8 = 1000, 7 = 0111 -> 1000 & 0111 = 0000 -> True
+# 6 = 0110, 5 = 0101 -> 0110 & 0101 = 0100 -> False
 
-# 4. XORスワップ（一時変数なしで交換）
+# 4. XOR swap (exchange without a temporary variable)
 a ^= b
 b ^= a
 a ^= b
-# 理論的に面白いが、実用では temp = a; a = b; b = temp が読みやすい
+# Theoretically interesting, but in practice temp = a; a = b; b = temp is more readable
 
-# 5. ビットマスク
+# 5. Bit masking
 ip_address = 0xC0A80164  # 192.168.1.100
 subnet_mask = 0xFFFFFF00  # 255.255.255.0
 network = ip_address & subnet_mask  # 192.168.1.0
 ```
 
-### 3.5 ビット演算の高度な技法
+### 3.5 Advanced Bitwise Techniques
 
 ```python
-# === ビットカウント（popcount / ハミング重み） ===
+# === Bit Count (popcount / Hamming Weight) ===
 
-# 方法1: 素朴な方法
+# Method 1: Naive approach
 def popcount_naive(n):
     count = 0
     while n:
@@ -507,114 +507,114 @@ def popcount_naive(n):
         n >>= 1
     return count
 
-# 方法2: Brian Kernighanのアルゴリズム（高速）
+# Method 2: Brian Kernighan's algorithm (fast)
 def popcount_kernighan(n):
-    """n & (n-1) は最下位の1ビットを消す"""
+    """n & (n-1) clears the lowest set bit"""
     count = 0
     while n:
-        n &= n - 1  # 最下位の1ビットをクリア
+        n &= n - 1  # Clear the lowest set bit
         count += 1
     return count
 
-# 例: n = 0b1011_0100 (180)
+# Example: n = 0b1011_0100 (180)
 # 1011_0100 & 1011_0011 = 1011_0000 (count=1)
 # 1011_0000 & 1010_1111 = 1010_0000 (count=2)
 # 1010_0000 & 1001_1111 = 1000_0000 (count=3)
 # 1000_0000 & 0111_1111 = 0000_0000 (count=4)
-# → 4個の1ビット
+# -> 4 set bits
 
-# 方法3: Python組み込み
+# Method 3: Python built-in
 bin(180).count('1')  # 4
 
-# 方法4: CPUの命令を直接使用（最速）
-# x86の POPCNT 命令、ARMの VCNT 命令
+# Method 4: Use CPU instructions directly (fastest)
+# x86 POPCNT instruction, ARM VCNT instruction
 
 
-# === 最下位セットビットの抽出 ===
+# === Extract Lowest Set Bit ===
 def lowest_set_bit(n):
-    """最下位の1ビットだけを残す"""
-    return n & (-n)  # 2の補数の性質を利用
+    """Keep only the lowest set bit"""
+    return n & (-n)  # Leverages two's complement property
 
-# 例: n = 0b1010_1000
-# -n = 0b0101_1000 (2の補数)
-# n & (-n) = 0b0000_1000 → ビット3が最下位の1
+# Example: n = 0b1010_1000
+# -n = 0b0101_1000 (two's complement)
+# n & (-n) = 0b0000_1000 -> bit 3 is the lowest set bit
 
 
-# === 最下位セットビットのクリア ===
+# === Clear Lowest Set Bit ===
 def clear_lowest_set_bit(n):
     return n & (n - 1)
 
-# 例: n = 0b1010_1000
+# Example: n = 0b1010_1000
 # n-1 = 0b1010_0111
 # n & (n-1) = 0b1010_0000
 
 
-# === ビット反転（特定範囲） ===
+# === Toggle Bits (specific range) ===
 def toggle_bits(n, mask):
-    """maskで指定したビットを反転"""
+    """Toggle bits specified by the mask"""
     return n ^ mask
 
-# 例: n = 0b1100_0011, mask = 0b0000_1111
-# n ^ mask = 0b1100_1100 (下位4ビットが反転)
+# Example: n = 0b1100_0011, mask = 0b0000_1111
+# n ^ mask = 0b1100_1100 (lower 4 bits toggled)
 
 
-# === 2つの値の中間値（オーバーフローなし） ===
+# === Average of Two Values (overflow-safe) ===
 def average_no_overflow(a, b):
-    """(a + b) / 2 のオーバーフロー安全版"""
+    """Overflow-safe version of (a + b) / 2"""
     return (a & b) + ((a ^ b) >> 1)
 
-# 通常の (a + b) / 2 は a + b がオーバーフローする可能性
-# この方法は共通ビット + 異なるビット/2 で計算
+# The usual (a + b) / 2 can overflow on a + b
+# This method computes: common bits + differing bits / 2
 
 
-# === 絶対値（分岐なし） ===
+# === Absolute Value (branchless) ===
 def abs_branchless(n):
-    """32ビット符号付き整数の絶対値"""
-    mask = n >> 31  # 正なら0x00000000、負なら0xFFFFFFFF
+    """Absolute value of a 32-bit signed integer"""
+    mask = n >> 31  # 0x00000000 if positive, 0xFFFFFFFF if negative
     return (n ^ mask) - mask
 
-# 負の場合: mask = -1
-# n ^ (-1) = ~n (ビット反転)
-# ~n - (-1) = ~n + 1 = -n (2の補数)
+# For negative: mask = -1
+# n ^ (-1) = ~n (bit inversion)
+# ~n - (-1) = ~n + 1 = -n (two's complement)
 ```
 
-### 3.6 ビット演算のアルゴリズム応用
+### 3.6 Algorithmic Applications of Bitwise Operations
 
 ```python
-# === ビットボード（チェス・将棋のAI） ===
-# 8x8のボードを64ビット整数で表現
+# === Bitboard (Chess / Shogi AI) ===
+# Represent an 8x8 board as a 64-bit integer
 
-# チェスの例: ナイトの移動可能位置
+# Chess example: Calculate knight's reachable positions
 def knight_moves(position):
-    """ナイトの移動先を計算（ビットボード）"""
-    # 端のマスクで折り返しを防止
+    """Calculate knight move targets (bitboard)"""
+    # Edge masks to prevent wraparound
     NOT_A_FILE = 0xFEFEFEFEFEFEFEFE
     NOT_H_FILE = 0x7F7F7F7F7F7F7F7F
     NOT_AB_FILE = 0xFCFCFCFCFCFCFCFC
     NOT_GH_FILE = 0x3F3F3F3F3F3F3F3F
 
     moves = 0
-    moves |= (position << 17) & NOT_A_FILE   # 上2右1
-    moves |= (position << 15) & NOT_H_FILE   # 上2左1
-    moves |= (position << 10) & NOT_AB_FILE  # 上1右2
-    moves |= (position <<  6) & NOT_GH_FILE  # 上1左2
-    moves |= (position >> 17) & NOT_H_FILE   # 下2左1
-    moves |= (position >> 15) & NOT_A_FILE   # 下2右1
-    moves |= (position >> 10) & NOT_GH_FILE  # 下1左2
-    moves |= (position >>  6) & NOT_AB_FILE  # 下1右2
+    moves |= (position << 17) & NOT_A_FILE   # Up 2, right 1
+    moves |= (position << 15) & NOT_H_FILE   # Up 2, left 1
+    moves |= (position << 10) & NOT_AB_FILE  # Up 1, right 2
+    moves |= (position <<  6) & NOT_GH_FILE  # Up 1, left 2
+    moves |= (position >> 17) & NOT_H_FILE   # Down 2, left 1
+    moves |= (position >> 15) & NOT_A_FILE   # Down 2, right 1
+    moves |= (position >> 10) & NOT_GH_FILE  # Down 1, left 2
+    moves |= (position >>  6) & NOT_AB_FILE  # Down 1, right 2
     return moves
 
 
-# === ブルームフィルタ（確率的データ構造） ===
+# === Bloom Filter (Probabilistic Data Structure) ===
 class BloomFilter:
-    """ビット配列を使った確率的集合メンバーシップテスト"""
+    """Probabilistic set membership test using a bit array"""
 
     def __init__(self, size=1024):
         self.size = size
-        self.bit_array = 0  # Python の無限精度整数をビット配列として使用
+        self.bit_array = 0  # Use Python's arbitrary-precision integers as a bit array
 
     def _hashes(self, item):
-        """複数のハッシュ値を生成"""
+        """Generate multiple hash values"""
         h1 = hash(item) % self.size
         h2 = hash(str(item) + "salt") % self.size
         h3 = hash(str(item) + "pepper") % self.size
@@ -622,51 +622,51 @@ class BloomFilter:
 
     def add(self, item):
         for h in self._hashes(item):
-            self.bit_array |= (1 << h)  # 対応ビットをセット
+            self.bit_array |= (1 << h)  # Set corresponding bit
 
     def might_contain(self, item):
         for h in self._hashes(item):
             if not (self.bit_array & (1 << h)):
-                return False  # 確実に含まれない
-        return True  # 含まれるかもしれない（偽陽性の可能性あり）
+                return False  # Definitely not contained
+        return True  # Might be contained (possible false positive)
 
 
-# === ビットマニピュレーションによる部分集合列挙 ===
+# === Subset Enumeration via Bit Manipulation ===
 def enumerate_subsets(s):
-    """ビットマスク s の全部分集合を列挙"""
+    """Enumerate all subsets of bitmask s"""
     subset = s
     subsets = []
     while subset > 0:
         subsets.append(subset)
         subset = (subset - 1) & s
-    subsets.append(0)  # 空集合
+    subsets.append(0)  # Empty set
     return subsets
 
-# 例: s = 0b1010 (要素2と要素0を含む集合)
-# 部分集合: 1010, 1000, 0010, 0000
-# → {2,0}, {2}, {0}, {}
+# Example: s = 0b1010 (set containing elements 2 and 0)
+# Subsets: 1010, 1000, 0010, 0000
+# -> {2,0}, {2}, {0}, {}
 
 
-# === ビットリバース（FFTで使用） ===
+# === Bit Reversal (used in FFT) ===
 def reverse_bits(n, bit_width=8):
-    """ビット列を逆順にする"""
+    """Reverse the order of a bit string"""
     result = 0
     for _ in range(bit_width):
         result = (result << 1) | (n & 1)
         n >>= 1
     return result
 
-# 例: reverse_bits(0b10110010, 8) = 0b01001101
+# Example: reverse_bits(0b10110010, 8) = 0b01001101
 ```
 
-### 3.7 各言語でのビット演算
+### 3.7 Bitwise Operations in Various Languages
 
 ```c
-// C言語: 低レベル操作に最適
+// C: Ideal for low-level operations
 
 #include <stdint.h>
 
-// 符号なし整数の使用が推奨（シフト演算の挙動が明確）
+// Using unsigned integers is recommended (shift behavior is well-defined)
 uint32_t set_bit(uint32_t n, int pos) {
     return n | (1U << pos);
 }
@@ -683,39 +683,39 @@ int test_bit(uint32_t n, int pos) {
     return (n >> pos) & 1;
 }
 
-// GCCのビルトイン関数
+// GCC built-in functions
 int count = __builtin_popcount(0xFF);     // 8
 int leading_zeros = __builtin_clz(0x10);  // 27
 int trailing_zeros = __builtin_ctz(0x10); // 4
 ```
 
 ```java
-// Java: Integer / Long のユーティリティメソッド
+// Java: Integer / Long utility methods
 
 int n = 0b1010_1100;
 
-// ビットカウント
+// Bit count
 int count = Integer.bitCount(n);        // 4
 
-// 先頭/末尾のゼロ数
+// Leading/trailing zero count
 int leadingZeros = Integer.numberOfLeadingZeros(n);   // 24
 int trailingZeros = Integer.numberOfTrailingZeros(n);  // 2
 
-// ビット反転
+// Bit reversal
 int reversed = Integer.reverse(n);
 
-// 最上位/最下位のセットビット
+// Highest/lowest set bit
 int highest = Integer.highestOneBit(n);   // 128 (0b10000000)
 int lowest = Integer.lowestOneBit(n);     // 4   (0b00000100)
 
-// 論理右シフト（>>>）と算術右シフト（>>）の違い
+// Difference between logical right shift (>>>) and arithmetic right shift (>>)
 int neg = -128;                  // 0xFFFFFF80
-int arithmetic = neg >> 4;       // 0xFFFFFFF8 = -8（符号保持）
-int logical = neg >>> 4;         // 0x0FFFFFF8 = 268435448（0埋め）
+int arithmetic = neg >> 4;       // 0xFFFFFFF8 = -8 (sign preserved)
+int logical = neg >>> 4;         // 0x0FFFFFF8 = 268435448 (zero-filled)
 ```
 
 ```go
-// Go: math/bits パッケージ
+// Go: math/bits package
 
 package main
 
@@ -727,50 +727,50 @@ import (
 func main() {
     var n uint32 = 0b1010_1100
 
-    // ビットカウント
+    // Bit count
     fmt.Println(bits.OnesCount32(n))     // 4
 
-    // 先頭/末尾のゼロ数
+    // Leading/trailing zero count
     fmt.Println(bits.LeadingZeros32(n))  // 24
     fmt.Println(bits.TrailingZeros32(n)) // 2
 
-    // ビット長
+    // Bit length
     fmt.Println(bits.Len32(n))           // 8
 
-    // ビット反転
+    // Bit reversal
     fmt.Println(bits.Reverse32(n))
 
-    // ローテーション
+    // Rotation
     fmt.Println(bits.RotateLeft32(n, 4))
 }
 ```
 
 ```rust
-// Rust: 型に組み込みメソッド
+// Rust: Built-in methods on types
 
 fn main() {
     let n: u32 = 0b1010_1100;
 
-    // ビットカウント
+    // Bit count
     println!("{}", n.count_ones());       // 4
     println!("{}", n.count_zeros());      // 28
 
-    // 先頭/末尾のゼロ数
+    // Leading/trailing zero count
     println!("{}", n.leading_zeros());    // 24
     println!("{}", n.trailing_zeros());   // 2
 
-    // ビット反転
+    // Bit reversal
     println!("{}", n.reverse_bits());
 
-    // ローテーション
+    // Rotation
     println!("{}", n.rotate_left(4));
     println!("{}", n.rotate_right(4));
 
-    // オーバーフロー検出
+    // Overflow detection
     let (result, overflowed) = n.overflowing_add(u32::MAX);
     println!("result={}, overflow={}", result, overflowed);
 
-    // チェック付き算術
+    // Checked arithmetic
     match n.checked_add(u32::MAX) {
         Some(v) => println!("sum = {}", v),
         None => println!("overflow!"),
@@ -780,202 +780,202 @@ fn main() {
 
 ---
 
-## 4. データサイズの単位
+## 4. Data Size Units
 
-### 4.1 ビットとバイトの階層
+### 4.1 Bit and Byte Hierarchy
 
 ```
-ビットとバイトの階層:
+Bit and byte hierarchy:
 
   1 bit    = 0 or 1
-  1 nibble = 4 bits   = 16進数1桁
-  1 byte   = 8 bits   = 256通りの値（0-255）
-  1 word   = 32 or 64 bits（CPU依存）
+  1 nibble = 4 bits   = 1 hexadecimal digit
+  1 byte   = 8 bits   = 256 possible values (0-255)
+  1 word   = 32 or 64 bits (CPU-dependent)
 
-  ストレージ単位:
-  ┌────────────┬──────────────┬───────────────────────┐
-  │ 単位       │ 10進（SI）   │ 2進（IEC）             │
-  ├────────────┼──────────────┼───────────────────────┤
-  │ キロ (K)   │ 1,000        │ 1,024 (2^10) = KiB    │
-  │ メガ (M)   │ 1,000,000    │ 1,048,576 (2^20) = MiB│
-  │ ギガ (G)   │ 10^9         │ 2^30 = GiB            │
-  │ テラ (T)   │ 10^12        │ 2^40 = TiB            │
-  │ ペタ (P)   │ 10^15        │ 2^50 = PiB            │
-  │ エクサ (E) │ 10^18        │ 2^60 = EiB            │
-  └────────────┴──────────────┴───────────────────────┘
+  Storage units:
+  +------------+--------------+-----------------------+
+  | Unit       | Decimal (SI) | Binary (IEC)          |
+  +------------+--------------+-----------------------+
+  | Kilo (K)   | 1,000        | 1,024 (2^10) = KiB   |
+  | Mega (M)   | 1,000,000    | 1,048,576 (2^20) = MiB|
+  | Giga (G)   | 10^9         | 2^30 = GiB            |
+  | Tera (T)   | 10^12        | 2^40 = TiB            |
+  | Peta (P)   | 10^15        | 2^50 = PiB            |
+  | Exa (E)    | 10^18        | 2^60 = EiB            |
+  +------------+--------------+-----------------------+
 
-  注意: HDD/SSDメーカーはSI単位を使い、OSはIEC単位を使う
-  → 1TB SSD がOS上で 931GB と表示される
-  → 1,000,000,000,000 / 1,073,741,824 ≈ 931 GiB
+  Note: HDD/SSD manufacturers use SI units; OSes use IEC units
+  -> A 1TB SSD shows as 931GB in the OS
+  -> 1,000,000,000,000 / 1,073,741,824 ~ 931 GiB
 ```
 
-### 4.2 2のべき乗の暗記表
+### 4.2 Powers of 2 Reference Table
 
 ```
-プログラマが暗記すべき2のべき乗:
+Powers of 2 every programmer should memorize:
 
-  2⁰  = 1
-  2¹  = 2
-  2²  = 4
-  2³  = 8
-  2⁴  = 16
-  2⁵  = 32
-  2⁶  = 64
-  2⁷  = 128
-  2⁸  = 256        ← 1バイトの範囲
-  2⁹  = 512
-  2¹⁰ = 1,024      ← 1 KiB
-  2¹¹ = 2,048
-  2¹² = 4,096      ← 一般的なメモリページサイズ
-  2¹³ = 8,192
-  2¹⁴ = 16,384
-  2¹⁵ = 32,768
-  2¹⁶ = 65,536     ← unsigned short の範囲
-  2²⁰ = 1,048,576  ← 1 MiB
-  2²⁴ = 16,777,216 ← RGB各色8ビット（TrueColor）
-  2³⁰ = 1,073,741,824 ← 約10億 ≈ 1 GiB
-  2³² = 4,294,967,296 ← unsigned int の範囲（約43億）
-  2⁴⁰ = 1,099,511,627,776 ← 1 TiB
-  2⁶⁴ = 18,446,744,073,709,551,616 ← unsigned long long の範囲
+  2^0  = 1
+  2^1  = 2
+  2^2  = 4
+  2^3  = 8
+  2^4  = 16
+  2^5  = 32
+  2^6  = 64
+  2^7  = 128
+  2^8  = 256        <- Range of 1 byte
+  2^9  = 512
+  2^10 = 1,024      <- 1 KiB
+  2^11 = 2,048
+  2^12 = 4,096      <- Common memory page size
+  2^13 = 8,192
+  2^14 = 16,384
+  2^15 = 32,768
+  2^16 = 65,536     <- Range of unsigned short
+  2^20 = 1,048,576  <- 1 MiB
+  2^24 = 16,777,216 <- 8 bits per RGB channel (TrueColor)
+  2^30 = 1,073,741,824 <- ~1 billion ~ 1 GiB
+  2^32 = 4,294,967,296 <- Range of unsigned int (~4.3 billion)
+  2^40 = 1,099,511,627,776 <- 1 TiB
+  2^64 = 18,446,744,073,709,551,616 <- Range of unsigned long long
 
-  近似値の覚え方:
-  2¹⁰ ≈ 10³  (1024 ≈ 1000)
-  2²⁰ ≈ 10⁶  (約100万)
-  2³⁰ ≈ 10⁹  (約10億)
-  2⁴⁰ ≈ 10¹²
-  2⁵⁰ ≈ 10¹⁵
-  2⁶⁰ ≈ 10¹⁸
+  Approximation mnemonics:
+  2^10 ~ 10^3  (1024 ~ 1000)
+  2^20 ~ 10^6  (~1 million)
+  2^30 ~ 10^9  (~1 billion)
+  2^40 ~ 10^12
+  2^50 ~ 10^15
+  2^60 ~ 10^18
 ```
 
-### 4.3 実務での容量見積もり
+### 4.3 Capacity Estimation in Practice
 
 ```
-よくあるデータサイズの目安:
+Common data size guidelines:
 
-  テキスト:
-  - ASCII 1文字 = 1 byte
-  - UTF-8 日本語 1文字 = 3 bytes
-  - 1ページのテキスト（40行 × 80文字）≈ 3.2 KB
-  - 小説1冊（約10万字）≈ 300 KB（UTF-8）
-  - Wikipedia全文（英語版）≈ 22 GB（2024年時点）
+  Text:
+  - 1 ASCII character = 1 byte
+  - 1 Japanese character (UTF-8) = 3 bytes
+  - 1 page of text (40 lines x 80 characters) ~ 3.2 KB
+  - 1 novel (~100,000 characters) ~ 300 KB (UTF-8)
+  - All of English Wikipedia ~ 22 GB (as of 2024)
 
-  画像:
-  - 1920×1080 非圧縮（24bit色）= 1920 × 1080 × 3 ≈ 6.2 MB
-  - 同サイズ JPEG（品質80）≈ 200-500 KB
-  - 同サイズ PNG ≈ 1-3 MB
-  - 4K画像（3840×2160）非圧縮 ≈ 24.9 MB
+  Images:
+  - 1920x1080 uncompressed (24-bit color) = 1920 x 1080 x 3 ~ 6.2 MB
+  - Same size JPEG (quality 80) ~ 200-500 KB
+  - Same size PNG ~ 1-3 MB
+  - 4K image (3840x2160) uncompressed ~ 24.9 MB
 
-  音声:
-  - CD品質（44.1kHz, 16bit, ステレオ）= 44100 × 2 × 2 = 176.4 KB/s ≈ 10.6 MB/min
-  - MP3 128kbps ≈ 960 KB/min ≈ 1 MB/min
-  - FLAC（可逆圧縮）≈ 5 MB/min
+  Audio:
+  - CD quality (44.1kHz, 16-bit, stereo) = 44100 x 2 x 2 = 176.4 KB/s ~ 10.6 MB/min
+  - MP3 128kbps ~ 960 KB/min ~ 1 MB/min
+  - FLAC (lossless) ~ 5 MB/min
 
-  動画:
-  - 1080p 非圧縮（30fps）≈ 186 MB/s ≈ 11.2 GB/min
-  - 1080p H.264（ストリーミング品質）≈ 5 Mbps ≈ 37.5 MB/min
-  - 4K H.265 ≈ 15-25 Mbps
+  Video:
+  - 1080p uncompressed (30fps) ~ 186 MB/s ~ 11.2 GB/min
+  - 1080p H.264 (streaming quality) ~ 5 Mbps ~ 37.5 MB/min
+  - 4K H.265 ~ 15-25 Mbps
 
-  データベース:
-  - 1行のユーザーレコード（ID, 名前, メール等）≈ 200-500 bytes
-  - 100万ユーザー ≈ 200-500 MB
-  - インデックスはテーブルの10-30%程度のサイズ
+  Databases:
+  - 1 user record (ID, name, email, etc.) ~ 200-500 bytes
+  - 1 million users ~ 200-500 MB
+  - Indexes are typically 10-30% of the table size
 ```
 
 ---
 
-## 5. 各プログラミング言語での数値リテラル
+## 5. Numeric Literals in Various Programming Languages
 
 ### 5.1 Python
 
 ```python
-# Python: 接頭辞で基数を指定
-decimal = 42        # 10進数
-binary  = 0b101010  # 2進数
-octal   = 0o52      # 8進数
-hexadec = 0x2A      # 16進数
-# 全て42
+# Python: Specify base with prefixes
+decimal = 42        # Decimal
+binary  = 0b101010  # Binary
+octal   = 0o52      # Octal
+hexadec = 0x2A      # Hexadecimal
+# All equal 42
 
-# アンダースコア区切り（Python 3.6+）
-large = 1_000_000_000  # 10億
+# Underscore separators (Python 3.6+)
+large = 1_000_000_000  # 1 billion
 binary_large = 0b1010_1010_1100_1100
 hex_large = 0xFF_FF_FF_FF
 
-# 変換関数
+# Conversion functions
 bin(42)   # '0b101010'
 oct(42)   # '0o52'
 hex(42)   # '0x2a'
-int('101010', 2)  # 42 (2進文字列→整数)
-int('2A', 16)     # 42 (16進文字列→整数)
-int('52', 8)      # 42 (8進文字列→整数)
+int('101010', 2)  # 42 (binary string -> integer)
+int('2A', 16)     # 42 (hex string -> integer)
+int('52', 8)      # 42 (octal string -> integer)
 
-# フォーマット
-f"{42:b}"     # '101010'   (2進)
-f"{42:o}"     # '52'       (8進)
-f"{42:x}"     # '2a'       (16進小文字)
-f"{42:X}"     # '2A'       (16進大文字)
-f"{42:08b}"   # '00101010' (8桁ゼロ埋め2進)
-f"{42:#010x}" # '0x0000002a' (接頭辞付き10桁ゼロ埋め16進)
+# Formatting
+f"{42:b}"     # '101010'   (binary)
+f"{42:o}"     # '52'       (octal)
+f"{42:x}"     # '2a'       (hex lowercase)
+f"{42:X}"     # '2A'       (hex uppercase)
+f"{42:08b}"   # '00101010' (8-digit zero-padded binary)
+f"{42:#010x}" # '0x0000002a' (prefixed 10-digit zero-padded hex)
 
-# Pythonは任意精度整数
-huge = 2 ** 1000  # 問題なく計算可能
-print(huge.bit_length())  # 1001 (ビット数)
+# Python has arbitrary-precision integers
+huge = 2 ** 1000  # Computes without issue
+print(huge.bit_length())  # 1001 (number of bits)
 ```
 
 ### 5.2 JavaScript / TypeScript
 
 ```javascript
-// JavaScript: 同様の接頭辞
+// JavaScript: Similar prefixes
 const decimal = 42;
 const binary  = 0b101010;
 const octal   = 0o52;
 const hexadec = 0x2A;
 
-// BigInt: 大きな整数
-const big = 9007199254740993n;  // 'n' サフィックス
+// BigInt: Large integers
+const big = 9007199254740993n;  // 'n' suffix
 const bigHex = 0x1FFFFFFFFFFFFFn;
 
-// Number の限界
+// Number limits
 console.log(Number.MAX_SAFE_INTEGER);  // 9007199254740991 (2^53 - 1)
 console.log(Number.MIN_SAFE_INTEGER);  // -9007199254740991
-// これを超えると精度が失われる
+// Precision is lost beyond this range
 
-// ビット演算は32ビット整数に変換される（注意！）
-console.log(0xFFFFFFFF | 0);    // -1 (符号付き32ビット)
-console.log(0xFFFFFFFF >>> 0);  // 4294967295 (符号なし32ビット)
+// Bitwise operations convert to 32-bit integers (caution!)
+console.log(0xFFFFFFFF | 0);    // -1 (signed 32-bit)
+console.log(0xFFFFFFFF >>> 0);  // 4294967295 (unsigned 32-bit)
 
-// 変換
+// Conversion
 (42).toString(2);    // '101010'
 (42).toString(8);    // '52'
 (42).toString(16);   // '2a'
 parseInt('101010', 2);  // 42
 parseInt('2A', 16);     // 42
 
-// TypedArray でバイナリデータを扱う
+// Handle binary data with TypedArrays
 const buffer = new ArrayBuffer(4);
 const view = new DataView(buffer);
 view.setUint32(0, 0xDEADBEEF);
 console.log(view.getUint8(0).toString(16));  // 'de'
 
-// Uint8Array での直接操作
+// Direct operations with Uint8Array
 const bytes = new Uint8Array([0xCA, 0xFE, 0xBA, 0xBE]);
 ```
 
 ### 5.3 Rust
 
 ```rust
-// Rust: 型アノテーション + アンダースコア区切り
+// Rust: Type annotations + underscore separators
 let decimal: u32 = 42;
-let binary: u32  = 0b0010_1010;  // アンダースコアで視認性向上
+let binary: u32  = 0b0010_1010;  // Underscores improve readability
 let octal: u32   = 0o52;
 let hexadec: u32 = 0x2A;
-let byte: u8     = b'A';  // ASCII値 (65)
+let byte: u8     = b'A';  // ASCII value (65)
 
-// 型サフィックス
-let a = 42u8;    // u8 型
-let b = 42i32;   // i32 型
-let c = 42usize; // usize 型
+// Type suffixes
+let a = 42u8;    // u8 type
+let b = 42i32;   // i32 type
+let c = 42usize; // usize type
 
-// フォーマット
+// Formatting
 println!("{:b}", 42);     // "101010"
 println!("{:08b}", 42);   // "00101010"
 println!("{:o}", 42);     // "52"
@@ -983,21 +983,21 @@ println!("{:x}", 42);     // "2a"
 println!("{:X}", 42);     // "2A"
 println!("{:#010x}", 42); // "0x0000002a"
 
-// バイト配列
+// Byte arrays
 let bytes: [u8; 4] = [0xDE, 0xAD, 0xBE, 0xEF];
 
-// from_str_radix で文字列から変換
+// Convert from string with from_str_radix
 let n = u32::from_str_radix("101010", 2).unwrap();   // 42
 let m = u32::from_str_radix("2A", 16).unwrap();      // 42
 
-// ビット操作メソッド
+// Bit manipulation methods
 let n: u32 = 42;
 println!("{}", n.count_ones());      // 3
 println!("{}", n.count_zeros());     // 29
 println!("{}", n.leading_zeros());   // 26
 println!("{}", n.trailing_zeros());  // 1
-println!("{}", n.reverse_bits());    // ビット反転
-println!("{}", n.rotate_left(4));    // 左ローテーション
+println!("{}", n.reverse_bits());    // Bit reversal
+println!("{}", n.rotate_left(4));    // Left rotation
 ```
 
 ### 5.4 Go
@@ -1011,18 +1011,18 @@ import (
 )
 
 func main() {
-    // リテラル
+    // Literals
     decimal := 42
     binary := 0b101010     // Go 1.13+
-    octal := 0o52          // Go 1.13+ (旧形式: 052 も可)
+    octal := 0o52          // Go 1.13+ (legacy syntax: 052 also works)
     hexadec := 0x2A
 
     fmt.Println(decimal, binary, octal, hexadec) // 42 42 42 42
 
-    // アンダースコア区切り
+    // Underscore separators
     large := 1_000_000_000
 
-    // フォーマット
+    // Formatting
     fmt.Printf("%b\n", 42)    // 101010
     fmt.Printf("%08b\n", 42)  // 00101010
     fmt.Printf("%o\n", 42)    // 52
@@ -1030,7 +1030,7 @@ func main() {
     fmt.Printf("%X\n", 42)    // 2A
     fmt.Printf("%#x\n", 42)   // 0x2a
 
-    // 文字列変換
+    // String conversion
     s := strconv.FormatInt(42, 2)   // "101010"
     n, _ := strconv.ParseInt("101010", 2, 64)  // 42
 
@@ -1043,38 +1043,38 @@ func main() {
 ### 5.5 C / C++
 
 ```c
-// C言語
+// C
 #include <stdio.h>
 #include <stdint.h>
 
 int main() {
     int decimal = 42;
-    int binary  = 0b00101010;  // C23 / GCC拡張
-    int octal   = 052;         // 先頭0で8進数（注意！）
+    int binary  = 0b00101010;  // C23 / GCC extension
+    int octal   = 052;         // Leading 0 means octal (caution!)
     int hexadec = 0x2A;
 
-    // フォーマット
-    printf("%d\n", 42);    // 42 (10進)
-    printf("%o\n", 42);    // 52 (8進)
-    printf("%x\n", 42);    // 2a (16進小文字)
-    printf("%X\n", 42);    // 2A (16進大文字)
-    printf("%#x\n", 42);   // 0x2a (接頭辞付き)
+    // Formatting
+    printf("%d\n", 42);    // 42 (decimal)
+    printf("%o\n", 42);    // 52 (octal)
+    printf("%x\n", 42);    // 2a (hex lowercase)
+    printf("%X\n", 42);    // 2A (hex uppercase)
+    printf("%#x\n", 42);   // 0x2a (with prefix)
 
-    // 固定幅整数型（推奨）
-    uint8_t  byte_val = 0xFF;       // 必ず8ビット
-    uint16_t short_val = 0xFFFF;    // 必ず16ビット
-    uint32_t int_val = 0xFFFFFFFF;  // 必ず32ビット
-    uint64_t long_val = 0xFFFFFFFFFFFFFFFFULL;  // 必ず64ビット
+    // Fixed-width integer types (recommended)
+    uint8_t  byte_val = 0xFF;       // Always 8 bits
+    uint16_t short_val = 0xFFFF;    // Always 16 bits
+    uint32_t int_val = 0xFFFFFFFF;  // Always 32 bits
+    uint64_t long_val = 0xFFFFFFFFFFFFFFFFULL;  // Always 64 bits
 
-    // リテラルサフィックス
+    // Literal suffixes
     unsigned int u = 42U;
     long l = 42L;
     unsigned long ul = 42UL;
     long long ll = 42LL;
     unsigned long long ull = 42ULL;
 
-    // C23のバイナリリテラル
-    // int b = 0b1010; // C23標準
+    // C23 binary literals
+    // int b = 0b1010; // C23 standard
 
     return 0;
 }
@@ -1087,22 +1087,22 @@ int main() {
 
 int main() {
     std::bitset<8> bits(42);          // "00101010"
-    std::bitset<8> mask("11110000");  // 文字列から構築
+    std::bitset<8> mask("11110000");  // Construct from string
 
     std::cout << bits << std::endl;          // 00101010
-    std::cout << bits.count() << std::endl;  // 3 (1の数)
+    std::cout << bits.count() << std::endl;  // 3 (number of 1s)
     std::cout << bits.size() << std::endl;   // 8
-    std::cout << bits.test(1) << std::endl;  // 1 (ビット1がセットされているか)
+    std::cout << bits.test(1) << std::endl;  // 1 (is bit 1 set?)
 
-    bits.set(0);    // ビット0をセット
-    bits.reset(3);  // ビット3をクリア
-    bits.flip(5);   // ビット5を反転
-    bits.flip();    // 全ビット反転
+    bits.set(0);    // Set bit 0
+    bits.reset(3);  // Clear bit 3
+    bits.flip(5);   // Toggle bit 5
+    bits.flip();    // Toggle all bits
 
-    // C++14以降: 2進リテラル
-    auto b = 0b0010'1010;  // ' で桁区切り
+    // C++14 and later: binary literals
+    auto b = 0b0010'1010;  // ' as digit separator
 
-    // C++20: std::bit_cast, std::popcount 等
+    // C++20: std::bit_cast, std::popcount, etc.
     // #include <bit>
     // int pc = std::popcount(42u);  // 3
 
@@ -1112,74 +1112,74 @@ int main() {
 
 ---
 
-## 6. 実務で頻出する数値パターン
+## 6. Frequently Encountered Number Patterns in Practice
 
-### 6.1 メモリアドレスとアラインメント
+### 6.1 Memory Addresses and Alignment
 
 ```
-メモリアドレスのアラインメント:
+Memory address alignment:
 
-  多くのCPUは、データが特定の境界に整列していることを要求/推奨する。
+  Many CPUs require or recommend that data be aligned to specific boundaries.
 
-  4バイトアラインメント:
-    アドレスの下位2ビットが00
-    → アドレスが4の倍数 (0x00, 0x04, 0x08, 0x0C, ...)
+  4-byte alignment:
+    Lower 2 bits of the address are 00
+    -> Address is a multiple of 4 (0x00, 0x04, 0x08, 0x0C, ...)
 
-  8バイトアラインメント:
-    アドレスの下位3ビットが000
-    → アドレスが8の倍数 (0x00, 0x08, 0x10, 0x18, ...)
+  8-byte alignment:
+    Lower 3 bits of the address are 000
+    -> Address is a multiple of 8 (0x00, 0x08, 0x10, 0x18, ...)
 
-  アラインメント計算（ビット演算）:
-    アドレスを N バイト境界に切り上げ:
+  Alignment calculation (bitwise):
+    Round up address to N-byte boundary:
     aligned = (addr + (N - 1)) & ~(N - 1)
 
-    例: addr = 0x13, N = 8
+    Example: addr = 0x13, N = 8
     aligned = (0x13 + 0x07) & ~0x07
             = 0x1A & 0xFFFFFFF8
             = 0x18
 
-  アラインメント確認:
+  Alignment check:
     is_aligned = (addr & (N - 1)) == 0
 
-    例: addr = 0x18, N = 8
-    0x18 & 0x07 = 0x00 → 整列されている ✓
+    Example: addr = 0x18, N = 8
+    0x18 & 0x07 = 0x00 -> aligned check
 
-  なぜアラインメントが重要か:
-  - ミスアラインドアクセスはCPUによっては例外を発生
-  - 正しくアラインされたアクセスは1回のメモリ読み取りで完了
-  - ミスアラインドだと2回のメモリ読み取り + マージが必要
-  - SIMD命令（SSE, AVX）は16/32バイトアラインメントが必須
+  Why alignment matters:
+  - Misaligned access causes exceptions on some CPUs
+  - Properly aligned access completes in a single memory read
+  - Misaligned access requires two memory reads + merge
+  - SIMD instructions (SSE, AVX) require 16/32-byte alignment
 ```
 
-### 6.2 ハッシュとビット演算
+### 6.2 Hashing and Bitwise Operations
 
 ```python
-# ハッシュテーブルのインデックス計算
+# Hash table index calculation
 
-# 方法1: モジュロ演算（一般的）
+# Method 1: Modulo operation (common)
 index = hash(key) % table_size
 
-# 方法2: ビットマスク（テーブルサイズが2のべき乗の場合、高速）
-# table_size = 2^n のとき
+# Method 2: Bit masking (fast, when table size is a power of 2)
+# When table_size = 2^n:
 index = hash(key) & (table_size - 1)
 
-# 例: table_size = 1024 = 2^10
-# hash(key) & 0x3FF  ← 下位10ビットを取り出す（0-1023）
+# Example: table_size = 1024 = 2^10
+# hash(key) & 0x3FF  <- Extract lower 10 bits (0-1023)
 
-# これが HashMap/HashSet のパフォーマンスの秘密
-# → テーブルサイズを常に2のべき乗に保つ理由
+# This is the secret behind HashMap/HashSet performance
+# -> The reason table size is always kept as a power of 2
 
-# FNV-1aハッシュ（ビット演算で実装）
+# FNV-1a hash (implemented with bitwise operations)
 def fnv1a_32(data: bytes) -> int:
     FNV_OFFSET_BASIS = 0x811C9DC5
     FNV_PRIME = 0x01000193
     h = FNV_OFFSET_BASIS
     for byte in data:
         h ^= byte
-        h = (h * FNV_PRIME) & 0xFFFFFFFF  # 32ビットに制限
+        h = (h * FNV_PRIME) & 0xFFFFFFFF  # Limit to 32 bits
     return h
 
-# MurmurHash の最終ミキシング（ビットシフト + XOR）
+# MurmurHash final mixing (bit shifts + XOR)
 def murmur_finalizer(h):
     h ^= h >> 16
     h = (h * 0x85EBCA6B) & 0xFFFFFFFF
@@ -1189,21 +1189,21 @@ def murmur_finalizer(h):
     return h
 ```
 
-### 6.3 色コードとビット演算
+### 6.3 Color Codes and Bitwise Operations
 
 ```python
-# RGBA色の操作（各8ビット = 合計32ビット）
+# RGBA color manipulation (8 bits each = 32 bits total)
 
-# 色の構成: 0xAARRGGBB (Alpha, Red, Green, Blue)
+# Color composition: 0xAARRGGBB (Alpha, Red, Green, Blue)
 color = 0xFF8040C0  # A=255, R=128, G=64, B=192
 
-# 各チャンネルの抽出
+# Extract each channel
 alpha = (color >> 24) & 0xFF  # 255
 red   = (color >> 16) & 0xFF  # 128
 green = (color >>  8) & 0xFF  # 64
 blue  = (color >>  0) & 0xFF  # 192
 
-# チャンネルから色を合成
+# Compose color from channels
 def rgba(r, g, b, a=255):
     return (a << 24) | (r << 16) | (g << 8) | b
 
@@ -1211,50 +1211,50 @@ white = rgba(255, 255, 255)       # 0xFFFFFFFF
 red_color = rgba(255, 0, 0)       # 0xFFFF0000
 transparent = rgba(0, 0, 0, 0)    # 0x00000000
 
-# アルファブレンディング
+# Alpha blending
 def blend(fg, bg, alpha):
     """alpha: 0-255"""
     return ((fg * alpha) + (bg * (255 - alpha))) // 255
 
-# 色の明度調整
+# Brightness adjustment
 def brighten(color, factor):
-    """factor: 0.0-2.0 (1.0 = 変化なし)"""
+    """factor: 0.0-2.0 (1.0 = no change)"""
     a = (color >> 24) & 0xFF
     r = min(int(((color >> 16) & 0xFF) * factor), 255)
     g = min(int(((color >>  8) & 0xFF) * factor), 255)
     b = min(int(((color >>  0) & 0xFF) * factor), 255)
     return (a << 24) | (r << 16) | (g << 8) | b
 
-# Webカラー
-# #FF8040 → RGB(255, 128, 64)
+# Web colors
+# #FF8040 -> RGB(255, 128, 64)
 hex_str = "FF8040"
 r = int(hex_str[0:2], 16)  # 255
 g = int(hex_str[2:4], 16)  # 128
 b = int(hex_str[4:6], 16)  # 64
 ```
 
-### 6.4 ネットワークプログラミングでのビット演算
+### 6.4 Bitwise Operations in Network Programming
 
 ```python
-# IPv4アドレスの操作
+# IPv4 address manipulation
 
 import struct
 import socket
 
-# ドット表記 → 32ビット整数
+# Dotted notation -> 32-bit integer
 def ip_to_int(ip_str):
-    """'192.168.1.100' → 0xC0A80164"""
+    """'192.168.1.100' -> 0xC0A80164"""
     parts = ip_str.split('.')
     return (int(parts[0]) << 24) | (int(parts[1]) << 16) | \
            (int(parts[2]) << 8) | int(parts[3])
 
-# 32ビット整数 → ドット表記
+# 32-bit integer -> Dotted notation
 def int_to_ip(ip_int):
-    """0xC0A80164 → '192.168.1.100'"""
+    """0xC0A80164 -> '192.168.1.100'"""
     return f"{(ip_int >> 24) & 0xFF}.{(ip_int >> 16) & 0xFF}." \
            f"{(ip_int >> 8) & 0xFF}.{ip_int & 0xFF}"
 
-# サブネット計算
+# Subnet calculation
 ip = ip_to_int('192.168.1.100')        # 0xC0A80164
 mask = ip_to_int('255.255.255.0')      # 0xFFFFFF00
 
@@ -1262,26 +1262,26 @@ network = ip & mask                     # 192.168.1.0
 broadcast = ip | (~mask & 0xFFFFFFFF)   # 192.168.1.255
 host_part = ip & (~mask & 0xFFFFFFFF)   # 0.0.0.100
 
-# CIDRプレフィックスからマスクを生成
+# Generate mask from CIDR prefix
 def cidr_to_mask(prefix_len):
-    """24 → 0xFFFFFF00"""
+    """24 -> 0xFFFFFF00"""
     return (0xFFFFFFFF << (32 - prefix_len)) & 0xFFFFFFFF
 
-# マスクからCIDRプレフィックスを取得
+# Get CIDR prefix from mask
 def mask_to_cidr(mask):
-    """0xFFFFFF00 → 24"""
+    """0xFFFFFF00 -> 24"""
     return bin(mask).count('1')
 
-# ホスト数の計算
+# Calculate number of hosts
 def host_count(prefix_len):
-    """使用可能なホスト数"""
-    return (2 ** (32 - prefix_len)) - 2  # ネットワークとブロードキャストを除く
+    """Number of usable hosts"""
+    return (2 ** (32 - prefix_len)) - 2  # Exclude network and broadcast
 
 print(host_count(24))   # 254
 print(host_count(16))   # 65534
 print(host_count(8))    # 16777214
 
-# 同じサブネットに属するか判定
+# Check if two IPs belong to the same subnet
 def same_subnet(ip1, ip2, mask):
     return (ip_to_int(ip1) & ip_to_int(mask)) == \
            (ip_to_int(ip2) & ip_to_int(mask))
@@ -1290,33 +1290,33 @@ print(same_subnet('192.168.1.100', '192.168.1.200', '255.255.255.0'))  # True
 print(same_subnet('192.168.1.100', '192.168.2.100', '255.255.255.0'))  # False
 
 
-# TCPフラグ（ビットフィールド）
-TCP_FIN = 0x01  # 接続終了
-TCP_SYN = 0x02  # 接続開始
-TCP_RST = 0x04  # リセット
-TCP_PSH = 0x08  # プッシュ
-TCP_ACK = 0x10  # 確認応答
-TCP_URG = 0x20  # 緊急
+# TCP flags (bitfields)
+TCP_FIN = 0x01  # Connection termination
+TCP_SYN = 0x02  # Connection initiation
+TCP_RST = 0x04  # Reset
+TCP_PSH = 0x08  # Push
+TCP_ACK = 0x10  # Acknowledgment
+TCP_URG = 0x20  # Urgent
 
-# SYN-ACK パケットのフラグ
+# SYN-ACK packet flags
 flags = TCP_SYN | TCP_ACK  # 0x12
 
-# フラグチェック
+# Flag checks
 is_syn = bool(flags & TCP_SYN)      # True
 is_fin = bool(flags & TCP_FIN)      # False
 is_syn_ack = (flags & (TCP_SYN | TCP_ACK)) == (TCP_SYN | TCP_ACK)  # True
 ```
 
-### 6.5 暗号学でのビット演算
+### 6.5 Bitwise Operations in Cryptography
 
 ```python
-# XOR暗号（ストリーム暗号の基礎）
+# XOR cipher (basis of stream ciphers)
 
 def xor_encrypt(plaintext: bytes, key: bytes) -> bytes:
-    """XOR暗号化（復号も同じ操作）"""
+    """XOR encryption (decryption is the same operation)"""
     return bytes(p ^ k for p, k in zip(plaintext, key * (len(plaintext) // len(key) + 1)))
 
-# XORの性質: A ^ K ^ K = A
+# Property of XOR: A ^ K ^ K = A
 message = b"Hello, World!"
 key = b"SECRET"
 encrypted = xor_encrypt(message, key)
@@ -1324,33 +1324,33 @@ decrypted = xor_encrypt(encrypted, key)
 print(decrypted)  # b'Hello, World!'
 
 
-# ビットローテーション（暗号アルゴリズムで多用）
+# Bit rotation (heavily used in cryptographic algorithms)
 def rotate_left_32(n, d):
-    """32ビット左ローテーション"""
+    """32-bit left rotation"""
     return ((n << d) | (n >> (32 - d))) & 0xFFFFFFFF
 
 def rotate_right_32(n, d):
-    """32ビット右ローテーション"""
+    """32-bit right rotation"""
     return ((n >> d) | (n << (32 - d))) & 0xFFFFFFFF
 
-# SHA-256のCh関数とMaj関数
+# SHA-256's Ch and Maj functions
 def ch(x, y, z):
-    """Choice: xが1ならyのビット、0ならzのビット"""
+    """Choice: if x is 1, take y's bit; otherwise take z's bit"""
     return (x & y) ^ (~x & z)
 
 def maj(x, y, z):
-    """Majority: 多数決"""
+    """Majority: majority vote"""
     return (x & y) ^ (x & z) ^ (y & z)
 
 
-# Feistel構造（DES等のブロック暗号の基本構造）
+# Feistel structure (basic structure of block ciphers like DES)
 def feistel_round(left, right, round_key):
-    """1ラウンドのFeistel構造"""
+    """One round of the Feistel structure"""
     new_left = right
-    new_right = left ^ f(right, round_key)  # f は暗号化関数
+    new_right = left ^ f(right, round_key)  # f is the encryption function
     return new_left, new_right
 
-# 逆変換（復号）は鍵の順序を逆にするだけ
+# Inverse transformation (decryption) simply reverses the key order
 def feistel_round_inv(left, right, round_key):
     new_right = left
     new_left = right ^ f(left, round_key)
@@ -1359,60 +1359,60 @@ def feistel_round_inv(left, right, round_key):
 
 ---
 
-## 7. エンディアン（バイト順序）
+## 7. Endianness (Byte Order)
 
-### 7.1 ビッグエンディアンとリトルエンディアン
+### 7.1 Big-Endian and Little-Endian
 
 ```
-32ビット整数 0x12345678 のメモリ上の配置:
+Memory layout of 32-bit integer 0x12345678:
 
-  ビッグエンディアン（BE）: 上位バイトが先頭アドレス
-  アドレス: 0x00  0x01  0x02  0x03
-  値:       0x12  0x34  0x56  0x78
-  → 人間にとって自然な順序（左から大きい桁）
+  Big-Endian (BE): Most significant byte at the lowest address
+  Address: 0x00  0x01  0x02  0x03
+  Value:   0x12  0x34  0x56  0x78
+  -> Natural order for humans (most significant digit on the left)
 
-  リトルエンディアン（LE）: 下位バイトが先頭アドレス
-  アドレス: 0x00  0x01  0x02  0x03
-  値:       0x78  0x56  0x34  0x12
-  → Intel/AMD (x86, x64) が採用
+  Little-Endian (LE): Least significant byte at the lowest address
+  Address: 0x00  0x01  0x02  0x03
+  Value:   0x78  0x56  0x34  0x12
+  -> Adopted by Intel/AMD (x86, x64)
 
-  なぜリトルエンディアンが主流か:
-  - 8ビットデータも16ビットデータも先頭アドレスが同じ
-  - 加算の際、下位バイトから処理するのと合致
-  - バイト幅の変換が容易
+  Why little-endian is dominant:
+  - 8-bit and 16-bit data share the same starting address
+  - Matches the process of addition starting from the least significant byte
+  - Simplifies byte-width conversion
 
-  各環境のエンディアン:
-  ┌──────────────────────┬────────────┐
-  │ 環境                 │ エンディアン │
-  ├──────────────────────┼────────────┤
-  │ x86, x64 (Intel/AMD) │ リトル      │
-  │ ARM (通常モード)      │ リトル      │
-  │ ネットワーク (TCP/IP)  │ ビッグ      │
-  │ Java (JVM)            │ ビッグ      │
-  │ RISC-V               │ リトル      │
-  │ MIPS                 │ 切替可能    │
-  │ PowerPC              │ ビッグ      │
-  └──────────────────────┴────────────┘
+  Endianness by platform:
+  +----------------------+------------+
+  | Platform             | Endianness |
+  +----------------------+------------+
+  | x86, x64 (Intel/AMD) | Little     |
+  | ARM (default mode)    | Little     |
+  | Network (TCP/IP)      | Big        |
+  | Java (JVM)            | Big        |
+  | RISC-V               | Little     |
+  | MIPS                 | Switchable |
+  | PowerPC              | Big        |
+  +----------------------+------------+
 
-  ネットワークバイトオーダー = ビッグエンディアン
-  ホストバイトオーダー = CPUによる（通常リトル）
+  Network byte order = Big-endian
+  Host byte order = CPU-dependent (usually little)
 ```
 
-### 7.2 エンディアン変換の実装
+### 7.2 Endian Conversion Implementations
 
 ```python
 import struct
 
-# Python の struct モジュール
-# '<' = リトルエンディアン, '>' = ビッグエンディアン, '!' = ネットワーク(BE)
+# Python's struct module
+# '<' = little-endian, '>' = big-endian, '!' = network (BE)
 
 value = 0x12345678
 
-# パック（整数 → バイト列）
+# Pack (integer -> byte sequence)
 be_bytes = struct.pack('>I', value)  # b'\x12\x34\x56\x78'
 le_bytes = struct.pack('<I', value)  # b'\x78\x56\x34\x12'
 
-# アンパック（バイト列 → 整数）
+# Unpack (byte sequence -> integer)
 be_value = struct.unpack('>I', be_bytes)[0]  # 0x12345678
 le_value = struct.unpack('<I', le_bytes)[0]  # 0x12345678
 
@@ -1423,9 +1423,9 @@ n = int.from_bytes(b'\x78\x56\x34\x12', byteorder='little') # 0x12345678
 data = (0x12345678).to_bytes(4, byteorder='big')    # b'\x12\x34\x56\x78'
 data = (0x12345678).to_bytes(4, byteorder='little')  # b'\x78\x56\x34\x12'
 
-# バイトスワップ（ビット演算で実装）
+# Byte swap (implemented with bitwise operations)
 def bswap32(n):
-    """32ビット値のバイトスワップ"""
+    """32-bit byte swap"""
     return ((n & 0xFF000000) >> 24) | \
            ((n & 0x00FF0000) >>  8) | \
            ((n & 0x0000FF00) <<  8) | \
@@ -1434,35 +1434,35 @@ def bswap32(n):
 print(hex(bswap32(0x12345678)))  # 0x78563412
 
 def bswap16(n):
-    """16ビット値のバイトスワップ"""
+    """16-bit byte swap"""
     return ((n & 0xFF00) >> 8) | ((n & 0x00FF) << 8)
 ```
 
 ```c
-// C言語でのエンディアン変換
+// Endian conversion in C
 
 #include <arpa/inet.h>  // POSIX
 
-// ネットワークバイトオーダー変換関数
+// Network byte order conversion functions
 uint32_t net_val = htonl(0x12345678);  // Host TO Network Long
 uint16_t net_s   = htons(0x1234);      // Host TO Network Short
 uint32_t host_val = ntohl(net_val);    // Network TO Host Long
 uint16_t host_s   = ntohs(net_s);     // Network TO Host Short
 
-// GCCビルトイン
+// GCC built-ins
 uint32_t swapped = __builtin_bswap32(0x12345678);  // 0x78563412
 uint64_t swapped64 = __builtin_bswap64(value64);
 ```
 
 ```rust
-// Rustでのエンディアン変換
+// Endian conversion in Rust
 
 let n: u32 = 0x12345678;
 
-// バイトスワップ
+// Byte swap
 let swapped = n.swap_bytes();  // 0x78563412
 
-// エンディアン変換
+// Endian conversion
 let be_bytes = n.to_be_bytes();  // [0x12, 0x34, 0x56, 0x78]
 let le_bytes = n.to_le_bytes();  // [0x78, 0x56, 0x34, 0x12]
 
@@ -1472,117 +1472,117 @@ let from_le = u32::from_le_bytes([0x78, 0x56, 0x34, 0x12]);  // 0x12345678
 
 ---
 
-## 8. 実践演習
+## 8. Practice Exercises
 
-### 演習1: 基数変換（基礎）
-以下の変換を手計算で行え:
-1. 10進数 `173` → 2進数 → 16進数
-2. 16進数 `0xDEAD` → 10進数
-3. 2進数 `1011 0110` → 10進数 → 8進数
-4. 10進数 `0.6875` → 2進数
-5. 8進数 `0o1777` → 16進数 → 10進数
+### Exercise 1: Base Conversion (Fundamentals)
+Perform the following conversions by hand:
+1. Decimal `173` -> Binary -> Hexadecimal
+2. Hexadecimal `0xDEAD` -> Decimal
+3. Binary `1011 0110` -> Decimal -> Octal
+4. Decimal `0.6875` -> Binary
+5. Octal `0o1777` -> Hexadecimal -> Decimal
 
-### 演習2: ビット演算パズル（応用）
-ビット演算のみを使って以下を実装せよ（算術演算禁止）:
-1. 2つの整数の加算
-2. 整数のセットビット数（1の数）をカウント
-3. 符号を反転（2の補数）
-4. 2つの整数の大小比較（分岐なし）
+### Exercise 2: Bitwise Operation Puzzles (Applied)
+Implement the following using only bitwise operations (no arithmetic operations allowed):
+1. Addition of two integers
+2. Count the number of set bits (1s) in an integer
+3. Negate (two's complement)
+4. Compare two integers (branchless)
 
-### 演習3: IPアドレス計算（発展）
-IPv4アドレス `192.168.10.50` とサブネットマスク `255.255.255.0 (/24)` から、ビット演算でネットワークアドレスとブロードキャストアドレスを求めよ。
+### Exercise 3: IP Address Calculation (Advanced)
+Given IPv4 address `192.168.10.50` and subnet mask `255.255.255.0 (/24)`, use bitwise operations to compute the network address and broadcast address.
 
-### 演習4: ビットフィールドの設計（実務）
-ファイルパーミッションシステムを設計せよ。以下の要件を満たすこと:
-- ユーザー、グループ、その他の3種類のアクセス主体
-- 各アクセス主体に対してread, write, execute の権限
-- 1つの整数で全権限を表現
-- 権限の確認・付与・剥奪の関数を実装
+### Exercise 4: Bitfield Design (Practical)
+Design a file permission system. The following requirements must be met:
+- Three types of access principals: user, group, and other
+- read, write, and execute permissions for each principal
+- Represent all permissions in a single integer
+- Implement functions for checking, granting, and revoking permissions
 
-### 演習5: エンディアン変換（応用）
-バイト列 `[0x48, 0x65, 0x6C, 0x6C]` を:
-1. ビッグエンディアンの32ビット整数として解釈
-2. リトルエンディアンの32ビット整数として解釈
-3. ASCII文字列として解釈
+### Exercise 5: Endian Conversion (Applied)
+Given byte sequence `[0x48, 0x65, 0x6C, 0x6C]`:
+1. Interpret as a big-endian 32-bit integer
+2. Interpret as a little-endian 32-bit integer
+3. Interpret as an ASCII string
 
-### 演習解答例
+### Solution Examples
 
 ```python
-# 演習2-1: ビット演算のみの加算
+# Exercise 2-1: Addition using only bitwise operations
 def add(a, b):
-    """ビット演算のみで加算を実装"""
+    """Implement addition using only bitwise operations"""
     while b:
-        carry = a & b      # 繰り上がりビット
-        a = a ^ b           # 繰り上がりなしの加算
-        b = carry << 1      # 繰り上がりを次の桁へ
+        carry = a & b      # Carry bits
+        a = a ^ b           # Addition without carry
+        b = carry << 1      # Propagate carry to the next digit
     return a
 
-# テスト
+# Test
 print(add(5, 3))    # 8
 print(add(100, 200)) # 300
 
-# 動作の詳細:
+# Detailed walkthrough:
 # a=5 (101), b=3 (011)
-# 1回目: carry=001, a=110, b=010
-# 2回目: carry=010, a=100, b=100
-# 3回目: carry=100, a=000, b=1000
-# 4回目: carry=000, a=1000, b=0000 → 終了
-# 結果: 1000 = 8 ✓
+# Round 1: carry=001, a=110, b=010
+# Round 2: carry=010, a=100, b=100
+# Round 3: carry=100, a=000, b=1000
+# Round 4: carry=000, a=1000, b=0000 -> done
+# Result: 1000 = 8 check
 
 
-# 演習2-2: ビットカウント
+# Exercise 2-2: Bit count
 def count_bits(n):
-    """Brian Kernighanのアルゴリズム"""
+    """Brian Kernighan's algorithm"""
     count = 0
     while n:
-        n &= n - 1  # 最下位の1ビットをクリア
+        n &= n - 1  # Clear the lowest set bit
         count += 1
     return count
 
 print(count_bits(0b1011_0110))  # 5
 
 
-# 演習2-3: 符号反転（2の補数）
+# Exercise 2-3: Negate (two's complement)
 def negate(n):
     """~n + 1 = -n"""
-    return add(~n, 1)  # ビット反転 + 1
+    return add(~n, 1)  # Bit inversion + 1
 
 
-# 演習4: ファイルパーミッション
+# Exercise 4: File permissions
 class FilePermission:
-    # ビット位置の定義
-    OTHER_EXECUTE = 0  # ビット0
-    OTHER_WRITE   = 1  # ビット1
-    OTHER_READ    = 2  # ビット2
-    GROUP_EXECUTE = 3  # ビット3
-    GROUP_WRITE   = 4  # ビット4
-    GROUP_READ    = 5  # ビット5
-    USER_EXECUTE  = 6  # ビット6
-    USER_WRITE    = 7  # ビット7
-    USER_READ     = 8  # ビット8
+    # Bit position definitions
+    OTHER_EXECUTE = 0  # Bit 0
+    OTHER_WRITE   = 1  # Bit 1
+    OTHER_READ    = 2  # Bit 2
+    GROUP_EXECUTE = 3  # Bit 3
+    GROUP_WRITE   = 4  # Bit 4
+    GROUP_READ    = 5  # Bit 5
+    USER_EXECUTE  = 6  # Bit 6
+    USER_WRITE    = 7  # Bit 7
+    USER_READ     = 8  # Bit 8
 
     def __init__(self, mode=0):
         self.mode = mode
 
     @classmethod
     def from_octal(cls, octal_str):
-        """'755' → FilePermission"""
+        """'755' -> FilePermission"""
         return cls(int(octal_str, 8))
 
     def has_permission(self, bit):
-        """指定ビットの権限があるか確認"""
+        """Check if the specified bit permission is set"""
         return bool(self.mode & (1 << bit))
 
     def grant(self, bit):
-        """権限を付与"""
+        """Grant permission"""
         self.mode |= (1 << bit)
 
     def revoke(self, bit):
-        """権限を剥奪"""
+        """Revoke permission"""
         self.mode &= ~(1 << bit)
 
     def toggle(self, bit):
-        """権限を反転"""
+        """Toggle permission"""
         self.mode ^= (1 << bit)
 
     def __repr__(self):
@@ -1605,54 +1605,54 @@ print(perm.has_permission(FilePermission.OTHER_WRITE))  # False
 
 ---
 
-## 9. デバッグとトラブルシューティング
+## 9. Debugging and Troubleshooting
 
-### 9.1 よくある間違い
+### 9.1 Common Mistakes
 
 ```python
-# 間違い1: Cの8進数リテラルに注意
-# C言語で:
-# int n = 010;  // これは8！（8進数の10）、10進数の10ではない
+# Mistake 1: Watch out for C's octal literals
+# In C:
+# int n = 010;  // This is 8! (octal 10), not decimal 10
 
-# 間違い2: JavaScriptのビット演算は32ビット
+# Mistake 2: JavaScript bitwise operations use 32 bits
 # JavaScript:
-# 0xFFFFFFFF | 0  → -1 (符号付き32ビットとして解釈)
-# 正しくは: 0xFFFFFFFF >>> 0  → 4294967295
+# 0xFFFFFFFF | 0  -> -1 (interpreted as signed 32-bit)
+# Correct: 0xFFFFFFFF >>> 0  -> 4294967295
 
-# 間違い3: Pythonの~演算子
+# Mistake 3: Python's ~ operator
 n = 5
 print(~n)     # -6 (-(n+1))
-# 8ビットの範囲で反転したい場合:
+# To invert within an 8-bit range:
 print(~n & 0xFF)  # 250 (0b11111010)
 
-# 間違い4: 符号付きの右シフト
-# -1 >> 1 = -1 (算術右シフト: 符号ビットが維持される)
-# Pythonでは整数は無限精度なので:
-# -1 = ...1111_1111_1111 (全ビットが1)
-# >> 1 = ...1111_1111_1111 (やはり全ビットが1) = -1
+# Mistake 4: Signed right shift
+# -1 >> 1 = -1 (arithmetic right shift: sign bit is preserved)
+# In Python, integers have infinite precision:
+# -1 = ...1111_1111_1111 (all bits are 1)
+# >> 1 = ...1111_1111_1111 (still all bits are 1) = -1
 
-# 間違い5: 浮動小数点数のビット演算
-# Python: int型のみビット演算可能
-# float には使えない
-# 3.14 & 0xFF  → TypeError
+# Mistake 5: Bitwise operations on floating-point numbers
+# Python: Bitwise operations only work on int types
+# Cannot use on float
+# 3.14 & 0xFF  -> TypeError
 
-# 間違い6: オーバーフロー
-# Cで: uint8_t n = 255; n + 1 = 0（ラップアラウンド）
-# Pythonでは整数がオーバーフローしない（任意精度）
+# Mistake 6: Overflow
+# In C: uint8_t n = 255; n + 1 = 0 (wraparound)
+# In Python, integers never overflow (arbitrary precision)
 ```
 
-### 9.2 デバッグツール
+### 9.2 Debugging Tools
 
 ```python
-# ビット表現の可視化ヘルパー
+# Bit representation visualization helper
 
 def show_bits(n, width=8):
-    """整数のビット表現を見やすく表示"""
+    """Display the bit representation of an integer in a readable format"""
     if n < 0:
-        # 2の補数表現を表示
+        # Display two's complement representation
         n = n & ((1 << width) - 1)
     bits = format(n, f'0{width}b')
-    # 4ビットずつ区切る
+    # Group into 4-bit chunks
     grouped = ' '.join(bits[i:i+4] for i in range(0, len(bits), 4))
     print(f"Dec: {n:>{width//3+3}d}  Hex: 0x{n:0{width//4}X}  Bin: {grouped}")
 
@@ -1661,7 +1661,7 @@ show_bits(255)      # Dec: 255  Hex: 0xFF  Bin: 1111 1111
 show_bits(0, 16)    # Dec:   0  Hex: 0x0000  Bin: 0000 0000 0000 0000
 
 def show_operation(a, b, op_name, op_func, width=8):
-    """ビット演算の過程を可視化"""
+    """Visualize the process of a bitwise operation"""
     result = op_func(a, b) & ((1 << width) - 1)
     a_bits = format(a & ((1 << width) - 1), f'0{width}b')
     b_bits = format(b & ((1 << width) - 1), f'0{width}b')
@@ -1676,110 +1676,110 @@ def show_operation(a, b, op_name, op_func, width=8):
 show_operation(0b11001010, 0b10110110, '&', lambda a, b: a & b)
 #   11001010  (202)
 # & 10110110  (182)
-#   ────────
+#   --------
 #   10000010  (130)
 
 show_operation(0b11001010, 0b10110110, '|', lambda a, b: a | b)
 show_operation(0b11001010, 0b10110110, '^', lambda a, b: a ^ b)
 ```
 
-### 9.3 バイナリデータの調査
+### 9.3 Investigating Binary Data
 
 ```bash
-# ファイルの16進ダンプ
+# Hex dump of a file
 xxd file.bin | head -20
 # 00000000: 504b 0304 1400 0000 0800 ...  PK..........
 
-# hexdump（別フォーマット）
+# hexdump (alternative format)
 hexdump -C file.bin | head -20
 
-# 特定のバイトオフセットから読み取り
+# Read from a specific byte offset
 xxd -s 0x100 -l 32 file.bin
 
-# バイナリ比較
+# Binary comparison
 xxd file1.bin > /tmp/hex1.txt
 xxd file2.bin > /tmp/hex2.txt
 diff /tmp/hex1.txt /tmp/hex2.txt
 
-# Pythonでバイナリファイル解析
+# Analyze binary files with Python
 python3 -c "
 with open('file.bin', 'rb') as f:
     data = f.read(16)
     print(' '.join(f'{b:02X}' for b in data))
-    # マジックナンバーの確認
+    # Check magic numbers
     magic = {
-        b'\\x89PNG': 'PNG画像',
-        b'\\xff\\xd8\\xff': 'JPEG画像',
+        b'\\x89PNG': 'PNG image',
+        b'\\xff\\xd8\\xff': 'JPEG image',
         b'PK': 'ZIP/XLSX/DOCX',
-        b'\\x7fELF': 'ELF実行ファイル',
-        b'GIF8': 'GIF画像',
-        b'%PDF': 'PDFファイル',
+        b'\\x7fELF': 'ELF executable',
+        b'GIF8': 'GIF image',
+        b'%PDF': 'PDF file',
     }
     for sig, name in magic.items():
         if data[:len(sig)] == sig:
-            print(f'ファイル形式: {name}')
+            print(f'File format: {name}')
 "
 ```
 
 
 ---
 
-## 設計判断ガイド
+## Design Decision Guide
 
-### 選択基準マトリクス
+### Selection Criteria Matrix
 
-技術選択を行う際の判断基準を以下にまとめます。
+The following summarizes the decision criteria for making technical choices.
 
-| 判断基準 | 重視する場合 | 妥協できる場合 |
-|---------|------------|-------------|
-| パフォーマンス | リアルタイム処理、大規模データ | 管理画面、バッチ処理 |
-| 保守性 | 長期運用、チーム開発 | プロトタイプ、短期プロジェクト |
-| スケーラビリティ | 成長が見込まれるサービス | 社内ツール、固定ユーザー |
-| セキュリティ | 個人情報、金融データ | 公開データ、社内利用 |
-| 開発速度 | MVP、市場投入スピード | 品質重視、ミッションクリティカル |
+| Criterion | Prioritize When | Acceptable to Compromise When |
+|-----------|----------------|------------------------------|
+| Performance | Real-time processing, large-scale data | Admin dashboards, batch processing |
+| Maintainability | Long-term operations, team development | Prototypes, short-term projects |
+| Scalability | Services expecting growth | Internal tools, fixed user base |
+| Security | Personal data, financial data | Public data, internal use |
+| Development Speed | MVP, time-to-market | Quality-focused, mission-critical |
 
-### アーキテクチャパターンの選択
+### Architecture Pattern Selection
 
 ```
-┌─────────────────────────────────────────────────┐
-│              アーキテクチャ選択フロー              │
-├─────────────────────────────────────────────────┤
-│                                                 │
-│  ① チーム規模は？                                │
-│    ├─ 小規模（1-5人）→ モノリス                   │
-│    └─ 大規模（10人+）→ ②へ                       │
-│                                                 │
-│  ② デプロイ頻度は？                               │
-│    ├─ 週1回以下 → モノリス + モジュール分割         │
-│    └─ 毎日/複数回 → ③へ                          │
-│                                                 │
-│  ③ チーム間の独立性は？                            │
-│    ├─ 高い → マイクロサービス                      │
-│    └─ 中程度 → モジュラーモノリス                   │
-│                                                 │
-└─────────────────────────────────────────────────┘
++--------------------------------------------------+
+|         Architecture Selection Flow               |
++--------------------------------------------------+
+|                                                    |
+|  (1) Team size?                                    |
+|    +-- Small (1-5) -> Monolith                     |
+|    +-- Large (10+) -> Go to (2)                    |
+|                                                    |
+|  (2) Deployment frequency?                         |
+|    +-- Weekly or less -> Monolith + module split    |
+|    +-- Daily/multiple -> Go to (3)                 |
+|                                                    |
+|  (3) Team independence?                            |
+|    +-- High -> Microservices                       |
+|    +-- Medium -> Modular monolith                  |
+|                                                    |
++--------------------------------------------------+
 ```
 
-### トレードオフの分析
+### Trade-off Analysis
 
-技術的な判断には必ずトレードオフが伴います。以下の観点で分析を行いましょう:
+Technical decisions always involve trade-offs. Analyze from the following perspectives:
 
-**1. 短期 vs 長期のコスト**
-- 短期的に速い方法が長期的には技術的負債になることがある
-- 逆に、過剰な設計は短期的なコストが高く、プロジェクトの遅延を招く
+**1. Short-term vs Long-term Cost**
+- A short-term fast approach may become technical debt in the long run
+- Conversely, over-engineering incurs high short-term costs and can delay the project
 
-**2. 一貫性 vs 柔軟性**
-- 統一された技術スタックは学習コストが低い
-- 多様な技術の採用は適材適所が可能だが、運用コストが増加
+**2. Consistency vs Flexibility**
+- A unified technology stack has lower learning costs
+- Diverse technology adoption enables best-fit solutions but increases operational costs
 
-**3. 抽象化のレベル**
-- 高い抽象化は再利用性が高いが、デバッグが困難になる場合がある
-- 低い抽象化は直感的だが、コードの重複が発生しやすい
+**3. Level of Abstraction**
+- High abstraction provides high reusability but can make debugging difficult
+- Low abstraction is intuitive but prone to code duplication
 
 ```python
-# 設計判断の記録テンプレート
+# Design decision recording template
 class ArchitectureDecisionRecord:
-    """ADR (Architecture Decision Record) の作成"""
+    """Create an ADR (Architecture Decision Record)"""
 
     def __init__(self, title: str):
         self.title = title
@@ -1789,17 +1789,17 @@ class ArchitectureDecisionRecord:
         self.alternatives = []
 
     def set_context(self, context: str):
-        """背景と課題の記述"""
+        """Describe the background and challenge"""
         self.context = context
         return self
 
     def set_decision(self, decision: str):
-        """決定内容の記述"""
+        """Describe the decision"""
         self.decision = decision
         return self
 
     def add_consequence(self, consequence: str, positive: bool = True):
-        """結果の追加"""
+        """Add a consequence"""
         self.consequences.append({
             'description': consequence,
             'type': 'positive' if positive else 'negative'
@@ -1807,7 +1807,7 @@ class ArchitectureDecisionRecord:
         return self
 
     def add_alternative(self, name: str, reason_rejected: str):
-        """却下した代替案の追加"""
+        """Add a rejected alternative"""
         self.alternatives.append({
             'name': name,
             'reason_rejected': reason_rejected
@@ -1815,15 +1815,15 @@ class ArchitectureDecisionRecord:
         return self
 
     def to_markdown(self) -> str:
-        """Markdown形式で出力"""
+        """Output in Markdown format"""
         md = f"# ADR: {self.title}\n\n"
-        md += f"## 背景\n{self.context}\n\n"
-        md += f"## 決定\n{self.decision}\n\n"
-        md += "## 結果\n"
+        md += f"## Context\n{self.context}\n\n"
+        md += f"## Decision\n{self.decision}\n\n"
+        md += "## Consequences\n"
         for c in self.consequences:
-            icon = "✅" if c['type'] == 'positive' else "⚠️"
-            md += f"- {icon} {c['description']}\n"
-        md += "\n## 却下した代替案\n"
+            icon = "+" if c['type'] == 'positive' else "!"
+            md += f"- [{icon}] {c['description']}\n"
+        md += "\n## Rejected Alternatives\n"
         for a in self.alternatives:
             md += f"- **{a['name']}**: {a['reason_rejected']}\n"
         return md
@@ -1832,47 +1832,47 @@ class ArchitectureDecisionRecord:
 
 ## FAQ
 
-### Q1: 16進数はなぜプログラミングで多用されるのですか？
-**A**: 2進数の4ビットが16進数の1桁に正確に対応するため。`0xFF` は `1111 1111` と即座に分かるが、`255` からは直感的に分からない。メモリアドレス、色コード (#FF0000)、バイト列の表現に便利。
+### Q1: Why is hexadecimal so widely used in programming?
+**A**: Because 4 bits of binary correspond exactly to 1 hexadecimal digit. `0xFF` immediately tells you `1111 1111`, but `255` does not convey this intuitively. It is convenient for memory addresses, color codes (#FF0000), and byte sequence representation.
 
-### Q2: 3進法コンピュータは存在しましたか？
-**A**: ソ連のSetun（1958年）が三進法コンピュータとして有名。理論的には3進法は情報効率が最も高い（自然対数の底eに最も近い整数が3）。しかし、実用的にはトランジスタの2状態スイッチングの信頼性が圧倒的に高く、2進法が標準となった。
+### Q2: Did ternary computers ever exist?
+**A**: The Soviet Setun (1958) is famous as a ternary computer. Theoretically, base-3 has the highest information efficiency (3 is the integer closest to the natural logarithm base e). However, in practice, the reliability of two-state transistor switching was overwhelmingly superior, and binary became the standard.
 
-### Q3: ビット演算は実務でどのくらい使いますか？
-**A**: 分野による。Web開発ではほぼ使わない。システムプログラミング、ネットワーク（IPマスク）、暗号、ゲーム開発、組み込みでは頻繁に使う。「使わない」場合でも、原理を理解していることで、パフォーマンス最適化やバグ解析に役立つ。
+### Q3: How often are bitwise operations used in practice?
+**A**: It depends on the field. In web development, they are rarely used. In systems programming, networking (IP masks), cryptography, game development, and embedded systems, they are used frequently. Even when "not used," understanding the principles helps with performance optimization and bug analysis.
 
-### Q4: エンディアンの違いで実際にバグが起きますか？
-**A**: 頻繁に起きる。特にネットワークプログラミングでバイト列をそのまま整数として読み込む場合や、異なるアーキテクチャ間でバイナリファイルをやり取りする場合に問題になる。必ず`htonl()/ntohl()`等の変換関数を使い、プロトコルのエンディアンを明示すべき。
+### Q4: Do endianness differences actually cause bugs?
+**A**: Frequently. Especially when reading byte sequences directly as integers in network programming, or when exchanging binary files between different architectures. Always use conversion functions like `htonl()/ntohl()`, and explicitly specify the protocol's endianness.
 
-### Q5: ビット演算でのパフォーマンス向上は現代のCPUでも有効ですか？
-**A**: 単純な置き換え（`n * 2` → `n << 1`）は現代のコンパイラが自動最適化するので手動で行う必要はない。しかし、ビット並列性を活用したアルゴリズム（popcount、ビットボード、SIMD等）は依然として大きな効果がある。可読性を犠牲にしてまでマイクロ最適化するのは避けるべきだが、アルゴリズムレベルでのビット活用は重要。
+### Q5: Are bitwise performance improvements still effective on modern CPUs?
+**A**: Simple substitutions (`n * 2` -> `n << 1`) are automatically optimized by modern compilers, so manual conversion is unnecessary. However, algorithms that exploit bit-level parallelism (popcount, bitboards, SIMD, etc.) still provide significant benefits. Avoid sacrificing readability for micro-optimizations, but algorithmic use of bitwise operations remains important.
 
-### Q6: 量子コンピュータは2進数ですか？
-**A**: 量子コンピュータは量子ビット（qubit）を使う。qbitは0と1の重ね合わせ状態を取れる点が古典ビットと異なるが、測定結果は0か1になる。量子コンピュータの出力は最終的に古典ビットに変換されるため、入出力のインタフェースは2進数である。
-
----
-
-## まとめ
-
-| 概念 | ポイント |
-|------|---------|
-| 2進数 | トランジスタのON/OFFに直結。ノイズ耐性が高い |
-| 16進数 | 2進数の4ビット=1桁。メモリ/バイト列の表記に標準 |
-| 8進数 | 2進数の3ビット=1桁。Unixパーミッション（755等）で使用 |
-| 基数変換 | 除算法と減算法の2つのアプローチ。小数は乗算法で変換 |
-| ビット演算 | AND, OR, XOR, NOT, シフト。フラグ管理、最適化に使用 |
-| シフト演算 | 左シフト=×2^n、右シフト=÷2^n。算術/論理の違いに注意 |
-| エンディアン | ビッグ=上位バイト先頭、リトル=下位バイト先頭 |
-| 単位 | SI(KB=1000)とIEC(KiB=1024)の2系統がある |
-| 実務応用 | IP計算、色操作、暗号、ハッシュ、ゲームAI |
+### Q6: Do quantum computers use binary?
+**A**: Quantum computers use quantum bits (qubits). Qubits differ from classical bits in that they can exist in a superposition of 0 and 1, but measurement results are always 0 or 1. Since quantum computer outputs are ultimately converted to classical bits, the input/output interface is binary.
 
 ---
 
-## 次に読むべきガイド
+## Summary
+
+| Concept | Key Point |
+|---------|-----------|
+| Binary | Directly maps to transistor ON/OFF. High noise resistance |
+| Hexadecimal | 4 bits of binary = 1 digit. Standard notation for memory/byte sequences |
+| Octal | 3 bits of binary = 1 digit. Used in Unix permissions (755, etc.) |
+| Base Conversion | Two approaches: division method and subtraction method. Fractions use the multiplication method |
+| Bitwise Operations | AND, OR, XOR, NOT, shift. Used for flag management and optimization |
+| Shift Operations | Left shift = x2^n, right shift = /2^n. Note the arithmetic/logical distinction |
+| Endianness | Big = MSB first, Little = LSB first |
+| Units | Two systems: SI (KB=1000) and IEC (KiB=1024) |
+| Practical Applications | IP calculation, color manipulation, cryptography, hashing, game AI |
 
 ---
 
-## 参考文献
+## Recommended Next Reading
+
+---
+
+## References
 1. Petzold, C. "Code: The Hidden Language of Computer Hardware and Software." 2nd Edition, Microsoft Press, 2022.
 2. Warren, H. S. "Hacker's Delight." 2nd Edition, Addison-Wesley, 2012.
 3. Bryant, R. E. & O'Hallaron, D. R. "Computer Systems: A Programmer's Perspective." Chapter 2.

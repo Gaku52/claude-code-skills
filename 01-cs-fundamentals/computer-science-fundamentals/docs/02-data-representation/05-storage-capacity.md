@@ -1,317 +1,320 @@
-# ストレージ容量と単位
+# Storage Capacity and Units
 
-> 「ギガバイト」と「ギビバイト」の違いを正確に説明できないエンジニアが、ペタバイト規模のシステムを設計することはできない。
+> An engineer who cannot precisely explain the difference between "gigabyte" and "gibibyte" cannot design a petabyte-scale system.
 
-## この章で学ぶこと
+## Learning Objectives
 
-- [ ] ビットとバイトの定義、および歴史的背景を説明できる
-- [ ] 2進接頭辞（KiB, MiB, GiB）と10進接頭辞（KB, MB, GB）の違いを正確に区別できる
-- [ ] 各種データ（テキスト・画像・音声・動画）の典型的なサイズを見積もれる
-- [ ] システム設計における容量計算（Back-of-the-envelope estimation）ができる
-- [ ] 帯域幅・転送時間・ストレージコストの概算を素早く行える
-- [ ] 階層型ストレージの設計原則を説明できる
+- [ ] Explain the definitions of bit and byte, along with their historical background
+- [ ] Accurately distinguish between binary prefixes (KiB, MiB, GiB) and decimal prefixes (KB, MB, GB)
+- [ ] Estimate typical sizes of various data types (text, images, audio, video)
+- [ ] Perform back-of-the-envelope estimation for system design capacity planning
+- [ ] Quickly estimate bandwidth, transfer time, and storage cost
+- [ ] Explain the design principles of tiered storage
 
-## 前提知識
+## Prerequisites
 
 
 ---
 
-## 1. ビットとバイト — 情報量の最小単位
+## 1. Bits and Bytes -- The Smallest Units of Information
 
-### 1.1 ビット（bit）の定義
+### 1.1 Definition of a Bit
 
-ビット（binary digit の略）は、情報理論における最小単位である。Claude Shannon が 1948 年の論文 "A Mathematical Theory of Communication" で定式化した概念で、2つの状態（0 または 1）のうち1つを表現する。
+A bit (short for binary digit) is the smallest unit in information theory. It is a concept formalized by Claude Shannon in his 1948 paper "A Mathematical Theory of Communication," representing one of two states (0 or 1).
 
 ```
-ビットの本質:
+The essence of a bit:
 
-  1 bit = 2つの状態のうち1つを特定するための情報量
+  1 bit = the amount of information needed to specify one of 2 states
 
-  物理的な実装例:
-  ┌─────────────────────┬───────────┬───────────┐
-  │ メディア             │ 状態 0    │ 状態 1    │
-  ├─────────────────────┼───────────┼───────────┤
-  │ 電圧（TTL）         │ 0-0.8V   │ 2.0-5.0V │
-  │ 磁気ディスク         │ S極→N極  │ N極→S極  │
-  │ 光ディスク           │ ピットなし │ ピットあり │
-  │ DRAM               │ 放電      │ 充電      │
-  │ Flash (SLC)        │ 高閾値    │ 低閾値    │
-  │ 光ファイバー         │ 光なし    │ 光あり    │
-  └─────────────────────┴───────────┴───────────┘
+  Physical implementation examples:
+  +---------------------+-----------+-----------+
+  | Medium              | State 0   | State 1   |
+  +---------------------+-----------+-----------+
+  | Voltage (TTL)       | 0-0.8V    | 2.0-5.0V  |
+  | Magnetic disk        | S->N pole | N->S pole |
+  | Optical disc         | No pit    | Pit       |
+  | DRAM                | Discharged| Charged   |
+  | Flash (SLC)         | High Vth  | Low Vth   |
+  | Optical fiber        | No light  | Light     |
+  +---------------------+-----------+-----------+
 
-  n ビットで表現可能な状態数 = 2^n
-  ──────────────────────────────
-  1 bit  → 2 状態       (0, 1)
-  2 bits → 4 状態       (00, 01, 10, 11)
-  3 bits → 8 状態       (000 ... 111)
-  8 bits → 256 状態     (00000000 ... 11111111)
-  16 bits → 65,536 状態
-  32 bits → 4,294,967,296 状態（約43億）
-  64 bits → 18,446,744,073,709,551,616 状態（約1844京）
+  Number of states representable by n bits = 2^n
+  ------------------------------------------
+  1 bit  -> 2 states       (0, 1)
+  2 bits -> 4 states       (00, 01, 10, 11)
+  3 bits -> 8 states       (000 ... 111)
+  8 bits -> 256 states     (00000000 ... 11111111)
+  16 bits -> 65,536 states
+  32 bits -> 4,294,967,296 states (~4.3 billion)
+  64 bits -> 18,446,744,073,709,551,616 states (~1.8 x 10^19)
 ```
 
-情報量の計算は対数で表現される。ある事象の発生確率が p であるとき、その事象を知ることで得られる情報量は `-log2(p)` ビットである。
+The information content is expressed using logarithms. When an event has probability p, the information gained from learning the event occurred is `-log2(p)` bits.
 
 ```python
 import math
 
 def information_content(probability):
-    """事象の情報量をビット単位で計算する"""
+    """Calculate the information content of an event in bits"""
     if probability <= 0 or probability > 1:
-        raise ValueError("確率は 0 < p <= 1 の範囲")
+        raise ValueError("Probability must be in range 0 < p <= 1")
     return -math.log2(probability)
 
-# 例: コイン投げ（表が出る確率 = 0.5）
-print(f"コイン投げ: {information_content(0.5):.1f} bit")  # 1.0 bit
+# Example: coin flip (probability of heads = 0.5)
+print(f"Coin flip:    {information_content(0.5):.1f} bit")  # 1.0 bit
 
-# 例: サイコロ（特定の目が出る確率 = 1/6）
-print(f"サイコロ:   {information_content(1/6):.2f} bit")  # 2.58 bit
+# Example: die roll (probability of a specific face = 1/6)
+print(f"Die roll:     {information_content(1/6):.2f} bit")  # 2.58 bit
 
-# 例: 英字1文字（26文字等確率 = 1/26）
-print(f"英字1文字: {information_content(1/26):.2f} bit")   # 4.70 bit
+# Example: one letter (26 letters equally likely = 1/26)
+print(f"One letter:   {information_content(1/26):.2f} bit")   # 4.70 bit
 
-# 例: ASCII文字（128文字等確率 = 1/128）
-print(f"ASCII文字: {information_content(1/128):.2f} bit")  # 7.00 bit
+# Example: ASCII character (128 chars equally likely = 1/128)
+print(f"ASCII char:   {information_content(1/128):.2f} bit")  # 7.00 bit
 ```
 
-### 1.2 バイト（byte）の定義と歴史
+### 1.2 Definition and History of the Byte
 
-バイト（byte）は、多くの現代コンピュータにおけるアドレス指定可能な最小単位である。現在では 1 バイト = 8 ビットが事実上の標準であるが、歴史的には異なるサイズのバイトが存在した。
-
-```
-バイトサイズの歴史的変遷:
-
-  年代        マシン                    バイトサイズ
-  ─────────────────────────────────────────────────
-  1950年代    IBM 7030 Stretch         可変長
-  1956年      IBM 7030 設計書          "byte" の語が初出
-  1963年      IBM System/360           8ビットに標準化
-  1970年代    PDP-8                    12ビット語
-  1970年代    PDP-10                   36ビット語
-  1980年代〜  IBM PC互換機             8ビットが事実上標準
-  現在        ほぼ全てのアーキテクチャ   8ビット = 1バイト
-
-  注意: 歴史的曖昧さを避けるため、8ビットを明示する場合は
-  「オクテット（octet）」という用語を使う（特にネットワーク分野）。
-  RFC では "octet" が使われる。
-
-  語源:
-  - "byte" は "bit" と "bite" の中間的造語
-  - Werner Buchholz（IBM）が 1956年に命名
-  - "bite" との混同を避けるため "y" に変更
-```
-
-### 1.3 ワード（word）とアドレッシング
+A byte is the smallest addressable unit in most modern computers. Today, 1 byte = 8 bits is the de facto standard, but historically, bytes of different sizes existed.
 
 ```
-ワードサイズとアーキテクチャ:
+Historical evolution of byte size:
 
-  ワード = CPUが一度に処理するデータの基本単位
+  Era         Machine                    Byte size
+  -------------------------------------------------
+  1950s       IBM 7030 Stretch           Variable
+  1956        IBM 7030 design docs       First appearance of "byte"
+  1963        IBM System/360             Standardized to 8 bits
+  1970s       PDP-8                      12-bit word
+  1970s       PDP-10                     36-bit word
+  1980s~      IBM PC compatibles         8 bits as de facto standard
+  Present     Nearly all architectures   8 bits = 1 byte
 
-  ┌──────────────────┬───────────┬──────────────────────┐
-  │ アーキテクチャ    │ ワード幅  │ アドレス空間          │
-  ├──────────────────┼───────────┼──────────────────────┤
-  │ Intel 8080       │ 8 bit     │ 64 KB                │
-  │ Intel 8086       │ 16 bit    │ 1 MB                 │
-  │ Intel 80386      │ 32 bit    │ 4 GB                 │
-  │ x86-64           │ 64 bit    │ 16 EB（理論値）       │
-  │ x86-64（現行実装）│ 48 bit    │ 256 TB               │
-  │ ARM Cortex-M     │ 32 bit    │ 4 GB                 │
-  │ AArch64          │ 64 bit    │ 256 TB〜4 PB         │
-  └──────────────────┴───────────┴──────────────────────┘
+  Note: To avoid historical ambiguity, the term "octet" is used
+  to explicitly mean 8 bits (especially in networking).
+  RFCs use "octet."
 
-  32ビット vs 64ビットの影響:
-  ┌──────────────────┬──────────────┬──────────────────┐
-  │ 項目             │ 32ビット      │ 64ビット          │
-  ├──────────────────┼──────────────┼──────────────────┤
-  │ 最大メモリ       │ 4 GB          │ 16 EB（理論値）   │
-  │ ポインタサイズ   │ 4バイト       │ 8バイト           │
-  │ 整数演算         │ 32ビット      │ 64ビット          │
-  │ メモリ効率       │ 良い          │ ポインタが倍増    │
-  │ プロセスあたり   │ 2-3 GB       │ 128 TB以上        │
-  └──────────────────┴──────────────┴──────────────────┘
+  Etymology:
+  - "byte" is a portmanteau between "bit" and "bite"
+  - Named by Werner Buchholz (IBM) in 1956
+  - Changed to "y" to avoid confusion with "bite"
 ```
 
-### 1.4 ニブル・その他の単位
+### 1.3 Words and Addressing
 
 ```
-ビットとバイトの間の単位:
+Word size and architecture:
 
-  ニブル（nibble / nybble）= 4ビット = 16進数1桁
-  ┌──────────┬───────────────────────────────┐
-  │ ニブル値  │ 16進表記                       │
-  ├──────────┼───────────────────────────────┤
-  │ 0000     │ 0                             │
-  │ 0101     │ 5                             │
-  │ 1001     │ 9                             │
-  │ 1010     │ A                             │
-  │ 1111     │ F                             │
-  └──────────┴───────────────────────────────┘
+  Word = the basic unit of data that a CPU processes at once
 
-  1バイト = 2ニブル = 上位ニブル + 下位ニブル
+  +------------------+-----------+----------------------+
+  | Architecture     | Word width| Address space        |
+  +------------------+-----------+----------------------+
+  | Intel 8080       | 8 bit     | 64 KB                |
+  | Intel 8086       | 16 bit    | 1 MB                 |
+  | Intel 80386      | 32 bit    | 4 GB                 |
+  | x86-64           | 64 bit    | 16 EB (theoretical)  |
+  | x86-64 (current) | 48 bit    | 256 TB               |
+  | ARM Cortex-M     | 32 bit    | 4 GB                 |
+  | AArch64          | 64 bit    | 256 TB - 4 PB        |
+  +------------------+-----------+----------------------+
 
-  例: 0xA7 = 1010_0111
-       ^^^^   ^^^^
-       上位    下位
-       ニブル  ニブル
+  Impact of 32-bit vs 64-bit:
+  +------------------+--------------+------------------+
+  | Item             | 32-bit       | 64-bit           |
+  +------------------+--------------+------------------+
+  | Max memory       | 4 GB         | 16 EB (theory)   |
+  | Pointer size     | 4 bytes      | 8 bytes          |
+  | Integer math     | 32-bit       | 64-bit           |
+  | Memory efficiency| Good         | Pointers double  |
+  | Per process      | 2-3 GB       | 128 TB+          |
+  +------------------+--------------+------------------+
+```
 
-  その他の情報量単位:
-  ┌──────────────┬─────────────────────────────────┐
-  │ 単位          │ 説明                             │
-  ├──────────────┼─────────────────────────────────┤
-  │ trit         │ 3状態（三進法の1桁）              │
-  │ dit / ban    │ 10状態（十進法の1桁）             │
-  │ nat          │ 自然対数ベースの情報量単位         │
-  │ shannon      │ ビットの別名（Shannon にちなむ）   │
-  │ qubit        │ 量子ビット（重ね合わせ状態）       │
-  └──────────────┴─────────────────────────────────┘
+### 1.4 Nibbles and Other Units
+
+```
+Units between bits and bytes:
+
+  Nibble (nybble) = 4 bits = 1 hexadecimal digit
+  +----------+-------------------------------+
+  | Nibble   | Hex representation            |
+  +----------+-------------------------------+
+  | 0000     | 0                             |
+  | 0101     | 5                             |
+  | 1001     | 9                             |
+  | 1010     | A                             |
+  | 1111     | F                             |
+  +----------+-------------------------------+
+
+  1 byte = 2 nibbles = high nibble + low nibble
+
+  Example: 0xA7 = 1010_0111
+           ^^^^   ^^^^
+           high   low
+           nibble nibble
+
+  Other information units:
+  +--------------+---------------------------------+
+  | Unit         | Description                     |
+  +--------------+---------------------------------+
+  | trit         | 3 states (1 digit in base 3)    |
+  | dit / ban    | 10 states (1 digit in base 10)  |
+  | nat          | Information unit based on        |
+  |              | natural logarithm               |
+  | shannon      | Alternate name for bit (after    |
+  |              | Shannon)                        |
+  | qubit        | Quantum bit (superposition)      |
+  +--------------+---------------------------------+
 ```
 
 ---
 
-## 2. 接頭辞 — 2進と10進の混乱
+## 2. Prefixes -- The Binary vs Decimal Confusion
 
-### 2.1 問題の本質
+### 2.1 The Core of the Problem
 
-コンピュータサイエンスにおいて最も根深い混乱の1つが、容量単位の接頭辞である。1キロバイトは 1,000 バイトなのか、1,024 バイトなのか。この問題は単なる学術的議論ではなく、ストレージ購入時の「容量詐欺」訴訟にまで発展した歴史がある。
+One of the most deep-rooted confusions in computer science is the prefix for capacity units. Is 1 kilobyte 1,000 bytes or 1,024 bytes? This issue is not merely academic; it has even led to lawsuits over "capacity fraud" when purchasing storage.
 
 ```
-混乱の原因:
+Source of confusion:
 
-  10進接頭辞（SI接頭辞）:
+  Decimal prefixes (SI prefixes):
     kilo  = 10^3  = 1,000
     mega  = 10^6  = 1,000,000
     giga  = 10^9  = 1,000,000,000
     tera  = 10^12 = 1,000,000,000,000
 
-  2進の慣習:
-    "kilo" = 2^10 = 1,024          （2.4% 大きい）
-    "mega" = 2^20 = 1,048,576      （4.9% 大きい）
-    "giga" = 2^30 = 1,073,741,824  （7.4% 大きい）
-    "tera" = 2^40 = 約1.0995 x 10^12（10.0% 大きい）
+  Binary convention:
+    "kilo" = 2^10 = 1,024          (2.4% larger)
+    "mega" = 2^20 = 1,048,576      (4.9% larger)
+    "giga" = 2^30 = 1,073,741,824  (7.4% larger)
+    "tera" = 2^40 = ~1.0995 x 10^12 (10.0% larger)
 
-  差のスケール:
-  ┌───────────┬──────────────┬──────────────┬──────────┐
-  │ 接頭辞    │ 10進値        │ 2進値        │ 差       │
-  ├───────────┼──────────────┼──────────────┼──────────┤
-  │ K / Ki    │ 1,000        │ 1,024        │ +2.4%    │
-  │ M / Mi    │ 1,000,000    │ 1,048,576    │ +4.9%    │
-  │ G / Gi    │ 1,000,000,000│ 1,073,741,824│ +7.4%    │
-  │ T / Ti    │ 10^12        │ 2^40         │ +10.0%   │
-  │ P / Pi    │ 10^15        │ 2^50         │ +12.6%   │
-  │ E / Ei    │ 10^18        │ 2^60         │ +15.3%   │
-  └───────────┴──────────────┴──────────────┴──────────┘
+  Scale of difference:
+  +-----------+--------------+--------------+----------+
+  | Prefix    | Decimal      | Binary       | Diff     |
+  +-----------+--------------+--------------+----------+
+  | K / Ki    | 1,000        | 1,024        | +2.4%    |
+  | M / Mi    | 1,000,000    | 1,048,576    | +4.9%    |
+  | G / Gi    | 1,000,000,000| 1,073,741,824| +7.4%    |
+  | T / Ti    | 10^12        | 2^40         | +10.0%   |
+  | P / Pi    | 10^15        | 2^50         | +12.6%   |
+  | E / Ei    | 10^18        | 2^60         | +15.3%   |
+  +-----------+--------------+--------------+----------+
 
-  → 単位が大きくなるほど差が拡大する
-  → 1 TB の HDD は OS 上で約 931 GiB と表示される
+  -> The gap widens as units get larger
+  -> A 1 TB HDD appears as approximately 931 GiB on the OS
 ```
 
-### 2.2 IEC 2進接頭辞（1998年制定）
+### 2.2 IEC Binary Prefixes (Established 1998)
 
-1998年、国際電気標準会議（IEC）は混乱を解消するため、2進接頭辞を正式に制定した（IEC 60027-2）。
-
-```
-IEC 2進接頭辞:
-
-  ┌──────────┬────────┬─────────┬──────────────────┐
-  │ 接頭辞   │ 記号   │ 値      │ 語源             │
-  ├──────────┼────────┼─────────┼──────────────────┤
-  │ kibi     │ Ki     │ 2^10    │ kilo + binary    │
-  │ mebi     │ Mi     │ 2^20    │ mega + binary    │
-  │ gibi     │ Gi     │ 2^30    │ giga + binary    │
-  │ tebi     │ Ti     │ 2^40    │ tera + binary    │
-  │ pebi     │ Pi     │ 2^50    │ peta + binary    │
-  │ exbi     │ Ei     │ 2^60    │ exa + binary     │
-  │ zebi     │ Zi     │ 2^70    │ zetta + binary   │
-  │ yobi     │ Yi     │ 2^80    │ yotta + binary   │
-  └──────────┴────────┴─────────┴──────────────────┘
-
-  正しい表記:
-  - RAM 16 GiB（2進: 16 x 2^30 = 17,179,869,184 バイト）
-  - HDD 1 TB （10進: 1 x 10^12 = 1,000,000,000,000 バイト）
-  - SSD 512 GB（10進: 512 x 10^9 = 512,000,000,000 バイト）
-```
-
-### 2.3 業界ごとの使い分け
+In 1998, the International Electrotechnical Commission (IEC) formally established binary prefixes to resolve the confusion (IEC 60027-2).
 
 ```
-各業界・ソフトウェアでの接頭辞の使用状況:
+IEC binary prefixes:
 
-  10進接頭辞（SI, 1000の累乗）を使用:
-  ┌─────────────────────────────────────────────────┐
-  │ - HDD / SSD メーカー（容量表記）                 │
-  │ - ネットワーク帯域幅（Mbps, Gbps）               │
-  │ - 通信キャリア（データプラン: 3GB, 20GB）         │
-  │ - macOS（10.6 Snow Leopard 以降）               │
-  │ - Ubuntu / GNOME                                │
-  │ - iOS / iPadOS                                  │
-  │ - HDDメーカー（Western Digital, Seagate）         │
-  └─────────────────────────────────────────────────┘
+  +----------+--------+---------+------------------+
+  | Prefix   | Symbol | Value   | Etymology        |
+  +----------+--------+---------+------------------+
+  | kibi     | Ki     | 2^10    | kilo + binary    |
+  | mebi     | Mi     | 2^20    | mega + binary    |
+  | gibi     | Gi     | 2^30    | giga + binary    |
+  | tebi     | Ti     | 2^40    | tera + binary    |
+  | pebi     | Pi     | 2^50    | peta + binary    |
+  | exbi     | Ei     | 2^60    | exa + binary     |
+  | zebi     | Zi     | 2^70    | zetta + binary   |
+  | yobi     | Yi     | 2^80    | yotta + binary   |
+  +----------+--------+---------+------------------+
 
-  2進接頭辞（1024の累乗）を使用:
-  ┌─────────────────────────────────────────────────┐
-  │ - RAM（メモリモジュールの容量）                   │
-  │ - Windows（エクスプローラーのファイルサイズ表示）   │
-  │ - Linux カーネル（dmesg 等）                     │
-  │ - JEDEC メモリ規格                               │
-  │ - 多くのプログラミング言語の標準ライブラリ         │
-  └─────────────────────────────────────────────────┘
-
-  IEC 2進接頭辞（KiB, MiB, GiB）を明示使用:
-  ┌─────────────────────────────────────────────────┐
-  │ - GNU coreutils（ls -lh --si vs デフォルト）     │
-  │ - Wikipedia                                     │
-  │ - IEEE / IEC 規格文書                            │
-  │ - 一部の Linux ディストリビューション              │
-  │ - systemd / journalctl                          │
-  └─────────────────────────────────────────────────┘
+  Correct notation:
+  - RAM 16 GiB (binary: 16 x 2^30 = 17,179,869,184 bytes)
+  - HDD 1 TB  (decimal: 1 x 10^12 = 1,000,000,000,000 bytes)
+  - SSD 512 GB (decimal: 512 x 10^9 = 512,000,000,000 bytes)
 ```
 
-### 2.4 「消えた容量」問題
+### 2.3 Usage by Industry
 
 ```
-HDD/SSD購入時の「容量が少ない」問題:
+Prefix usage across industries and software:
 
-  購入した容量: 1 TB（メーカー表記、10進）
-  = 1,000,000,000,000 バイト
+  Uses decimal prefixes (SI, powers of 1000):
+  +-------------------------------------------------+
+  | - HDD / SSD manufacturers (capacity labels)     |
+  | - Network bandwidth (Mbps, Gbps)                |
+  | - Carriers (data plans: 3GB, 20GB)              |
+  | - macOS (since 10.6 Snow Leopard)               |
+  | - Ubuntu / GNOME                                |
+  | - iOS / iPadOS                                  |
+  | - HDD manufacturers (Western Digital, Seagate)   |
+  +-------------------------------------------------+
 
-  OSでの表示（2進）:
+  Uses binary prefixes (powers of 1024):
+  +-------------------------------------------------+
+  | - RAM (memory module capacity)                   |
+  | - Windows (File Explorer file size display)      |
+  | - Linux kernel (dmesg, etc.)                     |
+  | - JEDEC memory standards                         |
+  | - Many programming language standard libraries   |
+  +-------------------------------------------------+
+
+  Explicitly uses IEC binary prefixes (KiB, MiB, GiB):
+  +-------------------------------------------------+
+  | - GNU coreutils (ls -lh --si vs default)        |
+  | - Wikipedia                                     |
+  | - IEEE / IEC standard documents                 |
+  | - Some Linux distributions                       |
+  | - systemd / journalctl                          |
+  +-------------------------------------------------+
+```
+
+### 2.4 The "Missing Capacity" Problem
+
+```
+The "less capacity than expected" problem when purchasing HDD/SSD:
+
+  Purchased capacity: 1 TB (manufacturer label, decimal)
+  = 1,000,000,000,000 bytes
+
+  OS display (binary):
   = 1,000,000,000,000 / 1,073,741,824
   = 931.32 GiB
 
-  → 約 69 GiB（約7%）が「消えた」ように見える
+  -> Approximately 69 GiB (~7%) appears to have "disappeared"
 
-  さらにファイルシステムのオーバーヘッドを考慮:
-  - パーティションテーブル:     数MB
-  - ファイルシステムメタデータ:  全体の1-5%
-  - 予約ブロック（ext4）:       5%（デフォルト）
-  - SSD のオーバープロビジョニング: 7-28%
+  Further considering filesystem overhead:
+  - Partition table:          A few MB
+  - Filesystem metadata:      1-5% of total
+  - Reserved blocks (ext4):   5% (default)
+  - SSD over-provisioning:    7-28%
 
-  購入容量と利用可能容量の対応表:
-  ┌────────────────┬──────────────┬──────────────┐
-  │ メーカー表記    │ OS表示(2進)  │ 実効容量(概算)│
-  ├────────────────┼──────────────┼──────────────┤
-  │ 128 GB         │ 119 GiB     │ 110-115 GiB │
-  │ 256 GB         │ 238 GiB     │ 220-230 GiB │
-  │ 512 GB         │ 476 GiB     │ 440-460 GiB │
-  │ 1 TB           │ 931 GiB     │ 860-900 GiB │
-  │ 2 TB           │ 1,862 GiB   │ 1,720-1,800 GiB│
-  │ 4 TB           │ 3,725 GiB   │ 3,450-3,600 GiB│
-  └────────────────┴──────────────┴──────────────┘
+  Purchased vs usable capacity mapping:
+  +----------------+--------------+--------------+
+  | Manufacturer   | OS display   | Effective    |
+  | label          | (binary)     | capacity     |
+  +----------------+--------------+--------------+
+  | 128 GB         | 119 GiB      | 110-115 GiB  |
+  | 256 GB         | 238 GiB      | 220-230 GiB  |
+  | 512 GB         | 476 GiB      | 440-460 GiB  |
+  | 1 TB           | 931 GiB      | 860-900 GiB  |
+  | 2 TB           | 1,862 GiB    | 1,720-1,800 GiB|
+  | 4 TB           | 3,725 GiB    | 3,450-3,600 GiB|
+  +----------------+--------------+--------------+
 
-  訴訟の歴史:
-  - 2006年: Western Digital が集団訴訟で和解
-  - 消費者に対してデータ復旧ソフトを無償提供
-  - 以降、多くのメーカーがパッケージに注釈を記載
-    「1GB = 1,000,000,000 bytes」
+  Litigation history:
+  - 2006: Western Digital settled a class-action lawsuit
+  - Provided free data recovery software to consumers
+  - Since then, many manufacturers add fine print on packaging:
+    "1GB = 1,000,000,000 bytes"
 ```
 
-### 2.5 単位変換の実装
+### 2.5 Unit Conversion Implementation
 
 ```python
-"""ストレージ容量の単位変換ユーティリティ"""
+"""Storage capacity unit conversion utility"""
 
-# --- 2進接頭辞（IEC）---
+# --- Binary prefixes (IEC) ---
 KiB = 1024
 MiB = 1024 ** 2     # 1,048,576
 GiB = 1024 ** 3     # 1,073,741,824
@@ -319,7 +322,7 @@ TiB = 1024 ** 4     # 1,099,511,627,776
 PiB = 1024 ** 5
 EiB = 1024 ** 6
 
-# --- 10進接頭辞（SI）---
+# --- Decimal prefixes (SI) ---
 KB = 1000
 MB = 1000 ** 2      # 1,000,000
 GB = 1000 ** 3      # 1,000,000,000
@@ -328,7 +331,7 @@ PB = 1000 ** 5
 EB = 1000 ** 6
 
 def human_readable_binary(size_bytes: int) -> str:
-    """バイト数を2進接頭辞の人間可読形式に変換する"""
+    """Convert byte count to human-readable binary prefix format"""
     units = [
         (EiB, "EiB"), (PiB, "PiB"), (TiB, "TiB"),
         (GiB, "GiB"), (MiB, "MiB"), (KiB, "KiB"),
@@ -339,7 +342,7 @@ def human_readable_binary(size_bytes: int) -> str:
     return f"{size_bytes} B"
 
 def human_readable_decimal(size_bytes: int) -> str:
-    """バイト数を10進接頭辞の人間可読形式に変換する"""
+    """Convert byte count to human-readable decimal prefix format"""
     units = [
         (EB, "EB"), (PB, "PB"), (TB, "TB"),
         (GB, "GB"), (MB, "MB"), (KB, "KB"),
@@ -349,664 +352,670 @@ def human_readable_decimal(size_bytes: int) -> str:
             return f"{size_bytes / threshold:.2f} {unit}"
     return f"{size_bytes} B"
 
-# --- 使用例 ---
-hdd_capacity = 1 * TB   # メーカー表記 1 TB
-print(f"HDD容量（10進）: {human_readable_decimal(hdd_capacity)}")
-# => HDD容量（10進）: 1.00 TB
-print(f"HDD容量（2進）:  {human_readable_binary(hdd_capacity)}")
-# => HDD容量（2進）:  931.32 GiB
+# --- Usage examples ---
+hdd_capacity = 1 * TB   # Manufacturer-labeled 1 TB
+print(f"HDD capacity (decimal): {human_readable_decimal(hdd_capacity)}")
+# => HDD capacity (decimal): 1.00 TB
+print(f"HDD capacity (binary):  {human_readable_binary(hdd_capacity)}")
+# => HDD capacity (binary):  931.32 GiB
 
-ram_capacity = 16 * GiB  # RAM 16 GiB
-print(f"RAM容量（2進）:  {human_readable_binary(ram_capacity)}")
-# => RAM容量（2進）:  16.00 GiB
-print(f"RAM容量（10進）: {human_readable_decimal(ram_capacity)}")
-# => RAM容量（10進）: 17.18 GB
+ram_capacity = 16 * GiB  # 16 GiB RAM
+print(f"RAM capacity (binary):  {human_readable_binary(ram_capacity)}")
+# => RAM capacity (binary):  16.00 GiB
+print(f"RAM capacity (decimal): {human_readable_decimal(ram_capacity)}")
+# => RAM capacity (decimal): 17.18 GB
 ```
 
 ---
 
-## 3. SI接頭辞の全体像
+## 3. The Complete Picture of SI Prefixes
 
-### 3.1 小さい方から大きい方まで
-
-```
-SI接頭辞（国際単位系）の完全なリスト:
-
-  小さい側（データでは主にビットレート等で使用）:
-  ┌──────────┬────────┬─────────┬──────────────────┐
-  │ 接頭辞   │ 記号   │ 10^n    │ 日本語名         │
-  ├──────────┼────────┼─────────┼──────────────────┤
-  │ quecto   │ q      │ 10^-30  │ クエクト          │
-  │ ronto    │ r      │ 10^-27  │ ロント            │
-  │ yocto    │ y      │ 10^-24  │ ヨクト            │
-  │ zepto    │ z      │ 10^-21  │ ゼプト            │
-  │ atto     │ a      │ 10^-18  │ アト              │
-  │ femto    │ f      │ 10^-15  │ フェムト          │
-  │ pico     │ p      │ 10^-12  │ ピコ              │
-  │ nano     │ n      │ 10^-9   │ ナノ              │
-  │ micro    │ u      │ 10^-6   │ マイクロ          │
-  │ milli    │ m      │ 10^-3   │ ミリ              │
-  └──────────┴────────┴─────────┴──────────────────┘
-
-  大きい側（ストレージ容量で直接使用）:
-  ┌──────────┬────────┬─────────┬──────────────────────────┐
-  │ 接頭辞   │ 記号   │ 10^n    │ 代表的な使用例            │
-  ├──────────┼────────┼─────────┼──────────────────────────┤
-  │ kilo     │ K / k  │ 10^3    │ テキストファイル           │
-  │ mega     │ M      │ 10^6    │ 写真、MP3                │
-  │ giga     │ G      │ 10^9    │ 映画、RAM                │
-  │ tera     │ T      │ 10^12   │ HDD、年間ログ            │
-  │ peta     │ P      │ 10^15   │ 大規模DB、データレイク     │
-  │ exa      │ E      │ 10^18   │ クラウド全体              │
-  │ zetta    │ Z      │ 10^21   │ 世界の年間データ生成量     │
-  │ yotta    │ Y      │ 10^24   │ （現時点で理論的）        │
-  │ ronna    │ R      │ 10^27   │ （2022年に追加）          │
-  │ quetta   │ Q      │ 10^30   │ （2022年に追加）          │
-  └──────────┴────────┴─────────┴──────────────────────────┘
-
-  2022年11月の第27回国際度量衡総会（CGPM）で
-  ronna / quetta / ronto / quecto の4つが追加された。
-```
-
-### 3.2 データ量のスケール感
+### 3.1 From Smallest to Largest
 
 ```
-各スケールの直感的な理解:
+Complete list of SI prefixes (International System of Units):
 
-  1 B     = 英字1文字
-  1 KB    = 短いテキストファイル（パラグラフ数個分）
-  1 MB    = 小説1冊分のテキスト / MP3 1分
-  1 GB    = 映画1本（SD画質） / CD 約1.5枚分
-  1 TB    = 印刷した紙に換算して約4500万ページ
-  1 PB    = 約2000年分の MP3 音楽 / Netflix 全カタログ
-  1 EB    = 全人類が2日間に生成するデータ量（概算）
-  1 ZB    = 世界のインターネットトラフィック約半年分
-  1 YB    = 全人類の歴史上のデータ量合計の数倍
+  Small side (used primarily in bit rates, etc.):
+  +----------+--------+---------+------------------+
+  | Prefix   | Symbol | 10^n    | Name             |
+  +----------+--------+---------+------------------+
+  | quecto   | q      | 10^-30  | quecto           |
+  | ronto    | r      | 10^-27  | ronto            |
+  | yocto    | y      | 10^-24  | yocto            |
+  | zepto    | z      | 10^-21  | zepto            |
+  | atto     | a      | 10^-18  | atto             |
+  | femto    | f      | 10^-15  | femto            |
+  | pico     | p      | 10^-12  | pico             |
+  | nano     | n      | 10^-9   | nano             |
+  | micro    | u      | 10^-6   | micro            |
+  | milli    | m      | 10^-3   | milli            |
+  +----------+--------+---------+------------------+
 
-  宇宙規模の比喩:
-  ┌──────────┬───────────────────────────────────────┐
-  │ 単位     │ 比喩                                   │
-  ├──────────┼───────────────────────────────────────┤
-  │ 1 KB     │ ごく短い手紙                           │
-  │ 1 MB     │ 厚めの本1冊                            │
-  │ 1 GB     │ 小さな図書館の本棚1つ                   │
-  │ 1 TB     │ 大学図書館の蔵書全体                    │
-  │ 1 PB     │ 国立国会図書館の蔵書全体（推定）         │
-  │ 1 EB     │ 全世界の図書館を合わせた規模             │
-  │ 1 ZB     │ 地球上の砂粒の数に匹敵                  │
-  │ 1 YB     │ 観測可能な宇宙の原子数の...まだ遠い     │
-  └──────────┴───────────────────────────────────────┘
+  Large side (directly used for storage capacity):
+  +----------+--------+---------+--------------------------+
+  | Prefix   | Symbol | 10^n    | Typical usage            |
+  +----------+--------+---------+--------------------------+
+  | kilo     | K / k  | 10^3    | Text files               |
+  | mega     | M      | 10^6    | Photos, MP3              |
+  | giga     | G      | 10^9    | Movies, RAM              |
+  | tera     | T      | 10^12   | HDDs, annual logs        |
+  | peta     | P      | 10^15   | Large-scale DBs, data    |
+  |          |        |         | lakes                    |
+  | exa      | E      | 10^18   | Entire cloud             |
+  | zetta    | Z      | 10^21   | Global annual data gen.  |
+  | yotta    | Y      | 10^24   | (theoretical at present) |
+  | ronna    | R      | 10^27   | (added 2022)             |
+  | quetta   | Q      | 10^30   | (added 2022)             |
+  +----------+--------+---------+--------------------------+
 
-  参考: 観測可能な宇宙の原子数は約 10^80
-       1 YB = 10^24 バイト = 8 x 10^24 ビット
-       → 宇宙の原子数には56桁も足りない
+  At the 27th General Conference on Weights and Measures (CGPM)
+  in November 2022, four new prefixes were added:
+  ronna / quetta / ronto / quecto.
+```
+
+### 3.2 Intuitive Sense of Data Scale
+
+```
+Intuitive understanding of each scale:
+
+  1 B     = One English letter
+  1 KB    = A short text file (a few paragraphs)
+  1 MB    = One novel as text / 1 minute of MP3
+  1 GB    = One movie (SD quality) / about 1.5 CDs
+  1 TB    = About 45 million printed pages
+  1 PB    = About 2,000 years of MP3 music / Netflix entire catalog
+  1 EB    = Amount of data all humans generate in about 2 days (est.)
+  1 ZB    = About half a year of global internet traffic
+  1 YB    = Several times all data in human history combined
+
+  Cosmic scale analogies:
+  +----------+---------------------------------------+
+  | Unit     | Analogy                               |
+  +----------+---------------------------------------+
+  | 1 KB     | A very short letter                   |
+  | 1 MB     | One thick book                        |
+  | 1 GB     | A single bookshelf in a small library |
+  | 1 TB     | An entire university library          |
+  | 1 PB     | An entire national library (est.)     |
+  | 1 EB     | All libraries in the world combined   |
+  | 1 ZB     | Comparable to the number of grains    |
+  |          | of sand on Earth                      |
+  | 1 YB     | Still far from the number of atoms    |
+  |          | in the observable universe             |
+  +----------+---------------------------------------+
+
+  Reference: The number of atoms in the observable universe is ~10^80
+       1 YB = 10^24 bytes = 8 x 10^24 bits
+       -> Still 56 orders of magnitude short of the universe's atoms
 ```
 
 ---
 
-## 4. データサイズの直感
+## 4. Intuitive Data Sizes
 
-### 4.1 テキストデータ
+### 4.1 Text Data
 
 ```
-テキストの容量 — エンコーディング別:
+Text capacity by encoding:
 
-  ASCII（英数字）:
-    1文字 = 1バイト（7ビット + パリティ or 0パディング）
-    英文1ページ（約250語 / 約1500文字）= 約1.5 KB
-    英語小説1冊（約8万語 / 約50万文字）= 約500 KB
+  ASCII (alphanumeric):
+    1 character = 1 byte (7 bits + parity or 0 padding)
+    1 page of English (~250 words / ~1,500 chars) = ~1.5 KB
+    1 English novel (~80,000 words / ~500,000 chars) = ~500 KB
 
-  UTF-8（可変長）:
-    ASCII互換文字:  1バイト（U+0000-U+007F）
-    ラテン拡張:     2バイト（U+0080-U+07FF）
-    日本語・中国語: 3バイト（U+0800-U+FFFF）
-    絵文字:        4バイト（U+10000-U+10FFFF）
+  UTF-8 (variable length):
+    ASCII-compatible chars: 1 byte (U+0000-U+007F)
+    Latin extended:         2 bytes (U+0080-U+07FF)
+    CJK characters:         3 bytes (U+0800-U+FFFF)
+    Emoji:                  4 bytes (U+10000-U+10FFFF)
 
-  UTF-16（Javaの内部表現、Windowsの内部API）:
-    BMP文字:       2バイト
-    補助文字:      4バイト（サロゲートペア）
+  UTF-16 (Java internal, Windows internal API):
+    BMP characters:        2 bytes
+    Supplementary chars:   4 bytes (surrogate pairs)
 
   UTF-32:
-    全文字:        4バイト（固定長）
+    All characters:        4 bytes (fixed length)
 
-  日本語テキストの容量:
-  ┌─────────────────────┬────────────┬────────────┐
-  │ コンテンツ           │ 文字数     │ UTF-8サイズ │
-  ├─────────────────────┼────────────┼────────────┤
-  │ ツイート1件          │ 140文字    │ 約420 B    │
-  │ メール本文           │ 500文字    │ 約1.5 KB   │
-  │ ブログ記事           │ 3,000文字  │ 約9 KB     │
-  │ 新書1冊             │ 10万文字   │ 約300 KB   │
-  │ 長編小説             │ 30万文字   │ 約900 KB   │
-  │ 漫画1巻（テキスト）  │ 3,000文字  │ 約9 KB     │
-  │ 六法全書             │ 約900万文字│ 約27 MB    │
-  └─────────────────────┴────────────┴────────────┘
+  CJK text capacity (Japanese example):
+  +---------------------+------------+------------+
+  | Content             | Characters | UTF-8 size |
+  +---------------------+------------+------------+
+  | 1 tweet             | 140 chars  | ~420 B     |
+  | Email body          | 500 chars  | ~1.5 KB    |
+  | Blog post           | 3,000 chars| ~9 KB      |
+  | Short book          | 100K chars | ~300 KB    |
+  | Full-length novel   | 300K chars | ~900 KB    |
+  | Manga vol (text)    | 3,000 chars| ~9 KB      |
+  | Legal code compil.  | ~9M chars  | ~27 MB     |
+  +---------------------+------------+------------+
 
-  プログラミングにおけるテキストデータ:
-  ┌──────────────────────────┬──────────────┐
-  │ データ種別               │ 典型的サイズ  │
-  ├──────────────────────────┼──────────────┤
-  │ JSON APIレスポンス（小）  │ 1-10 KB     │
-  │ JSON APIレスポンス（大）  │ 100 KB-1 MB │
-  │ ログ1行                  │ 100 B-1 KB  │
-  │ アプリログ1日分           │ 100 MB-10 GB│
-  │ RDB 1レコード（小）      │ 100 B-1 KB  │
-  │ RDB 1レコード（大）      │ 1-10 KB     │
-  │ CSV 100万行              │ 50-500 MB   │
-  │ ソースコード1ファイル     │ 1-50 KB     │
-  │ 中規模プロジェクト全体    │ 1-100 MB    │
-  │ Linux カーネルソース      │ 約1.3 GB    │
-  └──────────────────────────┴──────────────┘
+  Programming data:
+  +--------------------------+--------------+
+  | Data type                | Typical size |
+  +--------------------------+--------------+
+  | JSON API response (sm)   | 1-10 KB      |
+  | JSON API response (lg)   | 100 KB-1 MB  |
+  | 1 log line               | 100 B-1 KB   |
+  | App logs per day         | 100 MB-10 GB |
+  | RDB record (small)       | 100 B-1 KB   |
+  | RDB record (large)       | 1-10 KB      |
+  | CSV 1M rows              | 50-500 MB    |
+  | 1 source code file       | 1-50 KB      |
+  | Mid-size project total   | 1-100 MB     |
+  | Linux kernel source      | ~1.3 GB      |
+  +--------------------------+--------------+
 ```
 
-### 4.2 画像データ
+### 4.2 Image Data
 
 ```
-画像の容量 — フォーマット比較:
+Image capacity -- format comparison:
 
-  非圧縮画像のサイズ計算:
-  サイズ = 幅 x 高さ x 色深度（バイト） + ヘッダ
+  Uncompressed image size calculation:
+  Size = Width x Height x Color depth (bytes) + Header
 
-  例: 1920x1080、24ビットカラー（RGB各8ビット）
-  = 1920 x 1080 x 3 = 6,220,800 B = 約5.93 MiB
+  Example: 1920x1080, 24-bit color (RGB 8 bits each)
+  = 1920 x 1080 x 3 = 6,220,800 B = ~5.93 MiB
 
-  フォーマット別の容量比較（1920x1080 写真）:
-  ┌──────────────────┬───────────┬──────────┬──────────┐
-  │ フォーマット      │ サイズ     │ 圧縮率   │ 特徴     │
-  ├──────────────────┼───────────┼──────────┼──────────┤
-  │ BMP（非圧縮）    │ 5.93 MB   │ 1:1     │ 非圧縮   │
-  │ PNG              │ 2-4 MB    │ 1.5-3:1 │ 可逆     │
-  │ JPEG（品質85）   │ 300-600KB │ 10-20:1 │ 非可逆   │
-  │ JPEG（品質50）   │ 100-250KB │ 25-60:1 │ 非可逆   │
-  │ WebP             │ 200-400KB │ 15-30:1 │ 非可逆   │
-  │ AVIF             │ 150-300KB │ 20-40:1 │ 非可逆   │
-  │ JPEG XL          │ 150-350KB │ 17-40:1 │ 可逆/非可逆│
-  └──────────────────┴───────────┴──────────┴──────────┘
+  Capacity comparison by format (1920x1080 photo):
+  +------------------+-----------+----------+----------+
+  | Format           | Size      | Ratio    | Feature  |
+  +------------------+-----------+----------+----------+
+  | BMP (uncompr.)   | 5.93 MB   | 1:1      | Uncompr. |
+  | PNG              | 2-4 MB    | 1.5-3:1  | Lossless |
+  | JPEG (Q85)       | 300-600KB | 10-20:1  | Lossy    |
+  | JPEG (Q50)       | 100-250KB | 25-60:1  | Lossy    |
+  | WebP             | 200-400KB | 15-30:1  | Lossy    |
+  | AVIF             | 150-300KB | 20-40:1  | Lossy    |
+  | JPEG XL          | 150-350KB | 17-40:1  | Both     |
+  +------------------+-----------+----------+----------+
 
-  解像度別の典型的サイズ（JPEG品質85）:
-  ┌────────────────────┬──────────┬────────────┐
-  │ 解像度              │ 画素数   │ サイズ      │
-  ├────────────────────┼──────────┼────────────┤
-  │ アイコン 32x32      │ 1 K     │ 2-5 KB     │
-  │ サムネイル 200x200  │ 40 K    │ 10-30 KB   │
-  │ SNSアバター 400x400 │ 160 K   │ 30-80 KB   │
-  │ Web画像 800x600     │ 480 K   │ 60-150 KB  │
-  │ HD 1280x720        │ 921 K   │ 150-400 KB │
-  │ Full HD 1920x1080  │ 2.07 M  │ 300-600 KB │
-  │ 4K 3840x2160       │ 8.29 M  │ 1-3 MB     │
-  │ 8K 7680x4320       │ 33.18 M │ 5-15 MB    │
-  │ RAW 6000x4000      │ 24 M    │ 25-50 MB   │
-  └────────────────────┴──────────┴────────────┘
+  Typical sizes by resolution (JPEG Q85):
+  +--------------------+----------+------------+
+  | Resolution         | Pixels   | Size       |
+  +--------------------+----------+------------+
+  | Icon 32x32         | 1 K      | 2-5 KB     |
+  | Thumbnail 200x200  | 40 K     | 10-30 KB   |
+  | SNS avatar 400x400 | 160 K    | 30-80 KB   |
+  | Web image 800x600  | 480 K    | 60-150 KB  |
+  | HD 1280x720        | 921 K    | 150-400 KB |
+  | Full HD 1920x1080  | 2.07 M   | 300-600 KB |
+  | 4K 3840x2160       | 8.29 M   | 1-3 MB     |
+  | 8K 7680x4320       | 33.18 M  | 5-15 MB    |
+  | RAW 6000x4000      | 24 M     | 25-50 MB   |
+  +--------------------+----------+------------+
 
-  Web開発での画像最適化目安:
-  ┌────────────────────┬─────────────────┐
-  │ 用途               │ 目標サイズ       │
-  ├────────────────────┼─────────────────┤
-  │ ユーザーアバター    │ 50-200 KB       │
-  │ EC商品画像         │ 100-500 KB      │
-  │ ヒーロー画像       │ 200 KB-1 MB     │
-  │ LP/バナー          │ 200 KB-2 MB     │
-  │ ページ全体の画像計  │ 目標: 1 MB 以下  │
-  └────────────────────┴─────────────────┘
+  Web development image optimization targets:
+  +--------------------+-----------------+
+  | Use case           | Target size     |
+  +--------------------+-----------------+
+  | User avatar        | 50-200 KB       |
+  | E-commerce product | 100-500 KB      |
+  | Hero image         | 200 KB-1 MB     |
+  | Landing/Banner     | 200 KB-2 MB     |
+  | All images on page | Target: < 1 MB  |
+  +--------------------+-----------------+
 ```
 
-### 4.3 音声データ
+### 4.3 Audio Data
 
 ```
-音声の容量:
+Audio capacity:
 
-  非圧縮音声のサイズ計算:
-  サイズ = サンプリングレート x ビット深度 x チャンネル数 x 秒数 / 8
+  Uncompressed audio size calculation:
+  Size = Sample rate x Bit depth x Channels x Seconds / 8
 
-  例: CD品質（44.1 kHz, 16 bit, ステレオ, 1秒）
-  = 44,100 x 16 x 2 x 1 / 8 = 176,400 B = 約172 KiB/秒
+  Example: CD quality (44.1 kHz, 16 bit, stereo, 1 second)
+  = 44,100 x 16 x 2 x 1 / 8 = 176,400 B = ~172 KiB/s
 
-  品質レベル別:
-  ┌───────────────────┬───────┬──────┬──────┬────────────┐
-  │ 品質              │ Hz    │ bit  │ ch   │ レート      │
-  ├───────────────────┼───────┼──────┼──────┼────────────┤
-  │ 電話              │ 8k    │ 8    │ 1    │ 8 KB/s     │
-  │ AM ラジオ         │ 22k   │ 16   │ 1    │ 44 KB/s    │
-  │ FM ラジオ         │ 32k   │ 16   │ 2    │ 128 KB/s   │
-  │ CD               │ 44.1k │ 16   │ 2    │ 172 KB/s   │
-  │ DVD Audio        │ 96k   │ 24   │ 2    │ 576 KB/s   │
-  │ ハイレゾ          │ 192k  │ 24   │ 2    │ 1,152 KB/s │
-  └───────────────────┴───────┴──────┴──────┴────────────┘
+  By quality level:
+  +-------------------+-------+------+------+------------+
+  | Quality           | Hz    | bit  | ch   | Rate       |
+  +-------------------+-------+------+------+------------+
+  | Telephone         | 8k    | 8    | 1    | 8 KB/s     |
+  | AM Radio          | 22k   | 16   | 1    | 44 KB/s    |
+  | FM Radio          | 32k   | 16   | 2    | 128 KB/s   |
+  | CD                | 44.1k | 16   | 2    | 172 KB/s   |
+  | DVD Audio         | 96k   | 24   | 2    | 576 KB/s   |
+  | Hi-Res            | 192k  | 24   | 2    | 1,152 KB/s |
+  +-------------------+-------+------+------+------------+
 
-  コーデック別容量（4分間の楽曲）:
-  ┌──────────────────┬──────────┬──────────────┬──────────┐
-  │ フォーマット      │ ビットレート│ 4分のサイズ  │ 圧縮率   │
-  ├──────────────────┼──────────┼──────────────┼──────────┤
-  │ WAV（非圧縮）    │ 1,411kbps│ 42 MB        │ 1:1     │
-  │ FLAC（可逆）     │ 700-1000 │ 21-30 MB     │ 1.5-2:1 │
-  │ AAC 256kbps      │ 256 kbps │ 7.7 MB       │ 5.5:1   │
-  │ MP3 320kbps      │ 320 kbps │ 9.6 MB       │ 4.4:1   │
-  │ MP3 128kbps      │ 128 kbps │ 3.8 MB       │ 11:1    │
-  │ Opus 128kbps     │ 128 kbps │ 3.8 MB       │ 11:1    │
-  │ Opus 64kbps      │ 64 kbps  │ 1.9 MB       │ 22:1    │
-  │ Codec2（音声）   │ 2.4 kbps │ 72 KB        │ 588:1   │
-  └──────────────────┴──────────┴──────────────┴──────────┘
+  Capacity by codec (4-minute track):
+  +------------------+----------+--------------+----------+
+  | Format           | Bitrate  | 4 min size   | Ratio    |
+  +------------------+----------+--------------+----------+
+  | WAV (uncompr.)   | 1,411kbps| 42 MB        | 1:1      |
+  | FLAC (lossless)  | 700-1000 | 21-30 MB     | 1.5-2:1  |
+  | AAC 256kbps      | 256 kbps | 7.7 MB       | 5.5:1    |
+  | MP3 320kbps      | 320 kbps | 9.6 MB       | 4.4:1    |
+  | MP3 128kbps      | 128 kbps | 3.8 MB       | 11:1     |
+  | Opus 128kbps     | 128 kbps | 3.8 MB       | 11:1     |
+  | Opus 64kbps      | 64 kbps  | 1.9 MB       | 22:1     |
+  | Codec2 (voice)   | 2.4 kbps | 72 KB        | 588:1    |
+  +------------------+----------+--------------+----------+
 
-  ストリーミングサービスの品質設定:
-  ┌──────────────────┬──────────────┬──────────────────┐
-  │ サービス          │ 通常品質     │ 高品質           │
-  ├──────────────────┼──────────────┼──────────────────┤
-  │ Spotify          │ AAC 128kbps │ OGG 320kbps     │
-  │ Apple Music      │ AAC 256kbps │ ALAC（可逆）     │
-  │ YouTube Music    │ AAC 128kbps │ AAC 256kbps     │
-  │ Amazon Music HD  │ AAC 256kbps │ FLAC 24bit/192k │
-  └──────────────────┴──────────────┴──────────────────┘
+  Streaming service quality settings:
+  +------------------+--------------+------------------+
+  | Service          | Normal       | High quality     |
+  +------------------+--------------+------------------+
+  | Spotify          | AAC 128kbps  | OGG 320kbps      |
+  | Apple Music      | AAC 256kbps  | ALAC (lossless)  |
+  | YouTube Music    | AAC 128kbps  | AAC 256kbps      |
+  | Amazon Music HD  | AAC 256kbps  | FLAC 24bit/192k  |
+  +------------------+--------------+------------------+
 ```
 
-### 4.4 動画データ
+### 4.4 Video Data
 
 ```
-動画の容量:
+Video capacity:
 
-  非圧縮動画のサイズ計算:
-  サイズ = 幅 x 高さ x 色深度(B) x フレームレート x 秒数
+  Uncompressed video size calculation:
+  Size = Width x Height x Color depth(B) x Frame rate x Seconds
 
-  例: 1080p, 30fps, 24bit色, 1秒
-  = 1920 x 1080 x 3 x 30 = 186,624,000 B = 約178 MiB/秒
+  Example: 1080p, 30fps, 24-bit color, 1 second
+  = 1920 x 1080 x 3 x 30 = 186,624,000 B = ~178 MiB/s
 
-  → 1分間の非圧縮 1080p = 約 10.4 GiB
-  → 映画2時間分 = 約 1.25 TiB
-  → 圧縮なしでは保存も転送も不可能
+  -> 1 minute of uncompressed 1080p = ~10.4 GiB
+  -> 2-hour movie = ~1.25 TiB
+  -> Storage and transmission are impossible without compression
 
-  解像度 x コーデック別容量（1分あたり）:
-  ┌──────────┬───────────┬───────────┬───────────┐
-  │ 解像度   │ H.264     │ H.265     │ AV1       │
-  ├──────────┼───────────┼───────────┼───────────┤
-  │ 480p     │ 8 MB      │ 5 MB      │ 3 MB      │
-  │ 720p     │ 20 MB     │ 12 MB     │ 8 MB      │
-  │ 1080p    │ 45 MB     │ 25 MB     │ 17 MB     │
-  │ 4K       │ 130 MB    │ 70 MB     │ 45 MB     │
-  │ 8K       │ 500 MB    │ 250 MB    │ 160 MB    │
-  └──────────┴───────────┴───────────┴───────────┘
-  ※ 数値は一般的なビットレート設定での目安
+  Capacity by resolution x codec (per minute):
+  +----------+-----------+-----------+-----------+
+  | Res.     | H.264     | H.265     | AV1       |
+  +----------+-----------+-----------+-----------+
+  | 480p     | 8 MB      | 5 MB      | 3 MB      |
+  | 720p     | 20 MB     | 12 MB     | 8 MB      |
+  | 1080p    | 45 MB     | 25 MB     | 17 MB     |
+  | 4K       | 130 MB    | 70 MB     | 45 MB     |
+  | 8K       | 500 MB    | 250 MB    | 160 MB    |
+  +----------+-----------+-----------+-----------+
+  * Values are approximate for typical bitrate settings
 
-  配信サービスの帯域幅:
-  ┌──────────────────┬──────────────┬──────────────────┐
-  │ サービス          │ 品質         │ 帯域幅           │
-  ├──────────────────┼──────────────┼──────────────────┤
-  │ YouTube 360p     │ SD           │ 0.7 Mbps        │
-  │ YouTube 720p     │ HD           │ 2.5 Mbps        │
-  │ YouTube 1080p    │ Full HD      │ 5 Mbps          │
-  │ YouTube 4K       │ 4K           │ 20 Mbps         │
-  │ Netflix SD       │ SD           │ 1 Mbps          │
-  │ Netflix HD       │ HD           │ 5 Mbps          │
-  │ Netflix 4K HDR   │ 4K           │ 15-25 Mbps      │
-  │ Zoom 音声のみ    │ -            │ 0.1 Mbps        │
-  │ Zoom 720p       │ HD           │ 1.5 Mbps        │
-  │ Zoom 1080p      │ Full HD      │ 3 Mbps          │
-  └──────────────────┴──────────────┴──────────────────┘
+  Streaming service bandwidth:
+  +------------------+--------------+------------------+
+  | Service          | Quality      | Bandwidth        |
+  +------------------+--------------+------------------+
+  | YouTube 360p     | SD           | 0.7 Mbps         |
+  | YouTube 720p     | HD           | 2.5 Mbps         |
+  | YouTube 1080p    | Full HD      | 5 Mbps           |
+  | YouTube 4K       | 4K           | 20 Mbps          |
+  | Netflix SD       | SD           | 1 Mbps           |
+  | Netflix HD       | HD           | 5 Mbps           |
+  | Netflix 4K HDR   | 4K           | 15-25 Mbps       |
+  | Zoom audio only  | -            | 0.1 Mbps         |
+  | Zoom 720p        | HD           | 1.5 Mbps         |
+  | Zoom 1080p       | Full HD      | 3 Mbps           |
+  +------------------+--------------+------------------+
 
-  動画ストレージの見積もり例:
-  ┌────────────────────────┬──────────────────────┐
-  │ コンテンツ              │ サイズ                │
-  ├────────────────────────┼──────────────────────┤
-  │ 30秒プロモ動画（Web用） │ 5-20 MB             │
-  │ YouTube 10分動画       │ 100-500 MB（元素材） │
-  │ 1時間ウェビナー        │ 500 MB-2 GB         │
-  │ 映画1本 Blu-ray       │ 25-50 GB            │
-  │ 映画1本 4K UHD        │ 50-100 GB           │
-  │ Netflix 全カタログ     │ 推定 10 PB 以上     │
-  └────────────────────────┴──────────────────────┘
+  Video storage estimates:
+  +------------------------+----------------------+
+  | Content                | Size                 |
+  +------------------------+----------------------+
+  | 30s promo video (web)  | 5-20 MB              |
+  | YouTube 10min video    | 100-500 MB (source)  |
+  | 1-hour webinar         | 500 MB-2 GB          |
+  | 1 movie Blu-ray        | 25-50 GB             |
+  | 1 movie 4K UHD         | 50-100 GB            |
+  | Netflix full catalog   | Estimated 10 PB+     |
+  +------------------------+----------------------+
 ```
 
 ---
 
-## 5. ストレージメディアの物理特性
+## 5. Physical Characteristics of Storage Media
 
-### 5.1 ストレージ技術の階層
+### 5.1 Storage Technology Hierarchy
 
 ```
-ストレージ階層（速度 vs 容量 vs コスト）:
+Storage hierarchy (speed vs capacity vs cost):
 
-  速い・高価・小容量
+  Fast, expensive, small capacity
   ^
-  |  CPU レジスタ     : 数百B   , < 1ns   , $$$$$$$
-  |  L1 キャッシュ    : 32-64KB , 1ns     , $$$$$$
-  |  L2 キャッシュ    : 256KB-1MB, 4ns    , $$$$$
-  |  L3 キャッシュ    : 数MB-数十MB, 20ns , $$$$
-  |  メインメモリ(DDR5): 数GB-数TB, 100ns , $$$
-  |  NVMe SSD        : 数百GB-数TB, 10-100us, $$
-  |  SATA SSD        : 数百GB-数TB, 50-200us, $$
-  |  HDD             : 数TB-20TB, 2-10ms  , $
-  |  テープ(LTO-9)   : 18TB/巻 , 数秒-数分, c
-  |  光ディスク       : 25-128GB, 数秒    , c
+  |  CPU Registers      : ~hundreds B, < 1ns   , $$$$$$$
+  |  L1 Cache           : 32-64KB    , 1ns     , $$$$$$
+  |  L2 Cache           : 256KB-1MB  , 4ns     , $$$$$
+  |  L3 Cache           : multi MB   , 20ns    , $$$$
+  |  Main memory (DDR5) : multi GB-TB, 100ns   , $$$
+  |  NVMe SSD           : hundreds GB-TB, 10-100us, $$
+  |  SATA SSD           : hundreds GB-TB, 50-200us, $$
+  |  HDD                : multi TB-20TB, 2-10ms , $
+  |  Tape (LTO-9)       : 18TB/cart  , secs-min, c
+  |  Optical disc        : 25-128GB  , seconds , c
   v
-  遅い・安価・大容量
+  Slow, cheap, large capacity
 
-  ┌────────────────┬──────────────┬────────────┬──────────┐
-  │ メディア        │ 容量/デバイス │ スループット │ $/GB     │
-  ├────────────────┼──────────────┼────────────┼──────────┤
-  │ DDR5 DIMM      │ 16-256 GB   │ 50 GB/s   │ $3-5     │
-  │ NVMe Gen5 SSD  │ 1-8 TB      │ 12 GB/s   │ $0.08-0.15│
-  │ SATA SSD       │ 256GB-4 TB  │ 550 MB/s  │ $0.05-0.10│
-  │ HDD (CMR)      │ 2-24 TB     │ 200 MB/s  │ $0.015-0.03│
-  │ HDD (SMR)      │ 4-20 TB     │ 150 MB/s  │ $0.012-0.025│
-  │ LTO-9 テープ   │ 18 TB       │ 400 MB/s  │ $0.005   │
-  │ Blu-ray 4層    │ 128 GB      │ 72 MB/s   │ $0.01    │
-  │ DNA Storage    │ 理論: 215PB/g│ 極めて遅い │ 研究段階  │
-  └────────────────┴──────────────┴────────────┴──────────┘
+  +----------------+--------------+------------+----------+
+  | Media          | Cap/device   | Throughput | $/GB     |
+  +----------------+--------------+------------+----------+
+  | DDR5 DIMM      | 16-256 GB   | 50 GB/s    | $3-5     |
+  | NVMe Gen5 SSD  | 1-8 TB      | 12 GB/s    | $0.08-0.15|
+  | SATA SSD       | 256GB-4 TB  | 550 MB/s   | $0.05-0.10|
+  | HDD (CMR)      | 2-24 TB     | 200 MB/s   | $0.015-0.03|
+  | HDD (SMR)      | 4-20 TB     | 150 MB/s   | $0.012-0.025|
+  | LTO-9 Tape     | 18 TB       | 400 MB/s   | $0.005   |
+  | Blu-ray 4-layer| 128 GB      | 72 MB/s    | $0.01    |
+  | DNA Storage    | Theory:     | Extremely  | Research |
+  |                | 215PB/g     | slow       | stage    |
+  +----------------+--------------+------------+----------+
 ```
 
-### 5.2 記憶装置のIOPS比較
+### 5.2 IOPS Comparison of Storage Devices
 
 ```
-IOPS（1秒あたりの入出力操作数）比較:
+IOPS (Input/Output Operations Per Second) comparison:
 
-  ┌────────────────┬──────────────┬──────────────┬──────────┐
-  │ デバイス        │ 読み取りIOPS │ 書き込みIOPS │ レイテンシ │
-  ├────────────────┼──────────────┼──────────────┼──────────┤
-  │ HDD 7200rpm   │ 100-200     │ 100-200     │ 2-10 ms  │
-  │ HDD 15000rpm  │ 200-400     │ 200-400     │ 2-4 ms   │
-  │ SATA SSD      │ 50K-100K    │ 30K-90K     │ 50-200 us│
-  │ NVMe SSD      │ 500K-1.5M   │ 200K-1M     │ 10-50 us │
-  │ Intel Optane  │ 500K-600K   │ 200K-500K   │ 7-10 us  │
-  │ RAM Disk      │ 数百万      │ 数百万      │ < 1 us   │
-  └────────────────┴──────────────┴──────────────┴──────────┘
+  +----------------+--------------+--------------+----------+
+  | Device         | Read IOPS    | Write IOPS   | Latency  |
+  +----------------+--------------+--------------+----------+
+  | HDD 7200rpm    | 100-200      | 100-200      | 2-10 ms  |
+  | HDD 15000rpm   | 200-400      | 200-400      | 2-4 ms   |
+  | SATA SSD       | 50K-100K     | 30K-90K      | 50-200 us|
+  | NVMe SSD       | 500K-1.5M    | 200K-1M      | 10-50 us |
+  | Intel Optane   | 500K-600K    | 200K-500K    | 7-10 us  |
+  | RAM Disk       | Millions     | Millions     | < 1 us   |
+  +----------------+--------------+--------------+----------+
 
-  計算例: DBの1トランザクションに10回のランダムI/Oが必要な場合
-  - HDD:     100 IOPS / 10 = 10 TPS
+  Example: If 1 DB transaction requires 10 random I/Os
+  - HDD:      100 IOPS / 10 = 10 TPS
   - SATA SSD: 80,000 IOPS / 10 = 8,000 TPS
   - NVMe SSD: 800,000 IOPS / 10 = 80,000 TPS
 
-  → SSDへの移行だけでDBスループットが100-800倍向上する
+  -> Migration to SSD alone can improve DB throughput 100-800x
 ```
 
-### 5.3 ストレージ容量の歴史的推移
+### 5.3 Historical Evolution of Storage Capacity
 
 ```
-記憶容量の進化:
+Evolution of storage capacity:
 
-  年    デバイス                     容量         $/GB(当時)
-  ──────────────────────────────────────────────────────────
-  1956  IBM 350 (初のHDD)           5 MB         $200,000
+  Year  Device                       Capacity     $/GB (then)
+  ---------------------------------------------------------
+  1956  IBM 350 (first HDD)         5 MB         $200,000
   1969  IBM 2314                    29 MB        $10,000
-  1980  Seagate ST-506 (初の5.25")  5 MB         $5,000
+  1980  Seagate ST-506 (first 5.25")5 MB         $5,000
   1983  IBM PC/XT                   10 MB        $3,500
-  1988  初の100MB HDD               100 MB       $100
-  1991  初の1GB HDD                 1 GB         $10
-  1997  初の10GB HDD                10 GB        $4
-  2000  初の100GB HDD               100 GB       $1
-  2007  初の1TB HDD                 1 TB         $0.30
-  2009  初の2TB HDD                 2 TB         $0.10
-  2019  16TB HDD（Seagate Exos）    16 TB        $0.025
-  2023  30TB HDD（SMR）             30 TB        $0.015
-  2025  HDD ロードマップ            40-50 TB     -
+  1988  First 100MB HDD             100 MB       $100
+  1991  First 1GB HDD               1 GB         $10
+  1997  First 10GB HDD              10 GB        $4
+  2000  First 100GB HDD             100 GB       $1
+  2007  First 1TB HDD               1 TB         $0.30
+  2009  First 2TB HDD               2 TB         $0.10
+  2019  16TB HDD (Seagate Exos)     16 TB        $0.025
+  2023  30TB HDD (SMR)              30 TB        $0.015
+  2025  HDD roadmap                 40-50 TB     -
 
-  クライダーの法則（Kryder's Law）:
-  「HDDの面積あたり記録密度は13ヶ月ごとに倍増する」
-  → ムーアの法則のストレージ版
-  → 2010年代以降、鈍化傾向にある
-  → HAMR/MAMR 等の新技術で再加速の可能性
+  Kryder's Law:
+  "HDD areal density doubles every 13 months"
+  -> The storage equivalent of Moore's Law
+  -> Has been slowing since the 2010s
+  -> May re-accelerate with HAMR/MAMR and other new technologies
 
-  SSD の進化:
-  年    容量              備考
-  ──────────────────────────────────────
-  2006  32 GB             初期の消費者向けSSD
-  2009  256 GB            SLC/MLC
-  2012  1 TB              Samsung 840 EVO 系
-  2016  4 TB              Samsung 850 EVO
-  2018  8 TB              Samsung 870 QVO
-  2020  16 TB             エンタープライズ向け
-  2023  32 TB             Solidigm D5-P5336
-  2024  64 TB+            QLC/PLC 大容量SSD
+  SSD evolution:
+  Year  Capacity           Notes
+  ----------------------------------------
+  2006  32 GB              Early consumer SSDs
+  2009  256 GB             SLC/MLC
+  2012  1 TB               Samsung 840 EVO series
+  2016  4 TB               Samsung 850 EVO
+  2018  8 TB               Samsung 870 QVO
+  2020  16 TB              Enterprise
+  2023  32 TB              Solidigm D5-P5336
+  2024  64 TB+             QLC/PLC high-capacity SSDs
 ```
 
 ---
 
-## 6. システム設計の容量見積もり
+## 6. Capacity Estimation for System Design
 
-### 6.1 Back-of-the-Envelope Estimation の手法
+### 6.1 Back-of-the-Envelope Estimation Techniques
 
-システム設計面接や実際のインフラ設計で最も重要なスキルの1つが、概算（Back-of-the-envelope estimation）である。正確な数値は不要で、桁数（order of magnitude）が合っていることが重要である。
-
-```
-概算のための便利な近似:
-
-  2^10 = 10^3（千）      誤差: +2.4%
-  2^20 = 10^6（百万）    誤差: +4.9%
-  2^30 = 10^9（十億）    誤差: +7.4%
-  2^40 = 10^12（兆）     誤差: +10.0%
-
-  時間の近似:
-  1日   = 86,400秒     = 約 10^5 秒（概算で十分）
-  1ヶ月 = 2,592,000秒  = 約 2.5 x 10^6 秒
-  1年   = 31,536,000秒 = 約 3 x 10^7 秒 = 約 pi x 10^7 秒
-
-  頻出する計算パターン:
-  ┌──────────────────────────────────────────────────┐
-  │ 1. ストレージ = DAU x 行動/日 x データサイズ       │
-  │    x レプリカ数 x 保持期間                         │
-  │                                                    │
-  │ 2. 帯域幅 = QPS x レスポンスサイズ                  │
-  │                                                    │
-  │ 3. QPS = DAU x 行動/日 / 86400                     │
-  │    ピーク QPS = 平均 QPS x 2〜3（ピーク係数）      │
-  │                                                    │
-  │ 4. 読み書き比 = 読み取りQPS / 書き込みQPS           │
-  │    SNS: 100:1〜1000:1                              │
-  │    メッセージング: 5:1〜20:1                        │
-  │    EC: 50:1〜200:1                                 │
-  └──────────────────────────────────────────────────┘
-```
-
-### 6.2 Twitter風サービスの容量計算
+One of the most important skills in system design interviews and actual infrastructure design is back-of-the-envelope estimation. Exact numbers are unnecessary; what matters is getting the order of magnitude right.
 
 ```
-Twitter風サービスの容量見積もり:
+Useful approximations for estimation:
 
-  前提条件:
-  ┌──────────────────────────────────────┐
-  │ MAU（月間アクティブユーザー）: 500M  │
-  │ DAU（日間アクティブユーザー）: 300M  │
-  │ 1人あたり平均投稿数: 2件/日          │
-  │ テキスト平均: 200文字（UTF-8: 400B） │
-  │ メタデータ: 200B/投稿               │
-  │ 画像添付率: 20%（平均200KB）         │
-  │ 動画添付率: 5%（平均5MB）           │
-  └──────────────────────────────────────┘
+  2^10 = 10^3 (thousand)    Error: +2.4%
+  2^20 = 10^6 (million)     Error: +4.9%
+  2^30 = 10^9 (billion)     Error: +7.4%
+  2^40 = 10^12 (trillion)   Error: +10.0%
 
-  Step 1: 1日の投稿数
-  300M x 2 = 600M 投稿/日
+  Time approximations:
+  1 day   = 86,400 sec    = ~10^5 sec (rough estimate is fine)
+  1 month = 2,592,000 sec = ~2.5 x 10^6 sec
+  1 year  = 31,536,000 sec = ~3 x 10^7 sec = ~pi x 10^7 sec
 
-  Step 2: 1日のデータ量
-  テキスト+メタ: 600M x 600B      = 360 GB/日
-  画像:         600M x 0.2 x 200KB = 24 TB/日
-  動画:         600M x 0.05 x 5MB  = 150 TB/日
-  合計:         約 174 TB/日
-
-  Step 3: 年間ストレージ
-  174 TB x 365 = 63.5 PB/年
-
-  Step 4: レプリカとバックアップ
-  レプリカ 3倍: 63.5 x 3 = 190.5 PB/年
-  バックアップ加算: 約 200 PB/年
-
-  Step 5: 5年間の保持
-  200 PB x 5 = 1 EB（圧縮前）
-  圧縮50%適用: 約 500 PB
-
-  Step 6: QPS（書き込み）
-  600M / 86,400 = 約 6,944 QPS（平均）
-  ピーク（x3）: 約 20,833 QPS
-
-  Step 7: QPS（読み取り、比率100:1）
-  読み取り平均: 694,400 QPS
-  読み取りピーク: 約 2,083,000 QPS
-
-  Step 8: 帯域幅
-  書き込み: 174 TB / 86,400 = 約 2 GB/s = 約 16 Gbps
-  読み取り: 2 GB/s x 100 = 約 200 GB/s = 約 1.6 Tbps
-
-  結論:
-  ┌────────────────────────────────────────┐
-  │ 年間ストレージ増分: 約 200 PB          │
-  │ 5年間の総容量: 約 500 PB（圧縮後）     │
-  │ ピーク書き込みQPS: 約 21K              │
-  │ ピーク読み取りQPS: 約 2.1M             │
-  │ 必要帯域幅: 約 1.6 Tbps（読み取り）    │
-  └────────────────────────────────────────┘
+  Common calculation patterns:
+  +------------------------------------------------------+
+  | 1. Storage = DAU x actions/day x data size            |
+  |    x replica count x retention period                 |
+  |                                                       |
+  | 2. Bandwidth = QPS x response size                    |
+  |                                                       |
+  | 3. QPS = DAU x actions/day / 86400                    |
+  |    Peak QPS = avg QPS x 2-3 (peak factor)             |
+  |                                                       |
+  | 4. Read/write ratio = read QPS / write QPS            |
+  |    SNS: 100:1 - 1000:1                               |
+  |    Messaging: 5:1 - 20:1                              |
+  |    E-commerce: 50:1 - 200:1                           |
+  +------------------------------------------------------+
 ```
 
-### 6.3 サービス規模別の目安
+### 6.2 Capacity Calculation for a Twitter-like Service
 
 ```
-サービス規模別のインフラ目安:
+Capacity estimate for a Twitter-like service:
 
-  ┌───────────────┬──────────┬───────────┬─────────┬──────────┐
-  │ 規模          │ DB       │ ストレージ │ 帯域幅  │ QPS      │
-  ├───────────────┼──────────┼───────────┼─────────┼──────────┤
-  │ 個人ブログ    │ 100 MB   │ 10 GB     │ 10 Mbps│ 1-10     │
-  │ 小規模SaaS    │ 1 GB     │ 100 GB    │ 50 Mbps│ 10-100   │
-  │ スタートアップ │ 10 GB    │ 1 TB      │ 100Mbps│ 100-1K   │
-  │ 中規模        │ 1 TB     │ 100 TB    │ 10 Gbps│ 1K-100K  │
-  │ 大規模        │ 100 TB   │ 10 PB     │ 1 Tbps │ 100K-10M │
-  │ FAANG級       │ 10 PB+   │ 1 EB+     │ 100Tbps│ 10M+     │
-  └───────────────┴──────────┴───────────┴─────────┴──────────┘
+  Assumptions:
+  +--------------------------------------+
+  | MAU (Monthly Active Users): 500M     |
+  | DAU (Daily Active Users): 300M       |
+  | Avg posts per user: 2/day            |
+  | Avg text: 200 chars (UTF-8: 400B)    |
+  | Metadata: 200B/post                  |
+  | Image attachment rate: 20% (avg 200KB)|
+  | Video attachment rate: 5% (avg 5MB)  |
+  +--------------------------------------+
+
+  Step 1: Daily posts
+  300M x 2 = 600M posts/day
+
+  Step 2: Daily data volume
+  Text+meta: 600M x 600B      = 360 GB/day
+  Images:    600M x 0.2 x 200KB = 24 TB/day
+  Video:     600M x 0.05 x 5MB  = 150 TB/day
+  Total:     ~174 TB/day
+
+  Step 3: Annual storage
+  174 TB x 365 = 63.5 PB/year
+
+  Step 4: Replicas and backups
+  3x replicas: 63.5 x 3 = 190.5 PB/year
+  Add backups: ~200 PB/year
+
+  Step 5: 5-year retention
+  200 PB x 5 = 1 EB (before compression)
+  50% compression: ~500 PB
+
+  Step 6: Write QPS
+  600M / 86,400 = ~6,944 QPS (average)
+  Peak (x3): ~20,833 QPS
+
+  Step 7: Read QPS (100:1 ratio)
+  Read average: 694,400 QPS
+  Read peak: ~2,083,000 QPS
+
+  Step 8: Bandwidth
+  Write: 174 TB / 86,400 = ~2 GB/s = ~16 Gbps
+  Read:  2 GB/s x 100 = ~200 GB/s = ~1.6 Tbps
+
+  Conclusion:
+  +----------------------------------------+
+  | Annual storage growth: ~200 PB          |
+  | 5-year total: ~500 PB (compressed)      |
+  | Peak write QPS: ~21K                    |
+  | Peak read QPS: ~2.1M                    |
+  | Required bandwidth: ~1.6 Tbps (read)    |
+  +----------------------------------------+
 ```
 
----
-
-## 7. レイテンシの数字
-
-### 7.1 プログラマが知るべきレイテンシ
-
-Jeff Dean が Google で整理した "Numbers Every Programmer Should Know" は、システム設計の基礎知識として広く知られている。
+### 6.3 Infrastructure Guidelines by Service Scale
 
 ```
-レイテンシの比較（2024年版の概算値）:
+Infrastructure guidelines by service scale:
 
-  操作                              時間          比喩
-  ──────────────────────────────────────────────────────
-  L1 キャッシュ参照                  1 ns         心臓の鼓動1回
-  分岐予測ミス                      3 ns
-  L2 キャッシュ参照                  4 ns
-  ミューテックスのロック/アンロック    17 ns
-  L3 キャッシュ参照                  20 ns
-  メインメモリ参照                   100 ns       まばたき
-  1 KB の Snappy 圧縮               2,000 ns
-  SSD ランダム読み取り               16,000 ns    くしゃみ
-  1 MB メモリからの逐次読み取り       3,000 ns
-  1 MB SSD からの逐次読み取り         49,000 ns
-  1 MB HDD からの逐次読み取り         825,000 ns
-  同一DC内ラウンドトリップ            500,000 ns   深呼吸
-  HDD ディスクシーク                 2,000,000 ns
-  パケット CA→NL→CA               150,000,000 ns 昼寝
-
-  覚えておくべき比率:
-  ┌─────────────────────────────┬──────────┐
-  │ 比較対象                    │ 倍率     │
-  ├─────────────────────────────┼──────────┤
-  │ メモリ vs SSD ランダム読取り │ 約 160倍 │
-  │ SSD vs HDD ランダム読取り   │ 約 125倍 │
-  │ メモリ vs HDD              │ 約 20,000倍│
-  │ DC内 vs 大陸間             │ 約 300倍 │
-  │ 1MB メモリ vs 1MB SSD      │ 約 16倍  │
-  │ 1MB SSD vs 1MB HDD        │ 約 17倍  │
-  └─────────────────────────────┴──────────┘
-```
-
-### 7.2 レイテンシの「人間スケール」変換
-
-```
-もし 1 ns = 1秒 だったら:
-
-  L1 キャッシュ参照:       1秒          → 心拍1回
-  L2 キャッシュ参照:       4秒          → 深呼吸1回
-  L3 キャッシュ参照:       20秒         → エレベータ待ち
-  メインメモリ参照:        1分40秒      → お茶を一杯淹れる
-  SSD ランダム読取り:      4時間26分    → 映画2本
-  HDD ディスクシーク:      23日         → 海外旅行
-  同一DC内通信:            5日18時間    → 1週間の出張
-  大陸間通信:              4年9ヶ月     → 大学卒業
-  5秒の画面表示待ち:       158年        → 人生2周分
-
-  ┌─────────────────────────────────────────────┐
-  │ この比喩から得られる教訓:                     │
-  │                                               │
-  │ 1. キャッシュミスは「秒」が「分」になる感覚    │
-  │ 2. ディスクI/Oは「秒」が「日」になる感覚      │
-  │ 3. ネットワーク呼び出しは「秒」が「年」の感覚  │
-  │ 4. だからキャッシュとバッチ処理が重要          │
-  └─────────────────────────────────────────────┘
+  +---------------+----------+-----------+---------+----------+
+  | Scale         | DB       | Storage   | BW      | QPS      |
+  +---------------+----------+-----------+---------+----------+
+  | Personal blog | 100 MB   | 10 GB     | 10 Mbps | 1-10     |
+  | Small SaaS    | 1 GB     | 100 GB    | 50 Mbps | 10-100   |
+  | Startup       | 10 GB    | 1 TB      | 100Mbps | 100-1K   |
+  | Mid-scale     | 1 TB     | 100 TB    | 10 Gbps | 1K-100K  |
+  | Large-scale   | 100 TB   | 10 PB     | 1 Tbps  | 100K-10M |
+  | FAANG-class   | 10 PB+   | 1 EB+     | 100Tbps | 10M+     |
+  +---------------+----------+-----------+---------+----------+
 ```
 
 ---
 
-## 8. 帯域幅の計算
+## 7. Latency Numbers
 
-### 8.1 ビット毎秒とバイト毎秒
+### 7.1 Latency Numbers Every Programmer Should Know
 
-ネットワーク帯域幅の最も重要な注意点は、ネットワーク速度が bit/s で表記され、ファイルサイズが byte で表記されることである。この変換を間違えると、転送時間の見積もりが8倍ずれる。
+The "Numbers Every Programmer Should Know" compiled by Jeff Dean at Google is widely known as foundational knowledge for system design.
 
 ```
-帯域幅の単位変換:
+Latency comparison (2024 approximate values):
 
-  基本: 1 byte = 8 bits
-  → 1 Gbps = 1,000,000,000 bits/s
+  Operation                            Time         Analogy
+  ---------------------------------------------------------------
+  L1 cache reference                   1 ns         One heartbeat
+  Branch misprediction                 3 ns
+  L2 cache reference                   4 ns
+  Mutex lock/unlock                    17 ns
+  L3 cache reference                   20 ns
+  Main memory reference                100 ns       Blink of an eye
+  Snappy compress 1 KB                 2,000 ns
+  SSD random read                      16,000 ns    A sneeze
+  Read 1 MB sequentially from memory   3,000 ns
+  Read 1 MB sequentially from SSD      49,000 ns
+  Read 1 MB sequentially from HDD      825,000 ns
+  Round trip within same datacenter    500,000 ns    A deep breath
+  HDD disk seek                        2,000,000 ns
+  Packet CA -> NL -> CA                150,000,000 ns A nap
+
+  Key ratios to remember:
+  +-----------------------------+----------+
+  | Comparison                  | Factor   |
+  +-----------------------------+----------+
+  | Memory vs SSD random read   | ~160x    |
+  | SSD vs HDD random read      | ~125x    |
+  | Memory vs HDD               | ~20,000x |
+  | Within-DC vs cross-continent| ~300x    |
+  | 1MB memory vs 1MB SSD       | ~16x     |
+  | 1MB SSD vs 1MB HDD          | ~17x     |
+  +-----------------------------+----------+
+```
+
+### 7.2 Latency Converted to "Human Scale"
+
+```
+If 1 ns = 1 second:
+
+  L1 cache reference:       1 sec          -> One heartbeat
+  L2 cache reference:       4 sec          -> One deep breath
+  L3 cache reference:       20 sec         -> Waiting for elevator
+  Main memory reference:    1 min 40 sec   -> Brewing a cup of tea
+  SSD random read:          4 hr 26 min    -> Two movies
+  HDD disk seek:            23 days        -> International trip
+  Within-DC comm:           5 days 18 hr   -> A week-long business trip
+  Cross-continent comm:     4 yr 9 months  -> College graduation
+  5-second page load:       158 years      -> Two lifetimes
+
+  +---------------------------------------------+
+  | Lessons from this analogy:                   |
+  |                                              |
+  | 1. Cache miss: "seconds" become "minutes"    |
+  | 2. Disk I/O: "seconds" become "days"         |
+  | 3. Network call: "seconds" become "years"    |
+  | 4. That's why caching and batching matter     |
+  +---------------------------------------------+
+```
+
+---
+
+## 8. Bandwidth Calculations
+
+### 8.1 Bits per Second vs Bytes per Second
+
+The most critical caveat with network bandwidth is that network speed is expressed in bit/s while file sizes are expressed in bytes. Getting this conversion wrong causes transfer time estimates to be off by 8x.
+
+```
+Bandwidth unit conversion:
+
+  Fundamental: 1 byte = 8 bits
+  -> 1 Gbps = 1,000,000,000 bits/s
            = 125,000,000 bytes/s
            = 125 MB/s
-           = 約119 MiB/s
+           = ~119 MiB/s
 
-  ネットワーク接続の理論値と実効値:
-  ┌───────────────┬──────────┬──────────┬──────────────┐
-  │ 接続種別      │ 理論最大  │ 実効帯域幅│ 実効(MB/s)   │
-  ├───────────────┼──────────┼──────────┼──────────────┤
-  │ 4G LTE       │ 150 Mbps │ 10-50    │ 1.25-6.25    │
-  │ 5G Sub-6     │ 1 Gbps   │ 100-500  │ 12.5-62.5    │
-  │ 5G mmWave    │ 10 Gbps  │ 1-4 Gbps│ 125-500      │
-  │ WiFi 5 (ac)  │ 3.5 Gbps │ 200-800  │ 25-100       │
-  │ WiFi 6 (ax)  │ 9.6 Gbps │ 500-2000 │ 62.5-250     │
-  │ WiFi 7 (be)  │ 46 Gbps  │ 1-8 Gbps│ 125-1000     │
-  │ GbE          │ 1 Gbps   │ 900 Mbps│ 112          │
-  │ 10GbE        │ 10 Gbps  │ 9.5 Gbps│ 1187         │
-  │ 25GbE        │ 25 Gbps  │ 24 Gbps │ 3000         │
-  │ 100GbE       │ 100 Gbps │ 98 Gbps │ 12250        │
-  └───────────────┴──────────┴──────────┴──────────────┘
+  Theoretical vs effective bandwidth by connection:
+  +---------------+----------+----------+--------------+
+  | Connection    | Theor.   | Effective| Effective    |
+  |               | max      | BW       | (MB/s)       |
+  +---------------+----------+----------+--------------+
+  | 4G LTE        | 150 Mbps | 10-50    | 1.25-6.25    |
+  | 5G Sub-6      | 1 Gbps   | 100-500  | 12.5-62.5    |
+  | 5G mmWave     | 10 Gbps  | 1-4 Gbps| 125-500      |
+  | WiFi 5 (ac)   | 3.5 Gbps | 200-800  | 25-100       |
+  | WiFi 6 (ax)   | 9.6 Gbps | 500-2000 | 62.5-250     |
+  | WiFi 7 (be)   | 46 Gbps  | 1-8 Gbps| 125-1000     |
+  | GbE           | 1 Gbps   | 900 Mbps | 112          |
+  | 10GbE         | 10 Gbps  | 9.5 Gbps| 1187         |
+  | 25GbE         | 25 Gbps  | 24 Gbps | 3000         |
+  | 100GbE        | 100 Gbps | 98 Gbps | 12250        |
+  +---------------+----------+----------+--------------+
 
-  オーバーヘッドの内訳:
-  - Ethernet フレーム:    約3%（プリアンブル、IFG、CRC）
-  - IP ヘッダ:           20-60 バイト/パケット
-  - TCP ヘッダ:          20-60 バイト/パケット
-  - TLS:                 数十バイト + ハンドシェイク
-  - アプリケーション層:   可変
-  - 合計オーバーヘッド:   小パケットで30-50%、大パケットで3-5%
+  Overhead breakdown:
+  - Ethernet frame:         ~3% (preamble, IFG, CRC)
+  - IP header:              20-60 bytes/packet
+  - TCP header:             20-60 bytes/packet
+  - TLS:                    tens of bytes + handshake
+  - Application layer:      variable
+  - Total overhead:         30-50% for small packets, 3-5% for large
 ```
 
-### 8.2 転送時間の計算
+### 8.2 Transfer Time Calculation
 
 ```python
-"""転送時間の計算ツール"""
+"""Transfer time calculation tool"""
 
 def transfer_time(size_bytes: int, bandwidth_mbps: float,
                   overhead_pct: float = 10.0) -> dict:
     """
-    ファイル転送時間を計算する。
+    Calculate file transfer time.
 
     Args:
-        size_bytes: ファイルサイズ（バイト）
-        bandwidth_mbps: 帯域幅（Mbps）
-        overhead_pct: プロトコルオーバーヘッド（%）
+        size_bytes: File size (bytes)
+        bandwidth_mbps: Bandwidth (Mbps)
+        overhead_pct: Protocol overhead (%)
 
     Returns:
-        辞書（秒数と人間可読形式）
+        Dictionary (seconds and human-readable format)
     """
     effective_bps = bandwidth_mbps * 1_000_000 * (1 - overhead_pct / 100)
     effective_Bps = effective_bps / 8
     seconds = size_bytes / effective_Bps
 
     if seconds < 60:
-        human = f"{seconds:.1f}秒"
+        human = f"{seconds:.1f} sec"
     elif seconds < 3600:
-        human = f"{seconds / 60:.1f}分"
+        human = f"{seconds / 60:.1f} min"
     elif seconds < 86400:
-        human = f"{seconds / 3600:.1f}時間"
+        human = f"{seconds / 3600:.1f} hr"
     else:
-        human = f"{seconds / 86400:.1f}日"
+        human = f"{seconds / 86400:.1f} days"
 
     return {
         "seconds": round(seconds, 2),
@@ -1014,18 +1023,18 @@ def transfer_time(size_bytes: int, bandwidth_mbps: float,
         "effective_MBps": round(effective_Bps / 1_000_000, 2),
     }
 
-# --- 転送時間の比較表を生成 ---
+# --- Generate transfer time comparison table ---
 files = [
-    ("Webページ",    2 * 10**6),
-    ("楽曲1曲",      4 * 10**6),
-    ("HD映画",       5 * 10**9),
-    ("ゲーム",       50 * 10**9),
-    ("バックアップ",  1 * 10**12),
+    ("Web page",     2 * 10**6),
+    ("1 song",       4 * 10**6),
+    ("HD movie",     5 * 10**9),
+    ("Game",         50 * 10**9),
+    ("Backup",       1 * 10**12),
 ]
 
 bandwidths = [10, 100, 1000]  # Mbps
 
-print(f"{'ファイル':12s}", end="")
+print(f"{'File':12s}", end="")
 for bw in bandwidths:
     print(f"  {bw} Mbps", end="")
 print()
@@ -1038,253 +1047,257 @@ for name, size in files:
         print(f"  {result['human']:>10s}", end="")
     print()
 
-# 出力例:
-# ファイル        10 Mbps  100 Mbps  1000 Mbps
+# Sample output:
+# File          10 Mbps  100 Mbps  1000 Mbps
 # ------------------------------------------------------------
-# Webページ        1.8秒      0.2秒      0.0秒
-# 楽曲1曲          3.6秒      0.4秒      0.0秒
-# HD映画          44.4分      4.4分      0.4分
-# ゲーム           7.4時間    44.4分      4.4分
-# バックアップ      3.1日      7.4時間    44.4分
+# Web page      1.8 sec    0.2 sec    0.0 sec
+# 1 song        3.6 sec    0.4 sec    0.0 sec
+# HD movie     44.4 min    4.4 min    0.4 min
+# Game          7.4 hr    44.4 min    4.4 min
+# Backup        3.1 days   7.4 hr    44.4 min
 ```
 
-### 8.3 Sneakernet — 物理転送の帯域幅
+### 8.3 Sneakernet -- Physical Transfer Bandwidth
 
 ```
-「トラック一杯のテープの帯域幅を舐めてはいけない」
-  — Andrew Tanenbaum
+"Never underestimate the bandwidth of a station wagon full of tapes."
+  -- Andrew Tanenbaum
 
-  物理転送 vs ネットワーク転送の比較:
+  Physical transfer vs network transfer comparison:
 
-  シナリオ: 1 PB のデータを転送する
+  Scenario: Transfer 1 PB of data
 
-  ネットワーク経由:
-    10 Gbps 回線: 1 PB / 1.25 GB/s = 800,000 秒 = 約 9.3 日
-    100 Gbps回線: 1 PB / 12.5 GB/s = 80,000 秒 = 約 22 時間
+  Via network:
+    10 Gbps line: 1 PB / 1.25 GB/s = 800,000 sec = ~9.3 days
+    100 Gbps line: 1 PB / 12.5 GB/s = 80,000 sec = ~22 hours
 
-  物理転送:
-    18TB LTO-9テープ x 56本 = 約 1 PB
-    重量: 約15 kg
-    翌日配送で到着: 86,400秒
-    実効帯域幅: 1 PB / 86,400 = 11.6 GB/s = 約 93 Gbps
+  Physical transfer:
+    18TB LTO-9 tapes x 56 = ~1 PB
+    Weight: ~15 kg
+    Next-day delivery: 86,400 sec
+    Effective bandwidth: 1 PB / 86,400 = 11.6 GB/s = ~93 Gbps
 
-  → 10 Gbps回線より物理輸送の方が10倍速い
-  → ただしレイテンシは24時間
+  -> Physical transport is 10x faster than a 10 Gbps line
+  -> However, latency is 24 hours
 
-  AWS の物理転送サービス:
-  ┌──────────────────┬──────────┬───────────────────┐
-  │ サービス          │ 容量     │ 用途              │
-  ├──────────────────┼──────────┼───────────────────┤
-  │ AWS Snowcone    │ 8-14 TB  │ エッジ/IoT        │
-  │ AWS Snowball    │ 80 TB    │ データ移行         │
-  │ AWS Snowball Edge│ 80-210TB │ エッジコンピュート │
-  │ AWS Snowmobile  │ 100 PB   │ エクサバイト級移行 │
-  └──────────────────┴──────────┴───────────────────┘
+  AWS physical transfer services:
+  +------------------+----------+-------------------+
+  | Service          | Capacity | Use case          |
+  +------------------+----------+-------------------+
+  | AWS Snowcone     | 8-14 TB  | Edge/IoT          |
+  | AWS Snowball     | 80 TB    | Data migration    |
+  | AWS Snowball Edge| 80-210TB | Edge computing    |
+  | AWS Snowmobile   | 100 PB   | Exabyte-scale     |
+  |                  |          | migration         |
+  +------------------+----------+-------------------+
 
-  Snowmobile は文字通り45フィートのトレーラーであり、
-  専用のネットワーク機器と電力設備を搭載している。
+  Snowmobile is literally a 45-foot trailer equipped
+  with dedicated networking equipment and power infrastructure.
 ```
 
-### 8.4 Webパフォーマンス予算
+### 8.4 Web Performance Budget
 
 ```
-Webパフォーマンス予算の設計:
+Web performance budget design:
 
-  目標: 3G モバイル環境（1.5 Mbps）で3秒以内に LCP 到達
+  Target: Reach LCP within 3 seconds on 3G mobile (1.5 Mbps)
 
-  転送可能データ量:
-  3秒 x 1.5 Mbps / 8 = 562 KB
+  Transferable data volume:
+  3 sec x 1.5 Mbps / 8 = 562 KB
 
-  この 562 KB を各リソースに配分する:
-  ┌──────────────┬──────────┬──────────────────────────┐
-  │ リソース      │ 予算     │ 備考                     │
-  ├──────────────┼──────────┼──────────────────────────┤
-  │ HTML         │ 30 KB   │ gzip圧縮後               │
-  │ CSS          │ 50 KB   │ gzip圧縮後               │
-  │ JavaScript   │ 200 KB  │ gzip圧縮後（約800KB展開後）│
-  │ フォント      │ 80 KB   │ woff2 サブセット          │
-  │ 画像         │ 200 KB  │ WebP / AVIF              │
-  │ 合計         │ 560 KB  │ <= 予算562KB             │
-  └──────────────┴──────────┴──────────────────────────┘
+  Distributing this 562 KB across resources:
+  +--------------+----------+--------------------------+
+  | Resource     | Budget   | Notes                    |
+  +--------------+----------+--------------------------+
+  | HTML         | 30 KB    | After gzip               |
+  | CSS          | 50 KB    | After gzip               |
+  | JavaScript   | 200 KB   | After gzip (~800KB raw)  |
+  | Fonts        | 80 KB    | woff2 subset             |
+  | Images       | 200 KB   | WebP / AVIF              |
+  | Total        | 560 KB   | <= 562KB budget          |
+  +--------------+----------+--------------------------+
 
-  JavaScript の隠れたコスト:
-  ┌──────────────────────────────────────────────────┐
-  │ gzip 200KB → 展開後 約 800KB                    │
-  │ → パース時間（モバイルCPU）: 0.5-2秒             │
-  │ → コンパイル時間: 0.2-1秒                       │
-  │ → 実行時間: 可変                                │
-  │                                                  │
-  │ 合計: 転送3秒 + パース/実行2-5秒 = 5-8秒の体感   │
-  │ → JS の「真のコスト」はサイズだけではない         │
-  └──────────────────────────────────────────────────┘
+  Hidden cost of JavaScript:
+  +------------------------------------------------------+
+  | gzip 200KB -> ~800KB uncompressed                     |
+  | -> Parse time (mobile CPU): 0.5-2 sec                |
+  | -> Compile time: 0.2-1 sec                           |
+  | -> Execution time: variable                          |
+  |                                                       |
+  | Total: transfer 3s + parse/exec 2-5s = 5-8s perceived|
+  | -> The "true cost" of JS is not just its size         |
+  +------------------------------------------------------+
 
-  Core Web Vitals の目標値（Google推奨）:
-  ┌──────┬──────────┬──────────┬──────────┐
-  │ 指標 │ Good     │ Needs Imp│ Poor     │
-  ├──────┼──────────┼──────────┼──────────┤
-  │ LCP  │ <= 2.5秒 │ <= 4.0秒 │ > 4.0秒 │
-  │ INP  │ <= 200ms │ <= 500ms │ > 500ms │
-  │ CLS  │ <= 0.1   │ <= 0.25  │ > 0.25  │
-  └──────┴──────────┴──────────┴──────────┘
+  Core Web Vitals targets (Google recommended):
+  +------+----------+----------+----------+
+  | Metric| Good    | Needs Imp| Poor     |
+  +------+----------+----------+----------+
+  | LCP  | <= 2.5s  | <= 4.0s  | > 4.0s   |
+  | INP  | <= 200ms | <= 500ms | > 500ms  |
+  | CLS  | <= 0.1   | <= 0.25  | > 0.25   |
+  +------+----------+----------+----------+
 ```
 
 ---
 
-## 9. データセンター規模のスケール
+## 9. Datacenter-Scale Data
 
-### 9.1 主要サービスのデータ量
+### 9.1 Data Volumes of Major Services
 
 ```
-世界規模のデータ量（概算）:
+Global-scale data volumes (approximate):
 
   Google:
-  ┌──────────────────────────────────────────────┐
-  │ 検索インデックス:      100 PB 以上            │
-  │ Gmail:                15 EB+（30億ユーザー）  │
-  │ YouTube:              毎分500時間のアップロード│
-  │    → 1日720,000時間分の新規動画              │
-  │ Google Photos:        1日40億枚のアップロード │
-  │ Google Maps:          20 PB+（衛星/ストリート）│
-  └──────────────────────────────────────────────┘
+  +----------------------------------------------+
+  | Search index:       100 PB+                   |
+  | Gmail:              15 EB+ (3 billion users)  |
+  | YouTube:            500 hrs uploaded per minute|
+  |    -> 720,000 hrs of new video per day        |
+  | Google Photos:      4 billion uploads per day |
+  | Google Maps:        20 PB+ (satellite/street) |
+  +----------------------------------------------+
 
   Meta:
-  ┌──────────────────────────────────────────────┐
-  │ Facebook + Instagram:  1日あたり数百TB生成    │
-  │ Instagram:            1日1億枚以上の写真      │
-  │ WhatsApp:             1日1000億通のメッセージ  │
-  │ データウェアハウス:    300+ PB（Hive）         │
-  └──────────────────────────────────────────────┘
+  +----------------------------------------------+
+  | Facebook + Instagram: hundreds of TB/day      |
+  | Instagram:          100M+ photos per day      |
+  | WhatsApp:           100B messages per day     |
+  | Data warehouse:     300+ PB (Hive)            |
+  +----------------------------------------------+
 
   Netflix:
-  ┌──────────────────────────────────────────────┐
-  │ カタログ総容量:       10 PB+（多解像度x多言語）│
-  │ CDN配信量:           ピーク時ネット帯域の15%   │
-  │ Open Connect CDN:    世界中に数千台のサーバー  │
-  └──────────────────────────────────────────────┘
+  +----------------------------------------------+
+  | Catalog total:      10 PB+ (multi-res x lang)|
+  | CDN delivery:       ~15% of peak net traffic  |
+  | Open Connect CDN:   Thousands of servers      |
+  |                     worldwide                 |
+  +----------------------------------------------+
 
-  世界全体:
-  ┌──────────────────────────────────────────────┐
-  │ 2020年の年間データ生成量:  約 64 ZB           │
-  │ 2025年の年間データ生成量:  約 180 ZB（予測）   │
-  │ 2030年の年間データ生成量:  約 600+ ZB（予測）  │
-  │                                                │
-  │ 1 ZB = 10^21 バイト                           │
-  │      = 1,000 EB                               │
-  │      = 1,000,000 PB                           │
-  │      = 1,000,000,000 TB                       │
-  └──────────────────────────────────────────────┘
+  Global totals:
+  +----------------------------------------------+
+  | 2020 annual data generation: ~64 ZB           |
+  | 2025 annual data generation: ~180 ZB (proj.)  |
+  | 2030 annual data generation: ~600+ ZB (proj.) |
+  |                                                |
+  | 1 ZB = 10^21 bytes                            |
+  |      = 1,000 EB                               |
+  |      = 1,000,000 PB                           |
+  |      = 1,000,000,000 TB                       |
+  +----------------------------------------------+
 ```
 
-### 9.2 ストレージコストの比較
+### 9.2 Storage Cost Comparison
 
 ```
-ストレージコスト比較表（概算）:
+Storage cost comparison table (approximate):
 
-  ┌─────────────────┬──────────────┬──────────────────────┐
-  │ メディア         │ $/TB/月      │ 主な用途             │
-  ├─────────────────┼──────────────┼──────────────────────┤
-  │ DRAM メモリ     │ $3,000       │ キャッシュ、インメモリDB│
-  │ NVMe SSD       │ $50          │ ホットデータ、OLTP    │
-  │ SATA SSD       │ $20          │ ウォームデータ        │
-  │ HDD            │ $5           │ コールドデータ、ログ   │
-  │ S3 Standard    │ $23          │ クラウドホットストレージ│
-  │ S3 IA          │ $12.5        │ 低頻度アクセス        │
-  │ S3 Glacier     │ $4           │ アーカイブ（分〜時間） │
-  │ S3 Deep Archive│ $1           │ 長期保存（12時間復元） │
-  │ LTO-9 テープ   │ $0.5         │ オフラインアーカイブ   │
-  └─────────────────┴──────────────┴──────────────────────┘
+  +-----------------+--------------+----------------------+
+  | Media           | $/TB/month   | Primary use          |
+  +-----------------+--------------+----------------------+
+  | DRAM Memory     | $3,000       | Cache, in-memory DB  |
+  | NVMe SSD        | $50          | Hot data, OLTP       |
+  | SATA SSD        | $20          | Warm data            |
+  | HDD             | $5           | Cold data, logs      |
+  | S3 Standard     | $23          | Cloud hot storage    |
+  | S3 IA           | $12.5        | Infrequent access    |
+  | S3 Glacier      | $4           | Archive (min-hours)  |
+  | S3 Deep Archive | $1           | Long-term (12hr      |
+  |                 |              | restore)             |
+  | LTO-9 Tape      | $0.5         | Offline archive      |
+  +-----------------+--------------+----------------------+
 
-  コスト比較の視覚化（対数スケール）:
-  DRAM    |████████████████████████████████████| $3000
-  NVMe    |██                                  | $50
-  SATA SSD|█                                   | $20
+  Cost comparison visualization (log scale):
+  DRAM    |####################################| $3000
+  NVMe    |##                                  | $50
+  SATA SSD|#                                   | $20
   HDD     |                                    | $5
-  S3 Std  |█                                   | $23
-  S3 IA   |█                                   | $12.5
+  S3 Std  |#                                   | $23
+  S3 IA   |#                                   | $12.5
   Glacier |                                    | $4
   Deep Arc|                                    | $1
-  テープ  |                                    | $0.5
+  Tape    |                                    | $0.5
 
-  → DRAM は HDD の約600倍のコスト
-  → 適切な階層化設計がコスト最適化の鍵
+  -> DRAM is ~600x the cost of HDD
+  -> Proper tiering is key to cost optimization
 ```
 
-### 9.3 階層型ストレージ設計
+### 9.3 Tiered Storage Design
 
 ```
-階層型ストレージ（Tiered Storage）の設計原則:
+Tiered Storage design principles:
 
-  ┌─────────────────────────────────────────────────┐
-  │                                                   │
-  │   ホット層（5%のデータ、80%のアクセス）            │
-  │   ┌─────────────────────────────────────┐         │
-  │   │ NVMe SSD / Redis / Memcached       │         │
-  │   │ 直近24時間のデータ                  │         │
-  │   │ アクセス頻度: 毎秒〜毎分            │         │
-  │   └─────────────────────────────────────┘         │
-  │                                                   │
-  │   ウォーム層（15%のデータ、15%のアクセス）          │
-  │   ┌─────────────────────────────────────┐         │
-  │   │ SATA SSD / S3 Standard / HDD       │         │
-  │   │ 直近30日のデータ                    │         │
-  │   │ アクセス頻度: 毎時〜毎日            │         │
-  │   └─────────────────────────────────────┘         │
-  │                                                   │
-  │   コールド層（40%のデータ、4%のアクセス）          │
-  │   ┌─────────────────────────────────────┐         │
-  │   │ S3 IA / HDD アレイ                 │         │
-  │   │ 直近1年のデータ                     │         │
-  │   │ アクセス頻度: 月に数回              │         │
-  │   └─────────────────────────────────────┘         │
-  │                                                   │
-  │   アーカイブ層（40%のデータ、1%のアクセス）         │
-  │   ┌─────────────────────────────────────┐         │
-  │   │ Glacier / テープ / Deep Archive    │         │
-  │   │ 1年以上前のデータ                   │         │
-  │   │ アクセス頻度: 年に数回（災害復旧等） │         │
-  │   └─────────────────────────────────────┘         │
-  │                                                   │
-  └─────────────────────────────────────────────────┘
+  +-------------------------------------------------+
+  |                                                   |
+  |   Hot tier (5% of data, 80% of access)           |
+  |   +-------------------------------------+        |
+  |   | NVMe SSD / Redis / Memcached        |        |
+  |   | Last 24 hours of data               |        |
+  |   | Access frequency: per second/minute  |        |
+  |   +-------------------------------------+        |
+  |                                                   |
+  |   Warm tier (15% of data, 15% of access)         |
+  |   +-------------------------------------+        |
+  |   | SATA SSD / S3 Standard / HDD        |        |
+  |   | Last 30 days of data                |        |
+  |   | Access frequency: hourly/daily      |        |
+  |   +-------------------------------------+        |
+  |                                                   |
+  |   Cold tier (40% of data, 4% of access)          |
+  |   +-------------------------------------+        |
+  |   | S3 IA / HDD array                   |        |
+  |   | Last 1 year of data                 |        |
+  |   | Access frequency: a few times/month |        |
+  |   +-------------------------------------+        |
+  |                                                   |
+  |   Archive tier (40% of data, 1% of access)       |
+  |   +-------------------------------------+        |
+  |   | Glacier / Tape / Deep Archive       |        |
+  |   | Data older than 1 year              |        |
+  |   | Access frequency: a few times/year  |        |
+  |   | (disaster recovery, etc.)           |        |
+  |   +-------------------------------------+        |
+  |                                                   |
+  +-------------------------------------------------+
 
-  コスト最適化の計算例:
-  100 TB のデータを保持する場合
+  Cost optimization example:
+  Retaining 100 TB of data
 
-  全てS3 Standard: 100 TB x $23/TB = $2,300/月
+  All S3 Standard: 100 TB x $23/TB = $2,300/month
 
-  階層化した場合:
-    ホット(5TB)     x $50   = $250
-    ウォーム(15TB)  x $23   = $345
-    コールド(40TB)  x $12.5 = $500
-    アーカイブ(40TB)x $1    = $40
-    合計: $1,135/月
+  With tiering:
+    Hot (5TB)      x $50   = $250
+    Warm (15TB)    x $23   = $345
+    Cold (40TB)    x $12.5 = $500
+    Archive (40TB) x $1    = $40
+    Total: $1,135/month
 
-  → 約51%のコスト削減
+  -> Approximately 51% cost reduction
 ```
 
 ---
 
-## 10. 容量見積もりの実装パターン
+## 10. Capacity Estimation Implementation Patterns
 
-### 10.1 容量見積もりクラス
+### 10.1 Capacity Estimation Class
 
 ```python
-"""システム設計における容量見積もりの自動計算"""
+"""Automated capacity estimation for system design"""
 
 from dataclasses import dataclass
 from typing import Optional
 
 @dataclass
 class ServiceEstimation:
-    """サービスの容量見積もりを計算するクラス"""
+    """Class for calculating service capacity estimates"""
     name: str
-    dau: int                        # 日間アクティブユーザー
-    actions_per_user_per_day: float  # 1ユーザーあたりの日次アクション数
-    avg_payload_bytes: int           # 1アクションの平均データサイズ
-    read_write_ratio: int = 100     # 読み書き比率
-    peak_factor: float = 3.0        # ピーク係数
-    replication_factor: int = 3     # レプリカ数
-    retention_years: int = 5        # データ保持年数
-    compression_ratio: float = 0.5  # 圧縮率（0.5 = 50%圧縮）
+    dau: int                        # Daily active users
+    actions_per_user_per_day: float  # Daily actions per user
+    avg_payload_bytes: int           # Average data size per action
+    read_write_ratio: int = 100     # Read/write ratio
+    peak_factor: float = 3.0        # Peak factor
+    replication_factor: int = 3     # Number of replicas
+    retention_years: int = 5        # Data retention years
+    compression_ratio: float = 0.5  # Compression ratio (0.5 = 50%)
 
     @property
     def daily_actions(self) -> float:
@@ -1327,7 +1340,7 @@ class ServiceEstimation:
         return bytes_per_sec * 8 / 1e9
 
     def report(self) -> str:
-        """見積もりレポートを生成する"""
+        """Generate an estimation report"""
         def fmt(n):
             if n >= 1e18: return f"{n/1e18:.1f} EB"
             if n >= 1e15: return f"{n/1e15:.1f} PB"
@@ -1337,36 +1350,36 @@ class ServiceEstimation:
             return f"{n:.0f} B"
 
         lines = [
-            f"=== {self.name} 容量見積もり ===",
+            f"=== {self.name} Capacity Estimate ===",
             f"DAU:              {self.dau:,}",
-            f"日次アクション:   {self.daily_actions:,.0f}",
+            f"Daily actions:    {self.daily_actions:,.0f}",
             f"",
-            f"--- ストレージ ---",
-            f"1日の生データ:    {fmt(self.daily_storage_bytes)}",
-            f"1年の生データ:    {fmt(self.yearly_storage_bytes)}",
-            f"総容量(圧縮後):   {fmt(self.total_storage_bytes)}",
-            f"  ({self.retention_years}年, x{self.replication_factor}レプリカ,"
-            f" {self.compression_ratio*100:.0f}%圧縮)",
+            f"--- Storage ---",
+            f"Daily raw data:   {fmt(self.daily_storage_bytes)}",
+            f"Yearly raw data:  {fmt(self.yearly_storage_bytes)}",
+            f"Total (compr.):   {fmt(self.total_storage_bytes)}",
+            f"  ({self.retention_years}yr, x{self.replication_factor} replicas,"
+            f" {self.compression_ratio*100:.0f}% compression)",
             f"",
             f"--- QPS ---",
-            f"平均書込QPS:      {self.avg_write_qps:,.0f}",
-            f"ピーク書込QPS:    {self.peak_write_qps:,.0f}",
-            f"平均読取QPS:      {self.avg_read_qps:,.0f}",
-            f"ピーク読取QPS:    {self.peak_read_qps:,.0f}",
+            f"Avg write QPS:    {self.avg_write_qps:,.0f}",
+            f"Peak write QPS:   {self.peak_write_qps:,.0f}",
+            f"Avg read QPS:     {self.avg_read_qps:,.0f}",
+            f"Peak read QPS:    {self.peak_read_qps:,.0f}",
             f"",
-            f"--- 帯域幅 ---",
-            f"書込帯域幅:       {self.write_bandwidth_gbps:.2f} Gbps",
-            f"読取帯域幅:       "
+            f"--- Bandwidth ---",
+            f"Write bandwidth:  {self.write_bandwidth_gbps:.2f} Gbps",
+            f"Read bandwidth:   "
             f"{self.write_bandwidth_gbps * self.read_write_ratio:.2f} Gbps",
         ]
         return "\n".join(lines)
 
-# --- 使用例 ---
+# --- Usage examples ---
 twitter = ServiceEstimation(
-    name="Twitter風サービス",
+    name="Twitter-like service",
     dau=300_000_000,
     actions_per_user_per_day=2,
-    avg_payload_bytes=600,          # テキスト + メタデータ
+    avg_payload_bytes=600,          # Text + metadata
     read_write_ratio=100,
     peak_factor=3.0,
     replication_factor=3,
@@ -1376,10 +1389,10 @@ twitter = ServiceEstimation(
 print(twitter.report())
 
 instagram = ServiceEstimation(
-    name="Instagram風サービス",
+    name="Instagram-like service",
     dau=500_000_000,
     actions_per_user_per_day=3,
-    avg_payload_bytes=2_000_000,    # 平均2MBの画像
+    avg_payload_bytes=2_000_000,    # Average 2MB image
     read_write_ratio=200,
     peak_factor=2.5,
     replication_factor=3,
@@ -1389,24 +1402,24 @@ instagram = ServiceEstimation(
 print("\n" + instagram.report())
 ```
 
-### 10.2 ストレージコスト計算
+### 10.2 Storage Cost Calculation
 
 ```python
-"""階層型ストレージのコスト最適化計算"""
+"""Tiered storage cost optimization calculation"""
 
 from dataclasses import dataclass, field
 
 @dataclass
 class StorageTier:
-    """ストレージ階層の定義"""
+    """Storage tier definition"""
     name: str
-    cost_per_tb_month: float    # $/TB/月
-    data_percentage: float      # この階層に置くデータの割合
-    access_latency: str         # アクセスレイテンシの目安
+    cost_per_tb_month: float    # $/TB/month
+    data_percentage: float      # Percentage of data in this tier
+    access_latency: str         # Approximate access latency
 
 @dataclass
 class StorageCostCalculator:
-    """ストレージコストの計算"""
+    """Storage cost calculator"""
     total_data_tb: float
     tiers: list = field(default_factory=list)
 
@@ -1432,421 +1445,427 @@ class StorageCostCalculator:
             "details": details,
         }
 
-# --- 使用例: 100TB の階層化設計 ---
+# --- Usage example: 100TB tiered design ---
 calc = StorageCostCalculator(total_data_tb=100)
-calc.add_tier(StorageTier("NVMe SSD (ホット)",  50.0, 0.05, "< 1ms"))
-calc.add_tier(StorageTier("S3 Standard (ウォーム)", 23.0, 0.15, "< 100ms"))
-calc.add_tier(StorageTier("S3 IA (コールド)", 12.5, 0.40, "< 100ms"))
-calc.add_tier(StorageTier("Glacier (アーカイブ)", 1.0, 0.40, "分〜時間"))
+calc.add_tier(StorageTier("NVMe SSD (Hot)",      50.0, 0.05, "< 1ms"))
+calc.add_tier(StorageTier("S3 Standard (Warm)",   23.0, 0.15, "< 100ms"))
+calc.add_tier(StorageTier("S3 IA (Cold)",         12.5, 0.40, "< 100ms"))
+calc.add_tier(StorageTier("Glacier (Archive)",     1.0, 0.40, "min-hours"))
 
 result = calc.calculate()
-print(f"月間コスト:  ${result['total_cost_month']:,.0f}")
-print(f"年間コスト:  ${result['total_cost_year']:,.0f}")
+print(f"Monthly cost:  ${result['total_cost_month']:,.0f}")
+print(f"Annual cost:   ${result['total_cost_year']:,.0f}")
 for d in result["details"]:
     print(f"  {d['name']:30s} {d['data_tb']:6.1f} TB  "
-          f"${d['cost_month']:8,.0f}/月  遅延: {d['latency']}")
+          f"${d['cost_month']:8,.0f}/mo  Latency: {d['latency']}")
 
-# 出力:
-# 月間コスト:  $1,135
-# 年間コスト:  $13,620
-#   NVMe SSD (ホット)                5.0 TB  $     250/月  遅延: < 1ms
-#   S3 Standard (ウォーム)          15.0 TB  $     345/月  遅延: < 100ms
-#   S3 IA (コールド)                40.0 TB  $     500/月  遅延: < 100ms
-#   Glacier (アーカイブ)            40.0 TB  $      40/月  遅延: 分〜時間
+# Output:
+# Monthly cost:  $1,135
+# Annual cost:   $13,620
+#   NVMe SSD (Hot)                    5.0 TB  $     250/mo  Latency: < 1ms
+#   S3 Standard (Warm)               15.0 TB  $     345/mo  Latency: < 100ms
+#   S3 IA (Cold)                     40.0 TB  $     500/mo  Latency: < 100ms
+#   Glacier (Archive)                40.0 TB  $      40/mo  Latency: min-hours
 ```
 
 ---
 
-## 11. アンチパターン
+## 11. Anti-patterns
 
-### 11.1 アンチパターン1: 単位の混同による容量見積もりの崩壊
-
-```
-アンチパターン: GB と GiB を混同した見積もり
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  状況:
-  「1TB の SSD を10台購入して 10TB のストレージクラスタを構築する」
-
-  誤った計算:
-  10台 x 1TB = 10TB → 10,000 GB の利用可能容量
-
-  正しい計算:
-  1. メーカー表記 1TB = 1,000,000,000,000 バイト（10進）
-  2. OS表示: 931 GiB（2進）
-  3. ファイルシステムオーバーヘッド: -5% → 884 GiB
-  4. SSD オーバープロビジョニング: -7% → 822 GiB
-  5. RAID 10 冗長化: 有効容量50% → 411 GiB/台
-  6. 10台合計: 4,110 GiB = 約 4.01 TiB
-
-  → 期待していた「10TB」の実質は約4TiB
-  → 見積もりが約2.5倍ずれている
-
-  教訓:
-  ┌─────────────────────────────────────────────────────┐
-  │ 1. 常にバイト数で計算し、最後に単位変換する          │
-  │ 2. メーカー表記（10進）とOS表示（2進）を区別する     │
-  │ 3. FS オーバーヘッド、冗長化、OPを必ず考慮する      │
-  │ 4. 見積もりには常に20-30%のマージンを確保する        │
-  └─────────────────────────────────────────────────────┘
-```
-
-### 11.2 アンチパターン2: 成長率を考慮しないストレージ設計
+### 11.1 Anti-pattern 1: Capacity Estimate Collapse from Unit Confusion
 
 ```
-アンチパターン: 静的な容量設計
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Anti-pattern: Confusing GB and GiB in estimates
+==================================================
 
-  状況:
-  「現在のデータ量は 500GB だから 1TB の DB で十分だろう」
+  Scenario:
+  "Buy 10 x 1TB SSDs to build a 10TB storage cluster"
 
-  問題点:
-  ┌─────────────────────────────────────────────────┐
-  │ 月次成長率 10% の場合:                           │
-  │                                                   │
-  │ 現在:      500 GB                                │
-  │ 3ヶ月後:   665 GB                                │
-  │ 6ヶ月後:   885 GB                                │
-  │ 7ヶ月後:   974 GB  ← 1TB に迫る                  │
-  │ 8ヶ月後:   1,071 GB ← 容量超過！                 │
-  │ 12ヶ月後:  1,569 GB                              │
-  │ 24ヶ月後:  4,926 GB                              │
-  │                                                   │
-  │ → わずか8ヶ月で容量不足に陥る                     │
-  └─────────────────────────────────────────────────┘
+  Wrong calculation:
+  10 drives x 1TB = 10TB -> 10,000 GB of usable capacity
 
-  複利成長の恐ろしさ（72の法則）:
-  成長率 x 倍増期間 = 72
+  Correct calculation:
+  1. Manufacturer-labeled 1TB = 1,000,000,000,000 bytes (decimal)
+  2. OS display: 931 GiB (binary)
+  3. Filesystem overhead: -5% -> 884 GiB
+  4. SSD over-provisioning: -7% -> 822 GiB
+  5. RAID 10 redundancy: 50% effective -> 411 GiB/drive
+  6. 10 drives total: 4,110 GiB = ~4.01 TiB
 
-  月次10%: 72 / 10 = 7.2ヶ月で倍増
-  月次5%:  72 / 5  = 14.4ヶ月で倍増
-  月次2%:  72 / 2  = 36ヶ月で倍増
+  -> The expected "10TB" is actually ~4 TiB
+  -> Estimate is off by approximately 2.5x
 
-  正しいアプローチ:
-  ┌─────────────────────────────────────────────────────┐
-  │ 1. 過去6-12ヶ月の成長率を分析する                   │
-  │ 2. 少なくとも18ヶ月先の容量を見積もる               │
-  │ 3. 容量の70%到達でアラートを設定する                │
-  │ 4. 容量の85%到達でスケールアップ/アウトを実行する   │
-  │ 5. 定期的な容量レビュー（四半期ごと）を行う         │
-  │ 6. データ保持ポリシーを定めて不要データを削除する    │
-  └─────────────────────────────────────────────────────┘
+  Lessons:
+  +---------------------------------------------------------+
+  | 1. Always calculate in bytes, convert units last         |
+  | 2. Distinguish manufacturer labels (decimal) from        |
+  |    OS display (binary)                                   |
+  | 3. Always account for FS overhead, redundancy, OP        |
+  | 4. Always maintain a 20-30% margin in estimates          |
+  +---------------------------------------------------------+
 ```
 
-### 11.3 アンチパターン3: ビット/バイト変換の見落とし
+### 11.2 Anti-pattern 2: Storage Design Without Considering Growth Rate
 
 ```
-アンチパターン: ネットワーク帯域幅の単位ミス
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Anti-pattern: Static capacity design
+=====================================
 
-  状況:
-  「1Gbps の回線があるから、1GB のファイルを1秒で転送できる」
+  Scenario:
+  "Current data is 500GB, so 1TB DB should be plenty"
 
-  現実:
+  The problem:
+  +-------------------------------------------------+
+  | With a 10% monthly growth rate:                  |
+  |                                                   |
+  | Now:        500 GB                               |
+  | 3 months:   665 GB                               |
+  | 6 months:   885 GB                               |
+  | 7 months:   974 GB  <- Approaching 1TB           |
+  | 8 months:   1,071 GB <- Capacity exceeded!       |
+  | 12 months:  1,569 GB                             |
+  | 24 months:  4,926 GB                             |
+  |                                                   |
+  | -> Capacity shortage in just 8 months             |
+  +-------------------------------------------------+
+
+  The power of compound growth (Rule of 72):
+  Growth rate x Doubling period = 72
+
+  10%/month: 72 / 10 = 7.2 months to double
+  5%/month:  72 / 5  = 14.4 months to double
+  2%/month:  72 / 2  = 36 months to double
+
+  Correct approach:
+  +---------------------------------------------------------+
+  | 1. Analyze the growth rate over the past 6-12 months     |
+  | 2. Estimate capacity for at least 18 months ahead        |
+  | 3. Set an alert at 70% capacity                          |
+  | 4. Scale up/out at 85% capacity                          |
+  | 5. Conduct regular capacity reviews (quarterly)          |
+  | 6. Define a data retention policy to delete old data     |
+  +---------------------------------------------------------+
+```
+
+### 11.3 Anti-pattern 3: Overlooking Bit/Byte Conversion
+
+```
+Anti-pattern: Network bandwidth unit mistake
+=============================================
+
+  Scenario:
+  "We have a 1Gbps line, so we can transfer 1GB in 1 second"
+
+  Reality:
   1 Gbps = 1,000,000,000 bits/s
          = 125,000,000 bytes/s
          = 125 MB/s
 
-  さらにプロトコルオーバーヘッド（約10%）を考慮:
-  実効帯域幅 = 約 112 MB/s
+  Further considering protocol overhead (~10%):
+  Effective bandwidth = ~112 MB/s
 
-  1 GB のファイル転送時間:
-  1,000,000,000 / 112,000,000 = 約 8.9 秒
+  Transfer time for a 1 GB file:
+  1,000,000,000 / 112,000,000 = ~8.9 seconds
 
-  → 1秒ではなく約9秒かかる（9倍の誤差）
+  -> Takes ~9 seconds, not 1 second (9x error)
 
-  教訓:
-  ┌─────────────────────────────────────────────────────┐
-  │ 1. ネットワーク = bits/s、ストレージ = bytes        │
-  │ 2. 変換時は必ず8で割る（bits → bytes）              │
-  │ 3. さらにプロトコルオーバーヘッド10-30%を考慮する   │
-  │ 4. TCP のスロースタートで初期は帯域幅が出ない       │
-  │ 5. 共有回線では他のトラフィックとの競合がある       │
-  └─────────────────────────────────────────────────────┘
+  Lessons:
+  +---------------------------------------------------------+
+  | 1. Network = bits/s, Storage = bytes                     |
+  | 2. Always divide by 8 when converting (bits -> bytes)    |
+  | 3. Account for 10-30% protocol overhead                  |
+  | 4. TCP slow start means bandwidth is low initially       |
+  | 5. Shared lines compete with other traffic               |
+  +---------------------------------------------------------+
 ```
 
 ---
 
-## 12. 実践演習
+## 12. Practice Exercises
 
-### 演習1: 容量見積もり（基礎）
+### Exercise 1: Capacity Estimation (Fundamentals)
 
-**問題**: Instagram風の写真共有サービスを設計する。以下の前提で、1年間に必要なストレージ容量を算出せよ。
+**Problem**: Design an Instagram-like photo sharing service. Calculate the storage required for 1 year given the following assumptions.
 
-- DAU: 1,000万人
-- 1人あたり平均3枚/日のアップロード
-- 1枚の平均サイズ: 2 MB（オリジナル）
-- サムネイル: 3種類（大: 200KB, 中: 50KB, 小: 10KB）
-- レプリカ: 3倍
-- 圧縮は適用しない
-
-```
-解答の指針:
-
-  Step 1: 1日のアップロード数
-  10,000,000 x 3 = 30,000,000 枚/日
-
-  Step 2: 1枚あたりの総データ量
-  オリジナル: 2,000 KB
-  サムネイル: 200 + 50 + 10 = 260 KB
-  合計: 2,260 KB = 約 2.26 MB
-
-  Step 3: 1日のデータ量
-  30,000,000 x 2.26 MB = 67,800,000 MB = 約 67.8 TB/日
-
-  Step 4: 1年のデータ量
-  67.8 TB x 365 = 24,747 TB = 約 24.7 PB/年
-
-  Step 5: レプリカ適用
-  24.7 PB x 3 = 74.1 PB/年
-
-  結論: 約 74 PB/年 のストレージが必要
-```
-
-### 演習2: コスト最適化（応用）
-
-**問題**: 演習1のサービスのストレージを階層化し、年間コストを比較せよ。
-
-条件:
-- 直近30日のデータ: S3 Standard（$23/TB/月）
-- 30-180日のデータ: S3 IA（$12.5/TB/月）
-- 180日以降: S3 Glacier（$4/TB/月）
+- DAU: 10 million
+- Average 3 uploads/day per user
+- Average size per photo: 2 MB (original)
+- Thumbnails: 3 sizes (large: 200KB, medium: 50KB, small: 10KB)
+- Replicas: 3x
+- No compression applied
 
 ```
-解答の指針:
+Solution guide:
 
-  1年分の生データ: 24.7 PB（レプリカ前）
+  Step 1: Daily uploads
+  10,000,000 x 3 = 30,000,000 photos/day
 
-  階層別のデータ量（レプリカ3倍適用後）:
-  ホット（30日分）:  67.8 TB x 30 x 3 = 6,102 TB = 約 6.1 PB
-  ウォーム（150日分）: 67.8 TB x 150 x 3 = 30,510 TB = 約 30.5 PB
-  コールド（185日分）: 67.8 TB x 185 x 3 = 37,629 TB = 約 37.6 PB
+  Step 2: Total data per photo
+  Original: 2,000 KB
+  Thumbnails: 200 + 50 + 10 = 260 KB
+  Total: 2,260 KB = ~2.26 MB
 
-  月間コスト:
-  ホット:    6,100 TB x $23   = $140,300
-  ウォーム:  30,500 TB x $12.5 = $381,250
-  コールド:  37,600 TB x $4    = $150,400
-  合計: $671,950/月 = 約 $8,063,400/年
+  Step 3: Daily data volume
+  30,000,000 x 2.26 MB = 67,800,000 MB = ~67.8 TB/day
 
-  比較: 全てS3 Standardの場合
-  74,100 TB x $23 = $1,704,300/月 = 約 $20,451,600/年
+  Step 4: Annual data volume
+  67.8 TB x 365 = 24,747 TB = ~24.7 PB/year
 
-  → 階層化により年間約 $12,388,200（約60%）の削減
+  Step 5: Apply replicas
+  24.7 PB x 3 = 74.1 PB/year
+
+  Conclusion: Approximately 74 PB/year of storage required
 ```
 
-### 演習3: 帯域幅とインフラ設計（発展）
+### Exercise 2: Cost Optimization (Applied)
 
-**問題**: 演習1のサービスにおいて、以下を設計せよ。
+**Problem**: Tier the storage from Exercise 1 and compare annual costs.
 
-1. ピーク時の書き込みQPS
-2. ピーク時の読み取りQPS（読み書き比 = 200:1）
-3. 必要なCDN帯域幅
-4. CDNのキャッシュヒット率を95%とした場合のオリジン帯域幅
+Conditions:
+- Last 30 days: S3 Standard ($23/TB/month)
+- 30-180 days: S3 IA ($12.5/TB/month)
+- 180+ days: S3 Glacier ($4/TB/month)
 
 ```
-解答の指針:
+Solution guide:
 
-  Step 1: 書き込みQPS
-  平均: 30,000,000 / 86,400 = 347 QPS
-  ピーク（x3）: 1,041 QPS
+  1 year of raw data: 24.7 PB (before replicas)
 
-  Step 2: 読み取りQPS
-  平均: 347 x 200 = 69,400 QPS
-  ピーク: 1,041 x 200 = 208,200 QPS
+  Data volume per tier (after 3x replicas):
+  Hot (30 days):   67.8 TB x 30 x 3 = 6,102 TB = ~6.1 PB
+  Warm (150 days): 67.8 TB x 150 x 3 = 30,510 TB = ~30.5 PB
+  Cold (185 days): 67.8 TB x 185 x 3 = 37,629 TB = ~37.6 PB
 
-  Step 3: CDN帯域幅
-  1回の読み取りで平均 500KB の画像を返すと仮定:
-  ピーク読み取り帯域幅:
+  Monthly cost:
+  Hot:    6,100 TB x $23   = $140,300
+  Warm:   30,500 TB x $12.5 = $381,250
+  Cold:   37,600 TB x $4    = $150,400
+  Total: $671,950/month = ~$8,063,400/year
+
+  Comparison: All S3 Standard
+  74,100 TB x $23 = $1,704,300/month = ~$20,451,600/year
+
+  -> Tiering saves ~$12,388,200/year (~60% reduction)
+```
+
+### Exercise 3: Bandwidth and Infrastructure Design (Advanced)
+
+**Problem**: For the service in Exercise 1, design the following.
+
+1. Peak write QPS
+2. Peak read QPS (read/write ratio = 200:1)
+3. Required CDN bandwidth
+4. Origin bandwidth with 95% CDN cache hit rate
+
+```
+Solution guide:
+
+  Step 1: Write QPS
+  Average: 30,000,000 / 86,400 = 347 QPS
+  Peak (x3): 1,041 QPS
+
+  Step 2: Read QPS
+  Average: 347 x 200 = 69,400 QPS
+  Peak: 1,041 x 200 = 208,200 QPS
+
+  Step 3: CDN bandwidth
+  Assuming an average 500KB image per read:
+  Peak read bandwidth:
   208,200 QPS x 500 KB = 104,100,000 KB/s
-  = 約 99.3 GB/s = 約 794 Gbps
+  = ~99.3 GB/s = ~794 Gbps
 
-  Step 4: オリジン帯域幅
-  CDNキャッシュヒット率95%:
-  オリジンへのリクエスト: 208,200 x 0.05 = 10,410 QPS
-  オリジン帯域幅: 10,410 x 500 KB = 約 4.97 GB/s = 約 39.7 Gbps
+  Step 4: Origin bandwidth
+  CDN cache hit rate 95%:
+  Requests to origin: 208,200 x 0.05 = 10,410 QPS
+  Origin bandwidth: 10,410 x 500 KB = ~4.97 GB/s = ~39.7 Gbps
 
-  インフラ構成の提案:
-  ┌─────────────────────────────────────────────────┐
-  │ CDN:                                             │
-  │   - 全世界に分散配置                              │
-  │   - 総帯域幅: 1 Tbps 以上                        │
-  │   - キャッシュ容量: 各PoP 数百TB                  │
-  │                                                   │
-  │ オリジン:                                         │
-  │   - 複数リージョン                                │
-  │   - 帯域幅: リージョンあたり 50+ Gbps             │
-  │   - S3 + CloudFront 構成                         │
-  │                                                   │
-  │ アップロード:                                     │
-  │   - 直接S3アップロード（署名付きURL）              │
-  │   - 非同期サムネイル生成（Lambda/SQS）            │
-  │   - 帯域幅: ピーク 1,041 x 2MB = 約 16.7 Gbps   │
-  └─────────────────────────────────────────────────┘
+  Infrastructure proposal:
+  +-------------------------------------------------+
+  | CDN:                                             |
+  |   - Distributed globally                         |
+  |   - Total bandwidth: 1 Tbps+                     |
+  |   - Cache capacity: hundreds of TB per PoP       |
+  |                                                   |
+  | Origin:                                           |
+  |   - Multiple regions                              |
+  |   - Bandwidth: 50+ Gbps per region               |
+  |   - S3 + CloudFront architecture                  |
+  |                                                   |
+  | Upload:                                           |
+  |   - Direct S3 upload (presigned URLs)             |
+  |   - Async thumbnail generation (Lambda/SQS)       |
+  |   - Bandwidth: peak 1,041 x 2MB = ~16.7 Gbps    |
+  +-------------------------------------------------+
 ```
 
 ---
 
 ## 13. FAQ
 
-### Q1: 「1GBのRAMで何件のレコードが保持できますか？」の見積もり方は？
+### Q1: How do you estimate "how many records fit in 1GB of RAM?"
 
-**A**: レコードサイズの見積もりが出発点となる。例えばユーザーレコードが ID(8B) + 名前(100B) + メール(100B) + メタデータ(100B) = 約300B/レコードだとすると、1 GiB / 300B = 約360万レコードが理論上格納可能である。ただし、以下のオーバーヘッドを考慮する必要がある。
+**A**: Start with record size estimation. For example, if a user record is ID(8B) + name(100B) + email(100B) + metadata(100B) = ~300B/record, then theoretically 1 GiB / 300B = ~3.6 million records can fit. However, the following overheads must be considered:
 
-- インデックス: レコードサイズの2-3倍のメモリを消費
-- メモリアロケータのフラグメンテーション: 10-30%のオーバーヘッド
-- データ構造のポインタ等: レコードあたり数十バイト
-- ガベージコレクタ（Java/Go等）: ヒープの1.5-2倍のメモリが必要
+- Indexes: consume 2-3x the memory of the record data
+- Memory allocator fragmentation: 10-30% overhead
+- Data structure pointers: tens of bytes per record
+- Garbage collector (Java/Go, etc.): requires 1.5-2x the heap memory
 
-これらを考慮すると、実質的には理論値の1/3〜1/5程度、つまり70万〜120万レコード程度が現実的な見積もりとなる。
+Accounting for these, the realistic estimate is about 1/3 to 1/5 of the theoretical value, or approximately 700K-1.2M records.
 
-### Q2: クラウドとオンプレのストレージコスト、どちらが安い？
+### Q2: Which is cheaper -- cloud or on-premise storage?
 
-**A**: 規模と利用パターンによって異なる。一般的な判断基準は以下の通りである。
+**A**: It depends on scale and usage patterns. General decision criteria are:
 
-- **数TB以下**: クラウドが有利。管理コスト（人件費、設備費、電力費）の削減効果が大きい。
-- **数十TB〜数百TB**: ケースバイケース。ワークロードの特性や成長率に依存する。
-- **PB規模以上**: オンプレが有利な場合が多い。Netflix や Dropbox がオンプレ回帰した事例がある。
+- **Under a few TB**: Cloud is favorable. Management cost savings (personnel, facilities, power) are significant.
+- **Tens to hundreds of TB**: Case by case. Depends on workload characteristics and growth rate.
+- **PB scale and above**: On-premise is often more favorable. Netflix and Dropbox are examples of companies that have repatriated from cloud.
 
-ただしオンプレには隠れたコストが存在する。人件費（運用チーム）、データセンターの賃料・電力・冷却、ハードウェアの減価償却（通常3-5年）、ネットワーク回線費用、災害対策設備などを加算すると、単純な$/TB比較とは大きく異なる結果になる場合がある。
+However, on-premise has hidden costs: personnel (operations team), datacenter rent/power/cooling, hardware depreciation (typically 3-5 years), network line costs, and disaster recovery facilities. When these are added, the results can differ significantly from a simple $/TB comparison.
 
-### Q3: 全てのデータを永遠に保持すべきですか？
+### Q3: Should all data be retained forever?
 
-**A**: いいえ。データ保持ポリシー（Data Retention Policy）の策定は、コストとコンプライアンスの両面で不可欠である。推奨される保持期間の目安は以下の通りである。
+**A**: No. Establishing a Data Retention Policy is essential for both cost and compliance reasons. Recommended retention periods are:
 
-- **アプリケーションログ**: 90日〜1年（障害調査に必要な範囲）
-- **アクセスログ**: 1〜3年（セキュリティ監査要件に準拠）
-- **ユーザーデータ**: 退会後一定期間（GDPR では原則消去義務あり）
-- **金融取引データ**: 法令により7〜10年の保持義務
-- **バックアップ**: 世代管理（日次7世代、週次4世代、月次12世代が一般的）
-- **メトリクス/監視データ**: 高精度は30日、集約データは1-2年
+- **Application logs**: 90 days to 1 year (enough for incident investigation)
+- **Access logs**: 1-3 years (per security audit requirements)
+- **User data**: Certain period after account deletion (GDPR mandates deletion in principle)
+- **Financial transaction data**: 7-10 year retention obligation by law
+- **Backups**: Generation management (7 daily, 4 weekly, 12 monthly is common)
+- **Metrics/monitoring data**: High-resolution for 30 days, aggregated for 1-2 years
 
-### Q4: RAIDレベルによって実効容量はどう変わりますか？
+### Q4: How does effective capacity change by RAID level?
 
-**A**: RAIDレベルごとの実効容量は以下の通りである。
+**A**: Effective capacity per RAID level is as follows.
 
 ```
-RAIDレベル別の実効容量（N台のディスク、各C TB）:
+Effective capacity by RAID level (N drives, C TB each):
 
-  ┌───────────┬──────────────┬───────────┬──────────────────┐
-  │ RAID      │ 実効容量     │ 冗長性    │ 用途              │
-  ├───────────┼──────────────┼───────────┼──────────────────┤
-  │ RAID 0    │ N x C        │ なし      │ 一時データ        │
-  │ RAID 1    │ C            │ ミラー    │ OS / ブート       │
-  │ RAID 5    │ (N-1) x C    │ 1台故障可 │ 読み取り中心      │
-  │ RAID 6    │ (N-2) x C    │ 2台故障可 │ 大容量・高信頼    │
-  │ RAID 10   │ N/2 x C      │ ミラー対  │ DB / 高IOPS      │
-  └───────────┴──────────────┴───────────┴──────────────────┘
+  +-----------+--------------+-----------+------------------+
+  | RAID      | Eff. capacity| Redundancy| Use case         |
+  +-----------+--------------+-----------+------------------+
+  | RAID 0    | N x C        | None      | Temporary data   |
+  | RAID 1    | C            | Mirror    | OS / Boot        |
+  | RAID 5    | (N-1) x C    | 1 failure | Read-heavy       |
+  | RAID 6    | (N-2) x C    | 2 failures| High cap/relia.  |
+  | RAID 10   | N/2 x C      | Mirror    | DB / High IOPS   |
+  |           |              | pairs     |                  |
+  +-----------+--------------+-----------+------------------+
 
-  例: 10 TB HDD x 8台の場合
-  RAID 0:  80 TB（冗長性なし — 非推奨）
-  RAID 1:  10 TB（8台のうち2台のみ使用するのが一般的）
+  Example: 10 TB HDD x 8 drives
+  RAID 0:  80 TB (no redundancy -- not recommended)
+  RAID 1:  10 TB (typically only 2 of 8 drives used)
   RAID 5:  70 TB
   RAID 6:  60 TB
   RAID 10: 40 TB
 ```
 
-### Q5: SSD の容量はなぜ 120GB や 480GB のような中途半端な数字が多いのですか？
+### Q5: Why do SSDs have seemingly arbitrary capacities like 120GB or 480GB?
 
-**A**: SSD の NAND チップは2のべき乗（128 GiB, 256 GiB, 512 GiB）の容量で製造される。ここからオーバープロビジョニング（OP）領域を差し引いた上で、10進表記に丸めた値がメーカー表記となる。
+**A**: SSD NAND chips are manufactured in powers of 2 (128 GiB, 256 GiB, 512 GiB). After subtracting the over-provisioning (OP) area, the remaining capacity is rounded in decimal notation for the manufacturer label.
 
-例: 128 GiB のNANDチップ
-- OP 7%: 128 GiB x 0.93 = 119 GiB = 約 128 GB → 「120 GB」として販売
-- OP 12%: 128 GiB x 0.88 = 112.6 GiB = 約 121 GB → 上位モデルは「128 GB」
+Example: 128 GiB NAND chip
+- 7% OP: 128 GiB x 0.93 = 119 GiB = ~128 GB -> sold as "120 GB"
+- 12% OP: 128 GiB x 0.88 = 112.6 GiB = ~121 GB -> premium model sold as "128 GB"
 
-OPは、ウェアレベリング、不良ブロック管理、ガベージコレクション、TRIM処理のために使用される予約領域であり、SSDの寿命と性能を維持するために不可欠である。
+OP is a reserved area used for wear leveling, bad block management, garbage collection, and TRIM processing, and is essential for maintaining SSD lifespan and performance.
 
-### Q6: データの圧縮率はどのように見積もればよいですか？
+### Q6: How should data compression ratios be estimated?
 
-**A**: データの種類によって圧縮率は大きく異なる。一般的な目安は以下の通りである。
+**A**: Compression ratios vary significantly by data type. General guidelines are:
 
 ```
-データ種別ごとの圧縮率目安:
+Compression ratio estimates by data type:
 
-  ┌────────────────────┬───────────┬──────────────────────┐
-  │ データ種別          │ 圧縮率    │ 備考                 │
-  ├────────────────────┼───────────┼──────────────────────┤
-  │ プレーンテキスト    │ 60-80%   │ gzip/zstd で高圧縮   │
-  │ JSON / XML         │ 70-90%   │ 冗長性が高く良く縮む  │
-  │ ログファイル        │ 80-95%   │ 繰り返しパターンが多い│
-  │ ソースコード        │ 60-75%   │ テキストの一種       │
-  │ データベースダンプ   │ 70-85%   │ 構造的冗長性あり     │
-  │ JPEG / PNG         │ 0-5%     │ 既に圧縮済み         │
-  │ MP3 / AAC          │ 0-3%     │ 既に圧縮済み         │
-  │ H.264 / H.265      │ 0-2%     │ 既に圧縮済み         │
-  │ 暗号化データ        │ 0%       │ 圧縮不可能           │
-  │ ランダムデータ      │ 0%       │ エントロピー最大     │
-  └────────────────────┴───────────┴──────────────────────┘
+  +--------------------+-----------+----------------------+
+  | Data type          | Ratio     | Notes                |
+  +--------------------+-----------+----------------------+
+  | Plain text         | 60-80%    | High compression     |
+  |                    |           | with gzip/zstd       |
+  | JSON / XML         | 70-90%    | High redundancy,     |
+  |                    |           | compresses well      |
+  | Log files          | 80-95%    | Many repeating       |
+  |                    |           | patterns             |
+  | Source code        | 60-75%    | A type of text       |
+  | Database dumps     | 70-85%    | Structural           |
+  |                    |           | redundancy           |
+  | JPEG / PNG         | 0-5%     | Already compressed   |
+  | MP3 / AAC          | 0-3%     | Already compressed   |
+  | H.264 / H.265     | 0-2%     | Already compressed   |
+  | Encrypted data     | 0%       | Cannot compress      |
+  | Random data        | 0%       | Maximum entropy      |
+  +--------------------+-----------+----------------------+
 
-  圧縮率 = (1 - 圧縮後サイズ / 圧縮前サイズ) x 100%
+  Compression ratio = (1 - compressed size / original size) x 100%
 
-  重要: 既に圧縮されたデータや暗号化データは、
-  追加の圧縮でサイズが増加する場合がある。
+  Important: Already compressed or encrypted data may
+  actually increase in size with additional compression.
 ```
 
 ---
 
-## 14. エッジケースと注意点
+## 14. Edge Cases and Caveats
 
-### 14.1 ファイルシステムごとのサイズ制限
-
-```
-主要ファイルシステムのサイズ制限:
-
-  ┌──────────┬─────────────────┬─────────────────┬──────────┐
-  │ FS       │ 最大ファイルサイズ│ 最大ボリューム   │ 備考     │
-  ├──────────┼─────────────────┼─────────────────┼──────────┤
-  │ FAT32    │ 4 GiB - 1       │ 2 TiB          │ USB等    │
-  │ exFAT    │ 16 EiB          │ 128 PiB        │ SD/USB   │
-  │ NTFS     │ 16 TiB          │ 256 TiB        │ Windows  │
-  │ ext4     │ 16 TiB          │ 1 EiB          │ Linux    │
-  │ XFS      │ 8 EiB           │ 8 EiB          │ Linux    │
-  │ Btrfs    │ 16 EiB          │ 16 EiB         │ Linux    │
-  │ ZFS      │ 16 EiB          │ 256 ZiB(理論)  │ 各種     │
-  │ APFS     │ 8 EiB           │ 制限なし(実質)  │ macOS    │
-  └──────────┴─────────────────┴─────────────────┴──────────┘
-
-  よくあるトラブル:
-  - FAT32 で 4GB 以上のファイルが保存できない
-    → 解決: exFAT にフォーマットし直す
-  - ext4 のデフォルト inode 数不足（大量の小ファイル）
-    → 解決: mkfs 時に -i オプションで inode 密度を調整
-```
-
-### 14.2 データベースのサイズ見積もり
+### 14.1 File System Size Limits
 
 ```
-RDB のストレージ見積もりの考慮事項:
+Size limits of major file systems:
 
-  1. テーブルデータ本体
-     行数 x 1行あたりの平均バイト数
+  +----------+-----------------+-----------------+----------+
+  | FS       | Max file size   | Max volume      | Notes    |
+  +----------+-----------------+-----------------+----------+
+  | FAT32    | 4 GiB - 1       | 2 TiB           | USB etc  |
+  | exFAT    | 16 EiB          | 128 PiB         | SD/USB   |
+  | NTFS     | 16 TiB          | 256 TiB         | Windows  |
+  | ext4     | 16 TiB          | 1 EiB           | Linux    |
+  | XFS      | 8 EiB           | 8 EiB           | Linux    |
+  | Btrfs    | 16 EiB          | 16 EiB          | Linux    |
+  | ZFS      | 16 EiB          | 256 ZiB (theory)| Various  |
+  | APFS     | 8 EiB           | No limit (prac.)| macOS    |
+  +----------+-----------------+-----------------+----------+
 
-  2. インデックス
-     B-tree インデックス: テーブルサイズの 20-100%
-     カバリングインデックス: さらに大きい
-     目安: インデックス合計 = テーブルサイズ x 1.5-3倍
+  Common issues:
+  - Cannot save files > 4GB on FAT32
+    -> Solution: Reformat to exFAT
+  - Default inode count insufficient on ext4 (many small files)
+    -> Solution: Adjust inode density with -i option during mkfs
+```
 
-  3. WAL / Redo ログ
-     PostgreSQL: wal_size パラメータ（デフォルト 1GB）
+### 14.2 Database Size Estimation
+
+```
+RDB storage estimation considerations:
+
+  1. Table data body
+     Row count x average bytes per row
+
+  2. Indexes
+     B-tree index: 20-100% of table size
+     Covering indexes: even larger
+     Rule of thumb: total indexes = table size x 1.5-3x
+
+  3. WAL / Redo logs
+     PostgreSQL: wal_size parameter (default 1GB)
      MySQL: innodb_log_file_size x innodb_log_files_in_group
 
-  4. MVCC / バキューム
-     PostgreSQL: 更新頻度が高いと dead tuple で膨張
-     最大: テーブルサイズの2-5倍に膨張する場合あり
+  4. MVCC / Vacuum
+     PostgreSQL: bloats with dead tuples under high update frequency
+     Maximum: can bloat to 2-5x table size
 
   5. TOAST / LOB
-     大きなカラム値は別テーブルに格納される
+     Large column values are stored in a separate table
 
-  計算式の目安:
-  必要ストレージ = テーブルデータ
-                   x (1 + インデックス倍率)
-                   x (1 + MVCC膨張率)
-                   x (1 + WAL/一時ファイル)
-                   + レプリカ分
+  Estimation formula:
+  Required storage = Table data
+                     x (1 + index multiplier)
+                     x (1 + MVCC bloat factor)
+                     x (1 + WAL/temp files)
+                     + replica storage
 
-  例: 100GB のテーブルデータの場合
-  = 100 GB x 2.5（インデックス） x 1.3（MVCC） x 1.1（WAL）
-  = 357.5 GB（1ノード分）
-  x 3（レプリカ）= 1,072.5 GB = 約 1 TB
+  Example: 100GB table data
+  = 100 GB x 2.5 (indexes) x 1.3 (MVCC) x 1.1 (WAL)
+  = 357.5 GB (per node)
+  x 3 (replicas) = 1,072.5 GB = ~1 TB
 ```
 
 ---
@@ -1854,88 +1873,87 @@ RDB のストレージ見積もりの考慮事項:
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when studying this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is paramount. Understanding deepens not just through theory, but by actually writing code and verifying behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this knowledge used in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently used in daily development work. It becomes particularly important during code reviews and architecture design.
 
 ---
 
-## 15. まとめ
+## 15. Summary
 
-### 15.1 重要概念の整理
+### 15.1 Key Concept Overview
 
-| 概念 | ポイント |
-|------|---------|
-| ビット | 情報の最小単位。2状態（0/1）を表す |
-| バイト | 8ビット。アドレス指定の最小単位 |
-| 2進接頭辞 | KiB(2^10), MiB(2^20), GiB(2^30) — 1024の累乗 |
-| 10進接頭辞 | KB(10^3), MB(10^6), GB(10^9) — 1000の累乗 |
-| テキスト | 日本語1文字(UTF-8) = 約3B。新書1冊 = 約300KB |
-| 画像 | Web写真 = 約100-500KB。RAW = 25-50MB |
-| 動画 | 1080p 1分 = 約25-45MB（コーデック依存） |
-| 見積もり | DAU x 行動 x データサイズ x レプリカ x 保持期間 |
-| コスト | RAM: $3000/TB/月 → SSD: $50 → HDD: $5 → テープ: $0.5 |
-| 帯域幅 | ネットワーク = bits/s、ストレージ = bytes。8で割る |
+| Concept | Key Point |
+|---------|-----------|
+| Bit | The smallest unit of information. Represents 2 states (0/1) |
+| Byte | 8 bits. The smallest addressable unit |
+| Binary prefixes | KiB(2^10), MiB(2^20), GiB(2^30) -- powers of 1024 |
+| Decimal prefixes | KB(10^3), MB(10^6), GB(10^9) -- powers of 1000 |
+| Text | 1 CJK char (UTF-8) = ~3B. Short book = ~300KB |
+| Images | Web photo = ~100-500KB. RAW = 25-50MB |
+| Video | 1080p 1 min = ~25-45MB (codec dependent) |
+| Estimation | DAU x actions x data size x replicas x retention |
+| Cost | RAM: $3000/TB/mo -> SSD: $50 -> HDD: $5 -> Tape: $0.5 |
+| Bandwidth | Network = bits/s, Storage = bytes. Divide by 8 |
 
-### 15.2 チートシート: 概算のための暗記事項
+### 15.2 Cheat Sheet: Memorize for Quick Estimation
 
 ```
-即座に使える概算値:
+Instantly usable approximations:
 
-  時間:
-    1日 = 約 10^5 秒 (86,400)
-    1年 = 約 3 x 10^7 秒 (31,536,000)
+  Time:
+    1 day = ~10^5 sec (86,400)
+    1 year = ~3 x 10^7 sec (31,536,000)
 
-  2のべき乗:
-    2^10 = 約 10^3 (1,024)
-    2^20 = 約 10^6 (1,048,576)
-    2^30 = 約 10^9 (1,073,741,824)
-    2^40 = 約 10^12
+  Powers of 2:
+    2^10 = ~10^3 (1,024)
+    2^20 = ~10^6 (1,048,576)
+    2^30 = ~10^9 (1,073,741,824)
+    2^40 = ~10^12
 
-  データサイズ:
-    英字1文字 = 1 B
-    日本語1文字(UTF-8) = 3 B
-    画像(Web用) = 100-500 KB
-    MP3 1分 = 約 1 MB
-    HD動画 1分 = 約 25-45 MB
+  Data sizes:
+    1 English letter = 1 B
+    1 CJK char (UTF-8) = 3 B
+    Web image = 100-500 KB
+    MP3 1 min = ~1 MB
+    HD video 1 min = ~25-45 MB
 
-  帯域幅:
-    1 Gbps = 125 MB/s（8で割る）
-    オーバーヘッド込みで約 100-110 MB/s
+  Bandwidth:
+    1 Gbps = 125 MB/s (divide by 8)
+    With overhead, ~100-110 MB/s
 
   QPS:
-    1M DAU x 1 action/day = 約 12 QPS
-    ピーク = 平均 x 2-3
+    1M DAU x 1 action/day = ~12 QPS
+    Peak = average x 2-3
 ```
 
 ---
 
-## 16. 次に読むべきガイド
+## 16. Recommended Next Reading
 
 
 ---
 
+## Recommended Next Reading
 
-## 次に読むべきガイド
-
-- [脳とコンピュータの比較](./06-brain-vs-computer.md) - 次のトピックへ進む
+- [Brain vs Computer Comparison](./06-brain-vs-computer.md) - Proceed to the next topic
 
 ---
 
-## 参考文献
+## References
 
-1. Shannon, C. E. "A Mathematical Theory of Communication." Bell System Technical Journal, 1948. — 情報理論の基礎を築いた歴史的論文。ビットの概念を定式化。
-2. IEC 60027-2: "Letter symbols to be used in electrical technology — Part 2: Telecommunications and electronics." International Electrotechnical Commission, 1998 (amended 2005). — 2進接頭辞（KiB, MiB, GiB等）を正式に定義した国際規格。
-3. Dean, J. and Barroso, L. A. "The Tail at Scale." Communications of the ACM, Vol. 56, No. 2, 2013. — Google のインフラ設計哲学。レイテンシの数字の出典として広く引用される。
-4. Kleppmann, M. "Designing Data-Intensive Applications." O'Reilly Media, 2017. — データシステムの設計原則を包括的に解説。容量設計の章が特に有用。
-5. Xu, A. "System Design Interview — An Insider's Guide." Byte Code LLC, 2020. — Chapter 2 "Back-of-the-envelope Estimation" が容量見積もりの体系的な方法論を提供。
-6. Patterson, D. A. and Hennessy, J. L. "Computer Organization and Design: The Hardware/Software Interface." 6th Edition, Morgan Kaufmann, 2020. — メモリ階層とストレージ技術の教科書的解説。
-7. AWS Documentation. "Amazon S3 Storage Classes." https://aws.amazon.com/s3/storage-classes/ — クラウドストレージの階層設計における具体的なコストと特性の公式リファレンス。
+1. Shannon, C. E. "A Mathematical Theory of Communication." Bell System Technical Journal, 1948. -- The historic paper that laid the foundation of information theory. Formalized the concept of the bit.
+2. IEC 60027-2: "Letter symbols to be used in electrical technology -- Part 2: Telecommunications and electronics." International Electrotechnical Commission, 1998 (amended 2005). -- The international standard that formally defined binary prefixes (KiB, MiB, GiB, etc.).
+3. Dean, J. and Barroso, L. A. "The Tail at Scale." Communications of the ACM, Vol. 56, No. 2, 2013. -- Google's infrastructure design philosophy. Widely cited as the source for latency numbers.
+4. Kleppmann, M. "Designing Data-Intensive Applications." O'Reilly Media, 2017. -- Comprehensive coverage of data system design principles. The capacity planning chapters are particularly useful.
+5. Xu, A. "System Design Interview -- An Insider's Guide." Byte Code LLC, 2020. -- Chapter 2 "Back-of-the-envelope Estimation" provides a systematic methodology for capacity estimation.
+6. Patterson, D. A. and Hennessy, J. L. "Computer Organization and Design: The Hardware/Software Interface." 6th Edition, Morgan Kaufmann, 2020. -- Textbook-level coverage of memory hierarchy and storage technology.
+7. AWS Documentation. "Amazon S3 Storage Classes." https://aws.amazon.com/s3/storage-classes/ -- Official reference for specific costs and characteristics in cloud storage tier design.

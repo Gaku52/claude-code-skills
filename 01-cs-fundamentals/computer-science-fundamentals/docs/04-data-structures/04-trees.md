@@ -1,60 +1,60 @@
-# 木構造
+# Tree Structures
 
-> 木は階層関係を表現する最も自然なデータ構造であり、ファイルシステム、DOM、データベースインデックスの基盤である。
+> Trees are the most natural data structure for representing hierarchical relationships and serve as the foundation for file systems, the DOM, and database indexes.
 
-## この章で学ぶこと
+## Learning Objectives
 
-- [ ] 木の基本用語と走査方法を理解する
-- [ ] 二分探索木（BST）の操作と計算量を説明できる
-- [ ] 平衡木（AVL木、赤黒木）の必要性を理解する
-- [ ] B木/B+木のディスクI/O最適化の仕組みを理解する
-- [ ] Trie（トライ木）の構造と用途を把握する
-- [ ] セグメント木やフェニック木などの高度な木構造を知る
+- [ ] Understand the fundamental terminology and traversal methods of trees
+- [ ] Explain the operations and time complexities of Binary Search Trees (BST)
+- [ ] Understand the necessity of balanced trees (AVL trees, Red-Black trees)
+- [ ] Understand how B-trees/B+ trees optimize disk I/O
+- [ ] Grasp the structure and use cases of Tries
+- [ ] Know advanced tree structures such as segment trees and Fenwick trees
 
-## 前提知識
+## Prerequisites
 
 
 ---
 
-## 1. 木の基礎
+## 1. Tree Fundamentals
 
-### 1.1 用語
+### 1.1 Terminology
 
 ```
-木の用語:
-         A          ← ルート（根）
+Tree terminology:
+         A          <- Root
         / \
-       B   C        ← Aの子
+       B   C        <- Children of A
       / \   \
-     D   E   F      ← 葉（子を持たないノード）
+     D   E   F      <- Leaves (nodes with no children)
 
-  ノード(Node): 各要素
-  エッジ(Edge): ノード間の接続
-  ルート(Root): 最上位ノード（A）
-  葉(Leaf): 子を持たないノード（D, E, F）
-  高さ(Height): ルートから最も深い葉までのエッジ数（= 2）
-  深さ(Depth): ルートからそのノードまでのエッジ数
-  部分木(Subtree): あるノードを根とする木
-  次数(Degree): ノードの子の数
-  レベル(Level): ルートからの距離（ルート = レベル0）
-  祖先(Ancestor): ルートからそのノードへのパス上のすべてのノード
-  子孫(Descendant): そのノードから葉に向かうパス上のすべてのノード
-  兄弟(Sibling): 同じ親を持つノード
+  Node: Each element
+  Edge: A connection between nodes
+  Root: The topmost node (A)
+  Leaf: A node with no children (D, E, F)
+  Height: Number of edges from root to deepest leaf (= 2)
+  Depth: Number of edges from root to a given node
+  Subtree: A tree rooted at a given node
+  Degree: Number of children a node has
+  Level: Distance from the root (root = level 0)
+  Ancestor: All nodes on the path from root to a given node
+  Descendant: All nodes on paths from a given node toward the leaves
+  Sibling: Nodes that share the same parent
 
-木の種類:
-  二分木(Binary Tree): 各ノードが最大2つの子を持つ
-  完全二分木(Complete): 最後のレベル以外が完全に埋まっている
-  満二分木(Full): すべてのノードが0個または2個の子を持つ
-  完璧二分木(Perfect): すべての葉が同じレベルにある
-  N分木(N-ary Tree): 各ノードが最大N個の子を持つ
+Types of trees:
+  Binary Tree: Each node has at most 2 children
+  Complete Binary Tree: All levels except the last are fully filled
+  Full Binary Tree: Every node has either 0 or 2 children
+  Perfect Binary Tree: All leaves are at the same level
+  N-ary Tree: Each node has at most N children
 
-完全二分木のノード数:
-  高さ h の完璧二分木: 2^(h+1) - 1 ノード
-  高さ h の完全二分木: 2^h ～ 2^(h+1) - 1 ノード
-  n ノードの完全二分木の高さ: floor(log2(n))
+Node count for complete binary trees:
+  Perfect binary tree of height h: 2^(h+1) - 1 nodes
+  Complete binary tree of height h: 2^h to 2^(h+1) - 1 nodes
+  Height of a complete binary tree with n nodes: floor(log2(n))
 ```
 
-### 1.2 木の走査（Traversal）
+### 1.2 Tree Traversal
 
 ```python
 class TreeNode:
@@ -63,22 +63,22 @@ class TreeNode:
         self.left = left
         self.right = right
 
-# 前順（Pre-order）: ルート → 左 → 右
+# Pre-order: Root -> Left -> Right
 def preorder(node):
     if not node: return []
     return [node.val] + preorder(node.left) + preorder(node.right)
 
-# 中順（In-order）: 左 → ルート → 右 ← BSTでソート順
+# In-order: Left -> Root -> Right  <- Sorted order for BST
 def inorder(node):
     if not node: return []
     return inorder(node.left) + [node.val] + inorder(node.right)
 
-# 後順（Post-order）: 左 → 右 → ルート
+# Post-order: Left -> Right -> Root
 def postorder(node):
     if not node: return []
     return postorder(node.left) + postorder(node.right) + [node.val]
 
-# レベル順（BFS）:
+# Level-order (BFS):
 from collections import deque
 def levelorder(root):
     if not root: return []
@@ -95,41 +95,41 @@ def levelorder(root):
 #     2   6
 #    / \ / \
 #   1  3 5  7
-# 前順: [4,2,1,3,6,5,7]
-# 中順: [1,2,3,4,5,6,7] ← ソート順！
-# 後順: [1,3,2,5,7,6,4]
-# レベル順: [4,2,6,1,3,5,7]
+# Pre-order:   [4,2,1,3,6,5,7]
+# In-order:    [1,2,3,4,5,6,7] <- Sorted!
+# Post-order:  [1,3,2,5,7,6,4]
+# Level-order: [4,2,6,1,3,5,7]
 ```
 
-### 1.3 反復的走査（イテレーティブ）
+### 1.3 Iterative Traversal
 
-再帰はスタックオーバーフローのリスクがあるため、深い木では反復的走査が必要になる。
+Recursion carries the risk of stack overflow, so iterative traversal is necessary for deep trees.
 
 ```python
-# 反復的中順走査（スタック使用）
+# Iterative in-order traversal (using a stack)
 def inorder_iterative(root):
-    """O(n)時間、O(h)空間（hは木の高さ）"""
+    """O(n) time, O(h) space (h is the tree height)"""
     result = []
     stack = []
     current = root
 
     while current or stack:
-        # 左に進めるだけ進む
+        # Go as far left as possible
         while current:
             stack.append(current)
             current = current.left
 
-        # 最も左のノードを処理
+        # Process the leftmost node
         current = stack.pop()
         result.append(current.val)
 
-        # 右の部分木に移動
+        # Move to the right subtree
         current = current.right
 
     return result
 
 
-# 反復的前順走査
+# Iterative pre-order traversal
 def preorder_iterative(root):
     if not root:
         return []
@@ -139,7 +139,7 @@ def preorder_iterative(root):
     while stack:
         node = stack.pop()
         result.append(node.val)
-        # 右を先にスタックに入れる（左を先に処理するため）
+        # Push right first so left is processed first
         if node.right:
             stack.append(node.right)
         if node.left:
@@ -148,7 +148,7 @@ def preorder_iterative(root):
     return result
 
 
-# 反復的後順走査（2つのスタック使用）
+# Iterative post-order traversal (using two stacks)
 def postorder_iterative(root):
     if not root:
         return []
@@ -170,9 +170,9 @@ def postorder_iterative(root):
     return result
 
 
-# Morris走査（O(1)空間の中順走査）
+# Morris traversal (O(1) space in-order traversal)
 def morris_inorder(root):
-    """スレッド化二分木を利用した O(1) 空間の走査"""
+    """O(1) space traversal using threaded binary trees"""
     result = []
     current = root
 
@@ -181,17 +181,17 @@ def morris_inorder(root):
             result.append(current.val)
             current = current.right
         else:
-            # 左部分木の最も右のノードを見つける
+            # Find the rightmost node in the left subtree
             predecessor = current.left
             while predecessor.right and predecessor.right != current:
                 predecessor = predecessor.right
 
             if predecessor.right is None:
-                # スレッドを作成
+                # Create thread
                 predecessor.right = current
                 current = current.left
             else:
-                # スレッドを削除（元に戻す）
+                # Remove thread (restore original structure)
                 predecessor.right = None
                 result.append(current.val)
                 current = current.right
@@ -199,14 +199,14 @@ def morris_inorder(root):
     return result
 ```
 
-### 1.4 レベル順走査の応用
+### 1.4 Level-Order Traversal Applications
 
 ```python
 from collections import deque
 
-# レベルごとにグループ化
+# Group by level
 def level_order_grouped(root):
-    """各レベルのノードをリストのリストで返す"""
+    """Return nodes at each level as a list of lists"""
     if not root:
         return []
 
@@ -234,12 +234,12 @@ def level_order_grouped(root):
 #     2   6
 #    / \ / \
 #   1  3 5  7
-# → [[4], [2, 6], [1, 3, 5, 7]]
+# -> [[4], [2, 6], [1, 3, 5, 7]]
 
 
-# ジグザグレベル順走査
+# Zigzag level-order traversal
 def zigzag_level_order(root):
-    """奇数レベルは右から左に走査"""
+    """Traverse odd levels from right to left"""
     if not root:
         return []
 
@@ -267,12 +267,12 @@ def zigzag_level_order(root):
 
     return result
 
-# → [[4], [6, 2], [1, 3, 5, 7]]
+# -> [[4], [6, 2], [1, 3, 5, 7]]
 
 
-# 右側面ビュー
+# Right side view
 def right_side_view(root):
-    """各レベルの最も右のノードを返す"""
+    """Return the rightmost node at each level"""
     if not root:
         return []
 
@@ -292,14 +292,14 @@ def right_side_view(root):
 
     return result
 
-# → [4, 6, 7]
+# -> [4, 6, 7]
 ```
 
 ---
 
-## 2. 二分探索木（BST）
+## 2. Binary Search Tree (BST)
 
-### 2.1 性質と操作
+### 2.1 Properties and Operations
 
 ```python
 class BST:
@@ -328,17 +328,17 @@ class BST:
             return self._search(node.left, val)
         return self._search(node.right, val)
 
-# BST性質: 左の全ノード < 親 < 右の全ノード
-# 計算量: 平均 O(log n)、最悪 O(n)（偏った木）
+# BST property: All nodes in left subtree < parent < All nodes in right subtree
+# Complexity: Average O(log n), worst O(n) (skewed tree)
 ```
 
-### 2.2 BST の削除操作
+### 2.2 BST Deletion
 
-BSTの削除は挿入・検索より複雑であり、3つのケースを扱う必要がある。
+BST deletion is more complex than insertion and search, requiring handling of three cases.
 
 ```python
 class BST:
-    # ... (上記の insert, search に加えて)
+    # ... (in addition to insert, search above)
 
     def delete(self, val):
         self.root = self._delete(self.root, val)
@@ -352,18 +352,18 @@ class BST:
         elif val > node.val:
             node.right = self._delete(node.right, val)
         else:
-            # ケース1: 葉ノード（子なし）
+            # Case 1: Leaf node (no children)
             if not node.left and not node.right:
                 return None
 
-            # ケース2: 子が1つ
+            # Case 2: One child
             if not node.left:
                 return node.right
             if not node.right:
                 return node.left
 
-            # ケース3: 子が2つ
-            # 右部分木の最小値（中順後継者）で置換
+            # Case 3: Two children
+            # Replace with the minimum value in the right subtree (in-order successor)
             successor = self._find_min(node.right)
             node.val = successor.val
             node.right = self._delete(node.right, successor.val)
@@ -371,22 +371,22 @@ class BST:
         return node
 
     def _find_min(self, node):
-        """部分木の最小値ノードを返す"""
+        """Return the node with the minimum value in the subtree"""
         current = node
         while current.left:
             current = current.left
         return current
 
     def _find_max(self, node):
-        """部分木の最大値ノードを返す"""
+        """Return the node with the maximum value in the subtree"""
         current = node
         while current.right:
             current = current.right
         return current
 
-    # BST のユーティリティ
+    # BST Utilities
     def kth_smallest(self, k):
-        """k番目に小さい要素を返す（中順走査で k 番目）"""
+        """Return the k-th smallest element (k-th in in-order traversal)"""
         self.count = 0
         self.result = None
         self._kth_smallest(self.root, k)
@@ -403,7 +403,7 @@ class BST:
         self._kth_smallest(node.right, k)
 
     def is_valid_bst(self):
-        """BST の整合性を検証"""
+        """Validate BST integrity"""
         return self._is_valid(self.root, float('-inf'), float('inf'))
 
     def _is_valid(self, node, min_val, max_val):
@@ -415,7 +415,7 @@ class BST:
                 self._is_valid(node.right, node.val, max_val))
 
     def lca(self, p, q):
-        """最低共通祖先（Lowest Common Ancestor）"""
+        """Lowest Common Ancestor"""
         node = self.root
         while node:
             if p < node.val and q < node.val:
@@ -427,7 +427,7 @@ class BST:
         return None
 
 
-# 使用例
+# Usage example
 bst = BST()
 for val in [8, 3, 10, 1, 6, 14, 4, 7, 13]:
     bst.insert(val)
@@ -449,36 +449,36 @@ bst.delete(3)
 print(inorder(bst.root))           # [1, 4, 6, 7, 8, 10, 13, 14]
 ```
 
-### 2.3 平衡木の必要性
+### 2.3 The Need for Balanced Trees
 
 ```
-偏った木 vs 平衡木:
+Skewed tree vs. balanced tree:
 
-  ソート済みデータを挿入: 1, 2, 3, 4, 5
+  Inserting sorted data: 1, 2, 3, 4, 5
     1                 3
      \               / \
       2             2   4
        \           /     \
         3         1       5
          \
-          4      平衡木 → O(log n)
+          4      Balanced tree -> O(log n)
            \
-            5    偏った木 → O(n)
+            5    Skewed tree -> O(n)
 
-  平衡木の種類:
-  - AVL木: 厳密に平衡（左右の高さの差 ≤ 1）
-  - 赤黒木: ゆるく平衡（Java TreeMap, C++ std::map）
-  - B木/B+木: ディスクI/O最適化（データベースインデックス）
-  - 2-3木: 教育用（赤黒木の説明に使用）
+  Types of balanced trees:
+  - AVL tree: Strictly balanced (height difference between left and right <= 1)
+  - Red-Black tree: Loosely balanced (Java TreeMap, C++ std::map)
+  - B-tree/B+ tree: Optimized for disk I/O (database indexes)
+  - 2-3 tree: Educational (used to explain Red-Black trees)
 ```
 
 ---
 
-## 3. AVL木
+## 3. AVL Tree
 
-### 3.1 AVL木の基本
+### 3.1 AVL Tree Basics
 
-AVL木は最も古い自己平衡二分探索木であり、すべてのノードについて左右の部分木の高さの差（平衡係数）が-1、0、+1のいずれかであることを保証する。
+An AVL tree is the oldest self-balancing binary search tree. It guarantees that for every node, the height difference (balance factor) between the left and right subtrees is -1, 0, or +1.
 
 ```python
 class AVLNode:
@@ -486,7 +486,7 @@ class AVLNode:
         self.val = val
         self.left = None
         self.right = None
-        self.height = 1  # 新規ノードの高さは1
+        self.height = 1  # Height of a new node is 1
 
 class AVLTree:
     def __init__(self):
@@ -496,19 +496,19 @@ class AVLTree:
         return node.height if node else 0
 
     def balance_factor(self, node):
-        """平衡係数 = 左の高さ - 右の高さ"""
+        """Balance factor = left height - right height"""
         return self.height(node.left) - self.height(node.right) if node else 0
 
     def update_height(self, node):
-        """ノードの高さを更新"""
+        """Update a node's height"""
         node.height = 1 + max(self.height(node.left), self.height(node.right))
 
-    # 回転操作
+    # Rotation operations
     def right_rotate(self, y):
-        """右回転"""
+        """Right rotation"""
         #     y              x
         #    / \            / \
-        #   x   T3   →    T1  y
+        #   x   T3   ->   T1  y
         #  / \                / \
         # T1  T2            T2  T3
 
@@ -524,10 +524,10 @@ class AVLTree:
         return x
 
     def left_rotate(self, x):
-        """左回転"""
+        """Left rotation"""
         #   x                y
         #  / \              / \
-        # T1  y     →     x   T3
+        # T1  y     ->     x   T3
         #    / \          / \
         #   T2  T3       T1  T2
 
@@ -546,7 +546,7 @@ class AVLTree:
         self.root = self._insert(self.root, val)
 
     def _insert(self, node, val):
-        # 標準BST挿入
+        # Standard BST insertion
         if not node:
             return AVLNode(val)
 
@@ -555,29 +555,29 @@ class AVLTree:
         elif val > node.val:
             node.right = self._insert(node.right, val)
         else:
-            return node  # 重複は無視
+            return node  # Ignore duplicates
 
-        # 高さ更新
+        # Update height
         self.update_height(node)
 
-        # 平衡係数チェック
+        # Check balance factor
         bf = self.balance_factor(node)
 
-        # 4つの不均衡ケースに対する回転
-        # LL: 左-左 → 右回転
+        # Rotations for the 4 imbalance cases
+        # LL: Left-Left -> Right rotation
         if bf > 1 and val < node.left.val:
             return self.right_rotate(node)
 
-        # RR: 右-右 → 左回転
+        # RR: Right-Right -> Left rotation
         if bf < -1 and val > node.right.val:
             return self.left_rotate(node)
 
-        # LR: 左-右 → 左回転 + 右回転
+        # LR: Left-Right -> Left rotation + Right rotation
         if bf > 1 and val > node.left.val:
             node.left = self.left_rotate(node.left)
             return self.right_rotate(node)
 
-        # RL: 右-左 → 右回転 + 左回転
+        # RL: Right-Left -> Right rotation + Left rotation
         if bf < -1 and val < node.right.val:
             node.right = self.right_rotate(node.right)
             return self.left_rotate(node)
@@ -596,13 +596,13 @@ class AVLTree:
         elif val > node.val:
             node.right = self._delete(node.right, val)
         else:
-            # 子が0個または1個
+            # 0 or 1 child
             if not node.left:
                 return node.right
             if not node.right:
                 return node.left
 
-            # 子が2個：中順後継者で置換
+            # 2 children: Replace with in-order successor
             successor = node.right
             while successor.left:
                 successor = successor.left
@@ -611,7 +611,7 @@ class AVLTree:
 
         self.update_height(node)
 
-        # 再平衡化
+        # Rebalancing
         bf = self.balance_factor(node)
 
         if bf > 1 and self.balance_factor(node.left) >= 0:
@@ -628,59 +628,62 @@ class AVLTree:
         return node
 
 
-# AVL木の計算量:
-# 検索: O(log n) 保証
-# 挿入: O(log n)（最大2回の回転）
-# 削除: O(log n)（最大O(log n)回の回転）
-# 空間: O(n)
+# AVL tree complexities:
+# Search: O(log n) guaranteed
+# Insert: O(log n) (at most 2 rotations)
+# Delete: O(log n) (at most O(log n) rotations)
+# Space: O(n)
 
-# 使用例
+# Usage example
 avl = AVLTree()
 for val in [10, 20, 30, 40, 50, 25]:
     avl.insert(val)
-# ソート済みデータを入れてもバランスが保たれる
+# Inserting sorted data still maintains balance
 
-print(avl.root.val)           # 30（ルート）
-print(avl.balance_factor(avl.root))  # 0 or ±1
+print(avl.root.val)           # 30 (root)
+print(avl.balance_factor(avl.root))  # 0 or +/-1
 ```
 
 ---
 
-## 4. 赤黒木
+## 4. Red-Black Tree
 
-### 4.1 赤黒木の性質
+### 4.1 Red-Black Tree Properties
 
 ```
-赤黒木の5つの性質:
+Five properties of Red-Black trees:
 
-  1. 各ノードは赤か黒
-  2. ルートは黒
-  3. すべての葉（NIL）は黒
-  4. 赤ノードの子はすべて黒（赤が連続しない）
-  5. 各ノードから子孫の葉までの全パスに含まれる黒ノード数が同じ
-     （黒高さ: Black Height）
+  1. Each node is either red or black
+  2. The root is black
+  3. All leaves (NIL) are black
+  4. Children of red nodes are all black (no consecutive reds)
+  5. Every path from a node to its descendant leaves contains the same number
+     of black nodes (Black Height)
 
-  これらの性質により:
-  - 最長パス ≤ 2 × 最短パス
-  - 高さ ≤ 2 × log2(n+1)
-  - 検索/挿入/削除 すべて O(log n) 保証
+  These properties ensure:
+  - Longest path <= 2 x shortest path
+  - Height <= 2 x log2(n+1)
+  - Search/insert/delete all O(log n) guaranteed
 
-  AVL木との比較:
-  ┌──────────────┬──────────────┬──────────────┐
-  │              │ AVL木        │ 赤黒木       │
-  ├──────────────┼──────────────┼──────────────┤
-  │ 平衡の厳密さ │ 厳密（±1）   │ ゆるい       │
-  │ 検索速度     │ やや速い     │ やや遅い     │
-  │ 挿入/削除    │ 回転が多い   │ 回転が少ない │
-  │ メモリ       │ 高さ情報必要 │ 色1ビット    │
-  │ 用途         │ 検索が多い   │ 挿入/削除多い│
-  │ 実装例       │ -            │ Java TreeMap │
-  │              │              │ C++ std::map │
-  │              │              │ Linux rbtree │
-  └──────────────┴──────────────┴──────────────┘
+  Comparison with AVL trees:
+  +----------------+--------------+--------------+
+  |                | AVL Tree     | Red-Black    |
+  +----------------+--------------+--------------+
+  | Balance        | Strict (+/-1)| Loose        |
+  | Search speed   | Slightly     | Slightly     |
+  |                | faster       | slower       |
+  | Insert/Delete  | More         | Fewer        |
+  |                | rotations    | rotations    |
+  | Memory         | Height info  | 1 bit for    |
+  |                | needed       | color        |
+  | Use case       | Read-heavy   | Write-heavy  |
+  | Implementations| -            | Java TreeMap |
+  |                |              | C++ std::map |
+  |                |              | Linux rbtree |
+  +----------------+--------------+--------------+
 ```
 
-### 4.2 赤黒木の概念的な実装
+### 4.2 Conceptual Red-Black Tree Implementation
 
 ```python
 class RBColor:
@@ -693,20 +696,20 @@ class RBNode:
         self.left = None
         self.right = None
         self.parent = None
-        self.color = color  # 新規ノードは赤
+        self.color = color  # New nodes are red
 
 class RedBlackTree:
     def __init__(self):
-        self.NIL = RBNode(0, color=RBColor.BLACK)  # 番兵ノード
+        self.NIL = RBNode(0, color=RBColor.BLACK)  # Sentinel node
         self.root = self.NIL
 
     def insert(self, val):
-        """BST挿入 + 赤黒木の修正"""
+        """BST insertion + Red-Black tree fixup"""
         new_node = RBNode(val)
         new_node.left = self.NIL
         new_node.right = self.NIL
 
-        # BST挿入
+        # BST insertion
         parent = None
         current = self.root
         while current != self.NIL:
@@ -724,32 +727,32 @@ class RedBlackTree:
         else:
             parent.right = new_node
 
-        # 赤黒木の性質を修正
+        # Fix Red-Black tree properties
         self._fix_insert(new_node)
 
     def _fix_insert(self, node):
-        """挿入後の修正（3つのケース）"""
+        """Post-insertion fixup (3 cases)"""
         while node.parent and node.parent.color == RBColor.RED:
             if node.parent == node.parent.parent.left:
                 uncle = node.parent.parent.right
 
                 if uncle.color == RBColor.RED:
-                    # ケース1: 叔父が赤 → 色の反転
+                    # Case 1: Uncle is red -> Color flip
                     node.parent.color = RBColor.BLACK
                     uncle.color = RBColor.BLACK
                     node.parent.parent.color = RBColor.RED
                     node = node.parent.parent
                 else:
                     if node == node.parent.right:
-                        # ケース2: 叔父が黒、ノードが右の子 → 左回転
+                        # Case 2: Uncle is black, node is right child -> Left rotate
                         node = node.parent
                         self._left_rotate(node)
-                    # ケース3: 叔父が黒、ノードが左の子 → 右回転
+                    # Case 3: Uncle is black, node is left child -> Right rotate
                     node.parent.color = RBColor.BLACK
                     node.parent.parent.color = RBColor.RED
                     self._right_rotate(node.parent.parent)
             else:
-                # 対称的なケース（左右を入れ替え）
+                # Symmetric cases (swap left and right)
                 uncle = node.parent.parent.left
 
                 if uncle.color == RBColor.RED:
@@ -765,7 +768,7 @@ class RedBlackTree:
                     node.parent.parent.color = RBColor.RED
                     self._left_rotate(node.parent.parent)
 
-        self.root.color = RBColor.BLACK  # 性質2: ルートは黒
+        self.root.color = RBColor.BLACK  # Property 2: Root is black
 
     def _left_rotate(self, x):
         y = x.right
@@ -808,118 +811,119 @@ class RedBlackTree:
         return self._search(node.right, val)
 
 
-# 赤黒木の利用先（言語・ライブラリ）:
+# Where Red-Black trees are used (languages/libraries):
 # Java: TreeMap, TreeSet
 # C++: std::map, std::set, std::multimap, std::multiset
 # C#: SortedDictionary, SortedSet
-# Linux: 完全公平スケジューラ（CFS）、メモリ管理
-# Nginx: タイマー管理
+# Linux: Completely Fair Scheduler (CFS), memory management
+# Nginx: Timer management
 ```
 
 ---
 
-## 5. B木とB+木
+## 5. B-Trees and B+ Trees
 
-### 5.1 B木の基本
+### 5.1 B-Tree Basics
 
 ```
-B木（B-Tree）: ディスクI/Oを最小化する多分岐探索木
+B-Tree: A multi-way search tree that minimizes disk I/O
 
-  B木の性質（次数 t のB木）:
-  - すべての葉は同じレベルにある
-  - 各ノード（ルート以外）は t-1 以上 2t-1 以下のキーを持つ
-  - ルートは1以上 2t-1 以下のキーを持つ
-  - 各ノードの子の数 = キーの数 + 1
-  - 各ノード内のキーはソート済み
+  Properties of a B-tree of order t:
+  - All leaves are at the same level
+  - Each node (except root) has between t-1 and 2t-1 keys
+  - The root has between 1 and 2t-1 keys
+  - Number of children per node = number of keys + 1
+  - Keys within each node are sorted
 
-  例: t=2 のB木（2-3-4木とも呼ばれる）
+  Example: B-tree of order t=2 (also called a 2-3-4 tree)
           [10, 20]
          /    |    \
     [3,5]  [12,15] [25,30,35]
 
-  ディスクI/Oの最適化:
-  - 1ノード = 1ディスクページ（通常 4KB-16KB）
-  - ノードサイズをページサイズに合わせる
-  - 高さが非常に低い → I/O回数が少ない
+  Disk I/O optimization:
+  - 1 node = 1 disk page (typically 4KB-16KB)
+  - Node size is matched to page size
+  - Very low height -> few I/O operations
 
-  例: t=1000（ノードあたり最大1999キー）の場合
-  - 高さ1: 最大1999キー
-  - 高さ2: 最大約400万キー
-  - 高さ3: 最大約80億キー
-  → 80億レコードのデータベースでも3回のI/Oで検索可能
+  Example: t=1000 (up to 1999 keys per node)
+  - Height 1: up to 1,999 keys
+  - Height 2: up to ~4 million keys
+  - Height 3: up to ~8 billion keys
+  -> A database with 8 billion records can be searched in just 3 I/Os
 ```
 
-### 5.2 B+木の特徴
+### 5.2 B+ Tree Characteristics
 
 ```
-B+木: B木の変種（データベースインデックスの標準）
+B+ Tree: A variant of the B-tree (the standard for database indexes)
 
-  B木との違い:
-  1. データは葉ノードにのみ格納（内部ノードはキーのみ）
-  2. 葉ノードが連結リストで接続（範囲検索が高速）
-  3. 内部ノードにデータがないため、より多くのキーを格納可能
+  Differences from B-tree:
+  1. Data is stored only in leaf nodes (internal nodes store only keys)
+  2. Leaf nodes are connected by a linked list (fast range queries)
+  3. Internal nodes store no data, so they can hold more keys
 
-  構造:
-  内部ノード:  [  10  |  20  |  30  ]
-              / |    |     |    \
-  葉ノード: [3,5,8]→[10,12,15]→[20,22,25]→[30,35,40]
+  Structure:
+  Internal node:   [  10  |  20  |  30  ]
+                   / |    |     |    \
+  Leaf nodes:    [3,5,8]->[10,12,15]->[20,22,25]->[30,35,40]
 
-  利点:
-  ┌──────────────────┬──────────────┬──────────────┐
-  │ 操作              │ B木          │ B+木         │
-  ├──────────────────┼──────────────┼──────────────┤
-  │ 点検索            │ O(log_B n)   │ O(log_B n)   │
-  │ 範囲検索          │ O(log_B n +k)│ O(log_B n +k)│
-  │                   │ (非効率)     │ (葉の連結)   │
-  │ フルスキャン      │ 全ノード走査 │ 葉のみ走査   │
-  │ 内部ノードの容量  │ キー+データ  │ キーのみ     │
-  └──────────────────┴──────────────┴──────────────┘
+  Advantages:
+  +--------------------+--------------+--------------+
+  | Operation          | B-Tree       | B+ Tree      |
+  +--------------------+--------------+--------------+
+  | Point lookup       | O(log_B n)   | O(log_B n)   |
+  | Range query        | O(log_B n+k) | O(log_B n+k) |
+  |                    | (inefficient)| (leaf links) |
+  | Full scan          | All nodes    | Leaves only  |
+  | Internal node      | Keys + data  | Keys only    |
+  | capacity           |              |              |
+  +--------------------+--------------+--------------+
 
-  実際の利用:
-  - PostgreSQL: B+木インデックス（btree）
-  - MySQL InnoDB: クラスタードインデックス（B+木）
-  - SQLite: B+木ベースのページストレージ
-  - ファイルシステム: NTFS, ext4, Btrfs
+  Real-world usage:
+  - PostgreSQL: B+ tree index (btree)
+  - MySQL InnoDB: Clustered index (B+ tree)
+  - SQLite: B+ tree-based page storage
+  - File systems: NTFS, ext4, Btrfs
 ```
 
-### 5.3 B+木の操作の概念
+### 5.3 B+ Tree Operation Concepts
 
 ```python
 class BPlusNode:
     def __init__(self, is_leaf=False):
         self.keys = []
-        self.children = []  # 内部ノード: 子ノード、葉: データ
+        self.children = []  # Internal nodes: child nodes; Leaves: data
         self.is_leaf = is_leaf
-        self.next = None    # 葉ノードの連結リスト
+        self.next = None    # Linked list for leaf nodes
 
 class BPlusTree:
     def __init__(self, order=4):
-        """order: ノードあたりの最大子数"""
+        """order: Maximum number of children per node"""
         self.order = order
         self.root = BPlusNode(is_leaf=True)
 
     def search(self, key):
-        """キーを検索して対応する値を返す"""
+        """Search for a key and return the corresponding value"""
         node = self.root
 
-        # 内部ノードを下に辿る
+        # Traverse internal nodes downward
         while not node.is_leaf:
-            # key以上の最小のインデックスを見つける
+            # Find the smallest index >= key
             i = 0
             while i < len(node.keys) and key >= node.keys[i]:
                 i += 1
             node = node.children[i]
 
-        # 葉ノードで検索
+        # Search in the leaf node
         for i, k in enumerate(node.keys):
             if k == key:
-                return node.children[i]  # 葉のchildrenはデータ
+                return node.children[i]  # children in leaves hold data
 
-        return None  # 見つからない
+        return None  # Not found
 
     def range_search(self, start, end):
-        """範囲検索: start <= key <= end"""
-        # まず start の位置を見つける
+        """Range search: start <= key <= end"""
+        # First find the position of start
         node = self.root
         while not node.is_leaf:
             i = 0
@@ -927,7 +931,7 @@ class BPlusTree:
                 i += 1
             node = node.children[i]
 
-        # 葉ノードを連結リストで辿りながら結果を収集
+        # Traverse leaf nodes via linked list to collect results
         result = []
         while node:
             for i, k in enumerate(node.keys):
@@ -935,36 +939,36 @@ class BPlusTree:
                     result.append((k, node.children[i]))
                 elif k > end:
                     return result
-            node = node.next  # 次の葉ノードへ
+            node = node.next  # Move to the next leaf node
 
         return result
 
-# B+木のインデックスとしての利用
+# Using a B+ tree as an index
 # CREATE INDEX idx_users_age ON users(age);
-# → B+木が構築される
+# -> A B+ tree is built
 # SELECT * FROM users WHERE age BETWEEN 20 AND 30;
-# → B+木の範囲検索 O(log n + k)（k は結果数）
+# -> B+ tree range search O(log n + k) (k = number of results)
 ```
 
 ---
 
-## 6. Trie（トライ木）
+## 6. Trie
 
-### 6.1 基本構造と操作
+### 6.1 Basic Structure and Operations
 
 ```python
 class TrieNode:
     def __init__(self):
-        self.children = {}  # 文字 → TrieNode
-        self.is_end = False  # 単語の終端
-        self.count = 0       # この接頭辞を持つ単語数
+        self.children = {}  # Character -> TrieNode
+        self.is_end = False  # End of a word
+        self.count = 0       # Number of words with this prefix
 
 class Trie:
     def __init__(self):
         self.root = TrieNode()
 
     def insert(self, word: str):
-        """単語を挿入: O(m)、m は単語の長さ"""
+        """Insert a word: O(m), m is the word length"""
         node = self.root
         for char in word:
             if char not in node.children:
@@ -974,21 +978,21 @@ class Trie:
         node.is_end = True
 
     def search(self, word: str) -> bool:
-        """完全一致検索: O(m)"""
+        """Exact match search: O(m)"""
         node = self._find_node(word)
         return node is not None and node.is_end
 
     def starts_with(self, prefix: str) -> bool:
-        """前方一致検索: O(m)"""
+        """Prefix match search: O(m)"""
         return self._find_node(prefix) is not None
 
     def count_prefix(self, prefix: str) -> int:
-        """接頭辞を持つ単語数: O(m)"""
+        """Count words with a given prefix: O(m)"""
         node = self._find_node(prefix)
         return node.count if node else 0
 
     def _find_node(self, prefix: str):
-        """接頭辞に対応するノードを返す"""
+        """Return the node corresponding to a prefix"""
         node = self.root
         for char in prefix:
             if char not in node.children:
@@ -997,7 +1001,7 @@ class Trie:
         return node
 
     def autocomplete(self, prefix: str, limit: int = 10) -> list:
-        """オートコンプリート: 接頭辞から候補を返す"""
+        """Autocomplete: Return candidates from a prefix"""
         node = self._find_node(prefix)
         if not node:
             return []
@@ -1015,7 +1019,7 @@ class Trie:
             self._collect_words(node.children[char], prefix + char, result, limit)
 
     def delete(self, word: str) -> bool:
-        """単語の削除"""
+        """Delete a word"""
         return self._delete(self.root, word, 0)
 
     def _delete(self, node, word, depth):
@@ -1024,7 +1028,7 @@ class Trie:
                 return False
             node.is_end = False
             node.count -= 1
-            return len(node.children) == 0  # 子がなければ削除可能
+            return len(node.children) == 0  # Can delete if no children
 
         char = word[depth]
         if char not in node.children:
@@ -1038,7 +1042,7 @@ class Trie:
         return len(node.children) == 0 and not node.is_end
 
 
-# 使用例: オートコンプリート
+# Usage example: Autocomplete
 trie = Trie()
 words = ["apple", "app", "application", "apply", "apt",
          "banana", "band", "bandwidth", "ban"]
@@ -1053,7 +1057,7 @@ print(trie.autocomplete("app"))    # ['app', 'apple', 'application', 'apply']
 print(trie.autocomplete("ban"))    # ['ban', 'banana', 'band', 'bandwidth']
 ```
 
-### 6.2 圧縮Trie（Radix Tree / Patricia Tree）
+### 6.2 Compressed Trie (Radix Tree / Patricia Tree)
 
 ```python
 class RadixNode:
@@ -1064,7 +1068,7 @@ class RadixNode:
         self.value = None
 
 class RadixTree:
-    """圧縮Trie: 共通接頭辞をエッジにまとめる"""
+    """Compressed Trie: Merges common prefixes onto edges"""
 
     def __init__(self):
         self.root = RadixNode()
@@ -1074,7 +1078,7 @@ class RadixTree:
         remaining = key
 
         while remaining:
-            # 共通接頭辞を持つ子を探す
+            # Look for a child with a common prefix
             match_found = False
             for char, child in node.children.items():
                 common = self._common_prefix(remaining, child.prefix)
@@ -1085,12 +1089,12 @@ class RadixTree:
                 match_found = True
 
                 if common == child.prefix:
-                    # 子のプレフィックスが完全に一致
+                    # Child's prefix is a complete match
                     remaining = remaining[len(common):]
                     node = child
                     break
                 else:
-                    # 部分一致 → ノードを分割
+                    # Partial match -> Split the node
                     new_node = RadixNode(common)
                     child.prefix = child.prefix[len(common):]
                     new_node.children[child.prefix[0]] = child
@@ -1101,7 +1105,7 @@ class RadixTree:
                     break
 
             if not match_found:
-                # 新しいエッジを追加
+                # Add a new edge
                 new_node = RadixNode(remaining)
                 new_node.is_end = True
                 new_node.value = value
@@ -1118,15 +1122,15 @@ class RadixTree:
         return s1[:i]
 
 
-# Radix Tree の利点:
-# - メモリ効率が良い（共通接頭辞を共有）
-# - 長いキーの検索が高速
-# 利用先:
-# - Linux カーネルのルーティングテーブル
-# - HTTP ルーター（gin, echo等のGoフレームワーク）
-# - IPアドレスの最長一致検索
+# Advantages of Radix Tree:
+# - Memory efficient (shares common prefixes)
+# - Fast search for long keys
+# Used in:
+# - Linux kernel routing table
+# - HTTP routers (Go frameworks like gin, echo)
+# - Longest prefix match for IP addresses
 
-# 通常の Trie vs Radix Tree:
+# Regular Trie vs Radix Tree:
 # Trie:        [r]-[o]-[m]-[u]-[l]-[u]-[s]
 #                           [a]-[n]-[e]
 #                           [a]-[n]-[c]-[e]
@@ -1137,13 +1141,13 @@ class RadixTree:
 
 ---
 
-## 7. ヒープと優先度キュー
+## 7. Heaps and Priority Queues
 
-### 7.1 二分ヒープ
+### 7.1 Binary Heap
 
 ```python
 class MinHeap:
-    """最小ヒープの実装"""
+    """Min-heap implementation"""
 
     def __init__(self):
         self.heap = []
@@ -1158,12 +1162,12 @@ class MinHeap:
         return 2 * i + 2
 
     def push(self, val):
-        """要素の追加: O(log n)"""
+        """Add element: O(log n)"""
         self.heap.append(val)
         self._sift_up(len(self.heap) - 1)
 
     def pop(self):
-        """最小要素の取り出し: O(log n)"""
+        """Remove minimum element: O(log n)"""
         if not self.heap:
             raise IndexError("empty heap")
         if len(self.heap) == 1:
@@ -1175,20 +1179,20 @@ class MinHeap:
         return min_val
 
     def peek(self):
-        """最小要素の参照: O(1)"""
+        """View minimum element: O(1)"""
         if not self.heap:
             raise IndexError("empty heap")
         return self.heap[0]
 
     def _sift_up(self, i):
-        """ノードを上に移動（ヒープ性質の回復）"""
+        """Move a node up (restore heap property)"""
         while i > 0 and self.heap[i] < self.heap[self.parent(i)]:
             p = self.parent(i)
             self.heap[i], self.heap[p] = self.heap[p], self.heap[i]
             i = p
 
     def _sift_down(self, i):
-        """ノードを下に移動（ヒープ性質の回復）"""
+        """Move a node down (restore heap property)"""
         n = len(self.heap)
         while True:
             smallest = i
@@ -1213,43 +1217,43 @@ class MinHeap:
         return len(self.heap) > 0
 
 
-# Python の heapq モジュール（最小ヒープ）
+# Python's heapq module (min-heap)
 import heapq
 
-# 基本操作
+# Basic operations
 h = []
 heapq.heappush(h, 5)
 heapq.heappush(h, 3)
 heapq.heappush(h, 7)
 heapq.heappush(h, 1)
-print(heapq.heappop(h))  # 1（最小値）
+print(heapq.heappop(h))  # 1 (minimum)
 
-# Top-K 問題
+# Top-K problem
 def top_k_largest(nums, k):
-    """配列からk番目に大きい値を O(n log k) で取得"""
+    """Get the k-th largest values from an array in O(n log k)"""
     return heapq.nlargest(k, nums)
 
 def top_k_frequent(nums, k):
-    """最も頻度が高いk個の要素"""
+    """Get the k most frequent elements"""
     from collections import Counter
     count = Counter(nums)
     return heapq.nlargest(k, count.keys(), key=count.get)
 
-# ストリームの中央値
+# Streaming median
 class MedianFinder:
-    """2つのヒープで中央値を O(log n) で計算"""
+    """Compute the median in O(log n) using two heaps"""
 
     def __init__(self):
-        self.lo = []   # 最大ヒープ（負の値で代用）
-        self.hi = []   # 最小ヒープ
+        self.lo = []   # Max-heap (using negated values)
+        self.hi = []   # Min-heap
 
     def add_num(self, num):
         heapq.heappush(self.lo, -num)
 
-        # lo の最大 ≤ hi の最小 を保証
+        # Ensure max of lo <= min of hi
         heapq.heappush(self.hi, -heapq.heappop(self.lo))
 
-        # サイズバランス: lo のサイズ ≥ hi のサイズ
+        # Size balance: size of lo >= size of hi
         if len(self.lo) < len(self.hi):
             heapq.heappush(self.lo, -heapq.heappop(self.hi))
 
@@ -1258,7 +1262,7 @@ class MedianFinder:
             return -self.lo[0]
         return (-self.lo[0] + self.hi[0]) / 2
 
-# 使用例
+# Usage example
 mf = MedianFinder()
 mf.add_num(1)
 mf.add_num(2)
@@ -1269,20 +1273,20 @@ print(mf.find_median())  # 2.0
 
 ---
 
-## 8. 木構造のアルゴリズム問題
+## 8. Tree Algorithm Problems
 
-### 8.1 再帰的アプローチ
+### 8.1 Recursive Approaches
 
 ```python
-# 木の最大深さ
+# Maximum depth of a tree
 def max_depth(root):
     if not root:
         return 0
     return 1 + max(max_depth(root.left), max_depth(root.right))
 
-# 木の直径（最長パス）
+# Diameter of a tree (longest path)
 def diameter(root):
-    """任意の2ノード間の最長パス長"""
+    """Longest path between any two nodes"""
     result = [0]
 
     def dfs(node):
@@ -1296,16 +1300,16 @@ def diameter(root):
     dfs(root)
     return result[0]
 
-# 木の反転（ミラー）
+# Invert a tree (mirror)
 def invert_tree(root):
     if not root:
         return None
     root.left, root.right = invert_tree(root.right), invert_tree(root.left)
     return root
 
-# パスの合計
+# Path sum
 def has_path_sum(root, target_sum):
-    """ルートから葉までのパスの合計が target_sum のパスが存在するか"""
+    """Check if any root-to-leaf path sums to target_sum"""
     if not root:
         return False
     if not root.left and not root.right:
@@ -1313,9 +1317,9 @@ def has_path_sum(root, target_sum):
     return (has_path_sum(root.left, target_sum - root.val) or
             has_path_sum(root.right, target_sum - root.val))
 
-# すべてのパスの合計を列挙
+# Enumerate all paths with a given sum
 def path_sum_all(root, target_sum):
-    """条件を満たすすべてのパスを返す"""
+    """Return all paths that satisfy the condition"""
     result = []
 
     def dfs(node, remaining, path):
@@ -1323,15 +1327,15 @@ def path_sum_all(root, target_sum):
             return
         path.append(node.val)
         if not node.left and not node.right and remaining == node.val:
-            result.append(path[:])  # コピーを追加
+            result.append(path[:])  # Append a copy
         dfs(node.left, remaining - node.val, path)
         dfs(node.right, remaining - node.val, path)
-        path.pop()  # バックトラック
+        path.pop()  # Backtrack
 
     dfs(root, target_sum, [])
     return result
 
-# 同一の木の判定
+# Check if two trees are identical
 def is_same_tree(p, q):
     if not p and not q:
         return True
@@ -1341,16 +1345,16 @@ def is_same_tree(p, q):
             is_same_tree(p.left, q.left) and
             is_same_tree(p.right, q.right))
 
-# 部分木の判定
+# Check if one tree is a subtree of another
 def is_subtree(root, sub_root):
-    """sub_root が root の部分木かどうか"""
+    """Check whether sub_root is a subtree of root"""
     if not root:
         return False
     if is_same_tree(root, sub_root):
         return True
     return is_subtree(root.left, sub_root) or is_subtree(root.right, sub_root)
 
-# 対称木の判定
+# Check if a tree is symmetric
 def is_symmetric(root):
     def mirror(left, right):
         if not left and not right:
@@ -1364,23 +1368,23 @@ def is_symmetric(root):
     return mirror(root.left, root.right) if root else True
 ```
 
-### 8.2 木の構築
+### 8.2 Tree Construction
 
 ```python
-# 前順 + 中順 → 木の構築
+# Build tree from pre-order + in-order traversals
 def build_tree_from_preorder_inorder(preorder, inorder):
-    """前順走査と中順走査から木を復元"""
+    """Reconstruct a tree from its pre-order and in-order traversals"""
     if not preorder or not inorder:
         return None
 
-    # 前順の最初の要素がルート
+    # First element of pre-order is the root
     root_val = preorder[0]
     root = TreeNode(root_val)
 
-    # 中順でルートの位置を見つける
+    # Find the root's position in in-order
     mid = inorder.index(root_val)
 
-    # 左右の部分木を再帰的に構築
+    # Recursively build left and right subtrees
     root.left = build_tree_from_preorder_inorder(
         preorder[1:mid+1], inorder[:mid]
     )
@@ -1390,9 +1394,9 @@ def build_tree_from_preorder_inorder(preorder, inorder):
 
     return root
 
-# ソート済み配列 → BST
+# Sorted array -> BST
 def sorted_array_to_bst(nums):
-    """ソート済み配列から高さバランスのBSTを構築"""
+    """Build a height-balanced BST from a sorted array"""
     if not nums:
         return None
 
@@ -1403,10 +1407,10 @@ def sorted_array_to_bst(nums):
 
     return root
 
-# 使用例
+# Usage example
 nums = [1, 2, 3, 4, 5, 6, 7]
 root = sorted_array_to_bst(nums)
-# 結果:
+# Result:
 #       4
 #      / \
 #     2   6
@@ -1414,11 +1418,11 @@ root = sorted_array_to_bst(nums)
 #   1  3 5  7
 
 
-# 木のシリアライズ/デシリアライズ
+# Tree serialization/deserialization
 import json
 
 def serialize(root):
-    """木をJSON文字列にシリアライズ"""
+    """Serialize a tree to a JSON string"""
     if not root:
         return "null"
     return json.dumps({
@@ -1428,7 +1432,7 @@ def serialize(root):
     })
 
 def deserialize(data):
-    """JSON文字列から木をデシリアライズ"""
+    """Deserialize a tree from a JSON string"""
     if data == "null":
         return None
     obj = json.loads(data)
@@ -1439,9 +1443,9 @@ def deserialize(data):
     root.right = deserialize(json.dumps(obj["right"]))
     return root
 
-# BFS方式のシリアライズ（LeetCode形式）
+# BFS-style serialization (LeetCode format)
 def serialize_bfs(root):
-    """BFS方式でシリアライズ: [4,2,6,1,3,5,7]"""
+    """BFS-style serialization: [4,2,6,1,3,5,7]"""
     if not root:
         return "[]"
     result = []
@@ -1455,7 +1459,7 @@ def serialize_bfs(root):
         else:
             result.append(None)
 
-    # 末尾のNoneを除去
+    # Remove trailing Nones
     while result and result[-1] is None:
         result.pop()
 
@@ -1464,34 +1468,34 @@ def serialize_bfs(root):
 
 ---
 
-## 9. 実務での木構造
+## 9. Trees in Practice
 
-### 9.1 実世界での利用例
+### 9.1 Real-World Use Cases
 
 ```
-木が使われる実世界の例:
+Real-world examples where trees are used:
 
-  1. ファイルシステム: ディレクトリ = 木構造
+  1. File systems: Directories = tree structure
      /
-     ├── home/
-     │   ├── user/
-     │   │   ├── documents/
-     │   │   └── downloads/
-     │   └── admin/
-     └── etc/
-         ├── nginx/
-         └── ssh/
+     +-- home/
+     |   +-- user/
+     |   |   +-- documents/
+     |   |   +-- downloads/
+     |   +-- admin/
+     +-- etc/
+         +-- nginx/
+         +-- ssh/
 
-  2. DOM: HTML要素の親子関係
+  2. DOM: Parent-child relationships of HTML elements
      html
-     ├── head
-     │   ├── title
-     │   └── meta
-     └── body
-         ├── div#header
-         └── div#content
+     +-- head
+     |   +-- title
+     |   +-- meta
+     +-- body
+         +-- div#header
+         +-- div#content
 
-  3. AST: ソースコードの構文木（コンパイラ）
+  3. AST: Syntax tree for source code (compilers)
      x = 3 + 5 * 2
          =
         / \
@@ -1501,31 +1505,31 @@ def serialize_bfs(root):
             / \
            5   2
 
-  4. B+木: データベースインデックス（PostgreSQL, MySQL）
+  4. B+ tree: Database indexes (PostgreSQL, MySQL)
 
-  5. JSON/XML: ネストしたデータ構造
+  5. JSON/XML: Nested data structures
 
-  6. 決定木: 機械学習の分類器
+  6. Decision tree: Machine learning classifiers
 
-  7. ハフマン木: データ圧縮
+  7. Huffman tree: Data compression
 
-  8. Trie: 辞書、オートコンプリート
+  8. Trie: Dictionaries, autocomplete
 
-  9. React Virtual DOM: 差分検出アルゴリズム（Reconciliation）
+  9. React Virtual DOM: Diff detection algorithm (Reconciliation)
 
-  10. Git: コミットツリー、マークルツリー
+  10. Git: Commit tree, Merkle tree
 ```
 
-### 9.2 木構造を使ったシステム設計
+### 9.2 System Design with Tree Structures
 
 ```python
-# 1. ファイルシステムの木構造
+# 1. File system tree structure
 class FileNode:
     def __init__(self, name, is_dir=False):
         self.name = name
         self.is_dir = is_dir
         self.children = {}  # name -> FileNode
-        self.content = ""   # ファイルの場合
+        self.content = ""   # For files
         self.size = 0
 
 class FileSystem:
@@ -1533,7 +1537,7 @@ class FileSystem:
         self.root = FileNode("/", is_dir=True)
 
     def mkdir(self, path):
-        """ディレクトリの作成"""
+        """Create a directory"""
         parts = path.strip("/").split("/")
         node = self.root
         for part in parts:
@@ -1542,7 +1546,7 @@ class FileSystem:
             node = node.children[part]
 
     def write(self, path, content):
-        """ファイルの書き込み"""
+        """Write to a file"""
         parts = path.strip("/").split("/")
         node = self.root
         for part in parts[:-1]:
@@ -1556,7 +1560,7 @@ class FileSystem:
         node.children[filename].size = len(content)
 
     def read(self, path):
-        """ファイルの読み取り"""
+        """Read a file"""
         parts = path.strip("/").split("/")
         node = self.root
         for part in parts:
@@ -1566,7 +1570,7 @@ class FileSystem:
         return node.content if not node.is_dir else None
 
     def ls(self, path="/"):
-        """ディレクトリの内容一覧"""
+        """List directory contents"""
         parts = path.strip("/").split("/")
         node = self.root
         if path != "/":
@@ -1576,7 +1580,7 @@ class FileSystem:
         return sorted(node.children.keys())
 
     def du(self, path="/"):
-        """ディスク使用量の計算（再帰）"""
+        """Calculate disk usage (recursive)"""
         parts = path.strip("/").split("/")
         node = self.root
         if path != "/":
@@ -1593,7 +1597,7 @@ class FileSystem:
             total += self._calculate_size(child)
         return total
 
-# 使用例
+# Usage example
 fs = FileSystem()
 fs.mkdir("/home/user/documents")
 fs.write("/home/user/documents/readme.txt", "Hello World")
@@ -1603,12 +1607,12 @@ print(fs.read("/home/user/documents/readme.txt"))  # "Hello World"
 print(fs.du("/home/user"))  # 31
 
 
-# 2. 組織階層の管理
+# 2. Organization hierarchy management
 class OrgNode:
     def __init__(self, name, title):
         self.name = name
         self.title = title
-        self.reports = []  # 直属の部下
+        self.reports = []  # Direct reports
 
 class OrgChart:
     def __init__(self, ceo_name, ceo_title="CEO"):
@@ -1624,7 +1628,7 @@ class OrgChart:
         self.lookup[employee_name] = employee
 
     def get_chain(self, name):
-        """指揮系統（ルートまでのパス）を返す"""
+        """Return the chain of command (path to root)"""
         path = []
         self._find_path(self.root, name, path)
         return path
@@ -1640,11 +1644,11 @@ class OrgChart:
         return False
 
     def count_reports(self, name):
-        """直接・間接の部下の総数"""
+        """Total number of direct and indirect reports"""
         node = self.lookup.get(name)
         if not node:
             return 0
-        return self._count(node) - 1  # 自分を除く
+        return self._count(node) - 1  # Exclude self
 
     def _count(self, node):
         return 1 + sum(self._count(r) for r in node.reports)
@@ -1652,81 +1656,81 @@ class OrgChart:
 
 ---
 
-## 10. 実践演習
+## 10. Practice Exercises
 
-### 演習1: BST操作（基礎）
-BSTの挿入・検索・削除・中順走査を実装せよ。さらに以下の操作も実装すること:
-- k番目に小さい要素の取得
-- 指定範囲のノードの列挙
-- BST の妥当性検証
+### Exercise 1: BST Operations (Basic)
+Implement BST insertion, search, deletion, and in-order traversal. Additionally implement the following operations:
+- Retrieve the k-th smallest element
+- List nodes within a given range
+- Validate BST integrity
 
-### 演習2: 木の再帰（応用）
-以下の操作を再帰で実装せよ:
-- 木の最大深さ、直径、左右反転
-- 2つの木が同一かの判定
-- ルートから葉へのパスの合計が target_sum になるパスの列挙
-- 最低共通祖先（LCA）の計算
+### Exercise 2: Tree Recursion (Intermediate)
+Implement the following operations recursively:
+- Maximum depth, diameter, left-right inversion of a tree
+- Check whether two trees are identical
+- List all root-to-leaf paths where the path sum equals target_sum
+- Compute the Lowest Common Ancestor (LCA)
 
-### 演習3: 直列化（発展）
-木をJSON文字列にシリアライズし、デシリアライズする関数を実装せよ。BFS方式とDFS方式の両方を実装すること。
+### Exercise 3: Serialization (Advanced)
+Implement functions to serialize a tree to a JSON string and deserialize it. Implement both BFS and DFS approaches.
 
-### 演習4: AVL木の実装（応用）
-挿入・削除・検索をすべてサポートするAVL木を実装せよ。以下を検証すること:
-- ソート済みデータの挿入後もバランスが保たれること
-- ランダムデータと比較して高さが O(log n) であること
+### Exercise 4: AVL Tree Implementation (Intermediate)
+Implement an AVL tree supporting insertion, deletion, and search. Verify the following:
+- Balance is maintained after inserting sorted data
+- Height is O(log n) compared to random data
 
-### 演習5: Trie によるオートコンプリート（応用）
-英単語辞書のオートコンプリートシステムを Trie で実装せよ:
-- 単語の挿入と検索
-- 接頭辞による候補の列挙（頻度順）
-- 削除のサポート
+### Exercise 5: Trie-Based Autocomplete (Intermediate)
+Build an autocomplete system for English words using a Trie:
+- Word insertion and search
+- Listing candidates by prefix (sorted by frequency)
+- Deletion support
 
-### 演習6: ハフマン符号化（発展）
-ハフマン木を構築してテキストの圧縮・展開を実装せよ:
-- 文字の出現頻度からハフマン木を構築
-- テキストをビット列にエンコード
-- ビット列からテキストにデコード
-- 圧縮率の計算と表示
+### Exercise 6: Huffman Coding (Advanced)
+Build a Huffman tree and implement text compression and decompression:
+- Build the Huffman tree from character frequencies
+- Encode text to a bit string
+- Decode a bit string back to text
+- Compute and display the compression ratio
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when studying this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just from theory, but by actually writing code and verifying its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts covered in this guide before moving on.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this applied in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## まとめ
-
-| データ構造 | 操作 | 用途 |
-|-----------|------|------|
-| 二分木 | 走査 O(n) | 式の評価、構文木 |
-| BST | 検索/挿入 O(log n)平均 | ソート済みデータの管理 |
-| AVL木 | 検索/挿入 O(log n)保証 | 検索が多い場面 |
-| 赤黒木 | 検索/挿入 O(log n)保証 | TreeMap, TreeSet, CFS |
-| B+木 | 検索 O(log_B n) | DBインデックス、ファイルシステム |
-| Trie | 検索 O(m) | 辞書、前置一致、オートコンプリート |
-| ヒープ | 最小/最大取得 O(1) | 優先度キュー、Top-K |
-| セグメント木 | 区間クエリ O(log n) | 範囲最小値、範囲和 |
+Knowledge of this topic is frequently used in everyday development work. It is particularly important during code reviews and architecture design.
 
 ---
 
-## 次に読むべきガイド
+## Summary
+
+| Data Structure | Operations | Use Cases |
+|---------------|-----------|-----------|
+| Binary Tree | Traversal O(n) | Expression evaluation, syntax trees |
+| BST | Search/Insert O(log n) avg | Managing sorted data |
+| AVL Tree | Search/Insert O(log n) guaranteed | Read-heavy scenarios |
+| Red-Black Tree | Search/Insert O(log n) guaranteed | TreeMap, TreeSet, CFS |
+| B+ Tree | Search O(log_B n) | DB indexes, file systems |
+| Trie | Search O(m) | Dictionaries, prefix match, autocomplete |
+| Heap | Min/Max retrieval O(1) | Priority queues, Top-K |
+| Segment Tree | Range query O(log n) | Range minimum, range sum |
 
 ---
 
-## 参考文献
+## Recommended Next Reading
+
+---
+
+## References
 1. Cormen, T. H. "Introduction to Algorithms." Chapters 12-13, 18.
 2. Sedgewick, R. "Algorithms." Chapter 3.2-3.3.
 3. Knuth, D. E. "The Art of Computer Programming." Volume 3: Sorting and Searching.

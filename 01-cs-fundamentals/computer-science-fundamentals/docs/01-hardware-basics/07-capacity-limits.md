@@ -1,71 +1,72 @@
-# 容量と限界 — ムーアの法則・アムダールの法則・メモリウォール・電力の壁
+# Capacity and Limits — Moore's Law, Amdahl's Law, Memory Wall, and the Power Wall
 
-> 「ムーアの法則は物理法則ではなく経済法則である。」半導体の微細化が物理限界に近づく今、ソフトウェアエンジニアが理解すべきは「壁の正体」と「壁を回避する設計戦略」である。
+> "Moore's Law is not a law of physics, but an economic law." As semiconductor miniaturization approaches its physical limits, what software engineers must understand is "the nature of these walls" and "design strategies to circumvent them."
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] ムーアの法則の歴史的背景と現在の状況を定量的に説明できる
-- [ ] アムダールの法則を用いて並列化の効果を計算できる
-- [ ] 電力壁（Power Wall）の物理的原因と対策を説明できる
-- [ ] メモリウォール（Memory Wall）の原因とキャッシュ設計による緩和策を理解する
-- [ ] ILP壁・暗黒シリコン・信頼性の壁など複合的なボトルネックを俯瞰できる
-- [ ] 限界を意識したソフトウェア設計（データ指向設計、キャッシュ最適化）を実践できる
+- [ ] Quantitatively explain the historical background and current state of Moore's Law
+- [ ] Calculate the effect of parallelization using Amdahl's Law
+- [ ] Explain the physical causes of and countermeasures for the Power Wall
+- [ ] Understand the causes of the Memory Wall and mitigation strategies through cache design
+- [ ] Survey composite bottlenecks including the ILP wall, dark silicon, and reliability wall
+- [ ] Practice software design that accounts for these limits (data-oriented design, cache optimization)
 
-## 前提知識
+## Prerequisites
 
 
 ---
 
-## 1. ムーアの法則 — 半導体産業を50年間導いた経験則
+## 1. Moore's Law — The Empirical Rule That Guided the Semiconductor Industry for 50 Years
 
-### 1.1 ムーアの法則とは何か
+### 1.1 What Is Moore's Law?
 
-1965年、Intel 共同創業者の Gordon Moore は Electronics 誌に論文を寄稿し、「集積回路上のトランジスタ数は毎年2倍になる」と予測した。1975年にはこの予測を修正し、「約2年で2倍」というペースに改められた。この経験則がいわゆる「ムーアの法則（Moore's Law）」である。
+In 1965, Intel co-founder Gordon Moore contributed a paper to Electronics magazine predicting that "the number of transistors on an integrated circuit doubles every year." In 1975, he revised this prediction to "approximately doubling every two years." This empirical rule is what is known as "Moore's Law."
 
-重要な点は、ムーアの法則が物理法則ではなく、半導体産業のロードマップとして機能した**自己成就的予言（Self-fulfilling Prophecy）**であるということだ。各半導体メーカーがこの法則を目標として設定し、研究開発投資を行った結果、約50年間にわたって法則が維持された。
+The critical point is that Moore's Law is not a law of physics but a **self-fulfilling prophecy** that functioned as a roadmap for the semiconductor industry. Each semiconductor manufacturer set this law as a target and invested in R&D accordingly, and as a result, the law held for approximately 50 years.
 
 ```
-ムーアの法則の本質:
+The Essence of Moore's Law:
 
-  「物理法則」ではなく「産業ロードマップ」
+  Not a "law of physics" but an "industry roadmap"
 
   ┌──────────────────────────────────────────────────────────┐
   │                                                          │
-  │   Moore の予測 ──→ 産業界の目標設定                      │
+  │   Moore's prediction ──→ Industry goal-setting           │
   │        ↑                    │                            │
   │        │                    ▼                            │
-  │   法則の維持 ←── R&D投資 → 技術革新 → トランジスタ増加  │
+  │   Law sustained ←── R&D investment → Innovation          │
+  │                         → Transistor count increase       │
   │                                                          │
-  │   → 自己成就的サイクルが50年間継続                       │
-  │   → 2020年代に物理的限界に到達しサイクルが鈍化           │
+  │   → Self-fulfilling cycle continued for 50 years         │
+  │   → Reaching physical limits in the 2020s, cycle slowing │
   │                                                          │
   └──────────────────────────────────────────────────────────┘
 ```
 
-### 1.2 トランジスタ数の推移
+### 1.2 Transistor Count Over Time
 
-以下は代表的なプロセッサにおけるトランジスタ数の推移である。
+Below is the progression of transistor counts in representative processors.
 
-| 年 | プロセッサ | トランジスタ数 | プロセスノード | 備考 |
+| Year | Processor | Transistor Count | Process Node | Notes |
 |----|-----------|--------------|--------------|------|
-| 1971 | Intel 4004 | 2,300 | 10 um | 最初の商用マイクロプロセッサ |
-| 1978 | Intel 8086 | 29,000 | 3 um | x86 アーキテクチャの始祖 |
-| 1989 | Intel 486 | 1,200,000 | 1 um | 初のオンチップ FPU 統合 |
-| 1993 | Pentium | 3,100,000 | 800 nm | スーパースカラ導入 |
-| 1999 | Pentium III | 9,500,000 | 250 nm | SSE 命令セット追加 |
-| 2004 | Pentium 4 (Prescott) | 125,000,000 | 90 nm | NetBurst の限界 |
-| 2006 | Core 2 Duo | 291,000,000 | 65 nm | マルチコアへの転換 |
-| 2010 | Intel Core i7 (Westmere) | 1,170,000,000 | 32 nm | 10億突破 |
-| 2015 | Apple A9 | 2,000,000,000 | 14/16 nm | モバイル SoC |
-| 2020 | Apple M1 | 16,000,000,000 | 5 nm | ARM ベース PC 用 SoC |
-| 2022 | Apple M2 Ultra | 134,000,000,000 | 5 nm | チップレット接続 |
-| 2024 | Apple M4 | 28,000,000,000 | 3 nm | GAA FET 世代 |
+| 1971 | Intel 4004 | 2,300 | 10 um | First commercial microprocessor |
+| 1978 | Intel 8086 | 29,000 | 3 um | Ancestor of x86 architecture |
+| 1989 | Intel 486 | 1,200,000 | 1 um | First on-chip FPU integration |
+| 1993 | Pentium | 3,100,000 | 800 nm | Introduction of superscalar |
+| 1999 | Pentium III | 9,500,000 | 250 nm | SSE instruction set added |
+| 2004 | Pentium 4 (Prescott) | 125,000,000 | 90 nm | Limits of NetBurst |
+| 2006 | Core 2 Duo | 291,000,000 | 65 nm | Transition to multi-core |
+| 2010 | Intel Core i7 (Westmere) | 1,170,000,000 | 32 nm | Surpassed 1 billion |
+| 2015 | Apple A9 | 2,000,000,000 | 14/16 nm | Mobile SoC |
+| 2020 | Apple M1 | 16,000,000,000 | 5 nm | ARM-based PC SoC |
+| 2022 | Apple M2 Ultra | 134,000,000,000 | 5 nm | Chiplet interconnect |
+| 2024 | Apple M4 | 28,000,000,000 | 3 nm | GAA FET generation |
 
 ```
-トランジスタ数の推移（対数スケール概念図）:
+Transistor Count Over Time (logarithmic scale conceptual diagram):
 
-  トランジスタ数
-  (個)
+  Transistor
+  Count
   10^12 |                                                    * M2 Ultra
         |
   10^11 |                                           *  M4
@@ -82,144 +83,149 @@
         |  * 8086
   10^4  | * 4004
         |
-        └──────────────────────────────────────────────→ 年
+        └──────────────────────────────────────────────→ Year
          1971  1978  1989  1999  2006  2015  2020  2024
 
-  → 約50年間、おおよそ2年で2倍のペースを維持
-  → 2020年代以降はチップレット技術により「1パッケージ」のトランジスタ数が急増
+  → Maintained approximately doubling every 2 years for ~50 years
+  → From the 2020s onward, chiplet technology has caused
+    a rapid increase in per-package transistor counts
 ```
 
-### 1.3 デナード・スケーリングとその崩壊
+### 1.3 Dennard Scaling and Its Breakdown
 
-ムーアの法則と密接に関連するのが、1974年に Robert Dennard らが提唱した**デナード・スケーリング（Dennard Scaling）**である。これは「トランジスタを小さくすると、電圧と電流も同じ比率で下がるため、面積あたりの消費電力は一定に保たれる」という法則だ。
+Closely related to Moore's Law is **Dennard Scaling**, proposed by Robert Dennard and colleagues in 1974. This principle states that "as transistors are made smaller, voltage and current decrease by the same proportion, so power density per unit area remains constant."
 
 ```
-デナード・スケーリングの原理:
+The Principle of Dennard Scaling:
 
-  トランジスタサイズを κ 分の1に縮小した場合:
+  When transistor size is reduced by a factor of κ:
   ────────────────────────────────────────────────
-  パラメータ          スケーリング係数
+  Parameter               Scaling Factor
   ────────────────────────────────────────────────
-  寸法 (L, W)         1/κ
-  電圧 (V)            1/κ
-  電流 (I)            1/κ
-  遅延 (τ)            1/κ
-  面積 (A)            1/κ²
-  消費電力 (P=VI)     1/κ²
-  電力密度 (P/A)      1（一定！）
+  Dimensions (L, W)       1/κ
+  Voltage (V)             1/κ
+  Current (I)             1/κ
+  Delay (τ)               1/κ
+  Area (A)                1/κ²
+  Power (P=VI)            1/κ²
+  Power Density (P/A)     1 (constant!)
   ────────────────────────────────────────────────
 
-  → トランジスタを半分にしても、同じ面積あたりの発熱は変わらない
-  → つまり「微細化 = 無料の性能向上」が成立
+  → Even if transistors are halved in size, heat per unit area remains the same
+  → In other words, "miniaturization = free performance improvement" held true
 
-  崩壊の原因（2005年頃〜）:
+  Cause of Breakdown (circa 2005):
   ────────────────────────────────────────────────
-  - 電圧が ~0.7V 以下に下がらない（閾値電圧の物理限界）
-  - リーク電流の指数的増加（ゲート酸化膜が薄すぎてトンネル効果発生）
-  - 微細化しても電力密度が下がらなくなった
-  → 「微細化 = 発熱増加」の時代へ突入
+  - Voltage cannot drop below ~0.7V (physical limit of threshold voltage)
+  - Exponential increase in leakage current (tunnel effect due to
+    excessively thin gate oxide)
+  - Power density no longer decreases with miniaturization
+  → Entered an era where "miniaturization = increased heat"
 ```
 
-デナード・スケーリングの崩壊は、コンピュータアーキテクチャの設計方針に根本的な転換をもたらした。クロック周波数の向上による性能改善が限界に達し、マルチコア化・専用アクセラレータへの移行が始まった。これが後述する「電力壁」の本質である。
+The breakdown of Dennard Scaling brought about a fundamental shift in computer architecture design philosophy. Performance improvement through clock frequency increases reached its limits, and the transition to multi-core processors and dedicated accelerators began. This is the essence of the "Power Wall" discussed later.
 
-### 1.4 ムーアの法則の現在と未来
+### 1.4 The Present and Future of Moore's Law
 
-| 年 | プロセスノード | ゲート構造 | リソグラフィ | 状況 |
+| Year | Process Node | Gate Structure | Lithography | Status |
 |----|-------------|----------|------------|------|
-| 2018 | 7 nm | FinFET | EUV 導入開始 | 従来ペースを維持 |
-| 2020 | 5 nm | FinFET | EUV 必須 | A14, M1 世代 |
-| 2022 | 3 nm | FinFET / GAA | EUV 多重露光 | A17, M3 世代 |
-| 2025 | 2 nm | GAA (ナノシート) | High-NA EUV | Samsung, TSMC 量産開始 |
-| 2027 | 1.4 nm | GAA (フォークシート) | High-NA EUV | 計画段階 |
-| 2030+ | Sub-1 nm | CFET (積層) | 次世代 EUV | 研究段階 |
+| 2018 | 7 nm | FinFET | EUV introduction begins | Maintaining traditional pace |
+| 2020 | 5 nm | FinFET | EUV required | A14, M1 generation |
+| 2022 | 3 nm | FinFET / GAA | EUV multi-patterning | A17, M3 generation |
+| 2025 | 2 nm | GAA (Nanosheet) | High-NA EUV | Samsung, TSMC mass production begins |
+| 2027 | 1.4 nm | GAA (Forksheet) | High-NA EUV | Planning stage |
+| 2030+ | Sub-1 nm | CFET (Stacked) | Next-gen EUV | Research stage |
 
-注目すべきは、「プロセスノード」の名称がもはや実際のゲート長を反映していないことだ。例えば「3nm プロセス」のゲート長は実際には 12nm 程度であり、名称はマーケティング上の慣習となっている。そのため、異なるメーカーのプロセスノードを単純に数値比較することには限界がある。
+It is worth noting that "process node" names no longer reflect actual gate lengths. For example, the gate length of a "3nm process" is actually around 12nm, and the naming has become a marketing convention. Therefore, simple numerical comparison of process nodes between different manufacturers has its limitations.
 
 ---
 
-## 2. 電力壁（Power Wall）
+## 2. Power Wall
 
-### 2.1 消費電力の物理
+### 2.1 The Physics of Power Consumption
 
-CMOS回路の消費電力は、大きく2つの要素から成る。
+The power consumption of CMOS circuits consists of two major components.
 
 ```
-CMOS 消費電力の構成:
+CMOS Power Consumption Components:
 
   P_total = P_dynamic + P_static
 
   ┌─────────────────────────────────────────────────────────┐
-  │ 動的消費電力（Dynamic Power）                            │
+  │ Dynamic Power                                           │
   │                                                         │
   │   P_dynamic = α × C × V² × f                           │
   │                                                         │
-  │   α: アクティビティファクタ（スイッチング確率、0〜1）    │
-  │   C: 負荷容量（キャパシタンス）                          │
-  │   V: 供給電圧                                           │
-  │   f: クロック周波数                                      │
+  │   α: Activity factor (switching probability, 0 to 1)    │
+  │   C: Load capacitance                                   │
+  │   V: Supply voltage                                     │
+  │   f: Clock frequency                                    │
   │                                                         │
-  │   → 電圧の2乗に比例し、周波数に線形に比例               │
-  │   → 周波数を2倍にすると電力も2倍                        │
-  │   → 電圧を1.5倍にすると電力は2.25倍                     │
+  │   → Proportional to the square of voltage,              │
+  │     linearly proportional to frequency                  │
+  │   → Doubling frequency doubles power                    │
+  │   → Increasing voltage by 1.5x increases power by 2.25x│
   ├─────────────────────────────────────────────────────────┤
-  │ 静的消費電力（Static Power / Leakage）                   │
+  │ Static Power (Leakage)                                  │
   │                                                         │
   │   P_static = V × I_leak                                 │
   │                                                         │
-  │   I_leak: リーク電流                                     │
-  │     - サブスレッショルドリーク: ゲート OFF でも微小電流   │
-  │     - ゲートリーク: 酸化膜が薄すぎてトンネル効果で漏れ  │
+  │   I_leak: Leakage current                               │
+  │     - Subthreshold leakage: small current even when     │
+  │       gate is OFF                                       │
+  │     - Gate leakage: tunneling effect through            │
+  │       excessively thin oxide                            │
   │                                                         │
-  │   → プロセスの微細化に伴い指数的に増加                   │
-  │   → 最新プロセスでは全消費電力の 30〜50% を占める        │
+  │   → Increases exponentially with process miniaturization│
+  │   → Accounts for 30-50% of total power in latest nodes  │
   └─────────────────────────────────────────────────────────┘
 ```
 
-### 2.2 クロック周波数の歴史と電力壁
+### 2.2 Clock Frequency History and the Power Wall
 
-クロック周波数の推移を見ると、2005年前後に明確な「壁」が存在することがわかる。
+Looking at the progression of clock frequencies, a clear "wall" is evident around 2005.
 
 ```
-クロック周波数と TDP（Thermal Design Power）の推移:
+Clock Frequency and TDP (Thermal Design Power) Over Time:
 
-  周波数                         TDP
-  (GHz)                         (W)
-  6 |                           300|
-    |                              |
-  5 |                    ●5.8GHz  250|                     ●253W
-    |                 (Boost)      |                    (Boost)
-  4 |          ●3.8GHz            200|
-    |       ●3.0GHz               |          ●130W
-  3 |                             150|       ●80W
-    |                              |
-  2 |    ●2.0GHz                  100|
-    |                              |
-  1 | ●1.0GHz                     50|
-    |                              |  ●5W
-  0 └──────────────────────→      0└──────────────────────→
-    2000 2003 2005 2010 2024      2000 2003 2005 2010 2024
+  Frequency                    TDP
+  (GHz)                       (W)
+  6 |                         300|
+    |                            |
+  5 |                  ●5.8GHz  250|                     ●253W
+    |               (Boost)      |                    (Boost)
+  4 |        ●3.8GHz            200|
+    |     ●3.0GHz               |          ●130W
+  3 |                           150|       ●80W
+    |                            |
+  2 |  ●2.0GHz                  100|
+    |                            |
+  1 | ●1.0GHz                   50|
+    |                            |  ●5W
+  0 └──────────────────────→    0└──────────────────────→
+    2000 2003 2005 2010 2024    2000 2003 2005 2010 2024
 
-  ポイント:
-  - 2000→2005: 周波数3.8倍、電力26倍 → デナード・スケーリング崩壊の証拠
-  - 2005→2010: 周波数はむしろ低下（省電力化の方針転換）
-  - 2024: 5.8GHz は短時間ブースト時のみ（定常は ~4GHz）
-  - 2005年以降のシングルスレッド性能向上は年 3〜5% 程度に鈍化
+  Key Points:
+  - 2000→2005: Frequency 3.8x, power 26x → Evidence of Dennard Scaling breakdown
+  - 2005→2010: Frequency actually decreased (shift to power efficiency)
+  - 2024: 5.8GHz only during short burst periods (sustained ~4GHz)
+  - Since 2005, single-thread performance improvement slowed to ~3-5% per year
 ```
 
-### 2.3 電力壁の数値的理解
+### 2.3 Quantitative Understanding of the Power Wall
 
-以下の Python コードで、周波数・電圧の変更が消費電力に与える影響を計算できる。
+The following Python code calculates the impact of frequency and voltage changes on power consumption.
 
 ```python
 """
-電力壁のシミュレーション: 周波数と電圧が消費電力に与える影響
+Power Wall Simulation: Impact of frequency and voltage on power consumption
 
-CMOS の動的消費電力: P = α * C * V^2 * f
+Dynamic power of CMOS: P = α * C * V^2 * f
 """
 
 def dynamic_power(activity: float, capacitance: float,
                   voltage: float, frequency: float) -> float:
-    """動的消費電力を計算する (単位: W)"""
+    """Calculate dynamic power consumption (unit: W)"""
     return activity * capacitance * (voltage ** 2) * frequency
 
 
@@ -227,187 +233,187 @@ def total_power(voltage: float, frequency: float,
                 leak_current: float,
                 activity: float = 0.3,
                 capacitance: float = 1e-9) -> float:
-    """動的 + 静的消費電力の合計を返す (単位: W)"""
+    """Return total of dynamic + static power consumption (unit: W)"""
     p_dynamic = dynamic_power(activity, capacitance, voltage, frequency)
     p_static = voltage * leak_current
     return p_dynamic + p_static
 
 
-# --- 2005年の典型的なプロセッサ (Pentium 4 Prescott 相当) ---
+# --- Typical processor circa 2005 (equivalent to Pentium 4 Prescott) ---
 base_voltage = 1.4       # V
 base_freq = 3.8e9        # Hz (3.8 GHz)
-base_leak = 30.0         # A (リーク電流が大きい)
+base_leak = 30.0         # A (high leakage current)
 base_activity = 0.3
 base_cap = 1e-9          # F
 
 p_2005 = total_power(base_voltage, base_freq, base_leak,
                       base_activity, base_cap)
-print(f"2005年相当 (3.8GHz, 1.4V): {p_2005:.1f} W")
+print(f"2005 equivalent (3.8GHz, 1.4V): {p_2005:.1f} W")
 
-# --- もし 2005年以降もクロックを上げ続けていたら ---
+# --- What if clock speeds had continued to increase after 2005 ---
 hypo_freq = 10e9         # 10 GHz
-hypo_voltage = 1.6       # 電圧も上げる必要がある
-hypo_leak = 60.0         # リーク電流も増大
+hypo_voltage = 1.6       # Voltage would also need to increase
+hypo_leak = 60.0         # Leakage current would also increase
 
 p_hypo = total_power(hypo_voltage, hypo_freq, hypo_leak,
                      base_activity, base_cap)
-print(f"仮想 10GHz (1.6V):       {p_hypo:.1f} W")
-print(f"電力比:                    {p_hypo/p_2005:.1f}x")
+print(f"Hypothetical 10GHz (1.6V):      {p_hypo:.1f} W")
+print(f"Power ratio:                     {p_hypo/p_2005:.1f}x")
 
-# --- 実際の対策: 電圧を下げてマルチコア化 ---
-multi_voltage = 0.9      # 電圧を大幅に低減
-multi_freq = 3.0e9       # 周波数を控えめに
-multi_leak = 10.0        # 微細化 + 対策でリーク電流削減
-cores = 8                # 8コア
+# --- Actual countermeasure: Lower voltage and go multi-core ---
+multi_voltage = 0.9      # Significantly reduced voltage
+multi_freq = 3.0e9       # Conservative frequency
+multi_leak = 10.0        # Reduced leakage through miniaturization + countermeasures
+cores = 8                # 8 cores
 
 p_single = total_power(multi_voltage, multi_freq, multi_leak,
                        base_activity, base_cap)
 p_multi = p_single * cores
-print(f"\n8コア (3.0GHz, 0.9V):    {p_multi:.1f} W (8コア合計)")
-print(f"1コアあたり:               {p_single:.1f} W")
-print(f"総スループット向上:        ~{cores * 0.8:.1f}x (並列効率80%想定)")
+print(f"\n8-core (3.0GHz, 0.9V):          {p_multi:.1f} W (8-core total)")
+print(f"Per core:                         {p_single:.1f} W")
+print(f"Total throughput improvement:     ~{cores * 0.8:.1f}x (assuming 80% parallel efficiency)")
 ```
 
-このコードが示すように、周波数を2.6倍に上げるよりも、電圧を下げて8コアにした方が、電力あたりのスループットが大幅に優れる。これが2005年以降にマルチコア化が進んだ根本的な理由である。
+As this code demonstrates, using 8 cores at lower voltage yields far better throughput per watt than raising frequency by 2.6x. This is the fundamental reason multi-core architectures proliferated after 2005.
 
-### 2.4 暗黒シリコン（Dark Silicon）問題
+### 2.4 The Dark Silicon Problem
 
-電力壁の延長線上にある問題が「暗黒シリコン（Dark Silicon）」である。チップ上のトランジスタ数はムーアの法則に従って増え続けるが、電力制約のために全てのトランジスタを同時にアクティブにできない。結果として、チップの大部分が常にオフ状態に置かれる。
+An extension of the power wall is the "Dark Silicon" problem. While transistor counts on a chip continue to increase following Moore's Law, power constraints prevent all transistors from being active simultaneously. As a result, a large portion of the chip is kept in an off state at all times.
 
 ```
-暗黒シリコンの概念:
+The Concept of Dark Silicon:
 
   ┌─────────────────────────────────────────────────┐
-  │                   チップ全体                      │
-  │                                                   │
-  │  ┌─────────┐  ┌─────────┐  ┌─────────┐          │
-  │  │ CPU     │  │ GPU     │  │ NPU     │          │
-  │  │ コア群  │  │ ユニット │  │ (AI)    │          │
-  │  │ ████████│  │ ░░░░░░░░│  │ ░░░░░░░░│ ← OFF   │
-  │  │ ████████│  │ ░░░░░░░░│  │ ░░░░░░░░│          │
-  │  └─────────┘  └─────────┘  └─────────┘          │
-  │                                                   │
-  │  ┌─────────┐  ┌─────────┐  ┌─────────┐          │
-  │  │ メディア │  │ セキュリ │  │ I/O     │          │
-  │  │ エンジン │  │ ティ    │  │ コントロ │          │
-  │  │ ░░░░░░░░│  │ ░░░░░░░░│  │ ████████│          │
-  │  │ ░░░░░░░░│  │ ░░░░░░░░│  │ ████████│ ← ON    │
-  │  └─────────┘  └─────────┘  └─────────┘          │
-  │                                                   │
-  │  ████ = アクティブ   ░░░░ = 暗黒シリコン（OFF）   │
-  │                                                   │
-  │  電力予算: 100W → 全トランジスタの 30〜50% しか    │
-  │  同時に稼働させられない                            │
+  │                   Entire Chip                    │
+  │                                                  │
+  │  ┌─────────┐  ┌─────────┐  ┌─────────┐         │
+  │  │ CPU     │  │ GPU     │  │ NPU     │         │
+  │  │ Cores   │  │ Units   │  │ (AI)    │         │
+  │  │ ████████│  │ ░░░░░░░░│  │ ░░░░░░░░│ ← OFF  │
+  │  │ ████████│  │ ░░░░░░░░│  │ ░░░░░░░░│         │
+  │  └─────────┘  └─────────┘  └─────────┘         │
+  │                                                  │
+  │  ┌─────────┐  ┌─────────┐  ┌─────────┐         │
+  │  │ Media   │  │ Security│  │ I/O     │         │
+  │  │ Engine  │  │         │  │ Control │         │
+  │  │ ░░░░░░░░│  │ ░░░░░░░░│  │ ████████│         │
+  │  │ ░░░░░░░░│  │ ░░░░░░░░│  │ ████████│ ← ON   │
+  │  └─────────┘  └─────────┘  └─────────┘         │
+  │                                                  │
+  │  ████ = Active       ░░░░ = Dark Silicon (OFF)  │
+  │                                                  │
+  │  Power budget: 100W → Only 30-50% of all        │
+  │  transistors can be active simultaneously        │
   └─────────────────────────────────────────────────┘
 
-  対策: ヘテロジニアス設計
-  - ワークロードに応じて必要なユニットだけをアクティブ化
-  - Apple M シリーズ: 高効率コア + 高性能コア + GPU + NPU
-  - 必要な部分だけ点灯し、残りは暗黒シリコンとして休眠
+  Countermeasure: Heterogeneous Design
+  - Activate only the units needed for the current workload
+  - Apple M series: Efficiency cores + Performance cores + GPU + NPU
+  - Light up only what is needed; the rest remains dormant as dark silicon
 ```
 
-### 2.5 電力壁への対策まとめ
+### 2.5 Summary of Power Wall Countermeasures
 
-| 対策 | 手法 | 効果 | 代表例 |
+| Countermeasure | Method | Effect | Representative Examples |
 |------|------|------|--------|
-| **電圧スケーリング** | DVFS（動的電圧周波数スケーリング） | 電圧を下げると電力が2乗で低下 | Intel SpeedStep, ARM DFS |
-| **マルチコア化** | 低クロック x 多コア | 電力あたりスループット向上 | Core 2 Duo 以降の全CPU |
-| **ヘテロジニアス設計** | big.LITTLE / 専用アクセラレータ | ワークロードに最適な回路で処理 | Apple M シリーズ, Snapdragon |
-| **製造プロセス改善** | FinFET → GAA → CFET | リーク電流の低減 | 7nm 以降の全プロセス |
-| **アーキテクチャ改善** | 分岐予測精度向上、OoO 効率化 | 同一クロックでの IPC 向上 | Zen 4, Golden Cove |
-| **冷却技術** | 液冷、ベイパーチャンバー | 放熱能力の向上 | データセンター向け GPU |
+| **Voltage Scaling** | DVFS (Dynamic Voltage and Frequency Scaling) | Reducing voltage decreases power quadratically | Intel SpeedStep, ARM DFS |
+| **Multi-core** | Low clock x many cores | Improved throughput per watt | All CPUs since Core 2 Duo |
+| **Heterogeneous Design** | big.LITTLE / dedicated accelerators | Process on optimal circuit for each workload | Apple M series, Snapdragon |
+| **Manufacturing Process Improvements** | FinFET → GAA → CFET | Reduced leakage current | All processes from 7nm onward |
+| **Architecture Improvements** | Improved branch prediction, OoO efficiency | Higher IPC at the same clock | Zen 4, Golden Cove |
+| **Cooling Technology** | Liquid cooling, vapor chambers | Improved heat dissipation | Data center GPUs |
 
 ---
 
-## 3. メモリウォール（Memory Wall）
+## 3. Memory Wall
 
-### 3.1 CPU とメモリの速度格差
+### 3.1 Speed Gap Between CPU and Memory
 
-1994年、Wulf と McKee は「Hitting the Memory Wall: Implications of the Obvious」という論文で、CPU の性能向上速度とメモリの性能向上速度の差が年々拡大しており、やがてメモリアクセスがシステム全体のボトルネックになると警告した。これが「メモリウォール」の概念である。
+In 1994, Wulf and McKee published the paper "Hitting the Memory Wall: Implications of the Obvious," warning that the gap between CPU performance improvement rates and memory performance improvement rates was widening year by year, and that memory access would eventually become the bottleneck for the entire system. This is the concept of the "Memory Wall."
 
 ```
-CPU とメモリの速度格差の推移:
+Progression of the CPU-Memory Speed Gap:
 
-  性能
-  向上率                    CPU (年 ~60% 向上, 1986-2003)
-  (対数)                   /
-       |                  /
-       |                /        ← CPU-メモリ間のギャップ
-       |              /             （年々拡大）
-       |            /
-       |          / _______________  メモリ (年 ~7% 向上)
+  Performance
+  Improvement Rate              CPU (~60% per year, 1986-2003)
+  (log scale)                  /
+       |                      /
+       |                    /        ← CPU-Memory gap
+       |                  /             (widening each year)
+       |                /
+       |              / _______________  Memory (~7% per year)
+       |            / /
+       |          / /
        |        / /
-       |      / /
-       |    / /
-       |  //
-       | /
-       └──────────────────────────────────→ 年
+       |      //
+       |     /
+       └──────────────────────────────────→ Year
         1980    1990    2000    2010    2020
 
-  具体的なレイテンシ（CPUクロックサイクル換算）:
+  Specific Latency (in CPU clock cycles):
   ──────────────────────────────────────────────
-  年        CPU周波数    DRAM遅延     CPU待ちサイクル数
+  Year     CPU Freq     DRAM Latency  CPU Wait Cycles
   ──────────────────────────────────────────────
-  1980      10 MHz       150 ns       ~1 サイクル
-  1990      100 MHz      100 ns       ~10 サイクル
-  2000      1 GHz        60 ns        ~60 サイクル
-  2010      3 GHz        40 ns        ~120 サイクル
-  2025      5 GHz        35 ns        ~175 サイクル
+  1980     10 MHz       150 ns        ~1 cycle
+  1990     100 MHz      100 ns        ~10 cycles
+  2000     1 GHz        60 ns         ~60 cycles
+  2010     3 GHz        40 ns         ~120 cycles
+  2025     5 GHz        35 ns         ~175 cycles
   ──────────────────────────────────────────────
 
-  → DRAM の絶対遅延は改善されているが、
-     CPU の高速化に全く追いついていない
-  → 1回のメモリアクセスで CPU は 100〜200 サイクル「待ち」になる
+  → DRAM absolute latency has improved, but
+    it has not kept pace with CPU speedups at all
+  → A single memory access causes the CPU to "wait" for 100-200 cycles
 ```
 
-### 3.2 キャッシュ階層による緩和
+### 3.2 Mitigation Through Cache Hierarchy
 
-メモリウォールへの主要な対策が、多段のキャッシュ階層である。
+The primary countermeasure to the Memory Wall is a multi-level cache hierarchy.
 
 ```
-現代のメモリ階層（2025年の一般的なデスクトップ CPU）:
+Modern Memory Hierarchy (typical desktop CPU, 2025):
 
   ┌──────────────────────────────────────────────────────────────┐
-  │ レジスタ   | 容量: ~1 KB   | 遅延: <1 ns  | ~1 サイクル     │
+  │ Registers   | Capacity: ~1 KB  | Latency: <1 ns | ~1 cycle  │
   ├──────────────────────────────────────────────────────────────┤
-  │ L1 キャッシュ | 容量: 32-96 KB | 遅延: ~1 ns | ~4 サイクル   │
-  │  (コアごと)   | (命令+データ)  |             |               │
+  │ L1 Cache    | Capacity: 32-96 KB | Latency: ~1 ns | ~4 cycles│
+  │  (per core) | (instruction+data) |                |          │
   ├──────────────────────────────────────────────────────────────┤
-  │ L2 キャッシュ | 容量: 256KB-2MB| 遅延: ~3 ns | ~12 サイクル  │
-  │  (コアごと)   |               |              |               │
+  │ L2 Cache    | Capacity: 256KB-2MB| Latency: ~3 ns | ~12 cycles│
+  │  (per core) |                    |                |          │
   ├──────────────────────────────────────────────────────────────┤
-  │ L3 キャッシュ | 容量: 8-96 MB | 遅延: ~10 ns | ~40 サイクル  │
-  │  (全コア共有) |               |              |               │
+  │ L3 Cache    | Capacity: 8-96 MB  | Latency: ~10 ns| ~40 cycles│
+  │  (shared)   |                    |                |          │
   ├──────────────────────────────────────────────────────────────┤
-  │ メインメモリ  | 容量: 16-128GB| 遅延: ~35 ns | ~175 サイクル │
-  │  (DRAM)       |               |              |               │
+  │ Main Memory | Capacity: 16-128GB | Latency: ~35 ns|~175 cycles│
+  │  (DRAM)     |                    |                |          │
   ├──────────────────────────────────────────────────────────────┤
-  │ SSD / NVMe   | 容量: 1-8 TB  | 遅延: ~100us | ~500K サイクル│
+  │ SSD / NVMe  | Capacity: 1-8 TB  | Latency: ~100us|~500K cycles│
   ├──────────────────────────────────────────────────────────────┤
-  │ HDD          | 容量: 1-20 TB | 遅延: ~10 ms | ~50M サイクル │
+  │ HDD         | Capacity: 1-20 TB | Latency: ~10 ms|~50M cycles│
   └──────────────────────────────────────────────────────────────┘
 
-  容量が大きいほど遅く、小さいほど速い（トレードオフ）
+  Larger capacity means slower; smaller capacity means faster (trade-off)
 ```
 
-### 3.3 キャッシュの効果を理解するコード例
+### 3.3 Code Example Demonstrating Cache Effects
 
-以下のコードは、アクセスパターンによるキャッシュ効果の違いを示す。
+The following code demonstrates the performance difference due to access patterns.
 
 ```c
 /**
- * メモリアクセスパターンによる性能差のデモンストレーション
+ * Demonstration of performance differences based on memory access patterns
  *
- * 配列の要素をシーケンシャル（連続）にアクセスする場合と
- * ランダムにアクセスする場合で、処理時間がどれだけ異なるかを示す。
+ * Shows the difference in processing time between sequential (contiguous)
+ * access and random access of array elements.
  *
- * コンパイル: gcc -O2 -o cache_demo cache_demo.c
+ * Compile: gcc -O2 -o cache_demo cache_demo.c
  */
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 
-#define ARRAY_SIZE (64 * 1024 * 1024)  /* 64M 要素 = 256MB (int) */
+#define ARRAY_SIZE (64 * 1024 * 1024)  /* 64M elements = 256MB (int) */
 #define ITERATIONS 10
 
 int main(void) {
@@ -417,12 +423,12 @@ int main(void) {
         return 1;
     }
 
-    /* 配列を初期化 */
+    /* Initialize the array */
     for (long i = 0; i < ARRAY_SIZE; i++) {
         array[i] = (int)(i & 0x7FFFFFFF);
     }
 
-    /* ランダムアクセス用のインデックス配列 */
+    /* Index array for random access */
     long *indices = malloc(sizeof(long) * ARRAY_SIZE);
     if (!indices) {
         perror("malloc");
@@ -432,7 +438,7 @@ int main(void) {
     for (long i = 0; i < ARRAY_SIZE; i++) {
         indices[i] = i;
     }
-    /* Fisher-Yates シャッフル */
+    /* Fisher-Yates shuffle */
     srand(42);
     for (long i = ARRAY_SIZE - 1; i > 0; i--) {
         long j = rand() % (i + 1);
@@ -441,7 +447,7 @@ int main(void) {
         indices[j] = tmp;
     }
 
-    /* 1. シーケンシャルアクセス */
+    /* 1. Sequential access */
     clock_t start = clock();
     volatile long sum1 = 0;
     for (int iter = 0; iter < ITERATIONS; iter++) {
@@ -451,7 +457,7 @@ int main(void) {
     }
     clock_t seq_time = clock() - start;
 
-    /* 2. ランダムアクセス */
+    /* 2. Random access */
     start = clock();
     volatile long sum2 = 0;
     for (int iter = 0; iter < ITERATIONS; iter++) {
@@ -461,20 +467,21 @@ int main(void) {
     }
     clock_t rand_time = clock() - start;
 
-    printf("シーケンシャルアクセス: %.3f 秒\n",
+    printf("Sequential access: %.3f sec\n",
            (double)seq_time / CLOCKS_PER_SEC);
-    printf("ランダムアクセス:       %.3f 秒\n",
+    printf("Random access:     %.3f sec\n",
            (double)rand_time / CLOCKS_PER_SEC);
-    printf("速度比:                 %.1fx\n",
+    printf("Speed ratio:       %.1fx\n",
            (double)rand_time / seq_time);
 
-    /* 典型的な結果:
-     * シーケンシャル: ~0.5 秒
-     * ランダム:       ~5.0 秒
-     * 速度比:         ~10x
+    /* Typical results:
+     * Sequential: ~0.5 sec
+     * Random:     ~5.0 sec
+     * Speed ratio: ~10x
      *
-     * → 同じデータ量でもアクセスパターンで10倍の性能差
-     * → キャッシュフレンドリーなデータ配置が性能に直結
+     * → A 10x performance difference with the same data volume,
+     *   just from different access patterns
+     * → Cache-friendly data placement directly impacts performance
      */
 
     free(indices);
@@ -483,27 +490,27 @@ int main(void) {
 }
 ```
 
-### 3.4 メモリウォールを緩和する技術
+### 3.4 Technologies to Mitigate the Memory Wall
 
-| 技術 | 概要 | 効果 | 適用例 |
+| Technology | Overview | Effect | Application Examples |
 |------|------|------|--------|
-| **HBM (High Bandwidth Memory)** | DRAMを3D積層しワイドバスで接続 | 帯域幅を数倍〜10倍に拡大 | GPU (A100: HBM2e, H100: HBM3) |
-| **CXL (Compute Express Link)** | PCIe ベースのメモリプーリング | メモリ容量の柔軟な拡張 | データセンター向けサーバー |
-| **PIM (Processing In Memory)** | メモリチップ内に演算ユニット | データ移動の削減 | Samsung HBM-PIM |
-| **プリフェッチ** | ハードウェア/ソフトウェアで先読み | キャッシュミス削減 | 全ての現代 CPU |
-| **NUMA 最適化** | データとCPUの物理的近接配置 | リモートアクセス削減 | マルチソケットサーバー |
-| **データ指向設計 (DOD)** | AoS → SoA 変換、キャッシュライン意識 | ソフトウェア側の最適化 | ゲームエンジン、HPC |
+| **HBM (High Bandwidth Memory)** | 3D-stacked DRAM connected via wide bus | Bandwidth expanded several to 10x | GPU (A100: HBM2e, H100: HBM3) |
+| **CXL (Compute Express Link)** | PCIe-based memory pooling | Flexible expansion of memory capacity | Data center servers |
+| **PIM (Processing In Memory)** | Compute units within memory chips | Reduced data movement | Samsung HBM-PIM |
+| **Prefetching** | Hardware/software look-ahead reads | Reduced cache misses | All modern CPUs |
+| **NUMA Optimization** | Physically co-locating data and CPUs | Reduced remote access | Multi-socket servers |
+| **Data-Oriented Design (DOD)** | AoS → SoA conversion, cache-line awareness | Software-side optimization | Game engines, HPC |
 
-### 3.5 データ指向設計（DOD）によるキャッシュ最適化
+### 3.5 Cache Optimization Through Data-Oriented Design (DOD)
 
-ソフトウェアエンジニアがメモリウォールに対してできる最も効果的な対策は、データ指向設計（Data-Oriented Design）である。
+The most effective countermeasure software engineers can apply to the Memory Wall is Data-Oriented Design.
 
 ```cpp
 /**
  * AoS (Array of Structures) vs SoA (Structure of Arrays)
  *
- * 同じデータに対して、メモリレイアウトの違いが
- * キャッシュ効率にどう影響するかを示す。
+ * Demonstrates how different memory layouts for the same data
+ * affect cache efficiency.
  */
 #include <cstdio>
 #include <cstdlib>
@@ -513,22 +520,22 @@ int main(void) {
 constexpr int N = 10'000'000;
 
 /* ============================================
- * パターン1: AoS (Array of Structures)
- * 一般的なオブジェクト指向設計のメモリレイアウト
+ * Pattern 1: AoS (Array of Structures)
+ * Memory layout typical of object-oriented design
  * ============================================ */
 struct ParticleAoS {
-    float x, y, z;       // 位置 (12 bytes)
-    float vx, vy, vz;    // 速度 (12 bytes)
-    float mass;           // 質量 (4 bytes)
-    int   type;           // 種別 (4 bytes)
-    // 合計: 32 bytes / 粒子
+    float x, y, z;       // Position (12 bytes)
+    float vx, vy, vz;    // Velocity (12 bytes)
+    float mass;           // Mass (4 bytes)
+    int   type;           // Type (4 bytes)
+    // Total: 32 bytes / particle
 };
 
 void update_positions_aos(ParticleAoS* particles, int n, float dt) {
     for (int i = 0; i < n; i++) {
-        /* 位置の更新に必要なのは x,y,z と vx,vy,vz だけだが、
-         * mass と type も同じキャッシュラインに載ってしまう
-         * → キャッシュの無駄遣い */
+        /* Updating positions only requires x,y,z and vx,vy,vz,
+         * but mass and type also end up in the same cache line
+         * → Wasted cache space */
         particles[i].x += particles[i].vx * dt;
         particles[i].y += particles[i].vy * dt;
         particles[i].z += particles[i].vz * dt;
@@ -536,8 +543,8 @@ void update_positions_aos(ParticleAoS* particles, int n, float dt) {
 }
 
 /* ============================================
- * パターン2: SoA (Structure of Arrays)
- * データ指向設計のメモリレイアウト
+ * Pattern 2: SoA (Structure of Arrays)
+ * Memory layout for data-oriented design
  * ============================================ */
 struct ParticlesSoA {
     float* x;   float* y;   float* z;
@@ -548,8 +555,8 @@ struct ParticlesSoA {
 
 void update_positions_soa(ParticlesSoA& p, int n, float dt) {
     for (int i = 0; i < n; i++) {
-        /* x の配列だけを連続アクセス → キャッシュライン有効活用
-         * SIMD 自動ベクトル化の恩恵も受けやすい */
+        /* Accessing only the x array contiguously → Effective cache line usage
+         * Also benefits from SIMD auto-vectorization */
         p.x[i] += p.vx[i] * dt;
     }
     for (int i = 0; i < n; i++) {
@@ -561,57 +568,57 @@ void update_positions_soa(ParticlesSoA& p, int n, float dt) {
 }
 
 /*
- * 典型的なベンチマーク結果:
+ * Typical benchmark results:
  *   AoS: ~120 ms
  *   SoA: ~35 ms
- *   高速化率: ~3.4x
+ *   Speedup: ~3.4x
  *
- * 理由:
- * - AoS: 64バイトのキャッシュラインに2粒子分しか入らず、
- *         mass/type の不要データも読み込まれる
- * - SoA: キャッシュラインに16個の float が詰まり、
- *         全て計算に使用される（利用率100%）
+ * Reason:
+ * - AoS: Only 2 particles fit in a 64-byte cache line,
+ *         and unnecessary mass/type data is also loaded
+ * - SoA: 16 floats are packed into a cache line,
+ *         and all are used for computation (100% utilization)
  */
 ```
 
 ---
 
-## 4. アムダールの法則（Amdahl's Law）
+## 4. Amdahl's Law
 
-### 4.1 法則の定義
+### 4.1 Definition of the Law
 
-1967年、Gene Amdahl はプログラムの並列化による高速化の上限を示す法則を提唱した。これがアムダールの法則（Amdahl's Law）である。
+In 1967, Gene Amdahl proposed a law that describes the upper limit of speedup achievable through parallelization of a program. This is Amdahl's Law.
 
 ```
-アムダールの法則:
+Amdahl's Law:
 
                     1
   S(n) = ────────────────────
           (1 - P) + P / n
 
-  S(n): n 個のプロセッサを使用した際のスピードアップ
-  P:    並列化可能な部分の割合 (0 ≦ P ≦ 1)
-  n:    プロセッサ数
+  S(n): Speedup when using n processors
+  P:    Fraction of the program that is parallelizable (0 ≦ P ≦ 1)
+  n:    Number of processors
 
-  n → ∞ の極限:
+  In the limit as n → ∞:
 
                  1
   S(∞) = ────────────
            1 - P
 
-  → 並列化不可能な部分が全体の高速化の上限を決定する
+  → The non-parallelizable fraction determines the upper bound of overall speedup
 
-  例: プログラムの 90% が並列化可能 (P = 0.9) な場合
+  Example: If 90% of a program is parallelizable (P = 0.9)
       S(∞) = 1 / (1 - 0.9) = 1 / 0.1 = 10x
 
-  → どれだけプロセッサを増やしても、10倍が理論上の上限
-  → 残り 10% の逐次部分がボトルネック
+  → No matter how many processors are added, 10x is the theoretical limit
+  → The remaining 10% sequential portion is the bottleneck
 ```
 
-### 4.2 アムダールの法則の可視化
+### 4.2 Visualization of Amdahl's Law
 
 ```
-プロセッサ数 n に対するスピードアップ S(n):
+Speedup S(n) vs. number of processors n:
 
   S(n)
   20x |
@@ -622,7 +629,7 @@ void update_positions_soa(ParticlesSoA& p, int n, float dt) {
       |                     ...
   12x |                  ..          _________________________ P=0.95
       |               .       _____
-  10x |            ..    ____      ← P=0.9 の理論上限
+  10x |            ..    ____      ← Theoretical limit for P=0.9
       |          .   ___
    8x |        .  __
       |       . _         ______________________________  P=0.9
@@ -634,43 +641,43 @@ void update_positions_soa(ParticlesSoA& p, int n, float dt) {
       | .________
    1x |──────────────────────────────────────────────────→
       1    2    4    8   16   32   64  128  256  512  1024
-                        プロセッサ数 (n)
+                        Number of Processors (n)
 
-  重要な洞察:
-  - P=0.5  → 最大 2x (プロセッサをいくら増やしても)
-  - P=0.75 → 最大 4x
-  - P=0.9  → 最大 10x
-  - P=0.95 → 最大 20x
-  - P=0.99 → 最大 100x
+  Key Insights:
+  - P=0.5  → Maximum 2x (no matter how many processors)
+  - P=0.75 → Maximum 4x
+  - P=0.9  → Maximum 10x
+  - P=0.95 → Maximum 20x
+  - P=0.99 → Maximum 100x
 
-  → 「並列化率を上げること」が「コア数を増やすこと」より重要
+  → "Increasing the parallelization ratio" matters more than "adding more cores"
 ```
 
-### 4.3 アムダールの法則の計算
+### 4.3 Computing Amdahl's Law
 
 ```python
 """
-アムダールの法則の計算と可視化
+Computation and Visualization of Amdahl's Law
 
-このスクリプトは、並列化可能割合 P とプロセッサ数 n から
-理論上のスピードアップを計算する。
+This script calculates the theoretical speedup from
+the parallelizable fraction P and the number of processors n.
 """
 
 def amdahl_speedup(p: float, n: int) -> float:
     """
-    アムダールの法則によるスピードアップを計算する。
+    Calculate the speedup according to Amdahl's Law.
 
     Parameters:
-        p: 並列化可能な部分の割合 (0.0 〜 1.0)
-        n: プロセッサ数
+        p: Fraction of the program that is parallelizable (0.0 to 1.0)
+        n: Number of processors
 
     Returns:
-        スピードアップ倍率
+        Speedup factor
     """
     if n < 1:
-        raise ValueError("プロセッサ数は1以上である必要がある")
+        raise ValueError("Number of processors must be at least 1")
     if not (0.0 <= p <= 1.0):
-        raise ValueError("並列化割合は0.0〜1.0の範囲である必要がある")
+        raise ValueError("Parallelization fraction must be in the range 0.0 to 1.0")
 
     serial_fraction = 1.0 - p
     parallel_fraction = p / n
@@ -678,28 +685,28 @@ def amdahl_speedup(p: float, n: int) -> float:
 
 
 def amdahl_max_speedup(p: float) -> float:
-    """n → ∞ の理論上限"""
+    """Theoretical upper limit as n → ∞"""
     if p >= 1.0:
         return float('inf')
     return 1.0 / (1.0 - p)
 
 
-# --- 具体的な計算例 ---
+# --- Concrete calculation examples ---
 print("=" * 60)
-print("アムダールの法則: プロセッサ数とスピードアップの関係")
+print("Amdahl's Law: Relationship Between Processor Count and Speedup")
 print("=" * 60)
 
 parallel_ratios = [0.5, 0.75, 0.9, 0.95, 0.99]
 core_counts = [1, 2, 4, 8, 16, 64, 256, 1024]
 
-# ヘッダー
-header = f"{'P':>6} | {'上限':>6}"
+# Header
+header = f"{'P':>6} | {'Limit':>6}"
 for n in core_counts:
-    header += f" | {n:>5}コア"
+    header += f" | {n:>5} cores"
 print(header)
 print("-" * len(header))
 
-# 各並列化率について計算
+# Calculate for each parallelization ratio
 for p in parallel_ratios:
     row = f"{p:>5.0%}  | {amdahl_max_speedup(p):>5.1f}x"
     for n in core_counts:
@@ -708,230 +715,234 @@ for p in parallel_ratios:
     print(row)
 
 print()
-print("--- 実用的な分析例 ---")
+print("--- Practical Analysis Examples ---")
 print()
 
-# シナリオ: Web サーバーのリクエスト処理
-# 並列化可能: リクエスト処理 (85%)
-# 逐次部分: ログ書き込み、DB接続プール管理 (15%)
+# Scenario: Web server request processing
+# Parallelizable: Request handling (85%)
+# Sequential: Log writing, DB connection pool management (15%)
 p_web = 0.85
 for n in [4, 8, 16, 32]:
     s = amdahl_speedup(p_web, n)
     efficiency = s / n * 100
-    print(f"  Web サーバー ({n} コア): "
-          f"スピードアップ {s:.2f}x, "
-          f"並列効率 {efficiency:.1f}%")
+    print(f"  Web server ({n} cores): "
+          f"Speedup {s:.2f}x, "
+          f"Parallel efficiency {efficiency:.1f}%")
 
-print(f"  理論上限: {amdahl_max_speedup(p_web):.2f}x")
+print(f"  Theoretical limit: {amdahl_max_speedup(p_web):.2f}x")
 print()
 
-# シナリオ: 画像処理パイプライン
-# 並列化可能: ピクセル単位の処理 (98%)
-# 逐次部分: 画像のロード/保存 (2%)
+# Scenario: Image processing pipeline
+# Parallelizable: Per-pixel processing (98%)
+# Sequential: Image load/save (2%)
 p_image = 0.98
 for n in [4, 8, 16, 64, 256]:
     s = amdahl_speedup(p_image, n)
     efficiency = s / n * 100
-    print(f"  画像処理 ({n:>3} コア): "
-          f"スピードアップ {s:>6.2f}x, "
-          f"並列効率 {efficiency:.1f}%")
+    print(f"  Image processing ({n:>3} cores): "
+          f"Speedup {s:>6.2f}x, "
+          f"Parallel efficiency {efficiency:.1f}%")
 
-print(f"  理論上限: {amdahl_max_speedup(p_image):.2f}x")
+print(f"  Theoretical limit: {amdahl_max_speedup(p_image):.2f}x")
 ```
 
-### 4.4 グスタフソンの法則 — アムダールの法則の補完
+### 4.4 Gustafson's Law — A Complement to Amdahl's Law
 
-アムダールの法則は「問題サイズが一定」という前提に基づいている。しかし、プロセッサが増えれば問題サイズも拡大できるという視点を1988年に John Gustafson が提唱した。これがグスタフソンの法則（Gustafson's Law）である。
+Amdahl's Law is based on the premise that "the problem size is fixed." However, in 1988, John Gustafson proposed the perspective that if the number of processors increases, the problem size can also be expanded. This is Gustafson's Law.
 
 ```
-グスタフソンの法則:
+Gustafson's Law:
 
   S(n) = n - (1 - P) × (n - 1)
        = 1 - P + P × n
 
-  → 問題サイズをプロセッサ数に比例して拡大する場合、
-     スピードアップはプロセッサ数にほぼ線形に増加する
+  → When problem size is scaled proportionally to the number of processors,
+     speedup increases approximately linearly with processor count
 
-  アムダールの法則との違い:
+  Differences from Amdahl's Law:
   ─────────────────────────────────────────────────────────
-  観点          アムダール           グスタフソン
+  Aspect           Amdahl              Gustafson
   ─────────────────────────────────────────────────────────
-  問題サイズ    固定                 プロセッサ数に比例して拡大
-  逐次部分      一定（時間）         一定（時間）
-  並列部分      一定（仕事量）       拡大（仕事量）
-  スケーリング  強スケーリング       弱スケーリング
-  見方          「どれだけ速くなるか」 「どれだけ大きな問題を解けるか」
+  Problem Size     Fixed                Scales with processors
+  Sequential Part  Constant (time)      Constant (time)
+  Parallel Part    Constant (work)      Scales (work)
+  Scaling          Strong scaling       Weak scaling
+  Perspective      "How much faster?"   "How much bigger a problem can we solve?"
   ─────────────────────────────────────────────────────────
 
-  実務への示唆:
-  - Web サーバー: リクエスト数がコア数と共に増加 → グスタフソン的
-  - リアルタイム処理: レイテンシは固定 → アムダール的
-  - 科学計算: 解像度を上げたい → グスタフソン的
-  - ゲーム: フレームレートは固定 → アムダール的
+  Practical Implications:
+  - Web server: Request count grows with core count → Gustafson-like
+  - Real-time processing: Latency is fixed → Amdahl-like
+  - Scientific computing: Want to increase resolution → Gustafson-like
+  - Gaming: Frame rate is fixed → Amdahl-like
 ```
 
 ---
 
-## 5. ILP壁（命令レベル並列性の限界）
+## 5. ILP Wall (Instruction-Level Parallelism Limits)
 
-### 5.1 命令レベル並列性（ILP）とは
+### 5.1 What Is Instruction-Level Parallelism (ILP)?
 
-ILP（Instruction-Level Parallelism）は、プログラム中の独立した命令を同時に実行する手法の総称である。スーパースカラ実行、アウトオブオーダー実行、投機的実行などが含まれる。
-
-```
-ILP の仕組み:
-
-  逐次実行:
-    時間 →  1   2   3   4   5   6   7   8
-    命令A: [F] [D] [E] [W]
-    命令B:              [F] [D] [E] [W]
-    → 8サイクルで2命令 = IPC 0.25
-
-  パイプライン実行:
-    時間 →  1   2   3   4   5
-    命令A: [F] [D] [E] [W]
-    命令B:     [F] [D] [E] [W]
-    → 5サイクルで2命令 = IPC 0.4
-
-  スーパースカラ + アウトオブオーダー:
-    時間 →  1   2   3   4
-    命令A: [F] [D] [E] [W]
-    命令B: [F] [D] [E] [W]   ← 同時発行（命令が独立なら）
-    命令C:     [F] [D] [E] [W]
-    命令D:     [F] [D] [E] [W]
-    → 4サイクルで4命令 = IPC 1.0
-
-  F=フェッチ, D=デコード, E=実行, W=ライトバック
-  IPC = Instructions Per Cycle（1サイクルあたりの命令実行数）
-
-  理想的な IPC:
-  - 4-wide スーパースカラ → 理論上 IPC 4.0
-  - 実際に達成される IPC: 2〜4 程度（データ依存、分岐ミス等で制限）
-```
-
-### 5.2 ILP を制限する3つの依存関係
+ILP (Instruction-Level Parallelism) is the collective term for techniques that execute independent instructions in a program simultaneously. It includes superscalar execution, out-of-order execution, and speculative execution, among others.
 
 ```
-ILP を阻む依存関係:
+How ILP Works:
 
-  1. データ依存（Data Dependency）
+  Sequential execution:
+    Time →  1   2   3   4   5   6   7   8
+    Inst A: [F] [D] [E] [W]
+    Inst B:              [F] [D] [E] [W]
+    → 2 instructions in 8 cycles = IPC 0.25
+
+  Pipelined execution:
+    Time →  1   2   3   4   5
+    Inst A: [F] [D] [E] [W]
+    Inst B:     [F] [D] [E] [W]
+    → 2 instructions in 5 cycles = IPC 0.4
+
+  Superscalar + Out-of-Order:
+    Time →  1   2   3   4
+    Inst A: [F] [D] [E] [W]
+    Inst B: [F] [D] [E] [W]   ← Simultaneous issue (if instructions are independent)
+    Inst C:     [F] [D] [E] [W]
+    Inst D:     [F] [D] [E] [W]
+    → 4 instructions in 4 cycles = IPC 1.0
+
+  F=Fetch, D=Decode, E=Execute, W=Write-back
+  IPC = Instructions Per Cycle
+
+  Ideal IPC:
+  - 4-wide superscalar → Theoretical IPC of 4.0
+  - Actually achieved IPC: ~2 to 4 (limited by data dependencies, branch misses, etc.)
+```
+
+### 5.2 Three Dependencies That Limit ILP
+
+```
+Dependencies That Hinder ILP:
+
+  1. Data Dependency
   ─────────────────────────────────────
      ADD R1, R2, R3    ; R1 = R2 + R3
-     MUL R4, R1, R5    ; R4 = R1 × R5  ← R1 が確定するまで実行不可
-     → 真のデータ依存（RAW: Read After Write）
+     MUL R4, R1, R5    ; R4 = R1 × R5  ← Cannot execute until R1 is determined
+     → True data dependency (RAW: Read After Write)
 
-  2. 制御依存（Control Dependency）
+  2. Control Dependency
   ─────────────────────────────────────
      CMP R1, #0
-     BEQ label         ; R1 == 0 なら分岐
-     ADD R2, R3, R4    ; ← 分岐結果が判明するまで実行すべきか不明
-     → 分岐予測ミス時にパイプラインフラッシュが発生
+     BEQ label         ; Branch if R1 == 0
+     ADD R2, R3, R4    ; ← Unknown whether to execute until branch result is known
+     → Pipeline flush occurs on branch misprediction
 
-  3. 資源競合（Structural Hazard）
+  3. Structural Hazard (Resource Contention)
   ─────────────────────────────────────
-     命令A: メモリ読み込み  ─┐
-     命令B: メモリ読み込み  ─┤→ メモリポートが1つしかない場合
-     → 同じハードウェアリソースを同時に使えない
+     Inst A: Memory load  ─┐
+     Inst B: Memory load  ─┤→ If there is only one memory port
+     → Cannot use the same hardware resource simultaneously
 
-  結果:
-  - 理論上は 4〜8 命令を同時発行可能
-  - 実際の一般的なプログラムでは IPC 2〜4 程度が上限
-  - 分岐予測精度は 95〜97%（残り 3〜5% でパイプラインフラッシュ）
-  - ウィンドウサイズを大きくしても収穫逓減
+  Result:
+  - Theoretically, 4 to 8 instructions can be issued simultaneously
+  - In practice, typical programs hit an IPC ceiling of ~2 to 4
+  - Branch prediction accuracy is 95-97% (3-5% cause pipeline flushes)
+  - Diminishing returns from increasing window size
 ```
 
-### 5.3 ILP 壁への対策
+### 5.3 Countermeasures for the ILP Wall
 
-| 対策 | レベル | 内容 | 効果 |
+| Countermeasure | Level | Description | Effect |
 |------|--------|------|------|
-| **TLP（スレッドレベル並列性）** | ハードウェア | マルチコア、SMT (Hyper-Threading) | コア数に比例（アムダールの法則の制約付き） |
-| **DLP（データレベル並列性）** | ハードウェア + ソフトウェア | SIMD (SSE/AVX/NEON)、GPU | データ並列処理で大幅な高速化 |
-| **分岐予測精度向上** | ハードウェア | TAGE 予測器、ニューラル分岐予測 | パイプラインフラッシュの削減 |
-| **投機的実行** | ハードウェア | 分岐結果が確定する前に先行実行 | 有効 IPC の向上（Spectre 脆弱性の原因） |
-| **コンパイラ最適化** | ソフトウェア | ループアンローリング、ソフトウェアパイプライニング | ILP の向上 |
+| **TLP (Thread-Level Parallelism)** | Hardware | Multi-core, SMT (Hyper-Threading) | Proportional to core count (subject to Amdahl's Law) |
+| **DLP (Data-Level Parallelism)** | Hardware + Software | SIMD (SSE/AVX/NEON), GPU | Significant speedup through data-parallel processing |
+| **Improved Branch Prediction** | Hardware | TAGE predictor, neural branch prediction | Reduced pipeline flushes |
+| **Speculative Execution** | Hardware | Execute ahead before branch results are confirmed | Improved effective IPC (also the cause of Spectre vulnerabilities) |
+| **Compiler Optimizations** | Software | Loop unrolling, software pipelining | Improved ILP |
 
 ---
 
-## 6. 複合的ボトルネック — 壁は単独では存在しない
+## 6. Composite Bottlenecks — Walls Do Not Exist in Isolation
 
-### 6.1 壁の相互関係
+### 6.1 Interrelationships Among the Walls
 
-電力壁、メモリウォール、ILP壁は独立した問題ではなく、相互に影響し合う複合的な制約である。
+The Power Wall, Memory Wall, and ILP Wall are not independent problems but mutually interacting composite constraints.
 
 ```
-3つの壁の相互関係:
+Interrelationships Among the Three Walls:
 
               ┌─────────────┐
-              │   電力壁    │
-              │  (Power     │
-              │   Wall)     │
+              │  Power Wall  │
+              │              │
+              │              │
               └──────┬──────┘
                      │
-         クロック周波数を ──→ マルチコア化 ──→ 並列化率が
-         上げられない                         ボトルネックに
+         Cannot raise  ──→ Multi-core  ──→ Parallelization
+         clock frequency                    ratio becomes
+                     │                      a bottleneck
                      │                            │
               ┌──────┴──────┐              ┌──────┴──────┐
-              │  メモリ壁   │←─────────────│   ILP 壁    │
-              │ (Memory     │  マルチコアが  │ (ILP Wall)  │
-              │  Wall)      │  メモリ帯域を  │             │
-              └─────────────┘  奪い合う      └─────────────┘
+              │ Memory Wall │←─────────────│  ILP Wall   │
+              │             │  Multi-core  │             │
+              │             │  competes    │             │
+              └─────────────┘  for memory  └─────────────┘
+                               bandwidth
 
-  悪循環の例:
-  1. 電力壁 → クロック上げられない → マルチコア化
-  2. マルチコア化 → メモリ帯域の競合 → メモリ壁悪化
-  3. メモリ壁 → メモリ待ち時間増加 → ILP が有効活用できない
-  4. ILP 壁 → シングルスレッド性能停滞 → 更にコア数増加を要求
-  5. コア数増加 → 電力増加 → 電力壁 → 1に戻る
+  Example of a vicious cycle:
+  1. Power Wall → Cannot raise clock → Go multi-core
+  2. Multi-core → Memory bandwidth contention → Memory Wall worsens
+  3. Memory Wall → Increased memory wait time → ILP cannot be effectively utilized
+  4. ILP Wall → Single-thread performance stagnation → Demands even more cores
+  5. More cores → More power → Power Wall → Back to 1
 
-  → 単一の壁だけ解決しても本質的な改善にならない
-  → ハードウェアとソフトウェアの協調設計が必須
+  → Solving only a single wall does not yield fundamental improvement
+  → Coordinated hardware-software design is essential
 ```
 
-### 6.2 その他の「壁」
+### 6.2 Other "Walls"
 
-上記の3大ボトルネック以外にも、以下の壁が知られている。
+Beyond the three major bottlenecks above, the following walls are also known.
 
-| 壁 | 内容 | 影響 |
+| Wall | Description | Impact |
 |----|------|------|
-| **帯域幅の壁（Bandwidth Wall）** | チップ外部のデータ転送速度の限界 | AI/ML ワークロードで顕在化 |
-| **信頼性の壁（Reliability Wall）** | 微細化に伴うソフトエラー率の増加 | 宇宙線・アルファ粒子によるビット反転 |
-| **設計複雑性の壁** | チップ設計の複雑化によるコスト増大 | 先端プロセスの設計コストが数百億円規模 |
-| **経済性の壁** | 微細化のコストが性能向上を上回る | 最先端ノードの製造コストが急騰 |
-| **通信の壁** | チップ間・ノード間の通信遅延 | 分散システムにおけるスケーラビリティ制約 |
-| **量子限界** | トランジスタのゲート長が原子数個分 | トンネル効果によるリーク電流 |
+| **Bandwidth Wall** | Limits on off-chip data transfer speeds | Manifests in AI/ML workloads |
+| **Reliability Wall** | Increased soft error rates with miniaturization | Bit flips from cosmic rays and alpha particles |
+| **Design Complexity Wall** | Rising costs from chip design complexity | Advanced process design costs reaching billions of dollars |
+| **Economic Wall** | Cost of miniaturization outweighing performance gains | Manufacturing costs for cutting-edge nodes surging |
+| **Communication Wall** | Inter-chip and inter-node communication latency | Scalability constraints in distributed systems |
+| **Quantum Limit** | Transistor gate lengths at just a few atoms | Leakage current from tunneling effects |
 
 ---
 
-## 7. 限界を回避するアーキテクチャ戦略
+## 7. Architecture Strategies for Circumventing Limits
 
-### 7.1 チップレット技術
+### 7.1 Chiplet Technology
 
-近年最も注目されている技術が「チップレット（Chiplet）」アーキテクチャである。1枚の巨大なモノリシックダイの代わりに、複数の小さなダイ（チップレット）を高速インターコネクトで接続する。
+The most notable recent technology is the "Chiplet" architecture. Instead of one massive monolithic die, multiple smaller dies (chiplets) are connected via high-speed interconnects.
 
 ```
-チップレット vs モノリシック:
+Chiplet vs. Monolithic:
 
-  モノリシック（従来）:
+  Monolithic (Traditional):
   ┌─────────────────────────────────┐
   │                                 │
-  │     1枚の巨大なダイ             │
+  │     One massive die             │
   │                                 │
-  │  CPU + GPU + I/O + メモリCtrl   │
+  │  CPU + GPU + I/O + Memory Ctrl  │
   │                                 │
-  │  全て同一プロセスで製造         │
-  │  → 歩留まり低下（1箇所の欠陥   │
-  │    で全体が不良品）             │
-  │  → 面積制約でトランジスタ上限   │
+  │  All manufactured at same       │
+  │  process node                   │
+  │  → Yield decreases (one defect │
+  │    makes the entire die bad)    │
+  │  → Area constraints limit       │
+  │    transistor count             │
   │                                 │
   └─────────────────────────────────┘
 
-  チップレット（現代）:
+  Chiplet (Modern):
   ┌──────────────────────────────────────────────┐
-  │  パッケージ基板 / インターポーザ              │
+  │  Package Substrate / Interposer              │
   │                                              │
   │  ┌────────┐  ┌────────┐  ┌────────┐        │
   │  │ CPU    │  │ CPU    │  │ GPU    │        │
-  │  │ダイ #1 │  │ダイ #2 │  │ダイ    │        │
+  │  │ Die #1 │  │ Die #2 │  │ Die    │        │
   │  │ (5nm)  │  │ (5nm)  │  │ (5nm)  │        │
   │  └───┬────┘  └───┬────┘  └───┬────┘        │
   │      │           │           │              │
@@ -940,34 +951,36 @@ ILP を阻む依存関係:
   │  ────┬───────────┬───────────┬────────────  │
   │      │           │           │              │
   │  ┌───┴────┐  ┌───┴────┐  ┌───┴────┐        │
-  │  │ I/O    │  │メモリ  │  │ その他 │        │
-  │  │ダイ    │  │コントロ│  │アクセラ│        │
-  │  │ (14nm) │  │ーラ    │  │ レータ │        │
-  │  │        │  │(7nm)   │  │ (3nm)  │        │
+  │  │ I/O    │  │ Memory │  │ Other  │        │
+  │  │ Die    │  │ Ctrl   │  │Acceler-│        │
+  │  │ (14nm) │  │ (7nm)  │  │ ator   │        │
+  │  │        │  │        │  │ (3nm)  │        │
   │  └────────┘  └────────┘  └────────┘        │
   │                                              │
-  │  → 各チップレットを最適なプロセスで製造      │
-  │  → 歩留まり向上（小さいダイは欠陥率が低い）  │
-  │  → 異なる世代のチップレットを組み合わせ可能  │
+  │  → Each chiplet manufactured at optimal node │
+  │  → Improved yield (smaller dies have lower   │
+  │    defect rates)                             │
+  │  → Different generation chiplets can be      │
+  │    combined                                  │
   └──────────────────────────────────────────────┘
 
-  代表例:
-  - AMD EPYC (Zen 4):   最大12個の CCD チップレット + 1 IOD
-  - Apple M2 Ultra:     2個の M2 Max ダイを UltraFusion で接続
-  - Intel Meteor Lake:  CPU + GPU + SoC + I/O の4チップレット構成
+  Representative Examples:
+  - AMD EPYC (Zen 4):   Up to 12 CCD chiplets + 1 IOD
+  - Apple M2 Ultra:     2 M2 Max dies connected via UltraFusion
+  - Intel Meteor Lake:  4-chiplet configuration: CPU + GPU + SoC + I/O
 ```
 
-### 7.2 ヘテロジニアスコンピューティング
+### 7.2 Heterogeneous Computing
 
-電力壁と ILP 壁への回答として、用途別の専用アクセラレータを組み合わせるヘテロジニアス設計が主流となっている。
+As an answer to the Power Wall and ILP Wall, heterogeneous designs that combine dedicated accelerators for specific purposes have become mainstream.
 
 ```python
 """
-ヘテロジニアスコンピューティングの効果を
-アムダールの法則の拡張版で計算する。
+Calculate the effect of heterogeneous computing
+using an extended version of Amdahl's Law.
 
-各ワークロードに最適なアクセラレータを使用した場合の
-全体的なスピードアップを推定する。
+Estimate the overall speedup when using the optimal
+accelerator for each workload.
 """
 
 from dataclasses import dataclass
@@ -975,64 +988,65 @@ from dataclasses import dataclass
 
 @dataclass
 class Workload:
-    """ワークロードの構成要素"""
+    """A component of the workload"""
     name: str
-    fraction: float          # 全体に占める割合
-    accelerator: str         # 使用するアクセラレータ
-    speedup_factor: float    # そのアクセラレータでの高速化倍率
+    fraction: float          # Fraction of total workload
+    accelerator: str         # Accelerator to use
+    speedup_factor: float    # Speedup factor with that accelerator
 
 
 def heterogeneous_speedup(workloads: list[Workload]) -> float:
     """
-    ヘテロジニアス環境でのアムダールの法則拡張版。
+    Extended Amdahl's Law for heterogeneous environments.
 
     S = 1 / Σ(f_i / s_i)
 
-    f_i: ワークロード i の割合
-    s_i: アクセラレータ i のスピードアップ
+    f_i: Fraction of workload i
+    s_i: Speedup of accelerator i
     """
     total_time = sum(w.fraction / w.speedup_factor for w in workloads)
     return 1.0 / total_time
 
 
-# --- スマートフォン SoC の典型的なワークロード ---
+# --- Typical smartphone SoC workload ---
 smartphone_workloads = [
-    Workload("一般処理 (OS, アプリ)",     0.30, "CPUビッグコア",   1.0),
-    Workload("バックグラウンド処理",       0.15, "CPU省電力コア",   0.5),
-    Workload("グラフィックス (UI描画)",    0.20, "GPU",            8.0),
-    Workload("カメラ処理 (ISP)",          0.10, "ISP",           20.0),
-    Workload("AI推論 (顔認識等)",         0.15, "NPU",           30.0),
-    Workload("動画エンコード",            0.10, "メディアエンジン", 50.0),
+    Workload("General processing (OS, apps)",   0.30, "CPU big core",     1.0),
+    Workload("Background processing",           0.15, "CPU efficiency core", 0.5),
+    Workload("Graphics (UI rendering)",         0.20, "GPU",              8.0),
+    Workload("Camera processing (ISP)",         0.10, "ISP",             20.0),
+    Workload("AI inference (face recognition)", 0.15, "NPU",             30.0),
+    Workload("Video encoding",                  0.10, "Media engine",    50.0),
 ]
 
-print("スマートフォン SoC のワークロード分析")
+print("Smartphone SoC Workload Analysis")
 print("=" * 65)
 for w in smartphone_workloads:
     effective_time = w.fraction / w.speedup_factor
-    print(f"  {w.name:<28} | 割合: {w.fraction:>4.0%} | "
-          f"加速: {w.speedup_factor:>5.1f}x | "
-          f"有効時間: {effective_time:.4f}")
+    print(f"  {w.name:<35} | Fraction: {w.fraction:>4.0%} | "
+          f"Accel: {w.speedup_factor:>5.1f}x | "
+          f"Effective time: {effective_time:.4f}")
 
 total_speedup = heterogeneous_speedup(smartphone_workloads)
-print(f"\n  全体スピードアップ: {total_speedup:.2f}x")
-print(f"  → 全てCPUで処理する場合と比較した総合性能")
+print(f"\n  Overall speedup: {total_speedup:.2f}x")
+print(f"  → Compared to processing everything on CPU only")
 
-# --- 全てを汎用CPUで処理した場合との比較 ---
+# --- Comparison with CPU-only processing ---
 cpu_only = [
-    Workload("全処理", 1.0, "CPU", 1.0),
+    Workload("All processing", 1.0, "CPU", 1.0),
 ]
-print(f"\n  CPU のみで処理した場合: {heterogeneous_speedup(cpu_only):.2f}x")
-print(f"  → 専用アクセラレータで {total_speedup:.1f}倍 の電力効率")
+print(f"\n  CPU-only processing: {heterogeneous_speedup(cpu_only):.2f}x")
+print(f"  → {total_speedup:.1f}x power efficiency with dedicated accelerators")
 ```
 
-### 7.3 DVFS（動的電圧周波数スケーリング）
+### 7.3 DVFS (Dynamic Voltage and Frequency Scaling)
 
 ```python
 """
-DVFS (Dynamic Voltage and Frequency Scaling) のシミュレーション
+DVFS (Dynamic Voltage and Frequency Scaling) Simulation
 
-プロセッサの負荷に応じて動的に電圧と周波数を調整し、
-消費電力を最適化する技術を数値的に理解する。
+Numerically understand the technology that dynamically adjusts
+voltage and frequency according to processor load to optimize
+power consumption.
 """
 
 def cmos_power(voltage: float, frequency_ghz: float,
@@ -1040,10 +1054,10 @@ def cmos_power(voltage: float, frequency_ghz: float,
                activity: float = 0.3,
                leak_ua_per_mhz: float = 0.5) -> dict:
     """
-    CMOS の消費電力を計算する。
+    Calculate CMOS power consumption.
 
     Returns:
-        動的電力、静的電力、合計電力を含む辞書
+        Dictionary containing dynamic power, static power, and total power
     """
     freq_hz = frequency_ghz * 1e9
     cap_f = capacitance_nf * 1e-9
@@ -1059,19 +1073,19 @@ def cmos_power(voltage: float, frequency_ghz: float,
     }
 
 
-# DVFS の動作ステート（典型的なモバイル SoC）
+# DVFS operating states (typical mobile SoC)
 dvfs_states = [
-    {"name": "最高性能",   "voltage": 1.10, "freq_ghz": 3.5},
-    {"name": "高性能",     "voltage": 1.00, "freq_ghz": 3.0},
-    {"name": "バランス",   "voltage": 0.85, "freq_ghz": 2.0},
-    {"name": "省電力",     "voltage": 0.70, "freq_ghz": 1.0},
-    {"name": "超省電力",   "voltage": 0.55, "freq_ghz": 0.5},
+    {"name": "Max Performance", "voltage": 1.10, "freq_ghz": 3.5},
+    {"name": "High Performance", "voltage": 1.00, "freq_ghz": 3.0},
+    {"name": "Balanced",        "voltage": 0.85, "freq_ghz": 2.0},
+    {"name": "Power Saver",     "voltage": 0.70, "freq_ghz": 1.0},
+    {"name": "Ultra Low Power", "voltage": 0.55, "freq_ghz": 0.5},
 ]
 
-print("DVFS ステートと消費電力の比較")
+print("DVFS States and Power Consumption Comparison")
 print("=" * 70)
-print(f"{'ステート':<12} | {'電圧':>6} | {'周波数':>8} | "
-      f"{'動的電力':>8} | {'静的電力':>8} | {'合計':>8}")
+print(f"{'State':<16} | {'Voltage':>7} | {'Frequency':>9} | "
+      f"{'Dyn Power':>9} | {'Sta Power':>9} | {'Total':>9}")
 print("-" * 70)
 
 base_power = None
@@ -1081,175 +1095,177 @@ for state in dvfs_states:
         base_power = result["total_w"]
     ratio = result["total_w"] / base_power * 100
 
-    print(f"{state['name']:<12} | {state['voltage']:>5.2f}V | "
+    print(f"{state['name']:<16} | {state['voltage']:>5.2f}V | "
           f"{state['freq_ghz']:>6.1f}GHz | "
-          f"{result['dynamic_w']*1000:>6.1f}mW | "
-          f"{result['static_w']*1000:>6.1f}mW | "
-          f"{result['total_w']*1000:>6.1f}mW ({ratio:>5.1f}%)")
+          f"{result['dynamic_w']*1000:>7.1f}mW | "
+          f"{result['static_w']*1000:>7.1f}mW | "
+          f"{result['total_w']*1000:>7.1f}mW ({ratio:>5.1f}%)")
 
 print()
-print("洞察:")
-print("  - 電圧を半分にすると動的電力は1/4に低下")
-print("  - 周波数を半分にすると動的電力は1/2に低下")
-print("  - 電圧+周波数を半分 → 動的電力は1/8（0.55V, 0.5GHz の行を参照）")
-print("  - DVFS によりワークロードに応じた電力最適化が可能")
+print("Insights:")
+print("  - Halving voltage reduces dynamic power to 1/4")
+print("  - Halving frequency reduces dynamic power to 1/2")
+print("  - Halving both voltage + frequency → dynamic power to 1/8 (see the 0.55V, 0.5GHz row)")
+print("  - DVFS enables power optimization adapted to workload demands")
 ```
 
 ---
 
-## 8. ムーアの法則を超える技術
+## 8. Technologies Beyond Moore's Law
 
-### 8.1 技術ロードマップ
+### 8.1 Technology Roadmap
 
 ```
-半導体技術の進化ロードマップ:
+Semiconductor Technology Evolution Roadmap:
 
   2020        2025        2030        2035        2040
   ──┼───────────┼───────────┼───────────┼───────────┼──
     │           │           │           │           │
-    FinFET     GAA FET     CFET       2D材料      ???
+    FinFET     GAA FET     CFET       2D Materials ???
     (7-5nm)    (3-2nm)    (Sub-2nm)   (Sub-1nm)
     │           │           │           │
     │           │           │           └─ MoS2, WSe2
-    │           │           │              カーボンナノチューブ
+    │           │           │              Carbon nanotubes
     │           │           │
-    │           │           └─ 相補型FET: NMOSとPMOSを縦に積層
-    │           │              → 面積をさらに50%削減
+    │           │           └─ Complementary FET: NMOS and PMOS stacked vertically
+    │           │              → Further 50% area reduction
     │           │
-    │           └─ Gate-All-Around: ナノシート/フォークシート
-    │              → ゲートが全方向からチャネルを囲む
+    │           └─ Gate-All-Around: Nanosheet / Forksheet
+    │              → Gate surrounds the channel from all directions
     │
-    └─ FinFET: 3次元構造のトランジスタ
-       → 平面MOSFETの限界を突破
+    └─ FinFET: 3D transistor structure
+       → Broke through planar MOSFET limits
 
-  並行して発展する技術:
+  Technologies developing in parallel:
   ─────────────────────────────────
-  3D積層:    NAND → Logic-on-Logic → Monolithic 3D
-  チップレット: MCM → UCIe → 光インターコネクト
-  冷却:      空冷 → 液冷 → 浸漬冷却 → 超伝導？
-  配線:      銅 → ルテニウム → 光
-  パッケージ: BGA → CoWoS → InFO_3D → 次世代
+  3D stacking:   NAND → Logic-on-Logic → Monolithic 3D
+  Chiplets:      MCM → UCIe → Optical interconnect
+  Cooling:       Air → Liquid → Immersion → Superconducting?
+  Wiring:        Copper → Ruthenium → Optical
+  Packaging:     BGA → CoWoS → InFO_3D → Next-gen
 ```
 
-### 8.2 量子コンピュータ
+### 8.2 Quantum Computers
 
-量子コンピュータは古典コンピュータの限界を超える可能性を持つが、全ての問題に万能ではない。
+Quantum computers hold the potential to transcend the limits of classical computers, but they are not a universal solution for all problems.
 
 ```
-量子コンピュータの基本:
+Quantum Computing Basics:
 
-  古典ビット:
-    状態: 0 または 1（確定的）
+  Classical bit:
+    State: 0 or 1 (deterministic)
 
-  量子ビット (qubit):
-    状態: |ψ⟩ = α|0⟩ + β|1⟩（重ね合わせ）
+  Quantum bit (qubit):
+    State: |ψ⟩ = α|0⟩ + β|1⟩ (superposition)
     |α|² + |β|² = 1
 
-  N qubit の計算空間:
+  Computational space of N qubits:
   ─────────────────────────────────────
-  N        古典的状態数    量子的状態空間
+  N        Classical States    Quantum State Space
   ─────────────────────────────────────
-  1        2              2次元
-  10       1,024          1,024次元
-  50       ~10^15         ~10^15次元
-  100      ~10^30         ~10^30次元
-  300      ~10^90         ~10^90 次元（宇宙の原子数を超える）
+  1        2                   2-dimensional
+  10       1,024               1,024-dimensional
+  50       ~10^15              ~10^15-dimensional
+  100      ~10^30              ~10^30-dimensional
+  300      ~10^90              ~10^90-dimensional (exceeds atoms in the universe)
   ─────────────────────────────────────
 
-  量子コンピュータが有利な問題:
-  - 素因数分解 (Shor): O(2^n) → O(n³)
-  - 探索 (Grover): O(N) → O(√N)
-  - 量子シミュレーション: 指数的高速化
-  - 組合せ最適化 (QAOA): ケースバイケース
+  Problems where quantum computers excel:
+  - Factoring (Shor): O(2^n) → O(n³)
+  - Search (Grover): O(N) → O(√N)
+  - Quantum simulation: Exponential speedup
+  - Combinatorial optimization (QAOA): Case-by-case
 
-  量子コンピュータが不向きな問題:
-  - 一般的な事務処理、Web サーバー
-  - 逐次依存が強い処理
-  - 古典計算で十分効率的な問題
+  Problems where quantum computers are not suited:
+  - General office work, web servers
+  - Strongly sequential processing
+  - Problems already efficiently solved classically
 ```
 
-### 8.3 ニューロモーフィックコンピューティング
+### 8.3 Neuromorphic Computing
 
-| 特性 | 従来のCPU | ニューロモーフィック |
+| Characteristic | Traditional CPU | Neuromorphic |
 |------|----------|-------------------|
-| 計算モデル | ノイマン型（逐次処理） | 脳型（イベント駆動） |
-| 消費電力 | 数十〜数百W | 数mW〜数W |
-| 得意分野 | 汎用計算 | パターン認識、時系列処理 |
-| 代表製品 | Intel Core, AMD Ryzen | Intel Loihi 2, IBM NorthPole |
-| プログラミング | 命令型言語 | スパイキングニューラルネットワーク |
-| メモリ | 計算とメモリが分離 | 計算とメモリが統合（In-memory） |
+| Computation Model | Von Neumann (sequential) | Brain-inspired (event-driven) |
+| Power Consumption | Tens to hundreds of watts | Milliwatts to a few watts |
+| Strengths | General-purpose computing | Pattern recognition, time-series processing |
+| Representative Products | Intel Core, AMD Ryzen | Intel Loihi 2, IBM NorthPole |
+| Programming | Imperative languages | Spiking neural networks |
+| Memory | Computation and memory separated | Computation and memory integrated (in-memory) |
 
 ---
 
-## 9. ソフトウェアエンジニアのための実践ガイド
+## 9. Practical Guide for Software Engineers
 
-### 9.1 性能意識の設計原則
+### 9.1 Performance-Conscious Design Principles
 
-ハードウェアの限界を理解した上で、ソフトウェアエンジニアが実践すべき設計原則をまとめる。
+Having understood the limits of hardware, here is a summary of design principles that software engineers should practice.
 
 ```
-性能を意識した設計の5原則:
+Five Principles of Performance-Conscious Design:
 
   ┌─────────────────────────────────────────────────────────┐
-  │ 原則1: データ局所性を最大化する                          │
-  │   → 連続したメモリにアクセスするデータ構造を選ぶ         │
-  │   → AoS より SoA を検討する                             │
-  │   → ポインタチェイスを避ける（連結リスト → 配列）       │
+  │ Principle 1: Maximize Data Locality                     │
+  │   → Choose data structures that access contiguous memory│
+  │   → Consider SoA over AoS                              │
+  │   → Avoid pointer chasing (linked list → array)        │
   ├─────────────────────────────────────────────────────────┤
-  │ 原則2: 並列化を前提に設計する                            │
-  │   → 共有状態を最小化する（ロックフリー、イミュータブル） │
-  │   → タスクの粒度を適切に設定する                        │
-  │   → アムダールの法則で上限を事前に見積もる              │
+  │ Principle 2: Design for Parallelism from the Start      │
+  │   → Minimize shared state (lock-free, immutable)       │
+  │   → Set appropriate task granularity                   │
+  │   → Pre-estimate upper bounds using Amdahl's Law       │
   ├─────────────────────────────────────────────────────────┤
-  │ 原則3: 適材適所のアクセラレータ活用                      │
-  │   → 行列演算 → GPU / NPU                                │
-  │   → 暗号化 → AES-NI 等のハードウェア命令               │
-  │   → 圧縮 → 専用エンジン                                │
+  │ Principle 3: Use the Right Accelerator for the Job      │
+  │   → Matrix operations → GPU / NPU                      │
+  │   → Encryption → AES-NI and similar hardware instr.    │
+  │   → Compression → Dedicated engines                    │
   ├─────────────────────────────────────────────────────────┤
-  │ 原則4: 電力効率を考慮する                                │
-  │   → 不要なポーリングを避ける（イベント駆動に）          │
-  │   → バッチ処理でウェイクアップ回数を削減                │
-  │   → モバイルでは特に重要（バッテリー寿命に直結）        │
+  │ Principle 4: Consider Power Efficiency                  │
+  │   → Avoid unnecessary polling (use event-driven)       │
+  │   → Reduce wakeup frequency through batch processing   │
+  │   → Especially critical on mobile (directly affects    │
+  │     battery life)                                      │
   ├─────────────────────────────────────────────────────────┤
-  │ 原則5: 計測してから最適化する                            │
-  │   → プロファイラ（perf, Instruments, VTune）を使う      │
-  │   → 推測ではなくデータに基づいて最適化箇所を決める      │
-  │   → Amdahl の法則で最も効果の大きい部分から着手          │
+  │ Principle 5: Measure Before Optimizing                  │
+  │   → Use profilers (perf, Instruments, VTune)           │
+  │   → Make optimization decisions based on data, not     │
+  │     assumptions                                        │
+  │   → Start with the highest-impact area per Amdahl's Law│
   └─────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 10. アンチパターン
+## 10. Anti-Patterns
 
-### 10.1 アンチパターン: 「コア数を増やせば速くなる」信仰
+### 10.1 Anti-Pattern: The "More Cores = More Speed" Fallacy
 
-**問題**: アムダールの法則を無視して、単純にコア数やスレッド数を増やせば性能が向上すると思い込むケース。
+**Problem**: Ignoring Amdahl's Law and assuming that simply adding more cores or threads will improve performance.
 
 ```python
 """
-アンチパターン: スレッド数を増やしても速くならない例
+Anti-pattern: Adding more threads does not always help
 
-逐次部分が大きいプログラムにスレッドを増やしても
-アムダールの法則により高速化に上限がある。
+When the sequential portion of a program is large, adding more threads
+still hits the upper bound imposed by Amdahl's Law.
 """
 import threading
 import time
 
-# 悪い例: 逐次処理が支配的なのにスレッドを増やす
+# Bad example: Adding threads despite sequential processing being dominant
 class BadParallelProcessor:
     """
-    全体の70%が逐次処理（DB書き込み）、30%が並列化可能な計算処理。
-    アムダールの法則: 最大 1/(1-0.3) = 1.43x しか速くならない。
-    にもかかわらず64スレッドを生成してしまう。
+    70% of the total work is sequential (DB writes), 30% is parallelizable computation.
+    Amdahl's Law: Maximum speedup of 1/(1-0.3) = 1.43x.
+    Yet this spawns 64 threads.
     """
     def __init__(self, num_threads: int = 64):
         self.num_threads = num_threads
-        self.lock = threading.Lock()  # ← 逐次化の原因
+        self.lock = threading.Lock()  # ← Cause of serialization
         self.results = []
 
     def process(self, data: list) -> list:
-        # 並列化可能な部分 (30%)
+        # Parallelizable portion (30%)
         threads = []
         for chunk in self._split(data, self.num_threads):
             t = threading.Thread(target=self._compute, args=(chunk,))
@@ -1258,7 +1274,7 @@ class BadParallelProcessor:
         for t in threads:
             t.join()
 
-        # 逐次部分 (70%): ロック競合で結局シリアル実行
+        # Sequential portion (70%): Lock contention makes it serial anyway
         with self.lock:
             self._write_to_db(self.results)
 
@@ -1270,29 +1286,29 @@ class BadParallelProcessor:
 
     def _compute(self, chunk):
         result = [x ** 2 for x in chunk]
-        with self.lock:  # ← 結果追加もロック → さらに逐次化
+        with self.lock:  # ← Even result appending requires a lock → more serialization
             self.results.extend(result)
 
     def _write_to_db(self, results):
-        time.sleep(0.1)  # DB書き込みのシミュレーション
+        time.sleep(0.1)  # Simulating DB writes
 
 
-# 良い例: 逐次部分を最小化し、適切なスレッド数を使用
+# Good example: Minimize sequential portion and use appropriate thread count
 class GoodParallelProcessor:
     """
-    1. 逐次部分を最小化（バッチ書き込み、ロックフリー設計）
-    2. コア数に合わせたスレッド数
-    3. スレッドローカルな結果収集
+    1. Minimize sequential portion (batch writes, lock-free design)
+    2. Thread count matched to core count
+    3. Thread-local result collection
     """
     def __init__(self):
         import os
-        self.num_threads = os.cpu_count() or 4  # 物理コア数に合わせる
+        self.num_threads = os.cpu_count() or 4  # Match physical core count
 
     def process(self, data: list) -> list:
         from concurrent.futures import ThreadPoolExecutor
         results = [None] * len(data)
 
-        # 各スレッドが独立して結果を書き込む（ロック不要）
+        # Each thread writes results independently (no lock needed)
         def compute_chunk(start, end):
             for i in range(start, end):
                 results[i] = data[i] ** 2
@@ -1307,293 +1323,296 @@ class GoodParallelProcessor:
             for f in futures:
                 f.result()
 
-        # DB書き込みはバッチで1回だけ
+        # DB write happens once in a batch
         self._batch_write_to_db(results)
         return results
 
     def _batch_write_to_db(self, results):
-        time.sleep(0.01)  # バッチ書き込みのシミュレーション
+        time.sleep(0.01)  # Simulating batch write
 ```
 
-**改善ポイント**:
-1. アムダールの法則で事前に高速化の上限を計算する
-2. スレッド数は物理コア数に合わせる（過剰なスレッドはオーバーヘッド）
-3. 逐次部分（ロック競合、I/O）を最小化する設計に注力する
-4. ロックフリーなデータ構造やスレッドローカル変数を活用する
+**Key Improvements**:
+1. Pre-calculate the speedup upper bound using Amdahl's Law
+2. Match thread count to physical core count (excessive threads incur overhead)
+3. Focus design effort on minimizing the sequential portion (lock contention, I/O)
+4. Leverage lock-free data structures and thread-local variables
 
-### 10.2 アンチパターン: 「キャッシュを無視した」データ構造選択
+### 10.2 Anti-Pattern: Data Structure Selection That Ignores Cache Behavior
 
-**問題**: アルゴリズムの計算量（Big-O）だけを見て、メモリアクセスパターンを考慮しないケース。
+**Problem**: Selecting data structures based solely on algorithmic complexity (Big-O) without considering memory access patterns.
 
 ```
-理論上の計算量 vs 実際の性能:
+Theoretical Complexity vs. Actual Performance:
 
-  例: 100万要素の探索
+  Example: Searching through 1 million elements
 
-  データ構造      計算量      キャッシュ効率   実際の速度
+  Data Structure   Complexity   Cache Efficiency   Actual Speed
   ────────────────────────────────────────────────────────
-  連結リスト      O(n)        非常に悪い       遅い
-  (LinkedList)    （各ノードが   （ポインタ     （キャッシュミス
-                  メモリ上に    チェイスで      が大量発生）
-                  散在）        飛び飛び）
+  Linked List      O(n)         Very poor          Slow
+  (LinkedList)     (Each node    (Pointer chasing   (Massive cache
+                   scattered     causes random      misses)
+                   in memory)    access)
 
-  ソート済み配列  O(log n)    良い            速い
-  (二分探索)      （連続メモリ  （プリフェッチ  （キャッシュライン
-                  レイアウト）  が効く）        の恩恵大）
+  Sorted Array     O(log n)     Good               Fast
+  (Binary search)  (Contiguous   (Prefetching       (Benefits greatly
+                   memory        works well)        from cache lines)
+                   layout)
 
-  ハッシュマップ  O(1)        中程度          場合による
-                  （チェイン法  （チェインで    （ロードファクタ
-                  だと散在）    ポインタ追跡）  とハッシュ関数依存）
+  Hash Map         O(1)         Moderate           Depends
+                   (Chaining     (Pointer chasing   (Depends on load
+                   causes        with chains)       factor and hash
+                   scatter)                         function)
 
-  B木            O(log n)     良い            速い
-                  （ノードが   （1ノード =     （ディスクIOも
-                  大きく連続）  キャッシュ      効率的）
-                              ライン整合）
+  B-Tree           O(log n)     Good               Fast
+                   (Nodes are   (1 node =           (Efficient for
+                   large and     cache line          disk I/O too)
+                   contiguous)   aligned)
 
-  実務での教訓:
-  - O(1) のハッシュマップが O(log n) のソート済み配列より
-    遅い場合がある（キャッシュミスの影響）
-  - 連結リストの O(n) 走査は配列の O(n) 走査より
-    10〜100倍遅い場合がある
-  - 要素数が少ない（< 1000）場合は単純な配列走査が最速のことが多い
-  - Big-O は「十分大きな n」での漸近的な振る舞いであり、
-    定数項（キャッシュ効率）は含まない
+  Practical lessons:
+  - An O(1) hash map can be slower than an O(log n) sorted array
+    (due to cache miss impact)
+  - O(n) traversal of a linked list can be 10-100x slower than
+    O(n) traversal of an array
+  - For small element counts (< 1000), simple array traversal
+    is often the fastest
+  - Big-O describes asymptotic behavior for "sufficiently large n"
+    and does not include constant factors (cache efficiency)
 ```
 
-**改善ポイント**:
-1. データ構造選択時にアクセスパターン（シーケンシャル/ランダム）を考慮する
-2. 要素数が少ない場合は、配列ベースの単純な構造が高速なことが多い
-3. プロファイラでキャッシュミス率を確認する（perf stat で LLC-load-misses を確認）
-4. ホットデータを連続メモリに配置する（構造体のフィールド順序も影響）
+**Key Improvements**:
+1. Consider access patterns (sequential/random) when choosing data structures
+2. For small element counts, simple array-based structures are often fastest
+3. Verify cache miss rates with a profiler (check LLC-load-misses with perf stat)
+4. Place hot data in contiguous memory (struct field ordering also matters)
 
 ---
 
-## 11. 演習問題
+## 11. Exercises
 
-### 11.1 基礎演習: アムダールの法則の計算
+### 11.1 Basic Exercise: Amdahl's Law Calculations
 
-**問題**: 以下の3つのプログラムについて、8コアCPUでの理論上の最大スピードアップを計算せよ。
+**Problem**: For the following three programs, calculate the theoretical maximum speedup on an 8-core CPU.
 
-| プログラム | 並列化可能割合 |
+| Program | Parallelizable Fraction |
 |-----------|--------------|
-| A: 画像フィルタ処理 | 95% |
-| B: Web サーバーのリクエスト処理 | 80% |
-| C: データベースのトランザクション処理 | 50% |
+| A: Image filter processing | 95% |
+| B: Web server request handling | 80% |
+| C: Database transaction processing | 50% |
 
 <details>
-<summary>解答</summary>
+<summary>Solution</summary>
 
-アムダールの法則: S(n) = 1 / ((1-P) + P/n)
+Amdahl's Law: S(n) = 1 / ((1-P) + P/n)
 
-**プログラムA (P=0.95, n=8)**:
+**Program A (P=0.95, n=8)**:
 S(8) = 1 / ((1-0.95) + 0.95/8)
      = 1 / (0.05 + 0.11875)
      = 1 / 0.16875
      = **5.93x**
-理論上限 S(inf) = 1/0.05 = 20x
+Theoretical limit S(inf) = 1/0.05 = 20x
 
-**プログラムB (P=0.80, n=8)**:
+**Program B (P=0.80, n=8)**:
 S(8) = 1 / ((1-0.80) + 0.80/8)
      = 1 / (0.20 + 0.10)
      = 1 / 0.30
      = **3.33x**
-理論上限 S(inf) = 1/0.20 = 5x
+Theoretical limit S(inf) = 1/0.20 = 5x
 
-**プログラムC (P=0.50, n=8)**:
+**Program C (P=0.50, n=8)**:
 S(8) = 1 / ((1-0.50) + 0.50/8)
      = 1 / (0.50 + 0.0625)
      = 1 / 0.5625
      = **1.78x**
-理論上限 S(inf) = 1/0.50 = 2x
+Theoretical limit S(inf) = 1/0.50 = 2x
 
-**考察**: プログラムCは8コアを使っても1.78倍にしかならない。これはコア数を増やすよりも、逐次部分の最適化や並列化率の向上に注力すべきことを意味する。
+**Discussion**: Program C only achieves 1.78x speedup even with 8 cores. This means the effort should be directed toward optimizing the sequential portion or increasing the parallelization ratio rather than adding more cores.
 
 </details>
 
-### 11.2 応用演習: メモリアクセス最適化
+### 11.2 Applied Exercise: Memory Access Optimization
 
-**問題**: 以下のC言語コードにはメモリアクセスパターンに起因する性能問題がある。問題を特定し、改善案を示せ。
+**Problem**: The following C code has a performance issue rooted in its memory access pattern. Identify the problem and propose an improvement.
 
 ```c
 #define SIZE 4096
 
-/* 2次元配列の全要素の合計を求める */
+/* Sum all elements of a 2D array */
 double matrix[SIZE][SIZE];
 
 double sum = 0.0;
-/* 注意: C言語では matrix[row][col] がメモリ上で行優先に配置される */
+/* Note: In C, matrix[row][col] is stored row-major in memory */
 for (int col = 0; col < SIZE; col++) {
     for (int row = 0; row < SIZE; row++) {
-        sum += matrix[row][col];  /* 列方向のアクセス */
+        sum += matrix[row][col];  /* Column-major access */
     }
 }
 ```
 
 <details>
-<summary>解答</summary>
+<summary>Solution</summary>
 
-**問題の特定**: C言語の2次元配列は行優先（row-major）でメモリに格納される。上記のコードは列方向（column-major）にアクセスしているため、連続するアクセスが `SIZE * sizeof(double) = 32,768バイト` 離れている。これはキャッシュラインを全く活用できず、ほぼ毎回キャッシュミスが発生する。
+**Identifying the problem**: C 2D arrays are stored in row-major order in memory. The code above accesses in column-major order, meaning consecutive accesses are `SIZE * sizeof(double) = 32,768 bytes` apart. This completely fails to utilize cache lines, causing a cache miss on nearly every access.
 
-**改善後のコード**:
+**Improved code**:
 ```c
 double sum = 0.0;
-/* 行方向にアクセス（メモリ上の連続領域を走査） */
+/* Access in row-major order (traversing contiguous memory regions) */
 for (int row = 0; row < SIZE; row++) {
     for (int col = 0; col < SIZE; col++) {
-        sum += matrix[row][col];  /* シーケンシャルアクセス */
+        sum += matrix[row][col];  /* Sequential access */
     }
 }
 ```
 
-**性能差の見積もり**:
-- キャッシュラインサイズ: 64バイト = double 8個分
-- 改善前: ほぼ全アクセスがキャッシュミス → ~16M回のキャッシュミス
-- 改善後: 8アクセスに1回だけキャッシュミス → ~2M回のキャッシュミス
-- 典型的な性能差: 3〜10倍
+**Performance difference estimate**:
+- Cache line size: 64 bytes = 8 doubles
+- Before improvement: Nearly every access is a cache miss → ~16M cache misses
+- After improvement: Cache miss only once every 8 accesses → ~2M cache misses
+- Typical performance difference: 3x to 10x
 
-**追加最適化**: ループ内で部分和を使い、最後に合算する（コンパイラの自動ベクトル化を助ける）。
+**Additional optimization**: Use partial sums within the loop and combine at the end (helps the compiler with auto-vectorization).
 
 </details>
 
-### 11.3 発展演習: システム設計における限界の考慮
+### 11.3 Advanced Exercise: Considering Limits in System Design
 
-**問題**: あなたは大規模なリアルタイム画像処理システム（毎秒1000フレーム、フレームあたり4K解像度）を設計することになった。以下の質問に答えよ。
+**Problem**: You are tasked with designing a large-scale real-time image processing system (1000 frames per second, 4K resolution per frame). Answer the following questions.
 
-1. 1フレームあたりの処理時間の上限は何ミリ秒か
-2. 1フレームのデータ量は何MBか（RGB24ビットの場合）
-3. 必要なメモリ帯域幅を見積もれ（最低限、入力+出力で2回のメモリアクセスが必要と仮定）
-4. DDR5-6400 の理論帯域幅（51.2 GB/s）で足りるか
-5. 足りない場合、どのようなアーキテクチャ戦略を取るべきか
+1. What is the maximum processing time per frame in milliseconds?
+2. How many MB of data per frame (assuming RGB 24-bit)?
+3. Estimate the required memory bandwidth (assuming a minimum of 2 memory accesses per frame for input + output)
+4. Is DDR5-6400 theoretical bandwidth (51.2 GB/s) sufficient?
+5. If not, what architectural strategies should be employed?
 
 <details>
-<summary>解答</summary>
+<summary>Solution</summary>
 
-**1. 処理時間の上限**:
-1000フレーム/秒 → 1フレームあたり **1.0ミリ秒**
+**1. Maximum processing time**:
+1000 frames/second → **1.0 millisecond** per frame
 
-**2. 1フレームのデータ量**:
-4K = 3840 x 2160 ピクセル
-3840 x 2160 x 3バイト (RGB) = 24,883,200バイト = **約23.7 MB**
+**2. Data volume per frame**:
+4K = 3840 x 2160 pixels
+3840 x 2160 x 3 bytes (RGB) = 24,883,200 bytes = **approximately 23.7 MB**
 
-**3. 必要なメモリ帯域幅**:
-23.7 MB x 2 (入力+出力) x 1000 fps = **47.4 GB/s** (最低限)
-実際には中間処理で追加のメモリアクセスが発生するため、3〜5倍を見込む: **142〜237 GB/s**
+**3. Required memory bandwidth**:
+23.7 MB x 2 (input + output) x 1000 fps = **47.4 GB/s** (minimum)
+In practice, additional memory accesses occur during intermediate processing, so expect 3x to 5x: **142 to 237 GB/s**
 
-**4. DDR5-6400 で足りるか**:
-DDR5-6400 の理論帯域幅: 51.2 GB/s
-最低限の47.4 GB/sにギリギリであり、実効帯域幅（理論値の60〜70%）を考慮すると**足りない**。
+**4. Is DDR5-6400 sufficient?**:
+DDR5-6400 theoretical bandwidth: 51.2 GB/s
+This barely meets the minimum of 47.4 GB/s, and considering effective bandwidth (60-70% of theoretical), it is **insufficient**.
 
-**5. アーキテクチャ戦略**:
-- **GPU + HBM**: HBM3 は 1TB/s 以上の帯域幅を提供。画像処理はデータ並列性が高くGPUに最適。
-- **FPGA**: 低レイテンシのパイプライン処理が可能。固定的な画像処理に適する。
-- **ストリーム処理**: フレーム全体をメモリに載せるのではなく、ラインバッファでストリーム処理。メモリ使用量を劇的に削減。
-- **タイル処理**: フレームを小ブロックに分割し、L2/L3キャッシュに収まるサイズで処理。
-- **専用ASIC**: 量産が見込めるなら最も電力効率が高い。
+**5. Architecture strategies**:
+- **GPU + HBM**: HBM3 provides over 1 TB/s bandwidth. Image processing has high data parallelism, making it ideal for GPUs.
+- **FPGA**: Capable of low-latency pipelined processing. Suitable for fixed image processing tasks.
+- **Stream processing**: Instead of loading entire frames into memory, use line buffers for stream processing. Dramatically reduces memory usage.
+- **Tile processing**: Divide frames into small blocks and process them at sizes that fit in L2/L3 cache.
+- **Dedicated ASIC**: The most power-efficient if mass production is justified.
 
 </details>
 
 ---
 
-## 12. FAQ（よくある質問）
+## 12. FAQ (Frequently Asked Questions)
 
-### Q1: ムーアの法則は終わったのか？
+### Q1: Is Moore's Law dead?
 
-**A**: 「同一面積のトランジスタ数が2年で倍増する」という厳密な定義では、2010年代後半から鈍化している。しかし、ムーアの法則の本質は「コストあたりの計算能力が指数関数的に向上する」という経済的な法則である。3D積層、チップレット、新素材（GAA FET、CFET）により、形を変えて「性能/コスト」の向上は続いている。ただし、その改善率は年間30〜40%程度に鈍化しており、かつての年間50〜60%のペースではない。半導体産業は「More Moore（微細化の継続）」と「More than Moore（機能の多様化）」の両軸で進化している。
+**A**: In the strict definition of "transistor count on the same area doubles every two years," the pace has been slowing since the late 2010s. However, the essence of Moore's Law is the economic law that "computational capability per unit cost improves exponentially." Through 3D stacking, chiplets, and new materials (GAA FET, CFET), the improvement in "performance/cost" continues in transformed ways. However, the improvement rate has slowed to approximately 30-40% per year, compared to the former pace of 50-60%. The semiconductor industry is advancing along two axes: "More Moore" (continuing miniaturization) and "More than Moore" (diversification of functionality).
 
-### Q2: アムダールの法則で並列化が無意味になるのはどのような場合か？
+### Q2: Under what circumstances does Amdahl's Law make parallelization futile?
 
-**A**: 並列化が「無意味」になるわけではないが、効果が極めて限定的になるケースがある。具体的には以下の条件が揃う場合である。
+**A**: Parallelization does not become "futile," but its benefits become extremely limited under certain conditions. Specifically, this occurs when:
 
-1. **逐次部分が大きい場合**: 逐次部分が全体の50%を超えると、コア数をいくら増やしても2倍以上にならない。
-2. **同期オーバーヘッドが大きい場合**: ロック競合、バリア同期、スレッド生成コストが並列化の利益を相殺する場合がある。
-3. **問題サイズが小さい場合**: データが少ないと、並列化のオーバーヘッドが処理本体より大きくなる。
+1. **The sequential portion is large**: If the sequential portion exceeds 50% of the total, the speedup cannot exceed 2x no matter how many cores are added.
+2. **Synchronization overhead is large**: Lock contention, barrier synchronization, and thread creation costs can offset the benefits of parallelization.
+3. **The problem size is small**: With little data, the overhead of parallelization can exceed the main computation.
 
-ただし、グスタフソンの法則の観点から見ると、問題サイズを拡大できる場合（例: 解像度を上げる、より多くのリクエストを処理する）には、コア数に応じたスケーリングが可能になる。「固定サイズの問題を速く解く」のか「同じ時間でより大きな問題を解く」のかで、並列化の意義は大きく変わる。
+However, from the perspective of Gustafson's Law, when the problem size can be expanded (e.g., increasing resolution, processing more requests), scaling proportional to core count becomes possible. The significance of parallelization changes significantly depending on whether you are trying to "solve a fixed-size problem faster" or "solve a larger problem in the same time."
 
-### Q3: ソフトウェアエンジニアとして最も注意すべき「壁」はどれか？
+### Q3: Which "wall" should software engineers be most aware of?
 
-**A**: ほとんどのソフトウェアエンジニアにとって、最も日常的に影響を受けるのは**メモリウォール**である。その理由は以下の通り。
+**A**: For most software engineers, the most commonly encountered wall in daily work is the **Memory Wall**. The reasons are as follows:
 
-1. **コードの選択が直接的に影響する**: データ構造の選択、メモリレイアウト、アクセスパターンがキャッシュヒット率を決定する。電力壁やILP壁はハードウェアの問題だが、メモリウォールはソフトウェア設計で大きく改善できる。
-2. **性能差が最も大きい**: シーケンシャルアクセスとランダムアクセスの差は10〜100倍に達する。アルゴリズムの計算量を改善するのと同等以上の効果がある。
-3. **全てのレベルで顕在化する**: L1キャッシュミスからDRAMアクセス、さらにはディスクI/Oまで、メモリ階層の各レベルで性能が桁違いに変化する。
+1. **Code choices directly impact it**: Data structure selection, memory layout, and access patterns determine cache hit rates. While the Power Wall and ILP Wall are hardware issues, the Memory Wall can be significantly improved through software design.
+2. **The performance gap is largest**: The difference between sequential and random access can reach 10x to 100x. This can have as much or more impact as improving algorithmic complexity.
+3. **It manifests at every level**: From L1 cache misses to DRAM access to disk I/O, performance varies by orders of magnitude at each level of the memory hierarchy.
 
-具体的なアクションとしては、(a) プロファイラでキャッシュミス率を定期的に確認する、(b) ホットパスのデータ構造をキャッシュフレンドリーにする、(c) メモリ帯域幅を消費する処理を特定してバッチ化する、の3つが効果的である。
+Concrete actions include: (a) regularly check cache miss rates with a profiler, (b) make hot path data structures cache-friendly, and (c) identify and batch-process operations that consume memory bandwidth.
 
-### Q4: 量子コンピュータは古典コンピュータを置き換えるのか？
+### Q4: Will quantum computers replace classical computers?
 
-**A**: いいえ。量子コンピュータは古典コンピュータを置き換えるのではなく、**補完する**技術である。量子コンピュータが指数的な高速化を示すのは、素因数分解（Shor）、量子シミュレーション、特定の最適化問題など、限られた問題クラスに対してである。Web サーバー、オフィスアプリケーション、ゲームなどの一般的な計算タスクでは、古典コンピュータの方が効率的である。
+**A**: No. Quantum computers do not replace classical computers but **complement** them. Quantum computers show exponential speedup only for limited problem classes such as factoring (Shor), quantum simulation, and certain optimization problems. For general computing tasks like web servers, office applications, and games, classical computers remain more efficient.
 
-将来的には「古典CPU + GPU + QPU（量子処理ユニット）」のヘテロジニアス構成が主流になると予想される。プログラマーにとって重要なのは、暗号化方式のポスト量子暗号（PQC）への移行を意識しておくことである。NIST は2024年にPQC標準を策定しており、長期的にセキュアなシステムを設計する際には考慮が必要となる。
+In the future, heterogeneous configurations of "classical CPU + GPU + QPU (Quantum Processing Unit)" are expected to become mainstream. What is important for programmers is to be aware of the migration to post-quantum cryptography (PQC). NIST established PQC standards in 2024, and this must be considered when designing systems that need long-term security.
 
-### Q5: 電力壁はデータセンターにどのような影響を与えているか？
+### Q5: How does the Power Wall affect data centers?
 
-**A**: データセンターの運用コストにおいて、電力費は最大の単一コスト要因（全体の30〜40%）である。電力壁の影響は以下の形で顕在化している。
+**A**: In data center operating costs, electricity is the largest single cost factor (30-40% of total). The impact of the Power Wall manifests as follows:
 
-1. **冷却コスト**: サーバーの発熱を除去するための冷却に、IT機器と同等の電力が必要な場合がある。PUE（Power Usage Effectiveness）= 総電力 / IT電力 で指標化され、最新のデータセンターでは PUE 1.1〜1.2 を目標とする。
-2. **GPU の電力問題**: AI/ML ワークロード向けの GPU（NVIDIA H100: TDP 700W）は1ラックあたりの消費電力を従来の 10kW から 40〜100kW に押し上げている。液冷が必須となりつつある。
-3. **設計上の制約**: 電力供給のインフラ（変電所、送電線）がデータセンターの規模を物理的に制約する。特に AI 学習向けの大規模クラスタでは、電力供給が最大のボトルネックとなっている。
+1. **Cooling costs**: Removing heat from servers can require as much power as the IT equipment itself. This is measured by PUE (Power Usage Effectiveness) = Total Power / IT Power, with state-of-the-art data centers targeting PUE of 1.1 to 1.2.
+2. **GPU power problem**: GPUs for AI/ML workloads (NVIDIA H100: TDP 700W) have pushed per-rack power consumption from the traditional 10kW to 40-100kW. Liquid cooling is becoming essential.
+3. **Design constraints**: Power supply infrastructure (substations, transmission lines) physically constrains data center scale. For large-scale AI training clusters in particular, power supply has become the biggest bottleneck.
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important takeaway when studying this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is most important. Understanding deepens not just through theory alone, but by actually writing code and verifying behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping straight to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this applied in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently applied in day-to-day development work. It becomes particularly important during code reviews and architecture design.
 
 ---
 
-## 13. まとめ
+## 13. Summary
 
-| 概念 | 核心 | ソフトウェアへの影響 |
+| Concept | Core Idea | Impact on Software |
 |------|------|-------------------|
-| **ムーアの法則** | 2年でトランジスタ数が倍増（鈍化中） | 「ハードウェアが勝手に速くなる」時代は終わり |
-| **デナード・スケーリング** | 微細化で電力密度一定（2005年に崩壊） | クロック向上に頼れない → マルチコア対応必須 |
-| **電力壁** | 消費電力 ∝ V^2 × f | 省電力設計、DVFS対応、バッチ処理 |
-| **メモリウォール** | CPU-DRAM間の速度差が拡大 | データ指向設計、キャッシュ最適化が必須 |
-| **アムダールの法則** | 逐次部分が高速化の上限 | 並列化率の向上 > コア数の増加 |
-| **ILP壁** | 命令レベル並列性に限界 | コンパイラ最適化、SIMD活用 |
-| **チップレット** | 複数ダイの組み合わせ | 異種混合チップの恩恵を活用 |
-| **暗黒シリコン** | 全トランジスタ同時稼働不可 | ワークロードに応じた処理の振り分け |
+| **Moore's Law** | Transistor count doubles every 2 years (slowing) | The era of "hardware getting faster automatically" is over |
+| **Dennard Scaling** | Power density stays constant with miniaturization (broke down in 2005) | Cannot rely on clock increases → Multi-core support is essential |
+| **Power Wall** | Power ∝ V^2 x f | Power-efficient design, DVFS support, batch processing |
+| **Memory Wall** | Growing speed gap between CPU and DRAM | Data-oriented design and cache optimization are essential |
+| **Amdahl's Law** | Sequential portion determines speedup ceiling | Improving parallelization ratio > Adding more cores |
+| **ILP Wall** | Limits to instruction-level parallelism | Compiler optimizations, SIMD utilization |
+| **Chiplets** | Combining multiple dies | Leverage benefits of heterogeneous chip composition |
+| **Dark Silicon** | Cannot activate all transistors simultaneously | Distribute processing according to workload |
 
 ---
 
-## 14. 次に読むべきガイド
+## 14. Recommended Next Guides
 
 
 ---
 
-## 15. 参考文献
+## 15. References
 
-1. Moore, G. E. "Cramming More Components onto Integrated Circuits." *Electronics*, Vol. 38, No. 8, 1965. -- ムーアの法則の原典
-2. Dennard, R. H., Gaensslen, F. H., Yu, H. N., Rideout, V. L., Bassous, E., & LeBlanc, A. R. "Design of Ion-Implanted MOSFET's with Very Small Physical Dimensions." *IEEE Journal of Solid-State Circuits*, Vol. 9, No. 5, 1974. -- デナード・スケーリングの原典
-3. Amdahl, G. M. "Validity of the Single Processor Approach to Achieving Large Scale Computing Capabilities." *AFIPS Conference Proceedings*, Vol. 30, pp. 483-485, 1967. -- アムダールの法則の原典
-4. Wulf, W. A. & McKee, S. A. "Hitting the Memory Wall: Implications of the Obvious." *ACM SIGARCH Computer Architecture News*, Vol. 23, No. 1, pp. 20-24, 1995. -- メモリウォールの概念を提唱した論文
-5. Gustafson, J. L. "Reevaluating Amdahl's Law." *Communications of the ACM*, Vol. 31, No. 5, pp. 532-533, 1988. -- グスタフソンの法則の原典
-6. Esmaeilzadeh, H., Blem, E., St. Amant, R., Sankaralingam, K., & Burger, D. "Dark Silicon and the End of Multicore Scaling." *IEEE Micro*, Vol. 32, No. 3, 2012. -- 暗黒シリコン問題の分析
-7. Patterson, D. A. & Hennessy, J. L. *Computer Organization and Design: The Hardware/Software Interface*. 6th Edition. Morgan Kaufmann, 2020. -- コンピュータアーキテクチャの教科書
-8. Hennessy, J. L. & Patterson, D. A. *Computer Architecture: A Quantitative Approach*. 6th Edition. Morgan Kaufmann, 2019. -- より高度なアーキテクチャの教科書
-9. IRDS (International Roadmap for Devices and Systems). IEEE, 2024. -- 半導体技術ロードマップ
-
----
-
-## 次に読むべきガイド
-
-- 同カテゴリの他のガイドを参照してください
+1. Moore, G. E. "Cramming More Components onto Integrated Circuits." *Electronics*, Vol. 38, No. 8, 1965. -- Original paper on Moore's Law
+2. Dennard, R. H., Gaensslen, F. H., Yu, H. N., Rideout, V. L., Bassous, E., & LeBlanc, A. R. "Design of Ion-Implanted MOSFET's with Very Small Physical Dimensions." *IEEE Journal of Solid-State Circuits*, Vol. 9, No. 5, 1974. -- Original paper on Dennard Scaling
+3. Amdahl, G. M. "Validity of the Single Processor Approach to Achieving Large Scale Computing Capabilities." *AFIPS Conference Proceedings*, Vol. 30, pp. 483-485, 1967. -- Original paper on Amdahl's Law
+4. Wulf, W. A. & McKee, S. A. "Hitting the Memory Wall: Implications of the Obvious." *ACM SIGARCH Computer Architecture News*, Vol. 23, No. 1, pp. 20-24, 1995. -- Paper that proposed the Memory Wall concept
+5. Gustafson, J. L. "Reevaluating Amdahl's Law." *Communications of the ACM*, Vol. 31, No. 5, pp. 532-533, 1988. -- Original paper on Gustafson's Law
+6. Esmaeilzadeh, H., Blem, E., St. Amant, R., Sankaralingam, K., & Burger, D. "Dark Silicon and the End of Multicore Scaling." *IEEE Micro*, Vol. 32, No. 3, 2012. -- Analysis of the dark silicon problem
+7. Patterson, D. A. & Hennessy, J. L. *Computer Organization and Design: The Hardware/Software Interface*. 6th Edition. Morgan Kaufmann, 2020. -- Textbook on computer architecture
+8. Hennessy, J. L. & Patterson, D. A. *Computer Architecture: A Quantitative Approach*. 6th Edition. Morgan Kaufmann, 2019. -- Advanced architecture textbook
+9. IRDS (International Roadmap for Devices and Systems). IEEE, 2024. -- Semiconductor technology roadmap
 
 ---
 
-## 参考文献
+## Recommended Next Guides
 
-- [MDN Web Docs](https://developer.mozilla.org/) - Web技術のリファレンス
-- [Wikipedia](https://ja.wikipedia.org/) - 技術概念の概要
+- Refer to other guides in the same category
+
+---
+
+## References
+
+- [MDN Web Docs](https://developer.mozilla.org/) - Web technology reference
+- [Wikipedia](https://en.wikipedia.org/) - Overview of technical concepts

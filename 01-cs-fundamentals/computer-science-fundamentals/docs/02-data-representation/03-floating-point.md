@@ -1,387 +1,390 @@
-# 浮動小数点数 — IEEE 754 完全ガイド
+# Floating-Point Numbers — IEEE 754 Complete Guide
 
-> 0.1 + 0.2 !== 0.3 という事実は、浮動小数点数の内部表現を理解しなければ永遠にプログラマを悩ませ続ける。本章では IEEE 754 規格の構造から精度問題の本質、丸め誤差の蓄積メカニズム、数値計算における典型的な落とし穴、そして実務での対策までを体系的に解説する。
-
----
-
-## この章で学ぶこと
-
-- [ ] IEEE 754 の構造（符号・指数部・仮数部）をビットレベルで説明できる
-- [ ] 正規化数・非正規化数・特殊値の違いと用途を理解する
-- [ ] なぜ 0.1 + 0.2 !== 0.3 なのかを2進展開から論理的に説明できる
-- [ ] 丸めモード（最近接偶数丸め等）の動作原理を把握する
-- [ ] 桁落ち・情報落ち・丸め誤差の蓄積を識別し、回避策を実装できる
-- [ ] Kahan 補償加算や Decimal 型など、実務的な精度対策を適用できる
-- [ ] AI/GPU 向け低精度フォーマット（BF16, FP8 等）の設計意図を説明できる
-- [ ] 浮動小数点比較の安全な実装パターンを複数言語で書ける
-
-## 前提知識
-
+> The fact that 0.1 + 0.2 !== 0.3 will continue to haunt programmers forever unless they understand the internal representation of floating-point numbers. This chapter systematically covers the structure of the IEEE 754 standard, the nature of precision problems, rounding error accumulation mechanisms, common pitfalls in numerical computing, and practical countermeasures.
 
 ---
 
-## 1. なぜ浮動小数点が必要か
+## Learning Objectives
 
-### 1.1 固定小数点の限界
+- [ ] Explain the structure of IEEE 754 (sign, exponent, mantissa) at the bit level
+- [ ] Understand the differences and uses of normalized numbers, denormalized numbers, and special values
+- [ ] Logically explain why 0.1 + 0.2 !== 0.3 using binary expansion
+- [ ] Grasp the operating principles of rounding modes (round to nearest even, etc.)
+- [ ] Identify and implement workarounds for catastrophic cancellation, absorption, and rounding error accumulation
+- [ ] Apply practical precision countermeasures such as Kahan compensated summation and Decimal types
+- [ ] Explain the design intent of low-precision formats for AI/GPU (BF16, FP8, etc.)
+- [ ] Write safe floating-point comparison patterns in multiple languages
 
-コンピュータで小数を表現する最も素朴な方法は「固定小数点」である。ビット列の中で小数点の位置を固定し、上位ビットを整数部、下位ビットを小数部に割り当てる方式だ。
+## Prerequisites
 
-```
-固定小数点表現（32ビット、16.16形式）:
-
-  ┌─────────────────┬─────────────────┐
-  │   整数部 16ビット  │   小数部 16ビット  │
-  └─────────────────┴─────────────────┘
-
-  表現可能な範囲:
-    整数部: 0 〜 65535（符号なしの場合）
-    小数部: 1/65536 ≈ 0.0000153 の精度
-
-  問題: 科学技術計算で扱う数値の範囲
-  ─────────────────────────────────────
-    電子の質量:      9.109 × 10^(-31) kg
-    アボガドロ定数:  6.022 × 10^(23) mol^(-1)
-    太陽の質量:      1.989 × 10^(30) kg
-    プランク定数:    6.626 × 10^(-34) J·s
-
-    最大値と最小値の比率: 約10^64倍
-
-  固定小数点の 16.16 形式では:
-    表現可能範囲: 約 0.0000153 〜 65535.9999
-    → 電子の質量も太陽の質量も表現不可能
-    → ビット幅を増やしても非効率（200ビット以上必要）
-
-  結論: 指数表現が不可欠
-    → 「浮動」小数点 = 小数点の位置を動的に変える
-    → 少ないビット数で広大な範囲をカバー
-```
-
-固定小数点は DSP（デジタル信号処理）やゲームエンジンの一部で今も使われるが、汎用的な科学技術計算には浮動小数点が不可欠である。
-
-### 1.2 科学的記数法との対応
-
-浮動小数点の発想は、科学的記数法（scientific notation）そのものである。
-
-```
-科学的記数法（10進数の例）:
-
-  6.022 × 10^23
-  ↑        ↑  ↑
-  仮数     基数 指数
-  (significand) (base) (exponent)
-
-  規則:
-  - 仮数は 1 以上 10 未満（正規化）
-  - 基数は 10
-  - 指数は整数
-
-IEEE 754（2進数版の科学的記数法）:
-
-  (-1)^S × 1.M × 2^(E - bias)
-    ↑       ↑   ↑       ↑
-   符号   仮数部 基数   指数部（バイアス補正済み）
-
-  規則:
-  - 基数は 2（固定）
-  - 正規化: 仮数部の整数部分は常に 1（暗黙の1ビット）
-  - 指数部はバイアス表現（符号なし整数 - バイアス値）
-
-対応関係:
-  ┌──────────────┬──────────────────┬────────────────────┐
-  │ 科学的記数法  │ IEEE 754         │ 役割               │
-  ├──────────────┼──────────────────┼────────────────────┤
-  │ ± 符号       │ S（1ビット）      │ 正負の区別          │
-  │ 仮数 (1.xxx) │ 1.M（暗黙の1+M） │ 有効数字            │
-  │ ×10^n        │ ×2^(E-bias)      │ スケール（桁の位置） │
-  └──────────────┴──────────────────┴────────────────────┘
-```
-
-### 1.3 浮動小数点の歴史的背景
-
-IEEE 754 が策定される以前、各コンピュータメーカーは独自の浮動小数点形式を採用していた。IBM System/360 は 16 を基数とする形式（ヘキサデシマル浮動小数点）、DEC VAX は独自の F/D/G/H 形式、Cray は独自の 64 ビット形式を使っていた。この互換性の欠如は深刻な問題を引き起こし、あるマシンで正しく動くプログラムが別のマシンでは異なる結果を返すことが日常的に発生していた。
-
-1985 年、William Kahan を中心とするグループが IEEE 754 標準を策定した。この標準は以下の設計目標を持っていた:
-
-1. **決定論的な動作**: 同じ入力に対して常に同じ結果を返す
-2. **段階的アンダーフロー**: ゼロ付近で突然ゼロになるのではなく、精度を徐々に失う
-3. **特殊値の体系的な扱い**: 無限大や未定義を例外ではなく値として表現
-4. **丸めモードの明示的な制御**: 複数の丸め方法を規定
-
-2008 年に IEEE 754-2008、2019 年に IEEE 754-2019 として改訂され、半精度（binary16）や四倍精度（binary128）、10 進浮動小数点（decimal32/64/128）が追加された。
 
 ---
 
-## 2. IEEE 754 の構造
+## 1. Why Floating-Point Is Necessary
 
-### 2.1 ビットレイアウト
+### 1.1 Limitations of Fixed-Point
 
-IEEE 754 では、浮動小数点数を「符号（Sign）」「指数部（Exponent）」「仮数部（Mantissa / Significand）」の 3 つのフィールドに分割して格納する。
-
-```
-IEEE 754 binary32（単精度、32ビット）:
-
-  ビット位置:  31   30        23  22                    0
-              ┌───┬───────────┬───────────────────────────┐
-              │ S │  指数部 E  │       仮数部 M            │
-              │1b │  8ビット   │       23ビット             │
-              └───┴───────────┴───────────────────────────┘
-
-  S: 符号ビット（0 = 正、1 = 負）
-  E: 指数部（バイアス付き符号なし整数）
-  M: 仮数部（暗黙の先頭 1 を含まない小数部分）
-
-IEEE 754 binary64（倍精度、64ビット）:
-
-  ビット位置:  63   62              52  51                                   0
-              ┌───┬─────────────────┬──────────────────────────────────────────┐
-              │ S │    指数部 E      │              仮数部 M                    │
-              │1b │    11ビット       │              52ビット                     │
-              └───┴─────────────────┴──────────────────────────────────────────┘
-
-IEEE 754 binary16（半精度、16ビット）:
-
-  ビット位置:  15  14     10  9          0
-              ┌───┬────────┬──────────────┐
-              │ S │ 指数 E │   仮数部 M    │
-              │1b │ 5ビット │   10ビット     │
-              └───┴────────┴──────────────┘
-```
-
-### 2.2 各精度フォーマットの比較
+The most straightforward way to represent decimals in a computer is "fixed-point." The decimal point position is fixed within a bit string, with upper bits allocated to the integer part and lower bits to the fractional part.
 
 ```
-┌────────────┬───────┬───────┬───────┬──────────────────────────┬───────────────┐
-│ 名称       │ 全幅  │ 指数  │ 仮数  │ 表現可能範囲（絶対値）    │ 有効桁数(10進)│
-├────────────┼───────┼───────┼───────┼──────────────────────────┼───────────────┤
-│ binary16   │ 16bit │  5bit │ 10bit │ ±6.55 × 10^4            │ 約3.3桁       │
-│ binary32   │ 32bit │  8bit │ 23bit │ ±3.4 × 10^38            │ 約7.2桁       │
-│ binary64   │ 64bit │ 11bit │ 52bit │ ±1.8 × 10^308           │ 約15.9桁      │
-│ binary128  │128bit │ 15bit │112bit │ ±1.2 × 10^4932          │ 約34.0桁      │
-├────────────┼───────┼───────┼───────┼──────────────────────────┼───────────────┤
-│ bfloat16   │ 16bit │  8bit │  7bit │ ±3.4 × 10^38            │ 約2.4桁       │
-│ TF32       │ 19bit │  8bit │ 10bit │ ±3.4 × 10^38            │ 約3.3桁       │
-│ FP8(E4M3)  │  8bit │  4bit │  3bit │ ±448                    │ 約1.2桁       │
-│ FP8(E5M2)  │  8bit │  5bit │  2bit │ ±57344                  │ 約0.9桁       │
-└────────────┴───────┴───────┴───────┴──────────────────────────┴───────────────┘
+Fixed-point representation (32-bit, 16.16 format):
+
+  +-------------------+-------------------+
+  | Integer: 16 bits  | Fraction: 16 bits |
+  +-------------------+-------------------+
+
+  Representable range:
+    Integer part: 0 to 65535 (unsigned)
+    Fractional part: precision of 1/65536 ~ 0.0000153
+
+  Problem: Range of values in scientific computing
+  -----------------------------------------
+    Electron mass:        9.109 x 10^(-31) kg
+    Avogadro's number:    6.022 x 10^(23) mol^(-1)
+    Solar mass:           1.989 x 10^(30) kg
+    Planck constant:      6.626 x 10^(-34) J*s
+
+    Ratio of maximum to minimum: approximately 10^64
+
+  With fixed-point 16.16 format:
+    Representable range: approximately 0.0000153 to 65535.9999
+    -> Neither electron mass nor solar mass can be represented
+    -> Even increasing bit width is inefficient (200+ bits needed)
+
+  Conclusion: Exponential notation is essential
+    -> "Floating" point = dynamically shifting the decimal point position
+    -> Covers a vast range with few bits
 ```
 
-### 2.3 値の計算式
+Fixed-point is still used in DSP (Digital Signal Processing) and parts of game engines, but floating-point is essential for general-purpose scientific computing.
 
-浮動小数点数の値は、指数部の値によって 3 つのカテゴリに分かれる。
+### 1.2 Correspondence with Scientific Notation
+
+The idea behind floating-point is scientific notation itself.
 
 ```
-■ 正規化数（Normalized Numbers）
-  条件: 0 < E < E_max（指数部が全 0 でも全 1 でもない）
+Scientific notation (decimal example):
 
-  値 = (-1)^S × (1 + M × 2^(-p)) × 2^(E - bias)
+  6.022 x 10^23
+  ^        ^  ^
+  significand base exponent
 
-    ここで:
-      S     = 符号ビット（0 or 1）
-      M     = 仮数部の整数値（0 〜 2^p - 1）
-      p     = 仮数部のビット数（binary32: 23, binary64: 52）
-      E     = 指数部の整数値
-      bias  = 2^(k-1) - 1（k = 指数部のビット数）
+  Rules:
+  - The significand is >= 1 and < 10 (normalized)
+  - The base is 10
+  - The exponent is an integer
 
-  バイアス値:
-    binary16: bias = 15    (E: 1〜30  → 指数: -14 〜 +15)
-    binary32: bias = 127   (E: 1〜254 → 指数: -126 〜 +127)
-    binary64: bias = 1023  (E: 1〜2046 → 指数: -1022 〜 +1023)
+IEEE 754 (binary version of scientific notation):
+
+  (-1)^S x 1.M x 2^(E - bias)
+    ^       ^   ^       ^
+   sign  mantissa base  exponent (bias-corrected)
+
+  Rules:
+  - The base is 2 (fixed)
+  - Normalization: the integer part of the mantissa is always 1 (implicit leading 1 bit)
+  - The exponent field uses biased representation (unsigned integer - bias value)
+
+Correspondence:
+  +----------------+------------------+--------------------+
+  | Scientific     | IEEE 754         | Role               |
+  | Notation       |                  |                    |
+  +----------------+------------------+--------------------+
+  | +/- sign       | S (1 bit)        | Positive/negative  |
+  | significand    | 1.M (implicit    | Significant digits |
+  |  (1.xxx)       |  1 + M)          |                    |
+  | x10^n          | x2^(E-bias)      | Scale (digit       |
+  |                |                  |  position)         |
+  +----------------+------------------+--------------------+
+```
+
+### 1.3 Historical Background of Floating-Point
+
+Before IEEE 754 was established, each computer manufacturer used proprietary floating-point formats. IBM System/360 used a hexadecimal floating-point format (base 16), DEC VAX had its own F/D/G/H formats, and Cray used a proprietary 64-bit format. This lack of compatibility caused serious problems, with programs that worked correctly on one machine routinely producing different results on another.
+
+In 1985, a group led by William Kahan established the IEEE 754 standard. The standard had the following design goals:
+
+1. **Deterministic behavior**: Always return the same result for the same input
+2. **Gradual underflow**: Instead of suddenly becoming zero near zero, precision is gradually lost
+3. **Systematic handling of special values**: Represent infinity and undefined as values rather than exceptions
+4. **Explicit control of rounding modes**: Specify multiple rounding methods
+
+The standard was revised as IEEE 754-2008 in 2008 and IEEE 754-2019 in 2019, adding half precision (binary16), quadruple precision (binary128), and decimal floating-point (decimal32/64/128).
+
+---
+
+## 2. Structure of IEEE 754
+
+### 2.1 Bit Layout
+
+In IEEE 754, a floating-point number is stored by dividing it into three fields: "Sign," "Exponent," and "Mantissa / Significand."
+
+```
+IEEE 754 binary32 (single precision, 32 bits):
+
+  Bit position: 31   30        23  22                    0
+              +---+-----------+---------------------------+
+              | S | Exponent E|       Mantissa M          |
+              |1b |  8 bits   |       23 bits             |
+              +---+-----------+---------------------------+
+
+  S: Sign bit (0 = positive, 1 = negative)
+  E: Exponent (biased unsigned integer)
+  M: Mantissa (fractional part excluding the implicit leading 1)
+
+IEEE 754 binary64 (double precision, 64 bits):
+
+  Bit position: 63   62              52  51                                   0
+              +---+-----------------+------------------------------------------+
+              | S |   Exponent E    |              Mantissa M                  |
+              |1b |   11 bits       |              52 bits                     |
+              +---+-----------------+------------------------------------------+
+
+IEEE 754 binary16 (half precision, 16 bits):
+
+  Bit position: 15  14     10  9          0
+              +---+--------+--------------+
+              | S | Exp E  |  Mantissa M  |
+              |1b | 5 bits |  10 bits     |
+              +---+--------+--------------+
+```
+
+### 2.2 Comparison of Precision Formats
+
+```
++------------+-------+-------+-------+--------------------------+---------------+
+| Name       | Width | Exp   | Mant  | Representable range      | Decimal digits|
+|            |       |       |       | (absolute value)         |               |
++------------+-------+-------+-------+--------------------------+---------------+
+| binary16   | 16bit |  5bit | 10bit | +/-6.55 x 10^4          | ~3.3 digits   |
+| binary32   | 32bit |  8bit | 23bit | +/-3.4 x 10^38          | ~7.2 digits   |
+| binary64   | 64bit | 11bit | 52bit | +/-1.8 x 10^308         | ~15.9 digits  |
+| binary128  |128bit | 15bit |112bit | +/-1.2 x 10^4932        | ~34.0 digits  |
++------------+-------+-------+-------+--------------------------+---------------+
+| bfloat16   | 16bit |  8bit |  7bit | +/-3.4 x 10^38          | ~2.4 digits   |
+| TF32       | 19bit |  8bit | 10bit | +/-3.4 x 10^38          | ~3.3 digits   |
+| FP8(E4M3)  |  8bit |  4bit |  3bit | +/-448                  | ~1.2 digits   |
+| FP8(E5M2)  |  8bit |  5bit |  2bit | +/-57344                | ~0.9 digits   |
++------------+-------+-------+-------+--------------------------+---------------+
+```
+
+### 2.3 Value Calculation Formula
+
+The value of a floating-point number falls into three categories depending on the exponent field value.
+
+```
+* Normalized Numbers
+  Condition: 0 < E < E_max (exponent is neither all 0s nor all 1s)
+
+  Value = (-1)^S x (1 + M x 2^(-p)) x 2^(E - bias)
+
+    Where:
+      S     = sign bit (0 or 1)
+      M     = integer value of the mantissa (0 to 2^p - 1)
+      p     = number of mantissa bits (binary32: 23, binary64: 52)
+      E     = integer value of the exponent field
+      bias  = 2^(k-1) - 1 (k = number of exponent bits)
+
+  Bias values:
+    binary16: bias = 15    (E: 1-30  -> exponent: -14 to +15)
+    binary32: bias = 127   (E: 1-254 -> exponent: -126 to +127)
+    binary64: bias = 1023  (E: 1-2046 -> exponent: -1022 to +1023)
     binary128: bias = 16383
 
-  暗黙の1ビット（Implicit Leading 1）:
-    正規化数の仮数部は常に 1.xxxxx... の形式
-    先頭の 1 は格納せず、1ビット分の精度を稼ぐ
-    → binary32 は 23ビット格納で 24ビット精度を実現
+  Implicit Leading 1 Bit:
+    The mantissa of normalized numbers always has the form 1.xxxxx...
+    The leading 1 is not stored, gaining 1 bit of precision
+    -> binary32 stores 23 bits but achieves 24-bit precision
 
-■ 非正規化数（Denormalized / Subnormal Numbers）
-  条件: E = 0, M ≠ 0
+* Denormalized Numbers (Subnormal Numbers)
+  Condition: E = 0, M != 0
 
-  値 = (-1)^S × (0 + M × 2^(-p)) × 2^(1 - bias)
+  Value = (-1)^S x (0 + M x 2^(-p)) x 2^(1 - bias)
 
-  → 暗黙の1ビットが 0 になる
-  → 指数は 1 - bias で固定（0 - bias ではない点に注意）
+  -> The implicit leading bit becomes 0
+  -> The exponent is fixed at 1 - bias (note: not 0 - bias)
 
-■ 特殊値
-  E = 0,     M = 0  → ±0（符号付きゼロ）
-  E = E_max, M = 0  → ±∞（無限大）
-  E = E_max, M ≠ 0  → NaN（非数）
+* Special Values
+  E = 0,     M = 0  -> +/-0 (signed zero)
+  E = E_max, M = 0  -> +/-Infinity
+  E = E_max, M != 0 -> NaN (Not a Number)
 ```
 
-### 2.4 具体的な変換例: 10進数からIEEE 754へ
+### 2.4 Concrete Conversion Examples: Decimal to IEEE 754
 
-#### 例1: 6.5 を binary32 に変換
+#### Example 1: Convert 6.5 to binary32
 
 ```
-ステップ1: 符号を決定
-  6.5 > 0 なので S = 0
+Step 1: Determine the sign
+  6.5 > 0, so S = 0
 
-ステップ2: 絶対値を2進数に変換
-  整数部: 6 = 110 (2進)
-  小数部: 0.5 = 0.1 (2進)  ← 0.5 × 2 = 1.0 → 1
-  6.5 = 110.1 (2進)
+Step 2: Convert the absolute value to binary
+  Integer part: 6 = 110 (binary)
+  Fractional part: 0.5 = 0.1 (binary)  <- 0.5 x 2 = 1.0 -> 1
+  6.5 = 110.1 (binary)
 
-ステップ3: 正規化（1.xxx × 2^n の形にする）
-  110.1 = 1.101 × 2^2
+Step 3: Normalize (convert to 1.xxx x 2^n form)
+  110.1 = 1.101 x 2^2
 
-ステップ4: 各フィールドを決定
+Step 4: Determine each field
   S = 0
-  E = 2 + 127 = 129 = 10000001 (2進)
-  M = 10100000000000000000000 (「1.」の後ろの部分、23ビット)
+  E = 2 + 127 = 129 = 10000001 (binary)
+  M = 10100000000000000000000 (the part after "1.", 23 bits)
 
-ステップ5: ビット列を組み立てる
+Step 5: Assemble the bit string
   0 10000001 10100000000000000000000
-  ↑ ↑         ↑
-  S E(8bit)   M(23bit)
+  ^  ^         ^
+  S  E(8bit)   M(23bit)
 
-  16進数: 0x40D00000
+  Hexadecimal: 0x40D00000
 
-検証（Python）:
+Verification (Python):
   >>> import struct
   >>> struct.pack('>f', 6.5).hex()
-  '40d00000'  # 一致
+  '40d00000'  # Match
 ```
 
-#### 例2: -12.375 を binary32 に変換
+#### Example 2: Convert -12.375 to binary32
 
 ```
-ステップ1: S = 1（負数）
+Step 1: S = 1 (negative number)
 
-ステップ2: |-12.375| を2進数に変換
-  整数部: 12 = 1100 (2進)
-  小数部:
-    0.375 × 2 = 0.75  → 0
-    0.75  × 2 = 1.5   → 1
-    0.5   × 2 = 1.0   → 1
-    → 0.375 = 0.011 (2進)
-  12.375 = 1100.011 (2進)
+Step 2: Convert |-12.375| to binary
+  Integer part: 12 = 1100 (binary)
+  Fractional part:
+    0.375 x 2 = 0.75  -> 0
+    0.75  x 2 = 1.5   -> 1
+    0.5   x 2 = 1.0   -> 1
+    -> 0.375 = 0.011 (binary)
+  12.375 = 1100.011 (binary)
 
-ステップ3: 正規化
-  1100.011 = 1.100011 × 2^3
+Step 3: Normalize
+  1100.011 = 1.100011 x 2^3
 
-ステップ4: 各フィールド
+Step 4: Determine each field
   S = 1
-  E = 3 + 127 = 130 = 10000010 (2進)
+  E = 3 + 127 = 130 = 10000010 (binary)
   M = 10001100000000000000000
 
-ステップ5: ビット列
+Step 5: Bit string
   1 10000010 10001100000000000000000
-  16進数: 0xC1460000
+  Hexadecimal: 0xC1460000
 ```
 
-#### 例3: 0.1 を binary64 に変換（無限循環の例）
+#### Example 3: Convert 0.1 to binary64 (infinite repeating example)
 
 ```
-0.1 を2進数に変換:
+Converting 0.1 to binary:
 
-  0.1 × 2 = 0.2  → 0
-  0.2 × 2 = 0.4  → 0
-  0.4 × 2 = 0.8  → 0
-  0.8 × 2 = 1.6  → 1
-  0.6 × 2 = 1.2  → 1
-  0.2 × 2 = 0.4  → 0   ← 「0011」の繰り返しが始まる
-  0.4 × 2 = 0.8  → 0
-  0.8 × 2 = 1.6  → 1
-  0.6 × 2 = 1.2  → 1
+  0.1 x 2 = 0.2  -> 0
+  0.2 x 2 = 0.4  -> 0
+  0.4 x 2 = 0.8  -> 0
+  0.8 x 2 = 1.6  -> 1
+  0.6 x 2 = 1.2  -> 1
+  0.2 x 2 = 0.4  -> 0   <- "0011" repetition begins
+  0.4 x 2 = 0.8  -> 0
+  0.8 x 2 = 1.6  -> 1
+  0.6 x 2 = 1.2  -> 1
   ...
 
-  0.1 (10進) = 0.0 0011 0011 0011 0011 0011 ... (2進, 無限循環)
+  0.1 (decimal) = 0.0 0011 0011 0011 0011 0011 ... (binary, infinite repeating)
 
-  正規化: 1.1001100110011001100110011... × 2^(-4)
+  Normalized: 1.1001100110011001100110011... x 2^(-4)
 
-  binary64 では仮数部 52ビットなので、53ビット目で丸めが発生:
+  In binary64, the mantissa is 52 bits, so rounding occurs at the 53rd bit:
 
-  格納される仮数部（52ビット）:
+  Stored mantissa (52 bits):
   1001100110011001100110011001100110011001100110011010
-                                                  ↑
-                                        丸め（最近接偶数丸め）
+                                                  ^
+                                        Rounding (round to nearest even)
 
-  結果として格納される値:
+  Value actually stored:
   0.1000000000000000055511151231257827021181583404541015625
 
-  真の値 0.1 との差: 約 5.55 × 10^(-18)
-  → 非常に小さいが、蓄積すると問題になる
+  Difference from the true value 0.1: approximately 5.55 x 10^(-18)
+  -> Very small, but problematic when accumulated
 ```
 
-### 2.5 IEEE 754 からの逆変換: ビット列の解読
+### 2.5 Reverse Conversion from IEEE 754: Decoding Bit Strings
 
 ```python
-# Python でビット列を解読する
+# Decoding bit strings in Python
 
 import struct
 
 def decode_float32(hex_str):
-    """32ビット16進数文字列からIEEE 754の各要素を解読"""
+    """Decode IEEE 754 components from a 32-bit hexadecimal string"""
     n = int(hex_str, 16)
     sign = (n >> 31) & 1
     exponent = (n >> 23) & 0xFF
     mantissa = n & 0x7FFFFF
 
-    print(f"16進数:    {hex_str}")
-    print(f"2進数:     {n:032b}")
-    print(f"符号(S):   {sign} ({'負' if sign else '正'})")
-    print(f"指数部(E): {exponent} (= {exponent} - 127 = {exponent - 127})")
-    print(f"仮数部(M): {mantissa:023b}")
+    print(f"Hexadecimal: {hex_str}")
+    print(f"Binary:      {n:032b}")
+    print(f"Sign (S):    {sign} ({'negative' if sign else 'positive'})")
+    print(f"Exponent(E): {exponent} (= {exponent} - 127 = {exponent - 127})")
+    print(f"Mantissa(M): {mantissa:023b}")
 
     if exponent == 0 and mantissa == 0:
         value = 0.0 * (-1 if sign else 1)
-        print(f"分類: ゼロ ({'+' if not sign else '-'}0)")
+        print(f"Category: Zero ({'+' if not sign else '-'}0)")
     elif exponent == 0:
         value = (-1)**sign * (mantissa / 2**23) * 2**(-126)
-        print(f"分類: 非正規化数")
+        print(f"Category: Denormalized number")
     elif exponent == 255 and mantissa == 0:
         value = float('inf') * (-1 if sign else 1)
-        print(f"分類: {'負' if sign else '正'}の無限大")
+        print(f"Category: {'Negative' if sign else 'Positive'} infinity")
     elif exponent == 255:
         value = float('nan')
-        print(f"分類: NaN")
+        print(f"Category: NaN")
     else:
         value = (-1)**sign * (1 + mantissa / 2**23) * 2**(exponent - 127)
-        print(f"分類: 正規化数")
+        print(f"Category: Normalized number")
 
-    print(f"値:        {value}")
+    print(f"Value:       {value}")
     return value
 
-# 使用例
-decode_float32("40D00000")  # → 6.5
-decode_float32("C1460000")  # → -12.375
-decode_float32("3DCCCCCD")  # → 0.10000000149011612（0.1の近似）
+# Usage examples
+decode_float32("40D00000")  # -> 6.5
+decode_float32("C1460000")  # -> -12.375
+decode_float32("3DCCCCCD")  # -> 0.10000000149011612 (approximation of 0.1)
 ```
 
 ```c
-/* C言語でのビット列解読 */
+/* Decoding bit strings in C */
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
 
 void decode_float32(float f) {
     uint32_t bits;
-    memcpy(&bits, &f, sizeof(bits));  /* 型パンニング（安全な方法） */
+    memcpy(&bits, &f, sizeof(bits));  /* Type punning (safe method) */
 
     uint32_t sign     = (bits >> 31) & 1;
     uint32_t exponent = (bits >> 23) & 0xFF;
     uint32_t mantissa = bits & 0x7FFFFF;
 
-    printf("値:       %.*g\n", 9, f);
-    printf("ビット列: ");
+    printf("Value:    %.*g\n", 9, f);
+    printf("Bits:     ");
     for (int i = 31; i >= 0; i--) {
         printf("%d", (bits >> i) & 1);
         if (i == 31 || i == 23) printf(" ");
     }
     printf("\n");
-    printf("符号:     %u (%s)\n", sign, sign ? "負" : "正");
-    printf("指数部:   %u (実際の指数 = %d)\n", exponent, (int)exponent - 127);
-    printf("仮数部:   0x%06X\n", mantissa);
+    printf("Sign:     %u (%s)\n", sign, sign ? "negative" : "positive");
+    printf("Exponent: %u (actual exponent = %d)\n", exponent, (int)exponent - 127);
+    printf("Mantissa: 0x%06X\n", mantissa);
 
     if (exponent == 0 && mantissa == 0)
-        printf("分類: %sゼロ\n", sign ? "負の" : "正の");
+        printf("Category: %szero\n", sign ? "negative " : "positive ");
     else if (exponent == 0)
-        printf("分類: 非正規化数\n");
+        printf("Category: denormalized number\n");
     else if (exponent == 255 && mantissa == 0)
-        printf("分類: %s無限大\n", sign ? "負の" : "正の");
+        printf("Category: %sinfinity\n", sign ? "negative " : "positive ");
     else if (exponent == 255)
-        printf("分類: NaN\n");
+        printf("Category: NaN\n");
     else
-        printf("分類: 正規化数\n");
+        printf("Category: normalized number\n");
 }
 
 int main(void) {
@@ -394,38 +397,38 @@ int main(void) {
 
 ---
 
-## 3. 特殊値の完全解説
+## 3. Complete Guide to Special Values
 
-### 3.1 符号付きゼロ（Signed Zero）
+### 3.1 Signed Zero
 
-IEEE 754 では +0 と -0 の 2 種類のゼロが存在する。
+IEEE 754 has two kinds of zero: +0 and -0.
 
 ```
 +0: S=0, E=00000000, M=00000000000000000000000  (0x00000000)
 -0: S=1, E=00000000, M=00000000000000000000000  (0x80000000)
 
-比較における動作:
-  +0.0 == -0.0   → True（等価比較では区別されない）
-  +0.0 is -0.0   → 処理系依存
+Behavior in comparisons:
+  +0.0 == -0.0   -> True (not distinguished in equality comparison)
+  +0.0 is -0.0   -> Implementation-dependent
 
-符号が現れる場面:
-  1.0 / (+0.0)  → +Inf
-  1.0 / (-0.0)  → -Inf  ← 符号が異なる!
+Cases where the sign matters:
+  1.0 / (+0.0)  -> +Inf
+  1.0 / (-0.0)  -> -Inf  <- Signs differ!
 
-  copysign(1.0, +0.0) → +1.0
-  copysign(1.0, -0.0) → -1.0
+  copysign(1.0, +0.0) -> +1.0
+  copysign(1.0, -0.0) -> -1.0
 
-  atan2(+0.0, -1.0) → +π
-  atan2(-0.0, -1.0) → -π  ← 数学関数で結果が変わる
+  atan2(+0.0, -1.0) -> +pi
+  atan2(-0.0, -1.0) -> -pi  <- Math functions give different results
 
-存在意義:
-  - アンダーフロー時に符号情報を保存
-  - 極限値の方向を保持
-  - 複素数演算での分岐切断（branch cut）を正しく扱う
+Rationale:
+  - Preserves sign information during underflow
+  - Retains the direction of limit values
+  - Correctly handles branch cuts in complex arithmetic
 ```
 
 ```python
-# Python で符号付きゼロを確認
+# Checking signed zero in Python
 import math
 
 pos_zero = +0.0
@@ -435,7 +438,7 @@ print(pos_zero == neg_zero)         # True
 print(math.copysign(1, pos_zero))   # 1.0
 print(math.copysign(1, neg_zero))   # -1.0
 
-# 符号付きゼロの検出
+# Detecting negative zero
 def is_negative_zero(x):
     return x == 0.0 and math.copysign(1, x) < 0
 
@@ -443,33 +446,33 @@ print(is_negative_zero(-0.0))  # True
 print(is_negative_zero(+0.0))  # False
 ```
 
-### 3.2 無限大（Infinity）
+### 3.2 Infinity
 
 ```
 +Inf: S=0, E=11111111, M=00000000000000000000000  (0x7F800000)
 -Inf: S=1, E=11111111, M=00000000000000000000000  (0xFF800000)
 
-生成される演算:
-  1.0 / 0.0     → +Inf
-  -1.0 / 0.0    → -Inf
-  1e308 * 10    → +Inf（オーバーフロー、binary64の場合）
-  log(0.0)      → -Inf
-  exp(1000)     → +Inf
+Operations that produce infinity:
+  1.0 / 0.0     -> +Inf
+  -1.0 / 0.0    -> -Inf
+  1e308 * 10    -> +Inf (overflow, for binary64)
+  log(0.0)      -> -Inf
+  exp(1000)     -> +Inf
 
-無限大を含む演算規則:
-  ┌──────────────────┬──────────┐
-  │ 演算             │ 結果     │
-  ├──────────────────┼──────────┤
-  │ Inf + Inf        │ +Inf     │
-  │ Inf + 有限数     │ +Inf     │
-  │ Inf × 正の有限数 │ +Inf     │
-  │ Inf × 負の有限数 │ -Inf     │
-  │ Inf × 0          │ NaN      │
-  │ Inf - Inf        │ NaN      │
-  │ Inf / Inf        │ NaN      │
-  │ 有限数 / Inf     │ ±0       │
-  │ Inf > 任意の有限数│ True     │
-  └──────────────────┴──────────┘
+Arithmetic rules involving infinity:
+  +------------------+----------+
+  | Operation        | Result   |
+  +------------------+----------+
+  | Inf + Inf        | +Inf     |
+  | Inf + finite     | +Inf     |
+  | Inf * pos finite | +Inf     |
+  | Inf * neg finite | -Inf     |
+  | Inf * 0          | NaN      |
+  | Inf - Inf        | NaN      |
+  | Inf / Inf        | NaN      |
+  | finite / Inf     | +/-0     |
+  | Inf > any finite | True     |
+  +------------------+----------+
 ```
 
 ```python
@@ -477,10 +480,10 @@ import math
 
 inf = float('inf')
 
-# 無限大の生成と演算
-print(1.0 / 0.0)       # inf（Python ではデフォルトで例外なし...ではなく ZeroDivisionError）
-# 注意: Python では 1.0/0.0 は ZeroDivisionError
-# float('inf') で直接生成する
+# Generating and computing with infinity
+print(1.0 / 0.0)       # inf (Python raises ZeroDivisionError by default)
+# Note: In Python, 1.0/0.0 raises ZeroDivisionError
+# Use float('inf') to generate directly
 
 print(inf + inf)        # inf
 print(inf + 1e308)      # inf
@@ -491,40 +494,40 @@ print(inf / inf)        # nan
 print(1.0 / inf)        # 0.0
 print(inf > 1e308)      # True
 
-# 無限大の判定
+# Checking for infinity
 print(math.isinf(inf))          # True
 print(math.isinf(-inf))         # True
 print(math.isinf(1e308))        # False
-print(math.isinf(1e308 * 10))   # True（オーバーフロー）
+print(math.isinf(1e308 * 10))   # True (overflow)
 ```
 
-### 3.3 NaN（Not a Number）
+### 3.3 NaN (Not a Number)
 
-NaN は「未定義の結果」を表す特殊値であり、浮動小数点演算における最大の落とし穴の一つである。
+NaN is a special value representing "undefined results" and is one of the biggest pitfalls in floating-point arithmetic.
 
 ```
-NaN のビット表現（binary32）:
-  指数部 = 11111111（全ビット1）
-  仮数部 ≠ 0（ゼロ以外の任意の値）
+Bit representation of NaN (binary32):
+  Exponent = 11111111 (all bits 1)
+  Mantissa != 0 (any non-zero value)
 
-  2種類の NaN:
-    Signaling NaN (sNaN): 仮数部の最上位ビット = 0, 残り ≠ 0
-      → 使用すると例外を発生させる
-      → 未初期化変数の検出に使える
-    Quiet NaN (qNaN):     仮数部の最上位ビット = 1
-      → 例外なしに伝播する
-      → ほとんどの演算結果として返される NaN
+  Two types of NaN:
+    Signaling NaN (sNaN): Most significant bit of mantissa = 0, rest != 0
+      -> Raises an exception when used
+      -> Can be used to detect uninitialized variables
+    Quiet NaN (qNaN):     Most significant bit of mantissa = 1
+      -> Propagates without raising exceptions
+      -> The NaN returned as the result of most operations
 
-  qNaN の例: 0 11111111 10000000000000000000000 (0x7FC00000)
-  sNaN の例: 0 11111111 00000000000000000000001 (0x7F800001)
+  qNaN example: 0 11111111 10000000000000000000000 (0x7FC00000)
+  sNaN example: 0 11111111 00000000000000000000001 (0x7F800001)
 
-NaN が生成される演算:
-  0.0 / 0.0    → NaN
-  Inf - Inf    → NaN
-  Inf × 0      → NaN
-  Inf / Inf    → NaN
-  sqrt(-1.0)   → NaN（実数演算の場合）
-  NaN ○ 任意   → NaN（演算の種類を問わず NaN が伝播）
+Operations that produce NaN:
+  0.0 / 0.0    -> NaN
+  Inf - Inf    -> NaN
+  Inf * 0      -> NaN
+  Inf / Inf    -> NaN
+  sqrt(-1.0)   -> NaN (in real number arithmetic)
+  NaN op any   -> NaN (NaN propagates regardless of operation type)
 ```
 
 ```python
@@ -533,299 +536,302 @@ import numpy as np
 
 x = float('nan')
 
-# NaN の根本的性質: 自分自身と等しくない
-print(x == x)     # False  ← IEEE 754 で規定された動作
+# Fundamental property of NaN: not equal to itself
+print(x == x)     # False  <- Behavior specified by IEEE 754
 print(x != x)     # True
 print(x > 0)      # False
 print(x < 0)      # False
 print(x >= 0)     # False
 print(x <= 0)     # False
-# → NaN との比較は != 以外すべて False
+# -> All comparisons with NaN return False except !=
 
-# NaN の判定方法
-print(math.isnan(x))            # True  ← 推奨
-print(x != x)                    # True  ← 伝統的イディオム（非推奨）
-print(np.isnan(x))              # True  ← NumPy
+# Methods for detecting NaN
+print(math.isnan(x))            # True  <- Recommended
+print(x != x)                    # True  <- Traditional idiom (not recommended)
+print(np.isnan(x))              # True  <- NumPy
 
-# NaN の伝播（「毒」のように広がる）
+# NaN propagation (spreads like "poison")
 print(x + 1)          # nan
 print(x * 0)          # nan
-print(x ** 0)         # 1.0  ← 例外! IEEE 754 で規定
+print(x ** 0)         # 1.0  <- Exception! Specified by IEEE 754
 print(0 * float('inf'))  # nan
-print(max(x, 5))      # nan（Python 標準）
+print(max(x, 5))      # nan (Python standard)
 print(min(x, 5))      # nan
 
-# NaN を含むリストの集約
+# Aggregating lists containing NaN
 values = [1.0, 2.0, float('nan'), 4.0]
-print(sum(values))     # nan（1つでも NaN があると結果が NaN）
+print(sum(values))     # nan (result is NaN if even one NaN exists)
 print(max(values))     # nan
 print(min(values))     # nan
 
-# NaN 安全な集約（NumPy）
+# NaN-safe aggregation (NumPy)
 arr = np.array(values)
-print(np.nansum(arr))    # 7.0（NaN を無視して合計）
-print(np.nanmean(arr))   # 2.333...（NaN を除外して平均）
+print(np.nansum(arr))    # 7.0 (sum ignoring NaN)
+print(np.nanmean(arr))   # 2.333... (mean excluding NaN)
 print(np.nanmax(arr))    # 4.0
 ```
 
-### 3.4 NaN の言語間での振る舞いの違い
+### 3.4 NaN Behavior Differences Across Languages
 
 ```
-各言語での NaN の扱い:
+NaN handling in various languages:
 
-┌──────────────┬─────────────────┬────────────────────────────────┐
-│ 言語         │ NaN 生成        │ 注意事項                       │
-├──────────────┼─────────────────┼────────────────────────────────┤
-│ Python       │ float('nan')    │ math.isnan() で判定            │
-│ C/C++        │ NAN, nan()      │ isnan() マクロ（<math.h>）     │
-│ Java         │ Double.NaN      │ Double.isNaN() で判定          │
-│ JavaScript   │ NaN             │ Number.isNaN() を使用          │
-│              │                 │ typeof NaN === 'number' !      │
-│              │                 │ isNaN("hello") → true（罠）    │
-│ Rust         │ f64::NAN        │ f64::is_nan(), 比較不可で安全  │
-│ Go           │ math.NaN()      │ math.IsNaN() で判定            │
-│ SQL          │ NULL ≠ NaN      │ IS NULL で判定（NaN とは別概念）│
-└──────────────┴─────────────────┴────────────────────────────────┘
++--------------+-----------------+--------------------------------+
+| Language     | NaN generation  | Notes                          |
++--------------+-----------------+--------------------------------+
+| Python       | float('nan')    | Use math.isnan() to check      |
+| C/C++        | NAN, nan()      | isnan() macro (<math.h>)       |
+| Java         | Double.NaN      | Use Double.isNaN() to check    |
+| JavaScript   | NaN             | Use Number.isNaN()             |
+|              |                 | typeof NaN === 'number' !      |
+|              |                 | isNaN("hello") -> true (trap!) |
+| Rust         | f64::NAN        | f64::is_nan(), safe due to     |
+|              |                 | non-comparable                 |
+| Go           | math.NaN()      | Use math.IsNaN() to check      |
+| SQL          | NULL != NaN     | Use IS NULL (different concept |
+|              |                 | from NaN)                      |
++--------------+-----------------+--------------------------------+
 
-JavaScript の NaN に関する罠:
-  typeof NaN === 'number'    // true! Number型なのに「Not a Number」
+JavaScript NaN traps:
+  typeof NaN === 'number'    // true! It's a Number type yet "Not a Number"
   NaN === NaN                // false
   NaN !== NaN                // true
-  isNaN("hello")             // true ← グローバル isNaN は型変換する
-  Number.isNaN("hello")      // false ← 正しい判定
-  [NaN].includes(NaN)        // true ← includes は SameValueZero
-  [NaN].indexOf(NaN)         // -1   ← indexOf は === を使用
-  new Set([NaN, NaN]).size   // 1    ← Set は SameValueZero
+  isNaN("hello")             // true <- global isNaN performs type coercion
+  Number.isNaN("hello")      // false <- correct check
+  [NaN].includes(NaN)        // true <- includes uses SameValueZero
+  [NaN].indexOf(NaN)         // -1   <- indexOf uses ===
+  new Set([NaN, NaN]).size   // 1    <- Set uses SameValueZero
 ```
 
-### 3.5 非正規化数（Denormalized / Subnormal Numbers）
+### 3.5 Denormalized Numbers (Subnormal Numbers)
 
 ```
-正規化数の最小値付近の問題:
+The problem near the minimum normalized number:
 
-  正規化数:     (-1)^S × 1.M × 2^(E-bias)
-  最小正規化数:  1.000...0 × 2^(-126) ≈ 1.18 × 10^(-38) [binary32]
+  Normalized:        (-1)^S x 1.M x 2^(E-bias)
+  Minimum normalized: 1.000...0 x 2^(-126) ~ 1.18 x 10^(-38) [binary32]
 
-  もし非正規化数がなかったら:
-  ┌──────────────────────────────────────────────┐
-  │ ... ─── 最小正規化数 ── 大きな隙間 ── 0       │
-  │                        ↑                      │
-  │              この隙間に表現できる数がない        │
-  │              a ≠ b なのに a - b = 0 になりうる   │
-  └──────────────────────────────────────────────┘
+  If denormalized numbers did not exist:
+  +----------------------------------------------+
+  | ... --- min normalized -- large gap -- 0      |
+  |                           ^                   |
+  |             No representable numbers in gap    |
+  |             a != b yet a - b = 0 is possible   |
+  +----------------------------------------------+
 
-  非正規化数があると:
-  ┌──────────────────────────────────────────────┐
-  │ ... ─── 最小正規化数 ── 非正規化数 ── 0        │
-  │                        ↑↑↑↑↑↑                 │
-  │              段階的に精度が落ちながらゼロに近づく  │
-  │              a - b = 0  ⟺  a = b が保証される   │
-  └──────────────────────────────────────────────┘
+  With denormalized numbers:
+  +----------------------------------------------+
+  | ... --- min normalized -- denorms -- 0        |
+  |                           ^^^^^^              |
+  |             Precision degrades gradually       |
+  |             toward zero                        |
+  |             a - b = 0  <=>  a = b guaranteed   |
+  +----------------------------------------------+
 
-非正規化数の計算式（binary32）:
-  値 = (-1)^S × 0.M × 2^(-126)
+Formula for denormalized numbers (binary32):
+  Value = (-1)^S x 0.M x 2^(-126)
 
-  暗黙の先頭ビットが 1 ではなく 0 になる
-  指数は -126 で固定（-127 ではない）
+  The implicit leading bit becomes 0 instead of 1
+  The exponent is fixed at -126 (not -127)
 
-  最小の正の非正規化数:
-    0.000...001 × 2^(-126) = 2^(-23) × 2^(-126) = 2^(-149)
-    ≈ 1.4 × 10^(-45)
+  Smallest positive denormalized number:
+    0.000...001 x 2^(-126) = 2^(-23) x 2^(-126) = 2^(-149)
+    ~ 1.4 x 10^(-45)
 
-  binary64 の場合:
-    最小正規化数:    2^(-1022) ≈ 2.22 × 10^(-308)
-    最小非正規化数:  2^(-1074) ≈ 4.94 × 10^(-324)
+  For binary64:
+    Minimum normalized:    2^(-1022) ~ 2.22 x 10^(-308)
+    Minimum denormalized:  2^(-1074) ~ 4.94 x 10^(-324)
 ```
 
-非正規化数の性能上の注意点: 多くの CPU では非正規化数の演算は正規化数の演算より大幅に遅い（10〜100 倍）。これは非正規化数がハードウェアの高速パスではなくマイクロコードで処理されるためである。GPU やゲームエンジンでは「Flush to Zero (FTZ)」モードを有効にし、非正規化数をゼロに丸めることで性能を維持する場合がある。
+Performance note on denormalized numbers: On many CPUs, arithmetic with denormalized numbers is significantly slower than with normalized numbers (10x to 100x). This is because denormalized numbers are processed by microcode rather than the hardware fast path. GPUs and game engines may enable "Flush to Zero (FTZ)" mode, rounding denormalized numbers to zero to maintain performance.
 
 ---
 
-## 4. 精度問題の本質
+## 4. The Nature of Precision Problems
 
-### 4.1 なぜ 0.1 + 0.2 !== 0.3 なのか
+### 4.1 Why 0.1 + 0.2 !== 0.3
 
-この問題は浮動小数点の最も有名な落とし穴であり、その原因は「10 進数の有限小数が 2 進数では無限小数になる」ことにある。
-
-```
-10進数と2進数の循環小数の対応:
-
-  10進数で正確に表現できる小数: 分母が 2 と 5 のみの積である分数
-    0.5 = 1/2       → 有限小数
-    0.25 = 1/4      → 有限小数
-    0.125 = 1/8     → 有限小数
-    0.1 = 1/10      → 有限小数
-    0.2 = 1/5       → 有限小数
-    1/3              → 0.333...（無限循環）
-
-  2進数で正確に表現できる小数: 分母が 2 の冪のみである分数
-    1/2 = 0.1       → 有限小数
-    1/4 = 0.01      → 有限小数
-    1/8 = 0.001     → 有限小数
-    1/10 = 0.0(0011) → 無限循環!
-    1/5 = 0.0(0110)  → 無限循環!
-    1/3 = 0.(01)     → 無限循環
-
-  結論: 0.1, 0.2, 0.3 はいずれも 2 進数では無限循環小数
-  → IEEE 754 では有限ビットに丸められる
-  → 丸め誤差が発生する
-```
+This is the most famous floating-point pitfall, caused by the fact that "finite decimal fractions in base 10 become infinite repeating fractions in base 2."
 
 ```
-0.1, 0.2, 0.3 の binary64 での正確な格納値:
+Correspondence between decimal and binary repeating fractions:
 
-  0.1 が格納する値:
+  Fractions exactly representable in decimal: denominators with only factors of 2 and 5
+    0.5 = 1/2       -> finite decimal
+    0.25 = 1/4      -> finite decimal
+    0.125 = 1/8     -> finite decimal
+    0.1 = 1/10      -> finite decimal
+    0.2 = 1/5       -> finite decimal
+    1/3              -> 0.333... (infinite repeating)
+
+  Fractions exactly representable in binary: denominators that are powers of 2 only
+    1/2 = 0.1       -> finite
+    1/4 = 0.01      -> finite
+    1/8 = 0.001     -> finite
+    1/10 = 0.0(0011) -> infinite repeating!
+    1/5 = 0.0(0110)  -> infinite repeating!
+    1/3 = 0.(01)     -> infinite repeating
+
+  Conclusion: 0.1, 0.2, and 0.3 are all infinite repeating fractions in binary
+  -> In IEEE 754, they are rounded to a finite number of bits
+  -> Rounding error occurs
+```
+
+```
+Exact stored values of 0.1, 0.2, and 0.3 in binary64:
+
+  Value stored for 0.1:
     0.1000000000000000055511151231257827021181583404541015625
-    誤差: +5.55 × 10^(-18)
+    Error: +5.55 x 10^(-18)
 
-  0.2 が格納する値:
+  Value stored for 0.2:
     0.200000000000000011102230246251565404236316680908203125
-    誤差: +1.11 × 10^(-17)
+    Error: +1.11 x 10^(-17)
 
-  0.1 + 0.2 の演算結果が格納する値:
+  Value stored for the result of 0.1 + 0.2:
     0.3000000000000000444089209850062616169452667236328125
-    (加算時にさらに丸めが発生)
+    (additional rounding occurs during addition)
 
-  0.3 が格納する値:
+  Value stored for 0.3:
     0.299999999999999988897769753748434595763683319091796875
-    誤差: -1.11 × 10^(-17)
+    Error: -1.11 x 10^(-17)
 
-  したがって:
+  Therefore:
     (0.1 + 0.2) - 0.3
     = 0.300000000000000044... - 0.29999999999999998...
-    = 5.55 × 10^(-17)
-    ≠ 0
+    = 5.55 x 10^(-17)
+    != 0
 
-  → 0.1 + 0.2 > 0.3 である!
+  -> 0.1 + 0.2 > 0.3!
 ```
 
 ```python
-# 0.1 + 0.2 問題の詳細な確認
+# Detailed examination of the 0.1 + 0.2 problem
 
 from decimal import Decimal
 
-# float の正確な値を Decimal で確認
-print(f"0.1 の格納値: {Decimal(0.1)}")
-print(f"0.2 の格納値: {Decimal(0.2)}")
-print(f"0.3 の格納値: {Decimal(0.3)}")
-print(f"0.1+0.2 の値: {Decimal(0.1) + Decimal(0.2)}")
+# Check the exact values of floats using Decimal
+print(f"Stored value of 0.1: {Decimal(0.1)}")
+print(f"Stored value of 0.2: {Decimal(0.2)}")
+print(f"Stored value of 0.3: {Decimal(0.3)}")
+print(f"Value of 0.1+0.2:    {Decimal(0.1) + Decimal(0.2)}")
 print()
-print(f"差分: {(Decimal(0.1) + Decimal(0.2)) - Decimal(0.3)}")
+print(f"Difference: {(Decimal(0.1) + Decimal(0.2)) - Decimal(0.3)}")
 print(f"   = {float(0.1) + float(0.2) - float(0.3)}")
 
-# 出力:
-# 0.1 の格納値: 0.1000000000000000055511151231257827021181583404541015625
-# 0.2 の格納値: 0.200000000000000011102230246251565404236316680908203125
-# 0.3 の格納値: 0.299999999999999988897769753748434595763683319091796875
-# 0.1+0.2 の値: 0.3000000000000000166533453693773481063544750213623046875
-# 差分: 1.77635683940025046E-17
+# Output:
+# Stored value of 0.1: 0.1000000000000000055511151231257827021181583404541015625
+# Stored value of 0.2: 0.200000000000000011102230246251565404236316680908203125
+# Stored value of 0.3: 0.299999999999999988897769753748434595763683319091796875
+# Value of 0.1+0.2:    0.3000000000000000166533453693773481063544750213623046875
+# Difference: 1.77635683940025046E-17
 
-# 主要言語での結果
+# Results in major languages
 # Python:     0.1 + 0.2 == 0.30000000000000004
 # JavaScript: 0.1 + 0.2 === 0.30000000000000004
 # C/C++:      0.1 + 0.2 == 0.30000000000000004
 # Java:       0.1 + 0.2 == 0.30000000000000004
 # Ruby:       0.1 + 0.2 == 0.30000000000000004
-# → 全ての言語で同じ結果（IEEE 754 準拠のため）
+# -> Same result in all languages (because they all follow IEEE 754)
 ```
 
-### 4.2 丸めモード
+### 4.2 Rounding Modes
 
-IEEE 754 は 5 種類の丸めモードを規定している。
+IEEE 754 specifies 5 rounding modes.
 
 ```
-5つの丸めモード:
+Five rounding modes:
 
-  1. 最近接偶数丸め（Round to Nearest, Ties to Even）★デフォルト
-     - 最も近い表現可能な値に丸める
-     - ちょうど中間の場合、最下位ビットが偶数になる方に丸める
-     - 「銀行家の丸め（Banker's Rounding）」とも呼ばれる
-     - 統計的な偏りが最小
+  1. Round to Nearest, Ties to Even (default)
+     - Round to the nearest representable value
+     - When exactly halfway, round to the value with an even least significant bit
+     - Also called "Banker's Rounding"
+     - Minimizes statistical bias
 
-  2. 最近接切り上げ丸め（Round to Nearest, Ties Away from Zero）
-     - ちょうど中間の場合、ゼロから遠い方に丸める
-     - 小学校で習う「四捨五入」に相当
-     - IEEE 754-2008 で追加
+  2. Round to Nearest, Ties Away from Zero
+     - When exactly halfway, round away from zero
+     - Equivalent to the "round half up" taught in school
+     - Added in IEEE 754-2008
 
-  3. 正の無限大方向への丸め（Round toward +∞ / Ceiling）
-     - 常に正の方向に丸める
+  3. Round toward +Infinity (Ceiling)
+     - Always round toward positive direction
 
-  4. 負の無限大方向への丸め（Round toward -∞ / Floor）
-     - 常に負の方向に丸める
+  4. Round toward -Infinity (Floor)
+     - Always round toward negative direction
 
-  5. ゼロ方向への丸め（Round toward Zero / Truncation）
-     - 常にゼロの方向に丸める（切り捨て）
+  5. Round toward Zero (Truncation)
+     - Always round toward zero (truncate)
 
-最近接偶数丸めの例（10進数で説明）:
-  ┌──────┬──────────────────┬──────────────┐
-  │ 値   │ 四捨五入         │ 最近接偶数丸め│
-  ├──────┼──────────────────┼──────────────┤
-  │ 0.5  │ 1（切り上げ）    │ 0（偶数）    │
-  │ 1.5  │ 2（切り上げ）    │ 2（偶数）    │
-  │ 2.5  │ 3（切り上げ）    │ 2（偶数）    │
-  │ 3.5  │ 4（切り上げ）    │ 4（偶数）    │
-  │ 4.5  │ 5（切り上げ）    │ 4（偶数）    │
-  │ 0.4  │ 0               │ 0            │
-  │ 0.6  │ 1               │ 1            │
-  └──────┴──────────────────┴──────────────┘
+Examples of Round to Nearest Even (explained in decimal):
+  +------+------------------+--------------+
+  | Value| Round half up    | Round to even|
+  +------+------------------+--------------+
+  | 0.5  | 1 (round up)     | 0 (even)     |
+  | 1.5  | 2 (round up)     | 2 (even)     |
+  | 2.5  | 3 (round up)     | 2 (even)     |
+  | 3.5  | 4 (round up)     | 4 (even)     |
+  | 4.5  | 5 (round up)     | 4 (even)     |
+  | 0.4  | 0                | 0            |
+  | 0.6  | 1                | 1            |
+  +------+------------------+--------------+
 
-  四捨五入: 0+2+3+4+5 = 14（偏りあり: .5 は常に切り上げ）
-  偶数丸め: 0+2+2+4+4 = 12（偏りなし: .5 は半数が切り上げ、半数が切り下げ）
+  Round half up: 0+2+3+4+5 = 14 (biased: .5 always rounds up)
+  Round to even: 0+2+2+4+4 = 12 (no bias: half round up, half round down)
 
-  → 大量の丸め操作で統計的な偏りを防ぐ
-  → 金融計算やシミュレーションで重要
+  -> Prevents statistical bias in large numbers of rounding operations
+  -> Important in financial calculations and simulations
 ```
 
 ```python
-# Python での丸めモードの確認
+# Checking rounding modes in Python
 from decimal import Decimal, ROUND_HALF_UP, ROUND_HALF_EVEN
 
-# Python の組み込み round() は偶数丸め
-print(round(0.5))   # 0  ← 偶数丸め
-print(round(1.5))   # 2  ← 偶数丸め
-print(round(2.5))   # 2  ← 偶数丸め
-print(round(3.5))   # 4  ← 偶数丸め
+# Python's built-in round() uses round-to-even
+print(round(0.5))   # 0  <- Round to even
+print(round(1.5))   # 2  <- Round to even
+print(round(2.5))   # 2  <- Round to even
+print(round(3.5))   # 4  <- Round to even
 
-# Decimal で明示的に丸めモードを指定
+# Explicitly specifying rounding mode with Decimal
 d = Decimal('2.5')
-print(d.quantize(Decimal('1'), rounding=ROUND_HALF_UP))    # 3（四捨五入）
-print(d.quantize(Decimal('1'), rounding=ROUND_HALF_EVEN))  # 2（偶数丸め）
+print(d.quantize(Decimal('1'), rounding=ROUND_HALF_UP))    # 3 (round half up)
+print(d.quantize(Decimal('1'), rounding=ROUND_HALF_EVEN))  # 2 (round to even)
 ```
 
-### 4.3 桁落ち（Catastrophic Cancellation）
+### 4.3 Catastrophic Cancellation
 
-桁落ちは、近い値同士の減算で有効桁数が大幅に失われる現象である。数値計算における最も深刻な精度問題の一つだ。
+Catastrophic cancellation is a phenomenon where the subtraction of two nearly equal values causes a dramatic loss of significant digits. It is one of the most serious precision problems in numerical computing.
 
 ```
-桁落ちの原理:
+Principle of catastrophic cancellation:
 
-  仮に有効桁数が 7 桁の10進浮動小数点を考える:
+  Consider a decimal floating-point with 7 significant digits:
 
-  a = 1.234567 × 10^5  (= 123456.7)
-  b = 1.234566 × 10^5  (= 123456.6)
+  a = 1.234567 x 10^5  (= 123456.7)
+  b = 1.234566 x 10^5  (= 123456.6)
 
-  a - b = 0.000001 × 10^5 = 0.1000000 × 10^0
+  a - b = 0.000001 x 10^5 = 0.1000000 x 10^0
 
-  元の値は 7 桁の精度を持っていたが、
-  減算結果は 1 桁の有効精度しかない!
-  残りの 6 桁は「でっちあげ」の 0
+  The original values had 7 digits of precision,
+  but the subtraction result has only 1 effective digit!
+  The remaining 6 digits are "fabricated" zeros.
 
-  2進数での例（binary64）:
-  a = 1.000000000000001 × 2^50
-  b = 1.000000000000000 × 2^50
-  a - b = 0.000000000000001 × 2^50 = 1.0 × 2^(-2)
+  Binary example (binary64):
+  a = 1.000000000000001 x 2^50
+  b = 1.000000000000000 x 2^50
+  a - b = 0.000000000000001 x 2^50 = 1.0 x 2^(-2)
 
-  → 52ビットの仮数部のうち、有効なのは最下位の数ビットのみ
-  → 大部分の精度が失われている
+  -> Of the 52-bit mantissa, only the lowest few bits are significant
+  -> Most of the precision is lost
 ```
 
 ```python
-# 桁落ちの典型例: 2次方程式の解の公式
+# Classic example of catastrophic cancellation: quadratic formula
 
 import math
 
 def quadratic_naive(a, b, c):
-    """素朴な解の公式（桁落ちが発生しうる）"""
+    """Naive quadratic formula (prone to catastrophic cancellation)"""
     discriminant = b*b - 4*a*c
     sqrt_d = math.sqrt(discriminant)
     x1 = (-b + sqrt_d) / (2 * a)
@@ -833,80 +839,81 @@ def quadratic_naive(a, b, c):
     return x1, x2
 
 def quadratic_stable(a, b, c):
-    """桁落ちを回避する安定版"""
+    """Stable version that avoids catastrophic cancellation"""
     discriminant = b*b - 4*a*c
     sqrt_d = math.sqrt(discriminant)
 
-    # b の符号に応じて桁落ちしない方の解を先に計算
+    # Compute the root that avoids cancellation first based on the sign of b
     if b >= 0:
         q = -0.5 * (b + sqrt_d)
     else:
         q = -0.5 * (b - sqrt_d)
 
     x1 = q / a
-    x2 = c / q  # ビエタの公式: x1 * x2 = c/a を利用
+    x2 = c / q  # Using Vieta's formula: x1 * x2 = c/a
     return x1, x2
 
-# テスト: a=1, b=10^8, c=1 → 真の解は x ≈ -10^(-8), x ≈ -10^8
+# Test: a=1, b=10^8, c=1 -> true roots are x ~ -10^(-8), x ~ -10^8
 a, b, c = 1, 1e8, 1
 
 naive = quadratic_naive(a, b, c)
 stable = quadratic_stable(a, b, c)
 
-print(f"素朴な解:   x1 = {naive[0]:.15e}, x2 = {naive[1]:.15e}")
-print(f"安定な解:   x1 = {stable[0]:.15e}, x2 = {stable[1]:.15e}")
-print(f"理論値:     x1 ≈ -1e-08,             x2 = -1e+08")
+print(f"Naive solution:  x1 = {naive[0]:.15e}, x2 = {naive[1]:.15e}")
+print(f"Stable solution: x1 = {stable[0]:.15e}, x2 = {stable[1]:.15e}")
+print(f"Theoretical:     x1 ~ -1e-08,             x2 = -1e+08")
 
-# 素朴な解: x1 = -7.450580596923828e-09 ← 誤差大
-# 安定な解: x1 = -1.000000000000000e-08 ← 正確
+# Naive:  x1 = -7.450580596923828e-09 <- large error
+# Stable: x1 = -1.000000000000000e-08 <- accurate
 ```
 
-### 4.4 情報落ち（Loss of Significance by Addition）
+### 4.4 Loss of Significance by Addition (Absorption)
 
 ```
-情報落ちの原理:
+Principle of absorption:
 
-  大きな値と小さな値を加算すると、小さな値の情報が失われる。
+  When adding a large value and a small value, the information
+  in the small value is lost.
 
-  例（有効桁数 7 桁の10進浮動小数点）:
-  a = 1.234567 × 10^10
-  b = 1.234567 × 10^0
+  Example (decimal floating-point with 7 significant digits):
+  a = 1.234567 x 10^10
+  b = 1.234567 x 10^0
 
-  加算時に指数を揃える:
-  a = 1.234567  × 10^10
-  b = 0.0000000001234567 × 10^10
-      ↑
-      7桁を超える部分は格納不能 → 切り捨て
-  b' = 0.0000000 × 10^10
+  Aligning exponents for addition:
+  a = 1.234567  x 10^10
+  b = 0.0000000001234567 x 10^10
+      ^
+      Parts beyond 7 digits cannot be stored -> truncated
+  b' = 0.0000000 x 10^10
 
-  a + b' = 1.234567 × 10^10 = a（b の情報が完全に消失）
+  a + b' = 1.234567 x 10^10 = a (b's information is completely lost)
 
-  binary64 での具体例:
+  Concrete example in binary64:
   1e16 + 1.0 - 1e16 = ?
     1e16 = 10000000000000000.0
-    1e16 + 1 → 10000000000000000.0（1.0が消失）
-    結果 - 1e16 → 0.0
+    1e16 + 1 -> 10000000000000000.0 (1.0 is lost)
+    result - 1e16 -> 0.0
 
-  しかし:
+  However:
   -1e16 + 1e16 + 1.0 = ?
-    -1e16 + 1e16 → 0.0
-    0.0 + 1.0 → 1.0
+    -1e16 + 1e16 -> 0.0
+    0.0 + 1.0 -> 1.0
 
-  → 演算の順序で結果が変わる!
-  → 浮動小数点の加算は結合法則を満たさない
+  -> The order of operations changes the result!
+  -> Floating-point addition does not satisfy the associative law
 ```
 
 ```python
-# 情報落ちの確認
+# Confirming absorption
 
-# 演算順序による結果の違い
+# Difference in results due to operation order
 a = 1e16
 b = 1.0
 
-print(f"(a + b) - a = {(a + b) - a}")   # 0.0（b の情報が消失）
-print(f"(a - a) + b = {(a - a) + b}")   # 1.0（正しい結果）
+print(f"(a + b) - a = {(a + b) - a}")   # 0.0 (b's information is lost)
+print(f"(a - a) + b = {(a - a) + b}")   # 1.0 (correct result)
 
-# より深刻な例: 大量の小さな値を大きな値に加算
+# More serious example: adding many small values to a large value
 big = 1e15
 result_forward = big
 for i in range(1000000):
@@ -917,48 +924,48 @@ for i in range(1000000):
     result_reverse += 1.0
 result_reverse += big
 
-print(f"前方加算: {result_forward}")      # 精度が低い
-print(f"逆方向:   {result_reverse}")      # やや正確
-print(f"理論値:   {big + 1000000.0}")
+print(f"Forward sum:  {result_forward}")      # Low precision
+print(f"Reverse sum:  {result_reverse}")      # Somewhat more accurate
+print(f"Theoretical:  {big + 1000000.0}")
 ```
 
-### 4.5 丸め誤差の蓄積
+### 4.5 Accumulation of Rounding Errors
 
 ```python
-# 丸め誤差の蓄積: 0.1 を 1000 回加算
+# Rounding error accumulation: adding 0.1 one thousand times
 
-# 素朴な加算
+# Naive summation
 total_naive = 0.0
 for i in range(1000):
     total_naive += 0.1
-print(f"素朴な加算:     {total_naive}")         # 99.99999999999986
-print(f"誤差:           {total_naive - 100.0}")  # -1.4e-13
+print(f"Naive sum:      {total_naive}")         # 99.99999999999986
+print(f"Error:          {total_naive - 100.0}")  # -1.4e-13
 
-# math.fsum（内部で拡張精度を使用）
+# math.fsum (uses extended precision internally)
 import math
 total_fsum = math.fsum([0.1] * 1000)
 print(f"math.fsum:      {total_fsum}")           # 100.00000000000007
-print(f"誤差:           {total_fsum - 100.0}")    # 7.1e-14
+print(f"Error:          {total_fsum - 100.0}")    # 7.1e-14
 
-# Kahan 補償加算アルゴリズム
+# Kahan compensated summation algorithm
 def kahan_sum(values):
-    """Kahan の補償加算: 丸め誤差を補正項で追跡"""
+    """Kahan's compensated summation: tracks rounding error via a correction term"""
     total = 0.0
-    compensation = 0.0  # 誤差の蓄積を追跡する補正項
+    compensation = 0.0  # Correction term to track accumulated error
     for value in values:
-        y = value - compensation      # 補正を適用
-        t = total + y                 # 加算（ここで丸め誤差が発生）
-        compensation = (t - total) - y  # 丸め誤差を捕捉
+        y = value - compensation      # Apply correction
+        t = total + y                 # Add (rounding error occurs here)
+        compensation = (t - total) - y  # Capture rounding error
         total = t
     return total
 
 total_kahan = kahan_sum([0.1] * 1000)
-print(f"Kahan加算:      {total_kahan}")          # 100.00000000000007
-print(f"誤差:           {total_kahan - 100.0}")   # 非常に小さい
+print(f"Kahan sum:      {total_kahan}")          # 100.00000000000007
+print(f"Error:          {total_kahan - 100.0}")   # very small
 
-# Neumaier の改良版（Kahan より頑健）
+# Neumaier's improved version (more robust than Kahan)
 def neumaier_sum(values):
-    """Neumaier の補償加算: |total| < |value| の場合も正しく補正"""
+    """Neumaier's compensated summation: correct even when |total| < |value|"""
     total = 0.0
     compensation = 0.0
     for value in values:
@@ -971,110 +978,111 @@ def neumaier_sum(values):
     return total + compensation
 
 total_neumaier = neumaier_sum([0.1] * 1000)
-print(f"Neumaier加算:   {total_neumaier}")
+print(f"Neumaier sum:   {total_neumaier}")
 ```
 
 ```
-Kahan 補償加算の動作原理（図解）:
+Operating principle of Kahan compensated summation (illustrated):
 
-  各ステップで失われる丸め誤差を compensation に蓄積し、
-  次のステップで補正する。
+  At each step, the rounding error that would be lost is
+  accumulated in the compensation variable, and applied
+  as a correction in the next step.
 
-  ステップ n:
-    y = value[n] - compensation   ← 前回の誤差を補正
-    t = total + y                 ← 丸めが発生（誤差 e が生じる）
-    compensation = (t - total) - y  ← 誤差 e を捕捉
+  Step n:
+    y = value[n] - compensation   <- Correct for previous error
+    t = total + y                 <- Rounding occurs (error e is produced)
+    compensation = (t - total) - y  <- Capture error e
                  = ((total + y + e) - total) - y
                  = y + e - y
-                 = e                ← 丸め誤差そのもの
+                 = e                <- The rounding error itself
     total = t
 
-  通常の加算:   誤差 = O(n × ε)     ← n に比例して誤差が蓄積
-  Kahan 加算:   誤差 = O(ε)         ← n に依存しない!
+  Normal summation:  error = O(n x eps)     <- Error grows proportionally to n
+  Kahan summation:   error = O(eps)         <- Independent of n!
 
-  ここで ε = マシンイプシロン（binary64: 約 2.22 × 10^(-16)）
+  Where eps = machine epsilon (binary64: approximately 2.22 x 10^(-16))
 ```
 
 ---
 
-## 5. 浮動小数点の密度分布と ULP
+## 5. Density Distribution and ULP of Floating-Point Numbers
 
-### 5.1 数直線上の不均一な分布
+### 5.1 Non-Uniform Distribution on the Number Line
 
-浮動小数点数は数直線上に均等には分布していない。ゼロ付近には表現可能な値が密集し、大きな値に向かうほど隣接する値の間隔が広がる。
+Floating-point numbers are not uniformly distributed on the number line. Representable values are densely packed near zero and the spacing between adjacent values widens toward larger magnitudes.
 
 ```
-浮動小数点数の数直線上の密度:
+Density of floating-point numbers on the number line:
 
-  0                                                     +∞
-  ├╤╤╤╤╤╤╤╤┬┬┬┬┬┬┬┬──┬──┬──┬──┬────┬────┬────┬────────┬───→
-  ↑                                                     ↑
-  非正規化数        正規化数                              ∞
-  （最も密）    （指数が増えるごとに間隔が2倍に）
+  0                                                     +Inf
+  |========|||||----+----+----+----+--------+--------+---->
+  ^                                                     ^
+  Denormals        Normalized                           Inf
+  (most dense)  (spacing doubles with each exponent increase)
 
-  2のべき乗の間にある表現可能な値の数は常に一定:
-  [1, 2) の間:   2^23 個の値（binary32）= 8,388,608 個
-  [2, 4) の間:   2^23 個の値 → 間隔は [1,2) の 2 倍
-  [4, 8) の間:   2^23 個の値 → 間隔は [1,2) の 4 倍
+  The number of representable values between powers of 2 is always constant:
+  [1, 2): 2^23 values (binary32) = 8,388,608 values
+  [2, 4): 2^23 values -> spacing is 2x that of [1,2)
+  [4, 8): 2^23 values -> spacing is 4x that of [1,2)
   ...
-  [2^n, 2^(n+1)) の間: 2^23 個の値 → 間隔は 2^(n-0) × 2^(-23)
+  [2^n, 2^(n+1)): 2^23 values -> spacing is 2^(n-0) x 2^(-23)
 ```
 
-### 5.2 ULP（Unit in the Last Place）
+### 5.2 ULP (Unit in the Last Place)
 
-ULP は「最下位ビットの重み」であり、ある浮動小数点数に対する隣接値との最小間隔を表す。
+ULP is "the weight of the least significant bit" and represents the minimum gap between a floating-point number and its adjacent value.
 
 ```
-binary32 における ULP の変化:
+ULP variation in binary32:
 
-  ┌──────────────────┬──────────────────┬──────────────────┐
-  │ 値の範囲         │ ULP（隣接値の差）│ 意味             │
-  ├──────────────────┼──────────────────┼──────────────────┤
-  │ [0.5, 1.0)       │ 5.96 × 10^(-8)  │ 約0.00006%の精度 │
-  │ [1.0, 2.0)       │ 1.19 × 10^(-7)  │                  │
-  │ [1000, 2000)     │ 6.10 × 10^(-5)  │ 約0.006%の精度   │
-  │ [10^6, 2×10^6)   │ 6.25 × 10^(-2)  │ 小数第2位が限界  │
-  │ [2^23, 2^24)     │ 1.0              │ 整数精度の限界!  │
-  │ [2^24, 2^25)     │ 2.0              │ 奇数が表現不可   │
-  │ [10^30, ...)     │ 約10^23          │ 精度はほぼない   │
-  └──────────────────┴──────────────────┴──────────────────┘
+  +------------------+------------------+------------------+
+  | Value range      | ULP (gap to next)| Meaning          |
+  +------------------+------------------+------------------+
+  | [0.5, 1.0)       | 5.96 x 10^(-8)  | ~0.00006% prec.  |
+  | [1.0, 2.0)       | 1.19 x 10^(-7)  |                  |
+  | [1000, 2000)     | 6.10 x 10^(-5)  | ~0.006% prec.    |
+  | [10^6, 2x10^6)   | 6.25 x 10^(-2)  | 2nd decimal limit|
+  | [2^23, 2^24)     | 1.0              | Integer limit!   |
+  | [2^24, 2^25)     | 2.0              | Odd nums lost    |
+  | [10^30, ...)     | ~10^23           | Almost no prec.  |
+  +------------------+------------------+------------------+
 
-  重要な閾値:
-    binary32: 2^24 = 16,777,216 以上で整数精度を失う
-    binary64: 2^53 = 9,007,199,254,740,992 以上で整数精度を失う
+  Important thresholds:
+    binary32: loses integer precision above 2^24 = 16,777,216
+    binary64: loses integer precision above 2^53 = 9,007,199,254,740,992
 
-  → JavaScript の Number.MAX_SAFE_INTEGER = 2^53 - 1 = 9007199254740991
+  -> JavaScript's Number.MAX_SAFE_INTEGER = 2^53 - 1 = 9007199254740991
 ```
 
 ```python
-# ULP と整数精度の限界を確認
+# Checking ULP and integer precision limits
 
 import numpy as np
 
-# binary32 の整数精度の限界
+# Integer precision limit of binary32
 f32 = np.float32
 
 print(f"2^23     = {f32(2**23)}")              # 8388608.0
-print(f"2^23 + 1 = {f32(2**23 + 1)}")          # 8388609.0（正確）
+print(f"2^23 + 1 = {f32(2**23 + 1)}")          # 8388609.0 (exact)
 print(f"2^24     = {f32(2**24)}")              # 16777216.0
-print(f"2^24 + 1 = {f32(2**24 + 1)}")          # 16777216.0 ← 同じ値!
+print(f"2^24 + 1 = {f32(2**24 + 1)}")          # 16777216.0 <- same value!
 print(f"2^24 + 2 = {f32(2**24 + 2)}")          # 16777218.0
-print(f"2^24 + 3 = {f32(2**24 + 3)}")          # 16777220.0 ← +4 されている!
+print(f"2^24 + 3 = {f32(2**24 + 3)}")          # 16777220.0 <- jumped by +4!
 
 print()
 
-# binary64 の整数精度の限界
+# Integer precision limit of binary64
 print(f"2^53     = {float(2**53)}")             # 9007199254740992.0
-print(f"2^53 + 1 = {float(2**53 + 1)}")         # 9007199254740992.0 ← 同じ!
+print(f"2^53 + 1 = {float(2**53 + 1)}")         # 9007199254740992.0 <- same!
 
-# JavaScript での影響
+# Impact on JavaScript
 # JSON.parse('{"id": 9007199254740993}')
-# → {"id": 9007199254740992}  ← ID が変わってしまう!
-# → Twitter が snowflake ID を文字列で返すのはこのため
+# -> {"id": 9007199254740992}  <- The ID changes!
+# -> This is why Twitter returns snowflake IDs as strings
 
-# ULP の計算
+# Computing ULP
 def ulp(x):
-    """与えられた値における ULP を計算"""
+    """Compute the ULP for a given value"""
     return np.spacing(x)
 
 for val in [0.5, 1.0, 1000.0, 1e6, 1e15]:
@@ -1083,68 +1091,68 @@ for val in [0.5, 1.0, 1000.0, 1e6, 1e15]:
 
 ---
 
-## 6. 数値計算の落とし穴とアンチパターン
+## 6. Pitfalls and Anti-patterns in Numerical Computing
 
-### 6.1 アンチパターン1: 浮動小数点の等値比較
+### 6.1 Anti-pattern 1: Equality Comparison of Floating-Point Numbers
 
 ```python
-# --- アンチパターン: == による浮動小数点比較 ---
+# --- Anti-pattern: using == for floating-point comparison ---
 
-# 危険なコード
+# Dangerous code
 total = 0.0
 for _ in range(10):
     total += 0.1
 
-if total == 1.0:       # ← 永遠に True にならない可能性!
-    print("合計は1.0")
+if total == 1.0:       # <- May never be True!
+    print("Total is 1.0")
 else:
-    print(f"合計は {total}")  # 合計は 0.9999999999999999
+    print(f"Total is {total}")  # Total is 0.9999999999999999
 
-# ループの終了条件での危険
+# Danger in loop termination conditions
 x = 0.0
-while x != 1.0:       # ← 無限ループの危険!
+while x != 1.0:       # <- Risk of infinite loop!
     x += 0.1
-    if x > 2.0:       # 安全弁がないと本当に無限ループ
+    if x > 2.0:       # Without a safety valve, this truly loops forever
         break
 
-# --- 正しいパターン ---
+# --- Correct patterns ---
 
 import math
 
-# パターン1: math.isclose()（Python 3.5+）
+# Pattern 1: math.isclose() (Python 3.5+)
 print(math.isclose(0.1 + 0.2, 0.3))  # True
-# デフォルト: rel_tol=1e-9, abs_tol=0.0
+# Default: rel_tol=1e-9, abs_tol=0.0
 
-# パターン2: 相対誤差による比較
+# Pattern 2: Comparison using relative error
 def nearly_equal(a, b, rel_tol=1e-9, abs_tol=1e-12):
-    """相対誤差と絶対誤差の両方を考慮した比較"""
-    if a == b:  # Inf == Inf, +0 == -0 を正しく扱う
+    """Comparison considering both relative and absolute error"""
+    if a == b:  # Correctly handles Inf == Inf, +0 == -0
         return True
     if math.isnan(a) or math.isnan(b):
         return False
     diff = abs(a - b)
     return diff <= max(rel_tol * max(abs(a), abs(b)), abs_tol)
 
-# パターン3: ループでは < や > を使う
+# Pattern 3: Use < or > in loops
 x = 0.0
-while x < 1.0:  # != ではなく < を使用
+while x < 1.0:  # Use < instead of !=
     x += 0.1
 ```
 
 ```c
-/* C言語での浮動小数点比較 */
+/* Floating-point comparison in C */
 #include <math.h>
 #include <float.h>
 #include <stdbool.h>
 
-/* アンチパターン */
+/* Anti-pattern */
 bool bad_compare(double a, double b) {
-    return a == b;  /* 浮動小数点では信頼できない */
+    return a == b;  /* Unreliable for floating-point */
 }
 
-/* 正しいパターン: 相対・絶対誤差の組み合わせ */
+/* Correct pattern: combination of relative and absolute error */
 bool nearly_equal(double a, double b, double rel_tol, double abs_tol) {
-    if (a == b) return true;  /* Inf, 0 の扱い */
+    if (a == b) return true;  /* Handle Inf, 0 */
     if (isnan(a) || isnan(b)) return false;
 
     double diff = fabs(a - b);
@@ -1153,130 +1161,131 @@ bool nearly_equal(double a, double b, double rel_tol, double abs_tol) {
     return diff <= fmax(rel_tol * larger, abs_tol);
 }
 
-/* 使用例 */
+/* Usage example */
 int main(void) {
     double x = 0.1 + 0.2;
     double y = 0.3;
 
     /* NG */
-    if (x == y) { /* 到達しない */ }
+    if (x == y) { /* Never reached */ }
 
     /* OK */
     if (nearly_equal(x, y, 1e-9, 1e-12)) {
-        /* 正しく到達する */
+        /* Correctly reached */
     }
 
     return 0;
 }
 ```
 
-### 6.2 アンチパターン2: 金融計算に浮動小数点を使用
+### 6.2 Anti-pattern 2: Using Floating-Point for Financial Calculations
 
 ```python
-# --- アンチパターン: 金融計算に float を使用 ---
+# --- Anti-pattern: using float for financial calculations ---
 
-# 危険なコード
+# Dangerous code
 price = 19.99
 tax_rate = 0.08
 tax = price * tax_rate          # 1.5992000000000002
 total = price + tax             # 21.5892
-print(f"税込: ${total:.2f}")    # $21.59（表示上は正しく見えるが...）
+print(f"Tax included: ${total:.2f}")    # $21.59 (appears correct on display, but...)
 
-# 大量の取引で誤差が蓄積
-daily_amounts = [0.01] * 1000000  # 100万件の1セント取引
+# Error accumulates with large transaction volumes
+daily_amounts = [0.01] * 1000000  # 1 million 1-cent transactions
 total = sum(daily_amounts)
-print(f"合計: ${total:.2f}")  # $10000.00 にならない可能性
+print(f"Total: ${total:.2f}")  # May not equal $10000.00
 
-# --- 正しいパターン1: Decimal 型 ---
+# --- Correct pattern 1: Decimal type ---
 from decimal import Decimal, ROUND_HALF_UP, getcontext
 
-# 精度を設定
+# Set precision
 getcontext().prec = 28
 
-price = Decimal('19.99')       # 文字列から生成（float 経由しない!）
+price = Decimal('19.99')       # Generate from string (don't go through float!)
 tax_rate = Decimal('0.08')
 tax = (price * tax_rate).quantize(
     Decimal('0.01'),
     rounding=ROUND_HALF_UP
 )
 total = price + tax
-print(f"税込: ${total}")       # $21.59（正確）
+print(f"Tax included: ${total}")       # $21.59 (exact)
 
-# 大量の取引でも正確
+# Exact even with large transaction volumes
 daily_amounts = [Decimal('0.01')] * 1000000
 total = sum(daily_amounts)
-print(f"合計: ${total}")       # $10000.00（正確）
+print(f"Total: ${total}")       # $10000.00 (exact)
 
-# --- 正しいパターン2: 整数演算（セント単位） ---
-price_cents = 1999             # $19.99 = 1999 セント
-tax_rate_bps = 800             # 8% = 800 ベーシスポイント
-tax_cents = (price_cents * tax_rate_bps + 5000) // 10000  # 四捨五入
+# --- Correct pattern 2: Integer arithmetic (in cents) ---
+price_cents = 1999             # $19.99 = 1999 cents
+tax_rate_bps = 800             # 8% = 800 basis points
+tax_cents = (price_cents * tax_rate_bps + 5000) // 10000  # Rounding
 total_cents = price_cents + tax_cents
 
-print(f"税込: ${total_cents / 100:.2f}")  # $21.59（正確）
+print(f"Tax included: ${total_cents / 100:.2f}")  # $21.59 (exact)
 
-# 注意: Decimal('0.1') と Decimal(0.1) は異なる!
-print(Decimal('0.1'))   # 0.1（正確）
-print(Decimal(0.1))     # 0.1000000000000000055511151231257827...（float経由の誤差）
+# Note: Decimal('0.1') and Decimal(0.1) are different!
+print(Decimal('0.1'))   # 0.1 (exact)
+print(Decimal(0.1))     # 0.1000000000000000055511151231257827... (error via float)
 ```
 
-### 6.3 その他の典型的な落とし穴
+### 6.3 Other Common Pitfalls
 
 ```python
-# 落とし穴1: 演算の順序依存性（結合法則の不成立）
+# Pitfall 1: Order dependence of operations (failure of associativity)
 a, b, c = 1e20, -1e20, 1.0
 print(f"(a + b) + c = {(a + b) + c}")   # 1.0
-print(f"a + (b + c) = {a + (b + c)}")   # 0.0  ← 異なる結果!
+print(f"a + (b + c) = {a + (b + c)}")   # 0.0  <- Different result!
 
-# 落とし穴2: 分配法則の不成立
+# Pitfall 2: Failure of distributive law
 a, b, c = 1e15, 1.0, -1e15
-print(f"a × (b + c) = {a * (b + c)}")     # 期待: a × 1.0 - a × 1e15... 複雑
-# 一般に a*(b+c) ≠ a*b + a*c
+print(f"a x (b + c) = {a * (b + c)}")     # Expected: complex
+# In general, a*(b+c) != a*b + a*c
 
-# 落とし穴3: 比較の非推移性
-# a < b かつ b < c でも a < c とは限らない（NaN がある場合）
+# Pitfall 3: Non-transitivity of comparison
+# a < b and b < c does not always imply a < c (when NaN is involved)
 a, b, c = 1.0, float('nan'), 2.0
 print(f"a < b: {a < b}")  # False
 print(f"b < c: {b < c}")  # False
-print(f"a < c: {a < c}")  # True  ← NaN が比較を壊す
+print(f"a < c: {a < c}")  # True  <- NaN breaks comparisons
 
-# 落とし穴4: ソートの不安定性
+# Pitfall 4: Sort instability
 import random
 values = [1.0, float('nan'), 2.0, float('nan'), 0.5]
-# sorted(values) → NaN の位置が不定、ソートが壊れる可能性
+# sorted(values) -> NaN position is indeterminate, sort may break
 
-# 落とし穴5: ハッシュの一貫性
-# Python では hash(0) == hash(0.0) == hash(Decimal('0'))
-# しかし hash(float('nan')) は呼び出すごとに同じだが、
-# NaN == NaN が False なので dict のキーとして使うと問題が起こる
+# Pitfall 5: Hash consistency
+# In Python, hash(0) == hash(0.0) == hash(Decimal('0'))
+# However, hash(float('nan')) is consistent per call, but
+# since NaN == NaN is False, using NaN as a dict key is problematic
 
-# 落とし穴6: 型変換の罠（JavaScript）
-# JSON.parse('{"value": 9007199254740993}') → 9007199254740992
-# → 大きな整数 ID が JSON パース時に変化する
+# Pitfall 6: Type conversion trap (JavaScript)
+# JSON.parse('{"value": 9007199254740993}') -> 9007199254740992
+# -> Large integer IDs can change during JSON parsing
 ```
 
 ---
 
-## 7. 実務での精度対策
+## 7. Precision Countermeasures in Practice
 
-### 7.1 用途別の推奨アプローチ
+### 7.1 Recommended Approaches by Use Case
 
 ```
-┌────────────────────┬─────────────────────────────────────────────┐
-│ 用途               │ 推奨アプローチ                              │
-├────────────────────┼─────────────────────────────────────────────┤
-│ 金融・会計         │ Decimal型 or 整数（セント単位）              │
-│ 科学計算           │ double + 誤差解析 + 補償加算                 │
-│ ゲーム・グラフィクス│ float32 で十分（性能優先）                   │
-│ 機械学習・推論     │ float16 / bfloat16 / INT8 量子化            │
-│ 暗号学             │ 浮動小数点を使わない（整数・固定小数点のみ） │
-│ データベースの金額  │ DECIMAL/NUMERIC 型（任意精度10進数）         │
-│ Web API の ID      │ 文字列（JSON では 2^53 超の整数が壊れる）   │
-│ 座標・位置情報     │ double（float32 では地球上で約1mの誤差）    │
-└────────────────────┴─────────────────────────────────────────────┘
++--------------------+---------------------------------------------+
+| Use case           | Recommended approach                        |
++--------------------+---------------------------------------------+
+| Finance/Accounting | Decimal type or integers (in cents)          |
+| Scientific comp.   | double + error analysis + compensated sum    |
+| Games/Graphics     | float32 is sufficient (performance priority) |
+| ML/Inference       | float16 / bfloat16 / INT8 quantization      |
+| Cryptography       | Never use floating-point (integers/fixed     |
+|                    | point only)                                 |
+| DB monetary values | DECIMAL/NUMERIC type (arbitrary precision)   |
+| Web API IDs        | Strings (integers > 2^53 break in JSON)     |
+| Coordinates/Geo    | double (float32 has ~1m error on Earth)      |
++--------------------+---------------------------------------------+
 ```
 
-### 7.2 イプシロン比較の実装パターン
+### 7.2 Epsilon Comparison Implementation Patterns
 
 ```python
 import math
@@ -1289,44 +1298,44 @@ def robust_float_equal(
     abs_tol: float = 1e-12
 ) -> bool:
     """
-    堅牢な浮動小数点比較関数。
+    Robust floating-point comparison function.
 
-    エッジケースを正しく処理:
-    - NaN: NaN同士でも False を返す（IEEE 754 準拠）
-    - Inf: 同符号の Inf 同士は True
-    - -0 と +0: True（IEEE 754 準拠）
-    - 非常に小さい値: abs_tol で判定
-    - 通常の値: rel_tol で判定
+    Correctly handles edge cases:
+    - NaN: Returns False even for NaN vs NaN (IEEE 754 compliant)
+    - Inf: True for same-sign Inf
+    - -0 and +0: True (IEEE 754 compliant)
+    - Very small values: Determined by abs_tol
+    - Normal values: Determined by rel_tol
 
     Parameters:
-        a, b: 比較する浮動小数点数
-        rel_tol: 相対許容誤差（デフォルト 1e-9）
-        abs_tol: 絶対許容誤差（デフォルト 1e-12）
+        a, b: Floating-point numbers to compare
+        rel_tol: Relative tolerance (default 1e-9)
+        abs_tol: Absolute tolerance (default 1e-12)
 
     Returns:
-        a と b が十分に近いかどうか
+        Whether a and b are sufficiently close
     """
-    # NaN の処理（NaN は何とも等しくない）
+    # NaN handling (NaN is not equal to anything)
     if math.isnan(a) or math.isnan(b):
         return False
 
-    # 完全一致（Inf == Inf, +0 == -0 を含む）
+    # Exact match (including Inf == Inf, +0 == -0)
     if a == b:
         return True
 
-    # 差分の計算
+    # Compute difference
     diff = abs(a - b)
 
-    # 無限大の場合（符号が異なる Inf 同士）
+    # Infinity case (Inf with different signs)
     if math.isinf(a) or math.isinf(b):
         return False
 
-    # 相対誤差 or 絶対誤差で判定
+    # Determine by relative error or absolute error
     larger = max(abs(a), abs(b))
     return diff <= max(rel_tol * larger, abs_tol)
 
 
-# テスト
+# Tests
 assert robust_float_equal(0.1 + 0.2, 0.3)          # True
 assert not robust_float_equal(1.0, 2.0)             # False
 assert robust_float_equal(float('inf'), float('inf'))  # True
@@ -1336,14 +1345,14 @@ assert robust_float_equal(0.0, -0.0)                # True
 assert robust_float_equal(1e-15, 1.1e-15, rel_tol=0.1)  # True
 ```
 
-### 7.3 科学計算での誤差管理
+### 7.3 Error Management in Scientific Computing
 
 ```python
-# 条件数（Condition Number）による誤差の予測
+# Predicting errors using the condition number
 
 import numpy as np
 
-# 条件数の悪い連立方程式
+# Ill-conditioned system of linear equations
 A_bad = np.array([
     [1.0, 1.0],
     [1.0, 1.0001]
@@ -1351,289 +1360,300 @@ A_bad = np.array([
 b = np.array([2.0, 2.0001])
 
 cond = np.linalg.cond(A_bad)
-print(f"条件数: {cond:.0f}")  # 約40000
+print(f"Condition number: {cond:.0f}")  # Approximately 40000
 
-# 条件数が大きい → 入力のわずかな変化で出力が大きく変動
+# Large condition number -> small input changes cause large output variations
 x = np.linalg.solve(A_bad, b)
-print(f"解: {x}")  # [1.0, 1.0]
+print(f"Solution: {x}")  # [1.0, 1.0]
 
-# b をわずかに摂動
+# Slightly perturb b
 b_perturbed = b + np.array([0.0001, 0.0])
 x_perturbed = np.linalg.solve(A_bad, b_perturbed)
-print(f"摂動解: {x_perturbed}")  # 大きく異なる可能性
+print(f"Perturbed solution: {x_perturbed}")  # May differ significantly
 
-# 誤差の上界: ||δx||/||x|| ≤ cond(A) × ||δb||/||b||
-# → 条件数が 10^4 なら、入力の 10^(-12) の誤差が 10^(-8) の結果誤差になりうる
+# Error upper bound: ||dx||/||x|| <= cond(A) x ||db||/||b||
+# -> If condition number is 10^4, a 10^(-12) input error can become
+#    a 10^(-8) result error
 ```
 
 ---
 
-## 8. AI/GPU と低精度浮動小数点
+## 8. AI/GPU and Low-Precision Floating-Point
 
-### 8.1 なぜ AI は低精度で動くのか
+### 8.1 Why AI Works with Low Precision
 
-ニューラルネットワークの学習と推論において、高い数値精度は必ずしも必要ではない。その理由は以下の通りである。
-
-```
-低精度で AI が動作する理由:
-
-  1. ノイズ耐性
-     - SGD（確率的勾配降下法）自体がノイズを含む
-     - ミニバッチによるサンプリングノイズ > 量子化ノイズ
-     - むしろ適度なノイズが正則化効果を持つ
-
-  2. 勾配の方向が重要、大きさは二次的
-     - 学習率で調整可能
-     - 方向が概ね正しければ収束する
-
-  3. メモリ帯域幅がボトルネック
-     - GPU の演算能力はメモリ転送速度を大幅に上回る
-     - データを小さくする → メモリ転送が高速化 → 全体が高速化
-     - FP16: FP32 の半分のメモリ → 2倍のバッチサイズ or 2倍の速度
-
-  4. 専用ハードウェアの存在
-     - Tensor Core: FP16/BF16/FP8 の行列積を超高速に実行
-     - A100: FP16 で 312 TFLOPS, FP32 で 19.5 TFLOPS（16倍の差）
-     - H100: FP8 で 3958 TFLOPS
-```
-
-### 8.2 各フォーマットの詳細比較
+In neural network training and inference, high numerical precision is not always necessary. The reasons are as follows.
 
 ```
-BF16（bfloat16）vs FP16（IEEE half）:
+Why AI works with low precision:
 
-  FP16: ┌─┬─────┬──────────┐
-        │S│E(5b)│ M(10bit) │  範囲: ±65504, 精度: 約3.3桁
-        └─┴─────┴──────────┘
+  1. Noise tolerance
+     - SGD (Stochastic Gradient Descent) inherently contains noise
+     - Mini-batch sampling noise > quantization noise
+     - Moderate noise can even have a regularization effect
 
-  BF16: ┌─┬────────┬───────┐
-        │S│ E(8b)  │M(7bit)│  範囲: ±3.4×10^38, 精度: 約2.4桁
-        └─┴────────┴───────┘
+  2. Gradient direction matters; magnitude is secondary
+     - Can be adjusted by learning rate
+     - Converges if direction is approximately correct
 
-  FP32: ┌─┬────────┬───────────────────────┐
-        │S│ E(8b)  │      M(23bit)         │  参考
-        └─┴────────┴───────────────────────┘
+  3. Memory bandwidth is the bottleneck
+     - GPU compute far exceeds memory transfer speed
+     - Smaller data -> faster memory transfer -> faster overall
+     - FP16: half the memory of FP32 -> 2x batch size or 2x speed
 
-  BF16 の設計哲学:
-  - FP32 と同じ 8ビット指数部 → 同じ値の範囲
-  - 仮数部を 23→7 ビットに削減 → 精度は低下
-  - FP32 との変換が単純（上位16ビットを切り取るだけ）
-  - オーバーフロー/アンダーフローが FP32 と同じタイミング
-  - → FP16 より学習が安定（範囲が広い）
-
-  ┌────────┬─────────┬────────────────┬──────────────────────┐
-  │ 形式   │ 範囲    │ 精度           │ 主な用途             │
-  ├────────┼─────────┼────────────────┼──────────────────────┤
-  │ FP32   │ 10^38   │ 7.2桁          │ 基準、マスター重み   │
-  │ TF32   │ 10^38   │ 3.3桁          │ A100 の Tensor Core  │
-  │ BF16   │ 10^38   │ 2.4桁          │ 学習（Google/Meta）  │
-  │ FP16   │ 65504   │ 3.3桁          │ 推論、モバイル       │
-  │ FP8 E4M3│ 448    │ 1.2桁          │ 順伝播（H100以降）   │
-  │ FP8 E5M2│ 57344  │ 0.9桁          │ 逆伝播（H100以降）   │
-  │ INT8   │ -128〜127│ 整数           │ 量子化推論           │
-  │ INT4   │ -8〜7   │ 整数           │ 極限量子化（LLM）    │
-  └────────┴─────────┴────────────────┴──────────────────────┘
+  4. Dedicated hardware exists
+     - Tensor Cores: execute FP16/BF16/FP8 matrix products at ultra-high speed
+     - A100: 312 TFLOPS at FP16, 19.5 TFLOPS at FP32 (16x difference)
+     - H100: 3958 TFLOPS at FP8
 ```
 
-### 8.3 混合精度学習（Mixed Precision Training）
+### 8.2 Detailed Comparison of Each Format
 
 ```
-混合精度学習のフロー:
+BF16 (bfloat16) vs FP16 (IEEE half):
 
-  ┌─────────────────────────────────────────────────────┐
-  │                     学習ループ                       │
-  │                                                     │
-  │  ┌──────────┐    FP32→FP16     ┌──────────────┐    │
-  │  │マスター重み├──────────────────→│FP16 重みコピー│    │
-  │  │ (FP32)    │                  └──────┬───────┘    │
-  │  └─────┬────┘                         │            │
-  │        ↑                              ↓            │
-  │   FP32で更新               FP16 で順伝播            │
-  │        ↑                              │            │
-  │        │                              ↓            │
-  │   ┌────┴────┐              ┌──────────────┐        │
-  │   │FP32勾配 │←─────────────│ FP16 損失     │        │
-  │   │(変換後) │   FP16→FP32  │ × loss_scale │        │
-  │   └─────────┘              └──────┬───────┘        │
-  │                                    │               │
-  │                           FP16 で逆伝播             │
-  │                                    │               │
-  │                             ┌──────┴───────┐       │
-  │                             │ FP16 勾配     │       │
-  │                             │ / loss_scale  │       │
-  │                             └──────────────┘       │
-  └─────────────────────────────────────────────────────┘
+  FP16: +-+-----+----------+
+        |S|E(5b)| M(10bit) |  Range: +/-65504, Precision: ~3.3 digits
+        +-+-----+----------+
 
-  Loss Scaling の必要性:
-  - FP16 の最小正規化数: 約 6 × 10^(-8)
-  - 勾配は学習の後半で非常に小さくなる（10^(-7) 以下）
-  - FP16 では勾配がアンダーフローでゼロになってしまう
-  - → 損失値をスケールアップ → 勾配もスケールアップ → FP16 の範囲内に
-  - → 更新前にスケールダウンして元に戻す
-  - Dynamic Loss Scaling: オーバーフローの頻度に応じてスケールを自動調整
+  BF16: +-+--------+-------+
+        |S| E(8b)  |M(7bit)|  Range: +/-3.4x10^38, Precision: ~2.4 digits
+        +-+--------+-------+
+
+  FP32: +-+--------+-----------------------+
+        |S| E(8b)  |      M(23bit)         |  Reference
+        +-+--------+-----------------------+
+
+  BF16 design philosophy:
+  - Same 8-bit exponent as FP32 -> same value range
+  - Mantissa reduced from 23 to 7 bits -> lower precision
+  - Simple conversion to/from FP32 (just truncate the upper 16 bits)
+  - Overflow/underflow occurs at the same thresholds as FP32
+  - -> More stable training than FP16 (wider range)
+
+  +--------+---------+----------------+----------------------+
+  | Format | Range   | Precision      | Primary use          |
+  +--------+---------+----------------+----------------------+
+  | FP32   | 10^38   | 7.2 digits     | Reference, master    |
+  |        |         |                | weights              |
+  | TF32   | 10^38   | 3.3 digits     | A100 Tensor Core     |
+  | BF16   | 10^38   | 2.4 digits     | Training             |
+  |        |         |                | (Google/Meta)        |
+  | FP16   | 65504   | 3.3 digits     | Inference, mobile    |
+  | FP8    | 448     | 1.2 digits     | Forward pass         |
+  | E4M3   |         |                | (H100 onwards)       |
+  | FP8    | 57344   | 0.9 digits     | Backward pass        |
+  | E5M2   |         |                | (H100 onwards)       |
+  | INT8   |-128~127 | Integer        | Quantized inference  |
+  | INT4   | -8~7    | Integer        | Extreme quantization |
+  |        |         |                | (LLM)               |
+  +--------+---------+----------------+----------------------+
+```
+
+### 8.3 Mixed Precision Training
+
+```
+Mixed precision training flow:
+
+  +-----------------------------------------------------+
+  |                     Training Loop                     |
+  |                                                       |
+  |  +----------+    FP32->FP16     +--------------+     |
+  |  |Master wts|------------------>|FP16 wt copy  |     |
+  |  | (FP32)   |                   +------+-------+     |
+  |  +-----+----+                         |              |
+  |        ^                              v              |
+  |   Update in FP32             Forward pass in FP16    |
+  |        ^                              |              |
+  |        |                              v              |
+  |   +----+----+              +--------------+          |
+  |   |FP32 grad|<------------|  FP16 loss   |          |
+  |   |(convert)|   FP16->FP32 | x loss_scale|          |
+  |   +---------+              +------+-------+          |
+  |                                    |                 |
+  |                           Backward pass in FP16      |
+  |                                    |                 |
+  |                             +------+-------+         |
+  |                             | FP16 grads   |         |
+  |                             | / loss_scale |         |
+  |                             +--------------+         |
+  +-----------------------------------------------------+
+
+  Why Loss Scaling is needed:
+  - FP16 minimum normalized: approximately 6 x 10^(-8)
+  - Gradients become very small in later training stages (< 10^(-7))
+  - In FP16, gradients underflow to zero
+  - -> Scale up the loss -> gradients are also scaled up -> within FP16 range
+  - -> Scale down before parameter update to restore original values
+  - Dynamic Loss Scaling: automatically adjusts scale based on overflow frequency
 ```
 
 ```python
-# PyTorch での混合精度学習の例
+# Mixed precision training example in PyTorch
 import torch
 from torch.cuda.amp import autocast, GradScaler
 
 model = MyModel().cuda()
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
-scaler = GradScaler()  # Loss Scaling を自動管理
+scaler = GradScaler()  # Automatically manages Loss Scaling
 
 for data, target in dataloader:
     optimizer.zero_grad()
 
-    # autocast: 演算ごとに最適な精度を自動選択
+    # autocast: automatically selects optimal precision for each operation
     with autocast():
-        output = model(data)        # FP16 で順伝播
+        output = model(data)        # Forward pass in FP16
         loss = loss_fn(output, target)
 
-    # Loss Scaling + FP16 逆伝播
+    # Loss Scaling + backward pass in FP16
     scaler.scale(loss).backward()
 
-    # FP32 でパラメータ更新
+    # Parameter update in FP32
     scaler.step(optimizer)
     scaler.update()
 ```
 
 ---
 
-## 9. 言語・プラットフォーム固有の注意事項
+## 9. Language and Platform-Specific Considerations
 
-### 9.1 各言語の浮動小数点サポート
-
-```
-┌──────────────┬────────────────┬───────────────────────────────────┐
-│ 言語         │ デフォルト型   │ 特記事項                          │
-├──────────────┼────────────────┼───────────────────────────────────┤
-│ C/C++        │ double (64bit) │ float, long double あり。         │
-│              │                │ long double は80/128bit（環境依存）│
-│              │                │ #include <cfloat> で精度定数      │
-│ Java         │ double (64bit) │ strictfp で厳密IEEE754動作        │
-│              │                │ BigDecimal で任意精度              │
-│ Python       │ float (64bit)  │ decimal.Decimal で任意精度         │
-│              │                │ fractions.Fraction で有理数        │
-│ JavaScript   │ Number (64bit) │ 唯一の数値型（ES2020でBigInt追加）│
-│              │                │ TypedArray で float32 利用可       │
-│ Rust         │ f64 (64bit)    │ f32 も利用可。NaN の比較で         │
-│              │                │ コンパイルエラー（安全）           │
-│ Go           │ float64 (64bit)│ math/big で任意精度                │
-│ C#           │ double (64bit) │ decimal (128bit, 10進) あり        │
-│ SQL          │ FLOAT/DOUBLE   │ DECIMAL/NUMERIC は10進固定小数点  │
-└──────────────┴────────────────┴───────────────────────────────────┘
-```
-
-### 9.2 コンパイラの最適化と浮動小数点
+### 9.1 Floating-Point Support by Language
 
 ```
-コンパイラの最適化レベルと浮動小数点の精度:
++--------------+----------------+-----------------------------------+
+| Language     | Default type   | Notes                             |
++--------------+----------------+-----------------------------------+
+| C/C++        | double (64bit) | float, long double available.     |
+|              |                | long double is 80/128bit (env     |
+|              |                | dependent). #include <cfloat>     |
+|              |                | for precision constants.          |
+| Java         | double (64bit) | strictfp for strict IEEE 754.     |
+|              |                | BigDecimal for arbitrary prec.    |
+| Python       | float (64bit)  | decimal.Decimal for arbitrary     |
+|              |                | prec. fractions.Fraction for      |
+|              |                | rationals.                        |
+| JavaScript   | Number (64bit) | The only numeric type (BigInt     |
+|              |                | added in ES2020). TypedArray      |
+|              |                | for float32.                      |
+| Rust         | f64 (64bit)    | f32 also available. NaN           |
+|              |                | comparisons cause compile error   |
+|              |                | (safe).                           |
+| Go           | float64 (64bit)| math/big for arbitrary precision. |
+| C#           | double (64bit) | decimal (128bit, base-10) avail.  |
+| SQL          | FLOAT/DOUBLE   | DECIMAL/NUMERIC is base-10 fixed  |
+|              |                | point.                            |
++--------------+----------------+-----------------------------------+
+```
 
-  GCC/Clang のオプション:
-  -O0: 最適化なし → IEEE 754 に厳密に準拠
-  -O2: 一般的な最適化 → 通常は精度を保持
-  -O3: 積極的な最適化 → 一部の変換が適用される可能性
-  -Ofast: 最も積極的 → -ffast-math を含む（危険!）
+### 9.2 Compiler Optimizations and Floating-Point
 
-  -ffast-math の影響（GCC/Clang）:
-  ┌────────────────────────────────────────────────────────────┐
-  │ 許可される変換             │ 結果                          │
-  ├────────────────────────────┼───────────────────────────────┤
-  │ NaN, Inf が存在しないと仮定│ isnan() が常に false に       │
-  │ 結合法則を仮定             │ (a+b)+c を a+(b+c) に変換     │
-  │ 分配法則を仮定             │ a*b+a*c を a*(b+c) に変換     │
-  │ 符号付きゼロを無視         │ -0.0 を +0.0 と同一視         │
-  │ 逆数の事前計算             │ a/b/c を a/(b*c) に変換       │
-  └────────────────────────────┴───────────────────────────────┘
+```
+Compiler optimization levels and floating-point precision:
 
-  → -ffast-math は数値計算の正確性を破壊しうる
-  → 科学計算や金融計算では絶対に使用しない
-  → ゲーム・グラフィクスでは許容される場合がある
+  GCC/Clang options:
+  -O0: No optimization -> Strictly IEEE 754 compliant
+  -O2: Standard optimizations -> Usually preserves precision
+  -O3: Aggressive optimizations -> Some transformations may apply
+  -Ofast: Most aggressive -> Includes -ffast-math (dangerous!)
 
-  安全な最適化指定:
-    gcc -O2 -fno-fast-math  # -O2 は安全
-    gcc -O2 -ffp-contract=off  # FMA（融合積和演算）を無効化
+  Effects of -ffast-math (GCC/Clang):
+  +----------------------------+-------------------------------+
+  | Permitted transformations  | Consequence                   |
+  +----------------------------+-------------------------------+
+  | Assumes no NaN or Inf      | isnan() always returns false  |
+  | Assumes associativity      | (a+b)+c transformed to a+(b+c)|
+  | Assumes distributivity     | a*b+a*c transformed to a*(b+c)|
+  | Ignores signed zero        | -0.0 treated as +0.0         |
+  | Pre-computes reciprocals   | a/b/c transformed to a/(b*c) |
+  +----------------------------+-------------------------------+
+
+  -> -ffast-math can destroy numerical correctness
+  -> Never use for scientific or financial calculations
+  -> May be acceptable for games/graphics
+
+  Safe optimization flags:
+    gcc -O2 -fno-fast-math  # -O2 is safe
+    gcc -O2 -ffp-contract=off  # Disable FMA (fused multiply-add)
 ```
 
 ---
 
-## 10. 浮動小数点のデバッグ技法
+## 10. Floating-Point Debugging Techniques
 
-### 10.1 ビット表現の可視化
+### 10.1 Visualizing Bit Representations
 
-浮動小数点の問題をデバッグする際、最も重要なのは「値がどのようなビット列として格納されているか」を可視化することである。
+When debugging floating-point issues, the most important step is to visualize "what bit pattern the value is stored as."
 
 ```python
 import struct
 import math
 
 def visualize_float64(value):
-    """float64 のビット表現を詳細に可視化"""
-    # float → bytes → int
+    """Visualize the bit representation of a float64 in detail"""
+    # float -> bytes -> int
     raw_bytes = struct.pack('>d', value)
     bits = int.from_bytes(raw_bytes, 'big')
 
-    # フィールド抽出
+    # Field extraction
     sign = (bits >> 63) & 1
     exponent = (bits >> 52) & 0x7FF
     mantissa = bits & 0xFFFFFFFFFFFFF
 
-    # ビット文字列
+    # Bit string
     bit_str = f"{bits:064b}"
     formatted = f"{bit_str[0]} {bit_str[1:12]} {bit_str[12:]}"
 
-    print(f"値:         {value}")
-    print(f"16進数:     {raw_bytes.hex()}")
-    print(f"ビット列:   {formatted}")
-    print(f"符号(S):    {sign} ({'負' if sign else '正'})")
-    print(f"指数部(E):  {exponent} (バイアス除去後: {exponent - 1023})")
-    print(f"仮数部(M):  {mantissa:052b}")
+    print(f"Value:       {value}")
+    print(f"Hexadecimal: {raw_bytes.hex()}")
+    print(f"Bit string:  {formatted}")
+    print(f"Sign (S):    {sign} ({'negative' if sign else 'positive'})")
+    print(f"Exponent(E): {exponent} (unbiased: {exponent - 1023})")
+    print(f"Mantissa(M): {mantissa:052b}")
 
-    # 分類
+    # Classification
     if exponent == 0 and mantissa == 0:
-        print(f"分類:       {'負' if sign else '正'}のゼロ")
+        print(f"Category:    {'Negative' if sign else 'Positive'} zero")
     elif exponent == 0:
         actual_exp = 1 - 1023
         value_calc = (-1)**sign * (mantissa / 2**52) * 2**actual_exp
-        print(f"分類:       非正規化数 (実効指数: {actual_exp})")
+        print(f"Category:    Denormalized number (effective exponent: {actual_exp})")
     elif exponent == 2047 and mantissa == 0:
-        print(f"分類:       {'負' if sign else '正'}の無限大")
+        print(f"Category:    {'Negative' if sign else 'Positive'} infinity")
     elif exponent == 2047:
         snan = (mantissa >> 51) & 1 == 0
-        print(f"分類:       {'Signaling' if snan else 'Quiet'} NaN")
+        print(f"Category:    {'Signaling' if snan else 'Quiet'} NaN")
     else:
         actual_exp = exponent - 1023
-        print(f"分類:       正規化数 (実効指数: {actual_exp})")
-        print(f"有効値:     1.{mantissa:052b} × 2^{actual_exp}")
+        print(f"Category:    Normalized number (effective exponent: {actual_exp})")
+        print(f"Exact value: 1.{mantissa:052b} x 2^{actual_exp}")
 
-    # 隣接値
+    # Adjacent values
     if not (math.isnan(value) or math.isinf(value)):
         next_val = struct.unpack('>d', (bits + 1).to_bytes(8, 'big'))[0]
         prev_val = struct.unpack('>d', (bits - 1).to_bytes(8, 'big'))[0]
-        print(f"次の値:     {next_val} (差: {next_val - value})")
-        print(f"前の値:     {prev_val} (差: {value - prev_val})")
+        print(f"Next value:  {next_val} (gap: {next_val - value})")
+        print(f"Prev value:  {prev_val} (gap: {value - prev_val})")
 
     print()
 
-# デバッグ例
+# Debug examples
 visualize_float64(0.1)
 visualize_float64(0.2)
 visualize_float64(0.1 + 0.2)
 visualize_float64(0.3)
 ```
 
-### 10.2 誤差の追跡と区間演算
+### 10.2 Error Tracking and Interval Arithmetic
 
-数値計算の信頼性を評価するには、計算結果だけでなく「誤差の上界」も追跡する方法がある。区間演算（Interval Arithmetic）は、真の値が含まれる区間を計算の各ステップで追跡する手法である。
+To evaluate the reliability of numerical computation, there are methods that track not only the result but also an "error upper bound." Interval arithmetic tracks the interval containing the true value at each computation step.
 
 ```python
 class Interval:
-    """単純な区間演算クラス（デバッグ用）"""
+    """Simple interval arithmetic class (for debugging)"""
 
     def __init__(self, lo, hi=None):
         if hi is None:
-            # 浮動小数点数から区間を生成（丸め誤差を考慮）
+            # Generate interval from a floating-point number (accounting for rounding error)
             import sys
             eps = sys.float_info.epsilon
             if lo == 0.0:
@@ -1662,41 +1682,41 @@ class Interval:
     def __repr__(self):
         mid = (self.lo + self.hi) / 2
         radius = (self.hi - self.lo) / 2
-        return f"[{self.lo:.17g}, {self.hi:.17g}] (幅: {self.hi - self.lo:.3e})"
+        return f"[{self.lo:.17g}, {self.hi:.17g}] (width: {self.hi - self.lo:.3e})"
 
     def contains(self, value):
         return self.lo <= value <= self.hi
 
-# 0.1 + 0.2 の区間演算
+# Interval arithmetic for 0.1 + 0.2
 a = Interval(0.1)
 b = Interval(0.2)
 c = a + b
-print(f"0.1 の区間: {a}")
-print(f"0.2 の区間: {b}")
-print(f"0.1+0.2:    {c}")
-print(f"0.3 を含む: {c.contains(0.3)}")
+print(f"Interval of 0.1: {a}")
+print(f"Interval of 0.2: {b}")
+print(f"0.1+0.2:         {c}")
+print(f"Contains 0.3:    {c.contains(0.3)}")
 ```
 
-### 10.3 数値不安定性の検出パターン
+### 10.3 Detecting Numerical Instability
 
 ```python
 import math
 import warnings
 
 def check_numerical_stability(func, x, delta=1e-8):
-    """関数の数値安定性を簡易チェック"""
+    """Simple numerical stability check for a function"""
     y = func(x)
     y_plus = func(x + delta)
     y_minus = func(x - delta)
 
-    # 条件数の近似: |x * f'(x) / f(x)|
+    # Approximate condition number: |x * f'(x) / f(x)|
     if abs(y) > 0:
         deriv_approx = (y_plus - y_minus) / (2 * delta)
         cond_approx = abs(x * deriv_approx / y)
     else:
         cond_approx = float('inf')
 
-    # 対称性チェック
+    # Symmetry check
     forward_diff = y_plus - y
     backward_diff = y - y_minus
     if abs(forward_diff) > 0:
@@ -1705,93 +1725,93 @@ def check_numerical_stability(func, x, delta=1e-8):
         symmetry = 0.0
 
     print(f"f({x}) = {y}")
-    print(f"条件数の推定: {cond_approx:.2e}")
+    print(f"Estimated condition number: {cond_approx:.2e}")
     if cond_approx > 1e10:
-        warnings.warn(f"条件数が非常に大きい（{cond_approx:.2e}）: 数値不安定の可能性")
-    print(f"差分の対称性: {symmetry:.2e}")
+        warnings.warn(f"Very large condition number ({cond_approx:.2e}): possible numerical instability")
+    print(f"Difference symmetry: {symmetry:.2e}")
     if symmetry > 0.01:
-        warnings.warn("差分の対称性が低い: 丸め誤差の影響が大きい可能性")
+        warnings.warn("Low difference symmetry: rounding error may have significant impact")
 
-# テスト: 桁落ちが発生する関数
+# Test: function that produces catastrophic cancellation
 def unstable_func(x):
-    """x が 0 に近いとき桁落ちが発生"""
-    return (1 - math.cos(x)) / (x * x)  # 理論値は x→0 で 0.5 に収束
+    """Catastrophic cancellation occurs when x is near 0"""
+    return (1 - math.cos(x)) / (x * x)  # Theoretical value converges to 0.5 as x->0
 
 def stable_func(x):
-    """数学的に等価だが数値的に安定"""
-    return 2 * (math.sin(x/2) / x) ** 2  # 半角公式を利用
+    """Mathematically equivalent but numerically stable"""
+    return 2 * (math.sin(x/2) / x) ** 2  # Using the half-angle formula
 
-print("=== 不安定な実装 ===")
+print("=== Unstable implementation ===")
 check_numerical_stability(unstable_func, 1e-8)
 print()
-print("=== 安定な実装 ===")
+print("=== Stable implementation ===")
 check_numerical_stability(stable_func, 1e-8)
 ```
 
-### 10.4 浮動小数点例外のトラップ
+### 10.4 Trapping Floating-Point Exceptions
 
 ```python
-# Python で浮動小数点例外を検出する
+# Detecting floating-point exceptions in Python
 
 import numpy as np
 
-# NumPy の浮動小数点例外設定
-# デフォルトでは警告のみ。'raise' で例外を発生させられる
-old_settings = np.seterr(all='raise')  # 全ての浮動小数点例外で例外発生
+# NumPy floating-point exception settings
+# By default, only warnings. 'raise' makes them raise exceptions
+old_settings = np.seterr(all='raise')  # Raise exception on all FP errors
 
 try:
-    result = np.float64(1e308) * np.float64(10)  # オーバーフロー
+    result = np.float64(1e308) * np.float64(10)  # Overflow
 except FloatingPointError as e:
-    print(f"捕捉: {e}")
+    print(f"Caught: {e}")
 
 try:
-    result = np.float64(0.0) / np.float64(0.0)  # 無効演算
+    result = np.float64(0.0) / np.float64(0.0)  # Invalid operation
 except FloatingPointError as e:
-    print(f"捕捉: {e}")
+    print(f"Caught: {e}")
 
-np.seterr(**old_settings)  # 設定を元に戻す
+np.seterr(**old_settings)  # Restore settings
 
-# warnings モジュールでの検出
+# Detection with warnings module
 import warnings
 warnings.filterwarnings('error', category=RuntimeWarning)
 
 try:
     result = np.float64(1.0) / np.float64(0.0)
 except RuntimeWarning as e:
-    print(f"警告を捕捉: {e}")
+    print(f"Caught warning: {e}")
 
 warnings.resetwarnings()
 ```
 
 ```c
-/* C言語での浮動小数点例外のトラップ */
+/* Trapping floating-point exceptions in C */
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <fenv.h>
 #include <math.h>
 #include <signal.h>
 
-/* 浮動小数点例外ハンドラ */
+/* Floating-point exception handler */
 void fpe_handler(int sig) {
-    printf("浮動小数点例外が発生!\n");
+    printf("Floating-point exception occurred!\n");
 
-    /* 例外フラグを確認 */
+    /* Check exception flags */
     if (fetestexcept(FE_DIVBYZERO))
-        printf("  - ゼロ除算\n");
+        printf("  - Division by zero\n");
     if (fetestexcept(FE_OVERFLOW))
-        printf("  - オーバーフロー\n");
+        printf("  - Overflow\n");
     if (fetestexcept(FE_UNDERFLOW))
-        printf("  - アンダーフロー\n");
+        printf("  - Underflow\n");
     if (fetestexcept(FE_INVALID))
-        printf("  - 無効演算\n");
+        printf("  - Invalid operation\n");
     if (fetestexcept(FE_INEXACT))
-        printf("  - 不正確（丸めが発生）\n");
+        printf("  - Inexact (rounding occurred)\n");
 
     feclearexcept(FE_ALL_EXCEPT);
 }
 
 int main(void) {
-    /* 例外フラグを使った事後チェック（推奨） */
+    /* Post-hoc check using exception flags (recommended) */
     feclearexcept(FE_ALL_EXCEPT);
 
     volatile double a = 1.0;
@@ -1799,14 +1819,14 @@ int main(void) {
     volatile double result = a / b;
 
     if (fetestexcept(FE_DIVBYZERO)) {
-        printf("ゼロ除算が発生: result = %f\n", result);
+        printf("Division by zero occurred: result = %f\n", result);
     }
 
     feclearexcept(FE_ALL_EXCEPT);
     result = sqrt(-1.0);
 
     if (fetestexcept(FE_INVALID)) {
-        printf("無効演算が発生: result = %f\n", result);
+        printf("Invalid operation occurred: result = %f\n", result);
     }
 
     return 0;
@@ -1815,50 +1835,50 @@ int main(void) {
 
 ---
 
-## 11. 実践演習
+## 11. Practice Exercises
 
-### 演習1: IEEE 754 手動変換（基礎）
+### Exercise 1: Manual IEEE 754 Conversion (Fundamentals)
 
-以下の値の binary32（単精度）ビット表現を手計算で求めよ。各ステップ（符号決定、2進変換、正規化、フィールド決定）を明示すること。
+Compute the binary32 (single precision) bit representation of the following values by hand. Show each step explicitly (sign determination, binary conversion, normalization, field determination).
 
 1. **-0.75**
 2. **100.0**
-3. **0.1**（52ビット目での丸めまで示すこと）
+3. **0.1** (show rounding at the 52nd bit)
 
 ```
-解答例（-0.75）:
+Solution example (-0.75):
 
-  ステップ1: 符号
-    -0.75 < 0 → S = 1
+  Step 1: Sign
+    -0.75 < 0 -> S = 1
 
-  ステップ2: 2進変換
-    0.75 × 2 = 1.5 → 1
-    0.5  × 2 = 1.0 → 1
-    → 0.75 = 0.11 (2進)
+  Step 2: Binary conversion
+    0.75 x 2 = 1.5 -> 1
+    0.5  x 2 = 1.0 -> 1
+    -> 0.75 = 0.11 (binary)
 
-  ステップ3: 正規化
-    0.11 = 1.1 × 2^(-1)
+  Step 3: Normalize
+    0.11 = 1.1 x 2^(-1)
 
-  ステップ4: フィールド決定
+  Step 4: Field determination
     S = 1
-    E = -1 + 127 = 126 = 01111110 (2進)
-    M = 10000000000000000000000 (23ビット)
+    E = -1 + 127 = 126 = 01111110 (binary)
+    M = 10000000000000000000000 (23 bits)
 
-  結果: 1 01111110 10000000000000000000000
-  16進数: 0xBF400000
+  Result: 1 01111110 10000000000000000000000
+  Hexadecimal: 0xBF400000
 
-  検証: struct.pack('>f', -0.75).hex() → 'bf400000' ✓
+  Verification: struct.pack('>f', -0.75).hex() -> 'bf400000'
 ```
 
-### 演習2: 精度限界の体験（応用）
+### Exercise 2: Experiencing Precision Limits (Applied)
 
-Python で以下を検証し、各結果の理由を IEEE 754 の動作原理から説明せよ。
+Verify the following in Python and explain each result based on IEEE 754 operating principles.
 
-1. `float(2**53) == float(2**53 + 1)` → 結果と理由
-2. `1e20 + 1 - 1e20` と `1e20 - 1e20 + 1` の結果の違い
-3. `sum([0.1]*10) == 1.0` と `math.fsum([0.1]*10) == 1.0` の違い
-4. `(0.1 + 0.2) + 0.3 == 0.1 + (0.2 + 0.3)` → 結合法則の検証
-5. 以下のコードの出力を予測し、理由を述べよ:
+1. `float(2**53) == float(2**53 + 1)` -> Result and reason
+2. Difference between `1e20 + 1 - 1e20` and `1e20 - 1e20 + 1`
+3. Difference between `sum([0.1]*10) == 1.0` and `math.fsum([0.1]*10) == 1.0`
+4. `(0.1 + 0.2) + 0.3 == 0.1 + (0.2 + 0.3)` -> Verify associativity
+5. Predict the output of the following code and explain:
 
 ```python
 x = 1e16
@@ -1866,17 +1886,17 @@ print(x + 1 == x)
 print(x + 2 == x)
 ```
 
-### 演習3: 安全な浮動小数点ライブラリの実装（発展）
+### Exercise 3: Implementing a Safe Floating-Point Library (Advanced)
 
-以下の要件を満たす浮動小数点ユーティリティモジュールを Python で実装せよ。
+Implement a floating-point utility module in Python that meets the following requirements.
 
-**要件:**
-1. `safe_equal(a, b, rel_tol, abs_tol)`: 全エッジケース（NaN, Inf, -0, 非正規化数）を正しく処理する比較関数
-2. `safe_sum(values)`: Kahan 補償加算を使った高精度合計関数
-3. `safe_mean(values)`: NaN を無視し、空リストでは NaN を返す平均関数
-4. `float_info(x)`: 与えられた float の IEEE 754 分解情報を辞書で返す関数
+**Requirements:**
+1. `safe_equal(a, b, rel_tol, abs_tol)`: Comparison function that correctly handles all edge cases (NaN, Inf, -0, denormalized numbers)
+2. `safe_sum(values)`: High-precision sum using Kahan compensated summation
+3. `safe_mean(values)`: Mean that ignores NaN and returns NaN for empty lists
+4. `float_info(x)`: Function that returns IEEE 754 decomposition info as a dictionary
 
-**テストケース:**
+**Test cases:**
 ```python
 # safe_equal
 assert safe_equal(0.1 + 0.2, 0.3)
@@ -1900,303 +1920,304 @@ assert info['category'] == 'normal'
 
 ---
 
-## 12. 浮動小数点に起因する歴史的事故・障害事例
+## 12. Historical Accidents and Failures Caused by Floating-Point
 
-浮動小数点の精度問題は、理論上の興味にとどまらず、現実世界で深刻な事故や経済的損失を引き起こしてきた。以下に代表的な事例を紹介する。
+Floating-point precision problems are not merely of theoretical interest -- they have caused serious real-world accidents and economic losses. The following are representative cases.
 
-### 12.1 パトリオットミサイルの迎撃失敗（1991年）
+### 12.1 Patriot Missile Interception Failure (1991)
 
-1991 年の湾岸戦争中、サウジアラビアのダーランに配備されたパトリオットミサイルシステムがスカッドミサイルの迎撃に失敗し、28 名の米兵が死亡した。
-
-```
-原因: 時刻計算における丸め誤差の蓄積
-
-  システム内部の時刻管理:
-  - 0.1 秒単位のクロックを 24ビット固定小数点で管理
-  - 0.1 (10進) = 0.0001100110011001100... (2進, 無限循環)
-  - 24ビットに切り詰め: 0.00011001100110011001100
-  - 1回あたりの誤差: 約 9.5 × 10^(-8) 秒
-
-  100時間連続稼働後の蓄積誤差:
-  - 100時間 = 360,000 秒 = 3,600,000 × 0.1秒カウント
-  - 蓄積誤差 = 3,600,000 × 9.5 × 10^(-8) ≈ 0.34 秒
-
-  スカッドミサイルの速度: 約 1,676 m/s
-  0.34 秒の追跡誤差 = 約 570 m のずれ
-
-  → レーダーの追跡ゲートから標的が外れ、迎撃に失敗
-
-教訓:
-  - 小さな丸め誤差でも長時間の蓄積で致命的になる
-  - リアルタイムシステムでの浮動小数点使用には特別な注意が必要
-  - 定期的な誤差のリセットまたは補正が不可欠
-```
-
-### 12.2 Ariane 5 ロケットの爆発（1996年）
-
-ESA（欧州宇宙機関）の Ariane 5 ロケットが打ち上げ直後に爆発した。開発費は約 70 億ドル、積載されていた衛星 4 基（約 5 億ドル）も失われた。
+During the 1991 Gulf War, a Patriot missile system deployed in Dhahran, Saudi Arabia, failed to intercept a Scud missile, resulting in the deaths of 28 US soldiers.
 
 ```
-原因: 64ビット浮動小数点から16ビット整数への変換オーバーフロー
+Cause: Accumulation of rounding errors in time calculation
 
-  Ariane 4 のコードを Ariane 5 に再利用
-  - 水平速度を float64 → int16 に変換する処理
-  - Ariane 4 では速度が int16 の範囲内に収まっていた
-  - Ariane 5 はより高性能 → 水平速度が大きい → int16 オーバーフロー
-  - Ada 言語の Operand Error 例外が発生
-  - 慣性航法装置がシャットダウン
-  - バックアップも同一コード → 同時にシャットダウン
-  - 制御不能 → 自爆
+  Internal time management:
+  - Clock in 0.1-second increments managed in 24-bit fixed-point
+  - 0.1 (decimal) = 0.0001100110011001100... (binary, infinite repeating)
+  - Truncated to 24 bits: 0.00011001100110011001100
+  - Error per tick: approximately 9.5 x 10^(-8) seconds
 
-  問題の変換コード（Ada言語、概念的な再現）:
+  Accumulated error after 100 hours of continuous operation:
+  - 100 hours = 360,000 seconds = 3,600,000 x 0.1-second ticks
+  - Accumulated error = 3,600,000 x 9.5 x 10^(-8) ~ 0.34 seconds
+
+  Scud missile speed: approximately 1,676 m/s
+  0.34-second tracking error = approximately 570 m offset
+
+  -> Target fell outside the radar tracking gate, interception failed
+
+Lessons:
+  - Even small rounding errors can become catastrophic over long accumulation
+  - Special care is needed when using floating-point in real-time systems
+  - Periodic error reset or correction is essential
+```
+
+### 12.2 Ariane 5 Rocket Explosion (1996)
+
+ESA's (European Space Agency) Ariane 5 rocket exploded shortly after launch. Development costs were approximately $7 billion, and 4 satellites (approximately $500 million) were also lost.
+
+```
+Cause: Overflow in conversion from 64-bit floating-point to 16-bit integer
+
+  Ariane 4 code was reused for Ariane 5
+  - Process converting horizontal velocity from float64 to int16
+  - In Ariane 4, velocity stayed within int16 range
+  - Ariane 5 was more powerful -> higher horizontal velocity -> int16 overflow
+  - Ada Operand Error exception raised
+  - Inertial navigation system shut down
+  - Backup used identical code -> simultaneously shut down
+  - Loss of control -> self-destruction
+
+  The problematic conversion code (Ada, conceptual reproduction):
     horizontal_bias := INTEGER(horizontal_velocity);
-    -- horizontal_velocity が 32768 を超えると Constraint_Error
+    -- Constraint_Error when horizontal_velocity exceeds 32768
 
-教訓:
-  - 浮動小数点から整数への変換は常に範囲チェックが必要
-  - コードの再利用時に前提条件の確認が不可欠
-  - 冗長系は同一バグを共有してはならない
+Lessons:
+  - Range checking is always required when converting floating-point to integer
+  - Prerequisite verification is essential when reusing code
+  - Redundant systems must not share identical bugs
 ```
 
-### 12.3 バンクーバー証券取引所の指数誤差（1982年）
+### 12.3 Vancouver Stock Exchange Index Error (1982)
 
 ```
-原因: 指数計算における切り捨て誤差の蓄積
+Cause: Accumulation of truncation errors in index calculation
 
-  バンクーバー証券取引所（VSE）の株価指数:
-  - 1982年に1000.000からスタート
-  - 各取引ごとに指数を再計算し、小数第3位で切り捨て（floor）
-  - 1日に約3000回の取引 → 各回で最大0.0005の切り捨て誤差
-  - 22か月後: 指数は524.811（本来は約1098であるべき）
+  Vancouver Stock Exchange (VSE) stock index:
+  - Started at 1000.000 in 1982
+  - Recalculated the index after each trade, truncating at 3 decimal places (floor)
+  - Approximately 3000 trades per day -> maximum 0.0005 truncation error per trade
+  - After 22 months: index was 524.811 (should have been approximately 1098)
 
-  原因の詳細:
-    切り捨て（floor）は常に負方向への偏りを持つ
-    偶数丸めではなく切り捨てを使用していた
-    3000回/日 × 22か月 ≈ 2,000,000 回の切り捨て
-    蓄積誤差: 指数の約52%が消失
+  Detailed cause:
+    Truncation (floor) always has a negative directional bias
+    Used truncation instead of round-to-even
+    3000/day x 22 months ~ 2,000,000 truncations
+    Accumulated error: approximately 52% of the index was lost
 
-  修正: 切り捨て → 四捨五入に変更し、指数を再計算
+  Fix: Changed from truncation to rounding and recalculated the index
 
-教訓:
-  - 丸めモードの選択は大量の演算で劇的な差を生む
-  - 金融システムでは丸め規則の選択が特に重要
-  - 切り捨て（truncation）には系統的な偏りがある
+Lessons:
+  - The choice of rounding mode makes a dramatic difference across many operations
+  - Rounding rule selection is particularly important in financial systems
+  - Truncation has systematic bias
 ```
 
-### 12.4 Excel の日付バグと浮動小数点
+### 12.4 Excel Date Bug and Floating-Point
 
 ```
-Excel の浮動小数点に関連する有名な問題:
+Famous floating-point related issues in Excel:
 
-  1. 1900年2月29日問題
-     Excel は1900年をうるう年として扱う（実際はうるう年ではない）
-     Lotus 1-2-3 との互換性のために意図的に残されたバグ
+  1. February 29, 1900 problem
+     Excel treats 1900 as a leap year (it actually is not)
+     Bug intentionally kept for Lotus 1-2-3 compatibility
 
-  2. 精度問題
-     Excel は内部的に IEEE 754 binary64 を使用
-     しかし表示精度は15桁に制限
-     =1/3*3 は 1.0 と表示される（内部値は 0.999...99）
-     → 表示上の丸めが精度問題を隠蔽することがある
+  2. Precision issues
+     Excel internally uses IEEE 754 binary64
+     But display precision is limited to 15 digits
+     =1/3*3 displays as 1.0 (internal value is 0.999...99)
+     -> Display rounding can mask precision problems
 
-  3. 大きな数の減算
-     =1E15+1-1E15 → 0（正しくは1）
-     → 情報落ちによる精度の喪失
-     → スプレッドシートでの科学計算には注意が必要
+  3. Large number subtraction
+     =1E15+1-1E15 -> 0 (correct answer is 1)
+     -> Loss of significance due to absorption
+     -> Scientific computing in spreadsheets requires caution
 ```
 
 ---
 
-## 13. 浮動小数点と形式的検証
+## 13. Floating-Point and Formal Verification
 
-### 13.1 浮動小数点演算の数学的性質
+### 13.1 Mathematical Properties of Floating-Point Arithmetic
 
-浮動小数点演算は、実数演算とは異なる代数的性質を持つ。この違いを理解することは、正確なプログラムを書く上で不可欠である。
+Floating-point arithmetic has algebraic properties that differ from real number arithmetic. Understanding these differences is essential for writing correct programs.
 
 ```
-浮動小数点演算で成立しない数学的法則:
+Mathematical laws that do NOT hold for floating-point arithmetic:
 
-  ┌─────────────────┬──────────────┬─────────────────────────────┐
-  │ 法則             │ 実数演算     │ 浮動小数点演算              │
-  ├─────────────────┼──────────────┼─────────────────────────────┤
-  │ 結合法則         │ (a+b)+c      │ (1e20+1)-1e20 = 0          │
-  │ (a+b)+c=a+(b+c) │ = a+(b+c)    │ 1e20+(1-1e20) = -1e20+1 = 1│
-  ├─────────────────┼──────────────┼─────────────────────────────┤
-  │ 分配法則         │ a×(b+c)      │ 一般に成立しない            │
-  │ a(b+c)=ab+ac    │ = a×b+a×c    │ 丸め誤差により不一致        │
-  ├─────────────────┼──────────────┼─────────────────────────────┤
-  │ 逆元の存在       │ a+(-a) = 0   │ 成立する（正確に 0）        │
-  │                 │ a×(1/a) = 1  │ 一般に成立しない            │
-  ├─────────────────┼──────────────┼─────────────────────────────┤
-  │ 推移律          │ a<b, b<c     │ NaN により成立しない         │
-  │                 │ → a<c       │ NaN<1: False, NaN<2: False   │
-  ├─────────────────┼──────────────┼─────────────────────────────┤
-  │ 反射律          │ a = a        │ NaN != NaN で成立しない      │
-  └─────────────────┴──────────────┴─────────────────────────────┘
+  +-----------------+--------------+-----------------------------+
+  | Law             | Real numbers | Floating-point              |
+  +-----------------+--------------+-----------------------------+
+  | Associativity   | (a+b)+c      | (1e20+1)-1e20 = 0          |
+  | (a+b)+c=a+(b+c)| = a+(b+c)    | 1e20+(1-1e20) = -1e20+1 = 1|
+  +-----------------+--------------+-----------------------------+
+  | Distributivity  | a x (b+c)    | Generally does not hold     |
+  | a(b+c)=ab+ac   | = a x b+a x c| Mismatch due to rounding    |
+  +-----------------+--------------+-----------------------------+
+  | Inverse element | a+(-a) = 0   | Holds (exactly 0)           |
+  |                 | a x (1/a) = 1| Generally does not hold      |
+  +-----------------+--------------+-----------------------------+
+  | Transitivity    | a<b, b<c     | Fails due to NaN            |
+  |                 | -> a<c       | NaN<1: False, NaN<2: False  |
+  +-----------------+--------------+-----------------------------+
+  | Reflexivity     | a = a        | Fails: NaN != NaN           |
+  +-----------------+--------------+-----------------------------+
 
-  浮動小数点演算で成立する法則:
-  - 交換法則: a + b = b + a, a × b = b × a（常に成立）
-  - 単調性: a ≤ b ⟹ a + c ≤ b + c（NaN 以外で成立）
-  - Sterbenz の定理: a/2 ≤ b ≤ 2a ならば b - a は正確に計算される
+  Laws that DO hold for floating-point:
+  - Commutativity: a + b = b + a, a x b = b x a (always holds)
+  - Monotonicity: a <= b => a + c <= b + c (holds except for NaN)
+  - Sterbenz theorem: if a/2 <= b <= 2a, then b - a is computed exactly
 ```
 
-### 13.2 正確な演算（Exact Operations）
+### 13.2 Exact Operations
 
-IEEE 754 では、特定の条件下で演算結果が正確であることが保証されている。
+In IEEE 754, under specific conditions, operation results are guaranteed to be exact.
 
 ```python
-# 正確に計算される演算の例
+# Examples of operations computed exactly
 
-# 1. 同符号の値の減算（Sterbenz の定理）
+# 1. Subtraction of same-sign values (Sterbenz theorem)
 a = 1.5
 b = 1.0
-# a/2 ≤ b ≤ 2a を満たすので a - b は正確
-print(a - b)  # 0.5（正確）
+# a/2 <= b <= 2a is satisfied, so a - b is exact
+print(a - b)  # 0.5 (exact)
 
-# 2. 2のべき乗の乗除算
+# 2. Multiplication/division by powers of 2
 x = 3.14159
-print(x * 2.0)     # 6.28318（正確: 指数部の調整のみ）
-print(x * 0.5)     # 1.570795（正確: 指数部の調整のみ）
-print(x * 4.0)     # 12.56636（正確）
+print(x * 2.0)     # 6.28318 (exact: only exponent adjustment)
+print(x * 0.5)     # 1.570795 (exact: only exponent adjustment)
+print(x * 4.0)     # 12.56636 (exact)
 
-# 3. FMA（融合積和演算）
+# 3. FMA (Fused Multiply-Add)
 import math
-# math.fma(a, b, c) = a*b + c を1回の丸めで計算（Python 3.13+）
-# → a*b の中間結果が丸められないため、通常の a*b + c より正確
+# math.fma(a, b, c) = a*b + c computed with a single rounding (Python 3.13+)
+# -> The intermediate result of a*b is not rounded, so it is more accurate
+#    than the regular a*b + c
 
-# 4. 二重倍精度（Double-Double）演算
+# 4. Double-double arithmetic
 def two_sum(a, b):
-    """a + b を高精度に計算。s + e = a + b が正確に成り立つ"""
+    """Compute a + b with high precision. s + e = a + b holds exactly."""
     s = a + b
     v = s - a
     e = (a - (s - v)) + (b - v)
-    return s, e  # s は丸められた和、e は誤差
+    return s, e  # s is the rounded sum, e is the error
 
 s, e = two_sum(1e16, 1.0)
-print(f"和: {s}, 誤差: {e}")  # 和: 1e16, 誤差: 1.0
-# → 失われた情報が e に保存されている
+print(f"Sum: {s}, Error: {e}")  # Sum: 1e16, Error: 1.0
+# -> The lost information is preserved in e
 ```
 
 ---
 
-## 14. FAQ（よくある質問）
+## 14. FAQ (Frequently Asked Questions)
 
-### Q1: float と double のどちらを使うべきですか？
+### Q1: Should I use float or double?
 
-**A**: 原則として **double（64ビット）を使用する**。現代のほとんどの CPU では float と double の演算速度に有意な差はない。float を選ぶべき場面は限定的である:
+**A**: As a general rule, **use double (64-bit)**. On most modern CPUs, there is no significant performance difference between float and double operations. The cases where float should be chosen are limited:
 
-- GPU/AI: VRAM 容量の制約で float16/bfloat16/float32 を使用
-- 大規模配列: メモリ使用量が半分になる（NumPy の dtype='float32'）
-- SIMD 最適化: float32 は float64 の 2 倍の要素を同時処理可能
-- ゲーム/グラフィクス: float32 の精度で十分な場面が多い
+- GPU/AI: float16/bfloat16/float32 used due to VRAM capacity constraints
+- Large arrays: Memory usage is halved (NumPy's dtype='float32')
+- SIMD optimization: float32 can process 2x the elements of float64 simultaneously
+- Games/Graphics: float32 precision is often sufficient
 
-C/C++ では `double` がデフォルトのリテラル型であり、`printf` の `%f` も double を受ける。Python の `float` は内部的に C の double（64ビット）である。
+In C/C++, `double` is the default literal type, and `printf`'s `%f` also accepts double. Python's `float` is internally a C double (64-bit).
 
-### Q2: 銀行家の丸め（Banker's Rounding）はなぜデフォルトなのですか？
+### Q2: Why is Banker's Rounding the default?
 
-**A**: 統計的な偏りを最小化するためである。
+**A**: To minimize statistical bias.
 
-通常の四捨五入では、0.5 を常に切り上げるため、大量の丸め操作を行うと結果が正の方向に偏る。例えば、0.5, 1.5, 2.5, 3.5, 4.5 を四捨五入すると 1+2+3+4+5=15 となるが、偶数丸めでは 0+2+2+4+4=12 となり、真の合計 12.5 に近い。
+With standard rounding (half up), 0.5 is always rounded up, causing results to be biased positively when large numbers of rounding operations are performed. For example, rounding 0.5, 1.5, 2.5, 3.5, 4.5 gives 1+2+3+4+5=15, but round-to-even gives 0+2+2+4+4=12, which is closer to the true sum of 12.5.
 
-この偏りは金融計算で特に問題となる。数百万件の取引で各金額を丸めると、四捨五入では系統的な利益/損失が発生する。偶数丸めはこの問題を統計的に解消する。IEEE 754 がこれをデフォルトとした理由は、汎用計算においても丸め誤差の蓄積を最小化するためである。
+This bias is particularly problematic in financial calculations. When millions of transaction amounts are each rounded, standard rounding produces systematic profits/losses. Round-to-even statistically eliminates this problem. IEEE 754 made this the default because it minimizes rounding error accumulation in general-purpose computing as well.
 
-### Q3: JavaScript にはなぜ整数型がないのですか？
+### Q3: Why doesn't JavaScript have an integer type?
 
-**A**: 1995 年の設計時に Brendan Eich がシンプルさを優先した結果である。全ての数値が IEEE 754 の binary64（double）として扱われる。
+**A**: The result of Brendan Eich prioritizing simplicity during the 1995 design. All numbers are treated as IEEE 754 binary64 (double).
 
-`2^53 = 9007199254740992` までの整数は正確に表現できるが、それ以上では精度が失われる。`Number.MAX_SAFE_INTEGER = 9007199254740991` が安全に扱える最大の整数である。
+Integers up to `2^53 = 9007199254740992` can be represented exactly, but precision is lost beyond that. `Number.MAX_SAFE_INTEGER = 9007199254740991` is the largest integer that can be safely handled.
 
-ES2020 で `BigInt` が追加され、任意精度の整数が扱えるようになった。ただし BigInt と Number は混在演算できない（`1n + 1` はエラー）。
+`BigInt` was added in ES2020, enabling arbitrary-precision integers. However, BigInt and Number cannot be mixed in operations (`1n + 1` is an error).
 
-JSON 仕様には BigInt がないため、大きな整数 ID（Twitter の snowflake ID 等）は文字列として送受信するのが実務上の標準である。
+Since the JSON specification does not include BigInt, large integer IDs (such as Twitter's snowflake IDs) are sent and received as strings as a practical standard.
 
-### Q4: -ffast-math を使ってもよい場面はありますか？
+### Q4: Are there cases where -ffast-math is acceptable?
 
-**A**: ゲームエンジンや一部のシグナル処理など、「十分に近い結果が高速に得られればよい」場面では使用が許容される。ただし以下のリスクを理解した上で使用すること:
+**A**: In game engines and some signal processing contexts where "a sufficiently close result obtained quickly is acceptable," its use may be tolerated. However, use it only after understanding the following risks:
 
-- `isnan()`, `isinf()` が常に false を返す
-- NaN/Inf の伝播が保証されない
-- 演算の順序が変更される（結合法則を仮定）
-- `-0.0` と `+0.0` が区別されない
+- `isnan()`, `isinf()` always return false
+- NaN/Inf propagation is not guaranteed
+- Operation order may be changed (associativity assumed)
+- `-0.0` and `+0.0` are not distinguished
 
-科学計算、金融計算、暗号処理では絶対に使用してはならない。
+Never use for scientific computing, financial calculations, or cryptographic processing.
 
-### Q5: 「マシンイプシロン」とは何ですか？
+### Q5: What is "machine epsilon"?
 
-**A**: マシンイプシロン（machine epsilon）は、`1.0 + ε > 1.0` となる最小の浮動小数点数 ε のことである。言い換えると、1.0 に加算したときに結果が 1.0 と区別できる最小の値である。
+**A**: Machine epsilon is the smallest floating-point number epsilon such that `1.0 + epsilon > 1.0`. In other words, it is the smallest value that, when added to 1.0, produces a result distinguishable from 1.0.
 
-- binary32: ε = 2^(-23) ≈ 1.19 × 10^(-7)
-- binary64: ε = 2^(-52) ≈ 2.22 × 10^(-16)
+- binary32: epsilon = 2^(-23) ~ 1.19 x 10^(-7)
+- binary64: epsilon = 2^(-52) ~ 2.22 x 10^(-16)
 
-マシンイプシロンは「相対丸め誤差の上界」を意味する。任意の実数 x を最近接の浮動小数点数 fl(x) に丸めたとき、`|fl(x) - x| / |x| ≤ ε/2` が成り立つ。
+Machine epsilon represents the "upper bound on relative rounding error." When rounding any real number x to its nearest floating-point representation fl(x), `|fl(x) - x| / |x| <= epsilon/2` holds.
 
-Python では `sys.float_info.epsilon` で、C では `DBL_EPSILON`（`<float.h>`）で取得できる。
+In Python, it can be obtained via `sys.float_info.epsilon`; in C, via `DBL_EPSILON` (`<float.h>`).
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when studying this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is paramount. Understanding deepens not just through theory, but by actually writing code and verifying behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this knowledge used in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently used in daily development work. It becomes particularly important during code reviews and architecture design.
 
 ---
 
-## 15. まとめ
+## 15. Summary
 
-### 重要概念の一覧
+### Key Concept Overview
 
-| 概念 | 要点 |
-|------|------|
-| IEEE 754 構造 | 符号(1) + 指数部(8/11) + 仮数部(23/52)。暗黙の先頭1ビット |
-| 正規化数 | `(-1)^S × 1.M × 2^(E-bias)`。通常の浮動小数点数 |
-| 非正規化数 | `(-1)^S × 0.M × 2^(1-bias)`。段階的アンダーフロー |
-| 特殊値 | ±0, ±Inf, NaN。NaN != NaN が最大の注意点 |
-| 精度問題 | 0.1 は2進数で無限循環。比較にはイプシロン使用 |
-| 桁落ち | 近い値の減算で有効桁数激減。公式の変形で回避 |
-| 情報落ち | 大きさの異なる値の加算で小さい値が消失。加算順序が重要 |
-| 丸めモード | デフォルトは最近接偶数丸め。統計的偏りを最小化 |
-| 密度分布 | ゼロ付近が密、大きな値は疎。ULP は指数に比例 |
-| 整数精度限界 | float32: 2^24, float64: 2^53 を超えると整数精度を失う |
-| AI 低精度 | BF16/FP16/FP8。メモリ帯域幅がボトルネック、精度より速度 |
-| 混合精度学習 | 重みはFP32、計算はFP16/BF16。Loss Scalingが必須 |
+| Concept | Key Point |
+|---------|-----------|
+| IEEE 754 structure | Sign(1) + Exponent(8/11) + Mantissa(23/52). Implicit leading 1 bit |
+| Normalized numbers | `(-1)^S x 1.M x 2^(E-bias)`. Standard floating-point numbers |
+| Denormalized numbers | `(-1)^S x 0.M x 2^(1-bias)`. Gradual underflow |
+| Special values | +/-0, +/-Inf, NaN. NaN != NaN is the key caution |
+| Precision issues | 0.1 is an infinite repeating fraction in binary. Use epsilon for comparison |
+| Catastrophic cancellation | Subtraction of close values drastically reduces significant digits. Avoid through formula transformation |
+| Absorption | Adding values of different magnitudes causes the smaller value to vanish. Addition order matters |
+| Rounding modes | Default is round to nearest even. Minimizes statistical bias |
+| Density distribution | Dense near zero, sparse for large values. ULP is proportional to exponent |
+| Integer precision limit | float32: 2^24, float64: 2^53 -- integer precision lost beyond these |
+| AI low precision | BF16/FP16/FP8. Memory bandwidth is the bottleneck; speed over precision |
+| Mixed precision training | Weights in FP32, computation in FP16/BF16. Loss Scaling is essential |
 
-### 対策チェックリスト
+### Countermeasure Checklist
 
 ```
-□ 浮動小数点の == 比較を避け、math.isclose() やイプシロン比較を使用
-□ 金融計算には Decimal 型または整数演算を使用
-□ 大量の加算には Kahan 補償加算または math.fsum を使用
-□ 近い値の減算（桁落ち）を避ける数式変形を検討
-□ 加算の順序に注意（小さい値から加算）
-□ NaN の判定には isnan() 専用関数を使用
-□ JSON の大きな整数 ID は文字列で扱う
-□ コンパイラの -ffast-math を安易に使用しない
-□ 数値計算では条件数を確認し、悪条件問題に注意
-□ AI/ML では用途に応じた精度フォーマットを選択
+[ ] Avoid == comparison for floating-point; use math.isclose() or epsilon comparison
+[ ] Use Decimal type or integer arithmetic for financial calculations
+[ ] Use Kahan compensated summation or math.fsum for large-scale addition
+[ ] Consider formula transformations to avoid catastrophic cancellation
+[ ] Pay attention to addition order (add smallest values first)
+[ ] Use dedicated isnan() functions for NaN detection
+[ ] Handle large integer IDs in JSON as strings
+[ ] Do not casually use -ffast-math compiler flag
+[ ] Check condition numbers in numerical computing; beware of ill-conditioned problems
+[ ] Select appropriate precision format for AI/ML use cases
 ```
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Reading
 
 
 ---
 
-## 参考文献
+## References
 
-1. Goldberg, D. "What Every Computer Scientist Should Know About Floating-Point Arithmetic." *ACM Computing Surveys*, Vol. 23, No. 1, pp. 5-48, 1991. — 浮動小数点の古典的名著。全てのプログラマ必読。
-2. IEEE. "IEEE 754-2019: Standard for Floating-Point Arithmetic." IEEE, 2019. — 現行の IEEE 754 規格。binary16, binary128, decimal フォーマットを含む。
-3. Kahan, W. "How Java's Floating-Point Hurts Everyone Everywhere." *Lecture Notes*, UC Berkeley, 1998. — IEEE 754 の主設計者による Java の浮動小数点実装への批判と提言。
-4. Muller, J.-M. et al. "Handbook of Floating-Point Arithmetic." 2nd Edition, Birkhäuser, 2018. — 浮動小数点演算の包括的リファレンス。アルゴリズムと誤差解析を網羅。
-5. Micikevicius, P. et al. "Mixed Precision Training." *ICLR 2018*. — NVIDIA による混合精度学習の提案論文。Loss Scaling の理論と実践。
-6. Higham, N. J. "Accuracy and Stability of Numerical Algorithms." 2nd Edition, SIAM, 2002. — 数値アルゴリズムの精度と安定性に関する決定版テキスト。
-7. Patterson, D. A. and Hennessy, J. L. "Computer Organization and Design." 6th Edition, Morgan Kaufmann, 2020. — コンピュータ・アーキテクチャの教科書。浮動小数点ハードウェアの解説を含む。
+1. Goldberg, D. "What Every Computer Scientist Should Know About Floating-Point Arithmetic." *ACM Computing Surveys*, Vol. 23, No. 1, pp. 5-48, 1991. -- The classic treatise on floating-point. Required reading for every programmer.
+2. IEEE. "IEEE 754-2019: Standard for Floating-Point Arithmetic." IEEE, 2019. -- The current IEEE 754 standard. Includes binary16, binary128, and decimal formats.
+3. Kahan, W. "How Java's Floating-Point Hurts Everyone Everywhere." *Lecture Notes*, UC Berkeley, 1998. -- Critique and recommendations regarding Java's floating-point implementation by the lead designer of IEEE 754.
+4. Muller, J.-M. et al. "Handbook of Floating-Point Arithmetic." 2nd Edition, Birkhauser, 2018. -- Comprehensive reference on floating-point arithmetic. Covers algorithms and error analysis.
+5. Micikevicius, P. et al. "Mixed Precision Training." *ICLR 2018*. -- NVIDIA's proposal for mixed precision training. Theory and practice of Loss Scaling.
+6. Higham, N. J. "Accuracy and Stability of Numerical Algorithms." 2nd Edition, SIAM, 2002. -- The definitive text on accuracy and stability of numerical algorithms.
+7. Patterson, D. A. and Hennessy, J. L. "Computer Organization and Design." 6th Edition, Morgan Kaufmann, 2020. -- Computer architecture textbook. Includes explanation of floating-point hardware.

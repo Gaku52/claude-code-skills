@@ -1,123 +1,123 @@
-# スタックとキュー
+# Stacks and Queues
 
-> スタック（LIFO）は関数呼び出しと括弧の対応を、キュー（FIFO）はタスクスケジューリングとBFSを支える。
+> Stacks (LIFO) underpin function calls and parenthesis matching, while queues (FIFO) underpin task scheduling and BFS.
 
-## この章で学ぶこと
+## Learning Objectives
 
-- [ ] スタック（LIFO）とキュー（FIFO）の概念・操作・計算量を完全に説明できる
-- [ ] 配列実装と連結リスト実装の両方をゼロから書ける
-- [ ] コールスタック・括弧検証・逆ポーランド記法など典型問題を解ける
-- [ ] 循環バッファによるキュー実装を理解し、利点を説明できる
-- [ ] 両端キュー（Deque）の仕組みと用途を把握する
-- [ ] 優先度キュー（ヒープ）の内部構造を理解し、ダイクストラ法に適用できる
-- [ ] 単調スタック・単調キューで O(n) の最適解を導ける
-- [ ] Undo/Redo、BFS/DFS、タスクスケジューラ等の実務応用を設計できる
-- [ ] CPython の list や Java の ArrayDeque の内部実装を説明できる
-- [ ] 各データ構造のトレードオフを比較し、場面に応じて最適な選択ができる
+- [ ] Fully explain the concepts, operations, and time complexities of stacks (LIFO) and queues (FIFO)
+- [ ] Implement both array-based and linked-list-based versions from scratch
+- [ ] Solve classic problems such as the call stack, parenthesis validation, and Reverse Polish Notation
+- [ ] Understand the circular buffer queue implementation and explain its advantages
+- [ ] Grasp the mechanism and use cases of the double-ended queue (Deque)
+- [ ] Understand the internal structure of a priority queue (heap) and apply it to Dijkstra's algorithm
+- [ ] Derive O(n) optimal solutions using monotonic stacks and monotonic queues
+- [ ] Design practical applications such as Undo/Redo, BFS/DFS, and task schedulers
+- [ ] Explain the internal implementations of CPython's list and Java's ArrayDeque
+- [ ] Compare the trade-offs of each data structure and choose the optimal one for each scenario
 
-## 前提知識
+## Prerequisites
 
-- ポインタ・参照の基本概念
-
----
-
-## 1. なぜスタックとキューが必要か
-
-配列やリストは汎用的なデータ格納手段だが、「どの順序でデータを取り出すか」に制約を課すことで、アルゴリズムの意図を明確にし、バグを減らし、パフォーマンスを保証できる。
-
-スタックとキューは **制約付きの線形データ構造** である。操作を限定することで以下の恩恵を得る。
-
-1. **意図の明示**: push/pop だけを許すことで「最後に入れたものを最初に取り出す」という不変条件をコードレベルで保証する
-2. **バグの防止**: 任意位置へのアクセスを禁止することで、不正な操作を型レベル・インタフェースレベルで排除する
-3. **計算量の保証**: 主要操作がすべて O(1) であることを構造的に担保する
-4. **アルゴリズムとの対応**: DFS にはスタック、BFS にはキューという対応関係が、探索の正しさを保証する
-
-### 1.1 日常のアナロジー
-
-```
-スタック（LIFO: Last In, First Out）        キュー（FIFO: First In, First Out）
-┌─────────────────────┐                     ┌─────────────────────────────────┐
-│ 本の積み重ね         │                     │ レジの行列                       │
-│                     │                     │                                 │
-│  ┌───┐ ← 最後に置いた │                     │  先頭 → [A] [B] [C] [D] ← 末尾  │
-│  │ C │   本を最初に取る│                     │  最初に並んだ人が最初にサービス   │
-│  ├───┤              │                     │  を受ける                        │
-│  │ B │              │                     │                                 │
-│  ├───┤              │                     │  enqueue(E):                     │
-│  │ A │              │                     │  [A] [B] [C] [D] [E]            │
-│  └───┘              │                     │                                 │
-│  pop → C を取り出し  │                     │  dequeue → A を取り出し           │
-└─────────────────────┘                     └─────────────────────────────────┘
-```
-
-スタックは「皿の山」「ブラウザの戻るボタン」「Ctrl+Z の Undo 履歴」に対応する。キューは「プリンタの印刷待ち」「コールセンターの待ち行列」「メッセージキュー」に対応する。
-
-### 1.2 抽象データ型（ADT）としての定義
-
-スタックとキューは **抽象データ型（Abstract Data Type）** である。つまり、内部の実装方法は問わず、外部から見たインタフェース（操作の集合）で定義される。
-
-**スタック ADT**:
-- `push(x)`: 要素 x をトップに追加する
-- `pop()`: トップの要素を削除して返す
-- `peek()` / `top()`: トップの要素を削除せずに返す
-- `is_empty()`: スタックが空かどうかを返す
-- `size()`: 要素数を返す
-
-**キュー ADT**:
-- `enqueue(x)`: 要素 x を末尾に追加する
-- `dequeue()`: 先頭の要素を削除して返す
-- `peek()` / `front()`: 先頭の要素を削除せずに返す
-- `is_empty()`: キューが空かどうかを返す
-- `size()`: 要素数を返す
-
-これらの ADT を実現する具体的なデータ構造（配列、連結リスト、循環バッファ等）は複数存在し、それぞれに長所と短所がある。以下のセクションで順に見ていく。
+- Basic concepts of pointers and references
 
 ---
 
-## 2. スタック（Stack）
+## 1. Why Stacks and Queues Are Necessary
 
-### 2.1 配列によるスタック実装
+Arrays and lists are general-purpose data storage, but by imposing constraints on the order in which data is retrieved, we can clarify algorithmic intent, reduce bugs, and guarantee performance.
 
-最も単純なスタック実装は、動的配列（Python の list、Java の ArrayList）の末尾を利用するものである。
+Stacks and queues are **constrained linear data structures**. By limiting operations, we gain the following benefits:
 
-#### Python 実装
+1. **Explicit intent**: By allowing only push/pop, we guarantee the invariant "the last item inserted is the first to be removed" at the code level
+2. **Bug prevention**: By prohibiting random-position access, we eliminate invalid operations at the type or interface level
+3. **Complexity guarantees**: All primary operations are structurally guaranteed to be O(1)
+4. **Algorithmic correspondence**: The mapping of stacks to DFS and queues to BFS guarantees the correctness of the traversal
+
+### 1.1 Everyday Analogies
+
+```
+Stack (LIFO: Last In, First Out)          Queue (FIFO: First In, First Out)
++-----------------------+                 +---------------------------------+
+| A stack of books      |                 | A line at a register            |
+|                       |                 |                                 |
+|  +---+ <- Last book   |                 |  Front -> [A] [B] [C] [D] <- Rear
+|  | C |    placed is    |                 |  The first person in line gets  |
+|  +---+    removed first|                 |  served first                   |
+|  | B |                |                 |                                 |
+|  +---+                |                 |  enqueue(E):                    |
+|  | A |                |                 |  [A] [B] [C] [D] [E]           |
+|  +---+                |                 |                                 |
+|  pop -> Removes C     |                 |  dequeue -> Removes A           |
++-----------------------+                 +---------------------------------+
+```
+
+Stacks correspond to "a stack of plates", "the browser's back button", and "the Ctrl+Z undo history". Queues correspond to "a printer's print queue", "a call center's waiting line", and "a message queue".
+
+### 1.2 Definition as an Abstract Data Type (ADT)
+
+Stacks and queues are **Abstract Data Types (ADTs)**. That is, they are defined by the set of operations visible from the outside (their interface), regardless of the internal implementation.
+
+**Stack ADT**:
+- `push(x)`: Add element x to the top
+- `pop()`: Remove and return the top element
+- `peek()` / `top()`: Return the top element without removing it
+- `is_empty()`: Return whether the stack is empty
+- `size()`: Return the number of elements
+
+**Queue ADT**:
+- `enqueue(x)`: Add element x to the rear
+- `dequeue()`: Remove and return the front element
+- `peek()` / `front()`: Return the front element without removing it
+- `is_empty()`: Return whether the queue is empty
+- `size()`: Return the number of elements
+
+Multiple concrete data structures (arrays, linked lists, circular buffers, etc.) can realize these ADTs, each with its own strengths and weaknesses. We will examine them in the following sections.
+
+---
+
+## 2. Stack
+
+### 2.1 Array-Based Stack Implementation
+
+The simplest stack implementation uses the tail end of a dynamic array (Python's list, Java's ArrayList).
+
+#### Python Implementation
 
 ```python
 class ArrayStack:
-    """動的配列ベースのスタック実装"""
+    """Dynamic array-based stack implementation"""
 
     def __init__(self):
         self._data = []
 
     def push(self, value):
-        """要素をトップに追加する: O(1) 償却"""
+        """Add element to top: O(1) amortized"""
         self._data.append(value)
 
     def pop(self):
-        """トップの要素を削除して返す: O(1) 償却"""
+        """Remove and return top element: O(1) amortized"""
         if self.is_empty():
             raise IndexError("pop from empty stack")
         return self._data.pop()
 
     def peek(self):
-        """トップの要素を参照する: O(1)"""
+        """View top element: O(1)"""
         if self.is_empty():
             raise IndexError("peek from empty stack")
         return self._data[-1]
 
     def is_empty(self):
-        """空かどうか: O(1)"""
+        """Check if empty: O(1)"""
         return len(self._data) == 0
 
     def size(self):
-        """要素数: O(1)"""
+        """Number of elements: O(1)"""
         return len(self._data)
 
     def __repr__(self):
         return f"ArrayStack({self._data})"
 
 
-# 動作確認
+# Verification
 if __name__ == "__main__":
     s = ArrayStack()
     s.push(10)
@@ -133,13 +133,13 @@ if __name__ == "__main__":
     print(s.is_empty()) # True
 ```
 
-**計算量分析**:
-- `push`: O(1) 償却。内部配列の容量が足りないときだけ O(n) のリサイズが発生するが、倍々に拡張するため償却 O(1)。
-- `pop`: O(1) 償却。同様の理由。
-- `peek`: O(1)。末尾要素のインデックスアクセスのみ。
-- 空間計算量: O(n)。ただし、動的配列の未使用領域分のオーバーヘッドがある。
+**Complexity Analysis**:
+- `push`: O(1) amortized. An O(n) resize occurs only when the internal array runs out of capacity, but since it doubles in size, the amortized cost is O(1).
+- `pop`: O(1) amortized. Same reasoning.
+- `peek`: O(1). Only an index access to the last element.
+- Space complexity: O(n). However, there is overhead from unused capacity in the dynamic array.
 
-#### C 言語実装（固定サイズ配列）
+#### C Implementation (Fixed-Size Array)
 
 ```c
 #include <stdio.h>
@@ -150,7 +150,7 @@ if __name__ == "__main__":
 
 typedef struct {
     int data[MAX_SIZE];
-    int top;  /* 次に push する位置（=要素数） */
+    int top;  /* Next push position (= element count) */
 } Stack;
 
 void stack_init(Stack *s) {
@@ -206,15 +206,15 @@ int main(void) {
 }
 ```
 
-C 言語版では固定サイズ配列を使っているため、スタックオーバーフローのチェックが必須である。組み込みシステムやカーネルモジュールでは、この固定サイズ方式がメモリアロケーションのオーバーヘッドを回避するために好まれる。
+The C implementation uses a fixed-size array, so a stack overflow check is essential. In embedded systems and kernel modules, this fixed-size approach is preferred to avoid the overhead of memory allocation.
 
-### 2.2 連結リストによるスタック実装
+### 2.2 Linked-List-Based Stack Implementation
 
-連結リストの先頭をスタックのトップとして使うと、push/pop が常に O(1)（最悪計算量も O(1)）で実現できる。動的配列のように容量のリサイズが不要という利点がある。
+By using the head of a linked list as the stack top, push/pop can always be achieved in O(1) (worst-case O(1)). Unlike dynamic arrays, no capacity resizing is needed.
 
 ```python
 class Node:
-    """単方向連結リストのノード"""
+    """Node for a singly linked list"""
     __slots__ = ('value', 'next')
 
     def __init__(self, value, next_node=None):
@@ -223,19 +223,19 @@ class Node:
 
 
 class LinkedStack:
-    """連結リストベースのスタック実装"""
+    """Linked-list-based stack implementation"""
 
     def __init__(self):
         self._top = None
         self._size = 0
 
     def push(self, value):
-        """新しいノードを先頭に追加: O(1) 最悪"""
+        """Add new node at head: O(1) worst case"""
         self._top = Node(value, self._top)
         self._size += 1
 
     def pop(self):
-        """先頭ノードを削除して値を返す: O(1) 最悪"""
+        """Remove head node and return its value: O(1) worst case"""
         if self.is_empty():
             raise IndexError("pop from empty stack")
         value = self._top.value
@@ -244,7 +244,7 @@ class LinkedStack:
         return value
 
     def peek(self):
-        """先頭ノードの値を参照: O(1)"""
+        """View head node's value: O(1)"""
         if self.is_empty():
             raise IndexError("peek from empty stack")
         return self._top.value
@@ -256,7 +256,7 @@ class LinkedStack:
         return self._size
 
     def __iter__(self):
-        """トップからボトムへの走査"""
+        """Traverse from top to bottom"""
         current = self._top
         while current is not None:
             yield current.value
@@ -266,7 +266,7 @@ class LinkedStack:
         return f"LinkedStack([{', '.join(str(v) for v in self)}])"
 
 
-# 動作確認
+# Verification
 if __name__ == "__main__":
     s = LinkedStack()
     for v in [10, 20, 30]:
@@ -277,50 +277,50 @@ if __name__ == "__main__":
     print(s.size())     # 2
 ```
 
-**連結リスト方式の図解**:
+**Diagram of the linked list approach**:
 
 ```
-push(10) → push(20) → push(30):
+push(10) -> push(20) -> push(30):
 
   top
-   │
+   |
    v
- ┌────┬───┐    ┌────┬───┐    ┌────┬──────┐
- │ 30 │ ──┼───>│ 20 │ ──┼───>│ 10 │ None │
- └────┴───┘    └────┴───┘    └────┴──────┘
+ +----+---+    +----+---+    +----+------+
+ | 30 | --+--->| 20 | --+--->| 10 | None |
+ +----+---+    +----+---+    +----+------+
 
-pop() → 30 を返し、top を次のノードに移動:
+pop() -> Returns 30 and moves top to the next node:
 
   top
-   │
+   |
    v
- ┌────┬───┐    ┌────┬──────┐
- │ 20 │ ──┼───>│ 10 │ None │
- └────┴───┘    └────┴──────┘
+ +----+---+    +----+------+
+ | 20 | --+--->| 10 | None |
+ +----+---+    +----+------+
 ```
 
-### 2.3 配列実装 vs 連結リスト実装の比較
+### 2.3 Array-Based vs. Linked-List-Based Comparison
 
-| 観点 | 配列（動的配列）ベース | 連結リストベース |
-|------|----------------------|----------------|
-| push の計算量 | O(1) 償却（リサイズ時 O(n)） | O(1) 最悪 |
-| pop の計算量 | O(1) 償却 | O(1) 最悪 |
-| メモリ効率 | 連続メモリ、キャッシュフレンドリー | ノードごとにポインタのオーバーヘッド |
-| メモリ割り当て | リサイズ時にまとめて割り当て | 要素ごとに割り当て |
-| キャッシュ性能 | 優秀（空間的局所性が高い） | 劣る（ノードが散在しうる） |
-| 最大サイズ | 動的に拡張可能（連続メモリが必要） | メモリの断片があっても利用可能 |
-| 実装の簡潔さ | 非常に簡潔（言語組み込みを利用） | やや複雑（ノード管理が必要） |
-| リアルタイム性 | リサイズ時にスパイクあり | 完全に一定時間 |
+| Aspect | Array (Dynamic Array) Based | Linked List Based |
+|--------|---------------------------|-------------------|
+| push complexity | O(1) amortized (O(n) on resize) | O(1) worst case |
+| pop complexity | O(1) amortized | O(1) worst case |
+| Memory efficiency | Contiguous memory, cache-friendly | Pointer overhead per node |
+| Memory allocation | Bulk allocation on resize | Per-element allocation |
+| Cache performance | Excellent (high spatial locality) | Poor (nodes may be scattered) |
+| Maximum size | Dynamically expandable (requires contiguous memory) | Can use fragmented memory |
+| Implementation simplicity | Very simple (uses language built-ins) | Somewhat complex (node management required) |
+| Real-time suitability | Spikes on resize | Perfectly constant time |
 
-**推奨**: 一般的な用途では配列ベースが最適（キャッシュ効率が高く、実装が簡潔）。リアルタイムシステムや最悪計算量の保証が必要な場面では連結リストベースを検討する。
+**Recommendation**: For general use, the array-based approach is optimal (high cache efficiency and simple implementation). Consider the linked-list approach for real-time systems or scenarios that require worst-case complexity guarantees.
 
-### 2.4 コールスタック — プログラムの根幹
+### 2.4 The Call Stack -- Foundation of Program Execution
 
-プログラムの実行において、関数呼び出しはスタックで管理される。これを **コールスタック（Call Stack）** と呼ぶ。
+In program execution, function calls are managed on a stack. This is called the **call stack**.
 
 ```python
 def factorial(n):
-    """再帰的に階乗を計算する"""
+    """Compute factorial recursively"""
     if n <= 1:
         return 1
     return n * factorial(n - 1)
@@ -328,64 +328,64 @@ def factorial(n):
 print(factorial(5))  # 120
 ```
 
-`factorial(5)` を呼び出すと、コールスタックは以下のように変化する。
+When `factorial(5)` is called, the call stack changes as follows:
 
 ```
-呼び出し時（スタックが成長する方向）:
+During invocation (stack grows upward):
 
-  factorial(5) を呼び出し
-  ┌─────────────────┐
-  │ factorial(1)     │ ← n=1, return 1
-  ├─────────────────┤
-  │ factorial(2)     │ ← n=2, 待機中: 2 * factorial(1)
-  ├─────────────────┤
-  │ factorial(3)     │ ← n=3, 待機中: 3 * factorial(2)
-  ├─────────────────┤
-  │ factorial(4)     │ ← n=4, 待機中: 4 * factorial(3)
-  ├─────────────────┤
-  │ factorial(5)     │ ← n=5, 待機中: 5 * factorial(4)
-  ├─────────────────┤
-  │ main()           │ ← 最初の呼び出し元
-  └─────────────────┘
+  Calling factorial(5)
+  +-------------------+
+  | factorial(1)      | <- n=1, return 1
+  +-------------------+
+  | factorial(2)      | <- n=2, waiting: 2 * factorial(1)
+  +-------------------+
+  | factorial(3)      | <- n=3, waiting: 3 * factorial(2)
+  +-------------------+
+  | factorial(4)      | <- n=4, waiting: 4 * factorial(3)
+  +-------------------+
+  | factorial(5)      | <- n=5, waiting: 5 * factorial(4)
+  +-------------------+
+  | main()            | <- Original caller
+  +-------------------+
 
-戻り時（スタックが縮小する方向）:
+During return (stack shrinks):
 
-  factorial(1) → 1 を返す
-  factorial(2) → 2 * 1 = 2 を返す
-  factorial(3) → 3 * 2 = 6 を返す
-  factorial(4) → 4 * 6 = 24 を返す
-  factorial(5) → 5 * 24 = 120 を返す
+  factorial(1) -> returns 1
+  factorial(2) -> returns 2 * 1 = 2
+  factorial(3) -> returns 3 * 2 = 6
+  factorial(4) -> returns 4 * 6 = 24
+  factorial(5) -> returns 5 * 24 = 120
 ```
 
-各フレームには、関数のローカル変数、戻りアドレス、引数の情報が含まれる。再帰が深すぎると **スタックオーバーフロー** が発生する（Python のデフォルト再帰上限は 1000）。
+Each frame contains the function's local variables, return address, and argument information. If the recursion is too deep, a **stack overflow** occurs (Python's default recursion limit is 1000).
 
 ```python
 import sys
 print(sys.getrecursionlimit())  # 1000
 
-# 再帰上限の変更（推奨しない。末尾再帰最適化か反復に書き換えるべき）
+# Changing the recursion limit (not recommended; rewrite to tail recursion or iteration instead)
 # sys.setrecursionlimit(10000)
 ```
 
-### 2.5 括弧の対応検証
+### 2.5 Parenthesis Matching Validation
 
-括弧の対応チェックは、スタックの代表的な応用問題である。
+Parenthesis matching is a classic stack application problem.
 
 ```python
 def is_valid_parentheses(s: str) -> bool:
     """
-    括弧が正しく対応しているかを検証する。
-    対応する括弧: (), [], {}
+    Validate whether parentheses are correctly matched.
+    Matching pairs: (), [], {}
 
-    アルゴリズム:
-    1. 開き括弧が来たらスタックに push
-    2. 閉じ括弧が来たら:
-       a. スタックが空なら False（対応する開き括弧がない）
-       b. トップの開き括弧と対応しなければ False
-       c. 対応すれば pop
-    3. 最後にスタックが空なら True（すべて対応した）
+    Algorithm:
+    1. Push opening brackets onto the stack
+    2. When a closing bracket appears:
+       a. If the stack is empty, return False (no matching opening bracket)
+       b. If the top of the stack doesn't match, return False
+       c. If it matches, pop
+    3. At the end, if the stack is empty, return True (all matched)
 
-    計算量: O(n) 時間、O(n) 空間
+    Complexity: O(n) time, O(n) space
     """
     stack = []
     pairs = {')': '(', ']': '[', '}': '{'}
@@ -395,16 +395,16 @@ def is_valid_parentheses(s: str) -> bool:
             stack.append(char)
         elif char in ')]}':
             if not stack:
-                return False  # 対応する開き括弧がない
+                return False  # No matching opening bracket
             if stack[-1] != pairs[char]:
-                return False  # 括弧の種類が不一致
+                return False  # Bracket type mismatch
             stack.pop()
-        # 括弧以外の文字は無視
+        # Ignore non-bracket characters
 
-    return len(stack) == 0  # 未対応の開き括弧が残っていないか
+    return len(stack) == 0  # Check for unmatched opening brackets
 
 
-# テストケース
+# Test cases
 assert is_valid_parentheses("()") == True
 assert is_valid_parentheses("()[]{}") == True
 assert is_valid_parentheses("(]") == False
@@ -416,31 +416,31 @@ assert is_valid_parentheses(")") == False
 print("All tests passed!")
 ```
 
-### 2.6 逆ポーランド記法（後置記法）の評価
+### 2.6 Evaluating Reverse Polish Notation (Postfix Notation)
 
-逆ポーランド記法（Reverse Polish Notation, RPN）は、演算子を被演算子の後に置く表記法である。括弧が不要になるため、計算機の内部処理に適している。
+Reverse Polish Notation (RPN) is a notation system where operators are placed after their operands. Since parentheses are unnecessary, it is well-suited for internal processing in calculators.
 
 ```python
 def eval_rpn(tokens: list) -> int:
     """
-    逆ポーランド記法の式を評価する。
+    Evaluate a Reverse Polish Notation expression.
 
-    例: ["2", "1", "+", "3", "*"] → (2 + 1) * 3 = 9
+    Example: ["2", "1", "+", "3", "*"] -> (2 + 1) * 3 = 9
 
-    アルゴリズム:
-    1. 数値ならスタックに push
-    2. 演算子なら、スタックから2つ pop して計算し、結果を push
-    3. 最後にスタックに残った1つの値が答え
+    Algorithm:
+    1. If the token is a number, push it onto the stack
+    2. If it's an operator, pop two operands, compute, and push the result
+    3. The last remaining value on the stack is the answer
 
-    計算量: O(n) 時間、O(n) 空間
+    Complexity: O(n) time, O(n) space
     """
     stack = []
     operators = {'+', '-', '*', '/'}
 
     for token in tokens:
         if token in operators:
-            b = stack.pop()  # 2番目のオペランド（後に push されたもの）
-            a = stack.pop()  # 1番目のオペランド（先に push されたもの）
+            b = stack.pop()  # Second operand (pushed later)
+            a = stack.pop()  # First operand (pushed earlier)
             if token == '+':
                 stack.append(a + b)
             elif token == '-':
@@ -448,7 +448,7 @@ def eval_rpn(tokens: list) -> int:
             elif token == '*':
                 stack.append(a * b)
             elif token == '/':
-                # C 言語風のゼロ方向への切り捨て
+                # C-style truncation toward zero
                 stack.append(int(a / b))
         else:
             stack.append(int(token))
@@ -456,56 +456,56 @@ def eval_rpn(tokens: list) -> int:
     return stack[0]
 
 
-# テストケース
+# Test cases
 assert eval_rpn(["2", "1", "+", "3", "*"]) == 9
 assert eval_rpn(["4", "13", "5", "/", "+"]) == 6
 assert eval_rpn(["10", "6", "9", "3", "+", "-11", "*", "/", "*", "17", "+", "5", "+"]) == 22
 print("All RPN tests passed!")
 ```
 
-**処理の流れの図解**:
+**Step-by-step diagram**:
 
 ```
-式: ["2", "1", "+", "3", "*"]
+Expression: ["2", "1", "+", "3", "*"]
 
-ステップ1: "2" → push(2)     スタック: [2]
-ステップ2: "1" → push(1)     スタック: [2, 1]
-ステップ3: "+" → pop 1, 2    スタック: [3]       (2+1=3)
-           push(3)
-ステップ4: "3" → push(3)     スタック: [3, 3]
-ステップ5: "*" → pop 3, 3    スタック: [9]       (3*3=9)
-           push(9)
+Step 1: "2" -> push(2)     Stack: [2]
+Step 2: "1" -> push(1)     Stack: [2, 1]
+Step 3: "+" -> pop 1, 2    Stack: [3]       (2+1=3)
+         push(3)
+Step 4: "3" -> push(3)     Stack: [3, 3]
+Step 5: "*" -> pop 3, 3    Stack: [9]       (3*3=9)
+         push(9)
 
-結果: 9
+Result: 9
 ```
 
 ---
 
-## 3. キュー（Queue）
+## 3. Queue
 
-### 3.1 配列によるキュー実装（素朴な方法とその問題点）
+### 3.1 Array-Based Queue Implementation (Naive Approach and Its Problems)
 
-Python の list で素朴にキューを実装すると、dequeue が O(n) になる問題がある。
+Implementing a queue naively with Python's list results in O(n) dequeue operations.
 
 ```python
 class NaiveArrayQueue:
     """
-    素朴な配列ベースキュー（問題あり）
-    dequeue が O(n) であり、大量のデータには不適切
+    Naive array-based queue (problematic).
+    dequeue is O(n) and unsuitable for large volumes of data.
     """
 
     def __init__(self):
         self._data = []
 
     def enqueue(self, value):
-        """末尾に追加: O(1) 償却"""
+        """Add to rear: O(1) amortized"""
         self._data.append(value)
 
     def dequeue(self):
-        """先頭から削除: *** O(n) *** — 全要素のシフトが発生"""
+        """Remove from front: *** O(n) *** -- shifts all elements"""
         if self.is_empty():
             raise IndexError("dequeue from empty queue")
-        return self._data.pop(0)  # これが O(n) のボトルネック！
+        return self._data.pop(0)  # This is the O(n) bottleneck!
 
     def peek(self):
         if self.is_empty():
@@ -519,27 +519,27 @@ class NaiveArrayQueue:
         return len(self._data)
 ```
 
-`pop(0)` は先頭要素を削除した後、残りの全要素を1つ前にシフトする必要があるため O(n) である。これは 10 万件規模のデータで著しく遅くなる。
+`pop(0)` is O(n) because after removing the front element, all remaining elements must be shifted forward by one position. This becomes critically slow at around 100,000 elements.
 
-### 3.2 循環バッファによるキュー実装
+### 3.2 Circular Buffer Queue Implementation
 
-循環バッファ（Ring Buffer / Circular Buffer）を使えば、固定サイズの配列で enqueue/dequeue の両方を O(1) で実現できる。
+Using a circular buffer (ring buffer), both enqueue and dequeue can be performed in O(1) with a fixed-size array.
 
 ```python
 class CircularQueue:
     """
-    循環バッファベースのキュー実装。
-    固定サイズの配列で enqueue/dequeue を O(1) で実現する。
+    Circular buffer-based queue implementation.
+    Achieves O(1) enqueue/dequeue with a fixed-size array.
     """
 
     def __init__(self, capacity=16):
         self._data = [None] * capacity
         self._capacity = capacity
-        self._front = 0   # 先頭要素のインデックス
-        self._size = 0     # 現在の要素数
+        self._front = 0   # Index of the front element
+        self._size = 0     # Current number of elements
 
     def enqueue(self, value):
-        """末尾に追加: O(1)"""
+        """Add to rear: O(1)"""
         if self._size == self._capacity:
             self._resize(self._capacity * 2)
         rear = (self._front + self._size) % self._capacity
@@ -547,17 +547,17 @@ class CircularQueue:
         self._size += 1
 
     def dequeue(self):
-        """先頭から削除: O(1)"""
+        """Remove from front: O(1)"""
         if self.is_empty():
             raise IndexError("dequeue from empty queue")
         value = self._data[self._front]
-        self._data[self._front] = None  # メモリリーク防止
+        self._data[self._front] = None  # Prevent memory leak
         self._front = (self._front + 1) % self._capacity
         self._size -= 1
         return value
 
     def peek(self):
-        """先頭要素を参照: O(1)"""
+        """View front element: O(1)"""
         if self.is_empty():
             raise IndexError("peek from empty queue")
         return self._data[self._front]
@@ -569,7 +569,7 @@ class CircularQueue:
         return self._size
 
     def _resize(self, new_capacity):
-        """配列を拡張し、要素を再配置"""
+        """Expand the array and rearrange elements"""
         new_data = [None] * new_capacity
         for i in range(self._size):
             new_data[i] = self._data[(self._front + i) % self._capacity]
@@ -584,7 +584,7 @@ class CircularQueue:
         return f"CircularQueue([{', '.join(items)}])"
 
 
-# 動作確認
+# Verification
 if __name__ == "__main__":
     q = CircularQueue(capacity=4)
     q.enqueue(10)
@@ -598,41 +598,41 @@ if __name__ == "__main__":
     print(q)           # CircularQueue([30, 40, 50])
 ```
 
-**循環バッファの図解**:
+**Circular buffer diagram**:
 
 ```
-capacity=6 の循環バッファ:
+Circular buffer with capacity=6:
 
-初期状態: enqueue(A), enqueue(B), enqueue(C)
-  ┌───┬───┬───┬───┬───┬───┐
-  │ A │ B │ C │   │   │   │
-  └───┴───┴───┴───┴───┴───┘
-    ^front          ^rear(次の挿入位置)
+Initial state: enqueue(A), enqueue(B), enqueue(C)
+  +---+---+---+---+---+---+
+  | A | B | C |   |   |   |
+  +---+---+---+---+---+---+
+    ^front          ^rear (next insertion position)
     size=3
 
-dequeue() → A:
-  ┌───┬───┬───┬───┬───┬───┐
-  │   │ B │ C │   │   │   │
-  └───┴───┴───┴───┴───┴───┘
+dequeue() -> A:
+  +---+---+---+---+---+---+
+  |   | B | C |   |   |   |
+  +---+---+---+---+---+---+
         ^front      ^rear
     size=2
 
 enqueue(D), enqueue(E), enqueue(F):
-  ┌───┬───┬───┬───┬───┬───┐
-  │   │ B │ C │ D │ E │ F │
-  └───┴───┴───┴───┴───┴───┘
-        ^front              ^rear(=0、配列の先頭に巻き戻る)
+  +---+---+---+---+---+---+
+  |   | B | C | D | E | F |
+  +---+---+---+---+---+---+
+        ^front              ^rear (=0, wraps to start of array)
     size=5
 
-enqueue(G) → rear は 0 の位置に書き込む（循環!）:
-  ┌───┬───┬───┬───┬───┬───┐
-  │ G │ B │ C │ D │ E │ F │
-  └───┴───┴───┴───┴───┴───┘
+enqueue(G) -> rear writes to position 0 (circular!):
+  +---+---+---+---+---+---+
+  | G | B | C | D | E | F |
+  +---+---+---+---+---+---+
     ^rear ^front
-    size=6 (満杯 → 次の enqueue でリサイズ)
+    size=6 (full -> resize on next enqueue)
 ```
 
-### 3.3 連結リストによるキュー実装
+### 3.3 Linked-List-Based Queue Implementation
 
 ```python
 class Node:
@@ -645,8 +645,8 @@ class Node:
 
 class LinkedQueue:
     """
-    連結リストベースのキュー実装。
-    head が先頭（dequeue 側）、tail が末尾（enqueue 側）。
+    Linked-list-based queue implementation.
+    head is the front (dequeue side), tail is the rear (enqueue side).
     """
 
     def __init__(self):
@@ -655,7 +655,7 @@ class LinkedQueue:
         self._size = 0
 
     def enqueue(self, value):
-        """末尾に追加: O(1)"""
+        """Add to rear: O(1)"""
         new_node = Node(value)
         if self.is_empty():
             self._head = new_node
@@ -665,13 +665,13 @@ class LinkedQueue:
         self._size += 1
 
     def dequeue(self):
-        """先頭から削除: O(1)"""
+        """Remove from front: O(1)"""
         if self.is_empty():
             raise IndexError("dequeue from empty queue")
         value = self._head.value
         self._head = self._head.next
         if self._head is None:
-            self._tail = None  # キューが空になった
+            self._tail = None  # Queue became empty
         self._size -= 1
         return value
 
@@ -687,7 +687,7 @@ class LinkedQueue:
         return self._size
 
 
-# 動作確認
+# Verification
 if __name__ == "__main__":
     q = LinkedQueue()
     q.enqueue(10)
@@ -698,126 +698,126 @@ if __name__ == "__main__":
     print(q.size())     # 2
 ```
 
-### 3.4 キュー実装方式の比較
+### 3.4 Queue Implementation Comparison
 
-| 観点 | 素朴な配列 | 循環バッファ | 連結リスト |
-|------|-----------|-------------|-----------|
-| enqueue | O(1) 償却 | O(1) 償却 | O(1) 最悪 |
-| dequeue | **O(n)** | O(1) 償却 | O(1) 最悪 |
-| メモリ効率 | 高い | 高い | ノード分オーバーヘッド |
-| キャッシュ効率 | 高い | 高い | 低い |
-| 実装の複雑さ | 最も簡単 | 中程度 | 中程度 |
-| 最悪計算量 | O(n) | O(n)（リサイズ時） | O(1) |
-| 使うべき場面 | 使わない | 一般的な用途 | リアルタイムシステム |
+| Aspect | Naive Array | Circular Buffer | Linked List |
+|--------|-------------|----------------|-------------|
+| enqueue | O(1) amortized | O(1) amortized | O(1) worst case |
+| dequeue | **O(n)** | O(1) amortized | O(1) worst case |
+| Memory efficiency | High | High | Node overhead |
+| Cache efficiency | High | High | Low |
+| Implementation complexity | Simplest | Moderate | Moderate |
+| Worst-case complexity | O(n) | O(n) (on resize) | O(1) |
+| When to use | Don't use this | General purpose | Real-time systems |
 
 ---
 
-## 4. 両端キュー（Deque）
+## 4. Double-Ended Queue (Deque)
 
-### 4.1 Deque の概念
+### 4.1 Deque Concept
 
-Deque（Double-Ended Queue、デック/デキュー）は、両端からの挿入・削除を O(1) で行えるデータ構造である。スタックとキューの両方の機能を兼ね備える。
+A Deque (Double-Ended Queue, pronounced "deck") is a data structure that supports O(1) insertion and deletion at both ends. It combines the functionality of both stacks and queues.
 
 ```
          appendleft        append
-              │                │
+              |                |
               v                v
-  ┌───┬───┬───┬───┬───┬───┬───┐
-  │   │ A │ B │ C │ D │ E │   │
-  └───┴───┴───┴───┴───┴───┴───┘
+  +---+---+---+---+---+---+---+
+  |   | A | B | C | D | E |   |
+  +---+---+---+---+---+---+---+
               ^                ^
-              │                │
+              |                |
           popleft            pop
 ```
 
-### 4.2 Python の collections.deque
+### 4.2 Python's collections.deque
 
-Python の `collections.deque` は、内部的にブロック連結リスト（doubly-linked list of fixed-size blocks）で実装されており、両端操作が O(1) で行える。
+Python's `collections.deque` is internally implemented as a doubly-linked list of fixed-size blocks, enabling O(1) operations at both ends.
 
 ```python
 from collections import deque
 
-# 基本操作
+# Basic operations
 dq = deque()
 
-# 右端の操作（スタック的・キュー的）
-dq.append(1)       # 右に追加: O(1)
+# Right-end operations (stack-like / queue-like)
+dq.append(1)       # Add to right: O(1)
 dq.append(2)
 dq.append(3)
 print(dq)           # deque([1, 2, 3])
 
-val = dq.pop()      # 右から取出: O(1) → 3
+val = dq.pop()      # Remove from right: O(1) -> 3
 print(dq)           # deque([1, 2])
 
-# 左端の操作
-dq.appendleft(0)    # 左に追加: O(1)
+# Left-end operations
+dq.appendleft(0)    # Add to left: O(1)
 print(dq)           # deque([0, 1, 2])
 
-val = dq.popleft()  # 左から取出: O(1) → 0
+val = dq.popleft()  # Remove from left: O(1) -> 0
 print(dq)           # deque([1, 2])
 
-# 固定長 deque（古い要素を自動で捨てる）
+# Fixed-length deque (automatically discards old elements)
 history = deque(maxlen=3)
 history.append("page1")
 history.append("page2")
 history.append("page3")
-history.append("page4")  # "page1" が自動的に消える
+history.append("page4")  # "page1" is automatically removed
 print(history)      # deque(['page2', 'page3', 'page4'], maxlen=3)
 
-# 回転
+# Rotation
 dq2 = deque([1, 2, 3, 4, 5])
-dq2.rotate(2)       # 右に2つ回転
+dq2.rotate(2)       # Rotate right by 2
 print(dq2)          # deque([4, 5, 1, 2, 3])
-dq2.rotate(-2)      # 左に2つ回転
+dq2.rotate(-2)      # Rotate left by 2
 print(dq2)          # deque([1, 2, 3, 4, 5])
 ```
 
-**注意点**: `deque` はインデックスアクセス `dq[i]` が O(n) である（内部がブロック連結リストのため）。ランダムアクセスが頻繁なら `list` を使うべきである。
+**Note**: Index access `dq[i]` on a `deque` is O(n) (because the internal structure is a block-linked list). If random access is frequent, use `list` instead.
 
-### 4.3 Deque の用途
+### 4.3 Deque Use Cases
 
-1. **スライディングウィンドウの最大値/最小値**: 単調 Deque を用いて O(n) で解ける（後述のセクション 6 で詳述）
-2. **回文チェック**: 両端から文字を取り出して比較する
-3. **仕事の窃取（Work Stealing）**: マルチスレッドのタスクスケジューリングで、自分のキューの片端からタスクを取り、他人のキューの反対端からタスクを盗む
-4. **ブラウザの戻る/進む**: 2つのスタックの代わりに1つの Deque で管理可能
+1. **Sliding window max/min**: Can be solved in O(n) using a monotonic deque (detailed in Section 6)
+2. **Palindrome check**: Compare characters removed from both ends
+3. **Work stealing**: In multi-threaded task scheduling, a thread takes tasks from one end of its own queue and steals from the opposite end of another thread's queue
+4. **Browser back/forward**: Can be managed with a single deque instead of two stacks
 
 ---
 
-## 5. 優先度キュー（Priority Queue）
+## 5. Priority Queue
 
-### 5.1 概念と動機
+### 5.1 Concept and Motivation
 
-通常のキューは FIFO（先入れ先出し）だが、**優先度キュー** は「最も優先度の高い要素」を最初に取り出す。救急外来のトリアージに似ている。到着順ではなく、重症度の高い患者が先に診察される。
+A regular queue is FIFO (first-in, first-out), but a **priority queue** retrieves the element with the highest priority first. It is similar to triage in an emergency room: patients are seen by severity, not arrival order.
 
-優先度キューの ADT:
-- `insert(element, priority)`: 要素を優先度とともに追加する
-- `extract_min()` / `extract_max()`: 最も優先度の高い要素を取り出す
-- `peek()`: 最も優先度の高い要素を参照する
+Priority Queue ADT:
+- `insert(element, priority)`: Add an element with a priority
+- `extract_min()` / `extract_max()`: Remove and return the element with the highest priority
+- `peek()`: View the element with the highest priority
 
-### 5.2 ヒープによる実装
+### 5.2 Heap-Based Implementation
 
-優先度キューの最も効率的な実装は **二分ヒープ（Binary Heap）** である。
+The most efficient implementation of a priority queue is the **binary heap**.
 
 ```python
 class MinHeap:
     """
-    最小ヒープの完全な実装。
-    配列で二分木を表現する。
+    Complete implementation of a min-heap.
+    Represents a binary tree using an array.
 
-    親: i → 子: 2i+1, 2i+2
-    子: i → 親: (i-1)//2
+    Parent: i -> Children: 2i+1, 2i+2
+    Child: i -> Parent: (i-1)//2
     """
 
     def __init__(self):
         self._data = []
 
     def insert(self, value):
-        """要素を追加: O(log n)"""
+        """Add element: O(log n)"""
         self._data.append(value)
         self._sift_up(len(self._data) - 1)
 
     def extract_min(self):
-        """最小要素を取り出す: O(log n)"""
+        """Remove and return minimum element: O(log n)"""
         if not self._data:
             raise IndexError("extract from empty heap")
         min_val = self._data[0]
@@ -828,13 +828,13 @@ class MinHeap:
         return min_val
 
     def peek(self):
-        """最小要素を参照: O(1)"""
+        """View minimum element: O(1)"""
         if not self._data:
             raise IndexError("peek from empty heap")
         return self._data[0]
 
     def _sift_up(self, idx):
-        """追加した要素を適切な位置まで上に移動"""
+        """Move added element up to the correct position"""
         while idx > 0:
             parent = (idx - 1) // 2
             if self._data[idx] < self._data[parent]:
@@ -844,7 +844,7 @@ class MinHeap:
                 break
 
     def _sift_down(self, idx):
-        """ルートの要素を適切な位置まで下に移動"""
+        """Move root element down to the correct position"""
         n = len(self._data)
         while True:
             smallest = idx
@@ -869,7 +869,7 @@ class MinHeap:
         return len(self._data) == 0
 
 
-# 動作確認
+# Verification
 if __name__ == "__main__":
     heap = MinHeap()
     for v in [5, 3, 8, 1, 2, 7]:
@@ -878,13 +878,13 @@ if __name__ == "__main__":
     result = []
     while not heap.is_empty():
         result.append(heap.extract_min())
-    print(result)  # [1, 2, 3, 5, 7, 8] — ヒープソート
+    print(result)  # [1, 2, 3, 5, 7, 8] -- Heapsort
 ```
 
-**ヒープの内部構造（図解）**:
+**Heap internal structure (diagram)**:
 
 ```
-insert の過程: [5, 3, 8, 1, 2, 7]
+Insertion process: [5, 3, 8, 1, 2, 7]
 
 (1) insert(5):          (2) insert(3):          (3) insert(8):
        5                      3                       3
@@ -898,20 +898,20 @@ insert の過程: [5, 3, 8, 1, 2, 7]
     /                      / \                     / \ /
    5                      5   3                   5  3 8
 
-配列表現: [1, 2, 7, 5, 3, 8]
+Array representation: [1, 2, 7, 5, 3, 8]
 
-インデックス:  0  1  2  3  4  5
-               1  2  7  5  3  8
-               │
-               └─ 最小値は常にインデックス 0
+Index:  0  1  2  3  4  5
+        1  2  7  5  3  8
+        |
+        +- Minimum is always at index 0
 ```
 
-### 5.3 Python の heapq モジュール
+### 5.3 Python's heapq Module
 
 ```python
 import heapq
 
-# 最小ヒープ
+# Min-heap
 heap = []
 heapq.heappush(heap, 3)
 heapq.heappush(heap, 1)
@@ -923,7 +923,7 @@ print(heapq.heappop(heap))  # 1
 print(heapq.heappop(heap))  # 1
 print(heap[0])               # 3 (peek)
 
-# 最大ヒープ（値を反転して格納）
+# Max-heap (store negated values)
 max_heap = []
 for val in [3, 1, 4, 1, 5]:
     heapq.heappush(max_heap, -val)
@@ -931,20 +931,20 @@ for val in [3, 1, 4, 1, 5]:
 print(-heapq.heappop(max_heap))  # 5
 print(-heapq.heappop(max_heap))  # 4
 
-# n個の最大/最小要素
+# Top n largest/smallest elements
 data = [3, 1, 4, 1, 5, 9, 2, 6, 5, 3]
 print(heapq.nlargest(3, data))   # [9, 6, 5]
 print(heapq.nsmallest(3, data))  # [1, 1, 2]
 
-# 既存のリストをヒープ化: O(n)
+# Heapify an existing list: O(n)
 data = [5, 3, 8, 1, 2, 7]
 heapq.heapify(data)
-print(data)  # [1, 2, 7, 5, 3, 8]（ヒープ性質を満たす）
+print(data)  # [1, 2, 7, 5, 3, 8] (satisfies heap property)
 ```
 
-### 5.4 ダイクストラ法との連携
+### 5.4 Integration with Dijkstra's Algorithm
 
-優先度キューの最も有名な応用がダイクストラ法（最短経路アルゴリズム）である。
+The most famous application of priority queues is Dijkstra's algorithm (shortest path algorithm).
 
 ```python
 import heapq
@@ -952,14 +952,14 @@ from collections import defaultdict
 
 def dijkstra(graph: dict, start: str) -> dict:
     """
-    ダイクストラ法: 単一始点最短経路。
+    Dijkstra's algorithm: Single-source shortest paths.
     graph: {node: [(neighbor, weight), ...]}
-    戻り値: {node: 最短距離}
+    Returns: {node: shortest_distance}
 
-    計算量: O((V + E) log V)  （二分ヒープ使用時）
+    Complexity: O((V + E) log V)  (with binary heap)
     """
     distances = {start: 0}
-    pq = [(0, start)]  # (距離, ノード)
+    pq = [(0, start)]  # (distance, node)
     visited = set()
 
     while pq:
@@ -978,7 +978,7 @@ def dijkstra(graph: dict, start: str) -> dict:
     return distances
 
 
-# テスト用グラフ
+# Test graph
 #
 #     A ---2--- B ---3--- D
 #     |         |         |
@@ -1000,7 +1000,7 @@ print(result)
 # {'A': 0, 'B': 2, 'E': 3, 'C': 4, 'D': 5, 'F': 5}
 ```
 
-### 5.5 Top-K 問題
+### 5.5 Top-K Problem
 
 ```python
 import heapq
@@ -1008,59 +1008,59 @@ from collections import Counter
 
 def top_k_frequent(nums: list, k: int) -> list:
     """
-    出現頻度が高い上位 K 個の要素を返す。
+    Return the top K most frequent elements.
 
-    方法: サイズ K のミニヒープを維持する。
-    計算量: O(n log k) — 全ソート O(n log n) より効率的（k << n の場合）
+    Method: Maintain a min-heap of size K.
+    Complexity: O(n log k) -- more efficient than full sort O(n log n) when k << n
     """
     count = Counter(nums)
     return heapq.nlargest(k, count.keys(), key=count.get)
 
 
-# テスト
+# Test
 nums = [1, 1, 1, 2, 2, 3, 3, 3, 3, 4]
-print(top_k_frequent(nums, 2))  # [3, 1] — 3が4回、1が3回
+print(top_k_frequent(nums, 2))  # [3, 1] -- 3 appears 4 times, 1 appears 3 times
 ```
 
-### 5.6 優先度キューの操作計算量
+### 5.6 Priority Queue Operation Complexities
 
-| 操作 | 二分ヒープ | ソート済み配列 | 未ソート配列 | フィボナッチヒープ |
-|------|-----------|-------------|-------------|----------------|
-| insert | O(log n) | O(n) | O(1) | O(1) 償却 |
-| extract_min | O(log n) | O(1) | O(n) | O(log n) 償却 |
+| Operation | Binary Heap | Sorted Array | Unsorted Array | Fibonacci Heap |
+|-----------|------------|--------------|----------------|----------------|
+| insert | O(log n) | O(n) | O(1) | O(1) amortized |
+| extract_min | O(log n) | O(1) | O(n) | O(log n) amortized |
 | peek | O(1) | O(1) | O(n) | O(1) |
-| decrease_key | O(log n) | O(n) | O(1) | O(1) 償却 |
-| 構築 | O(n) | O(n log n) | O(n) | O(n) |
+| decrease_key | O(log n) | O(n) | O(1) | O(1) amortized |
+| Build | O(n) | O(n log n) | O(n) | O(n) |
 
-実用上は、二分ヒープが最もバランスが良く、実装も比較的容易であるため広く使われている。フィボナッチヒープは理論的に優れるが、定数倍が大きく実装も複雑なため、実務ではほとんど使われない。
+In practice, the binary heap is the most balanced and relatively easy to implement, making it widely used. The Fibonacci heap is theoretically superior but has large constant factors and complex implementation, so it is rarely used in practice.
 
 ---
 
-## 6. 単調スタック・単調キュー
+## 6. Monotonic Stacks and Monotonic Queues
 
-### 6.1 単調スタック（Monotonic Stack）
+### 6.1 Monotonic Stack
 
-単調スタックは、スタック内の要素が常に単調増加（または単調減少）になるように管理するテクニックである。「各要素について、右（左）にある最初の大きい（小さい）要素を見つける」問題を O(n) で解ける。
+A monotonic stack is a technique that maintains elements in the stack in monotonically increasing (or decreasing) order. It solves problems like "for each element, find the first larger (or smaller) element to its right (or left)" in O(n).
 
 ```python
 def next_greater_element(arr: list) -> list:
     """
-    各要素について、右側にある最初の「より大きい要素」を求める。
-    見つからなければ -1。
+    For each element, find the first "greater element" to its right.
+    Return -1 if not found.
 
-    例: [4, 2, 3, 5, 1] → [5, 3, 5, -1, -1]
+    Example: [4, 2, 3, 5, 1] -> [5, 3, 5, -1, -1]
 
-    アルゴリズム:
-    - スタックにインデックスを格納
-    - スタックのトップより大きい要素が来たら、それがトップの NGE
-    - 各要素は最大1回 push、1回 pop されるため O(n)
+    Algorithm:
+    - Store indices on the stack
+    - When an element greater than the stack top arrives, it is the NGE for the top
+    - Each element is pushed at most once and popped at most once, so O(n)
     """
     n = len(arr)
     result = [-1] * n
-    stack = []  # インデックスのスタック（値は単調減少に維持）
+    stack = []  # Stack of indices (values maintained in monotonically decreasing order)
 
     for i in range(n):
-        # 現在の要素がスタックのトップより大きい間、答えを確定
+        # While the current element is greater than the stack top, finalize answers
         while stack and arr[stack[-1]] < arr[i]:
             idx = stack.pop()
             result[idx] = arr[i]
@@ -1069,7 +1069,7 @@ def next_greater_element(arr: list) -> list:
     return result
 
 
-# テスト
+# Test
 print(next_greater_element([4, 2, 3, 5, 1]))
 # [5, 3, 5, -1, -1]
 
@@ -1077,49 +1077,49 @@ print(next_greater_element([1, 3, 2, 4]))
 # [3, 4, 4, -1]
 ```
 
-**処理の流れ（arr = [4, 2, 3, 5, 1]）**:
+**Step-by-step trace (arr = [4, 2, 3, 5, 1])**:
 
 ```
-i=0, arr[0]=4: stack=[]     → push 0       stack=[0]
-i=1, arr[1]=2: 2<4          → push 1       stack=[0,1]
-i=2, arr[2]=3: 3>arr[1]=2   → pop 1, result[1]=3
-               3<arr[0]=4   → push 2       stack=[0,2]
-i=3, arr[3]=5: 5>arr[2]=3   → pop 2, result[2]=5
-               5>arr[0]=4   → pop 0, result[0]=5
-                             → push 3       stack=[3]
-i=4, arr[4]=1: 1<arr[3]=5   → push 4       stack=[3,4]
+i=0, arr[0]=4: stack=[]     -> push 0       stack=[0]
+i=1, arr[1]=2: 2<4          -> push 1       stack=[0,1]
+i=2, arr[2]=3: 3>arr[1]=2   -> pop 1, result[1]=3
+               3<arr[0]=4   -> push 2       stack=[0,2]
+i=3, arr[3]=5: 5>arr[2]=3   -> pop 2, result[2]=5
+               5>arr[0]=4   -> pop 0, result[0]=5
+                             -> push 3       stack=[3]
+i=4, arr[4]=1: 1<arr[3]=5   -> push 4       stack=[3,4]
 
-残ったインデックス 3,4 は -1 のまま
+Remaining indices 3,4 stay at -1
 result = [5, 3, 5, -1, -1]
 ```
 
-### 6.2 単調スタックの応用: ヒストグラムの最大長方形
+### 6.2 Monotonic Stack Application: Largest Rectangle in Histogram
 
-LeetCode 84 "Largest Rectangle in Histogram" は単調スタックの代表的な応用問題である。
+LeetCode 84 "Largest Rectangle in Histogram" is a classic monotonic stack application problem.
 
 ```python
 def largest_rectangle_area(heights: list) -> int:
     """
-    ヒストグラムにおける最大長方形の面積を求める。
+    Find the largest rectangular area in a histogram.
 
-    アルゴリズム: 単調増加スタック
-    - 各バーについて、そのバーを高さとした長方形がどこまで
-      左右に伸びるかを効率的に求める
-    - スタックには単調増加のインデックスを維持
-    - 現在のバーがスタックのトップより低い場合、トップを pop して
-      面積を計算する
+    Algorithm: Monotonically increasing stack
+    - For each bar, efficiently determine how far the rectangle extends
+      left and right using that bar's height
+    - Maintain a stack of indices in monotonically increasing order
+    - When the current bar is shorter than the stack top, pop the top
+      and compute the area
 
-    計算量: O(n)
+    Complexity: O(n)
     """
-    stack = []  # インデックスの単調増加スタック
+    stack = []  # Monotonically increasing stack of indices
     max_area = 0
-    # 番兵として末尾に 0 を追加
+    # Append 0 as a sentinel at the end
     heights_ext = heights + [0]
 
     for i, h in enumerate(heights_ext):
         while stack and heights_ext[stack[-1]] > h:
             height = heights_ext[stack.pop()]
-            # 幅: スタックが空なら左端から i まで、そうでなければ stack[-1]+1 から i まで
+            # Width: if stack is empty, from left edge to i; otherwise from stack[-1]+1 to i
             width = i if not stack else i - stack[-1] - 1
             max_area = max(max_area, height * width)
         stack.append(i)
@@ -1127,91 +1127,91 @@ def largest_rectangle_area(heights: list) -> int:
     return max_area
 
 
-# テスト
+# Test
 print(largest_rectangle_area([2, 1, 5, 6, 2, 3]))  # 10 (5x2)
 print(largest_rectangle_area([2, 4]))               # 4
 ```
 
-### 6.3 単調キュー（Monotonic Deque）
+### 6.3 Monotonic Queue (Monotonic Deque)
 
-単調キュー（単調 Deque）は、スライディングウィンドウの最大値/最小値を O(n) で求めるテクニックである。
+A monotonic queue (monotonic deque) is a technique to find the sliding window maximum/minimum in O(n).
 
 ```python
 from collections import deque
 
 def max_sliding_window(nums: list, k: int) -> list:
     """
-    サイズ k のスライディングウィンドウの最大値を求める。
+    Find the maximum value in a sliding window of size k.
 
-    アルゴリズム:
-    - Deque にインデックスを格納し、値が単調減少になるよう維持
-    - Deque の先頭が常にウィンドウ内の最大値のインデックス
-    - ウィンドウから外れたインデックスは先頭から除去
-    - 現在の値より小さい値は末尾から除去（もう最大値にならない）
+    Algorithm:
+    - Store indices in a deque, maintaining values in monotonically decreasing order
+    - The front of the deque always holds the index of the window's maximum
+    - Remove indices that have fallen outside the window from the front
+    - Remove values smaller than the current value from the rear (they can never be the max)
 
-    計算量: O(n) 時間、O(k) 空間
+    Complexity: O(n) time, O(k) space
     """
     if not nums or k == 0:
         return []
 
-    dq = deque()  # インデックスを格納（値は単調減少）
+    dq = deque()  # Stores indices (values in monotonically decreasing order)
     result = []
 
     for i in range(len(nums)):
-        # ウィンドウから外れたインデックスを先頭から除去
+        # Remove indices outside the window from the front
         while dq and dq[0] < i - k + 1:
             dq.popleft()
 
-        # 現在の値より小さい値を末尾から除去
+        # Remove values smaller than the current value from the rear
         while dq and nums[dq[-1]] < nums[i]:
             dq.pop()
 
         dq.append(i)
 
-        # ウィンドウが完成したら結果に追加
+        # Add to result once the window is complete
         if i >= k - 1:
             result.append(nums[dq[0]])
 
     return result
 
 
-# テスト
+# Test
 print(max_sliding_window([1, 3, -1, -3, 5, 3, 6, 7], 3))
 # [3, 3, 5, 5, 6, 7]
 ```
 
-**処理の流れ（nums=[1,3,-1,-3,5,3,6,7], k=3）**:
+**Step-by-step trace (nums=[1,3,-1,-3,5,3,6,7], k=3)**:
 
 ```
-i=0, num=1:  dq=[0]                        ウィンドウ未完成
-i=1, num=3:  3>1 → pop 0, dq=[1]           ウィンドウ未完成
-i=2, num=-1: -1<3 → dq=[1,2]               result=[3]  (nums[1]=3)
-i=3, num=-3: -3<-1 → dq=[1,2,3]            result=[3,3]
-i=4, num=5:  5>-3 → pop 3; 5>-1 → pop 2;
-             5>3 → pop 1; dq=[4]           result=[3,3,5]
-i=5, num=3:  3<5 → dq=[4,5]                result=[3,3,5,5]
-i=6, num=6:  6>3 → pop 5; 6>5 → pop 4;
+i=0, num=1:  dq=[0]                        Window not yet complete
+i=1, num=3:  3>1 -> pop 0, dq=[1]          Window not yet complete
+i=2, num=-1: -1<3 -> dq=[1,2]              result=[3]  (nums[1]=3)
+i=3, num=-3: -3<-1 -> dq=[1,2,3]           result=[3,3]
+i=4, num=5:  5>-3 -> pop 3; 5>-1 -> pop 2;
+             5>3 -> pop 1; dq=[4]          result=[3,3,5]
+i=5, num=3:  3<5 -> dq=[4,5]               result=[3,3,5,5]
+i=6, num=6:  6>3 -> pop 5; 6>5 -> pop 4;
              dq=[6]                         result=[3,3,5,5,6]
-i=7, num=7:  7>6 → pop 6; dq=[7]           result=[3,3,5,5,6,7]
+i=7, num=7:  7>6 -> pop 6; dq=[7]          result=[3,3,5,5,6,7]
 ```
 
 ---
 
-## 7. 実務応用
+## 7. Practical Applications
 
-### 7.1 Undo/Redo 機能
+### 7.1 Undo/Redo Functionality
 
-テキストエディタの Undo/Redo は、2つのスタックで実装できる。
+A text editor's Undo/Redo can be implemented with two stacks.
 
 ```python
 class UndoRedoEditor:
     """
-    2つのスタックによる Undo/Redo の実装。
+    Undo/Redo implementation using two stacks.
 
-    undo_stack: 実行した操作の履歴
-    redo_stack: Undo した操作の履歴（Redo 用）
+    undo_stack: History of executed operations
+    redo_stack: History of undone operations (for Redo)
 
-    新しい操作を実行すると redo_stack はクリアされる。
+    Executing a new operation clears the redo_stack.
     """
 
     def __init__(self):
@@ -1220,13 +1220,13 @@ class UndoRedoEditor:
         self.redo_stack = []
 
     def type_text(self, new_text: str):
-        """テキストを入力する"""
+        """Type text"""
         self.undo_stack.append(self.text)
-        self.redo_stack.clear()  # 新操作で Redo 履歴をクリア
+        self.redo_stack.clear()  # Clear Redo history on new operation
         self.text = new_text
 
     def undo(self):
-        """直前の状態に戻す"""
+        """Revert to previous state"""
         if not self.undo_stack:
             print("Nothing to undo")
             return
@@ -1234,7 +1234,7 @@ class UndoRedoEditor:
         self.text = self.undo_stack.pop()
 
     def redo(self):
-        """Undo を取り消す"""
+        """Cancel an Undo"""
         if not self.redo_stack:
             print("Nothing to redo")
             return
@@ -1242,7 +1242,7 @@ class UndoRedoEditor:
         self.text = self.redo_stack.pop()
 
 
-# デモ
+# Demo
 editor = UndoRedoEditor()
 editor.type_text("Hello")
 editor.type_text("Hello World")
@@ -1256,21 +1256,21 @@ editor.redo()
 print(editor.text)   # "Hello World"
 ```
 
-### 7.2 BFS（幅優先探索）
+### 7.2 BFS (Breadth-First Search)
 
-キューは BFS の中核データ構造である。
+The queue is the core data structure for BFS.
 
 ```python
 from collections import deque
 
 def bfs(graph: dict, start: str) -> list:
     """
-    幅優先探索。グラフの頂点を距離順（レベル順）に走査する。
+    Breadth-first search. Traverses graph vertices in distance order (level order).
 
     graph: {node: [neighbors]}
-    戻り値: 訪問順のリスト
+    Returns: List of nodes in visit order
 
-    計算量: O(V + E)
+    Complexity: O(V + E)
     """
     visited = {start}
     queue = deque([start])
@@ -1288,7 +1288,7 @@ def bfs(graph: dict, start: str) -> list:
     return order
 
 
-# テスト
+# Test
 graph = {
     'A': ['B', 'C'],
     'B': ['A', 'D', 'E'],
@@ -1301,39 +1301,39 @@ print(bfs(graph, 'A'))  # ['A', 'B', 'C', 'D', 'E', 'F']
 ```
 
 ```
-BFS の探索順序（グラフの図解）:
+BFS traversal order (graph diagram):
 
-        A (レベル 0)
+        A (Level 0)
        / \
-      B   C (レベル 1)
+      B   C (Level 1)
      / \   \
-    D   E   F (レベル 2)
+    D   E   F (Level 2)
          \ /
-    (E-F は辺で接続)
+    (E-F are connected by an edge)
 
-キューの変化:
-  初期:    [A]
-  A 処理:  [B, C]           → A を訪問
-  B 処理:  [C, D, E]        → B を訪問
-  C 処理:  [D, E, F]        → C を訪問
-  D 処理:  [E, F]           → D を訪問
-  E 処理:  [F]              → E を訪問（F は既に visited）
-  F 処理:  []               → F を訪問
+Queue changes:
+  Initial: [A]
+  Process A:  [B, C]           -> Visit A
+  Process B:  [C, D, E]        -> Visit B
+  Process C:  [D, E, F]        -> Visit C
+  Process D:  [E, F]           -> Visit D
+  Process E:  [F]              -> Visit E (F already visited)
+  Process F:  []               -> Visit F
 ```
 
-### 7.3 DFS（深さ優先探索）— スタックによる反復実装
+### 7.3 DFS (Depth-First Search) -- Iterative Implementation Using a Stack
 
-再帰の代わりにスタックを使って DFS を実装できる。再帰が深い場合のスタックオーバーフローを回避できる。
+DFS can be implemented iteratively using a stack instead of recursion. This avoids stack overflow for deep recursion.
 
 ```python
 def dfs_iterative(graph: dict, start: str) -> list:
     """
-    スタックを使った反復的 DFS。
+    Iterative DFS using a stack.
 
-    注意: 再帰 DFS とは訪問順が微妙に異なる場合がある
-    （隣接ノードの処理順が逆になるため）。
+    Note: The visit order may differ slightly from recursive DFS
+    (because adjacent nodes are processed in reverse order).
 
-    計算量: O(V + E)
+    Complexity: O(V + E)
     """
     visited = set()
     stack = [start]
@@ -1346,7 +1346,7 @@ def dfs_iterative(graph: dict, start: str) -> list:
         visited.add(node)
         order.append(node)
 
-        # 逆順で push すると、元の順序で処理される
+        # Push in reverse order so they are processed in original order
         for neighbor in reversed(graph.get(node, [])):
             if neighbor not in visited:
                 stack.append(neighbor)
@@ -1365,7 +1365,7 @@ graph = {
 print(dfs_iterative(graph, 'A'))  # ['A', 'B', 'D', 'E', 'F', 'C']
 ```
 
-### 7.4 タスクスケジューラ
+### 7.4 Task Scheduler
 
 ```python
 import heapq
@@ -1373,30 +1373,30 @@ from collections import Counter
 
 def least_interval(tasks: list, n: int) -> int:
     """
-    タスクスケジューラ: 同種のタスク間に最低 n インターバル必要。
-    最短の総実行時間を求める。
+    Task scheduler: A minimum of n intervals is required between same-type tasks.
+    Find the minimum total execution time.
 
-    例: tasks=["A","A","A","B","B","B"], n=2
-    → A B _ A B _ A B → 8
+    Example: tasks=["A","A","A","B","B","B"], n=2
+    -> A B _ A B _ A B -> 8
 
-    アルゴリズム:
-    1. 最大ヒープで残りカウントが多いタスクから処理
-    2. クールダウン中のタスクは待機キューに入れる
-    3. 待機キューからクールダウンが終わったタスクをヒープに戻す
+    Algorithm:
+    1. Use a max-heap to process tasks with the highest remaining count first
+    2. Tasks in cooldown are placed in a waiting queue
+    3. Tasks whose cooldown has expired are moved back from the waiting queue to the heap
     """
     count = Counter(tasks)
     max_heap = [-cnt for cnt in count.values()]
     heapq.heapify(max_heap)
 
     time = 0
-    cooldown = []  # (再利用可能な時刻, 残りカウント)
+    cooldown = []  # (time when available again, remaining count)
 
     while max_heap or cooldown:
         time += 1
 
         if max_heap:
-            cnt = heapq.heappop(max_heap) + 1  # 1つ消費（負数なので +1）
-            if cnt < 0:  # まだ残っている
+            cnt = heapq.heappop(max_heap) + 1  # Consume one (negative, so +1)
+            if cnt < 0:  # Still remaining
                 cooldown.append((time + n, cnt))
 
         if cooldown and cooldown[0][0] == time:
@@ -1406,60 +1406,60 @@ def least_interval(tasks: list, n: int) -> int:
     return time
 
 
-# テスト
+# Test
 print(least_interval(["A","A","A","B","B","B"], 2))  # 8
 print(least_interval(["A","A","A","B","B","B"], 0))  # 6
 ```
 
-### 7.5 メッセージキューの概念
+### 7.5 Message Queue Concepts
 
-実務のメッセージキュー（RabbitMQ, Apache Kafka, Amazon SQS 等）は、キューの概念を分散システムに拡張したものである。
+Production message queues (RabbitMQ, Apache Kafka, Amazon SQS, etc.) extend the queue concept to distributed systems.
 
 ```
-プロデューサ                     コンシューマ
-┌──────────┐                   ┌──────────┐
-│ Web App  │──enqueue──>       │ Worker 1 │
-└──────────┘            │      └──────────┘
+Producer                        Consumer
++----------+                   +----------+
+| Web App  |--enqueue-->       | Worker 1 |
++----------+            |      +----------+
                         v          ^
-┌──────────┐    ┌───────────┐     │
-│ API Srv  │──> │ Message   │──dequeue──>
-└──────────┘    │ Queue     │     │
-                │ (Broker)  │     v
-┌──────────┐    └───────────┘  ┌──────────┐
-│ Cron Job │──enqueue──>       │ Worker 2 │
-└──────────┘                   └──────────┘
++----------+    +-----------+     |
+| API Srv  |--> | Message   |--dequeue-->
++----------+    | Queue     |     |
+                | (Broker)  |     v
++----------+    +-----------+  +----------+
+| Cron Job |--enqueue-->       | Worker 2 |
++----------+                   +----------+
 
-特徴:
-- 非同期処理: プロデューサはコンシューマの完了を待たない
-- 負荷分散: 複数のコンシューマが並行してメッセージを処理
-- 信頼性: キューがメッセージを永続化し、コンシューマ障害時に再配送
-- スケーラビリティ: コンシューマを追加するだけで処理能力を向上
+Characteristics:
+- Asynchronous processing: Producers don't wait for consumers to finish
+- Load balancing: Multiple consumers process messages in parallel
+- Reliability: The queue persists messages and redelivers on consumer failure
+- Scalability: Increase throughput simply by adding more consumers
 ```
 
 ---
 
-## 8. 各言語の標準ライブラリ実装
+## 8. Standard Library Implementations by Language
 
-### 8.1 言語別スタック/キュー/優先度キュー
+### 8.1 Stack/Queue/Priority Queue by Language
 
-| 言語 | スタック | キュー | Deque | 優先度キュー |
-|------|---------|-------|-------|-------------|
+| Language | Stack | Queue | Deque | Priority Queue |
+|----------|-------|-------|-------|----------------|
 | Python | `list` (append/pop) | `collections.deque` | `collections.deque` | `heapq` |
 | Java | `ArrayDeque` | `ArrayDeque` / `LinkedList` | `ArrayDeque` | `PriorityQueue` |
 | C++ | `std::stack` | `std::queue` | `std::deque` | `std::priority_queue` |
-| Go | スライス (append/pop) | `container/list` | なし（自作） | `container/heap` |
+| Go | Slice (append/pop) | `container/list` | None (DIY) | `container/heap` |
 | Rust | `Vec` (push/pop) | `VecDeque` | `VecDeque` | `BinaryHeap` |
-| JavaScript | `Array` (push/pop) | なし（自作） | なし（自作） | なし（自作） |
+| JavaScript | `Array` (push/pop) | None (DIY) | None (DIY) | None (DIY) |
 | C# | `Stack<T>` | `Queue<T>` | `LinkedList<T>` | `PriorityQueue<T,P>` (.NET 6+) |
 
-### 8.2 Java での使用例
+### 8.2 Java Usage Examples
 
 ```java
 import java.util.*;
 
 public class StackQueueExample {
     public static void main(String[] args) {
-        // スタック: ArrayDeque を推奨（Stack クラスは旧式で同期コストあり）
+        // Stack: ArrayDeque is recommended (Stack class is legacy with synchronization overhead)
         Deque<Integer> stack = new ArrayDeque<>();
         stack.push(10);
         stack.push(20);
@@ -1467,7 +1467,7 @@ public class StackQueueExample {
         System.out.println(stack.peek()); // 30
         System.out.println(stack.pop());  // 30
 
-        // キュー: ArrayDeque を推奨
+        // Queue: ArrayDeque is recommended
         Queue<Integer> queue = new ArrayDeque<>();
         queue.offer(10);
         queue.offer(20);
@@ -1475,14 +1475,14 @@ public class StackQueueExample {
         System.out.println(queue.peek()); // 10
         System.out.println(queue.poll()); // 10
 
-        // 優先度キュー（最小ヒープ）
+        // Priority Queue (min-heap)
         PriorityQueue<Integer> pq = new PriorityQueue<>();
         pq.offer(5);
         pq.offer(1);
         pq.offer(3);
         System.out.println(pq.poll()); // 1
 
-        // 優先度キュー（最大ヒープ）
+        // Priority Queue (max-heap)
         PriorityQueue<Integer> maxPq = new PriorityQueue<>(
             Comparator.reverseOrder()
         );
@@ -1494,7 +1494,7 @@ public class StackQueueExample {
 }
 ```
 
-### 8.3 C++ での使用例
+### 8.3 C++ Usage Examples
 
 ```cpp
 #include <iostream>
@@ -1503,15 +1503,15 @@ public class StackQueueExample {
 #include <deque>
 
 int main() {
-    // スタック（デフォルトは deque ベース）
+    // Stack (default is deque-based)
     std::stack<int> st;
     st.push(10);
     st.push(20);
     st.push(30);
     std::cout << st.top() << std::endl;  // 30
-    st.pop();  // void を返す（値は返さない）
+    st.pop();  // Returns void (does not return the value)
 
-    // キュー（デフォルトは deque ベース）
+    // Queue (default is deque-based)
     std::queue<int> q;
     q.push(10);
     q.push(20);
@@ -1519,7 +1519,7 @@ int main() {
     std::cout << q.front() << std::endl;  // 10
     q.pop();
 
-    // 優先度キュー（デフォルトは最大ヒープ）
+    // Priority queue (default is max-heap)
     std::priority_queue<int> pq;
     pq.push(5);
     pq.push(1);
@@ -1527,7 +1527,7 @@ int main() {
     std::cout << pq.top() << std::endl;  // 5
     pq.pop();
 
-    // 最小ヒープ
+    // Min-heap
     std::priority_queue<int, std::vector<int>, std::greater<int>> min_pq;
     min_pq.push(5);
     min_pq.push(1);
@@ -1540,188 +1540,188 @@ int main() {
 
 ---
 
-## 9. 内部実装の仕組み
+## 9. Internal Implementation Details
 
-### 9.1 CPython の list
+### 9.1 CPython's list
 
-CPython の `list` は、**ポインタの動的配列** として実装されている。
+CPython's `list` is implemented as a **dynamic array of pointers**.
 
 ```
-CPython list の内部構造:
+CPython list internal structure:
 
 PyListObject:
-┌──────────────────────┐
-│ ob_refcnt             │  参照カウント
-│ ob_type               │  型オブジェクトへのポインタ
-│ ob_size (Py_ssize_t)  │  現在の要素数
-│ allocated             │  確保済みスロット数
-│ ob_item (PyObject**)  │──────> ┌──────────┐
-└──────────────────────┘        │ ptr[0]   │──> PyObject (要素0)
-                                │ ptr[1]   │──> PyObject (要素1)
-                                │ ptr[2]   │──> PyObject (要素2)
-                                │ ...      │
-                                │ (空き)   │
-                                └──────────┘
++----------------------+
+| ob_refcnt             |  Reference count
+| ob_type               |  Pointer to type object
+| ob_size (Py_ssize_t)  |  Current element count
+| allocated             |  Number of allocated slots
+| ob_item (PyObject**)  |------> +----------+
++----------------------+        | ptr[0]   |--> PyObject (element 0)
+                                | ptr[1]   |--> PyObject (element 1)
+                                | ptr[2]   |--> PyObject (element 2)
+                                | ...      |
+                                | (unused) |
+                                +----------+
 
-リサイズ戦略:
-- 新しいサイズ = (現在のサイズ + 現在のサイズ >> 3) + (3 if 現在のサイズ < 9 else 6)
-- 概ね 1.125 倍ずつ成長（リストが小さいときは大きめに成長）
-- これにより append() の償却計算量が O(1) になる
+Resize strategy:
+- new_size = (current_size + current_size >> 3) + (3 if current_size < 9 else 6)
+- Grows roughly by a factor of 1.125 (grows more for small lists)
+- This ensures append() has O(1) amortized complexity
 ```
 
-`list.pop()` が O(1) なのは、末尾のポインタを無効化し `ob_size` を 1 減らすだけで済むためである。一方 `list.pop(0)` が O(n) なのは、残りの全ポインタを1つ前にシフトする必要があるためである。
+`list.pop()` is O(1) because it simply invalidates the last pointer and decrements `ob_size` by 1. In contrast, `list.pop(0)` is O(n) because all remaining pointers must be shifted forward by one position.
 
-### 9.2 CPython の collections.deque
+### 9.2 CPython's collections.deque
 
-`collections.deque` は、**固定サイズのブロック（64要素）の双方向連結リスト** として実装されている。
+`collections.deque` is implemented as a **doubly-linked list of fixed-size blocks (64 elements each)**.
 
 ```
-deque の内部構造:
+deque internal structure:
 
 dequeobject:
-┌────────────────────┐
-│ leftblock          │──> ┌─────────────────────┐
-│ rightblock         │    │ Block (64 slots)    │
-│ leftindex          │    │ ┌───┬───┬...┬───┐   │
-│ rightindex         │    │ │   │ A │   │ B │   │ ←── leftindex, rightindex
-│ length             │    │ └───┴───┴...┴───┘   │
-│ maxlen             │    │ prev ──> NULL        │
-└────────────────────┘    │ next ──> Block2      │
-                          └─────────────────────┘
-                                    │
++--------------------+
+| leftblock          |--> +---------------------+
+| rightblock         |    | Block (64 slots)    |
+| leftindex          |    | +---+---+...+---+   |
+| rightindex         |    | |   | A |   | B |   | <-- leftindex, rightindex
+| length             |    | +---+---+...+---+   |
+| maxlen             |    | prev --> NULL        |
++--------------------+    | next --> Block2      |
+                          +---------------------+
+                                    |
                                     v
-                          ┌─────────────────────┐
-                          │ Block (64 slots)    │
-                          │ ┌───┬───┬...┬───┐   │
-                          │ │ C │ D │   │   │   │
-                          │ └───┴───┴...┴───┘   │
-                          │ prev ──> Block1      │
-                          │ next ──> NULL        │
-                          └─────────────────────┘
+                          +---------------------+
+                          | Block (64 slots)    |
+                          | +---+---+...+---+   |
+                          | | C | D |   |   |   |
+                          | +---+---+...+---+   |
+                          | prev --> Block1      |
+                          | next --> NULL        |
+                          +---------------------+
 
-- 各ブロックは 64 個のスロットを持つ固定サイズ配列
-- ブロック間は双方向連結リストでつながる
-- appendleft/popleft は leftblock の leftindex を操作
-- append/pop は rightblock の rightindex を操作
-- インデックスアクセス dq[i] は O(n/64) = O(n)（ブロックを辿る必要がある）
+- Each block is a fixed-size array of 64 slots
+- Blocks are connected via a doubly-linked list
+- appendleft/popleft operate on leftblock's leftindex
+- append/pop operate on rightblock's rightindex
+- Index access dq[i] is O(n/64) = O(n) (must traverse blocks)
 ```
 
-この設計により、両端操作は O(1) でありながら、ブロック内はキャッシュフレンドリーな連続メモリである。純粋な連結リストより高速に動作する。
+This design ensures both-end operations are O(1) while memory within blocks is contiguous and cache-friendly. It runs faster than a pure linked list.
 
-### 9.3 Java の ArrayDeque
+### 9.3 Java's ArrayDeque
 
-Java の `ArrayDeque` は **循環バッファ** で実装されている。
+Java's `ArrayDeque` is implemented as a **circular buffer**.
 
 ```
-ArrayDeque の内部構造:
+ArrayDeque internal structure:
 
-┌───────────────────────────────────┐
-│ Object[] elements (2のべき乗サイズ) │
-│                                   │
-│  [  ] [E] [F] [G] [  ] [  ] [C] [D]
-│   0    1   2   3   4    5    6   7
-│                              ^head
-│              ^tail(次の挿入位置)
-│                                   │
-│ head = 6  (先頭要素のインデックス)   │
-│ tail = 4  (次に書き込むインデックス) │
-└───────────────────────────────────┘
++-----------------------------------+
+| Object[] elements (power-of-2 size)|
+|                                   |
+|  [  ] [E] [F] [G] [  ] [  ] [C] [D]
+|   0    1   2   3   4    5    6   7
+|                              ^head
+|              ^tail (next insertion position)
+|                                   |
+| head = 6  (index of front element)|
+| tail = 4  (index for next write)  |
++-----------------------------------+
 
-キューとして使用:
-  offer(x) → elements[tail] = x; tail = (tail+1) & (len-1)
-  poll()   → val = elements[head]; head = (head+1) & (len-1)
+Queue usage:
+  offer(x) -> elements[tail] = x; tail = (tail+1) & (len-1)
+  poll()   -> val = elements[head]; head = (head+1) & (len-1)
 
-スタックとして使用:
-  push(x) → head = (head-1) & (len-1); elements[head] = x
-  pop()   → val = elements[head]; head = (head+1) & (len-1)
+Stack usage:
+  push(x) -> head = (head-1) & (len-1); elements[head] = x
+  pop()   -> val = elements[head]; head = (head+1) & (len-1)
 
-- サイズは常に 2 のべき乗 → ビット AND でモジュロ演算を高速化
-- リサイズ時は 2 倍に拡張
-- null 要素は許可されない（null を番兵として使用するため）
+- Size is always a power of 2 -> bitwise AND for fast modulo operation
+- Doubles in size on resize
+- Null elements are not allowed (null is used as a sentinel)
 ```
 
-Java では `Stack` クラスは `Vector` を継承しているため、すべてのメソッドが `synchronized`（スレッドセーフだがオーバーヘッドあり）である。シングルスレッド環境では `ArrayDeque` を使うのが推奨される。
+In Java, the `Stack` class extends `Vector`, so all methods are `synchronized` (thread-safe but with overhead). In single-threaded environments, `ArrayDeque` is recommended.
 
 ---
 
-## 10. トレードオフと比較分析
+## 10. Trade-offs and Comparative Analysis
 
-### 10.1 スタック vs キューの使い分け
+### 10.1 When to Use Stack vs. Queue
 
-| 基準 | スタック（LIFO） | キュー（FIFO） |
-|------|--------------|--------------|
-| データ順序 | 後入れ先出し | 先入れ先出し |
-| 探索アルゴリズム | DFS（深さ優先） | BFS（幅優先） |
-| 最短経路 | 保証しない | 重みなしグラフで最短経路を保証 |
-| メモリ使用量（探索時） | O(最大深さ) | O(最大幅) |
-| 典型的な用途 | 式の評価、括弧チェック、Undo | タスク処理、レベル走査、最短路 |
-| 再帰との関係 | 再帰は暗黙のスタック | 再帰では自然に表現しにくい |
-| 空間効率（グラフ探索） | 深いが狭い木で有利 | 幅広い木で有利 |
+| Criterion | Stack (LIFO) | Queue (FIFO) |
+|-----------|-------------|-------------|
+| Data ordering | Last in, first out | First in, first out |
+| Search algorithm | DFS (depth-first) | BFS (breadth-first) |
+| Shortest path | Not guaranteed | Guarantees shortest path in unweighted graphs |
+| Memory usage (search) | O(max depth) | O(max width) |
+| Typical uses | Expression evaluation, parenthesis check, Undo | Task processing, level traversal, shortest path |
+| Relationship to recursion | Recursion is an implicit stack | Difficult to express naturally with recursion |
+| Space efficiency (graph search) | Favorable for deep but narrow trees | Favorable for wide trees |
 
-### 10.2 いつ何を使うか — 判断フローチャート
+### 10.2 Decision Flowchart -- When to Use What
 
 ```
-データを格納・取り出したい
-│
-├─ 最後に入れたものを最初に取り出す？
-│  └─ YES → スタック
-│     ├─ 括弧のマッチング
-│     ├─ DFS
-│     ├─ Undo/Redo
-│     └─ 式の評価（後置記法）
-│
-├─ 最初に入れたものを最初に取り出す？
-│  └─ YES → キュー
-│     ├─ BFS
-│     ├─ タスクスケジューリング
-│     └─ メッセージ処理
-│
-├─ 両端から出し入れしたい？
-│  └─ YES → Deque
-│     ├─ スライディングウィンドウ
-│     └─ スタック+キューの機能が必要
-│
-├─ 優先度に基づいて取り出したい？
-│  └─ YES → 優先度キュー（ヒープ）
-│     ├─ 最短経路（ダイクストラ）
-│     ├─ Top-K 問題
-│     └─ イベントシミュレーション
-│
-└─ ランダムアクセスも必要？
-   └─ YES → 配列/リストを使うべき（スタック/キューは不適切）
+Need to store and retrieve data
+|
++-- Retrieve the last item inserted first?
+|   +-- YES -> Stack
+|      +-- Parenthesis matching
+|      +-- DFS
+|      +-- Undo/Redo
+|      +-- Expression evaluation (postfix notation)
+|
++-- Retrieve the first item inserted first?
+|   +-- YES -> Queue
+|      +-- BFS
+|      +-- Task scheduling
+|      +-- Message processing
+|
++-- Need insertion/deletion at both ends?
+|   +-- YES -> Deque
+|      +-- Sliding window
+|      +-- Need both stack and queue functionality
+|
++-- Need retrieval based on priority?
+|   +-- YES -> Priority Queue (Heap)
+|      +-- Shortest path (Dijkstra)
+|      +-- Top-K problems
+|      +-- Event simulation
+|
++-- Also need random access?
+    +-- YES -> Use array/list (stack/queue is inappropriate)
 ```
 
-### 10.3 データ構造の総合比較表
+### 10.3 Comprehensive Data Structure Comparison
 
-| データ構造 | push/enqueue | pop/dequeue | peek | ランダムアクセス | 主な実装 | メモリ |
-|-----------|-------------|-------------|------|--------------|---------|-------|
-| スタック (配列) | O(1)* | O(1)* | O(1) | O(1) | 動的配列 | 連続 |
-| スタック (連結リスト) | O(1) | O(1) | O(1) | O(n) | 単方向リスト | 分散 |
-| キュー (循環バッファ) | O(1)* | O(1)* | O(1) | O(1) | 固定配列 | 連続 |
-| キュー (連結リスト) | O(1) | O(1) | O(1) | O(n) | 双方向リスト | 分散 |
-| Deque (ブロックリスト) | O(1) | O(1) | O(1) | O(n) | ブロック連結 | 半連続 |
-| 優先度キュー (二分ヒープ) | O(log n) | O(log n) | O(1) | - | 配列 | 連続 |
+| Data Structure | push/enqueue | pop/dequeue | peek | Random Access | Primary Implementation | Memory |
+|---------------|-------------|-------------|------|--------------|----------------------|--------|
+| Stack (array) | O(1)* | O(1)* | O(1) | O(1) | Dynamic array | Contiguous |
+| Stack (linked list) | O(1) | O(1) | O(1) | O(n) | Singly linked list | Scattered |
+| Queue (circular buffer) | O(1)* | O(1)* | O(1) | O(1) | Fixed array | Contiguous |
+| Queue (linked list) | O(1) | O(1) | O(1) | O(n) | Doubly linked list | Scattered |
+| Deque (block list) | O(1) | O(1) | O(1) | O(n) | Block linked list | Semi-contiguous |
+| Priority Queue (binary heap) | O(log n) | O(log n) | O(1) | - | Array | Contiguous |
 
-\* 償却計算量
+\* Amortized complexity
 
 ---
 
-## 11. アンチパターン
+## 11. Anti-Patterns
 
-### 11.1 アンチパターン1: list.pop(0) でキューを実装する
+### 11.1 Anti-Pattern 1: Implementing a Queue with list.pop(0)
 
 ```python
-# NG: O(n) の dequeue
+# BAD: O(n) dequeue
 queue = [1, 2, 3, 4, 5]
-val = queue.pop(0)  # O(n) — 全要素のシフトが発生
+val = queue.pop(0)  # O(n) -- shifts all elements
 
-# 10万要素で pop(0) を繰り返すと:
-# list.pop(0): 約 3.5 秒
-# deque.popleft(): 約 0.01 秒
-# 350倍の速度差!
+# Repeating pop(0) on 100,000 elements:
+# list.pop(0): ~3.5 seconds
+# deque.popleft(): ~0.01 seconds
+# 350x speed difference!
 ```
 
-**正しいアプローチ**:
+**Correct approach**:
 
 ```python
 from collections import deque
@@ -1730,97 +1730,97 @@ queue = deque([1, 2, 3, 4, 5])
 val = queue.popleft()  # O(1)
 ```
 
-**なぜこのバグが起きるか**: Python 入門書やチュートリアルで「list でキューを作れます」と紹介されることがあるため。小規模データでは速度差が目立たないが、数万件を超えると致命的なパフォーマンス問題になる。
+**Why this bug occurs**: Some Python tutorials introduce "you can make a queue with a list". With small datasets the speed difference is not noticeable, but beyond tens of thousands of elements it becomes a critical performance problem.
 
-### 11.2 アンチパターン2: 再帰を深くしすぎてスタックオーバーフロー
+### 11.2 Anti-Pattern 2: Causing Stack Overflow with Deep Recursion
 
 ```python
-# NG: 深い再帰で RecursionError
+# BAD: Deep recursion causes RecursionError
 def sum_list(lst, index=0):
     if index == len(lst):
         return 0
     return lst[index] + sum_list(lst, index + 1)
 
-# 1000 要素以下なら動くが、10000 要素で RecursionError
+# Works below 1000 elements, but RecursionError at 10000
 # sum_list(list(range(10000)))  # RecursionError!
 ```
 
-**正しいアプローチ**:
+**Correct approaches**:
 
 ```python
-# 方法1: 反復に書き換える
+# Method 1: Rewrite as iteration
 def sum_list_iterative(lst):
     total = 0
     for val in lst:
         total += val
     return total
 
-# 方法2: 明示的なスタックを使う（複雑な再帰の場合）
+# Method 2: Use an explicit stack (for complex recursion)
 def sum_list_stack(lst):
-    stack = list(range(len(lst)))  # インデックスをスタックに
+    stack = list(range(len(lst)))  # Indices on the stack
     total = 0
     while stack:
         i = stack.pop()
         total += lst[i]
     return total
 
-# 方法3: Python の組み込み関数を使う
+# Method 3: Use Python built-ins
 total = sum(range(10000))
 ```
 
-**教訓**: Python はデフォルトの再帰上限が 1000 であり、末尾再帰の最適化も行わない。深い再帰が想定される場合は、反復や明示的なスタックに書き換えるべきである。
+**Lesson**: Python's default recursion limit is 1000, and it does not perform tail-call optimization. When deep recursion is expected, rewrite to iteration or an explicit stack.
 
-### 11.3 アンチパターン3: Java の Stack クラスを使う
+### 11.3 Anti-Pattern 3: Using Java's Stack Class
 
 ```java
-// NG: Stack は Vector を継承しており、不要な同期コストがかかる
+// BAD: Stack inherits from Vector with unnecessary synchronization overhead
 Stack<Integer> stack = new Stack<>();
-stack.push(1);       // synchronized — シングルスレッドでも同期コスト発生
+stack.push(1);       // synchronized -- sync overhead even in single-threaded code
 int val = stack.pop();
 
-// さらに、Stack は Vector のメソッド（get(i), set(i, v) 等）を
-// 継承しているため、スタック以外の操作ができてしまう
-stack.add(0, 999);   // スタックの「底」に要素を挿入できてしまう（意味がない）
+// Furthermore, Stack inherits Vector's methods (get(i), set(i, v), etc.)
+// allowing non-stack operations
+stack.add(0, 999);   // Can insert at the "bottom" of the stack (meaningless)
 ```
 
-**正しいアプローチ**:
+**Correct approach**:
 
 ```java
-// OK: ArrayDeque をスタックとして使う
+// GOOD: Use ArrayDeque as a stack
 Deque<Integer> stack = new ArrayDeque<>();
 stack.push(1);
 int val = stack.pop();
-// ArrayDeque はスレッドセーフではないが、シングルスレッドでは高速
-// また、任意位置へのアクセスメソッドを持たないため、抽象データ型として適切
+// ArrayDeque is not thread-safe but faster in single-threaded contexts
+// Also, it lacks random-access methods, making it proper as an ADT
 ```
 
-### 11.4 アンチパターン4: 空のスタック/キューから pop する
+### 11.4 Anti-Pattern 4: Popping from an Empty Stack/Queue
 
 ```python
-# NG: チェックなしの pop
+# BAD: Popping without checking
 stack = []
 val = stack.pop()  # IndexError: pop from empty list
 
-# NG: キューでも同様
+# BAD: Same issue with queues
 from collections import deque
 queue = deque()
 val = queue.popleft()  # IndexError: pop from an empty deque
 ```
 
-**正しいアプローチ**:
+**Correct approaches**:
 
 ```python
-# 方法1: 事前チェック
+# Method 1: Pre-check
 if stack:
     val = stack.pop()
 
-# 方法2: 例外処理
+# Method 2: Exception handling
 try:
     val = stack.pop()
 except IndexError:
-    val = None  # デフォルト値
+    val = None  # Default value
 
-# 方法3: ラッパークラスで安全な操作を提供
+# Method 3: Provide safe operations via a wrapper class
 class SafeStack:
     def __init__(self):
         self._data = []
@@ -1831,78 +1831,78 @@ class SafeStack:
 
 ---
 
-## 12. エッジケース分析
+## 12. Edge Case Analysis
 
-### 12.1 エッジケース1: スタックに1要素しかない場合の操作
+### 12.1 Edge Case 1: Operations with Only One Element in the Stack
 
 ```python
 stack = [42]
 
-# peek と pop が同じ値を返すことを確認
+# Verify that peek and pop return the same value
 assert stack[-1] == 42   # peek
 val = stack.pop()         # pop
 assert val == 42
-assert len(stack) == 0    # 空になっている
+assert len(stack) == 0    # Now empty
 
-# 空になった後の peek/pop はエラーになるべき
-# stack[-1]  → IndexError
-# stack.pop() → IndexError
+# peek/pop on an empty stack should raise an error
+# stack[-1]  -> IndexError
+# stack.pop() -> IndexError
 ```
 
-括弧検証で問題になるケース:
+Cases that are problematic in parenthesis validation:
 
 ```python
-# 閉じ括弧だけの入力
-assert is_valid_parentheses(")") == False   # スタックが空の状態で pop を試みる
-assert is_valid_parentheses("(") == False   # 開き括弧が残ったまま終了
+# Input with only a closing bracket
+assert is_valid_parentheses(")") == False   # Attempts to pop from an empty stack
+assert is_valid_parentheses("(") == False   # Opening bracket remains at the end
 
-# 空文字列
-assert is_valid_parentheses("") == True     # 空は valid とみなす
+# Empty string
+assert is_valid_parentheses("") == True     # Empty is considered valid
 ```
 
-### 12.2 エッジケース2: 循環バッファの容量境界
+### 12.2 Edge Case 2: Circular Buffer Capacity Boundaries
 
 ```python
-# 容量 1 のキュー
+# Queue with capacity 1
 q = CircularQueue(capacity=1)
 q.enqueue(10)
-# q.enqueue(20)  → リサイズが発生する
+# q.enqueue(20)  -> Resize occurs
 print(q.dequeue())  # 10
 
-# 容量ちょうどまで埋めてから dequeue/enqueue を繰り返す
+# Fill to exactly capacity, then repeat dequeue/enqueue
 q2 = CircularQueue(capacity=4)
 for i in range(4):
     q2.enqueue(i)
-# 内部状態: [0, 1, 2, 3], front=0, size=4
+# Internal state: [0, 1, 2, 3], front=0, size=4
 
-q2.dequeue()  # 0 を取り出し → front=1, size=3
-q2.dequeue()  # 1 を取り出し → front=2, size=2
+q2.dequeue()  # Removes 0 -> front=1, size=3
+q2.dequeue()  # Removes 1 -> front=2, size=2
 
-q2.enqueue(4)  # rear = (2+2) % 4 = 0 に書き込み → 循環!
-q2.enqueue(5)  # rear = (2+3) % 4 = 1 に書き込み
+q2.enqueue(4)  # rear = (2+2) % 4 = 0 writes here -> circular!
+q2.enqueue(5)  # rear = (2+3) % 4 = 1 writes here
 
-# 内部状態: [4, 5, 2, 3], front=2, size=4
-# 論理的な順序: 2, 3, 4, 5
+# Internal state: [4, 5, 2, 3], front=2, size=4
+# Logical order: 2, 3, 4, 5
 ```
 
-### 12.3 エッジケース3: ヒープに同じ優先度の要素がある場合
+### 12.3 Edge Case 3: Elements with the Same Priority in a Heap
 
 ```python
 import heapq
 
-# 同じ優先度の要素があるとき、Python の heapq はタプルの2番目以降を比較する
-# 比較不可能なオブジェクトだとエラーになる
+# When elements have the same priority, Python's heapq compares subsequent tuple elements
+# This causes an error for non-comparable objects
 
 class Task:
     def __init__(self, name):
         self.name = name
 
-# NG: Task オブジェクトは比較不可能
+# BAD: Task objects are not comparable
 pq = []
 heapq.heappush(pq, (1, Task("A")))
 heapq.heappush(pq, (1, Task("B")))  # TypeError: '<' not supported
 
-# 正しいアプローチ: 一意なカウンタを挟む
+# Correct approach: Insert a unique counter as a tiebreaker
 counter = 0
 pq = []
 
@@ -1912,36 +1912,36 @@ def push_task(priority, task):
     counter += 1
 
 push_task(1, Task("A"))
-push_task(1, Task("B"))  # 同じ優先度でもカウンタで区別される（FIFO 順）
+push_task(1, Task("B"))  # Same priority but distinguished by counter (FIFO order)
 priority, _, task = heapq.heappop(pq)
-print(task.name)  # "A"（先に入れた方）
+print(task.name)  # "A" (the one pushed first)
 ```
 
-### 12.4 エッジケース4: 2つのスタックでキューを実装する際の償却分析
+### 12.4 Edge Case 4: Amortized Analysis of Queue Implemented with Two Stacks
 
 ```python
 class QueueFromStacks:
     """
-    2つのスタックでキューを実装する。
+    Implements a queue using two stacks.
 
-    エッジケース: dequeue 時に in_stack から out_stack への
-    移し替えが発生する。最悪 O(n) だが償却 O(1)。
+    Edge case: During dequeue, a transfer from in_stack to out_stack
+    occurs. Worst case O(n), but amortized O(1).
     """
 
     def __init__(self):
-        self.in_stack = []   # enqueue 用
-        self.out_stack = []  # dequeue 用
+        self.in_stack = []   # For enqueue
+        self.out_stack = []  # For dequeue
 
     def enqueue(self, value):
-        """常に O(1)"""
+        """Always O(1)"""
         self.in_stack.append(value)
 
     def dequeue(self):
-        """償却 O(1)、最悪 O(n)"""
+        """Amortized O(1), worst case O(n)"""
         if not self.out_stack:
             if not self.in_stack:
                 raise IndexError("dequeue from empty queue")
-            # in_stack の全要素を out_stack に移す（順序が反転する）
+            # Transfer all elements from in_stack to out_stack (reverses order)
             while self.in_stack:
                 self.out_stack.append(self.in_stack.pop())
         return self.out_stack.pop()
@@ -1955,39 +1955,39 @@ class QueueFromStacks:
         return self.out_stack[-1]
 
 
-# エッジケースのテスト
+# Edge case tests
 q = QueueFromStacks()
 
-# 1要素だけの場合
+# Single element
 q.enqueue(1)
 assert q.dequeue() == 1
 
-# enqueue と dequeue を交互に
+# Interleaved enqueue and dequeue
 q.enqueue(1)
 q.enqueue(2)
-assert q.dequeue() == 1  # in_stack → out_stack 移し替え発生
+assert q.dequeue() == 1  # in_stack -> out_stack transfer occurs
 q.enqueue(3)
-assert q.dequeue() == 2  # out_stack にまだ 2 がある
-assert q.dequeue() == 3  # in_stack → out_stack 移し替え発生
+assert q.dequeue() == 2  # out_stack still has 2
+assert q.dequeue() == 3  # in_stack -> out_stack transfer occurs
 ```
 
-**償却計算量の証明**: 各要素は、in_stack に1回 push され、in_stack から1回 pop され、out_stack に1回 push され、out_stack から1回 pop される。合計4回の操作が各要素に対して行われるため、n 回の enqueue/dequeue 全体で O(4n) = O(n)。よって1回あたりの償却計算量は O(1)。
+**Amortized complexity proof**: Each element is pushed once onto in_stack, popped once from in_stack, pushed once onto out_stack, and popped once from out_stack. That is 4 operations per element across n enqueue/dequeue operations, giving O(4n) = O(n) total. Therefore, the amortized cost per operation is O(1).
 
 ---
 
-## 13. 演習問題
+## 13. Exercises
 
-### 演習1（基礎）: 逆ポーランド記法の評価
+### Exercise 1 (Basic): Evaluate Reverse Polish Notation
 
-**問題**: 逆ポーランド記法（後置記法）の式を評価する関数を実装せよ。演算子は `+`, `-`, `*`, `/` の4種類。除算はゼロ方向への切り捨て。
+**Problem**: Implement a function to evaluate a Reverse Polish Notation (postfix) expression. Operators are `+`, `-`, `*`, `/`. Division truncates toward zero.
 
-**入力例**: `["2", "1", "+", "3", "*"]`
-**出力例**: `9` （(2+1)*3）
+**Input example**: `["2", "1", "+", "3", "*"]`
+**Output example**: `9` ((2+1)*3)
 
-**ヒント**: セクション 2.6 を参照。数値ならスタックに push、演算子なら2つ pop して計算して push。
+**Hint**: Refer to Section 2.6. Push numbers onto the stack; on an operator, pop two values, compute, and push the result.
 
 <details>
-<summary>解答例</summary>
+<summary>Solution</summary>
 
 ```python
 def eval_rpn(tokens: list) -> int:
@@ -2003,7 +2003,7 @@ def eval_rpn(tokens: list) -> int:
             stack.append(int(token))
     return stack[0]
 
-# テスト
+# Test
 assert eval_rpn(["2", "1", "+", "3", "*"]) == 9
 assert eval_rpn(["4", "13", "5", "/", "+"]) == 6
 assert eval_rpn(["10", "6", "9", "3", "+", "-11", "*", "/", "*", "17", "+", "5", "+"]) == 22
@@ -2011,18 +2011,18 @@ assert eval_rpn(["10", "6", "9", "3", "+", "-11", "*", "/", "*", "17", "+", "5",
 
 </details>
 
-### 演習2（応用）: 2つのスタックでキューを実装
+### Exercise 2 (Intermediate): Implement a Queue Using Two Stacks
 
-**問題**: スタック（push/pop のみ）を2つだけ使ってキューを実装せよ。enqueue と dequeue の償却計算量がそれぞれ O(1) であることを説明せよ。
+**Problem**: Implement a queue using only two stacks (push/pop only). Explain why the amortized complexity of enqueue and dequeue is O(1) each.
 
-**要件**:
-- `enqueue(x)`: 要素 x をキューに追加
-- `dequeue()`: 先頭の要素を削除して返す
-- `peek()`: 先頭の要素を参照
-- `is_empty()`: 空かどうか
+**Requirements**:
+- `enqueue(x)`: Add element x to the queue
+- `dequeue()`: Remove and return the front element
+- `peek()`: View the front element
+- `is_empty()`: Check if empty
 
 <details>
-<summary>解答例</summary>
+<summary>Solution</summary>
 
 ```python
 class MyQueue:
@@ -2049,9 +2049,10 @@ class MyQueue:
             while self.in_stack:
                 self.out_stack.append(self.in_stack.pop())
 
-# 償却分析:
-# 各要素は in_stack に1回 push、1回 pop、out_stack に1回 push、1回 pop
-# 計4回の O(1) 操作 → 1要素あたり O(1) → 償却 O(1)
+# Amortized analysis:
+# Each element is pushed once to in_stack, popped once from in_stack,
+# pushed once to out_stack, and popped once from out_stack.
+# 4 O(1) operations per element -> O(1) amortized per element
 
 q = MyQueue()
 q.enqueue(1)
@@ -2068,52 +2069,52 @@ assert q.is_empty()
 
 </details>
 
-### 演習3（発展）: データストリームの中央値
+### Exercise 3 (Advanced): Finding the Median from a Data Stream
 
-**問題**: データストリームからリアルタイムで中央値を求めるクラスを実装せよ。2つのヒープ（最大ヒープと最小ヒープ）を使用すること。
+**Problem**: Implement a class that computes the median in real-time from a data stream. Use two heaps (a max-heap and a min-heap).
 
-**要件**:
-- `add_num(num)`: 数値を追加する
-- `find_median()`: 現在の中央値を返す
+**Requirements**:
+- `add_num(num)`: Add a number
+- `find_median()`: Return the current median
 
-**制約**: `add_num` は O(log n)、`find_median` は O(1) で実現すること。
+**Constraint**: `add_num` must be O(log n) and `find_median` must be O(1).
 
 <details>
-<summary>解答例</summary>
+<summary>Solution</summary>
 
 ```python
 import heapq
 
 class MedianFinder:
     """
-    2つのヒープで中央値を管理する。
+    Manages the median using two heaps.
 
-    max_heap: 小さい方の半分（最大ヒープ、値を反転して格納）
-    min_heap: 大きい方の半分（最小ヒープ）
+    max_heap: The smaller half (max-heap, stored as negated values)
+    min_heap: The larger half (min-heap)
 
-    不変条件:
-    1. max_heap の全要素 <= min_heap の全要素
+    Invariants:
+    1. All elements in max_heap <= all elements in min_heap
     2. len(max_heap) == len(min_heap) or len(max_heap) == len(min_heap) + 1
 
-    中央値:
-    - 要素数が奇数: max_heap のトップ
-    - 要素数が偶数: (max_heap のトップ + min_heap のトップ) / 2
+    Median:
+    - Odd number of elements: top of max_heap
+    - Even number of elements: (top of max_heap + top of min_heap) / 2
     """
 
     def __init__(self):
-        self.max_heap = []  # 小さい方の半分（値を反転）
-        self.min_heap = []  # 大きい方の半分
+        self.max_heap = []  # Smaller half (negated values)
+        self.min_heap = []  # Larger half
 
     def add_num(self, num: int):
-        # まず max_heap に追加
+        # First add to max_heap
         heapq.heappush(self.max_heap, -num)
 
-        # max_heap のトップが min_heap のトップより大きければ移す
+        # If max_heap's top > min_heap's top, move it
         if self.min_heap and (-self.max_heap[0]) > self.min_heap[0]:
             val = -heapq.heappop(self.max_heap)
             heapq.heappush(self.min_heap, val)
 
-        # サイズのバランスを維持（max_heap が最大1つ多い）
+        # Maintain size balance (max_heap can be at most 1 larger)
         if len(self.max_heap) > len(self.min_heap) + 1:
             val = -heapq.heappop(self.max_heap)
             heapq.heappush(self.min_heap, val)
@@ -2127,7 +2128,7 @@ class MedianFinder:
         return (-self.max_heap[0] + self.min_heap[0]) / 2
 
 
-# テスト
+# Test
 mf = MedianFinder()
 mf.add_num(1)
 assert mf.find_median() == 1
@@ -2144,28 +2145,28 @@ print("All median tests passed!")
 
 </details>
 
-### 演習4（発展）: 最小値取得 O(1) のスタック
+### Exercise 4 (Advanced): Min Stack with O(1) getMin
 
-**問題**: push、pop、top に加えて、O(1) でスタック内の最小値を取得できるスタック（MinStack）を実装せよ。
+**Problem**: Implement a stack (MinStack) that supports push, pop, top, and retrieving the minimum value in O(1).
 
 <details>
-<summary>解答例</summary>
+<summary>Solution</summary>
 
 ```python
 class MinStack:
     """
-    各操作が O(1) のスタック。
-    メインスタックと並行して、各時点での最小値を記録する
-    補助スタックを管理する。
+    Stack where all operations are O(1).
+    Maintains an auxiliary stack that records the minimum at each point
+    alongside the main stack.
     """
 
     def __init__(self):
         self.stack = []
-        self.min_stack = []  # 各時点での最小値を記録
+        self.min_stack = []  # Records the minimum at each point
 
     def push(self, val):
         self.stack.append(val)
-        # min_stack のトップと比較して小さい方を push
+        # Push the smaller of val and the current min_stack top
         current_min = min(val, self.min_stack[-1] if self.min_stack else val)
         self.min_stack.append(current_min)
 
@@ -2180,15 +2181,15 @@ class MinStack:
         return self.min_stack[-1]
 
 
-# テスト
+# Test
 ms = MinStack()
 ms.push(5)
 ms.push(3)
 ms.push(7)
 assert ms.get_min() == 3
-ms.pop()  # 7 を削除
+ms.pop()  # Remove 7
 assert ms.get_min() == 3
-ms.pop()  # 3 を削除
+ms.pop()  # Remove 3
 assert ms.get_min() == 5
 print("MinStack tests passed!")
 ```
@@ -2199,172 +2200,172 @@ print("MinStack tests passed!")
 
 ## 14. FAQ
 
-### Q1: Python で list をスタックとして使って問題ないのか?
+### Q1: Is it safe to use Python's list as a stack?
 
-**A**: はい、問題ありません。Python の `list.append()` と `list.pop()` はどちらも償却 O(1) であり、スタック操作として適切です。ただし以下の点に注意してください。
+**A**: Yes, it is fine. Python's `list.append()` and `list.pop()` are both amortized O(1) and appropriate for stack operations. However, keep the following in mind:
 
-1. **pop(0) は使わない**: 先頭からの削除は O(n) です。キューが必要なら `collections.deque` を使いましょう。
-2. **メモリの縮小**: `pop()` で要素を減らしても、内部の配列サイズはすぐには縮小されません。メモリが重要な場面では注意が必要です。
-3. **スレッドセーフティ**: `list` はスレッドセーフではありません。マルチスレッド環境では `queue.LifoQueue` を使いましょう。
+1. **Don't use pop(0)**: Removing from the front is O(n). Use `collections.deque` if you need a queue.
+2. **Memory shrinkage**: Removing elements with `pop()` does not immediately shrink the internal array. Be cautious in memory-sensitive scenarios.
+3. **Thread safety**: `list` is not thread-safe. Use `queue.LifoQueue` in multi-threaded environments.
 
-### Q2: deque と list、どちらを使うべきか?
+### Q2: Should I use deque or list?
 
-**A**: 用途によって異なります。
+**A**: It depends on the use case.
 
-- **スタック（片端のみ）**: `list` で十分。`append()` / `pop()` は O(1) で、キャッシュ効率も良い。
-- **キュー（両端）**: `deque` を使う。`popleft()` が O(1) だが、`list.pop(0)` は O(n)。
-- **ランダムアクセスが必要**: `list` を使う。`deque[i]` は O(n) だが、`list[i]` は O(1)。
-- **固定長の履歴**: `deque(maxlen=N)` が便利。古い要素が自動で消える。
+- **Stack (single end only)**: `list` is sufficient. `append()` / `pop()` are O(1) with good cache efficiency.
+- **Queue (both ends)**: Use `deque`. `popleft()` is O(1), while `list.pop(0)` is O(n).
+- **Random access needed**: Use `list`. `deque[i]` is O(n), while `list[i]` is O(1).
+- **Fixed-length history**: `deque(maxlen=N)` is convenient. Old elements are automatically discarded.
 
-### Q3: 優先度キューとソート、どちらが効率的か?
+### Q3: Which is more efficient -- a priority queue or sorting?
 
-**A**: 取り出す要素数によります。
+**A**: It depends on how many elements you need to extract.
 
-- **全要素をソート順に取り出す**: ソート O(n log n) とヒープソート O(n log n) は同等。ただし、Python の `sorted()` は Timsort で定数倍が小さいため実測では速い。
-- **上位 K 個だけ取り出す（K << n）**: `heapq.nlargest(k, data)` が O(n log k) で、全ソート O(n log n) より効率的。
-- **動的にデータが追加される**: 優先度キューが適切。ソート済み配列への挿入は O(n) だが、ヒープへの挿入は O(log n)。
-- **一括処理**: データがすべて揃ってから処理するなら、ソートの方がシンプルで高速なことが多い。
+- **Extracting all elements in sorted order**: Sorting O(n log n) and heapsort O(n log n) are equivalent. However, Python's `sorted()` uses Timsort with smaller constant factors and is faster in practice.
+- **Extracting only the top K (K << n)**: `heapq.nlargest(k, data)` is O(n log k), more efficient than full sort O(n log n).
+- **Data is added dynamically**: A priority queue is appropriate. Insertion into a sorted array is O(n), while insertion into a heap is O(log n).
+- **Batch processing**: If all data is available upfront, sorting is often simpler and faster.
 
-### Q4: なぜ BFS にはキュー、DFS にはスタックを使うのか?
+### Q4: Why does BFS use a queue and DFS use a stack?
 
-**A**: 探索の順序がデータ構造の取り出し順序と一致するためです。
+**A**: Because the retrieval order of the data structure matches the exploration order.
 
-- **BFS（幅優先）**: レベル順に探索する。先に発見したノード（近いノード）を先に処理するため、FIFO のキューが必要。
-- **DFS（深さ優先）**: できるだけ深く潜ってから戻る。最後に発見したノード（最も深いノード）を先に処理するため、LIFO のスタックが必要。
+- **BFS (breadth-first)**: Explores level by level. Since nodes discovered first (closer nodes) should be processed first, a FIFO queue is needed.
+- **DFS (depth-first)**: Dives as deep as possible before backtracking. Since the most recently discovered node (deepest node) should be processed first, a LIFO stack is needed.
 
-再帰関数による DFS は、コールスタック（暗黙のスタック）を利用している。明示的なスタックに書き換えることで、深い再帰によるスタックオーバーフローを回避できる。
+Recursive DFS uses the call stack (an implicit stack). Rewriting with an explicit stack avoids stack overflow from deep recursion.
 
-### Q5: メッセージキュー（RabbitMQ, Kafka）とデータ構造のキューは何が違うのか?
+### Q5: How do message queues (RabbitMQ, Kafka) differ from the queue data structure?
 
-**A**: 概念は同じ（FIFO で要素を処理する）だが、メッセージキューは分散システム向けの追加機能を持っています。
+**A**: The concept is the same (FIFO element processing), but message queues include additional features for distributed systems.
 
-| 特徴 | データ構造のキュー | メッセージキュー |
-|------|----------------|--------------|
-| 永続性 | メモリ上のみ | ディスクに永続化可能 |
-| 耐障害性 | プロセス終了で消失 | ブローカー障害時も復旧可能 |
-| 分散 | 単一プロセス内 | ネットワーク越しに複数プロセス |
-| 確認応答 | なし | ACK/NACK によるメッセージ管理 |
-| スケーラビリティ | 単一マシン | 水平スケール可能 |
+| Feature | Queue Data Structure | Message Queue |
+|---------|---------------------|---------------|
+| Persistence | In memory only | Can persist to disk |
+| Fault tolerance | Lost on process termination | Recoverable after broker failure |
+| Distribution | Within a single process | Across multiple processes over the network |
+| Acknowledgment | None | ACK/NACK for message management |
+| Scalability | Single machine | Horizontally scalable |
 
-### Q6: スタックオーバーフローが発生したらどうすればいいか?
+### Q6: What should I do when a stack overflow occurs?
 
-**A**: 以下の順に対処を検討してください。
+**A**: Consider the following in order:
 
-1. **反復に書き換える**: 最も確実。スタックを明示的に管理する。
-2. **末尾再帰に変換する**: 言語がサポートしていれば（Python は非サポート）。
-3. **再帰の深さを減らす**: アルゴリズムの改善（例: メモ化、分割統治の改善）。
-4. **スタックサイズを増やす**: 最終手段。`sys.setrecursionlimit()` や JVM の `-Xss` オプション。
-5. **トランポリン**: 再帰呼び出しを遅延評価に変換するテクニック。
+1. **Rewrite as iteration**: The most reliable approach. Manage the stack explicitly.
+2. **Convert to tail recursion**: If the language supports it (Python does not).
+3. **Reduce recursion depth**: Improve the algorithm (e.g., memoization, better divide-and-conquer).
+4. **Increase the stack size**: Last resort. `sys.setrecursionlimit()` or JVM's `-Xss` option.
+5. **Trampoline**: A technique that transforms recursive calls into lazy evaluation.
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when studying this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just from theory, but by actually writing code and verifying its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts covered in this guide before moving on.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this applied in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently used in everyday development work. It is particularly important during code reviews and architecture design.
 
 ---
 
-## 15. まとめ
+## 15. Summary
 
-### 主要データ構造の一覧
+### Overview of Key Data Structures
 
-| データ構造 | 原則 | 主要操作 | 典型的な用途 |
-|-----------|------|---------|-------------|
-| スタック | LIFO（後入れ先出し） | push/pop: O(1) | コールスタック、括弧チェック、DFS、Undo/Redo |
-| キュー | FIFO（先入れ先出し） | enqueue/dequeue: O(1) | BFS、タスクキュー、メッセージキュー |
-| 両端キュー（Deque） | 両端操作 | 両端の追加/削除: O(1) | スライディングウィンドウ、Work Stealing |
-| 優先度キュー | 優先度順 | push: O(log n), pop: O(log n) | ダイクストラ法、Top-K、タスクスケジューラ |
-| 単調スタック | スタック内が単調 | push/pop: 償却 O(1) | Next Greater Element、ヒストグラム最大長方形 |
-| 単調キュー | Deque 内が単調 | 各操作: 償却 O(1) | スライディングウィンドウの最大値/最小値 |
+| Data Structure | Principle | Key Operations | Typical Uses |
+|---------------|-----------|---------------|--------------|
+| Stack | LIFO (Last In, First Out) | push/pop: O(1) | Call stack, parenthesis check, DFS, Undo/Redo |
+| Queue | FIFO (First In, First Out) | enqueue/dequeue: O(1) | BFS, task queue, message queue |
+| Deque | Both-end operations | Both-end add/remove: O(1) | Sliding window, work stealing |
+| Priority Queue | Priority ordering | push: O(log n), pop: O(log n) | Dijkstra's algorithm, Top-K, task scheduler |
+| Monotonic Stack | Monotonic invariant in stack | push/pop: amortized O(1) | Next Greater Element, largest rectangle in histogram |
+| Monotonic Queue | Monotonic invariant in deque | Each operation: amortized O(1) | Sliding window max/min |
 
-### 設計判断のまとめ
+### Design Decision Summary
 
-1. **「最後に入れたものを最初に取り出す」ならスタック** — DFS、式の評価、Undo
-2. **「最初に入れたものを最初に取り出す」ならキュー** — BFS、タスク処理、メッセージング
-3. **「両端から操作したい」なら Deque** — スライディングウィンドウ
-4. **「優先度に基づいて取り出す」なら優先度キュー** — 最短経路、Top-K
-5. **実装は配列ベースが基本** — キャッシュ効率が良く、実装も簡潔
-6. **Python のキューは collections.deque を使う** — list.pop(0) は O(n) で致命的
-7. **Java のスタックは ArrayDeque を使う** — Stack クラスは旧式で非推奨
+1. **"Retrieve the last item inserted first" -> Stack** -- DFS, expression evaluation, Undo
+2. **"Retrieve the first item inserted first" -> Queue** -- BFS, task processing, messaging
+3. **"Need operations at both ends" -> Deque** -- Sliding window
+4. **"Retrieve based on priority" -> Priority Queue** -- Shortest path, Top-K
+5. **Array-based is the default implementation** -- Good cache efficiency, simple implementation
+6. **Use collections.deque for queues in Python** -- list.pop(0) is O(n) and critically slow
+7. **Use ArrayDeque for stacks in Java** -- The Stack class is legacy and deprecated
 
-### 学習ロードマップ
+### Learning Roadmap
 
 ```
-基礎: スタックとキューの操作を理解する
-  │
-  ├─ 括弧の対応検証（スタック）
-  ├─ BFS（キュー）
-  └─ 逆ポーランド記法（スタック）
-  │
-中級: 応用テクニックを習得する
-  │
-  ├─ 2つのスタックでキュー実装
-  ├─ 単調スタック（Next Greater Element）
-  ├─ 優先度キュー（ヒープ）
-  └─ ダイクストラ法
-  │
-上級: 発展的な問題を解く
-  │
-  ├─ 単調キュー（スライディングウィンドウ）
-  ├─ ヒストグラムの最大長方形
-  ├─ データストリームの中央値
-  └─ タスクスケジューラ
+Fundamentals: Understand stack and queue operations
+  |
+  +-- Parenthesis matching validation (Stack)
+  +-- BFS (Queue)
+  +-- Reverse Polish Notation (Stack)
+  |
+Intermediate: Master applied techniques
+  |
+  +-- Implement queue with two stacks
+  +-- Monotonic stack (Next Greater Element)
+  +-- Priority queue (Heap)
+  +-- Dijkstra's algorithm
+  |
+Advanced: Solve advanced problems
+  |
+  +-- Monotonic queue (Sliding window)
+  +-- Largest rectangle in histogram
+  +-- Median from data stream
+  +-- Task scheduler
 ```
 
 ---
 
-## 16. 次に読むべきガイド
+## 16. Recommended Next Reading
 
 
 ---
 
-## 17. 参考文献
+## 17. References
 
 1. Cormen, T. H., Leiserson, C. E., Rivest, R. L., & Stein, C. (2022). *Introduction to Algorithms* (4th ed.). MIT Press. Chapters 6 (Heapsort) and 10 (Elementary Data Structures).
-   - スタック、キュー、ヒープの理論的基礎を網羅。計算量の証明が厳密。
+   - Comprehensive theoretical foundations for stacks, queues, and heaps. Rigorous complexity proofs.
 
 2. Sedgewick, R., & Wayne, K. (2011). *Algorithms* (4th ed.). Addison-Wesley. Chapter 1.3 (Bags, Queues, and Stacks) and Chapter 2.4 (Priority Queues).
-   - 実装寄りの解説が充実。Java による実装例が豊富。
+   - Rich implementation-oriented explanations. Abundant Java implementation examples.
 
 3. Skiena, S. S. (2020). *The Algorithm Design Manual* (3rd ed.). Springer. Chapter 3: Data Structures.
-   - 実務でのデータ構造の選び方に焦点。問題解決の戦略としてのスタック/キューの使い方。
+   - Focuses on choosing data structures in practice. Stacks/queues as problem-solving strategies.
 
-4. CPython ソースコード — `Objects/listobject.c` および `Modules/_collectionsmodule.c`.
+4. CPython source code -- `Objects/listobject.c` and `Modules/_collectionsmodule.c`.
    - https://github.com/python/cpython
-   - list と deque の内部実装の詳細。リサイズ戦略やブロック構造を確認できる。
+   - Details of the internal implementations of list and deque. Resize strategy and block structure can be examined here.
 
 5. Knuth, D. E. (1997). *The Art of Computer Programming, Volume 1: Fundamental Algorithms* (3rd ed.). Addison-Wesley. Section 2.2: Linear Lists.
-   - スタックとキューの数学的基礎。歴史的経緯も含めた包括的な解説。
+   - Mathematical foundations of stacks and queues. Comprehensive treatment including historical context.
 
 6. LeetCode Problems:
-   - [20. Valid Parentheses](https://leetcode.com/problems/valid-parentheses/) — 括弧の対応検証
-   - [150. Evaluate Reverse Polish Notation](https://leetcode.com/problems/evaluate-reverse-polish-notation/) — 逆ポーランド記法
-   - [232. Implement Queue using Stacks](https://leetcode.com/problems/implement-queue-using-stacks/) — 2つのスタックでキュー
-   - [239. Sliding Window Maximum](https://leetcode.com/problems/sliding-window-maximum/) — 単調キュー
-   - [84. Largest Rectangle in Histogram](https://leetcode.com/problems/largest-rectangle-in-histogram/) — 単調スタック
-   - [295. Find Median from Data Stream](https://leetcode.com/problems/find-median-from-data-stream/) — 2つのヒープ
-   - [155. Min Stack](https://leetcode.com/problems/min-stack/) — 最小値取得 O(1) のスタック
+   - [20. Valid Parentheses](https://leetcode.com/problems/valid-parentheses/) -- Parenthesis matching validation
+   - [150. Evaluate Reverse Polish Notation](https://leetcode.com/problems/evaluate-reverse-polish-notation/) -- Reverse Polish Notation
+   - [232. Implement Queue using Stacks](https://leetcode.com/problems/implement-queue-using-stacks/) -- Queue with two stacks
+   - [239. Sliding Window Maximum](https://leetcode.com/problems/sliding-window-maximum/) -- Monotonic queue
+   - [84. Largest Rectangle in Histogram](https://leetcode.com/problems/largest-rectangle-in-histogram/) -- Monotonic stack
+   - [295. Find Median from Data Stream](https://leetcode.com/problems/find-median-from-data-stream/) -- Two heaps
+   - [155. Min Stack](https://leetcode.com/problems/min-stack/) -- Min stack with O(1) getMin
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Reading
 
-- [ハッシュテーブル](./03-hash-tables.md) - 次のトピックへ進む
+- [Hash Tables](./03-hash-tables.md) - Proceed to the next topic
 
 ---
 
-## 参考文献
+## References
 
-- [MDN Web Docs](https://developer.mozilla.org/) - Web技術のリファレンス
-- [Wikipedia](https://ja.wikipedia.org/) - 技術概念の概要
+- [MDN Web Docs](https://developer.mozilla.org/) - Web technology reference
+- [Wikipedia](https://en.wikipedia.org/) - Overview of technical concepts

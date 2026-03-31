@@ -1,401 +1,402 @@
-# ストレージシステム
+# Storage Systems
 
-> データの永続化はコンピューティングの根幹であり、ストレージ技術の進化がデジタル社会を支えている。
+> Data persistence is the foundation of computing, and the evolution of storage technology underpins our digital society.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] HDD/SSD/NVMeの内部構造と動作原理を説明できる
-- [ ] ファイルシステムの役割と主要な実装を理解する
-- [ ] RAIDレベルの違いと使い分けを説明できる
-- [ ] ストレージI/Oの性能計算とベンチマーク手法を習得する
-- [ ] クラウドストレージとオンプレミスの使い分けを判断できる
-- [ ] データ保護戦略（バックアップ、レプリケーション）を設計できる
+- [ ] Explain the internal structure and operating principles of HDD/SSD/NVMe
+- [ ] Understand the role of file systems and their major implementations
+- [ ] Explain the differences between RAID levels and how to choose among them
+- [ ] Master storage I/O performance calculations and benchmarking techniques
+- [ ] Make informed decisions between cloud storage and on-premises storage
+- [ ] Design data protection strategies (backup, replication)
 
-## 前提知識
+## Prerequisites
 
 
 ---
 
-## 1. HDD（ハードディスクドライブ）
+## 1. HDD (Hard Disk Drive)
 
-### 1.1 内部構造
-
-```
-HDD の内部構造:
-
-  ┌─────────────────────────────────────┐
-  │                                     │
-  │     ┌───────────────────┐          │
-  │     │   プラッタ (磁気円盤) │        │
-  │     │   ┌─────────────┐ │          │
-  │     │   │  ─────────  │ │          │
-  │     │   │ /  トラック  \│ │         │
-  │     │   │|  ┌──────┐  |│ │         │
-  │     │   │| │スピンドル│ |│ │        │
-  │     │   │|  └──────┘  |│ │         │
-  │     │   │ \   セクタ  / │ │         │
-  │     │   │  ─────────  │ │          │
-  │     │   └─────────────┘ │          │
-  │     └───────────────────┘          │
-  │                                     │
-  │     ┌───────────────────────┐      │
-  │     │   アーム + ヘッド      │      │
-  │     │   ←────────● ヘッド    │      │
-  │     └───────────────────────┘      │
-  │                                     │
-  └─────────────────────────────────────┘
-
-  コンポーネント:
-  - プラッタ: 磁性体を塗布したアルミ/ガラス円盤（両面使用）
-  - スピンドル: プラッタを回転させるモーター（5400/7200/10000/15000 RPM）
-  - ヘッド: 磁気を読み書きする超小型電磁石（プラッタ表面から10nm浮上）
-  - アクチュエータアーム: ヘッドを目的のトラックに移動
-```
-
-### 1.2 アクセス時間の構成
+### 1.1 Internal Structure
 
 ```
-HDDの読み取り時間 = シーク時間 + 回転待ち + 転送時間
+Internal structure of an HDD:
 
-  シーク時間（Seek Time）:
-    ヘッドを目的のトラックに移動する時間
-    平均: 3-10ms（フルストローク: 15-20ms）
+  +-------------------------------------+
+  |                                     |
+  |     +---------------------+         |
+  |     |   Platter (Magnetic |         |
+  |     |         Disk)       |         |
+  |     |   +-------------+  |         |
+  |     |   |  ---------  |  |         |
+  |     |   | /  Track   \|  |         |
+  |     |   ||  +------+  |  |         |
+  |     |   || | Spindle| |  |         |
+  |     |   ||  +------+  |  |         |
+  |     |   | \  Sector  / |  |         |
+  |     |   |  ---------  |  |         |
+  |     |   +-------------+  |         |
+  |     +---------------------+         |
+  |                                     |
+  |     +-----------------------+       |
+  |     |   Arm + Head          |       |
+  |     |   <--------* Head     |       |
+  |     +-----------------------+       |
+  |                                     |
+  +-------------------------------------+
 
-  回転待ち（Rotational Latency）:
-    目的のセクタがヘッドの下に来るまで待つ時間
-    7200RPMの場合: 平均 4.17ms（半回転分）
-    計算: 60秒 / 7200回転 / 2 = 4.17ms
-
-  転送時間（Transfer Time）:
-    データを実際に読み書きする時間
-    100-200 MB/s → 1MBの読み取りに5-10μs
-
-  典型的なランダム読み取り:
-    シーク(5ms) + 回転待ち(4ms) + 転送(0.01ms) ≈ 9ms
-    → 1秒間に約110回のランダムI/O (110 IOPS)
+  Components:
+  - Platter: Aluminum/glass disk coated with magnetic material (both sides used)
+  - Spindle: Motor that rotates the platter (5400/7200/10000/15000 RPM)
+  - Head: Ultra-small electromagnet that reads/writes magnetic data (floats 10nm above the platter surface)
+  - Actuator Arm: Moves the head to the target track
 ```
 
-### 1.3 HDDの詳細技術
+### 1.2 Access Time Breakdown
 
 ```
-プラッタの磁気記録方式:
+HDD Read Time = Seek Time + Rotational Latency + Transfer Time
 
-  ■ 水平磁気記録（LMR: Longitudinal Magnetic Recording）
-    - 磁化方向: プラッタ面に水平
-    - 限界: 約100-200 Gbit/in²
-    - 2005年頃まで主流
+  Seek Time:
+    Time to move the head to the target track
+    Average: 3-10ms (Full stroke: 15-20ms)
 
-  ■ 垂直磁気記録（PMR: Perpendicular Magnetic Recording）
-    - 磁化方向: プラッタ面に垂直
-    - 密度: 約500-1000 Gbit/in²
-    - 2005年以降の主流方式
+  Rotational Latency:
+    Time waiting for the target sector to rotate under the head
+    At 7200RPM: Average 4.17ms (half rotation)
+    Calculation: 60s / 7200 rotations / 2 = 4.17ms
 
-  ■ シングル磁気記録（SMR: Shingled Magnetic Recording）
-    - トラックを瓦のように重ねて書く
-    - 密度: PMRの約25%向上
-    - 欠点: ランダム書き込みが極端に遅い（書き込み時に隣接トラックを再書き込み）
-    - 用途: アーカイブ、バックアップ用途
+  Transfer Time:
+    Time to actually read/write the data
+    100-200 MB/s -> 5-10us to read 1MB
 
-  ■ 熱アシスト磁気記録（HAMR: Heat Assisted Magnetic Recording）
-    - レーザーで加熱して磁化を容易にする
-    - 密度: 2000+ Gbit/in²
-    - Seagate が2024年に30TB HDDで実用化
-
-  ■ マイクロ波アシスト磁気記録（MAMR: Microwave Assisted Magnetic Recording）
-    - マイクロ波で磁気共鳴を利用
-    - Western Digital が採用
-    - HAMR と競合する技術
-
-HDDのキャッシュ構造:
-  ┌─────────────────────────────────────┐
-  │ HDDファームウェア                     │
-  │ ┌─────────────────────────────────┐ │
-  │ │ DRAM キャッシュ（64-256MB）     │ │
-  │ │ - 読み取りバッファ              │ │
-  │ │ - 書き込みバッファ              │ │
-  │ │ - 先読み（Read-Ahead）キャッシュ │ │
-  │ └─────────────────────────────────┘ │
-  │ ┌─────────────────────────────────┐ │
-  │ │ コマンドキューイング             │ │
-  │ │ - NCQ（Native Command Queuing） │ │
-  │ │ - キュー深度: 最大32            │ │
-  │ │ - アクセス順序を最適化          │ │
-  │ └─────────────────────────────────┘ │
-  └─────────────────────────────────────┘
-
-  NCQの効果:
-    ランダム読み取り時、ヘッドの移動距離を最小化するよう
-    コマンドの実行順序を並べ替え
-    → ランダムIOPSが約20-50%向上
+  Typical random read:
+    Seek(5ms) + Rotational Latency(4ms) + Transfer(0.01ms) ~ 9ms
+    -> Approximately 110 random I/Os per second (110 IOPS)
 ```
 
-### 1.4 HDDの障害と対策
+### 1.3 HDD Technical Details
 
 ```
-HDDの典型的な障害パターン:
+Platter Magnetic Recording Methods:
 
-  1. ヘッドクラッシュ
-     - ヘッドがプラッタ表面に接触
-     - 原因: 衝撃、振動、製造欠陥
-     - 結果: プラッタ表面の損傷、データ喪失
+  * Longitudinal Magnetic Recording (LMR)
+    - Magnetization direction: Horizontal to platter surface
+    - Limit: Approximately 100-200 Gbit/in^2
+    - Dominant until around 2005
 
-  2. 不良セクタの増加
-     - 経年劣化で磁気記録が弱くなる
-     - SMART属性で監視可能
-     - Reallocated Sectors Count の増加は危険信号
+  * Perpendicular Magnetic Recording (PMR)
+    - Magnetization direction: Perpendicular to platter surface
+    - Density: Approximately 500-1000 Gbit/in^2
+    - Dominant method since 2005
 
-  3. スピンドルモーターの劣化
-     - ベアリングの摩耗
-     - 異音の発生、起動失敗
+  * Shingled Magnetic Recording (SMR)
+    - Writes tracks overlapping like roof shingles
+    - Density: Approximately 25% improvement over PMR
+    - Drawback: Extremely slow random writes (adjacent tracks must be rewritten during writes)
+    - Use case: Archive and backup applications
 
-  4. ファームウェア障害
-     - SA（Service Area）の破損
-     - アクセス不能になることがある
+  * Heat Assisted Magnetic Recording (HAMR)
+    - Uses laser heating to facilitate magnetization
+    - Density: 2000+ Gbit/in^2
+    - Seagate commercialized in 2024 with 30TB HDDs
 
-SMART（Self-Monitoring, Analysis and Reporting Technology）:
-  重要なSMART属性:
-  │ ID  │ 名称                    │ 危険度 │
-  │─────│─────────────────────────│────────│
-  │ 5   │ Reallocated Sectors     │ 高     │
-  │ 10  │ Spin Retry Count        │ 中     │
-  │ 187 │ Reported Uncorrectable  │ 高     │
-  │ 188 │ Command Timeout         │ 中     │
-  │ 197 │ Current Pending Sectors │ 高     │
-  │ 198 │ Offline Uncorrectable   │ 高     │
+  * Microwave Assisted Magnetic Recording (MAMR)
+    - Utilizes microwave magnetic resonance
+    - Adopted by Western Digital
+    - Competing technology with HAMR
+
+HDD Cache Structure:
+  +-------------------------------------+
+  | HDD Firmware                        |
+  | +---------------------------------+ |
+  | | DRAM Cache (64-256MB)           | |
+  | | - Read buffer                   | |
+  | | - Write buffer                  | |
+  | | - Read-Ahead cache              | |
+  | +---------------------------------+ |
+  | +---------------------------------+ |
+  | | Command Queuing                 | |
+  | | - NCQ (Native Command Queuing)  | |
+  | | - Queue depth: Up to 32         | |
+  | | - Optimizes access order        | |
+  | +---------------------------------+ |
+  +-------------------------------------+
+
+  NCQ Effect:
+    During random reads, reorders command execution
+    to minimize head movement distance
+    -> Approximately 20-50% improvement in random IOPS
+```
+
+### 1.4 HDD Failures and Countermeasures
+
+```
+Typical HDD Failure Patterns:
+
+  1. Head Crash
+     - Head contacts the platter surface
+     - Causes: Shock, vibration, manufacturing defects
+     - Result: Platter surface damage, data loss
+
+  2. Increasing Bad Sectors
+     - Magnetic recording weakens due to aging
+     - Monitorable via SMART attributes
+     - Increasing Reallocated Sectors Count is a danger sign
+
+  3. Spindle Motor Degradation
+     - Bearing wear
+     - Abnormal noise, startup failures
+
+  4. Firmware Failure
+     - Corruption of the SA (Service Area)
+     - Can result in inaccessible drives
+
+SMART (Self-Monitoring, Analysis and Reporting Technology):
+  Important SMART Attributes:
+  | ID  | Name                    | Severity |
+  |-----|-------------------------|----------|
+  | 5   | Reallocated Sectors     | High     |
+  | 10  | Spin Retry Count        | Medium   |
+  | 187 | Reported Uncorrectable  | High     |
+  | 188 | Command Timeout         | Medium   |
+  | 197 | Current Pending Sectors | High     |
+  | 198 | Offline Uncorrectable   | High     |
 ```
 
 ```bash
-# Linux でSMART情報を確認
+# Check SMART information on Linux
 sudo smartctl -a /dev/sda
 
-# SMART自己テストの実行
-sudo smartctl -t short /dev/sda  # 短時間テスト（約2分）
-sudo smartctl -t long /dev/sda   # 長時間テスト（数時間）
+# Run SMART self-test
+sudo smartctl -t short /dev/sda  # Short test (approximately 2 minutes)
+sudo smartctl -t long /dev/sda   # Long test (several hours)
 
-# SMART属性の表示
+# Display SMART attributes
 sudo smartctl -A /dev/sda
 
-# macOS の場合
+# On macOS
 brew install smartmontools
 sudo smartctl -a /dev/disk0
 ```
 
 ---
 
-## 2. SSD（ソリッドステートドライブ）
+## 2. SSD (Solid State Drive)
 
-### 2.1 NAND フラッシュの仕組み
-
-```
-SSD の内部構造:
-
-  ┌─────────────────────────────────────────┐
-  │  SSD コントローラ                        │
-  │  ┌──────┐ ┌──────┐ ┌──────┐ ┌───────┐ │
-  │  │ FTL  │ │ ECC  │ │ WL   │ │ GC    │ │
-  │  │      │ │      │ │      │ │       │ │
-  │  └──────┘ └──────┘ └──────┘ └───────┘ │
-  │                                         │
-  │  ┌──────────────────────────────────┐   │
-  │  │    NAND フラッシュチップ          │   │
-  │  │  ┌────┐ ┌────┐ ┌────┐ ┌────┐   │   │
-  │  │  │Die0│ │Die1│ │Die2│ │Die3│   │   │
-  │  │  └────┘ └────┘ └────┘ └────┘   │   │
-  │  │  各Dieの中:                      │   │
-  │  │  ┌─────────────────────────┐    │   │
-  │  │  │ Block 0                 │    │   │
-  │  │  │ ┌─────┬─────┬─────┐    │    │   │
-  │  │  │ │Page0│Page1│Page2│... │    │   │
-  │  │  │ └─────┴─────┴─────┘    │    │   │
-  │  │  │ Block 1                 │    │   │
-  │  │  │ ...                     │    │   │
-  │  │  └─────────────────────────┘    │   │
-  │  └──────────────────────────────────┘   │
-  │                                         │
-  │  ┌──────────────┐                       │
-  │  │ DRAM キャッシュ│ (マッピングテーブル)  │
-  │  └──────────────┘                       │
-  └─────────────────────────────────────────┘
-
-  FTL: Flash Translation Layer（論理→物理アドレス変換）
-  ECC: Error Correcting Code（エラー訂正）
-  WL: Wear Leveling（書き込み均等化）
-  GC: Garbage Collection（不要ブロックの回収）
-```
-
-### 2.2 NANDセルの種類と特性
+### 2.1 How NAND Flash Works
 
 ```
-NANDセルタイプの比較:
+Internal structure of an SSD:
 
-  SLC (Single Level Cell): 1ビット/セル
-  ┌───────────────┐
-  │ 電圧レベル: 2  │  → 「0」 or 「1」
-  │ 読み取り: 25μs │
-  │ 書き込み: 200μs│
-  │ 消去回数: 10万回│
-  │ 用途: エンタープライズ高耐久SSD
-  └───────────────┘
+  +-------------------------------------------+
+  |  SSD Controller                            |
+  |  +------+ +------+ +------+ +-------+    |
+  |  | FTL  | | ECC  | | WL   | | GC    |    |
+  |  |      | |      | |      | |       |    |
+  |  +------+ +------+ +------+ +-------+    |
+  |                                            |
+  |  +------------------------------------+   |
+  |  |    NAND Flash Chips                |   |
+  |  |  +----+ +----+ +----+ +----+      |   |
+  |  |  |Die0| |Die1| |Die2| |Die3|      |   |
+  |  |  +----+ +----+ +----+ +----+      |   |
+  |  |  Inside each Die:                  |   |
+  |  |  +---------------------------+     |   |
+  |  |  | Block 0                   |     |   |
+  |  |  | +-----+-----+-----+      |     |   |
+  |  |  | |Page0|Page1|Page2| ...   |     |   |
+  |  |  | +-----+-----+-----+      |     |   |
+  |  |  | Block 1                   |     |   |
+  |  |  | ...                       |     |   |
+  |  |  +---------------------------+     |   |
+  |  +------------------------------------+   |
+  |                                            |
+  |  +----------------+                        |
+  |  | DRAM Cache     | (Mapping table)        |
+  |  +----------------+                        |
+  +-------------------------------------------+
 
-  MLC (Multi Level Cell): 2ビット/セル
-  ┌───────────────┐
-  │ 電圧レベル: 4  │  → 「00」「01」「10」「11」
-  │ 読み取り: 50μs │
-  │ 書き込み: 600μs│
-  │ 消去回数: 3千回 │
-  │ 用途: エンタープライズSSD
-  └───────────────┘
-
-  TLC (Triple Level Cell): 3ビット/セル
-  ┌───────────────┐
-  │ 電圧レベル: 8  │  → 8通りの電圧で3ビット表現
-  │ 読み取り: 75μs │
-  │ 書き込み: 1ms  │
-  │ 消去回数: 1千回 │
-  │ 用途: コンシューマSSD（現在の主流）
-  └───────────────┘
-
-  QLC (Quad Level Cell): 4ビット/セル
-  ┌────────────────┐
-  │ 電圧レベル: 16  │  → 16通りの電圧で4ビット表現
-  │ 読み取り: 100μs │
-  │ 書き込み: 2ms   │
-  │ 消去回数: 300回  │
-  │ 用途: 大容量・低コストSSD
-  └────────────────┘
-
-  PLC (Penta Level Cell): 5ビット/セル
-  ┌────────────────┐
-  │ 電圧レベル: 32  │  → 32通りの電圧で5ビット表現
-  │ 読み取り: 150μs │
-  │ 書き込み: 3ms+  │
-  │ 消去回数: 100回  │
-  │ 用途: アーカイブ用途（2025年量産開始）
-  └────────────────┘
-
-  トレードオフ:
-  容量・コスト効率    SLC < MLC < TLC < QLC < PLC
-  速度・耐久性        SLC > MLC > TLC > QLC > PLC
-
-  → ビット数を増やすほど安価で大容量だが、
-    電圧マージンが狭くなりエラー率と遅延が増加
+  FTL: Flash Translation Layer (Logical -> Physical address translation)
+  ECC: Error Correcting Code
+  WL: Wear Leveling (Write equalization)
+  GC: Garbage Collection (Reclaiming invalid blocks)
 ```
 
-### 2.3 SSD特有の制約と最適化
-
-| 操作 | 可能な単位 | 速度 |
-|------|----------|------|
-| 読み取り | ページ単位 (4-16KB) | 〜25μs |
-| 書き込み | ページ単位 (4-16KB) | 〜250μs |
-| 消去 | **ブロック単位** (256-512ページ) | 〜2ms |
-
-**重要**: SSDは「上書き」ができない。書き込み前に必ずブロック単位で消去が必要。
-
-> **書き込み増幅（Write Amplification）**: 1ページを更新するために、ブロック全体を読み→消去→書き戻す必要がある。
-
-> **TRIM**: OSがSSDに「このブロックはもう使わない」と通知し、GCの効率を向上させる。
+### 2.2 NAND Cell Types and Characteristics
 
 ```
-SSDの内部最適化メカニズム:
+Comparison of NAND Cell Types:
 
-  ■ FTL（Flash Translation Layer）
-    論理ブロックアドレス (LBA) → 物理ページアドレス (PPA) の変換
+  SLC (Single Level Cell): 1 bit/cell
+  +------------------+
+  | Voltage levels: 2 |  -> "0" or "1"
+  | Read: 25us        |
+  | Write: 200us      |
+  | Erase cycles: 100K|
+  | Use: Enterprise high-endurance SSDs
+  +------------------+
 
-    ┌──────────┐         ┌──────────────┐
-    │ OS       │         │ NAND フラッシュ │
-    │ LBA: 100 │──FTL──→│ Die2, Block5,│
-    │          │         │ Page 42      │
-    └──────────┘         └──────────────┘
+  MLC (Multi Level Cell): 2 bits/cell
+  +------------------+
+  | Voltage levels: 4 |  -> "00" "01" "10" "11"
+  | Read: 50us        |
+  | Write: 600us      |
+  | Erase cycles: 3K  |
+  | Use: Enterprise SSDs
+  +------------------+
 
-    書き込み時:
-    1. 新しい空きページに書き込み
-    2. FTLテーブルを更新（LBA→新PPA）
-    3. 古いページを無効化マーク
-    → 「上書き」ではなく「追記」方式
+  TLC (Triple Level Cell): 3 bits/cell
+  +------------------+
+  | Voltage levels: 8 |  -> 8 voltage levels represent 3 bits
+  | Read: 75us        |
+  | Write: 1ms        |
+  | Erase cycles: 1K  |
+  | Use: Consumer SSDs (current mainstream)
+  +------------------+
 
-  ■ ガベージコレクション（GC）
-    ┌──────────────────────────┐
-    │ Block A（GC対象）         │
-    │ ┌────┬────┬────┬────┐   │
-    │ │有効│無効│有効│無効│   │
-    │ └────┴────┴────┴────┘   │
-    └──────────────────────────┘
-         ↓ GC実行
-    1. 有効ページを別ブロックにコピー
-    2. Block A をまるごと消去
-    3. 空きブロックとして再利用
+  QLC (Quad Level Cell): 4 bits/cell
+  +-------------------+
+  | Voltage levels: 16 |  -> 16 voltage levels represent 4 bits
+  | Read: 100us        |
+  | Write: 2ms         |
+  | Erase cycles: 300  |
+  | Use: High-capacity, low-cost SSDs
+  +-------------------+
 
-    GCのタイミング:
-    - バックグラウンドGC: アイドル時に実行
-    - フォアグラウンドGC: 空きブロック不足時（性能低下の原因）
+  PLC (Penta Level Cell): 5 bits/cell
+  +-------------------+
+  | Voltage levels: 32 |  -> 32 voltage levels represent 5 bits
+  | Read: 150us        |
+  | Write: 3ms+        |
+  | Erase cycles: 100  |
+  | Use: Archive applications (mass production starting 2025)
+  +-------------------+
 
-  ■ ウェアレベリング（Wear Leveling）
-    全ブロックの消去回数を均等化
-    - 動的WL: 書き込み先を分散
-    - 静的WL: 読み取り専用データも定期的に移動
-    → SSD寿命を最大化
+  Trade-offs:
+  Capacity/Cost Efficiency    SLC < MLC < TLC < QLC < PLC
+  Speed/Durability            SLC > MLC > TLC > QLC > PLC
 
-  ■ オーバープロビジョニング（OP）
-    ユーザーに見せない予備領域（全容量の7-28%）
-    - GC用の空きブロック確保
-    - 不良ブロックの代替
-    - パフォーマンス安定化
+  -> The more bits per cell, the cheaper and higher capacity,
+     but voltage margins narrow, increasing error rates and latency
+```
 
-    例: 512GB SSD = 実際のNAND容量 560GB程度
-         48GB(約9%) がOP領域
+### 2.3 SSD-Specific Constraints and Optimizations
+
+| Operation | Granularity | Speed |
+|-----------|------------|-------|
+| Read | Page-level (4-16KB) | ~25us |
+| Write | Page-level (4-16KB) | ~250us |
+| Erase | **Block-level** (256-512 pages) | ~2ms |
+
+**Important**: SSDs cannot perform "in-place overwrite." A block-level erase is always required before writing.
+
+> **Write Amplification**: To update a single page, the entire block must be read, erased, and rewritten.
+
+> **TRIM**: The OS notifies the SSD that "these blocks are no longer in use," improving GC efficiency.
+
+```
+SSD Internal Optimization Mechanisms:
+
+  * FTL (Flash Translation Layer)
+    Translates Logical Block Address (LBA) -> Physical Page Address (PPA)
+
+    +----------+         +--------------+
+    | OS       |         | NAND Flash   |
+    | LBA: 100 |--FTL--->| Die2, Block5,|
+    |          |         | Page 42      |
+    +----------+         +--------------+
+
+    During writes:
+    1. Write to a new free page
+    2. Update FTL table (LBA -> new PPA)
+    3. Mark old page as invalid
+    -> "Append" model rather than "overwrite"
+
+  * Garbage Collection (GC)
+    +--------------------------+
+    | Block A (GC target)      |
+    | +----+----+----+----+   |
+    | |Valid|Inv.|Valid|Inv.|   |
+    | +----+----+----+----+   |
+    +--------------------------+
+         | GC execution
+    1. Copy valid pages to another block
+    2. Erase entire Block A
+    3. Reuse as a free block
+
+    GC Timing:
+    - Background GC: Runs during idle time
+    - Foreground GC: Runs when free blocks are insufficient (causes performance degradation)
+
+  * Wear Leveling
+    Equalizes erase counts across all blocks
+    - Dynamic WL: Distributes write destinations
+    - Static WL: Periodically moves read-only data as well
+    -> Maximizes SSD lifespan
+
+  * Over-Provisioning (OP)
+    Reserved area hidden from the user (7-28% of total capacity)
+    - Reserves free blocks for GC
+    - Substitutes for bad blocks
+    - Stabilizes performance
+
+    Example: 512GB SSD = Actual NAND capacity ~560GB
+             48GB (~9%) is OP area
 ```
 
 ### 2.4 SSD vs HDD
 
-| 項目 | HDD | SATA SSD | NVMe SSD |
-|------|-----|----------|----------|
-| 順次読み取り | 100-200 MB/s | 500 MB/s | 3,500-14,000 MB/s |
-| 順次書き込み | 100-200 MB/s | 450 MB/s | 3,000-12,000 MB/s |
-| ランダムIOPS | 100-200 | 50,000-100,000 | 500,000-2,000,000 |
-| レイテンシ | 3-10 ms | 50-100 μs | 10-20 μs |
-| 消費電力 | 6-8W | 2-3W | 5-8W |
-| 寿命 | 〜5年（機械摩耗） | 3-5年（書込制限） | 3-5年（書込制限） |
-| 耐衝撃性 | 低い（ヘッドクラッシュ） | 高い | 高い |
-| 価格/TB | 〜$15 | 〜$50 | 〜$60-100 |
+| Metric | HDD | SATA SSD | NVMe SSD |
+|--------|-----|----------|----------|
+| Sequential Read | 100-200 MB/s | 500 MB/s | 3,500-14,000 MB/s |
+| Sequential Write | 100-200 MB/s | 450 MB/s | 3,000-12,000 MB/s |
+| Random IOPS | 100-200 | 50,000-100,000 | 500,000-2,000,000 |
+| Latency | 3-10 ms | 50-100 us | 10-20 us |
+| Power Consumption | 6-8W | 2-3W | 5-8W |
+| Lifespan | ~5 years (mechanical wear) | 3-5 years (write limit) | 3-5 years (write limit) |
+| Shock Resistance | Low (head crash risk) | High | High |
+| Price/TB | ~$15 | ~$50 | ~$60-100 |
 
-### 2.5 SSD寿命の計算と管理
+### 2.5 SSD Lifespan Calculation and Management
 
 ```
-SSD寿命の計算方法:
+How to Calculate SSD Lifespan:
 
-  TBW（Total Bytes Written）:
-    SSDの寿命を書き込み総量で表す指標
+  TBW (Total Bytes Written):
+    Metric expressing SSD lifespan in total write volume
 
-    例: Samsung 990 Pro 2TB
+    Example: Samsung 990 Pro 2TB
     TBW = 1,200 TB
 
-    1日の書き込み量が50GBの場合:
-    寿命 = 1,200TB / (50GB × 365日) = 約65年
-    → 一般用途では寿命を気にする必要はほぼない
+    If daily write volume is 50GB:
+    Lifespan = 1,200TB / (50GB x 365 days) = Approximately 65 years
+    -> For general use, there is virtually no need to worry about lifespan
 
-  DWPD（Drive Writes Per Day）:
-    保証期間中に1日あたり何回全容量を書き込めるか
+  DWPD (Drive Writes Per Day):
+    How many times the full capacity can be written per day during the warranty period
 
-    例: エンタープライズSSD 3.84TB, DWPD=3, 保証5年
-    1日の書き込み許容量 = 3.84TB × 3 = 11.52TB/日
-    TBW = 11.52TB × 365 × 5 = 21,024 TB
+    Example: Enterprise SSD 3.84TB, DWPD=3, 5-year warranty
+    Daily write allowance = 3.84TB x 3 = 11.52TB/day
+    TBW = 11.52TB x 365 x 5 = 21,024 TB
 
-  SSD寿命監視コマンド:
+  SSD Lifespan Monitoring Commands:
 ```
 
 ```bash
-# Linux: NVMe SSD の寿命情報確認
+# Linux: Check NVMe SSD lifespan information
 sudo nvme smart-log /dev/nvme0n1
 
-# 出力例:
-# percentage_used   : 3%       ← 寿命消費率
-# data_units_written : 12345   ← 書き込み量（512B単位 × 1000）
+# Example output:
+# percentage_used   : 3%       <- Lifespan consumption rate
+# data_units_written : 12345   <- Write volume (512B units x 1000)
 # data_units_read    : 67890
 
-# Linux: SATA SSD のSMART情報
+# Linux: SATA SSD SMART information
 sudo smartctl -a /dev/sda | grep -E "Wear_Leveling|Total_LBAs"
 
-# macOS: diskutil でSSD情報確認
+# macOS: Check SSD information with diskutil
 diskutil info disk0 | grep -i "smart\|wear\|life"
 ```
 
@@ -403,267 +404,268 @@ diskutil info disk0 | grep -i "smart\|wear\|life"
 
 ## 3. NVMe/PCIe
 
-### 3.1 プロトコルスタック
+### 3.1 Protocol Stack
 
 ```
-ストレージI/Oプロトコルの進化:
+Evolution of Storage I/O Protocols:
 
   SATA (2003):
-    CPU → AHCI → SATA → SSD
-    ■ 1つのコマンドキュー、キュー深度32
-    ■ 最大帯域: 600 MB/s (SATA III)
-    ■ レガシーなHDD向けプロトコルの延長
+    CPU -> AHCI -> SATA -> SSD
+    * 1 command queue, queue depth 32
+    * Maximum bandwidth: 600 MB/s (SATA III)
+    * Extension of legacy HDD-oriented protocol
 
   NVMe over PCIe (2011):
-    CPU → NVMe → PCIe → SSD
-    ■ 65,535個のコマンドキュー、各キュー深度65,536
-    ■ 最大帯域: 32 GB/s (PCIe 5.0 x4)
-    ■ SSD向けに一から設計されたプロトコル
-    ■ CPU使用率も低い（割り込み削減）
+    CPU -> NVMe -> PCIe -> SSD
+    * 65,535 command queues, each with queue depth 65,536
+    * Maximum bandwidth: 32 GB/s (PCIe 5.0 x4)
+    * Protocol designed from scratch for SSDs
+    * Lower CPU utilization (reduced interrupts)
 
-  比較:
-  │ 項目          │ AHCI/SATA  │ NVMe/PCIe    │
-  │───────────────│────────────│──────────────│
-  │ キュー数      │ 1          │ 65,535       │
-  │ キュー深度    │ 32         │ 65,536       │
-  │ 帯域幅        │ 600 MB/s   │ 32+ GB/s     │
-  │ レイテンシ    │ 〜100 μs   │ 〜10 μs      │
-  │ CPU効率       │ 低い       │ 高い          │
+  Comparison:
+  | Metric          | AHCI/SATA  | NVMe/PCIe    |
+  |-----------------|------------|--------------|
+  | Queue count     | 1          | 65,535       |
+  | Queue depth     | 32         | 65,536       |
+  | Bandwidth       | 600 MB/s   | 32+ GB/s     |
+  | Latency         | ~100 us    | ~10 us       |
+  | CPU efficiency  | Low        | High         |
 ```
 
-### 3.2 NVMe の詳細アーキテクチャ
+### 3.2 NVMe Detailed Architecture
 
 ```
 NVMe Submission/Completion Queue:
 
-  ┌─────────────────────────────────────────────┐
-  │  ホスト（CPU側）                              │
-  │                                               │
-  │  Admin Queue:                                  │
-  │  ┌─────────────────────────────┐              │
-  │  │ SQ (Submission Queue)       │              │
-  │  │ → デバイス管理コマンド       │              │
-  │  │ CQ (Completion Queue)       │              │
-  │  │ → 完了通知                  │              │
-  │  └─────────────────────────────┘              │
-  │                                               │
-  │  I/O Queue Pair 1:                            │
-  │  ┌─────────────────────────────┐              │
-  │  │ SQ1 ← CPU Core 0 専用      │              │
-  │  │ CQ1 ← 割り込みベクタ 1     │              │
-  │  └─────────────────────────────┘              │
-  │                                               │
-  │  I/O Queue Pair 2:                            │
-  │  ┌─────────────────────────────┐              │
-  │  │ SQ2 ← CPU Core 1 専用      │              │
-  │  │ CQ2 ← 割り込みベクタ 2     │              │
-  │  └─────────────────────────────┘              │
-  │  ...（CPUコアごとにキューペアを作成可能）       │
-  └─────────────────────────────────────────────┘
+  +---------------------------------------------+
+  |  Host (CPU side)                             |
+  |                                              |
+  |  Admin Queue:                                |
+  |  +-----------------------------+             |
+  |  | SQ (Submission Queue)       |             |
+  |  | -> Device management cmds   |             |
+  |  | CQ (Completion Queue)       |             |
+  |  | -> Completion notifications |             |
+  |  +-----------------------------+             |
+  |                                              |
+  |  I/O Queue Pair 1:                           |
+  |  +-----------------------------+             |
+  |  | SQ1 <- Dedicated to Core 0  |             |
+  |  | CQ1 <- Interrupt vector 1   |             |
+  |  +-----------------------------+             |
+  |                                              |
+  |  I/O Queue Pair 2:                           |
+  |  +-----------------------------+             |
+  |  | SQ2 <- Dedicated to Core 1  |             |
+  |  | CQ2 <- Interrupt vector 2   |             |
+  |  +-----------------------------+             |
+  |  ... (Queue pairs can be created per CPU core)|
+  +---------------------------------------------+
 
-  NVMe のI/O処理フロー:
-  1. アプリがread()を呼ぶ
-  2. ドライバがSQにコマンドを投入
-  3. Doorbell レジスタに書き込み（SSDに通知）
-  4. SSDがコマンドを実行
-  5. CQに完了エントリを書き込み
-  6. MSI-X割り込みでCPUに通知
-  7. ドライバが完了を処理
+  NVMe I/O Processing Flow:
+  1. Application calls read()
+  2. Driver places command in SQ
+  3. Writes to Doorbell register (notifies SSD)
+  4. SSD executes the command
+  5. Writes completion entry to CQ
+  6. MSI-X interrupt notifies the CPU
+  7. Driver processes the completion
 
-  → ロック不要（各CPUコアが自分のキューを使用）
-  → 高並列度を実現
+  -> No locks needed (each CPU core uses its own queue)
+  -> Achieves high parallelism
 ```
 
-### 3.3 NVMe-oF（NVMe over Fabrics）
+### 3.3 NVMe-oF (NVMe over Fabrics)
 
 ```
 NVMe over Fabrics:
 
-  ローカルNVMe:
-    アプリ → NVMe → PCIe → ローカルSSD
-    レイテンシ: 〜10μs
+  Local NVMe:
+    App -> NVMe -> PCIe -> Local SSD
+    Latency: ~10us
 
   NVMe over Fabrics:
-    アプリ → NVMe → ネットワーク → リモートSSD
-    レイテンシ: 〜30-100μs
+    App -> NVMe -> Network -> Remote SSD
+    Latency: ~30-100us
 
-  サポートされるトランスポート:
-  │ トランスポート │ レイテンシ   │ 帯域幅     │ 用途          │
-  │────────────────│─────────────│────────────│───────────────│
-  │ RDMA/RoCE v2   │ 30-50 μs   │ 100+ Gbps │ データセンター │
-  │ TCP             │ 50-100 μs  │ 25+ Gbps  │ 汎用           │
-  │ FC (Fibre Ch.)  │ 30-50 μs   │ 32 Gbps   │ SAN            │
+  Supported Transports:
+  | Transport       | Latency     | Bandwidth  | Use Case       |
+  |-----------------|-------------|------------|----------------|
+  | RDMA/RoCE v2    | 30-50 us   | 100+ Gbps | Data center    |
+  | TCP              | 50-100 us  | 25+ Gbps  | General purpose|
+  | FC (Fibre Ch.)   | 30-50 us   | 32 Gbps   | SAN            |
 
-  応用: ストレージの disaggregation（分離）
-  → コンピュートノードとストレージノードを別々にスケール
-  → クラウドの基盤技術
+  Application: Storage disaggregation
+  -> Scale compute nodes and storage nodes independently
+  -> Foundational cloud technology
 ```
 
 ---
 
-## 4. ファイルシステム
+## 4. File Systems
 
-### 4.1 主要ファイルシステム比較
+### 4.1 Major File System Comparison
 
-| FS | OS | 最大ファイル | 最大ボリューム | ジャーナリング | COW | 特徴 |
-|----|-----|-----------|-------------|-------------|-----|------|
-| **ext4** | Linux | 16TB | 1EB | あり | なし | Linux標準、安定 |
-| **XFS** | Linux | 8EB | 8EB | あり | なし | 大規模ファイル向け |
-| **Btrfs** | Linux | 16EB | 16EB | なし | あり | スナップショット、圧縮 |
-| **ZFS** | FreeBSD/Linux | 16EB | 256ZB | なし | あり | データ整合性最強 |
-| **NTFS** | Windows | 16EB | 256TB | あり | なし | Windows標準 |
-| **APFS** | macOS/iOS | 8EB | — | なし | あり | Apple専用、暗号化 |
-| **F2FS** | Android | 3.94TB | 16TB | なし | なし | SSD/eMMC最適化 |
+| FS | OS | Max File | Max Volume | Journaling | COW | Characteristics |
+|----|-----|----------|-----------|------------|-----|-----------------|
+| **ext4** | Linux | 16TB | 1EB | Yes | No | Linux standard, stable |
+| **XFS** | Linux | 8EB | 8EB | Yes | No | Optimized for large files |
+| **Btrfs** | Linux | 16EB | 16EB | No | Yes | Snapshots, compression |
+| **ZFS** | FreeBSD/Linux | 16EB | 256ZB | No | Yes | Strongest data integrity |
+| **NTFS** | Windows | 16EB | 256TB | Yes | No | Windows standard |
+| **APFS** | macOS/iOS | 8EB | -- | No | Yes | Apple-exclusive, encryption |
+| **F2FS** | Android | 3.94TB | 16TB | No | No | SSD/eMMC optimized |
 
-### 4.2 ジャーナリングの仕組み
-
-```
-ジャーナリング（ext4の場合）:
-
-  通常の書き込み（ジャーナリングなし）:
-    1. メタデータ更新
-    2. データ書き込み
-    → 途中で電源断 → データ不整合（FSの破損）
-
-  ジャーナリング:
-    1. ジャーナル領域に「これから何をするか」を書く
-    2. 実際のメタデータ/データを更新
-    3. ジャーナルのトランザクションを「完了」にマーク
-
-    電源断が発生した場合:
-    → 起動時にジャーナルを読み、未完了のトランザクションを
-       ロールバックまたはリプレイ
-    → FSの一貫性が保証される
-
-  ┌────────┐    ┌────────┐    ┌────────┐
-  │ 1.記録  │───→│ 2.実行  │───→│ 3.完了  │
-  │ Journal │    │ Data   │    │ Commit │
-  └────────┘    └────────┘    └────────┘
-       ↑                            │
-       └───── 電源断時はここから再開 ─┘
-```
+### 4.2 How Journaling Works
 
 ```
-ジャーナリングモードの比較（ext4）:
+Journaling (in the case of ext4):
 
-  ■ journal（フルジャーナル）
-    - メタデータとデータの両方をジャーナル
-    - 安全性: 最高
-    - 性能: 最低（書き込み2倍）
-    - 用途: データベースサーバー
+  Normal write (without journaling):
+    1. Update metadata
+    2. Write data
+    -> Power loss midway -> Data inconsistency (FS corruption)
 
-  ■ ordered（デフォルト）
-    - メタデータのみジャーナル
-    - データは先に書き込み、その後メタデータ
-    - 安全性: 高い
-    - 性能: 良好
-    - 用途: 一般的なサーバー
+  Journaling:
+    1. Write "what is about to be done" to the journal area
+    2. Actually update metadata/data
+    3. Mark the journal transaction as "complete"
 
-  ■ writeback
-    - メタデータのみジャーナル
-    - データとメタデータの順序保証なし
-    - 安全性: 低い（データ破損の可能性）
-    - 性能: 最高
-    - 用途: テンポラリデータ
+    If power loss occurs:
+    -> On boot, read the journal and roll back or replay
+       incomplete transactions
+    -> FS consistency is guaranteed
+
+  +--------+    +--------+    +--------+
+  | 1.Log  |--->| 2.Exec |--->| 3.Done |
+  | Journal|    | Data   |    | Commit |
+  +--------+    +--------+    +--------+
+       ^                            |
+       +--- Resume from here on ----+
+            power failure
 ```
 
-### 4.3 Copy-on-Write（COW）
+```
+Comparison of Journaling Modes (ext4):
+
+  * journal (Full journal)
+    - Journals both metadata and data
+    - Safety: Highest
+    - Performance: Lowest (2x write overhead)
+    - Use case: Database servers
+
+  * ordered (Default)
+    - Journals metadata only
+    - Data is written first, then metadata
+    - Safety: High
+    - Performance: Good
+    - Use case: General servers
+
+  * writeback
+    - Journals metadata only
+    - No ordering guarantee between data and metadata
+    - Safety: Low (potential for data corruption)
+    - Performance: Highest
+    - Use case: Temporary data
+```
+
+### 4.3 Copy-on-Write (COW)
 
 ```
-COW（Btrfs, ZFS, APFSの場合）:
+COW (in the case of Btrfs, ZFS, APFS):
 
-  従来のFS:
-    データブロック → 直接上書き
-    → 書き込み中の電源断でデータ破損
+  Traditional FS:
+    Data block -> Overwrite in place
+    -> Power loss during write causes data corruption
 
   COW:
-    1. 新しいブロックにデータを書く
-    2. メタデータを新ブロックを指すように更新
-    3. 古いブロックを解放
-    → 書き込み中の電源断でも古いデータが残る
+    1. Write data to a new block
+    2. Update metadata to point to the new block
+    3. Release the old block
+    -> Even on power loss during write, old data remains intact
 
-  利点:
-  - アトミックな書き込み（壊れない）
-  - スナップショットが O(1) で作成可能（メタデータのコピーのみ）
-  - 圧縮・重複排除が容易
+  Advantages:
+  - Atomic writes (no corruption)
+  - Snapshots can be created in O(1) (metadata copy only)
+  - Compression and deduplication are straightforward
 
-  欠点:
-  - フラグメンテーションが発生しやすい
-  - ランダム書き込みのオーバーヘッド
+  Disadvantages:
+  - Prone to fragmentation
+  - Random write overhead
 ```
 
-### 4.4 ZFS の詳細機能
+### 4.4 ZFS Detailed Features
 
 ```
-ZFS の主要機能:
+Key ZFS Features:
 
-  ■ ストレージプール（zpool）
-    ┌─────────────────────────────────────┐
-    │ ZFS Pool (zpool)                     │
-    │ ┌─────────────────────────────────┐ │
-    │ │ Dataset: /data                   │ │
-    │ │ Dataset: /data/mysql             │ │
-    │ │ Dataset: /data/logs              │ │
-    │ │ Zvol: /dev/zvol/pool/vm-disk     │ │
-    │ └─────────────────────────────────┘ │
-    │                                      │
-    │ vdev: mirror-0  vdev: mirror-1       │
-    │ ┌──────┬──────┐ ┌──────┬──────┐    │
-    │ │ sda  │ sdb  │ │ sdc  │ sdd  │    │
-    │ └──────┴──────┘ └──────┴──────┘    │
-    └─────────────────────────────────────┘
+  * Storage Pool (zpool)
+    +-------------------------------------+
+    | ZFS Pool (zpool)                     |
+    | +---------------------------------+ |
+    | | Dataset: /data                   | |
+    | | Dataset: /data/mysql             | |
+    | | Dataset: /data/logs              | |
+    | | Zvol: /dev/zvol/pool/vm-disk     | |
+    | +---------------------------------+ |
+    |                                      |
+    | vdev: mirror-0  vdev: mirror-1       |
+    | +------+------+ +------+------+     |
+    | | sda  | sdb  | | sdc  | sdd  |     |
+    | +------+------+ +------+------+     |
+    +-------------------------------------+
 
-  ■ データ整合性（チェックサム）
-    - 全ブロックにSHA-256チェックサム
-    - 読み取り時に自動検証
-    - サイレントデータ破損（bit rot）を検出・修復
+  * Data Integrity (Checksums)
+    - SHA-256 checksum on every block
+    - Automatic verification on read
+    - Detects and repairs silent data corruption (bit rot)
 
-  ■ スナップショット
-    - 作成: 瞬時（メタデータのポインタコピーのみ）
-    - 容量: 差分のみ消費
-    - ロールバック: 瞬時
+  * Snapshots
+    - Creation: Instantaneous (metadata pointer copy only)
+    - Capacity: Only consumes delta
+    - Rollback: Instantaneous
 
-  ■ 送受信（zfs send/recv）
-    - スナップショット間の差分を別プールに転送
-    - 増分バックアップに最適
-    - WAN経由のリモートレプリケーション
+  * Send/Receive (zfs send/recv)
+    - Transfers deltas between snapshots to another pool
+    - Ideal for incremental backups
+    - Remote replication over WAN
 
-  ■ 圧縮
-    - LZ4（デフォルト）: 高速、CPU負荷小
-    - ZSTD: 高圧縮率
-    - 透過的（アプリからは見えない）
+  * Compression
+    - LZ4 (default): Fast, low CPU overhead
+    - ZSTD: High compression ratio
+    - Transparent (invisible to applications)
 
-  ■ 重複排除（dedup）
-    - 同じデータブロックを1つだけ保存
-    - メモリを大量消費（1TBあたり5GBのRAM）
-    - VMバックアップなどで効果的
+  * Deduplication (dedup)
+    - Stores only one copy of identical data blocks
+    - Consumes significant memory (5GB of RAM per 1TB)
+    - Effective for VM backups and similar workloads
 ```
 
 ```bash
-# ZFS の基本操作
-# プールの作成（ミラー構成）
+# ZFS Basic Operations
+# Create a pool (mirror configuration)
 sudo zpool create tank mirror /dev/sda /dev/sdb
 
-# データセットの作成
+# Create datasets
 sudo zfs create tank/data
 sudo zfs create tank/data/mysql
 
-# 圧縮の有効化
+# Enable compression
 sudo zfs set compression=lz4 tank/data
 
-# スナップショットの作成
+# Create a snapshot
 sudo zfs snapshot tank/data/mysql@before-migration
 
-# スナップショット一覧
+# List snapshots
 sudo zfs list -t snapshot
 
-# スナップショットからの復元
+# Restore from snapshot
 sudo zfs rollback tank/data/mysql@before-migration
 
-# 増分送信（リモートバックアップ）
+# Incremental send (remote backup)
 sudo zfs send -i @snap1 tank/data@snap2 | ssh remote zfs recv backup/data
 
-# ディスク使用状況
+# Disk usage status
 sudo zpool status
 sudo zfs list
 ```
@@ -672,403 +674,409 @@ sudo zfs list
 
 ## 5. RAID
 
-### 5.1 RAIDレベル比較
+### 5.1 RAID Level Comparison
 
 ```
-RAID 0（ストライピング）:
-  ┌──────┐ ┌──────┐
-  │Disk 0│ │Disk 1│
-  │ A1   │ │ A2   │  ← データを交互に分散
-  │ A3   │ │ A4   │
-  └──────┘ └──────┘
-  性能: 読み書き2倍  冗長性: なし（1台死亡=全損）
+RAID 0 (Striping):
+  +------+ +------+
+  |Disk 0| |Disk 1|
+  | A1   | | A2   |  <- Data distributed alternately
+  | A3   | | A4   |
+  +------+ +------+
+  Performance: 2x read/write  Redundancy: None (1 disk death = total loss)
 
-RAID 1（ミラーリング）:
-  ┌──────┐ ┌──────┐
-  │Disk 0│ │Disk 1│
-  │ A1   │ │ A1   │  ← 同じデータを複製
-  │ A2   │ │ A2   │
-  └──────┘ └──────┘
-  性能: 読み2倍、書き1倍  冗長性: 1台障害OK  容量: 50%
+RAID 1 (Mirroring):
+  +------+ +------+
+  |Disk 0| |Disk 1|
+  | A1   | | A1   |  <- Same data replicated
+  | A2   | | A2   |
+  +------+ +------+
+  Performance: 2x read, 1x write  Redundancy: 1 disk failure OK  Capacity: 50%
 
-RAID 5（パリティ分散）:
-  ┌──────┐ ┌──────┐ ┌──────┐
-  │Disk 0│ │Disk 1│ │Disk 2│
-  │ A1   │ │ A2   │ │ Ap   │  ← パリティを分散配置
-  │ B1   │ │ Bp   │ │ B2   │
-  │ Cp   │ │ C1   │ │ C2   │
-  └──────┘ └──────┘ └──────┘
-  性能: 読み(N-1)倍、書き遅い  冗長性: 1台障害OK  容量: (N-1)/N
+RAID 5 (Distributed Parity):
+  +------+ +------+ +------+
+  |Disk 0| |Disk 1| |Disk 2|
+  | A1   | | A2   | | Ap   |  <- Parity distributed across disks
+  | B1   | | Bp   | | B2   |
+  | Cp   | | C1   | | C2   |
+  +------+ +------+ +------+
+  Performance: (N-1)x read, slow write  Redundancy: 1 disk failure OK  Capacity: (N-1)/N
 
-RAID 6（二重パリティ）:
-  RAID 5 + パリティ2つ → 2台同時障害OK
+RAID 6 (Dual Parity):
+  RAID 5 + 2 parities -> 2 simultaneous disk failures OK
 
-RAID 10（1+0: ミラー+ストライプ）:
-  ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐
-  │Disk 0│ │Disk 1│ │Disk 2│ │Disk 3│
-  │ A1   │ │ A1   │ │ A2   │ │ A2   │
-  └──────┘ └──────┘ └──────┘ └──────┘
-    ミラー対1          ミラー対2
-  性能: 読み4倍、書き2倍  冗長性: 各対1台OK  容量: 50%
+RAID 10 (1+0: Mirror + Stripe):
+  +------+ +------+ +------+ +------+
+  |Disk 0| |Disk 1| |Disk 2| |Disk 3|
+  | A1   | | A1   | | A2   | | A2   |
+  +------+ +------+ +------+ +------+
+    Mirror pair 1       Mirror pair 2
+  Performance: 4x read, 2x write  Redundancy: 1 per pair OK  Capacity: 50%
 ```
 
-### 5.2 RAID 選択ガイド
+### 5.2 RAID Selection Guide
 
-| RAID | 容量効率 | 読取性能 | 書込性能 | 耐障害性 | 用途 |
-|------|---------|---------|---------|---------|------|
-| 0 | 100% | 最高 | 最高 | なし | テンポラリ/キャッシュ |
-| 1 | 50% | 良 | 普通 | 1台 | OS、ブート |
-| 5 | (N-1)/N | 良 | 遅い | 1台 | ファイルサーバー |
-| 6 | (N-2)/N | 良 | 最遅 | 2台 | 大規模ストレージ |
-| 10 | 50% | 最高 | 良 | 各対1台 | DB、高パフォーマンス |
+| RAID | Capacity Efficiency | Read Performance | Write Performance | Fault Tolerance | Use Case |
+|------|-------------------|-----------------|------------------|----------------|----------|
+| 0 | 100% | Highest | Highest | None | Temporary/Cache |
+| 1 | 50% | Good | Normal | 1 disk | OS, Boot |
+| 5 | (N-1)/N | Good | Slow | 1 disk | File server |
+| 6 | (N-2)/N | Good | Slowest | 2 disks | Large-scale storage |
+| 10 | 50% | Highest | Good | 1 per pair | DB, High performance |
 
-### 5.3 RAID の詳細解説と計算
+### 5.3 RAID Detailed Explanation and Calculations
 
 ```
-RAID 5 のパリティ計算:
+RAID 5 Parity Calculation:
 
-  パリティ = データ1 XOR データ2 XOR データ3 ...
+  Parity = Data1 XOR Data2 XOR Data3 ...
 
-  例: 3ディスクのRAID 5
+  Example: 3-disk RAID 5
   Disk 0: 10110011
   Disk 1: 01101010
-  パリティ: 11011001  (= Disk0 XOR Disk1)
+  Parity: 11011001  (= Disk0 XOR Disk1)
 
-  Disk 1 が故障した場合:
-  Disk 1 = Disk 0 XOR パリティ
+  If Disk 1 fails:
+  Disk 1 = Disk 0 XOR Parity
          = 10110011 XOR 11011001
-         = 01101010  ← 元のデータを復元！
+         = 01101010  <- Original data recovered!
 
-RAID 5 書き込みペナルティ（Write Penalty）:
+RAID 5 Write Penalty:
 
-  1つのブロックの更新に必要な操作:
-  1. 古いデータを読む
-  2. 古いパリティを読む
-  3. 新しいパリティを計算（old_data XOR new_data XOR old_parity）
-  4. 新しいデータを書く
-  5. 新しいパリティを書く
-  → 1回の論理書き込み = 2読み + 2書き = 4 I/O
+  Operations required to update a single block:
+  1. Read old data
+  2. Read old parity
+  3. Calculate new parity (old_data XOR new_data XOR old_parity)
+  4. Write new data
+  5. Write new parity
+  -> 1 logical write = 2 reads + 2 writes = 4 I/Os
 
-  RAID レベル別の書き込みペナルティ:
-  │ RAID │ ペナルティ │ 説明                    │
-  │──────│────────────│─────────────────────────│
-  │ 0    │ 1          │ ストライプに直接書き込み │
-  │ 1    │ 2          │ ミラーに同時書き込み     │
-  │ 5    │ 4          │ Read-Modify-Write        │
-  │ 6    │ 6          │ 二重パリティ             │
-  │ 10   │ 2          │ ミラーに同時書き込み     │
+  Write Penalty by RAID Level:
+  | RAID | Penalty | Description                      |
+  |------|---------|----------------------------------|
+  | 0    | 1       | Direct write to stripe           |
+  | 1    | 2       | Simultaneous write to mirror     |
+  | 5    | 4       | Read-Modify-Write                |
+  | 6    | 6       | Dual parity                      |
+  | 10   | 2       | Simultaneous write to mirror     |
 
-RAID 性能計算の実例:
+RAID Performance Calculation Example:
 
-  条件: 8台のSSD (各100K IOPS)、読み70%:書き30%
+  Conditions: 8 SSDs (100K IOPS each), 70% read : 30% write
 
   RAID 10:
-    読みIOPS = 8 × 100K × 0.7 = 560K IOPS
-    書きIOPS = (8/2) × 100K × 0.3 / 2 = 60K IOPS
-    合計 ≈ 620K IOPS
+    Read IOPS = 8 x 100K x 0.7 = 560K IOPS
+    Write IOPS = (8/2) x 100K x 0.3 / 2 = 60K IOPS
+    Total ~ 620K IOPS
 
   RAID 5:
-    読みIOPS = 7 × 100K × 0.7 = 490K IOPS
-    書きIOPS = 7 × 100K × 0.3 / 4 = 52.5K IOPS
-    合計 ≈ 542.5K IOPS
+    Read IOPS = 7 x 100K x 0.7 = 490K IOPS
+    Write IOPS = 7 x 100K x 0.3 / 4 = 52.5K IOPS
+    Total ~ 542.5K IOPS
 ```
 
-### 5.4 ソフトウェアRAID vs ハードウェアRAID
+### 5.4 Software RAID vs Hardware RAID
 
 ```
-ハードウェアRAID:
-  ┌──────────────────────────────┐
-  │ RAIDコントローラカード        │
-  │ ┌──────────┐ ┌────────────┐│
-  │ │ 専用CPU   │ │ バッテリー  ││ ← BBU（Battery Backup Unit）
-  │ │ (XOR計算) │ │ バックアップ ││   電源断時にキャッシュ保護
-  │ └──────────┘ └────────────┘│
-  │ ┌──────────────────────────┐│
-  │ │ DRAMキャッシュ(256MB-4GB)││ ← 書き込みキャッシュ
-  │ └──────────────────────────┘│
-  └──────────────────────────────┘
-  利点: CPUに負荷をかけない、BBUでキャッシュ保護
-  欠点: 高価、コントローラ自体が単一障害点
+Hardware RAID:
+  +------------------------------+
+  | RAID Controller Card         |
+  | +----------+ +-----------+  |
+  | | Dedicated| | Battery   |  | <- BBU (Battery Backup Unit)
+  | | CPU      | | Backup    |  |    Protects cache on power loss
+  | | (XOR     | |           |  |
+  | |  calc)   | |           |  |
+  | +----------+ +-----------+  |
+  | +----------------------------+
+  | | DRAM Cache (256MB-4GB)    | <- Write cache
+  | +----------------------------+
+  +------------------------------+
+  Advantages: No CPU load, BBU protects cache
+  Disadvantages: Expensive, controller itself is a single point of failure
 
-ソフトウェアRAID:
+Software RAID:
   Linux mdadm:
-    - CPUでXOR計算（現代CPUでは十分高速）
-    - 無料、柔軟性が高い
-    - BBU不要（UPSで対応）
-    - 異なるコントローラのディスクを混在可能
+    - CPU handles XOR calculations (fast enough on modern CPUs)
+    - Free, highly flexible
+    - No BBU needed (use UPS instead)
+    - Can mix disks from different controllers
 
   ZFS RAIDZ:
-    - RAID-Z1 ≈ RAID 5（1パリティ）
-    - RAID-Z2 ≈ RAID 6（2パリティ）
-    - RAID-Z3（3パリティ、超大容量向け）
-    - コピーオンライトでRAID5の「書き込みホール」問題なし
+    - RAID-Z1 ~ RAID 5 (1 parity)
+    - RAID-Z2 ~ RAID 6 (2 parity)
+    - RAID-Z3 (3 parity, for ultra-large capacity)
+    - Copy-on-write eliminates RAID 5's "write hole" problem
 ```
 
 ```bash
-# Linux mdadm でRAID構築
-# RAID 1 の作成
+# Build RAID with Linux mdadm
+# Create RAID 1
 sudo mdadm --create /dev/md0 --level=1 --raid-devices=2 /dev/sda1 /dev/sdb1
 
-# RAID 5 の作成
+# Create RAID 5
 sudo mdadm --create /dev/md1 --level=5 --raid-devices=3 /dev/sda1 /dev/sdb1 /dev/sdc1
 
-# RAID の状態確認
+# Check RAID status
 cat /proc/mdstat
 sudo mdadm --detail /dev/md0
 
-# 障害ディスクの交換
+# Replace a failed disk
 sudo mdadm /dev/md0 --remove /dev/sdb1
 sudo mdadm /dev/md0 --add /dev/sdd1
 
-# リビルドの進捗確認
+# Monitor rebuild progress
 watch cat /proc/mdstat
 ```
 
 ---
 
-## 6. I/Oスケジューラ
+## 6. I/O Schedulers
 
-### 6.1 主要スケジューラ
+### 6.1 Major Schedulers
 
-| スケジューラ | 方式 | 適用 |
-|------------|------|------|
-| **NOOP/None** | FIFO（先入先出） | SSD（ハードウェアが最適化） |
-| **Deadline** | デッドラインベース | DB、リアルタイム |
-| **CFQ** | 完全公平キューイング | デスクトップ（旧デフォルト） |
-| **BFQ** | Budget Fair Queuing | デスクトップ（低レイテンシ） |
-| **mq-deadline** | マルチキュー版 | NVMe SSD |
-| **kyber** | 2レベルキュー | 高性能NVMe |
+| Scheduler | Method | Applicable To |
+|-----------|--------|--------------|
+| **NOOP/None** | FIFO (First In, First Out) | SSD (hardware optimizes) |
+| **Deadline** | Deadline-based | DB, Real-time |
+| **CFQ** | Completely Fair Queuing | Desktop (former default) |
+| **BFQ** | Budget Fair Queuing | Desktop (low latency) |
+| **mq-deadline** | Multi-queue version | NVMe SSD |
+| **kyber** | 2-level queue | High-performance NVMe |
 
-### 6.2 I/Oスケジューラの詳細と選択
+### 6.2 I/O Scheduler Details and Selection
 
 ```
-各スケジューラの動作原理:
+Operating Principles of Each Scheduler:
 
-  ■ NOOP/None
-    ┌─────────────────────────────┐
-    │ 要求 → FIFO → デバイス      │
-    └─────────────────────────────┘
-    - 並べ替えなし、マージのみ
-    - SSDではハードウェアがスケジューリング
-    - NVMeにはこれで十分
+  * NOOP/None
+    +-----------------------------+
+    | Request -> FIFO -> Device   |
+    +-----------------------------+
+    - No reordering, merging only
+    - For SSDs, hardware handles scheduling
+    - Sufficient for NVMe
 
-  ■ mq-deadline
-    ┌─────────────────────────────────┐
-    │ 読み取りキュー（デッドライン: 500ms）│
-    │ 書き込みキュー（デッドライン: 5s）  │
-    │ → デッドラインが近い要求を優先     │
-    └─────────────────────────────────┘
-    - 読み取り優先（レスポンス重視）
-    - デッドラインで飢餓状態を防止
-    - DBサーバーに最適
+  * mq-deadline
+    +---------------------------------+
+    | Read queue (deadline: 500ms)    |
+    | Write queue (deadline: 5s)      |
+    | -> Prioritizes requests near    |
+    |    their deadlines              |
+    +---------------------------------+
+    - Prioritizes reads (response-oriented)
+    - Deadlines prevent starvation
+    - Optimal for DB servers
 
-  ■ BFQ (Budget Fair Queuing)
-    ┌─────────────────────────────────┐
-    │ プロセスごとにI/O予算を割り当て   │
-    │ → 対話型プロセスに高予算          │
-    │ → バックグラウンドプロセスに低予算 │
-    └─────────────────────────────────┘
-    - デスクトップでスムーズな操作感
-    - 動画再生中のファイルコピーでカクつかない
+  * BFQ (Budget Fair Queuing)
+    +---------------------------------+
+    | Allocates I/O budget per process|
+    | -> High budget for interactive  |
+    |    processes                     |
+    | -> Low budget for background    |
+    |    processes                     |
+    +---------------------------------+
+    - Smooth desktop experience
+    - No stuttering during file copy while playing video
 
-  ■ kyber
-    ┌─────────────────────────────────┐
-    │ 同期キュー（読み取り）→ 低レイテンシ│
-    │ 非同期キュー（書き込み）→ 高スループット│
-    │ → トークンベースでスロットリング     │
-    └─────────────────────────────────┘
-    - 高性能NVMe向け
-    - 自動的にレイテンシ目標を維持
+  * kyber
+    +---------------------------------+
+    | Sync queue (reads) -> Low latency|
+    | Async queue (writes) -> High     |
+    |   throughput                      |
+    | -> Token-based throttling        |
+    +---------------------------------+
+    - For high-performance NVMe
+    - Automatically maintains latency targets
 ```
 
 ```bash
-# 現在のI/Oスケジューラを確認
+# Check current I/O scheduler
 cat /sys/block/nvme0n1/queue/scheduler
 
-# I/Oスケジューラを変更（一時的）
+# Change I/O scheduler (temporary)
 echo "mq-deadline" | sudo tee /sys/block/nvme0n1/queue/scheduler
 
-# 永続的に変更（udevルール）
+# Change permanently (udev rule)
 echo 'ACTION=="add|change", KERNEL=="nvme*", ATTR{queue/scheduler}="none"' | \
   sudo tee /etc/udev/rules.d/60-scheduler.rules
 
-# I/O統計の確認
-iostat -x 1  # 1秒間隔で表示
+# Check I/O statistics
+iostat -x 1  # Display at 1-second intervals
 
-# デバイスのキュー設定
-cat /sys/block/nvme0n1/queue/nr_requests    # キュー深度
-cat /sys/block/nvme0n1/queue/read_ahead_kb  # 先読みサイズ
+# Device queue settings
+cat /sys/block/nvme0n1/queue/nr_requests    # Queue depth
+cat /sys/block/nvme0n1/queue/read_ahead_kb  # Read-ahead size
 ```
 
 ---
 
-## 7. クラウドストレージとストレージ階層
+## 7. Cloud Storage and Storage Tiers
 
-### 7.1 クラウドストレージサービス比較
-
-```
-AWS ストレージサービス:
-
-  ■ EBS (Elastic Block Store)
-    ┌─────────────────────────────────────────┐
-    │ タイプ        │ IOPS    │ スループット │ 用途      │
-    │───────────────│─────────│─────────────│───────────│
-    │ gp3           │ 16,000  │ 1,000MB/s   │ 汎用      │
-    │ io2           │ 64,000  │ 1,000MB/s   │ DB        │
-    │ io2 Express   │ 256,000 │ 4,000MB/s   │ 高性能DB  │
-    │ st1           │ 500     │ 500MB/s     │ ログ      │
-    │ sc1           │ 250     │ 250MB/s     │ アーカイブ│
-    └─────────────────────────────────────────┘
-
-  ■ S3 (Simple Storage Service)
-    ┌─────────────────────────────────────────────┐
-    │ クラス          │ 可用性  │ 料金(GB/月) │ 用途        │
-    │─────────────────│─────────│─────────────│─────────────│
-    │ Standard        │ 99.99%  │ $0.023      │ 頻繁アクセス│
-    │ Intelligent     │ 自動    │ 自動最適化  │ 不明確      │
-    │ Standard-IA     │ 99.9%   │ $0.0125     │ 低頻度      │
-    │ Glacier Instant │ 99.9%   │ $0.004      │ アーカイブ  │
-    │ Glacier Deep    │ 99.99%  │ $0.00099    │ 長期保管    │
-    └─────────────────────────────────────────────┘
-
-  ■ ストレージ階層設計（ティアリング）:
-
-    ホットデータ（頻繁アクセス）:
-    └─ io2 EBS / gp3 EBS
-       └─ コスト高、IOPS最高
-
-    ウォームデータ（時々アクセス）:
-    └─ S3 Standard / S3 Standard-IA
-       └─ コスト中、遅延100ms程度
-
-    コールドデータ（稀にアクセス）:
-    └─ S3 Glacier
-       └─ コスト低、取り出しに数分〜数時間
-
-    アーカイブ（ほぼアクセスしない）:
-    └─ S3 Glacier Deep Archive
-       └─ コスト最低、取り出しに12時間
-```
-
-### 7.2 データ保護戦略
+### 7.1 Cloud Storage Service Comparison
 
 ```
-3-2-1 バックアップルール:
-  3: データを3コピー持つ
-  2: 2種類以上の異なるメディアに保存
-  1: 1つはオフサイト（遠隔地）に保存
+AWS Storage Services:
 
-  実装例:
-  ┌──────────────────────────────────────────┐
-  │ プライマリ: NVMe SSD (RAID 10)           │
-  │ ↓ 毎日                                   │
-  │ セカンダリ: NASサーバー (ZFS RAIDZ2)     │
-  │ ↓ 毎週                                   │
-  │ オフサイト: S3 Glacier / Google Cloud     │
-  └──────────────────────────────────────────┘
+  * EBS (Elastic Block Store)
+    +-------------------------------------------+
+    | Type          | IOPS    | Throughput    | Use Case   |
+    |---------------|---------|---------------|------------|
+    | gp3           | 16,000  | 1,000MB/s     | General    |
+    | io2           | 64,000  | 1,000MB/s     | DB         |
+    | io2 Express   | 256,000 | 4,000MB/s     | High-perf DB|
+    | st1           | 500     | 500MB/s       | Logs       |
+    | sc1           | 250     | 250MB/s       | Archive    |
+    +-------------------------------------------+
 
-RPO（Recovery Point Objective）と RTO（Recovery Time Objective）:
+  * S3 (Simple Storage Service)
+    +-----------------------------------------------+
+    | Class           | Avail.  | Price(GB/mo) | Use Case      |
+    |-----------------|---------|--------------|---------------|
+    | Standard        | 99.99%  | $0.023       | Frequent access|
+    | Intelligent     | Auto    | Auto-optimized| Unknown pattern|
+    | Standard-IA     | 99.9%   | $0.0125      | Infrequent     |
+    | Glacier Instant | 99.9%   | $0.004       | Archive        |
+    | Glacier Deep    | 99.99%  | $0.00099     | Long-term      |
+    +-----------------------------------------------+
 
-  RPO: 許容できるデータ損失量（時間）
-  RTO: システム復旧までの許容時間
+  * Storage Tier Design (Tiering):
 
-  │ レベル       │ RPO      │ RTO      │ 方式                │
-  │──────────────│──────────│──────────│─────────────────────│
-  │ ミッションクリティカル │ 0      │ 数秒     │ 同期レプリケーション │
-  │ 重要システム │ 数分     │ 数分     │ 非同期レプリケーション│
-  │ 一般業務     │ 数時間   │ 数時間   │ スナップショット     │
-  │ アーカイブ   │ 1日      │ 1日以上  │ 日次バックアップ     │
+    Hot data (frequently accessed):
+    +- io2 EBS / gp3 EBS
+       +- High cost, highest IOPS
+
+    Warm data (occasionally accessed):
+    +- S3 Standard / S3 Standard-IA
+       +- Medium cost, ~100ms latency
+
+    Cold data (rarely accessed):
+    +- S3 Glacier
+       +- Low cost, retrieval takes minutes to hours
+
+    Archive (almost never accessed):
+    +- S3 Glacier Deep Archive
+       +- Lowest cost, retrieval takes 12 hours
+```
+
+### 7.2 Data Protection Strategies
+
+```
+3-2-1 Backup Rule:
+  3: Maintain 3 copies of data
+  2: Store on 2 or more different media types
+  1: Keep 1 copy offsite (at a remote location)
+
+  Implementation Example:
+  +------------------------------------------+
+  | Primary: NVMe SSD (RAID 10)              |
+  | | Daily                                  |
+  | Secondary: NAS Server (ZFS RAIDZ2)       |
+  | | Weekly                                 |
+  | Offsite: S3 Glacier / Google Cloud       |
+  +------------------------------------------+
+
+RPO (Recovery Point Objective) and RTO (Recovery Time Objective):
+
+  RPO: Acceptable amount of data loss (in time)
+  RTO: Acceptable time to system recovery
+
+  | Level              | RPO      | RTO      | Method                    |
+  |--------------------|----------|----------|---------------------------|
+  | Mission-critical   | 0        | Seconds  | Synchronous replication   |
+  | Important systems  | Minutes  | Minutes  | Asynchronous replication  |
+  | General operations | Hours    | Hours    | Snapshots                 |
+  | Archive            | 1 day    | 1+ days  | Daily backup              |
 ```
 
 ---
 
-## 8. ストレージの未来
+## 8. The Future of Storage
 
-| 技術 | 特徴 | 状況 |
-|------|------|------|
-| **CXL** | CPU-メモリ間の新プロトコル、メモリプーリング | 2024年実用化開始 |
-| **Intel Optane** | DRAMとSSDの中間の特性（終了） | 生産終了、技術は他社へ |
-| **PLC NAND** | 5ビット/セル、大容量低コスト | 量産開始 |
-| **DNA Storage** | 1グラムで215PBのデータを保存 | 研究段階 |
-| **ガラスストレージ** | 1000年以上の耐久性 | Microsoft Project Silica |
-| **UCIe SSD** | チップレット構成のSSD | 2025年プロトタイプ |
-| **ZNS (Zoned Namespaces)** | ホスト管理のSSD書き込み | データセンター向け |
+| Technology | Characteristics | Status |
+|-----------|----------------|--------|
+| **CXL** | New CPU-memory protocol, memory pooling | Commercialization began 2024 |
+| **Intel Optane** | Characteristics between DRAM and SSD (discontinued) | Production ended, technology transferred to others |
+| **PLC NAND** | 5 bits/cell, high capacity, low cost | Mass production underway |
+| **DNA Storage** | 215PB of data per gram | Research stage |
+| **Glass Storage** | Durability exceeding 1000 years | Microsoft Project Silica |
+| **UCIe SSD** | Chiplet-based SSD | 2025 prototype |
+| **ZNS (Zoned Namespaces)** | Host-managed SSD writes | For data centers |
 
-### 8.1 ZNS SSD（Zoned Namespaces）
+### 8.1 ZNS SSD (Zoned Namespaces)
 
 ```
-従来のSSD vs ZNS SSD:
+Conventional SSD vs ZNS SSD:
 
-  従来のSSD:
-    ホスト → LBA → FTL（SSD内部）→ 物理ブロック
-    - FTLが複雑（大量のDRAM必要）
-    - GCによる性能低下
-    - オーバープロビジョニングで容量損失
+  Conventional SSD:
+    Host -> LBA -> FTL (inside SSD) -> Physical block
+    - FTL is complex (requires large amounts of DRAM)
+    - Performance degradation due to GC
+    - Capacity loss from over-provisioning
 
   ZNS SSD:
-    ホスト → Zone（シーケンシャル書き込み領域）→ 物理ブロック
-    ┌──────────────────────────────────────┐
-    │ Zone 0: [書き込み済み] [書き込み済み] [WP→] [空き]│
-    │ Zone 1: [書き込み済み] [WP→] [空き] [空き]       │
-    │ Zone 2: [空き] [空き] [空き] [空き]               │
-    └──────────────────────────────────────┘
-    WP = Write Pointer（書き込みポインタ）
+    Host -> Zone (sequential write region) -> Physical block
+    +----------------------------------------+
+    | Zone 0: [Written] [Written] [WP->] [Free]      |
+    | Zone 1: [Written] [WP->] [Free] [Free]         |
+    | Zone 2: [Free] [Free] [Free] [Free]             |
+    +----------------------------------------+
+    WP = Write Pointer
 
-    - ゾーン内はシーケンシャル書き込みのみ
-    - FTLが大幅簡略化（DRAM削減）
-    - GC不要（ホストがゾーンのリセットを管理）
-    - オーバープロビジョニング不要
-    → コスト削減、性能安定化
+    - Only sequential writes within a zone
+    - Greatly simplified FTL (reduced DRAM)
+    - No GC needed (host manages zone resets)
+    - No over-provisioning needed
+    -> Cost reduction, performance stabilization
 
-    対応ソフトウェア:
-    - Linux（blk-zoned）
-    - f2fs（ZNSネイティブサポート）
-    - RocksDB（Zenith プラグイン）
-    - Ceph（BlueStore ZNS対応）
+    Compatible Software:
+    - Linux (blk-zoned)
+    - f2fs (native ZNS support)
+    - RocksDB (Zenith plugin)
+    - Ceph (BlueStore ZNS support)
 ```
 
 ---
 
-## 9. ストレージベンチマーク
+## 9. Storage Benchmarking
 
-### 9.1 fio によるベンチマーク
+### 9.1 Benchmarking with fio
 
 ```bash
-# fio (Flexible I/O Tester) のインストール
+# Install fio (Flexible I/O Tester)
 sudo apt install fio  # Ubuntu/Debian
 brew install fio       # macOS
 
-# 順次読み取りベンチマーク
+# Sequential read benchmark
 fio --name=seq_read --filename=/tmp/fio_test \
     --rw=read --bs=1M --size=1G --numjobs=1 \
     --iodepth=32 --ioengine=libaio --direct=1 \
     --runtime=30 --group_reporting
 
-# 順次書き込みベンチマーク
+# Sequential write benchmark
 fio --name=seq_write --filename=/tmp/fio_test \
     --rw=write --bs=1M --size=1G --numjobs=1 \
     --iodepth=32 --ioengine=libaio --direct=1 \
     --runtime=30 --group_reporting
 
-# ランダム読み取りベンチマーク（4KB、IOPS重視）
+# Random read benchmark (4KB, IOPS-focused)
 fio --name=rand_read --filename=/tmp/fio_test \
     --rw=randread --bs=4k --size=1G --numjobs=4 \
     --iodepth=64 --ioengine=libaio --direct=1 \
     --runtime=30 --group_reporting
 
-# ランダム書き込みベンチマーク
+# Random write benchmark
 fio --name=rand_write --filename=/tmp/fio_test \
     --rw=randwrite --bs=4k --size=1G --numjobs=4 \
     --iodepth=64 --ioengine=libaio --direct=1 \
     --runtime=30 --group_reporting
 
-# 混合ワークロード（読み70%:書き30%）
+# Mixed workload (70% read : 30% write)
 fio --name=mixed --filename=/tmp/fio_test \
     --rw=randrw --rwmixread=70 --bs=4k --size=1G \
     --numjobs=4 --iodepth=32 --ioengine=libaio \
     --direct=1 --runtime=30 --group_reporting
 
-# レイテンシヒストグラム付き
+# With latency histogram
 fio --name=latency --filename=/tmp/fio_test \
     --rw=randread --bs=4k --size=1G --numjobs=1 \
     --iodepth=1 --ioengine=libaio --direct=1 \
@@ -1076,19 +1084,19 @@ fio --name=latency --filename=/tmp/fio_test \
     --group_reporting
 ```
 
-### 9.2 ベンチマーク結果の読み方
+### 9.2 How to Read Benchmark Results
 
 ```
-fio 出力の解読:
+Interpreting fio Output:
 
   seq_read: (groupid=0, jobs=1): err= 0: pid=1234
     read: IOPS=3456, BW=3456MiB/s (3623MB/s)
               ~~~~                  ~~~~~~~~
-              IOPS数                実効帯域幅
+              IOPS count            Effective bandwidth
 
     clat (usec): min=15, max=892, avg=28.23, stdev=12.41
                  ~~~~            ~~~~~~~~
-                 最小レイテンシ  平均レイテンシ
+                 Minimum latency Average latency
 
     clat percentiles (usec):
      |  1.00th=[   18],  5.00th=[   20], 10.00th=[   21]
@@ -1096,97 +1104,97 @@ fio 出力の解読:
      | 99.00th=[   82], 99.50th=[  112], 99.90th=[  245]
      | 99.95th=[  338], 99.99th=[  668]
 
-     → P99 = 82μs: 99%のリクエストが82μs以内に完了
-     → テールレイテンシ（P99.9+）に注目
+     -> P99 = 82us: 99% of requests complete within 82us
+     -> Focus on tail latency (P99.9+)
 
-  重要な指標:
-  - BW（帯域幅）: 順次I/Oの性能
-  - IOPS: ランダムI/Oの性能
-  - clat（完了レイテンシ）: 個々のI/Oの応答時間
-  - P99/P99.9: テールレイテンシ（SLA設計に重要）
+  Key Metrics:
+  - BW (Bandwidth): Sequential I/O performance
+  - IOPS: Random I/O performance
+  - clat (Completion Latency): Response time of individual I/Os
+  - P99/P99.9: Tail latency (critical for SLA design)
 ```
 
 ---
 
-## 10. 実践演習
+## 10. Hands-On Exercises
 
-### 演習1: I/O性能の計算（基礎）
+### Exercise 1: I/O Performance Calculation (Fundamentals)
 
-7200RPMのHDDで、以下の操作にかかる時間を計算せよ:
-1. ランダムに1つの4KBブロックを読み取る
-2. 連続した1GBのファイルを読み取る
-3. ランダムに1000個の4KBブロックを読み取る
+Calculate the time required for the following operations on a 7200RPM HDD:
+1. Read a single random 4KB block
+2. Read a contiguous 1GB file
+3. Read 1000 random 4KB blocks
 
-### 演習2: ストレージ選定（応用）
+### Exercise 2: Storage Selection (Applied)
 
-以下のワークロードに最適なストレージとRAIDレベルを選定し、理由を述べよ:
-1. PostgreSQLデータベース（読み取り多、低レイテンシ必須）
-2. 動画配信サービスの元データ保管（大容量、シーケンシャル読み取り）
-3. Webアプリのログ収集（書き込み多、順次追記）
+Select the optimal storage and RAID level for the following workloads and explain your reasoning:
+1. PostgreSQL database (read-heavy, low latency required)
+2. Video streaming service source data storage (high capacity, sequential reads)
+3. Web application log collection (write-heavy, sequential append)
 
-### 演習3: ベンチマーク（発展）
+### Exercise 3: Benchmarking (Advanced)
 
-`fio` または `dd` コマンドを使って自分のマシンのストレージ性能を測定せよ:
-- 順次読み取り/書き込みの帯域幅
-- ランダム読み取り/書き込みのIOPS
-- 測定結果を理論値と比較
+Use `fio` or `dd` to measure the storage performance of your own machine:
+- Sequential read/write bandwidth
+- Random read/write IOPS
+- Compare the measured results against theoretical values
 
-### 演習4: RAID計算（応用）
+### Exercise 4: RAID Calculation (Applied)
 
-以下の条件でRAIDの性能と容量を計算せよ:
-- ディスク: 4TB SSD × 8台（各ディスク: 100K IOPS、500MB/s順次）
-- ワークロード: 読み60%、書き40%
+Calculate the performance and capacity for the following RAID configurations:
+- Disks: 4TB SSD x 8 (each disk: 100K IOPS, 500MB/s sequential)
+- Workload: 60% read, 40% write
 
-各RAIDレベル（0, 1, 5, 6, 10）について:
-1. 有効容量
-2. 理論上の読み取り/書き込みIOPS
-3. 理論上の順次読み取り帯域幅
-4. 耐障害ディスク数
+For each RAID level (0, 1, 5, 6, 10):
+1. Effective capacity
+2. Theoretical read/write IOPS
+3. Theoretical sequential read bandwidth
+4. Number of tolerable disk failures
 
-### 演習5: バックアップ戦略の設計（発展）
+### Exercise 5: Backup Strategy Design (Advanced)
 
-以下のシステムのバックアップ戦略を設計せよ:
-- PostgreSQL: 500GBのデータベース、RPO=1時間、RTO=30分
-- ユーザーアップロード画像: 10TB、RPO=24時間、RTO=4時間
-- アクセスログ: 1日50GB生成、90日保持
+Design a backup strategy for the following systems:
+- PostgreSQL: 500GB database, RPO=1 hour, RTO=30 minutes
+- User-uploaded images: 10TB, RPO=24 hours, RTO=4 hours
+- Access logs: 50GB generated per day, 90-day retention
 
-設計項目:
-1. バックアップ方式（フル/増分/差分）
-2. スケジュール
-3. 保管先
-4. 復旧手順の概要
-5. 月間コスト見積もり（AWS前提）
+Design elements:
+1. Backup method (full/incremental/differential)
+2. Schedule
+3. Storage destination
+4. Recovery procedure overview
+5. Monthly cost estimate (assuming AWS)
 
 
 ---
 
-## トラブルシューティング
+## Troubleshooting
 
-### よくあるエラーと解決策
+### Common Errors and Solutions
 
-| エラー | 原因 | 解決策 |
-|--------|------|--------|
-| 初期化エラー | 設定ファイルの不備 | 設定ファイルのパスと形式を確認 |
-| タイムアウト | ネットワーク遅延/リソース不足 | タイムアウト値の調整、リトライ処理の追加 |
-| メモリ不足 | データ量の増大 | バッチ処理の導入、ページネーションの実装 |
-| 権限エラー | アクセス権限の不足 | 実行ユーザーの権限確認、設定の見直し |
-| データ不整合 | 並行処理の競合 | ロック機構の導入、トランザクション管理 |
+| Error | Cause | Solution |
+|-------|-------|----------|
+| Initialization error | Configuration file issues | Verify configuration file paths and formats |
+| Timeout | Network latency/resource shortage | Adjust timeout values, add retry logic |
+| Out of memory | Growing data volume | Implement batch processing, add pagination |
+| Permission error | Insufficient access permissions | Verify user permissions, review settings |
+| Data inconsistency | Concurrent processing conflicts | Introduce locking mechanisms, transaction management |
 
-### デバッグの手順
+### Debugging Procedure
 
-1. **エラーメッセージの確認**: スタックトレースを読み、発生箇所を特定する
-2. **再現手順の確立**: 最小限のコードでエラーを再現する
-3. **仮説の立案**: 考えられる原因をリストアップする
-4. **段階的な検証**: ログ出力やデバッガを使って仮説を検証する
-5. **修正と回帰テスト**: 修正後、関連する箇所のテストも実行する
+1. **Check error messages**: Read the stack trace to identify the source
+2. **Establish reproduction steps**: Reproduce the error with minimal code
+3. **Formulate hypotheses**: List possible causes
+4. **Verify step by step**: Use log output and debuggers to test hypotheses
+5. **Fix and regression test**: After fixing, run tests on related areas
 
 ```python
-# デバッグ用ユーティリティ
+# Debugging utility
 import logging
 import traceback
 from functools import wraps
 
-# ロガーの設定
+# Logger configuration
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
@@ -1194,102 +1202,102 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def debug_decorator(func):
-    """関数の入出力をログ出力するデコレータ"""
+    """Decorator that logs function input/output"""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        logger.debug(f"呼び出し: {func.__name__}(args={args}, kwargs={kwargs})")
+        logger.debug(f"Call: {func.__name__}(args={args}, kwargs={kwargs})")
         try:
             result = func(*args, **kwargs)
-            logger.debug(f"戻り値: {func.__name__} -> {result}")
+            logger.debug(f"Return: {func.__name__} -> {result}")
             return result
         except Exception as e:
-            logger.error(f"例外発生: {func.__name__}: {e}")
+            logger.error(f"Exception in: {func.__name__}: {e}")
             logger.error(traceback.format_exc())
             raise
     return wrapper
 
 @debug_decorator
 def process_data(items):
-    """データ処理（デバッグ対象）"""
+    """Data processing (debug target)"""
     if not items:
-        raise ValueError("空のデータ")
+        raise ValueError("Empty data")
     return [item * 2 for item in items]
 ```
 
-### パフォーマンス問題の診断
+### Diagnosing Performance Issues
 
-パフォーマンス問題が発生した場合の診断手順:
+Steps to diagnose when performance issues occur:
 
-1. **ボトルネックの特定**: プロファイリングツールで計測
-2. **メモリ使用量の確認**: メモリリークの有無をチェック
-3. **I/O待ちの確認**: ディスクやネットワークI/Oの状況を確認
-4. **同時接続数の確認**: コネクションプールの状態を確認
+1. **Identify the bottleneck**: Measure with profiling tools
+2. **Check memory usage**: Check for memory leaks
+3. **Check I/O waits**: Examine disk and network I/O status
+4. **Check concurrent connections**: Examine connection pool status
 
-| 問題の種類 | 診断ツール | 対策 |
-|-----------|-----------|------|
-| CPU負荷 | cProfile, py-spy | アルゴリズム改善、並列化 |
-| メモリリーク | tracemalloc, objgraph | 参照の適切な解放 |
-| I/Oボトルネック | strace, iostat | 非同期I/O、キャッシュ |
-| DB遅延 | EXPLAIN, slow query log | インデックス、クエリ最適化 |
+| Issue Type | Diagnostic Tool | Countermeasure |
+|-----------|----------------|----------------|
+| CPU load | cProfile, py-spy | Algorithm improvement, parallelization |
+| Memory leak | tracemalloc, objgraph | Proper reference release |
+| I/O bottleneck | strace, iostat | Async I/O, caching |
+| DB latency | EXPLAIN, slow query log | Indexing, query optimization |
 
 ---
 
-## 設計判断ガイド
+## Design Decision Guide
 
-### 選択基準マトリクス
+### Selection Criteria Matrix
 
-技術選択を行う際の判断基準を以下にまとめます。
+The following summarizes the criteria for making technology choices.
 
-| 判断基準 | 重視する場合 | 妥協できる場合 |
-|---------|------------|-------------|
-| パフォーマンス | リアルタイム処理、大規模データ | 管理画面、バッチ処理 |
-| 保守性 | 長期運用、チーム開発 | プロトタイプ、短期プロジェクト |
-| スケーラビリティ | 成長が見込まれるサービス | 社内ツール、固定ユーザー |
-| セキュリティ | 個人情報、金融データ | 公開データ、社内利用 |
-| 開発速度 | MVP、市場投入スピード | 品質重視、ミッションクリティカル |
+| Criterion | When to Prioritize | When to Compromise |
+|-----------|-------------------|-------------------|
+| Performance | Real-time processing, large-scale data | Admin panels, batch processing |
+| Maintainability | Long-term operation, team development | Prototypes, short-term projects |
+| Scalability | Services expected to grow | Internal tools, fixed users |
+| Security | Personal information, financial data | Public data, internal use |
+| Development speed | MVP, time-to-market | Quality-focused, mission-critical |
 
-### アーキテクチャパターンの選択
+### Architecture Pattern Selection
 
 ```
-┌─────────────────────────────────────────────────┐
-│              アーキテクチャ選択フロー              │
-├─────────────────────────────────────────────────┤
-│                                                 │
-│  ① チーム規模は？                                │
-│    ├─ 小規模（1-5人）→ モノリス                   │
-│    └─ 大規模（10人+）→ ②へ                       │
-│                                                 │
-│  ② デプロイ頻度は？                               │
-│    ├─ 週1回以下 → モノリス + モジュール分割         │
-│    └─ 毎日/複数回 → ③へ                          │
-│                                                 │
-│  ③ チーム間の独立性は？                            │
-│    ├─ 高い → マイクロサービス                      │
-│    └─ 中程度 → モジュラーモノリス                   │
-│                                                 │
-└─────────────────────────────────────────────────┘
++---------------------------------------------------+
+|          Architecture Selection Flow               |
++---------------------------------------------------+
+|                                                   |
+|  (1) Team size?                                   |
+|    +- Small (1-5) -> Monolith                     |
+|    +- Large (10+) -> Go to (2)                    |
+|                                                   |
+|  (2) Deployment frequency?                        |
+|    +- Once/week or less -> Monolith + Modular     |
+|    +- Daily/multiple -> Go to (3)                 |
+|                                                   |
+|  (3) Team independence?                           |
+|    +- High -> Microservices                       |
+|    +- Moderate -> Modular Monolith                |
+|                                                   |
++---------------------------------------------------+
 ```
 
-### トレードオフの分析
+### Trade-off Analysis
 
-技術的な判断には必ずトレードオフが伴います。以下の観点で分析を行いましょう:
+Technical decisions always involve trade-offs. Analyze from the following perspectives:
 
-**1. 短期 vs 長期のコスト**
-- 短期的に速い方法が長期的には技術的負債になることがある
-- 逆に、過剰な設計は短期的なコストが高く、プロジェクトの遅延を招く
+**1. Short-term vs Long-term Cost**
+- A method that is fast in the short term can become technical debt in the long term
+- Conversely, over-engineering incurs high short-term costs and can delay projects
 
-**2. 一貫性 vs 柔軟性**
-- 統一された技術スタックは学習コストが低い
-- 多様な技術の採用は適材適所が可能だが、運用コストが増加
+**2. Consistency vs Flexibility**
+- A unified tech stack reduces learning costs
+- Diverse technology adoption enables best-fit choices but increases operational costs
 
-**3. 抽象化のレベル**
-- 高い抽象化は再利用性が高いが、デバッグが困難になる場合がある
-- 低い抽象化は直感的だが、コードの重複が発生しやすい
+**3. Level of Abstraction**
+- High abstraction improves reusability but can make debugging difficult
+- Low abstraction is intuitive but prone to code duplication
 
 ```python
-# 設計判断の記録テンプレート
+# Design decision recording template
 class ArchitectureDecisionRecord:
-    """ADR (Architecture Decision Record) の作成"""
+    """Create an ADR (Architecture Decision Record)"""
 
     def __init__(self, title: str):
         self.title = title
@@ -1299,17 +1307,17 @@ class ArchitectureDecisionRecord:
         self.alternatives = []
 
     def set_context(self, context: str):
-        """背景と課題の記述"""
+        """Describe the background and challenges"""
         self.context = context
         return self
 
     def set_decision(self, decision: str):
-        """決定内容の記述"""
+        """Describe the decision"""
         self.decision = decision
         return self
 
     def add_consequence(self, consequence: str, positive: bool = True):
-        """結果の追加"""
+        """Add a consequence"""
         self.consequences.append({
             'description': consequence,
             'type': 'positive' if positive else 'negative'
@@ -1317,7 +1325,7 @@ class ArchitectureDecisionRecord:
         return self
 
     def add_alternative(self, name: str, reason_rejected: str):
-        """却下した代替案の追加"""
+        """Add a rejected alternative"""
         self.alternatives.append({
             'name': name,
             'reason_rejected': reason_rejected
@@ -1325,15 +1333,15 @@ class ArchitectureDecisionRecord:
         return self
 
     def to_markdown(self) -> str:
-        """Markdown形式で出力"""
+        """Output in Markdown format"""
         md = f"# ADR: {self.title}\n\n"
-        md += f"## 背景\n{self.context}\n\n"
-        md += f"## 決定\n{self.decision}\n\n"
-        md += "## 結果\n"
+        md += f"## Context\n{self.context}\n\n"
+        md += f"## Decision\n{self.decision}\n\n"
+        md += "## Consequences\n"
         for c in self.consequences:
-            icon = "✅" if c['type'] == 'positive' else "⚠️"
-            md += f"- {icon} {c['description']}\n"
-        md += "\n## 却下した代替案\n"
+            icon = "+" if c['type'] == 'positive' else "!"
+            md += f"- [{icon}] {c['description']}\n"
+        md += "\n## Rejected Alternatives\n"
         for a in self.alternatives:
             md += f"- **{a['name']}**: {a['reason_rejected']}\n"
         return md
@@ -1341,53 +1349,53 @@ class ArchitectureDecisionRecord:
 
 ---
 
-## 実務での適用シナリオ
+## Practical Application Scenarios
 
-### シナリオ1: スタートアップでのMVP開発
+### Scenario 1: MVP Development at a Startup
 
-**状況:** 限られたリソースで素早くプロダクトをリリースする必要がある
+**Situation:** Need to release a product quickly with limited resources
 
-**アプローチ:**
-- シンプルなアーキテクチャを選択
-- 必要最小限の機能に集中
-- 自動テストはクリティカルパスのみ
-- モニタリングは早期から導入
+**Approach:**
+- Choose a simple architecture
+- Focus on the minimum viable set of features
+- Automated tests only for critical paths
+- Introduce monitoring from the start
 
-**学んだ教訓:**
-- 完璧を求めすぎない（YAGNI原則）
-- ユーザーフィードバックを早期に取得
-- 技術的負債は意識的に管理する
+**Lessons Learned:**
+- Don't pursue perfection (YAGNI principle)
+- Obtain user feedback early
+- Manage technical debt consciously
 
-### シナリオ2: レガシーシステムのモダナイゼーション
+### Scenario 2: Legacy System Modernization
 
-**状況:** 10年以上運用されているシステムを段階的に刷新する
+**Situation:** Incrementally modernizing a system that has been running for 10+ years
 
-**アプローチ:**
-- Strangler Fig パターンで段階的に移行
-- 既存のテストがない場合はCharacterization Testを先に作成
-- APIゲートウェイで新旧システムを共存
-- データ移行は段階的に実施
+**Approach:**
+- Use the Strangler Fig pattern for gradual migration
+- Create Characterization Tests first if existing tests are absent
+- Use an API gateway to allow old and new systems to coexist
+- Perform data migration in stages
 
-| フェーズ | 作業内容 | 期間目安 | リスク |
-|---------|---------|---------|--------|
-| 1. 調査 | 現状分析、依存関係の把握 | 2-4週間 | 低 |
-| 2. 基盤 | CI/CD構築、テスト環境 | 4-6週間 | 低 |
-| 3. 移行開始 | 周辺機能から順次移行 | 3-6ヶ月 | 中 |
-| 4. コア移行 | 中核機能の移行 | 6-12ヶ月 | 高 |
-| 5. 完了 | 旧システム廃止 | 2-4週間 | 中 |
+| Phase | Work | Estimated Duration | Risk |
+|-------|------|-------------------|------|
+| 1. Investigation | Current state analysis, dependency mapping | 2-4 weeks | Low |
+| 2. Foundation | CI/CD setup, test environment | 4-6 weeks | Low |
+| 3. Migration start | Migrate peripheral features first | 3-6 months | Medium |
+| 4. Core migration | Migrate core functionality | 6-12 months | High |
+| 5. Completion | Decommission legacy system | 2-4 weeks | Medium |
 
-### シナリオ3: 大規模チームでの開発
+### Scenario 3: Development with Large Teams
 
-**状況:** 50人以上のエンジニアが同一プロダクトを開発する
+**Situation:** 50+ engineers developing the same product
 
-**アプローチ:**
-- ドメイン駆動設計で境界を明確化
-- チームごとにオーナーシップを設定
-- 共通ライブラリはInner Source方式で管理
-- APIファーストで設計し、チーム間の依存を最小化
+**Approach:**
+- Use Domain-Driven Design to clarify boundaries
+- Set ownership per team
+- Manage shared libraries using the Inner Source model
+- Design API-first to minimize inter-team dependencies
 
 ```python
-# チーム間のAPI契約定義
+# Inter-team API contract definition
 from dataclasses import dataclass
 from typing import List, Optional
 from enum import Enum
@@ -1400,20 +1408,20 @@ class Priority(Enum):
 
 @dataclass
 class APIContract:
-    """チーム間のAPI契約"""
+    """Inter-team API contract"""
     endpoint: str
     method: str
     owner_team: str
     consumers: List[str]
-    sla_ms: int  # レスポンスタイムSLA
+    sla_ms: int  # Response time SLA
     priority: Priority
 
     def validate_sla(self, actual_ms: int) -> bool:
-        """SLA準拠の確認"""
+        """Verify SLA compliance"""
         return actual_ms <= self.sla_ms
 
     def to_openapi(self) -> dict:
-        """OpenAPI形式で出力"""
+        """Output in OpenAPI format"""
         return {
             'path': self.endpoint,
             'method': self.method,
@@ -1422,7 +1430,7 @@ class APIContract:
             'x-sla-ms': self.sla_ms
         }
 
-# 使用例
+# Usage example
 contracts = [
     APIContract(
         endpoint="/api/v1/users",
@@ -1443,104 +1451,104 @@ contracts = [
 ]
 ```
 
-### シナリオ4: パフォーマンスクリティカルなシステム
+### Scenario 4: Performance-Critical Systems
 
-**状況:** ミリ秒単位のレスポンスが求められるシステム
+**Situation:** A system requiring millisecond-level response times
 
-**最適化ポイント:**
-1. キャッシュ戦略（L1: インメモリ、L2: Redis、L3: CDN）
-2. 非同期処理の活用
-3. コネクションプーリング
-4. クエリ最適化とインデックス設計
+**Optimization Points:**
+1. Cache strategy (L1: In-memory, L2: Redis, L3: CDN)
+2. Leverage async processing
+3. Connection pooling
+4. Query optimization and index design
 
-| 最適化手法 | 効果 | 実装コスト | 適用場面 |
-|-----------|------|-----------|---------|
-| インメモリキャッシュ | 高 | 低 | 頻繁にアクセスされるデータ |
-| CDN | 高 | 低 | 静的コンテンツ |
-| 非同期処理 | 中 | 中 | I/O待ちが多い処理 |
-| DB最適化 | 高 | 高 | クエリが遅い場合 |
-| コード最適化 | 低-中 | 高 | CPU律速の場合 |
-
----
-
-## チーム開発での活用
-
-### コードレビューのチェックリスト
-
-このトピックに関連するコードレビューで確認すべきポイント:
-
-- [ ] 命名規則が一貫しているか
-- [ ] エラーハンドリングが適切か
-- [ ] テストカバレッジは十分か
-- [ ] パフォーマンスへの影響はないか
-- [ ] セキュリティ上の問題はないか
-- [ ] ドキュメントは更新されているか
-
-### ナレッジ共有のベストプラクティス
-
-| 方法 | 頻度 | 対象 | 効果 |
-|------|------|------|------|
-| ペアプログラミング | 随時 | 複雑なタスク | 即時のフィードバック |
-| テックトーク | 週1回 | チーム全体 | 知識の水平展開 |
-| ADR (設計記録) | 都度 | 将来のメンバー | 意思決定の透明性 |
-| 振り返り | 2週間ごと | チーム全体 | 継続的改善 |
-| モブプログラミング | 月1回 | 重要な設計 | 合意形成 |
-
-### 技術的負債の管理
-
-```
-優先度マトリクス:
-
-        影響度 高
-          │
-    ┌─────┼─────┐
-    │ 計画 │ 即座 │
-    │ 的に │ に   │
-    │ 対応 │ 対応 │
-    ├─────┼─────┤
-    │ 記録 │ 次の │
-    │ のみ │ Sprint│
-    │     │ で   │
-    └─────┼─────┘
-          │
-        影響度 低
-    発生頻度 低  発生頻度 高
-```
+| Optimization Method | Effect | Implementation Cost | Applicable Scenario |
+|--------------------|--------|--------------------|--------------------|
+| In-memory cache | High | Low | Frequently accessed data |
+| CDN | High | Low | Static content |
+| Async processing | Medium | Medium | Heavy I/O wait processing |
+| DB optimization | High | High | Slow queries |
+| Code optimization | Low-Medium | High | CPU-bound cases |
 
 ---
 
-## セキュリティの考慮事項
+## Leveraging in Team Development
 
-### 一般的な脆弱性と対策
+### Code Review Checklist
 
-| 脆弱性 | リスクレベル | 対策 | 検出方法 |
-|--------|------------|------|---------|
-| インジェクション攻撃 | 高 | 入力値のバリデーション・パラメータ化クエリ | SAST/DAST |
-| 認証の不備 | 高 | 多要素認証・セッション管理の強化 | ペネトレーションテスト |
-| 機密データの露出 | 高 | 暗号化・アクセス制御 | セキュリティ監査 |
-| 設定の不備 | 中 | セキュリティヘッダー・最小権限の原則 | 構成スキャン |
-| ログの不足 | 中 | 構造化ログ・監査証跡 | ログ分析 |
+Key points to verify in code reviews related to this topic:
 
-### セキュアコーディングのベストプラクティス
+- [ ] Naming conventions are consistent
+- [ ] Error handling is appropriate
+- [ ] Test coverage is sufficient
+- [ ] No performance impact
+- [ ] No security concerns
+- [ ] Documentation is updated
+
+### Best Practices for Knowledge Sharing
+
+| Method | Frequency | Target | Benefit |
+|--------|-----------|--------|---------|
+| Pair programming | As needed | Complex tasks | Immediate feedback |
+| Tech talks | Weekly | Entire team | Horizontal knowledge spread |
+| ADR (Decision Records) | Per decision | Future members | Decision transparency |
+| Retrospective | Biweekly | Entire team | Continuous improvement |
+| Mob programming | Monthly | Important designs | Consensus building |
+
+### Managing Technical Debt
+
+```
+Priority Matrix:
+
+        High Impact
+          |
+    +-----+-----+
+    | Plan | Fix  |
+    | for  | Imme-|
+    | Later| diately|
+    +-----+-----+
+    | Log  | Next |
+    | Only | Sprint|
+    |      |      |
+    +-----+-----+
+          |
+        Low Impact
+    Low Frequency  High Frequency
+```
+
+---
+
+## Security Considerations
+
+### Common Vulnerabilities and Countermeasures
+
+| Vulnerability | Risk Level | Countermeasure | Detection Method |
+|---------------|-----------|----------------|-----------------|
+| Injection attacks | High | Input validation, parameterized queries | SAST/DAST |
+| Authentication flaws | High | Multi-factor authentication, session management hardening | Penetration testing |
+| Sensitive data exposure | High | Encryption, access control | Security audit |
+| Misconfiguration | Medium | Security headers, principle of least privilege | Configuration scanning |
+| Insufficient logging | Medium | Structured logging, audit trails | Log analysis |
+
+### Secure Coding Best Practices
 
 ```python
-# セキュアコーディング例
+# Secure coding example
 import hashlib
 import secrets
 import hmac
 from typing import Optional
 
 class SecurityUtils:
-    """セキュリティユーティリティ"""
+    """Security utilities"""
 
     @staticmethod
     def generate_token(length: int = 32) -> str:
-        """暗号学的に安全なトークン生成"""
+        """Generate a cryptographically secure token"""
         return secrets.token_urlsafe(length)
 
     @staticmethod
     def hash_password(password: str, salt: Optional[str] = None) -> tuple:
-        """パスワードのハッシュ化"""
+        """Hash a password"""
         if salt is None:
             salt = secrets.token_hex(16)
         hashed = hashlib.pbkdf2_hmac(
@@ -1553,50 +1561,50 @@ class SecurityUtils:
 
     @staticmethod
     def verify_password(password: str, hashed: str, salt: str) -> bool:
-        """パスワードの検証"""
+        """Verify a password"""
         new_hash, _ = SecurityUtils.hash_password(password, salt)
         return hmac.compare_digest(new_hash, hashed)
 
     @staticmethod
     def sanitize_input(value: str) -> str:
-        """入力値のサニタイズ"""
+        """Sanitize input values"""
         dangerous_chars = ['<', '>', '"', "'", '&', '\\']
         result = value
         for char in dangerous_chars:
             result = result.replace(char, '')
         return result.strip()
 
-# 使用例
+# Usage example
 token = SecurityUtils.generate_token()
 hashed, salt = SecurityUtils.hash_password("my_password")
 is_valid = SecurityUtils.verify_password("my_password", hashed, salt)
 ```
 
-### セキュリティチェックリスト
+### Security Checklist
 
-- [ ] 全ての入力値がバリデーションされている
-- [ ] 機密情報がログに出力されていない
-- [ ] HTTPS が強制されている
-- [ ] CORS ポリシーが適切に設定されている
-- [ ] 依存パッケージの脆弱性スキャンが実施されている
-- [ ] エラーメッセージに内部情報が含まれていない
+- [ ] All input values are validated
+- [ ] Sensitive information is not output to logs
+- [ ] HTTPS is enforced
+- [ ] CORS policy is properly configured
+- [ ] Dependency vulnerability scanning is performed
+- [ ] Error messages do not contain internal information
 
 ---
 
-## マイグレーションガイド
+## Migration Guide
 
-### バージョンアップ時の注意点
+### Considerations When Upgrading Versions
 
-| バージョン | 主な変更点 | 移行作業 | 影響範囲 |
-|-----------|-----------|---------|---------|
-| v1.x → v2.x | API設計の刷新 | エンドポイント変更 | 全クライアント |
-| v2.x → v3.x | 認証方式の変更 | トークン形式更新 | 認証関連 |
-| v3.x → v4.x | データモデル変更 | マイグレーションスクリプト実行 | DB関連 |
+| Version | Major Changes | Migration Work | Impact Scope |
+|---------|--------------|---------------|-------------|
+| v1.x -> v2.x | API redesign | Endpoint changes | All clients |
+| v2.x -> v3.x | Authentication method change | Token format update | Auth-related |
+| v3.x -> v4.x | Data model change | Run migration scripts | DB-related |
 
-### 段階的移行の手順
+### Gradual Migration Procedure
 
 ```python
-# マイグレーションスクリプトのテンプレート
+# Migration script template
 import json
 import logging
 from pathlib import Path
@@ -1606,7 +1614,7 @@ from typing import List, Dict, Callable
 logger = logging.getLogger(__name__)
 
 class MigrationRunner:
-    """段階的マイグレーション実行エンジン"""
+    """Gradual migration execution engine"""
 
     def __init__(self, migration_dir: str):
         self.migration_dir = Path(migration_dir)
@@ -1615,7 +1623,7 @@ class MigrationRunner:
 
     def register(self, version: str, description: str,
                  up: Callable, down: Callable):
-        """マイグレーションの登録"""
+        """Register a migration"""
         self.migrations.append({
             'version': version,
             'description': description,
@@ -1625,35 +1633,35 @@ class MigrationRunner:
         })
 
     def run_up(self, target_version: str = None):
-        """マイグレーションの実行（アップグレード）"""
+        """Execute migration (upgrade)"""
         for migration in self.migrations:
             if migration['version'] in self.completed:
                 continue
-            logger.info(f"実行中: {migration['version']} - "
+            logger.info(f"Running: {migration['version']} - "
                        f"{migration['description']}")
             try:
                 migration['up']()
                 self.completed.append(migration['version'])
-                logger.info(f"完了: {migration['version']}")
+                logger.info(f"Completed: {migration['version']}")
             except Exception as e:
-                logger.error(f"失敗: {migration['version']}: {e}")
+                logger.error(f"Failed: {migration['version']}: {e}")
                 raise
             if target_version and migration['version'] == target_version:
                 break
 
     def run_down(self, target_version: str):
-        """マイグレーションのロールバック"""
+        """Rollback migration"""
         for migration in reversed(self.migrations):
             if migration['version'] not in self.completed:
                 continue
             if migration['version'] == target_version:
                 break
-            logger.info(f"ロールバック: {migration['version']}")
+            logger.info(f"Rolling back: {migration['version']}")
             migration['down']()
             self.completed.remove(migration['version'])
 
     def status(self) -> Dict:
-        """マイグレーション状態の確認"""
+        """Check migration status"""
         return {
             'total': len(self.migrations),
             'completed': len(self.completed),
@@ -1666,94 +1674,94 @@ class MigrationRunner:
         }
 ```
 
-### ロールバック計画
+### Rollback Plan
 
-移行作業には必ずロールバック計画を準備してください:
+Always prepare a rollback plan for migration work:
 
-1. **データのバックアップ**: 移行前に完全バックアップを取得
-2. **テスト環境での検証**: 本番と同等の環境で事前検証
-3. **段階的なロールアウト**: カナリアリリースで段階的に展開
-4. **監視の強化**: 移行中はメトリクスの監視間隔を短縮
-5. **判断基準の明確化**: ロールバックを判断する基準を事前に定義
+1. **Data backup**: Take a full backup before migration
+2. **Test environment verification**: Pre-verify in an environment equivalent to production
+3. **Gradual rollout**: Deploy incrementally with canary releases
+4. **Enhanced monitoring**: Shorten metric monitoring intervals during migration
+5. **Clear decision criteria**: Define rollback criteria in advance
 ---
 
 ## FAQ
 
-### Q1: SSDの寿命はどのくらいですか？
+### Q1: How long does an SSD last?
 
-**A**: TBW（Total Bytes Written）で表される。一般的なコンシューマSSD:
-- 500GB SSD: 〜300 TBW（1日100GB書き込みで約8年）
-- 一般的な使用では寿命前にPC自体を買い替える
-- サーバー用SSDはさらに高耐久（〜10x PBW）
+**A**: Expressed as TBW (Total Bytes Written). For typical consumer SSDs:
+- 500GB SSD: ~300 TBW (approximately 8 years at 100GB writes per day)
+- Under normal use, you will replace the PC itself before the SSD reaches end of life
+- Server SSDs have even higher endurance (~10x PBW)
 
-### Q2: データベースはHDDとSSDどちらに置くべきですか？
+### Q2: Should databases be placed on HDD or SSD?
 
-**A**: ランダムI/Oが多いDBは**SSDが圧倒的に有利**:
-- HDD: 100 IOPS → SSD: 100,000+ IOPS（1000倍）
-- 特にインデックス検索、ランダムなJOIN操作で差が顕著
-- コールドデータ（アーカイブ）はHDD/S3で十分
+**A**: For random I/O-heavy databases, **SSD is overwhelmingly superior**:
+- HDD: 100 IOPS -> SSD: 100,000+ IOPS (1000x)
+- The difference is especially pronounced in index lookups and random JOIN operations
+- Cold data (archive) is fine on HDD/S3
 
-### Q3: ZFSとext4の選び方は？
+### Q3: How do I choose between ZFS and ext4?
 
 **A**:
-- **ext4**: シンプル、安定、Linux標準。一般的なWebサーバーに最適
-- **ZFS**: データ整合性が最重要な場面（NAS、バックアップ、DB）。メモリ使用量が多い（1TBあたり1GBのRAM推奨）
+- **ext4**: Simple, stable, Linux standard. Best for general web servers
+- **ZFS**: When data integrity is paramount (NAS, backup, DB). Uses significant memory (1GB of RAM per 1TB recommended)
 
-### Q4: RAID 5はなぜデータベースに不向きですか？
+### Q4: Why is RAID 5 unsuitable for databases?
 
-**A**: RAID 5の書き込みペナルティが原因:
-- 1回の書き込み = 2読み + 2書き = 4 I/O
-- データベースはランダム書き込みが多い
-- RAID 10なら1回の書き込み = 2 I/O（ミラーのみ）
-- さらに大容量ディスクではリビルド時間が数十時間に及び、リビルド中の二重障害リスクが高い
+**A**: Due to RAID 5's write penalty:
+- 1 write = 2 reads + 2 writes = 4 I/Os
+- Databases have many random writes
+- RAID 10 requires only 1 write = 2 I/Os (mirroring only)
+- Furthermore, with large-capacity disks, rebuild times can reach tens of hours, increasing the risk of double failure during rebuild
 
-### Q5: NVMe SSDのキューが65,535もあるのはなぜですか？
+### Q5: Why does NVMe SSD have 65,535 queues?
 
-**A**: マルチコアCPUとの並列処理のため:
-- 各CPUコアが専用のキューを持てる
-- ロック競合なしで同時にI/O要求を発行
-- サーバーでは64コア以上のCPUが普通なので、十分なキュー数が必要
-- 実際には数百キューで運用することが多い
+**A**: For parallel processing with multi-core CPUs:
+- Each CPU core can have its own dedicated queue
+- I/O requests can be issued simultaneously without lock contention
+- Servers commonly have 64+ core CPUs, requiring sufficient queue count
+- In practice, several hundred queues are typically used
 
-### Q6: SSDのオーバープロビジョニングとは？
+### Q6: What is SSD over-provisioning?
 
-**A**: SSDの実NAND容量の一部をユーザーに見せず、内部管理に使う領域:
-- 不良ブロックの代替
-- GC用の作業領域
-- パフォーマンスの安定化
-- エンタープライズSSDでは28%程度（1TB表記で実NAND 1.28TB）
-- コンシューマSSDでは7%程度
+**A**: A portion of the SSD's actual NAND capacity hidden from the user and used for internal management:
+- Substitution for bad blocks
+- Working area for GC
+- Performance stabilization
+- Enterprise SSDs typically use ~28% (1TB labeled SSD has ~1.28TB actual NAND)
+- Consumer SSDs typically use ~7%
 
-### Q7: SMR HDDを知らずに購入してしまった場合の対処法は？
+### Q7: What should I do if I unknowingly purchased an SMR HDD?
 
-**A**: SMR HDDはシーケンシャル書き込みは問題ないが、ランダム書き込みが極端に遅い:
-- NAS/RAIDには不向き（リビルドが数日かかる場合も）
-- 用途をバックアップ・アーカイブに限定する
-- 購入前にメーカーのスペックシートでCMR/SMRを確認
-- Seagate Barracuda, WD Blueの一部がSMR
-
----
-
-## まとめ
-
-| 概念 | ポイント |
-|------|---------|
-| HDD | 機械式、ランダムI/O遅い(〜100 IOPS)、大容量・安価 |
-| SSD | NAND、ランダムI/O速い(〜100K IOPS)、書き込み回数制限あり |
-| NVMe | PCIe直結、AHCI→NVMeで並列度65,535倍 |
-| FS | ジャーナリング(ext4)かCOW(ZFS/Btrfs)で整合性確保 |
-| RAID | 0=速度、1=安全、5=バランス、10=性能+安全 |
-| ZNS | ホスト管理のゾーン書き込みでSSD効率向上 |
-| クラウド | ティアリングでコスト最適化（ホット→コールド） |
+**A**: SMR HDDs have no issues with sequential writes, but random writes are extremely slow:
+- Not suitable for NAS/RAID (rebuilds can take days)
+- Limit usage to backup and archive purposes
+- Check CMR/SMR in the manufacturer's spec sheet before purchasing
+- Some Seagate Barracuda and WD Blue models use SMR
 
 ---
 
-## 次に読むべきガイド
+## Summary
+
+| Concept | Key Points |
+|---------|-----------|
+| HDD | Mechanical, slow random I/O (~100 IOPS), high capacity, low cost |
+| SSD | NAND-based, fast random I/O (~100K IOPS), write cycle limitations |
+| NVMe | Direct PCIe connection, AHCI->NVMe provides 65,535x parallelism |
+| FS | Consistency ensured via journaling (ext4) or COW (ZFS/Btrfs) |
+| RAID | 0=Speed, 1=Safety, 5=Balance, 10=Performance+Safety |
+| ZNS | Host-managed zone writes improve SSD efficiency |
+| Cloud | Tiering optimizes cost (Hot->Cold) |
+
+---
+
+## Recommended Next Guides
 
 
 ---
 
-## 参考文献
+## References
 
 1. Arpaci-Dusseau, R. H. & Arpaci-Dusseau, A. C. "Operating Systems: Three Easy Pieces." Chapter on Hard Disk Drives and Flash-based SSDs.
 2. Cornwell, M. "Anatomy of a Solid-State Drive." ACM Queue, 2012.

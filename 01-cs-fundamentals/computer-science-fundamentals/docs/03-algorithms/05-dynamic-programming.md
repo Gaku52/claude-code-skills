@@ -1,33 +1,33 @@
-# 動的計画法（DP）
+# Dynamic Programming (DP)
 
-> 動的計画法の本質は「同じ計算を2度しない」。重複する部分問題の結果を記憶することで、指数時間を多項式時間に削減する。
+> The essence of dynamic programming is "never compute the same thing twice." By memoizing results of overlapping subproblems, it reduces exponential time to polynomial time.
 
-## この章で学ぶこと
+## Learning Objectives
 
-- [ ] メモ化再帰とボトムアップDPの違いを理解する
-- [ ] DPが適用できる問題の特徴を見抜ける
-- [ ] 典型的なDPパターン（ナップサック、LCS等）を実装できる
-- [ ] 状態設計の手法を体系的に習得する
-- [ ] 空間最適化・次元削減のテクニックを使いこなせる
-- [ ] 区間DP、木DP、桁DP、ビットDPなど高度なDPを理解する
+- [ ] Understand the difference between memoization (top-down) and bottom-up DP
+- [ ] Identify the characteristics of problems where DP is applicable
+- [ ] Implement classic DP patterns (knapsack, LCS, etc.)
+- [ ] Systematically master state design techniques
+- [ ] Use space optimization and dimension reduction techniques proficiently
+- [ ] Understand advanced DP: interval DP, tree DP, digit DP, bitmask DP, and more
 
-## 前提知識
+## Prerequisites
 
 
 ---
 
-## 1. DPの基本概念
+## 1. Fundamental DP Concepts
 
-### 1.1 フィボナッチ数列で理解するDP
+### 1.1 Understanding DP Through Fibonacci Numbers
 
 ```python
-# ❌ 素朴な再帰: O(2^n) — 指数時間
+# BAD: Naive recursion: O(2^n) -- exponential time
 def fib_naive(n):
     if n <= 1:
         return n
     return fib_naive(n - 1) + fib_naive(n - 2)
 
-# fib(5) の呼び出し木:
+# fib(5) call tree:
 #              fib(5)
 #            /        \
 #       fib(4)        fib(3)
@@ -35,9 +35,9 @@ def fib_naive(n):
 #   fib(3)  fib(2)  fib(2) fib(1)
 #   /   \    / \     / \
 # f(2) f(1) f(1) f(0) f(1) f(0)
-# → fib(2)が3回、fib(3)が2回計算される（無駄！）
+# -> fib(2) is computed 3 times, fib(3) is computed 2 times (wasteful!)
 
-# ✅ メモ化再帰（トップダウンDP）: O(n)
+# GOOD: Memoized recursion (top-down DP): O(n)
 def fib_memo(n, memo={}):
     if n in memo:
         return memo[n]
@@ -46,7 +46,7 @@ def fib_memo(n, memo={}):
     memo[n] = fib_memo(n - 1, memo) + fib_memo(n - 2, memo)
     return memo[n]
 
-# ✅ ボトムアップDP（テーブル法）: O(n)
+# GOOD: Bottom-up DP (tabulation): O(n)
 def fib_dp(n):
     if n <= 1:
         return n
@@ -56,7 +56,7 @@ def fib_dp(n):
         dp[i] = dp[i - 1] + dp[i - 2]
     return dp[n]
 
-# ✅ 空間最適化: O(1)
+# GOOD: Space-optimized: O(1)
 def fib_optimized(n):
     if n <= 1:
         return n
@@ -66,51 +66,51 @@ def fib_optimized(n):
     return b
 ```
 
-### 1.2 DPが適用できる2つの条件
+### 1.2 Two Conditions for DP Applicability
 
 ```
-DPが使える問題の特徴:
+Characteristics of problems solvable with DP:
 
-  1. 最適部分構造（Optimal Substructure）
-     → 問題の最適解が部分問題の最適解から構成される
-     → 例: 最短経路の部分経路も最短経路
+  1. Optimal Substructure
+     -> The optimal solution to the problem is composed of optimal solutions to subproblems
+     -> Example: A sub-path of a shortest path is also a shortest path
 
-  2. 重複する部分問題（Overlapping Subproblems）
-     → 同じ部分問題が何度も出現する
-     → 例: fib(n) = fib(n-1) + fib(n-2) → fib(n-2)が複数箇所で必要
+  2. Overlapping Subproblems
+     -> The same subproblems appear repeatedly
+     -> Example: fib(n) = fib(n-1) + fib(n-2) -> fib(n-2) is needed in multiple places
 
-  DPが使えない例:
-  - 最長単純パス → 最適部分構造がない（部分パスが干渉する）
-  - 部分問題が重複しない分割統治 → メモ化の意味がない
+  Examples where DP does NOT apply:
+  - Longest simple path -> No optimal substructure (sub-paths interfere)
+  - Divide-and-conquer with no subproblem overlap -> Memoization is meaningless
 ```
 
-### 1.3 メモ化 vs ボトムアップ
+### 1.3 Memoization vs Bottom-Up
 
 ```
-トップダウン（メモ化再帰）:
-  利点: 自然な再帰的思考、必要な部分問題のみ計算
-  欠点: 再帰のスタックオーバーフロー（深い再帰）
-  実装: @functools.lru_cache
+Top-down (memoized recursion):
+  Pros: Natural recursive thinking, only computes needed subproblems
+  Cons: Stack overflow risk with deep recursion
+  Implementation: @functools.lru_cache
 
-ボトムアップ（テーブル法）:
-  利点: スタックオーバーフローなし、空間最適化しやすい
-  欠点: 計算順序を事前に決める必要がある
-  実装: forループ + 配列
+Bottom-up (tabulation):
+  Pros: No stack overflow, easier to optimize space
+  Cons: Must determine computation order in advance
+  Implementation: For loop + array
 ```
 
-### 1.4 Python での lru_cache を使ったメモ化
+### 1.4 Memoization with Python's lru_cache
 
 ```python
 from functools import lru_cache
 
-# lru_cache を使うと、メモ化を自分で実装する必要がない
+# Using lru_cache eliminates the need for manual memoization
 @lru_cache(maxsize=None)
 def fib_cached(n):
     if n <= 1:
         return n
     return fib_cached(n - 1) + fib_cached(n - 2)
 
-# Python 3.9+ では cache デコレータも使える
+# Python 3.9+ also offers the cache decorator
 from functools import cache
 
 @cache
@@ -119,16 +119,16 @@ def fib_py39(n):
         return n
     return fib_py39(n - 1) + fib_py39(n - 2)
 
-# lru_cache の注意点:
-# 1. 引数はハッシュ可能でなければならない（list不可、tuple可）
-# 2. maxsize=None で無制限キャッシュ（メモリに注意）
-# 3. 再帰の深さ制限に注意（sys.setrecursionlimit で変更可能）
-# 4. グローバルな辞書を汚染しない（関数ごとに独立）
+# lru_cache caveats:
+# 1. Arguments must be hashable (no lists, but tuples are fine)
+# 2. maxsize=None means unlimited cache (be mindful of memory)
+# 3. Watch out for recursion depth limits (adjustable via sys.setrecursionlimit)
+# 4. Does not pollute global dictionaries (independent per function)
 
-# 使用例: グリッド上のパス数
+# Usage example: Number of paths on a grid
 @lru_cache(maxsize=None)
 def grid_paths(m, n):
-    """m×n グリッドの左上から右下へのパス数（右と下のみ移動）"""
+    """Number of paths from top-left to bottom-right in an m x n grid (right and down moves only)"""
     if m == 1 or n == 1:
         return 1
     return grid_paths(m - 1, n) + grid_paths(m, n - 1)
@@ -136,19 +136,19 @@ def grid_paths(m, n):
 print(grid_paths(10, 10))  # 48620
 ```
 
-### 1.5 DPテーブルの可視化テクニック
+### 1.5 DP Table Visualization Technique
 
 ```python
 def visualize_dp_table(dp, row_labels=None, col_labels=None, title="DP Table"):
-    """DPテーブルを見やすく表示するユーティリティ"""
+    """Utility to display DP tables in a readable format"""
     print(f"\n--- {title} ---")
 
     if isinstance(dp[0], list):
-        # 2次元テーブル
+        # 2D table
         rows = len(dp)
         cols = len(dp[0])
 
-        # ヘッダー
+        # Header
         if col_labels:
             header = "     " + "".join(f"{l:>5}" for l in col_labels)
             print(header)
@@ -159,14 +159,14 @@ def visualize_dp_table(dp, row_labels=None, col_labels=None, title="DP Table"):
             row = "".join(f"{dp[i][j]:>5}" for j in range(cols))
             print(label + row)
     else:
-        # 1次元テーブル
+        # 1D table
         if col_labels:
             header = "".join(f"{l:>5}" for l in col_labels)
             print(header)
         row = "".join(f"{v:>5}" for v in dp)
         print(row)
 
-# 使用例: LCSテーブルの可視化
+# Usage example: LCS table visualization
 s1, s2 = "ABCB", "BDCAB"
 m, n = len(s1), len(s2)
 dp = [[0] * (n + 1) for _ in range(m + 1)]
@@ -187,46 +187,46 @@ visualize_dp_table(
 
 ---
 
-## 2. 典型的なDPパターン
+## 2. Classic DP Patterns
 
-### 2.1 0-1 ナップサック問題
+### 2.1 0-1 Knapsack Problem
 
 ```python
 def knapsack(weights, values, capacity):
-    """重さ制限内で価値を最大化"""
+    """Maximize value within a weight constraint"""
     n = len(weights)
-    # dp[i][w] = i個目までの品物で重さw以下での最大価値
+    # dp[i][w] = maximum value using the first i items with weight limit w
     dp = [[0] * (capacity + 1) for _ in range(n + 1)]
 
     for i in range(1, n + 1):
         for w in range(capacity + 1):
-            dp[i][w] = dp[i-1][w]  # i番目を入れない
+            dp[i][w] = dp[i-1][w]  # Don't include item i
             if weights[i-1] <= w:
                 dp[i][w] = max(dp[i][w],
-                    dp[i-1][w - weights[i-1]] + values[i-1])  # 入れる
+                    dp[i-1][w - weights[i-1]] + values[i-1])  # Include it
 
     return dp[n][capacity]
 
-# 例: weights=[2,3,4,5], values=[3,4,5,6], capacity=8
-# → 最大価値 = 10（品物1+品物3: 重さ6, 価値8... 実際は品物2+品物4: 重さ8, 価値10）
+# Example: weights=[2,3,4,5], values=[3,4,5,6], capacity=8
+# -> Maximum value = 10 (items 2+4: weight 8, value 10)
 
-# 計算量: O(n × W)  (W = 容量)
-# 空間: O(n × W) → O(W) に最適化可能
+# Time complexity: O(n x W)  (W = capacity)
+# Space: O(n x W) -> can be optimized to O(W)
 
-# 1次元DPに空間最適化:
+# Space-optimized 1D DP:
 def knapsack_optimized(weights, values, capacity):
     dp = [0] * (capacity + 1)
     for i in range(len(weights)):
-        for w in range(capacity, weights[i] - 1, -1):  # 逆順が重要！
+        for w in range(capacity, weights[i] - 1, -1):  # Reverse order is crucial!
             dp[w] = max(dp[w], dp[w - weights[i]] + values[i])
     return dp[capacity]
 ```
 
-#### ナップサック問題の選択物復元
+#### Knapsack Item Recovery
 
 ```python
 def knapsack_with_items(weights, values, capacity):
-    """最大価値だけでなく、選んだ品物も復元する"""
+    """Recover not only max value but also which items were selected"""
     n = len(weights)
     dp = [[0] * (capacity + 1) for _ in range(n + 1)]
 
@@ -237,7 +237,7 @@ def knapsack_with_items(weights, values, capacity):
                 dp[i][w] = max(dp[i][w],
                     dp[i-1][w - weights[i-1]] + values[i-1])
 
-    # 選択した品物を復元（逆順にたどる）
+    # Recover selected items (trace backwards)
     selected = []
     w = capacity
     for i in range(n, 0, -1):
@@ -248,22 +248,22 @@ def knapsack_with_items(weights, values, capacity):
     selected.reverse()
     return dp[n][capacity], selected
 
-# 使用例
+# Usage example
 weights = [2, 3, 4, 5]
 values  = [3, 4, 5, 6]
 capacity = 8
 max_val, items = knapsack_with_items(weights, values, capacity)
-print(f"最大価値: {max_val}")        # 10
-print(f"選んだ品物: {items}")        # [1, 3]（0-indexed）
-print(f"重さ合計: {sum(weights[i] for i in items)}")  # 8
-print(f"価値合計: {sum(values[i] for i in items)}")   # 10
+print(f"Maximum value: {max_val}")        # 10
+print(f"Selected items: {items}")         # [1, 3] (0-indexed)
+print(f"Total weight: {sum(weights[i] for i in items)}")  # 8
+print(f"Total value: {sum(values[i] for i in items)}")    # 10
 ```
 
-#### 個数制限なしナップサック（完全ナップサック）
+#### Unbounded Knapsack (Complete Knapsack)
 
 ```python
 def unbounded_knapsack(weights, values, capacity):
-    """各品物を何個でも使える場合のナップサック"""
+    """Knapsack where each item can be used any number of times"""
     dp = [0] * (capacity + 1)
 
     for w in range(1, capacity + 1):
@@ -273,27 +273,27 @@ def unbounded_knapsack(weights, values, capacity):
 
     return dp[capacity]
 
-# 0-1ナップサックとの違い:
-# - 0-1: 各品物は1回のみ → 内側ループを逆順に回す
-# - 完全: 各品物は何回でも → 内側ループを順方向に回す
-# この違いが生じる理由:
-#   逆順にすると dp[w - weights[i]] は「品物iを使う前の状態」を参照
-#   順方向だと dp[w - weights[i]] は「品物iを使った後の状態」を含む可能性がある
+# Difference from 0-1 knapsack:
+# - 0-1: Each item used at most once -> inner loop in reverse order
+# - Unbounded: Each item usable any number of times -> inner loop in forward order
+# Why the difference:
+#   Reverse order: dp[w - weights[i]] references "state before using item i"
+#   Forward order: dp[w - weights[i]] may include "state after using item i"
 
-# 個数制限付きナップサック
+# Bounded knapsack (limited quantities)
 def bounded_knapsack(weights, values, counts, capacity):
-    """各品物に使用回数制限がある場合"""
+    """Knapsack with a usage limit per item"""
     dp = [0] * (capacity + 1)
 
     for i in range(len(weights)):
-        # 二進数分解テクニック: count を 1, 2, 4, ... のグループに分解
+        # Binary decomposition technique: decompose count into groups of 1, 2, 4, ...
         count = counts[i]
         k = 1
         while count > 0:
             actual = min(k, count)
             w_group = weights[i] * actual
             v_group = values[i] * actual
-            # 0-1ナップサックとして処理
+            # Process as 0-1 knapsack
             for w in range(capacity, w_group - 1, -1):
                 dp[w] = max(dp[w], dp[w - w_group] + v_group)
             count -= actual
@@ -301,16 +301,16 @@ def bounded_knapsack(weights, values, counts, capacity):
 
     return dp[capacity]
 
-# 例: 品物A(w=2,v=3)を5個、品物B(w=3,v=5)を3個使える
-# → 二進分解: A: 1+2+2個のグループ、B: 1+2個のグループ
-# → 計算量: O(W × Σ(log count_i)) ← O(W × Σ count_i) より高速
+# Example: Item A (w=2, v=3) x5, Item B (w=3, v=5) x3
+# -> Binary decomposition: A: groups of 1+2+2, B: groups of 1+2
+# -> Time complexity: O(W x sum(log count_i)) <- faster than O(W x sum(count_i))
 ```
 
-### 2.2 最長共通部分列（LCS）
+### 2.2 Longest Common Subsequence (LCS)
 
 ```python
 def lcs(s1, s2):
-    """2つの文字列の最長共通部分列の長さ"""
+    """Length of the longest common subsequence of two strings"""
     m, n = len(s1), len(s2)
     dp = [[0] * (n + 1) for _ in range(m + 1)]
 
@@ -323,11 +323,11 @@ def lcs(s1, s2):
 
     return dp[m][n]
 
-# 例: lcs("ABCBDAB", "BDCAB") = 4 ("BCAB")
-# 計算量: O(m × n)
-# 用途: diff コマンド、DNA配列比較、バージョン管理
+# Example: lcs("ABCBDAB", "BDCAB") = 4 ("BCAB")
+# Time complexity: O(m x n)
+# Applications: diff command, DNA sequence comparison, version control
 
-# LCS テーブルの可視化:
+# LCS table visualization:
 #     ""  B  D  C  A  B
 # ""   0  0  0  0  0  0
 #  A   0  0  0  0  1  1
@@ -339,11 +339,11 @@ def lcs(s1, s2):
 #  B   0  1  2  2  3  4
 ```
 
-#### LCS の文字列復元
+#### LCS String Recovery
 
 ```python
 def lcs_string(s1, s2):
-    """LCSの実際の文字列を復元する"""
+    """Recover the actual LCS string"""
     m, n = len(s1), len(s2)
     dp = [[0] * (n + 1) for _ in range(m + 1)]
 
@@ -354,7 +354,7 @@ def lcs_string(s1, s2):
             else:
                 dp[i][j] = max(dp[i-1][j], dp[i][j-1])
 
-    # 復元（逆順にたどる）
+    # Recovery (trace backwards)
     result = []
     i, j = m, n
     while i > 0 and j > 0:
@@ -369,12 +369,12 @@ def lcs_string(s1, s2):
 
     return "".join(reversed(result))
 
-# 使用例
+# Usage example
 print(lcs_string("ABCBDAB", "BDCAB"))  # "BCAB"
 
-# diff コマンド風の出力
+# diff-command-style output
 def print_diff(s1, s2):
-    """2つの文字列（行のリスト）のdiffを表示"""
+    """Display diff of two strings (lists of lines)"""
     m, n = len(s1), len(s2)
     dp = [[0] * (n + 1) for _ in range(m + 1)]
 
@@ -385,7 +385,7 @@ def print_diff(s1, s2):
             else:
                 dp[i][j] = max(dp[i-1][j], dp[i][j-1])
 
-    # 逆順に辿ってdiff操作を収集
+    # Trace backwards to collect diff operations
     ops = []
     i, j = m, n
     while i > 0 or j > 0:
@@ -404,11 +404,11 @@ def print_diff(s1, s2):
     for op, line in ops:
         print(f"{op} {line}")
 
-# 使用例
+# Usage example
 lines1 = ["apple", "banana", "cherry", "date"]
 lines2 = ["apple", "blueberry", "cherry", "elderberry"]
 print_diff(lines1, lines2)
-# 出力:
+# Output:
 #   apple
 # - banana
 # + blueberry
@@ -417,12 +417,12 @@ print_diff(lines1, lines2)
 # + elderberry
 ```
 
-#### 空間最適化LCS
+#### Space-Optimized LCS
 
 ```python
 def lcs_space_optimized(s1, s2):
-    """O(min(m,n)) の空間でLCS長を計算"""
-    # 短い方を内側のループにする
+    """Compute LCS length in O(min(m,n)) space"""
+    # Use the shorter string for the inner loop
     if len(s1) < len(s2):
         s1, s2 = s2, s1
 
@@ -440,15 +440,15 @@ def lcs_space_optimized(s1, s2):
 
     return prev[n]
 
-# 注意: この最適化では文字列の復元はできない
-# 復元も空間 O(n) でやりたい場合は Hirschberg のアルゴリズムを使う
+# Note: This optimization does not allow string recovery
+# For O(n) space recovery, use Hirschberg's algorithm
 ```
 
-### 2.3 コイン問題（完全ナップサック）
+### 2.3 Coin Change Problem (Complete Knapsack)
 
 ```python
 def coin_change(coins, amount):
-    """最小枚数でamountを作る"""
+    """Make amount using the minimum number of coins"""
     dp = [float('inf')] * (amount + 1)
     dp[0] = 0
 
@@ -459,23 +459,23 @@ def coin_change(coins, amount):
 
     return dp[amount] if dp[amount] != float('inf') else -1
 
-# 例: coins=[1,5,10,25], amount=36
-# → 25 + 10 + 1 = 3枚（貪欲法でも最適だが、coins=[1,3,4], amount=6では貪欲法は失敗）
-# 貪欲法: 4+1+1 = 3枚 ❌
-# DP:     3+3   = 2枚 ✅
+# Example: coins=[1,5,10,25], amount=36
+# -> 25 + 10 + 1 = 3 coins (greedy also optimal here, but for coins=[1,3,4], amount=6 greedy fails)
+# Greedy: 4+1+1 = 3 coins BAD
+# DP:     3+3   = 2 coins GOOD
 
-# 計算量: O(amount × len(coins))
+# Time complexity: O(amount x len(coins))
 ```
 
-#### コインの組み合わせ数
+#### Number of Coin Combinations
 
 ```python
 def coin_combinations(coins, amount):
-    """amountを作る方法の総数（順序を区別しない）"""
+    """Total number of ways to make amount (order does not matter)"""
     dp = [0] * (amount + 1)
     dp[0] = 1
 
-    # 外側ループがコイン → 順序を区別しない（組み合わせ）
+    # Outer loop over coins -> order-independent (combinations)
     for coin in coins:
         for i in range(coin, amount + 1):
             dp[i] += dp[i - coin]
@@ -483,11 +483,11 @@ def coin_combinations(coins, amount):
     return dp[amount]
 
 def coin_permutations(coins, amount):
-    """amountを作る方法の総数（順序を区別する）"""
+    """Total number of ways to make amount (order matters)"""
     dp = [0] * (amount + 1)
     dp[0] = 1
 
-    # 外側ループが金額 → 順序を区別する（順列）
+    # Outer loop over amounts -> order-dependent (permutations)
     for i in range(1, amount + 1):
         for coin in coins:
             if coin <= i:
@@ -495,22 +495,22 @@ def coin_permutations(coins, amount):
 
     return dp[amount]
 
-# 例: coins=[1,2,3], amount=4
-# 組み合わせ: {1+1+1+1, 1+1+2, 1+3, 2+2} = 4通り
-# 順列:       上記 + {2+1+1, 3+1, 2+1+1, 1+2+1, ...} = 7通り
+# Example: coins=[1,2,3], amount=4
+# Combinations: {1+1+1+1, 1+1+2, 1+3, 2+2} = 4 ways
+# Permutations: above + {2+1+1, 3+1, 2+1+1, 1+2+1, ...} = 7 ways
 
-# この違いはDPのループ順序の違いから生じる
-# 非常によく面接で聞かれるポイント
+# This difference arises from the loop order in DP
+# A very commonly asked point in interviews
 ```
 
-#### 使用コインの復元
+#### Coin Usage Recovery
 
 ```python
 def coin_change_with_trace(coins, amount):
-    """最小枚数とその内訳を返す"""
+    """Return minimum number of coins and their breakdown"""
     dp = [float('inf')] * (amount + 1)
     dp[0] = 0
-    parent = [-1] * (amount + 1)  # どのコインを使ったか
+    parent = [-1] * (amount + 1)  # Which coin was used
 
     for i in range(1, amount + 1):
         for coin in coins:
@@ -521,7 +521,7 @@ def coin_change_with_trace(coins, amount):
     if dp[amount] == float('inf'):
         return -1, []
 
-    # 復元
+    # Recovery
     used_coins = []
     current = amount
     while current > 0:
@@ -530,20 +530,20 @@ def coin_change_with_trace(coins, amount):
 
     return dp[amount], used_coins
 
-# 使用例
+# Usage example
 min_coins, coins_used = coin_change_with_trace([1, 3, 4], 6)
-print(f"最小枚数: {min_coins}")    # 2
-print(f"使用コイン: {coins_used}")  # [3, 3]
+print(f"Minimum coins: {min_coins}")    # 2
+print(f"Coins used: {coins_used}")      # [3, 3]
 ```
 
-### 2.4 最長増加部分列（LIS）
+### 2.4 Longest Increasing Subsequence (LIS)
 
 ```python
 import bisect
 
 def lis(arr):
-    """最長増加部分列の長さ（O(n log n)）"""
-    tails = []  # tails[i] = 長さ i+1 のLISの最小末尾値
+    """Length of the longest increasing subsequence (O(n log n))"""
+    tails = []  # tails[i] = minimum tail value of LIS with length i+1
 
     for x in arr:
         pos = bisect.bisect_left(tails, x)
@@ -554,18 +554,18 @@ def lis(arr):
 
     return len(tails)
 
-# 例: arr = [10, 9, 2, 5, 3, 7, 101, 18]
-# LIS = [2, 3, 7, 18] or [2, 5, 7, 18] → 長さ4
+# Example: arr = [10, 9, 2, 5, 3, 7, 101, 18]
+# LIS = [2, 3, 7, 18] or [2, 5, 7, 18] -> length 4
 
-# O(n²) 版: dp[i] = arr[i]で終わるLISの長さ
-# O(n log n) 版: 二分探索で tails 配列を管理
+# O(n^2) version: dp[i] = length of LIS ending at arr[i]
+# O(n log n) version: manage tails array with binary search
 ```
 
-#### LIS の O(n^2) 版と復元
+#### O(n^2) LIS with Recovery
 
 ```python
 def lis_quadratic_with_recovery(arr):
-    """O(n^2) のLIS + 実際の部分列を復元"""
+    """O(n^2) LIS + recover the actual subsequence"""
     n = len(arr)
     if n == 0:
         return 0, []
@@ -579,11 +579,11 @@ def lis_quadratic_with_recovery(arr):
                 dp[i] = dp[j] + 1
                 parent[i] = j
 
-    # 最大値の位置を見つける
+    # Find the position of the maximum value
     max_len = max(dp)
     max_idx = dp.index(max_len)
 
-    # 復元
+    # Recovery
     result = []
     idx = max_idx
     while idx != -1:
@@ -593,20 +593,20 @@ def lis_quadratic_with_recovery(arr):
     result.reverse()
     return max_len, result
 
-# 使用例
+# Usage example
 length, subsequence = lis_quadratic_with_recovery([10, 9, 2, 5, 3, 7, 101, 18])
-print(f"長さ: {length}")          # 4
-print(f"部分列: {subsequence}")   # [2, 3, 7, 18] or [2, 5, 7, 101] etc.
+print(f"Length: {length}")            # 4
+print(f"Subsequence: {subsequence}")  # [2, 3, 7, 18] or [2, 5, 7, 101] etc.
 ```
 
-#### 最長非減少部分列（非狭義）
+#### Longest Non-Decreasing Subsequence (Non-Strict)
 
 ```python
 def longest_non_decreasing_subsequence(arr):
-    """等しい要素も許す場合（非狭義単調増加）"""
+    """When equal elements are allowed (non-strictly increasing)"""
     tails = []
     for x in arr:
-        # bisect_right を使う（等しい要素を許す）
+        # Use bisect_right (allows equal elements)
         pos = bisect.bisect_right(tails, x)
         if pos == len(tails):
             tails.append(x)
@@ -614,59 +614,59 @@ def longest_non_decreasing_subsequence(arr):
             tails[pos] = x
     return len(tails)
 
-# 狭義 vs 非狭義の違い:
-# 狭義増加: bisect_left → [2,3,7,18] (等しい要素は不可)
-# 非減少:   bisect_right → [2,3,3,7,18] (等しい要素も可)
+# Strict vs non-strict difference:
+# Strictly increasing: bisect_left -> [2,3,7,18] (equal elements not allowed)
+# Non-decreasing:      bisect_right -> [2,3,3,7,18] (equal elements allowed)
 ```
 
-### 2.5 編集距離（レーベンシュタイン距離）
+### 2.5 Edit Distance (Levenshtein Distance)
 
 ```python
 def edit_distance(s1, s2):
-    """2つの文字列の編集距離を計算"""
+    """Compute the edit distance between two strings"""
     m, n = len(s1), len(s2)
     dp = [[0] * (n + 1) for _ in range(m + 1)]
 
-    # 基底条件
+    # Base cases
     for i in range(m + 1):
-        dp[i][0] = i  # s1の先頭i文字を全削除
+        dp[i][0] = i  # Delete all first i characters of s1
     for j in range(n + 1):
-        dp[0][j] = j  # 空文字列にs2の先頭j文字を全挿入
+        dp[0][j] = j  # Insert all first j characters of s2
 
     for i in range(1, m + 1):
         for j in range(1, n + 1):
             if s1[i-1] == s2[j-1]:
-                dp[i][j] = dp[i-1][j-1]  # 一致 → コストなし
+                dp[i][j] = dp[i-1][j-1]  # Match -> no cost
             else:
                 dp[i][j] = 1 + min(
-                    dp[i-1][j],      # 削除
-                    dp[i][j-1],      # 挿入
-                    dp[i-1][j-1]     # 置換
+                    dp[i-1][j],      # Delete
+                    dp[i][j-1],      # Insert
+                    dp[i-1][j-1]     # Replace
                 )
 
     return dp[m][n]
 
-# 例:
+# Example:
 # edit_distance("kitten", "sitting") = 3
-#   kitten → sitten (置換 k→s)
-#   sitten → sittin (置換 e→i)
-#   sittin → sitting (挿入 g)
+#   kitten -> sitten (replace k->s)
+#   sitten -> sittin (replace e->i)
+#   sittin -> sitting (insert g)
 
-# 用途:
-# - スペルチェッカー
-# - DNA配列のアラインメント
-# - ファジーマッチング（あいまい検索）
-# - 自然言語処理（単語の類似度）
+# Applications:
+# - Spell checkers
+# - DNA sequence alignment
+# - Fuzzy matching (approximate search)
+# - Natural language processing (word similarity)
 
-# 計算量: O(m × n)
-# 空間: O(m × n) → O(min(m,n)) に最適化可能
+# Time complexity: O(m x n)
+# Space: O(m x n) -> can be optimized to O(min(m,n))
 ```
 
-#### 編集距離の空間最適化と操作復元
+#### Edit Distance Space Optimization and Operation Recovery
 
 ```python
 def edit_distance_optimized(s1, s2):
-    """O(min(m,n)) の空間で編集距離を計算"""
+    """Compute edit distance in O(min(m,n)) space"""
     if len(s1) < len(s2):
         s1, s2 = s2, s1
 
@@ -686,7 +686,7 @@ def edit_distance_optimized(s1, s2):
     return prev[n]
 
 def edit_operations(s1, s2):
-    """編集距離と具体的な操作列を返す"""
+    """Return edit distance and the specific sequence of operations"""
     m, n = len(s1), len(s2)
     dp = [[0] * (n + 1) for _ in range(m + 1)]
 
@@ -702,7 +702,7 @@ def edit_operations(s1, s2):
             else:
                 dp[i][j] = 1 + min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1])
 
-    # 操作の復元
+    # Operation recovery
     ops = []
     i, j = m, n
     while i > 0 or j > 0:
@@ -711,7 +711,7 @@ def edit_operations(s1, s2):
             i -= 1
             j -= 1
         elif i > 0 and j > 0 and dp[i][j] == dp[i-1][j-1] + 1:
-            ops.append(('REPLACE', f"{s1[i-1]}→{s2[j-1]}", i-1))
+            ops.append(('REPLACE', f"{s1[i-1]}->{s2[j-1]}", i-1))
             i -= 1
             j -= 1
         elif j > 0 and dp[i][j] == dp[i][j-1] + 1:
@@ -724,32 +724,32 @@ def edit_operations(s1, s2):
     ops.reverse()
     return dp[m][n], ops
 
-# 使用例
+# Usage example
 dist, ops = edit_operations("kitten", "sitting")
-print(f"編集距離: {dist}")
+print(f"Edit distance: {dist}")
 for op, char, pos in ops:
     if op != 'MATCH':
         print(f"  {op}: '{char}' at position {pos}")
 ```
 
-### 2.6 部分和問題
+### 2.6 Subset Sum Problem
 
 ```python
 def subset_sum(nums, target):
-    """numsの要素の部分集合でtargetを作れるか"""
+    """Can a subset of nums sum to target?"""
     dp = [False] * (target + 1)
     dp[0] = True
 
     for num in nums:
-        # 逆順に処理（各要素を1回のみ使用）
+        # Process in reverse order (each element used at most once)
         for j in range(target, num - 1, -1):
             dp[j] = dp[j] or dp[j - num]
 
     return dp[target]
 
-# 応用: 配列を2つのグループに分けて差を最小化
+# Application: Split array into two groups minimizing the difference
 def min_subset_difference(nums):
-    """2つのグループの和の差を最小にする"""
+    """Minimize the difference between two groups' sums"""
     total = sum(nums)
     half = total // 2
 
@@ -760,18 +760,18 @@ def min_subset_difference(nums):
         for j in range(half, num - 1, -1):
             dp[j] = dp[j] or dp[j - num]
 
-    # dp[j]がTrueの最大のjを見つける
+    # Find the largest j where dp[j] is True
     for j in range(half, -1, -1):
         if dp[j]:
             return total - 2 * j
 
-# 例: nums = [1, 6, 11, 5]
-# グループ1: {1, 5, 6} = 12, グループ2: {11} = 11
-# 差 = 1
+# Example: nums = [1, 6, 11, 5]
+# Group 1: {1, 5, 6} = 12, Group 2: {11} = 11
+# Difference = 1
 
-# 応用: 配列をk個の等和グループに分割可能か
+# Application: Can the array be partitioned into k groups with equal sums?
 def can_partition_k(nums, k):
-    """k個の等しい和のグループに分割できるか"""
+    """Can the array be split into k groups with equal sums?"""
     total = sum(nums)
     if total % k != 0:
         return False
@@ -803,70 +803,70 @@ def can_partition_k(nums, k):
 
 ---
 
-## 3. DP の状態設計
+## 3. DP State Design
 
-### 3.1 状態の定義方法
+### 3.1 How to Define States
 
 ```
-DP設計の思考プロセス:
+DP design thought process:
 
-  1. 状態を定義する
-     → dp[i] = 「i番目まで見た時の最適値」
-     → dp[i][j] = 「i番目まで見て、残り容量jの時の最適値」
+  1. Define the state
+     -> dp[i] = "optimal value considering up to the i-th element"
+     -> dp[i][j] = "optimal value considering up to the i-th element with remaining capacity j"
 
-  2. 遷移式を立てる
-     → dp[i] = f(dp[i-1], dp[i-2], ...)
-     → 現在の状態を、以前の状態の組み合わせで表現
+  2. Formulate the transition
+     -> dp[i] = f(dp[i-1], dp[i-2], ...)
+     -> Express the current state as a combination of previous states
 
-  3. 基底条件（ベースケース）を決める
-     → dp[0] = ? dp[1] = ?
+  3. Determine base cases
+     -> dp[0] = ? dp[1] = ?
 
-  4. 計算順序を決める
-     → 依存関係に従って小→大の順
+  4. Determine computation order
+     -> Small to large, following dependencies
 
-  5. 答えを特定する
-     → dp[n] or max(dp) or dp[n][W]
+  5. Identify the answer
+     -> dp[n] or max(dp) or dp[n][W]
 
-  よくある状態の取り方:
-  ┌──────────────────┬──────────────────────────────┐
-  │ パターン          │ 状態の例                      │
-  ├──────────────────┼──────────────────────────────┤
-  │ 線形DP          │ dp[i] = i番目までの最適値      │
-  │ 区間DP          │ dp[i][j] = 区間[i,j]の最適値  │
-  │ ナップサックDP   │ dp[i][w] = i個でw容量の最適値 │
-  │ 木DP            │ dp[v] = 部分木vでの最適値     │
-  │ 桁DP            │ dp[pos][tight] = pos桁目まで  │
-  │ ビットDP        │ dp[mask] = 集合maskの状態     │
-  └──────────────────┴──────────────────────────────┘
+  Common state patterns:
+  ┌──────────────────┬──────────────────────────────────┐
+  │ Pattern           │ State example                     │
+  ├──────────────────┼──────────────────────────────────┤
+  │ Linear DP        │ dp[i] = optimal value up to i     │
+  │ Interval DP      │ dp[i][j] = optimal for interval [i,j]│
+  │ Knapsack DP      │ dp[i][w] = optimal for i items, capacity w│
+  │ Tree DP          │ dp[v] = optimal for subtree v     │
+  │ Digit DP         │ dp[pos][tight] = up to position pos│
+  │ Bitmask DP       │ dp[mask] = state for set mask     │
+  └──────────────────┴──────────────────────────────────┘
 ```
 
-### 3.2 状態設計の実践例
+### 3.2 State Design in Practice
 
 ```python
-# 例1: 最大部分配列和（カダネのアルゴリズム）
-# 状態: dp[i] = arr[i]で終わる連続部分配列の最大和
+# Example 1: Maximum subarray sum (Kadane's algorithm)
+# State: dp[i] = maximum sum of contiguous subarray ending at arr[i]
 def max_subarray(arr):
     dp = arr[0]
     best = arr[0]
     for i in range(1, len(arr)):
-        dp = max(arr[i], dp + arr[i])  # 新しく始めるか、続けるか
+        dp = max(arr[i], dp + arr[i])  # Start fresh or continue
         best = max(best, dp)
     return best
 
 # arr = [-2, 1, -3, 4, -1, 2, 1, -5, 4]
 # dp:   -2  1  -2  4   3  5  6   1  5
 # best: -2  1   1  4   4  5  6   6  6
-# 答え: 6（部分配列 [4, -1, 2, 1]）
+# Answer: 6 (subarray [4, -1, 2, 1])
 
-# 例2: ペンキ塗り問題（色のコスト最小化）
-# 状態: dp[i][c] = i番目の家を色cで塗った時の最小コスト
+# Example 2: House painting problem (minimize color cost)
+# State: dp[i][c] = minimum cost when painting house i with color c
 def paint_houses(costs):
-    """n軒の家を3色で塗る。隣接する家は異なる色"""
+    """Paint n houses with 3 colors. Adjacent houses must differ in color"""
     if not costs:
         return 0
 
     n = len(costs)
-    # dp[i][c] を 前の家の結果のみで計算可能 → O(1) 空間
+    # dp[i][c] can be computed using only the previous house -> O(1) space
     prev = costs[0][:]
 
     for i in range(1, n):
@@ -878,19 +878,19 @@ def paint_houses(costs):
 
     return min(prev)
 
-# 例: costs = [[17,2,17],[16,16,5],[14,3,19]]
-# 家0を緑(2) + 家1を青(5) + 家2を緑(3) = 10
+# Example: costs = [[17,2,17],[16,16,5],[14,3,19]]
+# House 0 green(2) + House 1 blue(5) + House 2 green(3) = 10
 
-# 例3: ワイン問題（区間DPの一種）
-# n本のワインを年に1本ずつ売る。左端か右端からのみ選べる。
-# 売値 = ワインの価格 × 年数
+# Example 3: Wine problem (a type of interval DP)
+# Sell n wines one per year. Can only choose from the left or right end.
+# Selling price = wine's price x year number
 def max_wine_profit(prices):
-    """左端か右端から年に1本ずつ売り、利益を最大化"""
+    """Sell wines one per year from left or right end, maximizing profit"""
     n = len(prices)
 
     @lru_cache(maxsize=None)
     def dp(left, right):
-        year = n - (right - left)  # 何年目か (1-indexed)
+        year = n - (right - left)  # Which year (1-indexed)
         if left > right:
             return 0
         if left == right:
@@ -905,22 +905,22 @@ def max_wine_profit(prices):
 
 ---
 
-## 4. 高度なDPパターン
+## 4. Advanced DP Patterns
 
-### 4.1 区間DP
+### 4.1 Interval DP
 
 ```python
-# 区間DP: dp[i][j] = 区間 [i, j] の最適解
-# 典型: 行列の連鎖積、最適二分探索木、回文分割
+# Interval DP: dp[i][j] = optimal solution for interval [i, j]
+# Classic problems: matrix chain multiplication, optimal BST, palindrome partition
 
 def matrix_chain_multiplication(dims):
-    """行列の連鎖積の最小乗算回数
-    dims[i-1] × dims[i] が i番目の行列のサイズ
+    """Minimum number of multiplications for matrix chain product
+    dims[i-1] x dims[i] is the size of the i-th matrix
     """
-    n = len(dims) - 1  # 行列の数
+    n = len(dims) - 1  # Number of matrices
     dp = [[0] * n for _ in range(n)]
 
-    # 区間の長さを2から順に
+    # Process interval lengths from 2 upward
     for length in range(2, n + 1):
         for i in range(n - length + 1):
             j = i + length - 1
@@ -931,13 +931,13 @@ def matrix_chain_multiplication(dims):
 
     return dp[0][n-1]
 
-# 例: 4つの行列 A(10×30), B(30×5), C(5×60), D(60×10)
+# Example: 4 matrices A(10x30), B(30x5), C(5x60), D(60x10)
 # dims = [10, 30, 5, 60, 10]
-# 最適な括弧付け: (A × B) × (C × D)
-# 乗算回数: 10*30*5 + 5*60*10 + 10*5*10 = 1500 + 3000 + 500 = 5000
-# 最悪の括弧付け: A × (B × (C × D)) = 30*5*60 + 30*60*10 + 10*30*10 = 9000+18000+3000 = 30000
+# Optimal parenthesization: (A x B) x (C x D)
+# Multiplications: 10*30*5 + 5*60*10 + 10*5*10 = 1500 + 3000 + 500 = 5000
+# Worst parenthesization: A x (B x (C x D)) = 30*5*60 + 30*60*10 + 10*30*10 = 9000+18000+3000 = 30000
 
-# 括弧付けの復元
+# Parenthesization recovery
 def matrix_chain_with_paren(dims):
     n = len(dims) - 1
     dp = [[0] * n for _ in range(n)]
@@ -959,19 +959,19 @@ def matrix_chain_with_paren(dims):
         k = split[i][j]
         left = build_paren(i, k)
         right = build_paren(k+1, j)
-        return f"({left} × {right})"
+        return f"({left} x {right})"
 
     return dp[0][n-1], build_paren(0, n-1)
 ```
 
-#### 回文分割
+#### Palindrome Partition
 
 ```python
 def min_palindrome_partitions(s):
-    """文字列を回文に分割する最小カット数"""
+    """Minimum number of cuts to partition a string into palindromes"""
     n = len(s)
 
-    # is_pal[i][j] = s[i:j+1] が回文かどうか
+    # is_pal[i][j] = whether s[i:j+1] is a palindrome
     is_pal = [[False] * n for _ in range(n)]
     for i in range(n):
         is_pal[i][i] = True
@@ -983,8 +983,8 @@ def min_palindrome_partitions(s):
             else:
                 is_pal[i][j] = (s[i] == s[j]) and is_pal[i+1][j-1]
 
-    # dp[i] = s[0:i+1] を回文に分割する最小カット数
-    dp = list(range(n))  # 最悪: 各文字が1つの回文
+    # dp[i] = minimum cuts to partition s[0:i+1] into palindromes
+    dp = list(range(n))  # Worst case: each character is a single palindrome
 
     for i in range(1, n):
         if is_pal[0][i]:
@@ -996,16 +996,16 @@ def min_palindrome_partitions(s):
 
     return dp[n-1]
 
-# 例: "aab" → ["aa", "b"] → 1カット
-# 例: "abcba" → 0カット（全体が回文）
-# 例: "abcde" → 4カット（各文字がそれぞれ回文）
+# Example: "aab" -> ["aa", "b"] -> 1 cut
+# Example: "abcba" -> 0 cuts (entire string is a palindrome)
+# Example: "abcde" -> 4 cuts (each character is a palindrome)
 ```
 
-### 4.2 木DP
+### 4.2 Tree DP
 
 ```python
-# 木DP: 木構造上でDPを行う
-# 典型: 木の直径、木の最大独立集合、木の重心分解
+# Tree DP: DP on tree structures
+# Classic: tree diameter, maximum independent set, centroid decomposition
 
 class TreeNode:
     def __init__(self, val=0):
@@ -1013,34 +1013,34 @@ class TreeNode:
         self.children = []
 
 def max_independent_set(root):
-    """木の最大独立集合（隣接するノードを同時に選べない）の最大値和"""
+    """Maximum weight independent set of a tree (cannot select adjacent nodes simultaneously)"""
 
     def dp(node):
         if not node:
             return 0, 0
 
-        # include: このノードを含む場合の最大値
-        # exclude: このノードを含まない場合の最大値
+        # include: maximum value when this node is included
+        # exclude: maximum value when this node is excluded
         include = node.val
         exclude = 0
 
         for child in node.children:
             child_inc, child_exc = dp(child)
-            include += child_exc      # 子を含まない
-            exclude += max(child_inc, child_exc)  # 子は含んでも含まなくてもよい
+            include += child_exc      # Must exclude children
+            exclude += max(child_inc, child_exc)  # Children can be included or excluded
 
         return include, exclude
 
     inc, exc = dp(root)
     return max(inc, exc)
 
-# 木の直径（最長パス）
+# Tree diameter (longest path)
 def tree_diameter(adj, n):
-    """隣接リスト表現の木の直径を求める"""
+    """Find the diameter of a tree represented as an adjacency list"""
     diameter = [0]
 
     def dfs(node, parent):
-        max1 = max2 = 0  # 子からの最長と2番目
+        max1 = max2 = 0  # Longest and second longest from children
 
         for neighbor in adj[node]:
             if neighbor != parent:
@@ -1057,28 +1057,28 @@ def tree_diameter(adj, n):
     dfs(0, -1)
     return diameter[0]
 
-# 使用例（隣接リスト）
-# 木:    0
-#       / \
-#      1   2
-#     / \   \
-#    3   4   5
+# Usage example (adjacency list)
+# Tree:    0
+#         / \
+#        1   2
+#       / \   \
+#      3   4   5
 adj = [
-    [1, 2],    # 0の隣接
-    [0, 3, 4], # 1の隣接
-    [0, 5],    # 2の隣接
-    [1],       # 3の隣接
-    [1],       # 4の隣接
-    [2],       # 5の隣接
+    [1, 2],    # 0's neighbors
+    [0, 3, 4], # 1's neighbors
+    [0, 5],    # 2's neighbors
+    [1],       # 3's neighbors
+    [1],       # 4's neighbors
+    [2],       # 5's neighbors
 ]
-print(tree_diameter(adj, 6))  # 4 (3→1→0→2→5)
+print(tree_diameter(adj, 6))  # 4 (3->1->0->2->5)
 ```
 
-### 4.3 桁DP
+### 4.3 Digit DP
 
 ```python
 def count_numbers_with_digit(n, d):
-    """1からnまでの整数の中で、数字dが現れる個数の合計"""
+    """Total count of digit d appearing in integers from 1 to n"""
     digits = list(map(int, str(n)))
     num_digits = len(digits)
 
@@ -1087,10 +1087,10 @@ def count_numbers_with_digit(n, d):
     @lru_cache(maxsize=None)
     def dp(pos, count, tight, started):
         """
-        pos:     現在の桁位置
-        count:   これまでに数字dが出現した回数
-        tight:   上界制約があるか
-        started: 数が始まっているか（先頭の0を除外）
+        pos:     Current digit position
+        count:   Count of digit d appearances so far
+        tight:   Whether upper bound constraint is active
+        started: Whether the number has started (to exclude leading zeros)
         """
         if pos == num_digits:
             return count if started else 0
@@ -1108,20 +1108,20 @@ def count_numbers_with_digit(n, d):
 
     return dp(0, 0, True, False)
 
-# 例: 1から100までに「1」が何回出現するか
-# 1, 10, 11(2回), 12, ..., 19, 21, 31, ..., 91, 100 = 21回
+# Example: How many times does "1" appear in integers from 1 to 100?
+# 1, 10, 11(2 times), 12, ..., 19, 21, 31, ..., 91, 100 = 21 times
 
-# 桁DPの応用例:
-# - N以下の「ラッキーナンバー」（4と7のみ含む数）の個数
-# - 隣接する桁の差がk以下の数の個数
-# - 桁の和がSの倍数である数の個数
+# Digit DP applications:
+# - Count of "lucky numbers" (containing only 4 and 7) up to N
+# - Count of numbers where adjacent digit differences are at most k
+# - Count of numbers whose digit sum is a multiple of S
 ```
 
-#### 桁DPのもう一つの典型例
+#### Another Classic Digit DP Example
 
 ```python
 def count_step_numbers(low, high):
-    """low以上high以下のステップ数（隣接桁の差が1）の個数"""
+    """Count of step numbers (adjacent digit difference is 1) between low and high"""
 
     def count_up_to(n):
         if n < 0:
@@ -1150,20 +1150,20 @@ def count_step_numbers(low, high):
 
     return count_up_to(high) - count_up_to(low - 1)
 
-# 例: 10から100の間のステップ数
-# 10, 12, 21, 23, 32, 34, 43, 45, 54, 56, 65, 67, 76, 78, 87, 89, 98 = 17個
+# Example: Step numbers between 10 and 100
+# 10, 12, 21, 23, 32, 34, 43, 45, 54, 56, 65, 67, 76, 78, 87, 89, 98 = 17
 ```
 
-### 4.4 ビットDP（ビットマスクDP）
+### 4.4 Bitmask DP
 
 ```python
 def tsp(dist):
-    """巡回セールスマン問題（TSP）をビットDPで解く"""
+    """Solve the Traveling Salesman Problem (TSP) with bitmask DP"""
     n = len(dist)
-    # dp[mask][i] = 集合maskの都市を訪問し、最後に都市iにいる場合の最小コスト
+    # dp[mask][i] = minimum cost visiting the cities in set mask, currently at city i
     INF = float('inf')
     dp = [[INF] * n for _ in range(1 << n)]
-    dp[1][0] = 0  # 都市0からスタート
+    dp[1][0] = 0  # Start from city 0
 
     for mask in range(1 << n):
         for u in range(n):
@@ -1173,22 +1173,22 @@ def tsp(dist):
                 continue
             for v in range(n):
                 if mask & (1 << v):
-                    continue  # 訪問済み
+                    continue  # Already visited
                 new_mask = mask | (1 << v)
                 new_cost = dp[mask][u] + dist[u][v]
                 dp[new_mask][v] = min(dp[new_mask][v], new_cost)
 
-    # 全都市を訪問して都市0に戻る
+    # Visit all cities and return to city 0
     full_mask = (1 << n) - 1
     result = min(dp[full_mask][i] + dist[i][0] for i in range(n))
 
     return result
 
-# 計算量: O(n^2 × 2^n)
-# 空間: O(n × 2^n)
-# n=20 まで現実的（2^20 × 20^2 ≈ 4億）
+# Time complexity: O(n^2 x 2^n)
+# Space: O(n x 2^n)
+# Practical for n up to 20 (2^20 x 20^2 ~ 400 million)
 
-# 経路の復元
+# Path recovery
 def tsp_with_path(dist):
     n = len(dist)
     INF = float('inf')
@@ -1213,7 +1213,7 @@ def tsp_with_path(dist):
     last = min(range(n), key=lambda i: dp[full_mask][i] + dist[i][0])
     min_cost = dp[full_mask][last] + dist[last][0]
 
-    # 経路復元
+    # Path recovery
     path = []
     mask = full_mask
     node = last
@@ -1223,11 +1223,11 @@ def tsp_with_path(dist):
         mask ^= (1 << node)
         node = prev
     path.reverse()
-    path.append(0)  # 出発点に戻る
+    path.append(0)  # Return to starting point
 
     return min_cost, path
 
-# 使用例
+# Usage example
 dist = [
     [0, 10, 15, 20],
     [10, 0, 35, 25],
@@ -1235,22 +1235,22 @@ dist = [
     [20, 25, 30, 0]
 ]
 cost, path = tsp_with_path(dist)
-print(f"最小コスト: {cost}")    # 80
-print(f"経路: {path}")          # [0, 1, 3, 2, 0]
+print(f"Minimum cost: {cost}")    # 80
+print(f"Path: {path}")            # [0, 1, 3, 2, 0]
 ```
 
-#### ビットDPの応用: 仕事割り当て問題
+#### Bitmask DP Application: Job Assignment Problem
 
 ```python
 def min_cost_assignment(cost):
-    """n人にn個の仕事を1対1で割り当てるとき、総コストを最小化"""
+    """Assign n jobs to n people one-to-one, minimizing total cost"""
     n = len(cost)
     INF = float('inf')
     dp = [INF] * (1 << n)
     dp[0] = 0
 
     for mask in range(1 << n):
-        person = bin(mask).count('1')  # 何人に割り当て済みか
+        person = bin(mask).count('1')  # How many people assigned so far
         if person >= n:
             continue
         for job in range(n):
@@ -1261,50 +1261,50 @@ def min_cost_assignment(cost):
 
     return dp[(1 << n) - 1]
 
-# 例:
+# Example:
 cost = [
     [9, 2, 7, 8],
     [6, 4, 3, 7],
     [5, 8, 1, 8],
     [7, 6, 9, 4]
 ]
-print(min_cost_assignment(cost))  # 13 (人0→仕事1, 人1→仕事2, 人2→仕事0 ではなく最適解)
+print(min_cost_assignment(cost))  # 13
 ```
 
-### 4.5 確率DP
+### 4.5 Probability DP
 
 ```python
 def expected_dice_rolls(target):
-    """サイコロを振って合計がtarget以上になるまでの期待回数"""
+    """Expected number of dice rolls until the total reaches at least target"""
     dp = [0.0] * (target + 7)
 
-    # dp[i] = 現在の合計がiの時、target以上になるまでの期待回数
+    # dp[i] = expected rolls to reach target or more when current total is i
     for i in range(target - 1, -1, -1):
-        dp[i] = 1  # サイコロを1回振る
+        dp[i] = 1  # Roll the die once
         for face in range(1, 7):
             dp[i] += dp[i + face] / 6
 
     return dp[0]
 
-# 例: target=10 → 約3.77回
+# Example: target=10 -> approximately 3.77 rolls
 
-# ランダムウォークの到達確率
+# Random walk arrival probability
 def random_walk_probability(n, target, steps):
-    """1次元ランダムウォークでsteps歩後にtargetにいる確率"""
-    # dp[step][pos] = step歩後に位置posにいる確率
-    # 位置は -steps から +steps の範囲
+    """Probability of being at position target after a 1D random walk of given steps"""
+    # dp[step][pos] = probability of being at position pos after step steps
+    # Position ranges from -steps to +steps
     offset = steps
     dp = [[0.0] * (2 * steps + 1) for _ in range(steps + 1)]
-    dp[0][offset] = 1.0  # 初期位置 0
+    dp[0][offset] = 1.0  # Initial position 0
 
     for step in range(steps):
         for pos in range(2 * steps + 1):
             if dp[step][pos] == 0:
                 continue
-            # 左に移動
+            # Move left
             if pos > 0:
                 dp[step + 1][pos - 1] += dp[step][pos] * 0.5
-            # 右に移動
+            # Move right
             if pos < 2 * steps:
                 dp[step + 1][pos + 1] += dp[step][pos] * 0.5
 
@@ -1314,17 +1314,17 @@ def random_walk_probability(n, target, steps):
     return 0.0
 ```
 
-### 4.6 文字列DP
+### 4.6 String DP
 
 ```python
-# 正規表現マッチング（'.'と'*'のみ）
+# Regular expression matching ('.' and '*' only)
 def regex_match(text, pattern):
-    """正規表現マッチング: '.'は任意の1文字、'*'は直前の文字の0回以上"""
+    """Regex matching: '.' matches any single char, '*' matches zero or more of preceding char"""
     m, n = len(text), len(pattern)
     dp = [[False] * (n + 1) for _ in range(m + 1)]
     dp[0][0] = True
 
-    # パターンの先頭が "X*Y*..." の場合、空文字列にマッチ
+    # Pattern starting with "X*Y*..." can match empty string
     for j in range(2, n + 1):
         if pattern[j-1] == '*':
             dp[0][j] = dp[0][j-2]
@@ -1332,9 +1332,9 @@ def regex_match(text, pattern):
     for i in range(1, m + 1):
         for j in range(1, n + 1):
             if pattern[j-1] == '*':
-                # '*'の前の文字を0回使う
+                # Use the character before '*' zero times
                 dp[i][j] = dp[i][j-2]
-                # '*'の前の文字を1回以上使う
+                # Use the character before '*' one or more times
                 if pattern[j-2] == '.' or pattern[j-2] == text[i-1]:
                     dp[i][j] = dp[i][j] or dp[i-1][j]
             elif pattern[j-1] == '.' or pattern[j-1] == text[i-1]:
@@ -1342,15 +1342,15 @@ def regex_match(text, pattern):
 
     return dp[m][n]
 
-# テスト
+# Tests
 assert regex_match("aa", "a") == False
 assert regex_match("aa", "a*") == True
 assert regex_match("ab", ".*") == True
 assert regex_match("aab", "c*a*b") == True
 
-# ワイルドカードマッチング（'?'と'*'）
+# Wildcard matching ('?' and '*')
 def wildcard_match(text, pattern):
-    """'?'は任意の1文字、'*'は任意の文字列（0文字以上）"""
+    """'?' matches any single char, '*' matches any string (zero or more chars)"""
     m, n = len(text), len(pattern)
     dp = [[False] * (n + 1) for _ in range(m + 1)]
     dp[0][0] = True
@@ -1369,14 +1369,14 @@ def wildcard_match(text, pattern):
     return dp[m][n]
 ```
 
-### 4.7 ゲーム理論DP
+### 4.7 Game Theory DP
 
 ```python
 def stone_game(piles):
-    """石取りゲーム: 2人のプレイヤーが交互に左端か右端の石山を取る
-    先手が最適にプレイした場合の得点差を返す"""
+    """Stone game: Two players alternately take piles from left or right end.
+    Returns the score difference when the first player plays optimally"""
     n = len(piles)
-    # dp[i][j] = 区間[i,j]で先手が後手より多く取れる量
+    # dp[i][j] = how much more the first player can take than the second in interval [i,j]
     dp = [[0] * n for _ in range(n)]
 
     for i in range(n):
@@ -1386,32 +1386,32 @@ def stone_game(piles):
         for i in range(n - length + 1):
             j = i + length - 1
             dp[i][j] = max(
-                piles[i] - dp[i+1][j],  # 左端を取る
-                piles[j] - dp[i][j-1]   # 右端を取る
+                piles[i] - dp[i+1][j],  # Take left end
+                piles[j] - dp[i][j-1]   # Take right end
             )
 
     return dp[0][n-1]
 
-# 例: piles = [5, 3, 4, 5]
-# 先手は最適にプレイすると 5+4=9、後手は 3+5=8 → 差は1
+# Example: piles = [5, 3, 4, 5]
+# First player optimally gets 5+4=9, second player gets 3+5=8 -> difference is 1
 # stone_game([5,3,4,5]) = 1
 
 # Nim Game
 def nim_game(piles):
-    """Nim: 各山からいくつでも石を取れる。最後の石を取ったら勝ち。
-    先手が勝てるかどうかを返す"""
+    """Nim: Take any number from any pile. Last to take wins.
+    Returns whether the first player can win"""
     xor_sum = 0
     for p in piles:
         xor_sum ^= p
-    return xor_sum != 0  # XOR和が0でなければ先手必勝
+    return xor_sum != 0  # First player wins iff XOR sum is non-zero
 
-# Sprague-Grundy定理:
-# 任意の不偏ゲーム（impartial game）はNimに帰着できる
-# Grundy数 = mex(後続状態のGrundy数の集合)
-# mex(S) = Sに含まれない最小の非負整数
+# Sprague-Grundy theorem:
+# Any impartial game can be reduced to Nim
+# Grundy number = mex(set of Grundy numbers of successor states)
+# mex(S) = smallest non-negative integer not in S
 
 def grundy_number(pos, moves, memo={}):
-    """ポジションposからのGrundy数を計算"""
+    """Compute the Grundy number from position pos"""
     if pos in memo:
         return memo[pos]
 
@@ -1420,7 +1420,7 @@ def grundy_number(pos, moves, memo={}):
         if pos >= m:
             reachable.add(grundy_number(pos - m, moves, memo))
 
-    # mex を計算
+    # Compute mex
     g = 0
     while g in reachable:
         g += 1
@@ -1431,51 +1431,51 @@ def grundy_number(pos, moves, memo={}):
 
 ---
 
-## 5. 実務でのDP
+## 5. DP in Practice
 
-### 5.1 DP が活躍する場面
+### 5.1 Where DP Excels
 
 ```
-実務でのDP応用:
+Practical DP applications:
 
-  1. テキスト処理
-     - diff アルゴリズム (LCS)
-     - スペルチェック (編集距離)
-     - 自然言語処理 (CYK構文解析)
-     - 文字列のアラインメント
+  1. Text Processing
+     - diff algorithm (LCS)
+     - Spell checking (edit distance)
+     - Natural language processing (CYK parsing)
+     - String alignment
 
-  2. 機械学習
-     - Viterbiアルゴリズム（隠れマルコフモデル）
+  2. Machine Learning
+     - Viterbi algorithm (Hidden Markov Models)
      - CTC (Connectionist Temporal Classification)
-     - ビームサーチ（近似的なDP）
-     - 強化学習の価値反復法
+     - Beam search (approximate DP)
+     - Value iteration in reinforcement learning
 
-  3. 最適化
-     - リソース割り当て
-     - スケジューリング
-     - 在庫管理
-     - 金融工学（オプション価格計算）
+  3. Optimization
+     - Resource allocation
+     - Scheduling
+     - Inventory management
+     - Financial engineering (option pricing)
 
-  4. ゲーム
-     - ゲーム木の評価（ミニマックス + メモ化）
-     - 最適戦略の計算
-     - 勝敗判定
+  4. Games
+     - Game tree evaluation (minimax + memoization)
+     - Optimal strategy computation
+     - Win/loss determination
 
-  5. バイオインフォマティクス
-     - DNA/RNA配列のアラインメント
-     - タンパク質の構造予測
-     - 系統樹の構築
+  5. Bioinformatics
+     - DNA/RNA sequence alignment
+     - Protein structure prediction
+     - Phylogenetic tree construction
 
-  6. 画像処理
-     - シームカービング（画像のリサイズ）
-     - ステレオマッチング
-     - 文字認識（CTC）
+  6. Image Processing
+     - Seam carving (image resizing)
+     - Stereo matching
+     - Character recognition (CTC)
 ```
 
-### 5.2 実務的なDP最適化テクニック
+### 5.2 Practical DP Optimization Techniques
 
 ```python
-# 1. 空間最適化: 2行だけ使う（ローリング配列）
+# 1. Space optimization: Use only 2 rows (rolling array)
 def lcs_rolling(s1, s2):
     m, n = len(s1), len(s2)
     if m < n:
@@ -1495,39 +1495,39 @@ def lcs_rolling(s1, s2):
 
     return prev[n]
 
-# 2. 遷移の高速化: 累積和・セグメント木
+# 2. Transition speedup: prefix sums, segment trees
 # dp[i] = max(dp[j] + f(j, i)) for j < i
-# → f(j, i)が加法的なら累積和で O(1) に
-# → 範囲最大値なら セグメント木 で O(log n) に
+# -> If f(j, i) is additive, use prefix sums for O(1)
+# -> For range maximum, use segment tree for O(log n)
 
 # 3. Knuth's optimization
 # dp[i][j] = min(dp[i][k] + dp[k+1][j] + C[i][j]) for k in [i, j)
-# 分割点が単調なら O(n^3) → O(n^2)
+# If the split point is monotone: O(n^3) -> O(n^2)
 
 # 4. Divide and Conquer DP
-# dp[i] = min(dp[j] + C[j+1][i]) で C が Concave Monge 条件を満たす場合
-# O(n^2) → O(n log n)
+# dp[i] = min(dp[j] + C[j+1][i]) when C satisfies Concave Monge condition
+# O(n^2) -> O(n log n)
 
-# 5. Convex Hull Trick（凸包テクニック）
+# 5. Convex Hull Trick
 def convex_hull_trick_example():
     """
-    dp[i] = min(dp[j] + (a[i] - a[j])^2) の形の遷移を高速化
-    O(n^2) → O(n) or O(n log n)
+    Speed up transitions of the form dp[i] = min(dp[j] + (a[i] - a[j])^2)
+    O(n^2) -> O(n) or O(n log n)
 
-    考え方:
+    Idea:
     dp[i] = min(dp[j] + a[i]^2 - 2*a[i]*a[j] + a[j]^2)
           = a[i]^2 + min(-2*a[j]*a[i] + (dp[j] + a[j]^2))
 
-    y = mx + b の形:
+    In the form y = mx + b:
     m = -2*a[j], b = dp[j] + a[j]^2, x = a[i]
-    → 直線の集合の最小値 → 凸包で管理
+    -> Minimum over a set of lines -> manage with convex hull
     """
     pass
 
 # 6. SOS DP (Sum over Subsets)
 def sos_dp(values, n):
-    """全ての部分集合の和を高速に計算
-    dp[mask] = sum(values[sub]) for all sub ⊆ mask
+    """Efficiently compute the sum over all subsets
+    dp[mask] = sum(values[sub]) for all sub that are subsets of mask
     """
     dp = values[:]
     for bit in range(n):
@@ -1535,15 +1535,15 @@ def sos_dp(values, n):
             if mask & (1 << bit):
                 dp[mask] += dp[mask ^ (1 << bit)]
     return dp
-# 計算量: O(n × 2^n) — 素朴にやると O(3^n)
+# Time complexity: O(n x 2^n) -- naive approach would be O(3^n)
 ```
 
-### 5.3 DPのデバッグテクニック
+### 5.3 DP Debugging Techniques
 
 ```python
-# 1. 小さいケースで手計算と照合
+# 1. Manually verify with small cases
 def debug_knapsack(weights, values, capacity):
-    """DPテーブルを表示してデバッグ"""
+    """Display the DP table for debugging"""
     n = len(weights)
     dp = [[0] * (capacity + 1) for _ in range(n + 1)]
 
@@ -1553,7 +1553,7 @@ def debug_knapsack(weights, values, capacity):
             if weights[i-1] <= w:
                 dp[i][w] = max(dp[i][w], dp[i-1][w - weights[i-1]] + values[i-1])
 
-    # テーブル表示
+    # Display table
     print("DP Table:")
     print("     ", end="")
     for w in range(capacity + 1):
@@ -1571,11 +1571,11 @@ def debug_knapsack(weights, values, capacity):
 
     return dp[n][capacity]
 
-# 2. ブルートフォースとの比較テスト
+# 2. Comparison testing against brute force
 import random
 
 def test_dp_correctness():
-    """ランダムテストでDPの正しさを検証"""
+    """Verify DP correctness with random tests"""
     def brute_force_knapsack(weights, values, capacity):
         n = len(weights)
         best = 0
@@ -1600,24 +1600,24 @@ def test_dp_correctness():
 
     print("All tests passed!")
 
-# 3. 遷移式の検証
-# DPの遷移式が正しいか確認するチェックリスト:
-# □ 基底条件は正しいか？
-# □ 遷移の方向は正しいか？（依存する値が既に計算済みか？）
-# □ 境界条件は正しいか？（配列の範囲外アクセスはないか？）
-# □ 答えはどこにあるか？（dp[n]? max(dp)? dp[0]?）
-# □ 逆順ループは正しいか？（0-1ナップサックの空間最適化）
+# 3. Transition formula verification
+# Checklist for verifying DP transitions:
+# [ ] Are base cases correct?
+# [ ] Is the transition direction correct? (Are dependent values already computed?)
+# [ ] Are boundary conditions correct? (No out-of-bounds array access?)
+# [ ] Where is the answer? (dp[n]? max(dp)? dp[0]?)
+# [ ] Is the reverse loop correct? (0-1 knapsack space optimization)
 ```
 
 ---
 
-## 6. よくあるDPの問題パターン集
+## 6. Common DP Problem Patterns
 
-### 6.1 階段の上り方問題
+### 6.1 Staircase Climbing Problem
 
 ```python
 def climb_stairs(n, steps=[1, 2]):
-    """n段の階段をstepsで指定された歩幅で上る方法の総数"""
+    """Total number of ways to climb n stairs with step sizes in steps"""
     dp = [0] * (n + 1)
     dp[0] = 1
 
@@ -1628,12 +1628,12 @@ def climb_stairs(n, steps=[1, 2]):
 
     return dp[n]
 
-# 例: climb_stairs(5) = 8
+# Example: climb_stairs(5) = 8
 # climb_stairs(5, [1, 2, 3]) = 13
 
-# 変形: コストを考慮した階段問題
+# Variation: Staircase problem with costs
 def min_cost_climbing(cost):
-    """各段にコストがあり、最小コストで頂上に到達する"""
+    """Each step has a cost; reach the top with minimum total cost"""
     n = len(cost)
     dp = [0] * (n + 1)
 
@@ -1643,11 +1643,11 @@ def min_cost_climbing(cost):
     return dp[n]
 ```
 
-### 6.2 経路数の問題
+### 6.2 Path Counting Problems
 
 ```python
 def unique_paths(m, n):
-    """m×nグリッドの左上から右下への経路数（右と下のみ）"""
+    """Number of paths from top-left to bottom-right in an m x n grid (right and down only)"""
     dp = [[1] * n for _ in range(m)]
 
     for i in range(1, m):
@@ -1656,13 +1656,13 @@ def unique_paths(m, n):
 
     return dp[m-1][n-1]
 
-# 障害物ありの場合
+# With obstacles
 def unique_paths_with_obstacles(grid):
-    """障害物(1)がある場合の経路数"""
+    """Number of paths with obstacles (1)"""
     m, n = len(grid), len(grid[0])
     dp = [[0] * n for _ in range(m)]
 
-    # 最初のセルが障害物なら0
+    # If first cell is an obstacle, return 0
     dp[0][0] = 1 if grid[0][0] == 0 else 0
 
     for i in range(m):
@@ -1677,9 +1677,9 @@ def unique_paths_with_obstacles(grid):
 
     return dp[m-1][n-1]
 
-# 最小コストパス
+# Minimum cost path
 def min_path_sum(grid):
-    """左上から右下への最小コストパス"""
+    """Minimum cost path from top-left to bottom-right"""
     m, n = len(grid), len(grid[0])
     dp = [[0] * n for _ in range(m)]
     dp[0][0] = grid[0][0]
@@ -1696,11 +1696,11 @@ def min_path_sum(grid):
     return dp[m-1][n-1]
 ```
 
-### 6.3 文字列のインターリーブ
+### 6.3 String Interleaving
 
 ```python
 def is_interleave(s1, s2, s3):
-    """s3がs1とs2のインターリーブ（交互織り）かどうか"""
+    """Is s3 an interleaving of s1 and s2?"""
     m, n = len(s1), len(s2)
     if m + n != len(s3):
         return False
@@ -1722,24 +1722,24 @@ def is_interleave(s1, s2, s3):
 
     return dp[m][n]
 
-# 例: s1="aab", s2="axy", s3="aaxaby" → True
+# Example: s1="aab", s2="axy", s3="aaxaby" -> True
 # "aaxaby" = a(s1) + a(s2) + x(s2) + a(s1) + b(s1) + y(s2)
 ```
 
-### 6.4 株の売買問題
+### 6.4 Stock Trading Problems
 
 ```python
 def max_profit_k_transactions(prices, k):
-    """最大k回の取引で得られる最大利益"""
+    """Maximum profit with at most k transactions"""
     n = len(prices)
     if n <= 1:
         return 0
 
-    # k >= n//2 なら制限なし
+    # If k >= n//2, it's effectively unlimited
     if k >= n // 2:
         return sum(max(0, prices[i+1] - prices[i]) for i in range(n-1))
 
-    # dp[t][i] = t回目までの取引でi日目までの最大利益
+    # dp[t][i] = maximum profit with up to t transactions through day i
     dp = [[0] * n for _ in range(k + 1)]
 
     for t in range(1, k + 1):
@@ -1750,18 +1750,18 @@ def max_profit_k_transactions(prices, k):
 
     return dp[k][n-1]
 
-# 計算量: O(k × n)
+# Time complexity: O(k x n)
 
-# 変形: クールダウン期間付き
+# Variation: With cooldown period
 def max_profit_with_cooldown(prices):
-    """売った翌日は買えない（1日のクールダウン）"""
+    """Cannot buy the day after selling (1-day cooldown)"""
     n = len(prices)
     if n <= 1:
         return 0
 
-    # hold: 株を持っている状態の最大利益
-    # sold: 今日売った状態の最大利益
-    # rest: 何も持っていない&クールダウン中/待機中の最大利益
+    # hold: maximum profit while holding stock
+    # sold: maximum profit after selling today
+    # rest: maximum profit holding nothing & in cooldown/waiting
     hold = -prices[0]
     sold = 0
     rest = 0
@@ -1774,12 +1774,12 @@ def max_profit_with_cooldown(prices):
 
     return max(sold, rest)
 
-# 変形: 取引手数料付き
+# Variation: With transaction fee
 def max_profit_with_fee(prices, fee):
-    """各取引に手数料がかかる"""
+    """Each transaction incurs a fee"""
     n = len(prices)
-    hold = -prices[0]  # 株を持っている
-    cash = 0           # 株を持っていない
+    hold = -prices[0]  # Holding stock
+    cash = 0           # Not holding stock
 
     for i in range(1, n):
         hold = max(hold, cash - prices[i])
@@ -1790,80 +1790,80 @@ def max_profit_with_fee(prices, fee):
 
 ---
 
-## 7. 実践演習
+## 7. Practice Exercises
 
-### 演習1: 基本DP（基礎）
-階段の上り方問題: N段の階段を1段または2段ずつ上る方法の総数を求めよ。
+### Exercise 1: Basic DP (Fundamental)
+Staircase climbing problem: Find the total number of ways to climb N stairs taking 1 or 2 steps at a time.
 
-### 演習2: 2次元DP（応用）
-編集距離（レーベンシュタイン距離）を計算する関数を実装せよ。"kitten" → "sitting" の編集距離を求めよ。
+### Exercise 2: 2D DP (Applied)
+Implement a function that computes edit distance (Levenshtein distance). Find the edit distance from "kitten" to "sitting."
 
-### 演習3: ビットDP（発展）
-巡回セールスマン問題（TSP）を、ビットマスクDPで O(n^2 x 2^n) で解くプログラムを実装せよ。
+### Exercise 3: Bitmask DP (Advanced)
+Implement a program that solves the Traveling Salesman Problem (TSP) with bitmask DP in O(n^2 x 2^n).
 
-### 演習4: 区間DP（発展）
-行列の連鎖積問題を解き、最適な括弧付けを復元せよ。
+### Exercise 4: Interval DP (Advanced)
+Solve the matrix chain multiplication problem and recover the optimal parenthesization.
 
-### 演習5: 実務応用（発展）
-LCSを使ったdiffツールを実装し、2つのテキストファイルの差分を表示せよ。
+### Exercise 5: Practical Application (Advanced)
+Implement a diff tool using LCS to display differences between two text files.
 
-### 演習6: 桁DP（発展）
-1からNまでの整数において、各数字(0-9)が何回出現するかを数えよ。
+### Exercise 6: Digit DP (Advanced)
+Count how many times each digit (0-9) appears in integers from 1 to N.
 
-### 演習7: ゲーム理論DP（発展）
-石取りゲーム（左端か右端から石を取り、合計を最大化する）の最適戦略を求めよ。
+### Exercise 7: Game Theory DP (Advanced)
+Find the optimal strategy for the stone game (take stones from left or right end to maximize your total).
 
-### 演習8: 確率DP（発展）
-すごろくで、6面サイコロを振ってゴール（マスN）にちょうど止まるまでの期待試行回数を計算せよ。
+### Exercise 8: Probability DP (Advanced)
+In a board game, calculate the expected number of trials to land exactly on goal (square N) by rolling a 6-sided die.
 
 ---
 
 ## FAQ
 
-### Q1: DPと分割統治の違いは？
-**A**: 分割統治は部分問題が独立（マージソート: 左右が独立）。DPは部分問題が重複（フィボナッチ: fib(n-1)とfib(n-2)がfib(n-3)を共有）。分割統治 + メモ化 = DP とも言える。
+### Q1: What is the difference between DP and divide-and-conquer?
+**A**: Divide-and-conquer has independent subproblems (merge sort: left and right are independent). DP has overlapping subproblems (Fibonacci: fib(n-1) and fib(n-2) share fib(n-3)). Divide-and-conquer + memoization = DP, in a sense.
 
-### Q2: DPの状態設計のコツは？
-**A**: まず「何を決めたら残りが決まるか」を考える。状態は「残りの問題を解くのに必要な最小限の情報」。状態が多すぎたら次元削減を検討。まずは素朴なDPを書いてから最適化する。
+### Q2: What are tips for DP state design?
+**A**: First think about "what must be decided so the rest is determined." The state should be "the minimum information needed to solve the remaining problem." If there are too many states, consider dimension reduction. Start with a naive DP and then optimize.
 
-### Q3: 貪欲法とDPの使い分けは？
-**A**: 貪欲法は局所最適が全体最適になる場合のみ有効（証明が必要）。DPは全ての選択肢を考慮するので常に正しい。迷ったらDPが安全。貪欲法が使えるなら計算量は小さい。
+### Q3: When to use greedy vs. DP?
+**A**: Greedy works only when local optima lead to global optima (proof required). DP considers all choices and is always correct. When in doubt, DP is safer. When greedy works, it has lower complexity.
 
-### Q4: メモ化再帰とボトムアップ、どちらを使うべき？
-**A**: 一般的にはメモ化再帰の方が書きやすく、不要な部分問題を計算しない利点がある。ただしPythonでは再帰の深さ制限（デフォルト1000）があるため、大きな入力ではボトムアップが安全。空間最適化もボトムアップの方がやりやすい。競技プログラミングではボトムアップが主流。
+### Q4: Should I use memoization or bottom-up?
+**A**: Generally, memoization is easier to write and avoids computing unnecessary subproblems. However, Python's recursion depth limit (default 1000) means bottom-up is safer for large inputs. Space optimization is also easier with bottom-up. Bottom-up is mainstream in competitive programming.
 
-### Q5: DPのテーブルサイズが大きすぎる場合はどうする？
-**A**: (1) 空間最適化（ローリング配列） (2) 状態の再定義（次元削減） (3) メモ化再帰で必要な状態のみ計算 (4) ビットマスクの圧縮 (5) ハッシュマップベースのメモ化。それでも無理なら問題を近似解法に切り替える。
+### Q5: What if the DP table is too large?
+**A**: (1) Space optimization (rolling array) (2) Redefine states (dimension reduction) (3) Memoized recursion computing only needed states (4) Bitmask compression (5) Hash map-based memoization. If none work, switch to an approximation algorithm.
 
-### Q6: 「DPを知っていると実務のどこで役立つか」を具体的に教えてください
-**A**: (1) テキストエディタのdiff機能（LCS）はバージョン管理の根幹技術 (2) スペルチェッカーの候補提示（編集距離） (3) ネットワークルーティング（最短経路のDP的アプローチ） (4) 機械学習のViterbiアルゴリズム（音声認識・品詞タグ付け） (5) データベースのクエリ最適化（結合順序の決定） (6) コンパイラの命令選択（木DPの一種）
+### Q6: Where specifically does DP knowledge help in practice?
+**A**: (1) Text editor diff functionality (LCS) is fundamental to version control (2) Spell checker candidate suggestions (edit distance) (3) Network routing (DP-based shortest path approaches) (4) Viterbi algorithm in machine learning (speech recognition, POS tagging) (5) Database query optimization (determining join order) (6) Compiler instruction selection (a form of tree DP)
 
-### Q7: 計算量が擬多項式（pseudo-polynomial）とはどういう意味ですか？
-**A**: ナップサック問題の O(nW) は入力サイズではなく入力の値（W）に依存する。Wをバイナリ表現すると log W ビットなので、入力のビット数に対しては指数時間。これを「擬多項式時間」と呼ぶ。NP困難な問題でも入力値が小さければ実用的に高速に解ける場合がある。
-
----
-
-## まとめ
-
-| 概念 | ポイント |
-|------|---------|
-| DP条件 | 最適部分構造 + 重複部分問題 |
-| メモ化 | トップダウン。再帰+キャッシュ |
-| ボトムアップ | テーブル法。forループ+配列 |
-| 典型パターン | ナップサック、LCS、コイン、LIS、編集距離 |
-| 状態設計 | 「残りを解くのに必要な最小限の情報」を状態にする |
-| 空間最適化 | ローリング配列、1次元化 |
-| 高度なDP | 区間DP、木DP、桁DP、ビットDP、確率DP |
-| 遷移高速化 | 累積和、Convex Hull Trick、Knuth最適化 |
-| デバッグ | 小ケース手計算、ブルートフォース比較、テーブル表示 |
+### Q7: What does pseudo-polynomial time complexity mean?
+**A**: The O(nW) of the knapsack problem depends on the input value (W), not the input size. In binary representation, W takes log W bits, so it is exponential in the number of input bits. This is called "pseudo-polynomial time." NP-hard problems can still be solved practically fast when input values are small.
 
 ---
 
-## 次に読むべきガイド
+## Summary
+
+| Concept | Key Point |
+|---------|-----------|
+| DP conditions | Optimal substructure + overlapping subproblems |
+| Memoization | Top-down. Recursion + cache |
+| Bottom-up | Tabulation. For loop + array |
+| Classic patterns | Knapsack, LCS, coin change, LIS, edit distance |
+| State design | Make the state "the minimum information needed to solve the rest" |
+| Space optimization | Rolling array, 1D reduction |
+| Advanced DP | Interval DP, tree DP, digit DP, bitmask DP, probability DP |
+| Transition speedup | Prefix sums, Convex Hull Trick, Knuth's optimization |
+| Debugging | Manual small-case verification, brute-force comparison, table display |
 
 ---
 
-## 参考文献
+## Recommended Next Guides
+
+---
+
+## References
 1. Cormen, T. H. et al. "Introduction to Algorithms." Chapter 15: Dynamic Programming.
 2. Bellman, R. "Dynamic Programming." Princeton University Press, 1957.
 3. Skiena, S. S. "The Algorithm Design Manual." Chapter 10.

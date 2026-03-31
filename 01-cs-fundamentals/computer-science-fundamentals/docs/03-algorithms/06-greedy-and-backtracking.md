@@ -1,45 +1,45 @@
-# 貪欲法とバックトラック
+# Greedy Algorithms and Backtracking
 
-> 貪欲法は「今この瞬間の最善手」を選び続ける楽観的戦略。バックトラックは「全ての可能性を試し、失敗したら引き返す」慎重な戦略。
+> Greedy algorithms are an optimistic strategy that always picks "the best move right now." Backtracking is a cautious strategy that "tries every possibility and retreats upon failure."
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] 貪欲法が最適解を与える条件を理解する
-- [ ] 典型的な貪欲法アルゴリズムを実装できる
-- [ ] バックトラックの仕組みと枝刈りを理解する
-- [ ] 貪欲法の正当性を証明する手法を学ぶ
-- [ ] 枝刈りの高度なテクニックを習得する
-- [ ] 実務での近似アルゴリズムとヒューリスティックを理解する
+- [ ] Understand the conditions under which greedy algorithms yield optimal solutions
+- [ ] Implement classic greedy algorithms
+- [ ] Understand how backtracking works along with pruning techniques
+- [ ] Learn methods for proving the correctness of greedy algorithms
+- [ ] Master advanced pruning techniques
+- [ ] Understand approximation algorithms and heuristics used in practice
 
-## 前提知識
+## Prerequisites
 
 
 ---
 
-## 1. 貪欲法（Greedy Algorithm）
+## 1. Greedy Algorithms
 
-### 1.1 基本概念
+### 1.1 Basic Concepts
 
 ```
-貪欲法: 各ステップで局所的に最適な選択をする
+Greedy Algorithm: Make the locally optimal choice at each step
 
-  特徴:
-  - 一度選んだら変更しない（後戻りなし）
-  - 高速（通常 O(n log n) 以下）
-  - 最適解の保証には証明が必要
+  Characteristics:
+  - Once a choice is made, it is never changed (no backtracking)
+  - Fast (typically O(n log n) or less)
+  - Proof is required to guarantee optimality
 
-  貪欲法が最適になる2つの条件:
-  1. 貪欲選択性質: 局所最適な選択が全体最適に含まれる
-  2. 最適部分構造: 残りの部分問題も最適に解ける
+  Two conditions for a greedy algorithm to be optimal:
+  1. Greedy choice property: A locally optimal choice is part of the globally optimal solution
+  2. Optimal substructure: The remaining subproblem can also be solved optimally
 ```
 
-### 1.2 典型的な貪欲法
+### 1.2 Classic Greedy Algorithms
 
 ```python
-# 1. 活動選択問題（区間スケジューリング）
+# 1. Activity Selection Problem (Interval Scheduling)
 def activity_selection(activities):
-    """重ならない最大数の活動を選ぶ"""
-    # 終了時刻でソート
+    """Select the maximum number of non-overlapping activities"""
+    # Sort by finish time
     activities.sort(key=lambda x: x[1])
     selected = [activities[0]]
     last_end = activities[0][1]
@@ -51,14 +51,14 @@ def activity_selection(activities):
 
     return selected
 
-# 例: [(1,4), (3,5), (0,6), (5,7), (3,9), (5,9), (6,10), (8,11)]
-# → [(1,4), (5,7), (8,11)] — 3つの活動が最大
+# Example: [(1,4), (3,5), (0,6), (5,7), (3,9), (5,9), (6,10), (8,11)]
+# -> [(1,4), (5,7), (8,11)] -- maximum of 3 activities
 
-# 2. ハフマン符号（最適前置符号）
+# 2. Huffman Coding (Optimal Prefix Code)
 import heapq
 
 def huffman(freq):
-    """出現頻度から最適なハフマン木を構築"""
+    """Build an optimal Huffman tree from character frequencies"""
     heapq.heapify(heap)
 
     while len(heap) > 1:
@@ -72,9 +72,9 @@ def huffman(freq):
 
     return sorted(heap[0][1:], key=lambda x: (len(x[1]), x[0]))
 
-# 3. お釣り問題（特定の硬貨セットのみ最適）
+# 3. Change-Making Problem (optimal only for specific coin sets)
 def coin_greedy(coins, amount):
-    """大きい硬貨から貪欲に使う"""
+    """Greedily use the largest coins first"""
     coins.sort(reverse=True)
     result = []
     for coin in coins:
@@ -83,74 +83,74 @@ def coin_greedy(coins, amount):
             amount -= coin
     return result if amount == 0 else None
 
-# 注意: coins=[1,5,10,25] では最適
-# coins=[1,3,4] で amount=6 → 貪欲: [4,1,1]=3枚 ≠ 最適: [3,3]=2枚
+# Note: Optimal for coins=[1,5,10,25]
+# For coins=[1,3,4] with amount=6 -> greedy: [4,1,1]=3 coins != optimal: [3,3]=2 coins
 ```
 
-### 1.3 貪欲法 vs DP の判断
+### 1.3 Greedy vs DP: When to Choose
 
 ```
-いつ貪欲法が使えるか:
+When can a greedy algorithm be used?
 
-  ✅ 貪欲法が最適:
-  - 区間スケジューリング（終了時刻でソート）
-  - ハフマン符号
-  - クラスカル法（最小全域木）
-  - ダイクストラ法（最短経路）
-  - 米国の硬貨での釣り銭
-  - 分数ナップサック
-  - タスクスケジューリング（デッドライン付き）
+  Greedy is optimal:
+  - Interval scheduling (sort by finish time)
+  - Huffman coding
+  - Kruskal's algorithm (minimum spanning tree)
+  - Dijkstra's algorithm (shortest path)
+  - US coin change-making
+  - Fractional knapsack
+  - Task scheduling with deadlines
 
-  ❌ 貪欲法が最適でない（DPが必要）:
-  - 0-1 ナップサック
-  - コイン問題（一般の硬貨セット）
-  - 最長共通部分列
-  - 編集距離
-  - 巡回セールスマン問題
+  Greedy is NOT optimal (DP is needed):
+  - 0-1 Knapsack
+  - Coin problem (general coin sets)
+  - Longest Common Subsequence
+  - Edit distance
+  - Traveling Salesman Problem
 
-  判断のヒント:
-  - 「各ステップで後悔しない選択」ができるか？
-  - 反例が見つからないか？
-  - マトロイド構造を持つか？（数学的に厳密な判定）
+  Decision hints:
+  - Can you make a "no-regret choice" at each step?
+  - Can you find a counterexample?
+  - Does the problem have a matroid structure? (mathematically rigorous criterion)
 ```
 
-### 1.4 貪欲法の正当性証明
+### 1.4 Proving Greedy Correctness
 
 ```python
-# 貪欲法の正しさを証明する3つの方法
+# Three methods for proving greedy correctness
 
-# 方法1: 交換論法（Exchange Argument）
-# 「最適解が貪欲解と異なると仮定し、貪欲解に変換しても
-#  悪くならないことを示す」
+# Method 1: Exchange Argument
+# "Assume the optimal solution differs from the greedy solution, and show that
+#  transforming it into the greedy solution does not make it worse."
 
-# 例: 区間スケジューリングの証明
-# 最適解 O と貪欲解 G を考える。
-# Oの最初の活動 o1 と Gの最初の活動 g1 について:
-# g1は終了時刻が最小 → g1.end <= o1.end
-# o1 を g1 に置き換えても、残りの活動との干渉は増えない
-# → |G| >= |O| → 貪欲解は最適
+# Example: Proof for interval scheduling
+# Consider optimal solution O and greedy solution G.
+# For the first activity o1 in O and g1 in G:
+# g1 has the minimum finish time -> g1.end <= o1.end
+# Replacing o1 with g1 does not increase conflicts with remaining activities
+# -> |G| >= |O| -> The greedy solution is optimal
 
-# 方法2: 帰納法
-# 「k個選んだ時点で最適解に含まれる活動が
-#  k個含まれていることを帰納的に示す」
+# Method 2: Induction
+# "Show inductively that after selecting k items, the solution contains
+#  k items that are part of the optimal solution."
 
-# 方法3: マトロイド理論
-# 問題がマトロイド構造を持つなら、貪欲法が最適
-# マトロイドの3条件:
-# 1. 空集合は独立集合
-# 2. 独立集合の部分集合は独立集合
-# 3. 交換公理: |A| < |B| なら B\A に要素xが存在し A∪{x} も独立集合
+# Method 3: Matroid Theory
+# If the problem has a matroid structure, the greedy algorithm is optimal
+# Three matroid conditions:
+# 1. The empty set is an independent set
+# 2. Every subset of an independent set is independent
+# 3. Exchange axiom: If |A| < |B|, there exists x in B\A such that A union {x} is independent
 ```
 
-### 1.5 分数ナップサック問題
+### 1.5 Fractional Knapsack Problem
 
 ```python
 def fractional_knapsack(weights, values, capacity):
-    """品物を分割して入れられるナップサック問題
-    → 価値密度（value/weight）の高い順に詰める貪欲法が最適"""
+    """Knapsack problem where items can be divided
+    -> Greedy by value density (value/weight) in descending order is optimal"""
 
     n = len(weights)
-    # 価値密度でソート
+    # Sort by value density
     items = sorted(range(n), key=lambda i: values[i] / weights[i], reverse=True)
 
     total_value = 0
@@ -162,12 +162,12 @@ def fractional_knapsack(weights, values, capacity):
         if remaining <= 0:
             break
         if weights[i] <= remaining:
-            # 丸ごと入れる
+            # Take the entire item
             fractions[i] = 1.0
             total_value += values[i]
             remaining -= weights[i]
         else:
-            # 一部だけ入れる
+            # Take a fraction of the item
             fraction = remaining / weights[i]
             fractions[i] = fraction
             total_value += values[i] * fraction
@@ -175,33 +175,33 @@ def fractional_knapsack(weights, values, capacity):
 
     return total_value, fractions
 
-# 例: weights=[10, 20, 30], values=[60, 100, 120], capacity=50
-# 密度: [6, 5, 4]
-# 品物0(10kg, 60円)全部 + 品物1(20kg, 100円)全部 + 品物2(20/30, 80円)
-# = 60 + 100 + 80 = 240円
+# Example: weights=[10, 20, 30], values=[60, 100, 120], capacity=50
+# Density: [6, 5, 4]
+# Item 0 (10kg, 60) fully + Item 1 (20kg, 100) fully + Item 2 (20/30, 80)
+# = 60 + 100 + 80 = 240
 
-# 0-1ナップサックとの違い:
-# 分数ナップサック: 品物を分割可能 → 貪欲法で最適 O(n log n)
-# 0-1ナップサック: 品物は分割不可 → DPが必要 O(nW)
+# Difference from 0-1 Knapsack:
+# Fractional knapsack: Items can be divided -> Greedy is optimal O(n log n)
+# 0-1 Knapsack: Items cannot be divided -> DP is needed O(nW)
 ```
 
-### 1.6 タスクスケジューリング
+### 1.6 Task Scheduling
 
 ```python
 def task_scheduling_with_deadline(tasks):
-    """各タスクに利益とデッドラインがある場合、最大利益を得るスケジュール
+    """Schedule tasks with profits and deadlines to maximize total profit
     tasks: [(profit, deadline), ...]"""
 
-    # 利益の降順にソート
+    # Sort by profit in descending order
     tasks.sort(key=lambda x: x[0], reverse=True)
 
     max_deadline = max(t[1] for t in tasks)
-    slots = [False] * (max_deadline + 1)  # 時間スロット
+    slots = [False] * (max_deadline + 1)  # Time slots
     total_profit = 0
     scheduled = []
 
     for profit, deadline in tasks:
-        # デッドラインから逆順に空きスロットを探す
+        # Search for an available slot in reverse from the deadline
         for slot in range(deadline, 0, -1):
             if not slots[slot]:
                 slots[slot] = True
@@ -211,19 +211,19 @@ def task_scheduling_with_deadline(tasks):
 
     return total_profit, scheduled
 
-# 例:
+# Example:
 tasks = [(100, 2), (19, 1), (27, 2), (25, 1), (15, 3)]
 profit, schedule = task_scheduling_with_deadline(tasks)
-# 利益順: 100, 27, 25, 19, 15
-# スロット1: 27(d=2をスロット2に、25をd=1のスロット1に... )
-# 最適: スロット1=27, スロット2=100, スロット3=15 → 142
+# Profit order: 100, 27, 25, 19, 15
+# Slot 1: 27 (d=2 goes to slot 2, 25 with d=1 goes to slot 1...)
+# Optimal: slot 1=27, slot 2=100, slot 3=15 -> 142
 
-# 最小遅延スケジューリング
+# Minimum Lateness Scheduling
 def min_lateness_scheduling(jobs):
-    """各ジョブに処理時間と締切がある場合、最大遅延を最小化
+    """Minimize maximum lateness given jobs with processing times and deadlines
     jobs: [(processing_time, deadline), ...]"""
 
-    # 締切が早い順にソート（EDF: Earliest Deadline First）
+    # Sort by deadline (EDF: Earliest Deadline First)
     indexed_jobs = sorted(enumerate(jobs), key=lambda x: x[1][1])
 
     current_time = 0
@@ -243,17 +243,17 @@ def min_lateness_scheduling(jobs):
 
     return max_lateness, schedule
 
-# 例: ジョブ: [(1, 2), (2, 4), (3, 6), (4, 8)]
-# 処理順: そのまま（締切順にソート済み）
-# 完了時刻: 1, 3, 6, 10
-# 遅延: 0, 0, 0, 2 → 最大遅延 = 2
+# Example: Jobs: [(1, 2), (2, 4), (3, 6), (4, 8)]
+# Processing order: as-is (already sorted by deadline)
+# Finish times: 1, 3, 6, 10
+# Lateness: 0, 0, 0, 2 -> maximum lateness = 2
 ```
 
-### 1.7 区間関連の貪欲法
+### 1.7 Interval-Related Greedy Algorithms
 
 ```python
 def min_intervals_to_cover(intervals, start, end):
-    """区間[start, end]を最小数の部分区間でカバーする"""
+    """Cover the range [start, end] with the minimum number of sub-intervals"""
     intervals.sort()
     count = 0
     i = 0
@@ -262,26 +262,26 @@ def min_intervals_to_cover(intervals, start, end):
     while current < end and i < len(intervals):
         best_end = current
 
-        # currentを含む区間の中で、最も遠くまで伸びるものを選ぶ
+        # Among intervals that contain current, choose the one extending farthest
         while i < len(intervals) and intervals[i][0] <= current:
             best_end = max(best_end, intervals[i][1])
             i += 1
 
         if best_end == current:
-            return -1  # カバーできない
+            return -1  # Cannot cover
 
         count += 1
         current = best_end
 
     return count if current >= end else -1
 
-# 例: intervals=[(0,3),(2,5),(3,7),(6,10)], start=0, end=10
-# 選択: (0,3) → (2,5) → (3,7) → (6,10) = 4個...
-# 最適: (0,3) → (3,7) → (6,10) = 3個
+# Example: intervals=[(0,3),(2,5),(3,7),(6,10)], start=0, end=10
+# Selection: (0,3) -> (2,5) -> (3,7) -> (6,10) = 4 intervals...
+# Optimal: (0,3) -> (3,7) -> (6,10) = 3 intervals
 
-# 重なり合う区間のマージ
+# Merging Overlapping Intervals
 def merge_intervals(intervals):
-    """重なり合う区間をマージする"""
+    """Merge overlapping intervals"""
     if not intervals:
         return []
 
@@ -296,12 +296,12 @@ def merge_intervals(intervals):
 
     return merged
 
-# 例: [(1,3), (2,6), (8,10), (15,18)]
-# → [(1,6), (8,10), (15,18)]
+# Example: [(1,3), (2,6), (8,10), (15,18)]
+# -> [(1,6), (8,10), (15,18)]
 
-# 最小数の矢で風船を割る
+# Minimum Number of Arrows to Burst Balloons
 def min_arrows_to_burst_balloons(balloons):
-    """重なりのある風船を最小の矢で割る（区間スケジューリングの変形）"""
+    """Burst overlapping balloons with minimum arrows (variant of interval scheduling)"""
     if not balloons:
         return 0
 
@@ -310,31 +310,31 @@ def min_arrows_to_burst_balloons(balloons):
     end = balloons[0][1]
 
     for s, e in balloons[1:]:
-        if s > end:  # 新しい矢が必要
+        if s > end:  # A new arrow is needed
             arrows += 1
             end = e
 
     return arrows
 
-# 例: balloons = [(10,16), (2,8), (1,6), (7,12)]
-# ソート後: [(1,6), (2,8), (7,12), (10,16)]
-# 矢1: x=6 → (1,6)と(2,8)を割る
-# 矢2: x=12 → (7,12)と(10,16)を割る
-# → 2本
+# Example: balloons = [(10,16), (2,8), (1,6), (7,12)]
+# After sorting: [(1,6), (2,8), (7,12), (10,16)]
+# Arrow 1: x=6 -> bursts (1,6) and (2,8)
+# Arrow 2: x=12 -> bursts (7,12) and (10,16)
+# -> 2 arrows
 ```
 
-### 1.8 Kruskal法とPrim法（最小全域木）
+### 1.8 Kruskal's and Prim's Algorithms (Minimum Spanning Tree)
 
 ```python
 class UnionFind:
-    """Union-Find（素集合データ構造）"""
+    """Union-Find (Disjoint Set data structure)"""
     def __init__(self, n):
         self.parent = list(range(n))
         self.rank = [0] * n
 
     def find(self, x):
         if self.parent[x] != x:
-            self.parent[x] = self.find(self.parent[x])  # 経路圧縮
+            self.parent[x] = self.find(self.parent[x])  # Path compression
         return self.parent[x]
 
     def union(self, x, y):
@@ -349,14 +349,14 @@ class UnionFind:
         return True
 
 def kruskal(n, edges):
-    """Kruskal法: 辺を重みの昇順に追加（貪欲法）"""
+    """Kruskal's algorithm: Add edges in ascending order of weight (greedy)"""
     edges.sort(key=lambda x: x[2])  # (u, v, weight)
     uf = UnionFind(n)
     mst = []
     total_weight = 0
 
     for u, v, w in edges:
-        if uf.union(u, v):  # サイクルにならなければ追加
+        if uf.union(u, v):  # Add if it does not form a cycle
             mst.append((u, v, w))
             total_weight += w
             if len(mst) == n - 1:
@@ -364,11 +364,11 @@ def kruskal(n, edges):
 
     return total_weight, mst
 
-# 計算量: O(E log E)  (ソートが支配的)
-# 正当性: カットの性質 → 最小重みのクロスエッジは安全
+# Time complexity: O(E log E) (dominated by sorting)
+# Correctness: Cut property -> The minimum-weight cross edge is safe
 
 def prim(n, adj):
-    """Prim法: 頂点を1つずつ追加（優先度キューで貪欲に選択）"""
+    """Prim's algorithm: Add vertices one at a time (greedy selection via priority queue)"""
     import heapq
     visited = [False] * n
     mst = []
@@ -390,25 +390,25 @@ def prim(n, adj):
 
     return total_weight, mst
 
-# 計算量: O(E log V)  (ヒープ操作)
-# Kruskal: 辺が少ないグラフ（疎グラフ）に有利
-# Prim: 頂点が少ないグラフ（密グラフ）に有利
+# Time complexity: O(E log V) (heap operations)
+# Kruskal: Advantageous for sparse graphs (fewer edges)
+# Prim: Advantageous for dense graphs (fewer vertices)
 
-# 使用例
+# Usage example
 edges = [(0,1,4), (0,7,8), (1,2,8), (1,7,11), (2,3,7),
          (2,5,4), (2,8,2), (3,4,9), (3,5,14), (4,5,10),
          (5,6,2), (6,7,1), (6,8,6), (7,8,7)]
 weight, mst = kruskal(9, edges)
-print(f"最小全域木の重み: {weight}")  # 37
+print(f"MST weight: {weight}")  # 37
 ```
 
-### 1.9 ダイクストラ法
+### 1.9 Dijkstra's Algorithm
 
 ```python
 import heapq
 
 def dijkstra(adj, start):
-    """ダイクストラ法: 単一始点最短経路（非負重みのみ）"""
+    """Dijkstra's algorithm: Single-source shortest path (non-negative weights only)"""
     n = len(adj)
     dist = [float('inf')] * n
     dist[start] = 0
@@ -418,7 +418,7 @@ def dijkstra(adj, start):
     while heap:
         d, u = heapq.heappop(heap)
         if d > dist[u]:
-            continue  # 既により短い経路が見つかっている
+            continue  # A shorter path has already been found
 
         for v, w in adj[u]:
             new_dist = dist[u] + w
@@ -430,7 +430,7 @@ def dijkstra(adj, start):
     return dist, prev
 
 def reconstruct_path(prev, start, end):
-    """最短経路を復元"""
+    """Reconstruct the shortest path"""
     path = []
     current = end
     while current != -1:
@@ -439,7 +439,7 @@ def reconstruct_path(prev, start, end):
     path.reverse()
     return path if path[0] == start else []
 
-# 使用例
+# Usage example
 adj = [
     [(1, 4), (7, 8)],     # 0
     [(0, 4), (2, 8)],     # 1
@@ -452,87 +452,87 @@ adj = [
 ]
 dist, prev = dijkstra(adj, 0)
 path = reconstruct_path(prev, 0, 4)
-print(f"0→4の最短距離: {dist[4]}")   # 19
-print(f"経路: {path}")                # [0, 1, 2, 3, 4]
+print(f"Shortest distance 0->4: {dist[4]}")   # 19
+print(f"Path: {path}")                         # [0, 1, 2, 3, 4]
 
-# なぜ貪欲法が正しいのか？
-# ダイクストラ法では、ヒープから取り出した頂点の距離は確定している
-# 理由: 非負重みなので、未処理の頂点を経由しても距離は短くならない
-# 注意: 負の重みがあると貪欲選択性質が崩れる → Bellman-Fordを使う
+# Why is the greedy approach correct?
+# In Dijkstra's algorithm, the distance of a vertex popped from the heap is finalized.
+# Reason: With non-negative weights, going through unprocessed vertices cannot yield a shorter path.
+# Note: With negative weights, the greedy choice property breaks -> use Bellman-Ford instead.
 ```
 
 ---
 
-## 2. バックトラック
+## 2. Backtracking
 
-### 2.1 基本概念
+### 2.1 Basic Concepts
 
 ```
-バックトラック: 解の候補を構築し、制約違反で引き返す
+Backtracking: Build candidate solutions and retreat upon constraint violation
 
-  全探索との違い:
-  - 全探索: 全ての組み合わせを生成してからチェック
-  - バックトラック: 構築途中で制約違反を検出→枝刈り
+  Difference from exhaustive search:
+  - Exhaustive search: Generate all combinations, then check
+  - Backtracking: Detect constraint violations during construction -> prune
 
-  探索木のイメージ:
+  Search tree visualization:
           root
         /  |  \
-       a   b   c     ← 1文字目の選択
+       a   b   c     <- Choice for 1st character
       /|\ /|\ /|\
-     a b c a b c ...  ← 2文字目の選択
-     ↑     ↑
-     OK    制約違反→戻る（バックトラック）
+     a b c a b c ...  <- Choice for 2nd character
+     ^     ^
+     OK    Constraint violation -> retreat (backtrack)
 ```
 
-### 2.2 バックトラックのテンプレート
+### 2.2 Backtracking Template
 
 ```python
 def backtrack_template(candidates, constraints):
-    """バックトラックの一般的なテンプレート"""
+    """General backtracking template"""
     results = []
 
     def backtrack(state, choices):
-        # 基底条件: 解が完成した
+        # Base case: A solution is complete
         if is_solution(state):
             results.append(state.copy())
             return
 
         for choice in choices:
-            # 枝刈り: 制約に違反するなら探索しない
+            # Pruning: Skip if the choice violates constraints
             if not is_valid(state, choice, constraints):
                 continue
 
-            # 選択を行う
+            # Make the choice
             state.append(choice)  # make choice
 
-            # 再帰的に探索
+            # Recurse
             backtrack(state, next_choices(choices, choice))
 
-            # 選択を取り消す（バックトラック）
+            # Undo the choice (backtrack)
             state.pop()  # undo choice
 
     backtrack([], candidates)
     return results
 
-# バックトラックの3要素:
-# 1. 選択（Choice）: 何を選ぶか
-# 2. 制約（Constraint）: 何が有効な選択か
-# 3. 目標（Goal）: いつ解が完成するか
+# Three elements of backtracking:
+# 1. Choice: What to pick
+# 2. Constraint: What constitutes a valid choice
+# 3. Goal: When a solution is complete
 ```
 
-### 2.3 典型的なバックトラック
+### 2.3 Classic Backtracking Problems
 
 ```python
-# 1. N-Queens問題
+# 1. N-Queens Problem
 def solve_n_queens(n):
-    """N×Nのボードにクイーンを互いに攻撃しないように配置"""
+    """Place queens on an NxN board so that no two queens attack each other"""
     solutions = []
 
     def is_safe(board, row, col):
         for i in range(row):
-            if board[i] == col:  # 同じ列
+            if board[i] == col:  # Same column
                 return False
-            if abs(board[i] - col) == abs(i - row):  # 対角線
+            if abs(board[i] - col) == abs(i - row):  # Diagonal
                 return False
         return True
 
@@ -544,16 +544,16 @@ def solve_n_queens(n):
             if is_safe(board, row, col):
                 board[row] = col
                 backtrack(board, row + 1)
-                # board[row] は次のイテレーションで上書きされるので
-                # 明示的な「元に戻す」操作は不要
+                # board[row] will be overwritten in the next iteration,
+                # so an explicit "undo" operation is not needed
 
     backtrack([0] * n, 0)
     return solutions
 
-# N-Queensの解の数:
+# Number of N-Queens solutions:
 # N=4: 2, N=5: 10, N=6: 4, N=7: 40, N=8: 92, N=12: 14200
 
-# 解のビジュアライズ
+# Visualize a solution
 def print_queens(board):
     n = len(board)
     for row in range(n):
@@ -566,7 +566,7 @@ def print_queens(board):
         print(line)
     print()
 
-# 2. 順列の生成
+# 2. Generating Permutations
 def permutations(nums):
     result = []
     def backtrack(path, remaining):
@@ -576,13 +576,13 @@ def permutations(nums):
         for i in range(len(remaining)):
             path.append(remaining[i])
             backtrack(path, remaining[:i] + remaining[i+1:])
-            path.pop()  # バックトラック（元に戻す）
+            path.pop()  # Backtrack (undo)
     backtrack([], nums)
     return result
 
-# 重複要素ありの順列
+# Permutations with Duplicate Elements
 def permutations_with_duplicates(nums):
-    """重複する要素がある場合、重複する順列を除外"""
+    """Exclude duplicate permutations when elements have duplicates"""
     nums.sort()
     result = []
     used = [False] * len(nums)
@@ -595,7 +595,7 @@ def permutations_with_duplicates(nums):
         for i in range(len(nums)):
             if used[i]:
                 continue
-            # 重複の排除: 同じ値の要素は、前の要素を使った後にのみ使う
+            # Eliminate duplicates: Use an element with the same value only after using the previous one
             if i > 0 and nums[i] == nums[i-1] and not used[i-1]:
                 continue
 
@@ -608,9 +608,9 @@ def permutations_with_duplicates(nums):
     backtrack([])
     return result
 
-# 例: [1, 1, 2] → [[1,1,2], [1,2,1], [2,1,1]]
+# Example: [1, 1, 2] -> [[1,1,2], [1,2,1], [2,1,1]]
 
-# 3. 数独ソルバー
+# 3. Sudoku Solver
 def solve_sudoku(board):
     def is_valid(board, row, col, num):
         for i in range(9):
@@ -631,18 +631,18 @@ def solve_sudoku(board):
                             board[i][j] = num
                             if backtrack():
                                 return True
-                            board[i][j] = 0  # バックトラック
-                    return False  # どの数字も入らない
-        return True  # 全マス埋まった
+                            board[i][j] = 0  # Backtrack
+                    return False  # No valid number for this cell
+        return True  # All cells filled
     backtrack()
 ```
 
-### 2.4 組み合わせの列挙
+### 2.4 Combination Enumeration
 
 ```python
-# 組み合わせ（Combination）
+# Combinations
 def combinations(nums, k):
-    """numsからk個を選ぶ全ての組み合わせ"""
+    """All combinations of choosing k elements from nums"""
     result = []
 
     def backtrack(start, path):
@@ -650,7 +650,7 @@ def combinations(nums, k):
             result.append(path[:])
             return
 
-        # 残りの要素数が足りない場合の枝刈り
+        # Pruning: Not enough remaining elements
         remaining = len(nums) - start
         needed = k - len(path)
         if remaining < needed:
@@ -664,12 +664,12 @@ def combinations(nums, k):
     backtrack(0, [])
     return result
 
-# 例: combinations([1,2,3,4], 2)
-# → [[1,2], [1,3], [1,4], [2,3], [2,4], [3,4]]
+# Example: combinations([1,2,3,4], 2)
+# -> [[1,2], [1,3], [1,4], [2,3], [2,4], [3,4]]
 
-# 和が target になる組み合わせ（各要素1回のみ）
+# Combinations that sum to target (each element used at most once)
 def combination_sum_unique(candidates, target):
-    """重複なしで和がtargetになる組み合わせ"""
+    """Combinations without duplicates that sum to target"""
     candidates.sort()
     result = []
 
@@ -681,11 +681,11 @@ def combination_sum_unique(candidates, target):
             return
 
         for i in range(start, len(candidates)):
-            # 同じ値の重複を排除
+            # Skip duplicates of the same value
             if i > start and candidates[i] == candidates[i-1]:
                 continue
             if candidates[i] > remaining:
-                break  # ソート済みなのでこれ以降は全て超過
+                break  # Already sorted, so all subsequent values exceed remaining
 
             path.append(candidates[i])
             backtrack(i + 1, remaining - candidates[i], path)
@@ -694,9 +694,9 @@ def combination_sum_unique(candidates, target):
     backtrack(0, target, [])
     return result
 
-# 和が target になる組み合わせ（各要素何度でも使用可）
+# Combinations that sum to target (each element can be used multiple times)
 def combination_sum_repeat(candidates, target):
-    """要素を繰り返し使って和がtargetになる組み合わせ"""
+    """Combinations with repeated use that sum to target"""
     candidates.sort()
     result = []
 
@@ -710,25 +710,25 @@ def combination_sum_repeat(candidates, target):
                 break
 
             path.append(candidates[i])
-            backtrack(i, remaining - candidates[i], path)  # iから再開（繰り返し可）
+            backtrack(i, remaining - candidates[i], path)  # Restart from i (repetition allowed)
             path.pop()
 
     backtrack(0, target, [])
     return result
 
-# 例: candidates=[2,3,6,7], target=7
-# → [[2,2,3], [7]]
+# Example: candidates=[2,3,6,7], target=7
+# -> [[2,2,3], [7]]
 ```
 
-### 2.5 部分集合の列挙
+### 2.5 Subset Enumeration
 
 ```python
 def subsets(nums):
-    """全ての部分集合を列挙（バックトラック版）"""
+    """Enumerate all subsets (backtracking version)"""
     result = []
 
     def backtrack(start, path):
-        result.append(path[:])  # 全ての途中状態も解
+        result.append(path[:])  # Every intermediate state is also a solution
 
         for i in range(start, len(nums)):
             path.append(nums[i])
@@ -738,9 +738,9 @@ def subsets(nums):
     backtrack(0, [])
     return result
 
-# 重複要素ありの部分集合
+# Subsets with Duplicate Elements
 def subsets_with_duplicates(nums):
-    """重複要素がある場合の部分集合列挙"""
+    """Subset enumeration when elements have duplicates"""
     nums.sort()
     result = []
 
@@ -748,7 +748,7 @@ def subsets_with_duplicates(nums):
         result.append(path[:])
 
         for i in range(start, len(nums)):
-            # 同じレベルで同じ値をスキップ
+            # Skip the same value at the same level
             if i > start and nums[i] == nums[i-1]:
                 continue
             path.append(nums[i])
@@ -758,42 +758,42 @@ def subsets_with_duplicates(nums):
     backtrack(0, [])
     return result
 
-# 例: [1, 2, 2]
-# → [[], [1], [1,2], [1,2,2], [2], [2,2]]
+# Example: [1, 2, 2]
+# -> [[], [1], [1,2], [1,2,2], [2], [2,2]]
 ```
 
-### 2.6 枝刈りの技法
+### 2.6 Pruning Techniques
 
 ```
-枝刈り（Pruning）: 不要な探索を事前に切り捨てる
+Pruning: Eliminating unnecessary searches in advance
 
-  1. 実行可能性枝刈り: 制約違反が確定したら探索打ち切り
-     → N-Queens: 同じ列/対角線にクイーンがあったら即終了
+  1. Feasibility pruning: Terminate search when a constraint violation is certain
+     -> N-Queens: Stop immediately if a queen is on the same column/diagonal
 
-  2. 最適性枝刈り: 現時点で最適解に届かないなら打ち切り
-     → 分岐限定法: 残りの最良見積もりが暫定最良解以下なら切る
+  2. Optimality pruning: Terminate if the current path cannot reach the best solution
+     -> Branch and bound: Prune if the best-case estimate is no better than the current best
 
-  3. 対称性枝刈り: 対称な解を1つだけ探索
-     → N-Queens: 最初のクイーンを上半分に限定
+  3. Symmetry pruning: Explore only one of symmetric solutions
+     -> N-Queens: Restrict the first queen to the upper half
 
-  4. 順序枝刈り: 探索の順序を工夫して早期終了を促す
-     → ソートして大きい値から試す → 制約に早く引っかかる
+  4. Ordering pruning: Arrange the search order to promote early termination
+     -> Sort and try larger values first -> Hit constraints sooner
 
-  5. 前計算枝刈り: 事前に不可能な状態を計算しておく
-     → 数独: 各セルの候補をビットマスクで管理
+  5. Precomputation pruning: Precompute impossible states
+     -> Sudoku: Manage candidates for each cell using bitmasks
 
-  枝刈りの効果:
-  - N-Queens (N=8): 全探索 16,777,216通り → 枝刈り 15,720通り
-  - 数独: 全探索 6.67×10²¹ → 枝刈りで瞬時
+  Pruning effectiveness:
+  - N-Queens (N=8): Exhaustive search 16,777,216 states -> with pruning 15,720 states
+  - Sudoku: Exhaustive search 6.67x10^21 -> solved instantly with pruning
 ```
 
-### 2.7 高度なバックトラック: 制約伝播付き数独ソルバー
+### 2.7 Advanced Backtracking: Sudoku Solver with Constraint Propagation
 
 ```python
 def solve_sudoku_advanced(board):
-    """制約伝播 + バックトラックの高速数独ソルバー"""
+    """High-speed Sudoku solver with constraint propagation + backtracking"""
 
-    # 各セルの候補をビットマスクで管理
+    # Manage candidates for each cell using bitmasks
     rows = [0] * 9
     cols = [0] * 9
     boxes = [0] * 9
@@ -811,7 +811,7 @@ def solve_sudoku_advanced(board):
                 empty_cells.append((i, j))
 
     def get_candidates(i, j):
-        """セル(i,j)に入れられる数字のリスト"""
+        """List of numbers that can be placed in cell (i, j)"""
         used = rows[i] | cols[j] | boxes[(i // 3) * 3 + j // 3]
         return [num for num in range(1, 10) if not (used & (1 << num))]
 
@@ -839,66 +839,66 @@ def solve_sudoku_advanced(board):
 
         return False
 
-    # MRV (Minimum Remaining Values) ヒューリスティック
-    # 候補数が少ないセルから先に埋める
+    # MRV (Minimum Remaining Values) heuristic
+    # Fill cells with fewer candidates first
     empty_cells.sort(key=lambda cell: len(get_candidates(cell[0], cell[1])))
 
     backtrack(0)
     return board
 
-# MRVヒューリスティックにより、探索木の分岐数を最小化
-# 候補が1つしかないセル（裸のシングル）は即座に確定
+# The MRV heuristic minimizes the branching factor of the search tree.
+# Cells with only one candidate (naked singles) are determined immediately.
 ```
 
 ---
 
-## 3. 全探索のテクニック
+## 3. Exhaustive Search Techniques
 
-### 3.1 ビット全探索
+### 3.1 Bitmask Enumeration
 
 ```python
-# ビット全探索: 2^n 通りの部分集合を列挙
+# Bitmask Enumeration: Enumerate all 2^n subsets
 
 def subsets_bitmask(nums):
-    """全ての部分集合を列挙"""
+    """Enumerate all subsets"""
     n = len(nums)
     result = []
-    for mask in range(1 << n):  # 0 から 2^n - 1
+    for mask in range(1 << n):  # 0 to 2^n - 1
         subset = []
         for i in range(n):
-            if mask & (1 << i):  # i番目のビットが立っているか
+            if mask & (1 << i):  # Check if the i-th bit is set
                 subset.append(nums[i])
         result.append(subset)
     return result
 
 # nums = [1, 2, 3]
-# mask=000 → []
-# mask=001 → [1]
-# mask=010 → [2]
-# mask=011 → [1, 2]
-# mask=100 → [3]
-# mask=101 → [1, 3]
-# mask=110 → [2, 3]
-# mask=111 → [1, 2, 3]
+# mask=000 -> []
+# mask=001 -> [1]
+# mask=010 -> [2]
+# mask=011 -> [1, 2]
+# mask=100 -> [3]
+# mask=101 -> [1, 3]
+# mask=110 -> [2, 3]
+# mask=111 -> [1, 2, 3]
 
-# 適用条件: n ≤ 20 程度（2^20 ≈ 100万）
+# Applicable when: n <= 20 or so (2^20 ~ 1 million)
 ```
 
-### 3.2 半分全列挙（Meet in the Middle）
+### 3.2 Meet in the Middle
 
 ```python
 def subset_sum_meet_in_middle(nums, target):
-    """Meet in the Middle: 2^n → 2^(n/2) × 2 に分割"""
+    """Meet in the Middle: Split 2^n into 2^(n/2) x 2"""
     n = len(nums)
     half = n // 2
 
-    # 前半の部分集合の和を列挙
+    # Enumerate subset sums of the first half
     sums_first = {}
     for mask in range(1 << half):
         s = sum(nums[i] for i in range(half) if mask & (1 << i))
         sums_first[s] = sums_first.get(s, 0) + 1
 
-    # 後半の部分集合で target - s を探す
+    # For each second-half subset, look up target - s
     count = 0
     remaining = n - half
     for mask in range(1 << remaining):
@@ -909,53 +909,54 @@ def subset_sum_meet_in_middle(nums, target):
 
     return count
 
-# 計算量: O(2^(n/2) × n)
-# n=40 の場合: 2^40 ≈ 1兆 → 2^20 ≈ 100万（現実的）
+# Time complexity: O(2^(n/2) x n)
+# For n=40: 2^40 ~ 1 trillion -> 2^20 ~ 1 million (feasible)
 
-# 使用例
-nums = list(range(1, 41))  # 1から40
-target = 410  # 1+2+...+40 = 820 の半分
-# 2^40通りの全探索は不可能だが、Meet in the Middleなら可能
+# Usage example
+nums = list(range(1, 41))  # 1 to 40
+target = 410  # Half of 1+2+...+40 = 820
+# Exhaustive search over 2^40 is infeasible, but Meet in the Middle makes it possible
 ```
 
-### 3.3 探索の状態空間と計算量
+### 3.3 Search State Space and Complexity
 
 ```
-各探索手法の計算量:
+Complexity of each search technique:
 
-  ┌──────────────────────┬─────────────┬──────────────┐
-  │ 手法                  │ 計算量       │ 適用範囲      │
-  ├──────────────────────┼─────────────┼──────────────┤
-  │ 全順列               │ O(n!)        │ n ≤ 10       │
-  │ ビット全探索         │ O(2^n × n)   │ n ≤ 20       │
-  │ Meet in the Middle   │ O(2^(n/2) × n)│ n ≤ 40      │
-  │ バックトラック       │ O(指数) ※    │ 枝刈り次第    │
-  │ DFS/BFS             │ O(V + E)     │ グラフの大きさ │
-  └──────────────────────┴─────────────┴──────────────┘
+  +----------------------+-------------+--------------+
+  | Technique            | Complexity  | Applicable   |
+  +----------------------+-------------+--------------+
+  | All permutations     | O(n!)       | n <= 10      |
+  | Bitmask enumeration  | O(2^n x n)  | n <= 20      |
+  | Meet in the Middle   | O(2^(n/2) x n)| n <= 40    |
+  | Backtracking         | O(exp) *    | Depends on   |
+  |                      |             | pruning      |
+  | DFS/BFS             | O(V + E)    | Graph size   |
+  +----------------------+-------------+--------------+
 
-  ※ バックトラックの計算量は枝刈りの効率に大きく依存する
-  枝刈りなし: O(n!) や O(k^n) 程度
-  良い枝刈り: 問題によっては O(n × k) に近づく
+  * Backtracking complexity depends heavily on pruning efficiency
+  Without pruning: O(n!) or O(k^n) range
+  With good pruning: Can approach O(n x k) depending on the problem
 ```
 
 ---
 
-## 4. 分岐限定法（Branch and Bound）
+## 4. Branch and Bound
 
-### 4.1 基本概念
+### 4.1 Basic Concepts
 
 ```python
 def branch_and_bound_knapsack(weights, values, capacity):
-    """分岐限定法による0-1ナップサック問題"""
+    """0-1 Knapsack problem using branch and bound"""
     n = len(weights)
 
-    # 価値密度でソート（上界計算のため）
+    # Sort by value density (for upper bound computation)
     items = sorted(range(n), key=lambda i: values[i] / weights[i], reverse=True)
     sorted_weights = [weights[i] for i in items]
     sorted_values = [values[i] for i in items]
 
     def upper_bound(idx, remaining_cap, current_value):
-        """分数ナップサックで上界を計算"""
+        """Compute upper bound using the fractional knapsack"""
         bound = current_value
         cap = remaining_cap
 
@@ -978,40 +979,40 @@ def branch_and_bound_knapsack(weights, values, capacity):
         if idx == n:
             return
 
-        # 枝刈り: 上界が現在の最良解以下なら探索しない
+        # Pruning: Do not explore if the upper bound is no better than the current best
         if upper_bound(idx, remaining_cap, current_value) <= best[0]:
             return
 
-        # 品物を入れる
+        # Include the item
         if sorted_weights[idx] <= remaining_cap:
             backtrack(idx + 1, remaining_cap - sorted_weights[idx],
                      current_value + sorted_values[idx])
 
-        # 品物を入れない
+        # Exclude the item
         backtrack(idx + 1, remaining_cap, current_value)
 
     backtrack(0, capacity, 0)
     return best[0]
 
-# 分岐限定法のポイント:
-# 1. 上界（楽観的見積もり）を計算する
-# 2. 上界が暫定最良解以下なら、そのブランチを切る
-# 3. 良い初期解があると多くの枝が切れる
-# → 良い初期解のために、先に貪欲法で近似解を求めるのが有効
+# Key points of branch and bound:
+# 1. Compute an upper bound (optimistic estimate)
+# 2. Prune a branch if its upper bound is no better than the current best solution
+# 3. A good initial solution allows more branches to be pruned
+# -> It is effective to first obtain an approximate solution via a greedy algorithm
 ```
 
-### 4.2 TSPの分岐限定法
+### 4.2 Branch and Bound for TSP
 
 ```python
 def tsp_branch_and_bound(dist):
-    """TSP を分岐限定法で解く"""
+    """Solve TSP using branch and bound"""
     n = len(dist)
     INF = float('inf')
     best_cost = [INF]
     best_path = [None]
 
     def lower_bound(visited, current, cost):
-        """未訪問都市の最小出辺の合計を下界として計算"""
+        """Compute a lower bound as the sum of minimum outgoing edges of unvisited cities"""
         bound = cost
         for i in range(n):
             if i not in visited:
@@ -1030,7 +1031,7 @@ def tsp_branch_and_bound(dist):
                 best_path[0] = path[:]
             return
 
-        # 下界による枝刈り
+        # Pruning by lower bound
         if lower_bound(visited, current, cost) >= best_cost[0]:
             return
 
@@ -1051,38 +1052,38 @@ def tsp_branch_and_bound(dist):
 
 ---
 
-## 5. 実務での近似アルゴリズム
+## 5. Approximation Algorithms in Practice
 
-### 5.1 NP困難問題への対処法
+### 5.1 Approaches to NP-Hard Problems
 
 ```
-NP困難問題に対する実務的なアプローチ:
+Practical approaches to NP-hard problems:
 
-  1. 厳密解法（小さい入力）
-     - ブルートフォース: n ≤ 10
-     - ビット全探索: n ≤ 20
-     - ビットDP: n ≤ 20
-     - 分岐限定法: n ≤ 30程度（問題による）
+  1. Exact algorithms (small inputs)
+     - Brute force: n <= 10
+     - Bitmask enumeration: n <= 20
+     - Bitmask DP: n <= 20
+     - Branch and bound: n <= 30 or so (problem-dependent)
 
-  2. 近似アルゴリズム（保証付き）
-     - 頂点被覆: 2-近似（最適解の2倍以内）
-     - TSP（三角不等式）: 1.5-近似（Christofides）
-     - 集合被覆: O(log n)-近似
+  2. Approximation algorithms (with guarantees)
+     - Vertex cover: 2-approximation (within 2x of optimal)
+     - TSP (with triangle inequality): 1.5-approximation (Christofides)
+     - Set cover: O(log n)-approximation
 
-  3. ヒューリスティック（保証なし）
-     - 焼きなまし法（SA）
-     - 遺伝的アルゴリズム（GA）
-     - タブーサーチ
-     - 局所探索
-     - ランダム化アルゴリズム
+  3. Heuristics (no guarantees)
+     - Simulated Annealing (SA)
+     - Genetic Algorithm (GA)
+     - Tabu Search
+     - Local Search
+     - Randomized algorithms
 
-  4. 問題の制限・緩和
-     - 特殊ケースに帰着
-     - 入力サイズの制限
-     - 解の品質の妥協
+  4. Problem restriction/relaxation
+     - Reduce to a special case
+     - Limit input size
+     - Accept a compromise on solution quality
 ```
 
-### 5.2 焼きなまし法の実装例
+### 5.2 Simulated Annealing Implementation
 
 ```python
 import random
@@ -1090,10 +1091,10 @@ import math
 
 def simulated_annealing_tsp(dist, initial_temp=10000, cooling_rate=0.9995,
                             min_temp=1e-8, max_iterations=1000000):
-    """焼きなまし法によるTSPの近似解"""
+    """Approximate TSP solution using simulated annealing"""
     n = len(dist)
 
-    # 初期解: ランダム順列
+    # Initial solution: random permutation
     current = list(range(n))
     random.shuffle(current)
 
@@ -1109,14 +1110,14 @@ def simulated_annealing_tsp(dist, initial_temp=10000, cooling_rate=0.9995,
         if temp < min_temp:
             break
 
-        # 近傍: 2-opt (ランダムな2辺を入れ替え)
+        # Neighborhood: 2-opt (swap two random edges)
         i, j = sorted(random.sample(range(n), 2))
         new_tour = current[:i] + current[i:j+1][::-1] + current[j+1:]
         new_cost = tour_cost(new_tour)
 
         delta = new_cost - current_cost
 
-        # 改善なら必ず受理、改悪でも確率的に受理
+        # Always accept improvements; accept deteriorations with a probability
         if delta < 0 or random.random() < math.exp(-delta / temp):
             current = new_tour
             current_cost = new_cost
@@ -1129,17 +1130,17 @@ def simulated_annealing_tsp(dist, initial_temp=10000, cooling_rate=0.9995,
 
     return best_cost, best
 
-# 焼きなまし法のパラメータチューニング:
-# - 初期温度: 大きいほど初期の探索範囲が広い
-# - 冷却速度: 1に近いほどゆっくり冷える（高品質だが遅い）
-# - 近傍の定義: 問題に適した操作を選ぶ
+# Simulated annealing parameter tuning:
+# - Initial temperature: Higher values widen the initial search range
+# - Cooling rate: Closer to 1 means slower cooling (higher quality but slower)
+# - Neighborhood definition: Choose an operation suited to the problem
 ```
 
-### 5.3 局所探索と2-opt
+### 5.3 Local Search and 2-opt
 
 ```python
 def two_opt_tsp(dist):
-    """2-opt局所探索によるTSPの改善"""
+    """Improve TSP solution via 2-opt local search"""
     n = len(dist)
     tour = list(range(n))
 
@@ -1152,9 +1153,9 @@ def two_opt_tsp(dist):
         for i in range(n - 1):
             for j in range(i + 2, n):
                 if j == n - 1 and i == 0:
-                    continue  # 同じ辺
+                    continue  # Same edge
 
-                # 2辺を入れ替えた場合のコスト変化
+                # Cost change when swapping two edges
                 delta = (
                     dist[tour[i]][tour[j]] +
                     dist[tour[i+1]][tour[(j+1) % n]] -
@@ -1168,66 +1169,66 @@ def two_opt_tsp(dist):
 
     return tour_cost(tour), tour
 
-# 2-optの計算量: O(n^2) per iteration
-# 通常は少数回のイテレーションで収束
-# 最適解の保証はないが、実務的に良い解が得られる
+# 2-opt time complexity: O(n^2) per iteration
+# Typically converges in a small number of iterations
+# No optimality guarantee, but produces good solutions in practice
 ```
 
 ---
 
-## 6. 実践演習
+## 6. Practical Exercises
 
-### 演習1: 貪欲法（基礎）
-分数ナップサック問題（品物を切り分けてよい場合）を貪欲法で解け。0-1ナップサックとの違いを述べよ。
+### Exercise 1: Greedy Algorithm (Basic)
+Solve the fractional knapsack problem (where items can be divided) using a greedy algorithm. Explain the difference from the 0-1 knapsack.
 
-### 演習2: バックトラック（応用）
-与えられた数字の配列から、和が target になる全ての組み合わせを求めよ（同じ要素は1回のみ使用可能）。
+### Exercise 2: Backtracking (Intermediate)
+Given an array of numbers, find all combinations that sum to a target value (each element can be used at most once).
 
-### 演習3: 区間スケジューリング（応用）
-重み付き区間スケジューリング問題を解け。各活動に利益があり、重ならない活動の利益の合計を最大化せよ（ヒント: DP + 二分探索）。
+### Exercise 3: Interval Scheduling (Intermediate)
+Solve the weighted interval scheduling problem. Each activity has a profit; maximize the total profit of non-overlapping activities (Hint: DP + binary search).
 
-### 演習4: グラフ問題（応用）
-Kruskal法で最小全域木を求めるプログラムを実装せよ。Union-Findデータ構造も実装すること。
+### Exercise 4: Graph Problem (Intermediate)
+Implement a program that finds the minimum spanning tree using Kruskal's algorithm. Also implement the Union-Find data structure.
 
-### 演習5: バックトラック応用（発展）
-数独ソルバーを制約伝播付きで実装し、通常のバックトラックとの性能差を比較せよ。
+### Exercise 5: Applied Backtracking (Advanced)
+Implement a Sudoku solver with constraint propagation and compare its performance against plain backtracking.
 
-### 演習6: 最適化（発展）
-巡回セールスマン問題を、バックトラック+枝刈り（分岐限定法）で解くプログラムを実装し、都市数を増やした時の実行時間の変化を計測せよ。
+### Exercise 6: Optimization (Advanced)
+Implement a program that solves the Traveling Salesman Problem using backtracking with pruning (branch and bound), and measure how execution time changes as the number of cities increases.
 
-### 演習7: 近似アルゴリズム（発展）
-焼きなまし法でTSPを解き、厳密解（ビットDP）との品質差を比較せよ。パラメータの影響を分析せよ。
+### Exercise 7: Approximation Algorithm (Advanced)
+Solve TSP using simulated annealing and compare solution quality with the exact solution (bitmask DP). Analyze the impact of parameter choices.
 
 
 ---
 
-## トラブルシューティング
+## Troubleshooting
 
-### よくあるエラーと解決策
+### Common Errors and Solutions
 
-| エラー | 原因 | 解決策 |
-|--------|------|--------|
-| 初期化エラー | 設定ファイルの不備 | 設定ファイルのパスと形式を確認 |
-| タイムアウト | ネットワーク遅延/リソース不足 | タイムアウト値の調整、リトライ処理の追加 |
-| メモリ不足 | データ量の増大 | バッチ処理の導入、ページネーションの実装 |
-| 権限エラー | アクセス権限の不足 | 実行ユーザーの権限確認、設定の見直し |
-| データ不整合 | 並行処理の競合 | ロック機構の導入、トランザクション管理 |
+| Error | Cause | Solution |
+|-------|-------|----------|
+| Initialization error | Misconfigured settings file | Verify the path and format of the configuration file |
+| Timeout | Network latency / insufficient resources | Adjust timeout values, add retry logic |
+| Out of memory | Increased data volume | Introduce batch processing, implement pagination |
+| Permission error | Insufficient access rights | Verify user permissions, review settings |
+| Data inconsistency | Race conditions in concurrent processing | Introduce locking mechanisms, manage transactions |
 
-### デバッグの手順
+### Debugging Procedure
 
-1. **エラーメッセージの確認**: スタックトレースを読み、発生箇所を特定する
-2. **再現手順の確立**: 最小限のコードでエラーを再現する
-3. **仮説の立案**: 考えられる原因をリストアップする
-4. **段階的な検証**: ログ出力やデバッガを使って仮説を検証する
-5. **修正と回帰テスト**: 修正後、関連する箇所のテストも実行する
+1. **Check error messages**: Read the stack trace to identify the point of failure
+2. **Establish reproduction steps**: Reproduce the error with minimal code
+3. **Formulate hypotheses**: List possible causes
+4. **Verify step by step**: Use log output or a debugger to test hypotheses
+5. **Fix and regression test**: After fixing, also run tests on related areas
 
 ```python
-# デバッグ用ユーティリティ
+# Debugging utilities
 import logging
 import traceback
 from functools import wraps
 
-# ロガーの設定
+# Logger configuration
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
@@ -1235,102 +1236,102 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def debug_decorator(func):
-    """関数の入出力をログ出力するデコレータ"""
+    """Decorator that logs function input and output"""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        logger.debug(f"呼び出し: {func.__name__}(args={args}, kwargs={kwargs})")
+        logger.debug(f"Call: {func.__name__}(args={args}, kwargs={kwargs})")
         try:
             result = func(*args, **kwargs)
-            logger.debug(f"戻り値: {func.__name__} -> {result}")
+            logger.debug(f"Return: {func.__name__} -> {result}")
             return result
         except Exception as e:
-            logger.error(f"例外発生: {func.__name__}: {e}")
+            logger.error(f"Exception in {func.__name__}: {e}")
             logger.error(traceback.format_exc())
             raise
     return wrapper
 
 @debug_decorator
 def process_data(items):
-    """データ処理（デバッグ対象）"""
+    """Data processing (debug target)"""
     if not items:
-        raise ValueError("空のデータ")
+        raise ValueError("Empty data")
     return [item * 2 for item in items]
 ```
 
-### パフォーマンス問題の診断
+### Diagnosing Performance Issues
 
-パフォーマンス問題が発生した場合の診断手順:
+Steps for diagnosing performance issues:
 
-1. **ボトルネックの特定**: プロファイリングツールで計測
-2. **メモリ使用量の確認**: メモリリークの有無をチェック
-3. **I/O待ちの確認**: ディスクやネットワークI/Oの状況を確認
-4. **同時接続数の確認**: コネクションプールの状態を確認
+1. **Identify the bottleneck**: Measure with profiling tools
+2. **Check memory usage**: Look for memory leaks
+3. **Check I/O waits**: Examine disk and network I/O conditions
+4. **Check concurrent connections**: Verify connection pool status
 
-| 問題の種類 | 診断ツール | 対策 |
-|-----------|-----------|------|
-| CPU負荷 | cProfile, py-spy | アルゴリズム改善、並列化 |
-| メモリリーク | tracemalloc, objgraph | 参照の適切な解放 |
-| I/Oボトルネック | strace, iostat | 非同期I/O、キャッシュ |
-| DB遅延 | EXPLAIN, slow query log | インデックス、クエリ最適化 |
+| Issue Type | Diagnostic Tool | Countermeasure |
+|-----------|----------------|----------------|
+| CPU load | cProfile, py-spy | Algorithm improvement, parallelization |
+| Memory leak | tracemalloc, objgraph | Proper reference cleanup |
+| I/O bottleneck | strace, iostat | Async I/O, caching |
+| DB latency | EXPLAIN, slow query log | Indexing, query optimization |
 
 ---
 
-## 設計判断ガイド
+## Design Decision Guide
 
-### 選択基準マトリクス
+### Selection Criteria Matrix
 
-技術選択を行う際の判断基準を以下にまとめます。
+A summary of decision criteria for technology choices:
 
-| 判断基準 | 重視する場合 | 妥協できる場合 |
-|---------|------------|-------------|
-| パフォーマンス | リアルタイム処理、大規模データ | 管理画面、バッチ処理 |
-| 保守性 | 長期運用、チーム開発 | プロトタイプ、短期プロジェクト |
-| スケーラビリティ | 成長が見込まれるサービス | 社内ツール、固定ユーザー |
-| セキュリティ | 個人情報、金融データ | 公開データ、社内利用 |
-| 開発速度 | MVP、市場投入スピード | 品質重視、ミッションクリティカル |
+| Criterion | Prioritize When | Acceptable to Compromise When |
+|-----------|-----------------|-------------------------------|
+| Performance | Real-time processing, large-scale data | Admin panels, batch processing |
+| Maintainability | Long-term operation, team development | Prototypes, short-term projects |
+| Scalability | Services expected to grow | Internal tools, fixed user base |
+| Security | Personal data, financial data | Public data, internal use |
+| Development speed | MVP, time-to-market | Quality-focused, mission-critical |
 
-### アーキテクチャパターンの選択
+### Architecture Pattern Selection
 
 ```
-┌─────────────────────────────────────────────────┐
-│              アーキテクチャ選択フロー              │
-├─────────────────────────────────────────────────┤
-│                                                 │
-│  ① チーム規模は？                                │
-│    ├─ 小規模（1-5人）→ モノリス                   │
-│    └─ 大規模（10人+）→ ②へ                       │
-│                                                 │
-│  ② デプロイ頻度は？                               │
-│    ├─ 週1回以下 → モノリス + モジュール分割         │
-│    └─ 毎日/複数回 → ③へ                          │
-│                                                 │
-│  ③ チーム間の独立性は？                            │
-│    ├─ 高い → マイクロサービス                      │
-│    └─ 中程度 → モジュラーモノリス                   │
-│                                                 │
-└─────────────────────────────────────────────────┘
++---------------------------------------------------+
+|          Architecture Selection Flow               |
++---------------------------------------------------+
+|                                                   |
+|  (1) Team size?                                   |
+|    +-- Small (1-5 people) -> Monolith             |
+|    +-- Large (10+ people) -> Go to (2)            |
+|                                                   |
+|  (2) Deployment frequency?                        |
+|    +-- Once a week or less -> Monolith + modules  |
+|    +-- Daily / multiple times -> Go to (3)        |
+|                                                   |
+|  (3) Team independence?                           |
+|    +-- High -> Microservices                      |
+|    +-- Moderate -> Modular monolith               |
+|                                                   |
++---------------------------------------------------+
 ```
 
-### トレードオフの分析
+### Trade-off Analysis
 
-技術的な判断には必ずトレードオフが伴います。以下の観点で分析を行いましょう:
+Technical decisions always involve trade-offs. Analyze from the following perspectives:
 
-**1. 短期 vs 長期のコスト**
-- 短期的に速い方法が長期的には技術的負債になることがある
-- 逆に、過剰な設計は短期的なコストが高く、プロジェクトの遅延を招く
+**1. Short-term vs Long-term Cost**
+- A method that is fast in the short term can become technical debt in the long run
+- Conversely, over-engineering incurs high short-term costs and delays the project
 
-**2. 一貫性 vs 柔軟性**
-- 統一された技術スタックは学習コストが低い
-- 多様な技術の採用は適材適所が可能だが、運用コストが増加
+**2. Consistency vs Flexibility**
+- A unified technology stack lowers the learning curve
+- Diverse technologies enable best-fit choices but increase operational costs
 
-**3. 抽象化のレベル**
-- 高い抽象化は再利用性が高いが、デバッグが困難になる場合がある
-- 低い抽象化は直感的だが、コードの重複が発生しやすい
+**3. Level of Abstraction**
+- High abstraction provides reusability but can make debugging harder
+- Low abstraction is intuitive but leads to code duplication
 
 ```python
-# 設計判断の記録テンプレート
+# Template for recording design decisions
 class ArchitectureDecisionRecord:
-    """ADR (Architecture Decision Record) の作成"""
+    """Create an ADR (Architecture Decision Record)"""
 
     def __init__(self, title: str):
         self.title = title
@@ -1340,17 +1341,17 @@ class ArchitectureDecisionRecord:
         self.alternatives = []
 
     def set_context(self, context: str):
-        """背景と課題の記述"""
+        """Describe the background and problem"""
         self.context = context
         return self
 
     def set_decision(self, decision: str):
-        """決定内容の記述"""
+        """Describe the decision"""
         self.decision = decision
         return self
 
     def add_consequence(self, consequence: str, positive: bool = True):
-        """結果の追加"""
+        """Add a consequence"""
         self.consequences.append({
             'description': consequence,
             'type': 'positive' if positive else 'negative'
@@ -1358,7 +1359,7 @@ class ArchitectureDecisionRecord:
         return self
 
     def add_alternative(self, name: str, reason_rejected: str):
-        """却下した代替案の追加"""
+        """Add a rejected alternative"""
         self.alternatives.append({
             'name': name,
             'reason_rejected': reason_rejected
@@ -1366,15 +1367,15 @@ class ArchitectureDecisionRecord:
         return self
 
     def to_markdown(self) -> str:
-        """Markdown形式で出力"""
+        """Output in Markdown format"""
         md = f"# ADR: {self.title}\n\n"
-        md += f"## 背景\n{self.context}\n\n"
-        md += f"## 決定\n{self.decision}\n\n"
-        md += "## 結果\n"
+        md += f"## Context\n{self.context}\n\n"
+        md += f"## Decision\n{self.decision}\n\n"
+        md += "## Consequences\n"
         for c in self.consequences:
-            icon = "✅" if c['type'] == 'positive' else "⚠️"
+            icon = "+" if c['type'] == 'positive' else "!"
             md += f"- {icon} {c['description']}\n"
-        md += "\n## 却下した代替案\n"
+        md += "\n## Rejected Alternatives\n"
         for a in self.alternatives:
             md += f"- **{a['name']}**: {a['reason_rejected']}\n"
         return md
@@ -1382,84 +1383,84 @@ class ArchitectureDecisionRecord:
 
 ---
 
-## チーム開発での活用
+## Team Development
 
-### コードレビューのチェックリスト
+### Code Review Checklist
 
-このトピックに関連するコードレビューで確認すべきポイント:
+Key points to check in code reviews related to this topic:
 
-- [ ] 命名規則が一貫しているか
-- [ ] エラーハンドリングが適切か
-- [ ] テストカバレッジは十分か
-- [ ] パフォーマンスへの影響はないか
-- [ ] セキュリティ上の問題はないか
-- [ ] ドキュメントは更新されているか
+- [ ] Naming conventions are consistent
+- [ ] Error handling is appropriate
+- [ ] Test coverage is sufficient
+- [ ] There is no negative impact on performance
+- [ ] There are no security concerns
+- [ ] Documentation has been updated
 
-### ナレッジ共有のベストプラクティス
+### Knowledge Sharing Best Practices
 
-| 方法 | 頻度 | 対象 | 効果 |
-|------|------|------|------|
-| ペアプログラミング | 随時 | 複雑なタスク | 即時のフィードバック |
-| テックトーク | 週1回 | チーム全体 | 知識の水平展開 |
-| ADR (設計記録) | 都度 | 将来のメンバー | 意思決定の透明性 |
-| 振り返り | 2週間ごと | チーム全体 | 継続的改善 |
-| モブプログラミング | 月1回 | 重要な設計 | 合意形成 |
+| Method | Frequency | Target | Effect |
+|--------|-----------|--------|--------|
+| Pair programming | As needed | Complex tasks | Immediate feedback |
+| Tech talks | Weekly | Entire team | Horizontal knowledge transfer |
+| ADR (Decision Records) | As needed | Future members | Decision transparency |
+| Retrospectives | Bi-weekly | Entire team | Continuous improvement |
+| Mob programming | Monthly | Important designs | Consensus building |
 
-### 技術的負債の管理
+### Technical Debt Management
 
 ```
-優先度マトリクス:
+Priority Matrix:
 
-        影響度 高
-          │
-    ┌─────┼─────┐
-    │ 計画 │ 即座 │
-    │ 的に │ に   │
-    │ 対応 │ 対応 │
-    ├─────┼─────┤
-    │ 記録 │ 次の │
-    │ のみ │ Sprint│
-    │     │ で   │
-    └─────┼─────┘
-          │
-        影響度 低
-    発生頻度 低  発生頻度 高
+        Impact High
+          |
+    +-----+-----+
+    | Plan |Imme-|
+    | ned  |diate|
+    |      |     |
+    +------+-----+
+    |Record|Next |
+    | only |Sprint|
+    |      |     |
+    +------+-----+
+          |
+        Impact Low
+    Frequency Low  Frequency High
 ```
 
 ---
 
-## セキュリティの考慮事項
+## Security Considerations
 
-### 一般的な脆弱性と対策
+### Common Vulnerabilities and Countermeasures
 
-| 脆弱性 | リスクレベル | 対策 | 検出方法 |
-|--------|------------|------|---------|
-| インジェクション攻撃 | 高 | 入力値のバリデーション・パラメータ化クエリ | SAST/DAST |
-| 認証の不備 | 高 | 多要素認証・セッション管理の強化 | ペネトレーションテスト |
-| 機密データの露出 | 高 | 暗号化・アクセス制御 | セキュリティ監査 |
-| 設定の不備 | 中 | セキュリティヘッダー・最小権限の原則 | 構成スキャン |
-| ログの不足 | 中 | 構造化ログ・監査証跡 | ログ分析 |
+| Vulnerability | Risk Level | Countermeasure | Detection Method |
+|--------------|-----------|----------------|-----------------|
+| Injection attacks | High | Input validation, parameterized queries | SAST/DAST |
+| Authentication flaws | High | Multi-factor authentication, session management hardening | Penetration testing |
+| Sensitive data exposure | High | Encryption, access control | Security audit |
+| Misconfiguration | Medium | Security headers, principle of least privilege | Configuration scanning |
+| Insufficient logging | Medium | Structured logging, audit trails | Log analysis |
 
-### セキュアコーディングのベストプラクティス
+### Secure Coding Best Practices
 
 ```python
-# セキュアコーディング例
+# Secure coding example
 import hashlib
 import secrets
 import hmac
 from typing import Optional
 
 class SecurityUtils:
-    """セキュリティユーティリティ"""
+    """Security utilities"""
 
     @staticmethod
     def generate_token(length: int = 32) -> str:
-        """暗号学的に安全なトークン生成"""
+        """Generate a cryptographically secure token"""
         return secrets.token_urlsafe(length)
 
     @staticmethod
     def hash_password(password: str, salt: Optional[str] = None) -> tuple:
-        """パスワードのハッシュ化"""
+        """Hash a password"""
         if salt is None:
             salt = secrets.token_hex(16)
         hashed = hashlib.pbkdf2_hmac(
@@ -1472,50 +1473,50 @@ class SecurityUtils:
 
     @staticmethod
     def verify_password(password: str, hashed: str, salt: str) -> bool:
-        """パスワードの検証"""
+        """Verify a password"""
         new_hash, _ = SecurityUtils.hash_password(password, salt)
         return hmac.compare_digest(new_hash, hashed)
 
     @staticmethod
     def sanitize_input(value: str) -> str:
-        """入力値のサニタイズ"""
+        """Sanitize input"""
         dangerous_chars = ['<', '>', '"', "'", '&', '\\']
         result = value
         for char in dangerous_chars:
             result = result.replace(char, '')
         return result.strip()
 
-# 使用例
+# Usage example
 token = SecurityUtils.generate_token()
 hashed, salt = SecurityUtils.hash_password("my_password")
 is_valid = SecurityUtils.verify_password("my_password", hashed, salt)
 ```
 
-### セキュリティチェックリスト
+### Security Checklist
 
-- [ ] 全ての入力値がバリデーションされている
-- [ ] 機密情報がログに出力されていない
-- [ ] HTTPS が強制されている
-- [ ] CORS ポリシーが適切に設定されている
-- [ ] 依存パッケージの脆弱性スキャンが実施されている
-- [ ] エラーメッセージに内部情報が含まれていない
+- [ ] All input values are validated
+- [ ] Sensitive information is not output to logs
+- [ ] HTTPS is enforced
+- [ ] CORS policy is properly configured
+- [ ] Vulnerability scanning of dependencies has been performed
+- [ ] Error messages do not contain internal information
 
 ---
 
-## マイグレーションガイド
+## Migration Guide
 
-### バージョンアップ時の注意点
+### Notes for Version Upgrades
 
-| バージョン | 主な変更点 | 移行作業 | 影響範囲 |
-|-----------|-----------|---------|---------|
-| v1.x → v2.x | API設計の刷新 | エンドポイント変更 | 全クライアント |
-| v2.x → v3.x | 認証方式の変更 | トークン形式更新 | 認証関連 |
-| v3.x → v4.x | データモデル変更 | マイグレーションスクリプト実行 | DB関連 |
+| Version | Major Changes | Migration Work | Impact Scope |
+|---------|--------------|----------------|-------------|
+| v1.x -> v2.x | API design overhaul | Endpoint changes | All clients |
+| v2.x -> v3.x | Authentication method change | Token format update | Auth-related |
+| v3.x -> v4.x | Data model change | Run migration scripts | DB-related |
 
-### 段階的移行の手順
+### Gradual Migration Steps
 
 ```python
-# マイグレーションスクリプトのテンプレート
+# Migration script template
 import json
 import logging
 from pathlib import Path
@@ -1525,7 +1526,7 @@ from typing import List, Dict, Callable
 logger = logging.getLogger(__name__)
 
 class MigrationRunner:
-    """段階的マイグレーション実行エンジン"""
+    """Gradual migration execution engine"""
 
     def __init__(self, migration_dir: str):
         self.migration_dir = Path(migration_dir)
@@ -1534,7 +1535,7 @@ class MigrationRunner:
 
     def register(self, version: str, description: str,
                  up: Callable, down: Callable):
-        """マイグレーションの登録"""
+        """Register a migration"""
         self.migrations.append({
             'version': version,
             'description': description,
@@ -1544,35 +1545,35 @@ class MigrationRunner:
         })
 
     def run_up(self, target_version: str = None):
-        """マイグレーションの実行（アップグレード）"""
+        """Run migrations (upgrade)"""
         for migration in self.migrations:
             if migration['version'] in self.completed:
                 continue
-            logger.info(f"実行中: {migration['version']} - "
+            logger.info(f"Running: {migration['version']} - "
                        f"{migration['description']}")
             try:
                 migration['up']()
                 self.completed.append(migration['version'])
-                logger.info(f"完了: {migration['version']}")
+                logger.info(f"Completed: {migration['version']}")
             except Exception as e:
-                logger.error(f"失敗: {migration['version']}: {e}")
+                logger.error(f"Failed: {migration['version']}: {e}")
                 raise
             if target_version and migration['version'] == target_version:
                 break
 
     def run_down(self, target_version: str):
-        """マイグレーションのロールバック"""
+        """Rollback migrations"""
         for migration in reversed(self.migrations):
             if migration['version'] not in self.completed:
                 continue
             if migration['version'] == target_version:
                 break
-            logger.info(f"ロールバック: {migration['version']}")
+            logger.info(f"Rolling back: {migration['version']}")
             migration['down']()
             self.completed.remove(migration['version'])
 
     def status(self) -> Dict:
-        """マイグレーション状態の確認"""
+        """Check migration status"""
         return {
             'total': len(self.migrations),
             'completed': len(self.completed),
@@ -1585,58 +1586,58 @@ class MigrationRunner:
         }
 ```
 
-### ロールバック計画
+### Rollback Plan
 
-移行作業には必ずロールバック計画を準備してください:
+Always prepare a rollback plan for migration work:
 
-1. **データのバックアップ**: 移行前に完全バックアップを取得
-2. **テスト環境での検証**: 本番と同等の環境で事前検証
-3. **段階的なロールアウト**: カナリアリリースで段階的に展開
-4. **監視の強化**: 移行中はメトリクスの監視間隔を短縮
-5. **判断基準の明確化**: ロールバックを判断する基準を事前に定義
+1. **Data backup**: Take a full backup before migration
+2. **Test environment verification**: Pre-validate in an environment equivalent to production
+3. **Gradual rollout**: Deploy incrementally using canary releases
+4. **Enhanced monitoring**: Shorten monitoring intervals during migration
+5. **Clear decision criteria**: Define rollback criteria in advance
 ---
 
 ## FAQ
 
-### Q1: 貪欲法の正しさをどう証明しますか？
-**A**: 3つの方法: (1)交換論法: 最適解を貪欲解に変換しても悪くならないことを示す (2)帰納法: 各ステップで最適性が維持されることを示す (3)マトロイド理論: 問題がマトロイド構造を持つことを示す。実務的には、まず反例を探すのが最も効率的。小さいケースで全探索と結果を比較してみるとよい。
+### Q1: How do you prove the correctness of a greedy algorithm?
+**A**: Three methods: (1) Exchange argument: Show that transforming the optimal solution into the greedy solution does not make it worse. (2) Induction: Show that optimality is maintained at each step. (3) Matroid theory: Show that the problem has a matroid structure. In practice, the most efficient first step is to look for counterexamples. Try comparing results with exhaustive search on small cases.
 
-### Q2: バックトラックと動的計画法の使い分けは？
-**A**: 部分問題が重複するならDP。重複がなく全パターン列挙が必要ならバックトラック。「全ての解を列挙する」問題はバックトラック。「最適値だけ求める」問題はDP向き。ただし、バックトラック + メモ化 = トップダウンDP という関係もある。
+### Q2: How do you choose between backtracking and dynamic programming?
+**A**: Use DP if subproblems overlap. Use backtracking if there is no overlap and you need to enumerate all patterns. Problems requiring "enumerate all solutions" suit backtracking. Problems requiring "find only the optimal value" suit DP. However, note that backtracking + memoization = top-down DP.
 
-### Q3: NP困難な問題に実務でどう対処しますか？
-**A**: (1)近似アルゴリズム（最適解の定数倍以内を保証）(2)ヒューリスティック（焼きなまし法、遺伝的アルゴリズム）(3)問題サイズの制限（n<=20ならビット全探索）(4)特殊ケースへの帰着。まず問題の構造を分析し、利用できる特殊性がないか確認することが重要。
+### Q3: How do you handle NP-hard problems in practice?
+**A**: (1) Approximation algorithms (guarantee within a constant factor of optimal). (2) Heuristics (simulated annealing, genetic algorithms). (3) Restrict problem size (bitmask enumeration for n<=20). (4) Reduce to a special case. It is important to first analyze the problem structure and check for exploitable special properties.
 
-### Q4: 枝刈りの効果をどう評価しますか？
-**A**: (1)探索ノード数をカウントして枝刈りなしと比較 (2)実行時間を計測 (3)理論的な計算量の改善を分析。良い枝刈りは探索空間を指数的に削減する。しかし枝刈りのコスト自体が高すぎると逆効果になるので、簡単に計算できる境界値を使うことが重要。
+### Q4: How do you evaluate the effectiveness of pruning?
+**A**: (1) Count search nodes and compare with no pruning. (2) Measure execution time. (3) Analyze the theoretical complexity improvement. Good pruning reduces the search space exponentially. However, if the cost of computing the pruning criterion itself is too high, it can be counterproductive, so it is important to use bounds that are easy to compute.
 
-### Q5: 貪欲法が使えるのにDPを使うのは問題ですか？
-**A**: 正しい答えは得られるが、計算量が無駄に大きくなる。例えば区間スケジューリングは貪欲法で O(n log n) だが、DPで解くと O(n^2) になる。ただし、貪欲法の正しさに自信がない場合は、安全策としてDPを使うのも合理的な判断。
+### Q5: Is it a problem to use DP when greedy would work?
+**A**: You will get the correct answer, but with unnecessarily higher complexity. For example, interval scheduling is O(n log n) with a greedy approach but O(n^2) with DP. However, if you are not confident about the correctness of the greedy approach, using DP as a safe strategy is a reasonable decision.
 
-### Q6: Meet in the Middle はどういう問題に使えますか？
-**A**: 入力を2つに分割し、各半分を独立に全探索した後に結果をマージできる問題に使える。典型的なのは部分和問題（n<=40）。分割した各半分が2^(n/2)通りで済むため、全体として2^n から 2^(n/2)×2 に削減される。ソートして二分探索、またはハッシュマップでマージする。
-
----
-
-## まとめ
-
-| 手法 | 計算量 | 最適性 | 用途 |
-|------|--------|--------|------|
-| 貪欲法 | O(n log n)~ | 条件付き最適 | 区間スケジューリング、MST、最短経路 |
-| バックトラック | O(指数)~ | 完全探索（枝刈りで高速化）| N-Queens、数独、組合せ列挙 |
-| ビット全探索 | O(2^n x n) | 完全 | n<=20の部分集合問題 |
-| Meet in the Middle | O(2^(n/2) x n) | 完全 | n<=40の部分集合問題 |
-| 分岐限定法 | O(指数) ※ | 完全（枝刈り効率に依存） | ナップサック、TSP |
-| 焼きなまし法 | ユーザ指定 | 近似（保証なし） | NP困難な最適化問題 |
-| 近似アルゴリズム | 多項式 | 近似（保証あり） | 頂点被覆、集合被覆 |
+### Q6: What kinds of problems can Meet in the Middle be used for?
+**A**: Problems where the input can be split into two halves, each half can be exhaustively searched independently, and the results can be merged. A typical example is the subset sum problem (n<=40). Each half requires only 2^(n/2) operations, reducing the total from 2^n to 2^(n/2) x 2. Merge by sorting and binary search, or by using a hash map.
 
 ---
 
-## 次に読むべきガイド
+## Summary
+
+| Technique | Complexity | Optimality | Use Case |
+|-----------|-----------|-----------|----------|
+| Greedy | O(n log n)~ | Conditionally optimal | Interval scheduling, MST, shortest path |
+| Backtracking | O(exp)~ | Complete search (accelerated by pruning) | N-Queens, Sudoku, combination enumeration |
+| Bitmask enumeration | O(2^n x n) | Complete | Subset problems with n<=20 |
+| Meet in the Middle | O(2^(n/2) x n) | Complete | Subset problems with n<=40 |
+| Branch and bound | O(exp) * | Complete (depends on pruning efficiency) | Knapsack, TSP |
+| Simulated annealing | User-specified | Approximate (no guarantee) | NP-hard optimization problems |
+| Approximation algorithms | Polynomial | Approximate (with guarantee) | Vertex cover, set cover |
 
 ---
 
-## 参考文献
+## Recommended Next Guides
+
+---
+
+## References
 1. Cormen, T. H. et al. "Introduction to Algorithms." Chapters 16-17.
 2. Skiena, S. S. "The Algorithm Design Manual." Chapters 8-9.
 3. Papadimitriou, C., Steiglitz, K. "Combinatorial Optimization." Dover, 1998.
