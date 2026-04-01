@@ -1,149 +1,162 @@
-# プログラミング言語の未来
+# The Future of Programming Languages
 
-> AI がコードを書く時代に、プログラミング言語はどう進化するか。人間と AI の協調、メモリ安全性への要求、WebAssembly の拡大、新しいパラダイムの台頭、そして次世代言語の設計思想を包括的に展望する。本章では、現在のトレンドを起点に、5年後・10年後・20年後のプログラミング言語の姿を理論と根拠に基づいて予測する。
+> How will programming languages evolve in an era where AI writes code? This chapter comprehensively explores human-AI collaboration, the demand for memory safety, the expansion of WebAssembly, the rise of new paradigms, and the design philosophies of next-generation languages. Starting from current trends, we predict the state of programming languages in 5, 10, and 20 years based on theory and evidence.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] プログラミング言語の進化の方向性を歴史的文脈から予測できる
-- [ ] AI 時代における言語の役割の根本的な変化を理解する
-- [ ] 段階的型付け・メモリ安全性・Wasmなど2020年代のトレンドを説明できる
-- [ ] 注目の新言語（Mojo, Gleam, Zig, Carbon, Vale, Verse）の設計思想を把握する
-- [ ] 効果システム・依存型・線形型など次世代の型理論を概観できる
-- [ ] AI協調プログラミングにおけるエンジニアの役割を展望できる
+- [ ] Predict the direction of programming language evolution from a historical context
+- [ ] Understand the fundamental shift in the role of languages in the AI era
+- [ ] Explain 2020s trends such as gradual typing, memory safety, and Wasm
+- [ ] Grasp the design philosophies of notable new languages (Mojo, Gleam, Zig, Carbon, Vale, Verse)
+- [ ] Survey next-generation type theories including effect systems, dependent types, and linear types
+- [ ] Envision the role of engineers in AI-collaborative programming
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, having the following knowledge will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [DSL とメタプログラミング](./02-dsl-and-metaprogramming.md) の内容を理解していること
-
----
-
-## 1. プログラミング言語進化の歴史的法則
-
-### 1.1 言語進化のパターン
-
-プログラミング言語の70年以上の歴史を俯瞰すると、進化には明確なパターンが存在する。このパターンを理解することが未来の予測の基盤となる。
-
-```
-言語進化の5つの法則:
-
-  法則1: 振り子の法則
-  ┌──────────────────────────────────────────────────┐
-  │  シンプル ←──→ 複雑 ←──→ シンプル              │
-  │  C → C++ → Go                                  │
-  │  Java → Scala → Kotlin                          │
-  │  JavaScript → TypeScript → ?                    │
-  │  常に「行き過ぎた複雑さ」の反動として              │
-  │  シンプルな言語が生まれる                          │
-  └──────────────────────────────────────────────────┘
-
-  法則2: 収斂進化の法則
-  ┌──────────────────────────────────────────────────┐
-  │  異なる起源を持つ言語が同じ機能に到達する           │
-  │  型推論: ML → Rust, TS, Kotlin, Swift             │
-  │  ADT: Haskell → Rust, TS, Swift                  │
-  │  async/await: C# → JS, Python, Rust              │
-  └──────────────────────────────────────────────────┘
-
-  法則3: 既存エコシステムの引力
-  ┌──────────────────────────────────────────────────┐
-  │  新言語は既存エコシステムと共存しなければ普及しない  │
-  │  TypeScript ← JavaScript エコシステム             │
-  │  Kotlin ← JVM / Java エコシステム                 │
-  │  Swift ← Objective-C / Apple エコシステム          │
-  │  Rust ← C/C++ との FFI                           │
-  └──────────────────────────────────────────────────┘
-
-  法則4: 安全性の不可逆な進歩
-  ┌──────────────────────────────────────────────────┐
-  │  一度達成された安全性は放棄されない                 │
-  │  手動メモリ管理 → GC → 所有権                     │
-  │  null → Option/Maybe                            │
-  │  例外 → Result                                   │
-  │  可変デフォルト → 不変デフォルト                    │
-  └──────────────────────────────────────────────────┘
-
-  法則5: 抽象化の階段
-  ┌──────────────────────────────────────────────────┐
-  │  機械語 → アセンブリ → 高水準言語 → 宣言的言語     │
-  │  → 自然言語プログラミング?                         │
-  │  各段階で「何をするか」の抽象度が上がり、             │
-  │  「どうやるか」の詳細が隠蔽される                   │
-  └──────────────────────────────────────────────────┘
-```
-
-### 1.2 言語の採用サイクル
-
-```
-言語採用のライフサイクル:
-
-  人気度
-  ↑
-  │          ┌──── ピーク
-  │         /│\
-  │        / │ \
-  │       /  │  \──────── 安定期（成熟言語）
-  │      /   │
-  │     /    │
-  │    /     │
-  │   /      │
-  │──/───────│────────────── 時間 →
-  │ 誕生  早期  成長  成熟  衰退 or 安定
-  │ 採用者  期    期    期
-
-  各フェーズの特徴:
-  ┌─────────┬───────────────────────────────────────┐
-  │ 誕生期   │ 学術/個人プロジェクト。少数の熱狂的支持者│
-  │ 早期採用 │ スタートアップ・先進的チームが採用       │
-  │ 成長期   │ 企業採用が拡大。エコシステムが充実       │
-  │ 成熟期   │ 大企業の基幹システムで使用。安定性重視   │
-  │ 衰退/安定│ 新規プロジェクトでの採用は減少するが     │
-  │          │ 既存システムの保守で長期間使用される      │
-  └─────────┴───────────────────────────────────────┘
-
-  2025年時点の各言語のフェーズ:
-  誕生期:   Mojo, Vale, Verse
-  早期採用: Gleam, Zig, Carbon
-  成長期:   Rust, Kotlin
-  成熟期:   TypeScript, Go, Swift
-  安定期:   Java, Python, C#, JavaScript
-  衰退傾向: Perl, Objective-C, COBOL（ただし保守需要は膨大）
-```
+- Basic programming knowledge
+- Understanding of relevant foundational concepts
+- Familiarity with the content of [DSLs and Metaprogramming](./02-dsl-and-metaprogramming.md)
 
 ---
 
-## 2. 2020年代の明確なトレンド
+## 1. Historical Laws of Programming Language Evolution
 
-### 2.1 段階的型付け（Gradual Typing）の普及
+### 1.1 Patterns of Language Evolution
 
-段階的型付け（Gradual Typing）は、動的型付け言語に静的型情報を段階的に追加する手法である。2006年の Jeremy Siek と Walid Taha の論文に理論的基礎があり、2020年代に実用的な普及段階に入った。
+Looking across more than 70 years of programming language history, clear patterns emerge in their evolution. Understanding these patterns forms the foundation for predicting the future.
 
 ```
-段階的型付けの現状:
+Five Laws of Language Evolution:
 
-  ┌────────────┬─────────────────┬──────────────────┐
-  │  言語       │  型付けツール     │  普及度           │
-  ├────────────┼─────────────────┼──────────────────┤
-  │ JavaScript │ TypeScript      │ 事実上の標準      │
-  │ Python     │ mypy / Pyright  │ 急速に普及中      │
-  │ Ruby       │ Sorbet / RBS    │ 導入初期          │
-  │ PHP        │ PHPStan / Psalm │ 普及中            │
-  │ Erlang     │ Dialyzer        │ 長年の実績あり     │
-  │ Clojure    │ core.typed      │ ニッチ            │
-  │ Lua        │ Teal / Luau     │ ゲーム業界で普及   │
-  └────────────┴─────────────────┴──────────────────┘
+  Law 1: The Pendulum Law
+  +--------------------------------------------------+
+  |  Simple <--> Complex <--> Simple                  |
+  |  C -> C++ -> Go                                   |
+  |  Java -> Scala -> Kotlin                          |
+  |  JavaScript -> TypeScript -> ?                    |
+  |  A simpler language always emerges as a           |
+  |  reaction to "excessive complexity"               |
+  +--------------------------------------------------+
+
+  Law 2: The Convergent Evolution Law
+  +--------------------------------------------------+
+  |  Languages of different origins arrive at the     |
+  |  same features                                    |
+  |  Type inference: ML -> Rust, TS, Kotlin, Swift    |
+  |  ADT: Haskell -> Rust, TS, Swift                  |
+  |  async/await: C# -> JS, Python, Rust              |
+  +--------------------------------------------------+
+
+  Law 3: The Gravity of Existing Ecosystems
+  +--------------------------------------------------+
+  |  New languages cannot gain adoption without        |
+  |  coexisting with existing ecosystems               |
+  |  TypeScript <- JavaScript ecosystem                |
+  |  Kotlin <- JVM / Java ecosystem                    |
+  |  Swift <- Objective-C / Apple ecosystem            |
+  |  Rust <- FFI with C/C++                            |
+  +--------------------------------------------------+
+
+  Law 4: The Irreversible Progress of Safety
+  +--------------------------------------------------+
+  |  Once achieved, safety gains are never abandoned   |
+  |  Manual memory management -> GC -> Ownership       |
+  |  null -> Option/Maybe                              |
+  |  Exceptions -> Result                              |
+  |  Mutable by default -> Immutable by default        |
+  +--------------------------------------------------+
+
+  Law 5: The Abstraction Staircase
+  +--------------------------------------------------+
+  |  Machine code -> Assembly -> High-level languages  |
+  |  -> Declarative languages                          |
+  |  -> Natural language programming?                  |
+  |  At each level, the abstraction of "what to do"    |
+  |  increases, and the details of "how to do it"      |
+  |  are hidden                                        |
+  +--------------------------------------------------+
 ```
 
-**コード例1: Python の段階的型付け**
+### 1.2 Language Adoption Cycle
+
+```
+Language Adoption Lifecycle:
+
+  Popularity
+  ^
+  |          +---- Peak
+  |         /|\
+  |        / | \
+  |       /  |  \-------- Stable Period (Mature Language)
+  |      /   |
+  |     /    |
+  |    /     |
+  |   /      |
+  |--/-------|------------------ Time ->
+  | Birth  Early  Growth  Maturity  Decline or Stability
+  | Adopters Phase  Phase   Phase
+  |
+
+  Characteristics of Each Phase:
+  +----------+------------------------------------------+
+  | Birth    | Academic/personal projects. A small       |
+  |          | number of passionate supporters           |
+  | Early    | Adoption by startups and forward-         |
+  | Adoption | thinking teams                            |
+  | Growth   | Enterprise adoption expands.              |
+  |          | Ecosystem matures                         |
+  | Maturity | Used in large enterprise core systems.    |
+  |          | Stability is prioritized                  |
+  | Decline/ | Adoption in new projects decreases, but   |
+  | Stability| used long-term for maintaining existing   |
+  |          | systems                                   |
+  +----------+------------------------------------------+
+
+  Phase of Each Language as of 2025:
+  Birth:         Mojo, Vale, Verse
+  Early Adoption: Gleam, Zig, Carbon
+  Growth:        Rust, Kotlin
+  Maturity:      TypeScript, Go, Swift
+  Stability:     Java, Python, C#, JavaScript
+  Declining:     Perl, Objective-C, COBOL
+                 (though maintenance demand remains enormous)
+```
+
+---
+
+## 2. Clear Trends of the 2020s
+
+### 2.1 The Spread of Gradual Typing
+
+Gradual Typing is a technique for incrementally adding static type information to dynamically typed languages. Its theoretical foundation was established in a 2006 paper by Jeremy Siek and Walid Taha, and it entered a phase of practical widespread adoption in the 2020s.
+
+```
+Current State of Gradual Typing:
+
+  +------------+-----------------+------------------+
+  |  Language   |  Typing Tool     |  Adoption Level   |
+  +------------+-----------------+------------------+
+  | JavaScript | TypeScript      | De facto standard |
+  | Python     | mypy / Pyright  | Rapidly spreading |
+  | Ruby       | Sorbet / RBS    | Early stage       |
+  | PHP        | PHPStan / Psalm | Spreading         |
+  | Erlang     | Dialyzer        | Years of proven   |
+  |            |                 | track record      |
+  | Clojure    | core.typed      | Niche             |
+  | Lua        | Teal / Luau     | Widespread in the |
+  |            |                 | gaming industry   |
+  +------------+-----------------+------------------+
+```
+
+**Code Example 1: Gradual Typing in Python**
 
 ```python
-# --- Python: 段階的に型を追加する ---
+# --- Python: Adding types incrementally ---
 
-# ステップ1: 型なし（従来の Python コード）
+# Step 1: No types (traditional Python code)
 def process_orders(orders):
     total = 0
     for order in orders:
@@ -151,7 +164,7 @@ def process_orders(orders):
             total += order["amount"]
     return total
 
-# ステップ2: 基本的な型ヒント
+# Step 2: Basic type hints
 def process_orders(orders: list[dict]) -> float:
     total: float = 0
     for order in orders:
@@ -159,7 +172,7 @@ def process_orders(orders: list[dict]) -> float:
             total += order["amount"]
     return total
 
-# ステップ3: 型安全なデータクラス
+# Step 3: Type-safe dataclasses
 from dataclasses import dataclass
 from enum import Enum
 from typing import Protocol
@@ -183,7 +196,7 @@ def process_orders(orders: list[Order]) -> float:
         if order.status == OrderStatus.COMPLETED
     )
 
-# ステップ4: プロトコル（構造的部分型）
+# Step 4: Protocols (structural subtyping)
 class Billable(Protocol):
     @property
     def amount(self) -> float: ...
@@ -192,200 +205,208 @@ class Billable(Protocol):
     def status(self) -> OrderStatus: ...
 
 def calculate_revenue(items: list[Billable]) -> float:
-    """Billable プロトコルを満たす任意の型を受け入れる"""
+    """Accepts any type that satisfies the Billable protocol"""
     return sum(
         item.amount
         for item in items
         if item.status == OrderStatus.COMPLETED
     )
 
-# Order は Billable プロトコルを暗黙的に満たす（構造的部分型）
+# Order implicitly satisfies the Billable protocol (structural subtyping)
 orders = [Order(1, 1500.0, OrderStatus.COMPLETED, 100)]
-revenue = calculate_revenue(orders)  # 型チェック通過
+revenue = calculate_revenue(orders)  # Passes type checking
 ```
 
-### 2.2 メモリ安全性への社会的要求
+### 2.2 Societal Demand for Memory Safety
 
-2024年2月、米国ホワイトハウスの ONCD（Office of the National Cyber Director）が「メモリ安全でないプログラミング言語からの移行」を推奨する報告書を公表した。これはプログラミング言語の選択が国家安全保障の問題として認識された歴史的な出来事である。
+In February 2024, the ONCD (Office of the National Cyber Director) at the White House published a report recommending "a transition away from memory-unsafe programming languages." This was a historic event in which the choice of programming language was recognized as a matter of national security.
 
 ```
-メモリ安全性の分類:
+Classification of Memory Safety:
 
-  ┌──────────────────────────────────────────────────┐
-  │            メモリ安全でない言語                     │
-  │  ┌────────────────────────────────────────────┐ │
-  │  │ C, C++, Assembly                          │ │
-  │  │ ・バッファオーバーフロー                      │ │
-  │  │ ・ダングリングポインタ                       │ │
-  │  │ ・二重解放                                  │ │
-  │  │ ・Use-After-Free                           │ │
-  │  └────────────────────────────────────────────┘ │
-  ├──────────────────────────────────────────────────┤
-  │            メモリ安全な言語                        │
-  │  ┌────────────────────────────────────────────┐ │
-  │  │ GCベース: Java, Go, Python, C#, Kotlin     │ │
-  │  │ 所有権ベース: Rust                          │ │
-  │  │ ランタイムチェック: Swift (ARC + Safety)     │ │
-  │  │ 線形型: ATS, Clean (研究段階)               │ │
-  │  └────────────────────────────────────────────┘ │
-  └──────────────────────────────────────────────────┘
+  +--------------------------------------------------+
+  |            Memory-Unsafe Languages                 |
+  |  +--------------------------------------------+  |
+  |  | C, C++, Assembly                           |  |
+  |  | - Buffer overflow                           |  |
+  |  | - Dangling pointer                          |  |
+  |  | - Double free                               |  |
+  |  | - Use-After-Free                            |  |
+  |  +--------------------------------------------+  |
+  +--------------------------------------------------+
+  |            Memory-Safe Languages                   |
+  |  +--------------------------------------------+  |
+  |  | GC-based: Java, Go, Python, C#, Kotlin      |  |
+  |  | Ownership-based: Rust                        |  |
+  |  | Runtime checks: Swift (ARC + Safety)         |  |
+  |  | Linear types: ATS, Clean (research stage)    |  |
+  |  +--------------------------------------------+  |
+  +--------------------------------------------------+
 
-  脆弱性の約70%がメモリ安全性に起因
-  (Microsoft / Google Chrome のデータ)
+  Approximately 70% of vulnerabilities are caused by
+  memory safety issues
+  (Data from Microsoft / Google Chrome)
 ```
 
-**コード例2: Rustの所有権によるメモリ安全性**
+**Code Example 2: Memory Safety Through Rust's Ownership**
 
 ```rust
-// --- Rust: 所有権システムがコンパイル時にメモリ安全性を保証 ---
+// --- Rust: The ownership system guarantees memory safety at compile time ---
 
-// 1. ダングリングポインタの防止
+// 1. Prevention of dangling pointers
 fn no_dangling_reference() {
     let reference;
     {
         let value = String::from("hello");
-        // reference = &value;  // コンパイルエラー！
-        // value がスコープを抜けると解放されるため、
-        // reference がダングリングポインタになることを防止
+        // reference = &value;  // Compile error!
+        // Since value is freed when it goes out of scope,
+        // this prevents reference from becoming a dangling pointer
     }
-    // println!("{}", reference);  // 使用不可
+    // println!("{}", reference);  // Cannot be used
 }
 
-// 2. データ競合の防止
+// 2. Prevention of data races
 use std::thread;
 
 fn no_data_race() {
     let mut data = vec![1, 2, 3];
 
-    // 所有権を移動（move）して別スレッドに渡す
+    // Move ownership to another thread
     let handle = thread::spawn(move || {
         data.push(4);
-        println!("スレッド内: {:?}", data);
+        println!("Inside thread: {:?}", data);
     });
 
-    // data は move されたため、ここでは使用不可
-    // println!("{:?}", data);  // コンパイルエラー！
+    // data has been moved, so it cannot be used here
+    // println!("{:?}", data);  // Compile error!
 
     handle.join().unwrap();
 }
 
-// 3. 借用規則による安全性
+// 3. Safety through borrowing rules
 fn borrowing_rules() {
     let mut data = vec![1, 2, 3];
 
-    // 不変借用は複数可能
+    // Multiple immutable borrows are allowed
     let r1 = &data;
     let r2 = &data;
     println!("{:?}, {:?}", r1, r2);
 
-    // 可変借用は排他的（不変借用と共存不可）
+    // Mutable borrows are exclusive (cannot coexist with immutable borrows)
     let r3 = &mut data;
     r3.push(4);
-    // println!("{:?}", r1);  // コンパイルエラー！
-    // r1 はまだ有効だが、r3 と共存できない
+    // println!("{:?}", r1);  // Compile error!
+    // r1 is still valid but cannot coexist with r3
 }
 
-// 4. ライフタイムによる参照の有効期間管理
+// 4. Lifetime management for reference validity
 fn longest<'a>(x: &'a str, y: &'a str) -> &'a str {
     if x.len() > y.len() { x } else { y }
 }
 
 fn lifetime_example() {
     let result;
-    let string1 = String::from("長い文字列");
+    let string1 = String::from("long string");
     {
-        let string2 = String::from("短い");
+        let string2 = String::from("short");
         result = longest(&string1, &string2);
-        println!("最も長い: {}", result);
+        println!("Longest: {}", result);
     }
-    // string2 のスコープ外では result を使用不可
-    // （string2 への参照かもしれないため）
+    // result cannot be used outside string2's scope
+    // (because it might be a reference to string2)
 }
 ```
 
-### 2.3 WebAssembly（Wasm）の拡大
+### 2.3 The Expansion of WebAssembly (Wasm)
 
-WebAssembly は2017年にブラウザで標準化されたバイナリフォーマットだが、2020年代にはブラウザ外の実行環境としても急速に普及している。
+WebAssembly is a binary format standardized in browsers in 2017, but in the 2020s it is rapidly gaining adoption as a runtime environment outside browsers as well.
 
 ```
-WebAssembly エコシステムの構造:
+WebAssembly Ecosystem Structure:
 
-  ┌───────────────────────────────────────────────────┐
-  │                ソース言語                          │
-  │  Rust  C/C++  Go  Python  Kotlin  C#  Swift  Zig  │
-  └────────────────────┬──────────────────────────────┘
-                       │ コンパイル
-                       ▼
-  ┌───────────────────────────────────────────────────┐
-  │              WebAssembly (.wasm)                   │
-  │        ・ポータブルバイナリフォーマット               │
-  │        ・サンドボックス実行                          │
-  │        ・ニアネイティブ性能                          │
-  └────────────────────┬──────────────────────────────┘
-                       │ 実行
-           ┌───────────┼───────────┐
-           ▼           ▼           ▼
-  ┌──────────────┐ ┌──────────┐ ┌──────────────┐
-  │  ブラウザ     │ │ サーバー  │ │ エッジ       │
-  │  ・Chrome    │ │ ・WASI   │ │ ・Cloudflare │
-  │  ・Firefox   │ │ ・Wasmtime│ │ ・Fastly     │
-  │  ・Safari    │ │ ・Wasmer  │ │ ・Vercel     │
-  └──────────────┘ └──────────┘ └──────────────┘
+  +---------------------------------------------------+
+  |                Source Languages                     |
+  |  Rust  C/C++  Go  Python  Kotlin  C#  Swift  Zig   |
+  +--------------------+------------------------------+
+                       | Compile
+                       v
+  +---------------------------------------------------+
+  |              WebAssembly (.wasm)                    |
+  |        - Portable binary format                    |
+  |        - Sandboxed execution                       |
+  |        - Near-native performance                   |
+  +--------------------+------------------------------+
+                       | Execute
+           +-----------+-----------+
+           v           v           v
+  +--------------+ +----------+ +--------------+
+  |  Browser     | | Server   | | Edge         |
+  |  - Chrome    | | - WASI   | | - Cloudflare |
+  |  - Firefox   | | - Wasmtime| | - Fastly    |
+  |  - Safari    | | - Wasmer | | - Vercel     |
+  +--------------+ +----------+ +--------------+
 
   WASI (WebAssembly System Interface):
-  ┌───────────────────────────────────────────────────┐
-  │ Wasm にファイルシステム、ネットワーク、時計などの     │
-  │ OS機能へのアクセスを提供する標準インターフェース      │
-  │                                                   │
-  │ 理念: 「一度コンパイルしてどこでも実行」              │
-  │       Java の "Write Once, Run Anywhere" の再実現  │
-  │       ただしサンドボックス実行でセキュリティを保証     │
-  └───────────────────────────────────────────────────┘
+  +---------------------------------------------------+
+  | A standard interface that provides Wasm with        |
+  | access to OS capabilities such as the file system,  |
+  | network, and clocks                                 |
+  |                                                     |
+  | Philosophy: "Compile once, run anywhere"            |
+  |       A reimagining of Java's                       |
+  |       "Write Once, Run Anywhere"                    |
+  |       but with security guaranteed through          |
+  |       sandboxed execution                           |
+  +---------------------------------------------------+
 ```
 
-### 2.4 AI コード生成の日常化
+### 2.4 The Normalization of AI Code Generation
 
 ```
-AIコード生成ツールの世代:
+Generations of AI Code Generation Tools:
 
-  第1世代 (2018-2021)           第2世代 (2021-2023)
-  ┌──────────────────┐        ┌──────────────────┐
-  │ ・IntelliSense   │        │ ・GitHub Copilot │
-  │ ・TabNine        │  →→→   │ ・ChatGPT        │
-  │ ・単純な補完      │        │ ・複数行生成      │
-  │ ・パターンマッチ  │        │ ・自然言語入力    │
-  └──────────────────┘        └──────────────────┘
-         ↓                           ↓
-  第3世代 (2023-2025)           第4世代 (2025-)
-  ┌──────────────────┐        ┌──────────────────┐
-  │ ・Claude Code    │        │ ・マルチファイル   │
-  │ ・Cursor         │  →→→   │ ・アーキテクチャ   │
-  │ ・Cody           │        │   レベルの提案     │
-  │ ・ファイル全体    │        │ ・形式検証との     │
-  │   の生成         │        │   統合            │
-  │ ・コンテキスト    │        │ ・自律的な         │
-  │   理解           │        │   デバッグ         │
-  └──────────────────┘        └──────────────────┘
+  Generation 1 (2018-2021)      Generation 2 (2021-2023)
+  +------------------+        +------------------+
+  | - IntelliSense   |        | - GitHub Copilot |
+  | - TabNine        |  >>>   | - ChatGPT        |
+  | - Simple         |        | - Multi-line     |
+  |   completion     |        |   generation     |
+  | - Pattern        |        | - Natural        |
+  |   matching       |        |   language input |
+  +------------------+        +------------------+
+         |                           |
+  Generation 3 (2023-2025)      Generation 4 (2025-)
+  +------------------+        +------------------+
+  | - Claude Code    |        | - Multi-file     |
+  | - Cursor         |  >>>   | - Architecture-  |
+  | - Cody           |        |   level          |
+  | - Full-file      |        |   suggestions    |
+  |   generation     |        | - Integration    |
+  | - Context        |        |   with formal    |
+  |   understanding  |        |   verification   |
+  |                  |        | - Autonomous     |
+  |                  |        |   debugging      |
+  +------------------+        +------------------+
 ```
 
 ---
 
-## 3. AI 時代の言語に求められる特性
+## 3. Characteristics Required of Languages in the AI Era
 
-### 3.1 型システムの重要性の再発見
+### 3.1 The Rediscovery of the Importance of Type Systems
 
-AI がコードを生成する時代において、型システムは「AI が生成したコードの正しさを検証するフレームワーク」としての役割を持つようになった。
+In the era where AI generates code, type systems have taken on a new role as "a framework for verifying the correctness of AI-generated code."
 
-**コード例3: 型がAIへの仕様書として機能する例**
+**Code Example 3: Types Functioning as Specifications for AI**
 
 ```typescript
-// --- 型定義がAIへの「仕様書」として機能する ---
+// --- Type definitions functioning as "specifications" for AI ---
 
-// 1. 型定義 = 仕様書
+// 1. Type definitions = Specifications
 interface PaginationParams {
-    page: number;       // 1以上の整数
-    pageSize: number;   // 1-100の範囲
-    sortBy?: string;    // ソートキー（任意）
+    page: number;       // Integer >= 1
+    pageSize: number;   // Range 1-100
+    sortBy?: string;    // Sort key (optional)
     sortOrder?: "asc" | "desc";
 }
 
@@ -409,7 +430,7 @@ interface User {
     lastLoginAt: Date | null;
 }
 
-// この型シグネチャだけで、AIは正確な実装を生成できる
+// With this type signature alone, AI can generate an accurate implementation
 function listUsers(
     params: PaginationParams,
     filters?: {
@@ -419,17 +440,17 @@ function listUsers(
     }
 ): Promise<PaginatedResponse<User>>;
 
-// 2. ブランド型による制約の明示
+// 2. Branded types for explicit constraints
 type UserId = string & { readonly __brand: "UserId" };
 type OrderId = string & { readonly __brand: "OrderId" };
 
-// UserId と OrderId は混同できない
+// UserId and OrderId cannot be confused
 function getUser(id: UserId): Promise<User>;
 function getOrder(id: OrderId): Promise<Order>;
 
-// const user = await getUser(orderId);  // コンパイルエラー！
+// const user = await getUser(orderId);  // Compile error!
 
-// 3. 判別共用体による状態遷移の明示
+// 3. Discriminated unions for explicit state transitions
 type PaymentState =
     | { status: "pending"; createdAt: Date }
     | { status: "processing"; startedAt: Date; transactionId: string }
@@ -437,129 +458,134 @@ type PaymentState =
     | { status: "failed"; failedAt: Date; errorCode: string; retryable: boolean }
     | { status: "refunded"; refundedAt: Date; refundAmount: number };
 
-// AIはこの型定義から、各状態に対する適切な処理を生成できる
+// AI can generate appropriate handling for each state from this type definition
 function renderPaymentStatus(state: PaymentState): string {
     switch (state.status) {
         case "pending":
-            return `決済待ち（${state.createdAt.toLocaleDateString()}）`;
+            return `Awaiting payment (${state.createdAt.toLocaleDateString()})`;
         case "processing":
-            return `処理中（取引ID: ${state.transactionId}）`;
+            return `Processing (Transaction ID: ${state.transactionId})`;
         case "completed":
-            return `完了（レシート: ${state.receiptUrl}）`;
+            return `Completed (Receipt: ${state.receiptUrl})`;
         case "failed":
             return state.retryable
-                ? `失敗（エラー: ${state.errorCode}）- 再試行可能`
-                : `失敗（エラー: ${state.errorCode}）- 再試行不可`;
+                ? `Failed (Error: ${state.errorCode}) - Retryable`
+                : `Failed (Error: ${state.errorCode}) - Not retryable`;
         case "refunded":
-            return `返金済み（¥${state.refundAmount.toLocaleString()}）`;
+            return `Refunded (${state.refundAmount.toLocaleString()} JPY)`;
     }
 }
 ```
 
-### 3.2 宣言的記述への移行
+### 3.2 The Shift Toward Declarative Description
 
 ```
-宣言的 vs 命令的の対比:
+Declarative vs. Imperative Comparison:
 
-  命令的 (How):                   宣言的 (What):
-  ┌──────────────────────┐       ┌──────────────────────┐
-  │ for (i = 0; ...) {   │       │ SELECT name          │
-  │   if (age > 18) {    │       │ FROM users           │
-  │     result.push(name)│       │ WHERE age > 18       │
-  │   }                  │       │ ORDER BY name        │
-  │ }                    │       │                      │
-  │ result.sort()        │       │ // 「何が欲しいか」    │
-  │                      │       │ // だけを記述         │
-  │ // 「どう取得するか」  │       │                      │
-  │ // を逐一指示        │       │                      │
-  └──────────────────────┘       └──────────────────────┘
+  Imperative (How):                Declarative (What):
+  +----------------------+       +----------------------+
+  | for (i = 0; ...) {   |       | SELECT name          |
+  |   if (age > 18) {    |       | FROM users           |
+  |     result.push(name)|       | WHERE age > 18       |
+  |   }                  |       | ORDER BY name        |
+  | }                    |       |                      |
+  | result.sort()        |       | // Describe only     |
+  |                      |       | // "what you want"   |
+  | // Specify step-by-  |       |                      |
+  | // step "how to      |       |                      |
+  | // retrieve"         |       |                      |
+  +----------------------+       +----------------------+
 
-  宣言的アプローチの拡大:
-  ┌──────────────────────────────────────────────┐
-  │ データ問合せ:  SQL → GraphQL                  │
-  │ UI:           HTML → React → SwiftUI         │
-  │ インフラ:     シェルスクリプト → Terraform      │
-  │ CI/CD:        手動手順 → GitHub Actions YAML  │
-  │ データ変換:   手続きコード → dbt SQL           │
-  │ API定義:      ドキュメント → OpenAPI Spec      │
-  └──────────────────────────────────────────────┘
+  Expansion of Declarative Approaches:
+  +----------------------------------------------+
+  | Data queries:  SQL -> GraphQL                 |
+  | UI:            HTML -> React -> SwiftUI       |
+  | Infrastructure: Shell scripts -> Terraform    |
+  | CI/CD:         Manual procedures ->           |
+  |                GitHub Actions YAML            |
+  | Data transform: Procedural code -> dbt SQL    |
+  | API definition: Documentation -> OpenAPI Spec |
+  +----------------------------------------------+
 
-  AI時代との親和性:
-  ・宣言的仕様 = AI への明確な指示
-  ・「何をしたいか」を人間が定義
-  ・「どう実現するか」をAI/コンパイラが決定
+  Affinity with the AI Era:
+  - Declarative specs = Clear instructions for AI
+  - Humans define "what they want to do"
+  - AI/compilers determine "how to achieve it"
 ```
 
-### 3.3 形式検証との統合
+### 3.3 Integration with Formal Verification
 
-形式検証（Formal Verification）は、プログラムが仕様を満たすことを数学的に証明する手法である。従来は航空宇宙や医療など限定的な分野でのみ使用されていたが、AI生成コードの信頼性確保の文脈で注目が高まっている。
+Formal Verification is a method of mathematically proving that a program satisfies its specification. It was traditionally used only in limited fields such as aerospace and medical devices, but attention has grown in the context of ensuring the reliability of AI-generated code.
 
 ```
-形式検証のレベル:
+Levels of Formal Verification:
 
-  レベル1: 型チェック
-  ┌──────────────────────────────────────┐
-  │ 「この変数は常に整数である」           │
-  │ 全モダン言語がサポート                │
-  └──────────────────────────────────────┘
-       ↓
-  レベル2: 契約プログラミング
-  ┌──────────────────────────────────────┐
-  │ 「この関数の入力は正の整数、           │
-  │  出力は入力より大きい」               │
-  │ Eiffel, Ada/SPARK, Kotlin (require)  │
-  └──────────────────────────────────────┘
-       ↓
-  レベル3: 依存型
-  ┌──────────────────────────────────────┐
-  │ 「この配列の長さは常にNである」        │
-  │ 「この関数の出力はソート済みである」    │
-  │ Idris, Agda, Lean, ATS              │
-  └──────────────────────────────────────┘
-       ↓
-  レベル4: 完全な形式証明
-  ┌──────────────────────────────────────┐
-  │ 「このプログラムは仕様の全要件を       │
-  │  数学的に満たすことが証明されている」   │
-  │ Coq, Isabelle, Lean 4               │
-  └──────────────────────────────────────┘
+  Level 1: Type Checking
+  +--------------------------------------+
+  | "This variable is always an integer"  |
+  | Supported by all modern languages     |
+  +--------------------------------------+
+       |
+  Level 2: Contract Programming
+  +--------------------------------------+
+  | "The input to this function is a      |
+  |  positive integer, and the output is  |
+  |  greater than the input"              |
+  | Eiffel, Ada/SPARK, Kotlin (require)   |
+  +--------------------------------------+
+       |
+  Level 3: Dependent Types
+  +--------------------------------------+
+  | "The length of this array is always N"|
+  | "The output of this function is       |
+  |  sorted"                              |
+  | Idris, Agda, Lean, ATS               |
+  +--------------------------------------+
+       |
+  Level 4: Complete Formal Proof
+  +--------------------------------------+
+  | "It is mathematically proven that this|
+  |  program satisfies all requirements   |
+  |  of the specification"                |
+  | Coq, Isabelle, Lean 4                 |
+  +--------------------------------------+
 ```
 
 ---
 
-## 4. 注目の新言語・技術
+## 4. Notable New Languages and Technologies
 
-### 4.1 Mojo（2023-）
+### 4.1 Mojo (2023-)
 
-Mojo は Modular社の Chris Lattner（LLVM と Swift の設計者）が開発した言語で、「Pythonの使いやすさ + C/Rustの性能」を目指している。
+Mojo is a language developed by Chris Lattner (the designer of LLVM and Swift) at Modular, aiming for "the ease of use of Python + the performance of C/Rust."
 
 ```
-Mojoの位置づけ:
+Mojo's Positioning:
 
-  使いやすさ
-  ↑
-  │  Python ●
-  │           \
-  │            ● Mojo（ここを目指す）
-  │           /
-  │  Rust  ●
-  │
-  │  C/C++ ●
-  └───────────────────→ パフォーマンス
+  Ease of use
+  ^
+  |  Python *
+  |           \
+  |            * Mojo (targeting this position)
+  |           /
+  |  Rust  *
+  |
+  |  C/C++ *
+  +--------------------> Performance
 ```
 
-**コード例4: Mojo のコード例（Python互換構文 + 高性能）**
+**Code Example 4: Mojo Code Example (Python-Compatible Syntax + High Performance)**
 
 ```python
-# --- Mojo: Python 構文との互換性を保ちながら高性能を実現 ---
+# --- Mojo: Achieves high performance while maintaining Python syntax compatibility ---
 
-# Python互換のコード（そのまま動作）
+# Python-compatible code (runs as-is)
 def python_style():
     numbers = [1, 2, 3, 4, 5]
     total = sum(numbers)
     print(total)
 
-# Mojo固有の高性能コード
+# Mojo-specific high-performance code
 struct Matrix:
     var data: DTypePointer[DType.float64]
     var rows: Int
@@ -576,7 +602,7 @@ struct Matrix:
     fn __setitem__(inout self, row: Int, col: Int, value: Float64):
         self.data.store(row * self.cols + col, value)
 
-    # SIMD による並列計算
+    # Parallel computation using SIMD
     fn matmul(self, other: Matrix) -> Matrix:
         var result = Matrix(self.rows, other.cols)
         for i in range(self.rows):
@@ -589,43 +615,44 @@ struct Matrix:
                 result[i, j] = sum
         return result
 
-# fn (Mojo固有) vs def (Python互換)
-# fn: 厳密な型チェック、高速
-# def: Python互換、動的型付け
+# fn (Mojo-specific) vs def (Python-compatible)
+# fn: Strict type checking, fast
+# def: Python-compatible, dynamically typed
 ```
 
-### 4.2 Gleam（2024-）
+### 4.2 Gleam (2024-)
 
-Gleam は Erlang VM（BEAM）上で動作する型付き関数型言語。Elixir のエコシステムを活用しつつ、静的型システムの恩恵を受けられる。
+Gleam is a typed functional language that runs on the Erlang VM (BEAM). It leverages the Elixir ecosystem while benefiting from a static type system.
 
 ```
-Gleamの設計思想:
+Gleam's Design Philosophy:
 
-  ┌──────────────────────────────────────────────────┐
-  │ Gleam = Erlang/Elixir の並行性                    │
-  │       + 静的型システム                             │
-  │       + JavaScript ターゲット                      │
-  │       + フレンドリーなエラーメッセージ               │
-  ├──────────────────────────────────────────────────┤
-  │                                                  │
-  │  Erlang (1986)                                   │
-  │    └── 耐障害性、並行性、分散処理                   │
-  │         └── Elixir (2012)                        │
-  │              └── モダンな構文、マクロ               │
-  │                   └── Gleam (2024)               │
-  │                        └── 静的型、JSターゲット    │
-  │                                                  │
-  └──────────────────────────────────────────────────┘
+  +--------------------------------------------------+
+  | Gleam = Erlang/Elixir concurrency                 |
+  |       + Static type system                        |
+  |       + JavaScript target                         |
+  |       + Friendly error messages                   |
+  +--------------------------------------------------+
+  |                                                   |
+  |  Erlang (1986)                                    |
+  |    +-- Fault tolerance, concurrency,              |
+  |    |   distributed processing                     |
+  |    +-- Elixir (2012)                              |
+  |         +-- Modern syntax, macros                 |
+  |              +-- Gleam (2024)                      |
+  |                   +-- Static types, JS target     |
+  |                                                   |
+  +--------------------------------------------------+
 ```
 
 ```gleam
-// Gleam のコード例
+// Gleam code example
 import gleam/io
 import gleam/list
 import gleam/result
 import gleam/string
 
-// 代数的データ型
+// Algebraic data types
 pub type OrderStatus {
   Pending
   Confirmed(confirmed_at: String)
@@ -634,25 +661,25 @@ pub type OrderStatus {
   Cancelled(reason: String)
 }
 
-// パターンマッチ
+// Pattern matching
 pub fn describe_status(status: OrderStatus) -> String {
   case status {
-    Pending -> "注文受付中"
-    Confirmed(at) -> "確認済み: " <> at
-    Shipped(tracking) -> "配送中: " <> tracking
-    Delivered -> "配達完了"
-    Cancelled(reason) -> "キャンセル: " <> reason
+    Pending -> "Order received"
+    Confirmed(at) -> "Confirmed: " <> at
+    Shipped(tracking) -> "Shipped: " <> tracking
+    Delivered -> "Delivered"
+    Cancelled(reason) -> "Cancelled: " <> reason
   }
 }
 
-// Result型によるエラーハンドリング
+// Error handling with the Result type
 pub fn parse_order(input: String) -> Result(Order, String) {
   use id <- result.try(parse_id(input))
   use amount <- result.try(parse_amount(input))
   Ok(Order(id: id, amount: amount, status: Pending))
 }
 
-// パイプ演算子
+// Pipe operator
 pub fn process_orders(orders: List(Order)) -> String {
   orders
   |> list.filter(fn(o) { o.amount > 1000.0 })
@@ -662,790 +689,853 @@ pub fn process_orders(orders: List(Order)) -> String {
 }
 ```
 
-### 4.3 Zig（2016-）
+### 4.3 Zig (2016-)
 
-Zig は「C の現代的代替」を目指す言語で、コンパイル時実行（comptime）と「隠れた制御フローなし」の原則が特徴。
+Zig is a language aiming to be "a modern replacement for C," characterized by compile-time execution (comptime) and the principle of "no hidden control flow."
 
 ```
-Zigの設計原則:
+Zig's Design Principles:
 
-  ┌──────────────────────────────────────────────────┐
-  │ Zig の3つの原則:                                  │
-  │                                                  │
-  │ 1. 隠れた制御フローなし                             │
-  │    ・暗黙のアロケータなし                           │
-  │    ・暗黙の関数呼び出し（演算子オーバーロード）なし  │
-  │    ・暗黙のエラー無視なし                           │
-  │                                                  │
-  │ 2. コンパイル時実行 (comptime)                     │
-  │    ・ジェネリクスの代わりに comptime                │
-  │    ・条件コンパイルの代わりに comptime               │
-  │    ・定数の計算も comptime                          │
-  │                                                  │
-  │ 3. C との完全な相互運用                             │
-  │    ・C ヘッダを直接インポート                       │
-  │    ・C ライブラリをそのままリンク                    │
-  │    ・既存の C コードベースを段階的に移行可能          │
-  └──────────────────────────────────────────────────┘
+  +--------------------------------------------------+
+  | Three Principles of Zig:                          |
+  |                                                   |
+  | 1. No Hidden Control Flow                         |
+  |    - No implicit allocators                       |
+  |    - No implicit function calls                   |
+  |      (no operator overloading)                    |
+  |    - No implicit error ignoring                   |
+  |                                                   |
+  | 2. Compile-Time Execution (comptime)              |
+  |    - comptime instead of generics                 |
+  |    - comptime instead of conditional compilation  |
+  |    - Constant computation via comptime            |
+  |                                                   |
+  | 3. Full Interoperability with C                   |
+  |    - Direct import of C headers                   |
+  |    - Link C libraries as-is                       |
+  |    - Incremental migration from existing          |
+  |      C codebases                                  |
+  +--------------------------------------------------+
 ```
 
-### 4.4 Carbon（Google, 2022-）
+### 4.4 Carbon (Google, 2022-)
 
-Carbon は Google が開発する「C++ の後継」を目指す実験的言語。C++ との段階的な相互運用を重視している。
+Carbon is an experimental language developed by Google that aims to be "the successor to C++." It emphasizes gradual interoperability with C++.
 
-### 4.5 Vale（研究段階）
+### 4.5 Vale (Research Stage)
 
-Vale は Rust の借用チェッカーの複雑さを回避しつつメモリ安全性を実現する新しいアプローチ（Generational References）を探求している。
+Vale explores a new approach (Generational References) for achieving memory safety while avoiding the complexity of Rust's borrow checker.
 
-### 4.6 Verse（Epic Games, 2023-）
+### 4.6 Verse (Epic Games, 2023-)
 
-Verse は Unreal Engine の開発元 Epic Games が開発した言語で、ゲーム開発に特化している。関数型ロジックプログラミングと並行処理を統合した独自のパラダイムを持つ。
+Verse is a language developed by Epic Games, the creator of Unreal Engine, specializing in game development. It has a unique paradigm that integrates functional logic programming with concurrency.
 
-### 4.7 新言語の比較表
+### 4.7 New Language Comparison Table
 
-| 言語 | 目的 | 特徴 | ターゲット | 状態 |
-|------|------|------|-----------|------|
-| Mojo | AI/ML + 汎用 | Python互換 + 高性能 | LLVM | 早期アクセス |
-| Gleam | Web + 分散 | 型付きBEAM + JS | BEAM / JS | v1.0リリース済 |
-| Zig | システム | comptime + C互換 | ネイティブ | 安定版前 |
-| Carbon | C++後継 | 段階的移行 | LLVM | 実験段階 |
-| Vale | 安全なシステム | Generational Refs | LLVM | 研究段階 |
-| Verse | ゲーム | 関数型ロジック | Unreal Engine | プレビュー |
+| Language | Purpose | Features | Target | Status |
+|----------|---------|----------|--------|--------|
+| Mojo | AI/ML + General Purpose | Python-compatible + High Performance | LLVM | Early Access |
+| Gleam | Web + Distributed | Typed BEAM + JS | BEAM / JS | v1.0 Released |
+| Zig | Systems | comptime + C Interop | Native | Pre-stable |
+| Carbon | C++ Successor | Gradual Migration | LLVM | Experimental |
+| Vale | Safe Systems | Generational Refs | LLVM | Research |
+| Verse | Gaming | Functional Logic | Unreal Engine | Preview |
 
 ---
 
-## 5. 次世代の型理論と言語機能
+## 5. Next-Generation Type Theory and Language Features
 
-### 5.1 効果システム（Effect System）
+### 5.1 Effect Systems
 
-効果システムは、関数の副作用を型レベルで追跡する仕組みである。現在の言語では「この関数はI/Oを行うか」「この関数は例外を投げるか」が型から分からないが、効果システムではこれらの情報が型に含まれる。
+An effect system is a mechanism that tracks function side effects at the type level. In current languages, it is not apparent from the type whether "this function performs I/O" or "this function throws an exception," but in an effect system, this information is included in the type.
 
 ```
-効果システムの概念:
+Concept of Effect Systems:
 
-  従来の型システム:
-  ┌──────────────────────────────────────┐
-  │ fn read_file(path: &str) -> String  │
-  │ // I/Oがある？ 例外が出る？ 分からない│
-  └──────────────────────────────────────┘
+  Traditional Type System:
+  +--------------------------------------+
+  | fn read_file(path: &str) -> String   |
+  | // Does it perform I/O? Throw        |
+  | // exceptions? Unknown                |
+  +--------------------------------------+
 
-  効果システム:
-  ┌──────────────────────────────────────┐
-  │ fn read_file(path: &str)             │
-  │   -> String                          │
-  │   performs IO, throws FileNotFound   │
-  │ // 副作用が型の一部として明示される    │
-  └──────────────────────────────────────┘
+  Effect System:
+  +--------------------------------------+
+  | fn read_file(path: &str)             |
+  |   -> String                          |
+  |   performs IO, throws FileNotFound   |
+  | // Side effects are explicitly part  |
+  | // of the type                       |
+  +--------------------------------------+
 
-  効果の合成:
-  ┌──────────────────────────────────────┐
-  │ fn process()                         │
-  │   performs IO + DB + Log             │
-  │   throws ParseError + DBError        │
-  │                                      │
-  │ // 呼び出す関数の効果が自動的に合成   │
-  └──────────────────────────────────────┘
+  Effect Composition:
+  +--------------------------------------+
+  | fn process()                         |
+  |   performs IO + DB + Log             |
+  |   throws ParseError + DBError        |
+  |                                      |
+  | // Effects of called functions are   |
+  | // automatically composed            |
+  +--------------------------------------+
 
-  注目の実装:
-  ・Koka (Microsoft Research)
-  ・Effekt (Tubingen大学)
-  ・Eff (Ljubljana大学)
-  ・Unison (商用)
+  Notable Implementations:
+  - Koka (Microsoft Research)
+  - Effekt (University of Tubingen)
+  - Eff (University of Ljubljana)
+  - Unison (commercial)
 ```
 
-### 5.2 依存型（Dependent Types）
+### 5.2 Dependent Types
 
-依存型は、値に依存する型を記述できる型システムである。これにより「長さNの配列」「ソート済みリスト」「正の整数」などを型として表現できる。
+Dependent types are a type system that allows describing types that depend on values. This makes it possible to express concepts such as "an array of length N," "a sorted list," or "a positive integer" as types.
 
-**コード例5: 依存型の概念（Idris風疑似コード）**
+**Code Example 5: Concept of Dependent Types (Idris-Style Pseudocode)**
 
 ```idris
--- Idris: 依存型の例
+-- Idris: Examples of dependent types
 
--- 長さ付きリスト（Vector）
+-- Length-indexed list (Vector)
 data Vect : Nat -> Type -> Type where
     Nil  : Vect 0 a
     (::) : a -> Vect n a -> Vect (n + 1) a
 
--- 型レベルで長さが保証される
+-- Length is guaranteed at the type level
 append : Vect n a -> Vect m a -> Vect (n + m) a
 append Nil       ys = ys
 append (x :: xs) ys = x :: append xs ys
 
--- コンパイル時に長さの一致が検証される
+-- Length matching is verified at compile time
 zip : Vect n a -> Vect n b -> Vect n (a, b)
 zip Nil       Nil       = Nil
 zip (x :: xs) (y :: ys) = (x, y) :: zip xs ys
 
--- 空でないリストの先頭要素を安全に取得
+-- Safely retrieve the head element of a non-empty list
 head : Vect (n + 1) a -> a
 head (x :: _) = x
--- head Nil は型エラー（Vect 0 a は Vect (n+1) a にマッチしない）
+-- head Nil is a type error (Vect 0 a does not match Vect (n+1) a)
 
--- ソート済みリスト
+-- Sorted list
 data SortedList : Type where
     Empty   : SortedList
     Single  : Nat -> SortedList
     Cons    : (x : Nat) -> (rest : SortedList) ->
               (prf : LTE x (headOf rest)) -> SortedList
 
--- insert の戻り値型が「ソート済みである」ことを保証
+-- The return type of insert guarantees "sortedness"
 insert : Nat -> SortedList -> SortedList
 
--- 行列の乗算: 次元の整合性をコンパイル時に検証
+-- Matrix multiplication: Dimension consistency verified at compile time
 matmul : Matrix m n -> Matrix n p -> Matrix m p
--- Matrix 3 4 と Matrix 4 5 → Matrix 3 5 （OK）
--- Matrix 3 4 と Matrix 5 6 → コンパイルエラー（次元不一致）
+-- Matrix 3 4 * Matrix 4 5 -> Matrix 3 5 (OK)
+-- Matrix 3 4 * Matrix 5 6 -> Compile error (dimension mismatch)
 ```
 
-### 5.3 線形型（Linear Types）
+### 5.3 Linear Types
 
-線形型は「値はちょうど1回だけ使用される」ことを型で保証する仕組みである。リソース管理（ファイルハンドル、ネットワーク接続、ロック）の安全性を静的に保証できる。
-
-```
-線形型の概念:
-
-  通常の型:
-  ┌──────────────────────────────────────┐
-  │ let x = open_file("data.txt")       │
-  │ read(x)   // 1回目の使用            │
-  │ read(x)   // 2回目の使用（OK）      │
-  │ // close を忘れてもコンパイル通過     │
-  └──────────────────────────────────────┘
-
-  線形型:
-  ┌──────────────────────────────────────┐
-  │ let x: Linear<File> = open("data.txt")│
-  │ let (data, x2) = read(x)  // xを消費 │
-  │ close(x2)                 // x2を消費 │
-  │                                      │
-  │ // x を2回使うとコンパイルエラー       │
-  │ // close を忘れるとコンパイルエラー    │
-  │ // リソースリークが構造的に不可能      │
-  └──────────────────────────────────────┘
-
-  Rust の所有権システムは線形型の近似:
-  ・移動セマンティクス ≈ 線形型
-  ・借用 ≈ 使用回数の緩和
-  ・Drop トレイト ≈ 暗黙の close
-```
-
----
-
-## 6. 長期的な展望
-
-### 6.1 5年後（2030年頃）の予測
+Linear types are a mechanism that guarantees at the type level that "a value is used exactly once." This provides static guarantees of safety for resource management (file handles, network connections, locks).
 
 ```
-2030年のプログラミング言語ランドスケープ（予測）:
+Concept of Linear Types:
 
-  ┌──────────────────────────────────────────────────┐
-  │ ほぼ確実な変化:                                    │
-  │ ・TypeScript が JavaScript を事実上完全に置換       │
-  │ ・Rust がシステムプログラミングの第一選択肢に        │
-  │ ・Python の型ヒントが「あって当然」に               │
-  │ ・AI アシスタントが開発ワークフローに統合            │
-  │ ・Wasm がサーバーサイドでも日常的に使用             │
-  ├──────────────────────────────────────────────────┤
-  │ 可能性の高い変化:                                   │
-  │ ・Kotlin Multiplatform がクロスプラットフォーム      │
-  │   開発の有力選択肢に                               │
-  │ ・Mojo がAI/ML分野で Python の補完役に             │
-  │ ・Go のジェネリクスが成熟し表現力が向上              │
-  │ ・C# が .NET 全体でさらに進化                      │
-  ├──────────────────────────────────────────────────┤
-  │ 不確実だが注目すべき変化:                           │
-  │ ・効果システムの実用言語への導入                     │
-  │ ・量子コンピューティング言語の標準化                 │
-  │ ・Carbon の本格的リリースと採用                     │
-  │ ・Gleam の BEAM エコシステムでの地位確立             │
-  └──────────────────────────────────────────────────┘
-```
+  Normal Types:
+  +--------------------------------------+
+  | let x = open_file("data.txt")        |
+  | read(x)   // First use               |
+  | read(x)   // Second use (OK)         |
+  | // Compiles even if close is forgot  |
+  +--------------------------------------+
 
-### 6.2 10年後（2035年頃）の予測
+  Linear Types:
+  +--------------------------------------+
+  | let x: Linear<File> = open("data.txt")|
+  | let (data, x2) = read(x)  // Consumes x |
+  | close(x2)                 // Consumes x2 |
+  |                                      |
+  | // Using x twice is a compile error  |
+  | // Forgetting close is a compile error|
+  | // Resource leaks are structurally   |
+  | // impossible                        |
+  +--------------------------------------+
 
-```
-2035年の予測:
-
-  プログラミングの形態:
-  ┌──────────────────────────────────────────────────┐
-  │                                                  │
-  │ 人間の役割:                                       │
-  │ ┌────────────────────────────────────────────┐  │
-  │ │ ・要件定義と仕様策定（自然言語 + 形式仕様）  │  │
-  │ │ ・アーキテクチャ設計と技術選定               │  │
-  │ │ ・AI生成コードのレビューと承認               │  │
-  │ │ ・ドメイン知識の提供                        │  │
-  │ │ ・倫理的判断とトレードオフの決定             │  │
-  │ └────────────────────────────────────────────┘  │
-  │                     ↕ 協調                       │
-  │ AIの役割:                                        │
-  │ ┌────────────────────────────────────────────┐  │
-  │ │ ・ルーティンコードの生成                     │  │
-  │ │ ・テストの自動生成と実行                     │  │
-  │ │ ・バグの検出と修正提案                       │  │
-  │ │ ・パフォーマンス最適化                       │  │
-  │ │ ・ドキュメント生成                           │  │
-  │ └────────────────────────────────────────────┘  │
-  │                                                  │
-  └──────────────────────────────────────────────────┘
-
-  言語の進化:
-  ┌──────────────────────────────────────────────────┐
-  │ ・自然言語 → 形式仕様 → コード のパイプライン      │
-  │ ・依存型の実用言語への導入                          │
-  │ ・効果システムの標準化                              │
-  │ ・量子古典ハイブリッド言語の登場                    │
-  │ ・AIネイティブな言語設計                            │
-  │   （AI が生成しやすく、検証しやすい構文）            │
-  └──────────────────────────────────────────────────┘
-```
-
-### 6.3 20年後（2045年頃）の展望
-
-さらに長期的な展望として、以下のような可能性がある。ただし、技術予測の精度は時間軸が伸びるほど低下する。
-
-```
-2045年の可能性:
-
-  ┌──────────────────────────────────────────────────┐
-  │ 楽観的シナリオ:                                    │
-  │ ・プログラミングが「意図の表現」に完全に移行          │
-  │ ・自然言語で仕様を書けば、AIが最適な実装を生成       │
-  │ ・形式検証が全てのソフトウェアに適用される            │
-  │ ・バグが「設計の不備」としてのみ存在し、              │
-  │   「実装のミス」は消滅する                          │
-  ├──────────────────────────────────────────────────┤
-  │ 現実的シナリオ:                                    │
-  │ ・AIと人間の協調が深化するが、完全自動化はされない   │
-  │ ・低レベルのシステムプログラミングは依然として       │
-  │   人間の専門知識が必要                              │
-  │ ・新しい計算パラダイム（量子、ニューロモーフィック）  │
-  │   に対応する新言語が登場                            │
-  ├──────────────────────────────────────────────────┤
-  │ 不変の原則:                                        │
-  │ ・コンピュータサイエンスの基礎理論は変わらない       │
-  │ ・アルゴリズム、データ構造、型理論は永続的           │
-  │ ・計算可能性の限界（停止問題等）は克服されない       │
-  │ ・「何を作るべきか」の判断は人間の領域に留まる       │
-  └──────────────────────────────────────────────────┘
+  Rust's ownership system is an approximation of linear types:
+  - Move semantics ~ Linear types
+  - Borrowing ~ Relaxation of usage count
+  - Drop trait ~ Implicit close
 ```
 
 ---
 
-## 7. プログラマーの未来
+## 6. Long-Term Outlook
 
-### 7.1 AI時代に人間が担う役割
-
-```
-ソフトウェア開発における人間の役割の変遷:
-
-  1960-1980: 全工程を人間が担当
-  ┌──────────────────────────────────────┐
-  │ 要件 → 設計 → 実装 → テスト → 運用  │
-  │ [人間] [人間] [人間] [人間]  [人間]   │
-  └──────────────────────────────────────┘
-
-  2000-2020: ツールによる部分自動化
-  ┌──────────────────────────────────────┐
-  │ 要件 → 設計 → 実装 → テスト → 運用  │
-  │ [人間] [人間] [人間] [ツール] [ツール] │
-  │              [IDE]  [CI/CD] [監視]   │
-  └──────────────────────────────────────┘
-
-  2025-2035: AIによる大幅な自動化
-  ┌──────────────────────────────────────┐
-  │ 要件 → 設計 → 実装 → テスト → 運用  │
-  │ [人間] [人間] [AI]  [AI]    [AI]    │
-  │ [AI補助][AI補助][人間   [人間    [人間  │
-  │              レビュー] 監督]   判断] │
-  └──────────────────────────────────────┘
-
-  2035以降: 人間は判断と創造に集中
-  ┌──────────────────────────────────────┐
-  │ 要件 → 設計 → 実装 → テスト → 運用  │
-  │ [人間] [人間] [AI]  [AI]    [AI]    │
-  │ [創造] [判断] [検証] [検証]  [監視]  │
-  └──────────────────────────────────────┘
-```
-
-### 7.2 変わらないスキルと変わるスキル
-
-| カテゴリ | 重要性が増すスキル | 重要性が下がるスキル |
-|---------|------------------|-------------------|
-| 設計 | アーキテクチャ設計、トレードオフ分析 | 詳細な実装設計 |
-| コーディング | 型設計、仕様記述、コードレビュー | ルーティンなコード記述 |
-| テスト | テスト戦略立案、品質基準設定 | 単純なユニットテスト記述 |
-| 運用 | インシデント判断、根本原因分析 | 定型的な監視・対応 |
-| コミュニケーション | AI への的確な指示、要件の明確化 | 手動での文書作成 |
-| 知識 | CS基礎理論、ドメイン知識 | 特定言語の構文暗記 |
-
-### 7.3 CS基礎の永続的価値
+### 6.1 Predictions for 5 Years From Now (Around 2030)
 
 ```
-AI時代に価値が増すCS基礎知識:
+Programming Language Landscape in 2030 (Prediction):
 
-  ┌──────────────────────────────────────────────────┐
-  │ 1. 計算理論                                       │
-  │    ・計算可能性: 何が原理的に計算可能か              │
-  │    ・計算量理論: P vs NP、アルゴリズムの限界         │
-  │    ・停止問題: プログラムの正しさの自動検証の限界     │
-  │    → AIが生成するコードの限界を理解するために不可欠  │
-  ├──────────────────────────────────────────────────┤
-  │ 2. 型理論                                         │
-  │    ・型安全性の数学的基礎                           │
-  │    ・カリー・ハワード対応: 型 = 命題、プログラム = 証明│
-  │    ・パラメトリック多相性                            │
-  │    → AI生成コードの正しさを型で検証するために不可欠   │
-  ├──────────────────────────────────────────────────┤
-  │ 3. アルゴリズムとデータ構造                         │
-  │    ・時間計算量と空間計算量                          │
-  │    ・適切なデータ構造の選択                          │
-  │    ・分割統治、動的計画法、貪欲法                    │
-  │    → AIが生成するコードの効率を評価するために不可欠   │
-  ├──────────────────────────────────────────────────┤
-  │ 4. 分散システム                                    │
-  │    ・CAP定理: 一貫性、可用性、分断耐性のトレードオフ  │
-  │    ・合意アルゴリズム                               │
-  │    ・結果整合性                                     │
-  │    → システム設計の判断は人間の領域に留まる           │
-  ├──────────────────────────────────────────────────┤
-  │ 5. セキュリティ                                    │
-  │    ・脅威モデリング                                │
-  │    ・暗号理論の基礎                                │
-  │    ・信頼境界の設計                                │
-  │    → セキュリティの判断はAIに完全委任できない        │
-  └──────────────────────────────────────────────────┘
+  +--------------------------------------------------+
+  | Nearly Certain Changes:                            |
+  | - TypeScript will effectively replace JavaScript   |
+  |   entirely                                         |
+  | - Rust becomes the first choice for systems        |
+  |   programming                                      |
+  | - Python type hints become "expected by default"   |
+  | - AI assistants integrated into development        |
+  |   workflows                                        |
+  | - Wasm used routinely on the server side           |
+  +--------------------------------------------------+
+  | Likely Changes:                                    |
+  | - Kotlin Multiplatform becomes a strong option     |
+  |   for cross-platform development                   |
+  | - Mojo becomes a complement to Python in the       |
+  |   AI/ML domain                                     |
+  | - Go generics mature, improving expressiveness     |
+  | - C# evolves further across the .NET ecosystem     |
+  +--------------------------------------------------+
+  | Uncertain but Noteworthy Changes:                  |
+  | - Introduction of effect systems into practical    |
+  |   languages                                        |
+  | - Standardization of quantum computing languages   |
+  | - Full release and adoption of Carbon              |
+  | - Gleam establishes its position in the BEAM       |
+  |   ecosystem                                        |
+  +--------------------------------------------------+
 ```
 
----
-
-## 8. アンチパターン
-
-### 8.1 アンチパターン1: 「銀の弾丸思考」
-
-新しい言語や技術を「全ての問題を解決する万能薬」として過度に期待する傾向。
+### 6.2 Predictions for 10 Years From Now (Around 2035)
 
 ```
-銀の弾丸思考の典型的パターン:
+Predictions for 2035:
 
-  「Rustを使えば全てのバグがなくなる」
-  → Rustはメモリ安全性を保証するが、ビジネスロジックの
-    バグ、設計上の欠陥、要件の誤解は防げない
+  The Shape of Programming:
+  +--------------------------------------------------+
+  |                                                   |
+  | Human Roles:                                      |
+  | +-----------------------------------------------+ |
+  | | - Requirements definition and specification    | |
+  | |   (natural language + formal specifications)   | |
+  | | - Architecture design and technology selection | |
+  | | - Review and approval of AI-generated code     | |
+  | | - Providing domain knowledge                   | |
+  | | - Ethical judgment and trade-off decisions      | |
+  | +-----------------------------------------------+ |
+  |                     <-> Collaboration              |
+  | AI Roles:                                         |
+  | +-----------------------------------------------+ |
+  | | - Generation of routine code                   | |
+  | | - Automated test generation and execution      | |
+  | | - Bug detection and fix suggestions            | |
+  | | - Performance optimization                     | |
+  | | - Documentation generation                     | |
+  | +-----------------------------------------------+ |
+  |                                                   |
+  +--------------------------------------------------+
 
-  「AIがコードを書くので、プログラミング学習は不要」
-  → AIの出力を評価し、修正し、統合するには
-    深いプログラミング知識が必要
-
-  「関数型プログラミングで全て書き直すべきだ」
-  → チームのスキルセット、既存コードベース、
-    エコシステムの成熟度を無視した判断
-
-  正しいアプローチ:
-  ┌──────────────────────────────────────────────────┐
-  │ 「この問題に対して、この技術は何を解決し、           │
-  │  何を解決しないのか？」を常に問う                    │
-  │                                                    │
-  │ トレードオフは消えない。移動するだけである。          │
-  └──────────────────────────────────────────────────┘
+  Language Evolution:
+  +--------------------------------------------------+
+  | - Natural language -> Formal specs -> Code         |
+  |   pipeline                                         |
+  | - Introduction of dependent types into practical   |
+  |   languages                                        |
+  | - Standardization of effect systems                |
+  | - Emergence of quantum-classical hybrid languages  |
+  | - AI-native language design                        |
+  |   (syntax that is easy for AI to generate and      |
+  |    verify)                                         |
+  +--------------------------------------------------+
 ```
 
-### 8.2 アンチパターン2: 「流行追従症」
+### 6.3 Outlook for 20 Years From Now (Around 2045)
 
-最新の言語やフレームワークに飛びつき、プロジェクトの安定性を犠牲にするパターン。
-
-```
-流行追従の問題:
-
-  悪い判断の連鎖:
-  ┌──────────────────────────────────────────┐
-  │ 「新言語Xが話題だ」                       │
-  │         ↓                                │
-  │ 「既存プロジェクトをXで書き直そう」          │
-  │         ↓                                │
-  │ 「エコシステムが未成熟で生産性が低下」       │
-  │         ↓                                │
-  │ 「バグ修正にライブラリのソースを読む必要」    │
-  │         ↓                                │
-  │ 「新言語Yが話題に。Yに移行しよう…」         │
-  │         ↓                                │
-  │ 永遠のループ                              │
-  └──────────────────────────────────────────┘
-
-  正しいアプローチ:
-  ┌──────────────────────────────────────────┐
-  │ 新技術の評価基準:                          │
-  │ 1. エコシステムの成熟度（ライブラリ数）     │
-  │ 2. コミュニティの活発さ                    │
-  │ 3. 商用サポートの有無                      │
-  │ 4. チームの学習コスト                      │
-  │ 5. 既存システムとの統合容易性              │
-  │ 6. 5年後も使われている可能性               │
-  └──────────────────────────────────────────┘
-```
-
-### 8.3 アンチパターン3: 「AI丸投げ」
-
-AIコード生成ツールに実装を丸投げし、生成されたコードを検証せずに使用するパターン。
+As a longer-term outlook, the following possibilities exist. However, the accuracy of technology predictions decreases as the time horizon extends.
 
 ```
-AI丸投げの危険性:
+Possibilities for 2045:
 
-  ┌──────────────────────────────────────────┐
-  │ AI生成コードの潜在的問題:                  │
-  │                                          │
-  │ 1. セキュリティ脆弱性                     │
-  │    ・SQLインジェクション                   │
-  │    ・XSS                                 │
-  │    ・認証/認可の不備                       │
-  │                                          │
-  │ 2. パフォーマンスの問題                    │
-  │    ・N+1クエリ                            │
-  │    ・不必要なメモリ割り当て                │
-  │    ・非効率なアルゴリズム選択              │
-  │                                          │
-  │ 3. 設計上の問題                           │
-  │    ・過度な結合                           │
-  │    ・テスト困難な構造                      │
-  │    ・スケーラビリティの欠如               │
-  │                                          │
-  │ 4. ライセンス問題                         │
-  │    ・訓練データのライセンス汚染             │
-  │    ・GPL汚染の可能性                       │
-  │                                          │
-  │ 対策:                                     │
-  │ ・生成コードは必ずレビューする              │
-  │ ・型チェック + テスト + 静的解析を通す      │
-  │ ・セキュリティスキャンを実行する            │
-  │ ・AIの出力を「下書き」として扱う            │
-  └──────────────────────────────────────────┘
+  +--------------------------------------------------+
+  | Optimistic Scenario:                               |
+  | - Programming fully shifts to "expression of       |
+  |   intent"                                          |
+  | - Write specs in natural language, and AI           |
+  |   generates the optimal implementation             |
+  | - Formal verification applied to all software      |
+  | - Bugs exist only as "design flaws," and           |
+  |   "implementation mistakes" are eliminated         |
+  +--------------------------------------------------+
+  | Realistic Scenario:                                |
+  | - Human-AI collaboration deepens, but full         |
+  |   automation does not occur                        |
+  | - Low-level systems programming still requires     |
+  |   human expertise                                  |
+  | - New languages emerge for new computing           |
+  |   paradigms (quantum, neuromorphic)                |
+  +--------------------------------------------------+
+  | Immutable Principles:                              |
+  | - Fundamentals of computer science theory do       |
+  |   not change                                       |
+  | - Algorithms, data structures, and type theory     |
+  |   are permanent                                    |
+  | - The limits of computability (halting problem,    |
+  |   etc.) are not overcome                           |
+  | - The judgment of "what should be built" remains   |
+  |   in the human domain                              |
+  +--------------------------------------------------+
 ```
 
 ---
 
-## 9. 量子コンピューティングと言語
+## 7. The Future of Programmers
 
-### 9.1 量子プログラミング言語の現状
-
-量子コンピューティングは計算パラダイムの根本的な変革をもたらす可能性がある。現在、複数の量子プログラミング言語・フレームワークが開発されている。
+### 7.1 The Role of Humans in the AI Era
 
 ```
-量子プログラミングの現状:
+Evolution of Human Roles in Software Development:
 
-  ┌──────────────────────────────────────────────────┐
-  │              量子プログラミングフレームワーク        │
-  ├──────────────┬──────────────┬──────────────────┤
-  │ Qiskit       │ Cirq          │ Q#              │
-  │ (IBM)        │ (Google)      │ (Microsoft)     │
-  ├──────────────┼──────────────┼──────────────────┤
-  │ Python       │ Python        │ 独自言語         │
-  │ ベース       │ ベース        │ (F#ライク)       │
-  │              │              │                  │
-  │ 回路構築     │ 回路構築      │ 高水準           │
-  │ + 実行       │ + シミュレータ │ 量子アルゴリズム  │
-  └──────────────┴──────────────┴──────────────────┘
+  1960-1980: Humans handle all stages
+  +--------------------------------------+
+  | Reqs -> Design -> Impl -> Test -> Ops|
+  | [Human] [Human] [Human] [Human] [Human] |
+  +--------------------------------------+
 
-  量子古典ハイブリッド:
-  ┌──────────────────────────────────────────────────┐
-  │                                                  │
-  │   古典コンピュータ        量子コンピュータ          │
-  │   ┌──────────────┐      ┌──────────────┐       │
-  │   │ 制御フロー    │ ───→ │ 量子回路実行  │       │
-  │   │ データ前処理  │      │ 重ね合わせ    │       │
-  │   │ 結果解釈     │ ←─── │ 測定         │       │
-  │   └──────────────┘      └──────────────┘       │
-  │                                                  │
-  │   将来の言語は、古典と量子の両方のコードを           │
-  │   シームレスに記述できる必要がある                   │
-  └──────────────────────────────────────────────────┘
+  2000-2020: Partial automation through tools
+  +--------------------------------------+
+  | Reqs -> Design -> Impl -> Test -> Ops|
+  | [Human] [Human] [Human] [Tools] [Tools] |
+  |                [IDE]   [CI/CD] [Monitoring] |
+  +--------------------------------------+
+
+  2025-2035: Extensive automation through AI
+  +--------------------------------------+
+  | Reqs -> Design -> Impl -> Test -> Ops|
+  | [Human] [Human] [AI]   [AI]   [AI]  |
+  | [AI     [AI     [Human  [Human [Human|
+  | assist] assist] review] oversight] judgment] |
+  +--------------------------------------+
+
+  2035 and beyond: Humans focus on judgment and creativity
+  +--------------------------------------+
+  | Reqs -> Design -> Impl -> Test -> Ops|
+  | [Human] [Human] [AI]   [AI]   [AI]  |
+  | [Creation] [Judgment] [Verification] [Verification] [Monitoring] |
+  +--------------------------------------+
 ```
 
-### 9.2 量子プログラミングの課題
+### 7.2 Skills That Stay and Skills That Change
+
+| Category | Skills Growing in Importance | Skills Declining in Importance |
+|----------|------------------------------|-------------------------------|
+| Design | Architecture design, trade-off analysis | Detailed implementation design |
+| Coding | Type design, specification writing, code review | Routine code writing |
+| Testing | Test strategy planning, quality standard setting | Writing simple unit tests |
+| Operations | Incident judgment, root cause analysis | Routine monitoring and response |
+| Communication | Precise instructions to AI, requirements clarification | Manual document creation |
+| Knowledge | CS fundamentals, domain knowledge | Memorizing syntax of specific languages |
+
+### 7.3 The Enduring Value of CS Fundamentals
 
 ```
-量子プログラミング言語に必要な機能:
+CS Fundamental Knowledge That Increases in Value in the AI Era:
 
-  1. 量子ビット管理
-     ・エンタングルメントの追跡
-     ・量子ビットのライフタイム管理
-     ・No-Cloning 定理の型レベル保証
-
-  2. 測定と古典/量子の境界
-     ・測定による波動関数の崩壊の明示
-     ・古典ビットとの相互作用
-
-  3. エラー訂正
-     ・量子エラー訂正コードの抽象化
-     ・ノイズモデルの統合
-
-  4. 最適化
-     ・量子回路の最適化（ゲート数の最小化）
-     ・量子古典ハイブリッドアルゴリズムの最適化
-```
-
----
-
-## 10. プログラミングの民主化
-
-### 10.1 ノーコード/ローコードとの関係
-
-```
-プログラミングの階層化:
-
-  抽象度
-  ↑
-  │  ┌──────────────────────┐
-  │  │ 自然言語プログラミング │ ← AI時代
-  │  │ (AI + 自然言語入力)   │
-  │  ├──────────────────────┤
-  │  │ ノーコード/ローコード  │ ← ビジネスユーザー
-  │  │ (ビジュアルツール)    │
-  │  ├──────────────────────┤
-  │  │ 高水準言語           │ ← 一般的な開発者
-  │  │ (Python, TS, etc.)  │
-  │  ├──────────────────────┤
-  │  │ システム言語          │ ← システムエンジニア
-  │  │ (Rust, C, Go)       │
-  │  ├──────────────────────┤
-  │  │ アセンブリ / LLVM IR │ ← 専門家
-  │  └──────────────────────┘
-  └──────────────────────────→ 制御の細かさ
-
-  AI時代の変化:
-  ・各階層間の移動がAIによって容易に
-  ・「自然言語で指示 → AIが高水準コード生成
-    → コンパイラがシステムレベルに変換」
-  ・プログラミングの「入口」が大幅に広がる
-  ・ただし「深い理解」の必要性は変わらない
-```
-
-### 10.2 ドメイン特化プログラミングの拡大
-
-将来的には、各業界がそれぞれのDSLを持ち、ドメインエキスパートがAIの支援を受けながら直接「プログラミング」する世界が想定される。
-
-```
-ドメイン特化プログラミングの拡大:
-
-  ┌──────────┬──────────────────────────────────┐
-  │ 業界     │ DSL / 特化ツールの例               │
-  ├──────────┼──────────────────────────────────┤
-  │ 金融     │ 契約DSL、リスク計算DSL              │
-  │ 医療     │ 臨床試験プロトコル、診断ルール       │
-  │ 法務     │ 契約ロジック、コンプライアンスルール  │
-  │ 製造     │ 制御ロジック、品質管理ルール         │
-  │ 教育     │ カリキュラム設計、学習パス定義        │
-  │ 農業     │ 灌漑制御、収穫最適化                │
-  └──────────┴──────────────────────────────────┘
-
-  将来像:
-  「金融アナリストが自然言語で取引戦略を記述
-   → AIが型安全なDSLコードに変換
-   → 形式検証で正しさを保証
-   → 自動的にバックテスト実行」
+  +--------------------------------------------------+
+  | 1. Theory of Computation                          |
+  |    - Computability: What is fundamentally          |
+  |      computable                                    |
+  |    - Complexity theory: P vs NP, algorithmic       |
+  |      limits                                        |
+  |    - Halting problem: Limits of automatic          |
+  |      verification of program correctness           |
+  |    -> Essential for understanding the limits       |
+  |       of AI-generated code                         |
+  +--------------------------------------------------+
+  | 2. Type Theory                                    |
+  |    - Mathematical foundations of type safety       |
+  |    - Curry-Howard correspondence:                  |
+  |      Types = Propositions, Programs = Proofs       |
+  |    - Parametric polymorphism                       |
+  |    -> Essential for verifying correctness of       |
+  |       AI-generated code via types                  |
+  +--------------------------------------------------+
+  | 3. Algorithms and Data Structures                 |
+  |    - Time complexity and space complexity          |
+  |    - Choosing appropriate data structures          |
+  |    - Divide and conquer, dynamic programming,      |
+  |      greedy algorithms                             |
+  |    -> Essential for evaluating the efficiency      |
+  |       of AI-generated code                         |
+  +--------------------------------------------------+
+  | 4. Distributed Systems                            |
+  |    - CAP theorem: Trade-offs between consistency,  |
+  |      availability, and partition tolerance          |
+  |    - Consensus algorithms                          |
+  |    - Eventual consistency                          |
+  |    -> System design decisions remain in the        |
+  |       human domain                                 |
+  +--------------------------------------------------+
+  | 5. Security                                       |
+  |    - Threat modeling                               |
+  |    - Cryptography fundamentals                     |
+  |    - Trust boundary design                         |
+  |    -> Security decisions cannot be fully            |
+  |       delegated to AI                              |
+  +--------------------------------------------------+
 ```
 
 ---
 
-## 11. 演習問題
+## 8. Anti-Patterns
 
-### 11.1 初級：概念の理解
+### 8.1 Anti-Pattern 1: "Silver Bullet Thinking"
 
-**演習1:** 以下の各トレンドが「なぜ」起きているのか、背景を2-3文で説明せよ。
-1. 段階的型付けの普及
-2. メモリ安全性への政府レベルの要求
-3. WebAssembly のブラウザ外への拡大
-4. AI コード生成の日常化
+The tendency to expect a new language or technology to be a "panacea that solves all problems."
 
-**演習2:** 以下の新言語の設計思想を、1-2文で要約せよ。
+```
+Typical Patterns of Silver Bullet Thinking:
+
+  "If we use Rust, all bugs will disappear"
+  -> Rust guarantees memory safety, but it cannot
+     prevent business logic bugs, design flaws,
+     or misunderstood requirements
+
+  "AI writes code, so learning programming is unnecessary"
+  -> Evaluating, correcting, and integrating AI output
+     requires deep programming knowledge
+
+  "We should rewrite everything in functional programming"
+  -> A judgment that ignores the team's skill set,
+     existing codebase, and ecosystem maturity
+
+  The Right Approach:
+  +--------------------------------------------------+
+  | Always ask: "For this problem, what does this      |
+  | technology solve, and what does it NOT solve?"     |
+  |                                                    |
+  | Trade-offs never disappear. They only move.        |
+  +--------------------------------------------------+
+```
+
+### 8.2 Anti-Pattern 2: "Trend Chasing"
+
+A pattern of jumping on the latest languages and frameworks at the expense of project stability.
+
+```
+Problems with Trend Chasing:
+
+  Chain of Bad Decisions:
+  +------------------------------------------+
+  | "New language X is trending"              |
+  |         |                                 |
+  | "Let's rewrite our existing project in X" |
+  |         |                                 |
+  | "The ecosystem is immature, and           |
+  |  productivity drops"                      |
+  |         |                                 |
+  | "We need to read library source code      |
+  |  to fix bugs"                             |
+  |         |                                 |
+  | "New language Y is trending.              |
+  |  Let's migrate to Y..."                   |
+  |         |                                 |
+  | An endless loop                           |
+  +------------------------------------------+
+
+  The Right Approach:
+  +------------------------------------------+
+  | Evaluation Criteria for New Technologies: |
+  | 1. Ecosystem maturity (number of          |
+  |    libraries)                             |
+  | 2. Community activity                     |
+  | 3. Availability of commercial support     |
+  | 4. Team learning cost                     |
+  | 5. Ease of integration with existing      |
+  |    systems                                |
+  | 6. Likelihood of still being used in      |
+  |    5 years                                |
+  +------------------------------------------+
+```
+
+### 8.3 Anti-Pattern 3: "Blindly Delegating to AI"
+
+A pattern of completely delegating implementation to AI code generation tools and using the generated code without verification.
+
+```
+Risks of Blindly Delegating to AI:
+
+  +------------------------------------------+
+  | Potential Issues with AI-Generated Code:  |
+  |                                          |
+  | 1. Security Vulnerabilities              |
+  |    - SQL injection                       |
+  |    - XSS                                 |
+  |    - Authentication/authorization flaws  |
+  |                                          |
+  | 2. Performance Issues                    |
+  |    - N+1 queries                         |
+  |    - Unnecessary memory allocations      |
+  |    - Inefficient algorithm choices       |
+  |                                          |
+  | 3. Design Issues                         |
+  |    - Excessive coupling                  |
+  |    - Hard-to-test structures             |
+  |    - Lack of scalability                 |
+  |                                          |
+  | 4. Licensing Issues                      |
+  |    - License contamination from          |
+  |      training data                       |
+  |    - Possible GPL contamination          |
+  |                                          |
+  | Countermeasures:                         |
+  | - Always review generated code           |
+  | - Run type checks + tests + static       |
+  |   analysis                               |
+  | - Run security scans                     |
+  | - Treat AI output as a "draft"           |
+  +------------------------------------------+
+```
+
+---
+
+## 9. Quantum Computing and Languages
+
+### 9.1 The Current State of Quantum Programming Languages
+
+Quantum computing has the potential to bring about a fundamental transformation of the computing paradigm. Currently, multiple quantum programming languages and frameworks are under development.
+
+```
+Current State of Quantum Programming:
+
+  +--------------------------------------------------+
+  |           Quantum Programming Frameworks           |
+  +--------------+--------------+------------------+
+  | Qiskit       | Cirq          | Q#              |
+  | (IBM)        | (Google)      | (Microsoft)     |
+  +--------------+--------------+------------------+
+  | Python       | Python        | Proprietary     |
+  | based        | based         | language         |
+  |              |               | (F#-like)        |
+  |              |               |                  |
+  | Circuit      | Circuit       | High-level       |
+  | construction | construction  | quantum          |
+  | + execution  | + simulator   | algorithms       |
+  +--------------+--------------+------------------+
+
+  Quantum-Classical Hybrid:
+  +--------------------------------------------------+
+  |                                                   |
+  |   Classical Computer        Quantum Computer      |
+  |   +--------------+      +--------------+         |
+  |   | Control flow  | ---> | Quantum      |         |
+  |   | Data pre-     |      | circuit exec |         |
+  |   | processing    |      | Superposition|         |
+  |   | Result        | <--- | Measurement  |         |
+  |   | interpretation|      |              |         |
+  |   +--------------+      +--------------+         |
+  |                                                   |
+  |   Future languages must be able to seamlessly     |
+  |   describe both classical and quantum code        |
+  +--------------------------------------------------+
+```
+
+### 9.2 Challenges in Quantum Programming
+
+```
+Features Required by Quantum Programming Languages:
+
+  1. Qubit Management
+     - Tracking entanglement
+     - Qubit lifetime management
+     - Type-level guarantee of the No-Cloning theorem
+
+  2. Measurement and the Classical/Quantum Boundary
+     - Making wavefunction collapse from measurement explicit
+     - Interaction with classical bits
+
+  3. Error Correction
+     - Abstraction of quantum error correction codes
+     - Integration of noise models
+
+  4. Optimization
+     - Quantum circuit optimization (minimizing gate count)
+     - Optimization of quantum-classical hybrid algorithms
+```
+
+---
+
+## 10. The Democratization of Programming
+
+### 10.1 Relationship with No-Code/Low-Code
+
+```
+Stratification of Programming:
+
+  Abstraction Level
+  ^
+  |  +------------------------+
+  |  | Natural Language        | <- AI Era
+  |  | Programming             |
+  |  | (AI + NL input)         |
+  |  +------------------------+
+  |  | No-Code/Low-Code        | <- Business Users
+  |  | (Visual tools)          |
+  |  +------------------------+
+  |  | High-Level Languages    | <- General Developers
+  |  | (Python, TS, etc.)      |
+  |  +------------------------+
+  |  | Systems Languages       | <- Systems Engineers
+  |  | (Rust, C, Go)           |
+  |  +------------------------+
+  |  | Assembly / LLVM IR      | <- Specialists
+  |  +------------------------+
+  +-----------------------------> Granularity of Control
+
+  Changes in the AI Era:
+  - AI makes it easier to move between layers
+  - "Instruct in natural language -> AI generates
+    high-level code -> Compiler transforms to
+    systems level"
+  - The "entry point" to programming broadens
+    significantly
+  - However, the need for "deep understanding"
+    does not change
+```
+
+### 10.2 The Expansion of Domain-Specific Programming
+
+In the future, each industry is expected to have its own DSL, with domain experts "programming" directly with AI assistance.
+
+```
+Expansion of Domain-Specific Programming:
+
+  +----------+------------------------------------+
+  | Industry | DSL / Specialized Tool Examples     |
+  +----------+------------------------------------+
+  | Finance  | Contract DSL, risk calculation DSL  |
+  | Medical  | Clinical trial protocols,           |
+  |          | diagnostic rules                    |
+  | Legal    | Contract logic,                     |
+  |          | compliance rules                    |
+  | Manufact.| Control logic,                      |
+  |          | quality management rules            |
+  | Education| Curriculum design,                  |
+  |          | learning path definition            |
+  | Agricult.| Irrigation control,                 |
+  |          | harvest optimization                |
+  +----------+------------------------------------+
+
+  Future Vision:
+  "A financial analyst describes a trading strategy
+   in natural language
+   -> AI converts it to type-safe DSL code
+   -> Formal verification guarantees correctness
+   -> Backtesting runs automatically"
+```
+
+---
+
+## 11. Exercises
+
+### 11.1 Beginner: Understanding Concepts
+
+**Exercise 1:** Explain in 2-3 sentences the background of "why" each of the following trends is occurring.
+1. The spread of gradual typing
+2. Government-level demands for memory safety
+3. The expansion of WebAssembly beyond browsers
+4. The normalization of AI code generation
+
+**Exercise 2:** Summarize the design philosophy of each of the following new languages in 1-2 sentences.
 1. Mojo
 2. Gleam
 3. Zig
 4. Carbon
 
-**演習3:** 「言語進化の5つの法則」のうち、以下の現象がどの法則に該当するか答えよ。
-- Go が意図的に機能を制限した設計 → 法則？
-- TypeScript が JavaScript エコシステム上に構築された → 法則？
-- Rust, Kotlin, Swift が全て Option 型を採用した → 法則？
+**Exercise 3:** Among the "Five Laws of Language Evolution," identify which law the following phenomena correspond to.
+- Go's intentionally feature-limited design -> Law ?
+- TypeScript being built on the JavaScript ecosystem -> Law ?
+- Rust, Kotlin, and Swift all adopting the Option type -> Law ?
 
-### 11.2 中級：分析と予測
+### 11.2 Intermediate: Analysis and Prediction
 
-**演習4:** 以下の仮説について、賛成/反対の立場で論拠を3つずつ挙げよ。
+**Exercise 4:** For the following hypothesis, provide 3 arguments for and 3 arguments against.
 
-「10年後、プログラマーの80%は自然言語でプログラミングし、従来のプログラミング言語を直接書くのは20%の専門家に限定される」
+"In 10 years, 80% of programmers will program in natural language, and writing traditional programming languages directly will be limited to 20% of specialists."
 
-**演習5:** AI コード生成ツールと相性が良い言語の条件を5つ挙げ、既存の言語（Rust, TypeScript, Python, Go, Kotlin）をそれぞれ評価せよ。
-
-```
-評価表の例:
-┌────────────────┬──────┬────┬────────┬────┬────────┐
-│ 条件            │ Rust │ TS │ Python │ Go │ Kotlin │
-├────────────────┼──────┼────┼────────┼────┼────────┤
-│ 条件1: ???     │  ?   │ ?  │   ?    │ ?  │   ?    │
-│ 条件2: ???     │  ?   │ ?  │   ?    │ ?  │   ?    │
-│ ...            │      │    │        │    │        │
-└────────────────┴──────┴────┴────────┴────┴────────┘
-```
-
-### 11.3 上級：設計と創造
-
-**演習6:** 2030年に設計する新しい汎用プログラミング言語の仕様を草案せよ。
-
-提出物:
-- 言語名と設計理念（3つの原則）
-- ターゲットドメイン
-- 採用する機能（本章と前章の内容を参照）
-- 採用しない機能とその理由
-- AI協調のための設計上の工夫
-- サンプルコード（Fizz Buzz + Webサーバー程度）
-- 既存言語との差別化ポイント
-
-**演習7:** 以下のシナリオを読み、チームの技術選定を行え。
+**Exercise 5:** List 5 conditions that make a language compatible with AI code generation tools, and evaluate each of the following existing languages (Rust, TypeScript, Python, Go, Kotlin) against them.
 
 ```
-シナリオ:
-┌──────────────────────────────────────────────┐
-│ 2028年、あなたはスタートアップのCTOである。     │
-│ 医療AI支援システムを開発する。                  │
-│                                              │
-│ 要件:                                         │
-│ ・患者データの処理（高いセキュリティ要件）      │
-│ ・リアルタイムの画像解析（GPU処理）             │
-│ ・Web管理画面                                 │
-│ ・モバイルアプリ（iOS/Android）                │
-│ ・規制対応（医療機器ソフトウェア基準）          │
-│ ・チーム: エンジニア10名（経験レベル様々）      │
-│                                              │
-│ 使用可能な技術（2028年時点の想定）:             │
-│ ・Rust, Go, Kotlin, TypeScript, Python, Mojo  │
-│ ・AI支援開発ツール                            │
-│ ・形式検証ツール                              │
-└──────────────────────────────────────────────┘
+Example evaluation table:
++----------------+------+----+--------+----+--------+
+| Condition       | Rust | TS | Python | Go | Kotlin |
++----------------+------+----+--------+----+--------+
+| Condition 1: ???|  ?   | ?  |   ?    | ?  |   ?    |
+| Condition 2: ???|  ?   | ?  |   ?    | ?  |   ?    |
+| ...            |      |    |        |    |        |
++----------------+------+----+--------+----+--------+
 ```
 
-各コンポーネントの言語選定と理由を述べよ。
+### 11.3 Advanced: Design and Creation
+
+**Exercise 6:** Draft the specification for a new general-purpose programming language to be designed in 2030.
+
+Deliverables:
+- Language name and design philosophy (3 principles)
+- Target domain
+- Features to adopt (referencing this and preceding chapters)
+- Features not to adopt and reasons why
+- Design considerations for AI collaboration
+- Sample code (approximately Fizz Buzz + Web server level)
+- Differentiation points from existing languages
+
+**Exercise 7:** Read the following scenario and make a technology selection for the team.
+
+```
+Scenario:
++----------------------------------------------+
+| It is 2028 and you are the CTO of a startup. |
+| You are developing a medical AI assistance    |
+| system.                                       |
+|                                              |
+| Requirements:                                 |
+| - Patient data processing (high security      |
+|   requirements)                               |
+| - Real-time image analysis (GPU processing)   |
+| - Web admin panel                             |
+| - Mobile app (iOS/Android)                    |
+| - Regulatory compliance (medical device       |
+|   software standards)                         |
+| - Team: 10 engineers (varying experience      |
+|   levels)                                     |
+|                                              |
+| Available technologies (projected for 2028):  |
+| - Rust, Go, Kotlin, TypeScript, Python, Mojo  |
+| - AI-assisted development tools               |
+| - Formal verification tools                   |
++----------------------------------------------+
+```
+
+State the language selection and rationale for each component.
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point to focus on when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not through theory alone, but by actually writing code and verifying its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes that beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping ahead to advanced topics. We recommend building a solid understanding of the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this topic applied in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+The knowledge from this topic is frequently applied in everyday development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## 12. まとめ
+## 12. Summary
 
-### 12.1 トレンド総括表
+### 12.1 Trend Summary Table
 
-| トレンド | 方向性 | 影響 | 確実度 |
-|---------|--------|------|--------|
-| 段階的型付け | 動的→静的への移行 | TypeScript, Python型ヒント | 確実 |
-| メモリ安全性 | C/C++ → Rust | 政府レベルの要求 | 確実 |
-| Wasm | ユニバーサルバイナリ | マルチプラットフォーム | 高い |
-| AI協調 | コード生成の日常化 | 型と仕様の重要性増大 | 確実 |
-| 宣言的記述 | What > How | 抽象度の向上 | 高い |
-| 効果システム | 副作用の型追跡 | 次世代言語に影響 | 中程度 |
-| 依存型 | 値依存の型 | 研究→実用化への移行 | 中程度 |
-| 量子言語 | 量子古典ハイブリッド | 新しい計算パラダイム | 不確実 |
+| Trend | Direction | Impact | Certainty |
+|-------|-----------|--------|-----------|
+| Gradual Typing | Dynamic -> Static transition | TypeScript, Python type hints | Certain |
+| Memory Safety | C/C++ -> Rust | Government-level demand | Certain |
+| Wasm | Universal binary | Multi-platform | High |
+| AI Collaboration | Normalization of code generation | Increased importance of types and specs | Certain |
+| Declarative Description | What > How | Increased abstraction | High |
+| Effect Systems | Type-level side effect tracking | Influences next-gen languages | Moderate |
+| Dependent Types | Value-dependent types | Transitioning from research to practice | Moderate |
+| Quantum Languages | Quantum-classical hybrid | New computing paradigm | Uncertain |
 
-### 12.2 核心メッセージ
+### 12.2 Core Message
 
 ```
-プログラミング言語の未来:
+The Future of Programming Languages:
 
-  ┌──────────────────────────────────────────────────┐
-  │                                                  │
-  │  言語は変わるが、原理は変わらない                   │
-  │                                                  │
-  │  ┌────────────────────────────────────────────┐ │
-  │  │ 変わるもの:                                 │ │
-  │  │ ・構文                                      │ │
-  │  │ ・ツールチェーン                             │ │
-  │  │ ・抽象化のレベル                             │ │
-  │  │ ・開発ワークフロー                           │ │
-  │  │ ・AIとの協調方法                             │ │
-  │  ├────────────────────────────────────────────┤ │
-  │  │ 変わらないもの:                              │ │
-  │  │ ・計算理論の基礎（チューリング、ラムダ計算）   │ │
-  │  │ ・アルゴリズムとデータ構造                    │ │
-  │  │ ・型理論（Curry-Howard対応）                 │ │
-  │  │ ・セキュリティの基本原則                      │ │
-  │  │ ・「何を作るべきか」を判断する能力             │ │
-  │  └────────────────────────────────────────────┘ │
-  │                                                  │
-  │  結論: CS基礎の理解は、AI時代にこそ              │
-  │       その価値を増す                              │
-  │                                                  │
-  └──────────────────────────────────────────────────┘
+  +--------------------------------------------------+
+  |                                                   |
+  |  Languages change, but principles do not          |
+  |                                                   |
+  | +-----------------------------------------------+ |
+  | | Things That Change:                            | |
+  | | - Syntax                                       | |
+  | | - Toolchains                                   | |
+  | | - Levels of abstraction                        | |
+  | | - Development workflows                        | |
+  | | - Methods of AI collaboration                  | |
+  | +-----------------------------------------------+ |
+  | | Things That Do Not Change:                     | |
+  | | - Foundations of computation theory             | |
+  | |   (Turing, lambda calculus)                    | |
+  | | - Algorithms and data structures               | |
+  | | - Type theory (Curry-Howard correspondence)    | |
+  | | - Fundamental principles of security           | |
+  | | - The ability to judge "what should be built"  | |
+  | +-----------------------------------------------+ |
+  |                                                   |
+  |  Conclusion: Understanding CS fundamentals        |
+  |              increases in value precisely          |
+  |              in the AI era                         |
+  |                                                   |
+  +--------------------------------------------------+
 ```
 
 ---
 
-## 13. FAQ（よくある質問）
+## 13. FAQ (Frequently Asked Questions)
 
-### Q1: AIがコードを書く時代に、プログラミングを学ぶ意味はありますか？
+### Q1: In an era where AI writes code, is there still a reason to learn programming?
 
-**A:** 間違いなくある。AIが文章を生成できる時代にも「何を書くべきか」を判断する人間の能力は不可欠であるのと同様に、AIがコードを生成できても「何を作るべきか」「生成されたコードは正しいか」「セキュリティやパフォーマンスは十分か」を判断する能力は人間に必要である。さらに、AIの出力の品質を評価するには、プログラミングの深い理解が前提となる。実際には、AIを効果的に活用できるプログラマーの生産性は、AIを使えない/使わないプログラマーと比べて大幅に向上しており、プログラミングスキルの価値はむしろ増している。
+**A:** Absolutely. Just as the ability to judge "what should be written" remains essential for humans even in an era when AI can generate text, the ability to judge "what should be built," "is the generated code correct," and "is the security and performance sufficient" is necessary for humans even when AI can generate code. Furthermore, evaluating the quality of AI output requires a deep understanding of programming as a prerequisite. In practice, the productivity of programmers who can effectively leverage AI has dramatically increased compared to those who cannot or do not use AI, and the value of programming skills has actually grown.
 
-### Q2: 新しい言語を学ぶべきか、既存の言語を深く学ぶべきか、どちらが良いですか？
+### Q2: Is it better to learn a new language or to deepen expertise in an existing language?
 
-**A:** 基本戦略は「T字型スキル」を目指すことである。1つの言語を深く習得し（Tの縦棒）、他の2-3言語の基本を広く知る（Tの横棒）。深く学ぶ言語は、現在のプロジェクトで最も使用する言語を選ぶ。広く知る言語は、異なるパラダイムの言語を選ぶと視野が広がる（例: 手続き型1つ + 関数型1つ + システム言語1つ）。新言語は「サイドプロジェクトで試す」程度に留め、本番プロジェクトへの導入は成熟度を慎重に評価してから行う。
+**A:** The fundamental strategy is to aim for "T-shaped skills." Master one language deeply (the vertical bar of the T) and have a broad familiarity with the basics of 2-3 other languages (the horizontal bar of the T). For the language you study deeply, choose the one most used in your current projects. For languages you study broadly, choosing languages from different paradigms widens your perspective (e.g., one procedural + one functional + one systems language). Try new languages in "side projects" and carefully evaluate maturity before introducing them to production projects.
 
-### Q3: Rustは本当にC/C++を置き換えるのですか？
+### Q3: Will Rust really replace C/C++?
 
-**A:** 完全な置き換えには長い時間がかかるが、新規プロジェクトにおいてRustがC/C++の代わりに選択されるケースは確実に増加している。Linux カーネル、Android、Windows、Chromium でのRust採用は、この流れを加速している。ただし、C/C++の既存コードベースは膨大であり（数十億行規模）、これらの書き換えは数十年単位のプロセスである。現実的なシナリオは「新規コンポーネントはRustで書き、既存のC/C++コードとFFIで連携する」という段階的移行である。COBOL が50年以上経っても使用されている事実を考えれば、C/C++も同様に長期間使用されるだろう。
+**A:** A complete replacement will take a long time, but the number of cases where Rust is chosen over C/C++ for new projects is steadily increasing. Rust adoption in the Linux kernel, Android, Windows, and Chromium is accelerating this trend. However, the existing C/C++ codebase is enormous (on the order of billions of lines), and rewriting it is a process that spans decades. The realistic scenario is an incremental migration where "new components are written in Rust, and existing C/C++ code is integrated via FFI." Considering that COBOL is still in use more than 50 years later, C/C++ will similarly be used for a long time.
 
-### Q4: WebAssembly は Docker を置き換えますか？
+### Q4: Will WebAssembly replace Docker?
 
-**A:** Docker の一部のユースケースを置き換える可能性があるが、完全な代替にはならない。Wasm の強みはサンドボックス実行、高速な起動時間（ミリ秒単位）、小さなバイナリサイズである。エッジコンピューティングやサーバーレス関数のような軽量ワークロードでは、Wasm が Docker より適している場合がある。Solomon Hykes（Docker共同創設者）は「もし2008年にWasmがあれば、Dockerを作る必要はなかった」と述べた。ただし、Docker は完全なLinux環境のエミュレーション、既存アプリケーションのコンテナ化、複雑なネットワーク構成など、Wasm がカバーしない多くの機能を提供している。両者は競合するよりも、適材適所で共存する方向に進んでいる。
+**A:** It has the potential to replace some Docker use cases, but will not be a complete substitute. Wasm's strengths are sandboxed execution, fast startup times (on the order of milliseconds), and small binary sizes. For lightweight workloads like edge computing or serverless functions, Wasm may be more suitable than Docker. Solomon Hykes (Docker co-founder) said, "If WASM+WASI existed in 2008, we wouldn't have needed to create Docker." However, Docker provides many features that Wasm does not cover, including full Linux environment emulation, containerization of existing applications, and complex network configurations. The two are moving toward coexistence in their respective niches rather than competing.
 
-### Q5: 効果システムや依存型は実用的な言語に導入されますか？
+### Q5: Will effect systems and dependent types be introduced into practical languages?
 
-**A:** 段階的に導入されつつある。効果システムの概念は、Kotlin の coroutine（`suspend` 修飾子は一種の効果注釈）、Java の checked exception（効果の粗い近似）、Rust の `async`（非同期効果）として部分的に既存言語に組み込まれている。完全な効果システムは Koka や Unison など研究寄りの言語で実用化段階に入っている。依存型については、TypeScript の型レベルプログラミング（テンプレートリテラル型、条件型）が「依存型の近似」として実用的に使われている。完全な依存型は Lean 4 が数学の形式化ツールとして実用化されている。主流言語への完全な導入にはまだ5-10年かかると予想されるが、部分的な導入は既に進行中である。
-
----
-
-## 次に読むべきガイド
-
+**A:** They are being introduced incrementally. The concept of effect systems is already partially embedded in existing languages through Kotlin coroutines (the `suspend` modifier is a form of effect annotation), Java's checked exceptions (a coarse approximation of effects), and Rust's `async` (an async effect). Full effect systems have reached the practical stage in research-oriented languages like Koka and Unison. For dependent types, TypeScript's type-level programming (template literal types, conditional types) is being used practically as an "approximation of dependent types." Full dependent types are being used practically in Lean 4 as a tool for mathematical formalization. Complete introduction into mainstream languages is expected to take another 5-10 years, but partial introduction is already underway.
 
 ---
 
-## 参考文献
+## Recommended Next Guides
 
-1. The White House, Office of the National Cyber Director. "Back to the Building Blocks: A Path Toward Secure and Measurable Software." February 2024. - メモリ安全でないプログラミング言語からの移行を推奨する米国政府の報告書。言語選択がセキュリティ政策の一部として認識された歴史的文書。
-2. Haas, A. et al. "Bringing the Web up to Speed with WebAssembly." Proceedings of the 38th ACM SIGPLAN Conference on Programming Language Design and Implementation, 2017. - WebAssembly の設計思想と技術的基盤を解説した論文。Wasm の性能特性とセキュリティモデルを詳述。
-3. JetBrains. "The State of Developer Ecosystem." Annual Survey, 2024. - 世界中の開発者を対象とした大規模調査。言語の採用動向、ツールの使用状況、開発トレンドのデータを提供。
-4. Lattner, C. "Mojo: A New Programming Language for AI." Modular, 2023. - Mojo の設計意図と技術的決定を解説。Python互換性と高性能の両立に関する設計判断を詳述。
-5. Siek, J. and Taha, W. "Gradual Typing for Functional Languages." Scheme and Functional Programming Workshop, 2006. - 段階的型付けの理論的基礎を確立した論文。動的型付けと静的型付けの統合に関する形式的枠組みを提示。
 
 ---
 
-## 用語集
+## References
 
-| 用語 | 説明 |
-|------|------|
-| 段階的型付け (Gradual Typing) | 動的型付けと静的型付けを混在させる手法 |
-| メモリ安全性 (Memory Safety) | バッファオーバーフローやダングリングポインタが発生しない保証 |
-| WebAssembly (Wasm) | ポータブルなバイナリ命令フォーマット |
-| WASI | WebAssembly System Interface。Wasm にOS機能を提供する標準 |
-| 効果システム (Effect System) | 関数の副作用を型で追跡する仕組み |
-| 依存型 (Dependent Types) | 値に依存する型を記述できる型システム |
-| 線形型 (Linear Types) | 値がちょうど1回だけ使用されることを保証する型 |
-| 形式検証 (Formal Verification) | プログラムの正しさを数学的に証明する手法 |
-| 所有権 (Ownership) | Rust の値の所有と借用に関するメモリ管理モデル |
-| 収斂進化 (Convergent Evolution) | 異なる系統が独立に類似した特徴を発達させる現象 |
-| ノーコード/ローコード | ビジュアルツールでアプリケーションを構築する手法 |
-| 量子コンピューティング | 量子力学の原理を利用した計算パラダイム |
-| カリー・ハワード対応 | 型と論理命題、プログラムと証明の対応関係 |
-| T字型スキル | 一分野の深い専門性と、複数分野の幅広い知識を持つスキルモデル |
-| Phantom Type | データを格納しないが状態追跡に用いる型パラメータ |
+1. The White House, Office of the National Cyber Director. "Back to the Building Blocks: A Path Toward Secure and Measurable Software." February 2024. - A U.S. government report recommending the transition away from memory-unsafe programming languages. A historic document recognizing language choice as part of security policy.
+2. Haas, A. et al. "Bringing the Web up to Speed with WebAssembly." Proceedings of the 38th ACM SIGPLAN Conference on Programming Language Design and Implementation, 2017. - A paper explaining the design philosophy and technical foundation of WebAssembly. Details Wasm's performance characteristics and security model.
+3. JetBrains. "The State of Developer Ecosystem." Annual Survey, 2024. - A large-scale survey of developers worldwide. Provides data on language adoption trends, tool usage, and development trends.
+4. Lattner, C. "Mojo: A New Programming Language for AI." Modular, 2023. - Explains the design intent and technical decisions behind Mojo. Details the design decisions for achieving both Python compatibility and high performance.
+5. Siek, J. and Taha, W. "Gradual Typing for Functional Languages." Scheme and Functional Programming Workshop, 2006. - The paper that established the theoretical foundation of gradual typing. Presents a formal framework for integrating dynamic and static typing.
+
+---
+
+## Glossary
+
+| Term | Description |
+|------|-------------|
+| Gradual Typing | A technique for mixing dynamic and static typing |
+| Memory Safety | A guarantee that buffer overflows and dangling pointers do not occur |
+| WebAssembly (Wasm) | A portable binary instruction format |
+| WASI | WebAssembly System Interface. A standard that provides OS capabilities to Wasm |
+| Effect System | A mechanism for tracking function side effects via types |
+| Dependent Types | A type system that can describe types depending on values |
+| Linear Types | Types that guarantee a value is used exactly once |
+| Formal Verification | A technique for mathematically proving program correctness |
+| Ownership | Rust's memory management model based on value ownership and borrowing |
+| Convergent Evolution | A phenomenon where different lineages independently develop similar characteristics |
+| No-Code/Low-Code | A technique for building applications with visual tools |
+| Quantum Computing | A computing paradigm utilizing the principles of quantum mechanics |
+| Curry-Howard Correspondence | The correspondence between types and logical propositions, and programs and proofs |
+| T-Shaped Skills | A skill model characterized by deep expertise in one area and broad knowledge across multiple areas |
+| Phantom Type | A type parameter that holds no data but is used for state tracking |

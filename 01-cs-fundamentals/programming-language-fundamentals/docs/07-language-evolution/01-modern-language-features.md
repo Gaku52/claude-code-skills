@@ -1,51 +1,52 @@
-# モダン言語の共通機能
+# Common Features of Modern Languages
 
-> 2010年代以降の主要言語は、過去数十年の研究と失敗から学び、共通する「ベストプラクティス」を標準装備として取り込んでいる。本章ではこれらの共通機能を網羅的に解説し、各機能の理論的背景、言語間比較、実装パターンまで深掘りする。
+> Since the 2010s, major programming languages have learned from decades of research and failures, incorporating shared "best practices" as standard features. This chapter provides a comprehensive explanation of these common features, delving into the theoretical background, cross-language comparisons, and implementation patterns of each.
 
-## この章で学ぶこと
+## Learning Objectives
 
-- [ ] モダン言語に共通する10大機能を正確に把握する
-- [ ] 各機能がどの言語・研究に由来するか歴史的系譜を理解する
-- [ ] 型推論・Null安全・パターンマッチなどの本質的な仕組みを説明できる
-- [ ] 言語選択時に機能の成熟度を評価できるようになる
-- [ ] async/await・ADT・イミュータビリティの設計意図を実コードで示せる
-- [ ] 2020年代のトレンド（段階的型付け・AI協調・Wasm）を展望できる
+- [ ] Accurately understand the 10 major features common to modern languages
+- [ ] Understand the historical lineage of each feature and which languages/research it originated from
+- [ ] Be able to explain the essential mechanisms of type inference, null safety, pattern matching, and more
+- [ ] Be able to evaluate feature maturity when choosing a language
+- [ ] Be able to demonstrate the design intent of async/await, ADTs, and immutability with real code
+- [ ] Be able to discuss trends of the 2020s (gradual typing, AI collaboration, Wasm)
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, having the following knowledge will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [プログラミング言語の歴史](./00-history-of-languages.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Familiarity with the content of [History of Programming Languages](./00-history-of-languages.md)
 
 ---
 
-## 1. モダン言語とは何か：定義と背景
+## 1. What Are Modern Languages: Definition and Background
 
-### 1.1 「モダン言語」の定義
+### 1.1 Definition of "Modern Language"
 
-「モダン言語」に厳密な定義は存在しないが、ここでは以下の条件を満たす言語を指す。
+There is no strict definition of "modern language," but here we refer to languages that satisfy the following conditions:
 
 ```
-モダン言語の条件:
+Conditions for a Modern Language:
 +----------------------------------------------------+
-| 1. 静的型付け or 段階的型付けを備える                 |
-| 2. メモリ安全性を言語レベルで保証する仕組みがある       |
-| 3. Null安全またはOption/Maybe型を提供する             |
-| 4. パッケージマネージャが公式に統合されている           |
-| 5. 非同期処理の言語レベルサポートがある                |
-| 6. パターンマッチまたは類似の構造分解機能がある         |
-| 7. 充実したツールチェーン（フォーマッタ・リンター）     |
+| 1. Has static typing or gradual typing              |
+| 2. Has a mechanism to guarantee memory safety       |
+|    at the language level                            |
+| 3. Provides null safety or Option/Maybe types       |
+| 4. Has an officially integrated package manager     |
+| 5. Has language-level support for async processing  |
+| 6. Has pattern matching or similar destructuring    |
+| 7. Rich toolchain (formatter, linter)               |
 +----------------------------------------------------+
 ```
 
-### 1.2 言語世代の分類
+### 1.2 Classification of Language Generations
 
 ```
 +------------------+------------------+------------------+------------------+
-|   第1世代        |   第2世代        |   第3世代        |   第4世代        |
+|   1st Generation |   2nd Generation |   3rd Generation |   4th Generation |
 |   (1950-70s)     |   (1980-90s)     |   (2000-10s)     |   (2010s-)       |
 +------------------+------------------+------------------+------------------+
 | FORTRAN          | C++              | Java             | Rust (2015)      |
@@ -54,137 +55,138 @@
 | Algol            | Ruby             | Go               | TypeScript(2012) |
 | ML               | Haskell          | Clojure          | Zig (2016)       |
 +------------------+------------------+------------------+------------------+
-| 計算の基礎       | OOP / スクリプト  | VM / GC成熟      | 安全性+生産性    |
+| Foundations of   | OOP / Scripting  | VM / Mature GC   | Safety +         |
+| computation      |                  |                  | Productivity     |
 +------------------+------------------+------------------+------------------+
 ```
 
-第4世代の言語が共通して採用する機能群が、本章の主題である。
+The set of features commonly adopted by 4th generation languages is the main subject of this chapter.
 
-### 1.3 収斂進化としての言語設計
+### 1.3 Language Design as Convergent Evolution
 
-生物学における収斂進化（異なる系統の生物が類似した形質を独立に発達させる現象）と同様に、異なる設計思想を持つ言語が同じ機能に到達している。これは偶然ではなく、ソフトウェア工学の大規模な社会実験の結果として「何が本当に有用か」が明らかになった証拠である。
+Just as convergent evolution in biology (a phenomenon where organisms from different lineages independently develop similar traits), languages with different design philosophies have arrived at the same features. This is not a coincidence but rather evidence that "what is truly useful" has been revealed through large-scale social experiments in software engineering.
 
 ```
-       関数型言語の系譜                 手続き型/OOP言語の系譜
-       ┌─────────────┐                 ┌─────────────┐
-       │ ML (1973)   │                 │ C (1972)    │
-       └──────┬──────┘                 └──────┬──────┘
-              │                                │
-       ┌──────┴──────┐                 ┌──────┴──────┐
-       │Haskell(1990)│                 │ C++ (1985)  │
-       └──────┬──────┘                 └──────┬──────┘
-              │                                │
-              │    ┌───────────────────┐       │
-              └───►│ 収斂進化の結果     │◄──────┘
-                   │ ・型推論           │
-                   │ ・Null安全         │
-                   │ ・パターンマッチ    │
-                   │ ・不変デフォルト    │
-                   │ ・ADT             │
-                   └───────────────────┘
-                           │
-              ┌────────────┼────────────┐
-              ▼            ▼            ▼
-         ┌────────┐  ┌────────┐  ┌────────┐
-         │ Rust   │  │ Kotlin │  │ Swift  │
-         └────────┘  └────────┘  └────────┘
+       Functional language lineage          Procedural/OOP language lineage
+       +---------------+                   +---------------+
+       | ML (1973)     |                   | C (1972)      |
+       +-------+-------+                   +-------+-------+
+               |                                   |
+       +-------+-------+                   +-------+-------+
+       |Haskell (1990) |                   | C++ (1985)    |
+       +-------+-------+                   +-------+-------+
+               |                                   |
+               |    +---------------------+        |
+               +--->| Convergent Evolution |<-------+
+                    | - Type inference     |
+                    | - Null safety        |
+                    | - Pattern matching   |
+                    | - Immutable default  |
+                    | - ADT               |
+                    +---------------------+
+                            |
+               +------------+------------+
+               v            v            v
+          +--------+   +--------+   +--------+
+          | Rust   |   | Kotlin |   | Swift  |
+          +--------+   +--------+   +--------+
 ```
 
 ---
 
-## 2. モダン言語の10大標準機能
+## 2. The 10 Standard Features of Modern Languages
 
-### 2.1 型推論（Type Inference）
+### 2.1 Type Inference
 
-#### 2.1.1 概要と歴史
+#### 2.1.1 Overview and History
 
-型推論とは、プログラマが明示的に型を書かなくても、コンパイラが文脈から型を自動的に決定する仕組みである。
+Type inference is a mechanism by which the compiler automatically determines types from context, without the programmer explicitly writing type annotations.
 
-**歴史的系譜:**
-- 1958年: Hindley が論理学で型推論の基礎理論を提示
-- 1973年: ML言語で Algorithm W（Hindley-Milner 型推論）を実装
-- 1990年: Haskell が完全な型推論を標準装備
-- 2004年: C# 3.0 で `var` キーワード導入
-- 2012年: TypeScript が Flow Analysis ベースの型推論を採用
-- 2015年: Rust が局所型推論 + trait制約推論を実装
+**Historical lineage:**
+- 1958: Hindley presented the foundational theory of type inference in logic
+- 1973: Algorithm W (Hindley-Milner type inference) implemented in the ML language
+- 1990: Haskell equipped full type inference as standard
+- 2004: C# 3.0 introduced the `var` keyword
+- 2012: TypeScript adopted flow analysis-based type inference
+- 2015: Rust implemented local type inference + trait constraint inference
 
-#### 2.1.2 型推論のアルゴリズム分類
+#### 2.1.2 Classification of Type Inference Algorithms
 
 ```
-型推論アルゴリズムの分類:
+Classification of Type Inference Algorithms:
 
-┌───────────────────────────────────────────────────┐
-│              完全型推論                             │
-│    (プログラム全体の型注釈が不要)                     │
-│    例: Haskell, ML, OCaml                          │
-├───────────────────────────────────────────────────┤
-│              局所型推論                             │
-│    (関数シグネチャは必要、本体内は推論)               │
-│    例: Rust, Scala, TypeScript                     │
-├───────────────────────────────────────────────────┤
-│              限定的型推論                           │
-│    (変数初期化時のみ推論)                            │
-│    例: C++ (auto), Java (var), Go (:=)             │
-├───────────────────────────────────────────────────┤
-│              段階的型推論                           │
-│    (型注釈を任意に追加可能)                          │
-│    例: TypeScript, mypy (Python)                   │
-└───────────────────────────────────────────────────┘
++---------------------------------------------------+
+|              Full Type Inference                   |
+|    (No type annotations needed for entire program)|
+|    Examples: Haskell, ML, OCaml                   |
++---------------------------------------------------+
+|              Local Type Inference                  |
+|    (Function signatures required, body inferred)  |
+|    Examples: Rust, Scala, TypeScript              |
++---------------------------------------------------+
+|              Limited Type Inference                |
+|    (Only inferred at variable initialization)     |
+|    Examples: C++ (auto), Java (var), Go (:=)      |
++---------------------------------------------------+
+|              Gradual Type Inference                |
+|    (Type annotations can be added optionally)     |
+|    Examples: TypeScript, mypy (Python)            |
++---------------------------------------------------+
 ```
 
-#### 2.1.3 言語別コード比較
+#### 2.1.3 Code Comparison Across Languages
 
-**コード例1: 各言語の型推論**
+**Code Example 1: Type Inference in Various Languages**
 
 ```rust
-// Rust: 局所型推論
+// Rust: Local type inference
 fn calculate_total(items: Vec<f64>) -> f64 {
-    let subtotal = items.iter().sum::<f64>();  // f64 と推論
-    let tax_rate = 0.1;                        // f64 と推論
-    let tax = subtotal * tax_rate;             // f64 と推論
-    subtotal + tax                             // 戻り値型は明示
+    let subtotal = items.iter().sum::<f64>();  // Inferred as f64
+    let tax_rate = 0.1;                        // Inferred as f64
+    let tax = subtotal * tax_rate;             // Inferred as f64
+    subtotal + tax                             // Return type is explicit
 }
 ```
 
 ```kotlin
-// Kotlin: 局所型推論 + スマートキャスト
+// Kotlin: Local type inference + smart cast
 fun processInput(input: Any): String {
-    val result = when (input) {          // String と推論
-        is Int -> "整数: ${input * 2}"   // スマートキャスト: Any -> Int
-        is String -> "文字列: ${input.uppercase()}"
-        is List<*> -> "リスト: ${input.size}件"
-        else -> "不明な型"
+    val result = when (input) {          // Inferred as String
+        is Int -> "Integer: ${input * 2}"   // Smart cast: Any -> Int
+        is String -> "String: ${input.uppercase()}"
+        is List<*> -> "List: ${input.size} items"
+        else -> "Unknown type"
     }
     return result
 }
 ```
 
 ```typescript
-// TypeScript: Flow Analysis ベースの型推論
+// TypeScript: Flow analysis-based type inference
 function processData(data: unknown) {
     if (typeof data === "string") {
-        // この時点で data は string に絞り込まれる
+        // At this point, data is narrowed to string
         console.log(data.toUpperCase());
     } else if (Array.isArray(data)) {
-        // この時点で data は any[] に絞り込まれる
+        // At this point, data is narrowed to any[]
         console.log(data.length);
     }
 }
 
-// 複雑な推論
+// Complex inference
 const transform = <T, U>(arr: T[], fn: (item: T) => U) => arr.map(fn);
 const result = transform([1, 2, 3], x => x.toString());
-// result の型: string[] と推論される
+// Type of result: inferred as string[]
 ```
 
 ```go
-// Go: 限定的型推論（短縮変数宣言）
+// Go: Limited type inference (short variable declaration)
 func processOrder() {
-    price := 100.0          // float64 と推論
-    quantity := 3            // int と推論
-    total := price * float64(quantity)  // float64 と推論
+    price := 100.0          // Inferred as float64
+    quantity := 3            // Inferred as int
+    total := price * float64(quantity)  // Inferred as float64
 
-    // 構造体リテラルも推論される
+    // Struct literals are also inferred
     order := struct {
         Total    float64
         Currency string
@@ -195,125 +197,126 @@ func processOrder() {
 ```
 
 ```swift
-// Swift: 双方向型推論
-let numbers = [1, 2, 3, 4, 5]          // [Int] と推論
-let doubled = numbers.map { $0 * 2 }    // [Int] と推論
+// Swift: Bidirectional type inference
+let numbers = [1, 2, 3, 4, 5]          // Inferred as [Int]
+let doubled = numbers.map { $0 * 2 }    // Inferred as [Int]
 
-// ジェネリクスと組み合わせた推論
+// Inference combined with generics
 func findFirst<T: Comparable>(_ array: [T], where predicate: (T) -> Bool) -> T? {
     array.first(where: predicate)
 }
 
-let firstEven = findFirst(numbers) { $0 % 2 == 0 }  // Int? と推論
+let firstEven = findFirst(numbers) { $0 % 2 == 0 }  // Inferred as Int?
 ```
 
-#### 2.1.4 型推論の比較表
+#### 2.1.4 Type Inference Comparison Table
 
-| 特性 | Rust | TypeScript | Kotlin | Go | Swift | Haskell |
+| Characteristic | Rust | TypeScript | Kotlin | Go | Swift | Haskell |
 |------|------|-----------|--------|-----|-------|---------|
-| 推論範囲 | 局所 | 段階的 | 局所 | 限定 | 局所 | 完全 |
-| 関数シグネチャ | 必須 | 任意 | 必須 | 必須 | 必須 | 任意 |
-| ジェネリクス推論 | 強力 | 強力 | 強力 | 限定 | 強力 | 完全 |
-| 相互再帰推論 | 不可 | 不可 | 不可 | 不可 | 不可 | 可能 |
-| 型推論速度 | 速い | 中程度 | 速い | 速い | 中程度 | 遅い場合あり |
-| エラーメッセージ | 優秀 | 良好 | 良好 | 簡潔 | 良好 | 難解な場合あり |
+| Inference Scope | Local | Gradual | Local | Limited | Local | Full |
+| Function Signature | Required | Optional | Required | Required | Required | Optional |
+| Generics Inference | Powerful | Powerful | Powerful | Limited | Powerful | Full |
+| Mutual Recursion Inference | No | No | No | No | No | Yes |
+| Inference Speed | Fast | Moderate | Fast | Fast | Moderate | Can be slow |
+| Error Messages | Excellent | Good | Good | Concise | Good | Can be cryptic |
 
-### 2.2 Null安全（Null Safety）
+### 2.2 Null Safety
 
-#### 2.2.1 「10億ドルの間違い」
+#### 2.2.1 "The Billion Dollar Mistake"
 
-Tony Hoare は 1965年に ALGOL W で null 参照を導入した。2009年の QCon 講演で彼はこれを「10億ドルの間違い」と呼んだ。null 参照はあらゆるプログラミング言語に伝播し、数え切れないバグ・クラッシュ・セキュリティ脆弱性の原因となった。
+Tony Hoare introduced the null reference in ALGOL W in 1965. In his 2009 QCon talk, he called it "the billion dollar mistake." Null references propagated to virtually every programming language, causing countless bugs, crashes, and security vulnerabilities.
 
 ```
-Null参照の問題:
+The Problem with Null References:
 
-  従来のコード（Java）:
-  ┌─────────────────────────────────┐
-  │ String name = user.getName();   │ ← user が null なら NPE
-  │ int len = name.length();        │ ← name が null なら NPE
-  │ // 2箇所の爆弾が潜んでいる      │
-  └─────────────────────────────────┘
+  Traditional code (Java):
+  +---------------------------------+
+  | String name = user.getName();   | <- NPE if user is null
+  | int len = name.length();        | <- NPE if name is null
+  | // Two hidden bombs              |
+  +---------------------------------+
 
-  モダンなコード（Kotlin）:
-  ┌─────────────────────────────────┐
-  │ val name: String? = user?.name  │ ← 型で null可能性を表現
-  │ val len: Int = name?.length ?: 0│ ← 安全な呼び出し + デフォルト値
-  │ // コンパイル時に安全性を保証    │
-  └─────────────────────────────────┘
+  Modern code (Kotlin):
+  +---------------------------------+
+  | val name: String? = user?.name  | <- Nullability expressed in the type
+  | val len: Int = name?.length ?: 0| <- Safe call + default value
+  | // Safety guaranteed at compile  |
+  | //   time                        |
+  +---------------------------------+
 ```
 
-#### 2.2.2 Null安全の実装パターン
+#### 2.2.2 Implementation Patterns for Null Safety
 
-**コード例2: 各言語のNull安全**
+**Code Example 2: Null Safety in Various Languages**
 
 ```rust
-// Rust: Option<T> 型
+// Rust: Option<T> type
 fn find_user(id: u64) -> Option<User> {
     let db = get_database();
     db.users.get(&id).cloned()
 }
 
 fn get_user_email(id: u64) -> String {
-    // パターンマッチによる安全な分岐
+    // Safe branching via pattern matching
     match find_user(id) {
         Some(user) => user.email,
         None => String::from("unknown@example.com"),
     }
 
-    // メソッドチェーンによる簡潔な記述
+    // Concise notation via method chaining
     // find_user(id)
     //     .map(|u| u.email)
     //     .unwrap_or_else(|| String::from("unknown@example.com"))
 }
 
-// ? 演算子による早期リターン
+// Early return with the ? operator
 fn process_order(user_id: u64, item_id: u64) -> Option<Receipt> {
-    let user = find_user(user_id)?;        // None なら即 return None
-    let item = find_item(item_id)?;        // None なら即 return None
-    let payment = process_payment(&user)?;  // None なら即 return None
+    let user = find_user(user_id)?;        // Returns None immediately if None
+    let item = find_item(item_id)?;        // Returns None immediately if None
+    let payment = process_payment(&user)?;  // Returns None immediately if None
     Some(Receipt::new(user, item, payment))
 }
 ```
 
 ```kotlin
-// Kotlin: Nullable型 (?記法)
+// Kotlin: Nullable types (? notation)
 fun processUserProfile(userId: Long): String {
     val user: User? = findUser(userId)
 
-    // 安全呼び出し演算子 ?.
+    // Safe call operator ?.
     val nameLength: Int? = user?.name?.length
 
-    // エルビス演算子 ?:
+    // Elvis operator ?:
     val displayName: String = user?.name ?: "Anonymous"
 
-    // スマートキャスト（nullチェック後は自動的にNon-null扱い）
+    // Smart cast (automatically treated as non-null after null check)
     if (user != null) {
-        // ここでは user は User 型（User? ではない）
+        // Here user is of type User (not User?)
         println("Welcome, ${user.name}")
     }
 
-    // let スコープ関数との組み合わせ
+    // Combination with let scope function
     return user?.let { u ->
         "${u.name} (${u.email})"
-    } ?: "ユーザーが見つかりません"
+    } ?: "User not found"
 }
 ```
 
 ```swift
-// Swift: Optional型
+// Swift: Optional type
 func fetchAndDisplayUser(id: Int) -> String {
     guard let user = findUser(id: id) else {
-        return "ユーザーが見つかりません"
+        return "User not found"
     }
-    // guard let 以降、user は非Optional として使用可能
+    // After guard let, user can be used as non-Optional
 
     // Optional chaining
     let city: String? = user.address?.city
 
-    // nil合体演算子
-    let displayCity = city ?? "未設定"
+    // Nil coalescing operator
+    let displayCity = city ?? "Not set"
 
-    // if let による安全なアンラップ
+    // Safe unwrapping with if let
     if let email = user.email {
         sendNotification(to: email)
     }
@@ -328,62 +331,63 @@ function processConfig(config: Config | undefined): Result {
     // Optional chaining
     const timeout = config?.network?.timeout ?? 3000;
 
-    // 型ガード
+    // Type guard
     if (config === undefined) {
-        return { status: "error", message: "設定がありません" };
+        return { status: "error", message: "No configuration provided" };
     }
-    // 以降 config は Config 型に絞り込まれる
+    // From here, config is narrowed to Config type
 
-    // Non-null assertion（使用は最小限に）
-    // const value = config!.value;  // 危険: 実行時エラーの可能性
+    // Non-null assertion (use sparingly)
+    // const value = config!.value;  // Dangerous: potential runtime error
 
     return { status: "ok", data: applyConfig(config) };
 }
 ```
 
-#### 2.2.3 Null安全パターンの比較表
+#### 2.2.3 Null Safety Pattern Comparison Table
 
-| 特性 | Rust (Option) | Kotlin (?) | Swift (Optional) | TypeScript (strict) |
+| Characteristic | Rust (Option) | Kotlin (?) | Swift (Optional) | TypeScript (strict) |
 |------|-------------|-----------|-----------------|-------------------|
-| 表現方法 | `Option<T>` | `T?` | `T?` / `Optional<T>` | `T \| undefined` |
-| 安全なアクセス | `.map()` / `?` | `?.` | `?.` / `if let` | `?.` |
-| デフォルト値 | `.unwrap_or()` | `?:` | `??` | `??` |
-| 強制アンラップ | `.unwrap()` (panic) | `!!` (例外) | `!` (trap) | `!` (型アサーション) |
-| パターンマッチ | `match` / `if let` | `when` | `switch` / `if let` | 型ガード |
-| コンパイル時保証 | 完全 | 完全 | 完全 | tsconfig依存 |
+| Representation | `Option<T>` | `T?` | `T?` / `Optional<T>` | `T \| undefined` |
+| Safe Access | `.map()` / `?` | `?.` | `?.` / `if let` | `?.` |
+| Default Value | `.unwrap_or()` | `?:` | `??` | `??` |
+| Forced Unwrap | `.unwrap()` (panic) | `!!` (exception) | `!` (trap) | `!` (type assertion) |
+| Pattern Matching | `match` / `if let` | `when` | `switch` / `if let` | Type guards |
+| Compile-time Guarantee | Complete | Complete | Complete | Depends on tsconfig |
 
-### 2.3 パターンマッチ（Pattern Matching）
+### 2.3 Pattern Matching
 
-#### 2.3.1 パターンマッチの本質
+#### 2.3.1 The Essence of Pattern Matching
 
-パターンマッチは単なる `switch` 文の拡張ではない。データの構造を分解しながら条件分岐する強力な機構であり、以下の3つの機能を統合したものである。
+Pattern matching is not merely an extension of `switch` statements. It is a powerful mechanism that performs conditional branching while destructuring data, integrating the following three capabilities:
 
-1. **条件分岐**: 値の種類による分岐
-2. **分解束縛（Destructuring）**: 複合データから要素を取り出す
-3. **網羅性検査（Exhaustiveness Check）**: 全パターンを網羅しているかコンパイル時に検証
+1. **Conditional branching**: Branching based on the type of value
+2. **Destructuring binding**: Extracting elements from compound data
+3. **Exhaustiveness checking**: Verifying at compile time that all patterns are covered
 
 ```
-パターンマッチの構造:
+Structure of Pattern Matching:
 
-  ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-  │  条件分岐     │  +  │  分解束縛     │  +  │  網羅性検査   │
-  │  (if/switch)  │     │  (destruct)  │     │  (exhaustive) │
-  └──────┬───────┘     └──────┬───────┘     └──────┬───────┘
-         │                    │                    │
-         └────────────────────┼────────────────────┘
-                              │
-                    ┌─────────┴─────────┐
-                    │  パターンマッチ      │
-                    │  match / when      │
-                    └───────────────────┘
+  +----------------+     +----------------+     +----------------+
+  | Conditional    |  +  | Destructuring  |  +  | Exhaustiveness |
+  | branching      |     | binding        |     | checking       |
+  | (if/switch)    |     | (destruct)     |     | (exhaustive)   |
+  +-------+--------+     +-------+--------+     +-------+--------+
+          |                      |                      |
+          +----------------------+----------------------+
+                                 |
+                       +---------+---------+
+                       |  Pattern Matching  |
+                       |  match / when      |
+                       +-------------------+
 ```
 
-#### 2.3.2 パターンの種類
+#### 2.3.2 Types of Patterns
 
-**コード例3: Rustのパターンマッチ全パターン**
+**Code Example 3: All Pattern Types in Rust**
 
 ```rust
-// --- 様々なパターンの種類 ---
+// --- Various types of patterns ---
 
 enum Shape {
     Circle { radius: f64 },
@@ -394,100 +398,100 @@ enum Shape {
 
 fn describe_shape(shape: &Shape) -> String {
     match shape {
-        // 構造体パターン + リテラルパターン
+        // Struct pattern + literal pattern
         Shape::Circle { radius } if *radius == 0.0 => {
-            "点（半径ゼロの円）".to_string()
+            "Point (circle with zero radius)".to_string()
         }
 
-        // 構造体パターン + ガード節
+        // Struct pattern + guard clause
         Shape::Circle { radius } if *radius > 100.0 => {
-            format!("巨大な円（半径: {:.1}）", radius)
+            format!("Huge circle (radius: {:.1})", radius)
         }
 
-        // 構造体パターン + 変数束縛
+        // Struct pattern + variable binding
         Shape::Circle { radius } => {
-            format!("円（半径: {:.1}, 面積: {:.1}）", radius, std::f64::consts::PI * radius * radius)
+            format!("Circle (radius: {:.1}, area: {:.1})", radius, std::f64::consts::PI * radius * radius)
         }
 
-        // 複数フィールドの分解
+        // Destructuring multiple fields
         Shape::Rectangle { width, height } if (width - height).abs() < f64::EPSILON => {
-            format!("正方形（辺: {:.1}）", width)
+            format!("Square (side: {:.1})", width)
         }
 
         Shape::Rectangle { width, height } => {
-            format!("長方形（{:.1} x {:.1}）", width, height)
+            format!("Rectangle ({:.1} x {:.1})", width, height)
         }
 
-        // ネストしたパターン
+        // Nested pattern
         Shape::Triangle { base, height } => {
-            format!("三角形（面積: {:.1}）", base * height / 2.0)
+            format!("Triangle (area: {:.1})", base * height / 2.0)
         }
 
-        // ワイルドカードパターン
+        // Wildcard pattern
         Shape::Polygon { sides } if sides.is_empty() => {
-            "無効な多角形".to_string()
+            "Invalid polygon".to_string()
         }
 
         Shape::Polygon { sides } => {
-            format!("{}角形", sides.len())
+            format!("{}-gon", sides.len())
         }
     }
 }
 
-// --- タプルパターン ---
+// --- Tuple pattern ---
 fn classify_point(x: i32, y: i32) -> &'static str {
     match (x.signum(), y.signum()) {
-        (1, 1)   => "第1象限",
-        (-1, 1)  => "第2象限",
-        (-1, -1) => "第3象限",
-        (1, -1)  => "第4象限",
-        (0, 0)   => "原点",
-        (0, _)   => "Y軸上",
-        (_, 0)   => "X軸上",
+        (1, 1)   => "Quadrant I",
+        (-1, 1)  => "Quadrant II",
+        (-1, -1) => "Quadrant III",
+        (1, -1)  => "Quadrant IV",
+        (0, 0)   => "Origin",
+        (0, _)   => "On Y-axis",
+        (_, 0)   => "On X-axis",
         _         => unreachable!(),
     }
 }
 
-// --- OR パターン ---
+// --- OR pattern ---
 fn is_weekend(day: &str) -> bool {
     matches!(day, "Saturday" | "Sunday")
 }
 ```
 
-### 2.4 async/await（非同期処理）
+### 2.4 async/await (Asynchronous Processing)
 
-#### 2.4.1 非同期処理の進化
+#### 2.4.1 Evolution of Asynchronous Processing
 
 ```
-非同期処理の進化:
+Evolution of Asynchronous Processing:
 
-  レベル1: コールバック地獄         レベル2: Promise/Future
-  ┌────────────────────┐          ┌────────────────────┐
-  │ fetchUser(id, (u)=>│          │ fetchUser(id)      │
-  │   fetchOrders(u,   │          │   .then(u =>       │
-  │     (orders) =>    │   →→→    │     fetchOrders(u))│
-  │       render(      │          │   .then(orders =>  │
-  │         orders)    │          │     render(orders))│
-  │   )                │          │   .catch(handleErr)│
-  │ )                  │          │                    │
-  └────────────────────┘          └────────────────────┘
-         ↓                                ↓
-  レベル3: async/await             レベル4: 構造化並行性
-  ┌────────────────────┐          ┌────────────────────┐
-  │ async fn process() │          │ async fn process() │
-  │   let u =          │          │   let (u, c) =     │
-  │     fetchUser(id)  │   →→→    │     join!(         │
-  │     .await;        │          │       fetchUser(), │
-  │   let orders =     │          │       fetchConfig()│
-  │     fetchOrders(u) │          │     ).await;       │
-  │     .await;        │          │   // 並行実行       │
-  │   render(orders);  │          │   process(u, c);   │
-  └────────────────────┘          └────────────────────┘
+  Level 1: Callback Hell            Level 2: Promise/Future
+  +----------------------+         +----------------------+
+  | fetchUser(id, (u)=>  |         | fetchUser(id)        |
+  |   fetchOrders(u,     |         |   .then(u =>         |
+  |     (orders) =>      |  >>>    |     fetchOrders(u))  |
+  |       render(        |         |   .then(orders =>    |
+  |         orders)      |         |     render(orders))  |
+  |   )                  |         |   .catch(handleErr)  |
+  | )                    |         |                      |
+  +----------------------+         +----------------------+
+         |                                |
+  Level 3: async/await              Level 4: Structured Concurrency
+  +----------------------+         +----------------------+
+  | async fn process()   |         | async fn process()   |
+  |   let u =            |         |   let (u, c) =       |
+  |     fetchUser(id)    |  >>>    |     join!(           |
+  |     .await;          |         |       fetchUser(),   |
+  |   let orders =       |         |       fetchConfig()  |
+  |     fetchOrders(u)   |         |     ).await;         |
+  |     .await;          |         |   // Concurrent exec |
+  |   render(orders);    |         |   process(u, c);     |
+  +----------------------+         +----------------------+
 ```
 
-#### 2.4.2 各言語の async/await 実装
+#### 2.4.2 async/await Implementations Across Languages
 
-**コード例4: 各言語の非同期処理**
+**Code Example 4: Asynchronous Processing in Various Languages**
 
 ```rust
 // Rust: Zero-cost async/await
@@ -499,9 +503,9 @@ struct User { name: String, email: String }
 struct Order { id: u64, amount: f64 }
 
 async fn fetch_user(id: u64) -> Result<User, Box<dyn std::error::Error>> {
-    // HTTP リクエストのシミュレーション
+    // Simulating an HTTP request
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-    Ok(User { name: "田中".into(), email: "tanaka@example.com".into() })
+    Ok(User { name: "Tanaka".into(), email: "tanaka@example.com".into() })
 }
 
 async fn fetch_orders(user: &User) -> Result<Vec<Order>, Box<dyn std::error::Error>> {
@@ -512,24 +516,24 @@ async fn fetch_orders(user: &User) -> Result<Vec<Order>, Box<dyn std::error::Err
     ])
 }
 
-// 構造化並行性: 複数の非同期タスクを同時実行
+// Structured concurrency: execute multiple async tasks concurrently
 async fn dashboard(user_id: u64) -> Result<(), Box<dyn std::error::Error>> {
     let user = fetch_user(user_id).await?;
 
-    // join! で並行実行
+    // Concurrent execution with join!
     let (orders, notifications) = tokio::join!(
         fetch_orders(&user),
         fetch_notifications(&user),
     );
 
-    println!("ユーザー: {:?}", user);
-    println!("注文数: {}", orders?.len());
+    println!("User: {:?}", user);
+    println!("Order count: {}", orders?.len());
     Ok(())
 }
 ```
 
 ```python
-# Python: asyncio ベースの async/await
+# Python: asyncio-based async/await
 import asyncio
 from dataclasses import dataclass
 
@@ -544,8 +548,8 @@ class Order:
     amount: float
 
 async def fetch_user(user_id: int) -> User:
-    await asyncio.sleep(0.1)  # I/O シミュレーション
-    return User(name="田中", email="tanaka@example.com")
+    await asyncio.sleep(0.1)  # I/O simulation
+    return User(name="Tanaka", email="tanaka@example.com")
 
 async def fetch_orders(user: User) -> list[Order]:
     await asyncio.sleep(0.05)
@@ -553,27 +557,27 @@ async def fetch_orders(user: User) -> list[Order]:
 
 async def fetch_notifications(user: User) -> list[str]:
     await asyncio.sleep(0.08)
-    return ["新着メッセージ", "セール情報"]
+    return ["New message", "Sale information"]
 
-# 構造化並行性: TaskGroup (Python 3.11+)
+# Structured concurrency: TaskGroup (Python 3.11+)
 async def dashboard(user_id: int):
     user = await fetch_user(user_id)
 
-    # gather で並行実行
+    # Concurrent execution with gather
     orders, notifications = await asyncio.gather(
         fetch_orders(user),
         fetch_notifications(user),
     )
 
-    print(f"ユーザー: {user.name}")
-    print(f"注文数: {len(orders)}")
-    print(f"通知数: {len(notifications)}")
+    print(f"User: {user.name}")
+    print(f"Order count: {len(orders)}")
+    print(f"Notification count: {len(notifications)}")
 
 asyncio.run(dashboard(1))
 ```
 
 ```typescript
-// TypeScript: Promise ベースの async/await
+// TypeScript: Promise-based async/await
 interface User {
     name: string;
     email: string;
@@ -595,66 +599,68 @@ async function fetchOrders(user: User): Promise<Order[]> {
     return response.json();
 }
 
-// 構造化並行性: Promise.all / Promise.allSettled
+// Structured concurrency: Promise.all / Promise.allSettled
 async function dashboard(userId: number): Promise<void> {
     const user = await fetchUser(userId);
 
-    // Promise.allSettled: 一部失敗しても全結果を取得
+    // Promise.allSettled: Get all results even if some fail
     const [ordersResult, notificationsResult] = await Promise.allSettled([
         fetchOrders(user),
         fetchNotifications(user),
     ]);
 
     if (ordersResult.status === "fulfilled") {
-        console.log(`注文数: ${ordersResult.value.length}`);
+        console.log(`Order count: ${ordersResult.value.length}`);
     }
 }
 ```
 
-### 2.5 代数的データ型（Algebraic Data Types）
+### 2.5 Algebraic Data Types (ADT)
 
-#### 2.5.1 ADTの数学的基礎
+#### 2.5.1 Mathematical Foundations of ADTs
 
-代数的データ型は、型を「代数」（加算と乗算）として扱う考え方である。
+Algebraic data types are an approach that treats types as "algebra" (addition and multiplication).
 
 ```
-代数的データ型の構造:
+Structure of Algebraic Data Types:
 
-  直積型 (Product Type) = AND
-  ┌─────────────────────────────────┐
-  │ struct Point { x: f64, y: f64 } │
-  │ 値の数 = f64の値 × f64の値        │
-  │ = AND結合                        │
-  └─────────────────────────────────┘
+  Product Type = AND
+  +---------------------------------+
+  | struct Point { x: f64, y: f64 } |
+  | Number of values = f64 x f64    |
+  | = AND combination               |
+  +---------------------------------+
 
-  直和型 (Sum Type) = OR
-  ┌─────────────────────────────────┐
-  │ enum Shape {                    │
-  │   Circle(f64),                  │
-  │   Rectangle(f64, f64),          │
-  │ }                               │
-  │ 値の数 = f64の値 + (f64 × f64)   │
-  │ = OR結合                        │
-  └─────────────────────────────────┘
+  Sum Type = OR
+  +---------------------------------+
+  | enum Shape {                    |
+  |   Circle(f64),                  |
+  |   Rectangle(f64, f64),          |
+  | }                               |
+  | Number of values = f64 + (f64 x |
+  |   f64)                          |
+  | = OR combination                |
+  +---------------------------------+
 
-  組み合わせ:
-  ┌─────────────────────────────────┐
-  │ 直積型 × 直和型 = 豊かな表現力    │
-  │ Result<T, E> = Ok(T) | Err(E)  │
-  │ Option<T>    = Some(T) | None  │
-  └─────────────────────────────────┘
+  Combination:
+  +---------------------------------+
+  | Product x Sum = Rich            |
+  |   expressiveness                |
+  | Result<T, E> = Ok(T) | Err(E)  |
+  | Option<T>    = Some(T) | None  |
+  +---------------------------------+
 ```
 
-#### 2.5.2 ADTによるドメインモデリング
+#### 2.5.2 Domain Modeling with ADTs
 
-**コード例5: ADTを活用したドメインモデリング**
+**Code Example 5: Domain Modeling Using ADTs**
 
 ```rust
-// --- ECサイトの注文状態をADTで厳密にモデリング ---
+// --- Precise modeling of e-commerce order states with ADTs ---
 
-// 直和型: 注文の状態を完全に列挙
+// Sum type: Exhaustively enumerate order states
 enum OrderStatus {
-    // 各バリアントが異なるデータを持てる
+    // Each variant can hold different data
     Pending {
         created_at: DateTime<Utc>,
     },
@@ -678,7 +684,7 @@ enum OrderStatus {
     },
 }
 
-// 直和型: キャンセル理由
+// Sum type: Cancellation reason
 enum CancellationReason {
     CustomerRequest,
     OutOfStock,
@@ -686,259 +692,261 @@ enum CancellationReason {
     FraudDetected,
 }
 
-// 直和型: 配送業者
+// Sum type: Shipping carrier
 enum Carrier {
     YamatoTransport,
     SagawaExpress,
     JapanPost,
 }
 
-// 直積型: 金額（通貨付き）
+// Product type: Amount with currency
 struct Money {
-    amount: u64,      // セント/円単位
+    amount: u64,      // In cents/yen units
     currency: Currency,
 }
 
 enum Currency { JPY, USD, EUR }
 
-// パターンマッチとADTの組み合わせ
+// Combining pattern matching with ADTs
 fn get_order_summary(status: &OrderStatus) -> String {
     match status {
         OrderStatus::Pending { created_at } => {
-            format!("注文受付中（{}）", created_at.format("%Y/%m/%d"))
+            format!("Order received ({})", created_at.format("%Y/%m/%d"))
         }
         OrderStatus::Confirmed { estimated_delivery, .. } => {
-            format!("確認済み - 配達予定: {}", estimated_delivery.format("%m/%d"))
+            format!("Confirmed - Estimated delivery: {}", estimated_delivery.format("%m/%d"))
         }
         OrderStatus::Shipped { tracking_number, carrier, .. } => {
             let carrier_name = match carrier {
-                Carrier::YamatoTransport => "ヤマト運輸",
-                Carrier::SagawaExpress => "佐川急便",
-                Carrier::JapanPost => "日本郵便",
+                Carrier::YamatoTransport => "Yamato Transport",
+                Carrier::SagawaExpress => "Sagawa Express",
+                Carrier::JapanPost => "Japan Post",
             };
-            format!("配送中 [{}] 追跡: {}", carrier_name, tracking_number)
+            format!("Shipping [{}] Tracking: {}", carrier_name, tracking_number)
         }
         OrderStatus::Delivered { signed_by, .. } => {
             match signed_by {
-                Some(name) => format!("配達完了（受取人: {}）", name),
-                None => "配達完了（置き配）".to_string(),
+                Some(name) => format!("Delivered (signed by: {})", name),
+                None => "Delivered (left at door)".to_string(),
             }
         }
         OrderStatus::Cancelled { reason, refund_amount, .. } => {
             let reason_text = match reason {
-                CancellationReason::CustomerRequest => "お客様のご要望",
-                CancellationReason::OutOfStock => "在庫切れ",
-                CancellationReason::PaymentFailed => "決済エラー",
-                CancellationReason::FraudDetected => "不正検知",
+                CancellationReason::CustomerRequest => "Customer request",
+                CancellationReason::OutOfStock => "Out of stock",
+                CancellationReason::PaymentFailed => "Payment failed",
+                CancellationReason::FraudDetected => "Fraud detected",
             };
             match refund_amount {
-                Some(money) => format!("キャンセル済み（理由: {}, 返金: {}円）", reason_text, money.amount),
-                None => format!("キャンセル済み（理由: {}）", reason_text),
+                Some(money) => format!("Cancelled (reason: {}, refund: {} yen)", reason_text, money.amount),
+                None => format!("Cancelled (reason: {})", reason_text),
             }
         }
     }
 }
 ```
 
-### 2.6 イミュータビリティ優先（Immutability by Default）
+### 2.6 Immutability by Default
 
-#### 2.6.1 なぜイミュータビリティが重要か
+#### 2.6.1 Why Immutability Matters
 
-可変状態（Mutable State）は、以下の問題を引き起こす主要な原因である。
+Mutable state is a primary cause of the following problems:
 
-1. **競合状態（Race Condition）**: 複数スレッドが同じ変数を同時に変更
-2. **予期しない副作用**: 関数が引数を変更してしまう
-3. **推論の困難さ**: 変数の値がいつ変わるか追跡しにくい
-4. **テストの困難さ**: 状態に依存するテストは順序依存になりやすい
+1. **Race conditions**: Multiple threads modifying the same variable simultaneously
+2. **Unexpected side effects**: Functions mutating their arguments
+3. **Difficulty in reasoning**: Hard to track when a variable's value changes
+4. **Difficulty in testing**: State-dependent tests tend to become order-dependent
 
 ```
-可変 vs 不変の世界観:
+Mutable vs. Immutable Worldview:
 
-  可変状態の世界                     不変状態の世界
-  ┌────────────────────┐           ┌────────────────────┐
-  │ 変数A ──→ 値1      │           │ 値A = 1 (固定)      │
-  │   ↓ (代入)         │           │                    │
-  │ 変数A ──→ 値2      │           │ 値B = f(値A) = 2   │
-  │   ↓ (副作用)       │           │                    │
-  │ 変数A ──→ 値3      │           │ 値C = g(値B) = 3   │
-  │                    │           │                    │
-  │ 「今の値は何？」     │           │ 「全ての値が追跡可能」│
-  │  → デバッグが困難   │           │  → 推論が容易       │
-  └────────────────────┘           └────────────────────┘
+  Mutable state world                Immutable state world
+  +----------------------+          +----------------------+
+  | variable A -> value 1 |          | value A = 1 (fixed)  |
+  |   | (assignment)      |          |                      |
+  | variable A -> value 2 |          | value B = f(A) = 2   |
+  |   | (side effect)     |          |                      |
+  | variable A -> value 3 |          | value C = g(B) = 3   |
+  |                       |          |                      |
+  | "What is the current  |          | "All values are      |
+  |  value?"              |          |  traceable"           |
+  |  -> Hard to debug     |          |  -> Easy to reason   |
+  +----------------------+          +----------------------+
 ```
 
-#### 2.6.2 各言語の不変性サポート
+#### 2.6.2 Immutability Support Across Languages
 
-| 言語 | 不変宣言 | 可変宣言 | デフォルト | 深い不変性 |
+| Language | Immutable Declaration | Mutable Declaration | Default | Deep Immutability |
 |------|---------|---------|-----------|-----------|
-| Rust | `let` | `let mut` | 不変 | 部分的（内部可変性） |
+| Rust | `let` | `let mut` | Immutable | Partial (interior mutability) |
 | Kotlin | `val` | `var` | - | `List` vs `MutableList` |
-| Swift | `let` | `var` | - | 値型は深い不変性 |
+| Swift | `let` | `var` | - | Value types have deep immutability |
 | TypeScript | `const` | `let` | - | `readonly` / `as const` |
-| Scala | `val` | `var` | - | 不変コレクション標準 |
-| Haskell | (全て) | `IORef` | 不変 | 完全 |
+| Scala | `val` | `var` | - | Immutable collections standard |
+| Haskell | (everything) | `IORef` | Immutable | Complete |
 
 ---
 
-## 3. 言語横断的な機能マップ
+## 3. Cross-Language Feature Map
 
-### 3.1 機能採用マトリクス
+### 3.1 Feature Adoption Matrix
 
-以下の表は、主要モダン言語がどの機能を採用しているかを示す。
+The following table shows which features are adopted by major modern languages.
 
-| 機能 | Rust | Kotlin | Swift | TypeScript | Go | Python | C# |
+| Feature | Rust | Kotlin | Swift | TypeScript | Go | Python | C# |
 |------|------|--------|-------|-----------|-----|--------|-----|
-| 型推論 | ● | ● | ● | ● | ○ | ○ | ○ |
-| Null安全 | ● | ● | ● | ● | △ | △ | ○ |
-| パターンマッチ | ● | ● | ● | △ | △ | ○ | ● |
+| Type Inference | ● | ● | ● | ● | ○ | ○ | ○ |
+| Null Safety | ● | ● | ● | ● | △ | △ | ○ |
+| Pattern Matching | ● | ● | ● | △ | △ | ○ | ● |
 | async/await | ● | ● | ● | ● | ○* | ● | ● |
 | ADT | ● | ● | ● | ○ | △ | △ | ○ |
-| 不変デフォルト | ● | △ | △ | △ | △ | × | △ |
-| クロージャ | ● | ● | ● | ● | ● | ● | ● |
-| パッケージ管理 | ● | ● | ● | ● | ● | ● | ● |
-| フォーマッタ | ● | ○ | ○ | ○ | ● | ○ | ○ |
-| エラーメッセージ | ● | ○ | ○ | ○ | ○ | ○ | ○ |
+| Immutable Default | ● | △ | △ | △ | △ | × | △ |
+| Closures | ● | ● | ● | ● | ● | ● | ● |
+| Package Management | ● | ● | ● | ● | ● | ● | ● |
+| Formatter | ● | ○ | ○ | ○ | ● | ○ | ○ |
+| Error Messages | ● | ○ | ○ | ○ | ○ | ○ | ○ |
 
-凡例: ● = 充実 / ○ = あり / △ = 限定的 / × = なし / * = goroutine方式
+Legend: ● = Comprehensive / ○ = Available / △ = Limited / × = None / * = goroutine model
 
 ---
 
-## 4. クロージャとラムダ式
+## 4. Closures and Lambda Expressions
 
-### 4.1 クロージャの本質
+### 4.1 The Essence of Closures
 
-クロージャ（Closure）は、関数が定義された環境（レキシカルスコープ）の変数を「閉じ込める」（close over）ことで、関数を値として持ち運べる仕組みである。1958年の LISP に由来し、現在ではほぼ全てのモダン言語が第一級関数とクロージャをサポートしている。
+A closure is a mechanism that "closes over" variables from the environment (lexical scope) where a function is defined, allowing the function to be carried around as a value. Originating from LISP in 1958, virtually all modern languages now support first-class functions and closures.
 
 ```
-クロージャの概念:
+Concept of Closures:
 
-  ┌───────── 外側のスコープ ─────────┐
-  │  let factor = 2;                 │
-  │                                  │
-  │  ┌───── クロージャ ──────┐       │
-  │  │  |x| x * factor      │       │
-  │  │  ↑ factor を捕捉      │       │
-  │  └──────────────────────┘       │
-  │                                  │
-  └──────────────────────────────────┘
+  +---------- Outer scope -----------+
+  |  let factor = 2;                 |
+  |                                  |
+  |  +------- Closure --------+      |
+  |  |  |x| x * factor        |      |
+  |  |  ^ captures factor      |      |
+  |  +-------------------------+      |
+  |                                  |
+  +----------------------------------+
 
-  クロージャが factor を「閉じ込める」ため、
-  外側のスコープが終了しても factor にアクセスできる
+  Because the closure "closes over" factor,
+  it can access factor even after the outer scope ends
 ```
 
-### 4.2 Rustにおけるクロージャの所有権モデル
+### 4.2 Rust's Ownership Model for Closures
 
-Rustのクロージャは所有権システムと統合されており、捕捉方法が3種類ある。
+Rust's closures are integrated with the ownership system, offering three capture modes.
 
 ```rust
 fn demonstrate_closure_capture() {
     let data = vec![1, 2, 3];
 
-    // Fn: 不変参照で捕捉（共有借用）
+    // Fn: Capture by immutable reference (shared borrow)
     let print_data = || {
-        println!("データ: {:?}", data);  // &data
+        println!("Data: {:?}", data);  // &data
     };
     print_data();
-    print_data(); // 複数回呼べる
+    print_data(); // Can be called multiple times
 
-    // FnMut: 可変参照で捕捉（排他借用）
+    // FnMut: Capture by mutable reference (exclusive borrow)
     let mut count = 0;
     let mut increment = || {
         count += 1;  // &mut count
-        println!("カウント: {}", count);
+        println!("Count: {}", count);
     };
     increment();
     increment();
 
-    // FnOnce: 所有権を移動して捕捉
+    // FnOnce: Capture by moving ownership
     let name = String::from("Rust");
     let consume = move || {
-        println!("消費: {}", name);  // name の所有権を移動
-        drop(name);                  // 所有権を消費
+        println!("Consumed: {}", name);  // Moves ownership of name
+        drop(name);                      // Consumes ownership
     };
     consume();
-    // consume(); // エラー: 既に消費済み
+    // consume(); // Error: already consumed
 }
 ```
 
 ---
 
-## 5. パッケージマネージャと統合ツールチェーン
+## 5. Package Managers and Integrated Toolchains
 
-### 5.1 パッケージマネージャの進化
+### 5.1 Evolution of Package Managers
 
-パッケージマネージャは言語エコシステムの中核であり、モダン言語では公式ツールとして統合されている。
+Package managers are the core of a language ecosystem, and in modern languages they are integrated as official tools.
 
 ```
-パッケージマネージャの世代:
+Generations of Package Managers:
 
-  第1世代: 手動管理             第2世代: 外部ツール
-  ┌──────────────────┐        ┌──────────────────┐
-  │ ・手動ダウンロード  │        │ ・CPAN (Perl)    │
-  │ ・Makefile        │  →→→   │ ・RubyGems       │
-  │ ・#include        │        │ ・pip (Python)   │
-  │ ・リンカ設定       │        │ ・npm (Node.js)  │
-  └──────────────────┘        └──────────────────┘
-         ↓                           ↓
-  第3世代: 言語統合              第4世代: ワークスペース
-  ┌──────────────────┐        ┌──────────────────┐
-  │ ・Cargo (Rust)   │        │ ・Cargo workspace│
-  │ ・go mod (Go)    │  →→→   │ ・pnpm workspace │
-  │ ・Swift PM       │        │ ・Turborepo      │
-  │ ・Mix (Elixir)   │        │ ・Nx             │
-  └──────────────────┘        └──────────────────┘
+  1st Gen: Manual management       2nd Gen: External tools
+  +----------------------+        +----------------------+
+  | - Manual download     |        | - CPAN (Perl)        |
+  | - Makefile            |  >>>   | - RubyGems           |
+  | - #include            |        | - pip (Python)       |
+  | - Linker config       |        | - npm (Node.js)      |
+  +----------------------+        +----------------------+
+         |                               |
+  3rd Gen: Language-integrated     4th Gen: Workspaces
+  +----------------------+        +----------------------+
+  | - Cargo (Rust)       |        | - Cargo workspace    |
+  | - go mod (Go)        |  >>>   | - pnpm workspace     |
+  | - Swift PM           |        | - Turborepo          |
+  | - Mix (Elixir)       |        | - Nx                 |
+  +----------------------+        +----------------------+
 ```
 
-### 5.2 ツールチェーン比較表
+### 5.2 Toolchain Comparison Table
 
-| 機能 | Rust (Cargo) | Go (go mod) | Swift (SPM) | Node (npm/pnpm) |
+| Feature | Rust (Cargo) | Go (go mod) | Swift (SPM) | Node (npm/pnpm) |
 |------|-------------|-------------|-------------|-----------------|
-| パッケージ管理 | Cargo.toml | go.mod | Package.swift | package.json |
-| ビルド | `cargo build` | `go build` | `swift build` | `npm run build` |
-| テスト | `cargo test` | `go test` | `swift test` | `npm test` |
-| フォーマット | `cargo fmt` | `gofmt` | - | `prettier` |
-| リンター | `cargo clippy` | `go vet` | `swiftlint` | `eslint` |
-| ベンチマーク | `cargo bench` | `go test -bench` | - | 外部ツール |
-| ドキュメント | `cargo doc` | `godoc` | DocC | `typedoc` |
-| ロックファイル | Cargo.lock | go.sum | Package.resolved | package-lock.json |
-| レジストリ | crates.io | proxy.golang.org | - | npmjs.com |
-| ワークスペース | 対応 | 対応 | 対応 | 対応 (pnpm) |
+| Package Management | Cargo.toml | go.mod | Package.swift | package.json |
+| Build | `cargo build` | `go build` | `swift build` | `npm run build` |
+| Test | `cargo test` | `go test` | `swift test` | `npm test` |
+| Format | `cargo fmt` | `gofmt` | - | `prettier` |
+| Linter | `cargo clippy` | `go vet` | `swiftlint` | `eslint` |
+| Benchmark | `cargo bench` | `go test -bench` | - | External tools |
+| Documentation | `cargo doc` | `godoc` | DocC | `typedoc` |
+| Lock File | Cargo.lock | go.sum | Package.resolved | package-lock.json |
+| Registry | crates.io | proxy.golang.org | - | npmjs.com |
+| Workspaces | Supported | Supported | Supported | Supported (pnpm) |
 
 ---
 
-## 6. エラーハンドリングの革新
+## 6. Innovations in Error Handling
 
-### 6.1 例外からResult型へ
+### 6.1 From Exceptions to the Result Type
 
-従来の例外ベースのエラーハンドリングには、以下の問題がある。
+Traditional exception-based error handling has the following problems:
 
-1. **制御フローの隠蔽**: どの関数が例外を投げるか型から判別できない
-2. **パフォーマンスコスト**: 例外のスタックトレース構築は高コスト
-3. **コンポーザビリティの低さ**: try-catch のネストは複雑化しやすい
+1. **Hidden control flow**: Cannot determine from the type which functions throw exceptions
+2. **Performance cost**: Constructing exception stack traces is expensive
+3. **Low composability**: Nested try-catch tends to become complex
 
 ```
-エラーハンドリングの進化:
+Evolution of Error Handling:
 
-  レベル1: エラーコード      レベル2: 例外
-  ┌──────────────────┐     ┌──────────────────┐
-  │ int err = open() │     │ try {            │
-  │ if (err < 0) {   │     │   file = open()  │
-  │   // エラー処理   │     │ } catch (e) {    │
-  │ }                │     │   // エラー処理   │
-  │ // 忘れがち！     │     │ }                │
-  └──────────────────┘     │ // 型情報なし     │
-         ↓                 └──────────────────┘
-                                   ↓
-  レベル3: Result型           レベル4: 効果システム
-  ┌──────────────────┐      ┌──────────────────┐
-  │ let file =       │      │ fn open()        │
-  │   open(path)?;   │      │   : IO + Error   │
-  │ // 型で明示       │      │ // 副作用を型で   │
-  │ // ?で早期リターン │      │ //   完全追跡     │
-  └──────────────────┘      └──────────────────┘
+  Level 1: Error codes          Level 2: Exceptions
+  +--------------------+       +--------------------+
+  | int err = open()   |       | try {              |
+  | if (err < 0) {     |       |   file = open()    |
+  |   // handle error  |       | } catch (e) {      |
+  | }                  |       |   // handle error  |
+  | // Easy to forget! |       | }                  |
+  +--------------------+       | // No type info    |
+         |                     +--------------------+
+                                       |
+  Level 3: Result type           Level 4: Effect systems
+  +--------------------+        +--------------------+
+  | let file =         |        | fn open()          |
+  |   open(path)?;     |        |   : IO + Error     |
+  | // Explicit in type |        | // Side effects    |
+  | // ? for early     |        | //   fully tracked  |
+  | //   return        |        | //   in types       |
+  +--------------------+        +--------------------+
 ```
 
-### 6.2 Result型の言語間比較
+### 6.2 Result Type Comparison Across Languages
 
 ```rust
 // Rust: Result<T, E>
@@ -961,25 +969,25 @@ impl From<ParseIntError> for AppError {
 }
 
 fn read_config_value(path: &str, key: &str) -> Result<i32, AppError> {
-    let content = fs::read_to_string(path)?;   // io::Error → AppError
+    let content = fs::read_to_string(path)?;   // io::Error -> AppError
     let line = content
         .lines()
         .find(|l| l.starts_with(key))
         .ok_or_else(|| AppError::ValidationError(
-            format!("キー '{}' が見つかりません", key)
+            format!("Key '{}' not found", key)
         ))?;
     let value: i32 = line
         .split('=')
         .nth(1)
-        .ok_or_else(|| AppError::ValidationError("不正な形式".into()))?
+        .ok_or_else(|| AppError::ValidationError("Invalid format".into()))?
         .trim()
-        .parse()?;   // ParseIntError → AppError
+        .parse()?;   // ParseIntError -> AppError
     Ok(value)
 }
 ```
 
 ```kotlin
-// Kotlin: sealed class による Result 相当
+// Kotlin: Result equivalent using sealed class
 sealed class Result<out T> {
     data class Success<T>(val value: T) : Result<T>()
     data class Failure(val error: AppError) : Result<Nothing>()
@@ -995,130 +1003,132 @@ sealed class Result<out T> {
     }
 }
 
-// kotlin.Result も標準で用意されている
+// kotlin.Result is also available in the standard library
 fun readConfigValue(path: String, key: String): Result<Int> {
     return try {
         val content = java.io.File(path).readText()
         val line = content.lines().find { it.startsWith(key) }
-            ?: return Result.Failure(AppError.NotFound("キー '$key' が見つかりません"))
+            ?: return Result.Failure(AppError.NotFound("Key '$key' not found"))
         val value = line.split("=")[1].trim().toInt()
         Result.Success(value)
     } catch (e: Exception) {
-        Result.Failure(AppError.IoError(e.message ?: "不明なエラー"))
+        Result.Failure(AppError.IoError(e.message ?: "Unknown error"))
     }
 }
 ```
 
 ---
 
-## 7. 充実したエラーメッセージ
+## 7. Rich Error Messages
 
-### 7.1 教育的コンパイラの登場
+### 7.1 The Emergence of Educational Compilers
 
-Rust と Elm は、エラーメッセージの品質で革命を起こした。従来のコンパイラが暗号的なエラーを出していたのに対し、これらの言語は「何が問題か」「なぜ問題か」「どう修正するか」の3点を明確に伝える。
-
-```
-従来のエラーメッセージ (C++):
-┌───────────────────────────────────────────────────────┐
-│ error: no matching function for call to               │
-│ 'std::vector<std::__cxx11::basic_string<char,         │
-│ std::char_traits<char>, std::allocator<char>>,         │
-│ std::allocator<std::__cxx11::basic_string<char>>>::    │
-│ push_back(int)'                                       │
-│ → 何を言っているのか分からない                           │
-└───────────────────────────────────────────────────────┘
-
-Rustのエラーメッセージ:
-┌───────────────────────────────────────────────────────┐
-│ error[E0308]: mismatched types                        │
-│  --> src/main.rs:5:20                                 │
-│   |                                                   │
-│ 5 |     names.push(42);                               │
-│   |           ---- ^^ expected `String`, found `i32`  │
-│   |           |                                       │
-│   |           arguments to this method are incorrect  │
-│   |                                                   │
-│   = note: expected type `String`                      │
-│              found type `i32`                         │
-│   = help: try: `names.push(42.to_string())`           │
-│                                                       │
-│ → 問題箇所、原因、修正方法を明示                         │
-└───────────────────────────────────────────────────────┘
-```
-
----
-
-## 8. トレンドの方向性
-
-### 8.1 2010年代のトレンド
-
-2010年代は「安全性の時代」と呼べる。以下の3つの大きな流れがあった。
-
-**型安全性の強化:**
-- TypeScript (2012): JavaScript に段階的型付けを追加
-- Kotlin (2016): Java の問題点を解消した JVM 言語
-- Rust (2015): メモリ安全性をコンパイル時に保証
-
-**Null安全の普及:**
-- 「10億ドルの間違い」の認識が広がり、主要言語が Null安全を導入
-- Kotlin の `?` 記法、Swift の Optional、TypeScript の strictNullChecks
-
-**並行処理の言語レベルサポート:**
-- Go の goroutine + channel（CSPモデル）
-- Rust の所有権による安全な並行性
-- Kotlin の coroutine
-
-### 8.2 2020年代のトレンド
-
-**AI統合:**
-- GitHub Copilot（2021）の登場で「AIと協調するコード」の時代へ
-- 型情報が充実した言語ほど AI による補完精度が高い
-- LLM による型推論の強化可能性
-
-**エッジ / WebAssembly対応:**
-- Wasm はブラウザ外でも実行される汎用バイナリ形式へ進化
-- Rust、Go、C#、Kotlin が Wasm ターゲットをサポート
-- エッジコンピューティングでの軽量ランタイム需要
-
-**段階的型付けの成熟:**
-- Python + mypy/Pyright: 動的言語に型を後付け
-- Ruby + Sorbet/RBS: 漸進的型付けの導入
-- PHP + PHPStan: 静的解析の高度化
-
-**エラー回復パターンの普及:**
-- Result/Either型の標準採用が進む
-- Go 2.0 でのエラーハンドリング改善提案
-- Java の sealed interface による直和型表現
-
-### 8.3 全体の流れ
+Rust and Elm revolutionized the quality of error messages. While traditional compilers produced cryptic errors, these languages clearly communicate three things: "what is wrong," "why it is wrong," and "how to fix it."
 
 ```
-言語設計の進化の方向性:
+Traditional error message (C++):
++-------------------------------------------------------+
+| error: no matching function for call to               |
+| 'std::vector<std::__cxx11::basic_string<char,         |
+| std::char_traits<char>, std::allocator<char>>,         |
+| std::allocator<std::__cxx11::basic_string<char>>>::    |
+| push_back(int)'                                       |
+| -> Incomprehensible                                   |
++-------------------------------------------------------+
 
-  1960-1980        1980-2000        2000-2015        2015-現在
-  ┌──────┐        ┌──────┐        ┌──────┐        ┌──────┐
-  │ 自由  │  →→→  │ 構造  │  →→→  │ 安全  │  →→→  │ 生産性│
-  │      │        │      │        │      │        │+AI協調│
-  └──────┘        └──────┘        └──────┘        └──────┘
-
-  ・アセンブリ      ・構造化         ・型安全性       ・AI補完
-  ・GOTO自由       ・OOP           ・メモリ安全     ・段階的型付け
-  ・型なし         ・例外処理       ・Null安全      ・Wasm
-  ・手動メモリ     ・GC            ・Result型      ・効果システム
-
-  「何でもできる」→「秩序を作る」→「安全を保証」→「賢く支援」
+Rust error message:
++-------------------------------------------------------+
+| error[E0308]: mismatched types                        |
+|  --> src/main.rs:5:20                                 |
+|   |                                                   |
+| 5 |     names.push(42);                               |
+|   |           ---- ^^ expected `String`, found `i32`  |
+|   |           |                                       |
+|   |           arguments to this method are incorrect  |
+|   |                                                   |
+|   = note: expected type `String`                      |
+|              found type `i32`                         |
+|   = help: try: `names.push(42.to_string())`           |
+|                                                       |
+| -> Problem location, cause, and fix all shown         |
++-------------------------------------------------------+
 ```
 
 ---
 
-## 9. アンチパターン
+## 8. Trend Directions
 
-### 9.1 アンチパターン1: 「全機能を使い倒す症候群」
+### 8.1 Trends of the 2010s
 
-モダン言語の機能は強力だが、全てを一度に適用しようとすると可読性が著しく低下する。
+The 2010s can be called the "era of safety." There were three major trends:
+
+**Strengthening type safety:**
+- TypeScript (2012): Added gradual typing to JavaScript
+- Kotlin (2016): A JVM language that addresses Java's shortcomings
+- Rust (2015): Guarantees memory safety at compile time
+
+**Spread of null safety:**
+- Awareness of "the billion dollar mistake" grew, and major languages introduced null safety
+- Kotlin's `?` notation, Swift's Optional, TypeScript's strictNullChecks
+
+**Language-level support for concurrent processing:**
+- Go's goroutine + channel (CSP model)
+- Rust's safe concurrency through ownership
+- Kotlin's coroutine
+
+### 8.2 Trends of the 2020s
+
+**AI Integration:**
+- The arrival of GitHub Copilot (2021) ushered in the era of "code that collaborates with AI"
+- Languages with richer type information achieve higher AI completion accuracy
+- Potential for LLMs to enhance type inference
+
+**Edge / WebAssembly Support:**
+- Wasm is evolving into a general-purpose binary format that runs outside browsers
+- Rust, Go, C#, and Kotlin support Wasm as a compilation target
+- Demand for lightweight runtimes in edge computing
+
+**Maturation of Gradual Typing:**
+- Python + mypy/Pyright: Retrofitting types onto a dynamic language
+- Ruby + Sorbet/RBS: Introducing gradual typing
+- PHP + PHPStan: Advancing static analysis
+
+**Spread of Error Recovery Patterns:**
+- Standard adoption of Result/Either types is progressing
+- Error handling improvement proposals for Go 2.0
+- Sum type representation via Java's sealed interface
+
+### 8.3 The Overall Direction
+
+```
+Direction of Language Design Evolution:
+
+  1960-1980        1980-2000        2000-2015        2015-Present
+  +--------+       +--------+       +--------+       +--------+
+  | Freedom|  >>>  |Structure|  >>> | Safety |  >>>  |Produc- |
+  |        |       |        |       |        |       |tivity  |
+  |        |       |        |       |        |       |+AI     |
+  +--------+       +--------+       +--------+       +--------+
+
+  - Assembly        - Structured     - Type safety    - AI completion
+  - Free GOTO         programming    - Memory safety  - Gradual typing
+  - Untyped         - OOP            - Null safety    - Wasm
+  - Manual memory   - Exception      - Result type    - Effect systems
+                      handling
+  "Anything goes" > "Create order" > "Guarantee    > "Assist
+                                      safety"        intelligently"
+```
+
+---
+
+## 9. Anti-Patterns
+
+### 9.1 Anti-Pattern 1: "Must Use Every Feature Syndrome"
+
+Modern language features are powerful, but attempting to apply all of them at once severely degrades readability.
 
 ```rust
-// --- 悪い例: 過度にメソッドチェーンを連結 ---
+// --- Bad example: Excessively chained methods ---
 fn bad_example(data: &[Order]) -> HashMap<String, Vec<(String, f64)>> {
     data.iter()
         .filter(|o| o.status != OrderStatus::Cancelled)
@@ -1132,7 +1142,7 @@ fn bad_example(data: &[Order]) -> HashMap<String, Vec<(String, f64)>> {
         })
 }
 
-// --- 良い例: 意味のある中間変数を使う ---
+// --- Good example: Use meaningful intermediate variables ---
 fn good_example(data: &[Order]) -> HashMap<String, Vec<(String, f64)>> {
     let thirty_days_ago = Utc::now() - Duration::days(30);
 
@@ -1157,59 +1167,59 @@ fn good_example(data: &[Order]) -> HashMap<String, Vec<(String, f64)>> {
 }
 ```
 
-**教訓:** メソッドチェーンは3-4段までが適切。それ以上は中間変数を使って意図を明確にする。
+**Lesson:** Method chains are appropriate up to 3-4 levels. Beyond that, use intermediate variables to clarify intent.
 
-### 9.2 アンチパターン2: 「`.unwrap()` 乱用によるNull安全の無力化」
+### 9.2 Anti-Pattern 2: "Defeating Null Safety with `.unwrap()` Abuse"
 
-Option型やResult型があっても、強制アンラップを多用すると安全性が失われる。
+Even with Option and Result types, overusing forced unwrapping undermines safety.
 
 ```rust
-// --- 悪い例: unwrap() の乱用 ---
+// --- Bad example: Abuse of unwrap() ---
 fn bad_process(config_path: &str) -> String {
-    let content = std::fs::read_to_string(config_path).unwrap();  // パニック！
-    let config: Config = serde_json::from_str(&content).unwrap(); // パニック！
-    let db_url = config.database.unwrap().url.unwrap();           // パニック！
-    let conn = Database::connect(&db_url).unwrap();               // パニック！
-    conn.query("SELECT 1").unwrap().to_string()                   // パニック！
+    let content = std::fs::read_to_string(config_path).unwrap();  // Panic!
+    let config: Config = serde_json::from_str(&content).unwrap(); // Panic!
+    let db_url = config.database.unwrap().url.unwrap();           // Panic!
+    let conn = Database::connect(&db_url).unwrap();               // Panic!
+    conn.query("SELECT 1").unwrap().to_string()                   // Panic!
 }
 
-// --- 良い例: 適切なエラーハンドリング ---
+// --- Good example: Proper error handling ---
 fn good_process(config_path: &str) -> Result<String, AppError> {
     let content = std::fs::read_to_string(config_path)
-        .map_err(|e| AppError::Io(format!("設定ファイル読み込み失敗: {}", e)))?;
+        .map_err(|e| AppError::Io(format!("Failed to read config file: {}", e)))?;
 
     let config: Config = serde_json::from_str(&content)
-        .map_err(|e| AppError::Parse(format!("JSON パース失敗: {}", e)))?;
+        .map_err(|e| AppError::Parse(format!("JSON parse failed: {}", e)))?;
 
     let db_url = config.database
         .as_ref()
         .and_then(|db| db.url.as_ref())
-        .ok_or_else(|| AppError::Config("DB URLが設定されていません".into()))?;
+        .ok_or_else(|| AppError::Config("DB URL is not configured".into()))?;
 
     let conn = Database::connect(db_url)
-        .map_err(|e| AppError::Database(format!("DB接続失敗: {}", e)))?;
+        .map_err(|e| AppError::Database(format!("DB connection failed: {}", e)))?;
 
     conn.query("SELECT 1")
         .map(|r| r.to_string())
-        .map_err(|e| AppError::Database(format!("クエリ失敗: {}", e)))
+        .map_err(|e| AppError::Database(format!("Query failed: {}", e)))
 }
 ```
 
-**教訓:** `unwrap()` / `!!` / `!` の使用は、「ここで失敗するなら即座にプログラムを停止すべき」と確信できる場面に限定する。
+**Lesson:** Limit the use of `unwrap()` / `!!` / `!` to situations where you are confident that "if this fails, the program should immediately terminate."
 
-### 9.3 アンチパターン3: 「型推論への過度な依存」
+### 9.3 Anti-Pattern 3: "Over-Reliance on Type Inference"
 
-型推論があるからといって、一切の型注釈を書かないと、コードの可読性が低下する。
+Just because type inference exists does not mean you should omit all type annotations; doing so degrades code readability.
 
 ```typescript
-// --- 悪い例: 型注釈が一切ない ---
+// --- Bad example: No type annotations at all ---
 const process = (data) =>
     data.filter(x => x.active).map(x => ({
         ...x,
         score: x.points * (x.bonus ? 1.5 : 1.0)
     })).sort((a, b) => b.score - a.score);
 
-// --- 良い例: 関数境界に型注釈を付ける ---
+// --- Good example: Type annotations at function boundaries ---
 interface User {
     name: string;
     active: boolean;
@@ -1231,26 +1241,26 @@ const process = (data: User[]): ScoredUser[] =>
         .sort((a, b) => b.score - a.score);
 ```
 
-**教訓:** 「公開API」「関数シグネチャ」「複雑な型」には明示的な型注釈を付ける。ローカル変数は推論に任せてよい。
+**Lesson:** Add explicit type annotations for "public APIs," "function signatures," and "complex types." Let inference handle local variables.
 
 ---
 
-## 10. 演習問題
+## 10. Exercises
 
-### 10.1 初級：概念の理解
+### 10.1 Beginner: Understanding Concepts
 
-**演習1:** 以下の各機能について、「なぜ必要か」を2-3文で説明せよ。
-1. 型推論
-2. Null安全
-3. パターンマッチ
-4. イミュータビリティ優先
+**Exercise 1:** For each of the following features, explain in 2-3 sentences "why it is necessary."
+1. Type inference
+2. Null safety
+3. Pattern matching
+4. Immutability by default
 
-**演習2:** 以下の機能がどの言語に由来するか、系譜を示せ。
+**Exercise 2:** Show the lineage of which language each of the following features originated from.
 - async/await
-- Option/Maybe型
-- 代数的データ型（ADT）
+- Option/Maybe type
+- Algebraic data types (ADT)
 
-**演習3:** 以下のコードにはNull安全上の問題がある。修正せよ。
+**Exercise 3:** The following code has null safety issues. Fix it.
 
 ```typescript
 function getCity(user: any): string {
@@ -1258,224 +1268,231 @@ function getCity(user: any): string {
 }
 ```
 
-**ヒント:** Optional chaining (`?.`)、nullish coalescing (`??`)、型定義を活用する。
+**Hint:** Use optional chaining (`?.`), nullish coalescing (`??`), and type definitions.
 
-### 10.2 中級：実装
+### 10.2 Intermediate: Implementation
 
-**演習4:** 以下の要件を満たす型安全な設定ローダーを、任意のモダン言語で実装せよ。
+**Exercise 4:** Implement a type-safe configuration loader in any modern language that satisfies the following requirements.
 
-要件:
-- ファイルから設定を読み込む
-- 必須キーと任意キーを型で区別する
-- エラー時は具体的なエラーメッセージを返す（例外ではなくResult/Either型で）
-- 環境変数によるオーバーライドをサポートする
-
-```
-設計のヒント:
-
-  ┌─────────────────────────────────────────┐
-  │ ConfigLoader                            │
-  │ ┌─────────────────┐ ┌────────────────┐ │
-  │ │ FileSource      │ │ EnvSource      │ │
-  │ │ ・TOML/YAML読込  │ │ ・環境変数読込   │ │
-  │ └────────┬────────┘ └───────┬────────┘ │
-  │          └────────┬─────────┘          │
-  │                   ▼                    │
-  │          ┌────────────────┐            │
-  │          │ Merge & Validate│            │
-  │          └────────┬───────┘            │
-  │                   ▼                    │
-  │          Result<Config, ConfigError>    │
-  └─────────────────────────────────────────┘
-```
-
-**演習5:** ECサイトの「買い物かご」の状態遷移を代数的データ型でモデリングせよ。
-
-状態: 空のかご → 商品追加 → クーポン適用 → 注文確定 → 支払い完了
-
-各状態遷移において:
-- 空のかごから注文確定への直接遷移は不可能
-- クーポンは1つまで適用可能
-- 支払い完了後の状態変更は不可能
-
-### 10.3 上級：設計と分析
-
-**演習6:** 以下の3言語（Rust, Kotlin, TypeScript）で同じAPIクライアントを実装し、各言語の特徴を比較せよ。
+Requirements:
+- Read configuration from a file
+- Distinguish required keys from optional keys using types
+- Return specific error messages on failure (using Result/Either types, not exceptions)
+- Support overriding via environment variables
 
 ```
-要件:
-┌─────────────────────────────────────────┐
-│ APIクライアントの要件:                    │
-│ 1. HTTPリクエスト送信（GET/POST）         │
-│ 2. レスポンスのJSON/パース                │
-│ 3. リトライロジック（最大3回）             │
-│ 4. タイムアウト処理                      │
-│ 5. エラーハンドリング                     │
-│    - ネットワークエラー                   │
-│    - パースエラー                         │
-│    - APIエラー（4xx/5xx）                 │
-│ 6. 型安全なレスポンス                     │
-└─────────────────────────────────────────┘
+Design hint:
+
+  +-------------------------------------------+
+  | ConfigLoader                              |
+  | +-------------------+ +------------------+|
+  | | FileSource        | | EnvSource        ||
+  | | - Read TOML/YAML  | | - Read env vars  ||
+  | +---------+---------+ +--------+---------+|
+  |           +----------+----------+         |
+  |                      v                    |
+  |           +------------------+            |
+  |           | Merge & Validate |            |
+  |           +---------+--------+            |
+  |                     v                     |
+  |          Result<Config, ConfigError>      |
+  +-------------------------------------------+
 ```
 
-比較すべき観点:
-1. コード量
-2. 型安全性の強さ
-3. エラーハンドリングの明確さ
-4. 非同期処理の記述の自然さ
-5. テスタビリティ
+**Exercise 5:** Model the state transitions of an e-commerce "shopping cart" using algebraic data types.
 
-**演習7:** 「もし2030年に新しい汎用プログラミング言語を設計するなら、どの機能を採用するか」を論じよ。
+States: Empty cart -> Item added -> Coupon applied -> Order confirmed -> Payment completed
 
-考慮すべき点:
-- 本章で紹介した10大機能のうちどれを採用するか
-- 既存の言語が解決できていない問題は何か
-- AI時代のプログラミング言語に必要な要件は何か
+For each state transition:
+- Direct transition from an empty cart to order confirmation is not possible
+- Only one coupon can be applied
+- No state changes are possible after payment is completed
+
+### 10.3 Advanced: Design and Analysis
+
+**Exercise 6:** Implement the same API client in three languages (Rust, Kotlin, TypeScript), and compare the characteristics of each language.
+
+```
+Requirements:
++-------------------------------------------+
+| API Client Requirements:                  |
+| 1. Send HTTP requests (GET/POST)          |
+| 2. Parse JSON responses                   |
+| 3. Retry logic (up to 3 attempts)         |
+| 4. Timeout handling                       |
+| 5. Error handling                         |
+|    - Network errors                       |
+|    - Parse errors                         |
+|    - API errors (4xx/5xx)                 |
+| 6. Type-safe responses                    |
++-------------------------------------------+
+```
+
+Aspects to compare:
+1. Code volume
+2. Strength of type safety
+3. Clarity of error handling
+4. Naturalness of async processing syntax
+5. Testability
+
+**Exercise 7:** Discuss "If you were designing a new general-purpose programming language in 2030, which features would you adopt?"
+
+Points to consider:
+- Which of the 10 major features introduced in this chapter would you adopt?
+- What problems have existing languages not yet solved?
+- What requirements does a programming language need for the AI era?
 
 ---
 
-## 11. モダン言語選択ガイド
+## 11. Modern Language Selection Guide
 
-### 11.1 ユースケース別推奨言語
+### 11.1 Recommended Languages by Use Case
 
 ```
-ユースケース別の最適言語:
+Best Languages by Use Case:
 
-  ┌─────────────────────┬──────────────────────────────┐
-  │ ユースケース         │ 推奨言語 (理由)              │
-  ├─────────────────────┼──────────────────────────────┤
-  │ システムプログラミング │ Rust (メモリ安全+性能)       │
-  │ Web バックエンド     │ Go / Kotlin / TypeScript     │
-  │ Web フロントエンド   │ TypeScript (事実上の標準)     │
-  │ モバイル (iOS)      │ Swift                        │
-  │ モバイル (Android)  │ Kotlin                       │
-  │ モバイル (クロス)   │ Kotlin Multiplatform / Flutter│
-  │ データサイエンス     │ Python (エコシステム)         │
-  │ CLIツール           │ Rust / Go                    │
-  │ インフラ・DevOps    │ Go                           │
-  │ ゲーム開発          │ C# (Unity) / Rust (Bevy)     │
-  │ 分散システム        │ Go / Erlang/Elixir           │
-  │ 教育               │ Python / Haskell             │
-  └─────────────────────┴──────────────────────────────┘
+  +---------------------+------------------------------+
+  | Use Case            | Recommended Language (Reason) |
+  +---------------------+------------------------------+
+  | Systems Programming | Rust (memory safety + perf)  |
+  | Web Backend         | Go / Kotlin / TypeScript     |
+  | Web Frontend        | TypeScript (de facto std)    |
+  | Mobile (iOS)        | Swift                        |
+  | Mobile (Android)    | Kotlin                       |
+  | Mobile (Cross)      | Kotlin Multiplatform/Flutter |
+  | Data Science        | Python (ecosystem)           |
+  | CLI Tools           | Rust / Go                    |
+  | Infra / DevOps      | Go                           |
+  | Game Development    | C# (Unity) / Rust (Bevy)    |
+  | Distributed Systems | Go / Erlang/Elixir           |
+  | Education           | Python / Haskell             |
+  +---------------------+------------------------------+
 ```
 
-### 11.2 チーム規模と言語選択
+### 11.2 Team Size and Language Selection
 
-小規模チーム（1-5人）では表現力の高い言語（Kotlin, Swift, TypeScript）が生産性を最大化する。大規模チーム（50人以上）では制約の強い言語（Rust, Go）がコードベースの一貫性を保ちやすい。中規模チーム（5-50人）ではプロジェクトの性質に応じた選択が重要である。
+For small teams (1-5 people), highly expressive languages (Kotlin, Swift, TypeScript) maximize productivity. For large teams (50+ people), languages with stronger constraints (Rust, Go) make it easier to maintain codebase consistency. For medium teams (5-50 people), selecting based on the nature of the project is important.
 
 ---
 
-## 12. FAQ（よくある質問）
+## 12. FAQ (Frequently Asked Questions)
 
-### Q1: 型推論があるなら、型注釈は一切不要ですか？
+### Q1: If type inference exists, are type annotations entirely unnecessary?
 
-**A:** いいえ。型推論はローカル変数やラムダ式で効力を発揮するが、関数の公開インターフェース（引数型・戻り値型）には明示的な型注釈を付けるべきである。理由は3つある。第一に、コードの読み手に意図を伝える文書としての役割。第二に、コンパイラのエラーメッセージが明確になる。第三に、型推論の計算量を抑制でき、コンパイル速度が向上する。Rust や Kotlin が関数シグネチャの型注釈を必須としているのは、この設計判断の表れである。
+**A:** No. Type inference is effective for local variables and lambda expressions, but explicit type annotations should be added to a function's public interface (parameter types and return types). There are three reasons. First, they serve as documentation that communicates intent to code readers. Second, they make compiler error messages clearer. Third, they reduce the computational cost of type inference, improving compilation speed. The fact that Rust and Kotlin require type annotations for function signatures reflects this design decision.
 
-### Q2: Null安全な言語を使えば、NullPointerException は完全になくなりますか？
+### Q2: If I use a null-safe language, will NullPointerExceptions be completely eliminated?
 
-**A:** 原理的にはイエスだが、実務上は注意点がある。Kotlin の `!!`（非null表明演算子）や Swift の `!`（強制アンラップ）を使えば実行時エラーは起こり得る。また、Java や Objective-C との相互運用時には、Null安全の保証が外れる領域がある。重要なのは、言語が「null の可能性」を型システムで明示的にし、開発者に意識的な判断を要求する点にある。`!!` を使うなら「ここは null にならないと確信している」という意思表示になり、コードレビューで検出しやすくなる。
+**A:** In principle, yes, but there are caveats in practice. Kotlin's `!!` (non-null assertion operator) and Swift's `!` (forced unwrap) can still cause runtime errors. Additionally, when interoperating with Java or Objective-C, null safety guarantees break down. The key point is that the language makes "the possibility of null" explicit in the type system, requiring developers to make conscious decisions. If you use `!!`, it becomes an explicit declaration that "I am certain this is not null," making it easy to detect during code review.
 
-### Q3: Go には型推論もパターンマッチも限定的ですが、なぜモダン言語に分類されるのですか？
+### Q3: Go has limited type inference and pattern matching, so why is it classified as a modern language?
 
-**A:** Go は意図的に機能を制限している。Rob Pike は「Go は機能を追加する言語ではなく、機能を削る言語だ」と述べている。Go のモダン性は、goroutine による並行処理の言語レベルサポート、`gofmt` による統一フォーマット、`go mod` による依存管理、充実したツールチェーン、速いコンパイル速度にある。これらは「少ない機能で高い生産性」というアプローチであり、大規模チームでのコードベース管理において特に効果を発揮する。Go 1.18 でジェネリクスが追加され、Go 1.21 以降も段階的に機能が拡充されている。
+**A:** Go intentionally restricts its features. Rob Pike said, "Go is not a language that adds features; it is a language that removes them." Go's modernity lies in its language-level support for concurrent processing via goroutines, its unified formatting with `gofmt`, its dependency management with `go mod`, its rich toolchain, and its fast compilation speed. This represents an approach of "high productivity with fewer features," which is particularly effective for managing codebases in large teams. Generics were added in Go 1.18, and features have been gradually expanded from Go 1.21 onward.
 
-### Q4: async/await はどの言語の実装が最も優れていますか？
+### Q4: Which language has the best async/await implementation?
 
-**A:** 一概には言えないが、各言語の特徴を整理する。Rust の async/await はゼロコスト抽象化を実現し、ランタイムを選択できる柔軟性があるが、Pin や Lifetime との組み合わせで学習コストが高い。Kotlin の coroutine は構造化並行性が美しく、キャンセレーションの伝播が自然。TypeScript/JavaScript の async/await はシンプルで直感的だが、シングルスレッドのイベントループ上で動作するため CPU バウンドな処理には向かない。Swift の async/await は Actor モデルとの統合が先進的。用途に応じて最適な実装は異なる。
+**A:** It cannot be stated definitively, but let us organize each language's characteristics. Rust's async/await achieves zero-cost abstraction and offers the flexibility to choose a runtime, but has a high learning curve when combined with Pin and Lifetimes. Kotlin's coroutines feature elegant structured concurrency with natural cancellation propagation. TypeScript/JavaScript's async/await is simple and intuitive but operates on a single-threaded event loop, making it unsuitable for CPU-bound processing. Swift's async/await features advanced integration with the Actor model. The optimal implementation varies by use case.
 
-### Q5: 「イミュータビリティ優先」は本当にパフォーマンスに影響しないのですか？
+### Q5: Does "immutability by default" truly have no performance impact?
 
-**A:** ナイーブに不変データ構造を使うとコピーコストが発生するが、モダン言語は様々な最適化でこれを軽減している。Rust はムーブセマンティクスにより「最後の使用者がデータを再利用」できる。関数型データ構造（永続データ構造）は構造共有によりコピーを最小化する。また、コンパイラの最適化（コピー省略、インライン化）により、実行時のオーバーヘッドは多くの場合無視できる水準に収まる。並行処理では不変データのほうがロック不要で高速になる場面も多い。
+**A:** Naively using immutable data structures incurs copy costs, but modern languages mitigate this with various optimizations. Rust's move semantics allow "the last user to reuse the data." Functional data structures (persistent data structures) minimize copies through structural sharing. Additionally, compiler optimizations (copy elision, inlining) reduce runtime overhead to a negligible level in most cases. In concurrent processing, immutable data can often be faster since it eliminates the need for locks.
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point to keep in mind when studying this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not only through theory but also by actually writing code and verifying its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals to jump into advanced topics. We recommend building a solid understanding of the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this applied in real-world practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently applied in day-to-day development work. It becomes particularly important during code reviews and architecture design.
 
 ---
 
-## 13. まとめ
+## 13. Summary
 
-### 13.1 機能由来の一覧表
+### 13.1 Feature Origins Table
 
-| 機能 | 由来 | 年代 | 採用した主要言語 |
+| Feature | Origin | Year | Major Languages That Adopted It |
 |------|------|------|----------------|
-| 型推論 | ML → Hindley-Milner | 1973 | Rust, TS, Go, Kotlin, Swift, Haskell |
-| Null安全 | Haskell (Maybe) | 1990 | Rust, Kotlin, Swift, TS, C# |
-| パターンマッチ | ML | 1973 | Rust, Scala, Python 3.10, C# 8, Kotlin |
+| Type Inference | ML -> Hindley-Milner | 1973 | Rust, TS, Go, Kotlin, Swift, Haskell |
+| Null Safety | Haskell (Maybe) | 1990 | Rust, Kotlin, Swift, TS, C# |
+| Pattern Matching | ML | 1973 | Rust, Scala, Python 3.10, C# 8, Kotlin |
 | async/await | C# | 2012 | JS, Python, Rust, Kotlin, Swift |
-| ADT | ML → Haskell | 1973/1990 | Rust, TS, Swift, Kotlin, Scala |
-| 不変デフォルト | Haskell → Erlang | 1990 | Rust, Kotlin, Swift, Scala |
-| クロージャ | LISP | 1958 | 全モダン言語 |
-| パッケージ管理 | CPAN (Perl) | 1995 | 全モダン言語 |
-| フォーマッタ | gofmt (Go) | 2009 | Rust, Zig, Deno |
-| 教育的エラー | Elm → Rust | 2012/2015 | Rust, Elm, Gleam |
+| ADT | ML -> Haskell | 1973/1990 | Rust, TS, Swift, Kotlin, Scala |
+| Immutable Default | Haskell -> Erlang | 1990 | Rust, Kotlin, Swift, Scala |
+| Closures | LISP | 1958 | All modern languages |
+| Package Management | CPAN (Perl) | 1995 | All modern languages |
+| Formatter | gofmt (Go) | 2009 | Rust, Zig, Deno |
+| Educational Errors | Elm -> Rust | 2012/2015 | Rust, Elm, Gleam |
 
-### 13.2 核心メッセージ
+### 13.2 Core Message
 
 ```
-モダン言語の本質:
+The Essence of Modern Languages:
 
-  ┌──────────────────────────────────────────────┐
-  │                                              │
-  │  「バグを見つける」から「バグを防ぐ」へ          │
-  │                                              │
-  │  ・型推論       → 型の恩恵を低コストで享受       │
-  │  ・Null安全     → NullPointerException を根絶  │
-  │  ・パターンマッチ → 網羅性をコンパイラが保証      │
-  │  ・ADT          → 不正な状態を型で表現不能にする  │
-  │  ・Result型     → エラーを無視できない構造にする  │
-  │  ・不変デフォルト → 状態変更による事故を削減       │
-  │                                              │
-  │  共通原理: 「コンパイル時に検出できるものは、      │
-  │            実行時まで持ち越さない」              │
-  │                                              │
-  └──────────────────────────────────────────────┘
+  +----------------------------------------------+
+  |                                              |
+  |  From "finding bugs" to "preventing bugs"    |
+  |                                              |
+  |  - Type inference  -> Enjoy type benefits    |
+  |                       at low cost            |
+  |  - Null safety     -> Eradicate              |
+  |                       NullPointerException   |
+  |  - Pattern matching-> Compiler guarantees    |
+  |                       exhaustiveness         |
+  |  - ADT             -> Make invalid states    |
+  |                       unrepresentable        |
+  |  - Result type     -> Make errors impossible |
+  |                       to ignore              |
+  |  - Immutable       -> Reduce accidents from  |
+  |    default            state mutation         |
+  |                                              |
+  |  Common principle: "What can be detected at  |
+  |   compile time should not be deferred to     |
+  |   runtime"                                   |
+  |                                              |
+  +----------------------------------------------+
 ```
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Guides
 
 
 ---
 
-## 参考文献
+## References
 
-1. Pierce, B.C. "Types and Programming Languages." MIT Press, 2002. - 型システムの理論的基礎を網羅した名著。型推論アルゴリズム（Hindley-Milner）の詳細な解説を含む。
-2. Hoare, C.A.R. "Null References: The Billion Dollar Mistake." QCon London, 2009. - Null参照の発明者自身による反省的講演。Null安全の必要性を理解する上で必読。
-3. Matsakis, N. and Klock, F. "The Rust Programming Language." No Starch Press, 2019. - Rustの所有権システム、パターンマッチ、Result型を含む包括的解説。モダン言語機能の実例集として優秀。
-4. Odersky, M., Spoon, L., and Venners, B. "Programming in Scala." Artima Press, 2021. - 関数型プログラミングとOOPの融合、ADTの実践的活用を解説。
-5. Bloch, J. "Effective Java." 3rd Edition, Addison-Wesley, 2018. - Java におけるモダンなプログラミング慣行。イミュータビリティの重要性を論じた章は言語を問わず参考になる。
+1. Pierce, B.C. "Types and Programming Languages." MIT Press, 2002. - A seminal work covering the theoretical foundations of type systems. Includes a detailed explanation of the type inference algorithm (Hindley-Milner).
+2. Hoare, C.A.R. "Null References: The Billion Dollar Mistake." QCon London, 2009. - A reflective talk by the inventor of null references himself. Essential reading for understanding the need for null safety.
+3. Matsakis, N. and Klock, F. "The Rust Programming Language." No Starch Press, 2019. - A comprehensive guide covering Rust's ownership system, pattern matching, and Result type. Excellent as a collection of real-world examples of modern language features.
+4. Odersky, M., Spoon, L., and Venners, B. "Programming in Scala." Artima Press, 2021. - Explains the fusion of functional programming and OOP, and the practical use of ADTs.
+5. Bloch, J. "Effective Java." 3rd Edition, Addison-Wesley, 2018. - Modern programming practices in Java. The chapter discussing the importance of immutability is relevant regardless of language.
 
 ---
 
-## 用語集
+## Glossary
 
-| 用語 | 説明 |
+| Term | Description |
 |------|------|
-| 型推論 (Type Inference) | コンパイラが文脈から型を自動決定する機構 |
-| Null安全 (Null Safety) | Null参照によるランタイムエラーを型で防止する仕組み |
-| パターンマッチ (Pattern Matching) | データ構造を分解しながら条件分岐する機構 |
-| 代数的データ型 (ADT) | 直和型と直積型を組み合わせたデータ型 |
-| 直和型 (Sum Type) | 複数の型のいずれかを取る型（OR結合） |
-| 直積型 (Product Type) | 複数の型を同時に持つ型（AND結合） |
-| イミュータビリティ (Immutability) | 値が作成後に変更されない性質 |
-| クロージャ (Closure) | 環境を捕捉する関数オブジェクト |
-| 段階的型付け (Gradual Typing) | 静的型付けと動的型付けを混在させる手法 |
-| 構造化並行性 (Structured Concurrency) | 並行タスクのライフタイムを構造的に管理する手法 |
-| 収斂進化 (Convergent Evolution) | 異なる系統が独立に類似した特徴を発達させる現象 |
-| ゼロコスト抽象化 (Zero-Cost Abstraction) | 抽象化が実行時のオーバーヘッドを生じない設計 |
-| 網羅性検査 (Exhaustiveness Check) | パターンマッチが全ケースを網羅しているかの静的検証 |
+| Type Inference | A mechanism by which the compiler automatically determines types from context |
+| Null Safety | A system that prevents runtime errors from null references through the type system |
+| Pattern Matching | A mechanism for conditional branching while destructuring data structures |
+| Algebraic Data Types (ADT) | Data types combining sum types and product types |
+| Sum Type | A type that can be one of several types (OR combination) |
+| Product Type | A type that holds multiple types simultaneously (AND combination) |
+| Immutability | The property that a value cannot be changed after creation |
+| Closure | A function object that captures its environment |
+| Gradual Typing | A technique for mixing static and dynamic typing |
+| Structured Concurrency | A technique for structurally managing the lifetime of concurrent tasks |
+| Convergent Evolution | A phenomenon where different lineages independently develop similar characteristics |
+| Zero-Cost Abstraction | A design where abstraction incurs no runtime overhead |
+| Exhaustiveness Check | Static verification that a pattern match covers all cases |
