@@ -1,65 +1,65 @@
 # async/await
 
-> async/await は「非同期コードを同期的に読める」構文糖。Promise ベースの非同期処理を直感的に書ける。JavaScript, Python, Rust, C# での実装と、並行実行パターンを解説。
+> async/await is syntactic sugar that lets you "read asynchronous code as if it were synchronous." It provides an intuitive way to write Promise-based asynchronous operations. This guide covers implementations in JavaScript, Python, Rust, and C#, along with concurrent execution patterns.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] async/await の仕組みと動作原理を理解する
-- [ ] 各言語での async/await の違いを把握する
-- [ ] 効率的な並行実行パターンを学ぶ
-- [ ] エラーハンドリングのベストプラクティスを身につける
-- [ ] キャンセレーション・タイムアウト・リトライパターンを実装できる
-- [ ] テスト手法とデバッグ技術を理解する
+- [ ] Understand the mechanism and underlying principles of async/await
+- [ ] Grasp the differences in async/await across languages
+- [ ] Learn efficient concurrent execution patterns
+- [ ] Master error handling best practices
+- [ ] Implement cancellation, timeout, and retry patterns
+- [ ] Understand testing and debugging techniques
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, the following knowledge will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [Promise](./01-promises.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Familiarity with the content of [Promises](./01-promises.md)
 
 ---
 
-## 1. async/await の基本
+## 1. async/await Fundamentals
 
-### 1.1 概念と動作原理
+### 1.1 Concept and Underlying Principles
 
-async/await は、非同期処理を同期的なコードのように記述できる構文糖（Syntactic Sugar）である。内部的には Promise（JavaScript）や Future（Rust）、Coroutine（Python）をベースとしている。
+async/await is syntactic sugar that allows asynchronous operations to be written as if they were synchronous code. Internally, it is based on Promises (JavaScript), Futures (Rust), or Coroutines (Python).
 
 ```
-async 関数:
-  → Promise を返す関数
-  → return 値は自動的に Promise.resolve() でラップ
-  → throw した値は Promise.reject() でラップ
+async function:
+  -> Returns a Promise
+  -> Return values are automatically wrapped with Promise.resolve()
+  -> Thrown values are wrapped with Promise.reject()
 
-await 式:
-  → Promise が解決されるまで関数の実行を一時停止
-  → 解決された値を返す
-  → async 関数内でのみ使用可能（ES2022 で Top-Level Await 追加）
-  → rejected な Promise は例外としてスローされる
+await expression:
+  -> Suspends function execution until the Promise resolves
+  -> Returns the resolved value
+  -> Can only be used inside async functions (Top-Level Await added in ES2022)
+  -> Rejected Promises are thrown as exceptions
 
-内部動作:
+Internal behavior:
   async function f() {
-    const a = await fetchA();  // ここで一時停止
-    const b = await fetchB();  // a が解決後に再開
+    const a = await fetchA();  // Suspends here
+    const b = await fetchB();  // Resumes after a resolves
     return a + b;
   }
 
-  // 以下と同等:
+  // Equivalent to:
   function f() {
     return fetchA()
       .then(a => fetchB().then(b => a + b));
   }
 ```
 
-### 1.2 ステートマシンとしての async/await
+### 1.2 async/await as a State Machine
 
-コンパイラ（またはエンジン）は async 関数をステートマシンに変換する。これにより、一時停止と再開が効率的に行える。
+The compiler (or engine) transforms async functions into state machines. This enables efficient suspension and resumption.
 
 ```typescript
-// 開発者が書くコード
+// Code written by the developer
 async function process() {
   console.log("Step 1");
   const a = await fetchA();
@@ -69,7 +69,7 @@ async function process() {
   return a + b;
 }
 
-// エンジン内部での概念的な変換（擬似コード）
+// Conceptual transformation inside the engine (pseudocode)
 function process() {
   let state = 0;
   let a: any, b: any;
@@ -95,58 +95,58 @@ function process() {
 }
 ```
 
-### 1.3 マイクロタスクキューとの関係
+### 1.3 Relationship with the Microtask Queue
 
 ```typescript
-// async/await はマイクロタスクキューを使用する
+// async/await uses the microtask queue
 async function demo() {
-  console.log("1: async 関数開始（同期的に実行）");
+  console.log("1: async function starts (executes synchronously)");
   const result = await Promise.resolve("hello");
-  // ↑ ここで一時停止し、マイクロタスクキューに継続処理を入れる
-  console.log("3: await 後の再開（マイクロタスクとして実行）");
+  // ^ Suspends here and places the continuation in the microtask queue
+  console.log("3: Resumes after await (executes as a microtask)");
   return result;
 }
 
-console.log("0: 呼び出し前");
-demo().then(() => console.log("4: then コールバック"));
-console.log("2: 呼び出し後（同期的に実行）");
+console.log("0: Before the call");
+demo().then(() => console.log("4: then callback"));
+console.log("2: After the call (executes synchronously)");
 
-// 出力順序:
-// 0: 呼び出し前
-// 1: async 関数開始（同期的に実行）
-// 2: 呼び出し後（同期的に実行）
-// 3: await 後の再開（マイクロタスクとして実行）
-// 4: then コールバック
+// Output order:
+// 0: Before the call
+// 1: async function starts (executes synchronously)
+// 2: After the call (executes synchronously)
+// 3: Resumes after await (executes as a microtask)
+// 4: then callback
 ```
 
-### 1.4 Top-Level Await（ES2022）
+### 1.4 Top-Level Await (ES2022)
 
 ```typescript
-// ES モジュールでは Top-Level Await が使用可能
+// Top-Level Await is available in ES modules
 
-// config.ts - 設定の非同期読み込み
+// config.ts - Asynchronous loading of configuration
 const response = await fetch("/api/config");
 export const config = await response.json();
 
-// main.ts - インポート時に自動的に待機される
+// main.ts - Automatically awaited on import
 import { config } from "./config.ts";
-console.log(config.apiKey); // 設定読み込み完了後に実行される
+console.log(config.apiKey); // Executes after configuration loading completes
 
-// 注意点:
-// 1. CommonJS (require) では使用不可
-// 2. モジュールのロード順序に影響する
-// 3. 循環依存に注意
-// 4. サーバーサイドでの初期化に便利
+// Caveats:
+// 1. Cannot be used with CommonJS (require)
+// 2. Affects module loading order
+// 3. Be cautious of circular dependencies
+// 4. Convenient for server-side initialization
 ```
 
 ---
 
 ## 2. JavaScript/TypeScript
 
-### 2.1 基本パターン
+### 2.1 Basic Patterns
 
 ```typescript
-// 基本的な async 関数
+// Basic async function
 async function getUserProfile(userId: string): Promise<UserProfile> {
   const user = await userRepo.findById(userId);
   if (!user) throw new Error("User not found");
@@ -159,7 +159,7 @@ async function getUserProfile(userId: string): Promise<UserProfile> {
   return { user, orders, reviews };
 }
 
-// アロー関数での async
+// async with arrow functions
 const fetchData = async (url: string): Promise<Response> => {
   const response = await fetch(url);
   if (!response.ok) {
@@ -168,7 +168,7 @@ const fetchData = async (url: string): Promise<Response> => {
   return response;
 };
 
-// メソッドでの async
+// async in methods
 class UserService {
   async findById(id: string): Promise<User | null> {
     const cached = await this.cache.get(`user:${id}`);
@@ -181,10 +181,10 @@ class UserService {
     return user;
   }
 
-  // getter では async を使えないので注意
+  // Note: async cannot be used with getters
   // async get name() {} // SyntaxError
 
-  // 代替パターン
+  // Alternative pattern
   async getName(): Promise<string> {
     const profile = await this.loadProfile();
     return profile.name;
@@ -192,10 +192,10 @@ class UserService {
 }
 ```
 
-### 2.2 エラーハンドリング
+### 2.2 Error Handling
 
 ```typescript
-// try/catch による基本的なエラーハンドリング
+// Basic error handling with try/catch
 async function safeGetUser(userId: string): Promise<User | null> {
   try {
     return await userRepo.findById(userId);
@@ -205,9 +205,9 @@ async function safeGetUser(userId: string): Promise<User | null> {
   }
 }
 
-// 複数の非同期処理での細かいエラーハンドリング
+// Fine-grained error handling with multiple async operations
 async function processOrder(orderId: string): Promise<OrderResult> {
-  // Step 1: 注文取得
+  // Step 1: Retrieve the order
   let order: Order;
   try {
     order = await orderRepo.findById(orderId);
@@ -215,28 +215,28 @@ async function processOrder(orderId: string): Promise<OrderResult> {
     throw new OrderNotFoundError(orderId, { cause: error });
   }
 
-  // Step 2: 在庫確認
+  // Step 2: Check inventory
   try {
     await inventoryService.checkAvailability(order.items);
   } catch (error) {
     if (error instanceof OutOfStockError) {
       return { status: "out_of_stock", items: error.unavailableItems };
     }
-    throw error; // 予期しないエラーは再スロー
+    throw error; // Re-throw unexpected errors
   }
 
-  // Step 3: 決済処理
+  // Step 3: Process payment
   try {
     const payment = await paymentService.charge(order.total, order.paymentMethod);
     return { status: "completed", payment };
   } catch (error) {
-    // 決済失敗時は在庫を戻す
+    // Restore inventory on payment failure
     await inventoryService.release(order.items);
     throw new PaymentFailedError(orderId, { cause: error });
   }
 }
 
-// Result 型パターン（例外を使わない）
+// Result type pattern (without exceptions)
 type Result<T, E = Error> =
   | { ok: true; value: T }
   | { ok: false; error: E };
@@ -252,7 +252,7 @@ async function safeAsync<T>(
   }
 }
 
-// 使用例
+// Usage example
 async function handleRequest() {
   const userResult = await safeAsync(() => getUser("123"));
   if (!userResult.ok) {
@@ -270,72 +270,72 @@ async function handleRequest() {
 }
 ```
 
-### 2.3 逐次 vs 並行
+### 2.3 Sequential vs Concurrent
 
 ```typescript
-// 逐次実行（直列）
+// Sequential execution (serial)
 async function sequential(): Promise<void> {
   const a = await fetchA(); // 100ms
   const b = await fetchB(); // 200ms
-  // 合計: 300ms（直列）
+  // Total: 300ms (serial)
 }
 
-// 並行実行
+// Concurrent execution
 async function concurrent(): Promise<void> {
   const [a, b] = await Promise.all([
-    fetchA(), // 100ms ┐
-    fetchB(), // 200ms ┤ 並行
-  ]);        //       ┘
-  // 合計: 200ms（並行）
+    fetchA(), // 100ms |
+    fetchB(), // 200ms | concurrent
+  ]);        //       |
+  // Total: 200ms (concurrent)
 }
 
-// 重要: Promise の作成時点で実行が開始される
+// Important: Execution starts at the moment a Promise is created
 async function earlyStart(): Promise<void> {
-  // Promise を先に作成（実行開始）
-  const promiseA = fetchA(); // 即座に開始
-  const promiseB = fetchB(); // 即座に開始
+  // Create Promises first (execution starts)
+  const promiseA = fetchA(); // Starts immediately
+  const promiseB = fetchB(); // Starts immediately
 
-  // 両方の結果を待つ
+  // Wait for both results
   const a = await promiseA;
   const b = await promiseB;
-  // Promise.all と同等の並行実行になる
+  // Equivalent concurrent execution to Promise.all
 }
 
-// ただし、エラーハンドリングに注意
+// However, be careful with error handling
 async function earlyStartWithErrorHandling(): Promise<void> {
   const promiseA = fetchA();
   const promiseB = fetchB();
 
-  // promiseB が先に reject しても、promiseA の await で待機中
-  // → unhandled rejection 警告が出る可能性がある
-  // → Promise.all を使う方が安全
+  // If promiseB rejects first, we're still waiting on promiseA's await
+  // -> May trigger an unhandled rejection warning
+  // -> Using Promise.all is safer
   try {
     const [a, b] = await Promise.all([promiseA, promiseB]);
   } catch (error) {
-    // 全てのエラーをキャッチ
+    // Catches all errors
   }
 }
 ```
 
-### 2.4 イテレーション・パターン
+### 2.4 Iteration Patterns
 
 ```typescript
-// ❌ for...of + await（逐次実行）
+// Bad: for...of + await (sequential execution)
 async function processSequential(urls: string[]): Promise<Response[]> {
   const results: Response[] = [];
   for (const url of urls) {
-    const response = await fetch(url); // 1件ずつ...
+    const response = await fetch(url); // One at a time...
     results.push(response);
   }
   return results;
 }
 
-// ✅ Promise.all（全並行）
+// Good: Promise.all (fully concurrent)
 async function processAllConcurrent(urls: string[]): Promise<Response[]> {
   return Promise.all(urls.map(url => fetch(url)));
 }
 
-// ✅ 制限付き並行実行（同時N件まで）
+// Good: Concurrency-limited execution (up to N at a time)
 async function processWithConcurrencyLimit<T>(
   items: T[],
   fn: (item: T) => Promise<any>,
@@ -353,7 +353,7 @@ async function processWithConcurrencyLimit<T>(
 
     if (executing.length >= limit) {
       await Promise.race(executing);
-      // 完了した Promise を除去
+      // Remove completed Promises
       const completed = executing.findIndex(
         p => p === Promise.race([p]).then(() => p)
       );
@@ -364,7 +364,7 @@ async function processWithConcurrencyLimit<T>(
   return results;
 }
 
-// より洗練された並行制限: セマフォ
+// A more refined concurrency limiter: Semaphore
 class Semaphore {
   private queue: (() => void)[] = [];
   private running = 0;
@@ -400,7 +400,7 @@ class Semaphore {
   }
 }
 
-// セマフォの使用例
+// Semaphore usage example
 async function fetchAllWithLimit(urls: string[], limit: number) {
   const semaphore = new Semaphore(limit);
   return Promise.all(
@@ -408,7 +408,7 @@ async function fetchAllWithLimit(urls: string[], limit: number) {
   );
 }
 
-// for-await-of（非同期イテレーション）
+// for-await-of (async iteration)
 async function* fetchPages(url: string): AsyncGenerator<Item[]> {
   let nextUrl: string | null = url;
   while (nextUrl) {
@@ -428,7 +428,7 @@ async function getAllItems(url: string): Promise<Item[]> {
   return allItems;
 }
 
-// ReadableStream の非同期イテレーション
+// Async iteration of ReadableStream
 async function readStream(stream: ReadableStream<Uint8Array>) {
   const reader = stream.getReader();
   const decoder = new TextDecoder();
@@ -447,10 +447,10 @@ async function readStream(stream: ReadableStream<Uint8Array>) {
 }
 ```
 
-### 2.5 AbortController によるキャンセレーション
+### 2.5 Cancellation with AbortController
 
 ```typescript
-// 基本的なキャンセレーション
+// Basic cancellation
 async function fetchWithCancel(
   url: string,
   signal?: AbortSignal
@@ -462,20 +462,20 @@ async function fetchWithCancel(
 const controller = new AbortController();
 const promise = fetchWithCancel("/api/data", controller.signal);
 
-// 必要に応じてキャンセル
+// Cancel as needed
 setTimeout(() => controller.abort(), 5000);
 
 try {
   const result = await promise;
 } catch (error) {
   if (error instanceof DOMException && error.name === "AbortError") {
-    console.log("リクエストがキャンセルされました");
+    console.log("Request was cancelled");
   } else {
     throw error;
   }
 }
 
-// タイムアウト付きの汎用関数
+// Generic function with timeout
 async function withTimeout<T>(
   promise: Promise<T>,
   ms: number,
@@ -499,14 +499,14 @@ async function withTimeout<T>(
   }
 }
 
-// AbortSignal.timeout()（新しい API）
+// AbortSignal.timeout() (newer API)
 async function fetchWithTimeout(url: string): Promise<Response> {
   return fetch(url, {
-    signal: AbortSignal.timeout(5000), // 5秒タイムアウト
+    signal: AbortSignal.timeout(5000), // 5-second timeout
   });
 }
 
-// 複数リクエストの一括キャンセル
+// Batch cancellation of multiple requests
 class RequestManager {
   private controller = new AbortController();
 
@@ -516,11 +516,11 @@ class RequestManager {
 
   cancelAll(): void {
     this.controller.abort();
-    this.controller = new AbortController(); // リセット
+    this.controller = new AbortController(); // Reset
   }
 }
 
-// React での使用例
+// Usage in React
 function useAsyncEffect(
   effect: (signal: AbortSignal) => Promise<void>,
   deps: React.DependencyList
@@ -532,11 +532,11 @@ function useAsyncEffect(
         console.error(error);
       }
     });
-    return () => controller.abort(); // クリーンアップ
+    return () => controller.abort(); // Cleanup
   }, deps);
 }
 
-// 使用例
+// Usage example
 function UserProfile({ userId }: { userId: string }) {
   const [user, setUser] = React.useState<User | null>(null);
 
@@ -550,10 +550,10 @@ function UserProfile({ userId }: { userId: string }) {
 }
 ```
 
-### 2.6 リトライパターン
+### 2.6 Retry Patterns
 
 ```typescript
-// 指数バックオフ付きリトライ
+// Retry with exponential backoff
 async function withRetry<T>(
   fn: () => Promise<T>,
   options: {
@@ -586,7 +586,7 @@ async function withRetry<T>(
 
       onRetry?.(lastError, attempt);
 
-      // 指数バックオフ + ジッター
+      // Exponential backoff + jitter
       const delay = Math.min(
         baseDelay * Math.pow(2, attempt) + Math.random() * 1000,
         maxDelay
@@ -598,15 +598,15 @@ async function withRetry<T>(
   throw lastError!;
 }
 
-// 使用例
+// Usage example
 const data = await withRetry(
   () => fetch("/api/data").then(r => r.json()),
   {
     maxRetries: 3,
     baseDelay: 1000,
     shouldRetry: (error, attempt) => {
-      // ネットワークエラーや 5xx のみリトライ
-      if (error instanceof TypeError) return true; // ネットワークエラー
+      // Only retry on network errors or 5xx
+      if (error instanceof TypeError) return true; // Network error
       if (error instanceof HttpError && error.status >= 500) return true;
       return false;
     },
@@ -616,7 +616,7 @@ const data = await withRetry(
   }
 );
 
-// サーキットブレーカー付きリトライ
+// Retry with circuit breaker
 class CircuitBreaker {
   private failures = 0;
   private lastFailureTime = 0;
@@ -665,26 +665,26 @@ class CircuitBreaker {
 
 ## 3. Python
 
-### 3.1 asyncio の基本
+### 3.1 asyncio Basics
 
 ```python
 import asyncio
 from typing import Any
 
-# 基本的な async 関数
+# Basic async function
 async def get_user_profile(user_id: str) -> dict:
     user = await user_repo.find_by_id(user_id)
     if not user:
         raise ValueError("User not found")
 
-    # asyncio.gather で並行実行
+    # Concurrent execution with asyncio.gather
     orders, reviews = await asyncio.gather(
         order_repo.find_by_user_id(user_id),
         review_repo.find_by_user_id(user_id),
     )
     return {"user": user, "orders": orders, "reviews": reviews}
 
-# 実行
+# Execution
 async def main():
     profile = await get_user_profile("user-123")
     print(profile)
@@ -692,51 +692,51 @@ async def main():
 asyncio.run(main())
 ```
 
-### 3.2 Task の管理
+### 3.2 Task Management
 
 ```python
 import asyncio
 
-# タスクの作成と並行実行
+# Creating tasks and concurrent execution
 async def process_items(items: list[str]) -> list[dict]:
     tasks = [asyncio.create_task(fetch_item(item)) for item in items]
     return await asyncio.gather(*tasks)
 
-# タスクのキャンセル
+# Task cancellation
 async def cancellable_operation():
     task = asyncio.create_task(long_running_operation())
 
-    # 5秒後にキャンセル
+    # Cancel after 5 seconds
     await asyncio.sleep(5)
     task.cancel()
 
     try:
         await task
     except asyncio.CancelledError:
-        print("タスクがキャンセルされました")
+        print("Task was cancelled")
 
-# TaskGroup（Python 3.11+）- 構造化並行性
+# TaskGroup (Python 3.11+) - Structured concurrency
 async def structured_concurrency():
     async with asyncio.TaskGroup() as tg:
         task1 = tg.create_task(fetch_users())
         task2 = tg.create_task(fetch_orders())
         task3 = tg.create_task(fetch_products())
-    # 全タスク完了後にここに到達
-    # いずれかのタスクが例外を発生させると、
-    # 他のタスクもキャンセルされる
+    # Reaches here after all tasks complete
+    # If any task raises an exception,
+    # the others are also cancelled
     users = task1.result()
     orders = task2.result()
     products = task3.result()
     return users, orders, products
 
-# TaskGroup でのエラーハンドリング
+# Error handling with TaskGroup
 async def safe_task_group():
     try:
         async with asyncio.TaskGroup() as tg:
             tg.create_task(might_fail_1())
             tg.create_task(might_fail_2())
     except* ValueError as eg:
-        # ExceptionGroup をハンドリング（Python 3.11+）
+        # Handle ExceptionGroup (Python 3.11+)
         for exc in eg.exceptions:
             print(f"ValueError: {exc}")
     except* TypeError as eg:
@@ -744,12 +744,12 @@ async def safe_task_group():
             print(f"TypeError: {exc}")
 ```
 
-### 3.3 タイムアウトとデッドライン
+### 3.3 Timeouts and Deadlines
 
 ```python
 import asyncio
 
-# wait_for によるタイムアウト
+# Timeout with wait_for
 async def with_timeout():
     try:
         result = await asyncio.wait_for(
@@ -757,30 +757,30 @@ async def with_timeout():
             timeout=5.0
         )
     except asyncio.TimeoutError:
-        print("タイムアウト")
+        print("Timed out")
 
-# asyncio.timeout（Python 3.11+）
+# asyncio.timeout (Python 3.11+)
 async def modern_timeout():
     async with asyncio.timeout(5.0):
         result = await slow_operation()
         return result
 
-# デッドライン
+# Deadline
 async def with_deadline():
     deadline = asyncio.get_event_loop().time() + 10.0
     async with asyncio.timeout_at(deadline):
         await step1()
-        await step2()  # 残り時間内で実行
-        await step3()  # 全体で10秒以内
+        await step2()  # Executes within remaining time
+        await step3()  # All within 10 seconds total
 
-# asyncio.wait で部分的な完了を処理
+# Processing partial completion with asyncio.wait
 async def partial_results():
     tasks = [
         asyncio.create_task(fetch(url))
         for url in urls
     ]
 
-    # 最初に完了した結果を取得
+    # Get the first completed result
     done, pending = await asyncio.wait(
         tasks,
         return_when=asyncio.FIRST_COMPLETED
@@ -788,11 +788,11 @@ async def partial_results():
     for task in done:
         print(f"Completed: {task.result()}")
 
-    # 残りをキャンセル
+    # Cancel the rest
     for task in pending:
         task.cancel()
 
-# as_completed でストリーミング処理
+# Streaming results with as_completed
 async def stream_results():
     tasks = [
         asyncio.create_task(fetch(url))
@@ -802,16 +802,16 @@ async def stream_results():
     for coro in asyncio.as_completed(tasks):
         result = await coro
         print(f"Got result: {result}")
-        # 完了順に処理される
+        # Processed in completion order
 ```
 
-### 3.4 非同期コンテキストマネージャーとイテレータ
+### 3.4 Async Context Managers and Iterators
 
 ```python
 import asyncio
 from contextlib import asynccontextmanager
 
-# 非同期コンテキストマネージャー（クラスベース）
+# Async context manager (class-based)
 class AsyncDatabaseConnection:
     def __init__(self, dsn: str):
         self.dsn = dsn
@@ -824,15 +824,15 @@ class AsyncDatabaseConnection:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         if self.conn:
             await self.conn.close()
-        return False  # 例外を再送出
+        return False  # Re-raise the exception
 
-# 使用
+# Usage
 async def query_users():
     async with AsyncDatabaseConnection("postgresql://...") as conn:
         rows = await conn.fetch("SELECT * FROM users")
         return rows
 
-# デコレータベースの非同期コンテキストマネージャー
+# Decorator-based async context manager
 @asynccontextmanager
 async def managed_transaction(pool):
     conn = await pool.acquire()
@@ -847,7 +847,7 @@ async def managed_transaction(pool):
     finally:
         await pool.release(conn)
 
-# 非同期イテレータ
+# Async iterator
 class AsyncPaginator:
     def __init__(self, url: str, page_size: int = 100):
         self.url = url
@@ -864,13 +864,13 @@ class AsyncPaginator:
             raise StopAsyncIteration
         return data
 
-# 使用
+# Usage
 async def process_all_pages():
     async for page in AsyncPaginator("/api/users"):
         for user in page:
             await process_user(user)
 
-# 非同期ジェネレーター
+# Async generator
 async def async_range(start: int, stop: int, delay: float = 0.1):
     for i in range(start, stop):
         await asyncio.sleep(delay)
@@ -881,7 +881,7 @@ async def use_async_generator():
         print(value)
 ```
 
-### 3.5 aiohttp を使った実践的な HTTP クライアント
+### 3.5 Practical HTTP Client with aiohttp
 
 ```python
 import aiohttp
@@ -928,10 +928,10 @@ class AsyncHttpClient:
                 print(f"Retry {attempt + 1}/{max_retries} after {delay}s: {e}")
                 await asyncio.sleep(delay)
 
-# 使用例
+# Usage example
 async def main():
     async with AsyncHttpClient("https://api.example.com") as client:
-        # 並行で100件のユーザーを取得（同時10件まで）
+        # Fetch 100 users concurrently (up to 10 at a time)
         paths = [f"/users/{i}" for i in range(100)]
         users = await client.get_many(paths)
         print(f"Fetched {len(users)} users")
@@ -941,14 +941,14 @@ async def main():
 
 ## 4. Rust
 
-### 4.1 Future トレイトと async/await
+### 4.1 The Future Trait and async/await
 
 ```rust
-// Rust: async/await（tokio ランタイム）
+// Rust: async/await (tokio runtime)
 use tokio;
 
-// Rust の async fn は Future トレイトを実装する型を返す
-// Future トレイト:
+// Rust's async fn returns a type that implements the Future trait
+// Future trait:
 // trait Future {
 //     type Output;
 //     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output>;
@@ -957,7 +957,7 @@ use tokio;
 async fn get_user_profile(user_id: &str) -> Result<UserProfile, AppError> {
     let user = user_repo.find_by_id(user_id).await?;
 
-    // tokio::join! で並行実行
+    // Concurrent execution with tokio::join!
     let (orders, reviews) = tokio::join!(
         order_repo.find_by_user_id(user_id),
         review_repo.find_by_user_id(user_id),
@@ -976,23 +976,23 @@ async fn main() {
     println!("{:?}", profile);
 }
 
-// Rust の async の特徴:
-// → ゼロコスト抽象化（ステートマシンにコンパイル）
-// → ランタイムが分離（tokio, async-std, smol）
-// → Future は lazy（await するまで実行されない）
-// → Send + 'static の制約（スレッド間移動可能）
+// Characteristics of Rust's async:
+// -> Zero-cost abstraction (compiles to a state machine)
+// -> Runtime is separate (tokio, async-std, smol)
+// -> Futures are lazy (not executed until awaited)
+// -> Send + 'static constraints (must be movable across threads)
 ```
 
-### 4.2 tokio の並行実行パターン
+### 4.2 tokio Concurrent Execution Patterns
 
 ```rust
 use tokio;
 use tokio::time::{timeout, Duration};
 
-// tokio::spawn でタスクを生成
+// Spawning tasks with tokio::spawn
 async fn spawn_tasks() -> Result<(), Box<dyn std::error::Error>> {
     let handle1 = tokio::spawn(async {
-        // 独立したタスク
+        // Independent task
         fetch_users().await
     });
 
@@ -1000,13 +1000,13 @@ async fn spawn_tasks() -> Result<(), Box<dyn std::error::Error>> {
         fetch_orders().await
     });
 
-    // 両方の結果を取得
+    // Get both results
     let (users, orders) = (handle1.await??, handle2.await??);
     println!("Users: {}, Orders: {}", users.len(), orders.len());
     Ok(())
 }
 
-// tokio::select! でレース
+// Racing with tokio::select!
 async fn fetch_with_timeout() -> Result<Data, AppError> {
     tokio::select! {
         result = fetch_data() => {
@@ -1018,7 +1018,7 @@ async fn fetch_with_timeout() -> Result<Data, AppError> {
     }
 }
 
-// tokio::select! で最初の応答を採用
+// Using tokio::select! to take the first response
 async fn fastest_mirror(mirrors: Vec<String>) -> Result<Data, AppError> {
     tokio::select! {
         result = fetch_from(&mirrors[0]) => result,
@@ -1027,7 +1027,7 @@ async fn fastest_mirror(mirrors: Vec<String>) -> Result<Data, AppError> {
     }
 }
 
-// timeout
+// Timeout
 async fn with_timeout() -> Result<Data, AppError> {
     match timeout(Duration::from_secs(10), fetch_data()).await {
         Ok(Ok(data)) => Ok(data),
@@ -1036,18 +1036,18 @@ async fn with_timeout() -> Result<Data, AppError> {
     }
 }
 
-// バッファ付きチャネル
+// Buffered channel
 async fn producer_consumer() {
     let (tx, mut rx) = tokio::sync::mpsc::channel::<String>(100);
 
-    // プロデューサー
+    // Producer
     let producer = tokio::spawn(async move {
         for i in 0..1000 {
             tx.send(format!("message {}", i)).await.unwrap();
         }
     });
 
-    // コンシューマー
+    // Consumer
     let consumer = tokio::spawn(async move {
         while let Some(msg) = rx.recv().await {
             process_message(&msg).await;
@@ -1058,27 +1058,27 @@ async fn producer_consumer() {
 }
 ```
 
-### 4.3 Stream（非同期イテレータ）
+### 4.3 Stream (Async Iterator)
 
 ```rust
 use tokio_stream::{self as stream, StreamExt};
 use futures::stream::{self, Stream};
 
-// Stream の作成と消費
+// Creating and consuming a Stream
 async fn process_stream() {
     let mut stream = stream::iter(vec![1, 2, 3, 4, 5])
         .map(|x| async move {
             tokio::time::sleep(Duration::from_millis(100)).await;
             x * 2
         })
-        .buffered(3); // 3つまで並行処理
+        .buffered(3); // Process up to 3 concurrently
 
     while let Some(value) = stream.next().await {
         println!("Got: {}", value);
     }
 }
 
-// カスタム Stream
+// Custom Stream
 fn countdown(from: u32) -> impl Stream<Item = u32> {
     stream::unfold(from, |state| async move {
         if state == 0 {
@@ -1090,7 +1090,7 @@ fn countdown(from: u32) -> impl Stream<Item = u32> {
     })
 }
 
-// Stream の合成
+// Stream composition
 async fn merged_streams() {
     let stream1 = stream::iter(vec![1, 3, 5]);
     let stream2 = stream::iter(vec![2, 4, 6]);
@@ -1101,7 +1101,7 @@ async fn merged_streams() {
     }
 }
 
-// 並行制限付きの処理
+// Processing with concurrency limit
 async fn process_with_limit(
     items: Vec<String>,
     limit: usize,
@@ -1114,7 +1114,7 @@ async fn process_with_limit(
 }
 ```
 
-### 4.4 エラーハンドリングと ? 演算子
+### 4.4 Error Handling and the ? Operator
 
 ```rust
 use thiserror::Error;
@@ -1131,19 +1131,19 @@ enum AppError {
     Timeout,
 }
 
-// ? 演算子で簡潔なエラーハンドリング
+// Concise error handling with the ? operator
 async fn get_user_with_orders(user_id: &str) -> Result<UserWithOrders, AppError> {
     let user = db::find_user(user_id)
-        .await?  // sqlx::Error → AppError::Database
+        .await?  // sqlx::Error -> AppError::Database
         .ok_or_else(|| AppError::NotFound(user_id.to_string()))?;
 
     let orders = api::fetch_orders(user_id)
-        .await?; // reqwest::Error → AppError::Network
+        .await?; // reqwest::Error -> AppError::Network
 
     Ok(UserWithOrders { user, orders })
 }
 
-// リトライ
+// Retry
 async fn with_retry<T, E, F, Fut>(
     mut f: F,
     max_retries: u32,
@@ -1172,11 +1172,11 @@ where
 
 ---
 
-## 5. Go（goroutine + channel）
+## 5. Go (goroutine + channel)
 
-Go は async/await 構文を持たないが、goroutine と channel で同等の機能を実現する。
+Go does not have async/await syntax, but achieves equivalent functionality through goroutines and channels.
 
-### 5.1 基本パターン
+### 5.1 Basic Patterns
 
 ```go
 package main
@@ -1188,15 +1188,15 @@ import (
     "time"
 )
 
-// Go では全ての関数が「同期的」に見える
-// 非同期性は goroutine で実現する
+// In Go, all functions appear "synchronous"
+// Asynchrony is achieved through goroutines
 func getUserProfile(ctx context.Context, userID string) (*UserProfile, error) {
     user, err := userRepo.FindByID(ctx, userID)
     if err != nil {
         return nil, fmt.Errorf("find user: %w", err)
     }
 
-    // 並行実行は goroutine + channel で
+    // Concurrent execution via goroutine + channel
     type ordersResult struct {
         orders []Order
         err    error
@@ -1237,7 +1237,7 @@ func getUserProfile(ctx context.Context, userID string) (*UserProfile, error) {
 }
 ```
 
-### 5.2 errgroup による並行実行
+### 5.2 Concurrent Execution with errgroup
 
 ```go
 import "golang.org/x/sync/errgroup"
@@ -1280,13 +1280,13 @@ func getDashboard(ctx context.Context, userID string) (*Dashboard, error) {
     }, nil
 }
 
-// 並行制限付き errgroup
+// errgroup with concurrency limit
 func processItems(ctx context.Context, items []string) error {
     g, ctx := errgroup.WithContext(ctx)
-    g.SetLimit(10) // 同時に10件まで
+    g.SetLimit(10) // Up to 10 concurrent
 
     for _, item := range items {
-        item := item // ループ変数のキャプチャ（Go 1.21 以前）
+        item := item // Capture loop variable (before Go 1.21)
         g.Go(func() error {
             return processItem(ctx, item)
         })
@@ -1296,7 +1296,7 @@ func processItems(ctx context.Context, items []string) error {
 }
 ```
 
-### 5.3 Context によるキャンセルとタイムアウト
+### 5.3 Cancellation and Timeout with Context
 
 ```go
 import (
@@ -1304,7 +1304,7 @@ import (
     "time"
 )
 
-// タイムアウト
+// Timeout
 func fetchWithTimeout(url string) ([]byte, error) {
     ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
     defer cancel()
@@ -1316,21 +1316,21 @@ func fetchWithTimeout(url string) ([]byte, error) {
 
     resp, err := http.DefaultClient.Do(req)
     if err != nil {
-        return nil, err // context.DeadlineExceeded が含まれる可能性
+        return nil, err // May contain context.DeadlineExceeded
     }
     defer resp.Body.Close()
 
     return io.ReadAll(resp.Body)
 }
 
-// キャンセル伝播
+// Cancellation propagation
 func longOperation(ctx context.Context) error {
     for i := 0; i < 100; i++ {
         select {
         case <-ctx.Done():
             return ctx.Err() // context.Canceled or DeadlineExceeded
         default:
-            // 処理を続行
+            // Continue processing
             if err := doStep(ctx, i); err != nil {
                 return err
             }
@@ -1339,14 +1339,14 @@ func longOperation(ctx context.Context) error {
     return nil
 }
 
-// 親コンテキストからのキャンセル
+// Cancellation from parent context
 func handler(w http.ResponseWriter, r *http.Request) {
-    ctx := r.Context() // クライアントが接続を切るとキャンセルされる
+    ctx := r.Context() // Cancelled when the client disconnects
 
     result, err := longOperation(ctx)
     if err != nil {
         if ctx.Err() != nil {
-            // クライアントが切断した
+            // Client disconnected
             return
         }
         http.Error(w, err.Error(), 500)
@@ -1361,7 +1361,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 ## 6. C#
 
-### 6.1 Task ベースの async/await
+### 6.1 Task-Based async/await
 
 ```csharp
 using System;
@@ -1369,7 +1369,7 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
-// 基本
+// Basic
 public async Task<UserProfile> GetUserProfileAsync(string userId)
 {
     var user = await _userRepo.FindByIdAsync(userId);
@@ -1384,12 +1384,12 @@ public async Task<UserProfile> GetUserProfileAsync(string userId)
     return new UserProfile(user, orders, reviews);
 }
 
-// ValueTask（値型で軽量、キャッシュヒットが多い場合に有効）
+// ValueTask (value type, lightweight; effective when cache hits are frequent)
 public ValueTask<User?> GetUserAsync(string userId)
 {
     if (_cache.TryGetValue(userId, out var cached))
     {
-        return ValueTask.FromResult(cached); // ヒープアロケーションなし
+        return ValueTask.FromResult(cached); // No heap allocation
     }
 
     return new ValueTask<User?>(GetUserFromDbAsync(userId));
@@ -1419,7 +1419,7 @@ public async Task<Data> FetchDataAsync(
     return JsonSerializer.Deserialize<Data>(content)!;
 }
 
-// 使用例
+// Usage example
 var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 try
 {
@@ -1431,7 +1431,7 @@ catch (OperationCanceledException)
 }
 ```
 
-### 6.2 並行実行パターン
+### 6.2 Concurrent Execution Patterns
 
 ```csharp
 // Task.WhenAll
@@ -1445,13 +1445,13 @@ public async Task<Dashboard> GetDashboardAsync(string userId)
 
     return new Dashboard
     {
-        Profile = await profileTask,       // 既に完了済み
+        Profile = await profileTask,       // Already completed
         Notifications = await notificationsTask,
         Stats = await statsTask,
     };
 }
 
-// Task.WhenAny（最初の完了を利用）
+// Task.WhenAny (use the first completion)
 public async Task<Data> FetchFromFastestAsync(IEnumerable<string> urls)
 {
     var tasks = urls.Select(url => FetchDataAsync(url)).ToList();
@@ -1459,7 +1459,7 @@ public async Task<Data> FetchFromFastestAsync(IEnumerable<string> urls)
     return await completed;
 }
 
-// SemaphoreSlim で並行制限
+// Concurrency limiting with SemaphoreSlim
 public async Task ProcessAllAsync(
     IEnumerable<string> items,
     int maxConcurrency = 10)
@@ -1481,7 +1481,7 @@ public async Task ProcessAllAsync(
     await Task.WhenAll(tasks);
 }
 
-// IAsyncEnumerable（C# 8.0+）
+// IAsyncEnumerable (C# 8.0+)
 public async IAsyncEnumerable<User> GetAllUsersAsync(
     [EnumeratorCancellation] CancellationToken ct = default)
 {
@@ -1498,32 +1498,32 @@ public async IAsyncEnumerable<User> GetAllUsersAsync(
     }
 }
 
-// 消費
+// Consumption
 await foreach (var user in GetAllUsersAsync())
 {
     Console.WriteLine(user.Name);
 }
 ```
 
-### 6.3 ConfigureAwait と同期コンテキスト
+### 6.3 ConfigureAwait and Synchronization Context
 
 ```csharp
-// UI スレッドでの注意点
-// WPF や Windows Forms では SynchronizationContext がある
+// Considerations for UI threads
+// WPF and Windows Forms have a SynchronizationContext
 public async void Button_Click(object sender, EventArgs e)
 {
     var data = await FetchDataAsync("/api/data");
-    // ↑ デフォルトでは UI スレッドに戻る
+    // ^ Returns to the UI thread by default
 
-    // UI の更新（UI スレッドで実行される）
+    // UI update (executes on the UI thread)
     textBox.Text = data.ToString();
 }
 
-// ライブラリコードでは ConfigureAwait(false) を使う
+// Use ConfigureAwait(false) in library code
 public async Task<Data> FetchDataLibraryAsync(string url)
 {
     var response = await _client.GetAsync(url)
-        .ConfigureAwait(false); // スレッドプールで継続
+        .ConfigureAwait(false); // Continue on thread pool
 
     var content = await response.Content.ReadAsStringAsync()
         .ConfigureAwait(false);
@@ -1531,15 +1531,15 @@ public async Task<Data> FetchDataLibraryAsync(string url)
     return JsonSerializer.Deserialize<Data>(content)!;
 }
 
-// デッドロック回避
-// ❌ 同期メソッドから async を呼ぶとデッドロック
+// Avoiding deadlocks
+// Bad: Calling async from synchronous method causes deadlock
 public Data GetDataSync()
 {
-    // UI スレッドで .Result を呼ぶとデッドロック！
+    // Calling .Result on the UI thread causes deadlock!
     return FetchDataAsync("/api/data").Result;
 }
 
-// ✅ async all the way（全てを async にする）
+// Good: async all the way (make everything async)
 public async Task<Data> GetDataAsync()
 {
     return await FetchDataAsync("/api/data");
@@ -1550,17 +1550,17 @@ public async Task<Data> GetDataAsync()
 
 ## 7. Kotlin
 
-### 7.1 Coroutine の基本
+### 7.1 Coroutine Basics
 
 ```kotlin
 import kotlinx.coroutines.*
 
-// suspend 関数
+// suspend function
 suspend fun getUserProfile(userId: String): UserProfile {
     val user = userRepo.findById(userId)
         ?: throw NotFoundException("User $userId not found")
 
-    // coroutineScope で並行実行
+    // Concurrent execution with coroutineScope
     return coroutineScope {
         val ordersDeferred = async { orderRepo.findByUserId(userId) }
         val reviewsDeferred = async { reviewRepo.findByUserId(userId) }
@@ -1573,14 +1573,14 @@ suspend fun getUserProfile(userId: String): UserProfile {
     }
 }
 
-// CoroutineScope とディスパッチャー
+// CoroutineScope and dispatchers
 fun main() = runBlocking {
-    // Dispatchers.IO: I/O操作向け
+    // Dispatchers.IO: For I/O operations
     val data = withContext(Dispatchers.IO) {
         fetchFromNetwork()
     }
 
-    // Dispatchers.Default: CPU集中タスク向け
+    // Dispatchers.Default: For CPU-intensive tasks
     val processed = withContext(Dispatchers.Default) {
         heavyComputation(data)
     }
@@ -1588,14 +1588,14 @@ fun main() = runBlocking {
     println(processed)
 }
 
-// 構造化並行性
+// Structured concurrency
 suspend fun processDashboard(userId: String): Dashboard {
     return coroutineScope {
         val profile = async { getProfile(userId) }
         val notifications = async { getNotifications(userId) }
         val stats = async { getStats(userId) }
 
-        // いずれかが失敗すると、他も自動キャンセル
+        // If any fails, the others are automatically cancelled
         Dashboard(
             profile = profile.await(),
             notifications = notifications.await(),
@@ -1605,12 +1605,12 @@ suspend fun processDashboard(userId: String): Dashboard {
 }
 ```
 
-### 7.2 Flow（Cold Stream）
+### 7.2 Flow (Cold Stream)
 
 ```kotlin
 import kotlinx.coroutines.flow.*
 
-// Flow の作成
+// Creating a Flow
 fun fetchUsers(): Flow<User> = flow {
     var page = 0
     while (true) {
@@ -1620,18 +1620,18 @@ fun fetchUsers(): Flow<User> = flow {
     }
 }
 
-// Flow の変換と消費
+// Transforming and consuming a Flow
 suspend fun processUsers() {
     fetchUsers()
         .filter { it.isActive }
         .map { enrichUser(it) }
-        .buffer(10) // バッファリングで並行化
+        .buffer(10) // Buffering for concurrency
         .collect { user ->
             println("Processed: ${user.name}")
         }
 }
 
-// StateFlow（Hot Stream, UI 向け）
+// StateFlow (Hot Stream, for UI)
 class UserViewModel : ViewModel() {
     private val _uiState = MutableStateFlow<UiState>(UiState.Loading)
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
@@ -1650,41 +1650,41 @@ class UserViewModel : ViewModel() {
 }
 ```
 
-### 7.3 キャンセルとタイムアウト
+### 7.3 Cancellation and Timeout
 
 ```kotlin
 import kotlinx.coroutines.*
 
 // withTimeout
 suspend fun fetchWithTimeout(): Data {
-    return withTimeout(5000L) { // 5秒タイムアウト
+    return withTimeout(5000L) { // 5-second timeout
         fetchData()
     }
-    // TimeoutCancellationException がスローされる
+    // TimeoutCancellationException is thrown
 }
 
-// withTimeoutOrNull（例外ではなく null を返す）
+// withTimeoutOrNull (returns null instead of throwing)
 suspend fun safeFetch(): Data? {
     return withTimeoutOrNull(5000L) {
         fetchData()
     }
 }
 
-// キャンセルの協調
+// Cooperative cancellation
 suspend fun cancellableOperation() {
     for (i in 0..1000) {
-        // キャンセルチェック
-        ensureActive() // CancellationException をスロー
+        // Check for cancellation
+        ensureActive() // Throws CancellationException
 
-        // または yield() でサスペンドポイントを挿入
+        // Or insert a suspension point with yield()
         yield()
 
-        // 処理
+        // Processing
         processItem(i)
     }
 }
 
-// Job のキャンセル
+// Job cancellation
 fun main() = runBlocking {
     val job = launch {
         repeat(1000) { i ->
@@ -1694,7 +1694,7 @@ fun main() = runBlocking {
     }
 
     delay(500)
-    job.cancelAndJoin() // キャンセルして完了を待つ
+    job.cancelAndJoin() // Cancel and wait for completion
     println("Cancelled")
 }
 ```
@@ -1708,11 +1708,11 @@ fun main() = runBlocking {
 ```swift
 import Foundation
 
-// async 関数
+// async function
 func getUserProfile(userId: String) async throws -> UserProfile {
     let user = try await userRepo.findById(userId)
 
-    // async let で並行実行（構造化並行性）
+    // Concurrent execution with async let (structured concurrency)
     async let orders = orderRepo.findByUserId(userId)
     async let reviews = reviewRepo.findByUserId(userId)
 
@@ -1740,17 +1740,17 @@ func fetchAllUsers(ids: [String]) async throws -> [User] {
     }
 }
 
-// Task のキャンセル
+// Task cancellation
 func cancellableOperation() async throws {
     for i in 0..<1000 {
-        // キャンセルチェック
+        // Check for cancellation
         try Task.checkCancellation()
 
         await processItem(i)
     }
 }
 
-// Actor（データ競合の防止）
+// Actor (preventing data races)
 actor UserCache {
     private var cache: [String: User] = [:]
 
@@ -1792,7 +1792,7 @@ func fetchPages(url: URL) -> AsyncStream<[Item]> {
     }
 }
 
-// 消費
+// Consumption
 func processAllPages() async {
     for await items in fetchPages(url: apiURL) {
         for item in items {
@@ -1801,7 +1801,7 @@ func processAllPages() async {
     }
 }
 
-// URLSession の bytes（ストリーミング）
+// URLSession bytes (streaming)
 func downloadWithProgress(url: URL) async throws {
     let (bytes, response) = try await URLSession.shared.bytes(from: url)
     let totalSize = response.expectedContentLength
@@ -1819,23 +1819,23 @@ func downloadWithProgress(url: URL) async throws {
 
 ---
 
-## 9. 効率的なパターン
+## 9. Efficient Patterns
 
-### 9.1 依存関係グラフに基づく実行
+### 9.1 Execution Based on Dependency Graphs
 
 ```typescript
-// パターン1: 早期 await（依存関係がある場合）
+// Pattern 1: Early await (when there are dependencies)
 async function orderPipeline(userId: string) {
-  const user = await getUser(userId);         // まず user が必要
-  const cart = await getCart(user.cartId);      // user に依存
-  const total = calculateTotal(cart.items);     // 同期処理
-  const payment = await processPayment(total);  // total に依存
+  const user = await getUser(userId);         // Need user first
+  const cart = await getCart(user.cartId);      // Depends on user
+  const total = calculateTotal(cart.items);     // Synchronous
+  const payment = await processPayment(total);  // Depends on total
   return payment;
 }
 
-// パターン2: 独立タスクの並行実行
+// Pattern 2: Concurrent execution of independent tasks
 async function dashboardData(userId: string) {
-  // 独立したデータを並行取得
+  // Fetch independent data concurrently
   const [profile, notifications, stats, feed] = await Promise.all([
     getProfile(userId),
     getNotifications(userId),
@@ -1845,19 +1845,19 @@ async function dashboardData(userId: string) {
   return { profile, notifications, stats, feed };
 }
 
-// パターン3: 段階的な並行実行
+// Pattern 3: Staged concurrent execution
 async function complexPipeline(userId: string) {
-  // Stage 1: user を取得
+  // Stage 1: Fetch user
   const user = await getUser(userId);
 
-  // Stage 2: user に依存する3つを並行
+  // Stage 2: Three tasks that depend on user, in parallel
   const [orders, reviews, wishlist] = await Promise.all([
     getOrders(user.id),
     getReviews(user.id),
     getWishlist(user.id),
   ]);
 
-  // Stage 3: orders に依存する処理を並行
+  // Stage 3: Process tasks that depend on orders, in parallel
   const orderDetails = await Promise.all(
     orders.map(order => getOrderDetails(order.id))
   );
@@ -1865,7 +1865,7 @@ async function complexPipeline(userId: string) {
   return { user, orders: orderDetails, reviews, wishlist };
 }
 
-// パターン4: 依存関係グラフの自動解決
+// Pattern 4: Automatic dependency graph resolution
 type TaskDef<T> = {
   deps: string[];
   run: (results: Record<string, any>) => Promise<T>;
@@ -1884,7 +1884,7 @@ async function runTaskGraph(
 
     const task = tasks[name];
     const promise = (async () => {
-      // 依存タスクを先に実行
+      // Execute dependent tasks first
       await Promise.all(task.deps.map(dep => runTask(dep)));
       results[name] = await task.run(results);
       completed.add(name);
@@ -1898,7 +1898,7 @@ async function runTaskGraph(
   return results;
 }
 
-// 使用例
+// Usage example
 const result = await runTaskGraph({
   user: {
     deps: [],
@@ -1919,10 +1919,10 @@ const result = await runTaskGraph({
 });
 ```
 
-### 9.2 キャッシュパターン
+### 9.2 Cache Patterns
 
 ```typescript
-// 非同期キャッシュ（重複リクエスト防止）
+// Async cache (prevents duplicate requests)
 class AsyncCache<K, V> {
   private cache = new Map<string, { value: V; expiresAt: number }>();
   private pending = new Map<string, Promise<V>>();
@@ -1936,19 +1936,19 @@ class AsyncCache<K, V> {
   async get(key: K): Promise<V> {
     const cacheKey = this.keyFn(key);
 
-    // キャッシュヒット
+    // Cache hit
     const cached = this.cache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) {
       return cached.value;
     }
 
-    // 同じキーのリクエストが進行中ならそれを待つ（dedup）
+    // If a request for the same key is in progress, wait for it (dedup)
     const pending = this.pending.get(cacheKey);
     if (pending) {
       return pending;
     }
 
-    // 新規フェッチ
+    // New fetch
     const promise = this.fetcher(key)
       .then(value => {
         this.cache.set(cacheKey, {
@@ -1975,24 +1975,24 @@ class AsyncCache<K, V> {
   }
 }
 
-// 使用例
+// Usage example
 const userCache = new AsyncCache<string, User>(
   (userId) => fetchUser(userId),
   (key) => key,
-  5 * 60 * 1000 // 5分
+  5 * 60 * 1000 // 5 minutes
 );
 
-// 同時に同じユーザーをリクエストしてもAPI呼び出しは1回
+// Even if the same user is requested simultaneously, only one API call is made
 const [user1, user2] = await Promise.all([
   userCache.get("user-123"),
   userCache.get("user-123"),
 ]);
 ```
 
-### 9.3 バッチ処理とデバウンス
+### 9.3 Batch Processing and Debouncing
 
 ```typescript
-// DataLoader パターン（N+1 問題の解決）
+// DataLoader pattern (solving the N+1 problem)
 class DataLoader<K, V> {
   private batch: Map<K, {
     resolve: (value: V) => void;
@@ -2013,7 +2013,7 @@ class DataLoader<K, V> {
 
       if (!this.scheduled) {
         this.scheduled = true;
-        // マイクロタスクでバッチ実行をスケジュール
+        // Schedule batch execution as a microtask
         queueMicrotask(() => this.executeBatch());
       }
     });
@@ -2043,7 +2043,7 @@ class DataLoader<K, V> {
   }
 }
 
-// 使用例
+// Usage example
 const userLoader = new DataLoader<string, User>(
   async (ids) => {
     // SELECT * FROM users WHERE id IN (...)
@@ -2054,14 +2054,14 @@ const userLoader = new DataLoader<string, User>(
   }
 );
 
-// 個別に呼んでもバッチ化される
+// Even when called individually, they are batched
 async function resolveComment(comment: Comment) {
-  const author = await userLoader.load(comment.authorId); // ┐
-  const editor = await userLoader.load(comment.editorId); // ┤ 1回のSQLに
-  return { ...comment, author, editor };                   // ┘
+  const author = await userLoader.load(comment.authorId); // |
+  const editor = await userLoader.load(comment.editorId); // | Becomes 1 SQL query
+  return { ...comment, author, editor };                   // |
 }
 
-// 非同期デバウンス
+// Async debounce
 function asyncDebounce<T extends (...args: any[]) => Promise<any>>(
   fn: T,
   ms: number
@@ -2072,7 +2072,7 @@ function asyncDebounce<T extends (...args: any[]) => Promise<any>>(
 
   return ((...args: any[]) => {
     return new Promise((resolve, reject) => {
-      // 前回のリクエストを中断
+      // Abort previous request
       if (pendingReject) {
         pendingReject(new Error("Debounced"));
       }
@@ -2097,10 +2097,10 @@ function asyncDebounce<T extends (...args: any[]) => Promise<any>>(
 }
 ```
 
-### 9.4 for-await-of パターン
+### 9.4 for-await-of Patterns
 
 ```typescript
-// 非同期ジェネレーター
+// Async generator
 async function* fetchPages(url: string): AsyncGenerator<Item[]> {
   let nextUrl: string | null = url;
   while (nextUrl) {
@@ -2115,7 +2115,7 @@ for await (const page of fetchPages("/api/users")) {
   console.log(`Got ${page.length} users`);
 }
 
-// パイプライン: 変換付き非同期イテレータ
+// Pipeline: Async iterator with transformations
 async function* map<T, U>(
   source: AsyncIterable<T>,
   fn: (item: T) => U | Promise<U>
@@ -2147,16 +2147,16 @@ async function* take<T>(
   }
 }
 
-// パイプライン使用例
+// Pipeline usage example
 const activeUsers = take(
   filter(
     map(
       fetchPages("/api/users"),
-      page => page  // ページからユーザー配列を取得
+      page => page  // Get user array from page
     ),
     users => users.length > 0
   ),
-  10 // 最初の10ページまで
+  10 // Up to the first 10 pages
 );
 
 for await (const users of activeUsers) {
@@ -2166,103 +2166,103 @@ for await (const users of activeUsers) {
 
 ---
 
-## 10. よくある間違いとアンチパターン
+## 10. Common Mistakes and Anti-Patterns
 
-### 10.1 不必要な逐次実行
+### 10.1 Unnecessary Sequential Execution
 
 ```typescript
-// ❌ await の逐次実行（並行可能なのに）
+// Bad: Sequential await (when they could run concurrently)
 const users = await getUsers();
 const orders = await getOrders();
 const products = await getProducts();
-// → 独立なのに直列実行している
+// -> Independent tasks running serially
 
-// ✅ 並行実行
+// Good: Concurrent execution
 const [users, orders, products] = await Promise.all([
   getUsers(), getOrders(), getProducts(),
 ]);
 ```
 
-### 10.2 ループ内の await
+### 10.2 await Inside Loops
 
 ```typescript
-// ❌ ループ内の await
+// Bad: await inside a loop
 for (const id of ids) {
-  const data = await fetch(`/api/${id}`); // 1件ずつ...
+  const data = await fetch(`/api/${id}`); // One at a time...
 }
 
-// ✅ 並行実行
+// Good: Concurrent execution
 const results = await Promise.all(
   ids.map(id => fetch(`/api/${id}`))
 );
 
-// ✅ 制限付き並行（大量のリクエストの場合）
+// Good: Concurrency-limited (for large numbers of requests)
 const semaphore = new Semaphore(10);
 const results = await Promise.all(
   ids.map(id => semaphore.run(() => fetch(`/api/${id}`)))
 );
 ```
 
-### 10.3 async/await と .then() の混在
+### 10.3 Mixing async/await and .then()
 
 ```typescript
-// ❌ async 関数内で .then() を混在
+// Bad: Mixing .then() inside an async function
 async function mixed() {
-  return fetchData().then(data => data.value); // 混在
+  return fetchData().then(data => data.value); // Mixed
 }
-// ✅ 統一
+// Good: Consistent style
 async function clean() {
   const data = await fetchData();
   return data.value;
 }
 ```
 
-### 10.4 不要な async
+### 10.4 Unnecessary async
 
 ```typescript
-// ❌ 不要な async（Promise をそのまま返せばいい）
+// Bad: Unnecessary async (just return the Promise directly)
 async function wrapper() {
-  return await fetchData(); // 不要な async/await
+  return await fetchData(); // Unnecessary async/await
 }
 
-// ✅ そのまま返す（ただしエラースタックトレースに注意）
+// Good: Return directly (but be aware of error stack traces)
 function wrapper() {
   return fetchData();
 }
 
-// 注意: try/catch がある場合は async/await が必要
+// Note: async/await is needed when try/catch is present
 async function withErrorHandling() {
   try {
-    return await fetchData(); // ここでは await が必要
+    return await fetchData(); // await is needed here
   } catch (error) {
     return fallbackData;
   }
 }
 ```
 
-### 10.5 エラーハンドリングの漏れ
+### 10.5 Missing Error Handling
 
 ```typescript
-// ❌ unhandled rejection
+// Bad: Unhandled rejection
 async function firAndForget() {
-  fetchData(); // await も catch もない！
+  fetchData(); // Neither await nor catch!
 }
 
-// ✅ fire-and-forget でもエラーハンドリング
+// Good: Error handling even for fire-and-forget
 async function safeFireAndForget() {
   fetchData().catch(error => {
     logger.error("Background task failed", error);
   });
 }
 
-// ❌ Promise.all の部分的失敗で全体が失敗
+// Bad: Promise.all fails entirely on partial failure
 const results = await Promise.all([
-  fetchA(), // 成功
-  fetchB(), // 失敗 → 全体が reject
-  fetchC(), // 成功だが結果が失われる
+  fetchA(), // Succeeds
+  fetchB(), // Fails -> entire thing rejects
+  fetchC(), // Succeeds but result is lost
 ]);
 
-// ✅ allSettled で部分的な成功を許容
+// Good: allSettled allows partial success
 const results = await Promise.allSettled([
   fetchA(), fetchB(), fetchC(),
 ]);
@@ -2276,10 +2276,10 @@ const failed = results
   .map(r => r.reason);
 ```
 
-### 10.6 メモリリーク
+### 10.6 Memory Leaks
 
 ```typescript
-// ❌ クリーンアップ忘れ
+// Bad: Forgetting cleanup
 class DataFetcher {
   private intervalId?: NodeJS.Timeout;
 
@@ -2289,10 +2289,10 @@ class DataFetcher {
       this.processData(data);
     }, 1000);
   }
-  // stop() が呼ばれないとリーク
+  // Leaks if stop() is never called
 }
 
-// ✅ 適切なクリーンアップ
+// Good: Proper cleanup
 class DataFetcher {
   private controller = new AbortController();
   private intervalId?: NodeJS.Timeout;
@@ -2304,7 +2304,7 @@ class DataFetcher {
         this.processData(data);
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") {
-          return; // 正常なキャンセル
+          return; // Normal cancellation
         }
         throw error;
       }
@@ -2322,14 +2322,14 @@ class DataFetcher {
 
 ---
 
-## 11. テスト
+## 11. Testing
 
-### 11.1 JavaScript/TypeScript でのテスト
+### 11.1 Testing in JavaScript/TypeScript
 
 ```typescript
 import { describe, it, expect, vi } from "vitest";
 
-// 基本的な async テスト
+// Basic async test
 describe("UserService", () => {
   it("should fetch user profile", async () => {
     const service = new UserService(mockRepo);
@@ -2339,7 +2339,7 @@ describe("UserService", () => {
     expect(profile.orders).toHaveLength(3);
   });
 
-  // エラーケース
+  // Error case
   it("should throw on missing user", async () => {
     const service = new UserService(emptyRepo);
 
@@ -2348,13 +2348,13 @@ describe("UserService", () => {
     ).rejects.toThrow("User not found");
   });
 
-  // タイムアウトのテスト
+  // Timeout test
   it("should timeout after 5 seconds", async () => {
     vi.useFakeTimers();
 
     const promise = fetchWithTimeout("/api/slow", 5000);
 
-    // 時間を進める
+    // Advance time
     vi.advanceTimersByTime(5000);
 
     await expect(promise).rejects.toThrow("Timeout");
@@ -2362,7 +2362,7 @@ describe("UserService", () => {
     vi.useRealTimers();
   });
 
-  // 並行実行のテスト
+  // Concurrent execution test
   it("should fetch in parallel", async () => {
     const startTime = Date.now();
     const callOrder: string[] = [];
@@ -2385,12 +2385,12 @@ describe("UserService", () => {
 
     expect(a).toBe("A");
     expect(b).toBe("B");
-    // 並行実行の確認: 両方が先に開始される
+    // Verify concurrent execution: both start first
     expect(callOrder[0]).toBe("A-start");
     expect(callOrder[1]).toBe("B-start");
   });
 
-  // リトライのテスト
+  // Retry test
   it("should retry on failure", async () => {
     let attempts = 0;
     const unreliable = async () => {
@@ -2404,7 +2404,7 @@ describe("UserService", () => {
     expect(attempts).toBe(3);
   });
 
-  // AbortController のテスト
+  // AbortController test
   it("should cancel on abort", async () => {
     const controller = new AbortController();
 
@@ -2416,14 +2416,14 @@ describe("UserService", () => {
 });
 ```
 
-### 11.2 Python でのテスト
+### 11.2 Testing in Python
 
 ```python
 import pytest
 import asyncio
 from unittest.mock import AsyncMock, patch
 
-# pytest-asyncio を使用
+# Using pytest-asyncio
 @pytest.mark.asyncio
 async def test_get_user_profile():
     mock_repo = AsyncMock()
@@ -2486,7 +2486,7 @@ async def test_task_cancellation():
     assert cancelled is True
 ```
 
-### 11.3 Rust でのテスト
+### 11.3 Testing in Rust
 
 ```rust
 #[cfg(test)]
@@ -2544,20 +2544,20 @@ mod tests {
 
 ---
 
-## 12. デバッグ技術
+## 12. Debugging Techniques
 
-### 12.1 AsyncLocalStorage（Node.js）
+### 12.1 AsyncLocalStorage (Node.js)
 
 ```typescript
 import { AsyncLocalStorage } from "node:async_hooks";
 
-// リクエスト追跡
+// Request tracking
 const requestContext = new AsyncLocalStorage<{
   requestId: string;
   startTime: number;
 }>();
 
-// ミドルウェアでコンテキストを設定
+// Set context in middleware
 app.use((req, res, next) => {
   const context = {
     requestId: crypto.randomUUID(),
@@ -2566,7 +2566,7 @@ app.use((req, res, next) => {
   requestContext.run(context, next);
 });
 
-// どこからでもコンテキストにアクセス
+// Access context from anywhere
 async function processOrder(orderId: string) {
   const ctx = requestContext.getStore()!;
   logger.info(`[${ctx.requestId}] Processing order ${orderId}`);
@@ -2580,10 +2580,10 @@ async function processOrder(orderId: string) {
 }
 ```
 
-### 12.2 非同期処理のプロファイリング
+### 12.2 Profiling Async Operations
 
 ```typescript
-// 実行時間の計測
+// Measuring execution time
 async function withTiming<T>(
   label: string,
   fn: () => Promise<T>
@@ -2601,10 +2601,10 @@ async function withTiming<T>(
   }
 }
 
-// 使用
+// Usage
 const user = await withTiming("getUser", () => getUser("123"));
 
-// 並行実行の可視化
+// Visualizing parallel execution
 async function traceParallel(
   tasks: Record<string, () => Promise<any>>
 ): Promise<Record<string, any>> {
@@ -2622,7 +2622,7 @@ async function traceParallel(
     })
   );
 
-  // タイムライン出力
+  // Timeline output
   console.log("=== Execution Timeline ===");
   for (const entry of timeline.sort((a, b) => a.start - b.start)) {
     const bar = " ".repeat(Math.floor(entry.start / 10))
@@ -2633,39 +2633,39 @@ async function traceParallel(
   return Object.fromEntries(results);
 }
 
-// 使用
+// Usage
 await traceParallel({
   users: () => fetchUsers(),
   orders: () => fetchOrders(),
   products: () => fetchProducts(),
 });
-// 出力:
+// Output:
 // === Execution Timeline ===
 // users                |====      | 45.2ms
 // orders               |========  | 82.1ms
 // products             |=====     | 53.7ms
 ```
 
-### 12.3 Unhandled Rejection の検出
+### 12.3 Detecting Unhandled Rejections
 
 ```typescript
-// Node.js でのグローバルハンドラー
+// Global handler in Node.js
 process.on("unhandledRejection", (reason, promise) => {
   console.error("Unhandled Rejection at:", promise, "reason:", reason);
-  // アプリケーションの状態をログに記録
-  // 本番環境ではプロセスを終了させることを検討
+  // Log the application state
+  // Consider terminating the process in production
   process.exit(1);
 });
 
-// ブラウザ
+// Browser
 window.addEventListener("unhandledrejection", (event) => {
   console.error("Unhandled rejection:", event.reason);
-  event.preventDefault(); // デフォルトのコンソール出力を抑制
-  // エラートラッキングサービスに送信
+  event.preventDefault(); // Suppress default console output
+  // Send to error tracking service
   errorTracker.captureException(event.reason);
 });
 
-// ESLint ルールで未処理 Promise を検出
+// Detect unhandled Promises with ESLint rules
 // .eslintrc.json
 // {
 //   "rules": {
@@ -2680,53 +2680,53 @@ window.addEventListener("unhandledrejection", (event) => {
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point in learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory, but by actually writing code and verifying how it works.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the basics and jumping to advanced topics. We recommend thoroughly understanding the fundamental concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this applied in real-world work?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently applied in day-to-day development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## まとめ
+## Summary
 
-### 言語間比較
+### Cross-Language Comparison
 
-| 言語 | async 構文 | 並行実行 | ランタイム | キャンセル |
-|------|-----------|---------|-----------|-----------|
-| JS/TS | async/await | Promise.all | イベントループ | AbortController |
+| Language | async Syntax | Concurrent Execution | Runtime | Cancellation |
+|----------|-------------|---------------------|---------|-------------|
+| JS/TS | async/await | Promise.all | Event loop | AbortController |
 | Python | async/await | asyncio.gather | asyncio | Task.cancel() |
 | Rust | async/await | tokio::join! | tokio/async-std | tokio::select! |
-| Go | goroutine | go + channel | ランタイム内蔵 | context.Context |
+| Go | goroutine | go + channel | Built-in runtime | context.Context |
 | C# | async/await | Task.WhenAll | CLR | CancellationToken |
 | Kotlin | suspend | coroutineScope | Dispatchers | Job.cancel() |
 | Swift | async/await | async let | Swift Runtime | Task.cancel() |
 
-### 設計方針
+### Design Guidelines
 
-| パターン | 使うべき場面 | 注意点 |
-|---------|-------------|--------|
-| 逐次 await | 依存関係がある処理 | 不要な逐次実行を避ける |
-| Promise.all | 独立した複数の処理 | 1つ失敗で全体が失敗 |
-| Promise.allSettled | 部分的成功を許容 | 結果の分類が必要 |
-| セマフォ | 大量の並行制限 | リソース枯渇の防止 |
-| for-await-of | ストリーム処理 | バックプレッシャーに注意 |
-| DataLoader | N+1 問題の解決 | バッチウィンドウの設計 |
-| サーキットブレーカー | 不安定なサービス呼び出し | 状態管理の複雑さ |
-
----
-
-## 次に読むべきガイド
+| Pattern | When to Use | Caveats |
+|---------|-------------|---------|
+| Sequential await | Operations with dependencies | Avoid unnecessary sequential execution |
+| Promise.all | Multiple independent operations | One failure causes total failure |
+| Promise.allSettled | When partial success is acceptable | Results need classification |
+| Semaphore | Rate-limiting large concurrency | Prevents resource exhaustion |
+| for-await-of | Stream processing | Watch out for backpressure |
+| DataLoader | Solving the N+1 problem | Design of the batch window |
+| Circuit breaker | Calls to unstable services | State management complexity |
 
 ---
 
-## 参考文献
+## Recommended Next Guides
+
+---
+
+## References
 1. MDN Web Docs. "async function."
 2. Python Documentation. "Coroutines and Tasks."
 3. Tokio Documentation. "Tutorial."

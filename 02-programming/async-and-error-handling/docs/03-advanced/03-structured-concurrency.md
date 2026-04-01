@@ -1,150 +1,149 @@
-# 構造化並行性
+# Structured Concurrency
 
-> 構造化並行性は「並行処理のライフタイムを構造的に管理する」パラダイム。Kotlin coroutines、Swift structured concurrency、Python TaskGroup を通じて、安全な並行プログラミングを実現する。
+> Structured concurrency is a paradigm for "structurally managing the lifetime of concurrent operations." Through Kotlin coroutines, Swift structured concurrency, and Python TaskGroup, it enables safe concurrent programming.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] 構造化並行性の原則を理解する
-- [ ] 非構造化並行性の問題を把握する
-- [ ] 各言語での実装を学ぶ
-- [ ] キャンセル伝播の仕組みを理解する
-- [ ] エラーハンドリングとの統合を把握する
-- [ ] 実務での適用パターンを習得する
+- [ ] Understand the principles of structured concurrency
+- [ ] Grasp the problems of unstructured concurrency
+- [ ] Learn implementations in various languages
+- [ ] Understand cancellation propagation mechanisms
+- [ ] Grasp integration with error handling
+- [ ] Master practical application patterns
 
+## Prerequisites
 
-## 前提知識
+Before reading this guide, having the following knowledge will deepen your understanding:
 
-このガイドを読む前に、以下の知識があると理解が深まります:
-
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [リトライ戦略](./02-retry-and-backoff.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Understanding of the content in [Retry Strategies](./02-retry-and-backoff.md)
 
 ---
 
-## 1. 構造化並行性とは
+## 1. What Is Structured Concurrency
 
-### 1.1 基本概念
+### 1.1 Core Concept
 
 ```
-非構造化並行性（従来）:
-  → タスクを「起動して放置」
-  → 親が終了しても子タスクが残る
-  → エラーが子タスクで握りつぶされる
-  → リソースリーク
+Unstructured Concurrency (Traditional):
+  -> Tasks are "fired and forgotten"
+  -> Child tasks survive after parent terminates
+  -> Errors are silently swallowed in child tasks
+  -> Resource leaks
 
   function process() {
-    startBackgroundTask(); // 起動して放置
-    startAnotherTask();    // 誰がこの寿命を管理する？
-  } // process 終了後もタスクが動き続ける
+    startBackgroundTask(); // Fire and forget
+    startAnotherTask();    // Who manages this task's lifetime?
+  } // Tasks continue running after process returns
 
-構造化並行性:
-  → 子タスクは親のスコープ内で完了する
-  → 親は全ての子タスクの完了を待つ
-  → 1つの子タスクが失敗したら、他もキャンセル
-  → リソースリークなし
+Structured Concurrency:
+  -> Child tasks complete within the parent's scope
+  -> Parent waits for all child tasks to complete
+  -> If one child task fails, others are cancelled
+  -> No resource leaks
 
   async function process() {
-    await Promise.all([  // 全ての子タスクの完了を待つ
+    await Promise.all([  // Wait for all child tasks to complete
       task1(),
       task2(),
     ]);
-  } // ここで全タスクが完了していることが保証
+  } // All tasks are guaranteed to be complete here
 ```
 
-### 1.2 構造化プログラミングとの対比
+### 1.2 Comparison with Structured Programming
 
 ```
-構造化プログラミング（1968, Dijkstra）:
-  → goto を排除し、制御フローを構造化
-  → if/else, while, for でスコープを明確に
-  → コードの開始点と終了点が明確
+Structured Programming (1968, Dijkstra):
+  -> Eliminated goto, structured the control flow
+  -> Scopes made explicit with if/else, while, for
+  -> Clear entry and exit points in code
 
-  非構造化: goto label;  // どこに飛ぶかわからない
-  構造化:   if (...) { ... }  // スコープが明確
+  Unstructured: goto label;  // No telling where it jumps
+  Structured:   if (...) { ... }  // Scope is clear
 
-構造化並行性（2018, Elizarov, Syme）:
-  → 「起動して放置」を排除し、並行処理のライフタイムを構造化
-  → タスクのスコープを明確に
-  → タスクの開始点と終了点が明確
+Structured Concurrency (2018, Elizarov, Syme):
+  -> Eliminated "fire and forget," structured the lifetime of concurrent operations
+  -> Task scopes made explicit
+  -> Clear start and end points for tasks
 
-  非構造化: Task.run(() => ...) // どこで終わるかわからない
-  構造化:   async with TaskGroup() { ... } // スコープ内で完了保証
+  Unstructured: Task.run(() => ...) // No telling where it ends
+  Structured:   async with TaskGroup() { ... } // Completion guaranteed within scope
 
-共通する原則:
-  → 制御フローの明確化
-  → スコープベースのリソース管理
-  → 可読性とデバッグ容易性の向上
+Common Principles:
+  -> Clarification of control flow
+  -> Scope-based resource management
+  -> Improved readability and debuggability
 ```
 
-### 1.3 非構造化並行性の問題
+### 1.3 Problems with Unstructured Concurrency
 
 ```
-問題1: リソースリーク
+Problem 1: Resource Leaks
   function startProcessing() {
     setTimeout(() => {
-      // このコールバックは誰が管理する？
-      // startProcessing のスコープを超えて生存
+      // Who manages this callback?
+      // It outlives the scope of startProcessing
       processData();
     }, 5000);
   }
 
-問題2: エラーの握りつぶし
+Problem 2: Swallowed Errors
   function fetchAll() {
-    fetch('/api/users');     // エラーが起きても誰も catch しない
-    fetch('/api/products');  // 同上
+    fetch('/api/users');     // No one catches errors
+    fetch('/api/products');  // Same issue
   }
 
-問題3: キャンセルの困難
+Problem 3: Difficulty of Cancellation
   function loadDashboard() {
     const p1 = fetch('/api/users');
     const p2 = fetch('/api/stats');
-    // ユーザーがページ遷移した場合、p1とp2をキャンセルするのが困難
-    // 個別にAbortControllerを管理する必要がある
+    // If the user navigates away, cancelling p1 and p2 is difficult
+    // Each needs its own AbortController
   }
 
-問題4: デバッグの困難
-  → 非同期タスクのスタックトレースが途切れる
-  → 親子関係が不明確
-  → どのタスクがどの時点で動いているか追跡困難
+Problem 4: Difficulty of Debugging
+  -> Stack traces of async tasks are fragmented
+  -> Parent-child relationships are unclear
+  -> Tracking which task is running at which point is difficult
 ```
 
 ---
 
 ## 2. Kotlin Coroutines
 
-### 2.1 coroutineScope: 構造化並行性の基本
+### 2.1 coroutineScope: The Basics of Structured Concurrency
 
 ```kotlin
 import kotlinx.coroutines.*
 
-// coroutineScope: 構造化並行性のスコープ
+// coroutineScope: Scope for structured concurrency
 suspend fun loadDashboard(): Dashboard = coroutineScope {
-    // 子 coroutine を起動
+    // Launch child coroutines
     val userDeferred = async { fetchUser() }
     val ordersDeferred = async { fetchOrders() }
     val statsDeferred = async { fetchStats() }
 
-    // 全ての結果を待つ
+    // Wait for all results
     Dashboard(
         user = userDeferred.await(),
         orders = ordersDeferred.await(),
         stats = statsDeferred.await(),
     )
-    // coroutineScope を抜けるとき、全子coroutineが完了していることが保証
-    // 1つが例外を投げたら、他もキャンセルされる
+    // When exiting coroutineScope, all child coroutines are guaranteed to be complete
+    // If one throws an exception, the others are cancelled
 }
 ```
 
-### 2.2 supervisorScope: 子のエラーを独立に処理
+### 2.2 supervisorScope: Handling Child Errors Independently
 
 ```kotlin
-// supervisorScope: 子のエラーが他に影響しない
+// supervisorScope: Child errors do not affect siblings
 suspend fun loadDashboardResilient(): Dashboard = supervisorScope {
     val user = async { fetchUser() }
     val orders = async {
         try { fetchOrders() }
-        catch (e: Exception) { emptyList() } // フォールバック
+        catch (e: Exception) { emptyList() } // Fallback
     }
     val stats = async {
         try { fetchStats() }
@@ -158,50 +157,50 @@ suspend fun loadDashboardResilient(): Dashboard = supervisorScope {
     )
 }
 
-// coroutineScope vs supervisorScope の使い分け
+// Choosing between coroutineScope and supervisorScope
 //
 // coroutineScope:
-//   → 全タスクが成功する必要がある場合
-//   → 1つ失敗 → 全てキャンセル
-//   → 例: トランザクション的な処理
+//   -> When all tasks must succeed
+//   -> One failure -> cancel all
+//   -> Example: Transaction-like operations
 //
 // supervisorScope:
-//   → 個々のタスクが独立している場合
-//   → 1つ失敗しても他は続行
-//   → 例: ダッシュボードの各コンポーネント読み込み
+//   -> When individual tasks are independent
+//   -> One failure does not stop the others
+//   -> Example: Loading individual dashboard components
 ```
 
-### 2.3 Kotlin のキャンセル処理
+### 2.3 Cancellation in Kotlin
 
 ```kotlin
 import kotlinx.coroutines.*
 
-// キャンセルの基本
+// Cancellation basics
 suspend fun processWithCancellation() {
     val job = CoroutineScope(Dispatchers.Default).launch {
         try {
             repeat(1000) { i ->
                 println("Processing $i...")
-                delay(100) // キャンセルポイント
+                delay(100) // Cancellation point
             }
         } catch (e: CancellationException) {
             println("Cancelled!")
-            // クリーンアップ処理
+            // Cleanup operations
         } finally {
-            // リソース解放
+            // Release resources
             withContext(NonCancellable) {
-                // キャンセル後でもこのブロック内は実行される
+                // This block executes even after cancellation
                 cleanup()
             }
         }
     }
 
     delay(500)
-    job.cancel() // キャンセル要求
-    job.join()   // キャンセル完了を待つ
+    job.cancel() // Request cancellation
+    job.join()   // Wait for cancellation to complete
 }
 
-// キャンセル対応のベストプラクティス
+// Best practices for cancellation support
 suspend fun downloadFile(url: String, dest: File) = coroutineScope {
     val response = httpClient.get(url)
     val channel = response.bodyAsChannel()
@@ -209,7 +208,7 @@ suspend fun downloadFile(url: String, dest: File) = coroutineScope {
     dest.outputStream().use { output ->
         val buffer = ByteArray(8192)
         while (true) {
-            // ensureActive() で定期的にキャンセルチェック
+            // Periodically check for cancellation with ensureActive()
             ensureActive()
 
             val bytesRead = channel.readAvailable(buffer)
@@ -220,36 +219,36 @@ suspend fun downloadFile(url: String, dest: File) = coroutineScope {
     }
 }
 
-// タイムアウト付き処理
+// Processing with timeout
 suspend fun fetchWithTimeout(): Result {
-    return withTimeout(5000) { // 5秒タイムアウト
+    return withTimeout(5000) { // 5-second timeout
         fetchData()
     }
-    // タイムアウト時は TimeoutCancellationException が発生
+    // Throws TimeoutCancellationException on timeout
 }
 
-// タイムアウトで null を返す
+// Return null on timeout
 suspend fun fetchWithTimeoutOrNull(): Result? {
     return withTimeoutOrNull(5000) {
         fetchData()
     }
-    // タイムアウト時は null を返す（例外なし）
+    // Returns null on timeout (no exception)
 }
 ```
 
-### 2.4 Kotlin の高度なパターン
+### 2.4 Advanced Patterns in Kotlin
 
 ```kotlin
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
-// Fan-out: 1つのプロデューサー、複数のコンシューマー
+// Fan-out: One producer, multiple consumers
 suspend fun fanOutExample() = coroutineScope {
     val channel = produce {
         repeat(100) { send(it) }
     }
 
-    // 5つのワーカーで処理
+    // Process with 5 workers
     repeat(5) { workerId ->
         launch {
             for (item in channel) {
@@ -260,11 +259,11 @@ suspend fun fanOutExample() = coroutineScope {
     }
 }
 
-// Fan-in: 複数のプロデューサー、1つのコンシューマー
+// Fan-in: Multiple producers, one consumer
 suspend fun fanInExample() = coroutineScope {
     val results = Channel<ProcessResult>()
 
-    // 複数のプロデューサー
+    // Multiple producers
     val sources = listOf("api-1", "api-2", "api-3")
     sources.forEach { source ->
         launch {
@@ -273,7 +272,7 @@ suspend fun fanInExample() = coroutineScope {
         }
     }
 
-    // 全結果を収集
+    // Collect all results
     launch {
         val allResults = mutableListOf<ProcessResult>()
         repeat(sources.size) {
@@ -284,20 +283,20 @@ suspend fun fanInExample() = coroutineScope {
     }
 }
 
-// 競争パターン: 最初の成功を返す
+// Race pattern: Return the first success
 suspend fun raceExample(): String = coroutineScope {
     select<String> {
         async { fetchFromPrimary() }.onAwait { it }
         async { fetchFromSecondary() }.onAwait { it }
         async { fetchFromTertiary() }.onAwait { it }
     }
-    // 最初に完了したものを返す、残りはキャンセル
+    // Returns the first to complete, cancels the rest
 }
 
-// バックプレッシャー対応の並行処理
+// Concurrent processing with backpressure
 fun processWithBackpressure(items: List<Item>): Flow<Result> = flow {
     coroutineScope {
-        val semaphore = Semaphore(10) // 同時実行数制限
+        val semaphore = Semaphore(10) // Concurrency limit
         items.map { item ->
             async {
                 semaphore.withPermit {
@@ -310,7 +309,7 @@ fun processWithBackpressure(items: List<Item>): Flow<Result> = flow {
     }
 }
 
-// エラー回復を組み込んだ構造化並行性
+// Structured concurrency with built-in error recovery
 suspend fun resilientDashboard(): Dashboard = supervisorScope {
     val user = async {
         retryWithBackoff(maxRetries = 3) { fetchUser() }
@@ -346,29 +345,29 @@ suspend fun resilientDashboard(): Dashboard = supervisorScope {
 
 ## 3. Swift Structured Concurrency
 
-### 3.1 async let: 静的な並行性
+### 3.1 async let: Static Concurrency
 
 ```swift
-// Swift: async let で静的な数のタスクを並行実行
+// Swift: Concurrently execute a static number of tasks with async let
 func loadDashboard() async throws -> Dashboard {
-    async let user = fetchUser()           // 並行開始
-    async let orders = fetchOrders()       // 並行開始
-    async let stats = fetchStats()         // 並行開始
+    async let user = fetchUser()           // Start concurrently
+    async let orders = fetchOrders()       // Start concurrently
+    async let stats = fetchStats()         // Start concurrently
 
     return try await Dashboard(
         user: user,
         orders: orders,
         stats: stats,
     )
-    // 全ての async let の完了を待つ
-    // 1つが throw したら、他は自動キャンセル
+    // Waits for all async let bindings to complete
+    // If one throws, the others are automatically cancelled
 }
 ```
 
-### 3.2 TaskGroup: 動的な並行性
+### 3.2 TaskGroup: Dynamic Concurrency
 
 ```swift
-// TaskGroup: 動的な数のタスク
+// TaskGroup: Dynamic number of tasks
 func processItems(_ items: [Item]) async throws -> [Result] {
     try await withThrowingTaskGroup(of: Result.self) { group in
         for item in items {
@@ -383,10 +382,10 @@ func processItems(_ items: [Item]) async throws -> [Result] {
         }
         return results
     }
-    // TaskGroup スコープ外 = 全タスク完了保証
+    // Outside TaskGroup scope = all tasks guaranteed complete
 }
 
-// 並行数制限付きTaskGroup
+// TaskGroup with concurrency limit
 func processWithConcurrencyLimit(
     items: [Item],
     maxConcurrent: Int = 5
@@ -396,13 +395,13 @@ func processWithConcurrencyLimit(
         var iterator = items.makeIterator()
         var inFlight = 0
 
-        // 初期バッチを投入
+        // Submit initial batch
         while inFlight < maxConcurrent, let item = iterator.next() {
             group.addTask { try await processItem(item) }
             inFlight += 1
         }
 
-        // 1つ完了するたびに次を投入
+        // Submit next task as each one completes
         for try await result in group {
             results.append(result)
             inFlight -= 1
@@ -417,16 +416,16 @@ func processWithConcurrencyLimit(
 }
 ```
 
-### 3.3 Swift のキャンセル処理
+### 3.3 Cancellation in Swift
 
 ```swift
-// キャンセルの確認と対応
+// Checking for and responding to cancellation
 func downloadFile(url: URL) async throws -> Data {
     var data = Data()
     let (bytes, _) = try await URLSession.shared.bytes(from: url)
 
     for try await byte in bytes {
-        // 定期的にキャンセルチェック
+        // Periodically check for cancellation
         try Task.checkCancellation()
         data.append(byte)
     }
@@ -434,33 +433,33 @@ func downloadFile(url: URL) async throws -> Data {
     return data
 }
 
-// キャンセル対応のクリーンアップ
+// Cleanup on cancellation
 func processWithCleanup() async throws {
     let tempFile = createTempFile()
 
     do {
         try await longRunningProcess(tempFile)
     } catch is CancellationError {
-        // キャンセル時のクリーンアップ
+        // Cleanup on cancellation
         try? FileManager.default.removeItem(at: tempFile)
         throw CancellationError()
     }
 }
 
-// withTaskCancellationHandler: キャンセルハンドラー
+// withTaskCancellationHandler: Cancellation handler
 func fetchData() async throws -> Data {
     let handle = startNetworkRequest()
 
     return try await withTaskCancellationHandler {
-        // メイン処理
+        // Main operation
         try await handle.result()
     } onCancel: {
-        // キャンセル時にネットワークリクエストを中止
+        // Cancel network request on cancellation
         handle.cancel()
     }
 }
 
-// タイムアウトの実装
+// Implementing timeout
 func fetchWithTimeout<T>(
     seconds: TimeInterval,
     operation: @Sendable () async throws -> T
@@ -473,34 +472,34 @@ func fetchWithTimeout<T>(
             try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
             throw TimeoutError()
         }
-        // 最初に完了したものを返す
+        // Return the first to complete
         let result = try await group.next()!
-        group.cancelAll() // 残りをキャンセル
+        group.cancelAll() // Cancel the rest
         return result
     }
 }
 ```
 
-### 3.4 Actor: データ競合の防止
+### 3.4 Actor: Preventing Data Races
 
 ```swift
-// Actor: スレッドセーフなデータアクセス
+// Actor: Thread-safe data access
 actor UserCache {
     private var cache: [String: User] = [:]
     private var inFlightRequests: [String: Task<User, Error>] = [:]
 
     func getUser(id: String) async throws -> User {
-        // キャッシュヒット
+        // Cache hit
         if let cached = cache[id] {
             return cached
         }
 
-        // 同じユーザーのリクエストが進行中なら待つ
+        // Wait if a request for the same user is already in flight
         if let existing = inFlightRequests[id] {
             return try await existing.value
         }
 
-        // 新しいリクエストを開始
+        // Start a new request
         let task = Task {
             let user = try await fetchUser(id: id)
             cache[id] = user
@@ -521,7 +520,7 @@ actor UserCache {
     }
 }
 
-// GlobalActor: 特定のコンテキストでの実行保証
+// GlobalActor: Guaranteeing execution in a specific context
 @globalActor
 actor DatabaseActor {
     static let shared = DatabaseActor()
@@ -532,8 +531,8 @@ class DatabaseManager {
     private var connection: Connection?
 
     func query(_ sql: String) async throws -> [Row] {
-        // DatabaseActor のコンテキストで実行される
-        // 自動的にスレッドセーフ
+        // Executes in the DatabaseActor context
+        // Automatically thread-safe
         guard let conn = connection else {
             throw DatabaseError.notConnected
         }
@@ -541,17 +540,17 @@ class DatabaseManager {
     }
 }
 
-// Sendable プロトコル: 並行安全な型の保証
+// Sendable protocol: Guaranteeing concurrency-safe types
 struct UserData: Sendable {
     let id: String
     let name: String
     let email: String
 }
 
-// @Sendable クロージャ
+// @Sendable closure
 func processInBackground(_ data: UserData) {
     Task.detached { @Sendable in
-        // data は Sendable なので安全に渡せる
+        // data is Sendable, so it can be safely passed
         await processUser(data)
     }
 }
@@ -559,9 +558,9 @@ func processInBackground(_ data: UserData) {
 
 ---
 
-## 4. Python TaskGroup（3.11+）
+## 4. Python TaskGroup (3.11+)
 
-### 4.1 基本的な使い方
+### 4.1 Basic Usage
 
 ```python
 import asyncio
@@ -573,8 +572,8 @@ async def load_dashboard():
         orders_task = tg.create_task(fetch_orders())
         stats_task = tg.create_task(fetch_stats())
 
-    # async with を抜けると全タスク完了
-    # 1つが例外 → 他もキャンセル → ExceptionGroup が送出
+    # All tasks are complete after exiting async with
+    # If one raises an exception -> others are cancelled -> ExceptionGroup is raised
     return Dashboard(
         user=user_task.result(),
         orders=orders_task.result(),
@@ -582,10 +581,10 @@ async def load_dashboard():
     )
 ```
 
-### 4.2 ExceptionGroup のハンドリング
+### 4.2 Handling ExceptionGroup
 
 ```python
-# ExceptionGroup のハンドリング（Python 3.11+）
+# Handling ExceptionGroup (Python 3.11+)
 async def resilient_load():
     try:
         async with asyncio.TaskGroup() as tg:
@@ -600,12 +599,12 @@ async def resilient_load():
     except* ConnectionError as eg:
         print(f"ConnectionError group: {eg.exceptions}")
 
-# ExceptionGroup の構造
-# ExceptionGroup は複数の例外をラップする
-# except* は特定の型の例外だけを選択的にキャッチ
-# 残りの例外は再送出される
+# ExceptionGroup structure
+# ExceptionGroup wraps multiple exceptions
+# except* selectively catches only specific exception types
+# Remaining exceptions are re-raised
 
-# 複数の except* ブロック
+# Multiple except* blocks
 async def handle_multiple_errors():
     try:
         async with asyncio.TaskGroup() as tg:
@@ -613,24 +612,24 @@ async def handle_multiple_errors():
             tg.create_task(task_that_may_raise_type_error())
             tg.create_task(task_that_may_raise_io_error())
     except* ValueError as eg:
-        # ValueError だけを処理
+        # Handle only ValueError
         for exc in eg.exceptions:
             log_validation_error(exc)
     except* (TypeError, IOError) as eg:
-        # TypeError と IOError をまとめて処理
+        # Handle TypeError and IOError together
         for exc in eg.exceptions:
             log_system_error(exc)
-    # 上記で処理されなかった例外型は再送出される
+    # Exception types not handled above are re-raised
 ```
 
-### 4.3 キャンセル処理
+### 4.3 Cancellation
 
 ```python
 import asyncio
 from contextlib import asynccontextmanager
 
 
-# タイムアウト付きTaskGroup
+# TaskGroup with timeout
 async def load_with_timeout():
     try:
         async with asyncio.timeout(5.0):
@@ -647,40 +646,40 @@ async def load_with_timeout():
     )
 
 
-# キャンセル対応のタスク
+# Cancellation-aware task
 async def cancellable_download(url: str, dest: str) -> None:
-    """キャンセル対応のダウンロード処理"""
+    """Download with cancellation support"""
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as response:
             with open(dest, 'wb') as f:
                 async for chunk in response.content.iter_chunked(8192):
-                    # asyncio.CancelledError は自動的に伝播
+                    # asyncio.CancelledError propagates automatically
                     f.write(chunk)
 
 
-# shield: キャンセルから保護
+# shield: Protect from cancellation
 async def critical_operation():
-    """クリティカルな操作をキャンセルから保護"""
-    # shield で囲むと、外部からのキャンセルが内部に伝播しない
+    """Protect a critical operation from cancellation"""
+    # Wrapping with shield prevents external cancellation from propagating inside
     result = await asyncio.shield(save_to_database(data))
     return result
 
 
-# キャンセルハンドリングのパターン
+# Cancellation handling pattern
 async def process_with_cleanup():
-    """キャンセル時にクリーンアップを実行"""
+    """Execute cleanup on cancellation"""
     resource = await acquire_resource()
     try:
         await long_running_process(resource)
     except asyncio.CancelledError:
-        # キャンセル時のクリーンアップ
+        # Cleanup on cancellation
         await cleanup_resource(resource)
-        raise  # CancelledError は必ず再送出
+        raise  # CancelledError must always be re-raised
     finally:
         await release_resource(resource)
 ```
 
-### 4.4 高度なパターン
+### 4.4 Advanced Patterns
 
 ```python
 import asyncio
@@ -691,13 +690,13 @@ T = TypeVar('T')
 R = TypeVar('R')
 
 
-# 並行数制限付きバッチ処理
+# Batch processing with concurrency limit
 async def map_concurrent(
     items: list[T],
     func: Callable[[T], Awaitable[R]],
     max_concurrent: int = 10,
 ) -> list[R]:
-    """アイテムを並行数制限付きで処理"""
+    """Process items with a concurrency limit"""
     semaphore = asyncio.Semaphore(max_concurrent)
     results: list[R] = [None] * len(items)  # type: ignore
 
@@ -712,7 +711,7 @@ async def map_concurrent(
     return results
 
 
-# 使用例
+# Usage example
 async def main():
     urls = [f"https://api.example.com/items/{i}" for i in range(100)]
     results = await map_concurrent(
@@ -722,9 +721,9 @@ async def main():
     )
 
 
-# レース: 最初の成功を返す
+# Race: Return the first success
 async def race(*coros: Awaitable[T]) -> T:
-    """複数のコルーチンのうち、最初に成功したものを返す"""
+    """Return the result of the first coroutine to succeed"""
     async with asyncio.TaskGroup() as tg:
         done = asyncio.Event()
         result_holder: list[T] = []
@@ -736,23 +735,23 @@ async def race(*coros: Awaitable[T]) -> T:
                     result_holder.append(result)
                     done.set()
             except Exception:
-                pass  # 失敗は無視
+                pass  # Ignore failures
 
         for coro in coros:
             tg.create_task(run_and_signal(coro))
 
-        # 注意: TaskGroup は全タスク完了を待つ
-        # raceパターンにはTaskGroupは不向き
-        # asyncio.wait(return_when=FIRST_COMPLETED) を使う方が適切
+        # Note: TaskGroup waits for all tasks to complete
+        # TaskGroup is not ideal for the race pattern
+        # asyncio.wait(return_when=FIRST_COMPLETED) is more appropriate
 
     if result_holder:
         return result_holder[0]
     raise RuntimeError("All tasks failed")
 
 
-# asyncio.wait を使った適切なレース実装
+# Proper race implementation using asyncio.wait
 async def race_proper(*coros: Awaitable[T]) -> T:
-    """asyncio.wait で最初の完了を待つ"""
+    """Wait for the first completion using asyncio.wait"""
     tasks = [asyncio.ensure_future(c) for c in coros]
 
     try:
@@ -760,40 +759,40 @@ async def race_proper(*coros: Awaitable[T]) -> T:
             tasks, return_when=asyncio.FIRST_COMPLETED
         )
 
-        # 残りのタスクをキャンセル
+        # Cancel remaining tasks
         for task in pending:
             task.cancel()
 
-        # キャンセル完了を待つ
+        # Wait for cancellation to complete
         if pending:
             await asyncio.wait(pending)
 
-        # 最初に完了したタスクの結果を返す
+        # Return the result of the first completed task
         result_task = done.pop()
         return result_task.result()
 
     except Exception:
-        # エラー時は全タスクをキャンセル
+        # Cancel all tasks on error
         for task in tasks:
             task.cancel()
         raise
 
 
-# パイプライン: ステージごとに処理
+# Pipeline: Process in stages
 async def pipeline_example():
-    """マルチステージパイプライン"""
+    """Multi-stage pipeline"""
     queue1: asyncio.Queue[RawData] = asyncio.Queue(maxsize=100)
     queue2: asyncio.Queue[ProcessedData] = asyncio.Queue(maxsize=100)
 
     async def stage1_fetch():
-        """ステージ1: データ取得"""
+        """Stage 1: Data fetching"""
         for url in urls:
             data = await fetch_data(url)
             await queue1.put(data)
-        await queue1.put(None)  # 終了シグナル
+        await queue1.put(None)  # Termination signal
 
     async def stage2_process():
-        """ステージ2: データ処理"""
+        """Stage 2: Data processing"""
         while True:
             data = await queue1.get()
             if data is None:
@@ -803,7 +802,7 @@ async def pipeline_example():
             await queue2.put(processed)
 
     async def stage3_save():
-        """ステージ3: データ保存"""
+        """Stage 3: Data saving"""
         while True:
             data = await queue2.get()
             if data is None:
@@ -816,14 +815,14 @@ async def pipeline_example():
         tg.create_task(stage3_save())
 
 
-# 構造化並行性でのリソース管理
+# Resource management with structured concurrency
 @asynccontextmanager
 async def managed_workers(
     num_workers: int,
     work_queue: asyncio.Queue,
     handler: Callable,
 ):
-    """ワーカープールのライフサイクル管理"""
+    """Lifecycle management for a worker pool"""
     async def worker(worker_id: int):
         while True:
             try:
@@ -847,26 +846,26 @@ async def managed_workers(
         await asyncio.gather(*tasks, return_exceptions=True)
 
 
-# 使用例
+# Usage example
 async def process_with_workers():
     queue: asyncio.Queue = asyncio.Queue()
 
-    # キューにアイテムを追加
+    # Add items to the queue
     for item in items:
         await queue.put(item)
 
     async with managed_workers(5, queue, process_item):
-        await queue.join()  # 全アイテムの処理完了を待つ
+        await queue.join()  # Wait for all items to be processed
 ```
 
 ---
 
-## 5. JavaScript/TypeScript の構造化並行性
+## 5. Structured Concurrency in JavaScript/TypeScript
 
-### 5.1 Promise.all — 基本的な並行処理
+### 5.1 Promise.all -- Basic Concurrent Processing
 
 ```typescript
-// Promise.all: 全タスクの完了を待つ（部分的な構造化並行性）
+// Promise.all: Wait for all tasks to complete (partial structured concurrency)
 async function loadDashboard(): Promise<Dashboard> {
   const [user, orders, stats] = await Promise.all([
     fetchUser(),
@@ -877,16 +876,16 @@ async function loadDashboard(): Promise<Dashboard> {
   return { user, orders, stats };
 }
 
-// 制限事項:
-// 1. 1つ失敗すると他も即座にrejectされるが、キャンセルはされない
-// 2. 残りのPromiseはバックグラウンドで実行を続ける
-// 3. 明示的なキャンセル機構がない
+// Limitations:
+// 1. If one fails, the others immediately reject, but are NOT cancelled
+// 2. The remaining Promises continue executing in the background
+// 3. There is no explicit cancellation mechanism
 ```
 
-### 5.2 Promise.allSettled — エラー耐性
+### 5.2 Promise.allSettled -- Error Resilience
 
 ```typescript
-// Promise.allSettled: 全タスクの完了を待つ（成否を問わず）
+// Promise.allSettled: Wait for all tasks to complete (regardless of success/failure)
 async function loadDashboardResilient(): Promise<Dashboard> {
   const results = await Promise.allSettled([
     fetchUser(),
@@ -913,7 +912,7 @@ async function loadDashboardResilient(): Promise<Dashboard> {
   return { user, orders, stats };
 }
 
-// ヘルパー関数で使いやすく
+// Helper functions for easier use
 function extractResult<T>(result: PromiseSettledResult<T>): T | null {
   return result.status === 'fulfilled' ? result.value : null;
 }
@@ -925,10 +924,10 @@ function extractResults<T extends readonly unknown[]>(
 }
 ```
 
-### 5.3 AbortController による擬似的な構造化並行性
+### 5.3 Pseudo-Structured Concurrency with AbortController
 
 ```typescript
-// AbortController を使ったキャンセル対応の並行処理
+// Cancellation-aware concurrent processing using AbortController
 class StructuredScope {
   private controller = new AbortController();
   private tasks: Promise<any>[] = [];
@@ -948,13 +947,13 @@ class StructuredScope {
   ): Promise<T> {
     try {
       const result = await fn(this);
-      // 残りのタスクの完了を待つ
+      // Wait for remaining tasks to complete
       await Promise.allSettled(this.tasks);
       return result;
     } catch (error) {
-      // エラー時は全タスクをキャンセル
+      // Cancel all tasks on error
       this.controller.abort();
-      // キャンセルの完了を待つ
+      // Wait for cancellation to complete
       await Promise.allSettled(this.tasks);
       throw error;
     }
@@ -965,7 +964,7 @@ class StructuredScope {
   }
 }
 
-// 使用例
+// Usage example
 async function loadWithScope(): Promise<Dashboard> {
   const scope = new StructuredScope();
 
@@ -985,11 +984,11 @@ async function loadWithScope(): Promise<Dashboard> {
   });
 }
 
-// タイムアウト付きスコープ
+// Scope with timeout
 async function loadWithTimeout(): Promise<Dashboard> {
   const scope = new StructuredScope();
 
-  // タイムアウトでキャンセル
+  // Cancel on timeout
   const timeout = setTimeout(() => scope.cancel('timeout'), 5000);
 
   try {
@@ -1008,10 +1007,10 @@ async function loadWithTimeout(): Promise<Dashboard> {
 }
 ```
 
-### 5.4 並行数制限付き処理
+### 5.4 Concurrency-Limited Processing
 
 ```typescript
-// セマフォベースの並行数制限
+// Semaphore-based concurrency limiting
 class AsyncSemaphore {
   private current = 0;
   private queue: Array<() => void> = [];
@@ -1048,7 +1047,7 @@ class AsyncSemaphore {
   }
 }
 
-// 並行数制限付き map
+// Concurrency-limited map
 async function mapConcurrent<T, R>(
   items: T[],
   fn: (item: T) => Promise<R>,
@@ -1062,27 +1061,27 @@ async function mapConcurrent<T, R>(
   );
 }
 
-// 使用例
+// Usage example
 const results = await mapConcurrent(
   urls,
   async (url) => {
     const response = await fetch(url);
     return response.json();
   },
-  5, // 最大5並行
+  5, // Max 5 concurrent
 );
 ```
 
 ---
 
-## 6. Rust の構造化並行性
+## 6. Structured Concurrency in Rust
 
-### 6.1 tokio::select! マクロ
+### 6.1 tokio::select! Macro
 
 ```rust
 use tokio::time::{sleep, Duration};
 
-// select! で最初の完了を待つ
+// Wait for the first completion with select!
 async fn fetch_with_timeout() -> Result<Data, Error> {
     tokio::select! {
         result = fetch_data() => result,
@@ -1090,11 +1089,11 @@ async fn fetch_with_timeout() -> Result<Data, Error> {
             Err(Error::Timeout)
         }
     }
-    // 最初に完了した方の結果を返す
-    // もう一方はキャンセルされる（Future がドロップ）
+    // Returns the result of whichever completes first
+    // The other is cancelled (Future is dropped)
 }
 
-// 複数のソースからの受信
+// Receiving from multiple sources
 async fn handle_messages(
     mut ws_rx: WebSocketReceiver,
     mut shutdown_rx: tokio::sync::watch::Receiver<bool>,
@@ -1120,12 +1119,12 @@ async fn handle_messages(
 }
 ```
 
-### 6.2 tokio::spawn と JoinSet
+### 6.2 tokio::spawn and JoinSet
 
 ```rust
 use tokio::task::JoinSet;
 
-// JoinSet: 構造化された並行タスクの管理
+// JoinSet: Structured management of concurrent tasks
 async fn process_items(items: Vec<Item>) -> Vec<Result<ProcessResult, Error>> {
     let mut set = JoinSet::new();
 
@@ -1148,7 +1147,7 @@ async fn process_items(items: Vec<Item>) -> Vec<Result<ProcessResult, Error>> {
     results
 }
 
-// JoinSet + 並行数制限
+// JoinSet + concurrency limit
 async fn process_with_limit(
     items: Vec<Item>,
     max_concurrent: usize,
@@ -1157,14 +1156,14 @@ async fn process_with_limit(
     let mut results = Vec::new();
     let mut iter = items.into_iter();
 
-    // 初期バッチを投入
+    // Submit initial batch
     for _ in 0..max_concurrent {
         if let Some(item) = iter.next() {
             set.spawn(async move { process_item(item).await });
         }
     }
 
-    // 1つ完了するたびに次を投入
+    // Submit next task as each one completes
     while let Some(result) = set.join_next().await {
         if let Ok(Ok(r)) = result {
             results.push(r);
@@ -1177,14 +1176,14 @@ async fn process_with_limit(
     results
 }
 
-// スコープ付きタスク（Rust 特有）
-// tokio::task::LocalSet を使ったローカルタスク管理
+// Scoped tasks (Rust-specific)
+// Local task management using tokio::task::LocalSet
 async fn scoped_tasks() {
     let local = tokio::task::LocalSet::new();
 
     local.run_until(async {
         let handle1 = tokio::task::spawn_local(async {
-            // ローカルタスク（Send不要）
+            // Local task (Send not required)
             process_local_data().await
         });
 
@@ -1195,105 +1194,105 @@ async fn scoped_tasks() {
         let (r1, r2) = tokio::join!(handle1, handle2);
         println!("Results: {:?}, {:?}", r1, r2);
     }).await;
-    // LocalSet のスコープを抜けると全ローカルタスクが完了
+    // All local tasks are complete when exiting LocalSet scope
 }
 ```
 
 ---
 
-## 7. 構造化並行性の原則
+## 7. Principles of Structured Concurrency
 
-### 7.1 3つの核心原則
-
-```
-3つの原則:
-
-  1. 子タスクは親のスコープ内で生存
-     → 親が終了 = 子も終了（リーク防止）
-     → タスクのライフタイムがスコープと一致
-     → デバッグ時にタスクの親子関係が明確
-
-  2. エラーの伝播
-     → 子のエラーは親に伝播する
-     → 握りつぶされない
-     → ExceptionGroup（Python）で複数エラーを扱える
-
-  3. キャンセルの伝播
-     → 親がキャンセルされたら子もキャンセル
-     → 1つの子が失敗したら兄弟もキャンセル（coroutineScope）
-     → キャンセルは協調的（cooperative）
-
-メリット:
-  ✓ リソースリーク防止
-  ✓ エラーの確実な処理
-  ✓ コードの可読性（スコープが明確）
-  ✓ デバッグの容易さ
-  ✓ テスタビリティの向上
-  ✓ 推論の容易さ（関数の終了 = 全子タスクの終了）
-```
-
-### 7.2 キャンセルの協調性
+### 7.1 Three Core Principles
 
 ```
-キャンセルは「要求」であり「強制」ではない:
+Three Principles:
 
-  協調的キャンセル:
-    → キャンセル要求を受け取ったタスクが自発的に停止
-    → タスクは安全な停止ポイントでキャンセルをチェック
-    → クリーンアップの機会が与えられる
+  1. Child tasks live within the parent's scope
+     -> Parent terminates = children terminate (leak prevention)
+     -> Task lifetime matches the scope
+     -> Parent-child relationships are clear when debugging
 
-  各言語のキャンセルポイント:
-    Kotlin: delay(), yield(), ensureActive(), suspend関数
+  2. Error propagation
+     -> Child errors propagate to the parent
+     -> Errors are not silently swallowed
+     -> ExceptionGroup (Python) can handle multiple errors
+
+  3. Cancellation propagation
+     -> If the parent is cancelled, children are cancelled too
+     -> If one child fails, siblings are also cancelled (coroutineScope)
+     -> Cancellation is cooperative
+
+Benefits:
+  + Resource leak prevention
+  + Reliable error handling
+  + Code readability (clear scopes)
+  + Ease of debugging
+  + Improved testability
+  + Ease of reasoning (function exit = all child tasks complete)
+```
+
+### 7.2 Cooperative Cancellation
+
+```
+Cancellation is a "request," not a "force":
+
+  Cooperative cancellation:
+    -> The task that receives the cancellation request voluntarily stops
+    -> Tasks check for cancellation at safe stopping points
+    -> An opportunity for cleanup is provided
+
+  Cancellation points in each language:
+    Kotlin: delay(), yield(), ensureActive(), suspend functions
     Swift:  Task.checkCancellation(), await
-    Python: await（asyncio.CancelledError が送出）
-    Rust:   Future の poll が Pending を返す時
+    Python: await (asyncio.CancelledError is raised)
+    Rust:   When a Future's poll returns Pending
 
-  キャンセル時のベストプラクティス:
-    1. CancelledError/CancellationException は再送出する
-    2. finally ブロックでリソースを解放する
-    3. クリティカルセクションはキャンセルから保護する
-       → Kotlin: withContext(NonCancellable)
-       → Python: asyncio.shield()
-    4. 定期的にキャンセルチェックを行う
+  Best practices on cancellation:
+    1. Re-raise CancelledError/CancellationException
+    2. Release resources in a finally block
+    3. Protect critical sections from cancellation
+       -> Kotlin: withContext(NonCancellable)
+       -> Python: asyncio.shield()
+    4. Periodically check for cancellation
 ```
 
-### 7.3 設計パターンの比較
+### 7.3 Design Pattern Comparison
 
 ```
-パターン1: All or Nothing（全部成功 or 全部失敗）
-  → Kotlin: coroutineScope
-  → Swift:  withThrowingTaskGroup
-  → Python: asyncio.TaskGroup
-  → 用途: トランザクション的な処理、全データが必要な場合
+Pattern 1: All or Nothing (all succeed or all fail)
+  -> Kotlin: coroutineScope
+  -> Swift:  withThrowingTaskGroup
+  -> Python: asyncio.TaskGroup
+  -> Use case: Transaction-like operations, when all data is required
 
-パターン2: Best Effort（できるだけ成功）
-  → Kotlin: supervisorScope
-  → Swift:  withTaskGroup（エラーを個別ハンドリング）
-  → Python: TaskGroup + except*
-  → JS/TS: Promise.allSettled
-  → 用途: ダッシュボード、部分的な結果でOKの場合
+Pattern 2: Best Effort (succeed as much as possible)
+  -> Kotlin: supervisorScope
+  -> Swift:  withTaskGroup (with individual error handling)
+  -> Python: TaskGroup + except*
+  -> JS/TS: Promise.allSettled
+  -> Use case: Dashboards, when partial results are acceptable
 
-パターン3: First Success（最初の成功を採用）
-  → Kotlin: select
-  → Swift:  TaskGroup + cancelAll
-  → Python: asyncio.wait(FIRST_COMPLETED)
-  → JS/TS: Promise.race
-  → 用途: ヘッジリクエスト、マルチソース取得
+Pattern 3: First Success (adopt the first success)
+  -> Kotlin: select
+  -> Swift:  TaskGroup + cancelAll
+  -> Python: asyncio.wait(FIRST_COMPLETED)
+  -> JS/TS: Promise.race
+  -> Use case: Hedge requests, multi-source fetching
 
-パターン4: Fan-Out/Fan-In
-  → 複数のプロデューサーとコンシューマー
-  → チャネルやキューを組み合わせ
-  → 用途: パイプライン処理、並列データ処理
+Pattern 4: Fan-Out/Fan-In
+  -> Multiple producers and consumers
+  -> Combined with channels or queues
+  -> Use case: Pipeline processing, parallel data processing
 ```
 
 ---
 
-## 8. 実務での適用パターン
+## 8. Practical Application Patterns
 
-### 8.1 マイクロサービスの並行呼び出し
+### 8.1 Concurrent Microservice Calls
 
 ```typescript
-// BFF（Backend for Frontend）パターンでの並行API呼び出し
+// Concurrent API calls in BFF (Backend for Frontend) pattern
 class DashboardBFF {
   async getDashboard(userId: string): Promise<DashboardResponse> {
     const [
@@ -1302,17 +1301,17 @@ class DashboardBFF {
       notificationsResult,
       recommendationsResult,
     ] = await Promise.allSettled([
-      // 必須: ユーザー情報
+      // Required: User information
       this.userService.getUser(userId),
-      // 必須: 注文履歴
+      // Required: Order history
       this.orderService.getOrders(userId),
-      // オプション: 通知（失敗しても可）
+      // Optional: Notifications (failure is acceptable)
       this.notificationService.getUnread(userId),
-      // オプション: レコメンド（失敗しても可）
+      // Optional: Recommendations (failure is acceptable)
       this.recommendationService.getForUser(userId),
     ]);
 
-    // 必須データのチェック
+    // Check required data
     if (userResult.status === 'rejected') {
       throw new ServiceError('Failed to fetch user data', userResult.reason);
     }
@@ -1334,7 +1333,7 @@ class DashboardBFF {
 }
 ```
 
-### 8.2 バッチ処理
+### 8.2 Batch Processing
 
 ```python
 import asyncio
@@ -1351,7 +1350,7 @@ async def batch_process(
     max_concurrent: int = 10,
     on_progress: Callable[[int, int], None] | None = None,
 ) -> tuple[list[R], list[tuple[T, Exception]]]:
-    """構造化並行性を使ったバッチ処理"""
+    """Batch processing using structured concurrency"""
     results: list[R] = []
     errors: list[tuple[T, Exception]] = []
     completed = 0
@@ -1388,7 +1387,7 @@ async def batch_process(
     return results, errors
 
 
-# 使用例
+# Usage example
 async def main():
     users = await fetch_all_users()
 
@@ -1405,10 +1404,10 @@ async def main():
         print(f"  Failed for {user.id}: {error}")
 ```
 
-### 8.3 ヘルスチェック
+### 8.3 Health Checks
 
 ```kotlin
-// 複数の依存サービスのヘルスチェック
+// Health check for multiple dependent services
 data class HealthStatus(
     val service: String,
     val healthy: Boolean,
@@ -1449,12 +1448,12 @@ suspend fun checkAllHealth(): List<HealthStatus> = supervisorScope {
 
 ---
 
-## 9. テスト戦略
+## 9. Testing Strategies
 
-### 9.1 構造化並行性のテスト
+### 9.1 Testing Structured Concurrency
 
 ```kotlin
-// Kotlin: テスト用のディスパッチャー
+// Kotlin: Test dispatchers
 @Test
 fun `dashboard loads all data concurrently`() = runTest {
     val userService = FakeUserService()
@@ -1462,7 +1461,7 @@ fun `dashboard loads all data concurrently`() = runTest {
 
     val dashboard = loadDashboard(userService, orderService)
 
-    assertEquals("田中太郎", dashboard.user.name)
+    assertEquals("Taro Tanaka", dashboard.user.name)
     assertEquals(3, dashboard.orders.size)
 }
 
@@ -1473,8 +1472,8 @@ fun `partial failure returns fallback data`() = runTest {
 
     val dashboard = loadDashboardResilient(userService, orderService)
 
-    assertEquals("田中太郎", dashboard.user.name)
-    assertEquals(emptyList(), dashboard.orders) // フォールバック
+    assertEquals("Taro Tanaka", dashboard.user.name)
+    assertEquals(emptyList(), dashboard.orders) // Fallback
 }
 
 @Test
@@ -1490,19 +1489,19 @@ fun `cancellation propagates to child tasks`() = runTest {
     job.cancel()
 
     assertTrue(job.isCancelled)
-    // 子タスクもキャンセルされていることを確認
+    // Verify that child tasks are also cancelled
 }
 ```
 
 ```python
-# Python: 構造化並行性のテスト
+# Python: Testing structured concurrency
 import pytest
 import asyncio
 
 
 @pytest.mark.asyncio
 async def test_task_group_all_succeed():
-    """全タスクが成功する場合"""
+    """All tasks succeed"""
     results = []
 
     async with asyncio.TaskGroup() as tg:
@@ -1519,11 +1518,11 @@ async def test_task_group_all_succeed():
 
 @pytest.mark.asyncio
 async def test_task_group_one_fails():
-    """1つのタスクが失敗すると他もキャンセルされる"""
+    """When one task fails, the others are cancelled"""
     with pytest.raises(ExceptionGroup) as exc_info:
         async with asyncio.TaskGroup() as tg:
-            tg.create_task(asyncio.sleep(10))  # これはキャンセルされる
-            tg.create_task(failing_task())       # これが失敗
+            tg.create_task(asyncio.sleep(10))  # This gets cancelled
+            tg.create_task(failing_task())       # This fails
 
     assert len(exc_info.value.exceptions) == 1
     assert isinstance(exc_info.value.exceptions[0], ValueError)
@@ -1531,7 +1530,7 @@ async def test_task_group_one_fails():
 
 @pytest.mark.asyncio
 async def test_cancellation_propagation():
-    """キャンセルが子タスクに伝播する"""
+    """Cancellation propagates to child tasks"""
     cancelled = asyncio.Event()
 
     async def cancellable_task():
@@ -1553,7 +1552,7 @@ async def test_cancellation_propagation():
 
 @pytest.mark.asyncio
 async def test_timeout_with_task_group():
-    """タイムアウトでTaskGroup全体がキャンセルされる"""
+    """Timeout cancels the entire TaskGroup"""
     with pytest.raises(TimeoutError):
         async with asyncio.timeout(0.1):
             async with asyncio.TaskGroup() as tg:
@@ -1563,119 +1562,119 @@ async def test_timeout_with_task_group():
 
 ---
 
-## 10. アンチパターン
+## 10. Anti-Patterns
 
-### 10.1 避けるべきパターン
+### 10.1 Patterns to Avoid
 
 ```
-アンチパターン1: Fire and Forget（起動して放置）
-  ✗ Bad:
+Anti-Pattern 1: Fire and Forget
+  x Bad:
     function handleRequest() {
-      sendEmail(user.email);  // 結果を待たない、エラーも検知しない
+      sendEmail(user.email);  // Does not wait for result, does not detect errors
       return { ok: true };
     }
 
-  ✓ Good:
+  o Good:
     function handleRequest() {
-      // ジョブキューに投入（信頼性のある非同期処理）
+      // Enqueue to a job queue (reliable async processing)
       await jobQueue.enqueue('send-email', { email: user.email });
       return { ok: true };
     }
 
-アンチパターン2: 無限のキャンセル無視
-  ✗ Bad:
+Anti-Pattern 2: Ignoring Cancellation Indefinitely
+  x Bad:
     async def process():
         while True:
-            data = compute_heavy()  # キャンセルポイントがない
+            data = compute_heavy()  # No cancellation point
             results.append(data)
 
-  ✓ Good:
+  o Good:
     async def process():
         while True:
-            await asyncio.sleep(0)  # キャンセルチェック
+            await asyncio.sleep(0)  # Cancellation check
             data = compute_heavy()
             results.append(data)
 
-アンチパターン3: CancelledError の握りつぶし
-  ✗ Bad:
+Anti-Pattern 3: Swallowing CancelledError
+  x Bad:
     async def task():
         try:
             await operation()
-        except Exception:  # CancelledError も catch してしまう
+        except Exception:  # Also catches CancelledError
             pass
 
-  ✓ Good:
+  o Good:
     async def task():
         try:
             await operation()
         except asyncio.CancelledError:
-            raise  # 必ず再送出
+            raise  # Must always re-raise
         except Exception:
             pass
 
-アンチパターン4: 不要なグローバルスコープ
-  ✗ Bad (Kotlin):
+Anti-Pattern 4: Unnecessary Global Scope
+  x Bad (Kotlin):
     fun handleRequest() {
-      GlobalScope.launch { ... }  // ライフサイクル管理なし
+      GlobalScope.launch { ... }  // No lifecycle management
     }
 
-  ✓ Good (Kotlin):
+  o Good (Kotlin):
     suspend fun handleRequest() = coroutineScope {
-      launch { ... }  // スコープ内で管理
+      launch { ... }  // Managed within scope
     }
 
-アンチパターン5: 過度な並行性
-  ✗ Bad:
-    // 10万件を全て同時に処理
+Anti-Pattern 5: Excessive Concurrency
+  x Bad:
+    // Process all 100,000 items simultaneously
     await Promise.all(items.map(item => process(item)));
 
-  ✓ Good:
-    // 並行数を制限
+  o Good:
+    // Limit concurrency
     await mapConcurrent(items, process, 20);
 ```
 
 
 ---
 
-## 実践演習
+## Hands-On Exercises
 
-### 演習1: 基本的な実装
+### Exercise 1: Basic Implementation
 
-以下の要件を満たすコードを実装してください。
+Implement code that satisfies the following requirements.
 
-**要件:**
-- 入力データの検証を行うこと
-- エラーハンドリングを適切に実装すること
-- テストコードも作成すること
+**Requirements:**
+- Validate input data
+- Implement proper error handling
+- Create test code as well
 
 ```python
-# 演習1: 基本実装のテンプレート
+# Exercise 1: Basic implementation template
 class Exercise1:
-    """基本的な実装パターンの演習"""
+    """Exercise for basic implementation patterns"""
 
     def __init__(self):
         self.data = []
 
     def validate_input(self, value):
-        """入力値の検証"""
+        """Validate input value"""
         if value is None:
-            raise ValueError("入力値がNoneです")
+            raise ValueError("Input value is None")
         return True
 
     def process(self, value):
-        """データ処理のメインロジック"""
+        """Main logic for data processing"""
         self.validate_input(value)
         self.data.append(value)
         return self.data
 
     def get_results(self):
-        """処理結果の取得"""
+        """Retrieve processing results"""
         return {
             'count': len(self.data),
             'data': self.data
         }
 
-# テスト
+# Tests
 def test_exercise1():
     ex = Exercise1()
     assert ex.process(1) == [1]
@@ -1684,26 +1683,26 @@ def test_exercise1():
 
     try:
         ex.process(None)
-        assert False, "例外が発生するべき"
+        assert False, "An exception should have been raised"
     except ValueError:
         pass
 
-    print("全テスト合格!")
+    print("All tests passed!")
 
 test_exercise1()
 ```
 
-### 演習2: 応用パターン
+### Exercise 2: Advanced Patterns
 
-基本実装を拡張して、以下の機能を追加してください。
+Extend the basic implementation with the following features.
 
 ```python
-# 演習2: 応用パターン
+# Exercise 2: Advanced patterns
 from typing import List, Dict, Optional
 from datetime import datetime
 
 class AdvancedExercise:
-    """応用パターンの演習"""
+    """Exercise for advanced patterns"""
 
     def __init__(self, max_size: int = 100):
         self._items: List[Dict] = []
@@ -1711,7 +1710,7 @@ class AdvancedExercise:
         self._created_at = datetime.now()
 
     def add(self, key: str, value: any) -> bool:
-        """アイテムの追加（サイズ制限付き）"""
+        """Add an item (with size limit)"""
         if len(self._items) >= self._max_size:
             return False
         self._items.append({
@@ -1722,14 +1721,14 @@ class AdvancedExercise:
         return True
 
     def find(self, key: str) -> Optional[Dict]:
-        """キーによる検索"""
+        """Search by key"""
         for item in reversed(self._items):
             if item['key'] == key:
                 return item
         return None
 
     def remove(self, key: str) -> bool:
-        """キーによる削除"""
+        """Delete by key"""
         for i, item in enumerate(self._items):
             if item['key'] == key:
                 self._items.pop(i)
@@ -1737,7 +1736,7 @@ class AdvancedExercise:
         return False
 
     def stats(self) -> Dict:
-        """統計情報"""
+        """Statistics"""
         return {
             'total_items': len(self._items),
             'max_size': self._max_size,
@@ -1745,44 +1744,44 @@ class AdvancedExercise:
             'uptime': str(datetime.now() - self._created_at)
         }
 
-# テスト
+# Tests
 def test_advanced():
     ex = AdvancedExercise(max_size=3)
     assert ex.add("a", 1) == True
     assert ex.add("b", 2) == True
     assert ex.add("c", 3) == True
-    assert ex.add("d", 4) == False  # サイズ制限
+    assert ex.add("d", 4) == False  # Size limit
     assert ex.find("b")['value'] == 2
     assert ex.remove("b") == True
     assert ex.find("b") is None
     stats = ex.stats()
     assert stats['total_items'] == 2
-    print("応用テスト全合格!")
+    print("All advanced tests passed!")
 
 test_advanced()
 ```
 
-### 演習3: パフォーマンス最適化
+### Exercise 3: Performance Optimization
 
-以下のコードのパフォーマンスを改善してください。
+Improve the performance of the following code.
 
 ```python
-# 演習3: パフォーマンス最適化
+# Exercise 3: Performance optimization
 import time
 from functools import lru_cache
 
-# 最適化前（O(n^2)）
+# Before optimization (O(n^2))
 def slow_search(data: list, target: int) -> int:
-    """非効率な検索"""
+    """Inefficient search"""
     for i in range(len(data)):
         for j in range(i + 1, len(data)):
             if data[i] + data[j] == target:
                 return (i, j)
     return (-1, -1)
 
-# 最適化後（O(n)）
+# After optimization (O(n))
 def fast_search(data: list, target: int) -> tuple:
-    """ハッシュマップを使った効率的な検索"""
+    """Efficient search using a hash map"""
     seen = {}
     for i, num in enumerate(data):
         complement = target - num
@@ -1791,7 +1790,7 @@ def fast_search(data: list, target: int) -> tuple:
         seen[num] = i
     return (-1, -1)
 
-# ベンチマーク
+# Benchmark
 def benchmark():
     import random
     data = list(range(5000))
@@ -1806,62 +1805,62 @@ def benchmark():
     result2 = fast_search(data, target)
     fast_time = time.time() - start
 
-    print(f"非効率版: {slow_time:.4f}秒")
-    print(f"効率版:   {fast_time:.6f}秒")
-    print(f"高速化率: {slow_time/fast_time:.0f}倍")
+    print(f"Inefficient version: {slow_time:.4f}s")
+    print(f"Efficient version:   {fast_time:.6f}s")
+    print(f"Speedup factor: {slow_time/fast_time:.0f}x")
 
 benchmark()
 ```
 
-**ポイント:**
-- アルゴリズムの計算量を意識する
-- 適切なデータ構造を選択する
-- ベンチマークで効果を測定する
+**Key Points:**
+- Be aware of algorithm complexity
+- Choose appropriate data structures
+- Measure the effect with benchmarks
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point to keep in mind when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory, but by actually writing code and verifying behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend building a solid understanding of the basic concepts explained in this guide before moving to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## まとめ
-
-| 言語 | 構造化並行性 | スコープ | キャンセル | エラー伝播 |
-|------|------------|---------|-----------|-----------|
-| Kotlin | coroutineScope | 全子完了を待つ | CancellationException | 自動伝播 |
-| Kotlin | supervisorScope | 全子完了を待つ | 独立 | 独立ハンドリング |
-| Swift | async let | 全子完了を待つ | 自動キャンセル | throws で伝播 |
-| Swift | TaskGroup | 全子完了を待つ | cancelAll() | throws で伝播 |
-| Python | asyncio.TaskGroup | 全子完了を待つ | CancelledError | ExceptionGroup |
-| Rust | tokio JoinSet | 明示的に待つ | Future ドロップ | JoinError |
-| JS/TS | Promise.all | 明示的に待つ | AbortController | reject 伝播 |
+Knowledge of this topic is frequently applied in day-to-day development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## 次に読むべきガイド
+## Summary
+
+| Language | Structured Concurrency | Scope | Cancellation | Error Propagation |
+|----------|----------------------|-------|--------------|-------------------|
+| Kotlin | coroutineScope | Waits for all children | CancellationException | Automatic propagation |
+| Kotlin | supervisorScope | Waits for all children | Independent | Independent handling |
+| Swift | async let | Waits for all children | Automatic cancellation | Propagated via throws |
+| Swift | TaskGroup | Waits for all children | cancelAll() | Propagated via throws |
+| Python | asyncio.TaskGroup | Waits for all children | CancelledError | ExceptionGroup |
+| Rust | tokio JoinSet | Explicit waiting | Future drop | JoinError |
+| JS/TS | Promise.all | Explicit waiting | AbortController | reject propagation |
 
 ---
 
-## 参考文献
+## Recommended Next Guides
+
+---
+
+## References
 1. Elizarov, R. "Structured Concurrency." vorpus.org, 2018.
 2. Swift Evolution. "SE-0304: Structured Concurrency."
-3. Python Documentation. "asyncio — TaskGroup." docs.python.org.
+3. Python Documentation. "asyncio -- TaskGroup." docs.python.org.
 4. Kotlin Documentation. "Coroutines guide." kotlinlang.org.
 5. Smith, N. "Notes on structured concurrency, or: Go statement considered harmful." 2018.
 6. Tokio Documentation. "Working with Tasks." tokio.rs.
-7. Apple Developer. "Concurrency — Swift Programming Language." developer.apple.com.
+7. Apple Developer. "Concurrency -- Swift Programming Language." developer.apple.com.
 8. Syme, D. "The early history of F# async." fsharpforfunandprofit.com.
 9. Sustrik, M. "Structured Concurrency." 250bpm.com, 2016.
 10. Nygard, M. "Release It!" Pragmatic Bookshelf, 2018.

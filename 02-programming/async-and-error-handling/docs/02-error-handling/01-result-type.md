@@ -1,124 +1,124 @@
-# Result型
+# Result Type
 
-> Result型は「成功または失敗」を型で表現する手法。例外を使わずにエラーを明示的に扱い、コンパイラが「エラー処理忘れ」を検出する。Rust, Go, TypeScript での実装を比較する。
+> The Result type is a technique for expressing "success or failure" through the type system. It handles errors explicitly without exceptions, allowing the compiler to detect "forgotten error handling." This guide compares implementations in Rust, Go, and TypeScript.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] Result型の仕組みと例外との違いを理解する
-- [ ] 各言語でのResult型の実装を把握する
-- [ ] Result型のメリットとデメリットを学ぶ
-- [ ] モナド的なチェーン操作（map, flatMap, andThen）を理解する
-- [ ] Result型とOption/Maybe型の関係を把握する
-- [ ] 実務でのResult型の導入パターンを学ぶ
+- [ ] Understand the mechanism of the Result type and how it differs from exceptions
+- [ ] Learn Result type implementations in each language
+- [ ] Study the advantages and disadvantages of the Result type
+- [ ] Understand monadic chaining operations (map, flatMap, andThen)
+- [ ] Grasp the relationship between the Result type and Option/Maybe types
+- [ ] Learn practical patterns for adopting the Result type
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+The following knowledge will deepen your understanding before reading this guide:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [例外処理](./00-exceptions.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Familiarity with the content of [Exception Handling](./00-exceptions.md)
 
 ---
 
-## 1. 例外 vs Result型
+## 1. Exceptions vs Result Type
 
-### 1.1 基本的な違い
+### 1.1 Fundamental Differences
 
 ```
-例外:
+Exceptions:
   function getUser(id: string): User {
-    // エラーが発生する可能性が型から見えない
-    // 呼び出し側は try/catch を忘れるかもしれない
+    // The possibility of an error is not visible from the type
+    // The caller might forget to use try/catch
   }
 
-Result型:
+Result Type:
   function getUser(id: string): Result<User, AppError> {
-    // 型を見るだけで「失敗の可能性がある」と分かる
-    // コンパイラがエラー処理を強制できる
+    // Just by looking at the type, you know "failure is possible"
+    // The compiler can enforce error handling
   }
 
-比較:
-  ┌──────────────┬──────────────────┬──────────────────┐
-  │              │ 例外             │ Result型         │
-  ├──────────────┼──────────────────┼──────────────────┤
-  │ エラーの可視性│ 型に現れない     │ 型に現れる       │
-  ├──────────────┼──────────────────┼──────────────────┤
-  │ 処理の強制   │ なし             │ コンパイラが強制 │
-  ├──────────────┼──────────────────┼──────────────────┤
-  │ コード       │ try/catch        │ match/map/unwrap │
-  ├──────────────┼──────────────────┼──────────────────┤
-  │ パフォーマンス│ スタック巻き戻し │ 通常の戻り値     │
-  └──────────────┴──────────────────┴──────────────────┘
+Comparison:
+  ┌──────────────────┬──────────────────┬──────────────────┐
+  │                  │ Exceptions       │ Result Type      │
+  ├──────────────────┼──────────────────┼──────────────────┤
+  │ Error Visibility │ Not in the type  │ Visible in type  │
+  ├──────────────────┼──────────────────┼──────────────────┤
+  │ Enforcement      │ None             │ Compiler-enforced│
+  ├──────────────────┼──────────────────┼──────────────────┤
+  │ Code Style       │ try/catch        │ match/map/unwrap │
+  ├──────────────────┼──────────────────┼──────────────────┤
+  │ Performance      │ Stack unwinding  │ Normal return    │
+  └──────────────────┴──────────────────┴──────────────────┘
 ```
 
-### 1.2 なぜResult型が注目されるのか
+### 1.2 Why the Result Type Is Gaining Attention
 
 ```
-Result型が注目される理由:
+Reasons Why the Result Type Is Gaining Attention:
 
-  1. 型安全性
-     → エラーの種類が型として明示される
-     → コンパイラがエラーハンドリングの漏れを検出
-     → IDE の補完が効く
+  1. Type Safety
+     → Error types are explicitly declared in the type system
+     → The compiler detects missing error handling
+     → IDE autocompletion works effectively
 
-  2. 明示性
-     → 関数のシグネチャを見るだけで失敗の可能性が分かる
-     → 隠れた制御フロー（例外の伝播）がない
-     → コードレビューが容易
+  2. Explicitness
+     → The possibility of failure is apparent from the function signature alone
+     → No hidden control flow (exception propagation)
+     → Easier code reviews
 
-  3. パフォーマンス
-     → スタックアンワインドが不要
-     → スタックトレースの構築が不要
-     → 通常の関数リターンと同じコスト
+  3. Performance
+     → No stack unwinding required
+     → No stack trace construction needed
+     → Same cost as a normal function return
 
-  4. 合成可能性（Composability）
-     → map, flatMap, andThen でチェーン処理
-     → 関数型プログラミングとの親和性
-     → パイプライン処理に適している
+  4. Composability
+     → Chain processing with map, flatMap, andThen
+     → High affinity with functional programming
+     → Well-suited for pipeline processing
 
-  5. 予測可能性
-     → エラーパスが明確
-     → テストが書きやすい
-     → デバッグが容易
+  5. Predictability
+     → Error paths are clear
+     → Tests are easy to write
+     → Debugging is straightforward
 ```
 
-### 1.3 Result型の数学的背景
+### 1.3 Mathematical Background of the Result Type
 
 ```
-Result型の背景にある概念:
+Concepts Behind the Result Type:
 
-  直和型（Sum Type / Tagged Union）:
+  Sum Type (Tagged Union):
     Result<T, E> = Ok(T) | Err(E)
-    → T か E のどちらか一方を必ず持つ
+    → Always holds exactly one of T or E
 
-  これは代数的データ型（ADT）の一種:
+  This is a kind of Algebraic Data Type (ADT):
     → Haskell: Either a b = Left a | Right b
     → Rust: enum Result<T, E> { Ok(T), Err(E) }
     → Scala: Either[L, R] = Left[L] | Right[R]
     → TypeScript: { ok: true; value: T } | { ok: false; error: E }
 
-  モナド（Monad）としての Result:
-    → flatMap (andThen) で連鎖可能
-    → エラーが発生した時点で短絡（Short-circuit）
-    → 例外の try/catch と同等の表現力を持つ
+  Result as a Monad:
+    → Chainable via flatMap (andThen)
+    → Short-circuits when an error occurs
+    → Has the same expressive power as try/catch with exceptions
 ```
 
 ---
 
-## 2. Rust の Result
+## 2. Rust's Result
 
-### 2.1 基本的な使い方
+### 2.1 Basic Usage
 
 ```rust
-// Rust: Result<T, E> は標準ライブラリの型
+// Rust: Result<T, E> is a standard library type
 use std::fs;
 use std::io;
 
 fn read_config(path: &str) -> Result<Config, ConfigError> {
     let content = fs::read_to_string(path)
-        .map_err(|e| ConfigError::IoError(e))?;  // ? で早期リターン
+        .map_err(|e| ConfigError::IoError(e))?;  // ? for early return
 
     let config: Config = serde_json::from_str(&content)
         .map_err(|e| ConfigError::ParseError(e.to_string()))?;
@@ -130,7 +130,7 @@ fn read_config(path: &str) -> Result<Config, ConfigError> {
     Ok(config)
 }
 
-// エラー型の定義
+// Error type definition
 #[derive(Debug)]
 enum ConfigError {
     IoError(io::Error),
@@ -138,7 +138,7 @@ enum ConfigError {
     ValidationError(String),
 }
 
-// 使い方
+// Usage
 fn main() {
     match read_config("config.json") {
         Ok(config) => println!("Port: {}", config.port),
@@ -147,11 +147,11 @@ fn main() {
         Err(ConfigError::ValidationError(e)) => eprintln!("Validation: {}", e),
     }
 
-    // ? 演算子でチェーン（呼び出し元にエラーを伝播）
-    // → try/catch の代わりに型でエラーが伝播する
+    // Chain with the ? operator (propagate errors to the caller)
+    // → Instead of try/catch, errors propagate through the type system
 }
 
-// Result のメソッドチェーン
+// Method chaining with Result
 fn process() -> Result<String, Error> {
     read_file("input.txt")?
         .lines()
@@ -163,24 +163,24 @@ fn process() -> Result<String, Error> {
 }
 ```
 
-### 2.2 ? 演算子の詳細
+### 2.2 The ? Operator in Detail
 
 ```rust
-// ? 演算子は以下の糖衣構文:
+// The ? operator is syntactic sugar for the following:
 fn read_file(path: &str) -> Result<String, io::Error> {
-    // これは:
+    // This:
     let content = fs::read_to_string(path)?;
 
-    // 以下と等価:
+    // Is equivalent to:
     let content = match fs::read_to_string(path) {
         Ok(c) => c,
-        Err(e) => return Err(e.into()),  // From トレイトで変換
+        Err(e) => return Err(e.into()),  // Conversion via the From trait
     };
 
     Ok(content)
 }
 
-// From トレイトによるエラー型の自動変換
+// Automatic error type conversion via the From trait
 impl From<io::Error> for AppError {
     fn from(e: io::Error) -> Self {
         AppError::Io(e)
@@ -193,7 +193,7 @@ impl From<serde_json::Error> for AppError {
     }
 }
 
-// From を実装すると ? 演算子で自動変換される
+// When From is implemented, the ? operator automatically converts
 fn load_config(path: &str) -> Result<Config, AppError> {
     let content = fs::read_to_string(path)?;  // io::Error → AppError
     let config: Config = serde_json::from_str(&content)?;  // serde::Error → AppError
@@ -201,42 +201,42 @@ fn load_config(path: &str) -> Result<Config, AppError> {
 }
 ```
 
-### 2.3 Result のメソッド一覧
+### 2.3 Result Method Reference
 
 ```rust
-// Result<T, E> の主要メソッド
+// Key methods on Result<T, E>
 
 fn demonstrate_result_methods() {
     let ok_val: Result<i32, String> = Ok(42);
     let err_val: Result<i32, String> = Err("error".to_string());
 
-    // ========== 値の取り出し ==========
+    // ========== Extracting Values ==========
 
-    // unwrap: Ok なら値を返す、Err ならパニック
+    // unwrap: Returns the value if Ok, panics if Err
     let value = ok_val.unwrap();  // 42
-    // let value = err_val.unwrap();  // パニック！本番コードでは使わない
+    // let value = err_val.unwrap();  // Panics! Do not use in production code
 
-    // unwrap_or: Err の場合のデフォルト値
+    // unwrap_or: Default value for Err case
     let value = err_val.unwrap_or(0);  // 0
 
-    // unwrap_or_else: Err の場合にクロージャで値を生成
+    // unwrap_or_else: Generate a value via closure for Err case
     let value = err_val.unwrap_or_else(|e| {
         eprintln!("Error: {}", e);
         0
     });
 
-    // expect: unwrap と同じだがパニックメッセージを指定
+    // expect: Same as unwrap but with a custom panic message
     let value = ok_val.expect("Config must be valid");
 
-    // ========== 変換 ==========
+    // ========== Transformations ==========
 
-    // map: Ok の値を変換
+    // map: Transform the Ok value
     let mapped: Result<String, String> = ok_val.map(|v| v.to_string());
 
-    // map_err: Err の値を変換
+    // map_err: Transform the Err value
     let mapped: Result<i32, i32> = err_val.map_err(|e| e.len() as i32);
 
-    // and_then (flatMap): Ok の値に関数を適用（チェーン）
+    // and_then (flatMap): Apply a function that returns a Result (chaining)
     let chained: Result<String, String> = ok_val.and_then(|v| {
         if v > 0 {
             Ok(v.to_string())
@@ -245,19 +245,19 @@ fn demonstrate_result_methods() {
         }
     });
 
-    // or_else: Err の場合に別の Result を返す
+    // or_else: Return a different Result for the Err case
     let recovered: Result<i32, String> = err_val.or_else(|e| {
         eprintln!("Recovering from: {}", e);
         Ok(0)
     });
 
-    // ========== 判定 ==========
+    // ========== Checks ==========
 
     // is_ok / is_err
     assert!(ok_val.is_ok());
     assert!(err_val.is_err());
 
-    // ========== Option との変換 ==========
+    // ========== Conversion to/from Option ==========
 
     // ok(): Result<T, E> → Option<T>
     let opt: Option<i32> = ok_val.ok();  // Some(42)
@@ -271,19 +271,19 @@ fn demonstrate_result_methods() {
     let y: Option<Result<i32, String>> = x.transpose();  // Some(Ok(42))
 }
 
-// collect で Vec<Result<T, E>> → Result<Vec<T>, E>
+// collect to convert Vec<Result<T, E>> → Result<Vec<T>, E>
 fn parse_all(inputs: &[&str]) -> Result<Vec<i32>, String> {
     inputs
         .iter()
         .map(|s| s.parse::<i32>().map_err(|e| e.to_string()))
-        .collect()  // 最初の Err で短絡
+        .collect()  // Short-circuits on the first Err
 }
 ```
 
-### 2.4 thiserror と anyhow
+### 2.4 thiserror and anyhow
 
 ```rust
-// thiserror: ライブラリ向けの構造化エラー
+// thiserror: Structured errors for libraries
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -307,40 +307,40 @@ pub enum AppError {
     Internal(String),
 }
 
-// anyhow: アプリケーション向けの柔軟なエラー
+// anyhow: Flexible errors for applications
 use anyhow::{Context, Result, bail, ensure};
 
 fn load_config(path: &str) -> Result<Config> {
     let content = fs::read_to_string(path)
-        .context("Failed to read config file")?;  // コンテキスト追加
+        .context("Failed to read config file")?;  // Add context
 
     let config: Config = serde_json::from_str(&content)
         .context("Failed to parse config")?;
 
     ensure!(config.port > 0, "Port must be positive, got {}", config.port);
-    // ensure! は条件が false なら Err を返す
+    // ensure! returns Err if the condition is false
 
     if config.host.is_empty() {
         bail!("Host cannot be empty");
-        // bail! は即座に Err を返す
+        // bail! immediately returns Err
     }
 
     Ok(config)
 }
 
-// thiserror vs anyhow の使い分け:
-// thiserror: ライブラリ（呼び出し側がエラーの種類を判別する必要がある）
-// anyhow: アプリケーション（エラーの詳細は人間向けメッセージで十分）
+// When to use thiserror vs anyhow:
+// thiserror: Libraries (callers need to distinguish between error types)
+// anyhow: Applications (human-readable messages are sufficient for error details)
 ```
 
 ---
 
-## 3. Go のエラー
+## 3. Go Errors
 
-### 3.1 基本パターン
+### 3.1 Basic Pattern
 
 ```go
-// Go: 多値返却でエラーを返す
+// Go: Returns errors via multiple return values
 func readConfig(path string) (*Config, error) {
     data, err := os.ReadFile(path)
     if err != nil {
@@ -359,7 +359,7 @@ func readConfig(path string) (*Config, error) {
     return &config, nil
 }
 
-// 使い方
+// Usage
 func main() {
     config, err := readConfig("config.json")
     if err != nil {
@@ -368,17 +368,17 @@ func main() {
     fmt.Printf("Port: %d\n", config.Port)
 }
 
-// Go のエラー処理の特徴:
-// → エラーは値（error インターフェース）
-// → if err != nil が頻出（賛否あり）
-// → errors.Is, errors.As でエラーの判定
-// → fmt.Errorf("%w", err) でエラーのラッピング
+// Characteristics of Go error handling:
+// → Errors are values (the error interface)
+// → if err != nil is ubiquitous (controversial)
+// → errors.Is, errors.As for error inspection
+// → fmt.Errorf("%w", err) for error wrapping
 ```
 
-### 3.2 カスタムエラー型
+### 3.2 Custom Error Types
 
 ```go
-// カスタムエラー型の定義
+// Custom error type definitions
 type NotFoundError struct {
     Resource string
     ID       string
@@ -397,22 +397,22 @@ func (e *ValidationError) Error() string {
     return fmt.Sprintf("validation error on %s: %s", e.Field, e.Message)
 }
 
-// sentinel error（定数エラー）
+// Sentinel errors (constant errors)
 var (
     ErrNotFound      = errors.New("not found")
     ErrUnauthorized  = errors.New("unauthorized")
     ErrInternalError = errors.New("internal error")
 )
 
-// エラーの判定
+// Error inspection
 func handleError(err error) {
-    // errors.Is: sentinel error との比較
+    // errors.Is: Compare with sentinel errors
     if errors.Is(err, ErrNotFound) {
         fmt.Println("Resource not found")
         return
     }
 
-    // errors.As: カスタムエラー型の判定
+    // errors.As: Check for custom error types
     var validationErr *ValidationError
     if errors.As(err, &validationErr) {
         fmt.Printf("Validation failed: %s - %s\n",
@@ -420,15 +420,15 @@ func handleError(err error) {
         return
     }
 
-    // 未知のエラー
+    // Unknown error
     fmt.Printf("Unknown error: %v\n", err)
 }
 ```
 
-### 3.3 エラーのラッピングチェーン
+### 3.3 Error Wrapping Chains
 
 ```go
-// Go 1.13+: エラーのラッピング
+// Go 1.13+: Error wrapping
 func getUser(id string) (*User, error) {
     row := db.QueryRow("SELECT * FROM users WHERE id = ?", id)
     var user User
@@ -450,11 +450,11 @@ func createOrder(userID string, items []Item) (*Order, error) {
     return &Order{UserID: user.ID}, nil
 }
 
-// エラーチェーンの例:
+// Example of an error chain:
 // "createOrder: getUser(user-123): not found"
-// errors.Is(err, ErrNotFound) → true（チェーンを辿って判定）
+// errors.Is(err, ErrNotFound) → true (traverses the chain for inspection)
 
-// Go 1.20+: errors.Join で複数エラーの結合
+// Go 1.20+: errors.Join to combine multiple errors
 func validateOrder(order *Order) error {
     var errs []error
 
@@ -475,42 +475,42 @@ func validateOrder(order *Order) error {
 }
 ```
 
-### 3.4 Go のエラー処理の議論
+### 3.4 The Debate Over Go's Error Handling
 
 ```
-Go のエラー処理に対する議論:
+The Debate Over Go's Error Handling:
 
-  賛成派:
-  → シンプルで明示的
-  → エラーを無視しにくい（lint ツールで検出）
-  → スタックトレースのコストがない
-  → エラーの伝播が透明
+  Proponents:
+  → Simple and explicit
+  → Hard to ignore errors (detected by lint tools)
+  → No cost of stack traces
+  → Error propagation is transparent
 
-  反対派:
-  → if err != nil のボイラープレート
-  → エラーハンドリングがコードの大部分を占める
-  → Result型の map/flatMap のような合成ができない
-  → 型によるエラーの網羅性チェックがない
+  Critics:
+  → Boilerplate from if err != nil
+  → Error handling dominates the codebase
+  → Cannot compose like Result type's map/flatMap
+  → No exhaustiveness checking through the type system
 
-  Go 2 の提案（ドラフト）:
-  → check/handle 構文（2018年提案、未採用）
-  → try 組み込み関数（2019年提案、却下）
-  → 結局 if err != nil が残り続ける
+  Go 2 Proposals (Drafts):
+  → check/handle syntax (proposed 2018, not adopted)
+  → try built-in function (proposed 2019, rejected)
+  → In the end, if err != nil remains
 
-  実務的な対策:
-  → ヘルパー関数でボイラープレートを軽減
-  → errgroup でゴルーチンのエラー集約
-  → 構造化ログでエラーのコンテキストを補強
+  Practical Mitigations:
+  → Helper functions to reduce boilerplate
+  → errgroup for aggregating goroutine errors
+  → Structured logging to supplement error context
 ```
 
 ---
 
-## 4. TypeScript での Result型
+## 4. Result Type in TypeScript
 
-### 4.1 シンプルな実装
+### 4.1 Simple Implementation
 
 ```typescript
-// TypeScript: Result型の実装
+// TypeScript: Result type implementation
 type Result<T, E = Error> =
   | { ok: true; value: T }
   | { ok: false; error: E };
@@ -523,7 +523,7 @@ function err<E>(error: E): Result<never, E> {
   return { ok: false, error };
 }
 
-// 使用例
+// Usage example
 function parseJson<T>(text: string): Result<T, string> {
   try {
     return ok(JSON.parse(text));
@@ -542,7 +542,7 @@ function validateUser(data: unknown): Result<User, ValidationError> {
   return ok({ name, email } as User);
 }
 
-// チェーン的な使い方
+// Chaining usage
 function processInput(input: string): Result<User, string> {
   const jsonResult = parseJson<unknown>(input);
   if (!jsonResult.ok) return err(jsonResult.error);
@@ -554,10 +554,10 @@ function processInput(input: string): Result<User, string> {
 }
 ```
 
-### 4.2 高機能な Result クラスの実装
+### 4.2 Feature-Rich Result Class Implementation
 
 ```typescript
-// より高機能な Result 実装
+// A more feature-rich Result implementation
 class Result<T, E> {
     private constructor(
         private readonly _ok: boolean,
@@ -573,7 +573,7 @@ class Result<T, E> {
         return new Result(false, undefined, error);
     }
 
-    // 例外を Result に変換
+    // Convert exceptions to Result
     static fromThrowable<T>(fn: () => T): Result<T, Error> {
         try {
             return Result.ok(fn());
@@ -582,7 +582,7 @@ class Result<T, E> {
         }
     }
 
-    // async 版
+    // Async version
     static async fromPromise<T>(promise: Promise<T>): Promise<Result<T, Error>> {
         try {
             return Result.ok(await promise);
@@ -599,7 +599,7 @@ class Result<T, E> {
         return !this._ok;
     }
 
-    // Ok の値を変換
+    // Transform the Ok value
     map<U>(fn: (value: T) => U): Result<U, E> {
         if (this._ok) {
             return Result.ok(fn(this._value!));
@@ -607,7 +607,7 @@ class Result<T, E> {
         return Result.err(this._error!);
     }
 
-    // Err の値を変換
+    // Transform the Err value
     mapErr<F>(fn: (error: E) => F): Result<T, F> {
         if (this._ok) {
             return Result.ok(this._value!);
@@ -615,7 +615,7 @@ class Result<T, E> {
         return Result.err(fn(this._error!));
     }
 
-    // flatMap / andThen: Result を返す関数をチェーン
+    // flatMap / andThen: Chain a function that returns a Result
     andThen<U>(fn: (value: T) => Result<U, E>): Result<U, E> {
         if (this._ok) {
             return fn(this._value!);
@@ -623,7 +623,7 @@ class Result<T, E> {
         return Result.err(this._error!);
     }
 
-    // Err の場合にリカバリー
+    // Recovery on Err
     orElse<F>(fn: (error: E) => Result<T, F>): Result<T, F> {
         if (this._ok) {
             return Result.ok(this._value!);
@@ -631,7 +631,7 @@ class Result<T, E> {
         return fn(this._error!);
     }
 
-    // 値の取り出し
+    // Extract the value
     unwrap(): T {
         if (this._ok) return this._value!;
         throw new Error(`Called unwrap on Err: ${this._error}`);
@@ -645,7 +645,7 @@ class Result<T, E> {
         return this._ok ? this._value! : fn(this._error!);
     }
 
-    // パターンマッチ
+    // Pattern matching
     match<U>(handlers: { ok: (value: T) => U; err: (error: E) => U }): U {
         if (this._ok) {
             return handlers.ok(this._value!);
@@ -653,13 +653,13 @@ class Result<T, E> {
         return handlers.err(this._error!);
     }
 
-    // Option への変換
+    // Conversion to Option
     toOption(): T | undefined {
         return this._ok ? this._value : undefined;
     }
 }
 
-// 使用例
+// Usage example
 const result = Result.fromThrowable(() => JSON.parse('{"name": "test"}'))
     .map(data => data as { name: string })
     .andThen(data => {
@@ -674,19 +674,19 @@ result.match({
 });
 ```
 
-### 4.3 neverthrow ライブラリ
+### 4.3 neverthrow Library
 
 ```typescript
-// neverthrow: TypeScript の人気 Result 型ライブラリ
+// neverthrow: A popular Result type library for TypeScript
 import { ok, err, Result, ResultAsync } from 'neverthrow';
 
-// 基本的な使い方
+// Basic usage
 function divide(a: number, b: number): Result<number, string> {
     if (b === 0) return err("Division by zero");
     return ok(a / b);
 }
 
-// チェーン
+// Chaining
 function calculateAverage(numbers: number[]): Result<number, string> {
     if (numbers.length === 0) return err("Empty array");
 
@@ -699,7 +699,7 @@ const result = calculateAverage([10, 20, 30])
     .map(avg => avg.toFixed(2))
     .mapErr(e => `Calculation error: ${e}`);
 
-// ResultAsync: 非同期版
+// ResultAsync: Async version
 function fetchUser(id: string): ResultAsync<User, ApiError> {
     return ResultAsync.fromPromise(
         fetch(`/api/users/${id}`).then(r => r.json()),
@@ -717,7 +717,7 @@ function fetchUserOrders(userId: string): ResultAsync<Order[], ApiError> {
         });
 }
 
-// combine: 複数の Result をまとめる
+// combine: Merge multiple Results
 import { Result as NResult } from 'neverthrow';
 
 function validateForm(data: FormData): Result<ValidatedForm, ValidationError[]> {
@@ -727,10 +727,10 @@ function validateForm(data: FormData): Result<ValidatedForm, ValidationError[]> 
 
     return NResult.combine([nameResult, emailResult, ageResult])
         .map(([name, email, age]) => ({ name, email, age }));
-    // 全て Ok なら Ok、1つでも Err なら最初の Err
+    // Ok if all succeed, first Err if any fail
 }
 
-// safeTry: generator ベースの ? 演算子風構文
+// safeTry: Generator-based ? operator-like syntax
 import { safeTry } from 'neverthrow';
 
 function processOrder(orderId: string): Result<Receipt, AppError> {
@@ -743,10 +743,10 @@ function processOrder(orderId: string): Result<Receipt, AppError> {
 }
 ```
 
-### 4.4 ts-results ライブラリ
+### 4.4 ts-results Library
 
 ```typescript
-// ts-results: もう一つの人気ライブラリ
+// ts-results: Another popular library
 import { Ok, Err, Result } from 'ts-results';
 
 function parsePort(input: string): Result<number, string> {
@@ -756,18 +756,18 @@ function parsePort(input: string): Result<number, string> {
     return Ok(port);
 }
 
-// val プロパティで Ok/Err の値にアクセス
+// Access Ok/Err values via the val property
 const result = parsePort("8080");
 if (result.ok) {
     console.log(`Port: ${result.val}`);  // 8080
 } else {
-    console.error(`Error: ${result.val}`);  // エラーメッセージ
+    console.error(`Error: ${result.val}`);  // Error message
 }
 
-// expect: Ok なら値を返す、Err ならメッセージ付きでスロー
+// expect: Returns the value if Ok, throws with a message if Err
 const port = parsePort("8080").expect("Port must be valid");
 
-// map と andThen
+// map and andThen
 const configResult = parsePort("8080")
     .map(port => ({ port, host: "localhost" }))
     .andThen(config => {
@@ -778,25 +778,25 @@ const configResult = parsePort("8080")
 
 ---
 
-## 5. Option/Maybe型との関係
+## 5. Relationship with Option/Maybe Types
 
-### 5.1 Option型とは
+### 5.1 What Is the Option Type
 
 ```
 Option<T> = Some(T) | None
 
 Result<T, E> = Ok(T) | Err(E)
 
-違い:
-  Option: 値が「あるかないか」
-  Result: 値が「あるか、なぜないのか」
+Difference:
+  Option: Whether a value "exists or not"
+  Result: Whether a value "exists, or why it doesn't"
 
-  Option は「エラーの理由がない Result」と言える:
-  Option<T> ≒ Result<T, ()>  // エラーの情報なし
+  Option can be thought of as "a Result without error information":
+  Option<T> ≒ Result<T, ()>  // No error information
 ```
 
 ```rust
-// Rust: Option と Result の相互変換
+// Rust: Interconversion between Option and Result
 fn find_user(id: &str) -> Option<User> {
     users.get(id).cloned()
 }
@@ -807,7 +807,7 @@ fn get_user(id: &str) -> Result<User, AppError> {
     })
 }
 
-// Option のメソッド
+// Option methods
 let opt: Option<i32> = Some(42);
 
 opt.map(|v| v * 2);           // Some(84)
@@ -817,56 +817,56 @@ opt.ok_or("value is none")?;  // Option → Result
 ```
 
 ```typescript
-// TypeScript での Option 型
+// TypeScript Option type
 type Option<T> = T | null | undefined;
 
-// Result と Option の使い分け
+// When to use Result vs Option
 function findUser(id: string): Option<User> {
-    // 「見つからない」は正常なケース → Option
+    // "Not found" is a normal case → Option
     return users.get(id) ?? null;
 }
 
 function getUser(id: string): Result<User, NotFoundError> {
-    // 「見つからない」がエラーのケース → Result
+    // "Not found" is an error case → Result
     const user = users.get(id);
     if (!user) return err(new NotFoundError("User", id));
     return ok(user);
 }
 
-// 使い分けの指針:
-// Option を使う場面:
-//   → 値が存在しないことが通常の状況
-//   → 例: Map.get(), Array.find(), cache.get()
+// Guidelines for choosing:
+// Use Option when:
+//   → The absence of a value is a normal situation
+//   → Examples: Map.get(), Array.find(), cache.get()
 //
-// Result を使う場面:
-//   → 失敗の理由を伝える必要がある
-//   → 例: API呼び出し、バリデーション、ファイル読み込み
+// Use Result when:
+//   → The reason for failure needs to be communicated
+//   → Examples: API calls, validation, file reads
 ```
 
-### 5.2 Haskell の Either と Maybe
+### 5.2 Haskell's Either and Maybe
 
 ```haskell
--- Haskell: Either と Maybe は Result と Option の元祖
+-- Haskell: Either and Maybe are the originals of Result and Option
 
 -- Maybe a = Nothing | Just a
 findUser :: String -> Maybe User
 findUser userId = lookup userId userMap
 
--- Either e a = Left e | Right a（Left がエラー、Right が成功）
+-- Either e a = Left e | Right a (Left is error, Right is success)
 getUser :: String -> Either AppError User
 getUser userId = case findUser userId of
     Nothing -> Left (UserNotFound userId)
     Just user -> Right user
 
--- do 記法でチェーン（モナド）
+-- Chaining with do notation (Monad)
 processOrder :: String -> Either AppError Receipt
 processOrder orderId = do
-    order <- getOrder orderId           -- Err なら即座に返る
-    user  <- getUser (orderUserId order) -- Err なら即座に返る
-    payment <- chargePayment user order  -- Err なら即座に返る
+    order <- getOrder orderId           -- Returns immediately on Err
+    user  <- getUser (orderUserId order) -- Returns immediately on Err
+    payment <- chargePayment user order  -- Returns immediately on Err
     return Receipt { receiptOrder = order, receiptPayment = payment }
 
--- これは以下と等価:
+-- This is equivalent to:
 processOrder' :: String -> Either AppError Receipt
 processOrder' orderId =
     getOrder orderId >>= \order ->
@@ -877,49 +877,49 @@ processOrder' orderId =
 
 ---
 
-## 6. Result型 vs 例外の使い分け
+## 6. Choosing Between Result Type and Exceptions
 
-### 6.1 場面別の選択基準
+### 6.1 Scenario-Based Selection Criteria
 
 ```
-Result型を使うべき場面:
-  ✓ 予期されるエラー（バリデーション、ファイル未存在）
-  ✓ ライブラリ/APIのパブリックインターフェース
-  ✓ 型安全性が重要な場面
-  ✓ エラーの種類が限定的
-  ✓ パフォーマンスクリティカルなコード
-  ✓ 関数型スタイルのコード
-  ✓ エラーの合成が必要な場面
+When to Use the Result Type:
+  ✓ Expected errors (validation, file not found)
+  ✓ Public interfaces of libraries/APIs
+  ✓ When type safety is critical
+  ✓ When the set of error types is limited
+  ✓ Performance-critical code
+  ✓ Functional-style code
+  ✓ When error composition is needed
 
-例外を使うべき場面:
-  ✓ 予期しないエラー（プログラミングミス）
-  ✓ 回復不能なエラー（OutOfMemory）
-  ✓ フレームワークが例外を期待する場合
-  ✓ 深いコールスタックからのエラー伝播
-  ✓ コンストラクタやプロパティアクセスでのエラー
-  ✓ 外部ライブラリとの境界
+When to Use Exceptions:
+  ✓ Unexpected errors (programming mistakes)
+  ✓ Unrecoverable errors (OutOfMemory)
+  ✓ When the framework expects exceptions
+  ✓ Error propagation from deep call stacks
+  ✓ Errors in constructors or property access
+  ✓ Boundaries with external libraries
 
-組み合わせ（推奨）:
-  → ドメインロジック: Result型（予期されるエラー）
-  → インフラ層: 例外（ネットワーク、DB障害）
-  → 境界（Controller）: 例外を Result に変換
+Combined Approach (Recommended):
+  → Domain logic: Result type (expected errors)
+  → Infrastructure layer: Exceptions (network, DB failures)
+  → Boundary (Controller): Convert exceptions to Result
 ```
 
-### 6.2 レイヤー別の使い分け
+### 6.2 Layer-Specific Usage
 
 ```typescript
-// レイヤー別の使い分け例
+// Layer-specific usage example
 
-// ========== インフラ層: 例外を投げる ==========
+// ========== Infrastructure Layer: Throws exceptions ==========
 class UserRepository {
     async findById(id: string): Promise<User | null> {
-        // DB エラーは例外として伝播
+        // DB errors propagate as exceptions
         const row = await db.query("SELECT * FROM users WHERE id = $1", [id]);
         return row ? mapToUser(row) : null;
     }
 }
 
-// ========== ドメイン層: Result型を使う ==========
+// ========== Domain Layer: Uses Result type ==========
 class UserService {
     constructor(private repo: UserRepository) {}
 
@@ -929,17 +929,17 @@ class UserService {
             if (!user) return err(new UserNotFoundError(id));
             return ok(user);
         } catch (error) {
-            // インフラ例外を Result に変換
+            // Convert infrastructure exceptions to Result
             return err(new UserServiceError("Database error", { cause: error }));
         }
     }
 
     async createUser(data: CreateUserDto): Promise<Result<User, UserError>> {
-        // バリデーション
+        // Validation
         const validation = validateCreateUser(data);
         if (!validation.ok) return validation;
 
-        // 重複チェック
+        // Duplicate check
         const existing = await this.repo.findByEmail(data.email);
         if (existing) return err(new EmailAlreadyExistsError(data.email));
 
@@ -952,7 +952,7 @@ class UserService {
     }
 }
 
-// ========== プレゼンテーション層: Result を HTTP レスポンスに変換 ==========
+// ========== Presentation Layer: Converts Result to HTTP response ==========
 class UserController {
     constructor(private service: UserService) {}
 
@@ -973,12 +973,12 @@ class UserController {
 }
 ```
 
-### 6.3 実務での移行戦略
+### 6.3 Migration Strategy in Practice
 
 ```typescript
-// 既存の例外ベースのコードから Result型へ段階的に移行する戦略
+// Strategy for gradually migrating from exception-based code to Result type
 
-// Step 1: Result型のユーティリティを用意
+// Step 1: Prepare Result type utilities
 function tryCatch<T>(fn: () => T): Result<T, Error> {
     try {
         return ok(fn());
@@ -995,86 +995,86 @@ async function tryCatchAsync<T>(fn: () => Promise<T>): Promise<Result<T, Error>>
     }
 }
 
-// Step 2: 新しいコードから Result型を使い始める
-// 既存コードとの境界で変換
+// Step 2: Start using Result type in new code
+// Convert at the boundary with existing code
 
-// 例外 → Result 変換
+// Exception → Result conversion
 async function getUserSafe(id: string): Promise<Result<User, AppError>> {
     return tryCatchAsync(async () => {
-        // 既存の例外ベースの関数を呼ぶ
+        // Call existing exception-based functions
         return await legacyGetUser(id);
     }).then(result =>
         result.mapErr(e => new AppError("USER_FETCH_FAILED", e.message))
     );
 }
 
-// Result → 例外 変換（フレームワークが例外を期待する場合）
+// Result → Exception conversion (when the framework expects exceptions)
 function unwrapOrThrow<T, E extends Error>(result: Result<T, E>): T {
     if (result.ok) return result.value;
     throw result.error;
 }
 
-// Step 3: 重要なドメインロジックから順に移行
-// バリデーション → ビジネスルール → サービス層 の順で
+// Step 3: Migrate from critical domain logic first
+// Order: Validation → Business rules → Service layer
 ```
 
 ---
 
-## 7. 高度なパターン
+## 7. Advanced Patterns
 
 ### 7.1 Railway Oriented Programming
 
 ```
-Railway Oriented Programming（鉄道指向プログラミング）:
+Railway Oriented Programming:
 
-  正常系と異常系を「2本のレール」として表現する。
-  各関数は Success レールから Error レールに切り替わる可能性がある。
+  Represents the success and failure paths as "two rails."
+  Each function can switch from the Success rail to the Error rail.
 
   Success ──────→ validate ──→ transform ──→ save ──→ Success
                       │              │           │
   Error   ◁──────────┘    ◁─────────┘    ◁──────┘     Error
 
-  Result型の andThen（flatMap）はまさにこのパターン:
-  → Success の場合のみ次の関数を実行
-  → Error の場合はそのまま Error レールを流れる
+  Result type's andThen (flatMap) is exactly this pattern:
+  → Only executes the next function on Success
+  → On Error, flows along the Error rail as-is
 ```
 
 ```typescript
-// Railway Oriented Programming の実装例
+// Railway Oriented Programming implementation example
 type Result<T, E> = { ok: true; value: T } | { ok: false; error: E };
 
-// パイプライン関数
+// Pipeline function
 function pipe<T, E>(
     initial: Result<T, E>,
     ...fns: Array<(value: any) => Result<any, E>>
 ): Result<any, E> {
     let result: Result<any, E> = initial;
     for (const fn of fns) {
-        if (!result.ok) return result;  // Error レールをそのまま通過
+        if (!result.ok) return result;  // Pass through the Error rail as-is
         result = fn(result.value);
     }
     return result;
 }
 
-// 使用例: ユーザー登録パイプライン
+// Usage example: User registration pipeline
 function registerUser(input: unknown): Result<User, AppError> {
     return pipe(
         ok(input),
-        validateInput,    // 入力検証
-        normalizeEmail,   // メール正規化
-        checkDuplicate,   // 重複チェック
-        hashPassword,     // パスワードハッシュ化
-        saveToDatabase,   // DB保存
-        sendWelcomeEmail, // メール送信
+        validateInput,    // Input validation
+        normalizeEmail,   // Email normalization
+        checkDuplicate,   // Duplicate check
+        hashPassword,     // Password hashing
+        saveToDatabase,   // Save to DB
+        sendWelcomeEmail, // Send email
     );
 }
 
-// 各関数は独立してテスト可能
+// Each function can be tested independently
 function validateInput(input: unknown): Result<RegisterDto, AppError> {
     if (!input || typeof input !== "object") {
         return err({ code: "INVALID_INPUT", message: "Invalid input" });
     }
-    // ... バリデーションロジック
+    // ... validation logic
     return ok(input as RegisterDto);
 }
 
@@ -1083,12 +1083,12 @@ function normalizeEmail(dto: RegisterDto): Result<RegisterDto, AppError> {
 }
 ```
 
-### 7.2 Result の並列処理
+### 7.2 Parallel Processing with Result
 
 ```typescript
-// 複数の Result を並列で処理するユーティリティ
+// Utilities for processing multiple Results in parallel
 
-// all: 全て成功なら Ok、1つでも失敗なら最初の Err
+// all: Ok if all succeed, first Err if any fail
 function all<T, E>(results: Result<T, E>[]): Result<T[], E> {
     const values: T[] = [];
     for (const result of results) {
@@ -1098,7 +1098,7 @@ function all<T, E>(results: Result<T, E>[]): Result<T[], E> {
     return ok(values);
 }
 
-// allSettled: 全ての結果を収集
+// allSettled: Collect all results
 function allSettled<T, E>(
     results: Result<T, E>[]
 ): { successes: T[]; failures: E[] } {
@@ -1111,7 +1111,7 @@ function allSettled<T, E>(
     return { successes, failures };
 }
 
-// 非同期版
+// Async version
 async function allAsync<T, E>(
     promises: Promise<Result<T, E>>[]
 ): Promise<Result<T[], E>> {
@@ -1119,7 +1119,7 @@ async function allAsync<T, E>(
     return all(results);
 }
 
-// 使用例
+// Usage example
 async function validateBulkUsers(
     users: CreateUserDto[]
 ): Promise<Result<ValidatedUser[], ValidationError[]>> {
@@ -1133,10 +1133,10 @@ async function validateBulkUsers(
 }
 ```
 
-### 7.3 Result と Either の拡張
+### 7.3 Extensions to Result and Either
 
 ```typescript
-// Either 型: Result の一般化（Left/Right に意味付けしない）
+// Either type: A generalization of Result (no semantics assigned to Left/Right)
 type Either<L, R> = { tag: "left"; value: L } | { tag: "right"; value: R };
 
 function left<L>(value: L): Either<L, never> {
@@ -1147,7 +1147,7 @@ function right<R>(value: R): Either<never, R> {
     return { tag: "right", value };
 }
 
-// bimap: 両方のケースを変換
+// bimap: Transform both cases
 function bimap<L, R, L2, R2>(
     either: Either<L, R>,
     leftFn: (l: L) => L2,
@@ -1157,7 +1157,7 @@ function bimap<L, R, L2, R2>(
     return right(rightFn(either.value));
 }
 
-// Validation 型: エラーを累積する Result
+// Validation type: A Result that accumulates errors
 type Validation<T, E> = { ok: true; value: T } | { ok: false; errors: E[] };
 
 function validateAll<T, E>(
@@ -1180,7 +1180,7 @@ function validateAll<T, E>(
     return { ok: true, value: values };
 }
 
-// 使用例: フォームバリデーション（全エラーを一度に返す）
+// Usage example: Form validation (return all errors at once)
 function validateRegistrationForm(data: FormData): Validation<ValidForm, FieldError> {
     return validateAll([
         validateName(data.name),
@@ -1191,15 +1191,15 @@ function validateRegistrationForm(data: FormData): Validation<ValidForm, FieldEr
         name, email, password, age,
     }));
 }
-// Result.andThen は最初のエラーで短絡するが、
-// Validation.validateAll は全てのエラーを収集する
+// Result.andThen short-circuits on the first error,
+// while Validation.validateAll collects all errors
 ```
 
 ---
 
-## 8. Scala と関数型言語での Result
+## 8. Result in Scala and Functional Languages
 
-### 8.1 Scala の Either と Try
+### 8.1 Scala's Either and Try
 
 ```scala
 // Scala: Either[L, R]
@@ -1208,16 +1208,16 @@ def divide(a: Double, b: Double): Either[String, Double] = {
   else Right(a / b)
 }
 
-// for 内包表記でチェーン（Haskell の do 記法に相当）
+// Chaining with for comprehensions (equivalent to Haskell's do notation)
 def calculate(a: Double, b: Double, c: Double): Either[String, Double] = {
   for {
-    x <- divide(a, b)     // Err なら即座に返る
-    y <- divide(x, c)     // Err なら即座に返る
+    x <- divide(a, b)     // Returns immediately on Err
+    y <- divide(x, c)     // Returns immediately on Err
     z <- if (y > 0) Right(y) else Left("Result must be positive")
   } yield z * 100
 }
 
-// Try[T]: 例外を自動キャッチ
+// Try[T]: Automatically catches exceptions
 import scala.util.{Try, Success, Failure}
 
 val result: Try[Int] = Try("42".toInt)
@@ -1233,15 +1233,15 @@ val processed = Try("42".toInt)
   .getOrElse(-1)
 ```
 
-### 8.2 F# の Result
+### 8.2 F#'s Result
 
 ```fsharp
-// F#: Result<'T, 'Error> は標準ライブラリの型
+// F#: Result<'T, 'Error> is a standard library type
 let divide a b : Result<float, string> =
     if b = 0.0 then Error "Division by zero"
     else Ok (a / b)
 
-// パイプ演算子でチェーン
+// Chaining with the pipe operator
 let processOrder orderId =
     getOrder orderId
     |> Result.bind validateOrder
@@ -1249,7 +1249,7 @@ let processOrder orderId =
     |> Result.bind processPayment
     |> Result.map createReceipt
 
-// Computation Expression（do 記法に相当）
+// Computation Expression (equivalent to do notation)
 type ResultBuilder() =
     member _.Bind(x, f) = Result.bind f x
     member _.Return(x) = Ok x
@@ -1267,14 +1267,14 @@ let processOrder orderId = result {
 
 ---
 
-## 9. テスト戦略
+## 9. Testing Strategies
 
-### 9.1 Result型のテスト
+### 9.1 Testing with the Result Type
 
 ```typescript
-// Result型を使ったコードのテスト
+// Testing code that uses the Result type
 describe("UserService.createUser", () => {
-    it("有効なデータで Ok(User) を返す", async () => {
+    it("returns Ok(User) with valid data", async () => {
         const result = await userService.createUser({
             name: "Test User",
             email: "test@example.com",
@@ -1289,7 +1289,7 @@ describe("UserService.createUser", () => {
         }
     });
 
-    it("無効なメールで Err(ValidationError) を返す", async () => {
+    it("returns Err(ValidationError) with invalid email", async () => {
         const result = await userService.createUser({
             name: "Test User",
             email: "invalid-email",
@@ -1303,8 +1303,8 @@ describe("UserService.createUser", () => {
         }
     });
 
-    it("重複メールで Err(ConflictError) を返す", async () => {
-        // 既存ユーザーを作成
+    it("returns Err(ConflictError) with duplicate email", async () => {
+        // Create an existing user
         await userService.createUser({
             name: "Existing",
             email: "existing@example.com",
@@ -1324,7 +1324,7 @@ describe("UserService.createUser", () => {
     });
 });
 
-// ヘルパー関数でテストを簡潔に
+// Helper functions for concise tests
 function expectOk<T, E>(result: Result<T, E>): T {
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(`Expected Ok, got Err: ${result.error}`);
@@ -1337,26 +1337,26 @@ function expectErr<T, E>(result: Result<T, E>): E {
     return result.error;
 }
 
-// 使用例
-it("ユーザーを正常に作成できる", async () => {
+// Usage examples
+it("can create a user successfully", async () => {
     const user = expectOk(await userService.createUser(validData));
     expect(user.name).toBe("Test User");
 });
 
-it("バリデーションエラーを返す", async () => {
+it("returns a validation error", async () => {
     const error = expectErr(await userService.createUser(invalidData));
     expect(error.code).toBe("VALIDATION_ERROR");
 });
 ```
 
-### 9.2 プロパティベーステスト
+### 9.2 Property-Based Testing
 
 ```typescript
-// fast-check でのプロパティベーステスト
+// Property-based testing with fast-check
 import fc from 'fast-check';
 
 describe("Result invariants", () => {
-    it("map の恒等法則: result.map(x => x) === result", () => {
+    it("identity law for map: result.map(x => x) === result", () => {
         fc.assert(
             fc.property(fc.integer(), (n) => {
                 const result = ok(n);
@@ -1366,7 +1366,7 @@ describe("Result invariants", () => {
         );
     });
 
-    it("andThen の結合法則", () => {
+    it("associativity law for andThen", () => {
         fc.assert(
             fc.property(fc.integer(), (n) => {
                 const f = (x: number) => ok(x * 2);
@@ -1380,7 +1380,7 @@ describe("Result invariants", () => {
         );
     });
 
-    it("parsePort は常に 1-65535 の範囲か Err を返す", () => {
+    it("parsePort always returns a value in 1-65535 or Err", () => {
         fc.assert(
             fc.property(fc.string(), (input) => {
                 const result = parsePort(input);
@@ -1388,7 +1388,7 @@ describe("Result invariants", () => {
                     expect(result.value).toBeGreaterThanOrEqual(1);
                     expect(result.value).toBeLessThanOrEqual(65535);
                 }
-                // Err の場合はバリデーションが正しく機能している
+                // If Err, validation is working correctly
             })
         );
     });
@@ -1397,109 +1397,109 @@ describe("Result invariants", () => {
 
 ---
 
-## 10. 実務での導入パターン
+## 10. Adoption Patterns in Practice
 
-### 10.1 段階的導入のロードマップ
-
-```
-Result型の段階的導入:
-
-  Phase 1: ユーティリティの準備
-  → Result 型の定義（またはライブラリの選定）
-  → ok(), err() ヘルパー関数
-  → tryCatch, tryCatchAsync ユーティリティ
-
-  Phase 2: バリデーション層から導入
-  → フォームバリデーション
-  → API リクエストのバリデーション
-  → 設定値のバリデーション
-  → ← 最も効果が高く、リスクが低い
-
-  Phase 3: サービス層に拡大
-  → ドメインロジックの戻り値を Result に
-  → 例外との境界を明確化
-  → レポジトリ層は例外のまま
-
-  Phase 4: API レスポンスとの統合
-  → Controller で Result をレスポンスに変換
-  → エラーレスポンスの統一
-  → OpenAPI スキーマとの整合
-
-  Phase 5: チーム全体での採用
-  → コーディング規約の更新
-  → コードレビューガイドラインの整備
-  → テストパターンの標準化
-```
-
-### 10.2 チームでの合意形成
+### 10.1 Gradual Adoption Roadmap
 
 ```
-Result型導入時の議論ポイント:
+Gradual Adoption of the Result Type:
 
-  1. ライブラリの選定
-     → neverthrow: 最も人気、ResultAsync あり
-     → ts-results: 軽量、Rust 風
-     → 自前実装: 柔軟だが保守コスト
-     → 組み込みの union type: ライブラリ不要だが機能少
+  Phase 1: Prepare Utilities
+  → Define the Result type (or select a library)
+  → ok(), err() helper functions
+  → tryCatch, tryCatchAsync utilities
 
-  2. 例外との境界ルール
-     → どのレイヤーから Result を使うか
-     → 例外を Result に変換する場所
-     → フレームワークとの接点
+  Phase 2: Start with the Validation Layer
+  → Form validation
+  → API request validation
+  → Configuration value validation
+  → ← Highest impact, lowest risk
 
-  3. エラー型の設計
-     → string vs カスタムエラークラス
-     → エラーコード体系
-     → エラーの詳細度
+  Phase 3: Expand to the Service Layer
+  → Convert domain logic return values to Result
+  → Clarify boundaries with exceptions
+  → Keep the repository layer with exceptions
 
-  4. 既存コードとの共存
-     → 段階的移行 vs 一括移行
-     → アダプター層の設計
-     → テストの移行戦略
+  Phase 4: Integrate with API Responses
+  → Convert Result to HTTP responses in Controllers
+  → Unify error response formats
+  → Align with OpenAPI schemas
+
+  Phase 5: Team-Wide Adoption
+  → Update coding conventions
+  → Establish code review guidelines
+  → Standardize test patterns
+```
+
+### 10.2 Building Team Consensus
+
+```
+Discussion Points When Adopting the Result Type:
+
+  1. Library Selection
+     → neverthrow: Most popular, includes ResultAsync
+     → ts-results: Lightweight, Rust-style
+     → Custom implementation: Flexible but has maintenance cost
+     → Built-in union types: No library needed but fewer features
+
+  2. Boundary Rules with Exceptions
+     → Which layer starts using Result
+     → Where to convert exceptions to Result
+     → Integration points with frameworks
+
+  3. Error Type Design
+     → string vs custom error classes
+     → Error code taxonomy
+     → Level of error detail
+
+  4. Coexistence with Existing Code
+     → Gradual migration vs all-at-once migration
+     → Adapter layer design
+     → Test migration strategy
 ```
 
 
 ---
 
-## 実践演習
+## Practical Exercises
 
-### 演習1: 基本的な実装
+### Exercise 1: Basic Implementation
 
-以下の要件を満たすコードを実装してください。
+Implement code that meets the following requirements.
 
-**要件:**
-- 入力データの検証を行うこと
-- エラーハンドリングを適切に実装すること
-- テストコードも作成すること
+**Requirements:**
+- Validate input data
+- Implement proper error handling
+- Write test code as well
 
 ```python
-# 演習1: 基本実装のテンプレート
+# Exercise 1: Basic implementation template
 class Exercise1:
-    """基本的な実装パターンの演習"""
+    """Exercise for basic implementation patterns"""
 
     def __init__(self):
         self.data = []
 
     def validate_input(self, value):
-        """入力値の検証"""
+        """Validate the input value"""
         if value is None:
-            raise ValueError("入力値がNoneです")
+            raise ValueError("Input value is None")
         return True
 
     def process(self, value):
-        """データ処理のメインロジック"""
+        """Main data processing logic"""
         self.validate_input(value)
         self.data.append(value)
         return self.data
 
     def get_results(self):
-        """処理結果の取得"""
+        """Retrieve processing results"""
         return {
             'count': len(self.data),
             'data': self.data
         }
 
-# テスト
+# Tests
 def test_exercise1():
     ex = Exercise1()
     assert ex.process(1) == [1]
@@ -1508,26 +1508,26 @@ def test_exercise1():
 
     try:
         ex.process(None)
-        assert False, "例外が発生するべき"
+        assert False, "An exception should have been raised"
     except ValueError:
         pass
 
-    print("全テスト合格!")
+    print("All tests passed!")
 
 test_exercise1()
 ```
 
-### 演習2: 応用パターン
+### Exercise 2: Applied Patterns
 
-基本実装を拡張して、以下の機能を追加してください。
+Extend the basic implementation by adding the following features.
 
 ```python
-# 演習2: 応用パターン
+# Exercise 2: Applied patterns
 from typing import List, Dict, Optional
 from datetime import datetime
 
 class AdvancedExercise:
-    """応用パターンの演習"""
+    """Exercise for applied patterns"""
 
     def __init__(self, max_size: int = 100):
         self._items: List[Dict] = []
@@ -1535,7 +1535,7 @@ class AdvancedExercise:
         self._created_at = datetime.now()
 
     def add(self, key: str, value: any) -> bool:
-        """アイテムの追加（サイズ制限付き）"""
+        """Add an item (with size limit)"""
         if len(self._items) >= self._max_size:
             return False
         self._items.append({
@@ -1546,14 +1546,14 @@ class AdvancedExercise:
         return True
 
     def find(self, key: str) -> Optional[Dict]:
-        """キーによる検索"""
+        """Search by key"""
         for item in reversed(self._items):
             if item['key'] == key:
                 return item
         return None
 
     def remove(self, key: str) -> bool:
-        """キーによる削除"""
+        """Remove by key"""
         for i, item in enumerate(self._items):
             if item['key'] == key:
                 self._items.pop(i)
@@ -1561,7 +1561,7 @@ class AdvancedExercise:
         return False
 
     def stats(self) -> Dict:
-        """統計情報"""
+        """Statistics"""
         return {
             'total_items': len(self._items),
             'max_size': self._max_size,
@@ -1569,44 +1569,44 @@ class AdvancedExercise:
             'uptime': str(datetime.now() - self._created_at)
         }
 
-# テスト
+# Tests
 def test_advanced():
     ex = AdvancedExercise(max_size=3)
     assert ex.add("a", 1) == True
     assert ex.add("b", 2) == True
     assert ex.add("c", 3) == True
-    assert ex.add("d", 4) == False  # サイズ制限
+    assert ex.add("d", 4) == False  # Size limit
     assert ex.find("b")['value'] == 2
     assert ex.remove("b") == True
     assert ex.find("b") is None
     stats = ex.stats()
     assert stats['total_items'] == 2
-    print("応用テスト全合格!")
+    print("All applied tests passed!")
 
 test_advanced()
 ```
 
-### 演習3: パフォーマンス最適化
+### Exercise 3: Performance Optimization
 
-以下のコードのパフォーマンスを改善してください。
+Improve the performance of the following code.
 
 ```python
-# 演習3: パフォーマンス最適化
+# Exercise 3: Performance optimization
 import time
 from functools import lru_cache
 
-# 最適化前（O(n^2)）
+# Before optimization (O(n^2))
 def slow_search(data: list, target: int) -> int:
-    """非効率な検索"""
+    """Inefficient search"""
     for i in range(len(data)):
         for j in range(i + 1, len(data)):
             if data[i] + data[j] == target:
                 return (i, j)
     return (-1, -1)
 
-# 最適化後（O(n)）
+# After optimization (O(n))
 def fast_search(data: list, target: int) -> tuple:
-    """ハッシュマップを使った効率的な検索"""
+    """Efficient search using a hash map"""
     seen = {}
     for i, num in enumerate(data):
         complement = target - num
@@ -1615,7 +1615,7 @@ def fast_search(data: list, target: int) -> tuple:
         seen[num] = i
     return (-1, -1)
 
-# ベンチマーク
+# Benchmark
 def benchmark():
     import random
     data = list(range(5000))
@@ -1630,58 +1630,58 @@ def benchmark():
     result2 = fast_search(data, target)
     fast_time = time.time() - start
 
-    print(f"非効率版: {slow_time:.4f}秒")
-    print(f"効率版:   {fast_time:.6f}秒")
-    print(f"高速化率: {slow_time/fast_time:.0f}倍")
+    print(f"Inefficient version: {slow_time:.4f}s")
+    print(f"Efficient version:   {fast_time:.6f}s")
+    print(f"Speedup factor: {slow_time/fast_time:.0f}x")
 
 benchmark()
 ```
 
-**ポイント:**
-- アルゴリズムの計算量を意識する
-- 適切なデータ構造を選択する
-- ベンチマークで効果を測定する
+**Key Points:**
+- Be aware of algorithmic time complexity
+- Choose appropriate data structures
+- Measure the effect with benchmarks
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point to keep in mind when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory, but by actually writing code and verifying its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes that beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping into advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this applied in professional settings?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## まとめ
-
-| 言語 | エラー手法 | 特徴 |
-|------|-----------|------|
-| Rust | Result<T, E> + ? | 最も洗練されたResult型 |
-| Go | (value, error) | シンプルだが冗長 |
-| TypeScript | Union型 / neverthrow | 型で表現可能 |
-| Java | 例外（+ Optional） | checked exception |
-| Python | 例外 | 型ヒントで補完 |
-| Haskell | Either a b | 元祖、モナドによるチェーン |
-| Scala | Either / Try | for 内包表記で簡潔 |
-| F# | Result<'T, 'E> | Computation Expression |
-| Kotlin | runCatching / Result | Java 互換 |
-| Swift | throws + Result | 両方使える |
+The knowledge from this topic is frequently used in day-to-day development work. It is especially important during code reviews and architecture design.
 
 ---
 
-## 次に読むべきガイド
+## Summary
+
+| Language | Error Approach | Characteristics |
+|----------|---------------|-----------------|
+| Rust | Result<T, E> + ? | Most refined Result type |
+| Go | (value, error) | Simple but verbose |
+| TypeScript | Union types / neverthrow | Expressible through types |
+| Java | Exceptions (+ Optional) | Checked exceptions |
+| Python | Exceptions | Supplemented by type hints |
+| Haskell | Either a b | Original, chaining via Monads |
+| Scala | Either / Try | Concise with for comprehensions |
+| F# | Result<'T, 'E> | Computation Expressions |
+| Kotlin | runCatching / Result | Java compatible |
+| Swift | throws + Result | Both approaches available |
 
 ---
 
-## 参考文献
+## Recommended Next Reading
+
+---
+
+## References
 1. The Rust Programming Language. "Error Handling."
 2. Go Blog. "Error handling and Go." 2011.
 3. Wlaschin, S. "Railway Oriented Programming." F# for Fun and Profit.

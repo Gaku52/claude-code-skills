@@ -1,172 +1,174 @@
-# イベントループ
+# The Event Loop
 
-> イベントループは Node.js とブラウザの非同期処理の心臓部。マイクロタスク、マクロタスク、実行順序を理解することで、非同期コードの振る舞いを正確に予測できる。
+> The event loop is the heart of asynchronous processing in Node.js and browsers. By understanding microtasks, macrotasks, and execution order, you can accurately predict the behavior of asynchronous code.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] イベントループの仕組みと各フェーズを理解する
-- [ ] マイクロタスクとマクロタスクの実行順序を把握する
-- [ ] イベントループをブロックしないベストプラクティスを学ぶ
-- [ ] Node.js と ブラウザのイベントループの違いを理解する
-- [ ] Worker Threads / Web Workers の活用法を身につける
-- [ ] パフォーマンス計測とデバッグ手法を習得する
+- [ ] Understand the mechanics and phases of the event loop
+- [ ] Grasp the execution order of microtasks and macrotasks
+- [ ] Learn best practices for avoiding event loop blocking
+- [ ] Understand the differences between Node.js and browser event loops
+- [ ] Master the use of Worker Threads / Web Workers
+- [ ] Acquire performance measurement and debugging techniques
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, the following knowledge will help deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
+- Basic programming knowledge
+- Understanding of related foundational concepts
 
 ---
 
-## 1. イベントループの全体像
+## 1. Overview of the Event Loop
 
 ```
-Node.js のイベントループ（libuv ベース）:
+Node.js Event Loop (libuv-based):
 
   ┌──────────────────────────────────────┐
-  │           イベントループ              │
+  │           Event Loop                 │
   │                                      │
   │   ┌─────────────────────┐            │
   │   │ timers              │ ← setTimeout, setInterval │
   │   └──────────┬──────────┘            │
   │   ┌──────────▼──────────┐            │
-  │   │ pending callbacks   │ ← I/O コールバック │
+  │   │ pending callbacks   │ ← I/O callbacks │
   │   └──────────┬──────────┘            │
   │   ┌──────────▼──────────┐            │
-  │   │ idle, prepare       │ ← 内部使用 │
+  │   │ idle, prepare       │ ← Internal use │
   │   └──────────┬──────────┘            │
   │   ┌──────────▼──────────┐            │
-  │   │ poll                │ ← I/O イベントの取得 │
+  │   │ poll                │ ← Retrieve I/O events │
   │   └──────────┬──────────┘            │
   │   ┌──────────▼──────────┐            │
   │   │ check               │ ← setImmediate │
   │   └──────────┬──────────┘            │
   │   ┌──────────▼──────────┐            │
-  │   │ close callbacks     │ ← close イベント │
+  │   │ close callbacks     │ ← close events │
   │   └──────────┬──────────┘            │
-  │              └──→ 次のループへ        │
+  │              └──→ Next loop          │
   └──────────────────────────────────────┘
 
-  各フェーズの間に:
-    → process.nextTick() キュー を処理
-    → Promise マイクロタスクキュー を処理
+  Between each phase:
+    → Process the process.nextTick() queue
+    → Process the Promise microtask queue
 ```
 
-### 1.1 各フェーズの詳細
+### 1.1 Details of Each Phase
 
 ```
-timers フェーズ:
-  → setTimeout() と setInterval() のコールバックを実行
-  → 最小遅延は1ms（0を指定しても1msに切り上げ）
-  → タイマーは「最低でもN ms後に実行」であり、正確なN ms後ではない
-  → 大量のタイマーがあると、この フェーズで時間を消費する
+timers phase:
+  → Executes callbacks for setTimeout() and setInterval()
+  → Minimum delay is 1ms (even if 0 is specified, it is rounded up to 1ms)
+  → Timers execute "at least N ms later," not exactly N ms later
+  → A large number of timers will consume time in this phase
 
-pending callbacks フェーズ:
-  → 前のイテレーションで延期されたI/Oコールバックを実行
-  → TCP接続エラーなどのシステムオペレーションのコールバック
-  → 例: ECONNREFUSED エラーのコールバック
+pending callbacks phase:
+  → Executes I/O callbacks deferred from the previous iteration
+  → Callbacks for system operations such as TCP connection errors
+  → Example: callbacks for ECONNREFUSED errors
 
-idle, prepare フェーズ:
-  → Node.js の内部使用のみ
-  → ユーザーコードからは直接触れない
+idle, prepare phase:
+  → Used internally by Node.js only
+  → Not directly accessible from user code
 
-poll フェーズ（最も重要）:
-  → 新しいI/Oイベントを取得し、I/Oコールバックを実行
-  → fs.readFile, HTTP リクエスト応答, DB クエリ結果などを処理
-  → このフェーズでブロックする可能性がある（他にタスクがない場合）
-  → ブロック時間の上限は、次のtimersフェーズの最も近いタイマーまで
+poll phase (the most important):
+  → Retrieves new I/O events and executes I/O callbacks
+  → Processes fs.readFile, HTTP request responses, DB query results, etc.
+  → May block in this phase (if there are no other tasks)
+  → Block duration is capped at the nearest timer in the next timers phase
 
-check フェーズ:
-  → setImmediate() のコールバックを実行
-  → poll フェーズの直後に実行されることが保証される
-  → I/Oコールバック内では setTimeout(fn, 0) より先に実行される
+check phase:
+  → Executes setImmediate() callbacks
+  → Guaranteed to execute immediately after the poll phase
+  → Inside I/O callbacks, executes before setTimeout(fn, 0)
 
-close callbacks フェーズ:
-  → socket.on('close', ...) などのクローズイベントを処理
-  → クリーンアップ処理に使われる
+close callbacks phase:
+  → Handles close events such as socket.on('close', ...)
+  → Used for cleanup processing
 ```
 
-### 1.2 実行の全体フロー
+### 1.2 Overall Execution Flow
 
 ```
-Node.js プロセス起動
+Node.js Process Startup
     │
     ▼
 ┌──────────────────────────────────────┐
-│ 1. モジュールの読み込み・コンパイル   │
-│    → require() / import の解決       │
-│    → トップレベルコードの同期実行     │
+│ 1. Module loading and compilation    │
+│    → Resolve require() / import      │
+│    → Synchronous execution of        │
+│      top-level code                  │
 └──────────────────┬───────────────────┘
                    │
                    ▼
 ┌──────────────────────────────────────┐
-│ 2. process.nextTick キューの処理     │
-│    → マイクロタスクキューの処理       │
+│ 2. Process the process.nextTick      │
+│    queue                             │
+│    → Process the microtask queue     │
 └──────────────────┬───────────────────┘
                    │
                    ▼
 ┌──────────────────────────────────────┐
-│ 3. イベントループ開始                │
+│ 3. Event Loop Starts                 │
 │    ┌─→ timers                        │
 │    │   → nextTick + microtasks       │
 │    │   pending callbacks             │
 │    │   → nextTick + microtasks       │
 │    │   idle, prepare                 │
 │    │   → nextTick + microtasks       │
-│    │   poll (I/O待ち)                │
+│    │   poll (I/O wait)               │
 │    │   → nextTick + microtasks       │
 │    │   check (setImmediate)          │
 │    │   → nextTick + microtasks       │
 │    │   close callbacks               │
 │    │   → nextTick + microtasks       │
-│    └─← 次のイテレーション            │
+│    └─← Next iteration               │
 └──────────────────────────────────────┘
                    │
-                   ▼ (処理するタスクが無くなったら)
+                   ▼ (When there are no more tasks to process)
 ┌──────────────────────────────────────┐
-│ 4. プロセス終了                      │
-│    → 'exit' イベント発行             │
+│ 4. Process Exit                      │
+│    → Emit 'exit' event              │
 │    → process.exit()                  │
 └──────────────────────────────────────┘
 ```
 
 ---
 
-## 2. マイクロタスク vs マクロタスク
+## 2. Microtasks vs Macrotasks
 
 ```
-マイクロタスク（優先度: 高）:
+Microtasks (Priority: High):
   → Promise.then/catch/finally
   → queueMicrotask()
-  → process.nextTick()（Node.js、最優先）
-  → MutationObserver（ブラウザ）
+  → process.nextTick() (Node.js, highest priority)
+  → MutationObserver (Browser)
 
-マクロタスク（優先度: 低）:
+Macrotasks (Priority: Low):
   → setTimeout / setInterval
-  → setImmediate（Node.js）
-  → I/O コールバック
-  → UI レンダリング（ブラウザ）
-  → requestAnimationFrame（ブラウザ、レンダリング前）
+  → setImmediate (Node.js)
+  → I/O callbacks
+  → UI rendering (Browser)
+  → requestAnimationFrame (Browser, before rendering)
   → MessageChannel
 
-実行順序:
-  1. コールスタックが空になる
-  2. マイクロタスクキューを全て処理
-  3. マクロタスクを1つ処理
-  4. → 2に戻る
+Execution Order:
+  1. The call stack becomes empty
+  2. Process all microtask queues
+  3. Process one macrotask
+  4. → Return to step 2
 
-Node.js での優先順位:
+Priority Order in Node.js:
   process.nextTick > Promise microtask > setImmediate > setTimeout
 ```
 
-### 2.1 基本的な実行順序
+### 2.1 Basic Execution Order
 
 ```javascript
-// 実行順序クイズ
-console.log("1: 同期");
+// Execution order quiz
+console.log("1: Synchronous");
 
 setTimeout(() => console.log("2: setTimeout"), 0);
 
@@ -174,20 +176,20 @@ Promise.resolve().then(() => console.log("3: Promise"));
 
 queueMicrotask(() => console.log("4: queueMicrotask"));
 
-console.log("5: 同期");
+console.log("5: Synchronous");
 
-// 出力:
-// 1: 同期
-// 5: 同期
-// 3: Promise        ← マイクロタスク
-// 4: queueMicrotask ← マイクロタスク
-// 2: setTimeout     ← マクロタスク
+// Output:
+// 1: Synchronous
+// 5: Synchronous
+// 3: Promise        ← Microtask
+// 4: queueMicrotask ← Microtask
+// 2: setTimeout     ← Macrotask
 ```
 
-### 2.2 ネストした非同期処理
+### 2.2 Nested Asynchronous Processing
 
 ```javascript
-// もう少し複雑な例
+// A slightly more complex example
 console.log("start");
 
 setTimeout(() => {
@@ -204,21 +206,21 @@ setTimeout(() => console.log("timeout 2"), 0);
 
 console.log("end");
 
-// 出力:
+// Output:
 // start
 // end
-// promise 1          ← マイクロタスク
-// timeout 1          ← マクロタスク1
-// promise in timeout ← timeout1内のマイクロタスク
-// timeout 2          ← マクロタスク2
-// timeout in promise ← promise1内のマクロタスク
+// promise 1          ← Microtask
+// timeout 1          ← Macrotask 1
+// promise in timeout ← Microtask within timeout 1
+// timeout 2          ← Macrotask 2
+// timeout in promise ← Macrotask within promise 1
 ```
 
 ### 2.3 process.nextTick vs Promise vs queueMicrotask
 
 ```javascript
-// Node.js での優先順位
-console.log("1: 同期");
+// Priority order in Node.js
+console.log("1: Synchronous");
 
 process.nextTick(() => {
   console.log("2: nextTick");
@@ -240,46 +242,46 @@ setTimeout(() => {
   console.log("6: setTimeout");
 }, 0);
 
-console.log("7: 同期");
+console.log("7: Synchronous");
 
-// 出力:
-// 1: 同期
-// 7: 同期
-// 2: nextTick           ← nextTick キュー（最優先）
-// 3: Promise            ← マイクロタスクキュー
-// 4: queueMicrotask     ← マイクロタスクキュー
-// 5: setImmediate       ← check フェーズ
-// 6: setTimeout         ← timers フェーズ
-// ※ setImmediate と setTimeout(,0) の順序はタイミングにより変わる可能性あり
+// Output:
+// 1: Synchronous
+// 7: Synchronous
+// 2: nextTick           ← nextTick queue (highest priority)
+// 3: Promise            ← Microtask queue
+// 4: queueMicrotask     ← Microtask queue
+// 5: setImmediate       ← check phase
+// 6: setTimeout         ← timers phase
+// Note: The order of setImmediate and setTimeout(,0) may vary depending on timing
 ```
 
-### 2.4 nextTick の再帰呼び出しの危険性
+### 2.4 Danger of Recursive nextTick Calls
 
 ```javascript
-// ❌ nextTick のスターベーション問題
-// nextTick が再帰的に呼ばれると、イベントループが進まない
+// Bad: nextTick starvation problem
+// When nextTick is called recursively, the event loop cannot progress
 function recursiveNextTick() {
   process.nextTick(() => {
     console.log("nextTick");
-    recursiveNextTick(); // 永遠にnextTickが実行され続ける
+    recursiveNextTick(); // nextTick executes forever
   });
 }
 recursiveNextTick();
-// setTimeout のコールバックは永遠に実行されない！
+// setTimeout callbacks will never execute!
 
-// ✅ setImmediate を使う（イベントループの1イテレーションを許可）
+// Good: Use setImmediate (allows one event loop iteration)
 function recursiveImmediate() {
   setImmediate(() => {
     console.log("immediate");
-    recursiveImmediate(); // 他のタスクも実行される余地がある
+    recursiveImmediate(); // Other tasks have a chance to execute
   });
 }
 ```
 
-### 2.5 高度な実行順序パズル
+### 2.5 Advanced Execution Order Puzzles
 
 ```javascript
-// async/await を含む実行順序
+// Execution order with async/await
 async function asyncA() {
   console.log("A1");
   await Promise.resolve();
@@ -300,23 +302,23 @@ Promise.resolve().then(() => console.log("P1"));
 
 console.log("end");
 
-// 出力:
+// Output:
 // start
 // B1
-// A1        ← asyncA の同期部分
+// A1        ← Synchronous part of asyncA
 // end
-// A2        ← await 後（マイクロタスク）
-// P1        ← Promise.then（マイクロタスク）
-// B2        ← await asyncA() の後（マイクロタスク）
+// A2        ← After await (microtask)
+// P1        ← Promise.then (microtask)
+// B2        ← After await asyncA() (microtask)
 
-// ポイント:
-// - async関数の await 前の部分は同期的に実行される
-// - await は内部的に .then() に変換される
-// - 各 await の続きはマイクロタスクとしてキューに入る
+// Key points:
+// - The portion of an async function before await executes synchronously
+// - await is internally converted to .then()
+// - The continuation after each await is queued as a microtask
 ```
 
 ```javascript
-// Promise チェーンの実行順序
+// Promise chain execution order
 Promise.resolve()
   .then(() => console.log("then 1"))
   .then(() => console.log("then 2"))
@@ -327,72 +329,72 @@ Promise.resolve()
   .then(() => console.log("then B"))
   .then(() => console.log("then C"));
 
-// 出力:
-// then 1  ← 最初のPromiseチェーンの1段目
-// then A  ← 2番目のPromiseチェーンの1段目
-// then 2  ← 最初のPromiseチェーンの2段目
-// then B  ← 2番目のPromiseチェーンの2段目
-// then 3  ← 最初のPromiseチェーンの3段目
-// then C  ← 2番目のPromiseチェーンの3段目
+// Output:
+// then 1  ← First stage of the first Promise chain
+// then A  ← First stage of the second Promise chain
+// then 2  ← Second stage of the first Promise chain
+// then B  ← Second stage of the second Promise chain
+// then 3  ← Third stage of the first Promise chain
+// then C  ← Third stage of the second Promise chain
 
-// ポイント: .then() は1段ずつマイクロタスクキューに追加される
-// 最初の .then() が実行されると、次の .then() がキューに追加される
-// そのため、交互に実行される（ラウンドロビン的）
+// Key point: .then() is added to the microtask queue one stage at a time.
+// When the first .then() executes, the next .then() is added to the queue.
+// This results in round-robin-like alternating execution.
 ```
 
 ---
 
-## 3. イベントループのブロック
+## 3. Blocking the Event Loop
 
 ```
-❌ イベントループをブロックする操作:
-  → 同期的なファイルI/O（fs.readFileSync）
-  → 重い計算（暗号化、画像処理）
-  → 大きなJSONのパース（JSON.parse）
-  → 正規表現の指数的バックトラッキング
-  → 無限ループ / 長時間ループ
-  → 同期的なHTTPリクエスト
-  → 大きな配列のソート
+Operations that block the event loop:
+  → Synchronous file I/O (fs.readFileSync)
+  → Heavy computation (encryption, image processing)
+  → Parsing large JSON (JSON.parse)
+  → Exponential backtracking in regular expressions
+  → Infinite loops / long-running loops
+  → Synchronous HTTP requests
+  → Sorting large arrays
 
-ブロック時の影響:
-  → 全ての非同期処理が停止
-  → HTTPリクエストが応答不能
-  → WebSocketメッセージが遅延
-  → タイマーが不正確
-  → ヘルスチェックがタイムアウト
-  → クライアントがタイムアウトエラー
+Impact of blocking:
+  → All asynchronous processing stops
+  → HTTP requests become unresponsive
+  → WebSocket messages are delayed
+  → Timers become inaccurate
+  → Health checks time out
+  → Clients receive timeout errors
 
-対策:
-  1. 同期APIを使わない（fs.readFile, not fs.readFileSync）
-  2. CPU集約処理はWorkerスレッドに委譲
-  3. 大きなループは分割（setImmediate で休憩）
-  4. ストリーミング処理で大きなデータを分割
-  5. 正規表現の安全性を検証（ReDoS対策）
+Countermeasures:
+  1. Do not use synchronous APIs (use fs.readFile, not fs.readFileSync)
+  2. Delegate CPU-intensive processing to Worker threads
+  3. Split large loops (yield with setImmediate)
+  4. Use streaming to split large data
+  5. Validate regex safety (ReDoS prevention)
 ```
 
-### 3.1 ブロッキングの検出と回避
+### 3.1 Detecting and Avoiding Blocking
 
 ```javascript
-// ❌ ブロッキング
+// Bad: Blocking
 function processLargeArray(items) {
-  for (const item of items) { // 100万件
-    heavyComputation(item);   // イベントループが停止
+  for (const item of items) { // 1 million items
+    heavyComputation(item);   // Event loop stops
   }
 }
 
-// ✅ 分割実行（setImmediate でイベントループに制御を返す）
+// Good: Batched execution (yield control to event loop with setImmediate)
 async function processLargeArrayAsync(items, batchSize = 1000) {
   for (let i = 0; i < items.length; i += batchSize) {
     const batch = items.slice(i, i + batchSize);
     for (const item of batch) {
       heavyComputation(item);
     }
-    // バッチ間でイベントループに制御を返す
+    // Yield control to the event loop between batches
     await new Promise(resolve => setImmediate(resolve));
   }
 }
 
-// ✅ Worker Threads で並列実行
+// Good: Parallel execution with Worker Threads
 const { Worker } = require('worker_threads');
 function runInWorker(data) {
   return new Promise((resolve, reject) => {
@@ -403,32 +405,32 @@ function runInWorker(data) {
 }
 ```
 
-### 3.2 大きなJSONのストリーミング処理
+### 3.2 Streaming Large JSON
 
 ```javascript
 const { createReadStream } = require('fs');
 const { pipeline } = require('stream/promises');
 const JSONStream = require('jsonstream2');
 
-// ❌ 大きなJSONを一括読み込み（メモリ＋ブロッキング問題）
+// Bad: Loading large JSON all at once (memory + blocking issues)
 async function processLargeJsonBad(filePath) {
-  const data = JSON.parse(await fs.readFile(filePath, 'utf8')); // 500MB → ブロック
+  const data = JSON.parse(await fs.readFile(filePath, 'utf8')); // 500MB → blocks
   for (const item of data) {
     await processItem(item);
   }
 }
 
-// ✅ ストリーミングで逐次処理
+// Good: Streaming sequential processing
 async function processLargeJsonGood(filePath) {
   const stream = createReadStream(filePath)
-    .pipe(JSONStream.parse('*')); // 配列の各要素を1つずつ発行
+    .pipe(JSONStream.parse('*')); // Emit each array element one at a time
 
   for await (const item of stream) {
     await processItem(item);
   }
 }
 
-// ✅ NDJSON（改行区切りJSON）のストリーミング処理
+// Good: Streaming NDJSON (Newline Delimited JSON)
 const readline = require('readline');
 
 async function processNDJSON(filePath) {
@@ -446,25 +448,25 @@ async function processNDJSON(filePath) {
 }
 ```
 
-### 3.3 正規表現のバックトラッキング対策（ReDoS）
+### 3.3 Regex Backtracking Prevention (ReDoS)
 
 ```javascript
-// ❌ 危険な正規表現（指数的バックトラッキング）
+// Bad: Dangerous regex (exponential backtracking)
 const dangerousRegex = /^(a+)+$/;
-// "aaaaaaaaaaaaaaaaab" に対して指数関数的に時間がかかる
+// Takes exponential time against "aaaaaaaaaaaaaaaaab"
 
-// ❌ これもReDoS脆弱性
+// Bad: This is also a ReDoS vulnerability
 const emailRegex = /^([a-zA-Z0-9]+\.)*[a-zA-Z0-9]+@[a-zA-Z0-9]+(\.[a-zA-Z0-9]+)*$/;
 
-// ✅ 安全な正規表現の書き方
-// 1. バックトラッキングを避ける具体的な文字クラスを使用
+// Good: Writing safe regular expressions
+// 1. Use specific character classes that avoid backtracking
 const safeEmailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
-// 2. re2 ライブラリを使用（バックトラッキングしない正規表現エンジン）
+// 2. Use the re2 library (a regex engine that does not backtrack)
 const RE2 = require('re2');
 const safeRegex = new RE2('^[a-z]+$');
 
-// 3. タイムアウト付き正規表現実行
+// 3. Execute regex with a timeout
 function safeRegexTest(regex, input, timeoutMs = 100) {
   return new Promise((resolve, reject) => {
     const worker = new Worker(`
@@ -489,33 +491,33 @@ function safeRegexTest(regex, input, timeoutMs = 100) {
 }
 ```
 
-### 3.4 イベントループのモニタリング
+### 3.4 Monitoring the Event Loop
 
 ```javascript
-// イベントループの遅延を計測
+// Measure event loop delay
 function monitorEventLoop(thresholdMs = 100) {
   let lastTime = process.hrtime.bigint();
 
   setInterval(() => {
     const now = process.hrtime.bigint();
     const delta = Number(now - lastTime) / 1_000_000; // ns → ms
-    const lag = delta - 1000; // 期待値1000msとの差
+    const lag = delta - 1000; // Difference from the expected 1000ms
 
     if (lag > thresholdMs) {
-      console.warn(`⚠️ Event loop lag: ${lag.toFixed(1)}ms`);
+      console.warn(`Event loop lag: ${lag.toFixed(1)}ms`);
     }
 
     lastTime = now;
   }, 1000);
 }
 
-// perf_hooks を使った精密な計測
+// Precise measurement using perf_hooks
 const { monitorEventLoopDelay } = require('perf_hooks');
 
 const histogram = monitorEventLoopDelay({ resolution: 20 });
 histogram.enable();
 
-// 定期的に統計を出力
+// Periodically output statistics
 setInterval(() => {
   console.log({
     min: histogram.min / 1e6,      // ns → ms
@@ -528,10 +530,10 @@ setInterval(() => {
   histogram.reset();
 }, 10000);
 
-// Prometheus メトリクスとして公開
+// Expose as Prometheus metrics
 const { collectDefaultMetrics, register, Histogram } = require('prom-client');
 
-collectDefaultMetrics(); // デフォルトメトリクスにイベントループ遅延を含む
+collectDefaultMetrics(); // Default metrics include event loop delay
 
 const eventLoopLag = new Histogram({
   name: 'nodejs_eventloop_lag_seconds',
@@ -539,7 +541,7 @@ const eventLoopLag = new Histogram({
   buckets: [0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1],
 });
 
-// ヘルスチェックエンドポイント
+// Health check endpoint
 app.get('/health', (req, res) => {
   const h = monitorEventLoopDelay({ resolution: 20 });
   h.enable();
@@ -557,13 +559,13 @@ app.get('/health', (req, res) => {
 
 ---
 
-## 4. Worker Threads（Node.js）
+## 4. Worker Threads (Node.js)
 
 ```javascript
-// === メインスレッド ===
+// === Main Thread ===
 const { Worker, isMainThread, parentPort, workerData } = require('worker_threads');
 
-// Worker プールの実装
+// Worker Pool implementation
 class WorkerPool {
   constructor(workerPath, numWorkers) {
     this.workerPath = workerPath;
@@ -579,11 +581,11 @@ class WorkerPool {
   addWorker() {
     const worker = new Worker(this.workerPath);
     worker.on('message', (result) => {
-      // タスクのPromiseを解決
+      // Resolve the task's Promise
       worker.currentResolve(result);
       worker.currentResolve = null;
 
-      // キューにタスクがあれば次を実行
+      // If there are tasks in the queue, execute the next one
       if (this.taskQueue.length > 0) {
         const { data, resolve, reject } = this.taskQueue.shift();
         this.runTask(worker, data, resolve, reject);
@@ -626,10 +628,10 @@ class WorkerPool {
   }
 }
 
-// 使用例
-const pool = new WorkerPool('./crypto-worker.js', 4); // 4ワーカー
+// Usage example
+const pool = new WorkerPool('./crypto-worker.js', 4); // 4 workers
 
-// 並行してハッシュ計算
+// Compute hashes concurrently
 async function hashPasswords(passwords) {
   const results = await Promise.all(
     passwords.map(pw => pool.execute({ password: pw }))
@@ -637,28 +639,28 @@ async function hashPasswords(passwords) {
   return results;
 }
 
-// === ワーカースレッド（crypto-worker.js） ===
+// === Worker Thread (crypto-worker.js) ===
 const { parentPort } = require('worker_threads');
 const crypto = require('crypto');
 
 parentPort.on('message', ({ password }) => {
-  // CPU集約的な処理をワーカーで実行
+  // Execute CPU-intensive processing in the worker
   const hash = crypto.pbkdf2Sync(password, 'salt', 100000, 64, 'sha512');
   parentPort.postMessage(hash.toString('hex'));
 });
 ```
 
-### 4.1 SharedArrayBuffer による共有メモリ
+### 4.1 Shared Memory with SharedArrayBuffer
 
 ```javascript
-// メインスレッド
+// Main thread
 const { Worker } = require('worker_threads');
 
-// 共有メモリバッファ（全ワーカーからアクセス可能）
+// Shared memory buffer (accessible from all workers)
 const sharedBuffer = new SharedArrayBuffer(1024 * Int32Array.BYTES_PER_ELEMENT);
 const sharedArray = new Int32Array(sharedBuffer);
 
-// 複数のワーカーで共有メモリに書き込み
+// Multiple workers write to shared memory
 const workers = [];
 for (let i = 0; i < 4; i++) {
   const worker = new Worker('./shared-worker.js', {
@@ -672,49 +674,49 @@ const { parentPort, workerData } = require('worker_threads');
 const { buffer, workerId } = workerData;
 const sharedArray = new Int32Array(buffer);
 
-// Atomics でスレッドセーフな操作
-Atomics.add(sharedArray, 0, 1); // アトミックに加算
+// Thread-safe operations with Atomics
+Atomics.add(sharedArray, 0, 1); // Atomic addition
 
-// Atomics.wait / Atomics.notify でスレッド間同期
-Atomics.wait(sharedArray, 1, 0); // sharedArray[1] が 0 の間待機
-// ... 別のスレッドが Atomics.notify(sharedArray, 1) で起こす
+// Inter-thread synchronization with Atomics.wait / Atomics.notify
+Atomics.wait(sharedArray, 1, 0); // Wait while sharedArray[1] is 0
+// ... Another thread wakes it with Atomics.notify(sharedArray, 1)
 
 parentPort.postMessage({ done: true, workerId });
 ```
 
 ---
 
-## 5. ブラウザのイベントループ
+## 5. The Browser Event Loop
 
 ```
-ブラウザのイベントループ:
+Browser Event Loop:
 
   ┌──────────────────────────────────┐
-  │ 1. マクロタスク1つ実行            │
-  │ 2. マイクロタスク全て実行          │
-  │ 3. レンダリング（必要なら）        │
+  │ 1. Execute one macrotask         │
+  │ 2. Execute all microtasks        │
+  │ 3. Render (if necessary)         │
   │    → requestAnimationFrame       │
-  │    → スタイル計算                 │
-  │    → レイアウト                   │
-  │    → ペイント                    │
-  │ 4. → 1に戻る                     │
+  │    → Style calculation           │
+  │    → Layout                      │
+  │    → Paint                       │
+  │ 4. → Return to step 1           │
   └──────────────────────────────────┘
 
-  重要: マイクロタスクが大量にあると
-  → レンダリングが遅延
-  → UIがフリーズしたように見える
+  Important: If there are a large number of microtasks
+  → Rendering is delayed
+  → The UI appears to freeze
 
 requestAnimationFrame:
-  → 次のレンダリング前に実行
-  → アニメーションに最適（60fps = 16.6ms間隔）
-  → マイクロタスクでもマクロタスクでもない独立したキュー
+  → Executes before the next render
+  → Optimal for animations (60fps = 16.6ms interval)
+  → A separate queue, neither microtask nor macrotask
 ```
 
-### 5.1 requestAnimationFrame の詳細
+### 5.1 requestAnimationFrame in Detail
 
 ```javascript
-// requestAnimationFrame はレンダリング前に実行
-console.log("1: 同期");
+// requestAnimationFrame executes before rendering
+console.log("1: Synchronous");
 
 requestAnimationFrame(() => console.log("2: rAF"));
 
@@ -722,17 +724,17 @@ setTimeout(() => console.log("3: setTimeout"), 0);
 
 Promise.resolve().then(() => console.log("4: Promise"));
 
-console.log("5: 同期");
+console.log("5: Synchronous");
 
-// 出力:
-// 1: 同期
-// 5: 同期
-// 4: Promise         ← マイクロタスク
-// 2: rAF             ← レンダリング前（通常 setTimeout より先）
-// 3: setTimeout      ← マクロタスク
-// ※ rAF と setTimeout の順序はブラウザの実装により異なる場合あり
+// Output:
+// 1: Synchronous
+// 5: Synchronous
+// 4: Promise         ← Microtask
+// 2: rAF             ← Before rendering (usually before setTimeout)
+// 3: setTimeout      ← Macrotask
+// Note: The order of rAF and setTimeout may differ depending on browser implementation
 
-// === スムーズなアニメーション ===
+// === Smooth Animation ===
 function animate(element, targetX, duration) {
   const startX = element.offsetLeft;
   const startTime = performance.now();
@@ -741,7 +743,7 @@ function animate(element, targetX, duration) {
     const elapsed = currentTime - startTime;
     const progress = Math.min(elapsed / duration, 1);
 
-    // イージング関数
+    // Easing function
     const eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
 
     element.style.left = startX + (targetX - startX) * eased + 'px';
@@ -754,11 +756,11 @@ function animate(element, targetX, duration) {
   requestAnimationFrame(frame);
 }
 
-// === requestIdleCallback（優先度の低いタスク）===
-// ブラウザがアイドル状態の時に実行される
+// === requestIdleCallback (low-priority tasks) ===
+// Executes when the browser is in an idle state
 function processNonUrgentWork(tasks) {
   function doWork(deadline) {
-    // deadline.timeRemaining() でフレーム内の残り時間を確認
+    // Check remaining time in the frame with deadline.timeRemaining()
     while (tasks.length > 0 && deadline.timeRemaining() > 1) {
       const task = tasks.shift();
       task();
@@ -769,10 +771,10 @@ function processNonUrgentWork(tasks) {
     }
   }
 
-  requestIdleCallback(doWork, { timeout: 5000 }); // 最大5秒待ち
+  requestIdleCallback(doWork, { timeout: 5000 }); // Wait up to 5 seconds
 }
 
-// 使用例: アナリティクスの送信
+// Usage example: Sending analytics
 processNonUrgentWork([
   () => sendAnalytics('page_view', { path: location.pathname }),
   () => preloadImages(nextPageImages),
@@ -783,26 +785,26 @@ processNonUrgentWork([
 ### 5.2 Web Workers
 
 ```javascript
-// === メインスレッド ===
+// === Main Thread ===
 const worker = new Worker('worker.js');
 
-// メッセージの送受信
+// Sending and receiving messages
 worker.postMessage({ type: 'process', data: largeDataset });
 
 worker.onmessage = (event) => {
   const { result, stats } = event.data;
   updateUI(result);
-  console.log('処理統計:', stats);
+  console.log('Processing stats:', stats);
 };
 
 worker.onerror = (error) => {
   console.error('Worker error:', error.message);
 };
 
-// Transferable Objects（コピーではなく所有権の移転）
+// Transferable Objects (ownership transfer, not copying)
 const buffer = new ArrayBuffer(1024 * 1024); // 1MB
-worker.postMessage({ buffer }, [buffer]); // 転送（コピーなし）
-// この時点で buffer は使用不可
+worker.postMessage({ buffer }, [buffer]); // Transfer (no copy)
+// At this point, buffer is no longer usable
 
 // === worker.js ===
 self.onmessage = (event) => {
@@ -812,7 +814,7 @@ self.onmessage = (event) => {
     case 'process': {
       const startTime = performance.now();
 
-      // CPU集約的な処理（メインスレッドをブロックしない）
+      // CPU-intensive processing (does not block the main thread)
       const result = data.map(item => {
         return heavyComputation(item);
       });
@@ -831,13 +833,13 @@ self.onmessage = (event) => {
   }
 };
 
-// === Comlink ライブラリで Worker をRPCのように使う ===
-// メインスレッド
+// === Using Workers like RPC with the Comlink library ===
+// Main thread
 import * as Comlink from 'comlink';
 
 const api = Comlink.wrap(new Worker('api-worker.js'));
 
-// Worker のメソッドを直接呼び出すように使える
+// Call Worker methods as if calling them directly
 const result = await api.processData(largeDataset);
 const hash = await api.hashPassword('secret');
 
@@ -849,7 +851,7 @@ const api = {
     return data.map(item => heavyComputation(item));
   },
   hashPassword(password) {
-    // CPU集約的なハッシュ計算
+    // CPU-intensive hash computation
     return computeHash(password);
   },
 };
@@ -859,36 +861,37 @@ Comlink.expose(api);
 
 ---
 
-## 6. Node.js vs ブラウザ の違い
+## 6. Node.js vs Browser Differences
 
 ```
 ┌──────────────────────────────────────────────────┐
-│              Node.js vs ブラウザ                   │
+│              Node.js vs Browser                    │
 ├─────────────────┬────────────────────────────────┤
-│     Node.js     │         ブラウザ                │
+│     Node.js     │         Browser                 │
 ├─────────────────┼────────────────────────────────┤
-│ libuv ベース     │ ブラウザエンジン独自実装       │
-│ 6フェーズ        │ タスクキュー + レンダリング    │
-│ setImmediate ○  │ setImmediate △(IE のみ)       │
-│ nextTick ○      │ nextTick ✗                    │
-│ Worker Threads  │ Web Workers                    │
-│ レンダリング無し │ レンダリングが挟まる           │
-│ 複数タスクキュー │ 単一タスクキュー（基本）       │
-│ fs, net, etc    │ DOM, fetch, etc                │
-│ サーバーサイド   │ クライアントサイド             │
+│ libuv-based     │ Browser engine proprietary impl │
+│ 6 phases        │ Task queue + rendering          │
+│ setImmediate ○  │ setImmediate △ (IE only)        │
+│ nextTick ○      │ nextTick ✗                      │
+│ Worker Threads  │ Web Workers                     │
+│ No rendering    │ Rendering is interleaved        │
+│ Multiple task   │ Single task queue (basic)       │
+│   queues        │                                 │
+│ fs, net, etc    │ DOM, fetch, etc                 │
+│ Server-side     │ Client-side                     │
 └─────────────────┴────────────────────────────────┘
 
 setImmediate vs setTimeout(fn, 0):
   Node.js:
-    → I/Oコールバック内: setImmediate が先
-    → トップレベル: 順序不定
-  ブラウザ:
-    → setTimeout(fn, 0) のみ（最小遅延4ms）
-    → setImmediate は非標準
+    → Inside I/O callbacks: setImmediate runs first
+    → Top level: order is non-deterministic
+  Browser:
+    → Only setTimeout(fn, 0) (minimum delay 4ms)
+    → setImmediate is non-standard
 ```
 
 ```javascript
-// Node.js: I/O コールバック内での順序
+// Node.js: Order inside I/O callbacks
 const fs = require('fs');
 
 fs.readFile('file.txt', () => {
@@ -896,28 +899,28 @@ fs.readFile('file.txt', () => {
   setImmediate(() => console.log('immediate'));
 });
 
-// 出力（常にこの順序）:
-// immediate    ← I/Oコールバック → check フェーズが先
+// Output (always in this order):
+// immediate    ← I/O callback → check phase runs first
 // timeout
 
-// Node.js: トップレベルでの順序（不定）
+// Node.js: Order at top level (non-deterministic)
 setTimeout(() => console.log('timeout'), 0);
 setImmediate(() => console.log('immediate'));
 
-// 出力（実行ごとに変わる可能性）:
-// timeout   または  immediate
-// immediate         timeout
-// → プロセス起動時のタイミングに依存
+// Output (may vary between runs):
+// timeout   or  immediate
+// immediate     timeout
+// → Depends on process startup timing
 ```
 
 ---
 
-## 7. 実践パターン
+## 7. Practical Patterns
 
-### 7.1 非同期イテレータとイベントループ
+### 7.1 Async Iterators and the Event Loop
 
 ```javascript
-// for-await-of とイベントループ
+// for-await-of and the event loop
 const { once } = require('events');
 const { createReadStream } = require('fs');
 
@@ -931,7 +934,7 @@ async function processFile(filePath) {
       lineCount++;
       await processLine(line);
 
-      // 1000行ごとにイベントループに制御を返す
+      // Yield control to the event loop every 1000 lines
       if (lineCount % 1000 === 0) {
         await new Promise(resolve => setImmediate(resolve));
       }
@@ -942,18 +945,18 @@ async function processFile(filePath) {
 }
 ```
 
-### 7.2 Promise.all とイベントループ
+### 7.2 Promise.all and the Event Loop
 
 ```javascript
-// Promise.all は全てのPromiseを同時に開始する
-// → 大量のPromiseを同時実行するとリソースを圧迫
+// Promise.all starts all Promises simultaneously
+// → Running a large number of Promises concurrently can exhaust resources
 
-// ❌ 1万件のHTTPリクエストを同時実行
+// Bad: 10,000 HTTP requests simultaneously
 const urls = Array(10000).fill('https://api.example.com/data');
 const results = await Promise.all(urls.map(url => fetch(url)));
-// → ソケットの枯渇、メモリ圧迫
+// → Socket exhaustion, memory pressure
 
-// ✅ 並行数を制限する
+// Good: Limit concurrency
 async function promisePool(tasks, concurrency = 10) {
   const results = [];
   const executing = new Set();
@@ -974,10 +977,10 @@ async function promisePool(tasks, concurrency = 10) {
   return Promise.all(results);
 }
 
-// 使用
+// Usage
 const results = await promisePool(
   urls.map(url => () => fetch(url).then(r => r.json())),
-  10, // 最大10並行
+  10, // Maximum 10 concurrent
 );
 ```
 
@@ -988,14 +991,14 @@ const http = require('http');
 
 const server = http.createServer(handler);
 
-// 新しいリクエストの追跡
+// Track new requests
 const connections = new Set();
 server.on('connection', (conn) => {
   connections.add(conn);
   conn.on('close', () => connections.delete(conn));
 });
 
-// シグナルハンドリング
+// Signal handling
 let isShuttingDown = false;
 
 async function gracefulShutdown(signal) {
@@ -1004,21 +1007,21 @@ async function gracefulShutdown(signal) {
 
   console.log(`${signal} received. Starting graceful shutdown...`);
 
-  // 1. 新しいリクエストの受付を停止
+  // 1. Stop accepting new requests
   server.close(() => {
     console.log('Server closed');
   });
 
-  // 2. ヘルスチェックを不健全にする（ロードバランサーからの切り離し）
-  // → /health エンドポイントで isShuttingDown をチェック
+  // 2. Mark health check as unhealthy (detach from load balancer)
+  // → Check isShuttingDown in the /health endpoint
 
-  // 3. 進行中のリクエストの完了を待つ（最大30秒）
+  // 3. Wait for in-progress requests to complete (max 30 seconds)
   const forceTimeout = setTimeout(() => {
     console.log('Force shutdown: destroying remaining connections');
     connections.forEach(conn => conn.destroy());
   }, 30000);
 
-  // 4. リソースのクリーンアップ
+  // 4. Clean up resources
   try {
     await Promise.allSettled([
       db.end(),
@@ -1037,7 +1040,7 @@ async function gracefulShutdown(signal) {
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
-// ヘルスチェック
+// Health check
 app.get('/health', (req, res) => {
   if (isShuttingDown) {
     res.status(503).json({ status: 'shutting-down' });
@@ -1047,14 +1050,14 @@ app.get('/health', (req, res) => {
 });
 ```
 
-### 7.4 タイマーの精度問題
+### 7.4 Timer Precision Issues
 
 ```javascript
-// setTimeout(fn, 0) は実際には 0ms ではない
-// Node.js: 最小 1ms
-// ブラウザ: 最小 4ms（5回以上ネストした場合）
+// setTimeout(fn, 0) is not actually 0ms
+// Node.js: minimum 1ms
+// Browser: minimum 4ms (when nested 5 or more times)
 
-// 高精度タイミングが必要な場合
+// When high-precision timing is needed
 function preciseTimeout(callback, ms) {
   const start = performance.now();
 
@@ -1063,9 +1066,9 @@ function preciseTimeout(callback, ms) {
     if (elapsed >= ms) {
       callback();
     } else if (ms - elapsed > 10) {
-      setTimeout(check, 0); // 大まかに待つ
+      setTimeout(check, 0); // Wait roughly
     } else {
-      // 最後のミリ秒はビジーウェイト（精度のため）
+      // Busy-wait for the last milliseconds (for precision)
       setImmediate(check);
     }
   }
@@ -1077,18 +1080,18 @@ function preciseTimeout(callback, ms) {
   }
 }
 
-// setInterval の「ドリフト」問題
-// ❌ 1秒ごとに実行したいが、徐々にずれる
+// setInterval "drift" problem
+// Bad: Want to execute every 1 second, but it gradually drifts
 let count = 0;
 const start = Date.now();
 setInterval(() => {
   count++;
   const expected = count * 1000;
   const actual = Date.now() - start;
-  console.log(`ドリフト: ${actual - expected}ms`);
+  console.log(`Drift: ${actual - expected}ms`);
 }, 1000);
 
-// ✅ 自己補正タイマー
+// Good: Self-correcting timer
 function preciseInterval(callback, intervalMs) {
   let expected = Date.now() + intervalMs;
 
@@ -1105,12 +1108,12 @@ function preciseInterval(callback, intervalMs) {
 
 ---
 
-## 8. デバッグとトラブルシューティング
+## 8. Debugging and Troubleshooting
 
-### 8.1 よくある問題パターン
+### 8.1 Common Problem Patterns
 
 ```javascript
-// 問題1: 意図しない順序でのコールバック実行
+// Problem 1: Callbacks executing in unintended order
 function fetchAndProcess() {
   let result = null;
 
@@ -1118,79 +1121,79 @@ function fetchAndProcess() {
     .then(r => r.json())
     .then(data => { result = data; });
 
-  console.log(result); // null！（非同期処理が完了していない）
+  console.log(result); // null! (async processing has not completed)
 }
 
-// 問題2: Unhandled Promise Rejection
-// Node.js 15+ ではプロセスがクラッシュする
+// Problem 2: Unhandled Promise Rejection
+// In Node.js 15+, this crashes the process
 async function riskyOperation() {
-  const data = await fetch('/api/data'); // エラーをキャッチしていない
+  const data = await fetch('/api/data'); // Error is not caught
   return data.json();
 }
 
-riskyOperation(); // .catch() も try-catch もなし → UnhandledPromiseRejection
+riskyOperation(); // No .catch() or try-catch → UnhandledPromiseRejection
 
-// 対策: グローバルハンドラ
+// Countermeasure: Global handlers
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection:', reason);
-  // ログを送信し、グレースフルにシャットダウン
+  // Send logs and shut down gracefully
   gracefulShutdown('unhandledRejection');
 });
 
 process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception:', error);
-  // 即座にシャットダウン（状態が不整合の可能性）
+  // Shut down immediately (state may be inconsistent)
   process.exit(1);
 });
 
-// 問題3: メモリリーク（イベントリスナーの解除忘れ）
+// Problem 3: Memory leak (forgetting to remove event listeners)
 const EventEmitter = require('events');
 const emitter = new EventEmitter();
 
-// ❌ リスナーが蓄積される
+// Bad: Listeners accumulate
 function handleRequest(req) {
   emitter.on('data', (data) => {
-    // リクエストごとに新しいリスナーが追加される
-    // → メモリリーク
+    // A new listener is added for each request
+    // → Memory leak
   });
 }
 
-// ✅ once を使うか、手動で解除
+// Good: Use once, or manually remove
 function handleRequestFixed(req) {
   const handler = (data) => {
-    // 処理
+    // Processing
   };
   emitter.on('data', handler);
 
-  // リクエスト終了時に解除
+  // Remove when the request ends
   req.on('close', () => {
     emitter.removeListener('data', handler);
   });
 }
 
-// MaxListenersExceededWarning の検出
-emitter.setMaxListeners(20); // デフォルト10
-// 警告が出たらリスナーリークを疑う
+// Detecting MaxListenersExceededWarning
+emitter.setMaxListeners(20); // Default is 10
+// If this warning appears, suspect a listener leak
 ```
 
-### 8.2 Node.js の診断ツール
+### 8.2 Node.js Diagnostic Tools
 
 ```javascript
-// --inspect フラグで Chrome DevTools に接続
+// Connect to Chrome DevTools with the --inspect flag
 // node --inspect server.js
-// Chrome で chrome://inspect を開く
+// Open chrome://inspect in Chrome
 
-// CPU プロファイリング
+// CPU Profiling
 const { writeHeapSnapshot } = require('v8');
 const { Session } = require('inspector');
 
-// ヒープスナップショットの取得
+// Taking a heap snapshot
 app.get('/debug/heap', (req, res) => {
   const filename = writeHeapSnapshot();
   res.json({ file: filename });
 });
 
-// CPU プロファイルの取得
+// Taking a CPU profile
 app.get('/debug/profile', async (req, res) => {
   const session = new Session();
   session.connect();
@@ -1198,18 +1201,18 @@ app.get('/debug/profile', async (req, res) => {
   session.post('Profiler.enable');
   session.post('Profiler.start');
 
-  // 10秒間プロファイリング
+  // Profile for 10 seconds
   await new Promise(resolve => setTimeout(resolve, 10000));
 
   session.post('Profiler.stop', (err, { profile }) => {
     session.disconnect();
-    // profile を .cpuprofile ファイルとして保存
+    // Save profile as a .cpuprofile file
     fs.writeFileSync('profile.cpuprofile', JSON.stringify(profile));
     res.json({ message: 'Profile saved' });
   });
 });
 
-// async_hooks でイベントループの追跡
+// Tracking the event loop with async_hooks
 const async_hooks = require('async_hooks');
 
 const resources = new Map();
@@ -1223,10 +1226,10 @@ const hook = async_hooks.createHook({
   },
 });
 
-// 有効化（パフォーマンスオーバーヘッドあり、デバッグ時のみ）
+// Enable (has performance overhead, use only for debugging)
 hook.enable();
 
-// アクティブな非同期リソースの表示
+// Display active async resources
 setInterval(() => {
   console.log(`Active async resources: ${resources.size}`);
   const types = {};
@@ -1240,45 +1243,45 @@ setInterval(() => {
 
 ---
 
-## 実践演習
+## Practical Exercises
 
-### 演習1: 基本的な実装
+### Exercise 1: Basic Implementation
 
-以下の要件を満たすコードを実装してください。
+Implement code that satisfies the following requirements.
 
-**要件:**
-- 入力データの検証を行うこと
-- エラーハンドリングを適切に実装すること
-- テストコードも作成すること
+**Requirements:**
+- Validate input data
+- Implement proper error handling
+- Create test code as well
 
 ```python
-# 演習1: 基本実装のテンプレート
+# Exercise 1: Basic implementation template
 class Exercise1:
-    """基本的な実装パターンの演習"""
+    """Exercise for basic implementation patterns"""
 
     def __init__(self):
         self.data = []
 
     def validate_input(self, value):
-        """入力値の検証"""
+        """Validate the input value"""
         if value is None:
-            raise ValueError("入力値がNoneです")
+            raise ValueError("Input value is None")
         return True
 
     def process(self, value):
-        """データ処理のメインロジック"""
+        """Main logic for data processing"""
         self.validate_input(value)
         self.data.append(value)
         return self.data
 
     def get_results(self):
-        """処理結果の取得"""
+        """Get processing results"""
         return {
             'count': len(self.data),
             'data': self.data
         }
 
-# テスト
+# Tests
 def test_exercise1():
     ex = Exercise1()
     assert ex.process(1) == [1]
@@ -1287,26 +1290,26 @@ def test_exercise1():
 
     try:
         ex.process(None)
-        assert False, "例外が発生するべき"
+        assert False, "An exception should have been raised"
     except ValueError:
         pass
 
-    print("全テスト合格!")
+    print("All tests passed!")
 
 test_exercise1()
 ```
 
-### 演習2: 応用パターン
+### Exercise 2: Advanced Patterns
 
-基本実装を拡張して、以下の機能を追加してください。
+Extend the basic implementation to add the following features.
 
 ```python
-# 演習2: 応用パターン
+# Exercise 2: Advanced patterns
 from typing import List, Dict, Optional
 from datetime import datetime
 
 class AdvancedExercise:
-    """応用パターンの演習"""
+    """Exercise for advanced patterns"""
 
     def __init__(self, max_size: int = 100):
         self._items: List[Dict] = []
@@ -1314,7 +1317,7 @@ class AdvancedExercise:
         self._created_at = datetime.now()
 
     def add(self, key: str, value: any) -> bool:
-        """アイテムの追加（サイズ制限付き）"""
+        """Add an item (with size limit)"""
         if len(self._items) >= self._max_size:
             return False
         self._items.append({
@@ -1325,14 +1328,14 @@ class AdvancedExercise:
         return True
 
     def find(self, key: str) -> Optional[Dict]:
-        """キーによる検索"""
+        """Search by key"""
         for item in reversed(self._items):
             if item['key'] == key:
                 return item
         return None
 
     def remove(self, key: str) -> bool:
-        """キーによる削除"""
+        """Delete by key"""
         for i, item in enumerate(self._items):
             if item['key'] == key:
                 self._items.pop(i)
@@ -1340,7 +1343,7 @@ class AdvancedExercise:
         return False
 
     def stats(self) -> Dict:
-        """統計情報"""
+        """Statistics"""
         return {
             'total_items': len(self._items),
             'max_size': self._max_size,
@@ -1348,44 +1351,44 @@ class AdvancedExercise:
             'uptime': str(datetime.now() - self._created_at)
         }
 
-# テスト
+# Tests
 def test_advanced():
     ex = AdvancedExercise(max_size=3)
     assert ex.add("a", 1) == True
     assert ex.add("b", 2) == True
     assert ex.add("c", 3) == True
-    assert ex.add("d", 4) == False  # サイズ制限
+    assert ex.add("d", 4) == False  # Size limit
     assert ex.find("b")['value'] == 2
     assert ex.remove("b") == True
     assert ex.find("b") is None
     stats = ex.stats()
     assert stats['total_items'] == 2
-    print("応用テスト全合格!")
+    print("All advanced tests passed!")
 
 test_advanced()
 ```
 
-### 演習3: パフォーマンス最適化
+### Exercise 3: Performance Optimization
 
-以下のコードのパフォーマンスを改善してください。
+Improve the performance of the following code.
 
 ```python
-# 演習3: パフォーマンス最適化
+# Exercise 3: Performance optimization
 import time
 from functools import lru_cache
 
-# 最適化前（O(n^2)）
+# Before optimization (O(n^2))
 def slow_search(data: list, target: int) -> int:
-    """非効率な検索"""
+    """Inefficient search"""
     for i in range(len(data)):
         for j in range(i + 1, len(data)):
             if data[i] + data[j] == target:
                 return (i, j)
     return (-1, -1)
 
-# 最適化後（O(n)）
+# After optimization (O(n))
 def fast_search(data: list, target: int) -> tuple:
-    """ハッシュマップを使った効率的な検索"""
+    """Efficient search using a hash map"""
     seen = {}
     for i, num in enumerate(data):
         complement = target - num
@@ -1394,7 +1397,7 @@ def fast_search(data: list, target: int) -> tuple:
         seen[num] = i
     return (-1, -1)
 
-# ベンチマーク
+# Benchmark
 def benchmark():
     import random
     data = list(range(5000))
@@ -1409,76 +1412,77 @@ def benchmark():
     result2 = fast_search(data, target)
     fast_time = time.time() - start
 
-    print(f"非効率版: {slow_time:.4f}秒")
-    print(f"効率版:   {fast_time:.6f}秒")
-    print(f"高速化率: {slow_time/fast_time:.0f}倍")
+    print(f"Inefficient version: {slow_time:.4f}s")
+    print(f"Efficient version:   {fast_time:.6f}s")
+    print(f"Speedup factor: {slow_time/fast_time:.0f}x")
 
 benchmark()
 ```
 
-**ポイント:**
-- アルゴリズムの計算量を意識する
-- 適切なデータ構造を選択する
-- ベンチマークで効果を測定する
+**Key Points:**
+- Be aware of algorithmic time complexity
+- Choose appropriate data structures
+- Measure results with benchmarks
 
 ---
 
-## 設計判断ガイド
+## Design Decision Guide
 
-### 選択基準マトリクス
+### Selection Criteria Matrix
 
-技術選択を行う際の判断基準を以下にまとめます。
+The following summarizes the criteria for making technical choices.
 
-| 判断基準 | 重視する場合 | 妥協できる場合 |
+| Criterion | When to Prioritize | When Compromise is Acceptable |
 |---------|------------|-------------|
-| パフォーマンス | リアルタイム処理、大規模データ | 管理画面、バッチ処理 |
-| 保守性 | 長期運用、チーム開発 | プロトタイプ、短期プロジェクト |
-| スケーラビリティ | 成長が見込まれるサービス | 社内ツール、固定ユーザー |
-| セキュリティ | 個人情報、金融データ | 公開データ、社内利用 |
-| 開発速度 | MVP、市場投入スピード | 品質重視、ミッションクリティカル |
+| Performance | Real-time processing, large-scale data | Admin panels, batch processing |
+| Maintainability | Long-term operation, team development | Prototypes, short-term projects |
+| Scalability | Services expected to grow | Internal tools, fixed user base |
+| Security | Personal data, financial data | Public data, internal use |
+| Development Speed | MVP, time-to-market | Quality-focused, mission-critical |
 
-### アーキテクチャパターンの選択
+### Architecture Pattern Selection
 
 ```
 ┌─────────────────────────────────────────────────┐
-│              アーキテクチャ選択フロー              │
+│          Architecture Selection Flow             │
 ├─────────────────────────────────────────────────┤
 │                                                 │
-│  ① チーム規模は？                                │
-│    ├─ 小規模（1-5人）→ モノリス                   │
-│    └─ 大規模（10人+）→ ②へ                       │
+│  (1) Team size?                                 │
+│    ├─ Small (1-5 people) → Monolith             │
+│    └─ Large (10+ people) → Go to (2)            │
 │                                                 │
-│  ② デプロイ頻度は？                               │
-│    ├─ 週1回以下 → モノリス + モジュール分割         │
-│    └─ 毎日/複数回 → ③へ                          │
+│  (2) Deployment frequency?                      │
+│    ├─ Once a week or less → Monolith +          │
+│    │    module separation                       │
+│    └─ Daily / multiple times → Go to (3)        │
 │                                                 │
-│  ③ チーム間の独立性は？                            │
-│    ├─ 高い → マイクロサービス                      │
-│    └─ 中程度 → モジュラーモノリス                   │
+│  (3) Team independence?                         │
+│    ├─ High → Microservices                      │
+│    └─ Moderate → Modular monolith               │
 │                                                 │
 └─────────────────────────────────────────────────┘
 ```
 
-### トレードオフの分析
+### Trade-off Analysis
 
-技術的な判断には必ずトレードオフが伴います。以下の観点で分析を行いましょう:
+Technical decisions always involve trade-offs. Analyze from the following perspectives:
 
-**1. 短期 vs 長期のコスト**
-- 短期的に速い方法が長期的には技術的負債になることがある
-- 逆に、過剰な設計は短期的なコストが高く、プロジェクトの遅延を招く
+**1. Short-term vs Long-term Cost**
+- A method that is faster in the short term may become technical debt in the long term
+- Conversely, over-engineering incurs high short-term costs and can delay the project
 
-**2. 一貫性 vs 柔軟性**
-- 統一された技術スタックは学習コストが低い
-- 多様な技術の採用は適材適所が可能だが、運用コストが増加
+**2. Consistency vs Flexibility**
+- A unified technology stack has lower learning costs
+- Adopting diverse technologies enables best-fit choices but increases operational costs
 
-**3. 抽象化のレベル**
-- 高い抽象化は再利用性が高いが、デバッグが困難になる場合がある
-- 低い抽象化は直感的だが、コードの重複が発生しやすい
+**3. Level of Abstraction**
+- Higher abstraction improves reusability but can make debugging difficult
+- Lower abstraction is more intuitive but tends to produce code duplication
 
 ```python
-# 設計判断の記録テンプレート
+# Architecture Decision Record template
 class ArchitectureDecisionRecord:
-    """ADR (Architecture Decision Record) の作成"""
+    """Create an ADR (Architecture Decision Record)"""
 
     def __init__(self, title: str):
         self.title = title
@@ -1488,17 +1492,17 @@ class ArchitectureDecisionRecord:
         self.alternatives = []
 
     def set_context(self, context: str):
-        """背景と課題の記述"""
+        """Describe the background and challenges"""
         self.context = context
         return self
 
     def set_decision(self, decision: str):
-        """決定内容の記述"""
+        """Describe the decision"""
         self.decision = decision
         return self
 
     def add_consequence(self, consequence: str, positive: bool = True):
-        """結果の追加"""
+        """Add a consequence"""
         self.consequences.append({
             'description': consequence,
             'type': 'positive' if positive else 'negative'
@@ -1506,7 +1510,7 @@ class ArchitectureDecisionRecord:
         return self
 
     def add_alternative(self, name: str, reason_rejected: str):
-        """却下した代替案の追加"""
+        """Add a rejected alternative"""
         self.alternatives.append({
             'name': name,
             'reason_rejected': reason_rejected
@@ -1514,15 +1518,15 @@ class ArchitectureDecisionRecord:
         return self
 
     def to_markdown(self) -> str:
-        """Markdown形式で出力"""
+        """Output in Markdown format"""
         md = f"# ADR: {self.title}\n\n"
-        md += f"## 背景\n{self.context}\n\n"
-        md += f"## 決定\n{self.decision}\n\n"
-        md += "## 結果\n"
+        md += f"## Background\n{self.context}\n\n"
+        md += f"## Decision\n{self.decision}\n\n"
+        md += "## Consequences\n"
         for c in self.consequences:
             icon = "✅" if c['type'] == 'positive' else "⚠️"
             md += f"- {icon} {c['description']}\n"
-        md += "\n## 却下した代替案\n"
+        md += "\n## Rejected Alternatives\n"
         for a in self.alternatives:
             md += f"- **{a['name']}**: {a['reason_rejected']}\n"
         return md
@@ -1530,53 +1534,53 @@ class ArchitectureDecisionRecord:
 
 ---
 
-## 実務での適用シナリオ
+## Real-World Application Scenarios
 
-### シナリオ1: スタートアップでのMVP開発
+### Scenario 1: MVP Development at a Startup
 
-**状況:** 限られたリソースで素早くプロダクトをリリースする必要がある
+**Situation:** Need to quickly release a product with limited resources
 
-**アプローチ:**
-- シンプルなアーキテクチャを選択
-- 必要最小限の機能に集中
-- 自動テストはクリティカルパスのみ
-- モニタリングは早期から導入
+**Approach:**
+- Choose a simple architecture
+- Focus on the minimum viable feature set
+- Automated tests only for the critical path
+- Introduce monitoring from the start
 
-**学んだ教訓:**
-- 完璧を求めすぎない（YAGNI原則）
-- ユーザーフィードバックを早期に取得
-- 技術的負債は意識的に管理する
+**Lessons Learned:**
+- Do not aim for perfection (YAGNI principle)
+- Obtain user feedback early
+- Manage technical debt consciously
 
-### シナリオ2: レガシーシステムのモダナイゼーション
+### Scenario 2: Modernizing a Legacy System
 
-**状況:** 10年以上運用されているシステムを段階的に刷新する
+**Situation:** Incrementally renovating a system that has been in operation for over 10 years
 
-**アプローチ:**
-- Strangler Fig パターンで段階的に移行
-- 既存のテストがない場合はCharacterization Testを先に作成
-- APIゲートウェイで新旧システムを共存
-- データ移行は段階的に実施
+**Approach:**
+- Use the Strangler Fig pattern for gradual migration
+- If existing tests are missing, create Characterization Tests first
+- Use an API gateway to coexist old and new systems
+- Perform data migration in stages
 
-| フェーズ | 作業内容 | 期間目安 | リスク |
+| Phase | Work | Estimated Duration | Risk |
 |---------|---------|---------|--------|
-| 1. 調査 | 現状分析、依存関係の把握 | 2-4週間 | 低 |
-| 2. 基盤 | CI/CD構築、テスト環境 | 4-6週間 | 低 |
-| 3. 移行開始 | 周辺機能から順次移行 | 3-6ヶ月 | 中 |
-| 4. コア移行 | 中核機能の移行 | 6-12ヶ月 | 高 |
-| 5. 完了 | 旧システム廃止 | 2-4週間 | 中 |
+| 1. Investigation | Current state analysis, dependency mapping | 2-4 weeks | Low |
+| 2. Foundation | CI/CD setup, test environment | 4-6 weeks | Low |
+| 3. Migration Start | Migrate peripheral features first | 3-6 months | Medium |
+| 4. Core Migration | Migrate core features | 6-12 months | High |
+| 5. Completion | Decommission old system | 2-4 weeks | Medium |
 
-### シナリオ3: 大規模チームでの開発
+### Scenario 3: Development with a Large Team
 
-**状況:** 50人以上のエンジニアが同一プロダクトを開発する
+**Situation:** 50+ engineers developing the same product
 
-**アプローチ:**
-- ドメイン駆動設計で境界を明確化
-- チームごとにオーナーシップを設定
-- 共通ライブラリはInner Source方式で管理
-- APIファーストで設計し、チーム間の依存を最小化
+**Approach:**
+- Clarify boundaries with Domain-Driven Design
+- Set ownership per team
+- Manage shared libraries using Inner Source
+- Design API-first to minimize inter-team dependencies
 
 ```python
-# チーム間のAPI契約定義
+# API contract definition between teams
 from dataclasses import dataclass
 from typing import List, Optional
 from enum import Enum
@@ -1589,20 +1593,20 @@ class Priority(Enum):
 
 @dataclass
 class APIContract:
-    """チーム間のAPI契約"""
+    """API contract between teams"""
     endpoint: str
     method: str
     owner_team: str
     consumers: List[str]
-    sla_ms: int  # レスポンスタイムSLA
+    sla_ms: int  # Response time SLA
     priority: Priority
 
     def validate_sla(self, actual_ms: int) -> bool:
-        """SLA準拠の確認"""
+        """Check SLA compliance"""
         return actual_ms <= self.sla_ms
 
     def to_openapi(self) -> dict:
-        """OpenAPI形式で出力"""
+        """Output in OpenAPI format"""
         return {
             'path': self.endpoint,
             'method': self.method,
@@ -1611,7 +1615,7 @@ class APIContract:
             'x-sla-ms': self.sla_ms
         }
 
-# 使用例
+# Usage example
 contracts = [
     APIContract(
         endpoint="/api/v1/users",
@@ -1632,133 +1636,134 @@ contracts = [
 ]
 ```
 
-### シナリオ4: パフォーマンスクリティカルなシステム
+### Scenario 4: Performance-Critical System
 
-**状況:** ミリ秒単位のレスポンスが求められるシステム
+**Situation:** A system that requires millisecond-level response times
 
-**最適化ポイント:**
-1. キャッシュ戦略（L1: インメモリ、L2: Redis、L3: CDN）
-2. 非同期処理の活用
-3. コネクションプーリング
-4. クエリ最適化とインデックス設計
+**Optimization Points:**
+1. Caching strategy (L1: In-memory, L2: Redis, L3: CDN)
+2. Leverage asynchronous processing
+3. Connection pooling
+4. Query optimization and index design
 
-| 最適化手法 | 効果 | 実装コスト | 適用場面 |
+| Optimization Method | Effect | Implementation Cost | Use Case |
 |-----------|------|-----------|---------|
-| インメモリキャッシュ | 高 | 低 | 頻繁にアクセスされるデータ |
-| CDN | 高 | 低 | 静的コンテンツ |
-| 非同期処理 | 中 | 中 | I/O待ちが多い処理 |
-| DB最適化 | 高 | 高 | クエリが遅い場合 |
-| コード最適化 | 低-中 | 高 | CPU律速の場合 |
+| In-memory cache | High | Low | Frequently accessed data |
+| CDN | High | Low | Static content |
+| Async processing | Medium | Medium | I/O-heavy processing |
+| DB optimization | High | High | When queries are slow |
+| Code optimization | Low-Medium | High | CPU-bound cases |
 
 ---
 
-## チーム開発での活用
+## Leveraging in Team Development
 
-### コードレビューのチェックリスト
+### Code Review Checklist
 
-このトピックに関連するコードレビューで確認すべきポイント:
+Points to check in code reviews related to this topic:
 
-- [ ] 命名規則が一貫しているか
-- [ ] エラーハンドリングが適切か
-- [ ] テストカバレッジは十分か
-- [ ] パフォーマンスへの影響はないか
-- [ ] セキュリティ上の問題はないか
-- [ ] ドキュメントは更新されているか
+- [ ] Are naming conventions consistent?
+- [ ] Is error handling appropriate?
+- [ ] Is test coverage sufficient?
+- [ ] Is there any performance impact?
+- [ ] Are there any security concerns?
+- [ ] Is documentation updated?
 
-### ナレッジ共有のベストプラクティス
+### Best Practices for Knowledge Sharing
 
-| 方法 | 頻度 | 対象 | 効果 |
+| Method | Frequency | Audience | Effect |
 |------|------|------|------|
-| ペアプログラミング | 随時 | 複雑なタスク | 即時のフィードバック |
-| テックトーク | 週1回 | チーム全体 | 知識の水平展開 |
-| ADR (設計記録) | 都度 | 将来のメンバー | 意思決定の透明性 |
-| 振り返り | 2週間ごと | チーム全体 | 継続的改善 |
-| モブプログラミング | 月1回 | 重要な設計 | 合意形成 |
+| Pair programming | As needed | Complex tasks | Immediate feedback |
+| Tech talks | Weekly | Entire team | Horizontal knowledge spread |
+| ADR (Decision records) | Per decision | Future members | Decision transparency |
+| Retrospectives | Biweekly | Entire team | Continuous improvement |
+| Mob programming | Monthly | Important designs | Consensus building |
 
-### 技術的負債の管理
+### Managing Technical Debt
 
 ```
-優先度マトリクス:
+Priority Matrix:
 
-        影響度 高
+        High Impact
           │
     ┌─────┼─────┐
-    │ 計画 │ 即座 │
-    │ 的に │ に   │
-    │ 対応 │ 対応 │
+    │ Plan │ Act  │
+    │ for  │ imme-│
+    │ later│ dia- │
+    │      │ tely │
     ├─────┼─────┤
-    │ 記録 │ 次の │
-    │ のみ │ Sprint│
-    │     │ で   │
+    │ Record│ Next │
+    │ only │Sprint│
+    │      │      │
     └─────┼─────┘
           │
-        影響度 低
-    発生頻度 低  発生頻度 高
+        Low Impact
+    Low Frequency  High Frequency
 ```
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not only through theory but by actually writing code and observing its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What mistakes do beginners commonly make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this applied in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently used in daily development work. It becomes particularly important during code reviews and architecture design.
 
 ---
 
-## まとめ
+## Summary
 
-| 概念 | ポイント |
+| Concept | Key Points |
 |------|---------|
-| イベントループ | 非同期処理のスケジューラ、6フェーズで構成（Node.js） |
-| マイクロタスク | Promise.then、各マクロタスク後に全処理 |
-| マクロタスク | setTimeout、1つずつ処理 |
-| process.nextTick | マイクロタスクより優先、スターベーションに注意 |
-| ブロック回避 | 同期I/O禁止、Worker活用、分割実行 |
-| ブラウザ | レンダリングはマクロタスク間、rAFはレンダリング前 |
-| Worker Threads | CPU集約処理の委譲、SharedArrayBufferで共有メモリ |
-| モニタリング | perf_hooks、async_hooks、ヒープスナップショット |
-| Graceful Shutdown | シグナル処理、リソースクリーンアップ、タイムアウト |
+| Event Loop | Scheduler for async processing, composed of 6 phases (Node.js) |
+| Microtasks | Promise.then, all processed after each macrotask |
+| Macrotasks | setTimeout, processed one at a time |
+| process.nextTick | Higher priority than microtasks, beware of starvation |
+| Avoiding Blocking | No synchronous I/O, use Workers, split execution |
+| Browser | Rendering occurs between macrotasks, rAF runs before rendering |
+| Worker Threads | Delegate CPU-intensive processing, shared memory via SharedArrayBuffer |
+| Monitoring | perf_hooks, async_hooks, heap snapshots |
+| Graceful Shutdown | Signal handling, resource cleanup, timeouts |
 
 ---
 
 ## 9. FAQ
 
-### Q1: setTimeout(fn, 0) は本当に0msなのか？
+### Q1: Is setTimeout(fn, 0) really 0ms?
 
-Node.js では最小遅延は1ms。ブラウザでは通常4ms（ネストが5回以上の場合）。これは仕様として定められている。正確なタイミングが必要な場合は、`performance.now()` で自己補正するか、`setImmediate`（Node.js）や `requestAnimationFrame`（ブラウザ）を使用する。
+The minimum delay in Node.js is 1ms. In browsers, it is typically 4ms (when nesting is 5 levels or deeper). This is defined by the specification. When precise timing is needed, use `performance.now()` for self-correction, or use `setImmediate` (Node.js) or `requestAnimationFrame` (Browser).
 
-### Q2: async/await はイベントループにどう影響するか？
+### Q2: How does async/await affect the event loop?
 
-`async/await` は構文糖であり、内部的には Promise を使用する。`await` の直後のコードはマイクロタスクとしてキューに入る。したがって、`await` はイベントループをブロックしない。ただし、`await` する対象が同期的に重い計算を行う場合は、その計算自体がイベントループをブロックする。
+`async/await` is syntactic sugar that internally uses Promises. The code immediately after `await` is queued as a microtask. Therefore, `await` does not block the event loop. However, if the awaited target performs synchronously heavy computation, that computation itself will block the event loop.
 
-### Q3: process.nextTick() と queueMicrotask() のどちらを使うべきか？
+### Q3: Should I use process.nextTick() or queueMicrotask()?
 
-新しいコードでは `queueMicrotask()` を推奨する。`process.nextTick()` はNode.js固有であり、マイクロタスクより優先度が高いためスターベーション問題を起こす可能性がある。`queueMicrotask()` はWeb標準でありブラウザでも動作する。ただし、I/Oコールバックの前に確実に実行したい場合は `process.nextTick()` が適切。
+For new code, `queueMicrotask()` is recommended. `process.nextTick()` is Node.js-specific and has higher priority than microtasks, which can cause starvation problems. `queueMicrotask()` is a web standard and works in browsers as well. However, `process.nextTick()` is appropriate when you need to ensure execution before I/O callbacks.
 
-### Q4: イベントループが空になるとプロセスは終了するか？
+### Q4: Does the process exit when the event loop becomes empty?
 
-はい。Node.js はイベントループのキューが全て空になり、保留中のI/O操作やタイマーがなくなると自動的に終了する。`setInterval` や `server.listen()` などのアクティブなハンドルがあるとプロセスは終了しない。`unref()` を呼ぶとハンドルをイベントループのカウントから除外でき、他にアクティブなハンドルがなければプロセスが終了する。
+Yes. Node.js automatically exits when all event loop queues are empty and there are no pending I/O operations or timers. Active handles such as `setInterval` or `server.listen()` prevent the process from exiting. Calling `unref()` excludes a handle from the event loop count, allowing the process to exit if there are no other active handles.
 
-### Q5: Deno/Bun のイベントループはNode.jsと違うか？
+### Q5: Are the event loops in Deno/Bun different from Node.js?
 
-Deno は Tokio（Rustの非同期ランタイム）をベースとしており、Node.js の libuv とは異なるが、マイクロタスク/マクロタスクの概念は同じ。Bun は独自のイベントループ実装（JavaScriptCore + liburing on Linux）を持ち、Node.js と高い互換性を保ちながらパフォーマンスを向上させている。基本的な実行順序の規則は全環境で共通。
-
----
-
-## 次に読むべきガイド
+Deno is based on Tokio (Rust's async runtime), which differs from Node.js's libuv, but the concepts of microtasks/macrotasks are the same. Bun has its own event loop implementation (JavaScriptCore + liburing on Linux) that maintains high compatibility with Node.js while improving performance. The fundamental execution order rules are common across all environments.
 
 ---
 
-## 参考文献
+## Recommended Next Reading
+
+---
+
+## References
 1. Node.js Documentation. "The Node.js Event Loop."
 2. Jake Archibald. "In The Loop." JSConf.Asia, 2018.
 3. Node.js Documentation. "Worker Threads."

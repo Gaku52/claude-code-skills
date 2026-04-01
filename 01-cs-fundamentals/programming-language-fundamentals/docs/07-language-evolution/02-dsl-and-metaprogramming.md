@@ -1,88 +1,90 @@
-# DSL とメタプログラミング
+# DSL and Metaprogramming
 
-> DSL（Domain-Specific Language）は「特定の問題領域に特化した言語」であり、メタプログラミングは「プログラムでプログラムを生成・変換する」技術である。この2つは表裏一体の関係にあり、表現力の高いソフトウェアを構築するための重要な手法である。本章では DSL の設計原則からメタプログラミングの各手法まで、理論と実践の両面から解説する。
+> A DSL (Domain-Specific Language) is "a language specialized for a particular problem domain," and metaprogramming is "the technique of generating or transforming programs with programs." These two concepts are two sides of the same coin and serve as essential techniques for building highly expressive software. This chapter covers both theory and practice, from DSL design principles to various metaprogramming approaches.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] 内部DSLと外部DSLの違い、設計上のトレードオフを理解する
-- [ ] メタプログラミングの主要手法（マクロ・リフレクション・コード生成）を把握する
-- [ ] 各言語での DSL 構築テクニック（Kotlin, Ruby, Scala, Swift, Rust）を実装できる
-- [ ] マクロシステムの種類（テキスト置換・構文マクロ・手続き型マクロ）を区別できる
-- [ ] メタプログラミングの適切な適用範囲と危険性を判断できる
-- [ ] 型安全な DSL の設計パターン（Builder, Phantom Type）を活用できる
+- [ ] Understand the differences between internal and external DSLs and their design trade-offs
+- [ ] Grasp the major metaprogramming techniques (macros, reflection, code generation)
+- [ ] Implement DSL construction techniques in various languages (Kotlin, Ruby, Scala, Swift, Rust)
+- [ ] Distinguish between types of macro systems (text substitution, syntactic macros, procedural macros)
+- [ ] Assess the appropriate scope and risks of metaprogramming
+- [ ] Apply type-safe DSL design patterns (Builder, Phantom Type)
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, the following knowledge will help deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [モダン言語の共通機能](./01-modern-language-features.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Familiarity with the content of [Modern Language Features](./01-modern-language-features.md)
 
 ---
 
-## 1. DSL の基礎理論
+## 1. Foundational Theory of DSLs
 
-### 1.1 DSLとは何か
+### 1.1 What Is a DSL?
 
-DSL（Domain-Specific Language）は、特定の問題領域（ドメイン）に最適化された言語である。汎用プログラミング言語（GPL: General-Purpose Language）がチューリング完全であらゆる計算を表現できるのに対し、DSLは意図的に表現力を制限することで、特定の領域での生産性と安全性を最大化する。
-
-```
-DSL vs GPL の位置づけ:
-
-  表現力の範囲
-  ←────────────────────────────────────────→
-  狭い（特化）                      広い（汎用）
-
-  ┌────┐  ┌─────┐  ┌──────┐  ┌──────────┐
-  │正規 │  │ SQL │  │Terraform│ │ Python   │
-  │表現 │  │     │  │ / HCL │  │ Java     │
-  └────┘  └─────┘  └──────┘  │ Rust     │
-                              │ etc.     │
-  DSL                         └──────────┘
-  ・学習コスト: 低               GPL
-  ・表現力: 限定的               ・学習コスト: 高
-  ・安全性: 高                   ・表現力: 無制限
-  ・最適化: 容易                 ・安全性: 言語依存
-                                ・最適化: 困難
-```
-
-### 1.2 DSLの分類体系
+A DSL (Domain-Specific Language) is a language optimized for a specific problem domain. While general-purpose programming languages (GPL: General-Purpose Language) are Turing-complete and can express any computation, DSLs intentionally restrict expressiveness to maximize productivity and safety within a particular domain.
 
 ```
-DSLの分類:
+DSL vs GPL positioning:
 
-  ┌──────────────────────────────────────────────────┐
-  │                    DSL                           │
-  ├──────────────────────┬─────────────────────────┤
-  │    外部DSL           │       内部DSL            │
-  │  (External DSL)      │   (Internal DSL /       │
-  │                      │    Embedded DSL)         │
-  ├──────────────────────┼─────────────────────────┤
-  │ ・独自のパーサーが必要  │ ・ホスト言語の構文を利用  │
-  │ ・独自の構文を定義     │ ・言語機能で DSL を構築   │
-  │ ・ツールが必要         │ ・IDE サポートが自然      │
-  │                      │                         │
-  │ 例:                   │ 例:                      │
-  │ ・SQL                │ ・RSpec (Ruby)           │
-  │ ・HTML/CSS           │ ・kotlinx.html (Kotlin)  │
-  │ ・正規表現            │ ・SwiftUI (Swift)        │
-  │ ・GraphQL            │ ・Ktor routing (Kotlin)  │
-  │ ・Terraform HCL      │ ・ScalaTest (Scala)      │
-  │ ・Protocol Buffers   │ ・Diesel (Rust)          │
-  └──────────────────────┴─────────────────────────┘
+  Range of expressiveness
+  <---------------------------------------->
+  Narrow (specialized)           Wide (general-purpose)
+
+  +------+  +-------+  +--------+  +----------+
+  |Regex |  | SQL   |  |Terraform| | Python   |
+  |      |  |       |  | / HCL  | | Java     |
+  +------+  +-------+  +--------+ | Rust     |
+                                   | etc.     |
+  DSL                              +----------+
+  - Learning cost: Low              GPL
+  - Expressiveness: Limited         - Learning cost: High
+  - Safety: High                    - Expressiveness: Unlimited
+  - Optimization: Easy              - Safety: Language-dependent
+                                    - Optimization: Difficult
 ```
 
-### 1.3 有名な外部DSLの解剖
+### 1.2 DSL Classification System
 
-#### SQL: データ問い合わせのDSL
+```
+DSL classification:
 
-SQLは1970年代に E.F. Codd の関係モデルに基づいて設計された、最も成功した外部DSLの一つである。
+  +--------------------------------------------------+
+  |                    DSL                            |
+  +----------------------+---------------------------+
+  |    External DSL      |       Internal DSL        |
+  |  (External DSL)      |   (Internal DSL /         |
+  |                      |    Embedded DSL)           |
+  +----------------------+---------------------------+
+  | - Requires custom    | - Uses host language       |
+  |   parser             |   syntax                   |
+  | - Defines custom     | - Builds DSL with          |
+  |   syntax             |   language features        |
+  | - Requires tooling   | - Natural IDE support      |
+  |                      |                            |
+  | Examples:            | Examples:                  |
+  | - SQL                | - RSpec (Ruby)             |
+  | - HTML/CSS           | - kotlinx.html (Kotlin)    |
+  | - Regular expressions| - SwiftUI (Swift)          |
+  | - GraphQL            | - Ktor routing (Kotlin)    |
+  | - Terraform HCL      | - ScalaTest (Scala)       |
+  | - Protocol Buffers   | - Diesel (Rust)            |
+  +----------------------+---------------------------+
+```
+
+### 1.3 Anatomy of Famous External DSLs
+
+#### SQL: A DSL for Data Queries
+
+SQL is one of the most successful external DSLs, designed in the 1970s based on E.F. Codd's relational model.
 
 ```sql
--- SQL: 宣言的なデータ問い合わせ
--- 「何を取得するか」を記述し、「どう取得するか」はDBエンジンが決定
+-- SQL: Declarative data querying
+-- Describes "what to retrieve," while the DB engine determines "how to retrieve it"
 
 SELECT
     u.name,
@@ -96,13 +98,13 @@ HAVING COUNT(o.id) >= 3
 ORDER BY total_spent DESC
 LIMIT 10;
 
--- これを汎用言語で書くと数十行のループとフィルタリングが必要
+-- Writing this in a general-purpose language would require dozens of lines of loops and filtering
 ```
 
-#### GraphQL: API問い合わせのDSL
+#### GraphQL: A DSL for API Queries
 
 ```graphql
-# GraphQL: クライアント駆動のAPI問い合わせ
+# GraphQL: Client-driven API querying
 query GetUserDashboard($userId: ID!) {
   user(id: $userId) {
     name
@@ -128,10 +130,10 @@ query GetUserDashboard($userId: ID!) {
 }
 ```
 
-#### Terraform HCL: インフラ定義のDSL
+#### Terraform HCL: A DSL for Infrastructure Definition
 
 ```hcl
-# Terraform: インフラをコードとして宣言
+# Terraform: Declaring infrastructure as code
 resource "aws_vpc" "main" {
   cidr_block = "10.0.0.0/16"
   tags = {
@@ -159,53 +161,53 @@ resource "aws_instance" "web_server" {
 
 ---
 
-## 2. 内部DSLの設計パターン
+## 2. Internal DSL Design Patterns
 
-### 2.1 内部DSLを可能にする言語機能
+### 2.1 Language Features That Enable Internal DSLs
 
-内部DSLの表現力は、ホスト言語の構文的柔軟性に大きく依存する。以下の言語機能が内部DSLの構築を容易にする。
+The expressiveness of internal DSLs depends heavily on the syntactic flexibility of the host language. The following language features facilitate internal DSL construction.
 
 ```
-内部DSLを支える言語機能:
+Language features supporting internal DSLs:
 
-  ┌────────────────────────────────────────────────────────┐
-  │  言語機能              │  対応言語                      │
-  ├────────────────────────┼───────────────────────────────┤
-  │  ラムダ式 / クロージャ   │  全モダン言語                  │
-  │  拡張関数              │  Kotlin, Swift, Rust (trait)  │
-  │  演算子オーバーロード    │  Kotlin, Scala, Rust, Swift   │
-  │  暗黙の引数            │  Scala (given/using)          │
-  │  レシーバ付きラムダ      │  Kotlin                      │
-  │  トレイリングクロージャ   │  Kotlin, Swift, Ruby          │
-  │  メソッドミッシング      │  Ruby (method_missing)        │
-  │  マクロ                │  Rust, Elixir, Scala 3        │
-  │  Result Builder        │  Swift                        │
-  │  括弧省略              │  Ruby, Scala                  │
-  └────────────────────────┴───────────────────────────────┘
+  +----------------------------+-------------------------------+
+  |  Language Feature          |  Supported Languages          |
+  +----------------------------+-------------------------------+
+  |  Lambda / Closures         |  All modern languages         |
+  |  Extension functions       |  Kotlin, Swift, Rust (trait)  |
+  |  Operator overloading      |  Kotlin, Scala, Rust, Swift   |
+  |  Implicit parameters       |  Scala (given/using)          |
+  |  Lambda with receiver      |  Kotlin                       |
+  |  Trailing closures         |  Kotlin, Swift, Ruby          |
+  |  Method missing            |  Ruby (method_missing)        |
+  |  Macros                    |  Rust, Elixir, Scala 3        |
+  |  Result Builder            |  Swift                        |
+  |  Parentheses omission      |  Ruby, Scala                  |
+  +----------------------------+-------------------------------+
 ```
 
-### 2.2 Kotlin での内部DSL構築
+### 2.2 Building Internal DSLs in Kotlin
 
-Kotlin は内部DSL構築に最も適した言語の一つである。「レシーバ付きラムダ」「拡張関数」「中置関数」「演算子オーバーロード」を組み合わせることで、自然言語に近いDSLを構築できる。
+Kotlin is one of the most suitable languages for internal DSL construction. By combining "lambda with receiver," "extension functions," "infix functions," and "operator overloading," you can build DSLs that resemble natural language.
 
-**コード例1: Kotlin の型安全HTML DSL**
+**Code Example 1: Kotlin Type-Safe HTML DSL**
 
 ```kotlin
-// --- 型安全な HTML DSL の実装 ---
+// --- Type-safe HTML DSL implementation ---
 
-// HTML要素のインターフェース
+// HTML element interface
 interface Element {
     fun render(builder: StringBuilder, indent: String)
 }
 
-// テキストノード
+// Text node
 class TextElement(val text: String) : Element {
     override fun render(builder: StringBuilder, indent: String) {
         builder.append("$indent$text\n")
     }
 }
 
-// HTMLタグ要素
+// HTML tag element
 @DslMarker
 annotation class HtmlTagMarker
 
@@ -214,12 +216,12 @@ open class Tag(val name: String) : Element {
     val children = mutableListOf<Element>()
     val attributes = mutableMapOf<String, String>()
 
-    // テキストを追加する単項プラス演算子
+    // Unary plus operator to add text
     operator fun String.unaryPlus() {
         children.add(TextElement(this))
     }
 
-    // 属性設定
+    // Attribute setting
     fun attribute(key: String, value: String) {
         attributes[key] = value
     }
@@ -234,7 +236,7 @@ open class Tag(val name: String) : Element {
     }
 }
 
-// 具体的なタグクラス
+// Concrete tag classes
 class HTML : Tag("html") {
     fun head(init: Head.() -> Unit) = initTag(Head(), init)
     fun body(init: Body.() -> Unit) = initTag(Body(), init)
@@ -274,39 +276,39 @@ class UL : Tag("ul") {
     fun li(init: Tag.() -> Unit) = initTag(Tag("li"), init)
 }
 
-// タグ初期化のヘルパー
+// Tag initialization helper
 fun <T : Tag> Tag.initTag(tag: T, init: T.() -> Unit): T {
     tag.init()
     children.add(tag)
     return tag
 }
 
-// DSLのエントリポイント
+// DSL entry point
 fun html(init: HTML.() -> Unit): HTML {
     val html = HTML()
     html.init()
     return html
 }
 
-// --- DSLの使用例 ---
+// --- DSL usage example ---
 val page = html {
     head {
         meta("UTF-8")
-        title { +"マイページ" }
+        title { +"My Page" }
     }
     body {
-        h1 { +"ユーザーダッシュボード" }
+        h1 { +"User Dashboard" }
         div {
-            h1 { +"最近の注文" }
-            p { +"注文履歴を確認できます" }
+            h1 { +"Recent Orders" }
+            p { +"You can view your order history" }
         }
         ul {
-            li { +"注文 #001 - 配送中" }
-            li { +"注文 #002 - 完了" }
-            li { +"注文 #003 - 処理中" }
+            li { +"Order #001 - In Transit" }
+            li { +"Order #002 - Completed" }
+            li { +"Order #003 - Processing" }
         }
         a("https://example.com/orders") {
-            +"全ての注文を見る"
+            +"View All Orders"
         }
     }
 }
@@ -318,14 +320,14 @@ fun main() {
 }
 ```
 
-### 2.3 Ruby での内部DSL
+### 2.3 Internal DSLs in Ruby
 
-Ruby は内部DSL構築のパイオニアであり、Rails, RSpec, Rake など数多くの成功事例がある。
+Ruby is a pioneer in internal DSL construction, with numerous success stories including Rails, RSpec, and Rake.
 
-**コード例2: Ruby のテストDSL（RSpec風）**
+**Code Example 2: Ruby Test DSL (RSpec-style)**
 
 ```ruby
-# --- ミニテストフレームワークDSL ---
+# --- Mini test framework DSL ---
 
 module MiniSpec
   class Context
@@ -395,7 +397,7 @@ module MiniSpec
     end
   end
 
-  # マッチャー
+  # Matchers
   class EqMatcher
     attr_reader :expected
     def initialize(expected) = @expected = expected
@@ -416,7 +418,7 @@ end
 def eq(value) = MiniSpec::EqMatcher.new(value)
 def be_empty = MiniSpec::BeEmptyMatcher.new
 
-# --- DSLの使用例 ---
+# --- DSL usage example ---
 describe "Calculator" do
   before do
     @calc = Calculator.new
@@ -438,43 +440,43 @@ describe "Calculator" do
 end
 ```
 
-### 2.4 Rust での内部DSL（マクロベース）
+### 2.4 Internal DSLs in Rust (Macro-Based)
 
-Rust の内部DSLはマクロシステムを活用して構築される。宣言的マクロ（`macro_rules!`）と手続き型マクロの2種類がある。
+Rust's internal DSLs are built using its macro system. There are two types: declarative macros (`macro_rules!`) and procedural macros.
 
-**コード例3: Rust のテスト用マッチャーDSL**
+**Code Example 3: Rust Test Matcher DSL**
 
 ```rust
-// --- 宣言的マクロによるアサーションDSL ---
+// --- Declarative macro-based assertion DSL ---
 
 macro_rules! assert_that {
     ($actual:expr, is equal_to $expected:expr) => {
         assert_eq!($actual, $expected,
-            "期待値: {:?}, 実際値: {:?}", $expected, $actual);
+            "Expected: {:?}, Actual: {:?}", $expected, $actual);
     };
     ($actual:expr, is greater_than $expected:expr) => {
         assert!($actual > $expected,
-            "{:?} > {:?} が偽", $actual, $expected);
+            "{:?} > {:?} is false", $actual, $expected);
     };
     ($actual:expr, is less_than $expected:expr) => {
         assert!($actual < $expected,
-            "{:?} < {:?} が偽", $actual, $expected);
+            "{:?} < {:?} is false", $actual, $expected);
     };
     ($actual:expr, contains $expected:expr) => {
         assert!($actual.contains(&$expected),
-            "{:?} に {:?} が含まれていません", $actual, $expected);
+            "{:?} does not contain {:?}", $actual, $expected);
     };
     ($actual:expr, is empty) => {
         assert!($actual.is_empty(),
-            "{:?} は空ではありません", $actual);
+            "{:?} is not empty", $actual);
     };
     ($actual:expr, has length $expected:expr) => {
         assert_eq!($actual.len(), $expected,
-            "長さが {:?} ではなく {:?}", $expected, $actual.len());
+            "Length is {:?} instead of {:?}", $actual.len(), $expected);
     };
 }
 
-// --- SQLビルダーDSL ---
+// --- SQL builder DSL ---
 macro_rules! sql {
     (SELECT $($col:ident),+ FROM $table:ident) => {
         {
@@ -492,7 +494,7 @@ macro_rules! sql {
     };
 }
 
-// --- 使用例 ---
+// --- Usage example ---
 #[cfg(test)]
 mod tests {
     #[test]
@@ -519,14 +521,14 @@ mod tests {
 }
 ```
 
-### 2.5 Swift での内部DSL（Result Builder）
+### 2.5 Internal DSLs in Swift (Result Builder)
 
-Swift の Result Builder（旧称 Function Builder）は SwiftUI の宣言的UIの基盤技術である。
+Swift's Result Builder (formerly Function Builder) is the foundational technology behind SwiftUI's declarative UI.
 
-**コード例4: Swift の Result Builder による設定DSL**
+**Code Example 4: Swift Configuration DSL Using Result Builder**
 
 ```swift
-// --- Result Builder による設定DSL ---
+// --- Configuration DSL using Result Builder ---
 
 struct ServerConfig {
     var host: String = "localhost"
@@ -548,7 +550,7 @@ struct Middleware {
 
 enum HTTPMethod { case get, post, put, delete }
 
-// Result Builder定義
+// Result Builder definition
 @resultBuilder
 struct RouteBuilder {
     static func buildBlock(_ components: Route...) -> [Route] {
@@ -602,7 +604,7 @@ struct RoutesSetting: ConfigComponent {
     func apply(to config: inout ServerConfig) { config.routes = routes }
 }
 
-// DSL関数
+// DSL functions
 func host(_ value: String) -> HostSetting { HostSetting(value: value) }
 func port(_ value: Int) -> PortSetting { PortSetting(value: value) }
 
@@ -618,7 +620,7 @@ func post(_ path: String, handler: String) -> Route {
     Route(method: .post, path: path, handler: handler)
 }
 
-// --- DSLの使用例 ---
+// --- DSL usage example ---
 @ConfigBuilder
 func createConfig() -> ServerConfig {
     host("api.example.com")
@@ -635,78 +637,78 @@ let config = createConfig()
 
 ---
 
-## 3. メタプログラミングの体系
+## 3. The Taxonomy of Metaprogramming
 
-### 3.1 メタプログラミングの分類
+### 3.1 Classification of Metaprogramming
 
-メタプログラミングとは「プログラムを操作するプログラム」を書くことである。操作のタイミングと手法により、以下のように分類される。
-
-```
-メタプログラミングの分類:
-
-  タイミング別:
-  ┌─────────────────────────────────────────────────────┐
-  │                                                     │
-  │  コンパイル時          ビルド時          実行時        │
-  │  (Compile-time)      (Build-time)    (Runtime)     │
-  │                                                     │
-  │  ┌────────────┐    ┌────────────┐  ┌────────────┐ │
-  │  │ マクロ      │    │ コード生成   │  │リフレクション│ │
-  │  │ (Rust,     │    │ (go gen,   │  │ (Java,     │ │
-  │  │  Elixir,   │    │  protobuf, │  │  Go,       │ │
-  │  │  Scala 3)  │    │  Swagger)  │  │  C#,       │ │
-  │  ├────────────┤    ├────────────┤  │  Python)   │ │
-  │  │ const eval │    │ Template   │  ├────────────┤ │
-  │  │ (Rust,     │    │ Engine     │  │ eval       │ │
-  │  │  Zig)      │    │ (ERB,     │  │ (JS,       │ │
-  │  │            │    │  Jinja2)   │  │  Python,   │ │
-  │  │            │    │            │  │  Ruby)     │ │
-  │  └────────────┘    └────────────┘  └────────────┘ │
-  │                                                     │
-  │  安全性: 高           安全性: 中        安全性: 低    │
-  │  パフォーマンス: 最適  パフォーマンス: 良  パフォーマンス: 低│
-  └─────────────────────────────────────────────────────┘
-```
-
-### 3.2 マクロシステムの比較
+Metaprogramming is the practice of writing "programs that manipulate programs." It can be classified by the timing and method of manipulation as follows.
 
 ```
-マクロシステムの進化:
+Metaprogramming classification:
 
-  テキスト置換マクロ        構文マクロ           手続き型マクロ
-  (C プリプロセッサ)       (Scheme, Elixir)    (Rust, Scala 3)
-  ┌──────────────┐       ┌──────────────┐    ┌──────────────┐
-  │ #define MAX(a,b)│     │ defmacro     │    │ #[derive()]  │
-  │ ((a)>(b)?(a):(b))│   │   unless ... │    │ #[proc_macro]│
-  │              │       │   quote do   │    │ fn my_macro  │
-  │ 問題:        │       │     ...      │    │ (input:      │
-  │ ・型安全性なし │       │   end        │    │  TokenStream)│
-  │ ・デバッグ困難 │       │              │    │ -> TokenStream│
-  │ ・名前衝突    │       │ 利点:        │    │              │
-  │              │       │ ・衛生的      │    │ 利点:        │
-  │              │       │ ・構文認識    │    │ ・型安全     │
-  │              │       │              │    │ ・IDE連携    │
-  └──────────────┘       └──────────────┘    │ ・エラー表示 │
-                                             └──────────────┘
-  1970s                  1990s               2015+
+  By timing:
+  +-----------------------------------------------------+
+  |                                                      |
+  |  Compile-time        Build-time        Runtime       |
+  |  (Compile-time)      (Build-time)    (Runtime)       |
+  |                                                      |
+  |  +------------+    +------------+  +------------+    |
+  |  | Macros     |    | Code gen   |  | Reflection |    |
+  |  | (Rust,     |    | (go gen,   |  | (Java,     |    |
+  |  |  Elixir,   |    |  protobuf, |  |  Go,       |    |
+  |  |  Scala 3)  |    |  Swagger)  |  |  C#,       |    |
+  |  +------------+    +------------+  |  Python)   |    |
+  |  | const eval |    | Template   |  +------------+    |
+  |  | (Rust,     |    | Engine     |  | eval       |    |
+  |  |  Zig)      |    | (ERB,     |  | (JS,       |    |
+  |  |            |    |  Jinja2)   |  |  Python,   |    |
+  |  |            |    |            |  |  Ruby)     |    |
+  |  +------------+    +------------+  +------------+    |
+  |                                                      |
+  |  Safety: High       Safety: Medium    Safety: Low    |
+  |  Performance: Best  Performance: Good Performance: Low|
+  +-----------------------------------------------------+
 ```
 
-### 3.3 Rustのマクロシステム詳解
+### 3.2 Comparison of Macro Systems
 
-Rust は3種類のマクロを提供する。
+```
+Evolution of macro systems:
 
-#### 宣言的マクロ（macro_rules!）
+  Text substitution macros   Syntactic macros        Procedural macros
+  (C preprocessor)          (Scheme, Elixir)        (Rust, Scala 3)
+  +----------------+       +----------------+    +----------------+
+  | #define MAX(a,b)|      | defmacro       |    | #[derive()]    |
+  | ((a)>(b)?(a):(b))|    |   unless ...   |    | #[proc_macro]  |
+  |                |       |   quote do     |    | fn my_macro    |
+  | Problems:      |       |     ...        |    | (input:        |
+  | - No type safety|      |   end          |    |  TokenStream)  |
+  | - Hard to debug |      |                |    | -> TokenStream |
+  | - Name clashes  |      | Benefits:      |    |                |
+  |                |       | - Hygienic     |    | Benefits:      |
+  |                |       | - Syntax-aware |    | - Type-safe    |
+  |                |       |                |    | - IDE support  |
+  +----------------+       +----------------+    | - Error msgs   |
+                                                 +----------------+
+  1970s                    1990s               2015+
+```
+
+### 3.3 Rust's Macro System in Detail
+
+Rust provides three types of macros.
+
+#### Declarative Macros (macro_rules!)
 
 ```rust
-// --- パターンベースのマクロ ---
+// --- Pattern-based macros ---
 
-// vec! マクロの簡略化実装
+// Simplified implementation of the vec! macro
 macro_rules! my_vec {
-    // 空のベクタ
+    // Empty vector
     () => {
         Vec::new()
     };
-    // 要素列挙
+    // Element enumeration
     ($($element:expr),+ $(,)?) => {
         {
             let mut v = Vec::new();
@@ -714,13 +716,13 @@ macro_rules! my_vec {
             v
         }
     };
-    // 繰り返し初期化  [value; count]
+    // Repeat initialization [value; count]
     ($element:expr; $count:expr) => {
         vec![$element; $count]
     };
 }
 
-// HashMap リテラルマクロ
+// HashMap literal macro
 macro_rules! hashmap {
     ($($key:expr => $value:expr),* $(,)?) => {
         {
@@ -731,7 +733,7 @@ macro_rules! hashmap {
     };
 }
 
-// 使用例
+// Usage example
 let v = my_vec![1, 2, 3, 4, 5];
 let config = hashmap! {
     "host" => "localhost",
@@ -740,15 +742,15 @@ let config = hashmap! {
 };
 ```
 
-#### 手続き型マクロ（Derive Macro）
+#### Procedural Macros (Derive Macro)
 
 ```rust
-// --- 手続き型マクロの定義（別クレート） ---
+// --- Procedural macro definition (separate crate) ---
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, DeriveInput, Data, Fields};
 
-/// フィールドのバリデーション用 derive マクロ
+/// Derive macro for field validation
 #[proc_macro_derive(Validate, attributes(validate))]
 pub fn derive_validate(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -762,13 +764,13 @@ pub fn derive_validate(input: TokenStream) -> TokenStream {
                         let field_name = f.ident.as_ref()?;
                         let field_str = field_name.to_string();
 
-                        // #[validate(not_empty)] 属性を探す
+                        // Look for the #[validate(not_empty)] attribute
                         for attr in &f.attrs {
                             if attr.path().is_ident("validate") {
                                 return Some(quote! {
                                     if self.#field_name.is_empty() {
                                         errors.push(format!(
-                                            "'{}' は空にできません", #field_str
+                                            "'{}' cannot be empty", #field_str
                                         ));
                                     }
                                 });
@@ -781,7 +783,7 @@ pub fn derive_validate(input: TokenStream) -> TokenStream {
             }
             _ => quote! {},
         },
-        _ => panic!("Validate は構造体のみサポート"),
+        _ => panic!("Validate only supports structs"),
     };
 
     let expanded = quote! {
@@ -801,14 +803,14 @@ pub fn derive_validate(input: TokenStream) -> TokenStream {
     TokenStream::from(expanded)
 }
 
-// --- 使用側 ---
+// --- Usage side ---
 #[derive(Validate)]
 struct UserForm {
     #[validate(not_empty)]
     name: String,
     #[validate(not_empty)]
     email: String,
-    bio: String,  // バリデーションなし
+    bio: String,  // No validation
 }
 
 fn main() {
@@ -819,22 +821,22 @@ fn main() {
     };
 
     match form.validate() {
-        Ok(()) => println!("バリデーション成功"),
+        Ok(()) => println!("Validation succeeded"),
         Err(errors) => {
             for error in errors {
-                println!("エラー: {}", error);
+                println!("Error: {}", error);
             }
         }
     }
 }
 ```
 
-### 3.4 Pythonのメタプログラミング
+### 3.4 Metaprogramming in Python
 
-#### デコレータパターン
+#### Decorator Pattern
 
 ```python
-# --- Python: デコレータの体系的な解説 ---
+# --- Python: Systematic explanation of decorators ---
 import functools
 import time
 import logging
@@ -842,21 +844,21 @@ from typing import TypeVar, Callable, Any
 
 T = TypeVar('T')
 
-# --- 1. シンプルなデコレータ ---
+# --- 1. Simple decorator ---
 def timer(func: Callable[..., T]) -> Callable[..., T]:
-    """関数の実行時間を計測するデコレータ"""
+    """Decorator that measures function execution time"""
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> T:
         start = time.perf_counter()
         result = func(*args, **kwargs)
         elapsed = time.perf_counter() - start
-        logging.info(f"{func.__name__} の実行時間: {elapsed:.4f}秒")
+        logging.info(f"Execution time of {func.__name__}: {elapsed:.4f}s")
         return result
     return wrapper
 
-# --- 2. パラメータ付きデコレータ ---
+# --- 2. Parameterized decorator ---
 def retry(max_attempts: int = 3, delay: float = 1.0, exceptions: tuple = (Exception,)):
-    """リトライデコレータ（パラメータ付き）"""
+    """Retry decorator (with parameters)"""
     def decorator(func: Callable[..., T]) -> Callable[..., T]:
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> T:
@@ -867,17 +869,17 @@ def retry(max_attempts: int = 3, delay: float = 1.0, exceptions: tuple = (Except
                 except exceptions as e:
                     last_exception = e
                     logging.warning(
-                        f"{func.__name__} 試行 {attempt}/{max_attempts} 失敗: {e}"
+                        f"{func.__name__} attempt {attempt}/{max_attempts} failed: {e}"
                     )
                     if attempt < max_attempts:
-                        time.sleep(delay * attempt)  # 指数バックオフ
+                        time.sleep(delay * attempt)  # Exponential backoff
             raise last_exception
         return wrapper
     return decorator
 
-# --- 3. デコレータの合成 ---
+# --- 3. Decorator composition ---
 def validate_args(**validators):
-    """引数バリデーションデコレータ"""
+    """Argument validation decorator"""
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
@@ -891,36 +893,36 @@ def validate_args(**validators):
                     value = bound.arguments[param_name]
                     if not validator(value):
                         raise ValueError(
-                            f"引数 '{param_name}' の値 {value!r} は無効です"
+                            f"Argument '{param_name}' value {value!r} is invalid"
                         )
             return func(*args, **kwargs)
         return wrapper
     return decorator
 
-# --- 使用例 ---
+# --- Usage example ---
 @timer
 @retry(max_attempts=3, delay=0.5, exceptions=(ConnectionError, TimeoutError))
 @validate_args(user_id=lambda x: isinstance(x, int) and x > 0)
 def fetch_user_data(user_id: int) -> dict:
-    """ユーザーデータを取得する"""
-    # API呼び出しのシミュレーション
-    return {"id": user_id, "name": "田中太郎"}
+    """Fetch user data"""
+    # Simulating an API call
+    return {"id": user_id, "name": "Taro Tanaka"}
 ```
 
-#### メタクラス
+#### Metaclasses
 
 ```python
-# --- メタクラスによるORMの実装 ---
+# --- ORM implementation using metaclasses ---
 
 class Field:
-    """データベースフィールドの基底クラス"""
+    """Base class for database fields"""
     def __init__(self, field_type: str, primary_key: bool = False,
                  nullable: bool = True, max_length: int = None):
         self.field_type = field_type
         self.primary_key = primary_key
         self.nullable = nullable
         self.max_length = max_length
-        self.name = None  # メタクラスで設定
+        self.name = None  # Set by metaclass
 
 class IntegerField(Field):
     def __init__(self, **kwargs):
@@ -931,7 +933,7 @@ class StringField(Field):
         super().__init__("VARCHAR", max_length=max_length, **kwargs)
 
 class ModelMeta(type):
-    """ORMモデルのメタクラス"""
+    """Metaclass for ORM models"""
     def __new__(mcs, name, bases, namespace):
         fields = {}
         for key, value in namespace.items():
@@ -944,7 +946,7 @@ class ModelMeta(type):
 
         cls = super().__new__(mcs, name, bases, namespace)
 
-        # CREATE TABLE SQL を自動生成
+        # Auto-generate CREATE TABLE SQL
         if fields:
             columns = []
             for fname, field in fields.items():
@@ -962,7 +964,7 @@ class ModelMeta(type):
         return cls
 
 class Model(metaclass=ModelMeta):
-    """ORMモデルの基底クラス"""
+    """Base class for ORM models"""
     def __init__(self, **kwargs):
         for name, field in self._fields.items():
             setattr(self, name, kwargs.get(name))
@@ -982,7 +984,7 @@ class Model(metaclass=ModelMeta):
         return (f"INSERT INTO {self._table_name} "
                 f"({', '.join(cols)}) VALUES ({', '.join(vals)});")
 
-# --- 使用例 ---
+# --- Usage example ---
 class User(Model):
     id = IntegerField(primary_key=True, nullable=False)
     name = StringField(max_length=100, nullable=False)
@@ -997,23 +999,23 @@ print(User.create_table_sql())
 #   bio VARCHAR(500)
 # );
 
-user = User(id=1, name="田中太郎", email="tanaka@example.com")
+user = User(id=1, name="Taro Tanaka", email="tanaka@example.com")
 print(user.insert_sql())
-# INSERT INTO users (id, name, email) VALUES (1, '田中太郎', 'tanaka@example.com');
+# INSERT INTO users (id, name, email) VALUES (1, 'Taro Tanaka', 'tanaka@example.com');
 ```
 
 ---
 
-## 4. Elixir のマクロシステム
+## 4. Elixir's Macro System
 
-### 4.1 AST変換としてのマクロ
+### 4.1 Macros as AST Transformation
 
-Elixir のマクロは Lisp の伝統を受け継ぎ、AST（抽象構文木）を直接操作する。`quote` と `unquote` によって衛生的なマクロを実現している。
+Elixir's macros inherit the Lisp tradition and directly manipulate the AST (Abstract Syntax Tree). They achieve hygienic macros through `quote` and `unquote`.
 
-**コード例5: Elixir のマクロによるDSL**
+**Code Example 5: DSL Using Elixir Macros**
 
 ```elixir
-# --- Elixir: ルーティングDSL ---
+# --- Elixir: Routing DSL ---
 
 defmodule Router do
   defmacro __using__(_opts) do
@@ -1024,21 +1026,21 @@ defmodule Router do
     end
   end
 
-  # GET リクエストのマクロ
+  # Macro for GET requests
   defmacro get(path, controller, action) do
     quote do
       @routes {:get, unquote(path), unquote(controller), unquote(action)}
     end
   end
 
-  # POST リクエストのマクロ
+  # Macro for POST requests
   defmacro post(path, controller, action) do
     quote do
       @routes {:post, unquote(path), unquote(controller), unquote(action)}
     end
   end
 
-  # コンパイル時にルーティングテーブルを生成
+  # Generate the routing table at compile time
   defmacro __before_compile__(env) do
     routes = Module.get_attribute(env.module, :routes)
 
@@ -1054,13 +1056,13 @@ defmodule Router do
       unquote_splicing(match_clauses)
 
       def match(method, path) do
-        {:error, "#{method} #{path} にマッチするルートがありません"}
+        {:error, "No matching route for #{method} #{path}"}
       end
     end
   end
 end
 
-# --- 使用例 ---
+# --- Usage example ---
 defmodule MyApp.Router do
   use Router
 
@@ -1070,7 +1072,7 @@ defmodule MyApp.Router do
   get  "/users/:id", MyApp.UserController, :show
 end
 
-# コンパイル時に以下と等価なコードが生成される:
+# At compile time, code equivalent to the following is generated:
 # def match(:get, "/") do ... end
 # def match(:get, "/users") do ... end
 # def match(:post, "/users") do ... end
@@ -1079,33 +1081,35 @@ end
 
 ---
 
-## 5. リフレクションとイントロスペクション
+## 5. Reflection and Introspection
 
-### 5.1 リフレクションの概要
+### 5.1 Overview of Reflection
 
-リフレクション（Reflection）とは、プログラムが実行時に自身の構造（型、フィールド、メソッド）を検査・操作する能力である。
+Reflection is the ability of a program to inspect and manipulate its own structure (types, fields, methods) at runtime.
 
 ```
-リフレクションの機能:
+Capabilities of reflection:
 
-  ┌─────────────────────────────────────────────────────┐
-  │                 リフレクション                        │
-  ├─────────────────────┬───────────────────────────────┤
-  │   イントロスペクション  │      インターセッション        │
-  │   (Introspection)     │      (Intercession)         │
-  ├─────────────────────┼───────────────────────────────┤
-  │ ・型情報の取得        │ ・動的メソッド呼び出し          │
-  │ ・フィールド一覧      │ ・フィールド値の変更           │
-  │ ・メソッド一覧        │ ・動的プロキシ生成             │
-  │ ・アノテーション取得   │ ・クラス動的生成               │
-  │                      │                              │
-  │ 安全性: 比較的安全     │ 安全性: 注意が必要             │
-  │ 用途: シリアライズ、   │ 用途: DI、AOP、ORM           │
-  │       デバッグ         │                              │
-  └─────────────────────┴───────────────────────────────┘
+  +-----------------------------------------------------+
+  |                 Reflection                           |
+  +---------------------+-------------------------------+
+  |   Introspection      |      Intercession            |
+  |   (Introspection)    |      (Intercession)          |
+  +---------------------+-------------------------------+
+  | - Retrieve type info | - Dynamic method invocation  |
+  | - List fields        | - Modify field values        |
+  | - List methods       | - Dynamic proxy generation   |
+  | - Get annotations    | - Dynamic class creation     |
+  |                      |                              |
+  | Safety: Relatively   | Safety: Requires caution     |
+  |   safe               |                              |
+  | Use cases:           | Use cases: DI, AOP, ORM     |
+  |   Serialization,     |                              |
+  |   Debugging          |                              |
+  +---------------------+-------------------------------+
 ```
 
-### 5.2 Go のリフレクション
+### 5.2 Reflection in Go
 
 ```go
 package main
@@ -1116,7 +1120,7 @@ import (
     "strings"
 )
 
-// 構造体タグを使ったシリアライズ
+// Serialization using struct tags
 type User struct {
     ID    int    `json:"id" db:"user_id"`
     Name  string `json:"name" db:"user_name" validate:"required"`
@@ -1124,7 +1128,7 @@ type User struct {
     Age   int    `json:"age,omitempty" db:"age" validate:"min=0,max=150"`
 }
 
-// リフレクションで構造体タグを読み取る汎用バリデータ
+// Generic validator that reads struct tags via reflection
 func Validate(v interface{}) []string {
     var errors []string
     val := reflect.ValueOf(v)
@@ -1145,22 +1149,22 @@ func Validate(v interface{}) []string {
             case rule == "required":
                 if value.IsZero() {
                     errors = append(errors,
-                        fmt.Sprintf("%s は必須です", field.Name))
+                        fmt.Sprintf("%s is required", field.Name))
                 }
             case strings.HasPrefix(rule, "min="):
-                // 数値の最小値チェック
+                // Minimum value check for numbers
                 var min int
                 fmt.Sscanf(rule, "min=%d", &min)
                 if value.Kind() == reflect.Int && value.Int() < int64(min) {
                     errors = append(errors,
-                        fmt.Sprintf("%s は %d 以上である必要があります", field.Name, min))
+                        fmt.Sprintf("%s must be at least %d", field.Name, min))
                 }
             case strings.HasPrefix(rule, "max="):
                 var max int
                 fmt.Sscanf(rule, "max=%d", &max)
                 if value.Kind() == reflect.Int && value.Int() > int64(max) {
                     errors = append(errors,
-                        fmt.Sprintf("%s は %d 以下である必要があります", field.Name, max))
+                        fmt.Sprintf("%s must be at most %d", field.Name, max))
                 }
             }
         }
@@ -1168,7 +1172,7 @@ func Validate(v interface{}) []string {
     return errors
 }
 
-// リフレクションで INSERT SQL を自動生成
+// Auto-generate INSERT SQL via reflection
 func GenerateInsertSQL(tableName string, v interface{}) string {
     val := reflect.ValueOf(v)
     typ := val.Type()
@@ -1193,59 +1197,61 @@ func main() {
     user := User{Name: "", Email: "invalid", Age: -5}
     errors := Validate(user)
     for _, e := range errors {
-        fmt.Println("バリデーションエラー:", e)
+        fmt.Println("Validation error:", e)
     }
 
     sql := GenerateInsertSQL("users", User{})
-    fmt.Println("生成SQL:", sql)
+    fmt.Println("Generated SQL:", sql)
     // INSERT INTO users (user_id, user_name, email, age) VALUES ($1, $2, $3, $4)
 }
 ```
 
-### 5.3 リフレクションの比較表
+### 5.3 Reflection Comparison Table
 
-| 特性 | Java | Go | Python | C# | Rust |
-|------|------|-----|--------|-----|------|
-| 型情報取得 | `Class<?>` | `reflect.Type` | `type()` | `Type` | なし（コンパイル時のみ） |
-| フィールドアクセス | `Field` | `reflect.Value` | `getattr()` | `FieldInfo` | なし |
-| メソッド呼び出し | `Method.invoke()` | `Value.Call()` | `getattr()+()` | `MethodInfo.Invoke()` | なし |
-| アノテーション | `@Annotation` | 構造体タグ | デコレータ | `[Attribute]` | `#[derive()]`（マクロ） |
-| 動的プロキシ | `Proxy` | なし | `__getattr__` | `DispatchProxy` | なし |
-| パフォーマンス | 低 | 低 | 低 | 低 | N/A（ゼロコスト） |
-| 型安全性 | 低 | 低 | 低 | 低 | 高（マクロで代替） |
+| Feature | Java | Go | Python | C# | Rust |
+|---------|------|-----|--------|-----|------|
+| Type info retrieval | `Class<?>` | `reflect.Type` | `type()` | `Type` | None (compile-time only) |
+| Field access | `Field` | `reflect.Value` | `getattr()` | `FieldInfo` | None |
+| Method invocation | `Method.invoke()` | `Value.Call()` | `getattr()+()` | `MethodInfo.Invoke()` | None |
+| Annotations | `@Annotation` | Struct tags | Decorators | `[Attribute]` | `#[derive()]` (macros) |
+| Dynamic proxy | `Proxy` | None | `__getattr__` | `DispatchProxy` | None |
+| Performance | Low | Low | Low | Low | N/A (zero-cost) |
+| Type safety | Low | Low | Low | Low | High (macros as alternative) |
 
 ---
 
-## 6. コード生成
+## 6. Code Generation
 
-### 6.1 コード生成の手法
+### 6.1 Code Generation Approaches
 
-コード生成は、テンプレートやスキーマから実際のソースコードを自動生成する手法である。リフレクションと異なり、生成されたコードは通常のソースファイルとして存在するため、型安全性と実行時パフォーマンスを両立できる。
+Code generation is the technique of automatically generating actual source code from templates or schemas. Unlike reflection, generated code exists as ordinary source files, achieving both type safety and runtime performance.
 
 ```
-コード生成のアプローチ:
+Code generation classification:
 
-  ┌──────────────────────────────────────────────────┐
-  │              コード生成の分類                      │
-  ├──────────────┬───────────────┬──────────────────┤
-  │ スキーマ駆動   │ テンプレート    │ AST操作          │
-  │              │ エンジン       │                  │
-  ├──────────────┼───────────────┼──────────────────┤
-  │ ・Protocol   │ ・Go text/    │ ・Rust proc_macro│
-  │   Buffers    │   template    │ ・babel plugin   │
-  │ ・OpenAPI    │ ・Jinja2      │ ・ts-morph       │
-  │ ・GraphQL    │ ・ERB/EJS     │ ・JavaPoet       │
-  │   codegen    │               │                  │
-  ├──────────────┼───────────────┼──────────────────┤
-  │ 入力: IDL    │ 入力: テンプレ  │ 入力: ソースコード │
-  │ 出力: 型定義  │ 出力: 任意     │ 出力: 変換済みAST │
-  └──────────────┴───────────────┴──────────────────┘
+  +--------------------------------------------------+
+  |              Code generation categories           |
+  +--------------+---------------+------------------+
+  | Schema-driven| Template      | AST manipulation |
+  |              | engine        |                  |
+  +--------------+---------------+------------------+
+  | - Protocol   | - Go text/    | - Rust proc_macro|
+  |   Buffers    |   template    | - babel plugin   |
+  | - OpenAPI    | - Jinja2      | - ts-morph       |
+  | - GraphQL    | - ERB/EJS     | - JavaPoet       |
+  |   codegen    |               |                  |
+  +--------------+---------------+------------------+
+  | Input: IDL   | Input:        | Input: Source    |
+  | Output: Type |   templates   |   code           |
+  |   definitions| Output: Any   | Output:          |
+  |              |               |   Transformed AST|
+  +--------------+---------------+------------------+
 ```
 
-### 6.2 Go generate の活用
+### 6.2 Using Go Generate
 
 ```go
-// go:generate を使ったコード生成の例
+// Example of code generation using go:generate
 
 //go:generate stringer -type=Color
 
@@ -1258,15 +1264,15 @@ const (
     Yellow
 )
 
-// stringer ツールが以下を自動生成:
+// The stringer tool auto-generates:
 // func (c Color) String() string { ... }
-// "Red", "Green", "Blue", "Yellow" を返す
+// Returns "Red", "Green", "Blue", "Yellow"
 ```
 
-### 6.3 Protocol Buffers によるコード生成
+### 6.3 Code Generation with Protocol Buffers
 
 ```protobuf
-// user.proto: スキーマ定義
+// user.proto: Schema definition
 syntax = "proto3";
 package user;
 
@@ -1315,68 +1321,73 @@ message CreateUserRequest {
 ```
 
 ```
-protoc から生成されるコード:
+Code generated from protoc:
 
   user.proto
-      │
-      ├──→ user.pb.go     (Go の構造体 + シリアライズ)
-      ├──→ user_pb2.py    (Python のクラス)
-      ├──→ User.java      (Java のクラス)
-      ├──→ user.rs        (Rust の struct + enum)
-      └──→ user.ts        (TypeScript の interface)
+      |
+      +--> user.pb.go     (Go structs + serialization)
+      +--> user_pb2.py    (Python classes)
+      +--> User.java      (Java classes)
+      +--> user.rs        (Rust structs + enums)
+      +--> user.ts        (TypeScript interfaces)
 
-  1つのスキーマから複数言語の型定義を一貫して生成
+  Consistent type definitions for multiple languages from a single schema
 ```
 
 ---
 
-## 7. DSL設計のベストプラクティス
+## 7. DSL Design Best Practices
 
-### 7.1 DSL設計の原則
+### 7.1 DSL Design Principles
 
 ```
-DSL設計の7つの原則:
+7 principles of DSL design:
 
-  ┌──────────────────────────────────────────────────┐
-  │ 1. ドメインの言葉を使う                            │
-  │    技術用語ではなく、ドメインエキスパートの語彙を採用   │
-  ├──────────────────────────────────────────────────┤
-  │ 2. 最小驚き原則                                   │
-  │    DSLの動作は、読み手の直感に反しないこと             │
-  ├──────────────────────────────────────────────────┤
-  │ 3. 段階的開示                                     │
-  │    基本的な使用は簡単に、高度な使用も可能に            │
-  ├──────────────────────────────────────────────────┤
-  │ 4. 型安全性                                       │
-  │    コンパイル時に誤りを検出できる設計                  │
-  ├──────────────────────────────────────────────────┤
-  │ 5. エラーメッセージの品質                           │
-  │    DSLレベルで意味のあるエラーを返す                  │
-  ├──────────────────────────────────────────────────┤
-  │ 6. コンポーザビリティ                              │
-  │    DSLの部品を組み合わせてより大きな構造を作れる       │
-  ├──────────────────────────────────────────────────┤
-  │ 7. エスケープハッチ                                │
-  │    DSLでは表現できないケースに対する脱出路を用意する    │
-  └──────────────────────────────────────────────────┘
+  +--------------------------------------------------+
+  | 1. Use domain vocabulary                          |
+  |    Adopt domain experts' terminology, not         |
+  |    technical jargon                               |
+  +--------------------------------------------------+
+  | 2. Principle of least surprise                    |
+  |    DSL behavior should not defy the reader's      |
+  |    intuition                                      |
+  +--------------------------------------------------+
+  | 3. Progressive disclosure                         |
+  |    Basic usage should be easy, advanced usage      |
+  |    should also be possible                        |
+  +--------------------------------------------------+
+  | 4. Type safety                                    |
+  |    Design for detecting errors at compile time    |
+  +--------------------------------------------------+
+  | 5. Error message quality                          |
+  |    Return meaningful errors at the DSL level      |
+  +--------------------------------------------------+
+  | 6. Composability                                  |
+  |    DSL components should be combinable into       |
+  |    larger structures                              |
+  +--------------------------------------------------+
+  | 7. Escape hatch                                   |
+  |    Provide an escape route for cases the DSL      |
+  |    cannot express                                 |
+  +--------------------------------------------------+
 ```
 
-### 7.2 Phantom Type による型安全DSL
+### 7.2 Type-Safe DSLs with Phantom Types
 
-Phantom Type（幽霊型）は、型パラメータをデータの格納ではなく状態の追跡に使用するテクニックである。これにより、不正な操作をコンパイル時に防止できる。
+Phantom Types use type parameters not for data storage but for state tracking. This allows preventing invalid operations at compile time.
 
 ```rust
-// --- Phantom Type でビルダーの状態を型で管理 ---
+// --- Managing builder state with Phantom Types ---
 
 use std::marker::PhantomData;
 
-// 状態を表す型（実際にはインスタンス化されない）
+// Types representing state (never actually instantiated)
 struct NoHost;
 struct HasHost;
 struct NoPort;
 struct HasPort;
 
-// サーバー設定ビルダー（状態を型パラメータで追跡）
+// Server configuration builder (tracking state via type parameters)
 struct ServerConfigBuilder<HostState, PortState> {
     host: Option<String>,
     port: Option<u16>,
@@ -1398,7 +1409,7 @@ impl ServerConfigBuilder<NoHost, NoPort> {
 }
 
 impl<P> ServerConfigBuilder<NoHost, P> {
-    // host を設定すると、HostState が NoHost → HasHost に変わる
+    // Setting host changes HostState from NoHost to HasHost
     fn host(self, host: &str) -> ServerConfigBuilder<HasHost, P> {
         ServerConfigBuilder {
             host: Some(host.to_string()),
@@ -1411,7 +1422,7 @@ impl<P> ServerConfigBuilder<NoHost, P> {
 }
 
 impl<H> ServerConfigBuilder<H, NoPort> {
-    // port を設定すると、PortState が NoPort → HasPort に変わる
+    // Setting port changes PortState from NoPort to HasPort
     fn port(self, port: u16) -> ServerConfigBuilder<H, HasPort> {
         ServerConfigBuilder {
             host: self.host,
@@ -1430,7 +1441,7 @@ impl<H, P> ServerConfigBuilder<H, P> {
     }
 }
 
-// build() は host と port が両方設定済みの場合のみ呼べる
+// build() can only be called when both host and port are set
 impl ServerConfigBuilder<HasHost, HasPort> {
     fn build(self) -> ServerConfig {
         ServerConfig {
@@ -1448,53 +1459,54 @@ struct ServerConfig {
 }
 
 fn main() {
-    // 正しい使用: コンパイル通過
+    // Correct usage: compiles successfully
     let config = ServerConfigBuilder::new()
         .host("api.example.com")
         .port(443)
         .tls(true)
         .build();
 
-    // 不正な使用: コンパイルエラー
+    // Invalid usage: compile error
     // let bad = ServerConfigBuilder::new()
     //     .host("api.example.com")
-    //     .build();  // エラー: HasPort が必要だが NoPort
+    //     .build();  // Error: HasPort required but got NoPort
 }
 ```
 
 ---
 
-## 8. メタプログラミングのリスクと対策
+## 8. Risks and Countermeasures in Metaprogramming
 
-### 8.1 メタプログラミングの利点と問題点
+### 8.1 Benefits and Drawbacks of Metaprogramming
 
 ```
-利点と問題点の対比:
+Benefits vs drawbacks comparison:
 
-  ┌──────────────────────┬──────────────────────────────┐
-  │       利点            │         問題点                │
-  ├──────────────────────┼──────────────────────────────┤
-  │ ボイラープレート削減    │ 可読性の低下（「魔法」の増加） │
-  │ DRY原則の徹底          │ デバッグの困難さ              │
-  │ DSLによる表現力向上     │ コンパイル時間の増大          │
-  │ コンパイル時検証        │ IDE サポートの制限            │
-  │ 一貫性の保証           │ 学習コストの上昇              │
-  │ パフォーマンス最適化    │ エラーメッセージの劣化         │
-  └──────────────────────┴──────────────────────────────┘
+  +----------------------+------------------------------+
+  |       Benefits       |         Drawbacks            |
+  +----------------------+------------------------------+
+  | Boilerplate reduction| Reduced readability          |
+  |                      |   (increased "magic")        |
+  | DRY principle        | Debugging difficulty         |
+  | DSL expressiveness   | Increased compile time       |
+  | Compile-time checks  | Limited IDE support          |
+  | Consistency guarantee| Higher learning curve        |
+  | Perf. optimization   | Degraded error messages      |
+  +----------------------+------------------------------+
 ```
 
-### 8.2 アンチパターン1: 「魔法が多すぎるDSL」
+### 8.2 Anti-Pattern 1: "Too Much Magic in the DSL"
 
 ```ruby
-# --- 悪い例: method_missing の過度な使用 ---
+# --- Bad example: Excessive use of method_missing ---
 class MagicQuery
   def method_missing(name, *args)
     if name.to_s.start_with?("find_by_")
       field = name.to_s.sub("find_by_", "")
-      # ... 動的にクエリ生成
+      # ... dynamically generate query
     elsif name.to_s.start_with?("order_by_")
       field = name.to_s.sub("order_by_", "")
-      # ... 動的にソート
+      # ... dynamically sort
     else
       super
     end
@@ -1502,47 +1514,47 @@ class MagicQuery
 end
 
 # query.find_by_name_and_email_order_by_created_at_desc(...)
-# → 何が起きているのか追跡不能
-# → IDEの補完が効かない
-# → タイプミスが実行時まで検出できない
+# -> Impossible to trace what is happening
+# -> IDE completion does not work
+# -> Typos are not detected until runtime
 
-# --- 良い例: 明示的なメソッドチェーン ---
+# --- Good example: Explicit method chaining ---
 class TypedQuery
   def where(field:, value:) = # ...
   def order_by(field:, direction: :asc) = # ...
   def limit(n) = # ...
 end
 
-# query.where(field: :name, value: "田中")
+# query.where(field: :name, value: "Tanaka")
 #       .order_by(field: :created_at, direction: :desc)
 #       .limit(10)
-# → IDE補完が効く
-# → タイプミスはコンパイル/構文チェック時に検出
+# -> IDE completion works
+# -> Typos are detected at compile/syntax check time
 ```
 
-**教訓:** DSLの表現力と型安全性のバランスを取る。「暗黙のルール」よりも「明示的な構造」を優先する。
+**Lesson:** Balance expressiveness and type safety in your DSL. Prefer "explicit structure" over "implicit rules."
 
-### 8.3 アンチパターン2: 「不必要なマクロの使用」
+### 8.3 Anti-Pattern 2: "Unnecessary Use of Macros"
 
 ```rust
-// --- 悪い例: 関数で十分なのにマクロを使う ---
+// --- Bad example: Using macros when a function would suffice ---
 macro_rules! add_numbers {
     ($a:expr, $b:expr) => {
         $a + $b
     };
 }
 
-let sum = add_numbers!(3, 5);  // マクロの必要性なし
+let sum = add_numbers!(3, 5);  // No need for a macro
 
-// --- 良い例: 普通の関数を使う ---
+// --- Good example: Using a plain function ---
 fn add_numbers(a: i32, b: i32) -> i32 {
     a + b
 }
 
-let sum = add_numbers(3, 5);  // シンプルで型安全
+let sum = add_numbers(3, 5);  // Simple and type-safe
 
-// --- マクロが正当化されるケース ---
-// 1. 可変長引数が必要
+// --- Cases where macros are justified ---
+// 1. Variadic arguments are needed
 macro_rules! sum_all {
     ($($x:expr),+) => {
         0 $(+ $x)+
@@ -1550,24 +1562,24 @@ macro_rules! sum_all {
 }
 let total = sum_all!(1, 2, 3, 4, 5);
 
-// 2. コンパイル時にコードを生成する必要がある
-// 3. 構文の拡張が必要（DSL）
-// 4. ボイラープレートの大幅な削減
+// 2. Code needs to be generated at compile time
+// 3. Syntax extension is needed (DSL)
+// 4. Significant boilerplate reduction
 ```
 
-**教訓:** 「通常の関数・ジェネリクス・トレイトで解決できないか？」をまず検討する。マクロは最後の手段である。
+**Lesson:** Always first consider "Can this be solved with regular functions, generics, or traits?" Macros should be the last resort.
 
-### 8.4 アンチパターン3: 「eval の濫用」
+### 8.4 Anti-Pattern 3: "Abuse of eval"
 
 ```python
-# --- 悪い例: eval による動的コード実行 ---
+# --- Bad example: Dynamic code execution via eval ---
 def calculate(expression: str) -> float:
-    return eval(expression)  # セキュリティリスク！
+    return eval(expression)  # Security risk!
 
-# ユーザー入力をそのまま eval に渡すと、任意コード実行の脆弱性
+# Passing user input directly to eval creates an arbitrary code execution vulnerability
 # calculate("__import__('os').system('rm -rf /')")
 
-# --- 良い例: パーサーを使う ---
+# --- Good example: Using a parser ---
 import ast
 import operator
 
@@ -1579,7 +1591,7 @@ SAFE_OPERATORS = {
 }
 
 def safe_calculate(expression: str) -> float:
-    """安全な数式評価"""
+    """Safe expression evaluator"""
     tree = ast.parse(expression, mode='eval')
 
     def eval_node(node):
@@ -1592,27 +1604,27 @@ def safe_calculate(expression: str) -> float:
             right = eval_node(node.right)
             return SAFE_OPERATORStype(node.op)
         else:
-            raise ValueError(f"安全でない式: {ast.dump(node)}")
+            raise ValueError(f"Unsafe expression: {ast.dump(node)}")
 
     return eval_node(tree)
 
 print(safe_calculate("(3 + 5) * 2"))  # 16.0
 ```
 
-**教訓:** `eval` は本番コードでは原則使用しない。ユーザー入力を `eval` に渡すことは、任意コード実行の脆弱性に直結する。
+**Lesson:** In principle, do not use `eval` in production code. Passing user input to `eval` directly leads to arbitrary code execution vulnerabilities.
 
 ---
 
-## 9. TypeScript のメタプログラミング
+## 9. Metaprogramming in TypeScript
 
-### 9.1 デコレータ（Experimental / Stage 3）
+### 9.1 Decorators (Experimental / Stage 3)
 
-TypeScript のデコレータは ES のデコレータ提案（Stage 3）に基づいている。
+TypeScript decorators are based on the ES Decorators proposal (Stage 3).
 
 ```typescript
-// --- TypeScript のクラスデコレータ ---
+// --- TypeScript class decorators ---
 
-// メソッドデコレータ: ログ記録
+// Method decorator: Logging
 function Log(
     target: any,
     propertyKey: string,
@@ -1621,16 +1633,16 @@ function Log(
     const originalMethod = descriptor.value;
 
     descriptor.value = function (...args: any[]) {
-        console.log(`[LOG] ${propertyKey} 呼び出し: 引数=${JSON.stringify(args)}`);
+        console.log(`[LOG] ${propertyKey} called: args=${JSON.stringify(args)}`);
         const result = originalMethod.apply(this, args);
-        console.log(`[LOG] ${propertyKey} 戻り値: ${JSON.stringify(result)}`);
+        console.log(`[LOG] ${propertyKey} return value: ${JSON.stringify(result)}`);
         return result;
     };
 
     return descriptor;
 }
 
-// メソッドデコレータ: パフォーマンス計測
+// Method decorator: Performance measurement
 function Measure(
     target: any,
     propertyKey: string,
@@ -1649,7 +1661,7 @@ function Measure(
     return descriptor;
 }
 
-// プロパティデコレータ: バリデーション
+// Property decorator: Validation
 function MinLength(min: number) {
     return function (target: any, propertyKey: string) {
         let value: string;
@@ -1659,7 +1671,7 @@ function MinLength(min: number) {
             set: (newValue: string) => {
                 if (newValue.length < min) {
                     throw new Error(
-                        `${propertyKey} は ${min} 文字以上である必要があります`
+                        `${propertyKey} must be at least ${min} characters`
                     );
                 }
                 value = newValue;
@@ -1668,7 +1680,7 @@ function MinLength(min: number) {
     };
 }
 
-// 使用例
+// Usage example
 class UserService {
     @MinLength(2)
     username: string = "";
@@ -1676,44 +1688,44 @@ class UserService {
     @Log
     @Measure
     async findUser(id: number): Promise<User | null> {
-        // DB検索のシミュレーション
-        return { id, name: "田中", email: "tanaka@example.com" };
+        // Simulating a DB search
+        return { id, name: "Tanaka", email: "tanaka@example.com" };
     }
 }
 ```
 
-### 9.2 型レベルプログラミング
+### 9.2 Type-Level Programming
 
-TypeScript の型システムはチューリング完全であり、型レベルでのメタプログラミングが可能である。
+TypeScript's type system is Turing-complete, enabling metaprogramming at the type level.
 
 ```typescript
-// --- TypeScript 型レベルプログラミング ---
+// --- TypeScript type-level programming ---
 
-// 条件型（Conditional Types）
+// Conditional Types
 type IsString<T> = T extends string ? true : false;
 
 type A = IsString<string>;  // true
 type B = IsString<number>;  // false
 
-// マップ型（Mapped Types）
+// Mapped Types
 type Readonly<T> = { readonly [K in keyof T]: T[K] };
 type Optional<T> = { [K in keyof T]?: T[K] };
 type Required<T> = { [K in keyof T]-?: T[K] };
 
-// テンプレートリテラル型
+// Template Literal Types
 type HTTPMethod = "GET" | "POST" | "PUT" | "DELETE";
 type APIPath = `/api/${string}`;
 type Endpoint = `${HTTPMethod} ${APIPath}`;
-// "GET /api/users" | "POST /api/users" | ... は Endpoint 型
+// "GET /api/users" | "POST /api/users" | ... is of type Endpoint
 
-// 再帰型（深いReadonly）
+// Recursive Types (Deep Readonly)
 type DeepReadonly<T> = {
     readonly [K in keyof T]: T[K] extends object
         ? DeepReadonly<T[K]>
         : T[K];
 };
 
-// パス型の自動生成
+// Auto-generation of path parameter types
 type PathParams<T extends string> =
     T extends `${string}:${infer Param}/${infer Rest}`
         ? { [K in Param | keyof PathParams<Rest>]: string }
@@ -1721,10 +1733,10 @@ type PathParams<T extends string> =
             ? { [K in Param]: string }
             : {};
 
-// "/users/:userId/posts/:postId" から { userId: string; postId: string } を抽出
+// Extract { userId: string; postId: string } from "/users/:userId/posts/:postId"
 type UserPostParams = PathParams<"/users/:userId/posts/:postId">;
 
-// 型安全なAPIクライアント
+// Type-safe API client
 interface APIRoutes {
     "GET /api/users": { response: User[]; params: {} };
     "GET /api/users/:id": { response: User; params: { id: string } };
@@ -1737,23 +1749,23 @@ async function apiCall<T extends keyof APIRoutes>(
         ? [params: APIRoutes[T]["params"], body: B]
         : [params: APIRoutes[T]["params"]]
 ): Promise<APIRoutes[T]["response"]> {
-    // 実装
+    // Implementation
     throw new Error("not implemented");
 }
 
-// 型安全な呼び出し
+// Type-safe invocations
 // apiCall("GET /api/users", {});
 // apiCall("GET /api/users/:id", { id: "123" });
-// apiCall("POST /api/users", {}, { name: "田中", email: "..." });
+// apiCall("POST /api/users", {}, { name: "Tanaka", email: "..." });
 ```
 
 ---
 
-## 10. 演習問題
+## 10. Exercises
 
-### 10.1 初級：概念の理解
+### 10.1 Beginner: Understanding Concepts
 
-**演習1:** 以下の各DSLが「外部DSL」と「内部DSL」のどちらに分類されるか答えよ。
+**Exercise 1:** Classify each of the following DSLs as "external DSL" or "internal DSL."
 1. SQL
 2. SwiftUI
 3. Terraform HCL
@@ -1762,22 +1774,22 @@ async function apiCall<T extends keyof APIRoutes>(
 6. Gradle Kotlin DSL
 7. Protocol Buffers
 
-**演習2:** 以下のメタプログラミング手法を、適用タイミング（コンパイル時・ビルド時・実行時）で分類せよ。
-1. Rust の `derive` マクロ
-2. Python のデコレータ
-3. Go の `go generate`
-4. Java のリフレクション
-5. Elixir のマクロ
-6. Protocol Buffers のコード生成
+**Exercise 2:** Classify the following metaprogramming techniques by their timing of application (compile-time, build-time, or runtime).
+1. Rust `derive` macros
+2. Python decorators
+3. Go `go generate`
+4. Java reflection
+5. Elixir macros
+6. Protocol Buffers code generation
 
-**演習3:** 以下のコードが出力する結果を予測せよ。
+**Exercise 3:** Predict the output of the following code.
 
 ```python
 def trace(func):
     def wrapper(*args):
-        print(f"呼び出し: {func.__name__}({args})")
+        print(f"Call: {func.__name__}({args})")
         result = func(*args)
-        print(f"戻り値: {result}")
+        print(f"Return: {result}")
         return result
     return wrapper
 
@@ -1792,18 +1804,18 @@ def multiply(a, b):
 result = multiply(add(2, 3), 4)
 ```
 
-### 10.2 中級：実装
+### 10.2 Intermediate: Implementation
 
-**演習4:** 任意の言語で、以下の要件を満たす設定ファイルDSLを実装せよ。
+**Exercise 4:** Implement a configuration file DSL in any language that satisfies the following requirements.
 
 ```
-要件:
-- ネストした設定構造を表現できる
-- 型安全である（文字列・数値・ブール値の型チェック）
-- 環境変数の参照をサポートする（${ENV_VAR} 記法）
-- バリデーション機能を持つ
+Requirements:
+- Can express nested configuration structures
+- Is type-safe (type checking for strings, numbers, booleans)
+- Supports environment variable references (${ENV_VAR} notation)
+- Has validation functionality
 
-使用例:
+Usage example:
 config {
     server {
         host = "localhost"
@@ -1817,198 +1829,199 @@ config {
 }
 ```
 
-**演習5:** Rust の宣言的マクロ（`macro_rules!`）で、以下のJSONリテラルDSLを実装せよ。
+**Exercise 5:** Implement the following JSON literal DSL using Rust declarative macros (`macro_rules!`).
 
 ```rust
 let data = json!({
-    "name": "田中太郎",
+    "name": "Taro Tanaka",
     "age": 30,
-    "hobbies": ["読書", "プログラミング"],
+    "hobbies": ["reading", "programming"],
     "address": {
-        "city": "東京",
+        "city": "Tokyo",
         "zip": "100-0001"
     }
 });
 ```
 
-### 10.3 上級：設計と分析
+### 10.3 Advanced: Design and Analysis
 
-**演習6:** 以下の3つのメタプログラミングアプローチを比較し、各アプローチが最適なユースケースを論じよ。
+**Exercise 6:** Compare the following three metaprogramming approaches and discuss the optimal use cases for each.
 
-1. Rust の手続き型マクロ
-2. Python のメタクラス
-3. TypeScript の型レベルプログラミング
+1. Rust procedural macros
+2. Python metaclasses
+3. TypeScript type-level programming
 
-比較観点:
-- 型安全性
-- 実行時オーバーヘッド
-- デバッグのしやすさ
-- 表現力
-- 学習コスト
+Comparison criteria:
+- Type safety
+- Runtime overhead
+- Ease of debugging
+- Expressiveness
+- Learning cost
 
-**演習7:** 実際のプロジェクトで使用するドメインを1つ選び、そのドメインに特化したDSLを設計せよ（実装は不要）。
+**Exercise 7:** Choose one domain from a real project and design a DSL specialized for that domain (implementation not required).
 
-提出物:
-- ドメインの説明
-- DSLの文法仕様（BNF記法）
-- 使用例（3つ以上）
-- 内部DSL/外部DSLの選択理由
-- 既存のDSL（SQL、GraphQL等）との比較
+Deliverables:
+- Description of the domain
+- DSL grammar specification (BNF notation)
+- Usage examples (at least 3)
+- Rationale for choosing internal vs external DSL
+- Comparison with existing DSLs (SQL, GraphQL, etc.)
 
 ---
 
-## 11. 高度なトピック
+## 11. Advanced Topics
 
-### 11.1 効果システムとDSL
+### 11.1 Effect Systems and DSLs
 
-効果システム（Effect System）は、関数の副作用を型で追跡する仕組みであり、次世代のDSL基盤技術として注目されている。
+An effect system is a mechanism that tracks function side effects through types. It is drawing attention as a next-generation foundation technology for DSLs.
 
 ```
-効果システムの概念:
+Concept of effect systems:
 
-  従来の関数:
+  Traditional functions:
     fn read_file(path: &str) -> String
-    // 副作用（I/O）があるかどうか型から分からない
+    // Cannot tell from the type whether it has side effects (I/O)
 
-  効果システム付き:
+  With effect system:
     fn read_file(path: &str) -> String / IO + Error
-    // 副作用が型に明示される
+    // Side effects are explicitly part of the type
 
-  DSLへの応用:
-  ┌──────────────────────────────────────┐
-  │ 効果 = DSLの操作をファーストクラスに   │
-  │                                      │
-  │ database {                           │
-  │   let user = query(User, id: 1)      │
-  │   // ↑ Database 効果                 │
-  │   log("ユーザー取得: ${user.name}")    │
-  │   // ↑ Log 効果                      │
-  │ }                                    │
-  │ // database ブロック外では            │
-  │ // Database 効果は使用不可            │
-  └──────────────────────────────────────┘
+  Application to DSLs:
+  +--------------------------------------+
+  | Effect = Making DSL operations       |
+  |          first-class citizens        |
+  |                                      |
+  | database {                           |
+  |   let user = query(User, id: 1)     |
+  |   // ^ Database effect               |
+  |   log("User retrieved: ${user.name}")|
+  |   // ^ Log effect                    |
+  | }                                    |
+  | // Outside the database block,       |
+  | // Database effect cannot be used    |
+  +--------------------------------------+
 ```
 
-### 11.2 言語ワークベンチ
+### 11.2 Language Workbenches
 
-言語ワークベンチ（Language Workbench）は、DSLの定義・実装・IDE統合を統一的に行うための開発環境である。
+A language workbench is a development environment that provides unified support for DSL definition, implementation, and IDE integration.
 
-代表例:
-- **JetBrains MPS**: 射影編集（Projectional Editing）による DSL構築。テキストベースでないため構文の曖昧さが発生しない。
-- **Xtext**: Eclipse ベースの文法定義からパーサー・エディタ・コード生成を自動構築。
-- **Spoofax**: 言語定義フレームワーク。文法・型システム・変換規則を宣言的に記述。
+Representative examples:
+- **JetBrains MPS**: DSL construction via projectional editing. No syntax ambiguity since it is not text-based.
+- **Xtext**: Automatically builds parsers, editors, and code generators from grammar definitions on the Eclipse platform.
+- **Spoofax**: A language definition framework. Grammar, type systems, and transformation rules are described declaratively.
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point in learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important aspect. Understanding deepens not only through theory but also by actually writing and running code.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before proceeding to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this applied in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+The knowledge from this topic is frequently applied in everyday development work. It becomes particularly important during code reviews and architecture design.
 
 ---
 
-## 12. まとめ
+## 12. Summary
 
-### 12.1 手法比較の総合表
+### 12.1 Comprehensive Comparison of Techniques
 
-| 手法 | タイミング | 代表言語 | 型安全性 | パフォーマンス | 用途 |
-|------|----------|---------|---------|-------------|------|
-| 宣言的マクロ | コンパイル時 | Rust, Elixir | 中 | 最適 | DSL、ボイラープレート削減 |
-| 手続き型マクロ | コンパイル時 | Rust, Scala 3 | 高 | 最適 | derive、属性マクロ |
-| デコレータ | 実行時 | Python, TS | 低 | 低い | AOP、ログ、認証 |
-| メタクラス | 実行時 | Python | 低 | 低い | ORM、バリデーション |
-| リフレクション | 実行時 | Java, Go, C# | 低 | 低い | シリアライズ、DI |
-| コード生成 | ビルド時 | Go, protobuf | 高 | 最適 | API定義、型生成 |
-| Result Builder | コンパイル時 | Swift | 高 | 最適 | SwiftUI、宣言的DSL |
-| 型レベル | コンパイル時 | TypeScript | 最高 | 最適 | 型安全API、パス推論 |
+| Technique | Timing | Representative Languages | Type Safety | Performance | Use Cases |
+|-----------|--------|-------------------------|-------------|-------------|-----------|
+| Declarative macros | Compile-time | Rust, Elixir | Medium | Optimal | DSL, boilerplate reduction |
+| Procedural macros | Compile-time | Rust, Scala 3 | High | Optimal | derive, attribute macros |
+| Decorators | Runtime | Python, TS | Low | Low | AOP, logging, auth |
+| Metaclasses | Runtime | Python | Low | Low | ORM, validation |
+| Reflection | Runtime | Java, Go, C# | Low | Low | Serialization, DI |
+| Code generation | Build-time | Go, protobuf | High | Optimal | API definitions, type generation |
+| Result Builder | Compile-time | Swift | High | Optimal | SwiftUI, declarative DSL |
+| Type-level | Compile-time | TypeScript | Highest | Optimal | Type-safe API, path inference |
 
-### 12.2 意思決定フローチャート
+### 12.2 Decision Flowchart
 
 ```
-メタプログラミング手法の選択:
+Choosing a metaprogramming technique:
 
-  「ボイラープレートを減らしたい」
-     │
-     ├─ コンパイル時に解決できる？
-     │    ├─ Yes → マクロ or derive (Rust)
-     │    │        Result Builder (Swift)
-     │    │        型レベル (TypeScript)
-     │    └─ No → 実行時手法へ
-     │
-     ├─ 複数言語間の共通定義が必要？
-     │    └─ Yes → コード生成 (protobuf, OpenAPI)
-     │
-     ├─ 横断的関心事（ログ、認証、計測）？
-     │    └─ Yes → デコレータ (Python, TS)
-     │            アスペクト (Java / Spring AOP)
-     │
-     └─ 構造の動的検査が必要？
-          └─ Yes → リフレクション (Java, Go, C#)
+  "I want to reduce boilerplate"
+     |
+     +- Can it be resolved at compile time?
+     |    +- Yes -> Macros or derive (Rust)
+     |    |         Result Builder (Swift)
+     |    |         Type-level (TypeScript)
+     |    +- No -> Proceed to runtime techniques
+     |
+     +- Do you need common definitions across multiple languages?
+     |    +- Yes -> Code generation (protobuf, OpenAPI)
+     |
+     +- Cross-cutting concerns (logging, auth, metrics)?
+     |    +- Yes -> Decorators (Python, TS)
+     |             Aspects (Java / Spring AOP)
+     |
+     +- Do you need dynamic structural inspection?
+          +- Yes -> Reflection (Java, Go, C#)
 ```
 
 ---
 
-## 13. FAQ（よくある質問）
+## 13. FAQ (Frequently Asked Questions)
 
-### Q1: 内部DSLと外部DSLのどちらを選ぶべきですか？
+### Q1: Should I choose an internal DSL or an external DSL?
 
-**A:** プロジェクトの状況による。内部DSLは開発コストが低く、ホスト言語のツール（IDE、デバッガ、テストフレームワーク）をそのまま利用できるため、多くの場合これが第一選択になる。外部DSLは、非エンジニア（ドメインエキスパート）がDSLを直接記述する必要がある場合や、既存の標準的なDSL（SQL、GraphQL）が存在する場合に選択する。外部DSLはパーサー・エラーメッセージ・ツールの全てを自前で構築する必要があるため、開発・保守コストが高い。
+**A:** It depends on the project situation. Internal DSLs have lower development costs and can directly leverage the host language's tools (IDE, debugger, test framework), making them the first choice in most cases. External DSLs are chosen when non-engineers (domain experts) need to write the DSL directly, or when a standard DSL already exists (SQL, GraphQL). External DSLs require building the parser, error messages, and all tooling from scratch, resulting in higher development and maintenance costs.
 
-### Q2: メタプログラミングはどの程度の規模のプロジェクトから導入すべきですか？
+### Q2: At what project scale should metaprogramming be introduced?
 
-**A:** メタプログラミングの導入判断は規模よりも「同じパターンの繰り返し」の頻度で決める。同じボイラープレートが3箇所以上に出現し、今後も増える見込みがあれば、メタプログラミングの導入を検討する価値がある。ただし、チームメンバー全員がその手法を理解できることが前提条件である。「自分だけが理解できるマクロ」はチームにとって負債になる。
+**A:** The decision to introduce metaprogramming should be based not on scale but on the frequency of "repeating patterns." If the same boilerplate appears in three or more places with an expectation of growth, it is worth considering metaprogramming. However, the prerequisite is that all team members can understand the technique. "Macros only I can understand" become technical debt for the team.
 
-### Q3: Rust のマクロと C のマクロは何が違うのですか？
+### Q3: How do Rust macros differ from C macros?
 
-**A:** 本質的に異なる。C のマクロ（`#define`）はテキスト置換であり、型チェックの前に実行される。そのため型安全性がなく、名前衝突（変数名の意図しない置換）が発生し、デバッグが極めて困難である。一方、Rust のマクロは構文木（トークンストリーム）を操作する。衛生的マクロ（hygienic macro）により名前衝突が防止され、型チェックはマクロ展開後に行われるため型安全性が保たれる。さらに、手続き型マクロではコンパイラのエラーメッセージをカスタマイズすることもできる。
+**A:** They are fundamentally different. C macros (`#define`) are text substitutions executed before type checking. They lack type safety, suffer from name collisions (unintended variable name substitution), and are extremely difficult to debug. Rust macros, on the other hand, operate on syntax trees (token streams). Hygienic macros prevent name collisions, and type checking occurs after macro expansion, preserving type safety. Furthermore, procedural macros allow customization of compiler error messages.
 
-### Q4: TypeScript の型レベルプログラミングはどこまで実用的ですか？
+### Q4: How practical is TypeScript's type-level programming?
 
-**A:** ライブラリの型定義では非常に実用的であり、tRPC, Zod, Prisma などの現代的なTypeScriptライブラリは型レベルプログラミングを積極的に活用している。しかし、アプリケーションコードで複雑な型レベルプログラミングを多用すると、型エラーメッセージが難解になり、コンパイル速度が低下する。実用上は「ライブラリ作者は積極的に使い、ライブラリ利用者はその恩恵を透過的に受ける」という分担が望ましい。
-
----
-
-## 次に読むべきガイド
-
+**A:** It is highly practical for library type definitions. Modern TypeScript libraries such as tRPC, Zod, and Prisma actively leverage type-level programming. However, heavy use of complex type-level programming in application code results in cryptic type error messages and slower compilation. In practice, the ideal division is: "library authors use it aggressively, and library consumers transparently benefit from it."
 
 ---
 
-## 参考文献
+## Recommended Next Reading
 
-1. Fowler, M. "Domain-Specific Languages." Addison-Wesley, 2010. - DSLの設計パターンを網羅的に解説した名著。内部DSL・外部DSLの分類とその実装手法を体系化。
-2. Rust Reference. "Macros." The Rust Programming Language. - Rustの宣言的マクロと手続き型マクロの公式リファレンス。マクロシステムの設計思想を理解するのに不可欠。
-3. Odersky, M. et al. "Scala 3 Reference: Metaprogramming." EPFL. - Scala 3 のインラインメタプログラミングとマクロシステムの解説。引用符（quote）と接合（splice）の概念を詳述。
-4. Van Rossum, G. "PEP 3119 -- Introducing Abstract Base Classes." Python Software Foundation. - Python のメタクラスプロトコルの設計根拠を説明。ABCメタクラスの導入に至る議論を記録。
-5. Thomas, D. "Metaprogramming Ruby." Pragmatic Bookshelf, 2nd Edition, 2014. - Ruby のメタプログラミング技法（method_missing, class_eval, define_method等）の実践ガイド。
 
 ---
 
-## 用語集
+## References
 
-| 用語 | 説明 |
-|------|------|
-| DSL (Domain-Specific Language) | 特定の問題領域に特化した言語 |
-| GPL (General-Purpose Language) | 汎用プログラミング言語 |
-| 内部DSL (Internal/Embedded DSL) | ホスト言語の構文を活用して構築されたDSL |
-| 外部DSL (External DSL) | 独自のパーサーと構文を持つDSL |
-| メタプログラミング | プログラムを操作・生成するプログラムを書くこと |
-| マクロ (Macro) | コンパイル時にコードを生成・変換する仕組み |
-| 衛生的マクロ (Hygienic Macro) | 名前衝突を防止するマクロシステム |
-| リフレクション (Reflection) | 実行時に型情報を検査・操作する能力 |
-| デコレータ (Decorator) | 関数やクラスを変換するメタプログラミングパターン |
-| メタクラス (Metaclass) | クラスを生成するクラス |
-| Phantom Type | データ格納に使わない型パラメータで状態を追跡する手法 |
-| Result Builder | Swift の宣言的DSL構築機能 |
-| コード生成 (Code Generation) | スキーマやテンプレートからソースコードを自動生成すること |
-| AST (Abstract Syntax Tree) | ソースコードの構造を表現する木構造 |
-| 言語ワークベンチ | DSLの定義・実装・IDE統合を統一的に行う開発環境 |
+1. Fowler, M. "Domain-Specific Languages." Addison-Wesley, 2010. - A seminal work comprehensively covering DSL design patterns. Systematizes the classification and implementation techniques of internal and external DSLs.
+2. Rust Reference. "Macros." The Rust Programming Language. - The official reference for Rust's declarative and procedural macros. Essential for understanding the design philosophy of the macro system.
+3. Odersky, M. et al. "Scala 3 Reference: Metaprogramming." EPFL. - Explains Scala 3's inline metaprogramming and macro system. Details the concepts of quotes and splices.
+4. Van Rossum, G. "PEP 3119 -- Introducing Abstract Base Classes." Python Software Foundation. - Explains the design rationale of Python's metaclass protocol. Records the discussion leading to the introduction of ABC metaclasses.
+5. Thomas, D. "Metaprogramming Ruby." Pragmatic Bookshelf, 2nd Edition, 2014. - A practical guide to Ruby metaprogramming techniques (method_missing, class_eval, define_method, etc.).
+
+---
+
+## Glossary
+
+| Term | Description |
+|------|-------------|
+| DSL (Domain-Specific Language) | A language specialized for a particular problem domain |
+| GPL (General-Purpose Language) | A general-purpose programming language |
+| Internal DSL (Internal/Embedded DSL) | A DSL built using the host language's syntax |
+| External DSL (External DSL) | A DSL with its own parser and syntax |
+| Metaprogramming | Writing programs that manipulate or generate programs |
+| Macro | A mechanism for generating or transforming code at compile time |
+| Hygienic Macro | A macro system that prevents name collisions |
+| Reflection | The ability to inspect and manipulate type information at runtime |
+| Decorator | A metaprogramming pattern that transforms functions or classes |
+| Metaclass | A class that generates classes |
+| Phantom Type | A technique that tracks state using type parameters not used for data storage |
+| Result Builder | Swift's feature for building declarative DSLs |
+| Code Generation | Automatically generating source code from schemas or templates |
+| AST (Abstract Syntax Tree) | A tree structure representing the structure of source code |
+| Language Workbench | A development environment for unified DSL definition, implementation, and IDE integration |

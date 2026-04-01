@@ -1,111 +1,113 @@
-# 並行モデル概要
+# Concurrency Models Overview
 
-> プログラムが「複数のことを同時に行う」ための3つの主要モデル: マルチスレッド、イベントループ、アクターモデル。それぞれの仕組み、利点、欠点を比較する。
+> Three major models for programs to "do multiple things at once": multithreading, event loops, and the actor model. This guide compares the mechanics, advantages, and disadvantages of each.
 
-## この章で学ぶこと
+## Learning Objectives
 
-- [ ] 並行（Concurrency）と並列（Parallelism）の違いを理解する
-- [ ] 3つの主要な並行モデルの特徴を把握する
-- [ ] 各モデルが得意なユースケースを学ぶ
-- [ ] CSP（Communicating Sequential Processes）モデルを理解する
-- [ ] 実務での並行モデル選択基準を身につける
+- [ ] Understand the difference between concurrency and parallelism
+- [ ] Grasp the characteristics of the three major concurrency models
+- [ ] Learn the use cases each model excels at
+- [ ] Understand the CSP (Communicating Sequential Processes) model
+- [ ] Acquire criteria for selecting concurrency models in practice
 
+## Prerequisites
 
-## 前提知識
+Having the following knowledge will deepen your understanding of this guide:
 
-このガイドを読む前に、以下の知識があると理解が深まります:
-
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [同期 vs 非同期](./00-sync-vs-async.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Understanding of the content in [Synchronous vs Asynchronous](./00-sync-vs-async.md)
 
 ---
 
-## 1. 並行 vs 並列
+## 1. Concurrency vs Parallelism
 
-### 1.1 基本概念
+### 1.1 Fundamental Concepts
 
 ```
-並行（Concurrency）:
-  → 複数のタスクを「切り替えながら」進める
-  → 1つのCPUコアでも可能
-  → 「構造」の問題
+Concurrency:
+  -> Progresses multiple tasks by "switching between" them
+  -> Possible even with a single CPU core
+  -> A matter of "structure"
 
-  コア1: [タスクA] [タスクB] [タスクA] [タスクC] [タスクB]
+  Core 1: [Task A] [Task B] [Task A] [Task C] [Task B]
 
-並列（Parallelism）:
-  → 複数のタスクを「同時に」実行する
-  → 複数のCPUコアが必要
-  → 「実行」の問題
+Parallelism:
+  -> Executes multiple tasks "simultaneously"
+  -> Requires multiple CPU cores
+  -> A matter of "execution"
 
-  コア1: [タスクA] [タスクA] [タスクA]
-  コア2: [タスクB] [タスクB] [タスクB]
-  コア3: [タスクC] [タスクC] [タスクC]
+  Core 1: [Task A] [Task A] [Task A]
+  Core 2: [Task B] [Task B] [Task B]
+  Core 3: [Task C] [Task C] [Task C]
 
-Rob Pike（Go設計者）:
-  「Concurrency is about dealing with lots of things at once.
-   Parallelism is about doing lots of things at once.」
-  （並行性は多くのことを一度に扱うこと。
-   並列性は多くのことを一度にやること。）
+Rob Pike (Go designer):
+  "Concurrency is about dealing with lots of things at once.
+   Parallelism is about doing lots of things at once."
 ```
 
-### 1.2 並行と並列の関係
+### 1.2 Relationship Between Concurrency and Parallelism
 
 ```
 ┌─────────────────────────────────────────────────────┐
 │                                                     │
-│   並行だが並列でない:                                │
-│   → シングルコアでタスクを切り替え                    │
-│   → 例: Node.js のイベントループ                     │
-│   → 1コアだが複数のリクエストを処理                   │
+│   Concurrent but not parallel:                      │
+│   -> Switching tasks on a single core               │
+│   -> Example: Node.js event loop                    │
+│   -> 1 core handling multiple requests              │
 │                                                     │
-│   並列だが並行でない:                                │
-│   → SIMD（同一命令を複数データに適用）                │
-│   → 例: GPU の行列演算                               │
-│   → 同じ処理を並列実行（別々のタスクではない）         │
+│   Parallel but not concurrent:                      │
+│   -> SIMD (applying the same instruction to         │
+│      multiple data)                                 │
+│   -> Example: GPU matrix operations                 │
+│   -> Parallel execution of the same operation       │
+│      (not separate tasks)                           │
 │                                                     │
-│   並行かつ並列:                                      │
-│   → マルチコアで複数タスクを同時実行                  │
-│   → 例: Go の goroutine + マルチコア                 │
-│   → 複数のタスクが複数コアで同時に進行                │
+│   Both concurrent and parallel:                     │
+│   -> Multiple tasks running simultaneously on       │
+│      multiple cores                                 │
+│   -> Example: Go goroutines + multicore             │
+│   -> Multiple tasks progressing simultaneously      │
+│      on multiple cores                              │
 │                                                     │
-│   どちらでもない:                                    │
-│   → 単一タスクを単一コアで逐次実行                   │
-│   → 例: 普通の for ループ                            │
+│   Neither:                                          │
+│   -> Sequential execution of a single task          │
+│      on a single core                               │
+│   -> Example: an ordinary for loop                  │
 │                                                     │
 └─────────────────────────────────────────────────────┘
 ```
 
-### 1.3 並行性のレベル
+### 1.3 Levels of Concurrency
 
 ```
-レベル1: プロセスレベルの並行性
-  → OS が複数プロセスをスケジューリング
-  → プロセス間はメモリ空間が分離
-  → IPC（Inter-Process Communication）で通信
-  → 例: fork(), マルチプロセスWebサーバー（Apache prefork）
+Level 1: Process-level concurrency
+  -> OS schedules multiple processes
+  -> Memory spaces are isolated between processes
+  -> Communication via IPC (Inter-Process Communication)
+  -> Example: fork(), multi-process web servers (Apache prefork)
 
-レベル2: スレッドレベルの並行性
-  → 1プロセス内で複数スレッド
-  → メモリ空間を共有 → 同期が必要
-  → 例: Java スレッド、C++ std::thread、Python threading
+Level 2: Thread-level concurrency
+  -> Multiple threads within a single process
+  -> Shared memory space -> synchronization required
+  -> Example: Java threads, C++ std::thread, Python threading
 
-レベル3: コルーチン/ファイバーレベルの並行性
-  → ユーザー空間で切り替え（カーネル不要）
-  → 非常に軽量
-  → 例: Go goroutine、Kotlin coroutines、Python asyncio
+Level 3: Coroutine/fiber-level concurrency
+  -> Switching in user space (no kernel involvement)
+  -> Extremely lightweight
+  -> Example: Go goroutines, Kotlin coroutines, Python asyncio
 
-レベル4: 命令レベルの並列性（ILP）
-  → CPU がパイプライン/スーパースカラで命令を並列実行
-  → プログラマから透明
-  → 例: CPU のアウトオブオーダー実行
+Level 4: Instruction-level parallelism (ILP)
+  -> CPU executes instructions in parallel via pipelining/superscalar
+  -> Transparent to the programmer
+  -> Example: CPU out-of-order execution
 
-レベル5: データレベルの並列性（DLP）
-  → 同一命令を複数データに適用
-  → 例: SIMD（SSE, AVX）、GPU のCUDA/OpenCL
+Level 5: Data-level parallelism (DLP)
+  -> Applies the same instruction to multiple data elements
+  -> Example: SIMD (SSE, AVX), GPU CUDA/OpenCL
 ```
 
-### 1.4 コードで見る並行と並列
+### 1.4 Concurrency and Parallelism in Code
 
 ```go
 package main
@@ -118,8 +120,8 @@ import (
 )
 
 func main() {
-    // 並行だが並列でない（1コアのみ使用）
-    runtime.GOMAXPROCS(1) // 使用するOSスレッド数を1に制限
+    // Concurrent but not parallel (using only 1 core)
+    runtime.GOMAXPROCS(1) // Limit the number of OS threads to 1
 
     var wg sync.WaitGroup
     start := time.Now()
@@ -134,9 +136,9 @@ func main() {
     }
     wg.Wait()
     fmt.Printf("1 core: total %v\n\n", time.Since(start))
-    // → 約100ms（I/O待ちは並行処理されるので合計は100ms程度）
+    // -> About 100ms (I/O waits are processed concurrently, so total is ~100ms)
 
-    // 並行かつ並列（全コア使用）
+    // Both concurrent and parallel (using all cores)
     runtime.GOMAXPROCS(runtime.NumCPU())
     start = time.Now()
 
@@ -144,7 +146,7 @@ func main() {
         wg.Add(1)
         go func(id int) {
             defer wg.Done()
-            // CPU集約型処理
+            // CPU-intensive processing
             sum := 0
             for j := 0; j < 100_000_000; j++ {
                 sum += j
@@ -154,7 +156,7 @@ func main() {
     }
     wg.Wait()
     fmt.Printf("all cores: total %v\n", time.Since(start))
-    // → CPU集約型は並列実行により高速化
+    // -> CPU-intensive work is accelerated through parallel execution
 }
 ```
 
@@ -163,18 +165,18 @@ import asyncio
 import time
 import multiprocessing
 
-# Pythonでの並行（asyncio）と並列（multiprocessing）
+# Concurrency (asyncio) and parallelism (multiprocessing) in Python
 
-# 並行: I/O待ちを効率的に処理
+# Concurrency: efficiently handling I/O waits
 async def concurrent_io():
-    """シングルスレッドだが、I/O待ちの間に他タスクを処理"""
+    """Single-threaded, but processes other tasks while waiting on I/O"""
     start = time.time()
 
     async def fetch(name: str, delay: float) -> str:
-        await asyncio.sleep(delay)  # I/O待ちをシミュレート
+        await asyncio.sleep(delay)  # Simulate I/O wait
         return f"{name} done"
 
-    # 4つのI/Oタスクを並行実行
+    # Run 4 I/O tasks concurrently
     results = await asyncio.gather(
         fetch("A", 0.1),
         fetch("B", 0.2),
@@ -182,16 +184,16 @@ async def concurrent_io():
         fetch("D", 0.1),
     )
     print(f"Concurrent I/O: {time.time() - start:.3f}s")
-    # → 約0.2秒（最も遅いタスクの時間）
+    # -> About 0.2 seconds (the time of the slowest task)
     return results
 
-# 並列: CPU集約型を複数コアで処理
+# Parallelism: processing CPU-intensive work across multiple cores
 def cpu_heavy(n: int) -> int:
-    """CPU集約的な処理"""
+    """CPU-intensive processing"""
     return sum(range(n))
 
 def parallel_cpu():
-    """複数プロセスで並列実行"""
+    """Parallel execution across multiple processes"""
     start = time.time()
     with multiprocessing.Pool(4) as pool:
         results = pool.map(cpu_heavy, [10_000_000] * 4)
@@ -205,39 +207,39 @@ if __name__ == "__main__":
 
 ---
 
-## 2. マルチスレッドモデル
+## 2. Multithreading Model
 
-### 2.1 基本構造
+### 2.1 Basic Structure
 
 ```
-仕組み:
-  → OSスレッドを複数生成
-  → 共有メモリでデータを交換
-  → ロック（Mutex）で排他制御
+Mechanism:
+  -> Creates multiple OS threads
+  -> Exchanges data via shared memory
+  -> Uses locks (Mutex) for mutual exclusion
 
   Thread 1 ─────────────────────────→
   Thread 2 ─────────────────────────→
   Thread 3 ─────────────────────────→
-       ↕ 共有メモリ ↕
+       ↕ Shared Memory ↕
   ┌──────────────────┐
-  │  Shared State    │ ← Mutex でロック
+  │  Shared State    │ <- Locked with Mutex
   └──────────────────┘
 
-利点:
-  ✓ 真の並列実行（マルチコア活用）
-  ✓ CPU集約型に適する
-  ✓ OSが自動的にスケジューリング
+Advantages:
+  ✓ True parallel execution (utilizes multiple cores)
+  ✓ Well suited for CPU-intensive tasks
+  ✓ OS handles scheduling automatically
 
-欠点:
-  ✗ 共有状態のロック管理が複雑
-  ✗ デッドロック、レースコンディション
-  ✗ スレッド生成のオーバーヘッド（~1MB/スレッド）
-  ✗ デバッグ困難
+Disadvantages:
+  ✗ Complex lock management for shared state
+  ✗ Deadlocks, race conditions
+  ✗ Thread creation overhead (~1MB/thread)
+  ✗ Difficult to debug
 
-代表: Java, C++, Python(GILあり), Rust
+Representative languages: Java, C++, Python (with GIL), Rust
 ```
 
-### 2.2 Javaのマルチスレッド
+### 2.2 Java Multithreading
 
 ```java
 import java.util.concurrent.*;
@@ -246,7 +248,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 public class MultithreadingExamples {
 
-    // 基本: Thread クラス
+    // Basic: Thread class
     public void basicThread() {
         Thread thread = new Thread(() -> {
             System.out.println("Running in thread: " + Thread.currentThread().getName());
@@ -254,9 +256,9 @@ public class MultithreadingExamples {
         thread.start();
     }
 
-    // スレッドプール: ExecutorService
+    // Thread pool: ExecutorService
     public void threadPool() {
-        // CPU数に合わせたプールサイズ
+        // Pool size matched to CPU count
         int poolSize = Runtime.getRuntime().availableProcessors();
         ExecutorService executor = Executors.newFixedThreadPool(poolSize);
 
@@ -270,7 +272,7 @@ public class MultithreadingExamples {
             }));
         }
 
-        // 結果の収集
+        // Collect results
         for (Future<String> future : futures) {
             try {
                 System.out.println(future.get(5, TimeUnit.SECONDS));
@@ -282,14 +284,14 @@ public class MultithreadingExamples {
         executor.shutdown();
     }
 
-    // 共有状態の管理: synchronized
+    // Managing shared state: synchronized
     private int counter = 0;
 
     public synchronized void incrementSafe() {
         counter++;
     }
 
-    // より細かいロック制御: ReentrantLock
+    // Finer-grained lock control: ReentrantLock
     private final ReentrantLock lock = new ReentrantLock();
     private final Map<String, String> sharedMap = new HashMap<>();
 
@@ -298,18 +300,18 @@ public class MultithreadingExamples {
         try {
             sharedMap.put(key, value);
         } finally {
-            lock.unlock(); // 必ずfinallyでロック解放
+            lock.unlock(); // Always release the lock in finally
         }
     }
 
-    // ロック不要: Atomic変数
+    // Lock-free: Atomic variables
     private final AtomicLong atomicCounter = new AtomicLong(0);
 
     public void atomicIncrement() {
-        atomicCounter.incrementAndGet(); // CAS操作でスレッドセーフ
+        atomicCounter.incrementAndGet(); // Thread-safe via CAS operation
     }
 
-    // Producer-Consumer パターン
+    // Producer-Consumer pattern
     public void producerConsumer() {
         BlockingQueue<String> queue = new LinkedBlockingQueue<>(100);
 
@@ -317,7 +319,7 @@ public class MultithreadingExamples {
         new Thread(() -> {
             for (int i = 0; i < 1000; i++) {
                 try {
-                    queue.put("Item " + i); // キューが満杯ならブロック
+                    queue.put("Item " + i); // Blocks if the queue is full
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }
@@ -328,7 +330,7 @@ public class MultithreadingExamples {
         new Thread(() -> {
             while (true) {
                 try {
-                    String item = queue.take(); // キューが空ならブロック
+                    String item = queue.take(); // Blocks if the queue is empty
                     process(item);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
@@ -340,13 +342,13 @@ public class MultithreadingExamples {
 }
 ```
 
-### 2.3 Rustのスレッドモデル
+### 2.3 Rust Thread Model
 
 ```rust
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
 
-// Rust: 所有権システムでスレッド安全性をコンパイル時に保証
+// Rust: ownership system guarantees thread safety at compile time
 
 fn basic_threading() {
     let mut handles = vec![];
@@ -365,7 +367,7 @@ fn basic_threading() {
     println!("Results: {:?}", results);
 }
 
-// Arc<Mutex<T>> で共有状態
+// Shared state with Arc<Mutex<T>>
 fn shared_state() {
     let counter = Arc::new(Mutex::new(0));
     let mut handles = vec![];
@@ -375,7 +377,7 @@ fn shared_state() {
         let handle = thread::spawn(move || {
             let mut num = counter.lock().unwrap();
             *num += 1;
-            // ロックはスコープ終了時に自動解放
+            // Lock is automatically released when the scope ends
         });
         handles.push(handle);
     }
@@ -387,25 +389,25 @@ fn shared_state() {
     println!("Counter: {}", *counter.lock().unwrap());
 }
 
-// RwLock: 読み取りは複数同時、書き込みは排他
+// RwLock: multiple concurrent reads, exclusive writes
 fn read_write_lock() {
     let data = Arc::new(RwLock::new(vec![1, 2, 3]));
 
-    // 複数の読み取りスレッド
+    // Multiple reader threads
     let mut readers = vec![];
     for i in 0..5 {
         let data = Arc::clone(&data);
         readers.push(thread::spawn(move || {
-            let values = data.read().unwrap(); // 読み取りロック
+            let values = data.read().unwrap(); // Read lock
             println!("Reader {}: {:?}", i, *values);
         }));
     }
 
-    // 書き込みスレッド
+    // Writer thread
     {
         let data = Arc::clone(&data);
         thread::spawn(move || {
-            let mut values = data.write().unwrap(); // 書き込みロック
+            let mut values = data.write().unwrap(); // Write lock
             values.push(4);
         }).join().unwrap();
     }
@@ -415,64 +417,64 @@ fn read_write_lock() {
     }
 }
 
-// コンパイルエラーの例: Rust が防ぐデータ競合
+// Compile error example: Rust prevents data races
 // fn compile_error() {
 //     let mut data = vec![1, 2, 3];
 //
-//     // ❌ コンパイルエラー: data を複数スレッドに move できない
+//     // Compile error: cannot move data into multiple threads
 //     thread::spawn(|| { data.push(4); });
 //     thread::spawn(|| { data.push(5); });
 //
-//     // → Arc<Mutex<Vec<i32>>> を使う必要がある
+//     // -> Must use Arc<Mutex<Vec<i32>>> instead
 // }
 ```
 
-### 2.4 マルチスレッドの危険性
+### 2.4 Dangers of Multithreading
 
 ```
-デッドロック:
-  Thread A: lock(X) → lock(Y)
-  Thread B: lock(Y) → lock(X)
-  → 互いに相手のロック解放を待ち続ける
+Deadlock:
+  Thread A: lock(X) -> lock(Y)
+  Thread B: lock(Y) -> lock(X)
+  -> Each thread waits indefinitely for the other to release its lock
 
-  防止策:
-  1. ロックの順序を統一する
-  2. タイムアウト付きロック（tryLock）
-  3. ロック階層プロトコル
+  Prevention strategies:
+  1. Unify lock acquisition order
+  2. Timed locks (tryLock)
+  3. Lock hierarchy protocol
 
-レースコンディション:
-  Thread A: read(x) → x + 1 → write(x)
-  Thread B: read(x) → x + 1 → write(x)
-  → x を同時に読み、同じ値 +1 を書き込む
-  → x が1しか増えない（本来2増えるべき）
+Race condition:
+  Thread A: read(x) -> x + 1 -> write(x)
+  Thread B: read(x) -> x + 1 -> write(x)
+  -> Both read x simultaneously and write the same value + 1
+  -> x only increases by 1 (should increase by 2)
 
-  防止策:
+  Prevention strategies:
   1. Mutex / synchronized
-  2. Atomic操作（CAS）
-  3. 不変データ構造
+  2. Atomic operations (CAS)
+  3. Immutable data structures
 
 Priority Inversion:
-  → 低優先度スレッドがロックを保持
-  → 高優先度スレッドがロック待ち
-  → 中優先度スレッドが低優先度を横取り
-  → 高優先度が永遠に待つ
+  -> Low-priority thread holds a lock
+  -> High-priority thread waits for the lock
+  -> Medium-priority thread preempts the low-priority thread
+  -> High-priority thread waits forever
 
-  防止策:
+  Prevention strategies:
   1. Priority Inheritance Protocol
-  2. ロック保持時間の最小化
+  2. Minimize lock hold time
 ```
 
 ```java
-// デッドロックの例
+// Deadlock example
 public class DeadlockExample {
     private final Object lockA = new Object();
     private final Object lockB = new Object();
 
-    // ❌ デッドロックの可能性
+    // Potential deadlock
     public void method1() {
         synchronized (lockA) {
             System.out.println("Thread 1: locked A");
-            // この間に Thread 2 が lockB を取得
+            // Meanwhile, Thread 2 acquires lockB
             synchronized (lockB) {
                 System.out.println("Thread 1: locked B");
             }
@@ -482,16 +484,16 @@ public class DeadlockExample {
     public void method2() {
         synchronized (lockB) {
             System.out.println("Thread 2: locked B");
-            // lockA は Thread 1 が保持中 → デッドロック
+            // lockA is held by Thread 1 -> deadlock
             synchronized (lockA) {
                 System.out.println("Thread 2: locked A");
             }
         }
     }
 
-    // ✅ 修正: ロック順序を統一
+    // Fix: unify lock order
     public void method1Fixed() {
-        synchronized (lockA) {  // 常にAが先
+        synchronized (lockA) {  // Always acquire A first
             synchronized (lockB) {
                 System.out.println("Thread 1: locked A, B");
             }
@@ -499,7 +501,7 @@ public class DeadlockExample {
     }
 
     public void method2Fixed() {
-        synchronized (lockA) {  // 常にAが先
+        synchronized (lockA) {  // Always acquire A first
             synchronized (lockB) {
                 System.out.println("Thread 2: locked A, B");
             }
@@ -510,116 +512,116 @@ public class DeadlockExample {
 
 ---
 
-## 3. イベントループモデル
+## 3. Event Loop Model
 
-### 3.1 基本構造
+### 3.1 Basic Structure
 
 ```
-仕組み:
-  → シングルスレッドでイベントキューを処理
-  → I/Oはノンブロッキング（OSに委任）
-  → I/O完了時にコールバックをキューに追加
+Mechanism:
+  -> Processes an event queue on a single thread
+  -> I/O is non-blocking (delegated to the OS)
+  -> Adds callbacks to the queue when I/O completes
 
   ┌──────────────────────────────────────┐
-  │           イベントループ              │
+  │           Event Loop                 │
   │  ┌──────────────────────────────┐   │
-  │  │ 1. コールスタック実行         │   │
-  │  │ 2. マイクロタスク処理         │   │
-  │  │ 3. マクロタスク1つ実行        │   │
-  │  │ 4. → 1に戻る                 │   │
+  │  │ 1. Execute call stack        │   │
+  │  │ 2. Process microtasks        │   │
+  │  │ 3. Execute one macrotask     │   │
+  │  │ 4. -> Return to step 1      │   │
   │  └──────────────────────────────┘   │
-  │         ↑ 完了通知                   │
+  │         ↑ Completion notification   │
   │  ┌──────────────────────────────┐   │
-  │  │ OS / libuv（I/O管理）         │   │
-  │  │ ネットワーク、ファイル、タイマー│   │
+  │  │ OS / libuv (I/O management)  │   │
+  │  │ Network, files, timers       │   │
   │  └──────────────────────────────┘   │
   └──────────────────────────────────────┘
 
-利点:
-  ✓ 共有状態のロック不要（シングルスレッド）
-  ✓ 大量の同時接続に強い（C10K問題の解決）
-  ✓ メモリ効率が良い
+Advantages:
+  ✓ No lock needed for shared state (single-threaded)
+  ✓ Excels at handling massive concurrent connections (solves C10K)
+  ✓ Memory efficient
 
-欠点:
-  ✗ CPU集約型に不向き（イベントループをブロック）
-  ✗ マルチコアを直接活用できない
-  ✗ コールバック地獄（async/awaitで改善）
+Disadvantages:
+  ✗ Not suited for CPU-intensive tasks (blocks the event loop)
+  ✗ Cannot directly utilize multiple cores
+  ✗ Callback hell (improved with async/await)
 
-代表: JavaScript(Node.js/ブラウザ), Python(asyncio)
+Representative: JavaScript (Node.js/browser), Python (asyncio)
 ```
 
-### 3.2 Node.js イベントループの詳細
+### 3.2 Node.js Event Loop in Detail
 
 ```
-Node.js イベントループのフェーズ:
+Node.js Event Loop Phases:
 
   ┌───────────────────────┐
-  │        timers          │ ← setTimeout, setInterval
+  │        timers          │ <- setTimeout, setInterval
   ├───────────────────────┤
-  │    pending callbacks   │ ← 遅延したI/Oコールバック
+  │    pending callbacks   │ <- Deferred I/O callbacks
   ├───────────────────────┤
-  │     idle, prepare      │ ← 内部使用
+  │     idle, prepare      │ <- Internal use
   ├───────────────────────┤
-  │         poll           │ ← I/Oイベント取得、コールバック実行
+  │         poll           │ <- Retrieve I/O events, execute callbacks
   ├───────────────────────┤
-  │        check           │ ← setImmediate
+  │        check           │ <- setImmediate
   ├───────────────────────┤
-  │    close callbacks     │ ← close イベント
+  │    close callbacks     │ <- close events
   └───────────────────────┘
 
-マイクロタスク vs マクロタスク:
-  マイクロタスク（高優先度）:
+Microtasks vs Macrotasks:
+  Microtasks (high priority):
     - Promise.then/catch/finally
-    - process.nextTick（Node.js）
+    - process.nextTick (Node.js)
     - queueMicrotask
-    → 各フェーズの間に全て処理される
+    -> All processed between each phase
 
-  マクロタスク（通常優先度）:
+  Macrotasks (normal priority):
     - setTimeout/setInterval
     - setImmediate
-    - I/Oコールバック
-    → 1つずつ処理される
+    - I/O callbacks
+    -> Processed one at a time
 ```
 
 ```typescript
-// イベントループの実行順序を確認
-console.log('1. 同期コード');
+// Verifying event loop execution order
+console.log('1. Synchronous code');
 
 setTimeout(() => {
-  console.log('5. setTimeout (マクロタスク)');
+  console.log('5. setTimeout (macrotask)');
 }, 0);
 
 Promise.resolve().then(() => {
-  console.log('3. Promise (マイクロタスク)');
+  console.log('3. Promise (microtask)');
 }).then(() => {
-  console.log('4. Promise chain (マイクロタスク)');
+  console.log('4. Promise chain (microtask)');
 });
 
 process.nextTick(() => {
-  console.log('2. nextTick (マイクロタスク、最優先)');
+  console.log('2. nextTick (microtask, highest priority)');
 });
 
-console.log('1.5. 同期コード2');
+console.log('1.5. Synchronous code 2');
 
-// 出力順序:
-// 1. 同期コード
-// 1.5. 同期コード2
-// 2. nextTick (マイクロタスク、最優先)
-// 3. Promise (マイクロタスク)
-// 4. Promise chain (マイクロタスク)
-// 5. setTimeout (マクロタスク)
+// Output order:
+// 1. Synchronous code
+// 1.5. Synchronous code 2
+// 2. nextTick (microtask, highest priority)
+// 3. Promise (microtask)
+// 4. Promise chain (microtask)
+// 5. setTimeout (macrotask)
 ```
 
-### 3.3 ブラウザのイベントループ
+### 3.3 Browser Event Loop
 
 ```typescript
-// ブラウザのイベントループは Node.js と少し異なる
-// requestAnimationFrame は独自のタイミング
+// The browser event loop differs slightly from Node.js
+// requestAnimationFrame has its own timing
 
-console.log('1. 同期');
+console.log('1. Synchronous');
 
 requestAnimationFrame(() => {
-  console.log('4. requestAnimationFrame（描画前）');
+  console.log('4. requestAnimationFrame (before paint)');
 });
 
 setTimeout(() => {
@@ -627,35 +629,35 @@ setTimeout(() => {
 }, 0);
 
 Promise.resolve().then(() => {
-  console.log('2. Promise (マイクロタスク)');
+  console.log('2. Promise (microtask)');
 });
 
 queueMicrotask(() => {
   console.log('3. queueMicrotask');
 });
 
-// 出力順序:
-// 1. 同期
-// 2. Promise (マイクロタスク)
+// Output order:
+// 1. Synchronous
+// 2. Promise (microtask)
 // 3. queueMicrotask
-// 4. requestAnimationFrame（次の描画フレーム前）
+// 4. requestAnimationFrame (before the next paint frame)
 // 5. setTimeout
 ```
 
-### 3.4 イベントループのブロッキング検出
+### 3.4 Detecting Event Loop Blocking
 
 ```typescript
-// イベントループのブロッキングを検出
+// Detecting event loop blocking
 function detectEventLoopBlocking(): void {
   let lastCheck = Date.now();
 
   setInterval(() => {
     const now = Date.now();
-    const lag = now - lastCheck - 100; // 100ms間隔で設定
+    const lag = now - lastCheck - 100; // Set at 100ms intervals
 
-    if (lag > 50) { // 50ms以上の遅延
+    if (lag > 50) { // Delay over 50ms
       console.warn(`Event loop blocked for ${lag}ms`);
-      // ここでスタックトレースを取得するなどの処理
+      // Could capture a stack trace here, etc.
     }
 
     lastCheck = now;
@@ -670,7 +672,7 @@ h.enable();
 
 setInterval(() => {
   console.log({
-    min: h.min / 1e6,       // ナノ秒 → ミリ秒
+    min: h.min / 1e6,       // nanoseconds -> milliseconds
     max: h.max / 1e6,
     mean: h.mean / 1e6,
     p99: h.percentile(99) / 1e6,
@@ -679,33 +681,33 @@ setInterval(() => {
 }, 5000);
 ```
 
-### 3.5 Python asyncio イベントループ
+### 3.5 Python asyncio Event Loop
 
 ```python
 import asyncio
 import time
 
-# Python の asyncio イベントループ
+# Python's asyncio event loop
 
-# 基本的なコルーチン
+# Basic coroutine
 async def fetch_data(name: str, delay: float) -> str:
     print(f"[{time.time():.3f}] {name}: start")
-    await asyncio.sleep(delay)  # I/O待ちをシミュレート
+    await asyncio.sleep(delay)  # Simulate I/O wait
     print(f"[{time.time():.3f}] {name}: done")
     return f"{name} result"
 
-# タスクの並行実行
+# Concurrent task execution
 async def main():
-    # asyncio.create_task で並行実行
+    # Concurrent execution with asyncio.create_task
     task1 = asyncio.create_task(fetch_data("API-1", 0.2))
     task2 = asyncio.create_task(fetch_data("API-2", 0.3))
     task3 = asyncio.create_task(fetch_data("DB", 0.1))
 
-    # 全て完了を待つ
+    # Wait for all to complete
     results = await asyncio.gather(task1, task2, task3)
     print(f"All results: {results}")
 
-    # タイムアウト付き
+    # With timeout
     try:
         result = await asyncio.wait_for(
             fetch_data("Slow API", 5.0),
@@ -716,12 +718,12 @@ async def main():
 
 asyncio.run(main())
 
-# カスタムイベントループの利用
-# uvloop: libuv ベースの高速イベントループ
+# Using a custom event loop
+# uvloop: a high-performance event loop based on libuv
 import uvloop
 
 async def high_performance_main():
-    # uvloop は CPython のデフォルトイベントループより2-4倍高速
+    # uvloop is 2-4x faster than CPython's default event loop
     pass
 
 uvloop.install()
@@ -730,65 +732,65 @@ asyncio.run(high_performance_main())
 
 ---
 
-## 4. アクターモデル
+## 4. Actor Model
 
-### 4.1 基本構造
+### 4.1 Basic Structure
 
 ```
-仕組み:
-  → 全てが「アクター」（独立したプロセス）
-  → アクター間はメッセージパッシングで通信
-  → 共有状態なし（各アクターが自分の状態を持つ）
+Mechanism:
+  -> Everything is an "actor" (an independent process)
+  -> Actors communicate via message passing
+  -> No shared state (each actor owns its own state)
 
-  ┌─────────┐  メッセージ  ┌─────────┐
+  ┌─────────┐  Message     ┌─────────┐
   │ Actor A │────────────→│ Actor B │
   │ state_a │             │ state_b │
   └─────────┘             └─────────┘
        │                       │
-       │  メッセージ            │ メッセージ
+       │  Message              │ Message
        ↓                       ↓
   ┌─────────┐             ┌─────────┐
   │ Actor C │             │ Actor D │
   │ state_c │             │ state_d │
   └─────────┘             └─────────┘
 
-利点:
-  ✓ 共有状態なし（ロック不要）
-  ✓ 分散システムに自然に拡張
-  ✓ 耐障害性（アクターの再起動）
-  ✓ スケーラビリティ
+Advantages:
+  ✓ No shared state (no locks needed)
+  ✓ Naturally extends to distributed systems
+  ✓ Fault tolerance (actor restarts)
+  ✓ Scalability
 
-欠点:
-  ✗ メッセージパッシングのオーバーヘッド
-  ✗ デバッグが難しい（非同期メッセージ）
-  ✗ 学習コストが高い
+Disadvantages:
+  ✗ Message passing overhead
+  ✗ Difficult to debug (asynchronous messages)
+  ✗ Steep learning curve
 
-代表: Erlang/Elixir(BEAM), Akka(Scala/Java)
+Representative: Erlang/Elixir (BEAM), Akka (Scala/Java)
 ```
 
-### 4.2 Erlang/Elixir のアクターモデル
+### 4.2 Erlang/Elixir Actor Model
 
 ```elixir
-# Elixir: アクターモデルの典型的な実装
+# Elixir: a typical implementation of the actor model
 
-# GenServer: 汎用サーバープロセス
+# GenServer: a generic server process
 defmodule CounterServer do
   use GenServer
 
-  # クライアントAPI
+  # Client API
   def start_link(initial_value \\ 0) do
     GenServer.start_link(__MODULE__, initial_value, name: __MODULE__)
   end
 
   def increment() do
-    GenServer.cast(__MODULE__, :increment)  # 非同期メッセージ
+    GenServer.cast(__MODULE__, :increment)  # Asynchronous message
   end
 
   def get_value() do
-    GenServer.call(__MODULE__, :get_value)  # 同期メッセージ（応答待ち）
+    GenServer.call(__MODULE__, :get_value)  # Synchronous message (waits for reply)
   end
 
-  # サーバーコールバック
+  # Server callbacks
   @impl true
   def init(initial_value) do
     {:ok, initial_value}
@@ -805,7 +807,7 @@ defmodule CounterServer do
   end
 end
 
-# Supervisor: 監視ツリーによる耐障害性
+# Supervisor: fault tolerance through supervision trees
 defmodule MyApp.Supervisor do
   use Supervisor
 
@@ -821,14 +823,14 @@ defmodule MyApp.Supervisor do
       {DatabasePool, pool_size: 10},
     ]
 
-    # one_for_one: 1つのプロセスがクラッシュしたら、それだけ再起動
-    # one_for_all: 1つがクラッシュしたら、全て再起動
-    # rest_for_one: クラッシュ以降の全てを再起動
+    # one_for_one: if one process crashes, only restart that one
+    # one_for_all: if one crashes, restart all
+    # rest_for_one: restart all processes started after the crashed one
     Supervisor.init(children, strategy: :one_for_one)
   end
 end
 
-# 大量のプロセスを生成（軽量: ~2KB/プロセス）
+# Spawning massive numbers of processes (lightweight: ~2KB/process)
 defmodule MassiveSpawn do
   def run(count) do
     pids = for _ <- 1..count do
@@ -839,12 +841,12 @@ defmodule MassiveSpawn do
       end)
     end
 
-    # 全プロセスにメッセージ送信
+    # Send a message to all processes
     for pid <- pids do
       send(pid, {:ping, self()})
     end
 
-    # 全プロセスからの応答を受信
+    # Receive responses from all processes
     for _ <- pids do
       receive do
         :pong -> :ok
@@ -855,17 +857,17 @@ defmodule MassiveSpawn do
   end
 end
 
-# MassiveSpawn.run(1_000_000)  # 100万プロセスも実用的に動作
+# MassiveSpawn.run(1_000_000)  # 1 million processes work practically
 ```
 
-### 4.3 Akka（Scala/Java）
+### 4.3 Akka (Scala/Java)
 
 ```scala
 import akka.actor.{Actor, ActorSystem, Props, ActorRef}
 
-// Akka: JVM上のアクターモデル
+// Akka: the actor model on the JVM
 
-// アクター定義
+// Actor definition
 class CounterActor extends Actor {
   private var count = 0
 
@@ -874,33 +876,33 @@ class CounterActor extends Actor {
       count += 1
 
     case "get" =>
-      sender() ! count  // 応答を送信
+      sender() ! count  // Send reply
 
     case "reset" =>
       count = 0
   }
 }
 
-// 使用例
+// Usage example
 object Main extends App {
   val system = ActorSystem("MySystem")
   val counter = system.actorOf(Props[CounterActor], "counter")
 
-  // メッセージ送信（非同期、Fire-and-forget）
+  // Send message (asynchronous, fire-and-forget)
   counter ! "increment"
   counter ! "increment"
   counter ! "increment"
 
-  // 応答を待つ（Ask パターン）
+  // Wait for reply (Ask pattern)
   import akka.pattern.ask
   import scala.concurrent.duration._
   implicit val timeout: akka.util.Timeout = 5.seconds
 
-  val future = counter ? "get"  // Future[Any] を返す
+  val future = counter ? "get"  // Returns Future[Any]
   future.foreach(println)       // 3
 }
 
-// 監視（Supervision）
+// Supervision
 class ParentActor extends Actor {
   import akka.actor.SupervisorStrategy._
   import scala.concurrent.duration._
@@ -909,9 +911,9 @@ class ParentActor extends Actor {
     maxNrOfRetries = 3,
     withinTimeRange = 1.minute
   ) {
-    case _: ArithmeticException => Resume    // 再開
-    case _: NullPointerException => Restart  // 再起動
-    case _: Exception => Escalate            // 上位に委譲
+    case _: ArithmeticException => Resume    // Resume
+    case _: NullPointerException => Restart  // Restart
+    case _: Exception => Escalate            // Escalate to parent
   }
 
   val child: ActorRef = context.actorOf(Props[ChildActor], "child")
@@ -922,63 +924,63 @@ class ParentActor extends Actor {
 }
 ```
 
-### 4.4 アクターモデルのパターン
+### 4.4 Actor Model Patterns
 
 ```
-パターン1: Request-Reply
+Pattern 1: Request-Reply
   Client ──Request──→ Actor ──Reply──→ Client
-  → 同期的なやり取り（タイムアウト付き）
+  -> Synchronous interaction (with timeout)
 
-パターン2: Fire-and-Forget
+Pattern 2: Fire-and-Forget
   Sender ──Message──→ Actor
-  → 応答不要、非同期
+  -> No reply needed, asynchronous
 
-パターン3: Publish-Subscribe
+Pattern 3: Publish-Subscribe
   Publisher ──Message──→ EventBus ──→ Subscriber1
                                   ──→ Subscriber2
                                   ──→ Subscriber3
 
-パターン4: Scatter-Gather
+Pattern 4: Scatter-Gather
   Coordinator ──Task──→ Worker1 ──Result──→ Aggregator
               ──Task──→ Worker2 ──Result──→
               ──Task──→ Worker3 ──Result──→
 
-パターン5: Pipeline
+Pattern 5: Pipeline
   Stage1 ──→ Stage2 ──→ Stage3 ──→ Stage4
-  → 各ステージがアクター
-  → バックプレッシャー可能
+  -> Each stage is an actor
+  -> Backpressure is possible
 
-パターン6: Circuit Breaker
-  → 障害が一定回数連続したらアクターへのメッセージを遮断
-  → 一定時間後に再試行
-  → 障害の連鎖を防止
+Pattern 6: Circuit Breaker
+  -> Blocks messages to an actor after a certain number of consecutive failures
+  -> Retries after a specified time
+  -> Prevents failure cascading
 ```
 
 ---
 
-## 5. CSP（Communicating Sequential Processes）
+## 5. CSP (Communicating Sequential Processes)
 
-### 5.1 基本構造
+### 5.1 Basic Structure
 
 ```
-仕組み:
-  → 軽量スレッド（goroutine）× 多数
-  → チャネルでデータを送受信
-  → 「メモリを共有して通信するな、通信してメモリを共有しろ」
+Mechanism:
+  -> Lightweight threads (goroutines) x many
+  -> Data is sent and received through channels
+  -> "Don't communicate by sharing memory; share memory by communicating"
 
   goroutine 1 ───→ [channel] ───→ goroutine 2
   goroutine 3 ───→ [channel] ───→ goroutine 4
 
-利点:
-  ✓ 軽量（goroutine: ~2KB、スレッド: ~1MB）
-  ✓ チャネルによる安全な通信
-  ✓ ランタイムが自動スケジューリング
-  ✓ マルチコアを自動活用
+Advantages:
+  ✓ Lightweight (goroutine: ~2KB, thread: ~1MB)
+  ✓ Safe communication via channels
+  ✓ Runtime handles scheduling automatically
+  ✓ Automatic multicore utilization
 
-代表: Go, Clojure(core.async)
+Representative: Go, Clojure (core.async)
 ```
 
-### 5.2 Go のチャネルパターン
+### 5.2 Go Channel Patterns
 
 ```go
 package main
@@ -990,7 +992,7 @@ import (
     "time"
 )
 
-// パターン1: Generator（ジェネレーター）
+// Pattern 1: Generator
 func fibonacci(ctx context.Context) <-chan int {
     ch := make(chan int)
     go func() {
@@ -1008,7 +1010,7 @@ func fibonacci(ctx context.Context) <-chan int {
     return ch
 }
 
-// パターン2: Fan-Out / Fan-In
+// Pattern 2: Fan-Out / Fan-In
 func fanOut(input <-chan int, workers int) []<-chan int {
     channels := make([]<-chan int, workers)
     for i := 0; i < workers; i++ {
@@ -1044,13 +1046,13 @@ func process(input <-chan int) <-chan int {
     go func() {
         defer close(output)
         for v := range input {
-            output <- v * 2 // 処理
+            output <- v * 2 // Processing
         }
     }()
     return output
 }
 
-// パターン3: Pipeline
+// Pattern 3: Pipeline
 func source(nums ...int) <-chan int {
     out := make(chan int)
     go func() {
@@ -1087,7 +1089,7 @@ func filter(in <-chan int, predicate func(int) bool) <-chan int {
 }
 
 func main() {
-    // Pipeline: source → square → filter
+    // Pipeline: source -> square -> filter
     numbers := source(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
     squared := square(numbers)
     even := filter(squared, func(n int) bool { return n%2 == 0 })
@@ -1097,7 +1099,7 @@ func main() {
     }
 }
 
-// パターン4: Worker Pool
+// Pattern 4: Worker Pool
 func workerPool(jobs <-chan int, results chan<- int, workerCount int) {
     var wg sync.WaitGroup
 
@@ -1106,7 +1108,7 @@ func workerPool(jobs <-chan int, results chan<- int, workerCount int) {
         go func(workerID int) {
             defer wg.Done()
             for job := range jobs {
-                result := processJob(job) // 実際の処理
+                result := processJob(job) // Actual processing
                 results <- result
             }
         }(i)
@@ -1119,11 +1121,11 @@ func workerPool(jobs <-chan int, results chan<- int, workerCount int) {
 }
 
 func processJob(job int) int {
-    time.Sleep(10 * time.Millisecond) // 処理をシミュレート
+    time.Sleep(10 * time.Millisecond) // Simulate processing
     return job * 2
 }
 
-// パターン5: Select による多重化
+// Pattern 5: Multiplexing with Select
 func multiplexer(ctx context.Context) {
     ticker := time.NewTicker(1 * time.Second)
     defer ticker.Stop()
@@ -1146,7 +1148,7 @@ func multiplexer(ctx context.Context) {
     }
 }
 
-// パターン6: Rate Limiter（レート制限）
+// Pattern 6: Rate Limiter
 func rateLimiter(requests <-chan string, ratePerSecond int) <-chan string {
     output := make(chan string)
     ticker := time.NewTicker(time.Second / time.Duration(ratePerSecond))
@@ -1155,7 +1157,7 @@ func rateLimiter(requests <-chan string, ratePerSecond int) <-chan string {
         defer close(output)
         defer ticker.Stop()
         for req := range requests {
-            <-ticker.C // レート制限
+            <-ticker.C // Rate limiting
             output <- req
         }
     }()
@@ -1164,60 +1166,63 @@ func rateLimiter(requests <-chan string, ratePerSecond int) <-chan string {
 }
 ```
 
-### 5.3 CSPとアクターモデルの比較
+### 5.3 CSP vs Actor Model Comparison
 
 ```
-                    CSP（Go）              アクターモデル（Erlang）
-通信方法           チャネル（匿名）         メッセージ（アドレス指定）
-プロセス識別       匿名（チャネルで接続）    PID / 名前
-ブロック           送受信でブロック可能       非ブロッキング（メールボックス）
-同期               同期通信がデフォルト       非同期通信がデフォルト
-分散               標準では非対応            ネイティブサポート
-耐障害性           手動実装が必要            Supervisor ツリー
-バッファ           バッファ付きチャネル可     メールボックスは無制限
+                    CSP (Go)               Actor Model (Erlang)
+Communication      Channels (anonymous)     Messages (addressed)
+Process identity   Anonymous (connected     PID / name
+                   via channels)
+Blocking           Can block on send/recv   Non-blocking (mailbox)
+Synchronization    Synchronous by default   Asynchronous by default
+Distribution       Not supported by default Native support
+Fault tolerance    Must be implemented      Supervisor trees
+                   manually
+Buffering          Buffered channels        Unbounded mailboxes
+                   available
 
-CSP の長所:
-  → 同期通信でデータフローが明確
-  → select による複数チャネルの待ち受け
-  → チャネルの方向性（送信専用/受信専用）を型で表現
+CSP strengths:
+  -> Synchronous communication makes data flow explicit
+  -> select for waiting on multiple channels
+  -> Channel directionality (send-only/receive-only) expressed in the type system
 
-アクターモデルの長所:
-  → 分散環境に自然に拡張
-  → 耐障害性のフレームワークが充実
-  → アクター単位でのGC・メモリ管理
+Actor model strengths:
+  -> Naturally extends to distributed environments
+  -> Rich fault tolerance frameworks
+  -> Per-actor GC and memory management
 ```
 
 ---
 
-## 6. その他の並行モデル
+## 6. Other Concurrency Models
 
-### 6.1 Software Transactional Memory（STM）
+### 6.1 Software Transactional Memory (STM)
 
 ```
-STM: データベースのトランザクションに似たメモリ操作
+STM: memory operations similar to database transactions
 
   atomically $ do
     balance1 <- readTVar account1
     balance2 <- readTVar account2
     writeTVar account1 (balance1 - 100)
     writeTVar account2 (balance2 + 100)
-  -- コンフリクトがあれば自動的にリトライ
+  -- Automatically retries on conflict
 
-利点:
-  ✓ 楽観的並行制御（ロック不要）
-  ✓ コンポーザブル（トランザクションの合成が可能）
-  ✓ デッドロックなし
+Advantages:
+  ✓ Optimistic concurrency control (no locks)
+  ✓ Composable (transactions can be combined)
+  ✓ No deadlocks
 
-欠点:
-  ✗ 副作用のある処理には使えない
-  ✗ リトライのオーバーヘッド
-  ✗ ライブロック（常にコンフリクト）の可能性
+Disadvantages:
+  ✗ Cannot be used with side-effecting operations
+  ✗ Retry overhead
+  ✗ Potential for livelock (constant conflicts)
 
-代表: Haskell(STM), Clojure(Ref/STM)
+Representative: Haskell (STM), Clojure (Ref/STM)
 ```
 
 ```haskell
--- Haskell STM: 銀行口座の送金
+-- Haskell STM: bank account transfer
 import Control.Concurrent.STM
 
 type Account = TVar Int
@@ -1230,14 +1235,14 @@ transfer from to amount = do
         then do
             writeTVar from (fromBalance - amount)
             writeTVar to (toBalance + amount)
-        else retry  -- 残高不足なら再試行を待つ
+        else retry  -- Wait for retry if insufficient balance
 
 main :: IO ()
 main = do
     account1 <- newTVarIO 1000
     account2 <- newTVarIO 500
 
-    -- アトミックに実行（コンフリクト時は自動リトライ）
+    -- Execute atomically (auto-retries on conflict)
     atomically $ transfer account1 account2 200
 
     balance1 <- readTVarIO account1
@@ -1246,36 +1251,36 @@ main = do
     putStrLn $ "Account 2: " ++ show balance2  -- 700
 ```
 
-### 6.2 Structured Concurrency（構造化並行性）
+### 6.2 Structured Concurrency
 
 ```
-構造化並行性:
-  → 並行タスクにスコープ（境界）を設ける
-  → 親タスク終了時に子タスクも必ず終了
-  → リソースリークを防ぐ
-  → Kotlin coroutines, Swift concurrency, Java 21 で採用
+Structured Concurrency:
+  -> Provides scopes (boundaries) for concurrent tasks
+  -> Child tasks must complete when the parent task ends
+  -> Prevents resource leaks
+  -> Adopted in Kotlin coroutines, Swift concurrency, Java 21
 
-通常の並行:
+Unstructured concurrency:
   func parent() {
-    spawn(child1)  // 生成して忘れる → リークの可能性
-    spawn(child2)  // 生成して忘れる
-    return         // 子タスクの完了を待たない
+    spawn(child1)  // Fire and forget -> potential leak
+    spawn(child2)  // Fire and forget
+    return         // Does not wait for child task completion
   }
 
-構造化並行:
+Structured concurrency:
   func parent() {
     taskGroup {
-      spawn(child1)  // スコープ内で生成
+      spawn(child1)  // Spawned within a scope
       spawn(child2)
-    }  // ← ここで全ての子タスクの完了を待つ
-    // child1, child2 が完了するまで先に進まない
+    }  // <- Waits for all child tasks to complete here
+    // Execution does not proceed until child1 and child2 are done
   }
 ```
 
 ```swift
 // Swift: Structured Concurrency
 func fetchDashboard() async throws -> Dashboard {
-    // TaskGroup: 構造化された並行実行
+    // TaskGroup: structured concurrent execution
     try await withThrowingTaskGroup(of: DashboardComponent.self) { group in
         group.addTask { try await fetchUser() }
         group.addTask { try await fetchOrders() }
@@ -1285,37 +1290,37 @@ func fetchDashboard() async throws -> Dashboard {
         for try await component in group {
             components.append(component)
         }
-        // グループを抜ける時、全タスクは完了済み
+        // When exiting the group, all tasks have completed
         return Dashboard(components: components)
     }
 }
 
-// TaskGroup のキャンセル
+// TaskGroup cancellation
 func fetchWithCancellation() async throws -> Data {
     try await withThrowingTaskGroup(of: Data.self) { group in
         group.addTask {
-            try await fetchFromServer1() // 遅い
+            try await fetchFromServer1() // Slow
         }
         group.addTask {
-            try await fetchFromServer2() // 速い
+            try await fetchFromServer2() // Fast
         }
 
-        // 最初に完了したものを使い、残りはキャンセル
+        // Use the first completed result, cancel the rest
         guard let result = try await group.next() else {
             throw FetchError.noResult
         }
-        group.cancelAll() // 残りのタスクをキャンセル
+        group.cancelAll() // Cancel remaining tasks
         return result
     }
 }
 ```
 
 ```kotlin
-// Kotlin: Coroutines による構造化並行性
+// Kotlin: Structured Concurrency with Coroutines
 import kotlinx.coroutines.*
 
 suspend fun fetchDashboard(): Dashboard = coroutineScope {
-    // coroutineScope 内の全タスクが完了するまで待つ
+    // Waits for all tasks within coroutineScope to complete
     val userDeferred = async { fetchUser() }
     val ordersDeferred = async { fetchOrders() }
     val notifsDeferred = async { fetchNotifications() }
@@ -1325,10 +1330,10 @@ suspend fun fetchDashboard(): Dashboard = coroutineScope {
         orders = ordersDeferred.await(),
         notifications = notifsDeferred.await()
     )
-    // いずれかが例外を投げたら、他も自動キャンセル
+    // If any throws an exception, the others are automatically cancelled
 }
 
-// SupervisorScope: 子の失敗が他の子に影響しない
+// SupervisorScope: one child's failure does not affect other children
 suspend fun resilientFetch(): Dashboard = supervisorScope {
     val user = async { fetchUser() }
     val orders = async {
@@ -1346,31 +1351,31 @@ suspend fun resilientFetch(): Dashboard = supervisorScope {
 }
 ```
 
-### 6.3 データ並列モデル
+### 6.3 Data Parallel Model
 
 ```
-データ並列（Data Parallelism）:
-  → 同じ操作を複数のデータに同時適用
-  → GPU計算、SIMD命令、MapReduce
+Data Parallelism:
+  -> Applies the same operation to multiple data elements simultaneously
+  -> GPU computing, SIMD instructions, MapReduce
 
   CPU SIMD:
-    通常:     a[0]*b[0]  a[1]*b[1]  a[2]*b[2]  a[3]*b[3]  (4回の乗算)
-    SIMD:    [a[0] a[1] a[2] a[3]] * [b[0] b[1] b[2] b[3]]  (1命令で4乗算)
+    Normal:   a[0]*b[0]  a[1]*b[1]  a[2]*b[2]  a[3]*b[3]  (4 multiplications)
+    SIMD:    [a[0] a[1] a[2] a[3]] * [b[0] b[1] b[2] b[3]]  (4 multiplications in 1 instruction)
 
   GPU (CUDA):
-    → 数千のコアが同じカーネルを実行
-    → 行列演算、機械学習に最適
+    -> Thousands of cores execute the same kernel
+    -> Optimal for matrix operations and machine learning
 
   MapReduce:
-    Map:    [data1, data2, data3, ...] → [result1, result2, result3, ...]
-    Reduce: [result1, result2, result3, ...] → finalResult
-    → 分散環境でのデータ処理（Hadoop, Spark）
+    Map:    [data1, data2, data3, ...] -> [result1, result2, result3, ...]
+    Reduce: [result1, result2, result3, ...] -> finalResult
+    -> Data processing in distributed environments (Hadoop, Spark)
 ```
 
 ```python
-# Python: データ並列の例
+# Python: data parallelism examples
 
-# 1. multiprocessing.Pool でデータ並列
+# 1. Data parallelism with multiprocessing.Pool
 from multiprocessing import Pool
 
 def square(x):
@@ -1378,26 +1383,26 @@ def square(x):
 
 with Pool(4) as p:
     results = p.map(square, range(100))
-    # 100個のデータを4プロセスで並列処理
+    # 100 data elements processed in parallel across 4 processes
 
-# 2. NumPy: ベクトル化（暗黙的なデータ並列）
+# 2. NumPy: vectorization (implicit data parallelism)
 import numpy as np
 
 a = np.array([1, 2, 3, 4, 5])
 b = np.array([10, 20, 30, 40, 50])
-c = a * b  # 要素ごとの乗算（SIMD活用）
+c = a * b  # Element-wise multiplication (utilizes SIMD)
 # [10, 40, 90, 160, 250]
 
-# 3. concurrent.futures: 高レベルAPI
+# 3. concurrent.futures: high-level API
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 
-# I/O並行: ThreadPoolExecutor
+# I/O concurrency: ThreadPoolExecutor
 with ThreadPoolExecutor(max_workers=10) as executor:
     urls = ["https://api.example.com/1", "https://api.example.com/2"]
     futures = [executor.submit(fetch_url, url) for url in urls]
     results = [f.result() for f in futures]
 
-# CPU並列: ProcessPoolExecutor
+# CPU parallelism: ProcessPoolExecutor
 with ProcessPoolExecutor(max_workers=4) as executor:
     data_chunks = [data[i::4] for i in range(4)]
     futures = [executor.submit(process_chunk, chunk) for chunk in data_chunks]
@@ -1406,49 +1411,53 @@ with ProcessPoolExecutor(max_workers=4) as executor:
 
 ---
 
-## 7. 比較と選択
+## 7. Comparison and Selection
 
-### 7.1 総合比較表
+### 7.1 Comprehensive Comparison Table
 
 ```
 ┌──────────────┬────────────┬────────────┬────────────┬────────────┐
-│              │ マルチ     │ イベント   │ アクター   │ CSP        │
-│              │ スレッド   │ ループ     │ モデル     │            │
+│              │ Multi-     │ Event      │ Actor      │ CSP        │
+│              │ threading  │ Loop       │ Model      │            │
 ├──────────────┼────────────┼────────────┼────────────┼────────────┤
-│ CPU集約      │ ◎         │ △         │ ○         │ ◎         │
+│ CPU-intensive│ Excellent  │ Poor       │ Good       │ Excellent  │
 ├──────────────┼────────────┼────────────┼────────────┼────────────┤
-│ I/O集約      │ ○         │ ◎         │ ◎         │ ◎         │
+│ I/O-intensive│ Good       │ Excellent  │ Excellent  │ Excellent  │
 ├──────────────┼────────────┼────────────┼────────────┼────────────┤
-│ 同時接続数   │ ~千        │ ~十万      │ ~百万      │ ~百万      │
+│ Concurrent   │ ~thousands │ ~100K      │ ~millions  │ ~millions  │
+│ connections  │            │            │            │            │
 ├──────────────┼────────────┼────────────┼────────────┼────────────┤
-│ 安全性       │ 低(ロック) │ 中         │ 高         │ 高         │
+│ Safety       │ Low (locks)│ Medium     │ High       │ High       │
 ├──────────────┼────────────┼────────────┼────────────┼────────────┤
-│ デバッグ     │ 困難       │ 中程度     │ 困難       │ 中程度     │
+│ Debugging    │ Difficult  │ Moderate   │ Difficult  │ Moderate   │
 ├──────────────┼────────────┼────────────┼────────────┼────────────┤
-│ メモリ効率   │ 低         │ 高         │ 高         │ 高         │
+│ Memory       │ Low        │ High       │ High       │ High       │
+│ efficiency   │            │            │            │            │
 ├──────────────┼────────────┼────────────┼────────────┼────────────┤
-│ 分散対応     │ 手動       │ 手動       │ ネイティブ │ 手動       │
+│ Distribution │ Manual     │ Manual     │ Native     │ Manual     │
+│ support      │            │            │            │            │
 ├──────────────┼────────────┼────────────┼────────────┼────────────┤
-│ 学習コスト   │ 中         │ 低         │ 高         │ 中         │
+│ Learning     │ Medium     │ Low        │ High       │ Medium     │
+│ curve        │            │            │            │            │
 └──────────────┴────────────┴────────────┴────────────┴────────────┘
 
-選択指針:
-  Web API（I/O集約）→ イベントループ or CSP
-  リアルタイム通信 → アクターモデル
-  画像/動画処理 → マルチスレッド
-  マイクロサービス → アクターモデル or CSP
-  分散システム → アクターモデル
-  高パフォーマンスサーバー → CSP（Go）
-  フロントエンド → イベントループ（JS）
+Selection guidelines:
+  Web APIs (I/O-intensive) -> Event loop or CSP
+  Real-time communication -> Actor model
+  Image/video processing -> Multithreading
+  Microservices -> Actor model or CSP
+  Distributed systems -> Actor model
+  High-performance servers -> CSP (Go)
+  Frontend -> Event loop (JS)
 ```
 
-### 7.2 ユースケース別推奨モデル
+### 7.2 Recommended Models by Use Case
 
 ```typescript
-// ユースケース1: REST API サーバー
-// → イベントループ（Node.js）or CSP（Go）
+// Use case 1: REST API server
+// -> Event loop (Node.js) or CSP (Go)
 
-// Node.js: 高い生産性、NPMエコシステム
+// Node.js: high productivity, NPM ecosystem
 import express from 'express';
 const app = express();
 
@@ -1457,7 +1466,7 @@ app.get('/api/users/:id', async (req, res) => {
   res.json(user);
 });
 
-// Go: 高パフォーマンス、静的型付け
+// Go: high performance, static typing
 // func handleUser(w http.ResponseWriter, r *http.Request) {
 //     user, err := db.GetUser(r.PathValue("id"))
 //     json.NewEncoder(w).Encode(user)
@@ -1465,10 +1474,10 @@ app.get('/api/users/:id', async (req, res) => {
 ```
 
 ```elixir
-# ユースケース2: リアルタイムチャット
-# → アクターモデル（Elixir/Phoenix）
+# Use case 2: Real-time chat
+# -> Actor model (Elixir/Phoenix)
 
-# 各チャットルームがアクター（プロセス）
+# Each chat room is an actor (process)
 defmodule ChatRoom do
   use GenServer
 
@@ -1484,7 +1493,7 @@ defmodule ChatRoom do
     GenServer.cast(via(room_id), {:message, user_id, message})
   end
 
-  # 状態: 参加者リスト
+  # State: member list
   def init(room_id) do
     {:ok, %{room_id: room_id, members: MapSet.new()}}
   end
@@ -1495,7 +1504,7 @@ defmodule ChatRoom do
   end
 
   def handle_cast({:message, user_id, message}, state) do
-    # 全メンバーにブロードキャスト
+    # Broadcast to all members
     Enum.each(state.members, fn member ->
       send_to_user(member, %{from: user_id, text: message})
     end)
@@ -1507,8 +1516,8 @@ end
 ```
 
 ```go
-// ユースケース3: データパイプライン
-// → CSP（Go）
+// Use case 3: Data pipeline
+// -> CSP (Go)
 
 package main
 
@@ -1518,17 +1527,17 @@ import (
     "sync"
 )
 
-// ETL パイプライン: Extract → Transform → Load
+// ETL pipeline: Extract -> Transform -> Load
 type Record struct {
     ID   int
     Data string
 }
 
 func extract(source string) <-chan Record {
-    out := make(chan Record, 100) // バッファ付きチャネル
+    out := make(chan Record, 100) // Buffered channel
     go func() {
         defer close(out)
-        // データソースから読み取り
+        // Read from data source
         for i := 0; i < 1000; i++ {
             out <- Record{ID: i, Data: fmt.Sprintf("raw-%d", i)}
         }
@@ -1545,7 +1554,7 @@ func transform(in <-chan Record, workers int) <-chan Record {
         go func() {
             defer wg.Done()
             for record := range in {
-                // データ変換
+                // Transform data
                 record.Data = fmt.Sprintf("transformed-%s", record.Data)
                 out <- record
             }
@@ -1561,76 +1570,76 @@ func transform(in <-chan Record, workers int) <-chan Record {
 
 func load(in <-chan Record) {
     for record := range in {
-        // データベースに書き込み
+        // Write to database
         data, _ := json.Marshal(record)
         fmt.Println(string(data))
     }
 }
 
 func main() {
-    // パイプライン構築
+    // Build the pipeline
     records := extract("data-source")
-    transformed := transform(records, 4) // 4ワーカーで並行変換
+    transformed := transform(records, 4) // 4 workers for concurrent transformation
     load(transformed)
 }
 ```
 
-### 7.3 実務での選択フローチャート
+### 7.3 Practical Selection Flowchart
 
 ```
-要件を確認:
+Evaluate requirements:
 
-1. 何が支配的か？
-   ├── I/O集約型（API、DB、ファイル）
-   │   ├── 同時接続数 < 1,000 → 何でもOK
-   │   ├── 同時接続数 1,000-10,000
-   │   │   ├── チーム経験: JS → Node.js（イベントループ）
-   │   │   ├── チーム経験: Python → asyncio
-   │   │   └── パフォーマンス重視 → Go（CSP）
-   │   └── 同時接続数 > 10,000
-   │       ├── Go（CSP）
-   │       └── Erlang/Elixir（アクターモデル）
+1. What is the dominant workload?
+   ├── I/O-intensive (APIs, databases, files)
+   │   ├── Concurrent connections < 1,000 -> Anything works
+   │   ├── Concurrent connections 1,000-10,000
+   │   │   ├── Team experience: JS -> Node.js (event loop)
+   │   │   ├── Team experience: Python -> asyncio
+   │   │   └── Performance priority -> Go (CSP)
+   │   └── Concurrent connections > 10,000
+   │       ├── Go (CSP)
+   │       └── Erlang/Elixir (actor model)
    │
-   └── CPU集約型（計算、画像処理、ML）
-       ├── 単純並列 → マルチスレッド（Rust, C++, Java）
-       ├── データ並列 → GPU / SIMD
-       └── パイプライン → Go (CSP) or スレッド + キュー
+   └── CPU-intensive (computation, image processing, ML)
+       ├── Simple parallelism -> Multithreading (Rust, C++, Java)
+       ├── Data parallelism -> GPU / SIMD
+       └── Pipeline -> Go (CSP) or threads + queues
 
-2. 分散が必要か？
-   ├── はい → アクターモデル（Erlang/Elixir, Akka）
-   └── いいえ → 他のモデルで十分
+2. Is distribution required?
+   ├── Yes -> Actor model (Erlang/Elixir, Akka)
+   └── No -> Other models are sufficient
 
-3. 耐障害性が重要か？
-   ├── はい → アクターモデル（Supervisor ツリー）
-   └── いいえ → 他のモデルで十分
+3. Is fault tolerance critical?
+   ├── Yes -> Actor model (supervisor trees)
+   └── No -> Other models are sufficient
 
-4. リアルタイム要件は？
-   ├── WebSocket / SSE → イベントループ or アクターモデル
-   └── REST API → イベントループ or CSP
+4. Real-time requirements?
+   ├── WebSocket / SSE -> Event loop or actor model
+   └── REST API -> Event loop or CSP
 ```
 
 ---
 
-## 8. ハイブリッドアプローチ
+## 8. Hybrid Approaches
 
-### 8.1 Node.js: イベントループ + Worker Threads
+### 8.1 Node.js: Event Loop + Worker Threads
 
 ```typescript
-// Node.js: I/Oはイベントループ、CPUはWorker Threads
+// Node.js: event loop for I/O, Worker Threads for CPU
 import { Worker, isMainThread, parentPort, workerData } from 'worker_threads';
 import { cpus } from 'os';
 
-// メインスレッド: リクエスト処理（I/O）
+// Main thread: request handling (I/O)
 if (isMainThread) {
   const numCPUs = cpus().length;
   const workerPool: Worker[] = [];
   const taskQueue: { data: any; resolve: Function; reject: Function }[] = [];
 
-  // ワーカープールの初期化
+  // Initialize worker pool
   for (let i = 0; i < numCPUs; i++) {
     const worker = new Worker(__filename);
     worker.on('message', (result) => {
-      // 次のタスクを処理
+      // Process the next task
       const nextTask = taskQueue.shift();
       if (nextTask) {
         worker.postMessage(nextTask.data);
@@ -1639,7 +1648,7 @@ if (isMainThread) {
     workerPool.push(worker);
   }
 
-  // CPU集約型タスクをワーカーに委譲
+  // Offload CPU-intensive tasks to workers
   function offloadToWorker(data: any): Promise<any> {
     return new Promise((resolve, reject) => {
       const freeWorker = workerPool.find(w => !w.isBusy);
@@ -1651,25 +1660,25 @@ if (isMainThread) {
     });
   }
 
-  // Express サーバー
+  // Express server
   import express from 'express';
   const app = express();
 
   app.post('/api/process-image', async (req, res) => {
-    // I/O: リクエスト受信（イベントループ）
+    // I/O: receive request (event loop)
     const image = await receiveUpload(req);
 
-    // CPU: 画像処理（ワーカースレッド）
+    // CPU: image processing (worker thread)
     const processed = await offloadToWorker({ type: 'resize', image });
 
-    // I/O: S3にアップロード（イベントループ）
+    // I/O: upload to S3 (event loop)
     const url = await uploadToS3(processed);
 
     res.json({ url });
   });
 }
 
-// ワーカースレッド: CPU集約型処理
+// Worker thread: CPU-intensive processing
 if (!isMainThread) {
   parentPort?.on('message', (data) => {
     const result = heavyComputation(data);
@@ -1685,29 +1694,29 @@ import asyncio
 from concurrent.futures import ProcessPoolExecutor
 from functools import partial
 
-# CPU集約型処理
+# CPU-intensive processing
 def cpu_bound_task(data: bytes) -> bytes:
-    """画像処理などCPU集約型（別プロセスで実行）"""
+    """CPU-intensive tasks like image processing (executed in separate process)"""
     import hashlib
     result = hashlib.pbkdf2_hmac('sha256', data, b'salt', 100000)
     return result
 
-# I/O集約型処理
+# I/O-intensive processing
 async def io_bound_task(url: str) -> dict:
-    """API呼び出しなどI/O集約型（asyncioで実行）"""
+    """I/O-intensive tasks like API calls (executed with asyncio)"""
     import aiohttp
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as resp:
             return await resp.json()
 
-# ハイブリッド: asyncio + ProcessPoolExecutor
+# Hybrid: asyncio + ProcessPoolExecutor
 async def hybrid_handler(request_data: dict) -> dict:
     loop = asyncio.get_event_loop()
 
-    # I/O: 非同期で外部データ取得
+    # I/O: fetch external data asynchronously
     external_data = await io_bound_task("https://api.example.com/data")
 
-    # CPU: 別プロセスで重い計算
+    # CPU: heavy computation in a separate process
     with ProcessPoolExecutor(max_workers=4) as pool:
         computed = await loop.run_in_executor(
             pool,
@@ -1715,7 +1724,7 @@ async def hybrid_handler(request_data: dict) -> dict:
             external_data["payload"].encode()
         )
 
-    # I/O: 結果を保存
+    # I/O: save results
     await save_result(computed)
 
     return {"status": "ok", "hash": computed.hex()}
@@ -1726,59 +1735,59 @@ async def hybrid_handler(request_data: dict) -> dict:
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when studying this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is most important. Understanding deepens not through theory alone but by actually writing code and observing how it behaves.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend building a solid understanding of the basic concepts explained in this guide before moving to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently applied in everyday development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## まとめ
+## Summary
 
-| モデル | 核心 | 代表言語 | 適用場面 |
-|--------|------|---------|----------|
-| マルチスレッド | 共有メモリ + ロック | Java, C++, Rust | CPU集約型、レガシーシステム |
-| イベントループ | シングルスレッド + 非同期I/O | JS, Python | Web API、フロントエンド |
-| アクターモデル | メッセージパッシング | Erlang, Elixir | 分散、リアルタイム、高耐障害 |
-| CSP | 軽量スレッド + チャネル | Go | 高パフォーマンスサーバー |
-| STM | トランザクショナルメモリ | Haskell, Clojure | 複雑な共有状態管理 |
-| 構造化並行性 | スコープ付き並行 | Kotlin, Swift, Java21 | モダンアプリケーション |
+| Model | Core Concept | Representative Languages | Use Cases |
+|-------|-------------|-------------------------|-----------|
+| Multithreading | Shared memory + locks | Java, C++, Rust | CPU-intensive, legacy systems |
+| Event loop | Single thread + async I/O | JS, Python | Web APIs, frontend |
+| Actor model | Message passing | Erlang, Elixir | Distributed, real-time, high fault tolerance |
+| CSP | Lightweight threads + channels | Go | High-performance servers |
+| STM | Transactional memory | Haskell, Clojure | Complex shared state management |
+| Structured concurrency | Scoped concurrency | Kotlin, Swift, Java 21 | Modern applications |
 
-### 選択の原則
+### Principles for Selection
 
 ```
-1. シンプルさを優先する
-   → 必要以上に複雑なモデルを選ばない
-   → イベントループで十分ならマルチスレッドは不要
+1. Prioritize simplicity
+   -> Do not choose an overly complex model
+   -> If an event loop is sufficient, multithreading is unnecessary
 
-2. チームのスキルセットに合わせる
-   → 慣れた言語・モデルの方が生産性が高い
-   → 新しいモデルの導入は十分な学習期間を設ける
+2. Match the team's skill set
+   -> Productivity is higher with familiar languages and models
+   -> Allocate sufficient learning time when introducing a new model
 
-3. ボトルネックに合わせる
-   → I/O集約 → イベントループ / CSP
-   → CPU集約 → マルチスレッド / データ並列
-   → 混合 → ハイブリッドアプローチ
+3. Match the bottleneck
+   -> I/O-intensive -> Event loop / CSP
+   -> CPU-intensive -> Multithreading / data parallelism
+   -> Mixed -> Hybrid approach
 
-4. スケーラビリティ要件を考慮する
-   → 垂直スケール → マルチスレッド
-   → 水平スケール → アクターモデル / CSP
+4. Consider scalability requirements
+   -> Vertical scaling -> Multithreading
+   -> Horizontal scaling -> Actor model / CSP
 ```
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Guides
 
 ---
 
-## 参考文献
+## References
 1. Hoare, C.A.R. "Communicating Sequential Processes." 1978.
 2. Hewitt, C. "A Universal Modular Actor Formalism." 1973.
 3. Pike, R. "Concurrency Is Not Parallelism." Waza Conference, 2012.
